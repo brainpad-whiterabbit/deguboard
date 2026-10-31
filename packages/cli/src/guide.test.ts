@@ -28,6 +28,14 @@ describe("dg guide", () => {
     }
   });
 
+  it("work と finish は ticket check を案内し、本文全体を書き戻す手順を残さない", async () => {
+    const work = await readGuide("work");
+    const finish = await readGuide("finish");
+    expect(work).toContain("ticket check");
+    expect(finish).toContain("ticket check");
+    expect(finish).not.toContain("--body");
+  });
+
   it("config の値を埋める（既定なら main と origin、空の配列は「なし」）", () => {
     expect(
       fillPlaceholders(

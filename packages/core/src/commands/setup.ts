@@ -10,7 +10,7 @@ import { renumberProvisional, type Renumbered } from "../git/renumber.js";
 import { commitAll, fetchAll, integrate, isDirty, push, syncStatus } from "../git/sync.js";
 import { flushPending, withWrite } from "../git/write.js";
 import { configSchema } from "../model/config.js";
-import { acceptanceSection, type Ticket } from "../model/ticket.js";
+import { parseAcceptance, type Ticket } from "../model/ticket.js";
 import type { Doc } from "../storage/documents.js";
 import { checkReferences } from "../storage/integrity.js";
 import type { Issue } from "../storage/issue.js";
@@ -142,6 +142,13 @@ async function reconcileAll(ctx: CommandContext, warnings: string[]): Promise<Re
     if (outcome.kind === "advance") {
       await ctx.store.update("ticket", doc.id, { status: outcome.to, updated_at: nowIso(ctx) });
       changed.push({ id: doc.id, from: doc.data.status, to: outcome.to });
+      // 遷移は止めず、受け入れ条件の確認が残っていることだけ知らせる（TK-5）
+      const left = uncheckedAcceptance(doc);
+      if (outcome.to === "done" && left.length > 0) {
+        warnings.push(
+          `${doc.id}: 受け入れ条件 ${left.join(", ")} が未チェックのまま done になった`,
+        );
+      }
     } else if (outcome.kind === "blocked") {
       warnings.push(
         `${doc.id}: 事実は ${outcome.to} を指すが、Workflow が照合にその遷移を許していない`,
@@ -149,6 +156,11 @@ async function reconcileAll(ctx: CommandContext, warnings: string[]): Promise<Re
     }
   }
   return changed;
+}
+
+/** 未チェックの受け入れ条件の番号 */
+function uncheckedAcceptance(doc: Doc<Ticket>): number[] {
+  return (parseAcceptance(doc.body) ?? []).filter((i) => !i.checked).map((i) => i.index);
 }
 
 export const sync = defineCommand({
@@ -286,7 +298,7 @@ export const lint = defineCommand({
   name: "lint",
   group: "setup",
   summary:
-    "本文の推奨の節（## 概要・## 受け入れ条件）の欠けと空、Workflow の fields に合わない値を指摘する",
+    "本文の推奨の節（## 概要・## 受け入れ条件）の欠けと空、done に残る未チェックの受け入れ条件、Workflow の fields に合わない値を指摘する",
   input: z.object({ project: z.string().optional() }),
   write: false,
   needs: "store",
@@ -298,11 +310,20 @@ export const lint = defineCommand({
       if (input.project && doc.data.project !== input.project) continue;
       if (!/^## 概要\s*$/m.test(doc.body))
         warn(doc.path, doc.id, "lint_summary_missing", "本文に ## 概要 がない");
-      const acceptance = acceptanceSection(doc.body);
+      const acceptance = parseAcceptance(doc.body);
+      const unchecked = doc.data.status === "done" ? uncheckedAcceptance(doc) : [];
       if (acceptance === undefined)
         warn(doc.path, doc.id, "lint_acceptance_missing", "本文に ## 受け入れ条件 がない");
-      else if (!/^- \[[ xX]\] \S/m.test(acceptance))
+      else if (acceptance.length === 0)
         warn(doc.path, doc.id, "lint_acceptance_empty", "受け入れ条件に項目がない");
+      else if (unchecked.length > 0) {
+        warn(
+          doc.path,
+          doc.id,
+          "lint_acceptance_unchecked",
+          `done だが受け入れ条件 ${unchecked.join(", ")} が未チェック`,
+        );
+      }
       const wf = ctx.store.workflowFor(doc.data);
       for (const f of wf?.resolved.fields ?? []) {
         const v = doc.data[f.id];

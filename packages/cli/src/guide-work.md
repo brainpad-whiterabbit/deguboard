@@ -1,6 +1,6 @@
 # 作業（work）
 
-1 枚のチケットを claim から PR まで進める。状態は作業ブランチの Git 上の事実（ある・push 済み・PR・マージ）から `dg sync` が進める。
+1 枚のチケットを claim から PR まで進める。状態は作業ブランチの Git 上の事実（ある・push 済み・PR・マージ）から `dg sync` が進める。受け入れ条件の印は、PR を出す前に自分で確かめて `ticket check` で付ける。
 
 ## 流れ
 
@@ -14,9 +14,10 @@
    ```
 
 4. 実装する。本文の `## 受け入れ条件` を満たすことを目標にする。リポジトリの検査（lint・テスト）を通す
-5. コミットして push し、PR を作る。PR の本文にチケットの ID（`t12`）を書く
-6. `dg --json --actor agent sync` を回す。Workflow が PR の事実を見るなら（software-development）、PR が開いていれば review に進む（`gh` が要る）。見ないなら（general など）、PR を出したら自分で `dg --json --actor agent ticket move <id> review` に進める
-7. レビューの指摘は同じブランチで直して push する。マージは人が行う。マージ後は `dg guide finish`
+5. 受け入れ条件を 1 項目ずつ確かめる。`dg --json --actor agent ticket show <id>` の `acceptance`（`index`・`text`・`checked`）を読み、成果物やテストで満たしたと確認できた項目だけ `dg --json --actor agent ticket check <id> <番号...>` で付ける（`--all` で全部、`--undo` で外す）。確認できない項目は付けず、PR の本文と人への報告に理由を書く。印を付けたあとに `ticket update --acceptance` で文を書き換えると、文が変わった項目の印は外れる
+6. コミットして push し、PR を作る。PR の本文にチケットの ID（`t12`）と、付けられなかった受け入れ条件を書く
+7. `dg --json --actor agent sync` を回す。Workflow が PR の事実を見るなら（software-development）、PR が開いていれば review に進む（`gh` が要る）。見ないなら（general など）、PR を出したら自分で `dg --json --actor agent ticket move <id> review` に進める
+8. レビューの指摘は同じブランチで直して push する。マージは人が行う。マージ後は `dg guide finish`
 
 ## 状態について
 

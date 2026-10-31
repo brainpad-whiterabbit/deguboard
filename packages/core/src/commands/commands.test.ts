@@ -21,6 +21,7 @@ import {
 } from "./iteration.js";
 import { configSet, init, lint, sync, validate } from "./setup.js";
 import {
+  ticketCheck,
   ticketClaim,
   ticketCreate,
   ticketImport,
@@ -152,6 +153,8 @@ describe("チケットの流れ", () => {
     expect(review.data).toMatchObject({ status: "review", from: "in_progress" });
     // commit.mode は既定の batch なので作業ツリーに残る
     expect(review.write).toMatchObject({ committed: false });
+    // 受け入れ条件は 1 項目だけ付けておく（照合が残りを警告する）
+    await runCommand(ticketCheck, ctx, { ticket: "t1", items: [1] });
 
     // 作業ブランチを作って main にマージする
     await git(f.cloneA, ["checkout", "-qb", "feature/t1-login-validation"]);
@@ -163,6 +166,7 @@ describe("チケットの流れ", () => {
 
     const synced = await runCommand(sync, ctx, {});
     expect(synced.data.reconciled).toEqual([{ id: "t1", from: "review", to: "done" }]);
+    expect(synced.warnings).toContain("t1: 受け入れ条件 2 が未チェックのまま done になった");
     expect(synced.data.pushed).toBe(true);
     expect(synced.data.status).toMatchObject({ ahead: 0, behind: 0, dirty: false });
     expect(ctx.store.tickets.get("t1")?.data.status).toBe("done");
@@ -399,6 +403,57 @@ describe("チケットの流れ", () => {
     const text = await readFile(path.join(ctx.repo.dataDir, "tickets/t1.md"), "utf8");
     expect(text).toContain("estimate: 3");
   });
+
+  it("check は番号で受け入れ条件に印を付け外しし、show が acceptance を出す", async () => {
+    const f = await fixture();
+    const ctx = await initialized(f.cloneA);
+    await runCommand(ticketCreate, ctx, { title: "A", summary: "s", acceptance: ["a", "b", "c"] });
+    const shown = await runCommand(ticketShow, ctx, { ticket: "t1" });
+    expect(shown.data.acceptance).toEqual([
+      { index: 1, text: "a", checked: false },
+      { index: 2, text: "b", checked: false },
+      { index: 3, text: "c", checked: false },
+    ]);
+    const checked = await runCommand(ticketCheck, ctx, { ticket: "t1", items: [3, 1, 1] });
+    expect(checked.data.body).toBe(
+      "## 概要\n\ns\n\n## 受け入れ条件\n\n- [x] a\n- [ ] b\n- [x] c\n",
+    );
+    expect(checked.data.acceptance.map((i) => i.checked)).toEqual([true, false, true]);
+    expect(checked.write).toMatchObject({ committed: false });
+    const undone = await runCommand(ticketCheck, ctx, { ticket: "t1", items: [1], undo: true });
+    expect(undone.data.acceptance.map((i) => i.checked)).toEqual([false, false, true]);
+    const none = await runCommand(ticketCheck, ctx, { ticket: "t1", all: true, undo: true });
+    expect(none.data.acceptance.some((i) => i.checked)).toBe(false);
+    const all = await runCommand(ticketCheck, ctx, { ticket: "t1", all: true });
+    expect(all.data.acceptance.every((i) => i.checked)).toBe(true);
+    // batch なので作業ツリーに残り、sync がまとめてコミットする
+    await runCommand(sync, ctx, {});
+    const log = (await git(ctx.repo.dataDir, ["log", "--format=%s"])).stdout.trim().split("\n");
+    expect(log[0]).toBe("変更をまとめてコミット");
+  });
+
+  it("check は all と番号の同時指定・無指定を INVALID_INPUT、節や項目がない・範囲外を NOT_FOUND で拒否する", async () => {
+    const f = await fixture();
+    const ctx = await initialized(f.cloneA);
+    await runCommand(ticketCreate, ctx, { title: "A", acceptance: ["a", "b", "c"] });
+    await runCommand(ticketCreate, ctx, { title: "B", body: "本文だけ\n" });
+    await runCommand(ticketCreate, ctx, { title: "C", summary: "雛形のまま" });
+    await expect(
+      runCommand(ticketCheck, ctx, { ticket: "t1", all: true, items: [1] }),
+    ).rejects.toMatchObject({ code: "INVALID_INPUT" });
+    await expect(runCommand(ticketCheck, ctx, { ticket: "t1", items: [] })).rejects.toMatchObject({
+      code: "INVALID_INPUT",
+    });
+    await expect(runCommand(ticketCheck, ctx, { ticket: "t2", items: [1] })).rejects.toMatchObject({
+      code: "NOT_FOUND",
+    });
+    await expect(runCommand(ticketCheck, ctx, { ticket: "t3", all: true })).rejects.toMatchObject({
+      code: "NOT_FOUND",
+    });
+    await expect(
+      runCommand(ticketCheck, ctx, { ticket: "t1", items: [2, 4] }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND", message: expect.stringContaining("4") });
+  });
 });
 
 describe("Epic と Iteration", () => {
@@ -517,14 +572,22 @@ describe("用意", () => {
     await expect(
       runCommand(ticketCreate, ctx, { title: "F", acceptance: ["a\nb"] }),
     ).rejects.toMatchObject({ code: "INVALID_INPUT" });
+    // done で未チェックが残ると指摘し、todo のままなら指摘しない（D）。全部付いていれば指摘しない（G）
+    await runCommand(ticketCreate, ctx, { title: "F", acceptance: ["a", "b", "c"] });
+    await runCommand(ticketCheck, ctx, { ticket: "t6", items: [2] });
+    await runCommand(ticketMove, ctx, { ticket: "t6", status: "done" });
+    await runCommand(ticketCreate, ctx, { title: "G", acceptance: ["a"] });
+    await runCommand(ticketCheck, ctx, { ticket: "t7", all: true });
+    await runCommand(ticketMove, ctx, { ticket: "t7", status: "done" });
     const v = await runCommand(validate, ctx, {});
     expect(v.data.ok).toBe(true);
     const l = await runCommand(lint, ctx, {});
-    expect(l.data.issues.map((i) => [i.id, i.code])).toEqual([
-      ["t1", "lint_summary_missing"],
-      ["t1", "lint_acceptance_missing"],
-      ["t2", "lint_acceptance_empty"],
-      ["t3", "lint_acceptance_empty"],
+    expect(l.data.issues.map((i) => [i.id, i.code, i.message])).toEqual([
+      ["t1", "lint_summary_missing", "本文に ## 概要 がない"],
+      ["t1", "lint_acceptance_missing", "本文に ## 受け入れ条件 がない"],
+      ["t2", "lint_acceptance_empty", "受け入れ条件に項目がない"],
+      ["t3", "lint_acceptance_empty", "受け入れ条件に項目がない"],
+      ["t6", "lint_acceptance_unchecked", "done だが受け入れ条件 1, 3 が未チェック"],
     ]);
     const c = await runCommand(configSet, ctx, { key: "commit.mode", value: "each" });
     expect(c.data.commit.mode).toBe("each");

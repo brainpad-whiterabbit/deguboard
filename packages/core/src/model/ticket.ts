@@ -93,3 +93,52 @@ export function replaceAcceptance(body: string, items: readonly string[]): strin
   const tail = range.end < body.length ? "\n" : "";
   return body.slice(0, range.start) + section + tail + body.slice(range.end);
 }
+
+/** 受け入れ条件の 1 項目。index は 1 始まりで、文のない行（雛形の `- [ ] `）は数えない */
+export interface AcceptanceItem {
+  index: number;
+  text: string;
+  checked: boolean;
+}
+
+/** 節の中のチェックリストの 1 行。[1] が印、[2] が文（空のこともある） */
+const CHECK_LINE = /^- \[([ xX])\] (.*)$/;
+
+/** 節を行に割り、文のある項目に番号を振る。節がなければ undefined */
+function scanAcceptance(body: string) {
+  const range = acceptanceRange(body);
+  if (!range) return undefined;
+  const lines = body.slice(range.start, range.end).split("\n");
+  const items: (AcceptanceItem & { line: number })[] = [];
+  lines.forEach((line, i) => {
+    const m = CHECK_LINE.exec(line);
+    const text = m?.[2]?.trim();
+    if (!m || !text) return;
+    items.push({ index: items.length + 1, text, checked: m[1] !== " ", line: i });
+  });
+  return { range, lines, items };
+}
+
+/**
+ * `## 受け入れ条件` の節の項目を番号・文・済みで返す（TK-3）。
+ * 節がなければ undefined、節はあるが項目がなければ []（lint の missing / empty の区別に使う）
+ */
+export function parseAcceptance(body: string): AcceptanceItem[] | undefined {
+  return scanAcceptance(body)?.items.map(({ line: _line, ...item }) => item);
+}
+
+/**
+ * 番号で指した項目の印だけを `[x]` か `[ ]` に書き換えた本文を返す（TK-5）。
+ * 他の行・他の節は変えない。節がないか範囲外の番号は何もしない（検査は呼び手）
+ */
+export function setAcceptance(body: string, indexes: readonly number[], checked: boolean): string {
+  const scan = scanAcceptance(body);
+  if (!scan) return body;
+  const targets = new Set(indexes);
+  const lines = [...scan.lines];
+  for (const item of scan.items) {
+    if (!targets.has(item.index)) continue;
+    lines[item.line] = lines[item.line]!.replace(/^- \[[ xX]\]/, `- [${checked ? "x" : " "}]`);
+  }
+  return body.slice(0, scan.range.start) + lines.join("\n") + body.slice(scan.range.end);
+}
