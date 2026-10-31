@@ -6,7 +6,10 @@ import { z } from "zod";
 
 function parse(name: string, argv: string[]): Record<string, unknown> {
   const def = findCommand(name)!;
-  const cmd = new Command("x").exitOverride();
+  // 想定内の引数エラーを stderr に出さない
+  const cmd = new Command("x")
+    .exitOverride()
+    .configureOutput({ writeErr: () => {}, outputError: () => {} });
   const bound = bindInputs(cmd, def);
   let input: Record<string, unknown> = {};
   cmd.action((...args: unknown[]) => {
