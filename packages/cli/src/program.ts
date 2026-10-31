@@ -15,6 +15,7 @@ import {
 import { Argument, Command } from "commander";
 import { parse as parseYaml } from "yaml";
 import { toErrorView } from "./errors.js";
+import { GUIDE_TOPICS, renderGuide } from "./guide.js";
 import { bindInputs, collectInput, shapesOf } from "./options.js";
 import {
   exitCodeOf,
@@ -95,6 +96,32 @@ export function buildProgram(options: ProgramOptions = {}): Command {
     }
     return g;
   };
+
+  // guide は core のコマンドではなく CLI の責務（手順の正本は CLI に同梱する。CL-5）
+  program
+    .command("guide")
+    .description("エージェント向けの手順を出す。トピックを省くと overview")
+    .addArgument(
+      new Argument("[topic]", `トピック（${GUIDE_TOPICS.join(" / ")}）`).default("overview"),
+    )
+    .action(async (topic: string) => {
+      const global = program.opts<{ json?: boolean; C?: string }>();
+      const cwd = resolve(options.cwd ?? process.cwd(), global.C ?? ".");
+      try {
+        const guide = await renderGuide(topic, cwd);
+        if (global.json)
+          streams.out(
+            JSON.stringify({ ok: true, data: guide, warnings: [], write: null }, null, 2),
+          );
+        else streams.out(guide.text);
+        process.exitCode = 0;
+      } catch (error) {
+        const view = toErrorView(error);
+        if (global.json) printJsonError(streams, view);
+        else printError(streams, view);
+        process.exitCode = view.exitCode;
+      }
+    });
 
   for (const def of options.commands ?? allCommands) {
     const [group, op] = def.name.split(".") as [string, string | undefined];
