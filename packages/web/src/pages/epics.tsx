@@ -1,7 +1,13 @@
 // Epic（UI-10）。一覧と進捗（EP-3）、選んだ Epic のチケットを Status ごとに出す。チケットの追加・除外、閉じる・再開
 
 import { useEffect, useState } from "react";
-import { PriorityBadge, ProgressBar, StatusDot, TicketLink } from "../components/parts.js";
+import {
+  PriorityBadge,
+  ProgressBar,
+  StatusDot,
+  TicketLink,
+  TicketRow,
+} from "../components/parts.js";
 import { useHost } from "../host.js";
 import { Markdown } from "../markdown.js";
 import { hrefOf } from "../router.js";
@@ -23,11 +29,17 @@ function EpicList() {
   const host = useHost();
   const [showClosed, setShowClosed] = useState(false);
   const [title, setTitle] = useState("");
+  // サイドバーでは「+ 作る」を押したときだけフォームを出す（幅を節約する）
+  const sidebar = host.surface === "sidebar";
+  const [creating, setCreating] = useState(false);
   const rows = store.epics.filter((e) => showClosed || e.status === "open").sort(byNumber);
   const create = async () => {
     if (!title.trim() || !store.project) return;
     const r = await store.run("epic.create", { title: title.trim(), project: store.project.id });
-    if (r.ok) setTitle("");
+    if (r.ok) {
+      setTitle("");
+      setCreating(false);
+    }
   };
   return (
     <section>
@@ -41,23 +53,35 @@ function EpicList() {
           />
           閉じたものも出す
         </label>
-        <form
-          className="inline-form"
-          onSubmit={(e) => {
-            e.preventDefault();
-            void create();
-          }}
-        >
-          <input
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="新しい Epic の題"
-            aria-label="新しい Epic の題"
-          />
-          <button type="submit" className="primary" disabled={!title.trim()}>
-            作る
+        {sidebar && !creating ? (
+          <button type="button" className="link" onClick={() => setCreating(true)}>
+            + Epic を作る
           </button>
-        </form>
+        ) : (
+          <form
+            className="inline-form"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void create();
+            }}
+          >
+            <input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="新しい Epic の題"
+              aria-label="新しい Epic の題"
+              autoFocus={sidebar}
+            />
+            <button type="submit" className="primary" disabled={!title.trim()}>
+              作る
+            </button>
+            {sidebar ? (
+              <button type="button" onClick={() => setCreating(false)}>
+                やめる
+              </button>
+            ) : null}
+          </form>
+        )}
       </div>
       {rows.length === 0 ? (
         <p className="empty">Epic はない</p>
@@ -111,6 +135,8 @@ function EpicList() {
 
 function EpicDetailView({ id }: { id: string }) {
   const store = useStore();
+  const host = useHost();
+  const sidebar = host.surface === "sidebar";
   const [epic, setEpic] = useState<EpicDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [adding, setAdding] = useState("");
@@ -201,26 +227,49 @@ function EpicDetailView({ id }: { id: string }) {
                 <span className="muted">{items.length}</span>
               </h2>
               {items.length === 0 ? <p className="empty">なし</p> : null}
-              {items.map((t) => (
-                <div key={t.id} className={`card status-${s}`} style={{ cursor: "default" }}>
-                  <div className="meta">
-                    <TicketLink id={t.id} />
-                    <PriorityBadge priority={t.priority} />
-                    {open && (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          void store.run("epic.remove", { epic: epic.id, tickets: [t.id] })
-                        }
-                        title="Epic から外す"
-                      >
-                        外す
-                      </button>
-                    )}
-                  </div>
-                  <div className="title">{t.title}</div>
-                </div>
-              ))}
+              {/* サイドバーでは 1 行（カンバン・Iteration 詳細と同じ）。外すボタンは行の右 */}
+              {sidebar ? (
+                <ul className="rows">
+                  {items.map((t) => (
+                    <li key={t.id}>
+                      <TicketRow ticket={t} />
+                      {open && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            void store.run("epic.remove", { epic: epic.id, tickets: [t.id] })
+                          }
+                          title="Epic から外す"
+                        >
+                          外す
+                        </button>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+              {sidebar
+                ? null
+                : items.map((t) => (
+                    <div key={t.id} className={`card status-${s}`} style={{ cursor: "default" }}>
+                      <div className="meta">
+                        <TicketLink id={t.id} />
+                        <PriorityBadge priority={t.priority} />
+                        {open && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              void store.run("epic.remove", { epic: epic.id, tickets: [t.id] })
+                            }
+                            title="Epic から外す"
+                          >
+                            外す
+                          </button>
+                        )}
+                      </div>
+                      <div className="title">{t.title}</div>
+                    </div>
+                  ))}
             </div>
           );
         })}

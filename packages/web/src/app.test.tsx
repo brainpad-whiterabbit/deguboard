@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
-import { App } from "./app.js";
+import { act } from "react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { App, INFO_NOTICE_MS } from "./app.js";
 import { ClientError } from "./client/http.js";
 import { HostProvider, type Host } from "./host.js";
 import type { Route } from "./router.js";
@@ -11,6 +12,7 @@ import { createUiState, memoryBackend } from "./ui-state.js";
 
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
   window.location.hash = "";
   window.localStorage.clear();
 });
@@ -337,6 +339,83 @@ describe("画面", () => {
     mount();
     const link = (await screen.findByText("API")).closest("a")!;
     expect(link.getAttribute("href")).toBe("#/tickets/t2");
+  });
+
+  it("サイドバーのバックログは検索と件数だけ出し、絞り込みは畳む。効いている条件は見出しに出る", async () => {
+    window.location.hash = "#/backlog";
+    const host = webviewHost("sidebar");
+    mount(mockClient(), host);
+    await screen.findByText("API");
+    expect(screen.getByLabelText("検索")).toBeTruthy();
+    expect(screen.getByText("2 件")).toBeTruthy();
+    const fold = document.querySelector<HTMLDetailsElement>("details.filters")!;
+    expect(fold.open).toBe(false);
+    fireEvent.change(screen.getByLabelText("Epic"), { target: { value: "e1" } });
+    expect(fold.querySelector("summary")!.textContent).toContain("Epic: e1");
+    expect(screen.getByText("1 件")).toBeTruthy();
+    fold.open = true;
+    fireEvent(fold, new Event("toggle"));
+    expect(host.state.get("backlog.filters")).toBe(true);
+  });
+
+  it("サイドバーの Epic の作成フォームは「+ Epic を作る」を押したときだけ開く", async () => {
+    window.location.hash = "#/epics";
+    const client = mockClient();
+    client.handlers["epic.create"] = (input) => input;
+    mount(client, webviewHost("sidebar"));
+    await screen.findByText("最初の版");
+    expect(screen.queryByLabelText("新しい Epic の題")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "+ Epic を作る" }));
+    fireEvent.change(screen.getByLabelText("新しい Epic の題"), { target: { value: "次" } });
+    fireEvent.click(screen.getByRole("button", { name: "作る" }));
+    await waitFor(() => expect(client.calls.some((c) => c.name === "epic.create")).toBe(true));
+    await waitFor(() => expect(screen.queryByLabelText("新しい Epic の題")).toBeNull());
+  });
+
+  it("サイドバーの Epic 詳細はチケットを 1 行で出し、「外す」が行の右に出る", async () => {
+    window.location.hash = "#/epics/e1";
+    const client = mockClient();
+    client.handlers["epic.show"] = () => ({
+      ...client.data.epics[0],
+      body: "",
+      tickets: client.data.tickets.filter((t) => t.epic === "e1"),
+    });
+    mount(client, webviewHost("sidebar"));
+    await screen.findByRole("button", { name: "外す" });
+    expect(document.querySelectorAll(".card")).toHaveLength(0);
+    expect(document.querySelectorAll("ul.rows .row")).toHaveLength(1);
+  });
+
+  it("info の通知（コマンドの警告）は数秒で消える", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const client = mockClient();
+    client.handlers["sync"] = () => ({});
+    mount(client);
+    await screen.findByText("ログイン");
+    // 警告つきの応答。mockClient の handlers は data しか返せないので run を差し替える
+    const original = client.run.bind(client);
+    client.run = (async (name: string, input?: unknown) =>
+      name === "sync"
+        ? { data: {}, warnings: ["push できない: offline"] }
+        : original(name, input)) as typeof client.run;
+    fireEvent.click(screen.getByRole("button", { name: "同期" }));
+    expect((await screen.findByText(/push できない/)).closest(".notice")!.className).toBe(
+      "notice info",
+    );
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(INFO_NOTICE_MS + 100);
+    });
+    expect(document.querySelector(".notice")).toBeNull();
+  });
+
+  it("最初の読み込みが終わるまで「読み込み中…」を出し、空の Project では終わってから空状態になる", async () => {
+    const client = mockClient();
+    client.data.tickets = [];
+    mount(client);
+    expect(screen.getByText("読み込み中…")).toBeTruthy();
+    expect(screen.queryByText("Iteration はない")).toBeNull();
+    await screen.findByText("Iteration はない");
+    expect(screen.queryByText("読み込み中…")).toBeNull();
   });
 
   it("Epic の一覧は進捗を出す", async () => {

@@ -35,6 +35,8 @@ export interface Store {
   workflow: WorkflowView | null;
   status: StatusView | null;
   loading: boolean;
+  /** 最初の読み込みが終わったか。終わるまで画面は空状態の文言を出さない */
+  loaded: boolean;
   notice: Notice | null;
   selectProject(id: string): void;
   /** すべて読み直す */
@@ -65,6 +67,7 @@ export function StoreProvider({
   const [workflow, setWorkflow] = useState<WorkflowView | null>(null);
   const [status, setStatus] = useState<StatusView | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loaded, setLoaded] = useState(false);
   const [notice, setNotice] = useState<Notice | null>(null);
   const projectRef = useRef<string | null>(null);
   projectRef.current = projectId;
@@ -116,6 +119,7 @@ export function StoreProvider({
       setNotice({ kind: "error", text: f.message, detail: f.detail });
     } finally {
       setLoading(false);
+      setLoaded(true);
     }
   }, [client, refreshStatus]);
 
@@ -164,6 +168,7 @@ export function StoreProvider({
       workflow,
       status,
       loading,
+      loaded,
       notice,
       selectProject,
       reload,
@@ -181,6 +186,7 @@ export function StoreProvider({
       workflow,
       status,
       loading,
+      loaded,
       notice,
       selectProject,
       reload,
