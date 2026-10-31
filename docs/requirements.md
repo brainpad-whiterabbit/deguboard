@@ -160,8 +160,9 @@ id: software-development
 name: Software Development
 labels: # 任意。Status の表示名だけを変える
   review: コードレビュー
-transitions: # 任意。組み込みの遷移に条件を足すか、誰が行えるかを狭める（AND。OR は書けない）
-  - { from: review, to: done, by: [human] }
+transitions: # 任意。制約を足す遷移だけ書く。書かない遷移は誰でも条件なしで行える
+  - { from: todo, to: in_progress, requires: [deps_done] } # 条件を足す（AND。OR は書けない）
+  - { from: review, to: done, by: [human] } # 主体を絞る。[] でその遷移を禁止
 reconcile: # 上から評価し、前進するときだけ書き換える
   - { when: [pr_merged], status: done } # squash マージは branch_merged で取れないので PR を先に見る
   - { when: [branch_merged], status: done }
@@ -171,9 +172,9 @@ fields:
   - { id: estimate, type: number, label: 見積 }
 ```
 
-- WF-1 Status は全ワークフロー共通の 5 つ（`todo` / `in_progress` / `review` / `done` / `abandoned`）。前進の順は todo → in_progress → review → done で、`abandoned` は前進の軸の外の終端。遷移表は Core が持ち（[ADR-003](adr/ADR-003-status-and-workflow.md)）、ワークフローは `requires` を足すか `by` を狭めるだけで、遷移を増やしたり外したりできない
+- WF-1 Status は全ワークフロー共通の 5 つ（`todo` / `in_progress` / `review` / `done` / `abandoned`）。前進の順は todo → in_progress → review → done で、`abandoned` は前進の軸の外の終端。既定では 5 つの間のどの遷移も、human / agent / reconcile の誰でも条件なしで行える。ワークフローは `transitions` で from → to ごとに `by`（行える主体。`[]` で禁止）と `requires`（条件）の制約を足すだけで、Status は増やせない（[ADR-003](adr/ADR-003-status-and-workflow.md)）
 - WF-2 `requires` と `reconcile.when` に書けるのは組み込みの事実（`deps_done`、`branch_exists`、`branch_pushed`、`branch_merged`、`pr_open`、`pr_draft`、`pr_merged`）とその否定（`!pr_draft`）だけ。`deps_done` は `depends_on` のすべてが done か abandoned のとき真（やめたチケットは待たない）。利用者のスクリプトは実行しない（[ADR-003](adr/ADR-003-status-and-workflow.md)）
-- WF-3 存在しない Status や遷移を指す項目、未知の条件は読み込み時と `dg workflow validate` で指摘する
+- WF-3 存在しない Status を指す項目、未知の条件、同じ遷移の重複は読み込み時と `dg workflow validate` で指摘する
 - WF-4 `software-development`・`consulting`・`general` のテンプレートを同梱し、`dg init` が 3 つとも置く。`default` プロジェクトの Workflow はそのどれかを選べ、既定は `general`
 - WF-5 予定（`e3`）：`steps`（Run の step の語彙）と、step ごとの Action・承認の要否を足す。手続きは YAML に書かず `dg guide` が持つ
 
@@ -227,13 +228,13 @@ fields:
 ### 6.2 状態遷移と照合
 
 - ST-1 `status` はチケットに保存する。変えるのは `ticket move`・`claim`・`unclaim`、UI の操作、照合だけ
-- ST-2 遷移は Workflow の `transitions` で検査する。表にない遷移、`requires` を満たさない遷移は拒否する
-- ST-3 `claim` は todo のチケットに `claimed_by`・`branch` を記録して in_progress に進める。`deps_done`（WF-2）でなければ拒否する
+- ST-2 遷移は Workflow の `transitions` の制約で検査する。`by` に含まれない主体の遷移と `requires` を満たさない遷移は拒否し、制約のない遷移は誰でも行える。同じ Status への move は拒否する
+- ST-3 `claim` は todo のチケットに `claimed_by`・`branch` を記録して in_progress に進める。todo 以外は拒否する。依存先が終わるまで着手を止めたいときは Workflow で todo → in_progress に `requires: [deps_done]`（WF-2）を書く
 - ST-4 照合は `dg sync` と、画面の再読み込み（UI-6）で行う。チケットの `branch` について Git から事実を集め、`reconcile` 規則を上から評価し、今より前進の順が先のときだけ書き換える。`done` と `abandoned` のチケットには触れない
 - ST-5 後退を指す事実（消えたブランチ・マージされずに閉じた PR）は書き換えず警告する。ただし同じ照合で done に進むときは、マージ後に消したブランチなので警告しない。取れなかった事実は不明とし、前進の判定では偽と読む
 - ST-6 PR の事実は `gh` が使えるときだけ取る。`gh` がなくても照合は Git の事実だけで成り立つ
 - ST-7 `unclaim` は in_progress のチケットの、自分の claim か記録のない claim だけを外して todo に戻す。応答のない claim は強制の指定で外す。生存監視はしない
-- ST-8 `abandoned` にできるのは人だけ。claim を外し、Iteration の完了件数と Epic の進捗には数えない。再開（todo に戻す）と done の取り消し（todo に戻す）も人だけが行い、todo に戻すときは `claimed_by` と `branch` を消す
+- ST-8 `abandoned` にすると claim を外し、Iteration の完了件数と Epic の進捗には数えない。todo に戻す（再開・done の取り消し）ときは `claimed_by` と `branch` を消す。これらを人だけに限るなら Workflow の `by: [human]` で書く
 
 ### 6.3 Git 同期と排他
 
@@ -284,7 +285,7 @@ Web UI は `dg serve` が配信し、VS Code 拡張は同じ React アプリを 
 - EX-1 deguboard はエージェントを起動しない。チケットの処理はエージェント側の Skill が `dg` を呼んで進める
 - EX-2 終了していない Run は一覧で見え、`interrupted` として閉じられる
 - EX-3 依存に従う並列実行・自動レビュー・修正ループ・品質ゲート・自動マージは、Skill 側の手順として提供し、着手できるチケットの一覧（`ticket list` の `ready`）と Plan の順序に従う（予定 `e4`）
-- EX-4 人の承認が要る遷移（Workflow の `by: [human]`）は、エージェントからは行えない
+- EX-4 Workflow が `by: [human]` で人に限った遷移は、エージェントからは行えない
 
 ## 7. 非機能要件
 
@@ -293,7 +294,7 @@ Web UI は `dg serve` が配信し、VS Code 拡張は同じ React アプリを 
 - NF-3 データ形式は人と AI の両方が読める（Markdown・YAML・JSON）
 - NF-4 更新は検証と原子的な書き込みを行い、ファイルを壊さない
 - NF-5 同時更新の競合を検出して報告する
-- NF-6 Workflow の表にない状態遷移を作れない
+- NF-6 Workflow の `transitions` の制約に反する状態遷移を作れない
 - NF-7 Run の停止・失敗から、状態を壊さずに復旧できる
 - NF-8 サーバーは既定で localhost にバインドする（UI-8）
 - NF-9 Workflow に書かれた任意のコマンドを無条件に実行しない

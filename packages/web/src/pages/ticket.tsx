@@ -262,9 +262,7 @@ export function TicketPage({ id }: { id: string }) {
             ) : (
               <span className="muted">なし</span>
             )}
-            {!ticket.deps_done && (
-              <div className="muted">依存先が終わっていないので着手できない</div>
-            )}
+            {!ticket.deps_done && <div className="muted">依存先が終わっていない</div>}
           </dd>
           <dt>依存元</dt>
           <dd>

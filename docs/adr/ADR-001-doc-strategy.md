@@ -30,7 +30,7 @@ deguboard は AI エージェント（Claude Code など）が主に実装する
 
 - コマンドがあることと、何をするか（書き込むか・push するか・止まる条件）
 - データ（Project・Ticket・Epic・Iteration・Plan・Workflow・Run・config）の形と意味
-- 状態遷移の約束（遷移表そのものは該当 ADR を参照する）
+- 状態遷移の約束（既定と制約の仕組みは該当 ADR を参照する）
 - 画面に何が出て、何ができるか
 - 限界
 

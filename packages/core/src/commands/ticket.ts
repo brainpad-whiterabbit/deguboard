@@ -12,7 +12,7 @@ import type { Doc } from "../storage/documents.js";
 import { wouldCreateCycle } from "../storage/integrity.js";
 import type { Store, WorkflowEntry } from "../storage/store.js";
 import type { Facts } from "../workflow/conditions.js";
-import { canTransition, describeRejection } from "../workflow/resolve.js";
+import { canTransition, describeRejection, findConstraint } from "../workflow/resolve.js";
 import { defineCommand, ok, type CommandContext } from "./define.js";
 import { matchesFilter, ticketFilterSchema } from "./filters.js";
 import { dependents, nowIso, projectOf, sortedDocs, ticketRef, withBody } from "./helpers.js";
@@ -404,8 +404,8 @@ async function factsFor(
   to: Status,
 ): Promise<Facts> {
   const facts: Facts = { deps_done: ctx.store.depsDone(doc.data) };
-  const transition = wf.resolved.transitions.find((t) => t.from === from && t.to === to);
-  const gitFacts = (transition?.requires ?? [])
+  const constraint = findConstraint(wf.resolved, from, to);
+  const gitFacts = (constraint?.requires ?? [])
     .map((c) => c.replace(/^!/, "") as FactName)
     .filter((f) => f !== "deps_done");
   if (gitFacts.length > 0 && doc.data.branch) {
@@ -428,7 +428,8 @@ export const ticketMove = defineCommand({
   name: "ticket.move",
   positionals: ["ticket", "status"],
   group: "ticket",
-  summary: "Status を変える。遷移表と Workflow の requires を通らない遷移は拒否する",
+  summary:
+    "Status を変える。Workflow の transitions の制約（by・requires）に反する遷移と、同じ Status への move は拒否する",
   input: z.object({
     ticket: ticketRef,
     status: statusSchema.describe(`次の Status（${STATUSES.join(" / ")}）`),
@@ -505,7 +506,7 @@ export const ticketClaim = defineCommand({
   positionals: ["ticket"],
   group: "ticket",
   summary:
-    "チケットに着手する。claimed_by とブランチを記録して in_progress にし、push の成功で排他を得る",
+    "チケットに着手する。claimed_by とブランチを記録して in_progress にし、push の成功で排他を得る。todo → in_progress の制約（requires: [deps_done] など）があれば従う",
   input: z.object({
     ticket: ticketRef,
     branch: z.string().min(1).optional().describe("作業ブランチ名。省略時は feature/<id>-<slug>"),

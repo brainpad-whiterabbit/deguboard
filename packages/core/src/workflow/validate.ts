@@ -6,7 +6,6 @@ import { workflowDefinitionSchema, type WorkflowDefinition } from "../model/work
 import type { Issue } from "../storage/issue.js";
 import { parseCondition } from "./conditions.js";
 import { resolveWorkflow, type ResolvedWorkflow } from "./resolve.js";
-import { findBuiltinTransition } from "./transitions.js";
 
 export interface WorkflowValidation {
   workflow?: ResolvedWorkflow;
@@ -35,27 +34,27 @@ export function validateWorkflow(raw: unknown, path: string): WorkflowValidation
   const issue = (code: string, message: string) =>
     issues.push({ severity: "error", code, path, id: def.id, message });
 
+  const seen = new Set<string>();
   def.transitions.forEach((t, i) => {
-    const builtin = findBuiltinTransition(t.from, t.to);
-    if (!builtin) {
-      issue(
-        "workflow_transition_unknown",
-        `transitions[${i}]: ${t.from} → ${t.to} は遷移表にない遷移`,
-      );
-      return;
-    }
     for (const c of t.requires) {
       if (!parseCondition(c))
         issue("workflow_condition_unknown", `transitions[${i}]: 未知の条件 ${c}`);
     }
-    for (const actor of t.by ?? []) {
-      if (!builtin.by.includes(actor)) {
-        issue(
-          "workflow_actor_widened",
-          `transitions[${i}]: ${t.from} → ${t.to} を ${actor} に広げることはできない`,
-        );
-      }
+    if (t.from === t.to) {
+      issue(
+        "workflow_transition_self",
+        `transitions[${i}]: ${t.from} → ${t.to} は意味がない。同じ Status への move は常に拒否される`,
+      );
+      return;
     }
+    const key = `${t.from}>${t.to}`;
+    if (seen.has(key)) {
+      issue(
+        "workflow_transition_duplicate",
+        `transitions[${i}]: ${t.from} → ${t.to} が重複している。1 つにまとめる`,
+      );
+    }
+    seen.add(key);
   });
   def.reconcile.forEach((r, i) => {
     for (const c of r.when) {

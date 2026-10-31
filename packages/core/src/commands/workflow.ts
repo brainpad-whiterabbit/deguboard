@@ -30,7 +30,8 @@ export const workflowShow = defineCommand({
   name: "workflow.show",
   positionals: ["workflow"],
   group: "workflow",
-  summary: "Workflow の定義と、組み込みの遷移表と合成した遷移を出す",
+  summary:
+    "Workflow の定義と、from→to ごとに合成した遷移の制約を出す。書かれていない遷移は誰でも条件なしで行える",
   input: z.object({ workflow: slugSchema }),
   write: false,
   needs: "store",
@@ -51,7 +52,7 @@ export const workflowValidate = defineCommand({
   name: "workflow.validate",
   positionals: ["workflow"],
   group: "workflow",
-  summary: "Workflow 定義の指摘（存在しない Status や遷移、未知の条件）を出す",
+  summary: "Workflow 定義の指摘（存在しない Status、未知の条件、同じ遷移の重複）を出す",
   input: z.object({ workflow: slugSchema.optional().describe("1 つだけ検査する") }),
   write: false,
   needs: "store",
