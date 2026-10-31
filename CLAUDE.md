@@ -6,12 +6,13 @@ Git-native な AI ワークフロー・チケット管理ツール。CLI は `dg
 
 ## ドキュメント（入口と正本）
 
-| 読み手         | 入口                 | そこから引くもの                                               |
-| -------------- | -------------------- | -------------------------------------------------------------- |
-| Claude（毎回） | このファイル         | 作業に応じて development.md・requirements.md・ADR 一覧の要る節 |
-| 利用者         | README.md            | requirements.md                                                |
-| 開発者（人）   | docs/development.md  | 規約はこのファイル                                             |
-| 仕様           | docs/requirements.md | 理由が要るときだけ ADR                                         |
+| 読み手                 | 入口                 | そこから引くもの                                               |
+| ---------------------- | -------------------- | -------------------------------------------------------------- |
+| Claude（毎回）         | このファイル         | 作業に応じて development.md・requirements.md・ADR 一覧の要る節 |
+| 利用者                 | README.md            | requirements.md                                                |
+| 開発者（人）           | docs/development.md  | 規約はこのファイル                                             |
+| 仕様                   | docs/requirements.md | 理由が要るときだけ ADR                                         |
+| エージェント（作業中） | `dg guide <topic>`   | 手順は CLI が出す。docs は読まない                             |
 
 - 仕様の正本は [docs/requirements.md](docs/requirements.md)。約束（振る舞いとデータの形）だけを書き、細部の正本はヘルプ・コード・テスト。書く範囲は [ADR-001](docs/adr/ADR-001-doc-strategy.md)
 - 設計判断は [docs/adr/](docs/adr/README.md)。**テーマごとに 1 本で、小さな変更は該当 ADR を直接書き換える**（更新日を変え、一覧も直す）。新しい ADR を書くのは方針を反転する大きな変更だけ。迷ったら書き換える
@@ -29,7 +30,7 @@ Git-native な AI ワークフロー・チケット管理ツール。CLI は `dg
 
 ## コードの規約
 
-- `packages/core` は VS Code API・HTTP・React に依存させない。`cli`・`server`・`vscode` は `core` だけに依存する（[ADR-007](docs/adr/ADR-007-architecture.md)）
+- `packages/core` は VS Code API・HTTP・React に依存させない。`server`・`vscode` は `core` だけに依存し、`cli` は `dg serve` のために `server` にも依存する（[ADR-007](docs/adr/ADR-007-architecture.md)）
 - すべての操作は `packages/core/src/commands/` のコマンド定義に置き、CLI・HTTP・Webview はそれを写す。入口にロジックを書かない
 - git・gh は `child_process.execFile` で引数配列として呼ぶ。シェルを経由しない
 - Git 操作のテストは、一時ディレクトリに作った bare リモート付きのリポジトリで行う
@@ -38,7 +39,8 @@ Git-native な AI ワークフロー・チケット管理ツール。CLI は `dg
 ## チケット
 
 - このリポジトリのチケットは deguboard 自身で管理する（ドッグフーディング）。`mise run dg -- <引数>` で読み書きし、`.git/deguboard/` のファイルを直接編集しない。Issue は使わない。手順は [docs/development.md の「チケットと作業の流れ」](docs/development.md#チケットと作業の流れ)
-- 作業はチケットに紐づける：起票 → `claim` でブランチを記録 → PR の本文に ID（`t12`）を書く → マージ後に `dg sync` で done にする
+- 作業はチケットに紐づける。`claim` してから着手し、PR の本文に ID（`t12`）を書く
+- Claude は `DEGUBOARD_ACTOR=agent` を付けて `dg` を呼ぶ。人だけの操作（abandoned、done の取り消し、Epic や Iteration を閉じる）は人に頼む
 - 要件を変える変更は、同じ PR で requirements.md を直す。判断を変える変更は該当 ADR を書き換える
 
 ## ブランチ・PR・マージ

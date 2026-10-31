@@ -21,10 +21,11 @@
 - ドラッグ＆ドロップでのステータス変更、属性の編集、イテレーションへの割り当てなどを UI から行える
 - 書き込みは必ず Core の同じコマンド（`core/commands`）を通る。遷移表と `requires` の検査、採番、検証は CLI と同じ経路で行われ、UI だけの近道を作らない
 - カンバンの列は 5 つの Status に固定し（abandoned は既定で隠す）、表示名はワークフロー定義の `labels`、表示項目は `fields` に追従する
+- 画面からの操作の主体は常に human（画面に `--actor` はない）。エージェントは CLI から agent を名乗る（[ADR-004](ADR-004-agents-and-state.md)）
 
 ### コミットの単位は設定で選ぶ
 
-- `config.yaml` の `commit.mode`：`each`（1 操作 1 コミット）/ `batch`（一定時間まとめる）/ `manual`（`dg commit`）。既定は `batch`
+- `config.yaml` の `commit.mode`：`each`（書き込みのたびにコミット）/ `batch`（作業ツリーに残し、`dg commit`・`dg sync`・即時の操作がまとめてコミット）/ `manual`（`dg commit` と即時の操作だけ）。既定は `batch`。時間でまとめるのは Core ではなく server・拡張の責務
 - `push.mode`：`auto` / `manual`。既定は `auto`
 - claim と作成は mode によらず即座にコミットして push する（排他と採番のため。[ADR-002](ADR-002-storage-and-id.md)・[ADR-004](ADR-004-agents-and-state.md)）
 

@@ -20,7 +20,7 @@
 ### ツールと作業コマンドは mise に統一する
 
 - `mise.toml` で node と pnpm の版を固定する。開発者は `mise install` でツールを揃える
-- 作業のコマンドは `mise run <task>` を唯一の入口にする。タスクは `install`・`format`・`format:check`・`lint`・`typecheck`・`test`・`check:docs`・`check`
+- 作業のコマンドは `mise run <task>` を唯一の入口にする。タスクの一覧は mise.toml が正本（`mise tasks`）
 - タスクは pnpm scripts を呼ぶだけにし、同じ内容を 2 か所に書かない。pnpm scripts は mise から呼ばれる前提で、人は `mise run` だけ覚える
 - `check` はコミット前の確認で、format:check → lint → typecheck → test → check:docs を順に実行する
 - CI は使わない。検査は作業者がローカルで `mise run check` を通すことにとどめ、マージの条件にする

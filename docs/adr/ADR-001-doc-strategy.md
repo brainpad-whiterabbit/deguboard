@@ -30,7 +30,7 @@ deguboard は AI エージェント（Claude Code など）が主に実装する
 
 - コマンドがあることと、何をするか（書き込むか・push するか・止まる条件）
 - データ（Project・Ticket・Epic・Iteration・Plan・Workflow・Run・config）の形と意味
-- 状態遷移
+- 状態遷移の約束（遷移表そのものは該当 ADR を参照する）
 - 画面に何が出て、何ができるか
 - 限界
 
@@ -57,7 +57,7 @@ deguboard は AI エージェント（Claude Code など）が主に実装する
 | `README.md`            | 12KB |
 | `docs/requirements.md` | 40KB |
 | `docs/development.md`  | 15KB |
-| ADR 1 本               | 8KB  |
+| ADR 1 本               | 10KB |
 
 `scripts/check-docs.mjs`（`mise run check:docs`）が予算と ADR 一覧の整合を検査し、超えたら失敗にする。超えそうなら、細部を正本へ移すか、約束を見直す。
 
