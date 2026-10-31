@@ -31,6 +31,44 @@ mise run install    # 依存を lockfile どおりに入れる
 
 タスクの一覧は `mise tasks` で見られる。タスクは pnpm scripts を呼ぶだけで、定義は [mise.toml](../mise.toml) と [package.json](../package.json)。
 
+## ブランチと worktree
+
+`dg` でこのリポジトリのチケットを管理できるようになるまでの、1 つの変更を `main` に入れる手順。規約（squash マージ、ブランチを消す）は [CLAUDE.md](../CLAUDE.md#ブランチprマージ) にある。`dg` でこのリポジトリのチケットを管理できるようになったら、この節を `dg` を使う手順に書き替え、ここの手順は消す（古い手順を残さない）。
+
+worktree は `../deguboard.worktrees/<ブランチ名>` に置く。`dg` の `worktree.root` の既定（[requirements.md](requirements.md)）と同じ場所で、リポジトリの外なので `.gitignore` は要らない。ブランチ名は `<種類>/<内容>`（例：`docs/branch-strategy`、`feat/ticket-create`、`fix/sync-warning`）。
+
+1. `main` の worktree で、`origin/main` から作業ブランチと worktree を作る
+
+   ```sh
+   git fetch origin
+   git worktree add --no-track -b <ブランチ名> ../deguboard.worktrees/<ブランチ名> origin/main
+   ```
+
+2. worktree に移って環境を用意する。`mise trust` と `node_modules` は worktree ごとに要る
+
+   ```sh
+   cd ../deguboard.worktrees/<ブランチ名>
+   mise trust && mise run install
+   ```
+
+3. 実装し、`mise run format` と `mise run check` を通してコミットし、push して PR を出す
+
+   ```sh
+   git push -u origin <ブランチ名>
+   gh pr create --base main
+   ```
+
+4. レビューの指摘は同じ worktree で直して push する。CI が通り、承認されたらマージする。worktree は先に消す（ブランチを checkout したままだと `gh` がローカルのブランチを消せない）
+
+   ```sh
+   cd <main の worktree>            # リポジトリ本体
+   git worktree remove ../deguboard.worktrees/<ブランチ名>
+   gh pr merge <PR 番号> --squash --delete-branch
+   git pull --ff-only
+   ```
+
+   `--delete-branch` がリモートとローカルのブランチを消す。worktree に未コミットの変更が残っていて `git worktree remove` が止まったら、要るものを退避してから `--force` を付ける。
+
 ## ビルドとテスト
 
 Phase 1 の基盤チケットで書く。

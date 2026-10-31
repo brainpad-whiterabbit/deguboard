@@ -40,9 +40,9 @@ Git-native な AI ワークフロー・チケット管理ツール。CLI は `dg
 - このリポジトリのチケットは、`dg` が動くようになったら deguboard 自身で管理する（ドッグフーディング）。それまでは PR と Issue で進める
 - 要件を変える変更は、同じ PR で requirements.md を直す。判断を変える変更は該当 ADR を書き換える
 
-## コミット・PR・マージ
+## ブランチ・PR・マージ
 
+- 変更は `main` から切った作業ブランチを git worktree に checkout して行う。`main` に直接コミットせず、`main` の worktree では作業しない。手順は [docs/development.md の「ブランチと worktree」](docs/development.md#ブランチと-worktree)
 - コミットメッセージと PR のタイトルは日本語で、要約を 1 行目に書く
-- PR は `main` に向ける。`main` に直接コミットしない
-- マージは squash で行い、ブランチを消す
-- CI（`mise run check`）が通っていることをマージの条件にする
+- PR は `main` に向ける。CI（`mise run check`）が通り、承認されたことをマージの条件にする
+- マージは squash で行い、リモートとローカルのブランチと worktree を消す
