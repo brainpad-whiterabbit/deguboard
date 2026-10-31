@@ -31,43 +31,55 @@ mise run install    # 依存を lockfile どおりに入れる
 
 タスクの一覧は `mise tasks` で見られる。タスクは pnpm scripts を呼ぶだけで、定義は [mise.toml](../mise.toml) と [package.json](../package.json)。
 
-## ブランチと worktree
+## チケットと作業の流れ
 
-`dg` でこのリポジトリのチケットを管理できるようになるまでの、1 つの変更を `main` に入れる手順。規約（squash マージ、ブランチを消す）は [CLAUDE.md](../CLAUDE.md#ブランチprマージ) にある。`dg` でこのリポジトリのチケットを管理できるようになったら、この節を `dg` を使う手順に書き替え、ここの手順は消す（古い手順を残さない）。
+このリポジトリのチケットは deguboard 自身で管理する（ドッグフーディング）。データは orphan ブランチ `deguboard`（worktree は `.git/deguboard/`）にあり、`dg` でだけ読み書きする。`dg` は `mise run build` のあと `mise run dg -- <引数>` で動く。`core` や `cli` を変えた PR を取り込んだら、もう一度 `mise run build` する。
 
-worktree は `../deguboard.worktrees/<ブランチ名>` に置く。`dg` の `worktree.root` の既定（[requirements.md](requirements.md)）と同じ場所で、リポジトリの外なので `.gitignore` は要らない。ブランチ名は `<種類>/<内容>`（例：`docs/branch-strategy`、`feat/ticket-create`、`fix/sync-warning`）。
+規約（squash マージ、ブランチを消す）は [CLAUDE.md](../CLAUDE.md#ブランチprマージ) にある。worktree は `../deguboard.worktrees/<ブランチ名>` に置く。`dg` の `worktree.root` の既定（[requirements.md](requirements.md)）と同じ場所で、リポジトリの外なので `.gitignore` は要らない。ブランチ名は `<種類>/<内容>`（例：`docs/branch-strategy`、`feat/ticket-create`、`fix/sync-warning`）。
 
-1. `main` の worktree で、`origin/main` から作業ブランチと worktree を作る
+1. 起票する。複数まとめて起こすときは YAML の下書きを `ticket import` に渡す（`mise run dg -- ticket import --help`）。Phase 1 の残りは Epic `e1` に入れる
+
+   ```sh
+   mise run dg -- ticket create "<題>" --summary "<概要>" --epic e1
+   mise run dg -- ticket list          # 番号を確かめる。--ready で着手できるものだけ
+   ```
+
+2. 着手する。`claim` がブランチ名を記録して in_progress にし、push の成功で排他を得る。依存先が done でなければ拒否される
+
+   ```sh
+   mise run dg -- ticket claim <番号> --branch <ブランチ名>
+   ```
+
+3. `main` の worktree で、`origin/main` から作業ブランチと worktree を作り、環境を用意する。`mise trust` と `node_modules` は worktree ごとに要る
 
    ```sh
    git fetch origin
    git worktree add --no-track -b <ブランチ名> ../deguboard.worktrees/<ブランチ名> origin/main
-   ```
-
-2. worktree に移って環境を用意する。`mise trust` と `node_modules` は worktree ごとに要る
-
-   ```sh
    cd ../deguboard.worktrees/<ブランチ名>
    mise trust && mise run install
    ```
 
-3. 実装し、`mise run format` と `mise run check` を通してコミットし、push して PR を出す
+4. 実装し、`mise run format` と `mise run check` を通してコミットし、push して PR を出す。PR の本文にチケットの ID（`t12`）を書く。PR が開けば `dg sync` が照合でチケットを review に進める（`gh` が要る。なければ `ticket move <番号> review`）
 
    ```sh
    git push -u origin <ブランチ名>
    gh pr create --base main
+   mise run dg -- sync
    ```
 
-4. レビューの指摘は同じ worktree で直して push する。`mise run check` を通してから push し、承認されたらマージする。worktree は先に消す（ブランチを checkout したままだと `gh` がローカルのブランチを消せない）
+5. レビューの指摘は同じ worktree で直して push する。承認されたらマージする。worktree は先に消す（ブランチを checkout したままだと `gh` がローカルのブランチを消せない）。マージ後の `dg sync` が PR のマージを照合してチケットを done にする
 
    ```sh
    cd <main の worktree>            # リポジトリ本体
    git worktree remove ../deguboard.worktrees/<ブランチ名>
    gh pr merge <PR 番号> --squash --delete-branch
    git pull --ff-only
+   mise run dg -- sync
    ```
 
    `--delete-branch` がリモートとローカルのブランチを消す。worktree に未コミットの変更が残っていて `git worktree remove` が止まったら、要るものを退避してから `--force` を付ける。
+
+やめるチケットは `mise run dg -- ticket move <番号> abandoned`（人だけが行える）。着手をやめて todo に戻すのは `ticket unclaim <番号>`。`dg` 自体の不具合でチケットを動かせないときは、`.git/deguboard/` のファイルを直接直してコミットし、その不具合を起票する。
 
 ## ビルドとテスト
 
