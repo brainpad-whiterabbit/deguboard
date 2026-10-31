@@ -61,7 +61,11 @@ export async function isDirty(repo: GitRepo): Promise<boolean> {
   return (await git(repo, ["status", "--porcelain"])).stdout.trim().length > 0;
 }
 
-/** リモートの deguboard に rebase する。競合したら中止してローカルのコミットを残す（SY-4） */
+/**
+ * リモートの deguboard に rebase する。競合したら中止してローカルのコミットを残す（SY-4）。
+ * 空のコミットは落とす（--no-keep-empty）：別々に作った orphan の根（空のツリー）を積み直して履歴に割り込ませないため。
+ * 根は作成時刻が同じ秒なら同じ SHA になって fast-forward し、違えば別の根になるので、落とさないと結果が時刻に依る
+ */
 export async function integrate(
   repo: GitRepo,
   opts: { autostash?: boolean } = {},
@@ -72,7 +76,12 @@ export async function integrate(
   });
   if (has.code !== 0) return { ok: true, changed: false };
   const before = await headSha(repo);
-  const args = ["rebase", ...(opts.autostash ? ["--autostash"] : []), remoteRef(repo)];
+  const args = [
+    "rebase",
+    "--no-keep-empty",
+    ...(opts.autostash ? ["--autostash"] : []),
+    remoteRef(repo),
+  ];
   const result = await git(repo, args, { allowFailure: true });
   if (result.code === 0) return { ok: true, changed: (await headSha(repo)) !== before };
   const conflicts = (
