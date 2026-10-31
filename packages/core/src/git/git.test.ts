@@ -283,14 +283,16 @@ describe("事実の収集", () => {
     const a = await openRepo(f.cloneA);
     await git(f.cloneA, ["checkout", "-qb", "feature/t1-x"]);
     await git(f.cloneA, ["commit", "-q", "--allow-empty", "-m", "作業"]);
-    expect(await collectBranchFacts(a.repo, "feature/t1-x", { needPr: false })).toEqual({
+    expect((await collectBranchFacts(a.repo, "feature/t1-x", { needPr: false })).facts).toEqual({
       branch_exists: true,
       branch_pushed: false,
       branch_merged: false,
     });
     await git(f.cloneA, ["push", "-q", "-u", "origin", "feature/t1-x"]);
     await git(a.repo.dataDir, ["fetch", "-q", "--prune", "origin"]);
-    expect(await collectBranchFacts(a.repo, "feature/t1-x", { needPr: false })).toMatchObject({
+    expect(
+      (await collectBranchFacts(a.repo, "feature/t1-x", { needPr: false })).facts,
+    ).toMatchObject({
       branch_pushed: true,
     });
     await git(f.cloneA, ["checkout", "-q", "main"]);
@@ -299,13 +301,17 @@ describe("事実の収集", () => {
     await git(f.cloneA, ["commit", "-q", "--allow-empty", "-m", "次の作業"]);
     await git(f.cloneA, ["push", "-q", "origin", "main"]);
     await git(a.repo.dataDir, ["fetch", "-q", "--prune", "origin"]);
-    expect(await collectBranchFacts(a.repo, "feature/t1-x", { needPr: false })).toMatchObject({
+    expect(
+      (await collectBranchFacts(a.repo, "feature/t1-x", { needPr: false })).facts,
+    ).toMatchObject({
       branch_merged: true,
     });
     await git(f.cloneA, ["push", "-q", "origin", "--delete", "feature/t1-x"]);
     await git(f.cloneA, ["branch", "-qD", "feature/t1-x"]);
     await git(a.repo.dataDir, ["fetch", "-q", "--prune", "origin"]);
-    expect(await collectBranchFacts(a.repo, "feature/t1-x", { needPr: false })).toMatchObject({
+    expect(
+      (await collectBranchFacts(a.repo, "feature/t1-x", { needPr: false })).facts,
+    ).toMatchObject({
       branch_exists: false,
     });
   });
@@ -318,9 +324,10 @@ describe("事実の収集", () => {
     const savedPath = process.env["PATH"];
     process.env["PATH"] = path.join(f.root, "empty-bin") + path.delimiter + "/usr/bin:/bin";
     try {
-      const facts = await collectBranchFacts(a.repo, "none", { needPr: true });
+      const { facts, pr } = await collectBranchFacts(a.repo, "none", { needPr: true });
       expect(facts.pr_open).toBeUndefined();
       expect(facts.pr_merged).toBeUndefined();
+      expect(pr).toBeUndefined();
     } finally {
       process.env["PATH"] = savedPath;
       resetGhCache();

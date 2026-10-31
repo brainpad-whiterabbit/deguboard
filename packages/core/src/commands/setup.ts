@@ -116,9 +116,17 @@ export interface ReconciledTicket {
   to: string;
 }
 
-/** 照合（ST-4〜ST-6）。書き換えた件数を返す */
-async function reconcileAll(ctx: CommandContext, warnings: string[]): Promise<ReconciledTicket[]> {
+export interface Reconciled {
+  /** 状態を進めたチケット */
+  changed: ReconciledTicket[];
+  /** PR 番号を記録したチケット（ST-6） */
+  prRecorded: Array<{ id: string; pr: number }>;
+}
+
+/** 照合（ST-4〜ST-6）。状態を進めたチケットと、PR 番号を記録したチケットを返す */
+async function reconcileAll(ctx: CommandContext, warnings: string[]): Promise<Reconciled> {
   const changed: ReconciledTicket[] = [];
+  const prRecorded: Array<{ id: string; pr: number }> = [];
   const targets = [...ctx.store.tickets.values()].filter(
     (t): t is Doc<Ticket> & { data: Ticket & { branch: string } } =>
       t.data.branch !== undefined && t.data.status !== "done" && t.data.status !== "abandoned",
@@ -129,7 +137,7 @@ async function reconcileAll(ctx: CommandContext, warnings: string[]): Promise<Re
       warnings.push(`${doc.id}: Workflow が読めないので照合しない`);
       continue;
     }
-    const facts = await collectBranchFacts(ctx.repo, doc.data.branch, {
+    const { facts, pr } = await collectBranchFacts(ctx.repo, doc.data.branch, {
       pr: doc.data.pr,
       needPr: needsPr(wf),
     });
@@ -139,9 +147,20 @@ async function reconcileAll(ctx: CommandContext, warnings: string[]): Promise<Re
     if (!(outcome.kind === "advance" && outcome.to === "done")) {
       for (const w of regressionWarnings(doc.data.status, facts)) warnings.push(`${doc.id}: ${w}`);
     }
+    // ブランチ名で見つけた PR の番号は、状態が進まなくても記録する（記録済みなら触れない）
+    const patch: Record<string, unknown> = {};
+    if (pr !== undefined && doc.data.pr === undefined) {
+      patch["pr"] = pr;
+      prRecorded.push({ id: doc.id, pr });
+    }
     if (outcome.kind === "advance") {
-      await ctx.store.update("ticket", doc.id, { status: outcome.to, updated_at: nowIso(ctx) });
+      patch["status"] = outcome.to;
       changed.push({ id: doc.id, from: doc.data.status, to: outcome.to });
+    }
+    if (Object.keys(patch).length > 0) {
+      await ctx.store.update("ticket", doc.id, { ...patch, updated_at: nowIso(ctx) });
+    }
+    if (outcome.kind === "advance") {
       // 遷移は止めず、受け入れ条件の確認が残っていることだけ知らせる（TK-5）
       const left = uncheckedAcceptance(doc);
       if (outcome.to === "done" && left.length > 0) {
@@ -155,7 +174,7 @@ async function reconcileAll(ctx: CommandContext, warnings: string[]): Promise<Re
       );
     }
   }
-  return changed;
+  return { changed, prRecorded };
 }
 
 /** 未チェックの受け入れ条件の番号 */
@@ -223,11 +242,17 @@ export const sync = defineCommand({
           }
         }
       }
-      const reconciled = conflicts.length === 0 ? await reconcileAll(ctx, warnings) : [];
-      if (reconciled.length > 0 || confirmed.length > 0) {
+      const { changed: reconciled, prRecorded } =
+        conflicts.length === 0
+          ? await reconcileAll(ctx, warnings)
+          : { changed: [], prRecorded: [] };
+      if (reconciled.length > 0 || prRecorded.length > 0 || confirmed.length > 0) {
         const parts = [
           ...(reconciled.length > 0
             ? [`照合で ${reconciled.map((r) => `${r.id}: ${r.from} → ${r.to}`).join(", ")}`]
+            : []),
+          ...(prRecorded.length > 0
+            ? [`PR 番号を記録: ${prRecorded.map((r) => `${r.id}: #${r.pr}`).join(", ")}`]
             : []),
           ...(confirmed.length > 0 ? [`仮番号を確定: ${confirmed.join(", ")}`] : []),
         ];
@@ -247,6 +272,7 @@ export const sync = defineCommand({
           conflicts,
           renumbered,
           reconciled,
+          pr_recorded: prRecorded,
           confirmed,
           status,
         },

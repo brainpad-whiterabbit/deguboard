@@ -15,7 +15,7 @@
 
 4. 実装する。本文の `## 受け入れ条件` を満たすことを目標にする。リポジトリの検査（lint・テスト）を通す
 5. 受け入れ条件を 1 項目ずつ確かめる。`dg --json --actor agent ticket show <id>` の `acceptance`（`index`・`text`・`checked`）を読み、成果物やテストで満たしたと確認できた項目だけ `dg --json --actor agent ticket check <id> <番号...>` で付ける（`--all` で全部、`--undo` で外す）。確認できない項目は付けず、PR の本文と人への報告に理由を書く。印を付けたあとに `ticket update --acceptance` で文を書き換えると、文が変わった項目の印は外れる
-6. コミットして push し、PR を作る。PR の本文にチケットの ID（`t12`）と、付けられなかった受け入れ条件を書く
+6. コミットして push し、PR を作る。PR の本文にチケットの ID（`t12`）と、付けられなかった受け入れ条件を書く。PR の番号をチケットに記録する：`dg --json --actor agent ticket update <id> --pr <番号>`
 7. `dg --json --actor agent sync` を回す。Workflow が PR の事実を見るなら（software-development）、PR が開いていれば review に進む（`gh` が要る）。見ないなら（general など）、PR を出したら自分で `dg --json --actor agent ticket move <id> review` に進める
 8. レビューの指摘は同じブランチで直して push する。マージは人が行う。マージ後は `dg guide finish`
 
@@ -28,4 +28,4 @@
 ## 任意フィールドと PR 番号
 
 - Workflow の `fields`（見積など）は `dg --json --actor agent ticket update <id> --field estimate=3`
-- PR 番号をチケットに残すなら `dg --json --actor agent ticket update <id> --pr 42`。照合は PR 番号があればそれで、なければブランチ名で PR を引く
+- PR 番号は `dg --json --actor agent ticket update <id> --pr 42` で記録する。照合は PR 番号があればそれで、なければブランチ名で PR を引き、見つけた番号を `pr` に補う（Workflow が PR の事実を見るときだけ）。ブランチを使い回すと別の PR を拾いうるので、PR を作ったら自分で記録する
