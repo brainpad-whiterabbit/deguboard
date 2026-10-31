@@ -3,3 +3,4 @@ dist/
 coverage/
 .mise.local.toml
 *.tsbuildinfo
+*.vsix

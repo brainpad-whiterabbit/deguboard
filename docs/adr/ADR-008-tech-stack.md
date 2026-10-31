@@ -44,6 +44,7 @@
 
 - 拡張ホストは CommonJS を読むので、`packages/vscode` は Vite の SSR ビルドで `dist/extension.cjs` の 1 ファイルに束ねる。core は `development` 条件で `src` から取り込み、`vscode` だけ外部にする
 - web のビルド結果は `dist/web` に写して Webview から読む。拡張のためのバンドラは増やさない（esbuild や webpack は入れない）
+- VSIX は `@vscode/vsce` で作る（`mise run vsix`）。依存は束ねてあるので `--no-dependencies` で、pnpm の node_modules の形に影響されない。`vsce-sign` の postinstall は要らないので pnpm の `ignoredBuiltDependencies` に入れる
 
 ### 文書の検査
 

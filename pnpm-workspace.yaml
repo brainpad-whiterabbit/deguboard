@@ -1,2 +1,6 @@
 packages:
   - packages/*
+
+# vsce-sign の postinstall は Marketplace への署名用のバイナリを選ぶだけで、VSIX を作るのに要らない
+ignoredBuiltDependencies:
+  - "@vscode/vsce-sign"

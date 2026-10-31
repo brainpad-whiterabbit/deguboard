@@ -129,7 +129,16 @@ VS Code 拡張。拡張ホストから core の `createLocalClient` を呼び、
 | `webview.ts`   | Vite が出した `index.html` を Webview 向けに直す（URI・CSP・nonce）、要求を `CommandClient` に通して同じ id の応答にする                                          |
 | `dg.ts`        | PATH の `dg` を引く 1 か所。ないときはインストールの案内、同梱の core とメジャーが違えば知らせる（UI-11）                                                         |
 
-ビルドは Vite の SSR ビルドで `dist/extension.cjs` の 1 ファイルに束ね（core は `development` 条件で `src` から取り込む。`vscode` だけ外に残す）、web の `dist` を `dist/web` に写す。同梱する core の版は `vite.config.ts` の `define` で `__CORE_VERSION__` に埋める。手元で動かすには `mise run build` のあと VS Code で `packages/vscode` を開いて F5（拡張開発ホスト）、またはコマンドパレットの「deguboard: 画面を開く」。VSIX の作り方は「リリース」に書く。
+ビルドは Vite の SSR ビルドで `dist/extension.cjs` の 1 ファイルに束ね（core は `development` 条件で `src` から取り込む。`vscode` だけ外に残す）、web の `dist` を `dist/web` に写す。同梱する core の版は `vite.config.ts` の `define` で `__CORE_VERSION__` に埋める。手元で動かすには `mise run build` のあと VS Code で `packages/vscode` を開いて F5（拡張開発ホスト）、コマンドパレットの「deguboard: 画面を開く」。
+
+VSIX にして入れるには：
+
+```sh
+mise run vsix                                                    # build のあと packages/vscode/deguboard-vscode.vsix を作る
+code --install-extension packages/vscode/deguboard-vscode.vsix   # リモート開発ならリモート側に入る
+```
+
+VSIX は `@vscode/vsce` で作る。依存はすべて `dist/extension.cjs` に束ねてあるので `--no-dependencies` で pnpm の node_modules を見ない。入るのは `.vscodeignore` が残す `dist/`・`package.json`・`README.md` だけ。Marketplace への公開は「リリース」で扱う。
 
 ## リリース
 

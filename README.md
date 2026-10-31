@@ -4,7 +4,7 @@ deguboard は、Git で管理するチケットとユーザー定義のワーク
 
 チケット・イテレーション・ワークフローの定義は、リポジトリの orphan ブランチ `deguboard` に Markdown と YAML で置く。コードと同じく Git で共有するので、別のサービスを用意しなくてもチームで同じカンバンを見られ、変更の履歴も残る。Claude Code や Codex などの AI エージェントは `dg` を呼んでチケットを起票・計画・実行し、人は何を作るか・どの順で進めるか・成果物を承認するかを決める。
 
-> **開発中**。最初の版（CLI・Web UI・VS Code 拡張でのチケット管理。Epic `e1`）を実装している。CLI・API・ブラウザの画面・VS Code 拡張はある。npm と Marketplace に公開した版はまだない。
+> **開発中**。最初の版（CLI・Web UI・VS Code 拡張でのチケット管理。Epic `e1`）を実装している。CLI・API・ブラウザの画面・VS Code 拡張はある。npm と Marketplace に公開した版はまだなく、拡張は VSIX（`mise run vsix`）で入れる。
 
 ## 何ができるか（予定を含む）
 

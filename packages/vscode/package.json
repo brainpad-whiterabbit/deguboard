@@ -8,17 +8,24 @@
     "Other"
   ],
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/brainpad-whiterabbit/deguboard.git",
+    "directory": "packages/vscode"
+  },
   "publisher": "deguboard",
   "type": "module",
   "main": "./dist/extension.cjs",
   "scripts": {
-    "build": "vite build && rm -rf dist/web && cp -r ../web/dist dist/web"
+    "build": "vite build && rm -rf dist/web && cp -r ../web/dist dist/web",
+    "package": "vsce package --no-dependencies --skip-license --out deguboard-vscode.vsix"
   },
   "dependencies": {
     "@deguboard/core": "workspace:*"
   },
   "devDependencies": {
     "@types/vscode": "1.104.0",
+    "@vscode/vsce": "4.1.0",
     "vite": "8.3.5"
   },
   "contributes": {
