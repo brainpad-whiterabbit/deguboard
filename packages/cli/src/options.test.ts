@@ -57,6 +57,18 @@ describe("Zod → オプション", () => {
     expect(parse("ticket.update", ["t1", "--pr", "42"])).toEqual({ ticket: "t1", pr: 42 });
   });
 
+  it("ticket check は番号を可変長の位置引数で数値として受け、all と undo はフラグになる", () => {
+    expect(parse("ticket.check", ["t1", "1", "3", "--undo"])).toEqual({
+      ticket: "t1",
+      items: [1, 3],
+      undo: true,
+    });
+    expect(parse("ticket.check", ["t1", "1,2"])).toEqual({ ticket: "t1", items: [1, 2] });
+    // 番号を省くと [] が入る（all との組み合わせは core が検査する）
+    expect(parse("ticket.check", ["t1", "--all"])).toEqual({ ticket: "t1", items: [], all: true });
+    expect(() => parse("ticket.check", ["t1", "x"])).toThrow();
+  });
+
   it("自由文の配列（meta freeText）は繰り返しだけで受け、カンマで割らない", () => {
     const shapes = shapesOf(findCommand("ticket.create")!);
     expect(shapes.find((s) => s.key === "acceptance")).toMatchObject({

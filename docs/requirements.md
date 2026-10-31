@@ -114,9 +114,9 @@ updated_at: 2026-10-31T05:10:00Z
 
 - TK-1 必須は `id`・`project`・`title`・`status`・`created_at`・`updated_at`。`workflow` を省くと Project の既定を使う
 - TK-2 `depends_on` は同じリポジトリのチケットの ID。循環は作成・更新時に拒否する
-- TK-3 本文は Markdown。`## 概要` と `## 受け入れ条件`（`- [ ]` のチェックリスト）を推奨し、`create` / `import` は `summary` と `acceptance` から雛形を作り、`update` の `acceptance` は `## 受け入れ条件` の節だけを置き換える（同じ文の項目のチェックは保ち、節がなければ末尾に足す）。`dg lint` が節の欠けと、受け入れ条件に項目がないことを指摘する
+- TK-3 本文は Markdown。`## 概要` と `## 受け入れ条件`（`- [ ]` のチェックリスト）を推奨し、`create` / `import` は `summary` と `acceptance` から雛形を作り、`update` の `acceptance` は `## 受け入れ条件` の節だけを置き換える（同じ文の項目のチェックは保ち、節がなければ末尾に足す）。`ticket show` は節の項目を `acceptance`（`index`・`text`・`checked`）で出し、`ticket check` が番号で印を付け外しする。`dg lint` が節の欠けと、受け入れ条件に項目がないこと、done のチケットに未チェックの項目が残ることを指摘する
 - TK-4 Workflow の `fields` で定義した任意フィールドを frontmatter に持てる
-- TK-5 受け入れ条件のチェックは、作業した人かエージェントが PR や成果物で確認できたときに付ける。deguboard が自動で付けることはない
+- TK-5 受け入れ条件のチェックは、作業した人かエージェントが PR や成果物で確認できたときに付ける。deguboard が自動で付けることはなく、照合で done に進めたチケットに未チェックが残れば `sync` が警告する（遷移は止めない。[ADR-003](adr/ADR-003-status-and-workflow.md)）
 - TK-6 `epic` は同じ Project の Epic の ID。閉じた Epic には付けられない
 - TK-7 `created_by`（起票者）と `assignee`（担当者）は主体の ID（`<ユーザ>` か `<ユーザ>/agent`）。`created_by` は作成時に書き、既定は操作した主体で、エージェントが人の指示・承認で起票するときは `human`（ユーザ本人）を指定する。`assignee` は `create` / `update` で付け外しでき、`claim` が claim した主体で上書きする。入力の `human` / `agent` は操作した主体のユーザ本人とその AI に解く。旧名 `claimed_by` は読むときに `assignee` へ読み替える
 
@@ -215,18 +215,18 @@ fields:
 - CL-1 すべてのコマンドに `--json` があり、エージェントはそれを読む。成功は `{ ok: true, data, warnings, write }`、失敗は `{ ok: false, error: { code, message, detail } }`。終了コードは 0（成功）/ 1（失敗。`validate`・`lint` は指摘があるとき）/ 2（使い方の誤り）。`error.code` の語彙は `packages/core/src/errors.ts` が正本
 - CL-2 コマンドの一覧とオプションは `dg --help` が正本。主な群は次のとおり
 
-| 群        | コマンド                                                                                 | 状態         |
-| --------- | ---------------------------------------------------------------------------------------- | ------------ |
-| 用意      | `init`、`sync`、`commit`、`validate`、`lint`、`config`                                   | あり         |
-| Project   | `project create / list / show / archive`                                                 | あり         |
-| Ticket    | `ticket create / list / show / update / move / delete / import / claim / unclaim`        | あり         |
-| Iteration | `iteration create / list / show / add / remove / start / close`（`sprint` はエイリアス） | あり         |
-| Epic      | `epic create / list / show / update / add / remove / close / reopen`                     | あり         |
-| Workflow  | `workflow list / show / validate`                                                        | あり         |
-| 画面      | `serve`、`open`（web の実装までは API だけを配信する）                                   | あり         |
-| 手順      | `guide <topic>`                                                                          | あり         |
-| Plan      | `plan create / approve / show / close`                                                   | 予定（`e2`） |
-| Run       | `run start / finish / list`、`metrics show`                                              | 予定（`e3`） |
+| 群        | コマンド                                                                                  | 状態         |
+| --------- | ----------------------------------------------------------------------------------------- | ------------ |
+| 用意      | `init`、`sync`、`commit`、`validate`、`lint`、`config`                                    | あり         |
+| Project   | `project create / list / show / archive`                                                  | あり         |
+| Ticket    | `ticket create / list / show / update / check / move / delete / import / claim / unclaim` | あり         |
+| Iteration | `iteration create / list / show / add / remove / start / close`（`sprint` はエイリアス）  | あり         |
+| Epic      | `epic create / list / show / update / add / remove / close / reopen`                      | あり         |
+| Workflow  | `workflow list / show / validate`                                                         | あり         |
+| 画面      | `serve`、`open`（web の実装までは API だけを配信する）                                    | あり         |
+| 手順      | `guide <topic>`                                                                           | あり         |
+| Plan      | `plan create / approve / show / close`                                                    | 予定（`e2`） |
+| Run       | `run start / finish / list`、`metrics show`                                               | 予定（`e3`） |
 
 - CL-3 書き込みを伴うコマンドは、`commit.mode` に従って deguboard ブランチにコミットする。作成（`init`、`project / ticket / epic / iteration create`、`ticket import`）と `ticket claim` は `commit.mode`・`push.mode` によらず即座にコミットして push する（採番と排他のため）
 - CL-4 `ticket import` は YAML / JSON の下書き（配列）を 1 コミットで取り込む。下書きの中の仮キーを `depends_on` から参照でき、`epic` に既存の Epic を書ける
@@ -238,7 +238,7 @@ fields:
 - ST-1 `status` はチケットに保存する。変えるのは `ticket move`・`claim`・`unclaim`、UI の操作、照合だけ
 - ST-2 遷移は Workflow の `transitions` の制約で検査する。`by` に含まれない主体の遷移と `requires` を満たさない遷移は拒否し、制約のない遷移は誰でも行える。同じ Status への move は拒否する
 - ST-3 `claim` は todo のチケットの `assignee` を claim した主体にし、`branch` を記録して in_progress に進める。todo 以外は拒否する。別のユーザが `assignee` だったときは上書きして警告する。依存先が終わるまで着手を止めたいときは Workflow で todo → in_progress に `requires: [deps_done]`（WF-2）を書く
-- ST-4 照合は `dg sync` と、画面の再読み込み（UI-6）で行う。チケットの `branch` について Git から事実を集め、`reconcile` 規則を上から評価し、今より前進の順が先のときだけ書き換える。`done` と `abandoned` のチケットには触れない
+- ST-4 照合は `dg sync` と、画面の再読み込み（UI-6）で行う。チケットの `branch` について Git から事実を集め、`reconcile` 規則を上から評価し、今より前進の順が先のときだけ書き換える。`done` と `abandoned` のチケットには触れない。done に進めたチケットに未チェックの受け入れ条件が残れば警告する
 - ST-5 後退を指す事実（消えたブランチ・マージされずに閉じた PR）は書き換えず警告する。ただし同じ照合で done に進むときは、マージ後に消したブランチなので警告しない。取れなかった事実は不明とし、前進の判定では偽と読む
 - ST-6 PR の事実は `gh` が使えるときだけ取る。`gh` がなくても照合は Git の事実だけで成り立つ
 - ST-7 `unclaim` は in_progress のチケットの、自分（同じユーザの人と AI）の claim か記録のない claim だけを外して todo に戻し、`assignee` を消す。応答のない claim は強制の指定で外す。生存監視はしない

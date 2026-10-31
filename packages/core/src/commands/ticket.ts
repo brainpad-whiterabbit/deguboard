@@ -7,7 +7,14 @@ import { withWrite } from "../git/write.js";
 import { resolveActorRef, sameUser } from "../model/actor.js";
 import { STATUSES, slugSchema, statusSchema, type Status } from "../model/common.js";
 import { parseId, type TicketId } from "../model/id.js";
-import { PRIORITIES, replaceAcceptance, ticketBodyTemplate, type Ticket } from "../model/ticket.js";
+import {
+  PRIORITIES,
+  parseAcceptance,
+  replaceAcceptance,
+  setAcceptance,
+  ticketBodyTemplate,
+  type Ticket,
+} from "../model/ticket.js";
 import type { FactName } from "../model/workflow.js";
 import type { Doc } from "../storage/documents.js";
 import { wouldCreateCycle } from "../storage/integrity.js";
@@ -313,7 +320,8 @@ export const ticketShow = defineCommand({
   name: "ticket.show",
   positionals: ["ticket"],
   group: "ticket",
-  summary: "チケットの属性と本文、依存元（dependents）、依存先が終わったか（deps_done）を出す",
+  summary:
+    "チケットの属性と本文、受け入れ条件の項目（acceptance）、依存元（dependents）、依存先が終わったか（deps_done）を出す",
   input: z.object({ ticket: ticketRef }),
   write: false,
   needs: "store",
@@ -321,6 +329,7 @@ export const ticketShow = defineCommand({
     const doc = ctx.store.require("ticket", input.ticket);
     return ok({
       ...withBody(doc),
+      acceptance: parseAcceptance(doc.body) ?? [],
       dependents: dependents(ctx.store, doc.data.id),
       deps_done: ctx.store.depsDone(doc.data),
     });
@@ -420,6 +429,63 @@ export const ticketUpdate = defineCommand({
       { message: (doc) => `${doc.id} を更新: ${doc.data.title}` },
     );
     return ok(withBody(result.value), result.write);
+  },
+});
+
+export const ticketCheck = defineCommand({
+  name: "ticket.check",
+  positionals: ["ticket", "items"],
+  group: "ticket",
+  summary:
+    "受け入れ条件の項目に済みの印を付ける（番号で指定、all で全部、undo で外す）。番号は ticket show の acceptance の index",
+  input: z.object({
+    ticket: ticketRef,
+    items: z
+      .array(z.number().int().positive())
+      .optional()
+      .describe("項目の番号（1 始まり）。ticket show の acceptance の index"),
+    all: z.boolean().optional().describe("すべての項目を対象にする"),
+    undo: z.boolean().optional().describe("印を外して未済に戻す"),
+  }),
+  write: true,
+  needs: "store",
+  async run(ctx, input) {
+    // CLI は可変長の位置引数を省くと [] を渡すので、番号の有無はここで見る
+    const numbers = [...new Set(input.items ?? [])].sort((a, b) => a - b);
+    if (input.all && numbers.length > 0) throw new UsageError("all と番号は同時に指定できない");
+    if (!input.all && numbers.length === 0) throw new UsageError("項目の番号か all を指定する");
+    const checked = !input.undo;
+    const result = await withWrite(
+      ctx,
+      async () => {
+        const doc = ctx.store.require("ticket", input.ticket);
+        const items = parseAcceptance(doc.body);
+        if (items === undefined)
+          throw new OperationError("NOT_FOUND", `${doc.id} の本文に ## 受け入れ条件 がない`);
+        if (items.length === 0)
+          throw new OperationError("NOT_FOUND", `${doc.id} の受け入れ条件に項目がない`);
+        const missing = numbers.filter((n) => n > items.length);
+        if (missing.length > 0) {
+          throw new OperationError(
+            "NOT_FOUND",
+            `${doc.id} の受け入れ条件に番号 ${missing.join(", ")} の項目はない（1〜${items.length}）`,
+          );
+        }
+        const targets = input.all ? items.map((i) => i.index) : numbers;
+        return ctx.store.update(
+          "ticket",
+          doc.id,
+          { updated_at: nowIso(ctx) },
+          setAcceptance(doc.body, targets, checked),
+        );
+      },
+      {
+        message: (doc) =>
+          `${doc.id} の受け入れ条件${input.all ? "をすべて" : ` ${numbers.join(", ")} を`}${checked ? "済みにする" : "未済に戻す"}`,
+      },
+    );
+    const doc = result.value;
+    return ok({ ...withBody(doc), acceptance: parseAcceptance(doc.body) ?? [] }, result.write);
   },
 });
 
@@ -638,6 +704,7 @@ export const ticketCommands = [
   ticketList,
   ticketShow,
   ticketUpdate,
+  ticketCheck,
   ticketMove,
   ticketDelete,
   ticketImport,

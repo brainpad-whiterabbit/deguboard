@@ -1,12 +1,12 @@
 # 完了（finish）
 
-PR がマージされたあとの後始末。done にするのは照合か人で、エージェントは確認と記録を行う。
+PR がマージされたあとの後始末。done にするのは照合か人で、エージェントは確認と記録を行う。受け入れ条件の印は普段 `dg guide work` の段階で付いている。
 
 ## 流れ
 
 1. `dg --json --actor agent sync` を回す。PR のマージ（または作業ブランチが `{{git.base_branch}}` に入ったこと）を照合してチケットが done になる。`reconciled` に `{ id, from, to }` が出る
 2. `dg --json --actor agent ticket show <id>` で `status` が done になったことを確かめる。なっていなければ `sync` の `warnings` を読む。事実が足りない（`gh` がない、ブランチがまだ push されていない）か、Workflow がその遷移の `by` に reconcile を含めていない。後者は人に確かめて `ticket move <id> done` で進める
-3. 受け入れ条件を確かめる。PR や成果物で満たしたことを確認できた項目だけチェックを付ける（deguboard が自動で付けることはない）。本文は `ticket show --json` の `body` を読み、該当の `- [ ]` を `- [x]` にして `dg --json --actor agent ticket update <id> --body "<本文全体>"` で書き戻す。確認できない項目はそのまま残し、人に伝える
+3. 残った受け入れ条件を確かめる。`sync` の `warnings`（`受け入れ条件 2, 3 が未チェックのまま done になった`）と `ticket show --json` の `acceptance` で未チェックの項目を見て、マージされた成果物で満たしたと確認できたものだけ `dg --json --actor agent ticket check <id> <番号...>` で付ける（deguboard が自動で付けることはない）。確認できない項目はそのまま残し、人に伝える
 4. 作業ブランチと worktree を片付ける（リポジトリの規約に従う）
 5. 人に報告する：何が done になったか、残った受け入れ条件、次に着手できるもの（`dg --json --actor agent ticket list --ready`）
 
