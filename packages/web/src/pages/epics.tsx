@@ -1,7 +1,7 @@
 // Epic（UI-10）。一覧と進捗（EP-3）、選んだ Epic のチケットを Status ごとに出す。チケットの追加・除外、閉じる・再開
 
 import { useEffect, useState } from "react";
-import { ProgressBar, TicketLink, PriorityBadge } from "../components/parts.js";
+import { PriorityBadge, ProgressBar, StatusDot, TicketLink } from "../components/parts.js";
 import { Markdown } from "../markdown.js";
 import { hrefOf } from "../router.js";
 import { useStore } from "../store.js";
@@ -52,7 +52,7 @@ function EpicList() {
         </form>
       </div>
       {rows.length === 0 ? (
-        <p className="muted">Epic はない</p>
+        <p className="empty">Epic はない</p>
       ) : (
         <table className="list">
           <thead>
@@ -173,11 +173,13 @@ function EpicDetailView({ id }: { id: string }) {
           return (
             <div key={s} className="column">
               <h2>
+                <StatusDot status={s} />
                 <span>{store.labelOf(s)}</span>
                 <span className="muted">{items.length}</span>
               </h2>
+              {items.length === 0 ? <p className="empty">なし</p> : null}
               {items.map((t) => (
-                <div key={t.id} className="card" style={{ cursor: "default" }}>
+                <div key={t.id} className={`card status-${s}`} style={{ cursor: "default" }}>
                   <div className="meta">
                     <TicketLink id={t.id} />
                     <PriorityBadge priority={t.priority} />

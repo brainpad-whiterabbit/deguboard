@@ -75,7 +75,7 @@ function IterationList() {
         </button>
       </form>
       {rows.length === 0 ? (
-        <p className="muted">Iteration はない</p>
+        <p className="empty">Iteration はない</p>
       ) : (
         <table className="list">
           <thead>
