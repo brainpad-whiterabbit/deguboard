@@ -31,7 +31,7 @@ export function TicketLink({
         rest.onClick?.(e);
         if (e.defaultPrevented || host.surface === "browser") return;
         e.preventDefault();
-        host.openTicket(id);
+        host.open({ page: "ticket", id });
       }}
     >
       {children ?? (

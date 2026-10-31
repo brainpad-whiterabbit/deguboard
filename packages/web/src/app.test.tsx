@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { App } from "./app.js";
 import { ClientError } from "./client/http.js";
 import { HostProvider, type Host } from "./host.js";
+import type { Route } from "./router.js";
 import { StoreProvider } from "./store.js";
 import { iteration, mockClient, ticket } from "./test-helpers.js";
 import { createUiState, memoryBackend } from "./ui-state.js";
@@ -15,11 +16,8 @@ afterEach(() => {
 });
 
 /** Webview に載っているときの Host。見た目の状態はテストごとのメモリ */
-function webviewHost(
-  surface: "sidebar" | "panel",
-  openTicket: (id: string) => void = () => {},
-): Host {
-  return { surface, openTicket, state: createUiState(memoryBackend()) };
+function webviewHost(surface: "sidebar" | "panel", open: (route: Route) => void = () => {}): Host {
+  return { surface, open, state: createUiState(memoryBackend()) };
 }
 
 function mount(client = mockClient(), host?: Host) {
@@ -175,13 +173,13 @@ describe("画面", () => {
 
   it("サイドバーではチケットのリンクがハッシュ遷移せず、ホストに開いてもらう", async () => {
     window.location.hash = "#/backlog";
-    const opened: string[] = [];
+    const opened: Route[] = [];
     mount(
       mockClient(),
-      webviewHost("sidebar", (id) => opened.push(id)),
+      webviewHost("sidebar", (route) => opened.push(route)),
     );
     fireEvent.click(await screen.findByText("API"));
-    expect(opened).toEqual(["t2"]);
+    expect(opened).toEqual([{ page: "ticket", id: "t2" }]);
     expect(window.location.hash).toBe("#/backlog");
   });
 
@@ -257,13 +255,13 @@ describe("画面", () => {
 
   it("エディタのパネルのチケットリンクはホストに頼み（同じパネルで遷移して題が変わる）、それ以外のリンクはハッシュ遷移", async () => {
     window.location.hash = "#/backlog";
-    const opened: string[] = [];
+    const opened: Route[] = [];
     mount(
       mockClient(),
-      webviewHost("panel", (id) => opened.push(id)),
+      webviewHost("panel", (route) => opened.push(route)),
     );
     fireEvent.click(await screen.findByText("API"));
-    expect(opened).toEqual(["t2"]);
+    expect(opened).toEqual([{ page: "ticket", id: "t2" }]);
     expect(window.location.hash).toBe("#/backlog");
     fireEvent.click(screen.getByRole("link", { name: "Epic" }));
     expect(window.location.hash).toBe("#/epics");
@@ -279,6 +277,59 @@ describe("画面", () => {
     window.location.hash = "#/board";
     await screen.findByRole("navigation", { name: "画面" });
     expect(screen.getByRole("button", { name: "同期" })).toBeTruthy();
+  });
+
+  it("履歴のタブは closed の Iteration を閉じた新しい順に出し、タブに件数を添え、チケットで絞れ、行はホストに開いてもらう", async () => {
+    const client = mockClient();
+    client.data.iterations = [
+      iteration({
+        id: "s1",
+        name: "最初",
+        status: "closed",
+        closed_at: "2026-10-10T00:00:00Z",
+        completed: 3,
+        carried_over: 1,
+        start: "2026-09-29",
+        end: "2026-10-10",
+        goal: "core",
+      }),
+      iteration({ id: "s2", name: "次", status: "closed", closed_at: "2026-10-24T00:00:00Z" }),
+      iteration({ id: "s3", name: "今", status: "active" }),
+    ];
+    client.data.tickets[0]!.iteration = "s1";
+    client.data.tickets[1]!.iteration = "s2";
+    const opened: Route[] = [];
+    mount(
+      client,
+      webviewHost("sidebar", (route) => opened.push(route)),
+    );
+    const tab = await screen.findByRole("link", { name: /履歴/ });
+    expect(tab.textContent).toBe("履歴 2");
+    fireEvent.click(tab);
+    await screen.findByRole("heading", { level: 1, name: "履歴" });
+    const names = () =>
+      [...document.querySelectorAll(".history-row .name")].map((e) => e.textContent);
+    expect(names()).toEqual(["次", "最初"]);
+    expect(screen.getByText("完了 3 ・ 持ち越し 1")).toBeTruthy();
+    expect(screen.getByText("2026-09-29 〜 2026-10-10 ・ core")).toBeTruthy();
+    // s2 には記録がないので今のチケットから求める（API は in_progress → 持ち越し 1）
+    expect(screen.getByText("完了 0 ・ 持ち越し 1")).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("チケットを探す"), { target: { value: "ログイン" } });
+    expect(names()).toEqual(["最初"]);
+    expect(screen.getByText("1 / 2 件")).toBeTruthy();
+    fireEvent.click(screen.getByText("最初"));
+    expect(opened).toEqual([{ page: "iterations", id: "s1" }]);
+    expect(window.location.hash).toBe("#/history");
+  });
+
+  it("エディタのパネルで Iteration の詳細を出すときもヘッダーを出さない", async () => {
+    const client = mockClient();
+    client.data.iterations = [iteration({ id: "s1", name: "最初", status: "closed" })];
+    client.handlers["iteration.show"] = () => ({ ...client.data.iterations[0], items: [] });
+    window.location.hash = "#/iterations/s1";
+    mount(client, webviewHost("panel"));
+    await screen.findByRole("heading", { level: 1, name: /s1 最初/ });
+    expect(screen.queryByRole("navigation", { name: "画面" })).toBeNull();
   });
 
   it("ブラウザではチケットのリンクが詳細へのハッシュ遷移のまま", async () => {

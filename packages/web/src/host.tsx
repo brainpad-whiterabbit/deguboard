@@ -1,10 +1,10 @@
 // 画面がどこに載っているか（surface）と、画面の外への働きかけを 1 つの文脈で持つ（UI-12）。
-// ブラウザではチケットへのリンクはハッシュ遷移、サイドバーとパネルでは拡張ホストに頼む（パネルは自分の中で遷移し、題が変わる）。
+// ブラウザではチケットや Iteration の詳細へのリンクはハッシュ遷移、サイドバーとパネルでは拡張ホストに頼む（パネルは自分の中で遷移し、題が変わる）。
 // 拡張ホストからの通知（再読み込み・遷移）は HostBridge が store とハッシュに結ぶ
 
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import type { WebviewClient } from "./client/webview.js";
-import { navigate } from "./router.js";
+import { hrefOf, navigate, type Route } from "./router.js";
 import { useStore } from "./store.js";
 import { createUiState, localStorageBackend, type UiState } from "./ui-state.js";
 
@@ -12,15 +12,15 @@ export type Surface = "sidebar" | "panel" | "browser";
 
 export interface Host {
   surface: Surface;
-  /** チケット詳細を開く。Webview（sidebar・panel）では拡張ホストに頼み、ブラウザではハッシュ遷移 */
-  openTicket(id: string): void;
+  /** 詳細（チケット・Iteration）を開く。Webview（sidebar・panel）では拡張ホストに頼んでエディタ領域に、ブラウザではハッシュ遷移 */
+  open(route: Route): void;
   /** 見た目の状態（開閉・最後に選んだもの）の置き場 */
   state: UiState;
 }
 
 const browserHost: Host = {
   surface: "browser",
-  openTicket: (id) => navigate({ page: "ticket", id }),
+  open: (route) => navigate(route),
   state: createUiState(localStorageBackend()),
 };
 
@@ -31,7 +31,7 @@ export function createHost(surface: Surface, client: WebviewClient | null, state
   if (surface !== "browser" && client) {
     return {
       surface,
-      openTicket: (id) => void client.openTicket(id),
+      open: (route) => void client.open(hrefOf(route)),
       state: state ?? browserHost.state,
     };
   }

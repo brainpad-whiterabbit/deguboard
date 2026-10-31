@@ -8,7 +8,7 @@ import {
   coalesce,
   renderMessageHtml,
   renderWebviewHtml,
-  ticketOfRoute,
+  subjectOfRoute,
 } from "./webview.js";
 
 const INDEX = `<!doctype html>
@@ -126,20 +126,20 @@ describe("Webview の要求", () => {
     expect(invalid).toMatchObject({ id: 3, ok: false, error: { code: "INVALID_INPUT" } });
   });
 
-  it("action の openTicket は actions に渡して data: null で答え、actions のない画面からは拒否する", async () => {
+  it("action の open は actions に渡して data: null で答え、actions のない画面からは拒否する", async () => {
     const opened: string[] = [];
     const ok = await handleRequest(
       fakeClient(),
-      { id: 4, kind: "action", name: "openTicket", ticket: "t12" },
-      { openTicket: (t) => void opened.push(t) },
+      { id: 4, kind: "action", name: "open", route: "#/tickets/t12" },
+      { open: (route) => void opened.push(route) },
     );
     expect(ok).toEqual({ id: 4, ok: true, data: null, warnings: [], write: null });
-    expect(opened).toEqual(["t12"]);
+    expect(opened).toEqual(["#/tickets/t12"]);
     const refused = await handleRequest(fakeClient(), {
       id: 5,
       kind: "action",
-      name: "openTicket",
-      ticket: "t12",
+      name: "open",
+      route: "#/tickets/t12",
     });
     expect(refused).toMatchObject({ id: 5, ok: false, error: { code: "UNSUPPORTED_ACTION" } });
   });
@@ -147,8 +147,11 @@ describe("Webview の要求", () => {
   it("要求の形を確かめる", () => {
     expect(isWebviewRequest({ id: 1, kind: "status" })).toBe(true);
     expect(isWebviewRequest({ id: 1, kind: "run", name: "x", input: {} })).toBe(true);
-    expect(isWebviewRequest({ id: 1, kind: "action", name: "openTicket", ticket: "t1" })).toBe(
+    expect(isWebviewRequest({ id: 1, kind: "action", name: "open", route: "#/tickets/t12" })).toBe(
       true,
+    );
+    expect(isWebviewRequest({ id: 1, kind: "action", name: "open", route: "https://x" })).toBe(
+      false,
     );
     expect(isWebviewRequest({ id: "1", kind: "status" })).toBe(false);
     expect(isWebviewRequest({ id: 1, kind: "run" })).toBe(false);
@@ -181,12 +184,13 @@ describe("ファイルの変化のまとめ", () => {
 });
 
 describe("パネルの題", () => {
-  it("チケット詳細のルートからチケットの番号を取り、それ以外は undefined", () => {
-    expect(ticketOfRoute("#/tickets/t12")).toBe("t12");
-    expect(ticketOfRoute("#/tickets/t12?x=1")).toBe("t12");
-    expect(ticketOfRoute("#/board")).toBeUndefined();
-    expect(ticketOfRoute("#/tickets")).toBeUndefined();
-    expect(ticketOfRoute("#/tickets/")).toBeUndefined();
+  it("チケットと Iteration の詳細のルートから対象を取り、それ以外は undefined", () => {
+    expect(subjectOfRoute("#/tickets/t12")).toEqual({ kind: "ticket", id: "t12" });
+    expect(subjectOfRoute("#/tickets/t12?x=1")).toEqual({ kind: "ticket", id: "t12" });
+    expect(subjectOfRoute("#/iterations/s3")).toEqual({ kind: "iteration", id: "s3" });
+    expect(subjectOfRoute("#/board")).toBeUndefined();
+    expect(subjectOfRoute("#/tickets")).toBeUndefined();
+    expect(subjectOfRoute("#/tickets/")).toBeUndefined();
   });
 });
 

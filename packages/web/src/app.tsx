@@ -10,11 +10,13 @@ import { BacklogPage } from "./pages/backlog.js";
 import { TicketPage } from "./pages/ticket.js";
 import { EpicsPage } from "./pages/epics.js";
 import { IterationsPage } from "./pages/iterations.js";
+import { HistoryPage } from "./pages/history.js";
 
 const NAV: { page: Route["page"]; label: string; href: string }[] = [
   { page: "board", label: "カンバン", href: hrefOf({ page: "board" }) },
   { page: "backlog", label: "バックログ", href: hrefOf({ page: "backlog" }) },
   { page: "epics", label: "Epic", href: hrefOf({ page: "epics" }) },
+  { page: "history", label: "履歴", href: hrefOf({ page: "history" }) },
 ];
 
 export function App() {
@@ -25,9 +27,12 @@ export function App() {
   // Iteration の詳細はカンバンのタブの下にあるものとして扱う（一覧の画面はない）
   const active =
     route.page === "ticket" ? "backlog" : route.page === "iterations" ? "board" : route.page;
-  // エディタのパネルに出すチケット詳細は 1 枚で完結するので、タブ・Project・同期のヘッダーを出さない（UI-12）。
+  // エディタのパネルに出す詳細（チケット・Iteration）は 1 枚で完結するので、タブ・Project・同期のヘッダーを出さない（UI-12）。
   // 「画面を開く」でカンバンをパネルに出したときはタブが要るので残す
-  const detailPanel = host.surface === "panel" && route.page === "ticket";
+  const detailPanel =
+    host.surface === "panel" && (route.page === "ticket" || route.page === "iterations");
+  // 履歴のタブには closed の Iteration の数を添える
+  const closedCount = store.iterations.filter((i) => i.status === "closed").length;
   return (
     <div className="app" data-surface={host.surface} onClick={followHashLink}>
       {detailPanel ? null : (
@@ -42,6 +47,9 @@ export function App() {
                 aria-current={active === n.page ? "page" : undefined}
               >
                 {n.label}
+                {n.page === "history" && closedCount > 0 ? (
+                  <span className="muted"> {closedCount}</span>
+                ) : null}
               </a>
             ))}
           </nav>
@@ -106,6 +114,8 @@ function Page({ route }: { route: Route }) {
       return <EpicsPage id={route.id} />;
     case "iterations":
       return <IterationsPage id={route.id} />;
+    case "history":
+      return <HistoryPage />;
   }
 }
 

@@ -22,7 +22,7 @@ import {
   isWebviewRequest,
   renderMessageHtml,
   renderWebviewHtml,
-  ticketOfRoute,
+  subjectOfRoute,
   type Surface,
   type WebviewActions,
 } from "./webview.js";
@@ -109,10 +109,10 @@ async function resolveSidebar(
       view.badge = badgeOf(status);
     },
     actions: {
-      openTicket: (ticket) =>
+      open: (route) =>
         openPanel(context, folder, {
           column: vscode.ViewColumn.Beside,
-          route: `#/tickets/${ticket}`,
+          route,
           preserveFocus: true,
         }),
     },
@@ -200,28 +200,32 @@ async function openPanel(
     surface: "panel",
     route,
     actions: {
-      openTicket: (ticket) =>
-        openPanel(context, folder, { column: options.column, route: `#/tickets/${ticket}` }),
+      open: (route) => openPanel(context, folder, { column: options.column, route }),
     },
   });
 }
 
-/** パネルの題。チケット詳細を出しているときは「t12 タイトル」にしてエディタのタブで見分けられるようにする（ヘッダーを出さないので。UI-12） */
+/** パネルの題。チケットや Iteration の詳細を出しているときは「t12 タイトル」「s3 名前」にしてエディタのタブで見分けられるようにする（ヘッダーを出さないので。UI-12） */
 async function retitle(
   panel: vscode.WebviewPanel,
   folder: vscode.WorkspaceFolder,
   route: string,
 ): Promise<void> {
-  const ticket = ticketOfRoute(route);
-  if (!ticket) {
+  const subject = subjectOfRoute(route);
+  if (!subject) {
     panel.title = panelTitle(folder);
     return;
   }
-  panel.title = ticket;
+  panel.title = subject.id;
   try {
-    const result = await clientFor(folder).run<{ title: string }>("ticket.show", { ticket });
+    const client = clientFor(folder);
+    const name =
+      subject.kind === "ticket"
+        ? (await client.run<{ title: string }>("ticket.show", { ticket: subject.id })).data.title
+        : (await client.run<{ name: string }>("iteration.show", { iteration: subject.id })).data
+            .name;
     // 読んでいる間に別の画面へ移っていたら上書きしない
-    if (panel.title === ticket) panel.title = `${ticket} ${result.data.title}`;
+    if (panel.title === subject.id) panel.title = `${subject.id} ${name}`;
   } catch {
     // 題が番号だけになるだけで、画面は Webview が自分で読む
   }
