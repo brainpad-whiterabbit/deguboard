@@ -53,10 +53,13 @@ export function renderWebviewHtml(indexHtml: string, options: HtmlOptions): stri
     );
 }
 
-/** ルート（#/tickets/t12）が指すチケットの番号。チケット詳細でなければ undefined。パネルの題に使う（UI-12） */
-export function ticketOfRoute(route: string): string | undefined {
-  const m = /^#\/tickets\/([^/?#]+)/.exec(route);
-  return m?.[1];
+/** ルートが指す詳細の対象（#/tickets/t12 → ticket t12、#/iterations/s3 → iteration s3）。詳細でなければ undefined。パネルの題に使う（UI-12） */
+export function subjectOfRoute(
+  route: string,
+): { kind: "ticket" | "iteration"; id: string } | undefined {
+  const m = /^#\/(tickets|iterations)\/([^/?#]+)/.exec(route);
+  if (!m) return undefined;
+  return { kind: m[1] === "tickets" ? "ticket" : "iteration", id: m[2]! };
 }
 
 /** 画面を出せないとき（フォルダを開いていない）に Webview に出す、スクリプトのない HTML */
@@ -83,7 +86,8 @@ function escapeAttribute(value: string): string {
 
 /** 画面の外（エディタ）への働きかけ。サイドバーとパネルが持ち、持たない画面からの action は拒否する */
 export interface WebviewActions {
-  openTicket(ticket: string): void | Promise<void>;
+  /** 画面のルート（#/tickets/t12 など）をエディタ領域のパネルに開く */
+  open(route: string): void | Promise<void>;
 }
 
 /** Webview からの要求を CommandClient（か actions）に通し、同じ id の応答にする。失敗は ok: false で返す */
@@ -104,7 +108,7 @@ export async function handleRequest(
           error: { code: "UNSUPPORTED_ACTION", message: "この画面からはエディタで開けない" },
         };
       }
-      await actions.openTicket(request.ticket);
+      await actions.open(request.route);
       return { id: request.id, ok: true, data: null, warnings: [], write: null };
     }
     const result = await client.run(request.name, request.input);
@@ -130,7 +134,7 @@ export function isWebviewRequest(value: unknown): value is WebviewRequest {
     case "run":
       return typeof v.name === "string";
     case "action":
-      return v.name === "openTicket" && typeof v.ticket === "string";
+      return v.name === "open" && typeof v.route === "string" && v.route.startsWith("#/");
     default:
       return false;
   }

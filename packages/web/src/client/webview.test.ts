@@ -55,11 +55,11 @@ describe("postMessage の CommandClient", () => {
     expect(error).toMatchObject({ code: "TRANSITION_REJECTED", message: "遷移できない" });
   });
 
-  it("openTicket は kind: action の要求を送り、応答で解決する", async () => {
+  it("open は kind: action の要求を送り、応答で解決する", async () => {
     const h = host();
     const client = createWebviewClient(h);
-    const p = client.openTicket("t12");
-    expect(h.requests).toEqual([{ id: 1, kind: "action", name: "openTicket", ticket: "t12" }]);
+    const p = client.open("#/tickets/t12");
+    expect(h.requests).toEqual([{ id: 1, kind: "action", name: "open", route: "#/tickets/t12" }]);
     h.reply({ id: 1, ok: true, data: null, warnings: [], write: null });
     await expect(p).resolves.toBeUndefined();
   });

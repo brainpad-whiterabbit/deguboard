@@ -18,8 +18,8 @@ export interface WebviewHost {
 
 /** 拡張ホストと話す CommandClient。画面の外への働きかけと、ホストからの通知の購読も持つ（UI-12） */
 export interface WebviewClient extends CommandClient {
-  /** チケット詳細をエディタ領域に開いてもらう */
-  openTicket(ticket: string): Promise<void>;
+  /** 画面のルート（#/tickets/t12 など）をエディタ領域のパネルに開いてもらう */
+  open(route: string): Promise<void>;
   /** 拡張ホストからの通知を受ける。戻り値で購読を外す */
   onEvent(listener: (event: WebviewEvent) => void): () => void;
 }
@@ -64,8 +64,8 @@ export function createWebviewClient(
     async status(): Promise<StatusView> {
       return (await send({ kind: "status" })).data as StatusView;
     },
-    async openTicket(ticket: string): Promise<void> {
-      await send({ kind: "action", name: "openTicket", ticket });
+    async open(route: string): Promise<void> {
+      await send({ kind: "action", name: "open", route });
     },
     onEvent(listener) {
       listeners.add(listener);

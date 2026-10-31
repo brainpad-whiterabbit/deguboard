@@ -18,7 +18,8 @@ export type Route =
   | { page: "backlog" }
   | { page: "ticket"; id: string }
   | { page: "epics"; id?: string | undefined }
-  | { page: "iterations"; id: string };
+  | { page: "iterations"; id: string }
+  | { page: "history" };
 
 const BOARD_KEYS = [
   "iteration",
@@ -45,6 +46,8 @@ export function parseRoute(hash: string): Route {
       return id ? { page: "ticket", id } : { page: "backlog" };
     case "epics":
       return { page: "epics", id };
+    case "history":
+      return { page: "history" };
     case "iterations":
       // Iteration の一覧の画面はない（planned・active はカンバンの表、closed は履歴）。ID がなければカンバン
       return id ? { page: "iterations", id } : board();
@@ -69,6 +72,8 @@ export function hrefOf(route: Route): string {
       return route.id ? `#/epics/${route.id}` : "#/epics";
     case "iterations":
       return `#/iterations/${route.id}`;
+    case "history":
+      return "#/history";
   }
 }
 

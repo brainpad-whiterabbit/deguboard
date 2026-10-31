@@ -18,11 +18,14 @@ export interface StatusView extends SyncStatus {
   data_dir: string;
 }
 
-/** Webview → 拡張ホストの要求。id で応答と対応づける。action は画面の外（エディタ）に働きかける操作で、応答の data は null */
+/**
+ * Webview → 拡張ホストの要求。id で応答と対応づける。action は画面の外（エディタ）に働きかける操作で、応答の data は null。
+ * open は画面のルート（#/tickets/t12、#/iterations/s3）をエディタ領域のパネルに開く
+ */
 export type WebviewRequest =
   | { id: number; kind: "run"; name: string; input: unknown }
   | { id: number; kind: "status" }
-  | { id: number; kind: "action"; name: "openTicket"; ticket: string };
+  | { id: number; kind: "action"; name: "open"; route: string };
 
 /** 拡張ホスト → Webview の通知。要求と対応づかないので id を持たない（UI-12）。reload は store を読み直す（同期・再読み込み・ファイルの変化の後） */
 export type WebviewEvent =
