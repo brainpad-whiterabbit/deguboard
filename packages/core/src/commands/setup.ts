@@ -133,8 +133,11 @@ async function reconcileAll(ctx: CommandContext, warnings: string[]): Promise<Re
       needPr: needsPr(wf),
     });
     facts.deps_done = ctx.store.depsDone(doc.data);
-    for (const w of regressionWarnings(doc.data.status, facts)) warnings.push(`${doc.id}: ${w}`);
     const outcome = reconcileStatus(wf.resolved, doc.data.status, facts);
+    // done に進むなら、消えたブランチは正常（マージ後に消した）なので警告しない
+    if (!(outcome.kind === "advance" && outcome.to === "done")) {
+      for (const w of regressionWarnings(doc.data.status, facts)) warnings.push(`${doc.id}: ${w}`);
+    }
     if (outcome.kind === "advance") {
       await ctx.store.update("ticket", doc.id, { status: outcome.to, updated_at: nowIso(ctx) });
       changed.push({ id: doc.id, from: doc.data.status, to: outcome.to });
