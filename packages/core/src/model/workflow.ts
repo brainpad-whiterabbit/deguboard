@@ -55,4 +55,6 @@ export const workflowDefinitionSchema = z.looseObject({
     .default([]),
 });
 export type WorkflowDefinition = z.output<typeof workflowDefinitionSchema>;
+/** YAML や テンプレートに書く形（既定値を省ける） */
+export type WorkflowDefinitionInput = z.input<typeof workflowDefinitionSchema>;
 export type FieldDefinition = WorkflowDefinition["fields"][number];
