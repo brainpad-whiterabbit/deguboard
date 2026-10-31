@@ -33,7 +33,7 @@ mise run install    # 依存を lockfile どおりに入れる
 
 ## ブランチと worktree
 
-`dg` でこのリポジトリのチケットを管理できるようになるまでの、1 つの変更を `main` に入れる手順。規約（squash マージ、ブランチを消す）は [CLAUDE.md](../CLAUDE.md#ブランチprマージ) にある。`dg` が動いたら、この手順は `dg` が行う。
+`dg` でこのリポジトリのチケットを管理できるようになるまでの、1 つの変更を `main` に入れる手順。規約（squash マージ、ブランチを消す）は [CLAUDE.md](../CLAUDE.md#ブランチprマージ) にある。`dg` でこのリポジトリのチケットを管理できるようになったら、この節を `dg` を使う手順に書き替え、ここの手順は消す（古い手順を残さない）。
 
 worktree は `../deguboard.worktrees/<ブランチ名>` に置く。`dg` の `worktree.root` の既定（[requirements.md](requirements.md)）と同じ場所で、リポジトリの外なので `.gitignore` は要らない。ブランチ名は `<種類>/<内容>`（例：`docs/branch-strategy`、`feat/ticket-create`、`fix/sync-warning`）。
 
