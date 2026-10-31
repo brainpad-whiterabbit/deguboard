@@ -2,4 +2,7 @@ id: s2
 project: default
 name: sprint2
 goal: ""
-status: planned
+status: closed
+closed_at: 2026-10-31T16:42:49Z
+completed: 7
+carried_over: 1
