@@ -19,7 +19,7 @@
 ### 記録するもの
 
 - エージェント名、モデル名、開始・終了日時、実行時間、input / output / cache read / cache write のトークン数、結果、エラー、リトライ回数、Run の step
-- 集計の単位は Run・Ticket・Iteration・Project・Agent/Model。集計値は保存せず、表示のたびに Run から求める
+- 集計の単位は Run・Ticket・Epic・Iteration・Project・Agent/Model。集計値は保存せず、表示のたびに Run から求める
 
 ### 推定費用は持たない
 

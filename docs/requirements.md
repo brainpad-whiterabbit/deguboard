@@ -29,6 +29,7 @@ deguboard は、Git で管理するチケットとユーザー定義のワーク
 | ------------------ | ----------------------------------------------------------------------------------------------------- |
 | Project            | チケットを束ねる単位。1 リポジトリに複数置ける                                                        |
 | Ticket             | 最小の作業単位。`t12`                                                                                 |
+| Epic               | 目的ごとにチケットを束ねる単位。Iteration をまたぐ。`e3`                                              |
 | Iteration          | 期間の計画（スプリント）。`s3`。`sprint` はエイリアス                                                 |
 | Plan               | チケットをどの順で進めるかと承認の記録。`p7`                                                          |
 | Workflow           | 遷移の条件・照合規則・追加フィールド・表示名の定義                                                    |
@@ -40,7 +41,7 @@ deguboard は、Git で管理するチケットとユーザー定義のワーク
 
 ## 4. ユースケース
 
-- **ソフトウェア開発**：エージェントが要件を整理してチケットに分解し、依存を付けて Iteration に入れる。チケットごとに作業ブランチと worktree を作って claim し、実装・テスト・PR を作る。別のエージェントか人がレビューし、マージされると照合で done になる。Run に使用量が残る
+- **ソフトウェア開発**：エージェントが要件を整理してチケットに分解し、Epic に束ね、依存を付けて Iteration に入れる。チケットごとに作業ブランチと worktree を作って claim し、実装・テスト・PR を作る。別のエージェントか人がレビューし、マージされると照合で done になる。Run に使用量が残る
 - **コンサルティング**：調査・分析・資料作成・レビューの工程を Workflow の step として定義し、同じ仕組みでチケットを進める。PR はなく、成果物のブランチがマージされると done になる
 
 ## 5. データ要件
@@ -55,6 +56,7 @@ config.yaml
 projects/<slug>.yaml
 tickets/t12.md              # 1 チケット 1 ファイル。ファイル名は ID そのまま
 tickets/deleted/t9.md       # 墓標。番号を再利用しない
+epics/e3.md                 # 目的ごとの束ね。Iteration をまたぐ
 iterations/s3.yaml
 plans/p7.yaml
 workflows/<id>.yaml
@@ -66,7 +68,7 @@ runs/                       # Phase 3。完了時の集計だけ
 
 ### 5.2 ID と番号
 
-- DT-3 ID は接頭辞＋連番（`t12`・`s3`・`p7`）。ファイル名は ID そのまま（`t12.md`）で、ゼロ埋めしない。番号はリポジトリ全体で一意。ファイル名の辞書順は番号順にならないが、CLI と UI は番号で並べる
+- DT-3 ID は接頭辞＋連番（`t12`・`e3`・`s3`・`p7`）。ファイル名は ID そのまま（`t12.md`）で、ゼロ埋めしない。番号はリポジトリ全体で一意。ファイル名の辞書順は番号順にならないが、CLI と UI は番号で並べる
 - DT-4 採番は「既存と墓標の最大 + 1」。作成は fetch → 採番 → commit → push を 1 単位とし、push が拒否されたら採番し直す
 - DT-5 push できないときは `provisional: true` を付けてローカルに commit し、次の `dg sync` で衝突があれば番号・ファイル名・未 push のコミット内の参照を振り直す。`dg ticket list` は仮番号に印を出す
 - DT-6 CLI と UI は `t12` でも `12` でも受け付ける
@@ -86,6 +88,7 @@ status: in_progress
 priority: medium # low | medium | high
 labels: [frontend]
 iteration: s3
+epic: e3
 depends_on: [t9]
 workflow: software-development
 claimed_by: eiki@laptop
@@ -110,18 +113,46 @@ updated_at: 2026-10-31T05:10:00Z
 - TK-3 本文は Markdown。`## 概要` と `## 受け入れ条件`（`- [ ]` のチェックリスト）を推奨し、`dg lint` が欠けを指摘する
 - TK-4 Workflow の `fields` で定義した任意フィールドを frontmatter に持てる
 - TK-5 受け入れ条件のチェックは、作業した人かエージェントが PR や成果物で確認できたときに付ける。deguboard が自動で付けることはない
+- TK-6 `epic` は同じ Project の Epic の ID。閉じた Epic には付けられない
 
-### 5.5 Iteration（`iterations/s3.yaml`）
+### 5.5 Epic（`epics/e3.md`）
+
+目的ごとにチケットを束ねる単位。Iteration（期間）・Plan（実行順）とは別の軸で、Iteration をまたぐ。
+
+```markdown
+---
+id: e3
+project: webapp
+title: ログイン機能の刷新
+status: open # open | closed
+labels: [frontend]
+created_at: 2026-10-31T04:00:00Z
+updated_at: 2026-10-31T05:10:00Z
+closed_at: 2026-11-20T09:00:00Z # closed のときだけ
+---
+
+## 概要
+
+…
+```
+
+- EP-1 必須は `id`・`project`・`title`・`status`・`created_at`・`updated_at`。`status` は `open` / `closed` で、閉じたときに `closed_at` を書く。本文は Markdown で、`## 概要` を推奨し `dg lint` が欠けを指摘する
+- EP-2 所属はチケットの `epic` で表し、Epic 側にチケットの一覧は持たない。入れるのは同じ Project のチケットだけ。Epic は入れ子にしない
+- EP-3 進捗は保存しない。done の件数と abandoned を除く件数をチケットから都度求める
+- EP-4 閉じる・再開するのは人だけ。done・abandoned 以外のチケットが残るときは閉じるのを拒否し、`--force` で閉じられる（残ったチケットの `epic` はそのまま）。閉じた Epic にはチケットを足せない
+- EP-5 Epic の状態はチケットの遷移を縛らない。Epic に削除はない（閉じて残す）
+
+### 5.6 Iteration（`iterations/s3.yaml`）
 
 `id`、`project`、`name`、`goal`、`start`、`end`、`status`（`planned` / `active` / `closed`）、`tickets`（並び順）。閉じたときに `closed_at` と完了・持ち越しの件数を書く。
 
-### 5.6 Plan（`plans/p7.yaml`）
+### 5.7 Plan（`plans/p7.yaml`）
 
 - PL-1 `id`、`project`、`tickets`、`after`（計画内だけの待ち。チケットの依存とは別）、`pending_approval`、`approved_by`、`approved_at`、`details.<ticket>.{scope, approach}` を持つ
 - PL-2 進捗は Plan に書かない。チケットの状態から都度求める。Plan を書くのは作成・承認・終了のときだけ
 - PL-3 1 つのチケットは同時に 1 つの Plan にしか入らない。done のチケットは入れられない
 
-### 5.7 Workflow（`workflows/<id>.yaml`）
+### 5.8 Workflow（`workflows/<id>.yaml`）
 
 ```yaml
 id: software-development
@@ -145,13 +176,13 @@ fields:
 - WF-4 `software-development`・`consulting`・`general` のテンプレートを同梱し、`dg init --template` でコピーする
 - WF-5 Phase 3 で `steps`（Run の step の語彙）と、step ごとの Action・承認の要否を足す。手続きは YAML に書かず `dg guide` が持つ
 
-### 5.8 Run（`runs/`、Phase 3）
+### 5.9 Run（`runs/`、Phase 3）
 
 - RN-1 1 Run 1 ファイル。`id`、`ticket`、`step`、`agent`、`model`、`started_at`、`finished_at`、`result`（`success` / `failure` / `interrupted`）、`error`、`retries`、`usage`（input / output / cache_read / cache_write のトークン）
 - RN-2 取れなかった値は `null`。推定した値は `estimated: true` を付ける。費用は持たない（[ADR-005](adr/ADR-005-work-metrics.md)）
 - RN-3 Git に入れるのは完了時の集計だけ。実行中の詳細ログは `deguboard-local/runs/`
 
-### 5.9 設定（`config.yaml`）
+### 5.10 設定（`config.yaml`）
 
 | 項目                             | 意味                                         | 既定                  |
 | -------------------------------- | -------------------------------------------- | --------------------- |
@@ -178,6 +209,7 @@ fields:
 | Project   | `project create / list / show / archive`                                                 | 1     |
 | Ticket    | `ticket create / list / show / update / move / delete / import / claim / unclaim`        | 1     |
 | Iteration | `iteration create / list / show / add / remove / start / close`（`sprint` はエイリアス） | 1     |
+| Epic      | `epic create / list / show / update / add / remove / close / reopen`                     | 1     |
 | Workflow  | `workflow list / show / validate`                                                        | 1     |
 | 画面      | `serve`、`open`                                                                          | 1     |
 | 手順      | `guide <topic>`                                                                          | 1     |
@@ -185,7 +217,7 @@ fields:
 | Run       | `run start / finish / list`、`metrics show`                                              | 3     |
 
 - CL-3 書き込みを伴うコマンドは、`commit.mode` に従って deguboard ブランチにコミットする。`ticket create`・`ticket import`・`ticket claim` は mode によらず即座にコミットして push する
-- CL-4 `ticket import` は YAML / JSON の下書き（配列）を 1 コミットで取り込む。下書きの中の仮キーを `depends_on` から参照できる
+- CL-4 `ticket import` は YAML / JSON の下書き（配列）を 1 コミットで取り込む。下書きの中の仮キーを `depends_on` から参照でき、`epic` に既存の Epic を書ける
 - CL-5 `dg guide <topic>` は、エージェント向けの手順を `config.yaml` の値を埋めて出す。手順の正本は CLI に同梱した Markdown（`packages/cli/src/guide-*.md`）
 - CL-6 CLI はビジネスロジックを持たず、Core のコマンド定義（`packages/core/src/commands/`）を写す
 
@@ -198,7 +230,7 @@ fields:
 - ST-5 後退を指す事実（消えたブランチ・閉じた PR）は書き換えず警告する。取れなかった事実は不明とし、前進の判定では偽と読む
 - ST-6 PR の事実は `gh` が使えるときだけ取る。`gh` がなくても照合は Git の事実だけで成り立つ
 - ST-7 `unclaim` は自分の claim か記録のない claim だけを外す。応答のない claim は `--force` で外す。生存監視はしない
-- ST-8 `abandoned` にできるのは人だけ。claim を外し、Iteration の完了件数には数えない。再開（todo に戻す）と done の取り消し（todo に戻す）も人だけが行う
+- ST-8 `abandoned` にできるのは人だけ。claim を外し、Iteration の完了件数と Epic の進捗には数えない。再開（todo に戻す）と done の取り消し（todo に戻す）も人だけが行う
 
 ### 6.3 Git 同期と排他
 
@@ -214,14 +246,15 @@ fields:
 Web UI は `dg serve` が配信し、VS Code 拡張は同じ React アプリを Webview に載せる。表示と操作は両方で同じ（[ADR-006](adr/ADR-006-ui-and-writes.md)）。
 
 - UI-1 プロジェクトの切り替え
-- UI-2 カンバン：列は todo / in_progress / review / done の 4 つ（表示名は Workflow の `labels`）。abandoned は既定で隠し、切り替えで出す。チケットをドラッグ＆ドロップすると `ticket move` と同じ検査を通して Status が変わり、拒否されたら理由を出して戻す
-- UI-3 バックログ：done と abandoned 以外のチケットを優先度と並び順で出し、番号・タイトル・ラベルで検索、Status・優先度・Iteration・ラベルで絞り込む
-- UI-4 チケット詳細：本文（概要・受け入れ条件）、属性、依存先と依存元、作業ブランチ、Run の一覧（Phase 3）。属性と本文を編集できる
+- UI-2 カンバン：列は todo / in_progress / review / done の 4 つ（表示名は Workflow の `labels`）。abandoned は既定で隠し、切り替えで出す。チケットをドラッグ＆ドロップすると `ticket move` と同じ検査を通して Status が変わり、拒否されたら理由を出して戻す。Epic で絞り込める
+- UI-3 バックログ：done と abandoned 以外のチケットを優先度と並び順で出し、番号・タイトル・ラベルで検索、Status・優先度・Iteration・Epic・ラベルで絞り込む
+- UI-4 チケット詳細：本文（概要・受け入れ条件）、属性、Epic、依存先と依存元、作業ブランチ、Run の一覧（Phase 3）。属性と本文を編集できる
 - UI-5 Iteration：一覧と、選んだ Iteration のチケット。チケットの追加・除外、開始・終了
 - UI-6 未 push のコミットと、取り込んでいないリモートの更新があることを印で知らせる。再読み込みで `dg sync` と同じ同期を行う
 - UI-7 画面からの書き込みは Core の同じコマンドを通り、`commit.mode` に従ってコミットする
 - UI-8 `dg serve` は既定で `127.0.0.1` にバインドする。認証は持たない
 - UI-9 Run の実行状況と実績の画面は Phase 3
+- UI-10 Epic：一覧と進捗（EP-3）、選んだ Epic のチケットを Status ごとに出す。チケットの追加・除外、閉じる・再開
 
 画面の並び順・色・文言は Webview のコード（`packages/web/src/`）とテストが正本。
 
@@ -229,7 +262,7 @@ Web UI は `dg serve` が配信し、VS Code 拡張は同じ React アプリを 
 
 - AG-1 エージェントは `dg … --json` を Bash から呼び、データのファイルを直接編集しない
 - AG-2 Claude Code 向けに、`dg guide <topic>` を読む薄い Skill を配る（`dg skill install`、Phase 2）。起票・計画・作業・完了の各トピックを用意する
-- AG-3 エージェントは要件の整理が終わったら、必要に応じてチケット化を提案し、承認を得て `ticket import` で起票する。分解・依存の整理・Iteration への割り当ても提案して承認を得る（Phase 2）
+- AG-3 エージェントは要件の整理が終わったら、必要に応じてチケット化を提案し、承認を得て `ticket import` で起票する。分解・Epic への束ね・依存の整理・Iteration への割り当ても提案して承認を得る（Phase 2）
 - AG-4 MCP サーバーは Core のコマンド定義から生成する薄い層として提供する（Phase 2）。CLI と同じ操作ができる
 - AG-5 Agent Adapter が、エージェントの起動方法・使用量の取得・権限・作業ディレクトリの差を吸収する。Core は特定の AI 製品を知らない（Phase 2〜3）
 - AG-6 ソフトウェア開発向けの Action（worktree の作成、ブランチ、テスト実行、PR 作成、マージ）は登録済みの Action として提供し、Core の汎用部分に組み込まない（Phase 3）
@@ -239,7 +272,7 @@ Web UI は `dg serve` が配信し、VS Code 拡張は同じ React アプリを 
 
 - MT-1 `dg run start / finish` で Run を記録し、Adapter が使用量を取り込む。エージェントの自己申告の数字は書かない
 - MT-2 `metrics.read_transcripts` が true のマシンでは、Claude Code の会話記録から使用量を補う。`DEGUBOARD_NO_TRANSCRIPTS=1` のマシンでは読まない
-- MT-3 Run・Ticket・Iteration・Project・Agent/Model の単位で集計して出す。集計値は保存しない
+- MT-3 Run・Ticket・Epic・Iteration・Project・Agent/Model の単位で集計して出す。集計値は保存しない
 - MT-4 Git に入る記録は、数とリポジトリからの相対パスだけ。会話の中身・コマンドの文字列・リポジトリの外のパスは写さない
 
 ### 6.7 ワークフロー実行（Phase 3〜4）
@@ -269,6 +302,7 @@ Web UI は `dg serve` が配信し、VS Code 拡張は同じ React アプリを 
 
 - deguboard がエージェントを起動・監視すること、ツール側のスケジューラ（[ADR-004](adr/ADR-004-agents-and-state.md)）
 - Milestone（Iteration で表す。[ADR-003](adr/ADR-003-status-and-workflow.md)）
+- Epic の入れ子と、チケットの親子関係（サブタスク）。束ねるのは Epic の 1 段だけ（[ADR-003](adr/ADR-003-status-and-workflow.md)）
 - 推定費用の記録（[ADR-005](adr/ADR-005-work-metrics.md)）
 - Workflow の条件に利用者のスクリプトを使うこと
 - 複数 PC 間の排他（claim の push で足りる）

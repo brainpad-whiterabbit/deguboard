@@ -29,7 +29,7 @@ deguboard は AI エージェント（Claude Code など）が主に実装する
 利用者（人・エージェント）から外に見え、変えると利用者に影響する「約束」だけを書く。
 
 - コマンドがあることと、何をするか（書き込むか・push するか・止まる条件）
-- データ（Project・Ticket・Iteration・Plan・Workflow・Run・config）の形と意味
+- データ（Project・Ticket・Epic・Iteration・Plan・Workflow・Run・config）の形と意味
 - 状態遷移
 - 画面に何が出て、何ができるか
 - 限界
