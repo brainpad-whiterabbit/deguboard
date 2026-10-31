@@ -199,12 +199,19 @@ describe("dg", () => {
     await dg(f.cloneA, ["init"]);
     expect((await dg(f.cloneA, ["validate"])).code).toBe(0);
     await dg(f.cloneA, ["ticket", "create", "A", "--body", "本文だけ"]);
+    await dg(f.cloneA, ["ticket", "create", "B", "--summary", "s"]);
+    await dg(f.cloneA, ["ticket", "create", "C", "--summary", "s", "--acceptance", "a, b"]);
     const lint = await dg(f.cloneA, ["--json", "lint"]);
     expect(lint.code).toBe(1);
-    expect(lint.json().data.issues.map((i: { code: string }) => i.code)).toEqual([
-      "lint_summary_missing",
-      "lint_acceptance_missing",
+    expect(
+      lint.json().data.issues.map((i: { id: string; code: string }) => [i.id, i.code]),
+    ).toEqual([
+      ["t1", "lint_summary_missing"],
+      ["t1", "lint_acceptance_missing"],
+      ["t2", "lint_acceptance_empty"],
     ]);
+    const shown = await dg(f.cloneA, ["--json", "ticket", "show", "t3"]);
+    expect(shown.json().data.body).toContain("- [ ] a, b\n");
     await writeFile(
       path.join(f.cloneA, ".git", "deguboard", "tickets", "t2.md"),
       "---\nid: t2\n---\n",

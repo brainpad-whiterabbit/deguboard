@@ -29,7 +29,27 @@ export const ticketSchema = z.looseObject({
 });
 export type Ticket = z.output<typeof ticketSchema>;
 
-/** 本文の雛形（TK-3）。`## 概要` と `## 受け入れ条件` を推奨する */
-export function ticketBodyTemplate(summary = ""): string {
-  return `## 概要\n\n${summary}\n\n## 受け入れ条件\n\n- [ ] \n`;
+/** `## 受け入れ条件` の見出し行。節の切り出しと雛形で共有する */
+const ACCEPTANCE_HEADING = /^## 受け入れ条件[ \t]*$/m;
+
+/**
+ * 本文の雛形（TK-3）。`## 概要` に summary を、`## 受け入れ条件` に acceptance の項目をチェックリストで置く。
+ * 項目がなければ空の `- [ ] ` を 1 行置く（lint が空として指摘する）
+ */
+export function ticketBodyTemplate(summary = "", acceptance: readonly string[] = []): string {
+  const items = acceptance.length === 0 ? ["- [ ] "] : acceptance.map((a) => `- [ ] ${a.trim()}`);
+  return `## 概要\n\n${summary}\n\n## 受け入れ条件\n\n${items.join("\n")}\n`;
+}
+
+/**
+ * 本文から `## 受け入れ条件` の節（見出しの次の行から、次の `## ` 見出しの手前か末尾まで）を返す。
+ * 見出しがなければ undefined
+ */
+export function acceptanceSection(body: string): string | undefined {
+  const m = ACCEPTANCE_HEADING.exec(body);
+  if (!m) return undefined;
+  const start = m.index + m[0].length;
+  const rest = body.slice(start);
+  const next = /^## /m.exec(rest);
+  return next ? rest.slice(0, next.index) : rest;
 }

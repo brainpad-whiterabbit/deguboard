@@ -5,7 +5,7 @@
 ## 流れ
 
 1. 要件の整理が終わったら、チケット化を**提案**する。勝手に起票しない。分解の案（題・概要・受け入れ条件・依存・Epic）を箇条書きで見せ、承認を得る
-2. 1 枚なら `dg --json --actor agent ticket create "<題>" --summary "<概要>" [--epic e3] [--depends-on t9,t10] [--priority high]`
+2. 1 枚なら `dg --json --actor agent ticket create "<題>" --summary "<概要>" --acceptance "<条件>" --acceptance "<条件>" [--epic e3] [--depends-on t9,t10] [--priority high]`
 3. 複数なら YAML の下書きを 1 ファイルに書いて `dg --json --actor agent ticket import <file>`。1 回のコミットでまとめて採番される
 4. 結果の `data` から ID を読み、人に報告する
 
@@ -15,6 +15,7 @@
 - key: schema # 下書きの中だけで使う仮キー
   title: スキーマを決める
   summary: …
+  acceptance: [条件 1, 条件 2] # 本文の雛形のチェックリストに入る
   epic: e3 # 既存の Epic。省略可
   iteration: s3 # 既存の Iteration。省略可
   priority: high # low / medium / high。既定は medium
@@ -36,7 +37,7 @@
 ## よいチケットの書き方
 
 - 題は「何をどうする」が一読でわかる 1 行。実装の手段ではなく成果で書く
-- 本文は `## 概要` と `## 受け入れ条件`（`- [ ]` のチェックリスト）。`dg lint` が欠けを指摘する
+- 本文は `## 概要` と `## 受け入れ条件`（`- [ ]` のチェックリスト）。`dg lint` が節の欠けと項目のない節を指摘する
 - 受け入れ条件は、PR や成果物を見て真偽を判定できる文にする
 - 1 枚は 1 つの PR で終わる大きさにする。大きければ分けて `depends_on` でつなぐ
 - 目的で束ねるなら Epic（`dg --json --actor agent epic list` で既存を見る。なければ作ることを提案する）

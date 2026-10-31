@@ -57,6 +57,18 @@ describe("Zod → オプション", () => {
     expect(parse("ticket.update", ["t1", "--pr", "42"])).toEqual({ ticket: "t1", pr: 42 });
   });
 
+  it("自由文の配列（meta freeText）は繰り返しだけで受け、カンマで割らない", () => {
+    const shapes = shapesOf(findCommand("ticket.create")!);
+    expect(shapes.find((s) => s.key === "acceptance")).toMatchObject({
+      kind: "array",
+      freeText: true,
+    });
+    expect(shapes.find((s) => s.key === "labels")?.freeText).toBeUndefined();
+    expect(
+      parse("ticket.create", ["題", "--acceptance", "a, b", "--acceptance", "c", "--label", "x,y"]),
+    ).toEqual({ title: "題", acceptance: ["a, b", "c"], labels: ["x", "y"] });
+  });
+
   it("--field key=value は record になり、true/false と数値を変換する", () => {
     expect(
       parse("ticket.create", [

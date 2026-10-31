@@ -4,6 +4,7 @@
 //   boolean                     --key（フラグ）
 //   enum                        --key <value> に choices
 //   array（string / enum）      単数形で繰り返す（--label a --label b）。カンマ区切りも受ける
+//   array（meta freeText）      単数形で繰り返すだけ。要素が自由文なのでカンマで割らない（--acceptance）
 //   nullable                    none で外す（--epic none）
 //   record（fields）            --field key=value の繰り返し。true / false / 数値は変換する
 //   array of object（drafts）   位置引数 <file>（YAML / JSON。- で標準入力）から読む（ticket import。program.ts）
@@ -27,6 +28,8 @@ export interface FieldShape {
   kind: "string" | "number" | "boolean" | "enum" | "array" | "record" | "unknown" | "objects";
   /** 配列のときの要素の型 */
   element?: "string" | "number" | "enum";
+  /** 配列の要素が自由文（zod の meta freeText）。カンマで割らない */
+  freeText?: boolean;
   choices?: string[];
   optional: boolean;
   nullable: boolean;
@@ -79,6 +82,7 @@ export function describeShape(key: string, schema: z.ZodType): FieldShape {
         ...base,
         kind: "array",
         element: kind,
+        ...(inner.meta()?.freeText === true ? { freeText: true } : {}),
         ...(kind === "enum" ? { choices: Object.keys(edef.entries ?? {}) } : {}),
       };
     }
@@ -140,6 +144,11 @@ function splitList(raw: string): string[] {
     .filter(Boolean);
 }
 
+/** 1 回の指定が表す要素。自由文の配列はそのまま 1 要素、それ以外はカンマで割る */
+function listItems(shape: FieldShape, raw: string): string[] {
+  return shape.freeText ? [raw] : splitList(raw);
+}
+
 /** 単数形の名前（labels → label、tickets → ticket）。繰り返すオプションの名前に使う */
 function singular(flag: string): string {
   if (/(ss|us)$/.test(flag) || !flag.endsWith("s") || flag.length < 2) return flag;
@@ -179,11 +188,11 @@ export function bindInputs(cmd: Command, command: AnyCommand, shapes = shapesOf(
         const flag = singular(shape.flag);
         const opt = new Option(
           `--${flag} <value>`,
-          `${desc}。繰り返すかカンマ区切りで複数指定できる`,
+          `${desc}。${shape.freeText ? "繰り返して複数指定できる" : "繰り返すかカンマ区切りで複数指定できる"}`,
         );
         opt.argParser((raw: string, previous: unknown[] = []) => [
           ...previous,
-          ...splitList(raw).map((v) => parseScalar(shape, v)),
+          ...listItems(shape, raw).map((v) => parseScalar(shape, v)),
         ]);
         cmd.addOption(opt);
         break;
@@ -224,7 +233,7 @@ export function collectInput(
     if (shape.kind === "array") {
       const list = Array.isArray(value) ? value : [value];
       input[shape.key] = list
-        .flatMap((v) => splitList(String(v)))
+        .flatMap((v) => listItems(shape, String(v)))
         .map((v) => parseScalar(shape, v));
     } else if (shape.kind === "unknown") {
       input[shape.key] = value;

@@ -52,6 +52,7 @@ describe("HTTP サーバー", () => {
     );
     const create = body.data.find((c) => c.name === "ticket.create")!;
     expect(Object.keys(create.input.properties)).toContain("title");
+    expect(Object.keys(create.input.properties)).toContain("acceptance");
     expect(describeCommands(commands).some((c) => c.name === "init")).toBe(false);
   });
 
