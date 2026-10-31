@@ -205,7 +205,7 @@ fields:
 
 | 群        | コマンド                                                                                 | Phase |
 | --------- | ---------------------------------------------------------------------------------------- | ----- |
-| 用意      | `init`、`sync`、`validate`、`lint`、`config`                                             | 1     |
+| 用意      | `init`、`sync`、`commit`、`validate`、`lint`、`config`                                   | 1     |
 | Project   | `project create / list / show / archive`                                                 | 1     |
 | Ticket    | `ticket create / list / show / update / move / delete / import / claim / unclaim`        | 1     |
 | Iteration | `iteration create / list / show / add / remove / start / close`（`sprint` はエイリアス） | 1     |

@@ -21,11 +21,11 @@ description = "oxlint を実行する"
 run = "pnpm run lint"
 
 [tasks.typecheck]
-description = "tsc で型を検査する（Phase 1 の基盤で有効にする）"
+description = "tsc で型を検査する"
 run = "pnpm run typecheck"
 
 [tasks.test]
-description = "vitest でテストする（Phase 1 の基盤で有効にする）"
+description = "vitest でテストする"
 run = "pnpm run test"
 
 [tasks."check:docs"]

@@ -19,15 +19,15 @@ mise run install    # 依存を lockfile どおりに入れる
 
 ### よく使うタスク
 
-| タスク                  | すること                                                 |
-| ----------------------- | -------------------------------------------------------- |
-| `mise run format`       | oxfmt で書式を整える                                     |
-| `mise run format:check` | 書式が整っているかを確かめる（書き換えない）             |
-| `mise run lint`         | oxlint を実行する                                        |
-| `mise run typecheck`    | tsc で型を検査する（Phase 1 の基盤チケットで有効にする） |
-| `mise run test`         | vitest でテストする（同上）                              |
-| `mise run check:docs`   | 文書の大きさの予算と ADR 一覧の整合を検査する            |
-| `mise run check`        | コミット前の確認。上をすべて順に実行する                 |
+| タスク                  | すること                                      |
+| ----------------------- | --------------------------------------------- |
+| `mise run format`       | oxfmt で書式を整える                          |
+| `mise run format:check` | 書式が整っているかを確かめる（書き換えない）  |
+| `mise run lint`         | oxlint を実行する                             |
+| `mise run typecheck`    | tsc で型を検査する（テストも含む）            |
+| `mise run test`         | vitest でテストする                           |
+| `mise run check:docs`   | 文書の大きさの予算と ADR 一覧の整合を検査する |
+| `mise run check`        | コミット前の確認。上をすべて順に実行する      |
 
 タスクの一覧は `mise tasks` で見られる。タスクは pnpm scripts を呼ぶだけで、定義は [mise.toml](../mise.toml) と [package.json](../package.json)。
 
@@ -71,11 +71,28 @@ worktree は `../deguboard.worktrees/<ブランチ名>` に置く。`dg` の `wo
 
 ## ビルドとテスト
 
-Phase 1 の基盤チケットで書く。
+- TypeScript は ESM（`"type": "module"`）で、相対 import は `.js` の拡張子で書く。設定はルートの `tsconfig.base.json` と `tsconfig.json` にあり、`mise run typecheck` は `packages/*/src` と `packages/*/test` をまとめて `noEmit` で検査する。配布用のビルド（dist）はまだなく、CLI パッケージを作るときに足す
+- テストはソースの隣の `*.test.ts` に置き、ルートの `vitest.config.ts` が `packages/*/src/**/*.test.ts` をまとめて走らせる。パッケージごとの設定ファイルは作らない
+- Git を使うテストは `packages/core/test/helpers/git-fixture.ts` で、一時ディレクトリに bare リモートと 2 つの clone を作って行う（CLAUDE.md の規約）。開発者のグローバル設定に影響されないよう、fixture が `GIT_CONFIG_GLOBAL=/dev/null` と `GIT_CONFIG_NOSYSTEM=1` を与える
+- 依存を足すときは `pnpm install` で lockfile を更新してからコミットする（`mise run install` は `--frozen-lockfile`）
 
 ## パッケージ
 
-構成と依存の向きは [ADR-007](adr/ADR-007-architecture.md)。Phase 1 の基盤チケットで `packages/` を作ったら、各パッケージの役割と起動方法をここに書く。
+構成と依存の向きは [ADR-007](adr/ADR-007-architecture.md)。今あるのは `core` だけで、`cli`・`server`・`web`・`vscode` はこれから作る。
+
+### `packages/core`（`@deguboard/core`）
+
+ドメインモデル・ストレージ・Git 操作・ワークフロー・コマンド定義。VS Code API・HTTP・React に依存しない。`src/` のモジュール：
+
+| モジュール  | 役割                                                                                                                                      |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `model/`    | Zod のスキーマ（config・Project・Ticket・Epic・Iteration・Plan・Workflow）、ID の解析と採番、Status と前進の順                            |
+| `storage/`  | frontmatter と YAML の読み書き（コメントとキー順を保つ）、原子的書き込み、`Store`（起動時に走査してメモリ上に索引を作る）、参照の整合     |
+| `workflow/` | 遷移表の正本、条件の評価、`reconcile` の評価、定義の検証、同梱テンプレート                                                                |
+| `git/`      | `execFile` で git・gh を呼ぶ、deguboard worktree の用意、取り込みと push、書き込みの 1 単位 `withWrite`（CAS と provisional）、事実の収集 |
+| `commands/` | 3 つの入口の正本。`defineCommand` で「名前・Zod の入力・実装」を組にし、`openContext` と `runCommand` で呼ぶ                              |
+
+入口がコマンドを呼ぶ流れ：`openContext({ cwd, actor })` → `runCommand(findCommand("ticket.create"), ctx, input)`。入力の形の誤りは `UsageError`（終了コード 2）、実行時の失敗は `OperationError`（終了コード 1、`code` に種類）。
 
 ## 文書を直すとき
 

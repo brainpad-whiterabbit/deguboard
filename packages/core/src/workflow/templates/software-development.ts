@@ -1,0 +1,19 @@
+import type { WorkflowDefinitionInput } from "../../model/workflow.js";
+
+/** ソフトウェア開発。PR の事実は gh があるときだけ使われ、なくても branch_merged で done になる */
+export const softwareDevelopment: WorkflowDefinitionInput = {
+  id: "software-development",
+  name: "Software Development",
+  labels: { review: "Code Review" },
+  transitions: [
+    { from: "review", to: "done", requires: ["branch_merged"], by: ["human", "reconcile"] },
+  ],
+  reconcile: [
+    // squash マージは祖先判定で取れないので PR のマージを先に見る
+    { when: ["pr_merged"], status: "done" },
+    { when: ["branch_merged"], status: "done" },
+    { when: ["pr_open", "!pr_draft"], status: "review" },
+    { when: ["branch_exists"], status: "in_progress" },
+  ],
+  fields: [{ id: "estimate", type: "number", label: "Estimate" }],
+};
