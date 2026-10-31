@@ -136,11 +136,17 @@ export function isWebviewRequest(value: unknown): value is WebviewRequest {
   }
 }
 
-/** サイドバーのビューに出すバッジ（UI-6・UI-12）。未 push と未取り込みの合計で、0 なら消す */
+/**
+ * サイドバーのビューに出すバッジ（UI-6・UI-12）。数は未 push と未取り込みの合計で、0 なら消す。
+ * ツールチップには未コミットの変更と読めないファイルも足す（サイドバーの中には同期の印を出さないので、ここで読む）
+ */
 export function badgeOf(status: StatusView): { value: number; tooltip: string } | undefined {
+  const value = status.ahead + status.behind;
+  if (value === 0) return undefined;
   const parts: string[] = [];
   if (status.ahead > 0) parts.push(`未 push ${status.ahead}`);
   if (status.behind > 0) parts.push(`未取り込み ${status.behind}`);
-  if (parts.length === 0) return undefined;
-  return { value: status.ahead + status.behind, tooltip: parts.join(" / ") };
+  if (status.dirty) parts.push("未コミットの変更");
+  if (status.issues > 0) parts.push(`読めないファイル ${status.issues}`);
+  return { value, tooltip: parts.join(" / ") };
 }
