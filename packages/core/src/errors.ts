@@ -11,6 +11,7 @@ export type OperationErrorCode =
   | "GIT_ERROR"
   | "IDENTITY_MISSING"
   | "NOT_INITIALIZED"
+  | "UNKNOWN_COMMAND"
   | "REJECTED";
 
 export class DeguboardError extends Error {

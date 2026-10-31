@@ -1,5 +1,5 @@
 // 画面（web）が入口と話すための 1 つのインターフェース（ADR-006・ADR-007）。
-// HTTP の実装は web、Webview の postMessage の実装は vscode が持つ。core はここで形だけを決める
+// HTTP と postMessage の実装は web が持ち、入口の側はプロセス内の実装（local.ts）を HTTP・postMessage に写す。core はここで形を決める
 
 import type { SyncStatus } from "../git/sync.js";
 import type { CommandResult } from "./define.js";
@@ -17,6 +17,22 @@ export interface StatusView extends SyncStatus {
   issues: number;
   data_dir: string;
 }
+
+/** Webview → 拡張ホストの要求。id で応答と対応づける */
+export type WebviewRequest =
+  | { id: number; kind: "run"; name: string; input: unknown }
+  | { id: number; kind: "status" };
+
+/** 拡張ホスト → Webview の応答。HTTP の本文と同じ形に id を足したもの */
+export type WebviewResponse =
+  | {
+      id: number;
+      ok: true;
+      data: unknown;
+      warnings: string[];
+      write: CommandResult<unknown>["write"] | null;
+    }
+  | { id: number; ok: false; error: CommandFailure };
 
 export interface CommandClient {
   /** コマンド名（ticket.move など）と入力を渡して結果を受け取る。失敗は CommandFailure を持つ例外 */

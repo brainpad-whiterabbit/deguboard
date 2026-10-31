@@ -12,7 +12,7 @@
     "typecheck": "tsc -p tsconfig.json && tsc -p packages/web/tsconfig.json",
     "test": "vitest run",
     "check:docs": "node scripts/check-docs.mjs",
-    "build": "tsc -b tsconfig.build.json && cp packages/cli/src/guide-*.md packages/cli/dist/ && pnpm --filter @deguboard/web build",
+    "build": "tsc -b tsconfig.build.json && cp packages/cli/src/guide-*.md packages/cli/dist/ && pnpm --filter @deguboard/web build && pnpm --filter deguboard-vscode build",
     "dg": "node packages/cli/bin/dg.js"
   },
   "devDependencies": {

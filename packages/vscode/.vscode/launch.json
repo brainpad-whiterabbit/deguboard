@@ -1,0 +1,12 @@
+{
+  // F5 で拡張開発ホストを起動する。先に mise run build で dist を作る
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "拡張を起動",
+      "type": "extensionHost",
+      "request": "launch",
+      "args": ["--extensionDevelopmentPath=${workspaceFolder}"]
+    }
+  ]
+}
