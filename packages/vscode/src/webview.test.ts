@@ -152,7 +152,7 @@ describe("Webview の要求", () => {
     expect(isWebviewRequest({ id: "1", kind: "status" })).toBe(false);
     expect(isWebviewRequest({ id: 1, kind: "run" })).toBe(false);
     expect(isWebviewRequest({ id: 1, kind: "action", name: "other", ticket: "t1" })).toBe(false);
-    expect(isWebviewRequest({ kind: "event", name: "sync" })).toBe(false);
+    expect(isWebviewRequest({ kind: "event", name: "reload" })).toBe(false);
     expect(isWebviewRequest(null)).toBe(false);
   });
 });
@@ -179,5 +179,13 @@ describe("サイドバーのバッジ", () => {
       tooltip: "未取り込み 1",
     });
     expect(badgeOf({ ...base, ahead: 0, behind: 0 })).toBeUndefined();
+  });
+
+  it("ツールチップには未コミットの変更と読めないファイルも足す。数に入れず、それだけならバッジは出さない", () => {
+    expect(badgeOf({ ...base, ahead: 1, behind: 0, dirty: true, issues: 2 })).toEqual({
+      value: 1,
+      tooltip: "未 push 1 / 未コミットの変更 / 読めないファイル 2",
+    });
+    expect(badgeOf({ ...base, ahead: 0, behind: 0, dirty: true, issues: 2 })).toBeUndefined();
   });
 });

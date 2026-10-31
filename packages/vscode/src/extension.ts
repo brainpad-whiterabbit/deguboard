@@ -7,6 +7,7 @@ import { randomBytes } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import {
   createLocalClient,
+  toCommandFailure,
   type CommandClient,
   type StatusView,
   type WebviewEvent,
@@ -33,6 +34,10 @@ const panels = new Map<string, vscode.WebviewPanel>();
 const clients = new Map<string, CommandClient>();
 /** 今出ているサイドバーのビュー。右クリックで非表示にされると dispose され、再表示で作り直される */
 let sidebar: vscode.WebviewView | undefined;
+/** サイドバーが対象にするフォルダ（最初の作業フォルダ）。ビューのタイトル行のコマンドはこのフォルダに対して動く */
+let sidebarFolder: vscode.WorkspaceFolder | undefined;
+/** 同期の実行中。重ねて走らせない */
+let syncing = false;
 
 export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
@@ -41,9 +46,12 @@ export function activate(context: vscode.ExtensionContext): void {
       if (!folder) return;
       await openPanel(context, folder, { column: vscode.ViewColumn.One });
     }),
-    vscode.commands.registerCommand("deguboard.sync", () => {
-      void sidebar?.webview.postMessage({ kind: "event", name: "sync" } satisfies WebviewEvent);
+    // ビューのタイトル行の 2 つのボタン（UI-12）。再読み込みはリモートがなくても使える。
+    // 同期は拡張ホストで実行してから、サイドバーとパネルの両方に読み直しを頼む（サイドバーが描かれていなくても動く）
+    vscode.commands.registerCommand("deguboard.reload", () => {
+      if (sidebarFolder) broadcast(sidebarFolder, { kind: "event", name: "reload" });
     }),
+    vscode.commands.registerCommand("deguboard.sync", () => void syncFolder()),
     vscode.window.registerWebviewViewProvider(
       VIEW_ID,
       { resolveWebviewView: (view) => resolveSidebar(context, view) },
@@ -83,6 +91,7 @@ async function resolveSidebar(
     return;
   }
   sidebar = view;
+  sidebarFolder = folder;
   view.onDidDispose(() => {
     if (sidebar === view) sidebar = undefined;
   });
@@ -102,6 +111,49 @@ async function resolveSidebar(
         }),
     },
   });
+}
+
+/** フォルダのサイドバーとパネルの両方に通知を送る */
+function broadcast(folder: vscode.WorkspaceFolder, event: WebviewEvent): void {
+  if (sidebar && sidebarFolder === folder) void sidebar.webview.postMessage(event);
+  void panels.get(folder.uri.toString())?.webview.postMessage(event);
+}
+
+/**
+ * dg sync と同じ同期をサイドバーのフォルダに対して行い、終わったら画面を読み直させる。
+ * リモートがなければ同期は要らないので、知らせて読み直すだけにする。警告と失敗は VS Code の通知に出す
+ */
+async function syncFolder(): Promise<void> {
+  const folder = sidebarFolder ?? (vscode.workspace.workspaceFolders ?? [])[0];
+  if (!folder) {
+    void vscode.window.showErrorMessage("deguboard: フォルダを開いてから使う（対象のリポジトリ）");
+    return;
+  }
+  if (syncing) return;
+  syncing = true;
+  try {
+    const client = clientFor(folder);
+    const status = await client.status();
+    if (!status.remote) {
+      void vscode.window.showInformationMessage(
+        "deguboard: リモートがないので同期は要らない。読み直した",
+      );
+      return;
+    }
+    await vscode.window.withProgress({ location: { viewId: VIEW_ID }, title: "同期" }, async () => {
+      const result = await client.run("sync");
+      if (result.warnings.length > 0) {
+        void vscode.window.showWarningMessage(`deguboard: ${result.warnings.join(" / ")}`);
+      }
+    });
+  } catch (error) {
+    void vscode.window.showErrorMessage(
+      `deguboard: 同期できない: ${toCommandFailure(error).message}`,
+    );
+  } finally {
+    syncing = false;
+    broadcast(folder, { kind: "event", name: "reload" });
+  }
 }
 
 /**

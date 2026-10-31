@@ -70,16 +70,16 @@ describe("postMessage の CommandClient", () => {
     const received: WebviewEvent[] = [];
     const off = client.onEvent((e) => received.push(e));
     h.reply({ kind: "event", name: "navigate", hash: "#/tickets/t3" });
-    h.reply({ kind: "event", name: "sync" });
+    h.reply({ kind: "event", name: "reload" });
     h.reply({ kind: "event", name: "unknown" });
     h.reply("文字列");
     h.reply(null);
     expect(received).toEqual([
       { kind: "event", name: "navigate", hash: "#/tickets/t3" },
-      { kind: "event", name: "sync" },
+      { kind: "event", name: "reload" },
     ]);
     off();
-    h.reply({ kind: "event", name: "sync" });
+    h.reply({ kind: "event", name: "reload" });
     expect(received).toHaveLength(2);
   });
 });
