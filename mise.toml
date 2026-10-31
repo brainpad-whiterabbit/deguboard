@@ -5,8 +5,8 @@ pnpm = "12.12.1"
 
 # タスクは pnpm scripts を呼ぶだけにする。人もエージェントも mise run だけを使う
 [tasks.install]
-description = "依存を lockfile どおりに入れる"
-run = "pnpm install --frozen-lockfile"
+description = "依存を lockfile どおりに入れ、dist と VSIX もビルドする（dg と拡張が変更前のまま残らないように）"
+run = ["pnpm install --frozen-lockfile", "pnpm run build", "pnpm run vsix"]
 
 [tasks.format]
 description = "oxfmt でコードと設定ファイルの書式を整える"
