@@ -31,6 +31,8 @@ export type Ticket = z.output<typeof ticketSchema>;
 
 /** `## 受け入れ条件` の見出し行。節の切り出しと雛形で共有する */
 const ACCEPTANCE_HEADING = /^## 受け入れ条件[ \t]*$/m;
+/** チェックリストの 1 行。[1] が印、[2] が文 */
+const CHECK_ITEM = /^- \[([ xX])\] (.*\S)[ \t]*$/gm;
 
 /**
  * 本文の雛形（TK-3）。`## 概要` に summary を、`## 受け入れ条件` に acceptance の項目をチェックリストで置く。
@@ -46,10 +48,39 @@ export function ticketBodyTemplate(summary = "", acceptance: readonly string[] =
  * 見出しがなければ undefined
  */
 export function acceptanceSection(body: string): string | undefined {
+  const range = acceptanceRange(body);
+  return range && body.slice(range.start, range.end);
+}
+
+/** 節の本文の位置（見出しの次の文字から、次の見出しの手前か末尾まで） */
+function acceptanceRange(body: string): { start: number; end: number } | undefined {
   const m = ACCEPTANCE_HEADING.exec(body);
   if (!m) return undefined;
   const start = m.index + m[0].length;
-  const rest = body.slice(start);
-  const next = /^## /m.exec(rest);
-  return next ? rest.slice(0, next.index) : rest;
+  const next = /^## /m.exec(body.slice(start));
+  return { start, end: next ? start + next.index : body.length };
+}
+
+/**
+ * `## 受け入れ条件` の節の項目を items で置き換えた本文を返す。他の節は変えない。
+ * 同じ文の項目が済み（`- [x]`）なら印を保つ（TK-5）。節がなければ末尾に足す
+ */
+export function replaceAcceptance(body: string, items: readonly string[]): string {
+  const range = acceptanceRange(body);
+  const current = range ? body.slice(range.start, range.end) : "";
+  const checked = new Set(
+    [...current.matchAll(CHECK_ITEM)].filter((m) => m[1] !== " ").map((m) => m[2]),
+  );
+  const lines = items.map((raw) => {
+    const text = raw.trim();
+    return `- [${checked.has(text) ? "x" : " "}] ${text}`;
+  });
+  const section = `\n\n${lines.join("\n")}\n`;
+  if (!range) {
+    const sep = body === "" ? "" : body.endsWith("\n") ? "\n" : "\n\n";
+    return `${body}${sep}## 受け入れ条件${section}`;
+  }
+  // 次の節が続くなら空行で区切る
+  const tail = range.end < body.length ? "\n" : "";
+  return body.slice(0, range.start) + section + tail + body.slice(range.end);
 }

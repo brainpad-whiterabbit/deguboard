@@ -1,12 +1,12 @@
 // Ticket の操作（CL-2、ST-1〜ST-3、ST-7〜ST-8）
 
 import { z } from "zod";
-import { OperationError } from "../errors.js";
+import { OperationError, UsageError } from "../errors.js";
 import { collectBranchFacts } from "../git/facts.js";
 import { withWrite } from "../git/write.js";
 import { STATUSES, slugSchema, statusSchema, type Status } from "../model/common.js";
 import { parseId, type TicketId } from "../model/id.js";
-import { PRIORITIES, ticketBodyTemplate, type Ticket } from "../model/ticket.js";
+import { PRIORITIES, replaceAcceptance, ticketBodyTemplate, type Ticket } from "../model/ticket.js";
 import type { FactName } from "../model/workflow.js";
 import type { Doc } from "../storage/documents.js";
 import { wouldCreateCycle } from "../storage/integrity.js";
@@ -30,18 +30,21 @@ const ticketAttributes = {
     .describe("Workflow の fields で定義した任意フィールド"),
 };
 
+/** 受け入れ条件の項目。1 項目 1 行の自由文（CLI はカンマで割らない） */
+const acceptanceItems = z
+  .array(
+    z
+      .string()
+      .min(1)
+      .regex(/^[^\r\n]+$/, "1 項目は 1 行で書く"),
+  )
+  .meta({ freeText: true });
+
 const createInput = z.object({
   title: z.string().min(1).describe("タイトル"),
   project: slugSchema.optional().describe("Project。省略時は config の default_project"),
   summary: z.string().optional().describe("概要。本文の雛形に入れる"),
-  acceptance: z
-    .array(
-      z
-        .string()
-        .min(1)
-        .regex(/^[^\r\n]+$/, "1 項目は 1 行で書く"),
-    )
-    .meta({ freeText: true })
+  acceptance: acceptanceItems
     .optional()
     .describe(
       "受け入れ条件。1 項目ずつ、本文の雛形のチェックリストに入れる。body があるときは使わない",
@@ -314,6 +317,11 @@ export const ticketUpdate = defineCommand({
     ticket: ticketRef,
     title: z.string().min(1).optional(),
     body: z.string().optional().describe("本文全体を置き換える"),
+    acceptance: acceptanceItems
+      .optional()
+      .describe(
+        "受け入れ条件の項目。## 受け入れ条件 の節だけを置き換え、同じ文の済みの印は保つ。節がなければ末尾に足す。body とは同時に指定できない",
+      ),
     ...ticketAttributes,
     labels: z
       .array(z.string())
@@ -337,6 +345,13 @@ export const ticketUpdate = defineCommand({
         const store = ctx.store;
         const doc = store.require("ticket", input.ticket);
         const t = doc.data;
+        if (input.body !== undefined && input.acceptance !== undefined) {
+          throw new UsageError("body と acceptance は同時に指定できない");
+        }
+        const body =
+          input.acceptance === undefined
+            ? input.body
+            : replaceAcceptance(doc.body, input.acceptance);
         const patch: Record<string, unknown> = { updated_at: nowIso(ctx) };
         if (input.title !== undefined) patch["title"] = input.title;
         if (input.priority !== undefined) patch["priority"] = input.priority;
@@ -372,7 +387,7 @@ export const ticketUpdate = defineCommand({
           if (!wf) throw new OperationError("NOT_FOUND", `Workflow ${wfId} が見つからない`);
           Object.assign(patch, validateFields(wf, input.fields));
         }
-        return store.update("ticket", t.id, patch, input.body);
+        return store.update("ticket", t.id, patch, body);
       },
       { message: (doc) => `${doc.id} を更新: ${doc.data.title}` },
     );
