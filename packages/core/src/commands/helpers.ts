@@ -1,8 +1,7 @@
 // コマンドの実装で共通に使う小さな関数
 
 import { z } from "zod";
-import { OperationError } from "../errors.js";
-import { compareIds, parseId, type IdKind, type TicketId } from "../model/id.js";
+import { compareIds, type TicketId } from "../model/id.js";
 import { toIsoDateTime } from "../model/common.js";
 import type { Ticket } from "../model/ticket.js";
 import type { Doc } from "../storage/documents.js";
@@ -15,13 +14,6 @@ export const nowIso = (ctx: CommandContext): string => toIsoDateTime(ctx.now());
 export const ticketRef = z.string().min(1).describe("チケットの ID（t12 または 12）");
 export const epicRef = z.string().min(1).describe("Epic の ID（e3 または 3）");
 export const iterationRef = z.string().min(1).describe("Iteration の ID（s3 または 3）");
-
-/** 参照の形を確かめて ID にする。形が違えば NOT_FOUND ではなく VALIDATION_FAILED */
-export function toId<K extends IdKind>(kind: K, ref: string) {
-  const id = parseId(ref, kind);
-  if (!id) throw new OperationError("VALIDATION_FAILED", `${ref} は ${kind} の ID の形ではない`);
-  return id;
-}
 
 export function projectOf(ctx: CommandContext, project: string | undefined): string {
   return project ?? ctx.config.default_project;

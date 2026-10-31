@@ -15,7 +15,7 @@ import type { Facts } from "../workflow/conditions.js";
 import { canTransition, describeRejection } from "../workflow/resolve.js";
 import { defineCommand, ok, type CommandContext } from "./define.js";
 import { matchesFilter, ticketFilterSchema } from "./filters.js";
-import { dependents, nowIso, projectOf, sortedDocs, ticketRef, toId, withBody } from "./helpers.js";
+import { dependents, nowIso, projectOf, sortedDocs, ticketRef, withBody } from "./helpers.js";
 
 const ticketAttributes = {
   priority: z.enum(PRIORITIES).optional().describe("優先度"),
