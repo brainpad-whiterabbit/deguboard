@@ -1,12 +1,15 @@
 /* テーマは VS Code の CSS 変数を基準にする（ADR-006）。Webview では VS Code が <html> に値を入れるので、
-   ここでの :root の値はブラウザで開いたときの既定になる */
+   ここでの :root の値はブラウザで開いたときの既定になる。色は --vscode-* から取り、独自の変数（--dg-*）は
+   それを組み合わせて body に置く */
 :root {
   --vscode-font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
   --vscode-font-size: 13px;
+  --vscode-foreground: #3b3b3b;
   --vscode-editor-background: #ffffff;
   --vscode-editor-foreground: #1f1f1f;
   --vscode-descriptionForeground: #6b6b6b;
   --vscode-errorForeground: #b3261e;
+  --vscode-editorWarning-foreground: #bf8803;
   --vscode-sideBar-background: #f3f3f3;
   --vscode-editorWidget-background: #f8f8f8;
   --vscode-panel-border: #d9d9d9;
@@ -25,6 +28,10 @@
   --vscode-list-hoverBackground: #e8e8e8;
   --vscode-list-activeSelectionBackground: #d6e8fb;
   --vscode-progressBar-background: #0078d4;
+  --vscode-charts-blue: #3794ff;
+  --vscode-charts-yellow: #cca700;
+  --vscode-charts-green: #89d185;
+  --vscode-testing-iconPassed: #388a34;
   --vscode-inputValidation-warningBackground: #fff4ce;
   --vscode-inputValidation-warningBorder: #d9b100;
   --vscode-inputValidation-errorBackground: #fde7e9;
@@ -32,10 +39,12 @@
 }
 @media (prefers-color-scheme: dark) {
   :root {
+    --vscode-foreground: #cccccc;
     --vscode-editor-background: #1f1f1f;
     --vscode-editor-foreground: #cccccc;
     --vscode-descriptionForeground: #9d9d9d;
     --vscode-errorForeground: #f88070;
+    --vscode-editorWarning-foreground: #cca700;
     --vscode-sideBar-background: #181818;
     --vscode-editorWidget-background: #202020;
     --vscode-panel-border: #2b2b2b;
@@ -49,6 +58,7 @@
     --vscode-badge-foreground: #f8f8f8;
     --vscode-list-hoverBackground: #2a2d2e;
     --vscode-list-activeSelectionBackground: #04395e;
+    --vscode-testing-iconPassed: #73c991;
     --vscode-inputValidation-warningBackground: #352a05;
     --vscode-inputValidation-errorBackground: #5a1d1d;
   }
@@ -66,8 +76,21 @@ body,
 body {
   font-family: var(--vscode-font-family);
   font-size: var(--vscode-font-size);
-  color: var(--vscode-editor-foreground);
+  color: var(--vscode-foreground);
   background: var(--vscode-editor-background);
+
+  /* 枠線。ハイコントラストでは背景の差が消えるので contrastBorder で区切る */
+  --dg-border: var(--vscode-panel-border, var(--vscode-contrastBorder, transparent));
+  /* Status の色。カンバン・一覧・進捗バーはすべてここから取る */
+  --dg-status-todo: var(--vscode-descriptionForeground);
+  --dg-status-in_progress: var(--vscode-charts-blue, var(--vscode-focusBorder));
+  --dg-status-review: var(--vscode-charts-yellow, var(--vscode-editorWarning-foreground));
+  --dg-status-done: var(--vscode-testing-iconPassed, var(--vscode-charts-green));
+  --dg-status-abandoned: var(--vscode-disabledForeground, var(--vscode-descriptionForeground));
+  /* 帯（通知）の線の色 */
+  --dg-info: var(--vscode-focusBorder);
+  --dg-warning: var(--vscode-editorWarning-foreground, var(--vscode-inputValidation-warningBorder));
+  --dg-error: var(--vscode-errorForeground);
 }
 a {
   color: var(--vscode-textLink-foreground);
@@ -81,7 +104,7 @@ code {
   font-size: 0.92em;
   background: var(--vscode-editorWidget-background);
   padding: 0 0.25em;
-  border-radius: 3px;
+  border-radius: 2px;
 }
 button,
 select,
@@ -90,15 +113,22 @@ textarea {
   font: inherit;
   color: var(--vscode-input-foreground);
   background: var(--vscode-input-background);
-  border: 1px solid var(--vscode-input-border);
-  border-radius: 3px;
+  border: 1px solid var(--vscode-input-border, var(--dg-border));
+  border-radius: 2px;
   padding: 0.25em 0.5em;
 }
 button {
   cursor: pointer;
+  padding: 0.3em 0.9em;
   color: var(--vscode-button-secondaryForeground);
   background: var(--vscode-button-secondaryBackground);
-  border-color: transparent;
+  border-color: var(--vscode-contrastBorder, transparent);
+}
+button:hover {
+  background: var(
+    --vscode-button-secondaryHoverBackground,
+    var(--vscode-button-secondaryBackground)
+  );
 }
 button.primary {
   color: var(--vscode-button-foreground);
@@ -136,31 +166,54 @@ h3 {
 .error {
   color: var(--vscode-errorForeground);
 }
+/* 空の状態：一覧に何もないときの枠（KanbanForge と同じ破線の枠） */
+.empty {
+  margin: 0;
+  padding: 1rem;
+  text-align: center;
+  color: var(--vscode-descriptionForeground);
+  border: 1px dashed color-mix(in srgb, var(--vscode-descriptionForeground) 50%, transparent);
+  border-radius: 3px;
+}
 
 .app {
   display: flex;
   flex-direction: column;
   height: 100%;
+  /* 幅で詰め方を変えるための容器（サイドバーの狭い幅は @container で扱う） */
+  container-type: inline-size;
 }
 .topbar {
   display: flex;
   align-items: center;
   gap: 1rem;
-  padding: 0.5rem 1rem;
+  padding: 0 1rem;
   background: var(--vscode-sideBar-background);
-  border-bottom: 1px solid var(--vscode-panel-border);
+  border-bottom: 1px solid var(--dg-border);
 }
+.brand {
+  padding: 0.5rem 0;
+}
+/* 画面の切り替えは下線のタブ */
 .topbar nav {
   display: flex;
   gap: 0.25rem;
+  align-self: stretch;
 }
 .topbar nav a {
-  color: inherit;
-  padding: 0.25em 0.6em;
-  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  padding: 0.5em 0.6em;
+  color: var(--vscode-descriptionForeground);
+  border-bottom: 2px solid transparent;
+}
+.topbar nav a:hover {
+  color: var(--vscode-foreground);
+  text-decoration: none;
 }
 .topbar nav a.active {
-  background: var(--vscode-list-activeSelectionBackground);
+  color: var(--vscode-foreground);
+  border-bottom-color: var(--vscode-focusBorder);
 }
 .spacer {
   flex: 1;
@@ -178,15 +231,17 @@ h3 {
 .badge {
   display: inline-block;
   padding: 0.05em 0.5em;
-  border-radius: 999px;
+  border-radius: 8px;
   font-size: 0.85em;
+  line-height: 1.5;
   background: var(--vscode-badge-background);
   color: var(--vscode-badge-foreground);
+  border: 1px solid var(--vscode-contrastBorder, transparent);
   white-space: nowrap;
 }
 .badge.warn {
   background: var(--vscode-inputValidation-warningBackground);
-  border: 1px solid var(--vscode-inputValidation-warningBorder);
+  border-color: var(--vscode-inputValidation-warningBorder);
   color: inherit;
 }
 .badge.ok {
@@ -195,24 +250,73 @@ h3 {
 }
 .badge.priority-high {
   background: var(--vscode-inputValidation-errorBackground);
+  border-color: var(
+    --vscode-inputValidation-errorBorder,
+    var(--vscode-contrastBorder, transparent)
+  );
   color: inherit;
 }
+.badge.priority-low {
+  background: transparent;
+  color: var(--vscode-descriptionForeground);
+  border-color: var(--dg-border);
+}
+/* Status の印は状態色の薄塗りと縁 */
+.badge[class*="status-"] {
+  color: inherit;
+  background: color-mix(in srgb, var(--dg-status) 18%, transparent);
+  border-color: color-mix(in srgb, var(--dg-status) 55%, transparent);
+}
+.status-todo {
+  --dg-status: var(--dg-status-todo);
+}
+.status-in_progress {
+  --dg-status: var(--dg-status-in_progress);
+}
+.status-review {
+  --dg-status: var(--dg-status-review);
+}
+.status-done {
+  --dg-status: var(--dg-status-done);
+}
+.status-abandoned {
+  --dg-status: var(--dg-status-abandoned);
+}
+/* 状態の丸印（行やカードの先頭） */
+.status-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--dg-status);
+  flex: none;
+}
+/* 通知の帯は左の線で種類を示す */
 .notice {
   display: flex;
   justify-content: space-between;
   gap: 1rem;
   padding: 0.5rem 1rem;
-  border-bottom: 1px solid var(--vscode-panel-border);
+  border-left: 3px solid var(--dg-info);
+  border-bottom: 1px solid var(--dg-border);
+  background: color-mix(in srgb, var(--dg-info) 8%, transparent);
 }
 .notice.error {
-  background: var(--vscode-inputValidation-errorBackground);
   color: inherit;
+  border-left-color: var(--dg-error);
+  background: color-mix(in srgb, var(--dg-error) 10%, transparent);
 }
 .notice.info {
-  background: var(--vscode-inputValidation-warningBackground);
+  border-left-color: var(--dg-warning);
+  background: color-mix(in srgb, var(--dg-warning) 10%, transparent);
 }
 .notice small {
   color: var(--vscode-descriptionForeground);
+}
+.notice button {
+  padding: 0 0.4em;
+  background: transparent;
+  color: inherit;
 }
 .page {
   flex: 1;
@@ -242,8 +346,8 @@ h3 {
 }
 .column {
   background: var(--vscode-sideBar-background);
-  border: 1px solid var(--vscode-panel-border);
-  border-radius: 4px;
+  border: 1px solid var(--dg-border);
+  border-radius: 3px;
   padding: 0.5rem;
   display: flex;
   flex-direction: column;
@@ -254,19 +358,27 @@ h3 {
 }
 .column h2 {
   display: flex;
-  justify-content: space-between;
+  align-items: center;
+  gap: 0.4em;
   font-size: 1em;
   margin: 0;
 }
+.column h2 .muted {
+  margin-left: auto;
+}
 .card {
   background: var(--vscode-editor-background);
-  border: 1px solid var(--vscode-panel-border);
-  border-radius: 4px;
+  border: 1px solid var(--dg-border);
+  border-left: 3px solid var(--dg-status, var(--dg-border));
+  border-radius: 3px;
   padding: 0.5rem;
   display: flex;
   flex-direction: column;
   gap: 0.3rem;
   cursor: grab;
+}
+.card:hover {
+  background: var(--vscode-list-hoverBackground);
 }
 .card.dragging {
   opacity: 0.4;
@@ -277,6 +389,7 @@ h3 {
 .card .meta {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 0.3rem;
   font-size: 0.85em;
   color: var(--vscode-descriptionForeground);
@@ -291,7 +404,7 @@ table.list th,
 table.list td {
   text-align: left;
   padding: 0.35rem 0.5rem;
-  border-bottom: 1px solid var(--vscode-panel-border);
+  border-bottom: 1px solid var(--dg-border);
   vertical-align: top;
 }
 table.list tr:hover td {
@@ -362,22 +475,24 @@ textarea.body {
   gap: 0.4em;
   align-items: baseline;
 }
+/* 進捗は Status ごとの積み上げ。色は --dg-status-* */
 .progress {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
 }
 .progress .bar {
+  display: flex;
   width: 120px;
   height: 8px;
-  background: var(--vscode-badge-background);
+  background: color-mix(in srgb, var(--vscode-descriptionForeground) 25%, transparent);
   border-radius: 4px;
   overflow: hidden;
 }
 .progress .bar span {
   display: block;
   height: 100%;
-  background: var(--vscode-progressBar-background);
+  background: var(--dg-status);
 }
 .groups {
   display: grid;

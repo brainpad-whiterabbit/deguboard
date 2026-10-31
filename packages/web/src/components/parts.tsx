@@ -35,18 +35,45 @@ export function Tags({ labels }: { labels: readonly string[] }) {
   );
 }
 
-/** Epic の進捗（done の件数 / abandoned を除く件数。EP-3） */
+/** 進捗バーに積む Status の順（done が左）。abandoned は total に入らないので出さない */
+const PROGRESS_STATUSES = [
+  "done",
+  "review",
+  "in_progress",
+  "todo",
+] as const satisfies readonly Status[];
+
+/** Epic の進捗（done の件数 / abandoned を除く件数。EP-3）。Status ごとに積み上げ、色は --dg-status-* */
 export function ProgressBar({ progress }: { progress: EpicProgress }) {
-  const ratio = progress.total === 0 ? 0 : progress.done / progress.total;
+  const store = useStore();
+  const segments = PROGRESS_STATUSES.map((s) => ({
+    status: s,
+    count: progress.by_status[s] ?? 0,
+  })).filter((seg) => seg.count > 0);
+  const title = segments.map((seg) => `${store.labelOf(seg.status)} ${seg.count}`).join(" / ");
   return (
-    <span className="progress" title={`done ${progress.done} / ${progress.total}`}>
+    <span className="progress" title={title || "チケットはない"}>
       <span className="bar">
-        <span style={{ width: `${Math.round(ratio * 100)}%` }} />
+        {segments.map((seg) => (
+          <span
+            key={seg.status}
+            className={`status-${seg.status}`}
+            style={{ width: `${(seg.count / progress.total) * 100}%` }}
+          />
+        ))}
       </span>
       <span className="muted">
         {progress.done}/{progress.total}
       </span>
     </span>
+  );
+}
+
+/** 状態の丸印。色は --dg-status-* */
+export function StatusDot({ status }: { status: Status }) {
+  const store = useStore();
+  return (
+    <span className={`status-dot status-${status}`} role="img" aria-label={store.labelOf(status)} />
   );
 }
 
@@ -59,7 +86,7 @@ export function TicketTable({
   extra?: ((t: Ticket) => React.ReactNode) | undefined;
 }) {
   const store = useStore();
-  if (tickets.length === 0) return <p className="muted">該当するチケットはない</p>;
+  if (tickets.length === 0) return <p className="empty">該当するチケットはない</p>;
   return (
     <table className="list">
       <thead>
