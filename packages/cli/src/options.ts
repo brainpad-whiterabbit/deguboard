@@ -1,0 +1,236 @@
+// Zod の入力スキーマから commander の位置引数とオプションを作り、受け取った引数を入力オブジェクトに戻す。
+// 変換の表は docs/development.md の「パッケージ」にある
+
+import type { AnyCommand } from "@deguboard/core";
+import { Argument, InvalidArgumentError, Option, type Command } from "commander";
+import type { z } from "zod";
+
+type Def = {
+  type: string;
+  innerType?: z.ZodType;
+  element?: z.ZodType;
+  entries?: Record<string, unknown>;
+};
+
+/** optional / nullable / default を剥がした中身と、剥がした種類 */
+export interface FieldShape {
+  key: string;
+  flag: string;
+  kind: "string" | "number" | "boolean" | "enum" | "array" | "record" | "unknown" | "objects";
+  /** 配列のときの要素の型 */
+  element?: "string" | "number" | "enum";
+  choices?: string[];
+  optional: boolean;
+  nullable: boolean;
+  description: string;
+}
+
+function defOf(schema: z.ZodType): Def {
+  return (schema as unknown as { _zod: { def: Def } })._zod.def;
+}
+
+function unwrap(schema: z.ZodType): { inner: z.ZodType; optional: boolean; nullable: boolean } {
+  let inner = schema;
+  let optional = false;
+  let nullable = false;
+  for (;;) {
+    const def = defOf(inner);
+    if (def.type === "optional" || def.type === "default") optional = true;
+    else if (def.type === "nullable") nullable = true;
+    else break;
+    if (!def.innerType) break;
+    inner = def.innerType;
+  }
+  return { inner, optional, nullable };
+}
+
+export function toFlag(key: string): string {
+  return key.replace(/_/g, "-");
+}
+
+export function describeShape(key: string, schema: z.ZodType): FieldShape {
+  const { inner, optional, nullable } = unwrap(schema);
+  const def = defOf(inner);
+  const description = schema.description ?? inner.description ?? "";
+  const base = { key, flag: toFlag(key), optional, nullable, description };
+  switch (def.type) {
+    case "string":
+      return { ...base, kind: "string" };
+    case "number":
+      return { ...base, kind: "number" };
+    case "boolean":
+      return { ...base, kind: "boolean" };
+    case "enum":
+      return { ...base, kind: "enum", choices: Object.keys(def.entries ?? {}) };
+    case "array": {
+      const element = unwrap(def.element!).inner;
+      const edef = defOf(element);
+      if (edef.type === "object") return { ...base, kind: "objects" };
+      const kind = edef.type === "number" ? "number" : edef.type === "enum" ? "enum" : "string";
+      return {
+        ...base,
+        kind: "array",
+        element: kind,
+        ...(kind === "enum" ? { choices: Object.keys(edef.entries ?? {}) } : {}),
+      };
+    }
+    case "record":
+      return { ...base, kind: "record" };
+    default:
+      return { ...base, kind: "unknown" };
+  }
+}
+
+export function shapesOf(command: AnyCommand): FieldShape[] {
+  const shape = (command.input as unknown as { shape?: Record<string, z.ZodType> }).shape ?? {};
+  return Object.entries(shape).map(([key, schema]) => describeShape(key, schema));
+}
+
+const NONE = "none";
+
+// commander は argParser が返した null を "" に変えてしまうので、none はここでは文字列のまま通し collectInput で null にする
+function parseScalar(shape: FieldShape, raw: string): unknown {
+  if (shape.nullable && raw === NONE) return NONE;
+  const kind = shape.kind === "array" ? shape.element : shape.kind;
+  if (kind === "number") {
+    const n = Number(raw);
+    if (!Number.isFinite(n)) throw new InvalidArgumentError("数値を指定する");
+    return n;
+  }
+  if (kind === "enum" && shape.choices && !shape.choices.includes(raw)) {
+    throw new InvalidArgumentError(`次のどれかを指定する: ${shape.choices.join(", ")}`);
+  }
+  return raw;
+}
+
+/** `key=value` の値。true/false と数値は変換する */
+function parseRecordEntry(
+  raw: string,
+  previous: Record<string, unknown> = {},
+): Record<string, unknown> {
+  const eq = raw.indexOf("=");
+  if (eq <= 0) throw new InvalidArgumentError("key=value の形で指定する");
+  const key = raw.slice(0, eq);
+  const text = raw.slice(eq + 1);
+  const value =
+    text === "true"
+      ? true
+      : text === "false"
+        ? false
+        : /^-?\d+(\.\d+)?$/.test(text)
+          ? Number(text)
+          : text === NONE
+            ? null
+            : text;
+  return { ...previous, [key]: value };
+}
+
+function splitList(raw: string): string[] {
+  return raw
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+/** 単数形の名前（labels → label、tickets → ticket）。繰り返すオプションの名前に使う */
+function singular(flag: string): string {
+  if (/(ss|us)$/.test(flag) || !flag.endsWith("s") || flag.length < 2) return flag;
+  return flag.slice(0, -1);
+}
+
+export interface Bound {
+  positionals: FieldShape[];
+  options: FieldShape[];
+}
+
+/** コマンドに位置引数とオプションを登録する */
+export function bindInputs(cmd: Command, command: AnyCommand, shapes = shapesOf(command)): Bound {
+  const positionalKeys = command.positionals ?? [];
+  const positionals = positionalKeys
+    .map((k) => shapes.find((s) => s.key === k))
+    .filter((s): s is FieldShape => s !== undefined);
+  const options = shapes.filter((s) => !positionalKeys.includes(s.key));
+
+  positionals.forEach((shape, i) => {
+    const last = i === positionals.length - 1;
+    const variadic = last && shape.kind === "array";
+    const name = variadic ? `${shape.key}...` : shape.key;
+    const arg = new Argument(shape.optional ? `[${name}]` : `<${name}>`, shape.description);
+    if (shape.kind === "enum" && shape.choices) arg.choices(shape.choices);
+    if (shape.kind === "number") arg.argParser((raw) => parseScalar(shape, raw));
+    cmd.addArgument(arg);
+  });
+
+  for (const shape of options) {
+    const desc = shape.description + (shape.nullable ? `（${NONE} で外す）` : "");
+    switch (shape.kind) {
+      case "boolean":
+        cmd.addOption(new Option(`--${shape.flag}`, desc));
+        break;
+      case "array": {
+        const flag = singular(shape.flag);
+        const opt = new Option(
+          `--${flag} <value>`,
+          `${desc}。繰り返すかカンマ区切りで複数指定できる`,
+        );
+        opt.argParser((raw: string, previous: unknown[] = []) => [
+          ...previous,
+          ...splitList(raw).map((v) => parseScalar(shape, v)),
+        ]);
+        cmd.addOption(opt);
+        break;
+      }
+      case "record": {
+        const flag = singular(shape.flag);
+        const opt = new Option(`--${flag} <key=value>`, `${desc}。繰り返して複数指定できる`);
+        opt.argParser((raw: string, previous?: Record<string, unknown>) =>
+          parseRecordEntry(raw, previous),
+        );
+        cmd.addOption(opt);
+        break;
+      }
+      case "objects":
+        // CLI では位置引数のファイルから読む（ticket import）。オプションにはしない
+        break;
+      default: {
+        const opt = new Option(`--${shape.flag} <value>`, desc);
+        if (shape.kind === "enum" && shape.choices && !shape.nullable) opt.choices(shape.choices);
+        else opt.argParser((raw: string) => parseScalar(shape, raw));
+        cmd.addOption(opt);
+      }
+    }
+  }
+  return { positionals, options };
+}
+
+/** commander が解析した位置引数とオプションを、core の入力オブジェクトにする */
+export function collectInput(
+  bound: Bound,
+  args: unknown[],
+  opts: Record<string, unknown>,
+): Record<string, unknown> {
+  const input: Record<string, unknown> = {};
+  bound.positionals.forEach((shape, i) => {
+    const value = args[i];
+    if (value === undefined) return;
+    if (shape.kind === "array") {
+      const list = Array.isArray(value) ? value : [value];
+      input[shape.key] = list
+        .flatMap((v) => splitList(String(v)))
+        .map((v) => parseScalar(shape, v));
+    } else if (shape.kind === "unknown") {
+      input[shape.key] = value;
+    } else {
+      input[shape.key] = typeof value === "string" ? parseScalar(shape, value) : value;
+    }
+  });
+  for (const shape of bound.options) {
+    // commander はフラグ名を camelCase にする
+    const camel = shape.flag.replace(/-([a-z])/g, (_, c: string) => c.toUpperCase());
+    const name = shape.kind === "array" || shape.kind === "record" ? singular(camel) : camel;
+    const value = opts[name];
+    if (value === undefined) continue;
+    input[shape.key] = shape.nullable && value === NONE ? null : value;
+  }
+  return input;
+}
