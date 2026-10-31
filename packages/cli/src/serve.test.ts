@@ -51,5 +51,18 @@ describe("dg serve / dg open", () => {
     });
     await program.parseAsync(["open", "--port", "7575"], { from: "user" });
     expect(opened).toEqual(["http://127.0.0.1:7575/"]);
+    expect(out).toEqual(["http://127.0.0.1:7575/"]);
+    const jsonProgram = new Command("dg").option("--json").exitOverride();
+    const jsonOut: string[] = [];
+    addServeCommands(jsonProgram, {
+      streams: { out: (t) => jsonOut.push(t), err: () => {} },
+      resolveCwd: () => ".",
+      openUrl: async () => {},
+    });
+    await jsonProgram.parseAsync(["--json", "open"], { from: "user" });
+    expect(JSON.parse(jsonOut[0]!)).toMatchObject({
+      ok: true,
+      data: { url: "http://127.0.0.1:7474/" },
+    });
   });
 });

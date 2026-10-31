@@ -1,6 +1,7 @@
 // コマンドの実装で共通に使う小さな関数
 
 import { z } from "zod";
+import { OperationError } from "../errors.js";
 import { compareIds, type TicketId } from "../model/id.js";
 import { toIsoDateTime } from "../model/common.js";
 import type { Ticket } from "../model/ticket.js";
@@ -9,6 +10,16 @@ import type { Store } from "../storage/store.js";
 import type { CommandContext } from "./define.js";
 
 export const nowIso = (ctx: CommandContext): string => toIsoDateTime(ctx.now());
+
+/** 人だけが行える操作（EP-4、5.6）。主体は申告に基づく（ADR-004） */
+export function requireHuman(ctx: CommandContext, what: string): void {
+  if (ctx.actor.kind !== "human") {
+    throw new OperationError(
+      "TRANSITION_REJECTED",
+      `${what}は人だけが行える（--actor human で実行する）`,
+    );
+  }
+}
 
 /** `t12` でも `12` でも受け付ける参照 */
 export const ticketRef = z.string().min(1).describe("チケットの ID（t12 または 12）");

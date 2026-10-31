@@ -8,6 +8,7 @@ import { EPIC_STATUSES, epicBodyTemplate } from "../model/epic.js";
 import { defineCommand, ok } from "./define.js";
 import {
   epicRef,
+  requireHuman,
   nowIso,
   progressOf,
   projectOf,
@@ -207,6 +208,7 @@ export const epicClose = defineCommand({
     const result = await withWrite(
       ctx,
       async () => {
+        requireHuman(ctx, "Epic を閉じるの");
         const epic = ctx.store.require("epic", input.epic);
         if (epic.data.status === "closed")
           throw new OperationError("REJECTED", `${epic.id} は既に閉じている`);
@@ -247,6 +249,7 @@ export const epicReopen = defineCommand({
     const result = await withWrite(
       ctx,
       async () => {
+        requireHuman(ctx, "Epic を再開するの");
         const epic = ctx.store.require("epic", input.epic);
         if (epic.data.status !== "closed")
           throw new OperationError("REJECTED", `${epic.id} は閉じていない`);
