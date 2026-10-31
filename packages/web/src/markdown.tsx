@@ -67,7 +67,7 @@ export function Markdown({ body }: { body: string }) {
             {b.items.map((x, j) => (
               <li key={j}>
                 {x.checked !== null && <input type="checkbox" checked={x.checked} readOnly />}
-                {inline(x.text)}
+                <span>{inline(x.text)}</span>
               </li>
             ))}
           </ul>
