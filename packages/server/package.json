@@ -1,0 +1,19 @@
+{
+  "name": "@deguboard/server",
+  "version": "0.0.0",
+  "private": true,
+  "description": "deguboard の HTTP サーバー。core のコマンド定義を HTTP に写し、web を配信する",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": {
+      "development": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "dependencies": {
+    "@deguboard/core": "workspace:*",
+    "zod": "4.6.7"
+  }
+}
