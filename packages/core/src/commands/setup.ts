@@ -114,6 +114,8 @@ export interface ReconciledTicket {
   id: string;
   from: string;
   to: string;
+  /** 当てはまった reconcile 規則の条件（根拠の事実。例：["pr_merged"]） */
+  when: string[];
 }
 
 export interface Reconciled {
@@ -140,6 +142,7 @@ async function reconcileAll(ctx: CommandContext, warnings: string[]): Promise<Re
     const { facts, pr } = await collectBranchFacts(ctx.repo, doc.data.branch, {
       pr: doc.data.pr,
       needPr: needsPr(wf),
+      status: doc.data.status,
     });
     facts.deps_done = ctx.store.depsDone(doc.data);
     const outcome = reconcileStatus(wf.resolved, doc.data.status, facts);
@@ -155,7 +158,12 @@ async function reconcileAll(ctx: CommandContext, warnings: string[]): Promise<Re
     }
     if (outcome.kind === "advance") {
       patch["status"] = outcome.to;
-      changed.push({ id: doc.id, from: doc.data.status, to: outcome.to });
+      changed.push({
+        id: doc.id,
+        from: doc.data.status,
+        to: outcome.to,
+        when: [...outcome.rule.when],
+      });
     }
     if (Object.keys(patch).length > 0) {
       await ctx.store.update("ticket", doc.id, { ...patch, updated_at: nowIso(ctx) });
@@ -249,7 +257,11 @@ export const sync = defineCommand({
       if (reconciled.length > 0 || prRecorded.length > 0 || confirmed.length > 0) {
         const parts = [
           ...(reconciled.length > 0
-            ? [`照合で ${reconciled.map((r) => `${r.id}: ${r.from} → ${r.to}`).join(", ")}`]
+            ? [
+                `照合で ${reconciled
+                  .map((r) => `${r.id}: ${r.from} → ${r.to}（${r.when.join(", ")}）`)
+                  .join(", ")}`,
+              ]
             : []),
           ...(prRecorded.length > 0
             ? [`PR 番号を記録: ${prRecorded.map((r) => `${r.id}: #${r.pr}`).join(", ")}`]
