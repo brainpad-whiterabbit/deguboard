@@ -43,7 +43,7 @@ packages/
 
 Core の中は責務ごとのモジュールに分け、最初からパッケージには分けない。
 
-- `model`：Project・Ticket・Iteration・Plan・Workflow・Run・config のスキーマと採番
+- `model`：Project・Ticket・Epic・Iteration・Plan・Workflow・Run・config のスキーマと採番
 - `storage`：frontmatter / YAML / JSON の読み書き、原子的書き込み、起動時走査とメモリ上の索引
 - `git`：deguboard worktree の用意、commit / push、claim の CAS、照合に使う事実の収集、競合の検出
 - `workflow`：定義の検証、遷移の検査、`reconcile` の評価

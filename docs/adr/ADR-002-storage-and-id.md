@@ -22,36 +22,37 @@
 | ---------- | ---------------------- | ------------------------------- |
 | Project    | `projects/<slug>.yaml` | YAML                            |
 | Ticket     | `tickets/t12.md`       | Markdown＋YAML frontmatter      |
+| Epic       | `epics/e3.md`          | Markdown＋YAML frontmatter      |
 | Iteration  | `iterations/s3.yaml`   | YAML                            |
 | Plan       | `plans/p7.yaml`        | YAML                            |
 | Workflow   | `workflows/<id>.yaml`  | YAML                            |
 | Run の集計 | `runs/…json`           | JSON（命名は Phase 3 で決める） |
 | 設定       | `config.yaml`          | YAML                            |
 
-- チケットの本文（概要・受け入れ条件）は Markdown、属性は frontmatter。Iteration・Workflow・config は人が読む YAML、Run は機械が書く JSON
+- チケットと Epic の本文（概要・受け入れ条件・目的）は Markdown、属性は frontmatter。Iteration・Workflow・config は人が読む YAML、Run は機械が書く JSON
 - 削除したチケットは `tickets/deleted/` に墓標として残し、番号を再利用しない
 - 書き込みは一時ファイルへ書いてから rename する（原子的）。読み込みはスキーマ（Zod）で検証し、読めないファイルは止めずに報告する
 
 ### ID：連番をそのまま ID とファイル名にする
 
-- ID は `t12`・`s3`・`p7` のような接頭辞＋連番。ファイル名は ID そのまま（`t12.md`）で、ゼロ埋めしない。title の slug はファイル名に入れない
+- ID は `t12`・`e3`・`s3`・`p7` のような接頭辞＋連番。ファイル名は ID そのまま（`t12.md`）で、ゼロ埋めしない。title の slug はファイル名に入れない
 - ファイル名の辞書順は番号順にならない（`t100.md` が `t2.md` より前に並ぶ）。CLI と UI は番号で並べるので影響しない。シェルで番号順に見たいときは `ls -v` を使う
 - 番号はリポジトリ全体で一意（プロジェクトをまたいでも `t12` は 1 つ）。採番は「既存と墓標の最大 + 1」
 - **作成は fetch → 採番 → commit → push を 1 単位**にする。push が拒否されたら取り込み直して採番し直し、最大 3 回まで再 push する。同じパスの add/add で衝突を検出できる
-- オフラインで push できないときは `provisional: true` を付けてローカルに commit する。次の `dg sync` で衝突があれば、番号・ファイル名・未 push のコミット内の参照（他チケットの `depends_on`、Iteration、Plan）を振り直してから push する
+- オフラインで push できないときは `provisional: true` を付けてローカルに commit する。次の `dg sync` で衝突があれば、番号・ファイル名・未 push のコミット内の参照（他チケットの `depends_on` と `epic`、Iteration、Plan）を振り直してから push する
 - 作業ブランチ名と PR は claim（push 成功が条件。[ADR-004](ADR-004-agents-and-state.md)）の後に作るので、仮番号がブランチ名に入ることはない
 - `dg ticket import` の複数件も同じ 1 単位で採番する
 
 ### 複数 Project
 
 - 1 リポジトリに複数の Project を置ける。Project は `projects/<slug>.yaml`（名前・説明・既定の Workflow・状態）
-- Ticket と Iteration は `project` フィールドで所属を表す。ディレクトリはプロジェクトごとに分けず flat に置く
+- Ticket・Epic・Iteration は `project` フィールドで所属を表す。ディレクトリはプロジェクトごとに分けず flat に置く
 - `dg init` は `default` プロジェクトを 1 つ作る。`config.yaml` の `default_project` が省略時の値
 
 ### 呼称
 
 - 製品名は deguboard、CLI は `dg`、ブランチ名は `deguboard`、環境変数の接頭辞は `DEGUBOARD_`
-- 作業の最小単位は ticket と呼ぶ（CLI は `dg ticket`）。期間の単位は iteration（`dg iteration`。`sprint` はエイリアス）
+- 作業の最小単位は ticket と呼ぶ（CLI は `dg ticket`）。期間の単位は iteration（`dg iteration`。`sprint` はエイリアス）。目的で束ねる単位は epic（`dg epic`）
 
 ## 理由
 
