@@ -118,6 +118,7 @@ core の `commands` を commander に写す。ロジックは持たない。`src
 | `options.ts` | Zod の入力スキーマから位置引数とオプションを作り、解析した引数を入力オブジェクトに戻す（下の表）                                     |
 | `output.ts`  | 人向けの出力（list は表、show は `key: value` と本文）と `--json`（`{ ok, data, warnings, write }` / `{ ok: false, error }`）        |
 | `errors.ts`  | `DeguboardError` と commander のエラーを stderr と終了コード（0 / 1 / 2）に写す                                                      |
+| `guide.ts`   | `dg guide <topic>`。隣の `guide-*.md`（手順の正本。CL-5）を読み、`{{git.base_branch}}` のような項目を config の値で埋めて出す        |
 
 Zod の型から CLI への対応：
 
@@ -131,7 +132,7 @@ Zod の型から CLI への対応：
 | record（`fields`）          | `--field key=value` の繰り返し。true / false / 数値は変換する               |
 | array of object（`drafts`） | 位置引数 `<file>`（YAML / JSON。`-` で標準入力）から読む（`ticket import`） |
 
-グローバルオプションは `--json`、`-C <dir>`、`--actor <human|agent>`（環境変数 `DEGUBOARD_ACTOR`）、`--actor-id <id>`（`DEGUBOARD_ACTOR_ID`）。`dg serve`・`dg open`・`dg guide` はまだない。
+グローバルオプションは `--json`、`-C <dir>`、`--actor <human|agent>`（環境変数 `DEGUBOARD_ACTOR`）、`--actor-id <id>`（`DEGUBOARD_ACTOR_ID`）。`dg serve`・`dg open` はまだない。`guide-*.md` はビルドで `dist/` にコピーする（`package.json` の `build`）。トピックを足すときは `guide.ts` の `GUIDE_TOPICS` と `guide-overview.md` の表も直す。
 
 ## 文書を直すとき
 
