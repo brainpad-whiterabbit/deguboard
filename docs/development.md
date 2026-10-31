@@ -57,10 +57,10 @@ mise run dg -- guide finish    # マージ後の後始末
 
 - TypeScript は ESM（`"type": "module"`）で、相対 import は `.js` の拡張子で書く。設定はルートの `tsconfig.base.json` と `tsconfig.json` にあり、`mise run typecheck` は `packages/*/src` と `packages/*/test` をまとめて `noEmit` で検査し、DOM と JSX が要る `web` は `packages/web/tsconfig.json`、`test/` は `test/tsconfig.json` で別に検査する
 - `mise run build` が `tsconfig.build.json`（プロジェクト参照）で `core`・`server`・`cli` を、Vite で `web` を `dist/` に出す。`dg` を動かすにはこのビルドが要る。`mise run dg -- <引数>` でビルド済みの `dg` を動かせる（例：`mise run dg -- ticket list`）。リポジトリの外のディレクトリに対して動かすときは `-C <dir>` を付ける
-- `@deguboard/core` の `exports` は条件つきで、テストと型検査（`development` 条件）は `src/` を、ビルド済みの `dg` は `dist/` を見る。テストの前にビルドは要らない
+- `@deguboard/core` の `exports` は条件つきで、テストと型検査（`development` 条件）は `src/` を、ビルド済みの `dg` と npm のパッケージは `dist/` を見る。テストの前にビルドは要らない
 - テストはソースの隣の `*.test.ts`（画面は `*.test.tsx`）に置き、ルートの `vitest.config.ts` が `packages/*/src/**/*.test.{ts,tsx}` と `test/**/*.test.ts` をまとめて走らせる。パッケージごとの設定ファイルは作らない
-- パッケージをまたぐ E2E は `test/e2e/` に置く。`routes.test.ts` が CLI・HTTP・Webview の 3 経路から同じ手順を流し、結果と deguboard ブランチのコミットが一致することを確かめる（NF-2）。手順の足し方はファイル冒頭のコメント
-- Git を使うテストは `packages/core/test/helpers/git-fixture.ts` で、一時ディレクトリに bare リモートと 2 つの clone を作って行う（CLAUDE.md の規約）。開発者のグローバル設定に影響されないよう、fixture が `GIT_CONFIG_GLOBAL=/dev/null` と `GIT_CONFIG_NOSYSTEM=1` を与える
+- パッケージをまたぐ E2E は `test/e2e/` に置く。`routes.test.ts` が CLI・HTTP・Webview の 3 経路から同じ手順を流し、結果と deguboard ブランチのコミットが一致することを確かめる（NF-2）
+- Git を使うテストは `packages/core/test/helpers/git-fixture.ts` で、一時ディレクトリに bare リモートと 2 つの clone を作って行う。開発者のグローバル設定に影響されないよう、fixture が `GIT_CONFIG_GLOBAL=/dev/null` と `GIT_CONFIG_NOSYSTEM=1` を与える
 - 依存を足すときは `pnpm install` で lockfile を更新してからコミットする（`mise run install` は `--frozen-lockfile`）
 
 ## パッケージ
@@ -79,7 +79,7 @@ mise run dg -- guide finish    # マージ後の後始末
 | `git/`      | `execFile` で git・gh を呼ぶ、deguboard worktree の用意、取り込みと push、書き込みの 1 単位 `withWrite`（CAS と provisional）、事実の収集 |
 | `commands/` | 3 つの入口の正本。`defineCommand` で「名前・Zod の入力・実装」を組にし、`openContext` と `runCommand` で呼ぶ                              |
 
-入口がコマンドを呼ぶ流れ：`openContext({ cwd, actor })` → `runCommand(findCommand("ticket.create"), ctx, input)`。入力の形の誤りは `UsageError`（終了コード 2）、実行時の失敗は `OperationError`（終了コード 1、`code` に種類）。各コマンドの `positionals` が、CLI で位置引数にする入力のキーを指す。
+入口がコマンドを呼ぶ流れ：`openContext({ cwd, actor })` → `runCommand(findCommand("ticket.create"), ctx, input)`。入力の形の誤りは `UsageError`（終了コード 2）、実行時の失敗は `OperationError`（終了コード 1、`code` に種類）。
 
 ### `packages/cli`（npm の `deguboard`、コマンドは `dg`）
 
@@ -93,7 +93,7 @@ core の `commands` を commander に写す。ロジックは持たない。`src
 | `errors.ts`  | `DeguboardError` と commander のエラーを stderr と終了コード（0 / 1 / 2）に写す                                                      |
 | `guide.ts`   | `dg guide <topic>`。隣の `guide-*.md`（手順の正本。CL-5）を読み、`{{git.base_branch}}` のような項目を config の値で埋めて出す        |
 
-グローバルオプションは `--json`、`-C <dir>`、`--actor <human|agent>`（環境変数 `DEGUBOARD_ACTOR`）、`--actor-id <id>`（`DEGUBOARD_ACTOR_ID`）。`dg serve` / `dg open`（`serve.ts`）は `@deguboard/server` を起動する・ブラウザで開くだけ。`guide-*.md` はビルドで `dist/` にコピーする（`package.json` の `build`）。トピックを足すときは `guide.ts` の `GUIDE_TOPICS` と `guide-overview.md` の表も直す。
+グローバルオプションは `dg --help` が正本。`dg serve` / `dg open`（`serve.ts`）は `@deguboard/server` を起動する・ブラウザで開くだけ。`guide-*.md` はビルドで `dist/` に、web の `dist` は `packages/cli/web` に写す（ルートの `build`）。トピックを足すときは `guide.ts` の `GUIDE_TOPICS` と `guide-overview.md` の表も直す。
 
 ### `packages/server`（`@deguboard/server`）
 
@@ -102,23 +102,23 @@ core の `commands` を HTTP に写す。Node 標準の `node:http` で、フレ
 エンドポイントは `app.ts` の冒頭のコメントが正本。
 
 - エラーは HTTP の状態に写す：入力の誤り 400、`NOT_FOUND` 404、初期化前 503、それ以外の拒否 409、想定外 500。本文は `{ ok: false, error: { code, message, detail? } }`
-- 文脈の管理は core の `createLocalClient`（`commands/local.ts`）が持つ：画面からの操作は常に人（[ADR-006](adr/ADR-006-ui-and-writes.md)）、`init` は出さない、呼び出しは 1 つずつ順に処理し、毎回 `Store.rescan()` で CLI など他のプロセスの変更を取り込む。ファイル監視は持たない。`server` と `vscode` はこれを HTTP と postMessage に写すだけ
+- 文脈の管理は core の `createLocalClient`（`commands/local.ts`）が持つ：画面からの操作は常に人（[ADR-006](adr/ADR-006-ui-and-writes.md)）、`init` は出さない、呼び出しは 1 つずつ順に処理し、毎回 `Store.rescan()` で他のプロセスの変更を取り込む。`server` と `vscode` はこれを HTTP と postMessage に写すだけ
 
 ### `packages/web`（`@deguboard/web`）
 
 画面の React アプリ。構成の判断は [ADR-008](adr/ADR-008-tech-stack.md)。core からは型と `CommandClient`（`core/commands/client.ts`）だけを取り込み、実行時のコードは取り込まない（`import type` だけ。Vite が node のモジュールを束ねないため）。`src/` のファイル：
 
-| ファイル            | 役割                                                                                                                                                            |
-| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `client/http.ts`    | `CommandClient` の HTTP 実装。`/api/commands/<name>` と `/api/status` を呼び、失敗は `ClientError`（code と message）                                           |
-| `client/webview.ts` | `CommandClient` の postMessage 実装。要求と応答の形は core の `WebviewRequest` / `WebviewResponse`。`main.tsx` が `acquireVsCodeApi` の有無で HTTP と切り替える |
-| `store.tsx`         | 選んだ Project のチケット・Epic・Iteration・Workflow と同期の状態を読み、書き込み（`run`）のあとに読み直す                                                      |
-| `router.ts`         | ハッシュの解析（`#/board?epic=e1`、`#/tickets/t12`、`#/epics/e1`、`#/iterations/s1`）                                                                           |
-| `pages/`            | カンバン（UI-2）・バックログ（UI-3）・チケット詳細（UI-4）・Epic（UI-10）・Iteration（UI-5）                                                                    |
-| `markdown.tsx`      | 本文の最小の Markdown（見出し・段落・箇条書き・チェックリスト・インラインコード）                                                                               |
-| `styles.css`        | `--vscode-*` 変数を基準にしたテーマ。`:root` の値はブラウザで開いたときの既定で、Webview では VS Code の値が勝つ                                                |
+| ファイル            | 役割                                                                                                                     |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `client/http.ts`    | `CommandClient` の HTTP 実装。`/api/commands/<name>` と `/api/status` を呼び、失敗は `ClientError`（code と message）    |
+| `client/webview.ts` | postMessage 実装。形は core の `WebviewRequest` / `WebviewResponse`。`main.tsx` が `acquireVsCodeApi` の有無で切り替える |
+| `store.tsx`         | 選んだ Project のチケット・Epic・Iteration・Workflow と同期の状態を読み、書き込み（`run`）のあとに読み直す               |
+| `router.ts`         | ハッシュの解析（`#/board?epic=e1`、`#/tickets/t12` など）                                                                |
+| `pages/`            | カンバン（UI-2）・バックログ（UI-3）・チケット詳細（UI-4）・Epic（UI-10）・Iteration（UI-5）                             |
+| `markdown.tsx`      | 本文の最小の Markdown（見出し・段落・箇条書き・チェックリスト・インラインコード）                                        |
+| `styles.css`        | `--vscode-*` 変数を基準にしたテーマ。`:root` の値はブラウザで開いたときの既定で、Webview では VS Code の値が勝つ         |
 
-型検査は `tsconfig.json` を別に持つ（DOM と JSX が要るため。ルートの `typecheck` が両方を回す）。ビルドは Vite で `dist/` に出し、`dg serve` は `packages/web/dist` があればそれを配信する（`cli/program.ts` の `webDist`）。テストは `// @vitest-environment jsdom` を付け、`test-helpers.ts` の `mockClient` で `CommandClient` を差し替える。
+型検査は `tsconfig.json` を別に持つ（DOM と JSX が要るため）。ビルドは Vite で `dist/` に出し、`dg serve` は cli に写した `web/` を配信する（`cli/program.ts` の `webDist`）。テストは `// @vitest-environment jsdom` を付け、`test-helpers.ts` の `mockClient` で `CommandClient` を差し替える。
 
 ### `packages/vscode`（`deguboard-vscode`）
 
@@ -132,15 +132,18 @@ VS Code 拡張。拡張ホストから core の `createLocalClient` を呼び、
 
 ビルドは Vite で `dist/extension.cjs` に束ね、web の `dist` を `dist/web` に写す（[ADR-008](adr/ADR-008-tech-stack.md)）。同梱する core の版は `vite.config.ts` の `define` で埋める。手元で動かすには `mise run build` のあと VS Code で `packages/vscode` を開いて F5（拡張開発ホスト）、コマンドパレットの「deguboard: 画面を開く」。
 
-VSIX にして入れるには：
-
-```sh
-mise run vsix                                                    # build のあと packages/vscode/deguboard-vscode.vsix を作る（install にも含む）
-code --install-extension packages/vscode/deguboard-vscode.vsix   # リモート開発ならリモート側に入る
-```
-
-VSIX は `@vscode/vsce` で作る（判断は [ADR-008](adr/ADR-008-tech-stack.md)）。入るのは `.vscodeignore` が残す `dist/`・`package.json`・`README.md` だけ。Marketplace への公開は「リリース」で扱う。
+VSIX は `mise run vsix`（`@vscode/vsce`。判断は [ADR-008](adr/ADR-008-tech-stack.md)）で `packages/vscode/deguboard-vscode.vsix` にでき、`code --install-extension` で入る（リモート開発ならリモート側）。入るのは `.vscodeignore` が残す `dist/`・`package.json`・`README.md` だけ。
 
 ## リリース
 
-最初の版を出すとき（t7）に書く。
+npm に出すのは `@deguboard/core`・`@deguboard/server`・`deguboard`（cli）の 3 つで、版は全パッケージで揃える（[ADR-006](adr/ADR-006-ui-and-writes.md)）。`web` は cli に同梱し、`vscode` は VSIX で配る。手順は mise のタスクで、`main` の clean な状態で行う：
+
+```sh
+mise run release:version -- 0.1.0   # 5 パッケージの version を揃える → PR で main に入れる
+mise run check && mise run pack      # build のあと release/ に 3 つの tarball。別ディレクトリで入れて dg --version と dg init を試す
+mise run release:publish             # pnpm publish -r --access public（npm login 済みで）
+git tag v0.1.0 && git push origin v0.1.0
+mise run vsix                        # GitHub の Release に deguboard-vscode.vsix を添付する
+```
+
+tarball を試すときは、一時ディレクトリの package.json で `deguboard` と、`overrides` の `@deguboard/core`・`@deguboard/server` を `file:` の tarball に向ける。

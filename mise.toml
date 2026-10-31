@@ -37,6 +37,19 @@ description = "VS Code 拡張を packages/vscode/deguboard-vscode.vsix に固め
 depends = ["build"]
 run = "pnpm run vsix"
 
+[tasks.pack]
+description = "公開する 3 パッケージ（core・server・cli）の tarball を release/ に作る（先に build が要る）"
+depends = ["build"]
+run = "pnpm run pack"
+
+[tasks."release:version"]
+description = "全パッケージの版を揃える。例: mise run release:version -- 0.1.0"
+run = "pnpm -r exec npm version --no-git-tag-version --allow-same-version"
+
+[tasks."release:publish"]
+description = "core・server・cli を npm に公開する（main の clean な状態で。npm login が要る）"
+run = "pnpm publish -r --access public"
+
 [tasks.dg]
 description = "ビルド済みの dg を動かす。例: mise run dg -- ticket list"
 run = "pnpm run dg"

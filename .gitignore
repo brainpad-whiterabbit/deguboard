@@ -4,3 +4,5 @@ coverage/
 .mise.local.toml
 *.tsbuildinfo
 *.vsix
+packages/cli/web/
+release/

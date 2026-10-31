@@ -1,9 +1,18 @@
 {
   "name": "@deguboard/server",
   "version": "0.0.0",
-  "private": true,
   "description": "deguboard の HTTP サーバー。core のコマンド定義を HTTP に写し、web を配信する",
+  "homepage": "https://github.com/brainpad-whiterabbit/deguboard#readme",
+  "bugs": "https://github.com/brainpad-whiterabbit/deguboard/issues",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/brainpad-whiterabbit/deguboard.git",
+    "directory": "packages/server"
+  },
+  "files": [
+    "dist"
+  ],
   "type": "module",
   "exports": {
     ".": {
@@ -12,8 +21,14 @@
       "default": "./dist/index.js"
     }
   },
+  "publishConfig": {
+    "access": "public"
+  },
   "dependencies": {
     "@deguboard/core": "workspace:*",
     "zod": "4.6.7"
+  },
+  "engines": {
+    "node": ">=24"
   }
 }
