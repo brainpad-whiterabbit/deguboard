@@ -12,10 +12,17 @@ export const ticketFilterSchema = z.object({
   iteration: z.string().optional().describe("Iteration の ID で絞る"),
   epic: z.string().optional().describe("Epic の ID で絞る"),
   label: z.array(z.string()).optional().describe("いずれかのラベルを持つ"),
+  assignee: z.string().optional().describe("担当者の ID で絞る（human で自分、agent で自分の AI）"),
+  created_by: z
+    .string()
+    .optional()
+    .describe("起票者の ID で絞る（human で自分、agent で自分の AI）"),
   ready: z
     .boolean()
     .optional()
-    .describe("着手できる（todo で claim がなく、依存先が全部 done か abandoned）ものだけ"),
+    .describe(
+      "着手できる（todo で依存先が全部 done か abandoned）ものだけ。担当者の有無は見ない（assignee で絞る）",
+    ),
   include_abandoned: z
     .boolean()
     .optional()
@@ -25,7 +32,7 @@ export const ticketFilterSchema = z.object({
 export type TicketFilter = z.output<typeof ticketFilterSchema>;
 
 export function isReady(store: Store, t: Ticket): boolean {
-  return t.status === "todo" && !t.claimed_by && store.depsDone(t);
+  return t.status === "todo" && store.depsDone(t);
 }
 
 export function matchesFilter(store: Store, t: Ticket, f: TicketFilter): boolean {
@@ -37,6 +44,8 @@ export function matchesFilter(store: Store, t: Ticket, f: TicketFilter): boolean
   if (f.iteration && t.iteration !== f.iteration) return false;
   if (f.epic && t.epic !== f.epic) return false;
   if (f.label && !f.label.some((l) => t.labels.includes(l))) return false;
+  if (f.assignee && t.assignee !== f.assignee) return false;
+  if (f.created_by && t.created_by !== f.created_by) return false;
   if (f.ready && !isReady(store, t)) return false;
   if (f.query) {
     const q = f.query.toLowerCase();

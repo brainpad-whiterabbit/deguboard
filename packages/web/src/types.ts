@@ -36,26 +36,26 @@ export const ITERATION_LABELS: Record<Iteration["status"], string> = {
 };
 export const EPIC_LABELS: Record<Epic["status"], string> = { open: "進行中", closed: "終了" };
 
-/** 絞り込みで「担当者なし（claim されていない）」を表す値。actor の ID（user@host）とは重ならない */
+/** 絞り込みで「担当者なし」を表す値。主体の ID（`eiki` / `eiki/agent`）とは重ならない */
 export const NO_CLAIM = "-";
 
-/** 担当者（claimed_by）の短い表示。ID は user@host の形なので @ の前だけ。全文はツールチップで読む */
+/** 担当者の短い表示。ID は `eiki` / `eiki/agent` の形でそのまま出す。旧 ID（user@host）は @ の前だけにし、全文はツールチップで読む */
 export function actorLabel(id: string): string {
   return id.split("@")[0] || id;
 }
 
-/** 担当者の絞り込みの選択肢：出てくる claimed_by（名前順）と、claim されていないチケットがあれば「なし」 */
+/** 担当者の絞り込みの選択肢：出てくる assignee（名前順）と、担当者のないチケットがあれば「なし」 */
 export function claimOptions(tickets: readonly Ticket[]): string[] {
-  const ids = [...new Set(tickets.flatMap((t) => (t.claimed_by ? [t.claimed_by] : [])))].sort();
+  const ids = [...new Set(tickets.flatMap((t) => (t.assignee ? [t.assignee] : [])))].sort();
   if (ids.length === 0) return [];
-  return tickets.some((t) => !t.claimed_by) ? [...ids, NO_CLAIM] : ids;
+  return tickets.some((t) => !t.assignee) ? [...ids, NO_CLAIM] : ids;
 }
 
-/** 担当者の絞り込み。空はすべて、NO_CLAIM は claim されていないもの */
+/** 担当者の絞り込み。空はすべて、NO_CLAIM は担当者のないもの */
 export function matchesClaim(ticket: Ticket, claim: string): boolean {
   if (!claim) return true;
-  if (claim === NO_CLAIM) return !ticket.claimed_by;
-  return ticket.claimed_by === claim;
+  if (claim === NO_CLAIM) return !ticket.assignee;
+  return ticket.assignee === claim;
 }
 
 export interface Project {

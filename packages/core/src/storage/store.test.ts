@@ -66,7 +66,7 @@ describe("Store", () => {
   it("frontmatter だけ更新しても本文とコメントとキー順が変わらない", async () => {
     const root = await fixture({ "tickets/t1.md": ticketText("t1") });
     const store = await Store.open(root);
-    await store.update("ticket", "t1", { status: "in_progress", claimed_by: "eiki@laptop" });
+    await store.update("ticket", "t1", { status: "in_progress", assignee: "eiki" });
     const text = await readFile(path.join(root, "tickets/t1.md"), "utf8");
     const keys = text
       .split("---")[1]!
@@ -82,7 +82,7 @@ describe("Store", () => {
       "labels",
       "created_at",
       "updated_at",
-      "claimed_by",
+      "assignee",
     ]);
     expect(text).toContain("priority: medium # low | medium | high");
     expect(text).toContain("labels: [frontend]");

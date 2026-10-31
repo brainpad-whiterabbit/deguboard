@@ -26,15 +26,15 @@ async function initialized(): Promise<Fixture> {
 describe("プロセス内の CommandClient", () => {
   it("名前でコマンドを引いて実行し、主体は人。init は出さず、知らない名前は UNKNOWN_COMMAND", async () => {
     const f = await initialized();
-    const client = createLocalClient({ cwd: f.cloneA, actorId: "ui@pc" });
+    const client = createLocalClient({ cwd: f.cloneA, user: "ui" });
     expect(client.commands.some((c) => c.name === "init")).toBe(false);
     const created = await client.run<{ id: string }>("ticket.create", { title: "画面から" });
     expect(created.data.id).toBe("t1");
     expect(created.write).toMatchObject({ pushed: true });
     const claimed = await client
-      .run<{ claimed_by: string }>("sprint.list")
-      .then(() => client.run<{ claimed_by: string }>("ticket.claim", { ticket: "t1" }));
-    expect(claimed.data.claimed_by).toBe("ui@pc");
+      .run<{ assignee: string }>("sprint.list")
+      .then(() => client.run<{ assignee: string }>("ticket.claim", { ticket: "t1" }));
+    expect(claimed.data.assignee).toBe("ui");
     await expect(client.run("ticket.nope")).rejects.toMatchObject({ code: "UNKNOWN_COMMAND" });
     await expect(client.run("init")).rejects.toMatchObject({ code: "UNKNOWN_COMMAND" });
   });

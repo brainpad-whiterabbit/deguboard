@@ -45,7 +45,7 @@ export function fixture(partial: Partial<Fixture> = {}): Fixture {
     tickets: [
       ticket({ id: "t1", title: "ログイン", status: "done" }),
       ticket({ id: "t2", title: "API", status: "in_progress", priority: "high", epic: "e1" }),
-      ticket({ id: "t3", title: "画面", labels: ["web"] }),
+      ticket({ id: "t3", title: "画面", labels: ["web"], created_by: "eiki/agent" }),
     ],
     epics: [
       {

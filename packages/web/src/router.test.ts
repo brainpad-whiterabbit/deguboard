@@ -12,18 +12,18 @@ describe("ハッシュのルーティング", () => {
     // Iteration の一覧の画面はないので、ID がなければカンバン
     expect(parseRoute("#/iterations")).toEqual({ page: "board" });
     expect(parseRoute("#/iterations/s2")).toEqual({ page: "iterations", id: "s2" });
-    expect(parseRoute("#/board?iteration=s4&epic=e1&claimed_by=eiki%40host")).toEqual({
+    expect(parseRoute("#/board?iteration=s4&epic=e1&assignee=eiki%2Fagent")).toEqual({
       page: "board",
       iteration: "s4",
       epic: "e1",
-      claimed_by: "eiki@host",
+      assignee: "eiki/agent",
     });
   });
 
   it("hrefOf と parseRoute は往復する", () => {
     for (const route of [
       { page: "board" as const, epic: "e1" },
-      { page: "board" as const, iteration: "s4", epic: "e1", claimed_by: "eiki@host" },
+      { page: "board" as const, iteration: "s4", epic: "e1", assignee: "eiki/agent" },
       { page: "board" as const, iteration: "-" },
       { page: "ticket" as const, id: "t3" },
       { page: "epics" as const, id: "e1" },

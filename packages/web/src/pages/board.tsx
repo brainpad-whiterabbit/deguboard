@@ -1,6 +1,6 @@
 // カンバン（UI-2）。KanbanForge のサイドバーと同じ 3 層：上に planned と active の Iteration の表、表で選んだ Iteration の見出し、
 // その Iteration のチケットを状態ごとの節（todo / in_progress / review / done。中止は畳んだ節）で出す。
-// Iteration が 1 つもない Project では表を出さず、全チケットのカンバンにする。Epic と担当者（claimed_by）で絞り、値はハッシュに持つ。
+// Iteration が 1 つもない Project では表を出さず、全チケットのカンバンにする。Epic と担当者（assignee）で絞り、値はハッシュに持つ。
 // 節と表の開閉・最後に選んだ Iteration は host.state に覚える。
 // ドラッグ＆ドロップは ticket.move を呼び、拒否されたら通知に理由を出して元の列に戻す（読み直すだけで戻る）
 
@@ -73,7 +73,7 @@ export function BoardPage({ query }: { query: BoardQuery }) {
       page: "board",
       iteration: query.iteration,
       epic: query.epic,
-      claimed_by: query.claimed_by,
+      assignee: query.assignee,
       ...patch,
     });
 
@@ -91,10 +91,10 @@ export function BoardPage({ query }: { query: BoardQuery }) {
     () =>
       scoped
         .filter((t) => !query.epic || t.epic === query.epic)
-        .filter((t) => matchesClaim(t, query.claimed_by ?? ""))
+        .filter((t) => matchesClaim(t, query.assignee ?? ""))
         .map((t) => (moving && moving.id === t.id ? { ...t, status: moving.status } : t))
         .sort(byPriorityThenNumber),
-    [scoped, query.epic, query.claimed_by, moving],
+    [scoped, query.epic, query.assignee, moving],
   );
   const abandoned = tickets.filter((t) => t.status === "abandoned");
 
@@ -137,8 +137,8 @@ export function BoardPage({ query }: { query: BoardQuery }) {
           <label>
             担当
             <select
-              value={query.claimed_by ?? ""}
-              onChange={(e) => setFilter({ claimed_by: e.target.value || undefined })}
+              value={query.assignee ?? ""}
+              onChange={(e) => setFilter({ assignee: e.target.value || undefined })}
             >
               <option value="">すべて</option>
               {claims.map((c) => (
@@ -449,9 +449,9 @@ function Card({ ticket }: { ticket: Ticket }) {
       </div>
       <div className="title">{ticket.title}</div>
       <Tags labels={ticket.labels} />
-      {ticket.claimed_by ? (
-        <div className="meta" title={ticket.claimed_by}>
-          {actorLabel(ticket.claimed_by)}
+      {ticket.assignee ? (
+        <div className="meta" title={ticket.assignee}>
+          {actorLabel(ticket.assignee)}
         </div>
       ) : null}
     </article>

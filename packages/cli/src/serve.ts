@@ -43,10 +43,11 @@ export function addServeCommands(program: Command, deps: ServeDeps): void {
     .option("--port <port>", "ポート。0 なら空いているポート", toPort, DEFAULT_PORT)
     .option("--open", "起動後にブラウザで開く")
     .action(async (opts: { host: string; port: number; open?: boolean }) => {
-      const global = program.opts<{ json?: boolean; C?: string }>();
+      const global = program.opts<{ json?: boolean; C?: string; user?: string }>();
       try {
         const running = await startServer({
           cwd: deps.resolveCwd(global.C),
+          user: global.user ?? process.env["DEGUBOARD_USER"],
           host: opts.host,
           port: opts.port,
           staticDir: deps.staticDir,

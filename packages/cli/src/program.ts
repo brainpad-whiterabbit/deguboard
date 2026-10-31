@@ -81,8 +81,8 @@ export function buildProgram(options: ProgramOptions = {}): Command {
       "操作の主体（human / agent）。既定は環境変数 DEGUBOARD_ACTOR か human",
     )
     .option(
-      "--actor-id <id>",
-      "主体の ID（claimed_by に記録）。既定は環境変数 DEGUBOARD_ACTOR_ID か <git の user.name>@<ホスト名>",
+      "--user <name>",
+      "主体のユーザ名。既定は環境変数 DEGUBOARD_USER か git の user.name。記録される ID は <ユーザ>（human）か <ユーザ>/agent（agent）",
     )
     .helpCommand("help [command]", "コマンドの使い方を出す")
     .configureOutput({
@@ -162,7 +162,7 @@ export function buildProgram(options: ProgramOptions = {}): Command {
         json?: boolean;
         C?: string;
         actor?: string;
-        actorId?: string;
+        user?: string;
       }>();
       const cwd = resolve(options.cwd ?? process.cwd(), global.C ?? ".");
       const input = collectInput(bound, positionals, opts);
@@ -174,8 +174,8 @@ export function buildProgram(options: ProgramOptions = {}): Command {
       if (actorKind !== "human" && actorKind !== "agent") {
         command.error("--actor は human か agent", { exitCode: 2 });
       }
-      const actorId = global.actorId ?? env["DEGUBOARD_ACTOR_ID"];
-      const actor: Partial<ActorInfo> = { kind: actorKind, ...(actorId ? { id: actorId } : {}) };
+      const user = global.user ?? env["DEGUBOARD_USER"];
+      const actor = { kind: actorKind, ...(user ? { user } : {}) };
       const initialize =
         def.needs === "repo" ? { remote: input["remote"] as string | undefined } : undefined;
 

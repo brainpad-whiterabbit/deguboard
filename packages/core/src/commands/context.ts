@@ -2,19 +2,21 @@
 
 import { OperationError } from "../errors.js";
 import {
-  defaultActorId,
+  defaultUser,
   isInitialized,
   resolveRemote,
   resolveRepoPaths,
   type GitRepo,
 } from "../git/repo.js";
 import { ensureDeguboardWorktree, type WorktreeOrigin } from "../git/worktree.js";
+import { actorIdOf } from "../model/actor.js";
 import { Store } from "../storage/store.js";
 import type { ActorInfo, CommandContext } from "./define.js";
 
 export interface ContextOptions {
   cwd: string;
-  actor?: Partial<ActorInfo> | undefined;
+  /** 主体の種別とユーザ名。ID は 2 つから導く */
+  actor?: Partial<Pick<ActorInfo, "kind" | "user">> | undefined;
   now?: (() => Date) | undefined;
   hooks?: CommandContext["hooks"];
   /** init のとき：worktree がなければ作る。リモート名は config より先に要るので受け取る */
@@ -41,10 +43,9 @@ export async function openContext(opts: ContextOptions): Promise<CommandContext>
     remote: await resolveRemote(paths, remoteName),
     baseBranch: store.config.git.base_branch,
   };
-  const actor: ActorInfo = {
-    kind: opts.actor?.kind ?? "human",
-    id: opts.actor?.id ?? (await defaultActorId(repo)),
-  };
+  const kind = opts.actor?.kind ?? "human";
+  const user = opts.actor?.user ?? (await defaultUser(repo));
+  const actor: ActorInfo = { kind, user, id: actorIdOf(user, kind) };
   return {
     repo,
     store,

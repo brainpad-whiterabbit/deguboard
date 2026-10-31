@@ -26,7 +26,7 @@ deguboard はソフトウェア開発だけでなく、コンサルティング�
 
 ### 遷移は既定で自由にし、Workflow が制約を足す
 
-- 既定では 5 つの Status の間のどの遷移も、human / agent / reconcile の誰でも条件なしで行える。Core が固定するのは Status の集合と前進の順、同じ Status への move の拒否、`abandoned` と todo に入るときの副作用（`claimed_by` と `branch` を消す）だけ
+- 既定では 5 つの Status の間のどの遷移も、human / agent / reconcile の誰でも条件なしで行える。Core が固定するのは Status の集合と前進の順、同じ Status への move の拒否、`abandoned` と todo に入るときの副作用（`assignee` と `branch` を消す）だけ
 - Workflow の `transitions` は from → to ごとに制約を足す。`by` は行える主体（省略なら誰でも、`[]` ならその遷移を禁止）、`requires` は満たすべき組み込みの条件（AND）。例：`{ from: todo, to: in_progress, requires: [deps_done] }` で依存が終わるまで着手を止め、`{ from: review, to: done, by: [human] }` で完了を人に限る。同じ from → to を 2 回書くのは誤りとして検証で指摘する（読み込めた場合は requires の和・by の積で合成する）
 - 照合（reconcile）は遷移の制約とは別の仕様。前進の順に進めるだけで、`abandoned` と `done` には触れず、そこからも動かさない。`by` に `reconcile` を含まない遷移は照合でも止まる
 - Epic と Iteration を閉じる・再開するのは Workflow の外で、既定では誰でも行える。人に限るなら config の `actor.human_only` にコマンド名（`epic.close` など）を書く

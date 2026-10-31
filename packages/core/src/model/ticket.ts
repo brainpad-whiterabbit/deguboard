@@ -8,7 +8,7 @@ export const PRIORITIES = ["low", "medium", "high"] as const;
 export type Priority = (typeof PRIORITIES)[number];
 
 // スキーマにないキーは looseObject で残す（DT-2）。Workflow の fields の値もここを通る
-export const ticketSchema = z.looseObject({
+const ticketFrontmatter = z.looseObject({
   id: ticketIdSchema,
   project: slugSchema,
   title: z.string().min(1),
@@ -19,6 +19,11 @@ export const ticketSchema = z.looseObject({
   epic: epicIdSchema.optional(),
   depends_on: z.array(ticketIdSchema).default([]),
   workflow: slugSchema.optional(),
+  /** 起票者。`eiki` か `eiki/agent`（TK-7）。古いファイルにはない */
+  created_by: z.string().optional(),
+  /** 担当者。claim で付き、todo / abandoned で消える（ST-3、ST-8） */
+  assignee: z.string().optional(),
+  /** 旧名。読むときに assignee へ読み替え、assignee を書く操作が消す */
   claimed_by: z.string().optional(),
   branch: z.string().optional(),
   pr: z.number().int().positive().optional(),
@@ -26,6 +31,10 @@ export const ticketSchema = z.looseObject({
   provisional: z.boolean().optional(),
   created_at: isoDateTime,
   updated_at: isoDateTime,
+});
+export const ticketSchema = ticketFrontmatter.transform(({ claimed_by, ...t }) => {
+  const assignee = t.assignee ?? claimed_by;
+  return assignee === undefined ? t : { ...t, assignee };
 });
 export type Ticket = z.output<typeof ticketSchema>;
 

@@ -20,6 +20,7 @@ interface Draft {
   labels: string;
   epic: string;
   iteration: string;
+  assignee: string;
   body: string;
   fields: Record<string, string>;
 }
@@ -31,6 +32,7 @@ function draftOf(t: TicketDetail, fields: readonly FieldDefinition[]): Draft {
     labels: t.labels.join(", "),
     epic: t.epic ?? "",
     iteration: t.iteration ?? "",
+    assignee: t.assignee ?? "",
     body: t.body,
     fields: Object.fromEntries(
       fields.map((f) => [f.id, t[f.id] === undefined ? "" : String(t[f.id])]),
@@ -81,6 +83,7 @@ export function TicketPage({ id }: { id: string }) {
         .filter(Boolean),
       epic: draft.epic || null,
       iteration: draft.iteration || null,
+      assignee: draft.assignee.trim() || null,
       body: draft.body,
     };
     const values = Object.fromEntries(
@@ -277,7 +280,18 @@ export function TicketPage({ id }: { id: string }) {
             )}
           </dd>
           <dt>担当</dt>
-          <dd>{ticket.claimed_by ?? <span className="muted">なし</span>}</dd>
+          <dd>
+            {draft ? (
+              <input
+                value={draft.assignee}
+                onChange={(e) => setDraft({ ...draft, assignee: e.target.value })}
+                placeholder="eiki か eiki/agent"
+                aria-label="担当"
+              />
+            ) : (
+              (ticket.assignee ?? <span className="muted">なし</span>)
+            )}
+          </dd>
           <dt>ブランチ</dt>
           <dd>
             {ticket.branch ? <code>{ticket.branch}</code> : <span className="muted">なし</span>}
@@ -286,6 +300,8 @@ export function TicketPage({ id }: { id: string }) {
           <dd>{ticket.pr ? `#${ticket.pr}` : <span className="muted">なし</span>}</dd>
           <dt>Run</dt>
           <dd className="muted">予定（e3）</dd>
+          <dt>起票者</dt>
+          <dd>{ticket.created_by ?? <span className="muted">不明</span>}</dd>
           <dt>作成</dt>
           <dd>{ticket.created_at}</dd>
           <dt>更新</dt>

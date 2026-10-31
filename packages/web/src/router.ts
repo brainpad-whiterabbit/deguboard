@@ -7,7 +7,7 @@ import { useEffect, useState } from "react";
 export interface BoardQuery {
   iteration?: string | undefined;
   epic?: string | undefined;
-  claimed_by?: string | undefined;
+  assignee?: string | undefined;
 }
 
 /** カンバンで「Iteration に入っていないチケット」を選ぶ値 */
@@ -23,7 +23,7 @@ export type Route =
 const BOARD_KEYS = [
   "iteration",
   "epic",
-  "claimed_by",
+  "assignee",
 ] as const satisfies readonly (keyof BoardQuery)[];
 
 export function parseRoute(hash: string): Route {

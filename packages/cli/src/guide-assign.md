@@ -18,6 +18,11 @@
 - 外す：`dg --json --actor agent epic remove <e3> <t12>`
 - 閉じる・再開する：`dg --json --actor agent epic close <e3>` / `epic reopen <e3>`。done・abandoned 以外が残っていれば拒否され、`--force` で閉じられる。人の指示で閉じる（制限は `dg guide overview`）
 
+## 担当者
+
+- 人かその AI に担当を付ける：`dg --json --actor agent ticket update <t12> --assignee human`（ユーザ本人）、`--assignee agent`（ユーザの AI）、`--assignee <ID>`（別のユーザ。`bob` や `bob/agent`）。外すのは画面か人に頼む（CLI は `--assignee` に空を渡せない）
+- 担当は予定の印で、排他ではない。着手は claim で決まり、claim した主体が担当者になる
+
 ## 割り当てを提案するとき
 
 1. Iteration の目標と期間、入っているチケットを `dg --json --actor agent iteration show <s3>` で読む

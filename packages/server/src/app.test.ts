@@ -22,7 +22,7 @@ async function fixture(): Promise<Fixture> {
 }
 
 async function serve(cwd: string, staticDir?: string): Promise<RunningServer> {
-  const running = await startServer({ cwd, port: 0, staticDir, actorId: "ui@pc" });
+  const running = await startServer({ cwd, port: 0, staticDir, user: "ui" });
   cleanups.push(running.close);
   return running;
 }
@@ -69,7 +69,7 @@ describe("HTTP サーバー", () => {
       write: { pushed: true },
     });
     const claimed = await post(s, "ticket.claim", { ticket: "1" });
-    expect(claimed.body.data).toMatchObject({ status: "in_progress", claimed_by: "ui@pc" });
+    expect(claimed.body.data).toMatchObject({ status: "in_progress", assignee: "ui" });
     // 画面の操作は常に人として扱われる（既定では遷移に制約がないので abandoned にもできる）
     const abandoned = await post(s, "ticket.move", { ticket: "t1", status: "abandoned" });
     expect(abandoned.body.data.status).toBe("abandoned");
