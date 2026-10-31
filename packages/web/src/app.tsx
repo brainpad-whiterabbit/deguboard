@@ -1,7 +1,7 @@
 // 画面の骨組み：上のバー（Project の切り替え・画面の切り替え・同期の印）と、ハッシュで選んだページ。
 // サイドバーでは同期の印とボタンを出さない（ビューのタイトル行の再読み込みと同期のボタン、バッジで代える。UI-12）
 
-import type { MouseEvent } from "react";
+import { useEffect, type MouseEvent } from "react";
 import { useHost } from "./host.js";
 import { useStore } from "./store.js";
 import { hrefOf, useRoute, type Route } from "./router.js";
@@ -75,7 +75,8 @@ export function App() {
       )}
       <NoticeBar />
       <main className="page">
-        {store.loading && store.tickets.length === 0 ? (
+        {/* 最初の読み込みが終わるまでは空状態の文言を出さない。読み直しの間は画面を出したままにする（フォームの入力を失わない） */}
+        {!store.loaded ? (
           <p className="muted">読み込み中…</p>
         ) : (
           // サイドバーではチケット詳細を出さない（エディタ領域のパネルに開く。UI-12）
@@ -155,9 +156,18 @@ function SyncIndicator() {
   );
 }
 
+/** info の通知（警告の列挙）はこの時間で消える。error は閉じるまで残す */
+export const INFO_NOTICE_MS = 6_000;
+
 function NoticeBar() {
   const store = useStore();
   const n = store.notice;
+  const { notify } = store;
+  useEffect(() => {
+    if (!n || n.kind !== "info") return;
+    const timer = setTimeout(() => notify(null), INFO_NOTICE_MS);
+    return () => clearTimeout(timer);
+  }, [n, notify]);
   if (!n) return null;
   return (
     <div className={`notice ${n.kind}`} role={n.kind === "error" ? "alert" : "status"}>

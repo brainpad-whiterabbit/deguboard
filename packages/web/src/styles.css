@@ -473,6 +473,25 @@ button.link:hover {
   border-color: var(--dg-border);
 }
 
+/* バックログの畳んだ絞り込み（サイドバー） */
+.filters {
+  margin-bottom: 0.5rem;
+}
+.filters > summary {
+  padding: 0.25rem 0.25rem;
+  color: var(--vscode-descriptionForeground);
+  gap: 0.6em;
+}
+.filters > summary .muted {
+  font-size: 0.92em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.filters > .toolbar {
+  margin: 0.25rem 0 0;
+}
+
 /* 履歴：閉じた Iteration の 2 段の行 */
 .history {
   list-style: none;
