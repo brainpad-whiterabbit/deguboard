@@ -40,13 +40,13 @@ export const configSchema = z.looseObject({
     .prefault({}),
   metrics: z
     .looseObject({
-      /** 会話記録を読んで使用量を補うか（Phase 3） */
+      /** 会話記録を読んで使用量を補うか（Run を実装するまで使わない） */
       read_transcripts: z.boolean().default(false),
     })
     .prefault({}),
   actions: z
     .looseObject({
-      /** 任意のシェルの Action を許すか（Phase 3） */
+      /** 任意のシェルの Action を許すか（Run を実装するまで使わない） */
       shell: z.boolean().default(false),
     })
     .prefault({}),

@@ -191,7 +191,7 @@ export const sync = defineCommand({
         else warnings.push(`push できない: ${r.detail}`);
       }
 
-      // push が済んだ仮番号は確定する（DT-5。振り直しは衝突したときだけで、Phase 1 では報告にとどめる）
+      // push が済んだ仮番号は確定する（DT-5。振り直しは衝突したときだけで、t8 までは報告にとどめる）
       let confirmed: string[] = [];
       if (repo.remote && (pushed || before.ahead === 0)) {
         for (const t of ctx.store.tickets.values()) {

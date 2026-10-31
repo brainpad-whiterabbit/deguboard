@@ -47,11 +47,11 @@ Core の中は責務ごとのモジュールに分け、最初からパッケー
 - `storage`：frontmatter / YAML / JSON の読み書き、原子的書き込み、起動時走査とメモリ上の索引
 - `git`：deguboard worktree の用意、commit / push、claim の CAS、照合に使う事実の収集、競合の検出
 - `workflow`：定義の検証、遷移の検査、`reconcile` の評価
-- `run`・`metrics`：Run の記録と集計（Phase 3）
-- `agents`：Agent Adapter のインターフェースと Claude Code / Codex の実装（Phase 2〜3）。起動方法・使用量の取得・作業ディレクトリの差を吸収する
-- `actions`：登録済みの Action（`run_tests`・`create_pr` など。Phase 3）。任意のシェルは設定で明示的に許可したときだけ、実行前に確認する
+- `run`・`metrics`：Run の記録と集計
+- `agents`：Agent Adapter のインターフェースと Claude Code / Codex の実装。起動方法・使用量の取得・作業ディレクトリの差を吸収する
+- `actions`：登録済みの Action（`run_tests`・`create_pr` など）。任意のシェルは設定で明示的に許可したときだけ、実行前に確認する
 
-`run`・`agents`・`actions`・`metrics` は要るようになる Phase 2〜3 で置く（Phase 1 は Run の型だけ）。モジュールが肥大化したら、そのときにパッケージへ切り出す。
+`run`・`agents`・`actions`・`metrics` は要るようになったときに置く（それまでは Run の型だけ）。モジュールが肥大化したら、そのときにパッケージへ切り出す。
 
 ### 索引はメモリ上に持つ
 
@@ -62,13 +62,13 @@ Core の中は責務ごとのモジュールに分け、最初からパッケー
 - 入口が増えても `core/commands` を 1 回書けば済む。CLI と UI と MCP で振る舞いがずれない
 - 依存を一方向にすれば、Core を単体でテストでき、VS Code や HTTP の都合が Core に入らない
 - 最初から 10 パッケージに分けると、境界をまたぐ型と設定が増え、変更のたびに複数パッケージを触る。モジュールの境界を先に決めておけば、切り出しは後からできる
-- Adapter と Action を Core の境界として先に型だけ決めるのは、Phase 1 のデータモデル（Run・Workflow の `steps`）がそれに依存するため
+- Adapter と Action を Core の境界として先に型だけ決めるのは、最初のデータモデル（Run・Workflow の `steps`）がそれに依存するため
 - 数千件までのチケットなら、ファイル走査とメモリ索引で十分に速い
 
 ## 採らなかった案
 
 - **構想どおり 10 パッケージ**：抽象化が先行し、MVP の変更コストが上がる
-- **MCP サーバーを独立パッケージで先に作る**：CLI で同じことができ、スキーマが文脈を消費する。`core/commands` から生成する薄い層として Phase 2 に足す
+- **MCP サーバーを独立パッケージで先に作る**：CLI で同じことができ、スキーマが文脈を消費する。`core/commands` から生成する薄い層として後から足す
 - **Workflow エンジンを別パッケージにする**：Core の遷移検査と照合が Workflow に依存し、境界をまたぐ呼び出しが増える。Core の中のモジュールで十分
 - **入口ごとにロジックを書く**：CLI と UI で振る舞いがずれる
 - **SQLite の索引**：ネイティブ依存と DB ファイルの管理が増える

@@ -18,16 +18,16 @@
 
 ### 形式：1 件 1 ファイル
 
-| データ     | 置き場所               | 形式                            |
-| ---------- | ---------------------- | ------------------------------- |
-| Project    | `projects/<slug>.yaml` | YAML                            |
-| Ticket     | `tickets/t12.md`       | Markdown＋YAML frontmatter      |
-| Epic       | `epics/e3.md`          | Markdown＋YAML frontmatter      |
-| Iteration  | `iterations/s3.yaml`   | YAML                            |
-| Plan       | `plans/p7.yaml`        | YAML                            |
-| Workflow   | `workflows/<id>.yaml`  | YAML                            |
-| Run の集計 | `runs/…json`           | JSON（命名は Phase 3 で決める） |
-| 設定       | `config.yaml`          | YAML                            |
+| データ     | 置き場所               | 形式                                      |
+| ---------- | ---------------------- | ----------------------------------------- |
+| Project    | `projects/<slug>.yaml` | YAML                                      |
+| Ticket     | `tickets/t12.md`       | Markdown＋YAML frontmatter                |
+| Epic       | `epics/e3.md`          | Markdown＋YAML frontmatter                |
+| Iteration  | `iterations/s3.yaml`   | YAML                                      |
+| Plan       | `plans/p7.yaml`        | YAML                                      |
+| Workflow   | `workflows/<id>.yaml`  | YAML                                      |
+| Run の集計 | `runs/…json`           | JSON（命名は Run を実装するときに決める） |
+| 設定       | `config.yaml`          | YAML                                      |
 
 - チケットと Epic の本文（概要・受け入れ条件・目的）は Markdown、属性は frontmatter。Iteration・Workflow・config は人が読む YAML、Run は機械が書く JSON
 - 削除したチケットは `tickets/deleted/` に墓標として残し、番号を再利用しない
