@@ -7,5 +7,93 @@
   "rules": {},
   "env": {
     "builtin": true
-  }
+  },
+  "overrides": [
+    {
+      "files": ["packages/core/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": [
+                  "@deguboard/*",
+                  "deguboard",
+                  "deguboard-vscode",
+                  "vscode",
+                  "react",
+                  "react-dom",
+                  "react-dom/*"
+                ],
+                "message": "core は何にも依存しない（ADR-007）"
+              },
+              {
+                "regex": "^\\.\\.?/(\\.\\./)*(cli|server|web|vscode)(/|$)",
+                "message": "core は他のパッケージを相対パスでも import しない（ADR-007）"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["packages/server/**", "packages/vscode/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": ["@deguboard/*", "!@deguboard/core", "deguboard", "deguboard-vscode"],
+                "message": "server と vscode は core だけに依存する（ADR-007）"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["packages/cli/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": [
+                  "@deguboard/*",
+                  "!@deguboard/core",
+                  "!@deguboard/server",
+                  "deguboard-vscode"
+                ],
+                "message": "cli は core と server だけに依存する（ADR-007）"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["packages/web/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": ["@deguboard/*", "!@deguboard/core", "deguboard", "deguboard-vscode"],
+                "message": "web は core だけに依存する（ADR-007）"
+              },
+              {
+                "group": ["@deguboard/core"],
+                "allowTypeImports": true,
+                "message": "web は core から型だけを取り込む。実行時のコードは Vite が node のモジュールを束ねるので禁止（ADR-007）"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
 }

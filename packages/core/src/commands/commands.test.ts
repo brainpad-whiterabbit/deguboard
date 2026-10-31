@@ -156,6 +156,7 @@ describe("チケットの流れ", () => {
     await git(f.cloneA, ["commit", "-q", "--allow-empty", "-m", "実装"]);
     await git(f.cloneA, ["checkout", "-q", "main"]);
     await git(f.cloneA, ["merge", "-q", "--ff-only", "feature/t1-login-validation"]);
+    await git(f.cloneA, ["commit", "-q", "--allow-empty", "-m", "main が進む"]);
     await git(f.cloneA, ["push", "-q", "origin", "main"]);
 
     const synced = await runCommand(sync, ctx, {});
