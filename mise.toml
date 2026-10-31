@@ -3,7 +3,7 @@
 node = "24.22.2"
 pnpm = "12.12.1"
 
-# タスクは pnpm scripts を呼ぶだけにする。人と CI は mise run だけを使う
+# タスクは pnpm scripts を呼ぶだけにする。人もエージェントも mise run だけを使う
 [tasks.install]
 description = "依存を lockfile どおりに入れる"
 run = "pnpm install --frozen-lockfile"

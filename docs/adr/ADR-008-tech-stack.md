@@ -19,10 +19,11 @@
 
 ### ツールと作業コマンドは mise に統一する
 
-- `mise.toml` で node と pnpm の版を固定する。開発者と CI は `mise install` でツールを揃える
+- `mise.toml` で node と pnpm の版を固定する。開発者は `mise install` でツールを揃える
 - 作業のコマンドは `mise run <task>` を唯一の入口にする。タスクは `install`・`format`・`format:check`・`lint`・`typecheck`・`test`・`check:docs`・`check`
 - タスクは pnpm scripts を呼ぶだけにし、同じ内容を 2 か所に書かない。pnpm scripts は mise から呼ばれる前提で、人は `mise run` だけ覚える
 - `check` はコミット前の確認で、format:check → lint → typecheck → test → check:docs を順に実行する
+- CI は使わない。検査は作業者がローカルで `mise run check` を通すことにとどめ、マージの条件にする
 
 ### lint は oxlint、整形は oxfmt
 
@@ -42,6 +43,7 @@
 - Zod は型とスキーマを 1 か所に書け、`core/commands` の入力スキーマから CLI のヘルプと HTTP の検証を生成できる
 - `execFile` で引数配列として呼べば、ブランチ名やタイトルにシェルの特殊文字が入っても安全
 - Vitest は TypeScript と ESM をそのまま扱え、workspace のパッケージをまとめて走らせられる
+- CI を置かないのは、実装するのが主にエージェントで、変更のたびにローカルで `check` を回すから。同じ検査を CI でもう一度回しても得るものが少なく、ワークフローの保守が増える
 
 ## 採らなかった案
 

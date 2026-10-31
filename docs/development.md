@@ -58,7 +58,7 @@ worktree は `../deguboard.worktrees/<ブランチ名>` に置く。`dg` の `wo
    gh pr create --base main
    ```
 
-4. レビューの指摘は同じ worktree で直して push する。CI が通り、承認されたらマージする。worktree は先に消す（ブランチを checkout したままだと `gh` がローカルのブランチを消せない）
+4. レビューの指摘は同じ worktree で直して push する。`mise run check` を通してから push し、承認されたらマージする。worktree は先に消す（ブランチを checkout したままだと `gh` がローカルのブランチを消せない）
 
    ```sh
    cd <main の worktree>            # リポジトリ本体
