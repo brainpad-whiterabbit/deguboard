@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, describe, expect, it } from "vitest";
 import { App } from "./app.js";
 import { ClientError } from "./client/http.js";
+import { HostProvider, type Host } from "./host.js";
 import { StoreProvider } from "./store.js";
 import { mockClient } from "./test-helpers.js";
 
@@ -11,12 +12,15 @@ afterEach(() => {
   window.location.hash = "";
 });
 
-function mount(client = mockClient()) {
-  render(
-    <StoreProvider client={client}>
+function mount(client = mockClient(), host?: Host) {
+  const app = host ? (
+    <HostProvider host={host}>
       <App />
-    </StoreProvider>,
+    </HostProvider>
+  ) : (
+    <App />
   );
+  render(<StoreProvider client={client}>{app}</StoreProvider>);
   return client;
 }
 
@@ -89,6 +93,22 @@ describe("画面", () => {
       epic: "e1",
       iteration: null,
     });
+  });
+
+  it("サイドバーではチケットのリンクがハッシュ遷移せず、ホストに開いてもらう", async () => {
+    window.location.hash = "#/backlog";
+    const opened: string[] = [];
+    mount(mockClient(), { surface: "sidebar", openTicket: (id) => opened.push(id) });
+    fireEvent.click(await screen.findByText("API"));
+    expect(opened).toEqual(["t2"]);
+    expect(window.location.hash).toBe("#/backlog");
+  });
+
+  it("ブラウザではチケットのリンクが詳細へのハッシュ遷移のまま", async () => {
+    window.location.hash = "#/backlog";
+    mount();
+    const link = (await screen.findByText("API")).closest("a")!;
+    expect(link.getAttribute("href")).toBe("#/tickets/t2");
   });
 
   it("Epic の一覧は進捗を出す", async () => {

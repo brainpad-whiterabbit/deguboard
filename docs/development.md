@@ -108,15 +108,16 @@ core の `commands` を HTTP に写す。Node 標準の `node:http` で、フレ
 
 画面の React アプリ。構成の判断は [ADR-008](adr/ADR-008-tech-stack.md)。core からは型と `CommandClient`（`core/commands/client.ts`）だけを取り込み、実行時のコードは取り込まない（`import type` だけ。Vite が node のモジュールを束ねないため）。`src/` のファイル：
 
-| ファイル            | 役割                                                                                                                     |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| `client/http.ts`    | `CommandClient` の HTTP 実装。`/api/commands/<name>` と `/api/status` を呼び、失敗は `ClientError`（code と message）    |
-| `client/webview.ts` | postMessage 実装。形は core の `WebviewRequest` / `WebviewResponse`。`main.tsx` が `acquireVsCodeApi` の有無で切り替える |
-| `store.tsx`         | 選んだ Project のチケット・Epic・Iteration・Workflow と同期の状態を読み、書き込み（`run`）のあとに読み直す               |
-| `router.ts`         | ハッシュの解析（`#/board?epic=e1`、`#/tickets/t12` など）                                                                |
-| `pages/`            | カンバン（UI-2）・バックログ（UI-3）・チケット詳細（UI-4）・Epic（UI-10）・Iteration（UI-5）                             |
-| `markdown.tsx`      | 本文の最小の Markdown（見出し・段落・箇条書き・チェックリスト・インラインコード）                                        |
-| `styles.css`        | `--vscode-*` 変数を基準にしたテーマ。`:root` の値はブラウザで開いたときの既定で、Webview では VS Code の値が勝つ         |
+| ファイル            | 役割                                                                                                                  |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `client/http.ts`    | `CommandClient` の HTTP 実装。`/api/commands/<name>` と `/api/status` を呼び、失敗は `ClientError`（code と message） |
+| `client/webview.ts` | postMessage 実装。形は core の `WebviewRequest` / `WebviewResponse` / `WebviewEvent`                                  |
+| `host.tsx`          | `surface` と、チケットをエディタで開く働きかけ。拡張ホストからの通知（同期・遷移）を store に結ぶ                     |
+| `store.tsx`         | 選んだ Project のチケット・Epic・Iteration・Workflow と同期の状態を読み、書き込み（`run`）のあとに読み直す            |
+| `router.ts`         | ハッシュの解析（`#/board?epic=e1`、`#/tickets/t12` など）                                                             |
+| `pages/`            | カンバン（UI-2）・バックログ（UI-3）・チケット詳細（UI-4）・Epic（UI-10）・Iteration（UI-5）                          |
+| `markdown.tsx`      | 本文の最小の Markdown（見出し・段落・箇条書き・チェックリスト・インラインコード）                                     |
+| `styles.css`        | `--vscode-*` 変数を基準にしたテーマ。`:root` の値はブラウザで開いたときの既定で、Webview では VS Code の値が勝つ      |
 
 型検査は `tsconfig.json` を別に持つ（DOM と JSX が要るため）。ビルドは Vite で `dist/` に出し、`dg serve` は cli に写した `web/` を配信する（`cli/program.ts` の `webDist`）。テストは `// @vitest-environment jsdom` を付け、`test-helpers.ts` の `mockClient` で `CommandClient` を差し替える。
 
@@ -124,15 +125,15 @@ core の `commands` を HTTP に写す。Node 標準の `node:http` で、フレ
 
 VS Code 拡張。拡張ホストから core の `createLocalClient` を呼び、Webview に web のビルド結果を載せる。サーバーは起動せず、`dg` は同梱しない（[ADR-006](adr/ADR-006-ui-and-writes.md)）。`src/` のファイル：
 
-| ファイル       | 役割                                                                                                                        |
-| -------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `extension.ts` | 入口。`deguboard.open` で作業フォルダごとに Webview を開き、要求を `webview.ts` に通す。VS Code の API に触れるのはここだけ |
-| `webview.ts`   | Vite が出した `index.html` を Webview 向けに直す（URI・CSP・nonce）、要求を `CommandClient` に通して同じ id の応答にする    |
-| `dg.ts`        | PATH の `dg` を引く 1 か所。ないときはインストールの案内、同梱の core とメジャーが違えば知らせる（UI-11）                   |
+| ファイル       | 役割                                                                                                                     |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `extension.ts` | 入口。サイドバーのビューとエディタのパネルに web を載せ、要求を `webview.ts` に通す。VS Code の API に触れるのはここだけ |
+| `webview.ts`   | `index.html` を Webview 向けに直す（URI・CSP・nonce・`surface` の data 属性）、要求を `CommandClient` に通す、バッジ     |
+| `dg.ts`        | PATH の `dg` を引く 1 か所。ないときはインストールの案内、同梱の core とメジャーが違えば知らせる（UI-11）                |
 
-ビルドは Vite で `dist/extension.cjs` に束ね、web の `dist` を `dist/web` に写す（[ADR-008](adr/ADR-008-tech-stack.md)）。同梱する core の版は `vite.config.ts` の `define` で埋める。手元で動かすには `mise run build` のあと VS Code で `packages/vscode` を開いて F5（拡張開発ホスト）、コマンドパレットの「deguboard: 画面を開く」。
+ビルドは Vite で `dist/extension.cjs` に束ね、web の `dist` を `dist/web` に写す（[ADR-008](adr/ADR-008-tech-stack.md)）。同梱する core の版は `vite.config.ts` の `define` で埋める。手元で動かすには `mise run build` のあと VS Code で `packages/vscode` を開いて F5（拡張開発ホスト）、Activity Bar の deguboard のアイコン。
 
-VSIX は `mise run vsix`（`@vscode/vsce`。判断は [ADR-008](adr/ADR-008-tech-stack.md)）で `packages/vscode/deguboard-vscode.vsix` にでき、`code --install-extension` で入る（リモート開発ならリモート側）。入るのは `.vscodeignore` が残す `dist/`・`package.json`・`README.md` だけ。
+VSIX は `mise run vsix`（`@vscode/vsce`。判断は [ADR-008](adr/ADR-008-tech-stack.md)）で `packages/vscode/deguboard-vscode.vsix` にでき、`code --install-extension` で入る（リモート開発ならリモート側）。入るものは `.vscodeignore` が決める。
 
 ## リリース
 

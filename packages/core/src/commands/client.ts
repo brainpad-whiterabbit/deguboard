@@ -18,10 +18,16 @@ export interface StatusView extends SyncStatus {
   data_dir: string;
 }
 
-/** Webview → 拡張ホストの要求。id で応答と対応づける */
+/** Webview → 拡張ホストの要求。id で応答と対応づける。action は画面の外（エディタ）に働きかける操作で、応答の data は null */
 export type WebviewRequest =
   | { id: number; kind: "run"; name: string; input: unknown }
-  | { id: number; kind: "status" };
+  | { id: number; kind: "status" }
+  | { id: number; kind: "action"; name: "openTicket"; ticket: string };
+
+/** 拡張ホスト → Webview の通知。要求と対応づかないので id を持たない（UI-12） */
+export type WebviewEvent =
+  | { kind: "event"; name: "sync" }
+  | { kind: "event"; name: "navigate"; hash: string };
 
 /** 拡張ホスト → Webview の応答。HTTP の本文と同じ形に id を足したもの */
 export type WebviewResponse =
