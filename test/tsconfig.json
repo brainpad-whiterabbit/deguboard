@@ -1,0 +1,9 @@
+{
+  // 3 経路の E2E（test/e2e）。web の postMessage クライアントを取り込むので DOM の型が要る
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "lib": ["ES2023", "DOM"]
+  },
+  "include": ["."]
+}

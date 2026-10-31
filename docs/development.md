@@ -55,10 +55,11 @@ mise run dg -- guide finish    # マージ後の後始末
 
 ## ビルドとテスト
 
-- TypeScript は ESM（`"type": "module"`）で、相対 import は `.js` の拡張子で書く。設定はルートの `tsconfig.base.json` と `tsconfig.json` にあり、`mise run typecheck` は `packages/*/src` と `packages/*/test` をまとめて `noEmit` で検査し、DOM と JSX が要る `web` だけ `packages/web/tsconfig.json` で別に検査する
+- TypeScript は ESM（`"type": "module"`）で、相対 import は `.js` の拡張子で書く。設定はルートの `tsconfig.base.json` と `tsconfig.json` にあり、`mise run typecheck` は `packages/*/src` と `packages/*/test` をまとめて `noEmit` で検査し、DOM と JSX が要る `web` は `packages/web/tsconfig.json`、`test/` は `test/tsconfig.json` で別に検査する
 - `mise run build` が `tsconfig.build.json`（プロジェクト参照）で `core`・`server`・`cli` を、Vite で `web` を `dist/` に出す。`dg` を動かすにはこのビルドが要る。`mise run dg -- <引数>` でビルド済みの `dg` を動かせる（例：`mise run dg -- ticket list`）。リポジトリの外のディレクトリに対して動かすときは `-C <dir>` を付ける
 - `@deguboard/core` の `exports` は条件つきで、テストと型検査（`development` 条件）は `src/` を、ビルド済みの `dg` は `dist/` を見る。テストの前にビルドは要らない
-- テストはソースの隣の `*.test.ts`（画面は `*.test.tsx`）に置き、ルートの `vitest.config.ts` が `packages/*/src/**/*.test.{ts,tsx}` をまとめて走らせる。パッケージごとの設定ファイルは作らない
+- テストはソースの隣の `*.test.ts`（画面は `*.test.tsx`）に置き、ルートの `vitest.config.ts` が `packages/*/src/**/*.test.{ts,tsx}` と `test/**/*.test.ts` をまとめて走らせる。パッケージごとの設定ファイルは作らない
+- パッケージをまたぐ E2E は `test/e2e/` に置く。`routes.test.ts` が CLI・HTTP・Webview の 3 経路から同じ手順を流し、結果と deguboard ブランチのコミットが一致することを確かめる（NF-2）。手順の足し方はファイル冒頭のコメント
 - Git を使うテストは `packages/core/test/helpers/git-fixture.ts` で、一時ディレクトリに bare リモートと 2 つの clone を作って行う（CLAUDE.md の規約）。開発者のグローバル設定に影響されないよう、fixture が `GIT_CONFIG_GLOBAL=/dev/null` と `GIT_CONFIG_NOSYSTEM=1` を与える
 - 依存を足すときは `pnpm install` で lockfile を更新してからコミットする（`mise run install` は `--frozen-lockfile`）
 
@@ -123,13 +124,13 @@ core の `commands` を HTTP に写す。Node 標準の `node:http` で、フレ
 
 VS Code 拡張。拡張ホストから core の `createLocalClient` を呼び、Webview に web のビルド結果を載せる。サーバーは起動せず、`dg` は同梱しない（[ADR-006](adr/ADR-006-ui-and-writes.md)）。`src/` のファイル：
 
-| ファイル       | 役割                                                                                                                                                              |
-| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `extension.ts` | 入口。コマンド `deguboard.open` で作業フォルダごとに 1 つの Webview を開き、postMessage の要求を `webview.ts` に通す。VS Code の API に触れるのはこのファイルだけ |
-| `webview.ts`   | Vite が出した `index.html` を Webview 向けに直す（URI・CSP・nonce）、要求を `CommandClient` に通して同じ id の応答にする                                          |
-| `dg.ts`        | PATH の `dg` を引く 1 か所。ないときはインストールの案内、同梱の core とメジャーが違えば知らせる（UI-11）                                                         |
+| ファイル       | 役割                                                                                                                        |
+| -------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `extension.ts` | 入口。`deguboard.open` で作業フォルダごとに Webview を開き、要求を `webview.ts` に通す。VS Code の API に触れるのはここだけ |
+| `webview.ts`   | Vite が出した `index.html` を Webview 向けに直す（URI・CSP・nonce）、要求を `CommandClient` に通して同じ id の応答にする    |
+| `dg.ts`        | PATH の `dg` を引く 1 か所。ないときはインストールの案内、同梱の core とメジャーが違えば知らせる（UI-11）                   |
 
-ビルドは Vite の SSR ビルドで `dist/extension.cjs` の 1 ファイルに束ね（core は `development` 条件で `src` から取り込む。`vscode` だけ外に残す）、web の `dist` を `dist/web` に写す。同梱する core の版は `vite.config.ts` の `define` で `__CORE_VERSION__` に埋める。手元で動かすには `mise run build` のあと VS Code で `packages/vscode` を開いて F5（拡張開発ホスト）、コマンドパレットの「deguboard: 画面を開く」。
+ビルドは Vite で `dist/extension.cjs` に束ね、web の `dist` を `dist/web` に写す（[ADR-008](adr/ADR-008-tech-stack.md)）。同梱する core の版は `vite.config.ts` の `define` で埋める。手元で動かすには `mise run build` のあと VS Code で `packages/vscode` を開いて F5（拡張開発ホスト）、コマンドパレットの「deguboard: 画面を開く」。
 
 VSIX にして入れるには：
 
@@ -138,7 +139,7 @@ mise run vsix                                                    # build のあ�
 code --install-extension packages/vscode/deguboard-vscode.vsix   # リモート開発ならリモート側に入る
 ```
 
-VSIX は `@vscode/vsce` で作る。依存はすべて `dist/extension.cjs` に束ねてあるので `--no-dependencies` で pnpm の node_modules を見ない。入るのは `.vscodeignore` が残す `dist/`・`package.json`・`README.md` だけ。Marketplace への公開は「リリース」で扱う。
+VSIX は `@vscode/vsce` で作る（判断は [ADR-008](adr/ADR-008-tech-stack.md)）。入るのは `.vscodeignore` が残す `dist/`・`package.json`・`README.md` だけ。Marketplace への公開は「リリース」で扱う。
 
 ## リリース
 
