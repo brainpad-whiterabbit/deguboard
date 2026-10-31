@@ -622,7 +622,7 @@ describe("Epic と Iteration", () => {
     ).rejects.toMatchObject({ code: "REJECTED" });
     // 既定では agent も再開できる。持ち越しがあれば入れ直しを促す
     const agent = await openContext({ cwd: f.cloneA, actor: { kind: "agent", user: "claude" } });
-    const reopened = await runCommand(iterationReopen, agent, { iteration: "sprint 1" });
+    const reopened = await runCommand(iterationReopen, agent, { iteration: "1" });
     expect(reopened.data.status).toBe("active");
     expect(reopened.data.closed_at).toBeUndefined();
     expect(reopened.data.completed).toBeUndefined();
@@ -633,9 +633,10 @@ describe("Epic と Iteration", () => {
     await runCommand(iterationAdd, agent, { iteration: "s1", tickets: ["t1"] });
     expect(agent.store.tickets.get("t1")?.data.iteration).toBe("s1");
     // 持ち越しがなければ警告は出ない
-    const again = await runCommand(iterationReopen, agent, {
-      iteration: (await runCommand(iterationClose, agent, { iteration: "s1" })).data.id,
-    });
+    await runCommand(ticketMove, agent, { ticket: "t1", status: "in_progress" });
+    await runCommand(ticketMove, agent, { ticket: "t1", status: "done" });
+    await runCommand(iterationClose, agent, { iteration: "s1" });
+    const again = await runCommand(iterationReopen, agent, { iteration: "s1" });
     expect(again.warnings ?? []).toHaveLength(0);
   });
 });
