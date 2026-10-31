@@ -21,8 +21,8 @@ export interface BacklogFilter {
   iteration: string;
   epic: string;
   label: string;
-  /** claimed_by。NO_CLAIM は claim されていないもの */
-  claimed_by: string;
+  /** 担当者（assignee）。NO_CLAIM は担当者のないもの */
+  assignee: string;
 }
 
 export const EMPTY_FILTER: BacklogFilter = {
@@ -32,7 +32,7 @@ export const EMPTY_FILTER: BacklogFilter = {
   iteration: "",
   epic: "",
   label: "",
-  claimed_by: "",
+  assignee: "",
 };
 
 /** 絞り込みの規則。表示の正本はここ（requirements 6.4） */
@@ -45,7 +45,7 @@ export function filterBacklog(tickets: readonly Ticket[], f: BacklogFilter): Tic
     .filter((t) => !f.iteration || t.iteration === f.iteration)
     .filter((t) => !f.epic || t.epic === f.epic)
     .filter((t) => !f.label || t.labels.includes(f.label))
-    .filter((t) => matchesClaim(t, f.claimed_by))
+    .filter((t) => matchesClaim(t, f.assignee))
     .filter(
       (t) =>
         !q ||
@@ -141,7 +141,7 @@ export function BacklogPage() {
         {claims.length > 0 ? (
           <label>
             担当
-            <select value={filter.claimed_by} onChange={(e) => set({ claimed_by: e.target.value })}>
+            <select value={filter.assignee} onChange={(e) => set({ assignee: e.target.value })}>
               <option value="">すべて</option>
               {claims.map((c) => (
                 <option key={c} value={c} title={c}>

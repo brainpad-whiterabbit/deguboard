@@ -5,9 +5,14 @@
 ## 流れ
 
 1. 要件の整理が終わったら、チケット化を**提案**する。勝手に起票しない。分解の案（題・概要・受け入れ条件・依存・Epic）を箇条書きで見せ、承認を得る
-2. 1 枚なら `dg --json --actor agent ticket create "<題>" --summary "<概要>" --acceptance "<条件>" --acceptance "<条件>" [--epic e3] [--depends-on t9,t10] [--priority high]`
+2. 1 枚なら `dg --json --actor agent ticket create "<題>" --created-by human --summary "<概要>" --acceptance "<条件>" --acceptance "<条件>" [--epic e3] [--depends-on t9,t10] [--priority high] [--assignee agent]`
 3. 複数なら YAML の下書きを 1 ファイルに書いて `dg --json --actor agent ticket import <file>`。1 回のコミットでまとめて採番される
 4. 結果の `data` から ID を読み、人に報告する
+
+## 起票者と担当者
+
+- 起票者（`created_by`）は、起票を指示・承認した人か、人の確認を経ずに起票した AI。人の指示や承認で起票するときは `--created-by human` を付けてユーザ本人にする。自動の手順の中などで人の確認を経ずに起票するときは付けない（`<ユーザ>/agent` になる）
+- 担当者（`assignee`）は任意。自分が続けて進めるなら `--assignee agent`、人が進めるなら `--assignee human`。claim すると claim した主体で上書きされる
 
 ## 下書きの形（import）
 
@@ -20,6 +25,8 @@
   iteration: s3 # 既存の Iteration。省略可
   priority: high # low / medium / high。既定は medium
   labels: [backend]
+  created_by: human # 起票者。省略時は操作した主体（あなたなら <ユーザ>/agent）
+  assignee: agent # 担当者。省略可
   fields: { estimate: 3 } # Workflow の fields で定義した任意フィールド
 - key: api
   title: API を実装する

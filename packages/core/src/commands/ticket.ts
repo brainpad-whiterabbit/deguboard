@@ -4,6 +4,7 @@ import { z } from "zod";
 import { OperationError, UsageError } from "../errors.js";
 import { collectBranchFacts } from "../git/facts.js";
 import { withWrite } from "../git/write.js";
+import { resolveActorRef, sameUser } from "../model/actor.js";
 import { STATUSES, slugSchema, statusSchema, type Status } from "../model/common.js";
 import { parseId, type TicketId } from "../model/id.js";
 import { PRIORITIES, replaceAcceptance, ticketBodyTemplate, type Ticket } from "../model/ticket.js";
@@ -17,6 +18,9 @@ import { defineCommand, ok, type CommandContext } from "./define.js";
 import { matchesFilter, ticketFilterSchema } from "./filters.js";
 import { dependents, nowIso, projectOf, sortedDocs, ticketRef, withBody } from "./helpers.js";
 
+/** 主体の参照。`human` / `agent` は自分（のユーザ）に解く（model/actor.ts） */
+const actorRef = z.string().min(1);
+
 const ticketAttributes = {
   priority: z.enum(PRIORITIES).optional().describe("優先度"),
   labels: z.array(z.string()).optional().describe("ラベル"),
@@ -24,6 +28,9 @@ const ticketAttributes = {
   epic: z.string().optional().describe("Epic の ID。閉じた Epic には付けられない"),
   depends_on: z.array(z.string()).optional().describe("依存先のチケットの ID"),
   workflow: slugSchema.optional().describe("Workflow。省略時は Project の既定"),
+  assignee: actorRef
+    .optional()
+    .describe("担当者。human で自分、agent で自分の AI、ほかは ID のまま"),
   fields: z
     .record(z.string(), z.unknown())
     .optional()
@@ -50,6 +57,11 @@ const createInput = z.object({
       "受け入れ条件。1 項目ずつ、本文の雛形のチェックリストに入れる。body があるときは使わない",
     ),
   body: z.string().optional().describe("本文全体（Markdown）。summary と acceptance より優先"),
+  created_by: actorRef
+    .optional()
+    .describe(
+      "起票者。省略時は操作した主体。エージェントが人の指示・承認で起票するときは human（ユーザ本人）",
+    ),
   ...ticketAttributes,
 });
 type CreateInput = z.output<typeof createInput>;
@@ -85,6 +97,8 @@ function buildTicket(
     ...(epic ? { epic } : {}),
     depends_on,
     ...(input.workflow ? { workflow: input.workflow } : {}),
+    created_by: resolveActorRef(ctx.actor, input.created_by ?? ctx.actor.id),
+    ...(input.assignee ? { assignee: resolveActorRef(ctx.actor, input.assignee) } : {}),
     ...fields,
     created_at: now,
     updated_at: now,
@@ -283,8 +297,13 @@ export const ticketList = defineCommand({
   write: false,
   needs: "store",
   async run(ctx, input) {
+    const filter = {
+      ...input,
+      ...(input.assignee ? { assignee: resolveActorRef(ctx.actor, input.assignee) } : {}),
+      ...(input.created_by ? { created_by: resolveActorRef(ctx.actor, input.created_by) } : {}),
+    };
     const docs = sortedDocs(ctx.store.tickets.values()).filter((d) =>
-      matchesFilter(ctx.store, d.data, input),
+      matchesFilter(ctx.store, d.data, filter),
     );
     return ok(docs.map((d) => d.data));
   },
@@ -335,6 +354,10 @@ export const ticketUpdate = defineCommand({
     epic: z.string().nullable().optional().describe("Epic の ID。null で外す"),
     workflow: slugSchema.nullable().optional().describe("Workflow。null で Project の既定に戻す"),
     pr: z.number().int().positive().nullable().optional().describe("PR 番号。null で外す"),
+    assignee: actorRef
+      .nullable()
+      .optional()
+      .describe("担当者。human で自分、agent で自分の AI。null で外す。起票者は変えない"),
   }),
   write: true,
   needs: "store",
@@ -357,6 +380,11 @@ export const ticketUpdate = defineCommand({
         if (input.priority !== undefined) patch["priority"] = input.priority;
         if (input.labels !== undefined) patch["labels"] = input.labels;
         if (input.pr !== undefined) patch["pr"] = input.pr ?? undefined;
+        if (input.assignee !== undefined) {
+          patch["assignee"] =
+            input.assignee === null ? undefined : resolveActorRef(ctx.actor, input.assignee);
+          patch["claimed_by"] = undefined;
+        }
         if (input.epic !== undefined)
           patch["epic"] =
             input.epic === null ? undefined : requireOpenEpic(store, input.epic, t.project);
@@ -418,9 +446,10 @@ async function factsFor(
   return facts;
 }
 
-/** 遷移に伴う claim とブランチの扱い（ST-8） */
+/** 遷移に伴う担当者とブランチの扱い（ST-8）。旧名の claimed_by も消す */
 function transitionSideEffects(to: Status): Record<string, unknown> {
-  if (to === "abandoned" || to === "todo") return { claimed_by: undefined, branch: undefined };
+  if (to === "abandoned" || to === "todo")
+    return { assignee: undefined, claimed_by: undefined, branch: undefined };
   return {};
 }
 
@@ -506,7 +535,7 @@ export const ticketClaim = defineCommand({
   positionals: ["ticket"],
   group: "ticket",
   summary:
-    "チケットに着手する。claimed_by とブランチを記録して in_progress にし、push の成功で排他を得る。todo → in_progress の制約（requires: [deps_done] など）があれば従う",
+    "チケットに着手する。担当者（assignee）を自分にしてブランチを記録し、in_progress にする。push の成功で排他を得る。todo → in_progress の制約（requires: [deps_done] など）があれば従う",
   input: z.object({
     ticket: ticketRef,
     branch: z.string().min(1).optional().describe("作業ブランチ名。省略時は feature/<id>-<slug>"),
@@ -514,15 +543,16 @@ export const ticketClaim = defineCommand({
   write: true,
   needs: "store",
   async run(ctx, input) {
+    const warnings: string[] = [];
     const result = await withWrite(
       ctx,
       async () => {
         const doc = ctx.store.require("ticket", input.ticket);
         if (doc.data.status !== "todo") {
-          if (doc.data.claimed_by) {
+          if (doc.data.assignee) {
             throw new OperationError(
               "CLAIM_LOST",
-              `${doc.id} は ${doc.data.claimed_by} が claim 済み`,
+              `${doc.id} は ${doc.data.assignee} が claim 済み`,
             );
           }
           throw new OperationError(
@@ -538,20 +568,24 @@ export const ticketClaim = defineCommand({
             "TRANSITION_REJECTED",
             describeRejection(check, "todo", "in_progress"),
           );
+        const previous = doc.data.assignee;
+        if (previous && !sameUser(previous, ctx.actor.id))
+          warnings.push(`担当者を ${previous} から ${ctx.actor.id} に変えた`);
         return ctx.store.update("ticket", doc.id, {
           status: "in_progress",
-          claimed_by: ctx.actor.id,
+          assignee: ctx.actor.id,
+          claimed_by: undefined,
           branch: input.branch ?? defaultBranchName(doc.data),
           updated_at: nowIso(ctx),
         });
       },
       {
-        message: (doc) => `${doc.id} を claim: ${doc.data.claimed_by}`,
+        message: (doc) => `${doc.id} を claim: ${doc.data.assignee}`,
         immediate: true,
         cas: true,
       },
     );
-    return ok(withBody(result.value), result.write);
+    return ok(withBody(result.value), result.write, warnings);
   },
 });
 
@@ -559,7 +593,8 @@ export const ticketUnclaim = defineCommand({
   name: "ticket.unclaim",
   positionals: ["ticket"],
   group: "ticket",
-  summary: "claim を外して todo に戻す。自分の claim か記録のない claim だけ。他人のものは force",
+  summary:
+    "claim を外して todo に戻す。自分（同じユーザの人と AI）の claim か記録のない claim だけ。他人のものは force",
   input: z.object({
     ticket: ticketRef,
     force: z.boolean().optional().describe("他人の claim も外す"),
@@ -577,8 +612,8 @@ export const ticketUnclaim = defineCommand({
             `${doc.id} は ${doc.data.status} なので unclaim できない`,
           );
         }
-        const owner = doc.data.claimed_by;
-        if (owner && owner !== ctx.actor.id && !input.force) {
+        const owner = doc.data.assignee;
+        if (owner && !sameUser(owner, ctx.actor.id) && !input.force) {
           throw new OperationError(
             "REJECTED",
             `${doc.id} は ${owner} の claim。外すなら force を付ける`,
@@ -586,6 +621,7 @@ export const ticketUnclaim = defineCommand({
         }
         return ctx.store.update("ticket", doc.id, {
           status: "todo",
+          assignee: undefined,
           claimed_by: undefined,
           branch: undefined,
           updated_at: nowIso(ctx),

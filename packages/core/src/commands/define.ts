@@ -2,13 +2,16 @@
 
 import type { z } from "zod";
 import { OperationError, UsageError } from "../errors.js";
+import type { ActorKind } from "../model/actor.js";
 import type { WriteContext, WriteOutcome } from "../git/write.js";
 import type { WorktreeOrigin } from "../git/worktree.js";
 
 /** 操作の主体。入口が決める（CLI は環境変数かオプション、UI は常に human） */
 export interface ActorInfo {
-  kind: "human" | "agent";
-  /** `eiki@laptop` の形。claimed_by に記録する */
+  kind: ActorKind;
+  /** ユーザ名。既定は git の user.name */
+  user: string;
+  /** `eiki` か `eiki/agent`。created_by と assignee に記録する（model/actor.ts） */
   id: string;
 }
 

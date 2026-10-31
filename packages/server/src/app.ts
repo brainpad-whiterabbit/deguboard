@@ -20,8 +20,8 @@ export interface AppOptions {
   /** web のビルド結果。なければ API だけ */
   staticDir?: string | undefined;
   commands?: readonly AnyCommand[] | undefined;
-  /** 主体の ID。省略時は git の user.name@ホスト名 */
-  actorId?: string | undefined;
+  /** 主体のユーザ名。省略時は git の user.name */
+  user?: string | undefined;
 }
 
 export interface CommandDescriptor {
@@ -59,7 +59,7 @@ export type Handler = (req: IncomingMessage, res: ServerResponse) => Promise<voi
 export function createApp(options: AppOptions): Handler {
   const client = createLocalClient({
     cwd: options.cwd,
-    actorId: options.actorId,
+    user: options.user,
     commands: options.commands,
   });
   const descriptors = describeCommands(client.commands);

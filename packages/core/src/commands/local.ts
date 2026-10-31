@@ -7,15 +7,15 @@ import { DeguboardError, OperationError } from "../errors.js";
 import { syncStatus } from "../git/sync.js";
 import type { CommandClient, CommandFailure, StatusView } from "./client.js";
 import { openContext } from "./context.js";
-import type { ActorInfo, AnyCommand, CommandContext, CommandResult } from "./define.js";
+import type { AnyCommand, CommandContext, CommandResult } from "./define.js";
 import { commands as allCommands, findCommand } from "./registry.js";
 import { runCommand } from "./define.js";
 
 export interface LocalClientOptions {
   /** 対象のリポジトリ */
   cwd: string;
-  /** 主体の ID。省略時は git の user.name@ホスト名 */
-  actorId?: string | undefined;
+  /** 主体のユーザ名。省略時は git の user.name */
+  user?: string | undefined;
   commands?: readonly AnyCommand[] | undefined;
 }
 
@@ -26,10 +26,7 @@ export interface LocalClient extends CommandClient {
 
 export function createLocalClient(options: LocalClientOptions): LocalClient {
   const commands = (options.commands ?? allCommands).filter((c) => c.needs === "store");
-  const actor: Partial<ActorInfo> = {
-    kind: "human",
-    ...(options.actorId ? { id: options.actorId } : {}),
-  };
+  const actor = { kind: "human" as const, ...(options.user ? { user: options.user } : {}) };
   let ctxPromise: Promise<CommandContext> | undefined;
   let queue: Promise<unknown> = Promise.resolve();
 

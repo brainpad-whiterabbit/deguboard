@@ -70,11 +70,11 @@ async function initialized(
   const first = await openContext({
     cwd,
     initialize: {},
-    actor: { kind: "human", id: "eiki@laptop" },
+    actor: { kind: "human", user: "eiki" },
     ...opts,
   });
   await runCommand(init, first, {});
-  return openContext({ cwd, actor: { kind: "human", id: "eiki@laptop" }, ...opts });
+  return openContext({ cwd, actor: { kind: "human", user: "eiki" }, ...opts });
 }
 
 describe("init", () => {
@@ -134,7 +134,9 @@ describe("チケットの流れ", () => {
       status: "todo",
       priority: "medium",
       labels: ["frontend"],
+      created_by: "eiki",
     });
+    expect(created.data.assignee).toBeUndefined();
     expect(created.data.body).toContain("## 概要\n\n入力の検査");
     expect(created.data.body).toContain("## 受け入れ条件\n\n- [ ] a, b\n- [ ] c\n");
     expect(created.write).toMatchObject({ pushed: true });
@@ -142,7 +144,7 @@ describe("チケットの流れ", () => {
     const claimed = await runCommand(ticketClaim, ctx, { ticket: "1" });
     expect(claimed.data).toMatchObject({
       status: "in_progress",
-      claimed_by: "eiki@laptop",
+      assignee: "eiki",
       branch: "feature/t1-login-validation",
     });
 
@@ -177,7 +179,7 @@ describe("チケットの流れ", () => {
     await runCommand(ticketCreate, human, { title: "B", depends_on: ["t1"] });
     const agent = await openContext({
       cwd: f.cloneA,
-      actor: { kind: "agent", id: "claude@laptop" },
+      actor: { kind: "agent", user: "claude" },
     });
     expect(
       (await runCommand(ticketMove, human, { ticket: "t1", status: "done" })).data.status,
@@ -188,7 +190,7 @@ describe("チケットの流れ", () => {
     const dropped = (await runCommand(ticketMove, agent, { ticket: "t2", status: "abandoned" }))
       .data;
     expect(dropped.status).toBe("abandoned");
-    expect(dropped.claimed_by).toBeUndefined();
+    expect(dropped.assignee).toBeUndefined();
 
     // strict：制約に当たる遷移だけが拒否される
     await writeStrictWorkflow(human);
@@ -223,29 +225,95 @@ describe("チケットの流れ", () => {
     expect(claimed.data.status).toBe("in_progress");
   });
 
-  it("unclaim は自分の claim だけ外し、他人のものは force が要る", async () => {
+  it("unclaim は自分（同じユーザの人と AI）の claim だけ外し、他人のものは force が要る", async () => {
     const f = await fixture();
     const eiki = await initialized(f.cloneA);
     await runCommand(ticketCreate, eiki, { title: "A" });
     await runCommand(ticketClaim, eiki, { ticket: "t1", branch: "feature/a" });
-    const other = await openContext({ cwd: f.cloneA, actor: { kind: "human", id: "other@pc" } });
+    const other = await openContext({ cwd: f.cloneA, actor: { kind: "human", user: "other" } });
     await expect(runCommand(ticketUnclaim, other, { ticket: "t1" })).rejects.toMatchObject({
       code: "REJECTED",
     });
     const r = await runCommand(ticketUnclaim, other, { ticket: "t1", force: true });
     expect(r.data).toMatchObject({ status: "todo" });
-    expect(r.data.claimed_by).toBeUndefined();
+    expect(r.data.assignee).toBeUndefined();
     expect(r.data.branch).toBeUndefined();
+
+    // eiki の AI が claim したものは eiki 本人が force なしで外せる
+    const eikiAgent = await openContext({ cwd: f.cloneA, actor: { kind: "agent", user: "eiki" } });
+    const byAgent = await runCommand(ticketClaim, eikiAgent, { ticket: "t1" });
+    expect(byAgent.data.assignee).toBe("eiki/agent");
+    await eiki.store.rescan();
+    const released = await runCommand(ticketUnclaim, eiki, { ticket: "t1" });
+    expect(released.data.status).toBe("todo");
   });
 
-  it("同じチケットを 2 つの clone が claim すると、負けた側は CLAIM_LOST で claimed_by を書き換えない", async () => {
+  it("起票者は既定で操作した主体、created_by: human でユーザ本人になり、担当者は create / update / claim で付く", async () => {
+    const f = await fixture();
+    const human = await initialized(f.cloneA);
+    const agent = await openContext({ cwd: f.cloneA, actor: { kind: "agent", user: "eiki" } });
+    const byAgent = await runCommand(ticketCreate, agent, { title: "A" });
+    expect(byAgent.data.created_by).toBe("eiki/agent");
+    const directed = await runCommand(ticketCreate, agent, {
+      title: "B",
+      created_by: "human",
+      assignee: "agent",
+    });
+    expect(directed.data).toMatchObject({ created_by: "eiki", assignee: "eiki/agent" });
+
+    await human.store.rescan();
+    const assigned = await runCommand(ticketUpdate, human, { ticket: "t1", assignee: "other" });
+    expect(assigned.data.assignee).toBe("other");
+    // 事前の担当者と別のユーザが claim すると上書きし、warnings で知らせる
+    const claimed = await runCommand(ticketClaim, human, { ticket: "t1" });
+    expect(claimed.data.assignee).toBe("eiki");
+    expect(claimed.warnings).toContain("担当者を other から eiki に変えた");
+    // todo に戻すと担当者は消える。起票者は残る
+    const back = await runCommand(ticketMove, human, { ticket: "t1", status: "todo" });
+    expect(back.data.assignee).toBeUndefined();
+    expect(back.data.created_by).toBe("eiki/agent");
+    const cleared = await runCommand(ticketUpdate, human, { ticket: "t2", assignee: null });
+    expect(cleared.data.assignee).toBeUndefined();
+
+    // 絞り込み（human / agent は自分に解く）
+    await runCommand(ticketUpdate, human, { ticket: "t2", assignee: "agent" });
+    const mine = await runCommand(ticketList, human, { assignee: "agent" });
+    expect(mine.data.map((t) => t.id)).toEqual(["t2"]);
+    const filed = await runCommand(ticketList, human, { created_by: "human" });
+    expect(filed.data.map((t) => t.id)).toEqual(["t2"]);
+    // 事前に担当者が付いていても ready には出る
+    const ready = await runCommand(ticketList, human, { ready: true });
+    expect(ready.data.map((t) => t.id)).toEqual(["t1", "t2"]);
+  });
+
+  it("旧名の claimed_by は assignee として読め、担当者を書く操作で消える", async () => {
+    const f = await fixture();
+    const ctx = await initialized(f.cloneA);
+    await runCommand(ticketCreate, ctx, { title: "A" });
+    const file = path.join(ctx.repo.dataDir, "tickets/t1.md");
+    const text = await readFile(file, "utf8");
+    await writeFile(
+      file,
+      text.replace("status: todo", "status: in_progress\nclaimed_by: eiki@laptop"),
+    );
+    await ctx.store.rescan();
+    const shown = await runCommand(ticketShow, ctx, { ticket: "t1" });
+    expect(shown.data.assignee).toBe("eiki@laptop");
+    expect("claimed_by" in shown.data).toBe(false);
+    // 旧 ID はホスト名を含むので別のユーザに見える。force で外すとファイルから claimed_by も消える
+    const released = await runCommand(ticketUnclaim, ctx, { ticket: "t1", force: true });
+    expect(released.data.assignee).toBeUndefined();
+    expect(await readFile(file, "utf8")).not.toContain("claimed_by");
+  });
+
+  it("同じチケットを 2 つの clone が claim すると、負けた側は CLAIM_LOST で assignee を書き換えない", async () => {
     const f = await fixture();
     const a = await initialized(f.cloneA);
     await runCommand(ticketCreate, a, { title: "A" });
     const b = await openContext({
       cwd: f.cloneB,
       initialize: {},
-      actor: { kind: "agent", id: "b@pc" },
+      actor: { kind: "agent", user: "b" },
     });
     const hooks = {
       beforePush: async () => {
@@ -253,11 +321,11 @@ describe("チケットの流れ", () => {
         await runCommand(ticketClaim, b, { ticket: "t1" });
       },
     };
-    const racer = await openContext({ cwd: f.cloneA, actor: { kind: "agent", id: "a@pc" }, hooks });
+    const racer = await openContext({ cwd: f.cloneA, actor: { kind: "agent", user: "a" }, hooks });
     await expect(runCommand(ticketClaim, racer, { ticket: "t1" })).rejects.toMatchObject({
       code: "CLAIM_LOST",
     });
-    expect(racer.store.tickets.get("t1")?.data.claimed_by).toBe("b@pc");
+    expect(racer.store.tickets.get("t1")?.data.assignee).toBe("b/agent");
     expect((await git(racer.repo.dataDir, ["status", "--porcelain"])).stdout).toBe("");
   });
 
@@ -352,7 +420,7 @@ describe("Epic と Iteration", () => {
       code: "REJECTED",
     });
     // 既定では agent も閉じられる（actor.human_only が空）
-    const agent = await openContext({ cwd: f.cloneA, actor: { kind: "agent", id: "claude@pc" } });
+    const agent = await openContext({ cwd: f.cloneA, actor: { kind: "agent", user: "claude" } });
     const closed = await runCommand(epicClose, agent, { epic: "e1", force: true });
     expect(closed.data.status).toBe("closed");
     expect(closed.data.closed_at).toBeDefined();
@@ -420,7 +488,7 @@ describe("Epic と Iteration", () => {
     const shown = await runCommand(iterationShow, ctx, { iteration: "s1" });
     expect(shown.data.items.map((t) => t.id)).toEqual(["t2", "t1"]);
     expect(shown.data).not.toHaveProperty("tickets");
-    const agent = await openContext({ cwd: f.cloneA, actor: { kind: "agent", id: "claude@pc" } });
+    const agent = await openContext({ cwd: f.cloneA, actor: { kind: "agent", user: "claude" } });
     const closed = await runCommand(iterationClose, agent, { iteration: "s1" });
     expect(closed.data).toMatchObject({ status: "closed", completed: 1, carried_over: 1 });
     expect(agent.store.tickets.get("t2")?.data.iteration).toBeUndefined();

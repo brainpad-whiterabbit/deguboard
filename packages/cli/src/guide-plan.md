@@ -6,7 +6,7 @@
 
 1. 対象を集める：`dg --json --actor agent ticket list --project {{default_project}}`（Epic で絞るなら `--epic e3`、Iteration なら `--iteration s3`）
 2. 依存を確かめる：各チケットの `depends_on` と、`dg --json --actor agent ticket show <id>` の `dependents`（自分に依存しているもの）
-3. 着手できるものを出す：`dg --json --actor agent ticket list --ready`。todo で claim がなく、依存先がすべて done か abandoned のもの（`deps_done`）
+3. 着手できるものを出す：`dg --json --actor agent ticket list --ready`。todo で依存先がすべて done か abandoned のもの（`deps_done`）。担当者の有無は見ないので、`assignee` が別のユーザのものは避ける（自分のものだけなら `--assignee agent`）
 4. 順序の案を作る。依存が先、優先度が高いものが先。並行できるもの（互いに依存しないもの）はまとめて示す
 5. 人に見せて承認を得る。承認された順序に従って `dg guide work` の手順で 1 枚ずつ進める
 

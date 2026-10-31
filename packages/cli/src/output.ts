@@ -77,7 +77,7 @@ function describeWrite(write: WriteOutcome): string {
 }
 
 const COLUMNS: Record<string, string[]> = {
-  ticket: ["id", "status", "priority", "title", "labels", "iteration", "epic", "claimed_by"],
+  ticket: ["id", "status", "priority", "title", "labels", "iteration", "epic", "assignee"],
   epic: ["id", "status", "title", "progress"],
   iteration: ["id", "status", "name", "start", "end"],
   project: ["id", "status", "name", "workflow"],

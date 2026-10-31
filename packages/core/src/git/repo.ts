@@ -80,10 +80,10 @@ export async function requireIdentity(
   return { name, email };
 }
 
-/** 主体の既定の ID。`eiki@laptop` の形 */
-export async function defaultActorId(repo: Pick<GitRepo, "dataDir">): Promise<string> {
+/** 主体の既定のユーザ名。git の user.name、なければ OS のユーザ名（ホスト名は含めない） */
+export async function defaultUser(repo: Pick<GitRepo, "dataDir">): Promise<string> {
   const name = (
     await runGit(repo.dataDir, ["config", "--get", "user.name"], { allowFailure: true })
   ).stdout.trim();
-  return `${name || os.userInfo().username}@${os.hostname()}`;
+  return name || os.userInfo().username;
 }

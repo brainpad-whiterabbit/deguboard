@@ -87,9 +87,9 @@ describe("画面", () => {
     expect(screen.queryByRole("heading", { level: 1 })).toBeNull();
   });
 
-  it("Epic と担当者で絞れる。担当者は @ の前だけを出し、claim されていないものは「なし」", async () => {
+  it("Epic と担当者で絞れる。旧 ID は @ の前だけを出し、担当者のないものは「なし」", async () => {
     const client = mockClient();
-    client.data.tickets[1]!.claimed_by = "eiki@laptop";
+    client.data.tickets[1]!.assignee = "eiki@laptop";
     mount(client);
     await screen.findByText("API");
     fireEvent.change(screen.getByLabelText("Epic"), { target: { value: "e1" } });
@@ -105,7 +105,7 @@ describe("画面", () => {
       "なし",
     ]);
     fireEvent.change(who, { target: { value: "-" } });
-    expect(window.location.hash).toBe("#/board?claimed_by=-");
+    expect(window.location.hash).toBe("#/board?assignee=-");
     await waitFor(() => expect(screen.queryByText("API")).toBeNull());
     expect(screen.getByText("ログイン")).toBeTruthy();
   });
@@ -141,6 +141,7 @@ describe("画面", () => {
     await screen.findByRole("heading", { level: 1, name: "画面" });
     expect(screen.getByText("本文")).toBeTruthy();
     expect(screen.getByText("a")).toBeTruthy();
+    expect(screen.getByText("起票者").nextElementSibling?.textContent).toBe("eiki/agent");
     fireEvent.change(screen.getByLabelText("Status"), { target: { value: "in_progress" } });
     expect((await screen.findByRole("alert")).textContent).toContain("依存先が終わっていない");
     expect(client.calls.at(-1)).toMatchObject({
@@ -159,6 +160,7 @@ describe("画面", () => {
     fireEvent.change(screen.getByLabelText("タイトル"), { target: { value: "新しい題" } });
     fireEvent.change(screen.getByLabelText("ラベル"), { target: { value: "web, ui" } });
     fireEvent.change(screen.getByLabelText("Epic"), { target: { value: "e1" } });
+    fireEvent.change(screen.getByLabelText("担当"), { target: { value: "eiki/agent" } });
     fireEvent.click(screen.getByRole("button", { name: "保存" }));
     await waitFor(() => expect(client.calls.some((c) => c.name === "ticket.update")).toBe(true));
     expect(client.calls.find((c) => c.name === "ticket.update")!.input).toMatchObject({
@@ -167,6 +169,7 @@ describe("画面", () => {
       labels: ["web", "ui"],
       epic: "e1",
       iteration: null,
+      assignee: "eiki/agent",
     });
   });
 

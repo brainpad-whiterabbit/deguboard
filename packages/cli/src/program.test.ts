@@ -95,21 +95,21 @@ describe("dg", () => {
       "--json",
       "--actor",
       "agent",
-      "--actor-id",
-      "claude@pc",
+      "--user",
+      "claude",
       "ticket",
       "claim",
       "1",
     ]);
     expect(claimed.json().data).toMatchObject({
       status: "in_progress",
-      claimed_by: "claude@pc",
+      assignee: "claude/agent",
       branch: "feature/t1-login-validation",
     });
 
     const shown = await dg(f.cloneA, ["ticket", "show", "t1"]);
     expect(shown.code).toBe(0);
-    expect(shown.out).toContain("claimed_by: claude@pc");
+    expect(shown.out).toContain("assignee: claude/agent");
     expect(shown.out).toContain("## 受け入れ条件");
 
     const list = await dg(f.cloneA, ["ticket", "list"]);

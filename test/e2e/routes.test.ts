@@ -17,7 +17,7 @@ import { startServer } from "../../packages/server/src/index.js";
 import { createWebviewClient } from "../../packages/web/src/client/webview.js";
 import { handleRequest, isWebviewRequest } from "../../packages/vscode/src/webview.js";
 
-const ACTOR_ID = "e2e@pc";
+const USER = "e2e";
 
 /** 1 手順。input は HTTP と Webview に渡す形、argv は CLI に渡す形 */
 interface Step {
@@ -121,7 +121,7 @@ type Route = (
 const cli: Route = async (cwd) => ({
   async call(step) {
     const out: string[] = [];
-    await runCli(["--json", "--actor-id", ACTOR_ID, ...step.argv], {
+    await runCli(["--json", "--user", USER, ...step.argv], {
       cwd,
       streams: { out: (t) => out.push(t), err: () => {} },
     });
@@ -131,7 +131,7 @@ const cli: Route = async (cwd) => ({
 });
 
 const http: Route = async (cwd) => {
-  const server = await startServer({ cwd, port: 0, actorId: ACTOR_ID });
+  const server = await startServer({ cwd, port: 0, user: USER });
   return {
     async call(step) {
       const res = await fetch(`${server.url}api/commands/${step.name}`, {
@@ -148,7 +148,7 @@ const http: Route = async (cwd) => {
 /** 拡張ホスト（createLocalClient + handleRequest）と Webview（createWebviewClient）を MessageChannel でつなぐ */
 const webview: Route = async (cwd) => {
   const { port1, port2 } = new MessageChannel();
-  const hostClient = createLocalClient({ cwd, actorId: ACTOR_ID });
+  const hostClient = createLocalClient({ cwd, user: USER });
   port2.addEventListener("message", (event) => {
     const message = (event as MessageEvent<unknown>).data;
     if (isWebviewRequest(message))
