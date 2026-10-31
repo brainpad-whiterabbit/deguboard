@@ -507,6 +507,7 @@ async function factsFor(
     const collected = await collectBranchFacts(ctx.repo, doc.data.branch, {
       pr: doc.data.pr,
       needPr,
+      status: doc.data.status,
     });
     Object.assign(facts, collected.facts);
   }

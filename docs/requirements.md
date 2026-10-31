@@ -239,7 +239,7 @@ fields:
 - ST-2 遷移は Workflow の `transitions` の制約で検査する。`by` に含まれない主体の遷移と `requires` を満たさない遷移は拒否し、制約のない遷移は誰でも行える。同じ Status への move は拒否する
 - ST-3 `claim` は todo のチケットの `assignee` を claim した主体にし、`branch` を記録して in_progress に進める。todo 以外は拒否する。別のユーザが `assignee` だったときは上書きして警告する。依存先が終わるまで着手を止めたいときは Workflow で todo → in_progress に `requires: [deps_done]`（WF-2）を書く
 - ST-4 照合は `dg sync` と、画面の再読み込み（UI-6）で行う。チケットの `branch` について Git から事実を集め、`reconcile` 規則を上から評価し、今より前進の順が先のときだけ書き換える。`done` と `abandoned` のチケットには触れない。done に進めたチケットに未チェックの受け入れ条件が残れば警告する
-- ST-5 後退を指す事実（消えたブランチ・マージされずに閉じた PR）は書き換えず警告する。ただし同じ照合で done に進むときは、マージ後に消したブランチなので警告しない。取れなかった事実は不明とし、前進の判定では偽と読む
+- ST-5 後退を指す事実（消えたブランチ・マージされずに閉じた PR）は書き換えず警告する。ただし同じ照合で done に進むときは、マージ後に消したブランチなので警告しない。取れなかった事実は不明とし、前進の判定では偽と読む。`branch_merged` は先端が base の真の祖先のとき真だが、in_progress で push していないブランチは commit のない切ったばかりのブランチとみなして偽にする（commit のないブランチは base が進むと ff マージ後と同じ形になるため。[ADR-004](adr/ADR-004-agents-and-state.md)）。照合の結果（`reconciled`）には根拠の規則の条件（`when`）を含める
 - ST-6 PR の事実は `gh` が使えるときだけ取る。`gh` がなくても照合は Git の事実だけで成り立つ。`pr` のないチケットの PR をブランチ名で見つけたら、状態が進まなくても番号を `pr` に記録する。記録済みの `pr` は書き換えない
 - ST-7 `unclaim` は in_progress のチケットの、自分（同じユーザの人と AI）の claim か記録のない claim だけを外して todo に戻し、`assignee` を消す。応答のない claim は強制の指定で外す。生存監視はしない
 - ST-8 `abandoned` にすると claim を外し、Iteration の完了件数と Epic の進捗には数えない。todo に戻す（再開・done の取り消し）ときも `assignee` と `branch` を消す。これらを人だけに限るなら Workflow の `by: [human]` で書く

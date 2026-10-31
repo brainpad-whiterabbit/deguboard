@@ -167,13 +167,15 @@ describe("チケットの流れ", () => {
     await git(f.cloneA, ["push", "-q", "origin", "main"]);
 
     const synced = await runCommand(sync, ctx, {});
-    expect(synced.data.reconciled).toEqual([{ id: "t1", from: "review", to: "done" }]);
+    expect(synced.data.reconciled).toEqual([
+      { id: "t1", from: "review", to: "done", when: ["branch_merged"] },
+    ]);
     expect(synced.warnings).toContain("t1: 受け入れ条件 2 が未チェックのまま done になった");
     expect(synced.data.pushed).toBe(true);
     expect(synced.data.status).toMatchObject({ ahead: 0, behind: 0, dirty: false });
     expect(ctx.store.tickets.get("t1")?.data.status).toBe("done");
     const log = (await git(ctx.repo.dataDir, ["log", "--format=%s"])).stdout.trim().split("\n");
-    expect(log[0]).toContain("照合で t1: review → done");
+    expect(log[0]).toContain("照合で t1: review → done（branch_merged）");
     expect(log[1]).toBe("変更をまとめてコミット");
   });
 
@@ -210,12 +212,16 @@ describe("チケットの流れ", () => {
     resetGhCache();
     try {
       const first = await runCommand(sync, ctx, {});
-      expect(first.data.reconciled).toEqual([{ id: "t1", from: "in_progress", to: "review" }]);
+      expect(first.data.reconciled).toEqual([
+        { id: "t1", from: "in_progress", to: "review", when: ["pr_open", "!pr_draft"] },
+      ]);
       expect(first.data.pr_recorded).toEqual([{ id: "t1", pr: 42 }]);
       expect(ctx.store.tickets.get("t1")?.data.pr).toBe(42);
       expect(ctx.store.tickets.get("t2")?.data.pr).toBeUndefined();
       const log = (await git(ctx.repo.dataDir, ["log", "-1", "--format=%s"])).stdout.trim();
-      expect(log).toBe("照合で t1: in_progress → review。PR 番号を記録: t1: #42");
+      expect(log).toBe(
+        "照合で t1: in_progress → review（pr_open, !pr_draft）。PR 番号を記録: t1: #42",
+      );
 
       // 2 回目は状態も pr も変わらず、コミットも増えない
       const second = await runCommand(sync, ctx, {});

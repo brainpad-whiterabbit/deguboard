@@ -1,14 +1,17 @@
 // 照合に使う事実の収集（ST-4〜ST-6、ADR-004）。取れない事実は undefined（不明）
 
+import type { Status } from "../model/common.js";
 import type { Facts } from "../workflow/conditions.js";
 import type { GitRepo } from "./repo.js";
 import { GitError, runGh, runGit } from "./run.js";
 
-export interface PrFactsOptions {
+export interface BranchFactsOptions {
   /** チケットに記録された PR 番号。なければブランチ名で引く */
   pr?: number | undefined;
   /** Workflow が pr_* を参照するときだけ gh を呼ぶ */
   needPr: boolean;
+  /** チケットの今の Status。in_progress で push していないブランチは作業がまだないとみなす（ST-5） */
+  status?: Status | undefined;
 }
 
 export interface BranchFacts {
@@ -51,7 +54,7 @@ async function sha(repo: GitRepo, ref: string): Promise<string> {
 export async function collectBranchFacts(
   repo: GitRepo,
   branch: string,
-  opts: PrFactsOptions,
+  opts: BranchFactsOptions,
 ): Promise<BranchFacts> {
   const facts: Facts = {};
   const localRef = `refs/heads/${branch}`;
@@ -70,14 +73,18 @@ export async function collectBranchFacts(
         : undefined;
   if (tip && base) {
     // 先端が base と同じなら、切ったばかりで作業のないブランチとみなして merged にしない。
-    // ff マージの直後も同じ形になるが、base が進めば真の祖先になり、PR があれば pr_merged で先に拾える
+    // ff マージの直後も同じ形になるが、base が進めば真の祖先になり、PR があれば pr_merged で先に拾える。
+    // 先端が base の真の祖先でも、commit のないブランチは base が進めば同じ形になる（グラフだけでは
+    // ff マージと区別できない）。in_progress で push していないブランチはまだ作業がないとみなして merged にしない
     const same = (await sha(repo, tip)) === (await sha(repo, base));
-    const r = same
-      ? undefined
-      : await runGit(repo.dataDir, ["merge-base", "--is-ancestor", tip, base], {
-          allowFailure: true,
-        });
-    if (same || r?.code === 1) facts.branch_merged = false;
+    const fresh = opts.status === "in_progress" && facts.branch_pushed === false;
+    const r =
+      same || fresh
+        ? undefined
+        : await runGit(repo.dataDir, ["merge-base", "--is-ancestor", tip, base], {
+            allowFailure: true,
+          });
+    if (same || fresh || r?.code === 1) facts.branch_merged = false;
     else if (r?.code === 0) facts.branch_merged = true;
   } else if (!tip && base) {
     // ブランチがないならマージ済みとは言えない（消えたブランチは警告の対象）
