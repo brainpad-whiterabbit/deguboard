@@ -3,7 +3,7 @@
   "displayName": "deguboard",
   "version": "0.1.0",
   "private": true,
-  "description": "deguboard の VS Code 拡張。拡張ホストから core を呼び、Webview に web の画面を載せる。dg は同梱しない",
+  "description": "deguboard の VS Code 拡張。Activity Bar のアイコンからサイドバーに web の画面を出し、拡張ホストから core を呼ぶ。dg は同梱しない",
   "categories": [
     "Other"
   ],
@@ -29,13 +29,53 @@
     "vite": "8.3.5"
   },
   "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "deguboard",
+          "title": "deguboard",
+          "icon": "media/deguboard.svg"
+        }
+      ]
+    },
+    "views": {
+      "deguboard": [
+        {
+          "type": "webview",
+          "id": "deguboard.screens",
+          "name": "deguboard",
+          "contextualTitle": "deguboard"
+        }
+      ]
+    },
     "commands": [
       {
         "command": "deguboard.open",
         "title": "画面を開く",
         "category": "deguboard"
+      },
+      {
+        "command": "deguboard.sync",
+        "title": "同期",
+        "category": "deguboard",
+        "icon": "$(sync)"
       }
-    ]
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "deguboard.sync",
+          "when": "view == deguboard.screens",
+          "group": "navigation"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "deguboard.sync",
+          "when": "false"
+        }
+      ]
+    }
   },
   "engines": {
     "vscode": "^1.104.0"

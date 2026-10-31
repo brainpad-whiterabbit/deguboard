@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import type { WebviewRequest, WebviewResponse } from "@deguboard/core";
+import type { WebviewEvent, WebviewRequest, WebviewResponse } from "@deguboard/core";
 import { describe, expect, it } from "vitest";
 import { ClientError } from "./http.js";
 import { createWebviewClient } from "./webview.js";
@@ -7,7 +7,7 @@ import { createWebviewClient } from "./webview.js";
 /** 拡張ホストの代わり。受け取った要求を記録し、答えを window に流す */
 function host() {
   const requests: WebviewRequest[] = [];
-  const reply = (response: WebviewResponse) =>
+  const reply = (response: WebviewResponse | WebviewEvent | unknown) =>
     window.dispatchEvent(new MessageEvent("message", { data: response }));
   return {
     requests,
@@ -53,5 +53,33 @@ describe("postMessage の CommandClient", () => {
     const error = await p.catch((e: unknown) => e);
     expect(error).toBeInstanceOf(ClientError);
     expect(error).toMatchObject({ code: "TRANSITION_REJECTED", message: "遷移できない" });
+  });
+
+  it("openTicket は kind: action の要求を送り、応答で解決する", async () => {
+    const h = host();
+    const client = createWebviewClient(h);
+    const p = client.openTicket("t12");
+    expect(h.requests).toEqual([{ id: 1, kind: "action", name: "openTicket", ticket: "t12" }]);
+    h.reply({ id: 1, ok: true, data: null, warnings: [], write: null });
+    await expect(p).resolves.toBeUndefined();
+  });
+
+  it("拡張ホストからの通知（kind: event）は購読者に配り、外した後は届かない。形の違うメッセージは無視する", () => {
+    const h = host();
+    const client = createWebviewClient(h);
+    const received: WebviewEvent[] = [];
+    const off = client.onEvent((e) => received.push(e));
+    h.reply({ kind: "event", name: "navigate", hash: "#/tickets/t3" });
+    h.reply({ kind: "event", name: "sync" });
+    h.reply({ kind: "event", name: "unknown" });
+    h.reply("文字列");
+    h.reply(null);
+    expect(received).toEqual([
+      { kind: "event", name: "navigate", hash: "#/tickets/t3" },
+      { kind: "event", name: "sync" },
+    ]);
+    off();
+    h.reply({ kind: "event", name: "sync" });
+    expect(received).toHaveLength(2);
   });
 });

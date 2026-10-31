@@ -1,7 +1,13 @@
 import type { CommandClient, CommandResult } from "@deguboard/core";
 import { OperationError, UsageError } from "@deguboard/core";
 import { describe, expect, it } from "vitest";
-import { handleRequest, isWebviewRequest, renderWebviewHtml } from "./webview.js";
+import {
+  badgeOf,
+  handleRequest,
+  isWebviewRequest,
+  renderMessageHtml,
+  renderWebviewHtml,
+} from "./webview.js";
 
 const INDEX = `<!doctype html>
 <html lang="ja">
@@ -20,6 +26,8 @@ describe("Webview の HTML", () => {
       asset: (p) => `https://cdn.test/ext/dist/web/${p}`,
       cspSource: "https://cdn.test",
       nonce: "n0nce",
+      surface: "panel",
+      route: "#/board",
     });
     expect(html).toContain(
       '<script nonce="n0nce" type="module" src="https://cdn.test/ext/dist/web/assets/index-abc.js">',
@@ -31,6 +39,25 @@ describe("Webview の HTML", () => {
     expect(html).toContain("script-src 'nonce-n0nce'");
     expect(html).toContain("style-src https://cdn.test 'unsafe-inline'");
     expect(html.indexOf("Content-Security-Policy")).toBeLessThan(html.indexOf("<script"));
+  });
+
+  it("<html> に surface と初期ルートを data 属性で付け、値は属性として escape する", () => {
+    const html = renderWebviewHtml(INDEX, {
+      asset: (p) => p,
+      cspSource: "https://cdn.test",
+      nonce: "n",
+      surface: "sidebar",
+      route: '#/tickets/t12?x="<a>"&y',
+    });
+    expect(html).toContain(
+      '<html data-surface="sidebar" data-route="#/tickets/t12?x=&quot;&lt;a&gt;&quot;&amp;y" lang="ja">',
+    );
+  });
+
+  it("画面を出せないときの HTML はスクリプトを持たず、文言を escape する", () => {
+    const html = renderMessageHtml("<フォルダ> を開く");
+    expect(html).toContain("&lt;フォルダ&gt; を開く");
+    expect(html).not.toContain("<script");
   });
 });
 
@@ -96,11 +123,49 @@ describe("Webview の要求", () => {
     expect(invalid).toMatchObject({ id: 3, ok: false, error: { code: "INVALID_INPUT" } });
   });
 
+  it("action の openTicket は actions に渡して data: null で答え、actions のない画面からは拒否する", async () => {
+    const opened: string[] = [];
+    const ok = await handleRequest(
+      fakeClient(),
+      { id: 4, kind: "action", name: "openTicket", ticket: "t12" },
+      { openTicket: (t) => void opened.push(t) },
+    );
+    expect(ok).toEqual({ id: 4, ok: true, data: null, warnings: [], write: null });
+    expect(opened).toEqual(["t12"]);
+    const refused = await handleRequest(fakeClient(), {
+      id: 5,
+      kind: "action",
+      name: "openTicket",
+      ticket: "t12",
+    });
+    expect(refused).toMatchObject({ id: 5, ok: false, error: { code: "UNSUPPORTED_ACTION" } });
+  });
+
   it("要求の形を確かめる", () => {
     expect(isWebviewRequest({ id: 1, kind: "status" })).toBe(true);
     expect(isWebviewRequest({ id: 1, kind: "run", name: "x", input: {} })).toBe(true);
+    expect(isWebviewRequest({ id: 1, kind: "action", name: "openTicket", ticket: "t1" })).toBe(
+      true,
+    );
     expect(isWebviewRequest({ id: "1", kind: "status" })).toBe(false);
     expect(isWebviewRequest({ id: 1, kind: "run" })).toBe(false);
+    expect(isWebviewRequest({ id: 1, kind: "action", name: "other", ticket: "t1" })).toBe(false);
+    expect(isWebviewRequest({ kind: "event", name: "sync" })).toBe(false);
     expect(isWebviewRequest(null)).toBe(false);
+  });
+});
+
+describe("サイドバーのバッジ", () => {
+  const base = { dirty: false, remote: "origin", issues: 0, data_dir: "/x" };
+  it("未 push と未取り込みの合計を出し、どちらもなければ消す", () => {
+    expect(badgeOf({ ...base, ahead: 2, behind: 1 })).toEqual({
+      value: 3,
+      tooltip: "未 push 2 / 未取り込み 1",
+    });
+    expect(badgeOf({ ...base, ahead: 0, behind: 1 })).toEqual({
+      value: 1,
+      tooltip: "未取り込み 1",
+    });
+    expect(badgeOf({ ...base, ahead: 0, behind: 0 })).toBeUndefined();
   });
 });

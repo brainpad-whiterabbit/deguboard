@@ -11,8 +11,8 @@ import {
   type DragEndEvent,
 } from "@dnd-kit/core";
 import { useMemo, useState } from "react";
-import { PriorityBadge, Tags } from "../components/parts.js";
-import { hrefOf, navigate } from "../router.js";
+import { PriorityBadge, Tags, TicketLink } from "../components/parts.js";
+import { navigate } from "../router.js";
 import { useStore } from "../store.js";
 import { BOARD_STATUSES, byPriorityThenNumber, type Status, type Ticket } from "../types.js";
 
@@ -119,12 +119,7 @@ function Card({ ticket }: { ticket: Ticket }) {
       {...attributes}
     >
       <div className="meta">
-        <a
-          href={hrefOf({ page: "ticket", id: ticket.id })}
-          onPointerDown={(e) => e.stopPropagation()}
-        >
-          <code>{ticket.id}</code>
-        </a>
+        <TicketLink id={ticket.id} onPointerDown={(e) => e.stopPropagation()} />
         <PriorityBadge priority={ticket.priority} />
         {ticket.epic ? <span>{ticket.epic}</span> : null}
         {ticket.iteration ? <span>{ticket.iteration}</span> : null}

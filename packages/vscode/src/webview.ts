@@ -3,9 +3,13 @@
 import {
   toCommandFailure,
   type CommandClient,
+  type StatusView,
   type WebviewRequest,
   type WebviewResponse,
 } from "@deguboard/core";
+
+/** 画面がどこに載っているか。web は <html data-surface> で読み、サイドバーではレイアウトとリンクの挙動を変える（UI-12） */
+export type Surface = "sidebar" | "panel";
 
 export interface HtmlOptions {
   /** web の dist の相対パス（./assets/index.js）を Webview の URI にする */
@@ -13,11 +17,14 @@ export interface HtmlOptions {
   /** webview.cspSource */
   cspSource: string;
   nonce: string;
+  surface: Surface;
+  /** 最初に出す画面のハッシュ（#/board、#/tickets/t12）。Webview が起動する前に決まるので HTML に埋める */
+  route: string;
 }
 
 /**
  * Vite が出した index.html（base: "./"）を Webview 向けに直す：
- * 相対パスを Webview の URI に、crossorigin を外し、nonce つきの CSP を入れる
+ * 相対パスを Webview の URI に、crossorigin を外し、nonce つきの CSP を入れ、<html> に surface と初期ルートを付ける
  */
 export function renderWebviewHtml(indexHtml: string, options: HtmlOptions): string {
   const csp = [
@@ -35,19 +42,62 @@ export function renderWebviewHtml(indexHtml: string, options: HtmlOptions): stri
     )
     .replace(/<script\b/g, `<script nonce="${options.nonce}"`)
     .replace(
+      /<html\b/,
+      `<html data-surface="${escapeAttribute(options.surface)}" data-route="${escapeAttribute(options.route)}"`,
+    )
+    .replace(
       "<head>",
       `<head>\n    <meta http-equiv="Content-Security-Policy" content="${csp}" />`,
     );
 }
 
-/** Webview からの要求を CommandClient に通し、同じ id の応答にする。失敗は ok: false で返す */
+/** 画面を出せないとき（フォルダを開いていない）に Webview に出す、スクリプトのない HTML */
+export function renderMessageHtml(text: string): string {
+  return `<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'" />
+  </head>
+  <body style="font-family: var(--vscode-font-family); color: var(--vscode-descriptionForeground); padding: 12px">
+    <p>${escapeAttribute(text)}</p>
+  </body>
+</html>`;
+}
+
+function escapeAttribute(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+/** 画面の外（エディタ）への働きかけ。サイドバーだけが持ち、持たない画面からの action は拒否する */
+export interface WebviewActions {
+  openTicket(ticket: string): void | Promise<void>;
+}
+
+/** Webview からの要求を CommandClient（か actions）に通し、同じ id の応答にする。失敗は ok: false で返す */
 export async function handleRequest(
   client: CommandClient,
   request: WebviewRequest,
+  actions?: WebviewActions,
 ): Promise<WebviewResponse> {
   try {
     if (request.kind === "status") {
       return { id: request.id, ok: true, data: await client.status(), warnings: [], write: null };
+    }
+    if (request.kind === "action") {
+      if (!actions) {
+        return {
+          id: request.id,
+          ok: false,
+          error: { code: "UNSUPPORTED_ACTION", message: "この画面からはエディタで開けない" },
+        };
+      }
+      await actions.openTicket(request.ticket);
+      return { id: request.id, ok: true, data: null, warnings: [], write: null };
     }
     const result = await client.run(request.name, request.input);
     return {
@@ -65,8 +115,24 @@ export async function handleRequest(
 export function isWebviewRequest(value: unknown): value is WebviewRequest {
   if (typeof value !== "object" || value === null) return false;
   const v = value as Partial<WebviewRequest>;
-  return (
-    typeof v.id === "number" &&
-    (v.kind === "status" || (v.kind === "run" && typeof v.name === "string"))
-  );
+  if (typeof v.id !== "number") return false;
+  switch (v.kind) {
+    case "status":
+      return true;
+    case "run":
+      return typeof v.name === "string";
+    case "action":
+      return v.name === "openTicket" && typeof v.ticket === "string";
+    default:
+      return false;
+  }
+}
+
+/** サイドバーのビューに出すバッジ（UI-6・UI-12）。未 push と未取り込みの合計で、0 なら消す */
+export function badgeOf(status: StatusView): { value: number; tooltip: string } | undefined {
+  const parts: string[] = [];
+  if (status.ahead > 0) parts.push(`未 push ${status.ahead}`);
+  if (status.behind > 0) parts.push(`未取り込み ${status.behind}`);
+  if (parts.length === 0) return undefined;
+  return { value: status.ahead + status.behind, tooltip: parts.join(" / ") };
 }

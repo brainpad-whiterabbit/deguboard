@@ -15,6 +15,7 @@ export type {
   CommandClient,
   CommandFailure,
   StatusView,
+  WebviewEvent,
   WebviewRequest,
   WebviewResponse,
 } from "./client.js";

@@ -1,14 +1,43 @@
 // 小さな表示部品：チケットへのリンク、優先度・Status の印、ラベル、進捗
 
+import type { ComponentProps, ReactNode } from "react";
+import { useHost } from "../host.js";
 import { hrefOf } from "../router.js";
 import { useStore } from "../store.js";
 import type { EpicProgress, Priority, Status, Ticket } from "../types.js";
 
-export function TicketLink({ id, title }: { id: string; title?: string | undefined }) {
+/**
+ * チケット詳細へのリンク。チケットへのリンクはすべてここを通す。
+ * ブラウザとパネルではハッシュ遷移、サイドバーでは拡張ホストに頼んでエディタ領域に開く（UI-12）。
+ * children を渡せば番号の代わりにそれを出す
+ */
+export function TicketLink({
+  id,
+  title,
+  children,
+  ...rest
+}: {
+  id: string;
+  title?: string | undefined;
+  children?: ReactNode;
+} & Pick<ComponentProps<"a">, "onPointerDown" | "className">) {
+  const host = useHost();
   return (
-    <a href={hrefOf({ page: "ticket", id })}>
-      <code>{id}</code>
-      {title ? ` ${title}` : ""}
+    <a
+      href={hrefOf({ page: "ticket", id })}
+      onClick={(e) => {
+        if (host.surface !== "sidebar") return;
+        e.preventDefault();
+        host.openTicket(id);
+      }}
+      {...rest}
+    >
+      {children ?? (
+        <>
+          <code>{id}</code>
+          {title ? ` ${title}` : ""}
+        </>
+      )}
     </a>
   );
 }
@@ -81,7 +110,7 @@ export function TicketTable({
               <TicketLink id={t.id} />
             </td>
             <td>
-              <a href={hrefOf({ page: "ticket", id: t.id })}>{t.title}</a>
+              <TicketLink id={t.id}>{t.title}</TicketLink>
             </td>
             <td>{store.labelOf(t.status)}</td>
             <td>

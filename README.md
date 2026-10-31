@@ -42,6 +42,6 @@ dg serve --open               # 127.0.0.1:7474 でカンバンを開く
 dg guide overview             # エージェント向けの手順。Claude Code には「dg guide を読んでから dg で進めて」と頼む
 ```
 
-VS Code では、拡張を入れて（今は VSIX から。`mise run vsix` → `code --install-extension packages/vscode/deguboard-vscode.vsix`）コマンドパレットの「deguboard: 画面を開く」。拡張は `dg` なしで動き、`dg` が PATH にないときは案内を出す。
+VS Code では、拡張を入れて（今は VSIX から。`mise run vsix` → `code --install-extension packages/vscode/deguboard-vscode.vsix`）Activity Bar の deguboard のアイコンを押すとサイドバーにカンバンが開く。チケットを押すと詳細がエディタ領域に開く。拡張は `dg` なしで動き、`dg` が PATH にないときは案内を出す。
 
 チケットの流れ（起票 → claim → 作業 → PR → 照合で done）とコマンドの一覧は `dg --help` と `dg guide work`、仕様は[要件定義書](docs/requirements.md)。

@@ -1,4 +1,5 @@
-# VSIX に入れるのは dist（extension.cjs と web）と README だけ。package.json は常に入る
+# VSIX に入れるのは dist（extension.cjs と web）と media（Activity Bar のアイコン）と README だけ。package.json は常に入る
 **
 !dist/**
+!media/**
 !README.md
