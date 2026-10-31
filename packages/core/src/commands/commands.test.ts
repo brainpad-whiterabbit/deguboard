@@ -264,6 +264,20 @@ describe("チケットの流れ", () => {
       body: "## 概要\n\n直した\n",
     });
     expect(r.data).toMatchObject({ priority: "high", estimate: 3, body: "## 概要\n\n直した\n" });
+    // acceptance は受け入れ条件の節だけを置き換え、節がなければ足す。body とは同時に指定できない
+    const a1 = await runCommand(ticketUpdate, ctx, { ticket: "t1", acceptance: ["a", "b"] });
+    expect(a1.data.body).toBe("## 概要\n\n直した\n\n## 受け入れ条件\n\n- [ ] a\n- [ ] b\n");
+    await runCommand(ticketUpdate, ctx, {
+      ticket: "t1",
+      body: "## 概要\n\n直した\n\n## 受け入れ条件\n\n- [x] a\n- [ ] b\n",
+    });
+    const a2 = await runCommand(ticketUpdate, ctx, { ticket: "t1", acceptance: ["b", "a", "c"] });
+    expect(a2.data.body).toBe(
+      "## 概要\n\n直した\n\n## 受け入れ条件\n\n- [ ] b\n- [x] a\n- [ ] c\n",
+    );
+    await expect(
+      runCommand(ticketUpdate, ctx, { ticket: "t1", body: "x", acceptance: ["a"] }),
+    ).rejects.toMatchObject({ code: "INVALID_INPUT" });
     await expect(
       runCommand(ticketUpdate, ctx, { ticket: "t1", depends_on: ["t2"] }),
     ).rejects.toMatchObject({ code: "REJECTED" });

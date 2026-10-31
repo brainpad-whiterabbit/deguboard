@@ -212,6 +212,16 @@ describe("dg", () => {
     ]);
     const shown = await dg(f.cloneA, ["--json", "ticket", "show", "t3"]);
     expect(shown.json().data.body).toContain("- [ ] a, b\n");
+    const updated = await dg(f.cloneA, [
+      "--json",
+      "ticket",
+      "update",
+      "t2",
+      "--acceptance",
+      "x, y",
+    ]);
+    expect(updated.code).toBe(0);
+    expect(updated.json().data.body).toBe("## 概要\n\ns\n\n## 受け入れ条件\n\n- [ ] x, y\n");
     await writeFile(
       path.join(f.cloneA, ".git", "deguboard", "tickets", "t2.md"),
       "---\nid: t2\n---\n",

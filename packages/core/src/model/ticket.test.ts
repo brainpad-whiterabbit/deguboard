@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { acceptanceSection, ticketBodyTemplate } from "./ticket.js";
+import { acceptanceSection, replaceAcceptance, ticketBodyTemplate } from "./ticket.js";
 
 describe("チケットの本文", () => {
   it("雛形は概要と受け入れ条件の節を持ち、項目がなければ空の - [ ] を 1 行置く", () => {
@@ -25,5 +25,24 @@ describe("チケットの本文", () => {
     expect(acceptanceSection("## 受け入れ条件\n\n- [ ] a\n\n## 備考\n\n- [ ] b\n")).toBe(
       "\n\n- [ ] a\n\n",
     );
+  });
+
+  it("受け入れ条件の節だけを置き換え、同じ文の済みの印は保ち、他の節は変えない", () => {
+    const body = "## 概要\n\ns\n\n## 受け入れ条件\n\n- [x] 済み\n- [ ] 消える\n\n## 備考\n\nメモ\n";
+    expect(replaceAcceptance(body, ["新しい", " 済み "])).toBe(
+      "## 概要\n\ns\n\n## 受け入れ条件\n\n- [ ] 新しい\n- [x] 済み\n\n## 備考\n\nメモ\n",
+    );
+    // 節が末尾のとき
+    expect(replaceAcceptance(ticketBodyTemplate("s"), ["a"])).toBe(
+      "## 概要\n\ns\n\n## 受け入れ条件\n\n- [ ] a\n",
+    );
+  });
+
+  it("受け入れ条件の節がなければ末尾に足す", () => {
+    expect(replaceAcceptance("## 概要\n\ns\n", ["a"])).toBe(
+      "## 概要\n\ns\n\n## 受け入れ条件\n\n- [ ] a\n",
+    );
+    expect(replaceAcceptance("本文だけ", ["a"])).toBe("本文だけ\n\n## 受け入れ条件\n\n- [ ] a\n");
+    expect(replaceAcceptance("", ["a"])).toBe("## 受け入れ条件\n\n- [ ] a\n");
   });
 });
