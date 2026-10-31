@@ -294,7 +294,9 @@ export const lint = defineCommand({
               ? typeof v === "boolean"
               : f.type === "enum"
                 ? typeof v === "string" && (f.options ?? []).includes(v)
-                : typeof v === "string";
+                : f.type === "date"
+                  ? typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v)
+                  : typeof v === "string";
         if (!okType)
           warn(
             doc.path,

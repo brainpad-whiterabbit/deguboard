@@ -16,8 +16,10 @@
   title: スキーマを決める
   summary: …
   epic: e3 # 既存の Epic。省略可
+  iteration: s3 # 既存の Iteration。省略可
   priority: high # low / medium / high。既定は medium
   labels: [backend]
+  fields: { estimate: 3 } # Workflow の fields で定義した任意フィールド
 - key: api
   title: API を実装する
   depends_on: [schema] # 仮キーか既存の ID（t9）
@@ -37,11 +39,12 @@
 - 本文は `## 概要` と `## 受け入れ条件`（`- [ ]` のチェックリスト）。`dg lint` が欠けを指摘する
 - 受け入れ条件は、PR や成果物を見て真偽を判定できる文にする
 - 1 枚は 1 つの PR で終わる大きさにする。大きければ分けて `depends_on` でつなぐ
-- 目的で束ねるなら Epic（`dg --json epic list` で既存を見る。なければ作ることを提案する）
-- 任意フィールド（Workflow の `fields`）は `--field key=value`。定義は `dg --json workflow show <id>`
+- 目的で束ねるなら Epic（`dg --json --actor agent epic list` で既存を見る。なければ作ることを提案する）
+- 任意フィールド（Workflow の `fields`）は `--field key=value`。定義は `dg --json --actor agent workflow show <id>`
 
 ## してはいけないこと
 
 - 依存の循環を作る（作成時に拒否される）
 - 閉じた Epic にチケットを足す（拒否される）
 - 着手していないのに `status` を変える。起票したチケットは todo のまま
+- 結果が `provisional: true` のときに ID を確定として人に伝える（`dg guide overview`）

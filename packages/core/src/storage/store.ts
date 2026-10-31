@@ -180,7 +180,6 @@ export class Store {
     return `${{ ticket: "t", epic: "e", iteration: "s", plan: "p" }[kind]}${nextNumber(used)}` as IdOf<K>;
   }
 
-  /** depends_on がすべて done か */
   /** deps_done（WF-2）。依存先がすべて done か abandoned なら真。やめたチケットは待たない */
   depsDone(ticket: Ticket): boolean {
     return ticket.depends_on.every((id) => {

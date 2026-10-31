@@ -4,7 +4,7 @@ deguboard は、Git で管理するチケットとユーザー定義のワーク
 
 チケット・イテレーション・ワークフローの定義は、リポジトリの orphan ブランチ `deguboard` に Markdown と YAML で置く。コードと同じく Git で共有するので、別のサービスを用意しなくてもチームで同じカンバンを見られ、変更の履歴も残る。Claude Code や Codex などの AI エージェントは `dg` を呼んでチケットを起票・計画・実行し、人は何を作るか・どの順で進めるか・成果物を承認するかを決める。
 
-> **開発中**。Phase 1（CLI・Web UI・VS Code 拡張でのチケット管理）を実装している。まだ使える版はない。
+> **開発中**。Phase 1（CLI・Web UI・VS Code 拡張でのチケット管理）を実装している。CLI と API はあり、画面はこれから。npm に公開した版はまだない。
 
 ## 何ができるか（予定を含む）
 
@@ -24,12 +24,8 @@ deguboard はエージェントを起動も監視もしない。チケットの�
 - [要件定義書](docs/requirements.md)：今の仕様の正本
 - [ADR](docs/adr/README.md)：設計判断の背景と理由
 - [開発ガイド](docs/development.md)：このリポジトリで開発する人向け
-- `dg guide <topic>`：エージェント向けの手順の正本（CLI に同梱。Phase 1 で用意する）
+- `dg guide <topic>`：エージェント向けの手順の正本（CLI に同梱）
 
 ## 使い始める
 
 Phase 1 の最初の版で書く。前提は Linux / macOS、git 2.30 以上、Node.js 24 以上。GitHub CLI（`gh`）は PR の状態をチケットに反映したいときだけ要る。
-
-## 開発者向け
-
-このリポジトリで deguboard を開発する人向けの説明は[開発ガイド](docs/development.md)にある。

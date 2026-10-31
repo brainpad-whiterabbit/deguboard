@@ -13,6 +13,7 @@ import {
   sortedDocs,
   ticketRef,
   ticketsInIteration,
+  requireHuman,
 } from "./helpers.js";
 
 const isoDate = z.iso.date();
@@ -187,6 +188,7 @@ export const iterationClose = defineCommand({
     const result = await withWrite(
       ctx,
       async () => {
+        requireHuman(ctx, "Iteration を閉じるの");
         const it = ctx.store.require("iteration", input.iteration);
         if (it.data.status === "closed")
           throw new OperationError("REJECTED", `${it.id} は既に閉じている`);

@@ -111,6 +111,21 @@ describe("照合", () => {
     expect(reconcileStatus(sd, "review", { branch_exists: true })).toMatchObject({ kind: "none" });
   });
 
+  it("general では in_progress のままマージされても照合で done に進む（レビューを経ない作業）", () => {
+    const general = validateWorkflow(WORKFLOW_TEMPLATES[2]!, "general.yaml").workflow!;
+    expect(
+      reconcileStatus(general, "in_progress", { branch_exists: false, branch_merged: true }),
+    ).toMatchObject({
+      kind: "advance",
+      to: "done",
+    });
+    // consulting は review → done を人に狭めているので、review にあると照合では進まない
+    const consulting = validateWorkflow(WORKFLOW_TEMPLATES[1]!, "consulting.yaml").workflow!;
+    expect(reconcileStatus(consulting, "review", { branch_merged: true })).toMatchObject({
+      kind: "blocked",
+    });
+  });
+
   it("squash マージ（pr_merged だけが真でブランチは消えた）でも review → done に進む", () => {
     expect(
       reconcileStatus(sd, "review", {

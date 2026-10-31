@@ -1,5 +1,13 @@
 // Zod の入力スキーマから commander の位置引数とオプションを作り、受け取った引数を入力オブジェクトに戻す。
-// 変換の表は docs/development.md の「パッケージ」にある
+// 型ごとの対応（ここが正本）：
+//   string / number / unknown   --key <value>（snake_case は --kebab-case）
+//   boolean                     --key（フラグ）
+//   enum                        --key <value> に choices
+//   array（string / enum）      単数形で繰り返す（--label a --label b）。カンマ区切りも受ける
+//   nullable                    none で外す（--epic none）
+//   record（fields）            --field key=value の繰り返し。true / false / 数値は変換する
+//   array of object（drafts）   位置引数 <file>（YAML / JSON。- で標準入力）から読む（ticket import。program.ts）
+//   positionals                 CommandDef.positionals のキーは位置引数。最後が配列なら可変長
 
 import type { AnyCommand } from "@deguboard/core";
 import { Argument, InvalidArgumentError, Option, type Command } from "commander";

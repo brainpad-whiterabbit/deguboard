@@ -279,7 +279,7 @@ export const ticketShow = defineCommand({
   name: "ticket.show",
   positionals: ["ticket"],
   group: "ticket",
-  summary: "チケットの属性と本文、依存元を出す",
+  summary: "チケットの属性と本文、依存元（dependents）、依存先が終わったか（deps_done）を出す",
   input: z.object({ ticket: ticketRef }),
   write: false,
   needs: "store",
@@ -288,7 +288,7 @@ export const ticketShow = defineCommand({
     return ok({
       ...withBody(doc),
       dependents: dependents(ctx.store, doc.data.id),
-      ready: ctx.store.depsDone(doc.data),
+      deps_done: ctx.store.depsDone(doc.data),
     });
   },
 });
@@ -303,6 +303,14 @@ export const ticketUpdate = defineCommand({
     title: z.string().min(1).optional(),
     body: z.string().optional().describe("本文全体を置き換える"),
     ...ticketAttributes,
+    labels: z
+      .array(z.string())
+      .optional()
+      .describe("ラベル。一覧を置き換える（既存も含めて全部指定する）"),
+    depends_on: z
+      .array(z.string())
+      .optional()
+      .describe("依存先のチケットの ID。一覧を置き換える（既存も含めて全部指定する）"),
     iteration: z.string().nullable().optional().describe("Iteration の ID。null で外す"),
     epic: z.string().nullable().optional().describe("Epic の ID。null で外す"),
     workflow: slugSchema.nullable().optional().describe("Workflow。null で Project の既定に戻す"),

@@ -17,8 +17,8 @@ export const BUILTIN_TRANSITIONS: readonly Transition[] = [
   // 差し戻し
   { from: "review", to: "in_progress", by: ["human"], requires: [] },
   { from: "review", to: "done", by: ["human", "reconcile"], requires: [] },
-  // レビューを要しない作業
-  { from: "in_progress", to: "done", by: ["human"], requires: [] },
+  // レビューを要しない作業。照合はマージの事実を確認を経たものとみなして進める
+  { from: "in_progress", to: "done", by: ["human", "reconcile"], requires: [] },
   // やめる。claim を外す（ST-8）
   { from: "todo", to: "abandoned", by: ["human"], requires: [] },
   { from: "in_progress", to: "abandoned", by: ["human"], requires: [] },

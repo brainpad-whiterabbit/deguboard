@@ -52,7 +52,7 @@ export interface WriteResult<T> {
 
 const BATCH_MESSAGE = "変更をまとめてコミット";
 
-/** 未コミットの変更を 1 コミットにする（commit.mode batch / manual の `dg commit`）。コミットしたら true */
+/** 未コミットの変更を 1 コミットにする。`dg commit`・`dg sync`・即時の操作（作成・claim）の直前に呼ばれる。コミットしたら true */
 export async function flushPending(ctx: WriteContext, message = BATCH_MESSAGE): Promise<boolean> {
   if (!(await isDirty(ctx.repo))) return false;
   await requireIdentity(ctx.repo);
@@ -82,7 +82,7 @@ async function writeLocked<T>(
   const maxAttempts = opts.maxAttempts ?? 3;
 
   if (!shouldCommit) {
-    // batch / manual：作業ツリーに残す。取り込みは次の sync か即時の操作が行う
+    // batch / manual：作業ツリーに残す。コミットは dg commit・dg sync・即時の操作が行う
     const value = await mutate();
     return {
       value,

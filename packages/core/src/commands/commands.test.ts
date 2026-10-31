@@ -293,6 +293,10 @@ describe("Epic と Iteration", () => {
     await expect(runCommand(epicClose, ctx, { epic: "e1" })).rejects.toMatchObject({
       code: "REJECTED",
     });
+    const agent = await openContext({ cwd: f.cloneA, actor: { kind: "agent", id: "claude@pc" } });
+    await expect(runCommand(epicClose, agent, { epic: "e1", force: true })).rejects.toMatchObject({
+      code: "TRANSITION_REJECTED",
+    });
     const closed = await runCommand(epicClose, ctx, { epic: "e1", force: true });
     expect(closed.data.status).toBe("closed");
     expect(closed.data.closed_at).toBeDefined();
@@ -325,6 +329,10 @@ describe("Epic と Iteration", () => {
     const shown = await runCommand(iterationShow, ctx, { iteration: "s1" });
     expect(shown.data.items.map((t) => t.id)).toEqual(["t2", "t1"]);
     expect(shown.data).not.toHaveProperty("tickets");
+    const agent = await openContext({ cwd: f.cloneA, actor: { kind: "agent", id: "claude@pc" } });
+    await expect(runCommand(iterationClose, agent, { iteration: "s1" })).rejects.toMatchObject({
+      code: "TRANSITION_REJECTED",
+    });
     const closed = await runCommand(iterationClose, ctx, { iteration: "s1" });
     expect(closed.data).toMatchObject({ status: "closed", completed: 1, carried_over: 1 });
     expect(ctx.store.tickets.get("t2")?.data.iteration).toBeUndefined();

@@ -88,13 +88,17 @@ export function addServeCommands(program: Command, deps: ServeDeps): void {
     .option("--host <host>", "サーバーのアドレス", DEFAULT_HOST)
     .option("--port <port>", "サーバーのポート", toPort, DEFAULT_PORT)
     .action(async (opts: { host: string; port: number }) => {
+      const global = program.opts<{ json?: boolean }>();
       const url = `http://${opts.host}:${opts.port}/`;
       try {
         await (deps.openUrl ?? openInBrowser)(url);
-        deps.streams.out(url);
+        if (global.json)
+          deps.streams.out(JSON.stringify({ ok: true, data: { url }, warnings: [], write: null }));
+        else deps.streams.out(url);
       } catch (error) {
         const view = toErrorView(error);
-        printError(deps.streams, view);
+        if (global.json) printJsonError(deps.streams, view);
+        else printError(deps.streams, view);
         process.exitCode = 1;
       }
     });

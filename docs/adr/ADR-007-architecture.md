@@ -29,9 +29,9 @@ packages/
 ```
 
 - `core` は何にも依存しない（VS Code API・HTTP・React を知らない）
-- `cli`・`server`・`vscode` は `core` だけに依存する
+- `server`・`vscode` は `core` だけに依存する。`cli` は `dg serve` のために `server` にも依存する
 - `web` は `core` の型と `CommandClient` のインターフェースだけに依存する
-- 逆向きの依存は lint で検出する
+- 逆向きの依存は作らない
 
 ### `core/commands` が 3 つの入口の正本
 
@@ -51,11 +51,11 @@ Core の中は責務ごとのモジュールに分け、最初からパッケー
 - `agents`：Agent Adapter のインターフェースと Claude Code / Codex の実装（Phase 2〜3）。起動方法・使用量の取得・作業ディレクトリの差を吸収する
 - `actions`：登録済みの Action（`run_tests`・`create_pr` など。Phase 3）。任意のシェルは設定で明示的に許可したときだけ、実行前に確認する
 
-`agents`・`actions`・`metrics` は Phase 1 ではインターフェースの型だけを置く。モジュールが肥大化したら、そのときにパッケージへ切り出す。
+`run`・`agents`・`actions`・`metrics` は要るようになる Phase 2〜3 で置く（Phase 1 は Run の型だけ）。モジュールが肥大化したら、そのときにパッケージへ切り出す。
 
 ### 索引はメモリ上に持つ
 
-- DB は使わない。起動時にファイルを走査してメモリ上に索引を作り、ファイルの変更を監視して更新する
+- DB は使わない。起動時にファイルを走査してメモリ上に索引を作り、取り込み（sync）の後とリクエストごとに再走査して更新する。ファイル監視は持たない
 
 ## 理由
 

@@ -26,15 +26,15 @@ deguboard はソフトウェア開発だけでなく、コンサルティング�
 
 ### 遷移表は Core が持つ
 
-| from                        | to          | 誰が                      | 備考                              |
-| --------------------------- | ----------- | ------------------------- | --------------------------------- |
-| todo                        | in_progress | human / agent             | claim。`deps_done` でなければ拒否 |
-| in_progress                 | review      | human / agent / reconcile |                                   |
-| review                      | in_progress | human                     | 差し戻し                          |
-| review                      | done        | human / reconcile         |                                   |
-| in_progress                 | done        | human                     | レビューを要しない作業            |
-| todo / in_progress / review | abandoned   | human                     | claim を外す                      |
-| abandoned / done            | todo        | human                     | 再開                              |
+| from                        | to          | 誰が                      | 備考                                               |
+| --------------------------- | ----------- | ------------------------- | -------------------------------------------------- |
+| todo                        | in_progress | human / agent             | claim。`deps_done` でなければ拒否                  |
+| in_progress                 | review      | human / agent / reconcile |                                                    |
+| review                      | in_progress | human                     | 差し戻し                                           |
+| review                      | done        | human / reconcile         |                                                    |
+| in_progress                 | done        | human / reconcile         | レビューを要しない作業。照合はマージの事実で進める |
+| todo / in_progress / review | abandoned   | human                     | claim を外す                                       |
+| abandoned / done            | todo        | human                     | 再開                                               |
 
 - 表にない遷移は拒否する。照合（reconcile）は前進の順に進めるだけで、`abandoned` と `done` には触れず、そこからも動かさない
 - ワークフローは組み込みの遷移に `requires`（組み込みの条件）を足すか、`by` を狭める（例：review → done を human だけにする）ことができる。遷移を増やしたり外したりはできない

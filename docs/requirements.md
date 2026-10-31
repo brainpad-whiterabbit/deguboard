@@ -70,12 +70,12 @@ runs/                       # Phase 3。完了時の集計だけ
 
 - DT-3 ID は接頭辞＋連番（`t12`・`e3`・`s3`・`p7`）。ファイル名は ID そのまま（`t12.md`）で、ゼロ埋めしない。番号はリポジトリ全体で一意。ファイル名の辞書順は番号順にならないが、CLI と UI は番号で並べる
 - DT-4 採番は「既存と墓標の最大 + 1」。作成は fetch → 採番 → commit → push を 1 単位とし、push が拒否されたら採番し直す
-- DT-5 push できないときは `provisional: true` を付けてローカルに commit し、次の `dg sync` で衝突があれば番号・ファイル名・未 push のコミット内の参照を振り直す。`dg ticket list` は仮番号に印を出す
+- DT-5 push できないときは `provisional: true` を付けてローカルに commit し、`dg ticket list` は仮番号に印を出す。push が済んだ `dg sync` で印を外す。衝突したときの番号・ファイル名・未 push のコミット内の参照の振り直しは Phase 2
 - DT-6 CLI と UI は `t12` でも `12` でも受け付ける
 
 ### 5.3 Project（`projects/<slug>.yaml`）
 
-`id`（slug）、`name`、`description`、`workflow`（既定のワークフロー）、`status`（`active` / `archived`）。`dg init` は `default` を作る。
+`id`（slug）、`name`、`description`、`workflow`（既定のワークフロー）、`status`（`active` / `archived`）。`dg init` は `default` を作る。`archived` の Project にはチケットを作れない。
 
 ### 5.4 Ticket（`tickets/t12.md`）
 
@@ -139,17 +139,17 @@ closed_at: 2026-11-20T09:00:00Z # closed のときだけ
 - EP-1 必須は `id`・`project`・`title`・`status`・`created_at`・`updated_at`。`status` は `open` / `closed` で、閉じたときに `closed_at` を書く。本文は Markdown で、`## 概要` を推奨し `dg lint` が欠けを指摘する
 - EP-2 所属はチケットの `epic` で表し、Epic 側にチケットの一覧は持たない。入れるのは同じ Project のチケットだけ。Epic は入れ子にしない
 - EP-3 進捗は保存しない。done の件数と abandoned を除く件数をチケットから都度求める
-- EP-4 閉じる・再開するのは人だけ。done・abandoned 以外のチケットが残るときは閉じるのを拒否し、`--force` で閉じられる（残ったチケットの `epic` はそのまま）。閉じた Epic にはチケットを足せない
+- EP-4 閉じる・再開するのは人だけ。done・abandoned 以外のチケットが残るときは閉じるのを拒否し、強制の指定で閉じられる（残ったチケットの `epic` はそのまま）。閉じた Epic にはチケットを足せない（TK-6）
 - EP-5 Epic の状態はチケットの遷移を縛らない。Epic に削除はない（閉じて残す）
 
 ### 5.6 Iteration（`iterations/s3.yaml`）
 
-- IT-1 `id`、`project`、`name`、`goal`、`start`、`end`、`status`（`planned` / `active` / `closed`）を持つ。閉じたときに `closed_at` と完了・持ち越しの件数を書く
-- IT-2 所属はチケットの `iteration` で表し、Iteration 側にチケットの一覧は持たない（Epic と同じ）。入れるのは同じ Project のチケットだけ。Iteration 内の並びは優先度と番号で、閉じるときに done・abandoned 以外のチケットの `iteration` を外す
+- IT-1 `id`、`project`、`name`、`goal`、`start`、`end`、`status`（`planned` / `active` / `closed`）を持つ。閉じるのは人だけで、閉じたときに `closed_at` と完了・持ち越しの件数（`completed`・`carried_over`）を書く
+- IT-2 所属はチケットの `iteration` で表し、Iteration 側にチケットの一覧は持たない（Epic と同じ）。入れるのは同じ Project のチケットだけで、閉じた Iteration には入れられない。Iteration 内の並びは優先度と番号で、閉じるときに done・abandoned 以外のチケットの `iteration` を外す
 
 ### 5.7 Plan（`plans/p7.yaml`）
 
-- PL-1 `id`、`project`、`tickets`、`after`（計画内だけの待ち。チケットの依存とは別）、`pending_approval`、`approved_by`、`approved_at`、`details.<ticket>.{scope, approach}` を持つ
+- PL-1 `id`、`project`、`tickets`、`after`（計画内だけの待ち。チケットの依存とは別）、`pending_approval`、`approved_by`、`approved_at`、`details.<ticket>.{scope, approach}`、`closed_at` を持つ
 - PL-2 進捗は Plan に書かない。チケットの状態から都度求める。Plan を書くのは作成・承認・終了のときだけ
 - PL-3 1 つのチケットは同時に 1 つの Plan にしか入らない。done のチケットは入れられない
 
@@ -160,10 +160,10 @@ id: software-development
 name: Software Development
 labels: # 任意。Status の表示名だけを変える
   review: コードレビュー
-transitions: # 任意。組み込みの遷移に条件を足すか、誰が行えるかを狭める
-  - { from: todo, to: in_progress, requires: [deps_done] }
-  - { from: review, to: done, requires: [branch_merged], by: [human, reconcile] }
+transitions: # 任意。組み込みの遷移に条件を足すか、誰が行えるかを狭める（AND。OR は書けない）
+  - { from: review, to: done, by: [human] }
 reconcile: # 上から評価し、前進するときだけ書き換える
+  - { when: [pr_merged], status: done } # squash マージは branch_merged で取れないので PR を先に見る
   - { when: [branch_merged], status: done }
   - { when: [pr_open, "!pr_draft"], status: review }
   - { when: [branch_exists], status: in_progress }
@@ -174,7 +174,7 @@ fields:
 - WF-1 Status は全ワークフロー共通の 5 つ（`todo` / `in_progress` / `review` / `done` / `abandoned`）。前進の順は todo → in_progress → review → done で、`abandoned` は前進の軸の外の終端。遷移表は Core が持ち（[ADR-003](adr/ADR-003-status-and-workflow.md)）、ワークフローは `requires` を足すか `by` を狭めるだけで、遷移を増やしたり外したりできない
 - WF-2 `requires` と `reconcile.when` に書けるのは組み込みの事実（`deps_done`、`branch_exists`、`branch_pushed`、`branch_merged`、`pr_open`、`pr_draft`、`pr_merged`）とその否定（`!pr_draft`）だけ。`deps_done` は `depends_on` のすべてが done か abandoned のとき真（やめたチケットは待たない）。利用者のスクリプトは実行しない（[ADR-003](adr/ADR-003-status-and-workflow.md)）
 - WF-3 存在しない Status や遷移を指す項目、未知の条件は読み込み時と `dg workflow validate` で指摘する
-- WF-4 `software-development`・`consulting`・`general` のテンプレートを同梱し、`dg init --template` でコピーする
+- WF-4 `software-development`・`consulting`・`general` のテンプレートを同梱し、`dg init` が 3 つとも置く。`default` プロジェクトの Workflow はそのどれかを選べ、既定は `general`
 - WF-5 Phase 3 で `steps`（Run の step の語彙）と、step ごとの Action・承認の要否を足す。手続きは YAML に書かず `dg guide` が持つ
 
 ### 5.9 Run（`runs/`、Phase 3）
@@ -195,15 +195,15 @@ fields:
 | `metrics.read_transcripts`       | 会話記録を読むか                             | `false`               |
 | `actions.shell`                  | 任意のシェルの Action を許すか（Phase 3）    | `false`               |
 
-`commit.mode` の意味。`each` は書き込みのたびにコミットする。`batch` は作業ツリーに残し、`dg commit`・`dg sync`・即時にコミットする操作（CL-3）がまとめて 1 コミットにする。`manual` は `dg commit` だけがコミットし、`dg sync` もまとめない。いずれも `push.mode: auto` ならコミットのたびに push する。
+`commit.mode` の意味。`each` は書き込みのたびにコミットする。`batch` は作業ツリーに残し、`dg commit`・`dg sync`・即時にコミットする操作（CL-3）がまとめて 1 コミットにする（即時の操作は、まとめ待ちの変更を先に 1 コミットにしてから自分のコミットを作る）。`manual` は `dg commit` と即時の操作だけがコミットし、`dg sync` はまとめない。`push.mode` は `auto` ならコミットのたびに push し、`manual` なら `dg sync` が push する。即時の操作はどちらでも push する。
 
-項目の全体は `dg config --help` とスキーマ（`packages/core/src/model/config.ts`）が正本。利用者ごとの上書きは設けない。
+項目の全体はスキーマ（`packages/core/src/model/config.ts`）が正本。利用者ごとの上書きは設けない。
 
 ## 6. 機能要件
 
 ### 6.1 `dg` CLI
 
-- CL-1 すべてのコマンドに `--json` があり、エージェントはそれを読む。終了コードは 0（成功）/ 1（失敗）/ 2（使い方の誤り）
+- CL-1 すべてのコマンドに `--json` があり、エージェントはそれを読む。成功は `{ ok: true, data, warnings, write }`、失敗は `{ ok: false, error: { code, message, detail } }`。終了コードは 0（成功）/ 1（失敗。`validate`・`lint` は指摘があるとき）/ 2（使い方の誤り）。`error.code` の語彙は `packages/core/src/errors.ts` が正本
 - CL-2 コマンドの一覧とオプションは `dg --help` が正本。主な群は次のとおり
 
 | 群        | コマンド                                                                                 | Phase |
@@ -214,14 +214,14 @@ fields:
 | Iteration | `iteration create / list / show / add / remove / start / close`（`sprint` はエイリアス） | 1     |
 | Epic      | `epic create / list / show / update / add / remove / close / reopen`                     | 1     |
 | Workflow  | `workflow list / show / validate`                                                        | 1     |
-| 画面      | `serve`、`open`                                                                          | 1     |
+| 画面      | `serve`、`open`（web の実装までは API だけを配信する）                                   | 1     |
 | 手順      | `guide <topic>`                                                                          | 1     |
 | Plan      | `plan create / approve / show / close`                                                   | 2     |
 | Run       | `run start / finish / list`、`metrics show`                                              | 3     |
 
-- CL-3 書き込みを伴うコマンドは、`commit.mode` に従って deguboard ブランチにコミットする。`ticket create`・`ticket import`・`ticket claim` は mode によらず即座にコミットして push する
+- CL-3 書き込みを伴うコマンドは、`commit.mode` に従って deguboard ブランチにコミットする。作成（`init`、`project / ticket / epic / iteration create`、`ticket import`）と `ticket claim` は `commit.mode`・`push.mode` によらず即座にコミットして push する（採番と排他のため）
 - CL-4 `ticket import` は YAML / JSON の下書き（配列）を 1 コミットで取り込む。下書きの中の仮キーを `depends_on` から参照でき、`epic` に既存の Epic を書ける
-- CL-5 `dg guide <topic>` は、エージェント向けの手順を `config.yaml` の値を埋めて出す。手順の正本は CLI に同梱した Markdown（`packages/cli/src/guide-*.md`）
+- CL-5 `dg guide <topic>` は、エージェント向けの手順を `config.yaml` の値を埋めて出す。トピックは overview（省略時）・create・plan・assign・work・finish。手順の正本は CLI に同梱した Markdown（`packages/cli/src/guide-*.md`）
 - CL-6 CLI はビジネスロジックを持たず、Core のコマンド定義（`packages/core/src/commands/`）を写す
 
 ### 6.2 状態遷移と照合
@@ -229,24 +229,24 @@ fields:
 - ST-1 `status` はチケットに保存する。変えるのは `ticket move`・`claim`・`unclaim`、UI の操作、照合だけ
 - ST-2 遷移は Workflow の `transitions` で検査する。表にない遷移、`requires` を満たさない遷移は拒否する
 - ST-3 `claim` は todo のチケットに `claimed_by`・`branch` を記録して in_progress に進める。`deps_done`（WF-2）でなければ拒否する
-- ST-4 照合は `dg sync` と、サーバー・拡張の定期実行で行う。チケットの `branch` について Git から事実を集め、`reconcile` 規則を上から評価し、今より前進の順が先のときだけ書き換える。`done` と `abandoned` のチケットには触れない
+- ST-4 照合は `dg sync` と、画面の再読み込み（UI-6）で行う。チケットの `branch` について Git から事実を集め、`reconcile` 規則を上から評価し、今より前進の順が先のときだけ書き換える。`done` と `abandoned` のチケットには触れない
 - ST-5 後退を指す事実（消えたブランチ・マージされずに閉じた PR）は書き換えず警告する。ただし同じ照合で done に進むときは、マージ後に消したブランチなので警告しない。取れなかった事実は不明とし、前進の判定では偽と読む
 - ST-6 PR の事実は `gh` が使えるときだけ取る。`gh` がなくても照合は Git の事実だけで成り立つ
-- ST-7 `unclaim` は自分の claim か記録のない claim だけを外す。応答のない claim は `--force` で外す。生存監視はしない
-- ST-8 `abandoned` にできるのは人だけ。claim を外し、Iteration の完了件数と Epic の進捗には数えない。再開（todo に戻す）と done の取り消し（todo に戻す）も人だけが行う
+- ST-7 `unclaim` は in_progress のチケットの、自分の claim か記録のない claim だけを外して todo に戻す。応答のない claim は強制の指定で外す。生存監視はしない
+- ST-8 `abandoned` にできるのは人だけ。claim を外し、Iteration の完了件数と Epic の進捗には数えない。再開（todo に戻す）と done の取り消し（todo に戻す）も人だけが行い、todo に戻すときは `claimed_by` と `branch` を消す
 
 ### 6.3 Git 同期と排他
 
 - SY-1 `dg init` は deguboard ブランチを作るか取り込み、専用 worktree を用意し、`default` プロジェクトとテンプレートのワークフローを置く
-- SY-2 書き込みの単位は「取り込み → 変更 → 検証 → コミット →（`push.mode: auto` なら）push」。push が拒否されたら取り込み直して再送する。送れなければコミットを残し、次の同期で再送する
+- SY-2 書き込みの単位は「取り込み → 変更 → 検証 → コミット →（`push.mode: auto` か即時の操作なら）push」。push が拒否されたら取り込み直して再送する。送れなければコミットを残し、次の同期で再送する
 - SY-3 claim と作成は push の成功をもって取得とする。拒否されたらローカルのコミットを捨てて取り込み直し、判定し直す
 - SY-4 同期で競合したら、rebase を中止してローカルのコミットを残し、`dg sync` が競合を報告する。frontmatter のフィールド単位のマージドライバは Phase 2
-- SY-5 同一マシンでの Run の二重起動は `deguboard-local/locks/<ticket>` で防ぐ。チーム間の排他には使わない
+- SY-5 同一マシンの書き込みは `deguboard-local/locks/` のロックで直列にし、Run の二重起動（Phase 3）も同じ場所のロックで防ぐ。チーム間の排他には使わない
 - SY-6 リモートがなくても、同期を除くすべての操作が動く
 
 ### 6.4 画面（Web UI・VS Code 拡張）
 
-Web UI は `dg serve` が配信し、VS Code 拡張は同じ React アプリを Webview に載せる。表示と操作は両方で同じ（[ADR-006](adr/ADR-006-ui-and-writes.md)）。
+Web UI は `dg serve` が配信し、VS Code 拡張は同じ React アプリを Webview に載せる。表示と操作は両方で同じ（[ADR-006](adr/ADR-006-ui-and-writes.md)）。画面は未実装で、今の `dg serve` は API だけを配信する。
 
 - UI-1 プロジェクトの切り替え
 - UI-2 カンバン：列は todo / in_progress / review / done の 4 つ（表示名は Workflow の `labels`）。abandoned は既定で隠し、切り替えで出す。チケットをドラッグ＆ドロップすると `ticket move` と同じ検査を通して Status が変わり、拒否されたら理由を出して戻す。Epic で絞り込める
@@ -260,11 +260,11 @@ Web UI は `dg serve` が配信し、VS Code 拡張は同じ React アプリを 
 - UI-10 Epic：一覧と進捗（EP-3）、選んだ Epic のチケットを Status ごとに出す。チケットの追加・除外、閉じる・再開
 - UI-11 VS Code 拡張は `dg` を同梱せず、Webview のために `core` を同梱する。画面は `dg` なしで動き、`dg` が PATH にないときはインストールを案内する。`dg` の版と拡張の `core` の版のメジャーが違えば知らせる（[ADR-006](adr/ADR-006-ui-and-writes.md)）
 
-画面の並び順・色・文言は Webview のコード（`packages/web/src/`）とテストが正本。
+画面の並び順・色・文言は web のコード（`packages/web/src/`。web を実装したら）とテストが正本。
 
 ### 6.5 エージェント連携
 
-- AG-1 エージェントは PATH の `dg` を Bash から `dg … --json --actor agent` で呼び、データのファイルを直接編集しない。human と agent の区別は申告（`--actor` か環境変数 `DEGUBOARD_ACTOR`。既定は human）に基づき、Skill と `dg guide` の手順は必ず agent を名乗る。権限管理ではない（対象外）
+- AG-1 エージェントは PATH の `dg` を Bash から `dg … --json --actor agent` で呼び、データのファイルを直接編集しない。human と agent の区別は申告（`--actor` か環境変数 `DEGUBOARD_ACTOR`。既定は human）に基づき、Skill と `dg guide` の手順は必ず agent を名乗る。主体の ID は `--actor-id` か環境変数 `DEGUBOARD_ACTOR_ID`（既定は git の `user.name`@ホスト名）で、`claimed_by` に記録される。権限管理ではない（対象外）
 - AG-2 Claude Code 向けに、`dg guide <topic>` を読む薄い Skill を配る（`dg skill install`、Phase 2）。起票・計画・割り当て・作業・完了の各トピックを用意する
 - AG-3 エージェントは要件の整理が終わったら、必要に応じてチケット化を提案し、承認を得て `ticket import` で起票する。分解・Epic への束ね・依存の整理・Iteration への割り当ても提案して承認を得る（Phase 2）
 - AG-4 MCP サーバーは Core のコマンド定義から生成する薄い層として提供する（Phase 2）。CLI と同じ操作ができる
@@ -282,20 +282,20 @@ Web UI は `dg serve` が配信し、VS Code 拡張は同じ React アプリを 
 ### 6.7 ワークフロー実行（Phase 3〜4）
 
 - EX-1 deguboard はエージェントを起動しない。チケットの処理はエージェント側の Skill が `dg` を呼んで進める
-- EX-2 終了していない Run は `dg run list --open` で見え、`finish --result interrupted` で閉じる
-- EX-3 依存に従う並列実行・自動レビュー・修正ループ・品質ゲート・自動マージは、Skill 側の手順として提供し、`dg ticket list --ready` と Plan の順序に従う（Phase 4）
+- EX-2 終了していない Run は一覧で見え、`interrupted` として閉じられる
+- EX-3 依存に従う並列実行・自動レビュー・修正ループ・品質ゲート・自動マージは、Skill 側の手順として提供し、着手できるチケットの一覧（`ticket list` の `ready`。Phase 1 で実装済み）と Plan の順序に従う（Phase 4）
 - EX-4 人の承認が要る遷移（Workflow の `by: [human]`）は、エージェントからは行えない
 
 ## 7. 非機能要件
 
-- NF-1 外部の専用サーバーなしで動く。リモートがなければオフラインでもタスク管理ができる
-- NF-2 CLI・HTTP・VS Code 拡張は同じ Core のコマンド定義を使い、ビジネスロジックを重複実装しない
+- NF-1 外部の専用サーバーなしで動く。リモートがなければオフラインでもタスク管理ができる（SY-6）
+- NF-2 CLI・HTTP・VS Code 拡張は同じ Core のコマンド定義を使い、ビジネスロジックを重複実装しない（CL-6）
 - NF-3 データ形式は人と AI の両方が読める（Markdown・YAML・JSON）
 - NF-4 更新は検証と原子的な書き込みを行い、ファイルを壊さない
 - NF-5 同時更新の競合を検出して報告する
 - NF-6 Workflow の表にない状態遷移を作れない
 - NF-7 Run の停止・失敗から、状態を壊さずに復旧できる
-- NF-8 サーバーは既定で localhost にバインドする
+- NF-8 サーバーは既定で localhost にバインドする（UI-8）
 - NF-9 Workflow に書かれた任意のコマンドを無条件に実行しない
 - NF-10 Git 管理するログと実績に秘密情報を含めない
 - NF-11 `core` は VS Code API・HTTP・React に依存しない。依存の向きは [ADR-007](adr/ADR-007-architecture.md)

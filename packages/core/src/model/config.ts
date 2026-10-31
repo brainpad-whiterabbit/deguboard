@@ -28,13 +28,13 @@ export const configSchema = z.looseObject({
     .prefault({}),
   commit: z
     .looseObject({
-      /** each: 1 操作 1 コミット / batch: 入口がまとめる / manual: dg commit */
+      /** each: 書き込みのたびにコミット / batch: 作業ツリーに残し、dg commit・dg sync・即時の操作がまとめてコミット / manual: dg commit と即時の操作だけ */
       mode: z.enum(COMMIT_MODES).default("batch"),
     })
     .prefault({}),
   push: z
     .looseObject({
-      /** auto: コミットのたびに push / manual: dg sync で push */
+      /** auto: コミットのたびに push / manual: dg sync が push する（即時の操作は manual でも push する） */
       mode: z.enum(PUSH_MODES).default("auto"),
     })
     .prefault({}),
