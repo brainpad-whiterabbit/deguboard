@@ -32,6 +32,14 @@
 - ESLint・Prettier・Biome は入れない
 - 版は package.json に固定する
 
+### 画面（web）は依存を少なく
+
+- React 19 を Vite でビルドし、`base: "./"` で相対パスにして `dg serve` でも VS Code の Webview でも読めるようにする
+- CSS は自前で、VS Code の `--vscode-*` 変数を基準にする。ブラウザ向けの既定値は `styles.css` の `:root` に置く
+- ドラッグ＆ドロップは `@dnd-kit/core`。画面の切り替えは URL のハッシュで自前。状態管理のライブラリは入れず、React の context だけで持つ
+- 更新は書き込み後の読み直しと `GET /api/status` のポーリング。WebSocket と SSE は入れない
+- テストは Vitest + Testing Library + jsdom で、`CommandClient` を差し替えて画面を結合して確かめる
+
 ### 文書の検査
 
 - `scripts/check-docs.mjs` が文書の予算と ADR 一覧の整合を検査する（[ADR-001](ADR-001-doc-strategy.md)）。`mise run check` に含める
@@ -53,4 +61,7 @@
 - **npm scripts を直接使う**：ツールの版が揃わず、入口が `npm run` と `mise` の 2 つになる
 - **Hono や Fastify**：ミドルウェアと型つきのルートが使えるが、エンドポイントが 3 つの用途では依存が増えるだけ。MCP や SSE を足すときに要るなら、そのときに入れる
 - **Turborepo や Nx**：パッケージが 5 つで、pnpm workspace の `-r` で足りる
+- **Tailwind**：Webview のテーマは CSS 変数で渡るので、変数を直接使う自前の CSS の方が短い。ビルドの層も増えない
+- **react-router**：Webview では遷移できず、画面が 5 種なのでハッシュの解析で足りる
+- **Redux や Zustand**：状態は「選んだ Project の一覧と同期の状態」だけで、書き込みのたびに読み直す方が CLI との整合が取りやすい
 - **Node 22（LTS）**：VS Code の拡張ホストと揃える意味で 24 にする。vscode のチケット（t5）で拡張ホストの版を確かめ、ずれていればこの節を直す

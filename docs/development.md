@@ -55,16 +55,16 @@ mise run dg -- guide finish    # マージ後の後始末
 
 ## ビルドとテスト
 
-- TypeScript は ESM（`"type": "module"`）で、相対 import は `.js` の拡張子で書く。設定はルートの `tsconfig.base.json` と `tsconfig.json` にあり、`mise run typecheck` は `packages/*/src` と `packages/*/test` をまとめて `noEmit` で検査する
-- `mise run build` が `tsconfig.build.json`（プロジェクト参照）で `core`・`server`・`cli` を `dist/` に出す。`dg` を動かすにはこのビルドが要る。`mise run dg -- <引数>` でビルド済みの `dg` を動かせる（例：`mise run dg -- ticket list`）。リポジトリの外のディレクトリに対して動かすときは `-C <dir>` を付ける
+- TypeScript は ESM（`"type": "module"`）で、相対 import は `.js` の拡張子で書く。設定はルートの `tsconfig.base.json` と `tsconfig.json` にあり、`mise run typecheck` は `packages/*/src` と `packages/*/test` をまとめて `noEmit` で検査し、DOM と JSX が要る `web` だけ `packages/web/tsconfig.json` で別に検査する
+- `mise run build` が `tsconfig.build.json`（プロジェクト参照）で `core`・`server`・`cli` を、Vite で `web` を `dist/` に出す。`dg` を動かすにはこのビルドが要る。`mise run dg -- <引数>` でビルド済みの `dg` を動かせる（例：`mise run dg -- ticket list`）。リポジトリの外のディレクトリに対して動かすときは `-C <dir>` を付ける
 - `@deguboard/core` の `exports` は条件つきで、テストと型検査（`development` 条件）は `src/` を、ビルド済みの `dg` は `dist/` を見る。テストの前にビルドは要らない
-- テストはソースの隣の `*.test.ts` に置き、ルートの `vitest.config.ts` が `packages/*/src/**/*.test.ts` をまとめて走らせる。パッケージごとの設定ファイルは作らない
+- テストはソースの隣の `*.test.ts`（画面は `*.test.tsx`）に置き、ルートの `vitest.config.ts` が `packages/*/src/**/*.test.{ts,tsx}` をまとめて走らせる。パッケージごとの設定ファイルは作らない
 - Git を使うテストは `packages/core/test/helpers/git-fixture.ts` で、一時ディレクトリに bare リモートと 2 つの clone を作って行う（CLAUDE.md の規約）。開発者のグローバル設定に影響されないよう、fixture が `GIT_CONFIG_GLOBAL=/dev/null` と `GIT_CONFIG_NOSYSTEM=1` を与える
 - 依存を足すときは `pnpm install` で lockfile を更新してからコミットする（`mise run install` は `--frozen-lockfile`）
 
 ## パッケージ
 
-構成と依存の向きは [ADR-007](adr/ADR-007-architecture.md)。今あるのは `core`・`server`・`cli` で、`web`（t4）・`vscode`（t5）はこれから作る。
+構成と依存の向きは [ADR-007](adr/ADR-007-architecture.md)。今あるのは `core`・`server`・`cli`・`web` で、`vscode`（t5）はこれから作る。
 
 ### `packages/core`（`@deguboard/core`）
 
@@ -103,6 +103,21 @@ core の `commands` を HTTP に写す。Node 標準の `node:http` で、フレ
 - エラーは HTTP の状態に写す：入力の誤り 400、`NOT_FOUND` 404、初期化前 503、それ以外の拒否 409、想定外 500。本文は `{ ok: false, error: { code, message, detail? } }`
 - 画面からの操作は常に人（`actor.kind: "human"`。[ADR-006](adr/ADR-006-ui-and-writes.md)）。`init` は HTTP に出さない
 - リクエストは 1 つずつ順に処理し、毎回 `Store.rescan()` で CLI など他のプロセスの変更を取り込む。ファイル監視は持たない
+
+### `packages/web`（`@deguboard/web`）
+
+画面の React アプリ。構成の判断は [ADR-008](adr/ADR-008-tech-stack.md)。core からは型と `CommandClient`（`core/commands/client.ts`）だけを取り込み、実行時のコードは取り込まない（`import type` だけ。Vite が node のモジュールを束ねないため）。`src/` のファイル：
+
+| ファイル         | 役割                                                                                                                  |
+| ---------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `client/http.ts` | `CommandClient` の HTTP 実装。`/api/commands/<name>` と `/api/status` を呼び、失敗は `ClientError`（code と message） |
+| `store.tsx`      | 選んだ Project のチケット・Epic・Iteration・Workflow と同期の状態を読み、書き込み（`run`）のあとに読み直す            |
+| `router.ts`      | ハッシュの解析（`#/board?epic=e1`、`#/tickets/t12`、`#/epics/e1`、`#/iterations/s1`）                                 |
+| `pages/`         | カンバン（UI-2）・バックログ（UI-3）・チケット詳細（UI-4）・Epic（UI-10）・Iteration（UI-5）                          |
+| `markdown.tsx`   | 本文の最小の Markdown（見出し・段落・箇条書き・チェックリスト・インラインコード）                                     |
+| `styles.css`     | `--vscode-*` 変数を基準にしたテーマ。`:root` の値はブラウザで開いたときの既定で、Webview では VS Code の値が勝つ      |
+
+型検査は `tsconfig.json` を別に持つ（DOM と JSX が要るため。ルートの `typecheck` が両方を回す）。ビルドは Vite で `dist/` に出し、`dg serve` は `packages/web/dist` があればそれを配信する（`cli/program.ts` の `webDist`）。テストは `// @vitest-environment jsdom` を付け、`test-helpers.ts` の `mockClient` で `CommandClient` を差し替える。
 
 ## リリース
 

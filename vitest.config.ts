@@ -4,7 +4,7 @@ export default defineConfig({
   // @deguboard/core を dist ではなく src で解決する（ビルドなしでテストする）
   resolve: { conditions: ["development"] },
   test: {
-    include: ["packages/*/src/**/*.test.ts"],
+    include: ["packages/*/src/**/*.test.{ts,tsx}"],
     // Git を使うテストは bare リモートと clone を作るので余裕を持たせる
     testTimeout: 20_000,
   },

@@ -246,7 +246,7 @@ fields:
 
 ### 6.4 画面（Web UI・VS Code 拡張）
 
-Web UI は `dg serve` が配信し、VS Code 拡張は同じ React アプリを Webview に載せる。表示と操作は両方で同じ（[ADR-006](adr/ADR-006-ui-and-writes.md)）。画面は未実装で、今の `dg serve` は API だけを配信する。
+Web UI は `dg serve` が配信し、VS Code 拡張は同じ React アプリを Webview に載せる。表示と操作は両方で同じ（[ADR-006](adr/ADR-006-ui-and-writes.md)）。VS Code 拡張は予定（t5）。
 
 - UI-1 プロジェクトの切り替え
 - UI-2 カンバン：列は todo / in_progress / review / done の 4 つ（表示名は Workflow の `labels`）。abandoned は既定で隠し、切り替えで出す。チケットをドラッグ＆ドロップすると `ticket move` と同じ検査を通して Status が変わり、拒否されたら理由を出して戻す。Epic で絞り込める
@@ -260,7 +260,7 @@ Web UI は `dg serve` が配信し、VS Code 拡張は同じ React アプリを 
 - UI-10 Epic：一覧と進捗（EP-3）、選んだ Epic のチケットを Status ごとに出す。チケットの追加・除外、閉じる・再開
 - UI-11 VS Code 拡張は `dg` を同梱せず、Webview のために `core` を同梱する。画面は `dg` なしで動き、`dg` が PATH にないときはインストールを案内する。`dg` の版と拡張の `core` の版のメジャーが違えば知らせる（[ADR-006](adr/ADR-006-ui-and-writes.md)）
 
-画面の並び順・色・文言は web のコード（`packages/web/src/`。web を実装したら）とテストが正本。
+画面の並び順・色・文言は web のコード（`packages/web/src/`）とテストが正本。
 
 ### 6.5 エージェント連携
 

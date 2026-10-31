@@ -29,7 +29,7 @@ description = "vitest でテストする"
 run = "pnpm run test"
 
 [tasks.build]
-description = "tsc で core と cli を dist にビルドする（dg を動かすのに要る）"
+description = "core・server・cli を tsc で、web を Vite で dist にビルドする（dg を動かすのに要る）"
 run = "pnpm run build"
 
 [tasks.dg]
