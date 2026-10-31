@@ -1,5 +1,6 @@
 // 画面の骨組み：上のバー（Project の切り替え・画面の切り替え・同期の印）と、ハッシュで選んだページ
 
+import type { MouseEvent } from "react";
 import { useHost } from "./host.js";
 import { useStore } from "./store.js";
 import { hrefOf, useRoute, type Route } from "./router.js";
@@ -22,36 +23,46 @@ export function App() {
   const host = useHost();
   const sidebar = host.surface === "sidebar";
   const active = route.page === "ticket" ? "backlog" : route.page;
+  // エディタのパネルに出すチケット詳細は 1 枚で完結するので、タブ・Project・同期のヘッダーを出さない（UI-12）。
+  // 「画面を開く」でカンバンをパネルに出したときはタブが要るので残す
+  const detailPanel = host.surface === "panel" && route.page === "ticket";
   return (
-    <div className="app" data-surface={host.surface}>
-      <header className="topbar">
-        {sidebar ? null : <strong className="brand">deguboard</strong>}
-        <nav aria-label="画面">
-          {NAV.map((n) => (
-            <a key={n.page} href={n.href} className={active === n.page ? "active" : ""}>
-              {n.label}
-            </a>
-          ))}
-        </nav>
-        <div className="spacer" />
-        {/* サイドバーでは Project が 1 つなら切り替えを出さない（幅を節約する） */}
-        <label className="project-select" hidden={sidebar && store.projects.length <= 1}>
-          Project
-          <select
-            value={store.project?.id ?? ""}
-            onChange={(e) => store.selectProject(e.target.value)}
-            disabled={store.projects.length === 0}
-          >
-            {store.projects.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-                {p.status === "archived" ? "（アーカイブ）" : ""}
-              </option>
+    <div className="app" data-surface={host.surface} onClick={followHashLink}>
+      {detailPanel ? null : (
+        <header className="topbar">
+          {sidebar ? null : <strong className="brand">deguboard</strong>}
+          <nav aria-label="画面">
+            {NAV.map((n) => (
+              <a
+                key={n.page}
+                href={n.href}
+                className={active === n.page ? "active" : ""}
+                aria-current={active === n.page ? "page" : undefined}
+              >
+                {n.label}
+              </a>
             ))}
-          </select>
-        </label>
-        <SyncIndicator />
-      </header>
+          </nav>
+          <div className="spacer" />
+          {/* サイドバーでは Project が 1 つなら切り替えを出さない（幅を節約する） */}
+          <label className="project-select" hidden={sidebar && store.projects.length <= 1}>
+            Project
+            <select
+              value={store.project?.id ?? ""}
+              onChange={(e) => store.selectProject(e.target.value)}
+              disabled={store.projects.length === 0}
+            >
+              {store.projects.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                  {p.status === "archived" ? "（アーカイブ）" : ""}
+                </option>
+              ))}
+            </select>
+          </label>
+          <SyncIndicator />
+        </header>
+      )}
       <NoticeBar />
       <main className="page">
         {store.loading && store.tickets.length === 0 ? (
@@ -63,6 +74,22 @@ export function App() {
       </main>
     </div>
   );
+}
+
+/**
+ * ハッシュのリンク（#/backlog など）は、ここで受けて自分でハッシュを書く。
+ * VS Code の Webview は <a> のクリックを横取りし、href がハッシュだけのリンクはページ内アンカーへのスクロールとみなして
+ * preventDefault するので、ブラウザに任せるとハッシュが変わらない。React の onClick は document のハンドラより先に走る。
+ * TicketLink（サイドバー）やドラッグ直後のように先に preventDefault されたもの、修飾キーつきのクリックには触らない
+ */
+function followHashLink(e: MouseEvent<HTMLElement>) {
+  if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey)
+    return;
+  const anchor = (e.target as Element | null)?.closest?.("a[href^='#']");
+  const href = anchor?.getAttribute("href");
+  if (!href) return;
+  e.preventDefault();
+  window.location.hash = href;
 }
 
 function Page({ route }: { route: Route }) {

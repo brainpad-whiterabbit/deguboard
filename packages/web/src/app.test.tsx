@@ -127,6 +127,49 @@ describe("画面", () => {
     expect(document.querySelectorAll("ul.rows > li")).toHaveLength(2);
   });
 
+  it("Webview がリンクのクリックを横取りしても（document で preventDefault）、タブを押すとハッシュが変わり aria-current が移る", async () => {
+    const intercept = (e: Event) => e.preventDefault();
+    document.addEventListener("click", intercept);
+    try {
+      mount(mockClient(), { surface: "sidebar", openTicket: () => {} });
+      await screen.findByText("ログイン");
+      const board = screen.getByRole("link", { name: "カンバン" });
+      expect(board.getAttribute("aria-current")).toBe("page");
+      fireEvent.click(screen.getByRole("link", { name: "バックログ" }));
+      expect(window.location.hash).toBe("#/backlog");
+      await screen.findByRole("heading", { level: 1, name: "バックログ" });
+      expect(screen.getByRole("link", { name: "バックログ" }).getAttribute("aria-current")).toBe(
+        "page",
+      );
+      expect(board.getAttribute("aria-current")).toBeNull();
+    } finally {
+      document.removeEventListener("click", intercept);
+    }
+  });
+
+  it("エディタのパネルのチケットリンクはホストに頼み（同じパネルで遷移して題が変わる）、それ以外のリンクはハッシュ遷移", async () => {
+    window.location.hash = "#/backlog";
+    const opened: string[] = [];
+    mount(mockClient(), { surface: "panel", openTicket: (id) => opened.push(id) });
+    fireEvent.click(await screen.findByText("API"));
+    expect(opened).toEqual(["t2"]);
+    expect(window.location.hash).toBe("#/backlog");
+    fireEvent.click(screen.getByRole("link", { name: "Epic" }));
+    expect(window.location.hash).toBe("#/epics");
+  });
+
+  it("エディタのパネルでチケット詳細を出すときはヘッダー（タブ・Project・同期）を出さない。カンバンでは出す", async () => {
+    window.location.hash = "#/tickets/t3";
+    mount(mockClient(), { surface: "panel", openTicket: () => {} });
+    await screen.findByRole("heading", { level: 1, name: "画面" });
+    expect(screen.queryByRole("navigation", { name: "画面" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "同期" })).toBeNull();
+    expect(screen.queryByText("deguboard")).toBeNull();
+    window.location.hash = "#/board";
+    await screen.findByRole("navigation", { name: "画面" });
+    expect(screen.getByRole("button", { name: "同期" })).toBeTruthy();
+  });
+
   it("ブラウザではチケットのリンクが詳細へのハッシュ遷移のまま", async () => {
     window.location.hash = "#/backlog";
     mount();

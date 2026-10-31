@@ -53,6 +53,12 @@ export function renderWebviewHtml(indexHtml: string, options: HtmlOptions): stri
     );
 }
 
+/** ルート（#/tickets/t12）が指すチケットの番号。チケット詳細でなければ undefined。パネルの題に使う（UI-12） */
+export function ticketOfRoute(route: string): string | undefined {
+  const m = /^#\/tickets\/([^/?#]+)/.exec(route);
+  return m?.[1];
+}
+
 /** 画面を出せないとき（フォルダを開いていない）に Webview に出す、スクリプトのない HTML */
 export function renderMessageHtml(text: string): string {
   return `<!doctype html>
@@ -75,7 +81,7 @@ function escapeAttribute(value: string): string {
     .replace(/"/g, "&quot;");
 }
 
-/** 画面の外（エディタ）への働きかけ。サイドバーだけが持ち、持たない画面からの action は拒否する */
+/** 画面の外（エディタ）への働きかけ。サイドバーとパネルが持ち、持たない画面からの action は拒否する */
 export interface WebviewActions {
   openTicket(ticket: string): void | Promise<void>;
 }

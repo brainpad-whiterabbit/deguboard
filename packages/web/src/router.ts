@@ -1,4 +1,5 @@
-// 画面の切り替えは URL のハッシュで行う（#/board、#/tickets/t12）。Webview では遷移できないため、ルーターのライブラリは入れない
+// 画面の切り替えは URL のハッシュで行う（#/board、#/tickets/t12）。Webview の URL は固定でパスの遷移ができないため、ルーターのライブラリは入れない。
+// Webview は <a href="#…"> のクリックを横取りしてハッシュを変えないので、リンクのクリックは App が受けてハッシュを書く（app.tsx の followHashLink）
 
 import { useEffect, useState } from "react";
 
