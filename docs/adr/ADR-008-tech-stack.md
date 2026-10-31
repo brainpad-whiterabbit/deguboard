@@ -13,7 +13,7 @@
 
 - TypeScript、Node.js 24、pnpm workspace
 - スキーマと検証は Zod。CLI は commander。UI は React（Vite でビルド）。テストは Vitest
-- HTTP サーバーのフレームワークは Phase 1 の server チケットで決める（依存の少ない軽量なもの）
+- HTTP サーバーは Node 標準の `node:http` で書き、フレームワークを入れない。要るのは「`POST /api/commands/<名前>` に JSON を渡して結果を返す」「静的ファイルの配信」だけなので、小さなルータで足りる
 - git と gh は `child_process.execFile` で引数配列として呼ぶ。シェルを経由しない
 - DB は使わない（ADR-007）
 
@@ -42,6 +42,7 @@
 - oxlint と oxfmt は同じツールチェーン（oxc）で、ESLint と Prettier より桁違いに速く、設定がほとんど要らない。エージェントが毎回の変更で `check` を回すので、速さがそのまま開発速度になる
 - Zod は型とスキーマを 1 か所に書け、`core/commands` の入力スキーマから CLI のヘルプと HTTP の検証を生成できる
 - `execFile` で引数配列として呼べば、ブランチ名やタイトルにシェルの特殊文字が入っても安全
+- HTTP にフレームワークを入れないのは、エンドポイントが core のコマンド定義から機械的に決まり、ルーティングの表現力が要らないため。依存が減り、`127.0.0.1` に閉じるローカルの用途に合う
 - Vitest は TypeScript と ESM をそのまま扱え、workspace のパッケージをまとめて走らせられる
 - CI を置かないのは、実装するのが主にエージェントで、変更のたびにローカルで `check` を回すから。同じ検査を CI でもう一度回しても得るものが少なく、ワークフローの保守が増える
 
@@ -50,5 +51,6 @@
 - **ESLint + Prettier**：設定と plugin が多く、遅い。型つきの規則も oxlint で足りる範囲から始める
 - **Biome**：lint と format を 1 つにできるが、oxc の方が速く、Prettier との互換が高い
 - **npm scripts を直接使う**：ツールの版が揃わず、入口が `npm run` と `mise` の 2 つになる
+- **Hono や Fastify**：ミドルウェアと型つきのルートが使えるが、エンドポイントが 3 つの用途では依存が増えるだけ。MCP や SSE を足すときに要るなら、そのときに入れる
 - **Turborepo や Nx**：パッケージが 5 つで、pnpm workspace の `-r` で足りる
 - **Node 22（LTS）**：VS Code の拡張ホストと揃える意味で 24 にする。Phase 1 の vscode チケットで拡張ホストの版を確かめ、ずれていればこの節を直す
