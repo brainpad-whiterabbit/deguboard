@@ -124,13 +124,13 @@ core の `commands` を HTTP に写す。Node 標準の `node:http` で、フレ
 
 VS Code 拡張。拡張ホストから core の `createLocalClient` を呼び、Webview に web のビルド結果を載せる。サーバーは起動せず、`dg` は同梱しない（[ADR-006](adr/ADR-006-ui-and-writes.md)）。`src/` のファイル：
 
-| ファイル       | 役割                                                                                                                                                              |
-| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `extension.ts` | 入口。コマンド `deguboard.open` で作業フォルダごとに 1 つの Webview を開き、postMessage の要求を `webview.ts` に通す。VS Code の API に触れるのはこのファイルだけ |
-| `webview.ts`   | Vite が出した `index.html` を Webview 向けに直す（URI・CSP・nonce）、要求を `CommandClient` に通して同じ id の応答にする                                          |
-| `dg.ts`        | PATH の `dg` を引く 1 か所。ないときはインストールの案内、同梱の core とメジャーが違えば知らせる（UI-11）                                                         |
+| ファイル       | 役割                                                                                                                        |
+| -------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `extension.ts` | 入口。`deguboard.open` で作業フォルダごとに Webview を開き、要求を `webview.ts` に通す。VS Code の API に触れるのはここだけ |
+| `webview.ts`   | Vite が出した `index.html` を Webview 向けに直す（URI・CSP・nonce）、要求を `CommandClient` に通して同じ id の応答にする    |
+| `dg.ts`        | PATH の `dg` を引く 1 か所。ないときはインストールの案内、同梱の core とメジャーが違えば知らせる（UI-11）                   |
 
-ビルドは Vite の SSR ビルドで `dist/extension.cjs` の 1 ファイルに束ね（core は `development` 条件で `src` から取り込む。`vscode` だけ外に残す）、web の `dist` を `dist/web` に写す。同梱する core の版は `vite.config.ts` の `define` で `__CORE_VERSION__` に埋める。手元で動かすには `mise run build` のあと VS Code で `packages/vscode` を開いて F5（拡張開発ホスト）、コマンドパレットの「deguboard: 画面を開く」。
+ビルドは Vite で `dist/extension.cjs` に束ね、web の `dist` を `dist/web` に写す（[ADR-008](adr/ADR-008-tech-stack.md)）。同梱する core の版は `vite.config.ts` の `define` で埋める。手元で動かすには `mise run build` のあと VS Code で `packages/vscode` を開いて F5（拡張開発ホスト）、コマンドパレットの「deguboard: 画面を開く」。
 
 VSIX にして入れるには：
 
