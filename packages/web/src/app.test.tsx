@@ -217,7 +217,7 @@ describe("画面", () => {
   it("サイドバーでは同期の印とボタンを出さない（ビューのタイトル行とバッジで代える）", async () => {
     const client = mockClient();
     client.data.status = { ...client.data.status, ahead: 2 };
-    mount(client, { surface: "sidebar", openTicket: () => {} });
+    mount(client, webviewHost("sidebar"));
     await screen.findByText("ログイン");
     expect(screen.queryByRole("button", { name: "同期" })).toBeNull();
     expect(screen.queryByText("未 push 2")).toBeNull();
