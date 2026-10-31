@@ -9,13 +9,16 @@
     "format": "oxfmt",
     "format:check": "oxfmt --check",
     "lint": "oxlint",
-    "typecheck": "node -e \"console.log('typecheck: Phase 1 の基盤チケットで tsc を有効にする')\"",
-    "test": "node -e \"console.log('test: Phase 1 の基盤チケットで vitest を有効にする')\"",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run",
     "check:docs": "node scripts/check-docs.mjs"
   },
   "devDependencies": {
+    "@types/node": "24.19.2",
     "oxfmt": "0.75.0",
-    "oxlint": "1.90.0"
+    "oxlint": "1.90.0",
+    "typescript": "5.9.3",
+    "vitest": "5.0.5"
   },
   "engines": {
     "node": ">=24"
