@@ -34,6 +34,21 @@ interface Ran {
   };
 }
 
+/** 制約を書いた Workflow（strict）を clone のデータディレクトリに置く */
+async function writeStrictWorkflow(clone: string): Promise<void> {
+  await writeFile(
+    path.join(clone, ".git/deguboard/workflows/strict.yaml"),
+    [
+      "id: strict",
+      "name: Strict",
+      "transitions:",
+      "  - { from: todo, to: done, by: [] }",
+      "  - { from: todo, to: abandoned, by: [human] }",
+      "",
+    ].join("\n"),
+  );
+}
+
 /** dg を in-process で動かす */
 async function dg(cwd: string, argv: string[], env: NodeJS.ProcessEnv = {}): Promise<Ran> {
   const out: string[] = [];
@@ -105,13 +120,16 @@ describe("dg", () => {
   it("拒否された遷移は終了コード 1 と error.code、入力の誤りと未知のコマンドは 2", async () => {
     const f = await fixture();
     await dg(f.cloneA, ["init"]);
-    await dg(f.cloneA, ["ticket", "create", "A"]);
+    await writeStrictWorkflow(f.cloneA);
+    await dg(f.cloneA, ["ticket", "create", "A", "--workflow", "strict"]);
     const rejected = await dg(f.cloneA, ["--json", "ticket", "move", "1", "done"]);
     expect(rejected.code).toBe(1);
     expect(rejected.json()).toMatchObject({ ok: false, error: { code: "TRANSITION_REJECTED" } });
     const human = await dg(f.cloneA, ["ticket", "move", "1", "done"]);
     expect(human.code).toBe(1);
-    expect(human.err).toContain("エラー: todo から done への遷移は遷移表にない");
+    expect(human.err).toContain(
+      "エラー: todo から done への遷移は Workflow がこの主体に許していない",
+    );
 
     expect((await dg(f.cloneA, ["ticket", "create", "x", "--priority", "nope"])).code).toBe(2);
     expect((await dg(f.cloneA, ["ticket", "nope"])).code).toBe(2);
@@ -136,10 +154,11 @@ describe("dg", () => {
     });
   });
 
-  it("--actor agent では abandoned への move が拒否され、環境変数 DEGUBOARD_ACTOR も効く", async () => {
+  it("--actor agent では by: [human] の遷移が拒否され、環境変数 DEGUBOARD_ACTOR も効く", async () => {
     const f = await fixture();
     await dg(f.cloneA, ["init"]);
-    await dg(f.cloneA, ["ticket", "create", "A"]);
+    await writeStrictWorkflow(f.cloneA);
+    await dg(f.cloneA, ["ticket", "create", "A", "--workflow", "strict"]);
     const viaOption = await dg(f.cloneA, [
       "--json",
       "--actor",

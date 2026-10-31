@@ -1,5 +1,5 @@
 // Workflow 定義の形（workflows/<id>.yaml。requirements.md 5.8）。
-// ここは YAML の形だけを検証し、意味（遷移表にあるか、条件が既知か）は workflow/validate.ts が検査する。
+// ここは YAML の形だけを検証し、意味（条件が既知か、同じ遷移の重複）は workflow/validate.ts が検査する。
 
 import { z } from "zod";
 import { slugSchema, statusSchema } from "./common.js";
@@ -36,6 +36,7 @@ export const workflowDefinitionSchema = z.looseObject({
         from: statusSchema,
         to: statusSchema,
         requires: z.array(conditionShape).default([]),
+        // 省略なら誰でも、[] ならその遷移を禁止
         by: z.array(z.enum(ACTORS)).optional(),
       }),
     )

@@ -24,27 +24,19 @@ deguboard はソフトウェア開発だけでなく、コンサルティング�
 - ワークフローは Status を増やせない。表示名（label）だけを変えられる
 - 工程（調査・実装・テストなど）はチケットの属性にしない。Run を実装するときに `step` を持たせ、「チケットがどこまで進んだか」と「Run が何をしたか」を分ける。工程をチケットに表示したいだけなら Workflow の `fields` で任意フィールドを足す
 
-### 遷移表は Core が持つ
+### 遷移は既定で自由にし、Workflow が制約を足す
 
-| from                        | to          | 誰が                      | 備考                                               |
-| --------------------------- | ----------- | ------------------------- | -------------------------------------------------- |
-| todo                        | in_progress | human / agent             | claim。`deps_done` でなければ拒否                  |
-| in_progress                 | review      | human / agent / reconcile |                                                    |
-| review                      | in_progress | human                     | 差し戻し                                           |
-| review                      | done        | human / reconcile         |                                                    |
-| in_progress                 | done        | human / reconcile         | レビューを要しない作業。照合はマージの事実で進める |
-| todo / in_progress / review | abandoned   | human                     | claim を外す                                       |
-| abandoned / done            | todo        | human                     | 再開                                               |
-
-- 表にない遷移は拒否する。照合（reconcile）は前進の順に進めるだけで、`abandoned` と `done` には触れず、そこからも動かさない
-- ワークフローは組み込みの遷移に `requires`（組み込みの条件）を足すか、`by` を狭める（例：review → done を human だけにする）ことができる。遷移を増やしたり外したりはできない
+- 既定では 5 つの Status の間のどの遷移も、human / agent / reconcile の誰でも条件なしで行える。Core が固定するのは Status の集合と前進の順、同じ Status への move の拒否、`abandoned` と todo に入るときの副作用（`claimed_by` と `branch` を消す）だけ
+- Workflow の `transitions` は from → to ごとに制約を足す。`by` は行える主体（省略なら誰でも、`[]` ならその遷移を禁止）、`requires` は満たすべき組み込みの条件（AND）。例：`{ from: todo, to: in_progress, requires: [deps_done] }` で依存が終わるまで着手を止め、`{ from: review, to: done, by: [human] }` で完了を人に限る。同じ from → to を 2 回書くのは誤りとして検証で指摘する（読み込めた場合は requires の和・by の積で合成する）
+- 照合（reconcile）は遷移の制約とは別の仕様。前進の順に進めるだけで、`abandoned` と `done` には触れず、そこからも動かさない。`by` に `reconcile` を含まない遷移は照合でも止まる
+- Epic と Iteration を閉じる・再開するのは Workflow の外で、常に人だけが行う
 
 ### Workflow YAML は制約と語彙を書く
 
 ワークフロー定義（`workflows/<id>.yaml`）に書くもの：
 
 - `labels`：Status の表示名（任意）
-- `transitions`：組み込みの遷移に足す `requires` と `by` の絞り込み（任意）
+- `transitions`：from → to ごとの `by` と `requires` の制約（任意。書かない遷移は自由）
 - `reconcile`：Git の事実から状態を導く規則。上から評価し、前進するときだけ書き換える
 - `fields`：チケットに追加する任意フィールド（UI の表示項目が追従）
 - Run を実装するときに `steps`（Run の step の語彙）と、各 step で使える Action・承認の要否を足す
@@ -54,7 +46,7 @@ deguboard はソフトウェア開発だけでなく、コンサルティング�
 - 手続き（何をどの順で行うか、条件分岐、失敗時の処理）。手順は `dg guide <topic>` のテキストとして CLI に同梱し、AI が読んで判断する
 - ユーザーのスクリプト。`requires` と `reconcile` の条件は組み込みの事実（`deps_done`、`branch_exists`、`branch_pushed`、`branch_merged`、`pr_open`、`pr_draft`、`pr_merged`）とその否定だけ。`deps_done` は依存先がすべて done か abandoned のとき真
 
-定義の検証（存在しない Status や遷移を指す項目、未知の条件）は `dg workflow validate` と読み込み時に行う。
+定義の検証（存在しない Status を指す項目、未知の条件、同じ遷移の重複）は `dg workflow validate` と読み込み時に行う。
 
 ### テンプレート
 
@@ -72,15 +64,16 @@ deguboard はソフトウェア開発だけでなく、コンサルティング�
 - Status を固定すれば、UI・CLI・照合・集計を 1 つの実装で書け、ワークフローごとの差を吸収する層が要らない。業務の違いは工程（Run の step）と照合規則と任意フィールドで表せる
 - `abandoned` を終端として持つのは、「やめた」を done と混ぜると完了件数と実績が歪み、削除すると経緯が消えるため
 - Status と工程を独立した 2 軸にすると、遷移表が積になり、カンバンの列も決まらない。必要なのは「チケットの進捗」と「Run が何をしたか」の区別で、後者は Run の属性で足りる
-- 状態遷移・承認・排他・記録はプログラムで保証し、要件整理・分解・実装方針・レビュー判断は AI に任せる。Workflow YAML を「制約と語彙」に限れば、エンジンは遷移表の検査と照合だけで済む
+- 状態遷移・承認・排他・記録はプログラムで保証し、要件整理・分解・実装方針・レビュー判断は AI に任せる。Workflow YAML を「制約と語彙」に限れば、エンジンは制約の検査と照合だけで済む
 - 条件を組み込みの事実に限るのは、照合が全員のマシンで走るため
-- 表にない遷移を拒否すれば、依存が終わっていない着手やマージ前の完了を作れない
+- 遷移を既定で自由にするのは、望ましい遷移が業務で違う（レビューを経ない作業、やり直し、やめる判断）ため。Core が表を持つと拒否の理由が業務の外から来て、緩める手段がない。縛りたいチームは `requires: [deps_done]` や `by: [human]` を 1 行書けば足り、エンジンは制約の検査と照合だけで済む
 - Epic（目的の範囲）・Iteration（期間）・Plan（実行順）は役割が違うので別のエンティティにする。進捗を保存しないのは、チケットを動かすたびに Epic も書き換えて衝突させないため
 
 ## 採らなかった案
 
 - **ワークフローごとに Status を定義し、category で抽象化する**：UI・CLI・照合が category を介して動く層が増える。名前の違いは `labels` で足り、段階の違いは 5 つで覆える
-- **Status と工程の 2 軸**：遷移表が積になる。上記
+- **Status と工程の 2 軸**：遷移の組み合わせが積になる。上記
+- **Core が固定の遷移表を持ち、Workflow は狭めるだけ**：当初の案。todo → in_progress の `deps_done` や abandoned の人限定のような一律の拒否が業務に合わず、YAML で緩める手段がなかった
 - **手続きまで YAML に書く**：対話が硬直し、エンジンが増え、手順の変更のたびにスキーマが変わる
 - **条件にユーザーのスクリプトを許す**：全員のマシンで走る。安全性と再現性が落ちる
 - **`abandoned` を持たず削除で表す**：経緯と実績が消える

@@ -24,4 +24,4 @@
 ## 進め方の原則
 
 - 1 度に claim するのは、自分が今すぐ進める 1 枚だけ。先に全部 claim しない（他の人やエージェントが着手できなくなる）
-- 依存先が done でも abandoned でもないチケットは claim できない（`TRANSITION_REJECTED`）。`--ready` に出るまで待つか、依存先を先に進める
+- 依存先が done でも abandoned でもないチケットには着手しない。Workflow が todo → in_progress に `requires: [deps_done]` を書いていれば claim は拒否される（`TRANSITION_REJECTED`）。書いていなくても `--ready` に出るまで待つか、依存先を先に進める

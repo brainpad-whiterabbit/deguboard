@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
@@ -40,6 +40,26 @@ async function fixture(): Promise<Fixture> {
   const f = await createFixture();
   cleanups.push(f.cleanup);
   return f;
+}
+
+/** 制約を書いた Workflow（strict）をデータディレクトリに置いて索引を作り直す */
+async function writeStrictWorkflow(ctx: CommandContext): Promise<void> {
+  await writeFile(
+    path.join(ctx.repo.dataDir, "workflows/strict.yaml"),
+    [
+      "id: strict",
+      "name: Strict",
+      "transitions:",
+      "  - { from: todo, to: in_progress, requires: [deps_done] }",
+      "  - { from: todo, to: done, by: [] }",
+      "  - { from: todo, to: abandoned, by: [human] }",
+      "  - { from: in_progress, to: abandoned, by: [human] }",
+      "  - { from: review, to: abandoned, by: [human] }",
+      "  - { from: done, to: todo, by: [human] }",
+      "",
+    ].join("\n"),
+  );
+  await ctx.store.rescan();
 }
 
 /** init まで済ませた文脈を開く */
@@ -148,38 +168,57 @@ describe("チケットの流れ", () => {
     expect(log[1]).toBe("変更をまとめてコミット");
   });
 
-  it("表にない遷移・人だけの遷移・依存が終わっていない claim は拒否され、依存先が abandoned なら着手できる", async () => {
+  it("既定ではどの遷移も通り、制約を書いた Workflow では by: []・by: [human]・requires: [deps_done] で拒否される", async () => {
     const f = await fixture();
     const human = await initialized(f.cloneA);
+    // 既定（general）：todo → done も、依存が終わっていない claim も、agent の abandoned も通る
     await runCommand(ticketCreate, human, { title: "A" });
     await runCommand(ticketCreate, human, { title: "B", depends_on: ["t1"] });
-    await expect(
-      runCommand(ticketMove, human, { ticket: "t1", status: "done" }),
-    ).rejects.toMatchObject({
-      code: "TRANSITION_REJECTED",
-    });
-    await expect(runCommand(ticketClaim, human, { ticket: "t2" })).rejects.toMatchObject({
-      code: "TRANSITION_REJECTED",
-    });
     const agent = await openContext({
       cwd: f.cloneA,
       actor: { kind: "agent", id: "claude@laptop" },
     });
+    expect(
+      (await runCommand(ticketMove, human, { ticket: "t1", status: "done" })).data.status,
+    ).toBe("done");
+    expect((await runCommand(ticketClaim, agent, { ticket: "t2" })).data.status).toBe(
+      "in_progress",
+    );
+    const dropped = (await runCommand(ticketMove, agent, { ticket: "t2", status: "abandoned" }))
+      .data;
+    expect(dropped.status).toBe("abandoned");
+    expect(dropped.claimed_by).toBeUndefined();
+
+    // strict：制約に当たる遷移だけが拒否される
+    await writeStrictWorkflow(human);
+    await runCommand(ticketCreate, human, { title: "C", workflow: "strict" });
+    await runCommand(ticketCreate, human, { title: "D", depends_on: ["t3"], workflow: "strict" });
+    await agent.store.rescan();
     await expect(
-      runCommand(ticketMove, agent, { ticket: "t1", status: "abandoned" }),
+      runCommand(ticketMove, human, { ticket: "t3", status: "done" }),
+    ).rejects.toMatchObject({
+      code: "TRANSITION_REJECTED",
+      message: "todo から done への遷移は Workflow がこの主体に許していない",
+    });
+    await expect(runCommand(ticketClaim, human, { ticket: "t4" })).rejects.toMatchObject({
+      code: "TRANSITION_REJECTED",
+      message: "todo から in_progress への遷移の条件を満たしていない: deps_done",
+    });
+    await expect(
+      runCommand(ticketMove, agent, { ticket: "t3", status: "abandoned" }),
     ).rejects.toMatchObject({
       code: "TRANSITION_REJECTED",
     });
-    const abandoned = await runCommand(ticketMove, human, { ticket: "t1", status: "abandoned" });
+    const abandoned = await runCommand(ticketMove, human, { ticket: "t3", status: "abandoned" });
     expect(abandoned.data.status).toBe("abandoned");
     const list = await runCommand(ticketList, human, {});
-    expect(list.data.map((t) => t.id)).toEqual(["t2"]);
+    expect(list.data.map((t) => t.id)).toEqual(["t1", "t4"]);
     const all = await runCommand(ticketList, human, { include_abandoned: true });
-    expect(all.data.map((t) => t.id)).toEqual(["t1", "t2"]);
+    expect(all.data.map((t) => t.id)).toEqual(["t1", "t2", "t3", "t4"]);
     // 依存先が abandoned なら deps_done は満たされ、着手できる（WF-2）
     const ready = await runCommand(ticketList, human, { ready: true });
-    expect(ready.data.map((t) => t.id)).toEqual(["t2"]);
-    const claimed = await runCommand(ticketClaim, human, { ticket: "t2" });
+    expect(ready.data.map((t) => t.id)).toEqual(["t4"]);
+    const claimed = await runCommand(ticketClaim, human, { ticket: "t4" });
     expect(claimed.data.status).toBe("in_progress");
   });
 

@@ -49,7 +49,7 @@ export type TicketDetail = Ticket & { body: string; dependents: string[]; deps_d
 export interface WorkflowView {
   definition: WorkflowDefinition;
   labels: Record<Status, string>;
-  transitions: { from: Status; to: Status; by: string[]; requires: string[] }[];
+  transitions: { from: Status; to: Status; by?: string[]; requires: string[] }[];
 }
 
 const PRIORITY_RANK: Record<Priority, number> = { high: 0, medium: 1, low: 2 };

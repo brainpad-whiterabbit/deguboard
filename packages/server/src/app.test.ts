@@ -70,7 +70,7 @@ describe("HTTP サーバー", () => {
     });
     const claimed = await post(s, "ticket.claim", { ticket: "1" });
     expect(claimed.body.data).toMatchObject({ status: "in_progress", claimed_by: "ui@pc" });
-    // 画面の操作は常に人なので abandoned にできる
+    // 画面の操作は常に人として扱われる（既定では遷移に制約がないので abandoned にもできる）
     const abandoned = await post(s, "ticket.move", { ticket: "t1", status: "abandoned" });
     expect(abandoned.body.data.status).toBe("abandoned");
   });
@@ -84,7 +84,8 @@ describe("HTTP サーバー", () => {
     expect(missing.status).toBe(404);
     expect(missing.body).toMatchObject({ ok: false, error: { code: "NOT_FOUND" } });
     await post(s, "ticket.create", { title: "A" });
-    const rejected = await post(s, "ticket.move", { ticket: "t1", status: "done" });
+    // todo のチケットは unclaim できない
+    const rejected = await post(s, "ticket.unclaim", { ticket: "t1" });
     expect(rejected.status).toBe(409);
     expect(rejected.body.error.code).toBe("TRANSITION_REJECTED");
     expect((await post(s, "ticket.nope", {})).status).toBe(404);

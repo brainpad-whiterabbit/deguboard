@@ -5,19 +5,16 @@ deguboard は Git で管理するチケットのツール。あなた（AI エ�
 ## 毎回守ること
 
 - `dg` は必ず `--json` を付けて呼び、結果の `ok` と `data` を読む。失敗は `error.code` と `error.message`。終了コードは 0 成功 / 1 失敗 / 2 使い方の誤り
-- 毎回 `--actor agent` を付ける（環境変数は Bash の呼び出しをまたいで残らないことがある）。人だけの操作はエージェントには拒否される。拒否されたら人に頼む
+- 毎回 `--actor agent` を付ける（環境変数は Bash の呼び出しをまたいで残らないことがある）。Workflow が `by: [human]` で人に限った操作はエージェントには拒否される（`TRANSITION_REJECTED`）。拒否されたら人に頼む
 - データのファイル（`.git/deguboard/` の下）を直接編集しない。読むのも `dg … show --json`
 - チケットの ID は `t12` でも `12` でもよい。Epic は `e3`、Iteration は `s3`。リポジトリの外から呼ぶときは `-C <dir>`
 - 書き込みは `commit.mode`（今は `{{commit.mode}}`）に従ってコミットされる。起票と claim は即座にコミットして push される。`batch` ではそれ以外の変更が作業ツリーに残るので、区切りで `dg --json --actor agent sync` を回す。`manual` では `sync` もコミットしないので、人に `dg commit` を頼む
 - 起票の結果に `provisional: true` があれば push できていない仮番号で、ID が変わりうる。人に伝え、`sync` を回す
 
-## 人だけが行える操作
+## 人に頼む操作
 
-次はエージェントからは拒否される（`TRANSITION_REJECTED`）。必要なら人に頼む。
-
-- チケットを abandoned にする、abandoned や done から todo に戻す（再開・取り消し）
-- レビューを経ずに in_progress → done にする、review → in_progress に差し戻す
-- Epic を閉じる・再開する、Iteration を閉じる
+- Epic を閉じる・再開する、Iteration を閉じるのは、常にエージェントからは拒否される（`TRANSITION_REJECTED`）
+- チケットを abandoned にする、abandoned や done から todo に戻す（再開・取り消し）、レビューを経ずに in_progress → done にする、review → in_progress に差し戻す。Workflow が `by: [human]` を書いていれば拒否される。書いていなくても人の判断なので、自分では行わず人に頼む
 
 ## トピック
 

@@ -19,7 +19,7 @@
 ### UI からの書き込みを許す
 
 - ドラッグ＆ドロップでのステータス変更、属性の編集、イテレーションへの割り当てなどを UI から行える
-- 書き込みは必ず Core の同じコマンド（`core/commands`）を通る。遷移表と `requires` の検査、採番、検証は CLI と同じ経路で行われ、UI だけの近道を作らない
+- 書き込みは必ず Core の同じコマンド（`core/commands`）を通る。`transitions` の制約の検査、採番、検証は CLI と同じ経路で行われ、UI だけの近道を作らない
 - カンバンの列は 5 つの Status に固定し（abandoned は既定で隠す）、表示名はワークフロー定義の `labels`、表示項目は `fields` に追従する
 - 画面からの操作の主体は常に human（画面に `--actor` はない）。エージェントは CLI から agent を名乗る（[ADR-004](ADR-004-agents-and-state.md)）
 

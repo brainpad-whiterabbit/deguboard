@@ -12,7 +12,7 @@ import {
 export type ReconcileOutcome =
   /** 前進する */
   | { kind: "advance"; to: Status; rule: ReconcileRule }
-  /** 前進を指すが遷移表が reconcile に許していない。書かずに警告 */
+  /** 前進を指すが Workflow の transitions が reconcile に許していない。書かずに警告 */
   | { kind: "blocked"; to: Status; rule: ReconcileRule; check: TransitionCheck }
   /** 当てはまる規則がない、または今と同じか手前を指す（書き換えない） */
   | { kind: "none" }
