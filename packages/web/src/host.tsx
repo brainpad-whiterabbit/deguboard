@@ -2,10 +2,11 @@
 // ブラウザではチケットへのリンクはハッシュ遷移、サイドバーとパネルでは拡張ホストに頼む（パネルは自分の中で遷移し、題が変わる）。
 // 拡張ホストからの通知（同期・遷移）は HostBridge が store とハッシュに結ぶ
 
-import { createContext, useContext, useEffect, useRef, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import type { WebviewClient } from "./client/webview.js";
 import { navigate } from "./router.js";
 import { useStore } from "./store.js";
+import { createUiState, localStorageBackend, type UiState } from "./ui-state.js";
 
 export type Surface = "sidebar" | "panel" | "browser";
 
@@ -13,19 +14,26 @@ export interface Host {
   surface: Surface;
   /** チケット詳細を開く。Webview（sidebar・panel）では拡張ホストに頼み、ブラウザではハッシュ遷移 */
   openTicket(id: string): void;
+  /** 見た目の状態（開閉・最後に選んだもの）の置き場 */
+  state: UiState;
 }
 
 const browserHost: Host = {
   surface: "browser",
   openTicket: (id) => navigate({ page: "ticket", id }),
+  state: createUiState(localStorageBackend()),
 };
 
 const HostContext = createContext<Host>(browserHost);
 
 /** <html data-surface> と拡張ホストとの接続から Host を作る。Webview でなければブラウザ */
-export function createHost(surface: Surface, client: WebviewClient | null): Host {
+export function createHost(surface: Surface, client: WebviewClient | null, state?: UiState): Host {
   if (surface !== "browser" && client) {
-    return { surface, openTicket: (id) => void client.openTicket(id) };
+    return {
+      surface,
+      openTicket: (id) => void client.openTicket(id),
+      state: state ?? browserHost.state,
+    };
   }
   return { ...browserHost, surface };
 }
@@ -40,6 +48,19 @@ export function HostProvider({ host, children }: { host: Host; children: ReactNo
 
 export function useHost(): Host {
   return useContext(HostContext);
+}
+
+/** 見た目の状態を 1 つ持つ。useState と同じ形で、書くたびに host.state に残す */
+export function useUiState<T>(key: string, initial: T): [T, (value: T) => void] {
+  const host = useHost();
+  const [value, setValue] = useState<T>(() => host.state.get<T>(key) ?? initial);
+  return [
+    value,
+    (next) => {
+      setValue(next);
+      host.state.set(key, next);
+    },
+  ];
 }
 
 /** 拡張ホストからの通知を受ける。navigate はハッシュを書き換え、sync は store の同期を呼ぶ。StoreProvider の中に置く */

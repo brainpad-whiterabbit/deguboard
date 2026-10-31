@@ -28,6 +28,36 @@ export const BOARD_STATUSES = [
 ] as const satisfies readonly Status[];
 export const PRIORITIES = ["low", "medium", "high"] as const satisfies readonly Priority[];
 
+/** Iteration と Epic の状態の表示名 */
+export const ITERATION_LABELS: Record<Iteration["status"], string> = {
+  planned: "予定",
+  active: "進行中",
+  closed: "終了",
+};
+export const EPIC_LABELS: Record<Epic["status"], string> = { open: "進行中", closed: "終了" };
+
+/** 絞り込みで「担当者なし（claim されていない）」を表す値。actor の ID（user@host）とは重ならない */
+export const NO_CLAIM = "-";
+
+/** 担当者（claimed_by）の短い表示。ID は user@host の形なので @ の前だけ。全文はツールチップで読む */
+export function actorLabel(id: string): string {
+  return id.split("@")[0] || id;
+}
+
+/** 担当者の絞り込みの選択肢：出てくる claimed_by（名前順）と、claim されていないチケットがあれば「なし」 */
+export function claimOptions(tickets: readonly Ticket[]): string[] {
+  const ids = [...new Set(tickets.flatMap((t) => (t.claimed_by ? [t.claimed_by] : [])))].sort();
+  if (ids.length === 0) return [];
+  return tickets.some((t) => !t.claimed_by) ? [...ids, NO_CLAIM] : ids;
+}
+
+/** 担当者の絞り込み。空はすべて、NO_CLAIM は claim されていないもの */
+export function matchesClaim(ticket: Ticket, claim: string): boolean {
+  if (!claim) return true;
+  if (claim === NO_CLAIM) return !ticket.claimed_by;
+  return ticket.claimed_by === claim;
+}
+
 export interface Project {
   id: string;
   name: string;

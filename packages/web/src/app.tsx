@@ -14,7 +14,6 @@ const NAV: { page: Route["page"]; label: string; href: string }[] = [
   { page: "board", label: "カンバン", href: hrefOf({ page: "board" }) },
   { page: "backlog", label: "バックログ", href: hrefOf({ page: "backlog" }) },
   { page: "epics", label: "Epic", href: hrefOf({ page: "epics" }) },
-  { page: "iterations", label: "Iteration", href: hrefOf({ page: "iterations" }) },
 ];
 
 export function App() {
@@ -22,7 +21,9 @@ export function App() {
   const store = useStore();
   const host = useHost();
   const sidebar = host.surface === "sidebar";
-  const active = route.page === "ticket" ? "backlog" : route.page;
+  // Iteration の詳細はカンバンのタブの下にあるものとして扱う（一覧の画面はない）
+  const active =
+    route.page === "ticket" ? "backlog" : route.page === "iterations" ? "board" : route.page;
   // エディタのパネルに出すチケット詳細は 1 枚で完結するので、タブ・Project・同期のヘッダーを出さない（UI-12）。
   // 「画面を開く」でカンバンをパネルに出したときはタブが要るので残す
   const detailPanel = host.surface === "panel" && route.page === "ticket";
@@ -95,7 +96,7 @@ function followHashLink(e: MouseEvent<HTMLElement>) {
 function Page({ route }: { route: Route }) {
   switch (route.page) {
     case "board":
-      return <BoardPage epic={route.epic} />;
+      return <BoardPage query={route} />;
     case "backlog":
       return <BacklogPage />;
     case "ticket":

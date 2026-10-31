@@ -356,18 +356,19 @@ h3 {
 .column.over {
   outline: 2px solid var(--vscode-focusBorder);
 }
-.column > summary {
+/* 折りたためるもの（状態の節・Iteration の表）の見出し */
+.fold > summary {
   list-style: none;
   cursor: pointer;
   display: flex;
   align-items: center;
   gap: 0.4em;
 }
-.column > summary::-webkit-details-marker {
+.fold > summary::-webkit-details-marker {
   display: none;
 }
 /* 折りたたみの印：閉じていれば右向き、開いていれば下向き */
-.column > summary::before {
+.fold > summary::before {
   content: "";
   flex: none;
   width: 5px;
@@ -377,9 +378,137 @@ h3 {
   border-width: 0 1.5px 1.5px 0;
   transform: rotate(-45deg);
 }
-.column[open] > summary::before {
+.fold[open] > summary::before {
   transform: rotate(45deg);
   margin-top: -3px;
+}
+.column .cards {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+/* 中止の節は列の下に全幅で置き、開くとカードを横に並べる */
+.board-abandoned {
+  margin-top: 0.75rem;
+}
+.board-abandoned .cards {
+  flex-direction: row;
+  flex-wrap: wrap;
+}
+.board-abandoned .card {
+  flex: 0 1 240px;
+}
+
+/* Iteration の表（カンバンの上。KanbanForge の SB-2） */
+.iteration-table {
+  margin-bottom: 0.6rem;
+  border: 1px solid var(--dg-border);
+  border-radius: 3px;
+  background: var(--vscode-sideBar-background);
+}
+.iteration-table > summary {
+  padding: 0.35rem 0.5rem;
+  font-weight: 600;
+}
+.iteration-table table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.iteration-table th,
+.iteration-table td {
+  text-align: left;
+  padding: 0.2rem 0.5rem;
+  white-space: nowrap;
+  border-top: 1px solid var(--dg-border);
+}
+.iteration-table th {
+  color: var(--vscode-descriptionForeground);
+  font-weight: 500;
+  font-size: 0.85em;
+}
+.iteration-table .name {
+  width: 100%;
+  white-space: normal;
+}
+.iteration-table tbody tr {
+  cursor: pointer;
+}
+.iteration-table tbody tr:hover td {
+  background: var(--vscode-list-hoverBackground);
+}
+.iteration-table tr[aria-selected="true"] td {
+  background: var(--vscode-list-activeSelectionBackground);
+}
+.iteration-table tr[aria-selected="true"] td:first-child {
+  box-shadow: inset 2px 0 var(--vscode-focusBorder);
+}
+.iteration-table .create {
+  padding: 0.25rem 0.5rem;
+  border-top: 1px solid var(--dg-border);
+}
+.iteration-table code {
+  background: transparent;
+  padding: 0;
+  color: var(--vscode-descriptionForeground);
+}
+/* 文字だけのボタン（+ Iteration を作る） */
+button.link {
+  padding: 0;
+  background: transparent;
+  border-color: transparent;
+  color: var(--vscode-textLink-foreground);
+}
+button.link:hover {
+  text-decoration: underline;
+  background: transparent;
+}
+.badge.iteration-active {
+  color: inherit;
+  background: color-mix(in srgb, var(--dg-status-in_progress) 18%, transparent);
+  border-color: color-mix(in srgb, var(--dg-status-in_progress) 55%, transparent);
+}
+.badge.iteration-closed {
+  background: transparent;
+  color: var(--vscode-descriptionForeground);
+  border-color: var(--dg-border);
+}
+
+/* 選んだ Iteration の見出しと絞り込みの行 */
+.board-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.3rem 0.6rem;
+  margin: 0.25rem 0 0.4rem;
+}
+.board-head h1 {
+  margin: 0;
+  font-size: 1.1em;
+}
+.board-head .goal {
+  flex: 1 1 100%;
+}
+.board-head .actions {
+  display: inline-flex;
+  gap: 0.5rem;
+  align-items: center;
+  margin: 0 0 0 auto;
+}
+.board-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.6rem;
+}
+.board-filters label {
+  display: flex;
+  align-items: center;
+  gap: 0.3em;
+  color: var(--vscode-descriptionForeground);
+}
+.board-filters .count {
+  margin-left: auto;
 }
 .column h2 {
   flex: 1;
@@ -659,6 +788,29 @@ textarea.body {
   flex-direction: column;
   gap: 0.5rem;
   min-height: 0;
+}
+[data-surface="sidebar"] .iteration-table {
+  background: transparent;
+  font-size: 0.95em;
+}
+[data-surface="sidebar"] .iteration-table th,
+[data-surface="sidebar"] .iteration-table td {
+  padding: 0.15rem 0.35rem;
+}
+[data-surface="sidebar"] .board-head h1 {
+  font-size: 1em;
+}
+[data-surface="sidebar"] .board-filters label {
+  flex: 1 1 40%;
+  min-width: 0;
+  font-size: 0.92em;
+}
+[data-surface="sidebar"] .board-filters label select {
+  flex: 1;
+  min-width: 0;
+}
+[data-surface="sidebar"] .board-abandoned {
+  margin-top: 0.25rem;
 }
 [data-surface="sidebar"] .column {
   background: transparent;

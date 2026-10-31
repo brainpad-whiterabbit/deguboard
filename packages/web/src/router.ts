@@ -3,17 +3,41 @@
 
 import { useEffect, useState } from "react";
 
+/** カンバンの絞り込み。iteration は選んだ Iteration の ID か、Iteration に入っていないチケット（NO_ITERATION）。省けば既定（active） */
+export interface BoardQuery {
+  iteration?: string | undefined;
+  epic?: string | undefined;
+  claimed_by?: string | undefined;
+}
+
+/** カンバンで「Iteration に入っていないチケット」を選ぶ値 */
+export const NO_ITERATION = "-";
+
 export type Route =
-  | { page: "board"; epic?: string | undefined }
+  | ({ page: "board" } & BoardQuery)
   | { page: "backlog" }
   | { page: "ticket"; id: string }
   | { page: "epics"; id?: string | undefined }
-  | { page: "iterations"; id?: string | undefined };
+  | { page: "iterations"; id: string };
+
+const BOARD_KEYS = [
+  "iteration",
+  "epic",
+  "claimed_by",
+] as const satisfies readonly (keyof BoardQuery)[];
 
 export function parseRoute(hash: string): Route {
   const [path = "", query = ""] = hash.replace(/^#\/?/, "").split("?");
   const params = new URLSearchParams(query);
   const [head, id] = path.split("/").filter(Boolean);
+  const board = (): Route => {
+    const route: Route = { page: "board" };
+    for (const key of BOARD_KEYS) {
+      const value = params.get(key);
+      if (value) route[key] = value;
+    }
+    return route;
+  };
   switch (head) {
     case "backlog":
       return { page: "backlog" };
@@ -22,16 +46,21 @@ export function parseRoute(hash: string): Route {
     case "epics":
       return { page: "epics", id };
     case "iterations":
-      return { page: "iterations", id };
+      // Iteration の一覧の画面はない（planned・active はカンバンの表、closed は履歴）。ID がなければカンバン
+      return id ? { page: "iterations", id } : board();
     default:
-      return { page: "board", epic: params.get("epic") ?? undefined };
+      return board();
   }
 }
 
 export function hrefOf(route: Route): string {
   switch (route.page) {
-    case "board":
-      return route.epic ? `#/board?epic=${encodeURIComponent(route.epic)}` : "#/board";
+    case "board": {
+      const params = new URLSearchParams();
+      for (const key of BOARD_KEYS) if (route[key]) params.set(key, route[key]);
+      const query = params.toString();
+      return query ? `#/board?${query}` : "#/board";
+    }
     case "backlog":
       return "#/backlog";
     case "ticket":
@@ -39,7 +68,7 @@ export function hrefOf(route: Route): string {
     case "epics":
       return route.id ? `#/epics/${route.id}` : "#/epics";
     case "iterations":
-      return route.id ? `#/iterations/${route.id}` : "#/iterations";
+      return `#/iterations/${route.id}`;
   }
 }
 

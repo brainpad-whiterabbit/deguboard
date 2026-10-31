@@ -26,6 +26,16 @@ describe("バックログの絞り込み", () => {
     ticket({ id: "t5", title: "画面", priority: "high", iteration: "s1", labels: ["web", "ui"] }),
   ];
 
+  it("担当者で絞る。NO_CLAIM は claim されていないもの", () => {
+    const withClaim = tickets.map((t) => (t.id === "t2" ? { ...t, claimed_by: "eiki@host" } : t));
+    expect(
+      filterBacklog(withClaim, { ...EMPTY_FILTER, claimed_by: "eiki@host" }).map((t) => t.id),
+    ).toEqual(["t2"]);
+    expect(filterBacklog(withClaim, { ...EMPTY_FILTER, claimed_by: "-" }).map((t) => t.id)).toEqual(
+      ["t5", "t1"],
+    );
+  });
+
   it("done と abandoned を除き、優先度と番号の順に並べる", () => {
     expect(filterBacklog(tickets, EMPTY_FILTER).map((t) => t.id)).toEqual(["t2", "t5", "t1"]);
   });

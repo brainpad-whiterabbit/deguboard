@@ -6,7 +6,13 @@ import { useHost } from "../host.js";
 import { Markdown } from "../markdown.js";
 import { hrefOf } from "../router.js";
 import { useStore } from "../store.js";
-import { STATUSES, byNumber, byPriorityThenNumber, type EpicDetail } from "../types.js";
+import {
+  EPIC_LABELS,
+  STATUSES,
+  byNumber,
+  byPriorityThenNumber,
+  type EpicDetail,
+} from "../types.js";
 
 export function EpicsPage({ id }: { id?: string | undefined }) {
   return id ? <EpicDetailView id={id} /> : <EpicList />;
@@ -90,7 +96,7 @@ function EpicList() {
                 <td>
                   <a href={hrefOf({ page: "epics", id: e.id })}>{e.title}</a>
                 </td>
-                <td>{e.status}</td>
+                <td>{EPIC_LABELS[e.status]}</td>
                 <td>
                   <ProgressBar progress={e.progress} />
                 </td>
@@ -136,7 +142,8 @@ function EpicDetailView({ id }: { id: string }) {
       </div>
       <header className="detail-header">
         <h1>
-          <code>{epic.id}</code> {epic.title} <span className="badge">{epic.status}</span>
+          <code>{epic.id}</code> {epic.title}{" "}
+          <span className="badge">{EPIC_LABELS[epic.status]}</span>
         </h1>
         <ProgressBar progress={epic.progress} />
       </header>

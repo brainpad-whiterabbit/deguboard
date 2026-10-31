@@ -9,12 +9,22 @@ describe("ハッシュのルーティング", () => {
     expect(parseRoute("#/tickets/t12")).toEqual({ page: "ticket", id: "t12" });
     expect(parseRoute("#/tickets")).toEqual({ page: "backlog" });
     expect(parseRoute("#/epics/e2")).toEqual({ page: "epics", id: "e2" });
-    expect(parseRoute("#/iterations")).toEqual({ page: "iterations", id: undefined });
+    // Iteration の一覧の画面はないので、ID がなければカンバン
+    expect(parseRoute("#/iterations")).toEqual({ page: "board" });
+    expect(parseRoute("#/iterations/s2")).toEqual({ page: "iterations", id: "s2" });
+    expect(parseRoute("#/board?iteration=s4&epic=e1&claimed_by=eiki%40host")).toEqual({
+      page: "board",
+      iteration: "s4",
+      epic: "e1",
+      claimed_by: "eiki@host",
+    });
   });
 
   it("hrefOf と parseRoute は往復する", () => {
     for (const route of [
       { page: "board" as const, epic: "e1" },
+      { page: "board" as const, iteration: "s4", epic: "e1", claimed_by: "eiki@host" },
+      { page: "board" as const, iteration: "-" },
       { page: "ticket" as const, id: "t3" },
       { page: "epics" as const, id: "e1" },
       { page: "iterations" as const, id: "s2" },
