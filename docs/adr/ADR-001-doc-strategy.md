@@ -59,7 +59,7 @@ deguboard は AI エージェント（Claude Code など）が主に実装する
 | `docs/development.md`  | 15KB |
 | ADR 1 本               | 10KB |
 
-`scripts/check-docs.mjs`（`mise run check:docs`）が予算と ADR 一覧の整合を検査し、超えたら失敗にする。超えそうなら、細部を正本へ移すか、約束を見直す。
+`scripts/check-docs.mjs`（`mise run check:docs`）が予算と ADR 一覧の整合を検査し、超えたら失敗にする。README・CLAUDE.md・docs の相対リンクと見出しアンカー（GitHub 流）の切れも検査する。超えそうなら、細部を正本へ移すか、約束を見直す。
 
 ### 書き方
 
