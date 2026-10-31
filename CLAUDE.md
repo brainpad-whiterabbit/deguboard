@@ -37,12 +37,13 @@ Git-native な AI ワークフロー・チケット管理ツール。CLI は `dg
 
 ## チケット
 
-- このリポジトリのチケットは、`dg` が動くようになったら deguboard 自身で管理する（ドッグフーディング）。それまでは PR と Issue で進める
+- このリポジトリのチケットは deguboard 自身で管理する（ドッグフーディング）。`mise run dg -- <引数>` で読み書きし、`.git/deguboard/` のファイルを直接編集しない。Issue は使わない。手順は [docs/development.md の「チケットと作業の流れ」](docs/development.md#チケットと作業の流れ)
+- 作業はチケットに紐づける：起票 → `claim` でブランチを記録 → PR の本文に ID（`t12`）を書く → マージ後に `dg sync` で done にする
 - 要件を変える変更は、同じ PR で requirements.md を直す。判断を変える変更は該当 ADR を書き換える
 
 ## ブランチ・PR・マージ
 
-- 変更は `main` から切った作業ブランチを git worktree に checkout して行う。`main` に直接コミットせず、`main` の worktree では作業しない。手順は [docs/development.md の「ブランチと worktree」](docs/development.md#ブランチと-worktree)
+- 変更は `main` から切った作業ブランチを git worktree に checkout して行う。`main` に直接コミットせず、`main` の worktree では作業しない。手順は [docs/development.md の「チケットと作業の流れ」](docs/development.md#チケットと作業の流れ)
 - コミットメッセージと PR のタイトルは日本語で、要約を 1 行目に書く
 - PR は `main` に向ける。ローカルで `mise run check` が通り、承認されたことをマージの条件にする。CI は使わない（[ADR-008](docs/adr/ADR-008-tech-stack.md)）
 - マージは squash で行い、リモートとローカルのブランチと worktree を消す
