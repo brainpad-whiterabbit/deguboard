@@ -70,7 +70,7 @@ runs/                       # 予定（e3）。完了時の集計だけ
 
 - DT-3 ID は接頭辞＋連番（`t12`・`e3`・`s3`・`p7`）。ファイル名は ID そのまま（`t12.md`）で、ゼロ埋めしない。番号はリポジトリ全体で一意。ファイル名の辞書順は番号順にならないが、CLI と UI は番号で並べる
 - DT-4 採番は「既存と墓標の最大 + 1」。作成は fetch → 採番 → commit → push を 1 単位とし、push が拒否されたら採番し直す
-- DT-5 push できないときは `provisional: true` を付けてローカルに commit し、`dg ticket list` は仮番号に印を出す。push が済んだ `dg sync` で印を外す。衝突したときの番号・ファイル名・未 push のコミット内の参照の振り直しは予定（t8）
+- DT-5 push できないときは `provisional: true` を付けてローカルに commit し、`dg ticket list` は仮番号に印を出す。push が済んだ `dg sync` で印を外す。仮番号がリモートの番号と衝突していたら、`dg sync` が番号・ファイル名・未 push のコミット内の参照（他チケットの `depends_on`、Plan、コミットの題）を次の空き番号に振り直してから push する。仮番号以外の競合は振り直さず報告する（SY-4）
 - DT-6 CLI と UI は `t12` でも `12` でも受け付ける
 
 ### 5.3 Project（`projects/<slug>.yaml`）
