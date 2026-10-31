@@ -295,6 +295,8 @@ describe("事実の収集", () => {
     });
     await git(f.cloneA, ["checkout", "-q", "main"]);
     await git(f.cloneA, ["merge", "-q", "--ff-only", "feature/t1-x"]);
+    // ff マージの直後は先端が base と同じなので、base が進んでから merged になる（切ったばかりのブランチと区別するため）
+    await git(f.cloneA, ["commit", "-q", "--allow-empty", "-m", "次の作業"]);
     await git(f.cloneA, ["push", "-q", "origin", "main"]);
     await git(a.repo.dataDir, ["fetch", "-q", "--prune", "origin"]);
     expect(await collectBranchFacts(a.repo, "feature/t1-x", { needPr: false })).toMatchObject({
