@@ -446,7 +446,7 @@ describe("Epic と Iteration", () => {
     await expect(
       runCommand(configSet, ctx, { key: "actor.human_only", value: "epic.nope" }),
     ).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
-    const agent = await openContext({ cwd: f.cloneA, actor: { kind: "agent", id: "claude@pc" } });
+    const agent = await openContext({ cwd: f.cloneA, actor: { kind: "agent", user: "claude" } });
     await expect(runCommand(epicClose, agent, { epic: "e1" })).rejects.toMatchObject({
       code: "TRANSITION_REJECTED",
     });
@@ -460,7 +460,7 @@ describe("Epic と Iteration", () => {
     // 空文字で空に戻ると、agent も閉じる・再開できる（文脈ごとに store を持つので開き直す）
     const cleared = await runCommand(configSet, human, { key: "actor.human_only", value: "" });
     expect(cleared.data.actor.human_only).toEqual([]);
-    const agent2 = await openContext({ cwd: f.cloneA, actor: { kind: "agent", id: "claude@pc" } });
+    const agent2 = await openContext({ cwd: f.cloneA, actor: { kind: "agent", user: "claude" } });
     expect((await runCommand(epicReopen, agent2, { epic: "e1" })).data.status).toBe("open");
     expect((await runCommand(iterationClose, agent2, { iteration: "s1" })).data.status).toBe(
       "closed",

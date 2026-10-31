@@ -31,9 +31,10 @@ describe("バックログの絞り込み", () => {
     expect(
       filterBacklog(withClaim, { ...EMPTY_FILTER, assignee: "eiki/agent" }).map((t) => t.id),
     ).toEqual(["t2"]);
-    expect(filterBacklog(withClaim, { ...EMPTY_FILTER, assignee: "-" }).map((t) => t.id)).toEqual(
-      ["t5", "t1"],
-    );
+    expect(filterBacklog(withClaim, { ...EMPTY_FILTER, assignee: "-" }).map((t) => t.id)).toEqual([
+      "t5",
+      "t1",
+    ]);
   });
 
   it("done と abandoned を除き、優先度と番号の順に並べる", () => {
