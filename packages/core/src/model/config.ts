@@ -50,6 +50,12 @@ export const configSchema = z.looseObject({
       shell: z.boolean().default(false),
     })
     .prefault({}),
+  actor: z
+    .looseObject({
+      /** agent からは拒否するコマンド名（epic.close など）。既定は空で、すべて許す。チケットの遷移は Workflow の by で縛る */
+      human_only: z.array(z.string().min(1)).default([]),
+    })
+    .prefault({}),
 });
 export type Config = z.output<typeof configSchema>;
 

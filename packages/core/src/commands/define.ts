@@ -1,7 +1,7 @@
 // コマンド定義の形。CLI・HTTP・Webview はこの定義を写すだけで、ロジックを持たない（ADR-007）
 
 import type { z } from "zod";
-import { UsageError } from "../errors.js";
+import { OperationError, UsageError } from "../errors.js";
 import type { WriteContext, WriteOutcome } from "../git/write.js";
 import type { WorktreeOrigin } from "../git/worktree.js";
 
@@ -51,7 +51,10 @@ export function ok<O>(data: O, write?: WriteOutcome, warnings: string[] = []): C
   return { data, write, warnings: [...(write?.warnings ?? []), ...warnings] };
 }
 
-/** 入力を検証してから実行する。形の誤りは UsageError（終了コード 2） */
+/**
+ * 入力を検証してから実行する。形の誤りは UsageError（終了コード 2）。
+ * config の actor.human_only に入ったコマンドは agent から拒否する（全入口がここを通るので検査は 1 か所）
+ */
 export async function runCommand<I extends z.ZodType, O>(
   def: CommandDef<I, O>,
   ctx: CommandContext,
@@ -61,6 +64,12 @@ export async function runCommand<I extends z.ZodType, O>(
   if (!parsed.success) {
     const { prettifyError } = await import("zod");
     throw new UsageError(`${def.name} の入力が正しくない`, prettifyError(parsed.error));
+  }
+  if (ctx.actor.kind !== "human" && ctx.config.actor.human_only.includes(def.name)) {
+    throw new OperationError(
+      "TRANSITION_REJECTED",
+      `${def.name} は設定（actor.human_only）で人だけに限られている（--actor human で実行する）`,
+    );
   }
   return def.run(ctx, parsed.data);
 }

@@ -20,7 +20,7 @@
 
 ## 状態について
 
-- 自分で `status` を進めるのは in_progress → review まで。done は照合（マージ）か人が決める（Workflow が制約していなくても自分で done にしない）。人に頼む操作は `dg guide overview`
+- 自分で `status` を進めるのは普段 in_progress → review まで。done は照合（マージ）で進むので自分で move する必要はない。照合で進まないときや、人に指示されたときは `ticket move <id> done` で進める（制限は `dg guide overview`）
 - 途中でやめるなら `dg --json --actor agent ticket unclaim <id>`（in_progress で自分の claim のときだけ。todo に戻る）。review にあるなら人に差し戻しを頼む
 - 作業中に別の作業が見つかったら、そのチケットに混ぜず `dg guide create` の手順で起票を提案する
 

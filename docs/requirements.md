@@ -139,12 +139,12 @@ closed_at: 2026-11-20T09:00:00Z # closed のときだけ
 - EP-1 必須は `id`・`project`・`title`・`status`・`created_at`・`updated_at`。`status` は `open` / `closed` で、閉じたときに `closed_at` を書く。本文は Markdown で、`## 概要` を推奨し `dg lint` が欠けを指摘する
 - EP-2 所属はチケットの `epic` で表し、Epic 側にチケットの一覧は持たない。入れるのは同じ Project のチケットだけ。Epic は入れ子にしない
 - EP-3 進捗は保存しない。done の件数と abandoned を除く件数をチケットから都度求める
-- EP-4 閉じる・再開するのは人だけ。done・abandoned 以外のチケットが残るときは閉じるのを拒否し、強制の指定で閉じられる（残ったチケットの `epic` はそのまま）。閉じた Epic にはチケットを足せない（TK-6）
+- EP-4 閉じる・再開するのは既定で誰でも行える（人に限るなら `actor.human_only`、5.10）。done・abandoned 以外のチケットが残るときは閉じるのを拒否し、強制の指定で閉じられる（残ったチケットの `epic` はそのまま）。閉じた Epic にはチケットを足せない（TK-6）
 - EP-5 Epic の状態はチケットの遷移を縛らない。Epic に削除はない（閉じて残す）
 
 ### 5.6 Iteration（`iterations/s3.yaml`）
 
-- IT-1 `id`、`project`、`name`、`goal`、`start`、`end`、`status`（`planned` / `active` / `closed`）を持つ。閉じるのは人だけで、閉じたときに `closed_at` と完了・持ち越しの件数（`completed`・`carried_over`）を書く
+- IT-1 `id`、`project`、`name`、`goal`、`start`、`end`、`status`（`planned` / `active` / `closed`）を持つ。閉じるのは既定で誰でも行え（人に限るなら `actor.human_only`、5.10）、閉じたときに `closed_at` と完了・持ち越しの件数（`completed`・`carried_over`）を書く
 - IT-2 所属はチケットの `iteration` で表し、Iteration 側にチケットの一覧は持たない（Epic と同じ）。入れるのは同じ Project のチケットだけで、閉じた Iteration には入れられない。Iteration 内の並びは優先度と番号で、閉じるときに done・abandoned 以外のチケットの `iteration` を外す
 
 ### 5.7 Plan（`plans/p7.yaml`）
@@ -195,8 +195,11 @@ fields:
 | `push.mode`                      | `auto` / `manual`                            | `auto`                |
 | `metrics.read_transcripts`       | 会話記録を読むか                             | `false`               |
 | `actions.shell`                  | 任意のシェルの Action を許すか（予定 `e3`）  | `false`               |
+| `actor.human_only`               | agent からは拒否するコマンド名の一覧（下記） | `[]`                  |
 
 `commit.mode` の意味。`each` は書き込みのたびにコミットする。`batch` は作業ツリーに残し、`dg commit`・`dg sync`・即時にコミットする操作（CL-3）がまとめて 1 コミットにする（即時の操作は、まとめ待ちの変更を先に 1 コミットにしてから自分のコミットを作る）。`manual` は `dg commit` と即時の操作だけがコミットし、`dg sync` はまとめない。`push.mode` は `auto` ならコミットのたびに push し、`manual` なら `dg sync` が push する。即時の操作はどちらでも push する。
+
+`actor.human_only` は `epic.close` のようなコマンド名の一覧で、入れたコマンドを agent が呼ぶと `TRANSITION_REJECTED` で拒否する。既定は空で、すべての操作をエージェントにも許す。チケットの遷移を人に限るのは Workflow の `by`（WF-1）で、この項目では扱わない。
 
 項目の全体はスキーマ（`packages/core/src/model/config.ts`）が正本。利用者ごとの上書きは設けない。
 

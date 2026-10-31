@@ -9,14 +9,14 @@
 - 入れる：`dg --json --actor agent iteration add <s3> <t12> <t13>`。別の Iteration に入っていたチケットは移る。所属はチケットの `iteration` に記録され、並びは優先度と番号
 - 外す：`dg --json --actor agent iteration remove <s3> <t12>`
 - 開始：`dg --json --actor agent iteration start <s3>`（planned → active）
-- 閉じるのは人だけ（`dg guide overview`）。done の件数と持ち越しの件数が記録され、持ち越したチケットは Iteration から外れる
+- 閉じる：`dg --json --actor agent iteration close <s3>`。done の件数と持ち越しの件数が記録され、持ち越したチケットは Iteration から外れる。人の指示で閉じる（制限は `dg guide overview`）
 
 ## Epic
 
 - 一覧と進捗：`dg --json --actor agent epic list`（`progress.done / progress.total`。abandoned は数えない）
 - 入れる：`dg --json --actor agent epic add <e3> <t12> <t13>`。同じ Project のチケットだけ。閉じた Epic には入れられない
 - 外す：`dg --json --actor agent epic remove <e3> <t12>`
-- 閉じる・再開するのは人だけ（`dg guide overview`）。done・abandoned 以外が残っていれば拒否され、人が `--force` で閉じる
+- 閉じる・再開する：`dg --json --actor agent epic close <e3>` / `epic reopen <e3>`。done・abandoned 以外が残っていれば拒否され、`--force` で閉じられる。人の指示で閉じる（制限は `dg guide overview`）
 
 ## 割り当てを提案するとき
 
