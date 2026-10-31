@@ -1,0 +1,4 @@
+default_project: default
+git:
+  remote: origin
+  base_branch: main

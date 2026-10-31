@@ -1,0 +1,26 @@
+# Consulting のワークフロー。dg init が同梱のテンプレートから置いた
+
+id: consulting
+name: Consulting
+labels:
+  in_progress: Working
+  review: Client Review
+transitions:
+  - from: review
+    to: done
+    by:
+      - human
+reconcile:
+  - when:
+      - branch_merged
+    status: done
+  - when:
+      - branch_exists
+    status: in_progress
+fields:
+  - id: client
+    type: string
+    label: Client
+  - id: deliverable
+    type: string
+    label: Deliverable
