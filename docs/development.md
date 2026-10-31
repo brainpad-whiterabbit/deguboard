@@ -12,7 +12,7 @@
 ```sh
 mise trust          # このリポジトリの mise.toml を信頼する
 mise install        # node・pnpm を mise.toml の版で入れる
-mise run install    # 依存を lockfile どおりに入れる
+mise run install    # 依存を lockfile どおりに入れ、dist と VSIX もビルドする
 ```
 
 3. タスクの一覧は `mise tasks` で見られる。タスクは pnpm scripts を呼ぶだけで、定義は [mise.toml](../mise.toml) と [package.json](../package.json)
@@ -30,7 +30,7 @@ mise run dg -- guide finish    # マージ後の後始末
 
 このリポジトリに固有の決まり：
 
-- `dg` は `mise run build` のあと `mise run dg -- <引数>` で動く。`core`・`server`・`cli` を変えた PR を取り込んだら、もう一度 `mise run build` する
+- `dg` は `mise run install` か `mise run build` のあと `mise run dg -- <引数>` で動く。`core`・`server`・`cli` を変えた PR を取り込んだら、もう一度 `mise run build` する
 - Claude が呼ぶときは `DEGUBOARD_ACTOR=agent`（CLAUDE.md）。人の操作は既定の human のまま
 - worktree は `../deguboard.worktrees/<ブランチ名>` に置く（`dg` の `worktree.root` の既定と同じで、リポジトリの外なので `.gitignore` は要らない）。ブランチ名は `<種類>/<内容>`（例：`docs/branch-strategy`、`feat/ticket-create`、`fix/sync-warning`）。`mise trust` と `node_modules` は worktree ごとに要る
 
@@ -134,7 +134,7 @@ VS Code 拡張。拡張ホストから core の `createLocalClient` を呼び、
 VSIX にして入れるには：
 
 ```sh
-mise run vsix                                                    # build のあと packages/vscode/deguboard-vscode.vsix を作る
+mise run vsix                                                    # build のあと packages/vscode/deguboard-vscode.vsix を作る（install にも含む）
 code --install-extension packages/vscode/deguboard-vscode.vsix   # リモート開発ならリモート側に入る
 ```
 
