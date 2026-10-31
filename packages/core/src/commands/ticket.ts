@@ -504,10 +504,11 @@ async function factsFor(
     .filter((f) => f !== "deps_done");
   if (gitFacts.length > 0 && doc.data.branch) {
     const needPr = gitFacts.some((f) => f.startsWith("pr_"));
-    Object.assign(
-      facts,
-      await collectBranchFacts(ctx.repo, doc.data.branch, { pr: doc.data.pr, needPr }),
-    );
+    const collected = await collectBranchFacts(ctx.repo, doc.data.branch, {
+      pr: doc.data.pr,
+      needPr,
+    });
+    Object.assign(facts, collected.facts);
   }
   return facts;
 }

@@ -1,4 +1,4 @@
-import { readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
@@ -8,6 +8,7 @@ import {
   type Fixture,
 } from "../../test/helpers/git-fixture.js";
 import { UsageError } from "../errors.js";
+import { resetGhCache } from "../git/facts.js";
 import { openContext, type ContextOptions } from "./context.js";
 import { runCommand, type CommandContext } from "./define.js";
 import { epicAdd, epicClose, epicCreate, epicReopen, epicShow, epicUpdate } from "./epic.js";
@@ -67,6 +68,7 @@ async function writeStrictWorkflow(ctx: CommandContext): Promise<void> {
 async function initialized(
   cwd: string,
   opts: Partial<ContextOptions> = {},
+  initInput: { template?: "general" | "software-development" | "consulting" } = {},
 ): Promise<CommandContext> {
   const first = await openContext({
     cwd,
@@ -74,7 +76,7 @@ async function initialized(
     actor: { kind: "human", user: "eiki" },
     ...opts,
   });
-  await runCommand(init, first, {});
+  await runCommand(init, first, initInput);
   return openContext({ cwd, actor: { kind: "human", user: "eiki" }, ...opts });
 }
 
@@ -173,6 +175,58 @@ describe("チケットの流れ", () => {
     const log = (await git(ctx.repo.dataDir, ["log", "--format=%s"])).stdout.trim().split("\n");
     expect(log[0]).toContain("照合で t1: review → done");
     expect(log[1]).toBe("変更をまとめてコミット");
+  });
+
+  it("照合は gh がブランチ名で見つけた PR の番号を pr に記録し、記録済みや PR のないチケットは書き換えない", async () => {
+    const f = await fixture();
+    // software-development の Workflow だけが PR の事実（pr_*）を見る
+    const ctx = await initialized(f.cloneA, {}, { template: "software-development" });
+    await runCommand(ticketCreate, ctx, { title: "With PR" });
+    await runCommand(ticketCreate, ctx, { title: "Without PR" });
+    await runCommand(ticketClaim, ctx, { ticket: "t1", branch: "feature/t1-with-pr" });
+    await runCommand(ticketClaim, ctx, { ticket: "t2", branch: "feature/t2-without-pr" });
+    for (const b of ["feature/t1-with-pr", "feature/t2-without-pr"]) {
+      await git(f.cloneA, ["branch", b]);
+    }
+
+    // 偽の gh：t1 のブランチ（か記録した番号）には開いた PR #42 を返し、ほかは PR なし
+    const bin = path.join(f.root, "fake-bin");
+    await mkdir(bin, { recursive: true });
+    await writeFile(
+      path.join(bin, "gh"),
+      [
+        "#!/bin/sh",
+        'case "$1" in --version) echo "gh version 0 (fake)"; exit 0;; esac',
+        'case "$3" in',
+        '  feature/t1-with-pr|42) echo \'{"number":42,"state":"OPEN","isDraft":false,"mergedAt":null}\';;',
+        '  *) echo "no pull requests found for branch $3" >&2; exit 1;;',
+        "esac",
+        "",
+      ].join("\n"),
+      { mode: 0o755 },
+    );
+    const savedPath = process.env["PATH"];
+    process.env["PATH"] = bin + path.delimiter + (savedPath ?? "");
+    resetGhCache();
+    try {
+      const first = await runCommand(sync, ctx, {});
+      expect(first.data.reconciled).toEqual([{ id: "t1", from: "in_progress", to: "review" }]);
+      expect(first.data.pr_recorded).toEqual([{ id: "t1", pr: 42 }]);
+      expect(ctx.store.tickets.get("t1")?.data.pr).toBe(42);
+      expect(ctx.store.tickets.get("t2")?.data.pr).toBeUndefined();
+      const log = (await git(ctx.repo.dataDir, ["log", "-1", "--format=%s"])).stdout.trim();
+      expect(log).toBe("照合で t1: in_progress → review。PR 番号を記録: t1: #42");
+
+      // 2 回目は状態も pr も変わらず、コミットも増えない
+      const second = await runCommand(sync, ctx, {});
+      expect(second.data.reconciled).toEqual([]);
+      expect(second.data.pr_recorded).toEqual([]);
+      expect(ctx.store.tickets.get("t1")?.data.pr).toBe(42);
+      expect((await git(ctx.repo.dataDir, ["log", "-1", "--format=%s"])).stdout.trim()).toBe(log);
+    } finally {
+      process.env["PATH"] = savedPath;
+      resetGhCache();
+    }
   });
 
   it("既定ではどの遷移も通り、制約を書いた Workflow では by: []・by: [human]・requires: [deps_done] で拒否される", async () => {

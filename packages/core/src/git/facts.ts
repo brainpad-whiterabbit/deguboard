@@ -11,6 +11,12 @@ export interface PrFactsOptions {
   needPr: boolean;
 }
 
+export interface BranchFacts {
+  facts: Facts;
+  /** gh が見つけた PR の番号。チケットに記録がなければ照合がこれを `pr` に記録する（ST-6）。取れなければ undefined */
+  pr?: number;
+}
+
 let ghAvailable: boolean | undefined;
 
 /** gh があるか（1 プロセスで 1 回だけ調べる） */
@@ -46,7 +52,7 @@ export async function collectBranchFacts(
   repo: GitRepo,
   branch: string,
   opts: PrFactsOptions,
-): Promise<Facts> {
+): Promise<BranchFacts> {
   const facts: Facts = {};
   const localRef = `refs/heads/${branch}`;
   const remoteRef = repo.remote ? `refs/remotes/${repo.remote}/${branch}` : undefined;
@@ -78,36 +84,41 @@ export async function collectBranchFacts(
     facts.branch_merged = false;
   }
 
-  if (opts.needPr) Object.assign(facts, await collectPrFacts(repo, branch, opts.pr));
-  return facts;
+  if (!opts.needPr) return { facts };
+  const pr = await collectPrFacts(repo, branch, opts.pr);
+  Object.assign(facts, pr.facts);
+  return pr.number === undefined ? { facts } : { facts, pr: pr.number };
 }
 
 async function collectPrFacts(
   repo: GitRepo,
   branch: string,
   pr: number | undefined,
-): Promise<Facts> {
-  if (!(await hasGh(repo.topLevel))) return {};
+): Promise<{ facts: Facts; number?: number }> {
+  if (!(await hasGh(repo.topLevel))) return { facts: {} };
   try {
     const result = await runGh(
       repo.topLevel,
-      ["pr", "view", pr ? String(pr) : branch, "--json", "state,isDraft,mergedAt"],
+      ["pr", "view", pr ? String(pr) : branch, "--json", "number,state,isDraft,mergedAt"],
       { allowFailure: true, timeoutMs: 30_000 },
     );
     if (result.code !== 0) {
       if (/no pull requests found|could not find|not found/i.test(result.stderr)) {
-        return { pr_open: false, pr_draft: false, pr_merged: false };
+        return { facts: { pr_open: false, pr_draft: false, pr_merged: false } };
       }
-      return {};
+      return { facts: {} };
     }
-    const data = JSON.parse(result.stdout) as { state: string; isDraft: boolean };
-    return {
+    const data = JSON.parse(result.stdout) as { number?: number; state: string; isDraft: boolean };
+    const facts: Facts = {
       pr_open: data.state === "OPEN",
       pr_draft: data.isDraft,
       pr_merged: data.state === "MERGED",
     };
+    return Number.isInteger(data.number) && (data.number as number) > 0
+      ? { facts, number: data.number as number }
+      : { facts };
   } catch (error) {
-    if (error instanceof GitError) return {};
+    if (error instanceof GitError) return { facts: {} };
     throw error;
   }
 }
