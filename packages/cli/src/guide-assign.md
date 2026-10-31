@@ -6,7 +6,7 @@
 
 - 一覧：`dg --json iteration list`（`status` は planned / active / closed）
 - 作る：`dg --json --actor agent iteration create "<名前>" --goal "<目標>" --start 2026-11-01 --end 2026-11-14`
-- 入れる：`dg --json --actor agent iteration add <s3> <t12> <t13>`。並びの末尾に入る。別の Iteration に入っていたチケットは移る
+- 入れる：`dg --json --actor agent iteration add <s3> <t12> <t13>`。別の Iteration に入っていたチケットは移る。所属はチケットの `iteration` に記録され、並びは優先度と番号
 - 外す：`dg --json --actor agent iteration remove <s3> <t12>`
 - 開始：`dg --json --actor agent iteration start <s3>`（planned → active）
 - 閉じる：`dg --json iteration close <s3>` は人が行う。done の件数と持ち越しの件数が記録され、持ち越したチケットは Iteration から外れる

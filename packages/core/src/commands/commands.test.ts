@@ -146,7 +146,7 @@ describe("チケットの流れ", () => {
     expect(log[1]).toBe("変更をまとめてコミット");
   });
 
-  it("表にない遷移・人だけの遷移・依存が終わっていない claim は拒否される", async () => {
+  it("表にない遷移・人だけの遷移・依存が終わっていない claim は拒否され、依存先が abandoned なら着手できる", async () => {
     const f = await fixture();
     const human = await initialized(f.cloneA);
     await runCommand(ticketCreate, human, { title: "A" });
@@ -174,6 +174,11 @@ describe("チケットの流れ", () => {
     expect(list.data.map((t) => t.id)).toEqual(["t2"]);
     const all = await runCommand(ticketList, human, { include_abandoned: true });
     expect(all.data.map((t) => t.id)).toEqual(["t1", "t2"]);
+    // 依存先が abandoned なら deps_done は満たされ、着手できる（WF-2）
+    const ready = await runCommand(ticketList, human, { ready: true });
+    expect(ready.data.map((t) => t.id)).toEqual(["t2"]);
+    const claimed = await runCommand(ticketClaim, human, { ticket: "t2" });
+    expect(claimed.data.status).toBe("in_progress");
   });
 
   it("unclaim は自分の claim だけ外し、他人のものは force が要る", async () => {
@@ -307,15 +312,19 @@ describe("Epic と Iteration", () => {
       start: "2026-11-01",
       end: "2026-11-14",
     });
-    expect(it1.data).toMatchObject({ id: "s1", status: "planned", tickets: [] });
+    expect(it1.data).toMatchObject({ id: "s1", status: "planned" });
+    expect(it1.data).not.toHaveProperty("tickets");
     await runCommand(ticketCreate, ctx, { title: "A" });
-    await runCommand(ticketCreate, ctx, { title: "B" });
-    await runCommand(iterationAdd, ctx, { iteration: "s1", tickets: ["t2", "t1"] });
+    await runCommand(ticketCreate, ctx, { title: "B", priority: "high" });
+    const added = await runCommand(iterationAdd, ctx, { iteration: "s1", tickets: ["t2", "t1"] });
+    expect(added.data).toEqual({ iteration: "s1", tickets: ["t2", "t1"] });
     await runCommand(iterationStart, ctx, { iteration: "1" });
     await runCommand(ticketMove, ctx, { ticket: "t1", status: "in_progress" });
     await runCommand(ticketMove, ctx, { ticket: "t1", status: "done" });
+    // 所属はチケットの iteration だけで表し、並びは優先度と番号（IT-2）
     const shown = await runCommand(iterationShow, ctx, { iteration: "s1" });
     expect(shown.data.items.map((t) => t.id)).toEqual(["t2", "t1"]);
+    expect(shown.data).not.toHaveProperty("tickets");
     const closed = await runCommand(iterationClose, ctx, { iteration: "s1" });
     expect(closed.data).toMatchObject({ status: "closed", completed: 1, carried_over: 1 });
     expect(ctx.store.tickets.get("t2")?.data.iteration).toBeUndefined();

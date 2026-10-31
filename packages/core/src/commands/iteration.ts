@@ -46,7 +46,6 @@ export const iterationCreate = defineCommand({
           start: input.start,
           end: input.end,
           status: "planned",
-          tickets: [],
         });
       },
       { message: (doc) => `${doc.id} を作成: ${doc.data.name}`, immediate: true, cas: true },
@@ -79,16 +78,14 @@ export const iterationShow = defineCommand({
   name: "iteration.show",
   positionals: ["iteration"],
   group: "iteration",
-  summary: "Iteration と、入っているチケットを並び順で出す",
+  summary: "Iteration と、入っているチケットを優先度と番号の順で出す",
   input: z.object({ iteration: iterationRef }),
   write: false,
   needs: "store",
   async run(ctx, input) {
     const doc = ctx.store.require("iteration", input.iteration);
-    const byId = new Map(ticketsInIteration(ctx.store, doc.id).map((t) => [t.id, t.data]));
-    const ordered = doc.data.tickets.map((id) => byId.get(id)).filter((t) => t !== undefined);
-    const rest = [...byId.values()].filter((t) => !doc.data.tickets.includes(t.id));
-    return ok({ ...doc.data, items: [...ordered, ...rest] });
+    const items = ticketsInIteration(ctx.store, doc.id).map((t) => t.data);
+    return ok({ ...doc.data, items });
   },
 });
 
@@ -98,7 +95,7 @@ export const iterationAdd = defineCommand({
   name: "iteration.add",
   positionals: ["iteration", "tickets"],
   group: "iteration",
-  summary: "チケットを Iteration に入れる（並びの末尾）。閉じた Iteration には入れられない",
+  summary: "チケットを Iteration に入れる。閉じた Iteration には入れられない",
   input: membership,
   write: true,
   needs: "store",
@@ -109,27 +106,19 @@ export const iterationAdd = defineCommand({
         const it = ctx.store.require("iteration", input.iteration);
         if (it.data.status === "closed")
           throw new OperationError("REJECTED", `${it.id} は閉じている`);
-        const order = [...it.data.tickets];
+        const ids: string[] = [];
         for (const ref of input.tickets) {
           const t = ctx.store.require("ticket", ref);
           if (t.data.project !== it.data.project)
             throw new OperationError("REJECTED", `${t.id} は ${it.id} と別の Project`);
-          const previous = t.data.iteration;
-          if (previous && previous !== it.id) {
-            const prev = ctx.store.iterations.get(previous);
-            if (prev)
-              await ctx.store.update("iteration", prev.id, {
-                tickets: prev.data.tickets.filter((x) => x !== t.id),
-              });
-          }
           await ctx.store.update("ticket", t.id, { iteration: it.id, updated_at: nowIso(ctx) });
-          if (!order.includes(t.data.id)) order.push(t.data.id);
+          ids.push(t.id);
         }
-        return ctx.store.update("iteration", it.id, { tickets: order });
+        return { iteration: it.id, tickets: ids };
       },
-      { message: (doc) => `${doc.id} にチケットを入れる: ${input.tickets.join(", ")}` },
+      { message: (r) => `${r.iteration} に ${r.tickets.join(", ")} を入れる` },
     );
-    return ok(result.value.data, result.write);
+    return ok(result.value, result.write);
   },
 });
 
@@ -146,21 +135,19 @@ export const iterationRemove = defineCommand({
       ctx,
       async () => {
         const it = ctx.store.require("iteration", input.iteration);
-        const removed: string[] = [];
+        const ids: string[] = [];
         for (const ref of input.tickets) {
           const t = ctx.store.require("ticket", ref);
           if (t.data.iteration !== it.id)
             throw new OperationError("REJECTED", `${t.id} は ${it.id} に入っていない`);
           await ctx.store.update("ticket", t.id, { iteration: undefined, updated_at: nowIso(ctx) });
-          removed.push(t.id);
+          ids.push(t.id);
         }
-        return ctx.store.update("iteration", it.id, {
-          tickets: it.data.tickets.filter((x) => !removed.includes(x)),
-        });
+        return { iteration: it.id, tickets: ids };
       },
-      { message: (doc) => `${doc.id} からチケットを外す: ${input.tickets.join(", ")}` },
+      { message: (r) => `${r.iteration} から ${r.tickets.join(", ")} を外す` },
     );
-    return ok(result.value.data, result.write);
+    return ok(result.value, result.write);
   },
 });
 

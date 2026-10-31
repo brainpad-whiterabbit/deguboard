@@ -35,8 +35,11 @@ export function checkReferences(store: Store): Issue[] {
       else if (epic.data.project !== t.project)
         push(doc.path, t.id, "epic_project", `Epic ${t.epic} は別の Project`);
     }
-    if (t.iteration && !store.iterations.has(t.iteration)) {
-      push(doc.path, t.id, "iteration_missing", `Iteration ${t.iteration} がない`);
+    if (t.iteration) {
+      const it = store.iterations.get(t.iteration);
+      if (!it) push(doc.path, t.id, "iteration_missing", `Iteration ${t.iteration} がない`);
+      else if (it.data.project !== t.project)
+        push(doc.path, t.id, "iteration_project", `Iteration ${t.iteration} は別の Project`);
     }
   }
   for (const doc of store.epics.values()) {
@@ -46,9 +49,6 @@ export function checkReferences(store: Store): Issue[] {
   for (const doc of store.iterations.values()) {
     if (!store.projects.has(doc.data.project))
       push(doc.path, doc.id, "project_missing", `Project ${doc.data.project} がない`);
-    for (const id of doc.data.tickets) {
-      if (!store.tickets.has(id)) push(doc.path, doc.id, "ticket_missing", `チケット ${id} がない`);
-    }
   }
   issues.push(...findDependencyCycles(store));
   return issues;

@@ -11,7 +11,7 @@ export interface Transition {
 }
 
 export const BUILTIN_TRANSITIONS: readonly Transition[] = [
-  // claim。依存が done でなければ拒否（ST-3）
+  // claim。deps_done（依存先がすべて done か abandoned）でなければ拒否（ST-3）
   { from: "todo", to: "in_progress", by: ["human", "agent"], requires: ["deps_done"] },
   { from: "in_progress", to: "review", by: ["human", "agent", "reconcile"], requires: [] },
   // 差し戻し

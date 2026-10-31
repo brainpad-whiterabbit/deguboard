@@ -144,7 +144,8 @@ closed_at: 2026-11-20T09:00:00Z # closed のときだけ
 
 ### 5.6 Iteration（`iterations/s3.yaml`）
 
-`id`、`project`、`name`、`goal`、`start`、`end`、`status`（`planned` / `active` / `closed`）、`tickets`（並び順）。閉じたときに `closed_at` と完了・持ち越しの件数を書く。
+- IT-1 `id`、`project`、`name`、`goal`、`start`、`end`、`status`（`planned` / `active` / `closed`）を持つ。閉じたときに `closed_at` と完了・持ち越しの件数を書く
+- IT-2 所属はチケットの `iteration` で表し、Iteration 側にチケットの一覧は持たない（Epic と同じ）。入れるのは同じ Project のチケットだけ。Iteration 内の並びは優先度と番号で、閉じるときに done・abandoned 以外のチケットの `iteration` を外す
 
 ### 5.7 Plan（`plans/p7.yaml`）
 
@@ -171,7 +172,7 @@ fields:
 ```
 
 - WF-1 Status は全ワークフロー共通の 5 つ（`todo` / `in_progress` / `review` / `done` / `abandoned`）。前進の順は todo → in_progress → review → done で、`abandoned` は前進の軸の外の終端。遷移表は Core が持ち（[ADR-003](adr/ADR-003-status-and-workflow.md)）、ワークフローは `requires` を足すか `by` を狭めるだけで、遷移を増やしたり外したりできない
-- WF-2 `requires` と `reconcile.when` に書けるのは組み込みの事実（`deps_done`、`branch_exists`、`branch_pushed`、`branch_merged`、`pr_open`、`pr_draft`、`pr_merged`）とその否定（`!pr_draft`）だけ。利用者のスクリプトは実行しない（[ADR-003](adr/ADR-003-status-and-workflow.md)）
+- WF-2 `requires` と `reconcile.when` に書けるのは組み込みの事実（`deps_done`、`branch_exists`、`branch_pushed`、`branch_merged`、`pr_open`、`pr_draft`、`pr_merged`）とその否定（`!pr_draft`）だけ。`deps_done` は `depends_on` のすべてが done か abandoned のとき真（やめたチケットは待たない）。利用者のスクリプトは実行しない（[ADR-003](adr/ADR-003-status-and-workflow.md)）
 - WF-3 存在しない Status や遷移を指す項目、未知の条件は読み込み時と `dg workflow validate` で指摘する
 - WF-4 `software-development`・`consulting`・`general` のテンプレートを同梱し、`dg init --template` でコピーする
 - WF-5 Phase 3 で `steps`（Run の step の語彙）と、step ごとの Action・承認の要否を足す。手続きは YAML に書かず `dg guide` が持つ
@@ -189,10 +190,12 @@ fields:
 | `default_project`                | 省略時の Project                             | `default`             |
 | `git.remote` / `git.base_branch` | 同期先と、作業ブランチの元・マージ判定の基準 | `origin` / `main`     |
 | `worktree.root`                  | 作業 worktree の置き場所                     | `../<repo>.worktrees` |
-| `commit.mode`                    | `each` / `batch` / `manual`                  | `batch`               |
+| `commit.mode`                    | 書き込みをいつコミットするか（下記）         | `batch`               |
 | `push.mode`                      | `auto` / `manual`                            | `auto`                |
 | `metrics.read_transcripts`       | 会話記録を読むか                             | `false`               |
 | `actions.shell`                  | 任意のシェルの Action を許すか（Phase 3）    | `false`               |
+
+`commit.mode` の意味。`each` は書き込みのたびにコミットする。`batch` は作業ツリーに残し、`dg commit`・`dg sync`・即時にコミットする操作（CL-3）がまとめて 1 コミットにする。`manual` は `dg commit` だけがコミットし、`dg sync` もまとめない。いずれも `push.mode: auto` ならコミットのたびに push する。
 
 項目の全体は `dg config --help` とスキーマ（`packages/core/src/model/config.ts`）が正本。利用者ごとの上書きは設けない。
 
@@ -225,9 +228,9 @@ fields:
 
 - ST-1 `status` はチケットに保存する。変えるのは `ticket move`・`claim`・`unclaim`、UI の操作、照合だけ
 - ST-2 遷移は Workflow の `transitions` で検査する。表にない遷移、`requires` を満たさない遷移は拒否する
-- ST-3 `claim` は todo のチケットに `claimed_by`・`branch` を記録して in_progress に進める。依存が done でなければ拒否する
+- ST-3 `claim` は todo のチケットに `claimed_by`・`branch` を記録して in_progress に進める。`deps_done`（WF-2）でなければ拒否する
 - ST-4 照合は `dg sync` と、サーバー・拡張の定期実行で行う。チケットの `branch` について Git から事実を集め、`reconcile` 規則を上から評価し、今より前進の順が先のときだけ書き換える。`done` と `abandoned` のチケットには触れない
-- ST-5 後退を指す事実（消えたブランチ・閉じた PR）は書き換えず警告する。取れなかった事実は不明とし、前進の判定では偽と読む
+- ST-5 後退を指す事実（消えたブランチ・マージされずに閉じた PR）は書き換えず警告する。ただし同じ照合で done に進むときは、マージ後に消したブランチなので警告しない。取れなかった事実は不明とし、前進の判定では偽と読む
 - ST-6 PR の事実は `gh` が使えるときだけ取る。`gh` がなくても照合は Git の事実だけで成り立つ
 - ST-7 `unclaim` は自分の claim か記録のない claim だけを外す。応答のない claim は `--force` で外す。生存監視はしない
 - ST-8 `abandoned` にできるのは人だけ。claim を外し、Iteration の完了件数と Epic の進捗には数えない。再開（todo に戻す）と done の取り消し（todo に戻す）も人だけが行う
@@ -247,7 +250,7 @@ Web UI は `dg serve` が配信し、VS Code 拡張は同じ React アプリを 
 
 - UI-1 プロジェクトの切り替え
 - UI-2 カンバン：列は todo / in_progress / review / done の 4 つ（表示名は Workflow の `labels`）。abandoned は既定で隠し、切り替えで出す。チケットをドラッグ＆ドロップすると `ticket move` と同じ検査を通して Status が変わり、拒否されたら理由を出して戻す。Epic で絞り込める
-- UI-3 バックログ：done と abandoned 以外のチケットを優先度と並び順で出し、番号・タイトル・ラベルで検索、Status・優先度・Iteration・Epic・ラベルで絞り込む
+- UI-3 バックログ：done と abandoned 以外のチケットを優先度と番号で出し、番号・タイトル・ラベルで検索、Status・優先度・Iteration・Epic・ラベルで絞り込む
 - UI-4 チケット詳細：本文（概要・受け入れ条件）、属性、Epic、依存先と依存元、作業ブランチ、Run の一覧（Phase 3）。属性と本文を編集できる
 - UI-5 Iteration：一覧と、選んだ Iteration のチケット。チケットの追加・除外、開始・終了
 - UI-6 未 push のコミットと、取り込んでいないリモートの更新があることを印で知らせる。再読み込みで `dg sync` と同じ同期を行う
@@ -261,7 +264,7 @@ Web UI は `dg serve` が配信し、VS Code 拡張は同じ React アプリを 
 
 ### 6.5 エージェント連携
 
-- AG-1 エージェントは PATH の `dg` を Bash から `dg … --json` で呼び、データのファイルを直接編集しない
+- AG-1 エージェントは PATH の `dg` を Bash から `dg … --json --actor agent` で呼び、データのファイルを直接編集しない。human と agent の区別は申告（`--actor` か環境変数 `DEGUBOARD_ACTOR`。既定は human）に基づき、Skill と `dg guide` の手順は必ず agent を名乗る。権限管理ではない（対象外）
 - AG-2 Claude Code 向けに、`dg guide <topic>` を読む薄い Skill を配る（`dg skill install`、Phase 2）。起票・計画・割り当て・作業・完了の各トピックを用意する
 - AG-3 エージェントは要件の整理が終わったら、必要に応じてチケット化を提案し、承認を得て `ticket import` で起票する。分解・Epic への束ね・依存の整理・Iteration への割り当ても提案して承認を得る（Phase 2）
 - AG-4 MCP サーバーは Core のコマンド定義から生成する薄い層として提供する（Phase 2）。CLI と同じ操作ができる
