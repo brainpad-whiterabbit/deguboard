@@ -446,3 +446,69 @@ describe("用意", () => {
     expect(findCommand("ticket.nope")).toBeUndefined();
   });
 });
+
+describe("仮番号の振り直し（DT-5）", () => {
+  it("オフラインで起票した仮番号がリモートの番号と衝突したら、sync が番号・ファイル名・参照・コミットの題を振り直して push する", async () => {
+    const f = await fixture();
+    const a = await initialized(f.cloneA);
+    const b = await initialized(f.cloneB);
+
+    // A はオフラインで t1・t2（t1 に依存）を起票する。push できないので仮番号
+    await git(f.cloneA, ["remote", "set-url", "origin", path.join(f.root, "nonexistent.git")]);
+    const a1 = await runCommand(ticketCreate, a, { title: "A の 1" });
+    expect(a1.data.id).toBe("t1");
+    expect(a1.write).toMatchObject({ pushed: false, provisional: true });
+    const a2 = await runCommand(ticketCreate, a, { title: "A の 2", depends_on: ["t1"] });
+    expect(a2.data).toMatchObject({ id: "t2", depends_on: ["t1"] });
+    expect(a.store.tickets.get("t2")?.data.provisional).toBe(true);
+
+    // その間に B がオンラインで t1 を起票して push する
+    const b1 = await runCommand(ticketCreate, b, { title: "B の 1" });
+    expect(b1.data.id).toBe("t1");
+    expect(b1.write).toMatchObject({ pushed: true });
+
+    // A がオンラインに戻って sync する。A の t1 は衝突するので次の空き番号 t3 になり、t2 の依存も追従する
+    await git(f.cloneA, ["remote", "set-url", "origin", f.remoteDir]);
+    const synced = await runCommand(sync, a, {});
+    expect(synced.data.renumbered).toEqual([{ from: "t1", to: "t3" }]);
+    expect(synced.data.conflicts).toEqual([]);
+    expect(synced.data.pushed).toBe(true);
+    expect(synced.data.confirmed.sort()).toEqual(["t2", "t3"]);
+    expect(a.store.tickets.get("t1")?.data.title).toBe("B の 1");
+    expect(a.store.tickets.get("t3")?.data.title).toBe("A の 1");
+    expect(a.store.tickets.get("t3")?.data.provisional).toBeUndefined();
+    expect(a.store.tickets.get("t2")?.data.depends_on).toEqual(["t3"]);
+    await expect(
+      readFile(path.join(a.repo.dataDir, "tickets", "t3.md"), "utf8"),
+    ).resolves.toContain("id: t3");
+    const log = (await git(a.repo.dataDir, ["log", "--format=%s"])).stdout.trim().split("\n");
+    expect(log).toContain("t3 を起票: A の 1");
+    expect(log).toContain("t1 を起票: B の 1");
+    expect(log.some((m) => m === "t1 を起票: A の 1")).toBe(false);
+
+    // B が取り込むと同じ 3 件が見える
+    await runCommand(sync, b, {});
+    expect([...b.store.tickets.values()].map((t) => `${t.id}:${t.data.title}`).sort()).toEqual([
+      "t1:B の 1",
+      "t2:A の 2",
+      "t3:A の 1",
+    ]);
+    expect(b.store.tickets.get("t2")?.data.depends_on).toEqual(["t3"]);
+  });
+
+  it("仮番号でない競合はこれまでどおり報告し、何も書き換えない", async () => {
+    const f = await fixture();
+    const a = await initialized(f.cloneA);
+    const b = await initialized(f.cloneB);
+    await runCommand(ticketCreate, a, { title: "共通" });
+    await runCommand(sync, b, {});
+    // 同じチケットの同じ項目を両方で変えて、まとめてコミットしてから push を競わせる
+    await runCommand(ticketUpdate, a, { ticket: "t1", title: "A が変えた" });
+    await runCommand(ticketUpdate, b, { ticket: "t1", title: "B が変えた" });
+    expect((await runCommand(sync, b, {})).data.pushed).toBe(true);
+    const synced = await runCommand(sync, a, {});
+    expect(synced.data.conflicts).toEqual(["tickets/t1.md"]);
+    expect(synced.data.renumbered).toEqual([]);
+    expect(a.store.tickets.get("t1")?.data.title).toBe("A が変えた");
+  });
+});

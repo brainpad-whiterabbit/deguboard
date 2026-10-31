@@ -5,3 +5,4 @@ export * from "./sync.js";
 export * from "./lock.js";
 export * from "./facts.js";
 export * from "./write.js";
+export * from "./renumber.js";
