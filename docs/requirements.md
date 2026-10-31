@@ -2,7 +2,7 @@
 
 今の仕様の正本。利用者（人・エージェント）に約束する振る舞いとデータの形だけを書く。細部（CLI オプション、集計の規則、画面の並びや文言）はヘルプ・コード・テストが正本で、各節から案内する。判断の理由は [ADR 一覧](adr/README.md)から引く。書く範囲は [ADR-001](adr/ADR-001-doc-strategy.md)。
 
-要件の ID（`TK-1` など）はコードとテストから参照する。文を縮めても ID と見出しのアンカーは変えず、消した ID は再利用しない。「Phase」の列は実装の予定で、約束の有無ではない。
+要件の ID（`TK-1` など）はコードとテストから参照する。文を縮めても ID と見出しのアンカーは変えず、消した ID は再利用しない。まだ実装していない節・項目には「予定（`e3`）」と実装する Epic の ID を添える（`dg epic show e3`）。予定は時期の約束ではない。
 
 ## 1. 目的
 
@@ -60,7 +60,7 @@ epics/e3.md                 # 目的ごとの束ね。Iteration をまたぐ
 iterations/s3.yaml
 plans/p7.yaml
 workflows/<id>.yaml
-runs/                       # Phase 3。完了時の集計だけ
+runs/                       # 予定（e3）。完了時の集計だけ
 ```
 
 - DT-1 書き込みは一時ファイルへ書いてから rename する。読み込みは Zod のスキーマで検証し、読めないファイルは止めずに `dg validate` と画面で報告する
@@ -70,7 +70,7 @@ runs/                       # Phase 3。完了時の集計だけ
 
 - DT-3 ID は接頭辞＋連番（`t12`・`e3`・`s3`・`p7`）。ファイル名は ID そのまま（`t12.md`）で、ゼロ埋めしない。番号はリポジトリ全体で一意。ファイル名の辞書順は番号順にならないが、CLI と UI は番号で並べる
 - DT-4 採番は「既存と墓標の最大 + 1」。作成は fetch → 採番 → commit → push を 1 単位とし、push が拒否されたら採番し直す
-- DT-5 push できないときは `provisional: true` を付けてローカルに commit し、`dg ticket list` は仮番号に印を出す。push が済んだ `dg sync` で印を外す。衝突したときの番号・ファイル名・未 push のコミット内の参照の振り直しは Phase 2
+- DT-5 push できないときは `provisional: true` を付けてローカルに commit し、`dg ticket list` は仮番号に印を出す。push が済んだ `dg sync` で印を外す。衝突したときの番号・ファイル名・未 push のコミット内の参照の振り直しは予定（t8）
 - DT-6 CLI と UI は `t12` でも `12` でも受け付ける
 
 ### 5.3 Project（`projects/<slug>.yaml`）
@@ -175,9 +175,9 @@ fields:
 - WF-2 `requires` と `reconcile.when` に書けるのは組み込みの事実（`deps_done`、`branch_exists`、`branch_pushed`、`branch_merged`、`pr_open`、`pr_draft`、`pr_merged`）とその否定（`!pr_draft`）だけ。`deps_done` は `depends_on` のすべてが done か abandoned のとき真（やめたチケットは待たない）。利用者のスクリプトは実行しない（[ADR-003](adr/ADR-003-status-and-workflow.md)）
 - WF-3 存在しない Status や遷移を指す項目、未知の条件は読み込み時と `dg workflow validate` で指摘する
 - WF-4 `software-development`・`consulting`・`general` のテンプレートを同梱し、`dg init` が 3 つとも置く。`default` プロジェクトの Workflow はそのどれかを選べ、既定は `general`
-- WF-5 Phase 3 で `steps`（Run の step の語彙）と、step ごとの Action・承認の要否を足す。手続きは YAML に書かず `dg guide` が持つ
+- WF-5 予定（`e3`）：`steps`（Run の step の語彙）と、step ごとの Action・承認の要否を足す。手続きは YAML に書かず `dg guide` が持つ
 
-### 5.9 Run（`runs/`、Phase 3）
+### 5.9 Run（`runs/`。予定 `e3`）
 
 - RN-1 1 Run 1 ファイル。`id`、`ticket`、`step`、`agent`、`model`、`started_at`、`finished_at`、`result`（`success` / `failure` / `interrupted`）、`error`、`retries`、`usage`（input / output / cache_read / cache_write のトークン）
 - RN-2 取れなかった値は `null`。推定した値は `estimated: true` を付ける。費用は持たない（[ADR-005](adr/ADR-005-work-metrics.md)）
@@ -193,7 +193,7 @@ fields:
 | `commit.mode`                    | 書き込みをいつコミットするか（下記）         | `batch`               |
 | `push.mode`                      | `auto` / `manual`                            | `auto`                |
 | `metrics.read_transcripts`       | 会話記録を読むか                             | `false`               |
-| `actions.shell`                  | 任意のシェルの Action を許すか（Phase 3）    | `false`               |
+| `actions.shell`                  | 任意のシェルの Action を許すか（予定 `e3`）  | `false`               |
 
 `commit.mode` の意味。`each` は書き込みのたびにコミットする。`batch` は作業ツリーに残し、`dg commit`・`dg sync`・即時にコミットする操作（CL-3）がまとめて 1 コミットにする（即時の操作は、まとめ待ちの変更を先に 1 コミットにしてから自分のコミットを作る）。`manual` は `dg commit` と即時の操作だけがコミットし、`dg sync` はまとめない。`push.mode` は `auto` ならコミットのたびに push し、`manual` なら `dg sync` が push する。即時の操作はどちらでも push する。
 
@@ -206,18 +206,18 @@ fields:
 - CL-1 すべてのコマンドに `--json` があり、エージェントはそれを読む。成功は `{ ok: true, data, warnings, write }`、失敗は `{ ok: false, error: { code, message, detail } }`。終了コードは 0（成功）/ 1（失敗。`validate`・`lint` は指摘があるとき）/ 2（使い方の誤り）。`error.code` の語彙は `packages/core/src/errors.ts` が正本
 - CL-2 コマンドの一覧とオプションは `dg --help` が正本。主な群は次のとおり
 
-| 群        | コマンド                                                                                 | Phase |
-| --------- | ---------------------------------------------------------------------------------------- | ----- |
-| 用意      | `init`、`sync`、`commit`、`validate`、`lint`、`config`                                   | 1     |
-| Project   | `project create / list / show / archive`                                                 | 1     |
-| Ticket    | `ticket create / list / show / update / move / delete / import / claim / unclaim`        | 1     |
-| Iteration | `iteration create / list / show / add / remove / start / close`（`sprint` はエイリアス） | 1     |
-| Epic      | `epic create / list / show / update / add / remove / close / reopen`                     | 1     |
-| Workflow  | `workflow list / show / validate`                                                        | 1     |
-| 画面      | `serve`、`open`（web の実装までは API だけを配信する）                                   | 1     |
-| 手順      | `guide <topic>`                                                                          | 1     |
-| Plan      | `plan create / approve / show / close`                                                   | 2     |
-| Run       | `run start / finish / list`、`metrics show`                                              | 3     |
+| 群        | コマンド                                                                                 | 状態         |
+| --------- | ---------------------------------------------------------------------------------------- | ------------ |
+| 用意      | `init`、`sync`、`commit`、`validate`、`lint`、`config`                                   | あり         |
+| Project   | `project create / list / show / archive`                                                 | あり         |
+| Ticket    | `ticket create / list / show / update / move / delete / import / claim / unclaim`        | あり         |
+| Iteration | `iteration create / list / show / add / remove / start / close`（`sprint` はエイリアス） | あり         |
+| Epic      | `epic create / list / show / update / add / remove / close / reopen`                     | あり         |
+| Workflow  | `workflow list / show / validate`                                                        | あり         |
+| 画面      | `serve`、`open`（web の実装までは API だけを配信する）                                   | あり         |
+| 手順      | `guide <topic>`                                                                          | あり         |
+| Plan      | `plan create / approve / show / close`                                                   | 予定（`e2`） |
+| Run       | `run start / finish / list`、`metrics show`                                              | 予定（`e3`） |
 
 - CL-3 書き込みを伴うコマンドは、`commit.mode` に従って deguboard ブランチにコミットする。作成（`init`、`project / ticket / epic / iteration create`、`ticket import`）と `ticket claim` は `commit.mode`・`push.mode` によらず即座にコミットして push する（採番と排他のため）
 - CL-4 `ticket import` は YAML / JSON の下書き（配列）を 1 コミットで取り込む。下書きの中の仮キーを `depends_on` から参照でき、`epic` に既存の Epic を書ける
@@ -240,8 +240,8 @@ fields:
 - SY-1 `dg init` は deguboard ブランチを作るか取り込み、専用 worktree を用意し、`default` プロジェクトとテンプレートのワークフローを置く
 - SY-2 書き込みの単位は「取り込み → 変更 → 検証 → コミット →（`push.mode: auto` か即時の操作なら）push」。push が拒否されたら取り込み直して再送する。送れなければコミットを残し、次の同期で再送する
 - SY-3 claim と作成は push の成功をもって取得とする。拒否されたらローカルのコミットを捨てて取り込み直し、判定し直す
-- SY-4 同期で競合したら、rebase を中止してローカルのコミットを残し、`dg sync` が競合を報告する。frontmatter のフィールド単位のマージドライバは Phase 2
-- SY-5 同一マシンの書き込みは `deguboard-local/locks/` のロックで直列にし、Run の二重起動（Phase 3）も同じ場所のロックで防ぐ。チーム間の排他には使わない
+- SY-4 同期で競合したら、rebase を中止してローカルのコミットを残し、`dg sync` が競合を報告する。frontmatter のフィールド単位のマージドライバは予定（`e2`）
+- SY-5 同一マシンの書き込みは `deguboard-local/locks/` のロックで直列にし、Run の二重起動（予定 `e3`）も同じ場所のロックで防ぐ。チーム間の排他には使わない
 - SY-6 リモートがなくても、同期を除くすべての操作が動く
 
 ### 6.4 画面（Web UI・VS Code 拡張）
@@ -251,12 +251,12 @@ Web UI は `dg serve` が配信し、VS Code 拡張は同じ React アプリを 
 - UI-1 プロジェクトの切り替え
 - UI-2 カンバン：列は todo / in_progress / review / done の 4 つ（表示名は Workflow の `labels`）。abandoned は既定で隠し、切り替えで出す。チケットをドラッグ＆ドロップすると `ticket move` と同じ検査を通して Status が変わり、拒否されたら理由を出して戻す。Epic で絞り込める
 - UI-3 バックログ：done と abandoned 以外のチケットを優先度と番号で出し、番号・タイトル・ラベルで検索、Status・優先度・Iteration・Epic・ラベルで絞り込む
-- UI-4 チケット詳細：本文（概要・受け入れ条件）、属性、Epic、依存先と依存元、作業ブランチ、Run の一覧（Phase 3）。属性と本文を編集できる
+- UI-4 チケット詳細：本文（概要・受け入れ条件）、属性、Epic、依存先と依存元、作業ブランチ、Run の一覧（予定 `e3`）。属性と本文を編集できる
 - UI-5 Iteration：一覧と、選んだ Iteration のチケット。チケットの追加・除外、開始・終了
 - UI-6 未 push のコミットと、取り込んでいないリモートの更新があることを印で知らせる。再読み込みで `dg sync` と同じ同期を行う
 - UI-7 画面からの書き込みは Core の同じコマンドを通り、`commit.mode` に従ってコミットする
 - UI-8 `dg serve` は既定で `127.0.0.1` にバインドする。認証は持たない
-- UI-9 Run の実行状況と実績の画面は Phase 3
+- UI-9 Run の実行状況と実績の画面は予定（`e3`）
 - UI-10 Epic：一覧と進捗（EP-3）、選んだ Epic のチケットを Status ごとに出す。チケットの追加・除外、閉じる・再開
 - UI-11 VS Code 拡張は `dg` を同梱せず、Webview のために `core` を同梱する。画面は `dg` なしで動き、`dg` が PATH にないときはインストールを案内する。`dg` の版と拡張の `core` の版のメジャーが違えば知らせる（[ADR-006](adr/ADR-006-ui-and-writes.md)）
 
@@ -265,25 +265,25 @@ Web UI は `dg serve` が配信し、VS Code 拡張は同じ React アプリを 
 ### 6.5 エージェント連携
 
 - AG-1 エージェントは PATH の `dg` を Bash から `dg … --json --actor agent` で呼び、データのファイルを直接編集しない。human と agent の区別は申告（`--actor` か環境変数 `DEGUBOARD_ACTOR`。既定は human）に基づき、Skill と `dg guide` の手順は必ず agent を名乗る。主体の ID は `--actor-id` か環境変数 `DEGUBOARD_ACTOR_ID`（既定は git の `user.name`@ホスト名）で、`claimed_by` に記録される。権限管理ではない（対象外）
-- AG-2 Claude Code 向けに、`dg guide <topic>` を読む薄い Skill を配る（`dg skill install`、Phase 2）。起票・計画・割り当て・作業・完了の各トピックを用意する
-- AG-3 エージェントは要件の整理が終わったら、必要に応じてチケット化を提案し、承認を得て `ticket import` で起票する。分解・Epic への束ね・依存の整理・Iteration への割り当ても提案して承認を得る（Phase 2）
-- AG-4 MCP サーバーは Core のコマンド定義から生成する薄い層として提供する（Phase 2）。CLI と同じ操作ができる
-- AG-5 Agent Adapter が、エージェントの起動方法・使用量の取得・権限・作業ディレクトリの差を吸収する。Core は特定の AI 製品を知らない（Phase 2〜3）
-- AG-6 ソフトウェア開発向けの Action（worktree の作成、ブランチ、テスト実行、PR 作成、マージ）は登録済みの Action として提供し、Core の汎用部分に組み込まない（Phase 3）
-- AG-7 任意のシェルコマンドの Action は `actions.shell: true` のときだけ使え、実行前に確認する（Phase 3）
+- AG-2 Claude Code 向けに、`dg guide <topic>` を読む薄い Skill を配る（`dg skill install`。予定 `e2`）。起票・計画・割り当て・作業・完了の各トピックを用意する
+- AG-3 エージェントは要件の整理が終わったら、必要に応じてチケット化を提案し、承認を得て `ticket import` で起票する。分解・Epic への束ね・依存の整理・Iteration への割り当ても提案して承認を得る（予定 `e2`）
+- AG-4 MCP サーバーは Core のコマンド定義から生成する薄い層として提供する（予定 `e2`）。CLI と同じ操作ができる
+- AG-5 Agent Adapter が、エージェントの起動方法・使用量の取得・権限・作業ディレクトリの差を吸収する。Core は特定の AI 製品を知らない（予定 `e2`・`e3`）
+- AG-6 ソフトウェア開発向けの Action（worktree の作成、ブランチ、テスト実行、PR 作成、マージ）は登録済みの Action として提供し、Core の汎用部分に組み込まない（予定 `e3`）
+- AG-7 任意のシェルコマンドの Action は `actions.shell: true` のときだけ使え、実行前に確認する（予定 `e3`）
 
-### 6.6 作業の実績（Phase 3）
+### 6.6 作業の実績（予定 `e3`）
 
 - MT-1 `dg run start / finish` で Run を記録し、Adapter が使用量を取り込む。エージェントの自己申告の数字は書かない
 - MT-2 `metrics.read_transcripts` が true のマシンでは、Claude Code の会話記録から使用量を補う。`DEGUBOARD_NO_TRANSCRIPTS=1` のマシンでは読まない
 - MT-3 Run・Ticket・Epic・Iteration・Project・Agent/Model の単位で集計して出す。集計値は保存しない
 - MT-4 Git に入る記録は、数とリポジトリからの相対パスだけ。会話の中身・コマンドの文字列・リポジトリの外のパスは写さない
 
-### 6.7 ワークフロー実行（Phase 3〜4）
+### 6.7 ワークフロー実行（予定 `e3`・`e4`）
 
 - EX-1 deguboard はエージェントを起動しない。チケットの処理はエージェント側の Skill が `dg` を呼んで進める
 - EX-2 終了していない Run は一覧で見え、`interrupted` として閉じられる
-- EX-3 依存に従う並列実行・自動レビュー・修正ループ・品質ゲート・自動マージは、Skill 側の手順として提供し、着手できるチケットの一覧（`ticket list` の `ready`。Phase 1 で実装済み）と Plan の順序に従う（Phase 4）
+- EX-3 依存に従う並列実行・自動レビュー・修正ループ・品質ゲート・自動マージは、Skill 側の手順として提供し、着手できるチケットの一覧（`ticket list` の `ready`）と Plan の順序に従う（予定 `e4`）
 - EX-4 人の承認が要る遷移（Workflow の `by: [human]`）は、エージェントからは行えない
 
 ## 7. 非機能要件

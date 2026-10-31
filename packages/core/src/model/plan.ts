@@ -1,4 +1,4 @@
-// Plan（plans/p7.yaml。requirements.md 5.7）。コマンドは Phase 2 で、Phase 1 はスキーマだけ
+// Plan（plans/p7.yaml。requirements.md 5.7）。コマンドはまだなく、スキーマだけ
 
 import { z } from "zod";
 import { isoDateTime, slugSchema } from "./common.js";

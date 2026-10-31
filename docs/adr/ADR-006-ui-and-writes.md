@@ -9,7 +9,7 @@
 
 ## 決定
 
-### Web UI と VS Code 拡張を Phase 1 から両方提供する
+### Web UI と VS Code 拡張を最初の版から両方提供する
 
 - 画面は 1 つの React アプリ（`packages/web`）で作る。Web ではローカル HTTP サーバー（`dg serve`）が配信し、VS Code では拡張の Webview に同じアプリを載せる
 - アプリは `CommandClient` という 1 つのインターフェースだけを通じて Core を呼ぶ。Web では HTTP の実装、VS Code では Webview の `postMessage` を拡張ホストが受けて Core を直接呼ぶ実装にする。画面のコードは両方で同一
@@ -33,7 +33,7 @@
 
 - `dg` は npm で配る（`npm i -g deguboard`。mise なら `mise use npm:deguboard`）。実行環境に Node.js 24 以上を要求しているので、前提は増えない
 - 拡張は Webview のために `core` と `web` だけを同梱する。画面の閲覧と操作は `dg` なしで動く
-- 拡張が使う `dg` の解決は「PATH のグローバル → 同梱」の順で引く 1 か所の関数に置く。Phase 1 では同梱せず、npm が使えない環境が実際に出たときに足す
+- 拡張が使う `dg` の解決は「PATH のグローバル → 同梱」の順で引く 1 か所の関数に置く。最初の版では同梱せず、npm が使えない環境が実際に出たときに足す
 - `dg` が見つからなければ通知でインストールを案内し、`dg --version` と同梱の `core` のメジャーが違えば知らせる
 
 ### サーバーは localhost に閉じる

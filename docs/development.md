@@ -19,7 +19,7 @@ mise run install    # 依存を lockfile どおりに入れる
 
 ## チケットと作業の流れ
 
-このリポジトリのチケットは deguboard 自身で管理する（ドッグフーディング）。データは orphan ブランチ `deguboard`（worktree は `.git/deguboard/`）にあり、`dg` でだけ読み書きする。Phase 1 の残りは Epic `e1` に入れる。
+このリポジトリのチケットは deguboard 自身で管理する（ドッグフーディング）。データは orphan ブランチ `deguboard`（worktree は `.git/deguboard/`）にあり、`dg` でだけ読み書きする。今の版の残りは Epic `e1`、その先のロードマップは `e2`〜`e4` に入れる（`dg epic list`）。
 
 共通の流れ（起票 → claim → 作業 → PR → 照合 → 完了）は `dg` が出す手順が正本で、ここには書かない。
 
@@ -106,4 +106,4 @@ core の `commands` を HTTP に写す。Node 標準の `node:http` で、フレ
 
 ## リリース
 
-Phase 1 の最初の版を出すとき（t7）に書く。
+最初の版を出すとき（t7）に書く。

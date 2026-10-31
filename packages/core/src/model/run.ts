@@ -1,4 +1,4 @@
-// Run（runs/、Phase 3）。Phase 1 では型だけ置く（requirements.md 5.9、ADR-005）
+// Run（runs/）。実装までは型だけ置く（requirements.md 5.9、ADR-005）
 
 export type RunResult = "success" | "failure" | "interrupted";
 

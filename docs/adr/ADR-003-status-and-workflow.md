@@ -22,7 +22,7 @@ deguboard はソフトウェア開発だけでなく、コンサルティング�
 | `abandoned`   | やめた。終端。前進の軸の外 | -        |
 
 - ワークフローは Status を増やせない。表示名（label）だけを変えられる
-- 工程（調査・実装・テストなど）はチケットの属性にしない。Phase 3 で Run に `step` を持たせ、「チケットがどこまで進んだか」と「Run が何をしたか」を分ける。工程をチケットに表示したいだけなら Workflow の `fields` で任意フィールドを足す
+- 工程（調査・実装・テストなど）はチケットの属性にしない。Run を実装するときに `step` を持たせ、「チケットがどこまで進んだか」と「Run が何をしたか」を分ける。工程をチケットに表示したいだけなら Workflow の `fields` で任意フィールドを足す
 
 ### 遷移表は Core が持つ
 
@@ -47,7 +47,7 @@ deguboard はソフトウェア開発だけでなく、コンサルティング�
 - `transitions`：組み込みの遷移に足す `requires` と `by` の絞り込み（任意）
 - `reconcile`：Git の事実から状態を導く規則。上から評価し、前進するときだけ書き換える
 - `fields`：チケットに追加する任意フィールド（UI の表示項目が追従）
-- Phase 3 で `steps`（Run の step の語彙）と、各 step で使える Action・承認の要否を足す
+- Run を実装するときに `steps`（Run の step の語彙）と、各 step で使える Action・承認の要否を足す
 
 書かないもの：
 
@@ -58,7 +58,7 @@ deguboard はソフトウェア開発だけでなく、コンサルティング�
 
 ### テンプレート
 
-`software-development`・`consulting`・`general` の 3 つを CLI に同梱し、`dg init --template` でコピーする。違いは `reconcile`・`fields`・`labels`（Phase 3 からは `steps`）で、Status は共通。
+`software-development`・`consulting`・`general` の 3 つを CLI に同梱し、`dg init --template` でコピーする。違いは `reconcile`・`fields`・`labels`（Run の実装後は `steps` も）で、Status は共通。
 
 ### Epic は置き、Milestone は置かない
 
