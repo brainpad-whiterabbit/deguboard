@@ -24,7 +24,7 @@ AI エージェント（Claude Code・Codex など）がチケットを処理す
 
 ### 排他は claim の push で決める
 
-- 着手（todo → active）は `dg ticket claim` で行う。claim は `status`・`claimed_by`・`branch` のコミットを push できたときに取得とする。拒否されたら取り込み直して判定し直す
+- 着手（todo → in_progress）は `dg ticket claim` で行う。claim は `status`・`claimed_by`・`branch` のコミットを push できたときに取得とする。拒否されたら取り込み直して判定し直す
 - 同一マシンの Run の二重起動は、`deguboard-local/locks/<ticket>` のローカルロックで防ぐ。Git 管理外で、チーム間の排他には使わない
 - 応答のない claim は人が確かめてから `dg ticket unclaim --force` で解除する。生存監視はしない
 

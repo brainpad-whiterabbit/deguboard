@@ -25,18 +25,18 @@ deguboard は、Git で管理するチケットとユーザー定義のワーク
 
 ## 3. 用語
 
-| 用語               | 意味                                                                                                     |
-| ------------------ | -------------------------------------------------------------------------------------------------------- |
-| Project            | チケットを束ねる単位。1 リポジトリに複数置ける                                                           |
-| Ticket             | 最小の作業単位。`t12`                                                                                    |
-| Iteration          | 期間の計画（スプリント）。`s3`。`sprint` はエイリアス                                                    |
-| Plan               | チケットをどの順で進めるかと承認の記録。`p7`                                                             |
-| Workflow           | ステータス・遷移・照合規則・追加フィールドの定義                                                         |
-| Status / category  | チケットの進捗。Status はワークフローごと、category は `todo` / `active` / `review` / `done` の固定 4 種 |
-| Run                | 1 回の AI 実行の記録。`step`（工程）を持つ                                                               |
-| claim              | チケットに着手する操作。push の成功で排他を得る                                                          |
-| 照合（reconcile）  | 作業ブランチの事実からチケットの状態を前進させること                                                     |
-| deguboard worktree | orphan ブランチ `deguboard` を checkout した `<git-common-dir>/deguboard/`                               |
+| 用語               | 意味                                                                                                  |
+| ------------------ | ----------------------------------------------------------------------------------------------------- |
+| Project            | チケットを束ねる単位。1 リポジトリに複数置ける                                                        |
+| Ticket             | 最小の作業単位。`t12`                                                                                 |
+| Iteration          | 期間の計画（スプリント）。`s3`。`sprint` はエイリアス                                                 |
+| Plan               | チケットをどの順で進めるかと承認の記録。`p7`                                                          |
+| Workflow           | 遷移の条件・照合規則・追加フィールド・表示名の定義                                                    |
+| Status             | チケットの進捗。全ワークフロー共通の `todo` / `in_progress` / `review` / `done` / `abandoned` の 5 つ |
+| Run                | 1 回の AI 実行の記録。`step`（工程）を持つ                                                            |
+| claim              | チケットに着手する操作。push の成功で排他を得る                                                       |
+| 照合（reconcile）  | 作業ブランチの事実からチケットの状態を前進させること                                                  |
+| deguboard worktree | orphan ブランチ `deguboard` を checkout した `<git-common-dir>/deguboard/`                            |
 
 ## 4. ユースケース
 
@@ -126,16 +126,11 @@ updated_at: 2026-10-31T05:10:00Z
 ```yaml
 id: software-development
 name: Software Development
-statuses: # 並びがカンバンの列と「前進」の基準
-  - { id: todo, label: TODO, category: todo }
-  - { id: in_progress, label: In Progress, category: active }
-  - { id: review, label: Review, category: review }
-  - { id: done, label: Done, category: done }
-transitions: # 表にない遷移は拒否する
-  - { from: todo, to: in_progress, by: [human, agent], requires: [deps_done] }
-  - { from: in_progress, to: review, by: [human, agent, reconcile] }
-  - { from: review, to: in_progress, by: [human] }
-  - { from: review, to: done, by: [human, reconcile], requires: [branch_merged] }
+labels: # 任意。Status の表示名だけを変える
+  review: コードレビュー
+transitions: # 任意。組み込みの遷移に条件を足すか、誰が行えるかを狭める
+  - { from: todo, to: in_progress, requires: [deps_done] }
+  - { from: review, to: done, requires: [branch_merged], by: [human, reconcile] }
 reconcile: # 上から評価し、前進するときだけ書き換える
   - { when: [branch_merged], status: done }
   - { when: [pr_open, "!pr_draft"], status: review }
@@ -144,9 +139,9 @@ fields:
   - { id: estimate, type: number, label: 見積 }
 ```
 
-- WF-1 `statuses` の各要素は `id`・`label`・`category` を持ち、4 つの category をすべて含む
+- WF-1 Status は全ワークフロー共通の 5 つ（`todo` / `in_progress` / `review` / `done` / `abandoned`）。前進の順は todo → in_progress → review → done で、`abandoned` は前進の軸の外の終端。遷移表は Core が持ち（[ADR-003](adr/ADR-003-status-and-workflow.md)）、ワークフローは `requires` を足すか `by` を狭めるだけで、遷移を増やしたり外したりできない
 - WF-2 `requires` と `reconcile.when` に書けるのは組み込みの事実（`deps_done`、`branch_exists`、`branch_pushed`、`branch_merged`、`pr_open`、`pr_draft`、`pr_merged`）とその否定（`!pr_draft`）だけ。利用者のスクリプトは実行しない（[ADR-003](adr/ADR-003-status-and-workflow.md)）
-- WF-3 存在しない Status を指す遷移、category の欠け、未知の条件は読み込み時と `dg workflow validate` で指摘する
+- WF-3 存在しない Status や遷移を指す項目、未知の条件は読み込み時と `dg workflow validate` で指摘する
 - WF-4 `software-development`・`consulting`・`general` のテンプレートを同梱し、`dg init --template` でコピーする
 - WF-5 Phase 3 で `steps`（Run の step の語彙）と、step ごとの Action・承認の要否を足す。手続きは YAML に書かず `dg guide` が持つ
 
@@ -198,11 +193,12 @@ fields:
 
 - ST-1 `status` はチケットに保存する。変えるのは `ticket move`・`claim`・`unclaim`、UI の操作、照合だけ
 - ST-2 遷移は Workflow の `transitions` で検査する。表にない遷移、`requires` を満たさない遷移は拒否する
-- ST-3 `claim` は todo（category）のチケットに `claimed_by`・`branch` を記録して active の Status に進める。依存が done でなければ拒否する
-- ST-4 照合は `dg sync` と、サーバー・拡張の定期実行で行う。チケットの `branch` について Git から事実を集め、`reconcile` 規則を上から評価し、今より category が先のときだけ書き換える
+- ST-3 `claim` は todo のチケットに `claimed_by`・`branch` を記録して in_progress に進める。依存が done でなければ拒否する
+- ST-4 照合は `dg sync` と、サーバー・拡張の定期実行で行う。チケットの `branch` について Git から事実を集め、`reconcile` 規則を上から評価し、今より前進の順が先のときだけ書き換える。`done` と `abandoned` のチケットには触れない
 - ST-5 後退を指す事実（消えたブランチ・閉じた PR）は書き換えず警告する。取れなかった事実は不明とし、前進の判定では偽と読む
 - ST-6 PR の事実は `gh` が使えるときだけ取る。`gh` がなくても照合は Git の事実だけで成り立つ
 - ST-7 `unclaim` は自分の claim か記録のない claim だけを外す。応答のない claim は `--force` で外す。生存監視はしない
+- ST-8 `abandoned` にできるのは人だけ。claim を外し、Iteration の完了件数には数えない。再開（todo に戻す）と done の取り消し（todo に戻す）も人だけが行う
 
 ### 6.3 Git 同期と排他
 
@@ -218,8 +214,8 @@ fields:
 Web UI は `dg serve` が配信し、VS Code 拡張は同じ React アプリを Webview に載せる。表示と操作は両方で同じ（[ADR-006](adr/ADR-006-ui-and-writes.md)）。
 
 - UI-1 プロジェクトの切り替え
-- UI-2 カンバン：列は Workflow の `statuses` に追従する。チケットをドラッグ＆ドロップすると `ticket move` と同じ検査を通して Status が変わり、拒否されたら理由を出して戻す
-- UI-3 バックログ：done 以外のチケットを優先度と並び順で出し、番号・タイトル・ラベルで検索、Status・優先度・Iteration・ラベルで絞り込む
+- UI-2 カンバン：列は todo / in_progress / review / done の 4 つ（表示名は Workflow の `labels`）。abandoned は既定で隠し、切り替えで出す。チケットをドラッグ＆ドロップすると `ticket move` と同じ検査を通して Status が変わり、拒否されたら理由を出して戻す
+- UI-3 バックログ：done と abandoned 以外のチケットを優先度と並び順で出し、番号・タイトル・ラベルで検索、Status・優先度・Iteration・ラベルで絞り込む
 - UI-4 チケット詳細：本文（概要・受け入れ条件）、属性、依存先と依存元、作業ブランチ、Run の一覧（Phase 3）。属性と本文を編集できる
 - UI-5 Iteration：一覧と、選んだ Iteration のチケット。チケットの追加・除外、開始・終了
 - UI-6 未 push のコミットと、取り込んでいないリモートの更新があることを印で知らせる。再読み込みで `dg sync` と同じ同期を行う
