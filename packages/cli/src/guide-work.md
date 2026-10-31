@@ -5,7 +5,7 @@
 ## 流れ
 
 1. 着手できるか確かめる：`dg --json --actor agent ticket show <id>`。`status` が todo で `deps_done` が true。`claimed_by` があれば他の誰かが進めている
-2. claim する：`dg --json --actor agent ticket claim <id> --branch <種類>/<内容>`。in_progress になり、`claimed_by` とブランチ名が記録され、push の成功で排他を得る。`CLAIM_LOST`（誰かが先に claim した）なら別のチケットへ。`TRANSITION_REJECTED` なら依存先が終わっていない
+2. claim する：`dg --json --actor agent ticket claim <id> --branch <種類>/<内容>`。in_progress になり、`claimed_by` とブランチ名が記録され、push の成功で排他を得る。`CLAIM_LOST`（誰かが先に claim した）なら別のチケットへ。`TRANSITION_REJECTED` なら Workflow の制約に当たっている（依存先が終わっていないなど）。`error.message` を読む
 3. 作業ブランチと worktree を作る（リポジトリの規約に従う。既定の置き場所は `{{worktree.root}}`）
 
    ```sh
@@ -20,7 +20,7 @@
 
 ## 状態について
 
-- 自分で `status` を進めるのは in_progress → review だけ。done は照合（マージ）か人が決める。人だけの操作は `dg guide overview`
+- 自分で `status` を進めるのは in_progress → review まで。done は照合（マージ）か人が決める（Workflow が制約していなくても自分で done にしない）。人に頼む操作は `dg guide overview`
 - 途中でやめるなら `dg --json --actor agent ticket unclaim <id>`（in_progress で自分の claim のときだけ。todo に戻る）。review にあるなら人に差し戻しを頼む
 - 作業中に別の作業が見つかったら、そのチケットに混ぜず `dg guide create` の手順で起票を提案する
 

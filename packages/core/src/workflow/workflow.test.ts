@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { ACTORS } from "../model/workflow.js";
+import { STATUSES } from "../model/common.js";
 import { evaluateCondition, parseCondition } from "./conditions.js";
 import { reconcileStatus, regressionWarnings } from "./reconcile.js";
 import { canTransition, resolveWorkflow } from "./resolve.js";
@@ -17,52 +19,96 @@ describe("条件", () => {
 });
 
 describe("遷移の検査", () => {
-  it("todo → in_progress は依存が done でなければ拒否される", () => {
+  it("既定ではどの Status 間の遷移も、誰でも条件なしで通る", () => {
     const wf = validateWorkflow(base, "x.yaml").workflow!;
-    expect(canTransition(wf, "todo", "in_progress", "agent", { deps_done: false }).ok).toBe(false);
-    expect(canTransition(wf, "todo", "in_progress", "agent", {}).ok).toBe(false);
-    expect(canTransition(wf, "todo", "in_progress", "agent", { deps_done: true }).ok).toBe(true);
+    expect(wf.transitions).toEqual([]);
+    for (const from of STATUSES) {
+      for (const to of STATUSES) {
+        if (from === to) continue;
+        for (const actor of ACTORS) {
+          expect(canTransition(wf, from, to, actor, {}), `${from} → ${to} by ${actor}`).toEqual({
+            ok: true,
+          });
+        }
+      }
+    }
   });
 
-  it("表にない遷移と、人だけに許された遷移をエージェントが行うことは拒否される", () => {
-    const wf = validateWorkflow(base, "x.yaml").workflow!;
-    expect(canTransition(wf, "todo", "done", "human", {})).toMatchObject({
+  it("todo → in_progress に requires: [deps_done] を書けば、依存が終わるまで拒否される", () => {
+    const wf = validateWorkflow(
+      { ...base, transitions: [{ from: "todo", to: "in_progress", requires: ["deps_done"] }] },
+      "x.yaml",
+    ).workflow!;
+    expect(canTransition(wf, "todo", "in_progress", "agent", { deps_done: false })).toMatchObject({
       ok: false,
-      reason: "no_transition",
+      reason: "requires_unmet",
+      unmet: ["deps_done"],
     });
+    expect(canTransition(wf, "todo", "in_progress", "agent", {}).ok).toBe(false);
+    expect(canTransition(wf, "todo", "in_progress", "agent", { deps_done: true }).ok).toBe(true);
+    // 制約を書いていない遷移は影響を受けない
+    expect(canTransition(wf, "todo", "done", "agent", {}).ok).toBe(true);
+  });
+
+  it("by で主体を絞り、by: [] で遷移を禁止できる", () => {
+    const wf = validateWorkflow(
+      {
+        ...base,
+        transitions: [
+          { from: "in_progress", to: "abandoned", by: ["human"] },
+          { from: "done", to: "todo", by: [] },
+        ],
+      },
+      "x.yaml",
+    ).workflow!;
     expect(canTransition(wf, "in_progress", "abandoned", "agent", {})).toMatchObject({
       ok: false,
       reason: "actor_not_allowed",
     });
     expect(canTransition(wf, "in_progress", "abandoned", "human", {}).ok).toBe(true);
+    for (const actor of ACTORS) {
+      expect(canTransition(wf, "done", "todo", actor, {})).toMatchObject({
+        ok: false,
+        reason: "actor_not_allowed",
+      });
+    }
   });
 
-  it("Workflow は requires を足し、by を狭められる", () => {
+  it("1 つの遷移に by と requires を同時に書け、同じ遷移が重複すれば requires は和・by は積で合成する", () => {
     const wf = resolveWorkflow(
       validateWorkflow(
         {
           ...base,
-          transitions: [{ from: "review", to: "done", requires: ["branch_merged"], by: ["human"] }],
+          transitions: [
+            { from: "review", to: "done", requires: ["branch_merged"], by: ["human", "reconcile"] },
+            { from: "review", to: "done", requires: ["pr_merged"], by: ["human", "agent"] },
+          ],
         },
         "x.yaml",
       ).definition!,
     );
+    expect(wf.transitions).toEqual([
+      { from: "review", to: "done", by: ["human"], requires: ["branch_merged", "pr_merged"] },
+    ]);
     expect(canTransition(wf, "review", "done", "reconcile", { branch_merged: true })).toMatchObject(
       {
         ok: false,
         reason: "actor_not_allowed",
       },
     );
-    expect(canTransition(wf, "review", "done", "human", {})).toMatchObject({
+    expect(canTransition(wf, "review", "done", "human", { branch_merged: true })).toMatchObject({
       ok: false,
       reason: "requires_unmet",
+      unmet: ["pr_merged"],
     });
-    expect(canTransition(wf, "review", "done", "human", { branch_merged: true }).ok).toBe(true);
+    expect(
+      canTransition(wf, "review", "done", "human", { branch_merged: true, pr_merged: true }).ok,
+    ).toBe(true);
   });
 });
 
 describe("定義の検証（WF-3）", () => {
-  it("表にない遷移・by の拡大・未知の条件・存在しない Status を指摘する", () => {
+  it("未知の条件・同じ遷移の重複・同じ Status への遷移を指摘し、by はどの遷移にも書ける", () => {
     const { issues } = validateWorkflow(
       {
         ...base,
@@ -70,6 +116,8 @@ describe("定義の検証（WF-3）", () => {
           { from: "todo", to: "done" },
           { from: "review", to: "done", by: ["agent"] },
           { from: "todo", to: "in_progress", requires: ["tests_pass"] },
+          { from: "review", to: "done", requires: ["branch_merged"] },
+          { from: "todo", to: "todo" },
         ],
         reconcile: [{ when: ["!nope"], status: "done" }],
         labels: { review: "レビュー" },
@@ -77,10 +125,10 @@ describe("定義の検証（WF-3）", () => {
       "x.yaml",
     );
     expect(issues.map((i) => i.code).sort()).toEqual([
-      "workflow_actor_widened",
       "workflow_condition_unknown",
       "workflow_condition_unknown",
-      "workflow_transition_unknown",
+      "workflow_transition_duplicate",
+      "workflow_transition_self",
     ]);
   });
 
@@ -96,6 +144,8 @@ describe("定義の検証（WF-3）", () => {
       const { issues, workflow } = validateWorkflow(t, `${t.id}.yaml`);
       expect(issues, t.id).toEqual([]);
       expect(workflow?.labels.todo).toBe("Todo");
+      // 同梱テンプレートは遷移を縛らない
+      expect(workflow?.transitions, t.id).toEqual([]);
     }
   });
 });
@@ -119,10 +169,11 @@ describe("照合", () => {
       kind: "advance",
       to: "done",
     });
-    // consulting は review → done を人に狭めているので、review にあると照合では進まない
+    // consulting も遷移を縛らないので、review からマージの照合で done に進む
     const consulting = validateWorkflow(WORKFLOW_TEMPLATES[1]!, "consulting.yaml").workflow!;
     expect(reconcileStatus(consulting, "review", { branch_merged: true })).toMatchObject({
-      kind: "blocked",
+      kind: "advance",
+      to: "done",
     });
   });
 
@@ -149,7 +200,7 @@ describe("照合", () => {
     ).toMatchObject({ kind: "none" });
   });
 
-  it("done・abandoned は動かさず、手前を指す規則では書き換えない", () => {
+  it("制約がなくても照合は前進だけで、done・abandoned は動かさず、手前を指す規則では書き換えない", () => {
     expect(reconcileStatus(sd, "done", { branch_exists: true })).toEqual({ kind: "terminal" });
     expect(reconcileStatus(sd, "abandoned", { branch_merged: true })).toEqual({ kind: "terminal" });
     expect(reconcileStatus(sd, "review", { branch_exists: true, pr_open: false })).toEqual({
@@ -166,7 +217,7 @@ describe("照合", () => {
     expect(regressionWarnings("done", { branch_exists: false })).toEqual([]);
   });
 
-  it("前進でも遷移表が reconcile に許さなければ blocked になる", () => {
+  it("前進でも Workflow が reconcile に許さなければ blocked になる", () => {
     const wf = validateWorkflow(
       {
         ...base,
