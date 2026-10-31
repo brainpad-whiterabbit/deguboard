@@ -4,14 +4,7 @@ id: software-development
 name: Software Development
 labels:
   review: Code Review
-transitions:
-  - from: review
-    to: done
-    requires:
-      - branch_merged
-    by:
-      - human
-      - reconcile
+transitions: []
 reconcile:
   - when:
       - pr_merged
