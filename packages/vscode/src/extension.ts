@@ -50,11 +50,8 @@ export function activate(context: vscode.ExtensionContext): void {
       if (!folder) return;
       await openPanel(context, folder, { column: vscode.ViewColumn.One });
     }),
-    // ビューのタイトル行の 2 つのボタン（UI-12）。再読み込みはリモートがなくても使える。
-    // 同期は拡張ホストで実行してから、サイドバーとパネルの両方に読み直しを頼む（サイドバーが描かれていなくても動く）
-    vscode.commands.registerCommand("deguboard.reload", () => {
-      if (sidebarFolder) broadcast(sidebarFolder, { kind: "event", name: "reload" });
-    }),
+    // ビューのタイトル行の同期ボタン（UI-12）。拡張ホストで実行してから、サイドバーとパネルの両方に読み直しを頼む
+    // （サイドバーが描かれていなくても動く）。リモートがなくても読み直しだけはするので、手の再読み込みも兼ねる
     vscode.commands.registerCommand("deguboard.sync", () => void syncFolder()),
     vscode.window.registerWebviewViewProvider(
       VIEW_ID,
@@ -282,7 +279,7 @@ function clientFor(folder: vscode.WorkspaceFolder): CommandClient {
 /**
  * データ worktree のファイル（tickets/*.md など）を見張り、変わったらサイドバーとパネルに読み直しを頼む。
  * 1 回の書き込みで複数のファイルが変わるので 200ms まとめる。画面からの書き込みも拾うが、読み直しが 1 回増えるだけ。
- * 置き場所は core が status で返す data_dir（.git/deguboard/）。取れなければ見張らない（画面は手の再読み込みで動く）
+ * 置き場所は core が status で返す data_dir（.git/deguboard/）。取れなければ見張らない（画面は同期ボタンの読み直しで動く）
  */
 async function watchData(folder: vscode.WorkspaceFolder, client: CommandClient): Promise<void> {
   const key = folder.uri.toString();
