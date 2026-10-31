@@ -118,6 +118,15 @@ describe("画面", () => {
     expect(screen.queryByText("deguboard")).toBeNull();
   });
 
+  it("サイドバーでは同期の印とボタンを出さない（ビューのタイトル行とバッジで代える）", async () => {
+    const client = mockClient();
+    client.data.status = { ...client.data.status, ahead: 2 };
+    mount(client, { surface: "sidebar", openTicket: () => {} });
+    await screen.findByText("ログイン");
+    expect(screen.queryByRole("button", { name: "同期" })).toBeNull();
+    expect(screen.queryByText("未 push 2")).toBeNull();
+  });
+
   it("サイドバーではチケット詳細のルートでもバックログを出す（詳細はエディタのパネル）", async () => {
     window.location.hash = "#/tickets/t3";
     mount(mockClient(), { surface: "sidebar", openTicket: () => {} });
