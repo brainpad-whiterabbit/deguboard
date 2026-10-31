@@ -18,7 +18,7 @@ deguboard は、Git で管理するチケットとユーザー定義のワーク
 | 項目         | 内容                                                                                                                       |
 | ------------ | -------------------------------------------------------------------------------------------------------------------------- |
 | 利用者       | 個人、および同じ Git リポジトリを共有する小規模チーム                                                                      |
-| 実行環境     | Linux / macOS。Node.js 24 以上。ブラウザ、または VS Code（デスクトップ）                                                   |
+| 実行環境     | Linux / macOS。Node.js 24 以上。`dg` は npm で入れる。ブラウザ、または VS Code（デスクトップ）                             |
 | 必須ツール   | git 2.30 以上。GitHub CLI（`gh`）は PR の事実を照合に使うときだけ                                                          |
 | リポジトリ   | Git リポジトリ。リモートは任意（なければ同期なしで動く）。`git.base_branch` を作業ブランチの元と「マージ済み」の判定に使う |
 | エージェント | `dg` を Bash から呼べるものなら何でも。Skill は Claude Code 向けに配る                                                     |
@@ -255,13 +255,14 @@ Web UI は `dg serve` が配信し、VS Code 拡張は同じ React アプリを 
 - UI-8 `dg serve` は既定で `127.0.0.1` にバインドする。認証は持たない
 - UI-9 Run の実行状況と実績の画面は Phase 3
 - UI-10 Epic：一覧と進捗（EP-3）、選んだ Epic のチケットを Status ごとに出す。チケットの追加・除外、閉じる・再開
+- UI-11 VS Code 拡張は `dg` を同梱せず、Webview のために `core` を同梱する。画面は `dg` なしで動き、`dg` が PATH にないときはインストールを案内する。`dg` の版と拡張の `core` の版のメジャーが違えば知らせる（[ADR-006](adr/ADR-006-ui-and-writes.md)）
 
 画面の並び順・色・文言は Webview のコード（`packages/web/src/`）とテストが正本。
 
 ### 6.5 エージェント連携
 
-- AG-1 エージェントは `dg … --json` を Bash から呼び、データのファイルを直接編集しない
-- AG-2 Claude Code 向けに、`dg guide <topic>` を読む薄い Skill を配る（`dg skill install`、Phase 2）。起票・計画・作業・完了の各トピックを用意する
+- AG-1 エージェントは PATH の `dg` を Bash から `dg … --json` で呼び、データのファイルを直接編集しない
+- AG-2 Claude Code 向けに、`dg guide <topic>` を読む薄い Skill を配る（`dg skill install`、Phase 2）。起票・計画・割り当て・作業・完了の各トピックを用意する
 - AG-3 エージェントは要件の整理が終わったら、必要に応じてチケット化を提案し、承認を得て `ticket import` で起票する。分解・Epic への束ね・依存の整理・Iteration への割り当ても提案して承認を得る（Phase 2）
 - AG-4 MCP サーバーは Core のコマンド定義から生成する薄い層として提供する（Phase 2）。CLI と同じ操作ができる
 - AG-5 Agent Adapter が、エージェントの起動方法・使用量の取得・権限・作業ディレクトリの差を吸収する。Core は特定の AI 製品を知らない（Phase 2〜3）
