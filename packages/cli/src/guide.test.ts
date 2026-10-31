@@ -28,13 +28,19 @@ describe("dg guide", () => {
     }
   });
 
-  it("config の値を埋める（既定なら main と origin）", () => {
+  it("config の値を埋める（既定なら main と origin、空の配列は「なし」）", () => {
     expect(
       fillPlaceholders(
-        "{{git.remote}}/{{git.base_branch}} {{commit.mode}} {{nope}}",
+        "{{git.remote}}/{{git.base_branch}} {{commit.mode}} {{actor.human_only}} {{nope}}",
         defaultConfig(),
       ),
-    ).toBe("origin/main batch {{nope}}");
+    ).toBe("origin/main batch なし {{nope}}");
+    expect(
+      fillPlaceholders("{{actor.human_only}}", {
+        ...defaultConfig(),
+        actor: { human_only: ["epic.close", "iteration.close"] },
+      }),
+    ).toBe("epic.close, iteration.close");
   });
 
   it("overview にはすべてのトピックが載り、未知のトピックは終了コード 2", async () => {

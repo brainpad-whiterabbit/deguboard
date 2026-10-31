@@ -12,7 +12,7 @@ export function isGuideTopic(topic: string): topic is GuideTopic {
   return (GUIDE_TOPICS as readonly string[]).includes(topic);
 }
 
-/** `{{git.base_branch}}` のような項目を config の値で埋める */
+/** `{{git.base_branch}}` のような項目を config の値で埋める。配列は `, ` でつなぎ、空なら「なし」 */
 export function fillPlaceholders(text: string, config: Config): string {
   return text.replace(/\{\{([a-z_.]+)\}\}/g, (whole, key: string) => {
     const value = key
@@ -22,7 +22,9 @@ export function fillPlaceholders(text: string, config: Config): string {
           cur && typeof cur === "object" ? (cur as Record<string, unknown>)[k] : undefined,
         config,
       );
-    return value === undefined || value === null ? whole : String(value);
+    if (value === undefined || value === null) return whole;
+    if (Array.isArray(value)) return value.length === 0 ? "なし" : value.map(String).join(", ");
+    return String(value);
   });
 }
 

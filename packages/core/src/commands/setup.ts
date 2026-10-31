@@ -356,11 +356,42 @@ function coerce(value: unknown): unknown {
   return value;
 }
 
+/** CLI から来た配列の項目。カンマ区切りで、空文字は空の配列 */
+function splitList(value: string): string[] {
+  return value
+    .split(",")
+    .map((v) => v.trim())
+    .filter((v) => v.length > 0);
+}
+
+/** 最上位の項目の新しい値を組み立てる。`commit.mode` のように入れ子なら、今の値を写して葉だけ置き換える */
+function nestedValue(current: unknown, keys: string[], leaf: unknown): unknown {
+  if (keys.length === 0) return leaf;
+  const base =
+    typeof current === "object" && current !== null
+      ? { ...(current as Record<string, unknown>) }
+      : {};
+  let cursor = base;
+  for (const [i, k] of keys.entries()) {
+    if (i === keys.length - 1) cursor[k] = leaf;
+    else {
+      const next =
+        typeof cursor[k] === "object" && cursor[k] !== null
+          ? { ...(cursor[k] as Record<string, unknown>) }
+          : {};
+      cursor[k] = next;
+      cursor = next;
+    }
+  }
+  return base;
+}
+
 export const configSet = defineCommand({
   name: "config.set",
   positionals: ["key", "value"],
   group: "setup",
-  summary: "config.yaml の 1 項目を変える（commit.mode のようにドットで指す）",
+  summary:
+    "config.yaml の 1 項目を変える（commit.mode のようにドットで指す）。配列の項目はカンマ区切りで、空文字で空にする",
   input: z.object({
     key: z.string().min(1).describe("項目。例: commit.mode"),
     value: z.unknown().describe("値"),
@@ -373,34 +404,39 @@ export const configSet = defineCommand({
       async () => {
         const [top, ...rest] = input.key.split(".");
         if (!top) throw new OperationError("VALIDATION_FAILED", "key が空");
-        let value: unknown = coerce(input.value);
-        if (rest.length > 0) {
-          const current = (ctx.store.config as Record<string, unknown>)[top];
-          const base =
-            typeof current === "object" && current !== null
-              ? { ...(current as Record<string, unknown>) }
-              : {};
-          let cursor = base;
-          for (const [i, k] of rest.entries()) {
-            if (i === rest.length - 1) cursor[k] = value;
-            else {
-              const next =
-                typeof cursor[k] === "object" && cursor[k] !== null
-                  ? { ...(cursor[k] as Record<string, unknown>) }
-                  : {};
-              cursor[k] = next;
-              cursor = next;
-            }
+        const current = (ctx.store.config as Record<string, unknown>)[top];
+        const candidates: unknown[] = [coerce(input.value)];
+        if (typeof input.value === "string") candidates.push(splitList(input.value));
+        let value: unknown;
+        let error: z.ZodError | undefined;
+        for (const leaf of candidates) {
+          const next = nestedValue(current, rest, leaf);
+          const probe = configSchema.safeParse({ ...ctx.store.config, [top]: next });
+          if (probe.success) {
+            value = next;
+            error = undefined;
+            break;
           }
-          value = base;
+          error ??= probe.error;
         }
-        const probe = configSchema.safeParse({ ...ctx.store.config, [top]: value });
-        if (!probe.success)
+        if (error)
           throw new OperationError(
             "VALIDATION_FAILED",
             `${input.key} の値が正しくない`,
-            z.prettifyError(probe.error),
+            z.prettifyError(error),
           );
+        if (input.key === "actor.human_only") {
+          // コマンド名の存在を確かめ、エイリアス（sprint.close）は正式名に直す。registry と循環するので動的 import
+          const { findCommand } = await import("./registry.js");
+          const names = (value as { human_only: string[] }).human_only;
+          const unknown = names.filter((n) => !findCommand(n));
+          if (unknown.length > 0)
+            throw new OperationError(
+              "VALIDATION_FAILED",
+              `actor.human_only にないコマンドがある: ${unknown.join(", ")}`,
+            );
+          value = { ...(value as object), human_only: names.map((n) => findCommand(n)!.name) };
+        }
         return ctx.store.writeConfig({ [top]: value });
       },
       { message: `config の ${input.key} を変更` },

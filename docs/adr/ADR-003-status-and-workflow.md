@@ -29,7 +29,7 @@ deguboard はソフトウェア開発だけでなく、コンサルティング�
 - 既定では 5 つの Status の間のどの遷移も、human / agent / reconcile の誰でも条件なしで行える。Core が固定するのは Status の集合と前進の順、同じ Status への move の拒否、`abandoned` と todo に入るときの副作用（`claimed_by` と `branch` を消す）だけ
 - Workflow の `transitions` は from → to ごとに制約を足す。`by` は行える主体（省略なら誰でも、`[]` ならその遷移を禁止）、`requires` は満たすべき組み込みの条件（AND）。例：`{ from: todo, to: in_progress, requires: [deps_done] }` で依存が終わるまで着手を止め、`{ from: review, to: done, by: [human] }` で完了を人に限る。同じ from → to を 2 回書くのは誤りとして検証で指摘する（読み込めた場合は requires の和・by の積で合成する）
 - 照合（reconcile）は遷移の制約とは別の仕様。前進の順に進めるだけで、`abandoned` と `done` には触れず、そこからも動かさない。`by` に `reconcile` を含まない遷移は照合でも止まる
-- Epic と Iteration を閉じる・再開するのは Workflow の外で、常に人だけが行う
+- Epic と Iteration を閉じる・再開するのは Workflow の外で、既定では誰でも行える。人に限るなら config の `actor.human_only` にコマンド名（`epic.close` など）を書く
 
 ### Workflow YAML は制約と語彙を書く
 
@@ -55,7 +55,7 @@ deguboard はソフトウェア開発だけでなく、コンサルティング�
 ### Epic は置き、Milestone は置かない
 
 - Epic は目的ごとにチケットを束ねる独立したエンティティ（`epics/e3.md`）。チケットの一種にはせず、claim・ブランチ・5 つの Status を持たない
-- 状態は `open` / `closed` で、閉じる・再開は人だけが行う。進捗はチケットの状態から都度求め、保存しない
+- 状態は `open` / `closed` で、閉じる・再開は既定で誰でも行える。進捗はチケットの状態から都度求め、保存しない
 - 所属はチケット側の `epic` で表し、Epic 側に一覧を持たない。入れ子にせず、Iteration をまたぐ。チケットの遷移は縛らない
 - Milestone は持たず、期間の目標は Iteration で表す。Iteration の所属もチケット側の `iteration` だけで表し、一覧や並び順を持たない
 
@@ -67,6 +67,7 @@ deguboard はソフトウェア開発だけでなく、コンサルティング�
 - 状態遷移・承認・排他・記録はプログラムで保証し、要件整理・分解・実装方針・レビュー判断は AI に任せる。Workflow YAML を「制約と語彙」に限れば、エンジンは制約の検査と照合だけで済む
 - 条件を組み込みの事実に限るのは、照合が全員のマシンで走るため
 - 遷移を既定で自由にするのは、望ましい遷移が業務で違う（レビューを経ない作業、やり直し、やめる判断）ため。Core が表を持つと拒否の理由が業務の外から来て、緩める手段がない。縛りたいチームは `requires: [deps_done]` や `by: [human]` を 1 行書けば足り、エンジンは制約の検査と照合だけで済む
+- Epic と Iteration の操作も既定で自由にし、制限を config の `actor.human_only` に置くのは、チケットの遷移と同じく「誰に任せるか」がチームで違うため。Workflow はチケットの遷移の語彙なので、Workflow の外の操作はコマンド名で縛る
 - Epic（目的の範囲）・Iteration（期間）・Plan（実行順）は役割が違うので別のエンティティにする。進捗を保存しないのは、チケットを動かすたびに Epic も書き換えて衝突させないため
 
 ## 採らなかった案

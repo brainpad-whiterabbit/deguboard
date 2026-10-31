@@ -10,7 +10,7 @@ import {
 import { UsageError } from "../errors.js";
 import { openContext, type ContextOptions } from "./context.js";
 import { runCommand, type CommandContext } from "./define.js";
-import { epicAdd, epicClose, epicCreate, epicReopen, epicShow } from "./epic.js";
+import { epicAdd, epicClose, epicCreate, epicReopen, epicShow, epicUpdate } from "./epic.js";
 import { findCommand } from "./index.js";
 import {
   iterationAdd,
@@ -351,19 +351,52 @@ describe("Epic と Iteration", () => {
     await expect(runCommand(epicClose, ctx, { epic: "e1" })).rejects.toMatchObject({
       code: "REJECTED",
     });
+    // 既定では agent も閉じられる（actor.human_only が空）
     const agent = await openContext({ cwd: f.cloneA, actor: { kind: "agent", id: "claude@pc" } });
-    await expect(runCommand(epicClose, agent, { epic: "e1", force: true })).rejects.toMatchObject({
-      code: "TRANSITION_REJECTED",
-    });
-    const closed = await runCommand(epicClose, ctx, { epic: "e1", force: true });
+    const closed = await runCommand(epicClose, agent, { epic: "e1", force: true });
     expect(closed.data.status).toBe("closed");
     expect(closed.data.closed_at).toBeDefined();
     expect(closed.warnings).toHaveLength(1);
-    await expect(runCommand(ticketCreate, ctx, { title: "C", epic: "e1" })).rejects.toMatchObject({
-      code: "REJECTED",
-    });
-    const reopened = await runCommand(epicReopen, ctx, { epic: "e1" });
+    await expect(runCommand(ticketCreate, agent, { title: "C", epic: "e1" })).rejects.toMatchObject(
+      { code: "REJECTED" },
+    );
+    const reopened = await runCommand(epicReopen, agent, { epic: "e1" });
     expect(reopened.data.closed_at).toBeUndefined();
+  });
+
+  it("actor.human_only に入れたコマンドだけが agent から拒否され、人は通る", async () => {
+    const f = await fixture();
+    const ctx = await initialized(f.cloneA);
+    await runCommand(epicCreate, ctx, { title: "E", summary: "目的" });
+    await runCommand(iterationCreate, ctx, { name: "Sprint 1" });
+    // カンマ区切りで配列に入り、エイリアスは正式名に直る
+    const set = await runCommand(configSet, ctx, {
+      key: "actor.human_only",
+      value: "epic.close, sprint.close",
+    });
+    expect(set.data.actor.human_only).toEqual(["epic.close", "iteration.close"]);
+    await expect(
+      runCommand(configSet, ctx, { key: "actor.human_only", value: "epic.nope" }),
+    ).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
+    const agent = await openContext({ cwd: f.cloneA, actor: { kind: "agent", id: "claude@pc" } });
+    await expect(runCommand(epicClose, agent, { epic: "e1" })).rejects.toMatchObject({
+      code: "TRANSITION_REJECTED",
+    });
+    await expect(runCommand(iterationClose, agent, { iteration: "s1" })).rejects.toMatchObject({
+      code: "TRANSITION_REJECTED",
+    });
+    // 一覧にない操作はそのまま行える
+    await runCommand(epicUpdate, agent, { epic: "e1", title: "E2" });
+    const human = await openContext({ cwd: f.cloneA });
+    expect((await runCommand(epicClose, human, { epic: "e1" })).data.status).toBe("closed");
+    // 空文字で空に戻ると、agent も閉じる・再開できる（文脈ごとに store を持つので開き直す）
+    const cleared = await runCommand(configSet, human, { key: "actor.human_only", value: "" });
+    expect(cleared.data.actor.human_only).toEqual([]);
+    const agent2 = await openContext({ cwd: f.cloneA, actor: { kind: "agent", id: "claude@pc" } });
+    expect((await runCommand(epicReopen, agent2, { epic: "e1" })).data.status).toBe("open");
+    expect((await runCommand(iterationClose, agent2, { iteration: "s1" })).data.status).toBe(
+      "closed",
+    );
   });
 
   it("Iteration は開始・終了でき、閉じるときに完了と持ち越しを数える", async () => {
@@ -388,13 +421,10 @@ describe("Epic と Iteration", () => {
     expect(shown.data.items.map((t) => t.id)).toEqual(["t2", "t1"]);
     expect(shown.data).not.toHaveProperty("tickets");
     const agent = await openContext({ cwd: f.cloneA, actor: { kind: "agent", id: "claude@pc" } });
-    await expect(runCommand(iterationClose, agent, { iteration: "s1" })).rejects.toMatchObject({
-      code: "TRANSITION_REJECTED",
-    });
-    const closed = await runCommand(iterationClose, ctx, { iteration: "s1" });
+    const closed = await runCommand(iterationClose, agent, { iteration: "s1" });
     expect(closed.data).toMatchObject({ status: "closed", completed: 1, carried_over: 1 });
-    expect(ctx.store.tickets.get("t2")?.data.iteration).toBeUndefined();
-    expect(ctx.store.tickets.get("t1")?.data.iteration).toBe("s1");
+    expect(agent.store.tickets.get("t2")?.data.iteration).toBeUndefined();
+    expect(agent.store.tickets.get("t1")?.data.iteration).toBe("s1");
   });
 });
 
