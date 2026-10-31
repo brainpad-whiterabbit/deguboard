@@ -1,5 +1,6 @@
 // 画面の骨組み：上のバー（Project の切り替え・画面の切り替え・同期の印）と、ハッシュで選んだページ
 
+import { useHost } from "./host.js";
 import { useStore } from "./store.js";
 import { hrefOf, useRoute, type Route } from "./router.js";
 import { BoardPage } from "./pages/board.js";
@@ -18,11 +19,13 @@ const NAV: { page: Route["page"]; label: string; href: string }[] = [
 export function App() {
   const route = useRoute();
   const store = useStore();
+  const host = useHost();
+  const sidebar = host.surface === "sidebar";
   const active = route.page === "ticket" ? "backlog" : route.page;
   return (
-    <div className="app">
+    <div className="app" data-surface={host.surface}>
       <header className="topbar">
-        <strong className="brand">deguboard</strong>
+        {sidebar ? null : <strong className="brand">deguboard</strong>}
         <nav aria-label="画面">
           {NAV.map((n) => (
             <a key={n.page} href={n.href} className={active === n.page ? "active" : ""}>
@@ -31,7 +34,8 @@ export function App() {
           ))}
         </nav>
         <div className="spacer" />
-        <label className="project-select">
+        {/* サイドバーでは Project が 1 つなら切り替えを出さない（幅を節約する） */}
+        <label className="project-select" hidden={sidebar && store.projects.length <= 1}>
           Project
           <select
             value={store.project?.id ?? ""}
@@ -53,7 +57,8 @@ export function App() {
         {store.loading && store.tickets.length === 0 ? (
           <p className="muted">読み込み中…</p>
         ) : (
-          <Page route={route} />
+          // サイドバーではチケット詳細を出さない（エディタ領域のパネルに開く。UI-12）
+          <Page route={sidebar && route.page === "ticket" ? { page: "backlog" } : route} />
         )}
       </main>
     </div>

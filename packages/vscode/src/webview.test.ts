@@ -37,7 +37,8 @@ describe("Webview の HTML", () => {
     );
     expect(html).not.toContain("crossorigin");
     expect(html).toContain("script-src 'nonce-n0nce'");
-    expect(html).toContain("style-src https://cdn.test 'unsafe-inline'");
+    expect(html).toContain("style-src https://cdn.test;");
+    expect(html).not.toContain("unsafe-inline");
     expect(html.indexOf("Content-Security-Policy")).toBeLessThan(html.indexOf("<script"));
   });
 

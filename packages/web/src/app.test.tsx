@@ -104,6 +104,29 @@ describe("画面", () => {
     expect(window.location.hash).toBe("#/backlog");
   });
 
+  it("サイドバーではカンバンの列が折りたためる節になり、チケットは 1 行で出る。空の節は「なし」", async () => {
+    mount(mockClient(), { surface: "sidebar", openTicket: () => {} });
+    await screen.findByText("ログイン");
+    const app = document.querySelector(".app")!;
+    expect(app.getAttribute("data-surface")).toBe("sidebar");
+    const columns = [...document.querySelectorAll("details.column")];
+    expect(columns).toHaveLength(4);
+    expect(columns.every((c) => c.hasAttribute("open"))).toBe(true);
+    expect(document.querySelectorAll(".card")).toHaveLength(0);
+    expect(document.querySelectorAll(".row-drag .row")).toHaveLength(3);
+    expect(screen.getAllByText("なし")).toHaveLength(1);
+    expect(screen.queryByText("deguboard")).toBeNull();
+  });
+
+  it("サイドバーではチケット詳細のルートでもバックログを出す（詳細はエディタのパネル）", async () => {
+    window.location.hash = "#/tickets/t3";
+    mount(mockClient(), { surface: "sidebar", openTicket: () => {} });
+    await screen.findByText("API");
+    expect(screen.queryByRole("heading", { level: 1, name: "画面" })).toBeNull();
+    expect(document.querySelector("table.list")).toBeNull();
+    expect(document.querySelectorAll("ul.rows > li")).toHaveLength(2);
+  });
+
   it("ブラウザではチケットのリンクが詳細へのハッシュ遷移のまま", async () => {
     window.location.hash = "#/backlog";
     mount();

@@ -10,8 +10,9 @@ import {
   useSensors,
   type DragEndEvent,
 } from "@dnd-kit/core";
-import { useMemo, useState } from "react";
-import { PriorityBadge, Tags, TicketLink } from "../components/parts.js";
+import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
+import { PriorityBadge, StatusDot, Tags, TicketLink, TicketRow } from "../components/parts.js";
+import { useHost } from "../host.js";
 import { navigate } from "../router.js";
 import { useStore } from "../store.js";
 import { BOARD_STATUSES, byPriorityThenNumber, type Status, type Ticket } from "../types.js";
@@ -87,18 +88,69 @@ export function BoardPage({ epic }: { epic?: string | undefined }) {
   );
 }
 
+/**
+ * 列。広い画面では横に並び、サイドバーでは縦に積んで折りたためる（UI-12）。
+ * 見出しに状態の丸印と件数、空なら破線の枠
+ */
 function Column({ status, tickets }: { status: Status; tickets: Ticket[] }) {
   const store = useStore();
+  const host = useHost();
   const { setNodeRef, isOver } = useDroppable({ id: status });
+  const sidebar = host.surface === "sidebar";
   return (
-    <div ref={setNodeRef} className={`column${isOver ? " over" : ""}`} data-status={status}>
-      <h2>
-        <span>{store.labelOf(status)}</span>
-        <span className="muted">{tickets.length}</span>
-      </h2>
-      {tickets.map((t) => (
-        <Card key={t.id} ticket={t} />
-      ))}
+    <details
+      ref={setNodeRef}
+      open
+      className={`column status-${status}${isOver ? " over" : ""}`}
+      data-status={status}
+    >
+      <summary>
+        <h2>
+          <StatusDot status={status} />
+          <span>{store.labelOf(status)}</span>
+          <span className="muted">{tickets.length}</span>
+        </h2>
+      </summary>
+      {sidebar && tickets.length === 0 ? <p className="empty">なし</p> : null}
+      {sidebar ? (
+        <div className="rows">
+          {tickets.map((t) => (
+            <DraggableRow key={t.id} ticket={t} />
+          ))}
+        </div>
+      ) : (
+        tickets.map((t) => <Card key={t.id} ticket={t} />)
+      )}
+    </details>
+  );
+}
+
+/** 1 行のチケット。行全体をつかんで動かし、動かした直後の click では開かない */
+function DraggableRow({ ticket }: { ticket: Ticket }) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: ticket.id,
+  });
+  const dragged = useRef(false);
+  useEffect(() => {
+    if (isDragging) dragged.current = true;
+  }, [isDragging]);
+  const onClick = (e: MouseEvent<HTMLAnchorElement>) => {
+    if (!dragged.current) return;
+    dragged.current = false;
+    e.preventDefault();
+  };
+  const style = transform
+    ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` }
+    : undefined;
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`row-drag${isDragging ? " dragging" : ""}`}
+      {...listeners}
+      {...attributes}
+    >
+      <TicketRow ticket={ticket} onClick={onClick} />
     </div>
   );
 }
@@ -114,7 +166,7 @@ function Card({ ticket }: { ticket: Ticket }) {
     <article
       ref={setNodeRef}
       style={style}
-      className={`card${isDragging ? " dragging" : ""}`}
+      className={`card status-${ticket.status}${isDragging ? " dragging" : ""}`}
       {...listeners}
       {...attributes}
     >

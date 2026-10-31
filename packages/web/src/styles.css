@@ -356,7 +356,33 @@ h3 {
 .column.over {
   outline: 2px solid var(--vscode-focusBorder);
 }
+.column > summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+}
+.column > summary::-webkit-details-marker {
+  display: none;
+}
+/* 折りたたみの印：閉じていれば右向き、開いていれば下向き */
+.column > summary::before {
+  content: "";
+  flex: none;
+  width: 5px;
+  height: 5px;
+  margin: 0 0.2em 0 0.1em;
+  border: solid var(--vscode-descriptionForeground);
+  border-width: 0 1.5px 1.5px 0;
+  transform: rotate(-45deg);
+}
+.column[open] > summary::before {
+  transform: rotate(45deg);
+  margin-top: -3px;
+}
 .column h2 {
+  flex: 1;
   display: flex;
   align-items: center;
   gap: 0.4em;
@@ -504,4 +530,162 @@ textarea.body {
   gap: 0.4rem;
   align-items: center;
   flex-wrap: wrap;
+}
+
+/* 1 行のチケット・Epic・Iteration（サイドバー。KanbanForge と同じ高さ一定の行） */
+.rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.rows li {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+.rows li > .row,
+.rows li > .row-drag {
+  flex: 1;
+  min-width: 0;
+}
+.row {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 6px;
+  padding: 2px 6px;
+  line-height: 18px;
+  border-radius: 2px;
+  border: 1px solid transparent;
+  color: inherit;
+}
+.row:hover {
+  background: var(--vscode-list-hoverBackground);
+  text-decoration: none;
+}
+.row code {
+  background: transparent;
+  padding: 0;
+  color: var(--vscode-descriptionForeground);
+}
+.row-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.row .progress .bar {
+  width: 60px;
+}
+.row-drag {
+  cursor: grab;
+}
+.row-drag.dragging {
+  opacity: 0.4;
+}
+
+/* サイドバー（UI-12）：タブを 1 段目に広げ、列を縦に積み、余白を詰める */
+[data-surface="sidebar"] {
+  background: var(--vscode-sideBar-background);
+}
+[data-surface="sidebar"] .topbar {
+  flex-wrap: wrap;
+  gap: 0 0.5rem;
+  padding: 0 0.5rem;
+  background: transparent;
+}
+[data-surface="sidebar"] .topbar nav {
+  order: 0;
+  flex: 1 0 100%;
+}
+[data-surface="sidebar"] .topbar nav a {
+  flex: 1;
+  justify-content: center;
+  padding: 0.45em 0.2em;
+  white-space: nowrap;
+}
+[data-surface="sidebar"] .spacer {
+  display: none;
+}
+[data-surface="sidebar"] .project-select {
+  order: 1;
+  flex: 1;
+  padding: 0.3rem 0;
+  font-size: 0.92em;
+}
+[data-surface="sidebar"] .project-select select {
+  flex: 1;
+  min-width: 0;
+}
+[data-surface="sidebar"] .sync {
+  order: 2;
+  margin-left: auto;
+  padding: 0.3rem 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+[data-surface="sidebar"] .page {
+  padding: 0.5rem;
+}
+[data-surface="sidebar"] .toolbar {
+  gap: 0.35rem;
+  margin-bottom: 0.5rem;
+}
+[data-surface="sidebar"] .toolbar h1 {
+  display: none;
+}
+[data-surface="sidebar"] .toolbar input[type="search"] {
+  flex: 1 0 100%;
+}
+[data-surface="sidebar"] .toolbar label {
+  flex: 1 1 45%;
+  min-width: 0;
+  color: var(--vscode-descriptionForeground);
+  font-size: 0.92em;
+}
+[data-surface="sidebar"] .toolbar label select {
+  flex: 1;
+  min-width: 0;
+}
+[data-surface="sidebar"] .inline-form input,
+[data-surface="sidebar"] .inline-form select {
+  flex: 1 1 100%;
+  min-width: 0;
+}
+[data-surface="sidebar"] .board {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-height: 0;
+}
+[data-surface="sidebar"] .column {
+  background: transparent;
+  padding: 0.25rem 0.25rem 0.4rem;
+  gap: 0.25rem;
+}
+[data-surface="sidebar"] .column .empty {
+  padding: 0.4rem;
+  margin: 0.25rem 0.5rem;
+}
+[data-surface="sidebar"] .groups {
+  grid-template-columns: 1fr;
+}
+[data-surface="sidebar"] .detail {
+  grid-template-columns: 1fr;
+}
+/* さらに狭いとき（260px 以下）：タブの余白と文字を詰め、行の印を隠す */
+@container (max-width: 260px) {
+  .topbar nav a {
+    padding: 0.45em 0.1em;
+    font-size: 0.92em;
+  }
+  .row .badge,
+  .row .progress .muted {
+    display: none;
+  }
+  .toolbar label {
+    flex-basis: 100%;
+  }
 }
