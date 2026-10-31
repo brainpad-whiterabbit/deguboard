@@ -24,6 +24,8 @@ interface Step {
   name: string;
   input: Record<string, unknown>;
   argv: string[];
+  /** 拒否されるはずの手順なら、そのエラーコード */
+  rejected?: string;
 }
 
 const STEPS: Step[] = [
@@ -66,11 +68,18 @@ const STEPS: Step[] = [
     input: { ticket: "t2", priority: "low", depends_on: ["t1"] },
     argv: ["ticket", "update", "t2", "--priority", "low", "--depends-on", "t1"],
   },
-  // 依存先が終わっていないので拒否される（失敗も 3 経路で同じ形）
+  // 失敗も 3 経路で同じ形になること（見つからない・入力の形の誤り）
   {
-    name: "ticket.move",
-    input: { ticket: "t2", status: "in_progress" },
-    argv: ["ticket", "move", "t2", "in_progress"],
+    name: "ticket.show",
+    input: { ticket: "t99" },
+    argv: ["ticket", "show", "t99"],
+    rejected: "NOT_FOUND",
+  },
+  {
+    name: "ticket.create",
+    input: { title: "" },
+    argv: ["ticket", "create", ""],
+    rejected: "INVALID_INPUT",
   },
   {
     name: "ticket.claim",
@@ -235,13 +244,15 @@ describe("3 経路の E2E", () => {
     }
     const base = traces["CLI"]!;
     // 手順が意図どおり進んだこと（成功・拒否・最終状態）
-    expect(base.results.map((r) => (r as Envelope)["ok"])).toEqual(STEPS.map((s, i) => !(i === 7)));
-    expect(base.results[7]).toMatchObject({ error: { code: "TRANSITION_REJECTED" } });
-    expect(
-      (base.results[13] as { data: { id: string; status: string }[] }).data.map(
-        (t) => `${t.id}:${t.status}`,
-      ),
-    ).toEqual(["t1:done", "t2:in_progress"]);
+    STEPS.forEach((step, k) => {
+      const r = base.results[k] as Envelope;
+      expect(r["ok"], `${k}: ${step.name}`).toBe(step.rejected === undefined);
+      if (step.rejected) expect(r).toMatchObject({ error: { code: step.rejected } });
+    });
+    const list = base.results[STEPS.findIndex((s) => s.name === "ticket.list")] as {
+      data: { id: string; status: string }[];
+    };
+    expect(list.data.map((t) => `${t.id}:${t.status}`)).toEqual(["t1:done", "t2:in_progress"]);
     expect(base.commits.length).toBeGreaterThan(3);
     expect(Object.keys(base.files)).toContain("tickets/t1.md");
     // 経路の間で一致する
