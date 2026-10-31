@@ -140,6 +140,14 @@ function IterationDetailView({ id }: { id: string }) {
             閉じる
           </button>
         )}
+        {it.status === "closed" && (
+          <button
+            type="button"
+            onClick={() => void store.run("iteration.reopen", { iteration: it.id })}
+          >
+            再開する
+          </button>
+        )}
       </div>
       {it.status !== "closed" && (
         <form

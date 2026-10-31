@@ -17,6 +17,7 @@ import {
   iterationAdd,
   iterationClose,
   iterationCreate,
+  iterationReopen,
   iterationShow,
   iterationStart,
 } from "./iteration.js";
@@ -602,6 +603,40 @@ describe("Epic と Iteration", () => {
     expect(closed.data).toMatchObject({ status: "closed", completed: 1, carried_over: 1 });
     expect(agent.store.tickets.get("t2")?.data.iteration).toBeUndefined();
     expect(agent.store.tickets.get("t1")?.data.iteration).toBe("s1");
+  });
+
+  it("閉じた Iteration は reopen で active に戻り、件数が消えてチケットを入れ直せる", async () => {
+    const f = await fixture();
+    const ctx = await initialized(f.cloneA);
+    await runCommand(iterationCreate, ctx, { name: "Sprint 1" });
+    await runCommand(ticketCreate, ctx, { title: "A" });
+    await runCommand(iterationAdd, ctx, { iteration: "s1", tickets: ["t1"] });
+    // 閉じていなければ拒否
+    await expect(runCommand(iterationReopen, ctx, { iteration: "s1" })).rejects.toMatchObject({
+      code: "REJECTED",
+    });
+    const closed = await runCommand(iterationClose, ctx, { iteration: "s1" });
+    expect(closed.data).toMatchObject({ status: "closed", completed: 0, carried_over: 1 });
+    await expect(
+      runCommand(iterationAdd, ctx, { iteration: "s1", tickets: ["t1"] }),
+    ).rejects.toMatchObject({ code: "REJECTED" });
+    // 既定では agent も再開できる。持ち越しがあれば入れ直しを促す
+    const agent = await openContext({ cwd: f.cloneA, actor: { kind: "agent", user: "claude" } });
+    const reopened = await runCommand(iterationReopen, agent, { iteration: "sprint 1" });
+    expect(reopened.data.status).toBe("active");
+    expect(reopened.data.closed_at).toBeUndefined();
+    expect(reopened.data.completed).toBeUndefined();
+    expect(reopened.data.carried_over).toBeUndefined();
+    expect(reopened.warnings).toHaveLength(1);
+    // 持ち越したチケットは戻らないので入れ直す
+    expect(agent.store.tickets.get("t1")?.data.iteration).toBeUndefined();
+    await runCommand(iterationAdd, agent, { iteration: "s1", tickets: ["t1"] });
+    expect(agent.store.tickets.get("t1")?.data.iteration).toBe("s1");
+    // 持ち越しがなければ警告は出ない
+    const again = await runCommand(iterationReopen, agent, {
+      iteration: (await runCommand(iterationClose, agent, { iteration: "s1" })).data.id,
+    });
+    expect(again.warnings ?? []).toHaveLength(0);
   });
 });
 

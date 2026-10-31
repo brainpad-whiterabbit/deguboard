@@ -149,7 +149,7 @@ closed_at: 2026-11-20T09:00:00Z # closed のときだけ
 
 ### 5.6 Iteration（`iterations/s3.yaml`）
 
-- IT-1 `id`、`project`、`name`、`goal`、`start`、`end`、`status`（`planned` / `active` / `closed`）を持つ。閉じるのは既定で誰でも行え（人に限るなら `actor.human_only`、5.10）、閉じたときに `closed_at` と完了・持ち越しの件数（`completed`・`carried_over`）を書く
+- IT-1 `id`、`project`、`name`、`goal`、`start`、`end`、`status`（`planned` / `active` / `closed`）を持つ。閉じるのは既定で誰でも行え（人に限るなら `actor.human_only`、5.10）、閉じたときに `closed_at` と完了・持ち越しの件数（`completed`・`carried_over`）を書く。閉じた Iteration は `reopen` で active に戻し、`closed_at` と件数を消す。閉じたときに外した持ち越しのチケットは戻らない（入れ直す）
 - IT-2 所属はチケットの `iteration` で表し、Iteration 側にチケットの一覧は持たない（Epic と同じ）。入れるのは同じ Project のチケットだけで、閉じた Iteration には入れられない。Iteration 内の並びは優先度と番号で、閉じるときに done・abandoned 以外のチケットの `iteration` を外す
 
 ### 5.7 Plan（`plans/p7.yaml`）
@@ -215,18 +215,18 @@ fields:
 - CL-1 すべてのコマンドに `--json` があり、エージェントはそれを読む。成功は `{ ok: true, data, warnings, write }`、失敗は `{ ok: false, error: { code, message, detail } }`。終了コードは 0（成功）/ 1（失敗。`validate`・`lint` は指摘があるとき）/ 2（使い方の誤り）。`error.code` の語彙は `packages/core/src/errors.ts` が正本
 - CL-2 コマンドの一覧とオプションは `dg --help` が正本。主な群は次のとおり
 
-| 群        | コマンド                                                                                  | 状態         |
-| --------- | ----------------------------------------------------------------------------------------- | ------------ |
-| 用意      | `init`、`sync`、`commit`、`validate`、`lint`、`config`                                    | あり         |
-| Project   | `project create / list / show / archive`                                                  | あり         |
-| Ticket    | `ticket create / list / show / update / check / move / delete / import / claim / unclaim` | あり         |
-| Iteration | `iteration create / list / show / add / remove / start / close`（`sprint` はエイリアス）  | あり         |
-| Epic      | `epic create / list / show / update / add / remove / close / reopen`                      | あり         |
-| Workflow  | `workflow list / show / validate`                                                         | あり         |
-| 画面      | `serve`、`open`（web の実装までは API だけを配信する）                                    | あり         |
-| 手順      | `guide <topic>`                                                                           | あり         |
-| Plan      | `plan create / approve / show / close`                                                    | 予定（`e2`） |
-| Run       | `run start / finish / list`、`metrics show`                                               | 予定（`e3`） |
+| 群        | コマンド                                                                                          | 状態         |
+| --------- | ------------------------------------------------------------------------------------------------- | ------------ |
+| 用意      | `init`、`sync`、`commit`、`validate`、`lint`、`config`                                            | あり         |
+| Project   | `project create / list / show / archive`                                                          | あり         |
+| Ticket    | `ticket create / list / show / update / check / move / delete / import / claim / unclaim`         | あり         |
+| Iteration | `iteration create / list / show / add / remove / start / close / reopen`（`sprint` はエイリアス） | あり         |
+| Epic      | `epic create / list / show / update / add / remove / close / reopen`                              | あり         |
+| Workflow  | `workflow list / show / validate`                                                                 | あり         |
+| 画面      | `serve`、`open`（web の実装までは API だけを配信する）                                            | あり         |
+| 手順      | `guide <topic>`                                                                                   | あり         |
+| Plan      | `plan create / approve / show / close`                                                            | 予定（`e2`） |
+| Run       | `run start / finish / list`、`metrics show`                                                       | 予定（`e3`） |
 
 - CL-3 書き込みを伴うコマンドは、`commit.mode` に従って deguboard ブランチにコミットする。作成（`init`、`project / ticket / epic / iteration create`、`ticket import`）と `ticket claim` は `commit.mode`・`push.mode` によらず即座にコミットして push する（採番と排他のため）
 - CL-4 `ticket import` は YAML / JSON の下書き（配列）を 1 コミットで取り込む。下書きの中の仮キーを `depends_on` から参照でき、`epic` に既存の Epic を書ける
