@@ -6,6 +6,7 @@ import { z } from "zod";
 import { OperationError } from "../errors.js";
 import { collectBranchFacts } from "../git/facts.js";
 import { withLock } from "../git/lock.js";
+import { renumberProvisional, type Renumbered } from "../git/renumber.js";
 import { commitAll, fetchAll, integrate, isDirty, push, syncStatus } from "../git/sync.js";
 import { flushPending, withWrite } from "../git/write.js";
 import { configSchema } from "../model/config.js";
@@ -169,12 +170,21 @@ export const sync = defineCommand({
       const fetched = await fetchAll(repo);
       let conflicts: string[] = [];
       let integrated = false;
+      let renumbered: Renumbered[] = [];
       if (!fetched.ok) {
         warnings.push(`リモートから取り込めない: ${fetched.detail}`);
       } else if (fetched.remoteBranch) {
         const r = await integrate(repo, { autostash: dirty && !flushed });
         if (r.ok) integrated = r.changed;
-        else conflicts = r.conflicts;
+        else {
+          // 仮番号の衝突（オフラインで起票した番号がリモートで使われた）なら振り直して積み直す（DT-5）。
+          // 作業ツリーに未コミットが残る manual のときは、巻き戻しで消えるので扱わない
+          const fixed = dirty && !flushed ? null : await renumberProvisional(repo, r.conflicts);
+          if (fixed) {
+            renumbered = fixed;
+            integrated = true;
+          } else conflicts = r.conflicts;
+        }
       }
       if (conflicts.length > 0) {
         warnings.push(
@@ -191,7 +201,7 @@ export const sync = defineCommand({
         else warnings.push(`push できない: ${r.detail}`);
       }
 
-      // push が済んだ仮番号は確定する（DT-5。振り直しは衝突したときだけで、t8 までは報告にとどめる）
+      // push が済んだ仮番号は確定する（DT-5）
       let confirmed: string[] = [];
       if (repo.remote && (pushed || before.ahead === 0)) {
         for (const t of ctx.store.tickets.values()) {
@@ -218,7 +228,16 @@ export const sync = defineCommand({
       }
       const status = await syncStatus(repo);
       return ok(
-        { fetched: fetched.ok, integrated, pushed, conflicts, reconciled, confirmed, status },
+        {
+          fetched: fetched.ok,
+          integrated,
+          pushed,
+          conflicts,
+          renumbered,
+          reconciled,
+          confirmed,
+          status,
+        },
         undefined,
         warnings,
       );

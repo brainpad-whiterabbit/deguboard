@@ -38,6 +38,10 @@ async function refExists(repo: GitRepo, ref: string): Promise<boolean> {
 }
 
 /** 呼ぶ前に fetchAll で取り込んでおく（ここでは fetch しない） */
+async function sha(repo: GitRepo, ref: string): Promise<string> {
+  return (await runGit(repo.dataDir, ["rev-parse", ref])).stdout.trim();
+}
+
 export async function collectBranchFacts(
   repo: GitRepo,
   branch: string,
@@ -59,11 +63,16 @@ export async function collectBranchFacts(
         ? `refs/heads/${repo.baseBranch}`
         : undefined;
   if (tip && base) {
-    const r = await runGit(repo.dataDir, ["merge-base", "--is-ancestor", tip, base], {
-      allowFailure: true,
-    });
-    if (r.code === 0) facts.branch_merged = true;
-    else if (r.code === 1) facts.branch_merged = false;
+    // 先端が base と同じなら、切ったばかりで作業のないブランチとみなして merged にしない。
+    // ff マージの直後も同じ形になるが、base が進めば真の祖先になり、PR があれば pr_merged で先に拾える
+    const same = (await sha(repo, tip)) === (await sha(repo, base));
+    const r = same
+      ? undefined
+      : await runGit(repo.dataDir, ["merge-base", "--is-ancestor", tip, base], {
+          allowFailure: true,
+        });
+    if (same || r?.code === 1) facts.branch_merged = false;
+    else if (r?.code === 0) facts.branch_merged = true;
   } else if (!tip && base) {
     // ブランチがないならマージ済みとは言えない（消えたブランチは警告の対象）
     facts.branch_merged = false;

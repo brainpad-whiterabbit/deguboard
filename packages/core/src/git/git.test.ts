@@ -188,6 +188,28 @@ describe("書き込みの 1 単位", () => {
     expect(log.slice(0, 2)).toEqual(["A", "B"]);
   });
 
+  it("別々に作った orphan の根が違っても、取り込みで空の根は落ちて履歴が 1 本になる", async () => {
+    const f = await fixture();
+    // 根の SHA は作成者と時刻で決まる。B の作成者を変えて、時刻によらず根が違うようにする
+    await git(f.cloneB, ["config", "user.name", "別の人"]);
+    const a = await openRepo(f.cloneA);
+    const b = await openRepo(f.cloneB);
+    const rootA = (await git(a.repo.dataDir, ["rev-parse", "HEAD"])).stdout.trim();
+    const rootB = (await git(b.repo.dataDir, ["rev-parse", "HEAD"])).stdout.trim();
+    expect(rootA).not.toBe(rootB);
+    await withWrite(ctxOf(b), () => b.store.create("ticket", ticketData("t1", "B の作成")), {
+      message: "B",
+      immediate: true,
+    });
+    expect(await fetchData(a.repo)).toEqual({ ok: true, remoteBranch: true });
+    expect(await integrate(a.repo)).toEqual({ ok: true, changed: true });
+    const log = (await git(a.repo.dataDir, ["log", "--format=%s"])).stdout.trim().split("\n");
+    expect(log).toEqual(["B", "deguboard ブランチを作成"]);
+    expect((await git(a.repo.dataDir, ["rev-parse", "HEAD"])).stdout.trim()).toBe(
+      (await git(b.repo.dataDir, ["rev-parse", "HEAD"])).stdout.trim(),
+    );
+  });
+
   it("push が続けて拒否されたら CAS の作成は失敗し、ローカルにコミットを残さない", async () => {
     const f = await fixture();
     const a = await openRepo(f.cloneA);
@@ -273,6 +295,8 @@ describe("事実の収集", () => {
     });
     await git(f.cloneA, ["checkout", "-q", "main"]);
     await git(f.cloneA, ["merge", "-q", "--ff-only", "feature/t1-x"]);
+    // ff マージの直後は先端が base と同じなので、base が進んでから merged になる（切ったばかりのブランチと区別するため）
+    await git(f.cloneA, ["commit", "-q", "--allow-empty", "-m", "次の作業"]);
     await git(f.cloneA, ["push", "-q", "origin", "main"]);
     await git(a.repo.dataDir, ["fetch", "-q", "--prune", "origin"]);
     expect(await collectBranchFacts(a.repo, "feature/t1-x", { needPr: false })).toMatchObject({
