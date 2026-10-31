@@ -106,6 +106,7 @@ describe("チケットの流れ", () => {
     const created = await runCommand(ticketCreate, ctx, {
       title: "Login validation",
       summary: "入力の検査",
+      acceptance: ["a, b", "c"],
       labels: ["frontend"],
     });
     expect(created.data).toMatchObject({
@@ -115,6 +116,7 @@ describe("チケットの流れ", () => {
       labels: ["frontend"],
     });
     expect(created.data.body).toContain("## 概要\n\n入力の検査");
+    expect(created.data.body).toContain("## 受け入れ条件\n\n- [ ] a, b\n- [ ] c\n");
     expect(created.write).toMatchObject({ pushed: true });
 
     const claimed = await runCommand(ticketClaim, ctx, { ticket: "1" });
@@ -224,7 +226,7 @@ describe("チケットの流れ", () => {
     const ctx = await initialized(f.cloneA);
     const r = await runCommand(ticketImport, ctx, {
       drafts: [
-        { key: "schema", title: "スキーマ" },
+        { key: "schema", title: "スキーマ", acceptance: ["表が決まる"] },
         { key: "api", title: "API", depends_on: ["schema"] },
         { title: "画面", depends_on: ["api", "schema"] },
       ],
@@ -234,6 +236,8 @@ describe("チケットの流れ", () => {
       ["t2", ["t1"]],
       ["t3", ["t2", "t1"]],
     ]);
+    const shown = await runCommand(ticketShow, ctx, { ticket: "t1" });
+    expect(shown.data.body).toContain("- [ ] 表が決まる\n");
     const log = (await git(ctx.repo.dataDir, ["log", "--format=%s"])).stdout.trim().split("\n");
     expect(log[0]).toBe("3 件のチケットを取り込み: t1, t2, t3");
     await expect(
@@ -345,12 +349,30 @@ describe("用意", () => {
     const f = await fixture();
     const ctx = await initialized(f.cloneA);
     await runCommand(ticketCreate, ctx, { title: "A", body: "本文だけ\n" });
+    // 雛形のまま（項目が空）
+    await runCommand(ticketCreate, ctx, { title: "B", summary: "s" });
+    // 概要にだけチェックリストがあっても、受け入れ条件は空
+    await runCommand(ticketCreate, ctx, {
+      title: "C",
+      body: "## 概要\n\n- [ ] x\n\n## 受け入れ条件\n\n- [ ] \n",
+    });
+    // 項目があれば指摘しない。済みの項目と占位の … も項目として数える
+    await runCommand(ticketCreate, ctx, { title: "D", acceptance: ["a"] });
+    await runCommand(ticketCreate, ctx, {
+      title: "E",
+      body: "## 概要\n\ns\n\n## 受け入れ条件\n\n- [x] 済み\n- [ ] …\n",
+    });
+    await expect(
+      runCommand(ticketCreate, ctx, { title: "F", acceptance: ["a\nb"] }),
+    ).rejects.toMatchObject({ code: "INVALID_INPUT" });
     const v = await runCommand(validate, ctx, {});
     expect(v.data.ok).toBe(true);
     const l = await runCommand(lint, ctx, {});
-    expect(l.data.issues.map((i) => i.code)).toEqual([
-      "lint_summary_missing",
-      "lint_acceptance_missing",
+    expect(l.data.issues.map((i) => [i.id, i.code])).toEqual([
+      ["t1", "lint_summary_missing"],
+      ["t1", "lint_acceptance_missing"],
+      ["t2", "lint_acceptance_empty"],
+      ["t3", "lint_acceptance_empty"],
     ]);
     const c = await runCommand(configSet, ctx, { key: "commit.mode", value: "each" });
     expect(c.data.commit.mode).toBe("each");

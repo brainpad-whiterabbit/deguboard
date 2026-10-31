@@ -110,7 +110,7 @@ updated_at: 2026-10-31T05:10:00Z
 
 - TK-1 必須は `id`・`project`・`title`・`status`・`created_at`・`updated_at`。`workflow` を省くと Project の既定を使う
 - TK-2 `depends_on` は同じリポジトリのチケットの ID。循環は作成・更新時に拒否する
-- TK-3 本文は Markdown。`## 概要` と `## 受け入れ条件`（`- [ ]` のチェックリスト）を推奨し、`dg lint` が欠けを指摘する
+- TK-3 本文は Markdown。`## 概要` と `## 受け入れ条件`（`- [ ]` のチェックリスト）を推奨し、`create` / `import` は `summary` と `acceptance` から雛形を作る。`dg lint` が節の欠けと、受け入れ条件に項目がないことを指摘する
 - TK-4 Workflow の `fields` で定義した任意フィールドを frontmatter に持てる
 - TK-5 受け入れ条件のチェックは、作業した人かエージェントが PR や成果物で確認できたときに付ける。deguboard が自動で付けることはない
 - TK-6 `epic` は同じ Project の Epic の ID。閉じた Epic には付けられない

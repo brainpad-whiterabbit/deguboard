@@ -34,7 +34,19 @@ const createInput = z.object({
   title: z.string().min(1).describe("タイトル"),
   project: slugSchema.optional().describe("Project。省略時は config の default_project"),
   summary: z.string().optional().describe("概要。本文の雛形に入れる"),
-  body: z.string().optional().describe("本文全体（Markdown）。summary より優先"),
+  acceptance: z
+    .array(
+      z
+        .string()
+        .min(1)
+        .regex(/^[^\r\n]+$/, "1 項目は 1 行で書く"),
+    )
+    .meta({ freeText: true })
+    .optional()
+    .describe(
+      "受け入れ条件。1 項目ずつ、本文の雛形のチェックリストに入れる。body があるときは使わない",
+    ),
+  body: z.string().optional().describe("本文全体（Markdown）。summary と acceptance より優先"),
   ...ticketAttributes,
 });
 type CreateInput = z.output<typeof createInput>;
@@ -157,7 +169,7 @@ export const ticketCreate = defineCommand({
       async () => {
         const data = buildTicket(ctx, input, resolveExistingDep(ctx.store));
         const id = ctx.store.nextId("ticket");
-        const body = input.body ?? ticketBodyTemplate(input.summary);
+        const body = input.body ?? ticketBodyTemplate(input.summary, input.acceptance);
         return ctx.store.create("ticket", { id, ...data }, body);
       },
       {
@@ -239,7 +251,7 @@ export const ticketImport = defineCommand({
             await store.create(
               "ticket",
               { id, ...b.data },
-              b.draft.body ?? ticketBodyTemplate(b.draft.summary),
+              b.draft.body ?? ticketBodyTemplate(b.draft.summary, b.draft.acceptance),
             ),
           );
         }

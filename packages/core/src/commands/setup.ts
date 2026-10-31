@@ -9,7 +9,7 @@ import { withLock } from "../git/lock.js";
 import { commitAll, fetchAll, integrate, isDirty, push, syncStatus } from "../git/sync.js";
 import { flushPending, withWrite } from "../git/write.js";
 import { configSchema } from "../model/config.js";
-import type { Ticket } from "../model/ticket.js";
+import { acceptanceSection, type Ticket } from "../model/ticket.js";
 import type { Doc } from "../storage/documents.js";
 import { checkReferences } from "../storage/integrity.js";
 import type { Issue } from "../storage/issue.js";
@@ -267,7 +267,7 @@ export const lint = defineCommand({
   name: "lint",
   group: "setup",
   summary:
-    "本文の推奨の節（## 概要・## 受け入れ条件）の欠けと、Workflow の fields に合わない値を指摘する",
+    "本文の推奨の節（## 概要・## 受け入れ条件）の欠けと空、Workflow の fields に合わない値を指摘する",
   input: z.object({ project: z.string().optional() }),
   write: false,
   needs: "store",
@@ -279,10 +279,11 @@ export const lint = defineCommand({
       if (input.project && doc.data.project !== input.project) continue;
       if (!/^## 概要\s*$/m.test(doc.body))
         warn(doc.path, doc.id, "lint_summary_missing", "本文に ## 概要 がない");
-      if (!/^## 受け入れ条件\s*$/m.test(doc.body))
+      const acceptance = acceptanceSection(doc.body);
+      if (acceptance === undefined)
         warn(doc.path, doc.id, "lint_acceptance_missing", "本文に ## 受け入れ条件 がない");
-      else if (!/^- \[[ xX]\] /m.test(doc.body))
-        warn(doc.path, doc.id, "lint_acceptance_empty", "受け入れ条件にチェックリストがない");
+      else if (!/^- \[[ xX]\] \S/m.test(acceptance))
+        warn(doc.path, doc.id, "lint_acceptance_empty", "受け入れ条件に項目がない");
       const wf = ctx.store.workflowFor(doc.data);
       for (const f of wf?.resolved.fields ?? []) {
         const v = doc.data[f.id];
