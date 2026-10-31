@@ -55,12 +55,6 @@
         "category": "deguboard"
       },
       {
-        "command": "deguboard.reload",
-        "title": "再読み込み",
-        "category": "deguboard",
-        "icon": "$(refresh)"
-      },
-      {
         "command": "deguboard.sync",
         "title": "同期",
         "category": "deguboard",
@@ -70,21 +64,12 @@
     "menus": {
       "view/title": [
         {
-          "command": "deguboard.reload",
-          "when": "view == deguboard.screens",
-          "group": "navigation@1"
-        },
-        {
           "command": "deguboard.sync",
           "when": "view == deguboard.screens",
-          "group": "navigation@2"
+          "group": "navigation"
         }
       ],
       "commandPalette": [
-        {
-          "command": "deguboard.reload",
-          "when": "false"
-        },
         {
           "command": "deguboard.sync",
           "when": "false"
