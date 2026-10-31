@@ -55,10 +55,11 @@ mise run dg -- guide finish    # マージ後の後始末
 
 ## ビルドとテスト
 
-- TypeScript は ESM（`"type": "module"`）で、相対 import は `.js` の拡張子で書く。設定はルートの `tsconfig.base.json` と `tsconfig.json` にあり、`mise run typecheck` は `packages/*/src` と `packages/*/test` をまとめて `noEmit` で検査し、DOM と JSX が要る `web` だけ `packages/web/tsconfig.json` で別に検査する
+- TypeScript は ESM（`"type": "module"`）で、相対 import は `.js` の拡張子で書く。設定はルートの `tsconfig.base.json` と `tsconfig.json` にあり、`mise run typecheck` は `packages/*/src` と `packages/*/test` をまとめて `noEmit` で検査し、DOM と JSX が要る `web` は `packages/web/tsconfig.json`、`test/` は `test/tsconfig.json` で別に検査する
 - `mise run build` が `tsconfig.build.json`（プロジェクト参照）で `core`・`server`・`cli` を、Vite で `web` を `dist/` に出す。`dg` を動かすにはこのビルドが要る。`mise run dg -- <引数>` でビルド済みの `dg` を動かせる（例：`mise run dg -- ticket list`）。リポジトリの外のディレクトリに対して動かすときは `-C <dir>` を付ける
 - `@deguboard/core` の `exports` は条件つきで、テストと型検査（`development` 条件）は `src/` を、ビルド済みの `dg` は `dist/` を見る。テストの前にビルドは要らない
-- テストはソースの隣の `*.test.ts`（画面は `*.test.tsx`）に置き、ルートの `vitest.config.ts` が `packages/*/src/**/*.test.{ts,tsx}` をまとめて走らせる。パッケージごとの設定ファイルは作らない
+- テストはソースの隣の `*.test.ts`（画面は `*.test.tsx`）に置き、ルートの `vitest.config.ts` が `packages/*/src/**/*.test.{ts,tsx}` と `test/**/*.test.ts` をまとめて走らせる。パッケージごとの設定ファイルは作らない
+- パッケージをまたぐ E2E は `test/e2e/` に置く。`routes.test.ts` が CLI・HTTP・Webview の 3 経路から同じ手順を流し、結果と deguboard ブランチのコミットが一致することを確かめる（NF-2）。手順の足し方はファイル冒頭のコメント
 - Git を使うテストは `packages/core/test/helpers/git-fixture.ts` で、一時ディレクトリに bare リモートと 2 つの clone を作って行う（CLAUDE.md の規約）。開発者のグローバル設定に影響されないよう、fixture が `GIT_CONFIG_GLOBAL=/dev/null` と `GIT_CONFIG_NOSYSTEM=1` を与える
 - 依存を足すときは `pnpm install` で lockfile を更新してからコミットする（`mise run install` は `--frozen-lockfile`）
 
@@ -138,7 +139,7 @@ mise run vsix                                                    # build のあ�
 code --install-extension packages/vscode/deguboard-vscode.vsix   # リモート開発ならリモート側に入る
 ```
 
-VSIX は `@vscode/vsce` で作る。依存はすべて `dist/extension.cjs` に束ねてあるので `--no-dependencies` で pnpm の node_modules を見ない。入るのは `.vscodeignore` が残す `dist/`・`package.json`・`README.md` だけ。Marketplace への公開は「リリース」で扱う。
+VSIX は `@vscode/vsce` で作る（判断は [ADR-008](adr/ADR-008-tech-stack.md)）。入るのは `.vscodeignore` が残す `dist/`・`package.json`・`README.md` だけ。Marketplace への公開は「リリース」で扱う。
 
 ## リリース
 
