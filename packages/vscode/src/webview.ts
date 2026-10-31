@@ -27,9 +27,11 @@ export interface HtmlOptions {
  * 相対パスを Webview の URI に、crossorigin を外し、nonce つきの CSP を入れ、<html> に surface と初期ルートを付ける
  */
 export function renderWebviewHtml(indexHtml: string, options: HtmlOptions): string {
+  // style-src に 'unsafe-inline' は要らない：CSS は Vite が <link> に出し、React と dnd-kit は style を CSSOM で当てる
+  // （CSP が止めるのは style 属性と <style> だけ）。違反が出たら DevTools の Console に見えるので、そのときに戻す
   const csp = [
     "default-src 'none'",
-    `style-src ${options.cspSource} 'unsafe-inline'`,
+    `style-src ${options.cspSource}`,
     `script-src 'nonce-${options.nonce}'`,
     `font-src ${options.cspSource}`,
     `img-src ${options.cspSource} data:`,

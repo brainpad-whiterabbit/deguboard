@@ -20,17 +20,19 @@ export function TicketLink({
   id: string;
   title?: string | undefined;
   children?: ReactNode;
-} & Pick<ComponentProps<"a">, "onPointerDown" | "className">) {
+} & Pick<ComponentProps<"a">, "onPointerDown" | "className" | "onClick">) {
   const host = useHost();
   return (
     <a
+      {...rest}
       href={hrefOf({ page: "ticket", id })}
       onClick={(e) => {
-        if (host.surface !== "sidebar") return;
+        // 呼び出し側が preventDefault したら（ドラッグ直後など）開かない
+        rest.onClick?.(e);
+        if (e.defaultPrevented || host.surface !== "sidebar") return;
         e.preventDefault();
         host.openTicket(id);
       }}
-      {...rest}
     >
       {children ?? (
         <>
@@ -106,7 +108,27 @@ export function StatusDot({ status }: { status: Status }) {
   );
 }
 
-/** チケットの一覧の表。列は固定で、行の先頭のリンクで詳細へ */
+/** チケットの 1 行（サイドバー向け。KanbanForge と同じ高さ一定の行）：状態の丸印・番号・タイトル・優先度が high なら印 */
+export function TicketRow({
+  ticket,
+  onClick,
+}: {
+  ticket: Ticket;
+  onClick?: ComponentProps<"a">["onClick"] | undefined;
+}) {
+  return (
+    <TicketLink id={ticket.id} className={`row status-${ticket.status}`} onClick={onClick}>
+      <StatusDot status={ticket.status} />
+      <code>{ticket.id}</code>
+      <span className="row-title" title={ticket.title}>
+        {ticket.title}
+      </span>
+      {ticket.priority === "high" ? <PriorityBadge priority="high" /> : <span />}
+    </TicketLink>
+  );
+}
+
+/** チケットの一覧。広い画面では表、サイドバーでは 1 行ずつの並び。行の先頭のリンクで詳細へ */
 export function TicketTable({
   tickets,
   extra,
@@ -115,7 +137,20 @@ export function TicketTable({
   extra?: ((t: Ticket) => React.ReactNode) | undefined;
 }) {
   const store = useStore();
+  const host = useHost();
   if (tickets.length === 0) return <p className="empty">該当するチケットはない</p>;
+  if (host.surface === "sidebar") {
+    return (
+      <ul className="rows">
+        {tickets.map((t) => (
+          <li key={t.id}>
+            <TicketRow ticket={t} />
+            {extra ? extra(t) : null}
+          </li>
+        ))}
+      </ul>
+    );
+  }
   return (
     <table className="list">
       <thead>

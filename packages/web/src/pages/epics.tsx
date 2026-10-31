@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { PriorityBadge, ProgressBar, StatusDot, TicketLink } from "../components/parts.js";
+import { useHost } from "../host.js";
 import { Markdown } from "../markdown.js";
 import { hrefOf } from "../router.js";
 import { useStore } from "../store.js";
@@ -13,6 +14,7 @@ export function EpicsPage({ id }: { id?: string | undefined }) {
 
 function EpicList() {
   const store = useStore();
+  const host = useHost();
   const [showClosed, setShowClosed] = useState(false);
   const [title, setTitle] = useState("");
   const rows = store.epics.filter((e) => showClosed || e.status === "open").sort(byNumber);
@@ -53,6 +55,20 @@ function EpicList() {
       </div>
       {rows.length === 0 ? (
         <p className="empty">Epic はない</p>
+      ) : host.surface === "sidebar" ? (
+        <ul className="rows">
+          {rows.map((e) => (
+            <li key={e.id}>
+              <a className="row" href={hrefOf({ page: "epics", id: e.id })}>
+                <code>{e.id}</code>
+                <span className="row-title" title={e.title}>
+                  {e.title}
+                </span>
+                <ProgressBar progress={e.progress} />
+              </a>
+            </li>
+          ))}
+        </ul>
       ) : (
         <table className="list">
           <thead>

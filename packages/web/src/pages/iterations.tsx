@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { TicketTable } from "../components/parts.js";
+import { useHost } from "../host.js";
 import { hrefOf } from "../router.js";
 import { useStore } from "../store.js";
 import { byNumber, byPriorityThenNumber, type IterationDetail } from "../types.js";
@@ -12,6 +13,7 @@ export function IterationsPage({ id }: { id?: string | undefined }) {
 
 function IterationList() {
   const store = useStore();
+  const host = useHost();
   const [showClosed, setShowClosed] = useState(false);
   const [form, setForm] = useState({ name: "", goal: "", start: "", end: "" });
   const rows = store.iterations.filter((i) => showClosed || i.status !== "closed").sort(byNumber);
@@ -76,6 +78,23 @@ function IterationList() {
       </form>
       {rows.length === 0 ? (
         <p className="empty">Iteration はない</p>
+      ) : host.surface === "sidebar" ? (
+        <ul className="rows">
+          {rows.map((i) => (
+            <li key={i.id}>
+              <a className="row" href={hrefOf({ page: "iterations", id: i.id })}>
+                <code>{i.id}</code>
+                <span className="row-title" title={i.goal ?? i.name}>
+                  {i.name}
+                </span>
+                <span className="badge">{i.status}</span>
+                <span className="muted">
+                  {store.tickets.filter((t) => t.iteration === i.id).length}
+                </span>
+              </a>
+            </li>
+          ))}
+        </ul>
       ) : (
         <table className="list">
           <thead>
