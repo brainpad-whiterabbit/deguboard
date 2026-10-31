@@ -111,6 +111,20 @@ describe("照合", () => {
     expect(reconcileStatus(sd, "review", { branch_exists: true })).toMatchObject({ kind: "none" });
   });
 
+  it("squash マージ（pr_merged だけが真でブランチは消えた）でも review → done に進む", () => {
+    expect(
+      reconcileStatus(sd, "review", {
+        branch_exists: false,
+        branch_merged: false,
+        pr_merged: true,
+        pr_open: false,
+      }),
+    ).toMatchObject({
+      kind: "advance",
+      to: "done",
+    });
+  });
+
   it("in_progress から PR が開いていれば review に進み、draft なら進まない", () => {
     expect(
       reconcileStatus(sd, "in_progress", { branch_exists: true, pr_open: true, pr_draft: false }),

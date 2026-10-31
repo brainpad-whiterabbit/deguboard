@@ -5,9 +5,9 @@ export const softwareDevelopment: WorkflowDefinitionInput = {
   id: "software-development",
   name: "Software Development",
   labels: { review: "Code Review" },
-  transitions: [
-    { from: "review", to: "done", requires: ["branch_merged"], by: ["human", "reconcile"] },
-  ],
+  // review → done に requires を足さない。requires は AND なので branch_merged を書くと
+  // squash マージ（pr_merged だけが真）で done に進めなくなる
+  transitions: [],
   reconcile: [
     // squash マージは祖先判定で取れないので PR のマージを先に見る
     { when: ["pr_merged"], status: "done" },
