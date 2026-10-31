@@ -32,6 +32,11 @@ run = "pnpm run test"
 description = "core・server・cli を tsc で、web と vscode を Vite で dist にビルドする（dg を動かすのに要る）"
 run = "pnpm run build"
 
+[tasks.vsix]
+description = "VS Code 拡張を packages/vscode/deguboard-vscode.vsix に固める（先に build が要る）"
+depends = ["build"]
+run = "pnpm run vsix"
+
 [tasks.dg]
 description = "ビルド済みの dg を動かす。例: mise run dg -- ticket list"
 run = "pnpm run dg"

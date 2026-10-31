@@ -1,0 +1,4 @@
+# VSIX に入れるのは dist（extension.cjs と web）と README だけ。package.json は常に入る
+**
+!dist/**
+!README.md
