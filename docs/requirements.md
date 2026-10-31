@@ -53,10 +53,10 @@ deguboard は、Git で管理するチケットとユーザー定義のワーク
 ```
 config.yaml
 projects/<slug>.yaml
-tickets/t0012.md            # 1 チケット 1 ファイル
-tickets/deleted/t0009.md    # 墓標。番号を再利用しない
-iterations/s03.yaml
-plans/p07.yaml
+tickets/t12.md              # 1 チケット 1 ファイル。ファイル名は ID そのまま
+tickets/deleted/t9.md       # 墓標。番号を再利用しない
+iterations/s3.yaml
+plans/p7.yaml
 workflows/<id>.yaml
 runs/                       # Phase 3。完了時の集計だけ
 ```
@@ -66,7 +66,7 @@ runs/                       # Phase 3。完了時の集計だけ
 
 ### 5.2 ID と番号
 
-- DT-3 ID は接頭辞＋連番（`t12`・`s3`・`p7`）。ファイル名は 4 桁ゼロ埋め（`t0012.md`）。番号はリポジトリ全体で一意
+- DT-3 ID は接頭辞＋連番（`t12`・`s3`・`p7`）。ファイル名は ID そのまま（`t12.md`）で、ゼロ埋めしない。番号はリポジトリ全体で一意。ファイル名の辞書順は番号順にならないが、CLI と UI は番号で並べる
 - DT-4 採番は「既存と墓標の最大 + 1」。作成は fetch → 採番 → commit → push を 1 単位とし、push が拒否されたら採番し直す
 - DT-5 push できないときは `provisional: true` を付けてローカルに commit し、次の `dg sync` で衝突があれば番号・ファイル名・未 push のコミット内の参照を振り直す。`dg ticket list` は仮番号に印を出す
 - DT-6 CLI と UI は `t12` でも `12` でも受け付ける
@@ -75,7 +75,7 @@ runs/                       # Phase 3。完了時の集計だけ
 
 `id`（slug）、`name`、`description`、`workflow`（既定のワークフロー）、`status`（`active` / `archived`）。`dg init` は `default` を作る。
 
-### 5.4 Ticket（`tickets/t0012.md`）
+### 5.4 Ticket（`tickets/t12.md`）
 
 ```markdown
 ---
@@ -111,11 +111,11 @@ updated_at: 2026-10-31T05:10:00Z
 - TK-4 Workflow の `fields` で定義した任意フィールドを frontmatter に持てる
 - TK-5 受け入れ条件のチェックは、作業した人かエージェントが PR や成果物で確認できたときに付ける。deguboard が自動で付けることはない
 
-### 5.5 Iteration（`iterations/s03.yaml`）
+### 5.5 Iteration（`iterations/s3.yaml`）
 
 `id`、`project`、`name`、`goal`、`start`、`end`、`status`（`planned` / `active` / `closed`）、`tickets`（並び順）。閉じたときに `closed_at` と完了・持ち越しの件数を書く。
 
-### 5.6 Plan（`plans/p07.yaml`）
+### 5.6 Plan（`plans/p7.yaml`）
 
 - PL-1 `id`、`project`、`tickets`、`after`（計画内だけの待ち。チケットの依存とは別）、`pending_approval`、`approved_by`、`approved_at`、`details.<ticket>.{scope, approach}` を持つ
 - PL-2 進捗は Plan に書かない。チケットの状態から都度求める。Plan を書くのは作成・承認・終了のときだけ
