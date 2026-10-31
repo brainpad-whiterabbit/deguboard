@@ -1,0 +1,43 @@
+# 開発に必要なツールの版。作業のコマンドは mise run <task> に統一する（docs/adr/ADR-008-tech-stack.md）
+[tools]
+node = "24.22.2"
+pnpm = "12.12.1"
+
+# タスクは pnpm scripts を呼ぶだけにする。人と CI は mise run だけを使う
+[tasks.install]
+description = "依存を lockfile どおりに入れる"
+run = "pnpm install --frozen-lockfile"
+
+[tasks.format]
+description = "oxfmt でコードと設定ファイルの書式を整える"
+run = "pnpm run format"
+
+[tasks."format:check"]
+description = "書式が整っているかを確かめる（書き換えない）"
+run = "pnpm run format:check"
+
+[tasks.lint]
+description = "oxlint を実行する"
+run = "pnpm run lint"
+
+[tasks.typecheck]
+description = "tsc で型を検査する（Phase 1 の基盤で有効にする）"
+run = "pnpm run typecheck"
+
+[tasks.test]
+description = "vitest でテストする（Phase 1 の基盤で有効にする）"
+run = "pnpm run test"
+
+[tasks."check:docs"]
+description = "文書の大きさの予算と ADR 一覧の整合を検査する"
+run = "pnpm run check:docs"
+
+[tasks.check]
+description = "コミット前の確認。書式・lint・型・テスト・文書を順に検査する"
+run = [
+  "pnpm run format:check",
+  "pnpm run lint",
+  "pnpm run typecheck",
+  "pnpm run test",
+  "pnpm run check:docs",
+]
