@@ -35,6 +35,8 @@ export interface CommandDef<I extends z.ZodType, O> {
   write: boolean;
   /** repo：初期化前でも動く（init）。store：deguboard worktree が要る */
   needs: "repo" | "store";
+  /** CLI で位置引数にする入力のキー（順に）。最後が配列なら可変長 */
+  positionals?: readonly string[] | undefined;
   run(ctx: CommandContext, input: z.output<I>): Promise<CommandResult<O>>;
 }
 

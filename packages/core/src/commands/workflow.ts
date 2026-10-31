@@ -28,6 +28,7 @@ export const workflowList = defineCommand({
 
 export const workflowShow = defineCommand({
   name: "workflow.show",
+  positionals: ["workflow"],
   group: "workflow",
   summary: "Workflow の定義と、組み込みの遷移表と合成した遷移を出す",
   input: z.object({ workflow: slugSchema }),
@@ -48,6 +49,7 @@ export const workflowShow = defineCommand({
 
 export const workflowValidate = defineCommand({
   name: "workflow.validate",
+  positionals: ["workflow"],
   group: "workflow",
   summary: "Workflow 定義の指摘（存在しない Status や遷移、未知の条件）を出す",
   input: z.object({ workflow: slugSchema.optional().describe("1 つだけ検査する") }),

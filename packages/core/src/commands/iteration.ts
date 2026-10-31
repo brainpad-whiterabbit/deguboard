@@ -19,6 +19,7 @@ const isoDate = z.iso.date();
 
 export const iterationCreate = defineCommand({
   name: "iteration.create",
+  positionals: ["name"],
   group: "iteration",
   summary: "Iteration を作る",
   input: z.object({
@@ -76,6 +77,7 @@ export const iterationList = defineCommand({
 
 export const iterationShow = defineCommand({
   name: "iteration.show",
+  positionals: ["iteration"],
   group: "iteration",
   summary: "Iteration と、入っているチケットを並び順で出す",
   input: z.object({ iteration: iterationRef }),
@@ -94,6 +96,7 @@ const membership = z.object({ iteration: iterationRef, tickets: z.array(ticketRe
 
 export const iterationAdd = defineCommand({
   name: "iteration.add",
+  positionals: ["iteration", "tickets"],
   group: "iteration",
   summary: "チケットを Iteration に入れる（並びの末尾）。閉じた Iteration には入れられない",
   input: membership,
@@ -132,6 +135,7 @@ export const iterationAdd = defineCommand({
 
 export const iterationRemove = defineCommand({
   name: "iteration.remove",
+  positionals: ["iteration", "tickets"],
   group: "iteration",
   summary: "チケットを Iteration から外す",
   input: membership,
@@ -162,6 +166,7 @@ export const iterationRemove = defineCommand({
 
 export const iterationStart = defineCommand({
   name: "iteration.start",
+  positionals: ["iteration"],
   group: "iteration",
   summary: "Iteration を開始する（active にする）",
   input: z.object({ iteration: iterationRef }),
@@ -184,6 +189,7 @@ export const iterationStart = defineCommand({
 
 export const iterationClose = defineCommand({
   name: "iteration.close",
+  positionals: ["iteration"],
   group: "iteration",
   summary:
     "Iteration を閉じ、完了と持ち越しの件数を記録する。持ち越したチケットの iteration は外す",

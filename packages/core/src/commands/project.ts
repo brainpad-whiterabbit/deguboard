@@ -9,6 +9,7 @@ import { defineCommand, ok } from "./define.js";
 
 export const projectCreate = defineCommand({
   name: "project.create",
+  positionals: ["id"],
   group: "project",
   summary: "Project を作る",
   input: z.object({
@@ -57,6 +58,7 @@ export const projectList = defineCommand({
 
 export const projectShow = defineCommand({
   name: "project.show",
+  positionals: ["project"],
   group: "project",
   summary: "Project とチケットの件数を出す",
   input: z.object({ project: slugSchema }),
@@ -71,6 +73,7 @@ export const projectShow = defineCommand({
 
 export const projectArchive = defineCommand({
   name: "project.archive",
+  positionals: ["project"],
   group: "project",
   summary: "Project をアーカイブする。新しいチケットを作れなくなる",
   input: z.object({ project: slugSchema }),
