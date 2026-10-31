@@ -31,7 +31,7 @@ packages/
 - `core` は何にも依存しない（VS Code API・HTTP・React を知らない）
 - `server`・`vscode` は `core` だけに依存する。`cli` は `dg serve` のために `server` にも依存する
 - `web` は `core` の型と `CommandClient` のインターフェースだけに依存する
-- 逆向きの依存は作らない
+- 逆向きの依存は作らない。`.oxlintrc.json` の `overrides` がパッケージごとに `no-restricted-imports` で検出する（core は `@deguboard/*`・`vscode`・`react`・他パッケージへの相対パスを、server と vscode は `@deguboard/core` 以外を、cli は core と server 以外を、web は core 以外と core の型以外の import を禁止）
 
 ### `core/commands` が 3 つの入口の正本
 
