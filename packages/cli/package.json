@@ -1,12 +1,31 @@
 {
   "name": "deguboard",
   "version": "0.0.0",
-  "private": true,
-  "description": "deguboard の CLI（dg）。core のコマンド定義を commander に写す",
+  "description": "Git-native な AI ワークフロー・チケット管理ツール deguboard の CLI（dg）。チケットを deguboard ブランチの Markdown で管理し、画面（dg serve）と Claude Code 向けの手順（dg guide）を同梱する",
+  "keywords": [
+    "ai-agent",
+    "claude-code",
+    "git",
+    "kanban",
+    "tickets",
+    "workflow"
+  ],
+  "homepage": "https://github.com/brainpad-whiterabbit/deguboard#readme",
+  "bugs": "https://github.com/brainpad-whiterabbit/deguboard/issues",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/brainpad-whiterabbit/deguboard.git",
+    "directory": "packages/cli"
+  },
   "bin": {
     "dg": "./bin/dg.js"
   },
+  "files": [
+    "bin",
+    "dist",
+    "web"
+  ],
   "type": "module",
   "dependencies": {
     "@deguboard/core": "workspace:*",
@@ -14,5 +33,8 @@
     "commander": "15.0.0",
     "yaml": "2.9.1",
     "zod": "4.6.7"
+  },
+  "engines": {
+    "node": ">=24"
   }
 }

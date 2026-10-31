@@ -29,9 +29,9 @@ import {
   type Streams,
 } from "./output.js";
 
-/** 同梱した web のビルド結果（packages/web/dist）。src からも dist からも同じ場所を指す。なければ undefined */
+/** 同梱した web のビルド結果（packages/cli/web。build が packages/web/dist から写し、npm のパッケージにも入る）。なければ undefined */
 function webDist(): string | undefined {
-  const dir = resolve(dirname(fileURLToPath(import.meta.url)), "../../web/dist");
+  const dir = resolve(dirname(fileURLToPath(import.meta.url)), "../web");
   return existsSync(resolve(dir, "index.html")) ? dir : undefined;
 }
 

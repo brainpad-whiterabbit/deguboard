@@ -12,9 +12,10 @@
     "typecheck": "tsc -p tsconfig.json && tsc -p packages/web/tsconfig.json && tsc -p test/tsconfig.json",
     "test": "vitest run",
     "check:docs": "node scripts/check-docs.mjs",
-    "build": "tsc -b tsconfig.build.json && cp packages/cli/src/guide-*.md packages/cli/dist/ && pnpm --filter @deguboard/web build && pnpm --filter deguboard-vscode build",
+    "build": "tsc -b tsconfig.build.json && cp packages/cli/src/guide-*.md packages/cli/dist/ && pnpm --filter @deguboard/web build && rm -rf packages/cli/web && cp -r packages/web/dist packages/cli/web && pnpm --filter deguboard-vscode build",
     "dg": "node packages/cli/bin/dg.js",
-    "vsix": "pnpm --filter deguboard-vscode package"
+    "vsix": "pnpm --filter deguboard-vscode package",
+    "pack": "rm -rf release && pnpm --filter @deguboard/core --filter @deguboard/server --filter deguboard exec pnpm pack --pack-destination ../../release"
   },
   "devDependencies": {
     "@types/node": "24.19.2",
