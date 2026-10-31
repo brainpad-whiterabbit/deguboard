@@ -145,6 +145,7 @@ function provisionalMarker(ctx: CommandContext) {
 
 export const ticketCreate = defineCommand({
   name: "ticket.create",
+  positionals: ["title"],
   group: "ticket",
   summary: "チケットを起票する。commit.mode によらず即座にコミットして push する",
   input: createInput,
@@ -172,6 +173,7 @@ export const ticketCreate = defineCommand({
 
 export const ticketImport = defineCommand({
   name: "ticket.import",
+  positionals: ["file"],
   group: "ticket",
   summary: "下書きの配列を 1 コミットで取り込む。下書きの key を depends_on から参照できる",
   input: z.object({
@@ -275,6 +277,7 @@ export const ticketList = defineCommand({
 
 export const ticketShow = defineCommand({
   name: "ticket.show",
+  positionals: ["ticket"],
   group: "ticket",
   summary: "チケットの属性と本文、依存元を出す",
   input: z.object({ ticket: ticketRef }),
@@ -292,6 +295,7 @@ export const ticketShow = defineCommand({
 
 export const ticketUpdate = defineCommand({
   name: "ticket.update",
+  positionals: ["ticket"],
   group: "ticket",
   summary: "チケットの属性と本文を直す。status は ticket.move で変える",
   input: z.object({
@@ -387,6 +391,7 @@ function transitionSideEffects(to: Status): Record<string, unknown> {
 
 export const ticketMove = defineCommand({
   name: "ticket.move",
+  positionals: ["ticket", "status"],
   group: "ticket",
   summary: "Status を変える。遷移表と Workflow の requires を通らない遷移は拒否する",
   input: z.object({
@@ -425,6 +430,7 @@ export const ticketMove = defineCommand({
 
 export const ticketDelete = defineCommand({
   name: "ticket.delete",
+  positionals: ["ticket"],
   group: "ticket",
   summary: "チケットを墓標（tickets/deleted/）へ移す。番号は再利用しない",
   input: z.object({ ticket: ticketRef }),
@@ -468,6 +474,7 @@ export function defaultBranchName(ticket: Ticket): string {
 
 export const ticketClaim = defineCommand({
   name: "ticket.claim",
+  positionals: ["ticket"],
   group: "ticket",
   summary:
     "チケットに着手する。claimed_by とブランチを記録して in_progress にし、push の成功で排他を得る",
@@ -521,6 +528,7 @@ export const ticketClaim = defineCommand({
 
 export const ticketUnclaim = defineCommand({
   name: "ticket.unclaim",
+  positionals: ["ticket"],
   group: "ticket",
   summary: "claim を外して todo に戻す。自分の claim か記録のない claim だけ。他人のものは force",
   input: z.object({

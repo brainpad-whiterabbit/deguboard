@@ -333,6 +333,7 @@ function coerce(value: unknown): unknown {
 
 export const configSet = defineCommand({
   name: "config.set",
+  positionals: ["key", "value"],
   group: "setup",
   summary: "config.yaml の 1 項目を変える（commit.mode のようにドットで指す）",
   input: z.object({

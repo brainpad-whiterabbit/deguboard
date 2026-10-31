@@ -19,6 +19,7 @@ import {
 
 export const epicCreate = defineCommand({
   name: "epic.create",
+  positionals: ["title"],
   group: "epic",
   summary: "Epic を作る",
   input: z.object({
@@ -82,6 +83,7 @@ export const epicList = defineCommand({
 
 export const epicShow = defineCommand({
   name: "epic.show",
+  positionals: ["epic"],
   group: "epic",
   summary: "Epic の本文と進捗、所属するチケットを Status ごとに出す",
   input: z.object({ epic: epicRef }),
@@ -100,6 +102,7 @@ export const epicShow = defineCommand({
 
 export const epicUpdate = defineCommand({
   name: "epic.update",
+  positionals: ["epic"],
   group: "epic",
   summary: "Epic の属性と本文を直す",
   input: z.object({
@@ -130,6 +133,7 @@ const membership = z.object({ epic: epicRef, tickets: z.array(ticketRef).min(1) 
 
 export const epicAdd = defineCommand({
   name: "epic.add",
+  positionals: ["epic", "tickets"],
   group: "epic",
   summary: "チケットを Epic に入れる。同じ Project のチケットだけで、閉じた Epic には入れられない",
   input: membership,
@@ -160,6 +164,7 @@ export const epicAdd = defineCommand({
 
 export const epicRemove = defineCommand({
   name: "epic.remove",
+  positionals: ["epic", "tickets"],
   group: "epic",
   summary: "チケットを Epic から外す",
   input: membership,
@@ -188,6 +193,7 @@ export const epicRemove = defineCommand({
 
 export const epicClose = defineCommand({
   name: "epic.close",
+  positionals: ["epic"],
   group: "epic",
   summary: "Epic を閉じる。done・abandoned 以外のチケットが残っていれば拒否し、force で閉じる",
   input: z.object({
@@ -231,6 +237,7 @@ export const epicClose = defineCommand({
 
 export const epicReopen = defineCommand({
   name: "epic.reopen",
+  positionals: ["epic"],
   group: "epic",
   summary: "閉じた Epic を再開する",
   input: z.object({ epic: epicRef }),

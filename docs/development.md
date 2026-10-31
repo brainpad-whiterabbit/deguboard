@@ -71,14 +71,16 @@ worktree は `../deguboard.worktrees/<ブランチ名>` に置く。`dg` の `wo
 
 ## ビルドとテスト
 
-- TypeScript は ESM（`"type": "module"`）で、相対 import は `.js` の拡張子で書く。設定はルートの `tsconfig.base.json` と `tsconfig.json` にあり、`mise run typecheck` は `packages/*/src` と `packages/*/test` をまとめて `noEmit` で検査する。配布用のビルド（dist）はまだなく、CLI パッケージを作るときに足す
+- TypeScript は ESM（`"type": "module"`）で、相対 import は `.js` の拡張子で書く。設定はルートの `tsconfig.base.json` と `tsconfig.json` にあり、`mise run typecheck` は `packages/*/src` と `packages/*/test` をまとめて `noEmit` で検査する
+- `mise run build` が `tsconfig.build.json`（プロジェクト参照）で `core` と `cli` を `dist/` に出す。`dg` を動かすにはこのビルドが要る。`mise run dg -- <引数>` でビルド済みの `dg` を動かせる（例：`mise run dg -- ticket list`）。リポジトリの外のディレクトリに対して動かすときは `-C <dir>` を付ける
+- `@deguboard/core` の `exports` は条件つきで、テストと型検査（`development` 条件）は `src/` を、ビルド済みの `dg` は `dist/` を見る。テストの前にビルドは要らない
 - テストはソースの隣の `*.test.ts` に置き、ルートの `vitest.config.ts` が `packages/*/src/**/*.test.ts` をまとめて走らせる。パッケージごとの設定ファイルは作らない
 - Git を使うテストは `packages/core/test/helpers/git-fixture.ts` で、一時ディレクトリに bare リモートと 2 つの clone を作って行う（CLAUDE.md の規約）。開発者のグローバル設定に影響されないよう、fixture が `GIT_CONFIG_GLOBAL=/dev/null` と `GIT_CONFIG_NOSYSTEM=1` を与える
 - 依存を足すときは `pnpm install` で lockfile を更新してからコミットする（`mise run install` は `--frozen-lockfile`）
 
 ## パッケージ
 
-構成と依存の向きは [ADR-007](adr/ADR-007-architecture.md)。今あるのは `core` だけで、`cli`・`server`・`web`・`vscode` はこれから作る。
+構成と依存の向きは [ADR-007](adr/ADR-007-architecture.md)。今あるのは `core` と `cli` で、`server`・`web`・`vscode` はこれから作る。
 
 ### `packages/core`（`@deguboard/core`）
 
@@ -92,7 +94,32 @@ worktree は `../deguboard.worktrees/<ブランチ名>` に置く。`dg` の `wo
 | `git/`      | `execFile` で git・gh を呼ぶ、deguboard worktree の用意、取り込みと push、書き込みの 1 単位 `withWrite`（CAS と provisional）、事実の収集 |
 | `commands/` | 3 つの入口の正本。`defineCommand` で「名前・Zod の入力・実装」を組にし、`openContext` と `runCommand` で呼ぶ                              |
 
-入口がコマンドを呼ぶ流れ：`openContext({ cwd, actor })` → `runCommand(findCommand("ticket.create"), ctx, input)`。入力の形の誤りは `UsageError`（終了コード 2）、実行時の失敗は `OperationError`（終了コード 1、`code` に種類）。
+入口がコマンドを呼ぶ流れ：`openContext({ cwd, actor })` → `runCommand(findCommand("ticket.create"), ctx, input)`。入力の形の誤りは `UsageError`（終了コード 2）、実行時の失敗は `OperationError`（終了コード 1、`code` に種類）。各コマンドの `positionals` が、CLI で位置引数にする入力のキーを指す。
+
+### `packages/cli`（npm の `deguboard`、コマンドは `dg`）
+
+core の `commands` を commander に写す。ロジックは持たない。`src/` のファイル：
+
+| ファイル     | 役割                                                                                                                                 |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `program.ts` | `commands` から `dg <群> <操作>` の木を組み立てる。`setup` 群（init・sync・commit・validate・lint）はトップレベル。`sprint` は alias |
+| `options.ts` | Zod の入力スキーマから位置引数とオプションを作り、解析した引数を入力オブジェクトに戻す（下の表）                                     |
+| `output.ts`  | 人向けの出力（list は表、show は `key: value` と本文）と `--json`（`{ ok, data, warnings, write }` / `{ ok: false, error }`）        |
+| `errors.ts`  | `DeguboardError` と commander のエラーを stderr と終了コード（0 / 1 / 2）に写す                                                      |
+
+Zod の型から CLI への対応：
+
+| Zod の型                    | CLI                                                                         |
+| --------------------------- | --------------------------------------------------------------------------- |
+| string / number / unknown   | `--key <value>`（`snake_case` は `--kebab-case`）                           |
+| boolean                     | `--key`（フラグ）                                                           |
+| enum                        | `--key <value>` に choices                                                  |
+| array（string / enum）      | 単数形で繰り返す（`--label a --label b`）。カンマ区切りも受ける             |
+| nullable                    | `none` で外す（`--epic none`）                                              |
+| record（`fields`）          | `--field key=value` の繰り返し。true / false / 数値は変換する               |
+| array of object（`drafts`） | 位置引数 `<file>`（YAML / JSON。`-` で標準入力）から読む（`ticket import`） |
+
+グローバルオプションは `--json`、`-C <dir>`、`--actor <human|agent>`（環境変数 `DEGUBOARD_ACTOR`）、`--actor-id <id>`（`DEGUBOARD_ACTOR_ID`）。`dg serve`・`dg open`・`dg guide` はまだない。
 
 ## 文書を直すとき
 

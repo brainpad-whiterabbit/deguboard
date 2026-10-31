@@ -28,6 +28,14 @@ run = "pnpm run typecheck"
 description = "vitest でテストする"
 run = "pnpm run test"
 
+[tasks.build]
+description = "tsc で core と cli を dist にビルドする（dg を動かすのに要る）"
+run = "pnpm run build"
+
+[tasks.dg]
+description = "ビルド済みの dg を動かす。例: mise run dg -- ticket list"
+run = "pnpm run dg --"
+
 [tasks."check:docs"]
 description = "文書の大きさの予算と ADR 一覧の整合を検査する"
 run = "pnpm run check:docs"
