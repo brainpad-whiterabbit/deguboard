@@ -35,3 +35,4 @@ export * from "./ticket.js";
 export * from "./iteration.js";
 export * from "./epic.js";
 export * from "./workflow.js";
+export type { CommandClient, CommandFailure, StatusView } from "./client.js";

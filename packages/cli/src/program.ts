@@ -2,7 +2,9 @@
 
 import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
-import { resolve } from "node:path";
+import { existsSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   GROUP_ALIASES,
   commands as allCommands,
@@ -27,7 +29,15 @@ import {
   type Streams,
 } from "./output.js";
 
+/** 同梱した web のビルド結果（packages/web/dist）。src からも dist からも同じ場所を指す。なければ undefined */
+function webDist(): string | undefined {
+  const dir = resolve(dirname(fileURLToPath(import.meta.url)), "../../web/dist");
+  return existsSync(resolve(dir, "index.html")) ? dir : undefined;
+}
+
 export interface ProgramOptions {
+  /** web のビルド結果。省略時は packages/web/dist（なければ API だけ） */
+  staticDir?: string | undefined;
   streams?: Streams;
   /** -C の既定 */
   cwd?: string;
@@ -127,6 +137,7 @@ export function buildProgram(options: ProgramOptions = {}): Command {
   addServeCommands(program, {
     streams,
     resolveCwd: (c) => resolve(options.cwd ?? process.cwd(), c ?? "."),
+    staticDir: options.staticDir ?? webDist(),
   });
 
   for (const def of options.commands ?? allCommands) {
