@@ -446,13 +446,6 @@ export const ticketDelete = defineCommand({
         const deps = dependents(store, doc.data.id);
         if (deps.length > 0)
           warnings.push(`${deps.join(", ")} が ${doc.id} に依存している。depends_on を直す`);
-        for (const it of store.iterations.values()) {
-          if (it.data.tickets.includes(doc.data.id)) {
-            await store.update("iteration", it.id, {
-              tickets: it.data.tickets.filter((x) => x !== doc.data.id),
-            });
-          }
-        }
         await store.deleteTicket(doc.data.id);
         return doc;
       },

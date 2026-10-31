@@ -39,7 +39,7 @@
 - ファイル名の辞書順は番号順にならない（`t100.md` が `t2.md` より前に並ぶ）。CLI と UI は番号で並べるので影響しない。シェルで番号順に見たいときは `ls -v` を使う
 - 番号はリポジトリ全体で一意（プロジェクトをまたいでも `t12` は 1 つ）。採番は「既存と墓標の最大 + 1」
 - **作成は fetch → 採番 → commit → push を 1 単位**にする。push が拒否されたら取り込み直して採番し直し、最大 3 回まで再 push する。同じパスの add/add で衝突を検出できる
-- オフラインで push できないときは `provisional: true` を付けてローカルに commit する。次の `dg sync` で衝突があれば、番号・ファイル名・未 push のコミット内の参照（他チケットの `depends_on` と `epic`、Iteration、Plan）を振り直してから push する
+- オフラインで push できないときは `provisional: true` を付けてローカルに commit する。次の `dg sync` で衝突があれば、番号・ファイル名・未 push のコミット内の参照（他チケットの `depends_on`、Plan）を振り直してから push する
 - 作業ブランチ名と PR は claim（push 成功が条件。[ADR-004](ADR-004-agents-and-state.md)）の後に作るので、仮番号がブランチ名に入ることはない
 - `dg ticket import` の複数件も同じ 1 単位で採番する
 

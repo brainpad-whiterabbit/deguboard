@@ -27,8 +27,13 @@ export function ticketsInEpic(store: Store, epicId: string): Doc<Ticket>[] {
   return sortedDocs([...store.tickets.values()].filter((t) => t.data.epic === epicId));
 }
 
+const PRIORITY_RANK: Record<Ticket["priority"], number> = { high: 0, medium: 1, low: 2 };
+
+/** Iteration の中の並び（IT-2）。優先度の高い順、同じなら番号順 */
 export function ticketsInIteration(store: Store, iterationId: string): Doc<Ticket>[] {
-  return sortedDocs([...store.tickets.values()].filter((t) => t.data.iteration === iterationId));
+  return sortedDocs(
+    [...store.tickets.values()].filter((t) => t.data.iteration === iterationId),
+  ).sort((a, b) => PRIORITY_RANK[a.data.priority] - PRIORITY_RANK[b.data.priority]);
 }
 
 /** 本文つきの表示用の形 */

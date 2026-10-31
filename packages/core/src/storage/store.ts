@@ -181,8 +181,12 @@ export class Store {
   }
 
   /** depends_on がすべて done か */
+  /** deps_done（WF-2）。依存先がすべて done か abandoned なら真。やめたチケットは待たない */
   depsDone(ticket: Ticket): boolean {
-    return ticket.depends_on.every((id) => this.tickets.get(id)?.data.status === "done");
+    return ticket.depends_on.every((id) => {
+      const status = this.tickets.get(id)?.data.status;
+      return status === "done" || status === "abandoned";
+    });
   }
 
   // ---- 書き込み（write-through）----

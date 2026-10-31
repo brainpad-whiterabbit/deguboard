@@ -15,7 +15,7 @@ export const ticketFilterSchema = z.object({
   ready: z
     .boolean()
     .optional()
-    .describe("着手できる（todo で claim がなく、依存が全部 done）ものだけ"),
+    .describe("着手できる（todo で claim がなく、依存先が全部 done か abandoned）ものだけ"),
   include_abandoned: z
     .boolean()
     .optional()
