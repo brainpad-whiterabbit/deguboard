@@ -1,10 +1,11 @@
 import type { CommandClient, CommandResult } from "@deguboard/core";
 import { OperationError, UsageError } from "@deguboard/core";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   badgeOf,
   handleRequest,
   isWebviewRequest,
+  coalesce,
   renderMessageHtml,
   renderWebviewHtml,
   subjectOfRoute,
@@ -157,6 +158,28 @@ describe("Webview の要求", () => {
     expect(isWebviewRequest({ id: 1, kind: "action", name: "other", ticket: "t1" })).toBe(false);
     expect(isWebviewRequest({ kind: "event", name: "reload" })).toBe(false);
     expect(isWebviewRequest(null)).toBe(false);
+  });
+});
+
+describe("ファイルの変化のまとめ", () => {
+  afterEach(() => vi.useRealTimers());
+
+  it("短い間に続けて来た変化は最後の 1 回にまとめ、cancel で捨てる", () => {
+    vi.useFakeTimers();
+    let count = 0;
+    const c = coalesce(() => count++, 200);
+    c.fire();
+    c.fire();
+    vi.advanceTimersByTime(150);
+    c.fire();
+    vi.advanceTimersByTime(150);
+    expect(count).toBe(0);
+    vi.advanceTimersByTime(100);
+    expect(count).toBe(1);
+    c.fire();
+    c.cancel();
+    vi.advanceTimersByTime(500);
+    expect(count).toBe(1);
   });
 });
 
