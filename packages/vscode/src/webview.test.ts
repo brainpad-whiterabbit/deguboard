@@ -7,6 +7,7 @@ import {
   isWebviewRequest,
   renderMessageHtml,
   renderWebviewHtml,
+  ticketOfRoute,
 } from "./webview.js";
 
 const INDEX = `<!doctype html>
@@ -153,6 +154,16 @@ describe("Webview の要求", () => {
     expect(isWebviewRequest({ id: 1, kind: "action", name: "other", ticket: "t1" })).toBe(false);
     expect(isWebviewRequest({ kind: "event", name: "sync" })).toBe(false);
     expect(isWebviewRequest(null)).toBe(false);
+  });
+});
+
+describe("パネルの題", () => {
+  it("チケット詳細のルートからチケットの番号を取り、それ以外は undefined", () => {
+    expect(ticketOfRoute("#/tickets/t12")).toBe("t12");
+    expect(ticketOfRoute("#/tickets/t12?x=1")).toBe("t12");
+    expect(ticketOfRoute("#/board")).toBeUndefined();
+    expect(ticketOfRoute("#/tickets")).toBeUndefined();
+    expect(ticketOfRoute("#/tickets/")).toBeUndefined();
   });
 });
 

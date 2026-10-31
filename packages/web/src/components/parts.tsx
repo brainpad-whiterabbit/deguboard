@@ -8,7 +8,7 @@ import type { EpicProgress, Priority, Status, Ticket } from "../types.js";
 
 /**
  * チケット詳細へのリンク。チケットへのリンクはすべてここを通す。
- * ブラウザとパネルではハッシュ遷移、サイドバーでは拡張ホストに頼んでエディタ領域に開く（UI-12）。
+ * ブラウザではハッシュ遷移（App の followHashLink が受ける）、Webview では拡張ホストに頼んでエディタ領域に開く（UI-12）。
  * children を渡せば番号の代わりにそれを出す
  */
 export function TicketLink({
@@ -29,7 +29,7 @@ export function TicketLink({
       onClick={(e) => {
         // 呼び出し側が preventDefault したら（ドラッグ直後など）開かない
         rest.onClick?.(e);
-        if (e.defaultPrevented || host.surface !== "sidebar") return;
+        if (e.defaultPrevented || host.surface === "browser") return;
         e.preventDefault();
         host.openTicket(id);
       }}

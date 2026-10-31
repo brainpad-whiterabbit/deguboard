@@ -1,5 +1,5 @@
 // 画面がどこに載っているか（surface）と、画面の外への働きかけを 1 つの文脈で持つ（UI-12）。
-// ブラウザと「画面を開く」のパネルではチケットへのリンクはハッシュ遷移、サイドバーでは拡張ホストにエディタ領域で開いてもらう。
+// ブラウザではチケットへのリンクはハッシュ遷移、サイドバーとパネルでは拡張ホストに頼む（パネルは自分の中で遷移し、題が変わる）。
 // 拡張ホストからの通知（同期・遷移）は HostBridge が store とハッシュに結ぶ
 
 import { createContext, useContext, useEffect, useRef, type ReactNode } from "react";
@@ -11,7 +11,7 @@ export type Surface = "sidebar" | "panel" | "browser";
 
 export interface Host {
   surface: Surface;
-  /** チケット詳細を開く。sidebar では拡張ホストに頼み、それ以外はハッシュ遷移 */
+  /** チケット詳細を開く。Webview（sidebar・panel）では拡張ホストに頼み、ブラウザではハッシュ遷移 */
   openTicket(id: string): void;
 }
 
@@ -24,7 +24,7 @@ const HostContext = createContext<Host>(browserHost);
 
 /** <html data-surface> と拡張ホストとの接続から Host を作る。Webview でなければブラウザ */
 export function createHost(surface: Surface, client: WebviewClient | null): Host {
-  if (surface === "sidebar" && client) {
+  if (surface !== "browser" && client) {
     return { surface, openTicket: (id) => void client.openTicket(id) };
   }
   return { ...browserHost, surface };

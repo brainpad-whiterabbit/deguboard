@@ -1,4 +1,5 @@
 // 拡張ホストの入口。Activity Bar のアイコンからサイドバーのビューに web を載せ、チケット詳細はエディタ領域のパネルに開く（UI-12）。
+// パネルの題はチケットの番号とタイトルにする（詳細のパネルにはヘッダーを出さないので、題で見分ける）。
 // Webview からの要求は core のプロセス内 CommandClient に通す（ADR-006・ADR-007）。サーバーは起動しない。
 // dg は同梱せず、PATH の dg を案内する（UI-11）。VS Code の API に触れるのはこのファイルだけ
 
@@ -18,6 +19,7 @@ import {
   isWebviewRequest,
   renderMessageHtml,
   renderWebviewHtml,
+  ticketOfRoute,
   type Surface,
   type WebviewActions,
 } from "./webview.js";
@@ -104,7 +106,8 @@ async function resolveSidebar(
 
 /**
  * エディタ領域のパネルを出す。既にあれば reveal し、route があればその画面に移す。
- * なければ route（既定は #/board）を初期ルートにして作る（Webview が起動する前のイベントは届かないので HTML に埋める）
+ * なければ route（既定は #/board）を初期ルートにして作る（Webview が起動する前のイベントは届かないので HTML に埋める）。
+ * パネルの中のチケットリンクもここに来て、同じパネルの中で遷移し題が変わる
  */
 async function openPanel(
   context: vscode.ExtensionContext,
@@ -120,10 +123,12 @@ async function openPanel(
         name: "navigate",
         hash: options.route,
       } satisfies WebviewEvent);
+      void retitle(existing, folder, options.route);
     }
     existing.reveal(undefined, options.preserveFocus);
     return;
   }
+  const route = options.route ?? "#/board";
   const panel = vscode.window.createWebviewPanel(
     PANEL_TYPE,
     panelTitle(folder),
@@ -132,10 +137,36 @@ async function openPanel(
   );
   panels.set(key, panel);
   panel.onDidDispose(() => panels.delete(key));
+  void retitle(panel, folder, route);
   await attach(context, panel.webview, folder, {
     surface: "panel",
-    route: options.route ?? "#/board",
+    route,
+    actions: {
+      openTicket: (ticket) =>
+        openPanel(context, folder, { column: options.column, route: `#/tickets/${ticket}` }),
+    },
   });
+}
+
+/** パネルの題。チケット詳細を出しているときは「t12 タイトル」にしてエディタのタブで見分けられるようにする（ヘッダーを出さないので。UI-12） */
+async function retitle(
+  panel: vscode.WebviewPanel,
+  folder: vscode.WorkspaceFolder,
+  route: string,
+): Promise<void> {
+  const ticket = ticketOfRoute(route);
+  if (!ticket) {
+    panel.title = panelTitle(folder);
+    return;
+  }
+  panel.title = ticket;
+  try {
+    const result = await clientFor(folder).run<{ title: string }>("ticket.show", { ticket });
+    // 読んでいる間に別の画面へ移っていたら上書きしない
+    if (panel.title === ticket) panel.title = `${ticket} ${result.data.title}`;
+  } catch {
+    // 題が番号だけになるだけで、画面は Webview が自分で読む
+  }
 }
 
 interface AttachOptions {
