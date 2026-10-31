@@ -53,6 +53,27 @@ export function renderWebviewHtml(indexHtml: string, options: HtmlOptions): stri
     );
 }
 
+/**
+ * 短い間に続けて呼ばれたら最後の 1 回にまとめる（データの書き込みは 1 回で複数のファイルを変えるので）。
+ * 戻り値の cancel で待っている分を捨てる
+ */
+export function coalesce(fn: () => void, waitMs: number): { fire(): void; cancel(): void } {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  return {
+    fire() {
+      if (timer !== undefined) clearTimeout(timer);
+      timer = setTimeout(() => {
+        timer = undefined;
+        fn();
+      }, waitMs);
+    },
+    cancel() {
+      if (timer !== undefined) clearTimeout(timer);
+      timer = undefined;
+    },
+  };
+}
+
 /** ルート（#/tickets/t12）が指すチケットの番号。チケット詳細でなければ undefined。パネルの題に使う（UI-12） */
 export function ticketOfRoute(route: string): string | undefined {
   const m = /^#\/tickets\/([^/?#]+)/.exec(route);

@@ -1,5 +1,6 @@
 // 拡張ホストの入口。Activity Bar のアイコンからサイドバーのビューに web を載せ、チケット詳細はエディタ領域のパネルに開く（UI-12）。
 // パネルの題はチケットの番号とタイトルにする（詳細のパネルにはヘッダーを出さないので、題で見分ける）。
+// データ worktree を見張り、CLI やエージェントの書き込みを画面に映す。
 // Webview からの要求は core のプロセス内 CommandClient に通す（ADR-006・ADR-007）。サーバーは起動しない。
 // dg は同梱せず、PATH の dg を案内する（UI-11）。VS Code の API に触れるのはこのファイルだけ
 
@@ -16,6 +17,7 @@ import * as vscode from "vscode";
 import { dgAdvice, resolveDg } from "./dg.js";
 import {
   badgeOf,
+  coalesce,
   handleRequest,
   isWebviewRequest,
   renderMessageHtml,
@@ -32,6 +34,8 @@ const PANEL_TYPE = "deguboard";
 const panels = new Map<string, vscode.WebviewPanel>();
 /** フォルダごとの CommandClient。core の直列化はインスタンスの中だけなので、サイドバーとパネルで 1 つを共有する */
 const clients = new Map<string, CommandClient>();
+/** フォルダごとのデータ worktree（.git/deguboard/）の監視。CLI やエージェントの書き込みを画面に映す */
+const watchers = new Map<string, vscode.Disposable>();
 /** 今出ているサイドバーのビュー。右クリックで非表示にされると dispose され、再表示で作り直される */
 let sidebar: vscode.WebviewView | undefined;
 /** サイドバーが対象にするフォルダ（最初の作業フォルダ）。ビューのタイトル行のコマンドはこのフォルダに対して動く */
@@ -65,6 +69,8 @@ export function activate(context: vscode.ExtensionContext): void {
 export function deactivate(): void {
   for (const panel of panels.values()) panel.dispose();
   panels.clear();
+  for (const watcher of watchers.values()) watcher.dispose();
+  watchers.clear();
   clients.clear();
 }
 
@@ -264,8 +270,38 @@ function clientFor(folder: vscode.WorkspaceFolder): CommandClient {
   if (!client) {
     client = createLocalClient({ cwd: folder.uri.fsPath });
     clients.set(key, client);
+    void watchData(folder, client);
   }
   return client;
+}
+
+/**
+ * データ worktree のファイル（tickets/*.md など）を見張り、変わったらサイドバーとパネルに読み直しを頼む。
+ * 1 回の書き込みで複数のファイルが変わるので 200ms まとめる。画面からの書き込みも拾うが、読み直しが 1 回増えるだけ。
+ * 置き場所は core が status で返す data_dir（.git/deguboard/）。取れなければ見張らない（画面は手の再読み込みで動く）
+ */
+async function watchData(folder: vscode.WorkspaceFolder, client: CommandClient): Promise<void> {
+  const key = folder.uri.toString();
+  if (watchers.has(key)) return;
+  let dataDir: string;
+  try {
+    dataDir = (await client.status()).data_dir;
+  } catch {
+    return;
+  }
+  const pending = coalesce(() => broadcast(folder, { kind: "event", name: "reload" }), 200);
+  const watcher = vscode.workspace.createFileSystemWatcher(
+    new vscode.RelativePattern(vscode.Uri.file(dataDir), "**/*.{md,yaml,yml}"),
+  );
+  watcher.onDidCreate(pending.fire);
+  watcher.onDidChange(pending.fire);
+  watcher.onDidDelete(pending.fire);
+  watchers.set(key, {
+    dispose() {
+      pending.cancel();
+      watcher.dispose();
+    },
+  });
 }
 
 function panelTitle(folder: vscode.WorkspaceFolder): string {
