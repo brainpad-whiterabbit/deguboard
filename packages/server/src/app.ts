@@ -7,13 +7,8 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import {
   DeguboardError,
-  commands as allCommands,
-  findCommand,
-  openContext,
-  runCommand,
-  syncStatus,
+  createLocalClient,
   type AnyCommand,
-  type CommandContext,
   type CommandResult,
 } from "@deguboard/core";
 import { z } from "zod";
@@ -53,45 +48,21 @@ export function describeCommands(commands: readonly AnyCommand[]): CommandDescri
 
 function statusOf(error: DeguboardError): number {
   if (error.exitCode === 2) return 400;
-  if (error.code === "NOT_FOUND") return 404;
+  if (error.code === "NOT_FOUND" || error.code === "UNKNOWN_COMMAND") return 404;
   if (error.code === "NOT_INITIALIZED") return 503;
   return 409;
 }
 
 export type Handler = (req: IncomingMessage, res: ServerResponse) => Promise<void>;
 
-/**
- * リクエストを 1 つずつ順に処理する（同じプロセスの中で Store の再走査と書き込みが重ならないように）。
- * 文脈は最初のリクエストで開き、以後はリクエストごとに再走査して他のプロセス（CLI）の変更を取り込む
- */
+/** 文脈の管理（開く・再走査・直列化）は core の createLocalClient が持つ。ここは HTTP に写すだけ */
 export function createApp(options: AppOptions): Handler {
-  const commands = options.commands ?? allCommands;
-  const descriptors = describeCommands(commands);
-  let ctxPromise: Promise<CommandContext> | undefined;
-  let queue: Promise<unknown> = Promise.resolve();
-
-  const context = async (): Promise<CommandContext> => {
-    ctxPromise ??= openContext({
-      cwd: options.cwd,
-      // 画面からの操作は常に人（ADR-006）
-      actor: { kind: "human", ...(options.actorId ? { id: options.actorId } : {}) },
-    });
-    try {
-      const ctx = await ctxPromise;
-      await ctx.store.rescan();
-      ctx.config = ctx.store.config;
-      return ctx;
-    } catch (error) {
-      ctxPromise = undefined;
-      throw error;
-    }
-  };
-
-  const serialized = <T>(fn: () => Promise<T>): Promise<T> => {
-    const next = queue.then(fn, fn);
-    queue = next.catch(() => undefined);
-    return next;
-  };
+  const client = createLocalClient({
+    cwd: options.cwd,
+    actorId: options.actorId,
+    commands: options.commands,
+  });
+  const descriptors = describeCommands(client.commands);
 
   return async (req, res) => {
     const url = new URL(req.url ?? "/", "http://localhost");
@@ -102,14 +73,6 @@ export function createApp(options: AppOptions): Handler {
       }
       if (url.pathname.startsWith("/api/commands/") && req.method === "POST") {
         const name = decodeURIComponent(url.pathname.slice("/api/commands/".length));
-        const def = findCommand(name);
-        if (!def || def.needs !== "store") {
-          json(res, 404, {
-            ok: false,
-            error: { code: "UNKNOWN_COMMAND", message: `コマンド ${name} はない` },
-          });
-          return;
-        }
         const body = await readBody(req);
         let input: unknown = {};
         if (body.trim()) {
@@ -123,17 +86,11 @@ export function createApp(options: AppOptions): Handler {
             return;
           }
         }
-        const result = await serialized(async () => runCommand(def, await context(), input));
-        json(res, 200, toJson(result));
+        json(res, 200, toJson(await client.run(name, input)));
         return;
       }
       if (url.pathname === "/api/status" && req.method === "GET") {
-        const data = await serialized(async () => {
-          const ctx = await context();
-          const status = await syncStatus(ctx.repo);
-          return { ...status, issues: ctx.store.issues.length, data_dir: ctx.repo.dataDir };
-        });
-        json(res, 200, { ok: true, data });
+        json(res, 200, { ok: true, data: await client.status() });
         return;
       }
       if (url.pathname.startsWith("/api/")) {

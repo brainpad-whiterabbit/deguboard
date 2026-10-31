@@ -38,6 +38,7 @@ packages/
 - すべての操作を「名前・Zod の入力スキーマ・実装関数」の組として `core/commands` に定義する
 - CLI のサブコマンドとヘルプ、HTTP のエンドポイント、Webview のメッセージ、将来の MCP のツール定義は、この定義から生成する。入口にロジックを書かない
 - UI は `CommandClient`（コマンド名と入力を渡して結果を受け取る 1 つのインターフェース）を通じて呼ぶ
+- 文脈の管理（開く・再走査・直列化・名前でコマンドを引く）はプロセス内の `CommandClient`（`core/commands/local.ts`）として core に 1 つ置き、`server` は HTTP に、`vscode` は Webview の postMessage に写す
 
 ### Core の中の境界
 

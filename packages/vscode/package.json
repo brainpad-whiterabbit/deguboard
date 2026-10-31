@@ -1,0 +1,36 @@
+{
+  "name": "deguboard-vscode",
+  "displayName": "deguboard",
+  "version": "0.0.0",
+  "private": true,
+  "description": "deguboard の VS Code 拡張。拡張ホストから core を呼び、Webview に web の画面を載せる。dg は同梱しない",
+  "categories": [
+    "Other"
+  ],
+  "license": "MIT",
+  "publisher": "deguboard",
+  "type": "module",
+  "main": "./dist/extension.cjs",
+  "scripts": {
+    "build": "vite build && rm -rf dist/web && cp -r ../web/dist dist/web"
+  },
+  "dependencies": {
+    "@deguboard/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/vscode": "1.104.0",
+    "vite": "8.3.5"
+  },
+  "contributes": {
+    "commands": [
+      {
+        "command": "deguboard.open",
+        "title": "画面を開く",
+        "category": "deguboard"
+      }
+    ]
+  },
+  "engines": {
+    "vscode": "^1.104.0"
+  }
+}

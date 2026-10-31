@@ -40,6 +40,11 @@
 - 更新は書き込み後の読み直しと `GET /api/status` のポーリング。WebSocket と SSE は入れない
 - テストは Vitest + Testing Library + jsdom で、`CommandClient` を差し替えて画面を結合して確かめる
 
+### VS Code 拡張は Vite で 1 つの CommonJS に束ねる
+
+- 拡張ホストは CommonJS を読むので、`packages/vscode` は Vite の SSR ビルドで `dist/extension.cjs` の 1 ファイルに束ねる。core は `development` 条件で `src` から取り込み、`vscode` だけ外部にする
+- web のビルド結果は `dist/web` に写して Webview から読む。拡張のためのバンドラは増やさない（esbuild や webpack は入れない）
+
 ### 文書の検査
 
 - `scripts/check-docs.mjs` が文書の予算と ADR 一覧の整合を検査する（[ADR-001](ADR-001-doc-strategy.md)）。`mise run check` に含める
@@ -64,4 +69,5 @@
 - **Tailwind**：Webview のテーマは CSS 変数で渡るので、変数を直接使う自前の CSS の方が短い。ビルドの層も増えない
 - **react-router**：Webview では遷移できず、画面が 5 種なのでハッシュの解析で足りる
 - **Redux や Zustand**：状態は「選んだ Project の一覧と同期の状態」だけで、書き込みのたびに読み直す方が CLI との整合が取りやすい
-- **Node 22（LTS）**：VS Code の拡張ホストと揃える意味で 24 にする。vscode のチケット（t5）で拡張ホストの版を確かめ、ずれていればこの節を直す
+- **Node 22（LTS）**：VS Code の拡張ホストと揃える意味で 24 にする。VS Code 1.144（2026-10）の拡張ホスト（リモートの server）は Node 24.22 で、ずれはない
+- **拡張を esbuild や webpack で束ねる**：web のビルドに使っている Vite（rolldown）で足りる。ツールが増えるだけ

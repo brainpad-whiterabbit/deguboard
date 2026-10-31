@@ -246,7 +246,7 @@ fields:
 
 ### 6.4 画面（Web UI・VS Code 拡張）
 
-Web UI は `dg serve` が配信し、VS Code 拡張は同じ React アプリを Webview に載せる。表示と操作は両方で同じ（[ADR-006](adr/ADR-006-ui-and-writes.md)）。VS Code 拡張は予定（t5）。
+Web UI は `dg serve` が配信し、VS Code 拡張は同じ React アプリを Webview に載せる。表示と操作は両方で同じ（[ADR-006](adr/ADR-006-ui-and-writes.md)）。
 
 - UI-1 プロジェクトの切り替え
 - UI-2 カンバン：列は todo / in_progress / review / done の 4 つ（表示名は Workflow の `labels`）。abandoned は既定で隠し、切り替えで出す。チケットをドラッグ＆ドロップすると `ticket move` と同じ検査を通して Status が変わり、拒否されたら理由を出して戻す。Epic で絞り込める
