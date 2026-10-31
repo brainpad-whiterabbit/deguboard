@@ -10,6 +10,7 @@
 - 外す：`dg --json --actor agent iteration remove <s3> <t12>`
 - 開始：`dg --json --actor agent iteration start <s3>`（planned → active）
 - 閉じる：`dg --json --actor agent iteration close <s3>`。done の件数と持ち越しの件数が記録され、持ち越したチケットは Iteration から外れる。人の指示で閉じる（制限は `dg guide overview`）
+- 再開：`dg --json --actor agent iteration reopen <s3>`。active に戻り、件数は消える。持ち越したチケットは戻らないので `iteration add` で入れ直す。人の指示で行う
 
 ## Epic
 

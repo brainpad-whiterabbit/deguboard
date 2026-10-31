@@ -18,7 +18,7 @@ deguboard は Git で管理するチケットのツール。あなた（AI エ�
 
 - コマンド単位：`config.yaml` の `actor.human_only` に入ったコマンドは agent からは拒否される。今の設定：{{actor.human_only}}。例：`epic.close`、`iteration.close`
 - チケットの遷移：Workflow の `transitions` が `by: [human]` を書いた遷移（abandoned にする、done から戻す、など）は agent からは拒否される。`dg --json --actor agent workflow show <id>` で確かめられる
-- チケットをやめる（abandoned）、done の取り消し、Epic や Iteration を閉じるのは人の判断に関わるので、拒否されなくても、人の指示がないときは実行する前に人に確かめる
+- チケットをやめる（abandoned）、done の取り消し、Epic や Iteration を閉じる・再開するのは人の判断に関わるので、拒否されなくても、人の指示がないときは実行する前に人に確かめる
 
 ## トピック
 

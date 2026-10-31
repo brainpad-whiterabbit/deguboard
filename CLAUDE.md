@@ -40,7 +40,7 @@ Git-native な AI ワークフロー・チケット管理ツール。CLI は `dg
 
 - このリポジトリのチケットは deguboard 自身で管理する（ドッグフーディング）。`mise run dg -- <引数>` で読み書きし、`.git/deguboard/` のファイルを直接編集しない。Issue は使わない。手順は [docs/development.md の「チケットと作業の流れ」](docs/development.md#チケットと作業の流れ)
 - 作業はチケットに紐づける。`claim` してから着手し、PR の本文に ID（`t12`）を書く
-- Claude は `DEGUBOARD_ACTOR=agent` を付けて `dg` を呼ぶ。人の指示や承認で起票するときは `--created-by human` を付ける（起票者はユーザ本人）。拒否された操作（`TRANSITION_REJECTED`）は人に頼む。abandoned・done の取り消し・Epic や Iteration を閉じるのは、人の指示があるときだけ行う
+- Claude は `DEGUBOARD_ACTOR=agent` を付けて `dg` を呼ぶ。人の指示や承認で起票するときは `--created-by human` を付ける（起票者はユーザ本人）。拒否された操作（`TRANSITION_REJECTED`）は人に頼む。abandoned・done の取り消し・Epic や Iteration を閉じる・再開するのは、人の指示があるときだけ行う
 - 要件を変える変更は、同じ PR で requirements.md を直す。判断を変える変更は該当 ADR を書き換える
 
 ## ブランチ・PR・マージ

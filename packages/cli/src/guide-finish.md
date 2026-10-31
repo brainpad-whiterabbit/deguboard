@@ -17,5 +17,5 @@ PR がマージされたあとの後始末。done にするのは照合か人で
 
 ## Iteration と Epic
 
-- Iteration を閉じる、Epic を閉じる・再開するのは人の指示で行う（`dg guide assign`）。閉じられそうなら（残りがすべて done か abandoned）人に知らせる
+- Iteration と Epic を閉じる・再開するのは人の指示で行う（`dg guide assign`）。閉じられそうなら（残りがすべて done か abandoned）人に知らせる
 - Epic の進捗は `dg --json --actor agent epic show <e3>` の `progress` で都度求まる。保存はされない

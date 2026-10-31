@@ -210,6 +210,40 @@ export const iterationClose = defineCommand({
   },
 });
 
+export const iterationReopen = defineCommand({
+  name: "iteration.reopen",
+  positionals: ["iteration"],
+  group: "iteration",
+  summary:
+    "閉じた Iteration を再開して active に戻す。closed_at と完了・持ち越しの件数は消す。持ち越したチケットは戻らないので iteration add で入れ直す",
+  input: z.object({ iteration: iterationRef }),
+  write: true,
+  needs: "store",
+  async run(ctx, input) {
+    const warnings: string[] = [];
+    const result = await withWrite(
+      ctx,
+      async () => {
+        const it = ctx.store.require("iteration", input.iteration);
+        if (it.data.status !== "closed")
+          throw new OperationError("REJECTED", `${it.id} は閉じていない`);
+        if (it.data.carried_over)
+          warnings.push(
+            `閉じたときに外した ${it.data.carried_over} 件は戻らない。iteration add で入れ直す`,
+          );
+        return ctx.store.update("iteration", it.id, {
+          status: "active",
+          closed_at: undefined,
+          completed: undefined,
+          carried_over: undefined,
+        });
+      },
+      { message: (doc) => `${doc.id} を再開: ${doc.data.name}` },
+    );
+    return ok(result.value.data, result.write, warnings);
+  },
+});
+
 export const iterationCommands = [
   iterationCreate,
   iterationList,
@@ -218,4 +252,5 @@ export const iterationCommands = [
   iterationRemove,
   iterationStart,
   iterationClose,
+  iterationReopen,
 ];
