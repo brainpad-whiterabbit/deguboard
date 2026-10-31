@@ -1,9 +1,18 @@
-// バックログ（UI-3）。done と abandoned 以外を優先度と番号で出し、番号・タイトル・ラベルで検索、Status・優先度・Iteration・Epic・ラベルで絞り込む
+// バックログ（UI-3）。done と abandoned 以外を優先度と番号で出し、番号・タイトル・ラベルで検索、Status・優先度・Iteration・Epic・ラベル・担当者で絞り込む
 
 import { useMemo, useState } from "react";
 import { TicketTable } from "../components/parts.js";
 import { useStore } from "../store.js";
-import { BOARD_STATUSES, PRIORITIES, byPriorityThenNumber, type Ticket } from "../types.js";
+import {
+  BOARD_STATUSES,
+  PRIORITIES,
+  actorLabel,
+  byPriorityThenNumber,
+  claimOptions,
+  matchesClaim,
+  NO_CLAIM,
+  type Ticket,
+} from "../types.js";
 
 export interface BacklogFilter {
   query: string;
@@ -12,6 +21,8 @@ export interface BacklogFilter {
   iteration: string;
   epic: string;
   label: string;
+  /** claimed_by。NO_CLAIM は claim されていないもの */
+  claimed_by: string;
 }
 
 export const EMPTY_FILTER: BacklogFilter = {
@@ -21,6 +32,7 @@ export const EMPTY_FILTER: BacklogFilter = {
   iteration: "",
   epic: "",
   label: "",
+  claimed_by: "",
 };
 
 /** 絞り込みの規則。表示の正本はここ（requirements 6.4） */
@@ -33,6 +45,7 @@ export function filterBacklog(tickets: readonly Ticket[], f: BacklogFilter): Tic
     .filter((t) => !f.iteration || t.iteration === f.iteration)
     .filter((t) => !f.epic || t.epic === f.epic)
     .filter((t) => !f.label || t.labels.includes(f.label))
+    .filter((t) => matchesClaim(t, f.claimed_by))
     .filter(
       (t) =>
         !q ||
@@ -49,6 +62,11 @@ export function BacklogPage() {
   const set = (patch: Partial<BacklogFilter>) => setFilter((f) => ({ ...f, ...patch }));
   const labels = useMemo(
     () => [...new Set(store.tickets.flatMap((t) => t.labels))].sort(),
+    [store.tickets],
+  );
+  const claims = useMemo(
+    () =>
+      claimOptions(store.tickets.filter((t) => t.status !== "done" && t.status !== "abandoned")),
     [store.tickets],
   );
   const rows = useMemo(() => filterBacklog(store.tickets, filter), [store.tickets, filter]);
@@ -120,6 +138,19 @@ export function BacklogPage() {
             ))}
           </select>
         </label>
+        {claims.length > 0 ? (
+          <label>
+            担当
+            <select value={filter.claimed_by} onChange={(e) => set({ claimed_by: e.target.value })}>
+              <option value="">すべて</option>
+              {claims.map((c) => (
+                <option key={c} value={c} title={c}>
+                  {c === NO_CLAIM ? "なし" : actorLabel(c)}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
         <button type="button" onClick={() => setFilter(EMPTY_FILTER)}>
           絞り込みを消す
         </button>

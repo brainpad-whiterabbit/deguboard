@@ -1,22 +1,25 @@
-// Iteration（UI-5）。一覧と、選んだ Iteration のチケット。チケットの追加・除外、開始・終了
+// Iteration（UI-5）の詳細：チケットの追加・除外、開始・終了。一覧の画面はなく、planned と active はカンバンの表で選ぶ（board.tsx）。
+// 作成のフォームはここに置き、カンバンの表の末尾から開く
 
 import { useEffect, useState } from "react";
 import { TicketTable } from "../components/parts.js";
-import { useHost } from "../host.js";
 import { hrefOf } from "../router.js";
 import { useStore } from "../store.js";
-import { byNumber, byPriorityThenNumber, type IterationDetail } from "../types.js";
+import {
+  byNumber,
+  byPriorityThenNumber,
+  ITERATION_LABELS,
+  type IterationDetail,
+} from "../types.js";
 
-export function IterationsPage({ id }: { id?: string | undefined }) {
-  return id ? <IterationDetailView id={id} /> : <IterationList />;
+export function IterationsPage({ id }: { id: string }) {
+  return <IterationDetailView id={id} />;
 }
 
-function IterationList() {
+/** Iteration を作るフォーム。カンバンの表の末尾から開く。作れたら onDone */
+export function IterationCreateForm({ onDone }: { onDone: () => void }) {
   const store = useStore();
-  const host = useHost();
-  const [showClosed, setShowClosed] = useState(false);
   const [form, setForm] = useState({ name: "", goal: "", start: "", end: "" });
-  const rows = store.iterations.filter((i) => showClosed || i.status !== "closed").sort(byNumber);
   const create = async () => {
     if (!form.name.trim() || !store.project) return;
     const r = await store.run("iteration.create", {
@@ -26,112 +29,48 @@ function IterationList() {
       ...(form.start ? { start: form.start } : {}),
       ...(form.end ? { end: form.end } : {}),
     });
-    if (r.ok) setForm({ name: "", goal: "", start: "", end: "" });
+    if (r.ok) onDone();
   };
   return (
-    <section>
-      <div className="toolbar">
-        <h1>Iteration</h1>
-        <label>
-          <input
-            type="checkbox"
-            checked={showClosed}
-            onChange={(e) => setShowClosed(e.target.checked)}
-          />
-          閉じたものも出す
-        </label>
-      </div>
-      <form
-        className="inline-form"
-        onSubmit={(e) => {
-          e.preventDefault();
-          void create();
-        }}
-      >
-        <input
-          value={form.name}
-          onChange={(e) => setForm({ ...form, name: e.target.value })}
-          placeholder="名前"
-          aria-label="名前"
-        />
-        <input
-          value={form.goal}
-          onChange={(e) => setForm({ ...form, goal: e.target.value })}
-          placeholder="目標"
-          aria-label="目標"
-        />
-        <input
-          type="date"
-          value={form.start}
-          onChange={(e) => setForm({ ...form, start: e.target.value })}
-          aria-label="開始日"
-        />
-        <input
-          type="date"
-          value={form.end}
-          onChange={(e) => setForm({ ...form, end: e.target.value })}
-          aria-label="終了日"
-        />
-        <button type="submit" className="primary" disabled={!form.name.trim()}>
-          作る
-        </button>
-      </form>
-      {rows.length === 0 ? (
-        <p className="empty">Iteration はない</p>
-      ) : host.surface === "sidebar" ? (
-        <ul className="rows">
-          {rows.map((i) => (
-            <li key={i.id}>
-              <a className="row" href={hrefOf({ page: "iterations", id: i.id })}>
-                <code>{i.id}</code>
-                <span className="row-title" title={i.goal ?? i.name}>
-                  {i.name}
-                </span>
-                <span className="badge">{i.status}</span>
-                <span className="muted">
-                  {store.tickets.filter((t) => t.iteration === i.id).length}
-                </span>
-              </a>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <table className="list">
-          <thead>
-            <tr>
-              <th>番号</th>
-              <th>名前</th>
-              <th>状態</th>
-              <th>期間</th>
-              <th>目標</th>
-              <th>チケット</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((i) => (
-              <tr key={i.id}>
-                <td>
-                  <a href={hrefOf({ page: "iterations", id: i.id })}>
-                    <code>{i.id}</code>
-                  </a>
-                </td>
-                <td>
-                  <a href={hrefOf({ page: "iterations", id: i.id })}>{i.name}</a>
-                </td>
-                <td>{i.status}</td>
-                <td>
-                  {i.start ?? ""}
-                  {i.start || i.end ? " 〜 " : ""}
-                  {i.end ?? ""}
-                </td>
-                <td>{i.goal}</td>
-                <td>{store.tickets.filter((t) => t.iteration === i.id).length}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-    </section>
+    <form
+      className="inline-form"
+      onSubmit={(e) => {
+        e.preventDefault();
+        void create();
+      }}
+    >
+      <input
+        value={form.name}
+        onChange={(e) => setForm({ ...form, name: e.target.value })}
+        placeholder="名前"
+        aria-label="名前"
+        autoFocus
+      />
+      <input
+        value={form.goal}
+        onChange={(e) => setForm({ ...form, goal: e.target.value })}
+        placeholder="目標"
+        aria-label="目標"
+      />
+      <input
+        type="date"
+        value={form.start}
+        onChange={(e) => setForm({ ...form, start: e.target.value })}
+        aria-label="開始日"
+      />
+      <input
+        type="date"
+        value={form.end}
+        onChange={(e) => setForm({ ...form, end: e.target.value })}
+        aria-label="終了日"
+      />
+      <button type="submit" className="primary" disabled={!form.name.trim()}>
+        作る
+      </button>
+      <button type="button" onClick={onDone}>
+        やめる
+      </button>
+    </form>
   );
 }
 
@@ -164,10 +103,17 @@ function IterationDetailView({ id }: { id: string }) {
   return (
     <section>
       <div className="toolbar">
-        <a href={hrefOf({ page: "iterations" })}>← Iteration 一覧</a>
+        <a
+          href={hrefOf(
+            it.status === "closed" ? { page: "board" } : { page: "board", iteration: it.id },
+          )}
+        >
+          ← カンバン
+        </a>
       </div>
       <h1>
-        <code>{it.id}</code> {it.name} <span className="badge">{it.status}</span>
+        <code>{it.id}</code> {it.name}{" "}
+        <span className={`badge iteration-${it.status}`}>{ITERATION_LABELS[it.status]}</span>
       </h1>
       <p className="muted">
         {it.start ?? "?"} 〜 {it.end ?? "?"}

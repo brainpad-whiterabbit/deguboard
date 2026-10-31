@@ -27,6 +27,10 @@ export function ticket(partial: Partial<Ticket> & { id: string }): Ticket {
   };
 }
 
+export function iteration(partial: Partial<Iteration> & { id: string; name: string }): Iteration {
+  return { project: "default", goal: "", status: "planned", ...partial };
+}
+
 export function fixture(partial: Partial<Fixture> = {}): Fixture {
   return {
     projects: [
