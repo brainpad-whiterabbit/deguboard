@@ -5,8 +5,8 @@ pnpm = "12.12.1"
 
 # タスクは pnpm scripts を呼ぶだけにする。人もエージェントも mise run だけを使う
 [tasks.install]
-description = "依存を lockfile どおりに入れ、dist と VSIX もビルドする（dg と拡張が変更前のまま残らないように）"
-run = ["pnpm install --frozen-lockfile", "pnpm run build", "pnpm run vsix"]
+description = "依存を lockfile どおりに入れ、dist と VSIX をビルドし、VSIX を VS Code に入れる（dg と拡張が変更前のまま残らないように。code CLI がなければ導入は飛ばす）"
+run = ["pnpm install --frozen-lockfile", "pnpm run build", "pnpm run vsix", "pnpm run vsix:install"]
 
 [tasks.format]
 description = "oxfmt でコードと設定ファイルの書式を整える"
@@ -36,6 +36,11 @@ run = "pnpm run build"
 description = "VS Code 拡張を packages/vscode/deguboard-vscode.vsix に固める（先に build が要る）"
 depends = ["build"]
 run = "pnpm run vsix"
+
+[tasks."vsix:install"]
+description = "ビルド済みの VSIX を VS Code に入れる（同じ版でも --force で差し替える。code CLI がなければ飛ばす。入れたあとはウィンドウの再読み込みが要る）"
+depends = ["vsix"]
+run = "pnpm run vsix:install"
 
 [tasks.pack]
 description = "公開する 3 パッケージ（core・server・cli）の tarball を release/ に作る（先に build が要る）"
