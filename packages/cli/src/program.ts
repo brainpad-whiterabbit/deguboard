@@ -16,6 +16,7 @@ import { Argument, Command } from "commander";
 import { parse as parseYaml } from "yaml";
 import { toErrorView } from "./errors.js";
 import { GUIDE_TOPICS, renderGuide } from "./guide.js";
+import { addServeCommands } from "./serve.js";
 import { bindInputs, collectInput, shapesOf } from "./options.js";
 import {
   exitCodeOf,
@@ -122,6 +123,11 @@ export function buildProgram(options: ProgramOptions = {}): Command {
         process.exitCode = view.exitCode;
       }
     });
+
+  addServeCommands(program, {
+    streams,
+    resolveCwd: (c) => resolve(options.cwd ?? process.cwd(), c ?? "."),
+  });
 
   for (const def of options.commands ?? allCommands) {
     const [group, op] = def.name.split(".") as [string, string | undefined];

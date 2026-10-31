@@ -92,7 +92,7 @@ mise run install    # 依存を lockfile どおりに入れる
 
 ## パッケージ
 
-構成と依存の向きは [ADR-007](adr/ADR-007-architecture.md)。今あるのは `core` と `cli` で、`server`・`web`・`vscode` はこれから作る。
+構成と依存の向きは [ADR-007](adr/ADR-007-architecture.md)。今あるのは `core`・`server`・`cli` で、`web`・`vscode` はこれから作る。
 
 ### `packages/core`（`@deguboard/core`）
 
@@ -132,7 +132,22 @@ Zod の型から CLI への対応：
 | record（`fields`）          | `--field key=value` の繰り返し。true / false / 数値は変換する               |
 | array of object（`drafts`） | 位置引数 `<file>`（YAML / JSON。`-` で標準入力）から読む（`ticket import`） |
 
-グローバルオプションは `--json`、`-C <dir>`、`--actor <human|agent>`（環境変数 `DEGUBOARD_ACTOR`）、`--actor-id <id>`（`DEGUBOARD_ACTOR_ID`）。`dg serve`・`dg open` はまだない。`guide-*.md` はビルドで `dist/` にコピーする（`package.json` の `build`）。トピックを足すときは `guide.ts` の `GUIDE_TOPICS` と `guide-overview.md` の表も直す。
+グローバルオプションは `--json`、`-C <dir>`、`--actor <human|agent>`（環境変数 `DEGUBOARD_ACTOR`）、`--actor-id <id>`（`DEGUBOARD_ACTOR_ID`）。`dg serve` / `dg open`（`serve.ts`）は `@deguboard/server` を起動する・ブラウザで開くだけ。
+
+### `packages/server`（`@deguboard/server`）
+
+core の `commands` を HTTP に写す。Node 標準の `node:http` で、フレームワークは入れない（[ADR-008](adr/ADR-008-tech-stack.md)）。`dg serve` が起動し、既定で `127.0.0.1:7474` に閉じる。
+
+| エンドポイント              | 内容                                                                                                 |
+| --------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `GET /api/commands`         | `needs: "store"` のコマンドの一覧。名前・要約・`positionals`・入力の JSON Schema（`z.toJSONSchema`） |
+| `POST /api/commands/<name>` | `{ "input": {...} }` を渡して実行。応答は CLI の `--json` と同じ `{ ok, data, warnings, write }`     |
+| `GET /api/status`           | 未 push・未取り込みのコミット数、未コミットの有無、読めないファイルの数（UI-6）                      |
+| それ以外                    | `staticDir`（web のビルド結果）があれば静的ファイル。SPA なので見つからないパスは `index.html`       |
+
+- エラーは HTTP の状態に写す：入力の誤り 400、`NOT_FOUND` 404、初期化前 503、それ以外の拒否 409、想定外 500。本文は `{ ok: false, error: { code, message, detail? } }`
+- 画面からの操作は常に人（`actor.kind: "human"`。[ADR-006](adr/ADR-006-ui-and-writes.md)）。`init` は HTTP に出さない
+- リクエストは 1 つずつ順に処理し、毎回 `Store.rescan()` で CLI など他のプロセスの変更を取り込む。ファイル監視は持たない`guide-*.md` はビルドで `dist/` にコピーする（`package.json` の `build`）。トピックを足すときは `guide.ts` の `GUIDE_TOPICS` と `guide-overview.md` の表も直す。
 
 ## 文書を直すとき
 
