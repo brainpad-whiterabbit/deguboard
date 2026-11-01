@@ -89,7 +89,7 @@ describe("metrics show", () => {
     });
   });
 
-  it("7 つの単位で絞り込み・集計でき、ID は番号だけでも受け付ける", async () => {
+  it("すべての単位で絞り込み・集計でき、ID は番号だけでも受け付ける", async () => {
     const ctx = await scenario();
     const runsOf = async (input: object) =>
       (await runCommand(metricsShow, ctx, input)).data.total.runs;

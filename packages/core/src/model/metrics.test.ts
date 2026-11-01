@@ -62,7 +62,7 @@ describe("Run の集計", () => {
     expect(runDurationSeconds(run("00", { finished_at: "2026-10-31T03:00:00Z" }))).toBeNull();
   });
 
-  it("7 つの単位（Run・Ticket・Epic・Iteration・Project・Agent/Model・Step）で絞り込み、単位ごとに集計する", () => {
+  it("すべての単位（Run・Ticket・Epic・Iteration・Project・Agent/Model・Step）で絞り込み、単位ごとに集計する", () => {
     const tickets: Record<string, Ticket> = {
       t1: ticket("t1", { epic: "e1", iteration: "s1" }),
       t2: ticket("t2", { epic: "e1", project: "web" }),
