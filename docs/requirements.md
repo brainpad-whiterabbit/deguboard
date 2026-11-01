@@ -278,7 +278,7 @@ Web UI は `dg serve` が配信し、VS Code 拡張は同じ React アプリを 
 - AG-2 Claude Code 向けに、`dg guide <topic>` を読む薄い Skill を配る（`dg skill install`。予定 `e2`）。起票・計画・割り当て・作業・完了の各トピックを用意する
 - AG-3 エージェントは要件の整理が終わったら、必要に応じてチケット化を提案し、承認を得て `ticket import` で起票する。分解・Epic への束ね・依存の整理・Iteration への割り当ても提案して承認を得る（予定 `e2`）
 - AG-4 MCP サーバーは Core のコマンド定義から生成する薄い層として提供する（予定 `e2`）。CLI と同じ操作ができる
-- AG-5 Agent Adapter が、エージェントの起動方法・使用量の取得・権限・作業ディレクトリの差を吸収する。Core は特定の AI 製品を知らない（予定 `e2`・`e3`）
+- AG-5 Agent Adapter が、エージェントの起動方法・使用量の取得・権限・作業ディレクトリの差を吸収する。Core は特定の AI 製品を知らない（予定 `e3`）
 - AG-6 ソフトウェア開発向けの Action（worktree の作成、ブランチ、テスト実行、PR 作成、マージ）は登録済みの Action として提供し、Core の汎用部分に組み込まない（予定 `e3`）
 - AG-7 任意のシェルコマンドの Action は `actions.shell: true` のときだけ使え、実行前に確認する（予定 `e3`）
 
