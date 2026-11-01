@@ -8,7 +8,7 @@ export type Status = (typeof STATUSES)[number];
 export const statusSchema = z.enum(STATUSES);
 
 /** 前進の順。abandoned は前進の軸の外なので null */
-export const FORWARD_ORDER: Record<Status, number | null> = {
+const FORWARD_ORDER: Record<Status, number | null> = {
   todo: 1,
   in_progress: 2,
   review: 3,

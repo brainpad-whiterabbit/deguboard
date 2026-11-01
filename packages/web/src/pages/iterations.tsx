@@ -3,6 +3,7 @@
 
 import { useEffect, useState } from "react";
 import { TicketTable } from "../components/parts.js";
+import { NO_VALUE } from "../components/run-parts.js";
 import { hrefOf } from "../router.js";
 import { useStore } from "../store.js";
 import {
@@ -142,7 +143,7 @@ function IterationDetailView({ id }: { id: string }) {
         {it.start ?? "?"} 〜 {it.end ?? "?"}
         {it.goal ? ` ・ ${it.goal}` : ""}
         {it.status === "closed"
-          ? ` ・ 完了 ${it.completed ?? 0} / 持ち越し ${it.carried_over ?? 0}`
+          ? ` ・ 完了 ${it.completed ?? NO_VALUE} / 持ち越し ${it.carried_over ?? NO_VALUE}`
           : ""}
       </p>
       <div className="actions">

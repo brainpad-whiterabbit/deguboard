@@ -14,7 +14,7 @@ export function agentNames(): string[] {
   return ADAPTERS.map((a) => a.name);
 }
 
-export function findAdapter(agent: string): AgentAdapter | undefined {
+function findAdapter(agent: string): AgentAdapter | undefined {
   return ADAPTERS.find((a) => a.name === agent);
 }
 

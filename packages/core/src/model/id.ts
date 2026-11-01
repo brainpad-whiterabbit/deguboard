@@ -3,10 +3,10 @@
 
 import { z } from "zod";
 
-export const ID_KINDS = ["ticket", "epic", "iteration", "plan"] as const;
+const ID_KINDS = ["ticket", "epic", "iteration", "plan"] as const;
 export type IdKind = (typeof ID_KINDS)[number];
 
-export const ID_PREFIX = { ticket: "t", epic: "e", iteration: "s", plan: "p" } as const;
+const ID_PREFIX = { ticket: "t", epic: "e", iteration: "s", plan: "p" } as const;
 
 export type TicketId = `t${number}`;
 export type EpicId = `e${number}`;

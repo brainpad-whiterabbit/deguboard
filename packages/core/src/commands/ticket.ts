@@ -605,7 +605,7 @@ export const ticketDelete = defineCommand({
 });
 
 /** 作業ブランチの既定の名前。title の ASCII 部分を slug にする */
-export function defaultBranchName(ticket: Ticket): string {
+function defaultBranchName(ticket: Ticket): string {
   const slug = ticket.title
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")

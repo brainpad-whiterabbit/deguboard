@@ -4,7 +4,7 @@ import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Run } from "../model/run.js";
 import { claudeCodeAdapter, projectDirName, searchRoots } from "./adapters/claude-code.js";
-import { collectRunUsage, findAdapter, type UsageQuery } from "./index.js";
+import { agentNames, collectRunUsage, type UsageQuery } from "./index.js";
 
 const cleanups: Array<() => Promise<void>> = [];
 afterEach(async () => {
@@ -291,7 +291,7 @@ describe("使用量の取り込み（MT-2）", () => {
     const got = await collectRunUsage(config(true), query({ run: run({ agent: "someone" }) }));
     expect(got.usage).toEqual(nulls);
     expect(got.warnings).toEqual([expect.stringContaining("someone")]);
-    expect(findAdapter("claude-code")).toBe(claudeCodeAdapter);
+    expect(agentNames()).toContain(claudeCodeAdapter.name);
   });
 });
 
