@@ -4,7 +4,9 @@ import { act } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { App, INFO_NOTICE_MS } from "./app.js";
 import { ClientError } from "./client/http.js";
-import { HostProvider, type Host } from "./host.js";
+import type { WebviewClient } from "./client/webview.js";
+import type { WebviewEvent } from "@deguboard/core";
+import { HostBridge, HostProvider, type Host } from "./host.js";
 import type { Route } from "./router.js";
 import { StoreProvider } from "./store.js";
 import { iteration, mockClient, ticket } from "./test-helpers.js";
@@ -182,6 +184,38 @@ describe("画面", () => {
     );
     fireEvent.click(await screen.findByText("API"));
     expect(opened).toEqual([{ page: "ticket", id: "t2" }]);
+    expect(window.location.hash).toBe("#/backlog");
+  });
+
+  it("拡張ホストから reload の event が来ると読み直して表示が変わり、navigate の event でハッシュが変わる", async () => {
+    const client = mockClient();
+    // 拡張ホストとの接続の代わり。HostBridge が購読した相手に event を送る
+    let send: ((event: WebviewEvent) => void) | undefined;
+    const bridge: WebviewClient = {
+      run: (name, input) => client.run(name, input),
+      status: () => client.status(),
+      open: async () => {},
+      onEvent: (listener) => {
+        send = listener;
+        return () => (send = undefined);
+      },
+    };
+    render(
+      <StoreProvider client={client}>
+        <HostProvider host={webviewHost("sidebar")}>
+          <HostBridge client={bridge} />
+          <App />
+        </HostProvider>
+      </StoreProvider>,
+    );
+    await screen.findByText("ログイン");
+    // 別の経路（ターミナルの dg など）でチケットが増えた。本物の読み直しと同じく新しい配列を返す
+    client.data.tickets = [...client.data.tickets, ticket({ id: "t9", title: "外で起票した" })];
+    expect(screen.queryByText("外で起票した")).toBeNull();
+    act(() => send!({ kind: "event", name: "reload" }));
+    expect(await screen.findByText("外で起票した")).toBeTruthy();
+
+    act(() => send!({ kind: "event", name: "navigate", hash: "#/backlog" }));
     expect(window.location.hash).toBe("#/backlog");
   });
 
