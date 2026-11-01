@@ -1,0 +1,74 @@
+id: p4
+project: default
+tickets: [t105, t104, t103, t100, t107, t108, t109, t98, t106, t113, t112, t114, t99, t101, t102]
+after:
+  t106:
+    - t103
+    - t104
+    - t105
+  t113:
+    - t103
+  t112:
+    - t107
+  t114:
+    - t108
+    - t109
+    - t112
+  t99:
+    - t98
+    - t100
+  t101:
+    - t100
+    - t103
+  t102:
+    - t104
+    - t105
+    - t108
+    - t101
+pending_approval: true
+details:
+  t105:
+    scope: lock.ts の isStale の ENOENT の扱いと並行 start のテスト
+    approach: ENOENT は古いとみなさず取り直しに回し、取得を遅らせる仕掛けで競合を再現するテストを足す
+  t104:
+    scope: git-fixture.ts の設定と後片付け、development.md の fixture の説明
+    approach: bare に receive.autogc false・gc.auto 0、clone 側は環境変数で maintenance.auto と gc.auto を止め、rm は maxRetries 付きにする
+  t103:
+    scope: core の run.list の project 絞り込みと duration_seconds、CLI・MCP・HTTP の写し、web の写しの削除
+    approach: run.list の入力と出力を広げ、web は返った値を使うだけにする。テストは core と e2e で
+  t100:
+    scope: VS Code 拡張のファイルの見張りに runs/ と deguboard-local/runs/ を足す。UI-12 との整合
+    approach: 見張りのパターンを関数に切り出してテストし、Webview に再読込を通知する既存の経路に乗せる
+  t107:
+    scope: core と server の package.json の exports と publishConfig
+    approach: development 条件を独自の条件名に変えるか publishConfig で上書きし、npm pack で中身を確かめる
+  t108:
+    scope: mise.toml の release タスクとルートの package.json の scripts、development.md のリリース手順
+    approach: pnpm scripts に release:version・release:publish を足し、mise は呼ぶだけにする
+  t109:
+    scope: 拡張ホストの Node の版の調査と vite.config.ts の target・engines の整合
+    approach: VS Code 1.104 の Electron と Node の版を公式の資料で確かめ、PR に書き、target か engines.vscode を合わせる
+  t98:
+    scope: ルートの LICENSE、第三者ライセンスの表示の生成、vsce の --skip-license の除去、README の 1 行
+    approach: LICENSE を置いて各パッケージの files に入れ、ビルドでライセンス表示を集めるプラグインを使う。npm pack と vsce ls で確かめる
+  t106:
+    scope: 壊れた local runs・create_pr/merge_pr・finish のモデル名と finished_at・routes の 3 経路・Run の画面のテスト
+    approach: テストだけを足す。gh は偽のスクリプトを PATH に置く。実装の不具合が見つかれば直さず報告する
+  t113:
+    scope: web の METRIC_UNITS・RESULT_KEYS・countsOf の写し、core の使われない export、.oxlintrc.json の AG-6 の対象
+    approach: 写しは satisfies などで core の型の全件と照らすか core から受け取る。actions の公開は外す案で人に確かめる
+  t112:
+    scope: vsce の minimatch の脆弱性、MCP SDK のパッチ版、ルートの package.json の name
+    approach: pnpm overrides か vsce の更新で audit を通し、ルートの name を deguboard-monorepo などに変えて filter の参照を直す
+  t114:
+    scope: vscode の 2 つの設定ファイルの型検査、web の dev script、vsix:install、CLAUDE.md の Skill の dg の呼び方
+    approach: tsconfig の include に足し、使われない script は消すか mise に移し、CLAUDE.md に 1 行足す
+  t99:
+    scope: README と packages/vscode/README.md の Run と画面の記述、npm に出る 3 パッケージの README
+    approach: 仕様は requirements.md にリンクし、パッケージの README は短い案内とルートへのリンクにする
+  t101:
+    scope: requirements.md の e3 の予定の印・AG-5・MT-2・MT-4・5.8・5.10
+    approach: 実装と ADR-007 に合わせて書き換え、予算を超える細部は正本へ移して check:docs を通す
+  t102:
+    scope: ADR-004・005・007、development.md のモジュール表と例、古いコメント、guide-overview、--priority のヘルプ
+    approach: 実装を読んで書き換え、ADR の更新日と一覧を直す。check:docs を通す
