@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { defaultConfig } from "@deguboard/core";
+import { cliEnv } from "../../core/test/helpers/env.js";
 import { createLocalOnlyRepo } from "../../core/test/helpers/git-fixture.js";
 import { GUIDE_TOPICS, fillPlaceholders, readGuide, readGuideMeta } from "./guide.js";
 import { run } from "./program.js";
@@ -14,6 +15,7 @@ async function dg(cwd: string, argv: string[]) {
   const err: string[] = [];
   const code = await run(argv, {
     cwd,
+    env: cliEnv(),
     streams: { out: (t) => out.push(t), err: (t) => err.push(t) },
   });
   return { code, out: out.join("\n"), err: err.join("\n") };

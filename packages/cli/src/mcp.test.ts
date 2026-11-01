@@ -12,6 +12,7 @@ import {
   runCommand,
   ticketCreate,
 } from "@deguboard/core";
+import { cliEnv } from "../../core/test/helpers/env.js";
 import { createFixture, type Fixture } from "../../core/test/helpers/git-fixture.js";
 import { toTools } from "./mcp.js";
 import { run } from "./program.js";
@@ -68,6 +69,7 @@ async function session(argv: string[], requests: Array<{ method: string; params?
     }
   });
   const exit = run([...argv, "mcp"], {
+    env: cliEnv(),
     stdio: { stdin, stdout },
     streams: { out: () => {}, err: (t) => err.push(t) },
     commands: [...commands, echo],
@@ -162,6 +164,7 @@ describe("dg mcp", () => {
     // 同じチケットを CLI の --json で読んだ結果と、MCP の結果が一致する
     const out: string[] = [];
     await run(["-C", f.cloneA, "--json", "ticket", "show", "t1"], {
+      env: cliEnv(),
       streams: { out: (t) => out.push(t), err: () => {} },
     });
     const viaMcp = await session(
@@ -192,6 +195,7 @@ describe("dg mcp", () => {
 
     const out: string[] = [];
     const code = await run(["-C", f.cloneA, "--json", "metrics", "show", "--by", "agent"], {
+      env: cliEnv(),
       streams: { out: (t) => out.push(t), err: () => {} },
     });
     expect(code).toBe(0);
@@ -208,13 +212,14 @@ describe("dg mcp", () => {
     expect(body(viaMcp.results[0]!)).toEqual(viaCli);
 
     const help: string[] = [];
-    await run(["--help"], { streams: { out: (t) => help.push(t), err: () => {} } });
+    await run(["--help"], { env: cliEnv(), streams: { out: (t) => help.push(t), err: () => {} } });
     expect(help.join("\n")).toContain("metrics");
   });
 
   it("run_start・run_list・run_finish で CLI と同じく Run を記録できる", async () => {
     const f = await initialized();
     await run(["-C", f.cloneA, "ticket", "create", "A"], {
+      env: cliEnv(),
       streams: { out: () => {}, err: () => {} },
     });
     const call = (name: string, args: object) => ({
@@ -253,6 +258,7 @@ describe("dg mcp", () => {
     const cli = async (argv: string[]) => {
       const out: string[] = [];
       await run(["-C", f.cloneA, "--json", ...argv], {
+        env: cliEnv(),
         streams: { out: (t) => out.push(t), err: () => {} },
       });
       return JSON.parse(out.join(""));
