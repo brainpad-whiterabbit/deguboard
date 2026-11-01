@@ -961,6 +961,46 @@ textarea.body {
   height: 100%;
   background: var(--dg-status);
 }
+/* Webview の進捗バーは完了だけを塗り、進行中は斜線にする（parts.tsx の ProgressBar） */
+.progress .bar span.partial {
+  background: repeating-linear-gradient(135deg, var(--dg-status) 0 2px, transparent 2px 4px);
+}
+/* 閉じる前の確認（parts.tsx の CloseButton）。画面の中に出し、押し間違えても 1 回では閉じない */
+.confirm {
+  flex-basis: 100%;
+  margin-top: 0.4rem;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--vscode-inputValidation-errorBorder, var(--dg-status-abandoned));
+  border-radius: 3px;
+  background: var(--vscode-editor-background);
+  font-weight: normal;
+  cursor: default;
+}
+.confirm p {
+  margin: 0 0 0.4rem;
+}
+.confirm .actions {
+  margin-top: 0;
+}
+button.danger {
+  background: var(--vscode-inputValidation-errorBorder, #be1100);
+  border-color: transparent;
+  color: var(--vscode-button-foreground, #fff);
+}
+/* サイドバーの Iteration の見出しの「…」のメニュー（iterations.tsx の IterationActions）。
+   中身は見出しの操作の並びにそのまま入れ、確認（.confirm）は折り返して次の行に出す */
+.menu,
+.menu-items {
+  display: contents;
+}
+.board-head .actions,
+.backlog-section .actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.menu-toggle {
+  padding: 0 0.5em;
+}
 /* VS Code（パネル）の Epic のチケットの一覧（pages/epics.tsx の EpicTicketList） */
 .epic-tickets {
   display: grid;

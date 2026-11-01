@@ -906,6 +906,51 @@ describe("画面", () => {
     expect(screen.queryByText("API")).toBeNull();
   });
 
+  it("サイドバーの Iteration の見出しは開始・閉じるを「…」に入れ、閉じるは未完了の件数を示す確認を経てから閉じる", async () => {
+    const client = mockClient();
+    client.data.iterations = [iteration({ id: "s1", name: "今", status: "active" })];
+    client.data.tickets[1]!.iteration = "s1";
+    client.data.tickets[2]!.iteration = "s1";
+    client.handlers["iteration.close"] = (input) => input;
+    mount(client, webviewHost("sidebar"));
+    await screen.findByText("API");
+    expect(screen.queryByRole("button", { name: "閉じる" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "s1 の操作" }));
+    fireEvent.click(screen.getByRole("button", { name: "閉じる" }));
+    const confirm = screen.getByRole("group", { name: "s1 今 を閉じる確認" });
+    expect(confirm.textContent).toContain("未完了が 2 件ある");
+    expect(client.calls.some((c) => c.name === "iteration.close")).toBe(false);
+    fireEvent.click(screen.getByRole("button", { name: "やめる" }));
+    expect(screen.queryByRole("group", { name: "s1 今 を閉じる確認" })).toBeNull();
+    expect(client.calls.some((c) => c.name === "iteration.close")).toBe(false);
+    fireEvent.click(screen.getByRole("button", { name: "閉じる" }));
+    fireEvent.click(screen.getByRole("button", { name: "2 件を残して閉じる" }));
+    await waitFor(() =>
+      expect(client.calls.find((c) => c.name === "iteration.close")?.input).toEqual({
+        iteration: "s1",
+      }),
+    );
+  });
+
+  it("エディタのパネルの Epic 詳細の閉じるも確認を経てから閉じる", async () => {
+    window.location.hash = "#/epics/e1";
+    const client = mockClient();
+    client.handlers["epic.show"] = () => ({
+      ...client.data.epics[0],
+      body: "",
+      tickets: client.data.tickets.filter((t) => t.epic === "e1"),
+    });
+    client.handlers["epic.close"] = (input) => input;
+    mount(client, webviewHost("panel"));
+    fireEvent.click(await screen.findByRole("button", { name: "閉じる" }));
+    expect(screen.getByRole("group", { name: /を閉じる確認/ }).textContent).toContain(
+      "未完了が 1 件ある",
+    );
+    expect(client.calls.some((c) => c.name === "epic.close")).toBe(false);
+    fireEvent.click(screen.getByRole("button", { name: "1 件を残して閉じる" }));
+    await waitFor(() => expect(client.calls.some((c) => c.name === "epic.close")).toBe(true));
+  });
+
   it("バックログは Iteration の区画に分かれ、見出しから開始・閉じる、「Iteration なし」から作成できる。Iteration のセレクトはない", async () => {
     window.location.hash = "#/backlog";
     const client = mockClient();

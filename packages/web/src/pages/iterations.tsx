@@ -2,7 +2,7 @@
 // 作成のフォームと開始・閉じるのボタンはここに置き、カンバンとバックログから使う
 
 import { useEffect, useState } from "react";
-import { TicketTable } from "../components/parts.js";
+import { CloseButton, TicketTable, unfinishedCount } from "../components/parts.js";
 import { NO_VALUE } from "../components/run-parts.js";
 import { useHost } from "../host.js";
 import { hrefOf } from "../router.js";
@@ -19,25 +19,59 @@ export function IterationsPage({ id }: { id: string }) {
   return <IterationDetailView id={id} />;
 }
 
-/** Iteration の開始・閉じるのボタン。カンバンの見出しとバックログの区画の見出しに置く */
+/** Iteration を閉じたとき未完了のチケットがどうなるか（確認の文に添える） */
+export const ITERATION_CLOSE_NOTE = "閉じると持ち越しになり、Iteration から外れる。";
+
+/**
+ * Iteration の開始・閉じるのボタン。カンバンの見出しとバックログの区画の見出しに置く。
+ * サイドバーでは「…」のメニューに入れる（狭い見出しでボタンが場所を取り、閉じるを押し間違えやすいので）
+ */
 export function IterationActions({ iteration: it }: { iteration: Iteration }) {
   const store = useStore();
+  const host = useHost();
+  const [menuOpen, setMenuOpen] = useState(false);
   if (it.status === "closed") return null;
-  return (
+  const buttons = (
     <>
       {it.status === "planned" ? (
         <button
           type="button"
           className="primary"
-          onClick={() => void store.run("iteration.start", { iteration: it.id })}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            void store.run("iteration.start", { iteration: it.id });
+          }}
         >
           開始する
         </button>
       ) : null}
-      <button type="button" onClick={() => void store.run("iteration.close", { iteration: it.id })}>
-        閉じる
-      </button>
+      <CloseButton
+        subject={`${it.id} ${it.name}`}
+        unfinished={unfinishedCount(store.tickets.filter((t) => t.iteration === it.id))}
+        note={ITERATION_CLOSE_NOTE}
+        onClose={() => void store.run("iteration.close", { iteration: it.id })}
+      />
     </>
+  );
+  if (host.surface !== "sidebar") return buttons;
+  return (
+    <span className="menu">
+      <button
+        type="button"
+        className="menu-toggle"
+        aria-label={`${it.id} の操作`}
+        aria-expanded={menuOpen}
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setMenuOpen(!menuOpen);
+        }}
+      >
+        …
+      </button>
+      {menuOpen ? <span className="menu-items">{buttons}</span> : null}
+    </span>
   );
 }
 
@@ -162,12 +196,12 @@ function IterationDetailView({ id }: { id: string }) {
           </button>
         )}
         {it.status !== "closed" && (
-          <button
-            type="button"
-            onClick={() => void store.run("iteration.close", { iteration: it.id })}
-          >
-            閉じる
-          </button>
+          <CloseButton
+            subject={`${it.id} ${it.name}`}
+            unfinished={unfinishedCount(it.items)}
+            note={ITERATION_CLOSE_NOTE}
+            onClose={() => void store.run("iteration.close", { iteration: it.id })}
+          />
         )}
         {it.status === "closed" && (
           <button
