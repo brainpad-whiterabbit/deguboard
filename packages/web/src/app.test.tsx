@@ -131,6 +131,19 @@ describe("画面", () => {
     await waitFor(() => expect(client.calls.some((c) => c.name === "sync")).toBe(true));
   });
 
+  it("リモートがなくても同期ボタンは押せ、sync で照合する", async () => {
+    const client = mockClient();
+    client.data.status = { ...client.data.status, remote: null };
+    client.handlers["sync"] = () => ({});
+    mount(client);
+    await screen.findByText("同期済み");
+    const button = screen.getByRole("button", { name: "同期" });
+    expect(button.getAttribute("title")).toContain("リモートがない");
+    await waitFor(() => expect((button as HTMLButtonElement).disabled).toBe(false));
+    fireEvent.click(button);
+    await waitFor(() => expect(client.calls.some((c) => c.name === "sync")).toBe(true));
+  });
+
   it("バックログは done を除いて出し、検索で絞れる", async () => {
     window.location.hash = "#/backlog";
     mount();

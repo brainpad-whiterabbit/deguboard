@@ -143,11 +143,11 @@ function SyncIndicator() {
       <button
         type="button"
         onClick={() => void store.run("sync")}
-        disabled={store.loading || !s?.remote}
+        disabled={store.loading}
         title={
           s?.remote
             ? "リモートを取り込み、未 push を送り、ブランチの事実で状態を進める"
-            : "リモートがない"
+            : "リモートがないので、ブランチの事実で状態を進めて読み直すだけ"
         }
       >
         同期
