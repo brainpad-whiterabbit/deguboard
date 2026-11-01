@@ -64,7 +64,7 @@ epics/e3.md                 # 目的ごとの束ね。Iteration をまたぐ
 iterations/s3.yaml
 plans/p7.yaml
 workflows/<id>.yaml
-runs/                       # 予定（e3）。完了時の集計だけ
+runs/r20261031-041500-3fa2.json  # Run の完了時の集計だけ。ID は開始日時と乱数
 ```
 
 - DT-1 書き込みは一時ファイルへ書いてから rename する。読み込みは Zod のスキーマで検証し、読めないファイルは止めずに `dg validate` と画面で報告する
@@ -99,7 +99,7 @@ created_by: eiki # 起票者。eiki（人）か eiki/agent（eiki の AI）
 assignee: eiki/agent # 担当者。claim で付く
 branch: feature/t12-login-validation
 pr: 42 # 任意。照合がブランチ名で PR を見つけたら補う
-runs: [r1]
+runs: [r20261031-041500-3fa2]
 created_at: 2026-10-31T04:00:00Z
 updated_at: 2026-10-31T05:10:00Z
 ---

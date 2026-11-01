@@ -4,6 +4,7 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { OperationError } from "../errors.js";
 import { WORKFLOW_TEMPLATES } from "../workflow/templates/index.js";
+import { emptyUsage } from "../model/run.js";
 import { checkReferences, wouldCreateCycle } from "./integrity.js";
 import { Store } from "./store.js";
 
@@ -197,5 +198,99 @@ describe("Store", () => {
     expect(codes).toEqual(["depends_on_cycle", "epic_missing", "iteration_missing"]);
     expect(wouldCreateCycle(store, "t3", ["t1"])).toBe(false);
     expect(wouldCreateCycle(store, "t1", ["t2"])).toBe(true);
+  });
+
+  it("Run を JSON で書いて読み直すと、null と estimated とスキーマにないキーが残る", async () => {
+    const id = "r20261031-041500-3fa2";
+    const root = await fixture({ "tickets/t1.md": ticketText("t1") });
+    const store = await Store.open(root);
+    await store.create("run", {
+      id,
+      ticket: "t1",
+      step: "implement",
+      agent: "claude-code",
+      model: null,
+      started_at: ts,
+      finished_at: null,
+      result: null,
+      error: null,
+      retries: 0,
+      usage: { ...emptyUsage(), input: 1200, estimated: true, reasoning: 5 },
+      files: ["src/a.ts"],
+    });
+    const text = await readFile(path.join(root, `runs/${id}.json`), "utf8");
+    expect(JSON.parse(text)).toMatchObject({ model: null, usage: { output: null } });
+    expect(text.endsWith("}\n")).toBe(true);
+
+    // 別の版の dg が足したキーを置いてから、読み直して更新する
+    const raw = JSON.parse(text);
+    await writeFile(
+      path.join(root, `runs/${id}.json`),
+      JSON.stringify({ ...raw, future: { a: 1 } }),
+    );
+    const reopened = await Store.open(root);
+    expect(reopened.issues).toEqual([]);
+    const run = reopened.runs.get(id)!.data;
+    expect(run.model).toBeNull();
+    expect(run.usage).toEqual({ ...emptyUsage(), input: 1200, estimated: true, reasoning: 5 });
+    await reopened.update("run", id, {
+      finished_at: "2026-10-31T05:00:00Z",
+      result: "success",
+    });
+    const after = JSON.parse(await readFile(path.join(root, `runs/${id}.json`), "utf8"));
+    expect(after).toMatchObject({
+      result: "success",
+      model: null,
+      error: null,
+      files: ["src/a.ts"],
+      future: { a: 1 },
+      usage: { input: 1200, output: null, estimated: true, reasoning: 5 },
+    });
+    expect(Object.keys(after).slice(0, 2)).toEqual(["id", "ticket"]);
+    expect(checkReferences(reopened).filter((i) => i.path.startsWith("runs/"))).toEqual([]);
+  });
+
+  it("読めない Run は Issue になり、ほかの Run とチケットの読み込みは止まらない", async () => {
+    const good = (id: string, ticket = "t1") =>
+      JSON.stringify({
+        id,
+        ticket,
+        step: "review",
+        agent: "codex",
+        model: "gpt",
+        started_at: ts,
+        finished_at: ts,
+        result: "failure",
+        error: "テストが落ちた",
+        retries: 2,
+        usage: emptyUsage(),
+      });
+    const root = await fixture({
+      "tickets/t1.md": ticketText("t1"),
+      "runs/r20261031-040000-0001.json": good("r20261031-040000-0001"),
+      "runs/r20261031-040000-0002.json": "{ 壊れた",
+      "runs/r20261031-040000-0003.json": good("r20261031-040000-0003").replace(
+        '"failure"',
+        '"done"',
+      ),
+      "runs/r20261031-040000-0004.json": good("r20261031-040000-0005"),
+      "runs/r20261031-040000-0006.json": "[]",
+      "runs/r1.json": good("r1"),
+      "runs/r20261031-040000-0007.json": good("r20261031-040000-0007", "t9"),
+    });
+    const store = await Store.open(root);
+    expect([...store.tickets.keys()]).toEqual(["t1"]);
+    expect([...store.runs.keys()]).toEqual(["r20261031-040000-0001", "r20261031-040000-0007"]);
+    expect(store.issues.map((i) => [i.path, i.severity, i.code])).toEqual([
+      ["runs/r1.json", "warning", "unexpected_file"],
+      ["runs/r20261031-040000-0002.json", "error", "json_error"],
+      ["runs/r20261031-040000-0003.json", "error", "schema_error"],
+      ["runs/r20261031-040000-0004.json", "error", "id_mismatch"],
+      ["runs/r20261031-040000-0006.json", "error", "json_error"],
+    ]);
+    const runRefs = checkReferences(store).filter((i) => i.path.startsWith("runs/"));
+    expect(runRefs.map((i) => [i.id, i.code])).toEqual([
+      ["r20261031-040000-0007", "ticket_missing"],
+    ]);
   });
 });

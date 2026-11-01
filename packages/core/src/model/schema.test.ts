@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { configSchema, defaultConfig } from "./config.js";
+import { emptyUsage, isRunId, newRunId, runSchema } from "./run.js";
 import { ticketSchema } from "./ticket.js";
 import { workflowDefinitionSchema } from "./workflow.js";
 
@@ -62,5 +63,45 @@ describe("スキーマ", () => {
     expect(() =>
       workflowDefinitionSchema.parse({ id: "x", name: "X", labels: { nope: "a" } }),
     ).toThrow();
+  });
+
+  it("Run の ID は開始日時と乱数で作り、辞書順が開始の順になる", () => {
+    const a = newRunId(new Date("2026-10-31T04:15:00.123Z"), new Uint8Array([0x3f, 0xa2]));
+    expect(a).toBe("r20261031-041500-3fa2");
+    expect(isRunId(a)).toBe(true);
+    const b = newRunId(new Date("2026-10-31T13:00:00Z"));
+    expect(isRunId(b)).toBe(true);
+    expect([b, a].sort()).toEqual([a, b]);
+    expect(isRunId("r1")).toBe(false);
+  });
+
+  it("Run は取れなかった値の null と推定の印を保ち、スキーマにないキーを残す", () => {
+    const base = {
+      id: "r20261031-041500-3fa2",
+      ticket: "t12",
+      step: "implement",
+      agent: "claude-code",
+      model: null,
+      started_at: "2026-10-31T04:15:00Z",
+      finished_at: null,
+      result: null,
+      error: null,
+      retries: 0,
+      usage: { ...emptyUsage(), input: 1200, estimated: true, reasoning: 5 },
+      files: ["src/a.ts"],
+    };
+    const r = runSchema.parse(base);
+    expect(r.model).toBeNull();
+    expect(r.usage.output).toBeNull();
+    expect(r.usage.estimated).toBe(true);
+    expect(r.usage["reasoning"]).toBe(5);
+    expect(r["files"]).toEqual(["src/a.ts"]);
+    // null を省いたり、0 未満や知らない結果を書いたりはできない
+    const { model: _model, ...noModel } = base;
+    expect(runSchema.safeParse(noModel).success).toBe(false);
+    expect(runSchema.safeParse({ ...base, result: "done" }).success).toBe(false);
+    expect(runSchema.safeParse({ ...base, usage: { ...base.usage, input: -1 } }).success).toBe(
+      false,
+    );
   });
 });

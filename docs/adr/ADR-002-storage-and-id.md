@@ -18,16 +18,16 @@
 
 ### 形式：1 件 1 ファイル
 
-| データ     | 置き場所               | 形式                                      |
-| ---------- | ---------------------- | ----------------------------------------- |
-| Project    | `projects/<slug>.yaml` | YAML                                      |
-| Ticket     | `tickets/t12.md`       | Markdown＋YAML frontmatter                |
-| Epic       | `epics/e3.md`          | Markdown＋YAML frontmatter                |
-| Iteration  | `iterations/s3.yaml`   | YAML                                      |
-| Plan       | `plans/p7.yaml`        | YAML                                      |
-| Workflow   | `workflows/<id>.yaml`  | YAML                                      |
-| Run の集計 | `runs/…json`           | JSON（命名は Run を実装するときに決める） |
-| 設定       | `config.yaml`          | YAML                                      |
+| データ     | 置き場所               | 形式                       |
+| ---------- | ---------------------- | -------------------------- |
+| Project    | `projects/<slug>.yaml` | YAML                       |
+| Ticket     | `tickets/t12.md`       | Markdown＋YAML frontmatter |
+| Epic       | `epics/e3.md`          | Markdown＋YAML frontmatter |
+| Iteration  | `iterations/s3.yaml`   | YAML                       |
+| Plan       | `plans/p7.yaml`        | YAML                       |
+| Workflow   | `workflows/<id>.yaml`  | YAML                       |
+| Run の集計 | `runs/<id>.json`       | JSON                       |
+| 設定       | `config.yaml`          | YAML                       |
 
 - チケットと Epic の本文（概要・受け入れ条件・目的）は Markdown、属性は frontmatter。Iteration・Workflow・config は人が読む YAML、Run は機械が書く JSON
 - 削除したチケットは `tickets/deleted/` に墓標として残し、番号を再利用しない
@@ -42,6 +42,7 @@
 - オフラインで push できないときは `provisional: true` を付けてローカルに commit する。次の `dg sync` で衝突があれば、番号・ファイル名・未 push のコミット内の参照（他チケットの `depends_on`、Plan）を振り直してから push する
 - 作業ブランチ名と PR は claim（push 成功が条件。[ADR-004](ADR-004-agents-and-state.md)）の後に作るので、仮番号がブランチ名に入ることはない
 - `dg ticket import` の複数件も同じ 1 単位で採番する
+- Run の ID は採番せず `r`＋開始日時（UTC）＋4 桁の乱数にする（`r20261031-041500-3fa2`）。辞書順が開始の順で、実行中の記録も `deguboard-local/runs/` に同じ名前で置く
 
 ### 同期の競合：frontmatter をフィールド単位でマージする
 
@@ -71,6 +72,7 @@
 - ゼロ埋めしないのは、ID とファイル名が同じ文字列になり、桁数の上限を決めずに済むから。AI が起票すると週に数百件増えるので、4 桁は数か月、5 桁でも数年で足りなくなる。並び順は CLI と UI が番号で担う
 - 番号を全体で一意にすれば、プロジェクトごとにディレクトリを分ける必要がなく、プロジェクト間の移動がファイルの改名にならない
 - 墓標を残せば、削除後に同じ番号が再利用されて古い参照が別のチケットを指すことがない
+- Run は並行して始まり、実行中はコミットしないので、連番の CAS が使えない
 
 - フィールド単位でマージすれば、同じチケットの別々の属性を 2 人（やエージェント）が変えても止まらない。行単位では `updated_at` の行が毎回ぶつかり、ほぼすべての同時更新が競合になる
 - ドライバを PATH の `dg` で登録しないのは、`npx`・`mise run`・`node_modules/.bin` 経由で動かす環境では PATH に `dg` がないから。絶対パスは古くなりうるが、init と sync のたびに書き直すので直る
