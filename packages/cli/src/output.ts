@@ -83,6 +83,20 @@ const COLUMNS: Record<string, string[]> = {
   project: ["id", "status", "name", "workflow"],
   workflow: ["id", "name", "path"],
   plan: ["id", "status", "project", "tickets", "progress"],
+  // dg metrics show の単位ごとの集計
+  groups: [
+    "key",
+    "runs",
+    "results",
+    "retries",
+    "duration_seconds",
+    "input",
+    "output",
+    "cache_read",
+    "cache_write",
+    "missing",
+    "estimated_runs",
+  ],
   // dg history の events
   events: ["at", "id", "type", "changes", "subject"],
 };

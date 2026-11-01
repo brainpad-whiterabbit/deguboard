@@ -9,3 +9,4 @@ export * from "./iteration.js";
 export * from "./plan.js";
 export * from "./workflow.js";
 export * from "./run.js";
+export * from "./metrics.js";
