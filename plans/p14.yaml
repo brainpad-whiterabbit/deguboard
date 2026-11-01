@@ -26,3 +26,4 @@ details:
     approach: steps に implement・review・fix・investigate を足し、実装の Run は draft の PR で閉じ、見直しは review、修正ループと手直しは fix の Run で --retry-reason を残す手順に書き換え、check:docs の予算内に収める
 approved_by: eiki.kitajima/agent
 approved_at: 2026-11-01T22:12:07Z
+closed_at: 2026-11-01T23:24:02Z
