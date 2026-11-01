@@ -45,6 +45,7 @@
 
 - 拡張ホストは CommonJS を読むので、`packages/vscode` は Vite の SSR ビルドで `dist/extension.cjs` の 1 ファイルに束ねる。core は `development` 条件で `src` から取り込み、`vscode` だけ外部にする
 - web のビルド結果は `dist/web` に写して Webview から読む。拡張のためのバンドラは増やさない（esbuild や webpack は入れない）
+- 拡張の `engines.vscode` は `^1.123.0` にする。拡張ホストが Node 24 になった最初の版（Electron 42.3、Node 24.15）で、束ねる core の `engines.node`（>=24）と Vite の `target: "node24"` に揃う。1.122 までは Node 22（1.104 は Electron 37.3、Node 22.18）。`@types/vscode` は engines を超えない版に固定する（vsce が検査する）
 - VSIX は `@vscode/vsce` で作る（`mise run vsix`）。依存は束ねてあるので `--no-dependencies` で、pnpm の node_modules の形に影響されない。`vsce-sign` の postinstall は要らないので pnpm-workspace.yaml の `allowBuilds` で拒否する（pnpm 12。`ignoredBuiltDependencies` は読まれない）
 
 ### 文書の検査
@@ -71,5 +72,5 @@
 - **Tailwind**：Webview のテーマは CSS 変数で渡るので、変数を直接使う自前の CSS の方が短い。ビルドの層も増えない
 - **react-router**：Webview では遷移できず、画面が 5 種なのでハッシュの解析で足りる
 - **Redux や Zustand**：状態は「選んだ Project の一覧と同期の状態」だけで、書き込みのたびに読み直す方が CLI との整合が取りやすい
-- **Node 22（LTS）**：VS Code の拡張ホストと揃える意味で 24 にする。VS Code 1.144（2026-10）の拡張ホスト（リモートの server）は Node 24.22 で、ずれはない
+- **Node 22（LTS）**：VS Code の拡張ホストと揃える意味で 24 にする。拡張ホストが Node 24 なのは VS Code 1.123 から（1.144 は Node 24.22）なので、拡張の engines.vscode をそこに合わせる
 - **拡張を esbuild や webpack で束ねる**：web のビルドに使っている Vite（rolldown）で足りる。ツールが増えるだけ
