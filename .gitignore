@@ -6,3 +6,4 @@ coverage/
 *.vsix
 packages/cli/web/
 release/
+.playwright-mcp/

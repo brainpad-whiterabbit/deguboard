@@ -38,8 +38,13 @@ export function createHost(surface: Surface, client: WebviewClient | null, state
   return { ...browserHost, surface };
 }
 
-export function readSurface(dataset: DOMStringMap): Surface {
-  return dataset.surface === "sidebar" || dataset.surface === "panel" ? dataset.surface : "browser";
+/**
+ * 載っている場所を読む。Webview では拡張ホストが付けた data 属性、ブラウザでは開発用に `?surface=sidebar` も読む
+ * （dg serve の画面をサイドバーやパネルの配置で確かめるため。リンクはブラウザと同じくハッシュ遷移のまま）
+ */
+export function readSurface(dataset: DOMStringMap, search = ""): Surface {
+  const value = dataset.surface ?? new URLSearchParams(search).get("surface");
+  return value === "sidebar" || value === "panel" ? value : "browser";
 }
 
 export function HostProvider({ host, children }: { host: Host; children: ReactNode }) {
