@@ -947,6 +947,31 @@ describe("用意", () => {
     });
   });
 
+  it("lint は閉じた Epic に残る終わっていないチケットと、すべて終わったのに開いている Epic・Plan を指摘する", async () => {
+    const f = await fixture();
+    const ctx = await initialized(f.cloneA);
+    const acceptance = ["a"];
+    await runCommand(epicCreate, ctx, { title: "閉じた", summary: "s" });
+    await runCommand(epicCreate, ctx, { title: "終わった", summary: "s" });
+    await runCommand(epicCreate, ctx, { title: "途中", summary: "s" });
+    await runCommand(ticketCreate, ctx, { title: "A", summary: "s", acceptance, epic: "e1" });
+    await runCommand(ticketCreate, ctx, { title: "B", summary: "s", acceptance, epic: "e2" });
+    await runCommand(ticketCreate, ctx, { title: "C", summary: "s", acceptance, epic: "e3" });
+    await runCommand(ticketCreate, ctx, { title: "D", summary: "s", acceptance, epic: "e3" });
+    await runCommand(epicClose, ctx, { epic: "e1", force: true });
+    await runCommand(planCreate, ctx, { tickets: ["t2"] });
+    await runCommand(planCreate, ctx, { tickets: ["t3"] });
+    for (const ticket of ["t2", "t3"])
+      await runCommand(ticketMove, ctx, { ticket, status: "done" });
+    await runCommand(planClose, ctx, { plan: "p2" });
+    const l = await runCommand(lint, ctx, {});
+    expect(l.data.issues.map((i) => [i.id, i.code, i.message])).toEqual([
+      ["e1", "lint_epic_closed_unfinished", "閉じた Epic に終わっていないチケット t1 が残る"],
+      ["e2", "lint_epic_finished_open", "チケットがすべて終わったが Epic が開いている"],
+      ["p1", "lint_plan_finished_open", "チケットがすべて終わったが Plan が開いている"],
+    ]);
+  });
+
   it("入力の形が違えば UsageError、sprint は iteration のエイリアス", async () => {
     const f = await fixture();
     const ctx = await initialized(f.cloneA);
