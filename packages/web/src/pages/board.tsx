@@ -192,6 +192,7 @@ export function BoardPage({ query }: { query: BoardQuery }) {
             open={open}
             selection={selection}
             count={count}
+            // 件数と帯は絞り込み（Epic・担当）の後のチケットで数える（件数と帯の数をそろえる）
             progress={ticketProgress(tickets)}
             onSelect={select}
             onCreate={() => setCreating(true)}
@@ -467,17 +468,19 @@ function Column({
         </h2>
       </summary>
       {sidebar ? (
-        <div className="rows">
-          {tickets.map((t) => (
-            <DraggableRow
-              key={t.id}
-              ticket={t}
-              hideAssignee={hideAssignee}
-              flash={flashing.has(t.id)}
-              kanban
-            />
-          ))}
-        </div>
+        empty ? null : (
+          <div className="rows">
+            {tickets.map((t) => (
+              <DraggableRow
+                key={t.id}
+                ticket={t}
+                hideAssignee={hideAssignee}
+                flash={flashing.has(t.id)}
+                kanban
+              />
+            ))}
+          </div>
+        )
       ) : (
         <div className="cards">
           {tickets.map((t) => (

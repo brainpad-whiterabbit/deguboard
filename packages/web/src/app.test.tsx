@@ -473,7 +473,7 @@ describe("画面", () => {
     expect(document.querySelectorAll(".row-drag .row")).toHaveLength(3);
     const review = document.querySelector<HTMLDetailsElement>('details[data-status="review"]')!;
     expect(review.classList.contains("is-empty")).toBe(true);
-    expect(review.querySelectorAll(".row")).toHaveLength(0);
+    expect(review.querySelector(".rows")).toBeNull();
     expect(review.querySelector(".section-count")!.textContent).toBe("0");
     expect(screen.queryByText("なし")).toBeNull();
     expect(screen.queryByText("deguboard")).toBeNull();
@@ -1080,6 +1080,33 @@ describe("画面", () => {
     expect(document.querySelector(".iteration-pick .name")!.textContent).toBe("Iteration はない");
     fireEvent.change(screen.getByLabelText("Iteration"), { target: { value: "+create" } });
     expect(screen.getByLabelText("名前")).toBeTruthy();
+  });
+
+  it("サイドバーのバックログの区画の見出しは開始・閉じるを「…」に入れ、閉じるは未完了の件数を示す確認を経てから閉じる", async () => {
+    window.location.hash = "#/backlog";
+    const client = mockClient();
+    client.data.iterations = [iteration({ id: "s1", name: "今", status: "active" })];
+    client.data.tickets[1]!.iteration = "s1";
+    client.data.tickets[2]!.iteration = "s1";
+    client.handlers["iteration.close"] = (input) => input;
+    mount(client, webviewHost("sidebar"));
+    await screen.findByText("API");
+    expect(screen.queryByRole("button", { name: "閉じる" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "s1 の操作" }));
+    fireEvent.click(screen.getByRole("button", { name: "閉じる" }));
+    const confirm = screen.getByRole("group", { name: "s1 今 を閉じる確認" });
+    expect(confirm.textContent).toContain("未完了が 2 件ある");
+    expect(client.calls.some((c) => c.name === "iteration.close")).toBe(false);
+    fireEvent.click(screen.getByRole("button", { name: "やめる" }));
+    expect(screen.queryByRole("group", { name: "s1 今 を閉じる確認" })).toBeNull();
+    expect(client.calls.some((c) => c.name === "iteration.close")).toBe(false);
+    fireEvent.click(screen.getByRole("button", { name: "閉じる" }));
+    fireEvent.click(screen.getByRole("button", { name: "2 件を残して閉じる" }));
+    await waitFor(() =>
+      expect(client.calls.find((c) => c.name === "iteration.close")?.input).toEqual({
+        iteration: "s1",
+      }),
+    );
   });
 
   it("エディタのパネルの Epic 詳細の閉じるも確認を経てから閉じる", async () => {

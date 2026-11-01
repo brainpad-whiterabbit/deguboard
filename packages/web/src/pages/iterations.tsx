@@ -75,7 +75,7 @@ export function IterationActions({ iteration: it }: { iteration: Iteration }) {
   );
 }
 
-/** Iteration を作るフォーム。カンバンの絞り込みの欄とバックログの「Iteration なし」の区画から開く。作れたら onDone */
+/** Iteration を作るフォーム。カンバンの絞り込みの欄（サイドバーでは見出しの Iteration の選択欄）とバックログの「Iteration なし」の区画から開く。作れたら onDone */
 export function IterationCreateForm({ onDone }: { onDone: () => void }) {
   const store = useStore();
   const [form, setForm] = useState({ name: "", goal: "", start: "", end: "" });
