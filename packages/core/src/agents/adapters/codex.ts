@@ -2,7 +2,9 @@
 //   - 記録の行は {"timestamp", "type", "payload"}。使用量は type が event_msg で payload.type が token_count の行の
 //     payload.info.total_token_usage（session の累計）、モデル名は type が turn_context の行の payload.model
 //   - Run に結び付ける記録：Claude Code の Adapter と同じく、Run の ID を最初に含む会話記録のファイル
-//   - 数える量：Run の ID が出る前の最後の累計と、finished_at までの最後の累計の差。累計が減っていれば（記録の作り直しなど）取れない
+//   - 数える量：Run の ID が出る前の最後の累計と、finished_at までの最後の累計の差。累計が減っていれば（記録の作り直しなど）取れない。
+//     Codex は応答のツールを実行し終えてからその応答の token_count を書くので、dg run start を呼んだ応答は Run に入り、
+//     dg run finish を呼んだ応答は入らない（Claude Code の Adapter と 1 応答ずれる。ADR-005）
 //   - 写し方：input は input_tokens から cached_input_tokens を引いた値（キャッシュを読まなかった入力。Claude Code と同じ意味）、
 //     cache_read は cached_input_tokens、output は output_tokens、cache_write は cache_write_input_tokens。
 //     cache_write_input_tokens を書かない版の記録では cache_write を null にして警告する
@@ -73,6 +75,25 @@ function modelOf(entry: Record<string, unknown>): string | undefined {
   return typeof model === "string" && model ? model : undefined;
 }
 
+/** event_msg の token_count の行か。type と payload.type の両方を確かめる */
+function isTokenCount(entry: Record<string, unknown>): boolean {
+  const payload = entry["payload"] as Record<string, unknown> | undefined;
+  return entry["type"] === "event_msg" && payload?.["type"] === "token_count";
+}
+
+/** 生の行を後ろから読み、pick が値を返す最初の行の値。なければ undefined */
+function latest<T>(
+  raw: string[],
+  pick: (entry: Record<string, unknown>) => T | undefined,
+): T | undefined {
+  for (let i = raw.length - 1; i >= 0; i--) {
+    const entry = parse(raw[i] ?? "");
+    const value = entry ? pick(entry) : undefined;
+    if (value !== undefined) return value;
+  }
+  return undefined;
+}
+
 async function scan(file: string, query: UsageQuery, to: number): Promise<Scan> {
   const result: Scan = {
     firstSeen: undefined,
@@ -81,32 +102,41 @@ async function scan(file: string, query: UsageQuery, to: number): Promise<Scan> 
     modelBefore: undefined,
     models: new Map(),
   };
+  // Run の ID が出るまでは候補の生の行を持つだけで JSON を読まない。ID が出たら後ろから遡り、最初に使える行だけを読む
+  const usageLines: string[] = [];
+  const contextLines: string[] = [];
   const lines = createInterface({ input: createReadStream(file), crlfDelay: Infinity });
   for await (const line of lines) {
-    if (result.firstSeen === undefined && line.includes(query.run.id)) {
+    // Codex は JSON を空白なしで書く。文字列の中の "type":"token_count" は引用符がエスケープされるので当たらない
+    const usageLine = line.includes('"type":"token_count"');
+    const contextLine = line.includes('"type":"turn_context"');
+    if (result.firstSeen === undefined) {
+      if (!line.includes(query.run.id)) {
+        if (usageLine) usageLines.push(line);
+        if (contextLine) contextLines.push(line);
+        continue;
+      }
       const entry = parse(line);
       const at = entry ? timeOf(entry) : NaN;
       result.firstSeen = Number.isNaN(at) ? Infinity : at;
+      result.before = latest(usageLines, (e) => (isTokenCount(e) ? totalOf(e) : undefined));
+      result.modelBefore = latest(contextLines, (e) =>
+        e["type"] === "turn_context" ? modelOf(e) : undefined,
+      );
+      usageLines.length = 0;
+      contextLines.length = 0;
       continue;
     }
     // 使用量とモデル名の行のほかは JSON を読まない
-    const usageLine = line.includes('"token_count"');
-    if (!usageLine && !line.includes('"turn_context"')) continue;
+    if (!usageLine && !contextLine) continue;
     const entry = parse(line);
     if (!entry) continue;
     const at = timeOf(entry);
-    if (result.firstSeen === undefined) {
-      if (usageLine && entry["type"] === "event_msg")
-        result.before = totalOf(entry) ?? result.before;
-      if (entry["type"] === "turn_context")
-        result.modelBefore = modelOf(entry) ?? result.modelBefore;
-      continue;
-    }
     if (Number.isNaN(at) || at > to) {
       if (at > to + TAIL_MS) break;
       continue;
     }
-    if (usageLine && entry["type"] === "event_msg") result.last = totalOf(entry) ?? result.last;
+    if (isTokenCount(entry)) result.last = totalOf(entry) ?? result.last;
     if (entry["type"] === "turn_context") {
       const model = modelOf(entry);
       if (model) result.models.set(model, (result.models.get(model) ?? 0) + 1);
