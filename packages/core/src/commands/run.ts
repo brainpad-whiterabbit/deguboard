@@ -91,7 +91,7 @@ export const runFinish = defineCommand({
       .meta({ freeText: true })
       .optional()
       .describe(
-        "やり直しの理由（直した指摘（見直し・人のレビュー）の 1 行の要約）。秘密・コマンドの文字列・パスは書かない",
+        "やり直しの理由。見直しや人のレビューで直した指摘の 1 行の要約。秘密・コマンドの文字列・パスは書かない",
       ),
     model: z.string().min(1).optional().describe("モデル名。start で渡さなかったとき"),
   }),
