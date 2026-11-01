@@ -17,6 +17,7 @@ export const GUIDE_TOPICS = [
   "audit",
   "release",
   "done",
+  "all",
 ] as const;
 export type GuideTopic = (typeof GUIDE_TOPICS)[number];
 

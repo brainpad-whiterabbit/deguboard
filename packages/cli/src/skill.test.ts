@@ -167,6 +167,7 @@ describe("Skill の本文", () => {
       "dgaudit",
       "dgrelease",
       "dgdone",
+      "dgall",
     ]);
     for (const s of skills) {
       expect(s.content, s.name).toMatch(
