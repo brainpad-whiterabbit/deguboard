@@ -114,11 +114,11 @@ updated_at: 2026-10-31T05:10:00Z
 
 - TK-1 必須は `id`・`project`・`title`・`status`・`created_at`・`updated_at`。`workflow` を省くと Project の既定を使う
 - TK-2 `depends_on` は同じリポジトリのチケットの ID。循環は作成・更新時に拒否する
-- TK-3 本文は Markdown。`## 概要` と `## 受け入れ条件`（`- [ ]` のチェックリスト）を推奨し、`create` / `import` は `summary` と `acceptance` から雛形を作り、`update` の `acceptance` は `## 受け入れ条件` の節だけを置き換える（同じ文の項目のチェックは保ち、節がなければ末尾に足す）。`ticket show` は節の項目を `acceptance`（`index`・`text`・`checked`）で出し、`ticket check` が番号で印を付け外しする。`dg lint` が節の欠けと、受け入れ条件に項目がないことを指摘する（done のチケットに残る未チェックの項目は指摘しない）。Epic・Plan とチケットの状態の食い違いも指摘する
+- TK-3 本文は Markdown。`## 概要` と `## 受け入れ条件`（`- [ ]` のチェックリスト）を推奨し、`create` / `import` は `summary` と `acceptance` から雛形を作る。受け入れ条件の項目は `ticket show` が番号つきで出し、`ticket check` が番号で印を付け外しする。`dg lint` が節の欠けと項目のない受け入れ条件、Epic・Plan とチケットの状態の食い違いを指摘する
 - TK-4 Workflow の `fields` で定義した任意フィールドを frontmatter に持てる
 - TK-5 受け入れ条件のチェックは、作業した人かエージェントが PR や成果物で確認できたときに付ける。deguboard が自動で付けることはなく、照合で done に進めたチケットに未チェックが残れば `sync` が警告する（遷移は止めない。[ADR-003](adr/ADR-003-status-and-workflow.md)）
 - TK-6 `epic` は同じ Project の Epic の ID。閉じた Epic には付けられない
-- TK-7 `created_by`（起票者）と `assignee`（担当者）は主体の ID（`<ユーザ>` か `<ユーザ>/agent`）。`created_by` は作成時に書き、既定は操作した主体で、エージェントが人の指示・承認で起票するときは `human`（ユーザ本人）を指定する。`assignee` は `create` / `update` で付け外しでき、`claim` が claim した主体で上書きする。`branch` も `update` で付け外しできる（PR の要らない作業に切り替える・戻す）。入力の `human` / `agent` は操作した主体のユーザ本人とその AI に解く。旧名 `claimed_by` は読むときに `assignee` へ読み替える
+- TK-7 `created_by`（起票者）と `assignee`（担当者）は主体の ID（`<ユーザ>` か `<ユーザ>/agent`）。`created_by` は作成時に書き、既定は操作した主体で、エージェントが人の指示・承認で起票するときはユーザ本人を指定する。`assignee` は `claim` が claim した主体で上書きし、`update` でも付け外しできる。旧名 `claimed_by` は `assignee` と読む
 
 ### 5.5 Epic（`epics/e3.md`）
 
@@ -158,7 +158,7 @@ closed_at: 2026-11-20T09:00:00Z # closed のときだけ
 - PL-2 進捗は Plan に書かない。チケットの状態から都度求める。Plan を書くのは作成・承認・終了のときだけ
 - PL-3 1 つのチケットは同時に 1 つの開いた（`closed_at` のない）Plan にしか入らない。done・abandoned のチケット、存在しないチケット、Plan と別の Project のチケットは入れられない。`after` と `details` は Plan に入れたチケットだけを指し、`after` は循環できない
 - PL-4 `plan create` は承認待ち（`pending_approval: true`）で作り、採番のため即座にコミットして push する。`plan approve` は承認待ちの Plan に `approved_by`（操作した主体）と `approved_at` を書いて `pending_approval` を外す。`plan close` は `closed_at` を書き、終わっていないチケットが残れば警告する。閉じた Plan は承認も閉じ直しもできない。承認と終了は既定で誰でも行える（人に限るなら `actor.human_only`、5.10）
-- PL-5 Plan の状態は保存せず、`pending_approval` と `closed_at` から求める（pending・approved・closed）。`plan list` は Plan を状態と進捗つきで出し、状態（`open` は pending と approved）と Project で絞れる。`ticket show` はチケットが入っている開いた Plan の ID を `plan` に出す（なければ null）
+- PL-5 Plan の状態は保存せず、`pending_approval` と `closed_at` から求める（pending・approved・closed）。`plan list` は状態と進捗を出し、`ticket show` はチケットが入っている開いた Plan を出す
 
 ### 5.8 Workflow（`workflows/<id>.yaml`）
 
@@ -217,22 +217,7 @@ steps: # 任意。Run の step の語彙（WF-5）
 ### 6.1 `dg` CLI
 
 - CL-1 すべてのコマンドに `--json` があり、エージェントはそれを読む。成功は `{ ok: true, data, warnings, write }`、失敗は `{ ok: false, error: { code, message, detail } }`。終了コードは 0（成功）/ 1（失敗。`validate`・`lint` は指摘があるとき）/ 2（使い方の誤り）。`error.code` の語彙は `packages/core/src/errors.ts` が正本
-- CL-2 コマンドの一覧とオプションは `dg --help` が正本。主な群は次のとおり
-
-| 群        | コマンド                                                                                          | 状態 |
-| --------- | ------------------------------------------------------------------------------------------------- | ---- |
-| 用意      | `init`、`sync`、`commit`、`validate`、`lint`、`config`                                            | あり |
-| Project   | `project create / list / show / archive`                                                          | あり |
-| Ticket    | `ticket create / list / show / update / check / move / delete / import / claim / unclaim`         | あり |
-| Iteration | `iteration create / list / show / add / remove / start / close / reopen`（`sprint` はエイリアス） | あり |
-| Epic      | `epic create / list / show / update / add / remove / close / reopen`                              | あり |
-| Workflow  | `workflow list / show / validate`                                                                 | あり |
-| 画面・MCP | `serve`、`open`、`mcp`                                                                            | あり |
-| 手順      | `guide <topic>`、`skill install`                                                                  | あり |
-| Plan      | `plan create / list / show / approve / close`                                                     | あり |
-| 経過      | `history`（`--ticket`・`--epic`・`--iteration` で絞る）                                           | あり |
-| Run       | `run start / finish / list`、`metrics show`                                                       | あり |
-
+- CL-2 コマンドの一覧とオプションは `dg --help` が正本。群は用意（`init`・`sync`・`commit`・`validate`・`lint`・`config`）、`project`、`ticket`、`iteration`（`sprint` はエイリアス）、`epic`、`workflow`、`plan`、`history`、`run` と `metrics`、画面と MCP（`serve`・`open`・`mcp`）、手順（`guide`・`skill install`）
 - CL-3 書き込みを伴うコマンドは、`commit.mode` に従って deguboard ブランチにコミットする。作成（`init`、`project / ticket / epic / iteration create`、`ticket import`）と `ticket claim` は `commit.mode`・`push.mode` によらず即座にコミットして push する（採番と排他のため）
 - CL-4 `ticket import` は YAML / JSON の下書き（配列）を 1 コミットで取り込む。下書きの中の仮キーを `depends_on` から参照でき、`epic` に既存の Epic を書ける
 - CL-5 `dg guide <topic>` は、エージェント向けの手順を `config.yaml` の値を埋めて出す。トピックの一覧は `dg guide overview`（省略時）。手順の正本は CLI に同梱した Markdown（`packages/cli/src/guide-*.md`）
@@ -282,7 +267,7 @@ Web UI は `dg serve` が配信し、VS Code 拡張は同じ React アプリを 
 ### 6.5 エージェント連携
 
 - AG-1 エージェントは PATH の `dg` を Bash から `dg … --json --actor agent` で呼び、データのファイルを直接編集しない。human と agent の区別は申告（`--actor` か環境変数 `DEGUBOARD_ACTOR`。既定は human）に基づき、Skill と `dg guide` の手順は必ず agent を名乗る。主体の ID はユーザ名（`--user` か環境変数 `DEGUBOARD_USER`。既定は git の `user.name`）と種別から `<ユーザ>`（human）か `<ユーザ>/agent`（agent）になり、`created_by` と `assignee` に記録される（TK-7）。権限管理ではない（対象外）
-- AG-2 Claude Code 向けに、段階ごとに `dg guide <topic>` を読む薄い Skill（`dg<トピック>`。例 `/dgimport`）を配る（`dg skill install`。既定はリポジトリの `.claude/skills/`、`--personal` で `~/.claude/skills`）。名前・説明・引数の案内は guide の frontmatter が正本。SKILL.md に中身のハッシュの印を入れ、手を加えていない Skill は再実行で更新し、手を加えたものは `--force` がなければ残す。廃止した `deguboard` Skill は消す
+- AG-2 Claude Code 向けに、段階ごとに `dg guide <topic>` を読む薄い Skill（`dg<トピック>`。例 `/dgimport`）を `dg skill install` で配る。名前と説明は guide の frontmatter が正本。手を加えていない Skill は再実行で更新し、手を加えたものは強制の指定がなければ残す
 - AG-3 エージェントは要件の整理が終わったら、必要に応じてチケット化を提案し、承認を得て `ticket import` で起票する。分解・Epic への束ね・依存の整理・Iteration への割り当ても提案して承認を得る
 - AG-4 MCP サーバー（`dg mcp`。stdio）は、Bash のないクライアント（Claude Desktop など）から起票・閲覧・状態の更新をする入口として、Core のコマンド定義から生成する薄い層で提供する。CLI と同じ操作ができ（`init` と CLI だけの `guide`・`skill`・`serve`・`open` を除く）、ツールの結果は `--json` と同じ形（CL-1）で、主体は常に agent（`<ユーザ>/agent`）。対象のリポジトリは `-C` で指せる（クライアントがリポジトリの外で起動するため）
 - AG-5 Agent Adapter が使用量の取得と作業ディレクトリの差を吸収し、製品ごとの実装は Core の `agents/adapters/` に閉じる。今は `claude-code` と `codex`。起動方法と権限は扱わない（EX-1、[ADR-007](adr/ADR-007-architecture.md)）
