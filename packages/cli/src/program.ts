@@ -14,6 +14,7 @@ import {
   ACTION_NAMES,
   runCommand,
   runMergeDriver,
+  UsageError,
   type ActorInfo,
   type AnyCommand,
   type CommandResult,
@@ -74,7 +75,7 @@ const GROUP_SUMMARY: Record<string, string> = {
   iteration: "Iteration（期間の計画）の操作。sprint はエイリアス",
   epic: "Epic（目的ごとの束ね）の操作",
   plan: "Plan（チケットを進める順と承認）の操作",
-  workflow: "Workflow 定義の参照と検証",
+  workflow: "Workflow 定義の参照・検証・書き換え",
   metrics: "Run（作業の実績）の集計",
   run: "Run（1 回の AI 実行）の記録",
   config: "config.yaml の参照と変更",
@@ -303,6 +304,12 @@ export function buildProgram(options: ProgramOptions = {}): Command {
 
       let result: CommandResult<unknown>;
       try {
+        // ファイルから読む値（workflow set の --file）。パスを中身に置き換える
+        for (const shape of bound.options) {
+          const file = input[shape.key];
+          if (shape.kind === "file" && typeof file === "string")
+            input[shape.key] = await readYamlFile(file, cwd);
+        }
         const ctx = await openContext({
           cwd,
           actor,
@@ -334,6 +341,21 @@ async function readDrafts(file: string, cwd: string): Promise<unknown> {
     return (parsed as { drafts: unknown }).drafts;
   }
   return parsed;
+}
+
+/** YAML か JSON のファイル（- で標準入力）を読む。読めなければ使い方の誤り */
+async function readYamlFile(file: string, cwd: string): Promise<unknown> {
+  let text: string;
+  try {
+    text = file === "-" ? await readStdin() : await readFile(resolve(cwd, file), "utf8");
+  } catch (error) {
+    throw new UsageError(`${file} を読めない`, String(error));
+  }
+  try {
+    return parseYaml(text);
+  } catch (error) {
+    throw new UsageError(`${file} を YAML として読めない`, String(error));
+  }
 }
 
 async function readStdin(): Promise<string> {
