@@ -39,3 +39,4 @@ details:
     approach: 先に store.tsx の読み込みの内訳を測り、結果を PR に書いてから ui-state のキャッシュを足す
 approved_by: eiki.kitajima/agent
 approved_at: 2026-11-01T11:17:04Z
+closed_at: 2026-11-01T12:15:13Z
