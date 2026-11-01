@@ -12,9 +12,9 @@
 ### 置き場所：orphan ブランチ `deguboard`
 
 - データは orphan ブランチ `deguboard` に置き、`<git-common-dir>/deguboard/` に専用の worktree として checkout する。すべての読み書きはここで行う
-- 作業ブランチや作業 worktree にはデータを置かない。状態の更新は常に共有の deguboard worktree で行う
+- 作業ブランチや作業 worktree にはデータを置かない
 - ブランチは保護せず、`dg` が直接 commit・push する
-- Git 管理外のもの（ローカルロック・実行中の詳細ログ・マージドライバの属性ファイル）は `<git-common-dir>/deguboard-local/` に置く。索引はファイルにせずメモリ上に持つ（[ADR-007](ADR-007-architecture.md)）
+- Git 管理外のもの（ローカルロックなど）は `<git-common-dir>/deguboard-local/` に置く。索引はファイルにせずメモリ上に持つ（[ADR-007](ADR-007-architecture.md)）
 
 ### 形式：1 件 1 ファイル
 
@@ -29,29 +29,27 @@
 | Run の集計 | `runs/<id>.json`       | JSON                       |
 | 設定       | `config.yaml`          | YAML                       |
 
-- チケットと Epic の本文（概要・受け入れ条件・目的）は Markdown、属性は frontmatter。Iteration・Workflow・config は人が読む YAML、Run は機械が書く JSON
+- 本文を持つチケットと Epic は Markdown で属性を frontmatter に、ほかは人が読む YAML、機械だけが書く Run は JSON にする
 - 削除したチケットは `tickets/deleted/` に墓標として残し、番号を再利用しない
-- 書き込みは一時ファイルへ書いてから rename する（原子的）。読み込みはスキーマ（Zod）で検証し、読めないファイルは止めずに報告する
+- 書き込みは一時ファイルからの rename で原子的にする。読めないファイルは止めずに報告する
 
 ### ID：連番をそのまま ID とファイル名にする
 
 - ID は `t12`・`e3`・`s3`・`p7` のような接頭辞＋連番。ファイル名は ID そのまま（`t12.md`）で、ゼロ埋めしない。title の slug はファイル名に入れない
-- ファイル名の辞書順は番号順にならない（`t100.md` が `t2.md` より前に並ぶ）。CLI と UI は番号で並べるので影響しない。シェルで番号順に見たいときは `ls -v` を使う
-- 番号はリポジトリ全体で一意（プロジェクトをまたいでも `t12` は 1 つ）。採番は「既存と墓標の最大 + 1」
-- **作成は fetch → 採番 → commit → push を 1 単位**にする。push が拒否されたら取り込み直して採番し直し、最大 3 回まで再 push する。同じパスの add/add で衝突を検出できる
+- ファイル名の辞書順は番号順にならないが、CLI と UI は番号で並べる
+- 番号はプロジェクトをまたいでリポジトリ全体で一意。採番は「既存と墓標の最大 + 1」
+- **作成は fetch → 採番 → commit → push を 1 単位**にする。push が拒否されたら取り込み直して採番し直す（複数件の import も同じ 1 単位）。同じパスの add/add で衝突を検出できる
 - オフラインで push できないときは `provisional: true` を付けてローカルに commit する。次の `dg sync` で衝突があれば、番号・ファイル名・未 push のコミット内の参照（他チケットの `depends_on`、Plan）を振り直してから push する
 - 作業ブランチ名と PR は claim（push 成功が条件。[ADR-004](ADR-004-agents-and-state.md)）の後に作るので、仮番号がブランチ名に入ることはない
-- `dg ticket import` の複数件も同じ 1 単位で採番する
 - Run の ID は採番せず `r`＋開始日時（UTC）＋16 進 4 桁の乱数にする（`r20261031-041500-3fa2`）。辞書順が開始の順になる
 
 ### 同期の競合：frontmatter をフィールド単位でマージする
 
-- 取り込みは rebase で行い、`tickets/*.md`・`tickets/deleted/*.md`・`epics/*.md` に git のマージドライバ `deguboard` を当てる。ドライバの実体は `dg` の隠しコマンド `merge-driver`（ロジックは core の `git/merge.ts`）
-- フィールドごとに 3-way で決める。片側だけ変えた値を採り、両側が同じ値なら採る。`updated_at` は両側が変えても新しい方を採る。両側が違う値に変えたフィールドは競合。配列（`labels`・`depends_on`）は 1 つの値として比べる
-- 本文は片側だけ変えたらその本文、両側が変えたら行単位でマージし、同じ行がぶつかれば競合。frontmatter が読めないときと base がないとき（仮番号の add/add）は行単位のマージに任せ、振り直し（DT-5）の検出を変えない
-- 競合ならドライバが非 0 で終わり、従来どおり rebase を中止してローカルのコミットを残し、`dg sync` が報告する
-- 登録：`dg init` と `dg sync`（取り込みの前）が、git config の `merge.deguboard.driver` に「いま動いている node の絶対パス＋この `dg` の `bin/dg.js` の絶対パス＋`merge-driver %O %A %B %P`」を書き、deguboard ブランチに `.gitattributes` をコミットする。`.gitattributes` がまだリモートにない間も効くよう、rebase には `deguboard-local/attributes` を `core.attributesFile` で渡す
-- VS Code 拡張は自分の `dg` を持たないので登録せず、CLI（`dg serve` を含む）が登録した config をそのまま使う。ドライバが動かなければ（パスが消えたなど）競合として報告され、次の CLI の `dg sync` で登録し直す
+- 取り込みは rebase で行い、チケット・墓標・Epic の Markdown に git のマージドライバ `deguboard`（`dg merge-driver`）を当てる。規則の正本は core の `git/merge.ts`
+- frontmatter はフィールドごとに 3-way で決め、片側だけ変えた値を採る。`updated_at` は両側が変えても新しい方を採る。両側が違う値に変えたフィールドと、本文の同じ行のぶつかりだけを競合にする。仮番号の add/add は行単位のマージに任せ、振り直し（DT-5）の検出を変えない
+- 競合ならドライバが非 0 で終わり、rebase を中止してローカルのコミットを残し、`dg sync` が報告する
+- 登録：`dg init` と `dg sync` が、git config にいま動いている node と `bin/dg.js` の絶対パスでドライバを書き、deguboard ブランチに `.gitattributes` をコミットする。リモートにまだない間は `deguboard-local/` の属性ファイルを rebase に渡して補う
+- VS Code 拡張は自分の `dg` を持たないので登録せず、CLI が登録した config を使う。ドライバが動かなければ競合として報告され、次の CLI の `dg sync` で登録し直す
 
 ### 複数 Project
 
@@ -62,7 +60,7 @@
 ### 呼称
 
 - 製品名は deguboard、CLI は `dg`、ブランチ名は `deguboard`、環境変数の接頭辞は `DEGUBOARD_`
-- 作業の最小単位は ticket と呼ぶ（CLI は `dg ticket`）。期間の単位は iteration（`dg iteration`。`sprint` はエイリアス）。目的で束ねる単位は epic（`dg epic`）
+- 作業の最小単位は ticket、期間の単位は iteration（`sprint` はエイリアス）、目的で束ねる単位は epic と呼び、CLI のサブコマンド名にする
 
 ## 理由
 

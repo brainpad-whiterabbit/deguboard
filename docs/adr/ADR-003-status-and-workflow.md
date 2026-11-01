@@ -27,26 +27,18 @@ deguboard はソフトウェア開発だけでなく、コンサルティング�
 ### 遷移は既定で自由にし、Workflow が制約を足す
 
 - 既定では 5 つの Status の間のどの遷移も、human / agent / reconcile の誰でも条件なしで行える。Core が固定するのは Status の集合と前進の順、同じ Status への move の拒否、`abandoned` と todo に入るときの副作用（`assignee` と `branch` を消す）だけ
-- Workflow の `transitions` は from → to ごとに制約を足す。`by` は行える主体（省略なら誰でも、`[]` ならその遷移を禁止）、`requires` は満たすべき組み込みの条件（AND）。例：`{ from: todo, to: in_progress, requires: [deps_done] }` で依存が終わるまで着手を止め、`{ from: review, to: done, by: [human] }` で完了を人に限る。同じ from → to を 2 回書くのは誤りとして検証で指摘する（読み込めた場合は requires の和・by の積で合成する）
+- Workflow の `transitions` は from → to ごとに制約を足す。`by` は行える主体（省略なら誰でも、`[]` ならその遷移を禁止）、`requires` は満たすべき組み込みの条件（AND）。書き方の例は requirements の 5.8
 - 照合（reconcile）は遷移の制約とは別の仕様。前進の順に進めるだけで、`abandoned` と `done` には触れず、そこからも動かさない。`by` に `reconcile` を含まない遷移は照合でも止まる
-- Epic と Iteration を閉じる・再開するのは Workflow の外で、既定では誰でも行える。人に限るなら config の `actor.human_only` にコマンド名（`epic.close` など）を書く。Iteration の再開は active に戻す（planned と active のどちらから閉じたかは記録しない）。閉じたときに外した持ち越しのチケットも記録しないので戻さず、入れ直してもらう
+- Epic と Iteration を閉じる・再開するのは Workflow の外で、既定では誰でも行える。人に限るなら config の `actor.human_only` にコマンド名を書く。再開で戻すのは状態だけで、閉じたときに外した持ち越しのチケットは記録しないので戻さない（IT-1）
 
 ### Workflow YAML は制約と語彙を書く
 
-ワークフロー定義（`workflows/<id>.yaml`）に書くもの：
-
-- `labels`：Status の表示名（任意）
-- `transitions`：from → to ごとの `by` と `requires` の制約（任意。書かない遷移は自由）
-- `reconcile`：Git の事実から状態を導く規則。上から評価し、前進するときだけ書き換える
-- `fields`：チケットに追加する任意フィールド（UI の表示項目が追従）
-- `steps`：Run の step の語彙（任意）
+ワークフロー定義（`workflows/<id>.yaml`）に書くのは、Status の表示名（`labels`）・遷移の制約（`transitions`）・Git の事実から状態を導く規則（`reconcile`）・任意フィールド（`fields`）・Run の step の語彙（`steps`）だけ。形と検証は requirements の 5.8（WF-1〜WF-5）。
 
 書かないもの：
 
 - 手続き（何をどの順で行うか、条件分岐、失敗時の処理）。手順は `dg guide <topic>` のテキストとして CLI に同梱し、AI が読んで判断する
-- ユーザーのスクリプト。`requires` と `reconcile` の条件は組み込みの事実（`deps_done`、`branch_exists`、`branch_pushed`、`branch_merged`、`pr_open`、`pr_draft`、`pr_merged`）とその否定だけ。`deps_done` は依存先がすべて done か abandoned のとき真
-
-定義の検証（存在しない Status を指す項目、未知の条件・Action、同じ遷移・step の重複）は `dg workflow validate` と読み込み時に行う。
+- ユーザーのスクリプト。条件は組み込みの事実とその否定だけ（WF-2）。`deps_done` は依存先がすべて done か abandoned のとき真
 
 ### steps は語彙で、手続きではない
 
@@ -56,12 +48,12 @@ deguboard はソフトウェア開発だけでなく、コンサルティング�
 
 ### テンプレート
 
-`software-development`・`consulting`・`general` の 3 つを CLI に同梱し、`dg init` が 3 つとも置く。違いは `reconcile`・`fields`・`labels`・`steps` で、Status は共通。
+業務ごとのテンプレートを CLI に同梱し、`dg init` がすべて置く（WF-4）。違いは `reconcile`・`fields`・`labels`・`steps` で、Status は共通。
 
 ### Epic は置き、Milestone は置かない
 
 - Epic は目的ごとにチケットを束ねる独立したエンティティ（`epics/e3.md`）。チケットの一種にはせず、claim・ブランチ・5 つの Status を持たない
-- 状態は `open` / `closed` で、閉じる・再開は既定で誰でも行える。進捗はチケットの状態から都度求め、保存しない
+- 状態は `open` / `closed`。進捗はチケットの状態から都度求め、保存しない
 - 所属はチケット側の `epic` で表し、Epic 側に一覧を持たない。入れ子にせず、Iteration をまたぐ。チケットの遷移は縛らない
 - Milestone は持たず、期間の目標は Iteration で表す。Iteration の所属もチケット側の `iteration` だけで表し、一覧や並び順を持たない
 

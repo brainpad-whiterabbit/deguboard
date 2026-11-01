@@ -100,17 +100,7 @@ mise run dg -- guide done      # マージ後の後始末
 
 ### `packages/cli`（npm の `deguboard`、コマンドは `dg`）
 
-core の `commands` を commander に写す。ロジックは持たない。`src/` のファイル：
-
-| ファイル     | 役割                                                                                                                                                                                             |
-| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `program.ts` | `commands` から `dg <群> <操作>` の木を組み立てる。`setup` 群（init・sync・commit・validate・lint）はトップレベル。`sprint` は alias                                                             |
-| `options.ts` | Zod の入力スキーマから位置引数とオプションを作り、解析した引数を入力オブジェクトに戻す。型ごとの対応は冒頭のコメントが正本                                                                       |
-| `output.ts`  | 人向けの出力（list は表、show は `key: value` と本文）と `--json`（`{ ok, data, warnings, write }` / `{ ok: false, error }`）                                                                    |
-| `errors.ts`  | 例外を `ErrorView`（code・message・detail・終了コード 0 / 1 / 2）に写す。出力は `program.ts` と `output.ts` が受け持ち、`--json` なら `{ ok: false, error }` を stdout に出す                    |
-| `mcp.ts`     | `dg mcp`。`createLocalClient` を主体 agent で開き、コマンドを MCP のツールに写す。入力スキーマは `server` の `describeCommands`                                                                  |
-| `skill.ts`   | `dg skill install`。guide の frontmatter と隣の `skill.md`（`dg guide` を読む薄い Skill の型）から `dg<トピック>` の Skill を作り、`.claude/skills/`（`--personal` で `~/.claude/skills`）に書く |
-| `guide.ts`   | `dg guide <topic>`。隣の `guide-*.md`（手順の正本。CL-5）を読み、`{{choices}}` を共通の節に、`{{git.base_branch}}` のような項目を config の値に置き換えて出す                                    |
+core の `commands` を commander（`program.ts`）と MCP のツール（`mcp.ts`）に写す。ロジックは持たない。各ファイルの役割は冒頭のコメントが正本で、引数の型ごとの対応は `options.ts`、`--json` の形は `output.ts`、終了コードは `errors.ts`。
 
 グローバルオプションは `dg --help` が正本。`dg serve` / `dg open`（`serve.ts`）は `@deguboard/server` を起動する・ブラウザで開くだけ。`guide-*.md` と `skill.md` はビルドで `dist/` に、web の `dist` は `packages/cli/web` に写す（ルートの `build`）。トピックを足すときは `guide.ts` の `GUIDE_TOPICS` と `guide-overview.md` の表も直す。
 
@@ -118,28 +108,11 @@ core の `commands` を commander に写す。ロジックは持たない。`src
 
 core の `commands` を HTTP に写す。Node 標準の `node:http` で、フレームワークは入れない（[ADR-008](adr/ADR-008-tech-stack.md)）。`dg serve` が起動し、既定で `127.0.0.1:7474` に閉じる。
 
-エンドポイントは `app.ts` の冒頭のコメントが正本。
-
-- エラーは HTTP の状態に写す：入力の誤り 400、`NOT_FOUND` 404、初期化前 503、それ以外の拒否 409、想定外 500。本文は `{ ok: false, error: { code, message, detail? } }`
-- 文脈の管理は core の `createLocalClient`（`commands/local.ts`）が持つ：画面からの操作は常に人（[ADR-006](adr/ADR-006-ui-and-writes.md)）、`init` は出さない、呼び出しは 1 つずつ順に処理し、毎回 `Store.rescan()` で他のプロセスの変更を取り込む。`server` と `vscode` はこれを HTTP と postMessage に写すだけ
+エンドポイントとエラーの HTTP の状態への写し方は `app.ts` が正本。文脈の管理（主体・直列化・再走査）は core の `createLocalClient`（`commands/local.ts` の冒頭）が持ち、`server` と `vscode` はこれを HTTP と postMessage に写すだけ。
 
 ### `packages/web`（`@deguboard/web`）
 
-画面の React アプリ。構成の判断は [ADR-008](adr/ADR-008-tech-stack.md)。core からは型と `CommandClient`（`core/commands/client.ts`）だけを取り込み、実行時のコードは取り込まない（`import type` だけ。Vite が node のモジュールを束ねないため）。`src/` のファイル：
-
-| ファイル            | 役割                                                                                                                           |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `client/http.ts`    | `CommandClient` の HTTP 実装。`/api/commands/<name>` と `/api/status` を呼び、失敗は `ClientError`（code と message）          |
-| `client/webview.ts` | postMessage 実装。形は core の `WebviewRequest` / `WebviewResponse` / `WebviewEvent`                                           |
-| `app.tsx`           | 骨組み。上のバー（Project と画面の切り替え・同期の印）と、ハッシュで選んだページ                                               |
-| `host.tsx`          | `surface` と、チケットをエディタで開く働きかけ。拡張ホストからの通知（同期・遷移）を store に結ぶ                              |
-| `store.tsx`         | 選んだ Project のチケット・Epic・Iteration・Plan・Workflow と同期の状態を読み、書き込み（`run`）のあとに読み直す               |
-| `router.ts`         | ハッシュの解析（`#/board?epic=e1`、`#/tickets/t12` など）                                                                      |
-| `pages/`            | カンバン（UI-2）・バックログ（UI-3）・チケット詳細（UI-4）・Epic（UI-10）・Iteration（UI-5）・履歴（UI-5）・Run と集計（UI-9） |
-| `components/`       | 小さな表示部品（チケットへのリンク、優先度・Status の印、ラベル、進捗）と、チケット詳細の節（経過・Run）                       |
-| `ui-state.ts`       | 見た目の状態（節の開閉・最後に選んだ Iteration）。Webview では `getState` / `setState`、ブラウザでは `localStorage` に置く     |
-| `markdown.tsx`      | 本文の最小の Markdown（見出し・段落・箇条書き・チェックリスト・インラインコード）                                              |
-| `styles.css`        | `--vscode-*` 変数を基準にしたテーマ。`:root` の値はブラウザで開いたときの既定で、Webview では VS Code の値が勝つ               |
+画面の React アプリ。構成の判断は [ADR-008](adr/ADR-008-tech-stack.md)。core からは型と `CommandClient`（`core/commands/client.ts`）だけを取り込み、実行時のコードは取り込まない（`import type` だけ。Vite が node のモジュールを束ねないため）。`CommandClient` の実装は `client/` に HTTP と postMessage の 2 つ、画面は `pages/`、状態は `store.tsx`、画面の切り替えはハッシュ（`router.ts`）。各ファイルの役割は冒頭のコメントが正本。
 
 型検査は `tsconfig.json` を別に持つ（DOM と JSX が要るため）。ビルドは Vite で `dist/` に出し、`dg serve` は cli に写した `web/` を配信する（`cli/program.ts` の `webDist`）。テストは `// @vitest-environment jsdom` を付け、`test-helpers.ts` の `mockClient` で `CommandClient` を差し替える。
 
@@ -147,13 +120,7 @@ core の `commands` を HTTP に写す。Node 標準の `node:http` で、フレ
 
 ### `packages/vscode`（`deguboard-vscode`）
 
-VS Code 拡張。拡張ホストから core の `createLocalClient` を呼び、Webview に web のビルド結果を載せる。サーバーは起動せず、`dg` は同梱しない（[ADR-006](adr/ADR-006-ui-and-writes.md)）。`src/` のファイル：
-
-| ファイル       | 役割                                                                                                                 |
-| -------------- | -------------------------------------------------------------------------------------------------------------------- |
-| `extension.ts` | 入口。サイドバーのビューと詳細のパネルに web を載せ、要求を `webview.ts` に通す。VS Code の API に触れるのはここだけ |
-| `webview.ts`   | `index.html` を Webview 向けに直す（URI・CSP・nonce・`surface` の data 属性）、要求を `CommandClient` に通す、バッジ |
-| `dg.ts`        | PATH の `dg` を引く 1 か所。ないときはインストールの案内、同梱の core とメジャーが違えば知らせる（UI-11）            |
+VS Code 拡張。拡張ホストから core の `createLocalClient` を呼び、Webview に web のビルド結果を載せる。サーバーは起動せず、`dg` は同梱しない（[ADR-006](adr/ADR-006-ui-and-writes.md)）。VS Code の API に触れるのは入口の `extension.ts` だけで、Webview に載せる純粋な処理は `webview.ts`、PATH の `dg` を引くのは `dg.ts`。
 
 ビルドは Vite で `dist/extension.cjs` に束ね、web の `dist` を `dist/web` に写す（[ADR-008](adr/ADR-008-tech-stack.md)）。同梱する core の版は `vite.config.ts` の `define` で埋める。手元で動かすには `mise run build` のあと VS Code で `packages/vscode` を開いて F5（拡張開発ホスト）、Activity Bar の deguboard のアイコン。
 
