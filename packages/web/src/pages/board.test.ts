@@ -120,6 +120,34 @@ describe("左パネルのカンバンの行の Plan の番号と待ち", () => {
     });
   });
 
+  it("Plan の after に加えて、終わっていない depends_on（Plan の外のもの・after に書かれていないもの）も待ちの相手に入れる", () => {
+    const withDeps = [
+      ticket({ id: "t1", status: "done" }),
+      ticket({ id: "t2", status: "in_progress" }),
+      // Plan の外：t8 は終わっていない、t9 は abandoned
+      ticket({ id: "t8", status: "review" }),
+      ticket({ id: "t9", status: "abandoned" }),
+      // depends_on だけで Plan の外の t8 を待つ（after はない）
+      ticket({ id: "t3", depends_on: ["t1", "t8", "t9"] }),
+      // after で t2 を待ち、depends_on でも t2 と Plan の中の t5 を待つ（重ねて数えない）
+      ticket({ id: "t4", depends_on: ["t2", "t5"] }),
+      ticket({ id: "t5" }),
+      // 読み込んでいないチケット（別の Project など）への depends_on は数えない
+      ticket({ id: "t6", depends_on: ["t99"] }),
+    ];
+    const marks = kanbanPlanMarks(
+      [plan({ id: "p1", tickets: ["t2", "t3", "t4", "t5", "t6"], after: { t4: ["t2"] } })],
+      withDeps,
+    );
+    expect(Object.fromEntries(marks)).toEqual({
+      t2: { plan: "p1", waitingOn: [] },
+      t3: { plan: "p1", waitingOn: ["t8"] },
+      t4: { plan: "p1", waitingOn: ["t2", "t5"] },
+      t5: { plan: "p1", waitingOn: [] },
+      t6: { plan: "p1", waitingOn: [] },
+    });
+  });
+
   it("待ちの相手は 1 件なら番号、2 件以上なら先頭と残りの件数で書く", () => {
     expect(waitLabel(["t137"])).toBe("t137 待ち");
     expect(waitLabel(["t2", "t3", "t9"])).toBe("t2+2 待ち");

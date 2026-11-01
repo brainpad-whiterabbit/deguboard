@@ -4,7 +4,7 @@
 // Iteration が 1 つもない Project では Iteration で絞らず、全チケットのカンバンにする。絞り込みの値はハッシュに持つ。
 // VS Code の左パネル（surface=sidebar）では、見出しを 2 段と進みの帯に詰め（Iteration の選択欄に「+ Iteration を作る」を入れる）、
 // 詳細・…・開始・閉じるは出さない。絞り込みは見出しの下の 1 行にし、状態の節はペイン風の見出しにする。
-// 左パネルの行の右端には、開いた Plan に入っているチケットなら Plan の番号と、todo なら着手可か待ちの相手を出す。
+// 左パネルの行の右端には、開いた Plan に入っているチケットなら Plan の番号と、todo なら着手可か待ちの相手（Plan の after とチケットの depends_on）を出す。
 // 入っている Iteration か Epic が閉じた done・abandoned のチケットは出さない（履歴でたどる）。
 // 節の開閉・最後に選んだ Iteration は host.state に覚える。
 // ドラッグ＆ドロップは ticket.move を呼び、拒否されたら通知に理由を出して元の列に戻す（読み直すだけで戻る）
@@ -508,27 +508,41 @@ function Column({
   );
 }
 
-/** 左パネルのカンバンの行に出す、チケットが入っている開いた Plan と、Plan の中で残っている待ちの相手 */
+/** 左パネルのカンバンの行に出す、チケットが入っている開いた Plan と、残っている待ちの相手 */
 export interface PlanMark {
   plan: string;
-  /** after の待ちのうち done・abandoned でないもの（planGraph の waitingOn） */
+  /**
+   * done・abandoned でない待ちの相手。Plan の after の待ち（planGraph の waitingOn）を先に、
+   * チケットの depends_on（Plan の外のものと、after に書かれていないもの）を後に並べる。空なら着手できる（core の depsDone と同じ）
+   */
   waitingOn: string[];
 }
 
-/** 開いた Plan に入っているチケットごとの PlanMark。待ちは Plan ごとに planGraph で求める */
+const FINISHED_STATUSES: ReadonlySet<Status> = new Set(["done", "abandoned"]);
+
+/**
+ * 開いた Plan に入っているチケットごとの PlanMark。after の待ちは Plan ごとに planGraph で求め、depends_on の待ちを足す。
+ * depends_on の相手が読み込んだチケット（今の Project）にないときは、状態がわからないので待ちに数えない
+ */
 export function kanbanPlanMarks(
   plans: readonly PlanRow[],
   tickets: readonly Ticket[],
   planOf: ReadonlyMap<string, string> = openPlanByTicket(plans),
 ): Map<string, PlanMark> {
-  const byId = new Map(tickets.map((t) => [t.id, t]));
+  // キーをチケットの ID の型（t の番号）のままにすると depends_on・after の文字列で引けないので、文字列に広げる
+  const byId = new Map<string, Ticket>(tickets.map((t) => [t.id, t]));
   const marks = new Map<string, PlanMark>();
   for (const plan of plans) {
     if (plan.status === "closed") continue;
     for (const node of planGraph(plan, byId).nodes) {
-      if (planOf.get(node.id) === plan.id) {
-        marks.set(node.id, { plan: plan.id, waitingOn: node.waitingOn });
-      }
+      if (planOf.get(node.id) !== plan.id) continue;
+      const deps = byId.get(node.id)!.depends_on.filter((dep) => {
+        const status = byId.get(dep)?.status;
+        return (
+          status !== undefined && !FINISHED_STATUSES.has(status) && !node.waitingOn.includes(dep)
+        );
+      });
+      marks.set(node.id, { plan: plan.id, waitingOn: [...node.waitingOn, ...deps] });
     }
   }
   return marks;
@@ -542,7 +556,7 @@ export function waitLabel(waitingOn: readonly string[]): string {
 
 /**
  * 左パネルのカンバンの行の右端（開いた Plan に入っているチケット）。縦に 2 段で、上に Plan の番号を Plan の色で、
- * 下に todo なら着手可か待ちの相手、todo でなければ優先度の印を出す。
+ * 下に todo なら着手可か待ちの相手（after と depends_on の終わっていないもの）、todo でなければ優先度の印を出す。
  * todo で優先度の印（high・low）もあるときは、優先度の印を上の段の Plan の番号の左に寄せる
  */
 function PlanRowEnd({ ticket, mark }: { ticket: Ticket; mark: PlanMark }) {
