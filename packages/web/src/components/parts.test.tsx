@@ -4,8 +4,15 @@ import { HostProvider } from "../host.js";
 import { createUiState, memoryBackend } from "../ui-state.js";
 import { afterEach, describe, expect, it } from "vitest";
 import { StoreProvider } from "../store.js";
-import { mockClient } from "../test-helpers.js";
-import { ProgressBar, StatusDot, TicketTable, sameAssignee } from "./parts.js";
+import {
+  ActivityMark,
+  ProgressBar,
+  StatusDot,
+  TicketRow,
+  TicketTable,
+  sameAssignee,
+} from "./parts.js";
+import { mockClient, ticket } from "../test-helpers.js";
 
 afterEach(cleanup);
 
@@ -100,5 +107,39 @@ describe("状態の印と空の一覧", () => {
   it("空の一覧は破線の枠（.empty）で出す", async () => {
     mount(<TicketTable tickets={[]} />);
     expect((await screen.findByText("該当するチケットはない")).className).toBe("empty");
+  });
+});
+
+describe("カンバンの行の頭の印", () => {
+  it("running は回るリング、idle は止まった半分塗りの丸で、読み上げ用の名前を持つ", async () => {
+    mount(
+      <>
+        <ActivityMark activity="running" />
+        <ActivityMark activity="idle" />
+      </>,
+    );
+    const ring = await screen.findByRole("img", { name: "Run が実行中" });
+    expect(ring.className).toBe("activity-mark activity-running");
+    const half = screen.getByRole("img", { name: "着手済み（実行中の Run なし）" });
+    expect(half.className).toBe("activity-mark activity-idle");
+  });
+
+  it("kanban の行は head を番号の前に出して has-head を付け、list の行は head を使わず丸印を出す", async () => {
+    const t = ticket({ id: "t1", status: "in_progress" });
+    mount(
+      <>
+        <TicketRow ticket={t} variant="kanban" head={<ActivityMark activity="idle" />} />
+        <TicketRow ticket={t} head={<ActivityMark activity="idle" />} />
+        <TicketRow ticket={t} variant="kanban" />
+      </>,
+    );
+    await screen.findAllByText("t1");
+    const [withHead, list, plain] = [...document.querySelectorAll(".ticket-row")];
+    expect(withHead!.classList.contains("has-head")).toBe(true);
+    expect(withHead!.firstElementChild!.classList.contains("activity-idle")).toBe(true);
+    expect(list!.querySelector(".activity-mark")).toBeNull();
+    expect(list!.firstElementChild!.classList.contains("status-dot")).toBe(true);
+    expect(plain!.classList.contains("has-head")).toBe(false);
+    expect(plain!.firstElementChild!.tagName).toBe("CODE");
   });
 });

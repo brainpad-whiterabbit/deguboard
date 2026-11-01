@@ -24,7 +24,8 @@ const host = createHost(surface, webviewClient, uiState);
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     {/* Webview では前回の一覧を getState に残し、次に開いたときすぐ描く（ブラウザでは残さない） */}
-    <StoreProvider client={client} cache={uiState}>
+    {/* 実行中の Run は左パネルのカンバンの行の印にだけ使うので、左パネルのときだけ読む */}
+    <StoreProvider client={client} cache={uiState} readRunning={surface === "sidebar"}>
       <HostProvider host={host}>
         {webviewClient ? <HostBridge client={webviewClient} /> : null}
         <App />

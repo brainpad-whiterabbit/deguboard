@@ -1,7 +1,10 @@
 // 画面の状態。選んだ Project のチケット・Epic・Iteration・Plan・Workflow と同期の状態を CommandClient から読み、書き込みのあとに読み直す。
 // 状態管理のライブラリは入れず、React の context だけで持つ。
 // cache を渡すと（VS Code の Webview）、読み終えた一覧を残しておき、次に開いたときはそれをすぐ描いてから読み直して差し替える。
-// 最初の読み込みは core の中で 1 本ずつ処理されるコマンドが 7 本並び、サイドバーとパネルが同じ列を使うので、その間を空の画面にしない
+// 最初の読み込みは core の中で 1 本ずつ処理されるコマンドが 7 本並び、サイドバーとパネルが同じ列を使うので、その間を空の画面にしない。
+// 実行中の Run（run.list の running だけ。このマシンの deguboard-local/runs/ を読むだけで、終わった Run の集計は読まない）は、
+// readRunning のとき（左パネルのカンバンの行の印に使う）だけ、ほかの一覧を描いた後に遅れて読む。
+// チケットの ID の集まりだけを持ち、cache には残さない（前回の「実行中」を次に開いたときに出さない）
 
 import type { CommandClient, CommandFailure, StatusView } from "@deguboard/core";
 import {
@@ -20,6 +23,7 @@ import type {
   Iteration,
   PlanRow,
   Project,
+  RunView,
   Status,
   Ticket,
   WorkflowView,
@@ -59,6 +63,8 @@ export interface Store {
   iterations: Iteration[];
   plans: PlanRow[];
   workflow: WorkflowView | null;
+  /** 実行中（running）の Run があるチケットの ID。読み終えるまでと、readRunning でないときは null */
+  runningTickets: ReadonlySet<string> | null;
   status: StatusView | null;
   loading: boolean;
   /** 最初の読み込みが終わったか。終わるまで画面は空状態の文言を出さない */
@@ -81,11 +87,14 @@ const STATUS_POLL_MS = 15_000;
 export function StoreProvider({
   client,
   cache,
+  readRunning = false,
   children,
 }: {
   client: CommandClient;
   /** 前回の一覧の置き場。渡さなければ（ブラウザ）残さない */
   cache?: UiState | undefined;
+  /** 実行中の Run を読む（左パネル。カンバンの行の印に使う） */
+  readRunning?: boolean | undefined;
   children: ReactNode;
 }) {
   const [cached] = useState(() => cache?.get<Snapshot>(SNAPSHOT_KEY));
@@ -96,6 +105,9 @@ export function StoreProvider({
   const [iterations, setIterations] = useState<Iteration[]>(cached?.iterations ?? []);
   const [plans, setPlans] = useState<PlanRow[]>(cached?.plans ?? []);
   const [workflow, setWorkflow] = useState<WorkflowView | null>(cached?.workflow ?? null);
+  const [runningTickets, setRunningTickets] = useState<ReadonlySet<string> | null>(null);
+  // 読み直しが重なったとき、古い読み直しの実行中の Run で上書きしない
+  const runningSeq = useRef(0);
   const [status, setStatus] = useState<StatusView | null>(null);
   const [loading, setLoading] = useState(true);
   // 前回の一覧があれば、それを読み終えたものとして先に描く
@@ -158,6 +170,17 @@ export function StoreProvider({
         workflow: w.data,
       } satisfies Snapshot);
       void refreshStatus();
+      if (readRunning) {
+        // 行の印（UI-2）のためだけなので、ほかの一覧を描くのを待たせない。読めなければ前の値のまま（最初なら印を出さない）
+        const seq = ++runningSeq.current;
+        void client
+          .run<RunView[]>("run.list", { project, running: true })
+          .then((res) => {
+            if (seq === runningSeq.current)
+              setRunningTickets(new Set(res.data.map((r) => r.ticket)));
+          })
+          .catch(() => {});
+      }
     } catch (error) {
       const f = failureOf(error);
       setNotice({ kind: "error", text: f.message, detail: f.detail });
@@ -165,7 +188,7 @@ export function StoreProvider({
       setLoading(false);
       setLoaded(true);
     }
-  }, [client, cache, refreshStatus]);
+  }, [client, cache, readRunning, refreshStatus]);
 
   useEffect(() => {
     void reload();
@@ -211,6 +234,7 @@ export function StoreProvider({
       iterations,
       plans,
       workflow,
+      runningTickets,
       status,
       loading,
       loaded,
@@ -230,6 +254,7 @@ export function StoreProvider({
       iterations,
       plans,
       workflow,
+      runningTickets,
       status,
       loading,
       loaded,

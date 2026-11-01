@@ -4,6 +4,7 @@ import { plan } from "../test-helpers.js";
 import {
   hideClosedFinished,
   kanbanPlanMarks,
+  rowActivity,
   shortPeriod,
   ticketProgress,
   waitLabel,
@@ -155,5 +156,21 @@ describe("左パネルのカンバンの行の Plan の番号と待ち", () => {
     expect(waitLabel(["t137"])).toBe("t137 待ち");
     expect(waitLabel(["t2", "t3", "t9"])).toBe("t2+2 待ち");
     expect(waitLabel([])).toBe("");
+  });
+});
+
+describe("左パネルのカンバンの行の頭の印", () => {
+  const running = new Set(["t1", "t3"]);
+
+  it("実行中の Run があれば Status によらず running、なければ in_progress だけ idle で、ほかは出さない", () => {
+    expect(rowActivity({ id: "t1", status: "in_progress" }, running)).toBe("running");
+    expect(rowActivity({ id: "t3", status: "review" }, running)).toBe("running");
+    expect(rowActivity({ id: "t2", status: "in_progress" }, running)).toBe("idle");
+    expect(rowActivity({ id: "t4", status: "todo" }, running)).toBeUndefined();
+    expect(rowActivity({ id: "t5", status: "done" }, new Set())).toBeUndefined();
+  });
+
+  it("実行中の Run を読み終えるまで（null）は、in_progress でも出さない", () => {
+    expect(rowActivity({ id: "t2", status: "in_progress" }, null)).toBeUndefined();
   });
 });

@@ -5,6 +5,7 @@
 // VS Code の左パネル（surface=sidebar）では、見出しを 2 段と進みの帯に詰め（Iteration の選択欄に「+ Iteration を作る」を入れる）、
 // 詳細・…・開始・閉じるは出さない。絞り込みは見出しの下の 1 行にし、状態の節はペイン風の見出しにする。
 // 左パネルの行の右端には、開いた Plan に入っているチケットなら Plan の番号と、todo なら着手可か待ちの相手（Plan の after とチケットの depends_on）を出す。
+// 左パネルの行の頭には、実行中の Run があるチケットなら回るリング（右端の下の段に「実行中」）を、実行中の Run のない in_progress なら止まった半分塗りの丸を出す。
 // 入っている Iteration か Epic が閉じた done・abandoned のチケットは出さない（履歴でたどる）。
 // 節の開閉・最後に選んだ Iteration は host.state に覚える。
 // ドラッグ＆ドロップは ticket.move を呼び、拒否されたら通知に理由を出して元の列に戻す（読み直すだけで戻る）
@@ -20,9 +21,11 @@ import {
 } from "@dnd-kit/core";
 import { useMemo, useState } from "react";
 import {
+  ActivityMark,
   DraggableRow,
   PriorityBadge,
   RowPriority,
+  type RowActivity,
   StatusBand,
   StatusDot,
   Tags,
@@ -484,6 +487,8 @@ function Column({
           <div className="rows">
             {tickets.map((t) => {
               const mark = planMarks.get(t.id);
+              const activity = rowActivity(t, store.runningTickets);
+              const running = activity === "running";
               return (
                 <DraggableRow
                   key={t.id}
@@ -491,7 +496,12 @@ function Column({
                   hideAssignee={hideAssignee}
                   flash={flashing.has(t.id)}
                   variant="kanban"
-                  end={mark ? <PlanRowEnd ticket={t} mark={mark} /> : undefined}
+                  head={activity ? <ActivityMark activity={activity} /> : undefined}
+                  end={
+                    mark || running ? (
+                      <KanbanRowEnd ticket={t} mark={mark} running={running} />
+                    ) : undefined
+                  }
                 />
               );
             })}
@@ -556,6 +566,19 @@ export function kanbanPlanMarks(
   return marks;
 }
 
+/**
+ * 左パネルのカンバンの行の頭の印：実行中の Run があれば running（Status によらない）、なければ in_progress だけ idle、ほかは出さない。
+ * 実行中の Run を読み終えるまで（null）は出さない（開いた直後に実行中のチケットへ反対の意味の idle を出さないように）
+ */
+export function rowActivity(
+  ticket: Pick<Ticket, "id" | "status">,
+  runningTickets: ReadonlySet<string> | null,
+): RowActivity | undefined {
+  if (!runningTickets) return undefined;
+  if (runningTickets.has(ticket.id)) return "running";
+  return ticket.status === "in_progress" ? "idle" : undefined;
+}
+
 /** 待ちの相手の短い書き方：1 件なら「t137 待ち」、2 件以上なら先頭と残りの件数で「t137+1 待ち」、なければ空文字 */
 export function waitLabel(waitingOn: readonly string[]): string {
   const [first, ...rest] = waitingOn;
@@ -564,13 +587,22 @@ export function waitLabel(waitingOn: readonly string[]): string {
 }
 
 /**
- * 左パネルのカンバンの行の右端（開いた Plan に入っているチケット）。縦に 2 段で、上に Plan の番号を Plan の色で、
- * 下に todo なら承認待ち（Plan が承認待ち）・待ちの相手（after と depends_on の終わっていないもの）・着手可、
- * todo でなければ優先度の印を出す。todo で優先度の印（high・low）もあるときは、優先度の印を上の段の Plan の番号の左に寄せる
+ * 左パネルのカンバンの行の右端（開いた Plan に入っているか、実行中の Run があるチケット）。縦に 2 段で、上に Plan の番号を Plan の色で、
+ * 下に実行中の Run があれば「実行中」（Plan の外の行でも）、なければ todo なら承認待ち（Plan が承認待ち）・
+ * 待ちの相手（after と depends_on の終わっていないもの）・着手可、どれでもなければ優先度の印を出す。
+ * 下の段に優先度の印でないものを出すときに優先度の印（high・low）もあれば、優先度の印を上の段の Plan の番号の左に寄せる
  */
-function PlanRowEnd({ ticket, mark }: { ticket: Ticket; mark: PlanMark }) {
+function KanbanRowEnd({
+  ticket,
+  mark,
+  running,
+}: {
+  ticket: Ticket;
+  mark: PlanMark | undefined;
+  running: boolean;
+}) {
   const readiness =
-    ticket.status !== "todo" ? null : mark.pending ? (
+    !mark || ticket.status !== "todo" ? null : mark.pending ? (
       <span className="row-wait" title={`${mark.plan} は人の承認を待っている`}>
         承認待ち
       </span>
@@ -581,16 +613,29 @@ function PlanRowEnd({ ticket, mark }: { ticket: Ticket; mark: PlanMark }) {
         {waitLabel(mark.waitingOn)}
       </span>
     );
+  // 実行中の Run があれば、todo でも着手可・待ちより「実行中」を出す（手が動いていることの方が大事なので）
+  const sub = running ? (
+    <span className="row-running" title="このマシンで Run が実行中">
+      実行中
+    </span>
+  ) : (
+    readiness
+  );
   const priority = <RowPriority priority={ticket.priority} variant="kanban" />;
   return (
     <span className="row-end">
       <span className="row-end-top">
-        {readiness ? priority : null}
-        <span className={`row-plan plan-color-${planColor(mark.plan)}`} title={`Plan ${mark.plan}`}>
-          {mark.plan}
-        </span>
+        {sub ? priority : null}
+        {mark ? (
+          <span
+            className={`row-plan plan-color-${planColor(mark.plan)}`}
+            title={`Plan ${mark.plan}`}
+          >
+            {mark.plan}
+          </span>
+        ) : null}
       </span>
-      <span className="row-end-sub">{readiness ?? priority}</span>
+      <span className="row-end-sub">{sub ?? priority}</span>
     </span>
   );
 }

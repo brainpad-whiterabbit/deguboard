@@ -130,7 +130,12 @@ describe("Run の画面", () => {
   it("選んだ Project で絞った run.list の Run を実行中と完了に分けて出し、時間は返った duration_seconds を出す。上のバーに Run のタブがある", async () => {
     const client = setup();
     await screen.findByText("r20261101-010000-aaaa");
-    expect(client.calls.find((c) => c.name === "run.list")?.input).toEqual({ project: "default" });
+    // store の読み直しも行の印のために running だけの run.list を呼ぶので、Run の画面の呼び出しを引く
+    expect(
+      client.calls.some(
+        (c) => c.name === "run.list" && JSON.stringify(c.input) === '{"project":"default"}',
+      ),
+    ).toBe(true);
     expect(screen.getByRole("link", { name: "Run" }).getAttribute("aria-current")).toBe("page");
     expect(screen.getByText("実行中 1 ・ 完了 1")).toBeTruthy();
     const [runningTable, , finishedTable] = screen.getAllByRole("table");

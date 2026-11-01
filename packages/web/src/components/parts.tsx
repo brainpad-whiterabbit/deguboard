@@ -269,6 +269,25 @@ export function StatusDot({ status }: { status: Status }) {
   );
 }
 
+/** カンバンの行の頭の印の種類。running は実行中の Run がある、idle は実行中の Run のない in_progress */
+export type RowActivity = "running" | "idle";
+
+/**
+ * カンバンの行の頭の印（UI-2）。running は回るリング、idle は止まった半分塗りの丸。色は --dg-status-in_progress。
+ * 動きを減らす設定ではリングを回さない（styles.css）
+ */
+export function ActivityMark({ activity }: { activity: RowActivity }) {
+  const label = activity === "running" ? "Run が実行中" : "着手済み（実行中の Run なし）";
+  return (
+    <span
+      className={`activity-mark activity-${activity}`}
+      role="img"
+      aria-label={label}
+      title={label}
+    />
+  );
+}
+
 /**
  * 行の種類。list は一覧（バックログ・履歴など）の行、kanban はカンバンの行
  * （状態は節で分かるので丸印を出さず、優先度は high に加えて low も小さく出す）
@@ -297,7 +316,8 @@ export function RowPriority({
 /**
  * チケットの 1 行（サイドバー向け）：状態の丸印・番号・タイトル・担当者・右端（既定は優先度の印）。
  * サイドバーではタイトルを 2 行まで折り返す（styles.css）。hideAssignee で担当者を出さない（見えている行の担当が 1 人だけのとき）。
- * variant で行の種類を選ぶ（TicketRowVariant）。end を渡すと右端の優先度の印の代わりにそれを出す（カンバンの行の Plan の番号と待ちなど）
+ * variant で行の種類を選ぶ（TicketRowVariant）。end を渡すと右端の優先度の印の代わりにそれを出す（カンバンの行の Plan の番号と待ちなど）。
+ * head を渡すとカンバンの行の頭（list の行の丸印の位置）にそれを出す（Run の実行中の印。ActivityMark）
  */
 export function TicketRow({
   ticket,
@@ -305,6 +325,7 @@ export function TicketRow({
   hideAssignee = false,
   flash = false,
   variant = "list",
+  head,
   end,
 }: {
   ticket: Ticket;
@@ -313,17 +334,20 @@ export function TicketRow({
   /** 前回の描画から変わった行として枠を点滅させる（カンバンのサイドバー。change-flash.ts） */
   flash?: boolean | undefined;
   variant?: TicketRowVariant | undefined;
+  /** 頭の差し込み口（kanban の行だけ）。渡さなければ頭に何も出さない */
+  head?: ReactNode;
   /** 右端の差し込み口。渡さなければ優先度の印（RowPriority） */
   end?: ReactNode;
 }) {
   const kanban = variant === "kanban";
+  const withHead = kanban && head != null;
   return (
     <TicketLink
       id={ticket.id}
-      className={`row ticket-row status-${ticket.status}${kanban ? " kanban-row" : ""}${flash ? " changed" : ""}`}
+      className={`row ticket-row status-${ticket.status}${kanban ? " kanban-row" : ""}${withHead ? " has-head" : ""}${flash ? " changed" : ""}`}
       onClick={onClick}
     >
-      {kanban ? null : <StatusDot status={ticket.status} />}
+      {kanban ? withHead ? head : null : <StatusDot status={ticket.status} />}
       <code>{ticket.id}</code>
       <span className="row-title" title={ticket.title}>
         {ticket.title}
@@ -378,18 +402,20 @@ export function sameAssignee(tickets: readonly Pick<Ticket, "assignee">[]): bool
   return !!first && tickets.every((t) => t.assignee === first);
 }
 
-/** 1 行のチケット（サイドバー）。行全体をつかんで動かす。variant と end は TicketRow に渡す */
+/** 1 行のチケット（サイドバー）。行全体をつかんで動かす。variant・head・end は TicketRow に渡す */
 export function DraggableRow({
   ticket,
   hideAssignee,
   flash,
   variant,
+  head,
   end,
 }: {
   ticket: Ticket;
   hideAssignee?: boolean | undefined;
   flash?: boolean | undefined;
   variant?: TicketRowVariant | undefined;
+  head?: ReactNode;
   end?: ReactNode;
 }) {
   const d = useDraggableTicket(ticket.id);
@@ -405,6 +431,7 @@ export function DraggableRow({
         hideAssignee={hideAssignee}
         flash={flash}
         variant={variant}
+        head={head}
         end={end}
       />
     </div>
