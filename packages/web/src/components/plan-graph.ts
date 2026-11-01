@@ -69,6 +69,8 @@ export interface GraphNode {
   status: Status;
   /** 待ちに done・abandoned でないものが残る */
   waiting: boolean;
+  /** 残っている待ちの相手（after の順。waiting なら 1 件以上） */
+  waitingOn: string[];
 }
 
 export interface GraphEdge {
@@ -118,12 +120,14 @@ export function planGraph(plan: PlanRow, byId: ReadonlyMap<string, Ticket>): Pla
     const layer = layerOf(id);
     const row = counts[layer] ?? 0;
     counts[layer] = row + 1;
+    const waitingOn = waitsOf(id).filter((dep) => !FINISHED.has(byId.get(dep)!.status));
     return {
       id,
       layer,
       row,
       status: byId.get(id)!.status,
-      waiting: waitsOf(id).some((dep) => !FINISHED.has(byId.get(dep)!.status)),
+      waiting: waitingOn.length > 0,
+      waitingOn,
     };
   });
   const edges = ids.flatMap((to) =>

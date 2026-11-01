@@ -9,7 +9,7 @@ import type { WebviewEvent } from "@deguboard/core";
 import { HostBridge, HostProvider, type Host } from "./host.js";
 import type { Route } from "./router.js";
 import { StoreProvider } from "./store.js";
-import { fixture, iteration, mockClient, ticket } from "./test-helpers.js";
+import { fixture, iteration, mockClient, plan, ticket } from "./test-helpers.js";
 import type { RunView } from "./types.js";
 import { createUiState, memoryBackend } from "./ui-state.js";
 
@@ -497,6 +497,56 @@ describe("画面", () => {
     expect(rowOf("画面").classList.contains("kanban-row")).toBe(false);
     expect(rowOf("画面").querySelector(".status-dot")).toBeTruthy();
     expect(rowOf("画面").querySelector(".row-low")).toBeNull();
+  });
+
+  it("サイドバーのカンバンの行は、開いた Plan に入っていれば右端に Plan の番号を Plan の色で出し、todo なら着手可か待ちの相手を出す。バックログの行は変わらない", async () => {
+    const client = mockClient();
+    client.data.tickets.push(
+      ticket({ id: "t4", title: "待つ", priority: "high" }),
+      ticket({ id: "t5", title: "外", priority: "low" }),
+      ticket({ id: "t6", title: "閉じた計画" }),
+    );
+    client.data.plans.push(
+      plan({
+        id: "p7",
+        tickets: ["t1", "t2", "t3", "t4"],
+        after: { t3: ["t1"], t4: ["t2", "t3"] },
+      }),
+      plan({ id: "p8", tickets: ["t6"], status: "closed" }),
+    );
+    mount(client, webviewHost("sidebar"));
+    await screen.findByText("待つ");
+    // 帯にも同じ題が出るので、チケットの行の題で引く
+    const rowOf = (title: string) =>
+      [...document.querySelectorAll(".ticket-row")].find(
+        (r) => r.querySelector(".row-title")!.textContent === title,
+      )!;
+    const endOf = (title: string) => rowOf(title).querySelector(".row-end");
+
+    // in_progress：上に Plan の番号、下に優先度の印
+    const api = endOf("API")!;
+    expect(api.querySelector(".row-plan")!.textContent).toBe("p7");
+    expect(api.querySelector(".row-plan")!.classList.contains("plan-color-2")).toBe(true);
+    expect(api.lastElementChild!.textContent).toBe("high");
+    // todo で待ちが終わっている：着手可
+    expect(endOf("画面")!.querySelector(".row-ready")!.textContent).toBe("着手可");
+    // todo で待ちが残る：先頭の相手と残りの件数。優先度の印は上の段の Plan の番号の左
+    const wait = endOf("待つ")!;
+    expect(wait.querySelector(".row-wait")!.textContent).toBe("t2+1 待ち");
+    expect(wait.querySelector(".row-wait")!.getAttribute("title")).toBe("t2・t3 を待っている");
+    expect(wait.querySelector(".row-end-top")!.textContent).toBe("highp7");
+    // Plan に入っていない・閉じた Plan のチケットは今までどおり優先度の印だけ
+    expect(endOf("外")).toBeNull();
+    expect(rowOf("外").lastElementChild!.textContent).toBe("low");
+    expect(endOf("閉じた計画")).toBeNull();
+
+    cleanup();
+    window.location.hash = "#/backlog";
+    mount(client, webviewHost("sidebar"));
+    await screen.findByText("待つ");
+    expect(document.querySelector(".row-end")).toBeNull();
+    expect(screen.queryByText("着手可")).toBeNull();
+    expect(rowOf("待つ").lastElementChild!.textContent).toBe("high");
   });
 
   it("サイドバーでは同期の印とボタンを出さない（ビューのタイトル行とバッジで代える）", async () => {

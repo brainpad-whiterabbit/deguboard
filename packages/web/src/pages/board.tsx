@@ -4,6 +4,7 @@
 // Iteration が 1 つもない Project では Iteration で絞らず、全チケットのカンバンにする。絞り込みの値はハッシュに持つ。
 // VS Code の左パネル（surface=sidebar）では、見出しを 2 段と進みの帯に詰め（Iteration の選択欄に「+ Iteration を作る」を入れる）、
 // 詳細・…・開始・閉じるは出さない。絞り込みは見出しの下の 1 行にし、状態の節はペイン風の見出しにする。
+// 左パネルの行の右端には、開いた Plan に入っているチケットなら Plan の番号と、todo なら着手可か待ちの相手を出す。
 // 入っている Iteration か Epic が閉じた done・abandoned のチケットは出さない（履歴でたどる）。
 // 節の開閉・最後に選んだ Iteration は host.state に覚える。
 // ドラッグ＆ドロップは ticket.move を呼び、拒否されたら通知に理由を出して元の列に戻す（読み直すだけで戻る）
@@ -21,6 +22,7 @@ import { useMemo, useState } from "react";
 import {
   DraggableRow,
   PriorityBadge,
+  RowPriority,
   StatusBand,
   StatusDot,
   Tags,
@@ -28,7 +30,7 @@ import {
   sameAssignee,
 } from "../components/parts.js";
 import { PlanBand } from "../components/plan-band.js";
-import { openPlanByTicket, planColor } from "../components/plan-graph.js";
+import { openPlanByTicket, planColor, planGraph } from "../components/plan-graph.js";
 import { useChangeFlash } from "../components/change-flash.js";
 import { useHost, useUiState } from "../host.js";
 import { hrefOf, navigate, NO_ITERATION, type BoardQuery } from "../router.js";
@@ -45,6 +47,7 @@ import {
   type Epic,
   type EpicProgress,
   type Iteration,
+  type PlanRow,
   type Status,
   type Ticket,
 } from "../types.js";
@@ -122,6 +125,10 @@ export function BoardPage({ query }: { query: BoardQuery }) {
   // 見えている行の担当が 1 人だけなら、サイドバーの行に担当を出さない（同じ名前が全行に並ぶだけなので）
   const hideAssignee = sameAssignee(tickets);
   const planOf = useMemo(() => openPlanByTicket(store.plans), [store.plans]);
+  const planMarks = useMemo(
+    () => kanbanPlanMarks(store.plans, store.tickets, planOf),
+    [store.plans, store.tickets, planOf],
+  );
 
   // サイドバーでは、前回の描画から Status か Iteration が変わった行を点滅させる（UI-2。CLI やエージェントの書き込みに気づけるように）
   const sidebar = host.surface === "sidebar";
@@ -246,6 +253,7 @@ export function BoardPage({ query }: { query: BoardQuery }) {
               status={status}
               tickets={tickets.filter((t) => t.status === status)}
               planOf={planOf}
+              planMarks={planMarks}
               hideAssignee={hideAssignee}
               flashing={flash.flashing}
               // 完了は既定で畳む（どの surface でも。開いた状態は useUiState が保つ）
@@ -258,6 +266,7 @@ export function BoardPage({ query }: { query: BoardQuery }) {
               status="abandoned"
               tickets={abandoned}
               planOf={planOf}
+              planMarks={planMarks}
               hideAssignee={hideAssignee}
               flashing={flash.flashing}
               defaultOpen={false}
@@ -432,6 +441,7 @@ function Column({
   status,
   tickets,
   planOf,
+  planMarks,
   hideAssignee,
   flashing,
   defaultOpen,
@@ -440,6 +450,8 @@ function Column({
   tickets: Ticket[];
   /** チケットが入っている開いた Plan の ID */
   planOf: ReadonlyMap<string, string>;
+  /** 左パネルの行の右端に出す Plan の番号と待ち（kanbanPlanMarks） */
+  planMarks: ReadonlyMap<string, PlanMark>;
   /** サイドバーの行に担当を出さない */
   hideAssignee: boolean;
   /** 点滅させるチケット（サイドバー） */
@@ -470,15 +482,19 @@ function Column({
       {sidebar ? (
         empty ? null : (
           <div className="rows">
-            {tickets.map((t) => (
-              <DraggableRow
-                key={t.id}
-                ticket={t}
-                hideAssignee={hideAssignee}
-                flash={flashing.has(t.id)}
-                kanban
-              />
-            ))}
+            {tickets.map((t) => {
+              const mark = planMarks.get(t.id);
+              return (
+                <DraggableRow
+                  key={t.id}
+                  ticket={t}
+                  hideAssignee={hideAssignee}
+                  flash={flashing.has(t.id)}
+                  variant="kanban"
+                  end={mark ? <PlanRowEnd ticket={t} mark={mark} /> : undefined}
+                />
+              );
+            })}
           </div>
         )
       ) : (
@@ -489,6 +505,66 @@ function Column({
         </div>
       )}
     </details>
+  );
+}
+
+/** 左パネルのカンバンの行に出す、チケットが入っている開いた Plan と、Plan の中で残っている待ちの相手 */
+export interface PlanMark {
+  plan: string;
+  /** after の待ちのうち done・abandoned でないもの（planGraph の waitingOn） */
+  waitingOn: string[];
+}
+
+/** 開いた Plan に入っているチケットごとの PlanMark。待ちは Plan ごとに planGraph で求める */
+export function kanbanPlanMarks(
+  plans: readonly PlanRow[],
+  tickets: readonly Ticket[],
+  planOf: ReadonlyMap<string, string> = openPlanByTicket(plans),
+): Map<string, PlanMark> {
+  const byId = new Map(tickets.map((t) => [t.id, t]));
+  const marks = new Map<string, PlanMark>();
+  for (const plan of plans) {
+    if (plan.status === "closed") continue;
+    for (const node of planGraph(plan, byId).nodes) {
+      if (planOf.get(node.id) === plan.id) {
+        marks.set(node.id, { plan: plan.id, waitingOn: node.waitingOn });
+      }
+    }
+  }
+  return marks;
+}
+
+/** 待ちの相手の短い書き方：1 件なら「t137 待ち」、2 件以上なら先頭と残りの件数で「t137+1 待ち」 */
+export function waitLabel(waitingOn: readonly string[]): string {
+  const [first, ...rest] = waitingOn;
+  return `${first}${rest.length > 0 ? `+${rest.length}` : ""} 待ち`;
+}
+
+/**
+ * 左パネルのカンバンの行の右端（開いた Plan に入っているチケット）。縦に 2 段で、上に Plan の番号を Plan の色で、
+ * 下に todo なら着手可か待ちの相手、todo でなければ優先度の印を出す。
+ * todo で優先度の印（high・low）もあるときは、優先度の印を上の段の Plan の番号の左に寄せる
+ */
+function PlanRowEnd({ ticket, mark }: { ticket: Ticket; mark: PlanMark }) {
+  const readiness =
+    ticket.status !== "todo" ? null : mark.waitingOn.length === 0 ? (
+      <span className="row-ready">着手可</span>
+    ) : (
+      <span className="row-wait" title={`${mark.waitingOn.join("・")} を待っている`}>
+        {waitLabel(mark.waitingOn)}
+      </span>
+    );
+  const priority = <RowPriority priority={ticket.priority} variant="kanban" />;
+  return (
+    <span className="row-end">
+      <span className="row-end-top">
+        {readiness ? priority : null}
+        <span className={`row-plan plan-color-${planColor(mark.plan)}`} title={`Plan ${mark.plan}`}>
+          {mark.plan}
+        </span>
+      </span>
+      {readiness ?? priority}
+    </span>
   );
 }
 

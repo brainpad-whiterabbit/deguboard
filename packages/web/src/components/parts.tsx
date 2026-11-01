@@ -270,24 +270,53 @@ export function StatusDot({ status }: { status: Status }) {
 }
 
 /**
- * チケットの 1 行（サイドバー向け）：状態の丸印・番号・タイトル・担当者・優先度が high なら印。
+ * 行の種類。list は一覧（バックログ・履歴など）の行、kanban はカンバンの行
+ * （状態は節で分かるので丸印を出さず、優先度は high に加えて low も小さく出す）
+ */
+export type TicketRowVariant = "list" | "kanban";
+
+/** 行の右端の優先度の印。high は札、kanban の行では low も小さな灰色の文字で出す。それ以外は空のセル（行の格子の位置を保つ） */
+export function RowPriority({
+  priority,
+  variant = "list",
+}: {
+  priority: Priority;
+  variant?: TicketRowVariant | undefined;
+}) {
+  if (priority === "high") return <PriorityBadge priority="high" />;
+  if (variant === "kanban" && priority === "low") {
+    return (
+      <span className="row-low" title="優先度 low">
+        low
+      </span>
+    );
+  }
+  return <span />;
+}
+
+/**
+ * チケットの 1 行（サイドバー向け）：状態の丸印・番号・タイトル・担当者・右端（既定は優先度の印）。
  * サイドバーではタイトルを 2 行まで折り返す（styles.css）。hideAssignee で担当者を出さない（見えている行の担当が 1 人だけのとき）。
- * kanban はカンバンの行：状態は節で分かるので丸印を出さず、優先度は high に加えて low も小さく出す
+ * variant で行の種類を選ぶ（TicketRowVariant）。end を渡すと右端の優先度の印の代わりにそれを出す（カンバンの行の Plan の番号と待ちなど）
  */
 export function TicketRow({
   ticket,
   onClick,
   hideAssignee = false,
   flash = false,
-  kanban = false,
+  variant = "list",
+  end,
 }: {
   ticket: Ticket;
   onClick?: ComponentProps<"a">["onClick"] | undefined;
   hideAssignee?: boolean | undefined;
   /** 前回の描画から変わった行として枠を点滅させる（カンバンのサイドバー。change-flash.ts） */
   flash?: boolean | undefined;
-  kanban?: boolean | undefined;
+  variant?: TicketRowVariant | undefined;
+  /** 右端の差し込み口。渡さなければ優先度の印（RowPriority） */
+  end?: ReactNode;
 }) {
+  const kanban = variant === "kanban";
   return (
     <TicketLink
       id={ticket.id}
@@ -306,15 +335,7 @@ export function TicketRow({
       ) : (
         <span />
       )}
-      {ticket.priority === "high" ? (
-        <PriorityBadge priority="high" />
-      ) : kanban && ticket.priority === "low" ? (
-        <span className="row-low" title="優先度 low">
-          low
-        </span>
-      ) : (
-        <span />
-      )}
+      {end ?? <RowPriority priority={ticket.priority} variant={variant} />}
     </TicketLink>
   );
 }
@@ -357,17 +378,19 @@ export function sameAssignee(tickets: readonly Pick<Ticket, "assignee">[]): bool
   return !!first && tickets.every((t) => t.assignee === first);
 }
 
-/** 1 行のチケット（サイドバー）。行全体をつかんで動かす。kanban はカンバンの行（TicketRow） */
+/** 1 行のチケット（サイドバー）。行全体をつかんで動かす。variant と end は TicketRow に渡す */
 export function DraggableRow({
   ticket,
   hideAssignee,
   flash,
-  kanban,
+  variant,
+  end,
 }: {
   ticket: Ticket;
   hideAssignee?: boolean | undefined;
   flash?: boolean | undefined;
-  kanban?: boolean | undefined;
+  variant?: TicketRowVariant | undefined;
+  end?: ReactNode;
 }) {
   const d = useDraggableTicket(ticket.id);
   return (
@@ -377,7 +400,13 @@ export function DraggableRow({
       className={`row-drag${d.isDragging ? " dragging" : ""}`}
       {...d.props}
     >
-      <TicketRow ticket={ticket} hideAssignee={hideAssignee} flash={flash} kanban={kanban} />
+      <TicketRow
+        ticket={ticket}
+        hideAssignee={hideAssignee}
+        flash={flash}
+        variant={variant}
+        end={end}
+      />
     </div>
   );
 }
