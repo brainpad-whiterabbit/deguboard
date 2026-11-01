@@ -359,20 +359,20 @@ export const ticketUpdate = defineCommand({
       .array(z.string())
       .optional()
       .describe("依存先のチケットの ID。一覧を置き換える（既存も含めて全部指定する）"),
-    iteration: z.string().nullable().optional().describe("Iteration の ID。null で外す"),
-    epic: z.string().nullable().optional().describe("Epic の ID。null で外す"),
-    workflow: slugSchema.nullable().optional().describe("Workflow。null で Project の既定に戻す"),
-    pr: z.number().int().positive().nullable().optional().describe("PR 番号。null で外す"),
+    iteration: z.string().nullable().optional().describe("Iteration の ID"),
+    epic: z.string().nullable().optional().describe("Epic の ID"),
+    workflow: slugSchema.nullable().optional().describe("Workflow。外すと Project の既定に戻る"),
+    pr: z.number().int().positive().nullable().optional().describe("PR 番号"),
     branch: z
       .string()
       .min(1)
       .nullable()
       .optional()
-      .describe("作業ブランチ名。null で外す（PR の要らない作業にして照合の対象から外す）"),
+      .describe("作業ブランチ名。外すと PR の要らない作業になり、照合の対象から外れる"),
     assignee: actorRef
       .nullable()
       .optional()
-      .describe("担当者。human で自分、agent で自分の AI。null で外す。起票者は変えない"),
+      .describe("担当者。human で自分、agent で自分の AI。起票者は変えない"),
   }),
   write: true,
   needs: "store",

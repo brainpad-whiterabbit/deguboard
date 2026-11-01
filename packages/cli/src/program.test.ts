@@ -284,4 +284,11 @@ describe("dg", () => {
     }
     expect((await dg(f.cloneA, ["--version"])).out).toMatch(/^\d+\.\d+\.\d+$/);
   });
+
+  it("外せるオプションのヘルプは外し方を none の 1 つだけ示す", async () => {
+    const f = await fixture();
+    const help = (await dg(f.cloneA, ["ticket", "update", "--help"])).out;
+    expect(help.match(/（none で外す）/g)).toHaveLength(6);
+    expect(help).not.toContain("null");
+  });
 });
