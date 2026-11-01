@@ -135,6 +135,39 @@ describe("畳んだ行の作業中と次", () => {
     expect(planProgressLine(p, "working", byId).next).toEqual({ kind: "blocked", waitFor: ["t2"] });
   });
 
+  it("Plan の外の依存（depends_on）が終わっていない todo は着手できない。待つ相手にも出す", () => {
+    const deps = byIdOf([
+      ticket({ id: "t1", status: "in_progress" }),
+      ticket({ id: "t3", status: "todo", depends_on: ["t1"] }),
+      ticket({ id: "t4", status: "todo" }),
+    ]);
+    // t1 は Plan の外。t3 は待ちがないが depends_on が残るので、t4 が次
+    const p = plan({ id: "p1", tickets: ["t3", "t4"] });
+    expect(planProgressLine(p, "approved", deps).next).toEqual({ kind: "ready", id: "t4" });
+    const only = plan({ id: "p1", tickets: ["t3"] });
+    expect(planProgressLine(only, "approved", deps).next).toEqual({
+      kind: "blocked",
+      waitFor: ["t1"],
+    });
+  });
+
+  it("Plan の中で after に書いていない depends_on も待ち、after と重ねて書いた相手は 1 度だけ出す", () => {
+    const deps = byIdOf([
+      ticket({ id: "t2", status: "in_progress" }),
+      ticket({ id: "t3", status: "todo", depends_on: ["t2"] }),
+      ticket({ id: "t5", status: "todo", depends_on: ["t2"] }),
+    ]);
+    expect(planProgressLine(plan({ id: "p1", tickets: ["t2", "t3"] }), "working", deps)).toEqual({
+      working: ["t2"],
+      next: { kind: "blocked", waitFor: ["t2"] },
+    });
+    const both = plan({ id: "p1", tickets: ["t2", "t5"], after: { t5: ["t2"] } });
+    expect(planProgressLine(both, "working", deps).next).toEqual({
+      kind: "blocked",
+      waitFor: ["t2"],
+    });
+  });
+
   it("todo が残らなければ次を出さない。review は作業中に数えない", () => {
     const p = plan({ id: "p1", tickets: ["t1", "t6"] });
     expect(planProgressLine(p, "working", byId)).toEqual({ working: [], next: null });

@@ -679,25 +679,10 @@ button.link:hover {
   padding-bottom: 0.3rem;
   border-bottom: 1px solid var(--dg-border);
 }
+/* 文字の形と件数のバッジは状態の節の見出しと同じ規則（[data-surface="sidebar"] .column h2 の所）を使う */
 [data-surface="sidebar"] .plan-band-toggle {
   align-self: stretch;
   padding: 3px 0.25rem;
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-[data-surface="sidebar"] .plan-band-count {
-  margin-left: auto;
-  min-width: 18px;
-  padding: 0 5px;
-  border-radius: 9px;
-  text-align: center;
-  font-weight: 500;
-  line-height: 16px;
-  letter-spacing: 0;
-  background: var(--vscode-badge-background);
-  color: var(--vscode-badge-foreground);
 }
 [data-surface="sidebar"] .plan-item,
 [data-surface="sidebar"] .plan-card {
@@ -1530,13 +1515,15 @@ button.danger {
 [data-surface="sidebar"] .column > summary {
   padding: 3px 0.25rem;
 }
-[data-surface="sidebar"] .column h2 {
+[data-surface="sidebar"] .column h2,
+[data-surface="sidebar"] .plan-band-toggle {
   font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
-[data-surface="sidebar"] .column .section-count {
+[data-surface="sidebar"] .column .section-count,
+[data-surface="sidebar"] .plan-band-count {
   margin-left: auto;
   min-width: 18px;
   padding: 0 5px;
