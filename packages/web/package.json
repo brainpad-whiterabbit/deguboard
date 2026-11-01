@@ -1,6 +1,6 @@
 {
   "name": "@deguboard/web",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "deguboard の画面（React）。dg serve が配信し、VS Code の Webview にも載る。core とは CommandClient でだけ話す",
   "license": "MIT",
