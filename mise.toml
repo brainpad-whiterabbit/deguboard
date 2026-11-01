@@ -58,11 +58,11 @@ run = "pnpm run pack"
 
 [tasks."release:version"]
 description = "全パッケージの版を揃える。例: mise run release:version -- 0.1.0"
-run = "pnpm -r exec npm version --no-git-tag-version --allow-same-version"
+run = "pnpm run release:version"
 
 [tasks."release:publish"]
 description = "core・server・cli を npm に公開する（main の clean な状態で。npm login が要る）"
-run = "pnpm publish -r --access public"
+run = "pnpm run release:publish"
 
 [tasks.dg]
 description = "ビルド済みの dg を動かす。例: mise run dg -- ticket list"
