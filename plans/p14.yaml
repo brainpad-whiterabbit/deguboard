@@ -7,7 +7,7 @@ after:
   t174:
     - t172
     - t173
-pending_approval: true
+pending_approval: false
 details:
   t175:
     scope: packages/vscode の INSTALL_HINT とそのテスト。README は変えない
@@ -24,3 +24,5 @@ details:
   t174:
     scope: 同梱の software-development テンプレートとこのリポジトリの Workflow の steps、dg guide work・review の文書、ADR-005
     approach: steps に implement・review・fix・investigate を足し、実装の Run は draft の PR で閉じ、見直しは review、修正ループと手直しは fix の Run で --retry-reason を残す手順に書き換え、check:docs の予算内に収める
+approved_by: eiki.kitajima/agent
+approved_at: 2026-11-01T22:12:07Z
