@@ -11,7 +11,7 @@ after:
     - t74
   t76:
     - t72
-pending_approval: true
+pending_approval: false
 details:
   t77:
     scope: カンバンの列から、Epic か Iteration が closed の done・abandoned を外す規則と web のテスト
@@ -34,3 +34,5 @@ details:
   t76:
     scope: バックログの区画間のドラッグ
     approach: カンバンの @dnd-kit の作りを流用し ticket update を呼ぶ
+approved_by: eiki.kitajima/agent
+approved_at: 2026-11-01T03:54:58Z
