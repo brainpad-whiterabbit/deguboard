@@ -112,7 +112,7 @@ core の `commands` を commander に写す。ロジックは持たない。`src
 | `skill.ts`   | `dg skill install`。guide の frontmatter と隣の `skill.md`（`dg guide` を読む薄い Skill の型）から `dg<トピック>` の Skill を作り、`.claude/skills/`（`--personal` で `~/.claude/skills`）に書く |
 | `guide.ts`   | `dg guide <topic>`。隣の `guide-*.md`（手順の正本。CL-5）を読み、`{{choices}}` を共通の節に、`{{git.base_branch}}` のような項目を config の値に置き換えて出す                                    |
 
-グローバルオプションは `dg --help` が正本。`dg serve` / `dg open`（`serve.ts`）は `@deguboard/server` を起動する・ブラウザで開くだけ。`guide-*.md` と `skill.md` はビルドで `dist/` に、web の `dist` は `packages/cli/web` に写す（ルートの `build`）。トピックを足すときは `guide.ts` の `GUIDE_TOPICS` と、`guide-overview.md`・`skill.md` の表も直す。
+グローバルオプションは `dg --help` が正本。`dg serve` / `dg open`（`serve.ts`）は `@deguboard/server` を起動する・ブラウザで開くだけ。`guide-*.md` と `skill.md` はビルドで `dist/` に、web の `dist` は `packages/cli/web` に写す（ルートの `build`）。トピックを足すときは `guide.ts` の `GUIDE_TOPICS` と `guide-overview.md` の表も直す。
 
 ### `packages/server`（`@deguboard/server`）
 
