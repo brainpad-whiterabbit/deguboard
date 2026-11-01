@@ -1,0 +1,22 @@
+{
+  "id": "r20261101-231659-c054",
+  "ticket": "t174",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-01T23:16:59Z",
+  "finished_at": "2026-11-01T23:22:27Z",
+  "result": "success",
+  "error": null,
+  "retries": 2,
+  "retry_reasons": [
+    "見直しの指摘：guide-all の失敗したチケットを todo に戻す記述を実装の失敗に絞る",
+    "見直しの指摘：閉じ損ねた手直しの Run でも unclaim しない"
+  ],
+  "usage": {
+    "input": 34,
+    "output": 10520,
+    "cache_read": 1832206,
+    "cache_write": 14850
+  }
+}
