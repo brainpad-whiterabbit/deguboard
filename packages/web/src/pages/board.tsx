@@ -1,5 +1,5 @@
 // カンバン（UI-2）。絞り込みの欄（Iteration・Epic・担当者）、選んだ Iteration の見出し、
-// その Iteration のチケットを状態ごとの節（todo / in_progress / review / done。中止は畳んだ節）で出す。
+// その Iteration のチケットを含む Plan の帯（実行計画）と、その Iteration のチケットを状態ごとの節（todo / in_progress / review / done。中止は畳んだ節）で出す。
 // Iteration の選択肢は planned と active と「Iteration なし」、Epic の選択肢は open だけ。
 // Iteration が 1 つもない Project では Iteration で絞らず、全チケットのカンバンにする。絞り込みの値はハッシュに持つ。
 // 入っている Iteration か Epic が閉じた done・abandoned のチケットは出さない（履歴でたどる）。
@@ -17,6 +17,8 @@ import {
 } from "@dnd-kit/core";
 import { useMemo, useState } from "react";
 import { DraggableRow, PriorityBadge, StatusDot, Tags, TicketLink } from "../components/parts.js";
+import { PlanBand } from "../components/plan-band.js";
+import { openPlanByTicket, planColor } from "../components/plan-graph.js";
 import { useHost, useUiState } from "../host.js";
 import { hrefOf, navigate, NO_ITERATION, type BoardQuery } from "../router.js";
 import { useStore } from "../store.js";
@@ -104,6 +106,7 @@ export function BoardPage({ query }: { query: BoardQuery }) {
     [scoped, store.iterations, store.epics, query.epic, query.assignee, moving],
   );
   const abandoned = tickets.filter((t) => t.status === "abandoned");
+  const planOf = useMemo(() => openPlanByTicket(store.plans), [store.plans]);
 
   const onDragEnd = async (event: DragEndEvent) => {
     const id = String(event.active.id);
@@ -181,6 +184,7 @@ export function BoardPage({ query }: { query: BoardQuery }) {
         </div>
       ) : null}
       {selection.kind === "iteration" ? <IterationHead iteration={selection.iteration} /> : null}
+      <PlanBand scope={scoped} />
       <DndContext sensors={sensors} onDragEnd={(e) => void onDragEnd(e)}>
         <div className="board">
           {BOARD_STATUSES.map((status) => (
@@ -188,13 +192,14 @@ export function BoardPage({ query }: { query: BoardQuery }) {
               key={status}
               status={status}
               tickets={tickets.filter((t) => t.status === status)}
+              planOf={planOf}
               // 完了は既定で畳む（どの surface でも。開いた状態は useUiState が保つ）
               defaultOpen={status !== "done"}
             />
           ))}
           {/* 中止は切り替えではなく、あるときだけ最後の列（サイドバーでは最後の節）に畳んで置く */}
           {abandoned.length > 0 ? (
-            <Column status="abandoned" tickets={abandoned} defaultOpen={false} />
+            <Column status="abandoned" tickets={abandoned} planOf={planOf} defaultOpen={false} />
           ) : null}
         </div>
       </DndContext>
@@ -253,10 +258,13 @@ function IterationHead({ iteration: it }: { iteration: Iteration }) {
 function Column({
   status,
   tickets,
+  planOf,
   defaultOpen,
 }: {
   status: Status;
   tickets: Ticket[];
+  /** チケットが入っている開いた Plan の ID */
+  planOf: ReadonlyMap<string, string>;
   defaultOpen: boolean;
 }) {
   const store = useStore();
@@ -289,7 +297,7 @@ function Column({
       ) : (
         <div className="cards">
           {tickets.map((t) => (
-            <Card key={t.id} ticket={t} />
+            <Card key={t.id} ticket={t} plan={planOf.get(t.id)} />
           ))}
         </div>
       )}
@@ -297,7 +305,7 @@ function Column({
   );
 }
 
-function Card({ ticket }: { ticket: Ticket }) {
+function Card({ ticket, plan }: { ticket: Ticket; plan: string | undefined }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: ticket.id,
   });
@@ -317,6 +325,7 @@ function Card({ ticket }: { ticket: Ticket }) {
         <PriorityBadge priority={ticket.priority} />
         {ticket.epic ? <span>{ticket.epic}</span> : null}
         {ticket.iteration ? <span>{ticket.iteration}</span> : null}
+        {plan ? <span className={`plan-tag plan-color-${planColor(plan)}`}>{plan}</span> : null}
       </div>
       <div className="title">{ticket.title}</div>
       <Tags labels={ticket.labels} />

@@ -133,7 +133,7 @@ core の `commands` を HTTP に写す。Node 標準の `node:http` で、フレ
 | `client/webview.ts` | postMessage 実装。形は core の `WebviewRequest` / `WebviewResponse` / `WebviewEvent`                                           |
 | `app.tsx`           | 骨組み。上のバー（Project と画面の切り替え・同期の印）と、ハッシュで選んだページ                                               |
 | `host.tsx`          | `surface` と、チケットをエディタで開く働きかけ。拡張ホストからの通知（同期・遷移）を store に結ぶ                              |
-| `store.tsx`         | 選んだ Project のチケット・Epic・Iteration・Workflow と同期の状態を読み、書き込み（`run`）のあとに読み直す                     |
+| `store.tsx`         | 選んだ Project のチケット・Epic・Iteration・Plan・Workflow と同期の状態を読み、書き込み（`run`）のあとに読み直す               |
 | `router.ts`         | ハッシュの解析（`#/board?epic=e1`、`#/tickets/t12` など）                                                                      |
 | `pages/`            | カンバン（UI-2）・バックログ（UI-3）・チケット詳細（UI-4）・Epic（UI-10）・Iteration（UI-5）・履歴（UI-5）・Run と集計（UI-9） |
 | `components/`       | 小さな表示部品（チケットへのリンク、優先度・Status の印、ラベル、進捗）と、チケット詳細の節（経過・Run）                       |

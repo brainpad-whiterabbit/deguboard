@@ -10,6 +10,7 @@ import type {
   MetricGroup,
   MetricUnit,
   MetricsView,
+  Plan,
   Priority,
   RunMetrics,
   RunView,
@@ -28,6 +29,7 @@ export type {
   MetricGroup,
   MetricUnit,
   MetricsView,
+  Plan,
   Priority,
   RunMetrics,
   RunView,
@@ -117,6 +119,11 @@ export interface EpicProgress {
 export type EpicRow = Epic & { progress: EpicProgress };
 export type EpicDetail = EpicRow & { body: string; tickets: Ticket[] };
 export type IterationDetail = Iteration & { items: Ticket[] };
+/** plan.list の 1 行（状態と進捗は都度求める。PL-1） */
+export type PlanRow = Plan & {
+  status: "pending" | "approved" | "closed";
+  progress: EpicProgress;
+};
 export type TicketDetail = Ticket & {
   body: string;
   dependents: string[];
