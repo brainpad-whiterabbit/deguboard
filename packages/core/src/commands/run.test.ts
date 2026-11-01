@@ -1,8 +1,9 @@
 import { access, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createFixture, git } from "../../test/helpers/git-fixture.js";
+import { slowLock } from "../../test/helpers/slow-lock.js";
 import { openContext } from "./context.js";
 import { runCommand, type CommandContext } from "./define.js";
 import { findCommand } from "./registry.js";
@@ -13,8 +14,13 @@ import { ticketCreate } from "./ticket.js";
 import { finishRun } from "../run/record.js";
 import type { Run } from "../model/run.js";
 
+vi.mock("node:fs/promises", async (importOriginal) =>
+  (await import("../../test/helpers/slow-lock.js")).withSlowLock(await importOriginal()),
+);
+
 const cleanups: Array<() => Promise<void>> = [];
 afterEach(async () => {
+  slowLock.enabled = false;
   await Promise.all(cleanups.splice(0).map((c) => c()));
 });
 
@@ -104,9 +110,22 @@ describe("run", () => {
 
   it("並行して start しても、同じチケットと step の Run は 1 つしか始まらない", async () => {
     const ctx = await prepared();
-    const results = await Promise.allSettled(Array.from({ length: 5 }, () => start(ctx, "t1")));
-    expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
-    expect(await readdir(path.join(ctx.repo.localDir, "runs"))).toHaveLength(1);
+    // ロックの取得を遅らせ、解放の直後に別の待ち手が取り直す競合を起こしやすくする。
+    // 同じロックを取る list を混ぜ、最初の start がロックを取る前にも解放が起きるようにする。
+    // 窓は乱数の待ちで開くので、閉じては始め直して何回か繰り返す
+    for (let round = 0; round < 4; round++) {
+      slowLock.enabled = true;
+      const results = await Promise.allSettled(
+        Array.from({ length: 8 }, () => [runCommand(runList, ctx, {}), start(ctx, "t1")]).flat(),
+      );
+      slowLock.enabled = false;
+      const started = results.flatMap((r) =>
+        r.status === "fulfilled" && (r.value as Run).ticket === "t1" ? [r.value as Run] : [],
+      );
+      expect(started).toHaveLength(1);
+      expect(await readdir(path.join(ctx.repo.localDir, "runs"))).toHaveLength(1);
+      await runCommand(runFinish, ctx, { run: started[0]!.id, result: "failure", error: "テスト" });
+    }
   });
 
   it("終わっていない Run が list に出て、finish --result interrupted で閉じられる（EX-2）", async () => {
