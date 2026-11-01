@@ -1,0 +1,27 @@
+id: p11
+project: default
+tickets: [t152, t148, t149, t150, t151]
+after:
+  t149:
+    - t148
+  t150:
+    - t148
+  t151:
+    - t150
+pending_approval: true
+details:
+  t152:
+    scope: dgwork・dgall で planned の Iteration のチケットに着手するとき、その Iteration を人に聞かずに active にする
+    approach: guide-work.md の claim の手順に iteration start を足し、guide-all.md の聞く記述を自動で始める書き方に直す。core の claim は変えない
+  t148:
+    scope: 左パネルのカンバンの見出し 2 段と進みの帯、詳細・…・開始・閉じるをなくす、節をペイン風の見出しに、空の節を 1 行に、行の丸印を外す
+    approach: board.tsx の IterationHead と絞り込みを sidebar のときだけ描き分け、帯は ProgressBar と揃える。行は TicketRow に class を足して CSS で丸印を隠す。Playwright MCP で 300px の見た目を確かめる
+  t149:
+    scope: 実行計画の帯の畳んだ行に作業中と次に着手できるチケットを出す。開いたときのグラフは今のまま
+    approach: plan-band.tsx の PlanLine に、planGraph の status と waiting から作業中と次を引いて 2 行足す。帯の見出しは t148 の節の見出しの CSS を使う
+  t150:
+    scope: カンバンの行の右に Plan の番号と、todo なら着手可か待ちの相手を出す。他の画面の行は変えない
+    approach: TicketRow に右端の差し込み口を足し、board.tsx から openPlanByTicket と planGraph の waiting を渡す
+  t151:
+    scope: Run が実行中のチケットの行は回るリングと実行中、ほかの in_progress は止まった半分塗りの丸
+    approach: t150 の差し込み口と同じ行を触るので後にする。store の Run から running のチケットを引き、CSS のアニメーションは prefers-reduced-motion で止める
