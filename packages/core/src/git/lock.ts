@@ -24,11 +24,16 @@ export async function withLock<T>(
   const lockPath = path.join(localDir, "locks", name);
   const deadline = Date.now() + (options.waitMs ?? WAIT_MS);
   let lastError: unknown;
+  let mine: Stats;
   for (;;) {
     try {
       const handle = await open(lockPath, "wx");
-      await handle.writeFile(String(process.pid));
-      await handle.close();
+      try {
+        await handle.writeFile(String(process.pid));
+        mine = await handle.stat();
+      } finally {
+        await handle.close();
+      }
       break;
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
@@ -42,7 +47,7 @@ export async function withLock<T>(
         const detail = lastError instanceof Error ? `。${lastError.message}` : "";
         throw new OperationError(
           "GIT_ERROR",
-          `別の dg が書き込み中（${lockPath}）。残っていれば消す${detail}`,
+          `別の dg が書き込み中（${lockPath}）。残っていれば消す（${lockPath}.break も）${detail}`,
         );
       }
       if (!broke) await sleep(50);
@@ -51,7 +56,9 @@ export async function withLock<T>(
   try {
     return await fn();
   } finally {
-    await unlink(lockPath).catch(() => undefined);
+    // 自分のロックが古いと判定されて消され、別の待ち手が取り直していれば、そのロックは消さない
+    const current = await stat(lockPath).catch(() => undefined);
+    if (current && sameFile(current, mine)) await unlink(lockPath).catch(() => undefined);
   }
 }
 
@@ -77,8 +84,9 @@ async function lockState(lockPath: string): Promise<LockState> {
   if (pid && pid !== process.pid) {
     try {
       process.kill(pid, 0);
-    } catch {
-      return { kind: "stale", stats }; // そのプロセスはもういない
+    } catch (error) {
+      // ESRCH だけがプロセスのいない印。EPERM は他ユーザの生きたプロセス
+      if ((error as NodeJS.ErrnoException).code === "ESRCH") return { kind: "stale", stats };
     }
   }
   return { kind: "held" };
@@ -92,7 +100,7 @@ function sameFile(a: Stats, b: Stats): boolean {
 /**
  * 古いと判定したロックを消す。判定の後に別の待ち手が古いロックを消して取り直していることがあるので、
  * 消す役を「<名前>.break」の印で 1 つに絞り、その中で判定したファイルのままかを確かめ直してから消す。
- * 印を取れなければ（別の待ち手が消している最中なら）false を返す
+ * 実際に消せたときだけ true を返す（印を取れない・ファイルが替わった・消せないときは false）
  */
 async function breakStale(lockPath: string, judged: Stats): Promise<boolean> {
   const breakPath = `${lockPath}.break`;
@@ -107,8 +115,11 @@ async function breakStale(lockPath: string, judged: Stats): Promise<boolean> {
   }
   try {
     const current = await stat(lockPath).catch(() => undefined);
-    if (current && sameFile(current, judged)) await unlink(lockPath).catch(() => undefined);
-    return true;
+    if (!current || !sameFile(current, judged)) return false;
+    return await unlink(lockPath).then(
+      () => true,
+      () => false,
+    );
   } finally {
     await unlink(breakPath).catch(() => undefined);
   }

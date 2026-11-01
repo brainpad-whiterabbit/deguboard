@@ -1,4 +1,4 @@
-import { access, mkdir, mkdtemp, readdir, rm, utimes, writeFile } from "node:fs/promises";
+import { access, mkdir, mkdtemp, readdir, readFile, rm, utimes, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
@@ -75,7 +75,7 @@ describe("withLock", () => {
     }
     expect(done).toBe(40);
     expect(most).toBe(1);
-    // rename で奪った古いロックの一時ファイルを残さない
+    // 消す役の印（.break）を残さない
     expect(await readdir(path.join(dir, "locks"))).toEqual([]);
   });
 
@@ -111,5 +111,61 @@ describe("withLock", () => {
     expect(Date.now() - started).toBeLessThan(5_000);
     expect(entered).toBe(false);
     await expect(access(lockPath)).resolves.toBeUndefined();
+  });
+
+  it("自分のロックが古いと判定されて消され、別の待ち手が取り直していれば、終わったときにそのロックを消さない", async () => {
+    const dir = await localDir();
+    const lockPath = path.join(dir, "locks", "write");
+    await withLock(dir, "write", async () => {
+      // 持ち主の処理中に、古いと判定されて消され、別の待ち手が取り直したことにする
+      await rm(lockPath);
+      await writeFile(lockPath, "2147483645");
+    });
+    expect(await readFile(lockPath, "utf8")).toBe("2147483645");
+  });
+
+  it("process.kill が EPERM を返す（他ユーザの生きた）持ち主のロックは古いと扱わない", async () => {
+    const dir = await localDir();
+    const lockPath = path.join(dir, "locks", "write");
+    await writeFile(lockPath, "4242");
+    const kill = vi.spyOn(process, "kill").mockImplementation(() => {
+      throw Object.assign(new Error("EPERM"), { code: "EPERM" });
+    });
+    cleanups.push(async () => kill.mockRestore());
+    await expect(
+      withLock(dir, "write", async () => undefined, { waitMs: 200 }),
+    ).rejects.toMatchObject({ code: "GIT_ERROR" });
+    expect(await readFile(lockPath, "utf8")).toBe("4242");
+  });
+
+  it("消す役が落ちて残った .break の印は、60 秒より古ければ片付けて古いロックを奪える", async () => {
+    const dir = await localDir();
+    const lockPath = path.join(dir, "locks", "write");
+    const old = new Date(Date.now() - 120_000);
+    await writeFile(lockPath, "2147483646");
+    await writeFile(`${lockPath}.break`, "");
+    await utimes(`${lockPath}.break`, old, old);
+    let entered = false;
+    await withLock(
+      dir,
+      "write",
+      async () => {
+        entered = true;
+      },
+      { waitMs: 2_000 },
+    );
+    expect(entered).toBe(true);
+    expect(await readdir(path.join(dir, "locks"))).toEqual([]);
+  });
+
+  it("新しい .break の印が残っていれば古いロックを消さず、待ち時間の上限で止まる", async () => {
+    const dir = await localDir();
+    const lockPath = path.join(dir, "locks", "write");
+    await writeFile(lockPath, "2147483646");
+    await writeFile(`${lockPath}.break`, "");
+    await expect(withLock(dir, "write", async () => undefined, { waitMs: 200 })).rejects.toThrow(
+      /\.break/,
+    );
+    expect(await readFile(lockPath, "utf8")).toBe("2147483646");
   });
 });
