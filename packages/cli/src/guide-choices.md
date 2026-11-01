@@ -1,6 +1,6 @@
 ## 選択肢で聞く
 
-チケットは、起票（`dg guide import`）→ 割り当て（`dg guide assign`）→ 点検（`dg guide check`）→ 計画（`dg guide plan`）→ 作業（`dg guide work`）→ 見直し（`dg guide audit`。Iteration か Epic が終わったとき）→ リリース（`dg guide release`。リリースの手順がなければ `dg guide done` で片付ける）の順に進める。完了（`dg guide done`）はマージのたびに挟む。人に判断を求めるとき（承認・修正・どれを選ぶか）と、手順を終えて次の手順を決めるときは、選択肢を示して聞く。
+チケットは、起票（`dg guide import`）→ 割り当て（`dg guide assign`）→ 点検（`dg guide check`）→ 計画（`dg guide plan`）→ 作業（`dg guide work`）→ 見直し（`dg guide audit`。Iteration か Epic が終わったとき）→ リリース（`dg guide release`。リリースの手順がなければ `dg guide done` で片付ける）の順に進める。完了（`dg guide done`）はマージのたびに挟む。割り当てからリリースまで続けて進めるのは `dg guide all`。人に判断を求めるとき（承認・修正・どれを選ぶか）と、手順を終えて次の手順を決めるときは、選択肢を示して聞く。
 
 - 選択肢を出せるエージェントでは、その仕組みで聞く（Claude Code では AskUserQuestion ツール）。出せなければ、番号を付けた選択肢を文で示す
 - 判断の材料（表・計画・PR の一覧など）は選択肢の前に示す。選択肢の説明だけで判断させない
