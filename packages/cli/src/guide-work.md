@@ -26,8 +26,8 @@ argument-hint: "<Plan の ID|チケットの ID>"
    ```
 
 4. 実装の Run を始めてから実装する（下の「Run を記録する」）：`dg --json --actor agent run start <id> <step> --agent <エージェント>`（software-development・general では `implement`）。返った Run の ID を控える。実装は本文の `## 受け入れ条件` を満たすことを目標にし、リポジトリの検査（lint・テスト）を通す
-5. 受け入れ条件を 1 項目ずつ確かめる。`dg --json --actor agent ticket show <id>` の `acceptance`（`index`・`text`・`checked`）を読み、満たしたと確認できた項目だけ `dg --json --actor agent ticket check <id> <番号...>` で付ける。確認できない項目は付けず、PR の本文と人への報告に理由を書く
-6. コミットして push し、PR を draft で作る（`gh pr create --draft`）。PR の本文にチケットの ID（`t12`）と、付けられなかった受け入れ条件を書く。PR の番号をチケットに記録する：`dg --json --actor agent ticket update <id> --pr <番号>`（使い回したブランチでは照合が別の PR を拾いうる）。draft の PR を作ったら実装の Run を閉じる。続けて `dg guide review` のとおり、別のサブエージェントの見直しと上限付きの修正ループで品質ゲートを通し、`gh pr ready <PR>` で出す（上限を超えたときもそこに従う）
+5. 受け入れ条件を 1 項目ずつ確かめる。`dg --json --actor agent ticket show <id>` の `acceptance` を読み、成果物やテストで満たしたと確認できた項目だけ `dg --json --actor agent ticket check <id> <番号...>` で付ける。確認できない項目は付けず、PR の本文と人への報告に理由を書く
+6. コミットして push し、PR を draft で作る（`gh pr create --draft`）。PR の本文にチケットの ID（`t12`）と、付けられなかった受け入れ条件を書く。PR の番号をチケットに記録する：`dg --json --actor agent ticket update <id> --pr <番号>`。draft の PR を作ったら実装の Run を閉じる。続けて `dg guide review` のとおり、別のサブエージェントの見直しと上限付きの修正ループで品質ゲートを通し、`gh pr ready <PR>` で出す
 7. `dg --json --actor agent sync` を回す。Workflow が PR の事実を見るなら（software-development）、draft でない PR が開いていれば review に進む（`gh` が要る）。見ないなら（general など）、PR を出したら自分で `dg --json --actor agent ticket move <id> review` に進める
 8. 人のレビューの指摘は、`fix` の Run で同じブランチで直して push する（`dg guide review` の「Run の分け方」）。マージは人が行う。マージ後は `dg guide done`
 
@@ -39,7 +39,7 @@ Run は 1 回の作業の記録で、使用量（トークン）が残る。実�
 - **agent**：自分の Adapter の名前（`dg run start --help`。Claude Code なら `claude-code`）
 - **自分で呼ぶ**：run start と finish は、作業するエージェント自身が呼ぶ。使用量は Run の ID を最初に含む会話記録から取るので、親などが代わりに start すると作業した分を数えない
 - 使用量は書かない。取れずに finish が警告しても止めない
-- 同じ step の Run が実行中で start が拒否されたら、下の「閉じ損ねた Run を閉じる」で閉じて始め直す
+- 同じ step の Run が実行中で start が拒否されたら、下の「閉じ損ねた Run を閉じる」で閉じて始め直す。サブエージェントなら閉じずに親に返す（親が `interrupted` で閉じる）
 - **結果**：実装の Run は draft の PR を作ったら `success`。自分の判断でやめる（検査が通らない、範囲がはっきりしない）なら `--result failure --error <理由>` で閉じる。`interrupted` は閉じ損ねた Run だけに使う
 - **やり直しの理由**：`--retry-reason` の書き方は `dg guide review` の「Run の分け方」
 
@@ -62,7 +62,7 @@ Plan の `items[].waiting` が空のチケットが複数あり、サブエー�
 - **サブエージェントに渡す**：チケットの ID・Plan の `details` の範囲と方針・ブランチと worktree のパス・規約の場所・チケットごとの一時ファイルの置き場所・手順 4〜6 の draft の PR を作って実装の Run を閉じるまでに従うこと（受け入れ条件は確かめて報告するだけで印は付けない。PR 番号の記録は親）。run start と finish は自身に呼ばせる
 - **サブエージェントがしない**：claim・unclaim・Plan の操作・見直し役の起動・自分のもの以外の Run を閉じる・`gh pr ready`・マージ・`ticket check`・`ticket update --pr`・ほかのチケットの作業
 - **サブエージェントが返す**：draft の PR の URL・閉じた Run の ID・確かめた受け入れ条件と付けられなかった項目（理由）・検査の結果・人に伝えること
-- **1 件でほかを止めない**：`CLAIM_LOST` ならそのチケットを飛ばす。失敗したら Run を閉じて `ticket unclaim` で todo に戻し、worktree は残して、同じ流れでは claim し直さない。Run は `run list --running --ticket <id>` で確かめ、実行中なら親が閉じる（失敗として返れば `failure`、返らなければ `interrupted`。見直し・手直しの Run も同じ）。失敗・マージ待ちを待つのは `after` でそれを待つチケットだけ
+- **1 件でほかを止めない**：`CLAIM_LOST` ならそのチケットを飛ばす。実装が失敗したら Run を閉じて `ticket unclaim` で todo に戻し、worktree は残して、同じ流れでは claim し直さない。Run は `run list --running --ticket <id>` で確かめ、実行中なら親が閉じる（失敗として返れば `failure`、返らなければ `interrupted`。見直し・手直しの Run も同じ）。失敗・マージ待ちを待つのは `after` でそれを待つチケットだけ
 
 ## PR の要らない作業
 

@@ -17,7 +17,7 @@ PR を人に出す前（`dg guide work`）と、自動でマージする前（`d
 
 実装者は PR を draft で作り（`gh pr create --draft`）、実装の Run を閉じて返す。draft のうちは照合が review に進めない。親は、実装したのとは別のサブエージェントを見直し役として起動する。
 
-- **渡す**：チケットの本文（`dg --json --actor agent ticket show <id>`）・ブランチと worktree のパス・差分の取り方（`git fetch {{git.remote}}` の後 `git diff {{git.remote}}/{{git.base_branch}}...<ブランチ>`）・規約の場所・一時ファイルの置き場所
+- **渡す**：チケットの本文（`dg --json --actor agent ticket show <id>`）・ブランチと worktree のパス・差分の取り方（`git fetch {{git.remote}}` の後 `git diff {{git.remote}}/{{git.base_branch}}...<ブランチ>`）・規約の場所・一時ファイルの置き場所・`review` の Run を始めて閉じること（`--agent` の名前）
 - **見る**：受け入れ条件の漏れ・不具合・文書との食い違い・規約の違反・範囲の外の変更
 - **Run**：見直し役自身が `review` の Run を始めて見直し、一覧を返す前に閉じる（下の「Run の分け方」）
 - **しない**：ファイルを変える・コミットする・push する・Run のほかに `dg` に書き込む
@@ -40,8 +40,8 @@ PR を人に出す前（`dg guide work`）と、自動でマージする前（`d
 | 見直し役の見直し                        | `review`    | 見直しを始めるとき   | 指摘の一覧を返す前（指摘の有無によらず `success`） |
 | 修正ループの 1 回・人のレビューの手直し | `fix`       | 指摘を直し始めるとき | 直して push したとき                               |
 
-- **やり直しの理由**：`fix` の Run は `run finish <Run の ID> --result success --retry-reason <直した指摘の要約>` で閉じる。書くのは直した指摘（見直し役・人のレビュー）だけで、指摘 1 件に 1 つ繰り返す。検査の失敗を直したことは書かない。回数は理由の数になる（`--retries` は省く）。要約は 1 行で、秘密・コマンドの文字列・パスは書かない。`implement`・`review` の Run には付けない
-- **合う step がない**：Workflow の `steps` に `fix` がなければ `review`、`review` もなければ実装の step で代わりに記録し、Workflow の `steps` に `fix`・`review` を足すよう人に伝える（`dg init` は既にある Workflow を書き換えない）
+- **やり直しの理由**：手直しの Run（`fix`、または下の代わりの step で記録した手直し）は `run finish <Run の ID> --result success --retry-reason <直した指摘の要約>` で閉じる。書くのは直した指摘（見直し役・人のレビュー）だけで、指摘 1 件に 1 つ繰り返す。検査の失敗を直したことは書かない。回数は理由の数になる（`--retries` は省く）。要約は 1 行で、秘密・コマンドの文字列・パスは書かない。実装と見直しの Run には付けない
+- **合う step がない**：Workflow の `steps` に `fix` がなければ `review`、`review` もなければ実装の step で代わりに記録する（`review` がなければ見直し役も実装の step で記録する）。Workflow の `steps` に `fix`・`review` を足すよう人に伝える（`dg init` は既にある Workflow を書き換えない）
 - **直せなかった**：手直しを途中でやめたら `--result failure --error <理由>` で閉じ、親に返す
 - **続けられない・返らない**：会話を続けられなければ、新しいサブエージェントが自分の `fix` の Run を始めて直す。返らないまま止まった Run は、`dg guide work` の「着手できるチケットを並べて進める」のとおり親が `interrupted` で閉じる
 
@@ -49,5 +49,6 @@ PR を人に出す前（`dg guide work`）と、自動でマージする前（`d
 
 - **通った**：親が `gh pr ready <PR>` で PR を出し（人にレビューを頼む）、`dg guide work` の手順 7（`sync`）に進む
 - **上限を超えた**（重い指摘が残る）：3 回目の手直しは始めない。PR は draft のまま、チケットは in_progress のまま置き、残った指摘・直した回数・PR を人に報告して、続けて直すか・ready にするか・やめる（`ticket unclaim`）かを聞く。作業の失敗とは違い、自分では unclaim しない。人を待つ間も、それを待たないチケットは進める
+- **手直しが failure で返った**：上限を超えたときと同じく、PR は draft・チケットは in_progress のまま置いて人に報告する。unclaim しない（`dg guide work` の「1 件でほかを止めない」の unclaim は実装の失敗だけ）
 - **見直し役を起動できない**：PR を ready にし、見直していないことを PR の本文と人への報告に書く
 - **人を待つ**：上限を超えて draft・in_progress のまま人を待つチケットは、同時に進める枠に数えない。続けて直すと決まったら、`fix` の Run を始めて直し、同じ見直しと修正ループに戻す
