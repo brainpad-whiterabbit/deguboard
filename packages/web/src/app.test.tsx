@@ -37,14 +37,14 @@ function mount(client = mockClient(), host?: Host) {
 }
 
 describe("画面", () => {
-  it("カンバンは Workflow の表示名の 4 列で、チケットを Status の列に出す。Iteration がなければ表を出さず、中止は 0 件なら出さない", async () => {
+  it("カンバンは Workflow の表示名の 4 列で、チケットを Status の列に出す。Iteration がなければ Iteration で絞らず、中止は 0 件なら出さない", async () => {
     mount();
     await screen.findByText("ログイン");
     const headings = screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent);
     expect(headings).toEqual(["Todo1", "In Progress1", "Code Review0", "Done1"]);
     expect(screen.queryByText("Abandoned")).toBeNull();
     expect(screen.queryByLabelText("abandoned を出す")).toBeNull();
-    expect(document.querySelector(".iteration-table")).toBeNull();
+    expect(screen.queryByLabelText("Iteration")).toBeNull();
     expect(screen.getByText("Iteration はない")).toBeTruthy();
     expect(screen.getByText("3 件")).toBeTruthy();
   });
@@ -68,7 +68,7 @@ describe("画面", () => {
     expect(screen.getByText("3 件")).toBeTruthy();
   });
 
-  it("Iteration があれば表を出し、既定は active。行を押すとその Iteration のチケットだけになり、ハッシュに残る", async () => {
+  it("Iteration の選択肢は planned と active と「Iteration なし」で、既定は active。選ぶとその Iteration のチケットだけになり、ハッシュに残る", async () => {
     const client = mockClient();
     client.data.iterations = [
       iteration({ id: "s1", name: "最初", status: "active" }),
@@ -79,22 +79,41 @@ describe("画面", () => {
     client.data.tickets[2]!.iteration = "s2";
     mount(client);
     await screen.findByText("API");
-    const rows = screen.getAllByRole("row").slice(1);
-    expect(rows.map((r) => r.getAttribute("aria-label"))).toEqual([
-      "s1 最初（進行中・完了 0/1）",
-      "s2 次（予定・完了 0/1）",
-      "Iteration なし（未完了 0）",
+    const select = screen.getByLabelText<HTMLSelectElement>("Iteration");
+    expect([...select.querySelectorAll("option")].map((o) => o.textContent)).toEqual([
+      "s1 最初（進行中）",
+      "s2 次（予定）",
+      "Iteration なし",
     ]);
-    expect(rows[0]!.getAttribute("aria-selected")).toBe("true");
+    expect(select.value).toBe("s1");
+    expect(document.querySelector(".iteration-table")).toBeNull();
     expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("s1 最初");
     expect(screen.queryByText("画面")).toBeNull();
-    fireEvent.click(rows[1]!);
+    fireEvent.change(select, { target: { value: "s2" } });
     expect(window.location.hash).toBe("#/board?iteration=s2");
     await screen.findByText("画面");
     expect(screen.queryByText("API")).toBeNull();
-    fireEvent.click(screen.getByRole("row", { name: /Iteration なし/ }));
+    fireEvent.change(screen.getByLabelText("Iteration"), { target: { value: "-" } });
     await screen.findByText("ログイン");
     expect(screen.queryByRole("heading", { level: 1 })).toBeNull();
+  });
+
+  it("Epic の選択肢は open だけ。閉じた Epic は選んでいるときだけ残す", async () => {
+    const client = mockClient();
+    client.data.epics = [
+      ...client.data.epics,
+      { ...client.data.epics[0]!, id: "e9", title: "済んだ", status: "closed" },
+    ];
+    mount(client);
+    await screen.findByText("API");
+    const options = () =>
+      [...screen.getByLabelText("Epic").querySelectorAll("option")].map((o) => o.value);
+    expect(options()).not.toContain("e9");
+    act(() => {
+      window.location.hash = "#/board?epic=e9";
+      window.dispatchEvent(new HashChangeEvent("hashchange"));
+    });
+    await waitFor(() => expect(options()).toContain("e9"));
   });
 
   it("Epic と担当者で絞れる。旧 ID は @ の前だけを出し、担当者のないものは「なし」", async () => {

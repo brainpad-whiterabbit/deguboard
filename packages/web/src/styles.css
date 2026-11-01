@@ -356,7 +356,7 @@ h3 {
 .column.over {
   outline: 2px solid var(--vscode-focusBorder);
 }
-/* 折りたためるもの（状態の節・Iteration の表）の見出し */
+/* 折りたためるもの（状態の節）の見出し */
 .fold > summary {
   list-style: none;
   cursor: pointer;
@@ -392,58 +392,6 @@ h3 {
   grid-template-columns: repeat(4, minmax(220px, 1fr)) max-content;
 }
 
-/* Iteration の表（カンバンの上。KanbanForge の SB-2） */
-.iteration-table {
-  margin-bottom: 0.6rem;
-  border: 1px solid var(--dg-border);
-  border-radius: 3px;
-  background: var(--vscode-sideBar-background);
-}
-.iteration-table > summary {
-  padding: 0.35rem 0.5rem;
-  font-weight: 600;
-}
-.iteration-table table {
-  width: 100%;
-  border-collapse: collapse;
-}
-.iteration-table th,
-.iteration-table td {
-  text-align: left;
-  padding: 0.2rem 0.5rem;
-  white-space: nowrap;
-  border-top: 1px solid var(--dg-border);
-}
-.iteration-table th {
-  color: var(--vscode-descriptionForeground);
-  font-weight: 500;
-  font-size: 0.85em;
-}
-.iteration-table .name {
-  width: 100%;
-  white-space: normal;
-}
-.iteration-table tbody tr {
-  cursor: pointer;
-}
-.iteration-table tbody tr:hover td {
-  background: var(--vscode-list-hoverBackground);
-}
-.iteration-table tr[aria-selected="true"] td {
-  background: var(--vscode-list-activeSelectionBackground);
-}
-.iteration-table tr[aria-selected="true"] td:first-child {
-  box-shadow: inset 2px 0 var(--vscode-focusBorder);
-}
-.iteration-table .create {
-  padding: 0.25rem 0.5rem;
-  border-top: 1px solid var(--dg-border);
-}
-.iteration-table code {
-  background: transparent;
-  padding: 0;
-  color: var(--vscode-descriptionForeground);
-}
 /* 文字だけのボタン（+ Iteration を作る） */
 button.link {
   padding: 0;
@@ -852,14 +800,6 @@ textarea.body {
   flex-direction: column;
   gap: 0.5rem;
   min-height: 0;
-}
-[data-surface="sidebar"] .iteration-table {
-  background: transparent;
-  font-size: 0.95em;
-}
-[data-surface="sidebar"] .iteration-table th,
-[data-surface="sidebar"] .iteration-table td {
-  padding: 0.15rem 0.35rem;
 }
 [data-surface="sidebar"] .board-head h1 {
   font-size: 1em;
