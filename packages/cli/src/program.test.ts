@@ -161,6 +161,17 @@ describe("dg", () => {
     expect((await dg(f.cloneA, ["ticket", "create", ""])).code).toBe(2);
   });
 
+  it("ticket check の番号に数でない値を渡すと、その値と理由を stderr に出して終了コード 2", async () => {
+    const f = await fixture();
+    await dg(f.cloneA, ["init"]);
+    await dg(f.cloneA, ["ticket", "create", "A", "--acceptance", "一つ目"]);
+    const ran = await dg(f.cloneA, ["ticket", "check", "1", "all"]);
+    expect(ran.code).toBe(2);
+    expect(ran.err).toContain("'all'");
+    expect(ran.err).toContain("数値を指定する");
+    expect((await dg(f.cloneA, ["ticket", "check", "1", "--all"])).code).toBe(0);
+  });
+
   it("初期化前は NOT_INITIALIZED で 1、リモートがなくても init と起票ができる", async () => {
     const f = await fixture();
     const before = await dg(f.cloneB, ["--json", "ticket", "list"]);
