@@ -85,6 +85,23 @@ describe("dg guide", () => {
     });
   });
 
+  it("work は着手できるチケットを上限付きでサブエージェントに並べ、役割を分け、1 件でほかを止めないと案内し、all はそこへ案内する", async () => {
+    const work = await readGuide("work");
+    const all = await readGuide("all");
+    expect(work).toContain("## 着手できるチケットを並べて進める");
+    for (const word of [
+      "items[].waiting",
+      "同時に 3 件まで",
+      "**サブエージェントがしない**",
+      "**1 件でほかを止めない**",
+      "CLAIM_LOST",
+      "マージ待ち",
+      "`ticket update --pr`",
+    ])
+      expect(work).toContain(word);
+    expect(all).toContain("「着手できるチケットを並べて進める」");
+  });
+
   it("config の値を埋める（既定なら main と origin、空の配列は「なし」）", () => {
     expect(
       fillPlaceholders(
