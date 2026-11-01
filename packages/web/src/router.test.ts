@@ -14,6 +14,9 @@ describe("ハッシュのルーティング", () => {
     // Iteration の一覧の画面はないので、ID がなければカンバン
     expect(parseRoute("#/iterations")).toEqual({ page: "board" });
     expect(parseRoute("#/iterations/s2")).toEqual({ page: "iterations", id: "s2" });
+    expect(parseRoute("#/history")).toEqual({ page: "history" });
+    expect(parseRoute("#/history?view=epic")).toEqual({ page: "history", view: "epic" });
+    expect(parseRoute("#/history?view=x")).toEqual({ page: "history" });
     expect(parseRoute("#/board?iteration=s4&epic=e1&assignee=eiki%2Fagent")).toEqual({
       page: "board",
       iteration: "s4",
@@ -30,6 +33,7 @@ describe("ハッシュのルーティング", () => {
       { page: "ticket" as const, id: "t3" },
       { page: "epics" as const, id: "e1" },
       { page: "iterations" as const, id: "s2" },
+      { page: "history" as const, view: "epic" as const },
     ]) {
       expect(parseRoute(hrefOf(route))).toEqual(route);
     }

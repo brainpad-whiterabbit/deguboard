@@ -472,6 +472,50 @@ button.link:hover {
   color: var(--vscode-descriptionForeground);
 }
 
+/* 開ける行（Iteration の見方）：見出しの行は summary。開くと中の終わったチケットを 1 行ずつ出す */
+.history-item > summary {
+  list-style: none;
+  cursor: pointer;
+}
+.history-item > summary::-webkit-details-marker {
+  display: none;
+}
+.history-item[open] > summary {
+  background: var(--vscode-list-hoverBackground);
+}
+.rows.history-tickets {
+  padding: 0.25rem 0.5rem 0.5rem 1.5rem;
+  border-bottom: 1px solid var(--dg-border);
+}
+.rows.history-tickets li {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  gap: 0.4rem;
+  align-items: center;
+}
+.history-tickets code {
+  background: transparent;
+  padding: 0;
+}
+/* 見方の切り替え：つながったボタン */
+.segmented {
+  display: inline-flex;
+}
+.segmented button {
+  border-radius: 0;
+  padding: 0.2em 0.8em;
+}
+.segmented button:first-child {
+  border-radius: 2px 0 0 2px;
+}
+.segmented button:last-child {
+  border-radius: 0 2px 2px 0;
+}
+.segmented button[aria-pressed="true"] {
+  color: var(--vscode-button-foreground);
+  background: var(--vscode-button-background);
+}
+
 /* 選んだ Iteration の見出しと絞り込みの行 */
 .board-head {
   display: flex;

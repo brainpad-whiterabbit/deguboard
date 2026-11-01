@@ -115,7 +115,7 @@ function Page({ route }: { route: Route }) {
     case "iterations":
       return <IterationsPage id={route.id} />;
     case "history":
-      return <HistoryPage />;
+      return <HistoryPage view={route.view ?? "iteration"} />;
   }
 }
 
