@@ -205,9 +205,12 @@ export function BacklogPage() {
           </select>
         </label>
       ) : null}
-      <button type="button" onClick={() => setFilter(EMPTY_FILTER)}>
-        絞り込みを消す
-      </button>
+      {/* サイドバーでは条件があるときだけ出す */}
+      {!sidebar || active.length > 0 ? (
+        <button type="button" onClick={() => setFilter(EMPTY_FILTER)}>
+          絞り込みを消す
+        </button>
+      ) : null}
     </>
   );
 
@@ -223,7 +226,8 @@ export function BacklogPage() {
           aria-label="検索"
         />
         {sidebar ? null : filters}
-        <span className="muted">{rows.length} 件</span>
+        {/* サイドバーでは件数を絞り込みの行に置き、1 行を使わない */}
+        {sidebar ? null : <span className="muted">{rows.length} 件</span>}
       </div>
       {sidebar ? (
         <details
@@ -234,6 +238,7 @@ export function BacklogPage() {
           <summary>
             絞り込み
             <span className="muted">{active.length > 0 ? active.join(" ・ ") : ""}</span>
+            <span className="muted count">{rows.length} 件</span>
           </summary>
           <div className="toolbar">{filters}</div>
         </details>
@@ -276,6 +281,53 @@ function Section({ section: { iteration: it, tickets } }: { section: BacklogSect
   const sidebar = host.surface === "sidebar";
   const [open, setOpen] = useUiState(`backlog.section.${it?.id ?? "none"}`, true);
   const [creating, setCreating] = useState(false);
+  const link = it ? (
+    <a
+      href={hrefOf({ page: "iterations", id: it.id })}
+      title="詳細"
+      onClick={(e) => {
+        // Webview では詳細を拡張ホストに頼んでエディタ領域に開く（履歴の行と同じ）
+        if (host.surface === "browser") return;
+        e.preventDefault();
+        host.open({ page: "iterations", id: it.id });
+      }}
+    >
+      <code>{it.id}</code> {it.name}
+    </a>
+  ) : (
+    <span className="name">Iteration なし</span>
+  );
+  const createButton = (
+    <button
+      type="button"
+      className="link"
+      onClick={(e) => {
+        // 見出し（summary）の中のボタンなので、節の開閉を起こさない
+        e.preventDefault();
+        setCreating(true);
+        setOpen(true);
+      }}
+    >
+      + Iteration を作る
+    </button>
+  );
+  // サイドバーの見出し：1 行目は番号・名前・件数と「…」、2 行目に状態と期間・目標。0 件の区画は 1 行だけにする
+  const period = it && (it.start || it.end) ? `${it.start ?? "?"} 〜 ${it.end ?? "?"}` : "";
+  const sidebarHead = (
+    <>
+      {link}
+      <span className="muted count">{tickets.length} 件</span>
+      <span className="actions">
+        {it ? <IterationActions iteration={it} /> : creating ? null : createButton}
+      </span>
+      {it && tickets.length > 0 ? (
+        <small className="muted meta">
+          <span className={`badge iteration-${it.status}`}>{ITERATION_LABELS[it.status]}</span>{" "}
+          {[period, it.goal].filter(Boolean).join(" ・ ")}
+        </small>
+      ) : null}
+    </>
+  );
   const head = (
     <>
       {it ? (
@@ -328,18 +380,19 @@ function Section({ section: { iteration: it, tickets } }: { section: BacklogSect
   const body = (
     <>
       {creating ? <IterationCreateForm onDone={() => setCreating(false)} /> : null}
-      {tickets.length > 0 ? <TicketTable tickets={tickets} draggable /> : null}
+      {tickets.length > 0 ? <TicketTable tickets={tickets} draggable priorityMarks /> : null}
     </>
   );
   if (sidebar) {
     return (
       <details
         ref={setNodeRef}
-        className={`fold backlog-section${isOver ? " over" : ""}`}
-        open={open}
-        onToggle={(e) => setOpen(e.currentTarget.open)}
+        className={`fold backlog-section${isOver ? " over" : ""}${tickets.length === 0 ? " empty-section" : ""}`}
+        // 0 件の区画は畳んだ 1 行にする（作るフォームを開いたときだけ開く）
+        open={tickets.length === 0 ? creating : open}
+        onToggle={(e) => tickets.length > 0 && setOpen(e.currentTarget.open)}
       >
-        <summary>{head}</summary>
+        <summary>{sidebarHead}</summary>
         {body}
       </details>
     );
@@ -430,7 +483,7 @@ function EpicPanel({ selected, onSelect }: { selected: string; onSelect: (epic: 
       ) : null}
       <ul className="rows epic-list">
         {epics.map((e) => (
-          <li key={e.id} className={selected === e.id ? "selected" : ""}>
+          <li key={e.id} className={selected === e.id ? "selected" : undefined}>
             <a href={hrefOf({ page: "epics", id: e.id })} onClick={(ev) => openDetail(ev, e.id)}>
               <code>{e.id}</code>
             </a>
@@ -443,19 +496,23 @@ function EpicPanel({ selected, onSelect }: { selected: string; onSelect: (epic: 
             >
               <span className="row-title">{e.title}</span>
               <ProgressBar progress={e.progress} />
+              {sidebar && selected === e.id ? <span className="epic-clear">× 解除</span> : null}
             </button>
           </li>
         ))}
-        <li className={selected === NO_EPIC ? "selected" : ""}>
-          <span />
+        <li className={selected === NO_EPIC ? "selected" : undefined}>
+          {/* サイドバーでは Epic の行と同じ形にする（番号の欄に「—」） */}
+          {sidebar ? <code className="muted">—</code> : <span />}
           <button
             type="button"
             className="epic-pick"
             aria-pressed={selected === NO_EPIC}
+            title={selected === NO_EPIC ? "絞り込みを解除する" : "Epic のないチケットで絞る"}
             onClick={() => onSelect(NO_EPIC)}
           >
-            <span className="row-title muted">Epic なし</span>
+            <span className={sidebar ? "row-title" : "row-title muted"}>Epic なし</span>
             <span className="muted">{noEpic} 件</span>
+            {sidebar && selected === NO_EPIC ? <span className="epic-clear">× 解除</span> : null}
           </button>
         </li>
       </ul>

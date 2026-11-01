@@ -798,21 +798,50 @@ describe("画面", () => {
     expect(link.getAttribute("href")).toBe("#/tickets/t2");
   });
 
-  it("サイドバーのバックログは検索と件数だけ出し、絞り込みは畳む。効いている条件は見出しに出る", async () => {
+  it("サイドバーのバックログは検索だけ出し、絞り込みは畳む。件数と効いている条件は絞り込みの行に出て、消すボタンは条件があるときだけ", async () => {
     window.location.hash = "#/backlog";
     const host = webviewHost("sidebar");
     mount(mockClient(), host);
     await screen.findByText("API");
     expect(screen.getByLabelText("検索")).toBeTruthy();
-    expect(screen.getByText("2 件")).toBeTruthy();
     const fold = document.querySelector<HTMLDetailsElement>("details.filters")!;
+    const count = () => fold.querySelector("summary .count")!.textContent;
+    expect(count()).toBe("2 件");
+    expect(document.querySelector(".toolbar > .muted")).toBeNull();
     expect(fold.open).toBe(false);
+    expect(screen.queryByRole("button", { name: "絞り込みを消す" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /最初の版/ }));
     expect(fold.querySelector("summary")!.textContent).toContain("Epic: e1");
-    expect(document.querySelector(".toolbar > .muted")!.textContent).toBe("1 件");
+    expect(count()).toBe("1 件");
+    expect(screen.getByText("× 解除")).toBeTruthy();
     fold.open = true;
     fireEvent(fold, new Event("toggle"));
     expect(host.state.get("backlog.filters")).toBe(true);
+    expect(screen.getByRole("button", { name: "絞り込みを消す" })).toBeTruthy();
+  });
+
+  it("サイドバーのバックログの区画は、行に優先度の印と優先度の変わる区切りを付け、見出しの 2 行目に状態を出す。0 件の区画は 1 行に畳む", async () => {
+    window.location.hash = "#/backlog";
+    const client = mockClient();
+    client.data.iterations = [
+      iteration({ id: "s1", name: "今", status: "active", start: "2026-11-01" }),
+      iteration({ id: "s2", name: "次", status: "planned" }),
+    ];
+    client.data.tickets[1]!.iteration = "s1";
+    client.data.tickets[2]!.iteration = "s1";
+    mount(client, webviewHost("sidebar"));
+    await screen.findByText("API");
+    const [s1, s2] = [...document.querySelectorAll<HTMLDetailsElement>("details.backlog-section")];
+    expect([...s1!.querySelectorAll(".priority-mark")].map((m) => m.textContent)).toEqual([
+      "H",
+      "M",
+    ]);
+    expect(s1!.querySelectorAll("li.priority-break")).toHaveLength(1);
+    expect(s1!.querySelector("summary .meta")!.textContent).toBe("進行中 2026-11-01 〜 ?");
+    expect(s1!.querySelector("summary .actions")!.textContent).toBe("…");
+    expect(s2!.open).toBe(false);
+    expect(s2!.classList.contains("empty-section")).toBe(true);
+    expect(s2!.querySelector("summary .meta")).toBeNull();
   });
 
   it("サイドバーのバックログの Epic の欄は折りたため、作成フォームは「+」を押したときだけ開く", async () => {
@@ -1047,6 +1076,7 @@ describe("画面", () => {
     window.location.hash = "#/backlog";
     const client = mockClient();
     client.data.iterations = [iteration({ id: "s1", name: "今", status: "active" })];
+    client.data.tickets[1]!.iteration = "s1";
     const host = webviewHost("sidebar");
     mount(client, host);
     await screen.findByText("API");
