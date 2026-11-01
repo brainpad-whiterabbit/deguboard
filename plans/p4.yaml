@@ -25,7 +25,7 @@ after:
     - t105
     - t108
     - t101
-pending_approval: true
+pending_approval: false
 details:
   t105:
     scope: lock.ts の isStale の ENOENT の扱いと並行 start のテスト
@@ -72,3 +72,5 @@ details:
   t102:
     scope: ADR-004・005・007、development.md のモジュール表と例、古いコメント、guide-overview、--priority のヘルプ
     approach: 実装を読んで書き換え、ADR の更新日と一覧を直す。check:docs を通す
+approved_by: eiki.kitajima/agent
+approved_at: 2026-11-01T08:06:02Z
