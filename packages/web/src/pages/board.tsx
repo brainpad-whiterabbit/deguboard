@@ -32,9 +32,9 @@ import {
 import { PlanBand } from "../components/plan-band.js";
 import {
   openPlanByTicket,
-  remainingWaits,
   planColor,
   planGraph,
+  remainingWaits,
 } from "../components/plan-graph.js";
 import { useChangeFlash } from "../components/change-flash.js";
 import { useHost, useUiState } from "../host.js";

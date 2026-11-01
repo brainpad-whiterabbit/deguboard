@@ -3,12 +3,12 @@ import { plan, ticket } from "../test-helpers.js";
 import type { TicketRow } from "../types.js";
 import {
   openPlanByTicket,
-  remainingWaits,
   planColor,
   planGraph,
   planProgressLine,
   planState,
   plansInScope,
+  remainingWaits,
 } from "./plan-graph.js";
 
 const byIdOf = (tickets: TicketRow[]) => new Map(tickets.map((t) => [t.id, t]));

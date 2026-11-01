@@ -39,6 +39,8 @@ interface Snapshot {
 
 /** cache の置き場の鍵。形が変わったら番号を上げて古いものを読まない */
 export const SNAPSHOT_KEY = "store.snapshot.v2";
+/** 前の版の鍵。読み直しの書き込みのときに消し、保存量を増やさない */
+const OLD_SNAPSHOT_KEYS = ["store.snapshot.v1"];
 
 export interface Notice {
   kind: "error" | "info";
@@ -157,6 +159,7 @@ export function StoreProvider({
         plans: p.data,
         workflow: w.data,
       } satisfies Snapshot);
+      for (const key of OLD_SNAPSHOT_KEYS) cache?.remove(key);
       void refreshStatus();
     } catch (error) {
       const f = failureOf(error);

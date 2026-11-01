@@ -63,6 +63,17 @@ describe("前回の一覧の cache", () => {
     expect(saved.tickets.map((t) => t.id)).toEqual(["t1", "t2", "t3"]);
   });
 
+  it("読み直しで cache を書くとき、前の版の鍵（store.snapshot.v1）を消す", async () => {
+    const backend = memoryBackend({ "store.snapshot.v1": { tickets: [] }, other: 1 });
+    const state = createUiState(backend);
+    mount(mockClient(), state, state);
+    await screen.findByText("ログイン");
+    const saved = backend.getState() as Record<string, unknown>;
+    expect("store.snapshot.v1" in saved).toBe(false);
+    expect(saved[SNAPSHOT_KEY]).toBeTruthy();
+    expect(saved["other"]).toBe(1);
+  });
+
   it("cache がなければ「読み込み中…」と節と行の骨組みを出し、読み終えたら消す", async () => {
     const state = createUiState(memoryBackend());
     const { client, release } = slowClient();
