@@ -1,0 +1,24 @@
+{
+  "id": "r20261101-234027-3937",
+  "ticket": "t184",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-01T23:40:27Z",
+  "finished_at": "2026-11-01T23:42:22Z",
+  "result": "success",
+  "error": null,
+  "retries": 4,
+  "retry_reasons": [
+    "dg init が誤りで索引から外れた Workflow を上書きしていたのをファイルの有無で判定するよう直した",
+    "WF-6 の拒否の範囲を未知の Action は警告だけとする実装と ADR-003 に揃えた",
+    "requirements と ADR-003 を予算の 90% 未満に縮め CLI の細部をヘルプに任せた",
+    "ADR-003 の検証の参照を WF-1〜WF-6 に揃えた"
+  ],
+  "usage": {
+    "input": 20,
+    "output": 6877,
+    "cache_read": 1511261,
+    "cache_write": 9838
+  }
+}
