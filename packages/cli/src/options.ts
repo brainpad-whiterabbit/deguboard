@@ -175,6 +175,13 @@ export function bindInputs(cmd: Command, command: AnyCommand, shapes = shapesOf(
     const arg = new Argument(shape.optional ? `[${name}]` : `<${name}>`, shape.description);
     if (shape.kind === "enum" && shape.choices) arg.choices(shape.choices);
     if (shape.kind === "number") arg.argParser((raw) => parseScalar(shape, raw));
+    // 可変長の値も commander の中で変換する。collectInput で投げると commander のエラーとして扱われ、理由が出ない
+    if (variadic && shape.element !== "string") {
+      arg.argParser((raw: string, previous: unknown[] = []) => [
+        ...previous,
+        ...listItems(shape, raw).map((v) => parseScalar(shape, v)),
+      ]);
+    }
     cmd.addArgument(arg);
   });
 

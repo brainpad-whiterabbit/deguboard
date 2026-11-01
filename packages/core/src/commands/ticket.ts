@@ -444,7 +444,7 @@ export const ticketCheck = defineCommand({
   positionals: ["ticket", "items"],
   group: "ticket",
   summary:
-    "受け入れ条件の項目に済みの印を付ける（番号で指定、all で全部、undo で外す）。番号は ticket show の acceptance の index",
+    "受け入れ条件の項目に済みの印を付ける。項目は番号で指定し、全部なら all、印を外すなら undo のオプションを使う。番号は ticket show の acceptance の index",
   input: z.object({
     ticket: ticketRef,
     items: z
