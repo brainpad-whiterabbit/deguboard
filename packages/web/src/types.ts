@@ -2,39 +2,53 @@
 
 import type {
   Epic,
+  EpicDetail,
+  EpicRow,
   FieldDefinition,
   HistoryChange,
   HistoryEvent,
   HistoryLog,
   Iteration,
+  IterationDetail,
   MetricGroup,
   MetricUnit,
   MetricsView,
   Plan,
+  PlanRow,
   Priority,
+  Progress,
   RunMetrics,
   RunView,
   Status,
   Ticket,
+  TicketDetail,
+  TicketRow,
   WorkflowDefinition,
 } from "@deguboard/core";
 
 export type {
   Epic,
+  EpicDetail,
+  EpicRow,
   FieldDefinition,
   HistoryChange,
   HistoryEvent,
   HistoryLog,
   Iteration,
+  IterationDetail,
   MetricGroup,
   MetricUnit,
   MetricsView,
   Plan,
+  PlanRow,
   Priority,
+  Progress,
   RunMetrics,
   RunView,
   Status,
   Ticket,
+  TicketDetail,
+  TicketRow,
   WorkflowDefinition,
 };
 
@@ -110,28 +124,6 @@ export interface Project {
   status: "active" | "archived";
 }
 
-/** epic.list の 1 行（進捗は都度求める。EP-3） */
-export interface EpicProgress {
-  total: number;
-  done: number;
-  by_status: Record<Status, number>;
-}
-/** ticket.list の 1 行。deps_done は依存先がすべて done か abandoned か（WF-2。別の Project の依存先も見る） */
-export type TicketRow = Ticket & { deps_done: boolean };
-export type EpicRow = Epic & { progress: EpicProgress };
-export type EpicDetail = EpicRow & { body: string; tickets: Ticket[] };
-export type IterationDetail = Iteration & { items: Ticket[] };
-/** plan.list の 1 行（状態と進捗は都度求める。PL-1） */
-export type PlanRow = Plan & {
-  status: "pending" | "approved" | "closed";
-  progress: EpicProgress;
-};
-export type TicketDetail = Ticket & {
-  body: string;
-  dependents: string[];
-  deps_done: boolean;
-  plan: string | null;
-};
 export interface WorkflowView {
   definition: WorkflowDefinition;
   labels: Record<Status, string>;
@@ -140,7 +132,7 @@ export interface WorkflowView {
 
 const PRIORITY_RANK: Record<Priority, number> = { high: 0, medium: 1, low: 2 };
 
-export function ticketNumber(id: string): number {
+function ticketNumber(id: string): number {
   return Number(id.slice(1));
 }
 

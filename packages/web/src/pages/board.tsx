@@ -53,9 +53,9 @@ import {
   ITERATION_LABELS,
   NO_CLAIM,
   type Epic,
-  type EpicProgress,
   type Iteration,
   type PlanRow,
+  type Progress,
   type Status,
   type Ticket,
   type TicketRow,
@@ -349,7 +349,7 @@ function SidebarBoardHead({
   open: Iteration[];
   selection: Selection;
   count: number;
-  progress: EpicProgress;
+  progress: Progress;
   onSelect: (iteration: string) => void;
   onCreate: () => void;
 }) {
@@ -424,8 +424,11 @@ export function shortPeriod(start?: string, end?: string): string | undefined {
   return `${md(start)}–${md(end)}`;
 }
 
-/** カンバンに出ているチケットの進み（done の件数 / abandoned を除く件数と Status ごとの件数。EP-3 と同じ数え方） */
-export function ticketProgress(tickets: readonly Pick<Ticket, "status">[]): EpicProgress {
+/**
+ * カンバンに出ているチケットの進み。数え方は core の progressOf（EP-3）の写しで、同じ結果になることを board.test.ts で確かめる
+ * （web は core の実行時のコードを取り込まない。ADR-007）
+ */
+export function ticketProgress(tickets: readonly Pick<Ticket, "status">[]): Progress {
   const by_status: Record<Status, number> = {
     todo: 0,
     in_progress: 0,
@@ -435,8 +438,8 @@ export function ticketProgress(tickets: readonly Pick<Ticket, "status">[]): Epic
   };
   for (const t of tickets) by_status[t.status] += 1;
   return {
-    done: by_status.done,
     total: tickets.length - by_status.abandoned,
+    done: by_status.done,
     by_status,
   };
 }

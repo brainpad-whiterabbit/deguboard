@@ -33,7 +33,7 @@ import {
 } from "../types.js";
 
 /** 閉じた新しい順。closed_at がなければ番号の新しい順 */
-export function byClosedDesc<T extends { id: string; closed_at?: string | undefined }>(
+function byClosedDesc<T extends { id: string; closed_at?: string | undefined }>(
   a: T,
   b: T,
 ): number {
@@ -53,7 +53,7 @@ function countsText(iteration: Iteration): string {
 /**
  * 検索：チケットの番号かタイトル（labels なら加えてラベル）に当たるチケットを含むものだけ残す。key はチケットの iteration か epic
  */
-export function filterHistory<T extends { id: string }>(
+function filterHistory<T extends { id: string }>(
   rows: readonly T[],
   tickets: readonly Ticket[],
   query: string,
@@ -77,7 +77,7 @@ export function filterHistory<T extends { id: string }>(
 }
 
 /** Iteration に入っている Epic ごとの件数（多い順、同じなら番号の順）。Epic なしは数えない */
-export function epicCountsOf(
+function epicCountsOf(
   iteration: string,
   tickets: readonly Ticket[],
 ): { epic: string; count: number }[] {
@@ -90,7 +90,7 @@ export function epicCountsOf(
 }
 
 /** Epic のチケットが入っている Iteration（番号の順）。持ち越しで外されたものは今のファイルからは分からない */
-export function iterationsOfEpic(epic: string, tickets: readonly Ticket[]): string[] {
+function iterationsOfEpic(epic: string, tickets: readonly Ticket[]): string[] {
   const ids = new Set(
     tickets.filter((t) => t.epic === epic && t.iteration).map((t) => t.iteration!),
   );
@@ -150,7 +150,7 @@ export function groupByDay(rows: readonly FinishedRow[]): { day: string; rows: F
 }
 
 /** チケットを終えた時刻：最後に done か abandoned になった出来事の時刻 */
-export function finishedAtOf(events: readonly HistoryEvent[]): Map<string, string> {
+function finishedAtOf(events: readonly HistoryEvent[]): Map<string, string> {
   const at = new Map<string, string>();
   for (const e of events)
     if (
@@ -177,7 +177,7 @@ export interface FinishedFilter {
 }
 
 /** 終わったチケットを終えた新しい順に。検索は番号・タイトル・ラベル */
-export function finishedTickets(
+function finishedTickets(
   tickets: readonly Ticket[],
   finishedAt: ReadonlyMap<string, string>,
   f: FinishedFilter,

@@ -4,12 +4,12 @@ import { z } from "zod";
 import { OperationError } from "../errors.js";
 import { withWrite } from "../git/write.js";
 import { slugSchema } from "../model/common.js";
-import { EPIC_STATUSES, epicBodyTemplate } from "../model/epic.js";
+import { EPIC_STATUSES, epicBodyTemplate, type Epic } from "../model/epic.js";
+import { progressOf, type Progress, type Ticket } from "../model/ticket.js";
 import { defineCommand, ok } from "./define.js";
 import {
   epicRef,
   nowIso,
-  progressOf,
   projectOf,
   sortedDocs,
   ticketRef,
@@ -59,6 +59,11 @@ export const epicCreate = defineCommand({
   },
 });
 
+/** epic.list の 1 行（進捗は都度求める。EP-3） */
+export type EpicRow = Epic & { progress: Progress };
+/** epic.show の出力 */
+export type EpicDetail = EpicRow & { body: string; tickets: Ticket[] };
+
 export const epicList = defineCommand({
   name: "epic.list",
   group: "epic",
@@ -76,7 +81,10 @@ export const epicList = defineCommand({
         (!input.status || input.status.includes(d.data.status)),
     );
     return ok(
-      docs.map((d) => ({ ...d.data, progress: progressOf(ticketsInEpic(ctx.store, d.id)) })),
+      docs.map((d): EpicRow => ({
+        ...d.data,
+        progress: progressOf(ticketsInEpic(ctx.store, d.id).map((t) => t.data)),
+      })),
     );
   },
 });
@@ -92,9 +100,9 @@ export const epicShow = defineCommand({
   async run(ctx, input) {
     const doc = ctx.store.require("epic", input.epic);
     const tickets = ticketsInEpic(ctx.store, doc.id);
-    return ok({
+    return ok<EpicDetail>({
       ...withBody(doc),
-      progress: progressOf(tickets),
+      progress: progressOf(tickets.map((t) => t.data)),
       tickets: tickets.map((t) => t.data),
     });
   },

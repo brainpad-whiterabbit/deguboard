@@ -46,7 +46,7 @@ function draftOf(t: TicketDetail, fields: readonly FieldDefinition[]): Draft {
 }
 
 /** 任意フィールドの入力を Workflow の型に合わせる。空は未指定 */
-export function parseFieldValue(def: FieldDefinition, raw: string): unknown {
+function parseFieldValue(def: FieldDefinition, raw: string): unknown {
   const text = raw.trim();
   if (text === "") return undefined;
   if (def.type === "number") return Number(text);

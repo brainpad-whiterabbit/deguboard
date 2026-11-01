@@ -34,7 +34,7 @@ export interface GuideMeta {
   "argument-hint"?: string;
 }
 
-export function isGuideTopic(topic: string): topic is GuideTopic {
+function isGuideTopic(topic: string): topic is GuideTopic {
   return (GUIDE_TOPICS as readonly string[]).includes(topic);
 }
 
@@ -81,9 +81,7 @@ export async function readGuideMeta(topic: string): Promise<GuideMeta> {
 }
 
 /** 初期化前でも読めるよう、config が取れなければ既定値で埋める */
-export async function loadGuideConfig(
-  cwd: string,
-): Promise<{ config: Config; initialized: boolean }> {
+async function loadGuideConfig(cwd: string): Promise<{ config: Config; initialized: boolean }> {
   try {
     const ctx = await openContext({ cwd, actions: ACTION_NAMES });
     return { config: ctx.config, initialized: true };

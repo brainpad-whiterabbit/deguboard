@@ -4,7 +4,8 @@ import { z } from "zod";
 import { OperationError } from "../errors.js";
 import { withWrite } from "../git/write.js";
 import { slugSchema } from "../model/common.js";
-import { ITERATION_STATUSES } from "../model/iteration.js";
+import { ITERATION_STATUSES, type Iteration } from "../model/iteration.js";
+import type { Ticket } from "../model/ticket.js";
 import { defineCommand, ok } from "./define.js";
 import {
   iterationRef,
@@ -74,6 +75,9 @@ export const iterationList = defineCommand({
   },
 });
 
+/** iteration.show の出力。items は優先度と番号の順（IT-2） */
+export type IterationDetail = Iteration & { items: Ticket[] };
+
 export const iterationShow = defineCommand({
   name: "iteration.show",
   positionals: ["iteration"],
@@ -85,7 +89,7 @@ export const iterationShow = defineCommand({
   async run(ctx, input) {
     const doc = ctx.store.require("iteration", input.iteration);
     const items = ticketsInIteration(ctx.store, doc.id).map((t) => t.data);
-    return ok({ ...doc.data, items });
+    return ok<IterationDetail>({ ...doc.data, items });
   },
 });
 
