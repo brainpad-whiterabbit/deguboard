@@ -50,6 +50,12 @@ export const configSchema = z.looseObject({
       shell: z.boolean().default(false),
     })
     .prefault({}),
+  auto: z
+    .looseObject({
+      /** dg guide all --auto で、マージの前の条件を満たした PR を自動でマージするか。既定は人がマージする */
+      merge: z.boolean().default(false),
+    })
+    .prefault({}),
   actor: z
     .looseObject({
       /** agent からは拒否するコマンド名（epic.close など）。既定は空で、すべて許す。チケットの遷移は Workflow の by で縛る */

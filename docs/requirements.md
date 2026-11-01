@@ -194,18 +194,19 @@ fields:
 
 ### 5.10 設定（`config.yaml`）
 
-| 項目                             | 意味                                         | 既定                  |
-| -------------------------------- | -------------------------------------------- | --------------------- |
-| `default_project`                | 省略時の Project                             | `default`             |
-| `git.remote` / `git.base_branch` | 同期先と、作業ブランチの元・マージ判定の基準 | `origin` / `main`     |
-| `worktree.root`                  | 作業 worktree の置き場所                     | `../<repo>.worktrees` |
-| `commit.mode`                    | 書き込みをいつコミットするか（下記）         | `batch`               |
-| `push.mode`                      | `auto` / `manual`                            | `auto`                |
-| `metrics.read_transcripts`       | 会話記録を読むか                             | `false`               |
-| `actions.shell`                  | 任意のシェルの Action を許すか（予定 `e3`）  | `false`               |
-| `actor.human_only`               | agent からは拒否するコマンド名の一覧（下記） | `[]`                  |
+| 項目                             | 意味                                             | 既定                  |
+| -------------------------------- | ------------------------------------------------ | --------------------- |
+| `default_project`                | 省略時の Project                                 | `default`             |
+| `git.remote` / `git.base_branch` | 同期先と、作業ブランチの元・マージ判定の基準     | `origin` / `main`     |
+| `worktree.root`                  | 作業 worktree の置き場所                         | `../<repo>.worktrees` |
+| `commit.mode`                    | 書き込みをいつコミットするか（下記）             | `batch`               |
+| `push.mode`                      | `auto` / `manual`                                | `auto`                |
+| `metrics.read_transcripts`       | 会話記録を読むか                                 | `false`               |
+| `actions.shell`                  | 任意のシェルの Action を許すか（予定 `e3`）      | `false`               |
+| `actor.human_only`               | agent からは拒否するコマンド名の一覧（下記）     | `[]`                  |
+| `auto.merge`                     | `dg guide all --auto` で PR を自動でマージするか | `false`               |
 
-`commit.mode` の意味。`each` は書き込みのたびにコミットする。`batch` は作業ツリーに残し、`dg commit`・`dg sync`・即時にコミットする操作（CL-3）がまとめて 1 コミットにする（即時の操作は、まとめ待ちの変更を先に 1 コミットにしてから自分のコミットを作る）。`manual` は `dg commit` と即時の操作だけがコミットし、`dg sync` はまとめない。`push.mode` は `auto` ならコミットのたびに push し、`manual` なら `dg sync` が push する。即時の操作はどちらでも push する。
+`commit.mode` の意味。`each` は書き込みのたびに、`batch` は `dg commit`・`dg sync`・即時の操作（CL-3）がまとめて、`manual` は `dg commit` と即時の操作だけがコミットする。`push.mode` は `auto` ならコミットのたびに、`manual` なら `dg sync` が push する（即時の操作は常に push）。
 
 `actor.human_only` は `epic.close` のようなコマンド名の一覧で、入れたコマンドを agent が呼ぶと `TRANSITION_REJECTED` で拒否する。既定は空で、すべての操作をエージェントにも許す。チケットの遷移を人に限るのは Workflow の `by`（WF-1）で、この項目では扱わない。
 
@@ -298,7 +299,7 @@ Web UI は `dg serve` が配信し、VS Code 拡張は同じ React アプリを 
 
 - EX-1 deguboard はエージェントを起動しない。チケットの処理はエージェント側の Skill が `dg` を呼んで進める
 - EX-2 終了していない Run は一覧で見え、`interrupted` として閉じられる
-- EX-3 依存に従う並列実行・自動レビュー・修正ループ・品質ゲート・自動マージは、Skill 側の手順として提供し、着手できるチケットの一覧（`ticket list` の `ready`）と Plan の順序に従う（予定 `e4`）
+- EX-3 依存に従う並列実行・自動レビュー・修正ループ・品質ゲート・自動マージは、Skill 側の手順として提供し、着手できるチケットの一覧（`ticket list` の `ready`）と Plan の順序に従う（予定 `e4`）。`dg guide all --auto` は戻せる判断を自動で選び、`auto.merge` が true なら条件を満たした PR をマージする
 - EX-4 Workflow が `by: [human]` で人に限った遷移は、エージェントからは行えない
 
 ## 7. 非機能要件
