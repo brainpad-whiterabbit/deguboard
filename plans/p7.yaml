@@ -31,3 +31,4 @@ details:
     approach: guide-all の「マージの前の条件」を品質ゲートとして切り出して work と all から参照する。guide.test.ts・EX-3・README を直す
 approved_by: eiki.kitajima/agent
 approved_at: 2026-11-01T10:39:43Z
+closed_at: 2026-11-01T11:22:27Z
