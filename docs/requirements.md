@@ -226,7 +226,7 @@ fields:
 | Iteration | `iteration create / list / show / add / remove / start / close / reopen`（`sprint` はエイリアス） | あり         |
 | Epic      | `epic create / list / show / update / add / remove / close / reopen`                              | あり         |
 | Workflow  | `workflow list / show / validate`                                                                 | あり         |
-| 画面      | `serve`、`open`                                                                                   | あり         |
+| 画面・MCP | `serve`、`open`、`mcp`                                                                            | あり         |
 | 手順      | `guide <topic>`、`skill install`                                                                  | あり         |
 | Plan      | `plan create / list / show / approve / close`                                                     | あり         |
 | 経過      | `history`（`--ticket`・`--epic`・`--iteration` で絞る）                                           | あり         |
