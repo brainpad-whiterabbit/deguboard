@@ -1,0 +1,15 @@
+id: p9
+project: default
+tickets: [t144, t134, t135]
+after: {}
+pending_approval: true
+details:
+  t144:
+    scope: createLocalClient の毎回の rescan を、変化がなければ省くか変わったファイルだけ読み直す。別プロセスの書き込みは次のコマンドに映す
+    approach: 先に方式（ファイルごとの mtime と大きさか、データ worktree の状態か）を決めて PR に書き、7 本の時間を変更の前後で測る。e2e/routes.test.ts で結果が変わらないことを確かめる
+  t134:
+    scope: SYNC_CONFLICT のメッセージと sync の競合の警告を、人が deguboard worktree で解消する戻し方（SY-4・guide overview）に揃える
+    approach: packages/core/src/git/write.ts と commands/setup.ts の文言だけを直し、文言を見るテストがあれば合わせる
+  t135:
+    scope: development.md と ADR-002・003・004・007 を予算の 90% 未満にする。CLAUDE.md は対象にしない
+    approach: 細部がコード・テスト・ヘルプ・requirements.md にあることを確かめてから消し、ADR は判断（決定・理由・採らなかった案）を残す。更新日と一覧を直す
