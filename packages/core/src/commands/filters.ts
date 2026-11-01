@@ -8,7 +8,7 @@ import type { Store } from "../storage/store.js";
 export const ticketFilterSchema = z.object({
   project: z.string().optional().describe("Project で絞る。省略時はすべて"),
   status: z.array(z.enum(STATUSES)).optional().describe("Status で絞る"),
-  priority: z.array(z.enum(PRIORITIES)).optional(),
+  priority: z.array(z.enum(PRIORITIES)).optional().describe("優先度で絞る"),
   iteration: z.string().optional().describe("Iteration の ID で絞る"),
   epic: z.string().optional().describe("Epic の ID で絞る"),
   label: z.array(z.string()).optional().describe("いずれかのラベルを持つ"),

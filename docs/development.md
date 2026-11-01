@@ -70,7 +70,7 @@ mise run dg -- guide done      # マージ後の後始末
 ## ビルドとテスト
 
 - TypeScript は ESM（`"type": "module"`）で、相対 import は `.js` の拡張子で書く。`mise run typecheck` は `noEmit` で検査する
-- `mise run build` が `tsconfig.build.json`（プロジェクト参照）で `core`・`server`・`cli` を、Vite で `web` を `dist/` に出す。`dg` をリポジトリの外のディレクトリに対して動かすときは `-C <dir>` を付ける
+- `mise run build` が `tsconfig.build.json`（プロジェクト参照）で `core`・`server`・`cli` を、Vite で `web` と `vscode` を `dist/` に出す。`dg` をリポジトリの外のディレクトリに対して動かすときは `-C <dir>` を付ける
 - `@deguboard/core` と `@deguboard/server` の `exports` は条件つきで、テストと型検査・vscode のビルド（`development` 条件）は `src/` を、ビルド済みの `dg` は `dist/` を見る。公開する tarball では `publishConfig.exports` が `development` 条件を外し、`dist/` だけを指す（`pnpm pack` で確かめる）。テストの前にビルドは要らない
 - テストはソースの隣の `*.test.ts`（画面は `*.test.tsx`）に置き、ルートの `vitest.config.ts` が `packages/*/src/**/*.test.{ts,tsx}` と `test/**/*.test.ts` をまとめて走らせる。パッケージごとの設定ファイルは作らない
 - パッケージをまたぐテストは `test/` に置く。`e2e/routes.test.ts` は CLI・HTTP・Webview の 3 経路の結果とコミットの一致（NF-2）を、`layout/` は画面の配置とドラッグを確かめる（`mise run test:layout`。ブラウザが要るので check に入れない）
@@ -83,17 +83,20 @@ mise run dg -- guide done      # マージ後の後始末
 
 ### `packages/core`（`@deguboard/core`）
 
-ドメインモデル・ストレージ・Git 操作・ワークフロー・コマンド定義。`src/` のモジュール：
+ドメインモデル・ストレージ・Git 操作・ワークフロー・Run・コマンド定義。`src/` のモジュール：
 
-| モジュール  | 役割                                                                                                                                                                                                                          |
-| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `model/`    | Zod のスキーマ（config・Project・Ticket・Epic・Iteration・Plan・Workflow）、ID の解析と採番、Status と前進の順                                                                                                                |
-| `storage/`  | frontmatter と YAML の読み書き（コメントとキー順を保つ）、原子的書き込み、`Store`（起動時に走査してメモリ上に索引を作る）、参照の整合                                                                                         |
-| `workflow/` | 遷移の制約の合成と検査、条件の評価、`reconcile` の評価、定義の検証、同梱テンプレート                                                                                                                                          |
-| `git/`      | `execFile` で git・gh を呼ぶ、deguboard worktree の用意、取り込みと push、書き込みの 1 単位 `withWrite`、仮番号の振り直し、事実の収集、frontmatter のマージドライバ（`merge.ts`。SY-4）、経過の読み取り（`history.ts`。CL-7） |
-| `commands/` | 3 つの入口の正本。`defineCommand` で「名前・Zod の入力・実装」を組にし、`openContext` と `runCommand` で呼ぶ                                                                                                                  |
+| モジュール  | 役割                                                                                                                                                                                            |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `model/`    | Zod のスキーマ（config・Project・Ticket・Epic・Iteration・Plan・Workflow・Run）、ID の解析と採番、Status と前進の順、Run の集計の純粋関数（`metrics.ts`）                                       |
+| `storage/`  | frontmatter と YAML の読み書き（コメントとキー順を保つ）、原子的書き込み、`Store`（起動時に走査してメモリ上に索引を作る）、参照の整合                                                           |
+| `workflow/` | 遷移の制約の合成と検査、条件の評価、`reconcile` の評価、定義の検証、同梱テンプレート                                                                                                            |
+| `git/`      | deguboard worktree の用意、取り込みと push、書き込みの 1 単位 `withWrite`、仮番号の振り直し、事実の収集、frontmatter のマージドライバ（`merge.ts`。SY-4）、経過の読み取り（`history.ts`。CL-7） |
+| `run/`      | Run の start・finish。実行中の記録は `deguboard-local/runs/`、二重の start は `locks/runs` のロックで拒む                                                                                       |
+| `agents/`   | Agent Adapter（`adapters/claude-code.ts`）。`run finish` が会話記録から使用量を取り込む。汎用部分は `index.ts` だけを import する                                                               |
+| `actions/`  | 登録済みの Action（ライブラリ。コマンドにはしない）。core の公開は `ACTION_NAMES` だけ                                                                                                          |
+| `commands/` | 3 つの入口の正本。`defineCommand` で「名前・Zod の入力・実装」を組にし、`openContext` と `runCommand` で呼ぶ                                                                                    |
 
-入口がコマンドを呼ぶ流れ：`openContext({ cwd, actor })` → `runCommand(findCommand("ticket.create"), ctx, input)`。入力の形の誤りは `UsageError`（終了コード 2）、実行時の失敗は `OperationError`（終了コード 1、`code` に種類）。
+入口がコマンドを呼ぶ流れ：`openContext({ cwd, actor, actions: ACTION_NAMES })` → `runCommand(findCommand("ticket.create"), ctx, input)`。入力の形の誤りは `UsageError`（終了コード 2）、実行時の失敗は `OperationError`（終了コード 1、`code` に種類）。
 
 ### `packages/cli`（npm の `deguboard`、コマンドは `dg`）
 
@@ -124,19 +127,19 @@ core の `commands` を HTTP に写す。Node 標準の `node:http` で、フレ
 
 画面の React アプリ。構成の判断は [ADR-008](adr/ADR-008-tech-stack.md)。core からは型と `CommandClient`（`core/commands/client.ts`）だけを取り込み、実行時のコードは取り込まない（`import type` だけ。Vite が node のモジュールを束ねないため）。`src/` のファイル：
 
-| ファイル            | 役割                                                                                                                                |
-| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `client/http.ts`    | `CommandClient` の HTTP 実装。`/api/commands/<name>` と `/api/status` を呼び、失敗は `ClientError`（code と message）               |
-| `client/webview.ts` | postMessage 実装。形は core の `WebviewRequest` / `WebviewResponse` / `WebviewEvent`                                                |
-| `app.tsx`           | 骨組み。上のバー（Project と画面の切り替え・同期の印）と、ハッシュで選んだページ                                                    |
-| `host.tsx`          | `surface` と、チケットをエディタで開く働きかけ。拡張ホストからの通知（同期・遷移）を store に結ぶ                                   |
-| `store.tsx`         | 選んだ Project のチケット・Epic・Iteration・Workflow と同期の状態を読み、書き込み（`run`）のあとに読み直す                          |
-| `router.ts`         | ハッシュの解析（`#/board?epic=e1`、`#/tickets/t12` など）                                                                           |
-| `pages/`            | カンバン（UI-2）・バックログ（UI-3）・チケット詳細（UI-4）・Epic（UI-10）・Iteration と閉じた Iteration の履歴（UI-5）・Run（UI-9） |
-| `components/`       | 小さな表示部品（チケットへのリンク、優先度・Status の印、ラベル、進捗）と、チケット詳細の節（経過・Run）                            |
-| `ui-state.ts`       | 見た目の状態（節の開閉・最後に選んだ Iteration）。Webview では `getState` / `setState`、ブラウザでは `localStorage` に置く          |
-| `markdown.tsx`      | 本文の最小の Markdown（見出し・段落・箇条書き・チェックリスト・インラインコード）                                                   |
-| `styles.css`        | `--vscode-*` 変数を基準にしたテーマ。`:root` の値はブラウザで開いたときの既定で、Webview では VS Code の値が勝つ                    |
+| ファイル            | 役割                                                                                                                           |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `client/http.ts`    | `CommandClient` の HTTP 実装。`/api/commands/<name>` と `/api/status` を呼び、失敗は `ClientError`（code と message）          |
+| `client/webview.ts` | postMessage 実装。形は core の `WebviewRequest` / `WebviewResponse` / `WebviewEvent`                                           |
+| `app.tsx`           | 骨組み。上のバー（Project と画面の切り替え・同期の印）と、ハッシュで選んだページ                                               |
+| `host.tsx`          | `surface` と、チケットをエディタで開く働きかけ。拡張ホストからの通知（同期・遷移）を store に結ぶ                              |
+| `store.tsx`         | 選んだ Project のチケット・Epic・Iteration・Workflow と同期の状態を読み、書き込み（`run`）のあとに読み直す                     |
+| `router.ts`         | ハッシュの解析（`#/board?epic=e1`、`#/tickets/t12` など）                                                                      |
+| `pages/`            | カンバン（UI-2）・バックログ（UI-3）・チケット詳細（UI-4）・Epic（UI-10）・Iteration（UI-5）・履歴（UI-5）・Run と集計（UI-9） |
+| `components/`       | 小さな表示部品（チケットへのリンク、優先度・Status の印、ラベル、進捗）と、チケット詳細の節（経過・Run）                       |
+| `ui-state.ts`       | 見た目の状態（節の開閉・最後に選んだ Iteration）。Webview では `getState` / `setState`、ブラウザでは `localStorage` に置く     |
+| `markdown.tsx`      | 本文の最小の Markdown（見出し・段落・箇条書き・チェックリスト・インラインコード）                                              |
+| `styles.css`        | `--vscode-*` 変数を基準にしたテーマ。`:root` の値はブラウザで開いたときの既定で、Webview では VS Code の値が勝つ               |
 
 型検査は `tsconfig.json` を別に持つ（DOM と JSX が要るため）。ビルドは Vite で `dist/` に出し、`dg serve` は cli に写した `web/` を配信する（`cli/program.ts` の `webDist`）。テストは `// @vitest-environment jsdom` を付け、`test-helpers.ts` の `mockClient` で `CommandClient` を差し替える。
 

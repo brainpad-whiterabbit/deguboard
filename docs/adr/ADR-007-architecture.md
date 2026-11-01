@@ -21,7 +21,7 @@ CLI・MCP・HTTP・VS Code 拡張という複数の入口から同じ機能を�
 
 ```
 packages/
-├── core/     ドメイン・storage・git・workflow・run/metrics・commands・actions
+├── core/     model・storage・git・workflow・run・agents・actions・commands
 ├── cli/      dg。commands を commander と MCP のツール（dg mcp）に写す
 ├── server/   commands を HTTP に写し、web を配信する
 ├── web/      React。CommandClient の HTTP 実装
@@ -31,13 +31,13 @@ packages/
 - `core` は何にも依存しない（VS Code API・HTTP・React を知らない）
 - `server`・`vscode` は `core` だけに依存する。`cli` は `dg serve` と `dg mcp`（ツールの入力スキーマを `describeCommands` で作る）のために `server` にも依存する
 - `web` は `core` の型と `CommandClient` のインターフェースだけに依存する
-- 逆向きの依存は作らない。`.oxlintrc.json` の `overrides` がパッケージごとに `no-restricted-imports` で検出する（core は `@deguboard/*`・`vscode`・`react`・他パッケージへの相対パスを、server と vscode は `@deguboard/core` 以外を、cli は core と server 以外を、web は core 以外と core の型以外の import を禁止）
+- 逆向きの依存は作らない。`.oxlintrc.json` の `overrides` がパッケージごとに `no-restricted-imports` で検出する（禁じる import の正本はその設定）
 
 ### `core/commands` が 3 つの入口の正本
 
 - すべての操作を「名前・Zod の入力スキーマ・実装関数」の組として `core/commands` に定義する
 - CLI のサブコマンドとヘルプ、HTTP のエンドポイント、Webview のメッセージ、MCP のツール定義は、この定義から生成する。入口にロジックを書かない
-- MCP（`dg mcp`）は `cli` に置き、`createLocalClient` を主体 agent で開いて stdio に写す。ツールの名前は `ticket.create` の `.` を `_` にしたもの、入力スキーマは Zod から作る JSON Schema（`server` の `describeCommands` と同じ）。CLI だけの `guide`・`serve`・`open` と、初期化前に動く `init` はツールにしない
+- MCP（`dg mcp`）は `cli` に置き、`createLocalClient` を主体 agent で開いて stdio に写す。ツールの名前は `ticket.create` の `.` を `_` にしたもの、入力スキーマは Zod から作る JSON Schema（`server` の `describeCommands` と同じ）。CLI だけの `guide`・`serve`・`open`・`skill`・`merge-driver`（Git から呼ばれる）と、初期化前に動く `init` はツールにしない
 - UI は `CommandClient`（コマンド名と入力を渡して結果を受け取る 1 つのインターフェース）を通じて呼ぶ
 - 文脈の管理（開く・再走査・直列化・名前でコマンドを引く）はプロセス内の `CommandClient`（`core/commands/local.ts`）として core に 1 つ置き、`server` は HTTP に、`vscode` は Webview の postMessage に写す
 
@@ -49,7 +49,7 @@ Core の中は責務ごとのモジュールに分け、最初からパッケー
 - `storage`：frontmatter / YAML / JSON の読み書き、原子的書き込み、起動時走査とメモリ上の索引
 - `git`：deguboard worktree の用意、commit / push、claim の CAS、照合に使う事実の収集、競合の検出
 - `workflow`：定義の検証、遷移の検査、`reconcile` の評価
-- `run`・`metrics`：Run の記録と集計
+- `run`：Run の記録（start・finish と実行中の記録）。集計は独立のモジュールにせず、`model/metrics` の純粋関数を `commands/metrics` が表示のたびに呼ぶ（ADR-005）
 - `agents`：Agent Adapter のインターフェースと製品ごとの実装（Claude Code。Codex は予定）。使用量の取得と作業ディレクトリの差を吸収する
 - `actions`：登録済みの Action（`create_worktree`・`create_branch`・`run_tests`・`create_pr`・`merge_pr`、許したときだけの `shell`）。下の「Action の呼び方」
 
