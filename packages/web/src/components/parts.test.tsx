@@ -3,13 +3,23 @@ import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { StoreProvider } from "../store.js";
 import { mockClient } from "../test-helpers.js";
-import { ProgressBar, StatusDot, TicketTable } from "./parts.js";
+import { ProgressBar, StatusDot, TicketTable, sameAssignee } from "./parts.js";
 
 afterEach(cleanup);
 
 function mount(node: React.ReactNode) {
   render(<StoreProvider client={mockClient()}>{node}</StoreProvider>);
 }
+
+describe("行の担当", () => {
+  it("すべて同じ 1 人のときだけ true。担当のないチケットが混ざる・行がないときは false", () => {
+    expect(sameAssignee([{ assignee: "eiki/agent" }, { assignee: "eiki/agent" }])).toBe(true);
+    expect(sameAssignee([{ assignee: "eiki/agent" }, { assignee: "eiki" }])).toBe(false);
+    expect(sameAssignee([{ assignee: "eiki/agent" }, {}])).toBe(false);
+    expect(sameAssignee([{}, {}])).toBe(false);
+    expect(sameAssignee([])).toBe(false);
+  });
+});
 
 describe("進捗バー", () => {
   it("Status ごとに件数の割合で積み上げ、0 件の Status は出さない", async () => {

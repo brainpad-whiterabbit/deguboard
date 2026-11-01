@@ -14,9 +14,9 @@ afterEach(() => {
 });
 
 /** 見た目の状態はテストごとのメモリ（帯の開閉がテストをまたがない） */
-function browserHost(): Host {
+function browserHost(surface: Host["surface"] = "browser"): Host {
   return {
-    surface: "browser",
+    surface,
     open: () => {},
     show: () => {},
     state: createUiState(memoryBackend()),
@@ -87,6 +87,39 @@ describe("実行計画の帯", () => {
     expect(
       (await screen.findByRole("button", { name: "実行計画 1" })).getAttribute("aria-expanded"),
     ).toBe("true");
+  });
+
+  it("サイドバーでは待ちの辺のない Plan をチップで出し、チップに状態の丸印・番号・タイトルを出す。辺のある Plan はグラフのまま", async () => {
+    const client = withPlans();
+    client.data.plans.push(plan({ id: "p3", tickets: ["t2", "t3"] }));
+    const host = browserHost("sidebar");
+    host.state.set("board.plansExpanded", true);
+    mount(client, host);
+    await screen.findByRole("button", { name: "実行計画 2" });
+    const cards = [...document.querySelectorAll(".plan-card")];
+    const p3 = cards.find((c) => c.textContent?.startsWith("p3"))!;
+    expect(p3.querySelector(".plan-graph-canvas")).toBeNull();
+    const chips = [...p3.querySelectorAll<HTMLAnchorElement>("a.plan-chip")];
+    expect(chips.map((a) => a.getAttribute("href"))).toEqual(["#/tickets/t2", "#/tickets/t3"]);
+    expect(chips.map((a) => a.querySelector(".plan-chip-title")?.textContent)).toEqual([
+      "API",
+      "画面",
+    ]);
+    expect(chips[0]!.querySelector(".status-dot")).toBeTruthy();
+    const p2 = cards.find((c) => c.textContent?.startsWith("p2"))!;
+    expect(p2.querySelector(".plan-graph-canvas")).toBeTruthy();
+    expect(p2.querySelector(".plan-chip")).toBeNull();
+  });
+
+  it("ブラウザでは待ちの辺のない Plan もグラフで出す", async () => {
+    const client = mockClient();
+    client.data.plans = [plan({ id: "p3", tickets: ["t2", "t3"] })];
+    const host = browserHost();
+    host.state.set("board.plansExpanded", true);
+    mount(client, host);
+    await screen.findByRole("button", { name: "実行計画 1" });
+    expect(document.querySelector(".plan-graph-canvas")).toBeTruthy();
+    expect(document.querySelector(".plan-chip")).toBeNull();
   });
 
   it("ノードにホバーすると繋がるノードを強調する", async () => {

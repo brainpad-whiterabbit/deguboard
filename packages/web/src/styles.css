@@ -751,6 +751,37 @@ button.link:hover {
 .plan-node-waiting {
   border-style: dashed;
 }
+/* サイドバーで待ちの辺のない Plan のチップ（plan-band.tsx の PlanChips）。枠は依存グラフのノードと同じ */
+.plan-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.plan-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  padding: 1px 6px;
+  border: 1px solid color-mix(in srgb, var(--dg-status) 55%, transparent);
+  border-radius: 3px;
+  background: var(--vscode-editor-background);
+  color: inherit;
+}
+.plan-chip:hover {
+  text-decoration: none;
+  background: var(--vscode-list-hoverBackground);
+}
+.plan-chip code {
+  background: transparent;
+  padding: 0;
+}
+.plan-chip-title {
+  max-width: 12em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 /* ホバー中は繋がるノードと辺だけを濃く出す */
 .plan-graph-tracing .plan-node:not(.related),
 .plan-graph-tracing .plan-graph-edge:not(.related) {
@@ -1197,6 +1228,20 @@ textarea.body {
 [data-surface="sidebar"] .rows.history-finished li > :nth-child(4),
 [data-surface="sidebar"] .rows.history-finished li > :nth-child(7) {
   display: none;
+}
+/* サイドバーのチケットの行はタイトルを 2 行まで折り返す。丸印・番号・担当・印は 1 行目に揃える */
+[data-surface="sidebar"] .ticket-row {
+  align-items: start;
+}
+[data-surface="sidebar"] .ticket-row .status-dot {
+  margin-top: 5px;
+}
+[data-surface="sidebar"] .ticket-row .row-title {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 [data-surface="sidebar"] .groups {
   grid-template-columns: 1fr;

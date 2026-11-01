@@ -148,13 +148,18 @@ export function StatusDot({ status }: { status: Status }) {
   );
 }
 
-/** チケットの 1 行（サイドバー向け。KanbanForge と同じ高さ一定の行）：状態の丸印・番号・タイトル・担当者・優先度が high なら印 */
+/**
+ * チケットの 1 行（サイドバー向け）：状態の丸印・番号・タイトル・担当者・優先度が high なら印。
+ * サイドバーではタイトルを 2 行まで折り返す（styles.css）。hideAssignee で担当者を出さない（見えている行の担当が 1 人だけのとき）
+ */
 export function TicketRow({
   ticket,
   onClick,
+  hideAssignee = false,
 }: {
   ticket: Ticket;
   onClick?: ComponentProps<"a">["onClick"] | undefined;
+  hideAssignee?: boolean | undefined;
 }) {
   return (
     <TicketLink
@@ -167,7 +172,7 @@ export function TicketRow({
       <span className="row-title" title={ticket.title}>
         {ticket.title}
       </span>
-      {ticket.assignee ? (
+      {ticket.assignee && !hideAssignee ? (
         <span className="row-assignee" title={ticket.assignee}>
           {actorLabel(ticket.assignee)}
         </span>
@@ -208,8 +213,23 @@ export function useDraggableTicket(id: string) {
   };
 }
 
+/**
+ * 行のチケットの担当がすべて同じ 1 人か。そのときは行ごとに担当を出さない（TicketRow の hideAssignee）。
+ * 担当のないチケットが混ざる・行がないときは false
+ */
+export function sameAssignee(tickets: readonly Pick<Ticket, "assignee">[]): boolean {
+  const first = tickets[0]?.assignee;
+  return !!first && tickets.every((t) => t.assignee === first);
+}
+
 /** 1 行のチケット（サイドバー）。行全体をつかんで動かす */
-export function DraggableRow({ ticket }: { ticket: Ticket }) {
+export function DraggableRow({
+  ticket,
+  hideAssignee,
+}: {
+  ticket: Ticket;
+  hideAssignee?: boolean | undefined;
+}) {
   const d = useDraggableTicket(ticket.id);
   return (
     <div
@@ -218,7 +238,7 @@ export function DraggableRow({ ticket }: { ticket: Ticket }) {
       className={`row-drag${d.isDragging ? " dragging" : ""}`}
       {...d.props}
     >
-      <TicketRow ticket={ticket} />
+      <TicketRow ticket={ticket} hideAssignee={hideAssignee} />
     </div>
   );
 }
