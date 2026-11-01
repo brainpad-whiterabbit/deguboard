@@ -150,7 +150,13 @@ const STEPS: Step[] = [
   { name: "run.list", input: { running: true }, argv: ["run", "list", "--running"] },
   {
     name: "run.finish",
-    input: (v) => ({ run: v.run, result: "failure", error: "テストが落ちた", retries: 1 }),
+    input: (v) => ({
+      run: v.run,
+      result: "failure",
+      error: "テストが落ちた",
+      retries: 1,
+      retry_reasons: ["型の検査が落ちた"],
+    }),
     argv: (v) => [
       "run",
       "finish",
@@ -161,6 +167,8 @@ const STEPS: Step[] = [
       "テストが落ちた",
       "--retries",
       "1",
+      "--retry-reason",
+      "型の検査が落ちた",
     ],
   },
   {
@@ -363,7 +371,14 @@ describe("3 経路の E2E", () => {
       { id: "<run>", ticket: "t2", model: "e2e-model", running: true, duration_seconds: null },
     ]);
     expect(at("run.list", 1).data).toMatchObject([
-      { id: "<run>", result: "failure", error: "テストが落ちた", retries: 1, running: false },
+      {
+        id: "<run>",
+        result: "failure",
+        error: "テストが落ちた",
+        retries: 1,
+        retry_reasons: ["型の検査が落ちた"],
+        running: false,
+      },
     ]);
     expect(at("metrics.show").data).toMatchObject({
       filter: { epic: "e1" },

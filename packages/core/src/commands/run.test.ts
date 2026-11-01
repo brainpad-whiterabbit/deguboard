@@ -62,6 +62,7 @@ describe("run", () => {
       finished_at: null,
       result: null,
       retries: 0,
+      retry_reasons: [],
       usage: { input: null, output: null, cache_read: null, cache_write: null },
     });
     const localFile = path.join(ctx.repo.localDir, "runs", `${run.id}.json`);
@@ -193,6 +194,62 @@ describe("run", () => {
     await runCommand(commit, ctx, {});
     const tracked = (await git(ctx.repo.dataDir, ["ls-files", "runs"])).stdout.trim();
     expect(tracked).toBe(`runs/${run.id}.json`);
+  });
+
+  it("finish はリトライの理由を retry_reasons に残し、回数を省けば理由の数を回数にする", async () => {
+    const ctx = await prepared();
+    const reasons = ["型の検査が落ちた", "見直しで境界の扱いを指摘された"];
+    const first = await start(ctx, "t1");
+    const r = await runCommand(runFinish, ctx, {
+      run: first.id,
+      result: "success",
+      retry_reasons: reasons,
+    });
+    expect(r.data).toMatchObject({ retries: 2, retry_reasons: reasons });
+    await runCommand(commit, ctx, {});
+    const saved = JSON.parse(
+      await readFile(path.join(ctx.repo.dataDir, "runs", `${first.id}.json`), "utf8"),
+    ) as Record<string, unknown>;
+    expect(saved).toMatchObject({ retries: 2, retry_reasons: reasons });
+
+    // 理由を渡さなければ空の配列。回数だけも受ける
+    const second = await start(ctx, "t2");
+    const plain = await runCommand(runFinish, ctx, {
+      run: second.id,
+      result: "success",
+      retries: 1,
+    });
+    expect(plain.data).toMatchObject({ retries: 1, retry_reasons: [] });
+  });
+
+  it("finish は回数と理由の数が食い違うか、理由が 1 行でなければ拒否し、Run を開けたままにする", async () => {
+    const ctx = await prepared();
+    const run = await start(ctx, "t1");
+    await expect(
+      runCommand(runFinish, ctx, {
+        run: run.id,
+        result: "success",
+        retries: 1,
+        retry_reasons: ["検査が落ちた", "見直しの指摘"],
+      }),
+    ).rejects.toMatchObject({ code: "INVALID_INPUT", message: expect.stringMatching(/食い違う/) });
+    await expect(
+      runCommand(runFinish, ctx, {
+        run: run.id,
+        result: "success",
+        retry_reasons: ["1 行目\n2 行目"],
+      }),
+    ).rejects.toMatchObject({ code: "INVALID_INPUT" });
+    const running = (await runCommand(runList, ctx, { running: true })).data as RunView[];
+    expect(running.map((r) => r.id)).toEqual([run.id]);
+    // 数が合えば閉じられる
+    const r = await runCommand(runFinish, ctx, {
+      run: run.id,
+      result: "failure",
+      retries: 1,
+      retry_reasons: ["検査が落ちた"],
+    });
+    expect(r.data).toMatchObject({ retries: 1, retry_reasons: ["検査が落ちた"] });
   });
 
   it("Adapter が渡した使用量だけを集計に入れ、渡さなかった値と中の未知のキーを残す", async () => {
@@ -443,6 +500,7 @@ describe("run finish の使用量の取り込み（MT-1・MT-2・MT-4）", () =>
         "result",
         "error",
         "retries",
+        "retry_reasons",
         "usage",
       ].sort(),
     );

@@ -123,6 +123,7 @@ export async function startRun(repo: RunDirs, input: StartRunInput): Promise<Run
       result: null,
       error: null,
       retries: 0,
+      retry_reasons: [],
       usage: emptyUsage(),
     };
     const doc = await createDoc(repo.localDir, runPath(id), "json", runSchema, run);
@@ -134,6 +135,8 @@ export interface FinishRunInput {
   result: RunResult;
   error?: string | null | undefined;
   retries?: number | undefined;
+  /** 渡さなければ実行中の記録の値（なければ空の配列）。回数との突き合わせは run.finish がする */
+  retryReasons?: readonly string[] | undefined;
   model?: string | null | undefined;
   /**
    * 公式の使用量（Adapter・会話記録）から取った値。渡さなければ null のまま（RN-2）。
@@ -175,6 +178,7 @@ export async function finishRun(
     result: input.result,
     error: input.error ?? null,
     retries: input.retries ?? local.data.retries,
+    retry_reasons: [...(input.retryReasons ?? local.data.retry_reasons ?? [])],
     model: input.model === undefined ? local.data.model : input.model,
     // 渡されなかったキー（undefined）は重ねない
     usage: {
