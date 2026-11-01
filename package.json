@@ -11,6 +11,7 @@
     "lint": "oxlint",
     "typecheck": "tsc -p tsconfig.json && tsc -p packages/web/tsconfig.json && tsc -p test/tsconfig.json",
     "test": "vitest run",
+    "test:layout": "vitest run --config vitest.layout.config.ts",
     "check:docs": "node scripts/check-docs.mjs",
     "build": "tsc -b tsconfig.build.json && cp packages/cli/src/guide-*.md packages/cli/dist/ && pnpm --filter @deguboard/web build && rm -rf packages/cli/web && cp -r packages/web/dist packages/cli/web && pnpm --filter deguboard-vscode build",
     "dg": "node packages/cli/bin/dg.js",

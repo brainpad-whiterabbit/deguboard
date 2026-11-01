@@ -1,9 +1,9 @@
 {
-  // 3 経路の E2E（test/e2e）。web の postMessage クライアントを取り込むので DOM の型が要る
+  // パッケージをまたぐテスト（test/e2e・test/layout）。web の postMessage クライアントと、ブラウザの中で測るコードに DOM の型が要る
   "extends": "../tsconfig.base.json",
   "compilerOptions": {
     "noEmit": true,
-    "lib": ["ES2023", "DOM"]
+    "lib": ["ES2023", "DOM", "DOM.Iterable"]
   },
   "include": ["."]
 }
