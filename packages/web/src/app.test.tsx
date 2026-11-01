@@ -29,6 +29,25 @@ function webviewHost(
   return { surface, open, show, state: createUiState(memoryBackend()) };
 }
 
+/** 実行中の Run（run.list の 1 件） */
+function runningRun(ticketId: string): RunView {
+  return {
+    id: "r20261101-010000-aaaa",
+    ticket: ticketId,
+    step: "implement",
+    agent: "claude-code",
+    model: null,
+    started_at: "2026-11-01T01:00:00Z",
+    finished_at: null,
+    result: null,
+    error: null,
+    retries: 0,
+    usage: { input: null, output: null, cache_read: null, cache_write: null },
+    running: true,
+    duration_seconds: null,
+  } as RunView;
+}
+
 function mount(client = mockClient(), host?: Host) {
   const app = host ? (
     <HostProvider host={host}>
@@ -205,7 +224,11 @@ describe("画面", () => {
     expect(await screen.findByRole("heading", { level: 2, name: "Run" })).toBeTruthy();
     expect(await screen.findByText("Run はない")).toBeTruthy();
     expect(screen.queryByText("予定（e3）")).toBeNull();
-    expect(client.calls.some((c) => c.name === "run.list")).toBe(true);
+    expect(
+      client.calls.some(
+        (c) => c.name === "run.list" && (c.input as { ticket?: string }).ticket === "t3",
+      ),
+    ).toBe(true);
   });
 
   it("エディタのパネルのチケット詳細は、編集のボタンをタイトルの行に置き、作成・更新を手元時刻で出し、値のない属性を「なし」の 1 行にまとめる", async () => {
@@ -552,6 +575,78 @@ describe("画面", () => {
     expect(document.querySelector(".row-end")).toBeNull();
     expect(screen.queryByText("着手可")).toBeNull();
     expect(rowOf("待つ").lastElementChild!.textContent).toBe("high");
+  });
+
+  it("サイドバーのカンバンの行の頭に、実行中の Run があれば回るリングと「実行中」を、Run のない in_progress なら止まった半分塗りの丸を出し、読み直しで変わる", async () => {
+    const client = mockClient();
+    client.data.plans.push(plan({ id: "p7", tickets: ["t2"] }));
+    /** このマシンで実行中の Run（run.list の running: true だけに返す） */
+    let running: RunView[] = [runningRun("t3")];
+    client.handlers["ticket.list"] = () => [...client.data.tickets];
+    client.handlers["run.list"] = (input) =>
+      (input as { running?: boolean }).running ? running : [];
+    let send: ((event: WebviewEvent) => void) | undefined;
+    const bridge: WebviewClient = {
+      run: (name, input) => client.run(name, input),
+      status: () => client.status(),
+      open: async () => {},
+      show: async () => {},
+      onEvent: (listener) => {
+        send = listener;
+        return () => (send = undefined);
+      },
+    };
+    render(
+      <StoreProvider client={client}>
+        <HostProvider host={webviewHost("sidebar")}>
+          <HostBridge client={bridge} />
+          <App />
+        </HostProvider>
+      </StoreProvider>,
+    );
+    await waitFor(() => expect(document.querySelector(".activity-running")).toBeTruthy());
+    expect(
+      client.calls.find((c) => c.name === "run.list" && !(c.input as { ticket?: string }).ticket)!
+        .input,
+    ).toEqual({ project: "default", running: true });
+    const rowOf = (title: string) =>
+      [...document.querySelectorAll(".ticket-row")].find(
+        (r) => r.querySelector(".row-title")!.textContent === title,
+      )!;
+    // todo で Run が実行中（Plan の外）：頭に回るリング、右端の下の段に「実行中」
+    const screenRow = rowOf("画面");
+    expect(screenRow.classList.contains("has-head")).toBe(true);
+    expect(screenRow.firstElementChild!.classList.contains("activity-running")).toBe(true);
+    expect(screenRow.querySelector(".row-end-sub")!.textContent).toBe("実行中");
+    // in_progress で Run のない行：止まった半分塗りの丸。右端は今までどおり（Plan の番号と優先度の印）
+    const api = rowOf("API");
+    expect(api.firstElementChild!.classList.contains("activity-idle")).toBe(true);
+    expect(api.querySelector(".row-running")).toBeNull();
+    expect(api.querySelector(".row-end-sub")!.textContent).toBe("high");
+    // ほかの状態の行は頭に何も出さない
+    expect(rowOf("ログイン").querySelector(".activity-mark")).toBeNull();
+    expect(rowOf("ログイン").classList.contains("has-head")).toBe(false);
+
+    // ターミナルで t3 の Run を閉じ、t2 の Run を始めた
+    running = [runningRun("t2")];
+    act(() => send!({ kind: "event", name: "reload" }));
+    await waitFor(() =>
+      expect(rowOf("API").firstElementChild!.classList.contains("activity-running")).toBe(true),
+    );
+    // Plan に入っている行は、優先度の印を上の段の Plan の番号の左に寄せ、下の段に「実行中」
+    expect(rowOf("API").querySelector(".row-end-top")!.textContent).toBe("highp7");
+    expect(rowOf("API").querySelector(".row-end-sub")!.textContent).toBe("実行中");
+    expect(rowOf("画面").querySelector(".activity-mark")).toBeNull();
+    expect(rowOf("画面").querySelector(".row-end")).toBeNull();
+  });
+
+  it("広い画面のカンバンのカードには Run の印を出さない", async () => {
+    const client = mockClient();
+    client.handlers["run.list"] = () => [runningRun("t2")];
+    mount(client);
+    await screen.findByText("API");
+    expect(document.querySelector(".activity-mark")).toBeNull();
+    expect(screen.queryByText("実行中")).toBeNull();
   });
 
   it("サイドバーでは同期の印とボタンを出さない（ビューのタイトル行とバッジで代える）", async () => {
