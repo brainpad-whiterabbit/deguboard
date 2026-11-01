@@ -1,9 +1,9 @@
-import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, rm, utimes, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Run } from "../model/run.js";
-import { claudeCodeAdapter, projectDirName } from "./adapters/claude-code.js";
+import { claudeCodeAdapter, projectDirName, searchRoots } from "./adapters/claude-code.js";
 import { collectRunUsage, findAdapter, type UsageQuery } from "./index.js";
 
 const cleanups: Array<() => Promise<void>> = [];
@@ -168,6 +168,73 @@ describe("Claude Code の Adapter", () => {
     expect(got.usage.input).toBe(5);
   });
 
+  it("探す作業ディレクトリは主の作業ツリーの親までで、HOME とその上は探さない", async () => {
+    const { home, query } = await setup();
+    expect(searchRoots("/h/u/repo.worktrees/feat/x", "/h/u/repo/.git", "/h/u").sort()).toEqual([
+      "/h/u/repo",
+      "/h/u/repo.worktrees",
+      "/h/u/repo.worktrees/feat",
+      "/h/u/repo.worktrees/feat/x",
+    ]);
+    expect(searchRoots("/w/repo", "/w/repo/.git", "/h/u").sort()).toEqual(["/w", "/w/repo"]);
+    // HOME の会話記録に Run があっても読まない
+    const dir = path.join(home, ".claude", "projects", projectDirName(home));
+    await writeTranscript(path.join(dir, "s1.jsonl"), [
+      mention(0),
+      assistant("m1", 1, [1, 1, 1, 1]),
+    ]);
+    const got = await claudeCodeAdapter.readTranscriptUsage(query());
+    expect(got.usage.input).toBeNull();
+  });
+
+  it("CLAUDE_CODE_SESSION_ID が不正な形か、その session に Run がなければ作業ツリーから探す", async () => {
+    const { projectDir, query, home } = await setup();
+    await writeTranscript(path.join(projectDir, "s1.jsonl"), [
+      mention(0),
+      assistant("m1", 1, [7, 7, 7, 7]),
+    ]);
+    await writeTranscript(path.join(home, ".claude", "projects", "-x", "s9.jsonl"), [
+      assistant("o1", 1, [100, 100, 100, 100]),
+    ]);
+    for (const session of ["../s1", "s9"]) {
+      const got = await claudeCodeAdapter.readTranscriptUsage(
+        query({ env: { HOME: home, CLAUDE_CODE_SESSION_ID: session } }),
+      );
+      expect(got.usage.input).toBe(7);
+    }
+  });
+
+  it("更新日時が started_at より古いファイルは探さない", async () => {
+    const { projectDir, query } = await setup();
+    const file = path.join(projectDir, "s1.jsonl");
+    await writeTranscript(file, [mention(0), assistant("m1", 1, [1, 1, 1, 1])]);
+    const old = new Date(Date.parse(STARTED) - 60_000);
+    await utimes(file, old, old);
+    const got = await claudeCodeAdapter.readTranscriptUsage(query());
+    expect(got.warnings).toEqual([expect.stringContaining("見つからない")]);
+  });
+
+  it("Run の ID が出る前の行と、subagents/ の外のサブエージェントの行（isSidechain）は数えない", async () => {
+    const { projectDir, query } = await setup();
+    const side = { ...assistant("x1", 2, [100, 100, 100, 100]), isSidechain: true };
+    await writeTranscript(path.join(projectDir, "s1.jsonl"), [
+      assistant("b1", 0.5, [1000, 1000, 1000, 1000]),
+      mention(1),
+      assistant("m1", 2, [1, 2, 3, 4]),
+      side,
+    ]);
+    // subagents/ のファイルは行がすべて isSidechain なので数える
+    await writeTranscript(path.join(projectDir, "s2", "subagents", "agent-a.jsonl"), [
+      { ...mention(0), isSidechain: true },
+      side,
+    ]);
+    const parent = await claudeCodeAdapter.readTranscriptUsage(query());
+    expect(parent.usage).toEqual({ input: 100, output: 100, cache_read: 100, cache_write: 100 });
+    await rm(path.join(projectDir, "s2"), { recursive: true });
+    const only = await claudeCodeAdapter.readTranscriptUsage(query());
+    expect(only.usage).toEqual({ input: 1, output: 2, cache_read: 3, cache_write: 4 });
+  });
+
   it("Run の ID を含む記録がなければ、値を null にして警告する", async () => {
     const { projectDir, query } = await setup();
     await writeTranscript(path.join(projectDir, "s1.jsonl"), [assistant("m1", 1, [1, 1, 1, 1])]);
@@ -197,6 +264,26 @@ describe("使用量の取り込み（MT-2）", () => {
     expect(spy).not.toHaveBeenCalled();
     expect(got.usage).toEqual(nulls);
     expect(got.warnings).toEqual([expect.stringContaining("DEGUBOARD_NO_TRANSCRIPTS")]);
+  });
+
+  it("DEGUBOARD_NO_TRANSCRIPTS が 0 か空なら拒否にならず読む", async () => {
+    for (const v of ["0", ""]) {
+      const { query } = await setup({ DEGUBOARD_NO_TRANSCRIPTS: v });
+      const spy = vi.spyOn(claudeCodeAdapter, "readTranscriptUsage");
+      await collectRunUsage(config(true), query());
+      expect(spy).toHaveBeenCalledTimes(1);
+      spy.mockRestore();
+    }
+  });
+
+  it("Adapter が例外を投げたら、メッセージでなくコードだけを警告に出す", async () => {
+    const { query } = await setup();
+    const error = Object.assign(new Error("/home/someone/secret を読めない"), { code: "EACCES" });
+    vi.spyOn(claudeCodeAdapter, "readTranscriptUsage").mockRejectedValue(error);
+    const got = await collectRunUsage(config(true), query());
+    expect(got.usage).toEqual(nulls);
+    expect(got.warnings).toEqual([expect.stringContaining("EACCES")]);
+    expect(got.warnings.join("")).not.toContain("secret");
   });
 
   it("Adapter のない agent は null にして警告し、Adapter のある agent は Run の agent の値で選ぶ", async () => {

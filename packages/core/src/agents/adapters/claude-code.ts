@@ -1,9 +1,10 @@
 // Claude Code の Adapter（AG-5・MT-2、ADR-005）。会話記録（<設定>/projects/<作業ディレクトリ>/<session>.jsonl）から使用量を補う。
 //   - Run に結び付ける記録：Run の ID を最初に含む会話記録のファイル。dg run start の出力を受け取ったエージェントの記録になる。
 //     サブエージェントは親と同じ session の subagents/ に別のファイルを持ち、作業ディレクトリと時刻だけでは並行するエージェントと区別できない
-//   - 数える行：そのファイルの assistant の行のうち、started_at〜finished_at のもの。同じ応答が複数行に分かれるので message.id で重ねない
-//   - 探す範囲：環境変数 CLAUDE_CODE_SESSION_ID があればその session のファイル、なければ作業ツリーと主の作業ツリーとその上位の
-//     ディレクトリに当たる projects/ の下。どちらも started_at より後に書かれたファイルだけ
+//   - 数える行：そのファイルの assistant の行のうち、Run の ID が出た後の started_at〜finished_at のもの。同じ応答が複数行に
+//     分かれるので message.id で重ねない。subagents/ の外のファイルの isSidechain の行（古い版が親のファイルに書くサブエージェントの行）は数えない
+//   - 探す範囲：環境変数 CLAUDE_CODE_SESSION_ID があればその session のファイル。そこに Run がなければ、作業ツリーと主の作業ツリーと、
+//     主の作業ツリーの親までの上位のディレクトリ（HOME とその上は除く）に当たる projects/ の下。どちらも started_at より後に書かれたファイルだけ
 //   - 返すのは数とモデル名だけ。会話の中身・コマンド・パスは返さない（MT-4）
 
 import { createReadStream } from "node:fs";
@@ -17,7 +18,11 @@ type Counts = CollectedUsage["usage"];
 
 /** 会話記録の置き場所。CLAUDE_CONFIG_DIR があればそこ、なければ ~/.claude */
 function configDir(env: AgentEnv): string {
-  return env["CLAUDE_CONFIG_DIR"] || path.join(env["HOME"] || os.homedir(), ".claude");
+  return env["CLAUDE_CONFIG_DIR"] || path.join(homeDir(env), ".claude");
+}
+
+function homeDir(env: AgentEnv): string {
+  return env["HOME"] || os.homedir();
 }
 
 /** 作業ディレクトリから projects/ の下のディレクトリ名を作る（英数字以外を - にする） */
@@ -25,12 +30,25 @@ export function projectDirName(dir: string): string {
   return dir.replace(/[^A-Za-z0-9]/g, "-");
 }
 
-function ancestors(dir: string): string[] {
-  const out: string[] = [];
-  for (let d = path.resolve(dir); ; d = path.dirname(d)) {
-    out.push(d);
-    if (path.dirname(d) === d) return out;
+/** dir が base と同じか、その下にあるか */
+function within(dir: string, base: string): boolean {
+  const rel = path.relative(base, dir);
+  return rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel));
+}
+
+/**
+ * 会話記録を探す作業ディレクトリ。作業ツリーと主の作業ツリー（common dir の親）と、主の作業ツリーの親までの上位。
+ * HOME とその上はほかのリポジトリの会話記録も入るので探さない
+ */
+export function searchRoots(topLevel: string, commonDir: string, home: string): string[] {
+  const main = path.dirname(path.resolve(commonDir));
+  const limit = path.dirname(main);
+  const roots = new Set([path.resolve(topLevel), main]);
+  for (let d = path.dirname(path.resolve(topLevel)); within(d, limit); d = path.dirname(d)) {
+    roots.add(d);
+    if (path.dirname(d) === d) break;
   }
+  return [...roots].filter((d) => !within(path.resolve(home), d));
 }
 
 async function list(dir: string): Promise<string[]> {
@@ -46,33 +64,39 @@ async function sessionFiles(projectDir: string, session: string): Promise<string
   ];
 }
 
-async function candidateFiles(query: UsageQuery, projects: string): Promise<string[]> {
+/** CLAUDE_CODE_SESSION_ID の session のファイル。なければ・形が正しくなければ空 */
+async function sessionCandidates(query: UsageQuery, projects: string): Promise<string[]> {
   const session = query.env["CLAUDE_CODE_SESSION_ID"];
+  if (!session || !/^[\w-]+$/.test(session)) return [];
   const files: string[] = [];
-  if (session && /^[\w-]+$/.test(session)) {
-    for (const dir of await list(projects)) {
-      files.push(...(await sessionFiles(path.join(projects, dir), session)));
-    }
-  } else {
-    // 主の作業ツリー（common dir の親）でセッションを始め、別の worktree で作業することがある
-    const roots = [query.topLevel, path.dirname(query.commonDir)];
-    const names = new Set(roots.flatMap(ancestors).map(projectDirName));
-    for (const name of names) {
-      const dir = path.join(projects, name);
-      for (const entry of await list(dir)) {
-        if (entry.endsWith(".jsonl")) files.push(path.join(dir, entry));
-        else files.push(...(await sessionFiles(dir, entry)).slice(1));
-      }
+  for (const dir of await list(projects)) {
+    files.push(...(await sessionFiles(path.join(projects, dir), session)));
+  }
+  return fresh(query, files);
+}
+
+/** 作業ツリーから探すファイル。主の作業ツリーでセッションを始め、別の worktree で作業することがある */
+async function worktreeCandidates(query: UsageQuery, projects: string): Promise<string[]> {
+  const files: string[] = [];
+  for (const root of searchRoots(query.topLevel, query.commonDir, homeDir(query.env))) {
+    const dir = path.join(projects, projectDirName(root));
+    for (const entry of await list(dir)) {
+      if (entry.endsWith(".jsonl")) files.push(path.join(dir, entry));
+      else files.push(...(await sessionFiles(dir, entry)).slice(1));
     }
   }
-  // started_at より前に書き終えたファイルに Run は載っていない
+  return fresh(query, files);
+}
+
+/** started_at より前に書き終えたファイルに Run は載っていない */
+async function fresh(query: UsageQuery, files: string[]): Promise<string[]> {
   const since = Date.parse(query.run.started_at);
-  const fresh: string[] = [];
+  const out: string[] = [];
   for (const file of files) {
     const s = await stat(file).catch(() => undefined);
-    if (s?.isFile() && s.mtimeMs >= since) fresh.push(file);
+    if (s?.isFile() && s.mtimeMs >= since) out.push(file);
   }
-  return fresh;
+  return out;
 }
 
 interface Scan {
@@ -85,22 +109,49 @@ interface Scan {
 const count = (v: unknown): number | undefined =>
   typeof v === "number" && Number.isInteger(v) && v >= 0 ? v : undefined;
 
+/** 行の中の timestamp の値。最上位の timestamp は message の後にあり、入れ子の中にも同じキーがありうるので、すべてを候補にする */
+const TIMESTAMPS = /"timestamp":"([^"]+)"/g;
+
+/** 行の順が少し前後しても読み切るための猶予。期間の終わりからこれだけ過ぎた行で読むのをやめる */
+const TAIL_MS = 60_000;
+
+const parse = (line: string): Record<string, unknown> | undefined => {
+  try {
+    return JSON.parse(line) as Record<string, unknown>;
+  } catch {
+    return undefined; // 書きかけの行
+  }
+};
+
+const timeOf = (entry: Record<string, unknown>): number =>
+  typeof entry["timestamp"] === "string" ? Date.parse(entry["timestamp"]) : NaN;
+
 async function scan(file: string, query: UsageQuery, from: number, to: number): Promise<Scan> {
   const result: Scan = { firstSeen: undefined, messages: new Map() };
+  // subagents/ の外のファイルでは、サブエージェントの行（isSidechain）は親の使用量でない
+  const sidechainFile = file.split(path.sep).includes("subagents");
   const lines = createInterface({ input: createReadStream(file), crlfDelay: Infinity });
   for await (const line of lines) {
-    const mentions = line.includes(query.run.id);
-    if (!mentions && !line.includes('"assistant"')) continue;
-    let entry: Record<string, unknown>;
-    try {
-      entry = JSON.parse(line) as Record<string, unknown>;
-    } catch {
-      continue; // 書きかけの行
-    }
-    const at = typeof entry["timestamp"] === "string" ? Date.parse(entry["timestamp"]) : NaN;
-    if (mentions && result.firstSeen === undefined)
+    if (result.firstSeen === undefined) {
+      // Run の ID が出るまでは JSON を読まず、集計も積まない
+      if (!line.includes(query.run.id)) continue;
+      const entry = parse(line);
+      const at = entry ? timeOf(entry) : NaN;
       result.firstSeen = Number.isNaN(at) ? Infinity : at;
-    if (entry["type"] !== "assistant" || Number.isNaN(at) || at < from || at > to) continue;
+      continue;
+    }
+    if (!line.includes('"assistant"')) continue;
+    // 期間に入る timestamp の文字列がない行は JSON.parse しない
+    const stamps = Array.from(line.matchAll(TIMESTAMPS), (m) => Date.parse(m[1] ?? ""));
+    if (!stamps.some((t) => t >= from && t <= to)) {
+      if (stamps.length > 0 && stamps.every((t) => t > to + TAIL_MS)) break;
+      continue;
+    }
+    const entry = parse(line);
+    if (!entry || entry["type"] !== "assistant") continue;
+    const at = timeOf(entry);
+    if (Number.isNaN(at) || at < from || at > to) continue;
+    if (!sidechainFile && entry["isSidechain"] === true) continue;
     const message = entry["message"] as Record<string, unknown> | undefined;
     const usage = message?.["usage"];
     if (!message || typeof usage !== "object" || usage === null) continue;
@@ -154,10 +205,14 @@ export const claudeCodeAdapter: AgentAdapter = {
     const from = Date.parse(query.run.started_at);
     const to = Date.parse(query.finishedAt) + 999;
     let best: Scan | undefined;
-    for (const file of await candidateFiles(query, projects)) {
-      const s = await scan(file, query, from, to).catch(() => undefined);
-      if (s?.firstSeen === undefined) continue;
-      if (!best || s.firstSeen < (best.firstSeen ?? Infinity)) best = s;
+    // session のファイルに Run がなければ（別のセッションの環境を受け継いだなど）、作業ツリーから探す
+    for (const candidates of [sessionCandidates, worktreeCandidates]) {
+      for (const file of await candidates(query, projects)) {
+        const s = await scan(file, query, from, to).catch(() => undefined);
+        if (s?.firstSeen === undefined) continue;
+        if (!best || s.firstSeen < (best.firstSeen ?? Infinity)) best = s;
+      }
+      if (best) break;
     }
     if (!best) {
       return none(

@@ -52,6 +52,9 @@ export async function collectRunUsage(
   try {
     return await adapter.readTranscriptUsage(query);
   } catch (e) {
-    return skipped(`${adapter.name} の会話記録を読めない（${(e as Error).message}）`);
+    // メッセージはパスや中身を含みうるので、コード（なければ例外の名前）だけを出す
+    const code = (e as { code?: unknown } | null)?.code;
+    const reason = typeof code === "string" ? code : e instanceof Error ? e.name : "unknown";
+    return skipped(`${adapter.name} の会話記録を読めない（${reason}）`);
   }
 }
