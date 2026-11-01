@@ -20,8 +20,8 @@ afterEach(() => {
   window.localStorage.clear();
 });
 
-/** 画面の Host。見た目の状態はテストごとのメモリ。browser は readRunning などを Webview と同じ組み立てで描くときに使う */
-function webviewHost(
+/** surface を指定した Host。見た目の状態はテストごとのメモリ */
+function hostOf(
   surface: Host["surface"],
   open: (route: Route) => void = () => {},
   show: (route: Route) => void = () => {},
@@ -84,7 +84,7 @@ function mountWithBridge(
   };
   render(
     <StoreProvider client={client} readRunning={readRunning}>
-      <HostProvider host={webviewHost(surface)}>
+      <HostProvider host={hostOf(surface)}>
         <HostBridge client={bridge} />
         <App />
       </HostProvider>
@@ -273,7 +273,7 @@ describe("画面", () => {
 
   it("エディタのパネルのチケット詳細は、編集のボタンをタイトルの行に置き、作成・更新を手元時刻で出し、値のない属性を「なし」の 1 行にまとめる", async () => {
     window.location.hash = "#/tickets/t3";
-    mount(mockClient(), webviewHost("panel"));
+    mount(mockClient(), hostOf("panel"));
     const h1 = await screen.findByRole("heading", { level: 1, name: "画面" });
     const edit = screen.getByRole("button", { name: "本文と属性を編集" });
     expect(edit.closest("header")).toBe(h1.closest("header"));
@@ -349,7 +349,7 @@ describe("画面", () => {
     const opened: Route[] = [];
     mount(
       mockClient(),
-      webviewHost("sidebar", (route) => opened.push(route)),
+      hostOf("sidebar", (route) => opened.push(route)),
     );
     fireEvent.click(await screen.findByText("API"));
     expect(opened).toEqual([{ page: "ticket", id: "t2" }]);
@@ -410,7 +410,7 @@ describe("画面", () => {
   it.each(["browser", "panel", "sidebar"] as const)(
     "%s でも完了の節は既定で畳み、ほかの節は開く",
     async (surface) => {
-      mount(mockClient(), surface === "browser" ? undefined : webviewHost(surface));
+      mount(mockClient(), surface === "browser" ? undefined : hostOf(surface));
       await screen.findByText("ログイン");
       const columns = [...document.querySelectorAll<HTMLDetailsElement>("details.column")];
       expect(columns.map((c) => [c.dataset.status, c.open])).toEqual([
@@ -428,7 +428,7 @@ describe("画面", () => {
       ticket({ id: "t8", title: "AI の作業", assignee: "eiki/agent" }),
       ticket({ id: "t7", title: "古い ID", assignee: "eiki@laptop" }),
     );
-    mount(client, webviewHost("sidebar"));
+    mount(client, hostOf("sidebar"));
     await screen.findByText("AI の作業");
     const rowOf = (title: string) => screen.getByText(title).closest(".row")!;
     expect(rowOf("AI の作業").querySelector(".row-assignee")).toMatchObject({
@@ -445,14 +445,14 @@ describe("画面", () => {
   it("サイドバーのカンバンで見えている行の担当が 1 人だけなら、行に担当を出さない", async () => {
     const client = mockClient();
     for (const t of client.data.tickets) t.assignee = "eiki/agent";
-    mount(client, webviewHost("sidebar"));
+    mount(client, hostOf("sidebar"));
     await screen.findByText("ログイン");
     expect(document.querySelectorAll(".row-drag .row")).toHaveLength(3);
     expect(document.querySelector(".row-assignee")).toBeNull();
   });
 
   it("サイドバーのカンバンは、前回の描画から Status が変わった行を点滅させ（開き直しても host.state で比べる）、ブラウザでは点滅させない", async () => {
-    const host = webviewHost("sidebar");
+    const host = hostOf("sidebar");
     const client = mockClient();
     mount(client, host);
     await screen.findByText("画面");
@@ -471,7 +471,7 @@ describe("画面", () => {
   });
 
   it("節の開閉は host.state に残り、開き直しても保たれる", async () => {
-    const host = webviewHost("sidebar");
+    const host = hostOf("sidebar");
     mount(mockClient(), host);
     await screen.findByText("ログイン");
     const done = document.querySelector<HTMLDetailsElement>('details[data-status="done"]')!;
@@ -488,7 +488,7 @@ describe("画面", () => {
   });
 
   it("サイドバーではカンバンの列が折りたためる節になり、チケットは 1 行で出る。空の節は見出しの 1 行だけで「なし」は出さない", async () => {
-    mount(mockClient(), webviewHost("sidebar"));
+    mount(mockClient(), hostOf("sidebar"));
     await screen.findByText("ログイン");
     const app = document.querySelector(".app")!;
     expect(app.getAttribute("data-surface")).toBe("sidebar");
@@ -508,7 +508,7 @@ describe("画面", () => {
   it("サイドバーのカンバンの行は状態の丸印を出さず、優先度の印（high・low）を右に出す。バックログの行は変わらない", async () => {
     const client = mockClient();
     client.data.tickets[2]!.priority = "low";
-    mount(client, webviewHost("sidebar"));
+    mount(client, hostOf("sidebar"));
     await screen.findByText("ログイン");
     const rowOf = (title: string) => screen.getByText(title).closest(".row")!;
     expect(document.querySelectorAll(".board .row .status-dot")).toHaveLength(0);
@@ -518,7 +518,7 @@ describe("画面", () => {
     expect(rowOf("画面").querySelector(".row-low")).toBeTruthy();
     cleanup();
     window.location.hash = "#/backlog";
-    mount(client, webviewHost("sidebar"));
+    mount(client, hostOf("sidebar"));
     await screen.findByText("API");
     expect(rowOf("画面").classList.contains("kanban-row")).toBe(false);
     expect(rowOf("画面").querySelector(".status-dot")).toBeTruthy();
@@ -542,7 +542,7 @@ describe("画面", () => {
       plan({ id: "p8", tickets: ["t6"], status: "closed" }),
       plan({ id: "p9", tickets: ["t7"], status: "pending" }),
     );
-    mount(client, webviewHost("sidebar"));
+    mount(client, hostOf("sidebar"));
     await screen.findByText("待つ");
     const endOf = (title: string) => kanbanRowOf(title).querySelector(".row-end");
 
@@ -568,7 +568,7 @@ describe("画面", () => {
 
     cleanup();
     window.location.hash = "#/backlog";
-    mount(client, webviewHost("sidebar"));
+    mount(client, hostOf("sidebar"));
     await screen.findByText("待つ");
     expect(document.querySelector(".row-end")).toBeNull();
     expect(screen.queryByText("着手可")).toBeNull();
@@ -624,7 +624,7 @@ describe("画面", () => {
     client.handlers["run.list"] = () => new Promise<RunView[]>((resolve) => (finish = resolve));
     render(
       <StoreProvider client={client} readRunning>
-        <HostProvider host={webviewHost("sidebar")}>
+        <HostProvider host={hostOf("sidebar")}>
           <App />
         </HostProvider>
       </StoreProvider>,
@@ -640,7 +640,7 @@ describe("画面", () => {
 
   it("readRunning でなければ（左パネルでなければ）実行中の Run を読まず、行に頭の印を出さない", async () => {
     const client = mockClient();
-    mount(client, webviewHost("sidebar"));
+    mount(client, hostOf("sidebar"));
     await screen.findByText("API");
     expect(client.calls.some((c) => c.name === "run.list")).toBe(false);
     expect(document.querySelector(".activity-mark")).toBeNull();
@@ -656,7 +656,7 @@ describe("画面", () => {
     // readRunning で実行中の Run を読ませ、読んだうえで広い画面（ブラウザの host）のカードには出さないことを見る
     render(
       <StoreProvider client={client} readRunning>
-        <HostProvider host={webviewHost("browser")}>
+        <HostProvider host={hostOf("browser")}>
           <App />
         </HostProvider>
       </StoreProvider>,
@@ -728,7 +728,7 @@ describe("画面", () => {
   it("サイドバーでは同期の印とボタンを出さない（ビューのタイトル行とバッジで代える）", async () => {
     const client = mockClient();
     client.data.status = { ...client.data.status, ahead: 2 };
-    mount(client, webviewHost("sidebar"));
+    mount(client, hostOf("sidebar"));
     await screen.findByText("ログイン");
     expect(screen.queryByRole("button", { name: "同期" })).toBeNull();
     expect(screen.queryByText("未 push 2")).toBeNull();
@@ -736,7 +736,7 @@ describe("画面", () => {
 
   it("サイドバーではチケット詳細のルートでもバックログを出す（詳細はエディタのパネル）", async () => {
     window.location.hash = "#/tickets/t3";
-    mount(mockClient(), webviewHost("sidebar"));
+    mount(mockClient(), hostOf("sidebar"));
     await screen.findByText("API");
     expect(screen.queryByRole("heading", { level: 1, name: "画面" })).toBeNull();
     expect(document.querySelector("table.list")).toBeNull();
@@ -747,7 +747,7 @@ describe("画面", () => {
     const intercept = (e: Event) => e.preventDefault();
     document.addEventListener("click", intercept);
     try {
-      mount(mockClient(), webviewHost("sidebar"));
+      mount(mockClient(), hostOf("sidebar"));
       await screen.findByText("ログイン");
       const board = screen.getByRole("link", { name: "カンバン" });
       expect(board.getAttribute("aria-current")).toBe("page");
@@ -775,7 +775,7 @@ describe("画面", () => {
     const shown: Route[] = [];
     mount(
       client,
-      webviewHost(
+      hostOf(
         "panel",
         (route) => opened.push(route),
         (route) => shown.push(route),
@@ -790,7 +790,7 @@ describe("画面", () => {
 
   it("エディタのパネルはチケット詳細にヘッダー（タブ・Project・同期）を出さない", async () => {
     window.location.hash = "#/tickets/t3";
-    mount(mockClient(), webviewHost("panel"));
+    mount(mockClient(), hostOf("panel"));
     await screen.findByRole("heading", { level: 1, name: "画面" });
     expect(screen.queryByRole("navigation", { name: "画面" })).toBeNull();
     expect(screen.queryByRole("button", { name: "同期" })).toBeNull();
@@ -819,7 +819,7 @@ describe("画面", () => {
     const opened: Route[] = [];
     mount(
       client,
-      webviewHost("sidebar", (route) => opened.push(route)),
+      hostOf("sidebar", (route) => opened.push(route)),
     );
     const tab = await screen.findByRole("link", { name: /履歴/ });
     expect(tab.textContent).toBe("履歴");
@@ -866,7 +866,7 @@ describe("画面", () => {
     const opened: Route[] = [];
     mount(
       client,
-      webviewHost("sidebar", (route) => opened.push(route)),
+      hostOf("sidebar", (route) => opened.push(route)),
     );
     await screen.findByRole("heading", { level: 1, name: "履歴" });
     const row = document.querySelector(".history-row")!;
@@ -962,7 +962,7 @@ describe("画面", () => {
         incomplete: ["t2"],
       };
     };
-    mount(client, webviewHost("panel"));
+    mount(client, hostOf("panel"));
     await screen.findByRole("heading", { level: 2, name: "経過" });
     const items = async () =>
       waitFor(() => {
@@ -1036,7 +1036,7 @@ describe("画面", () => {
     client.data.iterations = [iteration({ id: "s1", name: "最初", status: "closed" })];
     client.handlers["iteration.show"] = () => ({ ...client.data.iterations[0], items: [] });
     window.location.hash = "#/iterations/s1";
-    mount(client, webviewHost("panel"));
+    mount(client, hostOf("panel"));
     await screen.findByRole("heading", { level: 1, name: /s1 最初/ });
     expect(screen.queryByRole("navigation", { name: "画面" })).toBeNull();
   });
@@ -1050,7 +1050,7 @@ describe("画面", () => {
 
   it("サイドバーのバックログは検索だけ出し、絞り込みは畳む。件数と効いている条件は絞り込みの行に出て、消すボタンは条件があるときだけ", async () => {
     window.location.hash = "#/backlog";
-    const host = webviewHost("sidebar");
+    const host = hostOf("sidebar");
     mount(mockClient(), host);
     await screen.findByText("API");
     expect(screen.getByLabelText("検索")).toBeTruthy();
@@ -1079,7 +1079,7 @@ describe("画面", () => {
     ];
     client.data.tickets[1]!.iteration = "s1";
     client.data.tickets[2]!.iteration = "s1";
-    mount(client, webviewHost("sidebar"));
+    mount(client, hostOf("sidebar"));
     await screen.findByText("API");
     const [s1, s2] = [...document.querySelectorAll<HTMLDetailsElement>("details.backlog-section")];
     expect([...s1!.querySelectorAll(".priority-mark")].map((m) => m.textContent)).toEqual([
@@ -1098,7 +1098,7 @@ describe("画面", () => {
     window.location.hash = "#/backlog";
     const client = mockClient();
     client.handlers["epic.create"] = (input) => input;
-    const host = webviewHost("sidebar");
+    const host = hostOf("sidebar");
     mount(client, host);
     await screen.findByText("最初の版");
     const fold = document.querySelector<HTMLDetailsElement>("details.epic-panel")!;
@@ -1126,7 +1126,7 @@ describe("画面", () => {
         ticket({ id: "t5", title: "調査", status: "done", epic: "e1" }),
       ],
     });
-    mount(client, webviewHost("panel"));
+    mount(client, hostOf("panel"));
     await screen.findAllByRole("button", { name: "外す" });
     expect(document.querySelectorAll(".card")).toHaveLength(0);
     expect(document.querySelectorAll(".column")).toHaveLength(0);
@@ -1164,7 +1164,7 @@ describe("画面", () => {
     const client = mockClient();
     client.data.iterations = [iteration({ id: "s1", name: "最初", status: "active" })];
     client.handlers["iteration.show"] = () => ({ ...client.data.iterations[0], items: [] });
-    mount(client, webviewHost("panel"));
+    mount(client, hostOf("panel"));
     await screen.findByRole("heading", { level: 1 });
     expect(screen.queryByRole("link", { name: "← カンバン" })).toBeNull();
   });
@@ -1258,7 +1258,7 @@ describe("画面", () => {
       }),
     ];
     for (const t of client.data.tickets) t.iteration = "s1";
-    mount(client, webviewHost("sidebar"));
+    mount(client, hostOf("sidebar"));
     await screen.findByText("API");
     const head = document.querySelector(".sidebar-head")!;
     const lines = [...head.querySelectorAll(":scope > .head-line")].map((l) => l.textContent);
@@ -1286,7 +1286,7 @@ describe("画面", () => {
     const client = mockClient();
     client.data.iterations = [iteration({ id: "s1", name: "今", status: "active" })];
     client.data.tickets[0]!.iteration = "s1";
-    mount(client, webviewHost("sidebar"));
+    mount(client, hostOf("sidebar"));
     await screen.findByText("ログイン");
     const select = screen.getByLabelText<HTMLSelectElement>("Iteration");
     expect([...select.querySelectorAll("option")].map((o) => o.textContent)).toEqual([
@@ -1301,7 +1301,7 @@ describe("画面", () => {
   });
 
   it("Iteration のない Project でも、サイドバーのカンバンの選択欄から Iteration を作れる", async () => {
-    mount(mockClient(), webviewHost("sidebar"));
+    mount(mockClient(), hostOf("sidebar"));
     await screen.findByText("ログイン");
     expect(document.querySelector(".iteration-pick .name")!.textContent).toBe("Iteration はない");
     fireEvent.change(screen.getByLabelText("Iteration"), { target: { value: "+create" } });
@@ -1315,7 +1315,7 @@ describe("画面", () => {
     client.data.tickets[1]!.iteration = "s1";
     client.data.tickets[2]!.iteration = "s1";
     client.handlers["iteration.close"] = (input) => input;
-    mount(client, webviewHost("sidebar"));
+    mount(client, hostOf("sidebar"));
     await screen.findByText("API");
     expect(screen.queryByRole("button", { name: "閉じる" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "s1 の操作" }));
@@ -1344,7 +1344,7 @@ describe("画面", () => {
       tickets: client.data.tickets.filter((t) => t.epic === "e1"),
     });
     client.handlers["epic.close"] = (input) => input;
-    mount(client, webviewHost("panel"));
+    mount(client, hostOf("panel"));
     fireEvent.click(await screen.findByRole("button", { name: "閉じる" }));
     expect(screen.getByRole("group", { name: /を閉じる確認/ }).textContent).toContain(
       "未完了が 1 件ある",
@@ -1391,7 +1391,7 @@ describe("画面", () => {
     const client = mockClient();
     client.data.iterations = [iteration({ id: "s1", name: "今", status: "active" })];
     client.data.tickets[1]!.iteration = "s1";
-    const host = webviewHost("sidebar");
+    const host = hostOf("sidebar");
     mount(client, host);
     await screen.findByText("API");
     const fold = document.querySelector<HTMLDetailsElement>("details.backlog-section")!;
@@ -1422,7 +1422,7 @@ describe("画面", () => {
     const opened: Route[] = [];
     mount(
       mockClient(),
-      webviewHost("sidebar", (route) => opened.push(route)),
+      hostOf("sidebar", (route) => opened.push(route)),
     );
     await screen.findByText("最初の版");
     fireEvent.click(document.querySelector(".epic-list a")!);
@@ -1434,7 +1434,7 @@ describe("画面", () => {
     window.location.hash = "#/epics/e1";
     const client = mockClient();
     client.handlers["epic.show"] = () => ({ ...client.data.epics[0], body: "", tickets: [] });
-    mount(client, webviewHost("panel"));
+    mount(client, hostOf("panel"));
     await screen.findByRole("heading", { level: 1, name: /e1 最初の版/ });
     expect(screen.queryByRole("navigation", { name: "画面" })).toBeNull();
   });
