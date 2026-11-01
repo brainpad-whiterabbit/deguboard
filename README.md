@@ -56,3 +56,7 @@ VS Code では、拡張を入れて（今は VSIX から。`mise run vsix` → `
 ツールのスキーマは会話の文脈を使うので、Bash で `dg … --json` を呼べるなら登録しなくてよい。
 
 チケットの流れ（起票 → claim → 作業 → PR → 照合で done）とコマンドの一覧は `dg --help` と `dg guide work`、仕様は[要件定義書](docs/requirements.md)。
+
+## ライセンス
+
+[MIT](LICENSE)。配布物に束ねた依存のライセンスは、ビルドで出る `THIRD_PARTY_LICENSES.md`（npm の `deguboard` の `web/` と VSIX の `dist/`）にまとめる。
