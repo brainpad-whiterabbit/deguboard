@@ -1,0 +1,31 @@
+id: p7
+project: default
+tickets: [t125, t129, t130, t128, t131, t126, t127]
+after:
+  t126:
+    - t125
+  t127:
+    - t126
+pending_approval: true
+details:
+  t125:
+    scope: README の表と冒頭、requirements.md の EX-3 の書き分けだけ。手順（guide）は変えない
+    approach: 済んだ範囲（--auto・auto.merge のマージの前の条件・自動マージ）を「できる」にし、並列実行と PR ごとの見直し・修正ループを予定 e4 に残す
+  t129:
+    scope: packages/core/src/git/lock.ts の古いロックの判定。生きた持ち主のロックを消さない
+    approach: 持ち主が生きている間は mtime で古いと判定しないか、持ち主が mtime を更新し続ける。どちらかを選んで理由を PR に書き、テストを足す
+  t130:
+    scope: "--json のとき commander 以外の例外も { ok: false, error } で stdout に出す。--json なしは変えない"
+    approach: packages/cli/src/program.ts の run() の catch の最後の分岐を、t116 と同じ形で JSON に写す。テストを足す
+  t128:
+    scope: typescript を 7.0.2 に上げ、ADR-008 を書き換える
+    approach: package.json と lockfile を更新し、check・vsix・pack を確かめる。ADR-008 に理由と採らなかった案を書く
+  t131:
+    scope: codex.ts の token_count の判定と、ID より前の行の parse、Run の境目の扱い
+    approach: payload.type を確かめ、ID が出るまで最後の生の行だけを持つ。本物の記録がなければ境目の扱いを ADR-005 に書く
+  t126:
+    scope: guide all・work に、着手できるチケットを同時に進める手順と上限を足す。ツール側にスケジューラは置かない
+    approach: packages/cli の guide の原文と guide.test.ts を直し、EX-3・README・ADR-004 を合わせる。上限を手順か config かは着手時に決めて PR に書く
+  t127:
+    scope: guide work に PR を出す前の別エージェントの見直しと上限付きの修正ループを足し、品質ゲートを 1 か所にまとめる
+    approach: guide-all の「マージの前の条件」を品質ゲートとして切り出して work と all から参照する。guide.test.ts・EX-3・README を直す
