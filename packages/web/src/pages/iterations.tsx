@@ -1,5 +1,5 @@
 // Iteration（UI-5）の詳細：チケットの追加・除外、開始・終了。一覧の画面はなく、planned と active はカンバンの絞り込みで選ぶ（board.tsx）。
-// 作成のフォームはここに置き、カンバンの絞り込みの欄から開く
+// 作成のフォームと開始・閉じるのボタンはここに置き、カンバンとバックログから使う
 
 import { useEffect, useState } from "react";
 import { TicketTable } from "../components/parts.js";
@@ -9,6 +9,7 @@ import {
   byNumber,
   byPriorityThenNumber,
   ITERATION_LABELS,
+  type Iteration,
   type IterationDetail,
 } from "../types.js";
 
@@ -16,7 +17,29 @@ export function IterationsPage({ id }: { id: string }) {
   return <IterationDetailView id={id} />;
 }
 
-/** Iteration を作るフォーム。カンバンの絞り込みの欄から開く。作れたら onDone */
+/** Iteration の開始・閉じるのボタン。カンバンの見出しとバックログの区画の見出しに置く */
+export function IterationActions({ iteration: it }: { iteration: Iteration }) {
+  const store = useStore();
+  if (it.status === "closed") return null;
+  return (
+    <>
+      {it.status === "planned" ? (
+        <button
+          type="button"
+          className="primary"
+          onClick={() => void store.run("iteration.start", { iteration: it.id })}
+        >
+          開始する
+        </button>
+      ) : null}
+      <button type="button" onClick={() => void store.run("iteration.close", { iteration: it.id })}>
+        閉じる
+      </button>
+    </>
+  );
+}
+
+/** Iteration を作るフォーム。カンバンの絞り込みの欄とバックログの「Iteration なし」の区画から開く。作れたら onDone */
 export function IterationCreateForm({ onDone }: { onDone: () => void }) {
   const store = useStore();
   const [form, setForm] = useState({ name: "", goal: "", start: "", end: "" });

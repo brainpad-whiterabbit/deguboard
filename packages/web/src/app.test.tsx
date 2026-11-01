@@ -635,6 +635,52 @@ describe("画面", () => {
     expect(screen.queryByText("API")).toBeNull();
   });
 
+  it("バックログは Iteration の区画に分かれ、見出しから開始・閉じる、「Iteration なし」から作成できる。Iteration のセレクトはない", async () => {
+    window.location.hash = "#/backlog";
+    const client = mockClient();
+    client.data.iterations = [
+      iteration({ id: "s1", name: "今", status: "active", start: "2026-11-01", goal: "画面" }),
+      iteration({ id: "s2", name: "次", status: "planned" }),
+    ];
+    client.data.tickets[1]!.iteration = "s1";
+    for (const name of ["iteration.start", "iteration.close", "iteration.create"])
+      client.handlers[name] = (input) => input;
+    mount(client);
+    await screen.findByText("API");
+    expect(screen.queryByLabelText("Iteration")).toBeNull();
+    const sections = [...document.querySelectorAll(".backlog-section")];
+    expect(sections.map((e) => e.querySelector("header")!.textContent)).toEqual([
+      "s1 今進行中1 件閉じる2026-11-01 〜 ? ・ 画面",
+      "s2 次予定0 件開始する閉じる",
+      "Iteration なし1 件+ Iteration を作る",
+    ]);
+    expect(sections[1]!.querySelector("table")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "開始する" }));
+    await waitFor(() =>
+      expect(client.calls.find((c) => c.name === "iteration.start")?.input).toEqual({
+        iteration: "s2",
+      }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "+ Iteration を作る" }));
+    fireEvent.change(screen.getByLabelText("名前"), { target: { value: "その次" } });
+    fireEvent.click(screen.getByRole("button", { name: "作る" }));
+    await waitFor(() => expect(client.calls.some((c) => c.name === "iteration.create")).toBe(true));
+  });
+
+  it("サイドバーのバックログの区画は折りたたみの節で、開閉が host.state に残る", async () => {
+    window.location.hash = "#/backlog";
+    const client = mockClient();
+    client.data.iterations = [iteration({ id: "s1", name: "今", status: "active" })];
+    const host = webviewHost("sidebar");
+    mount(client, host);
+    await screen.findByText("API");
+    const fold = document.querySelector<HTMLDetailsElement>("details.backlog-section")!;
+    expect(fold.open).toBe(true);
+    fold.open = false;
+    fireEvent(fold, new Event("toggle"));
+    expect(host.state.get("backlog.section.s1")).toBe(false);
+  });
+
   it("バックログの Epic の欄の「+」から Epic を作る", async () => {
     window.location.hash = "#/backlog";
     const client = mockClient();
