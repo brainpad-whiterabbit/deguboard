@@ -156,7 +156,8 @@ closed_at: 2026-11-20T09:00:00Z # closed のときだけ
 
 - PL-1 `id`、`project`、`tickets`、`after`（計画内だけの待ち。チケットの依存とは別）、`pending_approval`、`approved_by`、`approved_at`、`details.<ticket>.{scope, approach}`、`closed_at` を持つ
 - PL-2 進捗は Plan に書かない。チケットの状態から都度求める。Plan を書くのは作成・承認・終了のときだけ
-- PL-3 1 つのチケットは同時に 1 つの Plan にしか入らない。done のチケットは入れられない
+- PL-3 1 つのチケットは同時に 1 つの開いた（`closed_at` のない）Plan にしか入らない。done・abandoned のチケット、存在しないチケット、Plan と別の Project のチケットは入れられない。`after` と `details` は Plan に入れたチケットだけを指し、`after` は循環できない
+- PL-4 `plan create` は承認待ち（`pending_approval: true`）で作り、採番のため即座にコミットして push する。`plan approve` は承認待ちの Plan に `approved_by`（操作した主体）と `approved_at` を書いて `pending_approval` を外す。`plan close` は `closed_at` を書き、終わっていないチケットが残れば警告する。閉じた Plan は承認も閉じ直しもできない。承認と終了は既定で誰でも行える（人に限るなら `actor.human_only`、5.10）
 
 ### 5.8 Workflow（`workflows/<id>.yaml`）
 
@@ -225,7 +226,7 @@ fields:
 | Workflow  | `workflow list / show / validate`                                                                 | あり         |
 | 画面      | `serve`、`open`                                                                                   | あり         |
 | 手順      | `guide <topic>`                                                                                   | あり         |
-| Plan      | `plan create / approve / show / close`                                                            | 予定（`e2`） |
+| Plan      | `plan create / approve / show / close`                                                            | あり         |
 | Run       | `run start / finish / list`、`metrics show`                                                       | 予定（`e3`） |
 
 - CL-3 書き込みを伴うコマンドは、`commit.mode` に従って deguboard ブランチにコミットする。作成（`init`、`project / ticket / epic / iteration create`、`ticket import`）と `ticket claim` は `commit.mode`・`push.mode` によらず即座にコミットして push する（採番と排他のため）

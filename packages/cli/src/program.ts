@@ -50,6 +50,7 @@ const GROUP_SUMMARY: Record<string, string> = {
   ticket: "チケットの操作",
   iteration: "Iteration（期間の計画）の操作。sprint はエイリアス",
   epic: "Epic（目的ごとの束ね）の操作",
+  plan: "Plan（チケットを進める順と承認）の操作",
   workflow: "Workflow 定義の参照と検証",
   config: "config.yaml の参照と変更",
 };

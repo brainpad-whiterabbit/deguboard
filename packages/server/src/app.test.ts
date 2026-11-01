@@ -75,6 +75,30 @@ describe("HTTP サーバー", () => {
     expect(abandoned.body.data.status).toBe("abandoned");
   });
 
+  it("Plan のコマンドも HTTP に写り、PL-3 の拒否は 409 になる", async () => {
+    const f = await fixture();
+    await runCommand(init, await openContext({ cwd: f.cloneA, initialize: {} }), {});
+    const s = await serve(f.cloneA);
+    await post(s, "ticket.create", { title: "A" });
+    await post(s, "ticket.create", { title: "B" });
+    const created = await post(s, "plan.create", {
+      tickets: ["t1", "t2"],
+      after: { t2: ["t1"] },
+      approach: { t1: "小さく" },
+    });
+    expect(created.status).toBe(200);
+    expect(created.body.data).toMatchObject({ id: "p1", after: { t2: ["t1"] } });
+    const dup = await post(s, "plan.create", { tickets: ["t2"] });
+    expect(dup.status).toBe(409);
+    expect(dup.body.error.code).toBe("REJECTED");
+    const approved = await post(s, "plan.approve", { plan: "p1" });
+    expect(approved.body.data).toMatchObject({ pending_approval: false, approved_by: "ui" });
+    const shown = await post(s, "plan.show", { plan: "p1" });
+    expect(shown.body.data.progress).toMatchObject({ total: 2, done: 0 });
+    const closed = await post(s, "plan.close", { plan: "p1" });
+    expect(closed.body.data.closed_at).toBeDefined();
+  });
+
   it("エラーは HTTP の状態に写る：入力の誤り 400、見つからない 404、拒否 409、未知のコマンド 404", async () => {
     const f = await fixture();
     await runCommand(init, await openContext({ cwd: f.cloneA, initialize: {} }), {});

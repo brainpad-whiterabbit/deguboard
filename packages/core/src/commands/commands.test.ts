@@ -21,6 +21,7 @@ import {
   iterationShow,
   iterationStart,
 } from "./iteration.js";
+import { planApprove, planClose, planCreate, planShow } from "./plan.js";
 import { configSet, init, lint, sync, validate } from "./setup.js";
 import {
   ticketCheck,
@@ -715,6 +716,150 @@ describe("Epic と Iteration", () => {
     await runCommand(iterationClose, agent, { iteration: "s1" });
     const again = await runCommand(iterationReopen, agent, { iteration: "s1" });
     expect(again.warnings ?? []).toHaveLength(0);
+  });
+});
+
+describe("Plan", () => {
+  it("create は承認待ちで作って即 push し、存在しない・終わった・別の開いた Plan のチケットを拒否する（PL-3）", async () => {
+    const f = await fixture();
+    const ctx = await initialized(f.cloneA);
+    for (const title of ["A", "B", "C", "D", "E"]) await runCommand(ticketCreate, ctx, { title });
+    await runCommand(ticketMove, ctx, { ticket: "t4", status: "done" });
+    await runCommand(ticketMove, ctx, { ticket: "t5", status: "abandoned" });
+    const created = await runCommand(planCreate, ctx, {
+      tickets: ["t1", "2"],
+      after: { t2: "t1" },
+      scope: { t1: "API だけ" },
+      approach: { t1: "既存の型を使う", t2: "画面は作らない" },
+    });
+    expect(created.data).toMatchObject({
+      id: "p1",
+      project: "default",
+      tickets: ["t1", "t2"],
+      after: { t2: ["t1"] },
+      pending_approval: true,
+      details: {
+        t1: { scope: "API だけ", approach: "既存の型を使う" },
+        t2: { approach: "画面は作らない" },
+      },
+    });
+    expect(created.write).toMatchObject({ committed: true, pushed: true });
+    const yaml = await readFile(path.join(ctx.repo.dataDir, "plans/p1.yaml"), "utf8");
+    expect(yaml).toContain("pending_approval: true");
+    // 同じチケットを 2 つの開いた Plan に入れられない
+    await expect(runCommand(planCreate, ctx, { tickets: ["t3", "t1"] })).rejects.toMatchObject({
+      code: "REJECTED",
+    });
+    // done と abandoned のチケットは入れられない
+    await expect(runCommand(planCreate, ctx, { tickets: ["t4"] })).rejects.toMatchObject({
+      code: "REJECTED",
+    });
+    await expect(runCommand(planCreate, ctx, { tickets: ["t5"] })).rejects.toMatchObject({
+      code: "REJECTED",
+    });
+    // 存在しないチケットは NOT_FOUND
+    await expect(runCommand(planCreate, ctx, { tickets: ["t99"] })).rejects.toMatchObject({
+      code: "NOT_FOUND",
+    });
+    // after は Plan の中のチケットだけで、循環できない
+    await expect(
+      runCommand(planCreate, ctx, { tickets: ["t3"], after: { t3: "t4" } }),
+    ).rejects.toMatchObject({ code: "REJECTED" });
+    await expect(
+      runCommand(planCreate, ctx, { tickets: ["t3"], after: { t3: "t3" } }),
+    ).rejects.toMatchObject({ code: "REJECTED" });
+    expect(ctx.store.plans.size).toBe(1);
+    // 閉じた Plan のチケットは別の Plan に入れられる
+    await runCommand(planClose, ctx, { plan: "p1" });
+    const next = await runCommand(planCreate, ctx, { tickets: ["t1", "t3"] });
+    expect(next.data).toMatchObject({ id: "p2", tickets: ["t1", "t3"] });
+  });
+
+  it("create は after の循環と、Plan の外のチケットへの scope を拒否する", async () => {
+    const f = await fixture();
+    const ctx = await initialized(f.cloneA);
+    for (const title of ["A", "B", "C"]) await runCommand(ticketCreate, ctx, { title });
+    await expect(
+      runCommand(planCreate, ctx, {
+        tickets: ["t1", "t2", "t3"],
+        after: { t1: ["t3"], t2: "t1", t3: "t2" },
+      }),
+    ).rejects.toMatchObject({ code: "REJECTED" });
+    await expect(
+      runCommand(planCreate, ctx, { tickets: ["t1"], scope: { t2: "外" } }),
+    ).rejects.toMatchObject({ code: "REJECTED" });
+    expect(ctx.store.plans.size).toBe(0);
+  });
+
+  it("show は進捗を Plan に書かず、チケットの状態から求めて待ちを出す（PL-2）", async () => {
+    const f = await fixture();
+    const ctx = await initialized(f.cloneA);
+    for (const title of ["A", "B", "C"]) await runCommand(ticketCreate, ctx, { title });
+    await runCommand(planCreate, ctx, { tickets: ["t1", "t2", "t3"], after: { t2: ["t1"] } });
+    const yaml = path.join(ctx.repo.dataDir, "plans/p1.yaml");
+    const before = await readFile(yaml, "utf8");
+    const first = await runCommand(planShow, ctx, { plan: "1" });
+    expect(first.data.progress).toMatchObject({ total: 3, done: 0 });
+    expect(first.data.items.map((t) => [t.id, t.waiting])).toEqual([
+      ["t1", []],
+      ["t2", ["t1"]],
+      ["t3", []],
+    ]);
+    await runCommand(ticketMove, ctx, { ticket: "t1", status: "done" });
+    await runCommand(ticketMove, ctx, { ticket: "t3", status: "abandoned" });
+    const second = await runCommand(planShow, ctx, { plan: "p1" });
+    expect(second.data.progress).toEqual({
+      total: 2,
+      done: 1,
+      by_status: { todo: 1, in_progress: 0, review: 0, done: 1, abandoned: 1 },
+    });
+    expect(second.data.items.find((t) => t.id === "t2")?.waiting).toEqual([]);
+    // Plan のファイルは書き換わらない
+    expect(await readFile(yaml, "utf8")).toBe(before);
+    expect(await readFile(yaml, "utf8")).not.toContain("progress");
+  });
+
+  it("approve は approved_by と approved_at を書いて pending_approval を外し、close は closed_at を書く", async () => {
+    const f = await fixture();
+    const ctx = await initialized(f.cloneA);
+    await runCommand(ticketCreate, ctx, { title: "A" });
+    await runCommand(planCreate, ctx, { tickets: ["t1"] });
+    const approved = await runCommand(planApprove, ctx, { plan: "p1" });
+    expect(approved.data).toMatchObject({ pending_approval: false, approved_by: "eiki" });
+    expect(approved.data.approved_at).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    // 二度目の承認は拒否する
+    await expect(runCommand(planApprove, ctx, { plan: "p1" })).rejects.toMatchObject({
+      code: "REJECTED",
+    });
+    const closed = await runCommand(planClose, ctx, { plan: "p1" });
+    expect(closed.data.closed_at).toBeDefined();
+    expect(closed.warnings).toEqual(["t1 を残したまま閉じた"]);
+    await expect(runCommand(planClose, ctx, { plan: "p1" })).rejects.toMatchObject({
+      code: "REJECTED",
+    });
+    await expect(runCommand(planApprove, ctx, { plan: "p1" })).rejects.toMatchObject({
+      code: "REJECTED",
+    });
+    await expect(runCommand(planShow, ctx, { plan: "p9" })).rejects.toMatchObject({
+      code: "NOT_FOUND",
+    });
+  });
+
+  it("agent の承認は agent の ID を記録し、actor.human_only に plan.approve を入れると拒否される", async () => {
+    const f = await fixture();
+    const ctx = await initialized(f.cloneA);
+    await runCommand(ticketCreate, ctx, { title: "A" });
+    await runCommand(ticketCreate, ctx, { title: "B" });
+    await runCommand(planCreate, ctx, { tickets: ["t1"] });
+    await runCommand(planCreate, ctx, { tickets: ["t2"] });
+    const agent = await openContext({ cwd: f.cloneA, actor: { kind: "agent", user: "eiki" } });
+    const approved = await runCommand(planApprove, agent, { plan: "p1" });
+    expect(approved.data.approved_by).toBe("eiki/agent");
+    await runCommand(configSet, ctx, { key: "actor.human_only", value: "plan.approve" });
+    const agent2 = await openContext({ cwd: f.cloneA, actor: { kind: "agent", user: "eiki" } });
+    await expect(runCommand(planApprove, agent2, { plan: "p2" })).rejects.toMatchObject({
+      code: "TRANSITION_REJECTED",
+    });
   });
 });
 
