@@ -28,6 +28,11 @@ run = "pnpm run typecheck"
 description = "vitest でテストする"
 run = "pnpm run test"
 
+[tasks."test:layout"]
+description = "画面の配置を Chromium で確かめる（サイドバーの幅 300px・260px、ライトとダーク）。ブラウザが要るので check には入れない（先に mise run playwright:install）"
+depends = ["build"]
+run = "pnpm run test:layout"
+
 [tasks.build]
 description = "core・server・cli を tsc で、web と vscode を Vite で dist にビルドする（dg を動かすのに要る）"
 run = "pnpm run build"
