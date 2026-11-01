@@ -187,7 +187,7 @@ export function BoardPage({ query }: { query: BoardQuery }) {
     <section>
       {sidebar ? (
         <>
-          {/* 左パネルは見出しを 2 段と進みの帯に詰め、詳細・操作は出さない（Iteration の開始・閉じるは Skill の手順で行う） */}
+          {/* 左パネルは見出しを 2 段と進みの帯に詰め、詳細・操作は出さない（Iteration の開始は Skill の手順が着手時に行い（t152）、閉じるはバックログの区画の「…」と詳細から行う） */}
           <SidebarBoardHead
             open={open}
             selection={selection}
