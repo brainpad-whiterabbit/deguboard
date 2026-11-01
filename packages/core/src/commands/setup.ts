@@ -353,7 +353,7 @@ export const lint = defineCommand({
   name: "lint",
   group: "setup",
   summary:
-    "本文の推奨の節（## 概要・## 受け入れ条件）の欠けと空、done に残る未チェックの受け入れ条件、Workflow の fields に合わない値を指摘する",
+    "本文の推奨の節（## 概要・## 受け入れ条件）の欠けと空、Workflow の fields に合わない値を指摘する。done のチケットの未チェックの受け入れ条件は指摘しない",
   input: z.object({ project: z.string().optional() }),
   write: false,
   needs: "store",
@@ -366,19 +366,10 @@ export const lint = defineCommand({
       if (!/^## 概要\s*$/m.test(doc.body))
         warn(doc.path, doc.id, "lint_summary_missing", "本文に ## 概要 がない");
       const acceptance = parseAcceptance(doc.body);
-      const unchecked = doc.data.status === "done" ? uncheckedAcceptance(doc) : [];
       if (acceptance === undefined)
         warn(doc.path, doc.id, "lint_acceptance_missing", "本文に ## 受け入れ条件 がない");
       else if (acceptance.length === 0)
         warn(doc.path, doc.id, "lint_acceptance_empty", "受け入れ条件に項目がない");
-      else if (unchecked.length > 0) {
-        warn(
-          doc.path,
-          doc.id,
-          "lint_acceptance_unchecked",
-          `done だが受け入れ条件 ${unchecked.join(", ")} が未チェック`,
-        );
-      }
       const wf = ctx.store.workflowFor(doc.data);
       for (const f of wf?.resolved.fields ?? []) {
         const v = doc.data[f.id];
