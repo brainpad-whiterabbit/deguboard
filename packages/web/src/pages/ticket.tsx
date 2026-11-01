@@ -1,8 +1,9 @@
-// チケット詳細（UI-4）。本文（概要・受け入れ条件）、属性、Epic、依存先と依存元、作業ブランチと、経過（deguboard ブランチの履歴）。
+// チケット詳細（UI-4）。本文（概要・受け入れ条件）、属性、Epic、依存先と依存元、作業ブランチ、Run の一覧と、経過（deguboard ブランチの履歴）。
 // 属性と本文を編集でき、Status は ticket.move と同じ検査を通る
 
 import { useEffect, useState } from "react";
 import { PriorityBadge, StatusBadge, Tags, TicketLink } from "../components/parts.js";
+import { TicketRuns } from "../components/ticket-runs.js";
 import { TicketTimeline } from "../components/timeline.js";
 import { Markdown } from "../markdown.js";
 import { hrefOf } from "../router.js";
@@ -151,6 +152,7 @@ export function TicketPage({ id }: { id: string }) {
             </button>
           )}
         </div>
+        <TicketRuns id={ticket.id} />
         <TicketTimeline id={ticket.id} />
       </div>
       <aside>
@@ -301,8 +303,6 @@ export function TicketPage({ id }: { id: string }) {
           </dd>
           <dt>PR</dt>
           <dd>{ticket.pr ? `#${ticket.pr}` : <span className="muted">なし</span>}</dd>
-          <dt>Run</dt>
-          <dd className="muted">予定（e3）</dd>
           <dt>起票者</dt>
           <dd>{ticket.created_by ?? <span className="muted">不明</span>}</dd>
           <dt>作成</dt>

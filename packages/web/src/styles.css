@@ -511,7 +511,8 @@ button.link:hover {
   padding: 0;
 }
 /* チケット詳細の経過：時刻・丸印・変化 */
-.timeline h2 {
+.timeline h2,
+.runs h2 {
   font-size: 1em;
   margin: 1.5rem 0 0.4rem;
 }
@@ -530,6 +531,24 @@ button.link:hover {
 .timeline-list time {
   color: var(--vscode-descriptionForeground);
   font-variant-numeric: tabular-nums;
+}
+/* チケット詳細の Run：step・agent・model・結果・トークン・開始・終了 */
+.runs-list td.num,
+.runs-list time {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.run-result {
+  font-weight: 500;
+}
+.run-running {
+  color: var(--vscode-charts-blue, var(--vscode-textLink-foreground));
+}
+.run-failure {
+  color: var(--vscode-errorForeground);
+}
+.run-interrupted {
+  color: var(--vscode-editorWarning-foreground);
 }
 /* 見方の切り替え：つながったボタン */
 .segmented {
