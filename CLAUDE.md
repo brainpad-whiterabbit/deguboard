@@ -47,5 +47,6 @@ Git-native な AI ワークフロー・チケット管理ツール。CLI は `dg
 
 - 変更は `main` から切った作業ブランチを git worktree に checkout して行う。`main` に直接コミットせず、`main` の worktree では作業しない。手順は [docs/development.md の「チケットと作業の流れ」](docs/development.md#チケットと作業の流れ)
 - コミットメッセージと PR のタイトルは日本語で、要約を 1 行目に書く
+- 画面の見た目を変える PR は、変えた画面のスクリーンショットを本文に載せる。画像は orphan ブランチ `pr-screenshots` に置き、作業ブランチに入れない。手順は [docs/development.md の「チケットと作業の流れ」](docs/development.md#チケットと作業の流れ)
 - PR は `main` に向ける。ローカルで `mise run check` が通り、承認されたことをマージの条件にする。CI は使わない（[ADR-008](docs/adr/ADR-008-tech-stack.md)）
 - マージは squash で行い、リモートとローカルのブランチと worktree を消す
