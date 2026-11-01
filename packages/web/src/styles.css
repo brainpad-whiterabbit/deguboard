@@ -849,6 +849,10 @@ textarea.body {
   border-radius: 3px;
   margin-bottom: 0.3rem;
 }
+.backlog-section.over {
+  outline: 2px solid var(--vscode-focusBorder);
+  outline-offset: 2px;
+}
 .backlog-section .name {
   font-weight: 600;
 }
