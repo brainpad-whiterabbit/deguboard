@@ -30,7 +30,12 @@ import {
   sameAssignee,
 } from "../components/parts.js";
 import { PlanBand } from "../components/plan-band.js";
-import { openPlanByTicket, openWaits, planColor, planGraph } from "../components/plan-graph.js";
+import {
+  openPlanByTicket,
+  remainingWaits,
+  planColor,
+  planGraph,
+} from "../components/plan-graph.js";
 import { useChangeFlash } from "../components/change-flash.js";
 import { useHost, useUiState } from "../host.js";
 import { hrefOf, navigate, NO_ITERATION, type BoardQuery } from "../router.js";
@@ -514,11 +519,11 @@ export interface PlanMark {
   plan: string;
   /** Plan が承認待ち（plan.status が pending）。todo の行は待ちの相手によらず「承認待ち」と出す */
   pending: boolean;
-  /** 残っている待ちの相手（openWaits。Plan の after の待ちが先、depends_on が後）。空なら着手できる */
+  /** 残っている待ちの相手（remainingWaits。Plan の after の待ちが先、depends_on が後）。空なら着手できる */
   waitingOn: string[];
 }
 
-/** 開いた Plan に入っているチケットごとの PlanMark。after の待ちは Plan ごとに planGraph で求め、depends_on の待ちは deps_done で決める（openWaits） */
+/** 開いた Plan に入っているチケットごとの PlanMark。after の待ちは Plan ごとに planGraph で求め、depends_on の待ちは deps_done で決める（remainingWaits） */
 export function kanbanPlanMarks(
   plans: readonly PlanRow[],
   tickets: readonly TicketRow[],
@@ -534,7 +539,7 @@ export function kanbanPlanMarks(
       marks.set(node.id, {
         plan: plan.id,
         pending: plan.status === "pending",
-        waitingOn: openWaits(byId.get(node.id)!, node.waitingOn, byId),
+        waitingOn: remainingWaits(byId.get(node.id)!, node.waitingOn, byId),
       });
     }
   }

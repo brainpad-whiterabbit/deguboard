@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { Epic, Iteration, TicketRow } from "../types.js";
-import { plan } from "../test-helpers.js";
+import type { Epic, Iteration } from "../types.js";
+import { plan, ticket } from "../test-helpers.js";
 import {
   hideClosedFinished,
   kanbanPlanMarks,
@@ -8,22 +8,6 @@ import {
   ticketProgress,
   waitLabel,
 } from "./board.js";
-
-/** deps_done を省けば、依存先がないときだけ真にする */
-function ticket(partial: Partial<TicketRow> & { id: string }): TicketRow {
-  return {
-    deps_done: (partial.depends_on ?? []).length === 0,
-    project: "default",
-    title: partial.id,
-    status: "todo",
-    priority: "medium",
-    labels: [],
-    depends_on: [],
-    created_at: "2026-01-01T00:00:00Z",
-    updated_at: "2026-01-01T00:00:00Z",
-    ...partial,
-  };
-}
 
 const iterations: Pick<Iteration, "id" | "status">[] = [
   { id: "s1", status: "closed" },
@@ -140,9 +124,17 @@ describe("左パネルのカンバンの行の Plan の番号と待ち", () => {
       // 画面が読んでいないチケット（別の Project のもの）への depends_on は、deps_done で決める
       ticket({ id: "t6", depends_on: ["t99"], deps_done: false }),
       ticket({ id: "t7", depends_on: ["t98"], deps_done: true }),
+      // 読めている依存先（t2）が終わっていなければ、別の Project の依存先（t97）は終わっているかもしれないので出さない
+      ticket({ id: "t10", depends_on: ["t2", "t97"], deps_done: false }),
     ];
     const marks = kanbanPlanMarks(
-      [plan({ id: "p1", tickets: ["t2", "t3", "t4", "t5", "t6", "t7"], after: { t4: ["t2"] } })],
+      [
+        plan({
+          id: "p1",
+          tickets: ["t2", "t3", "t4", "t5", "t6", "t7", "t10"],
+          after: { t4: ["t2"] },
+        }),
+      ],
       withDeps,
     );
     expect(Object.fromEntries(marks)).toEqual({
@@ -152,6 +144,7 @@ describe("左パネルのカンバンの行の Plan の番号と待ち", () => {
       t5: { plan: "p1", pending: false, waitingOn: [] },
       t6: { plan: "p1", pending: false, waitingOn: ["t99"] },
       t7: { plan: "p1", pending: false, waitingOn: [] },
+      t10: { plan: "p1", pending: false, waitingOn: ["t2"] },
     });
   });
 

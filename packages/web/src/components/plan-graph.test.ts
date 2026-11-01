@@ -3,7 +3,7 @@ import { plan, ticket } from "../test-helpers.js";
 import type { TicketRow } from "../types.js";
 import {
   openPlanByTicket,
-  openWaits,
+  remainingWaits,
   planColor,
   planGraph,
   planProgressLine,
@@ -209,17 +209,26 @@ describe("待ちの相手（帯の次とカンバンの行で共用）", () => {
 
   it("deps_done が真なら depends_on は待たず、Plan の after の待ちだけを出す", () => {
     const t = ticket({ id: "t5", depends_on: ["t2", "t90"], deps_done: true });
-    expect(openWaits(t, [], byId)).toEqual([]);
-    expect(openWaits(t, ["t2"], byId)).toEqual(["t2"]);
+    expect(remainingWaits(t, [], byId)).toEqual([]);
+    expect(remainingWaits(t, ["t2"], byId)).toEqual(["t2"]);
   });
 
-  it("deps_done が偽なら、終わっていない依存先と読めていない依存先を after の待ちの後に、重ねずに出す", () => {
+  it("deps_done が偽なら、読めている依存先のうち終わっていないものだけを after の待ちの後に、重ねずに出す", () => {
+    // t90（別の Project）は終わっているかもしれないので、終わっていない t2 があれば相手に出さない
     const t = ticket({ id: "t5", depends_on: ["t1", "t2", "t90"], deps_done: false });
-    expect(openWaits(t, ["t2"], byId)).toEqual(["t2", "t90"]);
+    expect(remainingWaits(t, [], byId)).toEqual(["t2"]);
+    expect(remainingWaits(t, ["t2"], byId)).toEqual(["t2"]);
+    expect(remainingWaits(t, ["t3"], byId)).toEqual(["t3", "t2"]);
   });
 
-  it("読めている依存先がすべて終わっていても deps_done が偽なら、依存先を出して着手できるとしない", () => {
+  it("deps_done が偽で、読めている依存先がすべて終わっていれば、読めていない依存先（別の Project）を出す", () => {
+    const t = ticket({ id: "t5", depends_on: ["t1", "t90"], deps_done: false });
+    expect(remainingWaits(t, [], byId)).toEqual(["t90"]);
+    expect(remainingWaits(t, ["t3"], byId)).toEqual(["t3", "t90"]);
+  });
+
+  it("依存先がすべて読めて終わっていても deps_done が偽なら（読み直しの前など）、依存先を出して着手できるとしない", () => {
     const t = ticket({ id: "t5", depends_on: ["t1"], deps_done: false });
-    expect(openWaits(t, [], byId)).toEqual(["t1"]);
+    expect(remainingWaits(t, [], byId)).toEqual(["t1"]);
   });
 });

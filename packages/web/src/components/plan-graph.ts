@@ -151,28 +151,29 @@ export interface PlanProgressLine {
 
 /**
  * チケットに残っている待ちの相手。空なら（todo のチケットは）着手できる。実行計画の帯の「次」とカンバンの行の「着手可・待ち」はこれで決める。
- * Plan の after の待ち（planGraph の waitingOn）を先に、depends_on の待ちを後に並べる。depends_on が終わったかは core の deps_done（WF-2。別の Project の依存先も見る）で決め、
- * 偽のときだけ、画面が読めていない依存先（別の Project のものなど）と終わっていない依存先を相手に出す
+ * Plan の after の待ち（planGraph の waitingOn）を先に、depends_on の待ちを重ねずに後に並べる。depends_on が終わったかは core の deps_done（WF-2。別の Project の依存先も見る）で決め、
+ * 偽のときだけ依存先を相手に出す：画面が読めている依存先に終わっていないものがあればそれだけ、なければ読めていない依存先（別の Project のものなど。どれかが終わっていないはず）、
+ * それもなければ（読み直しの前など）依存先をそのまま出し、着手可とは出さない
  */
-export function openWaits(
+export function remainingWaits(
   ticket: TicketRow,
   waitingOn: readonly string[],
   byId: ReadonlyMap<string, Ticket>,
 ): string[] {
   if (ticket.deps_done) return [...waitingOn];
-  const rest = ticket.depends_on.filter((dep) => !waitingOn.includes(dep));
-  const open = rest.filter((dep) => {
+  const deps = ticket.depends_on;
+  const open = deps.filter((dep) => {
     const status = statusOf(dep, byId);
-    return status === undefined || !FINISHED.has(status);
+    return status !== undefined && !FINISHED.has(status);
   });
-  // 読めている依存先がすべて終わっていても deps_done が偽なら（読み直しの前など）、依存先をそのまま相手に出し、着手可とは出さない
-  if (open.length === 0 && waitingOn.length === 0) return rest;
-  return [...waitingOn, ...open];
+  const unknown = deps.filter((dep) => !byId.has(dep));
+  const chosen = open.length > 0 ? open : unknown.length > 0 ? unknown : deps;
+  return [...waitingOn, ...chosen.filter((dep) => !waitingOn.includes(dep))];
 }
 
 /**
  * 畳んだ行に出す作業中と次。順は依存グラフの段・段の中の位置。選んだ Iteration の外のチケットも、Plan に入っていれば数える（Plan 全体の進み）。
- * 承認待ちは次の代わりに承認待ち。着手できるのは todo で、待ちの相手（openWaits）が残らないもの。なければ先頭の todo の待ちの相手を出す。閉じた・完了の Plan は何も出さない
+ * 承認待ちは次の代わりに承認待ち。着手できるのは todo で、待ちの相手（remainingWaits）が残らないもの。なければ先頭の todo の待ちの相手を出す。閉じた・完了の Plan は何も出さない
  */
 export function planProgressLine(
   plan: PlanRow,
@@ -184,7 +185,7 @@ export function planProgressLine(
   const ordered = [...graph.nodes].sort((a, b) => a.layer - b.layer || a.row - b.row);
   const working = ordered.filter((n) => n.status === "in_progress").map((n) => n.id);
   if (state === "pending") return { working, next: { kind: "approval" } };
-  const waitsOf = (n: GraphNode) => openWaits(byId.get(n.id)!, n.waitingOn, byId);
+  const waitsOf = (n: GraphNode) => remainingWaits(byId.get(n.id)!, n.waitingOn, byId);
   const todo = ordered.filter((n) => n.status === "todo");
   const ready = todo.find((n) => waitsOf(n).length === 0);
   if (ready) return { working, next: { kind: "ready", id: ready.id } };

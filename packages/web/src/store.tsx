@@ -38,7 +38,7 @@ interface Snapshot {
 }
 
 /** cache の置き場の鍵。形が変わったら番号を上げて古いものを読まない */
-export const SNAPSHOT_KEY = "store.snapshot.v1";
+export const SNAPSHOT_KEY = "store.snapshot.v2";
 
 export interface Notice {
   kind: "error" | "info";
