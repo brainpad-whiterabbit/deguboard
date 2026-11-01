@@ -1,0 +1,25 @@
+id: p13
+project: default
+tickets: [t164, t165, t166, t169, t170]
+after:
+  t169:
+    - t166
+  t170:
+    - t165
+pending_approval: true
+details:
+  t164:
+    scope: README と vscode/README の使い始め・開発中の行・VSIX の手順・左パネルの説明。npm 公開はしない
+    approach: 公開前は clone して build し dg を link する手順を添え、開発中の行は dg epic list の案内に寄せる
+  t165:
+    scope: app.test・store の読み直しの競合と失敗・plan-band の status-done のテスト。本体のコードは直さない
+    approach: 空振りのテストは readRunning 付きで描き、run.list の応答を Promise で持って順を入れ替える
+  t166:
+    scope: CLAUDE.md・requirements.md・ADR-006 を予算の 90% 未満にする
+    approach: 細部をヘルプ・コード・テストや development.md へ移す。予算は変えない方向で、無理なら ADR-001 に理由を書く
+  t169:
+    scope: UI-2 の 1 文・iterations.tsx のコメント・ADR-006 のチケット番号・check:docs の説明
+    approach: t166 で空けた予算の内で足す。ADR-008 は ADR-001 を参照するだけにする
+  t170:
+    scope: web の ticketProgress・StatusBand・手書きの出力の型・外から使わない export
+    approach: core から出力の型を export して web は import type、StatusBand は ProgressBar と共通の関数を使う。t165 のテストの後に触る
