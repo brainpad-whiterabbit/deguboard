@@ -526,7 +526,7 @@ const FINISHED_STATUSES: ReadonlySet<Status> = new Set(["done", "abandoned"]);
 /**
  * 開いた Plan に入っているチケットごとの PlanMark。after の待ちは Plan ごとに planGraph で求め、depends_on の待ちを足す。
  * 限界：画面が読むチケットは選んだ Project のものだけなので、見つからない依存先（別の Project のものなど）は判定できないものとして待ちに数えない。
- * 別の Project の依存先は見ない。正しくは core の ticket.list に deps_done を載せて使う（別チケット）
+ * 正しくは core の ticket.list に deps_done を載せて使う（別チケット）
  */
 export function kanbanPlanMarks(
   plans: readonly PlanRow[],
