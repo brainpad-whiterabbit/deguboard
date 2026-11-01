@@ -25,3 +25,4 @@ details:
     approach: core から出力の型を export して web は import type、StatusBand は ProgressBar と共通の関数を使う。t165 のテストの後に触る
 approved_by: eiki.kitajima/agent
 approved_at: 2026-11-01T21:33:56Z
+closed_at: 2026-11-01T22:07:37Z
