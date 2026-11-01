@@ -6,6 +6,7 @@
 
 import type { IncomingMessage, ServerResponse } from "node:http";
 import {
+  ACTION_NAMES,
   DeguboardError,
   createLocalClient,
   type AnyCommand,
@@ -64,6 +65,7 @@ export function createApp(options: AppOptions): Handler {
     user: options.user,
     commands: options.commands,
     mergeDriver: options.mergeDriver,
+    actions: ACTION_NAMES,
   });
   const descriptors = describeCommands(client.commands);
 

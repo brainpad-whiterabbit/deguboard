@@ -16,4 +16,16 @@ export const softwareDevelopment: WorkflowDefinitionInput = {
     { when: ["branch_exists"], status: "in_progress" },
   ],
   fields: [{ id: "estimate", type: "number", label: "Estimate" }],
+  // Run の step の語彙。順や分岐は書かない（手順は dg guide が持つ。WF-5）
+  steps: [
+    { id: "investigate", label: "Investigate" },
+    {
+      id: "implement",
+      label: "Implement",
+      actions: ["create_worktree", "create_branch", "run_tests", "create_pr"],
+    },
+    { id: "review", label: "Review", actions: ["run_tests"] },
+    // PR のマージは base を変えるので、Action の確認の要否によらず人の承認を取る
+    { id: "merge", label: "Merge", actions: ["merge_pr"], approval: true },
+  ],
 };

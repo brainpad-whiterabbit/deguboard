@@ -26,7 +26,7 @@ import { isRunId, runSchema, type Run, type RunId } from "../model/run.js";
 import { ticketSchema, type Ticket } from "../model/ticket.js";
 import type { WorkflowDefinition } from "../model/workflow.js";
 import type { ResolvedWorkflow } from "../workflow/resolve.js";
-import { validateWorkflow } from "../workflow/validate.js";
+import { validateWorkflow, type WorkflowValidationOptions } from "../workflow/validate.js";
 import { writeFileAtomic } from "./atomic.js";
 import { createDoc, readDoc, writeDoc, type Doc, type DocFormat } from "./documents.js";
 import type { Issue } from "./issue.js";
@@ -122,10 +122,14 @@ export class Store {
   readonly runs = new Map<RunId, Doc<Run>>();
   readonly workflows = new Map<string, WorkflowEntry>();
 
-  private constructor(readonly root: string) {}
+  private constructor(
+    readonly root: string,
+    /** Workflow の検証に渡す。Action の一覧は入口が渡す（ADR-007） */
+    private readonly workflowOptions: WorkflowValidationOptions,
+  ) {}
 
-  static async open(root: string): Promise<Store> {
-    const store = new Store(root);
+  static async open(root: string, options: WorkflowValidationOptions = {}): Promise<Store> {
+    const store = new Store(root, options);
     await store.rescan();
     return store;
   }
@@ -263,12 +267,19 @@ export class Store {
     comment?: string,
   ): Promise<WorkflowEntry> {
     const relPath = workflowPath(String(definition["id"]));
-    const result = validateWorkflow(definition, relPath);
-    if (!result.workflow || !result.definition || result.issues.length > 0) {
+    const result = validateWorkflow(definition, relPath, this.workflowOptions);
+    if (
+      !result.workflow ||
+      !result.definition ||
+      result.issues.some((i) => i.severity === "error")
+    ) {
       throw new OperationError(
         "VALIDATION_FAILED",
         `Workflow ${String(definition["id"])} の定義に誤りがある`,
-        result.issues.map((i) => i.message).join("\n"),
+        result.issues
+          .filter((i) => i.severity === "error")
+          .map((i) => i.message)
+          .join("\n"),
       );
     }
     const doc = newYamlDocument(definition);
@@ -394,7 +405,7 @@ export class Store {
         });
         continue;
       }
-      const result = validateWorkflow(doc.toJS() ?? {}, relPath);
+      const result = validateWorkflow(doc.toJS() ?? {}, relPath, this.workflowOptions);
       this.issues.push(...result.issues);
       if (!result.workflow || !result.definition) continue;
       if (result.definition.id !== id) {
@@ -407,8 +418,8 @@ export class Store {
         });
         continue;
       }
-      // 誤りのある定義は索引に入れない（それを参照するチケットは integrity で指摘される）
-      if (result.issues.length > 0) continue;
+      // 誤りのある定義は索引に入れない（それを参照するチケットは integrity で指摘される）。警告だけなら入れる
+      if (result.issues.some((i) => i.severity === "error")) continue;
       this.workflows.set(id, {
         path: relPath,
         definition: result.definition,

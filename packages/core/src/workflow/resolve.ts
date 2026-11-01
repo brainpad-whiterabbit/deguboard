@@ -2,7 +2,13 @@
 // 制約のない遷移は誰でも条件なしで行える（ADR-003）
 
 import { STATUSES, type Status } from "../model/common.js";
-import type { Actor, Condition, FieldDefinition, WorkflowDefinition } from "../model/workflow.js";
+import type {
+  Actor,
+  Condition,
+  FieldDefinition,
+  StepDefinition,
+  WorkflowDefinition,
+} from "../model/workflow.js";
 import { evaluateAll, type Facts } from "./conditions.js";
 
 export interface ReconcileRule {
@@ -28,6 +34,8 @@ export interface ResolvedWorkflow {
   transitions: readonly TransitionConstraint[];
   reconcile: readonly ReconcileRule[];
   fields: readonly FieldDefinition[];
+  /** Run の step の語彙。undefined なら step を縛らない */
+  steps: readonly StepDefinition[] | undefined;
 }
 
 const DEFAULT_LABELS: Record<Status, string> = {
@@ -65,6 +73,7 @@ export function resolveWorkflow(def: WorkflowDefinition): ResolvedWorkflow {
     transitions: [...merged.values()],
     reconcile: def.reconcile.map((r) => ({ when: r.when as Condition[], status: r.status })),
     fields: def.fields,
+    steps: def.steps,
   };
 }
 
@@ -115,4 +124,14 @@ export function describeRejection(
     case "requires_unmet":
       return `${from} から ${to} への遷移の条件を満たしていない: ${check.unmet.join(", ")}`;
   }
+}
+
+/** step が Workflow の語彙にあるか。steps のない Workflow はどの step も受ける（DT-2） */
+export function findStep(
+  wf: ResolvedWorkflow,
+  step: string,
+): { ok: true; step?: StepDefinition } | { ok: false; known: string[] } {
+  if (!wf.steps) return { ok: true };
+  const found = wf.steps.find((s) => s.id === step);
+  return found ? { ok: true, step: found } : { ok: false, known: wf.steps.map((s) => s.id) };
 }

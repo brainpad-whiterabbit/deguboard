@@ -12,6 +12,9 @@ export { defaultWorktreePath, isSafeBranchName, MERGE_METHODS } from "./software
 
 export const actions: readonly AnyAction[] = [...softwareActions, shellAction] as AnyAction[];
 
+/** 登録済みの Action の名前。入口が openContext・createLocalClient に渡し、Workflow の steps の検証に使う */
+export const ACTION_NAMES: readonly string[] = actions.map((a) => a.name);
+
 export interface ActionInfo {
   name: string;
   summary: string;

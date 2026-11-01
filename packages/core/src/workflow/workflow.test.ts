@@ -3,7 +3,7 @@ import { ACTORS } from "../model/workflow.js";
 import { STATUSES } from "../model/common.js";
 import { evaluateCondition, parseCondition } from "./conditions.js";
 import { reconcileStatus, regressionWarnings } from "./reconcile.js";
-import { canTransition, resolveWorkflow } from "./resolve.js";
+import { canTransition, findStep, resolveWorkflow } from "./resolve.js";
 import { WORKFLOW_TEMPLATES } from "./templates/index.js";
 import { validateWorkflow } from "./validate.js";
 
@@ -139,6 +139,47 @@ describe("定義の検証（WF-3）", () => {
     expect(issues[0]?.code).toBe("workflow_schema");
   });
 
+  it("渡した Action の一覧にない Action を警告し、同じ step の重複をエラーにする", () => {
+    const raw = {
+      ...base,
+      steps: [
+        { id: "implement", actions: ["create_pr", "deploy"] },
+        { id: "review", approval: true },
+        { id: "implement" },
+      ],
+    };
+    const { issues, workflow } = validateWorkflow(raw, "x.yaml", { actions: ["create_pr"] });
+    expect(issues.map((i) => [i.code, i.severity, i.message])).toEqual([
+      ["workflow_action_unknown", "warning", "steps[0]: 未知の Action deploy"],
+      ["workflow_step_duplicate", "error", "steps[2]: implement が重複している"],
+    ]);
+    expect(workflow?.steps?.[1]).toMatchObject({ id: "review", actions: [], approval: true });
+    // 一覧を渡さなければ Action の名前は形だけ見る
+    expect(validateWorkflow(raw, "x.yaml").issues.map((i) => i.code)).toEqual([
+      "workflow_step_duplicate",
+    ]);
+  });
+
+  it("step の名前の形・空の steps・Action の名前の形は形の誤りになる", () => {
+    for (const steps of [[{ id: "Implement" }], [], [{ id: "a", actions: ["Create PR"] }]]) {
+      expect(validateWorkflow({ ...base, steps }, "x.yaml").issues.map((i) => i.code)).toEqual([
+        "workflow_schema",
+      ]);
+    }
+  });
+
+  it("steps のない Workflow はどの step も受け、steps があれば語彙にない step を拒否する", () => {
+    expect(
+      findStep(resolveWorkflow(validateWorkflow(base, "x.yaml").definition!), "何でも"),
+    ).toEqual({ ok: true });
+    const wf = validateWorkflow(
+      { ...base, steps: [{ id: "implement" }, { id: "review" }] },
+      "x.yaml",
+    ).workflow!;
+    expect(findStep(wf, "review")).toMatchObject({ ok: true, step: { id: "review" } });
+    expect(findStep(wf, "deploy")).toEqual({ ok: false, known: ["implement", "review"] });
+  });
+
   it("同梱テンプレート 3 つは検証を通る", () => {
     for (const t of WORKFLOW_TEMPLATES) {
       const { issues, workflow } = validateWorkflow(t, `${t.id}.yaml`);
@@ -146,6 +187,8 @@ describe("定義の検証（WF-3）", () => {
       expect(workflow?.labels.todo).toBe("Todo");
       // 同梱テンプレートは遷移を縛らない
       expect(workflow?.transitions, t.id).toEqual([]);
+      // 同梱テンプレートはどれも Run の step の語彙を持つ（WF-5）
+      expect(workflow?.steps?.length, t.id).toBeGreaterThan(0);
     }
   });
 });

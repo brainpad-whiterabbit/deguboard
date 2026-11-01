@@ -2,7 +2,13 @@
 // ビルドでは guide-*.md を dist/ にコピーする（package.json の build）
 
 import { readFile } from "node:fs/promises";
-import { DeguboardError, defaultConfig, openContext, type Config } from "@deguboard/core";
+import {
+  ACTION_NAMES,
+  DeguboardError,
+  defaultConfig,
+  openContext,
+  type Config,
+} from "@deguboard/core";
 import { UsageError } from "@deguboard/core";
 import { parse as parseYaml } from "yaml";
 
@@ -78,7 +84,7 @@ export async function loadGuideConfig(
   cwd: string,
 ): Promise<{ config: Config; initialized: boolean }> {
   try {
-    const ctx = await openContext({ cwd });
+    const ctx = await openContext({ cwd, actions: ACTION_NAMES });
     return { config: ctx.config, initialized: true };
   } catch (error) {
     if (

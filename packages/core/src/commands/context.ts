@@ -25,6 +25,11 @@ export interface ContextOptions {
   mergeDriver?: readonly string[] | undefined;
   /** 環境変数。今は入口（CLI・server・vscode・MCP）は渡さず process.env を使う。テストが HOME などを差し替えるためにある */
   env?: Readonly<Record<string, string | undefined>> | undefined;
+  /**
+   * Workflow の steps に書ける Action の名前。commands は actions に依存しないので、入口が
+   * core/actions の ACTION_NAMES を渡す（ADR-007）。省略すると未知の Action を指摘しない
+   */
+  actions?: readonly string[] | undefined;
 }
 
 export async function openContext(opts: ContextOptions): Promise<CommandContext> {
@@ -40,7 +45,7 @@ export async function openContext(opts: ContextOptions): Promise<CommandContext>
     const remote = await resolveRemote(paths, opts.initialize.remote ?? "origin");
     worktree = await ensureDeguboardWorktree(paths, remote);
   }
-  const store = await Store.open(paths.dataDir);
+  const store = await Store.open(paths.dataDir, { actions: opts.actions });
   const remoteName = opts.initialize?.remote ?? store.config.git.remote;
   const repo: GitRepo = {
     ...paths,

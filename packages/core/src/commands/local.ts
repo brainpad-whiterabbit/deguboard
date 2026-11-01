@@ -22,6 +22,8 @@ export interface LocalClientOptions {
   commands?: readonly AnyCommand[] | undefined;
   /** マージドライバとして登録する、dg を呼ぶ argv の前置（dg serve が渡す） */
   mergeDriver?: readonly string[] | undefined;
+  /** Workflow の steps に書ける Action の名前（ContextOptions.actions） */
+  actions?: readonly string[] | undefined;
 }
 
 export interface LocalClient extends CommandClient {
@@ -36,7 +38,12 @@ export function createLocalClient(options: LocalClientOptions): LocalClient {
   let queue: Promise<unknown> = Promise.resolve();
 
   const context = async (): Promise<CommandContext> => {
-    ctxPromise ??= openContext({ cwd: options.cwd, actor, mergeDriver: options.mergeDriver });
+    ctxPromise ??= openContext({
+      cwd: options.cwd,
+      actor,
+      mergeDriver: options.mergeDriver,
+      actions: options.actions,
+    });
     try {
       const ctx = await ctxPromise;
       await ctx.store.rescan();

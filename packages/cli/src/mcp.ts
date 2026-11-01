@@ -4,7 +4,12 @@
 //   - 主体は常に agent（<ユーザ>/agent）。結果は CLI の --json と同じ形（ok・data・warnings・write / error）
 
 import type { Readable, Writable } from "node:stream";
-import { createLocalClient, toCommandFailure, type AnyCommand } from "@deguboard/core";
+import {
+  ACTION_NAMES,
+  createLocalClient,
+  toCommandFailure,
+  type AnyCommand,
+} from "@deguboard/core";
 import { describeCommands } from "@deguboard/server";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
@@ -63,6 +68,7 @@ export async function serveMcp(options: McpOptions): Promise<void> {
     actor: "agent",
     commands: options.commands,
     mergeDriver: options.mergeDriver,
+    actions: ACTION_NAMES,
   });
   const tools = toTools(client.commands);
   const byTool = new Map(client.commands.map((c) => [toolName(c.name), c.name]));
