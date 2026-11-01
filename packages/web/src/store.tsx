@@ -1,5 +1,7 @@
 // 画面の状態。選んだ Project のチケット・Epic・Iteration・Plan・Workflow と同期の状態を CommandClient から読み、書き込みのあとに読み直す。
-// 状態管理のライブラリは入れず、React の context だけで持つ
+// 状態管理のライブラリは入れず、React の context だけで持つ。
+// cache を渡すと（VS Code の Webview）、読み終えた一覧を残しておき、次に開いたときはそれをすぐ描いてから読み直して差し替える。
+// 最初の読み込みは core の中で 1 本ずつ処理されるコマンドが 7 本並び、サイドバーとパネルが同じ列を使うので、その間を空の画面にしない
 
 import type { CommandClient, CommandFailure, StatusView } from "@deguboard/core";
 import {
@@ -22,6 +24,21 @@ import type {
   Ticket,
   WorkflowView,
 } from "./types.js";
+import type { UiState } from "./ui-state.js";
+
+/** cache に残す一覧。読み直しが終わるたびに書き換える */
+interface Snapshot {
+  projectId: string | null;
+  projects: Project[];
+  tickets: Ticket[];
+  epics: EpicRow[];
+  iterations: Iteration[];
+  plans: PlanRow[];
+  workflow: WorkflowView | null;
+}
+
+/** cache の置き場の鍵。形が変わったら番号を上げて古いものを読まない */
+export const SNAPSHOT_KEY = "store.snapshot.v1";
 
 export interface Notice {
   kind: "error" | "info";
@@ -63,21 +80,26 @@ const STATUS_POLL_MS = 15_000;
 
 export function StoreProvider({
   client,
+  cache,
   children,
 }: {
   client: CommandClient;
+  /** 前回の一覧の置き場。渡さなければ（ブラウザ）残さない */
+  cache?: UiState | undefined;
   children: ReactNode;
 }) {
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [projectId, setProjectId] = useState<string | null>(null);
-  const [tickets, setTickets] = useState<Ticket[]>([]);
-  const [epics, setEpics] = useState<EpicRow[]>([]);
-  const [iterations, setIterations] = useState<Iteration[]>([]);
-  const [plans, setPlans] = useState<PlanRow[]>([]);
-  const [workflow, setWorkflow] = useState<WorkflowView | null>(null);
+  const [cached] = useState(() => cache?.get<Snapshot>(SNAPSHOT_KEY));
+  const [projects, setProjects] = useState<Project[]>(cached?.projects ?? []);
+  const [projectId, setProjectId] = useState<string | null>(cached?.projectId ?? null);
+  const [tickets, setTickets] = useState<Ticket[]>(cached?.tickets ?? []);
+  const [epics, setEpics] = useState<EpicRow[]>(cached?.epics ?? []);
+  const [iterations, setIterations] = useState<Iteration[]>(cached?.iterations ?? []);
+  const [plans, setPlans] = useState<PlanRow[]>(cached?.plans ?? []);
+  const [workflow, setWorkflow] = useState<WorkflowView | null>(cached?.workflow ?? null);
   const [status, setStatus] = useState<StatusView | null>(null);
   const [loading, setLoading] = useState(true);
-  const [loaded, setLoaded] = useState(false);
+  // 前回の一覧があれば、それを読み終えたものとして先に描く
+  const [loaded, setLoaded] = useState(!!cached);
   const [notice, setNotice] = useState<Notice | null>(null);
   const projectRef = useRef<string | null>(null);
   projectRef.current = projectId;
@@ -126,6 +148,15 @@ export function StoreProvider({
       setIterations(i.data);
       setPlans(p.data);
       setWorkflow(w.data);
+      cache?.set(SNAPSHOT_KEY, {
+        projectId: project,
+        projects: projectList.data,
+        tickets: t.data,
+        epics: e.data,
+        iterations: i.data,
+        plans: p.data,
+        workflow: w.data,
+      } satisfies Snapshot);
       void refreshStatus();
     } catch (error) {
       const f = failureOf(error);
@@ -134,7 +165,7 @@ export function StoreProvider({
       setLoading(false);
       setLoaded(true);
     }
-  }, [client, refreshStatus]);
+  }, [client, cache, refreshStatus]);
 
   useEffect(() => {
     void reload();

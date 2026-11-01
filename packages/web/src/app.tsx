@@ -79,12 +79,34 @@ export function App() {
       <main className="page">
         {/* 最初の読み込みが終わるまでは空状態の文言を出さない。読み直しの間は画面を出したままにする（フォームの入力を失わない） */}
         {!store.loaded ? (
-          <p className="muted">読み込み中…</p>
+          <>
+            <p className="muted">読み込み中…</p>
+            {/* Webview では前回の一覧がないときだけここに来る。文字だけにせず、節と行の骨組みを出す */}
+            {host.surface === "browser" ? null : <LoadingSkeleton />}
+          </>
         ) : (
           // サイドバーではチケット詳細を出さない（エディタ領域のパネルに開く。UI-12）
           <Page route={sidebar && route.page === "ticket" ? { page: "backlog" } : route} />
         )}
       </main>
+    </div>
+  );
+}
+
+/** 最初の読み込みの間の骨組み：見出しと行の形だけの灰色の帯を 3 節ぶん。読み上げでは「読み込み中…」だけを読む */
+const SKELETON_ROWS = [3, 2, 1];
+
+function LoadingSkeleton() {
+  return (
+    <div className="skeleton" aria-hidden="true">
+      {SKELETON_ROWS.map((rows, i) => (
+        <div key={i} className="skeleton-section">
+          <span className="skeleton-bar skeleton-head" />
+          {Array.from({ length: rows }, (_, j) => (
+            <span key={j} className="skeleton-bar" />
+          ))}
+        </div>
+      ))}
     </div>
   );
 }
