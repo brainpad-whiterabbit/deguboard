@@ -83,6 +83,8 @@ const COLUMNS: Record<string, string[]> = {
   project: ["id", "status", "name", "workflow"],
   workflow: ["id", "name", "path"],
   plan: ["id", "status", "project", "tickets", "progress"],
+  // dg history の events
+  events: ["at", "id", "type", "changes", "subject"],
 };
 
 function columnsFor(group: string): string[] | undefined {
@@ -98,6 +100,10 @@ function cell(key: string, row: Row): string {
     return `${p.done}/${p.total}`;
   }
   if (key === "tickets" && Array.isArray(v)) return `${v.length} 件`;
+  if (key === "changes" && Array.isArray(v))
+    return (v as { field: string; from: string | null; to: string | null }[])
+      .map((c) => `${c.field}: ${c.from ?? "-"} → ${c.to ?? "-"}`)
+      .join(", ");
   if (Array.isArray(v)) return v.map(String).join(",");
   if (typeof v === "object") return JSON.stringify(v);
   return String(v);
@@ -128,7 +134,8 @@ function record(data: Row, prefix = ""): string {
       v.length > 0 &&
       v.every((x) => x && typeof x === "object" && !Array.isArray(x))
     ) {
-      tables.push(`${prefix}${k}:`, indent(table(v as Row[], columnsFor(guessGroup(v[0] as Row)))));
+      const group = columnsFor(k) ? k : guessGroup(v[0] as Row);
+      tables.push(`${prefix}${k}:`, indent(table(v as Row[], columnsFor(group))));
     } else if (v && typeof v === "object" && !Array.isArray(v)) {
       lines.push(record(v as Row, `${prefix}${k}.`));
     } else {
