@@ -255,7 +255,7 @@ steps: # 任意。Run の step の語彙（WF-5）
 - SY-1 `dg init` は deguboard ブランチを作るか取り込み、専用 worktree を用意し、`default` プロジェクトとテンプレートのワークフローを置く
 - SY-2 書き込みの単位は「取り込み → 変更 → 検証 → コミット →（`push.mode: auto` か即時の操作なら）push」。push が拒否されたら取り込み直して再送する。送れなければコミットを残し、次の同期で再送する
 - SY-3 claim と作成は push の成功をもって取得とする。拒否されたらローカルのコミットを捨てて取り込み直し、判定し直す
-- SY-4 同期は rebase で取り込み、チケットと Epic の frontmatter はマージドライバがフィールド単位で 3-way マージする（片側だけ変えたフィールドはその値、`updated_at` は新しい方）。`dg init` と `dg sync` がドライバを git config と deguboard ブランチの `.gitattributes` に登録する。同じフィールドを両側が違う値に変えたときと本文の同じ行の競合は、rebase を中止してローカルのコミットを残し、`dg sync` が競合を報告する
+- SY-4 同期は rebase で取り込み、チケットと Epic の frontmatter はマージドライバがフィールド単位で 3-way マージする（片側だけ変えたフィールドはその値、`updated_at` は新しい方）。`dg init` と `dg sync` がドライバを git config と deguboard ブランチの `.gitattributes` に登録する。同じフィールドを両側が違う値に変えたときと本文の同じ行の競合は、rebase を中止してローカルのコミットを残し、`dg sync` が競合を報告する。競合が残る間は push・照合・作成・claim が止まる。人は deguboard worktree で `git rebase <remote>/deguboard` から解いて `git rebase --continue` するか、`git reset --hard <remote>/deguboard` でローカルのコミットを捨てて操作をやり直し、`dg sync` を回す
 - SY-5 同一マシンの書き込みは `deguboard-local/locks/` のロックで直列にし、同じチケットと step の Run の二重起動も同じ場所のロックで防ぐ。チーム間の排他には使わない
 - SY-6 リモートがなくても、同期を除くすべての操作が動く
 
