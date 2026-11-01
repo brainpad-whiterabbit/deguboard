@@ -1,0 +1,26 @@
+id: p6
+project: default
+tickets: [t120, t124, t122, t121, t123]
+after:
+  t121:
+    - t120
+  t123:
+    - t122
+    - t121
+pending_approval: true
+details:
+  t120:
+    scope: check-docs.mjs に 90% の警告を足し、ADR-001 に書く
+    approach: 予算の検査のループで警告を集め、errors とは別に出す
+  t124:
+    scope: README の開発中の段落・2 人目の始め方と、EX-3 の実装済みと予定の切り分け
+    approach: 文を書き換えるだけ。足すのは README の 1〜2 行
+  t122:
+    scope: requirements.md 6.4 の UI-1〜13 を約束だけに縮める
+    approach: 各項目の細部が web のコードかテストにあるのを確かめてから消す。ID とアンカーは保つ
+  t121:
+    scope: guide-*.md に 1 本ごとの予算を設けて check:docs で検査
+    approach: t120 の警告の仕組みを使い、予算の表を ADR-001 に足す
+  t123:
+    scope: 競合・仮番号・push 拒否から戻る手順を guide に、約束を 6.3 に
+    approach: 一時リポジトリで競合を起こして挙動を確かめてから書く
