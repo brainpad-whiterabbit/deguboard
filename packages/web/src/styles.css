@@ -1049,6 +1049,24 @@ button.danger {
   border: 1px solid transparent;
   color: inherit;
 }
+/*
+ * 前回の描画から Status か Iteration が変わった行と新しく現れた行（change-flash.ts、UI-2）。枠を短く 2 回点滅させ、後には何も残さない。
+ * 行の高さを変えないよう、枠の色と内側の影だけを変える。合計の長さは FLASH_DURATION_MS と合わせる。動きを減らす設定では点滅させない
+ */
+.row.changed {
+  animation: dg-changed-blink 0.5s ease-in-out 2;
+}
+@keyframes dg-changed-blink {
+  50% {
+    border-color: var(--vscode-focusBorder);
+    box-shadow: inset 0 0 0 1px var(--vscode-focusBorder);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .row.changed {
+    animation: none;
+  }
+}
 .row:hover {
   background: var(--vscode-list-hoverBackground);
   text-decoration: none;

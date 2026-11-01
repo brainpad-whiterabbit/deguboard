@@ -26,6 +26,7 @@ import {
 } from "../components/parts.js";
 import { PlanBand } from "../components/plan-band.js";
 import { openPlanByTicket, planColor } from "../components/plan-graph.js";
+import { useChangeFlash } from "../components/change-flash.js";
 import { useHost, useUiState } from "../host.js";
 import { hrefOf, navigate, NO_ITERATION, type BoardQuery } from "../router.js";
 import { useStore } from "../store.js";
@@ -50,6 +51,7 @@ type Selection = { kind: "all" } | { kind: "none" } | { kind: "iteration"; itera
 
 export function BoardPage({ query }: { query: BoardQuery }) {
   const store = useStore();
+  const host = useHost();
   // 読み直しが終わるまでの間だけ、落とした先の列に見せる
   const [moving, setMoving] = useState<{ id: string; status: Status } | null>(null);
   const [lastIteration, setLastIteration] = useUiState<string | undefined>(
@@ -117,13 +119,19 @@ export function BoardPage({ query }: { query: BoardQuery }) {
   const hideAssignee = sameAssignee(tickets);
   const planOf = useMemo(() => openPlanByTicket(store.plans), [store.plans]);
 
+  // サイドバーでは、前回の描画から Status か Iteration が変わった行を点滅させる（UI-2。CLI やエージェントの書き込みに気づけるように）
+  const flash = useChangeFlash(store.tickets, host.state, host.surface === "sidebar");
+
   const onDragEnd = async (event: DragEndEvent) => {
     const id = String(event.active.id);
     const status = event.over?.id as Status | undefined;
     const ticket = store.tickets.find((t) => t.id === id);
     if (!status || !ticket || ticket.status === status) return;
     setMoving({ id, status });
-    await store.run("ticket.move", { ticket: id, status });
+    // 自分で動かした行は点滅させない
+    flash.ignore(id);
+    const result = await store.run("ticket.move", { ticket: id, status });
+    if (!result.ok) flash.release(id);
     setMoving(null);
   };
 
@@ -203,6 +211,7 @@ export function BoardPage({ query }: { query: BoardQuery }) {
               tickets={tickets.filter((t) => t.status === status)}
               planOf={planOf}
               hideAssignee={hideAssignee}
+              flashing={flash.flashing}
               // 完了は既定で畳む（どの surface でも。開いた状態は useUiState が保つ）
               defaultOpen={status !== "done"}
             />
@@ -214,6 +223,7 @@ export function BoardPage({ query }: { query: BoardQuery }) {
               tickets={abandoned}
               planOf={planOf}
               hideAssignee={hideAssignee}
+              flashing={flash.flashing}
               defaultOpen={false}
             />
           ) : null}
@@ -276,6 +286,7 @@ function Column({
   tickets,
   planOf,
   hideAssignee,
+  flashing,
   defaultOpen,
 }: {
   status: Status;
@@ -284,6 +295,8 @@ function Column({
   planOf: ReadonlyMap<string, string>;
   /** サイドバーの行に担当を出さない */
   hideAssignee: boolean;
+  /** 点滅させるチケット（サイドバー） */
+  flashing: ReadonlySet<string>;
   defaultOpen: boolean;
 }) {
   const store = useStore();
@@ -310,7 +323,12 @@ function Column({
       {sidebar ? (
         <div className="rows">
           {tickets.map((t) => (
-            <DraggableRow key={t.id} ticket={t} hideAssignee={hideAssignee} />
+            <DraggableRow
+              key={t.id}
+              ticket={t}
+              hideAssignee={hideAssignee}
+              flash={flashing.has(t.id)}
+            />
           ))}
         </div>
       ) : (

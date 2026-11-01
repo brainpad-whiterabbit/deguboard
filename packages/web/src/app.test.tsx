@@ -425,6 +425,25 @@ describe("画面", () => {
     expect(document.querySelector(".row-assignee")).toBeNull();
   });
 
+  it("サイドバーのカンバンは、前回の描画から Status が変わった行を点滅させ（開き直しても host.state で比べる）、ブラウザでは点滅させない", async () => {
+    const host = webviewHost("sidebar");
+    const client = mockClient();
+    mount(client, host);
+    await screen.findByText("画面");
+    expect(document.querySelector(".row.changed")).toBeNull();
+    cleanup();
+    client.data.tickets[2]!.status = "in_progress";
+    mount(client, host);
+    await waitFor(() =>
+      expect(screen.getByText("画面").closest(".row")!.classList.contains("changed")).toBe(true),
+    );
+    expect(screen.getByText("ログイン").closest(".row")!.classList.contains("changed")).toBe(false);
+    cleanup();
+    mount(mockClient());
+    await screen.findByText("画面");
+    expect(document.querySelector(".row.changed")).toBeNull();
+  });
+
   it("節の開閉は host.state に残り、開き直しても保たれる", async () => {
     const host = webviewHost("sidebar");
     mount(mockClient(), host);
