@@ -208,6 +208,37 @@ describe("画面", () => {
     expect(client.calls.some((c) => c.name === "run.list")).toBe(true);
   });
 
+  it("エディタのパネルのチケット詳細は、編集のボタンをタイトルの行に置き、作成・更新を手元時刻で出し、値のない属性を「なし」の 1 行にまとめる", async () => {
+    window.location.hash = "#/tickets/t3";
+    mount(mockClient(), webviewHost("panel"));
+    const h1 = await screen.findByRole("heading", { level: 1, name: "画面" });
+    const edit = screen.getByRole("button", { name: "本文と属性を編集" });
+    expect(edit.closest("header")).toBe(h1.closest("header"));
+    const created = screen.getByText("作成").nextElementSibling!.querySelector("time")!;
+    expect(created.getAttribute("title")).toBe("2026-01-01T00:00:00Z");
+    expect(created.textContent).toMatch(/^2026-01-01 \d\d:\d\d$/);
+    expect(screen.queryByText("依存先")).toBeNull();
+    expect(screen.queryByText("ブランチ")).toBeNull();
+    const empty = screen.getByText("なし", { selector: "dt" }).nextElementSibling!;
+    expect(empty.textContent).toBe("Epic・Iteration・依存先・依存元・担当・ブランチ・PR");
+    // 編集中はすべての属性を出す
+    fireEvent.click(edit);
+    expect(screen.getByLabelText("Epic")).toBeTruthy();
+    expect(screen.queryByText("なし", { selector: "dt" })).toBeNull();
+  });
+
+  it("ブラウザのチケット詳細は今のまま（編集は本文の下、作成は ISO、値のない属性も 1 行ずつ）", async () => {
+    window.location.hash = "#/tickets/t3";
+    mount(mockClient());
+    const h1 = await screen.findByRole("heading", { level: 1, name: "画面" });
+    expect(screen.getByRole("button", { name: "編集" }).closest("header")).not.toBe(
+      h1.closest("header"),
+    );
+    expect(screen.getByText("作成").nextElementSibling!.textContent).toBe("2026-01-01T00:00:00Z");
+    expect(screen.getByText("依存先")).toBeTruthy();
+    expect(screen.queryByText("なし", { selector: "dt" })).toBeNull();
+  });
+
   it("編集して保存すると ticket.update に属性と本文を渡す", async () => {
     window.location.hash = "#/tickets/t3";
     const client = mockClient();
