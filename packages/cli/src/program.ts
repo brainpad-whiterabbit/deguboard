@@ -74,6 +74,7 @@ const GROUP_SUMMARY: Record<string, string> = {
   epic: "Epic（目的ごとの束ね）の操作",
   plan: "Plan（チケットを進める順と承認）の操作",
   workflow: "Workflow 定義の参照と検証",
+  metrics: "Run（作業の実績）の集計",
   config: "config.yaml の参照と変更",
 };
 

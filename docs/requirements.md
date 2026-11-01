@@ -237,7 +237,7 @@ fields:
 - CL-4 `ticket import` は YAML / JSON の下書き（配列）を 1 コミットで取り込む。下書きの中の仮キーを `depends_on` から参照でき、`epic` に既存の Epic を書ける
 - CL-5 `dg guide <topic>` は、エージェント向けの手順を `config.yaml` の値を埋めて出す。トピックの一覧は `dg guide overview`（省略時）。手順の正本は CLI に同梱した Markdown（`packages/cli/src/guide-*.md`）で、判断を求めるときは選択肢で聞き、終えたら次の手順を選択肢で示す
 - CL-6 CLI はビジネスロジックを持たず、Core のコマンド定義（`packages/core/src/commands/`）を写す
-- CL-7 `history` は deguboard ブランチの git の履歴から、チケット・Epic・Iteration の起票と、`status`・`iteration`・`epic`・`assignee`・`pr` の変化を、時刻・コミット・作者・コミットの 1 行目とともに古い順に返す。データの形は変えず、1 コミットに複数の変更があっても差分から読む。Epic・Iteration で絞ると、一度でも入っていたチケット（持ち越しで外されたものを含む）の経過も返す。浅い clone では欠けたこと（`shallow`・`incomplete`）を返して失敗しない
+- CL-7 `history` は deguboard ブランチの git の履歴から、チケット・Epic・Iteration の起票と、`status`・`iteration`・`epic`・`assignee`・`pr` の変化を、時刻・コミット・作者・コミットの 1 行目とともに古い順に返す。データの形は変えず、差分から読む。Epic・Iteration で絞ると、一度でも入っていたチケット（持ち越しで外されたものを含む）の経過も返す。浅い clone では欠けたこと（`shallow`・`incomplete`）を返して失敗しない
 
 ### 6.2 状態遷移と照合
 
@@ -292,7 +292,7 @@ Web UI は `dg serve` が配信し、VS Code 拡張は同じ React アプリを 
 
 - MT-1 `dg run start / finish` で Run を記録し、Adapter が使用量を取り込む。エージェントの自己申告の数字は書かない
 - MT-2 `metrics.read_transcripts` が true のマシンでは、Claude Code の会話記録から使用量を補う。`DEGUBOARD_NO_TRANSCRIPTS=1` のマシンでは読まない
-- MT-3 Run・Ticket・Epic・Iteration・Project・Agent/Model の単位で集計して出す。集計値は保存しない
+- MT-3 `metrics show` は Run・Ticket・Epic・Iteration・Project・Agent/Model で絞り集計する。null は足さず欠けた数を出す。集計値は保存しない
 - MT-4 Git に入る記録は、数とリポジトリからの相対パスだけ。会話の中身・コマンドの文字列・リポジトリの外のパスは写さない
 
 ### 6.7 ワークフロー実行（予定 `e3`・`e4`）

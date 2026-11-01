@@ -1,7 +1,17 @@
 import { PassThrough } from "node:stream";
 import { afterEach, describe, expect, it } from "vitest";
 import { z } from "zod";
-import { commands, defineCommand, init, ok, openContext, runCommand } from "@deguboard/core";
+import {
+  commands,
+  commit,
+  defineCommand,
+  emptyUsage,
+  init,
+  ok,
+  openContext,
+  runCommand,
+  ticketCreate,
+} from "@deguboard/core";
 import { createFixture, type Fixture } from "../../core/test/helpers/git-fixture.js";
 import { toTools } from "./mcp.js";
 import { run } from "./program.js";
@@ -159,5 +169,46 @@ describe("dg mcp", () => {
       [{ method: "tools/call", params: { name: "ticket_show", arguments: { ticket: "t1" } } }],
     );
     expect(body(viaMcp.results[0]!)).toEqual(JSON.parse(out.join("\n")));
+  });
+
+  it("metrics show は CLI の --json と MCP で同じ集計を返し、--help に出る", async () => {
+    const f = await initialized();
+    const ctx = await openContext({ cwd: f.cloneA });
+    await runCommand(ticketCreate, ctx, { title: "集計の対象" });
+    await ctx.store.create("run", {
+      id: "r20261031-040000-0001",
+      ticket: "t1",
+      step: "implement",
+      agent: "claude-code",
+      model: null,
+      started_at: "2026-10-31T04:00:00Z",
+      finished_at: "2026-10-31T04:01:00Z",
+      result: "success",
+      error: null,
+      retries: 0,
+      usage: { ...emptyUsage(), input: 10 },
+    });
+    await runCommand(commit, ctx, {});
+
+    const out: string[] = [];
+    const code = await run(["-C", f.cloneA, "--json", "metrics", "show", "--by", "agent"], {
+      streams: { out: (t) => out.push(t), err: () => {} },
+    });
+    expect(code).toBe(0);
+    const viaCli = JSON.parse(out.join("\n"));
+    expect(viaCli).toMatchObject({
+      ok: true,
+      data: { by: "agent", total: { runs: 1, input: 10, output: null, missing: { output: 1 } } },
+      write: null,
+    });
+    const viaMcp = await session(
+      ["-C", f.cloneA],
+      [{ method: "tools/call", params: { name: "metrics_show", arguments: { by: "agent" } } }],
+    );
+    expect(body(viaMcp.results[0]!)).toEqual(viaCli);
+
+    const help: string[] = [];
+    await run(["--help"], { streams: { out: (t) => help.push(t), err: () => {} } });
+    expect(help.join("\n")).toContain("metrics");
   });
 });
