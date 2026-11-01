@@ -64,6 +64,7 @@ export const UNIT_LABELS: Record<MetricUnit, string> = {
   project: "Project",
   agent: "Agent",
   model: "Model",
+  step: "工程",
 };
 /** Run の画面で選べる集計の単位。画面は選んだ Project で絞って集計するので project は除く */
 export const METRIC_UNITS: readonly MetricUnit[] = (

@@ -272,7 +272,7 @@ Web UI は `dg serve` が配信し、VS Code 拡張は同じ React アプリを 
 
 - MT-1 Run の使用量は Adapter が取り込む。エージェントの自己申告の数字は書かない
 - MT-2 `metrics.read_transcripts`（チームで共有する設定）が true なら、`run finish` が Adapter でエージェントの会話記録から使用量を補う。`DEGUBOARD_NO_TRANSCRIPTS` が空でも `0` でもないマシンでは true でも読まない
-- MT-3 `metrics show` は Run・Ticket・Epic・Iteration・Project・Agent/Model で絞り集計する。null は足さず欠けた数を出す。集計値は保存しない
+- MT-3 `metrics show` は Run・Ticket・Epic・Iteration・Project・Agent/Model・Step で絞り集計する。null は足さず欠けた数を出す。集計値は保存しない
 - MT-4 Adapter が会話記録から Run に写すのは数とモデル名だけで、会話の中身・コマンドの文字列・パスは写さない。例外の `error` は `run finish --error` の理由をそのまま記録するので、秘密を書かない。`retry_reasons` は `--retry-reason` をそのまま記録するので、秘密・コマンドの文字列・パスを書かない
 
 ### 6.7 ワークフロー実行

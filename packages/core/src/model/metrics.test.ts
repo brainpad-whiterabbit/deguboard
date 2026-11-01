@@ -62,7 +62,7 @@ describe("Run の集計", () => {
     expect(runDurationSeconds(run("00", { finished_at: "2026-10-31T03:00:00Z" }))).toBeNull();
   });
 
-  it("6 つの単位（Run・Ticket・Epic・Iteration・Project・Agent/Model）で絞り込み、単位ごとに集計する", () => {
+  it("すべての単位（Run・Ticket・Epic・Iteration・Project・Agent/Model・Step）で絞り込み、単位ごとに集計する", () => {
     const tickets: Record<string, Ticket> = {
       t1: ticket("t1", { epic: "e1", iteration: "s1" }),
       t2: ticket("t2", { epic: "e1", project: "web" }),
@@ -72,7 +72,7 @@ describe("Run の集計", () => {
       run("00"),
       run("01", { ticket: "t2", agent: "codex", model: null }),
       run("02", { ticket: "t10", model: "sonnet" }),
-      run("03", { ticket: "t9" }), // 消えたチケット
+      run("03", { ticket: "t9", step: "review" }), // 消えたチケット
     ];
     const placed = runs.map((r) => ({ r, at: placeRun(r, tickets[r.ticket]) }));
     const all = placed.map(({ r, at }) => ({ run: r, at }));
@@ -90,6 +90,8 @@ describe("Run の集計", () => {
     expect(count({ model: "opus" })).toBe(2);
     expect(count({ agent: "claude-code", model: "sonnet" })).toBe(1);
     expect(count({ epic: "e1", agent: "codex" })).toBe(1);
+    expect(count({ step: "review" })).toBe(1);
+    expect(count({ step: "implement", agent: "codex" })).toBe(1);
 
     const keys = (by: Parameters<typeof measureRuns>[2]) =>
       measureRuns(all, {}, by).groups.map((g) => [g.key, g.runs]);
@@ -120,6 +122,10 @@ describe("Run の集計", () => {
       ["opus", 2],
       ["sonnet", 1],
       [null, 1],
+    ]);
+    expect(keys("step")).toEqual([
+      ["implement", 3],
+      ["review", 1],
     ]);
     expect(keys("run").map(([k]) => k)).toEqual(runs.map((r) => r.id));
     // 絞り込んでから単位ごとに集計する

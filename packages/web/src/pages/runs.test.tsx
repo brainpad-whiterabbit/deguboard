@@ -168,7 +168,7 @@ describe("Run の画面", () => {
     const options = [...(screen.getByLabelText("単位") as HTMLSelectElement).options].map(
       (o) => o.value,
     );
-    expect(options).toEqual(["run", "ticket", "epic", "iteration", "agent", "model"]);
+    expect(options).toEqual(["run", "ticket", "epic", "iteration", "agent", "model", "step"]);
     expect(within(groups as HTMLElement).getByText("t1")).toBeTruthy();
   });
 

@@ -26,7 +26,7 @@ export const metricsShow = defineCommand({
   name: "metrics.show",
   group: "metrics",
   summary:
-    "Run を集計する。絞り込みは Run・チケット・Epic・Iteration・Project・Agent・Model（Epic・Iteration・Project はチケットの今の値でたどる）。取れなかった値は足さず missing に数え、推定を含む Run は estimated_runs に数える。集計値は保存しない",
+    "Run を集計する。絞り込みは Run・チケット・Epic・Iteration・Project・Agent・Model・Step（Epic・Iteration・Project はチケットの今の値でたどる）。取れなかった値は足さず missing に数え、推定を含む Run は estimated_runs に数える。集計値は保存しない",
   input: z.object({
     run: runIdSchema.optional().describe("この Run だけ"),
     ticket: ticketRef.optional().describe("このチケットの Run だけ"),
@@ -35,6 +35,7 @@ export const metricsShow = defineCommand({
     project: slugSchema.optional().describe("この Project のチケットの Run だけ"),
     agent: z.string().min(1).optional().describe("このエージェントの Run だけ"),
     model: z.string().min(1).optional().describe("このモデルの Run だけ"),
+    step: z.string().min(1).optional().describe("この step（implement・review など）の Run だけ"),
     by: z.enum(METRIC_UNITS).optional().describe("この単位ごとにも集計する"),
   }),
   write: false,
@@ -56,6 +57,7 @@ export const metricsShow = defineCommand({
         project: input.project,
         agent: input.agent,
         model: input.model,
+        step: input.step,
       }).filter(([, v]) => v !== undefined),
     );
     const placed = [...ctx.store.runs.values()]

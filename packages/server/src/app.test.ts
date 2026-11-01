@@ -116,6 +116,28 @@ describe("HTTP サーバー", () => {
     expect((await post(s, "run.list", { project: "other" })).body.data).toEqual([]);
   });
 
+  it("metrics.show も HTTP に写り、step で絞り込み・集計できる", async () => {
+    const f = await fixture();
+    await runCommand(init, await openContext({ cwd: f.cloneA, initialize: {} }), {});
+    const s = await serve(f.cloneA);
+    await post(s, "ticket.create", { title: "A" });
+    // 集計するのは閉じた Run なので、始めてから閉じる
+    for (const step of ["implement", "review"]) {
+      const started = await post(s, "run.start", { ticket: "t1", step, agent: "codex" });
+      await post(s, "run.finish", { run: started.body.data.id, result: "success" });
+    }
+    const byStep = await post(s, "metrics.show", { by: "step" });
+    expect(byStep.status).toBe(200);
+    expect(
+      byStep.body.data.groups.map((g: { key: string; runs: number }) => [g.key, g.runs]),
+    ).toEqual([
+      ["implement", 1],
+      ["review", 1],
+    ]);
+    const review = await post(s, "metrics.show", { step: "review" });
+    expect(review.body.data).toMatchObject({ filter: { step: "review" }, total: { runs: 1 } });
+  });
+
   it("エラーは HTTP の状態に写る：入力の誤り 400、見つからない 404、拒否 409、未知のコマンド 404", async () => {
     const f = await fixture();
     await runCommand(init, await openContext({ cwd: f.cloneA, initialize: {} }), {});

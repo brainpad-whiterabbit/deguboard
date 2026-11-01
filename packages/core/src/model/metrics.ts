@@ -4,7 +4,7 @@ import { idNumber } from "./id.js";
 import type { Run } from "./run.js";
 import type { Ticket } from "./ticket.js";
 
-/** 集計と絞り込みの単位。Agent/Model は agent と model に分けて持つ */
+/** 集計と絞り込みの単位。Agent/Model は agent と model に分けて持つ。step は Run の step（implement・review など） */
 export const METRIC_UNITS = [
   "run",
   "ticket",
@@ -13,6 +13,7 @@ export const METRIC_UNITS = [
   "project",
   "agent",
   "model",
+  "step",
 ] as const;
 export type MetricUnit = (typeof METRIC_UNITS)[number];
 
@@ -49,6 +50,7 @@ export function placeRun(run: Run, ticket: Ticket | undefined): RunPlacement {
     project: ticket?.project ?? null,
     agent: run.agent,
     model: run.model,
+    step: run.step,
   };
 }
 
