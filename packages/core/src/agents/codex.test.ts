@@ -150,6 +150,29 @@ describe("Codex の Adapter", () => {
     expect(got.usage).toEqual({ input: 200, output: 30, cache_read: 0, cache_write: 0 });
   });
 
+  it("ID の前の最後の行が token_count でない・info が null・モデル名が空なら、手前の累計とモデル名を使う", async () => {
+    const { sessions, query } = await setup();
+    const decoy = (minutes: number) => {
+      const real = tokenCount(minutes, [9000, 0, 9000, 0]);
+      return {
+        ...real,
+        payload: { ...real.payload, type: "agent_message", note: { type: "token_count" } },
+      };
+    };
+    await writeRollout(path.join(sessions, "rollout-a.jsonl"), [
+      turnContext(-5, "gpt-before"),
+      tokenCount(-4, [100, 0, 10, 0]),
+      { timestamp: at(-3), type: "event_msg", payload: { type: "token_count", info: null } },
+      decoy(-2),
+      { timestamp: at(-1), type: "turn_context", payload: { cwd: "/somewhere/else", model: "" } },
+      mention(0),
+      tokenCount(1, [300, 0, 40, 0]),
+    ]);
+    const got = await codexAdapter.readTranscriptUsage(query());
+    expect(got.usage).toEqual({ input: 200, output: 30, cache_read: 0, cache_write: 0 });
+    expect(got.model).toBe("gpt-before");
+  });
+
   it("Codex の書く順（ツールの結果の後にその応答の token_count）では、run start を呼んだ応答を含め、run finish を呼んだ応答を含めない", async () => {
     const { sessions, query } = await setup();
     await writeRollout(path.join(sessions, "rollout-a.jsonl"), [

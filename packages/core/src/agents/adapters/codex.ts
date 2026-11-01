@@ -81,6 +81,19 @@ function isTokenCount(entry: Record<string, unknown>): boolean {
   return entry["type"] === "event_msg" && payload?.["type"] === "token_count";
 }
 
+/** 生の行を後ろから読み、pick が値を返す最初の行の値。なければ undefined */
+function latest<T>(
+  raw: string[],
+  pick: (entry: Record<string, unknown>) => T | undefined,
+): T | undefined {
+  for (let i = raw.length - 1; i >= 0; i--) {
+    const entry = parse(raw[i] ?? "");
+    const value = entry ? pick(entry) : undefined;
+    if (value !== undefined) return value;
+  }
+  return undefined;
+}
+
 async function scan(file: string, query: UsageQuery, to: number): Promise<Scan> {
   const result: Scan = {
     firstSeen: undefined,
@@ -89,9 +102,9 @@ async function scan(file: string, query: UsageQuery, to: number): Promise<Scan> 
     modelBefore: undefined,
     models: new Map(),
   };
-  // Run の ID が出るまでは、使うかもしれない最後の生の行だけを持ち、JSON を読まない
-  let lastUsageLine: string | undefined;
-  let lastContextLine: string | undefined;
+  // Run の ID が出るまでは候補の生の行を持つだけで JSON を読まない。ID が出たら後ろから遡り、最初に使える行だけを読む
+  const usageLines: string[] = [];
+  const contextLines: string[] = [];
   const lines = createInterface({ input: createReadStream(file), crlfDelay: Infinity });
   for await (const line of lines) {
     // Codex は JSON を空白なしで書く。文字列の中の "type":"token_count" は引用符がエスケープされるので当たらない
@@ -99,18 +112,19 @@ async function scan(file: string, query: UsageQuery, to: number): Promise<Scan> 
     const contextLine = line.includes('"type":"turn_context"');
     if (result.firstSeen === undefined) {
       if (!line.includes(query.run.id)) {
-        if (usageLine) lastUsageLine = line;
-        if (contextLine) lastContextLine = line;
+        if (usageLine) usageLines.push(line);
+        if (contextLine) contextLines.push(line);
         continue;
       }
       const entry = parse(line);
       const at = entry ? timeOf(entry) : NaN;
       result.firstSeen = Number.isNaN(at) ? Infinity : at;
-      // 累計は一度量が入ると info が null に戻らないので、最後の行の info が null なら量はまだ 0
-      const usage = lastUsageLine === undefined ? undefined : parse(lastUsageLine);
-      if (usage && isTokenCount(usage)) result.before = totalOf(usage);
-      const context = lastContextLine === undefined ? undefined : parse(lastContextLine);
-      if (context?.["type"] === "turn_context") result.modelBefore = modelOf(context);
+      result.before = latest(usageLines, (e) => (isTokenCount(e) ? totalOf(e) : undefined));
+      result.modelBefore = latest(contextLines, (e) =>
+        e["type"] === "turn_context" ? modelOf(e) : undefined,
+      );
+      usageLines.length = 0;
+      contextLines.length = 0;
       continue;
     }
     // 使用量とモデル名の行のほかは JSON を読まない
