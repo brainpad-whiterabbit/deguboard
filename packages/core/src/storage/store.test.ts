@@ -1,7 +1,7 @@
-import { mkdtemp, readFile, readdir, writeFile, mkdir, rm } from "node:fs/promises";
+import { mkdtemp, readFile, readdir, writeFile, mkdir, rm, unlink, utimes } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { OperationError } from "../errors.js";
 import { emptyUsage } from "../model/run.js";
 import { WORKFLOW_TEMPLATES } from "../workflow/templates/index.js";
@@ -10,6 +10,7 @@ import { Store } from "./store.js";
 
 const dirs: string[] = [];
 afterEach(async () => {
+  vi.restoreAllMocks();
   await Promise.all(dirs.splice(0).map((d) => rm(d, { recursive: true, force: true })));
 });
 
@@ -292,5 +293,62 @@ describe("Store", () => {
     expect(runRefs.map((i) => [i.id, i.code])).toEqual([
       ["r20261031-040000-0007", "ticket_missing"],
     ]);
+  });
+  it("rescan は変わっていないファイルを読み直さず、書き換え・追加・削除したファイルだけを取り込む", async () => {
+    const root = await fixture({
+      "tickets/t1.md": ticketText("t1"),
+      "tickets/t2.md": ticketText("t2"),
+      "tickets/t3.md": "---\nid: t3\ntitle: [\n---\n",
+    });
+    // 時計を進め、どのファイルも更新が十分に古いものとして覚えさせる
+    vi.spyOn(Date, "now").mockReturnValue(Date.now() + 60_000);
+    const store = await Store.open(root);
+    const id = String(WORKFLOW_TEMPLATES[2]!["id"]);
+    await store.writeWorkflow(WORKFLOW_TEMPLATES[2]!);
+    // 自分で書いた Workflow の 1 ファイルだけを読み直す
+    await store.rescan();
+    const files = store.lastScan.read + store.lastScan.reused;
+    expect(store.lastScan.read).toBe(1);
+    const before = store.tickets.get("t1");
+
+    await store.rescan();
+    expect(store.lastScan).toEqual({ read: 0, reused: files });
+    // 前の結果をそのまま使い、読めないファイルの Issue も残る
+    expect(store.tickets.get("t1")).toBe(before);
+    expect(store.issues.map((i) => [i.path, i.code])).toEqual([["tickets/t3.md", "yaml_error"]]);
+    expect(store.workflows.has(id)).toBe(true);
+
+    // 同じ大きさで同じファイルに上書きする。経過時間に頼らないよう、更新時刻は前と違う値に決めて付ける
+    const t1 = path.join(root, "tickets/t1.md");
+    await writeFile(t1, ticketText("t1").replace("本文", "本日"));
+    await utimes(t1, new Date("2020-01-01T00:00:00Z"), new Date("2020-01-01T00:00:00Z"));
+    await writeFile(path.join(root, "tickets/t4.md"), ticketText("t4"));
+    await unlink(path.join(root, "tickets/t2.md"));
+    await store.rescan();
+    expect(store.lastScan).toEqual({ read: 2, reused: files - 2 });
+    expect([...store.tickets.keys()]).toEqual(["t1", "t4"]);
+    expect(store.tickets.get("t1")?.body).toContain("本日");
+  });
+
+  it("更新が新しいファイルは印が同じでも覚えずに毎回読み、時刻が過ぎてから覚える", async () => {
+    const root = await fixture({ "tickets/t1.md": ticketText("t1") });
+    const now = vi.spyOn(Date, "now");
+    const base = Date.now();
+    // 書いた直後：同じ刻みの中で書き直されても印が変わらないことがあるので、覚えない
+    now.mockReturnValue(base);
+    const store = await Store.open(root);
+    const files = store.lastScan.read;
+    await store.rescan();
+    expect(store.lastScan).toEqual({ read: files, reused: 0 });
+    // 刻みの中で同じ大きさに書き直す。覚えていないので、印が変わっても変わらなくても取り込む
+    await writeFile(path.join(root, "tickets/t1.md"), ticketText("t1").replace("本文", "本日"));
+    await store.rescan();
+    expect(store.tickets.get("t1")?.body).toContain("本日");
+    // 幅（3 秒）を過ぎたら覚え、次からは読み直さない
+    now.mockReturnValue(base + 10_000);
+    await store.rescan();
+    expect(store.lastScan).toEqual({ read: files, reused: 0 });
+    await store.rescan();
+    expect(store.lastScan).toEqual({ read: 0, reused: files });
   });
 });
