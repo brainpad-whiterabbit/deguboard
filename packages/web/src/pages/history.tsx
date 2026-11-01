@@ -5,10 +5,20 @@
 // Epic の見方：closed の Epic を閉じた新しい順に、進捗・閉じた日と、チケットが入っていた Iteration を出す。
 // チケットの見方：done・abandoned のチケットを終えた新しい順に、結果・Iteration・Epic・PR・終えた日を出す。終えた時刻は
 // history のコマンド（deguboard ブランチの履歴）から求め、履歴が浅くて分からないものは updated_at で代え、そう出す。
-// 番号を押すと詳細を開く（サイドバーとパネルでは拡張ホストに頼んでエディタに、ブラウザではハッシュ遷移）
+// 番号を押すと詳細を開く（サイドバーとパネルでは拡張ホストに頼んでエディタに、ブラウザではハッシュ遷移）。
+// サイドバーでは狭い幅で読めるよう描き方を変える：Iteration の行は開閉の印を付け、開くと Epic ごとの小見出しでまとめ、持ち越しを分ける。
+// Epic の見方は進捗バーをやめてタイトルを 2 行まで出す。チケットの見方は終えた日を小見出しにし、行には値のある Iteration・Epic・PR だけを書く
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { DetailLink, ProgressBar, StatusDot, Tags, TicketLink } from "../components/parts.js";
+import {
+  DetailLink,
+  ProgressBar,
+  StatusDot,
+  Tags,
+  TicketLink,
+  TicketRow,
+} from "../components/parts.js";
+import { useHost } from "../host.js";
 import { NO_VALUE } from "../components/run-parts.js";
 import { formatTime } from "../components/timeline.js";
 import { navigate, type HistoryView } from "../router.js";
@@ -40,18 +50,27 @@ function countsText(iteration: Iteration): string {
   return `完了 ${iteration.completed ?? NO_VALUE} ・ 持ち越し ${iteration.carried_over ?? NO_VALUE}`;
 }
 
-/** 検索：チケットの番号かタイトルに当たるチケットを含むものだけ残す。key はチケットの iteration か epic */
+/**
+ * 検索：チケットの番号かタイトル（labels なら加えてラベル）に当たるチケットを含むものだけ残す。key はチケットの iteration か epic
+ */
 export function filterHistory<T extends { id: string }>(
   rows: readonly T[],
   tickets: readonly Ticket[],
   query: string,
   key: "iteration" | "epic" = "iteration",
+  labels = false,
 ): T[] {
   const q = query.trim().toLowerCase();
   if (!q) return [...rows];
   const hit = new Set<string>(
     tickets
-      .filter((t) => t[key] && (t.id.toLowerCase() === q || t.title.toLowerCase().includes(q)))
+      .filter(
+        (t) =>
+          t[key] &&
+          (t.id.toLowerCase() === q ||
+            t.title.toLowerCase().includes(q) ||
+            (labels && t.labels.some((l) => l.toLowerCase().includes(q)))),
+      )
       .map((t) => t[key]!),
   );
   return rows.filter((r) => hit.has(r.id));
@@ -76,6 +95,58 @@ export function iterationsOfEpic(epic: string, tickets: readonly Ticket[]): stri
     tickets.filter((t) => t.epic === epic && t.iteration).map((t) => t.iteration!),
   );
   return [...ids].sort((a, b) => byNumber({ id: a }, { id: b }));
+}
+
+/** チケットを Epic ごとにまとめる（チケットの多い順、同じなら番号の順。Epic なしは最後）。中は番号の順 */
+export function groupByEpic(
+  tickets: readonly Ticket[],
+): { epic: string | null; tickets: Ticket[] }[] {
+  const groups = new Map<string | null, Ticket[]>();
+  for (const t of [...tickets].sort(byNumber)) {
+    const key = t.epic ?? null;
+    groups.set(key, [...(groups.get(key) ?? []), t]);
+  }
+  return [...groups]
+    .map(([epic, list]) => ({ epic, tickets: list }))
+    .sort(
+      (a, b) =>
+        Number(a.epic === null) - Number(b.epic === null) ||
+        b.tickets.length - a.tickets.length ||
+        byNumber({ id: a.epic ?? "" }, { id: b.epic ?? "" }),
+    );
+}
+
+/**
+ * Iteration から持ち越したチケットの ID（番号の順）。閉じると持ち越したチケットの iteration は外れるので、今のファイルからは分からない。
+ * 履歴（history のコマンド）で、その Iteration から外れる・別の Iteration に移る出来事のあったチケットを持ち越しとみなす。
+ * 今もその Iteration に入っているものは除く
+ */
+export function carriedOverFrom(
+  iteration: string,
+  events: readonly HistoryEvent[],
+  tickets: readonly Ticket[],
+): string[] {
+  const moved = new Set<string>();
+  for (const e of events)
+    if (
+      e.kind === "ticket" &&
+      e.changes.some((c) => c.field === "iteration" && c.from === iteration && c.to !== iteration)
+    )
+      moved.add(e.id);
+  const still = new Set<string>(tickets.filter((t) => t.iteration === iteration).map((t) => t.id));
+  return [...moved].filter((id) => !still.has(id)).sort((a, b) => byNumber({ id: a }, { id: b }));
+}
+
+/** 終えた日（手元の日付）ごとにまとめる。並びは rows の順のまま */
+export function groupByDay(rows: readonly FinishedRow[]): { day: string; rows: FinishedRow[] }[] {
+  const groups: { day: string; rows: FinishedRow[] }[] = [];
+  for (const r of rows) {
+    const day = `${r.approximate ? "~" : ""}${formatTime(r.at).slice(0, 10)}`;
+    const last = groups.at(-1);
+    if (last && last.day === day) last.rows.push(r);
+    else groups.push({ day, rows: [r] });
+  }
+  return groups;
 }
 
 /** チケットを終えた時刻：最後に done か abandoned になった出来事の時刻 */
@@ -136,8 +207,12 @@ const VIEWS: { view: HistoryView; label: string }[] = [
   { view: "ticket", label: "チケット" },
 ];
 
+/** サイドバーの検索欄の案内（バックログと同じ言い方） */
+const SIDEBAR_SEARCH = "番号・タイトル・ラベルで検索";
+
 export function HistoryPage({ view }: { view: HistoryView }) {
   const store = useStore();
+  const sidebar = useHost().surface === "sidebar";
   const [query, setQuery] = useState("");
   const iterations = useMemo(
     () => store.iterations.filter((i) => i.status === "closed").sort(byClosedDesc),
@@ -149,8 +224,8 @@ export function HistoryPage({ view }: { view: HistoryView }) {
   );
   const all: { id: string }[] = view === "epic" ? epics : iterations;
   const rows = useMemo(
-    () => (view === "ticket" ? [] : filterHistory(all, store.tickets, query, view)),
-    [all, store.tickets, query, view],
+    () => (view === "ticket" ? [] : filterHistory(all, store.tickets, query, view, sidebar)),
+    [all, store.tickets, query, view, sidebar],
   );
   const toggle = (
     <span className="segmented" role="group" aria-label="見方">
@@ -174,7 +249,7 @@ export function HistoryPage({ view }: { view: HistoryView }) {
         {toggle}
         <input
           type="search"
-          placeholder="チケットの番号・タイトルで探す"
+          placeholder={sidebar ? SIDEBAR_SEARCH : "チケットの番号・タイトルで探す"}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           aria-label="チケットを探す"
@@ -194,26 +269,39 @@ export function HistoryPage({ view }: { view: HistoryView }) {
       ) : (
         <ul className="history">
           {view === "epic"
-            ? (rows as EpicRow[]).map((e) => <EpicItem key={e.id} epic={e} />)
-            : (rows as Iteration[]).map((i) => <IterationItem key={i.id} iteration={i} />)}
+            ? (rows as EpicRow[]).map((e) =>
+                sidebar ? (
+                  <SidebarEpicItem key={e.id} epic={e} />
+                ) : (
+                  <EpicItem key={e.id} epic={e} />
+                ),
+              )
+            : (rows as Iteration[]).map((i) => (
+                <IterationItem key={i.id} iteration={i} sidebar={sidebar} />
+              ))}
         </ul>
       )}
     </section>
   );
 }
 
-/** Iteration の行。開くと中の done・abandoned のチケットを出す */
-function IterationItem({ iteration: i }: { iteration: Iteration }) {
+/** Iteration の行。開くと中の done・abandoned のチケットを出す。サイドバーでは開閉の印を付け、中を Epic ごとにまとめる */
+function IterationItem({ iteration: i, sidebar }: { iteration: Iteration; sidebar: boolean }) {
   const store = useStore();
+  const [opened, setOpened] = useState(false);
   const epics = epicCountsOf(i.id, store.tickets);
   const finished = store.tickets
     .filter((t) => t.iteration === i.id && (t.status === "done" || t.status === "abandoned"))
     .sort(byNumber);
-  const period = i.start || i.end ? `${i.start ?? "?"} 〜 ${i.end ?? "?"}` : "";
+  const period =
+    i.start || i.end ? `${i.start ?? "?"} 〜 ${i.end ?? "?"}` : sidebar ? "期間の記録なし" : "";
   const meta = [period, i.goal].filter(Boolean).join(" ・ ");
   return (
     <li>
-      <details className="history-item">
+      <details
+        className={`history-item${sidebar ? " fold" : ""}`}
+        onToggle={(e) => e.currentTarget.open && setOpened(true)}
+      >
         <summary className="history-row">
           <DetailLink route={{ page: "iterations", id: i.id }}>
             <code>{i.id}</code>
@@ -242,7 +330,11 @@ function IterationItem({ iteration: i }: { iteration: Iteration }) {
             </small>
           ) : null}
         </summary>
-        {finished.length === 0 ? (
+        {sidebar ? (
+          opened ? (
+            <SidebarIterationTickets iteration={i.id} finished={finished} />
+          ) : null
+        ) : finished.length === 0 ? (
           <p className="empty">終わったチケットはない</p>
         ) : (
           <ul className="rows history-tickets">
@@ -261,6 +353,111 @@ function IterationItem({ iteration: i }: { iteration: Iteration }) {
           </ul>
         )}
       </details>
+    </li>
+  );
+}
+
+/**
+ * サイドバーで開いた Iteration の中：終わったチケットを Epic ごとの小見出しでまとめ、最後に持ち越したチケットを出す。
+ * 持ち越しは履歴から求めるので、開いたときに 1 回だけ history を読む
+ */
+function SidebarIterationTickets({
+  iteration,
+  finished,
+}: {
+  iteration: string;
+  finished: readonly Ticket[];
+}) {
+  const store = useStore();
+  const [carried, setCarried] = useState<string[] | null>(null);
+  useEffect(() => {
+    let alive = true;
+    store.client
+      .run<HistoryLog>("history", {})
+      .then((r) => alive && setCarried(carriedOverFrom(iteration, r.data.events, store.tickets)))
+      .catch(() => alive && setCarried([]));
+    return () => {
+      alive = false;
+    };
+  }, [iteration, store.client, store.tickets]);
+  const byId = new Map<string, Ticket>(store.tickets.map((t) => [t.id, t]));
+  const carriedTickets = (carried ?? []).flatMap((id) => byId.get(id) ?? []);
+  return (
+    <div className="history-groups">
+      {finished.length === 0 ? <p className="empty">終わったチケットはない</p> : null}
+      {groupByEpic(finished).map((g) => (
+        <section key={g.epic ?? "-"} className="history-group">
+          <h3>
+            {g.epic ? (
+              <>
+                <DetailLink route={{ page: "epics", id: g.epic }}>{g.epic}</DetailLink>{" "}
+                {store.epics.find((e) => e.id === g.epic)?.title ?? ""}
+              </>
+            ) : (
+              "Epic なし"
+            )}{" "}
+            <span className="muted">{g.tickets.length} 件</span>
+          </h3>
+          <div className="rows">
+            {g.tickets.map((t) => (
+              <TicketRow key={t.id} ticket={t} hideAssignee />
+            ))}
+          </div>
+        </section>
+      ))}
+      {carriedTickets.length > 0 ? (
+        <section className="history-group">
+          <h3>
+            持ち越し <span className="muted">{carriedTickets.length} 件</span>
+          </h3>
+          <div className="rows">
+            {carriedTickets.map((t) => (
+              <div key={t.id} className="history-ticket">
+                <TicketRow ticket={t} hideAssignee />
+                <small className="history-ticket-meta">
+                  {t.iteration ? (
+                    <>
+                      今は{" "}
+                      <DetailLink route={{ page: "iterations", id: t.iteration }}>
+                        {t.iteration}
+                      </DetailLink>
+                    </>
+                  ) : (
+                    "今は Iteration なし"
+                  )}
+                </small>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
+    </div>
+  );
+}
+
+/** サイドバーの閉じた Epic の行：番号・タイトル（2 行まで）、2 段目に件数・閉じた日・チケットが入っていた Iteration。進捗バーは出さない */
+function SidebarEpicItem({ epic: e }: { epic: EpicRow }) {
+  const store = useStore();
+  const iterations = iterationsOfEpic(e.id, store.tickets);
+  return (
+    <li className="history-row history-epic">
+      <DetailLink route={{ page: "epics", id: e.id }}>
+        <code>{e.id}</code>
+      </DetailLink>
+      <span className="name" title={e.title}>
+        {e.title}
+      </span>
+      <small>
+        {e.progress.total > 0 ? `${e.progress.total} 件` : "チケットなし"}
+        {" ・ "}
+        {e.closed_at ? `${e.closed_at.slice(0, 10)} に閉じた` : "閉じた日は不明"}
+        {iterations.map((id) => (
+          <span key={id}>
+            {" ・ "}
+            <DetailLink route={{ page: "iterations", id }}>{id}</DetailLink>
+          </span>
+        ))}
+      </small>
     </li>
   );
 }
@@ -302,6 +499,7 @@ function TicketView({
   setQuery: (q: string) => void;
 }) {
   const store = useStore();
+  const sidebar = useHost().surface === "sidebar";
   const [log, setLog] = useState<HistoryLog | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState("");
@@ -340,7 +538,7 @@ function TicketView({
         {toggle}
         <input
           type="search"
-          placeholder="番号・タイトル・ラベルで探す"
+          placeholder={sidebar ? SIDEBAR_SEARCH : "番号・タイトル・ラベルで探す"}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           aria-label="チケットを探す"
@@ -383,6 +581,8 @@ function TicketView({
         <p className="empty">終わったチケットはない</p>
       ) : rows.length === 0 ? (
         <p className="empty">当たるチケットはない</p>
+      ) : sidebar ? (
+        <SidebarFinished rows={rows} />
       ) : (
         <ul className="rows history-finished">
           {rows.map(({ ticket: t, at, approximate }) => (
@@ -419,5 +619,55 @@ function TicketView({
         </ul>
       )}
     </section>
+  );
+}
+
+/**
+ * サイドバーのチケットの見方：終えた日を小見出しにし、行は丸印・番号・タイトル（2 行まで）と、2 段目に値のある Iteration・Epic・PR だけ。
+ * 中止の行は薄く出す
+ */
+function SidebarFinished({ rows }: { rows: readonly FinishedRow[] }) {
+  return (
+    <div className="history-groups">
+      {groupByDay(rows).map((g) => (
+        <section key={g.day} className="history-group">
+          <h3>
+            {g.day} <span className="muted">{g.rows.length} 件</span>
+          </h3>
+          <div className="rows">
+            {g.rows.map(({ ticket: t }) => {
+              const hasMeta = !!(t.iteration || t.epic || t.pr);
+              return (
+                <div
+                  key={t.id}
+                  className={`history-ticket${t.status === "abandoned" ? " abandoned" : ""}`}
+                >
+                  <TicketRow ticket={t} hideAssignee />
+                  {hasMeta ? (
+                    <small className="history-ticket-meta">
+                      {[
+                        t.iteration ? (
+                          <DetailLink key="i" route={{ page: "iterations", id: t.iteration }}>
+                            {t.iteration}
+                          </DetailLink>
+                        ) : null,
+                        t.epic ? (
+                          <DetailLink key="e" route={{ page: "epics", id: t.epic }}>
+                            {t.epic}
+                          </DetailLink>
+                        ) : null,
+                        t.pr ? <span key="p">#{t.pr}</span> : null,
+                      ]
+                        .filter(Boolean)
+                        .flatMap((el, n) => (n > 0 ? [" ・ ", el] : [el]))}
+                    </small>
+                  ) : null}
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      ))}
+    </div>
   );
 }
