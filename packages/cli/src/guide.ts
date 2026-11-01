@@ -7,7 +7,15 @@ import { UsageError } from "@deguboard/core";
 import { parse as parseYaml } from "yaml";
 
 /** 流れの順に並べる。frontmatter に description を持つトピックは dg<トピック> の Skill として配る（AG-2） */
-export const GUIDE_TOPICS = ["overview", "import", "assign", "plan", "work", "done"] as const;
+export const GUIDE_TOPICS = [
+  "overview",
+  "import",
+  "assign",
+  "plan",
+  "work",
+  "audit",
+  "done",
+] as const;
 export type GuideTopic = (typeof GUIDE_TOPICS)[number];
 
 /** guide の frontmatter。Skill の説明と引数の案内の正本 */
