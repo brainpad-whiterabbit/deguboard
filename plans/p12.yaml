@@ -2,7 +2,7 @@ id: p12
 project: default
 tickets: [t153, t154, t155]
 after: {}
-pending_approval: true
+pending_approval: false
 details:
   t153:
     scope: core の ticket.list に deps_done を載せ、web の着手可の判定（plan-graph.ts と board.tsx）を 1 つの関数にまとめる
@@ -13,3 +13,5 @@ details:
   t155:
     scope: packages/cli/src/guide-work.md を 14KB の予算の 90% 未満にする
     approach: 細部をヘルプや他の guide に移し、手順の意味は変えない。mise run check:docs と check で確かめる
+approved_by: eiki.kitajima/agent
+approved_at: 2026-11-01T14:55:06Z
