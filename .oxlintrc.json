@@ -38,6 +38,44 @@
       }
     },
     {
+      "files": [
+        "packages/core/src/commands/**",
+        "packages/core/src/storage/**",
+        "packages/core/src/workflow/**",
+        "packages/core/src/model/**",
+        "packages/core/src/git/**"
+      ],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": [
+                  "@deguboard/*",
+                  "deguboard",
+                  "deguboard-vscode",
+                  "vscode",
+                  "react",
+                  "react-dom",
+                  "react-dom/*"
+                ],
+                "message": "core は何にも依存しない（ADR-007）"
+              },
+              {
+                "regex": "^\\.\\.?/(\\.\\./)*(cli|server|web|vscode)(/|$)",
+                "message": "core は他のパッケージを相対パスでも import しない（ADR-007）"
+              },
+              {
+                "regex": "^\\.\\.?/(\\.\\./)*actions(/|$)",
+                "message": "Core の汎用部分（commands・storage・workflow・model・git）は actions に依存しない（AG-6、ADR-007）"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
       "files": ["packages/server/**", "packages/vscode/**"],
       "rules": {
         "no-restricted-imports": [
