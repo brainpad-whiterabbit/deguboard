@@ -1298,6 +1298,55 @@ button.danger {
   grid-template-columns: minmax(0, 1fr);
   gap: 0.5rem;
 }
+/* サイドバーの履歴（history.tsx の Sidebar*）：小見出しでまとめた行。Epic の見方はタイトルを 2 行まで、中止の行は薄く */
+.history-groups {
+  display: grid;
+  gap: 0.4rem;
+  padding: 0.25rem 0 0.5rem;
+}
+/* 開閉の印は行の grid の外（左の余白）に置く。.fold の見出しの flex に上書きされないよう grid に戻す */
+.history-item.fold > summary.history-row {
+  display: grid;
+  position: relative;
+  padding-left: 1.2rem;
+}
+.history-item.fold > summary.history-row::before {
+  position: absolute;
+  left: 0.45rem;
+  top: 0.75em;
+  margin: 0;
+}
+.history-item.fold[open] > summary.history-row::before {
+  top: 0.6em;
+}
+.history-item .history-groups {
+  padding-left: 0.75rem;
+  border-bottom: 1px solid var(--dg-border);
+}
+.history-group h3 {
+  margin: 0.3rem 0 0.15rem;
+  font-size: 0.92em;
+  font-weight: 600;
+  color: var(--vscode-descriptionForeground);
+}
+.history-ticket-meta {
+  display: block;
+  padding: 0 6px 2px 2.4rem;
+  color: var(--vscode-descriptionForeground);
+}
+.history-ticket.abandoned {
+  opacity: 0.6;
+}
+[data-surface="sidebar"] .history-epic .name {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+[data-surface="sidebar"] .history-epic small {
+  grid-column: 2 / -1;
+}
 /* サイドバーの履歴のチケットは結果・PR を省き、Iteration・Epic・日付だけ残す */
 [data-surface="sidebar"] .rows.history-finished li {
   grid-template-columns: auto auto minmax(0, 1fr) auto auto auto;

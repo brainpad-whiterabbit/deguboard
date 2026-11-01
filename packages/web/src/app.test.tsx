@@ -590,7 +590,7 @@ describe("画面", () => {
     expect(window.location.hash).toBe("#/history");
   });
 
-  it("履歴の Iteration の行に Epic ごとの件数が出て、開くと中の終わったチケットが出る", async () => {
+  it("サイドバーの履歴の Iteration の行は期間の記録がなければそう書き、Epic ごとの件数が出て、開くと Epic ごとの小見出しで終わったチケットと持ち越しが出る", async () => {
     window.location.hash = "#/history";
     const client = mockClient();
     client.data.iterations = [iteration({ id: "s1", name: "最初", status: "closed" })];
@@ -599,7 +599,20 @@ describe("画面", () => {
     client.data.tickets.push(
       ticket({ id: "t4", title: "やめた", status: "abandoned", iteration: "s1", epic: "e1" }),
       ticket({ id: "t5", title: "持ち越し", status: "todo", iteration: "s1" }),
+      ticket({ id: "t6", title: "次へ", status: "todo", iteration: "s2" }),
     );
+    client.handlers["history"] = () => ({
+      events: [
+        {
+          kind: "ticket",
+          id: "t6",
+          at: "2026-10-10T00:00:00Z",
+          changes: [{ field: "iteration", from: "s1", to: "s2" }],
+        },
+      ],
+      shallow: false,
+      incomplete: [],
+    });
     const opened: Route[] = [];
     mount(
       client,
@@ -607,13 +620,22 @@ describe("画面", () => {
     );
     await screen.findByRole("heading", { level: 1, name: "履歴" });
     const row = document.querySelector(".history-row")!;
-    expect(row.querySelector("small")!.textContent).toBe("Epic: e1 2");
+    expect(row.querySelector("small")!.textContent).toBe("期間の記録なし ・ Epic: e1 2");
     const item = document.querySelector<HTMLDetailsElement>("details.history-item")!;
     expect(item.open).toBe(false);
+    expect(item.classList.contains("fold")).toBe(true);
     item.open = true;
-    const tickets = [...item.querySelectorAll(".history-tickets li")].map((li) => li.textContent);
-    expect(tickets).toEqual(["t1ログインe1", "t4やめたe1"]);
-    fireEvent.click(item.querySelector(".history-tickets a")!);
+    fireEvent(item, new Event("toggle"));
+    await waitFor(() => expect(item.querySelectorAll(".history-group")).toHaveLength(2));
+    const groups = [...item.querySelectorAll(".history-group")].map((g) => ({
+      head: g.querySelector("h3")!.textContent,
+      tickets: [...g.querySelectorAll(".row code")].map((c) => c.textContent),
+    }));
+    expect(groups).toEqual([
+      { head: "e1 最初の版 2 件", tickets: ["t1", "t4"] },
+      { head: "持ち越し 1 件", tickets: ["t6"] },
+    ]);
+    fireEvent.click(item.querySelector(".history-group .row")!);
     fireEvent.click(row.querySelector("small a")!);
     expect(opened).toEqual([
       { page: "ticket", id: "t1" },
