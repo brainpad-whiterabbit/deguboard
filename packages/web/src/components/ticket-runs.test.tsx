@@ -71,6 +71,44 @@ describe("チケット詳細の Run", () => {
     expect(document.querySelector(".runs-list")).toBeNull();
   });
 
+  it("推定を含む使用量は表のセルに「~」を付け、run.list の警告を表の上に出す", async () => {
+    const client = mockClient();
+    client.handlers["run.list"] = () => [
+      run({
+        id: "r20261101-010000-aaaa",
+        usage: { input: 1500, output: 20, cache_read: null, cache_write: null, estimated: true },
+      }),
+    ];
+    const original = client.run.bind(client);
+    client.run = async <O,>(name: string, input?: unknown) => {
+      const r = await original<O>(name, input);
+      return name === "run.list"
+        ? { ...r, warnings: ["deguboard-local/runs/x.json: 読めない"] }
+        : r;
+    };
+    render(
+      <StoreProvider client={client}>
+        <TicketRuns id="t3" />
+      </StoreProvider>,
+    );
+    expect((await screen.findByText("~1,500 / ~20")).tagName).toBe("TD");
+    expect(screen.getByText("deguboard-local/runs/x.json: 読めない").className).toBe("muted");
+  });
+
+  it("run.list が失敗したら理由を出す", async () => {
+    const client = mockClient();
+    client.handlers["run.list"] = () => {
+      throw new Error("Run を読めない");
+    };
+    render(
+      <StoreProvider client={client}>
+        <TicketRuns id="t3" />
+      </StoreProvider>,
+    );
+    expect((await screen.findByText("Run を読めない")).className).toBe("error");
+    expect(document.querySelector(".runs-list")).toBeNull();
+  });
+
   it("トークン数は null を 0 にせず「—」、推定を含めば「~」を付ける", () => {
     expect(formatTokens(null)).toBe("—");
     expect(formatTokens(0)).toBe("0");

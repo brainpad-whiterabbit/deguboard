@@ -510,12 +510,13 @@ button.link:hover {
   background: transparent;
   padding: 0;
 }
-/* チケット詳細の経過：時刻・丸印・変化 */
+/* チケット詳細の節（経過・Run）の見出し */
 .timeline h2,
 .runs h2 {
   font-size: 1em;
   margin: 1.5rem 0 0.4rem;
 }
+/* チケット詳細の経過：時刻・丸印・変化 */
 .timeline-list {
   list-style: none;
   margin: 0;
@@ -532,23 +533,32 @@ button.link:hover {
   color: var(--vscode-descriptionForeground);
   font-variant-numeric: tabular-nums;
 }
-/* チケット詳細の Run：step・agent・model・結果・トークン・開始・終了 */
+/* チケット詳細の Run：step・agent・model・結果・トークン・開始・終了。狭い配置では表を横にスクロールする */
+.runs-scroll {
+  overflow-x: auto;
+}
+.runs-list td,
+.runs-list th {
+  white-space: nowrap;
+}
 .runs-list td.num,
 .runs-list time {
   font-variant-numeric: tabular-nums;
-  white-space: nowrap;
 }
 .run-result {
   font-weight: 500;
 }
+.run-success {
+  color: var(--dg-status-done);
+}
 .run-running {
-  color: var(--vscode-charts-blue, var(--vscode-textLink-foreground));
+  color: var(--dg-status-in_progress);
 }
 .run-failure {
-  color: var(--vscode-errorForeground);
+  color: var(--dg-error);
 }
 .run-interrupted {
-  color: var(--vscode-editorWarning-foreground);
+  color: var(--dg-warning);
 }
 /* 見方の切り替え：つながったボタン */
 .segmented {
@@ -678,8 +688,9 @@ table.list th {
   gap: 1.5rem;
 }
 @media (max-width: 800px) {
+  /* minmax(0, …) にして、Run の表のような広い中身で列が広がらないようにする（表は .runs-scroll で横にスクロール） */
   .detail {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 .detail header {
@@ -1031,7 +1042,7 @@ textarea.body {
   grid-template-columns: 1fr;
 }
 [data-surface="sidebar"] .detail {
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr);
 }
 /* さらに狭いとき（260px 以下）：タブの余白と文字を詰め、行の印を隠す */
 @container (max-width: 260px) {

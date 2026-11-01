@@ -22,13 +22,14 @@ export function formatTokens(value: number | null, estimated = false): string {
 export function TicketRuns({ id }: { id: string }) {
   const store = useStore();
   const [runs, setRuns] = useState<RunView[] | null>(null);
+  const [warnings, setWarnings] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   // 一覧が読み直されたら（書き込みや同期のあと）Run も読み直す
   useEffect(() => {
     let alive = true;
     store.client
       .run<RunView[]>("run.list", { ticket: id })
-      .then((r) => alive && (setRuns(r.data), setError(null)))
+      .then((r) => alive && (setRuns(r.data), setWarnings(r.warnings), setError(null)))
       .catch((e: unknown) => alive && setError(e instanceof Error ? e.message : String(e)));
     return () => {
       alive = false;
@@ -37,6 +38,11 @@ export function TicketRuns({ id }: { id: string }) {
   return (
     <section className="runs">
       <h2>Run</h2>
+      {warnings.map((w) => (
+        <p key={w} className="muted">
+          {w}
+        </p>
+      ))}
       {error ? (
         <p className="error">{error}</p>
       ) : !runs ? (
@@ -44,56 +50,58 @@ export function TicketRuns({ id }: { id: string }) {
       ) : runs.length === 0 ? (
         <p className="empty">Run はない</p>
       ) : (
-        <table className="list runs-list">
-          <thead>
-            <tr>
-              <th>step</th>
-              <th>agent</th>
-              <th>model</th>
-              <th>結果</th>
-              <th title="入力 / 出力">トークン</th>
-              <th>開始</th>
-              <th>終了</th>
-            </tr>
-          </thead>
-          <tbody>
-            {runs.map((r) => {
-              const est = r.usage.estimated === true;
-              return (
-                <tr key={r.id} title={r.id}>
-                  <td>{r.step}</td>
-                  <td>{r.agent}</td>
-                  <td>{r.model ?? <span className="muted">—</span>}</td>
-                  <td>
-                    <span
-                      className={`run-result run-${r.running || r.result === null ? "running" : r.result}`}
-                      title={r.error ?? undefined}
+        <div className="runs-scroll">
+          <table className="list runs-list">
+            <thead>
+              <tr>
+                <th>step</th>
+                <th>agent</th>
+                <th>model</th>
+                <th>結果</th>
+                <th title="入力 / 出力">トークン</th>
+                <th>開始</th>
+                <th>終了</th>
+              </tr>
+            </thead>
+            <tbody>
+              {runs.map((r) => {
+                const est = r.usage.estimated === true;
+                return (
+                  <tr key={r.id} title={r.id}>
+                    <td>{r.step}</td>
+                    <td>{r.agent}</td>
+                    <td>{r.model ?? <span className="muted">—</span>}</td>
+                    <td>
+                      <span
+                        className={`run-result run-${r.running || r.result === null ? "running" : r.result}`}
+                        title={r.error ?? undefined}
+                      >
+                        {runResultLabel(r)}
+                      </span>
+                      {r.retries > 0 ? <span className="muted"> 再試行 {r.retries}</span> : null}
+                    </td>
+                    <td
+                      className="num"
+                      title={`cache read ${formatTokens(r.usage.cache_read, est)} / cache write ${formatTokens(r.usage.cache_write, est)}${est ? "（推定を含む）" : ""}`}
                     >
-                      {runResultLabel(r)}
-                    </span>
-                    {r.retries > 0 ? <span className="muted"> 再試行 {r.retries}</span> : null}
-                  </td>
-                  <td
-                    className="num"
-                    title={`cache read ${formatTokens(r.usage.cache_read, est)} / cache write ${formatTokens(r.usage.cache_write, est)}${est ? "（推定を含む）" : ""}`}
-                  >
-                    {formatTokens(r.usage.input, est)} / {formatTokens(r.usage.output, est)}
-                  </td>
-                  <td>
-                    <time dateTime={r.started_at}>{formatTime(r.started_at)}</time>
-                  </td>
-                  <td>
-                    {r.finished_at ? (
-                      <time dateTime={r.finished_at}>{formatTime(r.finished_at)}</time>
-                    ) : (
-                      <span className="muted">—</span>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+                      {formatTokens(r.usage.input, est)} / {formatTokens(r.usage.output, est)}
+                    </td>
+                    <td>
+                      <time dateTime={r.started_at}>{formatTime(r.started_at)}</time>
+                    </td>
+                    <td>
+                      {r.finished_at ? (
+                        <time dateTime={r.finished_at}>{formatTime(r.finished_at)}</time>
+                      ) : (
+                        <span className="muted">—</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       )}
     </section>
   );
