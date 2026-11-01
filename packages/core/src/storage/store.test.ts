@@ -340,7 +340,7 @@ describe("Store", () => {
     const files = store.lastScan.read;
     await store.rescan();
     expect(store.lastScan).toEqual({ read: files, reused: 0 });
-    // 刻みの中で同じ大きさに書き直す（印が変わらない場合を含む）。覚えていないので取り込まれる
+    // 刻みの中で同じ大きさに書き直す。覚えていないので、印が変わっても変わらなくても取り込む
     await writeFile(path.join(root, "tickets/t1.md"), ticketText("t1").replace("本文", "本日"));
     await store.rescan();
     expect(store.tickets.get("t1")?.body).toContain("本日");
