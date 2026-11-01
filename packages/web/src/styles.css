@@ -836,6 +836,12 @@ button.link:hover {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* done のチケットは番号（チップはタイトルも）に取り消し線を引く */
+.plan-node.status-done code,
+.plan-chip.status-done code,
+.plan-chip.status-done .plan-chip-title {
+  text-decoration: line-through;
+}
 /* ホバー中は繋がるノードと辺だけを濃く出す */
 .plan-graph-tracing .plan-node:not(.related),
 .plan-graph-tracing .plan-graph-edge:not(.related) {
