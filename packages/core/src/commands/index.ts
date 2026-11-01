@@ -9,6 +9,7 @@ export * from "./project.js";
 export * from "./ticket.js";
 export * from "./iteration.js";
 export * from "./epic.js";
+export * from "./plan.js";
 export * from "./workflow.js";
 export * from "./local.js";
 export type {

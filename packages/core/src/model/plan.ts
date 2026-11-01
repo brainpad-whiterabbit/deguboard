@@ -1,4 +1,4 @@
-// Plan（plans/p7.yaml。requirements.md 5.7）。コマンドはまだなく、スキーマだけ
+// Plan（plans/p7.yaml。requirements.md 5.7）。操作は commands/plan.ts
 
 import { z } from "zod";
 import { isoDateTime, slugSchema } from "./common.js";

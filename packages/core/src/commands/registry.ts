@@ -3,6 +3,7 @@
 import type { AnyCommand } from "./define.js";
 import { epicCommands } from "./epic.js";
 import { iterationCommands } from "./iteration.js";
+import { planCommands } from "./plan.js";
 import { projectCommands } from "./project.js";
 import { setupCommands } from "./setup.js";
 import { ticketCommands } from "./ticket.js";
@@ -14,6 +15,7 @@ export const commands: readonly AnyCommand[] = [
   ...ticketCommands,
   ...iterationCommands,
   ...epicCommands,
+  ...planCommands,
   ...workflowCommands,
 ] as AnyCommand[];
 

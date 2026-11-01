@@ -219,6 +219,47 @@ describe("dg", () => {
     expect(list.out).toContain("s1");
   });
 
+  it("plan create / approve / show / close がコアの定義を写し、--after と --scope を key=value で受ける", async () => {
+    const f = await fixture();
+    await dg(f.cloneA, ["init"]);
+    await dg(f.cloneA, ["ticket", "create", "A"]);
+    await dg(f.cloneA, ["ticket", "create", "B"]);
+    const created = await dg(f.cloneA, [
+      "--json",
+      "plan",
+      "create",
+      "t1",
+      "t2",
+      "--after",
+      "t2=t1",
+      "--scope",
+      "t1=API と CLI、画面なし",
+      "--approach",
+      "2=既存に倣う",
+    ]);
+    expect(created.code).toBe(0);
+    expect(created.json().data).toMatchObject({
+      id: "p1",
+      tickets: ["t1", "t2"],
+      after: { t2: ["t1"] },
+      pending_approval: true,
+      details: { t1: { scope: "API と CLI、画面なし" }, t2: { approach: "既存に倣う" } },
+    });
+    // 同じチケットを別の開いた Plan に入れると終了コード 1 と REJECTED
+    const dup = await dg(f.cloneA, ["--json", "plan", "create", "t1"]);
+    expect(dup.code).toBe(1);
+    expect(dup.json().error?.code).toBe("REJECTED");
+    const approved = await dg(f.cloneA, ["--json", "--actor", "agent", "plan", "approve", "p1"]);
+    expect(approved.json().data).toMatchObject({ pending_approval: false });
+    expect(approved.json().data.approved_by).toMatch(/\/agent$/);
+    const shown = await dg(f.cloneA, ["plan", "show", "1"]);
+    expect(shown.code).toBe(0);
+    expect(shown.out).toContain("progress.done: 0");
+    const closed = await dg(f.cloneA, ["--json", "plan", "close", "p1"]);
+    expect(closed.json().data.closed_at).toBeDefined();
+    expect(closed.json().warnings).toEqual(["t1, t2 を残したまま閉じた"]);
+  });
+
   it("ticket import はファイルの下書きを読み、key を depends_on に解決する", async () => {
     const f = await fixture();
     await dg(f.cloneA, ["init"]);

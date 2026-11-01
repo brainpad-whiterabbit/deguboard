@@ -14,6 +14,7 @@ export const nowIso = (ctx: CommandContext): string => toIsoDateTime(ctx.now());
 export const ticketRef = z.string().min(1).describe("チケットの ID（t12 または 12）");
 export const epicRef = z.string().min(1).describe("Epic の ID（e3 または 3）");
 export const iterationRef = z.string().min(1).describe("Iteration の ID（s3 または 3）");
+export const planRef = z.string().min(1).describe("Plan の ID（p7 または 7）");
 
 export function projectOf(ctx: CommandContext, project: string | undefined): string {
   return project ?? ctx.config.default_project;
