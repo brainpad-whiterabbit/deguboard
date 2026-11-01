@@ -49,3 +49,4 @@ details:
     approach: packages/cli/src/guide-*.md を直し、dg skill install で .claude/skills を作り直す
 approved_by: eiki.kitajima/agent
 approved_at: 2026-11-01T06:42:55Z
+closed_at: 2026-11-01T08:03:55Z
