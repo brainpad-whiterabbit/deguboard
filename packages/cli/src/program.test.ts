@@ -1,6 +1,7 @@
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { Readable } from "node:stream";
 import { afterEach, describe, expect, it } from "vitest";
 import { commands } from "@deguboard/core";
 import {
@@ -440,6 +441,32 @@ describe("dg", () => {
       (await dg(f.cloneA, ["workflow", "set", "general", "--file", path.join(f.root, "none.yaml")]))
         .code,
     ).toBe(2);
+  });
+
+  it("workflow set の --file は JSON のファイルと、- で標準入力も読む", async () => {
+    const f = await fixture();
+    await dg(f.cloneA, ["init"]);
+    const json = path.join(f.root, "wf.json");
+    await writeFile(json, JSON.stringify({ id: "general", name: "JSON から" }));
+    const fromJson = await dg(f.cloneA, ["--json", "workflow", "set", "general", "--file", json]);
+    expect(fromJson.code).toBe(0);
+    expect(fromJson.json().data.after.name).toBe("JSON から");
+
+    const original = Object.getOwnPropertyDescriptor(process, "stdin")!;
+    Object.defineProperty(process, "stdin", {
+      value: Readable.from([Buffer.from("id: general\nname: 標準入力から\n")]),
+      configurable: true,
+    });
+    try {
+      const fromStdin = await dg(f.cloneA, ["--json", "workflow", "set", "general", "--file", "-"]);
+      expect(fromStdin.code).toBe(0);
+      expect(fromStdin.json().data).toMatchObject({
+        before: { name: "JSON から" },
+        after: { name: "標準入力から" },
+      });
+    } finally {
+      Object.defineProperty(process, "stdin", original);
+    }
   });
 
   it("validate と lint は指摘があると ok: false で終了コード 1 になる", async () => {

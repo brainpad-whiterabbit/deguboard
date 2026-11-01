@@ -104,7 +104,9 @@ export const workflowSet = defineCommand({
       .record(z.string(), z.unknown())
       .meta({ cliFile: "file" })
       .optional()
-      .describe("Workflow の定義。中の id は workflow と同じにする"),
+      .describe(
+        "Workflow の定義。形は dg workflow show の definition と同じで、中の id は workflow と同じにする",
+      ),
     template: z
       .enum(TEMPLATE_IDS)
       .optional()

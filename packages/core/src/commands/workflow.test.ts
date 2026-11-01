@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { createFixture, git, type Fixture } from "../../test/helpers/git-fixture.js";
@@ -184,6 +184,26 @@ describe("workflow set", () => {
     await expect(
       runCommand(ticketMove, again, { ticket: b.data.id, status: "done" }),
     ).rejects.toMatchObject({ code: "TRANSITION_REJECTED" });
+  });
+
+  it("init は誤りがあって索引から外れた Workflow も書き換えず、workflow set で直せる", async () => {
+    const f = await fixture();
+    const ctx = await initialized(f.cloneA);
+    const broken = "id: general\nname: G\nreconcile:\n  - { when: [nope], status: done }\n";
+    await writeFile(path.join(ctx.repo.dataDir, "workflows/general.yaml"), broken);
+    await ctx.store.rescan();
+    expect(ctx.store.workflows.has("general")).toBe(false);
+    const again = await openContext({ cwd: f.cloneA, initialize: {} });
+    const r = await runCommand(init, again, {});
+    expect(r.data.created).toEqual([]);
+    expect(await workflowText(ctx, "general")).toBe(broken);
+
+    const fixed = await runCommand(workflowSet, again, {
+      workflow: "general",
+      template: "general",
+    });
+    expect(fixed.data).toMatchObject({ created: false, before: null, after: { name: "General" } });
+    expect(again.store.issues.filter((i) => i.path === "workflows/general.yaml")).toEqual([]);
   });
 
   it("未知の Action は警告にとどめて書く", async () => {

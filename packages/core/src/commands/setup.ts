@@ -23,7 +23,7 @@ import { parseAcceptance, type Ticket } from "../model/ticket.js";
 import type { Doc } from "../storage/documents.js";
 import { checkReferences } from "../storage/integrity.js";
 import type { Issue } from "../storage/issue.js";
-import { CONFIG_FILE } from "../storage/paths.js";
+import { CONFIG_FILE, workflowPath } from "../storage/paths.js";
 import type { WorkflowEntry } from "../storage/store.js";
 import { reconcileStatus, regressionWarnings } from "../workflow/reconcile.js";
 import { WORKFLOW_TEMPLATES } from "../workflow/templates/index.js";
@@ -71,12 +71,13 @@ export const init = defineCommand({
         // frontmatter のフィールド単位のマージドライバ（SY-4）
         if (await ensureGitattributes(store.root)) created.push(".gitattributes");
         for (const t of WORKFLOW_TEMPLATES) {
-          if (store.workflows.has(t.id)) continue;
+          // 誤りがあって索引から外れた Workflow も、ファイルがあれば書き換えない（WF-4）
+          if (await exists(path.join(store.root, workflowPath(t.id)))) continue;
           await store.writeWorkflow(
             t as Record<string, unknown>,
             `${t.name} のワークフロー。dg init が同梱のテンプレートから置いた`,
           );
-          created.push(`workflows/${t.id}.yaml`);
+          created.push(workflowPath(t.id));
         }
         if (!store.projects.has("default")) {
           await store.create("project", {
