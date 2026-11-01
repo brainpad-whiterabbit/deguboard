@@ -366,6 +366,15 @@ describe("画面", () => {
     expect(rowOf("ログイン").querySelector(".row-assignee")).toBeNull();
   });
 
+  it("サイドバーのカンバンで見えている行の担当が 1 人だけなら、行に担当を出さない", async () => {
+    const client = mockClient();
+    for (const t of client.data.tickets) t.assignee = "eiki/agent";
+    mount(client, webviewHost("sidebar"));
+    await screen.findByText("ログイン");
+    expect(document.querySelectorAll(".row-drag .row")).toHaveLength(3);
+    expect(document.querySelector(".row-assignee")).toBeNull();
+  });
+
   it("節の開閉は host.state に残り、開き直しても保たれる", async () => {
     const host = webviewHost("sidebar");
     mount(mockClient(), host);

@@ -16,7 +16,14 @@ import {
   type DragEndEvent,
 } from "@dnd-kit/core";
 import { useMemo, useState } from "react";
-import { DraggableRow, PriorityBadge, StatusDot, Tags, TicketLink } from "../components/parts.js";
+import {
+  DraggableRow,
+  PriorityBadge,
+  StatusDot,
+  Tags,
+  TicketLink,
+  sameAssignee,
+} from "../components/parts.js";
 import { PlanBand } from "../components/plan-band.js";
 import { openPlanByTicket, planColor } from "../components/plan-graph.js";
 import { useHost, useUiState } from "../host.js";
@@ -106,6 +113,8 @@ export function BoardPage({ query }: { query: BoardQuery }) {
     [scoped, store.iterations, store.epics, query.epic, query.assignee, moving],
   );
   const abandoned = tickets.filter((t) => t.status === "abandoned");
+  // 見えている行の担当が 1 人だけなら、サイドバーの行に担当を出さない（同じ名前が全行に並ぶだけなので）
+  const hideAssignee = sameAssignee(tickets);
   const planOf = useMemo(() => openPlanByTicket(store.plans), [store.plans]);
 
   const onDragEnd = async (event: DragEndEvent) => {
@@ -193,13 +202,20 @@ export function BoardPage({ query }: { query: BoardQuery }) {
               status={status}
               tickets={tickets.filter((t) => t.status === status)}
               planOf={planOf}
+              hideAssignee={hideAssignee}
               // 完了は既定で畳む（どの surface でも。開いた状態は useUiState が保つ）
               defaultOpen={status !== "done"}
             />
           ))}
           {/* 中止は切り替えではなく、あるときだけ最後の列（サイドバーでは最後の節）に畳んで置く */}
           {abandoned.length > 0 ? (
-            <Column status="abandoned" tickets={abandoned} planOf={planOf} defaultOpen={false} />
+            <Column
+              status="abandoned"
+              tickets={abandoned}
+              planOf={planOf}
+              hideAssignee={hideAssignee}
+              defaultOpen={false}
+            />
           ) : null}
         </div>
       </DndContext>
@@ -259,12 +275,15 @@ function Column({
   status,
   tickets,
   planOf,
+  hideAssignee,
   defaultOpen,
 }: {
   status: Status;
   tickets: Ticket[];
   /** チケットが入っている開いた Plan の ID */
   planOf: ReadonlyMap<string, string>;
+  /** サイドバーの行に担当を出さない */
+  hideAssignee: boolean;
   defaultOpen: boolean;
 }) {
   const store = useStore();
@@ -291,7 +310,7 @@ function Column({
       {sidebar ? (
         <div className="rows">
           {tickets.map((t) => (
-            <DraggableRow key={t.id} ticket={t} />
+            <DraggableRow key={t.id} ticket={t} hideAssignee={hideAssignee} />
           ))}
         </div>
       ) : (

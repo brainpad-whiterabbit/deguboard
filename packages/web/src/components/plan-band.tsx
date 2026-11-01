@@ -1,7 +1,8 @@
-// カンバンの上の「実行計画」の帯。表示だけで書き込まない。畳めば Plan ごとに 1 行、開けば Plan ごとに依存グラフを出す
+// カンバンの上の「実行計画」の帯。表示だけで書き込まない。畳めば Plan ごとに 1 行、開けば Plan ごとに依存グラフを出す。
+// サイドバーでは、待ちの辺のない Plan をグラフにせず、チケットのチップを横に折り返して出す（ID だけの箱が縦に積まれて場所を取るので）
 
 import { useMemo, useState } from "react";
-import { useUiState } from "../host.js";
+import { useHost, useUiState } from "../host.js";
 import { useStore } from "../store.js";
 import { actorLabel, type PlanRow, type Ticket } from "../types.js";
 import { ProgressBar, StatusDot, TicketLink } from "./parts.js";
@@ -100,9 +101,13 @@ const yOf = (n: GraphNode) => n.row * (NODE_H + ROW_GAP);
  * 待ち終わった辺は実線、待ち中は破線。ノードにホバー・フォーカスすると繋がるノードと辺を強調する
  */
 function PlanGraphView({ plan, byId }: { plan: PlanRow; byId: ReadonlyMap<string, Ticket> }) {
+  const host = useHost();
   const graph = useMemo(() => planGraph(plan, byId), [plan, byId]);
   const [focus, setFocus] = useState<string | null>(null);
   if (graph.nodes.length === 0) return <p className="empty">チケットはない</p>;
+  if (host.surface === "sidebar" && graph.edges.length === 0) {
+    return <PlanChips nodes={graph.nodes} byId={byId} />;
+  }
   const at = new Map(graph.nodes.map((n) => [n.id, n]));
   const related = new Set<string>();
   if (focus) {
@@ -189,6 +194,35 @@ function PlanGraphView({ plan, byId }: { plan: PlanRow; byId: ReadonlyMap<string
           </span>
         </div>
       ) : null}
+    </div>
+  );
+}
+
+/** 待ちの辺のない Plan のチケット（サイドバー）。Plan の順に、状態の丸印・番号・タイトルの頭のチップを横に折り返す。全文はツールチップ */
+function PlanChips({
+  nodes,
+  byId,
+}: {
+  nodes: readonly GraphNode[];
+  byId: ReadonlyMap<string, Ticket>;
+}) {
+  const ordered = [...nodes].sort((a, b) => a.layer - b.layer || a.row - b.row);
+  return (
+    <div className="plan-chips">
+      {ordered.map((n) => {
+        const title = byId.get(n.id)?.title;
+        return (
+          <TicketLink key={n.id} id={n.id} className={`plan-chip status-${n.status}`}>
+            <StatusDot status={n.status} />
+            <code>{n.id}</code>
+            {title ? (
+              <span className="plan-chip-title" title={title}>
+                {title}
+              </span>
+            ) : null}
+          </TicketLink>
+        );
+      })}
     </div>
   );
 }
