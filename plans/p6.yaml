@@ -7,7 +7,7 @@ after:
   t123:
     - t122
     - t121
-pending_approval: true
+pending_approval: false
 details:
   t120:
     scope: check-docs.mjs に 90% の警告を足し、ADR-001 に書く
@@ -24,3 +24,5 @@ details:
   t123:
     scope: 競合・仮番号・push 拒否から戻る手順を guide に、約束を 6.3 に
     approach: 一時リポジトリで競合を起こして挙動を確かめてから書く
+approved_by: eiki.kitajima/agent
+approved_at: 2026-11-01T10:37:06Z
