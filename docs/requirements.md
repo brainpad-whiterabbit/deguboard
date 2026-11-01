@@ -300,7 +300,7 @@ Web UI は `dg serve` が配信し、VS Code 拡張は同じ React アプリを 
 
 - EX-1 deguboard はエージェントを起動しない。チケットの処理はエージェント側の Skill が `dg` を呼んで進める
 - EX-2 終了していない Run は一覧で見え、`interrupted` として閉じられる
-- EX-3 依存に従う並列実行・自動レビュー・修正ループ・品質ゲート・自動マージは、Skill 側の手順として提供し、着手できるチケットの一覧（`ticket list` の `ready`）と Plan の順序に従う（予定 `e4`）。`dg guide all --auto` は戻せる判断を自動で選び、`auto.merge` が true なら条件を満たした PR をマージする
+- EX-3 段階を続けて進める手順は Skill 側に置き、着手できるチケットの一覧（`ticket list` の `ready`）と Plan の順序に従う。`dg guide all --auto` は戻せる判断を自動で選び、`auto.merge` が true なら条件を満たした PR をマージする。依存に従う並列実行・自動レビュー・修正ループ・品質ゲートは予定（`e4`）
 - EX-4 Workflow が `by: [human]` で人に限った遷移は、エージェントからは行えない
 
 ## 7. 非機能要件

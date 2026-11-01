@@ -4,7 +4,7 @@ deguboard は、Git で管理するチケットとユーザー定義のワーク
 
 チケット・イテレーション・ワークフローの定義は、リポジトリの orphan ブランチ `deguboard` に Markdown と YAML で置く。コードと同じく Git で共有するので、別のサービスを用意しなくてもチームで同じカンバンを見られ、変更の履歴も残る。Claude Code や Codex などの AI エージェントは `dg` を呼んでチケットを起票・計画・実行し、人は何を作るか・どの順で進めるか・成果物を承認するかを決める。
 
-> **開発中**。最初の版（CLI・Web UI・VS Code 拡張でのチケット管理。Epic `e1`）と Claude Code 連携（Skill・MCP・Plan。Epic `e2`）を実装し、Run の記録と集計（Epic `e3`）を進めている。npm と Marketplace への最初の公開を準備中。それまで、拡張は VSIX（`mise run vsix`）で入れる。
+> **開発中**。最初の版（CLI・Web UI・VS Code 拡張でのチケット管理。Epic `e1`）、Claude Code 連携（Skill・MCP・Plan。Epic `e2`）、Run の記録と集計（Epic `e3`）を実装した。残る予定は並列実行や自動レビュー（Epic `e4`）。npm と Marketplace への最初の公開を準備中。それまで、拡張は VSIX（`mise run vsix`）で入れる。
 
 ## 何ができるか（予定を含む）
 
@@ -42,6 +42,8 @@ dg serve --open               # 127.0.0.1:7474 でカンバンを開く
 dg guide overview             # エージェント向けの手順。Claude Code には「dg guide を読んでから dg で進めて」と頼む
 dg skill install              # Claude Code の Skill（/dgimport・/dgplan・/dgwork など）を .claude/skills/ に書く（--personal で ~/.claude/skills）
 ```
+
+チームの 2 人目からは、リポジトリを clone して `dg init` を実行する。リモートにある `deguboard` ブランチを取り込むので、同じチケットが見える。
 
 VS Code では、拡張を入れて（今は VSIX から。`mise run vsix` → `code --install-extension packages/vscode/deguboard-vscode.vsix`）Activity Bar の deguboard のアイコンを押すとサイドバーにカンバンが開く。チケットを押すと詳細がエディタ領域に開く。拡張は `dg` なしで動き、`dg` が PATH にないときは案内を出す。
 
