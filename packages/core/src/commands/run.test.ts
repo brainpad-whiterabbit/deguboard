@@ -449,3 +449,166 @@ describe("run finish の使用量の取り込み（MT-1・MT-2・MT-4）", () =>
     expect(saved["usage"]).toEqual({ input: 7, output: 14, cache_read: 700, cache_write: 70 });
   });
 });
+
+describe("deguboard-local/runs/ の壊れた記録", () => {
+  /** 読めない実行中の記録を置く。JSON でないもの・スキーマに合わないもの・ファイル名と中の id が違うもの */
+  async function broken(ctx: CommandContext) {
+    const dir = path.join(ctx.repo.localDir, "runs");
+    await mkdir(dir, { recursive: true });
+    const files = {
+      json: "r20261101-000000-0001",
+      schema: "r20261101-000000-0002",
+      mismatch: "r20261101-000000-0003",
+    };
+    await writeFile(path.join(dir, `${files.json}.json`), "{ 壊れた");
+    await writeFile(
+      path.join(dir, `${files.schema}.json`),
+      JSON.stringify({ id: files.schema, ticket: "t1", step: "implement" }),
+    );
+    const valid = await start(ctx, "t2", "review");
+    const text = (await readFile(path.join(dir, `${valid.id}.json`), "utf8")).replace(
+      valid.id,
+      "r20261101-999999-9999",
+    );
+    await runCommand(runFinish, ctx, { run: valid.id, result: "interrupted" });
+    await writeFile(path.join(dir, `${files.mismatch}.json`), text);
+    // Run の ID の形でないファイルは記録として読まない
+    await writeFile(path.join(dir, "notes.txt"), "メモ");
+    return { dir, files };
+  }
+
+  it("list は読めない記録を飛ばして警告に出し、記録は消さない", async () => {
+    const ctx = await prepared();
+    const { dir, files } = await broken(ctx);
+    const running = await start(ctx, "t1");
+    const r = await runCommand(runList, ctx, {});
+    expect((r.data as RunView[]).filter((v) => v.running).map((v) => v.id)).toEqual([running.id]);
+    expect(r.warnings).toEqual([
+      `deguboard-local/runs/${files.json}.json: JSON を読めない`,
+      `deguboard-local/runs/${files.schema}.json: スキーマに合わない`,
+      `deguboard-local/runs/${files.mismatch}.json: ファイル名の ID ${files.mismatch} と中の id r20261101-999999-9999 が違う`,
+    ]);
+    for (const id of Object.values(files))
+      expect(await exists(path.join(dir, `${id}.json`))).toBe(true);
+  });
+
+  it("start は読めない記録があっても止まらず、同じチケットと step でも始められる", async () => {
+    const ctx = await prepared();
+    const { dir, files } = await broken(ctx);
+    // スキーマに合わない記録は t1 の implement を名乗るが、読めないので重複とはみなさない
+    const r = await runCommand(runStart, ctx, {
+      ticket: "t1",
+      step: "implement",
+      agent: "claude-code",
+    });
+    expect(r.data).toMatchObject({ ticket: "t1", step: "implement", result: null });
+    expect(r.warnings).toEqual([]);
+    for (const id of Object.values(files))
+      expect(await exists(path.join(dir, `${id}.json`))).toBe(true);
+  });
+
+  it("finish は読めない記録を VALIDATION_FAILED で拒否し、記録も runs/ も書き換えない", async () => {
+    const ctx = await prepared();
+    const { dir, files } = await broken(ctx);
+    for (const id of Object.values(files)) {
+      const before = await readFile(path.join(dir, `${id}.json`), "utf8");
+      await expect(
+        runCommand(runFinish, ctx, { run: id, result: "interrupted" }),
+      ).rejects.toMatchObject({
+        code: "VALIDATION_FAILED",
+        message: expect.stringContaining(`実行中の Run ${id} の記録を読めない`),
+      });
+      expect(await readFile(path.join(dir, `${id}.json`), "utf8")).toBe(before);
+      expect(await exists(path.join(ctx.repo.dataDir, "runs", `${id}.json`))).toBe(false);
+    }
+  });
+});
+
+describe("run finish のモデル名と finished_at", () => {
+  /** 会話記録（モデル名 model-from-transcript）を読める文脈 */
+  async function withModelTranscript() {
+    const ctx = await prepared();
+    await runCommand(configSet, ctx, { key: "metrics.read_transcripts", value: "true" });
+    await runCommand(commit, ctx, {});
+    ctx.config = ctx.store.config;
+    const home = await mkdtemp(path.join(os.tmpdir(), "dg-home-"));
+    cleanups.push(() => rm(home, { recursive: true, force: true }));
+    ctx.env = { HOME: home };
+    const projectDir = path.join(
+      home,
+      ".claude",
+      "projects",
+      ctx.repo.topLevel.replace(/[^A-Za-z0-9]/g, "-"),
+    );
+    const startWith = async (ticket: string, model?: string) => {
+      const run = (
+        await runCommand(runStart, ctx, {
+          ticket,
+          step: "implement",
+          agent: "claude-code",
+          ...(model ? { model } : {}),
+        })
+      ).data as Run;
+      const at = new Date(Date.parse(run.started_at) + 100).toISOString();
+      const line = {
+        type: "assistant",
+        timestamp: at,
+        message: {
+          id: `m-${run.id}`,
+          model: "model-from-transcript",
+          content: "答え",
+          usage: { input_tokens: 1, output_tokens: 1 },
+        },
+      };
+      // 数えるのは Run の ID が出た後の行
+      const intro = { type: "user", timestamp: run.started_at, message: { content: run.id } };
+      await mkdir(projectDir, { recursive: true });
+      await writeFile(
+        path.join(projectDir, `${run.id}.jsonl`),
+        [intro, line].map((l) => JSON.stringify(l)).join("\n") + "\n",
+      );
+      return run;
+    };
+    return { ctx, startWith };
+  }
+
+  it("モデル名は finish で明示した名前 > start の記録の名前 > 会話記録の名前の順に採る", async () => {
+    const { ctx, startWith } = await withModelTranscript();
+    const finish = async (run: Run, model?: string) =>
+      (
+        await runCommand(runFinish, ctx, {
+          run: run.id,
+          result: "success",
+          ...(model ? { model } : {}),
+        })
+      ).data as Run;
+
+    // 明示した名前は start の記録の名前と会話記録の名前より先
+    expect((await finish(await startWith("t1", "model-at-start"), "model-explicit")).model).toBe(
+      "model-explicit",
+    );
+    // start の記録の名前は会話記録の名前より先
+    expect((await finish(await startWith("t1", "model-at-start"))).model).toBe("model-at-start");
+    // どちらもなければ会話記録の名前
+    expect((await finish(await startWith("t1"))).model).toBe("model-from-transcript");
+    // start の記録の名前がなくても明示した名前が先
+    expect((await finish(await startWith("t2"), "model-explicit")).model).toBe("model-explicit");
+  });
+
+  it("finish の時刻が start より前（時計のずれ）なら finished_at を started_at に揃え、実行時間は 0 になる", async () => {
+    const ctx = await prepared();
+    const run = await start(ctx, "t1");
+    ctx.now = () => new Date(Date.parse(run.started_at) - 60_000);
+    const r = await runCommand(runFinish, ctx, { run: run.id, result: "success" });
+    expect((r.data as Run).finished_at).toBe(run.started_at);
+    const listed = (await runCommand(runList, ctx, { ticket: "t1" })).data as RunView[];
+    expect(listed.map((v) => [v.id, v.duration_seconds])).toEqual([[run.id, 0]]);
+
+    // 遅れていなければ finish の時刻のまま
+    const later = await start(ctx, "t2");
+    const at = new Date(Date.parse(later.started_at) + 30_000);
+    ctx.now = () => at;
+    const done = await runCommand(runFinish, ctx, { run: later.id, result: "success" });
+    expect((done.data as Run).finished_at).toBe(at.toISOString().replace(/\.\d{3}Z$/, "Z"));
+  });
+});
