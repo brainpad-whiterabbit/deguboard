@@ -117,6 +117,29 @@ describe("dg", () => {
     expect(list.out).toContain("t1  in_progress  high      Login validation");
   });
 
+  it("claim の --without-branch は branch を記録せず、--branch と一緒なら使い方の誤り。update の --branch none で外す", async () => {
+    const f = await fixture();
+    await dg(f.cloneA, ["init"]);
+    await dg(f.cloneA, ["ticket", "create", "A"]);
+    await dg(f.cloneA, ["ticket", "create", "B"]);
+    const both = await dg(f.cloneA, [
+      "--json",
+      "ticket",
+      "claim",
+      "1",
+      "--without-branch",
+      "--branch",
+      "x",
+    ]);
+    expect(both.code).toBe(2);
+    const claimed = await dg(f.cloneA, ["--json", "ticket", "claim", "1", "--without-branch"]);
+    expect(claimed.code).toBe(0);
+    expect(claimed.json().data.branch).toBeUndefined();
+    await dg(f.cloneA, ["ticket", "claim", "2"]);
+    const detached = await dg(f.cloneA, ["--json", "ticket", "update", "2", "--branch", "none"]);
+    expect(detached.json().data.branch).toBeUndefined();
+  });
+
   it("拒否された遷移は終了コード 1 と error.code、入力の誤りと未知のコマンドは 2", async () => {
     const f = await fixture();
     await dg(f.cloneA, ["init"]);

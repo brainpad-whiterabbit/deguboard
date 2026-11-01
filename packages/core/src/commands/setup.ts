@@ -139,7 +139,7 @@ async function reconcileAll(ctx: CommandContext, warnings: string[]): Promise<Re
       warnings.push(`${doc.id}: Workflow が読めないので照合しない`);
       continue;
     }
-    const { facts, pr } = await collectBranchFacts(ctx.repo, doc.data.branch, {
+    const { facts, pr, prMissing } = await collectBranchFacts(ctx.repo, doc.data.branch, {
       pr: doc.data.pr,
       needPr: needsPr(wf),
       status: doc.data.status,
@@ -148,7 +148,8 @@ async function reconcileAll(ctx: CommandContext, warnings: string[]): Promise<Re
     const outcome = reconcileStatus(wf.resolved, doc.data.status, facts);
     // done に進むなら、消えたブランチは正常（マージ後に消した）なので警告しない
     if (!(outcome.kind === "advance" && outcome.to === "done")) {
-      for (const w of regressionWarnings(doc.data.status, facts)) warnings.push(`${doc.id}: ${w}`);
+      for (const w of regressionWarnings(doc.data.status, facts, { prMissing }))
+        warnings.push(`${doc.id}: ${w}`);
     }
     // ブランチ名で見つけた PR の番号は、状態が進まなくても記録する（記録済みなら触れない）
     const patch: Record<string, unknown> = {};

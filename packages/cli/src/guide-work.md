@@ -1,6 +1,6 @@
 # 作業（work）
 
-1 枚のチケットを claim から PR まで進める。状態は作業ブランチの Git 上の事実（ある・push 済み・PR・マージ）から `dg sync` が進める。受け入れ条件の印は、PR を出す前に自分で確かめて `ticket check` で付ける。
+1 枚のチケットを claim から PR まで進める（PR の要らない作業は下の「PR の要らない作業」）。状態は作業ブランチの Git 上の事実（ある・push 済み・PR・マージ）から `dg sync` が進める。受け入れ条件の印は、PR を出す前に自分で確かめて `ticket check` で付ける。
 
 ## 流れ
 
@@ -18,6 +18,16 @@
 6. コミットして push し、PR を作る。PR の本文にチケットの ID（`t12`）と、付けられなかった受け入れ条件を書く。PR の番号をチケットに記録する：`dg --json --actor agent ticket update <id> --pr <番号>`
 7. `dg --json --actor agent sync` を回す。Workflow が PR の事実を見るなら（software-development）、PR が開いていれば review に進む（`gh` が要る）。見ないなら（general など）、PR を出したら自分で `dg --json --actor agent ticket move <id> review` に進める
 8. レビューの指摘は同じブランチで直して push する。マージは人が行う。マージ後は `dg guide finish`
+
+## PR の要らない作業
+
+チケットのデータの整備・確認・調査など、リポジトリのファイルを変えない作業は、ブランチも PR も作らない。照合には頼らず、自分で done まで進める。
+
+1. claim する：`dg --json --actor agent ticket claim <id> --without-branch`。branch を記録しないので、照合の対象にならず `sync` も警告しない
+2. 作業する（worktree は作らない）。何をしたかと結果は、最後に人への報告に書く
+3. 受け入れ条件を 1 項目ずつ確かめ、満たした項目だけ `ticket check` で付ける（上の手順 5 と同じ）
+4. すべて付いたら `dg --json --actor agent ticket move <id> done`。付けられない項目が残ったら `ticket move <id> review` にして、残った項目と理由を人に報告する（done にするのは人）
+5. 途中でリポジトリのファイルを変える必要が出たら、`ticket update <id> --branch <種類>/<内容>` でブランチを記録し、上の流れ（worktree・PR）に移る。逆に、claim したブランチが要らなくなったら `--branch none` で外す
 
 ## 状態について
 

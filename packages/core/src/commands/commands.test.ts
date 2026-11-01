@@ -236,6 +236,77 @@ describe("チケットの流れ", () => {
     }
   });
 
+  it("PR の要らない作業は claim の without_branch で branch を持たず、照合で動かず警告も出ない。update の branch で付け外しできる", async () => {
+    const f = await fixture();
+    const ctx = await initialized(f.cloneA, {}, { template: "software-development" });
+    await runCommand(ticketCreate, ctx, { title: "Data cleanup" });
+    await expect(
+      runCommand(ticketClaim, ctx, { ticket: "t1", without_branch: true, branch: "feature/x" }),
+    ).rejects.toBeInstanceOf(UsageError);
+    const claimed = await runCommand(ticketClaim, ctx, { ticket: "t1", without_branch: true });
+    expect(claimed.data).toMatchObject({ status: "in_progress", assignee: "eiki" });
+    expect(claimed.data.branch).toBeUndefined();
+
+    await runCommand(ticketMove, ctx, { ticket: "t1", status: "review" });
+    const synced = await runCommand(sync, ctx, {});
+    expect(synced.data.reconciled).toEqual([]);
+    expect(synced.warnings).toEqual([]);
+    expect(ctx.store.tickets.get("t1")?.data.status).toBe("review");
+
+    // 付けたブランチは照合の対象になり、none で外せば対象から外れる
+    const attached = await runCommand(ticketUpdate, ctx, { ticket: "t1", branch: "feature/gone" });
+    expect(attached.data.branch).toBe("feature/gone");
+    expect((await runCommand(sync, ctx, {})).warnings).toContain(
+      "t1: 作業ブランチがローカルにもリモートにも見つからない",
+    );
+    const detached = await runCommand(ticketUpdate, ctx, { ticket: "t1", branch: null });
+    expect(detached.data.branch).toBeUndefined();
+    expect((await runCommand(sync, ctx, {})).warnings).toEqual([]);
+
+    // agent は受け入れ条件を確かめたら自分で done にできる（Workflow の制約がなければ）
+    const done = await runCommand(ticketMove, ctx, { ticket: "t1", status: "done" });
+    expect(done.data.status).toBe("done");
+  });
+
+  it("gh が PR がないと答えた review のチケットは閉じた PR と警告しない。閉じた PR には警告する", async () => {
+    const f = await fixture();
+    const ctx = await initialized(f.cloneA, {}, { template: "software-development" });
+    await runCommand(ticketCreate, ctx, { title: "No PR yet" });
+    await runCommand(ticketCreate, ctx, { title: "Closed PR" });
+    await runCommand(ticketClaim, ctx, { ticket: "t1", branch: "feature/t1-no-pr" });
+    await runCommand(ticketClaim, ctx, { ticket: "t2", branch: "feature/t2-closed" });
+    for (const b of ["feature/t1-no-pr", "feature/t2-closed"]) await git(f.cloneA, ["branch", b]);
+    await runCommand(ticketMove, ctx, { ticket: "t1", status: "review" });
+    await runCommand(ticketMove, ctx, { ticket: "t2", status: "review" });
+
+    const bin = path.join(f.root, "fake-bin");
+    await mkdir(bin, { recursive: true });
+    await writeFile(
+      path.join(bin, "gh"),
+      [
+        "#!/bin/sh",
+        'case "$1" in --version) echo "gh version 0 (fake)"; exit 0;; esac',
+        'case "$3" in',
+        '  feature/t2-closed) echo \'{"number":7,"state":"CLOSED","isDraft":false,"mergedAt":null}\';;',
+        '  *) echo "no pull requests found for branch $3" >&2; exit 1;;',
+        "esac",
+        "",
+      ].join("\n"),
+      { mode: 0o755 },
+    );
+    const savedPath = process.env["PATH"];
+    process.env["PATH"] = bin + path.delimiter + (savedPath ?? "");
+    resetGhCache();
+    try {
+      const synced = await runCommand(sync, ctx, {});
+      expect(synced.warnings).toContain("t2: PR がマージされずに閉じている");
+      expect(synced.warnings.filter((w) => w.startsWith("t1:"))).toEqual([]);
+    } finally {
+      process.env["PATH"] = savedPath;
+      resetGhCache();
+    }
+  });
+
   it("既定ではどの遷移も通り、制約を書いた Workflow では by: []・by: [human]・requires: [deps_done] で拒否される", async () => {
     const f = await fixture();
     const human = await initialized(f.cloneA);
