@@ -15,3 +15,4 @@ details:
     approach: 細部がコード・テスト・ヘルプ・requirements.md にあることを確かめてから消し、ADR は判断（決定・理由・採らなかった案）を残す。更新日と一覧を直す
 approved_by: eiki.kitajima/agent
 approved_at: 2026-11-01T12:13:26Z
+closed_at: 2026-11-01T12:40:33Z
