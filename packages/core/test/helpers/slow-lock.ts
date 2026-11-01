@@ -2,13 +2,17 @@
 //
 // 有効にすると、"wx" の open が EEXIST で失敗したときと stat・readdir の結果を返すときに少し待つ。
 // 前の持ち主が解放した直後に stat が ENOENT を見て、その結果を返すまでに別の待ち手が取り直す窓が広がり、
-// 取り直した側がロックの中で読み終えて書く前に、もう一方が入る窓も広がる
+// 取り直した側がロックの中で読み終えて書く前に、もう一方が入る窓も広がる。
+// statError を設定すると、stat はその code のエラーを投げる（ENOENT 以外のエラーで待ち続けないことを確かめる）
 
 import { setTimeout as sleep } from "node:timers/promises";
 
 type FsPromises = typeof import("node:fs/promises");
 
-export const slowLock = { enabled: false, delayMs: 15 };
+export const slowLock: { enabled: boolean; delayMs: number; statError?: string | undefined } = {
+  enabled: false,
+  delayMs: 15,
+};
 
 const pause = () => sleep(Math.random() * slowLock.delayMs);
 
@@ -22,6 +26,11 @@ export function withSlowLock(actual: FsPromises): FsPromises {
     }
   };
   const stat = (async (...args: Parameters<FsPromises["stat"]>) => {
+    if (slowLock.statError) {
+      throw Object.assign(new Error(`${slowLock.statError}: stat を失敗させた`), {
+        code: slowLock.statError,
+      });
+    }
     if (!slowLock.enabled) return actual.stat(...args);
     const settled = await actual.stat(...args).then(
       (value) => ({ value }),
