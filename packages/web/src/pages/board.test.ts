@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Epic, Iteration, Ticket } from "../types.js";
-import { hideClosedFinished } from "./board.js";
+import { hideClosedFinished, shortPeriod, ticketProgress } from "./board.js";
 
 function ticket(partial: Partial<Ticket> & { id: string }): Ticket {
   return {
@@ -60,5 +60,25 @@ describe("カンバンで閉じた Iteration か Epic の終わったチケッ�
   it("絞り込みで closed の Epic を選んだときは、その Epic の終わったチケットも残す", () => {
     expect(ids("e1")).toEqual(expect.arrayContaining(["t1", "t2", "t10"]));
     expect(ids("e1")).not.toContain("t9");
+  });
+});
+
+describe("左パネルのカンバンの見出し", () => {
+  it("期間は月/日に縮めて – でつなぎ、片方だけなら ? を置く", () => {
+    expect(shortPeriod("2026-11-15", "2026-11-28")).toBe("11/15–11/28");
+    expect(shortPeriod("2026-11-05", undefined)).toBe("11/5–?");
+    expect(shortPeriod(undefined, undefined)).toBeUndefined();
+  });
+
+  it("進みは done の件数と abandoned を除く件数、Status ごとの件数を数える", () => {
+    const p = ticketProgress([
+      { status: "done" },
+      { status: "todo" },
+      { status: "in_progress" },
+      { status: "abandoned" },
+    ]);
+    expect(p.done).toBe(1);
+    expect(p.total).toBe(3);
+    expect(p.by_status).toMatchObject({ todo: 1, in_progress: 1, review: 0, done: 1 });
   });
 });

@@ -151,6 +151,35 @@ export function ProgressBar({ progress }: { progress: EpicProgress }) {
 }
 
 /**
+ * Status ごとの色の細い帯と「n/m done」（左パネルのカンバンの見出し）。並びと色は ProgressBar と同じ（done が左、--dg-status-*）。
+ * 斜線にはせず、数字に done の比を書く
+ */
+export function StatusBand({ progress }: { progress: EpicProgress }) {
+  const store = useStore();
+  const segments = PROGRESS_STATUSES.map((s) => ({
+    status: s,
+    count: progress.by_status[s] ?? 0,
+  })).filter((seg) => seg.count > 0);
+  const title = segments.map((seg) => `${store.labelOf(seg.status)} ${seg.count}`).join(" / ");
+  return (
+    <span className="progress status-band" title={title || "チケットはない"}>
+      <span className="bar">
+        {segments.map((seg) => (
+          <span
+            key={seg.status}
+            className={`status-${seg.status}`}
+            style={{ width: `${(seg.count / progress.total) * 100}%` }}
+          />
+        ))}
+      </span>
+      <span className="muted">
+        {progress.done}/{progress.total} done
+      </span>
+    </span>
+  );
+}
+
+/**
  * 閉じるのボタン（Iteration・Epic）。Webview では押すと画面の中に確認を出し、未完了の件数を見せてから閉じる
  * （Webview では confirm() が使えない）。ブラウザでは今のまま 1 回で閉じる。
  * 見出し（summary）の中にも置くので、クリックは節の開閉に伝えない
@@ -242,27 +271,30 @@ export function StatusDot({ status }: { status: Status }) {
 
 /**
  * チケットの 1 行（サイドバー向け）：状態の丸印・番号・タイトル・担当者・優先度が high なら印。
- * サイドバーではタイトルを 2 行まで折り返す（styles.css）。hideAssignee で担当者を出さない（見えている行の担当が 1 人だけのとき）
+ * サイドバーではタイトルを 2 行まで折り返す（styles.css）。hideAssignee で担当者を出さない（見えている行の担当が 1 人だけのとき）。
+ * kanban はカンバンの行：状態は節で分かるので丸印を出さず、優先度は high に加えて low も小さく出す
  */
 export function TicketRow({
   ticket,
   onClick,
   hideAssignee = false,
   flash = false,
+  kanban = false,
 }: {
   ticket: Ticket;
   onClick?: ComponentProps<"a">["onClick"] | undefined;
   hideAssignee?: boolean | undefined;
   /** 前回の描画から変わった行として枠を点滅させる（カンバンのサイドバー。change-flash.ts） */
   flash?: boolean | undefined;
+  kanban?: boolean | undefined;
 }) {
   return (
     <TicketLink
       id={ticket.id}
-      className={`row ticket-row status-${ticket.status}${flash ? " changed" : ""}`}
+      className={`row ticket-row status-${ticket.status}${kanban ? " kanban-row" : ""}${flash ? " changed" : ""}`}
       onClick={onClick}
     >
-      <StatusDot status={ticket.status} />
+      {kanban ? null : <StatusDot status={ticket.status} />}
       <code>{ticket.id}</code>
       <span className="row-title" title={ticket.title}>
         {ticket.title}
@@ -274,7 +306,15 @@ export function TicketRow({
       ) : (
         <span />
       )}
-      {ticket.priority === "high" ? <PriorityBadge priority="high" /> : <span />}
+      {ticket.priority === "high" ? (
+        <PriorityBadge priority="high" />
+      ) : kanban && ticket.priority === "low" ? (
+        <span className="row-low" title="優先度 low">
+          low
+        </span>
+      ) : (
+        <span />
+      )}
     </TicketLink>
   );
 }
@@ -317,15 +357,17 @@ export function sameAssignee(tickets: readonly Pick<Ticket, "assignee">[]): bool
   return !!first && tickets.every((t) => t.assignee === first);
 }
 
-/** 1 行のチケット（サイドバー）。行全体をつかんで動かす */
+/** 1 行のチケット（サイドバー）。行全体をつかんで動かす。kanban はカンバンの行（TicketRow） */
 export function DraggableRow({
   ticket,
   hideAssignee,
   flash,
+  kanban,
 }: {
   ticket: Ticket;
   hideAssignee?: boolean | undefined;
   flash?: boolean | undefined;
+  kanban?: boolean | undefined;
 }) {
   const d = useDraggableTicket(ticket.id);
   return (
@@ -335,7 +377,7 @@ export function DraggableRow({
       className={`row-drag${d.isDragging ? " dragging" : ""}`}
       {...d.props}
     >
-      <TicketRow ticket={ticket} hideAssignee={hideAssignee} flash={flash} />
+      <TicketRow ticket={ticket} hideAssignee={hideAssignee} flash={flash} kanban={kanban} />
     </div>
   );
 }

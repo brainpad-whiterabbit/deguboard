@@ -249,7 +249,7 @@ steps: # 任意。Run の step の語彙（WF-5）
 Web UI は `dg serve` が配信し、VS Code 拡張は同じ React アプリを Webview に載せる。表示と操作は両方で同じ（[ADR-006](adr/ADR-006-ui-and-writes.md)）。
 
 - UI-1 プロジェクトの切り替え
-- UI-2 カンバン：選んだ Iteration（既定は active）のチケットを Status ごとの列に出す（表示名は Workflow の `labels`）。ドラッグ＆ドロップで Status を変え、`ticket move` と同じ検査で拒否されたら理由を出して戻す。Epic と担当者で絞れる。閉じた Iteration・Epic の終わったチケットは出さない。VS Code のサイドバーでは、前回の描画から Status か Iteration が変わったチケットと新しく現れたチケットの行を短く点滅させる（自分でドラッグした行と、動きを減らす設定のときは点滅させない。隠れている間の変化は見えたときに点滅させる）
+- UI-2 カンバン：選んだ Iteration（既定は active）のチケットを Status ごとの列に出す（表示名は Workflow の `labels`）。ドラッグ＆ドロップで Status を変え、`ticket move` と同じ検査で拒否されたら理由を出して戻す。Epic と担当者で絞れる。閉じた Iteration・Epic の終わったチケットは出さない。VS Code のサイドバーでは、前回の描画から Status か Iteration が変わったチケットと新しく現れたチケットの行を短く点滅させる（自分でドラッグした行と、動きを減らす設定のときは点滅させない。隠れている間の変化は見えたときに点滅させる）。サイドバーのカンバンの見出しは Iteration の番号・名前・状態・件数、期間・目標、Status ごとの進みの帯に詰め、詳細へのリンクと開始・閉じるを出さない（作成は Iteration の選択欄から）
 - UI-3 バックログ：done・abandoned 以外のチケットを Iteration ごとの区画に分けて出し、検索と絞り込みができる。別の区画へのドラッグで Iteration を変え、`ticket update` と同じ検査で拒否されたら理由を出して戻す
 - UI-4 チケット詳細：本文（概要・受け入れ条件）、属性、Epic、依存先と依存元、起票者と担当者、作業ブランチ、PR、Run の一覧、経過（CL-7）。PR はリモートの URL から PR のページへのリンクにする（直せなければ番号だけ）。属性と本文を編集できる
 - UI-5 Iteration：作成・開始・閉じる、詳細の画面でチケットの追加・除外ができる。閉じた Iteration・Epic と終わったチケットは履歴の画面で見る（終えた日は CL-7 から求める）

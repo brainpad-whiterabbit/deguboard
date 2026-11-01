@@ -987,7 +987,7 @@ button.danger {
   border-color: transparent;
   color: var(--vscode-button-foreground, #fff);
 }
-/* サイドバーの Iteration の見出しの「…」のメニュー（iterations.tsx の IterationActions）。
+/* サイドバーのバックログの区画の見出しの「…」のメニュー（iterations.tsx の IterationActions）。
    中身は見出しの操作の並びにそのまま入れ、確認（.confirm）は折り返して次の行に出す */
 .menu,
 .menu-items {
@@ -1084,6 +1084,15 @@ button.danger {
 /* チケットの行は担当者の列を足す：丸印・番号・タイトル・担当者・優先度 */
 .ticket-row {
   grid-template-columns: auto auto minmax(0, 1fr) auto auto;
+}
+/* カンバンの行は丸印を出さない：番号・タイトル・担当者・優先度。low は小さな灰色の文字 */
+.ticket-row.kanban-row {
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+}
+.row-low {
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 0.82em;
+  color: var(--vscode-descriptionForeground);
 }
 /* 担当者は短く出し、長い ID はタイトルより先に省略する（全文はツールチップ） */
 .row-assignee {
@@ -1326,9 +1335,6 @@ button.danger {
   gap: 0.5rem;
   min-height: 0;
 }
-[data-surface="sidebar"] .board-head h1 {
-  font-size: 1em;
-}
 [data-surface="sidebar"] .board-filters label {
   flex: 1 1 40%;
   min-width: 0;
@@ -1338,14 +1344,157 @@ button.danger {
   flex: 1;
   min-width: 0;
 }
+/* 左パネルのカンバンの見出し（board.tsx の SidebarBoardHead）：番号・名前（選択欄）・状態・件数／期間・目標／進みの帯 */
+.sidebar-head {
+  flex-direction: column;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  gap: 3px;
+  margin: 0 0 0.3rem;
+  padding: 0.1rem 0.25rem 0.4rem;
+  border-bottom: 1px solid var(--dg-border);
+}
+.sidebar-head .head-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.sidebar-head .head-line.sub {
+  gap: 8px;
+  font-size: 0.92em;
+}
+.sidebar-head .state {
+  flex: none;
+  font-size: 0.92em;
+}
+.sidebar-head .count {
+  flex: none;
+  margin-left: auto;
+  font-size: 0.92em;
+}
+.sidebar-head .period {
+  flex: none;
+}
+.sidebar-head .goal {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Iteration の選択欄：名前と ▾ の上に透明なセレクトを重ねる。キーボードで選んだときは枠を出す */
+.iteration-pick {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  font-weight: 600;
+  border-radius: 2px;
+}
+.iteration-pick .name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.iteration-pick .caret {
+  flex: none;
+  font-size: 0.8em;
+  font-weight: normal;
+  color: var(--vscode-descriptionForeground);
+}
+.iteration-pick select {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+.iteration-pick:hover .name {
+  text-decoration: underline;
+}
+.iteration-pick:focus-within {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: 1px;
+}
+.sidebar-head .status-band {
+  flex: 1;
+  min-width: 0;
+}
+.status-band .bar {
+  flex: 1;
+  width: auto;
+  height: 4px;
+  border-radius: 2px;
+}
+.status-band .muted {
+  flex: none;
+  font-size: 0.92em;
+}
+/* 絞り込みは見出しの下の小さな 1 行 */
+.board-filters.compact {
+  flex-wrap: nowrap;
+  gap: 6px;
+  margin: 0 0 0.3rem;
+  padding: 0 0.25rem;
+}
+.board-filters.compact select {
+  padding: 0 0.3em;
+  font-size: 0.92em;
+}
+/* 左パネルの状態の節は、枠と背景のない VS Code のペインの見出し風。節の間に 1px の線、右端に件数のバッジ */
+[data-surface="sidebar"] .board {
+  gap: 0;
+}
 [data-surface="sidebar"] .column {
   background: transparent;
-  padding: 0.25rem 0.25rem 0.4rem;
-  gap: 0.25rem;
+  border: 0;
+  border-top: 1px solid var(--dg-border);
+  border-radius: 0;
+  padding: 0;
+  gap: 0;
 }
-[data-surface="sidebar"] .column .empty {
-  padding: 0.4rem;
-  margin: 0.25rem 0.5rem;
+[data-surface="sidebar"] .column:first-child {
+  border-top: 0;
+}
+[data-surface="sidebar"] .column > summary {
+  padding: 3px 0.25rem;
+}
+[data-surface="sidebar"] .column h2 {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+[data-surface="sidebar"] .column .section-count {
+  margin-left: auto;
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  text-align: center;
+  font-weight: 500;
+  line-height: 16px;
+  letter-spacing: 0;
+  background: var(--vscode-badge-background);
+  color: var(--vscode-badge-foreground);
+}
+/* 空の節は見出しの 1 行だけで、薄く出す（ドロップ先には残る） */
+[data-surface="sidebar"] .column.is-empty h2 {
+  font-weight: 500;
+  color: var(--vscode-descriptionForeground);
+}
+[data-surface="sidebar"] .column.is-empty .section-count {
+  background: transparent;
+  color: var(--vscode-descriptionForeground);
+}
+[data-surface="sidebar"] .column.over {
+  outline: none;
+  box-shadow: inset 0 0 0 1px var(--vscode-focusBorder);
+  background: color-mix(in srgb, var(--vscode-focusBorder) 10%, transparent);
+}
+[data-surface="sidebar"] .column > .rows {
+  padding: 0 0 0.3rem;
 }
 [data-surface="sidebar"] .backlog-layout {
   grid-template-columns: minmax(0, 1fr);

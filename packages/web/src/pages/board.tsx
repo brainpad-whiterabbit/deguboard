@@ -2,6 +2,8 @@
 // その Iteration のチケットを含む Plan の帯（実行計画）と、その Iteration のチケットを状態ごとの節（todo / in_progress / review / done。中止は畳んだ節）で出す。
 // Iteration の選択肢は planned と active と「Iteration なし」、Epic の選択肢は open だけ。
 // Iteration が 1 つもない Project では Iteration で絞らず、全チケットのカンバンにする。絞り込みの値はハッシュに持つ。
+// VS Code の左パネル（surface=sidebar）では、見出しを 2 段と進みの帯に詰め（Iteration の選択欄に「+ Iteration を作る」を入れる）、
+// 詳細・…・開始・閉じるは出さない。絞り込みは見出しの下の 1 行にし、状態の節はペイン風の見出しにする。
 // 入っている Iteration か Epic が閉じた done・abandoned のチケットは出さない（履歴でたどる）。
 // 節の開閉・最後に選んだ Iteration は host.state に覚える。
 // ドラッグ＆ドロップは ticket.move を呼び、拒否されたら通知に理由を出して元の列に戻す（読み直すだけで戻る）
@@ -19,6 +21,7 @@ import { useMemo, useState } from "react";
 import {
   DraggableRow,
   PriorityBadge,
+  StatusBand,
   StatusDot,
   Tags,
   TicketLink,
@@ -40,6 +43,7 @@ import {
   ITERATION_LABELS,
   NO_CLAIM,
   type Epic,
+  type EpicProgress,
   type Iteration,
   type Status,
   type Ticket,
@@ -120,7 +124,8 @@ export function BoardPage({ query }: { query: BoardQuery }) {
   const planOf = useMemo(() => openPlanByTicket(store.plans), [store.plans]);
 
   // サイドバーでは、前回の描画から Status か Iteration が変わった行を点滅させる（UI-2。CLI やエージェントの書き込みに気づけるように）
-  const flash = useChangeFlash(store.tickets, host.state, host.surface === "sidebar");
+  const sidebar = host.surface === "sidebar";
+  const flash = useChangeFlash(store.tickets, host.state, sidebar);
 
   const onDragEnd = async (event: DragEndEvent) => {
     const id = String(event.active.id);
@@ -135,72 +140,103 @@ export function BoardPage({ query }: { query: BoardQuery }) {
     setMoving(null);
   };
 
+  const count = tickets.length - abandoned.length;
+  const filterSelects = (
+    <>
+      {epics.length > 0 ? (
+        <label>
+          Epic
+          <select
+            value={query.epic ?? ""}
+            onChange={(e) => setFilter({ epic: e.target.value || undefined })}
+          >
+            <option value="">すべて</option>
+            {epics.map((e) => (
+              <option key={e.id} value={e.id}>
+                {e.id} {e.title}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : null}
+      {claims.length > 0 ? (
+        <label>
+          担当
+          <select
+            value={query.assignee ?? ""}
+            onChange={(e) => setFilter({ assignee: e.target.value || undefined })}
+          >
+            <option value="">すべて</option>
+            {claims.map((c) => (
+              <option key={c} value={c} title={c}>
+                {c === NO_CLAIM ? "なし" : actorLabel(c)}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : null}
+    </>
+  );
+  const createForm = creating ? (
+    <div className="board-filters">
+      <IterationCreateForm onDone={() => setCreating(false)} />
+    </div>
+  ) : null;
+
   return (
     <section>
-      <div className="board-filters">
-        {selection.kind === "all" ? (
-          <span className="muted">Iteration はない</span>
-        ) : (
-          <label>
-            Iteration
-            <select
-              value={selection.kind === "none" ? NO_ITERATION : selection.iteration.id}
-              onChange={(e) => select(e.target.value)}
-            >
-              {open.map((i) => (
-                <option key={i.id} value={i.id}>
-                  {i.id} {i.name}（{ITERATION_LABELS[i.status]}）
-                </option>
-              ))}
-              <option value={NO_ITERATION}>Iteration なし</option>
-            </select>
-          </label>
-        )}
-        {creating ? null : (
-          <button type="button" className="link" onClick={() => setCreating(true)}>
-            + Iteration を作る
-          </button>
-        )}
-        {epics.length > 0 ? (
-          <label>
-            Epic
-            <select
-              value={query.epic ?? ""}
-              onChange={(e) => setFilter({ epic: e.target.value || undefined })}
-            >
-              <option value="">すべて</option>
-              {epics.map((e) => (
-                <option key={e.id} value={e.id}>
-                  {e.id} {e.title}
-                </option>
-              ))}
-            </select>
-          </label>
-        ) : null}
-        {claims.length > 0 ? (
-          <label>
-            担当
-            <select
-              value={query.assignee ?? ""}
-              onChange={(e) => setFilter({ assignee: e.target.value || undefined })}
-            >
-              <option value="">すべて</option>
-              {claims.map((c) => (
-                <option key={c} value={c} title={c}>
-                  {c === NO_CLAIM ? "なし" : actorLabel(c)}
-                </option>
-              ))}
-            </select>
-          </label>
-        ) : null}
-        <span className="muted count">{tickets.length - abandoned.length} 件</span>
-      </div>
-      {creating ? (
-        <div className="board-filters">
-          <IterationCreateForm onDone={() => setCreating(false)} />
-        </div>
-      ) : null}
-      {selection.kind === "iteration" ? <IterationHead iteration={selection.iteration} /> : null}
+      {sidebar ? (
+        <>
+          {/* 左パネルは見出しを 2 段と進みの帯に詰め、詳細・操作は出さない（Iteration の開始は Skill の手順が着手時に行い（t152）、閉じるはバックログの区画の「…」と詳細から行う） */}
+          <SidebarBoardHead
+            open={open}
+            selection={selection}
+            count={count}
+            // 件数と帯は絞り込み（Epic・担当）の後のチケットで数える（件数と帯の数をそろえる）
+            progress={ticketProgress(tickets)}
+            onSelect={select}
+            onCreate={() => setCreating(true)}
+          />
+          {createForm}
+          {epics.length > 0 || claims.length > 0 ? (
+            <div className="board-filters compact">{filterSelects}</div>
+          ) : null}
+        </>
+      ) : (
+        <>
+          <div className="board-filters">
+            {selection.kind === "all" ? (
+              <span className="muted">Iteration はない</span>
+            ) : (
+              <label>
+                Iteration
+                <select
+                  value={selection.kind === "none" ? NO_ITERATION : selection.iteration.id}
+                  onChange={(e) => select(e.target.value)}
+                >
+                  {open.map((i) => (
+                    <option key={i.id} value={i.id}>
+                      {i.id} {i.name}（{ITERATION_LABELS[i.status]}）
+                    </option>
+                  ))}
+                  <option value={NO_ITERATION}>Iteration なし</option>
+                </select>
+              </label>
+            )}
+            {creating ? null : (
+              <button type="button" className="link" onClick={() => setCreating(true)}>
+                + Iteration を作る
+              </button>
+            )}
+            {filterSelects}
+            <span className="muted count">{count} 件</span>
+          </div>
+          {createForm}
+          {selection.kind === "iteration" ? (
+            <IterationHead iteration={selection.iteration} />
+          ) : null}
+        </>
+      )}
       <PlanBand scope={scoped} />
       <DndContext sensors={sensors} onDragEnd={(e) => void onDragEnd(e)}>
         <div className="board">
@@ -277,9 +313,120 @@ function IterationHead({ iteration: it }: { iteration: Iteration }) {
   );
 }
 
+/** Iteration の選択欄で「+ Iteration を作る」を表す値（Iteration の ID とは重ならない） */
+const CREATE_ITERATION = "+create";
+
+/**
+ * 左パネルのカンバンの見出し（UI-2）。1 段目に番号・名前（Iteration の選択欄）・状態・件数、2 段目に期間・目標（1 行で省略）、
+ * 3 段目に状態ごとの色の帯と「n/m done」。「+ Iteration を作る」は選択欄の最後の選択肢。詳細・…・開始・閉じるは出さない
+ */
+function SidebarBoardHead({
+  open,
+  selection,
+  count,
+  progress,
+  onSelect,
+  onCreate,
+}: {
+  open: Iteration[];
+  selection: Selection;
+  count: number;
+  progress: EpicProgress;
+  onSelect: (iteration: string) => void;
+  onCreate: () => void;
+}) {
+  const it = selection.kind === "iteration" ? selection.iteration : undefined;
+  const value =
+    selection.kind === "iteration"
+      ? selection.iteration.id
+      : selection.kind === "none"
+        ? NO_ITERATION
+        : "";
+  const name = it ? it.name : selection.kind === "none" ? "Iteration なし" : "Iteration はない";
+  const period = it ? shortPeriod(it.start, it.end) : undefined;
+  return (
+    <header className="board-head sidebar-head">
+      <div className="head-line">
+        {it ? <code>{it.id}</code> : null}
+        {/* 見えるのは名前と ▾ だけにし、透明なセレクトを重ねて押せるようにする（選択肢には番号と状態を出す） */}
+        <span className="iteration-pick">
+          <span className="name">{name}</span>
+          <span className="caret" aria-hidden="true">
+            ▾
+          </span>
+          <select
+            aria-label="Iteration"
+            value={value}
+            onChange={(e) => {
+              if (e.target.value === CREATE_ITERATION) onCreate();
+              else onSelect(e.target.value);
+            }}
+          >
+            {selection.kind === "all" ? (
+              <option value="" disabled>
+                Iteration はない
+              </option>
+            ) : null}
+            {open.map((i) => (
+              <option key={i.id} value={i.id}>
+                {i.id} {i.name}（{ITERATION_LABELS[i.status]}）
+              </option>
+            ))}
+            {selection.kind === "all" ? null : <option value={NO_ITERATION}>Iteration なし</option>}
+            <option value={CREATE_ITERATION}>+ Iteration を作る</option>
+          </select>
+        </span>
+        {it ? <span className="muted state">{ITERATION_LABELS[it.status]}</span> : null}
+        <span className="muted count">{count} 件</span>
+      </div>
+      {period || it?.goal ? (
+        <div className="head-line sub muted">
+          {period ? <span className="period">{period}</span> : null}
+          {it?.goal ? (
+            <span className="goal" title={it.goal}>
+              {it.goal}
+            </span>
+          ) : null}
+        </div>
+      ) : null}
+      <div className="head-line">
+        <StatusBand progress={progress} />
+      </div>
+    </header>
+  );
+}
+
+/** 見出しに出す期間を短くする（2026-11-15 と 2026-11-28 → 11/15–11/28）。どちらもなければ undefined */
+export function shortPeriod(start?: string, end?: string): string | undefined {
+  if (!start && !end) return undefined;
+  const md = (d: string | undefined) => {
+    const m = d ? /^\d{4}-(\d{2})-(\d{2})/.exec(d) : null;
+    return m ? `${Number(m[1])}/${Number(m[2])}` : (d ?? "?");
+  };
+  return `${md(start)}–${md(end)}`;
+}
+
+/** カンバンに出ているチケットの進み（done の件数 / abandoned を除く件数と Status ごとの件数。EP-3 と同じ数え方） */
+export function ticketProgress(tickets: readonly Pick<Ticket, "status">[]): EpicProgress {
+  const by_status: Record<Status, number> = {
+    todo: 0,
+    in_progress: 0,
+    review: 0,
+    done: 0,
+    abandoned: 0,
+  };
+  for (const t of tickets) by_status[t.status] += 1;
+  return {
+    done: by_status.done,
+    total: tickets.length - by_status.abandoned,
+    by_status,
+  };
+}
+
 /**
  * 状態ごとの節。広い画面では横に並び、サイドバーでは縦に積む（UI-12）。開閉は host.state に覚える。
- * 見出しに状態の丸印と件数、空なら破線の枠
+ * 見出しに状態の丸印と件数。サイドバーでは枠と背景のないペイン風の見出しで、空の節は見出しの 1 行だけにする
+ * （ドロップ先は details 全体なので、空の節の見出しにも落とせる）
  */
 function Column({
   status,
@@ -304,33 +451,36 @@ function Column({
   const [open, setOpen] = useUiState(`board.section.${status}`, defaultOpen);
   const { setNodeRef, isOver } = useDroppable({ id: status });
   const sidebar = host.surface === "sidebar";
+  const empty = tickets.length === 0;
   return (
     <details
       ref={setNodeRef}
       open={open}
       onToggle={(e) => setOpen(e.currentTarget.open)}
-      className={`column fold status-${status}${isOver ? " over" : ""}`}
+      className={`column fold status-${status}${empty ? " is-empty" : ""}${isOver ? " over" : ""}`}
       data-status={status}
     >
       <summary>
         <h2>
           <StatusDot status={status} />
           <span>{store.labelOf(status)}</span>
-          <span className="muted">{tickets.length}</span>
+          <span className={sidebar ? "section-count" : "muted"}>{tickets.length}</span>
         </h2>
       </summary>
-      {sidebar && tickets.length === 0 ? <p className="empty">なし</p> : null}
       {sidebar ? (
-        <div className="rows">
-          {tickets.map((t) => (
-            <DraggableRow
-              key={t.id}
-              ticket={t}
-              hideAssignee={hideAssignee}
-              flash={flashing.has(t.id)}
-            />
-          ))}
-        </div>
+        empty ? null : (
+          <div className="rows">
+            {tickets.map((t) => (
+              <DraggableRow
+                key={t.id}
+                ticket={t}
+                hideAssignee={hideAssignee}
+                flash={flashing.has(t.id)}
+                kanban
+              />
+            ))}
+          </div>
+        )
       ) : (
         <div className="cards">
           {tickets.map((t) => (
