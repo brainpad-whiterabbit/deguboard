@@ -35,7 +35,7 @@ describe("dg guide", () => {
       const meta = await readGuideMeta(topic);
       const text = await readGuide(topic);
       expect(text.startsWith("---"), topic).toBe(false);
-      if (topic === "overview" || topic === "review") {
+      if (topic === "overview" || topic === "parallel" || topic === "review") {
         expect(meta.description, topic).toBeUndefined();
         continue;
       }
@@ -90,10 +90,9 @@ describe("dg guide", () => {
     });
   });
 
-  it("work は着手できるチケットを上限付きでサブエージェントに並べ、役割を分け、1 件でほかを止めないと案内し、all はそこへ案内する", async () => {
-    const work = await readGuide("work");
-    const all = await readGuide("all");
-    expect(work).toContain("## 着手できるチケットを並べて進める");
+  it("parallel は着手できるチケットを上限付きでサブエージェントに並べ、役割を分け、1 件でほかを止めないと案内し、work・all・review はそこへ案内する", async () => {
+    const parallel = await readGuide("parallel");
+    expect(parallel).toContain("# 着手できるチケットを並べて進める");
     for (const word of [
       "items[].waiting",
       "同時に 3 件まで",
@@ -103,8 +102,14 @@ describe("dg guide", () => {
       "マージ待ち",
       "`ticket update --pr`",
     ])
-      expect(work).toContain(word);
-    expect(all).toContain("「着手できるチケットを並べて進める」");
+      expect(parallel).toContain(word);
+    for (const topic of ["work", "all", "review"] as const) {
+      const text = await readGuide(topic);
+      expect(text, topic).toContain("`dg guide parallel`");
+      expect(text, topic).not.toContain("「着手できるチケットを並べて進める」");
+    }
+    // 中身は parallel にだけ書く
+    expect(await readGuide("work")).not.toContain("**サブエージェントがしない**");
   });
 
   it("review は品質ゲートを 1 か所に置き、work は PR を出す前の見直しと上限付きの修正ループを、all はマージの前の条件をそこへ案内し、実装・見直し・手直しの Run を分ける", async () => {
