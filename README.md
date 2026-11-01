@@ -32,13 +32,13 @@ deguboard はエージェントを起動も監視もしない。チケットの�
 
 前提は Linux / macOS、git 2.30 以上、Node.js 24 以上。GitHub CLI（`gh`）は PR の状態をチケットに反映したいときだけ要る。
 
-npm に公開するまでは、[mise](https://mise.jdx.dev/) を入れて deguboard を clone し、ビルドした `dg` を PATH に通す。node 24 がリポジトリの外でも PATH にあること（mise なら `mise use -g node@24`）。
+npm に公開するまでは、[mise](https://mise.jdx.dev/) を入れて deguboard を clone し、ビルドした `dg` を PATH に通す。`dg` は `#!/usr/bin/env node` で動くので、リポジトリの外で `dg` を使うには node 24 がリポジトリの外でも PATH にあること（mise なら `mise use -g node@24`）。
 
 ```sh
 git clone https://github.com/brainpad-whiterabbit/deguboard.git && cd deguboard
 mise trust && mise install    # node・pnpm を mise.toml の版で入れる
 mise run install              # 依存を入れ、dg と VS Code 拡張をビルドし、VSIX を VS Code に入れる（code CLI がなければ導入は飛ばす）
-ln -s "$PWD/packages/cli/bin/dg.js" ~/.local/bin/dg   # PATH にあるディレクトリに dg を置く。更新は git pull のあと mise run install
+mkdir -p ~/.local/bin && ln -sf "$PWD/packages/cli/bin/dg.js" ~/.local/bin/dg   # ~/.local/bin が PATH になければ足す。更新は git pull のあと mise run install
 ```
 
 公開後は `npm i -g deguboard`（mise なら `mise use -g npm:deguboard`）で入れる。入れたら、管理したいリポジトリで始める。
@@ -55,7 +55,7 @@ dg skill install              # Claude Code の Skill（/dgimport・/dgplan・/d
 
 チームの 2 人目からは、リポジトリを clone して `dg init` を実行する。リモートにある `deguboard` ブランチを取り込むので、同じチケットが見える。
 
-VS Code では、拡張を入れて（今は VSIX から。上の `mise run install` が入れる。手で入れるなら `mise run vsix`（build も先に走る）→ `code --install-extension packages/vscode/deguboard-vscode.vsix`）Activity Bar の deguboard のアイコンを押すとサイドバーにカンバンが開く。カンバンの帯と行の印は[拡張の README](packages/vscode/README.md)、仕様は[要件定義書](docs/requirements.md)の UI-2・UI-13。チケットを押すと詳細がエディタ領域に開く。拡張は `dg` なしで動き、`dg` が PATH にないときは案内を出す。
+VS Code の拡張は、今は VSIX から入れる。上の `mise run install` が入れ、手で入れるなら `mise run vsix`（build も先に走る）の後に `code --install-extension packages/vscode/deguboard-vscode.vsix` を実行する。拡張を入れて Activity Bar の deguboard のアイコンを押すと、サイドバーにカンバンが開く。カンバンの帯と行の印は[拡張の README](packages/vscode/README.md)、仕様は[要件定義書](docs/requirements.md)の UI-2・UI-13。チケットを押すと詳細がエディタ領域に開く。拡張は `dg` なしで動き、`dg` が PATH にないときは案内を出す。
 
 ### Run の記録と集計
 
