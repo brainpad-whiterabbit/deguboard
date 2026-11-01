@@ -4,7 +4,7 @@
 // Iteration が 1 つもない Project では Iteration で絞らず、全チケットのカンバンにする。絞り込みの値はハッシュに持つ。
 // VS Code の左パネル（surface=sidebar）では、見出しを 2 段と進みの帯に詰め（Iteration の選択欄に「+ Iteration を作る」を入れる）、
 // 詳細・…・開始・閉じるは出さない。絞り込みは見出しの下の 1 行にし、状態の節はペイン風の見出しにする。
-// 左パネルの行の右端には、開いた Plan に入っているチケットなら Plan の番号と、todo なら着手可か待ちの相手（Plan の after とチケットの depends_on）を出す。
+// 左パネルの行の右端には、開いた Plan に入っているチケットなら Plan の番号と、todo なら着手可か待ちの相手（Plan の after とチケットの depends_on）か承認待ち（Plan が承認待ち）を出す。
 // 左パネルの行の頭には、実行中の Run があるチケットなら回るリング（右端の下の段に「実行中」）を、実行中の Run のない in_progress なら止まった半分塗りの丸を出す。
 // 入っている Iteration か Epic が閉じた done・abandoned のチケットは出さない（履歴でたどる）。
 // 節の開閉・最後に選んだ Iteration は host.state に覚える。
@@ -203,7 +203,7 @@ export function BoardPage({ query }: { query: BoardQuery }) {
     <section>
       {sidebar ? (
         <>
-          {/* 左パネルは見出しを 2 段と進みの帯に詰め、詳細・操作は出さない（Iteration の開始は Skill の手順が着手時に行い（t152）、閉じるはバックログの区画の「…」と詳細から行う） */}
+          {/* 左パネルは見出しを 2 段と進みの帯に詰め、詳細・操作は出さない（Iteration の開始は `dg guide work` の手順が claim のときに行い、閉じるはバックログの区画の「…」と詳細から行う） */}
           <SidebarBoardHead
             open={open}
             selection={selection}
