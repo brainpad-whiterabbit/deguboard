@@ -71,6 +71,33 @@ describe("実行計画の帯", () => {
     expect(document.querySelector(".plan-graph")).toBeNull();
   });
 
+  it("畳んだ行に、作業中の番号と次に着手できるチケットの番号とタイトルを出す。承認待ちは承認待ち、待ちだけなら待つ相手", async () => {
+    const client = mockClient();
+    client.data.plans = [
+      plan({ id: "p2", tickets: ["t1", "t3"], after: { t3: ["t1"] } }),
+      plan({ id: "p3", tickets: ["t2", "t3"], after: { t3: ["t2"] } }),
+      plan({ id: "p4", tickets: ["t3"], pending_approval: true }),
+      plan({ id: "p5", tickets: ["t1"] }),
+    ];
+    mount(client, browserHost("sidebar"));
+    await screen.findByRole("button", { name: "実行計画 4" });
+    const items = new Map(
+      [...document.querySelectorAll(".plan-item")].map((i) => [
+        i.querySelector(".plan-line code")!.textContent,
+        i,
+      ]),
+    );
+    const sub = (id: string) =>
+      [...items.get(id)!.querySelectorAll(".plan-sub")].map((r) => r.textContent);
+    expect(sub("p2")).toEqual(["次t3画面"]);
+    expect(items.get("p2")!.querySelector("a.plan-next-ticket")!.getAttribute("href")).toBe(
+      "#/tickets/t3",
+    );
+    expect(sub("p3")).toEqual(["作業中t2", "次t2の完了待ち"]);
+    expect(sub("p4")).toEqual(["次人の承認を待っている"]);
+    expect(sub("p5")).toEqual([]);
+  });
+
   it("開くと承認者と依存グラフを出し、ノードはチケットへのリンクで、待ち終わった辺は実線。開閉は残る", async () => {
     const host = browserHost();
     mount(withPlans(), host);
@@ -144,8 +171,7 @@ describe("実行計画の帯", () => {
     client.data.tickets[1]!.iteration = "s2";
     client.data.tickets.push(ticket({ id: "t4", title: "別", iteration: "s2" }));
     mount(client);
-    await screen.findByText("画面");
-    expect(screen.getByRole("button", { name: "実行計画 1" })).toBeTruthy();
+    expect(await screen.findByRole("button", { name: "実行計画 1" })).toBeTruthy();
     expect(document.querySelector(".plan-closed")).toBeNull();
     expect([...document.querySelectorAll(".card .plan-tag")].map((t) => t.textContent)).toEqual([
       "p2",

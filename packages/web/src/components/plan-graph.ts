@@ -131,3 +131,48 @@ export function planGraph(plan: PlanRow, byId: ReadonlyMap<string, Ticket>): Pla
   );
   return { nodes, edges, layers: counts.length, rows: Math.max(0, ...counts) };
 }
+
+/** 畳んだ行の「次」：着手できる先頭のチケット、待ちの相手、承認待ちのどれか */
+export type PlanNext =
+  | { kind: "ready"; id: string }
+  | { kind: "blocked"; waitFor: string[] }
+  | { kind: "approval" };
+
+export interface PlanProgressLine {
+  /** in_progress のチケット（依存グラフの段・段の中の位置の順） */
+  working: string[];
+  /** 出すものがなければ null（終わった Plan、todo の残らない Plan） */
+  next: PlanNext | null;
+}
+
+/**
+ * 畳んだ行に出す作業中と次。順は依存グラフの段・段の中の位置。選んだ Iteration の外のチケットも、Plan に入っていれば数える（Plan 全体の進み）。
+ * 承認待ちは次の代わりに承認待ち。着手できるのは todo で、Plan の中の待ち（after）と depends_on（WF-2 の deps_done と同じく、消えたものは待つ）がすべて終わったもの。
+ * なければ先頭の todo が待つ相手（after と depends_on の終わっていないもの）を出す。閉じた・完了の Plan は何も出さない
+ */
+export function planProgressLine(
+  plan: PlanRow,
+  state: PlanState,
+  byId: ReadonlyMap<string, Ticket>,
+): PlanProgressLine {
+  if (state === "closed" || state === "finished") return { working: [], next: null };
+  const graph = planGraph(plan, byId);
+  const ordered = [...graph.nodes].sort((a, b) => a.layer - b.layer || a.row - b.row);
+  const working = ordered.filter((n) => n.status === "in_progress").map((n) => n.id);
+  if (state === "pending") return { working, next: { kind: "approval" } };
+  const openDeps = (id: string) =>
+    (byId.get(id)?.depends_on ?? []).filter((dep) => {
+      const status = statusOf(dep, byId);
+      return status === undefined || !FINISHED.has(status);
+    });
+  const todo = ordered.filter((n) => n.status === "todo");
+  const ready = todo.find((n) => !n.waiting && openDeps(n.id).length === 0);
+  if (ready) return { working, next: { kind: "ready", id: ready.id } };
+  const first = todo[0];
+  if (!first) return { working, next: null };
+  const waitFor = new Set(
+    graph.edges.filter((e) => e.to === first.id && !e.done).map((e) => e.from),
+  );
+  for (const dep of openDeps(first.id)) waitFor.add(dep);
+  return { working, next: { kind: "blocked", waitFor: [...waitFor] } };
+}

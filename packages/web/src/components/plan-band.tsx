@@ -1,4 +1,4 @@
-// カンバンの上の「実行計画」の帯。表示だけで書き込まない。畳めば Plan ごとに 1 行、開けば Plan ごとに依存グラフを出す。
+// カンバンの上の「実行計画」の帯。表示だけで書き込まない。畳めば Plan ごとに進みの行と作業中・次の行、開けば Plan ごとに依存グラフを出す。
 // サイドバーでは、待ちの辺のない Plan をグラフにせず、チケットのチップを横に折り返して出す（ID だけの箱が縦に積まれて場所を取るので）
 
 import { useMemo, useState } from "react";
@@ -10,8 +10,10 @@ import {
   PLAN_STATE_LABELS,
   planColor,
   planGraph,
+  planProgressLine,
   plansInScope,
   type GraphNode,
+  type PlanNext,
   type PlanState,
 } from "./plan-graph.js";
 
@@ -33,7 +35,7 @@ export function PlanBand({ scope }: { scope: readonly Ticket[] }) {
         aria-expanded={expanded}
         onClick={() => setExpanded(!expanded)}
       >
-        実行計画 <span className="muted">{open.length}</span>
+        実行計画 <span className="plan-band-count">{open.length}</span>
       </button>
       {open.map(({ plan, state }) => (
         <Item key={plan.id} plan={plan} state={state} byId={byId} />
@@ -58,14 +60,60 @@ interface ItemProps {
   byId: ReadonlyMap<string, Ticket>;
 }
 
-/** 畳んだときの 1 行：色の線・ID・状態・進捗 */
-function PlanLine({ plan, state }: ItemProps) {
+/** 畳んだときの行：色の線・ID・状態・進捗の 1 行と、その下に作業中（あれば）と次 */
+function PlanLine({ plan, state, byId }: ItemProps) {
+  const { working, next } = planProgressLine(plan, state, byId);
   return (
-    <div className={`plan-line plan-color-${planColor(plan.id)}`}>
-      <code>{plan.id}</code>
-      <span className={`plan-state plan-state-${state}`}>{PLAN_STATE_LABELS[state]}</span>
-      <ProgressBar progress={plan.progress} />
+    <div className={`plan-item plan-color-${planColor(plan.id)}`}>
+      <div className="plan-line">
+        <code>{plan.id}</code>
+        <span className={`plan-state plan-state-${state}`}>{PLAN_STATE_LABELS[state]}</span>
+        <ProgressBar progress={plan.progress} />
+      </div>
+      {working.length > 0 ? (
+        <div className="plan-sub plan-working">
+          <span className="plan-sub-label">作業中</span>
+          <span className="plan-sub-ids">
+            {working.map((id) => (
+              <TicketLink key={id} id={id}>
+                <code title={byId.get(id)?.title}>{id}</code>
+              </TicketLink>
+            ))}
+          </span>
+        </div>
+      ) : null}
+      {next ? (
+        <div className="plan-sub plan-next">
+          <span className="plan-sub-label">次</span>
+          <PlanNextText next={next} byId={byId} />
+        </div>
+      ) : null}
     </div>
+  );
+}
+
+function PlanNextText({ next, byId }: { next: PlanNext; byId: ReadonlyMap<string, Ticket> }) {
+  if (next.kind === "approval") return <span className="muted">人の承認を待っている</span>;
+  if (next.kind === "blocked") {
+    return (
+      <span className="plan-sub-ids muted">
+        {next.waitFor.map((id) => (
+          <TicketLink key={id} id={id}>
+            <code title={byId.get(id)?.title}>{id}</code>
+          </TicketLink>
+        ))}
+        <span>の完了待ち</span>
+      </span>
+    );
+  }
+  const title = byId.get(next.id)?.title ?? "";
+  return (
+    <TicketLink id={next.id} className="plan-next-ticket">
+      <code>{next.id}</code>
+      <span className="plan-next-title" title={title}>
+        {title}
+      </span>
+    </TicketLink>
   );
 }
 
