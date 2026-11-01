@@ -11,7 +11,7 @@ after:
     - t139
   t141:
     - t139
-pending_approval: true
+pending_approval: false
 details:
   t136:
     scope: VS Code の「画面を開く」をなくし、パネルは詳細だけにする。パネルの Epic 詳細は一覧にし、戻るリンクを出さない。UI-10・UI-12・ADR-006 を直す
@@ -37,3 +37,5 @@ details:
   t143:
     scope: 左パネルとパネルを開いてから描くまでの待ちを測り、前回の一覧の即時描画と骨組みを足す
     approach: 先に store.tsx の読み込みの内訳を測り、結果を PR に書いてから ui-state のキャッシュを足す
+approved_by: eiki.kitajima/agent
+approved_at: 2026-11-01T11:17:04Z
