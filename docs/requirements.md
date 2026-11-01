@@ -285,8 +285,8 @@ Web UI は `dg serve` が配信し、VS Code 拡張は同じ React アプリを 
 - AG-3 エージェントは要件の整理が終わったら、必要に応じてチケット化を提案し、承認を得て `ticket import` で起票する。分解・Epic への束ね・依存の整理・Iteration への割り当ても提案して承認を得る
 - AG-4 MCP サーバー（`dg mcp`。stdio）は Core のコマンド定義から生成する薄い層として提供する。CLI と同じ操作ができ（`init` と CLI だけの `guide`・`skill`・`serve`・`open` を除く）、ツールの結果は `--json` と同じ形（CL-1）で、主体は常に agent（`<ユーザ>/agent`）
 - AG-5 Agent Adapter が、エージェントの起動方法・使用量の取得・権限・作業ディレクトリの差を吸収する。Core は特定の AI 製品を知らない（予定 `e3`）
-- AG-6 ソフトウェア開発向けの Action（worktree・ブランチ・テスト・PR 作成・マージ）は Core の `actions` に置き、汎用部分は依存しない。`dg` のコマンドにせず、ライブラリとして名前で呼ぶ（[ADR-007](adr/ADR-007-architecture.md)）
-- AG-7 任意のシェルの Action は `actions.shell: true` のときだけ使え、実行のたびに確認を経る
+- AG-6 ソフトウェア開発向けの Action（worktree・ブランチ・テスト・PR 作成・マージ）は Core の `actions` に置き、汎用部分は依存しない。`dg` のコマンドにしないライブラリ（[ADR-007](adr/ADR-007-architecture.md)）
+- AG-7 任意のシェルの Action は `actions.shell: true` のときだけ使え、毎回確認を経る
 
 ### 6.6 作業の実績（予定 `e3`）
 
