@@ -1,0 +1,4 @@
+# dg のマージドライバ（frontmatter をフィールド単位でマージする）
+tickets/*.md merge=deguboard
+tickets/deleted/*.md merge=deguboard
+epics/*.md merge=deguboard
