@@ -30,7 +30,7 @@ Git-native な AI ワークフロー・チケット管理ツール。CLI は `dg
 
 ## コードの規約
 
-- `packages/core` は VS Code API・HTTP・React に依存させない。`server`・`vscode` は `core` だけに依存し、`cli` は `dg serve` のために `server` にも依存する（[ADR-007](docs/adr/ADR-007-architecture.md)）
+- `packages/core` は VS Code API・HTTP・React に依存させない。`server`・`vscode` は `core` だけに依存し、`cli` は `dg serve` と `dg mcp` のために `server` にも依存する（[ADR-007](docs/adr/ADR-007-architecture.md)）
 - すべての操作は `packages/core/src/commands/` のコマンド定義に置き、CLI・HTTP・Webview はそれを写す。入口にロジックを書かない
 - git・gh は `child_process.execFile` で引数配列として呼ぶ。シェルを経由しない
 - Git 操作のテストは、一時ディレクトリに作った bare リモート付きのリポジトリで行う

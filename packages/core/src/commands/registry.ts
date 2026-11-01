@@ -1,4 +1,4 @@
-// すべてのコマンド。入口（CLI・HTTP・Webview）はこの配列を写す
+// すべてのコマンド。入口（CLI・HTTP・Webview・MCP）はこの配列を写す
 
 import type { AnyCommand } from "./define.js";
 import { epicCommands } from "./epic.js";

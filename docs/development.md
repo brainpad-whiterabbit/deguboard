@@ -71,13 +71,13 @@ mise run dg -- guide finish    # マージ後の後始末
 
 ドメインモデル・ストレージ・Git 操作・ワークフロー・コマンド定義。`src/` のモジュール：
 
-| モジュール  | 役割                                                                                                                                  |
-| ----------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `model/`    | Zod のスキーマ（config・Project・Ticket・Epic・Iteration・Plan・Workflow）、ID の解析と採番、Status と前進の順                        |
-| `storage/`  | frontmatter と YAML の読み書き（コメントとキー順を保つ）、原子的書き込み、`Store`（起動時に走査してメモリ上に索引を作る）、参照の整合 |
-| `workflow/` | 遷移の制約の合成と検査、条件の評価、`reconcile` の評価、定義の検証、同梱テンプレート                                                  |
-| `git/`      | `execFile` で git・gh を呼ぶ、deguboard worktree の用意、取り込みと push、書き込みの 1 単位 `withWrite`、仮番号の振り直し、事実の収集 |
-| `commands/` | 3 つの入口の正本。`defineCommand` で「名前・Zod の入力・実装」を組にし、`openContext` と `runCommand` で呼ぶ                          |
+| モジュール  | 役割                                                                                                                                                                                    |
+| ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `model/`    | Zod のスキーマ（config・Project・Ticket・Epic・Iteration・Plan・Workflow）、ID の解析と採番、Status と前進の順                                                                          |
+| `storage/`  | frontmatter と YAML の読み書き（コメントとキー順を保つ）、原子的書き込み、`Store`（起動時に走査してメモリ上に索引を作る）、参照の整合                                                   |
+| `workflow/` | 遷移の制約の合成と検査、条件の評価、`reconcile` の評価、定義の検証、同梱テンプレート                                                                                                    |
+| `git/`      | `execFile` で git・gh を呼ぶ、deguboard worktree の用意、取り込みと push、書き込みの 1 単位 `withWrite`、仮番号の振り直し、事実の収集、frontmatter のマージドライバ（`merge.ts`。SY-4） |
+| `commands/` | 3 つの入口の正本。`defineCommand` で「名前・Zod の入力・実装」を組にし、`openContext` と `runCommand` で呼ぶ                                                                            |
 
 入口がコマンドを呼ぶ流れ：`openContext({ cwd, actor })` → `runCommand(findCommand("ticket.create"), ctx, input)`。入力の形の誤りは `UsageError`（終了コード 2）、実行時の失敗は `OperationError`（終了コード 1、`code` に種類）。
 
@@ -85,15 +85,17 @@ mise run dg -- guide finish    # マージ後の後始末
 
 core の `commands` を commander に写す。ロジックは持たない。`src/` のファイル：
 
-| ファイル     | 役割                                                                                                                                 |
-| ------------ | ------------------------------------------------------------------------------------------------------------------------------------ |
-| `program.ts` | `commands` から `dg <群> <操作>` の木を組み立てる。`setup` 群（init・sync・commit・validate・lint）はトップレベル。`sprint` は alias |
-| `options.ts` | Zod の入力スキーマから位置引数とオプションを作り、解析した引数を入力オブジェクトに戻す。型ごとの対応は冒頭のコメントが正本           |
-| `output.ts`  | 人向けの出力（list は表、show は `key: value` と本文）と `--json`（`{ ok, data, warnings, write }` / `{ ok: false, error }`）        |
-| `errors.ts`  | `DeguboardError` と commander のエラーを stderr と終了コード（0 / 1 / 2）に写す                                                      |
-| `guide.ts`   | `dg guide <topic>`。隣の `guide-*.md`（手順の正本。CL-5）を読み、`{{git.base_branch}}` のような項目を config の値で埋めて出す        |
+| ファイル     | 役割                                                                                                                                         |
+| ------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `program.ts` | `commands` から `dg <群> <操作>` の木を組み立てる。`setup` 群（init・sync・commit・validate・lint）はトップレベル。`sprint` は alias         |
+| `options.ts` | Zod の入力スキーマから位置引数とオプションを作り、解析した引数を入力オブジェクトに戻す。型ごとの対応は冒頭のコメントが正本                   |
+| `output.ts`  | 人向けの出力（list は表、show は `key: value` と本文）と `--json`（`{ ok, data, warnings, write }` / `{ ok: false, error }`）                |
+| `errors.ts`  | `DeguboardError` と commander のエラーを stderr と終了コード（0 / 1 / 2）に写す                                                              |
+| `mcp.ts`     | `dg mcp`。`createLocalClient` を主体 agent で開き、コマンドを MCP のツールに写す。入力スキーマは `server` の `describeCommands`              |
+| `skill.ts`   | `dg skill install`。隣の `skill.md`（`dg guide` を読む薄い Skill）を `.claude/skills/deguboard/`（`--personal` で `~/.claude/skills`）に書く |
+| `guide.ts`   | `dg guide <topic>`。隣の `guide-*.md`（手順の正本。CL-5）を読み、`{{git.base_branch}}` のような項目を config の値で埋めて出す                |
 
-グローバルオプションは `dg --help` が正本。`dg serve` / `dg open`（`serve.ts`）は `@deguboard/server` を起動する・ブラウザで開くだけ。`guide-*.md` はビルドで `dist/` に、web の `dist` は `packages/cli/web` に写す（ルートの `build`）。トピックを足すときは `guide.ts` の `GUIDE_TOPICS` と `guide-overview.md` の表も直す。
+グローバルオプションは `dg --help` が正本。`dg serve` / `dg open`（`serve.ts`）は `@deguboard/server` を起動する・ブラウザで開くだけ。`guide-*.md` と `skill.md` はビルドで `dist/` に、web の `dist` は `packages/cli/web` に写す（ルートの `build`）。トピックを足すときは `guide.ts` の `GUIDE_TOPICS` と、`guide-overview.md`・`skill.md` の表も直す。
 
 ### `packages/server`（`@deguboard/server`）
 
@@ -108,16 +110,19 @@ core の `commands` を HTTP に写す。Node 標準の `node:http` で、フレ
 
 画面の React アプリ。構成の判断は [ADR-008](adr/ADR-008-tech-stack.md)。core からは型と `CommandClient`（`core/commands/client.ts`）だけを取り込み、実行時のコードは取り込まない（`import type` だけ。Vite が node のモジュールを束ねないため）。`src/` のファイル：
 
-| ファイル            | 役割                                                                                                                  |
-| ------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `client/http.ts`    | `CommandClient` の HTTP 実装。`/api/commands/<name>` と `/api/status` を呼び、失敗は `ClientError`（code と message） |
-| `client/webview.ts` | postMessage 実装。形は core の `WebviewRequest` / `WebviewResponse` / `WebviewEvent`                                  |
-| `host.tsx`          | `surface` と、チケットをエディタで開く働きかけ。拡張ホストからの通知（同期・遷移）を store に結ぶ                     |
-| `store.tsx`         | 選んだ Project のチケット・Epic・Iteration・Workflow と同期の状態を読み、書き込み（`run`）のあとに読み直す            |
-| `router.ts`         | ハッシュの解析（`#/board?epic=e1`、`#/tickets/t12` など）                                                             |
-| `pages/`            | カンバン（UI-2）・バックログ（UI-3）・チケット詳細（UI-4）・Epic（UI-10）・Iteration（UI-5）                          |
-| `markdown.tsx`      | 本文の最小の Markdown（見出し・段落・箇条書き・チェックリスト・インラインコード）                                     |
-| `styles.css`        | `--vscode-*` 変数を基準にしたテーマ。`:root` の値はブラウザで開いたときの既定で、Webview では VS Code の値が勝つ      |
+| ファイル            | 役割                                                                                                                       |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `client/http.ts`    | `CommandClient` の HTTP 実装。`/api/commands/<name>` と `/api/status` を呼び、失敗は `ClientError`（code と message）      |
+| `client/webview.ts` | postMessage 実装。形は core の `WebviewRequest` / `WebviewResponse` / `WebviewEvent`                                       |
+| `app.tsx`           | 骨組み。上のバー（Project と画面の切り替え・同期の印）と、ハッシュで選んだページ                                           |
+| `host.tsx`          | `surface` と、チケットをエディタで開く働きかけ。拡張ホストからの通知（同期・遷移）を store に結ぶ                          |
+| `store.tsx`         | 選んだ Project のチケット・Epic・Iteration・Workflow と同期の状態を読み、書き込み（`run`）のあとに読み直す                 |
+| `router.ts`         | ハッシュの解析（`#/board?epic=e1`、`#/tickets/t12` など）                                                                  |
+| `pages/`            | カンバン（UI-2）・バックログ（UI-3）・チケット詳細（UI-4）・Epic（UI-10）・Iteration と閉じた Iteration の履歴（UI-5）     |
+| `components/`       | 小さな表示部品（チケットへのリンク、優先度・Status の印、ラベル、進捗）                                                    |
+| `ui-state.ts`       | 見た目の状態（節の開閉・最後に選んだ Iteration）。Webview では `getState` / `setState`、ブラウザでは `localStorage` に置く |
+| `markdown.tsx`      | 本文の最小の Markdown（見出し・段落・箇条書き・チェックリスト・インラインコード）                                          |
+| `styles.css`        | `--vscode-*` 変数を基準にしたテーマ。`:root` の値はブラウザで開いたときの既定で、Webview では VS Code の値が勝つ           |
 
 型検査は `tsconfig.json` を別に持つ（DOM と JSX が要るため）。ビルドは Vite で `dist/` に出し、`dg serve` は cli に写した `web/` を配信する（`cli/program.ts` の `webDist`）。テストは `// @vitest-environment jsdom` を付け、`test-helpers.ts` の `mockClient` で `CommandClient` を差し替える。
 
