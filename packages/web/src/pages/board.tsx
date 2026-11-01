@@ -160,13 +160,11 @@ export function BoardPage({ query }: { query: BoardQuery }) {
               defaultOpen={status !== "done"}
             />
           ))}
-        </div>
-        {/* 中止は切り替えではなく、あるときだけ最後に畳んで置く。広い画面では列の下に全幅で */}
-        {abandoned.length > 0 ? (
-          <div className="board-abandoned">
+          {/* 中止は切り替えではなく、あるときだけ最後の列（サイドバーでは最後の節）に畳んで置く */}
+          {abandoned.length > 0 ? (
             <Column status="abandoned" tickets={abandoned} defaultOpen={false} />
-          </div>
-        ) : null}
+          ) : null}
+        </div>
       </DndContext>
     </section>
   );

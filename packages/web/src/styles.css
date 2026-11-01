@@ -387,16 +387,9 @@ h3 {
   flex-direction: column;
   gap: 0.5rem;
 }
-/* 中止の節は列の下に全幅で置き、開くとカードを横に並べる */
-.board-abandoned {
-  margin-top: 0.75rem;
-}
-.board-abandoned .cards {
-  flex-direction: row;
-  flex-wrap: wrap;
-}
-.board-abandoned .card {
-  flex: 0 1 240px;
+/* 中止の列は畳んでいる間は見出しの幅だけにし、ほかの 4 列を狭めない。開けばほかと同じ幅 */
+.board:has(> .column[data-status="abandoned"]:not([open])) {
+  grid-template-columns: repeat(4, minmax(220px, 1fr)) max-content;
 }
 
 /* Iteration の表（カンバンの上。KanbanForge の SB-2） */
@@ -879,9 +872,6 @@ textarea.body {
 [data-surface="sidebar"] .board-filters label select {
   flex: 1;
   min-width: 0;
-}
-[data-surface="sidebar"] .board-abandoned {
-  margin-top: 0.25rem;
 }
 [data-surface="sidebar"] .column {
   background: transparent;

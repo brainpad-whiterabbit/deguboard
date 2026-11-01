@@ -49,12 +49,20 @@ describe("画面", () => {
     expect(screen.getByText("3 件")).toBeTruthy();
   });
 
-  it("中止のチケットがあるときだけ、畳んだ「中止」の節を最後に出す", async () => {
+  it("中止のチケットがあるときだけ、畳んだ「中止」の列を完了の右（最後）に出す", async () => {
     const client = mockClient();
     client.data.tickets.push(ticket({ id: "t9", title: "やめた", status: "abandoned" }));
     mount(client);
     await screen.findByText("ログイン");
-    const section = document.querySelector<HTMLDetailsElement>(".board-abandoned details")!;
+    const columns = [...document.querySelectorAll<HTMLDetailsElement>(".board > details.column")];
+    expect(columns.map((c) => c.dataset.status)).toEqual([
+      "todo",
+      "in_progress",
+      "review",
+      "done",
+      "abandoned",
+    ]);
+    const section = columns.at(-1)!;
     expect(section.open).toBe(false);
     expect(section.querySelector("h2")!.textContent).toBe("Abandoned1");
     expect(screen.getByText("3 件")).toBeTruthy();

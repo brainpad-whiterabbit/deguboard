@@ -22,7 +22,7 @@
 - ドラッグ＆ドロップでのステータス変更、属性の編集、イテレーションへの割り当てなどを UI から行える
 - 書き込みは必ず Core の同じコマンド（`core/commands`）を通る。`transitions` の制約の検査、採番、検証は CLI と同じ経路で行われ、UI だけの近道を作らない
 - カンバンは KanbanForge のサイドバーと同じ 3 層（Iteration の表 → 選んだ Iteration の見出し → 状態ごとの節）にし、Iteration の一覧の画面は置かない。planned・active は表で、closed は履歴で見るので一覧の役目がなく、タブを増やさずに済む。Iteration を使わない Project では表を出さず、全チケットのカンバンにする
-- カンバンの列は 5 つの Status に固定し（abandoned は畳んだ節）、表示名はワークフロー定義の `labels`、表示項目は `fields` に追従する
+- カンバンの列は 5 つの Status に固定し（abandoned は最後の畳んだ列）、表示名はワークフロー定義の `labels`、表示項目は `fields` に追従する
 - 画面からの操作の主体は常に human（画面に `--actor` はない）。エージェントは CLI から agent を名乗る（[ADR-004](ADR-004-agents-and-state.md)）
 
 ### コミットの単位は設定で選ぶ
