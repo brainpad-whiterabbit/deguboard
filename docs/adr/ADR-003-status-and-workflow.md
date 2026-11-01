@@ -29,7 +29,7 @@ deguboard はソフトウェア開発だけでなく、コンサルティング�
 - 既定では 5 つの Status の間のどの遷移も、human / agent / reconcile の誰でも条件なしで行える。Core が固定するのは Status の集合と前進の順、同じ Status への move の拒否、`abandoned` と todo に入るときの副作用（`assignee` と `branch` を消す）だけ
 - Workflow の `transitions` は from → to ごとに制約を足す。`by` は行える主体（省略なら誰でも、`[]` ならその遷移を禁止）、`requires` は満たすべき組み込みの条件（AND）。書き方の例は requirements の 5.8
 - 照合（reconcile）は遷移の制約とは別の仕様。前進の順に進めるだけで、`abandoned` と `done` には触れず、そこからも動かさない。`by` に `reconcile` を含まない遷移は照合でも止まる
-- Epic と Iteration を閉じる・再開するのは Workflow の外で、既定では誰でも行える。人に限るなら config の `actor.human_only` にコマンド名を書く。再開で戻すのは状態だけで、閉じたときに外した持ち越しのチケットは記録しないので戻さない（IT-1）
+- Epic と Iteration を閉じる・再開するのは Workflow の外で、既定では誰でも行える。人に限るなら config の `actor.human_only` にコマンド名を書く。Iteration の再開は active に戻す（planned と active のどちらから閉じたかは記録しない）。閉じたときに外した持ち越しのチケットは記録しないので戻さない（IT-1）
 
 ### Workflow YAML は制約と語彙を書く
 

@@ -11,7 +11,7 @@
 
 ### 置き場所：orphan ブランチ `deguboard`
 
-- データは orphan ブランチ `deguboard` に置き、`<git-common-dir>/deguboard/` に専用の worktree として checkout する。すべての読み書きはここで行う
+- データは orphan ブランチ `deguboard` に置き、`<git-common-dir>/deguboard/` に専用の worktree として checkout し、読み書きはすべてここで行う
 - 作業ブランチや作業 worktree にはデータを置かない
 - ブランチは保護せず、`dg` が直接 commit・push する
 - Git 管理外のもの（ローカルロックなど）は `<git-common-dir>/deguboard-local/` に置く。索引はファイルにせずメモリ上に持つ（[ADR-007](ADR-007-architecture.md)）
@@ -40,13 +40,13 @@
 - 番号はプロジェクトをまたいでリポジトリ全体で一意。採番は「既存と墓標の最大 + 1」
 - **作成は fetch → 採番 → commit → push を 1 単位**にする。push が拒否されたら取り込み直して採番し直す（複数件の import も同じ 1 単位）。同じパスの add/add で衝突を検出できる
 - オフラインで push できないときは `provisional: true` を付けてローカルに commit する。次の `dg sync` で衝突があれば、番号・ファイル名・未 push のコミット内の参照（他チケットの `depends_on`、Plan）を振り直してから push する
-- 作業ブランチ名と PR は claim（push 成功が条件。[ADR-004](ADR-004-agents-and-state.md)）の後に作るので、仮番号がブランチ名に入ることはない
-- Run の ID は採番せず `r`＋開始日時（UTC）＋16 進 4 桁の乱数にする（`r20261031-041500-3fa2`）。辞書順が開始の順になる
+- 作業ブランチ名と PR は claim（[ADR-004](ADR-004-agents-and-state.md)）の後に作るので、仮番号がブランチ名に入ることはない
+- Run の ID は採番せず `r`＋開始日時（UTC）＋16 進 4 桁の乱数にする。辞書順が開始の順になる
 
 ### 同期の競合：frontmatter をフィールド単位でマージする
 
 - 取り込みは rebase で行い、チケット・墓標・Epic の Markdown に git のマージドライバ `deguboard`（`dg merge-driver`）を当てる。規則の正本は core の `git/merge.ts`
-- frontmatter はフィールドごとに 3-way で決め、片側だけ変えた値を採る。`updated_at` は両側が変えても新しい方を採る。両側が違う値に変えたフィールドと、本文の同じ行のぶつかりだけを競合にする。仮番号の add/add は行単位のマージに任せ、振り直し（DT-5）の検出を変えない
+- frontmatter はフィールドごとに 3-way で決め、片側だけ変えた値を採る。配列は要素ごとにマージせず 1 つの値として比べる。`updated_at` は両側が変えても新しい方を採る。両側が違う値に変えたフィールドと、本文の同じ行のぶつかりだけを競合にする。仮番号の add/add は行単位のマージに任せ、振り直し（DT-5）の検出を変えない
 - 競合ならドライバが非 0 で終わり、rebase を中止してローカルのコミットを残し、`dg sync` が報告する
 - 登録：`dg init` と `dg sync` が、git config にいま動いている node と `bin/dg.js` の絶対パスでドライバを書き、deguboard ブランチに `.gitattributes` をコミットする。リモートにまだない間は `deguboard-local/` の属性ファイルを rebase に渡して補う
 - VS Code 拡張は自分の `dg` を持たないので登録せず、CLI が登録した config を使う。ドライバが動かなければ競合として報告され、次の CLI の `dg sync` で登録し直す

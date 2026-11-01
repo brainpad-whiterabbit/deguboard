@@ -43,6 +43,7 @@ Core の中は責務ごとのモジュール（`model`・`storage`・`git`・`wo
 ### Action の呼び方
 
 - Action は「名前・Zod の入力スキーマ・設定による可否・確認の要否・実行関数」の組で、`core/actions` に置く。1 つの実行関数が入力の検証 → 設定の検査 → 確認 → 実行の順を 1 か所で守る
+- Core の汎用部分は actions に依存しない（AG-6。検出は `.oxlintrc.json`）
 - Workflow の `steps` は Action を名前（文字列）で持ち、名前の検証は入口が名前の一覧を渡して行う（ADR-003）
 - `dg` のコマンド・MCP のツール・画面には出さず、core の公開も `ACTION_NAMES` だけにする。エージェントは `dg guide` の手順に従って git・gh・テストを自分で呼ぶ（EX-1）
 - git に渡すブランチ名は先頭の `-` を拒み、位置引数の前に `--` を置く。オプションの注入で `actions.shell` を回り込ませないため

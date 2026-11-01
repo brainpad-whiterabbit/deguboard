@@ -13,14 +13,14 @@ AI エージェント（Claude Code・Codex など）がチケットを処理す
 
 - `dg`・サーバー・VS Code 拡張は、チケットの作業のためにエージェントを起動しない。実行中のプロセスも監視しない
 - エージェントは Bash から `dg … --json --actor agent` を呼んでチケットを読み書きし、データのファイルを直接編集しない。手順は `dg guide <topic>` が出す
-- human と agent の区別は申告（`--actor`・`DEGUBOARD_ACTOR`）に基づく。Skill と guide の手順が必ず agent を名乗ることで、Workflow が `by: [human]` で人に限った遷移をエージェントから遠ざける。権限管理や偽装の防止はしない（同じリポジトリに書ける人を信頼する）
+- human と agent の区別は申告（AG-1）に基づく。Skill と guide の手順が必ず agent を名乗ることで、Workflow が `by: [human]` で人に限った遷移をエージェントから遠ざける。権限管理や偽装の防止はしない（同じリポジトリに書ける人を信頼する）
 - Claude Code 向けには、段階ごとに `dg guide <topic>` を読む薄い Skill を配る。ほかのエージェントは同じ手順に従う。特定の AI 製品に依存する処理は Adapter（[ADR-007](ADR-007-architecture.md)）に閉じる
 
 ### 状態はチケットのブランチの事実で前進させる
 
 - 成果をリポジトリに残すチケットは `branch` を持つ。`dg sync` は、そのブランチについて Git から事実を集め、ワークフローの `reconcile` 規則で状態を導き、今より先のときだけ書き換える
-- 事実は Git だけで取れるもの（ブランチがあるか・push したか・base にマージされたか）を基本にする。定義は requirements の ST-5 と WF-2
-- commit のないブランチは base が進むと先端が真の祖先になり、グラフだけでは ff マージ後のブランチと区別できない（claim 直後のチケットが done になった）。そこで in_progress で push していないブランチは `branch_merged` を偽にする。push せずにローカルで ff マージした形は拾えず、人が `ticket move` で進める
+- 事実は Git だけで取れるもの（ブランチがあるか・push したか・base にマージされたか）を基本にする。定義は core の `git/facts.ts`（名前は WF-2、`branch_merged` の例外は ST-5）
+- commit のないブランチは base が進むと先端が真の祖先になり、グラフだけでは ff マージ後のブランチと区別できない（claim 直後のチケットが誤って done になった）。そこで in_progress で push していないブランチは `branch_merged` を偽にする。push せずにローカルで ff マージした形は拾えず、人が `ticket move` で進める
 - 照合の結果には当てはまった規則の条件を根拠として残し、誤判定の原因を後から追えるようにする
 - PR の事実は `gh` が使えるときだけ取り、ワークフローが任意で使う。`gh` がなくても照合は成り立つ。チケットに `pr` がなければブランチ名で PR を引いて記録する（エージェントが記録し忘れても残る）
 - 後退を指す事実（消えたブランチ・マージされずに閉じた PR）は書き換えずに警告する。取れなかった事実は不明とし、前進の判定では偽と読む（警告しない形は ST-5）
@@ -28,9 +28,9 @@ AI エージェント（Claude Code・Codex など）がチケットを処理す
 
 ### 排他は claim の push で決める
 
-- 着手（todo → in_progress）は `dg ticket claim` で行う。claim は `status`・`assignee`・`branch` のコミットを push できたときに取得とする。拒否されたら取り込み直して判定し直す
+- 着手は `dg ticket claim` で行う。claim は `status`・`assignee`・`branch` のコミットを push できたときに取得とする。拒否されたら取り込み直して判定し直す
 - 同一マシンの Run の二重起動は、Git 管理外のローカルロックで拒む（SY-5）。チーム間の排他には使わない
-- 応答のない claim は人が確かめてから force で解除する。生存監視はしない
+- 応答のない claim は人が確かめてから unclaim の force で解除する。生存監視はしない
 
 ### 主体の ID はユーザ名と種別で、起票者と担当者を分けて記録する
 
