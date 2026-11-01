@@ -99,6 +99,23 @@ describe("HTTP サーバー", () => {
     expect(closed.body.data.closed_at).toBeDefined();
   });
 
+  it("run.list も HTTP に写り、Project で絞って実行時間 duration_seconds を返す", async () => {
+    const f = await fixture();
+    await runCommand(init, await openContext({ cwd: f.cloneA, initialize: {} }), {});
+    const s = await serve(f.cloneA);
+    await post(s, "ticket.create", { title: "A" });
+    const started = await post(s, "run.start", { ticket: "t1", step: "implement", agent: "codex" });
+    const running = await post(s, "run.list", { project: "default" });
+    expect(running.body.data).toMatchObject([
+      { id: started.body.data.id, running: true, duration_seconds: null },
+    ]);
+    await post(s, "run.finish", { run: started.body.data.id, result: "success" });
+    const finished = await post(s, "run.list", { project: "default" });
+    expect(finished.body.data).toMatchObject([{ id: started.body.data.id, running: false }]);
+    expect(typeof finished.body.data[0].duration_seconds).toBe("number");
+    expect((await post(s, "run.list", { project: "other" })).body.data).toEqual([]);
+  });
+
   it("エラーは HTTP の状態に写る：入力の誤り 400、見つからない 404、拒否 409、未知のコマンド 404", async () => {
     const f = await fixture();
     await runCommand(init, await openContext({ cwd: f.cloneA, initialize: {} }), {});

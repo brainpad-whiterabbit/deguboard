@@ -1,5 +1,5 @@
 // Run の実行状況と実績（UI-9）。run.list で実行中と完了した Run を、metrics.show で集計（MT-3）を出す。
-// 集計の単位はハッシュの ?by= に持ち（既定はチケット）、選んだ Project のチケットの Run だけを出す。
+// 集計の単位はハッシュの ?by= に持ち（既定はチケット）、run.list・metrics.show とも選んだ Project で絞って取る。
 // 取れなかった値は 0 と見せず「—」と出し、欠けた Run の数（missing）と推定を含む Run の数（estimated_runs）も出す。
 // 結果・数の書き方はチケット詳細の Run の節と共通（components/run-parts.tsx）。
 // サイドバーでは Run を 1 行ずつの行で出し、集計の表は横にスクロールさせる
@@ -13,7 +13,6 @@ import {
   RESULT_LABELS,
   RunResult,
   RunsScroll,
-  runSeconds,
 } from "../components/run-parts.js";
 import { formatTime } from "../components/timeline.js";
 import { useHost } from "../host.js";
@@ -27,7 +26,6 @@ import {
   type MetricsView,
   type RunMetrics,
   type RunView,
-  type Ticket,
 } from "../types.js";
 
 type ResultKey = keyof RunMetrics["results"];
@@ -57,16 +55,11 @@ export function resultsText(m: RunMetrics): string {
   );
 }
 
-/** 選んだ Project のチケットの Run を、実行中（開始の古い順）と完了（開始の新しい順）に分ける */
-export function splitRuns(
-  runs: readonly RunView[],
-  tickets: readonly Ticket[],
-): { running: RunView[]; finished: RunView[] } {
-  const ids = new Set(tickets.map((t) => t.id));
-  const mine = runs.filter((r) => ids.has(r.ticket));
+/** Run を実行中（開始の古い順）と完了（開始の新しい順）に分ける */
+export function splitRuns(runs: readonly RunView[]): { running: RunView[]; finished: RunView[] } {
   return {
-    running: mine.filter((r) => r.running).sort((a, b) => a.id.localeCompare(b.id)),
-    finished: mine.filter((r) => !r.running).sort((a, b) => b.id.localeCompare(a.id)),
+    running: runs.filter((r) => r.running).sort((a, b) => a.id.localeCompare(b.id)),
+    finished: runs.filter((r) => !r.running).sort((a, b) => b.id.localeCompare(a.id)),
   };
 }
 
@@ -95,7 +88,7 @@ function RunsView({ project, by }: { project: string; by: MetricUnit }) {
     setError(null);
     setMetrics(null);
     Promise.all([
-      store.client.run<RunView[]>("run.list", {}),
+      store.client.run<RunView[]>("run.list", { project }),
       store.client.run<MetricsView>("metrics.show", { project, by }),
     ])
       .then(([list, report]) => {
@@ -111,10 +104,7 @@ function RunsView({ project, by }: { project: string; by: MetricUnit }) {
   }, [store.client, store.tickets, project, by, tick]);
   const reload = useCallback(() => setTick((n) => n + 1), []);
 
-  const { running, finished } = useMemo(
-    () => splitRuns(runs ?? [], store.tickets),
-    [runs, store.tickets],
-  );
+  const { running, finished } = useMemo(() => splitRuns(runs ?? []), [runs]);
 
   return (
     <section className="runs-page">
@@ -187,7 +177,7 @@ function RunTable({ runs, sidebar }: { runs: readonly RunView[]; sidebar: boolea
             <TicketLink id={r.ticket} />
             <span className="row-title">{r.step}</span>
             <small className="muted">
-              {r.running ? formatTime(r.started_at) : formatDuration(runSeconds(r))}
+              {r.running ? formatTime(r.started_at) : formatDuration(r.duration_seconds)}
             </small>
           </li>
         ))}
@@ -219,7 +209,6 @@ function RunTable({ runs, sidebar }: { runs: readonly RunView[]; sidebar: boolea
         <tbody>
           {runs.map((r) => {
             const est = r.usage.estimated === true;
-            const seconds = runSeconds(r);
             return (
               <tr key={r.id}>
                 <td>
@@ -238,7 +227,7 @@ function RunTable({ runs, sidebar }: { runs: readonly RunView[]; sidebar: boolea
                 <td className="nowrap">{formatTime(r.started_at)}</td>
                 {done ? (
                   <>
-                    <Num value={seconds} text={formatDuration(seconds)} />
+                    <Num value={r.duration_seconds} text={formatDuration(r.duration_seconds)} />
                     <Num value={r.usage.input} text={formatTokens(r.usage.input, est)} />
                     <Num value={r.usage.output} text={formatTokens(r.usage.output, est)} />
                   </>

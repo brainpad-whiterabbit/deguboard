@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-li
 import { afterEach, describe, expect, it } from "vitest";
 import { App } from "../app.js";
 import { StoreProvider } from "../store.js";
-import { mockClient, ticket } from "../test-helpers.js";
+import { mockClient } from "../test-helpers.js";
 import type { MetricsView, RunMetrics, RunView } from "../types.js";
 import { formatDuration, formatTokens, runResultLabel } from "../components/run-parts.js";
 import { formatValue, resultsText, splitRuns } from "./runs.js";
@@ -27,6 +27,7 @@ function run(partial: Partial<RunView> & { id: string }): RunView {
     retries: 0,
     usage: { input: null, output: null, cache_read: null, cache_write: null },
     running: false,
+    duration_seconds: null,
     ...partial,
   } as RunView;
 }
@@ -76,15 +77,14 @@ describe("Run の画面の表示", () => {
     ).toBe("—");
   });
 
-  it("選んだ Project のチケットの Run だけを、実行中は古い順・完了は新しい順に分ける", () => {
+  it("Run を実行中は古い順・完了は新しい順に分ける（Project の絞り込みは run.list が行う）", () => {
     const runs = [
       run({ id: "r20261101-000000-aaaa", running: false }),
       run({ id: "r20261101-010000-bbbb", running: true }),
       run({ id: "r20261101-020000-cccc", running: false }),
       run({ id: "r20261101-030000-dddd", running: true }),
-      run({ id: "r20261101-040000-eeee", ticket: "t99", running: false }),
     ];
-    const { running, finished } = splitRuns(runs, [ticket({ id: "t1" })]);
+    const { running, finished } = splitRuns(runs);
     expect(running.map((r) => r.id)).toEqual(["r20261101-010000-bbbb", "r20261101-030000-dddd"]);
     expect(finished.map((r) => r.id)).toEqual(["r20261101-020000-cccc", "r20261101-000000-aaaa"]);
   });
@@ -99,6 +99,7 @@ describe("Run の画面", () => {
         id: "r20261101-000000-bbbb",
         ticket: "t1",
         finished_at: "2026-11-01T00:01:30Z",
+        duration_seconds: 90,
         result: "success",
         usage: { input: 1200, output: null, cache_read: null, cache_write: null },
       }),
@@ -126,9 +127,10 @@ describe("Run の画面", () => {
     return client;
   }
 
-  it("実行中と完了した Run を分けて出し、上のバーに Run のタブがある", async () => {
-    setup();
+  it("選んだ Project で絞った run.list の Run を実行中と完了に分けて出し、時間は返った duration_seconds を出す。上のバーに Run のタブがある", async () => {
+    const client = setup();
     await screen.findByText("r20261101-010000-aaaa");
+    expect(client.calls.find((c) => c.name === "run.list")?.input).toEqual({ project: "default" });
     expect(screen.getByRole("link", { name: "Run" }).getAttribute("aria-current")).toBe("page");
     expect(screen.getByText("実行中 1 ・ 完了 1")).toBeTruthy();
     const [runningTable, , finishedTable] = screen.getAllByRole("table");

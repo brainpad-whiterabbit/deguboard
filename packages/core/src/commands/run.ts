@@ -3,7 +3,8 @@
 
 import { z } from "zod";
 import { agentNames, collectRunUsage } from "../agents/index.js";
-import { toIsoDateTime } from "../model/common.js";
+import { slugSchema, toIsoDateTime } from "../model/common.js";
+import { filterRuns, placeRun, runDurationSeconds, type MetricFilter } from "../model/metrics.js";
 import { OperationError, UsageError } from "../errors.js";
 import { isRunId, RUN_RESULTS, type Run } from "../model/run.js";
 import { finishRun, readRunningRuns, startRun } from "../run/record.js";
@@ -11,8 +12,11 @@ import { findStep } from "../workflow/resolve.js";
 import { defineCommand, ok } from "./define.js";
 import { ticketRef } from "./helpers.js";
 
-/** 一覧の 1 件。running は deguboard-local/runs/ にだけある終わっていない Run */
-export type RunView = Run & { running: boolean };
+/**
+ * 一覧の 1 件。running は deguboard-local/runs/ にだけある終わっていない Run。
+ * duration_seconds は metrics.show の集計と同じ実行時間（終わっていなければ null）
+ */
+export type RunView = Run & { running: boolean; duration_seconds: number | null };
 
 /** 空白・改行を含まない 1 語。step の語彙は run.start がチケットの Workflow の steps（WF-5）で確かめる */
 const token = z.string().regex(/^\S+$/, "空白・改行を含まない 1 語");
@@ -108,9 +112,10 @@ export const runList = defineCommand({
   name: "run.list",
   group: "run",
   summary:
-    "Run を開始の順に出す。終わっていない Run（running: true。このマシンの deguboard-local/runs/）も出す",
+    "Run を開始の順に出す。終わっていない Run（running: true。このマシンの deguboard-local/runs/）も出す。Project はチケットの今の値でたどる（metrics.show と同じ）。duration_seconds は実行時間（終わっていなければ null）",
   input: z.object({
     ticket: ticketRef.optional().describe("このチケットの Run だけ"),
+    project: slugSchema.optional().describe("この Project のチケットの Run だけ"),
     running: z.boolean().optional().describe("終わっていない Run だけ"),
   }),
   write: false,
@@ -118,14 +123,23 @@ export const runList = defineCommand({
   async run(ctx, input) {
     const ticket = input.ticket ? ctx.store.require("ticket", input.ticket).data.id : undefined;
     const local = await readRunningRuns(ctx.repo);
-    const items: RunView[] = [
+    const runs: Array<{ run: Run; running: boolean }> = [
       // runs/ に集計がある実行中の記録（記録を消す前に止まった finish の残り）は readRunningRuns が消す
-      ...local.runs.map((d) => ({ ...d.data, running: true })),
+      ...local.runs.map((d) => ({ run: d.data, running: true })),
       ...(input.running
         ? []
-        : [...ctx.store.runs.values()].map((d) => ({ ...d.data, running: false }))),
-    ]
-      .filter((r) => !ticket || r.ticket === ticket)
+        : [...ctx.store.runs.values()].map((d) => ({ run: d.data, running: false }))),
+    ];
+    const placed = runs.map((r) => ({
+      ...r,
+      at: placeRun(r.run, ctx.store.tickets.get(r.run.ticket)?.data),
+    }));
+    const filter: MetricFilter = {
+      ...(ticket ? { ticket } : {}),
+      ...(input.project ? { project: input.project } : {}),
+    };
+    const items: RunView[] = filterRuns(placed, filter)
+      .map(({ run, running }) => ({ ...run, running, duration_seconds: runDurationSeconds(run) }))
       .sort((a, b) => a.id.localeCompare(b.id));
     const warnings = local.issues.map((i) => `deguboard-local/${i.path}: ${i.message}`);
     return ok(items, undefined, warnings);

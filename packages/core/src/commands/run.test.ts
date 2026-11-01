@@ -9,6 +9,7 @@ import { findCommand } from "./registry.js";
 import { runFinish, runList, runStart, type RunView } from "./run.js";
 import { commit, configSet, init } from "./setup.js";
 import { workflowValidate } from "./workflow.js";
+import { projectCreate } from "./project.js";
 import { ticketCreate } from "./ticket.js";
 import { finishRun } from "../run/record.js";
 import type { Run } from "../model/run.js";
@@ -100,6 +101,30 @@ describe("run", () => {
     // 閉じれば同じ step をまた始められる
     await runCommand(runFinish, ctx, { run: first.id, result: "failure", error: "テストが落ちた" });
     await expect(start(ctx, "t1")).resolves.toMatchObject({ step: "implement" });
+  });
+
+  it("list は Project（チケットの今の値）で絞れ、実行時間 duration_seconds を返す（実行中は null）", async () => {
+    const ctx = await prepared();
+    await runCommand(projectCreate, ctx, { id: "other" });
+    await runCommand(ticketCreate, ctx, { title: "C", project: "other" });
+    const t1 = await start(ctx, "t1");
+    const t3 = await start(ctx, "t3");
+    await finishRun(ctx, t1.id, {
+      result: "success",
+      now: new Date(Date.parse(t1.started_at) + 90_000),
+    });
+    const listed = async (input: Record<string, unknown>) =>
+      (await runCommand(runList, ctx, input)).data as RunView[];
+    expect(
+      (await listed({ project: "default" })).map((r) => [r.id, r.running, r.duration_seconds]),
+    ).toEqual([[t1.id, false, 90]]);
+    expect(
+      (await listed({ project: "other" })).map((r) => [r.id, r.running, r.duration_seconds]),
+    ).toEqual([[t3.id, true, null]]);
+    expect(await listed({ project: "nothing" })).toEqual([]);
+    // ほかの絞り込みと重ねられる
+    expect(await listed({ project: "other", ticket: "t1" })).toEqual([]);
+    expect((await listed({ project: "default", running: true })).map((r) => r.id)).toEqual([]);
   });
 
   it("並行して start しても、同じチケットと step の Run は 1 つしか始まらない", async () => {
