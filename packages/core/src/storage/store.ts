@@ -22,6 +22,7 @@ import {
 import { iterationSchema, type Iteration } from "../model/iteration.js";
 import { planSchema, type Plan } from "../model/plan.js";
 import { projectSchema, type Project } from "../model/project.js";
+import { isRunId, runSchema, type Run, type RunId } from "../model/run.js";
 import { ticketSchema, type Ticket } from "../model/ticket.js";
 import type { WorkflowDefinition } from "../model/workflow.js";
 import type { ResolvedWorkflow } from "../workflow/resolve.js";
@@ -37,6 +38,7 @@ import {
   iterationPath,
   planPath,
   projectPath,
+  runPath,
   ticketPath,
   workflowPath,
 } from "./paths.js";
@@ -93,6 +95,14 @@ const collections = {
     idOf: (f) => idFromFileName(f, "plan"),
     pathOf: planPath,
   } satisfies Collection<Plan>,
+  // 完了時の集計だけ。実行中の詳細ログ（deguboard-local/runs/）は索引に入れない
+  run: {
+    dir: DIRS.runs,
+    format: "json",
+    schema: runSchema,
+    idOf: (f) => (f.endsWith(".json") && isRunId(f.slice(0, -5)) ? f.slice(0, -5) : undefined),
+    pathOf: runPath,
+  } satisfies Collection<Run>,
 };
 
 export type EntityKind = keyof typeof collections;
@@ -109,6 +119,7 @@ export class Store {
   readonly epics = new Map<EpicId, Doc<Epic>>();
   readonly iterations = new Map<IterationId, Doc<Iteration>>();
   readonly plans = new Map<PlanId, Doc<Plan>>();
+  readonly runs = new Map<RunId, Doc<Run>>();
   readonly workflows = new Map<string, WorkflowEntry>();
 
   private constructor(readonly root: string) {}
@@ -130,6 +141,7 @@ export class Store {
       this.readCollection("epic", this.epics),
       this.readCollection("iteration", this.iterations),
       this.readCollection("plan", this.plans),
+      this.readCollection("run", this.runs),
       this.readWorkflows(),
     ]);
   }

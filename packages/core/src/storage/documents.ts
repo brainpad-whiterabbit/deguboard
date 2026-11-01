@@ -1,4 +1,5 @@
-// 1 ファイルの読み書き。読みは Zod で検証し、失敗は Issue にする
+// 1 ファイルの読み書き。読みは Zod で検証し、失敗は Issue にする。
+// JSON（Run）も YAML の Document に載せて、YAML と同じ部分更新で書く
 
 import { readFile } from "node:fs/promises";
 import path from "node:path";
@@ -16,7 +17,7 @@ import {
   type YamlDocument,
 } from "./yaml.js";
 
-export type DocFormat = "markdown" | "yaml";
+export type DocFormat = "markdown" | "yaml" | "json";
 
 /** 読み込んだ 1 ファイル。yaml はコメントとキー順を保つための Document */
 export interface Doc<T> {
@@ -25,7 +26,7 @@ export interface Doc<T> {
   path: string;
   format: DocFormat;
   data: T;
-  /** Markdown の本文。YAML のファイルでは空 */
+  /** Markdown の本文。YAML・JSON のファイルでは空 */
   body: string;
   yaml: YamlDocument;
 }
@@ -56,18 +57,34 @@ export async function readDoc<T extends { id: string }>(
   } catch (error) {
     return fail("read_error", "ファイルを読めない", String(error));
   }
-  let yamlText = text;
+  let doc: YamlDocument;
   let body = "";
-  if (format === "markdown") {
-    const split = splitFrontmatter(text);
-    if (split === undefined) return fail("frontmatter_missing", "先頭に frontmatter（---）がない");
-    if (split === "unterminated")
-      return fail("frontmatter_unterminated", "frontmatter を閉じる --- がない");
-    yamlText = split.yaml;
-    body = split.body;
+  if (format === "json") {
+    let value: unknown;
+    try {
+      value = JSON.parse(text);
+    } catch (error) {
+      return fail("json_error", "JSON を読めない", String(error));
+    }
+    if (typeof value !== "object" || value === null || Array.isArray(value))
+      return fail("json_error", "JSON のオブジェクトでない");
+    doc = newYamlDocument(value as Record<string, unknown>);
+  } else {
+    let yamlText = text;
+    if (format === "markdown") {
+      const split = splitFrontmatter(text);
+      if (split === undefined)
+        return fail("frontmatter_missing", "先頭に frontmatter（---）がない");
+      if (split === "unterminated")
+        return fail("frontmatter_unterminated", "frontmatter を閉じる --- がない");
+      yamlText = split.yaml;
+      body = split.body;
+    }
+    const parsedYaml = parseYamlDocument(yamlText);
+    if (parsedYaml.errors.length > 0)
+      return fail("yaml_error", "YAML を読めない", parsedYaml.errors.join("\n"));
+    doc = parsedYaml.doc;
   }
-  const { doc, errors } = parseYamlDocument(yamlText);
-  if (errors.length > 0) return fail("yaml_error", "YAML を読めない", errors.join("\n"));
   const parsed = schema.safeParse(doc.toJS() ?? {});
   if (!parsed.success)
     return fail("schema_error", "スキーマに合わない", z.prettifyError(parsed.error));
@@ -81,6 +98,7 @@ export async function readDoc<T extends { id: string }>(
 }
 
 function render(format: DocFormat, yaml: YamlDocument, body: string): string {
+  if (format === "json") return `${JSON.stringify(yaml.toJS() ?? {}, null, 2)}\n`;
   const y = stringifyYaml(yaml);
   return format === "markdown" ? joinFrontmatter(y, body) : y;
 }

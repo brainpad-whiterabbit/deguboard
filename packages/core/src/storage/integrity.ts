@@ -1,5 +1,6 @@
-// 参照の整合（存在しない依存先・Epic・Iteration・Project・Workflow）を指摘する。dg validate が使う
+// 参照の整合（存在しない依存先・Epic・Iteration・Project・Workflow・Run のチケット）を指摘する。dg validate が使う
 
+import { idNumber } from "../model/id.js";
 import type { Issue } from "./issue.js";
 import type { Store } from "./store.js";
 
@@ -49,6 +50,12 @@ export function checkReferences(store: Store): Issue[] {
   for (const doc of store.iterations.values()) {
     if (!store.projects.has(doc.data.project))
       push(doc.path, doc.id, "project_missing", `Project ${doc.data.project} がない`);
+  }
+  for (const doc of store.runs.values()) {
+    const t = doc.data.ticket;
+    // 消したチケット（墓標）の Run は実績として残すので指摘しない
+    if (!store.tickets.has(t) && !store.deletedTicketNumbers.has(idNumber(t)))
+      push(doc.path, doc.id, "ticket_missing", `チケット ${t} がない`);
   }
   issues.push(...findDependencyCycles(store));
   return issues;

@@ -19,3 +19,5 @@ export const epicPath = (id: string): string => `${DIRS.epics}/${id}.md`;
 export const iterationPath = (id: string): string => `${DIRS.iterations}/${id}.yaml`;
 export const planPath = (id: string): string => `${DIRS.plans}/${id}.yaml`;
 export const workflowPath = (id: string): string => `${DIRS.workflows}/${id}.yaml`;
+/** Run の完了時の集計 */
+export const runPath = (id: string): string => `${DIRS.runs}/${id}.json`;

@@ -947,6 +947,38 @@ describe("用意", () => {
     });
   });
 
+  it("validate は読めない Run のファイルを指摘し、ほかの読み込みは止めない", async () => {
+    const f = await fixture();
+    const ctx = await initialized(f.cloneA);
+    await runCommand(ticketCreate, ctx, { title: "A", summary: "s", acceptance: ["a"] });
+    const run = {
+      id: "r20261031-041500-3fa2",
+      ticket: "t1",
+      step: "implement",
+      agent: "claude-code",
+      model: null,
+      started_at: "2026-10-31T04:15:00Z",
+      finished_at: "2026-10-31T05:00:00Z",
+      result: "success",
+      error: null,
+      retries: 0,
+      usage: { input: 10, output: null, cache_read: null, cache_write: null, estimated: true },
+    };
+    await mkdir(path.join(ctx.repo.dataDir, "runs"), { recursive: true });
+    await writeFile(
+      path.join(ctx.repo.dataDir, "runs/r20261031-041500-3fa2.json"),
+      JSON.stringify(run),
+    );
+    await writeFile(path.join(ctx.repo.dataDir, "runs/r20261031-041600-0000.json"), "{");
+    const v = await runCommand(validate, ctx, {});
+    expect(v.data.ok).toBe(false);
+    expect(v.data.issues.map((i) => [i.path, i.code])).toEqual([
+      ["runs/r20261031-041600-0000.json", "json_error"],
+    ]);
+    expect(ctx.store.runs.get("r20261031-041500-3fa2")?.data.usage.estimated).toBe(true);
+    expect(ctx.store.tickets.has("t1")).toBe(true);
+  });
+
   it("lint は閉じた Epic に残る終わっていないチケットと、すべて終わったのに開いている Epic・Plan を指摘する", async () => {
     const f = await fixture();
     const ctx = await initialized(f.cloneA);
