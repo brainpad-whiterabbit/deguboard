@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
-// 予算（バイト）。超えたら、細部を正本（ヘルプ・コード・テスト）へ移すか、約束を見直す
+// 予算（バイト）。超えたら失敗、WARN_RATIO を超えたら警告する。どちらも細部を正本（ヘルプ・コード・テスト）へ移すか、約束を見直すきっかけ
 const budgets = [
   ["CLAUDE.md", 6 * 1024],
   ["README.md", 12 * 1024],
@@ -15,15 +15,17 @@ const budgets = [
   ["docs/development.md", 20 * 1024],
 ];
 const adrBudget = 10 * 1024;
+const WARN_RATIO = 0.9;
 
 const errors = [];
+const warnings = [];
 
 for (const [file, limit] of budgets) {
   const size = await sizeOf(file);
   if (size === null) {
     errors.push(`${file}: ファイルがない`);
-  } else if (size > limit) {
-    errors.push(`${file}: ${kb(size)} が予算 ${kb(limit)} を超えている`);
+  } else {
+    checkBudget(file, size, limit);
   }
 }
 
@@ -32,10 +34,7 @@ const adrFiles = (await readdir(adrDir)).filter((f) => /^ADR-\d{3}-.+\.md$/.test
 const numbers = new Map();
 for (const file of adrFiles) {
   const rel = `docs/adr/${file}`;
-  const size = await sizeOf(rel);
-  if (size > adrBudget) {
-    errors.push(`${rel}: ${kb(size)} が予算 ${kb(adrBudget)} を超えている`);
-  }
+  checkBudget(rel, await sizeOf(rel), adrBudget);
   const number = file.slice(0, 7);
   if (numbers.has(number)) {
     errors.push(`${number} が重複している: ${numbers.get(number)} と ${file}`);
@@ -87,6 +86,10 @@ for (const rel of docFiles) {
   }
 }
 
+if (warnings.length > 0) {
+  console.warn(`check:docs の警告（予算の ${WARN_RATIO * 100}% を超えた。失敗にはしない）`);
+  for (const w of warnings) console.warn(`  - ${w}`);
+}
 if (errors.length > 0) {
   console.error("check:docs の指摘");
   for (const e of errors) console.error(`  - ${e}`);
@@ -95,6 +98,15 @@ if (errors.length > 0) {
 console.log(
   `check:docs: 予算内（文書 ${budgets.length} 件、ADR ${adrFiles.length} 件）、リンク ${linkCount} 件に切れなし`,
 );
+
+function checkBudget(rel, size, limit) {
+  const usage = `${kb(size)} / 予算 ${kb(limit)}（${Math.round((size / limit) * 100)}%）`;
+  if (size > limit) {
+    errors.push(`${rel}: ${usage}。予算を超えている`);
+  } else if (size > limit * WARN_RATIO) {
+    warnings.push(`${rel}: ${usage}`);
+  }
+}
 
 async function sizeOf(rel) {
   try {
