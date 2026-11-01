@@ -1139,7 +1139,7 @@ button.danger {
 .ticket-row {
   grid-template-columns: auto auto minmax(0, 1fr) auto auto;
 }
-/* カンバンの行は丸印を出さない：番号・タイトル・担当者・優先度。low は小さな灰色の文字 */
+/* カンバンの行は丸印を出さない：番号・タイトル・担当者・右端（優先度か Plan の番号と待ち）。low は小さな灰色の文字 */
 .ticket-row.kanban-row {
   grid-template-columns: auto minmax(0, 1fr) auto auto;
 }
@@ -1147,6 +1147,47 @@ button.danger {
   font-family: ui-monospace, Menlo, Consolas, monospace;
   font-size: 0.82em;
   color: var(--vscode-descriptionForeground);
+}
+/*
+ * カンバンの行の右端（開いた Plan に入っているチケット）：縦に 2 段で右に揃える。上は Plan の番号を Plan の色で、
+ * 下は着手可（緑系）・待ちの相手と承認待ち（黄系）・優先度の印。段の高さは行の 1 行分（右端が 2 段なので行は 2 行の高さになる）
+ */
+.row-end {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  white-space: nowrap;
+}
+.row-end-top,
+.row-end-sub {
+  line-height: 18px;
+}
+.row-end-top {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+/* Plan の番号は縮めず、下の段（着手可・待ち）だけを小さくする */
+.row-end-sub {
+  font-size: 0.85em;
+}
+.row-end .badge {
+  line-height: 14px;
+}
+.row-end-sub .badge,
+.row-end-sub .row-low {
+  font-size: 1em;
+}
+.row-plan {
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-weight: 600;
+  color: var(--dg-plan);
+}
+.row-ready {
+  color: var(--dg-status-done);
+}
+.row-wait {
+  color: var(--dg-warning);
 }
 /* 担当者は短く出し、長い ID はタイトルより先に省略する（全文はツールチップ） */
 .row-assignee {

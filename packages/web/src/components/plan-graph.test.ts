@@ -82,6 +82,8 @@ describe("依存グラフ", () => {
       ["t3", 1, 0, false],
       ["t4", 2, 0, true],
     ]);
+    // 残っている待ちの相手は終わっていないものだけ（t4 は t2・t3 を待つ。t3 の待ち t1 は done）
+    expect(g.nodes.map((n) => n.waitingOn)).toEqual([[], [], [], ["t2", "t3"]]);
     expect(g.edges).toEqual([
       { from: "t1", to: "t3", done: true },
       { from: "t2", to: "t4", done: false },
