@@ -2,7 +2,7 @@ id: p2
 project: default
 tickets: [t79, t80, t82, t81, t84, t85, t83, t86]
 after: {}
-pending_approval: true
+pending_approval: false
 details:
   t80:
     approach: setup.ts の lint から lint_acceptance_unchecked を消し、sync の警告は残す
@@ -18,3 +18,5 @@ details:
     approach: リリース手順はリポジトリの案内に従い、承認点を明記する
   t86:
     approach: 状態から段階を求める規則を書き、--auto は e4 に起票する
+approved_by: eiki.kitajima/agent
+approved_at: 2026-11-01T04:57:47Z
