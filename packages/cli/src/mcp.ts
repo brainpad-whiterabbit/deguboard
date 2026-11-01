@@ -22,6 +22,8 @@ export interface McpOptions {
   user?: string | undefined;
   version: string;
   commands?: readonly AnyCommand[] | undefined;
+  /** sync の前に登録するマージドライバのコマンド（dg serve と同じ） */
+  mergeDriver?: readonly string[] | undefined;
   /** テスト用：既定は process.stdin / process.stdout */
   stdin?: Readable | undefined;
   stdout?: Writable | undefined;
@@ -60,6 +62,7 @@ export async function serveMcp(options: McpOptions): Promise<void> {
     user: options.user,
     actor: "agent",
     commands: options.commands,
+    mergeDriver: options.mergeDriver,
   });
   const tools = toTools(client.commands);
   const byTool = new Map(client.commands.map((c) => [toolName(c.name), c.name]));

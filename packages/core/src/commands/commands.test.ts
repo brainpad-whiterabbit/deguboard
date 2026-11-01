@@ -91,6 +91,7 @@ describe("init", () => {
     expect(r.data.created).toEqual([
       "config.yaml",
       ".gitignore",
+      ".gitattributes",
       "workflows/software-development.yaml",
       "workflows/consulting.yaml",
       "workflows/general.yaml",

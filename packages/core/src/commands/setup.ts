@@ -7,7 +7,16 @@ import { OperationError } from "../errors.js";
 import { collectBranchFacts } from "../git/facts.js";
 import { withLock } from "../git/lock.js";
 import { renumberProvisional, type Renumbered } from "../git/renumber.js";
-import { commitAll, fetchAll, integrate, isDirty, push, syncStatus } from "../git/sync.js";
+import { ensureGitattributes, ensureMergeDriver } from "../git/merge.js";
+import {
+  commitAll,
+  commitPaths,
+  fetchAll,
+  integrate,
+  isDirty,
+  push,
+  syncStatus,
+} from "../git/sync.js";
 import { flushPending, withWrite } from "../git/write.js";
 import { configSchema } from "../model/config.js";
 import { parseAcceptance, type Ticket } from "../model/ticket.js";
@@ -39,6 +48,7 @@ export const init = defineCommand({
   write: true,
   needs: "repo",
   async run(ctx, input) {
+    await ensureMergeDriver(ctx.repo, ctx.mergeDriver);
     const result = await withWrite(
       ctx,
       async () => {
@@ -58,6 +68,8 @@ export const init = defineCommand({
           await writeFile(ignorePath, "*.tmp\n");
           created.push(".gitignore");
         }
+        // frontmatter のフィールド単位のマージドライバ（SY-4）
+        if (await ensureGitattributes(store.root)) created.push(".gitattributes");
         for (const t of WORKFLOW_TEMPLATES) {
           if (store.workflows.has(t.id)) continue;
           await store.writeWorkflow(
@@ -204,6 +216,10 @@ export const sync = defineCommand({
       const warnings: string[] = [];
       const repo = ctx.repo;
       let flushed = false;
+      // 取り込みの前にマージドライバの登録を揃える（init より前に作ったリポジトリでも効くように。SY-4）
+      await ensureMergeDriver(repo, ctx.mergeDriver);
+      if (await ensureGitattributes(repo.dataDir))
+        await commitPaths(repo, [".gitattributes"], "マージドライバの .gitattributes を置く");
       const dirty = await isDirty(repo);
       if (dirty && ctx.config.commit.mode !== "manual") flushed = await flushPending(ctx);
 

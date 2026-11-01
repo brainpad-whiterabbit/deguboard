@@ -1,5 +1,6 @@
 // 取り込み・push・同期状態（SY-2、SY-4、UI-6）
 
+import { attributesFile } from "./merge.js";
 import type { GitRepo } from "./repo.js";
 import { runGit } from "./run.js";
 import { DATA_BRANCH } from "./worktree.js";
@@ -63,6 +64,8 @@ export async function isDirty(repo: GitRepo): Promise<boolean> {
 
 /**
  * リモートの deguboard に rebase する。競合したら中止してローカルのコミットを残す（SY-4）。
+ * frontmatter の別々のフィールドの変更はマージドライバ（merge.ts）が解く。.gitattributes がまだリモートにない間も効くよう、
+ * deguboard-local/ の属性ファイルを core.attributesFile で渡す。
  * 空のコミットは落とす（--no-keep-empty）：別々に作った orphan の根（空のツリー）を積み直して履歴に割り込ませないため。
  * 根は作成時刻が同じ秒なら同じ SHA になって fast-forward し、違えば別の根になるので、落とさないと結果が時刻に依る
  */
@@ -77,6 +80,8 @@ export async function integrate(
   if (has.code !== 0) return { ok: true, changed: false };
   const before = await headSha(repo);
   const args = [
+    "-c",
+    `core.attributesFile=${attributesFile(repo)}`,
     "rebase",
     "--no-keep-empty",
     ...(opts.autostash ? ["--autostash"] : []),
@@ -111,6 +116,21 @@ export async function push(repo: GitRepo): Promise<PushResult> {
     reason: rejected ? "rejected" : "unreachable",
     detail: (result.stderr || result.stdout).trim(),
   };
+}
+
+/** 指定したパスだけをコミットする（まとめ待ちの他の変更は残す）。コミットしたら true */
+export async function commitPaths(
+  repo: GitRepo,
+  paths: string[],
+  message: string,
+): Promise<boolean> {
+  await git(repo, ["add", "--", ...paths]);
+  const staged = await git(repo, ["diff", "--cached", "--quiet", "--", ...paths], {
+    allowFailure: true,
+  });
+  if (staged.code === 0) return false;
+  await git(repo, ["commit", "--quiet", "--no-verify", "-m", message, "--", ...paths]);
+  return true;
 }
 
 export async function commitAll(repo: GitRepo, message: string): Promise<boolean> {

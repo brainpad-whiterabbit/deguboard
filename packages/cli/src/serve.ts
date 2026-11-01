@@ -11,6 +11,8 @@ export interface ServeDeps {
   resolveCwd: (c: string | undefined) => string;
   /** web のビルド結果。web パッケージができたら既定を入れる */
   staticDir?: string | undefined;
+  /** マージドライバとして登録する、dg を呼ぶ argv の前置 */
+  mergeDriver?: readonly string[] | undefined;
   /** テスト用：ブラウザを開く代わりに呼ぶ */
   openUrl?: ((url: string) => Promise<void>) | undefined;
   /** テスト用：起動後に呼ばれ、戻ったらサーバーを閉じる */
@@ -51,6 +53,7 @@ export function addServeCommands(program: Command, deps: ServeDeps): void {
           host: opts.host,
           port: opts.port,
           staticDir: deps.staticDir,
+          mergeDriver: deps.mergeDriver,
         });
         if (global.json)
           deps.streams.out(

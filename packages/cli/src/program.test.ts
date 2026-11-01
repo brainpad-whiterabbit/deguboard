@@ -1,4 +1,5 @@
-import { writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { commands } from "@deguboard/core";
@@ -331,5 +332,28 @@ describe("dg", () => {
     const help = (await dg(f.cloneA, ["ticket", "update", "--help"])).out;
     expect(help.match(/（none で外す）/g)).toHaveLength(6);
     expect(help).not.toContain("null");
+  });
+
+  it("隠しコマンド merge-driver は frontmatter を 3-way マージして ours に書き、同じフィールドの競合は終了コード 1 にする。--help には出ない", async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), "deguboard-driver-"));
+    cleanups.push(() => rm(dir, { recursive: true, force: true }));
+    const md = (title: string, priority: string) =>
+      `---\nid: t1\ntitle: ${title}\npriority: ${priority}\n---\n本文\n`;
+    const [o, a, b] = ["o", "a", "b"].map((n) => path.join(dir, n)) as [string, string, string];
+    await writeFile(o, md("題", "medium"));
+    await writeFile(a, md("題", "high"));
+    await writeFile(b, md("新しい題", "medium"));
+    const merged = await dg(dir, ["merge-driver", o, a, b, "tickets/t1.md"]);
+    expect(merged.code).toBe(0);
+    expect(await readFile(a, "utf8")).toBe(md("新しい題", "high"));
+
+    await writeFile(a, md("題", "high"));
+    await writeFile(b, md("題", "low"));
+    const clash = await dg(dir, ["merge-driver", o, a, b, "tickets/t1.md"]);
+    expect(clash.code).toBe(1);
+    expect(clash.err).toContain("tickets/t1.md: 両側で違う値に変えた: priority");
+    expect(await readFile(a, "utf8")).toContain("<<<<<<< ours");
+
+    expect((await dg(dir, ["--help"])).out).not.toContain("merge-driver");
   });
 });

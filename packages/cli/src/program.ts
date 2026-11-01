@@ -11,6 +11,7 @@ import {
   commands as allCommands,
   openContext,
   runCommand,
+  runMergeDriver,
   type ActorInfo,
   type AnyCommand,
   type CommandResult,
@@ -37,6 +38,19 @@ function webDist(): string | undefined {
   return existsSync(resolve(dir, "index.html")) ? dir : undefined;
 }
 
+/**
+ * git がマージドライバとして呼ぶ dg のコマンド（argv の前置）。PATH に dg がなくても（npx・mise run・node_modules/.bin）動くよう、
+ * いま動いている node と、このパッケージの bin/dg.js を絶対パスで指す。init と sync のたびに登録し直すので、
+ * npx のキャッシュや worktree が消えてパスが古くなっても次の sync で直る
+ */
+export function selfMergeDriver(): string[] {
+  return [
+    process.execPath,
+    fileURLToPath(new URL("../bin/dg.js", import.meta.url)),
+    "merge-driver",
+  ];
+}
+
 export interface ProgramOptions {
   /** web のビルド結果。省略時は packages/web/dist（なければ API だけ） */
   staticDir?: string | undefined;
@@ -47,6 +61,8 @@ export interface ProgramOptions {
   commands?: readonly AnyCommand[];
   /** dg mcp の標準入出力。既定は process.stdin / process.stdout（テスト用） */
   stdio?: { stdin: Readable; stdout: Writable } | undefined;
+  /** マージドライバとして登録するコマンド。省略時は selfMergeDriver() */
+  mergeDriver?: readonly string[];
 }
 
 const GROUP_SUMMARY: Record<string, string> = {
@@ -139,7 +155,24 @@ export function buildProgram(options: ProgramOptions = {}): Command {
       }
     });
 
+  // git が rebase の中から呼ぶマージドライバ（SY-4）。利用者が打つものではないのでヘルプに出さない。
+  // 文脈（ロック・Store）を開かない：sync がロックを持ったまま rebase するので、開くと待ち合う
+  program
+    .command("merge-driver", { hidden: true })
+    .description("deguboard ブランチのマージドライバ（git が %O %A %B %P で呼ぶ）")
+    .argument("<base>")
+    .argument("<ours>")
+    .argument("<theirs>")
+    .argument("[path]")
+    .action(async (...args: unknown[]) => {
+      const files = args.slice(0, 4).filter((a): a is string => typeof a === "string");
+      process.exitCode = await runMergeDriver(files, (line) => streams.err(line));
+    });
+
+  const mergeDriver = options.mergeDriver ?? selfMergeDriver();
+
   addServeCommands(program, {
+    mergeDriver,
     streams,
     resolveCwd: (c) => resolve(options.cwd ?? process.cwd(), c ?? "."),
     staticDir: options.staticDir ?? webDist(),
@@ -159,6 +192,7 @@ export function buildProgram(options: ProgramOptions = {}): Command {
           user: global.user ?? env["DEGUBOARD_USER"],
           version: version(),
           commands: options.commands,
+          mergeDriver,
           stdin: options.stdio?.stdin,
           stdout: options.stdio?.stdout,
         });
@@ -210,7 +244,7 @@ export function buildProgram(options: ProgramOptions = {}): Command {
 
       let result: CommandResult<unknown>;
       try {
-        const ctx = await openContext({ cwd, actor, initialize });
+        const ctx = await openContext({ cwd, actor, initialize, mergeDriver });
         result = await runCommand(def, ctx, input);
       } catch (error) {
         const view = toErrorView(error);

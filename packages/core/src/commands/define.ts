@@ -20,6 +20,8 @@ export interface CommandContext extends WriteContext {
   now: () => Date;
   /** openContext が worktree を作ったときだけ入る（init の結果に使う） */
   worktree?: WorktreeOrigin | undefined;
+  /** マージドライバとして git に登録する、dg を呼ぶ argv の前置（init と sync が登録する。git/merge.ts） */
+  mergeDriver?: readonly string[] | undefined;
 }
 
 export interface CommandResult<O> {
