@@ -18,6 +18,11 @@ describe("ハッシュのルーティング", () => {
     expect(parseRoute("#/history?view=epic")).toEqual({ page: "history", view: "epic" });
     expect(parseRoute("#/history?view=ticket")).toEqual({ page: "history", view: "ticket" });
     expect(parseRoute("#/history?view=x")).toEqual({ page: "history" });
+    expect(parseRoute("#/runs")).toEqual({ page: "runs" });
+    expect(parseRoute("#/runs?by=agent")).toEqual({ page: "runs", by: "agent" });
+    // 既定の単位（チケット）と知らない単位はハッシュに持たない
+    expect(parseRoute("#/runs?by=ticket")).toEqual({ page: "runs" });
+    expect(parseRoute("#/runs?by=x")).toEqual({ page: "runs" });
     expect(parseRoute("#/board?iteration=s4&epic=e1&assignee=eiki%2Fagent")).toEqual({
       page: "board",
       iteration: "s4",
@@ -35,6 +40,8 @@ describe("ハッシュのルーティング", () => {
       { page: "epics" as const, id: "e1" },
       { page: "iterations" as const, id: "s2" },
       { page: "history" as const, view: "epic" as const },
+      { page: "runs" as const },
+      { page: "runs" as const, by: "model" as const },
     ]) {
       expect(parseRoute(hrefOf(route))).toEqual(route);
     }

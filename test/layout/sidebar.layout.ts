@@ -13,22 +13,23 @@ import { startServer } from "../../packages/server/src/index.js";
 const WEB_DIST = path.resolve(import.meta.dirname, "../../packages/web/dist");
 const WIDTHS = [300, 260];
 const SCHEMES = ["light", "dark"] as const;
-/** サイドバーで出す画面。履歴は閉じた Iteration の行を出す */
-const PAGES = ["#/board", "#/backlog", "#/epics/e1", "#/history"];
+/** サイドバーで出す画面。履歴は閉じた Iteration の行を、Run は実行中と完了した Run を出す */
+const PAGES = ["#/board", "#/backlog", "#/epics/e1", "#/history", "#/runs"];
 const LONG = "サイドバーの配置を確かめるための、かなり長めのタイトルのチケット";
 
 let fixture: Fixture;
 let server: { url: string; close(): Promise<void> };
 let browser: Browser;
 
-async function call(name: string, input: Record<string, unknown>): Promise<void> {
+async function call(name: string, input: Record<string, unknown>): Promise<unknown> {
   const res = await fetch(`${server.url}api/commands/${name}`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ input }),
   });
-  const body = (await res.json()) as { ok: boolean; error?: unknown };
+  const body = (await res.json()) as { ok: boolean; data?: unknown; error?: unknown };
   if (!body.ok) throw new Error(`${name} が失敗した: ${JSON.stringify(body.error)}`);
+  return body.data;
 }
 
 beforeAll(async () => {
@@ -63,6 +64,15 @@ beforeAll(async () => {
   await call("ticket.move", { ticket: "t2", status: "review" });
   await call("ticket.move", { ticket: "t3", status: "done" });
   await call("ticket.move", { ticket: "t4", status: "abandoned" });
+  await call("run.start", { ticket: "t1", step: "implement", agent: "claude-code" });
+  const done = (await call("run.start", {
+    ticket: "t3",
+    step: "implement",
+    agent: "claude-code",
+  })) as {
+    id: string;
+  };
+  await call("run.finish", { run: done.id, result: "success" });
   browser = await chromium.launch().catch((error: unknown) => {
     throw new Error(
       `Chromium を起動できない。mise run playwright:install を実行する（${String(error)}）`,
@@ -131,7 +141,7 @@ describe.each(SCHEMES)("サイドバーの配置（%s）", (scheme) => {
             });
           }
           expect(m.scrollWidth, `${hash} の横スクロール`).toBeLessThanOrEqual(m.clientWidth);
-          expect(m.tabs, `${hash} のタブ`).toBe(3);
+          expect(m.tabs, `${hash} のタブ`).toBe(4);
           expect(m.wrapped, `${hash} で折り返した要素`).toEqual([]);
           expect(m.color, `${hash} の文字と背景の色`).not.toBe(m.background);
         }

@@ -11,11 +11,13 @@ import { TicketPage } from "./pages/ticket.js";
 import { EpicsPage } from "./pages/epics.js";
 import { IterationsPage } from "./pages/iterations.js";
 import { HistoryPage } from "./pages/history.js";
+import { RunsPage } from "./pages/runs.js";
 
 const NAV: { page: Route["page"]; label: string; href: string }[] = [
   { page: "board", label: "カンバン", href: hrefOf({ page: "board" }) },
   { page: "backlog", label: "バックログ", href: hrefOf({ page: "backlog" }) },
   { page: "history", label: "履歴", href: hrefOf({ page: "history" }) },
+  { page: "runs", label: "Run", href: hrefOf({ page: "runs" }) },
 ];
 
 export function App() {
@@ -116,6 +118,8 @@ function Page({ route }: { route: Route }) {
       return <IterationsPage id={route.id} />;
     case "history":
       return <HistoryPage view={route.view ?? "iteration"} />;
+    case "runs":
+      return <RunsPage by={route.by} />;
   }
 }
 

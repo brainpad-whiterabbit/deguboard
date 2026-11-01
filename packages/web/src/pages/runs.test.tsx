@@ -1,0 +1,166 @@
+// @vitest-environment jsdom
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { afterEach, describe, expect, it } from "vitest";
+import { App } from "../app.js";
+import { StoreProvider } from "../store.js";
+import { mockClient, ticket } from "../test-helpers.js";
+import type { MetricsView, RunMetrics, RunView } from "../types.js";
+import { formatCount, formatDuration, resultsText, splitRuns } from "./runs.js";
+
+afterEach(() => {
+  cleanup();
+  window.location.hash = "";
+  window.localStorage.clear();
+});
+
+function run(partial: Partial<RunView> & { id: string }): RunView {
+  return {
+    ticket: "t1",
+    step: "implement",
+    agent: "claude-code",
+    model: null,
+    started_at: "2026-11-01T00:00:00Z",
+    finished_at: null,
+    result: null,
+    error: null,
+    retries: 0,
+    usage: { input: null, output: null, cache_read: null, cache_write: null },
+    running: false,
+    ...partial,
+  } as RunView;
+}
+
+function metrics(partial: Partial<RunMetrics> = {}): RunMetrics {
+  return {
+    runs: 1,
+    results: { success: 1, failure: 0, interrupted: 0, unfinished: 0 },
+    retries: 0,
+    duration_seconds: 90,
+    input: null,
+    output: null,
+    cache_read: null,
+    cache_write: null,
+    missing: { duration_seconds: 0, input: 1, output: 1, cache_read: 1, cache_write: 1 },
+    estimated_runs: 0,
+    ...partial,
+  };
+}
+
+describe("Run の画面の表示", () => {
+  it("時間とトークン数は null を 0 と見せず「値なし」と出す", () => {
+    expect(formatDuration(null)).toBe("値なし");
+    expect(formatDuration(0)).toBe("0秒");
+    expect(formatDuration(125)).toBe("2分 5秒");
+    expect(formatDuration(3720)).toBe("1時間 2分");
+    expect(formatCount(null)).toBe("値なし");
+    expect(formatCount(0)).toBe("0");
+    expect(formatCount(1234567)).toBe("1,234,567");
+  });
+
+  it("結果の内訳は 0 件を省き、すべて 0 なら「なし」", () => {
+    expect(
+      resultsText(metrics({ results: { success: 2, failure: 0, interrupted: 1, unfinished: 0 } })),
+    ).toBe("成功 2 ・ 中断 1");
+    expect(
+      resultsText(metrics({ results: { success: 0, failure: 0, interrupted: 0, unfinished: 0 } })),
+    ).toBe("なし");
+  });
+
+  it("選んだ Project のチケットの Run だけを、実行中は古い順・完了は新しい順に分ける", () => {
+    const runs = [
+      run({ id: "r20261101-000000-aaaa", running: false }),
+      run({ id: "r20261101-010000-bbbb", running: true }),
+      run({ id: "r20261101-020000-cccc", running: false }),
+      run({ id: "r20261101-030000-dddd", running: true }),
+      run({ id: "r20261101-040000-eeee", ticket: "t99", running: false }),
+    ];
+    const { running, finished } = splitRuns(runs, [ticket({ id: "t1" })]);
+    expect(running.map((r) => r.id)).toEqual(["r20261101-010000-bbbb", "r20261101-030000-dddd"]);
+    expect(finished.map((r) => r.id)).toEqual(["r20261101-020000-cccc", "r20261101-000000-aaaa"]);
+  });
+});
+
+describe("Run の画面", () => {
+  function setup() {
+    const client = mockClient();
+    const runs = [
+      run({ id: "r20261101-010000-aaaa", ticket: "t2", step: "review", running: true }),
+      run({
+        id: "r20261101-000000-bbbb",
+        ticket: "t1",
+        finished_at: "2026-11-01T00:01:30Z",
+        result: "success",
+        usage: { input: 1200, output: null, cache_read: null, cache_write: null },
+      }),
+    ];
+    client.handlers["run.list"] = () => runs;
+    client.handlers["metrics.show"] = (input) => {
+      const by = (input as { by: MetricsView["by"] }).by;
+      const view: MetricsView = {
+        filter: { project: "default" },
+        by,
+        total: metrics({ input: 1200, estimated_runs: 1 }),
+        groups: [
+          { key: by === "epic" ? "e1" : "t1", ...metrics({ input: 1200 }) },
+          { key: null, ...metrics() },
+        ],
+      };
+      return view;
+    };
+    window.location.hash = "#/runs";
+    render(
+      <StoreProvider client={client}>
+        <App />
+      </StoreProvider>,
+    );
+    return client;
+  }
+
+  it("実行中と完了した Run を分けて出し、上のバーに Run のタブがある", async () => {
+    setup();
+    await screen.findByText("r20261101-010000-aaaa");
+    expect(screen.getByRole("link", { name: "Run" }).getAttribute("aria-current")).toBe("page");
+    expect(screen.getByText("実行中 1 ・ 完了 1")).toBeTruthy();
+    const [runningTable, , finishedTable] = screen.getAllByRole("table");
+    expect(within(runningTable!).getByText("review")).toBeTruthy();
+    expect(within(runningTable!).getByText("実行中")).toBeTruthy();
+    expect(within(finishedTable!).getByText("成功")).toBeTruthy();
+    expect(within(finishedTable!).getByText("1分 30秒")).toBeTruthy();
+    expect(within(finishedTable!).getByText("1,200")).toBeTruthy();
+    expect(within(finishedTable!).getAllByText("値なし").length).toBeGreaterThan(0);
+  });
+
+  it("集計は選んだ Project で絞ってチケットごとに出し、値のない合計は「値なし」、欠けた数・推定・null の単位も出す", async () => {
+    const client = setup();
+    await screen.findByText("r20261101-010000-aaaa");
+    expect(client.calls.find((c) => c.name === "metrics.show")?.input).toEqual({
+      project: "default",
+      by: "ticket",
+    });
+    const cards = document.querySelector(".metric-cards")!;
+    expect(within(cards as HTMLElement).getByText("1分 30秒")).toBeTruthy();
+    expect(within(cards as HTMLElement).getByText("1,200")).toBeTruthy();
+    expect(within(cards as HTMLElement).getAllByText("値なし")).toHaveLength(3);
+    expect(within(cards as HTMLElement).getAllByText("欠け 1").length).toBeGreaterThan(0);
+    expect(screen.getByText(/推定の値を含む Run が 1 件ある/)).toBeTruthy();
+    const groups = document.querySelector(".metrics-table")!;
+    expect(within(groups as HTMLElement).getByText("なし")).toBeTruthy();
+    expect(within(groups as HTMLElement).getByText("t1")).toBeTruthy();
+  });
+
+  it("単位を切り替えるとハッシュに残り、その単位で集計し直す", async () => {
+    const client = setup();
+    await screen.findByText("r20261101-010000-aaaa");
+    fireEvent.change(screen.getByLabelText("単位"), { target: { value: "epic" } });
+    await waitFor(() => expect(window.location.hash).toBe("#/runs?by=epic"));
+    await waitFor(() =>
+      expect(client.calls.filter((c) => c.name === "metrics.show").at(-1)?.input).toEqual({
+        project: "default",
+        by: "epic",
+      }),
+    );
+    const groups = document.querySelector(".metrics-table")!;
+    await within(groups as HTMLElement).findByText("e1");
+    expect(within(groups as HTMLElement).getByRole("columnheader", { name: "Epic" })).toBeTruthy();
+  });
+});

@@ -124,19 +124,19 @@ core の `commands` を HTTP に写す。Node 標準の `node:http` で、フレ
 
 画面の React アプリ。構成の判断は [ADR-008](adr/ADR-008-tech-stack.md)。core からは型と `CommandClient`（`core/commands/client.ts`）だけを取り込み、実行時のコードは取り込まない（`import type` だけ。Vite が node のモジュールを束ねないため）。`src/` のファイル：
 
-| ファイル            | 役割                                                                                                                       |
-| ------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| `client/http.ts`    | `CommandClient` の HTTP 実装。`/api/commands/<name>` と `/api/status` を呼び、失敗は `ClientError`（code と message）      |
-| `client/webview.ts` | postMessage 実装。形は core の `WebviewRequest` / `WebviewResponse` / `WebviewEvent`                                       |
-| `app.tsx`           | 骨組み。上のバー（Project と画面の切り替え・同期の印）と、ハッシュで選んだページ                                           |
-| `host.tsx`          | `surface` と、チケットをエディタで開く働きかけ。拡張ホストからの通知（同期・遷移）を store に結ぶ                          |
-| `store.tsx`         | 選んだ Project のチケット・Epic・Iteration・Workflow と同期の状態を読み、書き込み（`run`）のあとに読み直す                 |
-| `router.ts`         | ハッシュの解析（`#/board?epic=e1`、`#/tickets/t12` など）                                                                  |
-| `pages/`            | カンバン（UI-2）・バックログ（UI-3）・チケット詳細（UI-4）・Epic（UI-10）・Iteration と閉じた Iteration の履歴（UI-5）     |
-| `components/`       | 小さな表示部品（チケットへのリンク、優先度・Status の印、ラベル、進捗）と、チケット詳細の節（経過・Run）                   |
-| `ui-state.ts`       | 見た目の状態（節の開閉・最後に選んだ Iteration）。Webview では `getState` / `setState`、ブラウザでは `localStorage` に置く |
-| `markdown.tsx`      | 本文の最小の Markdown（見出し・段落・箇条書き・チェックリスト・インラインコード）                                          |
-| `styles.css`        | `--vscode-*` 変数を基準にしたテーマ。`:root` の値はブラウザで開いたときの既定で、Webview では VS Code の値が勝つ           |
+| ファイル            | 役割                                                                                                                                |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `client/http.ts`    | `CommandClient` の HTTP 実装。`/api/commands/<name>` と `/api/status` を呼び、失敗は `ClientError`（code と message）               |
+| `client/webview.ts` | postMessage 実装。形は core の `WebviewRequest` / `WebviewResponse` / `WebviewEvent`                                                |
+| `app.tsx`           | 骨組み。上のバー（Project と画面の切り替え・同期の印）と、ハッシュで選んだページ                                                    |
+| `host.tsx`          | `surface` と、チケットをエディタで開く働きかけ。拡張ホストからの通知（同期・遷移）を store に結ぶ                                   |
+| `store.tsx`         | 選んだ Project のチケット・Epic・Iteration・Workflow と同期の状態を読み、書き込み（`run`）のあとに読み直す                          |
+| `router.ts`         | ハッシュの解析（`#/board?epic=e1`、`#/tickets/t12` など）                                                                           |
+| `pages/`            | カンバン（UI-2）・バックログ（UI-3）・チケット詳細（UI-4）・Epic（UI-10）・Iteration と閉じた Iteration の履歴（UI-5）・Run（UI-9） |
+| `components/`       | 小さな表示部品（チケットへのリンク、優先度・Status の印、ラベル、進捗）と、チケット詳細の節（経過・Run）                            |
+| `ui-state.ts`       | 見た目の状態（節の開閉・最後に選んだ Iteration）。Webview では `getState` / `setState`、ブラウザでは `localStorage` に置く          |
+| `markdown.tsx`      | 本文の最小の Markdown（見出し・段落・箇条書き・チェックリスト・インラインコード）                                                   |
+| `styles.css`        | `--vscode-*` 変数を基準にしたテーマ。`:root` の値はブラウザで開いたときの既定で、Webview では VS Code の値が勝つ                    |
 
 型検査は `tsconfig.json` を別に持つ（DOM と JSX が要るため）。ビルドは Vite で `dist/` に出し、`dg serve` は cli に写した `web/` を配信する（`cli/program.ts` の `webDist`）。テストは `// @vitest-environment jsdom` を付け、`test-helpers.ts` の `mockClient` で `CommandClient` を差し替える。
 
