@@ -107,7 +107,7 @@ describe("dg guide", () => {
     expect(all).toContain("「着手できるチケットを並べて進める」");
   });
 
-  it("review は品質ゲートを 1 か所に置き、work は PR を出す前の見直しと上限付きの修正ループを、all はマージの前の条件をそこへ案内する", async () => {
+  it("review は品質ゲートを 1 か所に置き、work は PR を出す前の見直しと上限付きの修正ループを、all はマージの前の条件をそこへ案内し、実装・見直し・手直しの Run を分ける", async () => {
     const review = await readGuide("review");
     const work = await readGuide("work");
     const all = await readGuide("all");
@@ -115,13 +115,14 @@ describe("dg guide", () => {
       "## 品質ゲート",
       "## 見直す",
       "## 指摘を直す（修正ループ）",
-      "## Run と終わり方",
+      "## Run の分け方",
+      "## 終わり方",
     ])
       expect(review).toContain(heading);
     for (const word of [
       "`gh pr create --draft`",
       "**上限**：重い指摘を直すのは 2 回まで",
-      "--result failure --retries <回数>",
+      "--retry-reason <直した指摘の要約>",
       "チケットは in_progress のまま",
       "人に報告",
       "`gh pr ready <PR>`",
@@ -131,6 +132,16 @@ describe("dg guide", () => {
     // 条件の中身は review にだけ書き、work と all は参照する
     expect(work).toContain("`dg guide review`");
     expect(work).toContain("上限付きの修正ループ");
+    // 実装の Run は draft の PR で閉じ、見直しと手直しは別の step の Run にする
+    expect(work).toContain("run start <id> implement");
+    expect(work).toContain("draft の PR を作ったら実装の Run を閉じる");
+    expect(work).toContain("--retry-reason");
+    for (const step of ["`review`", "`fix`"]) {
+      expect(review).toContain(step);
+      expect(work).toContain(step);
+    }
+    expect(review).not.toContain("Run を開けたまま");
+    expect(work).not.toContain("開けたまま");
     expect(all).toContain("`dg guide review` の「品質ゲート」");
     for (const text of [work, all]) expect(text).not.toContain("--json mergeable");
   });
