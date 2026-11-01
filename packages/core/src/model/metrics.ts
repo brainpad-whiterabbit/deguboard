@@ -17,13 +17,7 @@ export const METRIC_UNITS = [
 export type MetricUnit = (typeof METRIC_UNITS)[number];
 
 /** 足し合わせる数。どれも Run に null があれば足さず、missing に数える（RN-2） */
-export const METRIC_VALUES = [
-  "duration_seconds",
-  "input",
-  "output",
-  "cache_read",
-  "cache_write",
-] as const;
+const METRIC_VALUES = ["duration_seconds", "input", "output", "cache_read", "cache_write"] as const;
 export type MetricValue = (typeof METRIC_VALUES)[number];
 
 export interface RunMetrics {

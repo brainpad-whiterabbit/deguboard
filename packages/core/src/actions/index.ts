@@ -1,5 +1,5 @@
 // 登録済みの Action の一覧と実行（AG-6・AG-7、ADR-007）。
-// CLI・MCP・画面のコマンドにはしない。Workflow の steps と、エージェントの外で手順を進める呼び出し側がライブラリとして使う
+// CLI・MCP・画面のコマンドにはしない。core の公開から出すのは ACTION_NAMES だけで、ほかは core の中のライブラリに留める（ADR-007）
 
 import { prettifyError } from "zod";
 import { OperationError, UsageError } from "../errors.js";

@@ -25,7 +25,7 @@ export interface BranchFacts {
 let ghAvailable: boolean | undefined;
 
 /** gh があるか（1 プロセスで 1 回だけ調べる） */
-export async function hasGh(cwd: string): Promise<boolean> {
+async function hasGh(cwd: string): Promise<boolean> {
   if (ghAvailable !== undefined) return ghAvailable;
   try {
     await runGh(cwd, ["--version"], { timeoutMs: 10_000 });

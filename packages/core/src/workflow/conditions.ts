@@ -7,7 +7,7 @@ export type Facts = Partial<Record<FactName, boolean>>;
 
 const factNameSet: ReadonlySet<string> = new Set(FACT_NAMES);
 
-export function isFactName(name: string): name is FactName {
+function isFactName(name: string): name is FactName {
   return factNameSet.has(name);
 }
 
@@ -19,7 +19,7 @@ export function parseCondition(text: string): Condition | undefined {
   return text as Condition;
 }
 
-export function conditionFact(condition: Condition): { name: FactName; negated: boolean } {
+function conditionFact(condition: Condition): { name: FactName; negated: boolean } {
   const negated = condition.startsWith("!");
   return { name: (negated ? condition.slice(1) : condition) as FactName, negated };
 }

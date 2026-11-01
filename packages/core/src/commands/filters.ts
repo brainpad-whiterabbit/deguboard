@@ -31,7 +31,7 @@ export const ticketFilterSchema = z.object({
 });
 export type TicketFilter = z.output<typeof ticketFilterSchema>;
 
-export function isReady(store: Store, t: Ticket): boolean {
+function isReady(store: Store, t: Ticket): boolean {
   return t.status === "todo" && store.depsDone(t);
 }
 

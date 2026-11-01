@@ -46,7 +46,7 @@ async function ticketNumbers(repo: GitRepo, ref: string): Promise<number[]> {
 }
 
 /** 文中の ID（t5 など）を対応表で置き換える。ファイル名・frontmatter・本文・コミットメッセージに同じ規則を使う */
-export function rewriteIds(text: string, mapping: ReadonlyMap<string, string>): string {
+function rewriteIds(text: string, mapping: ReadonlyMap<string, string>): string {
   return text.replace(/\bt[1-9]\d*\b/g, (id) => mapping.get(id) ?? id);
 }
 

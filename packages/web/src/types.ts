@@ -37,17 +37,9 @@ export type {
 };
 
 /**
- * Run の画面で選べる集計の単位（core の METRIC_UNITS の順）。画面は選んだ Project で絞って集計するので project は除く。
- * web は core の実行時のコードを取り込まないので写す
+ * 集計の単位の表示名（core の METRIC_UNITS の順）。web は core の実行時のコードを取り込まないので写し、
+ * Record で core の MetricUnit の全件と照らす（core に単位が増えると型の検査で漏れが分かる）
  */
-export const METRIC_UNITS = [
-  "run",
-  "ticket",
-  "epic",
-  "iteration",
-  "agent",
-  "model",
-] as const satisfies readonly MetricUnit[];
 export const UNIT_LABELS: Record<MetricUnit, string> = {
   run: "Run",
   ticket: "チケット",
@@ -57,6 +49,10 @@ export const UNIT_LABELS: Record<MetricUnit, string> = {
   agent: "Agent",
   model: "Model",
 };
+/** Run の画面で選べる集計の単位。画面は選んだ Project で絞って集計するので project は除く */
+export const METRIC_UNITS: readonly MetricUnit[] = (
+  Object.keys(UNIT_LABELS) as MetricUnit[]
+).filter((u) => u !== "project");
 
 /** カンバンの列の順。abandoned は既定で隠す（UI-2） */
 export const STATUSES = [

@@ -7,7 +7,7 @@ import path from "node:path";
 import { runGit } from "./run.js";
 
 /** 経過として拾う属性 */
-export const HISTORY_FIELDS = ["status", "iteration", "epic", "assignee", "pr"] as const;
+const HISTORY_FIELDS = ["status", "iteration", "epic", "assignee", "pr"] as const;
 export type HistoryField = (typeof HISTORY_FIELDS)[number];
 
 export type HistoryKind = "ticket" | "epic" | "iteration";

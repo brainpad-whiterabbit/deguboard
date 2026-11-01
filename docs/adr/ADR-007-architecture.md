@@ -58,8 +58,8 @@ Core の中は責務ごとのモジュールに分け、最初からパッケー
 ### Action の呼び方
 
 - Action は「名前・Zod の入力スキーマ・設定による可否・確認の要否・実行関数」の組で、`core/actions` に置く。呼び出し側は `listActions(config)` で一覧と使えるかを見て、`runAction(ctx, name, input)` で実行する。`runAction` が入力の検証 → 設定の検査 → 確認 → 実行の順を 1 か所で守る
-- `actions` は `git`（`run` と `repo` の型）・`model/config`・`errors` を使い、逆向き（commands・storage・workflow・model・git から actions）の import は `.oxlintrc.json` が禁じる。Workflow の `steps` は Action を名前（文字列）で持ち、名前の検証は入口が `ACTION_NAMES` を `openContext`・`createLocalClient` に渡して行う（ADR-003）
-- `dg` のコマンド・MCP のツール・画面には出さない。エージェントは `dg guide` の手順に従って git・gh・テストを自分で呼ぶ（EX-1）
+- `actions` は `git`（`run` と `repo` の型）・`model/config`・`errors` を使い、逆向き（`index.ts` 以外から actions）の import は `.oxlintrc.json` が禁じる。Workflow の `steps` は Action を名前（文字列）で持ち、名前の検証は入口が `ACTION_NAMES` を `openContext`・`createLocalClient` に渡して行う（ADR-003）
+- `dg` のコマンド・MCP のツール・画面には出さず、core の公開も `ACTION_NAMES` だけにする。エージェントは `dg guide` の手順に従って git・gh・テストを自分で呼ぶ（EX-1）
 - git に渡すブランチ名は `git check-ref-format --branch` 相当で検査して先頭の `-` を拒み、位置引数の前に `--` を置く。オプションの注入（`--upload-pack=<コマンド>` など）で `actions.shell` を回り込ませないため
 - `run_tests` は `actions.test` に書いた引数配列だけを確認なしで実行する。config.yaml は Git で共有されるので、deguboard ブランチに push できる人はここに任意のコマンドを書ける。その権限をシェルの許可と同等とみなす前提に立つ。`shell` は `actions.shell` が false なら `REJECTED`、true でも呼び出し側の `confirm` が true を返したときだけ `sh -c` で実行し、`confirm` がなければ拒否する
 - worktree・ブランチの操作は guide の手順（`git worktree add --no-track -b … <remote>/<base>`）と同じ形にする。claim は `branch` を記録するだけで Git を触らないので、共有する実装はない
