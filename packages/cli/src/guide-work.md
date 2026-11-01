@@ -21,7 +21,7 @@
 
 ## Plan に従って進める
 
-承認済みの Plan（`dg guide plan`）があれば、その順と中身に従う。
+承認済みの Plan（`dg guide plan`）があれば、その順と中身に従う。チケットが入っている開いた Plan は `ticket show` の `plan` に、開いた Plan の一覧は `dg --json --actor agent plan list --status open` に出る。
 
 - 着手する前に `dg --json --actor agent plan show <p>` を読む。`pending_approval` が true（承認待ち）なら着手せず、人に承認を求める
 - 順は `items`（Plan の順）と `after`。`items[].waiting`（まだ終わっていない待ち先）が空のチケットだけに着手する。after は claim では検査されないので、自分で守る。着手できるものが複数あれば `items` の順で先のものから

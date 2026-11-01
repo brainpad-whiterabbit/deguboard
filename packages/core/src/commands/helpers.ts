@@ -3,6 +3,7 @@
 import { z } from "zod";
 import { compareIds, type TicketId } from "../model/id.js";
 import { toIsoDateTime } from "../model/common.js";
+import type { Plan } from "../model/plan.js";
 import type { Ticket } from "../model/ticket.js";
 import type { Doc } from "../storage/documents.js";
 import type { Store } from "../storage/store.js";
@@ -54,4 +55,12 @@ export function dependents(store: Store, id: TicketId): TicketId[] {
   return sortedDocs([...store.tickets.values()].filter((t) => t.data.depends_on.includes(id))).map(
     (t) => t.data.id,
   );
+}
+
+/** 開いた（closed_at のない）Plan のうち、チケットを含むもの。PL-3 で高々 1 つ */
+export function openPlanOf(store: Store, ticket: TicketId): Doc<Plan> | undefined {
+  for (const plan of store.plans.values()) {
+    if (plan.data.closed_at === undefined && plan.data.tickets.includes(ticket)) return plan;
+  }
+  return undefined;
 }

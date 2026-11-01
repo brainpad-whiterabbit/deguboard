@@ -10,7 +10,15 @@ import type { Ticket } from "../model/ticket.js";
 import type { Doc } from "../storage/documents.js";
 import type { Store } from "../storage/store.js";
 import { defineCommand, ok } from "./define.js";
-import { nowIso, planRef, progressOf, projectOf, ticketRef } from "./helpers.js";
+import {
+  nowIso,
+  openPlanOf,
+  planRef,
+  progressOf,
+  projectOf,
+  sortedDocs,
+  ticketRef,
+} from "./helpers.js";
 
 /** 終わったチケット。Plan に入れられない（PL-3） */
 const FINISHED: readonly Ticket["status"][] = ["done", "abandoned"];
@@ -25,14 +33,6 @@ function splitRefs(value: z.output<typeof refList>): string[] {
     .flatMap((v) => String(v).split(","))
     .map((s) => s.trim())
     .filter(Boolean);
-}
-
-/** 開いた（closed_at のない）Plan のうち、チケットを含むもの */
-function openPlanOf(store: Store, ticket: TicketId): Doc<Plan> | undefined {
-  for (const plan of store.plans.values()) {
-    if (plan.data.closed_at === undefined && plan.data.tickets.includes(ticket)) return plan;
-  }
-  return undefined;
 }
 
 /** 計画内の待ちが循環していれば、その一例を返す */
@@ -150,6 +150,49 @@ export const planCreate = defineCommand({
   },
 });
 
+/** Plan の状態。Plan には書かず、pending_approval と closed_at から求める */
+type PlanStatus = "pending" | "approved" | "closed";
+const PLAN_FILTERS = ["open", "pending", "approved", "closed"] as const;
+
+function planStatus(plan: Plan): PlanStatus {
+  if (plan.closed_at !== undefined) return "closed";
+  return plan.pending_approval ? "pending" : "approved";
+}
+
+function ticketsOf(store: Store, plan: Plan): Doc<Ticket>[] {
+  return plan.tickets.flatMap((id) => store.tickets.get(id) ?? []);
+}
+
+export const planList = defineCommand({
+  name: "plan.list",
+  group: "plan",
+  summary:
+    "Plan を番号順に、状態（pending・approved・closed）と進捗つきで出す。--status open で開いたもの（承認待ちと承認済み）に絞る",
+  input: z.object({
+    project: slugSchema.optional().describe("Project で絞る"),
+    status: z
+      .enum(PLAN_FILTERS)
+      .optional()
+      .describe("open（閉じていない）・pending（承認待ち）・approved（承認済みで開いた）・closed"),
+  }),
+  write: false,
+  needs: "store",
+  async run(ctx, input) {
+    const match = (status: PlanStatus): boolean =>
+      !input.status || (input.status === "open" ? status !== "closed" : input.status === status);
+    const rows = sortedDocs(ctx.store.plans.values())
+      .filter((d) => !input.project || d.data.project === input.project)
+      .map((d) => ({ doc: d, status: planStatus(d.data) }))
+      .filter((r) => match(r.status))
+      .map(({ doc, status }) => ({
+        ...doc.data,
+        status,
+        progress: progressOf(ticketsOf(ctx.store, doc.data)),
+      }));
+    return ok(rows);
+  },
+});
+
 export const planShow = defineCommand({
   name: "plan.show",
   positionals: ["plan"],
@@ -242,4 +285,4 @@ export const planClose = defineCommand({
   },
 });
 
-export const planCommands = [planCreate, planApprove, planShow, planClose];
+export const planCommands = [planCreate, planList, planShow, planApprove, planClose];

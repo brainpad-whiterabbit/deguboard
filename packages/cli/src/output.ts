@@ -82,6 +82,7 @@ const COLUMNS: Record<string, string[]> = {
   iteration: ["id", "status", "name", "start", "end"],
   project: ["id", "status", "name", "workflow"],
   workflow: ["id", "name", "path"],
+  plan: ["id", "status", "project", "tickets", "progress"],
 };
 
 function columnsFor(group: string): string[] | undefined {
