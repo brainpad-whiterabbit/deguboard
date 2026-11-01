@@ -52,7 +52,7 @@ deguboard は、Git で管理するチケットとユーザー定義のワーク
 ### 5.1 配置
 
 - データは orphan ブランチ `deguboard` に置き、`<git-common-dir>/deguboard/` に専用 worktree として checkout する。読み書きはすべてここで行い、作業ブランチにはデータを置かない（[ADR-002](adr/ADR-002-storage-and-id.md)）
-- Git 管理外のもの（ローカルロック、実行中の詳細ログ、索引）は `<git-common-dir>/deguboard-local/` に置く
+- Git 管理外のもの（ローカルロック、実行中の詳細ログ、マージドライバの属性ファイル）は `<git-common-dir>/deguboard-local/` に置く
 
 ```
 config.yaml
