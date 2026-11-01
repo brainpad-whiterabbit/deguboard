@@ -17,7 +17,7 @@ import {
   push,
   syncStatus,
 } from "../git/sync.js";
-import { flushPending, withWrite } from "../git/write.js";
+import { CONFLICT_REMEDY, flushPending, withWrite } from "../git/write.js";
 import { configSchema } from "../model/config.js";
 import { parseAcceptance, type Ticket } from "../model/ticket.js";
 import type { Doc } from "../storage/documents.js";
@@ -243,9 +243,7 @@ export const sync = defineCommand({
         }
       }
       if (conflicts.length > 0) {
-        warnings.push(
-          `リモートの変更と競合している: ${conflicts.join(", ")}。deguboard worktree で解消する`,
-        );
+        warnings.push(`リモートの変更と競合している: ${conflicts.join(", ")}。${CONFLICT_REMEDY}`);
       }
       if (integrated) await ctx.store.rescan();
 

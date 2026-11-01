@@ -13,37 +13,37 @@ AI エージェント（Claude Code・Codex など）がチケットを処理す
 
 - `dg`・サーバー・VS Code 拡張は、チケットの作業のためにエージェントを起動しない。実行中のプロセスも監視しない
 - エージェントは Bash から `dg … --json --actor agent` を呼んでチケットを読み書きし、データのファイルを直接編集しない。手順は `dg guide <topic>` が出す
-- human と agent の区別は申告（`--actor`・`DEGUBOARD_ACTOR`）に基づく。Skill と guide の手順が必ず agent を名乗ることで、Workflow が `by: [human]` で人に限った遷移をエージェントから遠ざける。権限管理や偽装の防止はしない（同じリポジトリに書ける人を信頼する）
-- Claude Code 向けには、段階ごとに `dg guide <topic>` を読む薄い Skill（`/dgimport` など）を配る。ほかのエージェントは同じ手順に従う。特定の AI 製品に依存する処理は Adapter（[ADR-007](ADR-007-architecture.md)）に閉じる
+- human と agent の区別は申告（AG-1）に基づく。Skill と guide の手順が必ず agent を名乗ることで、Workflow が `by: [human]` で人に限った遷移をエージェントから遠ざける。権限管理や偽装の防止はしない（同じリポジトリに書ける人を信頼する）
+- Claude Code 向けには、段階ごとに `dg guide <topic>` を読む薄い Skill を配る。ほかのエージェントは同じ手順に従う。特定の AI 製品に依存する処理は Adapter（[ADR-007](ADR-007-architecture.md)）に閉じる
 
 ### 状態はチケットのブランチの事実で前進させる
 
-- 成果をリポジトリに残すチケットは `branch` を持つ。`dg sync`（と画面の同期のボタン）は、そのブランチについて Git から事実を集め、ワークフローの `reconcile` 規則で状態を導き、今より先のときだけ書き換える
-- 事実は Git だけで取れるものを基本にする：`branch_exists`（ローカルかリモートにある）、`branch_pushed`（リモートにある）、`branch_merged`（先端が `git.base_branch` の真の祖先。先端が base と同じなら切ったばかりのブランチとみなして偽にする。ff マージの直後は base が進むか PR の事実で拾う）
-- commit のないブランチは base が進むと先端が真の祖先になり、グラフだけでは ff マージ後のブランチと区別できない（2026-10-31 に claim 直後の 3 枚が誤って done になった）。そこで in_progress で push していないブランチは作業がまだないとみなして `branch_merged` を偽にする。push していないブランチを in_progress のままローカルで ff マージした形は拾えず、人が `ticket move` で進める
-- 照合の結果には当てはまった規則の条件（`when`）を根拠として残し、誤判定の原因を後から追えるようにする
-- PR の事実（`pr_open`・`pr_merged`・`pr_draft`）は `gh` が使えるときだけ取り、software-development ワークフローが任意で使う。`gh` がなくても照合は成り立つ。チケットに `pr` がなければブランチ名で PR を引き、見つけた番号を `pr` に記録する（エージェントが記録し忘れても PR の記録が残る）
-- 後退を指す事実（消えたブランチ・マージされずに閉じた PR）は書き換えずに警告する。同じ照合で done に進むときは、マージ後に消したブランチなので警告しない。PR がまだないだけの形は閉じた PR と警告しない。取れなかった事実は不明として扱い、前進の判定では偽と読む
+- 成果をリポジトリに残すチケットは `branch` を持つ。`dg sync` は、そのブランチについて Git から事実を集め、ワークフローの `reconcile` 規則で状態を導き、今より先のときだけ書き換える
+- 事実は Git だけで取れるもの（ブランチがあるか・push したか・base にマージされたか）を基本にする。定義は core の `git/facts.ts`（名前は WF-2、`branch_merged` の例外は ST-5）
+- commit のないブランチは base が進むと先端が真の祖先になり、グラフだけでは ff マージ後のブランチと区別できない（claim 直後のチケットが誤って done になった）。そこで in_progress で push していないブランチは `branch_merged` を偽にする。push せずにローカルで ff マージした形は拾えず、人が `ticket move` で進める
+- 照合の結果には当てはまった規則の条件を根拠として残し、誤判定の原因を後から追えるようにする
+- PR の事実は `gh` が使えるときだけ取り、ワークフローが任意で使う。`gh` がなくても照合は成り立つ。チケットに `pr` がなければブランチ名で PR を引いて記録する（エージェントが記録し忘れても残る）
+- 後退を指す事実（消えたブランチ・マージされずに閉じた PR）は書き換えずに警告する。取れなかった事実は不明とし、前進の判定では偽と読む（警告しない形は ST-5）
 - PR の要らない作業（データの整備・確認）は `branch` を記録せず照合から外す。エージェントが受け入れ条件をすべて確かめて done にし、残れば review に置いて人に頼む
 
 ### 排他は claim の push で決める
 
-- 着手（todo → in_progress）は `dg ticket claim` で行う。claim は `status`・`assignee`・`branch` のコミットを push できたときに取得とする。拒否されたら取り込み直して判定し直す
-- 同一マシンの Run の二重起動は、`deguboard-local/locks/runs` のロックの中で実行中の Run を見て拒む。Git 管理外で、チーム間の排他には使わない
-- 応答のない claim は人が確かめてから `dg ticket unclaim --force` で解除する。生存監視はしない
+- 着手は `dg ticket claim` で行う。claim は `status`・`assignee`・`branch` のコミットを push できたときに取得とする。拒否されたら取り込み直して判定し直す
+- 同一マシンの Run の二重起動は、Git 管理外のローカルロックで拒む（SY-5）。チーム間の排他には使わない
+- 応答のない claim は人が確かめてから unclaim の force で解除する。生存監視はしない
 
 ### 主体の ID はユーザ名と種別で、起票者と担当者を分けて記録する
 
-- 主体の ID は `<ユーザ>`（人）か `<ユーザ>/agent`（そのユーザの AI）の 1 文字列。ユーザ名は git の `user.name`（`--user` / `DEGUBOARD_USER` で変えられる）、種別は `--actor` の申告。ホスト名は含めない
-- チケットは起票者（`created_by`）と担当者（`assignee`）を分けて持つ。起票者は起票を指示・承認した人か、人の確認を経ずに起票した AI で、既定は操作した主体。エージェントは人の指示で起票するとき `--created-by human` でユーザ本人を書く。担当者は claim で claim した主体になり、create / update で前もって付けてもよい
+- 主体の ID は `<ユーザ>`（人）か `<ユーザ>/agent`（そのユーザの AI）の 1 文字列。ユーザ名は git の `user.name`（変え方は AG-1）、種別は `--actor` の申告。ホスト名は含めない
+- チケットは起票者（`created_by`）と担当者（`assignee`）を分けて持つ（TK-7）。起票者は起票を指示・承認した人か、人の確認を経ずに起票した AI。担当者は claim した主体で、前もって付けてもよい
 - 同じユーザの人と AI は互いの claim を force なしで外せる。AI の作業はそれを動かした人に帰属する
 
 ### Run は受動型で記録する
 
-- エージェント（または Skill）が `dg run start <ticket> <step>` と `dg run finish <run>` を呼ぶ。実行中は `deguboard-local/runs/` に置き、finish が集計を `runs/` に書く
+- エージェント（または Skill）が `dg run start` と `dg run finish` を呼ぶ。実行中は Git 管理外に置き、finish が集計だけを `runs/` に書く（RN-3）
 - ツールが Run を見失っても、チケットの状態はブランチの事実で進む
-- 終了していない Run は `dg run list --running` で見せ、人かエージェントが `finish --result interrupted` で閉じる。自動復旧はしない
-- 並列実行・修正ループ・自動マージも Skill 側が Plan の待ちを見て進め、スケジューラは置かない。並列では親が claim・Plan・マージを、サブエージェントが Run・実装・PR を行う。上限は負荷とエージェントの都合で決まるので config でなく手順に書く
+- 終了していない Run は一覧で見せ、人かエージェントが `interrupted` で閉じる。自動復旧はしない
+- 並列実行・修正ループ・自動マージも Skill 側が Plan の待ちを見て進め、スケジューラは置かない。上限は負荷とエージェントの都合で決まるので config でなく手順に書く（EX-3）
 
 ### Plan を第一級のエンティティにする
 

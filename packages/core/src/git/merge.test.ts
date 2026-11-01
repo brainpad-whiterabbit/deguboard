@@ -8,6 +8,7 @@ import { runCommand, type CommandContext } from "../commands/define.js";
 import { init, sync } from "../commands/setup.js";
 import { ticketCreate, ticketUpdate } from "../commands/ticket.js";
 import { mergeDocuments, mergeDriverCommandLine } from "./merge.js";
+import { CONFLICT_REMEDY, withWrite } from "./write.js";
 
 const cleanups: Array<() => Promise<void>> = [];
 afterEach(async () => {
@@ -201,5 +202,29 @@ describe("同期のマージドライバ", () => {
     );
     expect((await git(b.repo.dataDir, ["status", "--porcelain"])).stdout).toBe("");
     expect(await t1(b)).toContain("title: B の題");
+  });
+
+  it("競合が残る間の sync の警告と起票の SYNC_CONFLICT は、同じ戻し方（人が deguboard worktree で解消する）を案内する", async () => {
+    const f = await fixture();
+    const { a, b } = await twoClones(f);
+    await runCommand(ticketUpdate, a, { ticket: "t1", title: "A の題" });
+    await runCommand(sync, a, {});
+    await runCommand(ticketUpdate, b, { ticket: "t1", title: "B の題" });
+    const synced = await runCommand(sync, b, {});
+    expect(synced.warnings.join("\n")).toContain(CONFLICT_REMEDY);
+    await expect(runCommand(ticketCreate, b, { title: "新しい題" })).rejects.toMatchObject({
+      code: "SYNC_CONFLICT",
+      message: expect.stringContaining(CONFLICT_REMEDY),
+    });
+    // CAS でない即時の書き込みは、取り込みと push の両方で競合しても戻し方を 1 回だけ案内する
+    const written = await withWrite(
+      b,
+      async () => {
+        await b.store.update("ticket", "t1", { priority: "high" });
+      },
+      { message: "t1 を更新", immediate: true },
+    );
+    expect(written.write.pushed).toBe(false);
+    expect(written.write.warnings.join("\n").split(CONFLICT_REMEDY)).toHaveLength(2);
   });
 });
