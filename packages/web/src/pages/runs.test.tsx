@@ -200,6 +200,66 @@ describe("Run の画面", () => {
     expect(screen.queryByText("読み込み中…")).toBeNull();
   });
 
+  it("run.list と metrics.show の警告（壊れた実行中の記録など）を並べて出す", async () => {
+    const client = setup();
+    const original = client.run.bind(client);
+    client.run = async <O,>(name: string, input?: unknown) => {
+      const r = await original<O>(name, input);
+      if (name === "run.list")
+        return {
+          ...r,
+          warnings: ["deguboard-local/runs/r20261101-000000-0001.json: JSON を読めない"],
+        };
+      if (name === "metrics.show") return { ...r, warnings: ["チケット t9 が見つからない"] };
+      return r;
+    };
+    fireEvent.click(await screen.findByRole("button", { name: "読み直す" }));
+    const text =
+      "deguboard-local/runs/r20261101-000000-0001.json: JSON を読めない / チケット t9 が見つからない";
+    expect((await screen.findByText(text)).className).toBe("muted");
+    // 一覧は警告があっても出す
+    expect(screen.getByText("r20261101-010000-aaaa")).toBeTruthy();
+  });
+
+  it("「読み直す」で run.list と metrics.show を取り直し、終わった Run を完了に移し、消えた警告を出さない", async () => {
+    const client = setup();
+    await screen.findByText("実行中 1 ・ 完了 1");
+    const lists = () => client.calls.filter((c) => c.name === "run.list").length;
+    const reports = () => client.calls.filter((c) => c.name === "metrics.show").length;
+    const before = { lists: lists(), reports: reports() };
+
+    // 1 回目の読み直しでは警告が出る
+    const original = client.run.bind(client);
+    let warn = true;
+    client.run = async <O,>(name: string, input?: unknown) => {
+      const r = await original<O>(name, input);
+      return name === "run.list" && warn ? { ...r, warnings: ["壊れた記録"] } : r;
+    };
+    fireEvent.click(screen.getByRole("button", { name: "読み直す" }));
+    expect(await screen.findByText("壊れた記録")).toBeTruthy();
+    expect(lists()).toBe(before.lists + 1);
+    expect(reports()).toBe(before.reports + 1);
+
+    // 実行中だった Run が終わり、警告も消えた
+    warn = false;
+    client.handlers["run.list"] = () => [
+      run({
+        id: "r20261101-010000-aaaa",
+        ticket: "t2",
+        step: "review",
+        result: "interrupted",
+        finished_at: "2026-11-01T01:00:05Z",
+        duration_seconds: 5,
+      }),
+    ];
+    fireEvent.click(screen.getByRole("button", { name: "読み直す" }));
+    expect(await screen.findByText("実行中 0 ・ 完了 1")).toBeTruthy();
+    expect(screen.getByText("実行中の Run はない")).toBeTruthy();
+    expect(screen.getByText("中断")).toBeTruthy();
+    expect(screen.queryByText("壊れた記録")).toBeNull();
+    expect(lists()).toBe(before.lists + 2);
+  });
+
   it("Project がなければ読み込み中のまま止まらず、そう出す", async () => {
     const client = mockClient();
     client.data.projects = [];

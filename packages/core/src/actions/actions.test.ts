@@ -1,4 +1,4 @@
-import { readdir, readFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { createFixture, git, type Fixture } from "../../test/helpers/git-fixture.js";
@@ -239,6 +239,144 @@ describe("登録済みの Action の実行", () => {
     expect(await runAction(passing, "run_tests")).toMatchObject({ passed: true, code: 0 });
     const failing = await contextOf(f.cloneA, { actions: { test: ["git", "no-such-command"] } });
     expect(await runAction(failing, "run_tests")).toMatchObject({ passed: false });
+  });
+});
+
+describe("gh を呼ぶ Action（create_pr・merge_pr）", () => {
+  /**
+   * 偽の gh を PATH の先頭に置く。受けた引数を NUL 区切りで、作業ディレクトリを 1 行で記録し、
+   * stdout に out を出して code で終わる
+   */
+  async function fakeGh(f: Fixture, out: string, code = 0) {
+    const bin = path.join(f.root, "fake-bin");
+    const log = path.join(f.root, "gh-args");
+    const cwdLog = path.join(f.root, "gh-cwd");
+    await mkdir(bin, { recursive: true });
+    await writeFile(path.join(f.root, "gh-out"), out);
+    await writeFile(
+      path.join(bin, "gh"),
+      [
+        "#!/bin/sh",
+        `printf '%s\\0' "$@" > '${log}'`,
+        `pwd > '${cwdLog}'`,
+        `cat '${path.join(f.root, "gh-out")}'`,
+        `exit ${code}`,
+        "",
+      ].join("\n"),
+      { mode: 0o755 },
+    );
+    const saved = process.env["PATH"];
+    process.env["PATH"] = bin + path.delimiter + (saved ?? "");
+    cleanups.push(async () => {
+      process.env["PATH"] = saved;
+    });
+    return {
+      /** gh が受けた引数。呼ばれていなければ null */
+      async args(): Promise<string[] | null> {
+        const text = await readFile(log, "utf8").catch(() => null);
+        return text === null ? null : text.split("\0").slice(0, -1);
+      },
+      async cwd(): Promise<string> {
+        return (await readFile(cwdLog, "utf8")).trim();
+      },
+    };
+  }
+
+  it("create_pr は base・head・title・body を引数配列で gh に渡し、最後の行の URL から PR 番号を取る", async () => {
+    const f = await fixture();
+    const gh = await fakeGh(f, "Warning: 1 uncommitted change\nhttps://github.com/o/r/pull/123\n");
+    const ctx = await contextOf(f.cloneA);
+    const body = "## 概要\n\n空白と $(echo 展開しない) を含む";
+    const result = await runAction(ctx, "create_pr", {
+      title: "PR の題; rm -rf /",
+      body,
+      branch: "feat/x",
+      base: "develop",
+      draft: true,
+    });
+    expect(result).toEqual({
+      url: "https://github.com/o/r/pull/123",
+      number: 123,
+      branch: "feat/x",
+      base: "develop",
+    });
+    expect(await gh.args()).toEqual([
+      "pr",
+      "create",
+      "--base",
+      "develop",
+      "--head",
+      "feat/x",
+      "--title",
+      "PR の題; rm -rf /",
+      "--body",
+      body,
+      "--draft",
+    ]);
+    expect(await gh.cwd()).toBe(f.cloneA);
+  });
+
+  it("create_pr は branch を省くと作業ディレクトリのブランチ、base を省くと git.base_branch を使い、URL に番号がなければ null", async () => {
+    const f = await fixture();
+    const gh = await fakeGh(f, "PR を作った\n");
+    await git(f.cloneA, ["checkout", "-q", "-b", "fix/y"]);
+    const ctx = await contextOf(f.cloneA);
+    const result = await runAction(ctx, "create_pr", { title: "題" });
+    expect(result).toEqual({ url: "PR を作った", number: null, branch: "fix/y", base: "main" });
+    expect(await gh.args()).toEqual([
+      "pr",
+      "create",
+      "--base",
+      "main",
+      "--head",
+      "fix/y",
+      "--title",
+      "題",
+      "--body",
+      "",
+    ]);
+  });
+
+  it("create_pr は branch を省いて detached HEAD なら gh を呼ばずに拒否する", async () => {
+    const f = await fixture();
+    const gh = await fakeGh(f, "https://github.com/o/r/pull/1\n");
+    await git(f.cloneA, ["checkout", "-q", "--detach"]);
+    const ctx = await contextOf(f.cloneA);
+    const error = await rejection(runAction(ctx, "create_pr", { title: "題" }));
+    expect(error.code).toBe("REJECTED");
+    expect(error.message).toContain("ブランチを checkout していない");
+    expect(await gh.args()).toBeNull();
+    // branch を渡せば detached HEAD でも作れる
+    await expect(
+      runAction(ctx, "create_pr", { title: "題", branch: "feat/x" }),
+    ).resolves.toMatchObject({ number: 1, branch: "feat/x" });
+  });
+
+  it("merge_pr は既定で squash し、method と delete_branch を引数に写す", async () => {
+    const f = await fixture();
+    const gh = await fakeGh(f, "");
+    const ctx = await contextOf(f.cloneA);
+    expect(await runAction(ctx, "merge_pr", { pr: 42 })).toEqual({ pr: 42, method: "squash" });
+    expect(await gh.args()).toEqual(["pr", "merge", "42", "--squash"]);
+    expect(
+      await runAction(ctx, "merge_pr", { pr: 7, method: "rebase", delete_branch: true }),
+    ).toEqual({ pr: 7, method: "rebase" });
+    expect(await gh.args()).toEqual(["pr", "merge", "7", "--rebase", "--delete-branch"]);
+  });
+
+  it("merge_pr は PR 番号が正の整数でなければ gh を呼ばずに入力の誤りとし、gh が失敗すれば投げる", async () => {
+    const f = await fixture();
+    const gh = await fakeGh(f, "", 1);
+    const ctx = await contextOf(f.cloneA);
+    for (const pr of [0, -1, 1.5, "42", "--admin"]) {
+      await expect(runAction(ctx, "merge_pr", { pr })).rejects.toBeInstanceOf(UsageError);
+    }
+    await expect(runAction(ctx, "merge_pr", { pr: 1, method: "fast" })).rejects.toBeInstanceOf(
+      UsageError,
+    );
+    expect(await gh.args()).toBeNull();
+    await expect(runAction(ctx, "merge_pr", { pr: 1 })).rejects.toMatchObject({ kind: "exit" });
+    expect(await gh.args()).toEqual(["pr", "merge", "1", "--squash"]);
   });
 });
 
