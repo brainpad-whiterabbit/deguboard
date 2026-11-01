@@ -24,11 +24,22 @@ argument-hint: "<Plan の ID|チケットの ID>"
    git worktree add --no-track -b <ブランチ名> <worktree の場所> {{git.remote}}/{{git.base_branch}}
    ```
 
-4. 実装する。本文の `## 受け入れ条件` を満たすことを目標にする。リポジトリの検査（lint・テスト）を通す
+4. Run を始めてから実装する（下の「Run を記録する」）：`dg --json --actor agent run start <id> <step> --agent <エージェント>`。返った Run の ID を控える。実装は本文の `## 受け入れ条件` を満たすことを目標にし、リポジトリの検査（lint・テスト）を通す
 5. 受け入れ条件を 1 項目ずつ確かめる。`dg --json --actor agent ticket show <id>` の `acceptance`（`index`・`text`・`checked`）を読み、成果物やテストで満たしたと確認できた項目だけ `dg --json --actor agent ticket check <id> <番号...>` で付ける（`--all` で全部、`--undo` で外す）。確認できない項目は付けず、PR の本文と人への報告に理由を書く。印を付けたあとに `ticket update --acceptance` で文を書き換えると、文が変わった項目の印は外れる
-6. コミットして push し、PR を作る。PR の本文にチケットの ID（`t12`）と、付けられなかった受け入れ条件を書く。PR の番号をチケットに記録する：`dg --json --actor agent ticket update <id> --pr <番号>`
+6. コミットして push し、PR を作る。PR の本文にチケットの ID（`t12`）と、付けられなかった受け入れ条件を書く。PR の番号をチケットに記録する：`dg --json --actor agent ticket update <id> --pr <番号>`。最後に Run を閉じる：`dg --json --actor agent run finish <Run の ID> --result success`（PR まで進めなかったら下の「途中でやめる・中断した」）
 7. `dg --json --actor agent sync` を回す。Workflow が PR の事実を見るなら（software-development）、PR が開いていれば review に進む（`gh` が要る）。見ないなら（general など）、PR を出したら自分で `dg --json --actor agent ticket move <id> review` に進める
 8. レビューの指摘は同じブランチで直して push する。マージは人が行う。マージ後は `dg guide done`
+
+## Run を記録する
+
+Run は 1 回の作業の記録で、使用量（トークン）が残る。手順 4 で始め、手順 6 で閉じる（PR の要らない作業も、作業の前後で同じように始めて閉じる）。
+
+- **step**：チケットの Project の Workflow（`dg --json --actor agent project list` の `workflow`）を `dg --json --actor agent workflow show <workflow>` で読み、`steps` から今の作業に合うものを選ぶ。`steps` がなければ作業の種類を 1 語で書く（例 `implement`）
+- **agent**：自分の Adapter の名前（`dg run start --help` の `--agent` に一覧が出る。Claude Code なら `claude-code`）
+- **自分で呼ぶ**：run start と finish は、作業するエージェント自身が呼ぶ。使用量は Run の ID を最初に含む会話記録から取り込むので、別のエージェント（親など）が代わりに start すると、作業した分は数えない
+- 使用量は自分で書かない（finish に数字を渡さない）。config の `metrics.read_transcripts` が false なら、finish は警告を出して使用量を null のまま閉じる。警告が出ても手順は止めない
+- 同じチケットと step の Run が実行中なら start は拒否される。下の「途中でやめる・中断した」で前の Run を閉じてから始め直す
+- 失敗して作業をやめるなら `--result failure --error <理由>`、やり直した回数があれば `--retries <回数>` を付ける
 
 ## Plan に従って進める
 
@@ -44,7 +55,7 @@ argument-hint: "<Plan の ID|チケットの ID>"
 チケットのデータの整備・確認・調査など、リポジトリのファイルを変えない作業は、ブランチも PR も作らない。照合には頼らず、自分で done まで進める。
 
 1. claim する：`dg --json --actor agent ticket claim <id> --without-branch`。branch を記録しないので、照合の対象にならず `sync` も警告しない
-2. 作業する（worktree は作らない）。何をしたかと結果は、最後に人への報告に書く
+2. Run を始めて作業し、終えたら閉じる（上の「Run を記録する」）。worktree は作らない。何をしたかと結果は、最後に人への報告に書く
 3. 受け入れ条件を 1 項目ずつ確かめ、満たした項目だけ `ticket check` で付ける（上の手順 5 と同じ）
 4. すべて付いたら `dg --json --actor agent ticket move <id> done`。付けられない項目が残ったら `ticket move <id> review` にして、残った項目と理由を人に報告する（done にするのは人）
 5. 途中でリポジトリのファイルを変える必要が出たら、`ticket update <id> --branch <種類>/<内容>` でブランチを記録し、上の流れ（worktree・PR）に移る。逆に、claim したブランチが要らなくなったら `--branch none` で外す
@@ -53,6 +64,15 @@ argument-hint: "<Plan の ID|チケットの ID>"
 
 - 自分で `status` を進めるのは普段 in_progress → review まで。done は照合（マージ）で進むので自分で move する必要はない。照合で進まないときや、人に指示されたときは `ticket move <id> done` で進める（制限は `dg guide overview`）
 - 途中でやめるなら `dg --json --actor agent ticket unclaim <id>`（in_progress で自分か自分のユーザの claim のときだけ。todo に戻り、担当者が外れる）。review にあるなら人に差し戻しを頼む
+
+## 途中でやめる・中断した
+
+作業をやめる・失敗した・セッションが切れて Run が閉じられずに残ったときは、自分の Run を `interrupted` で閉じる。閉じないと実行中のまま残り、同じチケットと step の Run を始められない。
+
+1. 実行中の Run を探す：`dg --json --actor agent run list --running --ticket <id>`。`running` が true で、`step` と `agent` が自分のものを選ぶ（実行中の Run はこのマシンにだけ残る）
+2. 閉じる：`dg --json --actor agent run finish <Run の ID> --result interrupted --error <理由>`
+3. チケットもやめるなら、続けて `ticket unclaim <id>`（上の「状態について」）。続けるなら、手順 4 から Run を始め直す
+
 - 作業中に別の作業が見つかったら、そのチケットに混ぜず `dg guide import` の手順で起票を提案する
 
 ## 任意フィールドと PR 番号
