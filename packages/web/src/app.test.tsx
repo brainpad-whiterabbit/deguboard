@@ -492,6 +492,115 @@ describe("画面", () => {
     expect(screen.getByText("1 / 2 件")).toBeTruthy();
   });
 
+  it("チケット詳細に経過の節があり、変化を時刻の順に出す。エディタのパネルでも出る", async () => {
+    window.location.hash = "#/tickets/t2";
+    const client = mockClient();
+    const base = { kind: "ticket", id: "t2", commit: "c", author: "eiki", subject: "s" };
+    client.handlers["history"] = (input) => {
+      expect(input).toEqual({ ticket: "t2" });
+      return {
+        events: [
+          {
+            ...base,
+            commit: "c1",
+            type: "created",
+            at: "2026-11-01T00:00:00Z",
+            changes: [{ field: "status", from: null, to: "todo" }],
+          },
+          {
+            ...base,
+            commit: "c2",
+            type: "changed",
+            at: "2026-11-01T01:00:00Z",
+            changes: [
+              { field: "status", from: "todo", to: "in_progress" },
+              { field: "assignee", from: null, to: "eiki/agent" },
+            ],
+          },
+          {
+            ...base,
+            commit: "c3",
+            type: "changed",
+            at: "2026-11-01T02:00:00Z",
+            changes: [
+              { field: "iteration", from: "s1", to: null },
+              { field: "pr", from: null, to: "5" },
+            ],
+          },
+        ],
+        shallow: true,
+        incomplete: ["t2"],
+      };
+    };
+    mount(client, webviewHost("panel"));
+    await screen.findByRole("heading", { level: 2, name: "経過" });
+    const items = async () =>
+      waitFor(() => {
+        const list = [...document.querySelectorAll(".timeline-list li > span:last-child")];
+        expect(list).toHaveLength(3);
+        return list.map((e) => e.textContent);
+      });
+    expect(await items()).toEqual([
+      "起票 ・ Todo",
+      "Todo → In Progress ・ 担当: eiki/agent",
+      "Iteration s1 から外した ・ PR #5",
+    ]);
+    expect(screen.getByText(/これより前の経過は欠けている/)).toBeTruthy();
+  });
+
+  it("履歴のチケットの見方は終わったチケットを終えた新しい順に出し、分からないものは更新日で並べてそう出す。結果・Epic・検索で絞れる", async () => {
+    window.location.hash = "#/history?view=ticket";
+    const client = mockClient();
+    client.data.tickets = [
+      ticket({ id: "t1", title: "古い", status: "done", epic: "e1", pr: 3, iteration: "s1" }),
+      ticket({ id: "t2", title: "新しい", status: "done", labels: ["web"] }),
+      ticket({
+        id: "t3",
+        title: "やめた",
+        status: "abandoned",
+        updated_at: "2026-10-15T00:00:00Z",
+      }),
+      ticket({ id: "t4", title: "途中", status: "todo" }),
+    ];
+    const finished = (id: string, at: string, to = "done") => ({
+      kind: "ticket",
+      id,
+      commit: id,
+      author: "a",
+      subject: "s",
+      type: "changed",
+      at,
+      changes: [{ field: "status", from: "review", to }],
+    });
+    client.handlers["history"] = () => ({
+      events: [finished("t1", "2026-10-01T00:00:00Z"), finished("t2", "2026-10-20T00:00:00Z")],
+      shallow: false,
+      incomplete: [],
+    });
+    mount(client);
+    await screen.findByRole("heading", { level: 1, name: "履歴" });
+    expect(screen.getByRole("button", { name: "チケット" }).getAttribute("aria-pressed")).toBe(
+      "true",
+    );
+    const ids = () =>
+      [...document.querySelectorAll(".history-finished li code")].map((e) => e.textContent);
+    await waitFor(() => expect(ids()).toEqual(["t2", "t3", "t1"]));
+    expect(screen.getByText(/更新日（updated_at）で並べている/)).toBeTruthy();
+    const t1 = document.querySelectorAll(".history-finished li")[2]!;
+    expect(t1.textContent).toContain("#3");
+    expect(t1.querySelector("a[href='#/iterations/s1']")).toBeTruthy();
+    expect(t1.querySelector("a[href='#/epics/e1']")).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("結果"), { target: { value: "abandoned" } });
+    expect(ids()).toEqual(["t3"]);
+    fireEvent.change(screen.getByLabelText("結果"), { target: { value: "" } });
+    fireEvent.change(screen.getByLabelText("Epic"), { target: { value: "e1" } });
+    expect(ids()).toEqual(["t1"]);
+    fireEvent.change(screen.getByLabelText("Epic"), { target: { value: "" } });
+    fireEvent.change(screen.getByLabelText("チケットを探す"), { target: { value: "web" } });
+    expect(ids()).toEqual(["t2"]);
+    expect(screen.getByText("1 / 3 件")).toBeTruthy();
+  });
+
   it("エディタのパネルで Iteration の詳細を出すときもヘッダーを出さない", async () => {
     const client = mockClient();
     client.data.iterations = [iteration({ id: "s1", name: "最初", status: "closed" })];

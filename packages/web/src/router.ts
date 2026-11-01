@@ -11,7 +11,7 @@ export interface BoardQuery {
 }
 
 /** 履歴の見方。省けば Iteration */
-export type HistoryView = "iteration" | "epic";
+export type HistoryView = "iteration" | "epic" | "ticket";
 
 /** カンバンで「Iteration に入っていないチケット」を選ぶ値 */
 export const NO_ITERATION = "-";
@@ -50,10 +50,10 @@ export function parseRoute(hash: string): Route {
     case "epics":
       // Epic の一覧の画面はない（open はバックログの欄、closed は履歴）。ID がなければバックログ
       return id ? { page: "epics", id } : { page: "backlog" };
-    case "history":
-      return params.get("view") === "epic"
-        ? { page: "history", view: "epic" }
-        : { page: "history" };
+    case "history": {
+      const view = params.get("view");
+      return view === "epic" || view === "ticket" ? { page: "history", view } : { page: "history" };
+    }
     case "iterations":
       // Iteration の一覧の画面はない（planned・active はカンバンの絞り込み、closed は履歴）。ID がなければカンバン
       return id ? { page: "iterations", id } : board();

@@ -497,6 +497,40 @@ button.link:hover {
   background: transparent;
   padding: 0;
 }
+/* 履歴のチケットの見方：丸印・番号・タイトル・結果・Iteration・Epic・PR・終えた日 */
+.rows.history-finished li {
+  display: grid;
+  grid-template-columns: auto 3em minmax(0, 1fr) 6em 3em 3em 3.5em 6.5em;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 2px 6px;
+  border-bottom: 1px solid var(--dg-border);
+}
+.history-finished code {
+  background: transparent;
+  padding: 0;
+}
+/* チケット詳細の経過：時刻・丸印・変化 */
+.timeline h2 {
+  font-size: 1em;
+  margin: 1.5rem 0 0.4rem;
+}
+.timeline-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.timeline-list li {
+  display: grid;
+  grid-template-columns: 9.5em 12px minmax(0, 1fr);
+  gap: 0.5rem;
+  align-items: baseline;
+  padding: 1px 0;
+}
+.timeline-list time {
+  color: var(--vscode-descriptionForeground);
+  font-variant-numeric: tabular-nums;
+}
 /* 見方の切り替え：つながったボタン */
 .segmented {
   display: inline-flex;
@@ -960,6 +994,15 @@ textarea.body {
 [data-surface="sidebar"] .backlog-layout {
   grid-template-columns: minmax(0, 1fr);
   gap: 0.5rem;
+}
+/* サイドバーの履歴のチケットは結果・PR を省き、Iteration・Epic・日付だけ残す */
+[data-surface="sidebar"] .rows.history-finished li {
+  grid-template-columns: auto auto minmax(0, 1fr) auto auto auto;
+  gap: 0.3rem;
+}
+[data-surface="sidebar"] .rows.history-finished li > :nth-child(4),
+[data-surface="sidebar"] .rows.history-finished li > :nth-child(7) {
+  display: none;
 }
 [data-surface="sidebar"] .groups {
   grid-template-columns: 1fr;
