@@ -72,6 +72,19 @@ describe("dg guide", () => {
     expect(done).toContain("plan close");
   });
 
+  it("all は --auto で自動で選ぶものと承認を残すものを分け、自動マージは auto.merge を true にしたときだけ条件を確かめて行う", async () => {
+    const all = await readGuide("all");
+    for (const heading of ["## `--auto` で自動で選ぶ", "### マージの前の条件", "**自動にしない"])
+      expect(all).toContain(heading);
+    expect(fillPlaceholders(all, defaultConfig())).toContain("今の設定：`false`");
+    expect(fillPlaceholders(all, { ...defaultConfig(), auto: { merge: true } })).toContain(
+      "今の設定：`true`",
+    );
+    expect(await readGuideMeta("all")).toMatchObject({
+      "argument-hint": expect.stringContaining("--auto"),
+    });
+  });
+
   it("config の値を埋める（既定なら main と origin、空の配列は「なし」）", () => {
     expect(
       fillPlaceholders(

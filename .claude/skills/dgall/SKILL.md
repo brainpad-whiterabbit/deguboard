@@ -1,10 +1,10 @@
 ---
 name: dgall
-description: deguboard の Iteration かチケットを、割り当て → 点検 → 計画 → 作業 → 見直し → リリース（か片付け）の段階で続けて進める。承認の場所は各段階の手順のとおりに残し、段階の間は止まらずに進む。途中で止まった流れは、同じ引数で再開できる。--no-assign で割り当ての段階を飛ばす。「s3 を最後まで進めて」「割り当てからリリースまでやって」と頼まれたときに使う。
-argument-hint: <Iteration|チケットの ID...> [--no-assign]
+description: deguboard の Iteration かチケットを、割り当て → 点検 → 計画 → 作業 → 見直し → リリース（か片付け）の段階で続けて進める。承認の場所は各段階の手順のとおりに残し、段階の間は止まらずに進む。途中で止まった流れは、同じ引数で再開できる。--no-assign で割り当ての段階を飛ばす。--auto で、勧める選択肢がある戻せる判断を自動で選ぶ。「s3 を最後まで進めて」「割り当てからリリースまでやって」と頼まれたときに使う。
+argument-hint: <Iteration|チケットの ID...> [--no-assign] [--auto]
 ---
 
-<!-- dg skill sha256:2eef1ee3c7a31ac6118a6321c71c355c18f4e4d2e63a6a822aad5d01ccf52a35 -->
+<!-- dg skill sha256:dab4d9e8f062e993df19e2b4acf233e8dd65786c1a6e7013a7040352a2a6098b -->
 
 # 一気通し（all）
 
