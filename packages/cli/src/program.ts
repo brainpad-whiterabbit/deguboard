@@ -3,6 +3,7 @@
 import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { existsSync } from "node:fs";
+import { homedir } from "node:os";
 import { dirname, resolve } from "node:path";
 import type { Readable, Writable } from "node:stream";
 import { fileURLToPath } from "node:url";
@@ -21,6 +22,7 @@ import { parse as parseYaml } from "yaml";
 import { toErrorView } from "./errors.js";
 import { GUIDE_TOPICS, renderGuide } from "./guide.js";
 import { serveMcp } from "./mcp.js";
+import { installSkill } from "./skill.js";
 import { addServeCommands } from "./serve.js";
 import { bindInputs, collectInput, shapesOf } from "./options.js";
 import {
@@ -146,6 +148,47 @@ export function buildProgram(options: ProgramOptions = {}): Command {
             JSON.stringify({ ok: true, data: guide, warnings: [], write: null }, null, 2),
           );
         else streams.out(guide.text);
+        process.exitCode = 0;
+      } catch (error) {
+        const view = toErrorView(error);
+        if (global.json) printJsonError(streams, view);
+        else printError(streams, view);
+        process.exitCode = view.exitCode;
+      }
+    });
+
+  // skill も CLI の責務。Skill は guide を読ませるだけで手順を持たない（AG-2）
+  program
+    .command("skill")
+    .description("Claude Code の Skill の操作")
+    .helpCommand("help [command]", "コマンドの使い方を出す")
+    .exitOverride()
+    .configureOutput(program.configureOutput())
+    .command("install")
+    .description(
+      "dg guide を読む Claude Code の Skill を <リポジトリ>/.claude/skills/deguboard/SKILL.md に書く",
+    )
+    .option(
+      "--personal",
+      "リポジトリではなく ~/.claude/skills に書く（Claude Code の個人の Skill。どのリポジトリでも使う）",
+    )
+    .option("--force", "既存の SKILL.md を上書きする")
+    .exitOverride()
+    .configureOutput(program.configureOutput())
+    .action(async (opts: { personal?: boolean; force?: boolean }) => {
+      const global = program.opts<{ json?: boolean; C?: string }>();
+      try {
+        const result = await installSkill({
+          cwd: resolve(options.cwd ?? process.cwd(), global.C ?? "."),
+          scope: opts.personal ? "personal" : "project",
+          home: env["HOME"] ?? homedir(),
+          force: opts.force ?? false,
+        });
+        if (global.json)
+          streams.out(
+            JSON.stringify({ ok: true, data: result, warnings: [], write: null }, null, 2),
+          );
+        else streams.out(`Skill を書いた：${result.path}`);
         process.exitCode = 0;
       } catch (error) {
         const view = toErrorView(error);
