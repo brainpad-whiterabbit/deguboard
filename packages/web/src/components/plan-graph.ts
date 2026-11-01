@@ -131,3 +131,40 @@ export function planGraph(plan: PlanRow, byId: ReadonlyMap<string, Ticket>): Pla
   );
   return { nodes, edges, layers: counts.length, rows: Math.max(0, ...counts) };
 }
+
+/** 畳んだ行の「次」：着手できる先頭のチケット、待ちの相手、承認待ちのどれか */
+export type PlanNext =
+  | { kind: "ready"; id: string }
+  | { kind: "blocked"; waitFor: string[] }
+  | { kind: "approval" };
+
+export interface PlanProgressLine {
+  /** in_progress のチケット（Plan の順） */
+  working: string[];
+  /** 出すものがなければ null（終わった Plan、todo の残らない Plan） */
+  next: PlanNext | null;
+}
+
+/**
+ * 畳んだ行に出す作業中と次。順は依存グラフの段・段の中の位置。
+ * 承認待ちは次の代わりに承認待ち。着手できるのは待ちの終わった todo で、なければ先頭の todo が待つ相手を出す。
+ * 閉じた・完了の Plan は何も出さない
+ */
+export function planProgressLine(
+  plan: PlanRow,
+  state: PlanState,
+  byId: ReadonlyMap<string, Ticket>,
+): PlanProgressLine {
+  if (state === "closed" || state === "finished") return { working: [], next: null };
+  const graph = planGraph(plan, byId);
+  const ordered = [...graph.nodes].sort((a, b) => a.layer - b.layer || a.row - b.row);
+  const working = ordered.filter((n) => n.status === "in_progress").map((n) => n.id);
+  if (state === "pending") return { working, next: { kind: "approval" } };
+  const todo = ordered.filter((n) => n.status === "todo");
+  const ready = todo.find((n) => !n.waiting);
+  if (ready) return { working, next: { kind: "ready", id: ready.id } };
+  const first = todo[0];
+  if (!first) return { working, next: null };
+  const waitFor = graph.edges.filter((e) => e.to === first.id && !e.done).map((e) => e.from);
+  return { working, next: { kind: "blocked", waitFor } };
+}

@@ -1,7 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { plan, ticket } from "../test-helpers.js";
 import type { Ticket } from "../types.js";
-import { openPlanByTicket, planColor, planGraph, planState, plansInScope } from "./plan-graph.js";
+import {
+  openPlanByTicket,
+  planColor,
+  planGraph,
+  planProgressLine,
+  planState,
+  plansInScope,
+} from "./plan-graph.js";
 
 const byIdOf = (tickets: Ticket[]) => new Map(tickets.map((t) => [t.id, t]));
 
@@ -97,5 +104,49 @@ describe("依存グラフ", () => {
     );
     expect(g.nodes.map((n) => n.id)).toEqual(["t1", "t2"]);
     expect(g.edges.map((e) => `${e.from}>${e.to}`)).toEqual(["t2>t1", "t1>t2"]);
+  });
+});
+
+describe("畳んだ行の作業中と次", () => {
+  const byId = byIdOf([
+    ticket({ id: "t1", status: "done" }),
+    ticket({ id: "t2", status: "in_progress" }),
+    ticket({ id: "t3", status: "todo" }),
+    ticket({ id: "t4", status: "todo" }),
+    ticket({ id: "t5", status: "in_progress" }),
+    ticket({ id: "t6", status: "review" }),
+  ]);
+
+  it("作業中は in_progress を Plan の順に出し、次は待ちの終わった todo の先頭", () => {
+    // t3 は t2（作業中）を待つので、t4 が先に着手できる
+    const p = plan({
+      id: "p1",
+      tickets: ["t1", "t2", "t3", "t4", "t5"],
+      after: { t3: ["t2"], t4: ["t1"] },
+    });
+    expect(planProgressLine(p, "working", byId)).toEqual({
+      working: ["t2", "t5"],
+      next: { kind: "ready", id: "t4" },
+    });
+  });
+
+  it("着手できる todo がなければ、先頭の todo が待っている相手を出す", () => {
+    const p = plan({ id: "p1", tickets: ["t2", "t3"], after: { t3: ["t2"] } });
+    expect(planProgressLine(p, "working", byId).next).toEqual({ kind: "blocked", waitFor: ["t2"] });
+  });
+
+  it("todo が残らなければ次を出さない。review は作業中に数えない", () => {
+    const p = plan({ id: "p1", tickets: ["t1", "t6"] });
+    expect(planProgressLine(p, "working", byId)).toEqual({ working: [], next: null });
+  });
+
+  it("承認待ちは次の代わりに承認待ち、完了・閉じたは何も出さない", () => {
+    const p = plan({ id: "p1", tickets: ["t2", "t3"] });
+    expect(planProgressLine(p, "pending", byId)).toEqual({
+      working: ["t2"],
+      next: { kind: "approval" },
+    });
+    expect(planProgressLine(p, "finished", byId)).toEqual({ working: [], next: null });
+    expect(planProgressLine(p, "closed", byId)).toEqual({ working: [], next: null });
   });
 });
