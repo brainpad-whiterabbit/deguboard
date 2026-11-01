@@ -1,0 +1,21 @@
+id: p5
+project: default
+tickets: [t116, t117, t91, t110, t111]
+after: {}
+pending_approval: true
+details:
+  t116:
+    scope: "--json のとき commander の引数・オプションのエラーを { ok: false, error } で stdout に出す。--json なしの出力は変えない"
+    approach: packages/cli/src/program.ts の run() で commander のエラーを捕まえ、--json なら既存の JSON 出力の形で書く。テストを足す
+  t117:
+    scope: packages/core/src/git/lock.ts の古いロックの削除の競合と、stat の ENOENT 以外のエラーで待ち時間の上限が効かない問題
+    approach: 古いと判定した内容（持ち主・mtime）を確かめ直してから消すか rename で奪い、stat のエラーも上限の判定に通す。テストを足す
+  t91:
+    scope: Codex の Run の usage を取り込む Agent Adapter（AG-5、ADR-005）。取れない値は null と警告
+    approach: t90 の Claude Code の Adapter と同じ形で Codex の記録を読む Adapter を足し、取り込みをテストで確かめる。requirements.md と ADR-005 を合わせる
+  t110:
+    scope: PR の要らない調べもの。e4 の済んだ範囲と残りを人に示す。e4 を閉じるのは人
+    approach: EX-3・README・guide all の --auto を読み比べて表にし、残りの起票か文書の修正の案を人に示して決める
+  t111:
+    scope: PR の要らない調べもの。TypeScript 7 への移行の影響（ビルド・型検査・vitest・vite）
+    approach: 影響を調べて勧める案を人に示し、決まったことを ADR-008 かチケットに反映する
