@@ -126,7 +126,7 @@ describe("metrics show", () => {
     expect(await readdir(path.join(ctx.repo.dataDir, "runs"))).toHaveLength(3);
   });
 
-  it("チケットが見つからない Run は、Epic などで絞るときに警告する", async () => {
+  it("集計に入った Run のチケットが見つからないときだけ、単位ごとの集計などで警告する", async () => {
     const ctx = await scenario();
     await ctx.store.create("run", {
       id: "r20261031-070000-0004",
@@ -145,6 +145,12 @@ describe("metrics show", () => {
     const r = await runCommand(metricsShow, ctx, { by: "project" });
     expect(r.warnings[0]).toContain("t9");
     expect(r.data.groups.at(-1)).toMatchObject({ key: null, runs: 1 });
+    // 絞り込みで外れた Run のチケットは警告しない
+    expect((await runCommand(metricsShow, ctx, { ticket: "t1", by: "epic" })).warnings).toEqual([]);
+    expect((await runCommand(metricsShow, ctx, { epic: "e1" })).warnings).toEqual([]);
+    expect((await runCommand(metricsShow, ctx, { agent: "codex", by: "agent" })).warnings).toEqual(
+      [],
+    );
     expect(findCommand("metrics.show")).toBe(metricsShow);
   });
 });

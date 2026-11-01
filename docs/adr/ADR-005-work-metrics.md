@@ -1,7 +1,7 @@
 # ADR-005 作業の実績
 
 - ステータス：承認
-- 更新日：2026-10-31
+- 更新日：2026-11-01
 
 ## 背景
 
@@ -20,6 +20,7 @@
 
 - エージェント名、モデル名、開始・終了日時、実行時間、input / output / cache read / cache write のトークン数、結果、エラー、リトライ回数、Run の step
 - 集計の単位は Run・Ticket・Epic・Iteration・Project・Agent/Model。集計値は保存せず、表示のたびに Run から求める
+- Epic・Iteration・Project へは、Run の持つチケットの今の所属でたどる（持ち越したチケットの Run は今の Iteration に数える）。Run に所属を写すと、チケットを動かしたときに Run と食い違うため
 
 ### 推定費用は持たない
 

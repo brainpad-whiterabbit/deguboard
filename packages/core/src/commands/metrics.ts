@@ -6,6 +6,7 @@ import { slugSchema } from "../model/common.js";
 import { parseId, type IdKind } from "../model/id.js";
 import {
   METRIC_UNITS,
+  filterRuns,
   measureRuns,
   placeRun,
   type MetricFilter,
@@ -63,7 +64,14 @@ export const metricsShow = defineCommand({
       .map((run) => ({ run, at: placeRun(run, ctx.store.tickets.get(run.ticket)?.data) }));
     const report = measureRuns(placed, filter, input.by);
 
-    const lost = [...new Set(placed.filter((p) => p.at.project === null).map((p) => p.run.ticket))];
+    // 集計に入った Run のうち、チケットが見つからないもの
+    const lost = [
+      ...new Set(
+        filterRuns(placed, filter)
+          .map((p) => p.run.ticket)
+          .filter((id) => !ctx.store.tickets.has(id)),
+      ),
+    ];
     const warnings =
       lost.length > 0 && (filter.epic || filter.iteration || filter.project || input.by)
         ? [

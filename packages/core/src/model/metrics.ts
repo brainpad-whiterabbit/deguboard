@@ -127,17 +127,25 @@ function compareKeys(a: string | null, b: string | null): number {
   return a < b ? -1 : 1;
 }
 
-/** 絞り込み（すべての条件に合う Run）と、単位ごとの集計 */
+/** 絞り込み。すべての条件に合う Run を残す */
+export function filterRuns<P extends { at: RunPlacement }>(
+  placed: readonly P[],
+  filter: MetricFilter = {},
+): P[] {
+  const conditions = Object.entries(filter).filter(([, v]) => v !== undefined) as [
+    MetricUnit,
+    string,
+  ][];
+  return placed.filter((p) => conditions.every(([unit, v]) => p.at[unit] === v));
+}
+
+/** 絞り込んだ Run の集計と、単位ごとの集計 */
 export function measureRuns(
   placed: readonly { run: Run; at: RunPlacement }[],
   filter: MetricFilter = {},
   by?: MetricUnit,
 ): MetricsReport {
-  const conditions = Object.entries(filter).filter(([, v]) => v !== undefined) as [
-    MetricUnit,
-    string,
-  ][];
-  const matched = placed.filter((p) => conditions.every(([unit, v]) => p.at[unit] === v));
+  const matched = filterRuns(placed, filter);
   const total = summarizeRuns(matched.map((p) => p.run));
   if (!by) return { total, groups: [] };
   const buckets = new Map<string | null, Run[]>();

@@ -88,6 +88,7 @@ const COLUMNS: Record<string, string[]> = {
     "key",
     "runs",
     "results",
+    "retries",
     "duration_seconds",
     "input",
     "output",
