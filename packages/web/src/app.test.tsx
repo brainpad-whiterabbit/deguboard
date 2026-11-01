@@ -461,7 +461,7 @@ describe("画面", () => {
     );
   });
 
-  it("サイドバーではカンバンの列が折りたためる節になり、チケットは 1 行で出る。空の節は「なし」", async () => {
+  it("サイドバーではカンバンの列が折りたためる節になり、チケットは 1 行で出る。空の節は見出しの 1 行だけで「なし」は出さない", async () => {
     mount(mockClient(), webviewHost("sidebar"));
     await screen.findByText("ログイン");
     const app = document.querySelector(".app")!;
@@ -471,8 +471,32 @@ describe("画面", () => {
     expect(columns.map((c) => c.open)).toEqual([true, true, true, false]);
     expect(document.querySelectorAll(".card")).toHaveLength(0);
     expect(document.querySelectorAll(".row-drag .row")).toHaveLength(3);
-    expect(screen.getAllByText("なし")).toHaveLength(1);
+    const review = document.querySelector<HTMLDetailsElement>('details[data-status="review"]')!;
+    expect(review.classList.contains("is-empty")).toBe(true);
+    expect(review.querySelectorAll(".row")).toHaveLength(0);
+    expect(review.querySelector(".section-count")!.textContent).toBe("0");
+    expect(screen.queryByText("なし")).toBeNull();
     expect(screen.queryByText("deguboard")).toBeNull();
+  });
+
+  it("サイドバーのカンバンの行は状態の丸印を出さず、優先度の印（high・low）を右に出す。バックログの行は変わらない", async () => {
+    const client = mockClient();
+    client.data.tickets[2]!.priority = "low";
+    mount(client, webviewHost("sidebar"));
+    await screen.findByText("ログイン");
+    const rowOf = (title: string) => screen.getByText(title).closest(".row")!;
+    expect(document.querySelectorAll(".board .row .status-dot")).toHaveLength(0);
+    expect(rowOf("API").classList.contains("kanban-row")).toBe(true);
+    expect(rowOf("API").lastElementChild!.textContent).toBe("high");
+    expect(rowOf("画面").lastElementChild!.textContent).toBe("low");
+    expect(rowOf("画面").querySelector(".row-low")).toBeTruthy();
+    cleanup();
+    window.location.hash = "#/backlog";
+    mount(client, webviewHost("sidebar"));
+    await screen.findByText("API");
+    expect(rowOf("画面").classList.contains("kanban-row")).toBe(false);
+    expect(rowOf("画面").querySelector(".status-dot")).toBeTruthy();
+    expect(rowOf("画面").querySelector(".row-low")).toBeNull();
   });
 
   it("サイドバーでは同期の印とボタンを出さない（ビューのタイトル行とバッジで代える）", async () => {
@@ -995,30 +1019,67 @@ describe("画面", () => {
     expect(screen.queryByText("API")).toBeNull();
   });
 
-  it("サイドバーの Iteration の見出しは開始・閉じるを「…」に入れ、閉じるは未完了の件数を示す確認を経てから閉じる", async () => {
+  it("サイドバーのカンバンの見出しは番号・名前（選択欄）・状態・件数、期間・目標、状態の帯と「n/m done」の 3 段で、詳細・…・開始・閉じるは出さない", async () => {
     const client = mockClient();
-    client.data.iterations = [iteration({ id: "s1", name: "今", status: "active" })];
-    client.data.tickets[1]!.iteration = "s1";
-    client.data.tickets[2]!.iteration = "s1";
-    client.handlers["iteration.close"] = (input) => input;
+    client.data.iterations = [
+      iteration({
+        id: "s1",
+        name: "今",
+        status: "planned",
+        start: "2026-11-15",
+        end: "2026-11-28",
+        goal: "左パネルを整える",
+      }),
+    ];
+    for (const t of client.data.tickets) t.iteration = "s1";
     mount(client, webviewHost("sidebar"));
     await screen.findByText("API");
+    const head = document.querySelector(".sidebar-head")!;
+    const lines = [...head.querySelectorAll(":scope > .head-line")].map((l) => l.textContent);
+    expect(lines).toEqual([
+      expect.stringMatching(/^s1今▾.*予定3 件$/),
+      "11/15–11/28左パネルを整える",
+      "1/3 done",
+    ]);
+    expect(head.querySelector(".goal")!.getAttribute("title")).toBe("左パネルを整える");
+    const bar = [...head.querySelectorAll<HTMLElement>(".status-band .bar > span")];
+    expect(bar.map((b) => b.className)).toEqual([
+      "status-done",
+      "status-in_progress",
+      "status-todo",
+    ]);
+    expect(screen.queryByText("詳細")).toBeNull();
+    expect(screen.queryByRole("button", { name: "s1 の操作" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "開始する" })).toBeNull();
     expect(screen.queryByRole("button", { name: "閉じる" })).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "s1 の操作" }));
-    fireEvent.click(screen.getByRole("button", { name: "閉じる" }));
-    const confirm = screen.getByRole("group", { name: "s1 今 を閉じる確認" });
-    expect(confirm.textContent).toContain("未完了が 2 件ある");
-    expect(client.calls.some((c) => c.name === "iteration.close")).toBe(false);
-    fireEvent.click(screen.getByRole("button", { name: "やめる" }));
-    expect(screen.queryByRole("group", { name: "s1 今 を閉じる確認" })).toBeNull();
-    expect(client.calls.some((c) => c.name === "iteration.close")).toBe(false);
-    fireEvent.click(screen.getByRole("button", { name: "閉じる" }));
-    fireEvent.click(screen.getByRole("button", { name: "2 件を残して閉じる" }));
-    await waitFor(() =>
-      expect(client.calls.find((c) => c.name === "iteration.close")?.input).toEqual({
-        iteration: "s1",
-      }),
-    );
+    expect(screen.queryByRole("button", { name: "+ Iteration を作る" })).toBeNull();
+    expect(document.querySelector(".board-filters.compact")).toBeTruthy();
+  });
+
+  it("サイドバーのカンバンでは「+ Iteration を作る」を Iteration の選択欄の最後から選び、作成の欄を出す", async () => {
+    const client = mockClient();
+    client.data.iterations = [iteration({ id: "s1", name: "今", status: "active" })];
+    client.data.tickets[0]!.iteration = "s1";
+    mount(client, webviewHost("sidebar"));
+    await screen.findByText("ログイン");
+    const select = screen.getByLabelText<HTMLSelectElement>("Iteration");
+    expect([...select.querySelectorAll("option")].map((o) => o.textContent)).toEqual([
+      "s1 今（進行中）",
+      "Iteration なし",
+      "+ Iteration を作る",
+    ]);
+    fireEvent.change(select, { target: { value: "+create" } });
+    expect(screen.getByLabelText("名前")).toBeTruthy();
+    expect(select.value).toBe("s1");
+    expect(window.location.hash).not.toContain("create");
+  });
+
+  it("Iteration のない Project でも、サイドバーのカンバンの選択欄から Iteration を作れる", async () => {
+    mount(mockClient(), webviewHost("sidebar"));
+    await screen.findByText("ログイン");
+    expect(document.querySelector(".iteration-pick .name")!.textContent).toBe("Iteration はない");
+    fireEvent.change(screen.getByLabelText("Iteration"), { target: { value: "+create" } });
+    expect(screen.getByLabelText("名前")).toBeTruthy();
   });
 
   it("エディタのパネルの Epic 詳細の閉じるも確認を経てから閉じる", async () => {
