@@ -789,6 +789,35 @@ textarea.body {
   width: 80px;
 }
 
+/* バックログの区画（Iteration ごと）。見出しに番号・名前・状態・件数と操作、2 行目に期間と目標 */
+.backlog-section {
+  margin-bottom: 0.75rem;
+}
+.backlog-section > header,
+.backlog-section > summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.2rem 0.6rem;
+  padding: 0.3rem 0.4rem;
+  background: var(--vscode-sideBar-background);
+  border: 1px solid var(--dg-border);
+  border-radius: 3px;
+  margin-bottom: 0.3rem;
+}
+.backlog-section .name {
+  font-weight: 600;
+}
+.backlog-section .actions {
+  display: inline-flex;
+  gap: 0.5rem;
+  align-items: center;
+  margin-left: auto;
+}
+.backlog-section .meta {
+  flex: 1 1 100%;
+}
+
 /* サイドバー（UI-12）：タブを 1 段目に広げ、列を縦に積み、余白を詰める */
 [data-surface="sidebar"] {
   background: var(--vscode-sideBar-background);

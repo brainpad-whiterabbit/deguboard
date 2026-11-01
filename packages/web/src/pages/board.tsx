@@ -34,7 +34,7 @@ import {
   type Status,
   type Ticket,
 } from "../types.js";
-import { IterationCreateForm } from "./iterations.js";
+import { IterationActions, IterationCreateForm } from "./iterations.js";
 
 /** 選んでいるもの。all は Iteration のない Project（Iteration で絞らない） */
 type Selection = { kind: "all" } | { kind: "none" } | { kind: "iteration"; iteration: Iteration };
@@ -226,7 +226,6 @@ export function hideClosedFinished(
 
 /** 選んだ Iteration の見出し：番号・名前・状態・期間・目標と、開始・終了・詳細 */
 function IterationHead({ iteration: it }: { iteration: Iteration }) {
-  const store = useStore();
   return (
     <header className="board-head">
       <h1>
@@ -241,21 +240,7 @@ function IterationHead({ iteration: it }: { iteration: Iteration }) {
       {it.goal ? <span className="muted goal">{it.goal}</span> : null}
       <span className="actions">
         <a href={hrefOf({ page: "iterations", id: it.id })}>詳細</a>
-        {it.status === "planned" ? (
-          <button
-            type="button"
-            className="primary"
-            onClick={() => void store.run("iteration.start", { iteration: it.id })}
-          >
-            開始する
-          </button>
-        ) : null}
-        <button
-          type="button"
-          onClick={() => void store.run("iteration.close", { iteration: it.id })}
-        >
-          閉じる
-        </button>
+        <IterationActions iteration={it} />
       </span>
     </header>
   );

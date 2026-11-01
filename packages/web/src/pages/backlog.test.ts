@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { iteration } from "../test-helpers.js";
 import type { Ticket } from "../types.js";
-import { EMPTY_FILTER, filterBacklog } from "./backlog.js";
+import { EMPTY_FILTER, filterBacklog, sectionsOf } from "./backlog.js";
 
 function ticket(partial: Partial<Ticket> & { id: string }): Ticket {
   return {
@@ -59,14 +60,51 @@ describe("バックログの絞り込み", () => {
       "t2",
       "t5",
     ]);
-    expect(filterBacklog(tickets, { ...EMPTY_FILTER, iteration: "s1" }).map((t) => t.id)).toEqual([
-      "t5",
-    ]);
     expect(filterBacklog(tickets, { ...EMPTY_FILTER, epic: "e1" }).map((t) => t.id)).toEqual([
       "t2",
     ]);
     expect(filterBacklog(tickets, { ...EMPTY_FILTER, label: "ui" }).map((t) => t.id)).toEqual([
       "t5",
+    ]);
+  });
+});
+
+describe("バックログの区画", () => {
+  const iterations = [
+    iteration({ id: "s3", name: "後", status: "planned" }),
+    iteration({ id: "s1", name: "済", status: "closed" }),
+    iteration({ id: "s2", name: "今", status: "active" }),
+    iteration({ id: "s4", name: "次", status: "planned" }),
+  ];
+  const tickets = [
+    ticket({ id: "t1", priority: "high", iteration: "s2" }),
+    ticket({ id: "t2", iteration: "s3" }),
+    ticket({ id: "t3" }),
+    ticket({ id: "t4", priority: "high" }),
+    ticket({ id: "t5", status: "done", iteration: "s1" }),
+    ticket({ id: "t6", iteration: "s2" }),
+  ];
+  const shape = (rows: Ticket[]) =>
+    sectionsOf(rows, iterations, tickets).map((s) => [
+      s.iteration?.id ?? "-",
+      s.tickets.map((t) => t.id),
+    ]);
+
+  it("active → planned（番号の順）→ Iteration なしに分け、区画の中は優先度と番号の順。チケットの残らない closed は出さない", () => {
+    expect(shape(filterBacklog(tickets, EMPTY_FILTER))).toEqual([
+      ["s2", ["t1", "t6"]],
+      ["s3", ["t2"]],
+      ["s4", []],
+      ["-", ["t4", "t3"]],
+    ]);
+  });
+
+  it("絞り込みはすべての区画に効き、0 件の区画も残す", () => {
+    expect(shape(filterBacklog(tickets, { ...EMPTY_FILTER, priority: "high" }))).toEqual([
+      ["s2", ["t1"]],
+      ["s3", []],
+      ["s4", []],
+      ["-", ["t4"]],
     ]);
   });
 });
