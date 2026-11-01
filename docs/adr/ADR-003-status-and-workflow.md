@@ -1,7 +1,7 @@
 # ADR-003 ステータスとワークフロー
 
 - ステータス：承認
-- 更新日：2026-10-31
+- 更新日：2026-11-01
 
 ## 背景
 
@@ -50,7 +50,7 @@ deguboard はソフトウェア開発だけでなく、コンサルティング�
 
 ### テンプレート
 
-`software-development`・`consulting`・`general` の 3 つを CLI に同梱し、`dg init --template` でコピーする。違いは `reconcile`・`fields`・`labels`（Run の実装後は `steps` も）で、Status は共通。
+`software-development`・`consulting`・`general` の 3 つを CLI に同梱し、`dg init` が 3 つとも置く。`--template` は `default` プロジェクトの Workflow を選ぶ。違いは `reconcile`・`fields`・`labels`（Run の実装後は `steps` も）で、Status は共通。
 
 ### Epic は置き、Milestone は置かない
 

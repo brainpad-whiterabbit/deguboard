@@ -1,7 +1,7 @@
 # ADR-006 UI と書き込み
 
 - ステータス：承認
-- 更新日：2026-10-31
+- 更新日：2026-11-01
 
 ## 背景
 
@@ -33,7 +33,7 @@
 
 ### `dg` は npm で配り、拡張は同梱しない
 
-- `dg` は npm で配る（`npm i -g deguboard`。mise なら `mise use npm:deguboard`）。実行環境に Node.js 24 以上を要求しているので、前提は増えない。cli が依存する `core` と `server` も `@deguboard/*` として同じ版で公開し、cli に束ねない。画面（`web` のビルド結果）は cli のパッケージに同梱する
+- `dg` は npm で配る（`npm i -g deguboard`。mise なら `mise use -g npm:deguboard`）。実行環境に Node.js 24 以上を要求しているので、前提は増えない。cli が依存する `core` と `server` も `@deguboard/*` として同じ版で公開し、cli に束ねない。画面（`web` のビルド結果）は cli のパッケージに同梱する
 - 拡張は Webview のために `core` と `web` だけを同梱する。画面の閲覧と操作は `dg` なしで動く
 - 拡張が使う `dg` の解決は「PATH のグローバル → 同梱」の順で引く 1 か所の関数に置く。最初の版では同梱せず、npm が使えない環境が実際に出たときに足す
 - `dg` が見つからなければ通知でインストールを案内し、`dg --version` と同梱の `core` のメジャーが違えば知らせる

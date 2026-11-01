@@ -1,7 +1,7 @@
 # ADR-008 技術構成と開発環境
 
 - ステータス：承認
-- 更新日：2026-10-31
+- 更新日：2026-11-01
 
 ## 背景
 
@@ -37,7 +37,7 @@
 - React 19 を Vite でビルドし、`base: "./"` で相対パスにして `dg serve` でも VS Code の Webview でも読めるようにする
 - CSS は自前で、VS Code の `--vscode-*` 変数を基準にする。ブラウザ向けの既定値は `styles.css` の `:root` に置く
 - ドラッグ＆ドロップは `@dnd-kit/core`。画面の切り替えは URL のハッシュで自前。状態管理のライブラリは入れず、React の context だけで持つ
-- 更新は書き込み後の読み直しと `GET /api/status` のポーリング。WebSocket と SSE は入れない
+- 更新は書き込み後の読み直しと `GET /api/status` のポーリング。VS Code では拡張ホストがデータのファイルを見張って読み直しを通知する。WebSocket と SSE は入れない
 - テストは Vitest + Testing Library + jsdom で、`CommandClient` を差し替えて画面を結合して確かめる
 
 ### VS Code 拡張は Vite で 1 つの CommonJS に束ねる

@@ -223,7 +223,7 @@ fields:
 | Iteration | `iteration create / list / show / add / remove / start / close / reopen`（`sprint` はエイリアス） | あり         |
 | Epic      | `epic create / list / show / update / add / remove / close / reopen`                              | あり         |
 | Workflow  | `workflow list / show / validate`                                                                 | あり         |
-| 画面      | `serve`、`open`（web の実装までは API だけを配信する）                                            | あり         |
+| 画面      | `serve`、`open`                                                                                   | あり         |
 | 手順      | `guide <topic>`                                                                                   | あり         |
 | Plan      | `plan create / approve / show / close`                                                            | 予定（`e2`） |
 | Run       | `run start / finish / list`、`metrics show`                                                       | 予定（`e3`） |
@@ -238,7 +238,7 @@ fields:
 - ST-1 `status` はチケットに保存する。変えるのは `ticket move`・`claim`・`unclaim`、UI の操作、照合だけ
 - ST-2 遷移は Workflow の `transitions` の制約で検査する。`by` に含まれない主体の遷移と `requires` を満たさない遷移は拒否し、制約のない遷移は誰でも行える。同じ Status への move は拒否する
 - ST-3 `claim` は todo のチケットの `assignee` を claim した主体にし、`branch` を記録して in_progress に進める。PR も作業ブランチも要らない作業は、ブランチなしの指定で `branch` を記録しない。todo 以外は拒否する。別のユーザが `assignee` だったときは上書きして警告する。依存先が終わるまで着手を止めたいときは Workflow で todo → in_progress に `requires: [deps_done]`（WF-2）を書く
-- ST-4 照合は `dg sync` と、画面の再読み込み（UI-6）で行う。`branch` のあるチケットについて Git から事実を集め（`branch` のないチケットは照合せず、状態は `ticket move` で進める）、`reconcile` 規則を上から評価し、今より前進の順が先のときだけ書き換える。`done` と `abandoned` のチケットには触れない。done に進めたチケットに未チェックの受け入れ条件が残れば警告する
+- ST-4 照合は `dg sync` と、画面の同期（UI-6・UI-12）で行う。`branch` のあるチケットについて Git から事実を集め（`branch` のないチケットは照合せず、状態は `ticket move` で進める）、`reconcile` 規則を上から評価し、今より前進の順が先のときだけ書き換える。`done` と `abandoned` のチケットには触れない。done に進めたチケットに未チェックの受け入れ条件が残れば警告する
 - ST-5 後退を指す事実（消えたブランチ・マージされずに閉じた PR）は書き換えず警告する。`gh` が PR はないと答えたときは、閉じた PR として警告しない。ただし同じ照合で done に進むときは、マージ後に消したブランチなので警告しない。取れなかった事実は不明とし、前進の判定では偽と読む。`branch_merged` は先端が base の真の祖先のとき真だが、in_progress で push していないブランチは commit のない切ったばかりのブランチとみなして偽にする（commit のないブランチは base が進むと ff マージ後と同じ形になるため。[ADR-004](adr/ADR-004-agents-and-state.md)）。照合の結果（`reconciled`）には根拠の規則の条件（`when`）を含める
 - ST-6 PR の事実は `gh` が使えるときだけ取る。`gh` がなくても照合は Git の事実だけで成り立つ。`pr` のないチケットの PR をブランチ名で見つけたら、状態が進まなくても番号を `pr` に記録する。記録済みの `pr` は書き換えない
 - ST-7 `unclaim` は in_progress のチケットの、自分（同じユーザの人と AI）の claim か記録のない claim だけを外して todo に戻し、`assignee` を消す。応答のない claim は強制の指定で外す。生存監視はしない
@@ -262,7 +262,7 @@ Web UI は `dg serve` が配信し、VS Code 拡張は同じ React アプリを 
 - UI-3 バックログ：done と abandoned 以外のチケットを優先度と番号で出し、番号・タイトル・ラベルで検索、Status・優先度・Iteration・Epic・ラベル・担当者で絞り込む
 - UI-4 チケット詳細：本文（概要・受け入れ条件）、属性、Epic、依存先と依存元、起票者と担当者、作業ブランチ、Run の一覧（予定 `e3`）。属性（担当者を含む）と本文を編集できる
 - UI-5 Iteration：一覧の画面は持たない。planned と active はカンバンの表（UI-2）で選び、見出しから開始・終了・作成する。詳細の画面でチケットの追加・除外。closed の Iteration は履歴の画面に閉じた新しい順で出し（番号・名前・完了と持ち越しの件数・期間・目標）、チケットの番号かタイトルで絞れ、行から詳細を開く
-- UI-6 未 push のコミットと、取り込んでいないリモートの更新があることを印で知らせる。再読み込みで `dg sync` と同じ同期を行う
+- UI-6 未 push のコミットと、取り込んでいないリモートの更新があることを印で知らせる。同期のボタンで `dg sync` と同じ同期を行い、画面を読み直す
 - UI-7 画面からの書き込みは Core の同じコマンドを通り、`commit.mode` に従ってコミットする
 - UI-8 `dg serve` は既定で `127.0.0.1` にバインドする。認証は持たない
 - UI-9 Run の実行状況と実績の画面は予定（`e3`）
