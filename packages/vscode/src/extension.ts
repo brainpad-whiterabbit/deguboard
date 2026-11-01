@@ -1,5 +1,6 @@
-// 拡張ホストの入口。Activity Bar のアイコンからサイドバーのビューに web を載せ、チケット詳細はエディタ領域のパネルに開く（UI-12）。
-// パネルの題はチケットの番号とタイトルにする（詳細のパネルにはヘッダーを出さないので、題で見分ける）。
+// 拡張ホストの入口。Activity Bar のアイコンからサイドバーのビューに web を載せ、それを主画面にする（UI-12）。
+// エディタ領域のパネルはサイドバーから開いた詳細（チケット・Iteration・Epic）だけを出し、一覧の画面（カンバンなど）はサイドバーに出す。
+// パネルの題は詳細の番号と名前にする（パネルにはヘッダーを出さないので、題で見分ける）。
 // データ worktree と実行中の Run の記録を見張り、CLI やエージェントの書き込みを画面に映す。
 // Webview からの要求は core のプロセス内 CommandClient に通す（ADR-006・ADR-007）。サーバーは起動しない。
 // dg は同梱せず、PATH の dg を案内する（UI-11）。VS Code の API に触れるのはこのファイルだけ
@@ -32,7 +33,7 @@ import {
 const VIEW_ID = "deguboard.screens";
 const PANEL_TYPE = "deguboard";
 
-/** エディタ領域のパネル。作業フォルダごとに 1 つで、チケット詳細はこれを使い回す */
+/** エディタ領域のパネル。作業フォルダごとに 1 つで、詳細はこれを使い回す */
 const panels = new Map<string, vscode.WebviewPanel>();
 /** フォルダごとの CommandClient。core の直列化はインスタンスの中だけなので、サイドバーとパネルで 1 つを共有する */
 const clients = new Map<string, CommandClient>();
@@ -42,16 +43,13 @@ const watchers = new Map<string, vscode.Disposable>();
 let sidebar: vscode.WebviewView | undefined;
 /** サイドバーが対象にするフォルダ（最初の作業フォルダ）。ビューのタイトル行のコマンドはこのフォルダに対して動く */
 let sidebarFolder: vscode.WorkspaceFolder | undefined;
+/** サイドバーがまだ描かれていないときに出す画面。サイドバーを開いて作るときの初期ルートにする */
+let pendingSidebarRoute: string | undefined;
 /** 同期の実行中。重ねて走らせない */
 let syncing = false;
 
 export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
-    vscode.commands.registerCommand("deguboard.open", async () => {
-      const folder = await pickFolder();
-      if (!folder) return;
-      await openPanel(context, folder, { column: vscode.ViewColumn.One });
-    }),
     // ビューのタイトル行の同期ボタン（UI-12）。拡張ホストで実行してから、サイドバーとパネルの両方に読み直しを頼む
     // （サイドバーが描かれていなくても動く）。リモートがなくても読み直しだけはするので、手の再読み込みも兼ねる
     vscode.commands.registerCommand("deguboard.sync", () => void syncFolder()),
@@ -73,17 +71,7 @@ export function deactivate(): void {
   clients.clear();
 }
 
-async function pickFolder(): Promise<vscode.WorkspaceFolder | undefined> {
-  const folders = vscode.workspace.workspaceFolders ?? [];
-  if (folders.length === 0) {
-    void vscode.window.showErrorMessage("deguboard: フォルダを開いてから使う（対象のリポジトリ）");
-    return undefined;
-  }
-  if (folders.length === 1) return folders[0];
-  return vscode.window.showWorkspaceFolderPick({ placeHolder: "deguboard を開くリポジトリ" });
-}
-
-/** サイドバーのビュー。最初の作業フォルダを対象にし、チケットを押すとエディタ領域のパネルに開く */
+/** サイドバーのビュー。最初の作業フォルダを対象にし、詳細を押すとエディタ領域のパネルに開く */
 async function resolveSidebar(
   context: vscode.ExtensionContext,
   view: vscode.WebviewView,
@@ -101,21 +89,43 @@ async function resolveSidebar(
     if (sidebar === view) sidebar = undefined;
   });
   if (folders.length > 1) view.description = folder.name;
+  const route = pendingSidebarRoute ?? "#/board";
+  pendingSidebarRoute = undefined;
   await attach(context, view.webview, folder, {
     surface: "sidebar",
-    route: "#/board",
+    route,
     onStatus: (status) => {
       view.badge = badgeOf(status);
     },
     actions: {
       open: (route) =>
-        openPanel(context, folder, {
-          column: vscode.ViewColumn.Beside,
-          route,
-          preserveFocus: true,
-        }),
+        subjectOfRoute(route)
+          ? openPanel(context, folder, {
+              column: vscode.ViewColumn.Beside,
+              route,
+              preserveFocus: true,
+            })
+          : showInSidebar(route),
+      show: showInSidebar,
     },
   });
+}
+
+/**
+ * 一覧の画面（カンバン・バックログ・履歴・Run）をサイドバーのビューに出してフォーカスを移す。パネルの中身は変えない。
+ * サイドバーがまだ描かれていなければ、初期ルートとして覚えてからビューを開く（resolveSidebar が使う）
+ */
+async function showInSidebar(route: string): Promise<void> {
+  if (sidebar) {
+    void sidebar.webview.postMessage({
+      kind: "event",
+      name: "navigate",
+      hash: route,
+    } satisfies WebviewEvent);
+  } else {
+    pendingSidebarRoute = route;
+  }
+  await vscode.commands.executeCommand(`${VIEW_ID}.focus`);
 }
 
 /** フォルダのサイドバーとパネルの両方に通知を送る */
@@ -162,30 +172,28 @@ async function syncFolder(): Promise<void> {
 }
 
 /**
- * エディタ領域のパネルを出す。既にあれば reveal し、route があればその画面に移す。
- * なければ route（既定は #/board）を初期ルートにして作る（Webview が起動する前のイベントは届かないので HTML に埋める）。
- * パネルの中のチケットリンクもここに来て、同じパネルの中で遷移し題が変わる
+ * エディタ領域のパネルに詳細（route）を出す。既にあれば reveal してその詳細に移す。
+ * なければ route を初期ルートにして作る（Webview が起動する前のイベントは届かないので HTML に埋める）。
+ * パネルの中の詳細へのリンクもここに来て、同じパネルの中で遷移し題が変わる。一覧の画面へのリンクはサイドバーに回す
  */
 async function openPanel(
   context: vscode.ExtensionContext,
   folder: vscode.WorkspaceFolder,
-  options: { column: vscode.ViewColumn; route?: string; preserveFocus?: boolean },
+  options: { column: vscode.ViewColumn; route: string; preserveFocus?: boolean },
 ): Promise<void> {
   const key = folder.uri.toString();
   const existing = panels.get(key);
+  const { route } = options;
   if (existing) {
-    if (options.route) {
-      void existing.webview.postMessage({
-        kind: "event",
-        name: "navigate",
-        hash: options.route,
-      } satisfies WebviewEvent);
-      void retitle(existing, folder, options.route);
-    }
+    void existing.webview.postMessage({
+      kind: "event",
+      name: "navigate",
+      hash: route,
+    } satisfies WebviewEvent);
+    void retitle(existing, folder, route);
     existing.reveal(undefined, options.preserveFocus);
     return;
   }
-  const route = options.route ?? "#/board";
   const panel = vscode.window.createWebviewPanel(
     PANEL_TYPE,
     panelTitle(folder),
@@ -199,7 +207,11 @@ async function openPanel(
     surface: "panel",
     route,
     actions: {
-      open: (route) => openPanel(context, folder, { column: options.column, route }),
+      open: (route) =>
+        subjectOfRoute(route)
+          ? openPanel(context, folder, { column: options.column, route })
+          : showInSidebar(route),
+      show: showInSidebar,
     },
   });
 }

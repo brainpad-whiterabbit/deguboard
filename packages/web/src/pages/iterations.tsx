@@ -4,6 +4,7 @@
 import { useEffect, useState } from "react";
 import { TicketTable } from "../components/parts.js";
 import { NO_VALUE } from "../components/run-parts.js";
+import { useHost } from "../host.js";
 import { hrefOf } from "../router.js";
 import { useStore } from "../store.js";
 import {
@@ -100,6 +101,7 @@ export function IterationCreateForm({ onDone }: { onDone: () => void }) {
 
 function IterationDetailView({ id }: { id: string }) {
   const store = useStore();
+  const host = useHost();
   const [it, setIt] = useState<IterationDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [adding, setAdding] = useState("");
@@ -126,15 +128,18 @@ function IterationDetailView({ id }: { id: string }) {
 
   return (
     <section>
-      <div className="toolbar">
-        <a
-          href={hrefOf(
-            it.status === "closed" ? { page: "board" } : { page: "board", iteration: it.id },
-          )}
-        >
-          ← カンバン
-        </a>
-      </div>
+      {/* パネルは詳細だけを出すので、戻る先の一覧がない（一覧はサイドバー。UI-12） */}
+      {host.surface === "panel" ? null : (
+        <div className="toolbar">
+          <a
+            href={hrefOf(
+              it.status === "closed" ? { page: "board" } : { page: "board", iteration: it.id },
+            )}
+          >
+            ← カンバン
+          </a>
+        </div>
+      )}
       <h1>
         <code>{it.id}</code> {it.name}{" "}
         <span className={`badge iteration-${it.status}`}>{ITERATION_LABELS[it.status]}</span>

@@ -50,11 +50,6 @@
     },
     "commands": [
       {
-        "command": "deguboard.open",
-        "title": "画面を開く",
-        "category": "deguboard"
-      },
-      {
         "command": "deguboard.sync",
         "title": "同期",
         "category": "deguboard",

@@ -21,8 +21,12 @@ afterEach(() => {
 });
 
 /** Webview に載っているときの Host。見た目の状態はテストごとのメモリ */
-function webviewHost(surface: "sidebar" | "panel", open: (route: Route) => void = () => {}): Host {
-  return { surface, open, state: createUiState(memoryBackend()) };
+function webviewHost(
+  surface: "sidebar" | "panel",
+  open: (route: Route) => void = () => {},
+  show: (route: Route) => void = () => {},
+): Host {
+  return { surface, open, show, state: createUiState(memoryBackend()) };
 }
 
 function mount(client = mockClient(), host?: Host) {
@@ -247,6 +251,7 @@ describe("画面", () => {
       run: (name, input) => client.run(name, input),
       status: () => client.status(),
       open: async () => {},
+      show: async () => {},
       onEvent: (listener) => {
         send = listener;
         return () => (send = undefined);
@@ -286,6 +291,7 @@ describe("画面", () => {
         run: (name, input) => client.run(name, input),
         status: () => client.status(),
         open: async () => {},
+        show: async () => {},
         onEvent: (listener) => {
           send = listener;
           return () => (send = undefined);
@@ -429,30 +435,38 @@ describe("画面", () => {
     }
   });
 
-  it("エディタのパネルのチケットリンクはホストに頼み（同じパネルで遷移して題が変わる）、それ以外のリンクはハッシュ遷移", async () => {
-    window.location.hash = "#/backlog";
+  it("エディタのパネルのチケットリンクはホストに開いてもらい（同じパネルで遷移して題が変わる）、一覧の画面へのリンクはサイドバーに出してもらう", async () => {
+    window.location.hash = "#/epics/e1";
+    const client = mockClient();
+    client.handlers["epic.show"] = () => ({
+      ...client.data.epics[0],
+      body: "",
+      tickets: client.data.tickets.filter((t) => t.epic === "e1"),
+    });
     const opened: Route[] = [];
+    const shown: Route[] = [];
     mount(
-      mockClient(),
-      webviewHost("panel", (route) => opened.push(route)),
+      client,
+      webviewHost(
+        "panel",
+        (route) => opened.push(route),
+        (route) => shown.push(route),
+      ),
     );
     fireEvent.click(await screen.findByText("API"));
     expect(opened).toEqual([{ page: "ticket", id: "t2" }]);
-    expect(window.location.hash).toBe("#/backlog");
-    fireEvent.click(screen.getByRole("link", { name: "履歴" }));
-    expect(window.location.hash).toBe("#/history");
+    fireEvent.click(screen.getByRole("link", { name: "この Epic でカンバンを見る" }));
+    expect(shown).toEqual([{ page: "board", epic: "e1" }]);
+    expect(window.location.hash).toBe("#/epics/e1");
   });
 
-  it("エディタのパネルでチケット詳細を出すときはヘッダー（タブ・Project・同期）を出さない。カンバンでは出す", async () => {
+  it("エディタのパネルはチケット詳細にヘッダー（タブ・Project・同期）を出さない", async () => {
     window.location.hash = "#/tickets/t3";
     mount(mockClient(), webviewHost("panel"));
     await screen.findByRole("heading", { level: 1, name: "画面" });
     expect(screen.queryByRole("navigation", { name: "画面" })).toBeNull();
     expect(screen.queryByRole("button", { name: "同期" })).toBeNull();
     expect(screen.queryByText("deguboard")).toBeNull();
-    window.location.hash = "#/board";
-    await screen.findByRole("navigation", { name: "画面" });
-    expect(screen.getByRole("button", { name: "同期" })).toBeTruthy();
   });
 
   it("履歴のタブは closed の Iteration を閉じた新しい順に出し、チケットで絞れ、行はホストに開いてもらう", async () => {
@@ -721,7 +735,37 @@ describe("画面", () => {
     await waitFor(() => expect(screen.queryByLabelText("新しい Epic の題")).toBeNull());
   });
 
-  it("サイドバーの Epic 詳細はチケットを 1 行で出し、「外す」が行の右に出る", async () => {
+  it("エディタのパネルの Epic 詳細はチケットを未完了・完了・中止の段の 1 本の一覧で出し、完了と中止は畳み、0 件の段と戻るリンクは出さない", async () => {
+    window.location.hash = "#/epics/e1";
+    const client = mockClient();
+    client.handlers["epic.show"] = () => ({
+      ...client.data.epics[0],
+      body: "",
+      tickets: [
+        ticket({ id: "t2", title: "API", status: "in_progress", epic: "e1" }),
+        ticket({ id: "t4", title: "設計", status: "todo", priority: "high", epic: "e1" }),
+        ticket({ id: "t5", title: "調査", status: "done", epic: "e1" }),
+      ],
+    });
+    mount(client, webviewHost("panel"));
+    await screen.findAllByRole("button", { name: "外す" });
+    expect(document.querySelectorAll(".card")).toHaveLength(0);
+    expect(document.querySelectorAll(".column")).toHaveLength(0);
+    const sections = [...document.querySelectorAll<HTMLDetailsElement>(".epic-tickets > details")];
+    expect(sections.map((d) => d.querySelector("summary")!.textContent)).toEqual([
+      "未完了 2",
+      "完了 1",
+    ]);
+    expect(sections.map((d) => d.open)).toEqual([true, false]);
+    // 段の中は Workflow の Status の順（todo が先）
+    expect([...sections[0]!.querySelectorAll(".row code")].map((c) => c.textContent)).toEqual([
+      "t4",
+      "t2",
+    ]);
+    expect(screen.queryByRole("link", { name: "← バックログ" })).toBeNull();
+  });
+
+  it("ブラウザの Epic 詳細は今のまま Status ごとの列で出し、戻るリンクも出す", async () => {
     window.location.hash = "#/epics/e1";
     const client = mockClient();
     client.handlers["epic.show"] = () => ({
@@ -729,10 +773,21 @@ describe("画面", () => {
       body: "",
       tickets: client.data.tickets.filter((t) => t.epic === "e1"),
     });
-    mount(client, webviewHost("sidebar"));
+    mount(client);
     await screen.findByRole("button", { name: "外す" });
-    expect(document.querySelectorAll(".card")).toHaveLength(0);
-    expect(document.querySelectorAll("ul.rows .row")).toHaveLength(1);
+    expect(document.querySelectorAll(".column").length).toBeGreaterThan(1);
+    expect(document.querySelectorAll(".card")).toHaveLength(1);
+    expect(screen.getByRole("link", { name: "← バックログ" })).toBeTruthy();
+  });
+
+  it("エディタのパネルの Iteration 詳細は「← カンバン」を出さない", async () => {
+    window.location.hash = "#/iterations/s1";
+    const client = mockClient();
+    client.data.iterations = [iteration({ id: "s1", name: "最初", status: "active" })];
+    client.handlers["iteration.show"] = () => ({ ...client.data.iterations[0], items: [] });
+    mount(client, webviewHost("panel"));
+    await screen.findByRole("heading", { level: 1 });
+    expect(screen.queryByRole("link", { name: "← カンバン" })).toBeNull();
   });
 
   it("info の通知（コマンドの警告）は数秒で消える", async () => {

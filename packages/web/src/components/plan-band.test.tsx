@@ -15,7 +15,12 @@ afterEach(() => {
 
 /** 見た目の状態はテストごとのメモリ（帯の開閉がテストをまたがない） */
 function browserHost(): Host {
-  return { surface: "browser", open: () => {}, state: createUiState(memoryBackend()) };
+  return {
+    surface: "browser",
+    open: () => {},
+    show: () => {},
+    state: createUiState(memoryBackend()),
+  };
 }
 
 function mount(client = mockClient(), host = browserHost()) {

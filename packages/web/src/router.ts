@@ -98,6 +98,11 @@ export function hrefOf(route: Route): string {
   }
 }
 
+/** 詳細の画面（チケット・Epic・Iteration）か。エディタのパネルはこれだけを出す（UI-12） */
+export function isDetailRoute(route: Route): boolean {
+  return route.page === "ticket" || route.page === "epics" || route.page === "iterations";
+}
+
 export function navigate(route: Route): void {
   window.location.hash = hrefOf(route);
 }
