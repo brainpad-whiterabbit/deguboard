@@ -15,32 +15,28 @@ deguboard は、Git で管理するチケットとユーザー定義のワーク
 
 ## 2. 想定利用者と前提
 
-| 項目         | 内容                                                                                                                       |
-| ------------ | -------------------------------------------------------------------------------------------------------------------------- |
-| 利用者       | 個人、および同じ Git リポジトリを共有する小規模チーム                                                                      |
-| 実行環境     | Linux / macOS。Node.js 24 以上。`dg` は npm で入れる。ブラウザ、または VS Code 1.123 以上（デスクトップ）                  |
-| 必須ツール   | git 2.30 以上。GitHub CLI（`gh`）は PR の事実を照合に使うときだけ                                                          |
-| リポジトリ   | Git リポジトリ。リモートは任意（なければ同期なしで動く）。`git.base_branch` を作業ブランチの元と「マージ済み」の判定に使う |
-| エージェント | `dg` を Bash から呼べるものなら何でも。Skill は Claude Code 向けに配る                                                     |
+- **利用者**：個人、および同じ Git リポジトリを共有する小規模チーム
+- **実行環境**：Linux / macOS。Node.js 24 以上。`dg` は npm で入れる。ブラウザ、または VS Code 1.123 以上（デスクトップ）
+- **必須ツール**：git 2.30 以上。GitHub CLI（`gh`）は PR の事実を照合に使うときだけ
+- **リポジトリ**：Git リポジトリ。リモートは任意（なければ同期なしで動く）。`git.base_branch` を作業ブランチの元と「マージ済み」の判定に使う
+- **エージェント**：`dg` を Bash から呼べるものなら何でも。Skill は Claude Code 向けに配る
 
 ## 3. 用語
 
-| 用語               | 意味                                                                                                  |
-| ------------------ | ----------------------------------------------------------------------------------------------------- |
-| Project            | チケットを束ねる単位。1 リポジトリに複数置ける                                                        |
-| Ticket             | 最小の作業単位。`t12`                                                                                 |
-| Epic               | 目的ごとにチケットを束ねる単位。Iteration をまたぐ。`e3`                                              |
-| Iteration          | 期間の計画（スプリント）。`s3`。`sprint` はエイリアス                                                 |
-| Plan               | チケットをどの順で進めるかと承認の記録。`p7`                                                          |
-| Workflow           | 遷移の条件・照合規則・追加フィールド・表示名の定義                                                    |
-| Status             | チケットの進捗。全ワークフロー共通の `todo` / `in_progress` / `review` / `done` / `abandoned` の 5 つ |
-| Run                | 1 回の AI 実行の記録。`step`（工程）を持つ                                                            |
-| claim              | チケットに着手する操作。push の成功で排他を得る                                                       |
-| 主体の ID          | ユーザ名＋種別の 1 文字列。`eiki`（人）か `eiki/agent`（eiki の AI）。ホスト名は含めない              |
-| 起票者             | チケットの起票を指示・承認したユーザか、人の確認を経ずに起票した AI。`created_by`                     |
-| 担当者             | チケットを進めるユーザか AI。`assignee`。claim で付く                                                 |
-| 照合（reconcile）  | 作業ブランチの事実からチケットの状態を前進させること                                                  |
-| deguboard worktree | orphan ブランチ `deguboard` を checkout した `<git-common-dir>/deguboard/`                            |
+- **Project**：チケットを束ねる単位。1 リポジトリに複数置ける
+- **Ticket**：最小の作業単位。`t12`
+- **Epic**：目的ごとにチケットを束ねる単位。Iteration をまたぐ。`e3`
+- **Iteration**：期間の計画（スプリント）。`s3`。`sprint` はエイリアス
+- **Plan**：チケットをどの順で進めるかと承認の記録。`p7`
+- **Workflow**：遷移の条件・照合規則・追加フィールド・表示名の定義
+- **Status**：チケットの進捗。全ワークフロー共通の `todo` / `in_progress` / `review` / `done` / `abandoned` の 5 つ
+- **Run**：1 回の AI 実行の記録。`step`（工程）を持つ
+- **claim**：チケットに着手する操作。push の成功で排他を得る
+- **主体の ID**：ユーザ名＋種別の 1 文字列。`eiki`（人）か `eiki/agent`（eiki の AI）。ホスト名は含めない
+- **起票者**：チケットの起票を指示・承認したユーザか、人の確認を経ずに起票した AI。`created_by`
+- **担当者**：チケットを進めるユーザか AI。`assignee`。claim で付く
+- **照合（reconcile）**：作業ブランチの事実からチケットの状態を前進させること
+- **deguboard worktree**：orphan ブランチ `deguboard` を checkout した `<git-common-dir>/deguboard/`
 
 ## 4. ユースケース
 
@@ -195,18 +191,16 @@ steps: # 任意。Run の step の語彙（WF-5）
 
 ### 5.10 設定（`config.yaml`）
 
-| 項目                             | 意味                                             | 既定                  |
-| -------------------------------- | ------------------------------------------------ | --------------------- |
-| `default_project`                | 省略時の Project                                 | `default`             |
-| `git.remote` / `git.base_branch` | 同期先と、作業ブランチの元・マージ判定の基準     | `origin` / `main`     |
-| `worktree.root`                  | 作業 worktree の置き場所                         | `../<repo>.worktrees` |
-| `commit.mode`                    | 書き込みをいつコミットするか                     | `batch`               |
-| `push.mode`                      | `auto` / `manual`                                | `auto`                |
-| `metrics.read_transcripts`       | 会話記録を読むか                                 | `false`               |
-| `actions.shell`                  | 任意のシェルの Action を許すか（AG-7）           | `false`               |
-| `actions.test`                   | テストの Action が呼ぶコマンドの引数配列         | `[]`                  |
-| `actor.human_only`               | agent からは拒否するコマンド名の一覧（下記）     | `[]`                  |
-| `auto.merge`                     | `dg guide all --auto` で PR を自動でマージするか | `false`               |
+- `default_project`：省略時の Project（既定 `default`）
+- `git.remote` / `git.base_branch`：同期先と、作業ブランチの元・マージ判定の基準（既定 `origin` / `main`）
+- `worktree.root`：作業 worktree の置き場所（既定 `../<repo>.worktrees`）
+- `commit.mode`：書き込みをいつコミットするか（既定 `batch`）
+- `push.mode`：`auto` / `manual`（既定 `auto`）
+- `metrics.read_transcripts`：会話記録を読むか（既定 `false`）
+- `actions.shell`：任意のシェルの Action を許すか。AG-7（既定 `false`）
+- `actions.test`：テストの Action が呼ぶコマンドの引数配列（既定 `[]`）
+- `actor.human_only`：agent からは拒否するコマンド名の一覧。下記（既定 `[]`）
+- `auto.merge`：`dg guide all --auto` で PR を自動でマージするか（既定 `false`）
 
 `actor.human_only` は `epic.close` のようなコマンド名の一覧で、入れたコマンドを agent が呼ぶと `TRANSITION_REJECTED` で拒否する。既定は空で、すべての操作をエージェントにも許す。チケットの遷移を人に限るのは Workflow の `by`（WF-1）で、この項目では扱わない。
 
@@ -249,7 +243,7 @@ steps: # 任意。Run の step の語彙（WF-5）
 Web UI は `dg serve` が配信し、VS Code 拡張は同じ React アプリを Webview に載せる。表示と操作は両方で同じ（[ADR-006](adr/ADR-006-ui-and-writes.md)）。
 
 - UI-1 プロジェクトの切り替え
-- UI-2 カンバン：選んだ Iteration（既定は active）のチケットを Status ごとの列に出す（表示名は Workflow の `labels`）。ドラッグ＆ドロップで Status を変え、`ticket move` と同じ検査で拒否されたら理由を出して戻す。Epic と担当者で絞れる。閉じた Iteration・Epic の終わったチケットは出さない。VS Code のサイドバーでは、前回の描画から Status か Iteration が変わったチケットと新しく現れたチケットの行を短く点滅させる（自分でドラッグした行と、動きを減らす設定のときは点滅させない。隠れている間の変化は見えたときに点滅させる）。サイドバーのカンバンの見出しは Iteration の番号・名前・状態・件数、期間・目標、Status ごとの進みの帯に詰め、詳細へのリンクと開始・閉じるを出さない（作成は Iteration の選択欄から）。サイドバーのカンバンの行の頭には、このマシンで実行中の Run があるチケットに回る印と「実行中」を、ほかの in_progress に止まった印を出す（動きを減らす設定では回さない）
+- UI-2 カンバン：選んだ Iteration（既定は active）のチケットを Status ごとの列に出す（表示名は Workflow の `labels`）。ドラッグ＆ドロップで Status を変え、`ticket move` と同じ検査で拒否されたら理由を出して戻す。Epic と担当者で絞れる。閉じた Iteration・Epic の終わったチケットは出さない。VS Code のサイドバーでは見出しを狭い幅向けに詰め、変化した行の点滅と、実行中の Run の印を行に出す（細部は web のテストとスタイル）
 - UI-3 バックログ：done・abandoned 以外のチケットを Iteration ごとの区画に分けて出し、検索と絞り込みができる。別の区画へのドラッグで Iteration を変え、`ticket update` と同じ検査で拒否されたら理由を出して戻す
 - UI-4 チケット詳細：本文（概要・受け入れ条件）、属性、Epic、依存先と依存元、起票者と担当者、作業ブランチ、PR、Run の一覧、経過（CL-7）。PR はリモートの URL から PR のページへのリンクにする（直せなければ番号だけ）。属性と本文を編集できる
 - UI-5 Iteration：作成・開始・閉じる、詳細の画面でチケットの追加・除外ができる。閉じた Iteration・Epic と終わったチケットは履歴の画面で見る（終えた日は CL-7 から求める）
