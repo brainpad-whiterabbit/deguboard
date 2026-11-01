@@ -511,9 +511,12 @@ function Column({
 /** 左パネルのカンバンの行に出す、チケットが入っている開いた Plan と、残っている待ちの相手 */
 export interface PlanMark {
   plan: string;
+  /** Plan が承認待ち（plan.status が pending）。todo の行は待ちの相手によらず「承認待ち」と出す */
+  pending: boolean;
   /**
    * done・abandoned でない待ちの相手。Plan の after の待ち（planGraph の waitingOn）を先に、
-   * チケットの depends_on（Plan の外のものと、after に書かれていないもの）を後に並べる。空なら着手できる（core の depsDone と同じ）
+   * チケットの depends_on（Plan の外のものと、after に書かれていないもの）を後に並べる。
+   * 空なら着手できる（Project の中に限って core の depsDone と同じ意味）
    */
   waitingOn: string[];
 }
@@ -522,7 +525,8 @@ const FINISHED_STATUSES: ReadonlySet<Status> = new Set(["done", "abandoned"]);
 
 /**
  * 開いた Plan に入っているチケットごとの PlanMark。after の待ちは Plan ごとに planGraph で求め、depends_on の待ちを足す。
- * depends_on の相手が読み込んだチケットにないときは待ちに数える（core の Store.depsDone と同じ意味）
+ * 限界：画面が読むチケットは選んだ Project のものだけなので、見つからない依存先（別の Project のものなど）は判定できないものとして待ちに数えない。
+ * 別の Project の依存先は見ない。正しくは core の ticket.list に deps_done を載せて使う（別チケット）
  */
 export function kanbanPlanMarks(
   plans: readonly PlanRow[],
@@ -539,29 +543,38 @@ export function kanbanPlanMarks(
       const deps = byId.get(node.id)!.depends_on.filter((dep) => {
         const status = byId.get(dep)?.status;
         return (
-          (status === undefined || !FINISHED_STATUSES.has(status)) && !node.waitingOn.includes(dep)
+          status !== undefined && !FINISHED_STATUSES.has(status) && !node.waitingOn.includes(dep)
         );
       });
-      marks.set(node.id, { plan: plan.id, waitingOn: [...node.waitingOn, ...deps] });
+      marks.set(node.id, {
+        plan: plan.id,
+        pending: plan.status === "pending",
+        waitingOn: [...node.waitingOn, ...deps],
+      });
     }
   }
   return marks;
 }
 
-/** 待ちの相手の短い書き方：1 件なら「t137 待ち」、2 件以上なら先頭と残りの件数で「t137+1 待ち」 */
+/** 待ちの相手の短い書き方：1 件なら「t137 待ち」、2 件以上なら先頭と残りの件数で「t137+1 待ち」、なければ空文字 */
 export function waitLabel(waitingOn: readonly string[]): string {
   const [first, ...rest] = waitingOn;
+  if (first === undefined) return "";
   return `${first}${rest.length > 0 ? `+${rest.length}` : ""} 待ち`;
 }
 
 /**
  * 左パネルのカンバンの行の右端（開いた Plan に入っているチケット）。縦に 2 段で、上に Plan の番号を Plan の色で、
- * 下に todo なら着手可か待ちの相手（after と depends_on の終わっていないもの）、todo でなければ優先度の印を出す。
- * todo で優先度の印（high・low）もあるときは、優先度の印を上の段の Plan の番号の左に寄せる
+ * 下に todo なら承認待ち（Plan が承認待ち）・待ちの相手（after と depends_on の終わっていないもの）・着手可、
+ * todo でなければ優先度の印を出す。todo で優先度の印（high・low）もあるときは、優先度の印を上の段の Plan の番号の左に寄せる
  */
 function PlanRowEnd({ ticket, mark }: { ticket: Ticket; mark: PlanMark }) {
   const readiness =
-    ticket.status !== "todo" ? null : mark.waitingOn.length === 0 ? (
+    ticket.status !== "todo" ? null : mark.pending ? (
+      <span className="row-wait" title={`${mark.plan} は人の承認を待っている`}>
+        承認待ち
+      </span>
+    ) : mark.waitingOn.length === 0 ? (
       <span className="row-ready">着手可</span>
     ) : (
       <span className="row-wait" title={`${mark.waitingOn.join("・")} を待っている`}>
@@ -577,7 +590,7 @@ function PlanRowEnd({ ticket, mark }: { ticket: Ticket; mark: PlanMark }) {
           {mark.plan}
         </span>
       </span>
-      {readiness ?? priority}
+      <span className="row-end-sub">{readiness ?? priority}</span>
     </span>
   );
 }

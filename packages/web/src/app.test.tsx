@@ -499,12 +499,13 @@ describe("画面", () => {
     expect(rowOf("画面").querySelector(".row-low")).toBeNull();
   });
 
-  it("サイドバーのカンバンの行は、開いた Plan に入っていれば右端に Plan の番号を Plan の色で出し、todo なら着手可か待ちの相手を出す。バックログの行は変わらない", async () => {
+  it("サイドバーのカンバンの行は、開いた Plan に入っていれば右端に Plan の番号を Plan の色で出し、todo なら着手可・待ちの相手・承認待ちを出す。バックログの行は変わらない", async () => {
     const client = mockClient();
     client.data.tickets.push(
       ticket({ id: "t4", title: "待つ", priority: "high" }),
       ticket({ id: "t5", title: "外", priority: "low" }),
       ticket({ id: "t6", title: "閉じた計画" }),
+      ticket({ id: "t7", title: "承認前" }),
     );
     client.data.plans.push(
       plan({
@@ -513,6 +514,7 @@ describe("画面", () => {
         after: { t3: ["t1"], t4: ["t2", "t3"] },
       }),
       plan({ id: "p8", tickets: ["t6"], status: "closed" }),
+      plan({ id: "p9", tickets: ["t7"], status: "pending" }),
     );
     mount(client, webviewHost("sidebar"));
     await screen.findByText("待つ");
@@ -535,6 +537,9 @@ describe("画面", () => {
     expect(wait.querySelector(".row-wait")!.textContent).toBe("t2+1 待ち");
     expect(wait.querySelector(".row-wait")!.getAttribute("title")).toBe("t2・t3 を待っている");
     expect(wait.querySelector(".row-end-top")!.textContent).toBe("highp7");
+    // 承認待ちの Plan の todo は、待ちがなくても「承認待ち」
+    expect(endOf("承認前")!.querySelector(".row-wait")!.textContent).toBe("承認待ち");
+    expect(endOf("承認前")!.querySelector(".row-ready")).toBeNull();
     // Plan に入っていない・閉じた Plan のチケットは今までどおり優先度の印だけ
     expect(endOf("外")).toBeNull();
     expect(rowOf("外").lastElementChild!.textContent).toBe("low");

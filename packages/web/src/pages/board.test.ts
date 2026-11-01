@@ -100,7 +100,7 @@ describe("左パネルのカンバンの行の Plan の番号と待ち", () => {
     ticket({ id: "t6" }),
   ];
 
-  it("開いた Plan に入っているチケットだけに、Plan の番号と残っている待ちの相手を持たせる", () => {
+  it("開いた Plan に入っているチケットだけに、Plan の番号・承認待ちか・残っている待ちの相手を持たせる", () => {
     const marks = kanbanPlanMarks(
       [
         plan({
@@ -109,14 +109,17 @@ describe("左パネルのカンバンの行の Plan の番号と待ち", () => {
           after: { t3: ["t1"], t4: ["t2", "t3"] },
         }),
         plan({ id: "p2", tickets: ["t5"], status: "closed" }),
+        plan({ id: "p3", tickets: ["t6"], status: "pending" }),
       ],
       tickets,
     );
     expect(Object.fromEntries(marks)).toEqual({
-      t1: { plan: "p1", waitingOn: [] },
-      t2: { plan: "p1", waitingOn: [] },
-      t3: { plan: "p1", waitingOn: [] },
-      t4: { plan: "p1", waitingOn: ["t2", "t3"] },
+      t1: { plan: "p1", pending: false, waitingOn: [] },
+      t2: { plan: "p1", pending: false, waitingOn: [] },
+      t3: { plan: "p1", pending: false, waitingOn: [] },
+      t4: { plan: "p1", pending: false, waitingOn: ["t2", "t3"] },
+      // 承認待ちの Plan のチケットは pending
+      t6: { plan: "p3", pending: true, waitingOn: [] },
     });
   });
 
@@ -132,7 +135,7 @@ describe("左パネルのカンバンの行の Plan の番号と待ち", () => {
       // after で t2 を待ち、depends_on でも t2 と Plan の中の t5 を待つ（重ねて数えない）
       ticket({ id: "t4", depends_on: ["t2", "t5"] }),
       ticket({ id: "t5" }),
-      // 見つからないチケットへの depends_on は待ちに数える（core の depsDone と同じ）
+      // 見つからないチケット（別の Project など）への depends_on は、画面では判定できないので待ちに数えない
       ticket({ id: "t6", depends_on: ["t99"] }),
     ];
     const marks = kanbanPlanMarks(
@@ -140,16 +143,17 @@ describe("左パネルのカンバンの行の Plan の番号と待ち", () => {
       withDeps,
     );
     expect(Object.fromEntries(marks)).toEqual({
-      t2: { plan: "p1", waitingOn: [] },
-      t3: { plan: "p1", waitingOn: ["t8"] },
-      t4: { plan: "p1", waitingOn: ["t2", "t5"] },
-      t5: { plan: "p1", waitingOn: [] },
-      t6: { plan: "p1", waitingOn: ["t99"] },
+      t2: { plan: "p1", pending: false, waitingOn: [] },
+      t3: { plan: "p1", pending: false, waitingOn: ["t8"] },
+      t4: { plan: "p1", pending: false, waitingOn: ["t2", "t5"] },
+      t5: { plan: "p1", pending: false, waitingOn: [] },
+      t6: { plan: "p1", pending: false, waitingOn: [] },
     });
   });
 
   it("待ちの相手は 1 件なら番号、2 件以上なら先頭と残りの件数で書く", () => {
     expect(waitLabel(["t137"])).toBe("t137 待ち");
     expect(waitLabel(["t2", "t3", "t9"])).toBe("t2+2 待ち");
+    expect(waitLabel([])).toBe("");
   });
 });
