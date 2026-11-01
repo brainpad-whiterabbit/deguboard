@@ -6,18 +6,34 @@ import { OperationError } from "../errors.js";
 import { runGh, runGit, runProcess } from "../git/run.js";
 import { defineAction, type ActionContext } from "./define.js";
 
-const branchName = z.string().min(1).describe("ブランチ名（feat/xxx など）");
-const baseName = z
+/**
+ * `git check-ref-format --branch` 相当の検査。先頭の `-` を拒み、git にオプションとして読まれないようにする
+ * （`--upload-pack=<コマンド>` のような注入で actions.shell を回り込ませない。AG-7）
+ */
+export function isSafeBranchName(name: string): boolean {
+  if (name === "" || name === "@" || name.startsWith("-")) return false;
+  // 制御文字・空白・~ ^ : ? * [ \ と、`..`・`@{`・`//` を含むもの
+  // oxlint-disable-next-line no-control-regex
+  if (/[\x00-\x20\x7f~^:?*[\\]|\.\.|@\{|\/\//.test(name)) return false;
+  if (name.startsWith("/") || name.endsWith("/") || name.endsWith(".")) return false;
+  return name.split("/").every((part) => !part.startsWith(".") && !part.endsWith(".lock"));
+}
+
+const refName = z
   .string()
-  .min(1)
-  .optional()
-  .describe("元にするブランチ。省略時は git.base_branch");
+  .refine(isSafeBranchName, "ブランチ名として使えない（先頭の - や git が許さない文字を含む）");
+const branchName = refName.describe("ブランチ名（feat/xxx など）");
+const baseName = refName.optional().describe("元にするブランチ。省略時は git.base_branch");
 
 /** 作業ブランチの起点。リモートがあれば取り込んでから <remote>/<base>、なければローカルの <base> */
 async function startPoint(ctx: ActionContext & { cwd: string }, base: string): Promise<string> {
+  // 省略時の base は config（Git で共有される）から来るので、ここでも検査する
+  if (!isSafeBranchName(base)) {
+    throw new OperationError("REJECTED", `base のブランチ名として使えない：${base}`);
+  }
   const remote = ctx.repo.remote;
   if (!remote) return base;
-  await runGit(ctx.cwd, ["fetch", remote, base], { timeoutMs: 120_000 });
+  await runGit(ctx.cwd, ["fetch", "--", remote, base], { timeoutMs: 120_000 });
   return `${remote}/${base}`;
 }
 
@@ -53,7 +69,7 @@ export const createWorktreeAction = defineAction({
       input.path ?? defaultWorktreePath(ctx.repo, ctx.config.worktree.root, input.branch),
     );
     const start = await startPoint(ctx, base);
-    await runGit(ctx.cwd, ["worktree", "add", "--no-track", "-b", input.branch, dir, start]);
+    await runGit(ctx.cwd, ["worktree", "add", "--no-track", "-b", input.branch, "--", dir, start]);
     return { branch: input.branch, path: dir, base: start };
   },
 });
@@ -65,7 +81,7 @@ export const createBranchAction = defineAction({
   confirm: false,
   async run(ctx, input) {
     const start = await startPoint(ctx, input.base ?? ctx.repo.baseBranch);
-    await runGit(ctx.cwd, ["branch", "--no-track", input.branch, start]);
+    await runGit(ctx.cwd, ["branch", "--no-track", "--", input.branch, start]);
     return { branch: input.branch, base: start };
   },
 });

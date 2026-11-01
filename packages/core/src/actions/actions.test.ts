@@ -5,7 +5,13 @@ import { createFixture, git, type Fixture } from "../../test/helpers/git-fixture
 import { OperationError, UsageError } from "../errors.js";
 import { resolveRepoPaths, type GitRepo } from "../git/repo.js";
 import { configSchema, type Config } from "../model/config.js";
-import { listActions, runAction, type ActionContext, type ConfirmRequest } from "./index.js";
+import {
+  isSafeBranchName,
+  listActions,
+  runAction,
+  type ActionContext,
+  type ConfirmRequest,
+} from "./index.js";
 
 const cleanups: Array<() => Promise<void>> = [];
 afterEach(async () => {
@@ -110,6 +116,76 @@ describe("任意のシェルの Action（AG-7）", () => {
     expect(asked).toHaveLength(1);
     expect(asked[0]).toMatchObject({ action: "shell", cwd: f.cloneA });
     expect(asked[0]?.input).toMatchObject({ command: "echo こんにちは > out.txt; exit 3" });
+  });
+});
+
+describe("ブランチ名の検査（オプションの注入を拒む）", () => {
+  it("git check-ref-format --branch と同じ判定をする", async () => {
+    const f = await fixture();
+    const names = [
+      "main",
+      "feat/actions",
+      "fix/a-b_c.1",
+      "日本語/ブランチ",
+      "-D",
+      "--upload-pack=touch pwned",
+      "a..b",
+      "a b",
+      "a~1",
+      "a^",
+      "a:b",
+      "a?",
+      "a*",
+      "a[b",
+      "a\\b",
+      "a@{b",
+      "a//b",
+      "/a",
+      "a/",
+      "a.",
+      ".a",
+      "a/.b",
+      "a.lock",
+      "a/b.lock/c",
+      "",
+    ];
+    for (const name of names) {
+      const byGit = await git(f.cloneA, ["check-ref-format", "--branch", name]).then(
+        () => true,
+        () => false,
+      );
+      expect([name, isSafeBranchName(name)]).toEqual([name, byGit]);
+    }
+    // git は @ を HEAD のブランチと読み替えて通すが、名前としては拒む
+    expect(isSafeBranchName("@")).toBe(false);
+  });
+
+  it("base に --upload-pack を渡しても実行せず、入力の誤りとして拒む", async () => {
+    const f = await fixture();
+    const ctx = await contextOf(f.cloneA);
+    const marker = path.join(f.root, "pwned");
+    for (const action of ["create_worktree", "create_branch"]) {
+      await expect(
+        runAction(ctx, action, { branch: "feat/x", base: `--upload-pack=touch ${marker}` }),
+      ).rejects.toBeInstanceOf(UsageError);
+    }
+    await expect(runAction(ctx, "create_branch", { branch: "-D" })).rejects.toBeInstanceOf(
+      UsageError,
+    );
+    await expect(
+      runAction(ctx, "create_pr", { title: "t", branch: "--repo=evil/x" }),
+    ).rejects.toBeInstanceOf(UsageError);
+    expect(await readdir(f.root)).not.toContain("pwned");
+  });
+
+  it("config の git.base_branch が - で始まるときも fetch の前に拒む", async () => {
+    const f = await fixture();
+    const marker = path.join(f.root, "pwned");
+    const ctx = await contextOf(f.cloneA);
+    const evil = { ...ctx, repo: { ...ctx.repo, baseBranch: `--upload-pack=touch ${marker}` } };
+    const error = await rejection(runAction(evil, "create_branch", { branch: "feat/x" }));
+    expect(error.code).toBe("REJECTED");
+    expect(await readdir(f.root)).not.toContain("pwned");
   });
 });
 

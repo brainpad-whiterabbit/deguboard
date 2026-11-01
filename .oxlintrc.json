@@ -37,6 +37,7 @@
         ]
       }
     },
+    // Core の汎用部分は actions に依存しない（AG-6）。同じルールを上書きするので、上の packages/core/** の制限パターンを写している。上を変えたらここも揃える
     {
       "files": [
         "packages/core/src/commands/**",
