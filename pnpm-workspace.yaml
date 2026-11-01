@@ -5,3 +5,8 @@ packages:
 # vsce-sign の postinstall は Marketplace への署名用のバイナリを選ぶだけで、VSIX を作るのに要らないので拒否する
 allowBuilds:
   "@vscode/vsce-sign": false
+
+# 依存の版の上書き。@vscode/vsce 4.1.0 の minimatch ^10.2.6 は GHSA-g3hv-75wg-m249（修正は 11.0.1 から）に当たるので、
+# vsce の範囲が 11 を許すまで 11 に上げる（VSIX を作る dev 用の道具だけが使う）
+overrides:
+  "@vscode/vsce>minimatch": "11.0.3"
