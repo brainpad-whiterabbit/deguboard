@@ -132,7 +132,7 @@ describe("左パネルのカンバンの行の Plan の番号と待ち", () => {
       // after で t2 を待ち、depends_on でも t2 と Plan の中の t5 を待つ（重ねて数えない）
       ticket({ id: "t4", depends_on: ["t2", "t5"] }),
       ticket({ id: "t5" }),
-      // 読み込んでいないチケット（別の Project など）への depends_on は数えない
+      // 見つからないチケットへの depends_on は待ちに数える（core の depsDone と同じ）
       ticket({ id: "t6", depends_on: ["t99"] }),
     ];
     const marks = kanbanPlanMarks(
@@ -144,7 +144,7 @@ describe("左パネルのカンバンの行の Plan の番号と待ち", () => {
       t3: { plan: "p1", waitingOn: ["t8"] },
       t4: { plan: "p1", waitingOn: ["t2", "t5"] },
       t5: { plan: "p1", waitingOn: [] },
-      t6: { plan: "p1", waitingOn: [] },
+      t6: { plan: "p1", waitingOn: ["t99"] },
     });
   });
 

@@ -522,7 +522,7 @@ const FINISHED_STATUSES: ReadonlySet<Status> = new Set(["done", "abandoned"]);
 
 /**
  * 開いた Plan に入っているチケットごとの PlanMark。after の待ちは Plan ごとに planGraph で求め、depends_on の待ちを足す。
- * depends_on の相手が読み込んだチケット（今の Project）にないときは、状態がわからないので待ちに数えない
+ * depends_on の相手が読み込んだチケットにないときは待ちに数える（core の Store.depsDone と同じ意味）
  */
 export function kanbanPlanMarks(
   plans: readonly PlanRow[],
@@ -539,7 +539,7 @@ export function kanbanPlanMarks(
       const deps = byId.get(node.id)!.depends_on.filter((dep) => {
         const status = byId.get(dep)?.status;
         return (
-          status !== undefined && !FINISHED_STATUSES.has(status) && !node.waitingOn.includes(dep)
+          (status === undefined || !FINISHED_STATUSES.has(status)) && !node.waitingOn.includes(dep)
         );
       });
       marks.set(node.id, { plan: plan.id, waitingOn: [...node.waitingOn, ...deps] });
