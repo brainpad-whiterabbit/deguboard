@@ -8,21 +8,16 @@
 //   - 返すのは数とモデル名だけ。会話の中身・コマンド・パスは返さない（MT-4）
 
 import { createReadStream } from "node:fs";
-import { readdir, stat } from "node:fs/promises";
-import os from "node:os";
 import path from "node:path";
 import { createInterface } from "node:readline";
 import type { AgentAdapter, AgentEnv, CollectedUsage, UsageQuery } from "../define.js";
+import { count, fresh, homeDir, list, none, parse, TAIL_MS, timeOf } from "./transcript.js";
 
 type Counts = CollectedUsage["usage"];
 
 /** 会話記録の置き場所。CLAUDE_CONFIG_DIR があればそこ、なければ ~/.claude */
 function configDir(env: AgentEnv): string {
   return env["CLAUDE_CONFIG_DIR"] || path.join(homeDir(env), ".claude");
-}
-
-function homeDir(env: AgentEnv): string {
-  return env["HOME"] || os.homedir();
 }
 
 /** 作業ディレクトリから projects/ の下のディレクトリ名を作る（英数字以外を - にする） */
@@ -49,10 +44,6 @@ export function searchRoots(topLevel: string, commonDir: string, home: string): 
     if (path.dirname(d) === d) break;
   }
   return [...roots].filter((d) => !within(path.resolve(home), d));
-}
-
-async function list(dir: string): Promise<string[]> {
-  return readdir(dir).catch(() => []);
 }
 
 /** session の会話記録と、そのサブエージェントの会話記録 */
@@ -88,17 +79,6 @@ async function worktreeCandidates(query: UsageQuery, projects: string): Promise<
   return fresh(query, files);
 }
 
-/** started_at より前に書き終えたファイルに Run は載っていない */
-async function fresh(query: UsageQuery, files: string[]): Promise<string[]> {
-  const since = Date.parse(query.run.started_at);
-  const out: string[] = [];
-  for (const file of files) {
-    const s = await stat(file).catch(() => undefined);
-    if (s?.isFile() && s.mtimeMs >= since) out.push(file);
-  }
-  return out;
-}
-
 interface Scan {
   /** Run の ID を最初に含む行の時刻。含まなければ undefined */
   firstSeen: number | undefined;
@@ -106,25 +86,8 @@ interface Scan {
   messages: Map<string, { usage: Record<string, unknown>; model: unknown }>;
 }
 
-const count = (v: unknown): number | undefined =>
-  typeof v === "number" && Number.isInteger(v) && v >= 0 ? v : undefined;
-
 /** 行の中の timestamp の値。最上位の timestamp は message の後にあり、入れ子の中にも同じキーがありうるので、すべてを候補にする */
 const TIMESTAMPS = /"timestamp":"([^"]+)"/g;
-
-/** 行の順が少し前後しても読み切るための猶予。期間の終わりからこれだけ過ぎた行で読むのをやめる */
-const TAIL_MS = 60_000;
-
-const parse = (line: string): Record<string, unknown> | undefined => {
-  try {
-    return JSON.parse(line) as Record<string, unknown>;
-  } catch {
-    return undefined; // 書きかけの行
-  }
-};
-
-const timeOf = (entry: Record<string, unknown>): number =>
-  typeof entry["timestamp"] === "string" ? Date.parse(entry["timestamp"]) : NaN;
 
 async function scan(file: string, query: UsageQuery, from: number, to: number): Promise<Scan> {
   const result: Scan = { firstSeen: undefined, messages: new Map() };
@@ -190,12 +153,6 @@ function mainModel(messages: Scan["messages"]): string | null {
   }
   return [...counts].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
 }
-
-const none = (warning: string): CollectedUsage => ({
-  usage: { input: null, output: null, cache_read: null, cache_write: null },
-  model: null,
-  warnings: [warning],
-});
 
 export const claudeCodeAdapter: AgentAdapter = {
   name: "claude-code",

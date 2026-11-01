@@ -3,11 +3,12 @@
 
 import type { Config } from "../model/config.js";
 import { claudeCodeAdapter } from "./adapters/claude-code.js";
+import { codexAdapter } from "./adapters/codex.js";
 import type { AgentAdapter, CollectedUsage, UsageQuery } from "./define.js";
 
 export type * from "./define.js";
 
-const ADAPTERS: readonly AgentAdapter[] = [claudeCodeAdapter];
+const ADAPTERS: readonly AgentAdapter[] = [claudeCodeAdapter, codexAdapter];
 
 /** Adapter のある agent の名前 */
 export function agentNames(): string[] {
