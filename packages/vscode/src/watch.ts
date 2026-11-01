@@ -14,13 +14,17 @@ export interface WatchTarget {
  * - データ worktree の md・yaml（チケット・Epic・Iteration・Plan・Workflow・設定）
  * - データ worktree の runs/<id>.json（run finish が書く完了時の集計）
  * - <common>/deguboard-local/runs/<id>.json（run start が置き、finish が消す実行中の記録。core の repo.ts の localDir と同じ場所）
+ *
+ * runs/ は base を runs/ そのものにして単純なパターンで見張る。VS Code はパスの区切りや ** を含むパターンを再帰で見張り、
+ * 再帰の見張りには files.watcherExclude が効くが、単純なパターン（非再帰）には効かない。
+ * base がまだないとき（run start の前の deguboard-local/runs/）も、VS Code はできるまで待ってから見張る
  */
 export function watchTargets(dataDir: string): WatchTarget[] {
   const localDir = path.join(path.dirname(dataDir), "deguboard-local");
   return [
     { base: dataDir, pattern: "**/*.{md,yaml,yml}" },
-    { base: dataDir, pattern: "runs/*.json" },
-    { base: localDir, pattern: "runs/*.json" },
+    { base: path.join(dataDir, "runs"), pattern: "*.json" },
+    { base: path.join(localDir, "runs"), pattern: "*.json" },
   ];
 }
 
