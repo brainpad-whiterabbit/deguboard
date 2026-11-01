@@ -192,6 +192,7 @@ export function buildProgram(options: ProgramOptions = {}): Command {
           user: global.user ?? env["DEGUBOARD_USER"],
           version: version(),
           commands: options.commands,
+          mergeDriver,
           stdin: options.stdio?.stdin,
           stdout: options.stdio?.stdout,
         });
