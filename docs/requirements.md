@@ -258,7 +258,7 @@ fields:
 Web UI は `dg serve` が配信し、VS Code 拡張は同じ React アプリを Webview に載せる。表示と操作は両方で同じ（[ADR-006](adr/ADR-006-ui-and-writes.md)）。
 
 - UI-1 プロジェクトの切り替え
-- UI-2 カンバン：上に planned と active の Iteration の表（番号・名前・状態・完了の件数）を出し、表で選んだ Iteration のチケット（既定は active。「Iteration なし」も選べる）を状態ごとに出す。Iteration がない Project では表を出さず全チケットを出す。列は todo / in_progress / review / done の 4 つ（表示名は Workflow の `labels`）で、done は既定で畳む。abandoned は最後に畳んだ節で出し、0 件なら出さない。チケットをドラッグ＆ドロップすると `ticket move` と同じ検査を通して Status が変わり、拒否されたら理由を出して戻す。Epic と担当者（`assignee`）で絞り込める
+- UI-2 カンバン：上に planned と active の Iteration の表（番号・名前・状態・完了の件数）を出し、表で選んだ Iteration のチケット（既定は active。「Iteration なし」も選べる）を状態ごとに出す。Iteration がない Project では表を出さず全チケットを出す。列は todo / in_progress / review / done の 4 つ（表示名は Workflow の `labels`）で、done は既定で畳む。abandoned は done の右の最後の列（サイドバーでは最後の節）に畳んで出し、0 件なら出さない。チケットをドラッグ＆ドロップすると `ticket move` と同じ検査を通して Status が変わり、拒否されたら理由を出して戻す。Epic と担当者（`assignee`）で絞り込める
 - UI-3 バックログ：done と abandoned 以外のチケットを優先度と番号で出し、番号・タイトル・ラベルで検索、Status・優先度・Iteration・Epic・ラベル・担当者で絞り込む
 - UI-4 チケット詳細：本文（概要・受け入れ条件）、属性、Epic、依存先と依存元、起票者と担当者、作業ブランチ、Run の一覧（予定 `e3`）。属性（担当者を含む）と本文を編集できる
 - UI-5 Iteration：一覧の画面は持たない。planned と active はカンバンの表（UI-2）で選び、見出しから開始・終了・作成する。詳細の画面でチケットの追加・除外。closed の Iteration は履歴の画面に閉じた新しい順で出し（番号・名前・完了と持ち越しの件数・期間・目標）、チケットの番号かタイトルで絞れ、行から詳細を開く
