@@ -17,6 +17,13 @@ import {
   resetHard,
 } from "./sync.js";
 
+/**
+ * 同期の競合の戻し方（SY-4・dg guide overview の「同期が止まったとき」）。
+ * dg sync は競合を解かないので、書き込みの失敗・警告と sync の警告はどれもこの文言で人の解消を案内する
+ */
+export const CONFLICT_REMEDY =
+  "人が deguboard worktree で解消してから dg sync を回す（dg guide overview の「同期が止まったとき」）";
+
 export interface WriteContext {
   repo: GitRepo;
   store: Store;
@@ -108,10 +115,12 @@ async function writeLocked<T>(
           if (opts.cas)
             throw new OperationError(
               "SYNC_CONFLICT",
-              "リモートの変更と競合しているので取得できない。dg sync で解消する",
+              `リモートの変更と競合しているので取得できない。${CONFLICT_REMEDY}`,
               detail,
             );
-          warnings.push(`リモートの変更と競合している。ローカルのコミットを残す（${detail}）`);
+          warnings.push(
+            `リモートの変更と競合している。ローカルのコミットを残す（${detail}）。${CONFLICT_REMEDY}`,
+          );
         }
         if (integrated.ok && integrated.changed) await ctx.store.rescan();
       }
@@ -182,8 +191,12 @@ async function writeLocked<T>(
       f.ok && f.remoteBranch ? integrate(repo) : { ok: true as const, changed: false },
     );
     if (!integrated.ok) {
+      // 取り込みの警告が既に戻し方を案内していれば繰り返さない
+      const remedy = warnings.some((w) => w.includes(CONFLICT_REMEDY))
+        ? ""
+        : `。${CONFLICT_REMEDY}`;
       warnings.push(
-        `リモートの変更と競合しているので push できない。dg sync で解消する（${integrated.conflicts.join(", ")}）`,
+        `リモートの変更と競合しているので push できない（${integrated.conflicts.join(", ")}）${remedy}`,
       );
       return {
         value,
