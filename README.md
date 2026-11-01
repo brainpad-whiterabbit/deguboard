@@ -44,4 +44,14 @@ dg guide overview             # エージェント向けの手順。Claude Code 
 
 VS Code では、拡張を入れて（今は VSIX から。`mise run vsix` → `code --install-extension packages/vscode/deguboard-vscode.vsix`）Activity Bar の deguboard のアイコンを押すとサイドバーにカンバンが開く。チケットを押すと詳細がエディタ領域に開く。拡張は `dg` なしで動き、`dg` が PATH にないときは案内を出す。
 
+### MCP で使う
+
+`dg mcp` は stdio の MCP サーバーで、`dg` のコマンドを `ticket_create` のような名前のツールとして出す。主体は常に `<ユーザ>/agent`。Claude Code では、管理したいリポジトリの `.mcp.json` に登録する（`dg` が PATH にある前提。ないなら `"command": "npx", "args": ["-y", "deguboard", "mcp"]`）。
+
+```json
+{ "mcpServers": { "deguboard": { "command": "dg", "args": ["mcp"] } } }
+```
+
+ツールのスキーマは会話の文脈を使うので、Bash で `dg … --json` を呼べるなら登録しなくてよい。
+
 チケットの流れ（起票 → claim → 作業 → PR → 照合で done）とコマンドの一覧は `dg --help` と `dg guide work`、仕様は[要件定義書](docs/requirements.md)。

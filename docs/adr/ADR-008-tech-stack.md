@@ -15,6 +15,7 @@
 - スキーマと検証は Zod。CLI は commander。UI は React（Vite でビルド）。テストは Vitest
 - HTTP サーバーは Node 標準の `node:http` で書き、フレームワークを入れない。要るのは「`POST /api/commands/<名前>` に JSON を渡して結果を返す」「静的ファイルの配信」だけなので、小さなルータで足りる
 - git と gh は `child_process.execFile` で引数配列として呼ぶ。シェルを経由しない
+- MCP は公式の `@modelcontextprotocol/sdk`（1.x、版は固定）の低水準の `Server` と stdio の transport を使う。ツールの一覧と入力スキーマはコマンド定義から作った JSON Schema をそのまま渡し、検証は core の `runCommand` に任せる（高水準の `McpServer` は Zod のスキーマを自分で変換・検証するので、二重になる）
 - DB は使わない（ADR-007）
 
 ### ツールと作業コマンドは mise に統一する

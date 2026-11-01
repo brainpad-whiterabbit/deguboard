@@ -4,6 +4,7 @@ import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
+import type { Readable, Writable } from "node:stream";
 import { fileURLToPath } from "node:url";
 import {
   GROUP_ALIASES,
@@ -18,6 +19,7 @@ import { Argument, Command } from "commander";
 import { parse as parseYaml } from "yaml";
 import { toErrorView } from "./errors.js";
 import { GUIDE_TOPICS, renderGuide } from "./guide.js";
+import { serveMcp } from "./mcp.js";
 import { addServeCommands } from "./serve.js";
 import { bindInputs, collectInput, shapesOf } from "./options.js";
 import {
@@ -43,6 +45,8 @@ export interface ProgramOptions {
   cwd?: string;
   env?: NodeJS.ProcessEnv;
   commands?: readonly AnyCommand[];
+  /** dg mcp の標準入出力。既定は process.stdin / process.stdout（テスト用） */
+  stdio?: { stdin: Readable; stdout: Writable } | undefined;
 }
 
 const GROUP_SUMMARY: Record<string, string> = {
@@ -140,6 +144,30 @@ export function buildProgram(options: ProgramOptions = {}): Command {
     resolveCwd: (c) => resolve(options.cwd ?? process.cwd(), c ?? "."),
     staticDir: options.staticDir ?? webDist(),
   });
+
+  // mcp も CLI の責務。ツールは core の commands から生成し、主体は常に agent（AG-4）
+  program
+    .command("mcp")
+    .description(
+      "MCP サーバーを stdio で起動する（主体は <ユーザ>/agent）。ツールは dg のコマンドと 1 対 1 で、名前は ticket_create の形",
+    )
+    .action(async () => {
+      const global = program.opts<{ C?: string; user?: string }>();
+      try {
+        await serveMcp({
+          cwd: resolve(options.cwd ?? process.cwd(), global.C ?? "."),
+          user: global.user ?? env["DEGUBOARD_USER"],
+          version: version(),
+          commands: options.commands,
+          stdin: options.stdio?.stdin,
+          stdout: options.stdio?.stdout,
+        });
+      } catch (error) {
+        // 標準出力は MCP の通信路なので、起動の失敗は標準エラーに出す
+        printError(streams, toErrorView(error));
+        process.exitCode = 1;
+      }
+    });
 
   for (const def of options.commands ?? allCommands) {
     const [group, op] = def.name.split(".") as [string, string | undefined];

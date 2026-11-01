@@ -22,8 +22,12 @@ export const commands: readonly AnyCommand[] = [
 /** 群のエイリアス（`sprint` は `iteration`） */
 export const GROUP_ALIASES: Readonly<Record<string, string>> = { sprint: "iteration" };
 
-export function findCommand(name: string): AnyCommand | undefined {
+/** 名前（エイリアスも可）でコマンドを引く。list を渡せばその中から引く */
+export function findCommand(
+  name: string,
+  list: readonly AnyCommand[] = commands,
+): AnyCommand | undefined {
   const [group, ...rest] = name.split(".");
   const canonical = [GROUP_ALIASES[group ?? ""] ?? group, ...rest].join(".");
-  return commands.find((c) => c.name === canonical);
+  return list.find((c) => c.name === canonical);
 }
