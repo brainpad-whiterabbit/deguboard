@@ -33,7 +33,10 @@ describe("dg guide", () => {
       const meta = await readGuideMeta(topic);
       const text = await readGuide(topic);
       expect(text.startsWith("---"), topic).toBe(false);
-      if (topic === "overview") continue;
+      if (topic === "overview" || topic === "review") {
+        expect(meta.description, topic).toBeUndefined();
+        continue;
+      }
       expect(meta.description, topic).toBeTruthy();
       expect(meta["argument-hint"], topic).toBeTruthy();
       for (const heading of ["## 対象を決める", "## 選択肢で聞く", "## 次の手順を選ぶ"])
@@ -100,6 +103,34 @@ describe("dg guide", () => {
     ])
       expect(work).toContain(word);
     expect(all).toContain("「着手できるチケットを並べて進める」");
+  });
+
+  it("review は品質ゲートを 1 か所に置き、work は PR を出す前の見直しと上限付きの修正ループを、all はマージの前の条件をそこへ案内する", async () => {
+    const review = await readGuide("review");
+    const work = await readGuide("work");
+    const all = await readGuide("all");
+    for (const heading of [
+      "## 品質ゲート",
+      "## 見直す",
+      "## 指摘を直す（修正ループ）",
+      "## Run と終わり方",
+    ])
+      expect(review).toContain(heading);
+    for (const word of [
+      "`gh pr create --draft`",
+      "**上限**：重い指摘を直すのは 2 回まで",
+      "--result failure --retries <回数>",
+      "チケットは in_progress のまま",
+      "人に報告",
+      "`gh pr ready <PR>`",
+      "MERGEABLE",
+    ])
+      expect(review).toContain(word);
+    // 条件の中身は review にだけ書き、work と all は参照する
+    expect(work).toContain("`dg guide review`");
+    expect(work).toContain("上限付きの修正ループ");
+    expect(all).toContain("`dg guide review` の「品質ゲート」");
+    for (const text of [work, all]) expect(text).not.toContain("--json mergeable");
   });
 
   it("config の値を埋める（既定なら main と origin、空の配列は「なし」）", () => {
