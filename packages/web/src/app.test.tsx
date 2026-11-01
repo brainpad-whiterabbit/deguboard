@@ -597,7 +597,7 @@ describe("画面", () => {
       },
     };
     render(
-      <StoreProvider client={client}>
+      <StoreProvider client={client} readRunning>
         <HostProvider host={webviewHost("sidebar")}>
           <HostBridge client={bridge} />
           <App />
@@ -638,6 +638,34 @@ describe("画面", () => {
     expect(rowOf("API").querySelector(".row-end-sub")!.textContent).toBe("実行中");
     expect(rowOf("画面").querySelector(".activity-mark")).toBeNull();
     expect(rowOf("画面").querySelector(".row-end")).toBeNull();
+  });
+
+  it("実行中の Run を読み終えるまでは、in_progress の行に頭の印を出さず、ほかの一覧はそれを待たずに出す", async () => {
+    const client = mockClient();
+    let finish: (runs: RunView[]) => void = () => {};
+    client.handlers["run.list"] = () => new Promise<RunView[]>((resolve) => (finish = resolve));
+    render(
+      <StoreProvider client={client} readRunning>
+        <HostProvider host={webviewHost("sidebar")}>
+          <App />
+        </HostProvider>
+      </StoreProvider>,
+    );
+    await screen.findByText("API");
+    await waitFor(() => expect(client.calls.some((c) => c.name === "run.list")).toBe(true));
+    const api = () => screen.getByText("API").closest(".ticket-row")!;
+    expect(api().querySelector(".activity-mark")).toBeNull();
+    expect(api().classList.contains("has-head")).toBe(false);
+    act(() => finish([]));
+    await waitFor(() => expect(api().querySelector(".activity-idle")).toBeTruthy());
+  });
+
+  it("readRunning でなければ（左パネルでなければ）実行中の Run を読まず、行に頭の印を出さない", async () => {
+    const client = mockClient();
+    mount(client, webviewHost("sidebar"));
+    await screen.findByText("API");
+    expect(client.calls.some((c) => c.name === "run.list")).toBe(false);
+    expect(document.querySelector(".activity-mark")).toBeNull();
   });
 
   it("広い画面のカンバンのカードには Run の印を出さない", async () => {

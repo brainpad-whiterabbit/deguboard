@@ -1139,11 +1139,13 @@ button.danger {
 .ticket-row {
   grid-template-columns: auto auto minmax(0, 1fr) auto auto;
 }
-/* カンバンの行は丸印を出さない：番号・タイトル・担当者・右端（優先度か Plan の番号と待ち）。low は小さな灰色の文字 */
+/*
+ * カンバンの行は状態の丸印を出さない：番号・タイトル・担当者・右端（優先度か、Plan の番号・待ち・実行中）。low は小さな灰色の文字。
+ * 頭の印（実行中の Run・in_progress）がある行は、番号の前に列を足す（has-head）
+ */
 .ticket-row.kanban-row {
   grid-template-columns: auto minmax(0, 1fr) auto auto;
 }
-/* 頭の印（実行中の Run・in_progress。ActivityMark）がある行だけ、番号の前に列を足す */
 .ticket-row.kanban-row.has-head {
   grid-template-columns: auto auto minmax(0, 1fr) auto auto;
 }

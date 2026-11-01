@@ -567,12 +567,14 @@ export function kanbanPlanMarks(
 }
 
 /**
- * 左パネルのカンバンの行の頭の印：実行中の Run があれば running（Status によらない）、なければ in_progress だけ idle、ほかは出さない
+ * 左パネルのカンバンの行の頭の印：実行中の Run があれば running（Status によらない）、なければ in_progress だけ idle、ほかは出さない。
+ * 実行中の Run を読み終えるまで（null）は出さない（開いた直後に実行中のチケットへ反対の意味の idle を出さないように）
  */
 export function rowActivity(
   ticket: Pick<Ticket, "id" | "status">,
-  runningTickets: ReadonlySet<string>,
+  runningTickets: ReadonlySet<string> | null,
 ): RowActivity | undefined {
+  if (!runningTickets) return undefined;
   if (runningTickets.has(ticket.id)) return "running";
   return ticket.status === "in_progress" ? "idle" : undefined;
 }

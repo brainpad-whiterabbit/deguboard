@@ -169,4 +169,8 @@ describe("左パネルのカンバンの行の頭の印", () => {
     expect(rowActivity({ id: "t4", status: "todo" }, running)).toBeUndefined();
     expect(rowActivity({ id: "t5", status: "done" }, new Set())).toBeUndefined();
   });
+
+  it("実行中の Run を読み終えるまで（null）は、in_progress でも出さない", () => {
+    expect(rowActivity({ id: "t2", status: "in_progress" }, null)).toBeUndefined();
+  });
 });
