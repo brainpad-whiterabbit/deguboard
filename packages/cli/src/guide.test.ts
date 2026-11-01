@@ -45,6 +45,19 @@ describe("dg guide", () => {
     expect(work).toContain("ticket move <id> review");
   });
 
+  it("plan・work・finish は Plan を作り、人の承認で approve し、順と範囲を読んで進め、終わったら閉じると案内する", async () => {
+    const plan = await readGuide("plan");
+    const work = await readGuide("work");
+    const finish = await readGuide("finish");
+    expect(plan).not.toContain("まだない");
+    for (const command of ["plan create", "plan approve", "plan show", "--after", "--scope"])
+      expect(plan).toContain(command);
+    expect(plan).toContain("人の承認を得ないまま approve しない");
+    expect(plan).toContain("plan.approve");
+    for (const word of ["plan show", "waiting", "scope", "approach"]) expect(work).toContain(word);
+    expect(finish).toContain("plan close");
+  });
+
   it("config の値を埋める（既定なら main と origin、空の配列は「なし」）", () => {
     expect(
       fillPlaceholders(
