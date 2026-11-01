@@ -28,7 +28,7 @@
     "oxfmt": "0.75.0",
     "oxlint": "1.90.0",
     "playwright-core": "1.64.0-alpha-1790635538000",
-    "typescript": "5.9.3",
+    "typescript": "7.0.2",
     "vitest": "5.0.5"
   },
   "engines": {

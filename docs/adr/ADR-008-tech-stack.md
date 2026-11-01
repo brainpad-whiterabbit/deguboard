@@ -12,6 +12,7 @@
 ### 言語とランタイム
 
 - TypeScript、Node.js 24、pnpm workspace
+- 型検査と core・server・cli のビルドは TypeScript 7（Go で書かれたネイティブ版の tsc）で行う。tsc の JS API には依存しない（lint は oxlint、変換は Vite と Vitest の oxc なので、typescript を import するツールは無い）
 - スキーマと検証は Zod。CLI は commander。UI は React（Vite でビルド）。テストは Vitest
 - HTTP サーバーは Node 標準の `node:http` で書き、フレームワークを入れない。要るのは「`POST /api/commands/<名前>` に JSON を渡して結果を返す」「静的ファイルの配信」だけなので、小さなルータで足りる
 - git と gh は `child_process.execFile` で引数配列として呼ぶ。シェルを経由しない
@@ -56,6 +57,7 @@
 
 - 入口が `mise run` の 1 つなら、エージェントも人も CLAUDE.md の 1 行で使い方がわかる。ツールの版が固定されるので、マシンごとの差で壊れない
 - oxlint と oxfmt は同じツールチェーン（oxc）で、ESLint と Prettier より桁違いに速く、設定がほとんど要らない。エージェントが毎回の変更で `check` を回すので、速さがそのまま開発速度になる
+- TypeScript 7 は 5.9 に比べて型検査が約 4 倍速い（このリポジトリで 11.8 秒から 2.7 秒）。emit の JS は同じで、.d.ts は union の並びが安定するだけで 5.x でも読める。7.0 には JS API と言語サーバのプラグインが無いが、どちらも使っていない
 - Zod は型とスキーマを 1 か所に書け、`core/commands` の入力スキーマから CLI のヘルプと HTTP の検証を生成できる
 - `execFile` で引数配列として呼べば、ブランチ名やタイトルにシェルの特殊文字が入っても安全
 - HTTP にフレームワークを入れないのは、エンドポイントが core のコマンド定義から機械的に決まり、ルーティングの表現力が要らないため。依存が減り、`127.0.0.1` に閉じるローカルの用途に合う
@@ -64,6 +66,7 @@
 
 ## 採らなかった案
 
+- **TypeScript 5.9 や 6.0 に留める**：JS API が残るが、このリポジトリでは使わない。typescript-eslint のように tsc の API が要るツールを入れるときは、`@typescript/typescript6` を別名で並べるか、7.1 の新しい API を待つ
 - **ESLint + Prettier**：設定と plugin が多く、遅い。型つきの規則も oxlint で足りる範囲から始める
 - **Biome**：lint と format を 1 つにできるが、oxc の方が速く、Prettier との互換が高い
 - **npm scripts を直接使う**：ツールの版が揃わず、入口が `npm run` と `mise` の 2 つになる
