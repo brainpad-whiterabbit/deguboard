@@ -1,5 +1,5 @@
 // Workflow 定義の形（workflows/<id>.yaml。requirements.md 5.8）。
-// ここは YAML の形だけを検証し、意味（条件が既知か、同じ遷移の重複）は workflow/validate.ts が検査する。
+// ここは YAML の形だけを検証し、意味（条件や Action が既知か、同じ遷移や step の重複）は workflow/validate.ts が検査する。
 
 import { z } from "zod";
 import { slugSchema, statusSchema } from "./common.js";
@@ -25,6 +25,14 @@ export const FIELD_TYPES = ["string", "number", "boolean", "date", "enum"] as co
 
 // 条件は形だけ見る（未知の名前は validate.ts が WF-3 の指摘にする）
 const conditionShape = z.string().regex(/^!?[a-z_]+$/, "条件は事実の名前か !事実の名前");
+
+/** step の名前。Run の step（空白・改行を含まない 1 語）に書ける小文字の語 */
+export const stepIdSchema = z
+  .string()
+  .regex(/^[a-z][a-z0-9_-]*$/, "step は小文字の英数字と _ と -");
+
+// Action は名前（文字列）だけで持つ。登録済みかは actions の一覧を外から渡して validate.ts が見る（ADR-007）
+const actionNameShape = z.string().regex(/^[a-z][a-z0-9_]*$/, "Action の名前は snake_case");
 
 export const workflowDefinitionSchema = z.looseObject({
   id: slugSchema,
@@ -54,8 +62,23 @@ export const workflowDefinitionSchema = z.looseObject({
       }),
     )
     .default([]),
+  // 省略なら Run の step を縛らない（steps のない既存の YAML。DT-2）。手続き（順や分岐）は書かない（WF-5）
+  steps: z
+    .array(
+      z.looseObject({
+        id: stepIdSchema,
+        label: z.string().optional(),
+        /** この step で使える Action の名前。Action を実行する主体は、ここにない Action を実行しない */
+        actions: z.array(actionNameShape).default([]),
+        /** true なら、この step の Action は Action の confirm によらず runAction の確認を通す（ADR-003） */
+        approval: z.boolean().default(false),
+      }),
+    )
+    .min(1, "steps を書くなら 1 つ以上。縛らないなら steps ごと省く")
+    .optional(),
 });
 export type WorkflowDefinition = z.output<typeof workflowDefinitionSchema>;
 /** YAML や テンプレートに書く形（既定値を省ける） */
 export type WorkflowDefinitionInput = z.input<typeof workflowDefinitionSchema>;
 export type FieldDefinition = WorkflowDefinition["fields"][number];
+export type StepDefinition = NonNullable<WorkflowDefinition["steps"]>[number];

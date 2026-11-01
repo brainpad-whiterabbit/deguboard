@@ -10,4 +10,10 @@ export const general: WorkflowDefinitionInput = {
     { when: ["branch_exists"], status: "in_progress" },
   ],
   fields: [],
+  // Run の step の語彙。順や分岐は書かない（手順は dg guide が持つ。WF-5）
+  steps: [
+    { id: "investigate", label: "Investigate" },
+    { id: "implement", label: "Implement", actions: ["create_worktree", "create_branch"] },
+    { id: "review", label: "Review" },
+  ],
 };

@@ -13,8 +13,20 @@ export interface WorkflowValidation {
   issues: Issue[];
 }
 
+export interface WorkflowValidationOptions {
+  /**
+   * steps に書ける Action の名前（登録済みの Action の一覧）。workflow は actions に依存しないので、
+   * 入口が core/actions の ACTION_NAMES を渡す（ADR-007）。省略すると Action の名前は形だけ見る
+   */
+  actions?: readonly string[] | undefined;
+}
+
 /** 生の値（YAML を読んだもの）を検証し、使える形にする。致命的でない指摘でも workflow は返す */
-export function validateWorkflow(raw: unknown, path: string): WorkflowValidation {
+export function validateWorkflow(
+  raw: unknown,
+  path: string,
+  options: WorkflowValidationOptions = {},
+): WorkflowValidation {
   const parsed = workflowDefinitionSchema.safeParse(raw);
   if (!parsed.success) {
     return {
@@ -75,6 +87,16 @@ export function validateWorkflow(raw: unknown, path: string): WorkflowValidation
     fieldIds.add(f.id);
     if (f.type === "enum" && (!f.options || f.options.length === 0)) {
       issue("workflow_field_options", `fields[${i}]: enum の ${f.id} には options が要る`);
+    }
+  });
+  const stepIds = new Set<string>();
+  def.steps?.forEach((step, i) => {
+    if (stepIds.has(step.id))
+      issue("workflow_step_duplicate", `steps[${i}]: ${step.id} が重複している`);
+    stepIds.add(step.id);
+    for (const action of step.actions) {
+      if (options.actions && !options.actions.includes(action))
+        issue("workflow_action_unknown", `steps[${i}]: 未知の Action ${action}`);
     }
   });
 

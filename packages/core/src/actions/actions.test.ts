@@ -5,7 +5,10 @@ import { createFixture, git, type Fixture } from "../../test/helpers/git-fixture
 import { OperationError, UsageError } from "../errors.js";
 import { resolveRepoPaths, type GitRepo } from "../git/repo.js";
 import { configSchema, type Config } from "../model/config.js";
+import { WORKFLOW_TEMPLATES } from "../workflow/templates/index.js";
+import { validateWorkflow } from "../workflow/validate.js";
 import {
+  ACTION_NAMES,
   isSafeBranchName,
   listActions,
   runAction,
@@ -251,5 +254,14 @@ describe("Core の汎用部分は Action に依存しない（AG-6）", () => {
       }
     }
     expect(offenders).toEqual([]);
+  });
+});
+
+describe("Workflow の steps と Action", () => {
+  it("同梱テンプレートの steps は登録済みの Action だけを指す", () => {
+    for (const t of WORKFLOW_TEMPLATES) {
+      const { issues } = validateWorkflow(t, `${t.id}.yaml`, { actions: ACTION_NAMES });
+      expect(issues, t.id).toEqual([]);
+    }
   });
 });

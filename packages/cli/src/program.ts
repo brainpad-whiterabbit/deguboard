@@ -11,6 +11,7 @@ import {
   GROUP_ALIASES,
   commands as allCommands,
   openContext,
+  ACTION_NAMES,
   runCommand,
   runMergeDriver,
   type ActorInfo,
@@ -299,7 +300,13 @@ export function buildProgram(options: ProgramOptions = {}): Command {
 
       let result: CommandResult<unknown>;
       try {
-        const ctx = await openContext({ cwd, actor, initialize, mergeDriver });
+        const ctx = await openContext({
+          cwd,
+          actor,
+          initialize,
+          mergeDriver,
+          actions: ACTION_NAMES,
+        });
         result = await runCommand(def, ctx, input);
       } catch (error) {
         const view = toErrorView(error);

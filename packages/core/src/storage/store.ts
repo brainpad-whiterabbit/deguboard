@@ -26,7 +26,7 @@ import { isRunId, runSchema, type Run, type RunId } from "../model/run.js";
 import { ticketSchema, type Ticket } from "../model/ticket.js";
 import type { WorkflowDefinition } from "../model/workflow.js";
 import type { ResolvedWorkflow } from "../workflow/resolve.js";
-import { validateWorkflow } from "../workflow/validate.js";
+import { validateWorkflow, type WorkflowValidationOptions } from "../workflow/validate.js";
 import { writeFileAtomic } from "./atomic.js";
 import { createDoc, readDoc, writeDoc, type Doc, type DocFormat } from "./documents.js";
 import type { Issue } from "./issue.js";
@@ -122,10 +122,14 @@ export class Store {
   readonly runs = new Map<RunId, Doc<Run>>();
   readonly workflows = new Map<string, WorkflowEntry>();
 
-  private constructor(readonly root: string) {}
+  private constructor(
+    readonly root: string,
+    /** Workflow の検証に渡す。Action の一覧は入口が渡す（ADR-007） */
+    private readonly workflowOptions: WorkflowValidationOptions,
+  ) {}
 
-  static async open(root: string): Promise<Store> {
-    const store = new Store(root);
+  static async open(root: string, options: WorkflowValidationOptions = {}): Promise<Store> {
+    const store = new Store(root, options);
     await store.rescan();
     return store;
   }
@@ -263,7 +267,7 @@ export class Store {
     comment?: string,
   ): Promise<WorkflowEntry> {
     const relPath = workflowPath(String(definition["id"]));
-    const result = validateWorkflow(definition, relPath);
+    const result = validateWorkflow(definition, relPath, this.workflowOptions);
     if (!result.workflow || !result.definition || result.issues.length > 0) {
       throw new OperationError(
         "VALIDATION_FAILED",
@@ -394,7 +398,7 @@ export class Store {
         });
         continue;
       }
-      const result = validateWorkflow(doc.toJS() ?? {}, relPath);
+      const result = validateWorkflow(doc.toJS() ?? {}, relPath, this.workflowOptions);
       this.issues.push(...result.issues);
       if (!result.workflow || !result.definition) continue;
       if (result.definition.id !== id) {

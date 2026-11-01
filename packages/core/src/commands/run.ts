@@ -4,16 +4,17 @@
 import { z } from "zod";
 import { agentNames, collectRunUsage } from "../agents/index.js";
 import { toIsoDateTime } from "../model/common.js";
-import { UsageError } from "../errors.js";
+import { OperationError, UsageError } from "../errors.js";
 import { isRunId, RUN_RESULTS, type Run } from "../model/run.js";
 import { finishRun, readRunningRuns, startRun } from "../run/record.js";
+import { findStep } from "../workflow/resolve.js";
 import { defineCommand, ok } from "./define.js";
 import { ticketRef } from "./helpers.js";
 
 /** 一覧の 1 件。running は deguboard-local/runs/ にだけある終わっていない Run */
 export type RunView = Run & { running: boolean };
 
-/** 空白・改行を含まない 1 語。step の語彙の検査は Workflow の steps（WF-5）で行う */
+/** 空白・改行を含まない 1 語。step の語彙は run.start がチケットの Workflow の steps（WF-5）で確かめる */
 const token = z.string().regex(/^\S+$/, "空白・改行を含まない 1 語");
 
 export const runStart = defineCommand({
@@ -21,10 +22,10 @@ export const runStart = defineCommand({
   positionals: ["ticket", "step"],
   group: "run",
   summary:
-    "Run を始める。実行中の記録は deguboard-local/runs/ にだけ置き、Git には入れない。同じチケットと step の Run が実行中なら拒否する",
+    "Run を始める。実行中の記録は deguboard-local/runs/ にだけ置き、Git には入れない。同じチケットと step の Run が実行中か、step がチケットの Workflow の steps にないなら拒否する",
   input: z.object({
     ticket: ticketRef,
-    step: token.describe("工程（implement・review など）"),
+    step: token.describe("工程。チケットの Workflow の steps の id（dg workflow show で見る）"),
     agent: token.describe(
       `エージェント名。${agentNames().join("・")} なら finish が会話記録から使用量を取り込む（metrics.read_transcripts）`,
     ),
@@ -34,6 +35,21 @@ export const runStart = defineCommand({
   needs: "store",
   async run(ctx, input) {
     const ticket = ctx.store.require("ticket", input.ticket);
+    const warnings: string[] = [];
+    const workflow = ctx.store.workflowFor(ticket.data);
+    if (workflow) {
+      const found = findStep(workflow.resolved, input.step);
+      if (!found.ok) {
+        throw new OperationError(
+          "VALIDATION_FAILED",
+          `step ${input.step} は Workflow ${workflow.resolved.id} の steps にない（${found.known.join("・")}）`,
+        );
+      }
+    } else {
+      warnings.push(
+        `${ticket.data.id} の Workflow が見つからないか読めないので、step ${input.step} を確かめていない`,
+      );
+    }
     const run = await startRun(ctx.repo, {
       ticket: ticket.data.id,
       step: input.step,
@@ -41,7 +57,7 @@ export const runStart = defineCommand({
       model: input.model,
       now: ctx.now(),
     });
-    return ok(run);
+    return ok(run, undefined, warnings);
   },
 });
 

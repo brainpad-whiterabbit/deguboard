@@ -7,6 +7,7 @@
 import { randomBytes } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import {
+  ACTION_NAMES,
   createLocalClient,
   toCommandFailure,
   type CommandClient,
@@ -271,7 +272,7 @@ function clientFor(folder: vscode.WorkspaceFolder): CommandClient {
   const key = folder.uri.toString();
   let client = clients.get(key);
   if (!client) {
-    client = createLocalClient({ cwd: folder.uri.fsPath });
+    client = createLocalClient({ cwd: folder.uri.fsPath, actions: ACTION_NAMES });
     clients.set(key, client);
     void watchData(folder, client);
   }

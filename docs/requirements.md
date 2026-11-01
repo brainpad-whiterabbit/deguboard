@@ -167,7 +167,7 @@ id: software-development
 name: Software Development
 labels: # 任意。Status の表示名だけを変える
   review: コードレビュー
-transitions: # 任意。制約を足す遷移だけ書く。書かない遷移は誰でも条件なしで行える
+transitions: # 任意。制約を足す遷移だけ書く（WF-1）
   - { from: todo, to: in_progress, requires: [deps_done] } # 条件を足す（AND。OR は書けない）
   - { from: review, to: done, by: [human] } # 主体を絞る。[] でその遷移を禁止
 reconcile: # 上から評価し、前進するときだけ書き換える
@@ -180,10 +180,10 @@ fields:
 ```
 
 - WF-1 Status は全ワークフロー共通の 5 つ（`todo` / `in_progress` / `review` / `done` / `abandoned`）。前進の順は todo → in_progress → review → done で、`abandoned` は前進の軸の外の終端。既定では 5 つの間のどの遷移も、human / agent / reconcile の誰でも条件なしで行える。ワークフローは `transitions` で from → to ごとに `by`（行える主体。`[]` で禁止）と `requires`（条件）の制約を足すだけで、Status は増やせない（[ADR-003](adr/ADR-003-status-and-workflow.md)）
-- WF-2 `requires` と `reconcile.when` に書けるのは組み込みの事実（`deps_done`、`branch_exists`、`branch_pushed`、`branch_merged`、`pr_open`、`pr_draft`、`pr_merged`）とその否定（`!pr_draft`）だけ。`deps_done` は `depends_on` のすべてが done か abandoned のとき真（やめたチケットは待たない）。利用者のスクリプトは実行しない（[ADR-003](adr/ADR-003-status-and-workflow.md)）
-- WF-3 存在しない Status を指す項目、未知の条件、同じ遷移の重複は読み込み時と `dg workflow validate` で指摘する
+- WF-2 `requires` と `reconcile.when` に書けるのは組み込みの事実（`deps_done`、`branch_exists`、`branch_pushed`、`branch_merged`、`pr_open`、`pr_draft`、`pr_merged`）とその否定（`!pr_draft`）だけ。`deps_done` は `depends_on` のすべてが done か abandoned のとき真（やめたチケットは待たない）。利用者のスクリプトは実行しない
+- WF-3 存在しない Status を指す項目、未知の条件・Action、同じ遷移・step の重複は読み込み時と `dg workflow validate` で指摘する
 - WF-4 `software-development`・`consulting`・`general` のテンプレートを同梱し、`dg init` が 3 つとも置く。`default` プロジェクトの Workflow はそのどれかを選べ、既定は `general`
-- WF-5 予定（`e3`）：`steps`（Run の step の語彙）と、step ごとの Action・承認の要否を足す。手続きは YAML に書かず `dg guide` が持つ
+- WF-5 `steps` は Run の step の語彙と、step ごとの Action・承認の要否。`run start` は語彙にない step を拒否する（`steps` がなければ縛らない）。手続きは `dg guide` が持つ
 
 ### 5.9 Run（`runs/`）
 
