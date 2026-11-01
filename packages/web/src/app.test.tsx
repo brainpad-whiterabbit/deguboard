@@ -9,7 +9,7 @@ import type { WebviewEvent } from "@deguboard/core";
 import { HostBridge, HostProvider, type Host } from "./host.js";
 import type { Route } from "./router.js";
 import { StoreProvider } from "./store.js";
-import { iteration, mockClient, ticket } from "./test-helpers.js";
+import { fixture, iteration, mockClient, ticket } from "./test-helpers.js";
 import type { RunView } from "./types.js";
 import { createUiState, memoryBackend } from "./ui-state.js";
 
@@ -225,6 +225,25 @@ describe("画面", () => {
     fireEvent.click(edit);
     expect(screen.getByLabelText("Epic")).toBeTruthy();
     expect(screen.queryByText("なし", { selector: "dt" })).toBeNull();
+  });
+
+  it("チケット詳細の PR は、リモートの Web の URL があれば PR のページへのリンクにし、なければ番号だけを出す", async () => {
+    window.location.hash = "#/tickets/t9";
+    const data = fixture({
+      tickets: [ticket({ id: "t9", title: "PR あり", pr: 12 })],
+      status: { ...fixture().status, web_url: "https://github.com/o/r" },
+    });
+    mount(mockClient(data));
+    const link = await screen.findByRole("link", { name: "#12" });
+    expect(link.getAttribute("href")).toBe("https://github.com/o/r/pull/12");
+    expect(link.getAttribute("target")).toBe("_blank");
+    cleanup();
+
+    window.location.hash = "#/tickets/t9";
+    mount(mockClient({ ...data, status: { ...data.status, web_url: null } }));
+    await screen.findByRole("heading", { level: 1, name: "PR あり" });
+    expect(screen.queryByRole("link", { name: "#12" })).toBeNull();
+    expect(screen.getByText("PR").nextElementSibling!.textContent).toBe("#12");
   });
 
   it("ブラウザのチケット詳細は今のまま（編集は本文の下、作成は ISO、値のない属性も 1 行ずつ）", async () => {

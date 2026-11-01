@@ -31,7 +31,15 @@ describe("postMessage の CommandClient", () => {
     h.reply({
       id: 2,
       ok: true,
-      data: { ahead: 1, behind: 0, dirty: false, remote: "origin", issues: 0, data_dir: "/x" },
+      data: {
+        ahead: 1,
+        behind: 0,
+        dirty: false,
+        remote: "origin",
+        issues: 0,
+        data_dir: "/x",
+        web_url: null,
+      },
       warnings: [],
       write: null,
     });

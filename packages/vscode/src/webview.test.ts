@@ -76,7 +76,15 @@ function fakeClient(): CommandClient & { calls: unknown[] } {
       return { data: { name }, warnings: ["注意"], write: { pushed: true } } as CommandResult<O>;
     },
     async status() {
-      return { ahead: 1, behind: 0, dirty: false, remote: "origin", issues: 0, data_dir: "/x" };
+      return {
+        ahead: 1,
+        behind: 0,
+        dirty: false,
+        remote: "origin",
+        issues: 0,
+        data_dir: "/x",
+        web_url: null,
+      };
     },
   };
 }
@@ -210,7 +218,7 @@ describe("パネルの題", () => {
 });
 
 describe("サイドバーのバッジ", () => {
-  const base = { dirty: false, remote: "origin", issues: 0, data_dir: "/x" };
+  const base = { dirty: false, remote: "origin", issues: 0, data_dir: "/x", web_url: null };
   it("未 push と未取り込みの合計を出し、どちらもなければ消す", () => {
     expect(badgeOf({ ...base, ahead: 2, behind: 1 })).toEqual({
       value: 3,

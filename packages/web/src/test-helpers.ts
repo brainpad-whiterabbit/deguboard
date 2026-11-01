@@ -98,7 +98,15 @@ export function fixture(partial: Partial<Fixture> = {}): Fixture {
       },
       transitions: [],
     },
-    status: { ahead: 0, behind: 0, dirty: false, remote: "origin", issues: 0, data_dir: "/x" },
+    status: {
+      ahead: 0,
+      behind: 0,
+      dirty: false,
+      remote: "origin",
+      issues: 0,
+      data_dir: "/x",
+      web_url: null,
+    },
     ...partial,
   };
 }

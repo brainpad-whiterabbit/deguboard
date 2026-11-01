@@ -52,7 +52,14 @@ describe("プロセス内の CommandClient", () => {
     expect((await client.run<{ id: string }[]>("ticket.list")).data.map((t) => t.id)).toEqual([
       "t1",
     ]);
-    expect(await client.status()).toMatchObject({ ahead: 0, behind: 0, dirty: false, issues: 0 });
+    expect(await client.status()).toMatchObject({
+      ahead: 0,
+      behind: 0,
+      dirty: false,
+      issues: 0,
+      // fixture のリモートはローカルのパスなので Web の URL に直せない
+      web_url: null,
+    });
   });
 
   it("初期化前は NOT_INITIALIZED で失敗し、toCommandFailure が code と message に写す", async () => {

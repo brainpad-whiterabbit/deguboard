@@ -52,6 +52,45 @@ export async function resolveRemote(paths: RepoPaths, name: string): Promise<str
   return result.code === 0 ? name : null;
 }
 
+/**
+ * リモートの URL を Web で開ける URL（https://github.com/owner/repo）に直す。PR へのリンクに使う（UI-4）。
+ * https・ssh:// と scp 形式（git@host:owner/repo）だけを直し、認証情報・ポート・末尾の .git は落とす。ローカルのパスなどは null
+ */
+export function webUrlOf(url: string): string | null {
+  const trimmed = url.trim();
+  const scp = /^[^@/\s]+@([^:/\s]+):(?!\/)(.+)$/.exec(trimmed);
+  let host: string;
+  let pathname: string;
+  if (scp) {
+    host = scp[1]!;
+    pathname = scp[2]!;
+  } else {
+    let parsed: URL;
+    try {
+      parsed = new URL(trimmed);
+    } catch {
+      return null;
+    }
+    if (!["https:", "http:", "ssh:", "git+ssh:"].includes(parsed.protocol)) return null;
+    host = parsed.hostname;
+    pathname = parsed.pathname;
+  }
+  const repoPath = pathname.replace(/^\/+|\/+$/g, "").replace(/\.git$/, "");
+  if (!host || repoPath.split("/").length < 2) return null;
+  return `https://${host}/${repoPath}`;
+}
+
+/** リモートの Web の URL。リモートがない・直せなければ null */
+export async function remoteWebUrl(
+  repo: Pick<GitRepo, "topLevel" | "remote">,
+): Promise<string | null> {
+  if (!repo.remote) return null;
+  const result = await runGit(repo.topLevel, ["remote", "get-url", repo.remote], {
+    allowFailure: true,
+  });
+  return result.code === 0 ? webUrlOf(result.stdout) : null;
+}
+
 export async function isInitialized(paths: RepoPaths): Promise<boolean> {
   try {
     await access(path.join(paths.dataDir, ".git"));

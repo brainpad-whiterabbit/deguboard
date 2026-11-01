@@ -16,6 +16,8 @@ export interface StatusView extends SyncStatus {
   /** 読めないファイルと参照の不整合の件数 */
   issues: number;
   data_dir: string;
+  /** リモートを Web で開く URL（https://github.com/owner/repo）。PR へのリンクに使う。リモートがない・直せなければ null */
+  web_url: string | null;
 }
 
 /**
