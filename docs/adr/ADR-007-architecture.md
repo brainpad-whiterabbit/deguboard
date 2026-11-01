@@ -53,7 +53,7 @@ Core の中は責務ごとのモジュールに分け、最初からパッケー
 - `agents`：Agent Adapter のインターフェースと Claude Code / Codex の実装。起動方法・使用量の取得・作業ディレクトリの差を吸収する
 - `actions`：登録済みの Action（`create_worktree`・`create_branch`・`run_tests`・`create_pr`・`merge_pr`、許したときだけの `shell`）。下の「Action の呼び方」
 
-`run`・`agents`・`metrics` は要るようになったときに置く（それまでは Run の型だけ）。モジュールが肥大化したら、そのときにパッケージへ切り出す。
+`agents`・`metrics` は要るようになったときに置く（`run` は Run の記録だけを置いた）。モジュールが肥大化したら、そのときにパッケージへ切り出す。
 
 ### Action の呼び方
 

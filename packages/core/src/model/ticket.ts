@@ -27,7 +27,6 @@ const ticketFrontmatter = z.looseObject({
   claimed_by: z.string().optional(),
   branch: z.string().optional(),
   pr: z.number().int().positive().optional(),
-  runs: z.array(z.string()).default([]),
   provisional: z.boolean().optional(),
   created_at: isoDateTime,
   updated_at: isoDateTime,
