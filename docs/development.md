@@ -168,4 +168,6 @@ git tag v0.1.0 && git push origin v0.1.0
 mise run vsix                        # GitHub の Release に deguboard-vscode.vsix を添付する
 ```
 
+公開は必ず `pnpm publish`（`release:publish`）で行う。`workspace:*` の版への書き換えと `publishConfig.exports` の差し替えは pnpm だけが行い、`npm publish` では `src/` を指す `development` 条件が残る。
+
 tarball を試すときは、一時ディレクトリの package.json で `deguboard` と、`overrides` の `@deguboard/core`・`@deguboard/server` を `file:` の tarball に向ける。
