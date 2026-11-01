@@ -315,6 +315,7 @@ describe("画面", () => {
           retries: 0,
           usage: { input: null, output: null, cache_read: null, cache_write: null },
           running: true,
+          duration_seconds: null,
         } as RunView,
       ];
       expect(screen.queryByText("外で始めた step")).toBeNull();
