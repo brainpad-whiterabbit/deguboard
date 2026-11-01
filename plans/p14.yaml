@@ -1,0 +1,26 @@
+id: p14
+project: default
+tickets: [t175, t176, t172, t173, t174]
+after:
+  t173:
+    - t172
+  t174:
+    - t172
+    - t173
+pending_approval: true
+details:
+  t175:
+    scope: packages/vscode の INSTALL_HINT とそのテスト。README は変えない
+    approach: 案内を README の「使い始める」（clone してビルドし dg を PATH に通す）を指す文にし、mise の案内は外すか README と同じ -g 付きにして dg.test.ts で確かめる
+  t176:
+    scope: lint の設定（.oxlintrc.json）と、必要なら web のテストの例外。web の本体のコードは変えない
+    approach: oxlint で allowTypeImports 付きの制限が効かない原因を確かめ、効く規則か overrides でテストを除いた形に直し、値の import で落ち型の import が通ることを手元で確かめる
+  t172:
+    scope: core の run finish のコマンド定義と CLI・MCP・HTTP の写し、Run の型、requirements.md の RN-1・MT-4、ADR-005
+    approach: run finish に retry_reasons（文字列の配列）を足し、--retries 省略時は理由の数を回数にし、食い違えば拒否する。テストは一時リポジトリで記録と拒否を確かめる
+  t173:
+    scope: core の metrics show の集計と CLI・MCP・HTTP の写し、requirements.md の MT-3、ADR-005
+    approach: 集計の単位に step を足し、--by step と --step <id> の絞り込みを core に置いて入口は写すだけにする。t172 と同じ文書を直すので後に置く
+  t174:
+    scope: 同梱の software-development テンプレートとこのリポジトリの Workflow の steps、dg guide work・review の文書、ADR-005
+    approach: steps に implement・review・fix・investigate を足し、実装の Run は draft の PR で閉じ、見直しは review、修正ループと手直しは fix の Run で --retry-reason を残す手順に書き換え、check:docs の予算内に収める
