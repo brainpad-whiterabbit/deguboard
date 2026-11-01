@@ -71,7 +71,7 @@ mise run dg -- guide done      # マージ後の後始末
 
 - TypeScript は ESM（`"type": "module"`）で、相対 import は `.js` の拡張子で書く。`mise run typecheck` は `noEmit` で検査する
 - `mise run build` が `tsconfig.build.json`（プロジェクト参照）で `core`・`server`・`cli` を、Vite で `web` を `dist/` に出す。`dg` をリポジトリの外のディレクトリに対して動かすときは `-C <dir>` を付ける
-- `@deguboard/core` の `exports` は条件つきで、テストと型検査（`development` 条件）は `src/` を、ビルド済みの `dg` と npm のパッケージは `dist/` を見る。テストの前にビルドは要らない
+- `@deguboard/core` と `@deguboard/server` の `exports` は条件つきで、テストと型検査・vscode のビルド（`development` 条件）は `src/` を、ビルド済みの `dg` は `dist/` を見る。公開する tarball では `publishConfig.exports` が `development` 条件を外し、`dist/` だけを指す（`pnpm pack` で確かめる）。テストの前にビルドは要らない
 - テストはソースの隣の `*.test.ts`（画面は `*.test.tsx`）に置き、ルートの `vitest.config.ts` が `packages/*/src/**/*.test.{ts,tsx}` と `test/**/*.test.ts` をまとめて走らせる。パッケージごとの設定ファイルは作らない
 - パッケージをまたぐテストは `test/` に置く。`e2e/routes.test.ts` は CLI・HTTP・Webview の 3 経路の結果とコミットの一致（NF-2）を、`layout/` は画面の配置とドラッグを確かめる（`mise run test:layout`。ブラウザが要るので check に入れない）
 - Git を使うテストは `packages/core/test/helpers/git-fixture.ts` で、一時ディレクトリに bare リモートと 2 つの clone を作って行う。開発者のグローバル設定に影響されないよう、fixture が `GIT_CONFIG_GLOBAL=/dev/null` と `GIT_CONFIG_NOSYSTEM=1` を与える。後片付けの rm が裏の git maintenance と競合しないよう、環境変数（`GIT_CONFIG_COUNT`）で `maintenance.auto` と `gc.auto` を止め、bare リモートには `receive.autogc false` も設定し、rm は再試行させる
@@ -167,5 +167,7 @@ mise run release:publish             # pnpm publish -r --access public（npm log
 git tag v0.1.0 && git push origin v0.1.0
 mise run vsix                        # GitHub の Release に deguboard-vscode.vsix を添付する
 ```
+
+公開は必ず `pnpm publish`（`release:publish`）で行う。`workspace:*` の版への書き換えと `publishConfig.exports` の差し替えは pnpm だけが行い、`npm publish` では `src/` を指す `development` 条件が残る。
 
 tarball を試すときは、一時ディレクトリの package.json で `deguboard` と、`overrides` の `@deguboard/core`・`@deguboard/server` を `file:` の tarball に向ける。
