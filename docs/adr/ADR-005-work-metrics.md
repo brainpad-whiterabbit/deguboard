@@ -30,7 +30,14 @@
 
 - 会話記録（`~/.claude/projects/**` など）を読むかどうかは `config.yaml` の `metrics.read_transcripts`（true / false）で決める。チームの方針として Git で共有する
 - 個人が拒むときは環境変数 `DEGUBOARD_NO_TRANSCRIPTS=1` で、そのマシンでは読まない
-- 許可がなければ、エージェントの出力と Git から取れる指標だけを記録する
+- 許可がなければ、エージェントの出力と Git から取れる指標だけを記録する。読まなかったとき・取れなかったときは `run finish` が警告を返す
+
+### 会話記録を Run に結び付ける
+
+- `run finish` が Run の `agent` の値で Adapter を選び、会話記録から使用量を取る。Claude Code（`claude-code`）は `~/.claude/projects/`（`CLAUDE_CONFIG_DIR` があればその下）を読む
+- 結び付けるのは、Run の ID を最初に含む会話記録のファイル（`dg run start` の出力を受け取ったエージェントの記録）。その中の `started_at`〜`finished_at` の応答の `usage` を、同じ応答の重複行を除いて足す。モデル名を渡されていなければ、いちばん多く応答したモデルを入れる
+- 探すのは環境変数 `CLAUDE_CODE_SESSION_ID` の session（サブエージェントを含む）、なければ作業ツリーと主の作業ツリーとその上位に当たるディレクトリで、`started_at` より後に書かれたファイルだけ
+- 作業ディレクトリと時刻だけで絞らないのは、サブエージェントが親と同じ session・同じ作業ディレクトリで並行して動き、区別できないため。Run の ID は乱数を含み、ほかの記録に偶然現れない。親が始めた Run の作業をサブエージェントがした分は数えない
 
 ### 写すのは数と相対パスだけ
 

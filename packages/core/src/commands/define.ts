@@ -22,6 +22,8 @@ export interface CommandContext extends WriteContext {
   worktree?: WorktreeOrigin | undefined;
   /** マージドライバとして git に登録する、dg を呼ぶ argv の前置（init と sync が登録する。git/merge.ts） */
   mergeDriver?: readonly string[] | undefined;
+  /** 環境変数。Adapter が会話記録の場所と DEGUBOARD_NO_TRANSCRIPTS を見る。省けば process.env */
+  env?: Readonly<Record<string, string | undefined>> | undefined;
 }
 
 export interface CommandResult<O> {

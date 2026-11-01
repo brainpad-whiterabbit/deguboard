@@ -1,6 +1,9 @@
-// Run の操作（requirements.md 5.9、6.6 MT-1、6.7 EX-2、ADR-005）。記録の置き場所とロックは run/record.ts
+// Run の操作（requirements.md 5.9、6.6 MT-1・MT-2、6.7 EX-2、ADR-005）。記録の置き場所とロックは run/record.ts、
+// 使用量の取り込みは agents（Run の agent の値で Adapter を選ぶ。特定の AI 製品をここに書かない。AG-5）
 
 import { z } from "zod";
+import { agentNames, collectRunUsage } from "../agents/index.js";
+import { toIsoDateTime } from "../model/common.js";
 import { UsageError } from "../errors.js";
 import { isRunId, RUN_RESULTS, type Run } from "../model/run.js";
 import { finishRun, readRunningRuns, startRun } from "../run/record.js";
@@ -22,7 +25,9 @@ export const runStart = defineCommand({
   input: z.object({
     ticket: ticketRef,
     step: token.describe("工程（implement・review など）"),
-    agent: token.describe("エージェント名（claude-code など）"),
+    agent: token.describe(
+      `エージェント名。${agentNames().join("・")} なら finish が会話記録から使用量を取り込む（metrics.read_transcripts）`,
+    ),
     model: z.string().min(1).optional().describe("モデル名。分からなければ省く（null で残す）"),
   }),
   write: true,
@@ -45,7 +50,7 @@ export const runFinish = defineCommand({
   positionals: ["run"],
   group: "run",
   summary:
-    "実行中の Run を閉じ、完了時の集計を runs/ に書く（commit.mode に従ってコミット）。止まった Run は --result interrupted で閉じる。使用量は自己申告を受けず、取れなければ null のまま",
+    "実行中の Run を閉じ、完了時の集計を runs/ に書く（commit.mode に従ってコミット）。止まった Run は --result interrupted で閉じる。使用量は自己申告を受けず、agent の Adapter が会話記録から取り込む。取れなければ null のまま警告する",
   input: z.object({
     run: z.string().min(1).describe("Run の ID（r20261031-041500-3fa2）"),
     result: z.enum(RUN_RESULTS).describe("success・failure・interrupted"),
@@ -58,14 +63,28 @@ export const runFinish = defineCommand({
   async run(ctx, input) {
     if (!isRunId(input.run))
       throw new UsageError(`${input.run} は Run の ID の形（r20261031-041500-3fa2）でない`);
+    const now = ctx.now();
+    // 実行中の記録がなければ取り込まず、finishRun が見つからない・終わっていると拒否する
+    const running = (await readRunningRuns(ctx.repo)).runs.find((r) => r.id === input.run);
+    const collected = running
+      ? await collectRunUsage(ctx.config, {
+          run: running.data,
+          finishedAt: toIsoDateTime(now),
+          env: ctx.env ?? process.env,
+          topLevel: ctx.repo.topLevel,
+          commonDir: ctx.repo.commonDir,
+        })
+      : undefined;
     const { run, write } = await finishRun(ctx, input.run, {
       result: input.result,
       error: input.error,
       retries: input.retries,
-      model: input.model,
-      now: ctx.now(),
+      // 明示したモデル名 > 実行中の記録のモデル名 > 会話記録のモデル名
+      model: input.model ?? (running?.data.model ? undefined : (collected?.model ?? undefined)),
+      usage: collected?.usage,
+      now,
     });
-    return ok(run, write);
+    return ok(run, write, collected?.warnings ?? []);
   },
 });
 

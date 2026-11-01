@@ -31,13 +31,17 @@
               {
                 "regex": "^\\.\\.?/(\\.\\./)*(cli|server|web|vscode)(/|$)",
                 "message": "core は他のパッケージを相対パスでも import しない（ADR-007）"
+              },
+              {
+                "regex": "^\\.\\.?/(\\.\\./)*agents/adapters(/|$)",
+                "message": "特定の AI 製品の Adapter は agents の外から import しない。agents/index.ts の一覧を通す（AG-5、ADR-007）"
               }
             ]
           }
         ]
       }
     },
-    // Core の汎用部分は actions に依存しない（AG-6）。同じルールを上書きするので、上の packages/core/** の制限パターンを写している。上を変えたらここも揃える
+    // Core の汎用部分は actions に依存しない（AG-6）。agents/adapters の禁止（AG-5）も写す。同じルールを上書きするので、上の packages/core/** の制限パターンを写している。上を変えたらここも揃える
     {
       "files": [
         "packages/core/src/commands/**",
@@ -66,6 +70,10 @@
               {
                 "regex": "^\\.\\.?/(\\.\\./)*(cli|server|web|vscode)(/|$)",
                 "message": "core は他のパッケージを相対パスでも import しない（ADR-007）"
+              },
+              {
+                "regex": "^\\.\\.?/(\\.\\./)*agents/adapters(/|$)",
+                "message": "特定の AI 製品の Adapter は agents の外から import しない。agents/index.ts の一覧を通す（AG-5、ADR-007）"
               },
               {
                 "regex": "^\\.\\.?/(\\.\\./)*actions(/|$)",
