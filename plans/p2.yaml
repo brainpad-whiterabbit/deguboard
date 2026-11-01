@@ -1,0 +1,20 @@
+id: p2
+project: default
+tickets: [t79, t80, t82, t81, t84, t85, t83, t86]
+after: {}
+pending_approval: true
+details:
+  t80:
+    approach: setup.ts の lint から lint_acceptance_unchecked を消し、sync の警告は残す
+  t81:
+    approach: setup.ts の lint に warn の形で 4 つの規則を足す
+  t82:
+    approach: guide の frontmatter から SKILL.md を生成し、sha256 の印で更新を判断する。トピックを import・done に改める
+  t83:
+    approach: 判定は lint に任せ、表と承認と直し方だけを書く
+  t84:
+    approach: kf の guide-audit の構成（観点・サブエージェント・重複・重大度）にならう
+  t85:
+    approach: リリース手順はリポジトリの案内に従い、承認点を明記する
+  t86:
+    approach: 状態から段階を求める規則を書き、--auto は e4 に起票する
