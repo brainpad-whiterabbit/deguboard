@@ -4,3 +4,5 @@ git:
   base_branch: main
 actor:
   human_only: []
+auto:
+  merge: true
