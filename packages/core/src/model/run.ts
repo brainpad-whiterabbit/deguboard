@@ -1,5 +1,5 @@
 // Run（runs/r20261031-041500-3fa2.json。requirements.md 5.9、ADR-002・ADR-005）。
-// 完了時の集計は runs/ に、実行中の記録は deguboard-local/runs/ に、同じスキーマと同じ名前で置く
+// Git に入れるのは完了時の集計だけ。実行中の詳細ログ（deguboard-local/runs/。RN-3）の形は後続のコマンドで決める
 
 import { z } from "zod";
 import { isoDateTime } from "./common.js";

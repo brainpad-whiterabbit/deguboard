@@ -95,7 +95,7 @@ const collections = {
     idOf: (f) => idFromFileName(f, "plan"),
     pathOf: planPath,
   } satisfies Collection<Plan>,
-  // 完了時の集計だけ。実行中の記録（deguboard-local/runs/）は索引に入れない
+  // 完了時の集計だけ。実行中の詳細ログ（deguboard-local/runs/）は索引に入れない
   run: {
     dir: DIRS.runs,
     format: "json",

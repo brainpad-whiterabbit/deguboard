@@ -3,8 +3,8 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { OperationError } from "../errors.js";
-import { WORKFLOW_TEMPLATES } from "../workflow/templates/index.js";
 import { emptyUsage } from "../model/run.js";
+import { WORKFLOW_TEMPLATES } from "../workflow/templates/index.js";
 import { checkReferences, wouldCreateCycle } from "./integrity.js";
 import { Store } from "./store.js";
 

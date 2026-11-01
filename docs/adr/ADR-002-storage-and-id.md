@@ -42,7 +42,7 @@
 - オフラインで push できないときは `provisional: true` を付けてローカルに commit する。次の `dg sync` で衝突があれば、番号・ファイル名・未 push のコミット内の参照（他チケットの `depends_on`、Plan）を振り直してから push する
 - 作業ブランチ名と PR は claim（push 成功が条件。[ADR-004](ADR-004-agents-and-state.md)）の後に作るので、仮番号がブランチ名に入ることはない
 - `dg ticket import` の複数件も同じ 1 単位で採番する
-- Run の ID は採番せず `r`＋開始日時（UTC）＋4 桁の乱数にする（`r20261031-041500-3fa2`）。辞書順が開始の順で、実行中の記録も `deguboard-local/runs/` に同じ名前で置く
+- Run の ID は採番せず `r`＋開始日時（UTC）＋16 進 4 桁の乱数にする（`r20261031-041500-3fa2`）。辞書順が開始の順になる
 
 ### 同期の競合：frontmatter をフィールド単位でマージする
 
