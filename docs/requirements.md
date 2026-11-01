@@ -2,7 +2,7 @@
 
 今の仕様の正本。利用者（人・エージェント）に約束する振る舞いとデータの形だけを書く。細部（CLI オプション、集計の規則、画面の並びや文言）はヘルプ・コード・テストが正本で、各節から案内する。判断の理由は [ADR 一覧](adr/README.md)から引く。書く範囲は [ADR-001](adr/ADR-001-doc-strategy.md)。
 
-要件の ID（`TK-1` など）はコードとテストから参照する。文を縮めても ID と見出しのアンカーは変えず、消した ID は再利用しない。まだ実装していない節・項目には「予定（`e3`）」と実装する Epic の ID を添える（`dg epic show e3`）。予定は時期の約束ではない。
+要件の ID（`TK-1` など）はコードとテストから参照する。文を縮めても ID と見出しのアンカーは変えず、消した ID は再利用しない。まだ実装していない節・項目には「予定（`e4`）」と実装する Epic の ID を添える（`dg epic show e4`）。予定は時期の約束ではない。
 
 ## 1. 目的
 
@@ -177,6 +177,8 @@ reconcile: # 上から評価し、前進するときだけ書き換える
   - { when: [branch_exists], status: in_progress }
 fields:
   - { id: estimate, type: number, label: 見積 }
+steps: # 任意。Run の step の語彙（WF-5）
+  - { id: merge, label: Merge, actions: [merge_pr], approval: true }
 ```
 
 - WF-1 Status は全ワークフロー共通の 5 つ（`todo` / `in_progress` / `review` / `done` / `abandoned`）。前進の順は todo → in_progress → review → done で、`abandoned` は前進の軸の外の終端。既定では 5 つの間のどの遷移も、human / agent / reconcile の誰でも条件なしで行える。ワークフローは `transitions` で from → to ごとに `by`（行える主体。`[]` で禁止）と `requires`（条件）の制約を足すだけで、Status は増やせない（[ADR-003](adr/ADR-003-status-and-workflow.md)）
@@ -198,18 +200,17 @@ fields:
 | `default_project`                | 省略時の Project                                 | `default`             |
 | `git.remote` / `git.base_branch` | 同期先と、作業ブランチの元・マージ判定の基準     | `origin` / `main`     |
 | `worktree.root`                  | 作業 worktree の置き場所                         | `../<repo>.worktrees` |
-| `commit.mode`                    | 書き込みをいつコミットするか（下記）             | `batch`               |
+| `commit.mode`                    | 書き込みをいつコミットするか                     | `batch`               |
 | `push.mode`                      | `auto` / `manual`                                | `auto`                |
 | `metrics.read_transcripts`       | 会話記録を読むか                                 | `false`               |
 | `actions.shell`                  | 任意のシェルの Action を許すか（AG-7）           | `false`               |
+| `actions.test`                   | テストの Action が呼ぶコマンドの引数配列         | `[]`                  |
 | `actor.human_only`               | agent からは拒否するコマンド名の一覧（下記）     | `[]`                  |
 | `auto.merge`                     | `dg guide all --auto` で PR を自動でマージするか | `false`               |
 
-`commit.mode` の意味。`each` は書き込みのたびに、`batch` は `dg commit`・`dg sync`・即時の操作（CL-3）がまとめて、`manual` は `dg commit` と即時の操作だけがコミットする。`push.mode` は `auto` ならコミットのたびに、`manual` なら `dg sync` が push する（即時の操作は常に push）。
-
 `actor.human_only` は `epic.close` のようなコマンド名の一覧で、入れたコマンドを agent が呼ぶと `TRANSITION_REJECTED` で拒否する。既定は空で、すべての操作をエージェントにも許す。チケットの遷移を人に限るのは Workflow の `by`（WF-1）で、この項目では扱わない。
 
-項目の全体はスキーマ（`packages/core/src/model/config.ts`）が正本。利用者ごとの上書きは設けない。
+各項目の意味（`commit.mode` の値など）と全体はスキーマ（`packages/core/src/model/config.ts`）が正本。利用者ごとの上書きは設けない。
 
 ## 6. 機能要件
 
@@ -234,7 +235,7 @@ fields:
 
 - CL-3 書き込みを伴うコマンドは、`commit.mode` に従って deguboard ブランチにコミットする。作成（`init`、`project / ticket / epic / iteration create`、`ticket import`）と `ticket claim` は `commit.mode`・`push.mode` によらず即座にコミットして push する（採番と排他のため）
 - CL-4 `ticket import` は YAML / JSON の下書き（配列）を 1 コミットで取り込む。下書きの中の仮キーを `depends_on` から参照でき、`epic` に既存の Epic を書ける
-- CL-5 `dg guide <topic>` は、エージェント向けの手順を `config.yaml` の値を埋めて出す。トピックの一覧は `dg guide overview`（省略時）。手順の正本は CLI に同梱した Markdown（`packages/cli/src/guide-*.md`）で、判断を求めるときは選択肢で聞き、終えたら次の手順を選択肢で示す
+- CL-5 `dg guide <topic>` は、エージェント向けの手順を `config.yaml` の値を埋めて出す。トピックの一覧は `dg guide overview`（省略時）。手順の正本は CLI に同梱した Markdown（`packages/cli/src/guide-*.md`）
 - CL-6 CLI はビジネスロジックを持たず、Core のコマンド定義（`packages/core/src/commands/`）を写す
 - CL-7 `history` は deguboard ブランチの git の履歴から、チケット・Epic・Iteration の起票と、`status`・`iteration`・`epic`・`assignee`・`pr` の変化を、時刻・コミット・作者・コミットの 1 行目とともに古い順に返す。データの形は変えず、差分から読む。Epic・Iteration で絞ると、一度でも入っていたチケット（持ち越しで外されたものを含む）の経過も返す。浅い clone では欠けたこと（`shallow`・`incomplete`）を返して失敗しない
 
@@ -283,18 +284,18 @@ Web UI は `dg serve` が配信し、VS Code 拡張は同じ React アプリを 
 - AG-2 Claude Code 向けに、段階ごとに `dg guide <topic>` を読む薄い Skill（`dg<トピック>`。例 `/dgimport`）を配る（`dg skill install`。既定はリポジトリの `.claude/skills/`、`--personal` で `~/.claude/skills`）。名前・説明・引数の案内は guide の frontmatter が正本。SKILL.md に中身のハッシュの印を入れ、手を加えていない Skill は再実行で更新し、手を加えたものは `--force` がなければ残す。廃止した `deguboard` Skill は消す
 - AG-3 エージェントは要件の整理が終わったら、必要に応じてチケット化を提案し、承認を得て `ticket import` で起票する。分解・Epic への束ね・依存の整理・Iteration への割り当ても提案して承認を得る
 - AG-4 MCP サーバー（`dg mcp`。stdio）は Core のコマンド定義から生成する薄い層として提供する。CLI と同じ操作ができ（`init` と CLI だけの `guide`・`skill`・`serve`・`open` を除く）、ツールの結果は `--json` と同じ形（CL-1）で、主体は常に agent（`<ユーザ>/agent`）
-- AG-5 Agent Adapter が、エージェントの起動方法・使用量の取得・権限・作業ディレクトリの差を吸収する。Core は特定の AI 製品を知らない（予定 `e3`）
+- AG-5 Agent Adapter が使用量の取得と作業ディレクトリの差を吸収し、製品ごとの実装は Core の `agents/adapters/` に閉じる。今は `claude-code` だけで、Codex は予定（`e3`）。起動方法と権限は扱わない（EX-1、[ADR-007](adr/ADR-007-architecture.md)）
 - AG-6 ソフトウェア開発向けの Action（worktree・ブランチ・テスト・PR 作成・マージ）は Core の `actions` に置き、汎用部分は依存しない。`dg` のコマンドにせず Core 内のライブラリに留め、公開するのは名前の一覧（`ACTION_NAMES`）だけ（[ADR-007](adr/ADR-007-architecture.md)）
 - AG-7 任意のシェルの Action は `actions.shell: true` のときだけ使え、毎回確認を経る
 
-### 6.6 作業の実績（予定 `e3`）
+### 6.6 作業の実績
 
 - MT-1 Run の使用量は Adapter が取り込む。エージェントの自己申告の数字は書かない
-- MT-2 `metrics.read_transcripts` が true のマシンでは、Claude Code の会話記録から使用量を補う。`DEGUBOARD_NO_TRANSCRIPTS=1` のマシンでは読まない
+- MT-2 `metrics.read_transcripts`（チームで共有する設定）が true なら、`run finish` が Adapter でエージェントの会話記録から使用量を補う。`DEGUBOARD_NO_TRANSCRIPTS` が空でも `0` でもないマシンでは true でも読まない
 - MT-3 `metrics show` は Run・Ticket・Epic・Iteration・Project・Agent/Model で絞り集計する。null は足さず欠けた数を出す。集計値は保存しない
-- MT-4 Git に入る記録は、数とリポジトリからの相対パスだけ。会話の中身・コマンドの文字列・リポジトリの外のパスは写さない
+- MT-4 Adapter が会話記録から Run に写すのは数とモデル名だけで、会話の中身・コマンドの文字列・パスは写さない。例外の `error` は `run finish --error` の理由をそのまま記録するので、秘密を書かない
 
-### 6.7 ワークフロー実行（予定 `e3`・`e4`）
+### 6.7 ワークフロー実行
 
 - EX-1 deguboard はエージェントを起動しない。チケットの処理はエージェント側の Skill が `dg` を呼んで進める
 - EX-2 終了していない Run は一覧で見え、`interrupted` として閉じられる
