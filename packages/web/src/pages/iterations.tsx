@@ -1,5 +1,5 @@
 // Iteration（UI-5）の詳細：チケットの追加・除外、開始・終了。一覧の画面はなく、planned と active はカンバンの絞り込みで選ぶ（board.tsx）。
-// 作成のフォームと開始・閉じるのボタンはここに置き、カンバンとバックログから使う
+// 作成のフォームと開始・閉じるのボタンはここに置き、カンバン（サイドバーを除く）とバックログの区画の見出しから使う
 
 import { useEffect, useState } from "react";
 import { CloseButton, TicketTable, unfinishedCount } from "../components/parts.js";
@@ -23,8 +23,8 @@ export function IterationsPage({ id }: { id: string }) {
 export const ITERATION_CLOSE_NOTE = "閉じると持ち越しになり、Iteration から外れる。";
 
 /**
- * Iteration の開始・閉じるのボタン。カンバンの見出しとバックログの区画の見出しに置く。
- * サイドバーでは「…」のメニューに入れる（狭い見出しでボタンが場所を取り、閉じるを押し間違えやすいので）
+ * Iteration の開始・閉じるのボタン。カンバンの見出し（サイドバーでは出さない）とバックログの区画の見出しに置く。
+ * サイドバーのバックログの区画では「…」のメニューに入れる（狭い見出しでボタンが場所を取り、閉じるを押し間違えやすいので）
  */
 export function IterationActions({ iteration: it }: { iteration: Iteration }) {
   const store = useStore();
