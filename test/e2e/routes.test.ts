@@ -13,6 +13,7 @@ import {
   runCommand,
   type CommandClient,
 } from "../../packages/core/src/index.js";
+import { cliEnv } from "../../packages/core/test/helpers/env.js";
 import { createFixture, git, type Fixture } from "../../packages/core/test/helpers/git-fixture.js";
 import { startServer } from "../../packages/server/src/index.js";
 import { createWebviewClient } from "../../packages/web/src/client/webview.js";
@@ -189,6 +190,7 @@ const cli: Route = async (cwd) => ({
     const out: string[] = [];
     await runCli(["--json", "--user", USER, ...step.argv], {
       cwd,
+      env: cliEnv(),
       streams: { out: (t) => out.push(t), err: () => {} },
     });
     return JSON.parse(out.join("\n")) as Envelope;
