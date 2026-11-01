@@ -1,4 +1,4 @@
-// 文書の大きさの予算・ADR 一覧の整合・リンクと見出しアンカーの切れを検査する（docs/adr/ADR-001-doc-strategy.md）。
+// 文書と dg guide の大きさの予算・ADR 一覧の整合・リンクと見出しアンカーの切れを検査する（docs/adr/ADR-001-doc-strategy.md）。
 // 依存なしで動かす。mise run check:docs から呼ぶ。
 import { existsSync } from "node:fs";
 import { readdir, readFile, stat } from "node:fs/promises";
@@ -15,6 +15,9 @@ const budgets = [
   ["docs/development.md", 20 * 1024],
 ];
 const adrBudget = 10 * 1024;
+// エージェントが作業中に読む dg guide のトピック（1 本ずつ）
+const guideDir = "packages/cli/src";
+const guideBudget = 14 * 1024;
 const WARN_RATIO = 0.9;
 
 const errors = [];
@@ -40,6 +43,14 @@ for (const file of adrFiles) {
     errors.push(`${number} が重複している: ${numbers.get(number)} と ${file}`);
   }
   numbers.set(number, file);
+}
+
+const guideFiles = (await readdir(path.join(root, guideDir)))
+  .filter((f) => /^guide-.+\.md$/.test(f))
+  .sort();
+for (const file of guideFiles) {
+  const rel = `${guideDir}/${file}`;
+  checkBudget(rel, await sizeOf(rel), guideBudget);
 }
 
 const index = await readFile(path.join(adrDir, "README.md"), "utf8");
@@ -96,7 +107,7 @@ if (errors.length > 0) {
   process.exit(1);
 }
 console.log(
-  `check:docs: 予算内（文書 ${budgets.length} 件、ADR ${adrFiles.length} 件）、リンク ${linkCount} 件に切れなし`,
+  `check:docs: 予算内（文書 ${budgets.length} 件、ADR ${adrFiles.length} 件、guide ${guideFiles.length} 件）、リンク ${linkCount} 件に切れなし`,
 );
 
 function checkBudget(rel, size, limit) {
