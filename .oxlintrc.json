@@ -124,8 +124,33 @@
         ]
       }
     },
+    // web の core の制限は patterns でなく paths に書く。oxlint は patterns のどれかの否定（!@deguboard/core）に当たると、ほかの patterns でも制限しないため
     {
       "files": ["packages/web/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "@deguboard/core",
+                "allowTypeImports": true,
+                "message": "web は core から型だけを取り込む。実行時のコードは Vite が node のモジュールを束ねるので禁止（ADR-007）"
+              }
+            ],
+            "patterns": [
+              {
+                "group": ["@deguboard/*", "!@deguboard/core", "deguboard", "deguboard-vscode"],
+                "message": "web は core だけに依存する（ADR-007）"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    // web のテストは Vitest が node で動かすので、core の実行時のコード（期待値を作る progressOf など）を取り込んでよい。上の packages/web/** の patterns を写している。上を変えたらここも揃える
+    {
+      "files": ["packages/web/**/*.test.ts", "packages/web/**/*.test.tsx"],
       "rules": {
         "no-restricted-imports": [
           "error",
@@ -134,11 +159,6 @@
               {
                 "group": ["@deguboard/*", "!@deguboard/core", "deguboard", "deguboard-vscode"],
                 "message": "web は core だけに依存する（ADR-007）"
-              },
-              {
-                "group": ["@deguboard/core"],
-                "allowTypeImports": true,
-                "message": "web は core から型だけを取り込む。実行時のコードは Vite が node のモジュールを束ねるので禁止（ADR-007）"
               }
             ]
           }
