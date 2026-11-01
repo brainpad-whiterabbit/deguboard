@@ -1,0 +1,15 @@
+id: p12
+project: default
+tickets: [t153, t154, t155]
+after: {}
+pending_approval: true
+details:
+  t153:
+    scope: core の ticket.list に deps_done を載せ、web の着手可の判定（plan-graph.ts と board.tsx）を 1 つの関数にまとめる
+    approach: ticket.show の deps_done の計算を core で共有して list にも載せ、e2e の 3 経路で一致を確かめる。t151・t156 が board.tsx と plan-graph.ts を触るので、着手前に main を取り込む
+  t154:
+    scope: test/layout/sidebar.layout.ts の期待を、行のタイトルが 2 行まで折り返す今の画面に合わせる
+    approach: 行のタイトルは 2 行まで許し、見出し・タブの 1 行の検査は残す。基準をコメントに書き、mise run test:layout で確かめる
+  t155:
+    scope: packages/cli/src/guide-work.md を 14KB の予算の 90% 未満にする
+    approach: 細部をヘルプや他の guide に移し、手順の意味は変えない。mise run check:docs と check で確かめる
