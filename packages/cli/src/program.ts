@@ -75,6 +75,7 @@ const GROUP_SUMMARY: Record<string, string> = {
   plan: "Plan（チケットを進める順と承認）の操作",
   workflow: "Workflow 定義の参照と検証",
   metrics: "Run（作業の実績）の集計",
+  run: "Run（1 回の AI 実行）の記録",
   config: "config.yaml の参照と変更",
 };
 

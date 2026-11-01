@@ -211,4 +211,40 @@ describe("dg mcp", () => {
     await run(["--help"], { streams: { out: (t) => help.push(t), err: () => {} } });
     expect(help.join("\n")).toContain("metrics");
   });
+
+  it("run_start・run_list・run_finish で CLI と同じく Run を記録できる", async () => {
+    const f = await initialized();
+    await run(["-C", f.cloneA, "ticket", "create", "A"], {
+      streams: { out: () => {}, err: () => {} },
+    });
+    const call = (name: string, args: object) => ({
+      method: "tools/call",
+      params: { name, arguments: args },
+    });
+    const first = await session(
+      ["-C", f.cloneA],
+      [
+        call("run_start", { ticket: "t1", step: "review", agent: "codex" }),
+        call("run_start", { ticket: "t1", step: "review", agent: "codex" }),
+      ],
+    );
+    const started = body(first.results[0]!);
+    expect(started).toMatchObject({ ok: true, data: { ticket: "t1", step: "review" } });
+    expect(body(first.results[1]!)).toMatchObject({
+      ok: false,
+      error: { code: "ALREADY_EXISTS" },
+    });
+    const second = await session(
+      ["-C", f.cloneA],
+      [
+        call("run_list", { running: true }),
+        call("run_finish", { run: started.data.id, result: "success" }),
+        call("run_list", {}),
+      ],
+    );
+    const [listed, finished, all] = second.results.map(body);
+    expect(listed.data.map((r: { id: string }) => r.id)).toEqual([started.data.id]);
+    expect(finished).toMatchObject({ ok: true, data: { result: "success" } });
+    expect(all.data).toMatchObject([{ id: started.data.id, running: false }]);
+  });
 });

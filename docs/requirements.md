@@ -52,7 +52,7 @@ deguboard は、Git で管理するチケットとユーザー定義のワーク
 ### 5.1 配置
 
 - データは orphan ブランチ `deguboard` に置き、`<git-common-dir>/deguboard/` に専用 worktree として checkout する。読み書きはすべてここで行い、作業ブランチにはデータを置かない（[ADR-002](adr/ADR-002-storage-and-id.md)）
-- Git 管理外のもの（ローカルロック、実行中の詳細ログ、マージドライバの属性ファイル）は `<git-common-dir>/deguboard-local/` に置く
+- Git 管理外のもの（ローカルロック、実行中の Run の記録、マージドライバの属性ファイル）は `<git-common-dir>/deguboard-local/` に置く
 
 ```
 config.yaml
@@ -99,7 +99,6 @@ created_by: eiki # 起票者。eiki（人）か eiki/agent（eiki の AI）
 assignee: eiki/agent # 担当者。claim で付く
 branch: feature/t12-login-validation
 pr: 42 # 任意。照合がブランチ名で PR を見つけたら補う
-runs: [r20261031-041500-3fa2]
 created_at: 2026-10-31T04:00:00Z
 updated_at: 2026-10-31T05:10:00Z
 ---
@@ -186,11 +185,11 @@ fields:
 - WF-4 `software-development`・`consulting`・`general` のテンプレートを同梱し、`dg init` が 3 つとも置く。`default` プロジェクトの Workflow はそのどれかを選べ、既定は `general`
 - WF-5 予定（`e3`）：`steps`（Run の step の語彙）と、step ごとの Action・承認の要否を足す。手続きは YAML に書かず `dg guide` が持つ
 
-### 5.9 Run（`runs/`。予定 `e3`）
+### 5.9 Run（`runs/`）
 
 - RN-1 1 Run 1 ファイル。`id`、`ticket`、`step`、`agent`、`model`、`started_at`、`finished_at`、`result`（`success` / `failure` / `interrupted`）、`error`、`retries`、`usage`（input / output / cache_read / cache_write のトークン）
 - RN-2 取れなかった値は `null`。推定した値は `estimated: true` を付ける。費用は持たない（[ADR-005](adr/ADR-005-work-metrics.md)）
-- RN-3 Git に入れるのは完了時の集計だけ。実行中の詳細ログは `deguboard-local/runs/`
+- RN-3 Git に入れるのは完了時の集計だけ。実行中の記録は `deguboard-local/runs/` に置く。チケットには書き足さない
 
 ### 5.10 設定（`config.yaml`）
 
@@ -219,19 +218,19 @@ fields:
 - CL-1 すべてのコマンドに `--json` があり、エージェントはそれを読む。成功は `{ ok: true, data, warnings, write }`、失敗は `{ ok: false, error: { code, message, detail } }`。終了コードは 0（成功）/ 1（失敗。`validate`・`lint` は指摘があるとき）/ 2（使い方の誤り）。`error.code` の語彙は `packages/core/src/errors.ts` が正本
 - CL-2 コマンドの一覧とオプションは `dg --help` が正本。主な群は次のとおり
 
-| 群        | コマンド                                                                                          | 状態         |
-| --------- | ------------------------------------------------------------------------------------------------- | ------------ |
-| 用意      | `init`、`sync`、`commit`、`validate`、`lint`、`config`                                            | あり         |
-| Project   | `project create / list / show / archive`                                                          | あり         |
-| Ticket    | `ticket create / list / show / update / check / move / delete / import / claim / unclaim`         | あり         |
-| Iteration | `iteration create / list / show / add / remove / start / close / reopen`（`sprint` はエイリアス） | あり         |
-| Epic      | `epic create / list / show / update / add / remove / close / reopen`                              | あり         |
-| Workflow  | `workflow list / show / validate`                                                                 | あり         |
-| 画面・MCP | `serve`、`open`、`mcp`                                                                            | あり         |
-| 手順      | `guide <topic>`、`skill install`                                                                  | あり         |
-| Plan      | `plan create / list / show / approve / close`                                                     | あり         |
-| 経過      | `history`（`--ticket`・`--epic`・`--iteration` で絞る）                                           | あり         |
-| Run       | `run start / finish / list`、`metrics show`                                                       | 予定（`e3`） |
+| 群        | コマンド                                                                                          | 状態 |
+| --------- | ------------------------------------------------------------------------------------------------- | ---- |
+| 用意      | `init`、`sync`、`commit`、`validate`、`lint`、`config`                                            | あり |
+| Project   | `project create / list / show / archive`                                                          | あり |
+| Ticket    | `ticket create / list / show / update / check / move / delete / import / claim / unclaim`         | あり |
+| Iteration | `iteration create / list / show / add / remove / start / close / reopen`（`sprint` はエイリアス） | あり |
+| Epic      | `epic create / list / show / update / add / remove / close / reopen`                              | あり |
+| Workflow  | `workflow list / show / validate`                                                                 | あり |
+| 画面・MCP | `serve`、`open`、`mcp`                                                                            | あり |
+| 手順      | `guide <topic>`、`skill install`                                                                  | あり |
+| Plan      | `plan create / list / show / approve / close`                                                     | あり |
+| 経過      | `history`（`--ticket`・`--epic`・`--iteration` で絞る）                                           | あり |
+| Run       | `run start / finish / list`、`metrics show`                                                       | あり |
 
 - CL-3 書き込みを伴うコマンドは、`commit.mode` に従って deguboard ブランチにコミットする。作成（`init`、`project / ticket / epic / iteration create`、`ticket import`）と `ticket claim` は `commit.mode`・`push.mode` によらず即座にコミットして push する（採番と排他のため）
 - CL-4 `ticket import` は YAML / JSON の下書き（配列）を 1 コミットで取り込む。下書きの中の仮キーを `depends_on` から参照でき、`epic` に既存の Epic を書ける
@@ -256,7 +255,7 @@ fields:
 - SY-2 書き込みの単位は「取り込み → 変更 → 検証 → コミット →（`push.mode: auto` か即時の操作なら）push」。push が拒否されたら取り込み直して再送する。送れなければコミットを残し、次の同期で再送する
 - SY-3 claim と作成は push の成功をもって取得とする。拒否されたらローカルのコミットを捨てて取り込み直し、判定し直す
 - SY-4 同期は rebase で取り込み、チケットと Epic の frontmatter はマージドライバがフィールド単位で 3-way マージする（片側だけ変えたフィールドはその値、`updated_at` は新しい方）。`dg init` と `dg sync` がドライバを git config と deguboard ブランチの `.gitattributes` に登録する。同じフィールドを両側が違う値に変えたときと本文の同じ行の競合は、rebase を中止してローカルのコミットを残し、`dg sync` が競合を報告する
-- SY-5 同一マシンの書き込みは `deguboard-local/locks/` のロックで直列にし、Run の二重起動（予定 `e3`）も同じ場所のロックで防ぐ。チーム間の排他には使わない
+- SY-5 同一マシンの書き込みは `deguboard-local/locks/` のロックで直列にし、同じチケットと step の Run の二重起動も同じ場所のロックで防ぐ。チーム間の排他には使わない
 - SY-6 リモートがなくても、同期を除くすべての操作が動く
 
 ### 6.4 画面（Web UI・VS Code 拡張）
@@ -290,7 +289,7 @@ Web UI は `dg serve` が配信し、VS Code 拡張は同じ React アプリを 
 
 ### 6.6 作業の実績（予定 `e3`）
 
-- MT-1 `dg run start / finish` で Run を記録し、Adapter が使用量を取り込む。エージェントの自己申告の数字は書かない
+- MT-1 Run の使用量は Adapter が取り込む。エージェントの自己申告の数字は書かない
 - MT-2 `metrics.read_transcripts` が true のマシンでは、Claude Code の会話記録から使用量を補う。`DEGUBOARD_NO_TRANSCRIPTS=1` のマシンでは読まない
 - MT-3 `metrics show` は Run・Ticket・Epic・Iteration・Project・Agent/Model で絞り集計する。null は足さず欠けた数を出す。集計値は保存しない
 - MT-4 Git に入る記録は、数とリポジトリからの相対パスだけ。会話の中身・コマンドの文字列・リポジトリの外のパスは写さない

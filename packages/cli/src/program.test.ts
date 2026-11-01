@@ -272,6 +272,44 @@ describe("dg", () => {
     expect(closed.json().warnings).toEqual(["t1, t2 を残したまま閉じた"]);
   });
 
+  it("run start / list / finish がコアの定義を写し、二重の start は 1、止まった Run は interrupted で閉じる", async () => {
+    const f = await fixture();
+    await dg(f.cloneA, ["init"]);
+    await dg(f.cloneA, ["ticket", "create", "A"]);
+    const started = await dg(f.cloneA, [
+      "--json",
+      "run",
+      "start",
+      "t1",
+      "implement",
+      "--agent",
+      "claude-code",
+    ]);
+    expect(started.code).toBe(0);
+    const id = started.json().data.id as string;
+    expect(started.json().data).toMatchObject({ ticket: "t1", step: "implement", result: null });
+    const dup = await dg(f.cloneA, ["--json", "run", "start", "1", "implement", "--agent", "x"]);
+    expect(dup.code).toBe(1);
+    expect(dup.json().error?.code).toBe("ALREADY_EXISTS");
+    const running = await dg(f.cloneA, ["--json", "run", "list", "--running"]);
+    expect(running.json().data.map((r: { id: string }) => r.id)).toEqual([id]);
+    const finished = await dg(f.cloneA, [
+      "--json",
+      "run",
+      "finish",
+      id,
+      "--result",
+      "interrupted",
+      "--retries",
+      "1",
+    ]);
+    expect(finished.code).toBe(0);
+    expect(finished.json().data).toMatchObject({ result: "interrupted", retries: 1 });
+    expect((await dg(f.cloneA, ["--json", "run", "list", "--running"])).json().data).toEqual([]);
+    const bad = await dg(f.cloneA, ["--json", "run", "finish", id, "--result", "done"]);
+    expect(bad.code).toBe(2);
+  });
+
   it("ticket import はファイルの下書きを読み、key を depends_on に解決する", async () => {
     const f = await fixture();
     await dg(f.cloneA, ["init"]);
