@@ -1,0 +1,49 @@
+id: p3
+project: default
+tickets: [t88, t93, t89, t92, t90, t95, t94, t96, t97]
+after:
+  t89:
+    - t88
+  t92:
+    - t88
+  t90:
+    - t89
+  t95:
+    - t89
+  t94:
+    - t89
+    - t93
+  t96:
+    - t89
+    - t92
+  t97:
+    - t90
+pending_approval: true
+details:
+  t88:
+    scope: Run の Zod スキーマ・runs/ の命名・ストアの読み書き・validate。コマンドは含めない
+    approach: model/run.ts の型を Zod にし、storage のほかの文書と同じ仕組みで読み書きする。命名は ADR-002 を書き換えて決める
+  t93:
+    scope: actions モジュールの登録済み Action と、actions.shell で許すシェル Action。Workflow の steps は含めない
+    approach: core の汎用部分から独立した actions モジュールを置き、呼び方を requirements.md と ADR-007 に書く
+  t89:
+    scope: run start / finish / list のコマンドと、deguboard-local/runs/ の実行中の記録・ロック・interrupted。使用量の取り込みは含めない
+    approach: commands/ にコマンドを定義して CLI・MCP・HTTP に写す。ロックは既存の git/lock.ts に合わせる
+  t92:
+    scope: metrics show の集計（6 つの単位）。画面は含めない
+    approach: core に集計の純粋関数を置き、コマンドで runs/ を読んで表示のたびに求める
+  t90:
+    scope: Agent Adapter のインターフェースと Claude Code の Adapter、会話記録からの使用量の補い。Codex は含めない
+    approach: core の agents モジュールに Adapter を置き、run finish から呼ぶ。Git に入れるのは数と相対パスだけ
+  t95:
+    scope: Web UI と VS Code 拡張のチケット詳細の Run 一覧
+    approach: HTTP の既存のチケット詳細に Run を足し、web の詳細ページに一覧を出す
+  t94:
+    scope: Workflow の steps のスキーマ・同梱テンプレート・run start の検査
+    approach: workflow のスキーマに steps を足し、validate と run start で語彙と Action を確かめる。ADR-003 を書き換える
+  t96:
+    scope: 実行中の Run と metrics の集計を見る画面
+    approach: web に新しいページを足し、metrics のコマンドを HTTP で写して単位を切り替える
+  t97:
+    scope: dg guide work（と all）の手順への run start / finish の追加と Skill の作り直し
+    approach: packages/cli/src/guide-*.md を直し、dg skill install で .claude/skills を作り直す
