@@ -427,9 +427,69 @@ describe("画面", () => {
     fireEvent.change(screen.getByLabelText("チケットを探す"), { target: { value: "ログイン" } });
     expect(names()).toEqual(["最初"]);
     expect(screen.getByText("1 / 2 件")).toBeTruthy();
-    fireEvent.click(screen.getByText("最初"));
+    fireEvent.click(screen.getByText("s1"));
     expect(opened).toEqual([{ page: "iterations", id: "s1" }]);
     expect(window.location.hash).toBe("#/history");
+  });
+
+  it("履歴の Iteration の行に Epic ごとの件数が出て、開くと中の終わったチケットが出る", async () => {
+    window.location.hash = "#/history";
+    const client = mockClient();
+    client.data.iterations = [iteration({ id: "s1", name: "最初", status: "closed" })];
+    client.data.tickets[0]!.iteration = "s1";
+    client.data.tickets[0]!.epic = "e1";
+    client.data.tickets.push(
+      ticket({ id: "t4", title: "やめた", status: "abandoned", iteration: "s1", epic: "e1" }),
+      ticket({ id: "t5", title: "持ち越し", status: "todo", iteration: "s1" }),
+    );
+    const opened: Route[] = [];
+    mount(
+      client,
+      webviewHost("sidebar", (route) => opened.push(route)),
+    );
+    await screen.findByRole("heading", { level: 1, name: "履歴" });
+    const row = document.querySelector(".history-row")!;
+    expect(row.querySelector("small")!.textContent).toBe("Epic: e1 2");
+    const item = document.querySelector<HTMLDetailsElement>("details.history-item")!;
+    expect(item.open).toBe(false);
+    item.open = true;
+    const tickets = [...item.querySelectorAll(".history-tickets li")].map((li) => li.textContent);
+    expect(tickets).toEqual(["t1ログインe1", "t4やめたe1"]);
+    fireEvent.click(item.querySelector(".history-tickets a")!);
+    fireEvent.click(row.querySelector("small a")!);
+    expect(opened).toEqual([
+      { page: "ticket", id: "t1" },
+      { page: "epics", id: "e1" },
+    ]);
+  });
+
+  it("履歴を Epic の見方に切り替えると、閉じた Epic を閉じた新しい順に出し、見方がハッシュに残る。検索も効く", async () => {
+    window.location.hash = "#/history";
+    const client = mockClient();
+    const base = client.data.epics[0]!;
+    client.data.epics = [
+      base,
+      { ...base, id: "e2", title: "古い", status: "closed", closed_at: "2026-10-01T00:00:00Z" },
+      { ...base, id: "e3", title: "新しい", status: "closed", closed_at: "2026-10-20T00:00:00Z" },
+    ];
+    client.data.iterations = [iteration({ id: "s1", name: "最初", status: "closed" })];
+    client.data.tickets[0]!.epic = "e3";
+    client.data.tickets[0]!.iteration = "s1";
+    mount(client);
+    await screen.findByRole("heading", { level: 1, name: "履歴" });
+    fireEvent.click(screen.getByRole("button", { name: "Epic" }));
+    await waitFor(() => expect(window.location.hash).toBe("#/history?view=epic"));
+    const names = () =>
+      [...document.querySelectorAll(".history-row .name")].map((e) => e.textContent);
+    await waitFor(() => expect(names()).toEqual(["新しい", "古い"]));
+    expect(screen.getByRole("button", { name: "Epic" }).getAttribute("aria-pressed")).toBe("true");
+    expect(document.querySelector(".history-row small")!.textContent).toBe(
+      "2026-10-20 に閉じた ・ s1",
+    );
+    expect(screen.getByRole("link", { name: "s1" }).getAttribute("href")).toBe("#/iterations/s1");
+    fireEvent.change(screen.getByLabelText("チケットを探す"), { target: { value: "t1" } });
+    expect(names()).toEqual(["新しい"]);
+    expect(screen.getByText("1 / 2 件")).toBeTruthy();
   });
 
   it("エディタのパネルで Iteration の詳細を出すときもヘッダーを出さない", async () => {
