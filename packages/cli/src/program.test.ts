@@ -216,6 +216,30 @@ describe("dg", () => {
     expect(ran.err).toContain("（--help で使い方を見る）");
   });
 
+  it("--json のとき commander 以外の例外も { ok: false, error } で stdout に出し、平文は出さない", async () => {
+    const f = await fixture();
+    for (const argv of [
+      ["--json", "serve", "--port", "abc"],
+      ["serve", "--port", "abc", "--json"],
+    ]) {
+      const ran = await dg(f.cloneA, argv);
+      expect(ran.code, argv.join(" ")).toBe(1);
+      expect(ran.err, argv.join(" ")).toBe("");
+      const json = ran.json();
+      expect(json.ok).toBe(false);
+      expect(json.error?.code).toBe("INTERNAL");
+      expect(json.error?.message).toBe("ポートは 0〜65535 の整数");
+    }
+  });
+
+  it("--json なしでは commander 以外の例外を従来どおり stderr に平文で出し、stdout には出さない", async () => {
+    const f = await fixture();
+    const ran = await dg(f.cloneA, ["serve", "--port", "abc"]);
+    expect(ran.code).toBe(1);
+    expect(ran.out).toBe("");
+    expect(ran.err).toBe("エラー: ポートは 0〜65535 の整数");
+  });
+
   it("初期化前は NOT_INITIALIZED で 1、リモートがなくても init と起票ができる", async () => {
     const f = await fixture();
     const before = await dg(f.cloneB, ["--json", "ticket", "list"]);
