@@ -131,7 +131,7 @@ describe("Webview の要求", () => {
     const ok = await handleRequest(
       fakeClient(),
       { id: 4, kind: "action", name: "open", route: "#/tickets/t12" },
-      { open: (route) => void opened.push(route) },
+      { open: (route) => void opened.push(route), show: () => {} },
     );
     expect(ok).toEqual({ id: 4, ok: true, data: null, warnings: [], write: null });
     expect(opened).toEqual(["#/tickets/t12"]);
@@ -144,12 +144,26 @@ describe("Webview の要求", () => {
     expect(refused).toMatchObject({ id: 5, ok: false, error: { code: "UNSUPPORTED_ACTION" } });
   });
 
+  it("action の show は actions.show に渡す（一覧の画面をサイドバーに出す）", async () => {
+    const opened: string[] = [];
+    const shown: string[] = [];
+    const ok = await handleRequest(
+      fakeClient(),
+      { id: 6, kind: "action", name: "show", route: "#/board?epic=e2" },
+      { open: (route) => void opened.push(route), show: (route) => void shown.push(route) },
+    );
+    expect(ok).toEqual({ id: 6, ok: true, data: null, warnings: [], write: null });
+    expect(shown).toEqual(["#/board?epic=e2"]);
+    expect(opened).toEqual([]);
+  });
+
   it("要求の形を確かめる", () => {
     expect(isWebviewRequest({ id: 1, kind: "status" })).toBe(true);
     expect(isWebviewRequest({ id: 1, kind: "run", name: "x", input: {} })).toBe(true);
     expect(isWebviewRequest({ id: 1, kind: "action", name: "open", route: "#/tickets/t12" })).toBe(
       true,
     );
+    expect(isWebviewRequest({ id: 1, kind: "action", name: "show", route: "#/board" })).toBe(true);
     expect(isWebviewRequest({ id: 1, kind: "action", name: "open", route: "https://x" })).toBe(
       false,
     );

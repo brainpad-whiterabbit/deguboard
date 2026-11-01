@@ -4,7 +4,7 @@
 import { useEffect, type MouseEvent } from "react";
 import { useHost } from "./host.js";
 import { useStore } from "./store.js";
-import { hrefOf, useRoute, type Route } from "./router.js";
+import { hrefOf, isDetailRoute, parseRoute, useRoute, type Route } from "./router.js";
 import { BoardPage } from "./pages/board.js";
 import { BacklogPage } from "./pages/backlog.js";
 import { TicketPage } from "./pages/ticket.js";
@@ -32,14 +32,15 @@ export function App() {
       : route.page === "iterations"
         ? "board"
         : route.page;
-  // エディタのパネルに出す詳細（チケット・Iteration・Epic）は 1 枚で完結するので、タブ・Project・同期のヘッダーを出さない（UI-12）。
-  // 「画面を開く」でカンバンをパネルに出したときはタブが要るので残す
-  const detailPanel =
-    host.surface === "panel" &&
-    (route.page === "ticket" || route.page === "iterations" || route.page === "epics");
+  // エディタのパネルは詳細（チケット・Iteration・Epic）だけを出し、1 枚で完結するので、タブ・Project・同期のヘッダーを出さない（UI-12）
+  const panel = host.surface === "panel";
   return (
-    <div className="app" data-surface={host.surface} onClick={followHashLink}>
-      {detailPanel ? null : (
+    <div
+      className="app"
+      data-surface={host.surface}
+      onClick={(e) => followHashLink(e, panel ? host.show : undefined)}
+    >
+      {panel ? null : (
         <header className="topbar">
           {sidebar ? null : <strong className="brand">deguboard</strong>}
           <nav aria-label="画面">
@@ -90,18 +91,21 @@ export function App() {
 
 /**
  * ハッシュのリンク（#/backlog など）は、ここで受けて自分でハッシュを書く。
+ * show を渡したとき（パネル）は、一覧の画面へのリンクをハッシュにせず show に渡す（サイドバーに出す。パネルは詳細だけ）。
  * VS Code の Webview は <a> のクリックを横取りし、href がハッシュだけのリンクはページ内アンカーへのスクロールとみなして
  * preventDefault するので、ブラウザに任せるとハッシュが変わらない。React の onClick は document のハンドラより先に走る。
  * TicketLink（サイドバー）やドラッグ直後のように先に preventDefault されたもの、修飾キーつきのクリックには触らない
  */
-function followHashLink(e: MouseEvent<HTMLElement>) {
+function followHashLink(e: MouseEvent<HTMLElement>, show?: (route: Route) => void) {
   if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey)
     return;
   const anchor = (e.target as Element | null)?.closest?.("a[href^='#']");
   const href = anchor?.getAttribute("href");
   if (!href) return;
   e.preventDefault();
-  window.location.hash = href;
+  const route = parseRoute(href);
+  if (show && !isDetailRoute(route)) show(route);
+  else window.location.hash = href;
 }
 
 function Page({ route }: { route: Route }) {

@@ -149,11 +149,11 @@ core の `commands` を HTTP に写す。Node 標準の `node:http` で、フレ
 
 VS Code 拡張。拡張ホストから core の `createLocalClient` を呼び、Webview に web のビルド結果を載せる。サーバーは起動せず、`dg` は同梱しない（[ADR-006](adr/ADR-006-ui-and-writes.md)）。`src/` のファイル：
 
-| ファイル       | 役割                                                                                                                     |
-| -------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| `extension.ts` | 入口。サイドバーのビューとエディタのパネルに web を載せ、要求を `webview.ts` に通す。VS Code の API に触れるのはここだけ |
-| `webview.ts`   | `index.html` を Webview 向けに直す（URI・CSP・nonce・`surface` の data 属性）、要求を `CommandClient` に通す、バッジ     |
-| `dg.ts`        | PATH の `dg` を引く 1 か所。ないときはインストールの案内、同梱の core とメジャーが違えば知らせる（UI-11）                |
+| ファイル       | 役割                                                                                                                 |
+| -------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `extension.ts` | 入口。サイドバーのビューと詳細のパネルに web を載せ、要求を `webview.ts` に通す。VS Code の API に触れるのはここだけ |
+| `webview.ts`   | `index.html` を Webview 向けに直す（URI・CSP・nonce・`surface` の data 属性）、要求を `CommandClient` に通す、バッジ |
+| `dg.ts`        | PATH の `dg` を引く 1 か所。ないときはインストールの案内、同梱の core とメジャーが違えば知らせる（UI-11）            |
 
 ビルドは Vite で `dist/extension.cjs` に束ね、web の `dist` を `dist/web` に写す（[ADR-008](adr/ADR-008-tech-stack.md)）。同梱する core の版は `vite.config.ts` の `define` で埋める。手元で動かすには `mise run build` のあと VS Code で `packages/vscode` を開いて F5（拡張開発ホスト）、Activity Bar の deguboard のアイコン。
 

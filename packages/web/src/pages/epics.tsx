@@ -1,5 +1,6 @@
 // Epic の詳細（UI-10）。進捗（EP-3）と、Epic のチケットを Status ごとに出す。チケットの追加・除外、閉じる・再開。
-// 一覧の画面は持たない（open はバックログの欄、closed は履歴）
+// 一覧の画面は持たない（open はバックログの欄、closed は履歴）。
+// VS Code（パネル）ではチケットを未完了・完了・中止の小見出しの付いた 1 本の一覧にする（カンバンはサイドバーで見る。UI-12）。ブラウザは Status ごとの列
 
 import { useEffect, useState } from "react";
 import {
@@ -24,7 +25,7 @@ import {
 export function EpicsPage({ id }: { id: string }) {
   const store = useStore();
   const host = useHost();
-  const sidebar = host.surface === "sidebar";
+  const webview = host.surface !== "browser";
   const [epic, setEpic] = useState<EpicDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [adding, setAdding] = useState("");
@@ -51,9 +52,12 @@ export function EpicsPage({ id }: { id: string }) {
 
   return (
     <section>
-      <div className="toolbar">
-        <a href={hrefOf({ page: "backlog" })}>← バックログ</a>
-      </div>
+      {/* パネルは詳細だけを出すので、戻る先の一覧がない（一覧はサイドバー。UI-12） */}
+      {webview ? null : (
+        <div className="toolbar">
+          <a href={hrefOf({ page: "backlog" })}>← バックログ</a>
+        </div>
+      )}
       <header className="detail-header">
         <h1>
           <code>{epic.id}</code> {epic.title}{" "}
@@ -103,65 +107,95 @@ export function EpicsPage({ id }: { id: string }) {
           </button>
         </form>
       )}
-      <div className="groups">
-        {STATUSES.map((s) => {
-          const items = epic.tickets.filter((t) => t.status === s).sort(byPriorityThenNumber);
-          if (items.length === 0 && s === "abandoned") return null;
-          return (
-            <div key={s} className="column">
-              <h2>
-                <StatusDot status={s} />
-                <span>{store.labelOf(s)}</span>
-                <span className="muted">{items.length}</span>
-              </h2>
-              {items.length === 0 ? <p className="empty">なし</p> : null}
-              {/* サイドバーでは 1 行（カンバン・Iteration 詳細と同じ）。外すボタンは行の右 */}
-              {sidebar ? (
-                <ul className="rows">
-                  {items.map((t) => (
-                    <li key={t.id}>
-                      <TicketRow ticket={t} />
-                      {open && (
-                        <button
-                          type="button"
-                          onClick={() =>
-                            void store.run("epic.remove", { epic: epic.id, tickets: [t.id] })
-                          }
-                          title="Epic から外す"
-                        >
-                          外す
-                        </button>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              ) : null}
-              {sidebar
-                ? null
-                : items.map((t) => (
-                    <div key={t.id} className={`card status-${s}`} style={{ cursor: "default" }}>
-                      <div className="meta">
-                        <TicketLink id={t.id} />
-                        <PriorityBadge priority={t.priority} />
-                        {open && (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              void store.run("epic.remove", { epic: epic.id, tickets: [t.id] })
-                            }
-                            title="Epic から外す"
-                          >
-                            外す
-                          </button>
-                        )}
-                      </div>
-                      <div className="title">{t.title}</div>
+      {webview ? (
+        <EpicTicketList epic={epic} removable={open} />
+      ) : (
+        <div className="groups">
+          {STATUSES.map((s) => {
+            const items = epic.tickets.filter((t) => t.status === s).sort(byPriorityThenNumber);
+            if (items.length === 0 && s === "abandoned") return null;
+            return (
+              <div key={s} className="column">
+                <h2>
+                  <StatusDot status={s} />
+                  <span>{store.labelOf(s)}</span>
+                  <span className="muted">{items.length}</span>
+                </h2>
+                {items.length === 0 ? <p className="empty">なし</p> : null}
+                {items.map((t) => (
+                  <div key={t.id} className={`card status-${s}`} style={{ cursor: "default" }}>
+                    <div className="meta">
+                      <TicketLink id={t.id} />
+                      <PriorityBadge priority={t.priority} />
+                      {open && <RemoveButton epic={epic.id} ticket={t.id} />}
                     </div>
-                  ))}
-            </div>
-          );
-        })}
-      </div>
+                    <div className="title">{t.title}</div>
+                  </div>
+                ))}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </section>
+  );
+}
+
+/** Epic から外すボタン */
+function RemoveButton({ epic, ticket }: { epic: string; ticket: string }) {
+  const store = useStore();
+  return (
+    <button
+      type="button"
+      onClick={() => void store.run("epic.remove", { epic, tickets: [ticket] })}
+      title="Epic から外す"
+    >
+      外す
+    </button>
+  );
+}
+
+/** 一覧の段。未完了は開いたまま、完了と中止は既定で畳む。0 件の段は出さない */
+const EPIC_SECTIONS = [
+  { key: "open", label: "未完了", folded: false },
+  { key: "done", label: "完了", folded: true },
+  { key: "abandoned", label: "中止", folded: true },
+] as const;
+
+function sectionOf(status: string): (typeof EPIC_SECTIONS)[number]["key"] {
+  return status === "done" || status === "abandoned" ? status : "open";
+}
+
+/**
+ * VS Code（パネル）の Epic のチケットの一覧。未完了・完了・中止の段ごとに小見出しと件数を付け、行はサイドバーと同じ 1 行（TicketRow）。
+ * 段の中は Status の順（Workflow の並び）、同じ Status なら優先度と番号の順
+ */
+function EpicTicketList({ epic, removable }: { epic: EpicDetail; removable: boolean }) {
+  const order = new Map<string, number>(STATUSES.map((s, i) => [s, i]));
+  const sorted = [...epic.tickets].sort(
+    (a, b) => (order.get(a.status) ?? 0) - (order.get(b.status) ?? 0) || byPriorityThenNumber(a, b),
+  );
+  return (
+    <div className="epic-tickets">
+      {EPIC_SECTIONS.map((section) => {
+        const items = sorted.filter((t) => sectionOf(t.status) === section.key);
+        if (items.length === 0) return null;
+        return (
+          <details key={section.key} className="fold" open={!section.folded}>
+            <summary>
+              {section.label} <span className="muted">{items.length}</span>
+            </summary>
+            <ul className="rows">
+              {items.map((t) => (
+                <li key={t.id}>
+                  <TicketRow ticket={t} />
+                  {removable && <RemoveButton epic={epic.id} ticket={t.id} />}
+                </li>
+              ))}
+            </ul>
+          </details>
+        );
+      })}
+    </div>
   );
 }

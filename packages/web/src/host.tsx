@@ -1,5 +1,6 @@
 // 画面がどこに載っているか（surface）と、画面の外への働きかけを 1 つの文脈で持つ（UI-12）。
 // ブラウザではチケットや Iteration の詳細へのリンクはハッシュ遷移、サイドバーとパネルでは拡張ホストに頼む（パネルは自分の中で遷移し、題が変わる）。
+// パネルは詳細だけを出すので、パネルから一覧の画面へのリンクは拡張ホストに頼んでサイドバーに出す（show）。
 // 拡張ホストからの通知（再読み込み・遷移）は HostBridge が store とハッシュに結ぶ
 
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
@@ -14,6 +15,8 @@ export interface Host {
   surface: Surface;
   /** 詳細（チケット・Iteration）を開く。Webview（sidebar・panel）では拡張ホストに頼んでエディタ領域に、ブラウザではハッシュ遷移 */
   open(route: Route): void;
+  /** 一覧の画面（カンバンなど）を出す。パネルでは拡張ホストに頼んでサイドバーに、サイドバーとブラウザではハッシュ遷移 */
+  show(route: Route): void;
   /** 見た目の状態（開閉・最後に選んだもの）の置き場 */
   state: UiState;
 }
@@ -21,6 +24,7 @@ export interface Host {
 const browserHost: Host = {
   surface: "browser",
   open: (route) => navigate(route),
+  show: (route) => navigate(route),
   state: createUiState(localStorageBackend()),
 };
 
@@ -32,6 +36,7 @@ export function createHost(surface: Surface, client: WebviewClient | null, state
     return {
       surface,
       open: (route) => void client.open(hrefOf(route)),
+      show: (route) => (surface === "panel" ? void client.show(hrefOf(route)) : navigate(route)),
       state: state ?? browserHost.state,
     };
   }

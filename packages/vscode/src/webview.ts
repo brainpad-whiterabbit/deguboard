@@ -109,8 +109,10 @@ function escapeAttribute(value: string): string {
 
 /** 画面の外（エディタ）への働きかけ。サイドバーとパネルが持ち、持たない画面からの action は拒否する */
 export interface WebviewActions {
-  /** 画面のルート（#/tickets/t12 など）をエディタ領域のパネルに開く */
+  /** 詳細のルート（#/tickets/t12 など）をエディタ領域のパネルに開く */
   open(route: string): void | Promise<void>;
+  /** 一覧の画面のルート（#/board?epic=e2 など）をサイドバーのビューに出す */
+  show(route: string): void | Promise<void>;
 }
 
 /** Webview からの要求を CommandClient（か actions）に通し、同じ id の応答にする。失敗は ok: false で返す */
@@ -131,7 +133,7 @@ export async function handleRequest(
           error: { code: "UNSUPPORTED_ACTION", message: "この画面からはエディタで開けない" },
         };
       }
-      await actions.open(request.route);
+      await (request.name === "show" ? actions.show(request.route) : actions.open(request.route));
       return { id: request.id, ok: true, data: null, warnings: [], write: null };
     }
     const result = await client.run(request.name, request.input);
@@ -157,7 +159,11 @@ export function isWebviewRequest(value: unknown): value is WebviewRequest {
     case "run":
       return typeof v.name === "string";
     case "action":
-      return v.name === "open" && typeof v.route === "string" && v.route.startsWith("#/");
+      return (
+        (v.name === "open" || v.name === "show") &&
+        typeof v.route === "string" &&
+        v.route.startsWith("#/")
+      );
     default:
       return false;
   }

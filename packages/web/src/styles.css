@@ -910,6 +910,12 @@ textarea.body {
   height: 100%;
   background: var(--dg-status);
 }
+/* VS Code（パネル）の Epic のチケットの一覧（pages/epics.tsx の EpicTicketList） */
+.epic-tickets {
+  display: grid;
+  gap: 0.25rem;
+  margin-top: 0.75rem;
+}
 .groups {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
