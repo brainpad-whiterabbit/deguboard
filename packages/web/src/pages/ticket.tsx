@@ -356,7 +356,21 @@ export function TicketPage({ id }: { id: string }) {
           {shown("PR") && (
             <>
               <dt>PR</dt>
-              <dd>{ticket.pr ? `#${ticket.pr}` : <span className="muted">なし</span>}</dd>
+              <dd>
+                {!ticket.pr ? (
+                  <span className="muted">なし</span>
+                ) : store.status?.web_url ? (
+                  <a
+                    href={`${store.status.web_url}/pull/${ticket.pr}`}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    #{ticket.pr}
+                  </a>
+                ) : (
+                  `#${ticket.pr}`
+                )}
+              </dd>
             </>
           )}
           <dt>起票者</dt>

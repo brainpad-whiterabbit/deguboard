@@ -4,6 +4,7 @@
 //   - 主体は既定で人（画面からの操作。ADR-006）。MCP は agent を渡す。init（needs: repo）は出さない
 
 import { DeguboardError, OperationError } from "../errors.js";
+import { remoteWebUrl } from "../git/repo.js";
 import { syncStatus } from "../git/sync.js";
 import type { CommandClient, CommandFailure, StatusView } from "./client.js";
 import { openContext } from "./context.js";
@@ -75,7 +76,12 @@ export function createLocalClient(options: LocalClientOptions): LocalClient {
       return serialized(async () => {
         const ctx = await context();
         const status = await syncStatus(ctx.repo);
-        return { ...status, issues: ctx.store.issues.length, data_dir: ctx.repo.dataDir };
+        return {
+          ...status,
+          issues: ctx.store.issues.length,
+          data_dir: ctx.repo.dataDir,
+          web_url: await remoteWebUrl(ctx.repo),
+        };
       });
     },
   };
