@@ -133,7 +133,8 @@ describe("dg guide", () => {
     expect(work).toContain("`dg guide review`");
     expect(work).toContain("上限付きの修正ループ");
     // 実装の Run は draft の PR で閉じ、見直しと手直しは別の step の Run にする
-    expect(work).toContain("run start <id> implement");
+    expect(work).toContain("run start <id> <step>");
+    expect(work).toContain("（software-development・general では `implement`）");
     expect(work).toContain("draft の PR を作ったら実装の Run を閉じる");
     expect(work).toContain("--retry-reason");
     for (const step of ["`review`", "`fix`"]) {
@@ -141,6 +142,9 @@ describe("dg guide", () => {
       expect(work).toContain(step);
     }
     expect(review).not.toContain("Run を開けたまま");
+    // 上限は親が数え、fix の Run の数では数えない。合う step がなければ代わりの step で記録する
+    expect(review).toContain("回数は親が、重い指摘を直した回で数える");
+    expect(review).toContain("**合う step がない**");
     expect(work).not.toContain("開けたまま");
     expect(all).toContain("`dg guide review` の「品質ゲート」");
     for (const text of [work, all]) expect(text).not.toContain("--json mergeable");

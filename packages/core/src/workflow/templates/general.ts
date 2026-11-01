@@ -15,5 +15,7 @@ export const general: WorkflowDefinitionInput = {
     { id: "investigate", label: "Investigate" },
     { id: "implement", label: "Implement", actions: ["create_worktree", "create_branch"] },
     { id: "review", label: "Review" },
+    // 見直しの指摘を受けた手直しは実装と分けて数える（ADR-005）
+    { id: "fix", label: "Fix" },
   ],
 };

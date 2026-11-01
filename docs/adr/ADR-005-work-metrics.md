@@ -25,7 +25,7 @@
 ### 実装・見直し・手直しを別の Run にする
 
 - 実装の Run は draft の PR を作った時点で閉じる。見直し役の見直しは `review`、修正ループの 1 回と人のレビューの後の手直しは `fix` の Run にし、それぞれ作業したエージェント自身が記録する。同梱の software-development の `steps` は `investigate`・`implement`・`review`・`fix`・`merge`
-- 手直しの Run には、直した指摘を `retry_reasons` に 1 件 1 行で残す。修正ループの回数は `fix` の Run の数で数える
+- 手直しの Run には、直した指摘を `retry_reasons` に 1 件 1 行で残す。修正ループの手直しも人のレビューの後の手直しも `fix` なので、`fix` の Run の数は手直しの回数の目安にとどまる。修正ループの上限は手順の側で数える
 - 手順は `dg guide work`・`dg guide review` が持つ
 
 ### 推定費用は持たない

@@ -355,10 +355,10 @@ describe("run", () => {
 
   it("start は step がチケットの Workflow の steps になければ拒否し、steps のない Workflow ならどの step も受ける（WF-5）", async () => {
     const ctx = await prepared();
-    // 既定の general の steps は investigate・implement・review
+    // 既定の general の steps は investigate・implement・review・fix
     await expect(start(ctx, "t1", "deploy")).rejects.toMatchObject({
       code: "VALIDATION_FAILED",
-      message: expect.stringContaining("investigate・implement・review"),
+      message: expect.stringContaining("investigate・implement・review・fix"),
     });
     await expect(start(ctx, "t1", "investigate")).resolves.toMatchObject({ step: "investigate" });
     // 利用者の既存の YAML（steps なし）は今までどおり任意の step を受ける

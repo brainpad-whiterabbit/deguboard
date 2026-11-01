@@ -25,7 +25,7 @@ argument-hint: "<Plan の ID|チケットの ID>"
    git worktree add --no-track -b <ブランチ名> <worktree の場所> {{git.remote}}/{{git.base_branch}}
    ```
 
-4. 実装の Run を始めてから実装する（下の「Run を記録する」）：`dg --json --actor agent run start <id> implement --agent <エージェント>`。返った Run の ID を控える。実装は本文の `## 受け入れ条件` を満たすことを目標にし、リポジトリの検査（lint・テスト）を通す
+4. 実装の Run を始めてから実装する（下の「Run を記録する」）：`dg --json --actor agent run start <id> <step> --agent <エージェント>`（software-development・general では `implement`）。返った Run の ID を控える。実装は本文の `## 受け入れ条件` を満たすことを目標にし、リポジトリの検査（lint・テスト）を通す
 5. 受け入れ条件を 1 項目ずつ確かめる。`dg --json --actor agent ticket show <id>` の `acceptance`（`index`・`text`・`checked`）を読み、満たしたと確認できた項目だけ `dg --json --actor agent ticket check <id> <番号...>` で付ける。確認できない項目は付けず、PR の本文と人への報告に理由を書く
 6. コミットして push し、PR を draft で作る（`gh pr create --draft`）。PR の本文にチケットの ID（`t12`）と、付けられなかった受け入れ条件を書く。PR の番号をチケットに記録する：`dg --json --actor agent ticket update <id> --pr <番号>`（使い回したブランチでは照合が別の PR を拾いうる）。draft の PR を作ったら実装の Run を閉じる。続けて `dg guide review` のとおり、別のサブエージェントの見直しと上限付きの修正ループで品質ゲートを通し、`gh pr ready <PR>` で出す（上限を超えたときもそこに従う）
 7. `dg --json --actor agent sync` を回す。Workflow が PR の事実を見るなら（software-development）、draft でない PR が開いていれば review に進む（`gh` が要る）。見ないなら（general など）、PR を出したら自分で `dg --json --actor agent ticket move <id> review` に進める
@@ -35,13 +35,13 @@ argument-hint: "<Plan の ID|チケットの ID>"
 
 Run は 1 回の作業の記録で、使用量（トークン）が残る。実装の Run は手順 4〜6、見直しと手直しは別の Run（`dg guide review` の「Run の分け方」）。PR の要らない作業も、作業の前後で始めて閉じる。
 
-- **step**：チケットの Project の Workflow（`dg --json --actor agent project list` の `workflow`）を `dg --json --actor agent workflow show <workflow>` で読み、`data.definition.steps` から今の作業に合うものの `id` を選ぶ（実装 `implement`・見直し `review`・手直し `fix`・調査 `investigate` など）。`steps` がなければ同じ語を使う
+- **step**：チケットの Project の Workflow（`dg --json --actor agent project list` の `workflow`）を `dg --json --actor agent workflow show <workflow>` で読み、`data.definition.steps` から今の作業に合うものの `id` を選ぶ。`steps` がなければ `implement`・`review`・`fix`・`investigate` を使う。合う語がないとき（init の前からある Workflow に `fix` がないなど）は `dg guide review` の「Run の分け方」
 - **agent**：自分の Adapter の名前（`dg run start --help`。Claude Code なら `claude-code`）
 - **自分で呼ぶ**：run start と finish は、作業するエージェント自身が呼ぶ。使用量は Run の ID を最初に含む会話記録から取るので、親などが代わりに start すると作業した分を数えない
 - 使用量は書かない。取れずに finish が警告しても止めない
 - 同じ step の Run が実行中で start が拒否されたら、下の「閉じ損ねた Run を閉じる」で閉じて始め直す
 - **結果**：実装の Run は draft の PR を作ったら `success`。自分の判断でやめる（検査が通らない、範囲がはっきりしない）なら `--result failure --error <理由>` で閉じる。`interrupted` は閉じ損ねた Run だけに使う
-- **やり直しの理由**：やり直したら（検査の失敗を直したなど）1 回ごとに `--retry-reason <1 行の要約>` を付けて閉じる（`--retries` は理由の数になる）。秘密・コマンドの文字列・パスは書かない
+- **やり直しの理由**：`--retry-reason` の書き方は `dg guide review` の「Run の分け方」
 
 ## Plan に従って進める
 
