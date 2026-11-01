@@ -11,6 +11,7 @@ export const GUIDE_TOPICS = [
   "overview",
   "import",
   "assign",
+  "check",
   "plan",
   "work",
   "audit",

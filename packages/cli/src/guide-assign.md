@@ -49,5 +49,6 @@ argument-hint: "[Iteration|Epic|チケットの ID...]"
 
 割り当てたら、次の選択肢で聞く。
 
+- **点検する**：割り当てたチケットの本文や Epic の食い違いを `dg guide check` の手順で直す（`/dgcheck s3`）
 - **計画を立てる**（勧める）：割り当てた Iteration のチケットを `dg guide plan` の手順で進める順に並べる（Claude Code では `/dgplan s3`）
 - **ここで止める**

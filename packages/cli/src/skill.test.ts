@@ -161,6 +161,7 @@ describe("Skill の本文", () => {
     expect(skills.map((s) => s.name)).toEqual([
       "dgimport",
       "dgassign",
+      "dgcheck",
       "dgplan",
       "dgwork",
       "dgaudit",
