@@ -192,6 +192,17 @@ describe("画面", () => {
     });
   });
 
+  it("チケット詳細に Run の節を出し、属性の欄に「予定（e3）」を出さない", async () => {
+    window.location.hash = "#/tickets/t3";
+    const client = mockClient();
+    mount(client);
+    await screen.findByRole("heading", { level: 1, name: "画面" });
+    expect(await screen.findByRole("heading", { level: 2, name: "Run" })).toBeTruthy();
+    expect(await screen.findByText("Run はない")).toBeTruthy();
+    expect(screen.queryByText("予定（e3）")).toBeNull();
+    expect(client.calls.some((c) => c.name === "run.list")).toBe(true);
+  });
+
   it("編集して保存すると ticket.update に属性と本文を渡す", async () => {
     window.location.hash = "#/tickets/t3";
     const client = mockClient();
