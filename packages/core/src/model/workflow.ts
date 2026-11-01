@@ -70,7 +70,7 @@ export const workflowDefinitionSchema = z.looseObject({
         label: z.string().optional(),
         /** この step で使える Action の名前。Action を実行する主体は、ここにない Action を実行しない */
         actions: z.array(actionNameShape).default([]),
-        /** true なら、この step の Action は Action の confirm によらず runAction の確認を通す（ADR-003） */
+        /** 人の承認が要る step か。Action を実行する主体が runAction の前に確認を取る。今は記録だけで強制しない（ADR-003） */
         approval: z.boolean().default(false),
       }),
     )

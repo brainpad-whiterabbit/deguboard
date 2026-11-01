@@ -139,7 +139,7 @@ describe("定義の検証（WF-3）", () => {
     expect(issues[0]?.code).toBe("workflow_schema");
   });
 
-  it("渡した Action の一覧にない Action と、同じ step の重複を指摘する", () => {
+  it("渡した Action の一覧にない Action を警告し、同じ step の重複をエラーにする", () => {
     const raw = {
       ...base,
       steps: [
@@ -149,9 +149,9 @@ describe("定義の検証（WF-3）", () => {
       ],
     };
     const { issues, workflow } = validateWorkflow(raw, "x.yaml", { actions: ["create_pr"] });
-    expect(issues.map((i) => [i.code, i.message])).toEqual([
-      ["workflow_action_unknown", "steps[0]: 未知の Action deploy"],
-      ["workflow_step_duplicate", "steps[2]: implement が重複している"],
+    expect(issues.map((i) => [i.code, i.severity, i.message])).toEqual([
+      ["workflow_action_unknown", "warning", "steps[0]: 未知の Action deploy"],
+      ["workflow_step_duplicate", "error", "steps[2]: implement が重複している"],
     ]);
     expect(workflow?.steps?.[1]).toMatchObject({ id: "review", actions: [], approval: true });
     // 一覧を渡さなければ Action の名前は形だけ見る

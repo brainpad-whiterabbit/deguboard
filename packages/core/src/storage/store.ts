@@ -268,11 +268,18 @@ export class Store {
   ): Promise<WorkflowEntry> {
     const relPath = workflowPath(String(definition["id"]));
     const result = validateWorkflow(definition, relPath, this.workflowOptions);
-    if (!result.workflow || !result.definition || result.issues.length > 0) {
+    if (
+      !result.workflow ||
+      !result.definition ||
+      result.issues.some((i) => i.severity === "error")
+    ) {
       throw new OperationError(
         "VALIDATION_FAILED",
         `Workflow ${String(definition["id"])} の定義に誤りがある`,
-        result.issues.map((i) => i.message).join("\n"),
+        result.issues
+          .filter((i) => i.severity === "error")
+          .map((i) => i.message)
+          .join("\n"),
       );
     }
     const doc = newYamlDocument(definition);
@@ -411,8 +418,8 @@ export class Store {
         });
         continue;
       }
-      // 誤りのある定義は索引に入れない（それを参照するチケットは integrity で指摘される）
-      if (result.issues.length > 0) continue;
+      // 誤りのある定義は索引に入れない（それを参照するチケットは integrity で指摘される）。警告だけなら入れる
+      if (result.issues.some((i) => i.severity === "error")) continue;
       this.workflows.set(id, {
         path: relPath,
         definition: result.definition,

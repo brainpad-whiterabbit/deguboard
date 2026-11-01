@@ -237,31 +237,41 @@ describe("run", () => {
     ]);
   });
 
-  it("読み込み時と workflow.validate が、渡した Action の一覧にない Action と未知の step の重複を指摘する（WF-3）", async () => {
+  it("読み込み時と workflow.validate が、渡した Action の一覧にない Action（警告）と同じ step の重複（エラー）を指摘する（WF-3）", async () => {
     const ctx = await prepared();
-    await writeFile(
-      path.join(ctx.repo.dataDir, "workflows/general.yaml"),
-      [
-        "id: general",
-        "name: General",
-        "steps:",
-        "  - { id: implement, actions: [create_branch, deploy] }",
-        "  - { id: implement }",
-        "",
-      ].join("\n"),
-    );
-    const reopened = await openContext({
-      cwd: ctx.repo.topLevel,
-      actor: { kind: "agent", user: "eiki" },
-      actions: ["create_branch"],
-    });
-    expect(reopened.store.workflows.has("general")).toBe(false);
-    const r = await runCommand(workflowValidate, reopened, { workflow: "general" });
-    expect(r.data).toMatchObject({ ok: false, valid: [] });
-    expect((r.data as { issues: { code: string }[] }).issues.map((i) => i.code).sort()).toEqual([
-      "workflow_action_unknown",
-      "workflow_step_duplicate",
-    ]);
+    const writeGeneral = (steps: string[]) =>
+      writeFile(
+        path.join(ctx.repo.dataDir, "workflows/general.yaml"),
+        ["id: general", "name: General", "steps:", ...steps, ""].join("\n"),
+      );
+    const reopen = () =>
+      openContext({
+        cwd: ctx.repo.topLevel,
+        actor: { kind: "agent", user: "eiki" },
+        actions: ["create_branch"],
+      });
+    const codes = (data: unknown) =>
+      (data as { issues: { code: string; severity: string }[] }).issues.map((i) => [
+        i.code,
+        i.severity,
+      ]);
+
+    // 未知の Action は警告で、Workflow は索引に残る（新しい版の dg で足した Action を古い版で読んでも止めない）
+    await writeGeneral(["  - { id: implement, actions: [create_branch, deploy] }"]);
+    const lenient = await reopen();
+    expect(lenient.store.workflows.has("general")).toBe(true);
+    const warned = await runCommand(workflowValidate, lenient, { workflow: "general" });
+    expect(warned.data).toMatchObject({ ok: true, valid: ["general"] });
+    expect(codes(warned.data)).toEqual([["workflow_action_unknown", "warning"]]);
+    await expect(start(lenient, "t1")).resolves.toMatchObject({ step: "implement" });
+
+    // 同じ step の重複はエラーで、索引から外れる
+    await writeGeneral(["  - { id: implement }", "  - { id: implement }"]);
+    const strict = await reopen();
+    expect(strict.store.workflows.has("general")).toBe(false);
+    const failed = await runCommand(workflowValidate, strict, { workflow: "general" });
+    expect(failed.data).toMatchObject({ ok: false, valid: [] });
+    expect(codes(failed.data)).toEqual([["workflow_step_duplicate", "error"]]);
   });
 
   it("CLI・MCP・HTTP が写す一覧に run.start・run.finish・run.list がある", () => {

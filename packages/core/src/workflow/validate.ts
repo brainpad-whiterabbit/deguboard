@@ -43,8 +43,8 @@ export function validateWorkflow(
   }
   const def = parsed.data;
   const issues: Issue[] = [];
-  const issue = (code: string, message: string) =>
-    issues.push({ severity: "error", code, path, id: def.id, message });
+  const issue = (code: string, message: string, severity: Issue["severity"] = "error") =>
+    issues.push({ severity, code, path, id: def.id, message });
 
   const seen = new Set<string>();
   def.transitions.forEach((t, i) => {
@@ -94,9 +94,11 @@ export function validateWorkflow(
     if (stepIds.has(step.id))
       issue("workflow_step_duplicate", `steps[${i}]: ${step.id} が重複している`);
     stepIds.add(step.id);
+    // 未知の Action は警告にとどめ、Workflow を索引に残す。新しい版の dg で足した Action を書いた YAML を
+    // 古い版で読んでも、遷移と照合を止めない
     for (const action of step.actions) {
       if (options.actions && !options.actions.includes(action))
-        issue("workflow_action_unknown", `steps[${i}]: 未知の Action ${action}`);
+        issue("workflow_action_unknown", `steps[${i}]: 未知の Action ${action}`, "warning");
     }
   });
 
