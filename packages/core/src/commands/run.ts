@@ -10,6 +10,9 @@ import { ticketRef } from "./helpers.js";
 /** 一覧の 1 件。running は deguboard-local/runs/ にだけある終わっていない Run */
 export type RunView = Run & { running: boolean };
 
+/** 空白・改行を含まない 1 語。step の語彙の検査は Workflow の steps（WF-5）で行う */
+const token = z.string().regex(/^\S+$/, "空白・改行を含まない 1 語");
+
 export const runStart = defineCommand({
   name: "run.start",
   positionals: ["ticket", "step"],
@@ -18,8 +21,8 @@ export const runStart = defineCommand({
     "Run を始める。実行中の記録は deguboard-local/runs/ にだけ置き、Git には入れない。同じチケットと step の Run が実行中なら拒否する",
   input: z.object({
     ticket: ticketRef,
-    step: z.string().min(1).describe("工程（implement・review など）"),
-    agent: z.string().min(1).describe("エージェント名（claude-code など）"),
+    step: token.describe("工程（implement・review など）"),
+    agent: token.describe("エージェント名（claude-code など）"),
     model: z.string().min(1).optional().describe("モデル名。分からなければ省く（null で残す）"),
   }),
   write: true,
@@ -81,10 +84,8 @@ export const runList = defineCommand({
     const ticket = input.ticket ? ctx.store.require("ticket", input.ticket).data.id : undefined;
     const local = await readRunningRuns(ctx.repo);
     const items: RunView[] = [
-      // runs/ に集計がある Run は終わっている（記録を消す前に止まったもの）
-      ...local.runs
-        .filter((d) => !ctx.store.runs.has(d.data.id))
-        .map((d) => ({ ...d.data, running: true })),
+      // runs/ に集計がある実行中の記録（記録を消す前に止まった finish の残り）は readRunningRuns が消す
+      ...local.runs.map((d) => ({ ...d.data, running: true })),
       ...(input.running
         ? []
         : [...ctx.store.runs.values()].map((d) => ({ ...d.data, running: false }))),

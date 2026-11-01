@@ -29,12 +29,22 @@ import { DIRS, runPath } from "../storage/paths.js";
 /** start と finish の確かめと書き込みを直列にするロックの名前（deguboard-local/locks/runs） */
 const RUN_LOCK = "runs";
 
-type LocalDirOf = Pick<GitRepo, "localDir">;
+type RunDirs = Pick<GitRepo, "localDir" | "dataDir">;
+
+/** runs/ に集計があるか。索引は古いことがあるのでファイルで確かめる（batch でまだコミットしていない集計も含む） */
+async function hasSummary(repo: RunDirs, id: string): Promise<boolean> {
+  return access(path.join(repo.dataDir, runPath(id))).then(
+    () => true,
+    () => false,
+  );
+}
+
+async function removeRunning(repo: RunDirs, id: string): Promise<void> {
+  await unlink(path.join(repo.localDir, runPath(id))).catch(() => undefined);
+}
 
 /** deguboard-local/runs/ を読む。読めないファイルは issues に入れて飛ばす */
-export async function readRunningRuns(
-  repo: LocalDirOf,
-): Promise<{ runs: Doc<Run>[]; issues: Issue[] }> {
+async function readLocalRuns(repo: RunDirs): Promise<{ runs: Doc<Run>[]; issues: Issue[] }> {
   let files: string[] = [];
   try {
     files = (await readdir(path.join(repo.localDir, DIRS.runs))).sort();
@@ -53,6 +63,33 @@ export async function readRunningRuns(
   return { runs, issues };
 }
 
+/**
+ * 終わっていない Run を読む。集計のコミットの後、実行中の記録を消す前に止まった finish の残り
+ * （runs/ に同じ ID の集計があるもの）はここで消す。呼び出し側がロックを持つ
+ */
+async function pruneRunning(repo: RunDirs): Promise<{ runs: Doc<Run>[]; issues: Issue[] }> {
+  const { runs, issues } = await readLocalRuns(repo);
+  const running: Doc<Run>[] = [];
+  for (const run of runs) {
+    if (await hasSummary(repo, run.id)) await removeRunning(repo, run.id);
+    else running.push(run);
+  }
+  return { runs: running, issues };
+}
+
+async function withRunLock<T>(repo: RunDirs, fn: () => Promise<T>): Promise<T> {
+  await mkdir(path.join(repo.localDir, DIRS.runs), { recursive: true });
+  await mkdir(path.join(repo.localDir, "locks"), { recursive: true });
+  return withLock(repo.localDir, RUN_LOCK, fn);
+}
+
+/** deguboard-local/runs/ の終わっていない Run。読めないファイルは issues に入れて飛ばす */
+export async function readRunningRuns(
+  repo: RunDirs,
+): Promise<{ runs: Doc<Run>[]; issues: Issue[] }> {
+  return withRunLock(repo, () => pruneRunning(repo));
+}
+
 export interface StartRunInput {
   ticket: TicketId;
   step: string;
@@ -62,11 +99,9 @@ export interface StartRunInput {
 }
 
 /** 実行中の Run を deguboard-local/runs/ に置く。同じチケットと step の Run が実行中なら拒否する */
-export async function startRun(repo: LocalDirOf, input: StartRunInput): Promise<Run> {
-  await mkdir(path.join(repo.localDir, DIRS.runs), { recursive: true });
-  await mkdir(path.join(repo.localDir, "locks"), { recursive: true });
-  return withLock(repo.localDir, RUN_LOCK, async () => {
-    const { runs } = await readRunningRuns(repo);
+export async function startRun(repo: RunDirs, input: StartRunInput): Promise<Run> {
+  return withRunLock(repo, async () => {
+    const { runs } = await pruneRunning(repo);
     const dup = runs.find((r) => r.data.ticket === input.ticket && r.data.step === input.step);
     if (dup) {
       throw new OperationError(
@@ -75,7 +110,8 @@ export async function startRun(repo: LocalDirOf, input: StartRunInput): Promise<
       );
     }
     let id = newRunId(input.now);
-    while (runs.some((r) => r.id === id)) id = newRunId(input.now);
+    // 実行中の Run とも、終わった Run（runs/）とも重ならない ID にする
+    while (runs.some((r) => r.id === id) || (await hasSummary(repo, id))) id = newRunId(input.now);
     const run: Run = {
       id,
       ticket: input.ticket,
@@ -103,7 +139,7 @@ export interface FinishRunInput {
    * 公式の使用量（Adapter・会話記録）から取った値。渡さなければ null のまま（RN-2）。
    * エージェントの自己申告の数字は入れない（MT-1）ので、CLI・MCP の入力には出さない
    */
-  usage?: Partial<RunUsage> | undefined;
+  usage?: { [K in keyof RunUsage]?: RunUsage[K] | undefined } | undefined;
   now: Date;
 }
 
@@ -113,7 +149,12 @@ export async function finishRun(
   id: RunId,
   input: FinishRunInput,
 ): Promise<{ run: Run; write: WriteOutcome }> {
-  const local = await withLock(ctx.repo.localDir, RUN_LOCK, async () => {
+  const local = await withRunLock(ctx.repo, async () => {
+    // 前の finish が集計をコミットした後、実行中の記録を消す前に止まっていたら、記録を消してから拒否する
+    if (await hasSummary(ctx.repo, id)) {
+      await removeRunning(ctx.repo, id);
+      throw new OperationError("REJECTED", `Run ${id} は終わっている`);
+    }
     const result = await readDoc(ctx.repo.localDir, runPath(id), "json", runSchema, id);
     if (result.ok) return result.doc;
     if (result.issue.code !== "read_error") {
@@ -123,7 +164,6 @@ export async function finishRun(
         result.issue.detail,
       );
     }
-    if (ctx.store.runs.has(id)) throw new OperationError("REJECTED", `Run ${id} は終わっている`);
     throw new OperationError("NOT_FOUND", `実行中の Run ${id} が見つからない`);
   });
   const finishedAt = toIsoDateTime(input.now);
@@ -136,18 +176,20 @@ export async function finishRun(
     error: input.error ?? null,
     retries: input.retries ?? local.data.retries,
     model: input.model === undefined ? local.data.model : input.model,
-    usage: { ...(base["usage"] as Record<string, unknown>), ...input.usage },
+    // 渡されなかったキー（undefined）は重ねない
+    usage: {
+      ...(base["usage"] as Record<string, unknown>),
+      ...Object.fromEntries(Object.entries(input.usage ?? {}).filter(([, v]) => v !== undefined)),
+    },
   };
   const written = await withWrite(
     ctx,
     async () => {
       // 別のプロセスが先に閉じていないか、ファイルで確かめる（索引は古いことがある）
-      const exists = await access(path.join(ctx.repo.dataDir, runPath(id))).then(
-        () => true,
-        () => false,
-      );
-      if (exists || ctx.store.runs.has(id))
+      if ((await hasSummary(ctx.repo, id)) || ctx.store.runs.has(id)) {
+        await removeRunning(ctx.repo, id);
         throw new OperationError("REJECTED", `Run ${id} は終わっている`);
+      }
       const doc = await ctx.store.create("run", closed);
       return doc.data;
     },
@@ -155,8 +197,7 @@ export async function finishRun(
       message: (run) => `Run ${run.id} を記録: ${run.ticket} ${run.step} ${run.result ?? ""}`,
     },
   );
-  await withLock(ctx.repo.localDir, RUN_LOCK, () =>
-    unlink(path.join(ctx.repo.localDir, runPath(id))).catch(() => undefined),
-  );
+  // ここで止まっても、次の start・finish・list が runs/ の集計を見て記録を消す
+  await withRunLock(ctx.repo, () => removeRunning(ctx.repo, id));
   return { run: written.value, write: written.write };
 }

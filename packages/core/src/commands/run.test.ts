@@ -1,4 +1,4 @@
-import { access, readdir, readFile } from "node:fs/promises";
+import { access, readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { createFixture, git } from "../../test/helpers/git-fixture.js";
@@ -154,7 +154,8 @@ describe("run", () => {
     const run = await start(ctx, "t1");
     const { run: done } = await finishRun(ctx, run.id, {
       result: "success",
-      usage: { input: 100, output: 20, estimated: true },
+      // undefined のキーは重ねない（null のまま残る）
+      usage: { input: 100, output: 20, cache_read: undefined, estimated: true },
       now: new Date(),
     });
     expect(done.usage).toEqual({
@@ -164,6 +165,55 @@ describe("run", () => {
       cache_write: null,
       estimated: true,
     });
+  });
+
+  it("集計のコミットの後、実行中の記録を消す前に止まっても、start・finish・list がその記録を消して進める", async () => {
+    const ctx = await prepared();
+    // 止まった finish の残りを作る：集計を書いた後に、実行中の記録を戻す
+    const leftover = async (): Promise<{ run: Run; file: string }> => {
+      const run = await start(ctx, "t1");
+      const file = path.join(ctx.repo.localDir, "runs", `${run.id}.json`);
+      const text = await readFile(file, "utf8");
+      await runCommand(runFinish, ctx, { run: run.id, result: "success" });
+      await writeFile(file, text);
+      return { run, file };
+    };
+
+    // start：同じチケットと step でも拒否せず、残りを消して始める
+    const a = await leftover();
+    const next = await start(ctx, "t1");
+    expect(next.id).not.toBe(a.run.id);
+    expect(await exists(a.file)).toBe(false);
+    await runCommand(runFinish, ctx, { run: next.id, result: "success" });
+
+    // finish：終わっていると拒否し、残りは消す
+    const b = await leftover();
+    await expect(
+      runCommand(runFinish, ctx, { run: b.run.id, result: "interrupted" }),
+    ).rejects.toMatchObject({ code: "REJECTED" });
+    expect(await exists(b.file)).toBe(false);
+
+    // list：実行中として出さず、残りを消す
+    const c = await leftover();
+    const listed = (await runCommand(runList, ctx, { running: true })).data as RunView[];
+    expect(listed).toEqual([]);
+    expect(await exists(c.file)).toBe(false);
+    const all = (await runCommand(runList, ctx, {})).data as RunView[];
+    expect(all.filter((r) => r.id === c.run.id)).toMatchObject([{ running: false }]);
+  });
+
+  it("step と agent は空白・改行を含まない 1 語でなければ使い方の誤り", async () => {
+    const ctx = await prepared();
+    for (const input of [
+      { ticket: "t1", step: "imple ment", agent: "claude-code" },
+      { ticket: "t1", step: "implement\nreview", agent: "claude-code" },
+      { ticket: "t1", step: "implement", agent: "" },
+      { ticket: "t1", step: "implement", agent: "claude code" },
+    ]) {
+      await expect(runCommand(runStart, ctx, input)).rejects.toMatchObject({
+        code: "INVALID_INPUT",
+      });
+    }
   });
 
   it("CLI・MCP・HTTP が写す一覧に run.start・run.finish・run.list がある", () => {
