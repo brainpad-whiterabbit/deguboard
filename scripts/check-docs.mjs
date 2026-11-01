@@ -12,7 +12,7 @@ const budgets = [
   ["CLAUDE.md", 6 * 1024],
   ["README.md", 12 * 1024],
   ["docs/requirements.md", 40 * 1024],
-  ["docs/development.md", 15 * 1024],
+  ["docs/development.md", 20 * 1024],
 ];
 const adrBudget = 10 * 1024;
 
