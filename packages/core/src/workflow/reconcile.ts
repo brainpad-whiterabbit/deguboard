@@ -40,12 +40,22 @@ export function reconcileStatus(
 }
 
 /** 後退を指す事実（消えたブランチ・閉じた PR）。書き換えずに警告する（ST-5） */
-export function regressionWarnings(current: Status, facts: Facts): string[] {
+export function regressionWarnings(
+  current: Status,
+  facts: Facts,
+  opts: { prMissing?: boolean | undefined } = {},
+): string[] {
   if (isTerminal(current)) return [];
   const warnings: string[] = [];
   if (facts.branch_exists === false)
     warnings.push("作業ブランチがローカルにもリモートにも見つからない");
-  if (facts.pr_open === false && facts.pr_merged === false && current === "review") {
+  // PR がまだないだけなら閉じた PR ではない（gh は両方を pr_* がすべて偽の形で返す）
+  if (
+    !opts.prMissing &&
+    facts.pr_open === false &&
+    facts.pr_merged === false &&
+    current === "review"
+  ) {
     warnings.push("PR がマージされずに閉じている");
   }
   return warnings;

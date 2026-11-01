@@ -118,7 +118,7 @@ updated_at: 2026-10-31T05:10:00Z
 - TK-4 Workflow の `fields` で定義した任意フィールドを frontmatter に持てる
 - TK-5 受け入れ条件のチェックは、作業した人かエージェントが PR や成果物で確認できたときに付ける。deguboard が自動で付けることはなく、照合で done に進めたチケットに未チェックが残れば `sync` が警告する（遷移は止めない。[ADR-003](adr/ADR-003-status-and-workflow.md)）
 - TK-6 `epic` は同じ Project の Epic の ID。閉じた Epic には付けられない
-- TK-7 `created_by`（起票者）と `assignee`（担当者）は主体の ID（`<ユーザ>` か `<ユーザ>/agent`）。`created_by` は作成時に書き、既定は操作した主体で、エージェントが人の指示・承認で起票するときは `human`（ユーザ本人）を指定する。`assignee` は `create` / `update` で付け外しでき、`claim` が claim した主体で上書きする。入力の `human` / `agent` は操作した主体のユーザ本人とその AI に解く。旧名 `claimed_by` は読むときに `assignee` へ読み替える
+- TK-7 `created_by`（起票者）と `assignee`（担当者）は主体の ID（`<ユーザ>` か `<ユーザ>/agent`）。`created_by` は作成時に書き、既定は操作した主体で、エージェントが人の指示・承認で起票するときは `human`（ユーザ本人）を指定する。`assignee` は `create` / `update` で付け外しでき、`claim` が claim した主体で上書きする。`branch` も `update` で付け外しできる（PR の要らない作業に切り替える・戻す）。入力の `human` / `agent` は操作した主体のユーザ本人とその AI に解く。旧名 `claimed_by` は読むときに `assignee` へ読み替える
 
 ### 5.5 Epic（`epics/e3.md`）
 
@@ -237,9 +237,9 @@ fields:
 
 - ST-1 `status` はチケットに保存する。変えるのは `ticket move`・`claim`・`unclaim`、UI の操作、照合だけ
 - ST-2 遷移は Workflow の `transitions` の制約で検査する。`by` に含まれない主体の遷移と `requires` を満たさない遷移は拒否し、制約のない遷移は誰でも行える。同じ Status への move は拒否する
-- ST-3 `claim` は todo のチケットの `assignee` を claim した主体にし、`branch` を記録して in_progress に進める。todo 以外は拒否する。別のユーザが `assignee` だったときは上書きして警告する。依存先が終わるまで着手を止めたいときは Workflow で todo → in_progress に `requires: [deps_done]`（WF-2）を書く
-- ST-4 照合は `dg sync` と、画面の再読み込み（UI-6）で行う。チケットの `branch` について Git から事実を集め、`reconcile` 規則を上から評価し、今より前進の順が先のときだけ書き換える。`done` と `abandoned` のチケットには触れない。done に進めたチケットに未チェックの受け入れ条件が残れば警告する
-- ST-5 後退を指す事実（消えたブランチ・マージされずに閉じた PR）は書き換えず警告する。ただし同じ照合で done に進むときは、マージ後に消したブランチなので警告しない。取れなかった事実は不明とし、前進の判定では偽と読む。`branch_merged` は先端が base の真の祖先のとき真だが、in_progress で push していないブランチは commit のない切ったばかりのブランチとみなして偽にする（commit のないブランチは base が進むと ff マージ後と同じ形になるため。[ADR-004](adr/ADR-004-agents-and-state.md)）。照合の結果（`reconciled`）には根拠の規則の条件（`when`）を含める
+- ST-3 `claim` は todo のチケットの `assignee` を claim した主体にし、`branch` を記録して in_progress に進める。PR も作業ブランチも要らない作業は、ブランチなしの指定で `branch` を記録しない。todo 以外は拒否する。別のユーザが `assignee` だったときは上書きして警告する。依存先が終わるまで着手を止めたいときは Workflow で todo → in_progress に `requires: [deps_done]`（WF-2）を書く
+- ST-4 照合は `dg sync` と、画面の再読み込み（UI-6）で行う。`branch` のあるチケットについて Git から事実を集め（`branch` のないチケットは照合せず、状態は `ticket move` で進める）、`reconcile` 規則を上から評価し、今より前進の順が先のときだけ書き換える。`done` と `abandoned` のチケットには触れない。done に進めたチケットに未チェックの受け入れ条件が残れば警告する
+- ST-5 後退を指す事実（消えたブランチ・マージされずに閉じた PR）は書き換えず警告する。`gh` が PR はないと答えたときは、閉じた PR として警告しない。ただし同じ照合で done に進むときは、マージ後に消したブランチなので警告しない。取れなかった事実は不明とし、前進の判定では偽と読む。`branch_merged` は先端が base の真の祖先のとき真だが、in_progress で push していないブランチは commit のない切ったばかりのブランチとみなして偽にする（commit のないブランチは base が進むと ff マージ後と同じ形になるため。[ADR-004](adr/ADR-004-agents-and-state.md)）。照合の結果（`reconciled`）には根拠の規則の条件（`when`）を含める
 - ST-6 PR の事実は `gh` が使えるときだけ取る。`gh` がなくても照合は Git の事実だけで成り立つ。`pr` のないチケットの PR をブランチ名で見つけたら、状態が進まなくても番号を `pr` に記録する。記録済みの `pr` は書き換えない
 - ST-7 `unclaim` は in_progress のチケットの、自分（同じユーザの人と AI）の claim か記録のない claim だけを外して todo に戻し、`assignee` を消す。応答のない claim は強制の指定で外す。生存監視はしない
 - ST-8 `abandoned` にすると claim を外し、Iteration の完了件数と Epic の進捗には数えない。todo に戻す（再開・done の取り消し）ときも `assignee` と `branch` を消す。これらを人だけに限るなら Workflow の `by: [human]` で書く

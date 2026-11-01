@@ -214,6 +214,14 @@ describe("照合", () => {
       regressionWarnings("review", { branch_exists: true, pr_open: false, pr_merged: false }),
     ).toHaveLength(1);
     expect(regressionWarnings("review", { branch_exists: true })).toEqual([]);
+    // PR がまだないだけなら閉じた PR ではない
+    expect(
+      regressionWarnings(
+        "review",
+        { branch_exists: true, pr_open: false, pr_merged: false },
+        { prMissing: true },
+      ),
+    ).toEqual([]);
     expect(regressionWarnings("done", { branch_exists: false })).toEqual([]);
   });
 

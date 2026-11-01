@@ -18,6 +18,8 @@ export interface BranchFacts {
   facts: Facts;
   /** gh が見つけた PR の番号。チケットに記録がなければ照合がこれを `pr` に記録する（ST-6）。取れなければ undefined */
   pr?: number;
+  /** gh が「PR がない」と答えた。pr_* はすべて偽になるが、閉じた PR とは区別する（ST-5） */
+  prMissing?: boolean;
 }
 
 let ghAvailable: boolean | undefined;
@@ -94,14 +96,18 @@ export async function collectBranchFacts(
   if (!opts.needPr) return { facts };
   const pr = await collectPrFacts(repo, branch, opts.pr);
   Object.assign(facts, pr.facts);
-  return pr.number === undefined ? { facts } : { facts, pr: pr.number };
+  return {
+    facts,
+    ...(pr.number === undefined ? {} : { pr: pr.number }),
+    ...(pr.missing ? { prMissing: true } : {}),
+  };
 }
 
 async function collectPrFacts(
   repo: GitRepo,
   branch: string,
   pr: number | undefined,
-): Promise<{ facts: Facts; number?: number }> {
+): Promise<{ facts: Facts; number?: number; missing?: boolean }> {
   if (!(await hasGh(repo.topLevel))) return { facts: {} };
   try {
     const result = await runGh(
@@ -111,7 +117,7 @@ async function collectPrFacts(
     );
     if (result.code !== 0) {
       if (/no pull requests found|could not find|not found/i.test(result.stderr)) {
-        return { facts: { pr_open: false, pr_draft: false, pr_merged: false } };
+        return { facts: { pr_open: false, pr_draft: false, pr_merged: false }, missing: true };
       }
       return { facts: {} };
     }

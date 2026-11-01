@@ -363,6 +363,12 @@ export const ticketUpdate = defineCommand({
     epic: z.string().nullable().optional().describe("Epic の ID。null で外す"),
     workflow: slugSchema.nullable().optional().describe("Workflow。null で Project の既定に戻す"),
     pr: z.number().int().positive().nullable().optional().describe("PR 番号。null で外す"),
+    branch: z
+      .string()
+      .min(1)
+      .nullable()
+      .optional()
+      .describe("作業ブランチ名。null で外す（PR の要らない作業にして照合の対象から外す）"),
     assignee: actorRef
       .nullable()
       .optional()
@@ -389,6 +395,7 @@ export const ticketUpdate = defineCommand({
         if (input.priority !== undefined) patch["priority"] = input.priority;
         if (input.labels !== undefined) patch["labels"] = input.labels;
         if (input.pr !== undefined) patch["pr"] = input.pr ?? undefined;
+        if (input.branch !== undefined) patch["branch"] = input.branch ?? undefined;
         if (input.assignee !== undefined) {
           patch["assignee"] =
             input.assignee === null ? undefined : resolveActorRef(ctx.actor, input.assignee);
@@ -607,11 +614,18 @@ export const ticketClaim = defineCommand({
   input: z.object({
     ticket: ticketRef,
     branch: z.string().min(1).optional().describe("作業ブランチ名。省略時は feature/<id>-<slug>"),
+    without_branch: z
+      .boolean()
+      .optional()
+      .describe("PR も作業ブランチも要らない作業。branch を記録せず、照合の対象にしない"),
   }),
   write: true,
   needs: "store",
   async run(ctx, input) {
     const warnings: string[] = [];
+    if (input.without_branch && input.branch !== undefined) {
+      throw new UsageError("branch と without_branch は同時に指定できない");
+    }
     const result = await withWrite(
       ctx,
       async () => {
@@ -643,7 +657,7 @@ export const ticketClaim = defineCommand({
           status: "in_progress",
           assignee: ctx.actor.id,
           claimed_by: undefined,
-          branch: input.branch ?? defaultBranchName(doc.data),
+          branch: input.without_branch ? undefined : (input.branch ?? defaultBranchName(doc.data)),
           updated_at: nowIso(ctx),
         });
       },

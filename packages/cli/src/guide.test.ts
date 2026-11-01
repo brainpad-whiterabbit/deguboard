@@ -34,6 +34,15 @@ describe("dg guide", () => {
     expect(work).toContain("ticket check");
     expect(finish).toContain("ticket check");
     expect(finish).not.toContain("--body");
+    expect(work).not.toContain("--body");
+  });
+
+  it("work は PR の要らない作業を --without-branch で claim し、確かめたら done、残れば review と案内する", async () => {
+    const work = await readGuide("work");
+    expect(work).toContain("## PR の要らない作業");
+    expect(work).toContain("ticket claim <id> --without-branch");
+    expect(work).toContain("ticket move <id> done");
+    expect(work).toContain("ticket move <id> review");
   });
 
   it("config の値を埋める（既定なら main と origin、空の配列は「なし」）", () => {
