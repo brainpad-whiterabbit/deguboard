@@ -884,6 +884,26 @@ table.list th {
   gap: 0.75rem;
   margin-bottom: 0.75rem;
 }
+/* VS Code のパネルのチケット詳細：編集のボタンはタイトルの行の右。本文の見出しと Run・経過の見出しは同じ型にそろえる */
+.detail header .header-actions {
+  margin: 0 0 0 auto;
+  flex: none;
+}
+[data-surface="panel"] .detail .markdown :is(h3, h4, h5, h6),
+[data-surface="panel"] .timeline h2,
+[data-surface="panel"] .runs h2 {
+  font-size: 1em;
+  font-weight: 600;
+  margin: 1.5rem 0 0.4rem;
+  padding-bottom: 0.2rem;
+  border-bottom: 1px solid var(--vscode-panel-border, var(--vscode-widget-border, transparent));
+}
+[data-surface="panel"] .detail .markdown > :first-child {
+  margin-top: 0;
+}
+.props-empty {
+  font-size: 0.92em;
+}
 .props {
   display: grid;
   grid-template-columns: max-content 1fr;
