@@ -23,6 +23,8 @@ describe("ハッシュのルーティング", () => {
     // 既定の単位（チケット）と知らない単位はハッシュに持たない
     expect(parseRoute("#/runs?by=ticket")).toEqual({ page: "runs" });
     expect(parseRoute("#/runs?by=x")).toEqual({ page: "runs" });
+    // 画面は選んだ Project で絞るので、Project の単位は選べない
+    expect(parseRoute("#/runs?by=project")).toEqual({ page: "runs" });
     expect(parseRoute("#/board?iteration=s4&epic=e1&assignee=eiki%2Fagent")).toEqual({
       page: "board",
       iteration: "s4",

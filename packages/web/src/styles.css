@@ -533,7 +533,7 @@ button.link:hover {
   color: var(--vscode-descriptionForeground);
   font-variant-numeric: tabular-nums;
 }
-/* チケット詳細の Run：step・agent・model・結果・トークン・開始・終了。狭い配置では表を横にスクロールする */
+/* Run の表（チケット詳細の Run と Run の画面）。狭い配置では表を横にスクロールする。結果の色は --dg-* から取る */
 .runs-scroll {
   overflow-x: auto;
 }
@@ -559,6 +559,9 @@ button.link:hover {
 }
 .run-interrupted {
   color: var(--dg-warning);
+}
+.run-unfinished {
+  color: var(--vscode-descriptionForeground);
 }
 /* 見方の切り替え：つながったボタン */
 .segmented {
@@ -1062,19 +1065,16 @@ textarea.body {
   }
 }
 
-/* Run の実行状況と実績（UI-9）：合計の欄、単位ごとの表、Run の表。表は狭い幅では横にスクロールする */
-.runs h2 {
-  font-size: 1.05em;
+/* Run の画面（UI-9）：合計の欄、単位ごとの表、Run の表。表の横スクロール（.runs-scroll）と結果の色（.run-*）はチケット詳細の Run と共通 */
+.runs-page h2 {
+  font-size: 1em;
   margin: 1rem 0 0.4rem;
 }
-.runs .runs-metrics-head {
+.runs-page .runs-metrics-head {
   margin: 1rem 0 0.4rem;
 }
-.runs .runs-metrics-head h2 {
+.runs-page .runs-metrics-head h2 {
   margin: 0;
-}
-.table-scroll {
-  overflow-x: auto;
 }
 table.list td.num,
 table.list th.num {
@@ -1087,7 +1087,8 @@ table.list td.nowrap {
   white-space: nowrap;
 }
 .runs-table code,
-.metrics-table code {
+.metrics-table code,
+.run-rows code {
   background: transparent;
   padding: 0;
 }
@@ -1122,26 +1123,6 @@ table.list td.nowrap {
 .metric-cards dd.muted {
   font-weight: 400;
 }
-.badge.result-success {
-  background: transparent;
-  border-color: var(--vscode-testing-iconPassed);
-  color: inherit;
-}
-.badge.result-failure {
-  background: var(--vscode-inputValidation-errorBackground);
-  border-color: var(--vscode-inputValidation-errorBorder);
-  color: inherit;
-}
-.badge.result-interrupted {
-  background: var(--vscode-inputValidation-warningBackground);
-  border-color: var(--vscode-inputValidation-warningBorder);
-  color: inherit;
-}
-.badge.result-unfinished {
-  background: transparent;
-  border-color: var(--vscode-progressBar-background);
-  color: inherit;
-}
 /* サイドバーの Run の行：結果・チケット・工程・時間 */
 .rows.run-rows li {
   display: grid;
@@ -1150,10 +1131,6 @@ table.list td.nowrap {
   align-items: center;
   padding: 2px 4px;
   border-bottom: 1px solid var(--dg-border);
-}
-.run-rows code {
-  background: transparent;
-  padding: 0;
 }
 [data-surface="sidebar"] .metric-cards {
   grid-template-columns: repeat(2, minmax(0, 1fr));

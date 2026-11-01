@@ -36,13 +36,15 @@ export type {
   WorkflowDefinition,
 };
 
-/** Run の集計の単位（core の METRIC_UNITS と同じ順）と表示名。web は core の実行時のコードを取り込まないので写す */
+/**
+ * Run の画面で選べる集計の単位（core の METRIC_UNITS の順）。画面は選んだ Project で絞って集計するので project は除く。
+ * web は core の実行時のコードを取り込まないので写す
+ */
 export const METRIC_UNITS = [
   "run",
   "ticket",
   "epic",
   "iteration",
-  "project",
   "agent",
   "model",
 ] as const satisfies readonly MetricUnit[];
