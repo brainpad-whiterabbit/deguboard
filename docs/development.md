@@ -41,6 +41,20 @@ mise run dg -- guide finish    # マージ後の後始末
   ```
 
 - PR は `gh pr create --base main` で出し、本文にチケットの ID（`t12`）を書く。このリポジトリの Workflow は software-development なので、PR が開けば `dg sync` が review に、squash マージされれば done に進める（`gh` が要る）
+- 画面の見た目を変える PR は、変えた画面のスクリーンショットを本文に載せる。Playwright MCP で一時リポジトリの `dg serve` を開き（「`packages/web`」の節）、ライトとダークで撮る（`browser_emulate_media` の `colorScheme`）。サイドバーに効く変更は `?surface=sidebar` と幅 300px でも撮る。画像は orphan ブランチ `pr-screenshots` の `<チケット ID>/` に置く（作業ブランチに入れると squash で `main` に入る）
+
+  ```sh
+  git fetch origin pr-screenshots
+  git worktree add --detach ../deguboard.worktrees/pr-screenshots origin/pr-screenshots
+  cd ../deguboard.worktrees/pr-screenshots
+  mkdir -p t12 && cp <撮った画像> t12/
+  git add t12 && git commit -m "t12 のスクリーンショット（PR 用。コードは含まない）"
+  git push origin HEAD:pr-screenshots && git rev-parse HEAD
+  cd - && git worktree remove ../deguboard.worktrees/pr-screenshots
+  ```
+
+  本文には、出たコミット SHA を入れた `![カンバン（ライト）](https://github.com/brainpad-whiterabbit/deguboard/blob/<SHA>/t12/board-light.png?raw=true)` で貼る（SHA で固定し、`?raw=true` で private リポジトリでも出る）。`pr-screenshots` は消さない（PR の画像が切れる）
+
 - マージは `main` の worktree から行う。worktree を先に消す（ブランチを checkout したままだと `gh` がローカルのブランチを消せない）
 
   ```sh
