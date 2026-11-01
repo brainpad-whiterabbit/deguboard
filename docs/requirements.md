@@ -264,7 +264,7 @@ Web UI は `dg serve` が配信し、VS Code 拡張は同じ React アプリを 
 
 - UI-1 プロジェクトの切り替え
 - UI-2 カンバン：Iteration で選んだ Iteration のチケット（既定は active。「Iteration なし」も選べる）を状態ごとに出す。Iteration の選択肢は planned と active だけで、Iteration がない Project では Iteration で絞らず全チケットを出す。列は todo / in_progress / review / done の 4 つ（表示名は Workflow の `labels`）で、done は既定で畳む。abandoned は done の右の最後の列（サイドバーでは最後の節）に畳んで出し、0 件なら出さない。チケットをドラッグ＆ドロップすると `ticket move` と同じ検査を通して Status が変わり、拒否されたら理由を出して戻す。Epic（選択肢は open だけ）と担当者（`assignee`）で絞り込める。入っている Iteration か Epic が closed の done・abandoned のチケットは（Iteration のない Project の全チケットの表示でも）出さない。ただし絞り込みで選んだ Epic のチケットは出す
-- UI-3 バックログ：done と abandoned 以外のチケットを優先度と番号で出し、番号・タイトル・ラベルで検索、Status・優先度・Iteration・ラベル・担当者で絞り込む。Epic は UI-10 の欄で絞る
+- UI-3 バックログ：done と abandoned 以外のチケットを Iteration ごとの区画（active → planned（番号の順）→ Iteration なし）に分け、区画の中は優先度と番号で出す。区画の見出しに番号・名前・期間・目標・件数と詳細へのリンク、カンバンの見出しと同じ開始・閉じるを置き、「Iteration なし」の区画から Iteration を作れる。番号・タイトル・ラベルで検索、Status・優先度・ラベル・担当者で絞り込み、Epic は UI-10 の欄で絞る。絞り込みはすべての区画に効き、0 件の区画は見出しだけ出す。サイドバーでは区画を折りたためる。planned・active の Iteration がない Project では区画に分けず 1 つの表で出す
 - UI-4 チケット詳細：本文（概要・受け入れ条件）、属性、Epic、依存先と依存元、起票者と担当者、作業ブランチ、Run の一覧（予定 `e3`）。属性（担当者を含む）と本文を編集できる
 - UI-5 Iteration：一覧の画面は持たない。planned と active はカンバンの絞り込み（UI-2）で選び、見出しから開始・終了し、絞り込みの欄から作成する。詳細の画面でチケットの追加・除外。closed の Iteration は履歴の画面に閉じた新しい順で出し（番号・名前・完了と持ち越しの件数・期間・目標）、チケットの番号かタイトルで絞れ、行から詳細を開く
 - UI-6 未 push のコミットと、取り込んでいないリモートの更新があることを印で知らせる。同期のボタンで `dg sync` と同じ同期を行い、画面を読み直す。リモートがなくてもボタンは押せ、照合と読み直しだけを行う（UI-12 のサイドバーと同じ）

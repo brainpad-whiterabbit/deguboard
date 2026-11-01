@@ -1,4 +1,6 @@
-// バックログ（UI-3）。done と abandoned 以外を優先度と番号で出し、番号・タイトル・ラベルで検索、Status・優先度・Iteration・ラベル・担当者で絞り込む。
+// バックログ（UI-3）。done と abandoned 以外を Iteration ごとの区画（active → planned → Iteration なし）に分け、区画の中は優先度と番号で出す。
+// 番号・タイトル・ラベルで検索、Status・優先度・ラベル・担当者で絞り込む。区画の見出しから Iteration の開始・閉じる、「Iteration なし」から作成。
+// Iteration が 1 つもない（planned・active がない）Project では区画に分けず 1 つの表で出す。
 // open の Epic は進捗つきの欄に並べ（UI-10）、押すとその Epic のチケットに絞る（もう一度押すと解除）。Epic の作成も欄から行う。
 // サイドバーでは検索と件数だけ常に出し、絞り込みと Epic の欄は畳む（効いている条件は見出しに出す。開閉は host.state に残す）
 
@@ -14,16 +16,18 @@ import {
   byNumber,
   byPriorityThenNumber,
   claimOptions,
+  ITERATION_LABELS,
   matchesClaim,
   NO_CLAIM,
+  type Iteration,
   type Ticket,
 } from "../types.js";
+import { IterationActions, IterationCreateForm } from "./iterations.js";
 
 export interface BacklogFilter {
   query: string;
   status: string;
   priority: string;
-  iteration: string;
   /** Epic の ID。NO_EPIC は Epic に入っていないもの */
   epic: string;
   label: string;
@@ -38,7 +42,6 @@ export const EMPTY_FILTER: BacklogFilter = {
   query: "",
   status: "",
   priority: "",
-  iteration: "",
   epic: "",
   label: "",
   assignee: "",
@@ -51,7 +54,6 @@ export function filterBacklog(tickets: readonly Ticket[], f: BacklogFilter): Tic
     .filter((t) => t.status !== "done" && t.status !== "abandoned")
     .filter((t) => !f.status || t.status === f.status)
     .filter((t) => !f.priority || t.priority === f.priority)
-    .filter((t) => !f.iteration || t.iteration === f.iteration)
     .filter((t) => !f.epic || (f.epic === NO_EPIC ? !t.epic : t.epic === f.epic))
     .filter((t) => !f.label || t.labels.includes(f.label))
     .filter((t) => matchesClaim(t, f.assignee))
@@ -70,11 +72,39 @@ export function activeFilters(f: BacklogFilter, labelOf: (status: string) => str
   const parts: string[] = [];
   if (f.status) parts.push(`Status: ${labelOf(f.status)}`);
   if (f.priority) parts.push(`優先度: ${f.priority}`);
-  if (f.iteration) parts.push(`Iteration: ${f.iteration}`);
   if (f.epic) parts.push(`Epic: ${f.epic === NO_EPIC ? "なし" : f.epic}`);
   if (f.label) parts.push(`ラベル: ${f.label}`);
   if (f.assignee) parts.push(`担当: ${f.assignee === NO_CLAIM ? "なし" : actorLabel(f.assignee)}`);
   return parts;
+}
+
+/** バックログの区画。iteration がなければ「Iteration なし」 */
+export interface BacklogSection {
+  iteration?: Iteration | undefined;
+  tickets: Ticket[];
+}
+
+/**
+ * 絞り込んだチケットを区画に分ける。並びは active → planned（それぞれ番号の順）→ チケットが残る closed → Iteration なし。
+ * 区画の中は rows の並び（優先度と番号）のまま。0 件の区画も出す（closed は残るものがあるときだけ）
+ */
+export function sectionsOf(
+  rows: readonly Ticket[],
+  iterations: readonly Iteration[],
+  all: readonly Ticket[] = rows,
+): BacklogSection[] {
+  const rank = { active: 0, planned: 1, closed: 2 } as const;
+  const remaining = new Set(
+    all.filter((t) => t.status !== "done" && t.status !== "abandoned").map((t) => t.iteration),
+  );
+  const shown = iterations
+    .filter((i) => i.status !== "closed" || remaining.has(i.id))
+    .sort((a, b) => rank[a.status] - rank[b.status] || byNumber(a, b));
+  const known = new Set(shown.map((i) => i.id));
+  return [
+    ...shown.map((i) => ({ iteration: i, tickets: rows.filter((t) => t.iteration === i.id) })),
+    { tickets: rows.filter((t) => !t.iteration || !known.has(t.iteration)) },
+  ];
 }
 
 export function BacklogPage() {
@@ -117,17 +147,6 @@ export function BacklogPage() {
           {PRIORITIES.map((p) => (
             <option key={p} value={p}>
               {p}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label>
-        Iteration
-        <select value={filter.iteration} onChange={(e) => set({ iteration: e.target.value })}>
-          <option value="">すべて</option>
-          {store.iterations.map((i) => (
-            <option key={i.id} value={i.id}>
-              {i.id} {i.name}
             </option>
           ))}
         </select>
@@ -195,9 +214,99 @@ export function BacklogPage() {
           onSelect={(epic) => set({ epic: filter.epic === epic ? "" : epic })}
         />
         <div className="backlog-main">
-          <TicketTable tickets={rows} />
+          {store.iterations.some((i) => i.status !== "closed") ? (
+            sectionsOf(rows, store.iterations, store.tickets).map((s) => (
+              <Section key={s.iteration?.id ?? "-"} section={s} />
+            ))
+          ) : (
+            <TicketTable tickets={rows} />
+          )}
         </div>
       </div>
+    </section>
+  );
+}
+
+/**
+ * 1 つの区画：見出し（番号・名前・状態・期間・目標・件数・詳細と開始・閉じる。「Iteration なし」は作成）とチケットの表。
+ * 0 件なら見出しだけ。サイドバーでは折りたたみの節にし、開閉を host.state に残す
+ */
+function Section({ section: { iteration: it, tickets } }: { section: BacklogSection }) {
+  const host = useHost();
+  const sidebar = host.surface === "sidebar";
+  const [open, setOpen] = useUiState(`backlog.section.${it?.id ?? "none"}`, true);
+  const [creating, setCreating] = useState(false);
+  const head = (
+    <>
+      {it ? (
+        <>
+          <a
+            href={hrefOf({ page: "iterations", id: it.id })}
+            title="詳細"
+            onClick={(e) => {
+              // Webview では詳細を拡張ホストに頼んでエディタ領域に開く（履歴の行と同じ）
+              if (host.surface === "browser") return;
+              e.preventDefault();
+              host.open({ page: "iterations", id: it.id });
+            }}
+          >
+            <code>{it.id}</code> {it.name}
+          </a>
+          <span className={`badge iteration-${it.status}`}>{ITERATION_LABELS[it.status]}</span>
+        </>
+      ) : (
+        <span className="name">Iteration なし</span>
+      )}
+      <span className="muted count">{tickets.length} 件</span>
+      <span className="actions">
+        {it ? (
+          <IterationActions iteration={it} />
+        ) : creating ? null : (
+          <button
+            type="button"
+            className="link"
+            onClick={(e) => {
+              // 見出し（summary）の中のボタンなので、節の開閉を起こさない
+              e.preventDefault();
+              setCreating(true);
+              setOpen(true);
+            }}
+          >
+            + Iteration を作る
+          </button>
+        )}
+      </span>
+      {it && (it.start || it.end || it.goal) ? (
+        <small className="muted meta">
+          {it.start || it.end ? `${it.start ?? "?"} 〜 ${it.end ?? "?"}` : ""}
+          {(it.start || it.end) && it.goal ? " ・ " : ""}
+          {it.goal}
+        </small>
+      ) : null}
+    </>
+  );
+  const body = (
+    <>
+      {creating ? <IterationCreateForm onDone={() => setCreating(false)} /> : null}
+      {tickets.length > 0 ? <TicketTable tickets={tickets} /> : null}
+    </>
+  );
+  if (sidebar) {
+    return (
+      <details
+        className="fold backlog-section"
+        open={open}
+        onToggle={(e) => setOpen(e.currentTarget.open)}
+      >
+        <summary>{head}</summary>
+        {body}
+      </details>
+    );
+  }
+  return (
+    <section className="backlog-section">
+      <header>{head}</header>
+      {body}
     </section>
   );
 }
