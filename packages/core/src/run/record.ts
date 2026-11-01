@@ -135,7 +135,7 @@ export interface FinishRunInput {
   result: RunResult;
   error?: string | null | undefined;
   retries?: number | undefined;
-  /** 渡さなければ実行中の記録の値（なければ空の配列）。回数との突き合わせは run.finish がする */
+  /** 渡さなければ実行中の記録の値（古い記録はスキーマが空の配列にそろえる）。回数との突き合わせは run.finish がする */
   retryReasons?: readonly string[] | undefined;
   model?: string | null | undefined;
   /**
@@ -178,7 +178,7 @@ export async function finishRun(
     result: input.result,
     error: input.error ?? null,
     retries: input.retries ?? local.data.retries,
-    retry_reasons: [...(input.retryReasons ?? local.data.retry_reasons ?? [])],
+    retry_reasons: [...(input.retryReasons ?? local.data.retry_reasons)],
     model: input.model === undefined ? local.data.model : input.model,
     // 渡されなかったキー（undefined）は重ねない
     usage: {

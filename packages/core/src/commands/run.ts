@@ -70,7 +70,7 @@ export const runFinish = defineCommand({
   positionals: ["run"],
   group: "run",
   summary:
-    "実行中の Run を閉じ、完了時の集計を runs/ に書く（commit.mode に従ってコミット）。止まった Run は --result interrupted で閉じる。やり直しの理由は --retry-reason で残し、回数を省けば理由の数を回数にする（食い違えば拒否する）。使用量は自己申告を受けず、agent の Adapter が会話記録から取り込む。取れなければ null のまま警告する",
+    "実行中の Run を閉じ、完了時の集計を runs/ に書く（commit.mode に従ってコミット）。止まった Run は --result interrupted で閉じる。使用量は自己申告を受けず、agent の Adapter が会話記録から取り込む。取れなければ null のまま警告する",
   input: z.object({
     run: z.string().min(1).describe("Run の ID（r20261031-041500-3fa2）"),
     result: z.enum(RUN_RESULTS).describe("success・failure・interrupted"),
@@ -85,8 +85,8 @@ export const runFinish = defineCommand({
       .array(
         z
           .string()
-          .min(1)
-          .regex(/^[^\r\n]+$/, "理由は 1 件 1 行で書く"),
+          .regex(/^[^\r\n]+$/, "理由は 1 件 1 行で書く")
+          .regex(/\S/, "理由が空白だけ"),
       )
       .meta({ freeText: true })
       .optional()
@@ -100,7 +100,8 @@ export const runFinish = defineCommand({
   async run(ctx, input) {
     if (!isRunId(input.run))
       throw new UsageError(`${input.run} は Run の ID の形（r20261031-041500-3fa2）でない`);
-    const reasons = input.retry_reasons;
+    // 空の配列は省いたのと同じに扱う
+    const reasons = input.retry_reasons?.length ? input.retry_reasons : undefined;
     if (reasons && input.retries !== undefined && input.retries !== reasons.length) {
       throw new UsageError(
         `リトライの回数（${input.retries}）と理由の数（${reasons.length}）が食い違う。回数を省けば理由の数を回数にする`,

@@ -96,6 +96,11 @@ describe("スキーマ", () => {
     expect(r.usage.estimated).toBe(true);
     expect(r.usage["reasoning"]).toBe(5);
     expect(r["files"]).toEqual(["src/a.ts"]);
+    // retry_reasons より前に書いた Run（キーがない）は空の配列にそろえる
+    expect(r.retry_reasons).toEqual([]);
+    expect(runSchema.parse({ ...base, retry_reasons: ["検査が落ちた"] }).retry_reasons).toEqual([
+      "検査が落ちた",
+    ]);
     // null を省いたり、0 未満や知らない結果を書いたりはできない
     const { model: _model, ...noModel } = base;
     expect(runSchema.safeParse(noModel).success).toBe(false);

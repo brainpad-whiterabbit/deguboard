@@ -222,6 +222,37 @@ describe("run", () => {
     expect(plain.data).toMatchObject({ retries: 1, retry_reasons: [] });
   });
 
+  it("finish は空の理由の配列を省いたのと同じに扱い、回数だけを記録する", async () => {
+    const ctx = await prepared();
+    const run = await start(ctx, "t1");
+    const r = await runCommand(runFinish, ctx, {
+      run: run.id,
+      result: "success",
+      retries: 1,
+      retry_reasons: [],
+    });
+    expect(r.data).toMatchObject({ retries: 1, retry_reasons: [] });
+  });
+
+  it("retry_reasons のない古い実行中の記録も finish で閉じられ、空の配列で記録する", async () => {
+    const ctx = await prepared();
+    const run = await start(ctx, "t1");
+    const localFile = path.join(ctx.repo.localDir, "runs", `${run.id}.json`);
+    const { retry_reasons: _reasons, ...old } = JSON.parse(
+      await readFile(localFile, "utf8"),
+    ) as Record<string, unknown>;
+    await writeFile(localFile, `${JSON.stringify(old, null, 2)}\n`);
+    const listed = (await runCommand(runList, ctx, { running: true })).data as RunView[];
+    expect(listed[0]).toMatchObject({ id: run.id, retry_reasons: [] });
+    const r = await runCommand(runFinish, ctx, { run: run.id, result: "success" });
+    expect(r.data).toMatchObject({ retries: 0, retry_reasons: [] });
+    await runCommand(commit, ctx, {});
+    const saved = JSON.parse(
+      await readFile(path.join(ctx.repo.dataDir, "runs", `${run.id}.json`), "utf8"),
+    ) as Record<string, unknown>;
+    expect(saved["retry_reasons"]).toEqual([]);
+  });
+
   it("finish は回数と理由の数が食い違うか、理由が 1 行でなければ拒否し、Run を開けたままにする", async () => {
     const ctx = await prepared();
     const run = await start(ctx, "t1");
@@ -239,6 +270,9 @@ describe("run", () => {
         result: "success",
         retry_reasons: ["1 行目\n2 行目"],
       }),
+    ).rejects.toMatchObject({ code: "INVALID_INPUT" });
+    await expect(
+      runCommand(runFinish, ctx, { run: run.id, result: "success", retry_reasons: ["  "] }),
     ).rejects.toMatchObject({ code: "INVALID_INPUT" });
     const running = (await runCommand(runList, ctx, { running: true })).data as RunView[];
     expect(running.map((r) => r.id)).toEqual([run.id]);

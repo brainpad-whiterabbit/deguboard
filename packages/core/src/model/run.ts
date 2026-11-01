@@ -57,8 +57,8 @@ export const runSchema = z.looseObject({
   result: z.enum(RUN_RESULTS).nullable(),
   error: z.string().nullable(),
   retries: z.number().int().nonnegative(),
-  /** やり直しの理由（1 件 1 行の要約）。新しい Run は空の配列で持つ。この項目より前に書いた Run にはない */
-  retry_reasons: z.array(z.string()).optional(),
+  /** やり直しの理由（1 件 1 行の要約）。この項目より前に書いた Run にはキーがないので、読むときに空の配列にそろえる */
+  retry_reasons: z.array(z.string()).default([]),
   usage: runUsageSchema,
 });
 export type Run = z.output<typeof runSchema>;
