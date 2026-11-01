@@ -19,7 +19,14 @@ describe("PATH の dg", () => {
 
   it("ないときはインストールを案内し、メジャーが違えば知らせ、同じなら何も言わない（UI-11）", () => {
     expect(dgAdvice({ kind: "missing" }, "1.0.0")).toMatchObject({ level: "info" });
-    expect(dgAdvice({ kind: "missing" }, "1.0.0")?.text).toContain("npm i -g deguboard");
+    const hint = dgAdvice({ kind: "missing" }, "1.0.0")?.text ?? "";
+    // npm に未公開の今でも従える手順（README の「使い始める」と clone してビルドする道）を出す
+    expect(hint).toContain("README の「使い始める」");
+    expect(hint).toContain("clone");
+    expect(hint).toContain("PATH に通す");
+    // mise の案内は README と同じ -g 付きにする
+    expect(hint).toContain("mise use -g npm:deguboard");
+    expect(hint).not.toMatch(/mise use npm:/);
     expect(dgAdvice({ kind: "found", version: "2.0.1" }, "1.4.0")).toMatchObject({
       level: "warning",
     });

@@ -11,7 +11,12 @@ export type DgLookup =
 /** テスト用に差し替えられる `dg --version` の実行 */
 export type RunVersion = () => Promise<string>;
 
-const INSTALL_HINT = "npm i -g deguboard（mise なら mise use npm:deguboard）";
+// npm に公開するまでは README の「使い始める」の手順（clone してビルドし、dg を PATH に通す）を指す。
+// 公開後のコマンドは README と同じ文にそろえる
+const INSTALL_HINT =
+  "README の「使い始める」（https://github.com/brainpad-whiterabbit/deguboard#使い始める）の手順。" +
+  "npm に公開するまでは deguboard を clone して mise run install でビルドし、packages/cli/bin/dg.js を dg として PATH に通す。" +
+  "公開後は npm i -g deguboard（mise なら mise use -g npm:deguboard）";
 
 function runDgVersion(): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -49,7 +54,7 @@ export function dgAdvice(lookup: DgLookup, coreVersion: string): DgAdvice | unde
     case "missing":
       return {
         level: "info",
-        text: `dg が PATH にない。エージェントや CLI から使うには ${INSTALL_HINT} で入れる。画面は dg なしで動く`,
+        text: `dg が PATH にない。エージェントや CLI から使うには ${INSTALL_HINT}で入れる。画面は dg なしで動く`,
       };
     case "error":
       return { level: "warning", text: `dg --version が失敗した：${lookup.detail}` };
