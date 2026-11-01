@@ -349,9 +349,13 @@ function defaultStreams(): Streams {
   };
 }
 
-/** commander のエラーの文言から接頭辞を除く。コマンドを省いたとき（commander.help）は文言がないので補う */
+/**
+ * commander のエラーの文言から接頭辞を除く。commander.help（`dg ticket` のようにコマンドを省いたときと、
+ * `dg help nosuch` のように help に知らないコマンドを渡したとき）は文言がないので、どちらにも合う文言を補う
+ */
 function commanderMessage(view: ErrorView): string {
-  if (view.code === "commander.help") return "コマンドを指定する（--help で使い方を見る）";
+  if (view.code === "commander.help")
+    return "コマンドが足りないか、知らないコマンドを指定した（--help で使い方を見る）";
   return view.message.replace(/^error: /, "");
 }
 

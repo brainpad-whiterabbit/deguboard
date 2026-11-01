@@ -183,6 +183,7 @@ describe("dg", () => {
       ["--json", "nosuch"],
       ["--json", "--bogus"],
       ["--json", "ticket"],
+      ["--json", "help", "nosuch"],
     ]) {
       const ran = await dg(f.cloneA, argv);
       expect(ran.code, argv.join(" ")).toBe(2);
@@ -195,6 +196,14 @@ describe("dg", () => {
     }
     const by = await dg(f.cloneA, ["--json", "metrics", "show", "--by", "nothing"]);
     expect(by.json().error?.message).toContain("'nothing'");
+    // commander.help は文言がないので、コマンドを省いたときにも知らないコマンドにも合う文言を補う
+    for (const argv of [
+      ["--json", "ticket"],
+      ["--json", "help", "nosuch"],
+    ])
+      expect((await dg(f.cloneA, argv)).json().error?.message).toBe(
+        "コマンドが足りないか、知らないコマンドを指定した（--help で使い方を見る）",
+      );
   });
 
   it("--json なしでは commander の引数のエラーを従来どおり stderr に平文で出し、stdout には出さない", async () => {
