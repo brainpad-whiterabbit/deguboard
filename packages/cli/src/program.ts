@@ -379,6 +379,11 @@ export async function run(argv: readonly string[], options: ProgramOptions = {})
         });
       return 2;
     }
+    // アクションの外で投げた commander 以外の例外（--port の値の検査など）も --json なら JSON で返す
+    if (program.opts<{ json?: boolean }>().json === true) {
+      printJsonError(streams ?? defaultStreams(), view);
+      return view.exitCode;
+    }
     if (streams) streams.err(`エラー: ${view.message}`);
     else process.stderr.write(`エラー: ${view.message}\n`);
     return view.exitCode;
