@@ -172,6 +172,41 @@ describe("dg", () => {
     expect((await dg(f.cloneA, ["ticket", "check", "1", "--all"])).code).toBe(0);
   });
 
+  it("--json のとき commander が拒否した引数のエラーも { ok: false, error } で stdout に出し、平文は出さない", async () => {
+    const f = await fixture();
+    await dg(f.cloneA, ["init"]);
+    for (const argv of [
+      ["--json", "metrics", "show", "--by", "nothing"],
+      ["metrics", "show", "--by", "nothing", "--json"],
+      ["--json", "ticket", "create", "x", "--priority", "nope"],
+      ["--json", "ticket", "show"],
+      ["--json", "nosuch"],
+      ["--json", "--bogus"],
+      ["--json", "ticket"],
+    ]) {
+      const ran = await dg(f.cloneA, argv);
+      expect(ran.code, argv.join(" ")).toBe(2);
+      expect(ran.err, argv.join(" ")).toBe("");
+      const json = ran.json();
+      expect(json.ok).toBe(false);
+      expect(json.error?.code).toBe("INVALID_INPUT");
+      expect(json.error?.message).not.toBe("");
+      expect(json.error?.message).not.toMatch(/^error: /);
+    }
+    const by = await dg(f.cloneA, ["--json", "metrics", "show", "--by", "nothing"]);
+    expect(by.json().error?.message).toContain("'nothing'");
+  });
+
+  it("--json なしでは commander の引数のエラーを従来どおり stderr に平文で出し、stdout には出さない", async () => {
+    const f = await fixture();
+    await dg(f.cloneA, ["init"]);
+    const ran = await dg(f.cloneA, ["metrics", "show", "--by", "nothing"]);
+    expect(ran.code).toBe(2);
+    expect(ran.out).toBe("");
+    expect(ran.err).toContain("エラー: option '--by <value>' argument 'nothing' is invalid");
+    expect(ran.err).toContain("（--help で使い方を見る）");
+  });
+
   it("初期化前は NOT_INITIALIZED で 1、リモートがなくても init と起票ができる", async () => {
     const f = await fixture();
     const before = await dg(f.cloneB, ["--json", "ticket", "list"]);

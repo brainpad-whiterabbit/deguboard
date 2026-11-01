@@ -20,7 +20,7 @@ import {
 } from "@deguboard/core";
 import { Argument, Command } from "commander";
 import { parse as parseYaml } from "yaml";
-import { toErrorView } from "./errors.js";
+import { toErrorView, type ErrorView } from "./errors.js";
 import { GUIDE_TOPICS, renderGuide } from "./guide.js";
 import { serveMcp } from "./mcp.js";
 import { installSkill, skillInstallWarnings } from "./skill.js";
@@ -90,12 +90,10 @@ function version(): string {
 }
 
 export function buildProgram(options: ProgramOptions = {}): Command {
-  const streams: Streams = options.streams ?? {
-    out: (t) => process.stdout.write(`${t}\n`),
-    err: (t) => process.stderr.write(`${t}\n`),
-  };
+  const streams: Streams = options.streams ?? defaultStreams();
   const env = options.env ?? process.env;
   const program = new Command("dg");
+  const jsonMode = (): boolean => program.opts<{ json?: boolean }>().json === true;
   program
     .description("Git-native な AI ワークフロー・チケット管理。データは deguboard ブランチに置く")
     .version(version(), "-v, --version", "版を出す")
@@ -113,8 +111,13 @@ export function buildProgram(options: ProgramOptions = {}): Command {
     .helpCommand("help [command]", "コマンドの使い方を出す")
     .configureOutput({
       writeOut: (s) => streams.out(s.trimEnd()),
-      writeErr: (s) => streams.err(s.trimEnd()),
-      outputError: (s, write) => write(`エラー: ${s.replace(/^error: /, "")}`),
+      // commander が writeErr に書くのは引数の誤りの案内と使い方だけ。--json のときは run() が JSON で stdout に出すので書かない
+      writeErr: (s) => {
+        if (!jsonMode()) streams.err(s.trimEnd());
+      },
+      outputError: (s, write) => {
+        if (!jsonMode()) write(`エラー: ${s.replace(/^error: /, "")}`);
+      },
     })
     .exitOverride()
     .showHelpAfterError("（--help で使い方を見る）");
@@ -339,6 +342,19 @@ async function readStdin(): Promise<string> {
   return Buffer.concat(chunks).toString("utf8");
 }
 
+function defaultStreams(): Streams {
+  return {
+    out: (t) => process.stdout.write(`${t}\n`),
+    err: (t) => process.stderr.write(`${t}\n`),
+  };
+}
+
+/** commander のエラーの文言から接頭辞を除く。コマンドを省いたとき（commander.help）は文言がないので補う */
+function commanderMessage(view: ErrorView): string {
+  if (view.code === "commander.help") return "コマンドを指定する（--help で使い方を見る）";
+  return view.message.replace(/^error: /, "");
+}
+
 /** argv を実行して終了コードを返す。テストからも呼ぶ */
 export async function run(argv: readonly string[], options: ProgramOptions = {}): Promise<number> {
   const program = buildProgram(options);
@@ -347,9 +363,18 @@ export async function run(argv: readonly string[], options: ProgramOptions = {})
     await program.parseAsync([...argv], { from: "user" });
   } catch (error) {
     const view = toErrorView(error);
-    // --help / --version は exitCode 0 の CommanderError。それ以外の commander のエラーは引数の誤りなので 2
-    if (view.code.startsWith("commander.")) return view.exitCode === 0 ? 0 : 2;
     const streams = options.streams;
+    // --help / --version は exitCode 0 の CommanderError。それ以外の commander のエラーは引数の誤りなので 2
+    if (view.code.startsWith("commander.")) {
+      if (view.exitCode === 0) return 0;
+      if (program.opts<{ json?: boolean }>().json === true)
+        printJsonError(streams ?? defaultStreams(), {
+          code: "INVALID_INPUT",
+          message: commanderMessage(view),
+          exitCode: 2,
+        });
+      return 2;
+    }
     if (streams) streams.err(`エラー: ${view.message}`);
     else process.stderr.write(`エラー: ${view.message}\n`);
     return view.exitCode;
