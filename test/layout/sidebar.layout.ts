@@ -1,5 +1,12 @@
 // 画面の配置の確認（t58）。dg serve の画面を Chromium で ?surface=sidebar の配置で開き、
-// サイドバーの幅（300px・260px）とライト・ダークで、横スクロールが出ないこととタブ・チケットの行が 1 行に収まることを確かめる。
+// サイドバーの幅（300px・260px）とライト・ダークで、横スクロールが出ないことと、文字が決めた行数に収まることを確かめる。
+// 行数の基準：
+// - タブ（nav a）、カンバンの見出し、チケットの行でない行のタイトル（Epic・Run など .row-title）は 1 行。折り返してはいけない
+//   カンバンの見出しは、Iteration の見出し（.sidebar-head .head-line：番号・名前・状態・件数の段、期間・目標の段、進みの帯の段）と
+//   状態の節の見出し（.column summary h2）
+// - ほかの画面の見出し（バックログ・履歴の summary、Run・Epic の h2 など）は検査しない
+// - チケットの行のタイトル（.ticket-row .row-title）は 2 行まで。サイドバーでは 2 行で切る CSS（-webkit-line-clamp: 2）なので、3 行以上は崩れ
+// 行数は要素の枠の中に見えている行だけを数える（2 行で切られて隠れた行は数えない）
 // ブラウザが要るので mise run test には入れず、mise run test:layout で回す（先に mise run build と mise run playwright:install）
 
 import { access } from "node:fs/promises";
@@ -87,29 +94,53 @@ afterAll(async () => {
 });
 
 /**
- * 画面の幅と、1 行に収まらない要素を集める。
- * 折り返しは「文字の矩形のどれかが、最初の矩形の下端より下から始まる」で見る（大きさの違う文字が並んでも上端のずれで誤らない）
+ * 画面の幅と、決めた行数に収まらない要素を集める。
+ * 行は「文字の矩形が、今の行の下端より下から始まったら次の行」で数える（大きさの違う文字が並んでも上端のずれで誤らない）。
+ * 要素の枠の下端より下にある矩形は、切られて見えない行なので数えない
  */
 function measure(page: Page) {
   return page.evaluate(() => {
-    const isWrapped = (el: Element) => {
+    const lineCount = (el: Element) => {
+      const box = el.getBoundingClientRect();
       const range = document.createRange();
       range.selectNodeContents(el);
-      const rects = [...range.getClientRects()].filter((r) => r.width > 0);
-      const first = rects[0];
-      return first !== undefined && rects.some((r) => r.top >= first.bottom - 1);
+      const rects = [...range.getClientRects()]
+        .filter((r) => r.width > 0 && r.top < box.bottom - 1)
+        .sort((a, b) => a.top - b.top);
+      let lines = 0;
+      let bottom = -Infinity;
+      for (const r of rects) {
+        if (r.top >= bottom - 1) {
+          lines++;
+          bottom = r.bottom;
+        } else bottom = Math.max(bottom, r.bottom);
+      }
+      return lines;
     };
-    const wrapped = (selector: string) =>
+    const overflowing = (selector: string, max: number) =>
       [...document.querySelectorAll(selector)]
-        .filter(isWrapped)
-        .map((el) => `${selector}: ${el.textContent?.slice(0, 20)}`);
+        .filter((el) => lineCount(el) > max)
+        .map((el) => `${selector}（${max} 行まで）: ${el.textContent?.slice(0, 20)}`);
     const style = getComputedStyle(document.body);
     return {
       scrollWidth: document.documentElement.scrollWidth,
       clientWidth: document.documentElement.clientWidth,
       tabs: document.querySelectorAll("nav a").length,
       rows: document.querySelectorAll(".row").length,
-      wrapped: [...wrapped("nav a"), ...wrapped(".row-title")],
+      /** 1 行の検査をするカンバンの見出しの数。種類ごとに分けて数え、クラス名が変わって検査が黙って消えないようにする */
+      headLines: document.querySelectorAll(".sidebar-head .head-line").length,
+      sectionHeadings: document.querySelectorAll(".column summary h2").length,
+      wrapped: [
+        ...overflowing("nav a", 1),
+        ...overflowing(".sidebar-head .head-line", 1),
+        ...overflowing(".column summary h2", 1),
+        ...overflowing(".row-title:not(.ticket-row .row-title)", 1),
+        ...overflowing(".ticket-row .row-title", 2),
+      ],
+      /** 2 行まで折り返したチケットの行のタイトルの数（長いタイトルで 2 行に折り返すことを確かめる） */
+      twoLineTitles: [...document.querySelectorAll(".ticket-row .row-title")].filter(
+        (el) => lineCount(el) === 2,
+      ).length,
       background: style.backgroundColor,
       color: style.color,
     };
@@ -118,7 +149,7 @@ function measure(page: Page) {
 
 describe.each(SCHEMES)("サイドバーの配置（%s）", (scheme) => {
   it.each(WIDTHS)(
-    "幅 %ipx で、どの画面も横スクロールが出ず、タブとチケットの行が 1 行に収まる",
+    "幅 %ipx で、どの画面も横スクロールが出ず、タブ・見出し・チケットでない行のタイトルは 1 行、チケットの行のタイトルは 2 行までに収まる",
     async (width) => {
       const context = await browser.newContext({
         viewport: { width, height: 900 },
@@ -142,7 +173,13 @@ describe.each(SCHEMES)("サイドバーの配置（%s）", (scheme) => {
           }
           expect(m.scrollWidth, `${hash} の横スクロール`).toBeLessThanOrEqual(m.clientWidth);
           expect(m.tabs, `${hash} のタブ`).toBe(4);
-          expect(m.wrapped, `${hash} で折り返した要素`).toEqual([]);
+          expect(m.wrapped, `${hash} で決めた行数を超えた要素`).toEqual([]);
+          // カンバンの長いタイトルは 2 行に折り返す（1 行で切る CSS に戻ったら気づけるように）
+          if (hash === "#/board") {
+            expect(m.twoLineTitles, `${hash} で 2 行に折り返したタイトル`).toBeGreaterThan(0);
+            expect(m.headLines, `${hash} の Iteration の見出しの段`).toBeGreaterThan(0);
+            expect(m.sectionHeadings, `${hash} の状態の節の見出し`).toBeGreaterThan(0);
+          }
           expect(m.color, `${hash} の文字と背景の色`).not.toBe(m.background);
         }
       } finally {
