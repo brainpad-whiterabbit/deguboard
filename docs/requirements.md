@@ -264,17 +264,17 @@ steps: # 任意。Run の step の語彙（WF-5）
 Web UI は `dg serve` が配信し、VS Code 拡張は同じ React アプリを Webview に載せる。表示と操作は両方で同じ（[ADR-006](adr/ADR-006-ui-and-writes.md)）。
 
 - UI-1 プロジェクトの切り替え
-- UI-2 カンバン：選んだ Iteration のチケット（既定は active。「Iteration なし」も選べる）を状態ごとに出す。Iteration の選択肢は planned と active だけで、Iteration がない Project では Iteration で絞らず全チケットを出す。列は todo / in_progress / review / done の 4 つ（表示名は Workflow の `labels`）で、done は既定で畳む。abandoned は done の右の最後の列（サイドバーでは最後の節）に畳んで出し、0 件なら出さない。チケットをドラッグ＆ドロップすると `ticket move` と同じ検査を通して Status が変わり、拒否されたら理由を出して戻す。Epic（選択肢は open だけ）と担当者（`assignee`）で絞り込める。入っている Iteration か Epic が closed の done・abandoned のチケットは（Iteration のない Project の全チケットの表示でも）出さない。ただし絞り込みで選んだ Epic のチケットは出す
-- UI-3 バックログ：done と abandoned 以外のチケットを Iteration ごとの区画（active → planned → Iteration なし）に分け、区画の中は優先度と番号で出す。区画の見出しから詳細を開き、カンバンと同じ開始・閉じる、「Iteration なし」から作成ができる。番号・タイトル・ラベルで検索、Status・優先度・ラベル・担当者で絞り込み（すべての区画に効く）、Epic は UI-10 の欄で絞る。チケットを別の区画にドラッグすると `ticket update` と同じ検査で Iteration が変わり、拒否されたら理由を出して戻す。planned・active の Iteration がない Project では 1 つの表で出す
-- UI-4 チケット詳細：本文（概要・受け入れ条件）、属性、Epic、依存先と依存元、起票者と担当者、作業ブランチ、Run の一覧と、経過（CL-7 の `history` の項目を時刻の順に。履歴が浅く欠けていればそう出す）。属性（担当者を含む）と本文を編集できる
-- UI-5 Iteration：一覧の画面は持たない。planned と active はカンバンの絞り込み（UI-2）で選び、見出しから開始・終了し、絞り込みの欄から作成する。詳細の画面でチケットの追加・除外。終わったものは履歴の画面で、「Iteration / Epic / チケット」の見方を切り替えて見る（見方はハッシュに残り、検索は共通）。Iteration の見方は closed の Iteration を閉じた新しい順に、完了と持ち越しの件数・含む Epic とともに出し、行を開くと中の終わったチケットを出す。Epic の見方は closed の Epic を閉じた新しい順に、進捗・閉じた日・入っていた Iteration とともに出す。チケットの見方は done・abandoned のチケットを終えた新しい順に出し、結果・Epic で絞れる。終えた日は `history` から求め、分からないものは `updated_at` で並べてそう出す。番号から詳細を開く
-- UI-6 未 push のコミットと、取り込んでいないリモートの更新があることを印で知らせる。同期のボタンで `dg sync` と同じ同期を行い、画面を読み直す。リモートがなくてもボタンは押せ、照合と読み直しだけを行う（UI-12 のサイドバーと同じ）
+- UI-2 カンバン：選んだ Iteration（既定は active）のチケットを Status ごとの列に出す（表示名は Workflow の `labels`）。ドラッグ＆ドロップで Status を変え、`ticket move` と同じ検査で拒否されたら理由を出して戻す。Epic と担当者で絞れる。閉じた Iteration・Epic の終わったチケットは出さない
+- UI-3 バックログ：done・abandoned 以外のチケットを Iteration ごとの区画に分けて出し、検索と絞り込みができる。別の区画へのドラッグで Iteration を変え、`ticket update` と同じ検査で拒否されたら理由を出して戻す
+- UI-4 チケット詳細：本文（概要・受け入れ条件）、属性、Epic、依存先と依存元、起票者と担当者、作業ブランチ、Run の一覧、経過（CL-7）。属性と本文を編集できる
+- UI-5 Iteration：作成・開始・閉じる、詳細の画面でチケットの追加・除外ができる。閉じた Iteration・Epic と終わったチケットは履歴の画面で見る（終えた日は CL-7 から求める）
+- UI-6 未 push のコミットと、取り込んでいないリモートの更新があることを印で知らせる。同期のボタンで `dg sync` と同じ同期を行い、画面を読み直す。リモートがなければ照合と読み直しだけを行う
 - UI-7 画面からの書き込みは Core の同じコマンドを通り、`commit.mode` に従ってコミットする
 - UI-8 `dg serve` は既定で `127.0.0.1` にバインドする。認証は持たない
 - UI-9 実行中・完了の Run と MT-3 の単位別集計
-- UI-10 Epic：タブは持たない。open の Epic はバックログの欄に番号・タイトル・進捗（EP-3）と「Epic なし」の件数を出し、押すとバックログをその Epic のチケットに絞る（もう一度押すと解除）。作成は欄から行う。closed の Epic は履歴で見る。詳細の画面（欄の番号・チケット詳細から開く）で Epic のチケットを Status ごとに出し、チケットの追加・除外、閉じる・再開
+- UI-10 Epic：open の Epic の進捗（EP-3）を出し、Epic でチケットを絞れる。詳細の画面で Epic のチケットを Status ごとに出し、チケットの追加・除外、閉じる・再開ができる
 - UI-11 VS Code 拡張は `dg` を同梱せず、Webview のために `core` を同梱する。画面は `dg` なしで動き、`dg` が PATH にないときはインストールを案内する。`dg` の版と拡張の `core` の版のメジャーが違えば知らせる（[ADR-006](adr/ADR-006-ui-and-writes.md)）
-- UI-12 VS Code 拡張は Activity Bar のアイコンからサイドバーのビューに画面を出す。サイドバーでチケット・Iteration・Epic を押すと、詳細はエディタ領域のパネル（フォルダごとに 1 枚を使い回す）に開く。サイドバーでは画面を上部のタブ（カンバン・バックログ・履歴・Run）で切り替え、カンバンは列を縦に積んで折りたため、バックログの Epic の欄も折りたためる。チケットは 1 行で出す。ビューのタイトル行に同期のボタン（UI-6）と未 push・未取り込みの件数のバッジを置き、サイドバーの中には同期の印を出さない。データ worktree と実行中の Run の記録（`deguboard-local/runs/`）の変化を見張り、CLI やエージェントの書き込み（Run の開始・終了を含む）を自動で画面に映す。コマンド「画面を開く」でエディタ領域にも出せる（[ADR-006](adr/ADR-006-ui-and-writes.md)）
+- UI-12 VS Code 拡張はサイドバーのビューに同じ画面を出し、詳細はエディタ領域のパネルに開く。ビューのタイトル行に同期のボタン（UI-6）と未 push・未取り込みの件数を出す。データ worktree と実行中の Run の記録の変化を見張り、CLI やエージェントの書き込みを自動で画面に映す（[ADR-006](adr/ADR-006-ui-and-writes.md)）
 - UI-13 実行計画：カンバン（UI-2）の上に、選んだ Iteration のチケットを含む Plan の進捗と `after` の待ちの依存グラフを出す。表示だけで書き込まない
 
 画面の並び順・色・文言は web のコード（`packages/web/src/`）とテストが正本。
