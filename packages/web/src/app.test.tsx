@@ -60,6 +60,30 @@ function mount(client = mockClient(), host?: Host) {
   return client;
 }
 
+/** readRunning の左パネルを、拡張ホストからの event を送れる形で描く。返す関数で event の送り口を取る */
+function mountSidebarWithBridge(client: ReturnType<typeof mockClient>) {
+  let send: ((event: WebviewEvent) => void) | undefined;
+  const bridge: WebviewClient = {
+    run: (name, input) => client.run(name, input),
+    status: () => client.status(),
+    open: async () => {},
+    show: async () => {},
+    onEvent: (listener) => {
+      send = listener;
+      return () => (send = undefined);
+    },
+  };
+  render(
+    <StoreProvider client={client} readRunning>
+      <HostProvider host={webviewHost("sidebar")}>
+        <HostBridge client={bridge} />
+        <App />
+      </HostProvider>
+    </StoreProvider>,
+  );
+  return () => send!;
+}
+
 describe("画面", () => {
   it("カンバンは Workflow の表示名の 4 列で、チケットを Status の列に出す。Iteration がなければ Iteration で絞らず、中止は 0 件なら出さない", async () => {
     mount();
@@ -670,11 +694,79 @@ describe("画面", () => {
 
   it("広い画面のカンバンのカードには Run の印を出さない", async () => {
     const client = mockClient();
-    client.handlers["run.list"] = () => [runningRun("t2")];
-    mount(client);
+    let answered = false;
+    client.handlers["run.list"] = () => {
+      answered = true;
+      return [runningRun("t2")];
+    };
+    // readRunning で実行中の Run を読ませ、読んだうえで広い画面（ブラウザの host）のカードには出さないことを見る
+    render(
+      <StoreProvider client={client} readRunning>
+        <HostProvider host={{ ...webviewHost("panel"), surface: "browser" }}>
+          <App />
+        </HostProvider>
+      </StoreProvider>,
+    );
     await screen.findByText("API");
+    await waitFor(() => expect(answered).toBe(true));
+    expect(client.calls.find((c) => c.name === "run.list")!.input).toEqual({
+      project: "default",
+      running: true,
+    });
+    // run.list の応答を store に入れ終えるまで待つ
+    await act(async () => {});
+    expect(document.querySelector(".cards")).toBeTruthy();
     expect(document.querySelector(".activity-mark")).toBeNull();
     expect(screen.queryByText("実行中")).toBeNull();
+  });
+
+  it("実行中の Run の読み直しが重なり、後から古い結果が返っても、新しい結果のリングを残す", async () => {
+    const client = mockClient();
+    /** run.list（running）の応答を、呼ばれた順に後から返す */
+    const pending: ((runs: RunView[]) => void)[] = [];
+    client.handlers["run.list"] = () => new Promise<RunView[]>((resolve) => pending.push(resolve));
+    const send = mountSidebarWithBridge(client);
+    await waitFor(() => expect(pending.length).toBe(1));
+    act(() => pending[0]!([runningRun("t3")]));
+    const rowOf = (title: string) => screen.getByText(title).closest(".ticket-row")!;
+    await waitFor(() => expect(rowOf("画面").querySelector(".activity-running")).toBeTruthy());
+
+    // 読み直しを 2 回起こす。1 回目（古い）は t3、2 回目（新しい）は t2 が実行中と返す
+    act(() => send()({ kind: "event", name: "reload" }));
+    act(() => send()({ kind: "event", name: "reload" }));
+    await waitFor(() => expect(pending.length).toBe(3));
+    await act(async () => pending[2]!([runningRun("t2")]));
+    await waitFor(() => expect(rowOf("API").querySelector(".activity-running")).toBeTruthy());
+    expect(rowOf("画面").querySelector(".activity-mark")).toBeNull();
+    // 古い 1 回目が後から返っても、新しい結果を上書きしない
+    await act(async () => pending[1]!([runningRun("t3")]));
+    expect(rowOf("API").querySelector(".activity-running")).toBeTruthy();
+    expect(rowOf("画面").querySelector(".activity-mark")).toBeNull();
+  });
+
+  it("実行中の Run が読み直しで読めなくても、前のリングを残し、エラーの通知を出さない", async () => {
+    const client = mockClient();
+    let fail = false;
+    client.handlers["run.list"] = () => {
+      if (fail) throw new Error("runs を読めない");
+      return [runningRun("t3")];
+    };
+    const send = mountSidebarWithBridge(client);
+    const rowOf = (title: string) => screen.getByText(title).closest(".ticket-row")!;
+    await waitFor(() => expect(rowOf("画面").querySelector(".activity-running")).toBeTruthy());
+    const before = client.calls.filter((c) => c.name === "run.list").length;
+
+    fail = true;
+    act(() => send()({ kind: "event", name: "reload" }));
+    await waitFor(() =>
+      expect(client.calls.filter((c) => c.name === "run.list").length).toBe(before + 1),
+    );
+    // 失敗した run.list の後始末を待つ
+    await act(async () => {});
+    expect(rowOf("画面").querySelector(".activity-running")).toBeTruthy();
+    expect(rowOf("画面").querySelector(".row-end-sub")!.textContent).toBe("実行中");
+    expect(document.querySelector(".notice")).toBeNull();
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 
   it("サイドバーでは同期の印とボタンを出さない（ビューのタイトル行とバッジで代える）", async () => {

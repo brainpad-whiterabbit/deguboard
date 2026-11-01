@@ -138,6 +138,38 @@ describe("実行計画の帯", () => {
     expect(p2.querySelector(".plan-chip")).toBeNull();
   });
 
+  it("依存グラフのノードは、done のチケットにだけ status-done のクラスを付ける（番号の取り消し線）", async () => {
+    mount(withPlans());
+    fireEvent.click(await screen.findByRole("button", { name: "実行計画 1" }));
+    // p2 の t1（done）・t3（todo）と、閉じた p1 の t2（in_progress）
+    const nodes = [...document.querySelectorAll<HTMLAnchorElement>("a.plan-node")];
+    expect(nodes.map((a) => [a.getAttribute("href"), a.classList.contains("status-done")])).toEqual(
+      [
+        ["#/tickets/t1", true],
+        ["#/tickets/t3", false],
+        ["#/tickets/t2", false],
+      ],
+    );
+  });
+
+  it("サイドバーのチップは、done のチケットにだけ status-done のクラスを付ける（番号の取り消し線）", async () => {
+    const client = mockClient();
+    // t1 は done、t2 は in_progress、t3 は todo。待ちの辺がないのでチップで出す
+    client.data.plans = [plan({ id: "p3", tickets: ["t1", "t2", "t3"] })];
+    const host = browserHost("sidebar");
+    host.state.set("board.plansExpanded", true);
+    mount(client, host);
+    await screen.findByRole("button", { name: "実行計画 1" });
+    const chips = [...document.querySelectorAll<HTMLAnchorElement>("a.plan-chip")];
+    expect(chips.map((a) => [a.getAttribute("href"), a.classList.contains("status-done")])).toEqual(
+      [
+        ["#/tickets/t1", true],
+        ["#/tickets/t2", false],
+        ["#/tickets/t3", false],
+      ],
+    );
+  });
+
   it("ブラウザでは待ちの辺のない Plan もグラフで出す", async () => {
     const client = mockClient();
     client.data.plans = [plan({ id: "p3", tickets: ["t2", "t3"] })];
