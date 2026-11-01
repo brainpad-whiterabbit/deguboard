@@ -23,3 +23,19 @@ fields:
   - id: estimate
     type: number
     label: Estimate
+steps:
+  - id: investigate
+    label: Investigate
+  - id: implement
+    label: Implement
+    actions: [create_worktree, create_branch, run_tests, create_pr]
+  - id: review
+    label: Review
+    actions: [run_tests]
+  - id: fix
+    label: Fix
+    actions: [run_tests]
+  - id: merge
+    label: Merge
+    actions: [merge_pr]
+    approval: true
