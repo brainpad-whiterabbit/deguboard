@@ -22,6 +22,8 @@ export interface AppOptions {
   commands?: readonly AnyCommand[] | undefined;
   /** 主体のユーザ名。省略時は git の user.name */
   user?: string | undefined;
+  /** マージドライバとして登録する、dg を呼ぶ argv の前置（dg serve が渡す） */
+  mergeDriver?: readonly string[] | undefined;
 }
 
 export interface CommandDescriptor {
@@ -61,6 +63,7 @@ export function createApp(options: AppOptions): Handler {
     cwd: options.cwd,
     user: options.user,
     commands: options.commands,
+    mergeDriver: options.mergeDriver,
   });
   const descriptors = describeCommands(client.commands);
 

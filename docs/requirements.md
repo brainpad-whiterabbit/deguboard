@@ -56,6 +56,7 @@ deguboard は、Git で管理するチケットとユーザー定義のワーク
 
 ```
 config.yaml
+.gitattributes              # マージドライバを当てるパス（SY-4）
 projects/<slug>.yaml
 tickets/t12.md              # 1 チケット 1 ファイル。ファイル名は ID そのまま
 tickets/deleted/t9.md       # 墓標。番号を再利用しない
@@ -250,7 +251,7 @@ fields:
 - SY-1 `dg init` は deguboard ブランチを作るか取り込み、専用 worktree を用意し、`default` プロジェクトとテンプレートのワークフローを置く
 - SY-2 書き込みの単位は「取り込み → 変更 → 検証 → コミット →（`push.mode: auto` か即時の操作なら）push」。push が拒否されたら取り込み直して再送する。送れなければコミットを残し、次の同期で再送する
 - SY-3 claim と作成は push の成功をもって取得とする。拒否されたらローカルのコミットを捨てて取り込み直し、判定し直す
-- SY-4 同期で競合したら、rebase を中止してローカルのコミットを残し、`dg sync` が競合を報告する。frontmatter のフィールド単位のマージドライバは予定（`e2`）
+- SY-4 同期は rebase で取り込み、チケットと Epic の frontmatter はマージドライバがフィールド単位で 3-way マージする（片側だけ変えたフィールドはその値、`updated_at` は新しい方）。`dg init` と `dg sync` がドライバを git config と deguboard ブランチの `.gitattributes` に登録する。同じフィールドを両側が違う値に変えたときと本文の同じ行の競合は、rebase を中止してローカルのコミットを残し、`dg sync` が競合を報告する
 - SY-5 同一マシンの書き込みは `deguboard-local/locks/` のロックで直列にし、Run の二重起動（予定 `e3`）も同じ場所のロックで防ぐ。チーム間の排他には使わない
 - SY-6 リモートがなくても、同期を除くすべての操作が動く
 

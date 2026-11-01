@@ -21,6 +21,8 @@ export interface ContextOptions {
   hooks?: CommandContext["hooks"];
   /** init のとき：worktree がなければ作る。リモート名は config より先に要るので受け取る */
   initialize?: { remote?: string | undefined } | undefined;
+  /** マージドライバとして登録する、dg を呼ぶ argv の前置。入口（CLI）が自分の呼び方を渡す */
+  mergeDriver?: readonly string[] | undefined;
 }
 
 export async function openContext(opts: ContextOptions): Promise<CommandContext> {
@@ -54,5 +56,6 @@ export async function openContext(opts: ContextOptions): Promise<CommandContext>
     now: opts.now ?? (() => new Date()),
     hooks: opts.hooks,
     worktree,
+    mergeDriver: opts.mergeDriver,
   };
 }

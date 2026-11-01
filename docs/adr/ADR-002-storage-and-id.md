@@ -1,7 +1,7 @@
 # ADR-002 チケットの保存と ID
 
 - ステータス：承認
-- 更新日：2026-10-31
+- 更新日：2026-11-01
 
 ## 背景
 
@@ -43,6 +43,15 @@
 - 作業ブランチ名と PR は claim（push 成功が条件。[ADR-004](ADR-004-agents-and-state.md)）の後に作るので、仮番号がブランチ名に入ることはない
 - `dg ticket import` の複数件も同じ 1 単位で採番する
 
+### 同期の競合：frontmatter をフィールド単位でマージする
+
+- 取り込みは rebase で行い、`tickets/*.md`・`tickets/deleted/*.md`・`epics/*.md` に git のマージドライバ `deguboard` を当てる。ドライバの実体は `dg` の隠しコマンド `merge-driver`（ロジックは core の `git/merge.ts`）
+- フィールドごとに 3-way で決める。片側だけ変えた値を採り、両側が同じ値なら採る。`updated_at` は両側が変えても新しい方を採る。両側が違う値に変えたフィールドは競合。配列（`labels`・`depends_on`）は 1 つの値として比べる
+- 本文は片側だけ変えたらその本文、両側が変えたら行単位でマージし、同じ行がぶつかれば競合。frontmatter が読めないときと base がないとき（仮番号の add/add）は行単位のマージに任せ、振り直し（DT-5）の検出を変えない
+- 競合ならドライバが非 0 で終わり、従来どおり rebase を中止してローカルのコミットを残し、`dg sync` が報告する
+- 登録：`dg init` と `dg sync`（取り込みの前）が、git config の `merge.deguboard.driver` に「いま動いている node の絶対パス＋この `dg` の `bin/dg.js` の絶対パス＋`merge-driver %O %A %B %P`」を書き、deguboard ブランチに `.gitattributes` をコミットする。`.gitattributes` がまだリモートにない間も効くよう、rebase には `deguboard-local/attributes` を `core.attributesFile` で渡す
+- VS Code 拡張は自分の `dg` を持たないので登録せず、CLI（`dg serve` を含む）が登録した config をそのまま使う。ドライバが動かなければ（パスが消えたなど）競合として報告され、次の CLI の `dg sync` で登録し直す
+
 ### 複数 Project
 
 - 1 リポジトリに複数の Project を置ける。Project は `projects/<slug>.yaml`（名前・説明・既定の Workflow・状態）
@@ -63,6 +72,9 @@
 - 番号を全体で一意にすれば、プロジェクトごとにディレクトリを分ける必要がなく、プロジェクト間の移動がファイルの改名にならない
 - 墓標を残せば、削除後に同じ番号が再利用されて古い参照が別のチケットを指すことがない
 
+- フィールド単位でマージすれば、同じチケットの別々の属性を 2 人（やエージェント）が変えても止まらない。行単位では `updated_at` の行が毎回ぶつかり、ほぼすべての同時更新が競合になる
+- ドライバを PATH の `dg` で登録しないのは、`npx`・`mise run`・`node_modules/.bin` 経由で動かす環境では PATH に `dg` がないから。絶対パスは古くなりうるが、init と sync のたびに書き直すので直る
+
 ## 採らなかった案
 
 - **作業ツリー直下の `.deguboard/`**：worktree ごとに乖離する。上記
@@ -72,3 +84,6 @@
 - **プロジェクトごとのディレクトリと独自採番**：`webapp-12` のような複合 ID が要り、依存の参照が長くなる
 - **ファイル名を 4〜6 桁でゼロ埋めする**：辞書順が番号順になるが、桁数の上限が要り、超えた瞬間に並びが崩れる。ID とファイル名も食い違う
 - **SQLite などの DB**：Git で diff・マージ・履歴を扱えなくなる
+- **`merge=union` や行単位のマージのまま**：union は同じフィールドの行を 2 本残して YAML を壊す。行単位は上記のとおり `updated_at` で毎回止まる
+- **ドライバを `dg merge-driver` と PATH で登録する**：PATH に `dg` がない環境で動かない
+- **`.gitattributes` を `<git-common-dir>/info/attributes` に置く**：作業ブランチの worktree にも効いてしまう
