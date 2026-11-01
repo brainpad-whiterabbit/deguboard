@@ -62,13 +62,22 @@ dg metrics show --iteration s1 --by ticket    # 絞り込み（--ticket・--epic
 
 ### MCP で使う
 
-`dg mcp` は stdio の MCP サーバーで、`dg` のコマンドを `ticket_create` のような名前のツールとして出す。主体は常に `<ユーザ>/agent`。Claude Code では、管理したいリポジトリの `.mcp.json` に登録する（`dg` が PATH にある前提。ないなら `"command": "npx", "args": ["-y", "deguboard", "mcp"]`）。
+`dg mcp` は stdio の MCP サーバーで、`dg` のコマンドを `ticket_create` のような名前のツールとして出す。主体は常に `<ユーザ>/agent`。Bash のない Claude Desktop などから、会話でチケットを起票・閲覧し、状態を進めるための入口。
+
+Claude Desktop では `claude_desktop_config.json` に登録する。Desktop はリポジトリの外で、シェルの PATH を引き継がずに起動する。`-C` で対象のリポジトリを指し、`command` は node の絶対パスにして、`dg` の実体（`bin/dg.js`）を引数に渡す。mise の shim はプロジェクトの外では node の版を決められず、`dg` も `#!/usr/bin/env node` なので、どちらも PATH 頼みでは動かない。node のパスはリポジトリで `mise which node`（か `which node`）で、`dg.js` は `realpath "$(which dg)"` で調べる。
 
 ```json
-{ "mcpServers": { "deguboard": { "command": "dg", "args": ["mcp"] } } }
+{
+  "mcpServers": {
+    "deguboard": {
+      "command": "/path/to/node",
+      "args": ["/path/to/deguboard/packages/cli/bin/dg.js", "-C", "/path/to/repo", "mcp"]
+    }
+  }
+}
 ```
 
-ツールのスキーマは会話の文脈を使うので、Bash で `dg … --json` を呼べるなら登録しなくてよい。
+Claude Code では Bash で `dg … --json` を呼べ、Skill と `dg guide` もそれを前提にするので、登録しなくてよい（ツールのスキーマは会話の文脈を使う）。
 
 チケットの流れ（起票 → claim → 作業 → PR → 照合で done）とコマンドの一覧は `dg --help` と `dg guide work`、仕様は[要件定義書](docs/requirements.md)。
 

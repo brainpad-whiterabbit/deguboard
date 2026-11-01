@@ -37,7 +37,7 @@ export interface McpOptions {
 const INSTRUCTIONS = [
   "deguboard（Git-native なチケット管理）の操作。ツールは dg の CLI と 1 対 1 で、名前は `ticket.create` の `.` を `_` にしたもの。",
   "書き込みは <ユーザ>/agent の主体として記録される。結果は dg --json と同じ { ok, data, warnings, write } か { ok: false, error }。",
-  "作業の手順（claim から PR まで）は `dg guide work` を Bash で読む。",
+  "作業の手順（claim から PR まで）は、Bash が使えるなら `dg guide work` で読む。使えないなら起票・閲覧・状態の更新に留め、ブランチ・コミット・PR は人に任せる。",
 ].join("\n");
 
 /** MCP のツール名。Claude などの API はツール名に `.` を許さないので `_` にする */
