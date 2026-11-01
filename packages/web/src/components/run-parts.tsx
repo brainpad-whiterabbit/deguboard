@@ -54,16 +54,6 @@ export function formatDuration(seconds: number | null, estimated = false): strin
   return `${estimated ? "~" : ""}${text}`;
 }
 
-/**
- * 1 つの Run の実行時間（秒）。終わっていないか日時が前後していれば null。
- * core の runDurationSeconds（model/metrics.ts）の写し（web は core の実行時のコードを取り込まないため）。集計と同じ値になるよう揃えて直す
- */
-export function runSeconds(run: RunView): number | null {
-  if (run.finished_at === null) return null;
-  const ms = Date.parse(run.finished_at) - Date.parse(run.started_at);
-  return Number.isFinite(ms) && ms >= 0 ? ms / 1000 : null;
-}
-
 /** 狭い配置（サイドバー・詳細のパネル）で横にスクロールする表の枠 */
 export function RunsScroll({ children }: { children: ReactNode }) {
   return <div className="runs-scroll">{children}</div>;

@@ -22,6 +22,7 @@ function run(partial: Partial<RunView> & { id: string }): RunView {
     retries: 0,
     usage: { input: 12345, output: 678, cache_read: null, cache_write: null },
     running: false,
+    duration_seconds: 1800,
     ...partial,
   } as RunView;
 }

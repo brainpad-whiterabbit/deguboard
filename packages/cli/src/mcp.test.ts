@@ -244,7 +244,27 @@ describe("dg mcp", () => {
     );
     const [listed, finished, all] = second.results.map(body);
     expect(listed.data.map((r: { id: string }) => r.id)).toEqual([started.data.id]);
+    expect(listed.data[0].duration_seconds).toBeNull();
     expect(finished).toMatchObject({ ok: true, data: { result: "success" } });
     expect(all.data).toMatchObject([{ id: started.data.id, running: false }]);
+    expect(typeof all.data[0].duration_seconds).toBe("number");
+
+    // Project の絞り込みは CLI と MCP で同じ結果を返す
+    const cli = async (argv: string[]) => {
+      const out: string[] = [];
+      await run(["-C", f.cloneA, "--json", ...argv], {
+        streams: { out: (t) => out.push(t), err: () => {} },
+      });
+      return JSON.parse(out.join(""));
+    };
+    expect((await cli(["run", "list", "--project", "default"])).data).toEqual(all.data);
+    expect((await cli(["run", "list", "--project", "other"])).data).toEqual([]);
+    const third = await session(
+      ["-C", f.cloneA],
+      [call("run_list", { project: "default" }), call("run_list", { project: "other" })],
+    );
+    const [mine, others] = third.results.map(body);
+    expect(mine.data).toEqual(all.data);
+    expect(others.data).toEqual([]);
   });
 });
