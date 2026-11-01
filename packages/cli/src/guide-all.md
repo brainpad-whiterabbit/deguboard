@@ -67,7 +67,7 @@ Iteration かチケットを、割り当てからリリースまでの段階で�
   - チケットの削除・abandoned、Epic・Iteration・Plan を閉じる・再開する
   - Plan の待ち（`after`）と範囲を変えること、`--force` の付く操作
   - 勧めるものがない判断と、選択肢にできない答え（修正の中身）
-- 失敗したチケット（検査が通らない、範囲がはっきりしない）は、閉じられていない Run を `dg guide work` の「途中でやめる・中断した」で `interrupted` か `failure` で閉じ、`ticket unclaim` で todo に戻し、worktree は調べられるように残して、それを待たないチケットを進める。同じ流れの中で claim し直さない
+- 失敗したチケット（検査が通らない、範囲がはっきりしない）は、Run を閉じてから `ticket unclaim` で todo に戻し、worktree は調べられるように残して、それを待たないチケットを進める。同じ流れの中で claim し直さない。Run は、サブエージェントが返した Run の ID を `run list --running --ticket <id>` で確かめ、まだ実行中なら親が閉じる。サブエージェントが失敗として返したなら `failure`、止まって返らなかった・閉じ損ねたなら `interrupted`（`dg guide work` の「閉じ損ねた Run を閉じる」）。ID が返っていなければ、同じ一覧から `ticket`・`step`・`agent` がそのサブエージェントの作業のものを探す
 - 自動にするのは戻せる判断と、チームが `auto.merge` で明示したマージだけ。戻しにくい操作の前には人の判断を残す
 
 ### マージの前の条件
