@@ -1,13 +1,14 @@
 // テスト用の CommandClient。コマンド名ごとの応答を持ち、呼ばれた記録を残す
 
 import type { CommandClient, CommandResult, StatusView } from "@deguboard/core";
-import type { EpicRow, Iteration, Project, Ticket, WorkflowView } from "./types.js";
+import type { EpicRow, Iteration, PlanRow, Project, Ticket, WorkflowView } from "./types.js";
 
 export interface Fixture {
   projects: Project[];
   tickets: Ticket[];
   epics: EpicRow[];
   iterations: Iteration[];
+  plans: PlanRow[];
   workflow: WorkflowView;
   status: StatusView;
 }
@@ -28,6 +29,22 @@ export function ticket(partial: Partial<Ticket> & { id: string }): Ticket {
 
 export function iteration(partial: Partial<Iteration> & { id: string; name: string }): Iteration {
   return { project: "default", goal: "", status: "planned", ...partial };
+}
+
+export function plan(partial: Partial<PlanRow> & { id: string; tickets: string[] }): PlanRow {
+  return {
+    project: "default",
+    after: {},
+    pending_approval: false,
+    details: {},
+    status: partial.pending_approval ? "pending" : "approved",
+    progress: {
+      total: 0,
+      done: 0,
+      by_status: { todo: 0, in_progress: 0, review: 0, done: 0, abandoned: 0 },
+    },
+    ...partial,
+  };
 }
 
 export function fixture(partial: Partial<Fixture> = {}): Fixture {
@@ -63,6 +80,7 @@ export function fixture(partial: Partial<Fixture> = {}): Fixture {
       },
     ],
     iterations: [],
+    plans: [],
     workflow: {
       definition: {
         id: "software-development",
@@ -100,6 +118,7 @@ export function mockClient(data = fixture()): MockClient {
     "ticket.list": () => data.tickets,
     "epic.list": () => data.epics,
     "iteration.list": () => data.iterations,
+    "plan.list": () => data.plans,
     "workflow.show": () => data.workflow,
     history: () => ({ events: [], shallow: false, incomplete: [] }),
     "run.list": () => [],

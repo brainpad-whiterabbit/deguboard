@@ -619,6 +619,157 @@ button.link:hover {
 .board-filters .count {
   margin-left: auto;
 }
+
+/* 実行計画の帯（カンバンの上）。Plan の色は青・紫・緑・シアン・マゼンタを番号で回す（黄・赤・橙は警告と紛れるので使わない） */
+.plan-color-0 {
+  --dg-plan: var(--vscode-charts-blue, #3794ff);
+}
+.plan-color-1 {
+  --dg-plan: var(--vscode-charts-purple, #b180d7);
+}
+.plan-color-2 {
+  --dg-plan: var(--vscode-charts-green, #89d185);
+}
+.plan-color-3 {
+  --dg-plan: var(--vscode-terminal-ansiCyan, #11a8cd);
+}
+.plan-color-4 {
+  --dg-plan: var(--vscode-terminal-ansiMagenta, #bc3fbc);
+}
+.plan-band {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0 0 0.6rem;
+}
+.plan-band-toggle {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  padding: 2px 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+/* 開閉の印は .fold と同じ形 */
+.plan-band-toggle::before {
+  content: "";
+  width: 5px;
+  height: 5px;
+  margin: 0 0.2em 0 0.1em;
+  border: solid var(--vscode-descriptionForeground);
+  border-width: 0 1.5px 1.5px 0;
+  transform: rotate(-45deg);
+}
+.plan-band-toggle[aria-expanded="true"]::before {
+  transform: rotate(45deg);
+  margin-top: -3px;
+}
+.plan-line,
+.plan-card {
+  border-left: 3px solid var(--dg-plan);
+  padding: 2px 6px;
+}
+.plan-line,
+.plan-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.2rem 0.6rem;
+  line-height: 18px;
+}
+.plan-line code,
+.plan-card-head code {
+  font-weight: 600;
+}
+.plan-line .progress .bar {
+  width: 60px;
+}
+.plan-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding-bottom: 0.4rem;
+}
+/* 状態は灰色の文字で出し、目立たせない */
+.plan-state {
+  color: var(--vscode-descriptionForeground);
+}
+.plan-closed > summary {
+  color: var(--vscode-descriptionForeground);
+}
+.plan-tag {
+  border-left: 3px solid var(--dg-plan);
+  padding-left: 0.25em;
+}
+/* 依存グラフ：段を左から右に。狭いときは横に送る */
+.plan-graph {
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+.plan-graph-canvas {
+  position: relative;
+}
+.plan-graph-canvas svg {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+}
+.plan-graph-edge {
+  fill: none;
+  stroke: var(--vscode-descriptionForeground);
+  stroke-width: 1.2;
+}
+.plan-graph-edge-pending {
+  stroke-dasharray: 3 3;
+}
+.plan-graph-arrow {
+  fill: var(--vscode-descriptionForeground);
+}
+.plan-node {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 6px;
+  border: 1px solid color-mix(in srgb, var(--dg-status) 55%, transparent);
+  border-radius: 3px;
+  background: var(--vscode-editor-background);
+  color: inherit;
+}
+.plan-node:hover {
+  text-decoration: none;
+  background: var(--vscode-list-hoverBackground);
+}
+.plan-node code {
+  background: transparent;
+  padding: 0;
+}
+.plan-node-waiting {
+  border-style: dashed;
+}
+/* ホバー中は繋がるノードと辺だけを濃く出す */
+.plan-graph-tracing .plan-node:not(.related),
+.plan-graph-tracing .plan-graph-edge:not(.related) {
+  opacity: 0.35;
+}
+.plan-graph-edge.related {
+  stroke: var(--vscode-focusBorder);
+}
+.plan-graph-legend {
+  display: flex;
+  gap: 0.8rem;
+  margin-top: 0.3rem;
+  font-size: 0.85em;
+}
+.plan-graph-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3em;
+}
 .column h2 {
   flex: 1;
   display: flex;

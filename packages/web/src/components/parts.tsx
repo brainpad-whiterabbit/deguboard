@@ -34,7 +34,17 @@ export function TicketLink({
   id: string;
   title?: string | undefined;
   children?: ReactNode;
-} & Pick<ComponentProps<"a">, "onPointerDown" | "className" | "onClick">) {
+} & Pick<
+  ComponentProps<"a">,
+  | "onPointerDown"
+  | "className"
+  | "onClick"
+  | "style"
+  | "onMouseEnter"
+  | "onMouseLeave"
+  | "onFocus"
+  | "onBlur"
+>) {
   const host = useHost();
   return (
     <a

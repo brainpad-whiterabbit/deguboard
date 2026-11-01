@@ -1,4 +1,4 @@
-// 画面の状態。選んだ Project のチケット・Epic・Iteration・Workflow と同期の状態を CommandClient から読み、書き込みのあとに読み直す。
+// 画面の状態。選んだ Project のチケット・Epic・Iteration・Plan・Workflow と同期の状態を CommandClient から読み、書き込みのあとに読み直す。
 // 状態管理のライブラリは入れず、React の context だけで持つ
 
 import type { CommandClient, CommandFailure, StatusView } from "@deguboard/core";
@@ -13,7 +13,15 @@ import {
   type ReactNode,
 } from "react";
 import { failureOf } from "./client/http.js";
-import type { EpicRow, Iteration, Project, Status, Ticket, WorkflowView } from "./types.js";
+import type {
+  EpicRow,
+  Iteration,
+  PlanRow,
+  Project,
+  Status,
+  Ticket,
+  WorkflowView,
+} from "./types.js";
 
 export interface Notice {
   kind: "error" | "info";
@@ -32,6 +40,7 @@ export interface Store {
   tickets: Ticket[];
   epics: EpicRow[];
   iterations: Iteration[];
+  plans: PlanRow[];
   workflow: WorkflowView | null;
   status: StatusView | null;
   loading: boolean;
@@ -64,6 +73,7 @@ export function StoreProvider({
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [epics, setEpics] = useState<EpicRow[]>([]);
   const [iterations, setIterations] = useState<Iteration[]>([]);
+  const [plans, setPlans] = useState<PlanRow[]>([]);
   const [workflow, setWorkflow] = useState<WorkflowView | null>(null);
   const [status, setStatus] = useState<StatusView | null>(null);
   const [loading, setLoading] = useState(true);
@@ -98,20 +108,23 @@ export function StoreProvider({
         setTickets([]);
         setEpics([]);
         setIterations([]);
+        setPlans([]);
         setWorkflow(null);
         return;
       }
       setProjectId(current.id);
       const project = current.id;
-      const [t, e, i, w] = await Promise.all([
+      const [t, e, i, p, w] = await Promise.all([
         client.run<Ticket[]>("ticket.list", { project, include_abandoned: true }),
         client.run<EpicRow[]>("epic.list", { project }),
         client.run<Iteration[]>("iteration.list", { project }),
+        client.run<PlanRow[]>("plan.list", { project }),
         client.run<WorkflowView>("workflow.show", { workflow: current.workflow }),
       ]);
       setTickets(t.data);
       setEpics(e.data);
       setIterations(i.data);
+      setPlans(p.data);
       setWorkflow(w.data);
       void refreshStatus();
     } catch (error) {
@@ -165,6 +178,7 @@ export function StoreProvider({
       tickets,
       epics,
       iterations,
+      plans,
       workflow,
       status,
       loading,
@@ -183,6 +197,7 @@ export function StoreProvider({
       tickets,
       epics,
       iterations,
+      plans,
       workflow,
       status,
       loading,
