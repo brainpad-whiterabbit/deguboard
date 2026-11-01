@@ -8,6 +8,7 @@
 //   nullable                    none で外す（--epic none）
 //   record（fields）            --field key=value の繰り返し。true / false / 数値は変換する
 //   array of object（drafts）   位置引数 <file>（YAML / JSON。- で標準入力）から読む（ticket import。program.ts）
+//   record（meta cliFile）      --<cliFile> <path> の YAML / JSON（- で標準入力）を読んだ値（workflow set の --file。program.ts）
 //   positionals                 CommandDef.positionals のキーは位置引数。最後が配列なら可変長
 
 import type { AnyCommand } from "@deguboard/core";
@@ -25,7 +26,16 @@ type Def = {
 export interface FieldShape {
   key: string;
   flag: string;
-  kind: "string" | "number" | "boolean" | "enum" | "array" | "record" | "unknown" | "objects";
+  kind:
+    | "string"
+    | "number"
+    | "boolean"
+    | "enum"
+    | "array"
+    | "record"
+    | "unknown"
+    | "objects"
+    | "file";
   /** 配列のときの要素の型 */
   element?: "string" | "number" | "enum";
   /** 配列の要素が自由文（zod の meta freeText）。カンマで割らない */
@@ -86,8 +96,12 @@ export function describeShape(key: string, schema: z.ZodType): FieldShape {
         ...(kind === "enum" ? { choices: Object.keys(edef.entries ?? {}) } : {}),
       };
     }
-    case "record":
+    case "record": {
+      // CLI ではファイルから読む値（zod の meta cliFile がオプションの名前）
+      const cliFile = inner.meta()?.["cliFile"];
+      if (typeof cliFile === "string") return { ...base, flag: cliFile, kind: "file" };
       return { ...base, kind: "record" };
+    }
     default:
       return { ...base, kind: "unknown" };
   }
@@ -215,6 +229,12 @@ export function bindInputs(cmd: Command, command: AnyCommand, shapes = shapesOf(
       }
       case "objects":
         // CLI では位置引数のファイルから読む（ticket import）。オプションにはしない
+        break;
+      case "file":
+        // 値はファイルのパス。読むのは program.ts
+        cmd.addOption(
+          new Option(`--${shape.flag} <path>`, `${desc}（YAML か JSON のファイル。- で標準入力）`),
+        );
         break;
       default: {
         const opt = new Option(`--${shape.flag} <value>`, desc);

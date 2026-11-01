@@ -138,6 +138,32 @@ describe("HTTP サーバー", () => {
     expect(review.body.data).toMatchObject({ filter: { step: "review" }, total: { runs: 1 } });
   });
 
+  it("workflow.set も HTTP に写り、定義そのものを受けて書き、誤りは 409 で何も書かない", async () => {
+    const f = await fixture();
+    await runCommand(init, await openContext({ cwd: f.cloneA, initialize: {} }), {});
+    const s = await serve(f.cloneA);
+    const rejected = await post(s, "workflow.set", {
+      workflow: "general",
+      definition: { id: "general", name: "G", transitions: [{ from: "todo", to: "todo" }] },
+    });
+    expect(rejected.status).toBe(409);
+    expect(rejected.body).toMatchObject({ ok: false, error: { code: "VALIDATION_FAILED" } });
+    expect(
+      (await post(s, "workflow.show", { workflow: "general" })).body.data.definition.name,
+    ).toBe("General");
+    const set = await post(s, "workflow.set", {
+      workflow: "general",
+      definition: { id: "general", name: "画面から" },
+    });
+    expect(set.status).toBe(200);
+    expect(set.body.data).toMatchObject({
+      before: { name: "General" },
+      after: { name: "画面から" },
+    });
+    const back = await post(s, "workflow.set", { workflow: "general", template: "general" });
+    expect(back.body.data.after.name).toBe("General");
+  });
+
   it("エラーは HTTP の状態に写る：入力の誤り 400、見つからない 404、拒否 409、未知のコマンド 404", async () => {
     const f = await fixture();
     await runCommand(init, await openContext({ cwd: f.cloneA, initialize: {} }), {});

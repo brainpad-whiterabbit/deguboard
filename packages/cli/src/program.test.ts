@@ -1,6 +1,7 @@
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { Readable } from "node:stream";
 import { afterEach, describe, expect, it } from "vitest";
 import { commands } from "@deguboard/core";
 import {
@@ -400,6 +401,72 @@ describe("dg", () => {
       await git(path.join(f.cloneA, ".git", "deguboard"), ["log", "-1", "--format=%s"])
     ).stdout.trim();
     expect(log).toBe("2 件のチケットを取り込み: t1, t2");
+  });
+
+  it("workflow set は --file の YAML を検証して書き、誤りは何も書かずに 1、--file と --template の両方か無指定は 2", async () => {
+    const f = await fixture();
+    await dg(f.cloneA, ["init"]);
+    const dataDir = path.join(f.cloneA, ".git", "deguboard");
+    const before = await readFile(path.join(dataDir, "workflows/general.yaml"), "utf8");
+    const bad = path.join(f.root, "bad.yaml");
+    await writeFile(bad, "id: general\nname: G\nreconcile:\n  - { when: [nope], status: done }\n");
+    const rejected = await dg(f.cloneA, ["--json", "workflow", "set", "general", "--file", bad]);
+    expect(rejected.code).toBe(1);
+    expect(rejected.json()).toMatchObject({ ok: false, error: { code: "VALIDATION_FAILED" } });
+    expect((rejected.json().error as { detail?: string }).detail).toContain("未知の条件 nope");
+    expect(await readFile(path.join(dataDir, "workflows/general.yaml"), "utf8")).toBe(before);
+
+    const good = path.join(f.root, "good.yaml");
+    await writeFile(good, "id: general\nname: Mine\nsteps:\n  - { id: implement }\n");
+    const set = await dg(f.cloneA, ["--json", "workflow", "set", "general", "--file", good]);
+    expect(set.code).toBe(0);
+    expect(set.json().data).toMatchObject({
+      created: false,
+      before: { name: "General" },
+      after: { name: "Mine", steps: [{ id: "implement" }] },
+    });
+    const shown = await dg(f.cloneA, ["--json", "workflow", "show", "general"]);
+    expect(shown.json().data.definition.name).toBe("Mine");
+
+    const back = await dg(f.cloneA, ["workflow", "set", "general", "--template", "general"]);
+    expect(back.code).toBe(0);
+    expect(back.out).toContain("after.name: General");
+
+    expect((await dg(f.cloneA, ["workflow", "set", "general"])).code).toBe(2);
+    expect(
+      (await dg(f.cloneA, ["workflow", "set", "general", "--file", good, "--template", "general"]))
+        .code,
+    ).toBe(2);
+    expect(
+      (await dg(f.cloneA, ["workflow", "set", "general", "--file", path.join(f.root, "none.yaml")]))
+        .code,
+    ).toBe(2);
+  });
+
+  it("workflow set の --file は JSON のファイルと、- で標準入力も読む", async () => {
+    const f = await fixture();
+    await dg(f.cloneA, ["init"]);
+    const json = path.join(f.root, "wf.json");
+    await writeFile(json, JSON.stringify({ id: "general", name: "JSON から" }));
+    const fromJson = await dg(f.cloneA, ["--json", "workflow", "set", "general", "--file", json]);
+    expect(fromJson.code).toBe(0);
+    expect(fromJson.json().data.after.name).toBe("JSON から");
+
+    const original = Object.getOwnPropertyDescriptor(process, "stdin")!;
+    Object.defineProperty(process, "stdin", {
+      value: Readable.from([Buffer.from("id: general\nname: 標準入力から\n")]),
+      configurable: true,
+    });
+    try {
+      const fromStdin = await dg(f.cloneA, ["--json", "workflow", "set", "general", "--file", "-"]);
+      expect(fromStdin.code).toBe(0);
+      expect(fromStdin.json().data).toMatchObject({
+        before: { name: "JSON から" },
+        after: { name: "標準入力から" },
+      });
+    } finally {
+      Object.defineProperty(process, "stdin", original);
+    }
   });
 
   it("validate と lint は指摘があると ok: false で終了コード 1 になる", async () => {

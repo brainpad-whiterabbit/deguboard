@@ -31,7 +31,7 @@ import type { ResolvedWorkflow } from "../workflow/resolve.js";
 import { validateWorkflow, type WorkflowValidationOptions } from "../workflow/validate.js";
 import { writeFileAtomic } from "./atomic.js";
 import { createDoc, readDoc, writeDoc, type Doc, type DocFormat } from "./documents.js";
-import type { Issue } from "./issue.js";
+import { formatIssue, type Issue } from "./issue.js";
 import {
   CONFIG_FILE,
   DIRS,
@@ -332,7 +332,10 @@ export class Store {
     return parsed.data;
   }
 
-  /** Workflow 定義を書く。検証に通らなければ書かない */
+  /**
+   * Workflow 定義を書く（なければ作り、あれば置き換える）。読み込み時と同じ検証（WF-3）に通らなければ書かない。
+   * そのファイルの前の指摘は捨て、残った警告（未知の Action など）を issues に入れる
+   */
   async writeWorkflow(
     definition: Record<string, unknown>,
     comment?: string,
@@ -349,7 +352,7 @@ export class Store {
         `Workflow ${String(definition["id"])} の定義に誤りがある`,
         result.issues
           .filter((i) => i.severity === "error")
-          .map((i) => i.message)
+          .map(formatIssue)
           .join("\n"),
       );
     }
@@ -358,6 +361,7 @@ export class Store {
     await writeFileAtomic(path.join(this.root, relPath), stringifyYaml(doc));
     const entry = { path: relPath, definition: result.definition, resolved: result.workflow };
     this.workflows.set(result.definition.id, entry);
+    this.issues = [...this.issues.filter((i) => i.path !== relPath), ...result.issues];
     return entry;
   }
 

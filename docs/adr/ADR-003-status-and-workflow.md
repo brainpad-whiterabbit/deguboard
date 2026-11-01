@@ -29,16 +29,16 @@ deguboard はソフトウェア開発だけでなく、コンサルティング�
 - 既定では 5 つの Status の間のどの遷移も、human / agent / reconcile の誰でも条件なしで行える。Core が固定するのは Status の集合と前進の順、同じ Status への move の拒否、`abandoned` と todo に入るときの副作用（`assignee` と `branch` を消す）だけ
 - Workflow の `transitions` は from → to ごとに制約を足す。`by` は行える主体（省略なら誰でも、`[]` ならその遷移を禁止）、`requires` は満たすべき組み込みの条件（AND）。書き方の例は requirements の 5.8
 - 照合（reconcile）は遷移の制約とは別の仕様。前進の順に進めるだけで、`abandoned` と `done` には触れず、そこからも動かさない。`by` に `reconcile` を含まない遷移は照合でも止まる
-- Epic と Iteration を閉じる・再開するのは Workflow の外で、既定では誰でも行える。人に限るなら config の `actor.human_only` にコマンド名を書く。Iteration の再開は active に戻す（planned と active のどちらから閉じたかは記録しない）。閉じたときに外した持ち越しのチケットは記録しないので戻さない（IT-1）
+- Epic と Iteration を閉じる・再開するのは Workflow の外で、既定では誰でも行える。人に限るなら config の `actor.human_only` にコマンド名を書く。再開の細部は IT-1
 
 ### Workflow YAML は制約と語彙を書く
 
-ワークフロー定義（`workflows/<id>.yaml`）に書くのは、Status の表示名（`labels`）・遷移の制約（`transitions`）・Git の事実から状態を導く規則（`reconcile`）・任意フィールド（`fields`）・Run の step の語彙（`steps`）だけ。形と検証は requirements の 5.8（WF-1〜WF-5）。
+ワークフロー定義（`workflows/<id>.yaml`）に書くのは、Status の表示名（`labels`）・遷移の制約（`transitions`）・Git の事実から状態を導く規則（`reconcile`）・任意フィールド（`fields`）・Run の step の語彙（`steps`）だけ。形と検証は requirements の 5.8（WF-1〜WF-6）。
 
 書かないもの：
 
 - 手続き（何をどの順で行うか、条件分岐、失敗時の処理）。手順は `dg guide <topic>` のテキストとして CLI に同梱し、AI が読んで判断する
-- ユーザーのスクリプト。条件は組み込みの事実とその否定だけ（WF-2）。`deps_done` は依存先がすべて done か abandoned のとき真
+- ユーザーのスクリプト。条件は組み込みの事実とその否定だけ（WF-2）
 
 ### steps は語彙で、手続きではない
 
@@ -48,7 +48,7 @@ deguboard はソフトウェア開発だけでなく、コンサルティング�
 
 ### テンプレート
 
-業務ごとのテンプレートを CLI に同梱し、`dg init` がすべて置く（WF-4）。違いは `reconcile`・`fields`・`labels`・`steps` で、Status は共通。
+業務ごとのテンプレートを CLI に同梱し、`dg init` がすべて置く（WF-4）。違いは `reconcile`・`fields`・`labels`・`steps` で、Status は共通。既にある Workflow の変更は `dg workflow set`（WF-6）で入れる。
 
 ### Epic は置き、Milestone は置かない
 
@@ -64,6 +64,7 @@ deguboard はソフトウェア開発だけでなく、コンサルティング�
 - Status と工程を独立した 2 軸にすると、遷移表が積になり、カンバンの列も決まらない。必要なのは「チケットの進捗」と「Run が何をしたか」の区別で、後者は Run の属性で足りる
 - 状態遷移・承認・排他・記録はプログラムで保証し、要件整理・分解・実装方針・レビュー判断は AI に任せる。Workflow YAML を「制約と語彙」に限れば、エンジンは制約の検査と照合だけで済む
 - 条件を組み込みの事実に限るのは、照合が全員のマシンで走るため
+- `workflow set` が書く前に検証するのは、誤った定義は索引から外れ、それを使うチケットの遷移と照合が止まるため
 - 語彙にない step を拒否するのは、書き換えない `runs/` の集計（ADR-005）に表記の揺れを残さないため。`steps` を省いた YAML は縛らない（DT-2）
 - 遷移を既定で自由にするのは、望ましい遷移が業務で違う（レビューを経ない作業、やり直し、やめる判断）ため。Core が表を持つと拒否の理由が業務の外から来て、緩める手段がない。縛りたいチームは `requires: [deps_done]` や `by: [human]` を 1 行書けば足り、エンジンは制約の検査と照合だけで済む
 - Epic と Iteration の操作も既定で自由にし、制限を config の `actor.human_only` に置くのは、チケットの遷移と同じく「誰に任せるか」がチームで違うため。Workflow はチケットの遷移の語彙なので、Workflow の外の操作はコマンド名で縛る

@@ -41,7 +41,7 @@ PR を人に出す前（`dg guide work`）と、自動でマージする前（`d
 | 修正ループの 1 回・人のレビューの手直し | `fix`       | 指摘を直し始めるとき | 直して push したとき                               |
 
 - **やり直しの理由**：手直しの Run（`fix`、または下の代わりの step で記録した手直し）は `run finish <Run の ID> --result success --retry-reason <直した指摘の要約>` で閉じる。書くのは直した指摘（見直し役・人のレビュー）だけで、指摘 1 件に 1 つ繰り返す。検査の失敗を直したことは書かない。回数は理由の数になる（`--retries` は省く）。要約は 1 行で、秘密・コマンドの文字列・パスは書かない。実装と見直しの Run には付けない
-- **合う step がない**：Workflow の `steps` に `fix` がなければ `review`、`review` もなければ実装の step で代わりに記録する（`review` がなければ見直し役も実装の step で記録する）。Workflow の `steps` に `fix`・`review` を足すよう人に伝える（`dg init` は既にある Workflow を書き換えない）
+- **合う step がない**：Workflow の `steps` に `fix` がなければ `review`、`review` もなければ実装の step で代わりに記録する（`review` がなければ見直し役も実装の step で記録する）。Workflow の `steps` に `fix`・`review` を足すよう人に伝える（`dg init` は既にある Workflow を書き換えない。足すのは `dg workflow set <id> --template <名前>` か `--file`）
 - **直せなかった**：手直しを途中でやめたら `--result failure --error <理由>` で閉じ、親に返す
 - **続けられない・返らない**：会話を続けられなければ、新しいサブエージェントが自分の `fix` の Run を始めて直す。返らないまま止まった Run は、`dg guide work` の「着手できるチケットを並べて進める」のとおり親が `interrupted` で閉じる
 
