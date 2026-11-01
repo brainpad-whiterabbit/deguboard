@@ -6,7 +6,7 @@ after:
     - t166
   t170:
     - t165
-pending_approval: true
+pending_approval: false
 details:
   t164:
     scope: README と vscode/README の使い始め・開発中の行・VSIX の手順・左パネルの説明。npm 公開はしない
@@ -23,3 +23,5 @@ details:
   t170:
     scope: web の ticketProgress・StatusBand・手書きの出力の型・外から使わない export
     approach: core から出力の型を export して web は import type、StatusBand は ProgressBar と共通の関数を使う。t165 のテストの後に触る
+approved_by: eiki.kitajima/agent
+approved_at: 2026-11-01T21:33:56Z
