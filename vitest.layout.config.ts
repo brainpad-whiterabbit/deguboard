@@ -1,6 +1,6 @@
 import { defineConfig } from "vitest/config";
 
-// 画面の配置の確認（test/layout）。Chromium が要るので mise run test とは別に mise run test:layout で回す
+// 画面の配置とドラッグの確認（test/layout）。Chromium が要るので mise run test とは別に mise run test:layout で回す
 export default defineConfig({
   resolve: { conditions: ["development"] },
   test: {

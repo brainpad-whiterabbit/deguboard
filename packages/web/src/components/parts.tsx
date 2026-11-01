@@ -1,6 +1,14 @@
-// 小さな表示部品：チケットへのリンク、優先度・Status の印、ラベル、進捗
+// 小さな表示部品：チケットへのリンク、優先度・Status の印、ラベル、進捗、ドラッグできるチケットの行
 
-import type { ComponentProps, ReactNode } from "react";
+import { useDraggable } from "@dnd-kit/core";
+import {
+  useEffect,
+  useRef,
+  type ComponentProps,
+  type CSSProperties,
+  type MouseEvent,
+  type ReactNode,
+} from "react";
 import { useHost } from "../host.js";
 import { hrefOf } from "../router.js";
 import { useStore } from "../store.js";
@@ -145,13 +153,77 @@ export function TicketRow({
   );
 }
 
-/** チケットの一覧。広い画面では表、サイドバーでは 1 行ずつの並び。行の先頭のリンクで詳細へ */
+/**
+ * チケットをドラッグできるようにする（@dnd-kit。id はチケットの ID）。動かした直後の click では詳細を開かない
+ * （捕捉の段階で preventDefault し、TicketLink と App の followHashLink はそれを見て何もしない）
+ */
+export function useDraggableTicket(id: string) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id });
+  const dragged = useRef(false);
+  useEffect(() => {
+    if (isDragging) dragged.current = true;
+  }, [isDragging]);
+  const style: CSSProperties | undefined = transform
+    ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` }
+    : undefined;
+  return {
+    ref: setNodeRef,
+    style,
+    isDragging,
+    props: {
+      ...listeners,
+      ...attributes,
+      onClickCapture: (e: MouseEvent) => {
+        if (!dragged.current) return;
+        dragged.current = false;
+        e.preventDefault();
+      },
+    },
+  };
+}
+
+/** 1 行のチケット（サイドバー）。行全体をつかんで動かす */
+export function DraggableRow({ ticket }: { ticket: Ticket }) {
+  const d = useDraggableTicket(ticket.id);
+  return (
+    <div
+      ref={d.ref}
+      style={d.style}
+      className={`row-drag${d.isDragging ? " dragging" : ""}`}
+      {...d.props}
+    >
+      <TicketRow ticket={ticket} />
+    </div>
+  );
+}
+
+/** 表の 1 行（広い画面）。行全体をつかんで動かす */
+function DraggableTr({ ticket, children }: { ticket: Ticket; children: ReactNode }) {
+  const d = useDraggableTicket(ticket.id);
+  return (
+    <tr
+      ref={d.ref}
+      style={d.style}
+      className={`row-drag${d.isDragging ? " dragging" : ""}`}
+      {...d.props}
+    >
+      {children}
+    </tr>
+  );
+}
+
+/**
+ * チケットの一覧。広い画面では表、サイドバーでは 1 行ずつの並び。行の先頭のリンクで詳細へ。
+ * draggable なら行をドラッグできる（外側に DndContext が要る）
+ */
 export function TicketTable({
   tickets,
   extra,
+  draggable = false,
 }: {
   tickets: readonly Ticket[];
   extra?: ((t: Ticket) => React.ReactNode) | undefined;
+  draggable?: boolean;
 }) {
   const store = useStore();
   const host = useHost();
@@ -161,7 +233,7 @@ export function TicketTable({
       <ul className="rows">
         {tickets.map((t) => (
           <li key={t.id}>
-            <TicketRow ticket={t} />
+            {draggable ? <DraggableRow ticket={t} /> : <TicketRow ticket={t} />}
             {extra ? extra(t) : null}
           </li>
         ))}
@@ -183,26 +255,35 @@ export function TicketTable({
         </tr>
       </thead>
       <tbody>
-        {tickets.map((t) => (
-          <tr key={t.id}>
-            <td>
-              <TicketLink id={t.id} />
-            </td>
-            <td>
-              <TicketLink id={t.id}>{t.title}</TicketLink>
-            </td>
-            <td>{store.labelOf(t.status)}</td>
-            <td>
-              <PriorityBadge priority={t.priority} />
-            </td>
-            <td>{t.iteration ?? ""}</td>
-            <td>{t.epic ? <a href={hrefOf({ page: "epics", id: t.epic })}>{t.epic}</a> : ""}</td>
-            <td>
-              <Tags labels={t.labels} />
-            </td>
-            {extra ? <td>{extra(t)}</td> : null}
-          </tr>
-        ))}
+        {tickets.map((t) => {
+          const cells = (
+            <>
+              <td>
+                <TicketLink id={t.id} />
+              </td>
+              <td>
+                <TicketLink id={t.id}>{t.title}</TicketLink>
+              </td>
+              <td>{store.labelOf(t.status)}</td>
+              <td>
+                <PriorityBadge priority={t.priority} />
+              </td>
+              <td>{t.iteration ?? ""}</td>
+              <td>{t.epic ? <a href={hrefOf({ page: "epics", id: t.epic })}>{t.epic}</a> : ""}</td>
+              <td>
+                <Tags labels={t.labels} />
+              </td>
+              {extra ? <td>{extra(t)}</td> : null}
+            </>
+          );
+          return draggable ? (
+            <DraggableTr key={t.id} ticket={t}>
+              {cells}
+            </DraggableTr>
+          ) : (
+            <tr key={t.id}>{cells}</tr>
+          );
+        })}
       </tbody>
     </table>
   );

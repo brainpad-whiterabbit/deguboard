@@ -15,8 +15,8 @@ import {
   useSensors,
   type DragEndEvent,
 } from "@dnd-kit/core";
-import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
-import { PriorityBadge, StatusDot, Tags, TicketLink, TicketRow } from "../components/parts.js";
+import { useMemo, useState } from "react";
+import { DraggableRow, PriorityBadge, StatusDot, Tags, TicketLink } from "../components/parts.js";
 import { useHost, useUiState } from "../host.js";
 import { hrefOf, navigate, NO_ITERATION, type BoardQuery } from "../router.js";
 import { useStore } from "../store.js";
@@ -294,36 +294,6 @@ function Column({
         </div>
       )}
     </details>
-  );
-}
-
-/** 1 行のチケット。行全体をつかんで動かし、動かした直後の click では開かない */
-function DraggableRow({ ticket }: { ticket: Ticket }) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
-    id: ticket.id,
-  });
-  const dragged = useRef(false);
-  useEffect(() => {
-    if (isDragging) dragged.current = true;
-  }, [isDragging]);
-  const onClick = (e: MouseEvent<HTMLAnchorElement>) => {
-    if (!dragged.current) return;
-    dragged.current = false;
-    e.preventDefault();
-  };
-  const style = transform
-    ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` }
-    : undefined;
-  return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      className={`row-drag${isDragging ? " dragging" : ""}`}
-      {...listeners}
-      {...attributes}
-    >
-      <TicketRow ticket={ticket} onClick={onClick} />
-    </div>
   );
 }
 

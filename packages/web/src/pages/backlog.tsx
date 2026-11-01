@@ -1,9 +1,18 @@
 // バックログ（UI-3）。done と abandoned 以外を Iteration ごとの区画（active → planned → Iteration なし）に分け、区画の中は優先度と番号で出す。
 // 番号・タイトル・ラベルで検索、Status・優先度・ラベル・担当者で絞り込む。区画の見出しから Iteration の開始・閉じる、「Iteration なし」から作成。
 // Iteration が 1 つもない（planned・active がない）Project では区画に分けず 1 つの表で出す。
+// チケットを別の区画にドラッグすると ticket.update で Iteration を変える。拒否されたら通知に理由を出して元の区画に戻す（読み直すだけで戻る）。
 // open の Epic は進捗つきの欄に並べ（UI-10）、押すとその Epic のチケットに絞る（もう一度押すと解除）。Epic の作成も欄から行う。
 // サイドバーでは検索と件数だけ常に出し、絞り込みと Epic の欄は畳む（効いている条件は見出しに出す。開閉は host.state に残す）
 
+import {
+  DndContext,
+  PointerSensor,
+  useDroppable,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
 import { useMemo, useState, type MouseEvent, type ReactNode } from "react";
 import { ProgressBar, TicketTable } from "../components/parts.js";
 import { useHost, useUiState } from "../host.js";
@@ -123,7 +132,28 @@ export function BacklogPage() {
       claimOptions(store.tickets.filter((t) => t.status !== "done" && t.status !== "abandoned")),
     [store.tickets],
   );
-  const rows = useMemo(() => filterBacklog(store.tickets, filter), [store.tickets, filter]);
+  // 読み直しが終わるまでの間だけ、落とした先の区画に見せる
+  const [moving, setMoving] = useState<{ id: string; iteration: Ticket["iteration"] } | null>(null);
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
+  const tickets = useMemo(
+    () =>
+      moving
+        ? store.tickets.map((t) => (t.id === moving.id ? { ...t, iteration: moving.iteration } : t))
+        : store.tickets,
+    [store.tickets, moving],
+  );
+  const rows = useMemo(() => filterBacklog(tickets, filter), [tickets, filter]);
+  const onDragEnd = async (event: DragEndEvent) => {
+    const id = String(event.active.id);
+    const over = event.over?.id;
+    const ticket = store.tickets.find((t) => t.id === id);
+    if (over === undefined || !ticket) return;
+    const iteration = over === NO_SECTION ? undefined : (String(over) as Ticket["iteration"]);
+    if ((ticket.iteration ?? undefined) === iteration) return;
+    setMoving({ id, iteration });
+    await store.run("ticket.update", { ticket: id, iteration: iteration ?? null });
+    setMoving(null);
+  };
   const statuses = BOARD_STATUSES.filter((s) => s !== "done");
   const active = activeFilters(filter, (st) => store.labelOf(st as Ticket["status"]));
 
@@ -215,9 +245,11 @@ export function BacklogPage() {
         />
         <div className="backlog-main">
           {store.iterations.some((i) => i.status !== "closed") ? (
-            sectionsOf(rows, store.iterations, store.tickets).map((s) => (
-              <Section key={s.iteration?.id ?? "-"} section={s} />
-            ))
+            <DndContext sensors={sensors} onDragEnd={(e) => void onDragEnd(e)}>
+              {sectionsOf(rows, store.iterations, tickets).map((s) => (
+                <Section key={s.iteration?.id ?? NO_SECTION} section={s} />
+              ))}
+            </DndContext>
           ) : (
             <TicketTable tickets={rows} />
           )}
@@ -231,8 +263,16 @@ export function BacklogPage() {
  * 1 つの区画：見出し（番号・名前・状態・期間・目標・件数・詳細と開始・閉じる。「Iteration なし」は作成）とチケットの表。
  * 0 件なら見出しだけ。サイドバーでは折りたたみの節にし、開閉を host.state に残す
  */
+/** 「Iteration なし」の区画の落とし先の ID（Iteration の ID と重ならない） */
+const NO_SECTION = "-";
+
 function Section({ section: { iteration: it, tickets } }: { section: BacklogSection }) {
   const host = useHost();
+  // 区画全体が落とし先。閉じた Iteration には入れられないので落とし先にしない
+  const { setNodeRef, isOver } = useDroppable({
+    id: it?.id ?? NO_SECTION,
+    disabled: it?.status === "closed",
+  });
   const sidebar = host.surface === "sidebar";
   const [open, setOpen] = useUiState(`backlog.section.${it?.id ?? "none"}`, true);
   const [creating, setCreating] = useState(false);
@@ -288,13 +328,14 @@ function Section({ section: { iteration: it, tickets } }: { section: BacklogSect
   const body = (
     <>
       {creating ? <IterationCreateForm onDone={() => setCreating(false)} /> : null}
-      {tickets.length > 0 ? <TicketTable tickets={tickets} /> : null}
+      {tickets.length > 0 ? <TicketTable tickets={tickets} draggable /> : null}
     </>
   );
   if (sidebar) {
     return (
       <details
-        className="fold backlog-section"
+        ref={setNodeRef}
+        className={`fold backlog-section${isOver ? " over" : ""}`}
         open={open}
         onToggle={(e) => setOpen(e.currentTarget.open)}
       >
@@ -304,7 +345,7 @@ function Section({ section: { iteration: it, tickets } }: { section: BacklogSect
     );
   }
   return (
-    <section className="backlog-section">
+    <section ref={setNodeRef} className={`backlog-section${isOver ? " over" : ""}`}>
       <header>{head}</header>
       {body}
     </section>
