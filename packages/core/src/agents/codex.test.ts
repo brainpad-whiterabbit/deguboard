@@ -27,6 +27,7 @@ const run = (): Run => ({
   result: null,
   error: null,
   retries: 0,
+  retry_reasons: [],
   usage: { input: null, output: null, cache_read: null, cache_write: null },
 });
 

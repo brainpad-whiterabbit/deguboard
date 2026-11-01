@@ -25,6 +25,7 @@ function run(partial: Partial<RunView> & { id: string }): RunView {
     result: null,
     error: null,
     retries: 0,
+    retry_reasons: [],
     usage: { input: null, output: null, cache_read: null, cache_write: null },
     running: false,
     duration_seconds: null,

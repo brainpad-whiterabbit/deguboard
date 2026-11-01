@@ -368,11 +368,18 @@ describe("dg", () => {
       id,
       "--result",
       "interrupted",
-      "--retries",
-      "1",
+      "--retry-reason",
+      "検査が落ちた, 直して通した",
+      "--retry-reason",
+      "見直しの指摘",
     ]);
     expect(finished.code).toBe(0);
-    expect(finished.json().data).toMatchObject({ result: "interrupted", retries: 1 });
+    // --retry-reason は繰り返すだけで、カンマでは割らない。回数を省けば理由の数
+    expect(finished.json().data).toMatchObject({
+      result: "interrupted",
+      retries: 2,
+      retry_reasons: ["検査が落ちた, 直して通した", "見直しの指摘"],
+    });
     expect((await dg(f.cloneA, ["--json", "run", "list", "--running"])).json().data).toEqual([]);
     const bad = await dg(f.cloneA, ["--json", "run", "finish", id, "--result", "done"]);
     expect(bad.code).toBe(2);

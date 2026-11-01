@@ -75,7 +75,24 @@ export const runFinish = defineCommand({
     run: z.string().min(1).describe("Run の ID（r20261031-041500-3fa2）"),
     result: z.enum(RUN_RESULTS).describe("success・failure・interrupted"),
     error: z.string().min(1).optional().describe("失敗・中断の理由"),
-    retries: z.number().int().nonnegative().optional().describe("リトライの回数"),
+    retries: z
+      .number()
+      .int()
+      .nonnegative()
+      .optional()
+      .describe("リトライの回数。省いて理由を渡せば理由の数"),
+    retry_reasons: z
+      .array(
+        z
+          .string()
+          .regex(/^[^\r\n]+$/, "理由は 1 件 1 行で書く")
+          .regex(/\S/, "理由が空白だけ"),
+      )
+      .meta({ freeText: true })
+      .optional()
+      .describe(
+        "やり直しの理由（検査の失敗・見直しの指摘などの 1 行の要約）。秘密・コマンドの文字列・パスは書かない",
+      ),
     model: z.string().min(1).optional().describe("モデル名。start で渡さなかったとき"),
   }),
   write: true,
@@ -83,6 +100,13 @@ export const runFinish = defineCommand({
   async run(ctx, input) {
     if (!isRunId(input.run))
       throw new UsageError(`${input.run} は Run の ID の形（r20261031-041500-3fa2）でない`);
+    // 空の配列は省いたのと同じに扱う
+    const reasons = input.retry_reasons?.length ? input.retry_reasons : undefined;
+    if (reasons && input.retries !== undefined && input.retries !== reasons.length) {
+      throw new UsageError(
+        `リトライの回数（${input.retries}）と理由の数（${reasons.length}）が食い違う。回数を省けば理由の数を回数にする`,
+      );
+    }
     const now = ctx.now();
     // 実行中の記録がなければ取り込まず、finishRun が見つからない・終わっていると拒否する
     const running = (await readRunningRuns(ctx.repo)).runs.find((r) => r.id === input.run);
@@ -98,7 +122,8 @@ export const runFinish = defineCommand({
     const { run, write } = await finishRun(ctx, input.run, {
       result: input.result,
       error: input.error,
-      retries: input.retries,
+      retries: input.retries ?? reasons?.length,
+      retryReasons: reasons,
       // 明示したモデル名 > 実行中の記録のモデル名 > 会話記録のモデル名
       model: input.model ?? (running?.data.model ? undefined : (collected?.model ?? undefined)),
       usage: collected?.usage,
