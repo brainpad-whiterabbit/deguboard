@@ -2,6 +2,7 @@
 // その Iteration のチケットを状態ごとの節（todo / in_progress / review / done。中止は畳んだ節）で出す。
 // Iteration の選択肢は planned と active と「Iteration なし」、Epic の選択肢は open だけ。
 // Iteration が 1 つもない Project では Iteration で絞らず、全チケットのカンバンにする。絞り込みの値はハッシュに持つ。
+// 入っている Iteration か Epic が閉じた done・abandoned のチケットは出さない（履歴でたどる）。
 // 節の開閉・最後に選んだ Iteration は host.state に覚える。
 // ドラッグ＆ドロップは ticket.move を呼び、拒否されたら通知に理由を出して元の列に戻す（読み直すだけで戻る）
 
@@ -28,6 +29,7 @@ import {
   actorLabel,
   ITERATION_LABELS,
   NO_CLAIM,
+  type Epic,
   type Iteration,
   type Status,
   type Ticket,
@@ -94,12 +96,12 @@ export function BoardPage({ query }: { query: BoardQuery }) {
   const claims = useMemo(() => claimOptions(scoped), [scoped]);
   const tickets = useMemo(
     () =>
-      scoped
+      hideClosedFinished(scoped, store.iterations, store.epics, query.epic)
         .filter((t) => !query.epic || t.epic === query.epic)
         .filter((t) => matchesClaim(t, query.assignee ?? ""))
         .map((t) => (moving && moving.id === t.id ? { ...t, status: moving.status } : t))
         .sort(byPriorityThenNumber),
-    [scoped, query.epic, query.assignee, moving],
+    [scoped, store.iterations, store.epics, query.epic, query.assignee, moving],
   );
   const abandoned = tickets.filter((t) => t.status === "abandoned");
 
@@ -197,6 +199,28 @@ export function BoardPage({ query }: { query: BoardQuery }) {
         </div>
       </DndContext>
     </section>
+  );
+}
+
+/**
+ * 入っている Iteration か Epic のどちらかが closed の done・abandoned のチケットを除く。
+ * 終わっていないチケットは Epic が閉じていても残す。絞り込みで選んだ Epic（epic）のチケットは除かない
+ */
+export function hideClosedFinished(
+  tickets: Ticket[],
+  iterations: Pick<Iteration, "id" | "status">[],
+  epics: Pick<Epic, "id" | "status">[],
+  epic?: string,
+): Ticket[] {
+  const closedIterations = new Set(
+    iterations.filter((i) => i.status === "closed").map((i) => i.id),
+  );
+  const closedEpics = new Set(epics.filter((e) => e.status === "closed").map((e) => e.id));
+  return tickets.filter(
+    (t) =>
+      (t.status !== "done" && t.status !== "abandoned") ||
+      (!!epic && t.epic === epic) ||
+      !((t.iteration && closedIterations.has(t.iteration)) || (t.epic && closedEpics.has(t.epic))),
   );
 }
 
