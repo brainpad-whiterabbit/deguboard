@@ -1,0 +1,9 @@
+id: p10
+project: default
+tickets: [t147]
+after: {}
+pending_approval: true
+details:
+  t147:
+    scope: テストの側だけを直す。routes.test.ts の CLI の経路と、run を env なしで呼ぶほかのテスト（mcp.test.ts など）から DEGUBOARD_ACTOR・DEGUBOARD_USER を外す。program.ts の読み方は変えない
+    approach: process.env から主体を決める変数を除いた env を作る小さな関数をテストに置いて run の options.env に渡し、DEGUBOARD_ACTOR=agent DEGUBOARD_USER=someone mise run check で確かめる
