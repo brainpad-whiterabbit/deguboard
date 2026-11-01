@@ -43,8 +43,7 @@ depends = ["build"]
 run = "pnpm run vsix"
 
 [tasks."vsix:install"]
-description = "ビルド済みの VSIX を VS Code に入れる（同じ版でも --force で差し替える。code CLI がなければ飛ばす。入れたあとはウィンドウの再読み込みが要る）"
-depends = ["vsix"]
+description = "ビルド済みの VSIX を VS Code に入れる（ビルドはしないので先に mise run vsix。同じ版でも --force で差し替える。code CLI がなければ飛ばす。入れたあとはウィンドウの再読み込みが要る）"
 run = "pnpm run vsix:install"
 
 [tasks."playwright:install"]

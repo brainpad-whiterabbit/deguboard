@@ -34,7 +34,7 @@ export function newRunId(
 /** トークン数。取れなかったら null（0 で補わない。RN-2） */
 const tokens = z.number().int().nonnegative().nullable();
 
-export const runUsageSchema = z.looseObject({
+const runUsageSchema = z.looseObject({
   input: tokens,
   output: tokens,
   cache_read: tokens,

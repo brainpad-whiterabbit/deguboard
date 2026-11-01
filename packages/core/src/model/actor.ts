@@ -11,13 +11,8 @@ export function actorIdOf(user: string, kind: ActorKind): string {
 }
 
 /** ID からユーザ名を取り出す（`eiki/agent` → `eiki`） */
-export function userOf(id: string): string {
+function userOf(id: string): string {
   return id.endsWith(AGENT_SUFFIX) ? id.slice(0, -AGENT_SUFFIX.length) : id;
-}
-
-/** ID から種別を取り出す */
-export function kindOf(id: string): ActorKind {
-  return id.endsWith(AGENT_SUFFIX) ? "agent" : "human";
 }
 
 /** 同じユーザか（人とその AI は同じユーザ） */

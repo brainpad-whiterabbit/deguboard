@@ -41,14 +41,17 @@
         ]
       }
     },
-    // Core の汎用部分は actions に依存しない（AG-6）。agents/adapters の禁止（AG-5）も写す。同じルールを上書きするので、上の packages/core/** の制限パターンを写している。上を変えたらここも揃える
+    // Core の汎用部分（actions と index.ts の外のすべて）は actions に依存しない（AG-6）。index.ts は ACTION_NAMES を公開するので対象にしない。agents/adapters の禁止（AG-5）も写す。同じルールを上書きするので、上の packages/core/** の制限パターンを写している。上を変えたらここも揃える
     {
       "files": [
         "packages/core/src/commands/**",
         "packages/core/src/storage/**",
         "packages/core/src/workflow/**",
         "packages/core/src/model/**",
-        "packages/core/src/git/**"
+        "packages/core/src/git/**",
+        "packages/core/src/run/**",
+        "packages/core/src/agents/**",
+        "packages/core/src/errors.ts"
       ],
       "rules": {
         "no-restricted-imports": [
@@ -77,7 +80,7 @@
               },
               {
                 "regex": "^\\.\\.?/(\\.\\./)*actions(/|$)",
-                "message": "Core の汎用部分（commands・storage・workflow・model・git）は actions に依存しない（AG-6、ADR-007）"
+                "message": "Core の汎用部分（actions と index.ts の外）は actions に依存しない（AG-6、ADR-007）"
               }
             ]
           }

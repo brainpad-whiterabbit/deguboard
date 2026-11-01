@@ -4,9 +4,9 @@
 import { z } from "zod";
 import { slugSchema } from "./common.js";
 
-export const COMMIT_MODES = ["each", "batch", "manual"] as const;
+const COMMIT_MODES = ["each", "batch", "manual"] as const;
 export type CommitMode = (typeof COMMIT_MODES)[number];
-export const PUSH_MODES = ["auto", "manual"] as const;
+const PUSH_MODES = ["auto", "manual"] as const;
 export type PushMode = (typeof PUSH_MODES)[number];
 
 export const configSchema = z.looseObject({

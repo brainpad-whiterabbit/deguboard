@@ -62,7 +62,7 @@ export function checkReferences(store: Store): Issue[] {
 }
 
 /** depends_on の循環（TK-2）。見つかった循環ごとに 1 件 */
-export function findDependencyCycles(store: Store): Issue[] {
+function findDependencyCycles(store: Store): Issue[] {
   const issues: Issue[] = [];
   const state = new Map<string, "visiting" | "done">();
   const stack: string[] = [];

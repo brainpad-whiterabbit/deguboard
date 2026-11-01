@@ -110,7 +110,7 @@ function exec(
 }
 
 /** 利用者の hooks（husky など）が deguboard worktree への commit で動かないよう、空の hooksPath を前置する */
-export function gitBaseArgs(localDir: string | undefined): string[] {
+function gitBaseArgs(localDir: string | undefined): string[] {
   return localDir ? ["-c", `core.hooksPath=${path.join(localDir, "no-hooks")}`] : [];
 }
 

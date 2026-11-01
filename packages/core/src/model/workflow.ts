@@ -21,15 +21,13 @@ export type Condition = FactName | `!${FactName}`;
 export const ACTORS = ["human", "agent", "reconcile"] as const;
 export type Actor = (typeof ACTORS)[number];
 
-export const FIELD_TYPES = ["string", "number", "boolean", "date", "enum"] as const;
+const FIELD_TYPES = ["string", "number", "boolean", "date", "enum"] as const;
 
 // 条件は形だけ見る（未知の名前は validate.ts が WF-3 の指摘にする）
 const conditionShape = z.string().regex(/^!?[a-z_]+$/, "条件は事実の名前か !事実の名前");
 
 /** step の名前。Run の step（空白・改行を含まない 1 語）に書ける小文字の語 */
-export const stepIdSchema = z
-  .string()
-  .regex(/^[a-z][a-z0-9_-]*$/, "step は小文字の英数字と _ と -");
+const stepIdSchema = z.string().regex(/^[a-z][a-z0-9_-]*$/, "step は小文字の英数字と _ と -");
 
 // Action は名前（文字列）だけで持つ。登録済みかは actions の一覧を外から渡して validate.ts が見る（ADR-007）
 const actionNameShape = z.string().regex(/^[a-z][a-z0-9_]*$/, "Action の名前は snake_case");

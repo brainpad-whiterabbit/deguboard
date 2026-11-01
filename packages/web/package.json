@@ -6,8 +6,7 @@
   "license": "MIT",
   "type": "module",
   "scripts": {
-    "build": "vite build",
-    "dev": "vite"
+    "build": "vite build"
   },
   "dependencies": {
     "@deguboard/core": "workspace:*",

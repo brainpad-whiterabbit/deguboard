@@ -10,6 +10,7 @@ import { HostBridge, HostProvider, type Host } from "./host.js";
 import type { Route } from "./router.js";
 import { StoreProvider } from "./store.js";
 import { iteration, mockClient, ticket } from "./test-helpers.js";
+import type { RunView } from "./types.js";
 import { createUiState, memoryBackend } from "./ui-state.js";
 
 afterEach(() => {
@@ -270,6 +271,60 @@ describe("画面", () => {
     expect(window.location.hash).toBe("#/backlog");
   });
 
+  it.each(["#/tickets/t3", "#/runs"])(
+    "拡張ホストから reload の event が来ると、%s の Run を取り直す（ターミナルの dg run start はチケットを変えない）",
+    async (hash) => {
+      window.location.hash = hash;
+      const client = mockClient();
+      // 本物の読み直しと同じく、チケットが変わらなくても新しい配列を返す
+      client.handlers["ticket.list"] = () => [...client.data.tickets];
+      let runs: RunView[] = [];
+      client.handlers["run.list"] = () => runs;
+      client.handlers["metrics.show"] = () => null;
+      let send: ((event: WebviewEvent) => void) | undefined;
+      const bridge: WebviewClient = {
+        run: (name, input) => client.run(name, input),
+        status: () => client.status(),
+        open: async () => {},
+        onEvent: (listener) => {
+          send = listener;
+          return () => (send = undefined);
+        },
+      };
+      render(
+        <StoreProvider client={client}>
+          <HostProvider host={webviewHost("panel")}>
+            <HostBridge client={bridge} />
+            <App />
+          </HostProvider>
+        </StoreProvider>,
+      );
+      await waitFor(() => expect(client.calls.some((c) => c.name === "run.list")).toBe(true));
+      const before = client.calls.filter((c) => c.name === "run.list").length;
+      runs = [
+        {
+          id: "r20261101-010000-aaaa",
+          ticket: "t3",
+          step: "外で始めた step",
+          agent: "claude-code",
+          model: null,
+          started_at: "2026-11-01T01:00:00Z",
+          finished_at: null,
+          result: null,
+          error: null,
+          retries: 0,
+          usage: { input: null, output: null, cache_read: null, cache_write: null },
+          running: true,
+          duration_seconds: null,
+        } as RunView,
+      ];
+      expect(screen.queryByText("外で始めた step")).toBeNull();
+      act(() => send!({ kind: "event", name: "reload" }));
+      expect((await screen.findAllByText("外で始めた step")).length).toBeGreaterThan(0);
+      expect(client.calls.filter((c) => c.name === "run.list").length).toBeGreaterThan(before);
+    },
+  );
+
   it.each(["browser", "panel", "sidebar"] as const)(
     "%s でも完了の節は既定で畳み、ほかの節は開く",
     async (surface) => {
@@ -433,8 +488,8 @@ describe("画面", () => {
     expect(names()).toEqual(["次", "最初"]);
     expect(screen.getByText("完了 3 ・ 持ち越し 1")).toBeTruthy();
     expect(screen.getByText("2026-09-29 〜 2026-10-10 ・ core")).toBeTruthy();
-    // s2 には記録がないので今のチケットから求める（API は in_progress → 持ち越し 1）
-    expect(screen.getByText("完了 0 ・ 持ち越し 1")).toBeTruthy();
+    // s2 には閉じたときの記録がないので、web で数え直さず「—」と出す
+    expect(screen.getByText("完了 — ・ 持ち越し —")).toBeTruthy();
     fireEvent.change(screen.getByLabelText("チケットを探す"), { target: { value: "ログイン" } });
     expect(names()).toEqual(["最初"]);
     expect(screen.getByText("1 / 2 件")).toBeTruthy();

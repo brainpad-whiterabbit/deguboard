@@ -9,6 +9,7 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { DetailLink, ProgressBar, StatusDot, Tags, TicketLink } from "../components/parts.js";
+import { NO_VALUE } from "../components/run-parts.js";
 import { formatTime } from "../components/timeline.js";
 import { navigate, type HistoryView } from "../router.js";
 import { useStore } from "../store.js";
@@ -31,17 +32,12 @@ export function byClosedDesc<T extends { id: string; closed_at?: string | undefi
   return byNumber(b, a);
 }
 
-/** 完了と持ち越しの件数。閉じたときの記録がなければ今のチケットから求める */
-export function countsOf(
-  iteration: Iteration,
-  tickets: readonly Ticket[],
-): { done: number; carried: number } {
-  if (iteration.completed !== undefined || iteration.carried_over !== undefined) {
-    return { done: iteration.completed ?? 0, carried: iteration.carried_over ?? 0 };
-  }
-  const members = tickets.filter((t) => t.iteration === iteration.id && t.status !== "abandoned");
-  const done = members.filter((t) => t.status === "done").length;
-  return { done, carried: members.length - done };
+/**
+ * 完了と持ち越しの件数。iteration.close が記録した値（core が数える）をそのまま出し、web では数え直さない。
+ * 記録のないもの（閉じる前のデータ）は「—」
+ */
+function countsText(iteration: Iteration): string {
+  return `完了 ${iteration.completed ?? NO_VALUE} ・ 持ち越し ${iteration.carried_over ?? NO_VALUE}`;
 }
 
 /** 検索：チケットの番号かタイトルに当たるチケットを含むものだけ残す。key はチケットの iteration か epic */
@@ -209,7 +205,6 @@ export function HistoryPage({ view }: { view: HistoryView }) {
 /** Iteration の行。開くと中の done・abandoned のチケットを出す */
 function IterationItem({ iteration: i }: { iteration: Iteration }) {
   const store = useStore();
-  const c = countsOf(i, store.tickets);
   const epics = epicCountsOf(i.id, store.tickets);
   const finished = store.tickets
     .filter((t) => t.iteration === i.id && (t.status === "done" || t.status === "abandoned"))
@@ -226,8 +221,8 @@ function IterationItem({ iteration: i }: { iteration: Iteration }) {
           <span className="name" title={i.name}>
             {i.name}
           </span>
-          <span className="counts" title="閉じたときの完了と持ち越しの件数">
-            完了 {c.done} ・ 持ち越し {c.carried}
+          <span className="counts" title="閉じたときに記録した完了と持ち越しの件数">
+            {countsText(i)}
           </span>
           {meta || epics.length > 0 ? (
             <small>
