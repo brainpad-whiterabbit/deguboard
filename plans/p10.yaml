@@ -9,3 +9,4 @@ details:
     approach: process.env から主体を決める変数を除いた env を作る小さな関数をテストに置いて run の options.env に渡し、DEGUBOARD_ACTOR=agent DEGUBOARD_USER=someone mise run check で確かめる
 approved_by: eiki.kitajima/agent
 approved_at: 2026-11-01T13:27:30Z
+closed_at: 2026-11-01T13:50:15Z
