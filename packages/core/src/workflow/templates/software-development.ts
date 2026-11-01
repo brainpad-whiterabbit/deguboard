@@ -24,7 +24,9 @@ export const softwareDevelopment: WorkflowDefinitionInput = {
       label: "Implement",
       actions: ["create_worktree", "create_branch", "run_tests", "create_pr"],
     },
+    // 見直し役の見直しと、指摘を受けた手直しは実装と分けて数える（ADR-005）
     { id: "review", label: "Review", actions: ["run_tests"] },
+    { id: "fix", label: "Fix", actions: ["run_tests"] },
     // PR のマージは base を変えるので、Action の確認の要否によらず人の承認を取る
     { id: "merge", label: "Merge", actions: ["merge_pr"], approval: true },
   ],

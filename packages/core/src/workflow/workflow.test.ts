@@ -191,6 +191,16 @@ describe("定義の検証（WF-3）", () => {
       expect(workflow?.steps?.length, t.id).toBeGreaterThan(0);
     }
   });
+
+  it("software-development と general は実装・見直し・手直し・調査を別の step に分ける", () => {
+    for (const id of ["software-development", "general"]) {
+      const wf = WORKFLOW_TEMPLATES.find((t) => t.id === id);
+      expect(
+        wf?.steps?.map((s) => s.id),
+        id,
+      ).toEqual(expect.arrayContaining(["implement", "review", "fix", "investigate"]));
+    }
+  });
 });
 
 describe("照合", () => {

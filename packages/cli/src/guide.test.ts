@@ -107,7 +107,7 @@ describe("dg guide", () => {
     expect(all).toContain("「着手できるチケットを並べて進める」");
   });
 
-  it("review は品質ゲートを 1 か所に置き、work は PR を出す前の見直しと上限付きの修正ループを、all はマージの前の条件をそこへ案内する", async () => {
+  it("review は品質ゲートを 1 か所に置き、work は PR を出す前の見直しと上限付きの修正ループを、all はマージの前の条件をそこへ案内し、実装・見直し・手直しの Run を分ける", async () => {
     const review = await readGuide("review");
     const work = await readGuide("work");
     const all = await readGuide("all");
@@ -115,13 +115,14 @@ describe("dg guide", () => {
       "## 品質ゲート",
       "## 見直す",
       "## 指摘を直す（修正ループ）",
-      "## Run と終わり方",
+      "## Run の分け方",
+      "## 終わり方",
     ])
       expect(review).toContain(heading);
     for (const word of [
       "`gh pr create --draft`",
       "**上限**：重い指摘を直すのは 2 回まで",
-      "--result failure --retries <回数>",
+      "--retry-reason <直した指摘の要約>",
       "チケットは in_progress のまま",
       "人に報告",
       "`gh pr ready <PR>`",
@@ -131,6 +132,27 @@ describe("dg guide", () => {
     // 条件の中身は review にだけ書き、work と all は参照する
     expect(work).toContain("`dg guide review`");
     expect(work).toContain("上限付きの修正ループ");
+    // 実装の Run は draft の PR で閉じ、見直しと手直しは別の step の Run にする
+    expect(work).toContain("run start <id> <step>");
+    expect(work).toContain("（software-development・general では `implement`）");
+    expect(work).toContain("draft の PR を作ったら実装の Run を閉じる");
+    expect(work).toContain("--retry-reason");
+    for (const step of ["`review`", "`fix`"]) {
+      expect(review).toContain(step);
+      expect(work).toContain(step);
+    }
+    expect(review).not.toContain("Run を開けたまま");
+    // 上限は親が数え、fix の Run の数では数えない。合う step がなければ代わりの step で記録する
+    expect(review).toContain("回数は親が、重い指摘を直した回で数える");
+    expect(review).toContain("**合う step がない**");
+    // Run を自分で呼ぶ理由は review に置き、work は参照する
+    expect(review).toContain("Run の ID を最初に含む会話記録");
+    expect(work).toContain("（理由は `dg guide review` の「Run の分け方」）");
+    // 手直しの失敗・中断では unclaim せず、review の「終わり方」に従う
+    expect(review).toContain("**手直しが failure で返った・返らない**");
+    expect(work).toContain("手直しの Run は `dg guide review` の「終わり方」");
+    expect(work).toContain("手直しは unclaim せず");
+    expect(work).not.toContain("開けたまま");
     expect(all).toContain("`dg guide review` の「品質ゲート」");
     for (const text of [work, all]) expect(text).not.toContain("--json mergeable");
   });
