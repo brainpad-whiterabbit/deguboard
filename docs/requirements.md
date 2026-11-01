@@ -229,12 +229,14 @@ fields:
 | 画面      | `serve`、`open`                                                                                   | あり         |
 | 手順      | `guide <topic>`、`skill install`                                                                  | あり         |
 | Plan      | `plan create / list / show / approve / close`                                                     | あり         |
+| 経過      | `history`（`--ticket`・`--epic`・`--iteration` で絞る）                                           | あり         |
 | Run       | `run start / finish / list`、`metrics show`                                                       | 予定（`e3`） |
 
 - CL-3 書き込みを伴うコマンドは、`commit.mode` に従って deguboard ブランチにコミットする。作成（`init`、`project / ticket / epic / iteration create`、`ticket import`）と `ticket claim` は `commit.mode`・`push.mode` によらず即座にコミットして push する（採番と排他のため）
 - CL-4 `ticket import` は YAML / JSON の下書き（配列）を 1 コミットで取り込む。下書きの中の仮キーを `depends_on` から参照でき、`epic` に既存の Epic を書ける
 - CL-5 `dg guide <topic>` は、エージェント向けの手順を `config.yaml` の値を埋めて出す。トピックは overview（省略時）・create・plan・assign・work・finish。手順の正本は CLI に同梱した Markdown（`packages/cli/src/guide-*.md`）
 - CL-6 CLI はビジネスロジックを持たず、Core のコマンド定義（`packages/core/src/commands/`）を写す
+- CL-7 `history` は deguboard ブランチの git の履歴から、チケット・Epic・Iteration の起票と、`status`・`iteration`・`epic`・`assignee`・`pr` の変化を、時刻・コミット・作者・コミットの 1 行目とともに古い順に返す。データの形は変えず、1 コミットに複数の変更があっても差分から読む。Epic・Iteration で絞ると、一度でも入っていたチケット（持ち越しで外されたものを含む）の経過も返す。浅い clone では欠けたこと（`shallow`・`incomplete`）を返して失敗しない
 
 ### 6.2 状態遷移と照合
 
