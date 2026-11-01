@@ -1,6 +1,7 @@
 // deguboard worktree を走査してメモリ上に索引を作り、読み書きの入口になる（ADR-007「索引はメモリ上に持つ」）。
 // 自分の書き込みは即座に索引へ反映し（write-through）、Git の取り込みの後は rescan() で作り直す。
-// rescan() はファイルごとの inode・大きさ・更新時刻（ns）・変更時刻（ns）を覚え、変わっていないファイルは読み直さずに前の結果を使う
+// rescan() はファイルごとの inode・大きさ・更新時刻（ns）・変更時刻（ns）を覚え、変わっていないファイルは読み直さずに前の結果を使う。
+// ファイルシステムの時刻の刻みは粗く inode も使い回されるので、更新が新しい（RACY_WINDOW_NS の内の）ファイルは覚えずに毎回読む（git の racy-clean と同じ考え方）
 
 import { readdir, readFile, rename, stat } from "node:fs/promises";
 import path from "node:path";
@@ -108,11 +109,20 @@ const collections = {
 
 export type EntityKind = keyof typeof collections;
 
-/** 1 ファイルの読みの結果を、読んだときの印（stat）と一緒に覚えておく */
+/**
+ * 1 ファイルの読みの結果を、読んだときの印（stat）と一緒に覚えておく。
+ * 覚えた結果（Doc・config・Workflow・Issue）は次の rescan でもそのまま索引に戻すので、書き換えない（更新は複製して作る）
+ */
 interface CachedRead {
   stamp: string;
   value: unknown;
 }
+
+/**
+ * 更新時刻・変更時刻が rescan を始めた時刻からこの幅の内にあるファイルは覚えない。
+ * 同じ刻みの中で同じ大きさに書き直されると印が変わらないため。FAT・SMB の 2 秒刻みも見込んで 3 秒にする
+ */
+const RACY_WINDOW_NS = 3_000_000_000n;
 
 /** rescan() の中で、印が前回と同じなら覚えた結果を返し、違えば load() で読み直して覚える */
 type CachedLoader = <T>(relPath: string, load: () => Promise<T>) => Promise<T>;
@@ -155,23 +165,26 @@ export class Store {
 
   /**
    * 索引を作り直す。ディレクトリは毎回一覧し、ファイルは印（stat）が前回と同じなら読み直さない。
-   * 他のプロセス（CLI・git）の書き込みは、一時ファイルからの rename でも上書きでも印が変わるので取り込まれる
+   * 他のプロセス（CLI・git）の書き込みは印が変わるか、更新が新しくて覚えていないかのどちらかなので取り込まれる
    */
   async rescan(): Promise<void> {
+    // この時刻より前に更新されたファイルだけを覚える。覚えた後の書き込みは、刻みが粗くても印の時刻が変わる
+    const settledBefore = BigInt(Date.now()) * 1_000_000n - RACY_WINDOW_NS;
     const seen = new Set<string>();
     const stats: ScanStats = { read: 0, reused: 0 };
     const cached = async <T>(relPath: string, load: () => Promise<T>): Promise<T> => {
       seen.add(relPath);
       const stamp = await this.stampOf(relPath);
       const hit = stamp === undefined ? undefined : this.readCache.get(relPath);
-      if (hit && hit.stamp === stamp) {
+      if (hit && hit.stamp === stamp?.key) {
         stats.reused++;
         return hit.value as T;
       }
       stats.read++;
       const value = await load();
-      if (stamp === undefined) this.readCache.delete(relPath);
-      else this.readCache.set(relPath, { stamp, value });
+      if (stamp && stamp.changedNs < settledBefore)
+        this.readCache.set(relPath, { stamp: stamp.key, value });
+      else this.readCache.delete(relPath);
       return value;
     };
     // Issue の順は並びの順に固定する（読み直すファイルの数で順が揺れないように）
@@ -191,11 +204,17 @@ export class Store {
     this.lastScan = stats;
   }
 
-  /** ファイルの印。読めなければ undefined（覚えずに毎回読み、読めない理由を Issue にする） */
-  private async stampOf(relPath: string): Promise<string | undefined> {
+  /**
+   * ファイルの印と、更新時刻・変更時刻の新しい方。読めなければ undefined（覚えずに毎回読み、読めない理由を Issue にする）。
+   * 印は読む前に取るので、読んでいる間に書き換わっても次の rescan で読み直す
+   */
+  private async stampOf(relPath: string): Promise<{ key: string; changedNs: bigint } | undefined> {
     try {
       const s = await stat(path.join(this.root, relPath), { bigint: true });
-      return `${s.ino}:${s.size}:${s.mtimeNs}:${s.ctimeNs}`;
+      return {
+        key: `${s.ino}:${s.size}:${s.mtimeNs}:${s.ctimeNs}`,
+        changedNs: s.mtimeNs > s.ctimeNs ? s.mtimeNs : s.ctimeNs,
+      };
     } catch {
       return undefined;
     }
@@ -418,16 +437,16 @@ export class Store {
       files.map(async (file) => {
         const relPath = `${c.dir}/${file}`;
         const id = c.idOf(file);
-        if (!id) return { file, id };
+        if (!id) return { file };
         const result = await cached(relPath, () =>
           readDoc(this.root, relPath, c.format, c.schema, id),
         );
-        return { file, id, result };
+        return { file, result };
       }),
     );
     target.clear();
-    for (const { file, id, result } of results) {
-      if (!id || !result) {
+    for (const { file, result } of results) {
+      if (!result) {
         issues.push({
           severity: "warning",
           code: "unexpected_file",
@@ -436,7 +455,7 @@ export class Store {
         });
         continue;
       }
-      if (result.ok) target.set(id, result.doc);
+      if (result.ok) target.set(result.doc.id, result.doc);
       else issues.push(result.issue);
     }
     return issues;

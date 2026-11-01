@@ -1,3 +1,7 @@
+import { execFile } from "node:child_process";
+import { readdir, utimes } from "node:fs/promises";
+import path from "node:path";
+import { promisify } from "node:util";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   createFixture,
@@ -78,9 +82,11 @@ describe("プロセス内の CommandClient", () => {
     const client = createLocalClient({ cwd: f.cloneA });
     await client.run("ticket.create", { title: "一" });
     await client.run("ticket.create", { title: "二" });
+    // 時計を進め、どのファイルも更新が十分に古いものとして覚えさせる
+    vi.spyOn(Date, "now").mockReturnValue(Date.now() + 60_000);
     const rescan = vi.spyOn(Store.prototype, "rescan");
     const lastScan = () => (rescan.mock.contexts.at(-1) as Store).lastScan;
-    // 自分の書き込みの分（t2）を一度読み直したあとは、どのコマンドも読み直さない
+    // 一度読み直して覚えたあとは、どのコマンドも読み直さない
     await client.run("ticket.list");
     for (const name of ["project.list", "config.show", "ticket.list", "epic.list", "plan.list"]) {
       await client.run(name);
@@ -91,13 +97,24 @@ describe("プロセス内の CommandClient", () => {
     expect(lastScan().reused).toBeGreaterThan(0);
   });
 
-  it("別のプロセス（CLI）が書き込んだチケットの変更は、次のコマンドの結果に出る", async () => {
+  /** データのチケットのファイルの更新時刻を古い値に揃える（後の書き込みで時刻が必ず変わるように） */
+  async function ageTickets(client: ReturnType<typeof createLocalClient>): Promise<string> {
+    const dir = path.join((await client.status()).data_dir, "tickets");
+    const old = new Date("2020-01-01T00:00:00Z");
+    for (const file of await readdir(dir)) {
+      if (file.endsWith(".md")) await utimes(path.join(dir, file), old, old);
+    }
+    return dir;
+  }
+
+  it("別に開いた文脈（CLI と同じ経路）が書き込んだチケットの変更は、次のコマンドの結果に出る", async () => {
     const f = await initialized();
     const client = createLocalClient({ cwd: f.cloneA });
     await client.run("ticket.create", { title: "画面から" });
+    await ageTickets(client);
+    vi.spyOn(Date, "now").mockReturnValue(Date.now() + 60_000);
     await client.run("ticket.list");
     const rescan = vi.spyOn(Store.prototype, "rescan");
-    // CLI と同じく、別に開いた文脈（別の Store）から書く
     const cli = await openContext({ cwd: f.cloneA });
     const run = (name: string, input: unknown) =>
       runCommand(
@@ -115,5 +132,25 @@ describe("プロセス内の CommandClient", () => {
     ]);
     // 読み直したのは書き換わった t1 と増えた t2 だけ
     expect((rescan.mock.contexts.at(-1) as Store).lastScan).toMatchObject({ read: 2 });
+  });
+
+  it("別のプロセスが同じ大きさに書き換えたチケットのファイルは、次のコマンドの結果に出る", async () => {
+    const f = await initialized();
+    const client = createLocalClient({ cwd: f.cloneA });
+    await client.run("ticket.create", { title: "画面から" });
+    const dir = await ageTickets(client);
+    vi.spyOn(Date, "now").mockReturnValue(Date.now() + 60_000);
+    await client.run("ticket.list");
+    // 子プロセスで、一時ファイルに書いて rename する（タイトルは同じバイト数）
+    const script = `
+      const fs = require("node:fs");
+      const [file] = process.argv.slice(1);
+      const text = fs.readFileSync(file, "utf8").replace("画面から", "外から来");
+      fs.writeFileSync(file + ".tmp", text);
+      fs.renameSync(file + ".tmp", file);
+    `;
+    await promisify(execFile)(process.execPath, ["-e", script, path.join(dir, "t1.md")]);
+    const list = await client.run<{ id: string; title: string }[]>("ticket.list");
+    expect(list.data.map((t) => [t.id, t.title])).toEqual([["t1", "外から来"]]);
   });
 });
