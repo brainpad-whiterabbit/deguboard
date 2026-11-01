@@ -40,7 +40,7 @@ export const configSchema = z.looseObject({
     .prefault({}),
   metrics: z
     .looseObject({
-      /** 会話記録を読んで使用量を補うか（Run を実装するまで使わない） */
+      /** run finish が Adapter で会話記録を読んで使用量を補うか。DEGUBOARD_NO_TRANSCRIPTS のマシンでは true でも読まない（MT-2） */
       read_transcripts: z.boolean().default(false),
     })
     .prefault({}),

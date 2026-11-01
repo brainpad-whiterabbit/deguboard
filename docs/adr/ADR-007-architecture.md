@@ -50,10 +50,10 @@ Core の中は責務ごとのモジュールに分け、最初からパッケー
 - `git`：deguboard worktree の用意、commit / push、claim の CAS、照合に使う事実の収集、競合の検出
 - `workflow`：定義の検証、遷移の検査、`reconcile` の評価
 - `run`・`metrics`：Run の記録と集計
-- `agents`：Agent Adapter のインターフェースと Claude Code / Codex の実装。起動方法・使用量の取得・作業ディレクトリの差を吸収する
+- `agents`：Agent Adapter のインターフェースと製品ごとの実装（Claude Code。Codex は予定）。使用量の取得と作業ディレクトリの差を吸収する
 - `actions`：登録済みの Action（`create_worktree`・`create_branch`・`run_tests`・`create_pr`・`merge_pr`、許したときだけの `shell`）。下の「Action の呼び方」
 
-`agents`・`metrics` は要るようになったときに置く（`run` は Run の記録だけを置いた）。モジュールが肥大化したら、そのときにパッケージへ切り出す。
+`agents` に起動方法・権限は置かない（deguboard は起動しない。EX-1）。汎用部分は `agents/index.ts` だけを通し、`agents/adapters/` を import しない（`.oxlintrc.json`）。モジュールが肥大化したら、そのときにパッケージへ切り出す。
 
 ### Action の呼び方
 

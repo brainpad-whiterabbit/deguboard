@@ -23,6 +23,8 @@ export interface ContextOptions {
   initialize?: { remote?: string | undefined } | undefined;
   /** マージドライバとして登録する、dg を呼ぶ argv の前置。入口（CLI）が自分の呼び方を渡す */
   mergeDriver?: readonly string[] | undefined;
+  /** 環境変数。今は入口（CLI・server・vscode・MCP）は渡さず process.env を使う。テストが HOME などを差し替えるためにある */
+  env?: Readonly<Record<string, string | undefined>> | undefined;
 }
 
 export async function openContext(opts: ContextOptions): Promise<CommandContext> {
@@ -57,5 +59,6 @@ export async function openContext(opts: ContextOptions): Promise<CommandContext>
     hooks: opts.hooks,
     worktree,
     mergeDriver: opts.mergeDriver,
+    env: opts.env,
   };
 }

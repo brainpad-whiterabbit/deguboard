@@ -1,4 +1,5 @@
-import { access, readdir, readFile, writeFile } from "node:fs/promises";
+import { access, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { createFixture, git } from "../../test/helpers/git-fixture.js";
@@ -220,5 +221,130 @@ describe("run", () => {
     for (const name of ["run.start", "run.finish", "run.list"]) {
       expect(findCommand(name)?.needs).toBe("store");
     }
+  });
+});
+
+describe("run finish の使用量の取り込み（MT-1・MT-2・MT-4）", () => {
+  /** read_transcripts を決めてコミットごとに push する文脈。HOME は一時ディレクトリにして本物の ~/.claude を読まない */
+  async function withTranscripts(read: boolean, env: Record<string, string> = {}) {
+    const ctx = await prepared();
+    await runCommand(configSet, ctx, { key: "commit.mode", value: "each" });
+    await runCommand(configSet, ctx, { key: "metrics.read_transcripts", value: String(read) });
+    await runCommand(commit, ctx, {});
+    ctx.config = ctx.store.config;
+    const home = await mkdtemp(path.join(os.tmpdir(), "dg-home-"));
+    cleanups.push(() => rm(home, { recursive: true, force: true }));
+    ctx.env = { HOME: home, ...env };
+    // 会話記録の置き場所の名前は作業ツリーのパスの英数字以外を - にしたもの（agents の Adapter が正本）
+    const name = ctx.repo.topLevel.replace(/[^A-Za-z0-9]/g, "-");
+    const projectDir = path.join(home, ".claude", "projects", name);
+    return { ctx, home, projectDir };
+  }
+
+  /** 会話の中身・コマンド・リポジトリの外のパスを含む偽の会話記録（Run の期間内） */
+  async function transcript(projectDir: string, run: Run): Promise<void> {
+    const t = (ms: number) => new Date(Date.parse(run.started_at) + ms).toISOString();
+    const usage = (n: number) => ({
+      input_tokens: n,
+      output_tokens: n * 2,
+      cache_read_input_tokens: n * 100,
+      cache_creation_input_tokens: n * 10,
+    });
+    const lines = [
+      { type: "user", timestamp: t(0), message: { content: `秘密のプロンプト ${run.id}` } },
+      {
+        type: "assistant",
+        timestamp: t(100),
+        cwd: "/home/someone/secret-project",
+        message: {
+          id: "m1",
+          model: "model-from-transcript",
+          content: [{ type: "tool_use", input: { command: "cat /etc/secret-command" } }],
+          usage: usage(3),
+        },
+      },
+      {
+        type: "assistant",
+        timestamp: t(200),
+        message: { id: "m2", model: "model-from-transcript", content: "答え", usage: usage(4) },
+      },
+    ];
+    await mkdir(projectDir, { recursive: true });
+    await writeFile(
+      path.join(projectDir, "session.jsonl"),
+      lines.map((l) => JSON.stringify(l)).join("\n") + "\n",
+    );
+  }
+
+  it("Claude Code の Run は会話記録から input・output・cache_read・cache_write とモデル名が埋まる", async () => {
+    const { ctx, projectDir } = await withTranscripts(true);
+    const run = await start(ctx, "t1");
+    await transcript(projectDir, run);
+    const r = await runCommand(runFinish, ctx, { run: run.id, result: "success" });
+    expect(r.warnings).toEqual([]);
+    expect(r.data).toMatchObject({
+      model: "model-from-transcript",
+      usage: { input: 7, output: 14, cache_read: 700, cache_write: 70 },
+    });
+  });
+
+  it("read_transcripts が false か DEGUBOARD_NO_TRANSCRIPTS=1 なら会話記録を読まず、null にして警告する", async () => {
+    for (const [read, env] of [
+      [false, {}],
+      [true, { DEGUBOARD_NO_TRANSCRIPTS: "1" }],
+    ] as const) {
+      const { ctx, projectDir } = await withTranscripts(read, env);
+      const run = await start(ctx, "t1");
+      await transcript(projectDir, run);
+      const r = await runCommand(runFinish, ctx, { run: run.id, result: "success" });
+      expect((r.data as Run).usage).toEqual({
+        input: null,
+        output: null,
+        cache_read: null,
+        cache_write: null,
+      });
+      expect((r.data as Run).model).toBeNull();
+      expect(r.warnings).toEqual([expect.stringMatching(/会話記録を読まない/)]);
+    }
+  });
+
+  it("Git に入る記録は数とモデル名だけで、会話の中身・コマンド・リポジトリの外のパスを写さない（MT-4）", async () => {
+    const { ctx, home, projectDir } = await withTranscripts(true);
+    const run = await start(ctx, "t1");
+    await transcript(projectDir, run);
+    await runCommand(runFinish, ctx, { run: run.id, result: "success" });
+    const committed = (await git(ctx.repo.dataDir, ["show", "--format=", "HEAD"])).stdout;
+    for (const text of [
+      "秘密のプロンプト",
+      "答え",
+      "secret-command",
+      "secret-project",
+      "/etc/",
+      home,
+      ctx.repo.topLevel,
+      os.homedir(),
+      ".jsonl",
+    ]) {
+      expect(committed).not.toContain(text);
+    }
+    const saved = JSON.parse(
+      await readFile(path.join(ctx.repo.dataDir, "runs", `${run.id}.json`), "utf8"),
+    ) as Record<string, unknown>;
+    expect(Object.keys(saved).sort()).toEqual(
+      [
+        "id",
+        "ticket",
+        "step",
+        "agent",
+        "model",
+        "started_at",
+        "finished_at",
+        "result",
+        "error",
+        "retries",
+        "usage",
+      ].sort(),
+    );
+    expect(saved["usage"]).toEqual({ input: 7, output: 14, cache_read: 700, cache_write: 70 });
   });
 });
