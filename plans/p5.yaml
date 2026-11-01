@@ -2,7 +2,7 @@ id: p5
 project: default
 tickets: [t116, t117, t91, t110, t111]
 after: {}
-pending_approval: true
+pending_approval: false
 details:
   t116:
     scope: "--json のとき commander の引数・オプションのエラーを { ok: false, error } で stdout に出す。--json なしの出力は変えない"
@@ -19,3 +19,5 @@ details:
   t111:
     scope: PR の要らない調べもの。TypeScript 7 への移行の影響（ビルド・型検査・vitest・vite）
     approach: 影響を調べて勧める案を人に示し、決まったことを ADR-008 かチケットに反映する
+approved_by: eiki.kitajima/agent
+approved_at: 2026-11-01T10:22:51Z
