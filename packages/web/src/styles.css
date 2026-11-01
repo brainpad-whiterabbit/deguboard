@@ -1166,6 +1166,59 @@ button.danger {
   width: 80px;
 }
 
+/* サイドバーのバックログ：Epic の欄の行は押せる見た目にし、選んでいる間は「× 解除」を出す */
+[data-surface="sidebar"] .epic-list li {
+  cursor: pointer;
+}
+[data-surface="sidebar"] .epic-list li:hover {
+  background: var(--vscode-list-hoverBackground);
+}
+[data-surface="sidebar"] .epic-list li.selected {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: -1px;
+}
+.epic-clear {
+  align-self: flex-end;
+  font-size: 0.85em;
+  color: var(--vscode-textLink-foreground);
+}
+/* サイドバーのバックログの行：左に優先度の印、優先度の変わるところに区切り（parts.tsx の TicketTable の priorityMarks） */
+.priority-mark {
+  flex: none;
+  width: 1.3em;
+  text-align: center;
+  font-size: 0.8em;
+  font-weight: 600;
+  border-radius: 2px;
+  color: var(--vscode-descriptionForeground);
+  border: 1px solid var(--dg-border);
+}
+.priority-mark.priority-high {
+  color: var(--vscode-errorForeground, #f14c4c);
+  border-color: currentColor;
+}
+.rows li:has(> .priority-mark) {
+  align-items: flex-start;
+}
+.rows li > .priority-mark {
+  margin-top: 3px;
+}
+.rows li.priority-break {
+  margin-top: 3px;
+  padding-top: 3px;
+  border-top: 1px solid var(--dg-border);
+}
+.filters > summary .count {
+  margin-left: auto;
+  flex: none;
+}
+.backlog-section.empty-section > summary {
+  margin-bottom: 0;
+}
+.backlog-section.empty-section > summary::before {
+  visibility: hidden;
+}
+
 /* バックログの区画（Iteration ごと）。見出しに番号・名前・状態・件数と操作、2 行目に期間と目標 */
 .backlog-section {
   margin-bottom: 0.75rem;

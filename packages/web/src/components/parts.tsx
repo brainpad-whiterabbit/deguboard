@@ -363,20 +363,46 @@ export function TicketTable({
   tickets,
   extra,
   draggable = false,
+  priorityMarks = false,
 }: {
   tickets: readonly Ticket[];
   extra?: ((t: Ticket) => React.ReactNode) | undefined;
   draggable?: boolean;
+  /**
+   * サイドバーで行の左に優先度の印（H・M・L）を付け、優先度の変わるところに区切りを入れる。
+   * 優先度の順に並べた一覧（バックログの区画）で使う
+   */
+  priorityMarks?: boolean;
 }) {
   const store = useStore();
   const host = useHost();
   if (tickets.length === 0) return <p className="empty">該当するチケットはない</p>;
   if (host.surface === "sidebar") {
+    const hideAssignee = sameAssignee(tickets);
     return (
       <ul className="rows">
-        {tickets.map((t) => (
-          <li key={t.id}>
-            {draggable ? <DraggableRow ticket={t} /> : <TicketRow ticket={t} />}
+        {tickets.map((t, i) => (
+          <li
+            key={t.id}
+            className={
+              priorityMarks && i > 0 && tickets[i - 1]!.priority !== t.priority
+                ? "priority-break"
+                : undefined
+            }
+          >
+            {priorityMarks ? (
+              <span
+                className={`priority-mark priority-${t.priority}`}
+                title={`優先度 ${t.priority}`}
+              >
+                {t.priority.charAt(0).toUpperCase()}
+              </span>
+            ) : null}
+            {draggable ? (
+              <DraggableRow ticket={t} hideAssignee={hideAssignee} />
+            ) : (
+              <TicketRow ticket={t} hideAssignee={hideAssignee} />
+            )}
             {extra ? extra(t) : null}
           </li>
         ))}
