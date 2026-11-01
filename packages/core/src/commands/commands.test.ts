@@ -921,7 +921,7 @@ describe("用意", () => {
     await expect(
       runCommand(ticketCreate, ctx, { title: "F", acceptance: ["a\nb"] }),
     ).rejects.toMatchObject({ code: "INVALID_INPUT" });
-    // done で未チェックが残ると指摘し、todo のままなら指摘しない（D）。全部付いていれば指摘しない（G）
+    // done のチケットは未チェックが残っていても（F）、全部付いていても（G）指摘しない。未チェックは照合で done に進めたときだけ sync が警告する
     await runCommand(ticketCreate, ctx, { title: "F", acceptance: ["a", "b", "c"] });
     await runCommand(ticketCheck, ctx, { ticket: "t6", items: [2] });
     await runCommand(ticketMove, ctx, { ticket: "t6", status: "done" });
@@ -936,7 +936,6 @@ describe("用意", () => {
       ["t1", "lint_acceptance_missing", "本文に ## 受け入れ条件 がない"],
       ["t2", "lint_acceptance_empty", "受け入れ条件に項目がない"],
       ["t3", "lint_acceptance_empty", "受け入れ条件に項目がない"],
-      ["t6", "lint_acceptance_unchecked", "done だが受け入れ条件 1, 3 が未チェック"],
     ]);
     const c = await runCommand(configSet, ctx, { key: "commit.mode", value: "each" });
     expect(c.data.commit.mode).toBe("each");
