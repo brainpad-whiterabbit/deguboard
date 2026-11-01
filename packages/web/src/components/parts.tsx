@@ -10,7 +10,7 @@ import {
   type ReactNode,
 } from "react";
 import { useHost } from "../host.js";
-import { hrefOf } from "../router.js";
+import { hrefOf, type Route } from "../router.js";
 import { useStore } from "../store.js";
 import {
   actorLabel,
@@ -54,6 +54,22 @@ export function TicketLink({
           {title ? ` ${title}` : ""}
         </>
       )}
+    </a>
+  );
+}
+
+/** Epic・Iteration などの詳細へのリンク。ブラウザではハッシュ遷移、Webview では拡張ホストに頼んでエディタ領域に開く */
+export function DetailLink({ route, children }: { route: Route; children: ReactNode }) {
+  const host = useHost();
+  return (
+    <a
+      href={hrefOf(route)}
+      onClick={(e: MouseEvent) => {
+        e.preventDefault();
+        host.open(route);
+      }}
+    >
+      {children}
     </a>
   );
 }

@@ -2,6 +2,7 @@
 // Webview は <a href="#…"> のクリックを横取りしてハッシュを変えないので、リンクのクリックは App が受けてハッシュを書く（app.tsx の followHashLink）
 
 import { useEffect, useState } from "react";
+import { METRIC_UNITS, type MetricUnit } from "./types.js";
 
 /** カンバンの絞り込み。iteration は選んだ Iteration の ID か、Iteration に入っていないチケット（NO_ITERATION）。省けば既定（active） */
 export interface BoardQuery {
@@ -13,6 +14,9 @@ export interface BoardQuery {
 /** 履歴の見方。省けば Iteration */
 export type HistoryView = "iteration" | "epic" | "ticket";
 
+/** Run の画面の集計の単位。省けばチケットごと */
+export const DEFAULT_UNIT: MetricUnit = "ticket";
+
 /** カンバンで「Iteration に入っていないチケット」を選ぶ値 */
 export const NO_ITERATION = "-";
 
@@ -22,7 +26,8 @@ export type Route =
   | { page: "ticket"; id: string }
   | { page: "epics"; id: string }
   | { page: "iterations"; id: string }
-  | { page: "history"; view?: HistoryView | undefined };
+  | { page: "history"; view?: HistoryView | undefined }
+  | { page: "runs"; by?: MetricUnit | undefined };
 
 const BOARD_KEYS = [
   "iteration",
@@ -54,6 +59,12 @@ export function parseRoute(hash: string): Route {
       const view = params.get("view");
       return view === "epic" || view === "ticket" ? { page: "history", view } : { page: "history" };
     }
+    case "runs": {
+      const by = params.get("by");
+      return by && by !== DEFAULT_UNIT && (METRIC_UNITS as readonly string[]).includes(by)
+        ? { page: "runs", by: by as MetricUnit }
+        : { page: "runs" };
+    }
     case "iterations":
       // Iteration の一覧の画面はない（planned・active はカンバンの絞り込み、closed は履歴）。ID がなければカンバン
       return id ? { page: "iterations", id } : board();
@@ -82,6 +93,8 @@ export function hrefOf(route: Route): string {
       return route.view && route.view !== "iteration"
         ? `#/history?view=${route.view}`
         : "#/history";
+    case "runs":
+      return route.by && route.by !== DEFAULT_UNIT ? `#/runs?by=${route.by}` : "#/runs";
   }
 }
 

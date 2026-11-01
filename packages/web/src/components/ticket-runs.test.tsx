@@ -4,7 +4,8 @@ import { afterEach, describe, expect, it } from "vitest";
 import { StoreProvider } from "../store.js";
 import { mockClient } from "../test-helpers.js";
 import type { RunView } from "../types.js";
-import { formatTokens, TicketRuns } from "./ticket-runs.js";
+import { formatTokens } from "./run-parts.js";
+import { TicketRuns } from "./ticket-runs.js";
 
 afterEach(cleanup);
 

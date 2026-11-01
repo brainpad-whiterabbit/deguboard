@@ -712,7 +712,7 @@ describe("画面", () => {
     expect(screen.queryByText("読み込み中…")).toBeNull();
   });
 
-  it("タブはカンバン・バックログ・履歴の 3 つ。#/epics はバックログとして開き、Epic の詳細ではバックログのタブを選ぶ", async () => {
+  it("タブはカンバン・バックログ・履歴・Run の 4 つ。#/epics はバックログとして開き、Epic の詳細ではバックログのタブを選ぶ", async () => {
     window.location.hash = "#/epics";
     const client = mockClient();
     client.handlers["epic.show"] = () => ({ ...client.data.epics[0], body: "", tickets: [] });
@@ -723,6 +723,7 @@ describe("画面", () => {
       "カンバン",
       "バックログ",
       "履歴",
+      "Run",
     ]);
     window.location.hash = "#/epics/e1";
     await screen.findByRole("heading", { level: 1, name: /e1 最初の版/ });

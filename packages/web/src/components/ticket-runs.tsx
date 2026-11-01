@@ -1,22 +1,11 @@
 // チケット詳細の Run の一覧（UI-4）。run.list をチケットで絞った結果（実行中の Run を含む）を開始の順に出す。
-// 取れなかったトークン数（null）は 0 と見せず「—」で出す（RN-2）
+// 取れなかったトークン数（null）は 0 と見せず「—」で出す（RN-2）。結果と数の書き方は run-parts.tsx で Run の画面と共通
 
 import { useEffect, useState } from "react";
 import { useStore } from "../store.js";
 import type { RunView } from "../types.js";
+import { formatTokens, NO_VALUE, RunResult, RunsScroll } from "./run-parts.js";
 import { formatTime } from "./timeline.js";
-
-/** 結果の表示名。実行中の Run は result が null */
-export function runResultLabel(run: RunView): string {
-  if (run.running || run.result === null) return "実行中";
-  return { success: "成功", failure: "失敗", interrupted: "中断" }[run.result];
-}
-
-/** トークン数。null は「—」、推定を含めば「~」を前に付ける */
-export function formatTokens(value: number | null, estimated = false): string {
-  if (value === null) return "—";
-  return `${estimated ? "~" : ""}${value.toLocaleString("en-US")}`;
-}
 
 /** チケット詳細の「Run」の節 */
 export function TicketRuns({ id }: { id: string }) {
@@ -50,7 +39,7 @@ export function TicketRuns({ id }: { id: string }) {
       ) : runs.length === 0 ? (
         <p className="empty">Run はない</p>
       ) : (
-        <div className="runs-scroll">
+        <RunsScroll>
           <table className="list runs-list">
             <thead>
               <tr>
@@ -70,14 +59,9 @@ export function TicketRuns({ id }: { id: string }) {
                   <tr key={r.id} title={r.id}>
                     <td>{r.step}</td>
                     <td>{r.agent}</td>
-                    <td>{r.model ?? <span className="muted">—</span>}</td>
+                    <td>{r.model ?? <span className="muted">{NO_VALUE}</span>}</td>
                     <td>
-                      <span
-                        className={`run-result run-${r.running || r.result === null ? "running" : r.result}`}
-                        title={r.error ?? undefined}
-                      >
-                        {runResultLabel(r)}
-                      </span>
+                      <RunResult run={r} />
                       {r.retries > 0 ? <span className="muted"> 再試行 {r.retries}</span> : null}
                     </td>
                     <td
@@ -93,7 +77,7 @@ export function TicketRuns({ id }: { id: string }) {
                       {r.finished_at ? (
                         <time dateTime={r.finished_at}>{formatTime(r.finished_at)}</time>
                       ) : (
-                        <span className="muted">—</span>
+                        <span className="muted">{NO_VALUE}</span>
                       )}
                     </td>
                   </tr>
@@ -101,7 +85,7 @@ export function TicketRuns({ id }: { id: string }) {
               })}
             </tbody>
           </table>
-        </div>
+        </RunsScroll>
       )}
     </section>
   );

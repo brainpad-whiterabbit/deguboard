@@ -533,7 +533,7 @@ button.link:hover {
   color: var(--vscode-descriptionForeground);
   font-variant-numeric: tabular-nums;
 }
-/* チケット詳細の Run：step・agent・model・結果・トークン・開始・終了。狭い配置では表を横にスクロールする */
+/* Run の表（チケット詳細の Run と Run の画面）。狭い配置では表を横にスクロールする。結果の色は --dg-* から取る */
 .runs-scroll {
   overflow-x: auto;
 }
@@ -559,6 +559,9 @@ button.link:hover {
 }
 .run-interrupted {
   color: var(--dg-warning);
+}
+.run-unfinished {
+  color: var(--vscode-descriptionForeground);
 }
 /* 見方の切り替え：つながったボタン */
 .segmented {
@@ -1060,4 +1063,75 @@ textarea.body {
   .toolbar label {
     flex-basis: 100%;
   }
+}
+
+/* Run の画面（UI-9）：合計の欄、単位ごとの表、Run の表。表の横スクロール（.runs-scroll）と結果の色（.run-*）はチケット詳細の Run と共通 */
+.runs-page h2 {
+  font-size: 1em;
+  margin: 1rem 0 0.4rem;
+}
+.runs-page .runs-metrics-head {
+  margin: 1rem 0 0.4rem;
+}
+.runs-page .runs-metrics-head h2 {
+  margin: 0;
+}
+table.list td.num,
+table.list th.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.metrics-table th,
+table.list td.nowrap {
+  white-space: nowrap;
+}
+.runs-table code,
+.metrics-table code,
+.run-rows code {
+  background: transparent;
+  padding: 0;
+}
+.metric-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
+  gap: 0.5rem;
+  margin: 0 0 0.75rem;
+}
+.metric-cards > div {
+  padding: 0.4rem 0.6rem;
+  background: var(--vscode-editorWidget-background);
+  border: 1px solid var(--dg-border);
+  border-radius: 3px;
+}
+.metric-cards > div.wide {
+  grid-column: span 2;
+}
+.metric-cards dt {
+  color: var(--vscode-descriptionForeground);
+  font-size: 0.9em;
+}
+.metric-cards dd {
+  margin: 0.1rem 0 0;
+  font-size: 1.2em;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.metric-cards dd.results {
+  font-size: 1em;
+}
+.metric-cards dd.muted {
+  font-weight: 400;
+}
+/* サイドバーの Run の行：結果・チケット・工程・時間 */
+.rows.run-rows li {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  gap: 0.4rem;
+  align-items: center;
+  padding: 2px 4px;
+  border-bottom: 1px solid var(--dg-border);
+}
+[data-surface="sidebar"] .metric-cards {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }

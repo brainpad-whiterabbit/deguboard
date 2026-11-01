@@ -7,11 +7,10 @@
 // history のコマンド（deguboard ブランチの履歴）から求め、履歴が浅くて分からないものは updated_at で代え、そう出す。
 // 番号を押すと詳細を開く（サイドバーとパネルでは拡張ホストに頼んでエディタに、ブラウザではハッシュ遷移）
 
-import { useEffect, useMemo, useState, type MouseEvent, type ReactNode } from "react";
-import { ProgressBar, StatusDot, Tags, TicketLink } from "../components/parts.js";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { DetailLink, ProgressBar, StatusDot, Tags, TicketLink } from "../components/parts.js";
 import { formatTime } from "../components/timeline.js";
-import { useHost } from "../host.js";
-import { hrefOf, navigate, type HistoryView, type Route } from "../router.js";
+import { navigate, type HistoryView } from "../router.js";
 import { useStore } from "../store.js";
 import {
   byNumber,
@@ -204,22 +203,6 @@ export function HistoryPage({ view }: { view: HistoryView }) {
         </ul>
       )}
     </section>
-  );
-}
-
-/** 詳細へのリンク。Webview では拡張ホストに頼んでエディタ領域に開く */
-function DetailLink({ route, children }: { route: Route; children: ReactNode }) {
-  const host = useHost();
-  return (
-    <a
-      href={hrefOf(route)}
-      onClick={(e: MouseEvent) => {
-        e.preventDefault();
-        host.open(route);
-      }}
-    >
-      {children}
-    </a>
   );
 }
 

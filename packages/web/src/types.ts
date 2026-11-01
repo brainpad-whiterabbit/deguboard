@@ -7,7 +7,11 @@ import type {
   HistoryEvent,
   HistoryLog,
   Iteration,
+  MetricGroup,
+  MetricUnit,
+  MetricsView,
   Priority,
+  RunMetrics,
   RunView,
   Status,
   Ticket,
@@ -21,11 +25,37 @@ export type {
   HistoryEvent,
   HistoryLog,
   Iteration,
+  MetricGroup,
+  MetricUnit,
+  MetricsView,
   Priority,
+  RunMetrics,
   RunView,
   Status,
   Ticket,
   WorkflowDefinition,
+};
+
+/**
+ * Run の画面で選べる集計の単位（core の METRIC_UNITS の順）。画面は選んだ Project で絞って集計するので project は除く。
+ * web は core の実行時のコードを取り込まないので写す
+ */
+export const METRIC_UNITS = [
+  "run",
+  "ticket",
+  "epic",
+  "iteration",
+  "agent",
+  "model",
+] as const satisfies readonly MetricUnit[];
+export const UNIT_LABELS: Record<MetricUnit, string> = {
+  run: "Run",
+  ticket: "チケット",
+  epic: "Epic",
+  iteration: "Iteration",
+  project: "Project",
+  agent: "Agent",
+  model: "Model",
 };
 
 /** カンバンの列の順。abandoned は既定で隠す（UI-2） */
