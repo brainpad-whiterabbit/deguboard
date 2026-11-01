@@ -6,7 +6,7 @@ after:
     - t125
   t127:
     - t126
-pending_approval: true
+pending_approval: false
 details:
   t125:
     scope: README の表と冒頭、requirements.md の EX-3 の書き分けだけ。手順（guide）は変えない
@@ -29,3 +29,5 @@ details:
   t127:
     scope: guide work に PR を出す前の別エージェントの見直しと上限付きの修正ループを足し、品質ゲートを 1 か所にまとめる
     approach: guide-all の「マージの前の条件」を品質ゲートとして切り出して work と all から参照する。guide.test.ts・EX-3・README を直す
+approved_by: eiki.kitajima/agent
+approved_at: 2026-11-01T10:39:43Z
