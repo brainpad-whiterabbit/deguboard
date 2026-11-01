@@ -2,7 +2,7 @@ id: p9
 project: default
 tickets: [t144, t134, t135]
 after: {}
-pending_approval: true
+pending_approval: false
 details:
   t144:
     scope: createLocalClient の毎回の rescan を、変化がなければ省くか変わったファイルだけ読み直す。別プロセスの書き込みは次のコマンドに映す
@@ -13,3 +13,5 @@ details:
   t135:
     scope: development.md と ADR-002・003・004・007 を予算の 90% 未満にする。CLAUDE.md は対象にしない
     approach: 細部がコード・テスト・ヘルプ・requirements.md にあることを確かめてから消し、ADR は判断（決定・理由・採らなかった案）を残す。更新日と一覧を直す
+approved_by: eiki.kitajima/agent
+approved_at: 2026-11-01T12:13:26Z
