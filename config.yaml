@@ -6,3 +6,5 @@ actor:
   human_only: []
 auto:
   merge: true
+metrics:
+  read_transcripts: true
