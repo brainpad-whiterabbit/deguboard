@@ -43,7 +43,7 @@ AI エージェント（Claude Code・Codex など）がチケットを処理す
 - エージェント（または Skill）が `dg run start <ticket> <step>` と `dg run finish <run>` を呼ぶ。実行中は `deguboard-local/runs/` に置き、finish が集計を `runs/` に書く
 - ツールが Run を見失っても、チケットの状態はブランチの事実で進む
 - 終了していない Run は `dg run list --running` で見せ、人かエージェントが `finish --result interrupted` で閉じる。自動復旧はしない
-- 並列実行・修正ループ・自動マージも Skill 側が Plan の待ちを見て進め、スケジューラは置かない。並列では親が claim・Plan・マージを、チケットごとの子が Run・実装・PR を行う。上限は負荷とエージェントの都合で決まるので config でなく手順に書く
+- 並列実行・修正ループ・自動マージも Skill 側が Plan の待ちを見て進め、スケジューラは置かない。並列では親が claim・Plan・マージを、サブエージェントが Run・実装・PR を行う。上限は負荷とエージェントの都合で決まるので config でなく手順に書く
 
 ### Plan を第一級のエンティティにする
 
