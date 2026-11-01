@@ -1,4 +1,14 @@
-import { access, mkdir, mkdtemp, readdir, readFile, rm, utimes, writeFile } from "node:fs/promises";
+import {
+  access,
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  rm,
+  stat,
+  utimes,
+  writeFile,
+} from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
@@ -167,5 +177,100 @@ describe("withLock", () => {
       /\.break/,
     );
     expect(await readFile(lockPath, "utf8")).toBe("2147483646");
+  });
+
+  it("持ち主が生きていれば、古いと判定する時間を超えて持ち続けても他の待ち手に消されない（ハートビート）", async () => {
+    const dir = await localDir();
+    const lockPath = path.join(dir, "locks", "write");
+    const staleMs = 200;
+    let inside = 0;
+    let most = 0;
+    const order: string[] = [];
+    let ownerMtime = 0;
+    let waiterStarted = false;
+    const owner = withLock(
+      dir,
+      "write",
+      async () => {
+        inside += 1;
+        order.push("owner-in");
+        // staleMs の 4 倍持ち続ける
+        await sleep(staleMs * 4);
+        ownerMtime = (await stat(lockPath)).mtimeMs;
+        order.push("owner-out");
+        inside -= 1;
+      },
+      { staleMs },
+    );
+    await sleep(20);
+    const waiter = withLock(
+      dir,
+      "write",
+      async () => {
+        waiterStarted = true;
+        inside += 1;
+        most = Math.max(most, inside);
+        order.push("waiter-in");
+        inside -= 1;
+      },
+      { staleMs, waitMs: 5_000 },
+    );
+    await Promise.all([owner, waiter]);
+    expect(waiterStarted).toBe(true);
+    expect(most).toBe(1);
+    expect(order).toEqual(["owner-in", "owner-out", "waiter-in"]);
+    // 持ち主が持つ間に mtime が更新されていた
+    expect(Date.now() - ownerMtime).toBeLessThan(staleMs * 4);
+  });
+
+  it("持ち主がハートビートを止めた（落ちた）ロックは、古いと判定する時間の後に奪える", async () => {
+    const dir = await localDir();
+    const lockPath = path.join(dir, "locks", "write");
+    // 自分の pid を書くと pid では生死を見ないので、mtime だけで判定される
+    await writeFile(lockPath, `${process.pid} ${os.hostname()}`);
+    let entered = false;
+    await withLock(
+      dir,
+      "write",
+      async () => {
+        entered = true;
+      },
+      { staleMs: 200, waitMs: 5_000 },
+    );
+    expect(entered).toBe(true);
+  });
+
+  it("別のホストの持ち主は pid で生死を判定せず、mtime が新しければ消さない", async () => {
+    const dir = await localDir();
+    const lockPath = path.join(dir, "locks", "write");
+    // このホストでは生きていない pid でも、別のホストでは生きているかもしれない
+    await writeFile(lockPath, "2147483646 another-host.invalid");
+    await expect(
+      withLock(dir, "write", async () => undefined, { waitMs: 200 }),
+    ).rejects.toMatchObject({ code: "GIT_ERROR" });
+    expect(await readFile(lockPath, "utf8")).toBe("2147483646 another-host.invalid");
+  });
+
+  it("別のホストの持ち主のロックも、mtime が古ければ奪える", async () => {
+    const dir = await localDir();
+    const lockPath = path.join(dir, "locks", "write");
+    await writeFile(lockPath, "4242 another-host.invalid");
+    const old = new Date(Date.now() - 120_000);
+    await utimes(lockPath, old, old);
+    let entered = false;
+    await withLock(dir, "write", async () => {
+      entered = true;
+    });
+    expect(entered).toBe(true);
+  });
+
+  it("ロックの中身に pid とホスト名を書く", async () => {
+    const dir = await localDir();
+    const lockPath = path.join(dir, "locks", "write");
+    let content = "";
+    await withLock(dir, "write", async () => {
+      content = await readFile(lockPath, "utf8");
+    });
+    expect(content).toBe(`${process.pid} ${os.hostname()}`);
   });
 });
