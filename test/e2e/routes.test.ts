@@ -1,6 +1,7 @@
 // E2E：CLI・HTTP・Webview（postMessage）の 3 経路から同じコマンドを通し、結果の JSON と deguboard ブランチのコミットが一致することを確かめる（NF-2、ADR-007）。
 // 経路ごとに bare リモート付きの一時リポジトリを作り、同じ手順を流して最後に比べる。
-// 手順を足すときは STEPS に input（HTTP・Webview に渡す形）と argv（CLI に渡す形）の両方を書く
+// 手順を足すときは STEPS に input（HTTP・Webview に渡す形）と argv（CLI に渡す形）の両方を書く。
+// 前の手順の結果（run.start が返した Run の ID）を使う手順は、input と argv を Vars を受ける関数にする
 
 import { MessageChannel } from "node:worker_threads";
 import { afterEach, describe, expect, it } from "vitest";
@@ -19,11 +20,23 @@ import { handleRequest, isWebviewRequest } from "../../packages/vscode/src/webvi
 
 const USER = "e2e";
 
-/** 1 手順。input は HTTP と Webview に渡す形、argv は CLI に渡す形 */
-interface Step {
+/** 前の手順の結果から取る値。run は最後に run.start が返した Run の ID */
+interface Vars {
+  run: string;
+}
+
+/** 経路に渡す 1 回の呼び出し。input は HTTP と Webview に渡す形、argv は CLI に渡す形 */
+interface Call {
   name: string;
   input: Record<string, unknown>;
   argv: string[];
+}
+
+/** 1 手順。input・argv は前の手順の結果を使うなら Vars を受ける関数にする */
+interface Step {
+  name: string;
+  input: Call["input"] | ((vars: Vars) => Call["input"]);
+  argv: Call["argv"] | ((vars: Vars) => Call["argv"]);
   /** 拒否されるはずの手順なら、そのエラーコード */
   rejected?: string;
 }
@@ -110,13 +123,66 @@ const STEPS: Step[] = [
   { name: "ticket.show", input: { ticket: "t1" }, argv: ["ticket", "show", "t1"] },
   { name: "epic.show", input: { epic: "e1" }, argv: ["epic", "show", "e1"] },
   { name: "iteration.show", input: { iteration: "s1" }, argv: ["iteration", "show", "s1"] },
+  // Run：実行中の記録は deguboard-local/ に置き、finish が runs/ に集計を書く。metrics.show はその集計を読む
+  {
+    name: "run.start",
+    input: { ticket: "t2", step: "implement", agent: "e2e-agent", model: "e2e-model" },
+    argv: ["run", "start", "t2", "implement", "--agent", "e2e-agent", "--model", "e2e-model"],
+  },
+  {
+    name: "run.start",
+    input: { ticket: "t2", step: "implement", agent: "e2e-agent" },
+    argv: ["run", "start", "t2", "implement", "--agent", "e2e-agent"],
+    rejected: "ALREADY_EXISTS",
+  },
+  {
+    name: "run.start",
+    input: { ticket: "t2", step: "deploy", agent: "e2e-agent" },
+    argv: ["run", "start", "t2", "deploy", "--agent", "e2e-agent"],
+    rejected: "VALIDATION_FAILED",
+  },
+  { name: "run.list", input: { running: true }, argv: ["run", "list", "--running"] },
+  {
+    name: "run.finish",
+    input: (v) => ({ run: v.run, result: "failure", error: "テストが落ちた", retries: 1 }),
+    argv: (v) => [
+      "run",
+      "finish",
+      v.run,
+      "--result",
+      "failure",
+      "--error",
+      "テストが落ちた",
+      "--retries",
+      "1",
+    ],
+  },
+  {
+    name: "run.finish",
+    input: (v) => ({ run: v.run, result: "success" }),
+    argv: (v) => ["run", "finish", v.run, "--result", "success"],
+    rejected: "REJECTED",
+  },
+  { name: "commit", input: {}, argv: ["commit"] },
+  { name: "run.list", input: { ticket: "t2" }, argv: ["run", "list", "--ticket", "t2"] },
+  {
+    name: "metrics.show",
+    input: { epic: "e1", by: "agent" },
+    argv: ["metrics", "show", "--epic", "e1", "--by", "agent"],
+  },
+  {
+    name: "metrics.show",
+    input: { ticket: "e1" },
+    argv: ["metrics", "show", "--ticket", "e1"],
+    rejected: "INVALID_INPUT",
+  },
 ];
 
 /** 経路が返す 1 手順の結果。HTTP の本文・CLI の --json・Webview の応答（id を除く）は同じ形 */
 type Envelope = Record<string, unknown>;
 type Route = (
   cwd: string,
-) => Promise<{ call(step: Step): Promise<Envelope>; close(): Promise<void> }>;
+) => Promise<{ call(step: Call): Promise<Envelope>; close(): Promise<void> }>;
 
 const cli: Route = async (cwd) => ({
   async call(step) {
@@ -186,14 +252,24 @@ const webview: Route = async (cwd) => {
 
 const ROUTES: Record<string, Route> = { CLI: cli, HTTP: http, Webview: webview };
 
-/** 時刻・コミットの SHA・一時ディレクトリのパスは経路ごとに違うので揃える */
+/** 時刻・コミットの SHA・一時ディレクトリのパス・Run の ID と実行時間は経路ごとに違うので揃える */
 function normalize(value: unknown, root: string): unknown {
   return JSON.parse(
     JSON.stringify(value)
       .replaceAll(root, "<root>")
       .replace(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z/g, "<time>")
-      .replace(/\b[0-9a-f]{40}\b/g, "<sha>"),
+      .replace(/\b[0-9a-f]{40}\b/g, "<sha>")
+      .replace(/\br\d{8}-\d{6}-[0-9a-f]{4}\b/g, "<run>")
+      .replace(/"duration_seconds":\d+/g, '"duration_seconds":"<seconds>"'),
   );
+}
+
+function resolveStep(step: Step, vars: Vars): Call {
+  return {
+    name: step.name,
+    input: typeof step.input === "function" ? step.input(vars) : step.input,
+    argv: typeof step.argv === "function" ? step.argv(vars) : step.argv,
+  };
 }
 
 interface Trace {
@@ -206,22 +282,30 @@ async function runRoute(route: Route, f: Fixture): Promise<Trace> {
   await runCommand(init, await openContext({ cwd: f.cloneA, initialize: {} }), {});
   const r = await route(f.cloneA);
   const results: unknown[] = [];
+  const vars: Vars = { run: "" };
   try {
-    for (const step of STEPS) results.push(normalize(await r.call(step), f.root));
+    for (const step of STEPS) {
+      const result = await r.call(resolveStep(step, vars));
+      if (step.name === "run.start" && result["ok"] === true) {
+        vars.run = (result["data"] as { id: string }).id;
+      }
+      results.push(normalize(result, f.root));
+    }
   } finally {
     await r.close();
   }
   // deguboard ブランチの事実：リモートに届いたコミットの題と、ファイルの中身
   const dataDir = `${f.cloneA}/.git/deguboard`;
-  const commits = (await git(dataDir, ["log", "--format=%s", "origin/deguboard"])).stdout
-    .trim()
-    .split("\n");
+  const commits = normalize(
+    (await git(dataDir, ["log", "--format=%s", "origin/deguboard"])).stdout.trim().split("\n"),
+    f.root,
+  ) as string[];
   const names = (await git(dataDir, ["ls-tree", "-r", "--name-only", "origin/deguboard"])).stdout
     .trim()
     .split("\n");
   const files: Record<string, unknown> = {};
   for (const name of names) {
-    files[name] = normalize(
+    files[normalize(name, f.root) as string] = normalize(
       (await git(dataDir, ["show", `origin/deguboard:${name}`])).stdout,
       f.root,
     );
@@ -255,6 +339,26 @@ describe("3 経路の E2E", () => {
     expect(list.data.map((t) => `${t.id}:${t.status}`)).toEqual(["t1:done", "t2:in_progress"]);
     expect(base.commits.length).toBeGreaterThan(3);
     expect(Object.keys(base.files)).toContain("tickets/t1.md");
+    // Run は finish の集計だけが Git に入り、run.list・metrics.show が読む
+    expect(Object.keys(base.files)).toContain("runs/<run>.json");
+    const at = (name: string, n = 0) =>
+      base.results[
+        STEPS.map((s, k) => [s.name, k] as const).filter(([s]) => s === name)[n]![1]
+      ] as {
+        data: unknown;
+      };
+    expect(at("run.list", 0).data).toMatchObject([
+      { id: "<run>", ticket: "t2", model: "e2e-model", running: true, duration_seconds: null },
+    ]);
+    expect(at("run.list", 1).data).toMatchObject([
+      { id: "<run>", result: "failure", error: "テストが落ちた", retries: 1, running: false },
+    ]);
+    expect(at("metrics.show").data).toMatchObject({
+      filter: { epic: "e1" },
+      by: "agent",
+      total: { runs: 1, retries: 1, results: { failure: 1 } },
+      groups: [{ key: "e2e-agent", runs: 1 }],
+    });
     // 経路の間で一致する
     for (const label of ["HTTP", "Webview"]) {
       expect(traces[label]!.results, `${label} の結果`).toEqual(base.results);
