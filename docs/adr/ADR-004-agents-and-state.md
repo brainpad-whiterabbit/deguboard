@@ -20,7 +20,7 @@ AI エージェント（Claude Code・Codex など）がチケットを処理す
 
 - 成果をリポジトリに残すチケットは `branch` を持つ。`dg sync`（と画面の同期のボタン）は、そのブランチについて Git から事実を集め、ワークフローの `reconcile` 規則で状態を導き、今より先のときだけ書き換える
 - 事実は Git だけで取れるものを基本にする：`branch_exists`（ローカルかリモートにある）、`branch_pushed`（リモートにある）、`branch_merged`（先端が `git.base_branch` の真の祖先。先端が base と同じなら切ったばかりのブランチとみなして偽にする。ff マージの直後は base が進むか PR の事実で拾う）
-- commit のないブランチは base が進むと先端が真の祖先になり、グラフだけでは ff マージ後のブランチと区別できない（2026-10-31 に claim 直後の 3 枚が別の PR のマージ後の照合で done になった）。そこで in_progress で push していないブランチは作業がまだないとみなして `branch_merged` を偽にする。review に進めたブランチと push 済みのブランチは祖先判定だけで決めるので、ff マージは従来どおり拾える。push していないブランチを in_progress のままローカルで ff マージした形は拾えず、人が `ticket move` で進める
+- commit のないブランチは base が進むと先端が真の祖先になり、グラフだけでは ff マージ後のブランチと区別できない（2026-10-31 に claim 直後の 3 枚が照合で誤って done になった）。そこで in_progress で push していないブランチは作業がまだないとみなして `branch_merged` を偽にする。review に進めたブランチと push 済みのブランチは祖先判定だけで決めるので、ff マージは従来どおり拾える。push していないブランチを in_progress のままローカルで ff マージした形は拾えず、人が `ticket move` で進める
 - 照合の結果には当てはまった規則の条件（`when`）を根拠として残し、誤判定の原因を後から追えるようにする
 - PR の事実（`pr_open`・`pr_merged`・`pr_draft`）は `gh` が使えるときだけ取り、software-development ワークフローが任意で使う。`gh` がなくても照合は成り立つ。チケットに `pr` がなければブランチ名で PR を引き、見つけた番号を `pr` に記録する（エージェントが記録し忘れても PR の記録が残る）
 - 後退を指す事実（消えたブランチ・マージされずに閉じた PR）は書き換えずに警告する。同じ照合で done に進むときは、マージ後に消したブランチなので警告しない。PR がまだないだけの形は閉じた PR と警告しない。取れなかった事実は不明として扱い、前進の判定では偽と読む
@@ -29,7 +29,7 @@ AI エージェント（Claude Code・Codex など）がチケットを処理す
 ### 排他は claim の push で決める
 
 - 着手（todo → in_progress）は `dg ticket claim` で行う。claim は `status`・`assignee`・`branch` のコミットを push できたときに取得とする。拒否されたら取り込み直して判定し直す
-- 同一マシンの Run の二重起動は、`deguboard-local/locks/<ticket>` のローカルロックで防ぐ。Git 管理外で、チーム間の排他には使わない
+- 同一マシンの Run の二重起動は、`deguboard-local/locks/runs` のロックの中で実行中の Run を見て拒む。Git 管理外で、チーム間の排他には使わない
 - 応答のない claim は人が確かめてから `dg ticket unclaim --force` で解除する。生存監視はしない
 
 ### 主体の ID はユーザ名と種別で、起票者と担当者を分けて記録する

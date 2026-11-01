@@ -1,7 +1,7 @@
 // 履歴（UI-5）。終わったものを見る画面で、見方を「Iteration / Epic / チケット」で切り替える（見方はハッシュの ?view= に持つ）。検索欄は共通。
 // Iteration の見方：closed の Iteration を閉じた新しい順に 2 段の行で出す（KanbanForge の History のタブと同じ形）。
 // 1 段目は番号・名前と、閉じたときに記録した完了・持ち越しの件数、2 段目は期間・目標と、含む Epic ごとの件数。
-// 行を開くと中の done・abandoned のチケットを出す。Run の実績（e3）が入ったら 1 段目の右に出す。
+// 行を開くと中の done・abandoned のチケットを出す。Run の実績はここに出さず、Run の画面（#/runs?by=iteration）で見る。
 // Epic の見方：closed の Epic を閉じた新しい順に、進捗・閉じた日と、チケットが入っていた Iteration を出す。
 // チケットの見方：done・abandoned のチケットを終えた新しい順に、結果・Iteration・Epic・PR・終えた日を出す。終えた時刻は
 // history のコマンド（deguboard ブランチの履歴）から求め、履歴が浅くて分からないものは updated_at で代え、そう出す。
