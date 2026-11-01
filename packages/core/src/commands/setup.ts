@@ -353,7 +353,7 @@ export const lint = defineCommand({
   name: "lint",
   group: "setup",
   summary:
-    "本文の推奨の節（## 概要・## 受け入れ条件）の欠けと空、Workflow の fields に合わない値を指摘する。done のチケットの未チェックの受け入れ条件は指摘しない",
+    "本文の推奨の節（## 概要・## 受け入れ条件）の欠けと空、Workflow の fields に合わない値、閉じた Epic に残る終わっていないチケット、チケットがすべて終わったのに開いている Epic・Plan を指摘する。done のチケットの未チェックの受け入れ条件は指摘しない",
   input: z.object({ project: z.string().optional() }),
   write: false,
   needs: "store",
@@ -397,6 +397,47 @@ export const lint = defineCommand({
       if (input.project && doc.data.project !== input.project) continue;
       if (!/^## 概要\s*$/m.test(doc.body))
         warn(doc.path, doc.id, "lint_summary_missing", "本文に ## 概要 がない");
+    }
+    // Epic・Plan の状態と、所属するチケットの状態の食い違い。Iteration は閉じると終わっていないチケットを外すので見ない
+    const tickets = [...ctx.store.tickets.values()].filter(
+      (t) => !input.project || t.data.project === input.project,
+    );
+    const finished = (t: Doc<Ticket>) => t.data.status === "done" || t.data.status === "abandoned";
+    const unfinished = (members: Doc<Ticket>[]) =>
+      members
+        .filter((t) => !finished(t))
+        .map((t) => t.id)
+        .join(", ");
+    for (const doc of ctx.store.epics.values()) {
+      if (input.project && doc.data.project !== input.project) continue;
+      const members = tickets.filter((t) => t.data.epic === doc.id);
+      const left = unfinished(members);
+      if (doc.data.status === "closed" && left)
+        warn(
+          doc.path,
+          doc.id,
+          "lint_epic_closed_unfinished",
+          `閉じた Epic に終わっていないチケット ${left} が残る`,
+        );
+      if (doc.data.status === "open" && members.some((t) => t.data.status === "done") && !left)
+        warn(
+          doc.path,
+          doc.id,
+          "lint_epic_finished_open",
+          "チケットがすべて終わったが Epic が開いている",
+        );
+    }
+    for (const doc of ctx.store.plans.values()) {
+      if (input.project && doc.data.project !== input.project) continue;
+      if (doc.data.closed_at !== undefined || doc.data.tickets.length === 0) continue;
+      const members = doc.data.tickets.map((id) => ctx.store.tickets.get(id));
+      if (members.every((t) => t !== undefined && finished(t)))
+        warn(
+          doc.path,
+          doc.id,
+          "lint_plan_finished_open",
+          "チケットがすべて終わったが Plan が開いている",
+        );
     }
     return ok({ ok: issues.length === 0, issues });
   },
