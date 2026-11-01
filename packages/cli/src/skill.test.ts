@@ -164,6 +164,7 @@ describe("Skill の本文", () => {
       "dgplan",
       "dgwork",
       "dgaudit",
+      "dgrelease",
       "dgdone",
     ]);
     for (const s of skills) {

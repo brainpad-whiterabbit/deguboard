@@ -84,5 +84,5 @@ Iteration（か Epic）のチケットがすべて done になった後、リリ
 結果を伝えたら（指摘がなかったときも）、次の選択肢で聞く。
 
 - **計画を立てる**（対象に起票したとき勧める）：`dg guide plan` の手順で対象の todo を計画する（Claude Code では `/dgplan <S>`）
-- **リリースする・閉じる**（起票しなかったとき勧める）：リポジトリにリリースの手順があればそれに従い、なければ `dg guide done` で片付ける
+- **リリースする**（起票しなかったとき勧める）：`dg guide release` の手順でリリースして閉じる（Claude Code では `/dgrelease <S>`）。対象が Epic なら `dg guide done` で片付ける
 - **ここで止める**
