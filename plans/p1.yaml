@@ -1,0 +1,36 @@
+id: p1
+project: default
+tickets: [t77, t71, t74, t72, t73, t75, t76]
+after:
+  t72:
+    - t71
+  t73:
+    - t71
+  t75:
+    - t73
+    - t74
+  t76:
+    - t72
+pending_approval: true
+details:
+  t77:
+    scope: カンバンの列から、Epic か Iteration が closed の done・abandoned を外す規則と web のテスト
+    approach: カンバンのチケットの絞り込みに純粋関数を足してテストし、UI-2 に書き足す
+  t71:
+    scope: タブを 3 つにし、Epic 一覧をバックログの欄へ移す。詳細ページは残す
+    approach: "既存の EpicList の部品をバックログの欄に作り直し、ルーティングを #/backlog に寄せる"
+  t74:
+    scope: core の history コマンドと dg history。HTTP にも写す
+    approach: git log -p -U0 を 1 回走らせ frontmatter の差分を読む。テストは bare リモート付きの一時リポジトリ
+  t72:
+    scope: バックログを Iteration の区画に分ける
+    approach: t71 の後のバックログに区画の部品を足し、カンバンの見出しの操作を流用する
+  t73:
+    scope: 履歴に Iteration と Epic の見方
+    approach: 見方をハッシュのクエリに持たせ、既存の履歴の行を広げる
+  t75:
+    scope: 履歴のチケットの見方とチケット詳細の経過
+    approach: t74 の history を HTTP 経由で読む
+  t76:
+    scope: バックログの区画間のドラッグ
+    approach: カンバンの @dnd-kit の作りを流用し ticket update を呼ぶ
