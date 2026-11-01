@@ -22,6 +22,7 @@ import {
   iterationStart,
 } from "./iteration.js";
 import { planApprove, planClose, planCreate, planList, planShow } from "./plan.js";
+import { projectCreate } from "./project.js";
 import { configSet, init, lint, sync, validate } from "./setup.js";
 import {
   ticketCheck,
@@ -361,6 +362,32 @@ describe("チケットの流れ", () => {
     expect(ready.data.map((t) => t.id)).toEqual(["t4"]);
     const claimed = await runCommand(ticketClaim, human, { ticket: "t4" });
     expect(claimed.data.status).toBe("in_progress");
+  });
+
+  it("list は各行に deps_done を載せ、show と同じく別の Project の依存先も見る", async () => {
+    const f = await fixture();
+    const ctx = await initialized(f.cloneA);
+    await runCommand(projectCreate, ctx, { id: "other" });
+    await runCommand(ticketCreate, ctx, { title: "別の Project", project: "other" });
+    await runCommand(ticketCreate, ctx, { title: "B", depends_on: ["t1"] });
+    await runCommand(ticketCreate, ctx, { title: "C", depends_on: ["t2"] });
+    const depsDone = async () =>
+      (await runCommand(ticketList, ctx, { project: "default" })).data.map((t) => [
+        t.id,
+        t.deps_done,
+      ]);
+    expect(await depsDone()).toEqual([
+      ["t2", false],
+      ["t3", false],
+    ]);
+    // 依存先は default の一覧に出ないが、done になれば deps_done は真になる
+    await runCommand(ticketMove, ctx, { ticket: "t1", status: "done" });
+    expect(await depsDone()).toEqual([
+      ["t2", true],
+      ["t3", false],
+    ]);
+    const shown = await runCommand(ticketShow, ctx, { ticket: "t2" });
+    expect(shown.data.deps_done).toBe(true);
   });
 
   it("unclaim は自分（同じユーザの人と AI）の claim だけ外し、他人のものは force が要る", async () => {

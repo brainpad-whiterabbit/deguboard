@@ -33,7 +33,12 @@ import {
   sameAssignee,
 } from "../components/parts.js";
 import { PlanBand } from "../components/plan-band.js";
-import { openPlanByTicket, planColor, planGraph } from "../components/plan-graph.js";
+import {
+  openPlanByTicket,
+  planColor,
+  planGraph,
+  remainingWaits,
+} from "../components/plan-graph.js";
 import { useChangeFlash } from "../components/change-flash.js";
 import { useHost, useUiState } from "../host.js";
 import { hrefOf, navigate, NO_ITERATION, type BoardQuery } from "../router.js";
@@ -53,6 +58,7 @@ import {
   type PlanRow,
   type Status,
   type Ticket,
+  type TicketRow,
 } from "../types.js";
 import { IterationActions, IterationCreateForm } from "./iterations.js";
 
@@ -523,43 +529,27 @@ export interface PlanMark {
   plan: string;
   /** Plan が承認待ち（plan.status が pending）。todo の行は待ちの相手によらず「承認待ち」と出す */
   pending: boolean;
-  /**
-   * done・abandoned でない待ちの相手。Plan の after の待ち（planGraph の waitingOn）を先に、
-   * チケットの depends_on（Plan の外のものと、after に書かれていないもの）を後に並べる。
-   * 空なら着手できる（Project の中に限って core の depsDone と同じ意味）
-   */
+  /** 残っている待ちの相手（remainingWaits。Plan の after の待ちが先、depends_on が後）。空なら着手できる */
   waitingOn: string[];
 }
 
-const FINISHED_STATUSES: ReadonlySet<Status> = new Set(["done", "abandoned"]);
-
-/**
- * 開いた Plan に入っているチケットごとの PlanMark。after の待ちは Plan ごとに planGraph で求め、depends_on の待ちを足す。
- * 限界：画面が読むチケットは選んだ Project のものだけなので、見つからない依存先（別の Project のものなど）は判定できないものとして待ちに数えない。
- * 正しくは core の ticket.list に deps_done を載せて使う（別チケット）
- */
+/** 開いた Plan に入っているチケットごとの PlanMark。after の待ちは Plan ごとに planGraph で求め、depends_on の待ちは deps_done で決める（remainingWaits） */
 export function kanbanPlanMarks(
   plans: readonly PlanRow[],
-  tickets: readonly Ticket[],
+  tickets: readonly TicketRow[],
   planOf: ReadonlyMap<string, string> = openPlanByTicket(plans),
 ): Map<string, PlanMark> {
   // キーをチケットの ID の型（t の番号）のままにすると depends_on・after の文字列で引けないので、文字列に広げる
-  const byId = new Map<string, Ticket>(tickets.map((t) => [t.id, t]));
+  const byId = new Map<string, TicketRow>(tickets.map((t) => [t.id, t]));
   const marks = new Map<string, PlanMark>();
   for (const plan of plans) {
     if (plan.status === "closed") continue;
     for (const node of planGraph(plan, byId).nodes) {
       if (planOf.get(node.id) !== plan.id) continue;
-      const deps = byId.get(node.id)!.depends_on.filter((dep) => {
-        const status = byId.get(dep)?.status;
-        return (
-          status !== undefined && !FINISHED_STATUSES.has(status) && !node.waitingOn.includes(dep)
-        );
-      });
       marks.set(node.id, {
         plan: plan.id,
         pending: plan.status === "pending",
-        waitingOn: [...node.waitingOn, ...deps],
+        waitingOn: remainingWaits(byId.get(node.id)!, node.waitingOn, byId),
       });
     }
   }

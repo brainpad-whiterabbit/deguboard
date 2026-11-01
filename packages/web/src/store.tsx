@@ -25,7 +25,7 @@ import type {
   Project,
   RunView,
   Status,
-  Ticket,
+  TicketRow,
   WorkflowView,
 } from "./types.js";
 import type { UiState } from "./ui-state.js";
@@ -34,7 +34,7 @@ import type { UiState } from "./ui-state.js";
 interface Snapshot {
   projectId: string | null;
   projects: Project[];
-  tickets: Ticket[];
+  tickets: TicketRow[];
   epics: EpicRow[];
   iterations: Iteration[];
   plans: PlanRow[];
@@ -42,7 +42,9 @@ interface Snapshot {
 }
 
 /** cache の置き場の鍵。形が変わったら番号を上げて古いものを読まない */
-export const SNAPSHOT_KEY = "store.snapshot.v1";
+export const SNAPSHOT_KEY = "store.snapshot.v2";
+/** 前の版の鍵。読み直しの書き込みのときに消し、保存量を増やさない */
+const OLD_SNAPSHOT_KEYS = ["store.snapshot.v1"];
 
 export interface Notice {
   kind: "error" | "info";
@@ -58,7 +60,7 @@ export interface Store {
   client: CommandClient;
   projects: Project[];
   project: Project | null;
-  tickets: Ticket[];
+  tickets: TicketRow[];
   epics: EpicRow[];
   iterations: Iteration[];
   plans: PlanRow[];
@@ -100,7 +102,7 @@ export function StoreProvider({
   const [cached] = useState(() => cache?.get<Snapshot>(SNAPSHOT_KEY));
   const [projects, setProjects] = useState<Project[]>(cached?.projects ?? []);
   const [projectId, setProjectId] = useState<string | null>(cached?.projectId ?? null);
-  const [tickets, setTickets] = useState<Ticket[]>(cached?.tickets ?? []);
+  const [tickets, setTickets] = useState<TicketRow[]>(cached?.tickets ?? []);
   const [epics, setEpics] = useState<EpicRow[]>(cached?.epics ?? []);
   const [iterations, setIterations] = useState<Iteration[]>(cached?.iterations ?? []);
   const [plans, setPlans] = useState<PlanRow[]>(cached?.plans ?? []);
@@ -149,7 +151,7 @@ export function StoreProvider({
       setProjectId(current.id);
       const project = current.id;
       const [t, e, i, p, w] = await Promise.all([
-        client.run<Ticket[]>("ticket.list", { project, include_abandoned: true }),
+        client.run<TicketRow[]>("ticket.list", { project, include_abandoned: true }),
         client.run<EpicRow[]>("epic.list", { project }),
         client.run<Iteration[]>("iteration.list", { project }),
         client.run<PlanRow[]>("plan.list", { project }),
@@ -169,6 +171,7 @@ export function StoreProvider({
         plans: p.data,
         workflow: w.data,
       } satisfies Snapshot);
+      for (const key of OLD_SNAPSHOT_KEYS) cache?.remove(key);
       void refreshStatus();
       if (readRunning) {
         // 行の印（UI-2）のためだけなので、ほかの一覧を描くのを待たせない。読めなければ前の値のまま（最初なら印を出さない）

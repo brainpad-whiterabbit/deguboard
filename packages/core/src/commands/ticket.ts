@@ -307,7 +307,8 @@ export const ticketImport = defineCommand({
 export const ticketList = defineCommand({
   name: "ticket.list",
   group: "ticket",
-  summary: "チケットを番号順に出す。abandoned は include_abandoned か status の指定で出す",
+  summary:
+    "チケットを番号順に出す。各行に依存先が終わったか（deps_done。ticket.show と同じ）を足す。abandoned は include_abandoned か status の指定で出す",
   input: ticketFilterSchema,
   write: false,
   needs: "store",
@@ -320,7 +321,8 @@ export const ticketList = defineCommand({
     const docs = sortedDocs(ctx.store.tickets.values()).filter((d) =>
       matchesFilter(ctx.store, d.data, filter),
     );
-    return ok(docs.map((d) => d.data));
+    // deps_done は Project で絞る前の全チケットから求める（別の Project の依存先も見る。WF-2）
+    return ok(docs.map((d) => ({ ...d.data, deps_done: ctx.store.depsDone(d.data) })));
   },
 });
 

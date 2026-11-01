@@ -116,6 +116,8 @@ export interface EpicProgress {
   done: number;
   by_status: Record<Status, number>;
 }
+/** ticket.list の 1 行。deps_done は依存先がすべて done か abandoned か（WF-2。別の Project の依存先も見る） */
+export type TicketRow = Ticket & { deps_done: boolean };
 export type EpicRow = Epic & { progress: EpicProgress };
 export type EpicDetail = EpicRow & { body: string; tickets: Ticket[] };
 export type IterationDetail = Iteration & { items: Ticket[] };

@@ -4,6 +4,8 @@
 export interface UiState {
   get<T>(key: string): T | undefined;
   set(key: string, value: unknown): void;
+  /** 鍵ごと消す（使わなくなった鍵を残さないため） */
+  remove(key: string): void;
 }
 
 /** acquireVsCodeApi() の getState / setState の部分。テストとブラウザでは別の実装を渡す */
@@ -23,6 +25,12 @@ export function createUiState(backend: StateBackend): UiState {
     },
     set(key, value) {
       backend.setState({ ...read(), [key]: value });
+    },
+    remove(key) {
+      const state = read();
+      if (!(key in state)) return;
+      const { [key]: _removed, ...rest } = state;
+      backend.setState(rest);
     },
   };
 }
