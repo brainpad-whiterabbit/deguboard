@@ -39,7 +39,13 @@ const VALUE_LABELS: Record<ValueKey, string> = {
   cache_write: "キャッシュ書き",
 };
 const VALUE_KEYS = Object.keys(VALUE_LABELS) as ValueKey[];
-const RESULT_KEYS: ResultKey[] = ["success", "failure", "interrupted", "unfinished"];
+/** 結果の内訳の順。satisfies で core の RunMetrics["results"] の全件と照らす */
+const RESULT_KEYS = Object.keys({
+  success: true,
+  failure: true,
+  interrupted: true,
+  unfinished: true,
+} satisfies Record<ResultKey, true>) as ResultKey[];
 
 /** 集計の値。null は「—」、推定を含む Run があれば「~」を付ける */
 export function formatValue(key: ValueKey, v: number | null, estimated = false): string {

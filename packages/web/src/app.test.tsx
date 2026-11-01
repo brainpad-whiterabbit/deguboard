@@ -315,6 +315,7 @@ describe("画面", () => {
           retries: 0,
           usage: { input: null, output: null, cache_read: null, cache_write: null },
           running: true,
+          duration_seconds: null,
         } as RunView,
       ];
       expect(screen.queryByText("外で始めた step")).toBeNull();
@@ -487,8 +488,8 @@ describe("画面", () => {
     expect(names()).toEqual(["次", "最初"]);
     expect(screen.getByText("完了 3 ・ 持ち越し 1")).toBeTruthy();
     expect(screen.getByText("2026-09-29 〜 2026-10-10 ・ core")).toBeTruthy();
-    // s2 には記録がないので今のチケットから求める（API は in_progress → 持ち越し 1）
-    expect(screen.getByText("完了 0 ・ 持ち越し 1")).toBeTruthy();
+    // s2 には閉じたときの記録がないので、web で数え直さず「—」と出す
+    expect(screen.getByText("完了 — ・ 持ち越し —")).toBeTruthy();
     fireEvent.change(screen.getByLabelText("チケットを探す"), { target: { value: "ログイン" } });
     expect(names()).toEqual(["最初"]);
     expect(screen.getByText("1 / 2 件")).toBeTruthy();

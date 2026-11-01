@@ -245,7 +245,7 @@ steps: # 任意。Run の step の語彙（WF-5）
 - ST-2 遷移は Workflow の `transitions` の制約で検査する。`by` に含まれない主体の遷移と `requires` を満たさない遷移は拒否し、制約のない遷移は誰でも行える。同じ Status への move は拒否する
 - ST-3 `claim` は todo のチケットの `assignee` を claim した主体にし、`branch` を記録して in_progress に進める。PR も作業ブランチも要らない作業は、ブランチなしの指定で `branch` を記録しない。todo 以外は拒否する。別のユーザが `assignee` だったときは上書きして警告する。依存先が終わるまで着手を止めたいときは Workflow で todo → in_progress に `requires: [deps_done]`（WF-2）を書く
 - ST-4 照合は `dg sync` と、画面の同期（UI-6・UI-12）で行う。`branch` のあるチケットについて Git から事実を集め（`branch` のないチケットは照合せず、状態は `ticket move` で進める）、`reconcile` 規則を上から評価し、今より前進の順が先のときだけ書き換える。`done` と `abandoned` のチケットには触れない。done に進めたチケットに未チェックの受け入れ条件が残れば警告する
-- ST-5 後退を指す事実（消えたブランチ・マージされずに閉じた PR）は書き換えず警告する。`gh` が PR はないと答えたときは、閉じた PR として警告しない。ただし同じ照合で done に進むときは、マージ後に消したブランチなので警告しない。取れなかった事実は不明とし、前進の判定では偽と読む。`branch_merged` は先端が base の真の祖先のとき真だが、in_progress で push していないブランチは commit のない切ったばかりのブランチとみなして偽にする（[ADR-004](adr/ADR-004-agents-and-state.md)）。照合の結果（`reconciled`）には根拠の規則の条件（`when`）を含める
+- ST-5 後退を指す事実（消えたブランチ・マージされずに閉じた PR）は書き換えず警告する。`gh` が PR はないと答えたときは、閉じた PR として警告しない。ただし同じ照合で done に進むときは、マージ後に消したブランチなので警告しない。取れなかった事実は不明とし、前進の判定では偽と読む。`branch_merged` は先端が base の真の祖先のとき真だが、in_progress で push していないブランチは commit のない切ったばかりのブランチとみなして偽にする（理由は [ADR-004](adr/ADR-004-agents-and-state.md)）。照合の結果（`reconciled`）には根拠の規則の条件（`when`）を含める
 - ST-6 PR の事実は `gh` が使えるときだけ取る。`gh` がなくても照合は Git の事実だけで成り立つ。`pr` のないチケットの PR をブランチ名で見つけたら、状態が進まなくても番号を `pr` に記録する。記録済みの `pr` は書き換えない
 - ST-7 `unclaim` は in_progress のチケットの、自分（同じユーザの人と AI）の claim か記録のない claim だけを外して todo に戻し、`assignee` を消す。応答のない claim は強制の指定で外す。生存監視はしない
 - ST-8 `abandoned` にすると claim を外し、Iteration の完了件数と Epic の進捗には数えない。todo に戻す（再開・done の取り消し）ときも `assignee` と `branch` を消す。これらを人だけに限るなら Workflow の `by: [human]` で書く
@@ -264,9 +264,9 @@ steps: # 任意。Run の step の語彙（WF-5）
 Web UI は `dg serve` が配信し、VS Code 拡張は同じ React アプリを Webview に載せる。表示と操作は両方で同じ（[ADR-006](adr/ADR-006-ui-and-writes.md)）。
 
 - UI-1 プロジェクトの切り替え
-- UI-2 カンバン：Iteration で選んだ Iteration のチケット（既定は active。「Iteration なし」も選べる）を状態ごとに出す。Iteration の選択肢は planned と active だけで、Iteration がない Project では Iteration で絞らず全チケットを出す。列は todo / in_progress / review / done の 4 つ（表示名は Workflow の `labels`）で、done は既定で畳む。abandoned は done の右の最後の列（サイドバーでは最後の節）に畳んで出し、0 件なら出さない。チケットをドラッグ＆ドロップすると `ticket move` と同じ検査を通して Status が変わり、拒否されたら理由を出して戻す。Epic（選択肢は open だけ）と担当者（`assignee`）で絞り込める。入っている Iteration か Epic が closed の done・abandoned のチケットは（Iteration のない Project の全チケットの表示でも）出さない。ただし絞り込みで選んだ Epic のチケットは出す
+- UI-2 カンバン：選んだ Iteration のチケット（既定は active。「Iteration なし」も選べる）を状態ごとに出す。Iteration の選択肢は planned と active だけで、Iteration がない Project では Iteration で絞らず全チケットを出す。列は todo / in_progress / review / done の 4 つ（表示名は Workflow の `labels`）で、done は既定で畳む。abandoned は done の右の最後の列（サイドバーでは最後の節）に畳んで出し、0 件なら出さない。チケットをドラッグ＆ドロップすると `ticket move` と同じ検査を通して Status が変わり、拒否されたら理由を出して戻す。Epic（選択肢は open だけ）と担当者（`assignee`）で絞り込める。入っている Iteration か Epic が closed の done・abandoned のチケットは（Iteration のない Project の全チケットの表示でも）出さない。ただし絞り込みで選んだ Epic のチケットは出す
 - UI-3 バックログ：done と abandoned 以外のチケットを Iteration ごとの区画（active → planned → Iteration なし）に分け、区画の中は優先度と番号で出す。区画の見出しから詳細を開き、カンバンと同じ開始・閉じる、「Iteration なし」から作成ができる。番号・タイトル・ラベルで検索、Status・優先度・ラベル・担当者で絞り込み（すべての区画に効く）、Epic は UI-10 の欄で絞る。チケットを別の区画にドラッグすると `ticket update` と同じ検査で Iteration が変わり、拒否されたら理由を出して戻す。planned・active の Iteration がない Project では 1 つの表で出す
-- UI-4 チケット詳細：本文（概要・受け入れ条件）、属性、Epic、依存先と依存元、起票者と担当者、作業ブランチ、Run の一覧と、経過（CL-7 の `history`：起票・Status の遷移・Iteration と Epic の出入り・担当者・PR を時刻の順に。履歴が浅く欠けていればそう出す）。属性（担当者を含む）と本文を編集できる
+- UI-4 チケット詳細：本文（概要・受け入れ条件）、属性、Epic、依存先と依存元、起票者と担当者、作業ブランチ、Run の一覧と、経過（CL-7 の `history` の項目を時刻の順に。履歴が浅く欠けていればそう出す）。属性（担当者を含む）と本文を編集できる
 - UI-5 Iteration：一覧の画面は持たない。planned と active はカンバンの絞り込み（UI-2）で選び、見出しから開始・終了し、絞り込みの欄から作成する。詳細の画面でチケットの追加・除外。終わったものは履歴の画面で、「Iteration / Epic / チケット」の見方を切り替えて見る（見方はハッシュに残り、検索は共通）。Iteration の見方は closed の Iteration を閉じた新しい順に、完了と持ち越しの件数・含む Epic とともに出し、行を開くと中の終わったチケットを出す。Epic の見方は closed の Epic を閉じた新しい順に、進捗・閉じた日・入っていた Iteration とともに出す。チケットの見方は done・abandoned のチケットを終えた新しい順に出し、結果・Epic で絞れる。終えた日は `history` から求め、分からないものは `updated_at` で並べてそう出す。番号から詳細を開く
 - UI-6 未 push のコミットと、取り込んでいないリモートの更新があることを印で知らせる。同期のボタンで `dg sync` と同じ同期を行い、画面を読み直す。リモートがなくてもボタンは押せ、照合と読み直しだけを行う（UI-12 のサイドバーと同じ）
 - UI-7 画面からの書き込みは Core の同じコマンドを通り、`commit.mode` に従ってコミットする
@@ -274,7 +274,7 @@ Web UI は `dg serve` が配信し、VS Code 拡張は同じ React アプリを 
 - UI-9 実行中・完了の Run と MT-3 の単位別集計
 - UI-10 Epic：タブは持たない。open の Epic はバックログの欄に番号・タイトル・進捗（EP-3）と「Epic なし」の件数を出し、押すとバックログをその Epic のチケットに絞る（もう一度押すと解除）。作成は欄から行う。closed の Epic は履歴で見る。詳細の画面（欄の番号・チケット詳細から開く）で Epic のチケットを Status ごとに出し、チケットの追加・除外、閉じる・再開
 - UI-11 VS Code 拡張は `dg` を同梱せず、Webview のために `core` を同梱する。画面は `dg` なしで動き、`dg` が PATH にないときはインストールを案内する。`dg` の版と拡張の `core` の版のメジャーが違えば知らせる（[ADR-006](adr/ADR-006-ui-and-writes.md)）
-- UI-12 VS Code 拡張は Activity Bar のアイコンからサイドバーのビューに画面を出す。サイドバーでチケット・Iteration・Epic を押すと、詳細はエディタ領域のパネル（フォルダごとに 1 枚を使い回す）に開く。詳細のパネルにはタブなどのヘッダーを出さず、題を番号とタイトル（Iteration は名前）にする。サイドバーでは画面を上部のタブ（カンバン・バックログ・履歴・Run）で切り替え、カンバンは列を縦に積んで折りたため、バックログの Epic の欄も折りたためる。チケットは 1 行で出す。ビューのタイトル行に同期のボタン（リモートがなくても読み直す）と、未 push・未取り込みの件数のバッジを置き、サイドバーの中には同期の印を出さない。データのファイル（データ worktree と、実行中の Run の記録 `deguboard-local/runs/`）の変化を見張り、CLI やエージェントの書き込み（Run の開始・終了を含む）を自動で画面に映す。コマンド「画面を開く」でエディタ領域にも出せる（[ADR-006](adr/ADR-006-ui-and-writes.md)）
+- UI-12 VS Code 拡張は Activity Bar のアイコンからサイドバーのビューに画面を出す。サイドバーでチケット・Iteration・Epic を押すと、詳細はエディタ領域のパネル（フォルダごとに 1 枚を使い回す）に開く。詳細のパネルにはタブなどのヘッダーを出さず、題を番号とタイトル（Iteration は名前）にする。サイドバーでは画面を上部のタブ（カンバン・バックログ・履歴・Run）で切り替え、カンバンは列を縦に積んで折りたため、バックログの Epic の欄も折りたためる。チケットは 1 行で出す。ビューのタイトル行に同期のボタン（UI-6）と未 push・未取り込みの件数のバッジを置き、サイドバーの中には同期の印を出さない。データ worktree と実行中の Run の記録（`deguboard-local/runs/`）の変化を見張り、CLI やエージェントの書き込み（Run の開始・終了を含む）を自動で画面に映す。コマンド「画面を開く」でエディタ領域にも出せる（[ADR-006](adr/ADR-006-ui-and-writes.md)）
 
 画面の並び順・色・文言は web のコード（`packages/web/src/`）とテストが正本。
 
@@ -285,7 +285,7 @@ Web UI は `dg serve` が配信し、VS Code 拡張は同じ React アプリを 
 - AG-3 エージェントは要件の整理が終わったら、必要に応じてチケット化を提案し、承認を得て `ticket import` で起票する。分解・Epic への束ね・依存の整理・Iteration への割り当ても提案して承認を得る
 - AG-4 MCP サーバー（`dg mcp`。stdio）は Core のコマンド定義から生成する薄い層として提供する。CLI と同じ操作ができ（`init` と CLI だけの `guide`・`skill`・`serve`・`open` を除く）、ツールの結果は `--json` と同じ形（CL-1）で、主体は常に agent（`<ユーザ>/agent`）
 - AG-5 Agent Adapter が使用量の取得と作業ディレクトリの差を吸収し、製品ごとの実装は Core の `agents/adapters/` に閉じる。今は `claude-code` だけで、Codex は予定（`e3`）。起動方法と権限は扱わない（EX-1、[ADR-007](adr/ADR-007-architecture.md)）
-- AG-6 ソフトウェア開発向けの Action（worktree・ブランチ・テスト・PR 作成・マージ）は Core の `actions` に置き、汎用部分は依存しない。`dg` のコマンドにしないライブラリ（[ADR-007](adr/ADR-007-architecture.md)）
+- AG-6 ソフトウェア開発向けの Action（worktree・ブランチ・テスト・PR 作成・マージ）は Core の `actions` に置き、汎用部分は依存しない。`dg` のコマンドにせず Core 内のライブラリに留め、公開するのは名前の一覧（`ACTION_NAMES`）だけ（[ADR-007](adr/ADR-007-architecture.md)）
 - AG-7 任意のシェルの Action は `actions.shell: true` のときだけ使え、毎回確認を経る
 
 ### 6.6 作業の実績
