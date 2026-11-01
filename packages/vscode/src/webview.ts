@@ -74,13 +74,15 @@ export function coalesce(fn: () => void, waitMs: number): { fire(): void; cancel
   };
 }
 
-/** ルートが指す詳細の対象（#/tickets/t12 → ticket t12、#/iterations/s3 → iteration s3）。詳細でなければ undefined。パネルの題に使う（UI-12） */
+const SUBJECT_KINDS = { tickets: "ticket", iterations: "iteration", epics: "epic" } as const;
+
+/** ルートが指す詳細の対象（#/tickets/t12 → ticket t12、#/iterations/s3 → iteration s3、#/epics/e2 → epic e2）。詳細でなければ undefined。パネルの題に使う（UI-12） */
 export function subjectOfRoute(
   route: string,
-): { kind: "ticket" | "iteration"; id: string } | undefined {
-  const m = /^#\/(tickets|iterations)\/([^/?#]+)/.exec(route);
+): { kind: "ticket" | "iteration" | "epic"; id: string } | undefined {
+  const m = /^#\/(tickets|iterations|epics)\/([^/?#]+)/.exec(route);
   if (!m) return undefined;
-  return { kind: m[1] === "tickets" ? "ticket" : "iteration", id: m[2]! };
+  return { kind: SUBJECT_KINDS[m[1] as keyof typeof SUBJECT_KINDS], id: m[2]! };
 }
 
 /** 画面を出せないとき（フォルダを開いていない）に Webview に出す、スクリプトのない HTML */

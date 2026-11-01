@@ -14,7 +14,7 @@ const WEB_DIST = path.resolve(import.meta.dirname, "../../packages/web/dist");
 const WIDTHS = [300, 260];
 const SCHEMES = ["light", "dark"] as const;
 /** サイドバーで出す画面。履歴は閉じた Iteration の行を出す */
-const PAGES = ["#/board", "#/backlog", "#/epics", "#/epics/e1", "#/history"];
+const PAGES = ["#/board", "#/backlog", "#/epics/e1", "#/history"];
 const LONG = "サイドバーの配置を確かめるための、かなり長めのタイトルのチケット";
 
 let fixture: Fixture;
@@ -131,7 +131,7 @@ describe.each(SCHEMES)("サイドバーの配置（%s）", (scheme) => {
             });
           }
           expect(m.scrollWidth, `${hash} の横スクロール`).toBeLessThanOrEqual(m.clientWidth);
-          expect(m.tabs, `${hash} のタブ`).toBe(4);
+          expect(m.tabs, `${hash} のタブ`).toBe(3);
           expect(m.wrapped, `${hash} で折り返した要素`).toEqual([]);
           expect(m.color, `${hash} の文字と背景の色`).not.toBe(m.background);
         }

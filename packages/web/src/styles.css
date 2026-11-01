@@ -727,6 +727,68 @@ textarea.body {
   opacity: 0.4;
 }
 
+/* バックログ：左に open の Epic の欄、右にチケットの表。サイドバーでは縦に積む */
+.backlog-layout {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  gap: 0.75rem;
+  align-items: start;
+}
+.backlog-main {
+  min-width: 0;
+}
+.epic-panel {
+  border: 1px solid var(--dg-border);
+  border-radius: 3px;
+  padding: 0.25rem;
+}
+.epic-panel > header,
+.epic-panel > summary {
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+  padding: 0.2rem 0.3rem;
+}
+.epic-panel > header h2 {
+  margin: 0;
+  font-size: 1em;
+}
+.epic-panel > header > button,
+.epic-panel > summary > button {
+  margin-left: auto;
+}
+.epic-list li {
+  display: grid;
+  grid-template-columns: 2.5em minmax(0, 1fr);
+  align-items: start;
+  gap: 0.3rem;
+  padding: 2px 4px;
+  border-radius: 2px;
+}
+.epic-list li.selected {
+  background: var(--vscode-list-activeSelectionBackground, var(--vscode-list-hoverBackground));
+}
+.epic-list code {
+  background: transparent;
+  padding: 0;
+}
+/* Epic を選ぶボタンは行と同じ見た目：タイトルの下に進捗 */
+.epic-pick {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+  min-width: 0;
+  padding: 0;
+  text-align: left;
+  background: transparent;
+  border-color: transparent;
+  color: inherit;
+}
+.epic-pick .progress .bar {
+  width: 80px;
+}
+
 /* サイドバー（UI-12）：タブを 1 段目に広げ、列を縦に積み、余白を詰める */
 [data-surface="sidebar"] {
   background: var(--vscode-sideBar-background);
@@ -821,6 +883,10 @@ textarea.body {
 [data-surface="sidebar"] .column .empty {
   padding: 0.4rem;
   margin: 0.25rem 0.5rem;
+}
+[data-surface="sidebar"] .backlog-layout {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.5rem;
 }
 [data-surface="sidebar"] .groups {
   grid-template-columns: 1fr;
