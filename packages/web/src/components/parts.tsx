@@ -4,6 +4,7 @@ import { useDraggable } from "@dnd-kit/core";
 import {
   useEffect,
   useRef,
+  useState,
   type ComponentProps,
   type CSSProperties,
   type MouseEvent,
@@ -114,9 +115,16 @@ const PROGRESS_STATUSES = [
   "todo",
 ] as const satisfies readonly Status[];
 
-/** Epic の進捗（done の件数 / abandoned を除く件数。EP-3）。Status ごとに積み上げ、色は --dg-status-* */
+/**
+ * Epic の進捗（done の件数 / abandoned を除く件数。EP-3）。Status ごとに積み上げ、色は --dg-status-*。
+ * Webview では完了だけを塗りつぶし、進行中（In Progress・Code Review）は斜線にして、数字に「完了 n / m ・ 進行中 k」と何の比かを書く
+ * （全件が進行中だと、塗りつぶしの満タンが「終わった」に見えるので）。ブラウザでは今のまま
+ */
 export function ProgressBar({ progress }: { progress: EpicProgress }) {
   const store = useStore();
+  const host = useHost();
+  const webview = host.surface !== "browser";
+  const active = (progress.by_status.in_progress ?? 0) + (progress.by_status.review ?? 0);
   const segments = PROGRESS_STATUSES.map((s) => ({
     status: s,
     count: progress.by_status[s] ?? 0,
@@ -128,16 +136,100 @@ export function ProgressBar({ progress }: { progress: EpicProgress }) {
         {segments.map((seg) => (
           <span
             key={seg.status}
-            className={`status-${seg.status}`}
+            className={`status-${seg.status}${webview && seg.status !== "done" ? " partial" : ""}`}
             style={{ width: `${(seg.count / progress.total) * 100}%` }}
           />
         ))}
       </span>
       <span className="muted">
+        {webview ? "完了 " : ""}
         {progress.done}/{progress.total}
+        {webview && active > 0 ? ` ・ 進行中 ${active}` : ""}
       </span>
     </span>
   );
+}
+
+/**
+ * 閉じるのボタン（Iteration・Epic）。Webview では押すと画面の中に確認を出し、未完了の件数を見せてから閉じる
+ * （Webview では confirm() が使えない）。ブラウザでは今のまま 1 回で閉じる。
+ * 見出し（summary）の中にも置くので、クリックは節の開閉に伝えない
+ */
+export function CloseButton({
+  subject,
+  unfinished,
+  note,
+  onClose,
+}: {
+  /** 確認の文に出す名前（s4 sprint4 など） */
+  subject: string;
+  unfinished: number;
+  /** 未完了があるときに添える、閉じたあとにどうなるか */
+  note?: string | undefined;
+  onClose: () => void;
+}) {
+  const host = useHost();
+  const [confirming, setConfirming] = useState(false);
+  if (host.surface === "browser") {
+    return (
+      <button type="button" onClick={onClose}>
+        閉じる
+      </button>
+    );
+  }
+  const stop = (e: MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+  return (
+    <>
+      <button
+        type="button"
+        aria-expanded={confirming}
+        onClick={(e) => {
+          stop(e);
+          setConfirming(true);
+        }}
+      >
+        閉じる
+      </button>
+      {confirming ? (
+        <div className="confirm" role="group" aria-label={`${subject} を閉じる確認`} onClick={stop}>
+          <p>
+            {subject} を閉じる。
+            {unfinished > 0 ? `未完了が ${unfinished} 件ある。${note ?? ""}` : "未完了はない。"}
+          </p>
+          <div className="actions">
+            <button
+              type="button"
+              className="danger"
+              onClick={(e) => {
+                stop(e);
+                setConfirming(false);
+                onClose();
+              }}
+            >
+              {unfinished > 0 ? `${unfinished} 件を残して閉じる` : "閉じる"}
+            </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                stop(e);
+                setConfirming(false);
+              }}
+            >
+              やめる
+            </button>
+          </div>
+        </div>
+      ) : null}
+    </>
+  );
+}
+
+/** 未完了（done・abandoned 以外）のチケットの件数 */
+export function unfinishedCount(tickets: readonly Pick<Ticket, "status">[]): number {
+  return tickets.filter((t) => t.status !== "done" && t.status !== "abandoned").length;
 }
 
 /** 状態の丸印。色は --dg-status-* */

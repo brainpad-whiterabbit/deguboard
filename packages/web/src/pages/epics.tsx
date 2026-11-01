@@ -4,11 +4,13 @@
 
 import { useEffect, useState } from "react";
 import {
+  CloseButton,
   PriorityBadge,
   ProgressBar,
   StatusDot,
   TicketLink,
   TicketRow,
+  unfinishedCount,
 } from "../components/parts.js";
 import { useHost } from "../host.js";
 import { Markdown } from "../markdown.js";
@@ -68,9 +70,11 @@ export function EpicsPage({ id }: { id: string }) {
       <div className="actions">
         <a href={hrefOf({ page: "board", epic: epic.id })}>この Epic でカンバンを見る</a>
         {open ? (
-          <button type="button" onClick={() => void store.run("epic.close", { epic: epic.id })}>
-            閉じる
-          </button>
+          <CloseButton
+            subject={`${epic.id} ${epic.title}`}
+            unfinished={unfinishedCount(epic.tickets)}
+            onClose={() => void store.run("epic.close", { epic: epic.id })}
+          />
         ) : (
           <button type="button" onClick={() => void store.run("epic.reopen", { epic: epic.id })}>
             再開する

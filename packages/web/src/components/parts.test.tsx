@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, render, screen } from "@testing-library/react";
+import { HostProvider } from "../host.js";
+import { createUiState, memoryBackend } from "../ui-state.js";
 import { afterEach, describe, expect, it } from "vitest";
 import { StoreProvider } from "../store.js";
 import { mockClient } from "../test-helpers.js";
@@ -22,6 +24,36 @@ describe("行の担当", () => {
 });
 
 describe("進捗バー", () => {
+  it("Webview では完了だけを塗り、進行中は斜線にして、数字に何の比かを書く", async () => {
+    render(
+      <StoreProvider client={mockClient()}>
+        <HostProvider
+          host={{
+            surface: "sidebar",
+            open: () => {},
+            show: () => {},
+            state: createUiState(memoryBackend()),
+          }}
+        >
+          <ProgressBar
+            progress={{
+              total: 5,
+              done: 0,
+              by_status: { todo: 1, in_progress: 3, review: 1, done: 0, abandoned: 0 },
+            }}
+          />
+        </HostProvider>
+      </StoreProvider>,
+    );
+    const label = await screen.findByText("完了 0/5 ・ 進行中 4");
+    const segments = [...label.previousElementSibling!.children].map((el) => el.className);
+    expect(segments).toEqual([
+      "status-review partial",
+      "status-in_progress partial",
+      "status-todo partial",
+    ]);
+  });
+
   it("Status ごとに件数の割合で積み上げ、0 件の Status は出さない", async () => {
     mount(
       <ProgressBar
