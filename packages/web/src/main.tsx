@@ -18,11 +18,13 @@ const surface = readSurface(dataset, vscodeApi ? "" : window.location.search);
 if (!window.location.hash && dataset.route) window.location.hash = dataset.route;
 const webviewClient = vscodeApi ? createWebviewClient(vscodeApi) : null;
 const client = webviewClient ?? createHttpClient();
-const host = createHost(surface, webviewClient, vscodeApi ? createUiState(vscodeApi) : undefined);
+const uiState = vscodeApi ? createUiState(vscodeApi) : undefined;
+const host = createHost(surface, webviewClient, uiState);
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <StoreProvider client={client}>
+    {/* Webview では前回の一覧を getState に残し、次に開いたときすぐ描く（ブラウザでは残さない） */}
+    <StoreProvider client={client} cache={uiState}>
       <HostProvider host={host}>
         {webviewClient ? <HostBridge client={webviewClient} /> : null}
         <App />
