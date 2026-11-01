@@ -1,11 +1,19 @@
 // テスト用の CommandClient。コマンド名ごとの応答を持ち、呼ばれた記録を残す
 
 import type { CommandClient, CommandResult, StatusView } from "@deguboard/core";
-import type { EpicRow, Iteration, PlanRow, Project, Ticket, WorkflowView } from "./types.js";
+import type {
+  EpicRow,
+  Iteration,
+  PlanRow,
+  Project,
+  Ticket,
+  TicketRow,
+  WorkflowView,
+} from "./types.js";
 
 export interface Fixture {
   projects: Project[];
-  tickets: Ticket[];
+  tickets: TicketRow[];
   epics: EpicRow[];
   iterations: Iteration[];
   plans: PlanRow[];
@@ -13,8 +21,10 @@ export interface Fixture {
   status: StatusView;
 }
 
-export function ticket(partial: Partial<Ticket> & { id: string }): Ticket {
+/** ticket.list の 1 行。deps_done を省けば、依存先がないときだけ真にする */
+export function ticket(partial: Partial<TicketRow> & { id: string }): TicketRow {
   return {
+    deps_done: (partial.depends_on ?? []).length === 0,
     project: "default",
     title: `題 ${partial.id}`,
     status: "todo",

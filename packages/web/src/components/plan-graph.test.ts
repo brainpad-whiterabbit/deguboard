@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { plan, ticket } from "../test-helpers.js";
-import type { Ticket } from "../types.js";
+import type { TicketRow } from "../types.js";
 import {
   openPlanByTicket,
+  openWaits,
   planColor,
   planGraph,
   planProgressLine,
@@ -10,7 +11,7 @@ import {
   plansInScope,
 } from "./plan-graph.js";
 
-const byIdOf = (tickets: Ticket[]) => new Map(tickets.map((t) => [t.id, t]));
+const byIdOf = (tickets: TicketRow[]) => new Map(tickets.map((t) => [t.id, t]));
 
 describe("Plan の状態", () => {
   const byId = byIdOf([
@@ -170,6 +171,20 @@ describe("畳んだ行の作業中と次", () => {
     });
   });
 
+  it("別の Project の依存先（画面が読んでいないもの）は deps_done で決め、done なら着手できる", () => {
+    const deps = byIdOf([
+      ticket({ id: "t3", status: "todo", depends_on: ["t90"], deps_done: false }),
+      ticket({ id: "t4", status: "todo", depends_on: ["t91"], deps_done: true }),
+    ]);
+    const p = plan({ id: "p1", tickets: ["t3", "t4"] });
+    expect(planProgressLine(p, "approved", deps).next).toEqual({ kind: "ready", id: "t4" });
+    const only = plan({ id: "p1", tickets: ["t3"] });
+    expect(planProgressLine(only, "approved", deps).next).toEqual({
+      kind: "blocked",
+      waitFor: ["t90"],
+    });
+  });
+
   it("todo が残らなければ次を出さない。review は作業中に数えない", () => {
     const p = plan({ id: "p1", tickets: ["t1", "t6"] });
     expect(planProgressLine(p, "working", byId)).toEqual({ working: [], next: null });
@@ -183,5 +198,28 @@ describe("畳んだ行の作業中と次", () => {
     });
     expect(planProgressLine(p, "finished", byId)).toEqual({ working: [], next: null });
     expect(planProgressLine(p, "closed", byId)).toEqual({ working: [], next: null });
+  });
+});
+
+describe("待ちの相手（帯の次とカンバンの行で共用）", () => {
+  const byId = byIdOf([
+    ticket({ id: "t1", status: "done" }),
+    ticket({ id: "t2", status: "in_progress" }),
+  ]);
+
+  it("deps_done が真なら depends_on は待たず、Plan の after の待ちだけを出す", () => {
+    const t = ticket({ id: "t5", depends_on: ["t2", "t90"], deps_done: true });
+    expect(openWaits(t, [], byId)).toEqual([]);
+    expect(openWaits(t, ["t2"], byId)).toEqual(["t2"]);
+  });
+
+  it("deps_done が偽なら、終わっていない依存先と読めていない依存先を after の待ちの後に、重ねずに出す", () => {
+    const t = ticket({ id: "t5", depends_on: ["t1", "t2", "t90"], deps_done: false });
+    expect(openWaits(t, ["t2"], byId)).toEqual(["t2", "t90"]);
+  });
+
+  it("読めている依存先がすべて終わっていても deps_done が偽なら、依存先を出して着手できるとしない", () => {
+    const t = ticket({ id: "t5", depends_on: ["t1"], deps_done: false });
+    expect(openWaits(t, [], byId)).toEqual(["t1"]);
   });
 });

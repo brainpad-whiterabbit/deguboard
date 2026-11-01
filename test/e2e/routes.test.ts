@@ -82,6 +82,11 @@ const STEPS: Step[] = [
     input: { ticket: "t2", priority: "low", depends_on: ["t1"] },
     argv: ["ticket", "update", "t2", "--priority", "low", "--depends-on", "t1"],
   },
+  {
+    name: "ticket.create",
+    input: { title: "画面", depends_on: ["t2"] },
+    argv: ["ticket", "create", "画面", "--depends-on", "t2"],
+  },
   // 失敗も 3 経路で同じ形になること（見つからない・入力の形の誤り）
   {
     name: "ticket.show",
@@ -336,9 +341,14 @@ describe("3 経路の E2E", () => {
       if (step.rejected) expect(r).toMatchObject({ error: { code: step.rejected } });
     });
     const list = base.results[STEPS.findIndex((s) => s.name === "ticket.list")] as {
-      data: { id: string; status: string }[];
+      data: { id: string; status: string; deps_done: boolean }[];
     };
-    expect(list.data.map((t) => `${t.id}:${t.status}`)).toEqual(["t1:done", "t2:in_progress"]);
+    // 一覧の各行に deps_done が載る（t2 の依存先 t1 は done、t3 の依存先 t2 は作業中）
+    expect(list.data.map((t) => `${t.id}:${t.status}:${t.deps_done}`)).toEqual([
+      "t1:done:true",
+      "t2:in_progress:true",
+      "t3:todo:false",
+    ]);
     expect(base.commits.length).toBeGreaterThan(3);
     expect(Object.keys(base.files)).toContain("tickets/t1.md");
     // Run は finish の集計だけが Git に入り、run.list・metrics.show が読む

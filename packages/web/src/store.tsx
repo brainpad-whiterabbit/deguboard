@@ -21,7 +21,7 @@ import type {
   PlanRow,
   Project,
   Status,
-  Ticket,
+  TicketRow,
   WorkflowView,
 } from "./types.js";
 import type { UiState } from "./ui-state.js";
@@ -30,7 +30,7 @@ import type { UiState } from "./ui-state.js";
 interface Snapshot {
   projectId: string | null;
   projects: Project[];
-  tickets: Ticket[];
+  tickets: TicketRow[];
   epics: EpicRow[];
   iterations: Iteration[];
   plans: PlanRow[];
@@ -54,7 +54,7 @@ export interface Store {
   client: CommandClient;
   projects: Project[];
   project: Project | null;
-  tickets: Ticket[];
+  tickets: TicketRow[];
   epics: EpicRow[];
   iterations: Iteration[];
   plans: PlanRow[];
@@ -91,7 +91,7 @@ export function StoreProvider({
   const [cached] = useState(() => cache?.get<Snapshot>(SNAPSHOT_KEY));
   const [projects, setProjects] = useState<Project[]>(cached?.projects ?? []);
   const [projectId, setProjectId] = useState<string | null>(cached?.projectId ?? null);
-  const [tickets, setTickets] = useState<Ticket[]>(cached?.tickets ?? []);
+  const [tickets, setTickets] = useState<TicketRow[]>(cached?.tickets ?? []);
   const [epics, setEpics] = useState<EpicRow[]>(cached?.epics ?? []);
   const [iterations, setIterations] = useState<Iteration[]>(cached?.iterations ?? []);
   const [plans, setPlans] = useState<PlanRow[]>(cached?.plans ?? []);
@@ -137,7 +137,7 @@ export function StoreProvider({
       setProjectId(current.id);
       const project = current.id;
       const [t, e, i, p, w] = await Promise.all([
-        client.run<Ticket[]>("ticket.list", { project, include_abandoned: true }),
+        client.run<TicketRow[]>("ticket.list", { project, include_abandoned: true }),
         client.run<EpicRow[]>("epic.list", { project }),
         client.run<Iteration[]>("iteration.list", { project }),
         client.run<PlanRow[]>("plan.list", { project }),

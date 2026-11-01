@@ -4,7 +4,7 @@
 import { useMemo, useState } from "react";
 import { useHost, useUiState } from "../host.js";
 import { useStore } from "../store.js";
-import { actorLabel, type PlanRow, type Ticket } from "../types.js";
+import { actorLabel, type PlanRow, type Ticket, type TicketRow } from "../types.js";
 import { ProgressBar, StatusDot, TicketLink } from "./parts.js";
 import {
   PLAN_STATE_LABELS,
@@ -57,7 +57,7 @@ export function PlanBand({ scope }: { scope: readonly Ticket[] }) {
 interface ItemProps {
   plan: PlanRow;
   state: PlanState;
-  byId: ReadonlyMap<string, Ticket>;
+  byId: ReadonlyMap<string, TicketRow>;
 }
 
 /** 畳んだときの行：色の線・ID・状態・進捗の 1 行と、その下に作業中（あれば）と次 */
