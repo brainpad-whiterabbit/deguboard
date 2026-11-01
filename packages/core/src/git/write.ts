@@ -191,8 +191,12 @@ async function writeLocked<T>(
       f.ok && f.remoteBranch ? integrate(repo) : { ok: true as const, changed: false },
     );
     if (!integrated.ok) {
+      // 取り込みの警告が既に戻し方を案内していれば繰り返さない
+      const remedy = warnings.some((w) => w.includes(CONFLICT_REMEDY))
+        ? ""
+        : `。${CONFLICT_REMEDY}`;
       warnings.push(
-        `リモートの変更と競合しているので push できない（${integrated.conflicts.join(", ")}）。${CONFLICT_REMEDY}`,
+        `リモートの変更と競合しているので push できない（${integrated.conflicts.join(", ")}）${remedy}`,
       );
       return {
         value,
