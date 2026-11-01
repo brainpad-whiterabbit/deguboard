@@ -219,8 +219,10 @@ async function retitle(
     const name =
       subject.kind === "ticket"
         ? (await client.run<{ title: string }>("ticket.show", { ticket: subject.id })).data.title
-        : (await client.run<{ name: string }>("iteration.show", { iteration: subject.id })).data
-            .name;
+        : subject.kind === "epic"
+          ? (await client.run<{ title: string }>("epic.show", { epic: subject.id })).data.title
+          : (await client.run<{ name: string }>("iteration.show", { iteration: subject.id })).data
+              .name;
     // 読んでいる間に別の画面へ移っていたら上書きしない
     if (panel.title === subject.id) panel.title = `${subject.id} ${name}`;
   } catch {
