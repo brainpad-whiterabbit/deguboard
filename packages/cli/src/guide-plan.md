@@ -11,7 +11,7 @@
 5. 承認待ちの Plan に記録する（下の「Plan の作り方」）。結果の `data.id` が Plan の ID
 6. 人に見せて承認を得る。`dg --json --actor agent plan show <p>` の `items`（Plan の順）・`after`・`details` を示す。直すよう言われたら、`plan close <p>` で閉じて作り直す（Plan は作った後に書き換えられない）
 7. 人が承認したら `dg --json --actor agent plan approve <p>` で承認を記録する（`approved_by` は操作した主体）。人の承認を得ないまま approve しない。承認待ちの Plan のチケットには着手しない
-8. 承認済みの Plan に従い、`dg guide work` の手順で 1 枚ずつ進める。Plan を一覧するコマンドはないので、Plan の ID は人への報告に書いておく
+8. 承認済みの Plan に従い、`dg guide work` の手順で 1 枚ずつ進める。Plan の ID を見失ったら、`dg --json --actor agent plan list --status open` で開いた Plan を一覧するか、チケットの `ticket show` の `plan`（入っている開いた Plan）で引く
 
 ## Plan の作り方
 
@@ -24,7 +24,7 @@ dg --json --actor agent plan create t12 t13 t14 t15 \
 
 - 並べた順が実行順の目安。`--after t15=t13,t14` は「t15 を t13・t14 の後に進める」で、計画の中だけの待ち（チケットの `depends_on` とは別）。並行できるものは互いに after を書かない
 - `--scope`・`--approach` はチケットごとに 1 文で書く。着手するときに `plan show` の `details` で読み返す
-- done・abandoned のチケットと、別の開いた Plan に入っているチケットは入れられない（`REJECTED`）。別の Plan に入っていれば、その Plan を閉じてよいか人に確かめる
+- done・abandoned のチケットと、別の開いた Plan に入っているチケット（`ticket show` の `plan` が空でないもの）は入れられない（`REJECTED`）。別の Plan に入っていれば、その Plan を閉じてよいか人に確かめる
 - 依存が足りなければ `dg --json --actor agent ticket update <id> --depends-on t12,t13` で直す。`--depends-on` は一覧を**置き換える**ので、残す依存も全部指定する（`--label` も同じ）。循環は拒否される
 - 計画の途中で新しい作業が見つかったら、勝手に進めず `dg guide create` の手順で起票を提案する
 

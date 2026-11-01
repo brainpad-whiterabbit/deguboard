@@ -75,7 +75,12 @@ export interface EpicProgress {
 export type EpicRow = Epic & { progress: EpicProgress };
 export type EpicDetail = EpicRow & { body: string; tickets: Ticket[] };
 export type IterationDetail = Iteration & { items: Ticket[] };
-export type TicketDetail = Ticket & { body: string; dependents: string[]; deps_done: boolean };
+export type TicketDetail = Ticket & {
+  body: string;
+  dependents: string[];
+  deps_done: boolean;
+  plan: string | null;
+};
 export interface WorkflowView {
   definition: WorkflowDefinition;
   labels: Record<Status, string>;

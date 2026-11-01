@@ -21,7 +21,7 @@ import {
   iterationShow,
   iterationStart,
 } from "./iteration.js";
-import { planApprove, planClose, planCreate, planShow } from "./plan.js";
+import { planApprove, planClose, planCreate, planList, planShow } from "./plan.js";
 import { configSet, init, lint, sync, validate } from "./setup.js";
 import {
   ticketCheck,
@@ -844,6 +844,42 @@ describe("Plan", () => {
     await expect(runCommand(planShow, ctx, { plan: "p9" })).rejects.toMatchObject({
       code: "NOT_FOUND",
     });
+  });
+
+  it("list は状態と進捗を出して open・pending・approved・closed と Project で絞り、ticket show は開いた Plan を出す", async () => {
+    const f = await fixture();
+    const ctx = await initialized(f.cloneA);
+    for (const title of ["A", "B", "C"]) await runCommand(ticketCreate, ctx, { title });
+    await runCommand(planCreate, ctx, { tickets: ["t1"] });
+    await runCommand(planClose, ctx, { plan: "p1" });
+    await runCommand(planCreate, ctx, { tickets: ["t1", "t2"] });
+    await runCommand(planApprove, ctx, { plan: "p2" });
+    await runCommand(planCreate, ctx, { tickets: ["t3"] });
+    await runCommand(ticketMove, ctx, { ticket: "t1", status: "done" });
+    const all = await runCommand(planList, ctx, {});
+    expect(all.data.map((p) => [p.id, p.status])).toEqual([
+      ["p1", "closed"],
+      ["p2", "approved"],
+      ["p3", "pending"],
+    ]);
+    expect(all.data[1]?.progress).toMatchObject({ total: 2, done: 1 });
+    const ids = async (input: {
+      status?: "open" | "pending" | "approved" | "closed";
+      project?: string;
+    }) => (await runCommand(planList, ctx, input)).data.map((p) => p.id);
+    expect(await ids({ status: "open" })).toEqual(["p2", "p3"]);
+    expect(await ids({ status: "pending" })).toEqual(["p3"]);
+    expect(await ids({ status: "approved" })).toEqual(["p2"]);
+    expect(await ids({ status: "closed" })).toEqual(["p1"]);
+    expect(await ids({ project: "default" })).toEqual(["p1", "p2", "p3"]);
+    expect(await ids({ project: "other" })).toEqual([]);
+    // 閉じた Plan は出さず、開いた Plan だけを出す
+    const shown = async (ticket: string) =>
+      (await runCommand(ticketShow, ctx, { ticket })).data.plan;
+    expect(await shown("t1")).toBe("p2");
+    expect(await shown("t3")).toBe("p3");
+    await runCommand(planClose, ctx, { plan: "p3" });
+    expect(await shown("t3")).toBeNull();
   });
 
   it("agent の承認は agent の ID を記録し、actor.human_only に plan.approve を入れると拒否される", async () => {

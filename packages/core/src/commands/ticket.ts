@@ -23,7 +23,15 @@ import type { Facts } from "../workflow/conditions.js";
 import { canTransition, describeRejection, findConstraint } from "../workflow/resolve.js";
 import { defineCommand, ok, type CommandContext } from "./define.js";
 import { matchesFilter, ticketFilterSchema } from "./filters.js";
-import { dependents, nowIso, projectOf, sortedDocs, ticketRef, withBody } from "./helpers.js";
+import {
+  dependents,
+  nowIso,
+  openPlanOf,
+  projectOf,
+  sortedDocs,
+  ticketRef,
+  withBody,
+} from "./helpers.js";
 
 /** 主体の参照。`human` / `agent` は自分（のユーザ）に解く（model/actor.ts） */
 const actorRef = z.string().min(1);
@@ -321,7 +329,7 @@ export const ticketShow = defineCommand({
   positionals: ["ticket"],
   group: "ticket",
   summary:
-    "チケットの属性と本文、受け入れ条件の項目（acceptance）、依存元（dependents）、依存先が終わったか（deps_done）を出す",
+    "チケットの属性と本文、受け入れ条件の項目（acceptance）、依存元（dependents）、依存先が終わったか（deps_done）、入っている開いた Plan（plan）を出す",
   input: z.object({ ticket: ticketRef }),
   write: false,
   needs: "store",
@@ -332,6 +340,7 @@ export const ticketShow = defineCommand({
       acceptance: parseAcceptance(doc.body) ?? [],
       dependents: dependents(ctx.store, doc.data.id),
       deps_done: ctx.store.depsDone(doc.data),
+      plan: openPlanOf(ctx.store, doc.data.id)?.id ?? null,
     });
   },
 });
