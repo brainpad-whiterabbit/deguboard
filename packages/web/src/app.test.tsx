@@ -20,9 +20,9 @@ afterEach(() => {
   window.localStorage.clear();
 });
 
-/** Webview に載っているときの Host。見た目の状態はテストごとのメモリ */
+/** 画面の Host。見た目の状態はテストごとのメモリ。browser は readRunning などを Webview と同じ組み立てで描くときに使う */
 function webviewHost(
-  surface: "sidebar" | "panel",
+  surface: Host["surface"],
   open: (route: Route) => void = () => {},
   show: (route: Route) => void = () => {},
 ): Host {
@@ -60,8 +60,17 @@ function mount(client = mockClient(), host?: Host) {
   return client;
 }
 
-/** readRunning の左パネルを、拡張ホストからの event を送れる形で描く。返す関数で event の送り口を取る */
-function mountSidebarWithBridge(client: ReturnType<typeof mockClient>) {
+/**
+ * 拡張ホストとの接続の代わりを挟んで描く。HostBridge が購読した相手に event を送れるよう、返す関数で event の送り口を取る。
+ * 既定は readRunning の左パネル
+ */
+function mountWithBridge(
+  client: ReturnType<typeof mockClient>,
+  {
+    surface = "sidebar",
+    readRunning = true,
+  }: { surface?: "sidebar" | "panel"; readRunning?: boolean } = {},
+) {
   let send: ((event: WebviewEvent) => void) | undefined;
   const bridge: WebviewClient = {
     run: (name, input) => client.run(name, input),
@@ -74,14 +83,21 @@ function mountSidebarWithBridge(client: ReturnType<typeof mockClient>) {
     },
   };
   render(
-    <StoreProvider client={client} readRunning>
-      <HostProvider host={webviewHost("sidebar")}>
+    <StoreProvider client={client} readRunning={readRunning}>
+      <HostProvider host={webviewHost(surface)}>
         <HostBridge client={bridge} />
         <App />
       </HostProvider>
     </StoreProvider>,
   );
   return () => send!;
+}
+
+/** 左パネルのカンバンのチケットの行を題で引く（Plan の帯にも同じ題が出るので、行の題と一致するものだけ） */
+function kanbanRowOf(title: string): Element {
+  return [...document.querySelectorAll(".ticket-row")].find(
+    (r) => r.querySelector(".row-title")!.textContent === title,
+  )!;
 }
 
 describe("画面", () => {
@@ -342,34 +358,15 @@ describe("画面", () => {
 
   it("拡張ホストから reload の event が来ると読み直して表示が変わり、navigate の event でハッシュが変わる", async () => {
     const client = mockClient();
-    // 拡張ホストとの接続の代わり。HostBridge が購読した相手に event を送る
-    let send: ((event: WebviewEvent) => void) | undefined;
-    const bridge: WebviewClient = {
-      run: (name, input) => client.run(name, input),
-      status: () => client.status(),
-      open: async () => {},
-      show: async () => {},
-      onEvent: (listener) => {
-        send = listener;
-        return () => (send = undefined);
-      },
-    };
-    render(
-      <StoreProvider client={client}>
-        <HostProvider host={webviewHost("sidebar")}>
-          <HostBridge client={bridge} />
-          <App />
-        </HostProvider>
-      </StoreProvider>,
-    );
+    const send = mountWithBridge(client, { readRunning: false });
     await screen.findByText("ログイン");
     // 別の経路（ターミナルの dg など）でチケットが増えた。本物の読み直しと同じく新しい配列を返す
     client.data.tickets = [...client.data.tickets, ticket({ id: "t9", title: "外で起票した" })];
     expect(screen.queryByText("外で起票した")).toBeNull();
-    act(() => send!({ kind: "event", name: "reload" }));
+    act(() => send()({ kind: "event", name: "reload" }));
     expect(await screen.findByText("外で起票した")).toBeTruthy();
 
-    act(() => send!({ kind: "event", name: "navigate", hash: "#/backlog" }));
+    act(() => send()({ kind: "event", name: "navigate", hash: "#/backlog" }));
     expect(window.location.hash).toBe("#/backlog");
   });
 
@@ -383,25 +380,7 @@ describe("画面", () => {
       let runs: RunView[] = [];
       client.handlers["run.list"] = () => runs;
       client.handlers["metrics.show"] = () => null;
-      let send: ((event: WebviewEvent) => void) | undefined;
-      const bridge: WebviewClient = {
-        run: (name, input) => client.run(name, input),
-        status: () => client.status(),
-        open: async () => {},
-        show: async () => {},
-        onEvent: (listener) => {
-          send = listener;
-          return () => (send = undefined);
-        },
-      };
-      render(
-        <StoreProvider client={client}>
-          <HostProvider host={webviewHost("panel")}>
-            <HostBridge client={bridge} />
-            <App />
-          </HostProvider>
-        </StoreProvider>,
-      );
+      const send = mountWithBridge(client, { surface: "panel", readRunning: false });
       await waitFor(() => expect(client.calls.some((c) => c.name === "run.list")).toBe(true));
       const before = client.calls.filter((c) => c.name === "run.list").length;
       runs = [
@@ -422,7 +401,7 @@ describe("画面", () => {
         } as RunView,
       ];
       expect(screen.queryByText("外で始めた step")).toBeNull();
-      act(() => send!({ kind: "event", name: "reload" }));
+      act(() => send()({ kind: "event", name: "reload" }));
       expect((await screen.findAllByText("外で始めた step")).length).toBeGreaterThan(0);
       expect(client.calls.filter((c) => c.name === "run.list").length).toBeGreaterThan(before);
     },
@@ -565,12 +544,7 @@ describe("画面", () => {
     );
     mount(client, webviewHost("sidebar"));
     await screen.findByText("待つ");
-    // 帯にも同じ題が出るので、チケットの行の題で引く
-    const rowOf = (title: string) =>
-      [...document.querySelectorAll(".ticket-row")].find(
-        (r) => r.querySelector(".row-title")!.textContent === title,
-      )!;
-    const endOf = (title: string) => rowOf(title).querySelector(".row-end");
+    const endOf = (title: string) => kanbanRowOf(title).querySelector(".row-end");
 
     // in_progress：上に Plan の番号、下に優先度の印
     const api = endOf("API")!;
@@ -589,7 +563,7 @@ describe("画面", () => {
     expect(endOf("承認前")!.querySelector(".row-ready")).toBeNull();
     // Plan に入っていない・閉じた Plan のチケットは今までどおり優先度の印だけ
     expect(endOf("外")).toBeNull();
-    expect(rowOf("外").lastElementChild!.textContent).toBe("low");
+    expect(kanbanRowOf("外").lastElementChild!.textContent).toBe("low");
     expect(endOf("閉じた計画")).toBeNull();
 
     cleanup();
@@ -598,7 +572,7 @@ describe("画面", () => {
     await screen.findByText("待つ");
     expect(document.querySelector(".row-end")).toBeNull();
     expect(screen.queryByText("着手可")).toBeNull();
-    expect(rowOf("待つ").lastElementChild!.textContent).toBe("high");
+    expect(kanbanRowOf("待つ").lastElementChild!.textContent).toBe("high");
   });
 
   it("サイドバーのカンバンの行の頭に、実行中の Run があれば回るリングと「実行中」を、Run のない in_progress なら止まった半分塗りの丸を出し、読み直しで変わる", async () => {
@@ -609,59 +583,39 @@ describe("画面", () => {
     client.handlers["ticket.list"] = () => [...client.data.tickets];
     client.handlers["run.list"] = (input) =>
       (input as { running?: boolean }).running ? running : [];
-    let send: ((event: WebviewEvent) => void) | undefined;
-    const bridge: WebviewClient = {
-      run: (name, input) => client.run(name, input),
-      status: () => client.status(),
-      open: async () => {},
-      show: async () => {},
-      onEvent: (listener) => {
-        send = listener;
-        return () => (send = undefined);
-      },
-    };
-    render(
-      <StoreProvider client={client} readRunning>
-        <HostProvider host={webviewHost("sidebar")}>
-          <HostBridge client={bridge} />
-          <App />
-        </HostProvider>
-      </StoreProvider>,
-    );
+    const send = mountWithBridge(client);
     await waitFor(() => expect(document.querySelector(".activity-running")).toBeTruthy());
     expect(
       client.calls.find((c) => c.name === "run.list" && !(c.input as { ticket?: string }).ticket)!
         .input,
     ).toEqual({ project: "default", running: true });
-    const rowOf = (title: string) =>
-      [...document.querySelectorAll(".ticket-row")].find(
-        (r) => r.querySelector(".row-title")!.textContent === title,
-      )!;
     // todo で Run が実行中（Plan の外）：頭に回るリング、右端の下の段に「実行中」
-    const screenRow = rowOf("画面");
+    const screenRow = kanbanRowOf("画面");
     expect(screenRow.classList.contains("has-head")).toBe(true);
     expect(screenRow.firstElementChild!.classList.contains("activity-running")).toBe(true);
     expect(screenRow.querySelector(".row-end-sub")!.textContent).toBe("実行中");
     // in_progress で Run のない行：止まった半分塗りの丸。右端は今までどおり（Plan の番号と優先度の印）
-    const api = rowOf("API");
+    const api = kanbanRowOf("API");
     expect(api.firstElementChild!.classList.contains("activity-idle")).toBe(true);
     expect(api.querySelector(".row-running")).toBeNull();
     expect(api.querySelector(".row-end-sub")!.textContent).toBe("high");
     // ほかの状態の行は頭に何も出さない
-    expect(rowOf("ログイン").querySelector(".activity-mark")).toBeNull();
-    expect(rowOf("ログイン").classList.contains("has-head")).toBe(false);
+    expect(kanbanRowOf("ログイン").querySelector(".activity-mark")).toBeNull();
+    expect(kanbanRowOf("ログイン").classList.contains("has-head")).toBe(false);
 
     // ターミナルで t3 の Run を閉じ、t2 の Run を始めた
     running = [runningRun("t2")];
-    act(() => send!({ kind: "event", name: "reload" }));
+    act(() => send()({ kind: "event", name: "reload" }));
     await waitFor(() =>
-      expect(rowOf("API").firstElementChild!.classList.contains("activity-running")).toBe(true),
+      expect(kanbanRowOf("API").firstElementChild!.classList.contains("activity-running")).toBe(
+        true,
+      ),
     );
     // Plan に入っている行は、優先度の印を上の段の Plan の番号の左に寄せ、下の段に「実行中」
-    expect(rowOf("API").querySelector(".row-end-top")!.textContent).toBe("highp7");
-    expect(rowOf("API").querySelector(".row-end-sub")!.textContent).toBe("実行中");
-    expect(rowOf("画面").querySelector(".activity-mark")).toBeNull();
-    expect(rowOf("画面").querySelector(".row-end")).toBeNull();
+    expect(kanbanRowOf("API").querySelector(".row-end-top")!.textContent).toBe("highp7");
+    expect(kanbanRowOf("API").querySelector(".row-end-sub")!.textContent).toBe("実行中");
+    expect(kanbanRowOf("画面").querySelector(".activity-mark")).toBeNull();
+    expect(kanbanRowOf("画面").querySelector(".row-end")).toBeNull();
   });
 
   it("実行中の Run を読み終えるまでは、in_progress の行に頭の印を出さず、ほかの一覧はそれを待たずに出す", async () => {
@@ -702,7 +656,7 @@ describe("画面", () => {
     // readRunning で実行中の Run を読ませ、読んだうえで広い画面（ブラウザの host）のカードには出さないことを見る
     render(
       <StoreProvider client={client} readRunning>
-        <HostProvider host={{ ...webviewHost("panel"), surface: "browser" }}>
+        <HostProvider host={webviewHost("browser")}>
           <App />
         </HostProvider>
       </StoreProvider>,
@@ -725,23 +679,24 @@ describe("画面", () => {
     /** run.list（running）の応答を、呼ばれた順に後から返す */
     const pending: ((runs: RunView[]) => void)[] = [];
     client.handlers["run.list"] = () => new Promise<RunView[]>((resolve) => pending.push(resolve));
-    const send = mountSidebarWithBridge(client);
+    const send = mountWithBridge(client);
     await waitFor(() => expect(pending.length).toBe(1));
     act(() => pending[0]!([runningRun("t3")]));
-    const rowOf = (title: string) => screen.getByText(title).closest(".ticket-row")!;
-    await waitFor(() => expect(rowOf("画面").querySelector(".activity-running")).toBeTruthy());
+    await waitFor(() =>
+      expect(kanbanRowOf("画面").querySelector(".activity-running")).toBeTruthy(),
+    );
 
     // 読み直しを 2 回起こす。1 回目（古い）は t3、2 回目（新しい）は t2 が実行中と返す
     act(() => send()({ kind: "event", name: "reload" }));
     act(() => send()({ kind: "event", name: "reload" }));
     await waitFor(() => expect(pending.length).toBe(3));
     await act(async () => pending[2]!([runningRun("t2")]));
-    await waitFor(() => expect(rowOf("API").querySelector(".activity-running")).toBeTruthy());
-    expect(rowOf("画面").querySelector(".activity-mark")).toBeNull();
+    await waitFor(() => expect(kanbanRowOf("API").querySelector(".activity-running")).toBeTruthy());
+    expect(kanbanRowOf("画面").querySelector(".activity-mark")).toBeNull();
     // 古い 1 回目が後から返っても、新しい結果を上書きしない
     await act(async () => pending[1]!([runningRun("t3")]));
-    expect(rowOf("API").querySelector(".activity-running")).toBeTruthy();
-    expect(rowOf("画面").querySelector(".activity-mark")).toBeNull();
+    expect(kanbanRowOf("API").querySelector(".activity-running")).toBeTruthy();
+    expect(kanbanRowOf("画面").querySelector(".activity-mark")).toBeNull();
   });
 
   it("実行中の Run が読み直しで読めなくても、前のリングを残し、エラーの通知を出さない", async () => {
@@ -751,9 +706,10 @@ describe("画面", () => {
       if (fail) throw new Error("runs を読めない");
       return [runningRun("t3")];
     };
-    const send = mountSidebarWithBridge(client);
-    const rowOf = (title: string) => screen.getByText(title).closest(".ticket-row")!;
-    await waitFor(() => expect(rowOf("画面").querySelector(".activity-running")).toBeTruthy());
+    const send = mountWithBridge(client);
+    await waitFor(() =>
+      expect(kanbanRowOf("画面").querySelector(".activity-running")).toBeTruthy(),
+    );
     const before = client.calls.filter((c) => c.name === "run.list").length;
 
     fail = true;
@@ -763,8 +719,8 @@ describe("画面", () => {
     );
     // 失敗した run.list の後始末を待つ
     await act(async () => {});
-    expect(rowOf("画面").querySelector(".activity-running")).toBeTruthy();
-    expect(rowOf("画面").querySelector(".row-end-sub")!.textContent).toBe("実行中");
+    expect(kanbanRowOf("画面").querySelector(".activity-running")).toBeTruthy();
+    expect(kanbanRowOf("画面").querySelector(".row-end-sub")!.textContent).toBe("実行中");
     expect(document.querySelector(".notice")).toBeNull();
     expect(screen.queryByRole("alert")).toBeNull();
   });

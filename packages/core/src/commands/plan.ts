@@ -6,19 +6,11 @@ import { withWrite } from "../git/write.js";
 import type { TicketId } from "../model/id.js";
 import { slugSchema } from "../model/common.js";
 import type { Plan } from "../model/plan.js";
-import type { Ticket } from "../model/ticket.js";
+import { progressOf, type Progress, type Ticket } from "../model/ticket.js";
 import type { Doc } from "../storage/documents.js";
 import type { Store } from "../storage/store.js";
 import { defineCommand, ok } from "./define.js";
-import {
-  nowIso,
-  openPlanOf,
-  planRef,
-  progressOf,
-  projectOf,
-  sortedDocs,
-  ticketRef,
-} from "./helpers.js";
+import { nowIso, openPlanOf, planRef, projectOf, sortedDocs, ticketRef } from "./helpers.js";
 
 /** 終わったチケット。Plan に入れられない（PL-3） */
 const FINISHED: readonly Ticket["status"][] = ["done", "abandoned"];
@@ -151,7 +143,11 @@ export const planCreate = defineCommand({
 });
 
 /** Plan の状態。Plan には書かず、pending_approval と closed_at から求める */
-type PlanStatus = "pending" | "approved" | "closed";
+export type PlanStatus = "pending" | "approved" | "closed";
+
+/** plan.list の 1 行（状態と進捗は都度求める。PL-1） */
+export type PlanRow = Plan & { status: PlanStatus; progress: Progress };
+
 const PLAN_FILTERS = ["open", "pending", "approved", "closed"] as const;
 
 function planStatus(plan: Plan): PlanStatus {
@@ -184,10 +180,10 @@ export const planList = defineCommand({
       .filter((d) => !input.project || d.data.project === input.project)
       .map((d) => ({ doc: d, status: planStatus(d.data) }))
       .filter((r) => match(r.status))
-      .map(({ doc, status }) => ({
+      .map(({ doc, status }): PlanRow => ({
         ...doc.data,
         status,
-        progress: progressOf(ticketsOf(ctx.store, doc.data)),
+        progress: progressOf(ticketsOf(ctx.store, doc.data).map((t) => t.data)),
       }));
     return ok(rows);
   },
@@ -219,7 +215,11 @@ export const planShow = defineCommand({
       const waiting = (doc.data.after[t.data.id] ?? []).filter((id) => !finished(id));
       return { ...t.data, waiting };
     });
-    return ok({ ...doc.data, progress: progressOf(found), items }, undefined, warnings);
+    return ok(
+      { ...doc.data, progress: progressOf(found.map((t) => t.data)), items },
+      undefined,
+      warnings,
+    );
   },
 });
 

@@ -11,9 +11,9 @@ export type DgLookup =
 /** テスト用に差し替えられる `dg --version` の実行 */
 export type RunVersion = () => Promise<string>;
 
-export const INSTALL_HINT = "npm i -g deguboard（mise なら mise use npm:deguboard）";
+const INSTALL_HINT = "npm i -g deguboard（mise なら mise use npm:deguboard）";
 
-export function runDgVersion(): Promise<string> {
+function runDgVersion(): Promise<string> {
   return new Promise((resolve, reject) => {
     execFile("dg", ["--version"], { timeout: 5_000 }, (error, stdout) =>
       error ? reject(error) : resolve(stdout),

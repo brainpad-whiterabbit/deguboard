@@ -1,7 +1,7 @@
 // Ticket の frontmatter（tickets/t12.md。requirements.md 5.4）
 
 import { z } from "zod";
-import { isoDateTime, slugSchema, statusSchema } from "./common.js";
+import { isoDateTime, slugSchema, STATUSES, statusSchema, type Status } from "./common.js";
 import { epicIdSchema, iterationIdSchema, ticketIdSchema } from "./id.js";
 
 export const PRIORITIES = ["low", "medium", "high"] as const;
@@ -36,6 +36,20 @@ export const ticketSchema = ticketFrontmatter.transform(({ claimed_by, ...t }) =
   return assignee === undefined ? t : { ...t, assignee };
 });
 export type Ticket = z.output<typeof ticketSchema>;
+
+/** チケットの集まりの進み（Epic・Plan の進捗、カンバンの見出し）。done の件数、abandoned を除く件数、Status ごとの件数（EP-3） */
+export interface Progress {
+  total: number;
+  done: number;
+  by_status: Record<Status, number>;
+}
+
+/** 進みを数える。数え方はここだけに置く（web は core の実行時のコードを取り込まないので写し、テストで同じ結果になることを確かめる） */
+export function progressOf(tickets: readonly Pick<Ticket, "status">[]): Progress {
+  const by_status = Object.fromEntries(STATUSES.map((s) => [s, 0])) as Record<Status, number>;
+  for (const t of tickets) by_status[t.status] += 1;
+  return { total: tickets.length - by_status.abandoned, done: by_status.done, by_status };
+}
 
 /** `## 受け入れ条件` の見出し行。節の切り出しと雛形で共有する */
 const ACCEPTANCE_HEADING = /^## 受け入れ条件[ \t]*$/m;

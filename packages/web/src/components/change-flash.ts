@@ -22,7 +22,7 @@ export type FlashState = Record<string, number>;
 export const FLASH_DURATION_MS = 1000;
 
 /** 要約を置く host.state の鍵 */
-export const SUMMARY_KEY = "board.summary";
+const SUMMARY_KEY = "board.summary";
 
 export function summarizeTickets(
   tickets: readonly Pick<Ticket, "id" | "status" | "iteration">[],

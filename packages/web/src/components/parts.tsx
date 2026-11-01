@@ -13,13 +13,7 @@ import {
 import { useHost } from "../host.js";
 import { hrefOf, type Route } from "../router.js";
 import { useStore } from "../store.js";
-import {
-  actorLabel,
-  type EpicProgress,
-  type Priority,
-  type Status,
-  type Ticket,
-} from "../types.js";
+import { actorLabel, type Priority, type Progress, type Status, type Ticket } from "../types.js";
 
 /**
  * チケット詳細へのリンク。チケットへのリンクはすべてここを通す。
@@ -116,37 +110,58 @@ const PROGRESS_STATUSES = [
 ] as const satisfies readonly Status[];
 
 /**
- * Epic の進捗（done の件数 / abandoned を除く件数。EP-3）。Status ごとに積み上げ、色は --dg-status-*。
- * Webview では完了だけを塗りつぶし、進行中（In Progress・Code Review）は斜線にして、数字に「完了 n / m ・ 進行中 k」と何の比かを書く
- * （全件が進行中だと、塗りつぶしの満タンが「終わった」に見えるので）。ブラウザでは今のまま
+ * 進捗の帯と数字。Status ごとの件数を done から積み、色は --dg-status-*、ツールチップに内訳を出す。
+ * partial なら done 以外を斜線にする。ProgressBar と StatusBand が使う
  */
-export function ProgressBar({ progress }: { progress: EpicProgress }) {
+function StackedProgress({
+  progress,
+  className,
+  partial,
+  children,
+}: {
+  progress: Progress;
+  className: string;
+  partial: boolean;
+  /** 帯の右に出す数字 */
+  children: ReactNode;
+}) {
   const store = useStore();
-  const host = useHost();
-  const webview = host.surface !== "browser";
-  const active = (progress.by_status.in_progress ?? 0) + (progress.by_status.review ?? 0);
   const segments = PROGRESS_STATUSES.map((s) => ({
     status: s,
     count: progress.by_status[s] ?? 0,
   })).filter((seg) => seg.count > 0);
   const title = segments.map((seg) => `${store.labelOf(seg.status)} ${seg.count}`).join(" / ");
   return (
-    <span className="progress" title={title || "チケットはない"}>
+    <span className={className} title={title || "チケットはない"}>
       <span className="bar">
         {segments.map((seg) => (
           <span
             key={seg.status}
-            className={`status-${seg.status}${webview && seg.status !== "done" ? " partial" : ""}`}
+            className={`status-${seg.status}${partial && seg.status !== "done" ? " partial" : ""}`}
             style={{ width: `${(seg.count / progress.total) * 100}%` }}
           />
         ))}
       </span>
-      <span className="muted">
-        {webview ? "完了 " : ""}
-        {progress.done}/{progress.total}
-        {webview && active > 0 ? ` ・ 進行中 ${active}` : ""}
-      </span>
+      <span className="muted">{children}</span>
     </span>
+  );
+}
+
+/**
+ * Epic の進捗（done の件数 / abandoned を除く件数。EP-3）。Status ごとに積み上げ、色は --dg-status-*。
+ * Webview では完了だけを塗りつぶし、進行中（In Progress・Code Review）は斜線にして、数字に「完了 n / m ・ 進行中 k」と何の比かを書く
+ * （全件が進行中だと、塗りつぶしの満タンが「終わった」に見えるので）。ブラウザでは今のまま
+ */
+export function ProgressBar({ progress }: { progress: Progress }) {
+  const host = useHost();
+  const webview = host.surface !== "browser";
+  const active = (progress.by_status.in_progress ?? 0) + (progress.by_status.review ?? 0);
+  return (
+    <StackedProgress progress={progress} className="progress" partial={webview}>
+      {webview ? "完了 " : ""}
+      {progress.done}/{progress.total}
+      {webview && active > 0 ? ` ・ 進行中 ${active}` : ""}
+    </StackedProgress>
   );
 }
 
@@ -154,28 +169,11 @@ export function ProgressBar({ progress }: { progress: EpicProgress }) {
  * Status ごとの色の細い帯と「n/m done」（左パネルのカンバンの見出し）。並びと色は ProgressBar と同じ（done が左、--dg-status-*）。
  * 斜線にはせず、数字に done の比を書く
  */
-export function StatusBand({ progress }: { progress: EpicProgress }) {
-  const store = useStore();
-  const segments = PROGRESS_STATUSES.map((s) => ({
-    status: s,
-    count: progress.by_status[s] ?? 0,
-  })).filter((seg) => seg.count > 0);
-  const title = segments.map((seg) => `${store.labelOf(seg.status)} ${seg.count}`).join(" / ");
+export function StatusBand({ progress }: { progress: Progress }) {
   return (
-    <span className="progress status-band" title={title || "チケットはない"}>
-      <span className="bar">
-        {segments.map((seg) => (
-          <span
-            key={seg.status}
-            className={`status-${seg.status}`}
-            style={{ width: `${(seg.count / progress.total) * 100}%` }}
-          />
-        ))}
-      </span>
-      <span className="muted">
-        {progress.done}/{progress.total} done
-      </span>
-    </span>
+    <StackedProgress progress={progress} className="progress status-band" partial={false}>
+      {progress.done}/{progress.total} done
+    </StackedProgress>
   );
 }
 
@@ -368,7 +366,7 @@ export function TicketRow({
  * チケットをドラッグできるようにする（@dnd-kit。id はチケットの ID）。動かした直後の click では詳細を開かない
  * （捕捉の段階で preventDefault し、TicketLink と App の followHashLink はそれを見て何もしない）
  */
-export function useDraggableTicket(id: string) {
+function useDraggableTicket(id: string) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id });
   const dragged = useRef(false);
   useEffect(() => {

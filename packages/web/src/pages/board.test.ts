@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import type { Epic, Iteration } from "../types.js";
+// 進みの数え方の写しを照らすためだけに core の実行時のコードを取り込む（画面のコードは型だけを取る。ADR-007）
+import { progressOf } from "@deguboard/core";
+import { STATUSES, type Epic, type Iteration, type Ticket } from "../types.js";
 import { plan, ticket } from "../test-helpers.js";
 import {
   hideClosedFinished,
@@ -74,6 +76,16 @@ describe("左パネルのカンバンの見出し", () => {
     expect(p.done).toBe(1);
     expect(p.total).toBe(3);
     expect(p.by_status).toMatchObject({ todo: 1, in_progress: 1, review: 0, done: 1 });
+  });
+
+  it("進みの数え方は core の progressOf（EP-3）の写しで、同じ結果になる", () => {
+    const cases: Pick<Ticket, "status">[][] = [
+      [],
+      [{ status: "abandoned" }],
+      [{ status: "done" }, { status: "done" }, { status: "review" }],
+      STATUSES.flatMap((status, i) => Array.from({ length: i + 1 }, () => ({ status }))),
+    ];
+    for (const tickets of cases) expect(ticketProgress(tickets)).toEqual(progressOf(tickets));
   });
 });
 

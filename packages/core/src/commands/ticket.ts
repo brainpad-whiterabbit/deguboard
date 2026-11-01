@@ -13,6 +13,7 @@ import {
   replaceAcceptance,
   setAcceptance,
   ticketBodyTemplate,
+  type AcceptanceItem,
   type Ticket,
 } from "../model/ticket.js";
 import type { FactName } from "../model/workflow.js";
@@ -304,6 +305,19 @@ export const ticketImport = defineCommand({
   },
 });
 
+/** ticket.list の 1 行。deps_done は依存先がすべて done か abandoned か（WF-2。別の Project の依存先も見る） */
+export type TicketRow = Ticket & { deps_done: boolean };
+
+/** ticket.show の出力 */
+export type TicketDetail = Ticket & {
+  body: string;
+  acceptance: AcceptanceItem[];
+  dependents: TicketId[];
+  deps_done: boolean;
+  /** 入っている開いた Plan の ID */
+  plan: string | null;
+};
+
 export const ticketList = defineCommand({
   name: "ticket.list",
   group: "ticket",
@@ -322,7 +336,7 @@ export const ticketList = defineCommand({
       matchesFilter(ctx.store, d.data, filter),
     );
     // deps_done は Project で絞る前の全チケットから求める（別の Project の依存先も見る。WF-2）
-    return ok(docs.map((d) => ({ ...d.data, deps_done: ctx.store.depsDone(d.data) })));
+    return ok(docs.map((d): TicketRow => ({ ...d.data, deps_done: ctx.store.depsDone(d.data) })));
   },
 });
 
@@ -337,7 +351,7 @@ export const ticketShow = defineCommand({
   needs: "store",
   async run(ctx, input) {
     const doc = ctx.store.require("ticket", input.ticket);
-    return ok({
+    return ok<TicketDetail>({
       ...withBody(doc),
       acceptance: parseAcceptance(doc.body) ?? [],
       dependents: dependents(ctx.store, doc.data.id),

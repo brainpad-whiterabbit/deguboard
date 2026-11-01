@@ -18,7 +18,7 @@ export const RESULT_LABELS: Record<RunResultKey, string> = {
   unfinished: "未完了",
 };
 
-export function runResultKey(run: RunView): RunResultKey {
+function runResultKey(run: RunView): RunResultKey {
   if (run.running) return "running";
   return run.result ?? "unfinished";
 }

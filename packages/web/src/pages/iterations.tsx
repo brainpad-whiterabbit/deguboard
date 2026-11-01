@@ -20,7 +20,7 @@ export function IterationsPage({ id }: { id: string }) {
 }
 
 /** Iteration を閉じたとき未完了のチケットがどうなるか（確認の文に添える） */
-export const ITERATION_CLOSE_NOTE = "閉じると持ち越しになり、Iteration から外れる。";
+const ITERATION_CLOSE_NOTE = "閉じると持ち越しになり、Iteration から外れる。";
 
 /**
  * Iteration の開始・閉じるのボタン。カンバンの見出しとバックログの区画の見出しに置く。

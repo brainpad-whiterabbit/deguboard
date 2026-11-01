@@ -45,7 +45,7 @@ export interface BacklogFilter {
 }
 
 /** バックログで「Epic に入っていないチケット」を選ぶ値 */
-export const NO_EPIC = "-";
+const NO_EPIC = "-";
 
 export const EMPTY_FILTER: BacklogFilter = {
   query: "",
@@ -77,7 +77,7 @@ export function filterBacklog(tickets: readonly Ticket[], f: BacklogFilter): Tic
 }
 
 /** 畳んだ絞り込みの見出しに出す、効いている条件。検索は常に見えているので含めない */
-export function activeFilters(f: BacklogFilter, labelOf: (status: string) => string): string[] {
+function activeFilters(f: BacklogFilter, labelOf: (status: string) => string): string[] {
   const parts: string[] = [];
   if (f.status) parts.push(`Status: ${labelOf(f.status)}`);
   if (f.priority) parts.push(`優先度: ${f.priority}`);

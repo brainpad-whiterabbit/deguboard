@@ -15,7 +15,7 @@ export function formatTime(iso: string): string {
 }
 
 /** 1 つの変化を短い文に。Status は Workflow の表示名 */
-export function describeChange(c: HistoryChange, labelOf: (s: string) => string): string {
+function describeChange(c: HistoryChange, labelOf: (s: string) => string): string {
   switch (c.field) {
     case "status":
       return c.from ? `${labelOf(c.from)} → ${labelOf(c.to ?? "")}` : labelOf(c.to ?? "");
@@ -34,7 +34,7 @@ export function describeChange(c: HistoryChange, labelOf: (s: string) => string)
 }
 
 /** 1 つの出来事を短い文に */
-export function describeEvent(e: HistoryEvent, labelOf: (s: string) => string): string {
+function describeEvent(e: HistoryEvent, labelOf: (s: string) => string): string {
   if (e.type === "deleted") return "消した";
   const changes = e.changes.map((c) => describeChange(c, labelOf));
   return e.type === "created" ? ["起票", ...changes].join(" ・ ") : changes.join(" ・ ");
