@@ -3,6 +3,9 @@
 import type {
   Epic,
   FieldDefinition,
+  HistoryChange,
+  HistoryEvent,
+  HistoryLog,
   Iteration,
   Priority,
   Status,
@@ -10,7 +13,18 @@ import type {
   WorkflowDefinition,
 } from "@deguboard/core";
 
-export type { Epic, FieldDefinition, Iteration, Priority, Status, Ticket, WorkflowDefinition };
+export type {
+  Epic,
+  FieldDefinition,
+  HistoryChange,
+  HistoryEvent,
+  HistoryLog,
+  Iteration,
+  Priority,
+  Status,
+  Ticket,
+  WorkflowDefinition,
+};
 
 /** カンバンの列の順。abandoned は既定で隠す（UI-2） */
 export const STATUSES = [

@@ -1,7 +1,9 @@
-// チケット詳細（UI-4）。本文（概要・受け入れ条件）、属性、Epic、依存先と依存元、作業ブランチ。属性と本文を編集でき、Status は ticket.move と同じ検査を通る
+// チケット詳細（UI-4）。本文（概要・受け入れ条件）、属性、Epic、依存先と依存元、作業ブランチと、経過（deguboard ブランチの履歴）。
+// 属性と本文を編集でき、Status は ticket.move と同じ検査を通る
 
 import { useEffect, useState } from "react";
 import { PriorityBadge, StatusBadge, Tags, TicketLink } from "../components/parts.js";
+import { TicketTimeline } from "../components/timeline.js";
 import { Markdown } from "../markdown.js";
 import { hrefOf } from "../router.js";
 import { useStore } from "../store.js";
@@ -149,6 +151,7 @@ export function TicketPage({ id }: { id: string }) {
             </button>
           )}
         </div>
+        <TicketTimeline id={ticket.id} />
       </div>
       <aside>
         <dl className="props">

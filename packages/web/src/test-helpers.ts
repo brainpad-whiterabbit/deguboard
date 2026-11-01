@@ -102,6 +102,7 @@ export function mockClient(data = fixture()): MockClient {
     "epic.list": () => data.epics,
     "iteration.list": () => data.iterations,
     "workflow.show": () => data.workflow,
+    history: () => ({ events: [], shallow: false, incomplete: [] }),
     "ticket.show": (input) => {
       const t = data.tickets.find((x) => x.id === (input as { ticket: string }).ticket)!;
       return {

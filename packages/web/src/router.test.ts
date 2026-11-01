@@ -16,6 +16,7 @@ describe("ハッシュのルーティング", () => {
     expect(parseRoute("#/iterations/s2")).toEqual({ page: "iterations", id: "s2" });
     expect(parseRoute("#/history")).toEqual({ page: "history" });
     expect(parseRoute("#/history?view=epic")).toEqual({ page: "history", view: "epic" });
+    expect(parseRoute("#/history?view=ticket")).toEqual({ page: "history", view: "ticket" });
     expect(parseRoute("#/history?view=x")).toEqual({ page: "history" });
     expect(parseRoute("#/board?iteration=s4&epic=e1&assignee=eiki%2Fagent")).toEqual({
       page: "board",
