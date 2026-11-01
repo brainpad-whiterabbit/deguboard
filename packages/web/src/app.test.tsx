@@ -219,6 +219,41 @@ describe("画面", () => {
     expect(window.location.hash).toBe("#/backlog");
   });
 
+  it.each(["browser", "panel", "sidebar"] as const)(
+    "%s でも完了の節は既定で畳み、ほかの節は開く",
+    async (surface) => {
+      mount(mockClient(), surface === "browser" ? undefined : webviewHost(surface));
+      await screen.findByText("ログイン");
+      const columns = [...document.querySelectorAll<HTMLDetailsElement>("details.column")];
+      expect(columns.map((c) => [c.dataset.status, c.open])).toEqual([
+        ["todo", true],
+        ["in_progress", true],
+        ["review", true],
+        ["done", false],
+      ]);
+    },
+  );
+
+  it("1 行表示は担当者を短く出し、全文はツールチップに。担当者がなければ出さない", async () => {
+    const client = mockClient();
+    client.data.tickets.push(
+      ticket({ id: "t8", title: "AI の作業", assignee: "eiki/agent" }),
+      ticket({ id: "t7", title: "古い ID", assignee: "eiki@laptop" }),
+    );
+    mount(client, webviewHost("sidebar"));
+    await screen.findByText("AI の作業");
+    const rowOf = (title: string) => screen.getByText(title).closest(".row")!;
+    expect(rowOf("AI の作業").querySelector(".row-assignee")).toMatchObject({
+      textContent: "eiki/agent",
+      title: "eiki/agent",
+    });
+    expect(rowOf("古い ID").querySelector(".row-assignee")).toMatchObject({
+      textContent: "eiki",
+      title: "eiki@laptop",
+    });
+    expect(rowOf("ログイン").querySelector(".row-assignee")).toBeNull();
+  });
+
   it("節の開閉は host.state に残り、開き直しても保たれる", async () => {
     const host = webviewHost("sidebar");
     mount(mockClient(), host);
@@ -243,7 +278,6 @@ describe("画面", () => {
     expect(app.getAttribute("data-surface")).toBe("sidebar");
     const columns = [...document.querySelectorAll<HTMLDetailsElement>("details.column")];
     expect(columns).toHaveLength(4);
-    // 完了だけ既定で畳む
     expect(columns.map((c) => c.open)).toEqual([true, true, true, false]);
     expect(document.querySelectorAll(".card")).toHaveLength(0);
     expect(document.querySelectorAll(".row-drag .row")).toHaveLength(3);

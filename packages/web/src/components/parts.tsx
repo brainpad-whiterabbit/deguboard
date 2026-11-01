@@ -4,7 +4,13 @@ import type { ComponentProps, ReactNode } from "react";
 import { useHost } from "../host.js";
 import { hrefOf } from "../router.js";
 import { useStore } from "../store.js";
-import type { EpicProgress, Priority, Status, Ticket } from "../types.js";
+import {
+  actorLabel,
+  type EpicProgress,
+  type Priority,
+  type Status,
+  type Ticket,
+} from "../types.js";
 
 /**
  * チケット詳細へのリンク。チケットへのリンクはすべてここを通す。
@@ -108,7 +114,7 @@ export function StatusDot({ status }: { status: Status }) {
   );
 }
 
-/** チケットの 1 行（サイドバー向け。KanbanForge と同じ高さ一定の行）：状態の丸印・番号・タイトル・優先度が high なら印 */
+/** チケットの 1 行（サイドバー向け。KanbanForge と同じ高さ一定の行）：状態の丸印・番号・タイトル・担当者・優先度が high なら印 */
 export function TicketRow({
   ticket,
   onClick,
@@ -117,12 +123,23 @@ export function TicketRow({
   onClick?: ComponentProps<"a">["onClick"] | undefined;
 }) {
   return (
-    <TicketLink id={ticket.id} className={`row status-${ticket.status}`} onClick={onClick}>
+    <TicketLink
+      id={ticket.id}
+      className={`row ticket-row status-${ticket.status}`}
+      onClick={onClick}
+    >
       <StatusDot status={ticket.status} />
       <code>{ticket.id}</code>
       <span className="row-title" title={ticket.title}>
         {ticket.title}
       </span>
+      {ticket.assignee ? (
+        <span className="row-assignee" title={ticket.assignee}>
+          {actorLabel(ticket.assignee)}
+        </span>
+      ) : (
+        <span />
+      )}
       {ticket.priority === "high" ? <PriorityBadge priority="high" /> : <span />}
     </TicketLink>
   );

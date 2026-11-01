@@ -38,8 +38,6 @@ type Selection = { kind: "all" } | { kind: "none" } | { kind: "iteration"; itera
 
 export function BoardPage({ query }: { query: BoardQuery }) {
   const store = useStore();
-  const host = useHost();
-  const sidebar = host.surface === "sidebar";
   // 読み直しが終わるまでの間だけ、落とした先の列に見せる
   const [moving, setMoving] = useState<{ id: string; status: Status } | null>(null);
   const [lastIteration, setLastIteration] = useUiState<string | undefined>(
@@ -158,7 +156,8 @@ export function BoardPage({ query }: { query: BoardQuery }) {
               key={status}
               status={status}
               tickets={tickets.filter((t) => t.status === status)}
-              defaultOpen={!(sidebar && status === "done")}
+              // 完了は既定で畳む（どの surface でも。開いた状態は useUiState が保つ）
+              defaultOpen={status !== "done"}
             />
           ))}
         </div>
