@@ -20,7 +20,7 @@ AI エージェント（Claude Code・Codex など）がチケットを処理す
 
 - 成果をリポジトリに残すチケットは `branch` を持つ。`dg sync`（と画面の同期のボタン）は、そのブランチについて Git から事実を集め、ワークフローの `reconcile` 規則で状態を導き、今より先のときだけ書き換える
 - 事実は Git だけで取れるものを基本にする：`branch_exists`（ローカルかリモートにある）、`branch_pushed`（リモートにある）、`branch_merged`（先端が `git.base_branch` の真の祖先。先端が base と同じなら切ったばかりのブランチとみなして偽にする。ff マージの直後は base が進むか PR の事実で拾う）
-- commit のないブランチは base が進むと先端が真の祖先になり、グラフだけでは ff マージ後のブランチと区別できない（2026-10-31 に claim 直後の 3 枚が照合で誤って done になった）。そこで in_progress で push していないブランチは作業がまだないとみなして `branch_merged` を偽にする。review に進めたブランチと push 済みのブランチは祖先判定だけで決めるので、ff マージは従来どおり拾える。push していないブランチを in_progress のままローカルで ff マージした形は拾えず、人が `ticket move` で進める
+- commit のないブランチは base が進むと先端が真の祖先になり、グラフだけでは ff マージ後のブランチと区別できない（2026-10-31 に claim 直後の 3 枚が誤って done になった）。そこで in_progress で push していないブランチは作業がまだないとみなして `branch_merged` を偽にする。push していないブランチを in_progress のままローカルで ff マージした形は拾えず、人が `ticket move` で進める
 - 照合の結果には当てはまった規則の条件（`when`）を根拠として残し、誤判定の原因を後から追えるようにする
 - PR の事実（`pr_open`・`pr_merged`・`pr_draft`）は `gh` が使えるときだけ取り、software-development ワークフローが任意で使う。`gh` がなくても照合は成り立つ。チケットに `pr` がなければブランチ名で PR を引き、見つけた番号を `pr` に記録する（エージェントが記録し忘れても PR の記録が残る）
 - 後退を指す事実（消えたブランチ・マージされずに閉じた PR）は書き換えずに警告する。同じ照合で done に進むときは、マージ後に消したブランチなので警告しない。PR がまだないだけの形は閉じた PR と警告しない。取れなかった事実は不明として扱い、前進の判定では偽と読む
@@ -43,7 +43,7 @@ AI エージェント（Claude Code・Codex など）がチケットを処理す
 - エージェント（または Skill）が `dg run start <ticket> <step>` と `dg run finish <run>` を呼ぶ。実行中は `deguboard-local/runs/` に置き、finish が集計を `runs/` に書く
 - ツールが Run を見失っても、チケットの状態はブランチの事実で進む
 - 終了していない Run は `dg run list --running` で見せ、人かエージェントが `finish --result interrupted` で閉じる。自動復旧はしない
-- 並列実行・修正ループ・自動マージ（`auto.merge` で許したとき）も Skill 側が `dg ticket list --ready` を見て進める。スケジューラは置かない
+- 並列実行・修正ループ・自動マージも Skill 側が Plan の待ちを見て進め、スケジューラは置かない。並列では親が claim・Plan・マージを、サブエージェントが Run・実装・PR を行う。上限は負荷とエージェントの都合で決まるので config でなく手順に書く
 
 ### Plan を第一級のエンティティにする
 

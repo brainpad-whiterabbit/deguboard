@@ -4,7 +4,7 @@ deguboard は、Git で管理するチケットとユーザー定義のワーク
 
 チケット・イテレーション・ワークフローの定義は、リポジトリの orphan ブランチ `deguboard` に Markdown と YAML で置く。コードと同じく Git で共有するので、別のサービスを用意しなくてもチームで同じカンバンを見られ、変更の履歴も残る。Claude Code や Codex などの AI エージェントは `dg` を呼んでチケットを起票・計画・実行し、人は何を作るか・どの順で進めるか・成果物を承認するかを決める。
 
-> **開発中**。最初の版（CLI・Web UI・VS Code 拡張でのチケット管理。Epic `e1`）、Claude Code 連携（Skill・MCP・Plan。Epic `e2`）、Run の記録と集計（Epic `e3`）を実装した。残る予定は並列実行や自動レビュー（Epic `e4`）。npm と Marketplace への最初の公開を準備中。それまで、拡張は VSIX（`mise run vsix`）で入れる。
+> **開発中**。最初の版（CLI・Web UI・VS Code 拡張でのチケット管理。Epic `e1`）、Claude Code 連携（Skill・MCP・Plan。Epic `e2`）、Run の記録と集計（Epic `e3`）を実装した。残る予定は自動レビューや修正ループ（Epic `e4`）。npm と Marketplace への最初の公開を準備中。それまで、拡張は VSIX（`mise run vsix`）で入れる。
 
 ## 何ができるか（予定を含む）
 
@@ -16,7 +16,8 @@ deguboard は、Git で管理するチケットとユーザー定義のワーク
 | Claude Code との会話からチケットを起票し、分解・依存・進める順（Plan）の承認・イテレーション計画を進める（Skill と MCP）                                                                                             | できる                                            |
 | AI の実行を Run として記録し、トークン使用量と結果を Run・チケット・エピック・イテレーション・プロジェクト・エージェント・モデルの単位で集計する                                                                     | できる（使用量の取り込みは Claude Code と Codex） |
 | `dg guide all` の手順に `--auto` を付けて（Claude Code では `/dgall --auto`）、戻せる判断を自動で選び、`auto.merge` が true なら検査・受け入れ条件・別エージェントの見直し・衝突なしを確かめて PR を自動でマージする | できる                                            |
-| 依存に従う並列実行、PR を出す前の自動レビューと上限付きの修正ループ、品質ゲートの共通化                                                                                                                              | 予定 `e4`                                         |
+| `dg guide all` と `work` の手順で、Plan の待ちのない複数のチケットをチケットごとのサブエージェントで同時に進める（上限は手順が決める）                                                                               | できる                                            |
+| PR を出す前の自動レビューと上限付きの修正ループ、品質ゲートの共通化                                                                                                                                                  | 予定 `e4`                                         |
 
 予定の中身と進みは、このリポジトリの Epic（`dg epic list`、`dg epic show <ID>`）が正本。
 
