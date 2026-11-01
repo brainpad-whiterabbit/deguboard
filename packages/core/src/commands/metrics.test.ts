@@ -47,6 +47,7 @@ async function scenario(): Promise<CommandContext> {
     ...base,
     id: "r20261031-050000-0002",
     ticket: "t1",
+    step: "review",
     model: "sonnet",
     result: "failure",
     usage: { ...emptyUsage(), input: 200, estimated: true },
@@ -88,7 +89,7 @@ describe("metrics show", () => {
     });
   });
 
-  it("6 つの単位で絞り込み・集計でき、ID は番号だけでも受け付ける", async () => {
+  it("7 つの単位で絞り込み・集計でき、ID は番号だけでも受け付ける", async () => {
     const ctx = await scenario();
     const runsOf = async (input: object) =>
       (await runCommand(metricsShow, ctx, input)).data.total.runs;
@@ -99,6 +100,8 @@ describe("metrics show", () => {
     expect(await runsOf({ project: "default" })).toBe(3);
     expect(await runsOf({ agent: "codex" })).toBe(1);
     expect(await runsOf({ model: "opus" })).toBe(1);
+    expect(await runsOf({ step: "review" })).toBe(1);
+    expect(await runsOf({ step: "implement", ticket: "t1" })).toBe(1);
 
     const byEpic = (await runCommand(metricsShow, ctx, { by: "epic" })).data;
     expect(byEpic.groups.map((g) => [g.key, g.runs, g.input])).toEqual([
@@ -108,6 +111,15 @@ describe("metrics show", () => {
     const byModel = (await runCommand(metricsShow, ctx, { ticket: "t1", by: "model" })).data;
     expect(byModel.filter).toEqual({ ticket: "t1" });
     expect(byModel.groups.map((g) => g.key)).toEqual(["opus", "sonnet"]);
+
+    const byStep = (await runCommand(metricsShow, ctx, { by: "step" })).data;
+    expect(byStep.groups.map((g) => [g.key, g.runs, g.input])).toEqual([
+      ["implement", 2, 1000],
+      ["review", 1, 200],
+    ]);
+    const reviewOnly = (await runCommand(metricsShow, ctx, { step: "review" })).data;
+    expect(reviewOnly.filter).toEqual({ step: "review" });
+    expect(reviewOnly.total).toMatchObject({ runs: 1, input: 200, estimated_runs: 1 });
 
     await expect(runCommand(metricsShow, ctx, { epic: "x" })).rejects.toMatchObject({
       name: "UsageError",

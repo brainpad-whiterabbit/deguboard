@@ -211,6 +211,29 @@ describe("dg mcp", () => {
     );
     expect(body(viaMcp.results[0]!)).toEqual(viaCli);
 
+    // step での絞り込みと集計も CLI と MCP で同じ
+    const stepOut: string[] = [];
+    await run(
+      ["-C", f.cloneA, "--json", "metrics", "show", "--step", "implement", "--by", "step"],
+      { env: cliEnv(), streams: { out: (t) => stepOut.push(t), err: () => {} } },
+    );
+    const stepCli = JSON.parse(stepOut.join("\n"));
+    expect(stepCli.data).toMatchObject({
+      filter: { step: "implement" },
+      by: "step",
+      groups: [{ key: "implement", runs: 1 }],
+    });
+    const stepMcp = await session(
+      ["-C", f.cloneA],
+      [
+        {
+          method: "tools/call",
+          params: { name: "metrics_show", arguments: { step: "implement", by: "step" } },
+        },
+      ],
+    );
+    expect(body(stepMcp.results[0]!)).toEqual(stepCli);
+
     const help: string[] = [];
     await run(["--help"], { env: cliEnv(), streams: { out: (t) => help.push(t), err: () => {} } });
     expect(help.join("\n")).toContain("metrics");
