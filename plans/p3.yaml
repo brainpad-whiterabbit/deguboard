@@ -18,7 +18,7 @@ after:
     - t92
   t97:
     - t90
-pending_approval: true
+pending_approval: false
 details:
   t88:
     scope: Run の Zod スキーマ・runs/ の命名・ストアの読み書き・validate。コマンドは含めない
@@ -47,3 +47,5 @@ details:
   t97:
     scope: dg guide work（と all）の手順への run start / finish の追加と Skill の作り直し
     approach: packages/cli/src/guide-*.md を直し、dg skill install で .claude/skills を作り直す
+approved_by: eiki.kitajima/agent
+approved_at: 2026-11-01T06:42:55Z
