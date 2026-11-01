@@ -37,7 +37,7 @@ Run は 1 回の作業の記録で、使用量（トークン）が残る。実�
 
 - **step**：チケットの Project の Workflow（`dg --json --actor agent project list` の `workflow`）を `dg --json --actor agent workflow show <workflow>` で読み、`data.definition.steps` から今の作業に合うものの `id` を選ぶ。`steps` がなければ `implement`・`review`・`fix`・`investigate` を使う。合う語がないとき（init の前からある Workflow に `fix` がないなど）は `dg guide review` の「Run の分け方」
 - **agent**：自分の Adapter の名前（`dg run start --help`。Claude Code なら `claude-code`）
-- **自分で呼ぶ**：run start と finish は作業するエージェント自身が呼ぶ。使用量は Run の ID を最初に含む会話記録から取るので、親などが代わりに start すると作業した分を数えない
+- **自分で呼ぶ**：run start と finish は作業するエージェント自身が呼ぶ（理由は `dg guide review` の「Run の分け方」）
 - 使用量は書かない。取れずに finish が警告しても止めない
 - 同じ step の Run が実行中で start が拒否されたら、下の「閉じ損ねた Run を閉じる」で閉じて始め直す。サブエージェントなら閉じずに親に返す（親が `interrupted` で閉じる）
 - **結果**：実装の Run は draft の PR を作ったら `success`。自分の判断でやめる（検査が通らない、範囲がはっきりしない）なら `--result failure --error <理由>` で閉じる。`interrupted` は閉じ損ねた Run だけに使う
@@ -62,7 +62,7 @@ Plan の `items[].waiting` が空のチケットが複数あり、サブエー�
 - **サブエージェントに渡す**：チケットの ID・Plan の `details` の範囲と方針・ブランチと worktree のパス・規約の場所・チケットごとの一時ファイルの置き場所・手順 4〜6 の draft の PR を作って実装の Run を閉じるまでに従うこと（受け入れ条件は確かめて報告するだけで印は付けない。PR 番号の記録は親）。run start と finish は自身に呼ばせる
 - **サブエージェントがしない**：claim・unclaim・Plan の操作・見直し役の起動・自分のもの以外の Run を閉じる・`gh pr ready`・マージ・`ticket check`・`ticket update --pr`・ほかのチケットの作業
 - **サブエージェントが返す**：draft の PR の URL・閉じた Run の ID・確かめた受け入れ条件と付けられなかった項目（理由）・検査の結果・人に伝えること
-- **1 件でほかを止めない**：`CLAIM_LOST` ならそのチケットを飛ばす。実装が失敗したら Run を閉じて `ticket unclaim` で todo に戻し、worktree は残して、同じ流れでは claim し直さない。Run は `run list --running --ticket <id>` で確かめ、実行中なら親が閉じる（失敗として返れば `failure`、返らなければ `interrupted`。見直し・手直しの Run も同じ）。失敗・マージ待ちを待つのは `after` でそれを待つチケットだけ
+- **1 件でほかを止めない**：`CLAIM_LOST` ならそのチケットを飛ばす。実装が失敗したら Run を閉じて `ticket unclaim` で todo に戻し、worktree は残して、同じ流れでは claim し直さない。Run は `run list --running --ticket <id>` で確かめ、実行中なら親が閉じる（失敗として返れば `failure`、返らなければ `interrupted`。見直し・手直しの Run も同じく閉じる（unclaim はしない））。失敗・マージ待ちを待つのは `after` でそれを待つチケットだけ
 
 ## PR の要らない作業
 
@@ -77,12 +77,12 @@ Plan の `items[].waiting` が空のチケットが複数あり、サブエー�
 ## 状態について
 
 - 自分で `status` を進めるのは普段 in_progress → review まで。done は照合（マージ）で進む。照合で進まないときや人に指示されたときだけ `ticket move <id> done` で進める（制限は `dg guide overview`）
-- 途中でやめるなら、Run を閉じてから（「Run を記録する」の「結果」）`dg --json --actor agent ticket unclaim <id>`（todo に戻る。手直しなら `dg guide review` の「終わり方」）。review にあるなら人に差し戻しを頼む
+- 途中でやめるなら、Run を閉じてから（「Run を記録する」の「結果」）`dg --json --actor agent ticket unclaim <id>`（todo に戻る）。手直しは unclaim せず `dg guide review` の「終わり方」。review にあるなら人に差し戻しを頼む
 - 作業中に別の作業が見つかったら、そのチケットに混ぜず `dg guide import` の手順で起票を提案する
 
 ## 閉じ損ねた Run を閉じる
 
-finish を呼べずに残った Run は、`dg --json --actor agent run list --running --ticket <id>` で `step`・`agent` が合うものを探し、`run finish <Run の ID> --result interrupted --error <理由>` で閉じる（閉じないと同じ step の Run を始められない）。続けるなら同じ step の Run を始め直し、やめるなら `ticket unclaim <id>`
+finish を呼べずに残った Run は、`dg --json --actor agent run list --running --ticket <id>` で `step`・`agent` が合うものを探し、`run finish <Run の ID> --result interrupted --error <理由>` で閉じる。続けるなら同じ step の Run を始め直す。やめるなら、実装の Run は `ticket unclaim <id>`、手直しの Run は `dg guide review` の「終わり方」
 
 ## 任意フィールド
 

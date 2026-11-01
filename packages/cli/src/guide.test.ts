@@ -145,6 +145,13 @@ describe("dg guide", () => {
     // 上限は親が数え、fix の Run の数では数えない。合う step がなければ代わりの step で記録する
     expect(review).toContain("回数は親が、重い指摘を直した回で数える");
     expect(review).toContain("**合う step がない**");
+    // Run を自分で呼ぶ理由は review に置き、work は参照する
+    expect(review).toContain("Run の ID を最初に含む会話記録");
+    expect(work).toContain("（理由は `dg guide review` の「Run の分け方」）");
+    // 手直しの失敗・中断では unclaim せず、review の「終わり方」に従う
+    expect(review).toContain("**手直しが failure で返った・返らない**");
+    expect(work).toContain("手直しの Run は `dg guide review` の「終わり方」");
+    expect(work).toContain("手直しは unclaim せず");
     expect(work).not.toContain("開けたまま");
     expect(all).toContain("`dg guide review` の「品質ゲート」");
     for (const text of [work, all]) expect(text).not.toContain("--json mergeable");
