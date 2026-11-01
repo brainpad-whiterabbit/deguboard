@@ -8,7 +8,7 @@ after:
     - t148
   t151:
     - t150
-pending_approval: true
+pending_approval: false
 details:
   t152:
     scope: dgwork・dgall で planned の Iteration のチケットに着手するとき、その Iteration を人に聞かずに active にする
@@ -25,3 +25,5 @@ details:
   t151:
     scope: Run が実行中のチケットの行は回るリングと実行中、ほかの in_progress は止まった半分塗りの丸
     approach: t150 の差し込み口と同じ行を触るので後にする。store の Run から running のチケットを引き、CSS のアニメーションは prefers-reduced-motion で止める
+approved_by: eiki.kitajima/agent
+approved_at: 2026-11-01T13:25:03Z
