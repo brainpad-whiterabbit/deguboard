@@ -49,7 +49,7 @@ export function parseRoute(hash: string): Route {
     case "history":
       return { page: "history" };
     case "iterations":
-      // Iteration の一覧の画面はない（planned・active はカンバンの表、closed は履歴）。ID がなければカンバン
+      // Iteration の一覧の画面はない（planned・active はカンバンの絞り込み、closed は履歴）。ID がなければカンバン
       return id ? { page: "iterations", id } : board();
     default:
       return board();

@@ -1,7 +1,8 @@
-// カンバン（UI-2）。KanbanForge のサイドバーと同じ 3 層：上に planned と active の Iteration の表、表で選んだ Iteration の見出し、
+// カンバン（UI-2）。絞り込みの欄（Iteration・Epic・担当者）、選んだ Iteration の見出し、
 // その Iteration のチケットを状態ごとの節（todo / in_progress / review / done。中止は畳んだ節）で出す。
-// Iteration が 1 つもない Project では表を出さず、全チケットのカンバンにする。Epic と担当者（assignee）で絞り、値はハッシュに持つ。
-// 節と表の開閉・最後に選んだ Iteration は host.state に覚える。
+// Iteration の選択肢は planned と active と「Iteration なし」、Epic の選択肢は open だけ。
+// Iteration が 1 つもない Project では Iteration で絞らず、全チケットのカンバンにする。絞り込みの値はハッシュに持つ。
+// 節の開閉・最後に選んだ Iteration は host.state に覚える。
 // ドラッグ＆ドロップは ticket.move を呼び、拒否されたら通知に理由を出して元の列に戻す（読み直すだけで戻る）
 
 import {
@@ -13,7 +14,7 @@ import {
   useSensors,
   type DragEndEvent,
 } from "@dnd-kit/core";
-import { useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { PriorityBadge, StatusDot, Tags, TicketLink, TicketRow } from "../components/parts.js";
 import { useHost, useUiState } from "../host.js";
 import { hrefOf, navigate, NO_ITERATION, type BoardQuery } from "../router.js";
@@ -33,7 +34,7 @@ import {
 } from "../types.js";
 import { IterationCreateForm } from "./iterations.js";
 
-/** 表で選んでいるもの。all は Iteration のない Project（表なし） */
+/** 選んでいるもの。all は Iteration のない Project（Iteration で絞らない） */
 type Selection = { kind: "all" } | { kind: "none" } | { kind: "iteration"; iteration: Iteration };
 
 export function BoardPage({ query }: { query: BoardQuery }) {
@@ -44,6 +45,7 @@ export function BoardPage({ query }: { query: BoardQuery }) {
     "board.iteration",
     undefined,
   );
+  const [creating, setCreating] = useState(false);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
   const open = useMemo(
@@ -84,6 +86,11 @@ export function BoardPage({ query }: { query: BoardQuery }) {
           : t.iteration === selection.iteration.id;
     return store.tickets.filter(inScope);
   }, [store.tickets, selection]);
+  // 閉じた Epic は出さない。Epic の画面から閉じた Epic で開いたときは、選んでいるものだけ残す
+  const epics = useMemo(
+    () => store.epics.filter((e) => e.status === "open" || e.id === query.epic),
+    [store.epics, query.epic],
+  );
   const claims = useMemo(() => claimOptions(scoped), [scoped]);
   const tickets = useMemo(
     () =>
@@ -108,14 +115,31 @@ export function BoardPage({ query }: { query: BoardQuery }) {
 
   return (
     <section>
-      {open.length > 0 ? (
-        <IterationTable iterations={open} selection={selection} onSelect={select} />
-      ) : (
-        <NoIterations />
-      )}
-      {selection.kind === "iteration" ? <IterationHead iteration={selection.iteration} /> : null}
       <div className="board-filters">
-        {store.epics.length > 0 ? (
+        {selection.kind === "all" ? (
+          <span className="muted">Iteration はない</span>
+        ) : (
+          <label>
+            Iteration
+            <select
+              value={selection.kind === "none" ? NO_ITERATION : selection.iteration.id}
+              onChange={(e) => select(e.target.value)}
+            >
+              {open.map((i) => (
+                <option key={i.id} value={i.id}>
+                  {i.id} {i.name}（{ITERATION_LABELS[i.status]}）
+                </option>
+              ))}
+              <option value={NO_ITERATION}>Iteration なし</option>
+            </select>
+          </label>
+        )}
+        {creating ? null : (
+          <button type="button" className="link" onClick={() => setCreating(true)}>
+            + Iteration を作る
+          </button>
+        )}
+        {epics.length > 0 ? (
           <label>
             Epic
             <select
@@ -123,7 +147,7 @@ export function BoardPage({ query }: { query: BoardQuery }) {
               onChange={(e) => setFilter({ epic: e.target.value || undefined })}
             >
               <option value="">すべて</option>
-              {store.epics.map((e) => (
+              {epics.map((e) => (
                 <option key={e.id} value={e.id}>
                   {e.id} {e.title}
                 </option>
@@ -149,6 +173,12 @@ export function BoardPage({ query }: { query: BoardQuery }) {
         ) : null}
         <span className="muted count">{tickets.length - abandoned.length} 件</span>
       </div>
+      {creating ? (
+        <div className="board-filters">
+          <IterationCreateForm onDone={() => setCreating(false)} />
+        </div>
+      ) : null}
+      {selection.kind === "iteration" ? <IterationHead iteration={selection.iteration} /> : null}
       <DndContext sensors={sensors} onDragEnd={(e) => void onDragEnd(e)}>
         <div className="board">
           {BOARD_STATUSES.map((status) => (
@@ -167,141 +197,6 @@ export function BoardPage({ query }: { query: BoardQuery }) {
         </div>
       </DndContext>
     </section>
-  );
-}
-
-/** Iteration の表（KanbanForge の SB-2）。planned と active を番号順に、行を押して選ぶ。末尾に「Iteration なし」と作成 */
-function IterationTable({
-  iterations,
-  selection,
-  onSelect,
-}: {
-  iterations: Iteration[];
-  selection: Selection;
-  onSelect: (iteration: string) => void;
-}) {
-  const store = useStore();
-  const [open, setOpen] = useUiState("board.table", true);
-  const [creating, setCreating] = useState(false);
-  const countOf = (iteration: Iteration) => {
-    const members = store.tickets.filter(
-      (t) => t.iteration === iteration.id && t.status !== "abandoned",
-    );
-    return { done: members.filter((t) => t.status === "done").length, total: members.length };
-  };
-  const unassigned = store.tickets.filter(
-    (t) => !t.iteration && t.status !== "done" && t.status !== "abandoned",
-  ).length;
-  const row = (
-    key: string,
-    selected: boolean,
-    onPick: () => void,
-    cells: ReactNode,
-    label: string,
-  ) => (
-    <tr
-      key={key}
-      tabIndex={0}
-      aria-selected={selected}
-      aria-label={label}
-      onClick={() => !selected && onPick()}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          if (!selected) onPick();
-        }
-      }}
-    >
-      {cells}
-    </tr>
-  );
-  return (
-    <details
-      className="iteration-table fold"
-      open={open}
-      onToggle={(e) => setOpen(e.currentTarget.open)}
-    >
-      <summary>
-        Iteration <span className="muted">{iterations.length}</span>
-      </summary>
-      <table>
-        <thead>
-          <tr>
-            <th>#</th>
-            <th className="name">Iteration</th>
-            <th>状態</th>
-            <th title="done の件数 / 件数（abandoned を除く）">完了</th>
-          </tr>
-        </thead>
-        <tbody>
-          {iterations.map((i) => {
-            const c = countOf(i);
-            return row(
-              i.id,
-              selection.kind === "iteration" && selection.iteration.id === i.id,
-              () => onSelect(i.id),
-              <>
-                <td>
-                  <code>{i.id}</code>
-                </td>
-                <td className="name">{i.name}</td>
-                <td>
-                  <span className={`badge iteration-${i.status}`}>
-                    {ITERATION_LABELS[i.status]}
-                  </span>
-                </td>
-                <td className="muted">
-                  {c.done}/{c.total}
-                </td>
-              </>,
-              `${i.id} ${i.name}（${ITERATION_LABELS[i.status]}・完了 ${c.done}/${c.total}）`,
-            );
-          })}
-          {row(
-            NO_ITERATION,
-            selection.kind === "none",
-            () => onSelect(NO_ITERATION),
-            <>
-              <td />
-              <td className="name muted">Iteration なし</td>
-              <td />
-              <td className="muted" title="未完了の件数">
-                {unassigned}
-              </td>
-            </>,
-            `Iteration なし（未完了 ${unassigned}）`,
-          )}
-        </tbody>
-      </table>
-      <div className="create">
-        {creating ? (
-          <IterationCreateForm onDone={() => setCreating(false)} />
-        ) : (
-          <button type="button" className="link" onClick={() => setCreating(true)}>
-            + Iteration を作る
-          </button>
-        )}
-      </div>
-    </details>
-  );
-}
-
-/** Iteration が 1 つもないとき。表は出さず、作る入口だけ */
-function NoIterations() {
-  const [creating, setCreating] = useState(false);
-  return (
-    <div className="board-filters">
-      {creating ? (
-        <IterationCreateForm onDone={() => setCreating(false)} />
-      ) : (
-        <>
-          <span className="muted">Iteration はない</span>
-          <button type="button" className="link" onClick={() => setCreating(true)}>
-            + Iteration を作る
-          </button>
-        </>
-      )}
-    </div>
   );
 }
 
