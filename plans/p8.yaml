@@ -1,0 +1,39 @@
+id: p8
+project: default
+tickets: [t136, t137, t139, t138, t140, t141, t142, t143]
+after:
+  t137:
+    - t136
+  t138:
+    - t139
+  t140:
+    - t137
+    - t139
+  t141:
+    - t139
+pending_approval: true
+details:
+  t136:
+    scope: VS Code の「画面を開く」をなくし、パネルは詳細だけにする。パネルの Epic 詳細は一覧にし、戻るリンクを出さない。UI-10・UI-12・ADR-006 を直す
+    approach: extension.ts のコマンドと route なしのパネルを消し、web は surface=panel のときだけ分岐する。一覧へのリンクは拡張ホスト経由で左パネルに navigate を送る
+  t137:
+    scope: 左パネルとパネルの閉じるに画面内の確認を足し、Iteration の見出しの操作を「…」に入れる。進捗バーで完了と進行中を分ける
+    approach: t136 と同じ epics.tsx・iterations.tsx を触るので後にする。確認は confirm() を使わずインラインの部品にし、ProgressBar は surface で描き分ける
+  t139:
+    scope: 左パネルのカンバンの帯（依存なしはチップ）と行（タイトル 2 行・同じ担当は出さない）
+    approach: TicketRow に担当を隠す指定を足し、backlog・history でも使える形にする。plan-band は辺がないときだけ描き方を変える
+  t138:
+    scope: 左パネルのカンバンで変わった行と新しい行を点滅させる。隠れている間の変化は見えたときに。UI-2 に書く
+    approach: t139 の後に TicketRow へ className を足す。比べる関数は DOM に依存させず vitest で確かめ、要約は ui-state に置く。自分のドラッグは store.run の前に覚え直す
+  t140:
+    scope: 左パネルのバックログの行の優先度・区画の見出し・Epic の欄・件数と絞り込み
+    approach: t139 の行の部品と t137 の「…」メニューを使う
+  t141:
+    scope: 左パネルの履歴の Iteration・Epic・チケットの 3 つの見方と検索欄の言い方
+    approach: t139 の行の部品を使い、小見出しでまとめる。並びと検索の対象は今のまま
+  t142:
+    scope: パネルのチケット詳細の節の見出し・日時・編集ボタン・値のない項目
+    approach: ticket.tsx だけを直し、日時は経過と同じ書式の関数に寄せる
+  t143:
+    scope: 左パネルとパネルを開いてから描くまでの待ちを測り、前回の一覧の即時描画と骨組みを足す
+    approach: 先に store.tsx の読み込みの内訳を測り、結果を PR に書いてから ui-state のキャッシュを足す
