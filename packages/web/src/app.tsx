@@ -1,5 +1,5 @@
 // 画面の骨組み：上のバー（Project の切り替え・画面の切り替え・同期の印）と、ハッシュで選んだページ。
-// サイドバーでは同期の印とボタンを出さない（ビューのタイトル行の再読み込みと同期のボタン、バッジで代える。UI-12）
+// サイドバーでは同期の印とボタンを出さない（ビューのタイトル行の同期のボタンとバッジで代える。UI-12）
 
 import { useEffect, type MouseEvent } from "react";
 import { useHost } from "./host.js";
@@ -120,7 +120,7 @@ function Page({ route }: { route: Route }) {
   }
 }
 
-/** 未 push・未取り込み・未コミットの印と、dg sync と同じ同期をする再読み込み（UI-6）。ブラウザとパネルだけ */
+/** 未 push・未取り込み・未コミットの印と、dg sync と同じ同期のボタン（UI-6）。ブラウザとパネルだけ */
 function SyncIndicator() {
   const store = useStore();
   const s = store.status;
