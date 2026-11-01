@@ -16,12 +16,15 @@
     "dg": "node packages/cli/bin/dg.js",
     "vsix": "pnpm --filter deguboard-vscode package",
     "vsix:install": "node scripts/install-vsix.mjs",
+    "playwright:install": "playwright-core install chromium chromium-headless-shell",
     "pack": "rm -rf release && pnpm --filter @deguboard/core --filter @deguboard/server --filter deguboard exec pnpm pack --pack-destination ../../release"
   },
   "devDependencies": {
+    "@playwright/mcp": "0.0.83",
     "@types/node": "24.19.2",
     "oxfmt": "0.75.0",
     "oxlint": "1.90.0",
+    "playwright-core": "1.64.0-alpha-1790635538000",
     "typescript": "5.9.3",
     "vitest": "5.0.5"
   },
