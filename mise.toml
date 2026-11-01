@@ -38,7 +38,7 @@ description = "core・server・cli を tsc で、web と vscode を Vite で dis
 run = "pnpm run build"
 
 [tasks.vsix]
-description = "VS Code 拡張を packages/vscode/deguboard-vscode.vsix に固める（先に build が要る）"
+description = "VS Code 拡張を packages/vscode/deguboard-vscode.vsix に固める（build を先に走らせる）"
 depends = ["build"]
 run = "pnpm run vsix"
 

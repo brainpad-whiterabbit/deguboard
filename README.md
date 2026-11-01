@@ -4,7 +4,7 @@ deguboard は、Git で管理するチケットとユーザー定義のワーク
 
 チケット・イテレーション・ワークフローの定義は、リポジトリの orphan ブランチ `deguboard` に Markdown と YAML で置く。コードと同じく Git で共有するので、別のサービスを用意しなくてもチームで同じカンバンを見られ、変更の履歴も残る。Claude Code や Codex などの AI エージェントは `dg` を呼んでチケットを起票・計画・実行し、人は何を作るか・どの順で進めるか・成果物を承認するかを決める。
 
-> **開発中**。最初の版（CLI・Web UI・VS Code 拡張でのチケット管理。Epic `e1`）、Claude Code 連携（Skill・MCP・Plan。Epic `e2`）、Run の記録と集計（Epic `e3`）、並列実行・自動レビュー・修正ループ・品質ゲート（Epic `e4`）を実装した。npm と Marketplace への最初の公開を準備中。それまで、拡張は VSIX（`mise run vsix`）で入れる。
+> **開発中**。実装済みの範囲とこれから足す機能の進みは、このリポジトリの Epic（`dg epic list`、`dg epic show <ID>`）が正本。npm と Marketplace には**まだ公開していない**（準備中）。それまでは clone してビルドした `dg` と VSIX を使う（「[使い始める](#使い始める)」）。
 
 ## 何ができるか
 
@@ -19,8 +19,6 @@ deguboard は、Git で管理するチケットとユーザー定義のワーク
 | `dg guide all` と `work` の手順で、Plan の待ちのない複数のチケットをチケットごとのサブエージェントで同時に進める（上限は手順が決める）                                                                               | できる                                            |
 | `dg guide work` の手順で、PR を出す前に別のサブエージェントが見直し、指摘を上限付きの修正ループで直す。品質ゲートは `dg guide review` にまとめ、自動マージの前にも使う                                               | できる                                            |
 
-これから足す機能とその進みは、このリポジトリの Epic（`dg epic list`、`dg epic show <ID>`）が正本。
-
 deguboard はエージェントを起動も監視もしない。チケットの状態は、作業ブランチの Git 上の事実（ある・push 済み・マージ済み）から前に進む。
 
 ## ドキュメント
@@ -34,8 +32,18 @@ deguboard はエージェントを起動も監視もしない。チケットの�
 
 前提は Linux / macOS、git 2.30 以上、Node.js 24 以上。GitHub CLI（`gh`）は PR の状態をチケットに反映したいときだけ要る。
 
+npm に公開するまでは、[mise](https://mise.jdx.dev/) を入れて deguboard を clone し、ビルドした `dg` を PATH に通す。`dg` は `#!/usr/bin/env node` で動くので、リポジトリの外で `dg` を使うには node 24 がリポジトリの外でも PATH にあること（mise なら `mise use -g node@24`）。
+
 ```sh
-npm i -g deguboard            # mise なら mise use -g npm:deguboard
+git clone https://github.com/brainpad-whiterabbit/deguboard.git && cd deguboard
+mise trust && mise install    # node・pnpm を mise.toml の版で入れる
+mise run install              # 依存を入れ、dg と VS Code 拡張をビルドし、VSIX を VS Code に入れる（code CLI がなければ導入は飛ばす）
+mkdir -p ~/.local/bin && ln -sf "$PWD/packages/cli/bin/dg.js" ~/.local/bin/dg   # ~/.local/bin が PATH になければ足す。更新は git pull のあと mise run install
+```
+
+公開後は `npm i -g deguboard`（mise なら `mise use -g npm:deguboard`）で入れる。入れたら、管理したいリポジトリで始める。
+
+```sh
 cd <管理したいリポジトリ>
 dg init                       # orphan ブランチ deguboard と worktree .git/deguboard/ を作り、リモートがあれば push する
 dg ticket create "ログインの検証" --summary "入力の検査" --acceptance "空のとき拒否する"
@@ -47,7 +55,7 @@ dg skill install              # Claude Code の Skill（/dgimport・/dgplan・/d
 
 チームの 2 人目からは、リポジトリを clone して `dg init` を実行する。リモートにある `deguboard` ブランチを取り込むので、同じチケットが見える。
 
-VS Code では、拡張を入れて（今は VSIX から。`mise run vsix` → `code --install-extension packages/vscode/deguboard-vscode.vsix`）Activity Bar の deguboard のアイコンを押すとサイドバーにカンバンが開く。チケットを押すと詳細がエディタ領域に開く。拡張は `dg` なしで動き、`dg` が PATH にないときは案内を出す。
+VS Code の拡張は、今は VSIX から入れる。上の `mise run install` が入れ、手で入れるなら `mise run vsix`（build も先に走る）の後に `code --install-extension packages/vscode/deguboard-vscode.vsix` を実行する。拡張を入れて Activity Bar の deguboard のアイコンを押すと、サイドバーにカンバンが開く。カンバンの帯と行の印は[拡張の README](packages/vscode/README.md)、仕様は[要件定義書](docs/requirements.md)の UI-2・UI-13。チケットを押すと詳細がエディタ領域に開く。拡張は `dg` なしで動き、`dg` が PATH にないときは案内を出す。
 
 ### Run の記録と集計
 
