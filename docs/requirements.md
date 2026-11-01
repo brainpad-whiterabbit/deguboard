@@ -202,7 +202,7 @@ fields:
 | `commit.mode`                    | 書き込みをいつコミットするか（下記）             | `batch`               |
 | `push.mode`                      | `auto` / `manual`                                | `auto`                |
 | `metrics.read_transcripts`       | 会話記録を読むか                                 | `false`               |
-| `actions.shell`                  | 任意のシェルの Action を許すか（予定 `e3`）      | `false`               |
+| `actions.shell`                  | 任意のシェルの Action を許すか（AG-7）           | `false`               |
 | `actor.human_only`               | agent からは拒否するコマンド名の一覧（下記）     | `[]`                  |
 | `auto.merge`                     | `dg guide all --auto` で PR を自動でマージするか | `false`               |
 
@@ -285,8 +285,8 @@ Web UI は `dg serve` が配信し、VS Code 拡張は同じ React アプリを 
 - AG-3 エージェントは要件の整理が終わったら、必要に応じてチケット化を提案し、承認を得て `ticket import` で起票する。分解・Epic への束ね・依存の整理・Iteration への割り当ても提案して承認を得る
 - AG-4 MCP サーバー（`dg mcp`。stdio）は Core のコマンド定義から生成する薄い層として提供する。CLI と同じ操作ができ（`init` と CLI だけの `guide`・`skill`・`serve`・`open` を除く）、ツールの結果は `--json` と同じ形（CL-1）で、主体は常に agent（`<ユーザ>/agent`）
 - AG-5 Agent Adapter が、エージェントの起動方法・使用量の取得・権限・作業ディレクトリの差を吸収する。Core は特定の AI 製品を知らない（予定 `e3`）
-- AG-6 ソフトウェア開発向けの Action（worktree の作成、ブランチ、テスト実行、PR 作成、マージ）は登録済みの Action として提供し、Core の汎用部分に組み込まない（予定 `e3`）
-- AG-7 任意のシェルコマンドの Action は `actions.shell: true` のときだけ使え、実行前に確認する（予定 `e3`）
+- AG-6 ソフトウェア開発向けの Action（worktree・ブランチ・テスト・PR 作成・マージ）は Core の `actions` に置き、汎用部分は依存しない。`dg` のコマンドにしないライブラリ（[ADR-007](adr/ADR-007-architecture.md)）
+- AG-7 任意のシェルの Action は `actions.shell: true` のときだけ使え、毎回確認を経る
 
 ### 6.6 作業の実績（予定 `e3`）
 

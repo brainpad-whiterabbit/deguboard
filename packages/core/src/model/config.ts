@@ -46,8 +46,10 @@ export const configSchema = z.looseObject({
     .prefault({}),
   actions: z
     .looseObject({
-      /** 任意のシェルの Action を許すか（Run を実装するまで使わない） */
+      /** 任意のシェルの Action（shell）を許すか。許しても実行のたびに確認する（AG-7） */
       shell: z.boolean().default(false),
+      /** テスト実行の Action（run_tests）が呼ぶコマンドの引数配列（例 [mise, run, check]）。空なら run_tests は拒否する */
+      test: z.array(z.string().min(1)).default([]),
     })
     .prefault({}),
   auto: z

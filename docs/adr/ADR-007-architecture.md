@@ -21,7 +21,7 @@ CLI・MCP・HTTP・VS Code 拡張という複数の入口から同じ機能を�
 
 ```
 packages/
-├── core/     ドメイン・storage・git・workflow・run/metrics・commands
+├── core/     ドメイン・storage・git・workflow・run/metrics・commands・actions
 ├── cli/      dg。commands を commander と MCP のツール（dg mcp）に写す
 ├── server/   commands を HTTP に写し、web を配信する
 ├── web/      React。CommandClient の HTTP 実装
@@ -51,9 +51,18 @@ Core の中は責務ごとのモジュールに分け、最初からパッケー
 - `workflow`：定義の検証、遷移の検査、`reconcile` の評価
 - `run`・`metrics`：Run の記録と集計
 - `agents`：Agent Adapter のインターフェースと Claude Code / Codex の実装。起動方法・使用量の取得・作業ディレクトリの差を吸収する
-- `actions`：登録済みの Action（`run_tests`・`create_pr` など）。任意のシェルは設定で明示的に許可したときだけ、実行前に確認する
+- `actions`：登録済みの Action（`create_worktree`・`create_branch`・`run_tests`・`create_pr`・`merge_pr`、許したときだけの `shell`）。下の「Action の呼び方」
 
-`run`・`agents`・`actions`・`metrics` は要るようになったときに置く（それまでは Run の型だけ）。モジュールが肥大化したら、そのときにパッケージへ切り出す。
+`run`・`agents`・`metrics` は要るようになったときに置く（それまでは Run の型だけ）。モジュールが肥大化したら、そのときにパッケージへ切り出す。
+
+### Action の呼び方
+
+- Action は「名前・Zod の入力スキーマ・設定による可否・確認の要否・実行関数」の組で、`core/actions` に置く。呼び出し側は `listActions(config)` で一覧と使えるかを見て、`runAction(ctx, name, input)` で実行する。`runAction` が入力の検証 → 設定の検査 → 確認 → 実行の順を 1 か所で守る
+- `actions` は `git`（`run` と `repo` の型）・`model/config`・`errors` を使い、逆向き（commands・storage・workflow・model・git から actions）の import は `.oxlintrc.json` が禁じる。Workflow に `steps` を足すときは、Action を名前（文字列）で持たせ、名前の検証は actions の一覧を外から渡して行う
+- `dg` のコマンド・MCP のツール・画面には出さない。エージェントは `dg guide` の手順に従って git・gh・テストを自分で呼ぶ（EX-1）
+- git に渡すブランチ名は `git check-ref-format --branch` 相当で検査して先頭の `-` を拒み、位置引数の前に `--` を置く。オプションの注入（`--upload-pack=<コマンド>` など）で `actions.shell` を回り込ませないため
+- `run_tests` は `actions.test` に書いた引数配列だけを確認なしで実行する。config.yaml は Git で共有されるので、deguboard ブランチに push できる人はここに任意のコマンドを書ける。その権限をシェルの許可と同等とみなす前提に立つ。`shell` は `actions.shell` が false なら `REJECTED`、true でも呼び出し側の `confirm` が true を返したときだけ `sh -c` で実行し、`confirm` がなければ拒否する
+- worktree・ブランチの操作は guide の手順（`git worktree add --no-track -b … <remote>/<base>`）と同じ形にする。claim は `branch` を記録するだけで Git を触らないので、共有する実装はない
 
 ### 索引はメモリ上に持つ
 
@@ -65,6 +74,7 @@ Core の中は責務ごとのモジュールに分け、最初からパッケー
 - 依存を一方向にすれば、Core を単体でテストでき、VS Code や HTTP の都合が Core に入らない
 - 最初から 10 パッケージに分けると、境界をまたぐ型と設定が増え、変更のたびに複数パッケージを触る。モジュールの境界を先に決めておけば、切り出しは後からできる
 - Adapter と Action を Core の境界として先に型だけ決めるのは、最初のデータモデル（Run・Workflow の `steps`）がそれに依存するため
+- Action をライブラリに留めるのは、deguboard がエージェントを起動しない（EX-1）ので、今 Action を実行する主体がいないため。コマンドにすると `core/commands` が actions に依存し（AG-6）、エージェントが Bash で直接打てる git・gh を包む層が増えるだけになる。確認の手段（`confirm`）を呼び出し側に任せれば、CLI の対話・画面のダイアログ・承認の step のどれでも同じ検査を通る
 - 数千件までのチケットなら、ファイル走査とメモリ索引で十分に速い
 
 ## 採らなかった案
@@ -73,4 +83,6 @@ Core の中は責務ごとのモジュールに分け、最初からパッケー
 - **MCP サーバーを独立パッケージにする**：コマンド定義から機械的に作る薄い層で、独立させても中身が増えない。`dg` に同梱すれば入れるものが 1 つで済み、CLI と同じ版で動く。ツールのスキーマは文脈を消費するので、CLI（Bash）で足りる利用者は登録しなくてよい
 - **Workflow エンジンを別パッケージにする**：Core の遷移検査と照合が Workflow に依存し、境界をまたぐ呼び出しが増える。Core の中のモジュールで十分
 - **入口ごとにロジックを書く**：CLI と UI で振る舞いがずれる
+- **`dg action list / run` のコマンドにする**：`core/commands` が actions に依存し、エージェントに同じ操作の道が 2 つできる。Action を実行する主体（Run の実行）ができたときに、そこから呼ぶ
+- **テスト実行を任意のコマンドの入力で受ける**：入力にコマンドを書けると、`actions.shell` を通らない任意の実行になる。コマンドは config に書いたものに限る
 - **SQLite の索引**：ネイティブ依存と DB ファイルの管理が増える

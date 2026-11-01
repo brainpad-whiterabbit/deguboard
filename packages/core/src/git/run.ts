@@ -129,3 +129,13 @@ export async function runGh(
 ): Promise<ExecResult> {
   return exec("gh", args, cwd, opts);
 }
+
+/** git・gh 以外のプログラムを引数配列で呼ぶ（Action のテスト実行と、許可したシェル。actions モジュール） */
+export async function runProcess(
+  cwd: string,
+  file: string,
+  args: readonly string[],
+  opts: RunOptions = {},
+): Promise<ExecResult> {
+  return exec(file, args, cwd, opts);
+}
