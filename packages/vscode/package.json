@@ -18,7 +18,7 @@
   "main": "./dist/extension.cjs",
   "scripts": {
     "build": "vite build && rm -rf dist/web && cp -r ../web/dist dist/web",
-    "package": "vsce package --no-dependencies --skip-license --out deguboard-vscode.vsix"
+    "package": "cp ../../LICENSE LICENSE && vsce package --no-dependencies --out deguboard-vscode.vsix"
   },
   "dependencies": {
     "@deguboard/core": "workspace:*"
