@@ -86,7 +86,7 @@ export function BoardPage({ query }: { query: BoardQuery }) {
           : t.iteration === selection.iteration.id;
     return store.tickets.filter(inScope);
   }, [store.tickets, selection]);
-  // 閉じた Epic は出さない。Epic の画面から閉じた Epic で開いたときは、選んでいるものだけ残す
+  // 閉じた Epic は出さない。Epic の詳細から閉じた Epic で開いたときは、選んでいるものだけ残す
   const epics = useMemo(
     () => store.epics.filter((e) => e.status === "open" || e.id === query.epic),
     [store.epics, query.epic],

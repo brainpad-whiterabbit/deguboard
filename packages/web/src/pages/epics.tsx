@@ -1,4 +1,5 @@
-// Epic（UI-10）。一覧と進捗（EP-3）、選んだ Epic のチケットを Status ごとに出す。チケットの追加・除外、閉じる・再開
+// Epic の詳細（UI-10）。進捗（EP-3）と、Epic のチケットを Status ごとに出す。チケットの追加・除外、閉じる・再開。
+// 一覧の画面は持たない（open はバックログの欄、closed は履歴）
 
 import { useEffect, useState } from "react";
 import {
@@ -20,120 +21,7 @@ import {
   type EpicDetail,
 } from "../types.js";
 
-export function EpicsPage({ id }: { id?: string | undefined }) {
-  return id ? <EpicDetailView id={id} /> : <EpicList />;
-}
-
-function EpicList() {
-  const store = useStore();
-  const host = useHost();
-  const [showClosed, setShowClosed] = useState(false);
-  const [title, setTitle] = useState("");
-  // サイドバーでは「+ 作る」を押したときだけフォームを出す（幅を節約する）
-  const sidebar = host.surface === "sidebar";
-  const [creating, setCreating] = useState(false);
-  const rows = store.epics.filter((e) => showClosed || e.status === "open").sort(byNumber);
-  const create = async () => {
-    if (!title.trim() || !store.project) return;
-    const r = await store.run("epic.create", { title: title.trim(), project: store.project.id });
-    if (r.ok) {
-      setTitle("");
-      setCreating(false);
-    }
-  };
-  return (
-    <section>
-      <div className="toolbar">
-        <h1>Epic</h1>
-        <label>
-          <input
-            type="checkbox"
-            checked={showClosed}
-            onChange={(e) => setShowClosed(e.target.checked)}
-          />
-          閉じたものも出す
-        </label>
-        {sidebar && !creating ? (
-          <button type="button" className="link" onClick={() => setCreating(true)}>
-            + Epic を作る
-          </button>
-        ) : (
-          <form
-            className="inline-form"
-            onSubmit={(e) => {
-              e.preventDefault();
-              void create();
-            }}
-          >
-            <input
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="新しい Epic の題"
-              aria-label="新しい Epic の題"
-              autoFocus={sidebar}
-            />
-            <button type="submit" className="primary" disabled={!title.trim()}>
-              作る
-            </button>
-            {sidebar ? (
-              <button type="button" onClick={() => setCreating(false)}>
-                やめる
-              </button>
-            ) : null}
-          </form>
-        )}
-      </div>
-      {rows.length === 0 ? (
-        <p className="empty">Epic はない</p>
-      ) : host.surface === "sidebar" ? (
-        <ul className="rows">
-          {rows.map((e) => (
-            <li key={e.id}>
-              <a className="row" href={hrefOf({ page: "epics", id: e.id })}>
-                <code>{e.id}</code>
-                <span className="row-title" title={e.title}>
-                  {e.title}
-                </span>
-                <ProgressBar progress={e.progress} />
-              </a>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <table className="list">
-          <thead>
-            <tr>
-              <th>番号</th>
-              <th>タイトル</th>
-              <th>状態</th>
-              <th>進捗</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((e) => (
-              <tr key={e.id}>
-                <td>
-                  <a href={hrefOf({ page: "epics", id: e.id })}>
-                    <code>{e.id}</code>
-                  </a>
-                </td>
-                <td>
-                  <a href={hrefOf({ page: "epics", id: e.id })}>{e.title}</a>
-                </td>
-                <td>{EPIC_LABELS[e.status]}</td>
-                <td>
-                  <ProgressBar progress={e.progress} />
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-    </section>
-  );
-}
-
-function EpicDetailView({ id }: { id: string }) {
+export function EpicsPage({ id }: { id: string }) {
   const store = useStore();
   const host = useHost();
   const sidebar = host.surface === "sidebar";
@@ -164,7 +52,7 @@ function EpicDetailView({ id }: { id: string }) {
   return (
     <section>
       <div className="toolbar">
-        <a href={hrefOf({ page: "epics" })}>← Epic 一覧</a>
+        <a href={hrefOf({ page: "backlog" })}>← バックログ</a>
       </div>
       <header className="detail-header">
         <h1>

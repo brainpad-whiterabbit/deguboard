@@ -17,7 +17,7 @@ export type Route =
   | ({ page: "board" } & BoardQuery)
   | { page: "backlog" }
   | { page: "ticket"; id: string }
-  | { page: "epics"; id?: string | undefined }
+  | { page: "epics"; id: string }
   | { page: "iterations"; id: string }
   | { page: "history" };
 
@@ -45,7 +45,8 @@ export function parseRoute(hash: string): Route {
     case "tickets":
       return id ? { page: "ticket", id } : { page: "backlog" };
     case "epics":
-      return { page: "epics", id };
+      // Epic の一覧の画面はない（open はバックログの欄、closed は履歴）。ID がなければバックログ
+      return id ? { page: "epics", id } : { page: "backlog" };
     case "history":
       return { page: "history" };
     case "iterations":
@@ -69,7 +70,7 @@ export function hrefOf(route: Route): string {
     case "ticket":
       return `#/tickets/${route.id}`;
     case "epics":
-      return route.id ? `#/epics/${route.id}` : "#/epics";
+      return `#/epics/${route.id}`;
     case "iterations":
       return `#/iterations/${route.id}`;
     case "history":

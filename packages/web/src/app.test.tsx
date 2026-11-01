@@ -340,7 +340,7 @@ describe("画面", () => {
     await screen.findByText("API");
     expect(screen.queryByRole("heading", { level: 1, name: "画面" })).toBeNull();
     expect(document.querySelector("table.list")).toBeNull();
-    expect(document.querySelectorAll("ul.rows > li")).toHaveLength(2);
+    expect(document.querySelectorAll(".backlog-main ul.rows > li")).toHaveLength(2);
   });
 
   it("Webview がリンクのクリックを横取りしても（document で preventDefault）、タブを押すとハッシュが変わり aria-current が移る", async () => {
@@ -373,8 +373,8 @@ describe("画面", () => {
     fireEvent.click(await screen.findByText("API"));
     expect(opened).toEqual([{ page: "ticket", id: "t2" }]);
     expect(window.location.hash).toBe("#/backlog");
-    fireEvent.click(screen.getByRole("link", { name: "Epic" }));
-    expect(window.location.hash).toBe("#/epics");
+    fireEvent.click(screen.getByRole("link", { name: "履歴" }));
+    expect(window.location.hash).toBe("#/history");
   });
 
   it("エディタのパネルでチケット詳細を出すときはヘッダー（タブ・Project・同期）を出さない。カンバンでは出す", async () => {
@@ -389,7 +389,7 @@ describe("画面", () => {
     expect(screen.getByRole("button", { name: "同期" })).toBeTruthy();
   });
 
-  it("履歴のタブは closed の Iteration を閉じた新しい順に出し、タブに件数を添え、チケットで絞れ、行はホストに開いてもらう", async () => {
+  it("履歴のタブは closed の Iteration を閉じた新しい順に出し、チケットで絞れ、行はホストに開いてもらう", async () => {
     const client = mockClient();
     client.data.iterations = [
       iteration({
@@ -414,7 +414,7 @@ describe("画面", () => {
       webviewHost("sidebar", (route) => opened.push(route)),
     );
     const tab = await screen.findByRole("link", { name: /履歴/ });
-    expect(tab.textContent).toBe("履歴 2");
+    expect(tab.textContent).toBe("履歴");
     fireEvent.click(tab);
     await screen.findByRole("heading", { level: 1, name: "履歴" });
     const names = () =>
@@ -458,22 +458,28 @@ describe("画面", () => {
     expect(screen.getByText("2 件")).toBeTruthy();
     const fold = document.querySelector<HTMLDetailsElement>("details.filters")!;
     expect(fold.open).toBe(false);
-    fireEvent.change(screen.getByLabelText("Epic"), { target: { value: "e1" } });
+    fireEvent.click(screen.getByRole("button", { name: /最初の版/ }));
     expect(fold.querySelector("summary")!.textContent).toContain("Epic: e1");
-    expect(screen.getByText("1 件")).toBeTruthy();
+    expect(document.querySelector(".toolbar > .muted")!.textContent).toBe("1 件");
     fold.open = true;
     fireEvent(fold, new Event("toggle"));
     expect(host.state.get("backlog.filters")).toBe(true);
   });
 
-  it("サイドバーの Epic の作成フォームは「+ Epic を作る」を押したときだけ開く", async () => {
-    window.location.hash = "#/epics";
+  it("サイドバーのバックログの Epic の欄は折りたため、作成フォームは「+」を押したときだけ開く", async () => {
+    window.location.hash = "#/backlog";
     const client = mockClient();
     client.handlers["epic.create"] = (input) => input;
-    mount(client, webviewHost("sidebar"));
+    const host = webviewHost("sidebar");
+    mount(client, host);
     await screen.findByText("最初の版");
+    const fold = document.querySelector<HTMLDetailsElement>("details.epic-panel")!;
+    fold.open = false;
+    fireEvent(fold, new Event("toggle"));
+    expect(host.state.get("backlog.epics")).toBe(false);
     expect(screen.queryByLabelText("新しい Epic の題")).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "+ Epic を作る" }));
+    fireEvent.click(screen.getByRole("button", { name: "Epic を作る" }));
+    expect(host.state.get("backlog.epics")).toBe(true);
     fireEvent.change(screen.getByLabelText("新しい Epic の題"), { target: { value: "次" } });
     fireEvent.click(screen.getByRole("button", { name: "作る" }));
     await waitFor(() => expect(client.calls.some((c) => c.name === "epic.create")).toBe(true));
@@ -526,10 +532,84 @@ describe("画面", () => {
     expect(screen.queryByText("読み込み中…")).toBeNull();
   });
 
-  it("Epic の一覧は進捗を出す", async () => {
+  it("タブはカンバン・バックログ・履歴の 3 つ。#/epics はバックログとして開き、Epic の詳細ではバックログのタブを選ぶ", async () => {
     window.location.hash = "#/epics";
-    mount();
-    expect(await screen.findByText("最初の版")).toBeTruthy();
+    const client = mockClient();
+    client.handlers["epic.show"] = () => ({ ...client.data.epics[0], body: "", tickets: [] });
+    mount(client);
+    await screen.findByRole("heading", { level: 1, name: "バックログ" });
+    const tabs = () => screen.getByRole("navigation", { name: "画面" });
+    expect([...tabs().querySelectorAll("a")].map((a) => a.textContent)).toEqual([
+      "カンバン",
+      "バックログ",
+      "履歴",
+    ]);
+    window.location.hash = "#/epics/e1";
+    await screen.findByRole("heading", { level: 1, name: /e1 最初の版/ });
+    expect(tabs().querySelector("[aria-current=page]")!.textContent).toBe("バックログ");
+  });
+
+  it("バックログの Epic の欄は open の Epic の進捗と「Epic なし」の件数を出し、押すと絞り、もう一度押すと解除する", async () => {
+    window.location.hash = "#/backlog";
+    const client = mockClient();
+    client.data.epics = [
+      ...client.data.epics,
+      { ...client.data.epics[0]!, id: "e9", title: "済んだ", status: "closed" },
+    ];
+    mount(client);
+    await screen.findByText("API");
+    expect(screen.queryByLabelText("Epic")).toBeNull();
+    expect(screen.queryByText("済んだ")).toBeNull();
     expect(screen.getByText("0/1")).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Epic なし/ }).textContent).toContain("1 件");
+    const pick = screen.getByRole("button", { name: /最初の版/ });
+    fireEvent.click(pick);
+    expect(pick.getAttribute("aria-pressed")).toBe("true");
+    const count = () => document.querySelector(".toolbar > .muted")!.textContent;
+    expect(count()).toBe("1 件");
+    expect(screen.queryByText("画面")).toBeNull();
+    fireEvent.click(pick);
+    expect(count()).toBe("2 件");
+    fireEvent.click(screen.getByRole("button", { name: /Epic なし/ }));
+    expect(screen.getByText("画面")).toBeTruthy();
+    expect(screen.queryByText("API")).toBeNull();
+  });
+
+  it("バックログの Epic の欄の「+」から Epic を作る", async () => {
+    window.location.hash = "#/backlog";
+    const client = mockClient();
+    client.handlers["epic.create"] = (input) => input;
+    mount(client);
+    await screen.findByText("API");
+    fireEvent.click(screen.getByRole("button", { name: "Epic を作る" }));
+    fireEvent.change(screen.getByLabelText("新しい Epic の題"), { target: { value: "次" } });
+    fireEvent.click(screen.getByRole("button", { name: "作る" }));
+    await waitFor(() =>
+      expect(client.calls.find((c) => c.name === "epic.create")?.input).toMatchObject({
+        title: "次",
+      }),
+    );
+  });
+
+  it("サイドバーの Epic の欄の番号はホストに頼んで詳細を開く", async () => {
+    window.location.hash = "#/backlog";
+    const opened: Route[] = [];
+    mount(
+      mockClient(),
+      webviewHost("sidebar", (route) => opened.push(route)),
+    );
+    await screen.findByText("最初の版");
+    fireEvent.click(document.querySelector(".epic-list a")!);
+    expect(opened).toEqual([{ page: "epics", id: "e1" }]);
+    expect(window.location.hash).toBe("#/backlog");
+  });
+
+  it("エディタのパネルで Epic の詳細を出すときもヘッダーを出さない", async () => {
+    window.location.hash = "#/epics/e1";
+    const client = mockClient();
+    client.handlers["epic.show"] = () => ({ ...client.data.epics[0], body: "", tickets: [] });
+    mount(client, webviewHost("panel"));
+    await screen.findByRole("heading", { level: 1, name: /e1 最初の版/ });
+    expect(screen.queryByRole("navigation", { name: "画面" })).toBeNull();
   });
 });

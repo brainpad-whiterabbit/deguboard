@@ -9,6 +9,8 @@ describe("ハッシュのルーティング", () => {
     expect(parseRoute("#/tickets/t12")).toEqual({ page: "ticket", id: "t12" });
     expect(parseRoute("#/tickets")).toEqual({ page: "backlog" });
     expect(parseRoute("#/epics/e2")).toEqual({ page: "epics", id: "e2" });
+    // Epic の一覧の画面はないので、ID がなければバックログ
+    expect(parseRoute("#/epics")).toEqual({ page: "backlog" });
     // Iteration の一覧の画面はないので、ID がなければカンバン
     expect(parseRoute("#/iterations")).toEqual({ page: "board" });
     expect(parseRoute("#/iterations/s2")).toEqual({ page: "iterations", id: "s2" });
