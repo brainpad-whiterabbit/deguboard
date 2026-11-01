@@ -14,7 +14,7 @@ AI エージェント（Claude Code・Codex など）がチケットを処理す
 - `dg`・サーバー・VS Code 拡張は、チケットの作業のためにエージェントを起動しない。実行中のプロセスも監視しない
 - エージェントは Bash から `dg … --json --actor agent` を呼んでチケットを読み書きし、データのファイルを直接編集しない。手順は `dg guide <topic>` が出す
 - human と agent の区別は申告（`--actor`・`DEGUBOARD_ACTOR`）に基づく。Skill と guide の手順が必ず agent を名乗ることで、Workflow が `by: [human]` で人に限った遷移をエージェントから遠ざける。権限管理や偽装の防止はしない（同じリポジトリに書ける人を信頼する）
-- Claude Code 向けには `dg guide` を読む薄い Skill を配る。ほかのエージェントは同じ手順に従う。特定の AI 製品に依存する処理は Adapter（[ADR-007](ADR-007-architecture.md)）に閉じる
+- Claude Code 向けには、段階ごとに `dg guide <topic>` を読む薄い Skill（`/dgimport` など）を配る。ほかのエージェントは同じ手順に従う。特定の AI 製品に依存する処理は Adapter（[ADR-007](ADR-007-architecture.md)）に閉じる
 
 ### 状態はチケットのブランチの事実で前進させる
 

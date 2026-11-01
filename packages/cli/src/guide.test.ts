@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { defaultConfig } from "@deguboard/core";
 import { createLocalOnlyRepo } from "../../core/test/helpers/git-fixture.js";
-import { GUIDE_TOPICS, fillPlaceholders, readGuide } from "./guide.js";
+import { GUIDE_TOPICS, fillPlaceholders, readGuide, readGuideMeta } from "./guide.js";
 import { run } from "./program.js";
 
 const cleanups: Array<() => Promise<void>> = [];
@@ -28,12 +28,26 @@ describe("dg guide", () => {
     }
   });
 
-  it("work と finish は ticket check を案内し、本文全体を書き戻す手順を残さない", async () => {
+  it("Skill を持つトピックは対象の決め方・選択肢で聞く節・次の手順を持ち、本文に frontmatter を残さない", async () => {
+    for (const topic of GUIDE_TOPICS) {
+      const meta = await readGuideMeta(topic);
+      const text = await readGuide(topic);
+      expect(text.startsWith("---"), topic).toBe(false);
+      if (topic === "overview") continue;
+      expect(meta.description, topic).toBeTruthy();
+      expect(meta["argument-hint"], topic).toBeTruthy();
+      for (const heading of ["## 対象を決める", "## 選択肢で聞く", "## 次の手順を選ぶ"])
+        expect(text, `${topic} ${heading}`).toContain(heading);
+      expect(text, topic).not.toContain("{{choices}}");
+    }
+  });
+
+  it("work と done は ticket check を案内し、本文全体を書き戻す手順を残さない", async () => {
     const work = await readGuide("work");
-    const finish = await readGuide("finish");
+    const done = await readGuide("done");
     expect(work).toContain("ticket check");
-    expect(finish).toContain("ticket check");
-    expect(finish).not.toContain("--body");
+    expect(done).toContain("ticket check");
+    expect(done).not.toContain("--body");
     expect(work).not.toContain("--body");
   });
 
@@ -45,17 +59,17 @@ describe("dg guide", () => {
     expect(work).toContain("ticket move <id> review");
   });
 
-  it("plan・work・finish は Plan を作り、人の承認で approve し、順と範囲を読んで進め、終わったら閉じると案内する", async () => {
+  it("plan・work・done は Plan を作り、人の承認で approve し、順と範囲を読んで進め、終わったら閉じると案内する", async () => {
     const plan = await readGuide("plan");
     const work = await readGuide("work");
-    const finish = await readGuide("finish");
+    const done = await readGuide("done");
     expect(plan).not.toContain("まだない");
     for (const command of ["plan create", "plan approve", "plan show", "--after", "--scope"])
       expect(plan).toContain(command);
     expect(plan).toContain("人の承認を得ないまま approve しない");
     expect(plan).toContain("plan.approve");
     for (const word of ["plan show", "waiting", "scope", "approach"]) expect(work).toContain(word);
-    expect(finish).toContain("plan close");
+    expect(done).toContain("plan close");
   });
 
   it("config の値を埋める（既定なら main と origin、空の配列は「なし」）", () => {

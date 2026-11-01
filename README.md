@@ -40,7 +40,7 @@ dg ticket create "ログインの検証" --summary "入力の検査" --acceptanc
 dg ticket list                # 表で出る。--json で機械向け
 dg serve --open               # 127.0.0.1:7474 でカンバンを開く
 dg guide overview             # エージェント向けの手順。Claude Code には「dg guide を読んでから dg で進めて」と頼む
-dg skill install              # dg guide を読む Claude Code の Skill を .claude/skills/deguboard/ に書く（--personal で ~/.claude/skills）
+dg skill install              # Claude Code の Skill（/dgimport・/dgplan・/dgwork など）を .claude/skills/ に書く（--personal で ~/.claude/skills）
 ```
 
 VS Code では、拡張を入れて（今は VSIX から。`mise run vsix` → `code --install-extension packages/vscode/deguboard-vscode.vsix`）Activity Bar の deguboard のアイコンを押すとサイドバーにカンバンが開く。チケットを押すと詳細がエディタ領域に開く。拡張は `dg` なしで動き、`dg` が PATH にないときは案内を出す。
