@@ -248,15 +248,18 @@ export function TicketRow({
   ticket,
   onClick,
   hideAssignee = false,
+  flash = false,
 }: {
   ticket: Ticket;
   onClick?: ComponentProps<"a">["onClick"] | undefined;
   hideAssignee?: boolean | undefined;
+  /** 前回の描画から変わった行として枠を点滅させる（カンバンのサイドバー。change-flash.ts） */
+  flash?: boolean | undefined;
 }) {
   return (
     <TicketLink
       id={ticket.id}
-      className={`row ticket-row status-${ticket.status}`}
+      className={`row ticket-row status-${ticket.status}${flash ? " changed" : ""}`}
       onClick={onClick}
     >
       <StatusDot status={ticket.status} />
@@ -318,9 +321,11 @@ export function sameAssignee(tickets: readonly Pick<Ticket, "assignee">[]): bool
 export function DraggableRow({
   ticket,
   hideAssignee,
+  flash,
 }: {
   ticket: Ticket;
   hideAssignee?: boolean | undefined;
+  flash?: boolean | undefined;
 }) {
   const d = useDraggableTicket(ticket.id);
   return (
@@ -330,7 +335,7 @@ export function DraggableRow({
       className={`row-drag${d.isDragging ? " dragging" : ""}`}
       {...d.props}
     >
-      <TicketRow ticket={ticket} hideAssignee={hideAssignee} />
+      <TicketRow ticket={ticket} hideAssignee={hideAssignee} flash={flash} />
     </div>
   );
 }
