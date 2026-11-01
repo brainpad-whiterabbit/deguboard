@@ -14,7 +14,7 @@
 - データは orphan ブランチ `deguboard` に置き、`<git-common-dir>/deguboard/` に専用の worktree として checkout する。すべての読み書きはここで行う
 - 作業ブランチや作業 worktree にはデータを置かない。状態の更新は常に共有の deguboard worktree で行う
 - ブランチは保護せず、`dg` が直接 commit・push する
-- Git 管理外のもの（ローカルロック・実行中の詳細ログ・索引）は `<git-common-dir>/deguboard-local/` に置く
+- Git 管理外のもの（ローカルロック・実行中の詳細ログ・マージドライバの属性ファイル）は `<git-common-dir>/deguboard-local/` に置く。索引はファイルにせずメモリ上に持つ（[ADR-007](ADR-007-architecture.md)）
 
 ### 形式：1 件 1 ファイル
 
