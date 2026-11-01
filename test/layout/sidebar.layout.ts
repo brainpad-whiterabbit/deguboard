@@ -1,7 +1,9 @@
 // 画面の配置の確認（t58）。dg serve の画面を Chromium で ?surface=sidebar の配置で開き、
 // サイドバーの幅（300px・260px）とライト・ダークで、横スクロールが出ないことと、文字が決めた行数に収まることを確かめる。
 // 行数の基準：
-// - タブ（nav a）と、チケットの行でない行のタイトル（Epic・Run など .row-title）は 1 行。折り返してはいけない
+// - タブ（nav a）、見出し、チケットの行でない行のタイトル（Epic・Run など .row-title）は 1 行。折り返してはいけない
+//   見出しは、カンバンの見出し（.sidebar-head .head-line：番号・名前・状態・件数の段、期間・目標の段、進みの帯の段）と
+//   状態の節の見出し（.column summary h2）
 // - チケットの行のタイトル（.ticket-row .row-title）は 2 行まで。サイドバーでは 2 行で切る CSS（-webkit-line-clamp: 2）なので、3 行以上は崩れ
 // 行数は要素の枠の中に見えている行だけを数える（2 行で切られて隠れた行は数えない）
 // ブラウザが要るので mise run test には入れず、mise run test:layout で回す（先に mise run build と mise run playwright:install）
@@ -124,8 +126,12 @@ function measure(page: Page) {
       clientWidth: document.documentElement.clientWidth,
       tabs: document.querySelectorAll("nav a").length,
       rows: document.querySelectorAll(".row").length,
+      /** 1 行の検査をする見出しの数（カンバンで見出しを見落としていないことを確かめる） */
+      headings: document.querySelectorAll(".sidebar-head .head-line, .column summary h2").length,
       wrapped: [
         ...overflowing("nav a", 1),
+        ...overflowing(".sidebar-head .head-line", 1),
+        ...overflowing(".column summary h2", 1),
         ...overflowing(".row-title:not(.ticket-row .row-title)", 1),
         ...overflowing(".ticket-row .row-title", 2),
       ],
@@ -141,7 +147,7 @@ function measure(page: Page) {
 
 describe.each(SCHEMES)("サイドバーの配置（%s）", (scheme) => {
   it.each(WIDTHS)(
-    "幅 %ipx で、どの画面も横スクロールが出ず、タブは 1 行、チケットの行のタイトルは 2 行までに収まる",
+    "幅 %ipx で、どの画面も横スクロールが出ず、タブ・見出し・チケットでない行のタイトルは 1 行、チケットの行のタイトルは 2 行までに収まる",
     async (width) => {
       const context = await browser.newContext({
         viewport: { width, height: 900 },
@@ -167,8 +173,10 @@ describe.each(SCHEMES)("サイドバーの配置（%s）", (scheme) => {
           expect(m.tabs, `${hash} のタブ`).toBe(4);
           expect(m.wrapped, `${hash} で決めた行数を超えた要素`).toEqual([]);
           // カンバンの長いタイトルは 2 行に折り返す（1 行で切る CSS に戻ったら気づけるように）
-          if (hash === "#/board")
+          if (hash === "#/board") {
             expect(m.twoLineTitles, `${hash} で 2 行に折り返したタイトル`).toBeGreaterThan(0);
+            expect(m.headings, `${hash} の見出し`).toBeGreaterThan(0);
+          }
           expect(m.color, `${hash} の文字と背景の色`).not.toBe(m.background);
         }
       } finally {
