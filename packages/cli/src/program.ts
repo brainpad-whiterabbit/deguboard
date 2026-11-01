@@ -22,7 +22,7 @@ import { parse as parseYaml } from "yaml";
 import { toErrorView } from "./errors.js";
 import { GUIDE_TOPICS, renderGuide } from "./guide.js";
 import { serveMcp } from "./mcp.js";
-import { installSkill } from "./skill.js";
+import { installSkill, skillInstallWarnings } from "./skill.js";
 import { addServeCommands } from "./serve.js";
 import { bindInputs, collectInput, shapesOf } from "./options.js";
 import {
@@ -166,13 +166,13 @@ export function buildProgram(options: ProgramOptions = {}): Command {
     .configureOutput(program.configureOutput())
     .command("install")
     .description(
-      "dg guide を読む Claude Code の Skill を <リポジトリ>/.claude/skills/deguboard/SKILL.md に書く",
+      "段階ごとに dg guide を読む Claude Code の Skill（dgimport・dgplan・dgwork など）を <リポジトリ>/.claude/skills/ に書く。手を加えていない Skill は最新にし、廃止した deguboard Skill は消す",
     )
     .option(
       "--personal",
       "リポジトリではなく ~/.claude/skills に書く（Claude Code の個人の Skill。どのリポジトリでも使う）",
     )
-    .option("--force", "既存の SKILL.md を上書きする")
+    .option("--force", "手を加えた SKILL.md も上書きする")
     .exitOverride()
     .configureOutput(program.configureOutput())
     .action(async (opts: { personal?: boolean; force?: boolean }) => {
@@ -184,11 +184,21 @@ export function buildProgram(options: ProgramOptions = {}): Command {
           home: env["HOME"] ?? homedir(),
           force: opts.force ?? false,
         });
+        const warnings = skillInstallWarnings(result);
         if (global.json)
-          streams.out(
-            JSON.stringify({ ok: true, data: result, warnings: [], write: null }, null, 2),
-          );
-        else streams.out(`Skill を書いた：${result.path}`);
+          streams.out(JSON.stringify({ ok: true, data: result, warnings, write: null }, null, 2));
+        else {
+          const lines = [
+            ["書いた", result.written],
+            ["更新した", result.updated],
+            ["最新だった", result.unchanged],
+            ["廃止して消した", result.retired],
+          ] as const;
+          streams.out(`Skill の置き場所：${result.dir}`);
+          for (const [label, names] of lines)
+            if (names.length > 0) streams.out(`${label}：${names.join(", ")}`);
+          for (const w of warnings) streams.err(`警告: ${w}`);
+        }
         process.exitCode = 0;
       } catch (error) {
         const view = toErrorView(error);

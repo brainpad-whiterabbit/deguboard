@@ -25,7 +25,7 @@ mise run install    # 依存を入れ、dist と VSIX をビルドし、VSIX を
 
 ```sh
 mise run dg -- guide work      # 1 枚のチケットを進める流れ
-mise run dg -- guide finish    # マージ後の後始末
+mise run dg -- guide done      # マージ後の後始末
 ```
 
 このリポジトリに固有の決まり：
@@ -99,15 +99,15 @@ mise run dg -- guide finish    # マージ後の後始末
 
 core の `commands` を commander に写す。ロジックは持たない。`src/` のファイル：
 
-| ファイル     | 役割                                                                                                                                         |
-| ------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| `program.ts` | `commands` から `dg <群> <操作>` の木を組み立てる。`setup` 群（init・sync・commit・validate・lint）はトップレベル。`sprint` は alias         |
-| `options.ts` | Zod の入力スキーマから位置引数とオプションを作り、解析した引数を入力オブジェクトに戻す。型ごとの対応は冒頭のコメントが正本                   |
-| `output.ts`  | 人向けの出力（list は表、show は `key: value` と本文）と `--json`（`{ ok, data, warnings, write }` / `{ ok: false, error }`）                |
-| `errors.ts`  | `DeguboardError` と commander のエラーを stderr と終了コード（0 / 1 / 2）に写す                                                              |
-| `mcp.ts`     | `dg mcp`。`createLocalClient` を主体 agent で開き、コマンドを MCP のツールに写す。入力スキーマは `server` の `describeCommands`              |
-| `skill.ts`   | `dg skill install`。隣の `skill.md`（`dg guide` を読む薄い Skill）を `.claude/skills/deguboard/`（`--personal` で `~/.claude/skills`）に書く |
-| `guide.ts`   | `dg guide <topic>`。隣の `guide-*.md`（手順の正本。CL-5）を読み、`{{git.base_branch}}` のような項目を config の値で埋めて出す                |
+| ファイル     | 役割                                                                                                                                                                                             |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `program.ts` | `commands` から `dg <群> <操作>` の木を組み立てる。`setup` 群（init・sync・commit・validate・lint）はトップレベル。`sprint` は alias                                                             |
+| `options.ts` | Zod の入力スキーマから位置引数とオプションを作り、解析した引数を入力オブジェクトに戻す。型ごとの対応は冒頭のコメントが正本                                                                       |
+| `output.ts`  | 人向けの出力（list は表、show は `key: value` と本文）と `--json`（`{ ok, data, warnings, write }` / `{ ok: false, error }`）                                                                    |
+| `errors.ts`  | `DeguboardError` と commander のエラーを stderr と終了コード（0 / 1 / 2）に写す                                                                                                                  |
+| `mcp.ts`     | `dg mcp`。`createLocalClient` を主体 agent で開き、コマンドを MCP のツールに写す。入力スキーマは `server` の `describeCommands`                                                                  |
+| `skill.ts`   | `dg skill install`。guide の frontmatter と隣の `skill.md`（`dg guide` を読む薄い Skill の型）から `dg<トピック>` の Skill を作り、`.claude/skills/`（`--personal` で `~/.claude/skills`）に書く |
+| `guide.ts`   | `dg guide <topic>`。隣の `guide-*.md`（手順の正本。CL-5）を読み、`{{choices}}` を共通の節に、`{{git.base_branch}}` のような項目を config の値に置き換えて出す                                    |
 
 グローバルオプションは `dg --help` が正本。`dg serve` / `dg open`（`serve.ts`）は `@deguboard/server` を起動する・ブラウザで開くだけ。`guide-*.md` と `skill.md` はビルドで `dist/` に、web の `dist` は `packages/cli/web` に写す（ルートの `build`）。トピックを足すときは `guide.ts` の `GUIDE_TOPICS` と、`guide-overview.md`・`skill.md` の表も直す。
 

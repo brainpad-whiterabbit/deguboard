@@ -1,6 +1,20 @@
+---
+description: deguboard のチケットを進める順を決めて Plan に記録し、人の承認を得る。「t12 を進めて」「s3 を全部進めて」「次の 3 件を進めて」「計画だけ立てて」と頼まれたときや、承認待ちの Plan を承認するときに使う。「次にやるチケットは？」と順だけを聞かれたときも使う（順を示して止める）。承認した Plan は dgwork で進める。
+argument-hint: "<チケットの ID...|Iteration|Epic|next [N]> | <Plan の ID>"
+---
+
 # 計画（plan）
 
 複数のチケットを、どの順で進めるかを決める。計画は Plan（`p3`）に記録する。Plan は進める順（`after`）とチケットごとの範囲と方針（`details` の `scope`・`approach`）を持つ。承認待ちで作り、人の承認を受けて `plan approve` で承認済みにする。
+
+## 対象を決める
+
+- チケットの ID（1 つ以上）：そのチケットの Plan を作る
+- Iteration（`s3`）・Epic（`e3`）：その中の todo を対象にする（`ticket list --iteration s3 --status todo`）
+- `next [N]`：`ticket list --ready` の上位 N 枚（省くと 1 枚）
+- Plan の ID（`p3`）：承認待ちなら下の手順 6・7 で承認を得る。承認済みなら「次の手順を選ぶ」で聞く
+- 「次にやるのは？」のように順だけを聞かれたら、手順 1〜4 の案を示して止める。Plan は作らない
+- 指定が空：active の Iteration の todo を勧めて確かめる
 
 ## 流れ
 
@@ -9,9 +23,9 @@
 3. 着手できるものを出す：`dg --json --actor agent ticket list --ready`。todo で依存先がすべて done か abandoned のもの（`deps_done`）。担当者の有無は見ないので、`assignee` が別のユーザのものは避ける（自分のものだけなら `--assignee agent`）
 4. 順序の案を作る。依存が先、優先度が高いものが先。並行できるもの（互いに依存しないもの）はまとめて示す
 5. 承認待ちの Plan に記録する（下の「Plan の作り方」）。結果の `data.id` が Plan の ID
-6. 人に見せて承認を得る。`dg --json --actor agent plan show <p>` の `items`（Plan の順）・`after`・`details` を示す。直すよう言われたら、`plan close <p>` で閉じて作り直す（Plan は作った後に書き換えられない）
+6. 人に見せて承認を得る。`dg --json --actor agent plan show <p>` の `items`（Plan の順）・`after`・`details` を表で示し、「承認する」「修正する」「承認待ちのまま止める」の選択肢で聞く。直すよう言われたら、`plan close <p>` で閉じて作り直す（Plan は作った後に書き換えられない）
 7. 人が承認したら `dg --json --actor agent plan approve <p>` で承認を記録する（`approved_by` は操作した主体）。人の承認を得ないまま approve しない。承認待ちの Plan のチケットには着手しない
-8. 承認済みの Plan に従い、`dg guide work` の手順で 1 枚ずつ進める。Plan の ID を見失ったら、`dg --json --actor agent plan list --status open` で開いた Plan を一覧するか、チケットの `ticket show` の `plan`（入っている開いた Plan）で引く
+8. 承認済みの Plan は `dg guide work` の手順で進める（下の「次の手順を選ぶ」）。Plan の ID を見失ったら、`dg --json --actor agent plan list --status open` で開いた Plan を一覧するか、チケットの `ticket show` の `plan`（入っている開いた Plan）で引く
 
 ## Plan の作り方
 
@@ -26,7 +40,7 @@ dg --json --actor agent plan create t12 t13 t14 t15 \
 - `--scope`・`--approach` はチケットごとに 1 文で書く。着手するときに `plan show` の `details` で読み返す
 - done・abandoned のチケットと、別の開いた Plan に入っているチケット（`ticket show` の `plan` が空でないもの）は入れられない（`REJECTED`）。別の Plan に入っていれば、その Plan を閉じてよいか人に確かめる
 - 依存が足りなければ `dg --json --actor agent ticket update <id> --depends-on t12,t13` で直す。`--depends-on` は一覧を**置き換える**ので、残す依存も全部指定する（`--label` も同じ）。循環は拒否される
-- 計画の途中で新しい作業が見つかったら、勝手に進めず `dg guide create` の手順で起票を提案する
+- 計画の途中で新しい作業が見つかったら、勝手に進めず `dg guide import` の手順で起票を提案する
 
 ## 承認について
 
@@ -37,3 +51,14 @@ dg --json --actor agent plan create t12 t13 t14 t15 \
 - 1 度に claim するのは、自分が今すぐ進める 1 枚だけ。先に全部 claim しない（他の人やエージェントが着手できなくなる）
 - 依存先が done でも abandoned でもないチケットには着手しない。Workflow が todo → in_progress に `requires: [deps_done]` を書いていれば claim は拒否される（`TRANSITION_REJECTED`）。書いていなくても `--ready` に出るまで待つか、依存先を先に進める
 - Plan の `after` は claim では検査されない。`plan show` の `items[].waiting`（まだ終わっていない待ち先）が空になるまで待つ
+
+{{choices}}
+
+## 次の手順を選ぶ
+
+Plan を承認したら（承認済みの Plan を指定されたときも）、次の選択肢で聞く。承認待ちのまま止めたときは聞かない。
+
+- **Plan を進める**（勧める）：`dg guide work` の手順で Plan の ID を指定して進める（Claude Code では `/dgwork p3`）。進める側は Plan の記録（`plan show`）を手がかりに始める
+- **ここで止める**：別のセッションで Plan の ID を指定して進める
+
+順だけを示したときは、「計画を立てる」（`/dgplan next <N>`）・「割り当てる」（未割り当てのチケットがあれば `/dgassign`）・「ここで止める」で聞く。

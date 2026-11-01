@@ -1,6 +1,18 @@
-# 完了（finish）
+---
+description: deguboard のマージ済みのチケットを照合して done を確かめ、残った受け入れ条件を確かめ、作業ブランチと worktree を片付けて、終わった Plan を閉じる。「t12 を完了にして」「マージしたので片付けて」「Plan を閉じて」と頼まれたときに使う。
+argument-hint: "[チケットの ID...|Plan の ID|Iteration]"
+---
+
+# 完了（done）
 
 PR がマージされたあとの後始末（PR の要らない作業は `dg guide work` の中で done まで進むので、ここは読まない）。done にするのは照合か人で、エージェントは確認と記録を行う。受け入れ条件の印は普段 `dg guide work` の段階で付いている。
+
+## 対象を決める
+
+- チケットの ID：そのチケットを片付ける
+- Plan の ID（`p3`）：その Plan のチケットのうち、PR がマージされたものを片付ける
+- Iteration（`s3`）：その Iteration の review・in_progress のチケットを照合して片付ける
+- 指定が空：`sync` が done に進めたチケット（`reconciled`）と、自分が担当の review のチケットを対象にする
 
 ## 流れ
 
@@ -20,9 +32,19 @@ PR がマージされたあとの後始末（PR の要らない作業は `dg gui
 ## 終わらなかったとき
 
 - 作業をやめるなら `dg --json --actor agent ticket unclaim <id>`（in_progress のときだけ。todo に戻す）。チケット自体をやめる（abandoned）のは人に確かめてから `ticket move <id> abandoned`
-- 要件が変わって別のチケットにすべきなら、`dg guide create` の手順で新しく起票を提案し、元のチケットの扱いは人に確かめる
+- 要件が変わって別のチケットにすべきなら、`dg guide import` の手順で新しく起票を提案し、元のチケットの扱いは人に確かめる
 
 ## Iteration と Epic
 
 - Iteration と Epic を閉じる・再開するのは人の指示で行う（`dg guide assign`）。閉じられそうなら（残りがすべて done か abandoned）人に知らせる
 - Epic の進捗は `dg --json --actor agent epic show <e3>` の `progress` で都度求まる。保存はされない
+
+{{choices}}
+
+## 次の手順を選ぶ
+
+片付けたら、結果を伝えて次の選択肢で聞く。
+
+- **Plan を進める**（勧める。Plan に残りがあれば）：`dg guide work` の手順で続ける（Claude Code では `/dgwork p3`）
+- **計画を立てる**：Plan が終わり、着手できるチケット（`ticket list --ready`）があれば `dg guide plan` の手順で次の Plan を作る（`/dgplan next <N>`）
+- **ここで止める**

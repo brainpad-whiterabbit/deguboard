@@ -234,7 +234,7 @@ fields:
 
 - CL-3 書き込みを伴うコマンドは、`commit.mode` に従って deguboard ブランチにコミットする。作成（`init`、`project / ticket / epic / iteration create`、`ticket import`）と `ticket claim` は `commit.mode`・`push.mode` によらず即座にコミットして push する（採番と排他のため）
 - CL-4 `ticket import` は YAML / JSON の下書き（配列）を 1 コミットで取り込む。下書きの中の仮キーを `depends_on` から参照でき、`epic` に既存の Epic を書ける
-- CL-5 `dg guide <topic>` は、エージェント向けの手順を `config.yaml` の値を埋めて出す。トピックは overview（省略時）・create・plan・assign・work・finish。手順の正本は CLI に同梱した Markdown（`packages/cli/src/guide-*.md`）
+- CL-5 `dg guide <topic>` は、エージェント向けの手順を `config.yaml` の値を埋めて出す。トピックは overview（省略時）・import・assign・plan・work・done。手順の正本は CLI に同梱した Markdown（`packages/cli/src/guide-*.md`）で、判断を求めるときは選択肢で聞き、終えたら次の手順を選択肢で示す
 - CL-6 CLI はビジネスロジックを持たず、Core のコマンド定義（`packages/core/src/commands/`）を写す
 - CL-7 `history` は deguboard ブランチの git の履歴から、チケット・Epic・Iteration の起票と、`status`・`iteration`・`epic`・`assignee`・`pr` の変化を、時刻・コミット・作者・コミットの 1 行目とともに古い順に返す。データの形は変えず、1 コミットに複数の変更があっても差分から読む。Epic・Iteration で絞ると、一度でも入っていたチケット（持ち越しで外されたものを含む）の経過も返す。浅い clone では欠けたこと（`shallow`・`incomplete`）を返して失敗しない
 
@@ -280,7 +280,7 @@ Web UI は `dg serve` が配信し、VS Code 拡張は同じ React アプリを 
 ### 6.5 エージェント連携
 
 - AG-1 エージェントは PATH の `dg` を Bash から `dg … --json --actor agent` で呼び、データのファイルを直接編集しない。human と agent の区別は申告（`--actor` か環境変数 `DEGUBOARD_ACTOR`。既定は human）に基づき、Skill と `dg guide` の手順は必ず agent を名乗る。主体の ID はユーザ名（`--user` か環境変数 `DEGUBOARD_USER`。既定は git の `user.name`）と種別から `<ユーザ>`（human）か `<ユーザ>/agent`（agent）になり、`created_by` と `assignee` に記録される（TK-7）。権限管理ではない（対象外）
-- AG-2 Claude Code 向けに、`dg guide <topic>` を読む薄い Skill を配る（`dg skill install`。既定はリポジトリの `.claude/skills/deguboard/SKILL.md`、`--personal` で `~/.claude/skills`）。起票・計画・割り当て・作業・完了の各トピックを用意する
+- AG-2 Claude Code 向けに、段階ごとに `dg guide <topic>` を読む薄い Skill（`/dgimport`・`/dgassign`・`/dgplan`・`/dgwork`・`/dgdone`。`dg<トピック>`）を配る（`dg skill install`。既定はリポジトリの `.claude/skills/`、`--personal` で `~/.claude/skills`）。名前・説明・引数の案内は guide の frontmatter が正本。SKILL.md に中身のハッシュの印を入れ、手を加えていない Skill は再実行で更新し、手を加えたものは `--force` がなければ残す。廃止した `deguboard` Skill は消す
 - AG-3 エージェントは要件の整理が終わったら、必要に応じてチケット化を提案し、承認を得て `ticket import` で起票する。分解・Epic への束ね・依存の整理・Iteration への割り当ても提案して承認を得る
 - AG-4 MCP サーバー（`dg mcp`。stdio）は Core のコマンド定義から生成する薄い層として提供する。CLI と同じ操作ができ（`init` と CLI だけの `guide`・`skill`・`serve`・`open` を除く）、ツールの結果は `--json` と同じ形（CL-1）で、主体は常に agent（`<ユーザ>/agent`）
 - AG-5 Agent Adapter が、エージェントの起動方法・使用量の取得・権限・作業ディレクトリの差を吸収する。Core は特定の AI 製品を知らない（予定 `e3`）

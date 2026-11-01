@@ -1,6 +1,18 @@
+---
+description: deguboard のチケットを Iteration（スプリント）と Epic に割り当てる。Iteration を指定すると未割り当ての todo を入れるかどうか判断し、指定がなければ内容に合う Iteration・Epic（新設を含む）を提案する。早めに対応した方がよいものは進行中の Iteration に入れる。「スプリントに入れて」「Epic にまとめて」「割り振って」と頼まれたときに使う。
+argument-hint: "[Iteration|Epic|チケットの ID...]"
+---
+
 # 割り当て（assign）
 
 チケットを Iteration（期間の計画。`sprint` はエイリアス）と Epic（目的の束ね）に入れる。
+
+## 対象を決める
+
+- Iteration（`s3`）：未割り当ての todo を、その Iteration に入れるか入れないか 1 枚ずつ判断する
+- Epic（`e3`）：Epic のないチケットのうち、目的が合うものを入れる案を作る
+- チケットの ID：そのチケットに合う Iteration と Epic を提案する（なければ作ることを提案する）
+- 指定が空：active の Iteration（なければ planned のもの）を勧めて確かめ、未割り当ての todo を対象にする
 
 ## Iteration
 
@@ -28,5 +40,14 @@
 
 1. Iteration の目標と期間、入っているチケットを `dg --json --actor agent iteration show <s3>` で読む
 2. 未割り当ての todo（`dg --json --actor agent ticket list --status todo` のうち `iteration` がないもの）を集め、目標に合うものと依存の順を見て案を作る
-3. 入れる・入れないの理由を 1 行ずつ添えて人に見せ、承認を得てから `iteration add` する
+3. 入れる・入れないの理由を 1 行ずつ添えた表を見せ、入れる行を複数選択で選んでもらってから `iteration add` する
 4. 早めに対応した方がよいもの（不具合など）は進行中の Iteration に入れることを提案する
+
+{{choices}}
+
+## 次の手順を選ぶ
+
+割り当てたら、次の選択肢で聞く。
+
+- **計画を立てる**（勧める）：割り当てた Iteration のチケットを `dg guide plan` の手順で進める順に並べる（Claude Code では `/dgplan s3`）
+- **ここで止める**
