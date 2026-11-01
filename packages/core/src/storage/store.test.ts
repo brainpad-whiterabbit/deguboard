@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, readdir, writeFile, mkdir, rm } from "node:fs/promises";
+import { mkdtemp, readFile, readdir, writeFile, mkdir, rm, unlink } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -292,5 +292,36 @@ describe("Store", () => {
     expect(runRefs.map((i) => [i.id, i.code])).toEqual([
       ["r20261031-040000-0007", "ticket_missing"],
     ]);
+  });
+  it("rescan は変わっていないファイルを読み直さず、書き換え・追加・削除したファイルだけを取り込む", async () => {
+    const root = await fixture({
+      "tickets/t1.md": ticketText("t1"),
+      "tickets/t2.md": ticketText("t2"),
+      "tickets/t3.md": "---\nid: t3\ntitle: [\n---\n",
+    });
+    const store = await Store.open(root);
+    const id = String(WORKFLOW_TEMPLATES[2]!["id"]);
+    await store.writeWorkflow(WORKFLOW_TEMPLATES[2]!);
+    // 自分で書いた Workflow の 1 ファイルだけを読み直す
+    await store.rescan();
+    const files = store.lastScan.read + store.lastScan.reused;
+    expect(store.lastScan.read).toBe(1);
+    const before = store.tickets.get("t1");
+
+    await store.rescan();
+    expect(store.lastScan).toEqual({ read: 0, reused: files });
+    // 前の結果をそのまま使い、読めないファイルの Issue も残る
+    expect(store.tickets.get("t1")).toBe(before);
+    expect(store.issues.map((i) => [i.path, i.code])).toEqual([["tickets/t3.md", "yaml_error"]]);
+    expect(store.workflows.has(id)).toBe(true);
+
+    // 同じ大きさで同じファイルに上書きしても、更新時刻で気づく
+    await writeFile(path.join(root, "tickets/t1.md"), ticketText("t1").replace("本文", "本日"));
+    await writeFile(path.join(root, "tickets/t4.md"), ticketText("t4"));
+    await unlink(path.join(root, "tickets/t2.md"));
+    await store.rescan();
+    expect(store.lastScan).toEqual({ read: 2, reused: files - 2 });
+    expect([...store.tickets.keys()]).toEqual(["t1", "t4"]);
+    expect(store.tickets.get("t1")?.body).toContain("本日");
   });
 });

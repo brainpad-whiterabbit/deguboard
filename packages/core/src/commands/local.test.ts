@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   createFixture,
   createLocalOnlyRepo,
@@ -10,9 +10,11 @@ import { runCommand } from "./define.js";
 import { createLocalClient, toCommandFailure } from "./local.js";
 import { commands } from "./registry.js";
 import { init } from "./setup.js";
+import { Store } from "../storage/store.js";
 
 const cleanups: Array<() => Promise<void>> = [];
 afterEach(async () => {
+  vi.restoreAllMocks();
   await Promise.all(cleanups.splice(0).map((c) => c()));
 });
 
@@ -70,5 +72,48 @@ describe("プロセス内の CommandClient", () => {
     expect(error).toBeInstanceOf(OperationError);
     expect(toCommandFailure(error)).toMatchObject({ code: "NOT_INITIALIZED" });
     expect(toCommandFailure(new Error("x"))).toEqual({ code: "INTERNAL", message: "x" });
+  });
+  it("データが変わっていなければ、続けて呼んだコマンドはファイルを読み直さない", async () => {
+    const f = await initialized();
+    const client = createLocalClient({ cwd: f.cloneA });
+    await client.run("ticket.create", { title: "一" });
+    await client.run("ticket.create", { title: "二" });
+    const rescan = vi.spyOn(Store.prototype, "rescan");
+    const lastScan = () => (rescan.mock.contexts.at(-1) as Store).lastScan;
+    // 自分の書き込みの分（t2）を一度読み直したあとは、どのコマンドも読み直さない
+    await client.run("ticket.list");
+    for (const name of ["project.list", "config.show", "ticket.list", "epic.list", "plan.list"]) {
+      await client.run(name);
+      expect(lastScan()).toMatchObject({ read: 0 });
+    }
+    await client.status();
+    expect(lastScan()).toMatchObject({ read: 0 });
+    expect(lastScan().reused).toBeGreaterThan(0);
+  });
+
+  it("別のプロセス（CLI）が書き込んだチケットの変更は、次のコマンドの結果に出る", async () => {
+    const f = await initialized();
+    const client = createLocalClient({ cwd: f.cloneA });
+    await client.run("ticket.create", { title: "画面から" });
+    await client.run("ticket.list");
+    const rescan = vi.spyOn(Store.prototype, "rescan");
+    // CLI と同じく、別に開いた文脈（別の Store）から書く
+    const cli = await openContext({ cwd: f.cloneA });
+    const run = (name: string, input: unknown) =>
+      runCommand(
+        commands.find((c) => c.name === name)!,
+        cli,
+        input,
+      );
+    await run("ticket.update", { ticket: "t1", title: "CLI で直した" });
+    await run("ticket.create", { title: "CLI から" });
+    rescan.mockClear();
+    const list = await client.run<{ id: string; title: string }[]>("ticket.list");
+    expect(list.data.map((t) => [t.id, t.title])).toEqual([
+      ["t1", "CLI で直した"],
+      ["t2", "CLI から"],
+    ]);
+    // 読み直したのは書き換わった t1 と増えた t2 だけ
+    expect((rescan.mock.contexts.at(-1) as Store).lastScan).toMatchObject({ read: 2 });
   });
 });
