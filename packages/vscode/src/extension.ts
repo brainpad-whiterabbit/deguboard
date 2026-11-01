@@ -1,6 +1,6 @@
 // 拡張ホストの入口。Activity Bar のアイコンからサイドバーのビューに web を載せ、チケット詳細はエディタ領域のパネルに開く（UI-12）。
 // パネルの題はチケットの番号とタイトルにする（詳細のパネルにはヘッダーを出さないので、題で見分ける）。
-// データ worktree を見張り、CLI やエージェントの書き込みを画面に映す。
+// データ worktree と実行中の Run の記録を見張り、CLI やエージェントの書き込みを画面に映す。
 // Webview からの要求は core のプロセス内 CommandClient に通す（ADR-006・ADR-007）。サーバーは起動しない。
 // dg は同梱せず、PATH の dg を案内する（UI-11）。VS Code の API に触れるのはこのファイルだけ
 
@@ -16,6 +16,7 @@ import {
 } from "@deguboard/core";
 import * as vscode from "vscode";
 import { dgAdvice, resolveDg } from "./dg.js";
+import { watchTargets } from "./watch.js";
 import {
   badgeOf,
   coalesce,
@@ -35,7 +36,7 @@ const PANEL_TYPE = "deguboard";
 const panels = new Map<string, vscode.WebviewPanel>();
 /** フォルダごとの CommandClient。core の直列化はインスタンスの中だけなので、サイドバーとパネルで 1 つを共有する */
 const clients = new Map<string, CommandClient>();
-/** フォルダごとのデータ worktree（.git/deguboard/）の監視。CLI やエージェントの書き込みを画面に映す */
+/** フォルダごとのデータ worktree（.git/deguboard/）と実行中の Run（.git/deguboard-local/runs/）の監視。CLI やエージェントの書き込みを画面に映す */
 const watchers = new Map<string, vscode.Disposable>();
 /** 今出ているサイドバーのビュー。右クリックで非表示にされると dispose され、再表示で作り直される */
 let sidebar: vscode.WebviewView | undefined;
@@ -280,7 +281,8 @@ function clientFor(folder: vscode.WorkspaceFolder): CommandClient {
 }
 
 /**
- * データ worktree のファイル（tickets/*.md など）を見張り、変わったらサイドバーとパネルに読み直しを頼む。
+ * データのファイル（tickets/*.md・runs/*.json と、実行中の Run の deguboard-local/runs/*.json。対象は watch.ts）を見張り、
+ * 変わったらサイドバーとパネルに読み直しを頼む。Run の画面とチケット詳細の Run の節は、読み直しで一覧が変わると Run も取り直す。
  * 1 回の書き込みで複数のファイルが変わるので 200ms まとめる。画面からの書き込みも拾うが、読み直しが 1 回増えるだけ。
  * 置き場所は core が status で返す data_dir（.git/deguboard/）。取れなければ見張らない（画面は同期ボタンの読み直しで動く）
  */
@@ -294,16 +296,19 @@ async function watchData(folder: vscode.WorkspaceFolder, client: CommandClient):
     return;
   }
   const pending = coalesce(() => broadcast(folder, { kind: "event", name: "reload" }), 200);
-  const watcher = vscode.workspace.createFileSystemWatcher(
-    new vscode.RelativePattern(vscode.Uri.file(dataDir), "**/*.{md,yaml,yml}"),
-  );
-  watcher.onDidCreate(pending.fire);
-  watcher.onDidChange(pending.fire);
-  watcher.onDidDelete(pending.fire);
+  const fsWatchers = watchTargets(dataDir).map((target) => {
+    const watcher = vscode.workspace.createFileSystemWatcher(
+      new vscode.RelativePattern(vscode.Uri.file(target.base), target.pattern),
+    );
+    watcher.onDidCreate(pending.fire);
+    watcher.onDidChange(pending.fire);
+    watcher.onDidDelete(pending.fire);
+    return watcher;
+  });
   watchers.set(key, {
     dispose() {
       pending.cancel();
-      watcher.dispose();
+      for (const watcher of fsWatchers) watcher.dispose();
     },
   });
 }
