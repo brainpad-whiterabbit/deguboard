@@ -12,6 +12,30 @@ import { Store } from "../../src/storage/store.js";
 process.env["GIT_CONFIG_GLOBAL"] = "/dev/null";
 process.env["GIT_CONFIG_NOSYSTEM"] = "1";
 
+// 裏の git maintenance・gc を起こさない。git は commit・fetch の後に maintenance run --auto --detach を起動し、
+// 呼んだ git が終わっても一時ディレクトリに書き続けるため、後片付けの rm と競合する（ENOTEMPTY）
+const backgroundOff: [string, string][] = [
+  ["maintenance.auto", "false"],
+  ["gc.auto", "0"],
+];
+process.env["GIT_CONFIG_COUNT"] = String(backgroundOff.length);
+backgroundOff.forEach(([key, value], i) => {
+  process.env[`GIT_CONFIG_KEY_${i}`] = key;
+  process.env[`GIT_CONFIG_VALUE_${i}`] = value;
+});
+
+/** 裏の処理が残っていても消せるよう、rm を再試行させる */
+const removeDir = (dir: string) =>
+  rm(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+
+/** push を受けた receive-pack には環境変数が渡らないので、bare リモート自身の設定で止める */
+async function disableBackgroundOnRemote(remoteDir: string): Promise<void> {
+  const settings: [string, string][] = [...backgroundOff, ["receive.autogc", "false"]];
+  for (const [key, value] of settings) {
+    await runGit(remoteDir, ["config", key, value]);
+  }
+}
+
 export interface Fixture {
   root: string;
   remoteDir: string;
@@ -29,6 +53,7 @@ export async function createFixture(): Promise<Fixture> {
   const root = await realpath(await mkdtemp(path.join(os.tmpdir(), "deguboard-git-")));
   const remoteDir = path.join(root, "remote.git");
   await runGit(root, ["init", "--quiet", "--bare", "-b", "main", remoteDir]);
+  await disableBackgroundOnRemote(remoteDir);
   const cloneA = path.join(root, "a");
   const cloneB = path.join(root, "b");
   await runGit(root, ["clone", "--quiet", remoteDir, cloneA]);
@@ -42,7 +67,7 @@ export async function createFixture(): Promise<Fixture> {
     remoteDir,
     cloneA,
     cloneB,
-    cleanup: () => rm(root, { recursive: true, force: true }),
+    cleanup: () => removeDir(root),
   };
 }
 
@@ -52,7 +77,7 @@ export async function createLocalOnlyRepo(): Promise<{ dir: string; cleanup(): P
   const dir = path.join(root, "work");
   await runGit(root, ["init", "--quiet", "-b", "main", dir]);
   await configureIdentity(dir);
-  return { dir, cleanup: () => rm(root, { recursive: true, force: true }) };
+  return { dir, cleanup: () => removeDir(root) };
 }
 
 export interface OpenedRepo {
