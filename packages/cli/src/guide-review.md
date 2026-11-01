@@ -43,12 +43,13 @@ PR を人に出す前（`dg guide work`）と、自動でマージする前（`d
 - **やり直しの理由**：手直しの Run（`fix`、または下の代わりの step で記録した手直し）は `run finish <Run の ID> --result success --retry-reason <直した指摘の要約>` で閉じる。書くのは直した指摘（見直し役・人のレビュー）だけで、指摘 1 件に 1 つ繰り返す。検査の失敗を直したことは書かない。回数は理由の数になる（`--retries` は省く）。要約は 1 行で、秘密・コマンドの文字列・パスは書かない。実装と見直しの Run には付けない
 - **合う step がない**：Workflow の `steps` に `fix` がなければ `review`、`review` もなければ実装の step で代わりに記録する（`review` がなければ見直し役も実装の step で記録する）。Workflow の `steps` に `fix`・`review` を足すよう人に伝える（`dg init` は既にある Workflow を書き換えない。足すのは `dg workflow set <id> --template <名前>` か `--file`）
 - **直せなかった**：手直しを途中でやめたら `--result failure --error <理由>` で閉じ、親に返す
-- **続けられない・返らない**：会話を続けられなければ、新しいサブエージェントが自分の `fix` の Run を始めて直す。返らないまま止まった Run は、`dg guide parallel` のとおり親が `interrupted` で閉じる
+- **続けられない・返らない**：会話を続けられなければ、新しいサブエージェントが自分の `fix` の Run を始めて直す。返らないまま止まった Run は、`dg guide parallel` のとおり親が `interrupted` で閉じる（その後は下の「終わり方」）
 
 ## 終わり方
 
 - **通った**：親が `gh pr ready <PR>` で PR を出し（人にレビューを頼む）、`dg guide work` の手順 7（`sync`）に進む
 - **上限を超えた**（重い指摘が残る）：3 回目の手直しは始めない。PR は draft のまま、チケットは in_progress のまま置き、残った指摘・直した回数・PR を人に報告して、続けて直すか・ready にするか・やめる（`ticket unclaim`）かを聞く。実装の失敗とは違い、自分では unclaim しない。人を待つ間も、それを待たないチケットは進める
-- **手直しが failure で返った・返らない**：上限を超えたときと同じく、PR は draft・チケットは in_progress のまま置いて人に報告する。返らずに `interrupted` で閉じた手直しの Run（閉じ損ねた Run を含む）も同じ扱い。unclaim しない（`dg guide work` の unclaim は実装の失敗とやめたときだけ）
+- **手直しが failure で返った・返らない**：上限を超えたときと同じく、PR は draft・チケットは in_progress のまま置いて人に報告する。返らずに `interrupted` で閉じた手直しの Run（閉じ損ねた Run を含む）も同じ扱い。unclaim しない（`dg guide work` の unclaim は実装の失敗と、実装を途中でやめたときだけ）
+- **見直し役が閉じ損ねた・返らない**：親が `run list --running --ticket <id>` で見直し役の `review` の Run を探して `run finish <Run の ID> --result interrupted --error <理由>` で閉じ、見直し役を起動し直す（新しい見直し役が自分の `review` の Run を始める）。PR は draft・チケットは in_progress のまま置き、unclaim しない
 - **見直し役を起動できない**：PR を ready にし、見直していないことを PR の本文と人への報告に書く
 - **人を待つ**：上限を超えた・手直しが failure で返った・返らないチケットは、draft・in_progress のまま人を待つ間、同時に進める枠に数えない。続けて直すと決まったら、`fix` の Run を始めて直し、同じ見直しと修正ループに戻す

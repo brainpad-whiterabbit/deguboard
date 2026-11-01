@@ -65,12 +65,12 @@ Run は 1 回の作業の記録で、使用量（トークン）が残る。実�
 ## 状態について
 
 - 自分で `status` を進めるのは普段 in_progress → review まで。done は照合（マージ）で進む。照合で進まないときや人に指示されたときだけ `ticket move <id> done` で進める（制限は `dg guide overview`）
-- 途中でやめるなら、Run を閉じてから（「Run を記録する」の「結果」）`dg --json --actor agent ticket unclaim <id>`（todo に戻る）。手直しは unclaim せず `dg guide review` の「終わり方」。review にあるなら人に差し戻しを頼む
+- 実装を途中でやめるなら、Run を閉じてから（「Run を記録する」の「結果」）`dg --json --actor agent ticket unclaim <id>`（todo に戻る）。手直し・見直しは unclaim せず `dg guide review` の「終わり方」。review にあるなら人に差し戻しを頼む
 - 作業中に別の作業が見つかったら、そのチケットに混ぜず `dg guide import` の手順で起票を提案する
 
 ## 閉じ損ねた Run を閉じる
 
-finish を呼べずに残った Run は、`dg --json --actor agent run list --running --ticket <id>` で `step`・`agent` が合うものを探し、`run finish <Run の ID> --result interrupted --error <理由>` で閉じる。続けるなら同じ step の Run を始め直す。やめるなら、実装の Run は `ticket unclaim <id>`、手直しの Run は `dg guide review` の「終わり方」
+finish を呼べずに残った Run は、`dg --json --actor agent run list --running --ticket <id>` で `step`・`agent` が合うものを探し、`run finish <Run の ID> --result interrupted --error <理由>` で閉じる。続けるなら同じ step の Run を始め直す。やめるなら、実装の Run は `ticket unclaim <id>`、手直し・見直しの Run は `dg guide review` の「終わり方」
 
 ## 任意フィールド
 

@@ -155,8 +155,19 @@ describe("dg guide", () => {
     expect(work).toContain("（理由は `dg guide review` の「Run の分け方」）");
     // 手直しの失敗・中断では unclaim せず、review の「終わり方」に従う
     expect(review).toContain("**手直しが failure で返った・返らない**");
-    expect(work).toContain("手直しの Run は `dg guide review` の「終わり方」");
-    expect(work).toContain("手直しは unclaim せず");
+    expect(work).toContain("手直し・見直しの Run は `dg guide review` の「終わり方」");
+    expect(work).toContain("手直し・見直しは unclaim せず");
+    expect(review).toContain("unclaim は実装の失敗と、実装を途中でやめたときだけ");
+    expect(review).not.toContain("unclaim は実装の失敗とやめたときだけ");
+    // 閉じ損ねた・返らない見直し役の Run は親が interrupted で閉じ、見直し役を起動し直す
+    expect(review).toContain("**見直し役が閉じ損ねた・返らない**");
+    expect(review).toContain("見直し役を起動し直す");
+    // done の「終わらなかったとき」は実装の Run と手直し・見直しの Run を分け、review へ案内する
+    const done = await readGuide("done");
+    expect(done).toContain("実装の Run は閉じてから");
+    expect(done).toContain(
+      "手直し・見直しの Run は unclaim せず、`dg guide review` の「終わり方」",
+    );
     expect(work).not.toContain("開けたまま");
     expect(all).toContain("`dg guide review` の「品質ゲート」");
     for (const text of [work, all]) expect(text).not.toContain("--json mergeable");
