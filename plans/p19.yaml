@@ -1,0 +1,40 @@
+id: p19
+project: default
+tickets: [t218, t219, t220, t221, t222, t223, t224, t225, t226, t227]
+after:
+  t225:
+    - t221
+  t226:
+    - t223
+pending_approval: true
+details:
+  t218:
+    scope: packages/vscode/README.md と README.md の MCP の節だけ。優先順は書き写さない
+    approach: 担当の印を 1 種に直し、バックログの節は右クリックを中心に UI-3・UI-12 へリンク、deguboard.user と whoami を 1 行
+  t219:
+    scope: ADR-007 の claim の 1 文と更新日・ADR 一覧
+    approach: ST-3 の検査で ref を取り込んで読むがブランチや worktree は作らない、と短く書き換える
+  t220:
+    scope: web のテストの時差依存 3 件と vitest の設定
+    approach: vitest の設定で TZ を UTC に固定し、3 つの TZ で test を回して確かめる
+  t221:
+    scope: local・server・mcp の whoami の env のテストと serve.ts の env の受け取り
+    approach: serve の deps に env を渡す形にそろえ、各入口の既存テストに 1 件ずつ足す
+  t222:
+    scope: guide-done（と必要なら BRANCH_IN_USE の文）の案内だけ。ST-3 の振る舞いは変えない
+    approach: done にならない理由に ST-6 で外した PR と、マージ後の BRANCH_IN_USE の進め方を短く足す。guide の予算を守る
+  t223:
+    scope: requirements の CL-3・ST-7・前提の npm と board.tsx・assignee-mark.tsx のコメント
+    approach: 一覧と文を足すだけにし、requirements の予算（94%）を増やしすぎない
+  t224:
+    scope: コマンド定義の describe が空・欠けたオプション
+    approach: epic list・iteration update を埋め、全コマンドの --help を走査するテストで空の説明を検出する
+  t225:
+    scope: commands.test・e2e の確かめ方と repo.ts の userInfo の例外
+    approach: UsageError で検査、e2e に iteration update、拒否の文の検査、userInfo は例外を受けて代わりの値（USER か unknown）
+  t226:
+    scope: バックログとカンバンの行の部品の置き場所と未使用の export
+    approach: components/row-end.tsx に移して import を直す。kanbanPlanMarks は触らない
+  t227:
+    scope: .gitignore だけ
+    approach: 2 行足して git check-ignore で確かめる
