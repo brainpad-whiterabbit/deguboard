@@ -522,7 +522,7 @@ export const whoami = defineCommand({
   },
 });
 
-/** "true"/"false"/数字の文字列は値に直す（CLI から来る） */
+/** "true"/"false"/数字の文字列は値に直す（CLI から来る）。文字列の項目に合わなければ config.set は元の文字列で試し直す */
 function coerce(value: unknown): unknown {
   if (typeof value !== "string") return value;
   if (value === "true") return true;
@@ -580,8 +580,9 @@ export const configSet = defineCommand({
         const [top, ...rest] = input.key.split(".");
         if (!top) throw new OperationError("VALIDATION_FAILED", "key が空");
         const current = (ctx.store.config as Record<string, unknown>)[top];
+        // CLI の文字列は値に直したもの・元の文字列・カンマ区切りの配列の順に試す。元の文字列も試すので、文字列の項目に "2026"・"true" を入れられる
         const candidates: unknown[] = [coerce(input.value)];
-        if (typeof input.value === "string") candidates.push(splitList(input.value));
+        if (typeof input.value === "string") candidates.push(input.value, splitList(input.value));
         let value: unknown;
         let error: z.ZodError | undefined;
         for (const leaf of candidates) {

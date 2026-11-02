@@ -1253,6 +1253,43 @@ describe("用意", () => {
     });
   });
 
+  it("config.set は文字列の項目に数字だけ・true だけの値を文字列のまま保存し、真偽値・数値・リストの項目は変換して保存する", async () => {
+    const f = await fixture();
+    const ctx = await initialized(f.cloneA);
+    // 文字列の項目：数字だけ・true・false だけでも文字列のまま
+    const year = await runCommand(configSet, ctx, { key: "git.base_branch", value: "2026" });
+    expect(year.data.git.base_branch).toBe("2026");
+    const t = await runCommand(configSet, ctx, { key: "git.remote", value: "true" });
+    expect(t.data.git.remote).toBe("true");
+    const fl = await runCommand(configSet, ctx, { key: "worktree.root", value: "false" });
+    expect(fl.data.worktree.root).toBe("false");
+    // 真偽値の項目："true"・"false" は真偽値に直し、ほかの文字列は拒む
+    const on = await runCommand(configSet, ctx, { key: "auto.merge", value: "true" });
+    expect(on.data.auto.merge).toBe(true);
+    const off = await runCommand(configSet, ctx, { key: "auto.merge", value: "false" });
+    expect(off.data.auto.merge).toBe(false);
+    await expect(
+      runCommand(configSet, ctx, { key: "auto.merge", value: "yes" }),
+    ).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
+    // 数値：スキーマに数値の項目はないので、スキーマにない項目（looseObject が通す）で今のとおり数値に直すことを確かめる
+    const n = await runCommand(configSet, ctx, { key: "git.depth", value: "3" });
+    expect((n.data.git as Record<string, unknown>).depth).toBe(3);
+    // リストの項目：カンマ区切りで配列に。数字だけ・true だけの要素も文字列のまま、空文字は空の配列
+    const list = await runCommand(configSet, ctx, {
+      key: "actions.test",
+      value: "mise, run,2026",
+    });
+    expect(list.data.actions.test).toEqual(["mise", "run", "2026"]);
+    const one = await runCommand(configSet, ctx, { key: "actions.test", value: "true" });
+    expect(one.data.actions.test).toEqual(["true"]);
+    const empty = await runCommand(configSet, ctx, { key: "actions.test", value: "" });
+    expect(empty.data.actions.test).toEqual([]);
+    // 読み直しても保存した値のまま
+    const shown = (await runCommand(configShow, ctx, {})).data as ConfigShowView["config"];
+    expect(shown.git).toMatchObject({ base_branch: "2026", remote: "true", depth: 3 });
+    expect(shown.auto.merge).toBe(false);
+  });
+
   it("validate は読めない Run のファイルを指摘し、ほかの読み込みは止めない", async () => {
     const f = await fixture();
     const ctx = await initialized(f.cloneA);
