@@ -1,0 +1,33 @@
+id: p15
+project: default
+tickets: [t177, t179, t178, t180, t182, t181]
+after:
+  t178:
+    - t177
+  t180:
+    - t178
+    - t179
+  t182:
+    - t180
+  t181:
+    - t182
+pending_approval: true
+details:
+  t177:
+    scope: 左パネルの見出し（SidebarBoardHead）の Project の段・漏斗の絞り込みと札・件数の削除と UI-2。広い画面は変えない
+    approach: board.tsx の SidebarBoardHead と styles.css で直し、絞り込みの開閉は Webview の状態に持つ
+  t179:
+    scope: 実行計画の帯（plan-band.tsx）を Plan ごとの 2 行と Plan ごとのグラフの開閉にし、閉じた計画をまとめ、UI-2 を直す
+    approach: board.plansExpanded をやめて Plan ごとの開閉を ui-state に覚え、PlanLine と PlanGraphView を組み直す
+  t178:
+    scope: 見出しの Iteration の選択欄を planned・active の札の列（なし n と + を含む）に置き換え、UI-2 を直す
+    approach: t177 で詰めた SidebarBoardHead の上に札の列の部品を足し、横スクロールと選択中の札を見える位置に寄せる
+  t180:
+    scope: 左パネルの節の見出しを大文字にせず、Done・中止の件数を数字だけにし、実行計画の帯の見出しを同じ形にそろえる
+    approach: Column と styles.css の text-transform とバッジの出し分けを直し、帯の見出しは t179 の後の形に合わせる
+  t182:
+    scope: 開いた Plan で待ちの相手が残るか承認待ちの todo の行のタイトルを説明文の色にし、UI-2 を直す
+    approach: kanbanPlanMarks・rowActivity の結果から Card に薄くする class を付け、色は styles.css のトークンで出す
+  t181:
+    scope: 行の担当の名前の列を右端の印にし、agent は持ち主の丸と種類のアイコンにする。チケットごとの agent の種類を core の出力に載せる
+    approach: core のチケットの一覧の出力に Run から引いた agent の種類を足して CLI・HTTP・Webview に写し、KanbanRowEnd に印を置き、公式アイコンを同梱する
