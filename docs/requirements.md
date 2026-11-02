@@ -197,7 +197,7 @@ steps: # 任意。Run の step の語彙（WF-5）
 
 `actor.human_only` は `epic.close` のようなコマンド名の一覧で、入れたコマンドを agent が呼ぶと `TRANSITION_REJECTED` で拒否する。既定は空で、すべての操作をエージェントにも許す。チケットの遷移を人に限るのは Workflow の `by`（WF-1）で、この項目では扱わない。
 
-`lint.require_iteration` を true にすると、`dg guide work` が claim の前に Iteration に入れるよう案内し、`dg lint` が入れずに進んだチケットを指摘する。
+`lint.require_iteration` を true にすると、`dg guide` が claim の前に Iteration に入れるよう案内し、`dg lint` が入れずに進んだチケットを指摘する。
 
 各項目の意味・値・既定値はスキーマ（`packages/core/src/model/config.ts`）が正本。利用者ごとの上書きは設けない。
 
