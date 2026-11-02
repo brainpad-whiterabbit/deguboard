@@ -1412,7 +1412,7 @@ button.danger {
 }
 /*
  * サイドバーのバックログの行（parts.tsx の TicketTable の priorityMarks）：左に優先度の印（high だけ赤い「!」、ほかは同じ幅の空き）、
- * low の始まりに小さな見出し。状態の丸印は in_progress（青）と review（黄）が塗り、todo は白抜き。
+ * low の始まり（区画の先頭を含む）に小さな「low」の見出し。状態の丸印は in_progress（青）と review（黄）が塗り、todo は白抜き。
  * カンバンの Run の印（12px のリング・半分塗りの丸。in_progress の色）とは大きさと形で見分ける
  */
 .priority-mark {
@@ -1438,8 +1438,16 @@ button.danger {
   border-top: 1px solid var(--dg-border);
   font-size: 0.75em;
   letter-spacing: 0.05em;
-  text-transform: uppercase;
   color: var(--vscode-descriptionForeground);
+}
+/* 見えないが読み上げる文字（優先度の空きの印など） */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 .backlog-rows .status-dot.status-todo {
   box-sizing: border-box;

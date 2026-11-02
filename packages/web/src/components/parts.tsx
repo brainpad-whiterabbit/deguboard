@@ -471,7 +471,8 @@ export function TicketTable({
   extra?: ((t: Ticket) => React.ReactNode) | undefined;
   draggable?: boolean;
   /**
-   * サイドバーで行の左に優先度の印（high だけ赤い「!」。medium・low は同じ幅の空き）を付け、low の始まりに「low」の小さな見出しを入れる。
+   * サイドバーで行の左に優先度の印（high だけ赤い「!」。medium・low は同じ幅の空きで、優先度は見えない文字で読み上げる）を付け、
+   * low の始まり（区画の先頭を含む）に「low」の小さな見出しの行を入れる。
    * 状態の丸印は todo を白抜きにする（in_progress と review は色の違う塗り。styles.css の .backlog-rows）。
    * 優先度の順に並べた一覧（バックログの区画）で使う
    */
@@ -487,14 +488,11 @@ export function TicketTable({
       <ul className={priorityMarks ? "rows backlog-rows" : "rows"}>
         {tickets.map((t, i) => (
           <Fragment key={t.id}>
-            {/* low の始まり（先頭の行でないとき）に区切りの見出しを入れる */}
+            {/* low の始まりに見出しの行を入れる。先頭から low の区画にも出し、medium だけの区画と見分ける */}
             {priorityMarks &&
             t.priority === "low" &&
-            i > 0 &&
-            tickets[i - 1]!.priority !== "low" ? (
-              <li className="priority-sep" role="separator" aria-label="優先度 low">
-                low
-              </li>
+            (i === 0 || tickets[i - 1]!.priority !== "low") ? (
+              <li className="priority-sep">low</li>
             ) : null}
             <li>
               {priorityMarks ? (
@@ -508,7 +506,9 @@ export function TicketTable({
                     !
                   </span>
                 ) : (
-                  <span className="priority-mark" aria-hidden="true" />
+                  <span className="priority-mark">
+                    <span className="visually-hidden">優先度 {t.priority}</span>
+                  </span>
                 )
               ) : null}
               {/* 優先度は左の印で出すので、右端の high の札は出さない（空のセルで格子の位置を保つ） */}

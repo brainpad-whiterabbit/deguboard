@@ -1179,7 +1179,7 @@ describe("画面", () => {
     const [s1] = [...document.querySelectorAll<HTMLDetailsElement>("details.backlog-section")];
     expect([...s1!.querySelectorAll(".priority-mark")].map((m) => m.textContent)).toEqual([
       "!",
-      "",
+      "優先度 medium",
     ]);
     expect(s1!.classList.contains("iteration-active")).toBe(true);
     const lines = [...s1!.querySelectorAll("summary > .head-line")];
@@ -1255,11 +1255,18 @@ describe("画面", () => {
       ),
     ).toEqual(["t1", "t2", "sep", "t3", "t4"]);
     expect(list.querySelector("li.priority-sep")!.textContent).toBe("low");
-    // high だけ印に文字と名前があり、medium・low は空きで読み上げない
+    // high だけ見える「!」を出し、medium・low は見えない文字で優先度を読み上げる
     const marks = [...list.querySelectorAll(".priority-mark")];
-    expect(marks.map((m) => m.textContent)).toEqual(["!", "", "", ""]);
+    expect(marks.map((m) => m.textContent)).toEqual([
+      "!",
+      "優先度 medium",
+      "優先度 low",
+      "優先度 low",
+    ]);
     expect(marks[0]!.getAttribute("aria-label")).toBe("優先度 high");
-    expect(marks.slice(1).every((m) => m.getAttribute("aria-hidden") === "true")).toBe(true);
+    expect(marks.slice(1).every((m) => m.querySelector(".visually-hidden"))).toBe(true);
+    // 見出しの行は role を付けない（list の項目のまま）
+    expect(list.querySelector("li.priority-sep")!.getAttribute("role")).toBeNull();
     // 状態の丸印は 3 種の状態で別のクラス。カンバンの Run の印（activity-mark）は出さない
     expect([...list.querySelectorAll(".status-dot")].map((d) => d.className)).toEqual([
       "status-dot status-review",
@@ -1272,14 +1279,14 @@ describe("画面", () => {
     expect(list.querySelector(".badge.priority-high")).toBeNull();
   });
 
-  it("サイドバーのバックログで low だけの区画には見出しを入れない", async () => {
+  it("サイドバーのバックログで low から始まる区画にも見出しを入れる", async () => {
     window.location.hash = "#/backlog";
     const client = mockClient();
     client.data.iterations = [iteration({ id: "s1", name: "今", status: "active" })];
     client.data.tickets = [ticket({ id: "t1", title: "低い", priority: "low", iteration: "s1" })];
     mount(client, hostOf("sidebar"));
     await screen.findByText("低い");
-    expect(document.querySelector("li.priority-sep")).toBeNull();
+    expect(document.querySelector("li.priority-sep")!.textContent).toBe("low");
   });
 
   it("サイドバーのバックログの Epic の欄は折りたため、作成フォームは「+」を押したときだけ開く", async () => {
