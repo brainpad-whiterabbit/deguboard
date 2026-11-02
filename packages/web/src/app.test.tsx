@@ -1358,6 +1358,26 @@ describe("画面", () => {
       "Iteration なし",
     );
   });
+
+  it("サイドバーのカンバンの札の done/全体は、すぐ下の進みの帯と同じく閉じた Epic の終わったチケットを数えない", async () => {
+    const client = mockClient();
+    client.data.iterations = [iteration({ id: "s1", name: "今", status: "active" })];
+    client.data.epics.push({
+      ...client.data.epics[0]!,
+      id: "e2",
+      title: "閉じた",
+      status: "closed",
+    });
+    client.data.tickets[0]!.iteration = "s1";
+    client.data.tickets[0]!.epic = "e2";
+    client.data.tickets[1]!.iteration = "s1";
+    mount(client, hostOf("sidebar"));
+    await screen.findByText("API");
+    const chip = document.querySelector(".iteration-chip.active")!;
+    expect(chip.textContent).toBe("s10/1");
+    expect(document.querySelector(".sidebar-head .status-band")!.textContent).toBe("0/1 done");
+  });
+
   it("サイドバーでは Project が 1 つなら Project の段を出さず、2 つ以上なら出す", async () => {
     mount(mockClient(), hostOf("sidebar"));
     await screen.findByText("ログイン");
