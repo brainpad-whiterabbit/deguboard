@@ -1,0 +1,50 @@
+id: p20
+project: default
+tickets: [t214, t171, t187, t188, t189, t190, t191, t192, t193, t194]
+after:
+  t188:
+    - t187
+  t189:
+    - t188
+  t190:
+    - t189
+  t191:
+    - t190
+  t192:
+    - t191
+  t193:
+    - t192
+  t194:
+    - t193
+pending_approval: true
+details:
+  t214:
+    scope: config の lint.require_iteration と lint の指摘・guide work の案内・requirements とヘルプ・このリポジトリで有効化
+    approach: core の config スキーマと lint に足し、テストは core で有効・無効・閉じた Epic を確かめる
+  t171:
+    scope: "左パネルの歯車から開く #config の設定画面（ブラウザ版も）と requirements の UI の節"
+    approach: vscode の view/title にコマンドを足し、web に config.show・config.set を写すページを作る。設定は config.yaml だけ
+  t187:
+    scope: 履歴の見方の切り替えを文字＋件数のバッジにし、件数の行をなくす
+    approach: history.tsx の .segmented を置き換え、色は VS Code のテーマ変数から取る。test:layout で 320px を確かめる
+  t188:
+    scope: Iteration の行の内訳に Epic なしを足し、目標を 1 段目にし、チップを整える
+    approach: history.tsx の Iteration の行と集計を直し、web のテストで内訳の合計を確かめる
+  t189:
+    scope: 開いた Iteration のチケットを 1 本の一覧にし、履歴用の行の部品を作る
+    approach: 履歴用の行を components に切り出し、Epic ごとの節をやめる。ほか N 件と持ち越しを足す
+  t190:
+    scope: Epic の行を開けるようにし、中の終わったチケットを一覧で出す
+    approach: t189 の履歴用の行を使い、Epic の行のチップを Iteration と揃える
+  t191:
+    scope: チケットのタブを日付の見出しなしの新しい順の 1 本の一覧にし、Epic のセレクトを外す
+    approach: t189 の履歴用の行を使い、2 段目に終えた日・Iteration・PR を出す
+  t192:
+    scope: 検索中は残った Iteration・Epic の行を開き、当たったチケットだけを印付きで出す
+    approach: history.tsx の検索の絞り込みを行の中まで広げ、すべて見るで戻せるようにする
+  t193:
+    scope: 履歴の検索語・絞り込みをハッシュに、開いた行を Webview の state に残す
+    approach: router のクエリとホストの抽象（ui-state）を使い、useState から移す
+  t194:
+    scope: 閉じた Iteration の行に Run の集計へのリンクを置く
+    approach: "#/runs?by=iteration にその Iteration で絞るクエリを渡す。runs 側で絞れなければ足す"
