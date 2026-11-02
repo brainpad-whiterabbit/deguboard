@@ -5,7 +5,9 @@ import { STATUSES, type Epic, type Iteration, type Ticket } from "../types.js";
 import { plan, ticket } from "../test-helpers.js";
 import {
   hideClosedFinished,
+  isWaitingReadiness,
   kanbanPlanMarks,
+  kanbanReadiness,
   rowActivity,
   shortPeriod,
   ticketProgress,
@@ -165,6 +167,70 @@ describe("左パネルのカンバンの行の Plan の番号と待ち", () => {
     expect(waitLabel(["t137"])).toBe("t137 待ち");
     expect(waitLabel(["t2", "t3", "t9"])).toBe("t2+2 待ち");
     expect(waitLabel([])).toBe("");
+  });
+});
+
+describe("左パネルのカンバンの待ち・承認待ちの行を薄くする", () => {
+  const dimmedIds = (
+    plans: Parameters<typeof kanbanPlanMarks>[0],
+    tickets: Parameters<typeof kanbanPlanMarks>[1],
+  ) => {
+    const marks = kanbanPlanMarks(plans, tickets);
+    return tickets
+      .filter((t) => isWaitingReadiness(kanbanReadiness(t, marks.get(t.id))))
+      .map((t) => t.id);
+  };
+
+  it("待ちの相手が残る todo と承認待ちの Plan の todo だけを薄くし、着手可・Plan の外・todo でない行は薄くしない", () => {
+    const tickets = [
+      ticket({ id: "t1", status: "in_progress" }),
+      ticket({ id: "t2" }),
+      ticket({ id: "t3" }),
+      ticket({ id: "t4" }),
+      // Plan に入っていない todo
+      ticket({ id: "t5" }),
+      // 承認待ちの Plan の、待ちの相手のない todo と in_progress
+      ticket({ id: "t6" }),
+      ticket({ id: "t7", status: "in_progress" }),
+    ];
+    const plans = [
+      plan({ id: "p1", tickets: ["t1", "t2", "t3", "t4"], after: { t3: ["t1"] } }),
+      plan({ id: "p2", tickets: ["t6", "t7"], status: "pending" }),
+    ];
+    expect(dimmedIds(plans, tickets)).toEqual(["t3", "t6"]);
+    const marks = kanbanPlanMarks(plans, tickets);
+    expect(kanbanReadiness(tickets[1]!, marks.get("t2"))).toBe("ready");
+    expect(kanbanReadiness(tickets[2]!, marks.get("t3"))).toBe("waiting");
+    expect(kanbanReadiness(tickets[4]!, marks.get("t5"))).toBeNull();
+    expect(kanbanReadiness(tickets[5]!, marks.get("t6"))).toBe("pending");
+    expect(kanbanReadiness(tickets[6]!, marks.get("t7"))).toBeNull();
+  });
+
+  it("待ちの相手が終わって着手可になると、読み直した結果では薄くしない", () => {
+    const plans = [plan({ id: "p1", tickets: ["t1", "t2", "t3"], after: { t2: ["t1"] } })];
+    const before = [
+      ticket({ id: "t1", status: "review" }),
+      ticket({ id: "t2" }),
+      ticket({ id: "t3", depends_on: ["t9"], deps_done: false }),
+    ];
+    expect(dimmedIds(plans, before)).toEqual(["t2", "t3"]);
+    // after の相手 t1 が done になり、Plan の外の depends_on も終わった後に読み直す
+    const after = [
+      ticket({ id: "t1", status: "done" }),
+      ticket({ id: "t2" }),
+      ticket({ id: "t3", depends_on: ["t9"], deps_done: true }),
+    ];
+    expect(dimmedIds(plans, after)).toEqual([]);
+  });
+
+  it("Plan が承認されると、承認待ちだった行は薄くしない", () => {
+    const tickets = [ticket({ id: "t1" })];
+    expect(dimmedIds([plan({ id: "p1", tickets: ["t1"], status: "pending" })], tickets)).toEqual([
+      "t1",
+    ]);
+    expect(dimmedIds([plan({ id: "p1", tickets: ["t1"], status: "approved" })], tickets)).toEqual(
+      [],
+    );
   });
 });
 

@@ -401,7 +401,7 @@ export function sameAssignee(tickets: readonly Pick<Ticket, "assignee">[]): bool
   return !!first && tickets.every((t) => t.assignee === first);
 }
 
-/** 1 行のチケット（サイドバー）。行全体をつかんで動かす。variant・head・end は TicketRow に渡す */
+/** 1 行のチケット（サイドバー）。行全体をつかんで動かす。variant・head・end は TicketRow に渡す。dimmed でタイトルを説明文の色にする */
 export function DraggableRow({
   ticket,
   hideAssignee,
@@ -409,6 +409,7 @@ export function DraggableRow({
   variant,
   head,
   end,
+  dimmed = false,
 }: {
   ticket: Ticket;
   hideAssignee?: boolean | undefined;
@@ -416,13 +417,15 @@ export function DraggableRow({
   variant?: TicketRowVariant | undefined;
   head?: ReactNode;
   end?: ReactNode;
+  /** すぐに手を付けられない行（カンバンの待ち・承認待ち）としてタイトルを薄く出す */
+  dimmed?: boolean | undefined;
 }) {
   const d = useDraggableTicket(ticket.id);
   return (
     <div
       ref={d.ref}
       style={d.style}
-      className={`row-drag${d.isDragging ? " dragging" : ""}`}
+      className={`row-drag${dimmed ? " is-waiting" : ""}${d.isDragging ? " dragging" : ""}`}
       {...d.props}
     >
       <TicketRow
