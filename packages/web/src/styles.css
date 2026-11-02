@@ -1088,7 +1088,7 @@ button.danger {
   border-color: transparent;
   color: var(--vscode-button-foreground, #fff);
 }
-/* 見出しの開始・閉じる（iterations.tsx の IterationActions）。確認（.confirm）は折り返して次の行に出す */
+/* 見出しの開始・閉じる（components/iteration-parts.tsx の IterationActions）。確認（.confirm）は折り返して次の行に出す */
 .board-head .actions,
 .backlog-section .actions {
   flex-wrap: wrap;

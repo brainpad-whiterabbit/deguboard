@@ -6,7 +6,7 @@
 // サイドバーでは検索を常に出し、その下によく使う絞り込み（自分・作業中・high）のチップと、畳んだ欄で効いている条件の札（× で外す）を並べる。
 // 絞り込みの欄は畳み（開閉は host.state に残す）、見出しの件数は絞り込みが効いているときだけ「n / m 件」で出す。
 // サイドバーの Epic の欄は open の Epic があるときだけ、番号・題・進捗のチップと「Epic なし」のチップを並べる（2 行を超える分は「ほか N」）
-// サイドバーの行の右端には、開いた Plan に入っていれば Plan の番号と着手可・待ちを出す（カンバンと同じ部品と判定。board.tsx の BacklogRowEnd）。
+// サイドバーの行の右端には、開いた Plan に入っていれば Plan の番号と着手可・待ちを出す（カンバンと同じ部品と判定。components/row-end.tsx の BacklogRowEnd）。
 // サイドバーの行は担当者の列を出さず、別の人の担当だけ右端に頭文字の丸で出す（自分か自分の agent は出さない。store.me）
 
 import {
@@ -19,11 +19,16 @@ import {
 } from "@dnd-kit/core";
 import { useMemo, useState, type ReactNode } from "react";
 import { Chip, ChipRow } from "../components/chips.js";
+import {
+  IterationActions,
+  IterationCreateForm,
+  shortPeriod,
+} from "../components/iteration-parts.js";
 import { ProgressBar, TicketTable } from "../components/parts.js";
+import { BacklogRowEnd, kanbanPlanMarks, type PlanMark } from "../components/row-end.js";
 import { useHost, useUiState } from "../host.js";
 import { hrefOf } from "../router.js";
 import { useStore } from "../store.js";
-import { BacklogRowEnd, kanbanPlanMarks, shortPeriod, type PlanMark } from "./board.js";
 import {
   BOARD_STATUSES,
   PRIORITIES,
@@ -39,7 +44,6 @@ import {
   type Ticket,
   type WhoamiView,
 } from "../types.js";
-import { IterationActions, IterationCreateForm } from "./iterations.js";
 
 export interface BacklogFilter {
   query: string;

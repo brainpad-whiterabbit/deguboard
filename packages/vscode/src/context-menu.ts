@@ -34,7 +34,7 @@ export function menuTicketOf(arg: unknown): MenuTicket | undefined {
 }
 
 /** QuickPick の 1 項目。iteration は移す先（null は「Iteration なし」） */
-export interface IterationPick {
+interface IterationPick {
   label: string;
   description?: string;
   iteration: string | null;

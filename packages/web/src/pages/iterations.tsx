@@ -1,8 +1,9 @@
 // Iteration（UI-5）の詳細：チケットの追加・除外、開始・終了。一覧の画面はなく、planned と active はカンバンの絞り込みで選ぶ（board.tsx）。
-// 作成のフォームと開始・閉じるのボタンはここに置く。作成のフォームはカンバン（サイドバーでは札の列の「+」から）とバックログから、
-// 開始・閉じるのボタンは広い画面のカンバンとバックログの区画の見出しから使う（サイドバーでは詳細の画面から）
+// 作成のフォームと開始・閉じるのボタンは components/iteration-parts.tsx に置く。作成のフォームはカンバン（サイドバーでは札の列の「+」から）とバックログから、
+// 開始・閉じるのボタンは広い画面のカンバンとバックログの区画の見出しと、この詳細の画面から使う（サイドバーでは詳細の画面から）
 
 import { useEffect, useState } from "react";
+import { ITERATION_CLOSE_NOTE } from "../components/iteration-parts.js";
 import { CloseButton, TicketTable, unfinishedCount } from "../components/parts.js";
 import { NO_VALUE } from "../components/run-parts.js";
 import { useHost } from "../host.js";
@@ -12,105 +13,11 @@ import {
   byNumber,
   byPriorityThenNumber,
   ITERATION_LABELS,
-  type Iteration,
   type IterationDetail,
 } from "../types.js";
 
 export function IterationsPage({ id }: { id: string }) {
   return <IterationDetailView id={id} />;
-}
-
-/** Iteration を閉じたとき未完了のチケットがどうなるか（確認の文に添える） */
-const ITERATION_CLOSE_NOTE = "閉じると持ち越しになり、Iteration から外れる。";
-
-/**
- * Iteration の開始・閉じるのボタン。広い画面のカンバンの見出しとバックログの区画の見出しに置く。
- * サイドバー（左パネル）のカンバンとバックログには置かず、詳細の画面（IterationDetailView）で行う
- */
-export function IterationActions({ iteration: it }: { iteration: Iteration }) {
-  const store = useStore();
-  if (it.status === "closed") return null;
-  return (
-    <>
-      {it.status === "planned" ? (
-        <button
-          type="button"
-          className="primary"
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            void store.run("iteration.start", { iteration: it.id });
-          }}
-        >
-          開始する
-        </button>
-      ) : null}
-      <CloseButton
-        subject={`${it.id} ${it.name}`}
-        unfinished={unfinishedCount(store.tickets.filter((t) => t.iteration === it.id))}
-        note={ITERATION_CLOSE_NOTE}
-        onClose={() => void store.run("iteration.close", { iteration: it.id })}
-      />
-    </>
-  );
-}
-
-/** Iteration を作るフォーム。カンバンの絞り込みの欄（サイドバーでは見出しの札の列の「+」）とバックログの「Iteration なし」の区画から開く。作れたら onDone */
-export function IterationCreateForm({ onDone }: { onDone: () => void }) {
-  const store = useStore();
-  const [form, setForm] = useState({ name: "", goal: "", start: "", end: "" });
-  const create = async () => {
-    if (!form.name.trim() || !store.project) return;
-    const r = await store.run("iteration.create", {
-      project: store.project.id,
-      name: form.name.trim(),
-      ...(form.goal.trim() ? { goal: form.goal.trim() } : {}),
-      ...(form.start ? { start: form.start } : {}),
-      ...(form.end ? { end: form.end } : {}),
-    });
-    if (r.ok) onDone();
-  };
-  return (
-    <form
-      className="inline-form"
-      onSubmit={(e) => {
-        e.preventDefault();
-        void create();
-      }}
-    >
-      <input
-        value={form.name}
-        onChange={(e) => setForm({ ...form, name: e.target.value })}
-        placeholder="名前"
-        aria-label="名前"
-        autoFocus
-      />
-      <input
-        value={form.goal}
-        onChange={(e) => setForm({ ...form, goal: e.target.value })}
-        placeholder="目標"
-        aria-label="目標"
-      />
-      <input
-        type="date"
-        value={form.start}
-        onChange={(e) => setForm({ ...form, start: e.target.value })}
-        aria-label="開始日"
-      />
-      <input
-        type="date"
-        value={form.end}
-        onChange={(e) => setForm({ ...form, end: e.target.value })}
-        aria-label="終了日"
-      />
-      <button type="submit" className="primary" disabled={!form.name.trim()}>
-        作る
-      </button>
-      <button type="button" onClick={onDone}>
-        やめる
-      </button>
-    </form>
-  );
 }
 
 function IterationDetailView({ id }: { id: string }) {

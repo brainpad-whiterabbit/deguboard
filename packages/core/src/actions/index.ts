@@ -39,7 +39,7 @@ export function listActions(config: ActionContext["config"]): ActionInfo[] {
   });
 }
 
-export function findAction(name: string): AnyAction | undefined {
+function findAction(name: string): AnyAction | undefined {
   return actions.find((a) => a.name === name);
 }
 
