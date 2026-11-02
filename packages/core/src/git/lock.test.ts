@@ -24,6 +24,7 @@ const cleanups: Array<() => Promise<void>> = [];
 afterEach(async () => {
   slowLock.enabled = false;
   slowLock.statError = undefined;
+  slowLock.statCalls = 0;
   await Promise.all(cleanups.splice(0).map((c) => c()));
 });
 
@@ -106,8 +107,10 @@ describe("withLock", () => {
     const lockPath = path.join(dir, "locks", "write");
     await writeFile(lockPath, String(process.pid));
     slowLock.statError = "EACCES";
+    slowLock.statCalls = 0;
     let entered = false;
-    // 経過時間の上限は負荷で揺れるので見ない。待ち時間の上限で出るエラー（stat のエラーを添える）で止まったことを確かめる
+    // 経過時間は負荷で揺れるので見ない。待ち時間の上限で出るエラー（stat のエラーを添える）で止まったことと、
+    // 確かめた回数で waitMs を守ったことを確かめる
     await expect(
       withLock(
         dir,
@@ -121,9 +124,13 @@ describe("withLock", () => {
       code: "GIT_ERROR",
       message: expect.stringMatching(/別の dg が書き込み中.*EACCES/),
     });
+    // 約 50ms ごとに確かめるので、waitMs（200ms）なら数回、既定の 10 秒なら約 200 回になる。
+    // waitMs を守らなかったときもテストのタイムアウトでなくこの回数で落ちるよう、タイムアウトを広げてある
+    expect(slowLock.statCalls).toBeGreaterThan(0);
+    expect(slowLock.statCalls).toBeLessThan(50);
     expect(entered).toBe(false);
     await expect(access(lockPath)).resolves.toBeUndefined();
-  });
+  }, 30_000);
 
   it("自分のロックが古いと判定されて消され、別の待ち手が取り直していれば、終わったときにそのロックを消さない", async () => {
     const dir = await localDir();

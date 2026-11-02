@@ -4,14 +4,21 @@
 // 前の持ち主が解放した直後に stat が ENOENT を見て、その結果を返すまでに別の待ち手が取り直す窓が広がり、
 // 取り直した側がロックの中で読み終えて書く前に、もう一方が入る窓も広がる。
 // statError を設定すると、stat はその code のエラーを投げる（ENOENT 以外のエラーで待ち続けないことを確かめる）
+// statCalls は stat の呼ばれた回数（待ち手が何回確かめたかで、待ち時間の上限を時間に頼らず確かめる）
 
 import { setTimeout as sleep } from "node:timers/promises";
 
 type FsPromises = typeof import("node:fs/promises");
 
-export const slowLock: { enabled: boolean; delayMs: number; statError?: string | undefined } = {
+export const slowLock: {
+  enabled: boolean;
+  delayMs: number;
+  statError?: string | undefined;
+  statCalls: number;
+} = {
   enabled: false,
   delayMs: 15,
+  statCalls: 0,
 };
 
 const pause = () => sleep(Math.random() * slowLock.delayMs);
@@ -26,6 +33,7 @@ export function withSlowLock(actual: FsPromises): FsPromises {
     }
   };
   const stat = (async (...args: Parameters<FsPromises["stat"]>) => {
+    slowLock.statCalls += 1;
     if (slowLock.statError) {
       throw Object.assign(new Error(`${slowLock.statError}: stat を失敗させた`), {
         code: slowLock.statError,
