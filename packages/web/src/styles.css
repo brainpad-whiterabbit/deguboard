@@ -723,35 +723,38 @@ button.link:hover {
   color: var(--vscode-descriptionForeground);
   font-weight: normal;
 }
-/* 2 行目の作業中と次（PlanSub）。1 行に収め、次のタイトルは省略する。番号は詰めない */
+/* 2 行目の作業中と次（PlanSub）。狭いときは番号の切れ目で折り返し、重ねない。着手できる次のタイトルは省略する */
 .plan-sub {
   display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
-  gap: 0.8em;
+  gap: 0 0.8em;
   min-width: 0;
   padding-left: calc(5px + 0.5em);
   font-size: 0.92em;
   line-height: 18px;
-  white-space: nowrap;
 }
 .plan-working,
 .plan-next,
 .plan-wait {
   display: inline-flex;
+  flex-wrap: wrap;
   align-items: baseline;
-  gap: 0.4em;
-  flex: none;
+  gap: 0 0.4em;
+  min-width: 0;
+  white-space: nowrap;
 }
 .plan-next {
-  flex: 1 1 auto;
-  min-width: 0;
+  flex: 1 1 8em;
 }
 .plan-sub-label {
   color: var(--vscode-descriptionForeground);
 }
 .plan-sub-ids {
   display: inline-flex;
+  flex-wrap: wrap;
   gap: 0 0.5em;
+  min-width: 0;
 }
 .plan-sub code {
   background: transparent;
@@ -764,6 +767,10 @@ button.link:hover {
   display: flex;
   gap: 0.4em;
   min-width: 0;
+}
+/* 着手できる次（タイトルつき）は、狭ければ折り返さずにタイトルを省略する */
+.plan-next-ready {
+  flex: 1 1 6em;
 }
 .plan-next-title {
   min-width: 0;

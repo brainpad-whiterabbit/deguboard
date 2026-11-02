@@ -1,7 +1,7 @@
 // カンバンの上の「実行計画」の帯。表示だけで書き込まない。Plan ごとに、進みの行と作業中・次の行の 2 行を出し、行を押すとその Plan の依存グラフを行の下に開閉する（Plan ごとに覚える）。
 // 閉じた Plan は「閉じた計画」の節に 1 行ずつ入れる。サイドバーでは、待ちの辺のない Plan をグラフにせず、チケットのチップを横に折り返して出す（ID だけの箱が縦に積まれて場所を取るので）
 
-import { useEffect, useMemo, useState, type MouseEvent } from "react";
+import { useEffect, useId, useMemo, useState, type MouseEvent } from "react";
 import { useHost, useUiState } from "../host.js";
 import { useStore } from "../store.js";
 import { actorLabel, type PlanRow, type Ticket, type TicketRow } from "../types.js";
@@ -67,21 +67,32 @@ interface ItemProps {
 
 /**
  * Plan の行：1 行目に色の線・番号・状態・進み、2 行目に作業中と次（閉じた Plan は 1 行目だけ）。
- * 行を押すと下に依存グラフを開閉する。チケットの番号（リンク）を押したときはチケットを開き、開閉しない
+ * 行を押すと下に依存グラフを開閉する。チケットの番号（リンク）を押したときはチケットを開き、開閉しない。
+ * 開いた Plan だけを見た目の状態に覚え、閉じたら鍵を消す（閉じた Plan の鍵が溜まらないよう）
  */
 function PlanItem({ plan, state, byId }: ItemProps) {
-  const [open, setOpen] = useUiState(`board.planGraph.${plan.id}`, false);
+  const host = useHost();
+  const key = `board.planGraph.${plan.id}`;
+  const [open, setOpen] = useState(() => host.state.get<boolean>(key) === true);
+  const detailId = useId();
   const closed = state === "closed";
   const onRowClick = (e: MouseEvent) => {
     if ((e.target as Element).closest("a")) return;
     setOpen(!open);
+    if (open) host.state.remove(key);
+    else host.state.set(key, true);
   };
   return (
     <div
       className={`plan-item plan-color-${planColor(plan.id)}${closed ? " plan-item-closed" : ""}`}
     >
       <div className="plan-row" onClick={onRowClick}>
-        <button type="button" className="plan-line" aria-expanded={open}>
+        <button
+          type="button"
+          className="plan-line"
+          aria-expanded={open}
+          aria-controls={open ? detailId : undefined}
+        >
           <code>{plan.id}</code>
           <span className={`plan-state plan-state-${state}`}>{PLAN_STATE_LABELS[state]}</span>
           <ProgressBar progress={plan.progress} short />
@@ -89,7 +100,7 @@ function PlanItem({ plan, state, byId }: ItemProps) {
         {closed ? null : <PlanSub plan={plan} state={state} byId={byId} />}
       </div>
       {open ? (
-        <div className="plan-detail">
+        <div className="plan-detail" id={detailId}>
           {plan.approved_by ? (
             <span className="plan-approver muted" title={plan.approved_by}>
               承認 {actorLabel(plan.approved_by)}
@@ -139,7 +150,10 @@ function PlanNextText({ next, byId }: { next: PlanNext; byId: ReadonlyMap<string
   return (
     <span className="plan-next">
       <span className="plan-sub-label">次</span>
-      <TicketLink id={next.id} className="plan-next-ticket">
+      <TicketLink
+        id={next.id}
+        className={`plan-next-ticket${next.kind === "ready" ? " plan-next-ready" : ""}`}
+      >
         <code title={title}>{next.id}</code>
         {next.kind === "ready" ? (
           <span className="plan-next-title" title={title}>

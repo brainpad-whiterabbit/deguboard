@@ -114,9 +114,14 @@ describe("実行計画の帯", () => {
       )!;
     const toggle = itemOf("p2").querySelector<HTMLButtonElement>("button.plan-line")!;
     expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    expect(toggle.hasAttribute("aria-controls")).toBe(false);
     fireEvent.click(toggle);
     expect(toggle.getAttribute("aria-expanded")).toBe("true");
     const p2 = itemOf("p2");
+    // 開いたときだけ、開いたグラフの要素を指す
+    expect(document.getElementById(toggle.getAttribute("aria-controls")!)).toBe(
+      p2.querySelector(".plan-detail"),
+    );
     expect(p2.querySelector(".plan-detail")!.textContent).toContain("承認 eiki");
     const nodes = [...p2.querySelectorAll<HTMLAnchorElement>("a.plan-node")];
     expect(nodes.map((a) => a.getAttribute("href"))).toEqual(["#/tickets/t1", "#/tickets/t3"]);
@@ -129,8 +134,11 @@ describe("実行計画の帯", () => {
     // 2 行目（リンクでない所）を押しても開閉する
     fireEvent.click(itemOf("p3").querySelector(".plan-row")!);
     expect(document.querySelectorAll(".plan-graph")).toHaveLength(2);
+    expect(host.state.get("board.planGraph.p3")).toBe(true);
     fireEvent.click(itemOf("p3").querySelector(".plan-row")!);
     expect(itemOf("p3").querySelector(".plan-graph")).toBeNull();
+    // 閉じたら鍵を消し、false を残さない
+    expect(host.state.get("board.planGraph.p3")).toBeUndefined();
     cleanup();
     mount(client, host);
     await screen.findByRole("region", { name: "実行計画" });
