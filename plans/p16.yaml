@@ -1,0 +1,39 @@
+id: p16
+project: default
+tickets: [t195, t197, t198, t199, t201, t202, t200, t203, t205]
+after:
+  t200:
+    - t198
+  t203:
+    - t197
+  t205:
+    - t201
+pending_approval: true
+details:
+  t195:
+    scope: general.yaml をテンプレートに戻すだけ。PR なし（claim --without-branch）
+    approach: dg workflow set general --template general で戻し、validate と workflow show で確かめる
+  t197:
+    scope: ADR-003・ADR-005 の更新日と docs/adr/README.md の一覧
+    approach: 更新日を 2026-11-02 に書き換える
+  t198:
+    scope: requirements.md を予算の 90% 未満にし、正本の言い回しをそろえる
+    approach: 概要に挙げた候補の細部を正本に任せる記述に置き換え、約束は残す
+  t199:
+    scope: README.md と packages/vscode/README.md の記述
+    approach: 拡張の README に s5 のカンバンの見た目を足し、README.md に parallel・workflow set・--step を足す
+  t201:
+    scope: oxlint の制限が効くことを確かめる検査と mise の check への組み込み
+    approach: 見本ファイルに oxlint をかけて結果を確かめるテストか script を足し、check から走らせる
+  t202:
+    scope: lock.test.ts のハートビートと経過時間のテスト
+    approach: 持ち主がロックを取った合図の Promise を待ってから待ち手を始め、時間の上限は緩める
+  t200:
+    scope: board の描画テストと UI-2 の例外の記述
+    approach: 実行中は薄くしない例外を UI-2 に書き、app.test で is-waiting の付き方を確かめる
+  t203:
+    scope: development.md の依存を足す手順と ADR-008
+    approach: mise exec -- pnpm add の案内にそろえ、ADR-008 に書き足して更新日と一覧を直す
+  t205:
+    scope: mise.toml・.gitignore・.oxfmtrc.json・workflow show のヘルプ・@types/vscode
+    approach: 受け入れ条件の各項目を小さく直す
