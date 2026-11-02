@@ -90,6 +90,7 @@ async function mergeText(base: string, ours: string, theirs: string): Promise<st
  * - フィールドごとに、片側だけ変えた値を採る。両側が違う値に変えたら競合（updated_at だけは新しい方を採る）
  * - 本文は片側だけ変えたらその本文、両側が変えたら行単位でマージし、同じ行がぶつかれば競合
  * - frontmatter が読めない・base にない（add/add）ときは ok: false の代わりに undefined を返し、呼び手が行単位のマージに任せる
+ *   （仮番号の add/add を行単位の競合のまま残し、振り直し DT-5 の検出を変えないため）
  */
 export async function mergeDocuments(
   base: string,

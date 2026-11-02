@@ -13,7 +13,7 @@ deguboard は AI エージェント（Claude Code など）が主に実装する
 
 最初に読む文書を読み手ごとに 1 つに決める。ほかの文書は、入口から作業に応じて要る節だけを引く。
 
-読み手は Claude（毎回）・利用者・開発者（人）・仕様を知りたい人・作業中のエージェントで、入口はそれぞれ `CLAUDE.md`・`README.md`・`docs/development.md`・`docs/requirements.md`・`dg guide <topic>`。そこから引くものは CLAUDE.md の「ドキュメント（入口と正本）」に書く。
+読み手は Claude（毎回）・利用者・開発者（人）・仕様を知りたい人・作業中のエージェントで、入口はそれぞれ `CLAUDE.md`・`README.md`・`docs/development.md`・`docs/requirements.md`・`dg guide <topic>`。そこから引くものは CLAUDE.md の「ドキュメント（入口と正本）」と requirements の冒頭に書く。
 
 - リポジトリの規約（毎回守る決まり）は CLAUDE.md にだけ書く。README と development.md には書き写さず、参照する
 - エージェント向けの作業手順は docs に置かず、`dg guide` として CLI に同梱する
@@ -45,9 +45,7 @@ deguboard は AI エージェント（Claude Code など）が主に実装する
 
 ### 大きさの予算
 
-CLAUDE.md・README・requirements・development.md と、ADR 1 本・`dg guide` のトピック 1 本ずつに大きさの予算を決める。値の正本は `scripts/check-docs.mjs`。
-
-`scripts/check-docs.mjs`（`mise run check:docs`）が予算と ADR 一覧の整合を検査し、超えたら失敗にする。予算の 90% を超えたら、失敗にはせず警告を出す。README・CLAUDE.md・docs の相対リンクと見出しアンカー（GitHub 流）の切れも検査する。超えそうなら、細部を正本へ移すか、約束を見直す。
+CLAUDE.md・README・requirements・development.md と、ADR 1 本・`dg guide` のトピック 1 本ずつに大きさの予算を決める。値の正本の `scripts/check-docs.mjs`（`mise run check:docs`）が予算と ADR 一覧の整合を検査し、超えたら失敗にする。予算の 90% を超えたら、失敗にはせず警告を出す。README・CLAUDE.md・docs の相対リンクと見出しアンカー（GitHub 流）の切れも検査する。超えそうなら、細部を正本へ移すか、約束を見直す。
 
 ### 書き方
 
