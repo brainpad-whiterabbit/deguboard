@@ -108,7 +108,7 @@ export function buildProgram(options: ProgramOptions = {}): Command {
     )
     .option(
       "--user <name>",
-      "主体のユーザ名。既定は環境変数 DEGUBOARD_USER、git config の deguboard.user、git の user.name の順。記録される ID は <ユーザ>（human）か <ユーザ>/agent（agent）",
+      "主体のユーザ名。既定は環境変数 DEGUBOARD_USER、git config の deguboard.user、git の user.name、OS のユーザ名の順。記録される ID は <ユーザ>（human）か <ユーザ>/agent（agent）",
     )
     .helpCommand("help [command]", "コマンドの使い方を出す")
     .configureOutput({

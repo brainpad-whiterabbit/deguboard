@@ -35,7 +35,7 @@ AI エージェント（Claude Code・Codex など）がチケットを処理す
 
 ### 主体の ID はユーザ名と種別で、起票者と担当者を分けて記録する
 
-- 主体の ID は `<ユーザ>`（人）か `<ユーザ>/agent`（そのユーザの AI）の 1 文字列。ユーザ名は git の `user.name`（変え方は AG-1）、種別は `--actor` の申告。ホスト名は含めない
+- 主体の ID は `<ユーザ>`（人）か `<ユーザ>/agent`（そのユーザの AI）の 1 文字列。ユーザ名は `--user`・`DEGUBOARD_USER`・git config の `deguboard.user`・git の `user.name`・OS の順（AG-1）。`deguboard.user` は人ごとの git の設定で、環境変数の届かない VS Code でも効く。種別は `--actor` の申告。ホスト名は含めない
 - チケットは起票者（`created_by`）と担当者（`assignee`）を分けて持つ（TK-7）。起票者は起票を指示・承認した人か、人の確認を経ずに起票した AI。担当者は claim した主体で、前もって付けてもよい
 - 同じユーザの人と AI は互いの claim を force なしで外せる。AI の作業はそれを動かした人に帰属する
 
