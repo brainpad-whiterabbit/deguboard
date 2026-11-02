@@ -1276,6 +1276,10 @@ button.danger {
 .row-wait {
   color: var(--dg-warning);
 }
+/* 待ちと承認待ちの行（kanbanReadiness）はタイトルを説明文の色で出し、着手可の行と見分ける（UI-2） */
+.row-drag.is-waiting .row-title {
+  color: var(--vscode-descriptionForeground);
+}
 /* 担当者は短く出し、長い ID はタイトルより先に省略する（全文はツールチップ） */
 .row-assignee {
   max-width: 7em;

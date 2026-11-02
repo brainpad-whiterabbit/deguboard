@@ -6,6 +6,7 @@
 // 詳細・…・開始・閉じる・件数は出さない（件数は帯の done/全体）。Epic・担当の絞り込みは見出しの右端の漏斗で開き（開閉は host.state）、
 // 絞っている間は見出しの下に値の札（× で外す）を出す。状態の節はペイン風の見出しにする。
 // 左パネルの行の右端には、開いた Plan に入っているチケットなら Plan の番号と、todo なら着手可か待ちの相手（Plan の after とチケットの depends_on）か承認待ち（Plan が承認待ち）を出す。
+// 待ちと承認待ちの行（実行中の Run がないもの）はタイトルを説明文の色で薄く出す。
 // 左パネルの行の頭には、実行中の Run があるチケットなら回るリング（右端の下の段に「実行中」）を、実行中の Run のない in_progress なら止まった半分塗りの丸を出す。
 // 入っている Iteration か Epic が閉じた done・abandoned のチケットは出さない（履歴でたどる）。
 // 節の開閉・最後に選んだ Iteration は host.state に覚える。
@@ -698,6 +699,7 @@ function Column({
                 <DraggableRow
                   key={t.id}
                   ticket={t}
+                  dimmed={!running && isWaitingReadiness(kanbanReadiness(t, mark))}
                   hideAssignee={hideAssignee}
                   flash={flashing.has(t.id)}
                   variant="kanban"
@@ -775,6 +777,24 @@ export function waitLabel(waitingOn: readonly string[]): string {
   return `${first}${rest.length > 0 ? `+${rest.length}` : ""} 待ち`;
 }
 
+/** 左パネルのカンバンの todo の行が着手できるか：承認待ち（Plan が承認待ち）・待ち（待ちの相手が残る）・着手可。開いた Plan に入っていない行と todo でない行は null */
+export type KanbanReadiness = "pending" | "waiting" | "ready";
+
+/** 行の右端の着手可・待ち・承認待ちと、タイトルを薄くするか（isWaitingReadiness）を同じ判定で決める */
+export function kanbanReadiness(
+  ticket: Pick<Ticket, "status">,
+  mark: PlanMark | undefined,
+): KanbanReadiness | null {
+  if (!mark || ticket.status !== "todo") return null;
+  if (mark.pending) return "pending";
+  return mark.waitingOn.length === 0 ? "ready" : "waiting";
+}
+
+/** 承認待ちか待ちの行は、すぐには手を付けられないのでタイトルを説明文の色で薄く出す（UI-2） */
+export function isWaitingReadiness(readiness: KanbanReadiness | null): boolean {
+  return readiness === "pending" || readiness === "waiting";
+}
+
 /**
  * 左パネルのカンバンの行の右端（開いた Plan に入っているか、実行中の Run があるチケット）。縦に 2 段で、上に Plan の番号を Plan の色で、
  * 下に実行中の Run があれば「実行中」（Plan の外の行でも）、なければ todo なら承認待ち（Plan が承認待ち）・
@@ -790,12 +810,13 @@ function KanbanRowEnd({
   mark: PlanMark | undefined;
   running: boolean;
 }) {
+  const state = kanbanReadiness(ticket, mark);
   const readiness =
-    !mark || ticket.status !== "todo" ? null : mark.pending ? (
+    !mark || state === null ? null : state === "pending" ? (
       <span className="row-wait" title={`${mark.plan} は人の承認を待っている`}>
         承認待ち
       </span>
-    ) : mark.waitingOn.length === 0 ? (
+    ) : state === "ready" ? (
       <span className="row-ready">着手可</span>
     ) : (
       <span className="row-wait" title={`${mark.waitingOn.join("・")} を待っている`}>
