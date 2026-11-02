@@ -1,0 +1,22 @@
+{
+  "id": "r20261102-091229-5847",
+  "ticket": "t223",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-02T09:12:29Z",
+  "finished_at": "2026-11-02T09:13:45Z",
+  "result": "success",
+  "error": null,
+  "retries": 2,
+  "retry_reasons": [
+    "ST-8 の todo に戻すときに消すものに branch_at を足した",
+    "前提の npm の括弧を「ビルドする」にして「入れる」とつなげた"
+  ],
+  "usage": {
+    "input": 6,
+    "output": 917,
+    "cache_read": 150584,
+    "cache_write": 1397
+  }
+}

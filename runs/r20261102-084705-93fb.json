@@ -1,0 +1,22 @@
+{
+  "id": "r20261102-084705-93fb",
+  "ticket": "t222",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-02T08:47:05Z",
+  "finished_at": "2026-11-02T08:50:08Z",
+  "result": "success",
+  "error": null,
+  "retries": 2,
+  "retry_reasons": [
+    "BRANCH_IN_USE を真の祖先のときだけ拒否されることがあると直し、squash では ST-6 の警告に回ることを足した",
+    "branch_at のないチケットは created_at と比べることを足した"
+  ],
+  "usage": {
+    "input": 6,
+    "output": 1948,
+    "cache_read": 141777,
+    "cache_write": 2541
+  }
+}
