@@ -686,7 +686,12 @@ function Column({
                 <DraggableRow
                   key={t.id}
                   ticket={t}
-                  dimmed={!running && isWaitingReadiness(kanbanReadiness(t, mark))}
+                  // 実行中の Run を読み終えるまで（null）は薄くしない（読み終えて実行中とわかった行が一瞬薄く出ないように）
+                  dimmed={
+                    store.runningTickets !== null &&
+                    !running &&
+                    isWaitingReadiness(kanbanReadiness(t, mark))
+                  }
                   flash={flashing.has(t.id)}
                   variant="kanban"
                   head={activity ? <ActivityMark activity={activity} /> : undefined}
