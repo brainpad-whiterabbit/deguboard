@@ -11,7 +11,7 @@ after:
     - t180
   t181:
     - t182
-pending_approval: true
+pending_approval: false
 details:
   t177:
     scope: 左パネルの見出し（SidebarBoardHead）の Project の段・漏斗の絞り込みと札・件数の削除と UI-2。広い画面は変えない
@@ -31,3 +31,5 @@ details:
   t181:
     scope: 行の担当の名前の列を右端の印にし、agent は持ち主の丸と種類のアイコンにする。チケットごとの agent の種類を core の出力に載せる
     approach: core のチケットの一覧の出力に Run から引いた agent の種類を足して CLI・HTTP・Webview に写し、KanbanRowEnd に印を置き、公式アイコンを同梱する
+approved_by: eiki.kitajima/agent
+approved_at: 2026-11-02T00:28:25Z
