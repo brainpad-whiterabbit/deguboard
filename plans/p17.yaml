@@ -1,0 +1,43 @@
+id: p17
+project: default
+tickets: [t206, t207, t157, t160, t158, t163, t161, t159, t162]
+after:
+  t158:
+    - t157
+  t161:
+    - t158
+  t163:
+    - t160
+  t159:
+    - t163
+  t162:
+    - t159
+pending_approval: true
+details:
+  t206:
+    scope: 照合で claim（branch の記録）より前にマージされた PR を根拠にしない
+    approach: core の照合で PR の mergedAt と claim の時刻を比べ、bare リモートと gh の差し替えでテストする
+  t207:
+    scope: plan-band.test.tsx の鍵を消すテストを effect の後に確かめる形にする
+    approach: waitFor で鍵が消えるのを待ち、10 回続けて回して確かめる
+  t157:
+    scope: 左パネルのバックログの区画の見出しを帯と 2 段にし、「…」をなくし、空の区画を 1 行にする
+    approach: t148 のカンバンの見出しの部品と CSS をバックログの sidebar の描画で使う。広い画面は変えない
+  t158:
+    scope: 左パネルのバックログの Epic の欄を open の Epic があるときだけチップで出す
+    approach: 既存の Epic の絞り込みの状態をチップで操作し、2 行で止めて「ほか N」にまとめる
+  t161:
+    scope: 左パネルのバックログによく使う絞り込みのチップと、効いている条件の × を出す
+    approach: 既存の絞り込みの状態をチップに写し、件数は効いているときだけ「n / m 件」にする
+  t160:
+    scope: 左パネルのバックログの行で high だけ印を出し、状態の点を 3 種にする
+    approach: 行の描画と CSS だけを変え、Run のリングと見分けられる形にする
+  t163:
+    scope: 左パネルのバックログの行に Plan の番号と着手可・待ちを出す
+    approach: カンバンの remainingWaits と kanbanPlanMarks をそのまま使う
+  t159:
+    scope: 操作している人のユーザを core のコマンドの出力に載せ、バックログの行で自分以外の担当者だけ頭文字で出す
+    approach: core のコマンド定義に足して CLI・HTTP・Webview に写し、requirements.md を直す
+  t162:
+    scope: 左パネルのバックログの行の右クリックで Iteration を移す・詳細を開く・ID をコピーを出す
+    approach: vscode の webview/context メニューと data-vscode-context を使い、移すのは core の ticket.update を呼ぶだけ
