@@ -12,3 +12,4 @@ details:
     approach: repo.ts の defaultUser で git config deguboard.user を先に読み、出どころを actor に持たせて whoami で返す。extension.ts で env を渡し、ヘルプ・guide・AG-1 を直す
 approved_by: eiki.kitajima/agent
 approved_at: 2026-11-02T06:42:11Z
+closed_at: 2026-11-02T07:41:29Z
