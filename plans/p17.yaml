@@ -12,7 +12,7 @@ after:
     - t163
   t162:
     - t159
-pending_approval: true
+pending_approval: false
 details:
   t206:
     scope: 照合で claim（branch の記録）より前にマージされた PR を根拠にしない
@@ -41,3 +41,5 @@ details:
   t162:
     scope: 左パネルのバックログの行の右クリックで Iteration を移す・詳細を開く・ID をコピーを出す
     approach: vscode の webview/context メニューと data-vscode-context を使い、移すのは core の ticket.update を呼ぶだけ
+approved_by: eiki.kitajima/agent
+approved_at: 2026-11-02T05:25:10Z
