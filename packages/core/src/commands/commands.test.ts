@@ -249,11 +249,17 @@ describe("チケットの流れ", () => {
     );
     await runCommand(ticketCreate, ctx, { title: "Reused branch" });
     await runCommand(ticketCreate, ctx, { title: "Fresh PR" });
+    await runCommand(ticketCreate, ctx, { title: "Legacy" });
     const claimed = await runCommand(ticketClaim, ctx, { ticket: "t1", branch: "chore/reused" });
     expect(claimed.data.branch_at).toBe("2026-11-02T05:00:00Z");
     await runCommand(ticketClaim, ctx, { ticket: "t2", branch: "chore/fresh" });
+    await runCommand(ticketClaim, ctx, { ticket: "t3", branch: "chore/legacy" });
+    // branch_at のない古いチケットの形（created_at と比べる）
+    await ctx.store.update("ticket", "t3", { branch_at: undefined });
     // claim 直後に main から切った、commit のないブランチ（push はまだ）
-    for (const b of ["chore/reused", "chore/fresh"]) await git(f.cloneA, ["branch", b]);
+    for (const b of ["chore/reused", "chore/fresh", "chore/legacy"]) {
+      await git(f.cloneA, ["branch", b]);
+    }
 
     // 偽の gh：chore/reused には前日にマージ済みの PR #105、chore/fresh には claim の後にマージした PR #200
     const bin = path.join(f.root, "fake-bin");
@@ -265,6 +271,7 @@ describe("チケットの流れ", () => {
         'case "$1" in --version) echo "gh version 0 (fake)"; exit 0;; esac',
         'case "$3" in',
         '  chore/reused|105) echo \'{"number":105,"state":"MERGED","isDraft":false,"mergedAt":"2026-11-01T10:00:00Z"}\';;',
+        '  chore/legacy|90) echo \'{"number":90,"state":"MERGED","isDraft":false,"mergedAt":"2026-11-01T09:00:00Z"}\';;',
         '  chore/fresh|200) echo \'{"number":200,"state":"MERGED","isDraft":false,"mergedAt":"2026-11-02T06:00:00Z"}\';;',
         '  *) echo "no pull requests found for branch $3" >&2; exit 1;;',
         "esac",
@@ -282,14 +289,42 @@ describe("チケットの流れ", () => {
         { id: "t2", from: "in_progress", to: "done", when: ["pr_merged"] },
       ]);
       expect(synced.data.pr_recorded).toEqual([{ id: "t2", pr: 200 }]);
-      // 前の作業の PR は根拠にしない：in_progress のまま、pr も記録しない、閉じた PR の警告も出さない
+      // 前の作業の PR は根拠にしない：in_progress のまま、pr も記録せず、外した理由を警告する
       expect(ctx.store.tickets.get("t1")?.data).toMatchObject({ status: "in_progress" });
       expect(ctx.store.tickets.get("t1")?.data.pr).toBeUndefined();
-      expect(synced.warnings.filter((w) => w.startsWith("t1:"))).toEqual([]);
+      const t1Warnings = synced.warnings.filter((w) => w.startsWith("t1:"));
+      expect(t1Warnings).toHaveLength(1);
+      expect(t1Warnings[0]).toContain("PR #105");
+      expect(t1Warnings[0]).toContain("2026-11-01T10:00:00Z");
+      expect(t1Warnings[0]).toContain("--pr 105");
       expect(ctx.store.tickets.get("t2")?.data).toMatchObject({ status: "done", pr: 200 });
+      // branch_at のない古いチケットは created_at より前にマージされた PR を外す
+      expect(ctx.store.tickets.get("t3")?.data).toMatchObject({ status: "in_progress" });
+      expect(ctx.store.tickets.get("t3")?.data.pr).toBeUndefined();
+      expect(synced.warnings.filter((w) => w.startsWith("t3:"))[0]).toContain("PR #90");
 
-      // claim し直すと branch_at は新しくなり、unclaim で消える
+      // pr を記録すれば時刻を比べず、その PR で照合する
+      await runCommand(ticketUpdate, ctx, { ticket: "t3", pr: 90 });
+      const recorded = await runCommand(sync, ctx, {});
+      expect(recorded.data.reconciled).toEqual([
+        { id: "t3", from: "in_progress", to: "done", when: ["pr_merged"] },
+      ]);
+      expect(recorded.warnings.filter((w) => w.startsWith("t3:"))).toEqual([]);
+
+      // unclaim で branch_at は消え、ブランチなしで claim し直しても付かない
       await runCommand(ticketUnclaim, ctx, { ticket: "t1" });
+      expect(ctx.store.tickets.get("t1")?.data.branch_at).toBeUndefined();
+      clock = new Date("2026-11-02T07:00:00Z");
+      await runCommand(ticketClaim, ctx, { ticket: "t1", without_branch: true });
+      expect(ctx.store.tickets.get("t1")?.data.branch_at).toBeUndefined();
+      // update の branch で付け、同じ値なら変えず、外せば消える
+      clock = new Date("2026-11-02T07:10:00Z");
+      await runCommand(ticketUpdate, ctx, { ticket: "t1", branch: "chore/reused" });
+      expect(ctx.store.tickets.get("t1")?.data.branch_at).toBe("2026-11-02T07:10:00Z");
+      clock = new Date("2026-11-02T07:20:00Z");
+      await runCommand(ticketUpdate, ctx, { ticket: "t1", branch: "chore/reused" });
+      expect(ctx.store.tickets.get("t1")?.data.branch_at).toBe("2026-11-02T07:10:00Z");
+      await runCommand(ticketUpdate, ctx, { ticket: "t1", branch: null });
       expect(ctx.store.tickets.get("t1")?.data.branch_at).toBeUndefined();
     } finally {
       process.env["PATH"] = savedPath;

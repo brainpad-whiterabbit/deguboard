@@ -152,13 +152,22 @@ async function reconcileAll(ctx: CommandContext, warnings: string[]): Promise<Re
       warnings.push(`${doc.id}: Workflow が読めないので照合しない`);
       continue;
     }
-    const { facts, pr, prMissing } = await collectBranchFacts(ctx.repo, doc.data.branch, {
-      pr: doc.data.pr,
-      needPr: needsPr(wf),
-      status: doc.data.status,
-      since: doc.data.branch_at ?? doc.data.created_at,
-    });
+    const { facts, pr, prMissing, ignoredPr } = await collectBranchFacts(
+      ctx.repo,
+      doc.data.branch,
+      {
+        pr: doc.data.pr,
+        needPr: needsPr(wf),
+        status: doc.data.status,
+        since: doc.data.branch_at ?? doc.data.created_at,
+      },
+    );
     facts.deps_done = ctx.store.depsDone(doc.data);
+    if (ignoredPr) {
+      warnings.push(
+        `${doc.id}: ブランチ名で見つけた PR #${ignoredPr.number} は branch を記録する前（${ignoredPr.mergedAt}）にマージされたので、同じ名前の前の作業の PR とみなして照合に使わない。このチケットの PR なら ticket update --pr ${ignoredPr.number} で記録すれば照合する`,
+      );
+    }
     const outcome = reconcileStatus(wf.resolved, doc.data.status, facts);
     // done に進むなら、消えたブランチは正常（マージ後に消した）なので警告しない
     if (!(outcome.kind === "advance" && outcome.to === "done")) {

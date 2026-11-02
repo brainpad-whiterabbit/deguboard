@@ -25,6 +25,8 @@ export interface BranchFacts {
   pr?: number;
   /** gh が「PR がない」と答えた。pr_* はすべて偽になるが、閉じた PR とは区別する（ST-5） */
   prMissing?: boolean;
+  /** ブランチ名で見つけたが、`since` より前にマージされていたので外した PR（照合が警告する） */
+  ignoredPr?: { number: number; mergedAt: string };
 }
 
 let ghAvailable: boolean | undefined;
@@ -105,6 +107,7 @@ export async function collectBranchFacts(
     facts,
     ...(pr.number === undefined ? {} : { pr: pr.number }),
     ...(pr.missing ? { prMissing: true } : {}),
+    ...(pr.ignored ? { ignoredPr: pr.ignored } : {}),
   };
 }
 
@@ -113,7 +116,12 @@ async function collectPrFacts(
   branch: string,
   pr: number | undefined,
   since: string | undefined,
-): Promise<{ facts: Facts; number?: number; missing?: boolean }> {
+): Promise<{
+  facts: Facts;
+  number?: number;
+  missing?: boolean;
+  ignored?: { number: number; mergedAt: string };
+}> {
   const missing = { facts: { pr_open: false, pr_draft: false, pr_merged: false }, missing: true };
   if (!(await hasGh(repo.topLevel))) return { facts: {} };
   try {
@@ -142,7 +150,9 @@ async function collectPrFacts(
       typeof data.mergedAt === "string" &&
       Date.parse(data.mergedAt) < Date.parse(since)
     ) {
-      return missing;
+      return Number.isInteger(data.number) && (data.number as number) > 0
+        ? { ...missing, ignored: { number: data.number as number, mergedAt: data.mergedAt } }
+        : missing;
     }
     const facts: Facts = {
       pr_open: data.state === "OPEN",
