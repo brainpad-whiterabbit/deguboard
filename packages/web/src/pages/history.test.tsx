@@ -445,3 +445,129 @@ describe("サイドバーの履歴", () => {
     );
   });
 });
+
+describe("タブを移って戻ったとき", () => {
+  const nav = (name: string) => fireEvent.click(screen.getByRole("link", { name }));
+
+  it("検索語と結果の絞り込みはハッシュに入り、他のタブから履歴のタブで戻ると同じ検索語と絞り込みで出る", async () => {
+    window.location.hash = "#/history?view=ticket";
+    const client = mockClient();
+    client.data.tickets = [
+      ticket({ id: "t1", title: "ログイン", status: "done" }),
+      ticket({ id: "t2", title: "ログアウト", status: "abandoned" }),
+      ticket({ id: "t3", title: "一覧", status: "done" }),
+    ];
+    client.handlers["history"] = () => ({ events: [], shallow: false, incomplete: [] });
+    render(
+      <StoreProvider client={client}>
+        <HostProvider host={sidebarHost()}>
+          <App />
+        </HostProvider>
+      </StoreProvider>,
+    );
+    const codes = () =>
+      [...document.querySelectorAll(".history-list code")].map((c) => c.textContent);
+    await waitFor(() => expect(codes()).toHaveLength(3));
+    fireEvent.change(screen.getByLabelText("チケットを探す"), { target: { value: "ログ" } });
+    fireEvent.change(screen.getByLabelText("結果"), { target: { value: "done" } });
+    expect(codes()).toEqual(["t1"]);
+    expect(window.location.hash).toBe("#/history?view=ticket&q=%E3%83%AD%E3%82%B0&result=done");
+    nav("カンバン");
+    await waitFor(() => expect(window.location.hash).toBe("#/board"));
+    nav("履歴");
+    await waitFor(() => expect(codes()).toEqual(["t1"]));
+    expect(screen.getByLabelText<HTMLInputElement>("チケットを探す").value).toBe("ログ");
+    expect(screen.getByLabelText<HTMLSelectElement>("結果").value).toBe("done");
+    // 見方を変えても検索語は残る
+    fireEvent.click(screen.getByRole("button", { name: /^Iteration/ }));
+    await waitFor(() =>
+      expect(window.location.hash).toBe("#/history?q=%E3%83%AD%E3%82%B0&result=done"),
+    );
+    expect(screen.getByLabelText<HTMLInputElement>("チケットを探す").value).toBe("ログ");
+  });
+
+  it("開いた Iteration・Epic の行は他のタブから戻っても開いたままで、開いた行はハッシュに入らず、持ち越しの履歴は開き直しても読み直さない", async () => {
+    window.location.hash = "#/history";
+    const client = mockClient();
+    client.data.iterations = [
+      iteration({ id: "s4", name: "sprint4", status: "closed" }),
+      iteration({ id: "s5", name: "sprint5", status: "closed" }),
+    ];
+    client.data.epics[0] = { ...client.data.epics[0]!, status: "closed" };
+    client.data.tickets = [
+      ticket({ id: "t1", status: "done", iteration: "s4", epic: client.data.epics[0]!.id }),
+      ticket({ id: "t2", status: "done", iteration: "s5" }),
+    ];
+    let reads = 0;
+    client.handlers["history"] = () => {
+      reads++;
+      return { events: [], shallow: false, incomplete: [] };
+    };
+    render(
+      <StoreProvider client={client}>
+        <HostProvider host={sidebarHost()}>
+          <App />
+        </HostProvider>
+      </StoreProvider>,
+    );
+    await screen.findByText("sprint4");
+    const itemOf = (text: string) =>
+      screen.getByText(text).closest<HTMLDetailsElement>("details.history-item")!;
+    const toggle = (item: HTMLDetailsElement, open: boolean) => {
+      item.open = open;
+      fireEvent(item, new Event("toggle"));
+    };
+    toggle(itemOf("sprint4"), true);
+    await waitFor(() => expect(itemOf("sprint4").querySelector(".history-list")).toBeTruthy());
+    // 閉じて開き直しても履歴は読み直さない
+    toggle(itemOf("sprint4"), false);
+    toggle(itemOf("sprint4"), true);
+    await waitFor(() => expect(itemOf("sprint4").querySelector(".history-list")).toBeTruthy());
+    expect(reads).toBe(1);
+    expect(window.location.hash).toBe("#/history");
+    nav("バックログ");
+    await waitFor(() => expect(window.location.hash).toBe("#/backlog"));
+    nav("履歴");
+    await screen.findByText("sprint4");
+    expect(itemOf("sprint4").open).toBe(true);
+    expect(itemOf("sprint5").open).toBe(false);
+    await waitFor(() => expect(itemOf("sprint4").querySelector(".history-list")).toBeTruthy());
+    // Epic の見方でも開いた行を残す
+    fireEvent.click(screen.getByRole("button", { name: /^Epic/ }));
+    const epicTitle = client.data.epics[0]!.title;
+    await screen.findByText(epicTitle);
+    toggle(itemOf(epicTitle), true);
+    expect(window.location.hash).toBe("#/history?view=epic");
+    nav("カンバン");
+    await waitFor(() => expect(window.location.hash).toBe("#/board"));
+    nav("履歴");
+    await screen.findByText(epicTitle);
+    expect(itemOf(epicTitle).open).toBe(true);
+  });
+});
+
+describe("ブラウザの履歴", () => {
+  it("検索語と結果の絞り込みをハッシュから戻す", async () => {
+    window.location.hash = "#/history?view=ticket&q=%E3%83%AD%E3%82%B0&result=abandoned";
+    const client = mockClient();
+    client.data.tickets = [
+      ticket({ id: "t1", title: "ログイン", status: "done" }),
+      ticket({ id: "t2", title: "ログアウト", status: "abandoned" }),
+    ];
+    client.handlers["history"] = () => ({ events: [], shallow: false, incomplete: [] });
+    render(
+      <StoreProvider client={client}>
+        <HostProvider host={{ ...sidebarHost(), surface: "browser" }}>
+          <App />
+        </HostProvider>
+      </StoreProvider>,
+    );
+    await waitFor(() =>
+      expect(
+        [...document.querySelectorAll(".history-finished code")].map((c) => c.textContent),
+      ).toEqual(["t2"]),
+    );
+    expect(screen.getByLabelText<HTMLInputElement>("チケットを探す").value).toBe("ログ");
+    expect(screen.getByLabelText<HTMLSelectElement>("結果").value).toBe("abandoned");
+  });
+});

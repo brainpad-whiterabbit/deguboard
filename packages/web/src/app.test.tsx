@@ -7,7 +7,7 @@ import { ClientError } from "./client/http.js";
 import type { WebviewClient } from "./client/webview.js";
 import type { WebviewEvent } from "@deguboard/core";
 import { HostBridge, HostProvider, type Host } from "./host.js";
-import type { Route } from "./router.js";
+import { parseRoute, type Route } from "./router.js";
 import { StoreProvider } from "./store.js";
 import { fixture, iteration, mockClient, plan, ticket } from "./test-helpers.js";
 import type { RunView } from "./types.js";
@@ -1076,7 +1076,8 @@ describe("画面", () => {
     );
     fireEvent.click(screen.getByText("s1"));
     expect(opened).toEqual([{ page: "iterations", id: "s1" }]);
-    expect(window.location.hash).toBe("#/history");
+    // 検索語はハッシュに入り、詳細はホストに開いてもらうので履歴の画面のまま
+    expect(parseRoute(window.location.hash)).toEqual({ page: "history", q: "ログイン" });
   });
 
   it("サイドバーの履歴の Iteration の行は期間の記録がなければ何も書かず、終わったチケットの Epic ごとの件数と中止のチップが出て、開くと番号の順の 1 本の一覧で終わったチケットが出て、最後に持ち越しが出る", async () => {

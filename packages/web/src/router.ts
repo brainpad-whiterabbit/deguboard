@@ -14,6 +14,16 @@ export interface BoardQuery {
 /** 履歴の見方。省けば Iteration */
 export type HistoryView = "iteration" | "epic" | "ticket";
 
+/** 履歴の結果の絞り込み（チケットの見方）。省けばすべて */
+export type HistoryResult = "done" | "abandoned";
+
+/** 履歴の見方・検索語・結果の絞り込み。タブを移って戻っても残すためハッシュに持つ（開いた行は持たない） */
+export interface HistoryQuery {
+  view?: HistoryView | undefined;
+  q?: string | undefined;
+  result?: HistoryResult | undefined;
+}
+
 /** Run の画面の集計の単位。省けばチケットごと */
 export const DEFAULT_UNIT: MetricUnit = "ticket";
 
@@ -26,7 +36,7 @@ export type Route =
   | { page: "ticket"; id: string }
   | { page: "epics"; id: string }
   | { page: "iterations"; id: string }
-  | { page: "history"; view?: HistoryView | undefined }
+  | ({ page: "history" } & HistoryQuery)
   | { page: "runs"; by?: MetricUnit | undefined }
   | { page: "config" };
 
@@ -57,8 +67,14 @@ export function parseRoute(hash: string): Route {
       // Epic の一覧の画面はない（open はバックログの欄、closed は履歴）。ID がなければバックログ
       return id ? { page: "epics", id } : { page: "backlog" };
     case "history": {
+      const route: Route = { page: "history" };
       const view = params.get("view");
-      return view === "epic" || view === "ticket" ? { page: "history", view } : { page: "history" };
+      if (view === "epic" || view === "ticket") route.view = view;
+      const q = params.get("q");
+      if (q) route.q = q;
+      const result = params.get("result");
+      if (result === "done" || result === "abandoned") route.result = result;
+      return route;
     }
     case "runs": {
       const by = params.get("by");
@@ -92,10 +108,14 @@ export function hrefOf(route: Route): string {
       return `#/epics/${route.id}`;
     case "iterations":
       return `#/iterations/${route.id}`;
-    case "history":
-      return route.view && route.view !== "iteration"
-        ? `#/history?view=${route.view}`
-        : "#/history";
+    case "history": {
+      const params = new URLSearchParams();
+      if (route.view && route.view !== "iteration") params.set("view", route.view);
+      if (route.q) params.set("q", route.q);
+      if (route.result) params.set("result", route.result);
+      const query = params.toString();
+      return query ? `#/history?${query}` : "#/history";
+    }
     case "runs":
       return route.by && route.by !== DEFAULT_UNIT ? `#/runs?by=${route.by}` : "#/runs";
     case "config":
@@ -110,6 +130,17 @@ export function isDetailRoute(route: Route): boolean {
 
 export function navigate(route: Route): void {
   window.location.hash = hrefOf(route);
+}
+
+/**
+ * 今の画面の履歴を書き換えて移る（検索欄の 1 文字ごとに戻る履歴を積まない）。replaceState は hashchange を出さないので、
+ * useRoute が読み直すよう自分で出す
+ */
+export function replaceRoute(route: Route): void {
+  const href = hrefOf(route);
+  if (window.location.hash === href) return;
+  window.history.replaceState(window.history.state, "", href);
+  window.dispatchEvent(new HashChangeEvent("hashchange"));
 }
 
 /** toggleRoute で離れた画面。もう一度押したときに戻る先 */

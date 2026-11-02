@@ -18,6 +18,14 @@ describe("ハッシュのルーティング", () => {
     expect(parseRoute("#/history?view=epic")).toEqual({ page: "history", view: "epic" });
     expect(parseRoute("#/history?view=ticket")).toEqual({ page: "history", view: "ticket" });
     expect(parseRoute("#/history?view=x")).toEqual({ page: "history" });
+    // 検索語と結果の絞り込みもハッシュに持つ。知らない結果は読まない
+    expect(parseRoute("#/history?view=ticket&q=%E3%83%AD%E3%82%B0+in&result=done")).toEqual({
+      page: "history",
+      view: "ticket",
+      q: "ログ in",
+      result: "done",
+    });
+    expect(parseRoute("#/history?q=&result=x")).toEqual({ page: "history" });
     expect(parseRoute("#/runs")).toEqual({ page: "runs" });
     expect(parseRoute("#/config")).toEqual({ page: "config" });
     expect(parseRoute("#/runs?by=agent")).toEqual({ page: "runs", by: "agent" });
@@ -44,6 +52,13 @@ describe("ハッシュのルーティング", () => {
       { page: "epics" as const, id: "e1" },
       { page: "iterations" as const, id: "s2" },
       { page: "history" as const, view: "epic" as const },
+      { page: "history" as const, q: "t1?a&b" },
+      {
+        page: "history" as const,
+        view: "ticket" as const,
+        q: "ログ",
+        result: "abandoned" as const,
+      },
       { page: "runs" as const },
       { page: "runs" as const, by: "model" as const },
       { page: "config" as const },

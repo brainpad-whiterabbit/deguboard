@@ -2,7 +2,7 @@
 // サイドバーでは同期の印とボタン・設定の歯車を出さない（ビューのタイトル行の同期のボタンとバッジ・歯車で代える。UI-12）
 
 import { useEffect, type MouseEvent } from "react";
-import { useHost } from "./host.js";
+import { useHost, useUiState } from "./host.js";
 import { useStore } from "./store.js";
 import { hrefOf, isDetailRoute, parseRoute, toggleRoute, useRoute, type Route } from "./router.js";
 import { BoardPage } from "./pages/board.js";
@@ -26,6 +26,12 @@ export function App() {
   const store = useStore();
   const host = useHost();
   const sidebar = host.surface === "sidebar";
+  // 履歴のタブは最後に見た履歴のハッシュ（見方・検索語・結果の絞り込み）を指し、他のタブから戻ったときに残す
+  const [historyHref, setHistoryHref] = useUiState("nav.history", hrefOf({ page: "history" }));
+  const currentHistory = route.page === "history" ? hrefOf(route) : null;
+  useEffect(() => {
+    if (currentHistory !== null && currentHistory !== historyHref) setHistoryHref(currentHistory);
+  }, [currentHistory, historyHref, setHistoryHref]);
   // Iteration の詳細はカンバンのタブ、Epic の詳細はバックログのタブの下にあるものとして扱う（一覧の画面はない）
   const active =
     route.page === "ticket" || route.page === "epics"
@@ -48,7 +54,7 @@ export function App() {
             {NAV.map((n) => (
               <a
                 key={n.page}
-                href={n.href}
+                href={n.page === "history" ? historyHref : n.href}
                 className={active === n.page ? "active" : ""}
                 aria-current={active === n.page ? "page" : undefined}
               >
@@ -159,7 +165,7 @@ function Page({ route }: { route: Route }) {
     case "iterations":
       return <IterationsPage id={route.id} />;
     case "history":
-      return <HistoryPage view={route.view ?? "iteration"} />;
+      return <HistoryPage route={route} />;
     case "runs":
       return <RunsPage by={route.by} />;
     case "config":
