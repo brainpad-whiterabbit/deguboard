@@ -1151,7 +1151,6 @@ describe("画面", () => {
     fireEvent.click(screen.getByRole("button", { name: /最初の版/ }));
     expect(fold.querySelector("summary")!.textContent).toContain("Epic: e1");
     expect(count()).toBe("1 件");
-    expect(screen.getByText("× 解除")).toBeTruthy();
     fold.open = true;
     fireEvent(fold, new Event("toggle"));
     expect(host.state.get("backlog.filters")).toBe(true);
@@ -1289,24 +1288,72 @@ describe("画面", () => {
     expect(document.querySelector("li.priority-sep")!.textContent).toBe("low");
   });
 
-  it("サイドバーのバックログの Epic の欄は折りたため、作成フォームは「+」を押したときだけ開く", async () => {
+  it("サイドバーのバックログは open の Epic が 0 本なら Epic の欄を出さない", async () => {
     window.location.hash = "#/backlog";
     const client = mockClient();
-    client.handlers["epic.create"] = (input) => input;
-    const host = hostOf("sidebar");
-    mount(client, host);
-    await screen.findByText("最初の版");
-    const fold = document.querySelector<HTMLDetailsElement>("details.epic-panel")!;
-    fold.open = false;
-    fireEvent(fold, new Event("toggle"));
-    expect(host.state.get("backlog.epics")).toBe(false);
-    expect(screen.queryByLabelText("新しい Epic の題")).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Epic を作る" }));
-    expect(host.state.get("backlog.epics")).toBe(true);
-    fireEvent.change(screen.getByLabelText("新しい Epic の題"), { target: { value: "次" } });
-    fireEvent.click(screen.getByRole("button", { name: "作る" }));
-    await waitFor(() => expect(client.calls.some((c) => c.name === "epic.create")).toBe(true));
-    await waitFor(() => expect(screen.queryByLabelText("新しい Epic の題")).toBeNull());
+    client.data.epics = client.data.epics.map((e) => ({ ...e, status: "closed" as const }));
+    mount(client, hostOf("sidebar"));
+    await screen.findByText("API");
+    expect(document.querySelector(".epic-chips")).toBeNull();
+    expect(screen.queryByRole("group", { name: "Epic で絞る" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Epic なし/ })).toBeNull();
+  });
+
+  it("サイドバーのバックログの Epic のチップは番号・題・進捗を出し、押すと絞り、もう一度押すと外れる。「Epic なし」でも絞れる", async () => {
+    window.location.hash = "#/backlog";
+    mount(mockClient(), hostOf("sidebar"));
+    await screen.findByText("API");
+    const group = screen.getByRole("group", { name: "Epic で絞る" });
+    const chips = [...group.querySelectorAll<HTMLButtonElement>(".chip")];
+    expect(chips.map((c) => c.textContent)).toEqual(["e1最初の版0/1", "Epic なし1"]);
+    expect(chips.map((c) => c.getAttribute("aria-pressed"))).toEqual(["false", "false"]);
+    expect(document.querySelector(".epic-list")).toBeNull();
+    const count = () => document.querySelector("details.filters summary .count")!.textContent;
+    fireEvent.click(chips[0]!);
+    expect(chips[0]!.getAttribute("aria-pressed")).toBe("true");
+    expect(count()).toBe("1 件");
+    expect(screen.queryByText("画面")).toBeNull();
+    fireEvent.click(chips[0]!);
+    expect(chips[0]!.getAttribute("aria-pressed")).toBe("false");
+    expect(count()).toBe("2 件");
+    fireEvent.click(chips[1]!);
+    expect(chips[1]!.getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getByText("画面")).toBeTruthy();
+    expect(screen.queryByText("API")).toBeNull();
+  });
+
+  it("サイドバーのバックログの Epic のチップは 2 行で止めて残りを「ほか N」にまとめ、押すとすべて出し「畳む」で戻す", async () => {
+    // jsdom は配置をしないので、1 行に 3 つ並ぶとして位置を返す
+    const original = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "offsetTop")!;
+    Object.defineProperty(HTMLElement.prototype, "offsetTop", {
+      configurable: true,
+      get(this: HTMLElement) {
+        const row = this.parentElement;
+        if (!row?.classList.contains("chip-row")) return 0;
+        return Math.floor([...row.children].indexOf(this) / 3) * 20;
+      },
+    });
+    try {
+      window.location.hash = "#/backlog";
+      const client = mockClient();
+      const base = client.data.epics[0]!;
+      client.data.epics = [1, 2, 3, 4, 5, 6].map((n) => ({ ...base, id: `e${n}`, title: `E${n}` }));
+      mount(client, hostOf("sidebar"));
+      await screen.findByText("API");
+      const group = screen.getByRole("group", { name: "Epic で絞る" });
+      const labels = () =>
+        [...group.querySelectorAll(".chip")].map(
+          (c) => c.querySelector("code")?.textContent ?? c.textContent,
+        );
+      // 6 本と「Epic なし」で 3 行になるので、2 行目の終わりに「ほか N」を置ける数まで減らす
+      await waitFor(() => expect(labels()).toEqual(["e1", "e2", "e3", "e4", "e5", "ほか 2"]));
+      fireEvent.click(screen.getByRole("button", { name: "ほか 2" }));
+      expect(labels()).toEqual(["e1", "e2", "e3", "e4", "e5", "e6", "Epic なし1", "畳む"]);
+      fireEvent.click(screen.getByRole("button", { name: "畳む" }));
+      await waitFor(() => expect(labels()).toEqual(["e1", "e2", "e3", "e4", "e5", "ほか 2"]));
+    } finally {
+      Object.defineProperty(HTMLElement.prototype, "offsetTop", original);
+    }
   });
 
   it("エディタのパネルの Epic 詳細はチケットを未完了・完了・中止の段の 1 本の一覧で出し、完了と中止は畳み、0 件の段と戻るリンクは出さない", async () => {
@@ -1792,19 +1839,6 @@ describe("画面", () => {
         title: "次",
       }),
     );
-  });
-
-  it("サイドバーの Epic の欄の番号はホストに頼んで詳細を開く", async () => {
-    window.location.hash = "#/backlog";
-    const opened: Route[] = [];
-    mount(
-      mockClient(),
-      hostOf("sidebar", (route) => opened.push(route)),
-    );
-    await screen.findByText("最初の版");
-    fireEvent.click(document.querySelector(".epic-list a")!);
-    expect(opened).toEqual([{ page: "epics", id: "e1" }]);
-    expect(window.location.hash).toBe("#/backlog");
   });
 
   it("エディタのパネルで Epic の詳細を出すときもヘッダーを出さない", async () => {
