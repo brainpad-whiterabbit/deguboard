@@ -145,8 +145,25 @@ export const planCreate = defineCommand({
 /** Plan の状態。Plan には書かず、pending_approval と closed_at から求める */
 export type PlanStatus = "pending" | "approved" | "closed";
 
-/** plan.list の 1 行（状態と進捗は都度求める。PL-1） */
-export type PlanRow = Plan & { status: PlanStatus; progress: Progress };
+/** 次に着手するチケット（PL-6）。waiting が空なら着手できる。空でなければ、着手できるものがなく、Plan の順で先頭の todo が待っている相手 */
+export interface PlanNext {
+  id: TicketId;
+  waiting: TicketId[];
+}
+
+/**
+ * Plan のチケットが着手できるか（PL-6）。都度求め、Plan には書かない。
+ * waiting はチケットごとの残りの待ちの相手（after の終わっていない待ち先が先、depends_on の終わっていない依存先が後）。
+ * ready は todo で waiting が空のチケット（Plan の順）、next は次に着手するもの
+ */
+export interface PlanReadiness {
+  waiting: Record<TicketId, TicketId[]>;
+  ready: TicketId[];
+  next: PlanNext | null;
+}
+
+/** plan.list の 1 行（状態・進捗・着手できるかは都度求める。PL-1・PL-6） */
+export type PlanRow = Plan & { status: PlanStatus; progress: Progress } & PlanReadiness;
 
 const PLAN_FILTERS = ["open", "pending", "approved", "closed"] as const;
 
@@ -159,11 +176,52 @@ function ticketsOf(store: Store, plan: Plan): Doc<Ticket>[] {
   return plan.tickets.flatMap((id) => store.tickets.get(id) ?? []);
 }
 
+/** 着手できるかを求めるのに要るチケットの属性 */
+export type ReadinessTicket = Pick<Ticket, "id" | "status" | "depends_on">;
+
+/**
+ * 着手できるかを求める（PL-6）。ticketOf はチケットを引く（見つからなければ undefined）。
+ * 消したチケットは Plan の中にないものとして扱い、after がそれ（か Plan の外）を指しても待たない（画面の依存グラフの辺と同じ）。
+ * depends_on の待ちは deps_done（WF-2）と同じく、done・abandoned でない依存先（見つからないものも含む）を相手に出す。
+ * 次は、Plan の順（tickets）で先の着手できる todo。なければ先頭の todo とその待ちの相手。todo がなければ null
+ */
+export function planReadiness(
+  plan: Pick<Plan, "tickets" | "after" | "closed_at">,
+  ticketOf: (id: string) => ReadinessTicket | undefined,
+): PlanReadiness {
+  const finished = (id: string) => {
+    const status = ticketOf(id)?.status;
+    return status !== undefined && FINISHED.includes(status);
+  };
+  const waiting: Record<string, TicketId[]> = {};
+  const todo: TicketId[] = [];
+  for (const id of plan.tickets) {
+    const t = ticketOf(id);
+    if (!t) continue;
+    const afterWaits = (plan.after[id] ?? []).filter(
+      (dep) =>
+        dep !== id && plan.tickets.includes(dep) && ticketOf(dep) !== undefined && !finished(dep),
+    );
+    const depWaits = t.depends_on.filter((dep) => !finished(dep) && !afterWaits.includes(dep));
+    waiting[id] = [...afterWaits, ...depWaits];
+    if (t.status === "todo") todo.push(id);
+  }
+  // 閉じた Plan は進めないので、着手できるものも次も出さない（待ちの相手はグラフのために出す）
+  if (plan.closed_at !== undefined) return { waiting, ready: [], next: null };
+  const ready = todo.filter((id) => waiting[id]!.length === 0);
+  const first = ready[0] ?? todo[0];
+  const next = first === undefined ? null : { id: first, waiting: waiting[first]! };
+  return { waiting, ready, next };
+}
+
+const readinessIn = (store: Store, plan: Plan): PlanReadiness =>
+  planReadiness(plan, (id) => store.tickets.get(id as TicketId)?.data);
+
 export const planList = defineCommand({
   name: "plan.list",
   group: "plan",
   summary:
-    "Plan を番号順に、状態（pending・approved・closed）と進捗つきで出す。--status open で開いたもの（承認待ちと承認済み）に絞る",
+    "Plan を番号順に、状態（pending・approved・closed）と進捗、チケットの待ちの相手（waiting）・着手できるもの（ready）・次（next）つきで出す。--status open で開いたもの（承認待ちと承認済み）に絞る",
   input: z.object({
     project: slugSchema.optional().describe("Project で絞る"),
     status: z
@@ -184,6 +242,7 @@ export const planList = defineCommand({
         ...doc.data,
         status,
         progress: progressOf(ticketsOf(ctx.store, doc.data).map((t) => t.data)),
+        ...readinessIn(ctx.store, doc.data),
       }));
     return ok(rows);
   },
@@ -194,7 +253,7 @@ export const planShow = defineCommand({
   positionals: ["plan"],
   group: "plan",
   summary:
-    "Plan と、入っているチケットを Plan の順で出す。進捗は Plan に書かず、チケットの状態から求める",
+    "Plan と、入っているチケットを Plan の順で出す。進捗・待ちの相手（items[].waiting）・着手できるか（items[].ready）・次（next）は Plan に書かず、チケットの状態から求める",
   input: z.object({ plan: planRef }),
   write: false,
   needs: "store",
@@ -207,16 +266,15 @@ export const planShow = defineCommand({
       if (t) found.push(t);
       else warnings.push(`${id} が見つからない（削除された）`);
     }
-    const finished = (id: TicketId) => {
-      const status = ctx.store.tickets.get(id)?.data.status;
-      return status !== undefined && FINISHED.includes(status);
-    };
-    const items = found.map((t) => {
-      const waiting = (doc.data.after[t.data.id] ?? []).filter((id) => !finished(id));
-      return { ...t.data, waiting };
-    });
+    // チケットごとの待ちの相手は items[].waiting に出すので、上の階層には ready と next だけを置く
+    const { waiting, ready, next } = readinessIn(ctx.store, doc.data);
+    const items = found.map((t) => ({
+      ...t.data,
+      waiting: waiting[t.data.id] ?? [],
+      ready: ready.includes(t.data.id),
+    }));
     return ok(
-      { ...doc.data, progress: progressOf(found.map((t) => t.data)), items },
+      { ...doc.data, progress: progressOf(found.map((t) => t.data)), ready, next, items },
       undefined,
       warnings,
     );

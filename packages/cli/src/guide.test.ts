@@ -90,7 +90,8 @@ describe("dg guide", () => {
       expect(plan).toContain(command);
     expect(plan).toContain("人の承認を得ないまま approve しない");
     expect(plan).toContain("plan.approve");
-    for (const word of ["plan show", "waiting", "scope", "approach"]) expect(work).toContain(word);
+    for (const word of ["plan show", "`next`", "`ready`", "waiting", "scope", "approach"])
+      expect(work).toContain(word);
     expect(done).toContain("plan close");
   });
 
@@ -149,7 +150,7 @@ describe("dg guide", () => {
     const parallel = await readGuide("parallel");
     expect(parallel).toContain("# 着手できるチケットを並べて進める");
     for (const word of [
-      "items[].waiting",
+      "`ready`",
       "同時に 3 件まで",
       "**サブエージェントがしない**",
       "**1 件でほかを止めない**",

@@ -145,10 +145,7 @@ export function BoardPage({ query }: { query: BoardQuery }) {
   );
   const abandoned = tickets.filter((t) => t.status === "abandoned");
   const planOf = useMemo(() => openPlanByTicket(store.plans), [store.plans]);
-  const planMarks = useMemo(
-    () => kanbanPlanMarks(store.plans, store.tickets, planOf),
-    [store.plans, store.tickets, planOf],
-  );
+  const planMarks = useMemo(() => kanbanPlanMarks(store.plans, planOf), [store.plans, planOf]);
 
   // サイドバーでは、前回の描画から Status か Iteration が変わった行を点滅させる（UI-2。CLI やエージェントの書き込みに気づけるように）
   const sidebar = host.surface === "sidebar";
