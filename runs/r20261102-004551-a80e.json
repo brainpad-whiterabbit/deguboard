@@ -1,0 +1,23 @@
+{
+  "id": "r20261102-004551-a80e",
+  "ticket": "t179",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-02T00:45:51Z",
+  "finished_at": "2026-11-02T00:49:51Z",
+  "result": "success",
+  "error": null,
+  "retries": 3,
+  "retry_reasons": [
+    "300px で計画の2行目が溢れて重なるのを直した",
+    "閉じたグラフの鍵を消すようにした",
+    "開閉ボタンにaria-controlsを付けた"
+  ],
+  "usage": {
+    "input": 34,
+    "output": 13606,
+    "cache_read": 2771958,
+    "cache_write": 24584
+  }
+}
