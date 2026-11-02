@@ -11,7 +11,7 @@ import type { Ticket } from "../types.js";
 export const HISTORY_LIST_HEAD = 8;
 
 /**
- * 履歴用のチケットの行。2 段目は「中止」（中止のときだけ）・Iteration（iteration を渡したとき）・Epic（なければ Epic なし）・
+ * 履歴用のチケットの行。2 段目は「中止」（中止のときだけ）・Iteration（showIteration のとき）・Epic（なければ Epic なし）・
  * PR 番号（なければ PR なし）・note の順に「・」で区切って出す。
  * Epic のタブのように Epic が分かっている一覧では showEpic={false} で Epic を省く
  */
@@ -22,7 +22,7 @@ export function HistoryTicketRow({
   note,
 }: {
   ticket: Ticket;
-  /** 2 段目に Iteration を出す（チケットのタブ）。Iteration がなければ Iteration なし */
+  /** 2 段目に Iteration を出す（Epic・チケットのタブ）。Iteration がなければ Iteration なし */
   showIteration?: boolean | undefined;
   showEpic?: boolean | undefined;
   /** 2 段目の最後に足すもの（持ち越しの行の「今は s5」、終えた日など） */

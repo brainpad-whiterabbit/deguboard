@@ -6,7 +6,7 @@ import { HostProvider, type Host } from "../host.js";
 import { StoreProvider } from "../store.js";
 import { iteration, mockClient, ticket } from "../test-helpers.js";
 import { createUiState, memoryBackend } from "../ui-state.js";
-import { carriedOverFrom, epicCountsOf, groupByDay, groupByEpic } from "./history.js";
+import { carriedOverFrom, epicCountsOf, groupByEpic } from "./history.js";
 
 afterEach(() => {
   cleanup();
@@ -57,18 +57,6 @@ describe("履歴のまとめ方", () => {
     ] as unknown as Parameters<typeof carriedOverFrom>[1];
     const tickets = [ticket({ id: "t5", iteration: "s1" })];
     expect(carriedOverFrom("s1", events, tickets)).toEqual(["t2", "t3"]);
-  });
-
-  it("終えた日ごとにまとめ、更新日で代えた日には ~ を付ける", () => {
-    const rows = [
-      { ticket: ticket({ id: "t1" }), at: "2026-11-01T03:00:00Z", approximate: false },
-      { ticket: ticket({ id: "t2" }), at: "2026-11-01T04:00:00Z", approximate: false },
-      { ticket: ticket({ id: "t3" }), at: "2026-10-01T04:00:00Z", approximate: true },
-    ];
-    expect(groupByDay(rows).map((g) => [g.day.replace(/\d\d$/, "dd"), g.rows.length])).toEqual([
-      ["2026-11-dd", 2],
-      ["~2026-10-dd", 1],
-    ]);
   });
 });
 
@@ -243,19 +231,35 @@ describe("サイドバーの履歴", () => {
     expect(opened).toEqual([{ page: "ticket", id: "t2" }]);
   });
 
-  it("チケットの見方は終えた日を小見出しにし、行には値のある Iteration・Epic・PR だけを書き、中止の行は薄く出す", async () => {
+  it("チケットの見方は日付の見出しなしの終えた新しい順の 1 本の一覧で、2 段目に Iteration・PR・終えた日を出し、中止の行は薄く出す", async () => {
     window.location.hash = "#/history?view=ticket";
     const client = mockClient();
-    client.data.tickets.push(
+    client.data.tickets = [
+      ticket({ id: "t1", title: "古い", status: "done", iteration: "s1", epic: "e1", pr: 12 }),
+      ticket({ id: "t2", title: "新しい", status: "done" }),
       ticket({
         id: "t4",
         title: "やめた",
         status: "abandoned",
         updated_at: "2026-01-01T00:00:00Z",
       }),
-    );
-    client.data.tickets[0]!.pr = 12;
-    client.data.tickets[0]!.epic = "e1";
+      ticket({ id: "t5", title: "途中", status: "todo" }),
+    ];
+    const finished = (id: string, at: string) => ({
+      kind: "ticket",
+      id,
+      commit: id,
+      author: "a",
+      subject: "s",
+      type: "changed",
+      at,
+      changes: [{ field: "status", from: "review", to: "done" }],
+    });
+    client.handlers["history"] = () => ({
+      events: [finished("t1", "2026-10-01T12:00:00Z"), finished("t2", "2026-10-20T12:00:00Z")],
+      shallow: false,
+      incomplete: [],
+    });
     render(
       <StoreProvider client={client}>
         <HostProvider host={sidebarHost()}>
@@ -263,17 +267,51 @@ describe("サイドバーの履歴", () => {
         </HostProvider>
       </StoreProvider>,
     );
-    await waitFor(() => expect(document.querySelectorAll(".history-ticket")).toHaveLength(2));
-    expect(document.querySelector(".history-group h3")!.textContent).toMatch(/^~2026-01-0\d 2 件$/);
-    const rowOf = (id: string) =>
-      [...document.querySelectorAll(".history-ticket")].find(
-        (r) => r.querySelector("code")?.textContent === id,
-      )!;
-    const done = rowOf("t1");
-    const abandoned = rowOf("t4");
-    expect(done.querySelector(".history-ticket-meta")!.textContent).toBe("e1 ・ #12");
+    await waitFor(() => expect(document.querySelectorAll(".history-ticket")).toHaveLength(3));
+    // 日付の見出しはなく、1 本の一覧
+    expect(document.querySelector(".history-group")).toBeNull();
+    expect(document.querySelectorAll(".history-list")).toHaveLength(1);
+    expect([...document.querySelectorAll(".history-list code")].map((c) => c.textContent)).toEqual([
+      "t2",
+      "t1",
+      "t4",
+    ]);
+    // 2 段目は Iteration・PR・終えた日。Epic は出さず、終えた日が分からないものは更新日に ~ を付ける
+    expect(
+      [...document.querySelectorAll(".history-ticket-meta")].map((m) =>
+        m.textContent!.replace(/\d\d$/, "dd"),
+      ),
+    ).toEqual([
+      "Iteration なし ・ PR なし ・ 2026-10-dd",
+      "s1 ・ #12 ・ 2026-10-dd",
+      "Abandoned ・ Iteration なし ・ PR なし ・ ~2026-01-dd",
+    ]);
+    const abandoned = document.querySelectorAll(".history-ticket")[2]!;
     expect(abandoned.classList.contains("abandoned")).toBe(true);
-    expect(abandoned.querySelector(".history-ticket-meta")).toBeNull();
     expect(document.querySelector(".history-finished")).toBeNull();
+    // 絞り込みは検索と結果だけ
+    expect(screen.getByLabelText("結果")).toBeTruthy();
+    expect(screen.queryByLabelText("Epic")).toBeNull();
+  });
+
+  it("チケットの見方の「ほか N 件」は、検索や結果の絞り込みを変えると閉じた状態に戻る", async () => {
+    window.location.hash = "#/history?view=ticket";
+    const client = mockClient();
+    client.data.tickets = Array.from({ length: 12 }, (_, n) =>
+      ticket({ id: `t${n + 1}`, title: `チケット ${n + 1}`, status: "done" }),
+    );
+    render(
+      <StoreProvider client={client}>
+        <HostProvider host={sidebarHost()}>
+          <App />
+        </HostProvider>
+      </StoreProvider>,
+    );
+    const more = await screen.findByRole("button", { name: "ほか 4 件" });
+    fireEvent.click(more);
+    expect(document.querySelectorAll(".history-ticket")).toHaveLength(12);
+    fireEvent.change(screen.getByLabelText("チケットを探す"), { target: { value: "チケット" } });
+    expect(document.querySelectorAll(".history-ticket")).toHaveLength(8);
+    expect(screen.getByRole("button", { name: "ほか 4 件" })).toBeTruthy();
   });
 });

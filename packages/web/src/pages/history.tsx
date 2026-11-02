@@ -6,22 +6,17 @@
 // Epic の見方：closed の Epic を閉じた新しい順に、進捗・閉じた日と、チケットが入っていた Iteration を出す。
 // チケットの見方：done・abandoned のチケットを終えた新しい順に、結果・Iteration・Epic・PR・終えた日を出す。終えた時刻は
 // history のコマンド（deguboard ブランチの履歴）から求め、履歴が浅くて分からないものは updated_at で代え、そう出す。
+// 絞り込みは検索と結果（完了・中止）だけ。Iteration・Epic で分けて見るのはそれぞれの見方に任せる。
 // 番号を押すと詳細を開く（サイドバーとパネルでは拡張ホストに頼んでエディタに、ブラウザではハッシュ遷移）。
 // サイドバーでは狭い幅で読めるよう描き方を変える：Iteration の行は開閉の印を付け、開くと番号の順の 1 本の一覧（履歴用の行。
 // components/history-rows.tsx）で出し、持ち越しを最後に分ける。
 // Epic の見方は進捗バーをやめてタイトルを 2 行まで出し、Iteration の行と同じ件数のチップを付ける。行を開くと中の終わったチケットを
 // 番号の順の 1 本の一覧（2 段目は Iteration・PR）で出し、終わったチケットのない Epic は薄く出して開けない。
-// チケットの見方は終えた日を小見出しにし、行には値のある Iteration・Epic・PR だけを書く
+// チケットの見方は日付の見出しを付けず、終えた新しい順の 1 本の一覧（履歴用の行。2 段目は Iteration・PR・終えた日）で出す。
+// 検索欄と結果の絞り込みは 1 行に並べる
 
 import { useEffect, useMemo, useState } from "react";
-import {
-  DetailLink,
-  ProgressBar,
-  StatusDot,
-  Tags,
-  TicketLink,
-  TicketRow,
-} from "../components/parts.js";
+import { DetailLink, ProgressBar, StatusDot, Tags, TicketLink } from "../components/parts.js";
 import { HistoryTicketList, HistoryTicketRow } from "../components/history-rows.js";
 import { useHost } from "../host.js";
 import { NO_VALUE } from "../components/run-parts.js";
@@ -155,18 +150,6 @@ export function carriedOverFrom(
   return [...moved].filter((id) => !still.has(id)).sort((a, b) => byNumber({ id: a }, { id: b }));
 }
 
-/** 終えた日（手元の日付）ごとにまとめる。並びは rows の順のまま */
-export function groupByDay(rows: readonly FinishedRow[]): { day: string; rows: FinishedRow[] }[] {
-  const groups: { day: string; rows: FinishedRow[] }[] = [];
-  for (const r of rows) {
-    const day = `${r.approximate ? "~" : ""}${formatTime(r.at).slice(0, 10)}`;
-    const last = groups.at(-1);
-    if (last && last.day === day) last.rows.push(r);
-    else groups.push({ day, rows: [r] });
-  }
-  return groups;
-}
-
 /** チケットを終えた時刻：最後に done か abandoned になった出来事の時刻 */
 function finishedAtOf(events: readonly HistoryEvent[]): Map<string, string> {
   const at = new Map<string, string>();
@@ -191,7 +174,6 @@ export interface FinishedFilter {
   query: string;
   /** done か abandoned。空ならどちらも */
   result: string;
-  epic: string;
 }
 
 /** 終わったチケットを終えた新しい順に。検索は番号・タイトル・ラベル */
@@ -204,7 +186,6 @@ function finishedTickets(
   return tickets
     .filter((t) => t.status === "done" || t.status === "abandoned")
     .filter((t) => !f.result || t.status === f.result)
-    .filter((t) => !f.epic || t.epic === f.epic)
     .filter(
       (t) =>
         !q ||
@@ -275,7 +256,7 @@ export function HistoryPage({ view }: { view: HistoryView }) {
     () => (view === "ticket" ? [] : filterHistory(all, store.tickets, query, view, sidebar)),
     [all, store.tickets, query, view, sidebar],
   );
-  // 見方ごとの件数。チケットの見方ではチケットの件数を TicketView が絞り込みを含めて数え直すので、ここでは数えない
+  // 見方ごとの件数。チケットの見方ではチケットの件数を TicketView が結果の絞り込みを含めて数え直すので、ここでは数えない
   const counts = useMemo<ViewCounts>(() => {
     const searching = query.trim() !== "";
     const count = <T extends { id: string }>(list: readonly T[], key: "iteration" | "epic") => ({
@@ -286,7 +267,7 @@ export function HistoryPage({ view }: { view: HistoryView }) {
     const finished = (q: string) =>
       view === "ticket"
         ? 0
-        : finishedTickets(store.tickets, new Map(), { query: q, result: "", epic: "" }).length;
+        : finishedTickets(store.tickets, new Map(), { query: q, result: "" }).length;
     return {
       iteration: count(iterations, "iteration"),
       epic: count(epics, "epic"),
@@ -508,7 +489,11 @@ function SidebarEpicItem({ epic: e }: { epic: EpicRow }) {
       <span className="name" title={e.title}>
         {e.title}
       </span>
-      <CountChips completed={finished.length - abandoned} abandoned={abandoned} />
+      <CountChips
+        completed={finished.length - abandoned}
+        abandoned={abandoned}
+        title="完了と中止は今の Epic のチケットから数えた件数"
+      />
       <small>
         {finished.length === 0
           ? `${e.progress.total > 0 ? "終わったチケットなし" : "チケットなし"} ・ `
@@ -593,7 +578,6 @@ function TicketView({
   const [log, setLog] = useState<HistoryLog | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState("");
-  const [epic, setEpic] = useState("");
   useEffect(() => {
     let alive = true;
     store.client
@@ -606,22 +590,15 @@ function TicketView({
   }, [store.client, store.tickets]);
   const finishedAt = useMemo(() => finishedAtOf(log?.events ?? []), [log]);
   const all = useMemo(
-    () => finishedTickets(store.tickets, finishedAt, { query: "", result: "", epic: "" }),
+    () => finishedTickets(store.tickets, finishedAt, { query: "", result: "" }),
     [store.tickets, finishedAt],
   );
   const rows = useMemo(
-    () => finishedTickets(store.tickets, finishedAt, { query, result, epic }),
-    [store.tickets, finishedAt, query, result, epic],
+    () => finishedTickets(store.tickets, finishedAt, { query, result }),
+    [store.tickets, finishedAt, query, result],
   );
-  const epics = useMemo(
-    () =>
-      [...new Set(all.flatMap((r) => (r.ticket.epic ? [r.ticket.epic] : [])))].sort((a, b) =>
-        byNumber({ id: a }, { id: b }),
-      ),
-    [all],
-  );
-  // チケットの見方では結果・Epic の絞り込みもチケットのバッジに映す
-  const filtered = query.trim() !== "" || result !== "" || epic !== "";
+  // チケットの見方では結果の絞り込みもチケットのバッジに映す
+  const filtered = query.trim() !== "" || result !== "";
   return (
     <section>
       <div className="toolbar">
@@ -630,34 +607,24 @@ function TicketView({
           view="ticket"
           counts={{ ...counts, ticket: { hit: rows.length, total: all.length, filtered } }}
         />
-        <input
-          type="search"
-          placeholder={sidebar ? SIDEBAR_SEARCH : "番号・タイトル・ラベルで探す"}
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          aria-label="チケットを探す"
-        />
-        <label>
-          結果
-          <select value={result} onChange={(e) => setResult(e.target.value)}>
-            <option value="">すべて</option>
-            <option value="done">{store.labelOf("done")}</option>
-            <option value="abandoned">{store.labelOf("abandoned")}</option>
-          </select>
-        </label>
-        {epics.length > 0 ? (
+        {/* 検索欄と結果の絞り込みは 1 行に並べる（サイドバーでも折り返さない） */}
+        <div className="history-filter">
+          <input
+            type="search"
+            placeholder={sidebar ? SIDEBAR_SEARCH : "番号・タイトル・ラベルで探す"}
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            aria-label="チケットを探す"
+          />
           <label>
-            Epic
-            <select value={epic} onChange={(e) => setEpic(e.target.value)}>
+            結果
+            <select value={result} onChange={(e) => setResult(e.target.value)}>
               <option value="">すべて</option>
-              {epics.map((id) => (
-                <option key={id} value={id}>
-                  {id}
-                </option>
-              ))}
+              <option value="done">{store.labelOf("done")}</option>
+              <option value="abandoned">{store.labelOf("abandoned")}</option>
             </select>
           </label>
-        ) : null}
+        </div>
       </div>
       {error ? <p className="error">{error}</p> : null}
       {log && (log.shallow || all.some((r) => r.approximate)) ? (
@@ -673,7 +640,8 @@ function TicketView({
       ) : rows.length === 0 ? (
         <p className="empty">当たるチケットはない</p>
       ) : sidebar ? (
-        <SidebarFinished rows={rows} />
+        // 「ほか N 件」を開いた状態は、検索や結果の絞り込みが変わったら戻す
+        <SidebarFinished key={`${result}\u0000${query}`} rows={rows} />
       ) : (
         <ul className="rows history-finished">
           {rows.map(({ ticket: t, at, approximate }) => (
@@ -714,51 +682,36 @@ function TicketView({
 }
 
 /**
- * サイドバーのチケットの見方：終えた日を小見出しにし、行は丸印・番号・タイトル（2 行まで）と、2 段目に値のある Iteration・Epic・PR だけ。
- * 中止の行は薄く出す
+ * サイドバーのチケットの見方：日付の見出しを付けず、終えた新しい順の 1 本の一覧（履歴用の行）で出す。
+ * 2 段目は Iteration・PR・終えた日（Epic で分けて見るのは Epic の見方）。終えた日が履歴から分からないものは更新日に ~ を付ける。
+ * 多いときは先頭の数件だけ出し、「ほか N 件」で残りを開ける
  */
 function SidebarFinished({ rows }: { rows: readonly FinishedRow[] }) {
+  const byId = new Map(rows.map((r) => [r.ticket.id, r]));
   return (
     <div className="history-groups">
-      {groupByDay(rows).map((g) => (
-        <section key={g.day} className="history-group">
-          <h3>
-            {g.day} <span className="muted">{g.rows.length} 件</span>
-          </h3>
-          <div className="rows">
-            {g.rows.map(({ ticket: t }) => {
-              const hasMeta = !!(t.iteration || t.epic || t.pr);
-              return (
-                <div
-                  key={t.id}
-                  className={`history-ticket${t.status === "abandoned" ? " abandoned" : ""}`}
+      <HistoryTicketList
+        tickets={rows.map((r) => r.ticket)}
+        row={(t) => {
+          const { at, approximate } = byId.get(t.id)!;
+          return (
+            <HistoryTicketRow
+              ticket={t}
+              showIteration
+              showEpic={false}
+              note={
+                <time
+                  dateTime={at}
+                  title={approximate ? "履歴から分からないので更新日" : "終えた日時"}
                 >
-                  <TicketRow ticket={t} hideAssignee />
-                  {hasMeta ? (
-                    <small className="history-ticket-meta">
-                      {[
-                        t.iteration ? (
-                          <DetailLink key="i" route={{ page: "iterations", id: t.iteration }}>
-                            {t.iteration}
-                          </DetailLink>
-                        ) : null,
-                        t.epic ? (
-                          <DetailLink key="e" route={{ page: "epics", id: t.epic }}>
-                            {t.epic}
-                          </DetailLink>
-                        ) : null,
-                        t.pr ? <span key="p">#{t.pr}</span> : null,
-                      ]
-                        .filter(Boolean)
-                        .flatMap((el, n) => (n > 0 ? [" ・ ", el] : [el]))}
-                    </small>
-                  ) : null}
-                </div>
-              );
-            })}
-          </div>
-        </section>
-      ))}
+                  {approximate ? "~" : ""}
+                  {formatTime(at).slice(0, 10)}
+                </time>
+              }
+            />
+          );
+        }}
+      />
     </div>
   );
 }

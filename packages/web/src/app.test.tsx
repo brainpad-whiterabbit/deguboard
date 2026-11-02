@@ -1225,7 +1225,7 @@ describe("画面", () => {
     expect(screen.getByText(/これより前の経過は欠けている/)).toBeTruthy();
   });
 
-  it("履歴のチケットの見方は終わったチケットを終えた新しい順に出し、分からないものは更新日で並べてそう出す。結果・Epic・検索で絞れる", async () => {
+  it("履歴のチケットの見方は終わったチケットを終えた新しい順に出し、分からないものは更新日で並べてそう出す。結果・検索で絞れ、Epic のセレクトはない", async () => {
     window.location.hash = "#/history?view=ticket";
     const client = mockClient();
     client.data.tickets = [
@@ -1271,10 +1271,12 @@ describe("画面", () => {
     expect(t1.querySelector("a[href='#/epics/e1']")).toBeTruthy();
     fireEvent.change(screen.getByLabelText("結果"), { target: { value: "abandoned" } });
     expect(ids()).toEqual(["t3"]);
+    // 結果の絞り込みもチケットのバッジに映す
+    expect(screen.getByRole("button", { name: /^チケット/ }).textContent).toBe(
+      "チケット 1\u2009/\u20093",
+    );
     fireEvent.change(screen.getByLabelText("結果"), { target: { value: "" } });
-    fireEvent.change(screen.getByLabelText("Epic"), { target: { value: "e1" } });
-    expect(ids()).toEqual(["t1"]);
-    fireEvent.change(screen.getByLabelText("Epic"), { target: { value: "" } });
+    expect(screen.queryByLabelText("Epic")).toBeNull();
     fireEvent.change(screen.getByLabelText("チケットを探す"), { target: { value: "web" } });
     expect(ids()).toEqual(["t2"]);
     expect(screen.getByRole("button", { name: /^チケット/ }).textContent).toBe(

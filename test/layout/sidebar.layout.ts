@@ -291,6 +291,49 @@ describe.each(SCHEMES)("履歴の見方の切り替え（%s）", (scheme) => {
   );
 });
 
+describe.each(SCHEMES)("履歴のチケットの見方の絞り込み（%s）", (scheme) => {
+  it.each([320, 300])(
+    "幅 %ipx で、検索欄と結果の絞り込みが 1 行に収まり、画面から溢れない",
+    async (width) => {
+      const context = await browser.newContext({
+        viewport: { width, height: 900 },
+        colorScheme: scheme,
+      });
+      const page = await context.newPage();
+      try {
+        await page.goto(`${server.url}?surface=sidebar#/history?view=ticket`, {
+          waitUntil: "networkidle",
+        });
+        const filter = page.locator(".history-filter");
+        await filter.waitFor();
+        await page.locator(".history-ticket").first().waitFor();
+        const m = await filter.evaluate((el) => {
+          const search = el.querySelector('input[type="search"]')!.getBoundingClientRect();
+          const select = el.querySelector("select")!.getBoundingClientRect();
+          const main = document.querySelector(".page")!;
+          const right = main.getBoundingClientRect().right;
+          return {
+            selects: document.querySelectorAll(".toolbar select").length,
+            sameLine: select.top < search.bottom && search.top < select.bottom,
+            searchWidth: search.width,
+            right: Math.max(search.right, select.right),
+            width: right - parseFloat(getComputedStyle(main).paddingRight),
+            pageScroll: main.scrollWidth,
+            pageClient: main.clientWidth,
+          };
+        });
+        expect(m.selects, "絞り込みは結果のセレクトだけ").toBe(1);
+        expect(m.sameLine, "検索欄と結果の絞り込みが 1 行").toBe(true);
+        expect(m.searchWidth, "検索欄が潰れない").toBeGreaterThan(100);
+        expect(m.right, "幅に収まる").toBeLessThanOrEqual(m.width + 0.5);
+        expect(m.pageScroll, "画面が横に溢れない").toBeLessThanOrEqual(m.pageClient);
+      } finally {
+        await context.close();
+      }
+    },
+  );
+});
+
 describe.each(SCHEMES)("履歴の Iteration の行（%s）", (scheme) => {
   it.each([320, ...WIDTHS])(
     "幅 %ipx で、目標は 2 行までで、件数のチップが行の枠からはみ出さず目標と重ならない",
