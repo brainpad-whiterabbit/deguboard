@@ -18,6 +18,8 @@ PR がマージされたあとの後始末（PR の要らない作業は `dg gui
 
 1. `dg --json --actor agent sync` を回す。PR のマージ（または作業ブランチが `{{git.base_branch}}` に入ったこと）を照合してチケットが done になる。`reconciled` に `{ id, from, to, when }` が出る（`when` は根拠になった事実）
 2. `dg --json --actor agent ticket show <id>` で `status` が done になったことを確かめる。なっていなければ `sync` の `warnings` を読む。事実が足りない（`gh` がない、ブランチがまだ push されていない）か、Workflow がその遷移の `by` に reconcile を含めていない。後者は人に確かめて `ticket move <id> done` で進める
+   - ブランチ名で見つけた PR が `branch_at`（ないチケットは `created_at`）より前にマージされていれば、前の作業の PR とみなして照合に使わず `warnings` に出す。その PR がこのチケットのものなら `ticket update <id> --pr <番号>` で記録して `sync` を回し直す
+   - branch を記録し忘れたままマージした作業に後から branch を記録しようとすると、`BRANCH_IN_USE` で拒否されることがある（残ったブランチの先端が base の真の祖先のとき。ff・merge コミットでのマージ）。記録はせず、マージを人に確かめて `ticket move <id> done` で進める。squash マージなら記録でき、その後は上の項の警告になる
 3. 残った受け入れ条件を確かめる。`sync` の `warnings`（`受け入れ条件 2, 3 が未チェックのまま done になった`）と `ticket show --json` の `acceptance` で未チェックの項目を見て、マージされた成果物で満たしたと確認できたものだけ `dg --json --actor agent ticket check <id> <番号...>` で付ける（deguboard が自動で付けることはない）。確認できない項目はそのまま残し、人に伝える
 4. 作業ブランチと worktree を片付ける（リポジトリの規約に従う）
 5. Plan に従っていたなら、`dg --json --actor agent plan show <p>` の `progress` を読む。チケットがすべて done か abandoned なら下の「Plan を閉じる」
