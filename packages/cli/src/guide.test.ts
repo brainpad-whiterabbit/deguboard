@@ -64,6 +64,23 @@ describe("dg guide", () => {
     expect(work).toContain("ticket move <id> review");
   });
 
+  it("work の PR の要らない作業は、claim --without-branch の前に上の手順 1 を案内し、今の設定を埋める", async () => {
+    const work = await readGuide("work");
+    const section = (text: string) => text.slice(text.indexOf("## PR の要らない作業"));
+    const noBranch = section(work);
+    const reference = noBranch.indexOf(
+      "上の手順 1（着手できるか確かめ、`lint.require_iteration` が true なら Iteration に入れる",
+    );
+    expect(reference).toBeGreaterThan(-1);
+    expect(reference).toBeLessThan(noBranch.indexOf("ticket claim <id> --without-branch"));
+    // 選び方は上の手順 1 にだけ書き、この節には書き写さない
+    expect(noBranch).not.toContain("iteration add <S> <id>");
+    expect(section(fillPlaceholders(work, defaultConfig()))).toContain("今の設定：`false`");
+    expect(
+      section(fillPlaceholders(work, { ...defaultConfig(), lint: { require_iteration: true } })),
+    ).toContain("今の設定：`true`");
+  });
+
   it("plan・work・done は Plan を作り、人の承認で approve し、順と範囲を読んで進め、終わったら閉じると案内する", async () => {
     const plan = await readGuide("plan");
     const work = await readGuide("work");
