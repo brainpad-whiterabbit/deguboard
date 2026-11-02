@@ -8,7 +8,7 @@ after:
     - t197
   t205:
     - t201
-pending_approval: true
+pending_approval: false
 details:
   t195:
     scope: general.yaml をテンプレートに戻すだけ。PR なし（claim --without-branch）
@@ -37,3 +37,5 @@ details:
   t205:
     scope: mise.toml・.gitignore・.oxfmtrc.json・workflow show のヘルプ・@types/vscode
     approach: 受け入れ条件の各項目を小さく直す
+approved_by: eiki.kitajima/agent
+approved_at: 2026-11-02T04:30:21Z
