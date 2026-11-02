@@ -15,7 +15,7 @@ export interface BoardQuery {
 export type HistoryView = "iteration" | "epic" | "ticket";
 
 /** 履歴の結果の絞り込み（チケットの見方）。省けばすべて */
-export type HistoryResult = "done" | "abandoned";
+type HistoryResult = "done" | "abandoned";
 
 /** 履歴の見方・検索語・結果の絞り込み。タブを移って戻っても残すためハッシュに持つ（開いた行は持たない） */
 export interface HistoryQuery {
@@ -25,7 +25,7 @@ export interface HistoryQuery {
 }
 
 /** Run の画面の集計の単位と絞り込み。by は省けばチケットごと、iteration は省けば絞らない（履歴の Iteration の行から絞って開く） */
-export interface RunsQuery {
+interface RunsQuery {
   by?: MetricUnit | undefined;
   iteration?: string | undefined;
 }

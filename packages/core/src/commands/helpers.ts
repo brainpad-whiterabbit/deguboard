@@ -1,7 +1,8 @@
 // コマンドの実装で共通に使う小さな関数
 
 import { z } from "zod";
-import { compareIds, type TicketId } from "../model/id.js";
+import { UsageError } from "../errors.js";
+import { compareIds, parseId, type IdKind, type IdOf, type TicketId } from "../model/id.js";
 import { toIsoDateTime } from "../model/common.js";
 import type { Plan } from "../model/plan.js";
 import type { Ticket } from "../model/ticket.js";
@@ -10,6 +11,17 @@ import type { Store } from "../storage/store.js";
 import type { CommandContext } from "./define.js";
 
 export const nowIso = (ctx: CommandContext): string => toIsoDateTime(ctx.now());
+
+/**
+ * 今あるかは確かめず、ID の形だけを確かめて整える（消えた・閉じたものの記録も引けるように）。
+ * 未指定なら undefined、形が違えば UsageError
+ */
+export function idShapeOf<K extends IdKind>(ref: string | undefined, kind: K): IdOf<K> | undefined {
+  if (ref === undefined) return undefined;
+  const id = parseId(ref, kind);
+  if (!id) throw new UsageError(`${ref} は ${kind} の ID ではない`);
+  return id;
+}
 
 /** `t12` でも `12` でも受け付ける参照 */
 export const ticketRef = z.string().min(1).describe("チケットの ID（t12 または 12）");
