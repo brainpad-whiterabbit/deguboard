@@ -417,6 +417,7 @@ describe("dg", () => {
         "1 件目の acceptance",
       ],
       ["drafts:\n  - title: A\n    body: 本文 #/config\n", "1 件目の body"],
+      ["- title: A\n  body: 複数行の\n    最後の行 #/config\n", "1 件目の body"],
     ];
     for (const [yaml, field] of cases) {
       const file = path.join(f.root, "drafts.yaml");
@@ -476,6 +477,18 @@ describe("dg", () => {
     expect(a.body).toContain("- [ ] 戻る #/board");
     expect(b).toMatchObject({ title: "本文を書く", depends_on: [a.id] });
     expect(b.body).toContain("#/config を開く # 中の #");
+  });
+
+  it("ticket import は引用しない値の次の行の、深く字下げした行だけのコメントを拒否しない", async () => {
+    const f = await fixture();
+    await dg(f.cloneA, ["init"]);
+    const file = path.join(f.root, "drafts.yaml");
+    for (const yaml of ["- title: A\n  body: x\n    # c\n", "- title: A\n      # c\n  body: y\n"]) {
+      await writeFile(file, yaml);
+      const imported = await dg(f.cloneA, ["--json", "ticket", "import", file]);
+      expect(imported.code).toBe(0);
+      expect(imported.json().data).toMatchObject([{ title: "A" }]);
+    }
   });
 
   it("ticket import は下書きの YAML の構文エラーを INVALID_INPUT にする", async () => {
