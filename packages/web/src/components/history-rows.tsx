@@ -1,6 +1,7 @@
 // 履歴用のチケットの行と一覧（左パネルの履歴）。Iteration・Epic・チケットのタブで共用する。
 // 行は 2 段：1 段目は状態の丸印・番号・タイトル（サイドバーでは 2 行まで）、2 段目は Epic・PR などの付記。
-// 優先度と担当者は出さない（終わったものを見る画面なので）。中止の行は薄くし、付記の頭に「中止」と書いて完了と見分ける
+// 優先度と担当者は出さない（終わったものを見る画面なので）。中止の行は薄くし、付記の頭に「中止」と書いて完了と見分ける。
+// 検索中は query を渡し、当たった部分（タイトル・番号・ラベル）に印（mark）を付ける
 
 import { Fragment, useState, type ReactNode } from "react";
 import { DetailLink, StatusDot, TicketLink } from "./parts.js";
@@ -11,15 +12,36 @@ import type { Ticket } from "../types.js";
 export const HISTORY_LIST_HEAD = 8;
 
 /**
+ * text の中の query に当たる部分（大文字小文字を区別しない）に印を付ける。query が空なら text のまま。
+ * 小文字にすると長さの変わる文字を含むときは、位置がずれるので印を付けない
+ */
+export function Highlight({ text, query }: { text: string; query?: string | undefined }) {
+  const q = query?.trim().toLowerCase() ?? "";
+  const lower = text.toLowerCase();
+  if (!q || lower.length !== text.length) return <>{text}</>;
+  const out: ReactNode[] = [];
+  let from = 0;
+  for (let at = lower.indexOf(q); at >= 0; at = lower.indexOf(q, from)) {
+    if (at > from) out.push(text.slice(from, at));
+    out.push(<mark key={at}>{text.slice(at, at + q.length)}</mark>);
+    from = at + q.length;
+  }
+  if (from < text.length) out.push(text.slice(from));
+  return <>{out}</>;
+}
+
+/**
  * 履歴用のチケットの行。2 段目は「中止」（中止のときだけ）・Iteration（showIteration のとき）・Epic（なければ Epic なし）・
  * PR 番号（なければ PR なし）・note の順に「・」で区切って出す。
- * Epic のタブのように Epic が分かっている一覧では showEpic={false} で Epic を省く
+ * Epic のタブのように Epic が分かっている一覧では showEpic={false} で Epic を省く。
+ * query を渡すと、タイトルの当たった部分と、番号が同じときは番号に印を付け、当たったラベルを note の前に足す
  */
 export function HistoryTicketRow({
   ticket: t,
   showIteration = false,
   showEpic = true,
   note,
+  query,
 }: {
   ticket: Ticket;
   /** 2 段目に Iteration を出す（Epic・チケットのタブ）。Iteration がなければ Iteration なし */
@@ -27,8 +49,11 @@ export function HistoryTicketRow({
   showEpic?: boolean | undefined;
   /** 2 段目の最後に足すもの（持ち越しの行の「今は s5」、終えた日など） */
   note?: ReactNode;
+  /** 検索語。当たった部分に印を付ける */
+  query?: string | undefined;
 }) {
   const store = useStore();
+  const q = query?.trim().toLowerCase() ?? "";
   const abandoned = t.status === "abandoned";
   const parts: ReactNode[] = [];
   if (abandoned) parts.push(<span className="history-abandoned">{store.labelOf(t.status)}</span>);
@@ -49,14 +74,27 @@ export function HistoryTicketRow({
       ),
     );
   parts.push(t.pr ? <span>#{t.pr}</span> : <span className="history-none">PR なし</span>);
+  const labels = q ? t.labels.filter((l) => l.toLowerCase().includes(q)) : [];
+  if (labels.length > 0)
+    parts.push(
+      <span className="history-hit-labels">
+        ラベル{" "}
+        {labels.map((l, n) => (
+          <Fragment key={l}>
+            {n > 0 ? ", " : ""}
+            <Highlight text={l} query={q} />
+          </Fragment>
+        ))}
+      </span>,
+    );
   if (note != null) parts.push(note);
   return (
     <div className={`history-ticket${abandoned ? " abandoned" : ""}`}>
       <TicketLink id={t.id} className={`row ticket-row history-ticket-main status-${t.status}`}>
         <StatusDot status={t.status} />
-        <code>{t.id}</code>
+        <code>{q && t.id.toLowerCase() === q ? <mark>{t.id}</mark> : t.id}</code>
         <span className="row-title" title={t.title}>
-          {t.title}
+          <Highlight text={t.title} query={q} />
         </span>
       </TicketLink>
       <small className="history-ticket-meta">

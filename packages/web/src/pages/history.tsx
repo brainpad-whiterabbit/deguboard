@@ -13,9 +13,11 @@
 // Epic の見方は進捗バーをやめてタイトルを 2 行まで出し、Iteration の行と同じ件数のチップを付ける。行を開くと中の終わったチケットを
 // 番号の順の 1 本の一覧（2 段目は Iteration・PR）で出し、終わったチケットのない Epic は薄く出して開けない。
 // チケットの見方は日付の見出しを付けず、終えた新しい順の 1 本の一覧（履歴用の行。2 段目は Iteration・PR・終えた日）で出す。
-// 検索欄と結果の絞り込みは 1 行に並べる
+// 検索欄と結果の絞り込みは 1 行に並べる。
+// サイドバーの Iteration と Epic の見方では、検索語があるあいだ残った行を開き、当たったチケットだけを印付きで出す。
+// 「すべて見る」でその行の全件の一覧に戻せる。検索中に閉じた行や「すべて見る」は検索語を変えると捨て、検索語を消すと検索前の開閉に戻る
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode, type SyntheticEvent } from "react";
 import { DetailLink, ProgressBar, StatusDot, Tags, TicketLink } from "../components/parts.js";
 import { HistoryTicketList, HistoryTicketRow } from "../components/history-rows.js";
 import { useHost } from "../host.js";
@@ -66,30 +68,83 @@ function CountChips({
   );
 }
 
+/** 検索語（空でない）に当たるか：番号が同じか、タイトル（labels なら加えてラベル）に含む。大文字小文字は区別しない */
+export function ticketMatches(t: Ticket, query: string, labels = true): boolean {
+  const q = query.trim().toLowerCase();
+  return (
+    t.id.toLowerCase() === q ||
+    t.title.toLowerCase().includes(q) ||
+    (labels && t.labels.some((l) => l.toLowerCase().includes(q)))
+  );
+}
+
+const isFinished = (t: Ticket) => t.status === "done" || t.status === "abandoned";
+
 /**
- * 検索：チケットの番号かタイトル（labels なら加えてラベル）に当たるチケットを含むものだけ残す。key はチケットの iteration か epic
+ * 検索：当たるチケットを含むものだけ残す。key はチケットの iteration か epic。
+ * サイドバーではラベルにも当て、行を開いて当たったチケットを出すので、終わったチケット（行の中に出るもの）だけを見る
  */
 function filterHistory<T extends { id: string }>(
   rows: readonly T[],
   tickets: readonly Ticket[],
   query: string,
   key: "iteration" | "epic" = "iteration",
-  labels = false,
+  sidebar = false,
 ): T[] {
-  const q = query.trim().toLowerCase();
-  if (!q) return [...rows];
+  if (!query.trim()) return [...rows];
   const hit = new Set<string>(
     tickets
-      .filter(
-        (t) =>
-          t[key] &&
-          (t.id.toLowerCase() === q ||
-            t.title.toLowerCase().includes(q) ||
-            (labels && t.labels.some((l) => l.toLowerCase().includes(q)))),
-      )
+      .filter((t) => t[key] && (!sidebar || isFinished(t)) && ticketMatches(t, query, sidebar))
       .map((t) => t[key]!),
   );
   return rows.filter((r) => hit.has(r.id));
+}
+
+/** 行の開閉。open は開いているか、all は検索中に「すべて見る」にしたか（検索していなければ常に true） */
+export interface RowFold {
+  /** 検索で開いているか（検索語があり、検索で開く画面のとき） */
+  searching: boolean;
+  open: boolean;
+  all: boolean;
+  setOpen: (open: boolean) => void;
+  setAll: (all: boolean) => void;
+}
+
+const toggled = (ids: readonly string[], id: string, on: boolean): string[] =>
+  on ? (ids.includes(id) ? [...ids] : [...ids, id]) : ids.filter((x) => x !== id);
+
+/**
+ * 履歴の行（Iteration・Epic の番号）ごとの開閉。検索前の開いた行（opened）と、検索中だけの上書き（閉じた行・
+ * 「すべて見る」にした行）を分けて持つ。検索中は既定で開き、上書きは検索語を変えると捨てるので、検索語を消すと検索前に戻る。
+ * opened は番号の配列で持ち、画面の外（Webview の state）にそのまま置ける。search は検索で開くときの検索語（開かないなら空）
+ */
+export function useRowFolds(
+  search: string,
+  [opened, setOpened]: [readonly string[], (ids: readonly string[]) => void] = [[], () => {}],
+): (id: string) => RowFold {
+  const q = search.trim().toLowerCase();
+  const [during, setDuring] = useState<{
+    query: string;
+    closed: readonly string[];
+    all: readonly string[];
+  }>({ query: "", closed: [], all: [] });
+  const current = during.query === q ? during : { query: q, closed: [], all: [] };
+  return (id) =>
+    q
+      ? {
+          searching: true,
+          open: !current.closed.includes(id),
+          all: current.all.includes(id),
+          setOpen: (open) => setDuring({ ...current, closed: toggled(current.closed, id, !open) }),
+          setAll: (all) => setDuring({ ...current, all: toggled(current.all, id, all) }),
+        }
+      : {
+          searching: false,
+          open: opened.includes(id),
+          all: true,
+          setOpen: (open) => setOpened(toggled(opened, id, open)),
+          setAll: () => {},
+        };
 }
 
 /**
@@ -184,15 +239,9 @@ function finishedTickets(
 ): FinishedRow[] {
   const q = f.query.trim().toLowerCase();
   return tickets
-    .filter((t) => t.status === "done" || t.status === "abandoned")
+    .filter(isFinished)
     .filter((t) => !f.result || t.status === f.result)
-    .filter(
-      (t) =>
-        !q ||
-        t.id.toLowerCase() === q ||
-        t.title.toLowerCase().includes(q) ||
-        t.labels.some((l) => l.toLowerCase().includes(q)),
-    )
+    .filter((t) => !q || ticketMatches(t, q))
     .map((t) => {
       const at = finishedAt.get(t.id);
       return { ticket: t, at: at ?? t.updated_at, approximate: at === undefined };
@@ -243,6 +292,10 @@ export function HistoryPage({ view }: { view: HistoryView }) {
   const store = useStore();
   const sidebar = useHost().surface === "sidebar";
   const [query, setQuery] = useState("");
+  // 検索前の開いた行。t193 で Webview の state（useUiState）に移す
+  const opened = useState<readonly string[]>([]);
+  // 検索で行を開くのはサイドバーだけ
+  const foldOf = useRowFolds(sidebar ? query : "", opened);
   const iterations = useMemo(
     () => store.iterations.filter((i) => i.status === "closed").sort(byClosedDesc),
     [store.iterations],
@@ -301,13 +354,19 @@ export function HistoryPage({ view }: { view: HistoryView }) {
           {view === "epic"
             ? (rows as EpicRow[]).map((e) =>
                 sidebar ? (
-                  <SidebarEpicItem key={e.id} epic={e} />
+                  <SidebarEpicItem key={e.id} epic={e} fold={foldOf(e.id)} query={query} />
                 ) : (
                   <EpicItem key={e.id} epic={e} />
                 ),
               )
             : (rows as Iteration[]).map((i) => (
-                <IterationItem key={i.id} iteration={i} sidebar={sidebar} />
+                <IterationItem
+                  key={i.id}
+                  iteration={i}
+                  sidebar={sidebar}
+                  fold={foldOf(i.id)}
+                  query={query}
+                />
               ))}
         </ul>
       )}
@@ -315,12 +374,51 @@ export function HistoryPage({ view }: { view: HistoryView }) {
   );
 }
 
+/**
+ * 行の開閉を fold に合わせる details の属性。開閉は呼ぶ側（useRowFolds）が持ち、ここでは描いた値と違うときだけ伝える
+ * （open を描き直したときにも toggle が来るので）
+ */
+function foldProps(fold: RowFold) {
+  return {
+    open: fold.open,
+    onToggle: (e: SyntheticEvent<HTMLDetailsElement>) => {
+      if (e.currentTarget.open !== fold.open) fold.setOpen(e.currentTarget.open);
+    },
+  };
+}
+
+/**
+ * 検索で開いた行の中の見出し：当たった件数と「すべて見る」（すべて見ているときは「当たったものだけ」）。
+ * 当たったのが全件なら切り替えは出さない
+ */
+function SearchHitsBar({ hits, total, fold }: { hits: number; total: number; fold: RowFold }) {
+  return (
+    <p className="history-hits">
+      {fold.all ? `すべて ${total} 件` : `当たった ${hits} / ${total} 件`}
+      {hits < total ? (
+        <button type="button" className="link" onClick={() => fold.setAll(!fold.all)}>
+          {fold.all ? "当たったものだけ" : "すべて見る"}
+        </button>
+      ) : null}
+    </p>
+  );
+}
+
 /** Iteration の行。開くと中の done・abandoned のチケットを出す。サイドバーでは開閉の印を付け、中を番号の順の 1 本の一覧（履歴用の行）で出す */
-function IterationItem({ iteration: i, sidebar }: { iteration: Iteration; sidebar: boolean }) {
+function IterationItem({
+  iteration: i,
+  sidebar,
+  fold,
+  query,
+}: {
+  iteration: Iteration;
+  sidebar: boolean;
+  fold: RowFold;
+  query: string;
+}) {
   const store = useStore();
-  const [opened, setOpened] = useState(false);
   const finished = store.tickets
-    .filter((t) => t.iteration === i.id && (t.status === "done" || t.status === "abandoned"))
+    .filter((t) => t.iteration === i.id && isFinished(t))
     .sort(byNumber);
   const epics = epicCountsOf(finished);
   const abandoned = finished.filter((t) => t.status === "abandoned").length;
@@ -330,10 +428,7 @@ function IterationItem({ iteration: i, sidebar }: { iteration: Iteration; sideba
   const meta = [goal ? i.name : "", period].filter(Boolean).join(" ・ ");
   return (
     <li>
-      <details
-        className={`history-item${sidebar ? " fold" : ""}`}
-        onToggle={(e) => e.currentTarget.open && setOpened(true)}
-      >
+      <details className={`history-item${sidebar ? " fold" : ""}`} {...foldProps(fold)}>
         <summary className="history-row">
           <DetailLink route={{ page: "iterations", id: i.id }}>
             <code>{i.id}</code>
@@ -372,9 +467,24 @@ function IterationItem({ iteration: i, sidebar }: { iteration: Iteration; sideba
           ) : null}
         </summary>
         {sidebar ? (
-          opened ? (
-            <SidebarIterationTickets iteration={i.id} finished={finished} />
-          ) : null
+          !fold.open ? null : fold.searching && !fold.all ? (
+            <SearchHits finished={finished} query={query} fold={fold} />
+          ) : (
+            <SidebarIterationTickets
+              iteration={i.id}
+              finished={finished}
+              query={fold.searching ? query : ""}
+              header={
+                fold.searching ? (
+                  <SearchHitsBar
+                    hits={finished.filter((t) => ticketMatches(t, query)).length}
+                    total={finished.length}
+                    fold={fold}
+                  />
+                ) : null
+              }
+            />
+          )
         ) : finished.length === 0 ? (
           <p className="empty">終わったチケットはない</p>
         ) : (
@@ -406,9 +516,15 @@ function IterationItem({ iteration: i, sidebar }: { iteration: Iteration; sideba
 function SidebarIterationTickets({
   iteration,
   finished,
+  query,
+  header,
 }: {
   iteration: string;
   finished: readonly Ticket[];
+  /** 検索中に「すべて見る」で出すとき、当たった部分に印を付ける検索語 */
+  query: string;
+  /** 一覧の前に出すもの（検索中の件数と切り替え） */
+  header?: ReactNode;
 }) {
   const store = useStore();
   const [carried, setCarried] = useState<string[] | null>(null);
@@ -426,10 +542,14 @@ function SidebarIterationTickets({
   const carriedTickets = (carried ?? []).flatMap((id) => byId.get(id) ?? []);
   return (
     <div className="history-groups">
+      {header}
       {finished.length === 0 ? (
         <p className="empty">終わったチケットはない</p>
       ) : (
-        <HistoryTicketList tickets={finished} />
+        <HistoryTicketList
+          tickets={finished}
+          row={(t) => <HistoryTicketRow ticket={t} query={query} />}
+        />
       )}
       {carriedTickets.length > 0 ? (
         <section className="history-group history-carried">
@@ -441,6 +561,7 @@ function SidebarIterationTickets({
             row={(t) => (
               <HistoryTicketRow
                 ticket={t}
+                query={query}
                 note={
                   t.iteration ? (
                     <>
@@ -462,11 +583,45 @@ function SidebarIterationTickets({
   );
 }
 
+/**
+ * 検索で開いた行の中：終わったチケットのうち当たったものだけを番号の順に印付きで出す（持ち越しは出さない）。
+ * 「すべて見る」で行の全件の一覧に戻す。「ほか N 件」の開いた状態は検索語を変えたら戻す
+ */
+function SearchHits({
+  finished,
+  query,
+  fold,
+  showIteration = false,
+}: {
+  finished: readonly Ticket[];
+  query: string;
+  fold: RowFold;
+  /** Epic の行の中では Epic を省き Iteration を出す */
+  showIteration?: boolean;
+}) {
+  const hits = finished.filter((t) => ticketMatches(t, query));
+  return (
+    <div className="history-groups">
+      <SearchHitsBar hits={hits.length} total={finished.length} fold={fold} />
+      <HistoryTicketList
+        key={query.trim().toLowerCase()}
+        tickets={hits}
+        row={(t) => (
+          <HistoryTicketRow
+            ticket={t}
+            query={query}
+            showIteration={showIteration}
+            showEpic={!showIteration}
+          />
+        )}
+      />
+    </div>
+  );
+}
+
 /** Epic に入っている終わったチケット（done・abandoned）を番号の順に */
 function finishedOfEpic(epic: string, tickets: readonly Ticket[]): Ticket[] {
-  return tickets
-    .filter((t) => t.epic === epic && (t.status === "done" || t.status === "abandoned"))
-    .sort(byNumber);
+  return tickets.filter((t) => t.epic === epic && isFinished(t)).sort(byNumber);
 }
 
 /**
@@ -475,9 +630,16 @@ function finishedOfEpic(epic: string, tickets: readonly Ticket[]): Ticket[] {
  * 開くと中の終わったチケットを番号の順の 1 本の一覧（履歴用の行。Epic は省き Iteration を出す）で出す。
  * 終わったチケットのない Epic は薄く出し、開けない
  */
-function SidebarEpicItem({ epic: e }: { epic: EpicRow }) {
+function SidebarEpicItem({
+  epic: e,
+  fold,
+  query,
+}: {
+  epic: EpicRow;
+  fold: RowFold;
+  query: string;
+}) {
   const store = useStore();
-  const [opened, setOpened] = useState(false);
   const iterations = iterationsOfEpic(e.id, store.tickets);
   const finished = finishedOfEpic(e.id, store.tickets);
   const abandoned = finished.filter((t) => t.status === "abandoned").length;
@@ -518,20 +680,33 @@ function SidebarEpicItem({ epic: e }: { epic: EpicRow }) {
     );
   return (
     <li>
-      <details
-        className="history-item fold"
-        onToggle={(ev) => ev.currentTarget.open && setOpened(true)}
-      >
+      <details className="history-item fold" {...foldProps(fold)}>
         <summary className="history-row history-epic">{head}</summary>
-        {opened ? (
+        {!fold.open ? null : fold.searching && !fold.all ? (
+          <SearchHits finished={finished} query={query} fold={fold} showIteration />
+        ) : (
           <div className="history-groups">
+            {fold.searching ? (
+              <SearchHitsBar
+                hits={finished.filter((t) => ticketMatches(t, query)).length}
+                total={finished.length}
+                fold={fold}
+              />
+            ) : null}
             <HistoryTicketList
               key={e.id}
               tickets={finished}
-              row={(t) => <HistoryTicketRow ticket={t} showEpic={false} showIteration />}
+              row={(t) => (
+                <HistoryTicketRow
+                  ticket={t}
+                  showEpic={false}
+                  showIteration
+                  query={fold.searching ? query : ""}
+                />
+              )}
             />
           </div>
-        ) : null}
+        )}
       </details>
     </li>
   );
