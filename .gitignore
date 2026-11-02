@@ -1,6 +1,8 @@
 node_modules/
 dist/
 .mise.local.toml
+mise.local.toml
+.claude/settings.local.json
 *.tsbuildinfo
 *.vsix
 packages/cli/web/
