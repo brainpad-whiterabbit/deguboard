@@ -1,0 +1,22 @@
+{
+  "id": "r20261102-031024-7c36",
+  "ticket": "t181",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-02T03:10:24Z",
+  "finished_at": "2026-11-02T03:11:15Z",
+  "result": "success",
+  "error": null,
+  "retries": 2,
+  "retry_reasons": [
+    "PR本文の受け入れ条件5と6の書き方を今の条件に合わせた",
+    "同じ秒に始めたRunの順が決まらないことをJSDocに書いた"
+  ],
+  "usage": {
+    "input": 6,
+    "output": 2168,
+    "cache_read": 488487,
+    "cache_write": 2563
+  }
+}
