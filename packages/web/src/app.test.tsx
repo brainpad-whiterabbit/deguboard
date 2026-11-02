@@ -1247,7 +1247,7 @@ describe("画面", () => {
     expect(screen.queryByText("API")).toBeNull();
   });
 
-  it("サイドバーのカンバンの見出しは番号・名前（選択欄）・状態・件数、期間・目標、状態の帯と「n/m done」の 3 段で、詳細・…・開始・閉じるは出さない", async () => {
+  it("サイドバーのカンバンの見出しは番号・名前（選択欄）・状態・漏斗、期間・目標、状態の帯と「n/m done」の 3 段で、件数・詳細・…・開始・閉じるは出さない", async () => {
     const client = mockClient();
     client.data.iterations = [
       iteration({
@@ -1265,7 +1265,7 @@ describe("画面", () => {
     const head = document.querySelector(".sidebar-head")!;
     const lines = [...head.querySelectorAll(":scope > .head-line")].map((l) => l.textContent);
     expect(lines).toEqual([
-      expect.stringMatching(/^s1今▾.*予定3 件$/),
+      expect.stringMatching(/^s1今▾.*予定$/),
       "11/15–11/28左パネルを整える",
       "1/3 done",
     ]);
@@ -1281,7 +1281,68 @@ describe("画面", () => {
     expect(screen.queryByRole("button", { name: "開始する" })).toBeNull();
     expect(screen.queryByRole("button", { name: "閉じる" })).toBeNull();
     expect(screen.queryByRole("button", { name: "+ Iteration を作る" })).toBeNull();
-    expect(document.querySelector(".board-filters.compact")).toBeTruthy();
+    expect(screen.queryByText(/\d+ 件$/)).toBeNull();
+    // 絞り込みの欄は漏斗を押すまで出さない
+    expect(head.querySelector(".head-line .filter-toggle")).toBeTruthy();
+    expect(document.querySelector(".board-filters.compact")).toBeNull();
+  });
+
+  it("サイドバーでは Project が 1 つなら Project の段を出さず、2 つ以上なら出す", async () => {
+    mount(mockClient(), hostOf("sidebar"));
+    await screen.findByText("ログイン");
+    expect(document.querySelector(".project-select")).toBeNull();
+    cleanup();
+    const client = mockClient();
+    client.data.projects.push({ ...client.data.projects[0]!, id: "other", name: "Other" });
+    mount(client, hostOf("sidebar"));
+    await screen.findByText("ログイン");
+    expect(document.querySelector(".project-select")).toBeTruthy();
+  });
+
+  it("サイドバーのカンバンの Epic・担当の欄は漏斗で開き（開閉は host.state）、絞っている間は値の札を出して漏斗を色付きにし、× で外せる", async () => {
+    const client = mockClient();
+    client.data.tickets[1]!.assignee = "eiki/agent";
+    const host = hostOf("sidebar");
+    mount(client, host);
+    await screen.findByText("ログイン");
+    const funnel = screen.getByRole("button", { name: "絞り込み" });
+    expect(funnel.getAttribute("aria-expanded")).toBe("false");
+    // 閉じている間は存在しない欄を指さない
+    expect(funnel.hasAttribute("aria-controls")).toBe(false);
+    expect(screen.queryByLabelText("担当")).toBeNull();
+    expect(document.querySelector(".filter-chips")).toBeNull();
+
+    fireEvent.click(funnel);
+    expect(funnel.getAttribute("aria-expanded")).toBe("true");
+    expect(host.state.get("board.filters")).toBe(true);
+    expect(document.getElementById(funnel.getAttribute("aria-controls")!)).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("担当"), { target: { value: "eiki/agent" } });
+    await waitFor(() => expect(screen.queryByText("ログイン")).toBeNull());
+    const chip = document.querySelector(".filter-chip")!;
+    expect(chip.textContent).toBe("担当 eiki/agent×");
+    // 長い値で × が隠れないよう、文字は省略できる span に入れ、× のボタンはその外に置く
+    expect(chip.querySelector(".filter-chip-text")!.textContent).toBe("担当 eiki/agent");
+    expect(chip.lastElementChild!.tagName).toBe("BUTTON");
+    expect(funnel.classList.contains("active")).toBe(true);
+    // 帯の数は絞り込みの後のチケットで数える
+    expect(document.querySelector(".sidebar-head .status-band")!.textContent).toBe("0/1 done");
+
+    // 欄を畳んでも札は残り、× で外せる
+    fireEvent.click(funnel);
+    expect(screen.queryByLabelText("担当")).toBeNull();
+    expect(host.state.get("board.filters")).toBe(false);
+    fireEvent.click(screen.getByRole("button", { name: "担当 eiki/agent の絞り込みを外す" }));
+    await screen.findByText("ログイン");
+    expect(window.location.hash).not.toContain("assignee");
+    expect(document.querySelector(".filter-chips")).toBeNull();
+    expect(funnel.classList.contains("active")).toBe(false);
+
+    // Epic の札は番号を出す
+    fireEvent.click(funnel);
+    fireEvent.change(screen.getByLabelText("Epic"), { target: { value: "e1" } });
+    await waitFor(() =>
+      expect(document.querySelector(".filter-chip")!.textContent).toBe("Epic e1×"),
+    );
   });
 
   it("サイドバーのカンバンでは「+ Iteration を作る」を Iteration の選択欄の最後から選び、作成の欄を出す", async () => {

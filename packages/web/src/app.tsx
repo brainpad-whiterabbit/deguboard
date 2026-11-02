@@ -56,22 +56,24 @@ export function App() {
             ))}
           </nav>
           <div className="spacer" />
-          {/* サイドバーでは Project が 1 つなら切り替えを出さない（幅を節約する） */}
-          <label className="project-select" hidden={sidebar && store.projects.length <= 1}>
-            Project
-            <select
-              value={store.project?.id ?? ""}
-              onChange={(e) => store.selectProject(e.target.value)}
-              disabled={store.projects.length === 0}
-            >
-              {store.projects.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                  {p.status === "archived" ? "（アーカイブ）" : ""}
-                </option>
-              ))}
-            </select>
-          </label>
+          {/* サイドバーでは Project が 1 つなら切り替えの段を出さない（幅を節約する。hidden 属性は .project-select の display に負けるので描かない） */}
+          {sidebar && store.projects.length <= 1 ? null : (
+            <label className="project-select">
+              Project
+              <select
+                value={store.project?.id ?? ""}
+                onChange={(e) => store.selectProject(e.target.value)}
+                disabled={store.projects.length === 0}
+              >
+                {store.projects.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                    {p.status === "archived" ? "（アーカイブ）" : ""}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           {sidebar ? null : <SyncIndicator />}
         </header>
       )}
