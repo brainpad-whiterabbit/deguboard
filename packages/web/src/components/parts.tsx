@@ -480,7 +480,7 @@ export function TicketTable({
   priorityMarks?: boolean;
   /**
    * サイドバーの行の右端を差し替える（バックログの Plan の番号と着手可・待ち。board.tsx の BacklogRowEnd）。
-   * priority は差し替えないときの右端（優先度の印。priorityMarks なら空のセル）
+   * priority は行の右端の優先度の印（priorityMarks なら左の印で出すので null）
    */
   end?: ((t: Ticket, priority: ReactNode) => ReactNode) | undefined;
 }) {
@@ -489,10 +489,10 @@ export function TicketTable({
   if (tickets.length === 0) return <p className="empty">該当するチケットはない</p>;
   if (host.surface === "sidebar") {
     const hideAssignee = sameAssignee(tickets);
-    // 優先度は左の印で出すときは、右端の high の札は出さない（空のセルで格子の位置を保つ）
+    // 優先度を左の印で出すときは、右端に high の札を出さない（差し替えないときは空のセルで格子の位置を保つ）
     const priorityOf = (t: Ticket) =>
-      priorityMarks ? <span /> : <RowPriority priority={t.priority} />;
-    const endOf = (t: Ticket) => (end ? end(t, priorityOf(t)) : priorityOf(t));
+      priorityMarks ? null : <RowPriority priority={t.priority} />;
+    const endOf = (t: Ticket) => (end ? end(t, priorityOf(t)) : (priorityOf(t) ?? <span />));
     return (
       <ul className={priorityMarks ? "rows backlog-rows" : "rows"}>
         {tickets.map((t, i) => (

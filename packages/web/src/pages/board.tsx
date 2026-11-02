@@ -718,7 +718,7 @@ function Column({
   );
 }
 
-/** 左パネルのカンバンの行に出す、チケットが入っている開いた Plan と、残っている待ちの相手 */
+/** 左パネルのカンバンとバックログの行に出す、チケットが入っている開いた Plan と、残っている待ちの相手 */
 export interface PlanMark {
   plan: string;
   /** Plan が承認待ち（plan.status が pending）。todo の行は待ちの相手によらず「承認待ち」と出す */
@@ -770,7 +770,7 @@ export function waitLabel(waitingOn: readonly string[]): string {
   return `${first}${rest.length > 0 ? `+${rest.length}` : ""} 待ち`;
 }
 
-/** 左パネルのカンバンの todo の行が着手できるか：承認待ち（Plan が承認待ち）・待ち（待ちの相手が残る）・着手可。開いた Plan に入っていない行と todo でない行は null */
+/** 左パネルのカンバンとバックログの todo の行が着手できるか：承認待ち（Plan が承認待ち）・待ち（待ちの相手が残る）・着手可。開いた Plan に入っていない行と todo でない行は null */
 export type KanbanReadiness = "pending" | "waiting" | "ready";
 
 /** 行の右端の着手可・待ち・承認待ちと、タイトルを薄くするか（isWaitingReadiness）を同じ判定で決める */
@@ -803,8 +803,7 @@ function KanbanRowEnd({
   mark: PlanMark | undefined;
   running: boolean;
 }) {
-  const readiness =
-    kanbanReadiness(ticket, mark) === null ? null : <PlanReadiness ticket={ticket} mark={mark} />;
+  const readiness = planReadiness(ticket, mark);
   // 実行中の Run があれば、todo でも着手可・待ちより「実行中」を出す（手が動いていることの方が大事なので）
   const sub = running ? (
     <span className="row-running" title="このマシンで Run が実行中">
@@ -835,14 +834,8 @@ function RowPlan({ plan }: { plan: string }) {
   );
 }
 
-/** 左パネルの行の着手可・待ちの相手・承認待ち（kanbanReadiness）。開いた Plan に入っていない行と todo でない行は何も出さない */
-function PlanReadiness({
-  ticket,
-  mark,
-}: {
-  ticket: Pick<Ticket, "status">;
-  mark: PlanMark | undefined;
-}) {
+/** 左パネルの行の着手可・待ちの相手・承認待ち（kanbanReadiness で 1 回だけ判定する）。開いた Plan に入っていない行と todo でない行は null */
+function planReadiness(ticket: Pick<Ticket, "status">, mark: PlanMark | undefined): ReactNode {
   const state = kanbanReadiness(ticket, mark);
   if (!mark || state === null) return null;
   if (state === "pending") {
@@ -863,7 +856,8 @@ function PlanReadiness({
 /**
  * 左パネルのバックログの行の右端（UI-3）：開いた Plan に入っていれば、カンバンの行と同じ部品で縦に 2 段、上に Plan の番号、
  * 下に todo なら着手可・待ちの相手・承認待ち（判定は kanbanPlanMarks と kanbanReadiness）。入っていなければ priority をそのまま出す。
- * priority は行の右端の優先度の印（左に優先度の印を出す区画では空のセル）。下の段に着手可・待ちを出すときは上の段の Plan の番号の左に寄せる
+ * priority は行の右端の優先度の印（左に優先度の印を出す区画では null。そのとき Plan の外の行は空のセルで格子の位置を保つ）。
+ * 下の段に着手可・待ちを出すときは、優先度の印を上の段の Plan の番号の左に寄せる
  */
 export function BacklogRowEnd({
   ticket,
@@ -874,9 +868,8 @@ export function BacklogRowEnd({
   mark: PlanMark | undefined;
   priority: ReactNode;
 }) {
-  if (!mark) return <>{priority}</>;
-  const readiness =
-    kanbanReadiness(ticket, mark) === null ? null : <PlanReadiness ticket={ticket} mark={mark} />;
+  if (!mark) return <>{priority ?? <span />}</>;
+  const readiness = planReadiness(ticket, mark);
   return (
     <span className="row-end">
       <span className="row-end-top">

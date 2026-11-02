@@ -647,6 +647,8 @@ describe("画面", () => {
     const wait = endOf("待つ")!;
     expect(wait.querySelector(".row-wait")!.textContent).toBe("t1 待ち");
     expect(wait.querySelector(".row-wait")!.getAttribute("title")).toBe("t1 を待っている");
+    // 優先度は左の印で出すので、上の段は Plan の番号だけ（空のセルで隙間を空けない）
+    expect(wait.querySelector(".row-end-top")!.children).toHaveLength(1);
     expect(endOf("承認前")!.querySelector(".row-wait")!.textContent).toBe("承認待ち");
     // Plan に入っていない・閉じた Plan の行は右端に何も出さない
     for (const title of ["外", "閉じた計画"]) {
