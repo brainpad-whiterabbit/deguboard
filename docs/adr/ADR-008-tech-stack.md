@@ -1,7 +1,7 @@
 # ADR-008 技術構成と開発環境
 
 - ステータス：承認
-- 更新日：2026-11-01
+- 更新日：2026-11-02
 
 ## 背景
 
@@ -24,6 +24,7 @@
 - `mise.toml` で node と pnpm の版を固定する。開発者は `mise install` でツールを揃える
 - 作業のコマンドは `mise run <task>` を唯一の入口にする。タスクの一覧は mise.toml が正本（`mise tasks`）
 - タスクは pnpm scripts を呼ぶだけにし、同じ内容を 2 か所に書かない。pnpm scripts は mise から呼ばれる前提で、人は `mise run` だけ覚える
+- 依存の追加と版の更新は `mise exec -- pnpm add -E <名前>@<版>`、削除は `mise exec -- pnpm remove`、pnpm-workspace.yaml の overrides を変えたときは `mise exec -- pnpm install` で行う。版は固定なので `^` の付く `-E` なしの `add` と、固定の版を動かさない `pnpm update` は使わない。pnpm の選択肢（`--filter`・`-D` など）をそのまま使えるようタスクにせず、mise の固定した pnpm で行い、lockfile をコミットする。`mise run install` は `--frozen-lockfile` で lockfile を書き換えない
 - `check` はコミット前の確認で、format:check → lint → typecheck → test → check:docs を順に実行する
 - CI は使わない。検査は作業者がローカルで `mise run check` を通すことにとどめ、マージの条件にする
 
