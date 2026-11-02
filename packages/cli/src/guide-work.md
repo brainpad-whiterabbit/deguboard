@@ -16,6 +16,7 @@ argument-hint: "<Plan の ID|チケットの ID>"
 ## 流れ
 
 1. 着手できるか確かめる：`dg --json --actor agent ticket show <id>`。`status` が todo で `deps_done` が true。todo でも `assignee` が別のユーザなら、その人の予定なので避ける（自分か自分のユーザのものなら着手してよい）
+   - Iteration に入れる（`lint.require_iteration` が true のときだけ。今の設定：`{{lint.require_iteration}}`）：claim の前に、`ticket show` の `iteration` が空なら、チケットの Project の active の Iteration（なければ次の planned）を `iteration list` で選び、`dg --json --actor agent iteration add <S> <id>` で入れる。どちらもなければ人に頼む。入れずに進んだチケットは `dg lint` が `lint_iteration_missing` で指摘する
 2. claim する：`dg --json --actor agent ticket claim <id> --branch <種類>/<内容>`（何が起きるかは `--help`）。`CLAIM_LOST`（誰かが先に claim した）なら別のチケットへ。`TRANSITION_REJECTED` なら Workflow の制約。`BRANCH_IN_USE`（同じ名前のブランチが使われている・残っている）なら別の名前で claim し直す。`error.message` を読む
    - Iteration を始める：claim できたら、`ticket show` の `iteration` があり、`iteration show <S>` の `status` が planned のときだけ、人に聞かずに `dg --json --actor agent iteration start <S>` で active にする。active・closed や Iteration のないチケットでは何もしない。拒否されたら `iteration show` を読み直し、active なら何もせず、planned のままなら人に頼む。どちらでも作業は続ける
 3. 作業ブランチと worktree を作る（リポジトリの規約に従う。既定の置き場所は `{{worktree.root}}`）

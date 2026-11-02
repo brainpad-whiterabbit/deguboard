@@ -363,7 +363,7 @@ export const lint = defineCommand({
   name: "lint",
   group: "setup",
   summary:
-    "本文の推奨の節（## 概要・## 受け入れ条件）の欠けと空、Workflow の fields に合わない値、閉じた Epic に残る終わっていないチケット、チケットがすべて終わったのに開いている Epic・Plan を指摘する。done のチケットの未チェックの受け入れ条件は指摘しない",
+    "本文の推奨の節（## 概要・## 受け入れ条件）の欠けと空、Workflow の fields に合わない値、閉じた Epic に残る終わっていないチケット、lint.require_iteration が true なら Iteration に入らずに todo・abandoned 以外に進んだチケット（閉じた Epic の done は除く）、チケットがすべて終わったのに開いている Epic・Plan を指摘する。done のチケットの未チェックの受け入れ条件は指摘しない",
   input: z.object({
     project: z.string().optional().describe("Project で絞る。省略時はすべて"),
   }),
@@ -402,6 +402,19 @@ export const lint = defineCommand({
             doc.id,
             "lint_field_type",
             `フィールド ${f.id} の値が型 ${f.type} に合わない`,
+          );
+      }
+      if (ctx.store.config.lint.require_iteration && !doc.data.iteration) {
+        const status = doc.data.status;
+        const closedEpic =
+          doc.data.epic !== undefined &&
+          ctx.store.epics.get(doc.data.epic)?.data.status === "closed";
+        if (status !== "todo" && status !== "abandoned" && !(status === "done" && closedEpic))
+          warn(
+            doc.path,
+            doc.id,
+            "lint_iteration_missing",
+            `Iteration に入らずに ${status} に進んでいる`,
           );
       }
     }
