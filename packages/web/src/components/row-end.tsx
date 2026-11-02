@@ -4,7 +4,7 @@
 
 import type { ReactNode } from "react";
 import { AssigneeMark } from "./assignee-mark.js";
-import { RowPriority } from "./parts.js";
+import { PriorityBadge, RowPriority } from "./parts.js";
 import { openPlanByTicket, planColor, waitsOf } from "./plan-graph.js";
 import {
   isOwnAssignee,
@@ -135,22 +135,20 @@ function planReadiness(ticket: Pick<Ticket, "status">, mark: PlanMark | undefine
 
 /**
  * 左パネルのバックログの行の右端（UI-3）：開いた Plan に入っていれば、カンバンの行と同じ部品で縦に 2 段、上に Plan の番号、
- * 下に todo なら着手可・待ちの相手・承認待ち（判定は kanbanPlanMarks と kanbanReadiness）。入っていなければ priority をそのまま出す。
+ * 下に todo なら着手可・待ちの相手・承認待ち（判定は kanbanPlanMarks と kanbanReadiness）。入っていなければ上の段に優先度の札（と担当の印）だけを出す。
  * 担当者が別の人なら、カンバンと同じ担当の印（頭文字の丸。agent なら汎用のアイコンを添える。全名はツールチップ）を上の段の Plan の番号の左に出す。
  * 自分か自分の agent（isOwnAssignee。core の whoami の own_ids）なら出さない。
- * priority は行の右端の優先度の印（左に優先度の印を出す区画では null。そのとき何も出さない行は空のセルで格子の位置を保つ）。
- * 下の段に着手可・待ちを出すときは、優先度の印を上の段の Plan の番号の左に寄せる
+ * 優先度はどの行にもカンバンのカードと同じ low・medium・high の札（PriorityBadge）で出す。
+ * 下の段に着手可・待ちを出すときは、優先度の札を上の段の Plan の番号の左に寄せる
  */
 export function BacklogRowEnd({
   ticket,
   mark,
-  priority,
   me,
 }: {
   /** 一覧の行（TicketRow）なら Run の agent（run_agent）をホバーの文に出す（アイコンは agent によらず 1 種） */
-  ticket: Pick<Ticket, "status" | "assignee"> & Partial<Pick<TicketRow, "run_agent">>;
+  ticket: Pick<Ticket, "status" | "assignee" | "priority"> & Partial<Pick<TicketRow, "run_agent">>;
   mark: PlanMark | undefined;
-  priority: ReactNode;
   /** 操作している人（store.me）。分からなければ担当者をすべて別の人として出す */
   me: Pick<WhoamiView, "own_ids"> | null;
 }) {
@@ -158,8 +156,9 @@ export function BacklogRowEnd({
     ticket.assignee && !isOwnAssignee(me, ticket.assignee) ? (
       <AssigneeMark assignee={ticket.assignee} runAgent={ticket.run_agent} />
     ) : null;
+  const priority = <PriorityBadge priority={ticket.priority} />;
+  // Plan の外の行も .row-end で包み、札の高さ（.row-end .badge）をほかの行と揃える
   if (!mark) {
-    if (!who) return <>{priority ?? <span />}</>;
     return (
       <span className="row-end">
         <span className="row-end-top">

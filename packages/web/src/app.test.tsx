@@ -460,10 +460,12 @@ describe("画面", () => {
     // 名前の列はどの行にも出さず、列がないぶんタイトルが広がる（backlog の行の格子）
     expect(document.querySelector(".row-assignee")).toBeNull();
     expect(rowOf("自分").classList.contains("backlog-row")).toBe(true);
-    // 自分と自分の agent の担当は出さない。右端は空のセルのまま
+    // 自分と自分の agent の担当は出さない。右端は優先度の札だけ
     expect(markOf("自分")).toBeNull();
     expect(markOf("自分の AI")).toBeNull();
-    expect(rowOf("自分").querySelector(".row-end")).toBeNull();
+    expect(rowOf("自分").querySelector(".row-end-top")!.innerHTML).toBe(
+      '<span class="badge priority-medium">medium</span>',
+    );
     // 別の人は頭文字の丸（カンバンと同じ印）。全名はツールチップ
     expect(markOf("別の人")!.querySelector(".assignee-initial")!.textContent).toBe("H");
     expect(markOf("別の人")!.getAttribute("title")).toBe("hana");
@@ -473,9 +475,10 @@ describe("画面", () => {
     expect(markOf("別の人の AI")!.querySelector(".agent-icon svg")).not.toBeNull();
     expect(markOf("別の人")!.querySelector(".agent-icon")).toBeNull();
     expect(markOf("別の人の AI")!.getAttribute("title")).toBe("hana/agent · codex");
-    // Plan に入っていれば、上の段の Plan の番号の左に出す（先頭の空のセルは medium の優先度の印の場所）
+    // Plan に入っていれば、上の段の Plan の番号の左に出す（todo で着手可を下の段に出すので、優先度の札は先頭）
     const top = rowOf("計画の中").querySelector(".row-end-top")!;
-    expect([...top.children].map((c) => c.className.split(" ")[0]).filter(Boolean)).toEqual([
+    expect([...top.children].map((c) => c.className.split(" ")[0])).toEqual([
+      "badge",
       "assignee-mark",
       "row-plan",
     ]);
@@ -673,7 +676,7 @@ describe("画面", () => {
     expect(endOf("閉じた計画")).toBeNull();
   });
 
-  it("サイドバーのバックログの行は、開いた Plan に入っていればカンバンと同じ Plan の番号と着手可・待ちの相手・承認待ちを出し、入っていない行には何も出さない", async () => {
+  it("サイドバーのバックログの行は、開いた Plan に入っていればカンバンと同じ Plan の番号と着手可・待ちの相手・承認待ちを出し、入っていない行には優先度の札だけを出す", async () => {
     window.location.hash = "#/backlog";
     const client = mockClient();
     client.data.iterations = [iteration({ id: "s1", name: "今", status: "active" })];
@@ -695,28 +698,30 @@ describe("画面", () => {
     const rowOf = (title: string) => screen.getByText(title).closest(".row")!;
     const endOf = (title: string) => rowOf(title).querySelector(".row-end");
 
-    // in_progress：Plan の番号だけ（着手可・待ちは todo の行だけ）
+    // in_progress：上の段は Plan の番号、下の段は優先度の札（着手可・待ちは todo の行だけ）
     expect(endOf("前")!.querySelector(".row-plan")!.textContent).toBe("p7");
     expect(endOf("前")!.querySelector(".row-plan")!.classList.contains("plan-color-2")).toBe(true);
-    expect(endOf("前")!.querySelector(".row-end-sub")!.textContent).toBe("");
+    expect(endOf("前")!.querySelector(".row-end-sub")!.textContent).toBe("medium");
     expect(endOf("着手できる")!.querySelector(".row-ready")!.textContent).toBe("着手可");
     const wait = endOf("待つ")!;
     expect(wait.querySelector(".row-wait")!.textContent).toBe("t1 待ち");
     expect(wait.querySelector(".row-wait")!.getAttribute("title")).toBe("t1 を待っている");
-    // 優先度は左の印で出すので、上の段は Plan の番号だけ（空のセルで隙間を空けない）
-    expect(wait.querySelector(".row-end-top")!.children).toHaveLength(1);
+    // 下の段に待ちを出すので、優先度の札は上の段の Plan の番号の左
+    expect(wait.querySelector(".row-end-top")!.textContent).toBe("highp7");
     expect(endOf("承認前")!.querySelector(".row-wait")!.textContent).toBe("承認待ち");
-    // Plan に入っていない・閉じた Plan の行は右端に何も出さない
+    // Plan に入っていない・閉じた Plan の行は右端に優先度の札だけを出す
     for (const title of ["外", "閉じた計画"]) {
-      expect(endOf(title)).toBeNull();
-      expect(rowOf(title).lastElementChild!.textContent).toBe("");
+      // 札は .row-end で包み、Plan の行の札と同じ高さにする
+      expect(endOf(title)!.querySelector(".row-end-sub")).toBeNull();
+      expect(endOf(title)!.querySelector(".row-end-top")!.innerHTML).toBe(
+        '<span class="badge priority-medium">medium</span>',
+      );
     }
-    // 優先度は左の印のまま（右端に high の札を出さない）
-    expect(rowOf("待つ").closest("li")!.querySelector(".priority-mark")!.textContent).toBe("!");
-    expect(document.querySelector(".backlog-rows .badge.priority-high")).toBeNull();
+    // 左の優先度の印は出さない
+    expect(document.querySelector(".priority-mark")).toBeNull();
   });
 
-  it("サイドバーの Iteration のないバックログの行にも Plan の番号と着手可を出し、Plan の外の行は優先度の印のまま", async () => {
+  it("サイドバーの Iteration のないバックログの行にも Plan の番号と着手可を出し、Plan の外の行は優先度の札だけ", async () => {
     window.location.hash = "#/backlog";
     const client = mockClient();
     client.data.tickets.push(
@@ -732,8 +737,8 @@ describe("画面", () => {
     expect(rowOf("画面").querySelector(".row-ready")!.textContent).toBe("着手可");
     // 下の段に待ちを出すので、優先度の札は上の段の Plan の番号の左
     expect(wait.querySelector(".row-end-top")!.textContent).toBe("highp7");
-    expect(rowOf("外").querySelector(".row-end")).toBeNull();
-    expect(rowOf("外").lastElementChild!.textContent).toBe("high");
+    expect(rowOf("外").querySelector(".row-end-top")!.textContent).toBe("high");
+    expect(rowOf("外").querySelector(".row-end-sub")).toBeNull();
   });
 
   it("サイドバーのバックログの行に右クリックのメニューの文脈（data-vscode-context）を付け、ドラッグの行はそのまま", async () => {
@@ -1359,7 +1364,7 @@ describe("画面", () => {
     expect(screen.getByRole("button", { name: "絞り込みを消す" })).toBeTruthy();
   });
 
-  it("サイドバーのバックログの区画は、行に優先度の印を付け、見出しを状態の帯と 2 段（番号・名前・件数／状態・月日の期間・目標）にし、「…」と開始・閉じるを出さない", async () => {
+  it("サイドバーのバックログの区画は、行の右端に優先度の札を付け、見出しを状態の帯と 2 段（番号・名前・件数／状態・月日の期間・目標）にし、「…」と開始・閉じるを出さない", async () => {
     window.location.hash = "#/backlog";
     const client = mockClient();
     client.data.iterations = [
@@ -1378,9 +1383,9 @@ describe("画面", () => {
     mount(client, hostOf("sidebar"));
     await screen.findByText("API");
     const [s1] = [...document.querySelectorAll<HTMLDetailsElement>("details.backlog-section")];
-    expect([...s1!.querySelectorAll(".priority-mark")].map((m) => m.textContent)).toEqual([
-      "!",
-      "優先度 medium",
+    expect([...s1!.querySelectorAll(".row .badge")].map((m) => m.textContent)).toEqual([
+      "high",
+      "medium",
     ]);
     expect(s1!.classList.contains("iteration-active")).toBe(true);
     const lines = [...s1!.querySelectorAll("summary > .head-line")];
@@ -1428,7 +1433,7 @@ describe("画面", () => {
     await waitFor(() => expect(client.calls.some((c) => c.name === "iteration.create")).toBe(true));
   });
 
-  it("サイドバーのバックログの行は high だけ「!」を出し、low の始まりに見出しを入れ、状態の丸印は todo だけ白抜きにする", async () => {
+  it("サイドバーのバックログの行は区画の中も区画なしの一覧も右端に low・medium・high の札を出し、low の区切りの行を入れず、状態の丸印は todo だけ白抜きにする", async () => {
     window.location.hash = "#/backlog";
     const client = mockClient();
     client.data.iterations = [iteration({ id: "s1", name: "今", status: "active" })];
@@ -1443,31 +1448,36 @@ describe("画面", () => {
         iteration: "s1",
       }),
       ticket({ id: "t4", title: "低い", priority: "low", iteration: "s1" }),
+      ticket({ id: "t5", title: "区画の外", priority: "low" }),
     ];
     mount(client, hostOf("sidebar"));
     await screen.findByText("高い");
-    const s1 = document.querySelector<HTMLDetailsElement>("details.backlog-section")!;
-    const list = s1.querySelector("ul.rows")!;
+    const [s1, none] = [
+      ...document.querySelectorAll<HTMLDetailsElement>("details.backlog-section"),
+    ];
+    const list = s1!.querySelector("ul.rows")!;
     expect(list.classList.contains("backlog-rows")).toBe(true);
-    // 行と区切りの並び：区切りは low の始まり（t3 の前）に 1 つだけ
-    expect(
-      [...list.children].map((li) =>
-        li.classList.contains("priority-sep") ? "sep" : li.querySelector("code")!.textContent,
-      ),
-    ).toEqual(["t1", "t2", "sep", "t3", "t4"]);
-    expect(list.querySelector("li.priority-sep")!.textContent).toBe("low");
-    // high だけ見える「!」を出し、medium・low は見えない文字で優先度を読み上げる
-    const marks = [...list.querySelectorAll(".priority-mark")];
-    expect(marks.map((m) => m.textContent)).toEqual([
-      "!",
-      "優先度 medium",
-      "優先度 low",
-      "優先度 low",
+    // 行だけが並び、low の始まりに区切りの行を入れない
+    expect([...list.children].map((li) => li.querySelector("code")!.textContent)).toEqual([
+      "t1",
+      "t2",
+      "t3",
+      "t4",
     ]);
-    expect(marks[0]!.getAttribute("aria-label")).toBe("優先度 high");
-    expect(marks.slice(1).every((m) => m.querySelector(".visually-hidden"))).toBe(true);
-    // 見出しの行は role を付けない（list の項目のまま）
-    expect(list.querySelector("li.priority-sep")!.getAttribute("role")).toBeNull();
+    expect(document.querySelector(".priority-sep")).toBeNull();
+    expect(document.querySelector(".priority-mark")).toBeNull();
+    // 右端（行の格子の最後のセル。.row-end で包み、札の高さを揃える）にカンバンと同じ優先度の札
+    const ends = [...list.querySelectorAll(".row")].map((r) =>
+      r.lastElementChild!.querySelector(".row-end-top > .badge")!,
+    );
+    expect(ends.map((e) => [e.className, e.textContent])).toEqual([
+      ["badge priority-high", "high"],
+      ["badge priority-medium", "medium"],
+      ["badge priority-low", "low"],
+      ["badge priority-low", "low"],
+    ]);
+    // 「Iteration なし」の区画の行も同じ
+    expect(none!.querySelector(".row > .row-end .badge")!.className).toBe("badge priority-low");
     // 状態の丸印は 3 種の状態で別のクラス。カンバンの Run の印（activity-mark）は出さない
     expect([...list.querySelectorAll(".status-dot")].map((d) => d.className)).toEqual([
       "status-dot status-review",
@@ -1476,18 +1486,26 @@ describe("画面", () => {
       "status-dot status-todo",
     ]);
     expect(list.querySelector(".activity-mark")).toBeNull();
-    // 右端の high の札は左の印と重なるので出さない
-    expect(list.querySelector(".badge.priority-high")).toBeNull();
   });
 
-  it("サイドバーのバックログで low から始まる区画にも見出しを入れる", async () => {
+  it("サイドバーの Iteration のないバックログ（区画なし）の行も右端に優先度の札を出し、todo の丸を白抜きにする", async () => {
     window.location.hash = "#/backlog";
     const client = mockClient();
-    client.data.iterations = [iteration({ id: "s1", name: "今", status: "active" })];
-    client.data.tickets = [ticket({ id: "t1", title: "低い", priority: "low", iteration: "s1" })];
+    client.data.iterations = [];
+    client.data.tickets = [
+      ticket({ id: "t1", title: "高い", priority: "high" }),
+      ticket({ id: "t2", title: "低い", priority: "low" }),
+    ];
     mount(client, hostOf("sidebar"));
     await screen.findByText("低い");
-    expect(document.querySelector("li.priority-sep")!.textContent).toBe("low");
+    expect(document.querySelector("details.backlog-section")).toBeNull();
+    const list = document.querySelector("ul.rows")!;
+    expect(list.classList.contains("backlog-rows")).toBe(true);
+    expect([...list.querySelectorAll(".row")].map((r) => r.lastElementChild!.textContent)).toEqual([
+      "high",
+      "low",
+    ]);
+    expect(document.querySelector(".priority-sep")).toBeNull();
   });
 
   it("サイドバーのバックログは open の Epic が 0 本なら Epic の欄を出さない", async () => {
