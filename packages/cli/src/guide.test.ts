@@ -103,7 +103,9 @@ describe("dg guide", () => {
 
   it("parallel は親が claim の前に Iteration に入れると案内し、check は lint_iteration_missing の直す案を示し、どちらも今の設定を埋める", async () => {
     const parallel = await readGuide("parallel");
-    expect(parallel.indexOf("Iteration に入れる")).toBeLessThan(parallel.indexOf("claim"));
+    const parent = parallel.match(/^- \*\*親\*\*：.*$/m)?.[0] ?? "";
+    expect(parent.indexOf("Iteration に入れる")).toBeGreaterThan(-1);
+    expect(parent.indexOf("Iteration に入れる")).toBeLessThan(parent.indexOf("claim"));
     expect(parallel).toContain("手順 1 の「Iteration に入れる」と手順 2・3");
     expect(parallel).toContain("iteration add <S> <id>");
     const check = await readGuide("check");

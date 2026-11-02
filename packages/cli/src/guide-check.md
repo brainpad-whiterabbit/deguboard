@@ -20,7 +20,7 @@ argument-hint: "[Iteration|Epic|チケットの ID...]"
    - 本文の節が欠けている・受け入れ条件が空：本文から受け入れ条件の案を作る（`ticket update --acceptance`）。概要は今の本文に `## 概要` を足した全文を `--body` で渡す（`--body` は本文を置き換える）
    - 閉じた Epic に終わっていないチケットが残る：別の Epic に移す・Epic から外す・abandoned にする、のどれかを案にする
    - チケットがすべて終わったのに Epic・Plan が開いている：閉じる（`epic close` / `plan close`）を案にする
-   - Iteration に入っていない（`lint_iteration_missing`）：チケットの Project の active の Iteration（なければ planned）に入れる（`iteration add <S> <id>`）を案にする。入れ先がない（閉じた Iteration には入れられない。done のチケットなど）なら、Iteration を作るか設定を変えるかを人に聞く
+   - Iteration に入っていない（`lint_iteration_missing`）：`dg guide work` の手順 1 のとおり Iteration を選んで `iteration add <S> <id>` で入れるを案にする。入れ先がない（閉じた Iteration には入れられない。done のチケットなど）なら、Iteration を作るか設定を変えるかを人に聞く
    - `sync` の警告（照合できない、未チェックの受け入れ条件が残ったまま done になった）：`dg guide done` の手順で確かめる案にする
 3. **表で示して承認を得る**：次の表を示し、反映する行を `#` の複数選択で聞く（「反映しない」も入れる）。直し方が 1 つに決まらない行は案を並べ、選択肢の外の入力で受ける
 
