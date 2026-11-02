@@ -11,24 +11,16 @@ deguboard はソフトウェア開発だけでなく、コンサルティング�
 
 ### Status は 5 つに固定する
 
-チケットの進捗は `status` の 1 軸で表し、値は全ワークフロー共通の 5 つに固定する。
-
-| status        | 意味                       | 前進の順 |
-| ------------- | -------------------------- | -------- |
-| `todo`        | 未着手                     | 1        |
-| `in_progress` | 作業中（claim 済み）       | 2        |
-| `review`      | 確認待ち                   | 3        |
-| `done`        | 完了。終端                 | 4        |
-| `abandoned`   | やめた。終端。前進の軸の外 | -        |
+チケットの進捗は `status` の 1 軸で表し、値は全ワークフロー共通の 5 つ（`todo` / `in_progress` / `review` / `done` / `abandoned`）に固定する。前進の順は todo → in_progress → review → done で、`abandoned` は前進の軸の外の終端（WF-1）。
 
 - ワークフローは Status を増やせない。表示名（label）だけを変えられる
 - 工程（調査・実装・テストなど）はチケットの属性にしない。Run が `step` を持ち、「チケットがどこまで進んだか」と「Run が何をしたか」を分ける。工程をチケットに表示したいだけなら Workflow の `fields` で任意フィールドを足す
 
 ### 遷移は既定で自由にし、Workflow が制約を足す
 
-- 既定では 5 つの Status の間のどの遷移も、human / agent / reconcile の誰でも条件なしで行える。Core が固定するのは Status の集合と前進の順、同じ Status への move の拒否、`abandoned` と todo に入るときの副作用（`assignee` と `branch` を消す）だけ
-- Workflow の `transitions` は from → to ごとに制約を足す。`by` は行える主体（省略なら誰でも、`[]` ならその遷移を禁止）、`requires` は満たすべき組み込みの条件（AND）。書き方の例は requirements の 5.8
-- 照合（reconcile）は遷移の制約とは別の仕様。前進の順に進めるだけで、`abandoned` と `done` には触れず、そこからも動かさない。`by` に `reconcile` を含まない遷移は照合でも止まる
+- 既定ではどの遷移も human / agent / reconcile の誰でも条件なしで行える。Core が固定するのは Status の集合と前進の順、同じ Status への move の拒否、`abandoned` と todo に入るときの副作用だけ（ST-2・ST-8）
+- Workflow の `transitions` は遷移ごとに主体（`by`）と条件（`requires`）の制約を足す（WF-1。例は requirements の 5.8）
+- 照合（reconcile）は遷移の制約とは別の仕様で、前進の順に進めるだけ（ST-4）。`by` に `reconcile` を含まない遷移は照合でも止まる
 - Epic と Iteration を閉じる・再開するのは Workflow の外で、既定では誰でも行える。人に限るなら config の `actor.human_only` にコマンド名を書く。再開の細部は IT-1
 
 ### Workflow YAML は制約と語彙を書く
@@ -53,9 +45,8 @@ deguboard はソフトウェア開発だけでなく、コンサルティング�
 ### Epic は置き、Milestone は置かない
 
 - Epic は目的ごとにチケットを束ねる独立したエンティティ（`epics/e3.md`）。チケットの一種にはせず、claim・ブランチ・5 つの Status を持たない
-- 状態は `open` / `closed`。進捗はチケットの状態から都度求め、保存しない
-- 所属はチケット側の `epic` で表し、Epic 側に一覧を持たない。入れ子にせず、Iteration をまたぐ。チケットの遷移は縛らない
-- Milestone は持たず、期間の目標は Iteration で表す。Iteration の所属もチケット側の `iteration` だけで表し、一覧や並び順を持たない
+- 状態は `open` / `closed` で、進捗は保存しない（EP-1・EP-3）。所属はチケット側の `epic` だけで表し、入れ子にせず、Iteration をまたぐ（EP-2）。チケットの遷移は縛らない
+- Milestone は持たず、期間の目標は Iteration で表す。Iteration の所属もチケット側の `iteration` だけで表す（IT-2）
 
 ## 理由
 

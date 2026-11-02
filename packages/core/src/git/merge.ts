@@ -60,7 +60,7 @@ function newer(a: unknown, b: unknown): unknown {
   return tb > ta ? b : a;
 }
 
-/** 1 つの値の 3-way。片側だけ変えたらその値、両側が同じ値に変えたらその値。決まらなければ conflict */
+/** 1 つの値の 3-way。片側だけ変えたらその値、両側が同じ値に変えたらその値。決まらなければ conflict。配列も要素ごとにマージせず 1 つの値として比べる */
 function pick(base: unknown, ours: unknown, theirs: unknown): { value: unknown } | "conflict" {
   if (isDeepStrictEqual(ours, theirs)) return { value: ours };
   if (isDeepStrictEqual(base, ours)) return { value: theirs };

@@ -15,35 +15,34 @@
 - アプリは `CommandClient` という 1 つのインターフェースだけを通じて Core を呼ぶ。Web では HTTP の実装、VS Code では Webview の `postMessage` を拡張ホストが受けて Core を直接呼ぶ実装にする。画面のコードは両方で同一
 - VS Code 拡張はサーバーを起動しない
 - テーマは VS Code の CSS 変数を基準にし、Web ではそれに値を与える層を 1 枚置く
-- VS Code では Activity Bar から開くサイドバーのビューを主画面にし、エディタ領域のパネルには詳細（チケット・Iteration・Epic）だけを開く（UI-12）。一覧の画面をパネルに出すコマンドは持たず（一覧が 2 つ並んでも見るものが重なるだけ）、パネルから一覧へのリンクはサイドバーをその画面に切り替える。画面は載っている場所（`surface`）を `<html>` の data 属性で受け取り、サイドバーではリンクの挙動とレイアウトを変える。サイドバーとパネルの間の働きかけ（エディタで開く・サイドバーに出す・読み直す・遷移）は、`CommandClient` の postMessage に core が決めた `action` と `event` の形を足して通し、拡張ホストが実行する
+- VS Code では Activity Bar から開くサイドバーのビューを主画面にし、エディタ領域のパネルには詳細（チケット・Iteration・Epic）だけを開く（UI-12）。一覧の画面をパネルに出すコマンドは持たない（一覧が 2 つ並んでも見るものが重なるだけ）。画面は載っている場所（`surface`）でリンクの挙動とレイアウトを変え、サイドバーとパネルの間の働きかけは `CommandClient` の postMessage に core が決めた形を足して通し、拡張ホストが実行する
 
 ### UI からの書き込みを許す
 
 - ドラッグ＆ドロップでのステータス変更、属性の編集、イテレーションへの割り当てなどを UI から行える
 - 書き込みは必ず Core の同じコマンド（`core/commands`）を通る。`transitions` の制約の検査、採番、検証は CLI と同じ経路で行われ、UI だけの近道を作らない
-- カンバンは絞り込みの欄 → 選んだ Iteration の見出し → 状態ごとの節にし、Iteration の一覧の画面は置かない。Iteration は Epic・担当者と同じセレクトで選ぶ（Iteration の一覧の表は縦に場所を取り、絞り込みが 2 か所に分かれる）。サイドバーは選択欄の代わりに閉じていない Iteration を札の列で並べ（▾ を開かずに各 Iteration の進みを見渡せる）、開始・閉じるはカンバンにもバックログにも置かない（開始は `dg guide work` の手順が claim のときに行い、閉じるは人の指示のときだけなのでサイドバーでは詳細から行う。広い画面ではカンバンとバックログの見出しにも残す）。Iteration を使わない Project では Iteration で絞らず、全チケットのカンバンにする
+- カンバンには Iteration の一覧の画面を置かず、Iteration は Epic・担当者と同じ絞り込みで選ぶ（一覧の表は縦に場所を取り、絞り込みが 2 か所に分かれる）。サイドバーは閉じていない Iteration を札の列で並べ（開かずに各 Iteration の進みを見渡せる）、開始・閉じるは詳細から行う（開始は `dg guide work` の手順が claim のときに行い、閉じるは人の指示のときだけ）。Iteration を使わない Project では全チケットのカンバンにする
 - カンバンの見出しの下に実行計画（Plan）の帯を置き（UI-13）、表示だけにする。Plan の承認と閉じるは、計画を立てて進める会話（`dgplan`・`dgdone`）の中で人が答える判断なので、画面にボタンを置くと流れの外で状態が変わる
 - 画面のタブはカンバン・バックログ・履歴・Run の 4 つにし、計画中のもの（planned・active の Iteration、open の Epic）はカンバンとバックログ、終わったもの（closed の Iteration と Epic）は履歴、Run の実行状況と実績（UI-9）は Run で見る。Epic のタブは置かない（計画を立てるときに Iteration・Epic・未割り当てのチケットが 3 つの画面に分かれる）。open の Epic はバックログの欄に進捗つきで並べて絞り込みを兼ね、詳細の画面はバックログの下に置く
-- カンバンの列は 5 つの Status に固定し（abandoned は最後の畳んだ列）、表示名はワークフロー定義の `labels`、表示項目は `fields` に追従する
-- 設定画面（UI-14）は `config.yaml` だけを `config.set` で書き、VS Code の settings.json は使わない（設定はチームで共有し、利用者ごとの上書きを設けない。5.10）。たまにしか開かないのでタブにせず、歯車で来る前の画面と切り替える。保存前に確かめるのは、誤ると同期と照合・worktree を壊す `git.remote`・`git.base_branch`・`worktree.root` だけにする
+- カンバンの列は 5 つの Status に固定し、表示名と表示項目はワークフロー定義に追従する（UI-2）
+- 設定画面（UI-14）は `config.yaml` だけを書き、VS Code の settings.json は使わない（設定はチームで共有し、利用者ごとの上書きを設けない）。たまにしか開かないのでタブにせず、歯車で切り替える。保存前に確かめるのは、誤ると同期と照合・worktree を壊す項目だけにする
 - 画面からの操作の主体は常に human（画面に `--actor` はない）。エージェントは CLI から agent を名乗る（[ADR-004](ADR-004-agents-and-state.md)）
 
 ### コミットの単位は設定で選ぶ
 
-- `config.yaml` の `commit.mode`：`each`（書き込みのたびにコミット）/ `batch`（作業ツリーに残し、`dg commit`・`dg sync`・即時の操作がまとめてコミット）/ `manual`（`dg commit` と即時の操作だけ）。既定は `batch`。時間でまとめるのは Core ではなく server・拡張の責務
-- `push.mode`：`auto` / `manual`。既定は `auto`
-- claim と作成は mode によらず即座にコミットして push する（排他と採番のため。[ADR-002](ADR-002-storage-and-id.md)・[ADR-004](ADR-004-agents-and-state.md)）
+- `config.yaml` の `commit.mode` でコミットの単位を、`push.mode` で push の時期を選ぶ（値の意味は設定のスキーマの説明、既定は 5.10）。既定はまとめてコミットする `batch`。時間でまとめるのは Core ではなく server・拡張の責務
+- claim と作成は mode によらず即座にコミットして push する（排他と採番のため。CL-3、[ADR-002](ADR-002-storage-and-id.md)・[ADR-004](ADR-004-agents-and-state.md)）
 
 ### `dg` は npm で配り、拡張は同梱しない
 
-- `dg` は npm で配る（入れ方は README）。実行環境に Node.js 24 以上を要求しているので、前提は増えない。cli が依存する `core` と `server` も `@deguboard/*` として同じ版で公開し、cli に束ねない。画面（`web` のビルド結果）は cli のパッケージに同梱する
+- `dg` は npm で配る（入れ方は README）。実行環境に Node.js を要求しているので、前提は増えない。cli が依存する `core` と `server` も `@deguboard/*` として同じ版で公開し、cli に束ねない。画面（`web` のビルド結果）は cli のパッケージに同梱する
 - 拡張は Webview のために `core` と `web` だけを同梱する。画面の閲覧と操作は `dg` なしで動く
 - 拡張が使う `dg` の解決は「PATH のグローバル → 同梱」の順で引く 1 か所の関数に置く。最初の版では同梱せず、npm が使えない環境が実際に出たときに足す
-- `dg` が見つからなければ通知でインストールを案内し、`dg --version` と同梱の `core` のメジャーが違えば知らせる
+- `dg` が見つからないときと、`dg` と同梱の `core` の版のメジャーが違うときは知らせる（UI-11）
 
 ### サーバーは localhost に閉じる
 
-- `dg serve` は既定で `127.0.0.1` にバインドする。認証は持たない
+- `dg serve` は既定で localhost にバインドし、認証は持たない（UI-8）
 
 ## 理由
 

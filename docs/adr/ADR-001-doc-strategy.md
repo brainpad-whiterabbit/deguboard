@@ -1,7 +1,7 @@
 # ADR-001 文書の方針
 
 - ステータス：承認
-- 更新日：2026-11-01
+- 更新日：2026-11-02
 
 ## 背景
 
@@ -13,13 +13,7 @@ deguboard は AI エージェント（Claude Code など）が主に実装する
 
 最初に読む文書を読み手ごとに 1 つに決める。ほかの文書は、入口から作業に応じて要る節だけを引く。
 
-| 読み手                 | 入口                   | そこから引くもの                                               |
-| ---------------------- | ---------------------- | -------------------------------------------------------------- |
-| Claude（毎回）         | `CLAUDE.md`            | 作業に応じて development.md・requirements.md・ADR 一覧の要る節 |
-| 利用者                 | `README.md`            | requirements.md                                                |
-| 開発者（人）           | `docs/development.md`  | 規約は CLAUDE.md                                               |
-| 仕様を知りたい人       | `docs/requirements.md` | 理由が要るときだけ ADR 一覧から ADR                            |
-| エージェント（作業中） | `dg guide <topic>`     | 手順は CLI が出す。docs は読まない                             |
+読み手は Claude（毎回）・利用者・開発者（人）・仕様を知りたい人・作業中のエージェントで、入口はそれぞれ `CLAUDE.md`・`README.md`・`docs/development.md`・`docs/requirements.md`・`dg guide <topic>`。そこから引くものは CLAUDE.md の「ドキュメント（入口と正本）」に書く。
 
 - リポジトリの規約（毎回守る決まり）は CLAUDE.md にだけ書く。README と development.md には書き写さず、参照する
 - エージェント向けの作業手順は docs に置かず、`dg guide` として CLI に同梱する
@@ -51,14 +45,7 @@ deguboard は AI エージェント（Claude Code など）が主に実装する
 
 ### 大きさの予算
 
-| ファイル                                                    | 予算 |
-| ----------------------------------------------------------- | ---- |
-| `CLAUDE.md`                                                 | 6KB  |
-| `README.md`                                                 | 12KB |
-| `docs/requirements.md`                                      | 40KB |
-| `docs/development.md`                                       | 20KB |
-| ADR 1 本                                                    | 10KB |
-| `dg guide` のトピック 1 本（`packages/cli/src/guide-*.md`） | 14KB |
+CLAUDE.md・README・requirements・development.md と、ADR 1 本・`dg guide` のトピック 1 本ずつに大きさの予算を決める。値の正本は `scripts/check-docs.mjs`。
 
 `scripts/check-docs.mjs`（`mise run check:docs`）が予算と ADR 一覧の整合を検査し、超えたら失敗にする。予算の 90% を超えたら、失敗にはせず警告を出す。README・CLAUDE.md・docs の相対リンクと見出しアンカー（GitHub 流）の切れも検査する。超えそうなら、細部を正本へ移すか、約束を見直す。
 
