@@ -140,4 +140,4 @@ mise run vsix                        # GitHub の Release に deguboard-vscode.v
 
 公開は必ず `pnpm publish`（`release:publish`）で行う。`workspace:*` の版への書き換えと `publishConfig.exports` の差し替えは pnpm だけが行い、`npm publish` では `src/` を指す `development` 条件が残る。
 
-tarball を試すときは、一時ディレクトリの package.json の `deguboard` と、pnpm-workspace.yaml の `overrides` の `@deguboard/core`・`@deguboard/server` を `file:` の tarball に向ける（pnpm 12 は package.json の `pnpm.overrides` を読まない）。
+tarball を試すときは、一時ディレクトリの package.json の `deguboard` と、そこに置いた pnpm-workspace.yaml の `overrides` の `@deguboard/core`・`@deguboard/server` を `file:` の tarball に向ける（pnpm 12 は package.json の `overrides`・`pnpm.overrides` を読まない）。
