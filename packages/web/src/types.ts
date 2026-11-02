@@ -1,6 +1,8 @@
 // 画面が使う型。core からは型だけを取り、実行時のコードは取り込まない（web は core の型と CommandClient にだけ依存する。ADR-007）
 
 import type {
+  ConfigField,
+  ConfigShowView,
   Epic,
   EpicDetail,
   EpicRow,
@@ -28,6 +30,8 @@ import type {
 } from "@deguboard/core";
 
 export type {
+  ConfigField,
+  ConfigShowView,
   Epic,
   EpicDetail,
   EpicRow,

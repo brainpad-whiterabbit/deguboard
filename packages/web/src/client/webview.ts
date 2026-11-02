@@ -85,5 +85,7 @@ type Draft<T> = T extends unknown ? Omit<T, "id"> : never;
 function isWebviewEvent(value: unknown): value is WebviewEvent {
   if (typeof value !== "object" || value === null) return false;
   const v = value as Partial<WebviewEvent>;
-  return v.kind === "event" && (v.name === "reload" || v.name === "navigate");
+  return (
+    v.kind === "event" && (v.name === "reload" || v.name === "navigate" || v.name === "toggle")
+  );
 }

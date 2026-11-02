@@ -27,7 +27,8 @@ export type Route =
   | { page: "epics"; id: string }
   | { page: "iterations"; id: string }
   | { page: "history"; view?: HistoryView | undefined }
-  | { page: "runs"; by?: MetricUnit | undefined };
+  | { page: "runs"; by?: MetricUnit | undefined }
+  | { page: "config" };
 
 const BOARD_KEYS = [
   "iteration",
@@ -65,6 +66,8 @@ export function parseRoute(hash: string): Route {
         ? { page: "runs", by: by as MetricUnit }
         : { page: "runs" };
     }
+    case "config":
+      return { page: "config" };
     case "iterations":
       // Iteration の一覧の画面はない（planned・active はカンバンの絞り込み、closed は履歴）。ID がなければカンバン
       return id ? { page: "iterations", id } : board();
@@ -95,6 +98,8 @@ export function hrefOf(route: Route): string {
         : "#/history";
     case "runs":
       return route.by && route.by !== DEFAULT_UNIT ? `#/runs?by=${route.by}` : "#/runs";
+    case "config":
+      return "#/config";
   }
 }
 
@@ -105,6 +110,26 @@ export function isDetailRoute(route: Route): boolean {
 
 export function navigate(route: Route): void {
   window.location.hash = hrefOf(route);
+}
+
+/** toggleRoute で離れた画面。もう一度押したときに戻る先 */
+let toggledFrom: string | null = null;
+
+/**
+ * 画面を切り替える（左パネルの歯車・ブラウザの歯車）。今その画面なら、来る前の画面（なければカンバン）に戻り、
+ * そうでなければ今の画面を覚えてその画面に移る
+ */
+export function toggleRoute(hash: string): void {
+  const current = window.location.hash;
+  if (parseRoute(current).page === parseRoute(hash).page) {
+    const back =
+      toggledFrom && parseRoute(toggledFrom).page !== parseRoute(hash).page ? toggledFrom : null;
+    toggledFrom = null;
+    window.location.hash = back ?? hrefOf({ page: "board" });
+  } else {
+    toggledFrom = current || null;
+    window.location.hash = hash;
+  }
 }
 
 export function useRoute(): Route {

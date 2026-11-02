@@ -13,7 +13,7 @@ import {
 } from "./context-menu.js";
 
 interface Contributes {
-  commands: { command: string; title: string }[];
+  commands: { command: string; title: string; icon?: string }[];
   menus: Record<string, { command: string; when?: string; group?: string }[]>;
 }
 
@@ -48,6 +48,23 @@ describe("package.json の右クリックのメニュー", () => {
     for (const id of ids) {
       expect(menus["commandPalette"]).toContainEqual({ command: id, when: "false" });
     }
+  });
+});
+
+describe("package.json のビューのタイトル行", () => {
+  const { commands, menus } = pkg.contributes;
+
+  it("同期の右に歯車（設定画面の切り替え）を並べる", () => {
+    const items = menus["view/title"]!;
+    expect(items.map((m) => [m.command, m.group])).toEqual([
+      ["deguboard.sync", "navigation@1"],
+      ["deguboard.config", "navigation@2"],
+    ]);
+    for (const item of items) expect(item.when).toBe("view == deguboard.screens");
+    expect(commands.find((c) => c.command === "deguboard.config")).toMatchObject({
+      title: "設定",
+      icon: "$(gear)",
+    });
   });
 });
 

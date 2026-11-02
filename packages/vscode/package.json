@@ -56,6 +56,12 @@
         "icon": "$(sync)"
       },
       {
+        "command": "deguboard.config",
+        "title": "設定",
+        "category": "deguboard",
+        "icon": "$(gear)"
+      },
+      {
         "command": "deguboard.backlog.moveIteration",
         "title": "Iteration を移す",
         "category": "deguboard"
@@ -76,12 +82,21 @@
         {
           "command": "deguboard.sync",
           "when": "view == deguboard.screens",
-          "group": "navigation"
+          "group": "navigation@1"
+        },
+        {
+          "command": "deguboard.config",
+          "when": "view == deguboard.screens",
+          "group": "navigation@2"
         }
       ],
       "commandPalette": [
         {
           "command": "deguboard.sync",
+          "when": "false"
+        },
+        {
+          "command": "deguboard.config",
           "when": "false"
         },
         {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { configSchema, defaultConfig } from "./config.js";
+import { configFields, configSchema, defaultConfig } from "./config.js";
 import { emptyUsage, isRunId, newRunId, runSchema } from "./run.js";
 import { ticketSchema } from "./ticket.js";
 import { workflowDefinitionSchema } from "./workflow.js";
@@ -51,6 +51,33 @@ describe("スキーマ", () => {
     const partial = configSchema.parse({ git: { base_branch: "develop" } });
     expect(partial.git.remote).toBe("origin");
     expect(partial.git.base_branch).toBe("develop");
+  });
+
+  it("configFields は config の全項目を既定値・型・説明つきで出す", () => {
+    const fields = configFields();
+    expect(fields.map((f) => f.key)).toEqual([
+      "default_project",
+      "git.remote",
+      "git.base_branch",
+      "worktree.root",
+      "commit.mode",
+      "push.mode",
+      "metrics.read_transcripts",
+      "actions.shell",
+      "actions.test",
+      "auto.merge",
+      "actor.human_only",
+    ]);
+    const byKey = new Map(fields.map((f) => [f.key, f]));
+    expect(byKey.get("commit.mode")).toMatchObject({
+      type: "enum",
+      options: ["each", "batch", "manual"],
+      default: "batch",
+    });
+    expect(byKey.get("auto.merge")).toMatchObject({ type: "boolean", default: false });
+    expect(byKey.get("actions.test")).toMatchObject({ type: "list", default: [] });
+    expect(byKey.get("git.remote")).toMatchObject({ type: "string", default: "origin" });
+    for (const f of fields) expect(f.description, f.key).not.toBe("");
   });
 
   it("Workflow は形だけを検証し、条件の名前は見ない", () => {

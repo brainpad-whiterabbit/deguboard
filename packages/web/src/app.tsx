@@ -1,10 +1,10 @@
 // 画面の骨組み：上のバー（Project の切り替え・画面の切り替え・同期の印）と、ハッシュで選んだページ。
-// サイドバーでは同期の印とボタンを出さない（ビューのタイトル行の同期のボタンとバッジで代える。UI-12）
+// サイドバーでは同期の印とボタン・設定の歯車を出さない（ビューのタイトル行の同期のボタンとバッジ・歯車で代える。UI-12）
 
 import { useEffect, type MouseEvent } from "react";
 import { useHost } from "./host.js";
 import { useStore } from "./store.js";
-import { hrefOf, isDetailRoute, parseRoute, useRoute, type Route } from "./router.js";
+import { hrefOf, isDetailRoute, parseRoute, toggleRoute, useRoute, type Route } from "./router.js";
 import { BoardPage } from "./pages/board.js";
 import { BacklogPage } from "./pages/backlog.js";
 import { TicketPage } from "./pages/ticket.js";
@@ -12,6 +12,7 @@ import { EpicsPage } from "./pages/epics.js";
 import { IterationsPage } from "./pages/iterations.js";
 import { HistoryPage } from "./pages/history.js";
 import { RunsPage } from "./pages/runs.js";
+import { ConfigPage } from "./pages/config.js";
 
 const NAV: { page: Route["page"]; label: string; href: string }[] = [
   { page: "board", label: "カンバン", href: hrefOf({ page: "board" }) },
@@ -75,6 +76,19 @@ export function App() {
             </label>
           )}
           {sidebar ? null : <SyncIndicator />}
+          {/* 左パネルの歯車はビューのタイトル行にある（拡張の view/title）。ブラウザはここに置く */}
+          {sidebar ? null : (
+            <button
+              type="button"
+              className={`config-toggle${route.page === "config" ? " active" : ""}`}
+              aria-label="設定"
+              aria-pressed={route.page === "config"}
+              title="設定（config.yaml）"
+              onClick={() => toggleRoute(hrefOf({ page: "config" }))}
+            >
+              ⚙
+            </button>
+          )}
         </header>
       )}
       <NoticeBar />
@@ -148,6 +162,8 @@ function Page({ route }: { route: Route }) {
       return <HistoryPage view={route.view ?? "iteration"} />;
     case "runs":
       return <RunsPage by={route.by} />;
+    case "config":
+      return <ConfigPage />;
   }
 }
 
