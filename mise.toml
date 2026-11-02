@@ -51,7 +51,7 @@ description = "Playwright MCP（.mcp.json）が使う Chromium を入れる（�
 run = "pnpm run playwright:install"
 
 [tasks.pack]
-description = "公開する 3 パッケージ（core・server・cli）の tarball を release/ に作る（先に build が要る）"
+description = "公開する 3 パッケージ（core・server・cli）の tarball を release/ に作る（build を先に走らせる）"
 depends = ["build"]
 run = "pnpm run pack"
 
