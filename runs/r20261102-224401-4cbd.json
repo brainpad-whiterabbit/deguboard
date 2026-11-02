@@ -1,0 +1,23 @@
+{
+  "id": "r20261102-224401-4cbd",
+  "ticket": "t236",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-02T22:44:01Z",
+  "finished_at": "2026-11-02T22:44:49Z",
+  "result": "success",
+  "error": null,
+  "retries": 3,
+  "retry_reasons": [
+    "ticketRef の JSDoc が idShapeOf に付いていたのを戻した",
+    "idShapeOf を直接確かめるテストを足した",
+    "readConfig は行末のコメントを消せないと書いた"
+  ],
+  "usage": {
+    "input": 4,
+    "output": 1410,
+    "cache_read": 117206,
+    "cache_write": 2333
+  }
+}
