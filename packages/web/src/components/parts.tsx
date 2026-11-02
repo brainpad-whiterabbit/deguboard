@@ -2,7 +2,6 @@
 
 import { useDraggable } from "@dnd-kit/core";
 import {
-  Fragment,
   useEffect,
   useRef,
   useState,
@@ -482,7 +481,6 @@ export function TicketTable({
   tickets,
   extra,
   draggable = false,
-  priorityMarks = false,
   assigneeInEnd = false,
   rowMenu = false,
   end,
@@ -491,13 +489,9 @@ export function TicketTable({
   extra?: ((t: Ticket) => React.ReactNode) | undefined;
   draggable?: boolean;
   /**
-   * サイドバーで行の左に優先度の印（high だけ赤い「!」。medium・low は同じ幅の空きで、優先度は見えない文字で読み上げる）を付け、
-   * low の始まり（区画の先頭を含む）に「low」の小さな見出しの行を入れる。
-   * 状態の丸印は todo を白抜きにする（in_progress と review は色の違う塗り。styles.css の .backlog-rows）。
-   * 優先度の順に並べた一覧（バックログの区画）で使う
+   * サイドバーで行の担当者の列を出さない（担当は end が右端に出す。左パネルのバックログ。TicketRowVariant の backlog）。
+   * 状態の丸印は todo を白抜きにする（in_progress と review は色の違う塗り。styles.css の .backlog-rows）
    */
-  priorityMarks?: boolean;
-  /** サイドバーで行の担当者の列を出さない（担当は end が右端に出す。左パネルのバックログ。TicketRowVariant の backlog） */
   assigneeInEnd?: boolean;
   /**
    * サイドバーの行に VS Code の右クリックのメニューの文脈（data-vscode-context）を付ける。左パネルのバックログで使う。
@@ -505,66 +499,34 @@ export function TicketTable({
    */
   rowMenu?: boolean;
   /**
-   * サイドバーの行の右端を差し替える（バックログの Plan の番号と着手可・待ち。row-end.tsx の BacklogRowEnd）。
-   * priority は行の右端の優先度の印（priorityMarks なら左の印で出すので null）
+   * サイドバーの行の右端を差し替える（バックログの優先度の札・Plan の番号と着手可・待ち。row-end.tsx の BacklogRowEnd）。
+   * 渡さなければ優先度の印（RowPriority）
    */
-  end?: ((t: Ticket, priority: ReactNode) => ReactNode) | undefined;
+  end?: ((t: Ticket) => ReactNode) | undefined;
 }) {
   const store = useStore();
   const host = useHost();
   if (tickets.length === 0) return <p className="empty">該当するチケットはない</p>;
   if (host.surface === "sidebar") {
     const hideAssignee = sameAssignee(tickets);
-    // 優先度を左の印で出すときは、右端に high の札を出さない（差し替えないときは空のセルで格子の位置を保つ）
-    const priorityOf = (t: Ticket) =>
-      priorityMarks ? null : <RowPriority priority={t.priority} />;
-    const endOf = (t: Ticket) => (end ? end(t, priorityOf(t)) : (priorityOf(t) ?? <span />));
+    const endOf = (t: Ticket) => (end ? end(t) : <RowPriority priority={t.priority} />);
     const variant = assigneeInEnd ? "backlog" : "list";
     return (
-      <ul className={priorityMarks ? "rows backlog-rows" : "rows"}>
-        {tickets.map((t, i) => (
-          <Fragment key={t.id}>
-            {/* low の始まりに見出しの行を入れる。先頭から low の区画にも出し、medium だけの区画と見分ける */}
-            {priorityMarks &&
-            t.priority === "low" &&
-            (i === 0 || tickets[i - 1]!.priority !== "low") ? (
-              <li className="priority-sep">low</li>
-            ) : null}
-            <li data-vscode-context={rowMenu ? rowMenuContext(t) : undefined}>
-              {priorityMarks ? (
-                t.priority === "high" ? (
-                  <span
-                    className="priority-mark priority-high"
-                    role="img"
-                    aria-label="優先度 high"
-                    title="優先度 high"
-                  >
-                    !
-                  </span>
-                ) : (
-                  <span className="priority-mark">
-                    <span className="visually-hidden">優先度 {t.priority}</span>
-                  </span>
-                )
-              ) : null}
-              {draggable ? (
-                <DraggableRow
-                  ticket={t}
-                  hideAssignee={hideAssignee}
-                  variant={variant}
-                  end={endOf(t)}
-                />
-              ) : (
-                <TicketRow
-                  ticket={t}
-                  hideAssignee={hideAssignee}
-                  variant={variant}
-                  end={endOf(t)}
-                />
-              )}
-              {extra ? extra(t) : null}
-            </li>
-          </Fragment>
+      <ul className={assigneeInEnd ? "rows backlog-rows" : "rows"}>
+        {tickets.map((t) => (
+          <li key={t.id} data-vscode-context={rowMenu ? rowMenuContext(t) : undefined}>
+            {draggable ? (
+              <DraggableRow
+                ticket={t}
+                hideAssignee={hideAssignee}
+                variant={variant}
+                end={endOf(t)}
+              />
+            ) : (
+              <TicketRow ticket={t} hideAssignee={hideAssignee} variant={variant} end={endOf(t)} />
+            )}
+            {extra ? extra(t) : null}
+          </li>
         ))}
       </ul>
     );

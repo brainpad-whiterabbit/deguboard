@@ -6,7 +6,7 @@
 // サイドバーでは検索を常に出し、その下によく使う絞り込み（自分・作業中・high）のチップと、畳んだ欄で効いている条件の札（× で外す）を並べる。
 // 絞り込みの欄は畳み（開閉は host.state に残す）、見出しの件数は絞り込みが効いているときだけ「n / m 件」で出す。
 // サイドバーの Epic の欄は open の Epic があるときだけ、番号・題・進捗のチップと「Epic なし」のチップを並べる（2 行を超える分は「ほか N」）
-// サイドバーの行の右端には、開いた Plan に入っていれば Plan の番号と着手可・待ちを出す（カンバンと同じ部品と判定。components/row-end.tsx の BacklogRowEnd）。
+// サイドバーの行の右端には、カンバンと同じ優先度の札と、開いた Plan に入っていれば Plan の番号と着手可・待ちを出す（カンバンと同じ部品と判定。components/row-end.tsx の BacklogRowEnd）。
 // サイドバーの行は担当者の列を出さず、別の人の担当だけ右端に頭文字の丸で出す（自分か自分の agent は出さない。store.me）
 
 import {
@@ -243,8 +243,8 @@ export function BacklogPage() {
     () => (sidebar ? kanbanPlanMarks(store.plans, store.tickets) : new Map<string, PlanMark>()),
     [sidebar, store.plans, store.tickets],
   );
-  const rowEnd = (t: Ticket, priority: ReactNode) => (
-    <BacklogRowEnd ticket={t} mark={planMarks.get(t.id)} priority={priority} me={store.me} />
+  const rowEnd = (t: Ticket) => (
+    <BacklogRowEnd ticket={t} mark={planMarks.get(t.id)} me={store.me} />
   );
   const total = useMemo(() => filterBacklog(tickets, EMPTY_FILTER).length, [tickets]);
   const onDragEnd = async (event: DragEndEvent) => {
@@ -449,7 +449,7 @@ function Section({
 }: {
   section: BacklogSection;
   /** サイドバーの行の右端（TicketTable の end） */
-  rowEnd: (t: Ticket, priority: ReactNode) => ReactNode;
+  rowEnd: (t: Ticket) => ReactNode;
 }) {
   const host = useHost();
   // 区画全体が落とし先。閉じた Iteration には入れられないので落とし先にしない
@@ -568,7 +568,7 @@ function Section({
     <>
       {creating ? <IterationCreateForm onDone={() => setCreating(false)} /> : null}
       {tickets.length > 0 ? (
-        <TicketTable tickets={tickets} draggable priorityMarks assigneeInEnd rowMenu end={rowEnd} />
+        <TicketTable tickets={tickets} draggable assigneeInEnd rowMenu end={rowEnd} />
       ) : null}
     </>
   );
