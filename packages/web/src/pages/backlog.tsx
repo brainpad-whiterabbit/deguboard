@@ -2,8 +2,9 @@
 // 番号・タイトル・ラベルで検索、Status・優先度・ラベル・担当者で絞り込む。区画の見出しから Iteration の開始・閉じる（サイドバーを除く）、「Iteration なし」から作成。
 // Iteration が 1 つもない（planned・active がない）Project では区画に分けず 1 つの表で出す。
 // チケットを別の区画にドラッグすると ticket.update で Iteration を変える。拒否されたら通知に理由を出して元の区画に戻す（読み直すだけで戻る）。
-// open の Epic は進捗つきの欄に並べ（UI-10）、押すとその Epic のチケットに絞る（もう一度押すと解除）。Epic の作成も欄から行う。
-// サイドバーでは検索と件数だけ常に出し、絞り込みと Epic の欄は畳む（効いている条件は見出しに出す。開閉は host.state に残す）
+// open の Epic は進捗つきの欄に並べ（UI-10）、押すとその Epic のチケットに絞る（もう一度押すと解除）。広い画面では Epic の作成も欄から行う。
+// サイドバーでは検索と件数だけ常に出し、絞り込みは畳む（効いている条件は見出しに出す。開閉は host.state に残す）。
+// サイドバーの Epic の欄は open の Epic があるときだけ、番号・題・進捗のチップと「Epic なし」のチップを並べる（2 行を超える分は「ほか N」）
 
 import {
   DndContext,
@@ -13,7 +14,8 @@ import {
   useSensors,
   type DragEndEvent,
 } from "@dnd-kit/core";
-import { useMemo, useState, type MouseEvent, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
+import { Chip, ChipRow } from "../components/chips.js";
 import { ProgressBar, TicketTable } from "../components/parts.js";
 import { useHost, useUiState } from "../host.js";
 import { hrefOf } from "../router.js";
@@ -417,15 +419,16 @@ function Section({ section: { iteration: it, tickets } }: { section: BacklogSect
 /**
  * open の Epic の欄：番号（詳細へ）・タイトル・進捗と、Epic に入っていないチケットの件数。
  * タイトルを押すとその Epic で絞り、もう一度押すと解除する。「+」から Epic を作る。
- * サイドバーでは折りたたみの節にし、開閉を host.state に残す
+ * サイドバーでは EpicChips を出す
  */
 function EpicPanel({ selected, onSelect }: { selected: string; onSelect: (epic: string) => void }) {
-  const store = useStore();
   const host = useHost();
-  const sidebar = host.surface === "sidebar";
-  const [open, setOpen] = useUiState("backlog.epics", true);
-  const [creating, setCreating] = useState(false);
-  const [title, setTitle] = useState("");
+  if (host.surface === "sidebar") return <EpicChips selected={selected} onSelect={onSelect} />;
+  return <EpicList selected={selected} onSelect={onSelect} />;
+}
+
+function useOpenEpics() {
+  const store = useStore();
   const epics = useMemo(
     () => store.epics.filter((e) => e.status === "open").sort(byNumber),
     [store.epics],
@@ -433,6 +436,62 @@ function EpicPanel({ selected, onSelect }: { selected: string; onSelect: (epic: 
   const noEpic = store.tickets.filter(
     (t) => !t.epic && t.status !== "done" && t.status !== "abandoned",
   ).length;
+  return { epics, noEpic };
+}
+
+/**
+ * サイドバーの Epic の欄：open の Epic があるときだけ、番号・題・進捗のチップと「Epic なし」のチップを並べる。
+ * 押すとその Epic で絞り、もう一度押すと外れる。2 行を超える分は「ほか N」にまとめる
+ */
+function EpicChips({ selected, onSelect }: { selected: string; onSelect: (epic: string) => void }) {
+  const { epics, noEpic } = useOpenEpics();
+  if (epics.length === 0) return null;
+  return (
+    <div className="epic-chips">
+      <span className="chip-label">Epic</span>
+      <ChipRow
+        label="Epic で絞る"
+        contentKey={
+          epics.map((e) => `${e.id}:${e.title}:${e.progress.done}/${e.progress.total}`).join("|") +
+          `|${noEpic}`
+        }
+        moreLabel={(n) => `Epic をあと ${n} 本出す`}
+        lessLabel="Epic を畳む"
+      >
+        {epics.map((e) => (
+          <Chip
+            key={e.id}
+            className="epic-chip"
+            pressed={selected === e.id}
+            title={selected === e.id ? "絞り込みを外す" : `${e.id} ${e.title} で絞る`}
+            onClick={() => onSelect(e.id)}
+          >
+            <code>{e.id}</code>
+            <span className="chip-title">{e.title}</span>
+            <ProgressBar progress={e.progress} short />
+          </Chip>
+        ))}
+        <Chip
+          key={NO_EPIC}
+          className="epic-chip loose"
+          pressed={selected === NO_EPIC}
+          title={selected === NO_EPIC ? "絞り込みを外す" : "Epic のないチケットで絞る"}
+          onClick={() => onSelect(NO_EPIC)}
+        >
+          Epic なし
+          <span className="chip-count">{noEpic}</span>
+        </Chip>
+      </ChipRow>
+    </div>
+  );
+}
+
+/** 広い画面の Epic の欄。番号はハッシュの遷移で詳細へ（エディタのパネルはバックログを出さない） */
+function EpicList({ selected, onSelect }: { selected: string; onSelect: (epic: string) => void }) {
+  const store = useStore();
+  const [creating, setCreating] = useState(false);
+  const [title, setTitle] = useState("");
+  const { epics, noEpic } = useOpenEpics();
   const create = async () => {
     if (!title.trim() || !store.project) return;
     const r = await store.run("epic.create", { title: title.trim(), project: store.project.id });
@@ -441,18 +500,7 @@ function EpicPanel({ selected, onSelect }: { selected: string; onSelect: (epic: 
       setCreating(false);
     }
   };
-  const startCreating = (e: MouseEvent) => {
-    // 見出し（summary）の中のボタンなので、節の開閉を起こさない
-    e.preventDefault();
-    setCreating(true);
-    setOpen(true);
-  };
-  // サイドバーでは詳細を拡張ホストに頼んでエディタ領域のパネルに開く（Iteration の詳細と同じ）
-  const openDetail = (e: MouseEvent, id: string) => {
-    if (host.surface === "browser") return;
-    e.preventDefault();
-    host.open({ page: "epics", id });
-  };
+  const startCreating = () => setCreating(true);
 
   const add = (
     <button
@@ -493,7 +541,7 @@ function EpicPanel({ selected, onSelect }: { selected: string; onSelect: (epic: 
       <ul className="rows epic-list">
         {epics.map((e) => (
           <li key={e.id} className={selected === e.id ? "selected" : undefined}>
-            <a href={hrefOf({ page: "epics", id: e.id })} onClick={(ev) => openDetail(ev, e.id)}>
+            <a href={hrefOf({ page: "epics", id: e.id })}>
               <code>{e.id}</code>
             </a>
             <button
@@ -505,13 +553,11 @@ function EpicPanel({ selected, onSelect }: { selected: string; onSelect: (epic: 
             >
               <span className="row-title">{e.title}</span>
               <ProgressBar progress={e.progress} />
-              {sidebar && selected === e.id ? <span className="epic-clear">× 解除</span> : null}
             </button>
           </li>
         ))}
         <li className={selected === NO_EPIC ? "selected" : undefined}>
-          {/* サイドバーでは Epic の行と同じ形にする（番号の欄に「—」） */}
-          {sidebar ? <code className="muted">—</code> : <span />}
+          <span />
           <button
             type="button"
             className="epic-pick"
@@ -519,30 +565,14 @@ function EpicPanel({ selected, onSelect }: { selected: string; onSelect: (epic: 
             title={selected === NO_EPIC ? "絞り込みを解除する" : "Epic のないチケットで絞る"}
             onClick={() => onSelect(NO_EPIC)}
           >
-            <span className={sidebar ? "row-title" : "row-title muted"}>Epic なし</span>
+            <span className="row-title muted">Epic なし</span>
             <span className="muted">{noEpic} 件</span>
-            {sidebar && selected === NO_EPIC ? <span className="epic-clear">× 解除</span> : null}
           </button>
         </li>
       </ul>
     </>
   );
 
-  if (sidebar) {
-    return (
-      <details
-        className="fold epic-panel"
-        open={open}
-        onToggle={(e) => setOpen(e.currentTarget.open)}
-      >
-        <summary>
-          Epic
-          {add}
-        </summary>
-        {body}
-      </details>
-    );
-  }
   return (
     <aside className="epic-panel">
       <header>
