@@ -51,6 +51,7 @@ import {
   claimOptions,
   matchesClaim,
   actorLabel,
+  isFinished,
   ITERATION_LABELS,
   NO_CLAIM,
   type Epic,
@@ -636,7 +637,8 @@ export function ticketProgress(tickets: readonly Pick<Ticket, "status">[]): Prog
 
 /**
  * 状態ごとの節。広い画面では横に並び、サイドバーでは縦に積む（UI-12）。開閉は host.state に覚える。
- * 見出しに状態の丸印と件数。サイドバーでは枠と背景のないペイン風の見出しで、空の節は見出しの 1 行だけにする
+ * 見出しに状態の丸印と件数。サイドバーでは枠と背景のないペイン風の見出しで、空の節は見出しの 1 行だけにする。
+ * サイドバーの件数は、終わった状態（isFinished）の節では塗らずに数字だけにする
  * （ドロップ先は details 全体なので、空の節の見出しにも落とせる）
  */
 function Column({
@@ -678,7 +680,11 @@ function Column({
         <h2>
           <StatusDot status={status} />
           <span>{store.labelOf(status)}</span>
-          <span className={sidebar ? "section-count" : "muted"}>{tickets.length}</span>
+          <span
+            className={sidebar ? `section-count${isFinished(status) ? " is-plain" : ""}` : "muted"}
+          >
+            {tickets.length}
+          </span>
         </h2>
       </summary>
       {sidebar ? (

@@ -507,6 +507,18 @@ describe("画面", () => {
     expect(screen.queryByText("deguboard")).toBeNull();
   });
 
+  it("サイドバーの節の件数は、終わった状態（Done）の節だけ塗らずに数字だけにする", async () => {
+    mount(mockClient(), hostOf("sidebar"));
+    await screen.findByText("ログイン");
+    const plain = Object.fromEntries(
+      [...document.querySelectorAll<HTMLDetailsElement>("details.column")].map((d) => [
+        d.dataset.status,
+        d.querySelector(".section-count")!.classList.contains("is-plain"),
+      ]),
+    );
+    expect(plain).toEqual({ todo: false, in_progress: false, review: false, done: true });
+  });
+
   it("サイドバーのカンバンの行は状態の丸印を出さず、優先度の印（high・low）を右に出す。バックログの行は変わらない", async () => {
     const client = mockClient();
     client.data.tickets[2]!.priority = "low";

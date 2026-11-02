@@ -655,7 +655,7 @@ button.link:hover {
   color: var(--vscode-descriptionForeground);
   font-weight: normal;
 }
-/* 左パネルの帯の見出しは、カンバンの状態の節の見出し（ペイン風：小さい大文字・太字、右端に件数のバッジ）と同じ見た目 */
+/* 左パネルの帯の見出しは、カンバンの状態の節の見出し（ペイン風：小さい太字、右端に件数のバッジ）と同じ見た目 */
 [data-surface="sidebar"] .plan-band {
   gap: 0;
   margin: 0;
@@ -1738,12 +1738,11 @@ button.danger {
 [data-surface="sidebar"] .column > summary {
   padding: 3px 0.25rem;
 }
+/* 見出しは大文字に変えず、config のラベルのとおりに出す（実行計画の帯の見出しも同じ形） */
 [data-surface="sidebar"] .column h2,
 [data-surface="sidebar"] .plan-band-head {
   font-size: 11px;
   font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
 }
 [data-surface="sidebar"] .column .section-count,
 [data-surface="sidebar"] .plan-band-count {
@@ -1763,6 +1762,8 @@ button.danger {
   font-weight: 500;
   color: var(--vscode-descriptionForeground);
 }
+/* 終わった状態（Done・中止）の件数は塗らずに数字だけ（board.tsx の is-plain） */
+[data-surface="sidebar"] .column .section-count.is-plain,
 [data-surface="sidebar"] .column.is-empty .section-count {
   background: transparent;
   color: var(--vscode-descriptionForeground);
