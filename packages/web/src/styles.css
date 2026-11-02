@@ -1258,7 +1258,7 @@ button.danger {
   font-size: 1em;
 }
 /*
- * カンバンの行の担当の印（UI-2）：持ち主の頭文字の丸と、agent ならその種類のアイコン（C・X の文字の札か汎用の図形）。
+ * カンバンの行の担当の印（UI-2）：持ち主の頭文字の丸と、agent なら汎用の図形のアイコン（Run の agent によらず 1 種）。
  * 各社のロゴや配色は使わず、テーマの前景色と札の色で描く（ライトとダークで同じ形）。全文はツールチップ
  */
 .assignee-mark {
@@ -1283,20 +1283,9 @@ button.danger {
 .agent-icon {
   display: inline-grid;
   place-items: center;
-  box-sizing: border-box;
   width: 14px;
   height: 14px;
-  border: 1px solid var(--vscode-descriptionForeground);
-  border-radius: 3px;
   color: var(--vscode-foreground);
-  font-family: ui-monospace, Menlo, Consolas, monospace;
-  font-size: 9px;
-  font-weight: 700;
-  line-height: 1;
-}
-/* 汎用は枠のない図形だけにして、文字の札（C・X）と形で見分ける */
-.agent-icon.agent-generic {
-  border: none;
 }
 .row-plan {
   font-family: ui-monospace, Menlo, Consolas, monospace;
