@@ -24,6 +24,7 @@ const cleanups: Array<() => Promise<void>> = [];
 afterEach(async () => {
   slowLock.enabled = false;
   slowLock.statError = undefined;
+  slowLock.statCalls = 0;
   await Promise.all(cleanups.splice(0).map((c) => c()));
 });
 
@@ -106,8 +107,10 @@ describe("withLock", () => {
     const lockPath = path.join(dir, "locks", "write");
     await writeFile(lockPath, String(process.pid));
     slowLock.statError = "EACCES";
+    slowLock.statCalls = 0;
     let entered = false;
-    const started = Date.now();
+    // 経過時間は負荷で揺れるので見ない。待ち時間の上限で出るエラー（stat のエラーを添える）で止まったことと、
+    // 確かめた回数で waitMs を守ったことを確かめる
     await expect(
       withLock(
         dir,
@@ -117,11 +120,17 @@ describe("withLock", () => {
         },
         { waitMs: 200 },
       ),
-    ).rejects.toMatchObject({ code: "GIT_ERROR" });
-    expect(Date.now() - started).toBeLessThan(5_000);
+    ).rejects.toMatchObject({
+      code: "GIT_ERROR",
+      message: expect.stringMatching(/別の dg が書き込み中.*EACCES/),
+    });
+    // 約 50ms ごとに確かめるので、waitMs（200ms）なら数回、既定の 10 秒なら約 200 回になる。
+    // waitMs を守らなかったときもテストのタイムアウトでなくこの回数で落ちるよう、タイムアウトを広げてある
+    expect(slowLock.statCalls).toBeGreaterThan(0);
+    expect(slowLock.statCalls).toBeLessThan(50);
     expect(entered).toBe(false);
     await expect(access(lockPath)).resolves.toBeUndefined();
-  });
+  }, 30_000);
 
   it("自分のロックが古いと判定されて消され、別の待ち手が取り直していれば、終わったときにそのロックを消さない", async () => {
     const dir = await localDir();
@@ -186,42 +195,47 @@ describe("withLock", () => {
     let inside = 0;
     let most = 0;
     const order: string[] = [];
-    let ownerMtime = 0;
-    let waiterStarted = false;
+    let firstMtime = 0;
+    let lastMtime = 0;
+    // 持ち主がロックを取った合図。待ち手はこれを待ってから始めるので、順序を待ち時間に頼らない
+    let signalAcquired!: () => void;
+    const acquired = new Promise<void>((resolve) => {
+      signalAcquired = resolve;
+    });
     const owner = withLock(
       dir,
       "write",
       async () => {
         inside += 1;
         order.push("owner-in");
-        // staleMs の 4 倍持ち続ける
-        await sleep(staleMs * 4);
-        ownerMtime = (await stat(lockPath)).mtimeMs;
+        firstMtime = (await stat(lockPath)).mtimeMs;
+        signalAcquired();
+        // 古いと判定する時間の 3 倍持ち続ける（待ち手はこの間ずっと待つ）
+        await sleep(staleMs * 3);
+        lastMtime = (await stat(lockPath)).mtimeMs;
         order.push("owner-out");
         inside -= 1;
       },
       { staleMs },
     );
-    await sleep(20);
+    await acquired;
     const waiter = withLock(
       dir,
       "write",
       async () => {
-        waiterStarted = true;
         inside += 1;
         most = Math.max(most, inside);
         order.push("waiter-in");
         inside -= 1;
       },
-      { staleMs, waitMs: 5_000 },
+      { staleMs, waitMs: 30_000 },
     );
     await Promise.all([owner, waiter]);
-    expect(waiterStarted).toBe(true);
     expect(most).toBe(1);
     expect(order).toEqual(["owner-in", "owner-out", "waiter-in"]);
-    // 持ち主が持つ間に mtime が更新されていた
-    expect(Date.now() - ownerMtime).toBeLessThan(staleMs * 4);
-  });
+    // 持ち主が持つ間に mtime が更新されていた（現在時刻との差は負荷で揺れるので、取ったときの mtime と比べる）
+    expect(lastMtime).toBeGreaterThan(firstMtime);
+  }, 60_000);
 
   it("持ち主がハートビートを止めた（落ちた）ロックは、古いと判定する時間の後に奪える", async () => {
     const dir = await localDir();
