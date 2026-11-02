@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { App } from "../app.js";
 import { HostProvider, type Host } from "../host.js";
@@ -182,7 +182,8 @@ describe("実行計画の帯", () => {
     host.state.set("board.plansExpanded", true);
     mount(withPlans(), host);
     await screen.findByRole("region", { name: "実行計画" });
-    expect(host.state.get("board.plansExpanded")).toBeUndefined();
+    // 鍵は useEffect で消すので、帯が出た時点ではまだ消えていないことがある。effect の後を待つ
+    await waitFor(() => expect(host.state.get("board.plansExpanded")).toBeUndefined());
   });
 
   it("サイドバーでは待ちの辺のない Plan をチップで出し、チップに状態の丸印・番号・タイトルを出す。辺のある Plan はグラフのまま", async () => {
