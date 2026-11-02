@@ -37,7 +37,7 @@ npm に公開するまでは、[mise](https://mise.jdx.dev/) を入れて degubo
 ```sh
 git clone https://github.com/brainpad-whiterabbit/deguboard.git && cd deguboard
 mise trust && mise install    # node・pnpm を mise.toml の版で入れる
-mise run install              # 依存を入れ、dg と VS Code 拡張をビルドし、VSIX を VS Code に入れる（code CLI がなければ導入は飛ばす）
+mise run install              # 依存を入れ、dg と VS Code 拡張をビルドし、VSIX を VS Code に入れる（code CLI がないか答えなければ導入は飛ばす）
 mkdir -p ~/.local/bin && ln -sf "$PWD/packages/cli/bin/dg.js" ~/.local/bin/dg   # ~/.local/bin が PATH になければ足す。更新は git pull のあと mise run install
 ```
 

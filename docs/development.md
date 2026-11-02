@@ -30,14 +30,14 @@ mise run dg -- guide done      # マージ後の後始末
 
 このリポジトリに固有の決まり：
 
-- `dg` は `mise run install` か `mise run build` のあと `mise run dg -- <引数>` で動く。`core`・`server`・`cli` を変えた PR を取り込んだら、もう一度 `mise run build` する
+- `dg` は `mise run install`・`setup`・`build` のいずれかのあと `mise run dg -- <引数>` で動く。`core`・`server`・`cli` を変えた PR を取り込んだら、もう一度 `mise run build` する
 - Claude が呼ぶときは `DEGUBOARD_ACTOR=agent`（CLAUDE.md）。人の操作は既定の human のまま
-- worktree は `../deguboard.worktrees/<ブランチ名>` に置く（`dg` の `worktree.root` の既定と同じで、リポジトリの外なので `.gitignore` は要らない）。ブランチ名は `<種類>/<内容>`（例：`docs/branch-strategy`、`feat/ticket-create`、`fix/sync-warning`）。`mise trust` と `node_modules` は worktree ごとに要る
+- worktree は `../deguboard.worktrees/<ブランチ名>` に置く（`dg` の `worktree.root` の既定と同じで、リポジトリの外なので `.gitignore` は要らない）。ブランチ名は `<種類>/<内容>`（例：`docs/branch-strategy`、`feat/ticket-create`、`fix/sync-warning`）。`mise trust` と `node_modules` は worktree ごとに要る。worktree では `mise run setup`（依存とビルドだけ）を使い、`mise run install` は使わない（作業中のブランチの拡張で VS Code の拡張を差し替えてしまう）
 
   ```sh
   git fetch origin
   git worktree add --no-track -b <ブランチ名> ../deguboard.worktrees/<ブランチ名> origin/main
-  cd ../deguboard.worktrees/<ブランチ名> && mise trust && mise run install
+  cd ../deguboard.worktrees/<ブランチ名> && mise trust && mise run setup
   ```
 
 - PR は `gh pr create --base main` で出し、本文にチケットの ID（`t12`）を書く。このリポジトリの Workflow は software-development なので、PR が開けば `dg sync` が review に、squash マージされれば done に進める（`gh` が要る）
@@ -124,7 +124,7 @@ VS Code 拡張。拡張ホストから core の `createLocalClient` を呼び、
 
 ビルドは Vite で `dist/extension.cjs` に束ね、web の `dist` を `dist/web` に写す（[ADR-008](adr/ADR-008-tech-stack.md)）。同梱する core の版は `vite.config.ts` の `define` で埋める。手元で動かすには `mise run build` のあと VS Code で `packages/vscode` を開いて F5（拡張開発ホスト）、Activity Bar の deguboard のアイコン。
 
-VSIX は `mise run vsix`（`@vscode/vsce`。判断は [ADR-008](adr/ADR-008-tech-stack.md)）で `packages/vscode/deguboard-vscode.vsix` にでき、`mise run vsix:install`（`mise run install` の最後にも走る）で VS Code に入る（`code` CLI がなければ飛ばす。リモート開発なら統合ターミナルから）。入れたらウィンドウを再読み込みする。入るものは `.vscodeignore` が決める。
+VSIX は `mise run vsix`（`@vscode/vsce`。判断は [ADR-008](adr/ADR-008-tech-stack.md)）で `packages/vscode/deguboard-vscode.vsix` にでき、`mise run vsix:install`（`mise run install` の最後にも走る）で VS Code に入る（`code` CLI がないか、`DEGUBOARD_VSIX_INSTALL_TIMEOUT_MS`（既定 60 秒）までに答えなければ、手で入れるコマンドを出して飛ばす。リモートの `code` は VS Code の窓口が答えないと待ち続けるので止める。リモート開発なら統合ターミナルから）。入れたらウィンドウを再読み込みする。入るものは `.vscodeignore` が決める。
 
 ## リリース
 

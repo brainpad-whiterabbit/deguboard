@@ -4,8 +4,12 @@ node = "24.22.2"
 pnpm = "12.12.1"
 
 # タスクは pnpm scripts を呼ぶだけにする。人もエージェントも mise run だけを使う
+[tasks.setup]
+description = "依存を lockfile どおりに入れ、dist をビルドする（VS Code に拡張は入れない。worktree の用意はこれ）"
+run = ["pnpm install --frozen-lockfile", "pnpm run build"]
+
 [tasks.install]
-description = "依存を lockfile どおりに入れ、dist と VSIX をビルドし、VSIX を VS Code に入れる（dg と拡張が変更前のまま残らないように。code CLI がなければ導入は飛ばす）"
+description = "依存を lockfile どおりに入れ、dist と VSIX をビルドし、VSIX を VS Code に入れる（dg と拡張が変更前のまま残らないように。main の checkout で使い、worktree では setup。code CLI がないか上限までに答えなければ導入は飛ばす）"
 run = ["pnpm install --frozen-lockfile", "pnpm run build", "pnpm run vsix", "pnpm run vsix:install"]
 
 [tasks.format]
@@ -43,7 +47,7 @@ depends = ["build"]
 run = "pnpm run vsix"
 
 [tasks."vsix:install"]
-description = "ビルド済みの VSIX を VS Code に入れる（ビルドはしないので先に mise run vsix。同じ版でも --force で差し替える。code CLI がなければ飛ばす。入れたあとはウィンドウの再読み込みが要る）"
+description = "ビルド済みの VSIX を VS Code に入れる（ビルドはしないので先に mise run vsix。同じ版でも --force で差し替える。code CLI がないか、上限（DEGUBOARD_VSIX_INSTALL_TIMEOUT_MS、既定 60 秒）までに答えなければ、手で入れるコマンドを出して飛ばす。入れたあとはウィンドウの再読み込みが要る）"
 run = "pnpm run vsix:install"
 
 [tasks."playwright:install"]
