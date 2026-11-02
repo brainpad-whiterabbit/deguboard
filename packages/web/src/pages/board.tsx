@@ -96,6 +96,7 @@ export function BoardPage({ query }: { query: BoardQuery }) {
     const pick =
       open.find((i) => i.id === query.iteration) ??
       open.find((i) => i.id === lastIteration) ??
+      // active は Project に 1 つ（IT-1）なので、札で選んでいなければそれを選ぶ
       open.find((i) => i.status === "active") ??
       open[0]!;
     return { kind: "iteration", iteration: pick };

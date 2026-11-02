@@ -6,6 +6,8 @@ import { withWrite } from "../git/write.js";
 import { slugSchema } from "../model/common.js";
 import { ITERATION_STATUSES, type Iteration } from "../model/iteration.js";
 import type { Ticket } from "../model/ticket.js";
+import type { Doc } from "../storage/documents.js";
+import type { Store } from "../storage/store.js";
 import { defineCommand, ok } from "./define.js";
 import {
   iterationRef,
@@ -17,6 +19,20 @@ import {
 } from "./helpers.js";
 
 const isoDate = z.iso.date();
+
+/** active の Iteration は Project に 1 つ（IT-1）。ほかに active があれば拒否する */
+function rejectIfOtherActive(store: Store, it: Doc<Iteration>, verb: string): void {
+  const other = sortedDocs(
+    [...store.iterations.values()].filter(
+      (i) => i.id !== it.id && i.data.project === it.data.project && i.data.status === "active",
+    ),
+  )[0];
+  if (other)
+    throw new OperationError(
+      "REJECTED",
+      `${other.id} が active なので ${it.id} を${verb}できない（active の Iteration は Project に 1 つ）。先に ${other.id} を閉じる`,
+    );
+}
 
 export const iterationCreate = defineCommand({
   name: "iteration.create",
@@ -197,7 +213,7 @@ export const iterationStart = defineCommand({
   name: "iteration.start",
   positionals: ["iteration"],
   group: "iteration",
-  summary: "Iteration を開始する（active にする）",
+  summary: "Iteration を開始する（active にする）。同じ Project にほかの active があれば拒否する",
   input: z.object({ iteration: iterationRef }),
   write: true,
   needs: "store",
@@ -208,6 +224,7 @@ export const iterationStart = defineCommand({
         const it = ctx.store.require("iteration", input.iteration);
         if (it.data.status !== "planned")
           throw new OperationError("REJECTED", `${it.id} は ${it.data.status} なので開始できない`);
+        rejectIfOtherActive(ctx.store, it, "開始");
         return ctx.store.update("iteration", it.id, { status: "active" });
       },
       { message: (doc) => `${doc.id} を開始: ${doc.data.name}` },
@@ -257,7 +274,7 @@ export const iterationReopen = defineCommand({
   positionals: ["iteration"],
   group: "iteration",
   summary:
-    "閉じた Iteration を再開して active に戻す。closed_at と完了・持ち越しの件数は消す。持ち越したチケットは戻らないので iteration add で入れ直す",
+    "閉じた Iteration を再開して active に戻す（同じ Project にほかの active があれば拒否する）。closed_at と完了・持ち越しの件数は消す。持ち越したチケットは戻らないので iteration add で入れ直す",
   input: z.object({ iteration: iterationRef }),
   write: true,
   needs: "store",
@@ -269,6 +286,7 @@ export const iterationReopen = defineCommand({
         const it = ctx.store.require("iteration", input.iteration);
         if (it.data.status !== "closed")
           throw new OperationError("REJECTED", `${it.id} は閉じていない`);
+        rejectIfOtherActive(ctx.store, it, "再開");
         if (it.data.carried_over)
           warnings.push(
             `閉じたときに外した ${it.data.carried_over} 件は戻らない。iteration add で入れ直す`,

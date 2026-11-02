@@ -146,7 +146,7 @@ closed_at: 2026-11-20T09:00:00Z # closed のときだけ
 
 ### 5.6 Iteration（`iterations/s3.yaml`）
 
-- IT-1 `id`、`project`、`name`、`goal`、`start`、`end`、`status`（`planned` / `active` / `closed`）を持つ。閉じるのは既定で誰でも行え（人に限るなら `actor.human_only`、5.10）、閉じたときに `closed_at` と完了・持ち越しの件数（`completed`・`carried_over`）を書く。閉じた Iteration は `reopen` で active に戻し、`closed_at` と件数を消す。閉じたときに外した持ち越しのチケットは戻らない（入れ直す）。`name`・`goal`・`start`・`end` は `update` で後から直せ、閉じた Iteration でも直せる
+- IT-1 `id`、`project`、`name`、`goal`、`start`、`end`、`status`（`planned` / `active` / `closed`）を持つ。閉じるのは既定で誰でも行え（人に限るなら `actor.human_only`、5.10）、閉じたときに `closed_at` と完了・持ち越しの件数（`completed`・`carried_over`）を書く。`reopen` は active に戻して `closed_at` と件数を消し、外した持ち越しのチケットは戻さない。active は Project に 1 つで、`start`・`reopen` はほかに active があれば拒否する（先に閉じる）。`name`・`goal`・`start`・`end` は `update` で後から直せ、閉じた Iteration でも直せる
 - IT-2 所属はチケットの `iteration` で表し、Iteration 側にチケットの一覧は持たない（Epic と同じ）。入れるのは同じ Project のチケットだけで、閉じた Iteration には入れられない。Iteration 内の並びは優先度と番号で、閉じるときに done・abandoned 以外のチケットの `iteration` を外す
 
 ### 5.7 Plan（`plans/p7.yaml`）

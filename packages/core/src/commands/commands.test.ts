@@ -1021,6 +1021,36 @@ describe("Epic と Iteration", () => {
     const again = await runCommand(iterationReopen, agent, { iteration: "s1" });
     expect(again.warnings ?? []).toHaveLength(0);
   });
+
+  it("active の Iteration は Project に 1 つで、ほかに active があれば start と reopen を拒否する（IT-1）", async () => {
+    const f = await fixture();
+    const ctx = await initialized(f.cloneA);
+    await runCommand(projectCreate, ctx, { id: "other" });
+    for (const name of ["Sprint 1", "Sprint 2", "Sprint 3"])
+      await runCommand(iterationCreate, ctx, { name });
+    await runCommand(iterationCreate, ctx, { name: "別の Project", project: "other" });
+    await runCommand(iterationStart, ctx, { iteration: "s1" });
+    // 拒否のメッセージに今 active の Iteration を出し、記録は変えない
+    await expect(runCommand(iterationStart, ctx, { iteration: "s2" })).rejects.toMatchObject({
+      code: "REJECTED",
+      message: expect.stringContaining("s1 が active"),
+    });
+    expect(ctx.store.iterations.get("s2")?.data.status).toBe("planned");
+    // 別の Project の Iteration は数えない
+    expect((await runCommand(iterationStart, ctx, { iteration: "s4" })).data.status).toBe("active");
+    // 閉じれば次を始められ、閉じた方を再開するのは今の active を閉じてから
+    await runCommand(iterationClose, ctx, { iteration: "s1" });
+    await runCommand(iterationStart, ctx, { iteration: "s2" });
+    await expect(runCommand(iterationReopen, ctx, { iteration: "s1" })).rejects.toMatchObject({
+      code: "REJECTED",
+      message: expect.stringContaining("s2 が active"),
+    });
+    expect(ctx.store.iterations.get("s1")?.data.status).toBe("closed");
+    await runCommand(iterationClose, ctx, { iteration: "s2" });
+    expect((await runCommand(iterationReopen, ctx, { iteration: "s1" })).data.status).toBe(
+      "active",
+    );
+  });
 });
 
 describe("Plan", () => {
