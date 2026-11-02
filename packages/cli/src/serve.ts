@@ -14,6 +14,8 @@ export interface ServeDeps {
   staticDir?: string | undefined;
   /** マージドライバとして登録する、dg を呼ぶ argv の前置 */
   mergeDriver?: readonly string[] | undefined;
+  /** DEGUBOARD_USER を読む環境変数。省けば process.env（program.ts の options.env と同じ） */
+  env?: NodeJS.ProcessEnv | undefined;
   /** テスト用：ブラウザを開く代わりに呼ぶ */
   openUrl?: ((url: string) => Promise<void>) | undefined;
   /** テスト用：起動後に呼ばれ、戻ったらサーバーを閉じる */
@@ -50,7 +52,7 @@ export function addServeCommands(program: Command, deps: ServeDeps): void {
       try {
         const running = await startServer({
           cwd: deps.resolveCwd(global.C),
-          ...pickUser(global.user, process.env["DEGUBOARD_USER"]),
+          ...pickUser(global.user, (deps.env ?? process.env)["DEGUBOARD_USER"]),
           host: opts.host,
           port: opts.port,
           staticDir: deps.staticDir,

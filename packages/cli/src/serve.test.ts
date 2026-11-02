@@ -40,6 +40,28 @@ describe("dg serve / dg open", () => {
     expect(seen).toMatchObject({ ok: true });
   });
 
+  it("serve は差し替えた env の DEGUBOARD_USER を読み、whoami の user_source が env になる", async () => {
+    const f = await fixture();
+    await runCommand(init, await openContext({ cwd: f.cloneA, initialize: {} }), {});
+    let seen: any;
+    const program = new Command("dg").option("--json").option("--user <name>").exitOverride();
+    addServeCommands(program, {
+      streams: { out: () => {}, err: () => {} },
+      resolveCwd: () => f.cloneA,
+      env: { DEGUBOARD_USER: "eiki" },
+      onListening: async (url) => {
+        const res = await fetch(`${url}api/commands/whoami`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ input: {} }),
+        });
+        seen = await res.json();
+      },
+    });
+    await program.parseAsync(["serve", "--port", "0"], { from: "user" });
+    expect(seen.data).toMatchObject({ id: "eiki", user: "eiki", user_source: "env" });
+  });
+
   it("open は既定の URL をブラウザで開く", async () => {
     const opened: string[] = [];
     const out: string[] = [];
