@@ -50,3 +50,4 @@ details:
     approach: "#/runs?by=iteration にその Iteration で絞るクエリを渡す。runs 側で絞れなければ足す"
 approved_by: eiki.kitajima/agent
 approved_at: 2026-11-02T12:54:57Z
+closed_at: 2026-11-02T22:09:17Z
