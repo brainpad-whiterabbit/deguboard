@@ -721,6 +721,33 @@ describe("画面", () => {
     expect(rowOf("外").lastElementChild!.textContent).toBe("high");
   });
 
+  it("サイドバーのバックログの行に右クリックのメニューの文脈（data-vscode-context）を付け、ドラッグの行はそのまま", async () => {
+    window.location.hash = "#/backlog";
+    const client = mockClient();
+    client.data.iterations.push(iteration({ id: "s1", name: "最初", status: "active" }));
+    client.data.tickets.push(ticket({ id: "t4", title: "入った", iteration: "s1" }));
+    mount(client, hostOf("sidebar"));
+    await screen.findByText("入った");
+    const contextOf = (title: string) =>
+      JSON.parse(screen.getByText(title).closest("li")!.getAttribute("data-vscode-context")!);
+    expect(contextOf("入った")).toEqual({
+      webviewSection: "backlogTicket",
+      ticket: "t4",
+      iteration: "s1",
+      project: "default",
+      preventDefaultContextMenuItems: true,
+    });
+    expect(contextOf("画面")).toMatchObject({ ticket: "t3", iteration: null });
+    // 見た目は変えない：行はドラッグできる行のまま
+    expect(screen.getByText("入った").closest(".row-drag")).not.toBeNull();
+  });
+
+  it("サイドバーのカンバンの行には右クリックのメニューの文脈を付けない", async () => {
+    mount(mockClient(), hostOf("sidebar"));
+    await screen.findByText("ログイン");
+    expect(document.querySelector("[data-vscode-context]")).toBeNull();
+  });
+
   it("サイドバーのカンバンの行の頭に、実行中の Run があれば回るリングと「実行中」を、Run のない in_progress なら止まった半分塗りの丸を出し、読み直しで変わる", async () => {
     const client = mockClient();
     client.data.plans.push(plan({ id: "p7", tickets: ["t2"] }));
