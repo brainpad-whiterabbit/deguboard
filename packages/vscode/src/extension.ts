@@ -16,6 +16,14 @@ import {
   type WebviewEvent,
 } from "@deguboard/core";
 import * as vscode from "vscode";
+import {
+  BACKLOG_ROW_COMMANDS,
+  iterationPicks,
+  menuTicketOf,
+  moveToIteration,
+  ticketRoute,
+  type MenuTicket,
+} from "./context-menu.js";
 import { dgAdvice, resolveDg } from "./dg.js";
 import { watchTargets } from "./watch.js";
 import {
@@ -53,6 +61,21 @@ export function activate(context: vscode.ExtensionContext): void {
     // ビューのタイトル行の同期ボタン（UI-12）。拡張ホストで実行してから、サイドバーとパネルの両方に読み直しを頼む
     // （サイドバーが描かれていなくても動く）。リモートがなくても読み直しだけはするので、手の再読み込みも兼ねる
     vscode.commands.registerCommand("deguboard.sync", () => void syncFolder()),
+    // 左パネルのバックログの行の右クリック（package.json の webview/context。引数は行の data-vscode-context）
+    vscode.commands.registerCommand(BACKLOG_ROW_COMMANDS.move, (arg: unknown) =>
+      withMenuTicket(arg, moveFromMenu),
+    ),
+    vscode.commands.registerCommand(BACKLOG_ROW_COMMANDS.open, (arg: unknown) =>
+      withMenuTicket(arg, (folder, row) =>
+        openPanel(context, folder, { column: vscode.ViewColumn.Beside, route: ticketRoute(row) }),
+      ),
+    ),
+    vscode.commands.registerCommand(BACKLOG_ROW_COMMANDS.copyId, (arg: unknown) =>
+      withMenuTicket(arg, async (_folder, row) => {
+        await vscode.env.clipboard.writeText(row.ticket);
+        void vscode.window.setStatusBarMessage(`deguboard: ${row.ticket} をコピーした`, 3000);
+      }),
+    ),
     vscode.window.registerWebviewViewProvider(
       VIEW_ID,
       { resolveWebviewView: (view) => resolveSidebar(context, view) },
@@ -168,6 +191,41 @@ async function syncFolder(): Promise<void> {
   } finally {
     syncing = false;
     broadcast(folder, { kind: "event", name: "reload" });
+  }
+}
+
+/** 右クリックのメニューの引数からチケットを取り、サイドバーのフォルダに対して動かす。取れなければ何もしない */
+async function withMenuTicket(
+  arg: unknown,
+  fn: (folder: vscode.WorkspaceFolder, row: MenuTicket) => Promise<void>,
+): Promise<void> {
+  const row = menuTicketOf(arg);
+  const folder = sidebarFolder;
+  if (!row || !folder) return;
+  await fn(folder, row);
+}
+
+/**
+ * 「Iteration を移す」。候補（閉じていない Iteration と「Iteration なし」）を QuickPick で選ばせ、ドラッグと同じ ticket.update を呼ぶ。
+ * 拒否されたら通知に理由を出す。画面はデータの見張りでも読み直すが、待たずに読み直しを頼む
+ */
+async function moveFromMenu(folder: vscode.WorkspaceFolder, row: MenuTicket): Promise<void> {
+  const client = clientFor(folder);
+  try {
+    const picks = await iterationPicks(client, row);
+    const pick = await vscode.window.showQuickPick(picks, {
+      title: `${row.ticket} を移す Iteration`,
+      placeHolder: "Iteration を選ぶ",
+    });
+    if (!pick) return;
+    if (await moveToIteration(client, row, pick)) {
+      broadcast(folder, { kind: "event", name: "reload" });
+    }
+  } catch (error) {
+    const failure = toCommandFailure(error);
+    void vscode.window.showErrorMessage(
+      `deguboard: ${row.ticket} を移せない: ${failure.message}${failure.detail ? `（${failure.detail}）` : ""}`,
+    );
   }
 }
 

@@ -374,7 +374,7 @@ export function BacklogPage() {
               ))}
             </DndContext>
           ) : (
-            <TicketTable tickets={rows} assigneeInEnd end={rowEnd} />
+            <TicketTable tickets={rows} assigneeInEnd rowMenu end={rowEnd} />
           )}
         </div>
       </div>
@@ -564,7 +564,7 @@ function Section({
     <>
       {creating ? <IterationCreateForm onDone={() => setCreating(false)} /> : null}
       {tickets.length > 0 ? (
-        <TicketTable tickets={tickets} draggable priorityMarks assigneeInEnd end={rowEnd} />
+        <TicketTable tickets={tickets} draggable priorityMarks assigneeInEnd rowMenu end={rowEnd} />
       ) : null}
     </>
   );

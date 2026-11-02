@@ -54,6 +54,21 @@
         "title": "同期",
         "category": "deguboard",
         "icon": "$(sync)"
+      },
+      {
+        "command": "deguboard.backlog.moveIteration",
+        "title": "Iteration を移す",
+        "category": "deguboard"
+      },
+      {
+        "command": "deguboard.backlog.openTicket",
+        "title": "詳細を開く",
+        "category": "deguboard"
+      },
+      {
+        "command": "deguboard.backlog.copyId",
+        "title": "ID をコピー",
+        "category": "deguboard"
       }
     ],
     "menus": {
@@ -68,6 +83,35 @@
         {
           "command": "deguboard.sync",
           "when": "false"
+        },
+        {
+          "command": "deguboard.backlog.moveIteration",
+          "when": "false"
+        },
+        {
+          "command": "deguboard.backlog.openTicket",
+          "when": "false"
+        },
+        {
+          "command": "deguboard.backlog.copyId",
+          "when": "false"
+        }
+      ],
+      "webview/context": [
+        {
+          "command": "deguboard.backlog.moveIteration",
+          "when": "webviewId == 'deguboard.screens' && webviewSection == 'backlogTicket'",
+          "group": "1_move@1"
+        },
+        {
+          "command": "deguboard.backlog.openTicket",
+          "when": "webviewId == 'deguboard.screens' && webviewSection == 'backlogTicket'",
+          "group": "2_open@1"
+        },
+        {
+          "command": "deguboard.backlog.copyId",
+          "when": "webviewId == 'deguboard.screens' && webviewSection == 'backlogTicket'",
+          "group": "9_copy@1"
         }
       ]
     }

@@ -464,12 +464,27 @@ function DraggableTr({ ticket, children }: { ticket: Ticket; children: ReactNode
  * チケットの一覧。広い画面では表、サイドバーでは 1 行ずつの並び。行の先頭のリンクで詳細へ。
  * draggable なら行をドラッグできる（外側に DndContext が要る）
  */
+/**
+ * バックログの行の右クリックの文脈。webviewSection は拡張の package.json の when と合わせる（packages/vscode/src/context-menu.ts）。
+ * 既定の切り取り・コピー・貼り付けは出さない
+ */
+export function rowMenuContext(t: Ticket): string {
+  return JSON.stringify({
+    webviewSection: "backlogTicket",
+    ticket: t.id,
+    iteration: t.iteration ?? null,
+    project: t.project,
+    preventDefaultContextMenuItems: true,
+  });
+}
+
 export function TicketTable({
   tickets,
   extra,
   draggable = false,
   priorityMarks = false,
   assigneeInEnd = false,
+  rowMenu = false,
   end,
 }: {
   tickets: readonly Ticket[];
@@ -484,6 +499,11 @@ export function TicketTable({
   priorityMarks?: boolean;
   /** サイドバーで行の担当者の列を出さない（担当は end が右端に出す。左パネルのバックログ。TicketRowVariant の backlog） */
   assigneeInEnd?: boolean;
+  /**
+   * サイドバーの行に VS Code の右クリックのメニューの文脈（data-vscode-context）を付ける。左パネルのバックログで使う。
+   * メニューとコマンドは拡張の package.json の webview/context と context-menu.ts。ブラウザでは何も起きない
+   */
+  rowMenu?: boolean;
   /**
    * サイドバーの行の右端を差し替える（バックログの Plan の番号と着手可・待ち。board.tsx の BacklogRowEnd）。
    * priority は行の右端の優先度の印（priorityMarks なら左の印で出すので null）
@@ -510,7 +530,7 @@ export function TicketTable({
             (i === 0 || tickets[i - 1]!.priority !== "low") ? (
               <li className="priority-sep">low</li>
             ) : null}
-            <li>
+            <li data-vscode-context={rowMenu ? rowMenuContext(t) : undefined}>
               {priorityMarks ? (
                 t.priority === "high" ? (
                   <span
