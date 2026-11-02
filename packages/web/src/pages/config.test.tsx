@@ -217,6 +217,20 @@ describe("設定画面", () => {
     fireEvent.click(screen.getByRole("button", { name: "設定" }));
     expect(window.location.hash).toBe("#/backlog");
   });
+
+  it("画面の中の「前の画面に戻る」は歯車と同じく、来る前の画面に戻る", async () => {
+    const { client } = configClient();
+    window.location.hash = "#/backlog";
+    render(
+      <StoreProvider client={client}>
+        <App />
+      </StoreProvider>,
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "設定" }));
+    expect(window.location.hash).toBe("#/config");
+    fireEvent.click(await screen.findByRole("button", { name: "前の画面に戻る" }));
+    expect(window.location.hash).toBe("#/backlog");
+  });
 });
 
 describe("設定画面の部品", () => {
