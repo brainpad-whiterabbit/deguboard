@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { App } from "./app.js";
 import { HostProvider, type Host } from "./host.js";
@@ -83,6 +83,37 @@ describe("前回の一覧の cache", () => {
     release();
     await screen.findByText("ログイン");
     expect(document.querySelector(".skeleton")).toBeNull();
+  });
+
+  it("cache に操作している人（me）がなければ、バックログの「自分」のチップは whoami を読み終えるまで出さない", async () => {
+    window.location.hash = "#/backlog";
+    const state = createUiState(memoryBackend());
+    const before = fixture();
+    state.set(SNAPSHOT_KEY, {
+      projectId: "default",
+      projects: before.projects,
+      tickets: before.tickets,
+      epics: before.epics,
+      iterations: before.iterations,
+      plans: before.plans,
+      workflow: before.workflow,
+    });
+    const client = mockClient();
+    let release = () => {};
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    const run = client.run.bind(client);
+    client.run = (async (name: string, input?: unknown) => {
+      if (name === "whoami") await gate;
+      return run(name, input);
+    }) as typeof client.run;
+    mount(client, state, state);
+    const group = screen.getByRole("group", { name: "絞り込み" });
+    expect([...group.querySelectorAll(".chip")].map((c) => c.textContent)).toEqual([
+      "作業中",
+      "high",
+    ]);
+    release();
+    expect(await within(group).findByRole("button", { name: "自分" })).toBeTruthy();
   });
 
   it("ブラウザでは cache を渡さず、骨組みも出さない（今のまま「読み込み中…」だけ）", async () => {

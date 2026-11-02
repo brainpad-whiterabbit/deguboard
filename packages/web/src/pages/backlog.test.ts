@@ -37,6 +37,27 @@ describe("バックログの絞り込み", () => {
     ]);
   });
 
+  it("mine は操作している人か、その人の agent が担当のものに絞る。操作している人が分からなければどれにも当たらない", () => {
+    const assigned = tickets.map((t) =>
+      t.id === "t1"
+        ? { ...t, assignee: "eiki" }
+        : t.id === "t2"
+          ? { ...t, assignee: "eiki/agent" }
+          : t.id === "t5"
+            ? { ...t, assignee: "hana" }
+            : t,
+    );
+    const me = { own_ids: ["eiki", "eiki/agent"] };
+    const mine = { ...EMPTY_FILTER, mine: true };
+    expect(filterBacklog(assigned, mine, me).map((t) => t.id)).toEqual(["t2", "t1"]);
+    expect(filterBacklog(assigned, mine, null)).toEqual([]);
+    expect(filterBacklog(assigned, EMPTY_FILTER, null).map((t) => t.id)).toEqual([
+      "t2",
+      "t5",
+      "t1",
+    ]);
+  });
+
   it("done と abandoned を除き、優先度と番号の順に並べる", () => {
     expect(filterBacklog(tickets, EMPTY_FILTER).map((t) => t.id)).toEqual(["t2", "t5", "t1"]);
   });

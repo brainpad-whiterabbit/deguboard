@@ -438,7 +438,9 @@ describe("画面", () => {
     mount(client, hostOf("sidebar"));
     await screen.findByText("別の人");
     expect(client.calls.some((c) => c.name === "whoami")).toBe(true);
-    const rowOf = (title: string) => screen.getByText(title).closest(".row")!;
+    // 題が「自分」の行は、検索欄の下の「自分」のチップと文字が重なるので、行の題から引く
+    const rowOf = (title: string) =>
+      screen.getByText(title, { selector: ".row-title" }).closest(".row")!;
     const markOf = (title: string) => rowOf(title).querySelector(".assignee-mark");
     // 名前の列はどの行にも出さず、列がないぶんタイトルが広がる（backlog の行の格子）
     expect(document.querySelector(".row-assignee")).toBeNull();
@@ -1393,7 +1395,7 @@ describe("画面", () => {
     expect(screen.queryByRole("button", { name: /Epic なし/ })).toBeNull();
   });
 
-  it("サイドバーのバックログは検索欄の下に「作業中」「high」のチップを 1 行で出し、押すと絞り、効いているチップは塗る。もう一度押すと外れる", async () => {
+  it("サイドバーのバックログは検索欄の下に「自分」「作業中」「high」のチップを 1 行で出し、押すと絞り、効いているチップは塗る。もう一度押すと外れる", async () => {
     window.location.hash = "#/backlog";
     const client = mockClient();
     client.data.tickets.push(
@@ -1401,7 +1403,7 @@ describe("画面", () => {
     );
     mount(client, hostOf("sidebar"));
     await screen.findByText("API");
-    const group = screen.getByRole("group", { name: "よく使う絞り込み" });
+    const group = screen.getByRole("group", { name: "絞り込み" });
     // 検索欄の toolbar のすぐ後に置く
     expect(group.previousElementSibling!.querySelector("input[type=search]")).toBeTruthy();
     const chip = (name: string) => within(group).getByRole("button", { name });
@@ -1411,6 +1413,7 @@ describe("画面", () => {
         c.getAttribute("aria-pressed"),
       ]),
     ).toEqual([
+      ["自分", "false"],
       ["作業中", "false"],
       ["high", "false"],
     ]);
@@ -1433,11 +1436,57 @@ describe("画面", () => {
     expect(group.querySelector(".filter-chip")).toBeNull();
   });
 
+  it("サイドバーのバックログの「自分」のチップは、操作している人（whoami）か、その人の agent が担当のチケットに絞る", async () => {
+    window.location.hash = "#/backlog";
+    const client = mockClient();
+    client.data.tickets.push(
+      ticket({ id: "t4", title: "本人の", assignee: "eiki" }),
+      ticket({ id: "t5", title: "本人の AI の", assignee: "eiki/agent" }),
+      ticket({ id: "t6", title: "別の人の", assignee: "hana" }),
+    );
+    mount(client, hostOf("sidebar"));
+    await screen.findByText("本人の");
+    const group = screen.getByRole("group", { name: "絞り込み" });
+    const mine = within(group).getByRole("button", { name: "自分" });
+    expect(mine.getAttribute("title")).toBe("自分か自分の agent の担当 で絞る");
+    fireEvent.click(mine);
+    expect(mine.getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getByText("本人の")).toBeTruthy();
+    expect(screen.getByText("本人の AI の")).toBeTruthy();
+    expect(screen.queryByText("別の人の")).toBeNull();
+    expect(screen.queryByText("API")).toBeNull();
+    expect(document.querySelector("details.filters summary .count")!.textContent).toBe("2 / 5 件");
+    // 「自分」はチップで見えているので札にしない。「絞り込みを消す」で外れる
+    expect(group.querySelector(".filter-chip")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "絞り込みを消す" }));
+    expect(mine.getAttribute("aria-pressed")).toBe("false");
+    expect(screen.getByText("別の人の")).toBeTruthy();
+  });
+
+  it("サイドバーのバックログは、選んだ Epic のチップが Epic の欄に出ていなければ、Epic の条件を × の札にする", async () => {
+    window.location.hash = "#/backlog";
+    const client = mockClient();
+    const send = mountWithBridge(client, { readRunning: false });
+    await screen.findByText("API");
+    const group = screen.getByRole("group", { name: "絞り込み" });
+    fireEvent.click(screen.getByRole("button", { name: /最初の版/ }));
+    // Epic の欄にチップがある間は札にしない
+    expect(group.querySelector(".filter-chip")).toBeNull();
+    // Epic が閉じて欄から消えたら、効いている条件を札で見せる
+    client.data.epics = client.data.epics.map((e) => ({ ...e, status: "closed" as const }));
+    act(() => send()({ kind: "event", name: "reload" }));
+    await waitFor(() => expect(document.querySelector(".epic-chips")).toBeNull());
+    expect(group.querySelector(".filter-chip-text")!.textContent).toBe("Epic e1");
+    fireEvent.click(screen.getByRole("button", { name: "Epic e1 の絞り込みを外す" }));
+    expect(group.querySelector(".filter-chip")).toBeNull();
+    expect(screen.getByText("画面")).toBeTruthy();
+  });
+
   it("サイドバーのバックログは畳んだ欄で効いている条件を検索欄の下に札で出し、× で外せる。× の読み上げは何を外すかを言う", async () => {
     window.location.hash = "#/backlog";
     mount(mockClient(), hostOf("sidebar"));
     await screen.findByText("API");
-    const group = screen.getByRole("group", { name: "よく使う絞り込み" });
+    const group = screen.getByRole("group", { name: "絞り込み" });
     const fold = document.querySelector<HTMLDetailsElement>("details.filters")!;
     const select = (name: string) => within(fold).getByLabelText<HTMLSelectElement>(name);
     fireEvent.change(select("Status"), { target: { value: "todo" } });
