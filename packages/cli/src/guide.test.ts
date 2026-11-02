@@ -90,6 +90,17 @@ describe("dg guide", () => {
     });
   });
 
+  it("work は lint.require_iteration が true なら claim の前に Iteration に入れると案内し、今の設定を埋める", async () => {
+    const work = await readGuide("work");
+    expect(work.indexOf("Iteration に入れる")).toBeLessThan(work.indexOf("ticket claim <id>"));
+    expect(work).toContain("iteration add <S> <id>");
+    expect(work).toContain("lint_iteration_missing");
+    expect(fillPlaceholders(work, defaultConfig())).toContain("今の設定：`false`");
+    expect(
+      fillPlaceholders(work, { ...defaultConfig(), lint: { require_iteration: true } }),
+    ).toContain("今の設定：`true`");
+  });
+
   it("parallel は着手できるチケットを上限付きでサブエージェントに並べ、役割を分け、1 件でほかを止めないと案内し、work・all・review はそこへ案内する", async () => {
     const parallel = await readGuide("parallel");
     expect(parallel).toContain("# 着手できるチケットを並べて進める");

@@ -111,7 +111,7 @@ updated_at: 2026-10-31T05:10:00Z
 
 - TK-1 必須は `id`・`project`・`title`・`status`・`created_at`・`updated_at`。`workflow` を省くと Project の既定を使う
 - TK-2 `depends_on` は同じリポジトリのチケットの ID。循環は作成・更新時に拒否する
-- TK-3 本文は Markdown。`## 概要` と `## 受け入れ条件`（`- [ ]` のチェックリスト）を推奨し、`create` / `import` は `summary` と `acceptance` から雛形を作る。受け入れ条件の項目は `ticket show` が番号つきで出し、`ticket check` が番号で印を付け外しする。`dg lint` が節の欠けと項目のない受け入れ条件、Epic・Plan とチケットの状態の食い違いを指摘する
+- TK-3 本文は Markdown。`## 概要` と `## 受け入れ条件`（`- [ ]` のチェックリスト）を推奨し、`create` / `import` は `summary` と `acceptance` から雛形を作る。受け入れ条件の項目は `ticket show` が番号つきで出し、`ticket check` が番号で印を付け外しする。`dg lint` が節の欠けと項目のない受け入れ条件、Epic・Plan とチケットの状態の食い違いを指摘し、`lint.require_iteration`（5.10）が true なら Iteration に入らずに todo・abandoned 以外に進んだチケット（閉じた Epic の done は除く）も指摘する
 - TK-4 Workflow の `fields` で定義した任意フィールドを frontmatter に持てる
 - TK-5 受け入れ条件のチェックは、作業した人かエージェントが PR や成果物で確認できたときに付ける。deguboard が自動で付けることはなく、照合で done に進めたチケットに未チェックが残れば `sync` が警告する（遷移は止めない。[ADR-003](adr/ADR-003-status-and-workflow.md)）
 - TK-6 `epic` は同じ Project の Epic の ID。閉じた Epic には付けられない
@@ -193,9 +193,11 @@ steps: # 任意。Run の step の語彙（WF-5）
 
 ### 5.10 設定（`config.yaml`）
 
-項目は `default_project`、`git.remote`・`git.base_branch`、`worktree.root`、`commit.mode`（既定 `batch`）、`push.mode`（既定 `auto`）、`metrics.read_transcripts`（既定 `false`）、`actions.shell`（AG-7、既定 `false`）・`actions.test`、`actor.human_only`、`auto.merge`（既定 `false`）。
+項目は `default_project`、`git.remote`・`git.base_branch`、`worktree.root`、`commit.mode`（既定 `batch`）、`push.mode`（既定 `auto`）、`metrics.read_transcripts`（既定 `false`）、`actions.shell`（AG-7、既定 `false`）・`actions.test`、`actor.human_only`、`auto.merge`（既定 `false`）、`lint.require_iteration`（既定 `false`）。
 
 `actor.human_only` は `epic.close` のようなコマンド名の一覧で、入れたコマンドを agent が呼ぶと `TRANSITION_REJECTED` で拒否する。既定は空で、すべての操作をエージェントにも許す。チケットの遷移を人に限るのは Workflow の `by`（WF-1）で、この項目では扱わない。
+
+`lint.require_iteration` を true にすると、`dg guide work` が claim の前に Iteration に入れるよう案内し、`dg lint` が入れずに進んだチケットを指摘する。
 
 各項目の意味・値・既定値はスキーマ（`packages/core/src/model/config.ts`）が正本。利用者ごとの上書きは設けない。
 
