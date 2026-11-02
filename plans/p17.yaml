@@ -43,3 +43,4 @@ details:
     approach: vscode の webview/context メニューと data-vscode-context を使い、移すのは core の ticket.update を呼ぶだけ
 approved_by: eiki.kitajima/agent
 approved_at: 2026-11-02T05:25:10Z
+closed_at: 2026-11-02T06:40:50Z

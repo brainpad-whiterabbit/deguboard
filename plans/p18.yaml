@@ -2,7 +2,7 @@ id: p18
 project: default
 tickets: [t216, t217]
 after: {}
-pending_approval: true
+pending_approval: false
 details:
   t216:
     scope: ticket.claim と ticket.update の branch 変更での拒否（マージ済みの残ったブランチ・他チケットの同名）。照合の facts は変えない
@@ -10,3 +10,5 @@ details:
   t217:
     scope: 主体名の既定の決め方（deguboard.user）、拡張からの DEGUBOARD_USER、whoami の出どころ。VS Code の settings.json は足さない
     approach: repo.ts の defaultUser で git config deguboard.user を先に読み、出どころを actor に持たせて whoami で返す。extension.ts で env を渡し、ヘルプ・guide・AG-1 を直す
+approved_by: eiki.kitajima/agent
+approved_at: 2026-11-02T06:42:11Z
