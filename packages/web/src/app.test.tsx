@@ -469,6 +469,7 @@ describe("画面", () => {
     expect(markOf("Claude")!.textContent).toBe("EC");
     expect(iconOf("Claude")).toBe("claude");
     expect(markOf("Claude")!.getAttribute("title")).toBe("eiki/agent · claude-code");
+    expect(markOf("Claude")!.getAttribute("aria-label")).toBe("eiki/agent · claude-code");
     expect(markOf("Codex")!.textContent).toBe("HX");
     expect(iconOf("Codex")).toBe("codex");
     expect(iconOf("汎用")).toBe("generic");

@@ -92,7 +92,8 @@ export async function readRunningRuns(
 
 /**
  * チケットごとの Run の agent（RN-1）：実行中の Run があればその agent（2 つ以上なら後に始めた方）、なければ最後に始めた終わった Run の agent。
- * running は実行中の Run、finished は runs/ の集計。どちらも Run の ID（開始の時刻で始まる）の順で後のものを取る
+ * running は実行中の Run、finished は runs/ の集計。どちらも Run の ID（開始の時刻で始まる）の順で後のものを取る。
+ * 同じ秒に始めた Run の順は ID の末尾の乱数で決まるので、どちらを取るかは決まらない
  */
 export function runAgentByTicket(
   running: Iterable<Run>,
