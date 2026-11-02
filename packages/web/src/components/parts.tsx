@@ -14,7 +14,14 @@ import {
 import { useHost } from "../host.js";
 import { hrefOf, type Route } from "../router.js";
 import { useStore } from "../store.js";
-import { actorLabel, type Priority, type Progress, type Status, type Ticket } from "../types.js";
+import {
+  actorLabel,
+  isFinished,
+  type Priority,
+  type Progress,
+  type Status,
+  type Ticket,
+} from "../types.js";
 
 /**
  * チケット詳細へのリンク。チケットへのリンクはすべてここを通す。
@@ -258,7 +265,7 @@ export function CloseButton({
 
 /** 未完了（done・abandoned 以外）のチケットの件数 */
 export function unfinishedCount(tickets: readonly Pick<Ticket, "status">[]): number {
-  return tickets.filter((t) => t.status !== "done" && t.status !== "abandoned").length;
+  return tickets.filter((t) => !isFinished(t.status)).length;
 }
 
 /** 状態の丸印。色は --dg-status-* */

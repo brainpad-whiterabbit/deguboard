@@ -326,7 +326,7 @@ export function hideClosedFinished<T extends Ticket>(
   const closedEpics = new Set(epics.filter((e) => e.status === "closed").map((e) => e.id));
   return tickets.filter(
     (t) =>
-      (t.status !== "done" && t.status !== "abandoned") ||
+      !isFinished(t.status) ||
       (!!epic && t.epic === epic) ||
       !((t.iteration && closedIterations.has(t.iteration)) || (t.epic && closedEpics.has(t.epic))),
   );
@@ -458,9 +458,7 @@ function IterationChips({
     if (left < el.scrollLeft) el.scrollLeft = left;
     else if (right > el.scrollLeft + el.clientWidth) el.scrollLeft = right - el.clientWidth;
   }, [selected, open.length]);
-  const loose = tickets.filter(
-    (t) => !t.iteration && t.status !== "done" && t.status !== "abandoned",
-  ).length;
+  const loose = tickets.filter((t) => !t.iteration && !isFinished(t.status)).length;
   return (
     <div className="iteration-chips" role="group" aria-label="Iteration" ref={strip}>
       {open.map((i) => {

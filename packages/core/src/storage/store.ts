@@ -8,6 +8,7 @@ import path from "node:path";
 import { z } from "zod";
 import { OperationError } from "../errors.js";
 import { configSchema, type Config } from "../model/config.js";
+import { isTerminal } from "../model/common.js";
 import { epicSchema, type Epic } from "../model/epic.js";
 import {
   idFromFileName,
@@ -271,7 +272,7 @@ export class Store {
   depsDone(ticket: Ticket): boolean {
     return ticket.depends_on.every((id) => {
       const status = this.tickets.get(id)?.data.status;
-      return status === "done" || status === "abandoned";
+      return status !== undefined && isTerminal(status);
     });
   }
 

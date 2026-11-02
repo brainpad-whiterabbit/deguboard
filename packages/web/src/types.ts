@@ -92,8 +92,12 @@ export const BOARD_STATUSES = [
   "done",
 ] as const satisfies readonly Status[];
 /** 終わった Status（done・abandoned）。core の isTerminal の写し（web は core の実行時のコードを取り込まない） */
-export function isFinished(status: Status): boolean {
+export function isFinished(status: Status): status is "done" | "abandoned" {
   return status === "done" || status === "abandoned";
+}
+/** 文字列が Status の値か（履歴の変更の値は Status とは限らない） */
+export function isStatus(value: string | null): value is Status {
+  return (STATUSES as readonly string[]).includes(value ?? "");
 }
 export const PRIORITIES = ["low", "medium", "high"] as const satisfies readonly Priority[];
 

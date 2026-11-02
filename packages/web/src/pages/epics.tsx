@@ -21,7 +21,9 @@ import {
   STATUSES,
   byNumber,
   byPriorityThenNumber,
+  isFinished,
   type EpicDetail,
+  type Status,
 } from "../types.js";
 
 export function EpicsPage({ id }: { id: string }) {
@@ -166,8 +168,8 @@ const EPIC_SECTIONS = [
   { key: "abandoned", label: "中止", folded: true },
 ] as const;
 
-function sectionOf(status: string): (typeof EPIC_SECTIONS)[number]["key"] {
-  return status === "done" || status === "abandoned" ? status : "open";
+function sectionOf(status: Status): (typeof EPIC_SECTIONS)[number]["key"] {
+  return isFinished(status) ? status : "open";
 }
 
 /**
