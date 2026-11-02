@@ -21,6 +21,13 @@ export function sameUser(a: string, b: string): boolean {
 }
 
 /**
+ * そのユーザ本人とみなす主体の ID（人とその AI）。画面が「自分か自分の agent」を判定するのに使う（whoami の own_ids）
+ */
+export function ownActorIds(user: string): string[] {
+  return [actorIdOf(user, "human"), actorIdOf(user, "agent")];
+}
+
+/**
  * 入力に書かれた主体の参照を ID に直す。
  * `human` は自分のユーザ本人、`agent` は自分のユーザの AI。それ以外はそのまま（別のユーザの ID を書ける）
  */

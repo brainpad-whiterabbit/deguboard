@@ -1,4 +1,4 @@
-// 用意と同期：init・sync・commit・validate・lint・config
+// 用意と同期：init・sync・commit・validate・lint・config・whoami
 
 import { writeFile, access } from "node:fs/promises";
 import path from "node:path";
@@ -18,6 +18,7 @@ import {
   syncStatus,
 } from "../git/sync.js";
 import { CONFLICT_REMEDY, flushPending, withWrite } from "../git/write.js";
+import { ownActorIds, type ActorKind } from "../model/actor.js";
 import { configSchema } from "../model/config.js";
 import { parseAcceptance, type Ticket } from "../model/ticket.js";
 import type { Doc } from "../storage/documents.js";
@@ -464,6 +465,30 @@ export const configShow = defineCommand({
   },
 });
 
+/** whoami の出力。操作している主体と、その人本人とみなす主体の ID */
+export interface WhoamiView {
+  /** 主体の ID（`eiki` か `eiki/agent`） */
+  id: string;
+  /** ユーザ名（`eiki`） */
+  user: string;
+  kind: ActorKind;
+  /** そのユーザ本人とみなす主体の ID（`eiki` と `eiki/agent`）。担当者が自分か自分の agent かはこれに含まれるかで決める */
+  own_ids: string[];
+}
+
+export const whoami = defineCommand({
+  name: "whoami",
+  group: "setup",
+  summary: "操作している主体（ユーザ名・種別・ID）と、本人とみなす主体の ID を出す",
+  input: z.object({}),
+  write: false,
+  needs: "store",
+  async run(ctx) {
+    const { id, user, kind } = ctx.actor;
+    return ok<WhoamiView>({ id, user, kind, own_ids: ownActorIds(user) });
+  },
+});
+
 /** "true"/"false"/数字の文字列は値に直す（CLI から来る） */
 function coerce(value: unknown): unknown {
   if (typeof value !== "string") return value;
@@ -562,4 +587,4 @@ export const configSet = defineCommand({
   },
 });
 
-export const setupCommands = [init, sync, commit, validate, lint, configShow, configSet];
+export const setupCommands = [init, sync, commit, validate, lint, configShow, configSet, whoami];

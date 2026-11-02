@@ -120,6 +120,8 @@ const STEPS: Step[] = [
     input: { ticket: "t2", status: "in_progress" },
     argv: ["ticket", "move", "t2", "in_progress"],
   },
+  // 操作している主体（画面が担当者を自分かで見分けるのに使う）
+  { name: "whoami", input: {}, argv: ["whoami"] },
   { name: "sync", input: {}, argv: ["sync"] },
   {
     name: "ticket.list",
@@ -394,6 +396,12 @@ describe("3 経路の E2E", () => {
         running: false,
       },
     ]);
+    expect(at("whoami").data).toEqual({
+      id: USER,
+      user: USER,
+      kind: "human",
+      own_ids: [USER, `${USER}/agent`],
+    });
     expect(at("metrics.show").data).toMatchObject({
       filter: { epic: "e1" },
       by: "agent",

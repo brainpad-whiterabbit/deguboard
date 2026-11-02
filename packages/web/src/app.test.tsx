@@ -424,25 +424,63 @@ describe("画面", () => {
     },
   );
 
-  it("バックログの 1 行表示は担当者を短く出し、全文はツールチップに。担当者がなければ出さない", async () => {
+  it("サイドバーのバックログの行は担当者の列を出さず、自分か自分の agent の担当は出さず、別の人の担当だけ右端に頭文字の丸で出す（全名はツールチップ）", async () => {
     const client = mockClient();
     client.data.tickets.push(
-      ticket({ id: "t8", title: "AI の作業", assignee: "eiki/agent" }),
-      ticket({ id: "t7", title: "古い ID", assignee: "eiki@laptop" }),
+      ticket({ id: "t4", title: "自分", assignee: "eiki" }),
+      ticket({ id: "t5", title: "自分の AI", assignee: "eiki/agent", run_agent: "claude-code" }),
+      ticket({ id: "t6", title: "別の人", assignee: "hana" }),
+      ticket({ id: "t7", title: "別の人の AI", assignee: "hana/agent", run_agent: "codex" }),
+      ticket({ id: "t8", title: "計画の中", assignee: "bob" }),
+    );
+    client.data.plans.push(plan({ id: "p7", tickets: ["t8"] }));
+    window.location.hash = "#/backlog";
+    mount(client, hostOf("sidebar"));
+    await screen.findByText("別の人");
+    expect(client.calls.some((c) => c.name === "whoami")).toBe(true);
+    const rowOf = (title: string) => screen.getByText(title).closest(".row")!;
+    const markOf = (title: string) => rowOf(title).querySelector(".assignee-mark");
+    // 名前の列はどの行にも出さず、列がないぶんタイトルが広がる（backlog の行の格子）
+    expect(document.querySelector(".row-assignee")).toBeNull();
+    expect(rowOf("自分").classList.contains("backlog-row")).toBe(true);
+    // 自分と自分の agent の担当は出さない。右端は空のセルのまま
+    expect(markOf("自分")).toBeNull();
+    expect(markOf("自分の AI")).toBeNull();
+    expect(rowOf("自分").querySelector(".row-end")).toBeNull();
+    // 別の人は頭文字の丸（カンバンと同じ印）。全名はツールチップ
+    expect(markOf("別の人")!.querySelector(".assignee-initial")!.textContent).toBe("H");
+    expect(markOf("別の人")!.getAttribute("title")).toBe("hana");
+    expect(markOf("別の人の AI")!.textContent).toBe("HX");
+    expect(markOf("別の人の AI")!.getAttribute("title")).toBe("hana/agent · codex");
+    // Plan に入っていれば、上の段の Plan の番号の左に出す（先頭の空のセルは medium の優先度の印の場所）
+    const top = rowOf("計画の中").querySelector(".row-end-top")!;
+    expect([...top.children].map((c) => c.className.split(" ")[0]).filter(Boolean)).toEqual([
+      "assignee-mark",
+      "row-plan",
+    ]);
+    // 担当なしは何も出さない
+    expect(markOf("画面")).toBeNull();
+  });
+
+  it("操作している人が別のユーザなら、そのユーザの担当を出さず、eiki の担当を頭文字の丸で出す", async () => {
+    const client = mockClient();
+    client.handlers["whoami"] = () => ({
+      id: "hana",
+      user: "hana",
+      kind: "human",
+      own_ids: ["hana", "hana/agent"],
+    });
+    client.data.tickets.push(
+      ticket({ id: "t4", title: "eiki の", assignee: "eiki" }),
+      ticket({ id: "t5", title: "hana の AI", assignee: "hana/agent" }),
     );
     window.location.hash = "#/backlog";
     mount(client, hostOf("sidebar"));
-    await screen.findByText("AI の作業");
-    const rowOf = (title: string) => screen.getByText(title).closest(".row")!;
-    expect(rowOf("AI の作業").querySelector(".row-assignee")).toMatchObject({
-      textContent: "eiki/agent",
-      title: "eiki/agent",
-    });
-    expect(rowOf("古い ID").querySelector(".row-assignee")).toMatchObject({
-      textContent: "eiki",
-      title: "eiki@laptop",
-    });
-    expect(rowOf("画面").querySelector(".row-assignee")).toBeNull();
+    await screen.findByText("eiki の");
+    const markOf = (title: string) =>
+      screen.getByText(title).closest(".row")!.querySelector(".assignee-mark");
+    await waitFor(() => expect(markOf("hana の AI")).toBeNull());
+    expect(markOf("eiki の")!.getAttribute("title")).toBe("eiki");
   });
 
   it("サイドバーのカンバンの行は担当の名前の列を出さず、右端の上の段（Plan の番号の左）に担当の印を出す。人は頭文字の丸、agent は持ち主の丸と Run の agent の種類のアイコン", async () => {

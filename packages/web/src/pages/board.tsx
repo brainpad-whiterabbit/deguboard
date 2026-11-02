@@ -54,6 +54,7 @@ import {
   matchesClaim,
   actorLabel,
   isFinished,
+  isOwnAssignee,
   ITERATION_LABELS,
   NO_CLAIM,
   type Epic,
@@ -63,6 +64,7 @@ import {
   type Status,
   type Ticket,
   type TicketRow,
+  type WhoamiView,
 } from "../types.js";
 import { IterationActions, IterationCreateForm } from "./iterations.js";
 
@@ -856,24 +858,45 @@ function planReadiness(ticket: Pick<Ticket, "status">, mark: PlanMark | undefine
 /**
  * 左パネルのバックログの行の右端（UI-3）：開いた Plan に入っていれば、カンバンの行と同じ部品で縦に 2 段、上に Plan の番号、
  * 下に todo なら着手可・待ちの相手・承認待ち（判定は kanbanPlanMarks と kanbanReadiness）。入っていなければ priority をそのまま出す。
- * priority は行の右端の優先度の印（左に優先度の印を出す区画では null。そのとき Plan の外の行は空のセルで格子の位置を保つ）。
+ * 担当者が別の人なら、カンバンと同じ担当の印（頭文字の丸。全名はツールチップ）を上の段の Plan の番号の左に出す。
+ * 自分か自分の agent（isOwnAssignee。core の whoami の own_ids）なら出さない。
+ * priority は行の右端の優先度の印（左に優先度の印を出す区画では null。そのとき何も出さない行は空のセルで格子の位置を保つ）。
  * 下の段に着手可・待ちを出すときは、優先度の印を上の段の Plan の番号の左に寄せる
  */
 export function BacklogRowEnd({
   ticket,
   mark,
   priority,
+  me,
 }: {
-  ticket: Pick<Ticket, "status">;
+  /** 一覧の行（TicketRow）なら Run の agent（run_agent）で agent のアイコンを選ぶ */
+  ticket: Pick<Ticket, "status" | "assignee"> & Partial<Pick<TicketRow, "run_agent">>;
   mark: PlanMark | undefined;
   priority: ReactNode;
+  /** 操作している人（store.me）。分からなければ担当者をすべて別の人として出す */
+  me: Pick<WhoamiView, "own_ids"> | null;
 }) {
-  if (!mark) return <>{priority ?? <span />}</>;
+  const who =
+    ticket.assignee && !isOwnAssignee(me, ticket.assignee) ? (
+      <AssigneeMark assignee={ticket.assignee} runAgent={ticket.run_agent} />
+    ) : null;
+  if (!mark) {
+    if (!who) return <>{priority ?? <span />}</>;
+    return (
+      <span className="row-end">
+        <span className="row-end-top">
+          {priority}
+          {who}
+        </span>
+      </span>
+    );
+  }
   const readiness = planReadiness(ticket, mark);
   return (
     <span className="row-end">
       <span className="row-end-top">
         {readiness ? priority : null}
+        {who}
         <RowPlan plan={mark.plan} />
       </span>
       <span className="row-end-sub">{readiness ?? priority}</span>

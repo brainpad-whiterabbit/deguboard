@@ -24,7 +24,7 @@ import {
 } from "./iteration.js";
 import { planApprove, planClose, planCreate, planList, planShow } from "./plan.js";
 import { projectCreate } from "./project.js";
-import { configSet, init, lint, sync, validate } from "./setup.js";
+import { configSet, init, lint, sync, validate, whoami } from "./setup.js";
 import {
   ticketCheck,
   ticketClaim,
@@ -505,6 +505,24 @@ describe("チケットの流れ", () => {
     await eiki.store.rescan();
     const released = await runCommand(ticketUnclaim, eiki, { ticket: "t1" });
     expect(released.data.status).toBe("todo");
+  });
+
+  it("whoami は操作している主体の ID・ユーザ名・種別と、本人とみなす ID（人とその AI）を返す", async () => {
+    const f = await fixture();
+    const human = await initialized(f.cloneA);
+    expect((await runCommand(whoami, human, {})).data).toEqual({
+      id: "eiki",
+      user: "eiki",
+      kind: "human",
+      own_ids: ["eiki", "eiki/agent"],
+    });
+    const agent = await openContext({ cwd: f.cloneA, actor: { kind: "agent", user: "eiki" } });
+    expect((await runCommand(whoami, agent, {})).data).toEqual({
+      id: "eiki/agent",
+      user: "eiki",
+      kind: "agent",
+      own_ids: ["eiki", "eiki/agent"],
+    });
   });
 
   it("起票者は既定で操作した主体、created_by: human でユーザ本人になり、担当者は create / update / claim で付く", async () => {
