@@ -124,7 +124,7 @@
         ]
       }
     },
-    // web の core の制限は patterns でなく paths に書く。oxlint は patterns のどれかの否定（!@deguboard/core）に当たると、ほかの patterns でも制限しないため
+    // web の core の制限は patterns でなく paths に書く。oxlint は patterns のどれかの否定（!@deguboard/core）に当たると、ほかの patterns でも制限しないため。効いていることは test/lint/oxlint-restriction.test.ts が確かめる
     {
       "files": ["packages/web/**"],
       "rules": {
