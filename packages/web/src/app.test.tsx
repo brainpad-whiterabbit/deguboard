@@ -483,7 +483,7 @@ describe("画面", () => {
     expect(markOf("eiki の")!.getAttribute("title")).toBe("eiki");
   });
 
-  it("サイドバーのカンバンの行は担当の名前の列を出さず、右端の上の段（Plan の番号の左）に担当の印を出す。人は頭文字の丸、agent は持ち主の丸と Run の agent の種類のアイコン", async () => {
+  it("サイドバーのカンバンの行は担当の名前の列を出さず、右端の上の段（Plan の番号の左）に担当の印を出す。人は頭文字の丸、agent は持ち主の丸と Run の agent によらない汎用のアイコン", async () => {
     const client = mockClient();
     client.data.tickets.push(
       ticket({ id: "t4", title: "人", assignee: "eiki" }),
@@ -498,22 +498,19 @@ describe("画面", () => {
     expect(document.querySelector(".row-assignee")).toBeNull();
     const markOf = (title: string) => kanbanRowOf(title).querySelector(".assignee-mark");
     const iconOf = (title: string) =>
-      markOf(title)!.querySelector<HTMLElement>(".agent-icon")?.dataset.agent ?? null;
+      markOf(title)!.querySelector(".agent-icon svg")?.outerHTML ?? null;
     // 人：頭文字の丸だけ。ホバーで主体 ID
     expect(markOf("人")!.querySelector(".assignee-initial")!.textContent).toBe("E");
     expect(iconOf("人")).toBeNull();
     expect(markOf("人")!.getAttribute("title")).toBe("eiki");
-    // agent：持ち主の丸と種類のアイコン。ホバーで主体 ID と Run の agent
-    expect(markOf("Claude")!.textContent).toBe("EC");
-    expect(iconOf("Claude")).toBe("claude");
+    // agent：持ち主の丸と汎用のアイコン（文字は出さない）。Run の agent によらず同じ形で、ホバーで主体 ID と Run の agent
+    expect(markOf("Claude")!.textContent).toBe("E");
+    expect(iconOf("Claude")).not.toBeNull();
     expect(markOf("Claude")!.getAttribute("title")).toBe("eiki/agent · claude-code");
     expect(markOf("Claude")!.getAttribute("aria-label")).toBe("eiki/agent · claude-code");
-    expect(markOf("Codex")!.textContent).toBe("HX");
-    expect(iconOf("Codex")).toBe("codex");
-    expect(iconOf("汎用")).toBe("generic");
+    expect(markOf("Codex")!.textContent).toBe("H");
+    expect(["Codex", "汎用", "Run なし"].map(iconOf)).toEqual(Array(3).fill(iconOf("Claude")));
     expect(markOf("汎用")!.getAttribute("title")).toBe("eiki/agent · my-bot");
-    // Run のない agent は汎用のアイコン
-    expect(iconOf("Run なし")).toBe("generic");
     expect(markOf("Run なし")!.getAttribute("title")).toBe("eiki/agent · Run なし");
     // 印は上の段の Plan の番号の左
     const top = kanbanRowOf("Claude").querySelector(".row-end-top")!;
