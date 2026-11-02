@@ -1,0 +1,31 @@
+id: p21
+project: default
+tickets: [t229, t230, t232, t234, t233, t231, t236]
+after:
+  t231:
+    - t233
+  t236:
+    - t231
+pending_approval: true
+details:
+  t229:
+    scope: guide-parallel・guide-check に lint.require_iteration の扱いを足し、guide のテストで確かめる
+    approach: parallel の親の手順に work の Iteration に入れる手順を含め、check の例に lint_iteration_missing を足す
+  t230:
+    scope: install-vsix の code の呼び出しに時間の上限を付け、worktree の用意では拡張を入れない
+    approach: spawnSync に timeout を付けて超えたら案内して飛ばす。依存とビルドだけのタスクか飛ばす指定を足し、development.md と mise.toml を直す
+  t232:
+    scope: README.md と packages/vscode/README.md に s7 の設定画面・履歴・run list --iteration を足す
+    approach: 要約だけを書き、細部は requirements の UI の項へリンクする。check:docs の予算に収める
+  t234:
+    scope: config.set の文字列の項目に数字だけ・true・false だけの値を保存できるようにする
+    approach: coerce の候補に変換しない元の文字列を足し、core のテストで型ごとに確かめる
+  t233:
+    scope: ADR-006・ADR-003 に設定画面と require_iteration の判断を書き、UI-14 の切り替え先と戻るリンクを揃える
+    approach: ADR は書き換えて更新日と一覧を直す。切り替え先は実装（来る前の画面）に合わせ、戻るリンクも同じ挙動にする
+  t231:
+    scope: 設定画面の配置の検査・worktree.root の確認・VS Code の歯車の分岐をテストで確かめる
+    approach: "test:layout に #/config を足し、config.test.tsx に worktree.root を足し、toggleInSidebar の分岐を純粋な関数に切り出して単体テストにする"
+  t236:
+    scope: ID の形の確かめ方の重複・web の外から使わない export・.oxlintrc.json の写しを片付ける
+    approach: core の helpers に 1 つの関数を置き、export を外し、oxlint の写しの一致を test/lint で確かめる
