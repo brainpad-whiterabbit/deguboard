@@ -192,7 +192,7 @@ steps: # 任意。Run の step の語彙（WF-5）
 
 ### 5.10 設定（`config.yaml`）
 
-項目は `default_project`、`git.remote`・`git.base_branch`、`worktree.root`、`commit.mode`（既定 `batch`）、`push.mode`（既定 `auto`）、`metrics.read_transcripts`、`actions.shell`（AG-7）・`actions.test`、`actor.human_only`、`auto.merge`（既定 `false`）。
+項目は `default_project`、`git.remote`・`git.base_branch`、`worktree.root`、`commit.mode`（既定 `batch`）、`push.mode`（既定 `auto`）、`metrics.read_transcripts`（既定 `false`）、`actions.shell`（AG-7、既定 `false`）・`actions.test`、`actor.human_only`、`auto.merge`（既定 `false`）。
 
 `actor.human_only` は `epic.close` のようなコマンド名の一覧で、入れたコマンドを agent が呼ぶと `TRANSITION_REJECTED` で拒否する。既定は空で、すべての操作をエージェントにも許す。チケットの遷移を人に限るのは Workflow の `by`（WF-1）で、この項目では扱わない。
 
@@ -246,7 +246,7 @@ Web UI は `dg serve` が配信し、VS Code 拡張は同じ React アプリを 
 - UI-10 Epic：open の Epic の進捗（EP-3）を出し、Epic でチケットを絞れる。詳細の画面で Epic のチケットを Status ごとに出し、チケットの追加・除外、閉じる・再開ができる。VS Code では Status ごとの列（カンバン）にせず、未完了・完了・中止の段に分けた 1 本の一覧で出す
 - UI-11 VS Code 拡張は `dg` を同梱せず、Webview のために `core` を同梱する。画面は `dg` なしで動き、`dg` が PATH にないときはインストールを案内する。`dg` の版と拡張の `core` の版のメジャーが違えば知らせる（[ADR-006](adr/ADR-006-ui-and-writes.md)）
 - UI-12 VS Code 拡張はサイドバーのビューを主画面にして同じ画面を出し、エディタ領域のパネルにはサイドバーから開いた詳細（チケット・Iteration・Epic）だけを出す。パネルからの一覧の画面へのリンクは、サイドバーをその画面に切り替える。ビューのタイトル行に同期のボタン（UI-6）と未 push・未取り込みの件数を出す。データ worktree と実行中の Run の記録の変化を見張り、CLI やエージェントの書き込みを自動で画面に映す（[ADR-006](adr/ADR-006-ui-and-writes.md)）
-- UI-13 実行計画：カンバン（UI-2）の上に、選んだ Iteration のチケットを含む Plan を出す。Plan ごとに番号・状態・進捗と、作業中のチケット・次に着手するチケット（着手できるかは `after` の待ちと `deps_done` で決め、左パネルのカンバンの行と同じ）を出し、`after` の待ちの依存グラフを開閉できる。表示だけで書き込まない
+- UI-13 実行計画：カンバン（UI-2）の上に、選んだ Iteration のチケットを含む Plan を出す。Plan ごとに番号・状態・進捗と、作業中のチケット・次に着手するチケット（着手できるかは `after` の待ちと `deps_done` で決め、サイドバーのカンバンの行と同じ）を出し、`after` の待ちの依存グラフを開閉できる。表示だけで書き込まない
 
 画面の並び順・色・文言とサイドバーの細部は web のコード（`packages/web/src/`）とテストが正本。
 
@@ -271,7 +271,7 @@ Web UI は `dg serve` が配信し、VS Code 拡張は同じ React アプリを 
 
 - EX-1 deguboard はエージェントを起動しない。チケットの処理はエージェント側の Skill が `dg` を呼んで進める
 - EX-2 終了していない Run は一覧で見え、`interrupted` として閉じられる
-- EX-3 段階を続けて進める手順は Skill 側に置き、着手できるチケット（`ticket list` の `ready` での絞り込みか、各行の `deps_done`）と Plan の順序に従う。`dg guide all --auto` は戻せる判断を自動で選び、`auto.merge` が true なら条件を満たした PR をマージする。Plan の待ちのない複数のチケットはチケットごとのサブエージェントで同時に進め、1 件の失敗やマージ待ちでほかを止めない。品質ゲート（検査・受け入れ条件・別のサブエージェントの見直し・衝突なし）は PR を出す前とマージの前に通し、手直しの Run に直した指摘を `retry_reasons` で残す。上限を超えたら PR を draft のまま人に渡す。同時に進める上限・修正ループの回数・Run の分け方は guide（`parallel`・`review`・`all`）が正本
+- EX-3 段階を続けて進める手順は Skill 側に置き、着手できるチケット（`ticket list` の `ready` での絞り込みか、各行の `deps_done`）と Plan の順序に従う。`dg guide all --auto` は戻せる判断を自動で選び、`auto.merge` が true なら条件を満たした PR をマージする。Plan の待ちのない複数のチケットはチケットごとのサブエージェントで同時に進め、1 件の失敗やマージ待ちでほかを止めない。品質ゲート（検査・受け入れ条件・別のサブエージェントの見直し・衝突なし）は PR を出す前とマージの前に通し、手直しの Run に直した指摘を `retry_reasons` で残す。修正の回数の上限を超えたら PR を draft のまま人に渡す。同時に進める上限・修正ループの回数・Run の分け方は guide（`parallel`・`review`・`all`）が正本
 - EX-4 Workflow が `by: [human]` で人に限った遷移は、エージェントからは行えない
 
 ## 7. 非機能要件
