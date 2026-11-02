@@ -40,8 +40,7 @@ interface LastHash {
 
 /**
  * 残したハッシュを今も使えるか。Project が違う、今の Project にない Iteration・Epic を指す、
- * カンバンで閉じた Iteration・Epic を指すときは使えない（既定の行き先に戻す）。
- * Run の Iteration の絞り込みは履歴の閉じた Iteration の行から開くものなので、閉じていても今の Project にあれば使う
+ * 閉じた Iteration・Epic を指すときは使えない（既定の行き先に戻す）
  */
 function lastHashUsable(saved: LastHash, store: Store): boolean {
   if (saved.project !== (store.project?.id ?? null)) return false;
@@ -57,13 +56,15 @@ function lastHashUsable(saved: LastHash, store: Store): boolean {
       return false;
   }
   if (route.page === "runs" && route.iteration)
-    return store.iterations.some((i) => i.id === route.iteration);
+    return store.iterations.some((i) => i.id === route.iteration && i.status !== "closed");
   return true;
 }
 
 /**
  * タブの行き先（最後に見たハッシュ）を nav.<page> に残して返す。その画面にいる間は今のハッシュを残し、
- * Project を切り替えたら既定の行き先に戻す。残したハッシュが使えなければ既定の行き先を返す
+ * Project を切り替えたら既定の行き先に戻す。残したハッシュが使えなければ既定の行き先を返す。
+ * Project の切り替えはハッシュを変えないので、切り替えたときのハッシュは前の Project の絞り込みとみなし、
+ * ハッシュが変わるまではそれを残さず既定の行き先を残す（Iteration・Epic の ID は Project ごとの連番で、新しい Project でも通りうる）
  */
 function useLastHref(page: LastHashPage, route: Route, store: Store): string {
   const fallback = hrefOf({ page } as Route);
@@ -71,14 +72,21 @@ function useLastHref(page: LastHashPage, route: Route, store: Store): string {
   const [saved, setSaved] = useUiState<LastHash | null>(`nav.${page}`, null);
   const current = route.page === page ? hrefOf(route) : null;
   const previousProject = useRef(project);
+  // 切り替えたときのハッシュ（undefined は切り替えの後でないとき）
+  const hrefAtSwitch = useRef<string | null | undefined>(undefined);
   useEffect(() => {
     const switched = previousProject.current !== null && previousProject.current !== project;
     previousProject.current = project;
-    const next = current ?? (switched ? fallback : null);
+    if (switched) hrefAtSwitch.current = current;
+    else if (hrefAtSwitch.current !== undefined && hrefAtSwitch.current !== current)
+      hrefAtSwitch.current = undefined;
+    const stale = hrefAtSwitch.current !== undefined;
+    const next = stale ? fallback : current;
     if (next === null || project === null) return;
     if (saved?.href !== next || saved.project !== project) setSaved({ project, href: next });
   }, [current, project, fallback, saved, setSaved]);
-  // 前の版は履歴のハッシュを文字列で残していた。形の違うものは使わない
+  // 前の版は履歴のハッシュを文字列で残していた。形の違うものは使わない。消しには行かない（履歴の画面を開けば新しい形で上書きされ、
+  // 残っても既定の行き先になるだけなので害がない）
   if (!saved || typeof saved !== "object" || typeof saved.href !== "string") return fallback;
   return lastHashUsable(saved, store) ? saved.href : fallback;
 }

@@ -2190,14 +2190,14 @@ describe("上のタブの行き先", () => {
     expect(screen.getByLabelText<HTMLSelectElement>("担当").value).toBe("eiki/agent");
   });
 
-  it("Run の集計の単位と Iteration の絞り込みは、他のタブから Run のタブで戻ると残る（閉じた Iteration でも今の Project にあれば残す）", async () => {
-    window.location.hash = "#/runs?by=iteration&iteration=s4";
+  it("Run の集計の単位と Iteration の絞り込みは、他のタブから Run のタブで戻ると残る", async () => {
+    window.location.hash = "#/runs?by=iteration&iteration=s2";
     mount(navClient(), hostOf("browser"));
     await waitFor(() => expect(tab("Run").getAttribute("aria-current")).toBe("page"));
     fireEvent.click(tab("カンバン"));
     await waitFor(() => expect(window.location.hash).toBe("#/board"));
     await waitFor(() =>
-      expect(tab("Run").getAttribute("href")).toBe("#/runs?by=iteration&iteration=s4"),
+      expect(tab("Run").getAttribute("href")).toBe("#/runs?by=iteration&iteration=s2"),
     );
     // 履歴のタブも同じ形で残す
     expect(tab("履歴").getAttribute("href")).toBe("#/history");
@@ -2213,6 +2213,7 @@ describe("上のタブの行き先", () => {
       "#/board",
     ],
     ["今の Project にない Iteration を指す Run", "nav.runs", "#/runs?iteration=s7", "#/runs"],
+    ["閉じた Iteration を指す Run", "nav.runs", "#/runs?by=iteration&iteration=s4", "#/runs"],
   ])("残したハッシュが%sなら、タブは既定の行き先を指す", async (_, key, href, fallback) => {
     window.location.hash = "#/backlog";
     mount(navClient(), hostWith({ [key]: { project: "default", href } }));
@@ -2262,4 +2263,33 @@ describe("上のタブの行き先", () => {
     );
     expect(tab("カンバン").getAttribute("href")).toBe("#/board");
   });
+
+  it.each([
+    ["カンバン", "#/board?iteration=s2&epic=e1", "#/board"],
+    ["Run", "#/runs?by=iteration&iteration=s2", "#/runs"],
+  ])(
+    "%sの画面にいるまま Project を切り替えると、前の Project の絞り込みを残さず、タブは既定の行き先を指す。絞り直せばまた残す",
+    async (name, href, fallback) => {
+      window.location.hash = href;
+      const client = navClient();
+      client.data.projects.push({ ...client.data.projects[0]!, id: "other", name: "Other" });
+      mount(client, hostOf("browser"));
+      await waitFor(() => expect(tab(name).getAttribute("href")).toBe(href));
+      fireEvent.change(screen.getByLabelText("Project"), { target: { value: "other" } });
+      await waitFor(() => expect(tab(name).getAttribute("href")).toBe(fallback));
+      // 他のタブへ移って戻っても、前の Project の絞り込みに戻らない
+      fireEvent.click(tab("バックログ"));
+      await waitFor(() => expect(window.location.hash).toBe("#/backlog"));
+      expect(tab(name).getAttribute("href")).toBe(fallback);
+      // 新しい Project で絞り直したハッシュはまた残す
+      const again = name === "カンバン" ? "#/board?iteration=s1" : "#/runs?by=iteration";
+      act(() => {
+        window.location.hash = again;
+        window.dispatchEvent(new HashChangeEvent("hashchange"));
+      });
+      await waitFor(() => expect(tab(name).getAttribute("aria-current")).toBe("page"));
+      fireEvent.click(tab("バックログ"));
+      await waitFor(() => expect(tab(name).getAttribute("href")).toBe(again));
+    },
+  );
 });
