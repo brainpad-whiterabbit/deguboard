@@ -4,6 +4,7 @@ import {
   toCommandFailure,
   type CommandClient,
   type StatusView,
+  type WebviewEvent,
   type WebviewRequest,
   type WebviewResponse,
 } from "@deguboard/core";
@@ -83,6 +84,19 @@ export function subjectOfRoute(
   const m = /^#\/(tickets|iterations|epics)\/([^/?#]+)/.exec(route);
   if (!m) return undefined;
   return { kind: SUBJECT_KINDS[m[1] as keyof typeof SUBJECT_KINDS], id: m[2]! };
+}
+
+/**
+ * サイドバーに画面を出す頼み（navigate：その画面に移す、toggle：その画面と来る前の画面で切り替える）の届け方。
+ * サイドバーが描かれていれば Webview に event を送り（切り替えは今の画面を知っている web に任せる）、
+ * まだ描かれていなければ、その画面を初期ルートとして覚えさせる（resolveSidebar が使う）
+ */
+export function sidebarDelivery(
+  rendered: boolean,
+  name: "navigate" | "toggle",
+  route: string,
+): { post: WebviewEvent } | { pending: string } {
+  return rendered ? { post: { kind: "event", name, hash: route } } : { pending: route };
 }
 
 /** 画面を出せないとき（フォルダを開いていない）に Webview に出す、スクリプトのない HTML */

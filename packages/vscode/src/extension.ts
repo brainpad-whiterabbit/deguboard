@@ -34,6 +34,7 @@ import {
   isWebviewRequest,
   renderMessageHtml,
   renderWebviewHtml,
+  sidebarDelivery,
   subjectOfRoute,
   type Surface,
   type WebviewActions,
@@ -149,16 +150,7 @@ async function resolveSidebar(
  * サイドバーがまだ描かれていなければ、初期ルートとして覚えてからビューを開く（resolveSidebar が使う）
  */
 async function showInSidebar(route: string): Promise<void> {
-  if (sidebar) {
-    void sidebar.webview.postMessage({
-      kind: "event",
-      name: "navigate",
-      hash: route,
-    } satisfies WebviewEvent);
-  } else {
-    pendingSidebarRoute = route;
-  }
-  await vscode.commands.executeCommand(`${VIEW_ID}.focus`);
+  await deliverToSidebar("navigate", route);
 }
 
 /**
@@ -166,15 +158,14 @@ async function showInSidebar(route: string): Promise<void> {
  * サイドバーがまだ描かれていなければ、その画面を初期ルートにしてビューを開く
  */
 async function toggleInSidebar(route: string): Promise<void> {
-  if (sidebar) {
-    void sidebar.webview.postMessage({
-      kind: "event",
-      name: "toggle",
-      hash: route,
-    } satisfies WebviewEvent);
-  } else {
-    pendingSidebarRoute = route;
-  }
+  await deliverToSidebar("toggle", route);
+}
+
+/** sidebarDelivery の決めたとおりに、描かれたサイドバーへ送るか初期ルートとして覚えて、ビューを開く */
+async function deliverToSidebar(name: "navigate" | "toggle", route: string): Promise<void> {
+  const delivery = sidebarDelivery(sidebar !== undefined, name, route);
+  if ("post" in delivery) void sidebar?.webview.postMessage(delivery.post);
+  else pendingSidebarRoute = delivery.pending;
   await vscode.commands.executeCommand(`${VIEW_ID}.focus`);
 }
 

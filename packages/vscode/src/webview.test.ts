@@ -8,6 +8,7 @@ import {
   coalesce,
   renderMessageHtml,
   renderWebviewHtml,
+  sidebarDelivery,
   subjectOfRoute,
 } from "./webview.js";
 
@@ -214,6 +215,25 @@ describe("パネルの題", () => {
     expect(subjectOfRoute("#/board")).toBeUndefined();
     expect(subjectOfRoute("#/tickets")).toBeUndefined();
     expect(subjectOfRoute("#/tickets/")).toBeUndefined();
+  });
+});
+
+describe("サイドバーへの画面の届け方（歯車の toggleInSidebar と showInSidebar）", () => {
+  it("サイドバーが描かれていれば toggle の event を送り、初期ルートは覚えない", () => {
+    expect(sidebarDelivery(true, "toggle", "#/config")).toEqual({
+      post: { kind: "event", name: "toggle", hash: "#/config" },
+    });
+  });
+
+  it("サイドバーがまだ描かれていなければ event を送らず、その画面を初期ルート（pendingSidebarRoute）にする", () => {
+    expect(sidebarDelivery(false, "toggle", "#/config")).toEqual({ pending: "#/config" });
+  });
+
+  it("一覧の画面を出すときも同じく、描かれていれば navigate を送り、なければ初期ルートにする", () => {
+    expect(sidebarDelivery(true, "navigate", "#/backlog")).toEqual({
+      post: { kind: "event", name: "navigate", hash: "#/backlog" },
+    });
+    expect(sidebarDelivery(false, "navigate", "#/backlog")).toEqual({ pending: "#/backlog" });
   });
 });
 
