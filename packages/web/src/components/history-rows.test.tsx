@@ -46,7 +46,7 @@ describe("履歴用の行", () => {
     await screen.findByText("t3");
     const row = document.querySelector(".history-ticket")!;
     expect(row.classList.contains("abandoned")).toBe(true);
-    expect(metaOf("t3")).toMatch(/^\S+ ・ s2 ・ PR なし ・ 今は s3$/);
+    expect(metaOf("t3")).toBe("Abandoned ・ s2 ・ PR なし ・ 今は s3");
     expect(row.querySelector(".history-abandoned")).toBeTruthy();
   });
 });

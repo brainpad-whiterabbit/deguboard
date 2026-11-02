@@ -324,7 +324,7 @@ export function HistoryPage({ view }: { view: HistoryView }) {
   );
 }
 
-/** Iteration の行。開くと中の done・abandoned のチケットを出す。サイドバーでは開閉の印を付け、中を Epic ごとにまとめる */
+/** Iteration の行。開くと中の done・abandoned のチケットを出す。サイドバーでは開閉の印を付け、中を番号の順の 1 本の一覧（履歴用の行）で出す */
 function IterationItem({ iteration: i, sidebar }: { iteration: Iteration; sidebar: boolean }) {
   const store = useStore();
   const [opened, setOpened] = useState(false);

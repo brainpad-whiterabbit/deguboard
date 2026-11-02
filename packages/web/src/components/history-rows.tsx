@@ -73,7 +73,8 @@ export function HistoryTicketRow({
 
 /**
  * 履歴用の行の一覧。渡した順のまま出し、head 件より多いときは先頭の head 件だけ出して「ほか N 件」のボタンで残りを開ける。
- * row で行の描き方を変えられる（既定は HistoryTicketRow）
+ * row で行の描き方を変えられる（既定は HistoryTicketRow）。
+ * 「ほか N 件」を開いた状態は tickets が変わっても戻らないので、別の一覧に切り替えるときは呼ぶ側で key を変える
  */
 export function HistoryTicketList({
   tickets,

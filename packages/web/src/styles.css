@@ -249,6 +249,14 @@ h3 {
   color: var(--vscode-descriptionForeground);
 }
 .badge.priority-high,
+.badge.count-abandoned {
+  background: var(--vscode-inputValidation-errorBackground);
+  border-color: var(
+    --vscode-inputValidation-errorBorder,
+    var(--vscode-contrastBorder, transparent)
+  );
+  color: inherit;
+}
 .badge.priority-low {
   background: transparent;
   color: var(--vscode-descriptionForeground);
@@ -456,7 +464,7 @@ button.link:hover {
   white-space: nowrap;
   font-weight: 500;
 }
-/* 件数のチップ：完了は地の色、中止は赤み（.badge.count-abandoned）・持ち越しは黄みの色付き（1 件以上のときだけ出る） */
+/* 件数のチップ：完了は地の色、中止は赤み（.badge.count-abandoned は .badge.priority-high と同じ規則）・持ち越しは黄みの色付き（1 件以上のときだけ出る） */
 .history-row .counts {
   display: inline-flex;
   flex-wrap: wrap;
@@ -464,14 +472,6 @@ button.link:hover {
   gap: 0.25rem;
   align-self: center;
   font-variant-numeric: tabular-nums;
-}
-.badge.count-abandoned {
-  background: var(--vscode-inputValidation-errorBackground);
-  border-color: var(
-    --vscode-inputValidation-errorBorder,
-    var(--vscode-contrastBorder, transparent)
-  );
-  color: inherit;
 }
 .history-row small {
   grid-column: 2 / span 2;
