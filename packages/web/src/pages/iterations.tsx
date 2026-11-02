@@ -1,6 +1,6 @@
 // Iteration（UI-5）の詳細：チケットの追加・除外、開始・終了。一覧の画面はなく、planned と active はカンバンの絞り込みで選ぶ（board.tsx）。
 // 作成のフォームと開始・閉じるのボタンはここに置く。作成のフォームはカンバン（サイドバーでは札の列の「+」から）とバックログから、
-// 開始・閉じるのボタンはカンバンの見出し（サイドバーを除く）とバックログの区画の見出しから使う
+// 開始・閉じるのボタンは広い画面のカンバンとバックログの区画の見出しから使う（サイドバーでは詳細の画面から）
 
 import { useEffect, useState } from "react";
 import { CloseButton, TicketTable, unfinishedCount } from "../components/parts.js";
@@ -24,15 +24,13 @@ export function IterationsPage({ id }: { id: string }) {
 const ITERATION_CLOSE_NOTE = "閉じると持ち越しになり、Iteration から外れる。";
 
 /**
- * Iteration の開始・閉じるのボタン。カンバンの見出し（サイドバーでは出さない）とバックログの区画の見出しに置く。
- * サイドバーのバックログの区画では「…」のメニューに入れる（狭い見出しでボタンが場所を取り、閉じるを押し間違えやすいので）
+ * Iteration の開始・閉じるのボタン。広い画面のカンバンの見出しとバックログの区画の見出しに置く。
+ * サイドバー（左パネル）のカンバンとバックログには置かず、詳細の画面（IterationDetailView）で行う
  */
 export function IterationActions({ iteration: it }: { iteration: Iteration }) {
   const store = useStore();
-  const host = useHost();
-  const [menuOpen, setMenuOpen] = useState(false);
   if (it.status === "closed") return null;
-  const buttons = (
+  return (
     <>
       {it.status === "planned" ? (
         <button
@@ -54,25 +52,6 @@ export function IterationActions({ iteration: it }: { iteration: Iteration }) {
         onClose={() => void store.run("iteration.close", { iteration: it.id })}
       />
     </>
-  );
-  if (host.surface !== "sidebar") return buttons;
-  return (
-    <span className="menu">
-      <button
-        type="button"
-        className="menu-toggle"
-        aria-label={`${it.id} の操作`}
-        aria-expanded={menuOpen}
-        onClick={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          setMenuOpen(!menuOpen);
-        }}
-      >
-        …
-      </button>
-      {menuOpen ? <span className="menu-items">{buttons}</span> : null}
-    </span>
   );
 }
 
