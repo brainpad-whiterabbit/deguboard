@@ -67,14 +67,14 @@
 
 ## 採らなかった案
 
-- **TypeScript 5.9 や 6.0 に留める**：JS API が残るが、このリポジトリでは使わない。typescript-eslint のように tsc の API が要るツールを入れるときは、`@typescript/typescript6` を別名で並べるか、7.1 の新しい API を待つ
-- **ESLint + Prettier**：設定と plugin が多く、遅い。型つきの規則も oxlint で足りる範囲から始める
-- **Biome**：lint と format を 1 つにできるが、oxc の方が速く、Prettier との互換が高い
+- **TypeScript 5.9 や 6.0 に留める**：型検査が遅く、残る JS API はこのリポジトリで使わない
+- **ESLint + Prettier**：設定と plugin が多く、遅い
+- **Biome**：oxc の方が速く、Prettier との互換が高い
 - **npm scripts を直接使う**：ツールの版が揃わず、入口が `npm run` と `mise` の 2 つになる
-- **Hono や Fastify**：ミドルウェアと型つきのルートが使えるが、エンドポイントが 3 つの用途では依存が増えるだけ。MCP や SSE を足すときに要るなら、そのときに入れる
+- **Hono や Fastify**：エンドポイントが 3 つの用途では依存が増えるだけ
 - **Turborepo や Nx**：パッケージが 5 つで、pnpm workspace の `-r` で足りる
-- **Tailwind**：Webview のテーマは CSS 変数で渡るので、変数を直接使う自前の CSS の方が短い。ビルドの層も増えない
-- **react-router**：Webview では遷移できず、画面が 5 種なのでハッシュの解析で足りる
-- **Redux や Zustand**：状態は「選んだ Project の一覧と同期の状態」だけで、書き込みのたびに読み直す方が CLI との整合が取りやすい
-- **Node 22（LTS）**：VS Code の拡張ホストと揃える意味で 24 にする。拡張ホストが Node 24 なのは VS Code 1.123 から（1.144 は Node 24.22）なので、拡張の engines.vscode をそこに合わせる
-- **拡張を esbuild や webpack で束ねる**：web のビルドに使っている Vite（rolldown）で足りる。ツールが増えるだけ
+- **Tailwind**：Webview のテーマは CSS 変数で渡るので、変数を直接使う自前の CSS の方が短い
+- **react-router**：Webview では遷移できず、画面が少ないのでハッシュの解析で足りる
+- **Redux や Zustand**：状態が少なく、書き込みのたびに読み直す方が CLI との整合が取りやすい
+- **Node 22（LTS）**：VS Code の拡張ホストの Node 24 と揃える
+- **拡張を esbuild や webpack で束ねる**：web のビルドに使っている Vite で足りる
