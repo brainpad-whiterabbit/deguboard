@@ -1307,16 +1307,22 @@ describe("画面", () => {
     await screen.findByText("ログイン");
     const funnel = screen.getByRole("button", { name: "絞り込み" });
     expect(funnel.getAttribute("aria-expanded")).toBe("false");
+    // 閉じている間は存在しない欄を指さない
+    expect(funnel.hasAttribute("aria-controls")).toBe(false);
     expect(screen.queryByLabelText("担当")).toBeNull();
     expect(document.querySelector(".filter-chips")).toBeNull();
 
     fireEvent.click(funnel);
     expect(funnel.getAttribute("aria-expanded")).toBe("true");
     expect(host.state.get("board.filters")).toBe(true);
+    expect(document.getElementById(funnel.getAttribute("aria-controls")!)).toBeTruthy();
     fireEvent.change(screen.getByLabelText("担当"), { target: { value: "eiki/agent" } });
     await waitFor(() => expect(screen.queryByText("ログイン")).toBeNull());
     const chip = document.querySelector(".filter-chip")!;
     expect(chip.textContent).toBe("担当 eiki/agent×");
+    // 長い値で × が隠れないよう、文字は省略できる span に入れ、× のボタンはその外に置く
+    expect(chip.querySelector(".filter-chip-text")!.textContent).toBe("担当 eiki/agent");
+    expect(chip.lastElementChild!.tagName).toBe("BUTTON");
     expect(funnel.classList.contains("active")).toBe(true);
     // 帯の数は絞り込みの後のチケットで数える
     expect(document.querySelector(".sidebar-head .status-band")!.textContent).toBe("0/1 done");

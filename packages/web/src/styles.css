@@ -1609,12 +1609,16 @@ button.danger {
   border-radius: 8px;
   font-size: 0.85em;
   line-height: 1.5;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
   background: var(--vscode-badge-background);
   color: var(--vscode-badge-foreground);
   border: 1px solid var(--vscode-contrastBorder, transparent);
+}
+/* 長い担当 ID は文字だけを省略し、× は縮めない */
+.filter-chip-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .filter-chip button {
   flex: none;

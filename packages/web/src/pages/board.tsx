@@ -422,7 +422,7 @@ function SidebarBoardHead({
             aria-label={filter.active ? "絞り込み（絞っている）" : "絞り込み"}
             title="Epic・担当で絞り込む"
             aria-expanded={filter.open}
-            aria-controls="board-filters"
+            aria-controls={filter.open ? "board-filters" : undefined}
             onClick={filter.onToggle}
           >
             <FunnelIcon />
@@ -483,7 +483,7 @@ function FilterChips({
     <div className="filter-chips">
       {epicId ? (
         <span className="filter-chip" title={epic ? `${epic.id} ${epic.title}` : epicId}>
-          Epic {epicId}
+          <span className="filter-chip-text">Epic {epicId}</span>
           <button
             type="button"
             aria-label={`Epic ${epicId} の絞り込みを外す`}
@@ -495,7 +495,7 @@ function FilterChips({
       ) : null}
       {assignee ? (
         <span className="filter-chip" title={assignee === NO_CLAIM ? "担当なし" : assignee}>
-          担当 {who}
+          <span className="filter-chip-text">担当 {who}</span>
           <button
             type="button"
             aria-label={`担当 ${who} の絞り込みを外す`}
