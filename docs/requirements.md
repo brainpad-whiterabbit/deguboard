@@ -192,20 +192,11 @@ steps: # 任意。Run の step の語彙（WF-5）
 
 ### 5.10 設定（`config.yaml`）
 
-- `default_project`：省略時の Project（既定 `default`）
-- `git.remote` / `git.base_branch`：同期先と、作業ブランチの元・マージ判定の基準（既定 `origin` / `main`）
-- `worktree.root`：作業 worktree の置き場所（既定 `../<repo>.worktrees`）
-- `commit.mode`：書き込みをいつコミットするか（既定 `batch`）
-- `push.mode`：`auto` / `manual`（既定 `auto`）
-- `metrics.read_transcripts`：会話記録を読むか（既定 `false`）
-- `actions.shell`：任意のシェルの Action を許すか。AG-7（既定 `false`）
-- `actions.test`：テストの Action が呼ぶコマンドの引数配列（既定 `[]`）
-- `actor.human_only`：agent からは拒否するコマンド名の一覧。下記（既定 `[]`）
-- `auto.merge`：`dg guide all --auto` で PR を自動でマージするか（既定 `false`）
+項目は `default_project`、`git.remote`・`git.base_branch`、`worktree.root`、`commit.mode`（既定 `batch`）、`push.mode`（既定 `auto`）、`metrics.read_transcripts`（既定 `false`）、`actions.shell`（AG-7、既定 `false`）・`actions.test`、`actor.human_only`、`auto.merge`（既定 `false`）。
 
 `actor.human_only` は `epic.close` のようなコマンド名の一覧で、入れたコマンドを agent が呼ぶと `TRANSITION_REJECTED` で拒否する。既定は空で、すべての操作をエージェントにも許す。チケットの遷移を人に限るのは Workflow の `by`（WF-1）で、この項目では扱わない。
 
-各項目の意味（`commit.mode` の値など）と全体はスキーマ（`packages/core/src/model/config.ts`）が正本。利用者ごとの上書きは設けない。
+各項目の意味・値・既定値はスキーマ（`packages/core/src/model/config.ts`）が正本。利用者ごとの上書きは設けない。
 
 ## 6. 機能要件
 
@@ -244,7 +235,7 @@ steps: # 任意。Run の step の語彙（WF-5）
 Web UI は `dg serve` が配信し、VS Code 拡張は同じ React アプリを Webview に載せる。表示と操作は両方で同じ（[ADR-006](adr/ADR-006-ui-and-writes.md)）。
 
 - UI-1 プロジェクトの切り替え
-- UI-2 カンバン：選んだ Iteration（既定は active）のチケットを Status ごとの列に出す（表示名は Workflow の `labels`）。ドラッグ＆ドロップで Status を変え、`ticket move` と同じ検査で拒否されたら理由を出して戻す。Epic と担当者で絞れる。閉じた Iteration・Epic の終わったチケットは出さない。VS Code のサイドバーでは、Project が 1 つなら Project の段を出さず、Iteration を選択欄の代わりに planned と active の札（進みつき）と「なし」「+」の列で切り替え、Epic と担当者の欄は絞り込みボタンで開き、絞っている値を札で出して札から外せる。変化した行の点滅と実行中の Run の印を行に出し、行の右端には、担当の印（名前の代わりに、人は頭文字の丸、agent は持ち主の丸と `run_agent` の種類のアイコン。ホバーで主体 ID と agent）と、開いた Plan に入っていれば Plan の番号と、todo なら着手可・待ちの相手（Plan の `after` と `depends_on` の終わっていないもの）・承認待ち（Plan が承認待ち）を出し、待ちと承認待ちの行はタイトルを薄くする（細部は web のテストとスタイル）
+- UI-2 カンバン：選んだ Iteration（既定は active）のチケットを Status ごとの列に出す（表示名は Workflow の `labels`）。ドラッグ＆ドロップで Status を変え、`ticket move` と同じ検査で拒否されたら理由を出して戻す。Epic と担当者で絞れる。閉じた Iteration・Epic の終わったチケットは出さない。VS Code のサイドバーでは、Iteration を planned と active の札で切り替え、行に変化の点滅・実行中の Run の印・担当の印を出し、開いた Plan に入っていれば Plan の番号と、todo なら着手可・待ちの相手（Plan の `after` と `depends_on` の終わっていないもの）・承認待ち（Plan が承認待ち）を出し、待ちと承認待ちの行はタイトルを薄くする
 - UI-3 バックログ：done・abandoned 以外のチケットを Iteration ごとの区画に分けて出し、検索と絞り込みができる。別の区画へのドラッグで Iteration を変え、`ticket update` と同じ検査で拒否されたら理由を出して戻す
 - UI-4 チケット詳細：本文（概要・受け入れ条件）、属性、Epic、依存先と依存元、起票者と担当者、作業ブランチ、PR、Run の一覧、経過（CL-7）。PR はリモートの URL から PR のページへのリンクにする（直せなければ番号だけ）。属性と本文を編集できる
 - UI-5 Iteration：作成・開始・閉じる、詳細の画面でチケットの追加・除外ができる。閉じた Iteration・Epic と終わったチケットは履歴の画面で見る（終えた日は CL-7 から求める）
@@ -255,9 +246,9 @@ Web UI は `dg serve` が配信し、VS Code 拡張は同じ React アプリを 
 - UI-10 Epic：open の Epic の進捗（EP-3）を出し、Epic でチケットを絞れる。詳細の画面で Epic のチケットを Status ごとに出し、チケットの追加・除外、閉じる・再開ができる。VS Code では Status ごとの列（カンバン）にせず、未完了・完了・中止の段に分けた 1 本の一覧で出す
 - UI-11 VS Code 拡張は `dg` を同梱せず、Webview のために `core` を同梱する。画面は `dg` なしで動き、`dg` が PATH にないときはインストールを案内する。`dg` の版と拡張の `core` の版のメジャーが違えば知らせる（[ADR-006](adr/ADR-006-ui-and-writes.md)）
 - UI-12 VS Code 拡張はサイドバーのビューを主画面にして同じ画面を出し、エディタ領域のパネルにはサイドバーから開いた詳細（チケット・Iteration・Epic）だけを出す。パネルからの一覧の画面へのリンクは、サイドバーをその画面に切り替える。ビューのタイトル行に同期のボタン（UI-6）と未 push・未取り込みの件数を出す。データ worktree と実行中の Run の記録の変化を見張り、CLI やエージェントの書き込みを自動で画面に映す（[ADR-006](adr/ADR-006-ui-and-writes.md)）
-- UI-13 実行計画：カンバン（UI-2）の上に、選んだ Iteration のチケットを含む Plan を出す。Plan ごとに、1 行目に番号・状態・進捗、2 行目に作業中のチケットと次に着手するチケット（待ちがあれば待つ相手。承認待ちなら承認待ち。着手できるかは `after` の待ちと `deps_done` で決め、左パネルのカンバンの行の着手可・待ちと同じ）を出し、行を押すとその Plan の `after` の待ちの依存グラフを行の下に開閉する。閉じた Plan は畳んだ節に 1 行ずつ入れる。表示だけで書き込まない
+- UI-13 実行計画：カンバン（UI-2）の上に、選んだ Iteration のチケットを含む Plan を出す。Plan ごとに番号・状態・進捗と、作業中のチケット・次に着手するチケット（着手できるかは `after` の待ちと `deps_done` で決め、サイドバーのカンバンの行と同じ）を出し、`after` の待ちの依存グラフを開閉できる。表示だけで書き込まない
 
-画面の並び順・色・文言は web のコード（`packages/web/src/`）とテストが正本。
+画面の並び順・色・文言とサイドバーの細部は web のコード（`packages/web/src/`）とテストが正本。
 
 ### 6.5 エージェント連携
 
@@ -280,7 +271,7 @@ Web UI は `dg serve` が配信し、VS Code 拡張は同じ React アプリを 
 
 - EX-1 deguboard はエージェントを起動しない。チケットの処理はエージェント側の Skill が `dg` を呼んで進める
 - EX-2 終了していない Run は一覧で見え、`interrupted` として閉じられる
-- EX-3 段階を続けて進める手順は Skill 側に置き、着手できるチケット（`ticket list` の `ready` での絞り込みか、各行の `deps_done`）と Plan の順序に従う。`dg guide all --auto` は戻せる判断を自動で選び、`auto.merge` が true なら条件を満たした PR をマージする。Plan の待ちのない複数のチケットは、手順が決めた上限までチケットごとのサブエージェントで同時に進め、1 件の失敗やマージ待ちでほかを止めない。品質ゲート（検査・受け入れ条件・別のサブエージェントの見直し・衝突なし）は `dg guide review` の 1 か所に置き、PR を出す前とマージの前に通す。Run は実装・見直し・手直しで分け、手直しの Run に直した指摘を `retry_reasons` で残す。見直しの指摘は同じブランチで直し、上限を超えたら PR を draft のまま置いて人に報告する
+- EX-3 段階を続けて進める手順は Skill 側に置き、着手できるチケット（`ticket list` の `ready` での絞り込みか、各行の `deps_done`）と Plan の順序に従う。`dg guide all --auto` は戻せる判断を自動で選び、`auto.merge` が true なら条件を満たした PR をマージする。Plan の待ちのない複数のチケットはチケットごとのサブエージェントで同時に進め、1 件の失敗やマージ待ちでほかを止めない。品質ゲート（検査・受け入れ条件・別のサブエージェントの見直し・衝突なし）は PR を出す前とマージの前に通し、手直しの Run に直した指摘を `retry_reasons` で残す。修正の回数の上限を超えたら PR を draft のまま人に渡す。同時に進める上限・修正ループの回数・Run の分け方は guide（`parallel`・`review`・`all`）が正本
 - EX-4 Workflow が `by: [human]` で人に限った遷移は、エージェントからは行えない
 
 ## 7. 非機能要件
