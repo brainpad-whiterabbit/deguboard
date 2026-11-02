@@ -240,8 +240,8 @@ export function BacklogPage() {
   const rows = useMemo(() => filterBacklog(tickets, filter, store.me), [tickets, filter, store.me]);
   // サイドバーの行の右端に、開いた Plan の番号と着手可・待ちを出す（判定はカンバンと同じ kanbanPlanMarks）
   const planMarks = useMemo(
-    () => (sidebar ? kanbanPlanMarks(store.plans, store.tickets) : new Map<string, PlanMark>()),
-    [sidebar, store.plans, store.tickets],
+    () => (sidebar ? kanbanPlanMarks(store.plans) : new Map<string, PlanMark>()),
+    [sidebar, store.plans],
   );
   const rowEnd = (t: Ticket) => (
     <BacklogRowEnd ticket={t} mark={planMarks.get(t.id)} me={store.me} />

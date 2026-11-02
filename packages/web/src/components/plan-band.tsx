@@ -29,7 +29,7 @@ export function PlanBand({ scope }: { scope: readonly Ticket[] }) {
     for (const key of OLD_KEYS) host.state.remove(key);
   }, [host]);
   const byId = useMemo(() => new Map(store.tickets.map((t) => [t.id, t])), [store.tickets]);
-  const items = useMemo(() => plansInScope(store.plans, scope, byId), [store.plans, scope, byId]);
+  const items = useMemo(() => plansInScope(store.plans, scope), [store.plans, scope]);
   if (items.length === 0) return null;
   const open = items.filter((i) => i.state !== "closed");
   const closed = items.filter((i) => i.state === "closed");

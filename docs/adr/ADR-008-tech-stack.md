@@ -24,8 +24,8 @@
 - `mise.toml` で node と pnpm の版を固定する。開発者は `mise install` でツールを揃える
 - 作業のコマンドは `mise run <task>` を唯一の入口にする。タスクの一覧は mise.toml が正本（`mise tasks`）
 - タスクは pnpm scripts を呼ぶだけにし、同じ内容を 2 か所に書かない。pnpm scripts は mise から呼ばれる前提で、人は `mise run` だけ覚える
-- 依存の追加と版の更新は `mise exec -- pnpm add -E <名前>@<版>`、削除は `mise exec -- pnpm remove`、pnpm-workspace.yaml の overrides を変えたときは `mise exec -- pnpm install` で行う。版は固定なので `^` の付く `-E` なしの `add` と、固定の版を動かさない `pnpm update` は使わない。pnpm の選択肢（`--filter`・`-D` など）をそのまま使えるようタスクにせず、mise の固定した pnpm で行い、lockfile をコミットする。`mise run install` は `--frozen-lockfile` で lockfile を書き換えない
-- `check` はコミット前の確認で、format:check → lint → typecheck → test → check:docs を順に実行する
+- 依存の追加・更新・削除は、pnpm の選択肢（`--filter`・`-D` など）をそのまま使えるようタスクにせず、mise の固定した pnpm（`mise exec -- pnpm`）で行い、lockfile をコミットする。版は固定なので `^` の付く `-E` なしの `add` と `pnpm update` は使わない（コマンドは [development.md](../development.md)）
+- `check` はコミット前の確認で、書式・lint・型・テスト・文書を順に検査する（順は mise.toml）
 - CI は使わない。検査は作業者がローカルで `mise run check` を通すことにとどめ、マージの条件にする
 
 ### lint は oxlint、整形は oxfmt
@@ -48,7 +48,7 @@
 - 拡張ホストは CommonJS を読むので、`packages/vscode` は Vite の SSR ビルドで `dist/extension.cjs` の 1 ファイルに束ねる。core は `development` 条件で `src` から取り込み、`vscode` だけ外部にする
 - web のビルド結果は `dist/web` に写して Webview から読む。拡張のためのバンドラは増やさない（esbuild や webpack は入れない）
 - 拡張の `engines.vscode` は `^1.123.0` にする。拡張ホストが Node 24 になった最初の版（Electron 42.3、Node 24.15）で、束ねる core の `engines.node`（>=24）と Vite の `target: "node24"` に揃う。1.122 までは Node 22（1.104 は Electron 37.3、Node 22.18）。`@types/vscode` は engines を超えない版に固定する（vsce が検査する）
-- VSIX は `@vscode/vsce` で作る（`mise run vsix`）。依存は束ねてあるので `--no-dependencies` で、pnpm の node_modules の形に影響されない。`vsce-sign` の postinstall は要らないので pnpm-workspace.yaml の `allowBuilds` で拒否する（pnpm 12。`ignoredBuiltDependencies` は読まれない）
+- VSIX は `@vscode/vsce` で作る（`mise run vsix`）。依存は束ねてあるので `--no-dependencies` で、pnpm の node_modules の形に影響されない。要らない postinstall の拒否は pnpm-workspace.yaml
 
 ### 文書の検査
 

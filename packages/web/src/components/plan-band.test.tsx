@@ -34,7 +34,7 @@ function mount(client = mockClient(), host = browserHost()) {
   return client;
 }
 
-/** t1（done）→ t3 を待つ承認済みの Plan と、閉じた Plan を持つ */
+/** t1（done）→ t3 を待つ承認済みの Plan と、閉じた Plan を持つ（進捗と待ちは fixture の plan.list が core と同じく求める） */
 function withPlans() {
   const client = mockClient();
   client.data.plans = [
@@ -44,11 +44,6 @@ function withPlans() {
       tickets: ["t1", "t3"],
       after: { t3: ["t1"] },
       approved_by: "eiki",
-      progress: {
-        total: 2,
-        done: 1,
-        by_status: { todo: 1, in_progress: 0, review: 0, done: 1, abandoned: 0 },
-      },
     }),
   ];
   return client;
@@ -66,7 +61,7 @@ describe("実行計画の帯", () => {
     const band = await screen.findByRole("region", { name: "実行計画" });
     expect(band.querySelector("h2")?.textContent).toBe("実行計画 1");
     const lines = [...document.querySelectorAll(".plan-line")].map((l) => l.textContent);
-    expect(lines).toEqual(["p2承認済み1/2", "p1閉じた0/0"]);
+    expect(lines).toEqual(["p2承認済み1/2", "p1閉じた0/1"]);
     const closed = document.querySelector<HTMLDetailsElement>(".plan-closed")!;
     expect(closed.textContent).toContain("閉じた計画 1");
     expect(closed.open).toBe(false);

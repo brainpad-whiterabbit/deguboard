@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { plan, ticket } from "../test-helpers.js";
-import type { TicketRow } from "../types.js";
+import type { PlanRow, TicketRow } from "../types.js";
 import {
   openPlanByTicket,
   planColor,
@@ -8,12 +8,15 @@ import {
   planProgressLine,
   planState,
   plansInScope,
-  remainingWaits,
 } from "./plan-graph.js";
 
 const byIdOf = (tickets: TicketRow[]) => new Map(tickets.map((t) => [t.id, t]));
 
 describe("Plan の状態", () => {
+  const progress = (counts: Partial<PlanRow["progress"]["by_status"]>): PlanRow["progress"] => {
+    const by_status = { todo: 0, in_progress: 0, review: 0, done: 0, abandoned: 0, ...counts };
+    return { total: 0, done: by_status.done, by_status };
+  };
   const byId = byIdOf([
     ticket({ id: "t1", status: "done" }),
     ticket({ id: "t2", status: "in_progress" }),
@@ -21,17 +24,38 @@ describe("Plan の状態", () => {
     ticket({ id: "t4", status: "abandoned" }),
   ]);
 
-  it("閉じた Plan は閉じた、すべて done・abandoned なら完了", () => {
-    expect(planState(plan({ id: "p1", tickets: ["t2"], status: "closed" }), byId)).toBe("closed");
-    expect(planState(plan({ id: "p1", tickets: ["t1", "t4"] }), byId)).toBe("finished");
+  it("閉じた Plan は閉じた、Plan の progress に終わっていないチケットがなければ完了", () => {
+    expect(planState(plan({ id: "p1", tickets: ["t2"], status: "closed" }))).toBe("closed");
+    expect(
+      planState(
+        plan({ id: "p1", tickets: ["t1", "t4"], progress: progress({ done: 1, abandoned: 1 }) }),
+      ),
+    ).toBe("finished");
+    // チケットが 1 枚も見つからない Plan は完了にしない
+    expect(planState(plan({ id: "p1", tickets: ["t9"] }))).toBe("approved");
   });
 
   it("承認待ちはそのまま、承認済みで in_progress・review があれば進行中、なければ承認済み", () => {
-    expect(planState(plan({ id: "p1", tickets: ["t2"], pending_approval: true }), byId)).toBe(
-      "pending",
-    );
-    expect(planState(plan({ id: "p1", tickets: ["t1", "t2"] }), byId)).toBe("working");
-    expect(planState(plan({ id: "p1", tickets: ["t1", "t3"] }), byId)).toBe("approved");
+    expect(
+      planState(
+        plan({
+          id: "p1",
+          tickets: ["t2"],
+          pending_approval: true,
+          progress: progress({ in_progress: 1 }),
+        }),
+      ),
+    ).toBe("pending");
+    expect(
+      planState(
+        plan({ id: "p1", tickets: ["t1", "t2"], progress: progress({ done: 1, review: 1 }) }),
+      ),
+    ).toBe("working");
+    expect(
+      planState(
+        plan({ id: "p1", tickets: ["t1", "t3"], progress: progress({ done: 1, todo: 1 }) }),
+      ),
+    ).toBe("approved");
   });
 
   it("範囲のチケットを含む Plan だけを、進行中・承認待ち・承認済み・完了・閉じたの順に並べる", () => {
@@ -39,11 +63,11 @@ describe("Plan の状態", () => {
       plan({ id: "p1", tickets: ["t1"], status: "closed" }),
       plan({ id: "p2", tickets: ["t3"] }),
       plan({ id: "p3", tickets: ["t3"], pending_approval: true }),
-      plan({ id: "p4", tickets: ["t2"] }),
+      plan({ id: "p4", tickets: ["t2"], progress: progress({ in_progress: 1 }) }),
       plan({ id: "p5", tickets: ["t9"] }),
     ];
     const scope = [...byId.values()];
-    expect(plansInScope(plans, scope, byId).map((i) => `${i.plan.id}:${i.state}`)).toEqual([
+    expect(plansInScope(plans, scope).map((i) => `${i.plan.id}:${i.state}`)).toEqual([
       "p4:working",
       "p3:pending",
       "p2:approved",
@@ -62,7 +86,7 @@ describe("Plan の状態", () => {
 });
 
 describe("依存グラフ", () => {
-  it("after から段を求め、段の中は Plan の順に並べる。待ちが終わっていなければ待ち中", () => {
+  it("after から段を求め、段の中は Plan の順に並べる。待ち中かは core の waiting を読む", () => {
     const byId = byIdOf([
       ticket({ id: "t1", status: "done" }),
       ticket({ id: "t2", status: "in_progress" }),
@@ -74,6 +98,8 @@ describe("依存グラフ", () => {
         id: "p1",
         tickets: ["t1", "t2", "t3", "t4"],
         after: { t3: ["t1"], t4: ["t2", "t3"] },
+        // t4 は t2・t3 を待つ。t3 の待ち t1 は done
+        waiting: { t1: [], t2: [], t3: [], t4: ["t2", "t3"] },
       }),
       byId,
     );
@@ -83,8 +109,7 @@ describe("依存グラフ", () => {
       ["t3", 1, 0, false],
       ["t4", 2, 0, true],
     ]);
-    // 残っている待ちの相手は終わっていないものだけ（t4 は t2・t3 を待つ。t3 の待ち t1 は done）
-    expect(g.nodes.map((n) => n.waitingOn)).toEqual([[], [], [], ["t2", "t3"]]);
+    // 辺は待つ側の waiting に待たれる側が残れば待ち中
     expect(g.edges).toEqual([
       { from: "t1", to: "t3", done: true },
       { from: "t2", to: "t4", done: false },
@@ -120,21 +145,20 @@ describe("帯の行の作業中と次", () => {
     ticket({ id: "t6", status: "review" }),
   ]);
 
-  it("作業中は in_progress を Plan の順に出し、次は待ちの終わった todo の先頭", () => {
-    // t3 は t2（作業中）を待つので、t4 が先に着手できる
+  it("作業中は in_progress を Plan の順に出し、次は core の next が着手できるならそのチケット", () => {
     const p = plan({
       id: "p1",
-      tickets: ["t1", "t2", "t3", "t4", "t5"],
-      after: { t3: ["t2"], t4: ["t1"] },
+      tickets: ["t5", "t1", "t2", "t3", "t4"],
+      next: { id: "t4", waiting: [] },
     });
     expect(planProgressLine(p, "working", byId)).toEqual({
-      working: ["t2", "t5"],
+      working: ["t5", "t2"],
       next: { kind: "ready", id: "t4" },
     });
   });
 
-  it("着手できる todo がなければ、先頭の todo が待っている相手を出す", () => {
-    const p = plan({ id: "p1", tickets: ["t2", "t3"], after: { t3: ["t2"] } });
+  it("core の next に待ちの相手が残れば、そのチケットと待っている相手を出す", () => {
+    const p = plan({ id: "p1", tickets: ["t2", "t3"], next: { id: "t3", waiting: ["t2"] } });
     expect(planProgressLine(p, "working", byId).next).toEqual({
       kind: "blocked",
       id: "t3",
@@ -142,100 +166,18 @@ describe("帯の行の作業中と次", () => {
     });
   });
 
-  it("Plan の外の依存（depends_on）が終わっていない todo は着手できない。待つ相手にも出す", () => {
-    const deps = byIdOf([
-      ticket({ id: "t1", status: "in_progress" }),
-      ticket({ id: "t3", status: "todo", depends_on: ["t1"] }),
-      ticket({ id: "t4", status: "todo" }),
-    ]);
-    // t1 は Plan の外。t3 は待ちがないが depends_on が残るので、t4 が次
-    const p = plan({ id: "p1", tickets: ["t3", "t4"] });
-    expect(planProgressLine(p, "approved", deps).next).toEqual({ kind: "ready", id: "t4" });
-    const only = plan({ id: "p1", tickets: ["t3"] });
-    expect(planProgressLine(only, "approved", deps).next).toEqual({
-      kind: "blocked",
-      id: "t3",
-      waitFor: ["t1"],
-    });
-  });
-
-  it("Plan の中で after に書いていない depends_on も待ち、after と重ねて書いた相手は 1 度だけ出す", () => {
-    const deps = byIdOf([
-      ticket({ id: "t2", status: "in_progress" }),
-      ticket({ id: "t3", status: "todo", depends_on: ["t2"] }),
-      ticket({ id: "t5", status: "todo", depends_on: ["t2"] }),
-    ]);
-    expect(planProgressLine(plan({ id: "p1", tickets: ["t2", "t3"] }), "working", deps)).toEqual({
-      working: ["t2"],
-      next: { kind: "blocked", id: "t3", waitFor: ["t2"] },
-    });
-    const both = plan({ id: "p1", tickets: ["t2", "t5"], after: { t5: ["t2"] } });
-    expect(planProgressLine(both, "working", deps).next).toEqual({
-      kind: "blocked",
-      id: "t5",
-      waitFor: ["t2"],
-    });
-  });
-
-  it("別の Project の依存先（画面が読んでいないもの）は deps_done で決め、done なら着手できる", () => {
-    const deps = byIdOf([
-      ticket({ id: "t3", status: "todo", depends_on: ["t90"], deps_done: false }),
-      ticket({ id: "t4", status: "todo", depends_on: ["t91"], deps_done: true }),
-    ]);
-    const p = plan({ id: "p1", tickets: ["t3", "t4"] });
-    expect(planProgressLine(p, "approved", deps).next).toEqual({ kind: "ready", id: "t4" });
-    const only = plan({ id: "p1", tickets: ["t3"] });
-    expect(planProgressLine(only, "approved", deps).next).toEqual({
-      kind: "blocked",
-      id: "t3",
-      waitFor: ["t90"],
-    });
-  });
-
-  it("todo が残らなければ次を出さない。review は作業中に数えない", () => {
+  it("core の next がなければ（todo が残らない）次を出さない。review は作業中に数えない", () => {
     const p = plan({ id: "p1", tickets: ["t1", "t6"] });
     expect(planProgressLine(p, "working", byId)).toEqual({ working: [], next: null });
   });
 
   it("承認待ちは次の代わりに承認待ち、完了・閉じたは何も出さない", () => {
-    const p = plan({ id: "p1", tickets: ["t2", "t3"] });
+    const p = plan({ id: "p1", tickets: ["t2", "t3"], next: { id: "t3", waiting: [] } });
     expect(planProgressLine(p, "pending", byId)).toEqual({
       working: ["t2"],
       next: { kind: "approval" },
     });
     expect(planProgressLine(p, "finished", byId)).toEqual({ working: [], next: null });
     expect(planProgressLine(p, "closed", byId)).toEqual({ working: [], next: null });
-  });
-});
-
-describe("待ちの相手（帯の次とカンバンの行で共用）", () => {
-  const byId = byIdOf([
-    ticket({ id: "t1", status: "done" }),
-    ticket({ id: "t2", status: "in_progress" }),
-  ]);
-
-  it("deps_done が真なら depends_on は待たず、Plan の after の待ちだけを出す", () => {
-    const t = ticket({ id: "t5", depends_on: ["t2", "t90"], deps_done: true });
-    expect(remainingWaits(t, [], byId)).toEqual([]);
-    expect(remainingWaits(t, ["t2"], byId)).toEqual(["t2"]);
-  });
-
-  it("deps_done が偽なら、読めている依存先のうち終わっていないものだけを after の待ちの後に、重ねずに出す", () => {
-    // t90（別の Project）は終わっているかもしれないので、終わっていない t2 があれば相手に出さない
-    const t = ticket({ id: "t5", depends_on: ["t1", "t2", "t90"], deps_done: false });
-    expect(remainingWaits(t, [], byId)).toEqual(["t2"]);
-    expect(remainingWaits(t, ["t2"], byId)).toEqual(["t2"]);
-    expect(remainingWaits(t, ["t3"], byId)).toEqual(["t3", "t2"]);
-  });
-
-  it("deps_done が偽で、読めている依存先がすべて終わっていれば、読めていない依存先（別の Project）を出す", () => {
-    const t = ticket({ id: "t5", depends_on: ["t1", "t90"], deps_done: false });
-    expect(remainingWaits(t, [], byId)).toEqual(["t90"]);
-    expect(remainingWaits(t, ["t3"], byId)).toEqual(["t3", "t90"]);
-  });
-
-  it("依存先がすべて読めて終わっていても deps_done が偽なら（読み直しの前など）、依存先を出して着手できるとしない", () => {
-    const t = ticket({ id: "t5", depends_on: ["t1"], deps_done: false });
-    expect(remainingWaits(t, [], byId)).toEqual(["t1"]);
   });
 });

@@ -36,7 +36,7 @@ argument-hint: "<Plan の ID|チケットの ID>"
 
 Run は 1 回の作業の記録で、使用量（トークン）が残る。実装の Run は手順 4〜6、見直しと手直しは別の Run（`dg guide review` の「Run の分け方」）。PR の要らない作業も、作業の前後で始めて閉じる。
 
-- **step**：チケットの Project の Workflow（`dg --json --actor agent project list` の `workflow`）を `dg --json --actor agent workflow show <workflow>` で読み、`data.definition.steps` から今の作業に合うものの `id` を選ぶ。`steps` がなければ `implement`・`review`・`fix`・`investigate` を使う。合う語がないとき（init の前からある Workflow に `fix` がないなど）は `dg guide review` の「Run の分け方」
+- **step**：チケットの Project の Workflow（`dg --json --actor agent project list` の `workflow`）を `dg --json --actor agent workflow show <workflow>` で読み、`data.definition.steps` から今の作業に合うものの `id` を選ぶ。`steps` がなければ `implement`・`review`・`fix`・`investigate` を使う。合う語がないとき（init の前からある Workflow や consulting に `fix` がないなど）は `dg guide review` の「Run の分け方」の「合う step がない」（代わりの step と、人に伝えるかどうか）
 - **agent**：自分の Adapter の名前（`dg run start --help`。Claude Code なら `claude-code`）
 - **自分で呼ぶ**：run start と finish は作業するエージェント自身が呼ぶ（理由は `dg guide review` の「Run の分け方」）
 - 使用量は書かない。取れずに finish が警告しても止めない
@@ -49,7 +49,7 @@ Run は 1 回の作業の記録で、使用量（トークン）が残る。実�
 承認済みの Plan（`dg guide plan`）があれば、その順と中身に従う。
 
 - 着手する前に `dg --json --actor agent plan show <p>` を読む。`pending_approval` が true（承認待ち）なら着手せず、人に承認を求める
-- 順は `items`（Plan の順）と `after`。`items[].waiting`（まだ終わっていない待ち先）が空のチケットだけに着手する。after は claim では検査されないので、自分で守る。着手できるものが複数あれば `items` の順で先のものから（サブエージェントで同時に進めるなら `dg guide parallel`）
+- 次は `plan show` の `next`（Plan の順で先の着手できる todo。画面の帯の「次」と同じ）。`next.waiting` が空でなければ、着手できるものがなく、その相手を待っている。着手できるものは `ready`（`items[].ready`）、残りの待ちの相手は `items[].waiting`（`after` と `depends_on` の終わっていないもの）。after は claim では検査されないので、自分で守る（サブエージェントで同時に進めるなら `dg guide parallel`）
 - 着手するチケットの `details.<id>.scope`（範囲）と `approach`（方針）を読み、その範囲と方針で実装する。範囲を広げる・方針を変えるなら、先に人に確かめる
 - 1 枚終えたら（PR を出したら）`plan show` を読み直して次を選ぶ。Plan のチケットがすべて終わったら `dg guide done` の「Plan を閉じる」
 

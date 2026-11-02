@@ -20,15 +20,15 @@ CLI・MCP・HTTP・VS Code 拡張という複数の入口から同じ機能を�
 ### 依存の向き
 
 - `core` は何にも依存しない（VS Code API・HTTP・React を知らない）
-- `server`・`vscode` は `core` だけに依存する。`cli` は `dg serve` と `dg mcp`（ツールの入力スキーマを `describeCommands` で作る）のために `server` にも依存する
+- `server`・`vscode` は `core` だけに依存する。`cli` は `dg serve` と `dg mcp` のために `server` にも依存する
 - `web` は `core` の型と `CommandClient` のインターフェースだけに依存する
-- 逆向きの依存は作らない。`.oxlintrc.json` の `overrides` がパッケージごとに `no-restricted-imports` で検出する（禁じる import の正本はその設定）
+- 逆向きの依存は作らない。検出は `.oxlintrc.json` の `no-restricted-imports`（禁じる import の正本）
 
 ### `core/commands` が 3 つの入口の正本
 
 - すべての操作を「名前・Zod の入力スキーマ・実装関数」の組として `core/commands` に定義する
 - CLI のサブコマンドとヘルプ、HTTP のエンドポイント、Webview のメッセージ、MCP のツール定義は、この定義から生成する。入口にロジックを書かない
-- MCP（`dg mcp`）は `cli` に置き、同じコマンド定義を主体 agent で stdio に写す。入力スキーマは HTTP と同じく Zod から作る。CLI だけのコマンドと `init` はツールにしない（AG-4）
+- MCP（`dg mcp`）は `cli` に置き、同じコマンド定義を主体 agent で写す（範囲は AG-4）
 - UI は `CommandClient`（コマンド名と入力を渡して結果を受け取る 1 つのインターフェース）を通じて呼ぶ
 - 文脈の管理（開く・再走査・直列化・名前でコマンドを引く）はプロセス内の `CommandClient` として core に 1 つ置き、`server` は HTTP に、`vscode` は Webview の postMessage に写す
 
@@ -53,7 +53,7 @@ Core の中は責務ごとのモジュール（`model`・`storage`・`git`・`wo
 ### 索引はメモリ上に持つ
 
 - DB は使わない。起動時にファイルを走査してメモリ上に索引を作り、取り込み（sync）の後とリクエストごとに再走査して更新する。core はファイルを監視しない（VS Code 拡張はデータのファイルの変化を見張って画面を読み直す。UI-12）
-- 再走査はファイルごとの印（inode・大きさ・mtime・ctime）を前回と比べ、変わったファイルだけを読み直す。更新が数秒以内のファイルは印が同じでも毎回読み直す（git の racy-clean と同じ考え方。幅は `RACY_WINDOW_NS`）
+- 再走査はファイルごとの印を前回と比べ、変わったファイルだけを読み直す。更新の直後のファイルは印が同じでも読み直す（git の racy-clean と同じ考え方。細部は `core/storage/store.ts`）
 
 ## 理由
 

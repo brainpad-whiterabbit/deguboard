@@ -1,7 +1,7 @@
 # ADR-002 チケットの保存と ID
 
 - ステータス：承認
-- 更新日：2026-11-01
+- 更新日：2026-11-02
 
 ## 背景
 
@@ -18,44 +18,29 @@
 
 ### 形式：1 件 1 ファイル
 
-| データ     | 置き場所               | 形式                       |
-| ---------- | ---------------------- | -------------------------- |
-| Project    | `projects/<slug>.yaml` | YAML                       |
-| Ticket     | `tickets/t12.md`       | Markdown＋YAML frontmatter |
-| Epic       | `epics/e3.md`          | Markdown＋YAML frontmatter |
-| Iteration  | `iterations/s3.yaml`   | YAML                       |
-| Plan       | `plans/p7.yaml`        | YAML                       |
-| Workflow   | `workflows/<id>.yaml`  | YAML                       |
-| Run の集計 | `runs/<id>.json`       | JSON                       |
-| 設定       | `config.yaml`          | YAML                       |
-
-- 本文を持つチケットと Epic は Markdown で属性を frontmatter に、ほかは人が読む YAML、機械だけが書く Run は JSON にする
+- 本文を持つチケットと Epic は Markdown で属性を frontmatter に、ほかは人が読む YAML、機械だけが書く Run の集計は JSON にする。置き場所は requirements の 5.1
 - 削除したチケットは `tickets/deleted/` に墓標として残し、番号を再利用しない
-- 書き込みは一時ファイルからの rename で原子的にする。読めないファイルは止めずに報告する
+- 書き込みは原子的にし、読めないファイルは止めずに報告する（DT-1）
 
 ### ID：連番をそのまま ID とファイル名にする
 
-- ID は `t12`・`e3`・`s3`・`p7` のような接頭辞＋連番。ファイル名は ID そのまま（`t12.md`）で、ゼロ埋めしない。title の slug はファイル名に入れない
-- ファイル名の辞書順は番号順にならないが、CLI と UI は番号で並べる
-- 番号はプロジェクトをまたいでリポジトリ全体で一意。採番は「既存と墓標の最大 + 1」
-- **作成は fetch → 採番 → commit → push を 1 単位**にする。push が拒否されたら取り込み直して採番し直す（複数件の import も同じ 1 単位）。同じパスの add/add で衝突を検出できる
-- オフラインで push できないときは `provisional: true` を付けてローカルに commit する。次の `dg sync` で衝突があれば、番号・ファイル名・未 push のコミット内の参照（他チケットの `depends_on`、Plan）を振り直してから push する
+- ID は `t12` のような接頭辞＋連番で、ファイル名は ID そのまま。ゼロ埋めせず、title の slug も入れない。番号はプロジェクトをまたいでリポジトリ全体で一意（DT-3）
+- **作成は fetch → 採番 → commit → push を 1 単位**にし、push が拒否されたら採番し直す（DT-4。複数件の import も同じ 1 単位）。同じパスの add/add で衝突を検出できる
+- オフラインで push できないときは仮番号でローカルに commit し、次の `dg sync` が衝突した番号と参照を振り直してから push する（DT-5）
 - 作業ブランチ名と PR は claim（[ADR-004](ADR-004-agents-and-state.md)）の後に作るので、仮番号がブランチ名に入ることはない
-- Run の ID は採番せず `r`＋開始日時（UTC）＋16 進 4 桁の乱数にする。辞書順が開始の順になる
+- Run の ID は採番せず `r`＋開始日時＋乱数にする。辞書順が開始の順になる
 
 ### 同期の競合：frontmatter をフィールド単位でマージする
 
 - 取り込みは rebase で行い、チケット・墓標・Epic の Markdown に git のマージドライバ `deguboard`（`dg merge-driver`）を当てる。規則の正本は core の `git/merge.ts`
-- frontmatter はフィールドごとに 3-way で決め、片側だけ変えた値を採る。配列は要素ごとにマージせず 1 つの値として比べる。`updated_at` は両側が変えても新しい方を採る。両側が違う値に変えたフィールドと、本文の同じ行のぶつかりだけを競合にする。仮番号の add/add は行単位のマージに任せ、振り直し（DT-5）の検出を変えない
-- 競合ならドライバが非 0 で終わり、rebase を中止してローカルのコミットを残し、`dg sync` が報告する
-- 登録：`dg init` と `dg sync` が、git config にいま動いている node と `bin/dg.js` の絶対パスでドライバを書き、deguboard ブランチに `.gitattributes` をコミットする。リモートにまだない間は `deguboard-local/` の属性ファイルを rebase に渡して補う
+- frontmatter はフィールドごとに 3-way で決め、片側だけ変えた値を採る。両側が違う値に変えたフィールドと本文の同じ行のぶつかりだけを競合にし、rebase を中止して `dg sync` が報告する（SY-4）
+- 登録：`dg init` と `dg sync` が、いま動いている node と `bin/dg.js` の絶対パスでドライバを git config に書き、`.gitattributes` をコミットする
 - VS Code 拡張は自分の `dg` を持たないので登録せず、CLI が登録した config を使う。ドライバが動かなければ競合として報告され、次の CLI の `dg sync` で登録し直す
 
 ### 複数 Project
 
-- 1 リポジトリに複数の Project を置ける。Project は `projects/<slug>.yaml`（名前・説明・既定の Workflow・状態）
+- 1 リポジトリに複数の Project を置ける（形は requirements の 5.3）
 - Ticket・Epic・Iteration は `project` フィールドで所属を表す。ディレクトリはプロジェクトごとに分けず flat に置く
-- `dg init` は `default` プロジェクトを 1 つ作る。`config.yaml` の `default_project` が省略時の値
 
 ### 呼称
 

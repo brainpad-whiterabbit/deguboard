@@ -4,7 +4,8 @@
 //   - Run に結び付ける記録：Claude Code の Adapter と同じく、Run の ID を最初に含む会話記録のファイル
 //   - 数える量：Run の ID が出る前の最後の累計と、finished_at までの最後の累計の差。累計が減っていれば（記録の作り直しなど）取れない。
 //     Codex は応答のツールを実行し終えてからその応答の token_count を書くので、dg run start を呼んだ応答は Run に入り、
-//     dg run finish を呼んだ応答は入らない（Claude Code の Adapter と 1 応答ずれる。ADR-005）
+//     dg run finish を呼んだ応答は入らない（Claude Code の Adapter と 1 応答ずれる。ADR-005）。書く順は openai/codex の
+//     codex-rs/core/src/session/turn.rs で確かめた（2026-10-31 の main。本物の記録では未確認）
 //   - 写し方：input は input_tokens から cached_input_tokens を引いた値（キャッシュを読まなかった入力。Claude Code と同じ意味）、
 //     cache_read は cached_input_tokens、output は output_tokens、cache_write は cache_write_input_tokens。
 //     cache_write_input_tokens を書かない版の記録では cache_write を null にして警告する

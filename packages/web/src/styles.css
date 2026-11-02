@@ -1844,6 +1844,8 @@ button.danger {
   background: var(--vscode-button-background);
   border-color: var(--vscode-button-background);
 }
+/* 番号の code も塗りの文字色に揃え、VS Code が code に付ける既定の色に負けないようにする */
+.iteration-chip[aria-pressed="true"] code,
 .iteration-chip[aria-pressed="true"] .chip-count {
   color: inherit;
 }

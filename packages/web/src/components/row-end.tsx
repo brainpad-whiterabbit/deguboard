@@ -5,7 +5,7 @@
 import type { ReactNode } from "react";
 import { AssigneeMark } from "./assignee-mark.js";
 import { PriorityBadge, RowPriority } from "./parts.js";
-import { openPlanByTicket, planColor, planGraph, remainingWaits } from "./plan-graph.js";
+import { openPlanByTicket, planColor, waitsOf } from "./plan-graph.js";
 import {
   isOwnAssignee,
   type PlanRow,
@@ -19,27 +19,24 @@ export interface PlanMark {
   plan: string;
   /** Plan が承認待ち（plan.status が pending）。todo の行は待ちの相手によらず「承認待ち」と出す */
   pending: boolean;
-  /** 残っている待ちの相手（remainingWaits。Plan の after の待ちが先、depends_on が後）。空なら着手できる */
+  /** 残っている待ちの相手（core の plan.list の waiting。Plan の after の待ちが先、depends_on が後）。空なら着手できる */
   waitingOn: string[];
 }
 
-/** 開いた Plan に入っているチケットごとの PlanMark。after の待ちは Plan ごとに planGraph で求め、depends_on の待ちは deps_done で決める（remainingWaits） */
+/** 開いた Plan に入っているチケットごとの PlanMark。待ちの相手は core が求めた値を読むだけ（PL-6） */
 export function kanbanPlanMarks(
   plans: readonly PlanRow[],
-  tickets: readonly TicketRow[],
   planOf: ReadonlyMap<string, string> = openPlanByTicket(plans),
 ): Map<string, PlanMark> {
-  // キーをチケットの ID の型（t の番号）のままにすると depends_on・after の文字列で引けないので、文字列に広げる
-  const byId = new Map<string, TicketRow>(tickets.map((t) => [t.id, t]));
   const marks = new Map<string, PlanMark>();
   for (const plan of plans) {
     if (plan.status === "closed") continue;
-    for (const node of planGraph(plan, byId).nodes) {
-      if (planOf.get(node.id) !== plan.id) continue;
-      marks.set(node.id, {
+    for (const id of Object.keys(plan.waiting)) {
+      if (planOf.get(id) !== plan.id) continue;
+      marks.set(id, {
         plan: plan.id,
         pending: plan.status === "pending",
-        waitingOn: remainingWaits(byId.get(node.id)!, node.waitingOn, byId),
+        waitingOn: waitsOf(plan, id),
       });
     }
   }
