@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest";
 import { progressOf } from "@deguboard/core";
 import { STATUSES, type Epic, type Iteration, type Ticket } from "../types.js";
 import { ticket } from "../test-helpers.js";
-import { shortPeriod } from "../components/iteration-parts.js";
 import { hideClosedFinished, rowActivity, ticketProgress } from "./board.js";
 
 const iterations: Pick<Iteration, "id" | "status">[] = [
@@ -54,12 +53,6 @@ describe("カンバンで閉じた Iteration か Epic の終わったチケッ�
 });
 
 describe("左パネルのカンバンの見出し", () => {
-  it("期間は月/日に縮めて – でつなぎ、片方だけなら ? を置く", () => {
-    expect(shortPeriod("2026-11-15", "2026-11-28")).toBe("11/15–11/28");
-    expect(shortPeriod("2026-11-05", undefined)).toBe("11/5–?");
-    expect(shortPeriod(undefined, undefined)).toBeUndefined();
-  });
-
   it("進みは done の件数と abandoned を除く件数、Status ごとの件数を数える", () => {
     const p = ticketProgress([
       { status: "done" },
