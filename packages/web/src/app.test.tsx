@@ -1045,7 +1045,11 @@ describe("画面", () => {
     expect(screen.getByText("完了 — ・ 持ち越し —")).toBeTruthy();
     fireEvent.change(screen.getByLabelText("チケットを探す"), { target: { value: "ログイン" } });
     expect(names()).toEqual(["最初"]);
-    expect(screen.getByText("1 / 2 件")).toBeTruthy();
+    // 件数の行はなく、見方のバッジが「当たった数 / 全体」になる
+    expect(screen.queryByText(/件$/, { selector: ".toolbar span" })).toBeNull();
+    expect(screen.getByRole("button", { name: /^Iteration/ }).textContent).toBe(
+      "Iteration 1\u2009/\u20092",
+    );
     fireEvent.click(screen.getByText("s1"));
     expect(opened).toEqual([{ page: "iterations", id: "s1" }]);
     expect(window.location.hash).toBe("#/history");
@@ -1118,19 +1122,22 @@ describe("画面", () => {
     client.data.tickets[0]!.iteration = "s1";
     mount(client);
     await screen.findByRole("heading", { level: 1, name: "履歴" });
-    fireEvent.click(screen.getByRole("button", { name: "Epic" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Epic/ }));
     await waitFor(() => expect(window.location.hash).toBe("#/history?view=epic"));
     const names = () =>
       [...document.querySelectorAll(".history-row .name")].map((e) => e.textContent);
     await waitFor(() => expect(names()).toEqual(["新しい", "古い"]));
-    expect(screen.getByRole("button", { name: "Epic" }).getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getByRole("button", { name: /^Epic/ }).getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getByRole("button", { name: /^Iteration/ }).getAttribute("aria-pressed")).toBe(
+      "false",
+    );
     expect(document.querySelector(".history-row small")!.textContent).toBe(
       "2026-10-20 に閉じた ・ s1",
     );
     expect(screen.getByRole("link", { name: "s1" }).getAttribute("href")).toBe("#/iterations/s1");
     fireEvent.change(screen.getByLabelText("チケットを探す"), { target: { value: "t1" } });
     expect(names()).toEqual(["新しい"]);
-    expect(screen.getByText("1 / 2 件")).toBeTruthy();
+    expect(screen.getByRole("button", { name: /^Epic/ }).textContent).toBe("Epic 1\u2009/\u20092");
   });
 
   it("チケット詳細に経過の節があり、変化を時刻の順に出す。エディタのパネルでも出る", async () => {
@@ -1220,9 +1227,11 @@ describe("画面", () => {
     });
     mount(client);
     await screen.findByRole("heading", { level: 1, name: "履歴" });
-    expect(screen.getByRole("button", { name: "チケット" }).getAttribute("aria-pressed")).toBe(
+    expect(screen.getByRole("button", { name: /^チケット/ }).getAttribute("aria-pressed")).toBe(
       "true",
     );
+    // 絞り込みがなければバッジは全体の件数
+    expect(screen.getByRole("button", { name: /^チケット/ }).textContent).toBe("チケット 3");
     const ids = () =>
       [...document.querySelectorAll(".history-finished li code")].map((e) => e.textContent);
     await waitFor(() => expect(ids()).toEqual(["t2", "t3", "t1"]));
@@ -1239,7 +1248,9 @@ describe("画面", () => {
     fireEvent.change(screen.getByLabelText("Epic"), { target: { value: "" } });
     fireEvent.change(screen.getByLabelText("チケットを探す"), { target: { value: "web" } });
     expect(ids()).toEqual(["t2"]);
-    expect(screen.getByText("1 / 3 件")).toBeTruthy();
+    expect(screen.getByRole("button", { name: /^チケット/ }).textContent).toBe(
+      "チケット 1\u2009/\u20093",
+    );
   });
 
   it("エディタのパネルで Iteration の詳細を出すときもヘッダーを出さない", async () => {

@@ -563,23 +563,39 @@ button.link:hover {
 .run-unfinished {
   color: var(--vscode-descriptionForeground);
 }
-/* 見方の切り替え：つながったボタン */
-.segmented {
+/* 履歴の見方の切り替え：枠も塗りもない文字と件数のバッジ。選んだ見方だけ文字を濃く太くする */
+/* 折り返さない。幅 300px 未満で入らないときは切り替えの中だけが横にスクロールする */
+.view-switch {
   display: inline-flex;
+  flex-wrap: nowrap;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  white-space: nowrap;
 }
-.segmented button {
-  border-radius: 0;
-  padding: 0.2em 0.8em;
+.view-switch button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2em;
+  padding: 0.2em;
+  color: var(--vscode-descriptionForeground);
+  background: transparent;
+  border-color: transparent;
 }
-.segmented button:first-child {
-  border-radius: 2px 0 0 2px;
+.view-switch button:hover {
+  color: var(--vscode-foreground);
+  background: var(--vscode-toolbar-hoverBackground, transparent);
 }
-.segmented button:last-child {
-  border-radius: 0 2px 2px 0;
+.view-switch button[aria-pressed="true"] {
+  color: var(--vscode-foreground);
+  font-weight: 600;
 }
-.segmented button[aria-pressed="true"] {
-  color: var(--vscode-button-foreground);
-  background: var(--vscode-button-background);
+.view-switch .badge {
+  padding: 0.05em 0.3em;
+  font-weight: normal;
+  font-variant-numeric: tabular-nums;
 }
 
 /* 選んだ Iteration の見出しと絞り込みの行 */
