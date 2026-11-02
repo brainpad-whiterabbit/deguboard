@@ -5,7 +5,8 @@
 // open の Epic は進捗つきの欄に並べ（UI-10）、押すとその Epic のチケットに絞る（もう一度押すと解除）。広い画面では Epic の作成も欄から行う。
 // サイドバーでは検索と件数だけ常に出し、絞り込みは畳む（効いている条件は見出しに出す。開閉は host.state に残す）。
 // サイドバーの Epic の欄は open の Epic があるときだけ、番号・題・進捗のチップと「Epic なし」のチップを並べる（2 行を超える分は「ほか N」）
-// サイドバーの行の右端には、開いた Plan に入っていれば Plan の番号と着手可・待ちを出す（カンバンと同じ部品と判定。board.tsx の BacklogRowEnd）
+// サイドバーの行の右端には、開いた Plan に入っていれば Plan の番号と着手可・待ちを出す（カンバンと同じ部品と判定。board.tsx の BacklogRowEnd）。
+// サイドバーの行は担当者の列を出さず、別の人の担当だけ右端に頭文字の丸で出す（自分か自分の agent は出さない。store.me）
 
 import {
   DndContext,
@@ -153,7 +154,7 @@ export function BacklogPage() {
     [sidebar, store.plans, store.tickets],
   );
   const rowEnd = (t: Ticket, priority: ReactNode) => (
-    <BacklogRowEnd ticket={t} mark={planMarks.get(t.id)} priority={priority} />
+    <BacklogRowEnd ticket={t} mark={planMarks.get(t.id)} priority={priority} me={store.me} />
   );
   const onDragEnd = async (event: DragEndEvent) => {
     const id = String(event.active.id);
@@ -268,7 +269,7 @@ export function BacklogPage() {
               ))}
             </DndContext>
           ) : (
-            <TicketTable tickets={rows} end={rowEnd} />
+            <TicketTable tickets={rows} assigneeInEnd end={rowEnd} />
           )}
         </div>
       </div>
@@ -408,7 +409,7 @@ function Section({
     <>
       {creating ? <IterationCreateForm onDone={() => setCreating(false)} /> : null}
       {tickets.length > 0 ? (
-        <TicketTable tickets={tickets} draggable priorityMarks end={rowEnd} />
+        <TicketTable tickets={tickets} draggable priorityMarks assigneeInEnd end={rowEnd} />
       ) : null}
     </>
   );

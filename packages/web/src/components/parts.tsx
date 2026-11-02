@@ -289,10 +289,11 @@ export function ActivityMark({ activity }: { activity: RowActivity }) {
 }
 
 /**
- * 行の種類。list は一覧（バックログ・履歴など）の行、kanban はカンバンの行
- * （状態は節で分かるので丸印を出さず、優先度は high に加えて low も小さく出す）
+ * 行の種類。list は一覧（履歴など）の行、kanban はカンバンの行
+ * （状態は節で分かるので丸印を出さず、優先度は high に加えて low も小さく出す）、
+ * backlog は左パネルのバックログの行（list と同じだが担当者の列を出さず、担当は右端に出す。board.tsx の BacklogRowEnd）
  */
-export type TicketRowVariant = "list" | "kanban";
+export type TicketRowVariant = "list" | "kanban" | "backlog";
 
 /** 行の右端の優先度の印。high は札、kanban の行では low も小さな灰色の文字で出す。それ以外は空のセル（行の格子の位置を保つ） */
 export function RowPriority({
@@ -316,7 +317,8 @@ export function RowPriority({
 /**
  * チケットの 1 行（サイドバー向け）：状態の丸印・番号・タイトル・担当者・右端（既定は優先度の印）。
  * サイドバーではタイトルを 2 行まで折り返す（styles.css）。hideAssignee で担当者を出さない（見えている行の担当が 1 人だけのとき）。
- * kanban の行は担当者の列を出さない（担当は右端の印で出す。board.tsx の KanbanRowEnd）。
+ * kanban と backlog の行は担当者の列を出さない（担当は右端の印で出す。board.tsx の KanbanRowEnd・BacklogRowEnd）。
+ * 列がないぶんの幅はタイトルに回る。
  * variant で行の種類を選ぶ（TicketRowVariant）。end を渡すと右端の優先度の印の代わりにそれを出す（カンバンの行の Plan の番号と待ちなど）。
  * head を渡すとカンバンの行の頭（list の行の丸印の位置）にそれを出す（Run の実行中の印。ActivityMark）
  */
@@ -341,11 +343,12 @@ export function TicketRow({
   end?: ReactNode;
 }) {
   const kanban = variant === "kanban";
+  const backlog = variant === "backlog";
   const withHead = kanban && head != null;
   return (
     <TicketLink
       id={ticket.id}
-      className={`row ticket-row status-${ticket.status}${kanban ? " kanban-row" : ""}${withHead ? " has-head" : ""}${flash ? " changed" : ""}`}
+      className={`row ticket-row status-${ticket.status}${kanban ? " kanban-row" : ""}${backlog ? " backlog-row" : ""}${withHead ? " has-head" : ""}${flash ? " changed" : ""}`}
       onClick={onClick}
     >
       {kanban ? withHead ? head : null : <StatusDot status={ticket.status} />}
@@ -353,7 +356,7 @@ export function TicketRow({
       <span className="row-title" title={ticket.title}>
         {ticket.title}
       </span>
-      {kanban ? null : ticket.assignee && !hideAssignee ? (
+      {kanban || backlog ? null : ticket.assignee && !hideAssignee ? (
         <span className="row-assignee" title={ticket.assignee}>
           {actorLabel(ticket.assignee)}
         </span>
@@ -466,6 +469,7 @@ export function TicketTable({
   extra,
   draggable = false,
   priorityMarks = false,
+  assigneeInEnd = false,
   end,
 }: {
   tickets: readonly Ticket[];
@@ -478,6 +482,8 @@ export function TicketTable({
    * 優先度の順に並べた一覧（バックログの区画）で使う
    */
   priorityMarks?: boolean;
+  /** サイドバーで行の担当者の列を出さない（担当は end が右端に出す。左パネルのバックログ。TicketRowVariant の backlog） */
+  assigneeInEnd?: boolean;
   /**
    * サイドバーの行の右端を差し替える（バックログの Plan の番号と着手可・待ち。board.tsx の BacklogRowEnd）。
    * priority は行の右端の優先度の印（priorityMarks なら左の印で出すので null）
@@ -493,6 +499,7 @@ export function TicketTable({
     const priorityOf = (t: Ticket) =>
       priorityMarks ? null : <RowPriority priority={t.priority} />;
     const endOf = (t: Ticket) => (end ? end(t, priorityOf(t)) : (priorityOf(t) ?? <span />));
+    const variant = assigneeInEnd ? "backlog" : "list";
     return (
       <ul className={priorityMarks ? "rows backlog-rows" : "rows"}>
         {tickets.map((t, i) => (
@@ -521,9 +528,19 @@ export function TicketTable({
                 )
               ) : null}
               {draggable ? (
-                <DraggableRow ticket={t} hideAssignee={hideAssignee} end={endOf(t)} />
+                <DraggableRow
+                  ticket={t}
+                  hideAssignee={hideAssignee}
+                  variant={variant}
+                  end={endOf(t)}
+                />
               ) : (
-                <TicketRow ticket={t} hideAssignee={hideAssignee} end={endOf(t)} />
+                <TicketRow
+                  ticket={t}
+                  hideAssignee={hideAssignee}
+                  variant={variant}
+                  end={endOf(t)}
+                />
               )}
               {extra ? extra(t) : null}
             </li>

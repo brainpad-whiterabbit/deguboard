@@ -1188,6 +1188,10 @@ button.danger {
 .ticket-row.kanban-row.has-head {
   grid-template-columns: auto auto minmax(0, 1fr) auto;
 }
+/* 左パネルのバックログの行は担当者の列を出さない：丸印・番号・タイトル・右端（担当の印・Plan の番号・待ち）。空いた幅はタイトルに回る */
+.ticket-row.backlog-row {
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
+}
 /*
  * カンバンの行の頭の印（UI-2）。running は 1 秒で 1 回転するリング、idle は止まった半分塗りの丸。どちらも 12px で in_progress の色。
  * 動きを減らす設定ではリングを回さない（止まったリングのまま。半分塗りの丸とは形で見分ける）

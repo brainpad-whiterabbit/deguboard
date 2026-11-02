@@ -23,6 +23,7 @@ import type {
   Ticket,
   TicketDetail,
   TicketRow,
+  WhoamiView,
   WorkflowDefinition,
 } from "@deguboard/core";
 
@@ -49,6 +50,7 @@ export type {
   Ticket,
   TicketDetail,
   TicketRow,
+  WhoamiView,
   WorkflowDefinition,
 };
 
@@ -105,6 +107,14 @@ export const NO_CLAIM = "-";
 /** 担当者の短い表示。ID は `eiki` / `eiki/agent` の形でそのまま出す。旧 ID（user@host）は @ の前だけにし、全文はツールチップで読む */
 export function actorLabel(id: string): string {
   return id.split("@")[0] || id;
+}
+
+/**
+ * 担当者が操作している人本人か、その人の agent か。判定は core の whoami が返す own_ids に含まれるかだけで決める
+ * （本人とみなす ID は core の ownActorIds が 1 か所で決める）。操作している人が分からない（読み込み前）なら false
+ */
+export function isOwnAssignee(me: Pick<WhoamiView, "own_ids"> | null, assignee: string): boolean {
+  return !!me && me.own_ids.includes(assignee);
 }
 
 /** 担当者の絞り込みの選択肢：出てくる assignee（名前順）と、担当者のないチケットがあれば「なし」 */

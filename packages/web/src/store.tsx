@@ -2,6 +2,7 @@
 // 状態管理のライブラリは入れず、React の context だけで持つ。
 // cache を渡すと（VS Code の Webview）、読み終えた一覧を残しておき、次に開いたときはそれをすぐ描いてから読み直して差し替える。
 // 最初の読み込みは core の中で 1 本ずつ処理されるコマンドが 7 本並び、サイドバーとパネルが同じ列を使うので、その間を空の画面にしない。
+// 操作している人（whoami。主体の ID・ユーザ名と、本人とみなす ID の own_ids）も一覧と一緒に読み、me に持つ（担当者が自分かの判定に使う）。
 // 実行中の Run（run.list の running だけ。このマシンの deguboard-local/runs/ を読むだけで、終わった Run の集計は読まない）は、
 // readRunning のとき（左パネルのカンバンの行の印に使う）だけ、ほかの一覧を描いた後に遅れて読む。
 // チケットの ID の集まりだけを持ち、cache には残さない（前回の「実行中」を次に開いたときに出さない）
@@ -26,6 +27,7 @@ import type {
   RunView,
   Status,
   TicketRow,
+  WhoamiView,
   WorkflowView,
 } from "./types.js";
 import type { UiState } from "./ui-state.js";
@@ -39,6 +41,8 @@ interface Snapshot {
   iterations: Iteration[];
   plans: PlanRow[];
   workflow: WorkflowView | null;
+  /** 前の版の cache にはないことがある */
+  me?: WhoamiView | null | undefined;
 }
 
 /** cache の置き場の鍵。形が変わったら番号を上げて古いものを読まない */
@@ -65,6 +69,11 @@ export interface Store {
   iterations: Iteration[];
   plans: PlanRow[];
   workflow: WorkflowView | null;
+  /**
+   * 操作している人（core の whoami の出力）。担当者が自分か自分の agent かは isOwnAssignee（own_ids に含まれるか）で決める。
+   * 読み終えるまでは null
+   */
+  me: WhoamiView | null;
   /** 実行中（running）の Run があるチケットの ID。読み終えるまでと、readRunning でないときは null */
   runningTickets: ReadonlySet<string> | null;
   status: StatusView | null;
@@ -107,6 +116,7 @@ export function StoreProvider({
   const [iterations, setIterations] = useState<Iteration[]>(cached?.iterations ?? []);
   const [plans, setPlans] = useState<PlanRow[]>(cached?.plans ?? []);
   const [workflow, setWorkflow] = useState<WorkflowView | null>(cached?.workflow ?? null);
+  const [me, setMe] = useState<WhoamiView | null>(cached?.me ?? null);
   const [runningTickets, setRunningTickets] = useState<ReadonlySet<string> | null>(null);
   // 読み直しが重なったとき、古い読み直しの実行中の Run で上書きしない
   const runningSeq = useRef(0);
@@ -129,11 +139,13 @@ export function StoreProvider({
   const reload = useCallback(async () => {
     setLoading(true);
     try {
-      const [projectList, config] = await Promise.all([
+      const [projectList, config, whoami] = await Promise.all([
         client.run<Project[]>("project.list"),
         client.run<{ default_project: string }>("config.show"),
+        client.run<WhoamiView>("whoami"),
       ]);
       setProjects(projectList.data);
+      setMe(whoami.data);
       const current =
         projectList.data.find((p) => p.id === projectRef.current) ??
         projectList.data.find((p) => p.id === config.data.default_project) ??
@@ -170,6 +182,7 @@ export function StoreProvider({
         iterations: i.data,
         plans: p.data,
         workflow: w.data,
+        me: whoami.data,
       } satisfies Snapshot);
       for (const key of OLD_SNAPSHOT_KEYS) cache?.remove(key);
       void refreshStatus();
@@ -237,6 +250,7 @@ export function StoreProvider({
       iterations,
       plans,
       workflow,
+      me,
       runningTickets,
       status,
       loading,
@@ -257,6 +271,7 @@ export function StoreProvider({
       iterations,
       plans,
       workflow,
+      me,
       runningTickets,
       status,
       loading,
