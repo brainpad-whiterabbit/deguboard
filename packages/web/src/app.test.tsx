@@ -575,7 +575,7 @@ describe("画面", () => {
     expect(rowOf("画面").querySelector(".row-low")).toBeNull();
   });
 
-  it("サイドバーのカンバンの行は、開いた Plan に入っていれば右端に Plan の番号を Plan の色で出し、todo なら着手可・待ちの相手・承認待ちを出す。バックログの行は変わらない", async () => {
+  it("サイドバーのカンバンの行は、開いた Plan に入っていれば右端に Plan の番号を Plan の色で出し、todo なら着手可・待ちの相手・承認待ちを出す", async () => {
     const client = mockClient();
     client.data.tickets.push(
       ticket({ id: "t4", title: "待つ", priority: "high" }),
@@ -615,14 +615,67 @@ describe("画面", () => {
     expect(endOf("外")).toBeNull();
     expect(kanbanRowOf("外").lastElementChild!.textContent).toBe("low");
     expect(endOf("閉じた計画")).toBeNull();
+  });
 
-    cleanup();
+  it("サイドバーのバックログの行は、開いた Plan に入っていればカンバンと同じ Plan の番号と着手可・待ちの相手・承認待ちを出し、入っていない行には何も出さない", async () => {
     window.location.hash = "#/backlog";
+    const client = mockClient();
+    client.data.iterations = [iteration({ id: "s1", name: "今", status: "active" })];
+    client.data.tickets = [
+      ticket({ id: "t1", title: "前", status: "in_progress", iteration: "s1" }),
+      ticket({ id: "t2", title: "着手できる", iteration: "s1" }),
+      ticket({ id: "t3", title: "待つ", priority: "high", iteration: "s1" }),
+      ticket({ id: "t4", title: "外", iteration: "s1" }),
+      ticket({ id: "t5", title: "閉じた計画", iteration: "s1" }),
+      ticket({ id: "t6", title: "承認前", iteration: "s1" }),
+    ];
+    client.data.plans.push(
+      plan({ id: "p7", tickets: ["t1", "t2", "t3"], after: { t3: ["t1"] } }),
+      plan({ id: "p8", tickets: ["t5"], status: "closed" }),
+      plan({ id: "p9", tickets: ["t6"], status: "pending" }),
+    );
     mount(client, hostOf("sidebar"));
     await screen.findByText("待つ");
-    expect(document.querySelector(".row-end")).toBeNull();
-    expect(screen.queryByText("着手可")).toBeNull();
-    expect(kanbanRowOf("待つ").lastElementChild!.textContent).toBe("high");
+    const rowOf = (title: string) => screen.getByText(title).closest(".row")!;
+    const endOf = (title: string) => rowOf(title).querySelector(".row-end");
+
+    // in_progress：Plan の番号だけ（着手可・待ちは todo の行だけ）
+    expect(endOf("前")!.querySelector(".row-plan")!.textContent).toBe("p7");
+    expect(endOf("前")!.querySelector(".row-plan")!.classList.contains("plan-color-2")).toBe(true);
+    expect(endOf("前")!.querySelector(".row-end-sub")!.textContent).toBe("");
+    expect(endOf("着手できる")!.querySelector(".row-ready")!.textContent).toBe("着手可");
+    const wait = endOf("待つ")!;
+    expect(wait.querySelector(".row-wait")!.textContent).toBe("t1 待ち");
+    expect(wait.querySelector(".row-wait")!.getAttribute("title")).toBe("t1 を待っている");
+    expect(endOf("承認前")!.querySelector(".row-wait")!.textContent).toBe("承認待ち");
+    // Plan に入っていない・閉じた Plan の行は右端に何も出さない
+    for (const title of ["外", "閉じた計画"]) {
+      expect(endOf(title)).toBeNull();
+      expect(rowOf(title).lastElementChild!.textContent).toBe("");
+    }
+    // 優先度は左の印のまま（右端に high の札を出さない）
+    expect(rowOf("待つ").closest("li")!.querySelector(".priority-mark")!.textContent).toBe("!");
+    expect(document.querySelector(".backlog-rows .badge.priority-high")).toBeNull();
+  });
+
+  it("サイドバーの Iteration のないバックログの行にも Plan の番号と着手可を出し、Plan の外の行は優先度の印のまま", async () => {
+    window.location.hash = "#/backlog";
+    const client = mockClient();
+    client.data.tickets.push(
+      ticket({ id: "t4", title: "待つ", priority: "high" }),
+      ticket({ id: "t5", title: "外", priority: "high" }),
+    );
+    client.data.plans.push(plan({ id: "p7", tickets: ["t3", "t4"], after: { t4: ["t3"] } }));
+    mount(client, hostOf("sidebar"));
+    await screen.findByText("待つ");
+    const rowOf = (title: string) => screen.getByText(title).closest(".row")!;
+    const wait = rowOf("待つ").querySelector(".row-end")!;
+    expect(wait.querySelector(".row-wait")!.textContent).toBe("t3 待ち");
+    expect(rowOf("画面").querySelector(".row-ready")!.textContent).toBe("着手可");
+    // 下の段に待ちを出すので、優先度の札は上の段の Plan の番号の左
+    expect(wait.querySelector(".row-end-top")!.textContent).toBe("highp7");
+    expect(rowOf("外").querySelector(".row-end")).toBeNull();
+    expect(rowOf("外").lastElementChild!.textContent).toBe("high");
   });
 
   it("サイドバーのカンバンの行の頭に、実行中の Run があれば回るリングと「実行中」を、Run のない in_progress なら止まった半分塗りの丸を出し、読み直しで変わる", async () => {

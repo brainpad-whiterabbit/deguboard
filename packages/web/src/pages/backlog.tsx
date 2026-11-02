@@ -5,6 +5,7 @@
 // open の Epic は進捗つきの欄に並べ（UI-10）、押すとその Epic のチケットに絞る（もう一度押すと解除）。広い画面では Epic の作成も欄から行う。
 // サイドバーでは検索と件数だけ常に出し、絞り込みは畳む（効いている条件は見出しに出す。開閉は host.state に残す）。
 // サイドバーの Epic の欄は open の Epic があるときだけ、番号・題・進捗のチップと「Epic なし」のチップを並べる（2 行を超える分は「ほか N」）
+// サイドバーの行の右端には、開いた Plan に入っていれば Plan の番号と着手可・待ちを出す（カンバンと同じ部品と判定。board.tsx の BacklogRowEnd）
 
 import {
   DndContext,
@@ -20,7 +21,7 @@ import { ProgressBar, TicketTable } from "../components/parts.js";
 import { useHost, useUiState } from "../host.js";
 import { hrefOf } from "../router.js";
 import { useStore } from "../store.js";
-import { shortPeriod } from "./board.js";
+import { BacklogRowEnd, kanbanPlanMarks, shortPeriod, type PlanMark } from "./board.js";
 import {
   BOARD_STATUSES,
   PRIORITIES,
@@ -146,6 +147,14 @@ export function BacklogPage() {
     [store.tickets, moving],
   );
   const rows = useMemo(() => filterBacklog(tickets, filter), [tickets, filter]);
+  // サイドバーの行の右端に、開いた Plan の番号と着手可・待ちを出す（判定はカンバンと同じ kanbanPlanMarks）
+  const planMarks = useMemo(
+    () => (sidebar ? kanbanPlanMarks(store.plans, store.tickets) : new Map<string, PlanMark>()),
+    [sidebar, store.plans, store.tickets],
+  );
+  const rowEnd = (t: Ticket, priority: ReactNode) => (
+    <BacklogRowEnd ticket={t} mark={planMarks.get(t.id)} priority={priority} />
+  );
   const onDragEnd = async (event: DragEndEvent) => {
     const id = String(event.active.id);
     const over = event.over?.id;
@@ -255,11 +264,11 @@ export function BacklogPage() {
           {store.iterations.some((i) => i.status !== "closed") ? (
             <DndContext sensors={sensors} onDragEnd={(e) => void onDragEnd(e)}>
               {sectionsOf(rows, store.iterations, tickets).map((s) => (
-                <Section key={s.iteration?.id ?? NO_SECTION} section={s} />
+                <Section key={s.iteration?.id ?? NO_SECTION} section={s} rowEnd={rowEnd} />
               ))}
             </DndContext>
           ) : (
-            <TicketTable tickets={rows} />
+            <TicketTable tickets={rows} end={rowEnd} />
           )}
         </div>
       </div>
@@ -274,7 +283,14 @@ export function BacklogPage() {
 /** 「Iteration なし」の区画の落とし先の ID（Iteration の ID と重ならない） */
 const NO_SECTION = "-";
 
-function Section({ section: { iteration: it, tickets } }: { section: BacklogSection }) {
+function Section({
+  section: { iteration: it, tickets },
+  rowEnd,
+}: {
+  section: BacklogSection;
+  /** サイドバーの行の右端（TicketTable の end） */
+  rowEnd: (t: Ticket, priority: ReactNode) => ReactNode;
+}) {
   const host = useHost();
   // 区画全体が落とし先。閉じた Iteration には入れられないので落とし先にしない
   const { setNodeRef, isOver } = useDroppable({
@@ -391,7 +407,9 @@ function Section({ section: { iteration: it, tickets } }: { section: BacklogSect
   const body = (
     <>
       {creating ? <IterationCreateForm onDone={() => setCreating(false)} /> : null}
-      {tickets.length > 0 ? <TicketTable tickets={tickets} draggable priorityMarks /> : null}
+      {tickets.length > 0 ? (
+        <TicketTable tickets={tickets} draggable priorityMarks end={rowEnd} />
+      ) : null}
     </>
   );
   if (sidebar) {

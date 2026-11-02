@@ -22,7 +22,7 @@ import {
   useSensors,
   type DragEndEvent,
 } from "@dnd-kit/core";
-import { useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   ActivityMark,
   DraggableRow,
@@ -803,19 +803,8 @@ function KanbanRowEnd({
   mark: PlanMark | undefined;
   running: boolean;
 }) {
-  const state = kanbanReadiness(ticket, mark);
   const readiness =
-    !mark || state === null ? null : state === "pending" ? (
-      <span className="row-wait" title={`${mark.plan} は人の承認を待っている`}>
-        承認待ち
-      </span>
-    ) : state === "ready" ? (
-      <span className="row-ready">着手可</span>
-    ) : (
-      <span className="row-wait" title={`${mark.waitingOn.join("・")} を待っている`}>
-        {waitLabel(mark.waitingOn)}
-      </span>
-    );
+    kanbanReadiness(ticket, mark) === null ? null : <PlanReadiness ticket={ticket} mark={mark} />;
   // 実行中の Run があれば、todo でも着手可・待ちより「実行中」を出す（手が動いていることの方が大事なので）
   const sub = running ? (
     <span className="row-running" title="このマシンで Run が実行中">
@@ -830,16 +819,71 @@ function KanbanRowEnd({
       <span className="row-end-top">
         {sub ? priority : null}
         <AssigneeMark assignee={ticket.assignee} runAgent={ticket.run_agent} />
-        {mark ? (
-          <span
-            className={`row-plan plan-color-${planColor(mark.plan)}`}
-            title={`Plan ${mark.plan}`}
-          >
-            {mark.plan}
-          </span>
-        ) : null}
+        {mark ? <RowPlan plan={mark.plan} /> : null}
       </span>
       <span className="row-end-sub">{sub ?? priority}</span>
+    </span>
+  );
+}
+
+/** 左パネルの行の Plan の番号（Plan の色） */
+function RowPlan({ plan }: { plan: string }) {
+  return (
+    <span className={`row-plan plan-color-${planColor(plan)}`} title={`Plan ${plan}`}>
+      {plan}
+    </span>
+  );
+}
+
+/** 左パネルの行の着手可・待ちの相手・承認待ち（kanbanReadiness）。開いた Plan に入っていない行と todo でない行は何も出さない */
+function PlanReadiness({
+  ticket,
+  mark,
+}: {
+  ticket: Pick<Ticket, "status">;
+  mark: PlanMark | undefined;
+}) {
+  const state = kanbanReadiness(ticket, mark);
+  if (!mark || state === null) return null;
+  if (state === "pending") {
+    return (
+      <span className="row-wait" title={`${mark.plan} は人の承認を待っている`}>
+        承認待ち
+      </span>
+    );
+  }
+  if (state === "ready") return <span className="row-ready">着手可</span>;
+  return (
+    <span className="row-wait" title={`${mark.waitingOn.join("・")} を待っている`}>
+      {waitLabel(mark.waitingOn)}
+    </span>
+  );
+}
+
+/**
+ * 左パネルのバックログの行の右端（UI-3）：開いた Plan に入っていれば、カンバンの行と同じ部品で縦に 2 段、上に Plan の番号、
+ * 下に todo なら着手可・待ちの相手・承認待ち（判定は kanbanPlanMarks と kanbanReadiness）。入っていなければ priority をそのまま出す。
+ * priority は行の右端の優先度の印（左に優先度の印を出す区画では空のセル）。下の段に着手可・待ちを出すときは上の段の Plan の番号の左に寄せる
+ */
+export function BacklogRowEnd({
+  ticket,
+  mark,
+  priority,
+}: {
+  ticket: Pick<Ticket, "status">;
+  mark: PlanMark | undefined;
+  priority: ReactNode;
+}) {
+  if (!mark) return <>{priority}</>;
+  const readiness =
+    kanbanReadiness(ticket, mark) === null ? null : <PlanReadiness ticket={ticket} mark={mark} />;
+  return (
+    <span className="row-end">
+      <span className="row-end-top">
+        {readiness ? priority : null}
+        <RowPlan plan={mark.plan} />
+      </span>
+      <span className="row-end-sub">{readiness ?? priority}</span>
     </span>
   );
 }

@@ -466,6 +466,7 @@ export function TicketTable({
   extra,
   draggable = false,
   priorityMarks = false,
+  end,
 }: {
   tickets: readonly Ticket[];
   extra?: ((t: Ticket) => React.ReactNode) | undefined;
@@ -477,13 +478,21 @@ export function TicketTable({
    * 優先度の順に並べた一覧（バックログの区画）で使う
    */
   priorityMarks?: boolean;
+  /**
+   * サイドバーの行の右端を差し替える（バックログの Plan の番号と着手可・待ち。board.tsx の BacklogRowEnd）。
+   * priority は差し替えないときの右端（優先度の印。priorityMarks なら空のセル）
+   */
+  end?: ((t: Ticket, priority: ReactNode) => ReactNode) | undefined;
 }) {
   const store = useStore();
   const host = useHost();
   if (tickets.length === 0) return <p className="empty">該当するチケットはない</p>;
   if (host.surface === "sidebar") {
     const hideAssignee = sameAssignee(tickets);
-    const rowEnd = priorityMarks ? <span /> : undefined;
+    // 優先度は左の印で出すときは、右端の high の札は出さない（空のセルで格子の位置を保つ）
+    const priorityOf = (t: Ticket) =>
+      priorityMarks ? <span /> : <RowPriority priority={t.priority} />;
+    const endOf = (t: Ticket) => (end ? end(t, priorityOf(t)) : priorityOf(t));
     return (
       <ul className={priorityMarks ? "rows backlog-rows" : "rows"}>
         {tickets.map((t, i) => (
@@ -511,11 +520,10 @@ export function TicketTable({
                   </span>
                 )
               ) : null}
-              {/* 優先度は左の印で出すので、右端の high の札は出さない（空のセルで格子の位置を保つ） */}
               {draggable ? (
-                <DraggableRow ticket={t} hideAssignee={hideAssignee} end={rowEnd} />
+                <DraggableRow ticket={t} hideAssignee={hideAssignee} end={endOf(t)} />
               ) : (
-                <TicketRow ticket={t} hideAssignee={hideAssignee} end={rowEnd} />
+                <TicketRow ticket={t} hideAssignee={hideAssignee} end={endOf(t)} />
               )}
               {extra ? extra(t) : null}
             </li>
