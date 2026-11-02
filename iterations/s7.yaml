@@ -1,7 +1,7 @@
 id: s7
 project: default
 name: sprint7
-goal: ""
+goal: 左パネルの履歴を読みやすくし、設定画面を開けるようにする
 start: 2026-12-13
 end: 2026-12-26
 status: planned
