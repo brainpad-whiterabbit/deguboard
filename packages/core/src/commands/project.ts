@@ -15,7 +15,7 @@ export const projectCreate = defineCommand({
   input: z.object({
     id: slugSchema.describe("slug。ファイル名になる"),
     name: z.string().min(1).optional().describe("表示名。省略時は id"),
-    description: z.string().optional(),
+    description: z.string().optional().describe("説明"),
     workflow: slugSchema.optional().describe("既定の Workflow。省略時は general"),
   }),
   write: true,
@@ -45,7 +45,9 @@ export const projectList = defineCommand({
   name: "project.list",
   group: "project",
   summary: "Project を出す",
-  input: z.object({ status: z.array(z.enum(PROJECT_STATUSES)).optional() }),
+  input: z.object({
+    status: z.array(z.enum(PROJECT_STATUSES)).optional().describe("Status で絞る。省略時はすべて"),
+  }),
   write: false,
   needs: "store",
   async run(ctx, input) {
@@ -61,7 +63,7 @@ export const projectShow = defineCommand({
   positionals: ["project"],
   group: "project",
   summary: "Project とチケットの件数を出す",
-  input: z.object({ project: slugSchema }),
+  input: z.object({ project: slugSchema.describe("Project の ID（slug）") }),
   write: false,
   needs: "store",
   async run(ctx, input) {
@@ -76,7 +78,7 @@ export const projectArchive = defineCommand({
   positionals: ["project"],
   group: "project",
   summary: "Project をアーカイブする。新しいチケットを作れなくなる",
-  input: z.object({ project: slugSchema }),
+  input: z.object({ project: slugSchema.describe("Project の ID（slug）") }),
   write: true,
   needs: "store",
   async run(ctx, input) {

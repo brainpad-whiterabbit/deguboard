@@ -364,7 +364,9 @@ export const lint = defineCommand({
   group: "setup",
   summary:
     "本文の推奨の節（## 概要・## 受け入れ条件）の欠けと空、Workflow の fields に合わない値、閉じた Epic に残る終わっていないチケット、チケットがすべて終わったのに開いている Epic・Plan を指摘する。done のチケットの未チェックの受け入れ条件は指摘しない",
-  input: z.object({ project: z.string().optional() }),
+  input: z.object({
+    project: z.string().optional().describe("Project で絞る。省略時はすべて"),
+  }),
   write: false,
   needs: "store",
   async run(ctx, input) {

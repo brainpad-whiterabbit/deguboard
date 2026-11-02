@@ -385,7 +385,7 @@ export const ticketUpdate = defineCommand({
   summary: "チケットの属性と本文を直す。status は ticket.move で変える",
   input: z.object({
     ticket: ticketRef,
-    title: z.string().min(1).optional(),
+    title: z.string().min(1).optional().describe("タイトル"),
     body: z.string().optional().describe("本文全体を置き換える"),
     acceptance: acceptanceItems
       .optional()

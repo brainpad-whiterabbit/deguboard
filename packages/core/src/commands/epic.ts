@@ -23,9 +23,9 @@ export const epicCreate = defineCommand({
   group: "epic",
   summary: "Epic を作る",
   input: z.object({
-    title: z.string().min(1),
+    title: z.string().min(1).describe("タイトル"),
     project: slugSchema.optional().describe("Project。省略時は config の default_project"),
-    labels: z.array(z.string()).optional(),
+    labels: z.array(z.string()).optional().describe("ラベル"),
     summary: z.string().optional().describe("概要。本文の雛形に入れる"),
     body: z.string().optional().describe("本文全体。summary より優先"),
   }),
@@ -69,8 +69,8 @@ export const epicList = defineCommand({
   group: "epic",
   summary: "Epic を番号順に、進捗（done の件数と abandoned を除く件数）つきで出す",
   input: z.object({
-    project: z.string().optional(),
-    status: z.array(z.enum(EPIC_STATUSES)).optional(),
+    project: z.string().optional().describe("Project で絞る。省略時はすべて"),
+    status: z.array(z.enum(EPIC_STATUSES)).optional().describe("Status で絞る。省略時はすべて"),
   }),
   write: false,
   needs: "store",
@@ -115,9 +115,12 @@ export const epicUpdate = defineCommand({
   summary: "Epic の属性と本文を直す",
   input: z.object({
     epic: epicRef,
-    title: z.string().min(1).optional(),
-    labels: z.array(z.string()).optional(),
-    body: z.string().optional(),
+    title: z.string().min(1).optional().describe("タイトル"),
+    labels: z
+      .array(z.string())
+      .optional()
+      .describe("ラベル。一覧を置き換える（既存も含めて全部指定する）"),
+    body: z.string().optional().describe("本文全体を置き換える"),
   }),
   write: true,
   needs: "store",
@@ -137,7 +140,10 @@ export const epicUpdate = defineCommand({
   },
 });
 
-const membership = z.object({ epic: epicRef, tickets: z.array(ticketRef).min(1) });
+const membership = z.object({
+  epic: epicRef,
+  tickets: z.array(ticketRef).min(1).describe("チケットの ID（t12 または 12）。複数指定できる"),
+});
 
 export const epicAdd = defineCommand({
   name: "epic.add",
