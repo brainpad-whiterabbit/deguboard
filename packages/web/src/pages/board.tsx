@@ -134,8 +134,8 @@ export function BoardPage({ query }: { query: BoardQuery }) {
     [scoped, store.iterations, store.epics, query.epic, query.assignee, moving],
   );
   const chipTickets = useMemo(
-    () => hideClosedFinished(store.tickets, store.iterations, store.epics, query.epic),
-    [store.tickets, store.iterations, store.epics, query.epic],
+    () => hideClosedFinished(store.tickets, store.iterations, store.epics),
+    [store.tickets, store.iterations, store.epics],
   );
   const abandoned = tickets.filter((t) => t.status === "abandoned");
   // 見えている行の担当が 1 人だけなら、サイドバーの行に担当を出さない（同じ名前が全行に並ぶだけなので）
@@ -212,7 +212,7 @@ export function BoardPage({ query }: { query: BoardQuery }) {
           {/* 左パネルは見出しを 2 段と進みの帯に詰め、詳細・操作は出さない（Iteration の開始は `dg guide work` の手順が claim のときに行い、閉じるはバックログの区画の「…」と詳細から行う） */}
           <SidebarBoardHead
             open={open}
-            // 札は進みの帯と同じく閉じた Iteration・Epic の終わったチケットを除いて数える（Epic・担当の絞り込みの前）
+            // 札は閉じた Iteration・Epic の終わったチケットを除いて数え、Epic・担当の絞り込みでは変えない
             tickets={chipTickets}
             selection={selection}
             // 帯は絞り込み（Epic・担当）の後のチケットで数える
@@ -371,7 +371,7 @@ function SidebarBoardHead({
   filter,
 }: {
   open: Iteration[];
-  /** 札の進みと「なし n」を数えるチケット。hideClosedFinished を通した後で、Epic・担当の絞り込みの前（進みの帯と数え方をそろえる） */
+  /** 札の進みと「なし n」を数えるチケット。閉じた Iteration・Epic の終わったチケットを除き（hideClosedFinished）、Epic・担当の絞り込みとは関係なく一定 */
   tickets: readonly Ticket[];
   selection: Selection;
   progress: Progress;

@@ -1378,6 +1378,25 @@ describe("画面", () => {
     expect(document.querySelector(".sidebar-head .status-band")!.textContent).toBe("0/1 done");
   });
 
+  it("サイドバーのカンバンの札の done/全体は、閉じた Epic で絞っても変わらない", async () => {
+    window.location.hash = "#/board?epic=e2";
+    const client = mockClient();
+    client.data.iterations = [iteration({ id: "s1", name: "今", status: "active" })];
+    client.data.epics.push({
+      ...client.data.epics[0]!,
+      id: "e2",
+      title: "閉じた",
+      status: "closed",
+    });
+    client.data.tickets[0]!.iteration = "s1";
+    client.data.tickets[0]!.epic = "e2";
+    client.data.tickets[1]!.iteration = "s1";
+    mount(client, hostOf("sidebar"));
+    // 閉じた Epic で絞ると、その Epic の終わったチケットはカンバンに出る
+    await screen.findByText("ログイン");
+    expect(document.querySelector(".iteration-chip.active")!.textContent).toBe("s10/1");
+  });
+
   it("サイドバーでは Project が 1 つなら Project の段を出さず、2 つ以上なら出す", async () => {
     mount(mockClient(), hostOf("sidebar"));
     await screen.findByText("ログイン");
