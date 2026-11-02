@@ -212,7 +212,7 @@ export function BoardPage({ query }: { query: BoardQuery }) {
     <section>
       {sidebar ? (
         <>
-          {/* 左パネルは見出しを 2 段と進みの帯に詰め、詳細・操作は出さない（Iteration の開始は `dg guide work` の手順が claim のときに行い、閉じるはバックログの区画の「…」と詳細から行う） */}
+          {/* 左パネルは見出しを 2 段と進みの帯に詰め、詳細・操作は出さない（Iteration の開始は `dg guide work` の手順が claim のときに行い、閉じるは Iteration の詳細の画面で行う） */}
           <SidebarBoardHead
             open={open}
             // 札は閉じた Iteration・Epic の終わったチケットを除いて数え、Epic・担当の絞り込みでは変えない

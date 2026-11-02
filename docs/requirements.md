@@ -16,7 +16,7 @@ deguboard は、Git で管理するチケットとユーザー定義のワーク
 ## 2. 想定利用者と前提
 
 - **利用者**：個人、および同じ Git リポジトリを共有する小規模チーム
-- **実行環境**：Linux / macOS。Node.js 24 以上。`dg` は npm で入れる。ブラウザ、または VS Code 1.123 以上（デスクトップ）
+- **実行環境**：Linux / macOS。Node.js 24 以上。`dg` は npm で入れる（公開までは README の手順でビルドする）。ブラウザ、または VS Code 1.123 以上（デスクトップ）
 - **必須ツール**：git 2.30 以上。GitHub CLI（`gh`）は PR の事実を照合に使うときだけ
 - **リポジトリ**：Git リポジトリ。リモートは任意（なければ同期なしで動く）。`git.base_branch` を作業ブランチの元と「マージ済み」の判定に使う
 - **エージェント**：`dg` を Bash から呼べるものなら何でも。Skill は Claude Code 向けに配る
@@ -205,7 +205,7 @@ steps: # 任意。Run の step の語彙（WF-5）
 
 - CL-1 すべてのコマンドに `--json` があり、エージェントはそれを読む。成功は `{ ok: true, data, warnings, write }`、失敗は `{ ok: false, error: { code, message, detail } }`。終了コードは 0（成功）/ 1（失敗。`validate`・`lint` は指摘があるとき）/ 2（使い方の誤り）。`error.code` の語彙は `packages/core/src/errors.ts` が正本
 - CL-2 コマンドの一覧とオプションは `dg --help` が正本。群は用意（`init`・`sync`・`commit`・`validate`・`lint`・`config`・`whoami`）、`project`、`ticket`、`iteration`（`sprint` はエイリアス）、`epic`、`workflow`、`plan`、`history`、`run` と `metrics`、画面と MCP（`serve`・`open`・`mcp`）、手順（`guide`・`skill install`）
-- CL-3 書き込みを伴うコマンドは、`commit.mode` に従って deguboard ブランチにコミットする。作成（`init`、`project / ticket / epic / iteration create`、`ticket import`）と `ticket claim` は `commit.mode`・`push.mode` によらず即座にコミットして push する（採番と排他のため）
+- CL-3 書き込みを伴うコマンドは、`commit.mode` に従って deguboard ブランチにコミットする。作成（`init`、`project / ticket / epic / iteration / plan create`、`ticket import`）と `ticket claim` は `commit.mode`・`push.mode` によらず即座にコミットして push する（採番と排他のため）
 - CL-4 `ticket import` は YAML / JSON の下書き（配列）を 1 コミットで取り込む。下書きの中の仮キーを `depends_on` から参照でき、`epic` に既存の Epic を書ける
 - CL-5 `dg guide <topic>` は、エージェント向けの手順を `config.yaml` の値を埋めて出す。トピックの一覧は `dg guide overview`（省略時）。手順の正本は CLI に同梱した Markdown（`packages/cli/src/guide-*.md`）
 - CL-6 CLI はビジネスロジックを持たず、Core のコマンド定義（`packages/core/src/commands/`）を写す
@@ -219,8 +219,8 @@ steps: # 任意。Run の step の語彙（WF-5）
 - ST-4 照合は `dg sync` と、画面の同期（UI-6・UI-12）で行う。`branch` のあるチケットについて Git から事実を集め（`branch` のないチケットは照合せず、状態は `ticket move` で進める）、`reconcile` 規則を上から評価し、今より前進の順が先のときだけ書き換える。`done` と `abandoned` のチケットには触れない。done に進めたチケットに未チェックの受け入れ条件が残れば警告する
 - ST-5 後退を指す事実（消えたブランチ・マージされずに閉じた PR）は書き換えず警告する。`gh` が PR はないと答えたときは、閉じた PR として警告しない。ただし同じ照合で done に進むときは、マージ後に消したブランチなので警告しない。取れなかった事実は不明とし、前進の判定では偽と読む。`branch_merged` は先端が base の真の祖先のとき真だが、in_progress で push していないブランチは commit のない切ったばかりのブランチとみなして偽にする（理由は [ADR-004](adr/ADR-004-agents-and-state.md)）。照合の結果（`reconciled`）には根拠の規則の条件（`when`）を含める
 - ST-6 PR の事実は `gh` が使えるときだけ取る。`gh` がなくても照合は Git の事実だけで成り立つ。`pr` のないチケットの PR をブランチ名で見つけたら、状態が進まなくても番号を `pr` に記録する。記録済みの `pr` は書き換えない。ブランチ名で見つけた PR が `branch_at`（ない古いチケットは `created_at`）より前にマージされていたら、同じ名前を使い回した前の作業の PR とみなし、PR はないと読んで警告する。`pr` を記録していれば比べない
-- ST-7 `unclaim` は in_progress のチケットの、自分（同じユーザの人と AI）の claim か記録のない claim だけを外して todo に戻し、`assignee` を消す。応答のない claim は強制の指定で外す。生存監視はしない
-- ST-8 `abandoned` にすると claim を外し、Iteration の完了件数と Epic の進捗には数えない。todo に戻す（再開・done の取り消し）ときも `assignee` と `branch` を消す。これらを人だけに限るなら Workflow の `by: [human]` で書く
+- ST-7 `unclaim` は in_progress のチケットの、自分（同じユーザの人と AI）の claim か記録のない claim だけを外して todo に戻し、`assignee`・`branch`・`branch_at` を消す。応答のない claim は強制の指定で外す。生存監視はしない
+- ST-8 `abandoned` にすると claim を外し、Iteration の完了件数と Epic の進捗には数えない。todo に戻す（再開・done の取り消し）ときも `assignee`・`branch`・`branch_at` を消す。これらを人だけに限るなら Workflow の `by: [human]` で書く
 
 ### 6.3 Git 同期と排他
 
