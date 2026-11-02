@@ -6,7 +6,7 @@ after:
     - t233
   t236:
     - t231
-pending_approval: true
+pending_approval: false
 details:
   t229:
     scope: guide-parallel・guide-check に lint.require_iteration の扱いを足し、guide のテストで確かめる
@@ -29,3 +29,5 @@ details:
   t236:
     scope: ID の形の確かめ方の重複・web の外から使わない export・.oxlintrc.json の写しを片付ける
     approach: core の helpers に 1 つの関数を置き、export を外し、oxlint の写しの一致を test/lint で確かめる
+approved_by: eiki.kitajima/agent
+approved_at: 2026-11-02T22:14:41Z
