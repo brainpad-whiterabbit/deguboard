@@ -642,31 +642,14 @@ button.link:hover {
   gap: 2px;
   margin: 0 0 0.6rem;
 }
-.plan-band-toggle {
-  align-self: flex-start;
-  display: inline-flex;
+.plan-band-head {
+  display: flex;
   align-items: center;
   gap: 0.4em;
+  margin: 0;
   padding: 2px 0;
-  border: none;
-  background: none;
-  color: inherit;
+  font-size: 1em;
   font-weight: 600;
-  cursor: pointer;
-}
-/* 開閉の印は .fold と同じ形 */
-.plan-band-toggle::before {
-  content: "";
-  width: 5px;
-  height: 5px;
-  margin: 0 0.2em 0 0.1em;
-  border: solid var(--vscode-descriptionForeground);
-  border-width: 0 1.5px 1.5px 0;
-  transform: rotate(-45deg);
-}
-.plan-band-toggle[aria-expanded="true"]::before {
-  transform: rotate(45deg);
-  margin-top: -3px;
 }
 .plan-band-count {
   color: var(--vscode-descriptionForeground);
@@ -680,55 +663,102 @@ button.link:hover {
   border-bottom: 1px solid var(--dg-border);
 }
 /* 文字の形と件数のバッジは状態の節の見出しと同じ規則（[data-surface="sidebar"] .column h2 の所）を使う */
-[data-surface="sidebar"] .plan-band-toggle {
-  align-self: stretch;
+[data-surface="sidebar"] .plan-band-head {
   padding: 3px 0.25rem;
 }
-[data-surface="sidebar"] .plan-item,
-[data-surface="sidebar"] .plan-card {
+[data-surface="sidebar"] .plan-item {
   margin: 2px 0.25rem 0;
 }
-.plan-item,
-.plan-card {
+/* Plan の行（plan-band.tsx の PlanItem）。行を押すと下に依存グラフを開閉する */
+.plan-item {
   border-left: 3px solid var(--dg-plan);
-  padding: 2px 6px;
 }
-.plan-line,
-.plan-card-head {
+.plan-row {
+  padding: 2px 6px;
+  cursor: pointer;
+}
+.plan-row:hover {
+  background: var(--vscode-list-hoverBackground);
+}
+.plan-line {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 0.2rem 0.6rem;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
   line-height: 18px;
+  text-align: left;
+  cursor: pointer;
 }
-.plan-line code,
-.plan-card-head code {
+/* 開閉の印は .fold と同じ形 */
+.plan-line::before {
+  content: "";
+  width: 5px;
+  height: 5px;
+  margin: 0 -0.2em 0 0.1em;
+  border: solid var(--vscode-descriptionForeground);
+  border-width: 0 1.5px 1.5px 0;
+  transform: rotate(-45deg);
+}
+.plan-line[aria-expanded="true"]::before {
+  transform: rotate(45deg);
+  margin-top: -3px;
+}
+.plan-line code {
   font-weight: 600;
 }
 .plan-line .progress .bar {
   width: 60px;
 }
-/* 畳んだ行の作業中と次（plan-band.tsx の PlanLine）。見出しの列を揃え、次のタイトルは 1 行で省略する */
+/* 閉じた Plan は線と番号を薄くする */
+.plan-item-closed {
+  border-left-color: var(--dg-border);
+}
+.plan-item-closed .plan-line code {
+  color: var(--vscode-descriptionForeground);
+  font-weight: normal;
+}
+/* 2 行目の作業中と次（PlanSub）。1 行に収め、次のタイトルは省略する。番号は詰めない */
 .plan-sub {
-  display: grid;
-  grid-template-columns: 3.2em minmax(0, 1fr);
-  gap: 0.4rem;
+  display: flex;
   align-items: baseline;
+  gap: 0.8em;
+  min-width: 0;
+  padding-left: calc(5px + 0.5em);
   font-size: 0.92em;
   line-height: 18px;
+  white-space: nowrap;
+}
+.plan-working,
+.plan-next,
+.plan-wait {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.4em;
+  flex: none;
+}
+.plan-next {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 .plan-sub-label {
   color: var(--vscode-descriptionForeground);
 }
 .plan-sub-ids {
-  display: flex;
-  flex-wrap: wrap;
+  display: inline-flex;
   gap: 0 0.5em;
-  min-width: 0;
 }
 .plan-sub code {
   background: transparent;
   padding: 0;
+}
+.plan-wait {
+  color: var(--vscode-descriptionForeground);
 }
 .plan-next-ticket {
   display: flex;
@@ -742,11 +772,15 @@ button.link:hover {
   white-space: nowrap;
   color: var(--vscode-foreground);
 }
-.plan-card {
+/* 開いた依存グラフ（行の下）と承認者 */
+.plan-detail {
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
-  padding-bottom: 0.4rem;
+  gap: 0.3rem;
+  padding: 0.2rem 6px 0.4rem;
+}
+.plan-approver {
+  font-size: 0.92em;
 }
 /* 状態は灰色の文字で出し、目立たせない */
 .plan-state {
@@ -1603,7 +1637,7 @@ button.danger {
   padding: 3px 0.25rem;
 }
 [data-surface="sidebar"] .column h2,
-[data-surface="sidebar"] .plan-band-toggle {
+[data-surface="sidebar"] .plan-band-head {
   font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;

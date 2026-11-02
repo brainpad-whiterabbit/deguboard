@@ -110,7 +110,7 @@ describe("依存グラフ", () => {
   });
 });
 
-describe("畳んだ行の作業中と次", () => {
+describe("帯の行の作業中と次", () => {
   const byId = byIdOf([
     ticket({ id: "t1", status: "done" }),
     ticket({ id: "t2", status: "in_progress" }),
@@ -135,7 +135,11 @@ describe("畳んだ行の作業中と次", () => {
 
   it("着手できる todo がなければ、先頭の todo が待っている相手を出す", () => {
     const p = plan({ id: "p1", tickets: ["t2", "t3"], after: { t3: ["t2"] } });
-    expect(planProgressLine(p, "working", byId).next).toEqual({ kind: "blocked", waitFor: ["t2"] });
+    expect(planProgressLine(p, "working", byId).next).toEqual({
+      kind: "blocked",
+      id: "t3",
+      waitFor: ["t2"],
+    });
   });
 
   it("Plan の外の依存（depends_on）が終わっていない todo は着手できない。待つ相手にも出す", () => {
@@ -150,6 +154,7 @@ describe("畳んだ行の作業中と次", () => {
     const only = plan({ id: "p1", tickets: ["t3"] });
     expect(planProgressLine(only, "approved", deps).next).toEqual({
       kind: "blocked",
+      id: "t3",
       waitFor: ["t1"],
     });
   });
@@ -162,11 +167,12 @@ describe("畳んだ行の作業中と次", () => {
     ]);
     expect(planProgressLine(plan({ id: "p1", tickets: ["t2", "t3"] }), "working", deps)).toEqual({
       working: ["t2"],
-      next: { kind: "blocked", waitFor: ["t2"] },
+      next: { kind: "blocked", id: "t3", waitFor: ["t2"] },
     });
     const both = plan({ id: "p1", tickets: ["t2", "t5"], after: { t5: ["t2"] } });
     expect(planProgressLine(both, "working", deps).next).toEqual({
       kind: "blocked",
+      id: "t5",
       waitFor: ["t2"],
     });
   });
@@ -181,6 +187,7 @@ describe("畳んだ行の作業中と次", () => {
     const only = plan({ id: "p1", tickets: ["t3"] });
     expect(planProgressLine(only, "approved", deps).next).toEqual({
       kind: "blocked",
+      id: "t3",
       waitFor: ["t90"],
     });
   });
