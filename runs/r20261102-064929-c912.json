@@ -1,0 +1,25 @@
+{
+  "id": "r20261102-064929-c912",
+  "ticket": "t216",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-02T06:49:29Z",
+  "finished_at": "2026-11-02T06:51:05Z",
+  "result": "success",
+  "error": null,
+  "retries": 5,
+  "retry_reasons": [
+    "JSDoc の節番号を ST-3 に直す",
+    "古い base から切ったブランチも含めて拒否の案内を正す",
+    "claim と update の help に BRANCH_IN_USE を書く",
+    "リモートに届かないときブランチの取り込みで待たない",
+    "終わったチケットの名前は使えることをテストする"
+  ],
+  "usage": {
+    "input": 10,
+    "output": 4541,
+    "cache_read": 838477,
+    "cache_write": 6110
+  }
+}
