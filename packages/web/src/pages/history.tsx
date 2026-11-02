@@ -4,7 +4,8 @@
 // Iteration の見方：closed の Iteration を閉じた新しい順に 2 段の行で出す（KanbanForge の History のタブと同じ形）。
 // 1 段目は番号・目標（目標がなければ名前）と件数のチップ（完了・中止・持ち越し）、2 段目は名前（目標を 1 段目に出したとき）・期間と、
 // 終わったチケットの Epic ごとの内訳（Epic なしを含み、合計は終わったチケットの件数に合う）。
-// 行を開くと中の done・abandoned のチケットを出す。Run の実績はここに出さず、Run の画面（#/runs?by=iteration）で見る。
+// 行を開くと中の done・abandoned のチケットを出す。Run の実績はここに出さず、2 段目の「Run の集計」から
+// その Iteration で絞った Run の画面（#/runs?by=iteration&iteration=s5）を開いて見る。
 // Epic の見方：closed の Epic を閉じた新しい順に、進捗・閉じた日と、チケットが入っていた Iteration を出す。
 // チケットの見方：done・abandoned のチケットを終えた新しい順に、結果・Iteration・Epic・PR・終えた日を出す。終えた時刻は
 // history のコマンド（deguboard ブランチの履歴）から求め、履歴が浅くて分からないものは updated_at で代え、そう出す。
@@ -32,7 +33,7 @@ import { HistoryTicketList, HistoryTicketRow } from "../components/history-rows.
 import { useHost, useUiState } from "../host.js";
 import { NO_VALUE } from "../components/run-parts.js";
 import { formatTime } from "../components/timeline.js";
-import { navigate, replaceRoute, type HistoryQuery, type HistoryView } from "../router.js";
+import { hrefOf, navigate, replaceRoute, type HistoryQuery, type HistoryView } from "../router.js";
 import { useStore } from "../store.js";
 import {
   byNumber,
@@ -495,27 +496,33 @@ function IterationItem({
             carried={i.carried_over}
             title="完了と持ち越しは閉じたときに記録した件数"
           />
-          {meta || epics.length > 0 ? (
-            <small>
-              {meta}
-              {epics.length > 0 ? (
-                <span className="epics">
-                  {meta ? " ・ " : ""}内訳:{" "}
-                  {epics.map((e, n) => (
-                    <span key={e.epic ?? "-"}>
-                      {n > 0 ? ", " : ""}
-                      {e.epic ? (
-                        <DetailLink route={{ page: "epics", id: e.epic }}>{e.epic}</DetailLink>
-                      ) : (
-                        "Epic なし"
-                      )}{" "}
-                      {e.count}
-                    </span>
-                  ))}
-                </span>
-              ) : null}
-            </small>
-          ) : null}
+          <small>
+            {meta}
+            {epics.length > 0 ? (
+              <span className="epics">
+                {meta ? " ・ " : ""}内訳:{" "}
+                {epics.map((e, n) => (
+                  <span key={e.epic ?? "-"}>
+                    {n > 0 ? ", " : ""}
+                    {e.epic ? (
+                      <DetailLink route={{ page: "epics", id: e.epic }}>{e.epic}</DetailLink>
+                    ) : (
+                      "Epic なし"
+                    )}{" "}
+                    {e.count}
+                  </span>
+                ))}
+              </span>
+            ) : null}
+            {meta || epics.length > 0 ? " ・ " : ""}
+            {/* Run の数字はここに出さず、その Iteration で絞った Run の画面へのリンクだけを置く */}
+            <a
+              className="history-runs-link"
+              href={hrefOf({ page: "runs", by: "iteration", iteration: i.id })}
+            >
+              Run の集計
+            </a>
+          </small>
         </summary>
         {sidebar ? (
           !fold.open ? null : fold.searching && !fold.all ? (

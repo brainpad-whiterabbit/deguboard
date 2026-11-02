@@ -188,6 +188,39 @@ describe("Run の画面", () => {
     expect(within(groups as HTMLElement).getByRole("columnheader", { name: "Epic" })).toBeTruthy();
   });
 
+  it("Iteration で絞って開くと run.list と metrics.show をその Iteration で絞り、単位を変えても残し、解除で外す", async () => {
+    const client = setup();
+    await screen.findByText("r20261101-010000-aaaa");
+    window.location.hash = "#/runs?by=iteration&iteration=s4";
+    await waitFor(() =>
+      expect(client.calls.filter((c) => c.name === "metrics.show").at(-1)?.input).toEqual({
+        project: "default",
+        iteration: "s4",
+        by: "iteration",
+      }),
+    );
+    expect(
+      client.calls.some(
+        (c) =>
+          c.name === "run.list" &&
+          JSON.stringify(c.input) === '{"project":"default","iteration":"s4"}',
+      ),
+    ).toBe(true);
+    const filter = await waitFor(() => document.querySelector<HTMLElement>(".runs-filter")!);
+    expect(within(filter).getByRole("link", { name: "s4" }).getAttribute("href")).toBe(
+      "#/iterations/s4",
+    );
+    fireEvent.change(screen.getByLabelText("単位"), { target: { value: "epic" } });
+    await waitFor(() => expect(window.location.hash).toBe("#/runs?by=epic&iteration=s4"));
+    fireEvent.click(within(filter).getByRole("link", { name: "解除" }));
+    await waitFor(() => expect(window.location.hash).toBe("#/runs?by=epic"));
+    await waitFor(() => expect(document.querySelector(".runs-filter")).toBeNull());
+    expect(client.calls.filter((c) => c.name === "metrics.show").at(-1)?.input).toEqual({
+      project: "default",
+      by: "epic",
+    });
+  });
+
   it("Run か集計を取れなければ理由だけを出し、「Run はない」のような空の文言を出さない", async () => {
     const client = mockClient();
     client.handlers["run.list"] = () => [];

@@ -1063,7 +1063,7 @@ describe("画面", () => {
       [...rowOf(id).querySelectorAll(".counts .badge")].map((b) => b.textContent);
     expect(chips("s1")).toEqual(["完了 3", "持ち越し 1"]);
     expect(rowOf("s1").querySelector("small")!.textContent).toBe(
-      "最初 ・ 2026-09-29 〜 2026-10-10 ・ 内訳: Epic なし 1",
+      "最初 ・ 2026-09-29 〜 2026-10-10 ・ 内訳: Epic なし 1 ・ Run の集計",
     );
     // s2 には閉じたときの記録がないので、web で数え直さず「—」と出し、持ち越しのチップは出さない
     expect(chips("s2")).toEqual(["完了 —"]);
@@ -1110,7 +1110,7 @@ describe("画面", () => {
     );
     await screen.findByRole("heading", { level: 1, name: "履歴" });
     const row = document.querySelector(".history-row")!;
-    expect(row.querySelector("small")!.textContent).toBe("内訳: e1 2");
+    expect(row.querySelector("small")!.textContent).toBe("内訳: e1 2 ・ Run の集計");
     expect([...row.querySelectorAll(".counts .badge")].map((b) => b.textContent)).toEqual([
       "完了 —",
       "中止 1",
