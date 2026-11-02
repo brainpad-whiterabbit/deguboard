@@ -1,0 +1,23 @@
+{
+  "id": "r20261102-053700-160b",
+  "ticket": "t160",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-02T05:37:00Z",
+  "finished_at": "2026-11-02T05:39:02Z",
+  "result": "success",
+  "error": null,
+  "retries": 3,
+  "retry_reasons": [
+    "medium・low の優先度を見えない文字で読み上げる",
+    "low の見出しの li から role=separator を外す",
+    "見出しの表記を low にそろえる"
+  ],
+  "usage": {
+    "input": 24,
+    "output": 7130,
+    "cache_read": 1736800,
+    "cache_write": 10239
+  }
+}
