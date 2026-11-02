@@ -7,6 +7,7 @@
 // - ほかの画面の見出し（バックログ・履歴の summary、Run・Epic の h2 など）は検査しない
 // - チケットの行のタイトル（.ticket-row .row-title）は 2 行まで。サイドバーでは 2 行で切る CSS（-webkit-line-clamp: 2）なので、3 行以上は崩れ
 // 行数は要素の枠の中に見えている行だけを数える（2 行で切られて隠れた行は数えない）
+// カンバンの行の右端（担当の印・Plan の番号など）は、行の枠からはみ出さず、タイトルと重ならないことも確かめる
 // ブラウザが要るので mise run test には入れず、mise run test:layout で回す（先に mise run build と mise run playwright:install）
 
 import { access } from "node:fs/promises";
@@ -92,6 +93,12 @@ beforeAll(async () => {
     after: { t12: ["t7", "t8", "t9"] },
   });
   await call("plan.approve", { plan: "p1" });
+  // 担当の印（t1 は人、t7 は Codex の Run の agent、t8 は Run のない agent、t10 は汎用の agent）
+  await call("ticket.update", { ticket: "t7", assignee: "agent" });
+  await call("run.start", { ticket: "t7", step: "implement", agent: "codex" });
+  await call("ticket.update", { ticket: "t8", assignee: "agent" });
+  await call("ticket.update", { ticket: "t10", assignee: "agent" });
+  await call("run.start", { ticket: "t10", step: "implement", agent: "my-bot" });
   // 予定の Iteration を足し、見出しの札の列が幅に入らず横にスクロールするようにする（s3〜s7）
   for (let i = 3; i <= 7; i++) await call("iteration.create", { name: `予定の週 ${i}` });
   browser = await chromium.launch().catch((error: unknown) => {
@@ -151,6 +158,18 @@ function measure(page: Page) {
         ...overflowing(".row-title:not(.ticket-row .row-title)", 1),
         ...overflowing(".ticket-row .row-title", 2),
       ],
+      /** 担当の印の数（検査が黙って消えないように数える） */
+      assigneeMarks: document.querySelectorAll(".kanban-row .assignee-mark").length,
+      /** 右端が行の枠からはみ出すか、タイトルと重なるカンバンの行 */
+      rowEndClashes: [...document.querySelectorAll(".kanban-row")].flatMap((row) => {
+        const end = row.querySelector(".row-end")?.getBoundingClientRect();
+        const title = row.querySelector(".row-title")?.getBoundingClientRect();
+        if (!end || !title) return [];
+        const box = row.getBoundingClientRect();
+        const outside = end.right > box.right + 0.5 || end.left < box.left - 0.5;
+        const overlap = end.left < title.right - 0.5 && title.left < end.right - 0.5;
+        return outside || overlap ? [`${row.querySelector("code")?.textContent}`] : [];
+      }),
       /** 2 行まで折り返したチケットの行のタイトルの数（長いタイトルで 2 行に折り返すことを確かめる） */
       twoLineTitles: [...document.querySelectorAll(".ticket-row .row-title")].filter(
         (el) => lineCount(el) === 2,
@@ -193,6 +212,8 @@ describe.each(SCHEMES)("サイドバーの配置（%s）", (scheme) => {
             expect(m.twoLineTitles, `${hash} で 2 行に折り返したタイトル`).toBeGreaterThan(0);
             expect(m.headLines, `${hash} の Iteration の見出しの段`).toBeGreaterThan(0);
             expect(m.sectionHeadings, `${hash} の状態の節の見出し`).toBeGreaterThan(0);
+            expect(m.assigneeMarks, `${hash} の担当の印`).toBeGreaterThanOrEqual(4);
+            expect(m.rowEndClashes, `${hash} で右端がはみ出すか重なる行`).toEqual([]);
           }
           expect(m.color, `${hash} の文字と背景の色`).not.toBe(m.background);
         }

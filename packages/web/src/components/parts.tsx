@@ -315,6 +315,7 @@ export function RowPriority({
 /**
  * チケットの 1 行（サイドバー向け）：状態の丸印・番号・タイトル・担当者・右端（既定は優先度の印）。
  * サイドバーではタイトルを 2 行まで折り返す（styles.css）。hideAssignee で担当者を出さない（見えている行の担当が 1 人だけのとき）。
+ * kanban の行は担当者の列を出さない（担当は右端の印で出す。board.tsx の KanbanRowEnd）。
  * variant で行の種類を選ぶ（TicketRowVariant）。end を渡すと右端の優先度の印の代わりにそれを出す（カンバンの行の Plan の番号と待ちなど）。
  * head を渡すとカンバンの行の頭（list の行の丸印の位置）にそれを出す（Run の実行中の印。ActivityMark）
  */
@@ -351,7 +352,7 @@ export function TicketRow({
       <span className="row-title" title={ticket.title}>
         {ticket.title}
       </span>
-      {ticket.assignee && !hideAssignee ? (
+      {kanban ? null : ticket.assignee && !hideAssignee ? (
         <span className="row-assignee" title={ticket.assignee}>
           {actorLabel(ticket.assignee)}
         </span>

@@ -148,6 +148,8 @@ const STEPS: Step[] = [
     rejected: "VALIDATION_FAILED",
   },
   { name: "run.list", input: { running: true }, argv: ["run", "list", "--running"] },
+  // 一覧の run_agent は実行中の Run の agent（RN-1）
+  { name: "ticket.list", input: {}, argv: ["ticket", "list"] },
   {
     name: "run.finish",
     input: (v) => ({
@@ -179,6 +181,8 @@ const STEPS: Step[] = [
   },
   { name: "commit", input: {}, argv: ["commit"] },
   { name: "run.list", input: { ticket: "t2" }, argv: ["run", "list", "--ticket", "t2"] },
+  // 終わった Run だけになっても、最後の Run の agent が載る
+  { name: "ticket.list", input: {}, argv: ["ticket", "list"] },
   {
     name: "metrics.show",
     input: { epic: "e1", by: "agent" },
@@ -357,6 +361,16 @@ describe("3 経路の E2E", () => {
       "t2:in_progress:true",
       "t3:todo:false",
     ]);
+    // run_agent は Run がなければ null、実行中か最後の Run があればその agent（3 経路で同じ値になることは下で比べる）
+    const agents = (n: number) =>
+      (
+        base.results[
+          STEPS.map((s, k) => [s.name, k] as const).filter(([s]) => s === "ticket.list")[n]![1]
+        ] as { data: { id: string; run_agent: string | null }[] }
+      ).data.map((t) => `${t.id}:${t.run_agent}`);
+    expect(agents(0)).toEqual(["t1:null", "t2:null", "t3:null"]);
+    expect(agents(1)).toEqual(["t1:null", "t2:e2e-agent", "t3:null"]);
+    expect(agents(2)).toEqual(["t1:null", "t2:e2e-agent", "t3:null"]);
     expect(base.commits.length).toBeGreaterThan(3);
     expect(Object.keys(base.files)).toContain("tickets/t1.md");
     // Run は finish の集計だけが Git に入り、run.list・metrics.show が読む

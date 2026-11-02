@@ -186,7 +186,7 @@ steps: # 任意。Run の step の語彙（WF-5）
 
 ### 5.9 Run（`runs/`）
 
-- RN-1 1 Run 1 ファイル。`id`、`ticket`、`step`、`agent`、`model`、`started_at`、`finished_at`、`result`（`success` / `failure` / `interrupted`）、`error`、`retries`、`retry_reasons`（やり直しの理由の配列）、`usage`（input / output / cache_read / cache_write のトークン）
+- RN-1 1 Run 1 ファイル。`id`、`ticket`、`step`、`agent`、`model`、`started_at`、`finished_at`、`result`（`success` / `failure` / `interrupted`）、`error`、`retries`、`retry_reasons`（やり直しの理由の配列）、`usage`（input / output / cache_read / cache_write のトークン）。`ticket list` は各行に `run_agent`（実行中の Run の `agent`、なければ最後の Run の `agent`、Run がなければ `null`）を出す
 - RN-2 取れなかった値は `null`。推定した値は `estimated: true` を付ける。費用は持たない（[ADR-005](adr/ADR-005-work-metrics.md)）
 - RN-3 Git に入れるのは完了時の集計だけ。実行中の記録は `deguboard-local/runs/` に置く。チケットには書き足さない
 
@@ -244,7 +244,7 @@ steps: # 任意。Run の step の語彙（WF-5）
 Web UI は `dg serve` が配信し、VS Code 拡張は同じ React アプリを Webview に載せる。表示と操作は両方で同じ（[ADR-006](adr/ADR-006-ui-and-writes.md)）。
 
 - UI-1 プロジェクトの切り替え
-- UI-2 カンバン：選んだ Iteration（既定は active）のチケットを Status ごとの列に出す（表示名は Workflow の `labels`）。ドラッグ＆ドロップで Status を変え、`ticket move` と同じ検査で拒否されたら理由を出して戻す。Epic と担当者で絞れる。閉じた Iteration・Epic の終わったチケットは出さない。VS Code のサイドバーでは、Project が 1 つなら Project の段を出さず、Iteration を選択欄の代わりに planned と active の札（進みつき）と「なし」「+」の列で切り替え、Epic と担当者の欄は絞り込みボタンで開き、絞っている値を札で出して札から外せる。変化した行の点滅と実行中の Run の印を行に出し、行の右端には、開いた Plan に入っていれば Plan の番号と、todo なら着手可・待ちの相手（Plan の `after` と `depends_on` の終わっていないもの）・承認待ち（Plan が承認待ち）を出し、待ちと承認待ちの行はタイトルを薄くする（細部は web のテストとスタイル）
+- UI-2 カンバン：選んだ Iteration（既定は active）のチケットを Status ごとの列に出す（表示名は Workflow の `labels`）。ドラッグ＆ドロップで Status を変え、`ticket move` と同じ検査で拒否されたら理由を出して戻す。Epic と担当者で絞れる。閉じた Iteration・Epic の終わったチケットは出さない。VS Code のサイドバーでは、Project が 1 つなら Project の段を出さず、Iteration を選択欄の代わりに planned と active の札（進みつき）と「なし」「+」の列で切り替え、Epic と担当者の欄は絞り込みボタンで開き、絞っている値を札で出して札から外せる。変化した行の点滅と実行中の Run の印を行に出し、行の右端には、担当の印（名前の代わりに、人は頭文字の丸、agent は持ち主の丸と `run_agent` の種類のアイコン。ホバーで主体 ID と agent）と、開いた Plan に入っていれば Plan の番号と、todo なら着手可・待ちの相手（Plan の `after` と `depends_on` の終わっていないもの）・承認待ち（Plan が承認待ち）を出し、待ちと承認待ちの行はタイトルを薄くする（細部は web のテストとスタイル）
 - UI-3 バックログ：done・abandoned 以外のチケットを Iteration ごとの区画に分けて出し、検索と絞り込みができる。別の区画へのドラッグで Iteration を変え、`ticket update` と同じ検査で拒否されたら理由を出して戻す
 - UI-4 チケット詳細：本文（概要・受け入れ条件）、属性、Epic、依存先と依存元、起票者と担当者、作業ブランチ、PR、Run の一覧、経過（CL-7）。PR はリモートの URL から PR のページへのリンクにする（直せなければ番号だけ）。属性と本文を編集できる
 - UI-5 Iteration：作成・開始・閉じる、詳細の画面でチケットの追加・除外ができる。閉じた Iteration・Epic と終わったチケットは履歴の画面で見る（終えた日は CL-7 から求める）

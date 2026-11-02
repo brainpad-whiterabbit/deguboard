@@ -11,7 +11,7 @@ import { runFinish, runList, runStart, type RunView } from "./run.js";
 import { commit, configSet, init } from "./setup.js";
 import { workflowValidate } from "./workflow.js";
 import { projectCreate } from "./project.js";
-import { ticketCreate } from "./ticket.js";
+import { ticketCreate, ticketList, type TicketRow } from "./ticket.js";
 import { finishRun } from "../run/record.js";
 import type { Run } from "../model/run.js";
 
@@ -337,6 +337,38 @@ describe("run", () => {
     expect(await exists(c.file)).toBe(false);
     const all = (await runCommand(runList, ctx, {})).data as RunView[];
     expect(all.filter((r) => r.id === c.run.id)).toMatchObject([{ running: false }]);
+  });
+
+  it("ticket.list の run_agent は実行中の Run の agent、なければ最後の Run の agent、Run がなければ null（RN-1）", async () => {
+    const ctx = await prepared();
+    // Run の ID は秒までの開始の時刻で並ぶので、呼ぶたびに時計を 1 分進める
+    let clock = Date.parse("2026-11-02T00:00:00Z");
+    ctx.now = () => new Date((clock += 60_000));
+    const agents = async () =>
+      ((await runCommand(ticketList, ctx, {})).data as TicketRow[]).map((t) => [t.id, t.run_agent]);
+    expect(await agents()).toEqual([
+      ["t1", null],
+      ["t2", null],
+    ]);
+    const begin = async (ticket: string, step: string, agent: string) =>
+      (await runCommand(runStart, ctx, { ticket, step, agent })).data as Run;
+    // t1：終わった Run が 2 つなら後に始めた方
+    const a = await begin("t1", "implement", "codex");
+    expect(await agents()).toEqual([
+      ["t1", "codex"],
+      ["t2", null],
+    ]);
+    await runCommand(runFinish, ctx, { run: a.id, result: "success" });
+    const b = await begin("t1", "review", "claude-code");
+    await runCommand(runFinish, ctx, { run: b.id, result: "success" });
+    // t2：実行中の Run は、後に始めて終わった Run より優先する
+    await begin("t2", "implement", "codex");
+    const c = await begin("t2", "review", "my-bot");
+    await runCommand(runFinish, ctx, { run: c.id, result: "success" });
+    expect(await agents()).toEqual([
+      ["t1", "claude-code"],
+      ["t2", "codex"],
+    ]);
   });
 
   it("step と agent は空白・改行を含まない 1 語でなければ使い方の誤り", async () => {

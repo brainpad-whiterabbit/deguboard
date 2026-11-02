@@ -424,12 +424,13 @@ describe("画面", () => {
     },
   );
 
-  it("1 行表示は担当者を短く出し、全文はツールチップに。担当者がなければ出さない", async () => {
+  it("バックログの 1 行表示は担当者を短く出し、全文はツールチップに。担当者がなければ出さない", async () => {
     const client = mockClient();
     client.data.tickets.push(
       ticket({ id: "t8", title: "AI の作業", assignee: "eiki/agent" }),
       ticket({ id: "t7", title: "古い ID", assignee: "eiki@laptop" }),
     );
+    window.location.hash = "#/backlog";
     mount(client, hostOf("sidebar"));
     await screen.findByText("AI の作業");
     const rowOf = (title: string) => screen.getByText(title).closest(".row")!;
@@ -441,16 +442,50 @@ describe("画面", () => {
       textContent: "eiki",
       title: "eiki@laptop",
     });
-    expect(rowOf("ログイン").querySelector(".row-assignee")).toBeNull();
+    expect(rowOf("画面").querySelector(".row-assignee")).toBeNull();
   });
 
-  it("サイドバーのカンバンで見えている行の担当が 1 人だけなら、行に担当を出さない", async () => {
+  it("サイドバーのカンバンの行は担当の名前の列を出さず、右端の上の段（Plan の番号の左）に担当の印を出す。人は頭文字の丸、agent は持ち主の丸と Run の agent の種類のアイコン", async () => {
     const client = mockClient();
-    for (const t of client.data.tickets) t.assignee = "eiki/agent";
+    client.data.tickets.push(
+      ticket({ id: "t4", title: "人", assignee: "eiki" }),
+      ticket({ id: "t5", title: "Claude", assignee: "eiki/agent", run_agent: "claude-code" }),
+      ticket({ id: "t6", title: "Codex", assignee: "hana/agent", run_agent: "codex" }),
+      ticket({ id: "t7", title: "汎用", assignee: "eiki/agent", run_agent: "my-bot" }),
+      ticket({ id: "t8", title: "Run なし", assignee: "eiki/agent" }),
+    );
+    client.data.plans.push(plan({ id: "p7", tickets: ["t5"] }));
     mount(client, hostOf("sidebar"));
-    await screen.findByText("ログイン");
-    expect(document.querySelectorAll(".row-drag .row")).toHaveLength(3);
+    await screen.findByText("Run なし");
     expect(document.querySelector(".row-assignee")).toBeNull();
+    const markOf = (title: string) => kanbanRowOf(title).querySelector(".assignee-mark");
+    const iconOf = (title: string) =>
+      markOf(title)!.querySelector<HTMLElement>(".agent-icon")?.dataset.agent ?? null;
+    // 人：頭文字の丸だけ。ホバーで主体 ID
+    expect(markOf("人")!.querySelector(".assignee-initial")!.textContent).toBe("E");
+    expect(iconOf("人")).toBeNull();
+    expect(markOf("人")!.getAttribute("title")).toBe("eiki");
+    // agent：持ち主の丸と種類のアイコン。ホバーで主体 ID と Run の agent
+    expect(markOf("Claude")!.textContent).toBe("EC");
+    expect(iconOf("Claude")).toBe("claude");
+    expect(markOf("Claude")!.getAttribute("title")).toBe("eiki/agent · claude-code");
+    expect(markOf("Codex")!.textContent).toBe("HX");
+    expect(iconOf("Codex")).toBe("codex");
+    expect(iconOf("汎用")).toBe("generic");
+    expect(markOf("汎用")!.getAttribute("title")).toBe("eiki/agent · my-bot");
+    // Run のない agent は汎用のアイコン
+    expect(iconOf("Run なし")).toBe("generic");
+    expect(markOf("Run なし")!.getAttribute("title")).toBe("eiki/agent · Run なし");
+    // 印は上の段の Plan の番号の左
+    const top = kanbanRowOf("Claude").querySelector(".row-end-top")!;
+    // （先頭の空のセルは medium の優先度の印の場所）
+    expect([...top.children].map((c) => c.className.split(" ")[0]).filter(Boolean)).toEqual([
+      "assignee-mark",
+      "row-plan",
+    ]);
+    // 担当なし：印を出さず、右端は今までどおり優先度の印だけ
+    expect(markOf("画面")).toBeNull();
+    expect(kanbanRowOf("画面").querySelector(".row-end")).toBeNull();
   });
 
   it("サイドバーのカンバンは、前回の描画から Status が変わった行を点滅させ（開き直しても host.state で比べる）、ブラウザでは点滅させない", async () => {

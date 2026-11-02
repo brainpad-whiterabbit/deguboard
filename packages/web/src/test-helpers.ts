@@ -21,10 +21,14 @@ export interface Fixture {
   status: StatusView;
 }
 
-/** ticket.list の 1 行。deps_done を省けば、依存先がないときだけ真にする。依存先を持つ行で依存先が終わった場合を試すときは deps_done を明示する */
+/**
+ * ticket.list の 1 行。deps_done を省けば、依存先がないときだけ真にする。依存先を持つ行で依存先が終わった場合を試すときは deps_done を明示する。
+ * run_agent を省けば Run のないチケット（null）
+ */
 export function ticket(partial: Partial<TicketRow> & { id: string }): TicketRow {
   return {
     deps_done: (partial.depends_on ?? []).length === 0,
+    run_agent: null,
     project: "default",
     title: `題 ${partial.id}`,
     status: "todo",
