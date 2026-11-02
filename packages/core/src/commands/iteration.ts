@@ -24,9 +24,9 @@ export const iterationCreate = defineCommand({
   group: "iteration",
   summary: "Iteration を作る",
   input: z.object({
-    name: z.string().min(1),
+    name: z.string().min(1).describe("名前"),
     project: slugSchema.optional().describe("Project。省略時は config の default_project"),
-    goal: z.string().optional(),
+    goal: z.string().optional().describe("目標"),
     start: isoDate.optional().describe("開始日（YYYY-MM-DD）"),
     end: isoDate.optional().describe("終了日（YYYY-MM-DD）"),
   }),
@@ -60,8 +60,11 @@ export const iterationList = defineCommand({
   group: "iteration",
   summary: "Iteration を番号順に出す",
   input: z.object({
-    project: z.string().optional(),
-    status: z.array(z.enum(ITERATION_STATUSES)).optional(),
+    project: z.string().optional().describe("Project で絞る。省略時はすべて"),
+    status: z
+      .array(z.enum(ITERATION_STATUSES))
+      .optional()
+      .describe("Status で絞る。省略時はすべて"),
   }),
   write: false,
   needs: "store",
@@ -100,7 +103,7 @@ export const iterationUpdate = defineCommand({
   summary: "Iteration の名前・目標・期間を直す。閉じた Iteration も直せる",
   input: z.object({
     iteration: iterationRef,
-    name: z.string().min(1).optional(),
+    name: z.string().min(1).optional().describe("名前"),
     goal: z.string().optional().describe("目標。空文字で消す"),
     start: isoDate.optional().describe("開始日（YYYY-MM-DD）"),
     end: isoDate.optional().describe("終了日（YYYY-MM-DD）"),
@@ -125,7 +128,10 @@ export const iterationUpdate = defineCommand({
   },
 });
 
-const membership = z.object({ iteration: iterationRef, tickets: z.array(ticketRef).min(1) });
+const membership = z.object({
+  iteration: iterationRef,
+  tickets: z.array(ticketRef).min(1).describe("チケットの ID（t12 または 12）。複数指定できる"),
+});
 
 export const iterationAdd = defineCommand({
   name: "iteration.add",

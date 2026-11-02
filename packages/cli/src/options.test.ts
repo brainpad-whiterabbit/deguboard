@@ -151,3 +151,24 @@ describe("Zod → オプション", () => {
     });
   });
 });
+
+describe("オプションの説明", () => {
+  it("すべてのコマンドの位置引数とオプションに、空でなく頭の欠けていない説明がある", () => {
+    const missing: string[] = [];
+    for (const def of commands) {
+      const cmd = new Command("x");
+      bindInputs(cmd, def);
+      for (const arg of cmd.registeredArguments) {
+        if (!arg.description.trim() || arg.description.startsWith("。")) {
+          missing.push(`${def.name} <${arg.name()}>`);
+        }
+      }
+      for (const opt of cmd.options) {
+        if (!opt.description.trim() || opt.description.startsWith("。")) {
+          missing.push(`${def.name} ${opt.long}`);
+        }
+      }
+    }
+    expect(missing).toEqual([]);
+  });
+});
