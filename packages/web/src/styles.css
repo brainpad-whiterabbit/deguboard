@@ -1347,8 +1347,7 @@ button.danger {
   border-radius: 3px;
   padding: 0.25rem;
 }
-.epic-panel > header,
-.epic-panel > summary {
+.epic-panel > header {
   display: flex;
   align-items: center;
   gap: 0.4em;
@@ -1358,8 +1357,7 @@ button.danger {
   margin: 0;
   font-size: 1em;
 }
-.epic-panel > header > button,
-.epic-panel > summary > button {
+.epic-panel > header > button {
   margin-left: auto;
 }
 .epic-list li {

@@ -2,7 +2,7 @@
 // 番号・タイトル・ラベルで検索、Status・優先度・ラベル・担当者で絞り込む。区画の見出しから Iteration の開始・閉じる（サイドバーを除く）、「Iteration なし」から作成。
 // Iteration が 1 つもない（planned・active がない）Project では区画に分けず 1 つの表で出す。
 // チケットを別の区画にドラッグすると ticket.update で Iteration を変える。拒否されたら通知に理由を出して元の区画に戻す（読み直すだけで戻る）。
-// open の Epic は進捗つきの欄に並べ（UI-10）、押すとその Epic のチケットに絞る（もう一度押すと解除）。Epic の作成も欄から行う。
+// open の Epic は進捗つきの欄に並べ（UI-10）、押すとその Epic のチケットに絞る（もう一度押すと解除）。広い画面では Epic の作成も欄から行う。
 // サイドバーでは検索と件数だけ常に出し、絞り込みは畳む（効いている条件は見出しに出す。開閉は host.state に残す）。
 // サイドバーの Epic の欄は open の Epic があるときだけ、番号・題・進捗のチップと「Epic なし」のチップを並べる（2 行を超える分は「ほか N」）
 
@@ -14,7 +14,7 @@ import {
   useSensors,
   type DragEndEvent,
 } from "@dnd-kit/core";
-import { useMemo, useState, type MouseEvent, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { Chip, ChipRow } from "../components/chips.js";
 import { ProgressBar, TicketTable } from "../components/parts.js";
 import { useHost, useUiState } from "../host.js";
@@ -449,7 +449,15 @@ function EpicChips({ selected, onSelect }: { selected: string; onSelect: (epic: 
   return (
     <div className="epic-chips">
       <span className="chip-label">Epic</span>
-      <ChipRow label="Epic で絞る">
+      <ChipRow
+        label="Epic で絞る"
+        contentKey={
+          epics.map((e) => `${e.id}:${e.title}:${e.progress.done}/${e.progress.total}`).join("|") +
+          `|${noEpic}`
+        }
+        moreLabel={(n) => `Epic をあと ${n} 本出す`}
+        lessLabel="Epic を畳む"
+      >
         {epics.map((e) => (
           <Chip
             key={e.id}
@@ -478,10 +486,9 @@ function EpicChips({ selected, onSelect }: { selected: string; onSelect: (epic: 
   );
 }
 
-/** 広い画面の Epic の欄 */
+/** 広い画面の Epic の欄。番号はハッシュの遷移で詳細へ（エディタのパネルはバックログを出さない） */
 function EpicList({ selected, onSelect }: { selected: string; onSelect: (epic: string) => void }) {
   const store = useStore();
-  const host = useHost();
   const [creating, setCreating] = useState(false);
   const [title, setTitle] = useState("");
   const { epics, noEpic } = useOpenEpics();
@@ -494,12 +501,6 @@ function EpicList({ selected, onSelect }: { selected: string; onSelect: (epic: s
     }
   };
   const startCreating = () => setCreating(true);
-  // パネルでは詳細を拡張ホストに頼んで開く（Iteration の詳細と同じ）
-  const openDetail = (e: MouseEvent, id: string) => {
-    if (host.surface === "browser") return;
-    e.preventDefault();
-    host.open({ page: "epics", id });
-  };
 
   const add = (
     <button
@@ -540,7 +541,7 @@ function EpicList({ selected, onSelect }: { selected: string; onSelect: (epic: s
       <ul className="rows epic-list">
         {epics.map((e) => (
           <li key={e.id} className={selected === e.id ? "selected" : undefined}>
-            <a href={hrefOf({ page: "epics", id: e.id })} onClick={(ev) => openDetail(ev, e.id)}>
+            <a href={hrefOf({ page: "epics", id: e.id })}>
               <code>{e.id}</code>
             </a>
             <button

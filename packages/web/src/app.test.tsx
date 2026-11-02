@@ -1322,7 +1322,7 @@ describe("画面", () => {
     expect(screen.queryByText("API")).toBeNull();
   });
 
-  it("サイドバーのバックログの Epic のチップは 2 行で止めて残りを「ほか N」にまとめ、押すとすべて出し「畳む」で戻す", async () => {
+  it("サイドバーのバックログの Epic のチップは 2 行で止めて残りを「ほか N」にまとめ、押すとすべて出し「畳む」で戻す。選んだチップは隠さない", async () => {
     // jsdom は配置をしないので、1 行に 3 つ並ぶとして位置を返す
     const original = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "offsetTop")!;
     Object.defineProperty(HTMLElement.prototype, "offsetTop", {
@@ -1347,10 +1347,18 @@ describe("画面", () => {
         );
       // 6 本と「Epic なし」で 3 行になるので、2 行目の終わりに「ほか N」を置ける数まで減らす
       await waitFor(() => expect(labels()).toEqual(["e1", "e2", "e3", "e4", "e5", "ほか 2"]));
-      fireEvent.click(screen.getByRole("button", { name: "ほか 2" }));
+      const more = screen.getByRole("button", { name: "Epic をあと 2 本出す" });
+      expect(more.getAttribute("aria-expanded")).toBe("false");
+      fireEvent.click(more);
       expect(labels()).toEqual(["e1", "e2", "e3", "e4", "e5", "e6", "Epic なし1", "畳む"]);
-      fireEvent.click(screen.getByRole("button", { name: "畳む" }));
-      await waitFor(() => expect(labels()).toEqual(["e1", "e2", "e3", "e4", "e5", "ほか 2"]));
+      const less = screen.getByRole("button", { name: "Epic を畳む" });
+      expect(less.getAttribute("aria-expanded")).toBe("true");
+      // 隠れる側の e6 を選んで畳むと、e6 を出す分の最後に回す
+      fireEvent.click(screen.getByRole("button", { name: /E6/ }));
+      fireEvent.click(less);
+      await waitFor(() => expect(labels()).toEqual(["e1", "e2", "e3", "e4", "e6", "ほか 2"]));
+      const e6 = [...group.querySelectorAll(".chip")].find((c) => c.textContent?.startsWith("e6"))!;
+      expect(e6.getAttribute("aria-pressed")).toBe("true");
     } finally {
       Object.defineProperty(HTMLElement.prototype, "offsetTop", original);
     }
