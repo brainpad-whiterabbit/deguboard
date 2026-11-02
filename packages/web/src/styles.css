@@ -248,7 +248,8 @@ h3 {
   background: transparent;
   color: var(--vscode-descriptionForeground);
 }
-.badge.priority-high {
+.badge.priority-high,
+.badge.count-abandoned {
   background: var(--vscode-inputValidation-errorBackground);
   border-color: var(
     --vscode-inputValidation-errorBorder,
@@ -463,7 +464,7 @@ button.link:hover {
   white-space: nowrap;
   font-weight: 500;
 }
-/* 件数のチップ：完了は地の色、中止は赤み・持ち越しは黄みの色付き（1 件以上のときだけ出る） */
+/* 件数のチップ：完了は地の色、中止は赤み（.badge.count-abandoned は .badge.priority-high と同じ規則）・持ち越しは黄みの色付き（1 件以上のときだけ出る） */
 .history-row .counts {
   display: inline-flex;
   flex-wrap: wrap;
@@ -471,14 +472,6 @@ button.link:hover {
   gap: 0.25rem;
   align-self: center;
   font-variant-numeric: tabular-nums;
-}
-.badge.count-abandoned {
-  background: var(--vscode-inputValidation-errorBackground);
-  border-color: var(
-    --vscode-inputValidation-errorBorder,
-    var(--vscode-contrastBorder, transparent)
-  );
-  color: inherit;
 }
 .history-row small {
   grid-column: 2 / span 2;
@@ -2050,6 +2043,20 @@ button.danger {
 }
 .history-ticket.abandoned {
   opacity: 0.6;
+}
+/* 履歴用の行（components/history-rows.tsx）：1 段目は丸印・番号・タイトルだけ。2 段目の「中止」は太く、「なし」は薄く。「ほか N 件」は付記と頭を揃える */
+.ticket-row.history-ticket-main {
+  grid-template-columns: auto auto minmax(0, 1fr);
+}
+.history-abandoned {
+  font-weight: 600;
+}
+.history-none {
+  opacity: 0.75;
+}
+.history-more {
+  align-self: flex-start;
+  margin: 0.1rem 0 0 2.4rem;
 }
 [data-surface="sidebar"] .history-epic .name {
   display: -webkit-box;

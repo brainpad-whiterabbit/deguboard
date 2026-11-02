@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { App } from "../app.js";
 import { HostProvider, type Host } from "../host.js";
@@ -128,6 +128,40 @@ describe("Iteration の行", () => {
 });
 
 describe("サイドバーの履歴", () => {
+  it("開いた Iteration のチケットは Epic で分けず番号の順の 1 本の一覧で出し、持ち越しがなければ持ち越しの節を出さない", async () => {
+    window.location.hash = "#/history";
+    const client = mockClient();
+    client.data.iterations = [iteration({ id: "s4", name: "sprint4", status: "closed" })];
+    client.data.tickets = [
+      ticket({ id: "t10", status: "done", iteration: "s4", epic: "e1", pr: 30 }),
+      ticket({ id: "t2", status: "done", iteration: "s4", epic: "e2" }),
+      ticket({ id: "t3", status: "abandoned", iteration: "s4" }),
+    ];
+    client.handlers["history"] = () => ({ events: [], shallow: false, incomplete: [] });
+    render(
+      <StoreProvider client={client}>
+        <HostProvider host={sidebarHost()}>
+          <App />
+        </HostProvider>
+      </StoreProvider>,
+    );
+    await screen.findByText("sprint4");
+    const item = document.querySelector<HTMLDetailsElement>("details.history-item")!;
+    item.open = true;
+    fireEvent(item, new Event("toggle"));
+    await waitFor(() => expect(item.querySelectorAll(".history-list")).toHaveLength(1));
+    expect([...item.querySelectorAll(".history-list code")].map((c) => c.textContent)).toEqual([
+      "t2",
+      "t3",
+      "t10",
+    ]);
+    expect(item.querySelector(".history-group")).toBeNull();
+    expect(item.querySelector(".history-ticket.abandoned code")!.textContent).toBe("t3");
+    expect(item.querySelector(".history-ticket:last-child .history-ticket-meta")!.textContent).toBe(
+      "e1 ・ #30",
+    );
+  });
+
   it("Epic の見方は進捗バーを出さず、2 段目に件数・閉じた日・Iteration を出す", async () => {
     window.location.hash = "#/history?view=epic";
     const client = mockClient();
