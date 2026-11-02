@@ -31,7 +31,7 @@ PR がマージされたあとの後始末（PR の要らない作業は `dg gui
 
 ## 終わらなかったとき
 
-- 作業をやめるなら `dg --json --actor agent ticket unclaim <id>`（in_progress のときだけ。todo に戻す）。チケット自体をやめる（abandoned）のは人に確かめてから `ticket move <id> abandoned`
+- 作業をやめるなら、実装の Run は閉じてから `dg --json --actor agent ticket unclaim <id>`（in_progress のときだけ。todo に戻す）。手直し・見直しの Run は unclaim せず、`dg guide review` の「終わり方」に従う。チケット自体をやめる（abandoned）のは人に確かめてから `ticket move <id> abandoned`
 - 要件が変わって別のチケットにすべきなら、`dg guide import` の手順で新しく起票を提案し、元のチケットの扱いは人に確かめる
 
 ## Iteration と Epic
