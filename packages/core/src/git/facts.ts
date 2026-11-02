@@ -82,7 +82,7 @@ export async function findMergedLeftover(
   const refs = [`refs/heads/${branch}`];
   if (repo.remote) {
     const remoteRef = `refs/remotes/${repo.remote}/${branch}`;
-    await runGit(
+    const baseFetch = await runGit(
       repo.dataDir,
       [
         "fetch",
@@ -91,13 +91,16 @@ export async function findMergedLeftover(
       ],
       { allowFailure: true, timeoutMs: 60_000 },
     );
-    const fetched = await runGit(
-      repo.dataDir,
-      ["fetch", repo.remote, `+refs/heads/${branch}:${remoteRef}`],
-      { allowFailure: true, timeoutMs: 60_000 },
-    );
+    // base に届かなければリモートに届かないとみなし、ブランチの取り込みで待たない
+    const fetched =
+      baseFetch.code === 0
+        ? await runGit(repo.dataDir, ["fetch", repo.remote, `+refs/heads/${branch}:${remoteRef}`], {
+            allowFailure: true,
+            timeoutMs: 60_000,
+          })
+        : undefined;
     // リモートで消えたブランチの追跡 ref は古い名残なので見ない
-    if (!/couldn't find remote ref/i.test(fetched.stderr)) refs.push(remoteRef);
+    if (!fetched || !/couldn't find remote ref/i.test(fetched.stderr)) refs.push(remoteRef);
   }
   const base = await baseRef(repo);
   if (!base) return undefined;

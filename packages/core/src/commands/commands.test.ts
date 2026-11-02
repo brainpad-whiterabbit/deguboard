@@ -390,6 +390,12 @@ describe("チケットの流れ", () => {
     await git(f.cloneB, ["push", "-q", "origin", "--delete", "chore/reused"]);
     await runCommand(ticketClaim, ctx, { ticket: "t4", branch: "chore/reused" });
     expect(ctx.store.tickets.get("t4")?.data.branch).toBe("chore/reused");
+
+    // 終わったチケットが記録している名前は使える
+    await runCommand(ticketMove, ctx, { ticket: "t2", status: "done" });
+    await runCommand(ticketCreate, ctx, { title: "E" });
+    await runCommand(ticketClaim, ctx, { ticket: "t5", branch: "chore/cut" });
+    expect(ctx.store.tickets.get("t5")?.data.branch).toBe("chore/cut");
   });
 
   it("PR の要らない作業は claim の without_branch で branch を持たず、照合で動かず警告も出ない。update の branch で付け外しできる", async () => {

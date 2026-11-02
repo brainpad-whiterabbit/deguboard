@@ -410,7 +410,9 @@ export const ticketUpdate = defineCommand({
       .min(1)
       .nullable()
       .optional()
-      .describe("作業ブランチ名。外すと PR の要らない作業になり、照合の対象から外れる"),
+      .describe(
+        "作業ブランチ名。外すと PR の要らない作業になり、照合の対象から外れる。使用中の名前と、先端が base の真の祖先のまま残った名前は拒否（BRANCH_IN_USE）",
+      ),
     assignee: actorRef
       .nullable()
       .optional()
@@ -569,7 +571,7 @@ async function factsFor(
 }
 
 /**
- * ブランチ名の使い回しを拒否する（ST-6、ADR-004）。終わっていない別のチケットが同じ名前を記録しているか、
+ * ブランチ名の使い回しを拒否する（ST-3、ADR-004）。終わっていない別のチケットが同じ名前を記録しているか、
  * 前の作業でマージ済みのブランチが同じ名前で残っていれば BRANCH_IN_USE。残ったブランチは照合が branch_merged で
  * done にし、PR を見ない照合では claim の時刻で外せないので、記録する前に止める
  */
@@ -591,7 +593,7 @@ async function requireBranchAvailable(
   if (leftover) {
     throw new OperationError(
       "BRANCH_IN_USE",
-      `ブランチ ${leftover} が前の作業でマージ済みのまま残っている。別の名前を指定するか、古いブランチを消してからやり直す`,
+      `ブランチ ${leftover} の先端が base の真の祖先（前の作業でマージ済みか、古い base から切ったまま）で、照合が done にしてしまう。別の名前を指定するか、古いブランチを消すか base に揃えてからやり直す`,
     );
   }
 }
@@ -688,7 +690,13 @@ export const ticketClaim = defineCommand({
     "チケットに着手する。担当者（assignee）を自分にしてブランチを記録し、in_progress にする。push の成功で排他を得る。todo → in_progress の制約（requires: [deps_done] など）があれば従う",
   input: z.object({
     ticket: ticketRef,
-    branch: z.string().min(1).optional().describe("作業ブランチ名。省略時は feature/<id>-<slug>"),
+    branch: z
+      .string()
+      .min(1)
+      .optional()
+      .describe(
+        "作業ブランチ名。省略時は feature/<id>-<slug>。使用中の名前と、先端が base の真の祖先のまま残った名前は拒否（BRANCH_IN_USE）",
+      ),
     without_branch: z
       .boolean()
       .optional()
