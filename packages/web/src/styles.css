@@ -2058,6 +2058,14 @@ button.danger {
   align-self: flex-start;
   margin: 0.1rem 0 0 2.4rem;
 }
+/* 開けない行（終わったチケットのない Epic）：薄く出し、開閉の印の分だけ字下げして開ける行と頭を揃える */
+.history-item.history-empty > .history-row {
+  padding-left: 1.2rem;
+  opacity: 0.6;
+}
+.history-item.history-empty > .history-row:hover {
+  background: transparent;
+}
 [data-surface="sidebar"] .history-epic .name {
   display: -webkit-box;
   -webkit-box-orient: vertical;

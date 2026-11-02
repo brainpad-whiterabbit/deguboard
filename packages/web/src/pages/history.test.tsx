@@ -162,7 +162,7 @@ describe("サイドバーの履歴", () => {
     );
   });
 
-  it("Epic の見方は進捗バーを出さず、2 段目に件数・閉じた日・Iteration を出す", async () => {
+  it("終わったチケットのない Epic は薄く出して開けず、チップは完了 0 だけ、2 段目にチケットなし・閉じた日・Iteration を出す", async () => {
     window.location.hash = "#/history?view=epic";
     const client = mockClient();
     client.data.epics[0] = {
@@ -170,6 +170,7 @@ describe("サイドバーの履歴", () => {
       status: "closed",
       closed_at: "2026-10-31T00:00:00Z",
     };
+    // e1 のチケットは t2（in_progress）だけで、終わったものはない
     client.data.tickets[1]!.iteration = "s1";
     render(
       <StoreProvider client={client}>
@@ -180,10 +181,66 @@ describe("サイドバーの履歴", () => {
     );
     const row = (await screen.findByText("最初の版")).closest(".history-epic")!;
     expect(row.querySelector(".progress")).toBeNull();
-    expect(row.querySelector("small")!.textContent).toBe("1 件 ・ 2026-10-31 に閉じた ・ s1");
+    expect(row.closest("details")).toBeNull();
+    expect(row.closest(".history-item")!.classList.contains("history-empty")).toBe(true);
+    expect([...row.querySelectorAll(".counts .badge")].map((b) => b.textContent)).toEqual([
+      "完了 0",
+    ]);
+    expect(row.querySelector("small")!.textContent).toBe(
+      "終わったチケットなし ・ 2026-10-31 に閉じた ・ s1",
+    );
     expect(screen.getByRole("searchbox").getAttribute("placeholder")).toBe(
       "番号・タイトル・ラベルで検索",
     );
+  });
+
+  it("開いた Epic の終わったチケットは番号の順の 1 本の一覧で、2 段目に Iteration（なければ Iteration なし）と PR を出し、Epic は出さない", async () => {
+    window.location.hash = "#/history?view=epic";
+    const client = mockClient();
+    client.data.epics[0] = {
+      ...client.data.epics[0]!,
+      status: "closed",
+      closed_at: "2026-10-31T00:00:00Z",
+    };
+    client.data.tickets = [
+      ticket({ id: "t10", status: "done", iteration: "s1", epic: "e1", pr: 30 }),
+      ticket({ id: "t2", status: "done", epic: "e1" }),
+      ticket({ id: "t3", status: "abandoned", iteration: "s1", epic: "e1" }),
+      // 終わっていないチケットとほかの Epic のチケットは出さない
+      ticket({ id: "t4", status: "todo", epic: "e1" }),
+      ticket({ id: "t5", status: "done", epic: "e2" }),
+    ];
+    const opened: unknown[] = [];
+    render(
+      <StoreProvider client={client}>
+        <HostProvider host={{ ...sidebarHost(), open: (r) => opened.push(r) }}>
+          <App />
+        </HostProvider>
+      </StoreProvider>,
+    );
+    const row = (await screen.findByText("最初の版")).closest(".history-epic")!;
+    expect([...row.querySelectorAll(".counts .badge")].map((b) => b.textContent)).toEqual([
+      "完了 2",
+      "中止 1",
+    ]);
+    expect(row.querySelector("small")!.textContent).toBe("2026-10-31 に閉じた ・ s1");
+    const item = row.closest<HTMLDetailsElement>("details.history-item")!;
+    item.open = true;
+    fireEvent(item, new Event("toggle"));
+    await waitFor(() => expect(item.querySelectorAll(".history-list")).toHaveLength(1));
+    expect([...item.querySelectorAll(".history-list code")].map((c) => c.textContent)).toEqual([
+      "t2",
+      "t3",
+      "t10",
+    ]);
+    expect([...item.querySelectorAll(".history-ticket-meta")].map((m) => m.textContent)).toEqual([
+      "Iteration なし ・ PR なし",
+      "Abandoned ・ s1 ・ PR なし",
+      "s1 ・ #30",
+    ]);
+    // 番号を押すと詳細を開く
+    fireEvent.click(item.querySelector(".history-list .history-ticket-main")!);
+    expect(opened).toEqual([{ page: "ticket", id: "t2" }]);
   });
 
   it("チケットの見方は終えた日を小見出しにし、行には値のある Iteration・Epic・PR だけを書き、中止の行は薄く出す", async () => {

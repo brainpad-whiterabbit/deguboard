@@ -9,7 +9,9 @@
 // 番号を押すと詳細を開く（サイドバーとパネルでは拡張ホストに頼んでエディタに、ブラウザではハッシュ遷移）。
 // サイドバーでは狭い幅で読めるよう描き方を変える：Iteration の行は開閉の印を付け、開くと番号の順の 1 本の一覧（履歴用の行。
 // components/history-rows.tsx）で出し、持ち越しを最後に分ける。
-// Epic の見方は進捗バーをやめてタイトルを 2 行まで出す。チケットの見方は終えた日を小見出しにし、行には値のある Iteration・Epic・PR だけを書く
+// Epic の見方は進捗バーをやめてタイトルを 2 行まで出し、Iteration の行と同じ件数のチップを付ける。行を開くと中の終わったチケットを
+// 番号の順の 1 本の一覧（2 段目は Iteration・PR）で出し、終わったチケットのない Epic は薄く出して開けない。
+// チケットの見方は終えた日を小見出しにし、行には値のある Iteration・Epic・PR だけを書く
 
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -46,15 +48,23 @@ function byClosedDesc<T extends { id: string; closed_at?: string | undefined }>(
 }
 
 /**
- * 件数のチップ。完了と持ち越しは iteration.close が記録した値（core が数える）をそのまま出し、web では数え直さない。
- * 完了は記録がなければ「—」で出す。中止は記録がないので Iteration に入っている abandoned を数える。
+ * 件数のチップ（Iteration と Epic の行で共用）。完了は記録がなければ「—」で出す。
  * 中止と持ち越しは 1 件以上のときだけ色付きで出す
  */
-function CountChips({ iteration, abandoned }: { iteration: Iteration; abandoned: number }) {
-  const carried = iteration.carried_over ?? 0;
+function CountChips({
+  completed,
+  abandoned,
+  carried = 0,
+  title,
+}: {
+  completed: number | undefined;
+  abandoned: number;
+  carried?: number | undefined;
+  title?: string | undefined;
+}) {
   return (
-    <span className="counts" title="完了と持ち越しは閉じたときに記録した件数">
-      <span className="badge">完了 {iteration.completed ?? NO_VALUE}</span>
+    <span className="counts" title={title}>
+      <span className="badge">完了 {completed ?? NO_VALUE}</span>
       {abandoned > 0 ? <span className="badge count-abandoned">中止 {abandoned}</span> : null}
       {carried > 0 ? <span className="badge warn">持ち越し {carried}</span> : null}
     </span>
@@ -350,7 +360,14 @@ function IterationItem({ iteration: i, sidebar }: { iteration: Iteration; sideba
           <span className="name" title={goal ? `${goal}（${i.name}）` : i.name}>
             {goal || i.name}
           </span>
-          <CountChips iteration={i} abandoned={abandoned} />
+          {/* 完了と持ち越しは iteration.close が記録した値（core が数える）をそのまま出し、web では数え直さない。
+              中止は記録がないので Iteration に入っている abandoned を数える */}
+          <CountChips
+            completed={i.completed}
+            abandoned={abandoned}
+            carried={i.carried_over}
+            title="完了と持ち越しは閉じたときに記録した件数"
+          />
           {meta || epics.length > 0 ? (
             <small>
               {meta}
@@ -464,21 +481,38 @@ function SidebarIterationTickets({
   );
 }
 
-/** サイドバーの閉じた Epic の行：番号・タイトル（2 行まで）、2 段目に件数・閉じた日・チケットが入っていた Iteration。進捗バーは出さない */
+/** Epic に入っている終わったチケット（done・abandoned）を番号の順に */
+function finishedOfEpic(epic: string, tickets: readonly Ticket[]): Ticket[] {
+  return tickets
+    .filter((t) => t.epic === epic && (t.status === "done" || t.status === "abandoned"))
+    .sort(byNumber);
+}
+
+/**
+ * サイドバーの閉じた Epic の行：番号・タイトル（2 行まで）、件数のチップ（Iteration の行と同じ形。完了・中止は Epic の
+ * チケットを数える）、2 段目に閉じた日・チケットが入っていた Iteration。進捗バーは出さない。
+ * 開くと中の終わったチケットを番号の順の 1 本の一覧（履歴用の行。Epic は省き Iteration を出す）で出す。
+ * 終わったチケットのない Epic は薄く出し、開けない
+ */
 function SidebarEpicItem({ epic: e }: { epic: EpicRow }) {
   const store = useStore();
+  const [opened, setOpened] = useState(false);
   const iterations = iterationsOfEpic(e.id, store.tickets);
-  return (
-    <li className="history-row history-epic">
+  const finished = finishedOfEpic(e.id, store.tickets);
+  const abandoned = finished.filter((t) => t.status === "abandoned").length;
+  const head = (
+    <>
       <DetailLink route={{ page: "epics", id: e.id }}>
         <code>{e.id}</code>
       </DetailLink>
       <span className="name" title={e.title}>
         {e.title}
       </span>
+      <CountChips completed={finished.length - abandoned} abandoned={abandoned} />
       <small>
-        {e.progress.total > 0 ? `${e.progress.total} 件` : "チケットなし"}
-        {" ・ "}
+        {finished.length === 0
+          ? `${e.progress.total > 0 ? "終わったチケットなし" : "チケットなし"} ・ `
+          : ""}
         {e.closed_at ? `${e.closed_at.slice(0, 10)} に閉じた` : "閉じた日は不明"}
         {iterations.map((id) => (
           <span key={id}>
@@ -487,6 +521,33 @@ function SidebarEpicItem({ epic: e }: { epic: EpicRow }) {
           </span>
         ))}
       </small>
+    </>
+  );
+  if (finished.length === 0)
+    return (
+      <li>
+        <div className="history-item history-empty">
+          <div className="history-row history-epic">{head}</div>
+        </div>
+      </li>
+    );
+  return (
+    <li>
+      <details
+        className="history-item fold"
+        onToggle={(ev) => ev.currentTarget.open && setOpened(true)}
+      >
+        <summary className="history-row history-epic">{head}</summary>
+        {opened ? (
+          <div className="history-groups">
+            <HistoryTicketList
+              key={e.id}
+              tickets={finished}
+              row={(t) => <HistoryTicketRow ticket={t} showEpic={false} showIteration />}
+            />
+          </div>
+        ) : null}
+      </details>
     </li>
   );
 }
