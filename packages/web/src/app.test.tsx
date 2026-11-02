@@ -668,6 +668,44 @@ describe("画面", () => {
     expect(kanbanRowOf("画面").querySelector(".row-end")).toBeNull();
   });
 
+  it("サイドバーのカンバンでは、待ちと承認待ちの todo の行だけタイトルを薄くし、実行中の Run がある行は待ちでも薄くしない", async () => {
+    const client = mockClient();
+    client.data.tickets.push(
+      ticket({ id: "t4", title: "待つ" }),
+      ticket({ id: "t5", title: "外" }),
+      ticket({ id: "t7", title: "承認前" }),
+      ticket({ id: "t8", title: "待ちで実行中" }),
+    );
+    client.data.plans.push(
+      plan({
+        id: "p7",
+        tickets: ["t2", "t3", "t4", "t8"],
+        // in_progress の t2 にも待ちの相手を残し、todo でなければ薄くしないことを確かめる
+        after: { t2: ["t3"], t4: ["t2"], t8: ["t2"] },
+      }),
+      plan({ id: "p9", tickets: ["t7"], status: "pending" }),
+    );
+    client.handlers["run.list"] = (input) =>
+      (input as { running?: boolean }).running ? [runningRun("t8")] : [];
+    mountWithBridge(client);
+    await waitFor(() =>
+      expect(kanbanRowOf("待ちで実行中").querySelector(".activity-running")).toBeTruthy(),
+    );
+    const dimmed = (title: string) =>
+      kanbanRowOf(title).closest(".row-drag")!.classList.contains("is-waiting");
+    // 待ちと承認待ちは薄くする
+    expect(kanbanRowOf("待つ").querySelector(".row-wait")!.textContent).toBe("t2 待ち");
+    expect(dimmed("待つ")).toBe(true);
+    expect(dimmed("承認前")).toBe(true);
+    // 着手可・Plan の外・待ちの相手が残る in_progress は薄くしない
+    expect(kanbanRowOf("画面").querySelector(".row-ready")).toBeTruthy();
+    expect(dimmed("画面")).toBe(false);
+    expect(dimmed("外")).toBe(false);
+    expect(dimmed("API")).toBe(false);
+    // 実行中の Run がある todo は、Plan の待ちが残っていても薄くしない
+    expect(dimmed("待ちで実行中")).toBe(false);
+  });
+
   it("実行中の Run を読み終えるまでは、in_progress の行に頭の印を出さず、ほかの一覧はそれを待たずに出す", async () => {
     const client = mockClient();
     let finish: (runs: RunView[]) => void = () => {};
