@@ -6,7 +6,8 @@ import { ClientError } from "../client/http.js";
 import { StoreProvider } from "../store.js";
 import { mockClient } from "../test-helpers.js";
 import type { ConfigField } from "../types.js";
-import { formatValue, groupOf, isModified, matchesQuery, valueAt } from "./config.js";
+import { configFields } from "@deguboard/core";
+import { formatValue, groupOf, isModified, matchesQuery, nameOf, valueAt } from "./config.js";
 
 afterEach(() => {
   cleanup();
@@ -149,7 +150,7 @@ describe("設定画面", () => {
     ]);
   });
 
-  it("拒否されたら理由を項目の下に出し、値を保存されている値に戻す", async () => {
+  it("拒否されたら理由を項目の下にだけ出し、値を保存されている値に戻す", async () => {
     const { client } = configClient();
     mount(client);
     await screen.findByText("コミットの仕方");
@@ -160,6 +161,8 @@ describe("設定画面", () => {
       "default_project の値が正しくない（選択肢にない）",
     );
     expect(input.value).toBe("default");
+    // 上の通知の帯には出さない（項目の下の 1 か所だけ）
+    expect(screen.getAllByRole("alert")).toHaveLength(1);
   });
 
   it("git.remote・git.base_branch・worktree.root は保存の前に確かめ、やめると戻す", async () => {
@@ -217,6 +220,13 @@ describe("設定画面", () => {
 });
 
 describe("設定画面の部品", () => {
+  it("core の configFields の全キーに表示名があり、どれも「その他」に落ちない（スキーマに足した項目の漏れを防ぐ）", () => {
+    for (const { key } of configFields()) {
+      expect(nameOf(key), key).not.toBe(key);
+      expect(groupOf(key), key).not.toBe("other");
+    }
+  });
+
   it("入れ子の値を引き、既定との差を中身で比べ、値を短く書く", () => {
     expect(valueAt({ commit: { mode: "each" } }, "commit.mode")).toBe("each");
     expect(valueAt({ default_project: "x" }, "default_project")).toBe("x");

@@ -3,16 +3,17 @@
 // （requirements.md 5.10「利用者ごとの上書きは設けない」）。左パネルではビューのタイトル行の歯車、ブラウザでは上のバーの歯車で開け閉めする。
 // 選択欄とチェックは変えたらすぐ、テキストは Enter か欄を離れたとき、リストは足す・外すたびに保存する。
 // 同期先とブランチの判定・worktree の置き場所を変える項目（CONFIRM_KEYS）は、保存の前に欄の下で確かめる。
-// 拒否されたら理由を項目の下に出し、値を保存されている値に戻す
+// 拒否されたら理由を項目の下にだけ出し（上の通知の帯には出さない）、値を保存されている値に戻す
 
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { failureOf } from "../client/http.js";
 import { useStore } from "../store.js";
 import type { ConfigField, ConfigShowView } from "../types.js";
 
 /** 画面のまとまり。キーの最上位（commit.mode なら commit）で振り分ける */
 const GROUPS: { id: string; label: string; tops: string[] }[] = [
   { id: "commit", label: "コミットと push", tops: ["commit", "push"] },
-  { id: "agent", label: "エージェント", tops: ["actions", "auto", "actor"] },
+  { id: "agent", label: "エージェント", tops: ["actions", "auto", "lint", "actor"] },
   { id: "metrics", label: "計測", tops: ["metrics"] },
   { id: "git", label: "Git", tops: ["git", "worktree", "default_project"] },
 ];
@@ -26,6 +27,7 @@ const NAMES: Record<string, string> = {
   "actions.shell": "シェルの Action を許す",
   "actions.test": "テストのコマンド",
   "auto.merge": "PR を自動でマージする",
+  "lint.require_iteration": "Iteration に入れてから進める",
   "actor.human_only": "人だけに許すコマンド",
   "metrics.read_transcripts": "会話記録から使用量を読む",
   "git.remote": "同期先のリモート",
@@ -130,20 +132,25 @@ export function ConfigPage() {
       setPending(null);
       setSaving(key);
       setSaved(null);
-      const res = await store.run<ConfigShowView["config"]>("config.set", { key, value });
-      setSaving(null);
-      setDrafts((d) => without(d, key));
-      if (res.ok) {
+      // store.run は失敗を上の通知の帯にも出すので使わない（拒否の理由は項目の下にだけ出す）
+      try {
+        const res = await store.client.run<ConfigShowView["config"]>("config.set", { key, value });
         setView((v) => (v ? { ...v, config: res.data } : v));
         setMessages((d) => without(d, key));
         setSaved(`${key} を ${formatValue(valueAt(res.data, key))} にした`);
-      } else {
+        if (res.warnings.length) store.notify({ kind: "info", text: res.warnings.join(" / ") });
+        void store.reload();
+      } catch (error) {
         // 値は保存されている値に戻す（下書きを消すと欄は view の値を出す）
-        const detail = res.error.detail ? `（${res.error.detail}）` : "";
+        const f = failureOf(error);
+        const detail = f.detail ? `（${f.detail}）` : "";
         setMessages((m) => ({
           ...m,
-          [key]: { kind: "error", text: `保存できない: ${res.error.message}${detail}` },
+          [key]: { kind: "error", text: `保存できない: ${f.message}${detail}` },
         }));
+      } finally {
+        setSaving(null);
+        setDrafts((d) => without(d, key));
       }
     },
     [store],

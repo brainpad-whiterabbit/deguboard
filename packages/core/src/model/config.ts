@@ -87,8 +87,12 @@ export const configSchema = z.looseObject({
     .prefault({}),
   lint: z
     .looseObject({
-      /** dg lint が、Iteration に入らずに todo・abandoned 以外に進んだチケットを指摘するか（閉じた Epic の done は除く）。dg guide work は claim の前に Iteration に入れるよう案内する */
-      require_iteration: z.boolean().default(false),
+      require_iteration: z
+        .boolean()
+        .default(false)
+        .describe(
+          "dg lint が、Iteration に入らずに todo・abandoned 以外に進んだチケットを指摘するか（閉じた Epic の done は除く）。dg guide work は claim の前に Iteration に入れるよう案内する",
+        ),
     })
     .prefault({}),
   actor: z

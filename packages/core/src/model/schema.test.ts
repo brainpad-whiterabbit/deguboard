@@ -66,6 +66,7 @@ describe("スキーマ", () => {
       "actions.shell",
       "actions.test",
       "auto.merge",
+      "lint.require_iteration",
       "actor.human_only",
     ]);
     const byKey = new Map(fields.map((f) => [f.key, f]));
