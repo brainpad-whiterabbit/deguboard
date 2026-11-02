@@ -864,6 +864,41 @@ describe("画面", () => {
     await waitFor(() => expect(api().querySelector(".activity-idle")).toBeTruthy());
   });
 
+  it("実行中の Run を読み終えるまでは待ちの行を薄くせず、読み終えると実行中でない待ちの行だけ薄くする", async () => {
+    const client = mockClient();
+    client.data.tickets.push(
+      ticket({ id: "t4", title: "待つ" }),
+      ticket({ id: "t8", title: "待ちで実行中" }),
+    );
+    client.data.plans.push(
+      plan({ id: "p7", tickets: ["t2", "t4", "t8"], after: { t4: ["t2"], t8: ["t2"] } }),
+    );
+    let finish: (runs: RunView[]) => void = () => {};
+    client.handlers["run.list"] = () => new Promise<RunView[]>((resolve) => (finish = resolve));
+    render(
+      <StoreProvider client={client} readRunning>
+        <HostProvider host={hostOf("sidebar")}>
+          <App />
+        </HostProvider>
+      </StoreProvider>,
+    );
+    await screen.findByText("待つ");
+    await waitFor(() => expect(client.calls.some((c) => c.name === "run.list")).toBe(true));
+    const dimmed = (title: string) =>
+      kanbanRowOf(title).closest(".row-drag")!.classList.contains("is-waiting");
+    // 読み終える前：待ちの印は出すが、どの行も薄くしない
+    await waitFor(() =>
+      expect(kanbanRowOf("待つ").querySelector(".row-wait")!.textContent).toBe("t2 待ち"),
+    );
+    expect(dimmed("待つ")).toBe(false);
+    expect(dimmed("待ちで実行中")).toBe(false);
+    // 読み終えた後：実行中でない待ちの行だけ薄くする
+    act(() => finish([runningRun("t8")]));
+    await waitFor(() => expect(dimmed("待つ")).toBe(true));
+    expect(kanbanRowOf("待ちで実行中").querySelector(".activity-running")).toBeTruthy();
+    expect(dimmed("待ちで実行中")).toBe(false);
+  });
+
   it("readRunning でなければ（左パネルでなければ）実行中の Run を読まず、行に頭の印を出さない", async () => {
     const client = mockClient();
     mount(client, hostOf("sidebar"));
