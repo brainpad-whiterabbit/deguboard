@@ -9,13 +9,13 @@ import { useStore } from "../store.js";
 import type { Ticket } from "../types.js";
 
 /** 一覧で最初に出す行の数。多いときは残りを「ほか N 件」のボタンで開ける */
-export const HISTORY_LIST_HEAD = 8;
+const HISTORY_LIST_HEAD = 8;
 
 /**
  * text の中の query に当たる部分（大文字小文字を区別しない）に印を付ける。query が空なら text のまま。
  * 小文字にすると長さの変わる文字を含むときは、位置がずれるので印を付けない
  */
-export function Highlight({ text, query }: { text: string; query?: string | undefined }) {
+function Highlight({ text, query }: { text: string; query?: string | undefined }) {
   const q = query?.trim().toLowerCase() ?? "";
   const lower = text.toLowerCase();
   if (!q || lower.length !== text.length) return <>{text}</>;

@@ -1,11 +1,9 @@
 // 経過（requirements.md 6.1）。deguboard ブランチの git の履歴から、チケット・Epic・Iteration の属性の変化を時刻の順に返す
 
 import { z } from "zod";
-import { UsageError } from "../errors.js";
 import { readHistory, type HistoryEvent, type HistoryLog } from "../git/history.js";
-import { parseId, type IdKind } from "../model/id.js";
 import { defineCommand, ok } from "./define.js";
-import { epicRef, iterationRef, ticketRef } from "./helpers.js";
+import { epicRef, idShapeOf, iterationRef, ticketRef } from "./helpers.js";
 
 /**
  * 絞り込み。ticket はそのチケットだけ。epic・iteration はそれ自身と、一度でもそこに入っていたチケットの経過
@@ -66,17 +64,11 @@ export const history = defineCommand({
   needs: "store",
   async run(ctx, input) {
     // 消えたチケットの経過も引けるよう、今あるかは確かめず ID の形だけ整える
-    const idOf = (ref: string | undefined, kind: IdKind) => {
-      if (ref === undefined) return undefined;
-      const id = parseId(ref, kind);
-      if (!id) throw new UsageError(`${ref} は ${kind} の ID ではない`);
-      return id;
-    };
     const log = await readHistory(ctx.repo.dataDir);
     const result = filterHistory(log, {
-      ticket: idOf(input.ticket, "ticket"),
-      epic: idOf(input.epic, "epic"),
-      iteration: idOf(input.iteration, "iteration"),
+      ticket: idShapeOf(input.ticket, "ticket"),
+      epic: idShapeOf(input.epic, "epic"),
+      iteration: idShapeOf(input.iteration, "iteration"),
     });
     const warnings: string[] = [];
     if (result.shallow)

@@ -6,12 +6,11 @@ import { agentNames, collectRunUsage } from "../agents/index.js";
 import { slugSchema, toIsoDateTime } from "../model/common.js";
 import { filterRuns, placeRun, runDurationSeconds, type MetricFilter } from "../model/metrics.js";
 import { OperationError, UsageError } from "../errors.js";
-import { parseId } from "../model/id.js";
 import { isRunId, RUN_RESULTS, type Run } from "../model/run.js";
 import { finishRun, readRunningRuns, startRun } from "../run/record.js";
 import { findStep } from "../workflow/resolve.js";
 import { defineCommand, ok } from "./define.js";
-import { iterationRef, ticketRef } from "./helpers.js";
+import { idShapeOf, iterationRef, ticketRef } from "./helpers.js";
 
 /**
  * 一覧の 1 件。running は deguboard-local/runs/ にだけある終わっていない Run。
@@ -150,10 +149,7 @@ export const runList = defineCommand({
   async run(ctx, input) {
     const ticket = input.ticket ? ctx.store.require("ticket", input.ticket).data.id : undefined;
     // 閉じた・消えた Iteration の Run も引けるよう、metrics.show と同じく今あるかは確かめず ID の形だけ整える
-    const iteration =
-      input.iteration === undefined ? undefined : parseId(input.iteration, "iteration");
-    if (input.iteration !== undefined && !iteration)
-      throw new UsageError(`${input.iteration} は iteration の ID ではない`);
+    const iteration = idShapeOf(input.iteration, "iteration");
     const local = await readRunningRuns(ctx.repo);
     const runs: Array<{ run: Run; running: boolean }> = [
       // runs/ に集計がある実行中の記録（記録を消す前に止まった finish の残り）は readRunningRuns が消す

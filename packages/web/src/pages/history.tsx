@@ -79,7 +79,7 @@ function CountChips({
 }
 
 /** 検索語（空でない）に当たるか：番号が同じか、タイトル（labels なら加えてラベル）に含む。大文字小文字は区別しない */
-export function ticketMatches(t: Ticket, query: string, labels = true): boolean {
+function ticketMatches(t: Ticket, query: string, labels = true): boolean {
   const q = query.trim().toLowerCase();
   return (
     t.id.toLowerCase() === q ||
@@ -111,7 +111,7 @@ function filterHistory<T extends { id: string }>(
 }
 
 /** 行の開閉。open は開いているか、all は検索中に「すべて見る」にしたか（検索していなければ常に true） */
-export interface RowFold {
+interface RowFold {
   /** 検索で開いているか（検索語があり、検索で開く画面のとき） */
   searching: boolean;
   open: boolean;
@@ -128,7 +128,7 @@ const toggled = (ids: readonly string[], id: string, on: boolean): string[] =>
  * 「すべて見る」にした行）を分けて持つ。検索中は既定で開き、上書きは検索語を変えると捨てるので、検索語を消すと検索前に戻る。
  * opened は番号の配列で持ち、画面の外（Webview の state）にそのまま置ける。search は検索で開くときの検索語（開かないなら空）
  */
-export function useRowFolds(
+function useRowFolds(
   search: string,
   [opened, setOpened]: [readonly string[], (ids: readonly string[]) => void] = [[], () => {}],
 ): (id: string) => RowFold {
@@ -227,7 +227,7 @@ function finishedAtOf(events: readonly HistoryEvent[]): Map<string, string> {
   return at;
 }
 
-export interface FinishedRow {
+interface FinishedRow {
   ticket: Ticket;
   /** 終えた時刻。履歴から分からなければ updated_at */
   at: string;
@@ -235,7 +235,7 @@ export interface FinishedRow {
   approximate: boolean;
 }
 
-export interface FinishedFilter {
+interface FinishedFilter {
   query: string;
   /** done か abandoned。空ならどちらも */
   result: string;

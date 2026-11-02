@@ -1,9 +1,7 @@
 // 作業の実績の集計（requirements.md 6.6 MT-3、ADR-005）。runs/ の Run を読み、表示のたびに求める。何も書かない
 
 import { z } from "zod";
-import { UsageError } from "../errors.js";
 import { slugSchema } from "../model/common.js";
-import { parseId, type IdKind } from "../model/id.js";
 import {
   METRIC_UNITS,
   filterRuns,
@@ -15,7 +13,7 @@ import {
 } from "../model/metrics.js";
 import { runIdSchema } from "../model/run.js";
 import { defineCommand, ok } from "./define.js";
-import { epicRef, iterationRef, ticketRef } from "./helpers.js";
+import { epicRef, idShapeOf, iterationRef, ticketRef } from "./helpers.js";
 
 export interface MetricsView extends MetricsReport {
   filter: MetricFilter;
@@ -42,18 +40,12 @@ export const metricsShow = defineCommand({
   needs: "store",
   async run(ctx, input) {
     // 消えたチケットや Epic の Run も引けるよう、今あるかは確かめず ID の形だけ整える
-    const idOf = (ref: string | undefined, kind: IdKind) => {
-      if (ref === undefined) return undefined;
-      const id = parseId(ref, kind);
-      if (!id) throw new UsageError(`${ref} は ${kind} の ID ではない`);
-      return id;
-    };
     const filter: MetricFilter = Object.fromEntries(
       Object.entries({
         run: input.run,
-        ticket: idOf(input.ticket, "ticket"),
-        epic: idOf(input.epic, "epic"),
-        iteration: idOf(input.iteration, "iteration"),
+        ticket: idShapeOf(input.ticket, "ticket"),
+        epic: idShapeOf(input.epic, "epic"),
+        iteration: idShapeOf(input.iteration, "iteration"),
         project: input.project,
         agent: input.agent,
         model: input.model,

@@ -41,7 +41,7 @@
         ]
       }
     },
-    // Core の汎用部分（actions と index.ts の外のすべて）は actions に依存しない（AG-6）。index.ts は ACTION_NAMES を公開するので対象にしない。agents/adapters の禁止（AG-5）も写す。同じルールを上書きするので、上の packages/core/** の制限パターンを写している。上を変えたらここも揃える
+    // Core の汎用部分（actions と index.ts の外のすべて）は actions に依存しない（AG-6）。index.ts は ACTION_NAMES を公開するので対象にしない。agents/adapters の禁止（AG-5）も写す。同じルールを上書きするので、上の packages/core/** の制限パターンを写している。上を変えたらここも揃える（ずれは test/lint/oxlint-copies.test.ts が捕まえる）
     {
       "files": [
         "packages/core/src/commands/**",
@@ -148,7 +148,7 @@
         ]
       }
     },
-    // web のテストは Vitest が node で動かすので、core の実行時のコード（期待値を作る progressOf など）を取り込んでよい。上の packages/web/** の patterns を写している。上を変えたらここも揃える
+    // web のテストは Vitest が node で動かすので、core の実行時のコード（期待値を作る progressOf など）を取り込んでよい。上の packages/web/** の patterns を写している。上を変えたらここも揃える（ずれは test/lint/oxlint-copies.test.ts が捕まえる）
     {
       "files": ["packages/web/**/*.test.ts", "packages/web/**/*.test.tsx"],
       "rules": {

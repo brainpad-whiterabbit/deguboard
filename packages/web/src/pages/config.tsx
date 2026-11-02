@@ -38,7 +38,7 @@ const NAMES: Record<string, string> = {
 };
 
 /** 保存の前に確かめる項目。チーム全員の同期先・マージ済みの判定・作業場所が変わる */
-export const CONFIRM_KEYS: ReadonlySet<string> = new Set([
+const CONFIRM_KEYS: ReadonlySet<string> = new Set([
   "git.remote",
   "git.base_branch",
   "worktree.root",
