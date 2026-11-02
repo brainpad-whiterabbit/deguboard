@@ -40,6 +40,7 @@ import {
   ticketCheck,
   ticketClaim,
   ticketCreate,
+  ticketDelete,
   ticketImport,
   ticketList,
   ticketMove,
@@ -1112,6 +1113,58 @@ describe("Plan", () => {
     // Plan のファイルは書き換わらない
     expect(await readFile(yaml, "utf8")).toBe(before);
     expect(await readFile(yaml, "utf8")).not.toContain("progress");
+  });
+
+  it("show と list は、待ちの相手を after が先・depends_on が後で出し、着手できるものと次を Plan の順で決める（PL-6）", async () => {
+    const f = await fixture();
+    const ctx = await initialized(f.cloneA);
+    for (const title of ["A", "B", "C", "D"]) await runCommand(ticketCreate, ctx, { title });
+    await runCommand(ticketCreate, ctx, { title: "E", depends_on: ["t3", "t4"] });
+    // items が [t1(after t2), t2, t3, t5(after t3、depends_on t3・t4)]
+    await runCommand(planCreate, ctx, {
+      tickets: ["t1", "t2", "t3", "t5"],
+      after: { t1: "t2", t5: "t3" },
+    });
+    const first = await runCommand(planShow, ctx, { plan: "p1" });
+    expect(first.data.items.map((t) => [t.id, t.waiting, t.ready])).toEqual([
+      ["t1", ["t2"], false],
+      ["t2", [], true],
+      ["t3", [], true],
+      ["t5", ["t3", "t4"], false],
+    ]);
+    expect(first.data.ready).toEqual(["t2", "t3"]);
+    expect(first.data.next).toEqual({ id: "t2", waiting: [] });
+    // t2 が終われば、段の浅い t3 より Plan の順で先の t1 が次になる
+    await runCommand(ticketMove, ctx, { ticket: "t2", status: "done" });
+    const second = await runCommand(planShow, ctx, { plan: "p1" });
+    expect(second.data.next).toEqual({ id: "t1", waiting: [] });
+    // list の行も同じ値を持つ
+    const [row] = (await runCommand(planList, ctx, {})).data;
+    expect(row).toMatchObject({
+      waiting: { t1: [], t2: [], t3: [], t5: ["t3", "t4"] },
+      ready: ["t1", "t3"],
+      next: { id: "t1", waiting: [] },
+    });
+    // 着手できる todo がなければ、Plan の順で先頭の todo とその待ちの相手を次に出す
+    for (const id of ["t1", "t3"])
+      await runCommand(ticketMove, ctx, { ticket: id, status: "in_progress" });
+    const third = await runCommand(planShow, ctx, { plan: "p1" });
+    expect(third.data.ready).toEqual([]);
+    expect(third.data.next).toEqual({ id: "t5", waiting: ["t3", "t4"] });
+  });
+
+  it("消したチケットを after が指しても待たない。depends_on は deps_done と同じく待つ（PL-6）", async () => {
+    const f = await fixture();
+    const ctx = await initialized(f.cloneA);
+    for (const title of ["A", "B"]) await runCommand(ticketCreate, ctx, { title });
+    await runCommand(planCreate, ctx, { tickets: ["t1", "t2"], after: { t2: "t1" } });
+    await runCommand(ticketDelete, ctx, { ticket: "t1" });
+    const shown = await runCommand(planShow, ctx, { plan: "p1" });
+    expect(shown.warnings).toEqual(["t1 が見つからない（削除された）"]);
+    expect(shown.data.items.map((t) => [t.id, t.waiting, t.ready])).toEqual([["t2", [], true]]);
+    expect(shown.data.next).toEqual({ id: "t2", waiting: [] });
+    const [row] = (await runCommand(planList, ctx, {})).data;
+    expect(row?.waiting).toEqual({ t2: [] });
   });
 
   it("approve は approved_by と approved_at を書いて pending_approval を外し、close は closed_at を書く", async () => {

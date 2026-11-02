@@ -50,7 +50,7 @@ dg --json --actor agent plan create t12 t13 t14 t15 \
 
 - 1 度に claim するのは、自分が今すぐ進める 1 枚だけ。先に全部 claim しない（他の人やエージェントが着手できなくなる）
 - 依存先が done でも abandoned でもないチケットには着手しない。Workflow が todo → in_progress に `requires: [deps_done]` を書いていれば claim は拒否される（`TRANSITION_REJECTED`）。書いていなくても `--ready` に出るまで待つか、依存先を先に進める
-- Plan の `after` は claim では検査されない。`plan show` の `items[].waiting`（まだ終わっていない待ち先）が空になるまで待つ
+- Plan の `after` は claim では検査されない。`plan show` の `items[].waiting`（`after` と `depends_on` の終わっていない待ち先）が空になるまで待つ
 
 {{choices}}
 

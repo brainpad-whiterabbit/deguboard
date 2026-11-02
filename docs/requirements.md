@@ -156,6 +156,7 @@ closed_at: 2026-11-20T09:00:00Z # closed のときだけ
 - PL-3 1 つのチケットは同時に 1 つの開いた（`closed_at` のない）Plan にしか入らない。done・abandoned のチケット、存在しないチケット、Plan と別の Project のチケットは入れられない。`after` と `details` は Plan に入れたチケットだけを指し、`after` は循環できない
 - PL-4 `plan create` は承認待ち（`pending_approval: true`）で作り、採番のため即座にコミットして push する。`plan approve` は承認待ちの Plan に `approved_by`（操作した主体）と `approved_at` を書いて `pending_approval` を外す。`plan close` は `closed_at` を書き、終わっていないチケットが残れば警告する。閉じた Plan は承認も閉じ直しもできない。承認と終了は既定で誰でも行える（人に限るなら `actor.human_only`、5.10）
 - PL-5 Plan の状態は保存せず、`pending_approval` と `closed_at` から求める（pending・approved・closed）。`plan list` は状態と進捗を出し、`ticket show` はチケットが入っている開いた Plan を出す
+- PL-6 `plan list` と `plan show` は着手できるかを都度求めて出す。`waiting` はチケットごとの残りの待ちの相手（`after` の終わっていない待ち先が先、終わっていない `depends_on` が後。消したチケットへの `after` は待たない）、`ready` は todo で待ちの相手のないチケット、`next` は次に着手するもの（Plan の順で先の `ready`。なければ先頭の todo とその待ちの相手）。画面と手順はこの値を読み、求め直さない
 
 ### 5.8 Workflow（`workflows/<id>.yaml`）
 
@@ -238,7 +239,7 @@ steps: # 任意。Run の step の語彙（WF-5）
 Web UI は `dg serve` が配信し、VS Code 拡張は同じ React アプリを Webview に載せる。表示と操作は両方で同じ（[ADR-006](adr/ADR-006-ui-and-writes.md)）。
 
 - UI-1 プロジェクトの切り替え
-- UI-2 カンバン：選んだ Iteration（既定は active）のチケットを Status ごとの列に出す（表示名は Workflow の `labels`）。ドラッグ＆ドロップで Status を変え、`ticket move` と同じ検査で拒否されたら理由を出して戻す。Epic と担当者で絞れる。閉じた Iteration・Epic の終わったチケットは出さない。VS Code のサイドバーでは、Iteration を planned と active の札で切り替え、行に変化の点滅・実行中の Run の印・担当の印を出し、開いた Plan に入っていれば Plan の番号と、todo なら着手可・待ちの相手（Plan の `after` と `depends_on` の終わっていないもの）・承認待ち（Plan が承認待ち）を出し、待ちと承認待ちの行は実行中の Run がなければタイトルを薄くする
+- UI-2 カンバン：選んだ Iteration（既定は active）のチケットを Status ごとの列に出す（表示名は Workflow の `labels`）。ドラッグ＆ドロップで Status を変え、`ticket move` と同じ検査で拒否されたら理由を出して戻す。Epic と担当者で絞れる。閉じた Iteration・Epic の終わったチケットは出さない。VS Code のサイドバーでは、Iteration を planned と active の札で切り替え、行に変化の点滅・実行中の Run の印・担当の印を出し、開いた Plan に入っていれば Plan の番号と、todo なら着手可・待ちの相手（PL-6 の `waiting`）・承認待ち（Plan が承認待ち）を出し、待ちと承認待ちの行は実行中の Run がなければタイトルを薄くする
 - UI-3 バックログ：done・abandoned 以外のチケットを Iteration ごとの区画に分けて出し、検索と絞り込みができる。別の区画へのドラッグで Iteration を変え、`ticket update` と同じ検査で拒否されたら理由を出して戻す。VS Code のサイドバーでは、区画の見出しを Iteration の状態の色の帯と 2 段（番号・名前・件数／期間・目標）にし、開始・閉じるは詳細の画面で行う。Epic の欄は open の Epic があるときだけチップで出す。行には、開いた Plan に入っていればカンバンと同じ Plan の番号と着手可・待ちの相手・承認待ちを出す。担当者は名前の列を出さず、操作している人（`whoami`）とその agent のときは出さず、別の人のときだけカンバンと同じ担当の印（頭文字の丸。全名はツールチップ）を出す。検索欄の下によく使う絞り込み（自分・作業中・high）のチップと、効いている条件を × で外せる札を出し、件数は絞り込みが効いているときだけ「n / m 件」で出す
 - UI-4 チケット詳細：本文（概要・受け入れ条件）、属性、Epic、依存先と依存元、起票者と担当者、作業ブランチ、PR、Run の一覧、経過（CL-7）。PR はリモートの URL から PR のページへのリンクにする（直せなければ番号だけ）。属性と本文を編集できる
 - UI-5 Iteration：作成・開始・閉じる、詳細の画面でチケットの追加・除外ができる。閉じた Iteration・Epic と終わったチケットは履歴の画面で見る（終えた日は CL-7 から求める）
@@ -249,7 +250,7 @@ Web UI は `dg serve` が配信し、VS Code 拡張は同じ React アプリを 
 - UI-10 Epic：open の Epic の進捗（EP-3）を出し、Epic でチケットを絞れる。詳細の画面で Epic のチケットを Status ごとに出し、チケットの追加・除外、閉じる・再開ができる。VS Code では Status ごとの列（カンバン）にせず、未完了・完了・中止の段に分けた 1 本の一覧で出す
 - UI-11 VS Code 拡張は `dg` を同梱せず、Webview のために `core` を同梱する。画面は `dg` なしで動き、`dg` が PATH にないときはインストールを案内する。`dg` の版と拡張の `core` の版のメジャーが違えば知らせる（[ADR-006](adr/ADR-006-ui-and-writes.md)）
 - UI-12 VS Code 拡張はサイドバーのビューを主画面にして同じ画面を出し、エディタ領域のパネルにはサイドバーから開いた詳細（チケット・Iteration・Epic）だけを出す。パネルからの一覧の画面へのリンクは、サイドバーをその画面に切り替える。ビューのタイトル行に同期のボタン（UI-6）・設定の歯車（UI-14）と未 push・未取り込みの件数を出す。サイドバーのバックログの行の右クリックで「Iteration を移す」（閉じていない Iteration か「Iteration なし」から選び、ドラッグと同じ `ticket update`）・「詳細を開く」・「ID をコピー」を出す。データ worktree と実行中の Run の記録の変化を見張り、CLI やエージェントの書き込みを自動で画面に映す（[ADR-006](adr/ADR-006-ui-and-writes.md)）
-- UI-13 実行計画：カンバン（UI-2）の上に、選んだ Iteration のチケットを含む Plan を出す。Plan ごとに番号・状態・進捗と、作業中のチケット・次に着手するチケット（着手できるかは `after` の待ちと `deps_done` で決め、サイドバーのカンバンの行と同じ）を出し、`after` の待ちの依存グラフを開閉できる。表示だけで書き込まない
+- UI-13 実行計画：カンバン（UI-2）の上に、選んだ Iteration のチケットを含む Plan を出す。Plan ごとに番号・状態・進捗と、作業中のチケット・次に着手するチケット（PL-6 の `next`。手順が選ぶ次と同じ）を出し、`after` の待ちの依存グラフを開閉できる。表示だけで書き込まない
 - UI-14 設定画面：歯車（UI-12。ブラウザは上のバー）と画面内の戻るボタンで、設定画面と来る前の画面（なければカンバン）を切り替える。`config.yaml` の全項目（5.10）をまとまりごとに名前・キー・スキーマの説明・型に合う入力欄で出し、検索で絞れる。値を変えると `config.set` で保存し、拒否なら理由を出して戻す。既定から変えた項目に印と既定に戻す操作を出し、チーム全員に効くことを常に示す。`git.remote`・`git.base_branch`・`worktree.root` は保存前に確かめる。VS Code の settings.json は使わない
 
 画面の並び順・色・文言とサイドバーの細部は web のコード（`packages/web/src/`）とテストが正本。

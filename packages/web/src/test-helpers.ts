@@ -1,5 +1,6 @@
 // テスト用の CommandClient。コマンド名ごとの応答を持ち、呼ばれた記録を残す
 
+import { planReadiness, progressOf } from "@deguboard/core";
 import type { CommandClient, CommandResult, StatusView } from "@deguboard/core";
 import type {
   EpicRow,
@@ -45,6 +46,7 @@ export function iteration(partial: Partial<Iteration> & { id: string; name: stri
   return { project: "default", goal: "", status: "planned", ...partial };
 }
 
+/** plan.list の 1 行。progress・waiting・ready・next は空のまま。チケットから求めるなら withPlanFacts を通す（fixture の plan.list は通す） */
 export function plan(partial: Partial<PlanRow> & { id: string; tickets: string[] }): PlanRow {
   return {
     project: "default",
@@ -57,8 +59,18 @@ export function plan(partial: Partial<PlanRow> & { id: string; tickets: string[]
       done: 0,
       by_status: { todo: 0, in_progress: 0, review: 0, done: 0, abandoned: 0 },
     },
+    waiting: {},
+    ready: [],
+    next: null,
     ...partial,
   };
+}
+
+/** core の plan.list と同じく、進捗と着手できるか（PL-6）をチケットから求めて Plan の行に載せる */
+export function withPlanFacts(row: PlanRow, tickets: readonly Ticket[]): PlanRow {
+  const byId = new Map<string, Ticket>(tickets.map((t) => [t.id, t]));
+  const found = row.tickets.flatMap((id) => byId.get(id) ?? []);
+  return { ...row, progress: progressOf(found), ...planReadiness(row, (id) => byId.get(id)) };
 }
 
 export function fixture(partial: Partial<Fixture> = {}): Fixture {
@@ -147,7 +159,7 @@ export function mockClient(data = fixture()): MockClient {
     "ticket.list": () => data.tickets,
     "epic.list": () => data.epics,
     "iteration.list": () => data.iterations,
-    "plan.list": () => data.plans,
+    "plan.list": () => data.plans.map((p) => withPlanFacts(p, data.tickets)),
     "workflow.show": () => data.workflow,
     history: () => ({ events: [], shallow: false, incomplete: [] }),
     "run.list": () => [],

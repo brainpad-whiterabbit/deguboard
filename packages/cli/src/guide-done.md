@@ -23,7 +23,7 @@ PR がマージされたあとの後始末（PR の要らない作業は `dg gui
 3. 残った受け入れ条件を確かめる。`sync` の `warnings`（`受け入れ条件 2, 3 が未チェックのまま done になった`）と `ticket show --json` の `acceptance` で未チェックの項目を見て、マージされた成果物で満たしたと確認できたものだけ `dg --json --actor agent ticket check <id> <番号...>` で付ける（deguboard が自動で付けることはない）。確認できない項目はそのまま残し、人に伝える
 4. 作業ブランチと worktree を片付ける（リポジトリの規約に従う）
 5. Plan に従っていたなら、`dg --json --actor agent plan show <p>` の `progress` を読む。チケットがすべて done か abandoned なら下の「Plan を閉じる」
-6. 人に報告する：何が done になったか、残った受け入れ条件、次に着手できるもの（Plan があれば `plan show` の `items[].waiting` が空の todo、なければ `dg --json --actor agent ticket list --ready`）
+6. 人に報告する：何が done になったか、残った受け入れ条件、次に着手できるもの（Plan があれば `plan show` の `ready`、なければ `dg --json --actor agent ticket list --ready`）
 
 ## Plan を閉じる
 
