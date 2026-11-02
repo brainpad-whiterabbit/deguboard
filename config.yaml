@@ -8,3 +8,5 @@ auto:
   merge: true
 metrics:
   read_transcripts: true
+lint:
+  require_iteration: true

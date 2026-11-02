@@ -1,0 +1,23 @@
+{
+  "id": "r20261102-130152-b88d",
+  "ticket": "t214",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-02T13:01:52Z",
+  "finished_at": "2026-11-02T13:02:42Z",
+  "result": "success",
+  "error": null,
+  "retries": 3,
+  "retry_reasons": [
+    "requirements の理由の文を消した",
+    "planned の選び方を書いた",
+    "閉じた Epic の in_progress を指摘するテストを足した"
+  ],
+  "usage": {
+    "input": 6,
+    "output": 1585,
+    "cache_read": 233678,
+    "cache_write": 1944
+  }
+}
