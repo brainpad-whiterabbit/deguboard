@@ -16,7 +16,7 @@ deguboard は、Git で管理するチケットとユーザー定義のワーク
 ## 2. 想定利用者と前提
 
 - **利用者**：個人、および同じ Git リポジトリを共有する小規模チーム
-- **実行環境**：Linux / macOS。Node.js 24 以上。`dg` は npm で入れる（公開までは README の手順でビルドしたもの）。ブラウザ、または VS Code 1.123 以上（デスクトップ）
+- **実行環境**：Linux / macOS。Node.js 24 以上。`dg` は npm で入れる（公開までは README の手順でビルドする）。ブラウザ、または VS Code 1.123 以上（デスクトップ）
 - **必須ツール**：git 2.30 以上。GitHub CLI（`gh`）は PR の事実を照合に使うときだけ
 - **リポジトリ**：Git リポジトリ。リモートは任意（なければ同期なしで動く）。`git.base_branch` を作業ブランチの元と「マージ済み」の判定に使う
 - **エージェント**：`dg` を Bash から呼べるものなら何でも。Skill は Claude Code 向けに配る
@@ -220,7 +220,7 @@ steps: # 任意。Run の step の語彙（WF-5）
 - ST-5 後退を指す事実（消えたブランチ・マージされずに閉じた PR）は書き換えず警告する。`gh` が PR はないと答えたときは、閉じた PR として警告しない。ただし同じ照合で done に進むときは、マージ後に消したブランチなので警告しない。取れなかった事実は不明とし、前進の判定では偽と読む。`branch_merged` は先端が base の真の祖先のとき真だが、in_progress で push していないブランチは commit のない切ったばかりのブランチとみなして偽にする（理由は [ADR-004](adr/ADR-004-agents-and-state.md)）。照合の結果（`reconciled`）には根拠の規則の条件（`when`）を含める
 - ST-6 PR の事実は `gh` が使えるときだけ取る。`gh` がなくても照合は Git の事実だけで成り立つ。`pr` のないチケットの PR をブランチ名で見つけたら、状態が進まなくても番号を `pr` に記録する。記録済みの `pr` は書き換えない。ブランチ名で見つけた PR が `branch_at`（ない古いチケットは `created_at`）より前にマージされていたら、同じ名前を使い回した前の作業の PR とみなし、PR はないと読んで警告する。`pr` を記録していれば比べない
 - ST-7 `unclaim` は in_progress のチケットの、自分（同じユーザの人と AI）の claim か記録のない claim だけを外して todo に戻し、`assignee`・`branch`・`branch_at` を消す。応答のない claim は強制の指定で外す。生存監視はしない
-- ST-8 `abandoned` にすると claim を外し、Iteration の完了件数と Epic の進捗には数えない。todo に戻す（再開・done の取り消し）ときも `assignee` と `branch` を消す。これらを人だけに限るなら Workflow の `by: [human]` で書く
+- ST-8 `abandoned` にすると claim を外し、Iteration の完了件数と Epic の進捗には数えない。todo に戻す（再開・done の取り消し）ときも `assignee`・`branch`・`branch_at` を消す。これらを人だけに限るなら Workflow の `by: [human]` で書く
 
 ### 6.3 Git 同期と排他
 
