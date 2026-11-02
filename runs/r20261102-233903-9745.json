@@ -1,0 +1,26 @@
+{
+  "id": "r20261102-233903-9745",
+  "ticket": "t167",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-02T23:39:03Z",
+  "finished_at": "2026-11-02T23:41:01Z",
+  "result": "success",
+  "error": null,
+  "retries": 6,
+  "retry_reasons": [
+    "Plan の外を指す after を待たずグラフと揃えた",
+    "plan.show の上の階層の waiting を出さないようにした",
+    "depends_on が abandoned・別の Project・消したチケットを指す場合の core のテストを足した",
+    "閉じた Plan の ready・next を空にし PL-6 に書いた",
+    "UI-13 にノードの待ちは waiting と添えた",
+    "test-helpers.ts の lint の例外の注釈を足した"
+  ],
+  "usage": {
+    "input": 16,
+    "output": 6912,
+    "cache_read": 1182982,
+    "cache_write": 7433
+  }
+}
