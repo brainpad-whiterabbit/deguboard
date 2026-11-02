@@ -101,6 +101,31 @@ describe("dg guide", () => {
     ).toContain("今の設定：`true`");
   });
 
+  it("parallel は親が claim の前に Iteration に入れると案内し、check は lint_iteration_missing の直す案を示し、どちらも今の設定を埋める", async () => {
+    const parallel = await readGuide("parallel");
+    expect(parallel.indexOf("Iteration に入れる")).toBeLessThan(parallel.indexOf("claim"));
+    expect(parallel).toContain("手順 1 の「Iteration に入れる」と手順 2・3");
+    expect(parallel).toContain("iteration add <S> <id>");
+    const check = await readGuide("check");
+    expect(check).toContain("lint_iteration_missing");
+    expect(check).toContain("iteration add <S> <id>");
+    expect(check).toContain("人に聞く");
+    for (const text of [parallel, check]) {
+      expect(fillPlaceholders(text, defaultConfig())).toContain("今の設定：`false`");
+      expect(
+        fillPlaceholders(text, { ...defaultConfig(), lint: { require_iteration: true } }),
+      ).toContain("今の設定：`true`");
+    }
+    // work の手順 1 が Iteration に入れる、手順 2 が claim、手順 3 が worktree で、parallel の参照と合う
+    const work = await readGuide("work");
+    expect(work).toMatch(/\n1\. 着手できるか確かめる[^\n]*\n   - Iteration に入れる/);
+    expect(work).toMatch(/\n2\. claim する/);
+    expect(work).toMatch(/\n3\. 作業ブランチと worktree を作る/);
+    expect(await readGuide("all")).toContain(
+      "Iteration に入れる（`lint.require_iteration` が true のとき）",
+    );
+  });
+
   it("parallel は着手できるチケットを上限付きでサブエージェントに並べ、役割を分け、1 件でほかを止めないと案内し、work・all・review はそこへ案内する", async () => {
     const parallel = await readGuide("parallel");
     expect(parallel).toContain("# 着手できるチケットを並べて進める");
