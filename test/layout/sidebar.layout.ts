@@ -80,6 +80,18 @@ beforeAll(async () => {
     id: string;
   };
   await call("run.finish", { run: done.id, result: "success" });
+  // 作業中の多い Plan（実行計画の帯の 2 行目が長くなる）：t1・t7〜t11 が作業中、t12 が t7・t8・t9 を待つ
+  for (let i = 7; i <= 12; i++) {
+    await call("ticket.create", { title: `計画のチケット ${i}`, iteration: "s2" });
+  }
+  for (const id of ["t7", "t8", "t9", "t10", "t11"]) {
+    await call("ticket.move", { ticket: id, status: "in_progress" });
+  }
+  await call("plan.create", {
+    tickets: ["t1", "t7", "t8", "t9", "t10", "t11", "t12"],
+    after: { t12: ["t7", "t8", "t9"] },
+  });
+  await call("plan.approve", { plan: "p1" });
   browser = await chromium.launch().catch((error: unknown) => {
     throw new Error(
       `Chromium を起動できない。mise run playwright:install を実行する（${String(error)}）`,
@@ -182,6 +194,64 @@ describe.each(SCHEMES)("サイドバーの配置（%s）", (scheme) => {
           }
           expect(m.color, `${hash} の文字と背景の色`).not.toBe(m.background);
         }
+      } finally {
+        await context.close();
+      }
+    },
+  );
+});
+
+describe.each(SCHEMES)("実行計画の帯（%s）", (scheme) => {
+  it.each(WIDTHS)(
+    "幅 %ipx で、作業中の多い Plan の 2 行目が折り返して横に溢れず、番号と文字が重ならない",
+    async (width) => {
+      const context = await browser.newContext({
+        viewport: { width, height: 900 },
+        colorScheme: scheme,
+      });
+      const page = await context.newPage();
+      try {
+        await page.goto(`${server.url}?surface=sidebar#/board`, { waitUntil: "networkidle" });
+        await page.locator(".plan-sub").first().waitFor();
+        const m = await page.evaluate(() => {
+          const sub = document.querySelector(".plan-sub")!;
+          const main = document.querySelector(".page")!;
+          // 2 行目の文字の塊（番号・見出し・「待ち」）。どの 2 つも重ならないこと
+          const parts = [
+            ...sub.querySelectorAll("code, .plan-sub-label, .plan-wait > span:last-child"),
+          ].map((el) => ({ text: el.textContent, r: el.getBoundingClientRect() }));
+          const overlaps: string[] = [];
+          for (let i = 0; i < parts.length; i++) {
+            for (let j = i + 1; j < parts.length; j++) {
+              const a = parts[i]!.r;
+              const b = parts[j]!.r;
+              const x = Math.min(a.right, b.right) - Math.max(a.left, b.left);
+              const y = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top);
+              if (x > 0.5 && y > 0.5) overlaps.push(`${parts[i]!.text} と ${parts[j]!.text}`);
+            }
+          }
+          return {
+            text: sub.textContent,
+            subScroll: sub.scrollWidth,
+            subClient: sub.clientWidth,
+            pageScroll: main.scrollWidth,
+            pageClient: main.clientWidth,
+            docScroll: document.documentElement.scrollWidth,
+            docClient: document.documentElement.clientWidth,
+            overlaps,
+          };
+        });
+        if (m.overlaps.length > 0 || m.subScroll > m.subClient || m.pageScroll > m.pageClient) {
+          await page.screenshot({
+            path: `.playwright-mcp/layout-plan-band-${scheme}-${width}.png`,
+            fullPage: true,
+          });
+        }
+        expect(m.text).toBe("作業中t1t7t8t9t10t11次t12t7t8t9待ち");
+        expect(m.subScroll, "2 行目の横の溢れ").toBeLessThanOrEqual(m.subClient);
+        expect(m.pageScroll, "画面（.page）の横スクロール").toBeLessThanOrEqual(m.pageClient);
+        expect(m.docScroll, "文書の横スクロール").toBeLessThanOrEqual(m.docClient);
+        expect(m.overlaps, "重なった文字").toEqual([]);
       } finally {
         await context.close();
       }

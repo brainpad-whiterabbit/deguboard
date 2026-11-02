@@ -136,10 +136,10 @@ export function planGraph(plan: PlanRow, byId: ReadonlyMap<string, Ticket>): Pla
   return { nodes, edges, layers: counts.length, rows: Math.max(0, ...counts) };
 }
 
-/** 畳んだ行の「次」：着手できる先頭のチケット、待ちの相手、承認待ちのどれか */
+/** 帯の行の「次」：着手できる先頭のチケット、待っている先頭の todo とその待ちの相手、承認待ちのどれか */
 export type PlanNext =
   | { kind: "ready"; id: string }
-  | { kind: "blocked"; waitFor: string[] }
+  | { kind: "blocked"; id: string; waitFor: string[] }
   | { kind: "approval" };
 
 export interface PlanProgressLine {
@@ -172,8 +172,8 @@ export function remainingWaits(
 }
 
 /**
- * 畳んだ行に出す作業中と次。順は依存グラフの段・段の中の位置。選んだ Iteration の外のチケットも、Plan に入っていれば数える（Plan 全体の進み）。
- * 承認待ちは次の代わりに承認待ち。着手できるのは todo で、待ちの相手（remainingWaits）が残らないもの。なければ先頭の todo の待ちの相手を出す。閉じた・完了の Plan は何も出さない
+ * 帯の行に出す作業中と次。順は依存グラフの段・段の中の位置。選んだ Iteration の外のチケットも、Plan に入っていれば数える（Plan 全体の進み）。
+ * 承認待ちは次の代わりに承認待ち。着手できるのは todo で、待ちの相手（remainingWaits）が残らないもの。なければ先頭の todo とその待ちの相手を出す。閉じた・完了の Plan は何も出さない
  */
 export function planProgressLine(
   plan: PlanRow,
@@ -191,5 +191,5 @@ export function planProgressLine(
   if (ready) return { working, next: { kind: "ready", id: ready.id } };
   const first = todo[0];
   if (!first) return { working, next: null };
-  return { working, next: { kind: "blocked", waitFor: waitsOf(first) } };
+  return { working, next: { kind: "blocked", id: first.id, waitFor: waitsOf(first) } };
 }

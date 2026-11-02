@@ -1,7 +1,7 @@
-// カンバンの上の「実行計画」の帯。表示だけで書き込まない。畳めば Plan ごとに進みの行と作業中・次の行、開けば Plan ごとに依存グラフを出す。
-// サイドバーでは、待ちの辺のない Plan をグラフにせず、チケットのチップを横に折り返して出す（ID だけの箱が縦に積まれて場所を取るので）
+// カンバンの上の「実行計画」の帯。表示だけで書き込まない。Plan ごとに、進みの行と作業中・次の行の 2 行を出し、行を押すとその Plan の依存グラフを行の下に開閉する（Plan ごとに覚える）。
+// 閉じた Plan は「閉じた計画」の節に 1 行ずつ入れる。サイドバーでは、待ちの辺のない Plan をグラフにせず、チケットのチップを横に折り返して出す（ID だけの箱が縦に積まれて場所を取るので）
 
-import { useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState, type MouseEvent } from "react";
 import { useHost, useUiState } from "../host.js";
 import { useStore } from "../store.js";
 import { actorLabel, type PlanRow, type Ticket, type TicketRow } from "../types.js";
@@ -17,36 +17,41 @@ import {
   type PlanState,
 } from "./plan-graph.js";
 
+/** 前の版の帯全体の開閉の鍵。使わなくなったので消す */
+const OLD_KEYS = ["board.plansExpanded"];
+
 /** scope（カンバンで選んだ Iteration のチケット）を含む Plan の帯。Plan がなければ出さない */
 export function PlanBand({ scope }: { scope: readonly Ticket[] }) {
   const store = useStore();
-  const [expanded, setExpanded] = useUiState("board.plansExpanded", false);
+  const host = useHost();
+  const [closedOpen, setClosedOpen] = useUiState("board.plansClosed", false);
+  useEffect(() => {
+    for (const key of OLD_KEYS) host.state.remove(key);
+  }, [host]);
   const byId = useMemo(() => new Map(store.tickets.map((t) => [t.id, t])), [store.tickets]);
   const items = useMemo(() => plansInScope(store.plans, scope, byId), [store.plans, scope, byId]);
   if (items.length === 0) return null;
   const open = items.filter((i) => i.state !== "closed");
   const closed = items.filter((i) => i.state === "closed");
-  const Item = expanded ? PlanCard : PlanLine;
   return (
     <section className="plan-band" aria-label="実行計画">
-      <button
-        type="button"
-        className="plan-band-toggle"
-        aria-expanded={expanded}
-        onClick={() => setExpanded(!expanded)}
-      >
+      <h2 className="plan-band-head">
         実行計画 <span className="plan-band-count">{open.length}</span>
-      </button>
+      </h2>
       {open.map(({ plan, state }) => (
-        <Item key={plan.id} plan={plan} state={state} byId={byId} />
+        <PlanItem key={plan.id} plan={plan} state={state} byId={byId} />
       ))}
       {closed.length > 0 ? (
-        <details className="fold plan-closed">
+        <details
+          className="fold plan-closed"
+          open={closedOpen}
+          onToggle={(e) => setClosedOpen(e.currentTarget.open)}
+        >
           <summary>
             閉じた計画 <span className="muted">{closed.length}</span>
           </summary>
           {closed.map(({ plan, state }) => (
-            <Item key={plan.id} plan={plan} state={state} byId={byId} />
+            <PlanItem key={plan.id} plan={plan} state={state} byId={byId} />
           ))}
         </details>
       ) : null}
@@ -60,79 +65,109 @@ interface ItemProps {
   byId: ReadonlyMap<string, TicketRow>;
 }
 
-/** 畳んだときの行：色の線・ID・状態・進捗の 1 行と、その下に作業中（あれば）と次 */
-function PlanLine({ plan, state, byId }: ItemProps) {
-  const { working, next } = planProgressLine(plan, state, byId);
+/**
+ * Plan の行：1 行目に色の線・番号・状態・進み、2 行目に作業中と次（閉じた Plan は 1 行目だけ）。
+ * 行を押すと下に依存グラフを開閉する。チケットの番号（リンク）を押したときはチケットを開き、開閉しない。
+ * 開いた Plan だけを見た目の状態に覚え、閉じたら鍵を消す（閉じた Plan の鍵が溜まらないよう）
+ */
+function PlanItem({ plan, state, byId }: ItemProps) {
+  const host = useHost();
+  const key = `board.planGraph.${plan.id}`;
+  const [open, setOpen] = useState(() => host.state.get<boolean>(key) === true);
+  const detailId = useId();
+  const closed = state === "closed";
+  const onRowClick = (e: MouseEvent) => {
+    if ((e.target as Element).closest("a")) return;
+    setOpen(!open);
+    if (open) host.state.remove(key);
+    else host.state.set(key, true);
+  };
   return (
-    <div className={`plan-item plan-color-${planColor(plan.id)}`}>
-      <div className="plan-line">
-        <code>{plan.id}</code>
-        <span className={`plan-state plan-state-${state}`}>{PLAN_STATE_LABELS[state]}</span>
-        <ProgressBar progress={plan.progress} />
+    <div
+      className={`plan-item plan-color-${planColor(plan.id)}${closed ? " plan-item-closed" : ""}`}
+    >
+      <div className="plan-row" onClick={onRowClick}>
+        <button
+          type="button"
+          className="plan-line"
+          aria-expanded={open}
+          aria-controls={open ? detailId : undefined}
+        >
+          <code>{plan.id}</code>
+          <span className={`plan-state plan-state-${state}`}>{PLAN_STATE_LABELS[state]}</span>
+          <ProgressBar progress={plan.progress} short />
+        </button>
+        {closed ? null : <PlanSub plan={plan} state={state} byId={byId} />}
       </div>
-      {working.length > 0 ? (
-        <div className="plan-sub plan-working">
-          <span className="plan-sub-label">作業中</span>
-          <span className="plan-sub-ids">
-            {working.map((id) => (
-              <TicketLink key={id} id={id}>
-                <code title={byId.get(id)?.title}>{id}</code>
-              </TicketLink>
-            ))}
-          </span>
-        </div>
-      ) : null}
-      {next ? (
-        <div className="plan-sub plan-next">
-          <span className="plan-sub-label">次</span>
-          <PlanNextText next={next} byId={byId} />
+      {open ? (
+        <div className="plan-detail" id={detailId}>
+          {plan.approved_by ? (
+            <span className="plan-approver muted" title={plan.approved_by}>
+              承認 {actorLabel(plan.approved_by)}
+            </span>
+          ) : null}
+          <PlanGraphView plan={plan} byId={byId} />
         </div>
       ) : null}
     </div>
   );
 }
 
-function PlanNextText({ next, byId }: { next: PlanNext; byId: ReadonlyMap<string, Ticket> }) {
-  if (next.kind === "approval") return <span className="muted">人の承認を待っている</span>;
-  if (next.kind === "blocked") {
-    return (
-      <span className="plan-sub-ids muted">
-        {next.waitFor.map((id) => (
-          <TicketLink key={id} id={id}>
-            <code title={byId.get(id)?.title}>{id}</code>
-          </TicketLink>
-        ))}
-        <span>の完了待ち</span>
-      </span>
-    );
-  }
-  const title = byId.get(next.id)?.title ?? "";
+/** 2 行目：作業中の番号と、次に着手するチケット（待ちがあれば「t3 待ち」）。承認待ちは承認を待っていること。出すものがなければ出さない */
+function PlanSub({ plan, state, byId }: ItemProps) {
+  const { working, next } = planProgressLine(plan, state, byId);
+  if (working.length === 0 && !next) return null;
   return (
-    <TicketLink id={next.id} className="plan-next-ticket">
-      <code>{next.id}</code>
-      <span className="plan-next-title" title={title}>
-        {title}
-      </span>
-    </TicketLink>
+    <div className="plan-sub">
+      {working.length > 0 ? (
+        <span className="plan-working">
+          <span className="plan-sub-label">作業中</span>
+          <Ids ids={working} byId={byId} />
+        </span>
+      ) : null}
+      {next ? <PlanNextText next={next} byId={byId} /> : null}
+    </div>
   );
 }
 
-/** 開いたときのカード：1 行目に ID・状態・承認者・進捗、その下に依存グラフ */
-function PlanCard({ plan, state, byId }: ItemProps) {
+function Ids({ ids, byId }: { ids: readonly string[]; byId: ReadonlyMap<string, Ticket> }) {
   return (
-    <article className={`plan-card plan-color-${planColor(plan.id)}`}>
-      <div className="plan-card-head">
-        <code>{plan.id}</code>
-        <span className={`plan-state plan-state-${state}`}>{PLAN_STATE_LABELS[state]}</span>
-        {plan.approved_by ? (
-          <span className="muted" title={plan.approved_by}>
-            承認 {actorLabel(plan.approved_by)}
+    <span className="plan-sub-ids">
+      {ids.map((id) => (
+        <TicketLink key={id} id={id}>
+          <code title={byId.get(id)?.title}>{id}</code>
+        </TicketLink>
+      ))}
+    </span>
+  );
+}
+
+function PlanNextText({ next, byId }: { next: PlanNext; byId: ReadonlyMap<string, Ticket> }) {
+  if (next.kind === "approval") {
+    return <span className="plan-next muted">人の承認を待っている</span>;
+  }
+  const title = byId.get(next.id)?.title ?? "";
+  return (
+    <span className="plan-next">
+      <span className="plan-sub-label">次</span>
+      <TicketLink
+        id={next.id}
+        className={`plan-next-ticket${next.kind === "ready" ? " plan-next-ready" : ""}`}
+      >
+        <code title={title}>{next.id}</code>
+        {next.kind === "ready" ? (
+          <span className="plan-next-title" title={title}>
+            {title}
           </span>
         ) : null}
-        <ProgressBar progress={plan.progress} />
-      </div>
-      <PlanGraphView plan={plan} byId={byId} />
-    </article>
+      </TicketLink>
+      {next.kind === "blocked" ? (
+        <span className="plan-wait">
+          <Ids ids={next.waitFor} byId={byId} />
+          <span>待ち</span>
+        </span>
+      ) : null}
+    </span>
   );
 }
 
