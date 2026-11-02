@@ -37,6 +37,8 @@ import { hrefOf, navigate, replaceRoute, type HistoryQuery, type HistoryView } f
 import { useStore } from "../store.js";
 import {
   byNumber,
+  isFinished,
+  isStatus,
   type EpicRow,
   type HistoryEvent,
   type HistoryLog,
@@ -88,8 +90,6 @@ function ticketMatches(t: Ticket, query: string, labels = true): boolean {
   );
 }
 
-const isFinished = (t: Ticket) => t.status === "done" || t.status === "abandoned";
-
 /**
  * 検索：当たるチケットを含むものだけ残す。key はチケットの iteration か epic。
  * サイドバーではラベルにも当て、行を開いて当たったチケットを出すので、終わったチケット（行の中に出るもの）だけを見る
@@ -104,7 +104,9 @@ function filterHistory<T extends { id: string }>(
   if (!query.trim()) return [...rows];
   const hit = new Set<string>(
     tickets
-      .filter((t) => t[key] && (!sidebar || isFinished(t)) && ticketMatches(t, query, sidebar))
+      .filter(
+        (t) => t[key] && (!sidebar || isFinished(t.status)) && ticketMatches(t, query, sidebar),
+      )
       .map((t) => t[key]!),
   );
   return rows.filter((r) => hit.has(r.id));
@@ -221,7 +223,7 @@ function finishedAtOf(events: readonly HistoryEvent[]): Map<string, string> {
   for (const e of events)
     if (
       e.kind === "ticket" &&
-      e.changes.some((c) => c.field === "status" && (c.to === "done" || c.to === "abandoned"))
+      e.changes.some((c) => c.field === "status" && isStatus(c.to) && isFinished(c.to))
     )
       at.set(e.id, e.at);
   return at;
@@ -275,7 +277,7 @@ function finishedTickets(
 ): FinishedRow[] {
   const q = f.query.trim().toLowerCase();
   return tickets
-    .filter(isFinished)
+    .filter((t) => isFinished(t.status))
     .filter((t) => !f.result || t.status === f.result)
     .filter((t) => !q || ticketMatches(t, q))
     .map((t) => {
@@ -470,7 +472,7 @@ function IterationItem({
 }) {
   const store = useStore();
   const finished = store.tickets
-    .filter((t) => t.iteration === i.id && isFinished(t))
+    .filter((t) => t.iteration === i.id && isFinished(t.status))
     .sort(byNumber);
   const epics = epicCountsOf(finished);
   const abandoned = finished.filter((t) => t.status === "abandoned").length;
@@ -677,7 +679,7 @@ function SearchHits({
 
 /** Epic に入っている終わったチケット（done・abandoned）を番号の順に */
 function finishedOfEpic(epic: string, tickets: readonly Ticket[]): Ticket[] {
-  return tickets.filter((t) => t.epic === epic && isFinished(t)).sort(byNumber);
+  return tickets.filter((t) => t.epic === epic && isFinished(t.status)).sort(byNumber);
 }
 
 /**

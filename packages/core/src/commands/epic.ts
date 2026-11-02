@@ -3,7 +3,7 @@
 import { z } from "zod";
 import { OperationError } from "../errors.js";
 import { withWrite } from "../git/write.js";
-import { slugSchema } from "../model/common.js";
+import { isTerminal, slugSchema } from "../model/common.js";
 import { EPIC_STATUSES, epicBodyTemplate, type Epic } from "../model/epic.js";
 import { progressOf, type Progress, type Ticket } from "../model/ticket.js";
 import { defineCommand, ok } from "./define.js";
@@ -224,9 +224,7 @@ export const epicClose = defineCommand({
         const epic = ctx.store.require("epic", input.epic);
         if (epic.data.status === "closed")
           throw new OperationError("REJECTED", `${epic.id} は既に閉じている`);
-        const open = ticketsInEpic(ctx.store, epic.id).filter(
-          (t) => t.data.status !== "done" && t.data.status !== "abandoned",
-        );
+        const open = ticketsInEpic(ctx.store, epic.id).filter((t) => !isTerminal(t.data.status));
         if (open.length > 0) {
           const ids = open.map((t) => t.id).join(", ");
           if (!input.force)

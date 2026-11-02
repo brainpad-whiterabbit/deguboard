@@ -36,6 +36,7 @@ import {
   byNumber,
   byPriorityThenNumber,
   claimOptions,
+  isFinished,
   isOwnAssignee,
   ITERATION_LABELS,
   matchesClaim,
@@ -82,7 +83,7 @@ export function filterBacklog(
 ): Ticket[] {
   const q = f.query.trim().toLowerCase();
   return tickets
-    .filter((t) => t.status !== "done" && t.status !== "abandoned")
+    .filter((t) => !isFinished(t.status))
     .filter((t) => !f.status || t.status === f.status)
     .filter((t) => !f.priority || t.priority === f.priority)
     .filter((t) => !f.epic || (f.epic === NO_EPIC ? !t.epic : t.epic === f.epic))
@@ -198,9 +199,7 @@ export function sectionsOf(
   all: readonly Ticket[] = rows,
 ): BacklogSection[] {
   const rank = { active: 0, planned: 1, closed: 2 } as const;
-  const remaining = new Set(
-    all.filter((t) => t.status !== "done" && t.status !== "abandoned").map((t) => t.iteration),
-  );
+  const remaining = new Set(all.filter((t) => !isFinished(t.status)).map((t) => t.iteration));
   const shown = iterations
     .filter((i) => i.status !== "closed" || remaining.has(i.id))
     .sort((a, b) => rank[a.status] - rank[b.status] || byNumber(a, b));
@@ -223,8 +222,7 @@ export function BacklogPage() {
     [store.tickets],
   );
   const claims = useMemo(
-    () =>
-      claimOptions(store.tickets.filter((t) => t.status !== "done" && t.status !== "abandoned")),
+    () => claimOptions(store.tickets.filter((t) => !isFinished(t.status))),
     [store.tickets],
   );
   // 読み直しが終わるまでの間だけ、落とした先の区画に見せる
@@ -611,9 +609,7 @@ function useOpenEpics() {
     () => store.epics.filter((e) => e.status === "open").sort(byNumber),
     [store.epics],
   );
-  const noEpic = store.tickets.filter(
-    (t) => !t.epic && t.status !== "done" && t.status !== "abandoned",
-  ).length;
+  const noEpic = store.tickets.filter((t) => !t.epic && !isFinished(t.status)).length;
   return { epics, noEpic };
 }
 

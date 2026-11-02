@@ -13,6 +13,7 @@ import { useStore } from "../store.js";
 import {
   byNumber,
   byPriorityThenNumber,
+  isFinished,
   ITERATION_LABELS,
   type IterationDetail,
 } from "../types.js";
@@ -44,7 +45,7 @@ function IterationDetailView({ id }: { id: string }) {
 
   const members = new Set(it.items.map((t) => t.id));
   const candidates = store.tickets
-    .filter((t) => !members.has(t.id) && t.status !== "done" && t.status !== "abandoned")
+    .filter((t) => !members.has(t.id) && !isFinished(t.status))
     .sort(byNumber);
   const items = [...it.items].sort(byPriorityThenNumber);
 

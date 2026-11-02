@@ -19,6 +19,7 @@ import {
 } from "../git/sync.js";
 import { CONFLICT_REMEDY, flushPending, withWrite } from "../git/write.js";
 import { ownActorIds, type ActorKind, type UserSource } from "../model/actor.js";
+import { isTerminal } from "../model/common.js";
 import { configFields, configSchema, type Config, type ConfigField } from "../model/config.js";
 import { parseAcceptance, type Ticket } from "../model/ticket.js";
 import type { Doc } from "../storage/documents.js";
@@ -145,7 +146,7 @@ async function reconcileAll(ctx: CommandContext, warnings: string[]): Promise<Re
   const prRecorded: Array<{ id: string; pr: number }> = [];
   const targets = [...ctx.store.tickets.values()].filter(
     (t): t is Doc<Ticket> & { data: Ticket & { branch: string } } =>
-      t.data.branch !== undefined && t.data.status !== "done" && t.data.status !== "abandoned",
+      t.data.branch !== undefined && !isTerminal(t.data.status),
   );
   for (const doc of targets) {
     const wf = ctx.store.workflowFor(doc.data);
@@ -427,7 +428,7 @@ export const lint = defineCommand({
     const tickets = [...ctx.store.tickets.values()].filter(
       (t) => !input.project || t.data.project === input.project,
     );
-    const finished = (t: Doc<Ticket>) => t.data.status === "done" || t.data.status === "abandoned";
+    const finished = (t: Doc<Ticket>) => isTerminal(t.data.status);
     const unfinished = (members: Doc<Ticket>[]) =>
       members
         .filter((t) => !finished(t))
