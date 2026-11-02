@@ -17,7 +17,7 @@ after:
     - t245
   t235:
     - t245
-pending_approval: true
+pending_approval: false
 details:
   t167:
     scope: plan.show（と plan.list）に待ちの相手・着手可・次の順を載せ、web の帯と行の印・guide-work・requirements をそれに揃える
@@ -67,3 +67,5 @@ details:
   t246:
     scope: t244・t245 の後の ADR の大きさを測り、2 テーマに育った ADR があれば分ける
     approach: 測った結果で判断し、分けないなら claim --without-branch で判断をチケットに記録して終える
+approved_by: eiki.kitajima/agent
+approved_at: 2026-11-02T23:22:41Z
