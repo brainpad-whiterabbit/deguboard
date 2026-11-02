@@ -57,7 +57,7 @@ Run は 1 回の作業の記録で、使用量（トークン）が残る。実�
 
 チケットのデータの整備・確認・調査など、リポジトリのファイルを変えない作業は、ブランチも PR も作らない。照合には頼らず、自分で done まで進める。
 
-1. claim する：`dg --json --actor agent ticket claim <id> --without-branch`。planned の Iteration は上の手順 2 のとおり始める
+1. claim する：上の手順 1（着手できるか確かめ、`lint.require_iteration` が true なら Iteration に入れる。今の設定：`{{lint.require_iteration}}`）を済ませてから、`dg --json --actor agent ticket claim <id> --without-branch`。planned の Iteration は上の手順 2 のとおり始める
 2. Run を始めて作業し、終えたら閉じる（上の「Run を記録する」）。worktree は作らない。何をしたかと結果は、最後に人への報告に書く
 3. 受け入れ条件を 1 項目ずつ確かめ、満たした項目だけ `ticket check` で付ける（上の手順 5 と同じ）
 4. すべて付いたら `dg --json --actor agent ticket move <id> done`。付けられない項目が残ったら `ticket move <id> review` にして、残った項目と理由を人に報告する（done にするのは人）
