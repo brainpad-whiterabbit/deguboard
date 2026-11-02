@@ -1,5 +1,4 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { userInfo } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
@@ -11,6 +10,7 @@ import {
 import { UsageError } from "../errors.js";
 import { pickUser } from "../model/actor.js";
 import { resetGhCache } from "../git/facts.js";
+import { osUserName } from "../git/repo.js";
 import { openContext, type ContextOptions } from "./context.js";
 import { runCommand, type CommandContext } from "./define.js";
 import { epicAdd, epicClose, epicCreate, epicReopen, epicShow, epicUpdate } from "./epic.js";
@@ -354,21 +354,26 @@ describe("チケットの流れ", () => {
     await git(f.cloneB, ["push", "-q", "origin", "chore/wip"]);
 
     // リモートに残ったマージ済みのブランチ（手元では一度も fetch していない）
+    // 残ったブランチの拒否は、別の名前と、古いブランチを消すか base に揃える案内を返す
+    const leftover = expect.objectContaining({
+      code: "BRANCH_IN_USE",
+      message: expect.stringMatching(/別の名前を指定する.*古いブランチを消すか base に揃えて/),
+    });
     await expect(
       runCommand(ticketClaim, ctx, { ticket: "t1", branch: "chore/reused" }),
-    ).rejects.toMatchObject({ code: "BRANCH_IN_USE" });
+    ).rejects.toEqual(leftover);
     expect(ctx.store.tickets.get("t1")?.data).toMatchObject({ status: "todo" });
     expect(ctx.store.tickets.get("t1")?.data.branch).toBeUndefined();
     await expect(
       runCommand(ticketUpdate, ctx, { ticket: "t1", branch: "chore/reused" }),
-    ).rejects.toMatchObject({ code: "BRANCH_IN_USE" });
+    ).rejects.toEqual(leftover);
 
     // 手元に残ったマージ済みのブランチ
     await git(ctx.repo.dataDir, ["fetch", "-q", "origin"]);
     await git(f.cloneA, ["branch", "chore/local", "origin/main~1"]);
     await expect(
       runCommand(ticketClaim, ctx, { ticket: "t1", branch: "chore/local" }),
-    ).rejects.toMatchObject({ code: "BRANCH_IN_USE" });
+    ).rejects.toEqual(leftover);
 
     // ref がない・切ったばかり・base にない作業があるときは通る
     await runCommand(ticketClaim, ctx, { ticket: "t1", branch: "chore/new" });
@@ -380,13 +385,19 @@ describe("チケットの流れ", () => {
       branch: "chore/wip",
     });
 
-    // 終わっていない別のチケットが記録している名前
+    // 終わっていない別のチケットが記録している名前は、使っているチケットと別の名前の案内を返す
     await expect(
       runCommand(ticketClaim, ctx, { ticket: "t4", branch: "chore/new" }),
-    ).rejects.toMatchObject({ code: "BRANCH_IN_USE" });
+    ).rejects.toMatchObject({
+      code: "BRANCH_IN_USE",
+      message: expect.stringMatching(/t1（in_progress）が使っている。別の名前を指定する/),
+    });
     await expect(
       runCommand(ticketUpdate, ctx, { ticket: "t4", branch: "chore/cut" }),
-    ).rejects.toMatchObject({ code: "BRANCH_IN_USE" });
+    ).rejects.toMatchObject({
+      code: "BRANCH_IN_USE",
+      message: expect.stringContaining("別の名前を指定する"),
+    });
 
     // リモートで消したブランチの古い追跡 ref は見ない
     await git(f.cloneB, ["push", "-q", "origin", "--delete", "chore/reused"]);
@@ -613,10 +624,10 @@ describe("チケットの流れ", () => {
     await git(f.cloneA, ["config", "deguboard.user", "deg"]);
     expect(await who(undefined)).toEqual({ user: "deg", user_source: "git-config" });
     expect(await who(pickUser(undefined, "env-u"))).toEqual({ user: "env-u", user_source: "env" });
-    // どちらも空なら OS のユーザ名
+    // どちらも空なら OS のユーザ名（passwd に項目がない環境では USER などの代わりの値。osUserName のテストで確かめる）
     await git(f.cloneA, ["config", "deguboard.user", ""]);
     await git(f.cloneA, ["config", "user.name", ""]);
-    expect(await who(undefined)).toEqual({ user: userInfo().username, user_source: "os" });
+    expect(await who(undefined)).toEqual({ user: osUserName(), user_source: "os" });
   });
 
   it("起票者は既定で操作した主体、created_by: human でユーザ本人になり、担当者は create / update / claim で付く", async () => {
@@ -933,9 +944,16 @@ describe("Epic と Iteration", () => {
       end: "2026-12-26",
       status: "planned",
     });
-    await expect(
-      runCommand(iterationUpdate, ctx, { iteration: "s1", end: "12/27" }),
-    ).rejects.toThrow();
+    // start と end の形の誤りは入力の誤り（UsageError）で、どちらも記録を変えない
+    for (const dates of [{ end: "12/27" }, { start: "2026-12-1" }, { start: "2026/12/13" }]) {
+      await expect(
+        runCommand(iterationUpdate, ctx, { iteration: "s1", ...dates }),
+      ).rejects.toBeInstanceOf(UsageError);
+    }
+    expect(ctx.store.iterations.get("s1")?.data).toMatchObject({
+      start: "2026-12-13",
+      end: "2026-12-26",
+    });
     await runCommand(iterationClose, ctx, { iteration: "s1" });
     const renamed = await runCommand(iterationUpdate, ctx, {
       iteration: "s1",

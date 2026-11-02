@@ -136,5 +136,23 @@ export async function defaultUser(
     ).stdout.trim();
     if (name) return { user: name, source };
   }
-  return { user: os.userInfo().username, source: "os" };
+  return { user: osUserName(), source: "os" };
+}
+
+/**
+ * OS のユーザ名。passwd に項目がない環境（コンテナで任意の UID を使うときなど）では os.userInfo() が例外を投げるので、
+ * そのときは環境変数 USER、USERNAME（Windows）の順に使い、どちらもなければ "unknown" にする（主体名は必ず決まる）。
+ * 引数はテストで差し替えるためのもの
+ */
+export function osUserName(
+  userInfo: () => { username: string } = () => os.userInfo(),
+  env: NodeJS.ProcessEnv = process.env,
+): string {
+  try {
+    const name = userInfo().username;
+    if (name) return name;
+  } catch {
+    // passwd に項目がない。下の代わりの値を使う
+  }
+  return env["USER"] || env["USERNAME"] || "unknown";
 }
