@@ -6,7 +6,7 @@ after:
     - t221
   t226:
     - t223
-pending_approval: true
+pending_approval: false
 details:
   t218:
     scope: packages/vscode/README.md と README.md の MCP の節だけ。優先順は書き写さない
@@ -38,3 +38,5 @@ details:
   t227:
     scope: .gitignore だけ
     approach: 2 行足して git check-ignore で確かめる
+approved_by: eiki.kitajima/agent
+approved_at: 2026-11-02T08:33:37Z
