@@ -2,6 +2,7 @@
 
 import { useDraggable } from "@dnd-kit/core";
 import {
+  Fragment,
   useEffect,
   useRef,
   useState,
@@ -470,7 +471,8 @@ export function TicketTable({
   extra?: ((t: Ticket) => React.ReactNode) | undefined;
   draggable?: boolean;
   /**
-   * サイドバーで行の左に優先度の印（H・M・L）を付け、優先度の変わるところに区切りを入れる。
+   * サイドバーで行の左に優先度の印（high だけ赤い「!」。medium・low は同じ幅の空き）を付け、low の始まりに「low」の小さな見出しを入れる。
+   * 状態の丸印は todo を白抜きにする（in_progress と review は色の違う塗り。styles.css の .backlog-rows）。
    * 優先度の順に並べた一覧（バックログの区画）で使う
    */
   priorityMarks?: boolean;
@@ -480,32 +482,44 @@ export function TicketTable({
   if (tickets.length === 0) return <p className="empty">該当するチケットはない</p>;
   if (host.surface === "sidebar") {
     const hideAssignee = sameAssignee(tickets);
+    const rowEnd = priorityMarks ? <span /> : undefined;
     return (
-      <ul className="rows">
+      <ul className={priorityMarks ? "rows backlog-rows" : "rows"}>
         {tickets.map((t, i) => (
-          <li
-            key={t.id}
-            className={
-              priorityMarks && i > 0 && tickets[i - 1]!.priority !== t.priority
-                ? "priority-break"
-                : undefined
-            }
-          >
-            {priorityMarks ? (
-              <span
-                className={`priority-mark priority-${t.priority}`}
-                title={`優先度 ${t.priority}`}
-              >
-                {t.priority.charAt(0).toUpperCase()}
-              </span>
+          <Fragment key={t.id}>
+            {/* low の始まり（先頭の行でないとき）に区切りの見出しを入れる */}
+            {priorityMarks &&
+            t.priority === "low" &&
+            i > 0 &&
+            tickets[i - 1]!.priority !== "low" ? (
+              <li className="priority-sep" role="separator" aria-label="優先度 low">
+                low
+              </li>
             ) : null}
-            {draggable ? (
-              <DraggableRow ticket={t} hideAssignee={hideAssignee} />
-            ) : (
-              <TicketRow ticket={t} hideAssignee={hideAssignee} />
-            )}
-            {extra ? extra(t) : null}
-          </li>
+            <li>
+              {priorityMarks ? (
+                t.priority === "high" ? (
+                  <span
+                    className="priority-mark priority-high"
+                    role="img"
+                    aria-label="優先度 high"
+                    title="優先度 high"
+                  >
+                    !
+                  </span>
+                ) : (
+                  <span className="priority-mark" aria-hidden="true" />
+                )
+              ) : null}
+              {/* 優先度は左の印で出すので、右端の high の札は出さない（空のセルで格子の位置を保つ） */}
+              {draggable ? (
+                <DraggableRow ticket={t} hideAssignee={hideAssignee} end={rowEnd} />
+              ) : (
+                <TicketRow ticket={t} hideAssignee={hideAssignee} end={rowEnd} />
+              )}
+              {extra ? extra(t) : null}
+            </li>
+          </Fragment>
         ))}
       </ul>
     );
