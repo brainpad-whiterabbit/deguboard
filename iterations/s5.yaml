@@ -4,4 +4,7 @@ name: sprint5
 goal: VS Code 拡張を左パネル中心に整える
 start: 2026-11-15
 end: 2026-11-28
-status: active
+status: closed
+closed_at: 2026-11-02T05:20:57Z
+completed: 39
+carried_over: 0
