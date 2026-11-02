@@ -463,8 +463,9 @@ describe("画面", () => {
     // 自分と自分の agent の担当は出さない。右端は優先度の札だけ
     expect(markOf("自分")).toBeNull();
     expect(markOf("自分の AI")).toBeNull();
-    expect(rowOf("自分").querySelector(".row-end")).toBeNull();
-    expect(rowOf("自分").lastElementChild!.className).toBe("badge priority-medium");
+    expect(rowOf("自分").querySelector(".row-end-top")!.innerHTML).toBe(
+      '<span class="badge priority-medium">medium</span>',
+    );
     // 別の人は頭文字の丸（カンバンと同じ印）。全名はツールチップ
     expect(markOf("別の人")!.querySelector(".assignee-initial")!.textContent).toBe("H");
     expect(markOf("別の人")!.getAttribute("title")).toBe("hana");
@@ -710,8 +711,11 @@ describe("画面", () => {
     expect(endOf("承認前")!.querySelector(".row-wait")!.textContent).toBe("承認待ち");
     // Plan に入っていない・閉じた Plan の行は右端に優先度の札だけを出す
     for (const title of ["外", "閉じた計画"]) {
-      expect(endOf(title)).toBeNull();
-      expect(rowOf(title).lastElementChild!.className).toBe("badge priority-medium");
+      // 札は .row-end で包み、Plan の行の札と同じ高さにする
+      expect(endOf(title)!.querySelector(".row-end-sub")).toBeNull();
+      expect(endOf(title)!.querySelector(".row-end-top")!.innerHTML).toBe(
+        '<span class="badge priority-medium">medium</span>',
+      );
     }
     // 左の優先度の印は出さない
     expect(document.querySelector(".priority-mark")).toBeNull();
@@ -733,8 +737,8 @@ describe("画面", () => {
     expect(rowOf("画面").querySelector(".row-ready")!.textContent).toBe("着手可");
     // 下の段に待ちを出すので、優先度の札は上の段の Plan の番号の左
     expect(wait.querySelector(".row-end-top")!.textContent).toBe("highp7");
-    expect(rowOf("外").querySelector(".row-end")).toBeNull();
-    expect(rowOf("外").lastElementChild!.textContent).toBe("high");
+    expect(rowOf("外").querySelector(".row-end-top")!.textContent).toBe("high");
+    expect(rowOf("外").querySelector(".row-end-sub")).toBeNull();
   });
 
   it("サイドバーのバックログの行に右クリックのメニューの文脈（data-vscode-context）を付け、ドラッグの行はそのまま", async () => {
@@ -1427,8 +1431,10 @@ describe("画面", () => {
     ]);
     expect(document.querySelector(".priority-sep")).toBeNull();
     expect(document.querySelector(".priority-mark")).toBeNull();
-    // 右端（行の格子の最後のセル）にカンバンと同じ優先度の札
-    const ends = [...list.querySelectorAll(".row")].map((r) => r.lastElementChild!);
+    // 右端（行の格子の最後のセル。.row-end で包み、札の高さを揃える）にカンバンと同じ優先度の札
+    const ends = [...list.querySelectorAll(".row")].map((r) =>
+      r.lastElementChild!.querySelector(".row-end-top > .badge")!,
+    );
     expect(ends.map((e) => [e.className, e.textContent])).toEqual([
       ["badge priority-high", "high"],
       ["badge priority-medium", "medium"],
@@ -1436,7 +1442,7 @@ describe("画面", () => {
       ["badge priority-low", "low"],
     ]);
     // 「Iteration なし」の区画の行も同じ
-    expect(none!.querySelector(".row")!.lastElementChild!.className).toBe("badge priority-low");
+    expect(none!.querySelector(".row > .row-end .badge")!.className).toBe("badge priority-low");
     // 状態の丸印は 3 種の状態で別のクラス。カンバンの Run の印（activity-mark）は出さない
     expect([...list.querySelectorAll(".status-dot")].map((d) => d.className)).toEqual([
       "status-dot status-review",

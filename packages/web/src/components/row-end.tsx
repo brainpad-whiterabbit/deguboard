@@ -138,7 +138,7 @@ function planReadiness(ticket: Pick<Ticket, "status">, mark: PlanMark | undefine
 
 /**
  * 左パネルのバックログの行の右端（UI-3）：開いた Plan に入っていれば、カンバンの行と同じ部品で縦に 2 段、上に Plan の番号、
- * 下に todo なら着手可・待ちの相手・承認待ち（判定は kanbanPlanMarks と kanbanReadiness）。入っていなければ優先度の札だけを出す。
+ * 下に todo なら着手可・待ちの相手・承認待ち（判定は kanbanPlanMarks と kanbanReadiness）。入っていなければ上の段に優先度の札（と担当の印）だけを出す。
  * 担当者が別の人なら、カンバンと同じ担当の印（頭文字の丸。agent なら汎用のアイコンを添える。全名はツールチップ）を上の段の Plan の番号の左に出す。
  * 自分か自分の agent（isOwnAssignee。core の whoami の own_ids）なら出さない。
  * 優先度はどの行にもカンバンのカードと同じ low・medium・high の札（PriorityBadge）で出す。
@@ -160,8 +160,8 @@ export function BacklogRowEnd({
       <AssigneeMark assignee={ticket.assignee} runAgent={ticket.run_agent} />
     ) : null;
   const priority = <PriorityBadge priority={ticket.priority} />;
+  // Plan の外の行も .row-end で包み、札の高さ（.row-end .badge）をほかの行と揃える
   if (!mark) {
-    if (!who) return priority;
     return (
       <span className="row-end">
         <span className="row-end-top">
