@@ -299,10 +299,9 @@ function Section({ section: { iteration: it, tickets } }: { section: BacklogSect
     "Iteration なし"
   );
   // サイドバーの見出し（カンバンの SidebarBoardHead と同じ部品）：左の帯の色で Iteration の状態を出し、1 段目に番号・名前・件数、
-  // 2 段目に状態・月日の期間・目標を 1 行で（溢れたら省略してツールチップで全文）。開始・閉じるは置かず、詳細の画面で行う。
+  // 2 段目に状態・月日の期間・目標を 1 行で（目標が溢れたら省略してツールチップで全文。カンバンと同じ）。開始・閉じるは置かず、詳細の画面で行う。
   // 0 件の区画は帯も 2 段目もない 1 行にし、「Iteration なし」は行の右端の「+」で作る
   const period = it ? shortPeriod(it.start, it.end) : undefined;
-  const sub = it ? [ITERATION_LABELS[it.status], period, it.goal].filter(Boolean).join(" ・ ") : "";
   const sidebarHead = (
     <>
       <span className="head-line">
@@ -326,10 +325,14 @@ function Section({ section: { iteration: it, tickets } }: { section: BacklogSect
         )}
       </span>
       {it && tickets.length > 0 ? (
-        <span className="head-line sub muted" title={sub}>
+        <span className="head-line sub muted">
           <span className={`state iteration-${it.status}`}>{ITERATION_LABELS[it.status]}</span>
           {period ? <span className="period">{period}</span> : null}
-          {it.goal ? <span className="goal">{it.goal}</span> : null}
+          {it.goal ? (
+            <span className="goal" title={it.goal}>
+              {it.goal}
+            </span>
+          ) : null}
         </span>
       ) : null}
     </>

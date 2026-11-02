@@ -1188,8 +1188,8 @@ describe("画面", () => {
       "s1 今2 件",
       "進行中11/1–11/14左パネルを整える",
     ]);
-    // 2 段目は 1 行で省略し、全文はツールチップで読む
-    expect(lines[1]!.getAttribute("title")).toBe("進行中 ・ 11/1–11/14 ・ 左パネルを整える");
+    // 2 段目は 1 行で目標から省略し、目標の全文はツールチップで読む（カンバンの見出しと同じ）
+    expect(lines[1]!.querySelector(".goal")!.getAttribute("title")).toBe("左パネルを整える");
     expect(s1!.querySelector(".actions")).toBeNull();
     expect(screen.queryByRole("button", { name: "s1 の操作" })).toBeNull();
     expect(screen.queryByRole("button", { name: "閉じる" })).toBeNull();
