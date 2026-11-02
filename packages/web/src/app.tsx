@@ -1,10 +1,18 @@
 // 画面の骨組み：上のバー（Project の切り替え・画面の切り替え・同期の印）と、ハッシュで選んだページ。
 // サイドバーでは同期の印とボタン・設定の歯車を出さない（ビューのタイトル行の同期のボタンとバッジ・歯車で代える。UI-12）
 
-import { useEffect, type MouseEvent } from "react";
+import { useEffect, useRef, type MouseEvent } from "react";
 import { useHost, useUiState } from "./host.js";
-import { useStore } from "./store.js";
-import { hrefOf, isDetailRoute, parseRoute, toggleRoute, useRoute, type Route } from "./router.js";
+import { useStore, type Store } from "./store.js";
+import {
+  hrefOf,
+  isDetailRoute,
+  NO_ITERATION,
+  parseRoute,
+  toggleRoute,
+  useRoute,
+  type Route,
+} from "./router.js";
 import { BoardPage } from "./pages/board.js";
 import { BacklogPage } from "./pages/backlog.js";
 import { TicketPage } from "./pages/ticket.js";
@@ -14,24 +22,78 @@ import { HistoryPage } from "./pages/history.js";
 import { RunsPage } from "./pages/runs.js";
 import { ConfigPage } from "./pages/config.js";
 
-const NAV: { page: Route["page"]; label: string; href: string }[] = [
-  { page: "board", label: "カンバン", href: hrefOf({ page: "board" }) },
-  { page: "backlog", label: "バックログ", href: hrefOf({ page: "backlog" }) },
-  { page: "history", label: "履歴", href: hrefOf({ page: "history" }) },
-  { page: "runs", label: "Run", href: hrefOf({ page: "runs" }) },
+const NAV: { page: Route["page"]; label: string }[] = [
+  { page: "board", label: "カンバン" },
+  { page: "backlog", label: "バックログ" },
+  { page: "history", label: "履歴" },
+  { page: "runs", label: "Run" },
 ];
+
+/** タブの行き先を最後に見たハッシュにする画面。バックログは絞り込みをハッシュに持たないので固定 */
+type LastHashPage = "board" | "history" | "runs";
+
+/** nav.<page> に残す、最後に見たハッシュとそのときの Project */
+interface LastHash {
+  project: string | null;
+  href: string;
+}
+
+/**
+ * 残したハッシュを今も使えるか。Project が違う、今の Project にない Iteration・Epic を指す、
+ * カンバンで閉じた Iteration・Epic を指すときは使えない（既定の行き先に戻す）。
+ * Run の Iteration の絞り込みは履歴の閉じた Iteration の行から開くものなので、閉じていても今の Project にあれば使う
+ */
+function lastHashUsable(saved: LastHash, store: Store): boolean {
+  if (saved.project !== (store.project?.id ?? null)) return false;
+  const route = parseRoute(saved.href);
+  if (route.page === "board") {
+    if (
+      route.iteration &&
+      route.iteration !== NO_ITERATION &&
+      !store.iterations.some((i) => i.id === route.iteration && i.status !== "closed")
+    )
+      return false;
+    if (route.epic && !store.epics.some((e) => e.id === route.epic && e.status === "open"))
+      return false;
+  }
+  if (route.page === "runs" && route.iteration)
+    return store.iterations.some((i) => i.id === route.iteration);
+  return true;
+}
+
+/**
+ * タブの行き先（最後に見たハッシュ）を nav.<page> に残して返す。その画面にいる間は今のハッシュを残し、
+ * Project を切り替えたら既定の行き先に戻す。残したハッシュが使えなければ既定の行き先を返す
+ */
+function useLastHref(page: LastHashPage, route: Route, store: Store): string {
+  const fallback = hrefOf({ page } as Route);
+  const project = store.project?.id ?? null;
+  const [saved, setSaved] = useUiState<LastHash | null>(`nav.${page}`, null);
+  const current = route.page === page ? hrefOf(route) : null;
+  const previousProject = useRef(project);
+  useEffect(() => {
+    const switched = previousProject.current !== null && previousProject.current !== project;
+    previousProject.current = project;
+    const next = current ?? (switched ? fallback : null);
+    if (next === null || project === null) return;
+    if (saved?.href !== next || saved.project !== project) setSaved({ project, href: next });
+  }, [current, project, fallback, saved, setSaved]);
+  // 前の版は履歴のハッシュを文字列で残していた。形の違うものは使わない
+  if (!saved || typeof saved !== "object" || typeof saved.href !== "string") return fallback;
+  return lastHashUsable(saved, store) ? saved.href : fallback;
+}
 
 export function App() {
   const route = useRoute();
   const store = useStore();
   const host = useHost();
   const sidebar = host.surface === "sidebar";
-  // 履歴のタブは最後に見た履歴のハッシュ（見方・検索語・結果の絞り込み）を指し、他のタブから戻ったときに残す
-  const [historyHref, setHistoryHref] = useUiState("nav.history", hrefOf({ page: "history" }));
-  const currentHistory = route.page === "history" ? hrefOf(route) : null;
-  useEffect(() => {
-    if (currentHistory !== null && currentHistory !== historyHref) setHistoryHref(currentHistory);
-  }, [currentHistory, historyHref, setHistoryHref]);
+  // カンバン・履歴・Run のタブは最後に見たハッシュ（絞り込み・見方・検索語）を指し、他のタブから戻ったときに残す
+  const lastHref: Partial<Record<Route["page"], string>> = {
+    board: useLastHref("board", route, store),
+    history: useLastHref("history", route, store),
+    runs: useLastHref("runs", route, store),
+  };
   // Iteration の詳細はカンバンのタブ、Epic の詳細はバックログのタブの下にあるものとして扱う（一覧の画面はない）
   const active =
     route.page === "ticket" || route.page === "epics"
@@ -54,7 +116,7 @@ export function App() {
             {NAV.map((n) => (
               <a
                 key={n.page}
-                href={n.page === "history" ? historyHref : n.href}
+                href={lastHref[n.page] ?? hrefOf({ page: n.page } as Route)}
                 className={active === n.page ? "active" : ""}
                 aria-current={active === n.page ? "page" : undefined}
               >
