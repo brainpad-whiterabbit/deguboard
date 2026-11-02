@@ -16,7 +16,7 @@ after:
     - t192
   t194:
     - t193
-pending_approval: true
+pending_approval: false
 details:
   t214:
     scope: config の lint.require_iteration と lint の指摘・guide work の案内・requirements とヘルプ・このリポジトリで有効化
@@ -48,3 +48,5 @@ details:
   t194:
     scope: 閉じた Iteration の行に Run の集計へのリンクを置く
     approach: "#/runs?by=iteration にその Iteration で絞るクエリを渡す。runs 側で絞れなければ足す"
+approved_by: eiki.kitajima/agent
+approved_at: 2026-11-02T12:54:57Z
