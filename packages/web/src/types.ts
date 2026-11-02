@@ -85,6 +85,10 @@ export const BOARD_STATUSES = [
   "review",
   "done",
 ] as const satisfies readonly Status[];
+/** 終わった Status（done・abandoned）。core の isTerminal の写し（web は core の実行時のコードを取り込まない） */
+export function isFinished(status: Status): boolean {
+  return status === "done" || status === "abandoned";
+}
 export const PRIORITIES = ["low", "medium", "high"] as const satisfies readonly Priority[];
 
 /** Iteration と Epic の状態の表示名 */

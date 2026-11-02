@@ -261,6 +261,64 @@ describe.each(SCHEMES)("実行計画の帯（%s）", (scheme) => {
   );
 });
 
+describe.each(SCHEMES)("状態の節と実行計画の帯の見出し（%s）", (scheme) => {
+  it.each(WIDTHS)(
+    "幅 %ipx で、見出しは大文字にせず帯と同じ文字の形で、件数を塗るのは終わっていない節だけ。名前と件数が重ならない",
+    async (width) => {
+      const context = await browser.newContext({
+        viewport: { width, height: 900 },
+        colorScheme: scheme,
+      });
+      const page = await context.newPage();
+      try {
+        await page.goto(`${server.url}?surface=sidebar#/board`, { waitUntil: "networkidle" });
+        await page.locator(".plan-band-head").waitFor();
+        const m = await page.evaluate(() => {
+          const shape = (el: Element) => {
+            const s = getComputedStyle(el);
+            return `${s.textTransform} ${s.fontSize} ${s.fontWeight} ${s.letterSpacing}`;
+          };
+          const sections = [...document.querySelectorAll("details.column")].map((d) => {
+            const h2 = d.querySelector("summary h2")!;
+            const label = h2.querySelector("span:not(.status-dot):not(.section-count)")!;
+            const count = h2.querySelector(".section-count")!;
+            const a = label.getBoundingClientRect();
+            const b = count.getBoundingClientRect();
+            return {
+              status: d.getAttribute("data-status"),
+              shape: shape(h2),
+              painted: getComputedStyle(count).backgroundColor !== "rgba(0, 0, 0, 0)",
+              overlap: a.right > b.left + 0.5 || b.right > h2.getBoundingClientRect().right + 0.5,
+            };
+          });
+          return { band: shape(document.querySelector(".plan-band-head")!), sections };
+        });
+        expect(m.sections.map((s) => s.status)).toEqual([
+          "todo",
+          "in_progress",
+          "review",
+          "done",
+          "abandoned",
+        ]);
+        for (const s of m.sections) {
+          expect(s.shape, `${s.status} の見出しの文字の形`).toBe(m.band);
+          expect(s.overlap, `${s.status} の名前と件数の重なり`).toBe(false);
+        }
+        expect(m.band.startsWith("none "), "見出しを大文字に変えない").toBe(true);
+        expect(Object.fromEntries(m.sections.map((s) => [s.status, s.painted]))).toEqual({
+          todo: true,
+          in_progress: true,
+          review: true,
+          done: false,
+          abandoned: false,
+        });
+      } finally {
+        await context.close();
+      }
+    },
+  );
+});
+
 describe.each(SCHEMES)("Iteration の札の列（%s）", (scheme) => {
   it.each(WIDTHS)(
     "幅 %ipx で、札が幅に入らないときは札の列だけが横にスクロールし、選んでいる札が列の見える範囲にある",
