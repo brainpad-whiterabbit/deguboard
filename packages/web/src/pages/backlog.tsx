@@ -3,7 +3,8 @@
 // Iteration が 1 つもない（planned・active がない）Project では区画に分けず 1 つの表で出す。
 // チケットを別の区画にドラッグすると ticket.update で Iteration を変える。拒否されたら通知に理由を出して元の区画に戻す（読み直すだけで戻る）。
 // open の Epic は進捗つきの欄に並べ（UI-10）、押すとその Epic のチケットに絞る（もう一度押すと解除）。広い画面では Epic の作成も欄から行う。
-// サイドバーでは検索と件数だけ常に出し、絞り込みは畳む（効いている条件は見出しに出す。開閉は host.state に残す）。
+// サイドバーでは検索を常に出し、その下によく使う絞り込み（自分・作業中・high）のチップと、畳んだ欄で効いている条件の札（× で外す）を並べる。
+// 絞り込みの欄は畳み（開閉は host.state に残す）、見出しの件数は絞り込みが効いているときだけ「n / m 件」で出す。
 // サイドバーの Epic の欄は open の Epic があるときだけ、番号・題・進捗のチップと「Epic なし」のチップを並べる（2 行を超える分は「ほか N」）
 // サイドバーの行の右端には、開いた Plan に入っていれば Plan の番号と着手可・待ちを出す（カンバンと同じ部品と判定。board.tsx の BacklogRowEnd）。
 // サイドバーの行は担当者の列を出さず、別の人の担当だけ右端に頭文字の丸で出す（自分か自分の agent は出さない。store.me）
@@ -30,11 +31,13 @@ import {
   byNumber,
   byPriorityThenNumber,
   claimOptions,
+  isOwnAssignee,
   ITERATION_LABELS,
   matchesClaim,
   NO_CLAIM,
   type Iteration,
   type Ticket,
+  type WhoamiView,
 } from "../types.js";
 import { IterationActions, IterationCreateForm } from "./iterations.js";
 
@@ -47,6 +50,8 @@ export interface BacklogFilter {
   label: string;
   /** 担当者（assignee）。NO_CLAIM は担当者のないもの */
   assignee: string;
+  /** 操作している人か、その人の agent が担当のものだけ（「自分」のチップ。判定は isOwnAssignee） */
+  mine: boolean;
 }
 
 /** バックログで「Epic に入っていないチケット」を選ぶ値 */
@@ -59,10 +64,18 @@ export const EMPTY_FILTER: BacklogFilter = {
   epic: "",
   label: "",
   assignee: "",
+  mine: false,
 };
 
-/** 絞り込みの規則。表示の正本はここ（requirements 6.4） */
-export function filterBacklog(tickets: readonly Ticket[], f: BacklogFilter): Ticket[] {
+/**
+ * 絞り込みの規則。表示の正本はここ（requirements 6.4）。me は操作している人（store.me）で、mine の判定に使う。
+ * 操作している人が分からない（null）間の mine は、どのチケットにも当たらない
+ */
+export function filterBacklog(
+  tickets: readonly Ticket[],
+  f: BacklogFilter,
+  me: Pick<WhoamiView, "own_ids"> | null = null,
+): Ticket[] {
   const q = f.query.trim().toLowerCase();
   return tickets
     .filter((t) => t.status !== "done" && t.status !== "abandoned")
@@ -71,6 +84,7 @@ export function filterBacklog(tickets: readonly Ticket[], f: BacklogFilter): Tic
     .filter((t) => !f.epic || (f.epic === NO_EPIC ? !t.epic : t.epic === f.epic))
     .filter((t) => !f.label || t.labels.includes(f.label))
     .filter((t) => matchesClaim(t, f.assignee))
+    .filter((t) => !f.mine || (!!t.assignee && isOwnAssignee(me, t.assignee)))
     .filter(
       (t) =>
         !q ||
@@ -81,15 +95,87 @@ export function filterBacklog(tickets: readonly Ticket[], f: BacklogFilter): Tic
     .sort(byPriorityThenNumber);
 }
 
-/** 畳んだ絞り込みの見出しに出す、効いている条件。検索は常に見えているので含めない */
-function activeFilters(f: BacklogFilter, labelOf: (status: string) => string): string[] {
-  const parts: string[] = [];
-  if (f.status) parts.push(`Status: ${labelOf(f.status)}`);
-  if (f.priority) parts.push(`優先度: ${f.priority}`);
-  if (f.epic) parts.push(`Epic: ${f.epic === NO_EPIC ? "なし" : f.epic}`);
-  if (f.label) parts.push(`ラベル: ${f.label}`);
-  if (f.assignee) parts.push(`担当: ${f.assignee === NO_CLAIM ? "なし" : actorLabel(f.assignee)}`);
+/** 効いている条件の 1 つ。key はその条件の欄、text は札に出す文、title はツールチップ、clear は外す差分 */
+interface ActiveFilter {
+  key: Exclude<keyof BacklogFilter, "query">;
+  text: string;
+  title?: string;
+  clear: Partial<BacklogFilter>;
+}
+
+/** 効いている条件（検索を除く）。検索は常に見えているので含めない */
+function activeFilters(f: BacklogFilter, labelOf: (status: string) => string): ActiveFilter[] {
+  const parts: ActiveFilter[] = [];
+  if (f.mine) parts.push({ key: "mine", text: "担当 自分", clear: { mine: false } });
+  if (f.status) {
+    parts.push({ key: "status", text: `Status ${labelOf(f.status)}`, clear: { status: "" } });
+  }
+  if (f.priority)
+    parts.push({ key: "priority", text: `優先度 ${f.priority}`, clear: { priority: "" } });
+  if (f.epic) {
+    const text = `Epic ${f.epic === NO_EPIC ? "なし" : f.epic}`;
+    parts.push({ key: "epic", text, clear: { epic: "" } });
+  }
+  if (f.label) parts.push({ key: "label", text: `ラベル ${f.label}`, clear: { label: "" } });
+  if (f.assignee) {
+    const who = f.assignee === NO_CLAIM ? "なし" : actorLabel(f.assignee);
+    parts.push({
+      key: "assignee",
+      text: `担当 ${who}`,
+      title: f.assignee === NO_CLAIM ? "担当なし" : f.assignee,
+      clear: { assignee: "" },
+    });
+  }
   return parts;
+}
+
+/**
+ * よく使う絞り込みのチップ：押すとその条件で絞り、もう一度押すと外す。
+ * 「自分」は操作している人（store.me）が分かるまで出さない
+ */
+const QUICK_FILTERS = [
+  {
+    key: "mine",
+    text: "自分",
+    what: () => "自分か自分の agent の担当",
+    on: (f: BacklogFilter) => f.mine,
+    toggle: (f: BacklogFilter): Partial<BacklogFilter> => ({ mine: !f.mine }),
+  },
+  {
+    key: "status",
+    text: "作業中",
+    what: (statusLabel: string) => `Status ${statusLabel}`,
+    on: (f: BacklogFilter) => f.status === "in_progress",
+    toggle: (f: BacklogFilter): Partial<BacklogFilter> => ({
+      status: f.status === "in_progress" ? "" : "in_progress",
+    }),
+  },
+  {
+    key: "priority",
+    text: "high",
+    what: () => "優先度 high",
+    on: (f: BacklogFilter) => f.priority === "high",
+    toggle: (f: BacklogFilter): Partial<BacklogFilter> => ({
+      priority: f.priority === "high" ? "" : "high",
+    }),
+  },
+] as const;
+
+/**
+ * 効いている条件のうち、ほかの場所で見えていないものを札にする。よく使うチップで見えている条件（出ているチップが効いているとき）と、
+ * Epic の欄のチップで見えている Epic（epicShown。選んだチップは ChipRow が「ほか N」に隠さない）は札にしない
+ */
+function foldedFilters(
+  f: BacklogFilter,
+  active: readonly ActiveFilter[],
+  { meKnown, epicShown }: { meKnown: boolean; epicShown: boolean },
+): ActiveFilter[] {
+  return active.filter((a) => {
+    if (a.key === "epic") return !epicShown;
+    const quick = QUICK_FILTERS.find((q) => q.key === a.key);
+    if (!quick || !quick.on(f)) return true;
+    return quick.key === "mine" && !meKnown;
+  });
 }
 
 /** バックログの区画。iteration がなければ「Iteration なし」 */
@@ -147,7 +233,7 @@ export function BacklogPage() {
         : store.tickets,
     [store.tickets, moving],
   );
-  const rows = useMemo(() => filterBacklog(tickets, filter), [tickets, filter]);
+  const rows = useMemo(() => filterBacklog(tickets, filter, store.me), [tickets, filter, store.me]);
   // サイドバーの行の右端に、開いた Plan の番号と着手可・待ちを出す（判定はカンバンと同じ kanbanPlanMarks）
   const planMarks = useMemo(
     () => (sidebar ? kanbanPlanMarks(store.plans, store.tickets) : new Map<string, PlanMark>()),
@@ -156,6 +242,7 @@ export function BacklogPage() {
   const rowEnd = (t: Ticket, priority: ReactNode) => (
     <BacklogRowEnd ticket={t} mark={planMarks.get(t.id)} priority={priority} me={store.me} />
   );
+  const total = useMemo(() => filterBacklog(tickets, EMPTY_FILTER).length, [tickets]);
   const onDragEnd = async (event: DragEndEvent) => {
     const id = String(event.active.id);
     const over = event.over?.id;
@@ -169,6 +256,12 @@ export function BacklogPage() {
   };
   const statuses = BOARD_STATUSES.filter((s) => s !== "done");
   const active = activeFilters(filter, (st) => store.labelOf(st as Ticket["status"]));
+  const filtering = active.length > 0 || filter.query.trim() !== "";
+  const { epics: openEpics } = useOpenEpics();
+  // Epic の欄に選んだ Epic のチップが出ているか（open の Epic がないと欄は出ず、閉じた Epic を選んでいればチップはない）
+  const epicShown =
+    openEpics.length > 0 &&
+    (filter.epic === NO_EPIC || openEpics.some((e) => e.id === filter.epic));
 
   const filters: ReactNode = (
     <>
@@ -243,6 +336,15 @@ export function BacklogPage() {
         {sidebar ? null : <span className="muted">{rows.length} 件</span>}
       </div>
       {sidebar ? (
+        <QuickFilters
+          filter={filter}
+          folded={foldedFilters(filter, active, { meKnown: store.me !== null, epicShown })}
+          statusLabel={store.labelOf("in_progress")}
+          meKnown={store.me !== null}
+          onChange={set}
+        />
+      ) : null}
+      {sidebar ? (
         <details
           className="fold filters"
           open={filtersOpen}
@@ -250,8 +352,11 @@ export function BacklogPage() {
         >
           <summary>
             絞り込み
-            <span className="muted">{active.length > 0 ? active.join(" ・ ") : ""}</span>
-            <span className="muted count">{rows.length} 件</span>
+            {filtering ? (
+              <span className="muted count" title={`全 ${total} 件のうち ${rows.length} 件`}>
+                {rows.length} / {total} 件
+              </span>
+            ) : null}
           </summary>
           <div className="toolbar">{filters}</div>
         </details>
@@ -274,6 +379,56 @@ export function BacklogPage() {
         </div>
       </div>
     </section>
+  );
+}
+
+/**
+ * サイドバーの検索欄の下の 1 行：よく使う絞り込みのチップ（押すと絞り、効いているものは塗る）と、
+ * ほかの場所で見えていない効いている条件の札（× で外す）。札が多ければ折り返す（条件を隠さない）
+ */
+function QuickFilters({
+  filter,
+  folded,
+  statusLabel,
+  meKnown,
+  onChange,
+}: {
+  filter: BacklogFilter;
+  folded: readonly ActiveFilter[];
+  statusLabel: string;
+  /** 操作している人が分かっているか。分かるまで「自分」は出さない */
+  meKnown: boolean;
+  onChange: (patch: Partial<BacklogFilter>) => void;
+}) {
+  return (
+    <div className="chip-row quick-filters" role="group" aria-label="絞り込み">
+      {QUICK_FILTERS.filter((q) => q.key !== "mine" || meKnown).map((q) => {
+        const pressed = q.on(filter);
+        const what = q.what(statusLabel);
+        return (
+          <Chip
+            key={q.key}
+            pressed={pressed}
+            title={pressed ? `${what} の絞り込みを外す` : `${what} で絞る`}
+            onClick={() => onChange(q.toggle(filter))}
+          >
+            {q.text}
+          </Chip>
+        );
+      })}
+      {folded.map((a) => (
+        <span key={a.key} className="filter-chip" title={a.title ?? a.text}>
+          <span className="filter-chip-text">{a.text}</span>
+          <button
+            type="button"
+            aria-label={`${a.text} の絞り込みを外す`}
+            onClick={() => onChange(a.clear)}
+          >
+            ×
+          </button>
+        </span>
+      ))}
+    </div>
   );
 }
 

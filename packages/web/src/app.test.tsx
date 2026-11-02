@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { act } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { App, INFO_NOTICE_MS } from "./app.js";
@@ -438,7 +438,9 @@ describe("画面", () => {
     mount(client, hostOf("sidebar"));
     await screen.findByText("別の人");
     expect(client.calls.some((c) => c.name === "whoami")).toBe(true);
-    const rowOf = (title: string) => screen.getByText(title).closest(".row")!;
+    // 題が「自分」の行は、検索欄の下の「自分」のチップと文字が重なるので、行の題から引く
+    const rowOf = (title: string) =>
+      screen.getByText(title, { selector: ".row-title" }).closest(".row")!;
     const markOf = (title: string) => rowOf(title).querySelector(".assignee-mark");
     // 名前の列はどの行にも出さず、列がないぶんタイトルが広がる（backlog の行の格子）
     expect(document.querySelector(".row-assignee")).toBeNull();
@@ -1226,21 +1228,22 @@ describe("画面", () => {
     expect(link.getAttribute("href")).toBe("#/tickets/t2");
   });
 
-  it("サイドバーのバックログは検索だけ出し、絞り込みは畳む。件数と効いている条件は絞り込みの行に出て、消すボタンは条件があるときだけ", async () => {
+  it("サイドバーのバックログは検索だけ出し、絞り込みは畳む。件数は絞り込みが効いているときだけ「n / m 件」で絞り込みの行に出て、消すボタンは条件があるときだけ", async () => {
     window.location.hash = "#/backlog";
     const host = hostOf("sidebar");
     mount(mockClient(), host);
     await screen.findByText("API");
     expect(screen.getByLabelText("検索")).toBeTruthy();
     const fold = document.querySelector<HTMLDetailsElement>("details.filters")!;
-    const count = () => fold.querySelector("summary .count")!.textContent;
-    expect(count()).toBe("2 件");
+    const count = () => fold.querySelector("summary .count")?.textContent ?? null;
+    expect(count()).toBeNull();
     expect(document.querySelector(".toolbar > .muted")).toBeNull();
     expect(fold.open).toBe(false);
     expect(screen.queryByRole("button", { name: "絞り込みを消す" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /最初の版/ }));
-    expect(fold.querySelector("summary")!.textContent).toContain("Epic: e1");
-    expect(count()).toBe("1 件");
+    expect(count()).toBe("1 / 2 件");
+    // Epic の条件は Epic のチップで見えているので、札にはしない
+    expect(document.querySelector(".quick-filters .filter-chip")).toBeNull();
     fold.open = true;
     fireEvent(fold, new Event("toggle"));
     expect(host.state.get("backlog.filters")).toBe(true);
@@ -1389,6 +1392,121 @@ describe("画面", () => {
     expect(screen.queryByRole("button", { name: /Epic なし/ })).toBeNull();
   });
 
+  it("サイドバーのバックログは検索欄の下に「自分」「作業中」「high」のチップを 1 行で出し、押すと絞り、効いているチップは塗る。もう一度押すと外れる", async () => {
+    window.location.hash = "#/backlog";
+    const client = mockClient();
+    client.data.tickets.push(
+      ticket({ id: "t4", title: "設定", status: "review", priority: "high" }),
+    );
+    mount(client, hostOf("sidebar"));
+    await screen.findByText("API");
+    const group = screen.getByRole("group", { name: "絞り込み" });
+    // 検索欄の toolbar のすぐ後に置く
+    expect(group.previousElementSibling!.querySelector("input[type=search]")).toBeTruthy();
+    const chip = (name: string) => within(group).getByRole("button", { name });
+    expect(
+      [...group.querySelectorAll(".chip")].map((c) => [
+        c.textContent,
+        c.getAttribute("aria-pressed"),
+      ]),
+    ).toEqual([
+      ["自分", "false"],
+      ["作業中", "false"],
+      ["high", "false"],
+    ]);
+    const count = () =>
+      document.querySelector("details.filters summary .count")?.textContent ?? null;
+    fireEvent.click(chip("作業中"));
+    expect(chip("作業中").getAttribute("aria-pressed")).toBe("true");
+    expect(count()).toBe("1 / 3 件");
+    expect(screen.queryByText("画面")).toBeNull();
+    expect(screen.queryByText("設定")).toBeNull();
+    fireEvent.click(chip("作業中"));
+    expect(chip("作業中").getAttribute("aria-pressed")).toBe("false");
+    expect(count()).toBeNull();
+    fireEvent.click(chip("high"));
+    expect(chip("high").getAttribute("aria-pressed")).toBe("true");
+    expect(count()).toBe("2 / 3 件");
+    expect(screen.getByText("設定")).toBeTruthy();
+    expect(screen.queryByText("画面")).toBeNull();
+    // 「作業中」と「high」の条件はチップで見えているので、× の札にはしない
+    expect(group.querySelector(".filter-chip")).toBeNull();
+  });
+
+  it("サイドバーのバックログの「自分」のチップは、操作している人（whoami）か、その人の agent が担当のチケットに絞る", async () => {
+    window.location.hash = "#/backlog";
+    const client = mockClient();
+    client.data.tickets.push(
+      ticket({ id: "t4", title: "本人の", assignee: "eiki" }),
+      ticket({ id: "t5", title: "本人の AI の", assignee: "eiki/agent" }),
+      ticket({ id: "t6", title: "別の人の", assignee: "hana" }),
+    );
+    mount(client, hostOf("sidebar"));
+    await screen.findByText("本人の");
+    const group = screen.getByRole("group", { name: "絞り込み" });
+    const mine = within(group).getByRole("button", { name: "自分" });
+    expect(mine.getAttribute("title")).toBe("自分か自分の agent の担当 で絞る");
+    fireEvent.click(mine);
+    expect(mine.getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getByText("本人の")).toBeTruthy();
+    expect(screen.getByText("本人の AI の")).toBeTruthy();
+    expect(screen.queryByText("別の人の")).toBeNull();
+    expect(screen.queryByText("API")).toBeNull();
+    expect(document.querySelector("details.filters summary .count")!.textContent).toBe("2 / 5 件");
+    // 「自分」はチップで見えているので札にしない。「絞り込みを消す」で外れる
+    expect(group.querySelector(".filter-chip")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "絞り込みを消す" }));
+    expect(mine.getAttribute("aria-pressed")).toBe("false");
+    expect(screen.getByText("別の人の")).toBeTruthy();
+  });
+
+  it("サイドバーのバックログは、選んだ Epic のチップが Epic の欄に出ていなければ、Epic の条件を × の札にする", async () => {
+    window.location.hash = "#/backlog";
+    const client = mockClient();
+    const send = mountWithBridge(client, { readRunning: false });
+    await screen.findByText("API");
+    const group = screen.getByRole("group", { name: "絞り込み" });
+    fireEvent.click(screen.getByRole("button", { name: /最初の版/ }));
+    // Epic の欄にチップがある間は札にしない
+    expect(group.querySelector(".filter-chip")).toBeNull();
+    // Epic が閉じて欄から消えたら、効いている条件を札で見せる
+    client.data.epics = client.data.epics.map((e) => ({ ...e, status: "closed" as const }));
+    act(() => send()({ kind: "event", name: "reload" }));
+    await waitFor(() => expect(document.querySelector(".epic-chips")).toBeNull());
+    expect(group.querySelector(".filter-chip-text")!.textContent).toBe("Epic e1");
+    fireEvent.click(screen.getByRole("button", { name: "Epic e1 の絞り込みを外す" }));
+    expect(group.querySelector(".filter-chip")).toBeNull();
+    expect(screen.getByText("画面")).toBeTruthy();
+  });
+
+  it("サイドバーのバックログは畳んだ欄で効いている条件を検索欄の下に札で出し、× で外せる。× の読み上げは何を外すかを言う", async () => {
+    window.location.hash = "#/backlog";
+    mount(mockClient(), hostOf("sidebar"));
+    await screen.findByText("API");
+    const group = screen.getByRole("group", { name: "絞り込み" });
+    const fold = document.querySelector<HTMLDetailsElement>("details.filters")!;
+    const select = (name: string) => within(fold).getByLabelText<HTMLSelectElement>(name);
+    fireEvent.change(select("Status"), { target: { value: "todo" } });
+    fireEvent.change(select("ラベル"), { target: { value: "web" } });
+    const texts = () => [...group.querySelectorAll(".filter-chip-text")].map((c) => c.textContent);
+    expect(texts()).toEqual(["Status Todo", "ラベル web"]);
+    expect(fold.querySelector("summary .count")!.textContent).toBe("1 / 2 件");
+    fireEvent.click(screen.getByRole("button", { name: "ラベル web の絞り込みを外す" }));
+    expect(select("ラベル").value).toBe("");
+    expect(texts()).toEqual(["Status Todo"]);
+    fireEvent.click(screen.getByRole("button", { name: "Status Todo の絞り込みを外す" }));
+    expect(select("Status").value).toBe("");
+    expect(group.querySelector(".filter-chip")).toBeNull();
+    expect(fold.querySelector("summary .count")).toBeNull();
+    // 「作業中」以外の Status と「high」以外の優先度は札になる。「作業中」を押すと Status の札は消える
+    fireEvent.change(select("優先度"), { target: { value: "low" } });
+    expect(texts()).toEqual(["優先度 low"]);
+    fireEvent.change(select("Status"), { target: { value: "review" } });
+    fireEvent.click(within(group).getByRole("button", { name: "作業中" }));
+    expect(texts()).toEqual(["優先度 low"]);
+    expect(select("Status").value).toBe("in_progress");
+  });
+
   it("サイドバーのバックログの Epic のチップは番号・題・進捗を出し、押すと絞り、もう一度押すと外れる。「Epic なし」でも絞れる", async () => {
     window.location.hash = "#/backlog";
     mount(mockClient(), hostOf("sidebar"));
@@ -1398,14 +1516,15 @@ describe("画面", () => {
     expect(chips.map((c) => c.textContent)).toEqual(["e1最初の版0/1", "Epic なし1"]);
     expect(chips.map((c) => c.getAttribute("aria-pressed"))).toEqual(["false", "false"]);
     expect(document.querySelector(".epic-list")).toBeNull();
-    const count = () => document.querySelector("details.filters summary .count")!.textContent;
+    const count = () =>
+      document.querySelector("details.filters summary .count")?.textContent ?? null;
     fireEvent.click(chips[0]!);
     expect(chips[0]!.getAttribute("aria-pressed")).toBe("true");
-    expect(count()).toBe("1 件");
+    expect(count()).toBe("1 / 2 件");
     expect(screen.queryByText("画面")).toBeNull();
     fireEvent.click(chips[0]!);
     expect(chips[0]!.getAttribute("aria-pressed")).toBe("false");
-    expect(count()).toBe("2 件");
+    expect(count()).toBeNull();
     fireEvent.click(chips[1]!);
     expect(chips[1]!.getAttribute("aria-pressed")).toBe("true");
     expect(screen.getByText("画面")).toBeTruthy();
