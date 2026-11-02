@@ -78,6 +78,11 @@ const STEPS: Step[] = [
     argv: ["iteration", "add", "s1", "t1"],
   },
   {
+    name: "iteration.update",
+    input: { iteration: "s1", goal: "ログインを出す", end: "2026-11-07" },
+    argv: ["iteration", "update", "s1", "--goal", "ログインを出す", "--end", "2026-11-07"],
+  },
+  {
     name: "ticket.update",
     input: { ticket: "t2", priority: "low", depends_on: ["t1"] },
     argv: ["ticket", "update", "t2", "--priority", "low", "--depends-on", "t1"],
@@ -396,6 +401,12 @@ describe("3 経路の E2E", () => {
         running: false,
       },
     ]);
+    // iteration update で直した目標と期間が show に出る
+    expect(at("iteration.show").data).toMatchObject({
+      goal: "ログインを出す",
+      start: "2026-11-02",
+      end: "2026-11-07",
+    });
     expect(at("whoami").data).toEqual({
       id: USER,
       user: USER,
