@@ -35,6 +35,13 @@ describe("ハッシュのルーティング", () => {
     expect(parseRoute("#/runs?by=x")).toEqual({ page: "runs" });
     // 画面は選んだ Project で絞るので、Project の単位は選べない
     expect(parseRoute("#/runs?by=project")).toEqual({ page: "runs" });
+    // 履歴の Iteration の行からは、その Iteration で絞って開く
+    expect(parseRoute("#/runs?by=iteration&iteration=s5")).toEqual({
+      page: "runs",
+      by: "iteration",
+      iteration: "s5",
+    });
+    expect(parseRoute("#/runs?iteration=")).toEqual({ page: "runs" });
     expect(parseRoute("#/board?iteration=s4&epic=e1&assignee=eiki%2Fagent")).toEqual({
       page: "board",
       iteration: "s4",
@@ -61,6 +68,8 @@ describe("ハッシュのルーティング", () => {
       },
       { page: "runs" as const },
       { page: "runs" as const, by: "model" as const },
+      { page: "runs" as const, by: "iteration" as const, iteration: "s5" },
+      { page: "runs" as const, iteration: "s5" },
       { page: "config" as const },
     ]) {
       expect(parseRoute(hrefOf(route))).toEqual(route);

@@ -101,7 +101,9 @@ describe("Iteration の行", () => {
       </StoreProvider>,
     );
     const row = (await screen.findByText("左パネルを主画面にする")).closest(".history-row")!;
-    expect(row.querySelector("small")!.textContent).toBe("sprint4 ・ 内訳: e1 2, Epic なし 2");
+    expect(row.querySelector("small")!.textContent).toBe(
+      "sprint4 ・ 内訳: e1 2, Epic なし 2 ・ Run の集計",
+    );
     expect([...row.querySelectorAll(".counts .badge")].map((b) => b.textContent)).toEqual([
       "完了 3",
       "中止 1",
@@ -112,6 +114,59 @@ describe("Iteration の行", () => {
     );
     const counts = epicCountsOf(finished);
     expect(counts.reduce((n, c) => n + c.count, 0)).toBe(finished.length);
+  });
+});
+
+describe("Iteration の行の Run の集計", () => {
+  it("閉じた Iteration の行に Run の画面へのリンクを置き、押すとその Iteration で絞った集計を開く。履歴に Run の数字は出さない", async () => {
+    window.location.hash = "#/history";
+    const client = mockClient();
+    client.data.iterations = [
+      iteration({ id: "s4", name: "sprint4", status: "closed", completed: 1 }),
+    ];
+    client.data.tickets = [ticket({ id: "t1", status: "done", iteration: "s4" })];
+    client.handlers["metrics.show"] = () => ({
+      filter: { project: "default", iteration: "s4" },
+      by: "iteration",
+      total: { runs: 0 },
+      groups: [],
+    });
+    render(
+      <StoreProvider client={client}>
+        <HostProvider host={sidebarHost()}>
+          <App />
+        </HostProvider>
+      </StoreProvider>,
+    );
+    const row = (await screen.findByText("sprint4")).closest(".history-row")!;
+    const link = within(row as HTMLElement).getByRole("link", { name: "Run の集計" });
+    expect(link.getAttribute("href")).toBe("#/runs?by=iteration&iteration=s4");
+    // 履歴の画面は Run の記録を読まない（数字を出さない）
+    expect(client.calls.some((c) => c.name === "metrics.show")).toBe(false);
+    expect(
+      client.calls.some(
+        (c) => c.name === "run.list" && (c.input as { running?: boolean }).running !== true,
+      ),
+    ).toBe(false);
+    fireEvent.click(link);
+    await waitFor(() => expect(window.location.hash).toBe("#/runs?by=iteration&iteration=s4"));
+    await waitFor(() =>
+      expect(client.calls.filter((c) => c.name === "metrics.show").at(-1)?.input).toEqual({
+        project: "default",
+        iteration: "s4",
+        by: "iteration",
+      }),
+    );
+    expect(
+      client.calls.some(
+        (c) =>
+          c.name === "run.list" &&
+          JSON.stringify(c.input) === '{"project":"default","iteration":"s4"}',
+      ),
+    ).toBe(true);
+    expect(document.querySelector(".runs-filter")!.textContent).toBe(
+      "s4 のチケットの Run だけ解除",
+    );
   });
 });
 

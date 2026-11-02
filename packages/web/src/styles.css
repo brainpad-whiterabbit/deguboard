@@ -478,6 +478,11 @@ button.link:hover {
   color: var(--vscode-descriptionForeground);
 }
 
+/* Iteration の行の 2 段目の Run の画面へのリンク。折り返しても文言は割らない */
+.history-row .history-runs-link {
+  white-space: nowrap;
+}
+
 /* 開ける行（Iteration の見方）：見出しの行は summary。開くと中の終わったチケットを 1 行ずつ出す */
 .history-item > summary {
   list-style: none;
@@ -2171,6 +2176,13 @@ button.danger {
 .runs-page h2 {
   font-size: 1em;
   margin: 1rem 0 0.4rem;
+}
+/* Iteration で絞っていることと解除のリンク（履歴の Iteration の行から開いたとき） */
+.runs-page .runs-filter {
+  margin: 0.4rem 0;
+}
+.runs-page .runs-filter a:last-child {
+  margin-left: 0.75rem;
 }
 .runs-page .runs-metrics-head {
   margin: 1rem 0 0.4rem;

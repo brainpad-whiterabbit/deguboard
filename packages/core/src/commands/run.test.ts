@@ -10,6 +10,7 @@ import { findCommand } from "./registry.js";
 import { runFinish, runList, runStart, type RunView } from "./run.js";
 import { commit, configSet, init } from "./setup.js";
 import { workflowValidate } from "./workflow.js";
+import { iterationAdd, iterationCreate } from "./iteration.js";
 import { projectCreate } from "./project.js";
 import { ticketCreate, ticketList, type TicketRow } from "./ticket.js";
 import { finishRun } from "../run/record.js";
@@ -132,6 +133,23 @@ describe("run", () => {
     // ほかの絞り込みと重ねられる
     expect(await listed({ project: "other", ticket: "t1" })).toEqual([]);
     expect((await listed({ project: "default", running: true })).map((r) => r.id)).toEqual([]);
+  });
+
+  it("list は Iteration（チケットの今の値）で絞れ、番号だけの指定も読む", async () => {
+    const ctx = await prepared();
+    await runCommand(iterationCreate, ctx, { name: "S1" });
+    await runCommand(iterationAdd, ctx, { iteration: "s1", tickets: ["t1"] });
+    const t1 = await start(ctx, "t1");
+    await start(ctx, "t2");
+    const listed = async (input: Record<string, unknown>) =>
+      ((await runCommand(runList, ctx, input)).data as RunView[]).map((r) => r.id);
+    expect(await listed({ iteration: "s1" })).toEqual([t1.id]);
+    expect(await listed({ iteration: "1" })).toEqual([t1.id]);
+    // 今ない Iteration は空で返す（閉じて消えたものも引けるよう、あるかは確かめない）
+    expect(await listed({ iteration: "s9" })).toEqual([]);
+    await expect(runCommand(runList, ctx, { iteration: "x" })).rejects.toMatchObject({
+      name: "UsageError",
+    });
   });
 
   it("並行して start しても、同じチケットと step の Run は 1 つしか始まらない", async () => {

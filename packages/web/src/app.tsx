@@ -167,7 +167,7 @@ function Page({ route }: { route: Route }) {
     case "history":
       return <HistoryPage route={route} />;
     case "runs":
-      return <RunsPage by={route.by} />;
+      return <RunsPage by={route.by} iteration={route.iteration} />;
     case "config":
       return <ConfigPage />;
   }

@@ -24,6 +24,12 @@ export interface HistoryQuery {
   result?: HistoryResult | undefined;
 }
 
+/** Run の画面の集計の単位と絞り込み。by は省けばチケットごと、iteration は省けば絞らない（履歴の Iteration の行から絞って開く） */
+export interface RunsQuery {
+  by?: MetricUnit | undefined;
+  iteration?: string | undefined;
+}
+
 /** Run の画面の集計の単位。省けばチケットごと */
 export const DEFAULT_UNIT: MetricUnit = "ticket";
 
@@ -37,7 +43,7 @@ export type Route =
   | { page: "epics"; id: string }
   | { page: "iterations"; id: string }
   | ({ page: "history" } & HistoryQuery)
-  | { page: "runs"; by?: MetricUnit | undefined }
+  | ({ page: "runs" } & RunsQuery)
   | { page: "config" };
 
 const BOARD_KEYS = [
@@ -77,10 +83,13 @@ export function parseRoute(hash: string): Route {
       return route;
     }
     case "runs": {
+      const route: Route = { page: "runs" };
       const by = params.get("by");
-      return by && by !== DEFAULT_UNIT && (METRIC_UNITS as readonly string[]).includes(by)
-        ? { page: "runs", by: by as MetricUnit }
-        : { page: "runs" };
+      if (by && by !== DEFAULT_UNIT && (METRIC_UNITS as readonly string[]).includes(by))
+        route.by = by as MetricUnit;
+      const iteration = params.get("iteration");
+      if (iteration) route.iteration = iteration;
+      return route;
     }
     case "config":
       return { page: "config" };
@@ -116,8 +125,13 @@ export function hrefOf(route: Route): string {
       const query = params.toString();
       return query ? `#/history?${query}` : "#/history";
     }
-    case "runs":
-      return route.by && route.by !== DEFAULT_UNIT ? `#/runs?by=${route.by}` : "#/runs";
+    case "runs": {
+      const params = new URLSearchParams();
+      if (route.by && route.by !== DEFAULT_UNIT) params.set("by", route.by);
+      if (route.iteration) params.set("iteration", route.iteration);
+      const query = params.toString();
+      return query ? `#/runs?${query}` : "#/runs";
+    }
     case "config":
       return "#/config";
   }

@@ -1,5 +1,7 @@
 // Run の実行状況と実績（UI-9）。run.list で実行中と完了した Run を、metrics.show で集計（MT-3）を出す。
 // 集計の単位はハッシュの ?by= に持ち（既定はチケット）、run.list・metrics.show とも選んだ Project で絞って取る。
+// ハッシュに ?iteration= があればその Iteration のチケットの Run だけに絞り（履歴の Iteration の行の「Run の集計」から開く）、
+// 絞っていることと解除のリンクを上に出す。単位を変えても絞り込みは残す。
 // 取れなかった値は 0 と見せず「—」と出し、欠けた Run の数（missing）と推定を含む Run の数（estimated_runs）も出す。
 // 結果・数の書き方はチケット詳細の Run の節と共通（components/run-parts.tsx）。
 // サイドバーでは Run を 1 行ずつの行で出し、集計の表は横にスクロールさせる
@@ -16,7 +18,7 @@ import {
 } from "../components/run-parts.js";
 import { formatTime } from "../components/timeline.js";
 import { useHost } from "../host.js";
-import { DEFAULT_UNIT, navigate } from "../router.js";
+import { DEFAULT_UNIT, hrefOf, navigate } from "../router.js";
 import { useStore } from "../store.js";
 import {
   METRIC_UNITS,
@@ -69,15 +71,29 @@ export function splitRuns(runs: readonly RunView[]): { running: RunView[]; finis
   };
 }
 
-export function RunsPage({ by = DEFAULT_UNIT }: { by?: MetricUnit | undefined }) {
+export function RunsPage({
+  by = DEFAULT_UNIT,
+  iteration,
+}: {
+  by?: MetricUnit | undefined;
+  iteration?: string | undefined;
+}) {
   const store = useStore();
   const project = store.project?.id;
   // Project がなければ集計できない（読み込み中のまま止めない）
   if (!project) return <p className="empty">Project がない</p>;
-  return <RunsView project={project} by={by} />;
+  return <RunsView project={project} by={by} iteration={iteration} />;
 }
 
-function RunsView({ project, by }: { project: string; by: MetricUnit }) {
+function RunsView({
+  project,
+  by,
+  iteration,
+}: {
+  project: string;
+  by: MetricUnit;
+  iteration: string | undefined;
+}) {
   const store = useStore();
   const host = useHost();
   const sidebar = host.surface === "sidebar";
@@ -93,9 +109,10 @@ function RunsView({ project, by }: { project: string; by: MetricUnit }) {
     let alive = true;
     setError(null);
     setMetrics(null);
+    const filter = iteration ? { project, iteration } : { project };
     Promise.all([
-      store.client.run<RunView[]>("run.list", { project }),
-      store.client.run<MetricsView>("metrics.show", { project, by }),
+      store.client.run<RunView[]>("run.list", filter),
+      store.client.run<MetricsView>("metrics.show", { ...filter, by }),
     ])
       .then(([list, report]) => {
         if (!alive) return;
@@ -107,7 +124,7 @@ function RunsView({ project, by }: { project: string; by: MetricUnit }) {
     return () => {
       alive = false;
     };
-  }, [store.client, store.tickets, project, by, tick]);
+  }, [store.client, store.tickets, project, by, iteration, tick]);
   const reload = useCallback(() => setTick((n) => n + 1), []);
 
   const { running, finished } = useMemo(() => splitRuns(runs ?? []), [runs]);
@@ -125,6 +142,13 @@ function RunsView({ project, by }: { project: string; by: MetricUnit }) {
           </span>
         ) : null}
       </div>
+      {iteration ? (
+        <p className="runs-filter">
+          <DetailLink route={{ page: "iterations", id: iteration }}>{iteration}</DetailLink>
+          <span> のチケットの Run だけ</span>
+          <a href={hrefOf({ page: "runs", by })}>解除</a>
+        </p>
+      ) : null}
       {warnings.length > 0 && !error ? <p className="muted">{warnings.join(" / ")}</p> : null}
       {error ? (
         // 取れなかったときは一覧を出さない（「Run はない」と事実と違うことを言わない）
@@ -146,7 +170,9 @@ function RunsView({ project, by }: { project: string; by: MetricUnit }) {
               単位
               <select
                 value={by}
-                onChange={(e) => navigate({ page: "runs", by: e.target.value as MetricUnit })}
+                onChange={(e) =>
+                  navigate({ page: "runs", by: e.target.value as MetricUnit, iteration })
+                }
               >
                 {METRIC_UNITS.map((u) => (
                   <option key={u} value={u}>

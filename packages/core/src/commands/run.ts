@@ -6,11 +6,12 @@ import { agentNames, collectRunUsage } from "../agents/index.js";
 import { slugSchema, toIsoDateTime } from "../model/common.js";
 import { filterRuns, placeRun, runDurationSeconds, type MetricFilter } from "../model/metrics.js";
 import { OperationError, UsageError } from "../errors.js";
+import { parseId } from "../model/id.js";
 import { isRunId, RUN_RESULTS, type Run } from "../model/run.js";
 import { finishRun, readRunningRuns, startRun } from "../run/record.js";
 import { findStep } from "../workflow/resolve.js";
 import { defineCommand, ok } from "./define.js";
-import { ticketRef } from "./helpers.js";
+import { iterationRef, ticketRef } from "./helpers.js";
 
 /**
  * 一覧の 1 件。running は deguboard-local/runs/ にだけある終わっていない Run。
@@ -137,9 +138,10 @@ export const runList = defineCommand({
   name: "run.list",
   group: "run",
   summary:
-    "Run を開始の順に出す。終わっていない Run（running: true。このマシンの deguboard-local/runs/）も出す。Project はチケットの今の値でたどる（metrics.show と同じ）。duration_seconds は実行時間（終わっていなければ null）",
+    "Run を開始の順に出す。終わっていない Run（running: true。このマシンの deguboard-local/runs/）も出す。Iteration・Project はチケットの今の値でたどる（metrics.show と同じ）。duration_seconds は実行時間（終わっていなければ null）",
   input: z.object({
     ticket: ticketRef.optional().describe("このチケットの Run だけ"),
+    iteration: iterationRef.optional().describe("この Iteration のチケットの Run だけ"),
     project: slugSchema.optional().describe("この Project のチケットの Run だけ"),
     running: z.boolean().optional().describe("終わっていない Run だけ"),
   }),
@@ -147,6 +149,11 @@ export const runList = defineCommand({
   needs: "store",
   async run(ctx, input) {
     const ticket = input.ticket ? ctx.store.require("ticket", input.ticket).data.id : undefined;
+    // 閉じた・消えた Iteration の Run も引けるよう、metrics.show と同じく今あるかは確かめず ID の形だけ整える
+    const iteration =
+      input.iteration === undefined ? undefined : parseId(input.iteration, "iteration");
+    if (input.iteration !== undefined && !iteration)
+      throw new UsageError(`${input.iteration} は iteration の ID ではない`);
     const local = await readRunningRuns(ctx.repo);
     const runs: Array<{ run: Run; running: boolean }> = [
       // runs/ に集計がある実行中の記録（記録を消す前に止まった finish の残り）は readRunningRuns が消す
@@ -161,6 +168,7 @@ export const runList = defineCommand({
     }));
     const filter: MetricFilter = {
       ...(ticket ? { ticket } : {}),
+      ...(iteration ? { iteration } : {}),
       ...(input.project ? { project: input.project } : {}),
     };
     const items: RunView[] = filterRuns(placed, filter)
