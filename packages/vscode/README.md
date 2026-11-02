@@ -2,7 +2,7 @@
 
 Git-native な AI ワークフロー・チケット管理ツール [deguboard](https://github.com/brainpad-whiterabbit/deguboard) の画面を VS Code の中で開く。
 
-- Activity Bar の deguboard のアイコンを押すと、サイドバーに開いているフォルダ（リポジトリ）の画面が出て、上部のタブでカンバン・バックログ・履歴・Run を切り替える。チケット・Iteration・Epic を押すと詳細がエディタ領域に開く（チケットの詳細は本文・属性・依存・Run の一覧・経過）。`dg` やエージェントが書いた変更（Run の開始・終了を含む）は自動で画面に映る。タイトル行の同期ボタンで `dg sync` と同じ同期をして画面を読み直す（リモートがなければ読み直すだけ）。未 push・未取り込みの件数はバッジで出す。タイトル行の歯車でカンバンと `config.yaml` の設定画面を切り替える（チーム全員に効く。VS Code の settings.json は使わない）。Project が 1 つなら Project の段は出さない
+- Activity Bar の deguboard のアイコンを押すと、サイドバーに開いているフォルダ（リポジトリ）の画面が出て、上部のタブでカンバン・バックログ・履歴・Run を切り替える。チケット・Iteration・Epic を押すと詳細がエディタ領域に開く（チケットの詳細は本文・属性・依存・Run の一覧・経過）。`dg` やエージェントが書いた変更（Run の開始・終了を含む）は自動で画面に映る。タイトル行の同期ボタンで `dg sync` と同じ同期をして画面を読み直す（リモートがなければ読み直すだけ）。未 push・未取り込みの件数はバッジで出す。タイトル行の歯車で `config.yaml` の設定画面を開き、もう一度押すと元の画面に戻る（チーム全員に効く。VS Code の settings.json は使わない）。Project が 1 つなら Project の段は出さない
 - サイドバーのカンバンは次のように出す
   - 見出しの 1 段目に閉じていない Iteration の札（進みつき）と「なし n」「+」を並べ、押すと切り替える（「+」は Iteration を作る）
   - 見出しの右端の漏斗で Epic と担当の絞り込みを開く。絞っている値は見出しの下に札で出し、× で外せる
@@ -12,7 +12,7 @@ Git-native な AI ワークフロー・チケット管理ツール [deguboard](h
 - サイドバーのバックログは次のように出す。細部は要件定義書の [UI-3・UI-12](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/requirements.md#64-画面web-uivs-code-拡張)
   - 行を右クリックすると「Iteration を移す」（ドラッグと同じ）・「詳細を開く」・「ID をコピー」が出る
   - 検索欄の下によく使う絞り込みのチップと、効いている条件を × で外せる札を出す。行にはカンバンと同じ Plan の番号と着手可・待ち、自分とその agent 以外の担当の印を出す
-- サイドバーの履歴は次のように出す。細部は要件定義書の [UI-5](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/requirements.md#64-画面web-uivs-code-拡張)
+- サイドバーの履歴は次のように出す。要件定義書の [UI-5](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/requirements.md#64-画面web-uivs-code-拡張)
   - 件数付きの「Iteration / Epic / チケット」で見方を切り替える。Iteration・Epic の行を開くと中の終わったチケットを 1 本の一覧で出し、チケットの見方は終えた新しい順の 1 本の一覧にする
   - 検索中は当たったチケットを含む行を開き、当たったものだけを印付きで出す。Iteration の行の「Run の集計」で、その Iteration に絞った Run のタブを開く
 - エディタ領域には詳細だけを出す。詳細の中から一覧（Epic で絞ったカンバンなど）を開くと、サイドバーがその画面に切り替わる
