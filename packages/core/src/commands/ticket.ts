@@ -2,10 +2,10 @@
 
 import { z } from "zod";
 import { OperationError, UsageError } from "../errors.js";
-import { collectBranchFacts } from "../git/facts.js";
+import { collectBranchFacts, findMergedLeftover } from "../git/facts.js";
 import { withWrite } from "../git/write.js";
 import { resolveActorRef, sameUser } from "../model/actor.js";
-import { STATUSES, slugSchema, statusSchema, type Status } from "../model/common.js";
+import { STATUSES, isTerminal, slugSchema, statusSchema, type Status } from "../model/common.js";
 import { parseId, type TicketId } from "../model/id.js";
 import {
   PRIORITIES,
@@ -438,6 +438,7 @@ export const ticketUpdate = defineCommand({
         if (input.labels !== undefined) patch["labels"] = input.labels;
         if (input.pr !== undefined) patch["pr"] = input.pr ?? undefined;
         if (input.branch !== undefined && input.branch !== (t.branch ?? null)) {
+          if (input.branch !== null) await requireBranchAvailable(ctx, t.id, input.branch);
           patch["branch"] = input.branch ?? undefined;
           patch["branch_at"] = input.branch === null ? undefined : patch["updated_at"];
         }
@@ -565,6 +566,34 @@ async function factsFor(
     Object.assign(facts, collected.facts);
   }
   return facts;
+}
+
+/**
+ * ブランチ名の使い回しを拒否する（ST-6、ADR-004）。終わっていない別のチケットが同じ名前を記録しているか、
+ * 前の作業でマージ済みのブランチが同じ名前で残っていれば BRANCH_IN_USE。残ったブランチは照合が branch_merged で
+ * done にし、PR を見ない照合では claim の時刻で外せないので、記録する前に止める
+ */
+async function requireBranchAvailable(
+  ctx: CommandContext,
+  ticketId: string,
+  branch: string,
+): Promise<void> {
+  const other = [...ctx.store.tickets.values()].find(
+    (d) => d.id !== ticketId && d.data.branch === branch && !isTerminal(d.data.status),
+  );
+  if (other) {
+    throw new OperationError(
+      "BRANCH_IN_USE",
+      `ブランチ ${branch} は ${other.id}（${other.data.status}）が使っている。別の名前を指定する`,
+    );
+  }
+  const leftover = await findMergedLeftover(ctx.repo, branch);
+  if (leftover) {
+    throw new OperationError(
+      "BRANCH_IN_USE",
+      `ブランチ ${leftover} が前の作業でマージ済みのまま残っている。別の名前を指定するか、古いブランチを消してからやり直す`,
+    );
+  }
 }
 
 /** 遷移に伴う担当者とブランチの扱い（ST-8）。旧名の claimed_by も消す */
@@ -699,13 +728,17 @@ export const ticketClaim = defineCommand({
         const previous = doc.data.assignee;
         if (previous && !sameUser(previous, ctx.actor.id))
           warnings.push(`担当者を ${previous} から ${ctx.actor.id} に変えた`);
+        const branch = input.without_branch
+          ? undefined
+          : (input.branch ?? defaultBranchName(doc.data));
+        if (branch) await requireBranchAvailable(ctx, doc.id, branch);
         const now = nowIso(ctx);
         return ctx.store.update("ticket", doc.id, {
           status: "in_progress",
           assignee: ctx.actor.id,
           claimed_by: undefined,
-          branch: input.without_branch ? undefined : (input.branch ?? defaultBranchName(doc.data)),
-          branch_at: input.without_branch ? undefined : now,
+          branch,
+          branch_at: branch ? now : undefined,
           updated_at: now,
         });
       },

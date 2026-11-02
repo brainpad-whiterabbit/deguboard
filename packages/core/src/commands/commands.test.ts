@@ -333,6 +333,65 @@ describe("チケットの流れ", () => {
     }
   });
 
+  it("claim と update は、マージ済みのまま残った同じ名前のブランチと、終わっていない別のチケットが使う名前を拒否する（t216）", async () => {
+    const f = await fixture();
+    const ctx = await initialized(f.cloneA);
+    for (const title of ["A", "B", "C", "D"]) await runCommand(ticketCreate, ctx, { title });
+    // 前の作業：cloneB で chore/reused に積んで push し、main に ff マージした後で main が進む（ブランチは消さない）
+    await git(f.cloneB, ["pull", "-q", "--ff-only", "origin", "main"]);
+    await git(f.cloneB, ["checkout", "-qb", "chore/reused"]);
+    await git(f.cloneB, ["commit", "-q", "--allow-empty", "-m", "前の作業"]);
+    await git(f.cloneB, ["push", "-q", "origin", "chore/reused"]);
+    await git(f.cloneB, ["checkout", "-q", "main"]);
+    await git(f.cloneB, ["merge", "-q", "--ff-only", "chore/reused"]);
+    await git(f.cloneB, ["commit", "-q", "--allow-empty", "-m", "次の作業"]);
+    await git(f.cloneB, ["push", "-q", "origin", "main"]);
+    // まだマージしていない作業のブランチ
+    await git(f.cloneB, ["checkout", "-qb", "chore/wip"]);
+    await git(f.cloneB, ["commit", "-q", "--allow-empty", "-m", "途中の作業"]);
+    await git(f.cloneB, ["push", "-q", "origin", "chore/wip"]);
+
+    // リモートに残ったマージ済みのブランチ（手元では一度も fetch していない）
+    await expect(
+      runCommand(ticketClaim, ctx, { ticket: "t1", branch: "chore/reused" }),
+    ).rejects.toMatchObject({ code: "BRANCH_IN_USE" });
+    expect(ctx.store.tickets.get("t1")?.data).toMatchObject({ status: "todo" });
+    expect(ctx.store.tickets.get("t1")?.data.branch).toBeUndefined();
+    await expect(
+      runCommand(ticketUpdate, ctx, { ticket: "t1", branch: "chore/reused" }),
+    ).rejects.toMatchObject({ code: "BRANCH_IN_USE" });
+
+    // 手元に残ったマージ済みのブランチ
+    await git(ctx.repo.dataDir, ["fetch", "-q", "origin"]);
+    await git(f.cloneA, ["branch", "chore/local", "origin/main~1"]);
+    await expect(
+      runCommand(ticketClaim, ctx, { ticket: "t1", branch: "chore/local" }),
+    ).rejects.toMatchObject({ code: "BRANCH_IN_USE" });
+
+    // ref がない・切ったばかり・base にない作業があるときは通る
+    await runCommand(ticketClaim, ctx, { ticket: "t1", branch: "chore/new" });
+    await git(f.cloneA, ["branch", "chore/cut", "origin/main"]);
+    await runCommand(ticketClaim, ctx, { ticket: "t2", branch: "chore/cut" });
+    await runCommand(ticketClaim, ctx, { ticket: "t3", branch: "chore/wip" });
+    expect(ctx.store.tickets.get("t3")?.data).toMatchObject({
+      status: "in_progress",
+      branch: "chore/wip",
+    });
+
+    // 終わっていない別のチケットが記録している名前
+    await expect(
+      runCommand(ticketClaim, ctx, { ticket: "t4", branch: "chore/new" }),
+    ).rejects.toMatchObject({ code: "BRANCH_IN_USE" });
+    await expect(
+      runCommand(ticketUpdate, ctx, { ticket: "t4", branch: "chore/cut" }),
+    ).rejects.toMatchObject({ code: "BRANCH_IN_USE" });
+
+    // リモートで消したブランチの古い追跡 ref は見ない
+    await git(f.cloneB, ["push", "-q", "origin", "--delete", "chore/reused"]);
+    await runCommand(ticketClaim, ctx, { ticket: "t4", branch: "chore/reused" });
+    expect(ctx.store.tickets.get("t4")?.data.branch).toBe("chore/reused");
+  });
+
   it("PR の要らない作業は claim の without_branch で branch を持たず、照合で動かず警告も出ない。update の branch で付け外しできる", async () => {
     const f = await fixture();
     const ctx = await initialized(f.cloneA, {}, { template: "software-development" });
