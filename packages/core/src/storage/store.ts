@@ -7,8 +7,8 @@ import { readdir, readFile, rename, stat } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
 import { OperationError } from "../errors.js";
-import { configSchema, type Config } from "../model/config.js";
 import { isTerminal } from "../model/common.js";
+import { configSchema, type Config } from "../model/config.js";
 import { epicSchema, type Epic } from "../model/epic.js";
 import {
   idFromFileName,

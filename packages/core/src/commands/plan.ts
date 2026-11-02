@@ -12,8 +12,6 @@ import type { Store } from "../storage/store.js";
 import { defineCommand, ok } from "./define.js";
 import { nowIso, openPlanOf, planRef, projectOf, sortedDocs, ticketRef } from "./helpers.js";
 
-/** 終わったチケット。Plan に入れられない（PL-3） */
-
 /** 1 つの値（CLI の `--after t3=t1,t2`）でも配列（HTTP）でも受ける */
 const refList = z.union([z.string(), z.number(), z.array(z.union([z.string(), z.number()]))]);
 const freeText = z.union([z.string(), z.number(), z.boolean()]);
