@@ -1,5 +1,5 @@
 // Iteration（UI-5）の詳細：チケットの追加・除外、開始・終了。一覧の画面はなく、planned と active はカンバンの絞り込みで選ぶ（board.tsx）。
-// 作成のフォームと開始・閉じるのボタンはここに置く。作成のフォームはカンバン（サイドバーでは選択欄の「+ Iteration を作る」から）とバックログから、
+// 作成のフォームと開始・閉じるのボタンはここに置く。作成のフォームはカンバン（サイドバーでは札の列の「+」から）とバックログから、
 // 開始・閉じるのボタンはカンバンの見出し（サイドバーを除く）とバックログの区画の見出しから使う
 
 import { useEffect, useState } from "react";
@@ -76,7 +76,7 @@ export function IterationActions({ iteration: it }: { iteration: Iteration }) {
   );
 }
 
-/** Iteration を作るフォーム。カンバンの絞り込みの欄（サイドバーでは見出しの Iteration の選択欄）とバックログの「Iteration なし」の区画から開く。作れたら onDone */
+/** Iteration を作るフォーム。カンバンの絞り込みの欄（サイドバーでは見出しの札の列の「+」）とバックログの「Iteration なし」の区画から開く。作れたら onDone */
 export function IterationCreateForm({ onDone }: { onDone: () => void }) {
   const store = useStore();
   const [form, setForm] = useState({ name: "", goal: "", start: "", end: "" });

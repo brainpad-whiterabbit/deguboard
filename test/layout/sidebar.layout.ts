@@ -2,7 +2,7 @@
 // サイドバーの幅（300px・260px）とライト・ダークで、横スクロールが出ないことと、文字が決めた行数に収まることを確かめる。
 // 行数の基準：
 // - タブ（nav a）、カンバンの見出し、チケットの行でない行のタイトル（Epic・Run など .row-title）は 1 行。折り返してはいけない
-//   カンバンの見出しは、Iteration の見出し（.sidebar-head .head-line：番号・名前・状態・漏斗の段、期間・目標の段、進みの帯の段）と
+//   カンバンの見出しは、Iteration の見出し（.sidebar-head .head-line：札の列・漏斗の段、名前・期間・目標の段、進みの帯の段）と
 //   状態の節の見出し（.column summary h2）
 // - ほかの画面の見出し（バックログ・履歴の summary、Run・Epic の h2 など）は検査しない
 // - チケットの行のタイトル（.ticket-row .row-title）は 2 行まで。サイドバーでは 2 行で切る CSS（-webkit-line-clamp: 2）なので、3 行以上は崩れ
@@ -92,6 +92,8 @@ beforeAll(async () => {
     after: { t12: ["t7", "t8", "t9"] },
   });
   await call("plan.approve", { plan: "p1" });
+  // 予定の Iteration を足し、見出しの札の列が幅に入らず横にスクロールするようにする（s3〜s7）
+  for (let i = 3; i <= 7; i++) await call("iteration.create", { name: `予定の週 ${i}` });
   browser = await chromium.launch().catch((error: unknown) => {
     throw new Error(
       `Chromium を起動できない。mise run playwright:install を実行する（${String(error)}）`,
@@ -252,6 +254,65 @@ describe.each(SCHEMES)("実行計画の帯（%s）", (scheme) => {
         expect(m.pageScroll, "画面（.page）の横スクロール").toBeLessThanOrEqual(m.pageClient);
         expect(m.docScroll, "文書の横スクロール").toBeLessThanOrEqual(m.docClient);
         expect(m.overlaps, "重なった文字").toEqual([]);
+      } finally {
+        await context.close();
+      }
+    },
+  );
+});
+
+describe.each(SCHEMES)("Iteration の札の列（%s）", (scheme) => {
+  it.each(WIDTHS)(
+    "幅 %ipx で、札が幅に入らないときは札の列だけが横にスクロールし、選んでいる札が列の見える範囲にある",
+    async (width) => {
+      const context = await browser.newContext({
+        viewport: { width, height: 900 },
+        colorScheme: scheme,
+      });
+      const page = await context.newPage();
+      try {
+        // 既定（active の s2）と、列の端にある札（s7・なし）を選んだとき
+        for (const [query, label] of [
+          ["", "s2"],
+          ["?iteration=s7", "s7"],
+          ["?iteration=-", "なし"],
+        ] as const) {
+          await page.goto(`${server.url}?surface=sidebar#/board${query}`, {
+            waitUntil: "networkidle",
+          });
+          await page.locator(".iteration-chip[aria-pressed=true]").waitFor();
+          const m = await page.evaluate(() => {
+            const strip = document.querySelector(".iteration-chips")!;
+            const chip = strip.querySelector('[aria-pressed="true"]')!;
+            const main = document.querySelector(".page")!;
+            const s = strip.getBoundingClientRect();
+            const c = chip.getBoundingClientRect();
+            return {
+              chips: strip.querySelectorAll(".iteration-chip").length,
+              selected: chip.textContent,
+              stripScroll: strip.scrollWidth,
+              stripClient: strip.clientWidth,
+              visible: c.left >= s.left - 0.5 && c.right <= s.right + 0.5,
+              pageScroll: main.scrollWidth,
+              pageClient: main.clientWidth,
+              docScroll: document.documentElement.scrollWidth,
+              docClient: document.documentElement.clientWidth,
+            };
+          });
+          if (!m.visible || m.pageScroll > m.pageClient || m.docScroll > m.docClient) {
+            await page.screenshot({
+              path: `.playwright-mcp/layout-iteration-chips-${scheme}-${width}-${label}.png`,
+              fullPage: true,
+            });
+          }
+          // s2〜s7・なし・+ の 8 枚
+          expect(m.chips, `${label} の札の数`).toBe(8);
+          expect(m.selected, "選んでいる札").toMatch(new RegExp(`^${label}`));
+          expect(m.stripScroll, "札の列が幅に入らない").toBeGreaterThan(m.stripClient);
+          expect(m.visible, `${label} の札が列の見える範囲にある`).toBe(true);
+          expect(m.pageScroll, "画面（.page）の横スクロール").toBeLessThanOrEqual(m.pageClient);
+          expect(m.docScroll, "文書の横スクロール").toBeLessThanOrEqual(m.docClient);
+        }
       } finally {
         await context.close();
       }

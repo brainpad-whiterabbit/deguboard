@@ -2,7 +2,7 @@
 // その Iteration のチケットを含む Plan の帯（実行計画）と、その Iteration のチケットを状態ごとの節（todo / in_progress / review / done。中止は畳んだ節）で出す。
 // Iteration の選択肢は planned と active と「Iteration なし」、Epic の選択肢は open だけ。
 // Iteration が 1 つもない Project では Iteration で絞らず、全チケットのカンバンにする。絞り込みの値はハッシュに持つ。
-// VS Code の左パネル（surface=sidebar）では、見出しを 2 段と進みの帯に詰め（Iteration の選択欄に「+ Iteration を作る」を入れる）、
+// VS Code の左パネル（surface=sidebar）では、Iteration を選択欄の代わりに札の列（なし・+ を含む）で切り替え、見出しを 2 段と進みの帯に詰め、
 // 詳細・…・開始・閉じる・件数は出さない（件数は帯の done/全体）。Epic・担当の絞り込みは見出しの右端の漏斗で開き（開閉は host.state）、
 // 絞っている間は見出しの下に値の札（× で外す）を出す。状態の節はペイン風の見出しにする。
 // 左パネルの行の右端には、開いた Plan に入っているチケットなら Plan の番号と、todo なら着手可か待ちの相手（Plan の after とチケットの depends_on）か承認待ち（Plan が承認待ち）を出す。
@@ -20,7 +20,7 @@ import {
   useSensors,
   type DragEndEvent,
 } from "@dnd-kit/core";
-import { useMemo, useState } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityMark,
   DraggableRow,
@@ -208,6 +208,7 @@ export function BoardPage({ query }: { query: BoardQuery }) {
           {/* 左パネルは見出しを 2 段と進みの帯に詰め、詳細・操作は出さない（Iteration の開始は `dg guide work` の手順が claim のときに行い、閉じるはバックログの区画の「…」と詳細から行う） */}
           <SidebarBoardHead
             open={open}
+            tickets={store.tickets}
             selection={selection}
             // 帯は絞り込み（Epic・担当）の後のチケットで数える
             progress={ticketProgress(tickets)}
@@ -349,17 +350,15 @@ function IterationHead({ iteration: it }: { iteration: Iteration }) {
   );
 }
 
-/** Iteration の選択欄で「+ Iteration を作る」を表す値（Iteration の ID とは重ならない） */
-const CREATE_ITERATION = "+create";
-
 /**
- * 左パネルのカンバンの見出し（UI-2）。1 段目に番号・名前（Iteration の選択欄）・状態と右端の絞り込みボタン（漏斗）、
- * 2 段目に期間・目標（1 行で省略）、3 段目に状態ごとの色の帯と「n/m done」（件数はここだけ）。
- * 「+ Iteration を作る」は選択欄の最後の選択肢。詳細・…・開始・閉じるは出さない。
+ * 左パネルのカンバンの見出し（UI-2）。1 段目に Iteration の札の列（IterationChips）と右端の絞り込みボタン（漏斗）、
+ * 2 段目に選んでいるものの名前・期間・目標（1 行で省略）、3 段目に状態ごとの色の帯と「n/m done」（件数はここだけ）。
+ * 詳細・…・開始・閉じるは出さない。
  * filter は絞り込める Epic か担当があるときだけ渡す（漏斗を出す）。絞っている間は漏斗を色付きにする
  */
 function SidebarBoardHead({
   open,
+  tickets,
   selection,
   progress,
   onSelect,
@@ -367,6 +366,8 @@ function SidebarBoardHead({
   filter,
 }: {
   open: Iteration[];
+  /** 札の進みと「なし n」を数えるチケット（絞り込みの前の全件） */
+  tickets: readonly Ticket[];
   selection: Selection;
   progress: Progress;
   onSelect: (iteration: string) => void;
@@ -374,47 +375,18 @@ function SidebarBoardHead({
   filter: { open: boolean; active: boolean; onToggle: () => void } | undefined;
 }) {
   const it = selection.kind === "iteration" ? selection.iteration : undefined;
-  const value =
-    selection.kind === "iteration"
-      ? selection.iteration.id
-      : selection.kind === "none"
-        ? NO_ITERATION
-        : "";
   const name = it ? it.name : selection.kind === "none" ? "Iteration なし" : "Iteration はない";
   const period = it ? shortPeriod(it.start, it.end) : undefined;
   return (
     <header className="board-head sidebar-head">
       <div className="head-line">
-        {it ? <code>{it.id}</code> : null}
-        {/* 見えるのは名前と ▾ だけにし、透明なセレクトを重ねて押せるようにする（選択肢には番号と状態を出す） */}
-        <span className="iteration-pick">
-          <span className="name">{name}</span>
-          <span className="caret" aria-hidden="true">
-            ▾
-          </span>
-          <select
-            aria-label="Iteration"
-            value={value}
-            onChange={(e) => {
-              if (e.target.value === CREATE_ITERATION) onCreate();
-              else onSelect(e.target.value);
-            }}
-          >
-            {selection.kind === "all" ? (
-              <option value="" disabled>
-                Iteration はない
-              </option>
-            ) : null}
-            {open.map((i) => (
-              <option key={i.id} value={i.id}>
-                {i.id} {i.name}（{ITERATION_LABELS[i.status]}）
-              </option>
-            ))}
-            {selection.kind === "all" ? null : <option value={NO_ITERATION}>Iteration なし</option>}
-            <option value={CREATE_ITERATION}>+ Iteration を作る</option>
-          </select>
-        </span>
-        {it ? <span className="muted state">{ITERATION_LABELS[it.status]}</span> : null}
+        <IterationChips
+          open={open}
+          tickets={tickets}
+          selection={selection}
+          onSelect={onSelect}
+          onCreate={onCreate}
+        />
         {filter ? (
           <button
             type="button"
@@ -429,20 +401,138 @@ function SidebarBoardHead({
           </button>
         ) : null}
       </div>
-      {period || it?.goal ? (
-        <div className="head-line sub muted">
-          {period ? <span className="period">{period}</span> : null}
-          {it?.goal ? (
-            <span className="goal" title={it.goal}>
-              {it.goal}
-            </span>
-          ) : null}
-        </div>
-      ) : null}
+      <div className="head-line sub muted">
+        <span className="name">{name}</span>
+        {period ? <span className="period">{period}</span> : null}
+        {it?.goal ? (
+          <span className="goal" title={it.goal}>
+            {it.goal}
+          </span>
+        ) : null}
+      </div>
       <div className="head-line">
         <StatusBand progress={progress} />
       </div>
     </header>
+  );
+}
+
+/**
+ * 左パネルの Iteration の札の列（UI-2）。planned と active の Iteration を番号順に並べ、最後に「なし n」（Iteration に入っていない
+ * 終わっていないチケットの数）と「+」（Iteration を作る）を置く。札は番号・進みの輪・done/全体で、選んでいる札は塗り、
+ * active は実線、planned は破線の枠。名前・期間・目標はツールチップで読む。
+ * 幅に入らなければ列だけが横にスクロールし、選んでいる札が見える位置まで寄せる。Iteration のない Project では「+」だけ
+ */
+function IterationChips({
+  open,
+  tickets,
+  selection,
+  onSelect,
+  onCreate,
+}: {
+  open: Iteration[];
+  tickets: readonly Ticket[];
+  selection: Selection;
+  onSelect: (iteration: string) => void;
+  onCreate: () => void;
+}) {
+  const strip = useRef<HTMLDivElement>(null);
+  const selected =
+    selection.kind === "iteration"
+      ? selection.iteration.id
+      : selection.kind === "none"
+        ? NO_ITERATION
+        : undefined;
+  // 選んでいる札が列の見える範囲から外れていたら、列だけを横にスクロールして寄せる（scrollIntoView は画面ごと動かすので使わない）
+  useLayoutEffect(() => {
+    const el = strip.current;
+    const chip = el?.querySelector<HTMLElement>('[aria-pressed="true"]');
+    if (!el || !chip) return;
+    // 列は position: relative なので、offsetLeft は列の左端からの位置
+    const left = chip.offsetLeft;
+    const right = left + chip.offsetWidth;
+    if (left < el.scrollLeft) el.scrollLeft = left;
+    else if (right > el.scrollLeft + el.clientWidth) el.scrollLeft = right - el.clientWidth;
+  }, [selected, open.length]);
+  const loose = tickets.filter(
+    (t) => !t.iteration && t.status !== "done" && t.status !== "abandoned",
+  ).length;
+  return (
+    <div className="iteration-chips" role="group" aria-label="Iteration" ref={strip}>
+      {open.map((i) => {
+        const progress = ticketProgress(tickets.filter((t) => t.iteration === i.id));
+        const period = i.start || i.end ? `\n期間 ${i.start ?? "?"} 〜 ${i.end ?? "?"}` : "";
+        const goal = i.goal ? `\n目標 ${i.goal}` : "";
+        return (
+          <button
+            key={i.id}
+            type="button"
+            className={`iteration-chip ${i.status}`}
+            aria-pressed={selected === i.id}
+            title={`${i.id} ${i.name}（${ITERATION_LABELS[i.status]}）${period}${goal}`}
+            onClick={() => onSelect(i.id)}
+          >
+            <code>{i.id}</code>
+            <ProgressRing progress={progress} />
+            <span className="chip-count">
+              {progress.done}/{progress.total}
+            </span>
+          </button>
+        );
+      })}
+      {selection.kind === "all" ? null : (
+        <button
+          type="button"
+          className="iteration-chip loose"
+          aria-pressed={selected === NO_ITERATION}
+          title={`Iteration なし（終わっていないチケット ${loose} 件）`}
+          onClick={() => onSelect(NO_ITERATION)}
+        >
+          なし {loose}
+        </button>
+      )}
+      <button
+        type="button"
+        className="iteration-chip create"
+        aria-label="Iteration を作る"
+        title="Iteration を作る"
+        onClick={onCreate}
+      >
+        +
+      </button>
+    </div>
+  );
+}
+
+/** 札の進みの小さな輪（done/全体の割合だけ線を引く）。全体が 0 なら輪の下地だけ */
+function ProgressRing({ progress }: { progress: Progress }) {
+  const r = 4.5;
+  const length = 2 * Math.PI * r;
+  const ratio = progress.total > 0 ? progress.done / progress.total : 0;
+  return (
+    <svg className="ring" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
+      <circle
+        cx="6"
+        cy="6"
+        r={r}
+        fill="none"
+        stroke="currentColor"
+        strokeOpacity={0.3}
+        strokeWidth="2"
+      />
+      {ratio > 0 ? (
+        <circle
+          cx="6"
+          cy="6"
+          r={r}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeDasharray={`${length * ratio} ${length}`}
+          transform="rotate(-90 6 6)"
+        />
+      ) : null}
+    </svg>
   );
 }
 
