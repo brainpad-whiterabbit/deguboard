@@ -4,4 +4,7 @@ name: sprint7
 goal: 左パネルの履歴を読みやすくし、設定画面を開けるようにする
 start: 2026-12-13
 end: 2026-12-26
-status: active
+status: closed
+closed_at: 2026-11-02T22:55:15Z
+completed: 18
+carried_over: 0
