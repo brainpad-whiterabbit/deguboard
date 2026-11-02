@@ -18,6 +18,7 @@ argument-hint: "[Iteration|Epic|チケットの ID...]"
 
 - 一覧：`dg --json --actor agent iteration list`（`status` は planned / active / closed）
 - 作る：`dg --json --actor agent iteration create "<名前>" --goal "<目標>" --start 2026-11-01 --end 2026-11-14`
+- 直す：`dg --json --actor agent iteration update <s3> --goal "<目標>"`。`--name`・`--start`・`--end` も、指定したものだけ変わる。閉じた Iteration も直せる
 - 入れる：`dg --json --actor agent iteration add <s3> <t12> <t13>`。別の Iteration に入っていたチケットは移る。所属はチケットの `iteration` に記録され、並びは優先度と番号
 - 外す：`dg --json --actor agent iteration remove <s3> <t12>`
 - 開始：`dg --json --actor agent iteration start <s3>`（planned → active）

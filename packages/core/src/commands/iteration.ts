@@ -93,6 +93,38 @@ export const iterationShow = defineCommand({
   },
 });
 
+export const iterationUpdate = defineCommand({
+  name: "iteration.update",
+  positionals: ["iteration"],
+  group: "iteration",
+  summary: "Iteration の名前・目標・期間を直す。閉じた Iteration も直せる",
+  input: z.object({
+    iteration: iterationRef,
+    name: z.string().min(1).optional(),
+    goal: z.string().optional().describe("目標。空文字で消す"),
+    start: isoDate.optional().describe("開始日（YYYY-MM-DD）"),
+    end: isoDate.optional().describe("終了日（YYYY-MM-DD）"),
+  }),
+  write: true,
+  needs: "store",
+  async run(ctx, input) {
+    const result = await withWrite(
+      ctx,
+      async () => {
+        const it = ctx.store.require("iteration", input.iteration);
+        const patch: Record<string, unknown> = {};
+        if (input.name !== undefined) patch["name"] = input.name;
+        if (input.goal !== undefined) patch["goal"] = input.goal;
+        if (input.start !== undefined) patch["start"] = input.start;
+        if (input.end !== undefined) patch["end"] = input.end;
+        return ctx.store.update("iteration", it.id, patch);
+      },
+      { message: (doc) => `${doc.id} を更新: ${doc.data.name}` },
+    );
+    return ok(result.value.data, result.write);
+  },
+});
+
 const membership = z.object({ iteration: iterationRef, tickets: z.array(ticketRef).min(1) });
 
 export const iterationAdd = defineCommand({
@@ -252,6 +284,7 @@ export const iterationCommands = [
   iterationCreate,
   iterationList,
   iterationShow,
+  iterationUpdate,
   iterationAdd,
   iterationRemove,
   iterationStart,

@@ -18,6 +18,7 @@ import {
   iterationClose,
   iterationCreate,
   iterationReopen,
+  iterationUpdate,
   iterationShow,
   iterationStart,
 } from "./iteration.js";
@@ -802,6 +803,40 @@ describe("Epic と Iteration", () => {
     expect(closed.data).toMatchObject({ status: "closed", completed: 1, carried_over: 1 });
     expect(agent.store.tickets.get("t2")?.data.iteration).toBeUndefined();
     expect(agent.store.tickets.get("t1")?.data.iteration).toBe("s1");
+  });
+
+  it("update は指定した属性だけを直し、閉じた Iteration も直せる", async () => {
+    const f = await fixture();
+    const ctx = await initialized(f.cloneA);
+    await runCommand(iterationCreate, ctx, {
+      name: "Sprint 1",
+      start: "2026-12-13",
+      end: "2026-12-26",
+    });
+    const updated = await runCommand(iterationUpdate, ctx, { iteration: "1", goal: "履歴を読む" });
+    expect(updated.data).toMatchObject({
+      name: "Sprint 1",
+      goal: "履歴を読む",
+      start: "2026-12-13",
+      end: "2026-12-26",
+      status: "planned",
+    });
+    await expect(
+      runCommand(iterationUpdate, ctx, { iteration: "s1", end: "12/27" }),
+    ).rejects.toThrow();
+    await runCommand(iterationClose, ctx, { iteration: "s1" });
+    const renamed = await runCommand(iterationUpdate, ctx, {
+      iteration: "s1",
+      name: "Sprint 1b",
+      goal: "",
+      end: "2026-12-27",
+    });
+    expect(renamed.data).toMatchObject({
+      name: "Sprint 1b",
+      goal: "",
+      end: "2026-12-27",
+      status: "closed",
+    });
   });
 
   it("閉じた Iteration は reopen で active に戻り、件数が消えてチケットを入れ直せる", async () => {
