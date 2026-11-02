@@ -239,6 +239,64 @@ describe("チケットの流れ", () => {
     }
   });
 
+  it("照合は claim より前にマージされた同じブランチ名の PR を根拠にせず、claim の後にマージした PR では done にして pr を記録する（t206）", async () => {
+    const f = await fixture();
+    let clock = new Date("2026-11-02T05:00:00Z");
+    const ctx = await initialized(
+      f.cloneA,
+      { now: () => clock },
+      { template: "software-development" },
+    );
+    await runCommand(ticketCreate, ctx, { title: "Reused branch" });
+    await runCommand(ticketCreate, ctx, { title: "Fresh PR" });
+    const claimed = await runCommand(ticketClaim, ctx, { ticket: "t1", branch: "chore/reused" });
+    expect(claimed.data.branch_at).toBe("2026-11-02T05:00:00Z");
+    await runCommand(ticketClaim, ctx, { ticket: "t2", branch: "chore/fresh" });
+    // claim 直後に main から切った、commit のないブランチ（push はまだ）
+    for (const b of ["chore/reused", "chore/fresh"]) await git(f.cloneA, ["branch", b]);
+
+    // 偽の gh：chore/reused には前日にマージ済みの PR #105、chore/fresh には claim の後にマージした PR #200
+    const bin = path.join(f.root, "fake-bin");
+    await mkdir(bin, { recursive: true });
+    await writeFile(
+      path.join(bin, "gh"),
+      [
+        "#!/bin/sh",
+        'case "$1" in --version) echo "gh version 0 (fake)"; exit 0;; esac',
+        'case "$3" in',
+        '  chore/reused|105) echo \'{"number":105,"state":"MERGED","isDraft":false,"mergedAt":"2026-11-01T10:00:00Z"}\';;',
+        '  chore/fresh|200) echo \'{"number":200,"state":"MERGED","isDraft":false,"mergedAt":"2026-11-02T06:00:00Z"}\';;',
+        '  *) echo "no pull requests found for branch $3" >&2; exit 1;;',
+        "esac",
+        "",
+      ].join("\n"),
+      { mode: 0o755 },
+    );
+    const savedPath = process.env["PATH"];
+    process.env["PATH"] = bin + path.delimiter + (savedPath ?? "");
+    resetGhCache();
+    try {
+      clock = new Date("2026-11-02T06:05:00Z");
+      const synced = await runCommand(sync, ctx, {});
+      expect(synced.data.reconciled).toEqual([
+        { id: "t2", from: "in_progress", to: "done", when: ["pr_merged"] },
+      ]);
+      expect(synced.data.pr_recorded).toEqual([{ id: "t2", pr: 200 }]);
+      // 前の作業の PR は根拠にしない：in_progress のまま、pr も記録しない、閉じた PR の警告も出さない
+      expect(ctx.store.tickets.get("t1")?.data).toMatchObject({ status: "in_progress" });
+      expect(ctx.store.tickets.get("t1")?.data.pr).toBeUndefined();
+      expect(synced.warnings.filter((w) => w.startsWith("t1:"))).toEqual([]);
+      expect(ctx.store.tickets.get("t2")?.data).toMatchObject({ status: "done", pr: 200 });
+
+      // claim し直すと branch_at は新しくなり、unclaim で消える
+      await runCommand(ticketUnclaim, ctx, { ticket: "t1" });
+      expect(ctx.store.tickets.get("t1")?.data.branch_at).toBeUndefined();
+    } finally {
+      process.env["PATH"] = savedPath;
+      resetGhCache();
+    }
+  });
+
   it("PR の要らない作業は claim の without_branch で branch を持たず、照合で動かず警告も出ない。update の branch で付け外しできる", async () => {
     const f = await fixture();
     const ctx = await initialized(f.cloneA, {}, { template: "software-development" });

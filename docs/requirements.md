@@ -94,6 +94,7 @@ workflow: software-development
 created_by: eiki # 起票者。eiki（人）か eiki/agent（eiki の AI）
 assignee: eiki/agent # 担当者。claim で付く
 branch: feature/t12-login-validation
+branch_at: 2026-10-31T04:30:00Z # branch を記録した時刻。claim と branch の更新で付く
 pr: 42 # 任意。照合がブランチ名で PR を見つけたら補う
 created_at: 2026-10-31T04:00:00Z
 updated_at: 2026-10-31T05:10:00Z
@@ -217,7 +218,7 @@ steps: # 任意。Run の step の語彙（WF-5）
 - ST-3 `claim` は todo のチケットの `assignee` を claim した主体にし、`branch` を記録して in_progress に進める。PR も作業ブランチも要らない作業は、ブランチなしの指定で `branch` を記録しない。todo 以外は拒否する。別のユーザが `assignee` だったときは上書きして警告する。依存先が終わるまで着手を止めたいときは Workflow で todo → in_progress に `requires: [deps_done]`（WF-2）を書く
 - ST-4 照合は `dg sync` と、画面の同期（UI-6・UI-12）で行う。`branch` のあるチケットについて Git から事実を集め（`branch` のないチケットは照合せず、状態は `ticket move` で進める）、`reconcile` 規則を上から評価し、今より前進の順が先のときだけ書き換える。`done` と `abandoned` のチケットには触れない。done に進めたチケットに未チェックの受け入れ条件が残れば警告する
 - ST-5 後退を指す事実（消えたブランチ・マージされずに閉じた PR）は書き換えず警告する。`gh` が PR はないと答えたときは、閉じた PR として警告しない。ただし同じ照合で done に進むときは、マージ後に消したブランチなので警告しない。取れなかった事実は不明とし、前進の判定では偽と読む。`branch_merged` は先端が base の真の祖先のとき真だが、in_progress で push していないブランチは commit のない切ったばかりのブランチとみなして偽にする（理由は [ADR-004](adr/ADR-004-agents-and-state.md)）。照合の結果（`reconciled`）には根拠の規則の条件（`when`）を含める
-- ST-6 PR の事実は `gh` が使えるときだけ取る。`gh` がなくても照合は Git の事実だけで成り立つ。`pr` のないチケットの PR をブランチ名で見つけたら、状態が進まなくても番号を `pr` に記録する。記録済みの `pr` は書き換えない
+- ST-6 PR の事実は `gh` が使えるときだけ取る。`gh` がなくても照合は Git の事実だけで成り立つ。`pr` のないチケットの PR をブランチ名で見つけたら、状態が進まなくても番号を `pr` に記録する。記録済みの `pr` は書き換えない。ブランチ名で見つけた PR が `branch_at`（ない古いチケットは `created_at`）より前にマージされていたら、同じ名前を使い回した前の作業の PR とみなし、PR はないと読む
 - ST-7 `unclaim` は in_progress のチケットの、自分（同じユーザの人と AI）の claim か記録のない claim だけを外して todo に戻し、`assignee` を消す。応答のない claim は強制の指定で外す。生存監視はしない
 - ST-8 `abandoned` にすると claim を外し、Iteration の完了件数と Epic の進捗には数えない。todo に戻す（再開・done の取り消し）ときも `assignee` と `branch` を消す。これらを人だけに限るなら Workflow の `by: [human]` で書く
 

@@ -437,7 +437,10 @@ export const ticketUpdate = defineCommand({
         if (input.priority !== undefined) patch["priority"] = input.priority;
         if (input.labels !== undefined) patch["labels"] = input.labels;
         if (input.pr !== undefined) patch["pr"] = input.pr ?? undefined;
-        if (input.branch !== undefined) patch["branch"] = input.branch ?? undefined;
+        if (input.branch !== undefined && input.branch !== (t.branch ?? null)) {
+          patch["branch"] = input.branch ?? undefined;
+          patch["branch_at"] = input.branch === null ? undefined : patch["updated_at"];
+        }
         if (input.assignee !== undefined) {
           patch["assignee"] =
             input.assignee === null ? undefined : resolveActorRef(ctx.actor, input.assignee);
@@ -557,6 +560,7 @@ async function factsFor(
       pr: doc.data.pr,
       needPr,
       status: doc.data.status,
+      since: doc.data.branch_at ?? doc.data.created_at,
     });
     Object.assign(facts, collected.facts);
   }
@@ -566,7 +570,7 @@ async function factsFor(
 /** 遷移に伴う担当者とブランチの扱い（ST-8）。旧名の claimed_by も消す */
 function transitionSideEffects(to: Status): Record<string, unknown> {
   if (to === "abandoned" || to === "todo")
-    return { assignee: undefined, claimed_by: undefined, branch: undefined };
+    return { assignee: undefined, claimed_by: undefined, branch: undefined, branch_at: undefined };
   return {};
 }
 
@@ -695,12 +699,14 @@ export const ticketClaim = defineCommand({
         const previous = doc.data.assignee;
         if (previous && !sameUser(previous, ctx.actor.id))
           warnings.push(`担当者を ${previous} から ${ctx.actor.id} に変えた`);
+        const now = nowIso(ctx);
         return ctx.store.update("ticket", doc.id, {
           status: "in_progress",
           assignee: ctx.actor.id,
           claimed_by: undefined,
           branch: input.without_branch ? undefined : (input.branch ?? defaultBranchName(doc.data)),
-          updated_at: nowIso(ctx),
+          branch_at: input.without_branch ? undefined : now,
+          updated_at: now,
         });
       },
       {
@@ -748,6 +754,7 @@ export const ticketUnclaim = defineCommand({
           assignee: undefined,
           claimed_by: undefined,
           branch: undefined,
+          branch_at: undefined,
           updated_at: nowIso(ctx),
         });
       },

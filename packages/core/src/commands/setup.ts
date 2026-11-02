@@ -156,6 +156,7 @@ async function reconcileAll(ctx: CommandContext, warnings: string[]): Promise<Re
       pr: doc.data.pr,
       needPr: needsPr(wf),
       status: doc.data.status,
+      since: doc.data.branch_at ?? doc.data.created_at,
     });
     facts.deps_done = ctx.store.depsDone(doc.data);
     const outcome = reconcileStatus(wf.resolved, doc.data.status, facts);

@@ -12,6 +12,11 @@ export interface BranchFactsOptions {
   needPr: boolean;
   /** チケットの今の Status。in_progress で push していないブランチは作業がまだないとみなす（ST-5） */
   status?: Status | undefined;
+  /**
+   * ブランチを記録した時刻（ISO）。ブランチ名で引いた PR がこれより前にマージされていたら、
+   * 同じ名前を使い回した別の作業の PR とみなして PR はないと読む（ST-6）。記録した番号で引くときは見ない
+   */
+  since?: string | undefined;
 }
 
 export interface BranchFacts {
@@ -94,7 +99,7 @@ export async function collectBranchFacts(
   }
 
   if (!opts.needPr) return { facts };
-  const pr = await collectPrFacts(repo, branch, opts.pr);
+  const pr = await collectPrFacts(repo, branch, opts.pr, opts.since);
   Object.assign(facts, pr.facts);
   return {
     facts,
@@ -107,7 +112,9 @@ async function collectPrFacts(
   repo: GitRepo,
   branch: string,
   pr: number | undefined,
+  since: string | undefined,
 ): Promise<{ facts: Facts; number?: number; missing?: boolean }> {
+  const missing = { facts: { pr_open: false, pr_draft: false, pr_merged: false }, missing: true };
   if (!(await hasGh(repo.topLevel))) return { facts: {} };
   try {
     const result = await runGh(
@@ -117,11 +124,26 @@ async function collectPrFacts(
     );
     if (result.code !== 0) {
       if (/no pull requests found|could not find|not found/i.test(result.stderr)) {
-        return { facts: { pr_open: false, pr_draft: false, pr_merged: false }, missing: true };
+        return missing;
       }
       return { facts: {} };
     }
-    const data = JSON.parse(result.stdout) as { number?: number; state: string; isDraft: boolean };
+    const data = JSON.parse(result.stdout) as {
+      number?: number;
+      state: string;
+      isDraft: boolean;
+      mergedAt?: string | null;
+    };
+    // ブランチを記録する前にマージされた PR は、同じブランチ名で出した前の作業のもの（t206）
+    if (
+      pr === undefined &&
+      since !== undefined &&
+      data.state === "MERGED" &&
+      typeof data.mergedAt === "string" &&
+      Date.parse(data.mergedAt) < Date.parse(since)
+    ) {
+      return missing;
+    }
     const facts: Facts = {
       pr_open: data.state === "OPEN",
       pr_draft: data.isDraft,

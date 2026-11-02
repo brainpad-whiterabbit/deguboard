@@ -26,6 +26,8 @@ const ticketFrontmatter = z.looseObject({
   /** 旧名。読むときに assignee へ読み替え、assignee を書く操作が消す */
   claimed_by: z.string().optional(),
   branch: z.string().optional(),
+  /** `branch` を記録した時刻。照合はこれより前にマージされた PR を根拠にしない（ST-6）。古いファイルにはない */
+  branch_at: isoDateTime.optional(),
   pr: z.number().int().positive().optional(),
   provisional: z.boolean().optional(),
   created_at: isoDateTime,
