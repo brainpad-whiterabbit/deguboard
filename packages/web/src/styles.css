@@ -1088,19 +1088,11 @@ button.danger {
   border-color: transparent;
   color: var(--vscode-button-foreground, #fff);
 }
-/* サイドバーのバックログの区画の見出しの「…」のメニュー（iterations.tsx の IterationActions）。
-   中身は見出しの操作の並びにそのまま入れ、確認（.confirm）は折り返して次の行に出す */
-.menu,
-.menu-items {
-  display: contents;
-}
+/* 見出しの開始・閉じる（iterations.tsx の IterationActions）。確認（.confirm）は折り返して次の行に出す */
 .board-head .actions,
 .backlog-section .actions {
   flex-wrap: wrap;
   justify-content: flex-end;
-}
-.menu-toggle {
-  padding: 0 0.5em;
 }
 /* VS Code（パネル）の Epic のチケットの一覧（pages/epics.tsx の EpicTicketList） */
 .epic-tickets {
@@ -1487,6 +1479,68 @@ button.danger {
 .backlog-section .meta {
   flex: 1 1 100%;
 }
+/* 左パネルのバックログの区画（backlog.tsx の Section）：枠をやめ、左の帯で Iteration の状態を出す（active は青の実線、planned は灰の破線、ほかは灰の実線）。
+   見出しは 1 段目に番号・名前・件数、2 段目に状態・期間・目標を 1 行で（行の部品は左パネルのカンバンの .head-line と同じ） */
+.backlog-section.sidebar-section {
+  --dg-iteration: var(--dg-border);
+  margin-bottom: 0.5rem;
+  padding-left: 0.3rem;
+  border-left: 3px solid var(--dg-iteration);
+}
+.backlog-section.sidebar-section.iteration-active {
+  --dg-iteration: var(--dg-status-in_progress);
+}
+/* planned はカンバンの札と同じく破線にし、色は灰のまま（紫は Plan の番号の色 --dg-plan と紛れる） */
+.backlog-section.sidebar-section.iteration-planned {
+  --dg-iteration: var(--vscode-descriptionForeground);
+  border-left-style: dashed;
+}
+.backlog-section.sidebar-section > summary {
+  flex-wrap: wrap;
+  gap: 1px 0.4em;
+  padding: 0.15rem 0.1rem;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+}
+/* 行の形（.head-line・.period・.goal）は左パネルのカンバンの見出し（.sidebar-head）と共通の規則。ここは区画に固有のものだけ */
+.sidebar-section .head-line {
+  flex: 1 1 0;
+}
+.sidebar-section .head-line .name {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sidebar-section .head-line .count {
+  flex: none;
+  margin-left: auto;
+}
+.sidebar-section .head-line .create {
+  flex: none;
+  padding: 0 0.3em;
+}
+/* 2 段目は 1 段目の名前の頭にそろえて 1 行に収める（目標から省略する）。字下げは開閉の印（.fold > summary::before）の
+   幅 5px と左右の余白 0.1em＋0.2em、印と 1 段目の間の summary の列の間隔 0.4em の和 */
+.sidebar-section .head-line.sub {
+  flex: 1 1 100%;
+  padding-left: calc(5px + 0.3em + 0.4em);
+}
+.sidebar-section .head-line.sub .state {
+  flex: none;
+  color: var(--dg-iteration);
+}
+/* 0 件の区画は帯も枠もない 1 行。名前は太字にせず薄くする */
+.backlog-section.sidebar-section.empty-section {
+  border-left-color: transparent;
+  margin-bottom: 0.2rem;
+}
+.sidebar-section.empty-section .head-line .name {
+  font-weight: 400;
+  color: var(--vscode-descriptionForeground);
+}
 
 /* サイドバー（UI-12）：タブを 1 段目に広げ、列を縦に積み、余白を詰める */
 [data-surface="sidebar"] {
@@ -1581,13 +1635,16 @@ button.danger {
   padding: 0.1rem 0.25rem 0.4rem;
   border-bottom: 1px solid var(--dg-border);
 }
-.sidebar-head .head-line {
+/* 見出しの行・期間・目標の形は、左パネルのバックログの区画の見出し（.sidebar-section）と共通 */
+.sidebar-head .head-line,
+.sidebar-section .head-line {
   display: flex;
   align-items: center;
   gap: 6px;
   min-width: 0;
 }
-.sidebar-head .head-line.sub {
+.sidebar-head .head-line.sub,
+.sidebar-section .head-line.sub {
   gap: 8px;
   font-size: 0.92em;
 }
@@ -1614,10 +1671,12 @@ button.danger {
 .sidebar-head .filter-toggle.active path {
   fill-opacity: 1;
 }
-.sidebar-head .period {
+.sidebar-head .period,
+.sidebar-section .period {
   flex: none;
 }
-.sidebar-head .goal {
+.sidebar-head .goal,
+.sidebar-section .goal {
   flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;

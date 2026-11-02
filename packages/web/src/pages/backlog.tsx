@@ -1,5 +1,5 @@
 // バックログ（UI-3）。done と abandoned 以外を Iteration ごとの区画（active → planned → Iteration なし）に分け、区画の中は優先度と番号で出す。
-// 番号・タイトル・ラベルで検索、Status・優先度・ラベル・担当者で絞り込む。区画の見出しから Iteration の開始・閉じる、「Iteration なし」から作成。
+// 番号・タイトル・ラベルで検索、Status・優先度・ラベル・担当者で絞り込む。区画の見出しから Iteration の開始・閉じる（サイドバーを除く）、「Iteration なし」から作成。
 // Iteration が 1 つもない（planned・active がない）Project では区画に分けず 1 つの表で出す。
 // チケットを別の区画にドラッグすると ticket.update で Iteration を変える。拒否されたら通知に理由を出して元の区画に戻す（読み直すだけで戻る）。
 // open の Epic は進捗つきの欄に並べ（UI-10）、押すとその Epic のチケットに絞る（もう一度押すと解除）。Epic の作成も欄から行う。
@@ -18,6 +18,7 @@ import { ProgressBar, TicketTable } from "../components/parts.js";
 import { useHost, useUiState } from "../host.js";
 import { hrefOf } from "../router.js";
 import { useStore } from "../store.js";
+import { shortPeriod } from "./board.js";
 import {
   BOARD_STATUSES,
   PRIORITIES,
@@ -266,7 +267,7 @@ export function BacklogPage() {
 
 /**
  * 1 つの区画：見出し（番号・名前・状態・期間・目標・件数・詳細と開始・閉じる。「Iteration なし」は作成）とチケットの表。
- * 0 件なら見出しだけ。サイドバーでは折りたたみの節にし、開閉を host.state に残す
+ * 0 件なら見出しだけ。サイドバーでは折りたたみの節にし、開閉を host.state に残す。サイドバーの見出しは帯と 2 段で、開始・閉じるを置かない
  */
 /** 「Iteration なし」の区画の落とし先の ID（Iteration の ID と重ならない） */
 const NO_SECTION = "-";
@@ -295,36 +296,44 @@ function Section({ section: { iteration: it, tickets } }: { section: BacklogSect
       <code>{it.id}</code> {it.name}
     </a>
   ) : (
-    <span className="name">Iteration なし</span>
+    "Iteration なし"
   );
-  const createButton = (
-    <button
-      type="button"
-      className="link"
-      onClick={(e) => {
-        // 見出し（summary）の中のボタンなので、節の開閉を起こさない
-        e.preventDefault();
-        setCreating(true);
-        setOpen(true);
-      }}
-    >
-      + Iteration を作る
-    </button>
-  );
-  // サイドバーの見出し：1 行目は番号・名前・件数と「…」、2 行目に状態と期間・目標。0 件の区画は 1 行だけにする
-  const period = it && (it.start || it.end) ? `${it.start ?? "?"} 〜 ${it.end ?? "?"}` : "";
+  // サイドバーの見出し（カンバンの SidebarBoardHead と同じ部品）：左の帯の色で Iteration の状態を出し、1 段目に番号・名前・件数、
+  // 2 段目に状態・月日の期間・目標を 1 行で（目標が溢れたら省略してツールチップで全文。カンバンと同じ）。開始・閉じるは置かず、詳細の画面で行う。
+  // 0 件の区画は帯も 2 段目もない 1 行にし、「Iteration なし」は行の右端の「+」で作る
+  const period = it ? shortPeriod(it.start, it.end) : undefined;
   const sidebarHead = (
     <>
-      {link}
-      <span className="muted count">{tickets.length} 件</span>
-      <span className="actions">
-        {it ? <IterationActions iteration={it} /> : creating ? null : createButton}
+      <span className="head-line">
+        <span className="name">{link}</span>
+        <span className="muted count">{tickets.length} 件</span>
+        {it || creating ? null : (
+          <button
+            type="button"
+            className="link create"
+            aria-label="Iteration を作る"
+            title="Iteration を作る"
+            onClick={(e) => {
+              // 見出し（summary）の中のボタンなので、節の開閉を起こさない
+              e.preventDefault();
+              setCreating(true);
+              setOpen(true);
+            }}
+          >
+            +
+          </button>
+        )}
       </span>
       {it && tickets.length > 0 ? (
-        <small className="muted meta">
-          <span className={`badge iteration-${it.status}`}>{ITERATION_LABELS[it.status]}</span>{" "}
-          {[period, it.goal].filter(Boolean).join(" ・ ")}
-        </small>
+        <span className="head-line sub muted">
+          <span className={`state iteration-${it.status}`}>{ITERATION_LABELS[it.status]}</span>
+          {period ? <span className="period">{period}</span> : null}
+          {it.goal ? (
+            <span className="goal" title={it.goal}>
+              {it.goal}
+            </span>
+          ) : null}
+        </span>
       ) : null}
     </>
   );
@@ -387,7 +396,7 @@ function Section({ section: { iteration: it, tickets } }: { section: BacklogSect
     return (
       <details
         ref={setNodeRef}
-        className={`fold backlog-section${isOver ? " over" : ""}${tickets.length === 0 ? " empty-section" : ""}`}
+        className={`fold backlog-section sidebar-section iteration-${it?.status ?? "none"}${isOver ? " over" : ""}${tickets.length === 0 ? " empty-section" : ""}`}
         // 0 件の区画は畳んだ 1 行にする（作るフォームを開いたときだけ開く）
         open={tickets.length === 0 ? creating : open}
         onToggle={(e) => tickets.length > 0 && setOpen(e.currentTarget.open)}
