@@ -60,6 +60,62 @@ async function sha(repo: GitRepo, ref: string): Promise<string> {
   return (await runGit(repo.dataDir, ["rev-parse", ref])).stdout.trim();
 }
 
+/** 照合の base。リモートの追跡ブランチがあればそれ、なければローカルのもの */
+async function baseRef(repo: GitRepo): Promise<string | undefined> {
+  if (repo.remote && (await refExists(repo, `refs/remotes/${repo.remote}/${repo.baseBranch}`)))
+    return `refs/remotes/${repo.remote}/${repo.baseBranch}`;
+  if (await refExists(repo, `refs/heads/${repo.baseBranch}`))
+    return `refs/heads/${repo.baseBranch}`;
+  return undefined;
+}
+
+/**
+ * 記録しようとするブランチ名に、前の作業でマージ済みのブランチが残っているか（ADR-004）。
+ * 残ったブランチの先端は base の真の祖先なので、同じ名前で claim すると照合が branch_merged で done にする。
+ * 残っていればその ref を返す。先端が base と同じ（切ったばかり）・base にない作業がある・ref がないときは undefined。
+ * claim の取り込みは deguboard ブランチだけなので、ここで base と対象のブランチを取り込む。取り込めなければ手元の ref で判定する
+ */
+export async function findMergedLeftover(
+  repo: GitRepo,
+  branch: string,
+): Promise<string | undefined> {
+  const refs = [`refs/heads/${branch}`];
+  if (repo.remote) {
+    const remoteRef = `refs/remotes/${repo.remote}/${branch}`;
+    const baseFetch = await runGit(
+      repo.dataDir,
+      [
+        "fetch",
+        repo.remote,
+        `+refs/heads/${repo.baseBranch}:refs/remotes/${repo.remote}/${repo.baseBranch}`,
+      ],
+      { allowFailure: true, timeoutMs: 60_000 },
+    );
+    // base に届かなければリモートに届かないとみなし、ブランチの取り込みで待たない
+    const fetched =
+      baseFetch.code === 0
+        ? await runGit(repo.dataDir, ["fetch", repo.remote, `+refs/heads/${branch}:${remoteRef}`], {
+            allowFailure: true,
+            timeoutMs: 60_000,
+          })
+        : undefined;
+    // リモートで消えたブランチの追跡 ref は古い名残なので見ない
+    if (!fetched || !/couldn't find remote ref/i.test(fetched.stderr)) refs.push(remoteRef);
+  }
+  const base = await baseRef(repo);
+  if (!base) return undefined;
+  const baseSha = await sha(repo, base);
+  for (const ref of refs) {
+    if (!(await refExists(repo, ref))) continue;
+    if ((await sha(repo, ref)) === baseSha) continue;
+    const r = await runGit(repo.dataDir, ["merge-base", "--is-ancestor", ref, base], {
+      allowFailure: true,
+    });
+    if (r.code === 0) return ref.replace(/^refs\/(heads|remotes)\//, "");
+  }
+  return undefined;
+}
+
 export async function collectBranchFacts(
   repo: GitRepo,
   branch: string,
@@ -74,12 +130,7 @@ export async function collectBranchFacts(
   if (repo.remote) facts.branch_pushed = remote;
 
   const tip = remote ? remoteRef : local ? localRef : undefined;
-  const base =
-    repo.remote && (await refExists(repo, `refs/remotes/${repo.remote}/${repo.baseBranch}`))
-      ? `refs/remotes/${repo.remote}/${repo.baseBranch}`
-      : (await refExists(repo, `refs/heads/${repo.baseBranch}`))
-        ? `refs/heads/${repo.baseBranch}`
-        : undefined;
+  const base = await baseRef(repo);
   if (tip && base) {
     // 先端が base と同じなら、切ったばかりで作業のないブランチとみなして merged にしない。
     // ff マージの直後も同じ形になるが、base が進めば真の祖先になり、PR があれば pr_merged で先に拾える。

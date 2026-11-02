@@ -5,6 +5,7 @@ export type OperationErrorCode =
   | "ALREADY_EXISTS"
   | "TRANSITION_REJECTED"
   | "CLAIM_LOST"
+  | "BRANCH_IN_USE"
   | "SYNC_CONFLICT"
   | "PUSH_FAILED"
   | "VALIDATION_FAILED"
