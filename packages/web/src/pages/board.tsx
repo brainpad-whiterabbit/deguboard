@@ -5,6 +5,7 @@
 // VS Code の左パネル（surface=sidebar）では、Iteration を選択欄の代わりに札の列（なし・+ を含む）で切り替え、見出しを 2 段と進みの帯に詰め、
 // 詳細・…・開始・閉じる・件数は出さない（件数は帯の done/全体）。Epic・担当の絞り込みは見出しの右端の漏斗で開き（開閉は host.state）、
 // 絞っている間は見出しの下に値の札（× で外す）を出す。状態の節はペイン風の見出しにする。
+// 左パネルの行は担当の名前の列を出さず、右端の上の段（Plan の番号の左）に担当の印（AssigneeMark。人は頭文字の丸、agent は持ち主の丸と Run の agent の種類のアイコン）を出す。
 // 左パネルの行の右端には、開いた Plan に入っているチケットなら Plan の番号と、todo なら着手可か待ちの相手（Plan の after とチケットの depends_on）か承認待ち（Plan が承認待ち）を出す。
 // 待ちと承認待ちの行（実行中の Run がないもの）はタイトルを説明文の色で薄く出す。
 // 左パネルの行の頭には、実行中の Run があるチケットなら回るリング（右端の下の段に「実行中」）を、実行中の Run のない in_progress なら止まった半分塗りの丸を出す。
@@ -32,8 +33,8 @@ import {
   StatusDot,
   Tags,
   TicketLink,
-  sameAssignee,
 } from "../components/parts.js";
+import { AssigneeMark } from "../components/assignee-mark.js";
 import { PlanBand } from "../components/plan-band.js";
 import {
   openPlanByTicket,
@@ -140,8 +141,6 @@ export function BoardPage({ query }: { query: BoardQuery }) {
     [store.tickets, store.iterations, store.epics],
   );
   const abandoned = tickets.filter((t) => t.status === "abandoned");
-  // 見えている行の担当が 1 人だけなら、サイドバーの行に担当を出さない（同じ名前が全行に並ぶだけなので）
-  const hideAssignee = sameAssignee(tickets);
   const planOf = useMemo(() => openPlanByTicket(store.plans), [store.plans]);
   const planMarks = useMemo(
     () => kanbanPlanMarks(store.plans, store.tickets, planOf),
@@ -289,7 +288,6 @@ export function BoardPage({ query }: { query: BoardQuery }) {
               tickets={tickets.filter((t) => t.status === status)}
               planOf={planOf}
               planMarks={planMarks}
-              hideAssignee={hideAssignee}
               flashing={flash.flashing}
               // 完了は既定で畳む（どの surface でも。開いた状態は useUiState が保つ）
               defaultOpen={status !== "done"}
@@ -302,7 +300,6 @@ export function BoardPage({ query }: { query: BoardQuery }) {
               tickets={abandoned}
               planOf={planOf}
               planMarks={planMarks}
-              hideAssignee={hideAssignee}
               flashing={flash.flashing}
               defaultOpen={false}
             />
@@ -317,12 +314,12 @@ export function BoardPage({ query }: { query: BoardQuery }) {
  * 入っている Iteration か Epic のどちらかが closed の done・abandoned のチケットを除く。
  * 終わっていないチケットは Epic が閉じていても残す。絞り込みで選んだ Epic（epic）のチケットは除かない
  */
-export function hideClosedFinished(
-  tickets: Ticket[],
+export function hideClosedFinished<T extends Ticket>(
+  tickets: T[],
   iterations: Pick<Iteration, "id" | "status">[],
   epics: Pick<Epic, "id" | "status">[],
   epic?: string,
-): Ticket[] {
+): T[] {
   const closedIterations = new Set(
     iterations.filter((i) => i.status === "closed").map((i) => i.id),
   );
@@ -647,18 +644,15 @@ function Column({
   tickets,
   planOf,
   planMarks,
-  hideAssignee,
   flashing,
   defaultOpen,
 }: {
   status: Status;
-  tickets: Ticket[];
+  tickets: TicketRow[];
   /** チケットが入っている開いた Plan の ID */
   planOf: ReadonlyMap<string, string>;
   /** 左パネルの行の右端に出す Plan の番号と待ち（kanbanPlanMarks） */
   planMarks: ReadonlyMap<string, PlanMark>;
-  /** サイドバーの行に担当を出さない */
-  hideAssignee: boolean;
   /** 点滅させるチケット（サイドバー） */
   flashing: ReadonlySet<string>;
   defaultOpen: boolean;
@@ -700,12 +694,11 @@ function Column({
                   key={t.id}
                   ticket={t}
                   dimmed={!running && isWaitingReadiness(kanbanReadiness(t, mark))}
-                  hideAssignee={hideAssignee}
                   flash={flashing.has(t.id)}
                   variant="kanban"
                   head={activity ? <ActivityMark activity={activity} /> : undefined}
                   end={
-                    mark || running ? (
+                    mark || running || t.assignee ? (
                       <KanbanRowEnd ticket={t} mark={mark} running={running} />
                     ) : undefined
                   }
@@ -796,7 +789,7 @@ export function isWaitingReadiness(readiness: KanbanReadiness | null): boolean {
 }
 
 /**
- * 左パネルのカンバンの行の右端（開いた Plan に入っているか、実行中の Run があるチケット）。縦に 2 段で、上に Plan の番号を Plan の色で、
+ * 左パネルのカンバンの行の右端（開いた Plan に入っているか、実行中の Run があるか、担当のあるチケット）。縦に 2 段で、上に担当の印と Plan の番号を Plan の色で、
  * 下に実行中の Run があれば「実行中」（Plan の外の行でも）、なければ todo なら承認待ち（Plan が承認待ち）・
  * 待ちの相手（after と depends_on の終わっていないもの）・着手可、どれでもなければ優先度の印を出す。
  * 下の段に優先度の印でないものを出すときに優先度の印（high・low）もあれば、優先度の印を上の段の Plan の番号の左に寄せる
@@ -806,7 +799,7 @@ function KanbanRowEnd({
   mark,
   running,
 }: {
-  ticket: Ticket;
+  ticket: TicketRow;
   mark: PlanMark | undefined;
   running: boolean;
 }) {
@@ -836,6 +829,7 @@ function KanbanRowEnd({
     <span className="row-end">
       <span className="row-end-top">
         {sub ? priority : null}
+        <AssigneeMark assignee={ticket.assignee} runAgent={ticket.run_agent} />
         {mark ? (
           <span
             className={`row-plan plan-color-${planColor(mark.plan)}`}

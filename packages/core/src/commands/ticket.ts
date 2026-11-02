@@ -17,6 +17,7 @@ import {
   type Ticket,
 } from "../model/ticket.js";
 import type { FactName } from "../model/workflow.js";
+import { peekRunningRuns, runAgentByTicket } from "../run/record.js";
 import type { Doc } from "../storage/documents.js";
 import { wouldCreateCycle } from "../storage/integrity.js";
 import type { Store, WorkflowEntry } from "../storage/store.js";
@@ -305,8 +306,11 @@ export const ticketImport = defineCommand({
   },
 });
 
-/** ticket.list の 1 行。deps_done は依存先がすべて done か abandoned か（WF-2。別の Project の依存先も見る） */
-export type TicketRow = Ticket & { deps_done: boolean };
+/**
+ * ticket.list の 1 行。deps_done は依存先がすべて done か abandoned か（WF-2。別の Project の依存先も見る）。
+ * run_agent はチケットの Run の agent（実行中の Run があればその agent、なければ最後の Run の agent。Run がなければ null。RN-1）
+ */
+export type TicketRow = Ticket & { deps_done: boolean; run_agent: string | null };
 
 /** ticket.show の出力 */
 export type TicketDetail = Ticket & {
@@ -322,7 +326,7 @@ export const ticketList = defineCommand({
   name: "ticket.list",
   group: "ticket",
   summary:
-    "チケットを番号順に出す。各行に依存先が終わったか（deps_done。ticket.show と同じ）を足す。abandoned は include_abandoned か status の指定で出す",
+    "チケットを番号順に出す。各行に依存先が終わったか（deps_done。ticket.show と同じ）と、Run の agent（run_agent。実行中の Run、なければ最後の Run の agent）を足す。abandoned は include_abandoned か status の指定で出す",
   input: ticketFilterSchema,
   write: false,
   needs: "store",
@@ -335,8 +339,21 @@ export const ticketList = defineCommand({
     const docs = sortedDocs(ctx.store.tickets.values()).filter((d) =>
       matchesFilter(ctx.store, d.data, filter),
     );
+    // run_agent は実行中の Run（このマシンの deguboard-local/runs/）と runs/ の集計から 1 回で引く
+    const running =
+      docs.length > 0 ? await peekRunningRuns(ctx.repo, (id) => ctx.store.runs.has(id)) : [];
+    const agents = runAgentByTicket(
+      running,
+      [...ctx.store.runs.values()].map((r) => r.data),
+    );
     // deps_done は Project で絞る前の全チケットから求める（別の Project の依存先も見る。WF-2）
-    return ok(docs.map((d): TicketRow => ({ ...d.data, deps_done: ctx.store.depsDone(d.data) })));
+    return ok(
+      docs.map((d): TicketRow => ({
+        ...d.data,
+        deps_done: ctx.store.depsDone(d.data),
+        run_agent: agents.get(d.data.id) ?? null,
+      })),
+    );
   },
 });
 

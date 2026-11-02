@@ -90,6 +90,42 @@ export async function readRunningRuns(
   return withRunLock(repo, () => pruneRunning(repo));
 }
 
+/**
+ * チケットごとの Run の agent（RN-1）：実行中の Run があればその agent（2 つ以上なら後に始めた方）、なければ最後に始めた終わった Run の agent。
+ * running は実行中の Run、finished は runs/ の集計。どちらも Run の ID（開始の時刻で始まる）の順で後のものを取る。
+ * 同じ秒に始めた Run の順は ID の末尾の乱数で決まるので、どちらを取るかは決まらない
+ */
+export function runAgentByTicket(
+  running: Iterable<Run>,
+  finished: Iterable<Run>,
+): Map<TicketId, string> {
+  const latest = (runs: Iterable<Run>) => {
+    const byTicket = new Map<TicketId, Run>();
+    for (const run of runs) {
+      const prev = byTicket.get(run.ticket);
+      if (!prev || prev.id.localeCompare(run.id) < 0) byTicket.set(run.ticket, run);
+    }
+    return byTicket;
+  };
+  const agents = new Map<TicketId, string>();
+  for (const [ticket, run] of latest(finished)) agents.set(ticket, run.agent);
+  // 実行中の Run が終わった Run より優先する
+  for (const [ticket, run] of latest(running)) agents.set(ticket, run.agent);
+  return agents;
+}
+
+/**
+ * 終わっていない Run を、ロックを取らず何も消さずに読む（一覧の表示のため）。
+ * runs/ に同じ ID の集計がある記録（finish の残り）は、consumed で除く。読めないファイルは飛ばす
+ */
+export async function peekRunningRuns(
+  repo: RunDirs,
+  consumed: (id: RunId) => boolean,
+): Promise<Run[]> {
+  const { runs } = await readLocalRuns(repo);
+  return runs.filter((r) => !consumed(r.data.id)).map((r) => r.data);
+}
+
 export interface StartRunInput {
   ticket: TicketId;
   step: string;

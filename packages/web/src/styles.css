@@ -1187,14 +1187,14 @@ button.danger {
   grid-template-columns: auto auto minmax(0, 1fr) auto auto;
 }
 /*
- * カンバンの行は状態の丸印を出さない：番号・タイトル・担当者・右端（優先度か、Plan の番号・待ち・実行中）。low は小さな灰色の文字。
+ * カンバンの行は状態の丸印と担当者の列を出さない：番号・タイトル・右端（担当の印・優先度・Plan の番号・待ち・実行中）。low は小さな灰色の文字。
  * 頭の印（実行中の Run・in_progress）がある行は、番号の前に列を足す（has-head）
  */
 .ticket-row.kanban-row {
-  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  grid-template-columns: auto minmax(0, 1fr) auto;
 }
 .ticket-row.kanban-row.has-head {
-  grid-template-columns: auto auto minmax(0, 1fr) auto auto;
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
 }
 /*
  * カンバンの行の頭の印（UI-2）。running は 1 秒で 1 回転するリング、idle は止まった半分塗りの丸。どちらも 12px で in_progress の色。
@@ -1264,6 +1264,47 @@ button.danger {
 .row-end-sub .badge,
 .row-end-sub .row-low {
   font-size: 1em;
+}
+/*
+ * カンバンの行の担当の印（UI-2）：持ち主の頭文字の丸と、agent ならその種類のアイコン（C・X の文字の札か汎用の図形）。
+ * 各社のロゴや配色は使わず、テーマの前景色と札の色で描く（ライトとダークで同じ形）。全文はツールチップ
+ */
+.assignee-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex: none;
+}
+.assignee-initial {
+  display: inline-grid;
+  place-items: center;
+  box-sizing: border-box;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: var(--vscode-badge-background);
+  color: var(--vscode-badge-foreground);
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 1;
+}
+.agent-icon {
+  display: inline-grid;
+  place-items: center;
+  box-sizing: border-box;
+  width: 14px;
+  height: 14px;
+  border: 1px solid var(--vscode-descriptionForeground);
+  border-radius: 3px;
+  color: var(--vscode-foreground);
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+}
+/* 汎用は枠のない図形だけにして、文字の札（C・X）と形で見分ける */
+.agent-icon.agent-generic {
+  border: none;
 }
 .row-plan {
   font-family: ui-monospace, Menlo, Consolas, monospace;
