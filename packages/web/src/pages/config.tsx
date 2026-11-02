@@ -2,7 +2,7 @@
 // 値を変えるたびに config.set で 1 項目ずつ保存する。設定はチームで共有する config.yaml だけで、VS Code の settings.json は使わない
 // （requirements.md 5.10「利用者ごとの上書きは設けない」）。左パネルではビューのタイトル行の歯車、ブラウザでは上のバーの歯車で開け閉めし、画面の中の「前の画面に戻る」も歯車と同じく来る前の画面に戻る。
 // 選択欄とチェックは変えたらすぐ、テキストは Enter か欄を離れたとき、リストは足す・外すたびに保存する。
-// 同期先とブランチの判定・worktree の置き場所を変える項目（CONFIRM_KEYS）は、保存の前に欄の下で確かめる。
+// 同期先とブランチの判定・worktree の置き場所・実行するコマンドとエージェントに許す操作を変える項目（CONFIRM_KEYS）は、保存の前に欄の下で確かめる。
 // 拒否されたら理由を項目の下にだけ出し（上の通知の帯には出さない）、値を保存されている値に戻す
 
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
@@ -37,11 +37,17 @@ const NAMES: Record<string, string> = {
   default_project: "既定の Project",
 };
 
-/** 保存の前に確かめる項目。チーム全員の同期先・マージ済みの判定・作業場所が変わる */
-const CONFIRM_KEYS: ReadonlySet<string> = new Set([
-  "git.remote",
-  "git.base_branch",
-  "worktree.root",
+/**
+ * 保存の前に確かめる項目と、確かめの文に出す変わること。誤るとチーム全員に効き、戻すまで気づきにくい。
+ * actions.test は確認なしで実行するコマンドなので、シェルの許可（actions.shell）と同じ重さで扱う（ADR-006・ADR-007）
+ */
+export const CONFIRM_KEYS: ReadonlyMap<string, string> = new Map([
+  ["git.remote", "チーム全員の同期先が変わる"],
+  ["git.base_branch", "マージ済みの判定の基準が変わる"],
+  ["worktree.root", "作業場所が変わる"],
+  ["actions.test", "テストとして確認なしで実行するコマンドが変わる（シェルを許すのと同じ）"],
+  ["actions.shell", "エージェントが任意のシェルを実行できるかが変わる"],
+  ["actor.human_only", "エージェントに許す操作が変わる"],
 ]);
 
 type Values = Record<string, unknown>;
@@ -479,8 +485,8 @@ function ConfirmBox({
   return (
     <div className="config-confirm" role="alertdialog" aria-label={`${field.key} の保存の確認`}>
       <p>
-        <code>{field.key}</code> を <code>{formatValue(value)}</code>{" "}
-        にする。チーム全員の同期先・マージ済みの判定・作業場所が変わる。保存する？
+        <code>{field.key}</code> を <code>{formatValue(value)}</code> にする。
+        {CONFIRM_KEYS.get(field.key)}。チーム全員に効く。保存する？
       </p>
       <div className="config-confirm-actions">
         <button type="button" className="primary" onClick={onSave}>

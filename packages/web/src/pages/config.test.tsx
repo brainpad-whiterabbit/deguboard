@@ -7,7 +7,15 @@ import { StoreProvider } from "../store.js";
 import { mockClient } from "../test-helpers.js";
 import type { ConfigField } from "../types.js";
 import { configFields } from "@deguboard/core";
-import { formatValue, groupOf, isModified, matchesQuery, nameOf, valueAt } from "./config.js";
+import {
+  CONFIRM_KEYS,
+  formatValue,
+  groupOf,
+  isModified,
+  matchesQuery,
+  nameOf,
+  valueAt,
+} from "./config.js";
 
 afterEach(() => {
   cleanup();
@@ -129,25 +137,55 @@ describe("設定画面", () => {
     await waitFor(() => expect(within(fieldOf("commit.mode")).queryByText("変更あり")).toBeNull());
   });
 
-  it("チェックとリストは変えたらすぐ保存し、保存した項目と値を出す", async () => {
+  it("確かめない項目は変えたらすぐ保存し、保存した項目と値を出す", async () => {
     const { client } = configClient();
     mount(client);
     await screen.findByText("コミットの仕方");
     fireEvent.click(within(fieldOf("auto.merge")).getByRole("checkbox"));
     expect(await screen.findByText("保存した: auto.merge を true にした")).toBeTruthy();
+    fireEvent.change(within(fieldOf("commit.mode")).getByRole("combobox"), {
+      target: { value: "manual" },
+    });
+    expect(await screen.findByText("保存した: commit.mode を manual にした")).toBeTruthy();
+    expect(setCalls(client)).toEqual([
+      { key: "auto.merge", value: true },
+      { key: "commit.mode", value: "manual" },
+    ]);
+  });
+
+  it("actions.test・actions.shell・actor.human_only も保存の前に確かめ、変わることを出し、やめると戻す", async () => {
+    const { client } = configClient();
+    mount(client);
+    await screen.findByText("コミットの仕方");
+    // テストのコマンド：外した結果を確かめ、やめると元のリストに戻る
     fireEvent.click(within(fieldOf("actions.test")).getByLabelText("check を外す"));
-    expect(await screen.findByText("保存した: actions.test を [mise, run] にした")).toBeTruthy();
+    const test = within(fieldOf("actions.test")).getByRole("alertdialog");
+    expect(test.textContent).toContain("[mise, run]");
+    expect(test.textContent).toContain("確認なしで実行するコマンドが変わる");
+    fireEvent.click(within(test).getByText("やめる"));
+    expect(within(fieldOf("actions.test")).getByLabelText("check を外す")).toBeTruthy();
+
+    // シェルの許可：チェックを入れても、保存するまで config.set を呼ばない
+    fireEvent.click(within(fieldOf("actions.shell")).getByRole("checkbox"));
+    const shell = within(fieldOf("actions.shell")).getByRole("alertdialog");
+    expect(shell.textContent).toContain("任意のシェルを実行できるかが変わる");
+    fireEvent.click(within(shell).getByText("やめる"));
+    expect(within(fieldOf("actions.shell")).getByRole<HTMLInputElement>("checkbox").checked).toBe(
+      false,
+    );
+    expect(setCalls(client)).toEqual([]);
+
+    // 人だけに許すコマンド：足してから保存する
     const add = within(fieldOf("actor.human_only")).getByPlaceholderText("項目を足す");
     fireEvent.change(add, { target: { value: "epic.close" } });
     fireEvent.keyDown(add, { key: "Enter" });
+    const human = within(fieldOf("actor.human_only")).getByRole("alertdialog");
+    expect(human.textContent).toContain("エージェントに許す操作が変わる");
+    fireEvent.click(within(human).getByText("保存する"));
     expect(
       await screen.findByText("保存した: actor.human_only を [epic.close] にした"),
     ).toBeTruthy();
-    expect(setCalls(client)).toEqual([
-      { key: "auto.merge", value: true },
-      { key: "actions.test", value: ["mise", "run"] },
-      { key: "actor.human_only", value: ["epic.close"] },
-    ]);
+    expect(setCalls(client)).toEqual([{ key: "actor.human_only", value: ["epic.close"] }]);
   });
 
   it("拒否されたら理由を項目の下にだけ出し、値を保存されている値に戻す", async () => {
@@ -277,6 +315,17 @@ describe("設定画面の部品", () => {
       expect(nameOf(key), key).not.toBe(key);
       expect(groupOf(key), key).not.toBe("other");
     }
+  });
+
+  it("保存の前に確かめるのは、同期と照合・worktree・実行するコマンド・エージェントに許す操作を変える項目だけ", () => {
+    expect([...CONFIRM_KEYS.keys()].sort()).toEqual([
+      "actions.shell",
+      "actions.test",
+      "actor.human_only",
+      "git.base_branch",
+      "git.remote",
+      "worktree.root",
+    ]);
   });
 
   it("入れ子の値を引き、既定との差を中身で比べ、値を短く書く", () => {
