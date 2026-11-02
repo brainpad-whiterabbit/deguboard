@@ -858,7 +858,7 @@ function planReadiness(ticket: Pick<Ticket, "status">, mark: PlanMark | undefine
 /**
  * 左パネルのバックログの行の右端（UI-3）：開いた Plan に入っていれば、カンバンの行と同じ部品で縦に 2 段、上に Plan の番号、
  * 下に todo なら着手可・待ちの相手・承認待ち（判定は kanbanPlanMarks と kanbanReadiness）。入っていなければ priority をそのまま出す。
- * 担当者が別の人なら、カンバンと同じ担当の印（頭文字の丸。全名はツールチップ）を上の段の Plan の番号の左に出す。
+ * 担当者が別の人なら、カンバンと同じ担当の印（頭文字の丸。agent なら汎用のアイコンを添える。全名はツールチップ）を上の段の Plan の番号の左に出す。
  * 自分か自分の agent（isOwnAssignee。core の whoami の own_ids）なら出さない。
  * priority は行の右端の優先度の印（左に優先度の印を出す区画では null。そのとき何も出さない行は空のセルで格子の位置を保つ）。
  * 下の段に着手可・待ちを出すときは、優先度の印を上の段の Plan の番号の左に寄せる
@@ -869,7 +869,7 @@ export function BacklogRowEnd({
   priority,
   me,
 }: {
-  /** 一覧の行（TicketRow）なら Run の agent（run_agent）で agent のアイコンを選ぶ */
+  /** 一覧の行（TicketRow）なら Run の agent（run_agent）をホバーの文に出す（アイコンは agent によらず 1 種） */
   ticket: Pick<Ticket, "status" | "assignee"> & Partial<Pick<TicketRow, "run_agent">>;
   mark: PlanMark | undefined;
   priority: ReactNode;

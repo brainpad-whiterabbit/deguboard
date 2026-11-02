@@ -424,7 +424,7 @@ describe("画面", () => {
     },
   );
 
-  it("サイドバーのバックログの行は担当者の列を出さず、自分か自分の agent の担当は出さず、別の人の担当だけ右端に頭文字の丸で出す（全名はツールチップ）", async () => {
+  it("サイドバーのバックログの行は担当者の列を出さず、自分か自分の agent の担当は出さず、別の人の担当だけ右端に頭文字の丸（agent なら汎用のアイコンを添える）で出す（全名はツールチップ）", async () => {
     const client = mockClient();
     client.data.tickets.push(
       ticket({ id: "t4", title: "自分", assignee: "eiki" }),
@@ -452,7 +452,11 @@ describe("画面", () => {
     // 別の人は頭文字の丸（カンバンと同じ印）。全名はツールチップ
     expect(markOf("別の人")!.querySelector(".assignee-initial")!.textContent).toBe("H");
     expect(markOf("別の人")!.getAttribute("title")).toBe("hana");
-    expect(markOf("別の人の AI")!.textContent).toBe("HX");
+    // 別の人の agent は持ち主の丸と汎用のアイコン（文字の札は出さない）。ホバーで主体 ID と Run の agent
+    expect(markOf("別の人の AI")!.querySelector(".assignee-initial")!.textContent).toBe("H");
+    expect(markOf("別の人の AI")!.textContent).toBe("H");
+    expect(markOf("別の人の AI")!.querySelector(".agent-icon svg")).not.toBeNull();
+    expect(markOf("別の人")!.querySelector(".agent-icon")).toBeNull();
     expect(markOf("別の人の AI")!.getAttribute("title")).toBe("hana/agent · codex");
     // Plan に入っていれば、上の段の Plan の番号の左に出す（先頭の空のセルは medium の優先度の印の場所）
     const top = rowOf("計画の中").querySelector(".row-end-top")!;
