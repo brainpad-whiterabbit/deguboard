@@ -75,6 +75,16 @@ describe("HTTP サーバー", () => {
     expect(abandoned.body.data.status).toBe("abandoned");
   });
 
+  it("DEGUBOARD_USER に当たる user と userSource env で起動すると、whoami の user_source が env になる", async () => {
+    const f = await fixture();
+    await runCommand(init, await openContext({ cwd: f.cloneA, initialize: {} }), {});
+    const s = await startServer({ cwd: f.cloneA, port: 0, user: "eiki", userSource: "env" });
+    cleanups.push(s.close);
+    const me = await post(s, "whoami", {});
+    expect(me.status).toBe(200);
+    expect(me.body.data).toMatchObject({ id: "eiki", user: "eiki", user_source: "env" });
+  });
+
   it("Plan のコマンドも HTTP に写り、PL-3 の拒否は 409 になる", async () => {
     const f = await fixture();
     await runCommand(init, await openContext({ cwd: f.cloneA, initialize: {} }), {});

@@ -45,6 +45,13 @@ describe("プロセス内の CommandClient", () => {
     await expect(client.run("init")).rejects.toMatchObject({ code: "UNKNOWN_COMMAND" });
   });
 
+  it("user と userSource env を渡すと、whoami の user_source が env になる", async () => {
+    const f = await initialized();
+    const client = createLocalClient({ cwd: f.cloneA, user: "eiki", userSource: "env" });
+    const me = await client.run<{ id: string; user: string; user_source: string }>("whoami");
+    expect(me.data).toMatchObject({ id: "eiki", user: "eiki", user_source: "env" });
+  });
+
   it("他のプロセスの変更を呼び出しごとに取り込み、status が同期の状態を返す", async () => {
     const f = await initialized();
     const client = createLocalClient({ cwd: f.cloneA });

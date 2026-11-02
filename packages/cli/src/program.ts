@@ -235,6 +235,7 @@ export function buildProgram(options: ProgramOptions = {}): Command {
   addServeCommands(program, {
     mergeDriver,
     streams,
+    env,
     resolveCwd: (c) => resolve(options.cwd ?? process.cwd(), c ?? "."),
     staticDir: options.staticDir ?? webDist(),
   });

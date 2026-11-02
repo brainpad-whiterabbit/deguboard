@@ -50,7 +50,11 @@ interface RpcResponse {
  * dg mcp を標準入出力（改行区切りの JSON-RPC）で動かす。
  * 要求を 1 つずつ送って応答を待ち、最後に標準入力を閉じて終了コードを返す
  */
-async function session(argv: string[], requests: Array<{ method: string; params?: unknown }>) {
+async function session(
+  argv: string[],
+  requests: Array<{ method: string; params?: unknown }>,
+  env: NodeJS.ProcessEnv = cliEnv(),
+) {
   const stdin = new PassThrough();
   const stdout = new PassThrough();
   const err: string[] = [];
@@ -69,7 +73,7 @@ async function session(argv: string[], requests: Array<{ method: string; params?
     }
   });
   const exit = run([...argv, "mcp"], {
-    env: cliEnv(),
+    env,
     stdio: { stdin, stdout },
     streams: { out: () => {}, err: (t) => err.push(t) },
     commands: [...commands, echo],
@@ -172,6 +176,23 @@ describe("dg mcp", () => {
       [{ method: "tools/call", params: { name: "ticket_show", arguments: { ticket: "t1" } } }],
     );
     expect(body(viaMcp.results[0]!)).toEqual(JSON.parse(out.join("\n")));
+  });
+
+  it("環境変数 DEGUBOARD_USER で主体名を渡すと、whoami の user_source が env になる", async () => {
+    const f = await initialized();
+    const { code, results, err } = await session(
+      ["-C", f.cloneA],
+      [{ method: "tools/call", params: { name: "whoami", arguments: {} } }],
+      { ...cliEnv(), DEGUBOARD_USER: "eiki" },
+    );
+    expect(err).toEqual([]);
+    expect(code).toBe(0);
+    expect(body(results[0]!).data).toMatchObject({
+      id: "eiki/agent",
+      user: "eiki",
+      user_source: "env",
+      kind: "agent",
+    });
   });
 
   it("workflow_set は定義そのものかテンプレートを受けて書き、誤りは何も書かずに VALIDATION_FAILED", async () => {
