@@ -24,7 +24,7 @@
 - `mise.toml` で node と pnpm の版を固定する。開発者は `mise install` でツールを揃える
 - 作業のコマンドは `mise run <task>` を唯一の入口にする。タスクの一覧は mise.toml が正本（`mise tasks`）
 - タスクは pnpm scripts を呼ぶだけにし、同じ内容を 2 か所に書かない。pnpm scripts は mise から呼ばれる前提で、人は `mise run` だけ覚える
-- 依存の追加・削除は引数が毎回違うのでタスクにせず、`mise exec -- pnpm add ...`（削除は `mise exec -- pnpm remove ...`）で mise の固定した pnpm を通して行う。lockfile を書き換えるのはこの操作だけで、`mise run install` は `--frozen-lockfile` で書き換えない
+- 依存の追加・更新・削除（`mise exec -- pnpm add` / `update` / `remove`。pnpm-workspace.yaml の overrides を変えたときは `mise exec -- pnpm install`）は、pnpm の選択肢（`--filter`・`-D` など）をそのまま使えるようタスクにせず、mise の固定した pnpm で行い、lockfile をコミットする。`mise run install` は `--frozen-lockfile` で lockfile を書き換えない
 - `check` はコミット前の確認で、format:check → lint → typecheck → test → check:docs を順に実行する
 - CI は使わない。検査は作業者がローカルで `mise run check` を通すことにとどめ、マージの条件にする
 
