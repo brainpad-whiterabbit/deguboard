@@ -3,7 +3,7 @@
 // 行数の基準：
 // - タブ（nav a）、カンバンの見出し、チケットの行でない行のタイトル（Epic・Run など .row-title）は 1 行。折り返してはいけない
 //   カンバンの見出しは、Iteration の見出し（.sidebar-head .head-line：札の列・漏斗の段、名前・期間・目標の段、進みの帯の段）と
-//   状態の節の見出し（.column summary h2）
+//   状態の節の見出し（.column summary h2）、履歴の見方の切り替え（.view-switch）
 // - ほかの画面の見出し（バックログ・履歴の summary、Run・Epic の h2 など）は検査しない
 // - チケットの行のタイトル（.ticket-row .row-title）は 2 行まで。サイドバーでは 2 行で切る CSS（-webkit-line-clamp: 2）なので、3 行以上は崩れ
 // 行数は要素の枠の中に見えている行だけを数える（2 行で切られて隠れた行は数えない）
@@ -151,10 +151,12 @@ function measure(page: Page) {
       /** 1 行の検査をするカンバンの見出しの数。種類ごとに分けて数え、クラス名が変わって検査が黙って消えないようにする */
       headLines: document.querySelectorAll(".sidebar-head .head-line").length,
       sectionHeadings: document.querySelectorAll(".column summary h2").length,
+      viewSwitches: document.querySelectorAll(".view-switch").length,
       wrapped: [
         ...overflowing("nav a", 1),
         ...overflowing(".sidebar-head .head-line", 1),
         ...overflowing(".column summary h2", 1),
+        ...overflowing(".view-switch", 1),
         ...overflowing(".row-title:not(.ticket-row .row-title)", 1),
         ...overflowing(".ticket-row .row-title", 2),
       ],
@@ -215,7 +217,61 @@ describe.each(SCHEMES)("サイドバーの配置（%s）", (scheme) => {
             expect(m.assigneeMarks, `${hash} の担当の印`).toBeGreaterThanOrEqual(4);
             expect(m.rowEndClashes, `${hash} で右端がはみ出すか重なる行`).toEqual([]);
           }
+          if (hash === "#/history") expect(m.viewSwitches, `${hash} の見方の切り替え`).toBe(1);
           expect(m.color, `${hash} の文字と背景の色`).not.toBe(m.background);
+        }
+      } finally {
+        await context.close();
+      }
+    },
+  );
+});
+
+// データの件数は 1〜2 桁なので、3 桁の件数を検索中に出したとき（「177 / 208」など）の幅はここでは試していない
+describe.each(SCHEMES)("履歴の見方の切り替え（%s）", (scheme) => {
+  it.each([320, ...WIDTHS])(
+    "幅 %ipx で、どの見方でも検索中（バッジが「当たった数 / 全体」）でも、切り替えが折り返さず画面から溢れない",
+    async (width) => {
+      const context = await browser.newContext({
+        viewport: { width, height: 900 },
+        colorScheme: scheme,
+      });
+      const page = await context.newPage();
+      try {
+        for (const view of ["iteration", "epic", "ticket"]) {
+          await page.goto(`${server.url}?surface=sidebar#/history?view=${view}`, {
+            waitUntil: "networkidle",
+          });
+          const toggle = page.locator(".view-switch");
+          await toggle.waitFor();
+          for (const query of ["", "番号"]) {
+            await page.getByLabel("チケットを探す").fill(query);
+            const m = await toggle.evaluate((el) => {
+              const buttons = [...el.querySelectorAll("button")].map((b) =>
+                b.getBoundingClientRect(),
+              );
+              // .page は overflow: auto なので、はみ出しは文書の横スクロールに出ず隠れる。.page の中身の右端と比べる
+              const main = document.querySelector(".page")!;
+              const right = main.getBoundingClientRect().right;
+              return {
+                texts: [...el.querySelectorAll("button")].map((b) => b.textContent),
+                tops: new Set(buttons.map((b) => Math.round(b.top))).size,
+                right: Math.max(...buttons.map((b) => b.right)),
+                width: right - parseFloat(getComputedStyle(main).paddingRight),
+                pageScroll: main.scrollWidth,
+                pageClient: main.clientWidth,
+              };
+            });
+            const label = `${view}・検索「${query}」`;
+            expect(m.texts, `${label} のボタン`).toHaveLength(3);
+            if (query)
+              for (const t of m.texts)
+                expect(t, `${label} のバッジ`).toMatch(/\d+\u2009\/\u2009\d+$/);
+            expect(m.tops, `${label} で折り返していない`).toBe(1);
+            // 300px 以上では全体が見える。それより狭いと切り替えの中だけが横にスクロールし、画面は横に溢れない
+            if (width >= 300) expect(m.right, `${label} で幅に収まる`).toBeLessThanOrEqual(m.width);
+            expect(m.pageScroll, `${label} で画面が横に溢れない`).toBeLessThanOrEqual(m.pageClient);
+          }
         }
       } finally {
         await context.close();

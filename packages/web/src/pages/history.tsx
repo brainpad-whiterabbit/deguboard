@@ -9,7 +9,7 @@
 // サイドバーでは狭い幅で読めるよう描き方を変える：Iteration の行は開閉の印を付け、開くと Epic ごとの小見出しでまとめ、持ち越しを分ける。
 // Epic の見方は進捗バーをやめてタイトルを 2 行まで出す。チケットの見方は終えた日を小見出しにし、行には値のある Iteration・Epic・PR だけを書く
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   DetailLink,
   ProgressBar,
@@ -207,6 +207,36 @@ const VIEWS: { view: HistoryView; label: string }[] = [
   { view: "ticket", label: "チケット" },
 ];
 
+/** 見方ごとの件数。filtered なら「当たった数 / 全体」で出す */
+type ViewCounts = Record<HistoryView, { hit: number; total: number; filtered: boolean }>;
+
+/**
+ * 見方の切り替え：枠も塗りもない文字に件数のバッジを付ける。選んだ見方だけ文字を濃く太くし、aria-pressed で伝える。
+ * 件数の行は持たず、絞り込み中はバッジが「当たった数 / 全体」になる（狭い幅に収まるよう / の前後は細い空白）
+ */
+function ViewSwitch({ view, counts }: { view: HistoryView; counts: ViewCounts }) {
+  return (
+    <span className="view-switch" role="group" aria-label="見方">
+      {VIEWS.map((v) => {
+        const c = counts[v.view];
+        return (
+          <button
+            key={v.view}
+            type="button"
+            aria-pressed={view === v.view}
+            onClick={() => navigate({ page: "history", view: v.view })}
+          >
+            {v.label}{" "}
+            <span className="badge">
+              {c.filtered ? `${c.hit}\u2009/\u2009${c.total}` : c.total}
+            </span>
+          </button>
+        );
+      })}
+    </span>
+  );
+}
+
 /** サイドバーの検索欄の案内（バックログと同じ言い方） */
 const SIDEBAR_SEARCH = "番号・タイトル・ラベルで検索";
 
@@ -227,26 +257,30 @@ export function HistoryPage({ view }: { view: HistoryView }) {
     () => (view === "ticket" ? [] : filterHistory(all, store.tickets, query, view, sidebar)),
     [all, store.tickets, query, view, sidebar],
   );
-  const toggle = (
-    <span className="segmented" role="group" aria-label="見方">
-      {VIEWS.map((v) => (
-        <button
-          key={v.view}
-          type="button"
-          aria-pressed={view === v.view}
-          onClick={() => navigate({ page: "history", view: v.view })}
-        >
-          {v.label}
-        </button>
-      ))}
-    </span>
-  );
-  if (view === "ticket") return <TicketView toggle={toggle} query={query} setQuery={setQuery} />;
+  // 見方ごとの件数。チケットの見方ではチケットの件数を TicketView が絞り込みを含めて数え直すので、ここでは数えない
+  const counts = useMemo<ViewCounts>(() => {
+    const searching = query.trim() !== "";
+    const count = <T extends { id: string }>(list: readonly T[], key: "iteration" | "epic") => ({
+      hit: filterHistory(list, store.tickets, query, key, sidebar).length,
+      total: list.length,
+      filtered: searching,
+    });
+    const finished = (q: string) =>
+      view === "ticket"
+        ? 0
+        : finishedTickets(store.tickets, new Map(), { query: q, result: "", epic: "" }).length;
+    return {
+      iteration: count(iterations, "iteration"),
+      epic: count(epics, "epic"),
+      ticket: { hit: finished(query), total: finished(""), filtered: searching },
+    };
+  }, [iterations, epics, store.tickets, query, sidebar, view]);
+  if (view === "ticket") return <TicketView counts={counts} query={query} setQuery={setQuery} />;
   return (
     <section>
       <div className="toolbar">
         <h1>履歴</h1>
-        {toggle}
+        <ViewSwitch view={view} counts={counts} />
         <input
           type="search"
           placeholder={sidebar ? SIDEBAR_SEARCH : "チケットの番号・タイトルで探す"}
@@ -254,9 +288,6 @@ export function HistoryPage({ view }: { view: HistoryView }) {
           onChange={(e) => setQuery(e.target.value)}
           aria-label="チケットを探す"
         />
-        <span className="muted">
-          {query.trim() ? `${rows.length} / ${all.length} 件` : `${all.length} 件`}
-        </span>
       </div>
       {all.length === 0 ? (
         <p className="empty">
@@ -490,11 +521,11 @@ function EpicItem({ epic: e }: { epic: EpicRow }) {
 
 /** チケットの見方：終わったチケットの一覧。history のコマンドで終えた時刻を求める */
 function TicketView({
-  toggle,
+  counts,
   query,
   setQuery,
 }: {
-  toggle: ReactNode;
+  counts: ViewCounts;
   query: string;
   setQuery: (q: string) => void;
 }) {
@@ -530,12 +561,16 @@ function TicketView({
       ),
     [all],
   );
-  const filtered = query.trim() || result || epic;
+  // チケットの見方では結果・Epic の絞り込みもチケットのバッジに映す
+  const filtered = query.trim() !== "" || result !== "" || epic !== "";
   return (
     <section>
       <div className="toolbar">
         <h1>履歴</h1>
-        {toggle}
+        <ViewSwitch
+          view="ticket"
+          counts={{ ...counts, ticket: { hit: rows.length, total: all.length, filtered } }}
+        />
         <input
           type="search"
           placeholder={sidebar ? SIDEBAR_SEARCH : "番号・タイトル・ラベルで探す"}
@@ -564,9 +599,6 @@ function TicketView({
             </select>
           </label>
         ) : null}
-        <span className="muted">
-          {filtered ? `${rows.length} / ${all.length} 件` : `${all.length} 件`}
-        </span>
       </div>
       {error ? <p className="error">{error}</p> : null}
       {log && (log.shallow || all.some((r) => r.approximate)) ? (
