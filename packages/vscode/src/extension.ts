@@ -67,7 +67,12 @@ export function activate(context: vscode.ExtensionContext): void {
     ),
     vscode.commands.registerCommand(BACKLOG_ROW_COMMANDS.open, (arg: unknown) =>
       withMenuTicket(arg, (folder, row) =>
-        openPanel(context, folder, { column: vscode.ViewColumn.Beside, route: ticketRoute(row) }),
+        // サイドバーのリンクと同じく、フォーカスはサイドバーに残す
+        openPanel(context, folder, {
+          column: vscode.ViewColumn.Beside,
+          route: ticketRoute(row),
+          preserveFocus: true,
+        }),
       ),
     ),
     vscode.commands.registerCommand(BACKLOG_ROW_COMMANDS.copyId, (arg: unknown) =>

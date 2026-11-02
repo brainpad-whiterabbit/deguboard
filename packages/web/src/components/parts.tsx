@@ -461,10 +461,6 @@ function DraggableTr({ ticket, children }: { ticket: Ticket; children: ReactNode
 }
 
 /**
- * チケットの一覧。広い画面では表、サイドバーでは 1 行ずつの並び。行の先頭のリンクで詳細へ。
- * draggable なら行をドラッグできる（外側に DndContext が要る）
- */
-/**
  * バックログの行の右クリックの文脈。webviewSection は拡張の package.json の when と合わせる（packages/vscode/src/context-menu.ts）。
  * 既定の切り取り・コピー・貼り付けは出さない
  */
@@ -478,6 +474,10 @@ export function rowMenuContext(t: Ticket): string {
   });
 }
 
+/**
+ * チケットの一覧。広い画面では表、サイドバーでは 1 行ずつの並び。行の先頭のリンクで詳細へ。
+ * draggable なら行をドラッグできる（外側に DndContext が要る）
+ */
 export function TicketTable({
   tickets,
   extra,
