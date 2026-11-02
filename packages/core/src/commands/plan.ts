@@ -181,12 +181,12 @@ export type ReadinessTicket = Pick<Ticket, "id" | "status" | "depends_on">;
 
 /**
  * 着手できるかを求める（PL-6）。ticketOf はチケットを引く（見つからなければ undefined）。
- * 消したチケットは Plan の中にないものとして扱い、after がそれを指しても待たない。
+ * 消したチケットは Plan の中にないものとして扱い、after がそれ（か Plan の外）を指しても待たない（画面の依存グラフの辺と同じ）。
  * depends_on の待ちは deps_done（WF-2）と同じく、done・abandoned でない依存先（見つからないものも含む）を相手に出す。
  * 次は、Plan の順（tickets）で先の着手できる todo。なければ先頭の todo とその待ちの相手。todo がなければ null
  */
 export function planReadiness(
-  plan: Pick<Plan, "tickets" | "after">,
+  plan: Pick<Plan, "tickets" | "after" | "closed_at">,
   ticketOf: (id: string) => ReadinessTicket | undefined,
 ): PlanReadiness {
   const finished = (id: string) => {
@@ -199,12 +199,15 @@ export function planReadiness(
     const t = ticketOf(id);
     if (!t) continue;
     const afterWaits = (plan.after[id] ?? []).filter(
-      (dep) => dep !== id && ticketOf(dep) !== undefined && !finished(dep),
+      (dep) =>
+        dep !== id && plan.tickets.includes(dep) && ticketOf(dep) !== undefined && !finished(dep),
     );
     const depWaits = t.depends_on.filter((dep) => !finished(dep) && !afterWaits.includes(dep));
     waiting[id] = [...afterWaits, ...depWaits];
     if (t.status === "todo") todo.push(id);
   }
+  // 閉じた Plan は進めないので、着手できるものも次も出さない（待ちの相手はグラフのために出す）
+  if (plan.closed_at !== undefined) return { waiting, ready: [], next: null };
   const ready = todo.filter((id) => waiting[id]!.length === 0);
   const first = ready[0] ?? todo[0];
   const next = first === undefined ? null : { id: first, waiting: waiting[first]! };
@@ -263,14 +266,15 @@ export const planShow = defineCommand({
       if (t) found.push(t);
       else warnings.push(`${id} が見つからない（削除された）`);
     }
-    const readiness = readinessIn(ctx.store, doc.data);
+    // チケットごとの待ちの相手は items[].waiting に出すので、上の階層には ready と next だけを置く
+    const { waiting, ready, next } = readinessIn(ctx.store, doc.data);
     const items = found.map((t) => ({
       ...t.data,
-      waiting: readiness.waiting[t.data.id] ?? [],
-      ready: readiness.ready.includes(t.data.id),
+      waiting: waiting[t.data.id] ?? [],
+      ready: ready.includes(t.data.id),
     }));
     return ok(
-      { ...doc.data, progress: progressOf(found.map((t) => t.data)), ...readiness, items },
+      { ...doc.data, progress: progressOf(found.map((t) => t.data)), ready, next, items },
       undefined,
       warnings,
     );

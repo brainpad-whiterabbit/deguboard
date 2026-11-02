@@ -148,7 +148,7 @@
         ]
       }
     },
-    // web のテストとテスト用の CommandClient（test-helpers.ts）は Vitest が node で動かすので、core の実行時のコード（期待値を作る progressOf、plan.list の応答を作る planReadiness など）を取り込んでよい。上の packages/web/** の patterns を写している。上を変えたらここも揃える（ずれは test/lint/oxlint-copies.test.ts が捕まえる）
+    // web のテストとテスト用の CommandClient（test-helpers.ts。本番のコードからは読まない）は Vitest が node で動かすので、core の実行時のコード（期待値を作る progressOf、plan.list の応答を作る planReadiness など）を取り込んでよい。上の packages/web/** の patterns を写している。上を変えたらここも揃える（ずれは test/lint/oxlint-copies.test.ts が捕まえる）
     {
       "files": [
         "packages/web/**/*.test.ts",

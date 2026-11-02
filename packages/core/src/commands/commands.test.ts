@@ -24,7 +24,15 @@ import {
   iterationShow,
   iterationStart,
 } from "./iteration.js";
-import { planApprove, planClose, planCreate, planList, planShow } from "./plan.js";
+import {
+  planApprove,
+  planClose,
+  planCreate,
+  planList,
+  planReadiness,
+  planShow,
+  type ReadinessTicket,
+} from "./plan.js";
 import { projectCreate } from "./project.js";
 import {
   configSet,
@@ -1165,6 +1173,59 @@ describe("Plan", () => {
     expect(shown.data.next).toEqual({ id: "t2", waiting: [] });
     const [row] = (await runCommand(planList, ctx, {})).data;
     expect(row?.waiting).toEqual({ t2: [] });
+  });
+
+  it("depends_on は abandoned の依存先と別の Project の終わった依存先を待たず、消した依存先は deps_done と同じく待つ（PL-6）", async () => {
+    const f = await fixture();
+    const ctx = await initialized(f.cloneA);
+    await runCommand(projectCreate, ctx, { id: "other" });
+    // t1 は別の Project、t2 は abandoned にし、t3 は消す
+    await runCommand(ticketCreate, ctx, { title: "別の Project", project: "other" });
+    for (const title of ["やめる", "消す"]) await runCommand(ticketCreate, ctx, { title });
+    await runCommand(ticketCreate, ctx, { title: "D", depends_on: ["t1"] });
+    await runCommand(ticketCreate, ctx, { title: "E", depends_on: ["t2"] });
+    await runCommand(ticketCreate, ctx, { title: "F", depends_on: ["t3"] });
+    await runCommand(planCreate, ctx, { tickets: ["t4", "t5", "t6"] });
+    await runCommand(ticketMove, ctx, { ticket: "t2", status: "abandoned" });
+    await runCommand(ticketDelete, ctx, { ticket: "t3" });
+    const waits = async () =>
+      (await runCommand(planShow, ctx, { plan: "p1" })).data.items.map((t) => [t.id, t.waiting]);
+    expect(await waits()).toEqual([
+      ["t4", ["t1"]],
+      ["t5", []],
+      ["t6", ["t3"]],
+    ]);
+    await runCommand(ticketMove, ctx, { ticket: "t1", status: "done" });
+    expect(await waits()).toEqual([
+      ["t4", []],
+      ["t5", []],
+      ["t6", ["t3"]],
+    ]);
+  });
+
+  it("after が Plan の外を指しても待たず、閉じた Plan は着手できるものも次も出さない（PL-6）", () => {
+    const rows: ReadinessTicket[] = [
+      { id: "t1", status: "todo", depends_on: [] },
+      { id: "t2", status: "todo", depends_on: [] },
+      { id: "t3", status: "in_progress", depends_on: [] },
+    ];
+    const tickets = new Map<string, ReadinessTicket>(rows.map((t) => [t.id, t]));
+    const ticketOf = (id: string) => tickets.get(id);
+    // t3 は Plan に入っていない（壊れたデータ）。画面の依存グラフも辺を出さない
+    const open = planReadiness(
+      { tickets: ["t1", "t2"], after: { t1: ["t3"], t2: ["t1"] } },
+      ticketOf,
+    );
+    expect(open).toEqual({
+      waiting: { t1: [], t2: ["t1"] },
+      ready: ["t1"],
+      next: { id: "t1", waiting: [] },
+    });
+    const closed = planReadiness(
+      { tickets: ["t1", "t2"], after: { t2: ["t1"] }, closed_at: "2026-11-02T00:00:00Z" },
+      ticketOf,
+    );
+    expect(closed).toEqual({ waiting: { t1: [], t2: ["t1"] }, ready: [], next: null });
   });
 
   it("approve は approved_by と approved_at を書いて pending_approval を外し、close は closed_at を書く", async () => {
