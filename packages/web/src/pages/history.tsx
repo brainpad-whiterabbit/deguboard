@@ -1,4 +1,6 @@
-// 履歴（UI-5）。終わったものを見る画面で、見方を「Iteration / Epic / チケット」で切り替える（見方はハッシュの ?view= に持つ）。検索欄は共通。
+// 履歴（UI-5）。終わったものを見る画面で、見方を「Iteration / Epic / チケット」で切り替える。検索欄は共通。
+// 見方・検索語・結果の絞り込みはハッシュ（?view=・?q=・?result=）に持ち、開いた行は見た目の状態（useUiState）に持つ。
+// どちらもタブを移って戻ったときに残す（履歴のタブのリンクは最後に見た履歴のハッシュを指す。app.tsx）
 // Iteration の見方：closed の Iteration を閉じた新しい順に 2 段の行で出す（KanbanForge の History のタブと同じ形）。
 // 1 段目は番号・目標（目標がなければ名前）と件数のチップ（完了・中止・持ち越し）、2 段目は名前（目標を 1 段目に出したとき）・期間と、
 // 終わったチケットの Epic ごとの内訳（Epic なしを含み、合計は終わったチケットの件数に合う）。
@@ -17,13 +19,20 @@
 // サイドバーの Iteration と Epic の見方では、検索語があるあいだ残った行を開き、当たったチケットだけを印付きで出す。
 // 「すべて見る」でその行の全件の一覧に戻せる。検索中に閉じた行や「すべて見る」は検索語を変えると捨て、検索語を消すと検索前の開閉に戻る
 
-import { useEffect, useMemo, useState, type ReactNode, type SyntheticEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+  type SyntheticEvent,
+} from "react";
 import { DetailLink, ProgressBar, StatusDot, Tags, TicketLink } from "../components/parts.js";
 import { HistoryTicketList, HistoryTicketRow } from "../components/history-rows.js";
-import { useHost } from "../host.js";
+import { useHost, useUiState } from "../host.js";
 import { NO_VALUE } from "../components/run-parts.js";
 import { formatTime } from "../components/timeline.js";
-import { navigate, type HistoryView } from "../router.js";
+import { navigate, replaceRoute, type HistoryQuery, type HistoryView } from "../router.js";
 import { useStore } from "../store.js";
 import {
   byNumber,
@@ -231,6 +240,32 @@ export interface FinishedFilter {
   result: string;
 }
 
+/** 持ち越しを求める履歴。行を開いたときに need を呼ぶと画面で 1 回だけ読み、行を開き直しても読み直さない */
+interface CarriedOver {
+  need: () => void;
+  /** 読めるまでは null。読めなければ空 */
+  events: readonly HistoryEvent[] | null;
+}
+
+function useCarriedOver(): CarriedOver {
+  const store = useStore();
+  const [needed, setNeeded] = useState(false);
+  const [events, setEvents] = useState<readonly HistoryEvent[] | null>(null);
+  useEffect(() => {
+    if (!needed) return;
+    let alive = true;
+    store.client
+      .run<HistoryLog>("history", {})
+      .then((r) => alive && setEvents(r.data.events))
+      .catch(() => alive && setEvents([]));
+    return () => {
+      alive = false;
+    };
+  }, [needed, store.client, store.tickets]);
+  const need = useCallback(() => setNeeded(true), []);
+  return { need, events };
+}
+
 /** 終わったチケットを終えた新しい順に。検索は番号・タイトル・ラベル */
 function finishedTickets(
   tickets: readonly Ticket[],
@@ -262,7 +297,15 @@ type ViewCounts = Record<HistoryView, { hit: number; total: number; filtered: bo
  * 見方の切り替え：枠も塗りもない文字に件数のバッジを付ける。選んだ見方だけ文字を濃く太くし、aria-pressed で伝える。
  * 件数の行は持たず、絞り込み中はバッジが「当たった数 / 全体」になる（狭い幅に収まるよう / の前後は細い空白）
  */
-function ViewSwitch({ view, counts }: { view: HistoryView; counts: ViewCounts }) {
+function ViewSwitch({
+  route,
+  view,
+  counts,
+}: {
+  route: HistoryQuery;
+  view: HistoryView;
+  counts: ViewCounts;
+}) {
   return (
     <span className="view-switch" role="group" aria-label="見方">
       {VIEWS.map((v) => {
@@ -272,7 +315,7 @@ function ViewSwitch({ view, counts }: { view: HistoryView; counts: ViewCounts })
             key={v.view}
             type="button"
             aria-pressed={view === v.view}
-            onClick={() => navigate({ page: "history", view: v.view })}
+            onClick={() => navigate({ ...route, page: "history", view: v.view })}
           >
             {v.label}{" "}
             <span className="badge">
@@ -288,14 +331,18 @@ function ViewSwitch({ view, counts }: { view: HistoryView; counts: ViewCounts })
 /** サイドバーの検索欄の案内（バックログと同じ言い方） */
 const SIDEBAR_SEARCH = "番号・タイトル・ラベルで検索";
 
-export function HistoryPage({ view }: { view: HistoryView }) {
+export function HistoryPage({ route }: { route: HistoryQuery }) {
   const store = useStore();
   const sidebar = useHost().surface === "sidebar";
-  const [query, setQuery] = useState("");
-  // 検索前の開いた行。t193 で Webview の state（useUiState）に移す
-  const opened = useState<readonly string[]>([]);
+  const view = route.view ?? "iteration";
+  const query = route.q ?? "";
+  // 1 文字ごとに戻る履歴を積まないよう、ハッシュは書き換える
+  const setQuery = (q: string) => replaceRoute({ ...route, page: "history", q: q || undefined });
+  // 検索前の開いた行（Iteration・Epic の番号）。ハッシュには入れない
+  const opened = useUiState<readonly string[]>("history.opened", []);
   // 検索で行を開くのはサイドバーだけ
   const foldOf = useRowFolds(sidebar ? query : "", opened);
+  const carried = useCarriedOver();
   const iterations = useMemo(
     () => store.iterations.filter((i) => i.status === "closed").sort(byClosedDesc),
     [store.iterations],
@@ -327,12 +374,13 @@ export function HistoryPage({ view }: { view: HistoryView }) {
       ticket: { hit: finished(query), total: finished(""), filtered: searching },
     };
   }, [iterations, epics, store.tickets, query, sidebar, view]);
-  if (view === "ticket") return <TicketView counts={counts} query={query} setQuery={setQuery} />;
+  if (view === "ticket")
+    return <TicketView route={route} counts={counts} query={query} setQuery={setQuery} />;
   return (
     <section>
       <div className="toolbar">
         <h1>履歴</h1>
-        <ViewSwitch view={view} counts={counts} />
+        <ViewSwitch route={route} view={view} counts={counts} />
         <input
           type="search"
           placeholder={sidebar ? SIDEBAR_SEARCH : "チケットの番号・タイトルで探す"}
@@ -366,6 +414,7 @@ export function HistoryPage({ view }: { view: HistoryView }) {
                   sidebar={sidebar}
                   fold={foldOf(i.id)}
                   query={query}
+                  carried={carried}
                 />
               ))}
         </ul>
@@ -410,11 +459,13 @@ function IterationItem({
   sidebar,
   fold,
   query,
+  carried,
 }: {
   iteration: Iteration;
   sidebar: boolean;
   fold: RowFold;
   query: string;
+  carried: CarriedOver;
 }) {
   const store = useStore();
   const finished = store.tickets
@@ -473,6 +524,7 @@ function IterationItem({
             <SidebarIterationTickets
               iteration={i.id}
               finished={finished}
+              carried={carried}
               query={fold.searching ? query : ""}
               header={
                 fold.searching ? (
@@ -511,33 +563,30 @@ function IterationItem({
 /**
  * サイドバーで開いた Iteration の中：終わったチケットを番号の順の 1 本の一覧で出し（Epic で分けて見るのは Epic のタブ）、
  * 最後に持ち越したチケットを 1 件以上あるときだけ出す。多いときは先頭の数件だけ出し、「ほか N 件」で残りを開ける。
- * 持ち越しは履歴から求めるので、開いたときに 1 回だけ history を読む
+ * 持ち越しは履歴から求める（読むのは画面で 1 回。useCarriedOver）
  */
 function SidebarIterationTickets({
   iteration,
   finished,
+  carried: carriedOver,
   query,
   header,
 }: {
   iteration: string;
   finished: readonly Ticket[];
+  carried: CarriedOver;
   /** 検索中に「すべて見る」で出すとき、当たった部分に印を付ける検索語 */
   query: string;
   /** 一覧の前に出すもの（検索中の件数と切り替え） */
   header?: ReactNode;
 }) {
   const store = useStore();
-  const [carried, setCarried] = useState<string[] | null>(null);
-  useEffect(() => {
-    let alive = true;
-    store.client
-      .run<HistoryLog>("history", {})
-      .then((r) => alive && setCarried(carriedOverFrom(iteration, r.data.events, store.tickets)))
-      .catch(() => alive && setCarried([]));
-    return () => {
-      alive = false;
-    };
-  }, [iteration, store.client, store.tickets]);
+  const { need, events } = carriedOver;
+  useEffect(need, [need]);
+  const carried = useMemo(
+    () => (events ? carriedOverFrom(iteration, events, store.tickets) : null),
+    [iteration, events, store.tickets],
+  );
   const byId = new Map<string, Ticket>(store.tickets.map((t) => [t.id, t]));
   const carriedTickets = (carried ?? []).flatMap((id) => byId.get(id) ?? []);
   return (
@@ -740,10 +789,12 @@ function EpicItem({ epic: e }: { epic: EpicRow }) {
 
 /** チケットの見方：終わったチケットの一覧。history のコマンドで終えた時刻を求める */
 function TicketView({
+  route,
   counts,
   query,
   setQuery,
 }: {
+  route: HistoryQuery;
   counts: ViewCounts;
   query: string;
   setQuery: (q: string) => void;
@@ -752,7 +803,13 @@ function TicketView({
   const sidebar = useHost().surface === "sidebar";
   const [log, setLog] = useState<HistoryLog | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState("");
+  const result = route.result ?? "";
+  const setResult = (value: string) =>
+    replaceRoute({
+      ...route,
+      page: "history",
+      result: value === "done" || value === "abandoned" ? value : undefined,
+    });
   useEffect(() => {
     let alive = true;
     store.client
@@ -779,6 +836,7 @@ function TicketView({
       <div className="toolbar">
         <h1>履歴</h1>
         <ViewSwitch
+          route={route}
           view="ticket"
           counts={{ ...counts, ticket: { hit: rows.length, total: all.length, filtered } }}
         />
