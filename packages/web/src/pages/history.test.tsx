@@ -4,9 +4,9 @@ import { afterEach, describe, expect, it } from "vitest";
 import { App } from "../app.js";
 import { HostProvider, type Host } from "../host.js";
 import { StoreProvider } from "../store.js";
-import { mockClient, ticket } from "../test-helpers.js";
+import { iteration, mockClient, ticket } from "../test-helpers.js";
 import { createUiState, memoryBackend } from "../ui-state.js";
-import { carriedOverFrom, groupByDay, groupByEpic } from "./history.js";
+import { carriedOverFrom, epicCountsOf, groupByDay, groupByEpic } from "./history.js";
 
 afterEach(() => {
   cleanup();
@@ -80,6 +80,52 @@ function sidebarHost(): Host {
     state: createUiState(memoryBackend()),
   };
 }
+
+describe("Iteration の行", () => {
+  it("内訳は Epic なしを含み、合計が Iteration に入っている終わったチケットの件数と合う", async () => {
+    window.location.hash = "#/history";
+    const client = mockClient();
+    client.data.iterations = [
+      iteration({
+        id: "s4",
+        name: "sprint4",
+        goal: "左パネルを主画面にする",
+        status: "closed",
+        closed_at: "2026-11-01T00:00:00Z",
+        completed: 3,
+        carried_over: 2,
+      }),
+    ];
+    client.data.tickets = [
+      ticket({ id: "t1", status: "done", iteration: "s4", epic: "e1" }),
+      ticket({ id: "t2", status: "done", iteration: "s4" }),
+      ticket({ id: "t3", status: "done", iteration: "s4" }),
+      ticket({ id: "t4", status: "abandoned", iteration: "s4", epic: "e1" }),
+      // 終わっていないチケットと、ほかの Iteration のチケットは数えない
+      ticket({ id: "t5", status: "todo", iteration: "s4", epic: "e1" }),
+      ticket({ id: "t6", status: "done", iteration: "s5" }),
+    ];
+    render(
+      <StoreProvider client={client}>
+        <HostProvider host={sidebarHost()}>
+          <App />
+        </HostProvider>
+      </StoreProvider>,
+    );
+    const row = (await screen.findByText("左パネルを主画面にする")).closest(".history-row")!;
+    expect(row.querySelector("small")!.textContent).toBe("sprint4 ・ 内訳: e1 2, Epic なし 2");
+    expect([...row.querySelectorAll(".counts .badge")].map((b) => b.textContent)).toEqual([
+      "完了 3",
+      "中止 1",
+      "持ち越し 2",
+    ]);
+    const finished = client.data.tickets.filter(
+      (t) => t.iteration === "s4" && (t.status === "done" || t.status === "abandoned"),
+    );
+    const counts = epicCountsOf(finished);
+    expect(counts.reduce((n, c) => n + c.count, 0)).toBe(finished.length);
+  });
+});
 
 describe("サイドバーの履歴", () => {
   it("Epic の見方は進捗バーを出さず、2 段目に件数・閉じた日・Iteration を出す", async () => {

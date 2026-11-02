@@ -21,7 +21,7 @@ import { startServer } from "../../packages/server/src/index.js";
 const WEB_DIST = path.resolve(import.meta.dirname, "../../packages/web/dist");
 const WIDTHS = [300, 260];
 const SCHEMES = ["light", "dark"] as const;
-/** サイドバーで出す画面。履歴は閉じた Iteration の行を、Run は実行中と完了した Run を出す */
+/** サイドバーで出す画面。履歴は閉じた Iteration の行（目標の長いものを含む）を、Run は実行中と完了した Run を出す */
 const PAGES = ["#/board", "#/backlog", "#/epics/e1", "#/history", "#/runs"];
 const LONG = "サイドバーの配置を確かめるための、かなり長めのタイトルのチケット";
 
@@ -101,6 +101,17 @@ beforeAll(async () => {
   await call("run.start", { ticket: "t10", step: "implement", agent: "my-bot" });
   // 予定の Iteration を足し、見出しの札の列が幅に入らず横にスクロールするようにする（s3〜s7）
   for (let i = 3; i <= 7; i++) await call("iteration.create", { name: `予定の週 ${i}` });
+  // 目標の長い閉じた Iteration（s8）：完了・中止・持ち越しのチップがすべて出る履歴の行
+  await call("iteration.create", {
+    name: "sprint8",
+    goal: "左パネルを主画面にして、カンバンとバックログと履歴をサイドバーの幅で使えるようにする",
+  });
+  for (let i = 13; i <= 15; i++)
+    await call("ticket.create", { title: `閉じた週のチケット ${i}`, iteration: "s8" });
+  await call("iteration.start", { iteration: "s8" });
+  await call("ticket.move", { ticket: "t13", status: "done" });
+  await call("ticket.move", { ticket: "t14", status: "abandoned" });
+  await call("iteration.close", { iteration: "s8" });
   browser = await chromium.launch().catch((error: unknown) => {
     throw new Error(
       `Chromium を起動できない。mise run playwright:install を実行する（${String(error)}）`,
@@ -273,6 +284,57 @@ describe.each(SCHEMES)("履歴の見方の切り替え（%s）", (scheme) => {
             expect(m.pageScroll, `${label} で画面が横に溢れない`).toBeLessThanOrEqual(m.pageClient);
           }
         }
+      } finally {
+        await context.close();
+      }
+    },
+  );
+});
+
+describe.each(SCHEMES)("履歴の Iteration の行（%s）", (scheme) => {
+  it.each([320, ...WIDTHS])(
+    "幅 %ipx で、目標は 2 行までで、件数のチップが行の枠からはみ出さず目標と重ならない",
+    async (width) => {
+      const context = await browser.newContext({
+        viewport: { width, height: 900 },
+        colorScheme: scheme,
+      });
+      const page = await context.newPage();
+      try {
+        await page.goto(`${server.url}?surface=sidebar#/history`, { waitUntil: "networkidle" });
+        const row = page.locator(".history-row", { hasText: "sprint8" });
+        await row.waitFor();
+        const m = await row.evaluate((el) => {
+          const box = el.getBoundingClientRect();
+          const name = el.querySelector(".name")!;
+          const nameBox = name.getBoundingClientRect();
+          const chips = [...el.querySelectorAll(".counts .badge")].map((b) =>
+            b.getBoundingClientRect(),
+          );
+          const main = document.querySelector(".page")!;
+          return {
+            chips: [...el.querySelectorAll(".counts .badge")].map((b) => b.textContent),
+            // 見えている行の数：文字の矩形の上端のうち、枠の中にあるものを数える
+            nameLines: (() => {
+              const range = document.createRange();
+              range.selectNodeContents(name);
+              const tops = [...range.getClientRects()]
+                .filter((r) => r.top < nameBox.bottom - 1)
+                .map((r) => Math.round(r.top));
+              return new Set(tops).size;
+            })(),
+            chipsInside: chips.every((c) => c.left >= box.left && c.right <= box.right + 0.5),
+            chipsBelowName: chips.every((c) => c.top >= nameBox.bottom - 0.5),
+            pageScroll: main.scrollWidth,
+            pageClient: main.clientWidth,
+          };
+        });
+        expect(m.chips).toEqual(["完了 1", "中止 1", "持ち越し 1"]);
+        expect(m.nameLines, "目標が見えている").toBeGreaterThan(0);
+        expect(m.nameLines, "目標は 2 行まで").toBeLessThanOrEqual(2);
+        expect(m.chipsInside, "チップが行の枠に収まる").toBe(true);
+        expect(m.chipsBelowName, "チップが目標と重ならない").toBe(true);
+        expect(m.pageScroll, "画面が横に溢れない").toBeLessThanOrEqual(m.pageClient);
       } finally {
         await context.close();
       }
