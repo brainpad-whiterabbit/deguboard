@@ -187,6 +187,29 @@ describe("設定画面", () => {
     expect(setCalls(client)).toEqual([{ key: "git.remote", value: "upstream" }]);
   });
 
+  it("worktree.root も保存の前に確かめ、「保存する」を押すまで config.set を呼ばない", async () => {
+    const { client } = configClient();
+    mount(client);
+    await screen.findByText("コミットの仕方");
+    const root = within(fieldOf("worktree.root")).getByRole<HTMLInputElement>("textbox");
+    fireEvent.change(root, { target: { value: "/tmp/worktrees" } });
+    fireEvent.blur(root);
+    const confirm = within(fieldOf("worktree.root")).getByRole("alertdialog");
+    expect(confirm.textContent).toContain("/tmp/worktrees");
+    // 確かめを待つ間はほかの項目を触れず、config.set もまだ呼ばない
+    expect(within(fieldOf("git.remote")).getByRole<HTMLInputElement>("textbox").disabled).toBe(
+      true,
+    );
+    await new Promise((r) => setTimeout(r, 0));
+    expect(setCalls(client)).toEqual([]);
+    fireEvent.click(within(confirm).getByText("保存する"));
+    expect(
+      await screen.findByText("保存した: worktree.root を /tmp/worktrees にした"),
+    ).toBeTruthy();
+    expect(setCalls(client)).toEqual([{ key: "worktree.root", value: "/tmp/worktrees" }]);
+    expect(within(fieldOf("worktree.root")).queryByRole("alertdialog")).toBeNull();
+  });
+
   it("検索欄で名前・キー・説明から項目を絞り、空のまとまりは出さない", async () => {
     const { client } = configClient();
     mount(client);
@@ -230,6 +253,21 @@ describe("設定画面", () => {
     expect(window.location.hash).toBe("#/config");
     fireEvent.click(await screen.findByRole("button", { name: "前の画面に戻る" }));
     expect(window.location.hash).toBe("#/backlog");
+  });
+
+  it("来る前の画面がない（#/config を直接開いた）ときは、「前の画面に戻る」でカンバンに戻る", async () => {
+    const { client } = configClient();
+    mount(client);
+    fireEvent.click(await screen.findByRole("button", { name: "前の画面に戻る" }));
+    expect(window.location.hash).toBe("#/board");
+  });
+
+  it("来る前の画面がないときは、歯車でもカンバンに戻る", async () => {
+    const { client } = configClient();
+    mount(client);
+    await screen.findByText("コミットの仕方");
+    fireEvent.click(screen.getByRole("button", { name: "設定" }));
+    expect(window.location.hash).toBe("#/board");
   });
 });
 

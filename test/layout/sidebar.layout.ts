@@ -8,6 +8,7 @@
 // - チケットの行のタイトル（.ticket-row .row-title）は 2 行まで。サイドバーでは 2 行で切る CSS（-webkit-line-clamp: 2）なので、3 行以上は崩れ
 // 行数は要素の枠の中に見えている行だけを数える（2 行で切られて隠れた行は数えない）
 // カンバンの行の右端（担当の印・Plan の番号など）は、行の枠からはみ出さず、タイトルと重ならないことも確かめる
+// 設定画面（#/config）は、確認の帯を開き、長い worktree.root と actions.test のリストを入れた状態で、部品が幅からはみ出さないことを別に確かめる
 // ブラウザが要るので mise run test には入れず、mise run test:layout で回す（先に mise run build と mise run playwright:install）
 
 import { access } from "node:fs/promises";
@@ -24,6 +25,11 @@ const SCHEMES = ["light", "dark"] as const;
 /** サイドバーで出す画面。履歴は閉じた Iteration の行（目標の長いものを含む）を、Run は実行中と完了した Run を出す */
 const PAGES = ["#/board", "#/backlog", "#/epics/e1", "#/history", "#/runs"];
 const LONG = "サイドバーの配置を確かめるための、かなり長めのタイトルのチケット";
+
+/** 設定画面の長い worktree.root。区切り（空白）がないので、折り返せないと横にはみ出す */
+const LONG_ROOT =
+  "../deguboard-layout-check-repository.worktrees/a-very-long-directory-name-without-any-spaces";
+const TEST_COMMAND = ["mise", "run", "check", "--", "--reporter=verbose", "packages/web/src/pages"];
 
 let fixture: Fixture;
 let server: { url: string; close(): Promise<void> };
@@ -112,6 +118,9 @@ beforeAll(async () => {
   await call("ticket.move", { ticket: "t13", status: "done" });
   await call("ticket.move", { ticket: "t14", status: "abandoned" });
   await call("iteration.close", { iteration: "s8" });
+  // 設定画面：長い worktree.root（区切りのない長いパス）と、項目の多い actions.test
+  await call("config.set", { key: "worktree.root", value: LONG_ROOT });
+  await call("config.set", { key: "actions.test", value: TEST_COMMAND });
   browser = await chromium.launch().catch((error: unknown) => {
     throw new Error(
       `Chromium を起動できない。mise run playwright:install を実行する（${String(error)}）`,
@@ -553,6 +562,69 @@ describe.each(SCHEMES)("Iteration の札の列（%s）", (scheme) => {
           expect(m.pageScroll, "画面（.page）の横スクロール").toBeLessThanOrEqual(m.pageClient);
           expect(m.docScroll, "文書の横スクロール").toBeLessThanOrEqual(m.docClient);
         }
+      } finally {
+        await context.close();
+      }
+    },
+  );
+});
+
+describe.each(SCHEMES)("設定画面（%s）", (scheme) => {
+  it.each(WIDTHS)(
+    "幅 %ipx で、確認の帯を開いても、長い worktree.root と actions.test のリストがあっても横にはみ出さない",
+    async (width) => {
+      const context = await browser.newContext({
+        viewport: { width, height: 900 },
+        colorScheme: scheme,
+      });
+      const page = await context.newPage();
+      try {
+        await page.goto(`${server.url}?surface=sidebar#/config`, { waitUntil: "networkidle" });
+        const root = page.locator('[data-key="worktree.root"] input[type="text"]');
+        await root.waitFor();
+        // 長い値のまま、確認の帯を開く（保存はしない）
+        await root.fill(`${LONG_ROOT}/next`);
+        await root.blur();
+        await page.locator(".config-confirm").waitFor();
+        const m = await page.evaluate(() => {
+          const main = document.querySelector(".page")!;
+          const box = main.getBoundingClientRect();
+          const right = box.right - parseFloat(getComputedStyle(main).paddingRight);
+          // 項目の中の部品が .page の中身の幅から右にはみ出していないか
+          const outside = [
+            ...document.querySelectorAll(
+              ".config-field, .config-field input, .config-field select, .config-list-item, .config-confirm, .config-confirm code, .config-confirm button",
+            ),
+          ]
+            .filter((el) => el.getBoundingClientRect().right > right + 0.5)
+            .map((el) => `${el.className || el.tagName}: ${el.textContent?.slice(0, 20)}`);
+          return {
+            tabs: document.querySelectorAll("nav a").length,
+            fields: document.querySelectorAll(".config-field").length,
+            listItems: document.querySelectorAll('[data-key="actions.test"] .config-list-item')
+              .length,
+            confirm: document.querySelector(".config-confirm")?.textContent ?? "",
+            outside,
+            pageScroll: main.scrollWidth,
+            pageClient: main.clientWidth,
+            docScroll: document.documentElement.scrollWidth,
+            docClient: document.documentElement.clientWidth,
+          };
+        });
+        if (m.outside.length > 0 || m.pageScroll > m.pageClient || m.docScroll > m.docClient) {
+          await page.screenshot({
+            path: `.playwright-mcp/layout-config-${scheme}-${width}.png`,
+            fullPage: true,
+          });
+        }
+        // 設定画面でもサイドバーのタブ（カンバン・バックログ・履歴・Run）は出したまま
+        expect(m.tabs, "タブ").toBe(4);
+        expect(m.fields, "設定の項目").toBeGreaterThan(10);
+        expect(m.listItems, "actions.test の項目").toBe(TEST_COMMAND.length);
+        expect(m.confirm, "確認の帯に新しい値").toContain(`${LONG_ROOT}/next`);
+        expect(m.outside, "幅からはみ出した部品").toEqual([]);
+        expect(m.pageScroll, "画面（.page）の横スクロール").toBeLessThanOrEqual(m.pageClient);
+        expect(m.docScroll, "文書の横スクロール").toBeLessThanOrEqual(m.docClient);
       } finally {
         await context.close();
       }
