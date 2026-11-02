@@ -1,11 +1,12 @@
 // scripts/install-vsix.mjs が code CLI の応答を待ち続けないことを確かめる（t230）。
-// 本物の code の代わりに、PATH の先頭に置いた node のスクリプト（偽の code）を使う。偽の code は本物のリモートの CLI と同じく
+// 本物の code の代わりに、PATH に置いた node のスクリプト（偽の code）を使う。PATH は偽の code のディレクトリ（code を置かない場面は
+// 空のディレクトリ）だけにし、本物の code に届かないようにする。スクリプトと偽の code は node の絶対パスで起こすので、PATH に node は要らない。偽の code は本物のリモートの CLI と同じく
 // 子のプロセスを起こすので、上限を超えたときに子まで止まることも見る
 
 import { execFile } from "node:child_process";
 import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { delimiter, dirname, join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
@@ -16,7 +17,7 @@ const SCRIPT = join(ROOT, "scripts/install-vsix.mjs");
  * 偽の code。--version と --install-extension のそれぞれで、FAKE_VERSION・FAKE_INSTALL の指定どおりに振る舞う。
  * hang は子のプロセスを起こしてその pid を FAKE_PID_FILE に書き、上限なく待つ。数字はその終了コードで終える
  */
-const FAKE_CODE = `#!/usr/bin/env node
+const FAKE_CODE = `#!${process.execPath}
 const { spawn } = require("node:child_process");
 const { writeFileSync } = require("node:fs");
 const mode = process.argv[2] === "--version" ? process.env.FAKE_VERSION : process.env.FAKE_INSTALL;
@@ -41,6 +42,7 @@ beforeEach(async () => {
   await writeFile(vsix, "");
   const code = join(dir, "bin", "code");
   await mkdir(join(dir, "bin"));
+  await mkdir(join(dir, "empty"));
   await writeFile(code, FAKE_CODE);
   await chmod(code, 0o755);
 });
@@ -56,17 +58,19 @@ interface Outcome {
   ms: number;
 }
 
-/** install-vsix を動かす。withCode が false なら PATH に code を置かない（node だけ） */
+/**
+ * install-vsix を動かす。withCode が false なら PATH を空のディレクトリだけにする。
+ * 上限は既定で 10 秒（遅い機械でも答える場面が上限を超えないように）。待ち続ける場面だけ env で短くする
+ */
 function run(env: Record<string, string>, withCode = true): Promise<Outcome> {
-  const nodeDir = dirname(process.execPath);
-  const PATH = withCode ? [join(dir, "bin"), nodeDir].join(delimiter) : nodeDir;
+  const PATH = join(dir, withCode ? "bin" : "empty");
   const started = Date.now();
   return new Promise((done) => {
     execFile(
       process.execPath,
       [SCRIPT, vsix],
       {
-        env: { PATH, FAKE_PID_FILE: pidFile, DEGUBOARD_VSIX_INSTALL_TIMEOUT_MS: "1000", ...env },
+        env: { PATH, FAKE_PID_FILE: pidFile, DEGUBOARD_VSIX_INSTALL_TIMEOUT_MS: "10000", ...env },
         timeout: 15_000,
       },
       (error, stdout, stderr) => {
@@ -87,9 +91,10 @@ function alive(pid: number): boolean {
   }
 }
 
-describe("install-vsix の code の呼び出しの上限", () => {
+// Windows は想定しない（スクリプトはプロセスグループで止められず、シバンの偽の code も起こせない）
+describe.skipIf(process.platform === "win32")("install-vsix の code の呼び出しの上限", () => {
   it("--install-extension が上限までに終わらなければ、子のプロセスごと止め、手で入れるコマンドを出して成功で終える", async () => {
-    const out = await run({ FAKE_INSTALL: "hang" });
+    const out = await run({ FAKE_INSTALL: "hang", DEGUBOARD_VSIX_INSTALL_TIMEOUT_MS: "1000" });
     expect(out.code).toBe(0);
     expect(out.ms).toBeLessThan(10_000);
     expect(out.stdout).toContain("1 秒で終わらなかった");
@@ -101,7 +106,7 @@ describe("install-vsix の code の呼び出しの上限", () => {
   });
 
   it("--version が上限までに答えなければ、導入を飛ばして成功で終える", async () => {
-    const out = await run({ FAKE_VERSION: "hang" });
+    const out = await run({ FAKE_VERSION: "hang", DEGUBOARD_VSIX_INSTALL_TIMEOUT_MS: "1000" });
     expect(out.code).toBe(0);
     expect(out.ms).toBeLessThan(10_000);
     expect(out.stdout).toContain("1 秒で答えなかった");
@@ -112,6 +117,12 @@ describe("install-vsix の code の呼び出しの上限", () => {
     const out = await run({}, false);
     expect(out.code).toBe(0);
     expect(out.stdout).toContain("code CLI が見つからない");
+  });
+
+  it("--version が 0 以外で終われば、その終了コードを出して導入を飛ばし、成功で終える", async () => {
+    const out = await run({ FAKE_VERSION: "2" });
+    expect(out.code).toBe(0);
+    expect(out.stdout).toContain("終了コード 2 で終わった");
   });
 
   it("code がすぐ終われば、再読み込みを案内して成功で終える", async () => {

@@ -6,6 +6,7 @@
 // code は sh が node を子として起こすので、上限を超えたらプロセスグループごと止める（sh だけ止めると node が残る）。
 // 上限は DEGUBOARD_VSIX_INSTALL_TIMEOUT_MS（ミリ秒、既定 60 秒）で変えられる。--version の上限はその値と 10 秒の短い方。
 // 同じ版番号でも差し替わるように --force を付ける。
+// Windows は想定しない（プロセスグループで止められないので、子だけを止める。code.cmd は shell なしでは起こせない）。
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import path from "node:path";
@@ -15,7 +16,8 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const vsix = path.resolve(
   process.argv[2] ?? path.join(root, "packages", "vscode", "deguboard-vscode.vsix"),
 );
-const installTimeoutMs = Number(process.env.DEGUBOARD_VSIX_INSTALL_TIMEOUT_MS) || 60_000;
+const givenTimeoutMs = Number(process.env.DEGUBOARD_VSIX_INSTALL_TIMEOUT_MS);
+const installTimeoutMs = givenTimeoutMs > 0 ? givenTimeoutMs : 60_000;
 const versionTimeoutMs = Math.min(installTimeoutMs, 10_000);
 // 案内はリポジトリの根からの位置で出す（mise のタスクは根で動く）。根の外なら絶対パスのまま
 const shown = path.relative(root, vsix).startsWith("..") ? vsix : path.relative(root, vsix);
@@ -30,7 +32,9 @@ const version = await runCode(["--version"], versionTimeoutMs, "ignore");
 if (version.timedOut || version.status !== 0) {
   const why = version.timedOut
     ? `code CLI が ${versionTimeoutMs / 1000} 秒で答えなかった`
-    : "code CLI が見つからない";
+    : version.status === null
+      ? "code CLI が見つからない"
+      : `code --version が終了コード ${version.status} で終わった`;
   console.log(
     `install-vsix: ${why}ので VS Code への導入は飛ばした。VS Code の統合ターミナルで \`mise run vsix:install\` し直すか、\`${manual}\` を実行する`,
   );
@@ -54,7 +58,7 @@ console.log(
 
 /**
  * code を引数配列で起こし、終わるか上限を超えるまで待つ。上限を超えたらプロセスグループごと SIGKILL で止める。
- * 見つからないときは status を null で返す
+ * 見つからないときは status を null で返し、シグナルで終わったときは 1 で返す
  * @param {string[]} args
  * @param {number} timeoutMs
  * @param {"ignore" | "inherit"} stdio
@@ -63,12 +67,14 @@ console.log(
 function runCode(args, timeoutMs, stdio) {
   return new Promise((resolve) => {
     // detached で子を新しいプロセスグループの頭にし、孫（sh が起こす node）もまとめて止められるようにする
-    const child = spawn("code", args, { stdio, detached: true });
+    const windows = process.platform === "win32";
+    const child = spawn("code", args, { stdio, detached: !windows });
     let timedOut = false;
     let settled = false;
     const killGroup = () => {
       try {
-        process.kill(-child.pid, "SIGKILL");
+        if (windows) child.kill();
+        else process.kill(-child.pid, "SIGKILL");
       } catch {
         // 既に終わっているか、起こせなかった
       }
@@ -77,20 +83,21 @@ function runCode(args, timeoutMs, stdio) {
       timedOut = true;
       killGroup();
     }, timeoutMs);
-    // 途中で Ctrl-C されたら、別のグループにいる code も止めてから終える
+    // 途中で止められたら（Ctrl-C・kill・端末を閉じる）、別のグループにいる code も止めてから終える
+    const signals = ["SIGINT", "SIGTERM", "SIGHUP"];
     const onSignal = () => {
       killGroup();
       process.exit(130);
     };
-    process.once("SIGINT", onSignal);
+    for (const signal of signals) process.once(signal, onSignal);
     const done = (status) => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
-      process.off("SIGINT", onSignal);
+      for (const signal of signals) process.off(signal, onSignal);
       resolve({ status, timedOut });
     };
     child.once("error", () => done(null));
-    child.once("exit", (code) => done(code));
+    child.once("exit", (code) => done(code ?? 1));
   });
 }
