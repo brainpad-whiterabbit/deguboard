@@ -12,7 +12,6 @@ import type { CommandContext } from "./define.js";
 
 export const nowIso = (ctx: CommandContext): string => toIsoDateTime(ctx.now());
 
-/** `t12` でも `12` でも受け付ける参照 */
 /**
  * 今あるかは確かめず、ID の形だけを確かめて整える（消えた・閉じたものの記録も引けるように）。
  * 未指定なら undefined、形が違えば UsageError
@@ -24,6 +23,7 @@ export function idShapeOf<K extends IdKind>(ref: string | undefined, kind: K): I
   return id;
 }
 
+/** `t12` でも `12` でも受け付ける参照 */
 export const ticketRef = z.string().min(1).describe("チケットの ID（t12 または 12）");
 export const epicRef = z.string().min(1).describe("Epic の ID（e3 または 3）");
 export const iterationRef = z.string().min(1).describe("Iteration の ID（s3 または 3）");

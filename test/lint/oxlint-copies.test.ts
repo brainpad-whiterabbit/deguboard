@@ -14,7 +14,7 @@ interface Override {
   rules: Record<string, unknown>;
 }
 
-/** 行の頭から始まるコメントを除いて読む（.oxlintrc.json は行コメントだけを使う） */
+/** 行の頭から始まるコメントを除いて読む（.oxlintrc.json は行頭の // だけを使う。行末のコメントは消せず JSON として読めなくなるので書かない） */
 async function readConfig(): Promise<{ overrides: Override[] }> {
   const text = await readFile(join(ROOT, ".oxlintrc.json"), "utf8");
   return JSON.parse(text.replaceAll(/^\s*\/\/.*$/gm, "")) as { overrides: Override[] };
