@@ -1910,6 +1910,15 @@ button.danger {
 .filter-chip button:hover {
   background: rgb(127 127 127 / 0.25);
 }
+/* サイドバーのバックログの検索欄の下：よく使う絞り込みのチップと、畳んだ欄で効いている条件の札を 1 行に並べる */
+.quick-filters {
+  align-items: center;
+  margin: 0 0 0.3rem;
+  padding: 0 0.3rem;
+}
+.quick-filters .filter-chip {
+  line-height: 1.6;
+}
 /* 絞り込みの欄は漏斗で開いたときだけ見出しの下に出す小さな 1 行 */
 .board-filters.compact {
   flex-wrap: nowrap;

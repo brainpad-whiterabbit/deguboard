@@ -3,7 +3,8 @@
 // Iteration が 1 つもない（planned・active がない）Project では区画に分けず 1 つの表で出す。
 // チケットを別の区画にドラッグすると ticket.update で Iteration を変える。拒否されたら通知に理由を出して元の区画に戻す（読み直すだけで戻る）。
 // open の Epic は進捗つきの欄に並べ（UI-10）、押すとその Epic のチケットに絞る（もう一度押すと解除）。広い画面では Epic の作成も欄から行う。
-// サイドバーでは検索と件数だけ常に出し、絞り込みは畳む（効いている条件は見出しに出す。開閉は host.state に残す）。
+// サイドバーでは検索を常に出し、その下によく使う絞り込み（作業中・high）のチップと、畳んだ欄で効いている条件の札（× で外す）を並べる。
+// 絞り込みの欄は畳み（開閉は host.state に残す）、見出しの件数は絞り込みが効いているときだけ「n / m 件」で出す。
 // サイドバーの Epic の欄は open の Epic があるときだけ、番号・題・進捗のチップと「Epic なし」のチップを並べる（2 行を超える分は「ほか N」）
 // サイドバーの行の右端には、開いた Plan に入っていれば Plan の番号と着手可・待ちを出す（カンバンと同じ部品と判定。board.tsx の BacklogRowEnd）。
 // サイドバーの行は担当者の列を出さず、別の人の担当だけ右端に頭文字の丸で出す（自分か自分の agent は出さない。store.me）
@@ -81,15 +82,42 @@ export function filterBacklog(tickets: readonly Ticket[], f: BacklogFilter): Tic
     .sort(byPriorityThenNumber);
 }
 
-/** 畳んだ絞り込みの見出しに出す、効いている条件。検索は常に見えているので含めない */
-function activeFilters(f: BacklogFilter, labelOf: (status: string) => string): string[] {
-  const parts: string[] = [];
-  if (f.status) parts.push(`Status: ${labelOf(f.status)}`);
-  if (f.priority) parts.push(`優先度: ${f.priority}`);
-  if (f.epic) parts.push(`Epic: ${f.epic === NO_EPIC ? "なし" : f.epic}`);
-  if (f.label) parts.push(`ラベル: ${f.label}`);
-  if (f.assignee) parts.push(`担当: ${f.assignee === NO_CLAIM ? "なし" : actorLabel(f.assignee)}`);
+/** 効いている条件の 1 つ。key はその条件の欄、text は札に出す文、title はツールチップ */
+interface ActiveFilter {
+  key: Exclude<keyof BacklogFilter, "query">;
+  text: string;
+  title?: string;
+}
+
+/** 効いている条件（検索を除く）。検索は常に見えているので含めない */
+function activeFilters(f: BacklogFilter, labelOf: (status: string) => string): ActiveFilter[] {
+  const parts: ActiveFilter[] = [];
+  if (f.status) parts.push({ key: "status", text: `Status ${labelOf(f.status)}` });
+  if (f.priority) parts.push({ key: "priority", text: `優先度 ${f.priority}` });
+  if (f.epic) parts.push({ key: "epic", text: `Epic ${f.epic === NO_EPIC ? "なし" : f.epic}` });
+  if (f.label) parts.push({ key: "label", text: `ラベル ${f.label}` });
+  if (f.assignee) {
+    const who = f.assignee === NO_CLAIM ? "なし" : actorLabel(f.assignee);
+    parts.push({
+      key: "assignee",
+      text: `担当 ${who}`,
+      title: f.assignee === NO_CLAIM ? "担当なし" : f.assignee,
+    });
+  }
   return parts;
+}
+
+/** よく使う絞り込みのチップ：押すとその値で絞り、もう一度押すと外す */
+const QUICK_FILTERS = [
+  { key: "status", value: "in_progress", text: "作業中" },
+  { key: "priority", value: "high", text: "high" },
+] as const satisfies readonly { key: keyof BacklogFilter; value: string; text: string }[];
+
+/** 絞り込みの欄の条件のうち、よく使うチップで見えているものと Epic のチップで見えているもの以外を札にする */
+function foldedFilters(f: BacklogFilter, active: readonly ActiveFilter[]): ActiveFilter[] {
+  return active.filter(
+    (a) => a.key !== "epic" && !QUICK_FILTERS.some((q) => q.key === a.key && f[q.key] === q.value),
+  );
 }
 
 /** バックログの区画。iteration がなければ「Iteration なし」 */
@@ -156,6 +184,7 @@ export function BacklogPage() {
   const rowEnd = (t: Ticket, priority: ReactNode) => (
     <BacklogRowEnd ticket={t} mark={planMarks.get(t.id)} priority={priority} me={store.me} />
   );
+  const total = useMemo(() => filterBacklog(tickets, EMPTY_FILTER).length, [tickets]);
   const onDragEnd = async (event: DragEndEvent) => {
     const id = String(event.active.id);
     const over = event.over?.id;
@@ -169,6 +198,7 @@ export function BacklogPage() {
   };
   const statuses = BOARD_STATUSES.filter((s) => s !== "done");
   const active = activeFilters(filter, (st) => store.labelOf(st as Ticket["status"]));
+  const filtering = active.length > 0 || filter.query.trim() !== "";
 
   const filters: ReactNode = (
     <>
@@ -243,6 +273,14 @@ export function BacklogPage() {
         {sidebar ? null : <span className="muted">{rows.length} 件</span>}
       </div>
       {sidebar ? (
+        <QuickFilters
+          filter={filter}
+          folded={foldedFilters(filter, active)}
+          statusLabel={store.labelOf("in_progress")}
+          onChange={set}
+        />
+      ) : null}
+      {sidebar ? (
         <details
           className="fold filters"
           open={filtersOpen}
@@ -250,8 +288,11 @@ export function BacklogPage() {
         >
           <summary>
             絞り込み
-            <span className="muted">{active.length > 0 ? active.join(" ・ ") : ""}</span>
-            <span className="muted count">{rows.length} 件</span>
+            {filtering ? (
+              <span className="muted count" title={`全 ${total} 件のうち ${rows.length} 件`}>
+                {rows.length} / {total} 件
+              </span>
+            ) : null}
           </summary>
           <div className="toolbar">{filters}</div>
         </details>
@@ -274,6 +315,53 @@ export function BacklogPage() {
         </div>
       </div>
     </section>
+  );
+}
+
+/**
+ * サイドバーの検索欄の下の 1 行：よく使う絞り込みのチップ（押すと絞り、効いているものは塗る）と、
+ * 畳んだ欄で効いている条件の札（× で外す）。「自分」は操作している人のユーザを画面が知らないので、まだ出さない（t159 で足す）
+ */
+function QuickFilters({
+  filter,
+  folded,
+  statusLabel,
+  onChange,
+}: {
+  filter: BacklogFilter;
+  folded: readonly ActiveFilter[];
+  statusLabel: string;
+  onChange: (patch: Partial<BacklogFilter>) => void;
+}) {
+  return (
+    <div className="chip-row quick-filters" role="group" aria-label="よく使う絞り込み">
+      {QUICK_FILTERS.map((q) => {
+        const pressed = filter[q.key] === q.value;
+        const what = q.key === "status" ? `Status ${statusLabel}` : `優先度 ${q.value}`;
+        return (
+          <Chip
+            key={q.key}
+            pressed={pressed}
+            title={pressed ? `${what} の絞り込みを外す` : `${what} で絞る`}
+            onClick={() => onChange({ [q.key]: pressed ? "" : q.value })}
+          >
+            {q.text}
+          </Chip>
+        );
+      })}
+      {folded.map((a) => (
+        <span key={a.key} className="filter-chip" title={a.title ?? a.text}>
+          <span className="filter-chip-text">{a.text}</span>
+          <button
+            type="button"
+            aria-label={`${a.text} の絞り込みを外す`}
+            onClick={() => onChange({ [a.key]: "" })}
+          >
+            ×
+          </button>
+        </span>
+      ))}
+    </div>
   );
 }
 
