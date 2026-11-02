@@ -1038,13 +1038,22 @@ describe("画面", () => {
     await screen.findByRole("heading", { level: 1, name: "履歴" });
     const names = () =>
       [...document.querySelectorAll(".history-row .name")].map((e) => e.textContent);
-    expect(names()).toEqual(["次", "最初"]);
-    expect(screen.getByText("完了 3 ・ 持ち越し 1")).toBeTruthy();
-    expect(screen.getByText("2026-09-29 〜 2026-10-10 ・ core")).toBeTruthy();
-    // s2 には閉じたときの記録がないので、web で数え直さず「—」と出す
-    expect(screen.getByText("完了 — ・ 持ち越し —")).toBeTruthy();
+    // 目標のある s1 は目標を 1 段目に出し、名前は 2 段目に出す
+    expect(names()).toEqual(["次", "core"]);
+    const rowOf = (id: string) =>
+      [...document.querySelectorAll(".history-row")].find(
+        (r) => r.querySelector("code")?.textContent === id,
+      )!;
+    const chips = (id: string) =>
+      [...rowOf(id).querySelectorAll(".counts .badge")].map((b) => b.textContent);
+    expect(chips("s1")).toEqual(["完了 3", "持ち越し 1"]);
+    expect(rowOf("s1").querySelector("small")!.textContent).toBe(
+      "最初 ・ 2026-09-29 〜 2026-10-10 ・ 内訳: Epic なし 1",
+    );
+    // s2 には閉じたときの記録がないので、web で数え直さず「—」と出し、持ち越しのチップは出さない
+    expect(chips("s2")).toEqual(["完了 —"]);
     fireEvent.change(screen.getByLabelText("チケットを探す"), { target: { value: "ログイン" } });
-    expect(names()).toEqual(["最初"]);
+    expect(names()).toEqual(["core"]);
     // 件数の行はなく、見方のバッジが「当たった数 / 全体」になる
     expect(screen.queryByText(/件$/, { selector: ".toolbar span" })).toBeNull();
     expect(screen.getByRole("button", { name: /^Iteration/ }).textContent).toBe(
@@ -1055,7 +1064,7 @@ describe("画面", () => {
     expect(window.location.hash).toBe("#/history");
   });
 
-  it("サイドバーの履歴の Iteration の行は期間の記録がなければそう書き、Epic ごとの件数が出て、開くと Epic ごとの小見出しで終わったチケットと持ち越しが出る", async () => {
+  it("サイドバーの履歴の Iteration の行は期間の記録がなければ何も書かず、終わったチケットの Epic ごとの件数と中止のチップが出て、開くと Epic ごとの小見出しで終わったチケットと持ち越しが出る", async () => {
     window.location.hash = "#/history";
     const client = mockClient();
     client.data.iterations = [iteration({ id: "s1", name: "最初", status: "closed" })];
@@ -1085,7 +1094,12 @@ describe("画面", () => {
     );
     await screen.findByRole("heading", { level: 1, name: "履歴" });
     const row = document.querySelector(".history-row")!;
-    expect(row.querySelector("small")!.textContent).toBe("期間の記録なし ・ Epic: e1 2");
+    expect(row.querySelector("small")!.textContent).toBe("内訳: e1 2");
+    expect([...row.querySelectorAll(".counts .badge")].map((b) => b.textContent)).toEqual([
+      "完了 —",
+      "中止 1",
+    ]);
+    expect(row.querySelector(".count-abandoned")).toBeTruthy();
     const item = document.querySelector<HTMLDetailsElement>("details.history-item")!;
     expect(item.open).toBe(false);
     expect(item.classList.contains("fold")).toBe(true);

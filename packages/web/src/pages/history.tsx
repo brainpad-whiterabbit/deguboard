@@ -1,6 +1,7 @@
 // 履歴（UI-5）。終わったものを見る画面で、見方を「Iteration / Epic / チケット」で切り替える（見方はハッシュの ?view= に持つ）。検索欄は共通。
 // Iteration の見方：closed の Iteration を閉じた新しい順に 2 段の行で出す（KanbanForge の History のタブと同じ形）。
-// 1 段目は番号・名前と、閉じたときに記録した完了・持ち越しの件数、2 段目は期間・目標と、含む Epic ごとの件数。
+// 1 段目は番号・目標（目標がなければ名前）と件数のチップ（完了・中止・持ち越し）、2 段目は名前（目標を 1 段目に出したとき）・期間と、
+// 終わったチケットの Epic ごとの内訳（Epic なしを含み、合計は終わったチケットの件数に合う）。
 // 行を開くと中の done・abandoned のチケットを出す。Run の実績はここに出さず、Run の画面（#/runs?by=iteration）で見る。
 // Epic の見方：closed の Epic を閉じた新しい順に、進捗・閉じた日と、チケットが入っていた Iteration を出す。
 // チケットの見方：done・abandoned のチケットを終えた新しい順に、結果・Iteration・Epic・PR・終えた日を出す。終えた時刻は
@@ -43,11 +44,19 @@ function byClosedDesc<T extends { id: string; closed_at?: string | undefined }>(
 }
 
 /**
- * 完了と持ち越しの件数。iteration.close が記録した値（core が数える）をそのまま出し、web では数え直さない。
- * 記録のないもの（閉じる前のデータ）は「—」
+ * 件数のチップ。完了と持ち越しは iteration.close が記録した値（core が数える）をそのまま出し、web では数え直さない。
+ * 完了は記録がなければ「—」で出す。中止は記録がないので Iteration に入っている abandoned を数える。
+ * 中止と持ち越しは 1 件以上のときだけ色付きで出す
  */
-function countsText(iteration: Iteration): string {
-  return `完了 ${iteration.completed ?? NO_VALUE} ・ 持ち越し ${iteration.carried_over ?? NO_VALUE}`;
+function CountChips({ iteration, abandoned }: { iteration: Iteration; abandoned: number }) {
+  const carried = iteration.carried_over ?? 0;
+  return (
+    <span className="counts" title="完了と持ち越しは閉じたときに記録した件数">
+      <span className="badge">完了 {iteration.completed ?? NO_VALUE}</span>
+      {abandoned > 0 ? <span className="badge count-abandoned">中止 {abandoned}</span> : null}
+      {carried > 0 ? <span className="badge warn">持ち越し {carried}</span> : null}
+    </span>
+  );
 }
 
 /**
@@ -76,17 +85,14 @@ function filterHistory<T extends { id: string }>(
   return rows.filter((r) => hit.has(r.id));
 }
 
-/** Iteration に入っている Epic ごとの件数（多い順、同じなら番号の順）。Epic なしは数えない */
-function epicCountsOf(
-  iteration: string,
-  tickets: readonly Ticket[],
-): { epic: string; count: number }[] {
-  const counts = new Map<string, number>();
-  for (const t of tickets)
-    if (t.iteration === iteration && t.epic) counts.set(t.epic, (counts.get(t.epic) ?? 0) + 1);
-  return [...counts]
-    .map(([epic, count]) => ({ epic, count }))
-    .sort((a, b) => b.count - a.count || byNumber({ id: a.epic }, { id: b.epic }));
+/**
+ * 終わったチケットの Epic ごとの件数（groupByEpic の順：多い順、同じなら番号の順、Epic なしは最後）。
+ * Epic なしも数えるので、合計は渡したチケットの件数に合う
+ */
+export function epicCountsOf(
+  finished: readonly Ticket[],
+): { epic: string | null; count: number }[] {
+  return groupByEpic(finished).map((g) => ({ epic: g.epic, count: g.tickets.length }));
 }
 
 /** Epic のチケットが入っている Iteration（番号の順）。持ち越しで外されたものは今のファイルからは分からない */
@@ -320,13 +326,15 @@ export function HistoryPage({ view }: { view: HistoryView }) {
 function IterationItem({ iteration: i, sidebar }: { iteration: Iteration; sidebar: boolean }) {
   const store = useStore();
   const [opened, setOpened] = useState(false);
-  const epics = epicCountsOf(i.id, store.tickets);
   const finished = store.tickets
     .filter((t) => t.iteration === i.id && (t.status === "done" || t.status === "abandoned"))
     .sort(byNumber);
-  const period =
-    i.start || i.end ? `${i.start ?? "?"} 〜 ${i.end ?? "?"}` : sidebar ? "期間の記録なし" : "";
-  const meta = [period, i.goal].filter(Boolean).join(" ・ ");
+  const epics = epicCountsOf(finished);
+  const abandoned = finished.filter((t) => t.status === "abandoned").length;
+  // 目標があれば 1 段目に目標を出し、名前は 2 段目に小さく出す。期間の記録がなければ何も書かない
+  const goal = i.goal?.trim();
+  const period = i.start || i.end ? `${i.start ?? "?"} 〜 ${i.end ?? "?"}` : "";
+  const meta = [goal ? i.name : "", period].filter(Boolean).join(" ・ ");
   return (
     <li>
       <details
@@ -337,22 +345,27 @@ function IterationItem({ iteration: i, sidebar }: { iteration: Iteration; sideba
           <DetailLink route={{ page: "iterations", id: i.id }}>
             <code>{i.id}</code>
           </DetailLink>
-          <span className="name" title={i.name}>
-            {i.name}
+          <span
+            className={`name${goal ? " goal" : ""}`}
+            title={goal ? `${goal}（${i.name}）` : i.name}
+          >
+            {goal || i.name}
           </span>
-          <span className="counts" title="閉じたときに記録した完了と持ち越しの件数">
-            {countsText(i)}
-          </span>
+          <CountChips iteration={i} abandoned={abandoned} />
           {meta || epics.length > 0 ? (
             <small>
               {meta}
               {epics.length > 0 ? (
                 <span className="epics">
-                  {meta ? " ・ " : ""}Epic:{" "}
+                  {meta ? " ・ " : ""}内訳:{" "}
                   {epics.map((e, n) => (
-                    <span key={e.epic}>
+                    <span key={e.epic ?? "-"}>
                       {n > 0 ? ", " : ""}
-                      <DetailLink route={{ page: "epics", id: e.epic }}>{e.epic}</DetailLink>{" "}
+                      {e.epic ? (
+                        <DetailLink route={{ page: "epics", id: e.epic }}>{e.epic}</DetailLink>
+                      ) : (
+                        "Epic なし"
+                      )}{" "}
                       {e.count}
                     </span>
                   ))}
