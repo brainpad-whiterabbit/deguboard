@@ -1,6 +1,25 @@
+# General のワークフロー。dg workflow set が同梱のテンプレート general から置いた
+
 id: general
-name: G
+name: General
+transitions: []
+reconcile:
+  - when:
+      - branch_merged
+    status: done
+  - when:
+      - branch_exists
+    status: in_progress
+fields: []
 steps:
-  - id: x
+  - id: investigate
+    label: Investigate
+  - id: implement
+    label: Implement
     actions:
-      - nope
+      - create_worktree
+      - create_branch
+  - id: review
+    label: Review
+  - id: fix
+    label: Fix
