@@ -1,5 +1,6 @@
 // config.yaml のスキーマ。項目の全体はここが正本（requirements.md 5.10）。
-// 入れ子の既定は prefault で与える（Zod 4 の default は検証を短絡するため）
+// 入れ子の既定は prefault で与える（Zod 4 の default は検証を短絡するため）。
+// 各項目の説明は describe に書き、configFields が設定画面（config.show の fields）に渡す
 
 import { z } from "zod";
 import { slugSchema } from "./common.js";
@@ -10,64 +11,98 @@ const PUSH_MODES = ["auto", "manual"] as const;
 export type PushMode = (typeof PUSH_MODES)[number];
 
 export const configSchema = z.looseObject({
-  /** 省略時の Project */
-  default_project: slugSchema.default("default"),
+  default_project: slugSchema.default("default").describe("省略時の Project"),
   git: z
     .looseObject({
-      /** 同期先のリモート */
-      remote: z.string().min(1).default("origin"),
-      /** 作業ブランチの元と「マージ済み」の判定の基準 */
-      base_branch: z.string().min(1).default("main"),
+      remote: z.string().min(1).default("origin").describe("同期先のリモート"),
+      base_branch: z
+        .string()
+        .min(1)
+        .default("main")
+        .describe("作業ブランチの元と「マージ済み」の判定の基準"),
     })
     .prefault({}),
   worktree: z
     .looseObject({
-      /** 作業 worktree の置き場所。リポジトリからの相対パス */
-      root: z.string().min(1).default("../<repo>.worktrees"),
+      root: z
+        .string()
+        .min(1)
+        .default("../<repo>.worktrees")
+        .describe("作業 worktree の置き場所。リポジトリからの相対パス"),
     })
     .prefault({}),
   commit: z
     .looseObject({
-      /** each: 書き込みのたびにコミット / batch: 作業ツリーに残し、dg commit・dg sync・即時の操作がまとめてコミット / manual: dg commit と即時の操作だけ */
-      mode: z.enum(COMMIT_MODES).default("batch"),
+      mode: z
+        .enum(COMMIT_MODES)
+        .default("batch")
+        .describe(
+          "each: 書き込みのたびにコミット / batch: 作業ツリーに残し、dg commit・dg sync・即時の操作がまとめてコミット / manual: dg commit と即時の操作だけ",
+        ),
     })
     .prefault({}),
   push: z
     .looseObject({
-      /** auto: コミットのたびに push / manual: dg sync が push する（即時の操作は manual でも push する） */
-      mode: z.enum(PUSH_MODES).default("auto"),
+      mode: z
+        .enum(PUSH_MODES)
+        .default("auto")
+        .describe(
+          "auto: コミットのたびに push / manual: dg sync が push する（即時の操作は manual でも push する）",
+        ),
     })
     .prefault({}),
   metrics: z
     .looseObject({
-      /** run finish が Adapter で会話記録を読んで使用量を補うか。DEGUBOARD_NO_TRANSCRIPTS のマシンでは true でも読まない（MT-2） */
-      read_transcripts: z.boolean().default(false),
+      read_transcripts: z
+        .boolean()
+        .default(false)
+        .describe(
+          "run finish が Adapter で会話記録を読んで使用量を補うか。DEGUBOARD_NO_TRANSCRIPTS のマシンでは true でも読まない（MT-2）",
+        ),
     })
     .prefault({}),
   actions: z
     .looseObject({
-      /** 任意のシェルの Action（shell）を許すか。許しても実行のたびに確認する（AG-7） */
-      shell: z.boolean().default(false),
-      /** テスト実行の Action（run_tests）が呼ぶコマンドの引数配列（例 [mise, run, check]）。空なら run_tests は拒否する */
-      test: z.array(z.string().min(1)).default([]),
+      shell: z
+        .boolean()
+        .default(false)
+        .describe("任意のシェルの Action（shell）を許すか。許しても実行のたびに確認する（AG-7）"),
+      test: z
+        .array(z.string().min(1))
+        .default([])
+        .describe(
+          "テスト実行の Action（run_tests）が呼ぶコマンドの引数配列（例 [mise, run, check]）。空なら run_tests は拒否する",
+        ),
     })
     .prefault({}),
   auto: z
     .looseObject({
-      /** dg guide all --auto で、マージの前の条件を満たした PR を自動でマージするか。既定は人がマージする */
-      merge: z.boolean().default(false),
+      merge: z
+        .boolean()
+        .default(false)
+        .describe(
+          "dg guide all --auto で、マージの前の条件を満たした PR を自動でマージするか。既定は人がマージする",
+        ),
     })
     .prefault({}),
   lint: z
     .looseObject({
-      /** dg lint が、Iteration に入らずに todo・abandoned 以外に進んだチケットを指摘するか（閉じた Epic の done は除く）。dg guide work は claim の前に Iteration に入れるよう案内する */
-      require_iteration: z.boolean().default(false),
+      require_iteration: z
+        .boolean()
+        .default(false)
+        .describe(
+          "dg lint が、Iteration に入らずに todo・abandoned 以外に進んだチケットを指摘するか（閉じた Epic の done は除く）。dg guide work は claim の前に Iteration に入れるよう案内する",
+        ),
     })
     .prefault({}),
   actor: z
     .looseObject({
-      /** agent からは拒否するコマンド名（epic.close など）。既定は空で、すべて許す。チケットの遷移は Workflow の by で縛る */
-      human_only: z.array(z.string().min(1)).default([]),
+      human_only: z
+        .array(z.string().min(1))
+        .default([])
+        .describe(
+          "agent からは拒否するコマンド名（epic.close など）。既定は空で、すべて許す。チケットの遷移は Workflow の by で縛る",
+        ),
     })
     .prefault({}),
 });
@@ -76,4 +111,56 @@ export type Config = z.output<typeof configSchema>;
 /** 既定値だけの config */
 export function defaultConfig(): Config {
   return configSchema.parse({});
+}
+
+/** 設定の 1 項目の型。画面はこれで入力欄（選択欄・チェック・テキスト・リスト）を選ぶ */
+export type ConfigFieldType = "enum" | "boolean" | "string" | "list";
+
+/** 設定の 1 項目（葉）。key は config.set に渡すドット区切りの名前 */
+export interface ConfigField {
+  key: string;
+  type: ConfigFieldType;
+  /** enum のときの選択肢 */
+  options?: string[] | undefined;
+  /** スキーマの describe */
+  description: string;
+  default: unknown;
+}
+
+/** default・prefault の包みを外した中身 */
+function unwrap(schema: z.ZodType): z.ZodType {
+  let s = schema;
+  while (s instanceof z.ZodDefault || s instanceof z.ZodPrefault) s = s.unwrap() as z.ZodType;
+  return s;
+}
+
+function fieldOf(key: string, schema: z.ZodType, fallback: unknown): ConfigField {
+  const inner = unwrap(schema);
+  const field: ConfigField = {
+    key,
+    type: "string",
+    description: schema.description ?? "",
+    default: fallback,
+  };
+  if (inner instanceof z.ZodEnum) {
+    field.type = "enum";
+    field.options = inner.options.map(String);
+  } else if (inner instanceof z.ZodBoolean) field.type = "boolean";
+  else if (inner instanceof z.ZodArray) field.type = "list";
+  return field;
+}
+
+/** config.yaml の全項目（葉）を、スキーマの並びのまま既定値と説明つきで出す */
+export function configFields(): ConfigField[] {
+  const defaults = defaultConfig() as Record<string, unknown>;
+  const fields: ConfigField[] = [];
+  for (const [top, schema] of Object.entries(configSchema.shape)) {
+    const inner = unwrap(schema as z.ZodType);
+    if (inner instanceof z.ZodObject) {
+      const values = defaults[top] as Record<string, unknown>;
+      for (const [leaf, child] of Object.entries(inner.shape))
+        fields.push(fieldOf(`${top}.${leaf}`, child as z.ZodType, values[leaf]));
+    } else fields.push(fieldOf(top, schema as z.ZodType, defaults[top]));
+  }
+  return fields;
 }

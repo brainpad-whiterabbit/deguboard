@@ -30,10 +30,14 @@ export type WebviewRequest =
   | { id: number; kind: "status" }
   | { id: number; kind: "action"; name: "open" | "show"; route: string };
 
-/** 拡張ホスト → Webview の通知。要求と対応づかないので id を持たない（UI-12）。reload は store を読み直す（同期・再読み込み・ファイルの変化の後） */
+/**
+ * 拡張ホスト → Webview の通知。要求と対応づかないので id を持たない（UI-12）。reload は store を読み直す（同期・再読み込み・ファイルの変化の後）。
+ * toggle はその画面と来る前の画面を切り替える（ビューのタイトル行の歯車で設定画面を開け閉めする）
+ */
 export type WebviewEvent =
   | { kind: "event"; name: "reload" }
-  | { kind: "event"; name: "navigate"; hash: string };
+  | { kind: "event"; name: "navigate"; hash: string }
+  | { kind: "event"; name: "toggle"; hash: string };
 
 /** 拡張ホスト → Webview の応答。HTTP の本文と同じ形に id を足したもの */
 export type WebviewResponse =

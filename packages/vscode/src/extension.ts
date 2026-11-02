@@ -40,6 +40,8 @@ import {
 } from "./webview.js";
 
 const VIEW_ID = "deguboard.screens";
+/** 設定画面のルート（web の router の #/config） */
+const CONFIG_ROUTE = "#/config";
 const PANEL_TYPE = "deguboard";
 
 /** エディタ領域のパネル。作業フォルダごとに 1 つで、詳細はこれを使い回す */
@@ -62,6 +64,8 @@ export function activate(context: vscode.ExtensionContext): void {
     // ビューのタイトル行の同期ボタン（UI-12）。拡張ホストで実行してから、サイドバーとパネルの両方に読み直しを頼む
     // （サイドバーが描かれていなくても動く）。リモートがなくても読み直しだけはするので、手の再読み込みも兼ねる
     vscode.commands.registerCommand("deguboard.sync", () => void syncFolder()),
+    // ビューのタイトル行の歯車。サイドバーの中をカンバン（来る前の画面）と設定画面（config.yaml）で切り替える
+    vscode.commands.registerCommand("deguboard.config", () => void toggleInSidebar(CONFIG_ROUTE)),
     // 左パネルのバックログの行の右クリック（package.json の webview/context。引数は行の data-vscode-context）
     vscode.commands.registerCommand(BACKLOG_ROW_COMMANDS.move, (arg: unknown) =>
       withMenuTicket(arg, moveFromMenu),
@@ -149,6 +153,23 @@ async function showInSidebar(route: string): Promise<void> {
     void sidebar.webview.postMessage({
       kind: "event",
       name: "navigate",
+      hash: route,
+    } satisfies WebviewEvent);
+  } else {
+    pendingSidebarRoute = route;
+  }
+  await vscode.commands.executeCommand(`${VIEW_ID}.focus`);
+}
+
+/**
+ * サイドバーの画面をその画面と来る前の画面で切り替える（Webview が今の画面を知っているので、切り替えは web に任せる）。
+ * サイドバーがまだ描かれていなければ、その画面を初期ルートにしてビューを開く
+ */
+async function toggleInSidebar(route: string): Promise<void> {
+  if (sidebar) {
+    void sidebar.webview.postMessage({
+      kind: "event",
+      name: "toggle",
       hash: route,
     } satisfies WebviewEvent);
   } else {

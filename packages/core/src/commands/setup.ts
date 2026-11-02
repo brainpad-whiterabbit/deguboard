@@ -19,7 +19,7 @@ import {
 } from "../git/sync.js";
 import { CONFLICT_REMEDY, flushPending, withWrite } from "../git/write.js";
 import { ownActorIds, type ActorKind, type UserSource } from "../model/actor.js";
-import { configSchema } from "../model/config.js";
+import { configFields, configSchema, type Config, type ConfigField } from "../model/config.js";
 import { parseAcceptance, type Ticket } from "../model/ticket.js";
 import type { Doc } from "../storage/documents.js";
 import { checkReferences } from "../storage/integrity.js";
@@ -472,13 +472,29 @@ export const configShow = defineCommand({
   name: "config.show",
   group: "setup",
   summary: "config.yaml を既定値で補って出す",
-  input: z.object({}),
+  input: z.object({
+    fields: z
+      .boolean()
+      .optional()
+      .describe(
+        "値と一緒に全項目のキー・型・既定値・説明も出す（{ config, fields } の形。設定画面が使う）",
+      ),
+  }),
   write: false,
   needs: "store",
-  async run(ctx) {
-    return ok(ctx.config);
+  async run(ctx, input) {
+    // 同じ文脈で config.set した後も今の値を出すよう、ctx.config（開いたときの写し）でなく store から読む
+    const config = ctx.store.config;
+    if (input.fields) return ok<ConfigShowView | Config>({ config, fields: configFields() });
+    return ok<ConfigShowView | Config>(config);
   },
 });
+
+/** config.show --fields の出力。設定画面が値・既定値・説明を一度に読む */
+export interface ConfigShowView {
+  config: Config;
+  fields: ConfigField[];
+}
 
 /** whoami の出力。操作している主体と、その人本人とみなす主体の ID */
 export interface WhoamiView {

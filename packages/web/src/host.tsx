@@ -5,7 +5,7 @@
 
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import type { WebviewClient } from "./client/webview.js";
-import { hrefOf, navigate, type Route } from "./router.js";
+import { hrefOf, navigate, toggleRoute, type Route } from "./router.js";
 import { useStore } from "./store.js";
 import { createUiState, localStorageBackend, type UiState } from "./ui-state.js";
 
@@ -73,7 +73,10 @@ export function useUiState<T>(key: string, initial: T): [T, (value: T) => void] 
   ];
 }
 
-/** 拡張ホストからの通知を受ける。navigate はハッシュを書き換え、reload は store を読み直す（同期は拡張ホストが済ませてから送ってくる）。StoreProvider の中に置く */
+/**
+ * 拡張ホストからの通知を受ける。navigate はハッシュを書き換え、toggle はその画面と来る前の画面を切り替え（歯車の設定画面）、
+ * reload は store を読み直す（同期は拡張ホストが済ませてから送ってくる）。StoreProvider の中に置く
+ */
 export function HostBridge({ client }: { client: WebviewClient }) {
   const store = useStore();
   const reloadRef = useRef(store.reload);
@@ -82,6 +85,7 @@ export function HostBridge({ client }: { client: WebviewClient }) {
     () =>
       client.onEvent((event) => {
         if (event.name === "navigate") window.location.hash = event.hash;
+        else if (event.name === "toggle") toggleRoute(event.hash);
         else if (event.name === "reload") void reloadRef.current();
       }),
     [client],

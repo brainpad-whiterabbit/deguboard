@@ -26,7 +26,16 @@ import {
 } from "./iteration.js";
 import { planApprove, planClose, planCreate, planList, planShow } from "./plan.js";
 import { projectCreate } from "./project.js";
-import { configSet, init, lint, sync, validate, whoami } from "./setup.js";
+import {
+  configSet,
+  configShow,
+  init,
+  lint,
+  sync,
+  validate,
+  whoami,
+  type ConfigShowView,
+} from "./setup.js";
 import {
   ticketCheck,
   ticketClaim,
@@ -1225,6 +1234,18 @@ describe("用意", () => {
     const c = await runCommand(configSet, ctx, { key: "commit.mode", value: "each" });
     expect(c.data.commit.mode).toBe("each");
     expect(c.data.git.remote).toBe("origin");
+    // 画面は配列をそのまま渡す。config.show の fields は値と一緒に既定値と説明を返す
+    const list = await runCommand(configSet, ctx, {
+      key: "actions.test",
+      value: ["mise", "run", "check"],
+    });
+    expect(list.data.actions.test).toEqual(["mise", "run", "check"]);
+    const shown = (await runCommand(configShow, ctx, { fields: true })).data as ConfigShowView;
+    expect(shown.config.commit.mode).toBe("each");
+    expect(shown.fields.find((x) => x.key === "commit.mode")?.default).toBe("batch");
+    expect((await runCommand(configShow, ctx, {})).data).toMatchObject({
+      commit: { mode: "each" },
+    });
     await expect(
       runCommand(configSet, ctx, { key: "commit.mode", value: "nope" }),
     ).rejects.toMatchObject({

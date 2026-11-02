@@ -79,15 +79,17 @@ describe("postMessage の CommandClient", () => {
     const off = client.onEvent((e) => received.push(e));
     h.reply({ kind: "event", name: "navigate", hash: "#/tickets/t3" });
     h.reply({ kind: "event", name: "reload" });
+    h.reply({ kind: "event", name: "toggle", hash: "#/config" });
     h.reply({ kind: "event", name: "unknown" });
     h.reply("文字列");
     h.reply(null);
     expect(received).toEqual([
       { kind: "event", name: "navigate", hash: "#/tickets/t3" },
       { kind: "event", name: "reload" },
+      { kind: "event", name: "toggle", hash: "#/config" },
     ]);
     off();
     h.reply({ kind: "event", name: "reload" });
-    expect(received).toHaveLength(2);
+    expect(received).toHaveLength(3);
   });
 });
