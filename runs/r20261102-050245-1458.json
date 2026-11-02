@@ -1,0 +1,23 @@
+{
+  "id": "r20261102-050245-1458",
+  "ticket": "t200",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-02T05:02:45Z",
+  "finished_at": "2026-11-02T05:03:37Z",
+  "result": "success",
+  "error": null,
+  "retries": 3,
+  "retry_reasons": [
+    "拡張の README の薄くする行の記述に実行中の Run の例外を足した",
+    "in_progress を薄くしない確かめが効いていなかったので待ちの相手が残る in_progress を足した",
+    "isWaitingReadiness の説明に実行中の例外は呼び出し側と書いた"
+  ],
+  "usage": {
+    "input": 8,
+    "output": 2182,
+    "cache_read": 227242,
+    "cache_write": 2848
+  }
+}
