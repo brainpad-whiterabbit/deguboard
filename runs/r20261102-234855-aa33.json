@@ -1,0 +1,22 @@
+{
+  "id": "r20261102-234855-aa33",
+  "ticket": "t245",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-02T23:48:55Z",
+  "finished_at": "2026-11-02T23:50:07Z",
+  "result": "success",
+  "error": null,
+  "retries": 2,
+  "retry_reasons": [
+    "ADR-001 の決定に採らなかった案の書き方（また提案されそうな案だけ、1 案 1 行）を足した",
+    "ADR-003 の理由に Epic が 5 つの Status を持たない理由を残した"
+  ],
+  "usage": {
+    "input": 6,
+    "output": 2317,
+    "cache_read": 258561,
+    "cache_write": 2076
+  }
+}
