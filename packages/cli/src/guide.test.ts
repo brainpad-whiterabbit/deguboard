@@ -205,6 +205,15 @@ describe("dg guide", () => {
     // 上限は親が数え、fix の Run の数では数えない。合う step がなければ代わりの step で記録する
     expect(review).toContain("回数は親が、重い指摘を直した回で数える");
     expect(review).toContain("**合う step がない**");
+    // step は definition に足して --file で書く。--template は定義を丸ごと置き換える
+    expect(review).toContain("`dg workflow set <id> --file <path>`");
+    expect(review).toContain("定義を丸ごと置き換える");
+    expect(review).not.toContain("`dg workflow set <id> --template <名前>` か `--file`");
+    // テンプレートにも fix がない consulting では人に伝えない
+    expect(review).toContain(
+      "consulting のようにテンプレートにも `fix` がない Workflow では伝えず",
+    );
+    expect(work).toContain("「合う step がない」");
     // Run を自分で呼ぶ理由は review に置き、work は参照する
     expect(review).toContain("Run の ID を最初に含む会話記録");
     expect(work).toContain("（理由は `dg guide review` の「Run の分け方」）");
