@@ -677,7 +677,12 @@ describe("画面", () => {
       ticket({ id: "t8", title: "待ちで実行中" }),
     );
     client.data.plans.push(
-      plan({ id: "p7", tickets: ["t2", "t3", "t4", "t8"], after: { t4: ["t2"], t8: ["t2"] } }),
+      plan({
+        id: "p7",
+        tickets: ["t2", "t3", "t4", "t8"],
+        // in_progress の t2 にも待ちの相手を残し、todo でなければ薄くしないことを確かめる
+        after: { t2: ["t3"], t4: ["t2"], t8: ["t2"] },
+      }),
       plan({ id: "p9", tickets: ["t7"], status: "pending" }),
     );
     client.handlers["run.list"] = (input) =>
@@ -692,7 +697,7 @@ describe("画面", () => {
     expect(kanbanRowOf("待つ").querySelector(".row-wait")!.textContent).toBe("t2 待ち");
     expect(dimmed("待つ")).toBe(true);
     expect(dimmed("承認前")).toBe(true);
-    // 着手可・Plan の外・in_progress は薄くしない
+    // 着手可・Plan の外・待ちの相手が残る in_progress は薄くしない
     expect(kanbanRowOf("画面").querySelector(".row-ready")).toBeTruthy();
     expect(dimmed("画面")).toBe(false);
     expect(dimmed("外")).toBe(false);

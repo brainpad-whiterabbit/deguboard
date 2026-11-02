@@ -783,7 +783,7 @@ export function kanbanReadiness(
   return mark.waitingOn.length === 0 ? "ready" : "waiting";
 }
 
-/** 承認待ちか待ちの行は、すぐには手を付けられないのでタイトルを説明文の色で薄く出す（UI-2） */
+/** 承認待ちか待ちの行は、すぐには手を付けられないのでタイトルを説明文の色で薄く出す（UI-2。実行中の Run の例外は呼び出し側） */
 export function isWaitingReadiness(readiness: KanbanReadiness | null): boolean {
   return readiness === "pending" || readiness === "waiting";
 }
