@@ -1,0 +1,22 @@
+{
+  "id": "r20261102-061957-64c8",
+  "ticket": "t161",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-02T06:19:57Z",
+  "finished_at": "2026-11-02T06:24:36Z",
+  "result": "success",
+  "error": null,
+  "retries": 2,
+  "retry_reasons": [
+    "Epic のチップが欄に出ていないとき、効いている Epic の条件を × の札にする",
+    "チップと札のグループの読み上げの名前を「絞り込み」に広げる"
+  ],
+  "usage": {
+    "input": 66,
+    "output": 21243,
+    "cache_read": 4327265,
+    "cache_write": 43233
+  }
+}
