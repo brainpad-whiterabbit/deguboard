@@ -291,7 +291,7 @@ export function ActivityMark({ activity }: { activity: RowActivity }) {
 /**
  * 行の種類。list は一覧（履歴など）の行、kanban はカンバンの行
  * （状態は節で分かるので丸印を出さず、優先度は high に加えて low も小さく出す）、
- * backlog は左パネルのバックログの行（list と同じだが担当者の列を出さず、担当は右端に出す。board.tsx の BacklogRowEnd）
+ * backlog は左パネルのバックログの行（list と同じだが担当者の列を出さず、担当は右端に出す。row-end.tsx の BacklogRowEnd）
  */
 export type TicketRowVariant = "list" | "kanban" | "backlog";
 
@@ -317,7 +317,7 @@ export function RowPriority({
 /**
  * チケットの 1 行（サイドバー向け）：状態の丸印・番号・タイトル・担当者・右端（既定は優先度の印）。
  * サイドバーではタイトルを 2 行まで折り返す（styles.css）。hideAssignee で担当者を出さない（見えている行の担当が 1 人だけのとき）。
- * kanban と backlog の行は担当者の列を出さない（担当は右端の印で出す。board.tsx の KanbanRowEnd・BacklogRowEnd）。
+ * kanban と backlog の行は担当者の列を出さない（担当は右端の印で出す。row-end.tsx の KanbanRowEnd・BacklogRowEnd）。
  * 列がないぶんの幅はタイトルに回る。
  * variant で行の種類を選ぶ（TicketRowVariant）。end を渡すと右端の優先度の印の代わりにそれを出す（カンバンの行の Plan の番号と待ちなど）。
  * head を渡すとカンバンの行の頭（list の行の丸印の位置）にそれを出す（Run の実行中の印。ActivityMark）
@@ -464,7 +464,7 @@ function DraggableTr({ ticket, children }: { ticket: Ticket; children: ReactNode
  * バックログの行の右クリックの文脈。webviewSection は拡張の package.json の when と合わせる（packages/vscode/src/context-menu.ts）。
  * 既定の切り取り・コピー・貼り付けは出さない
  */
-export function rowMenuContext(t: Ticket): string {
+function rowMenuContext(t: Ticket): string {
   return JSON.stringify({
     webviewSection: "backlogTicket",
     ticket: t.id,
@@ -505,7 +505,7 @@ export function TicketTable({
    */
   rowMenu?: boolean;
   /**
-   * サイドバーの行の右端を差し替える（バックログの Plan の番号と着手可・待ち。board.tsx の BacklogRowEnd）。
+   * サイドバーの行の右端を差し替える（バックログの Plan の番号と着手可・待ち。row-end.tsx の BacklogRowEnd）。
    * priority は行の右端の優先度の印（priorityMarks なら左の印で出すので null）
    */
   end?: ((t: Ticket, priority: ReactNode) => ReactNode) | undefined;
