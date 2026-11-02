@@ -1,0 +1,21 @@
+{
+  "id": "r20261102-044344-506c",
+  "ticket": "t202",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-02T04:43:44Z",
+  "finished_at": "2026-11-02T04:46:46Z",
+  "result": "success",
+  "error": null,
+  "retries": 1,
+  "retry_reasons": [
+    "stat が失敗し続けるテストで waitMs を守ったことを確かめなくなっていたので、stat の回数で確かめるようにした"
+  ],
+  "usage": {
+    "input": 14,
+    "output": 4960,
+    "cache_read": 390542,
+    "cache_write": 7212
+  }
+}
