@@ -33,3 +33,4 @@ details:
     approach: core のチケットの一覧の出力に Run から引いた agent の種類を足して CLI・HTTP・Webview に写し、KanbanRowEnd に印を置き、公式アイコンを同梱する
 approved_by: eiki.kitajima/agent
 approved_at: 2026-11-02T00:28:25Z
+closed_at: 2026-11-02T03:25:04Z
