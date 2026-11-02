@@ -11,7 +11,7 @@ deguboard は、Git で管理するチケットとユーザー定義のワーク
 | できること                                                                                                                                                                                                           | 状態                                              |
 | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
 | `dg` でチケット・エピック・プロジェクト・イテレーション・ワークフローを管理し、変更を `deguboard` ブランチにコミットする                                                                                             | できる                                            |
-| ブラウザ（`dg serve`）と VS Code 拡張の同じ画面で、カンバン・バックログ・履歴・Run のタブと、チケット・エピック・イテレーションの詳細を見て操作する                                                                  | できる                                            |
+| ブラウザ（`dg serve`）と VS Code 拡張の同じ画面で、カンバン・バックログ・履歴・Run のタブ、チケット・エピック・イテレーションの詳細、設定画面（ブラウザは上のバー、VS Code はタイトル行の歯車）を見て操作する        | できる                                            |
 | ワークフロー（遷移の条件・照合規則・追加フィールド・表示名）を業務ごとに YAML で定義し、`dg workflow show` で見て `dg workflow set` で書き換える                                                                     | できる                                            |
 | Claude Code との会話からチケットを起票し、分解・依存・進める順（Plan）の承認・イテレーション計画を進める（Skill と MCP）                                                                                             | できる                                            |
 | AI の実行を Run として記録し、トークン使用量と結果を Run・チケット・エピック・イテレーション・プロジェクト・エージェント・モデル・工程の単位で集計する                                                               | できる（使用量の取り込みは Claude Code と Codex） |
@@ -55,7 +55,7 @@ dg skill install              # Claude Code の Skill（/dgimport・/dgplan・/d
 
 チームの 2 人目からは、リポジトリを clone して `dg init` を実行する。リモートにある `deguboard` ブランチを取り込むので、同じチケットが見える。
 
-VS Code の拡張は、今は VSIX から入れる。上の `mise run install` が入れ、手で入れるなら `mise run vsix`（build も先に走る）の後に `code --install-extension packages/vscode/deguboard-vscode.vsix` を実行する。拡張を入れて Activity Bar の deguboard のアイコンを押すと、サイドバーにカンバンが開く。カンバンの見た目は[拡張の README](packages/vscode/README.md)、仕様は[要件定義書](docs/requirements.md)の UI-2・UI-13。チケットを押すと詳細がエディタ領域に開く。拡張は `dg` なしで動き、`dg` が PATH にないときは案内を出す。
+VS Code の拡張は、今は VSIX から入れる。上の `mise run install` が入れ、手で入れるなら `mise run vsix`（build も先に走る）の後に `code --install-extension packages/vscode/deguboard-vscode.vsix` を実行する。拡張を入れて Activity Bar の deguboard のアイコンを押すと、サイドバーにカンバンが開く。画面の見た目は[拡張の README](packages/vscode/README.md)、仕様は[要件定義書](docs/requirements.md)の UI-2・UI-12〜14。拡張は `dg` なしで動き、`dg` が PATH にないときは案内を出す。
 
 ### Run の記録と集計
 
@@ -65,10 +65,11 @@ Run は 1 回の AI の作業の記録で、エージェントがチケットの
 dg config set metrics.read_transcripts true   # finish が会話記録から使用量を取り込む（既定は false。config はチームで共有する）
 export DEGUBOARD_NO_TRANSCRIPTS=1             # このマシンでは会話記録を読ませないとき
 dg run list --running                         # 実行中の Run。閉じ損ねたものは dg run finish <ID> --result interrupted
+dg run list --iteration s1                    # その Iteration のチケットの Run
 dg metrics show --iteration s1 --by ticket    # 絞り込み（--ticket・--epic・--step など）と単位ごとの集計
 ```
 
-使用量を取り込めるのは今は Claude Code（`--agent claude-code`）と Codex（`--agent codex`）の Run だけで、取れなかった値は 0 と数えず欠けた数として出る。画面では、Run のタブで実行中の Run・単位を選んだ実績・完了した Run を、チケット詳細の Run の節でそのチケットの Run を見る。記録の形・Git に入れる範囲・集計の約束は[要件定義書](docs/requirements.md)の「5.9 Run」と「6.6 作業の実績」。
+使用量を取り込めるのは今は Claude Code（`--agent claude-code`）と Codex（`--agent codex`）の Run だけで、取れなかった値は 0 と数えず欠けた数として出る。画面では、Run のタブで実行中・完了の Run と単位ごとの実績を、チケット詳細の Run の節と履歴の Iteration の行の「Run の集計」でそのチケット・Iteration の Run を見る。記録の形・Git に入れる範囲・集計の約束は[要件定義書](docs/requirements.md)の「5.9 Run」と「6.6 作業の実績」。
 
 ### MCP で使う
 
