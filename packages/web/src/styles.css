@@ -1526,7 +1526,7 @@ button.danger {
   flex: 1;
   min-width: 0;
 }
-/* 左パネルのカンバンの見出し（board.tsx の SidebarBoardHead）：番号・名前（選択欄）・状態・漏斗／期間・目標／進みの帯 */
+/* 左パネルのカンバンの見出し（board.tsx の SidebarBoardHead）：Iteration の札の列・漏斗／名前・期間・目標／進みの帯 */
 .sidebar-head {
   flex-direction: column;
   flex-wrap: nowrap;
@@ -1544,10 +1544,6 @@ button.danger {
 }
 .sidebar-head .head-line.sub {
   gap: 8px;
-  font-size: 0.92em;
-}
-.sidebar-head .state {
-  flex: none;
   font-size: 0.92em;
 }
 .sidebar-head .filter-toggle {
@@ -1583,40 +1579,80 @@ button.danger {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-/* Iteration の選択欄：名前と ▾ の上に透明なセレクトを重ねる。キーボードで選んだときは枠を出す */
-.iteration-pick {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  min-width: 0;
-  font-weight: 600;
-  border-radius: 2px;
-}
-.iteration-pick .name {
+/* 選んでいるものの名前は太字で、目標より先に縮めない（長ければ幅の 6 割で省略する） */
+.sidebar-head .head-line.sub .name {
+  flex: none;
+  max-width: 60%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-weight: 600;
+  color: var(--vscode-foreground);
 }
-.iteration-pick .caret {
+/* Iteration の札の列：幅に入らなければ列だけを横にスクロールする（.page は横にスクロールさせない） */
+.iteration-chips {
+  position: relative;
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 1px 1px 2px;
+  scrollbar-width: thin;
+}
+.iteration-chip {
   flex: none;
-  font-size: 0.8em;
-  font-weight: normal;
-  color: var(--vscode-descriptionForeground);
-}
-.iteration-pick select {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  opacity: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 0.5em;
+  font-size: 0.85em;
+  line-height: 1.6;
+  white-space: nowrap;
+  color: var(--vscode-foreground);
+  background: transparent;
+  border: 1px solid var(--vscode-descriptionForeground);
+  border-radius: 9px;
   cursor: pointer;
 }
-.iteration-pick:hover .name {
-  text-decoration: underline;
+.iteration-chip code {
+  font-size: 1em;
+  background: transparent;
+  padding: 0;
 }
-.iteration-pick:focus-within {
+.iteration-chip .ring {
+  flex: none;
+}
+.iteration-chip .chip-count {
+  color: var(--vscode-descriptionForeground);
+}
+/* active は実線、planned は破線の枠。なし と + は薄い枠 */
+.iteration-chip.planned {
+  border-style: dashed;
+}
+.iteration-chip.loose,
+.iteration-chip.create {
+  border-color: var(--vscode-panel-border);
+  color: var(--vscode-descriptionForeground);
+}
+.iteration-chip:hover {
+  background: var(--vscode-toolbar-hoverBackground, var(--vscode-list-hoverBackground));
+}
+.iteration-chip:focus-visible {
   outline: 1px solid var(--vscode-focusBorder);
   outline-offset: 1px;
+}
+/* 選んでいる札は塗る */
+.iteration-chip[aria-pressed="true"],
+.iteration-chip[aria-pressed="true"]:hover {
+  color: var(--vscode-button-foreground);
+  background: var(--vscode-button-background);
+  border-color: var(--vscode-button-background);
+}
+.iteration-chip[aria-pressed="true"] .chip-count {
+  color: inherit;
 }
 .sidebar-head .status-band {
   flex: 1;
