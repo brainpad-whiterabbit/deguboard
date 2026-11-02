@@ -64,6 +64,23 @@ describe("dg guide", () => {
     expect(work).toContain("ticket move <id> review");
   });
 
+  it("work の PR の要らない作業は、claim --without-branch の前に上の手順 1 を案内し、今の設定を埋める", async () => {
+    const work = await readGuide("work");
+    const section = (text: string) => text.slice(text.indexOf("## PR の要らない作業"));
+    const noBranch = section(work);
+    const reference = noBranch.indexOf(
+      "上の手順 1（着手できるか確かめ、`lint.require_iteration` が true なら Iteration に入れる",
+    );
+    expect(reference).toBeGreaterThan(-1);
+    expect(reference).toBeLessThan(noBranch.indexOf("ticket claim <id> --without-branch"));
+    // 選び方は上の手順 1 にだけ書き、この節には書き写さない
+    expect(noBranch).not.toContain("iteration add <S> <id>");
+    expect(section(fillPlaceholders(work, defaultConfig()))).toContain("今の設定：`false`");
+    expect(
+      section(fillPlaceholders(work, { ...defaultConfig(), lint: { require_iteration: true } })),
+    ).toContain("今の設定：`true`");
+  });
+
   it("plan・work・done は Plan を作り、人の承認で approve し、順と範囲を読んで進め、終わったら閉じると案内する", async () => {
     const plan = await readGuide("plan");
     const work = await readGuide("work");
@@ -189,6 +206,15 @@ describe("dg guide", () => {
     // 上限は親が数え、fix の Run の数では数えない。合う step がなければ代わりの step で記録する
     expect(review).toContain("回数は親が、重い指摘を直した回で数える");
     expect(review).toContain("**合う step がない**");
+    // step は definition に足して --file で書く。--template は定義を丸ごと置き換える
+    expect(review).toContain("`dg workflow set <id> --file <path>`");
+    expect(review).toContain("定義を丸ごと置き換える");
+    expect(review).not.toContain("`dg workflow set <id> --template <名前>` か `--file`");
+    // テンプレートにも fix がない consulting では人に伝えない
+    expect(review).toContain(
+      "consulting のようにテンプレートにも `fix` がない Workflow では伝えず",
+    );
+    expect(work).toContain("「合う step がない」");
     // Run を自分で呼ぶ理由は review に置き、work は参照する
     expect(review).toContain("Run の ID を最初に含む会話記録");
     expect(work).toContain("（理由は `dg guide review` の「Run の分け方」）");
