@@ -1,0 +1,22 @@
+{
+  "id": "r20261102-091228-7b08",
+  "ticket": "t220",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-02T09:12:28Z",
+  "finished_at": "2026-11-02T09:25:44Z",
+  "result": "success",
+  "error": null,
+  "retries": 2,
+  "retry_reasons": [
+    "時差の固定の理由のコメントと PR 本文から test.env の不正確な記述を消した",
+    "formatTime が手元の時差で整形することを TZ=Asia/Tokyo で確かめる単体テストを足した"
+  ],
+  "usage": {
+    "input": 24,
+    "output": 3366,
+    "cache_read": 447332,
+    "cache_write": 40614
+  }
+}
