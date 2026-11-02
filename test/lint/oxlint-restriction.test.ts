@@ -1,5 +1,5 @@
 // .oxlintrc.json の web の import の制限が効いていることを確かめる（ADR-007）。
-// 制限は設定の書き方しだいで黙って効かなくなる（t176：patterns の否定に当たると paths 以外の制限が外れた）ので、
+// 制限は設定の書き方しだいで黙って効かなくなる（t176：patterns のどれかの否定に当たると、ほかの patterns でも制限しなかった）ので、
 // 本物の設定を一時ディレクトリに写し、web の本体とテストの位置に置いた見本に oxlint をかけて結果を見る
 
 import { execFile } from "node:child_process";
@@ -24,6 +24,8 @@ const SAMPLES: Record<string, string> = {
     'import type { Server } from "@deguboard/server";\nexport type S = Server;\n',
   "packages/web/src/value-import.test.ts":
     'import { progressOf } from "@deguboard/core";\nexport const f = progressOf;\n',
+  "packages/web/src/server-import.test.ts":
+    'import type { Server } from "@deguboard/server";\nexport type S = Server;\n',
   "packages/web/src/value-import.test.tsx":
     'import { progressOf } from "@deguboard/core";\nexport const f = progressOf;\n',
 };
@@ -34,6 +36,8 @@ interface Diagnostic {
 }
 
 let dir: string;
+/** oxlint が対象にしたファイルの数 */
+let linted = 0;
 /** ファイルごとの no-restricted-imports の指摘の数 */
 const restricted = new Map<string, number>();
 
@@ -44,16 +48,23 @@ beforeAll(async () => {
     await mkdir(dirname(join(dir, path)), { recursive: true });
     await writeFile(join(dir, path), content);
   }
-  // 指摘があると oxlint は 1 で終わるので、失敗しても標準出力の JSON を読む
-  const stdout = await execFileAsync(
+  // 指摘があると oxlint は 1 で終わるので、失敗しても標準出力の JSON を読む。JSON がなければ標準エラーを添えて投げる
+  const { stdout, stderr } = await execFileAsync(
     process.execPath,
     [OXLINT, "-c", ".oxlintrc.json", "-f", "json", "packages"],
     { cwd: dir },
-  ).then(
-    (r) => r.stdout,
-    (e: { stdout?: string }) => e.stdout ?? "",
-  );
-  const { diagnostics } = JSON.parse(stdout) as { diagnostics: Diagnostic[] };
+  ).catch((e: { stdout?: string; stderr?: string }) => ({
+    stdout: e.stdout ?? "",
+    stderr: e.stderr ?? "",
+  }));
+  let result: { diagnostics: Diagnostic[]; number_of_files: number };
+  try {
+    result = JSON.parse(stdout) as typeof result;
+  } catch {
+    throw new Error(`oxlint の出力を JSON として読めない\nstdout: ${stdout}\nstderr: ${stderr}`);
+  }
+  const { diagnostics } = result;
+  linted = result.number_of_files;
   for (const d of diagnostics) {
     if (d.code !== "eslint(no-restricted-imports)") continue;
     const file = d.filename.replaceAll("\\", "/");
@@ -66,6 +77,10 @@ afterAll(async () => {
 });
 
 describe("web の import の制限（.oxlintrc.json）", () => {
+  it("見本がすべて oxlint の対象になる（外れると「通る」の確かめが空振りする）", () => {
+    expect(linted).toBe(Object.keys(SAMPLES).length);
+  });
+
   it("web の本体で core から値を import すると落ちる", () => {
     expect(restricted.get("packages/web/src/value-import.ts")).toBe(1);
   });
@@ -81,5 +96,9 @@ describe("web の import の制限（.oxlintrc.json）", () => {
   it("web のテストのファイルでは core から値を import しても通る", () => {
     expect(restricted.get("packages/web/src/value-import.test.ts")).toBeUndefined();
     expect(restricted.get("packages/web/src/value-import.test.tsx")).toBeUndefined();
+  });
+
+  it("web のテストのファイルでも core 以外の @deguboard/* を import すると落ちる", () => {
+    expect(restricted.get("packages/web/src/server-import.test.ts")).toBe(1);
   });
 });
