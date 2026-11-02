@@ -7,7 +7,8 @@
 // チケットの見方：done・abandoned のチケットを終えた新しい順に、結果・Iteration・Epic・PR・終えた日を出す。終えた時刻は
 // history のコマンド（deguboard ブランチの履歴）から求め、履歴が浅くて分からないものは updated_at で代え、そう出す。
 // 番号を押すと詳細を開く（サイドバーとパネルでは拡張ホストに頼んでエディタに、ブラウザではハッシュ遷移）。
-// サイドバーでは狭い幅で読めるよう描き方を変える：Iteration の行は開閉の印を付け、開くと Epic ごとの小見出しでまとめ、持ち越しを分ける。
+// サイドバーでは狭い幅で読めるよう描き方を変える：Iteration の行は開閉の印を付け、開くと番号の順の 1 本の一覧（履歴用の行。
+// components/history-rows.tsx）で出し、持ち越しを最後に分ける。
 // Epic の見方は進捗バーをやめてタイトルを 2 行まで出す。チケットの見方は終えた日を小見出しにし、行には値のある Iteration・Epic・PR だけを書く
 
 import { useEffect, useMemo, useState } from "react";
@@ -19,6 +20,7 @@ import {
   TicketLink,
   TicketRow,
 } from "../components/parts.js";
+import { HistoryTicketList, HistoryTicketRow } from "../components/history-rows.js";
 import { useHost } from "../host.js";
 import { NO_VALUE } from "../components/run-parts.js";
 import { formatTime } from "../components/timeline.js";
@@ -345,10 +347,7 @@ function IterationItem({ iteration: i, sidebar }: { iteration: Iteration; sideba
           <DetailLink route={{ page: "iterations", id: i.id }}>
             <code>{i.id}</code>
           </DetailLink>
-          <span
-            className={`name${goal ? " goal" : ""}`}
-            title={goal ? `${goal}（${i.name}）` : i.name}
-          >
+          <span className="name" title={goal ? `${goal}（${i.name}）` : i.name}>
             {goal || i.name}
           </span>
           <CountChips iteration={i} abandoned={abandoned} />
@@ -402,7 +401,8 @@ function IterationItem({ iteration: i, sidebar }: { iteration: Iteration; sideba
 }
 
 /**
- * サイドバーで開いた Iteration の中：終わったチケットを Epic ごとの小見出しでまとめ、最後に持ち越したチケットを出す。
+ * サイドバーで開いた Iteration の中：終わったチケットを番号の順の 1 本の一覧で出し（Epic で分けて見るのは Epic のタブ）、
+ * 最後に持ち越したチケットを 1 件以上あるときだけ出す。多いときは先頭の数件だけ出し、「ほか N 件」で残りを開ける。
  * 持ち越しは履歴から求めるので、開いたときに 1 回だけ history を読む
  */
 function SidebarIterationTickets({
@@ -428,38 +428,23 @@ function SidebarIterationTickets({
   const carriedTickets = (carried ?? []).flatMap((id) => byId.get(id) ?? []);
   return (
     <div className="history-groups">
-      {finished.length === 0 ? <p className="empty">終わったチケットはない</p> : null}
-      {groupByEpic(finished).map((g) => (
-        <section key={g.epic ?? "-"} className="history-group">
-          <h3>
-            {g.epic ? (
-              <>
-                <DetailLink route={{ page: "epics", id: g.epic }}>{g.epic}</DetailLink>{" "}
-                {store.epics.find((e) => e.id === g.epic)?.title ?? ""}
-              </>
-            ) : (
-              "Epic なし"
-            )}{" "}
-            <span className="muted">{g.tickets.length} 件</span>
-          </h3>
-          <div className="rows">
-            {g.tickets.map((t) => (
-              <TicketRow key={t.id} ticket={t} hideAssignee />
-            ))}
-          </div>
-        </section>
-      ))}
+      {finished.length === 0 ? (
+        <p className="empty">終わったチケットはない</p>
+      ) : (
+        <HistoryTicketList tickets={finished} />
+      )}
       {carriedTickets.length > 0 ? (
-        <section className="history-group">
+        <section className="history-group history-carried">
           <h3>
             持ち越し <span className="muted">{carriedTickets.length} 件</span>
           </h3>
-          <div className="rows">
-            {carriedTickets.map((t) => (
-              <div key={t.id} className="history-ticket">
-                <TicketRow ticket={t} hideAssignee />
-                <small className="history-ticket-meta">
-                  {t.iteration ? (
+          <HistoryTicketList
+            tickets={carriedTickets}
+            row={(t) => (
+              <HistoryTicketRow
+                ticket={t}
+                note={
+                  t.iteration ? (
                     <>
                       今は{" "}
                       <DetailLink route={{ page: "iterations", id: t.iteration }}>
@@ -468,11 +453,11 @@ function SidebarIterationTickets({
                     </>
                   ) : (
                     "今は Iteration なし"
-                  )}
-                </small>
-              </div>
-            ))}
-          </div>
+                  )
+                }
+              />
+            )}
+          />
         </section>
       ) : null}
     </div>

@@ -1064,7 +1064,7 @@ describe("画面", () => {
     expect(window.location.hash).toBe("#/history");
   });
 
-  it("サイドバーの履歴の Iteration の行は期間の記録がなければ何も書かず、終わったチケットの Epic ごとの件数と中止のチップが出て、開くと Epic ごとの小見出しで終わったチケットと持ち越しが出る", async () => {
+  it("サイドバーの履歴の Iteration の行は期間の記録がなければ何も書かず、終わったチケットの Epic ごとの件数と中止のチップが出て、開くと番号の順の 1 本の一覧で終わったチケットが出て、最後に持ち越しが出る", async () => {
     window.location.hash = "#/history";
     const client = mockClient();
     client.data.iterations = [iteration({ id: "s1", name: "最初", status: "closed" })];
@@ -1105,16 +1105,16 @@ describe("画面", () => {
     expect(item.classList.contains("fold")).toBe(true);
     item.open = true;
     fireEvent(item, new Event("toggle"));
-    await waitFor(() => expect(item.querySelectorAll(".history-group")).toHaveLength(2));
-    const groups = [...item.querySelectorAll(".history-group")].map((g) => ({
-      head: g.querySelector("h3")!.textContent,
-      tickets: [...g.querySelectorAll(".row code")].map((c) => c.textContent),
-    }));
-    expect(groups).toEqual([
-      { head: "e1 最初の版 2 件", tickets: ["t1", "t4"] },
-      { head: "持ち越し 1 件", tickets: ["t6"] },
-    ]);
-    fireEvent.click(item.querySelector(".history-group .row")!);
+    await waitFor(() => expect(item.querySelector(".history-carried")).toBeTruthy());
+    const lists = [...item.querySelectorAll(".history-list")].map((l) =>
+      [...l.querySelectorAll(".row code")].map((c) => c.textContent),
+    );
+    expect(lists).toEqual([["t1", "t4"], ["t6"]]);
+    expect(item.querySelector(".history-carried h3")!.textContent).toBe("持ち越し 1 件");
+    expect(item.querySelector(".history-carried .history-ticket-meta")!.textContent).toBe(
+      "Epic なし ・ PR なし ・ 今は s2",
+    );
+    fireEvent.click(item.querySelector(".history-list .row")!);
     fireEvent.click(row.querySelector("small a")!);
     expect(opened).toEqual([
       { page: "ticket", id: "t1" },
