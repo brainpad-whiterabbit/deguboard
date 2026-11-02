@@ -1,7 +1,7 @@
 packages:
   - packages/*
 
-# 依存のビルドスクリプトの許可（pnpm 12 の allowBuilds）。
+# 依存のビルドスクリプトの許可（pnpm 12 の allowBuilds。ignoredBuiltDependencies は読まれない）。
 # vsce-sign の postinstall は Marketplace への署名用のバイナリを選ぶだけで、VSIX を作るのに要らないので拒否する
 allowBuilds:
   "@vscode/vsce-sign": false
