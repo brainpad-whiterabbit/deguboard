@@ -18,6 +18,36 @@ const metaOf = (id: string) =>
     .querySelector(".history-ticket-meta")!.textContent;
 
 describe("履歴用の行", () => {
+  it("検索語を渡すと、タイトルの当たった部分・同じ番号・当たったラベルに印を付ける", async () => {
+    mount(
+      <>
+        <HistoryTicketRow
+          ticket={ticket({ id: "t1", title: "検索の Search と search", status: "done" })}
+          query="SEARCH"
+        />
+        <HistoryTicketRow
+          ticket={ticket({
+            id: "t2",
+            title: "別の題",
+            status: "done",
+            labels: ["ui", "search-ui"],
+          })}
+          query="search"
+        />
+        <HistoryTicketRow ticket={ticket({ id: "t3", title: "番号", status: "done" })} query="T3" />
+      </>,
+    );
+    await screen.findByText("t2");
+    const marks = (id: string) =>
+      [...document.querySelectorAll(".history-ticket")]
+        .find((r) => r.querySelector("code")?.textContent === id)!
+        .querySelectorAll("mark");
+    expect([...marks("t1")].map((m) => m.textContent)).toEqual(["Search", "search"]);
+    expect([...marks("t2")].map((m) => m.textContent)).toEqual(["search"]);
+    expect(metaOf("t2")).toBe("Epic なし ・ PR なし ・ ラベル search-ui");
+    expect([...marks("t3")].map((m) => m.closest("code") !== null)).toEqual([true]);
+  });
+
   it("2 段目に Epic と PR 番号を出し、ないものは「なし」と書く。優先度のバッジは出さない", async () => {
     mount(
       <>
