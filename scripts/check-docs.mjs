@@ -1,4 +1,4 @@
-// 文書と dg guide の大きさの予算・ADR 一覧の整合・リンクと見出しアンカーの切れを検査する（docs/adr/ADR-001-doc-strategy.md）。
+// 文書と dg guide の大きさの予算・ADR 一覧の整合と更新日の一致・リンクと見出しアンカーの切れを検査する（docs/adr/ADR-001-doc-strategy.md）。
 // 依存なしで動かす。mise run check:docs から呼ぶ。
 import { existsSync } from "node:fs";
 import { readdir, readFile, stat } from "node:fs/promises";
@@ -63,6 +63,27 @@ for (const file of adrFiles) {
 for (const file of linked) {
   if (!adrFiles.includes(file)) {
     errors.push(`docs/adr/README.md: 一覧にある ${file} が存在しない`);
+  }
+}
+
+// 更新日の検査：有効な ADR の「- 更新日：」が「有効な ADR」の表の更新日と一致すること（置き換え済みの ADR は表に更新日がないので見ない）
+const indexDates = new Map();
+for (const m of index.matchAll(
+  /^\|\s*\[ADR-\d{3}\]\((ADR-\d{3}-[^)]+\.md)\).*\|\s*(\d{4}-\d{2}-\d{2})\s*\|\s*$/gm,
+)) {
+  indexDates.set(m[1], m[2]);
+}
+for (const file of adrFiles) {
+  const text = await readFile(path.join(adrDir, file), "utf8");
+  if (/^- ステータス：置き換え/m.test(text)) continue;
+  const own = /^- 更新日：(\d{4}-\d{2}-\d{2})\s*$/m.exec(text)?.[1];
+  const listed = indexDates.get(file);
+  if (own === undefined) {
+    errors.push(`docs/adr/${file}: 「- 更新日：YYYY-MM-DD」の行がない`);
+  } else if (listed === undefined) {
+    errors.push(`docs/adr/README.md: ${file} の行に更新日がない`);
+  } else if (own !== listed) {
+    errors.push(`docs/adr/README.md: ${file} の更新日が ${listed} で、ADR の ${own} と食い違う`);
   }
 }
 
