@@ -3,7 +3,8 @@
 // Iteration の選択肢は planned と active と「Iteration なし」、Epic の選択肢は open だけ。
 // Iteration が 1 つもない Project では Iteration で絞らず、全チケットのカンバンにする。絞り込みの値はハッシュに持つ。
 // VS Code の左パネル（surface=sidebar）では、見出しを 2 段と進みの帯に詰め（Iteration の選択欄に「+ Iteration を作る」を入れる）、
-// 詳細・…・開始・閉じるは出さない。絞り込みは見出しの下の 1 行にし、状態の節はペイン風の見出しにする。
+// 詳細・…・開始・閉じる・件数は出さない（件数は帯の done/全体）。Epic・担当の絞り込みは見出しの右端の漏斗で開き（開閉は host.state）、
+// 絞っている間は見出しの下に値の札（× で外す）を出す。状態の節はペイン風の見出しにする。
 // 左パネルの行の右端には、開いた Plan に入っているチケットなら Plan の番号と、todo なら着手可か待ちの相手（Plan の after とチケットの depends_on）か承認待ち（Plan が承認待ち）を出す。
 // 左パネルの行の頭には、実行中の Run があるチケットなら回るリング（右端の下の段に「実行中」）を、実行中の Run のない in_progress なら止まった半分塗りの丸を出す。
 // 入っている Iteration か Epic が閉じた done・abandoned のチケットは出さない（履歴でたどる）。
@@ -75,6 +76,8 @@ export function BoardPage({ query }: { query: BoardQuery }) {
     undefined,
   );
   const [creating, setCreating] = useState(false);
+  // 左パネルの絞り込みの欄（Epic・担当）を開いているか
+  const [filtersOpen, setFiltersOpen] = useUiState("board.filters", false);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
   const open = useMemo(
@@ -156,7 +159,6 @@ export function BoardPage({ query }: { query: BoardQuery }) {
     setMoving(null);
   };
 
-  const count = tickets.length - abandoned.length;
   const filterSelects = (
     <>
       {epics.length > 0 ? (
@@ -207,16 +209,32 @@ export function BoardPage({ query }: { query: BoardQuery }) {
           <SidebarBoardHead
             open={open}
             selection={selection}
-            count={count}
-            // 件数と帯は絞り込み（Epic・担当）の後のチケットで数える（件数と帯の数をそろえる）
+            // 帯は絞り込み（Epic・担当）の後のチケットで数える
             progress={ticketProgress(tickets)}
             onSelect={select}
             onCreate={() => setCreating(true)}
+            filter={
+              epics.length > 0 || claims.length > 0
+                ? {
+                    open: filtersOpen,
+                    active: !!query.epic || !!query.assignee,
+                    onToggle: () => setFiltersOpen(!filtersOpen),
+                  }
+                : undefined
+            }
           />
           {createForm}
-          {epics.length > 0 || claims.length > 0 ? (
-            <div className="board-filters compact">{filterSelects}</div>
+          {filtersOpen && (epics.length > 0 || claims.length > 0) ? (
+            <div className="board-filters compact" id="board-filters">
+              {filterSelects}
+            </div>
           ) : null}
+          <FilterChips
+            epic={query.epic ? store.epics.find((e) => e.id === query.epic) : undefined}
+            epicId={query.epic}
+            assignee={query.assignee}
+            onClear={setFilter}
+          />
         </>
       ) : (
         <>
@@ -245,7 +263,7 @@ export function BoardPage({ query }: { query: BoardQuery }) {
               </button>
             )}
             {filterSelects}
-            <span className="muted count">{count} 件</span>
+            <span className="muted count">{tickets.length - abandoned.length} 件</span>
           </div>
           {createForm}
           {selection.kind === "iteration" ? (
@@ -335,23 +353,25 @@ function IterationHead({ iteration: it }: { iteration: Iteration }) {
 const CREATE_ITERATION = "+create";
 
 /**
- * 左パネルのカンバンの見出し（UI-2）。1 段目に番号・名前（Iteration の選択欄）・状態・件数、2 段目に期間・目標（1 行で省略）、
- * 3 段目に状態ごとの色の帯と「n/m done」。「+ Iteration を作る」は選択欄の最後の選択肢。詳細・…・開始・閉じるは出さない
+ * 左パネルのカンバンの見出し（UI-2）。1 段目に番号・名前（Iteration の選択欄）・状態と右端の絞り込みボタン（漏斗）、
+ * 2 段目に期間・目標（1 行で省略）、3 段目に状態ごとの色の帯と「n/m done」（件数はここだけ）。
+ * 「+ Iteration を作る」は選択欄の最後の選択肢。詳細・…・開始・閉じるは出さない。
+ * filter は絞り込める Epic か担当があるときだけ渡す（漏斗を出す）。絞っている間は漏斗を色付きにする
  */
 function SidebarBoardHead({
   open,
   selection,
-  count,
   progress,
   onSelect,
   onCreate,
+  filter,
 }: {
   open: Iteration[];
   selection: Selection;
-  count: number;
   progress: Progress;
   onSelect: (iteration: string) => void;
   onCreate: () => void;
+  filter: { open: boolean; active: boolean; onToggle: () => void } | undefined;
 }) {
   const it = selection.kind === "iteration" ? selection.iteration : undefined;
   const value =
@@ -395,7 +415,19 @@ function SidebarBoardHead({
           </select>
         </span>
         {it ? <span className="muted state">{ITERATION_LABELS[it.status]}</span> : null}
-        <span className="muted count">{count} 件</span>
+        {filter ? (
+          <button
+            type="button"
+            className={`filter-toggle${filter.active ? " active" : ""}${filter.open ? " open" : ""}`}
+            aria-label={filter.active ? "絞り込み（絞っている）" : "絞り込み"}
+            title="Epic・担当で絞り込む"
+            aria-expanded={filter.open}
+            aria-controls="board-filters"
+            onClick={filter.onToggle}
+          >
+            <FunnelIcon />
+          </button>
+        ) : null}
       </div>
       {period || it?.goal ? (
         <div className="head-line sub muted">
@@ -411,6 +443,69 @@ function SidebarBoardHead({
         <StatusBand progress={progress} />
       </div>
     </header>
+  );
+}
+
+/** 絞り込みの漏斗の印。線は currentColor で、絞っている間は CSS で中を塗る（.filter-toggle.active） */
+function FunnelIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true">
+      <path
+        d="M2 3h12l-4.5 5.5V13l-3 1.5v-6z"
+        fill="currentColor"
+        fillOpacity={0}
+        stroke="currentColor"
+        strokeWidth="1.2"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+/**
+ * 左パネルのカンバンで絞っている値の札（例「担当 eiki/agent ×」）。× で外す。絞っていなければ何も出さない。
+ * Epic は番号を出し、題はツールチップで読む
+ */
+function FilterChips({
+  epic,
+  epicId,
+  assignee,
+  onClear,
+}: {
+  epic: Epic | undefined;
+  epicId: string | undefined;
+  assignee: string | undefined;
+  onClear: (patch: Partial<BoardQuery>) => void;
+}) {
+  if (!epicId && !assignee) return null;
+  const who = assignee === NO_CLAIM ? "なし" : assignee ? actorLabel(assignee) : "";
+  return (
+    <div className="filter-chips">
+      {epicId ? (
+        <span className="filter-chip" title={epic ? `${epic.id} ${epic.title}` : epicId}>
+          Epic {epicId}
+          <button
+            type="button"
+            aria-label={`Epic ${epicId} の絞り込みを外す`}
+            onClick={() => onClear({ epic: undefined })}
+          >
+            ×
+          </button>
+        </span>
+      ) : null}
+      {assignee ? (
+        <span className="filter-chip" title={assignee === NO_CLAIM ? "担当なし" : assignee}>
+          担当 {who}
+          <button
+            type="button"
+            aria-label={`担当 ${who} の絞り込みを外す`}
+            onClick={() => onClear({ assignee: undefined })}
+          >
+            ×
+          </button>
+        </span>
+      ) : null}
+    </div>
   );
 }
 
