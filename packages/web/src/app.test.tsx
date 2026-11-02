@@ -1158,7 +1158,7 @@ describe("画面", () => {
     expect(screen.getByRole("button", { name: "絞り込みを消す" })).toBeTruthy();
   });
 
-  it("サイドバーのバックログの区画は、行に優先度の印と優先度の変わる区切りを付け、見出しを状態の帯と 2 段（番号・名前・件数／状態・月日の期間・目標）にし、「…」と開始・閉じるを出さない", async () => {
+  it("サイドバーのバックログの区画は、行に優先度の印を付け、見出しを状態の帯と 2 段（番号・名前・件数／状態・月日の期間・目標）にし、「…」と開始・閉じるを出さない", async () => {
     window.location.hash = "#/backlog";
     const client = mockClient();
     client.data.iterations = [
@@ -1178,10 +1178,9 @@ describe("画面", () => {
     await screen.findByText("API");
     const [s1] = [...document.querySelectorAll<HTMLDetailsElement>("details.backlog-section")];
     expect([...s1!.querySelectorAll(".priority-mark")].map((m) => m.textContent)).toEqual([
-      "H",
-      "M",
+      "!",
+      "優先度 medium",
     ]);
-    expect(s1!.querySelectorAll("li.priority-break")).toHaveLength(1);
     expect(s1!.classList.contains("iteration-active")).toBe(true);
     const lines = [...s1!.querySelectorAll("summary > .head-line")];
     expect(lines.map((l) => l.textContent)).toEqual([
@@ -1226,6 +1225,68 @@ describe("画面", () => {
     fireEvent.change(screen.getByLabelText("名前"), { target: { value: "その次" } });
     fireEvent.click(screen.getByRole("button", { name: "作る" }));
     await waitFor(() => expect(client.calls.some((c) => c.name === "iteration.create")).toBe(true));
+  });
+
+  it("サイドバーのバックログの行は high だけ「!」を出し、low の始まりに見出しを入れ、状態の丸印は todo だけ白抜きにする", async () => {
+    window.location.hash = "#/backlog";
+    const client = mockClient();
+    client.data.iterations = [iteration({ id: "s1", name: "今", status: "active" })];
+    client.data.tickets = [
+      ticket({ id: "t1", title: "高い", status: "review", priority: "high", iteration: "s1" }),
+      ticket({ id: "t2", title: "中くらい", status: "in_progress", iteration: "s1" }),
+      ticket({
+        id: "t3",
+        title: "低い作業中",
+        status: "in_progress",
+        priority: "low",
+        iteration: "s1",
+      }),
+      ticket({ id: "t4", title: "低い", priority: "low", iteration: "s1" }),
+    ];
+    mount(client, hostOf("sidebar"));
+    await screen.findByText("高い");
+    const s1 = document.querySelector<HTMLDetailsElement>("details.backlog-section")!;
+    const list = s1.querySelector("ul.rows")!;
+    expect(list.classList.contains("backlog-rows")).toBe(true);
+    // 行と区切りの並び：区切りは low の始まり（t3 の前）に 1 つだけ
+    expect(
+      [...list.children].map((li) =>
+        li.classList.contains("priority-sep") ? "sep" : li.querySelector("code")!.textContent,
+      ),
+    ).toEqual(["t1", "t2", "sep", "t3", "t4"]);
+    expect(list.querySelector("li.priority-sep")!.textContent).toBe("low");
+    // high だけ見える「!」を出し、medium・low は見えない文字で優先度を読み上げる
+    const marks = [...list.querySelectorAll(".priority-mark")];
+    expect(marks.map((m) => m.textContent)).toEqual([
+      "!",
+      "優先度 medium",
+      "優先度 low",
+      "優先度 low",
+    ]);
+    expect(marks[0]!.getAttribute("aria-label")).toBe("優先度 high");
+    expect(marks.slice(1).every((m) => m.querySelector(".visually-hidden"))).toBe(true);
+    // 見出しの行は role を付けない（list の項目のまま）
+    expect(list.querySelector("li.priority-sep")!.getAttribute("role")).toBeNull();
+    // 状態の丸印は 3 種の状態で別のクラス。カンバンの Run の印（activity-mark）は出さない
+    expect([...list.querySelectorAll(".status-dot")].map((d) => d.className)).toEqual([
+      "status-dot status-review",
+      "status-dot status-in_progress",
+      "status-dot status-in_progress",
+      "status-dot status-todo",
+    ]);
+    expect(list.querySelector(".activity-mark")).toBeNull();
+    // 右端の high の札は左の印と重なるので出さない
+    expect(list.querySelector(".badge.priority-high")).toBeNull();
+  });
+
+  it("サイドバーのバックログで low から始まる区画にも見出しを入れる", async () => {
+    window.location.hash = "#/backlog";
+    const client = mockClient();
+    client.data.iterations = [iteration({ id: "s1", name: "今", status: "active" })];
+    client.data.tickets = [ticket({ id: "t1", title: "低い", priority: "low", iteration: "s1" })];
+    mount(client, hostOf("sidebar"));
+    await screen.findByText("低い");
+    expect(document.querySelector("li.priority-sep")!.textContent).toBe("low");
   });
 
   it("サイドバーのバックログの Epic の欄は折りたため、作成フォームは「+」を押したときだけ開く", async () => {

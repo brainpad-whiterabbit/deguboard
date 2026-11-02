@@ -1410,31 +1410,49 @@ button.danger {
   font-size: 0.85em;
   color: var(--vscode-textLink-foreground);
 }
-/* サイドバーのバックログの行：左に優先度の印、優先度の変わるところに区切り（parts.tsx の TicketTable の priorityMarks） */
+/*
+ * サイドバーのバックログの行（parts.tsx の TicketTable の priorityMarks）：左に優先度の印（high だけ赤い「!」、ほかは同じ幅の空き）、
+ * low の始まり（区画の先頭を含む）に小さな「low」の見出し。状態の丸印は in_progress（青）と review（黄）が塗り、todo は白抜き。
+ * カンバンの Run の印（12px のリング・半分塗りの丸。in_progress の色）とは大きさと形で見分ける
+ */
 .priority-mark {
   flex: none;
-  width: 1.3em;
+  width: 0.8em;
   text-align: center;
-  font-size: 0.8em;
-  font-weight: 600;
-  border-radius: 2px;
-  color: var(--vscode-descriptionForeground);
-  border: 1px solid var(--dg-border);
+  font-weight: 700;
+  line-height: 1.4;
 }
 .priority-mark.priority-high {
   color: var(--vscode-errorForeground, #f14c4c);
-  border-color: currentColor;
 }
 .rows li:has(> .priority-mark) {
   align-items: flex-start;
 }
 .rows li > .priority-mark {
-  margin-top: 3px;
+  margin-top: 1px;
 }
-.rows li.priority-break {
-  margin-top: 3px;
-  padding-top: 3px;
+.rows li.priority-sep {
+  display: block;
+  margin-top: 4px;
+  padding: 2px 0 0 calc(0.8em + 0.3rem);
   border-top: 1px solid var(--dg-border);
+  font-size: 0.75em;
+  letter-spacing: 0.05em;
+  color: var(--vscode-descriptionForeground);
+}
+/* 見えないが読み上げる文字（優先度の空きの印など） */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.backlog-rows .status-dot.status-todo {
+  box-sizing: border-box;
+  background: transparent;
+  border: 1.5px solid var(--dg-status-todo);
 }
 .filters > summary .count {
   margin-left: auto;
