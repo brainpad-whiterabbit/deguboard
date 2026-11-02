@@ -1,0 +1,23 @@
+{
+  "id": "r20261102-131041-4620",
+  "ticket": "t171",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-02T13:10:41Z",
+  "finished_at": "2026-11-02T13:12:08Z",
+  "result": "success",
+  "error": null,
+  "retries": 3,
+  "retry_reasons": [
+    "main の lint.require_iteration の説明を describe に移し schema.test のキーの一覧に足した",
+    "lint.require_iteration をエージェントのまとまりに表示名つきで入れ、全キーに表示名があり その他 に落ちないテストを足した",
+    "拒否の理由を通知の帯に重ねず項目の下だけに出す"
+  ],
+  "usage": {
+    "input": 12,
+    "output": 4377,
+    "cache_read": 971559,
+    "cache_write": 4727
+  }
+}
