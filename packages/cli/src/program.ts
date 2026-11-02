@@ -11,6 +11,7 @@ import {
   GROUP_ALIASES,
   commands as allCommands,
   openContext,
+  pickUser,
   ACTION_NAMES,
   runCommand,
   runMergeDriver,
@@ -107,7 +108,7 @@ export function buildProgram(options: ProgramOptions = {}): Command {
     )
     .option(
       "--user <name>",
-      "主体のユーザ名。既定は環境変数 DEGUBOARD_USER か git の user.name。記録される ID は <ユーザ>（human）か <ユーザ>/agent（agent）",
+      "主体のユーザ名。既定は環境変数 DEGUBOARD_USER、git config の deguboard.user、git の user.name の順。記録される ID は <ユーザ>（human）か <ユーザ>/agent（agent）",
     )
     .helpCommand("help [command]", "コマンドの使い方を出す")
     .configureOutput({
@@ -249,7 +250,7 @@ export function buildProgram(options: ProgramOptions = {}): Command {
       try {
         await serveMcp({
           cwd: resolve(options.cwd ?? process.cwd(), global.C ?? "."),
-          user: global.user ?? env["DEGUBOARD_USER"],
+          ...pickUser(global.user, env["DEGUBOARD_USER"]),
           version: version(),
           commands: options.commands,
           mergeDriver,
@@ -297,8 +298,7 @@ export function buildProgram(options: ProgramOptions = {}): Command {
       if (actorKind !== "human" && actorKind !== "agent") {
         command.error("--actor は human か agent", { exitCode: 2 });
       }
-      const user = global.user ?? env["DEGUBOARD_USER"];
-      const actor = { kind: actorKind, ...(user ? { user } : {}) };
+      const actor = { kind: actorKind, ...pickUser(global.user, env["DEGUBOARD_USER"]) };
       const initialize =
         def.needs === "repo" ? { remote: input["remote"] as string | undefined } : undefined;
 

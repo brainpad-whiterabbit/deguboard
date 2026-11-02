@@ -1,4 +1,5 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { userInfo } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
@@ -8,6 +9,7 @@ import {
   type Fixture,
 } from "../../test/helpers/git-fixture.js";
 import { UsageError } from "../errors.js";
+import { pickUser } from "../model/actor.js";
 import { resetGhCache } from "../git/facts.js";
 import { openContext, type ContextOptions } from "./context.js";
 import { runCommand, type CommandContext } from "./define.js";
@@ -578,6 +580,7 @@ describe("チケットの流れ", () => {
     expect((await runCommand(whoami, human, {})).data).toEqual({
       id: "eiki",
       user: "eiki",
+      user_source: "flag",
       kind: "human",
       own_ids: ["eiki", "eiki/agent"],
     });
@@ -585,9 +588,35 @@ describe("チケットの流れ", () => {
     expect((await runCommand(whoami, agent, {})).data).toEqual({
       id: "eiki/agent",
       user: "eiki",
+      user_source: "flag",
       kind: "agent",
       own_ids: ["eiki", "eiki/agent"],
     });
+  });
+
+  it("主体のユーザ名は --user > DEGUBOARD_USER > git config の deguboard.user > git の user.name > OS のユーザ名の順で決まり、whoami が出どころを返す（t217）", async () => {
+    const f = await fixture();
+    await initialized(f.cloneA);
+    const who = async (actor: Parameters<typeof openContext>[0]["actor"]) => {
+      const ctx = await openContext({ cwd: f.cloneA, ...(actor ? { actor } : {}) });
+      const { user, user_source } = (await runCommand(whoami, ctx, {})).data;
+      return { user, user_source };
+    };
+    // 入口が渡すもの：--user と DEGUBOARD_USER（pickUser）
+    expect(await who(pickUser("flag-u", "env-u"))).toEqual({ user: "flag-u", user_source: "flag" });
+    expect(await who(pickUser(undefined, "env-u"))).toEqual({ user: "env-u", user_source: "env" });
+    // 入口が何も渡さなければ git から決める
+    expect(await who(pickUser(undefined, undefined))).toEqual({
+      user: "テスト",
+      user_source: "user.name",
+    });
+    await git(f.cloneA, ["config", "deguboard.user", "deg"]);
+    expect(await who(undefined)).toEqual({ user: "deg", user_source: "git-config" });
+    expect(await who(pickUser(undefined, "env-u"))).toEqual({ user: "env-u", user_source: "env" });
+    // どちらも空なら OS のユーザ名
+    await git(f.cloneA, ["config", "deguboard.user", ""]);
+    await git(f.cloneA, ["config", "user.name", ""]);
+    expect(await who(undefined)).toEqual({ user: userInfo().username, user_source: "os" });
   });
 
   it("起票者は既定で操作した主体、created_by: human でユーザ本人になり、担当者は create / update / claim で付く", async () => {

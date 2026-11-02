@@ -6,7 +6,7 @@ deguboard は Git で管理するチケットのツール。あなた（AI エ�
 
 - `dg` は必ず `--json` を付けて呼び、結果の `ok` と `data` を読む。失敗は `error.code` と `error.message`。終了コードは 0 成功 / 1 失敗 / 2 使い方の誤り
 - 毎回 `--actor agent` を付ける（環境変数は Bash の呼び出しをまたいで残らないことがある）。人だけに限られた操作はエージェントには拒否される（`TRANSITION_REJECTED`）。拒否されたら人に頼む
-- あなたは `<ユーザ>/agent`（例：`eiki/agent`）として記録される。ユーザは git の `user.name`（`--user` か `DEGUBOARD_USER` で変えられる）で、人本人は `<ユーザ>`。チケットの起票者（`created_by`）と担当者（`assignee`）はこの形で入る。コマンドの `--created-by` と `--assignee` には `human`（ユーザ本人）か `agent`（ユーザの AI）の略記も書ける
+- あなたは `<ユーザ>/agent`（例：`eiki/agent`）として記録される。ユーザは `--user`・`DEGUBOARD_USER`・git config の `deguboard.user`・git の `user.name` の順で決まり（`whoami` の `user_source` が出どころ）、人本人は `<ユーザ>`。チケットの起票者（`created_by`）と担当者（`assignee`）はこの形で入る。コマンドの `--created-by` と `--assignee` には `human`（ユーザ本人）か `agent`（ユーザの AI）の略記も書ける
 - データのファイル（`.git/deguboard/` の下）を直接編集しない。読むのも `dg … show --json`
 - チケットの ID は `t12` でも `12` でもよい。Epic は `e3`、Iteration は `s3`。リポジトリの外から呼ぶときは `-C <dir>`
 - 書き込みは `commit.mode`（今は `{{commit.mode}}`）に従ってコミットされる。起票と claim は即座にコミットして push される。`batch` ではそれ以外の変更が作業ツリーに残るので、区切りで `dg --json --actor agent sync` を回す。`manual` では `sync` もコミットしないので、人に `dg commit` を頼む

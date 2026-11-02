@@ -399,6 +399,7 @@ describe("3 経路の E2E", () => {
     expect(at("whoami").data).toEqual({
       id: USER,
       user: USER,
+      user_source: "flag",
       kind: "human",
       own_ids: [USER, `${USER}/agent`],
     });

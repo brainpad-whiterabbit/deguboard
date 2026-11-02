@@ -137,7 +137,13 @@ export function mockClient(data = fixture()): MockClient {
   const handlers: MockClient["handlers"] = {
     "project.list": () => data.projects,
     "config.show": () => ({ default_project: "default" }),
-    whoami: () => ({ id: "eiki", user: "eiki", kind: "human", own_ids: ["eiki", "eiki/agent"] }),
+    whoami: () => ({
+      id: "eiki",
+      user: "eiki",
+      user_source: "user.name",
+      kind: "human",
+      own_ids: ["eiki", "eiki/agent"],
+    }),
     "ticket.list": () => data.tickets,
     "epic.list": () => data.epics,
     "iteration.list": () => data.iterations,

@@ -9,6 +9,7 @@ import {
   createLocalClient,
   toCommandFailure,
   type AnyCommand,
+  type UserSource,
 } from "@deguboard/core";
 import { describeCommands } from "@deguboard/server";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
@@ -23,8 +24,10 @@ import {
 export interface McpOptions {
   /** 対象のリポジトリ */
   cwd: string;
-  /** 主体のユーザ名。省略時は git の user.name */
+  /** 主体のユーザ名。省略時は git config の deguboard.user か git の user.name */
   user?: string | undefined;
+  /** user の出どころ（flag か env）。省けば flag */
+  userSource?: UserSource | undefined;
   version: string;
   commands?: readonly AnyCommand[] | undefined;
   /** sync の前に登録するマージドライバのコマンド（dg serve と同じ） */
@@ -65,6 +68,7 @@ export async function serveMcp(options: McpOptions): Promise<void> {
   const client = createLocalClient({
     cwd: options.cwd,
     user: options.user,
+    userSource: options.userSource,
     actor: "agent",
     commands: options.commands,
     mergeDriver: options.mergeDriver,

@@ -18,7 +18,7 @@ import {
   syncStatus,
 } from "../git/sync.js";
 import { CONFLICT_REMEDY, flushPending, withWrite } from "../git/write.js";
-import { ownActorIds, type ActorKind } from "../model/actor.js";
+import { ownActorIds, type ActorKind, type UserSource } from "../model/actor.js";
 import { configSchema } from "../model/config.js";
 import { parseAcceptance, type Ticket } from "../model/ticket.js";
 import type { Doc } from "../storage/documents.js";
@@ -471,6 +471,8 @@ export interface WhoamiView {
   id: string;
   /** ユーザ名（`eiki`） */
   user: string;
+  /** ユーザ名の出どころ（flag・env・git-config・user.name・os） */
+  user_source: UserSource;
   kind: ActorKind;
   /** そのユーザ本人とみなす主体の ID（`eiki` と `eiki/agent`）。担当者が自分か自分の agent かはこれに含まれるかで決める */
   own_ids: string[];
@@ -479,13 +481,13 @@ export interface WhoamiView {
 export const whoami = defineCommand({
   name: "whoami",
   group: "setup",
-  summary: "操作している主体（ユーザ名・種別・ID）と、本人とみなす主体の ID を出す",
+  summary: "操作している主体（ユーザ名とその出どころ・種別・ID）と、本人とみなす主体の ID を出す",
   input: z.object({}),
   write: false,
   needs: "store",
   async run(ctx) {
-    const { id, user, kind } = ctx.actor;
-    return ok<WhoamiView>({ id, user, kind, own_ids: ownActorIds(user) });
+    const { id, user, userSource, kind } = ctx.actor;
+    return ok<WhoamiView>({ id, user, user_source: userSource, kind, own_ids: ownActorIds(user) });
   },
 });
 
