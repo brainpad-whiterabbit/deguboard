@@ -1297,19 +1297,20 @@ describe("用意", () => {
     await runCommand(epicCreate, ctx, { title: "開いた", summary: "s" });
     await runCommand(iterationCreate, ctx, { name: "Sprint 1" });
     // t1: todo / t2: abandoned / t3: in_progress / t4: Iteration に入った in_progress
-    // t5: 閉じた Epic の done / t6: 開いた Epic の done / t7: Epic のない done
+    // t5: 閉じた Epic の done / t6: 開いた Epic の done / t7: Epic のない done / t8: 閉じた Epic の in_progress
     for (const title of ["A", "B", "C", "D"])
       await runCommand(ticketCreate, ctx, { title, summary: "s", acceptance });
     await runCommand(ticketCreate, ctx, { title: "E", summary: "s", acceptance, epic: "e1" });
     await runCommand(ticketCreate, ctx, { title: "F", summary: "s", acceptance, epic: "e2" });
     await runCommand(ticketCreate, ctx, { title: "G", summary: "s", acceptance });
+    await runCommand(ticketCreate, ctx, { title: "H", summary: "s", acceptance, epic: "e1" });
     await runCommand(iterationAdd, ctx, { iteration: "s1", tickets: ["t4"] });
     await runCommand(ticketMove, ctx, { ticket: "t2", status: "abandoned" });
-    for (const ticket of ["t3", "t4"])
+    for (const ticket of ["t3", "t4", "t8"])
       await runCommand(ticketMove, ctx, { ticket, status: "in_progress" });
     for (const ticket of ["t5", "t6", "t7"])
       await runCommand(ticketMove, ctx, { ticket, status: "done" });
-    await runCommand(epicClose, ctx, { epic: "e1" });
+    await runCommand(epicClose, ctx, { epic: "e1", force: true });
     const missing = async () =>
       (await runCommand(lint, ctx, {})).data.issues
         .filter((i) => i.code === "lint_iteration_missing")
@@ -1323,6 +1324,7 @@ describe("用意", () => {
       ["t3", "Iteration に入らずに in_progress に進んでいる"],
       ["t6", "Iteration に入らずに done に進んでいる"],
       ["t7", "Iteration に入らずに done に進んでいる"],
+      ["t8", "Iteration に入らずに in_progress に進んでいる"],
     ]);
     await runCommand(configSet, ctx, { key: "lint.require_iteration", value: "false" });
     expect(await missing()).toEqual([]);
