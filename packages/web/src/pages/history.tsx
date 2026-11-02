@@ -257,33 +257,24 @@ export function HistoryPage({ view }: { view: HistoryView }) {
     () => (view === "ticket" ? [] : filterHistory(all, store.tickets, query, view, sidebar)),
     [all, store.tickets, query, view, sidebar],
   );
-  const ticketCount = useMemo(() => {
-    const filter = { query, result: "", epic: "" };
+  // 見方ごとの件数。チケットの見方ではチケットの件数を TicketView が絞り込みを含めて数え直すので、ここでは数えない
+  const counts = useMemo<ViewCounts>(() => {
+    const searching = query.trim() !== "";
+    const count = <T extends { id: string }>(list: readonly T[], key: "iteration" | "epic") => ({
+      hit: filterHistory(list, store.tickets, query, key, sidebar).length,
+      total: list.length,
+      filtered: searching,
+    });
+    const finished = (q: string) =>
+      view === "ticket"
+        ? 0
+        : finishedTickets(store.tickets, new Map(), { query: q, result: "", epic: "" }).length;
     return {
-      hit: finishedTickets(store.tickets, new Map(), filter).length,
-      total: finishedTickets(store.tickets, new Map(), { ...filter, query: "" }).length,
+      iteration: count(iterations, "iteration"),
+      epic: count(epics, "epic"),
+      ticket: { hit: finished(query), total: finished(""), filtered: searching },
     };
-  }, [store.tickets, query]);
-  const searching = query.trim() !== "";
-  const counts: ViewCounts = {
-    iteration: {
-      hit:
-        view === "iteration"
-          ? rows.length
-          : filterHistory(iterations, store.tickets, query, "iteration", sidebar).length,
-      total: iterations.length,
-      filtered: searching,
-    },
-    epic: {
-      hit:
-        view === "epic"
-          ? rows.length
-          : filterHistory(epics, store.tickets, query, "epic", sidebar).length,
-      total: epics.length,
-      filtered: searching,
-    },
-    ticket: { ...ticketCount, filtered: searching },
-  };
+  }, [iterations, epics, store.tickets, query, sidebar, view]);
   if (view === "ticket") return <TicketView counts={counts} query={query} setQuery={setQuery} />;
   return (
     <section>
