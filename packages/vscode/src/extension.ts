@@ -10,6 +10,7 @@ import { readFile } from "node:fs/promises";
 import {
   ACTION_NAMES,
   createLocalClient,
+  pickUser,
   toCommandFailure,
   type CommandClient,
   type StatusView,
@@ -348,7 +349,12 @@ function clientFor(folder: vscode.WorkspaceFolder): CommandClient {
   const key = folder.uri.toString();
   let client = clients.get(key);
   if (!client) {
-    client = createLocalClient({ cwd: folder.uri.fsPath, actions: ACTION_NAMES });
+    // 拡張ホストに環境変数が届かない起動（GUI など）では、core が git config の deguboard.user から決める
+    client = createLocalClient({
+      cwd: folder.uri.fsPath,
+      ...pickUser(undefined, process.env["DEGUBOARD_USER"]),
+      actions: ACTION_NAMES,
+    });
     clients.set(key, client);
     void watchData(folder, client);
   }

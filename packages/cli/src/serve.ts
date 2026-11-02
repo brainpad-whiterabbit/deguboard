@@ -1,6 +1,7 @@
 // dg serve / dg open：HTTP サーバーの起動と、ブラウザで画面を開く（UI-8）。中身は @deguboard/server
 
 import { execFile } from "node:child_process";
+import { pickUser } from "@deguboard/core";
 import { DEFAULT_HOST, DEFAULT_PORT, startServer } from "@deguboard/server";
 import type { Command } from "commander";
 import { toErrorView } from "./errors.js";
@@ -49,7 +50,7 @@ export function addServeCommands(program: Command, deps: ServeDeps): void {
       try {
         const running = await startServer({
           cwd: deps.resolveCwd(global.C),
-          user: global.user ?? process.env["DEGUBOARD_USER"],
+          ...pickUser(global.user, process.env["DEGUBOARD_USER"]),
           host: opts.host,
           port: opts.port,
           staticDir: deps.staticDir,

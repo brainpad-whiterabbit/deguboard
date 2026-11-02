@@ -11,6 +11,7 @@ import {
   createLocalClient,
   type AnyCommand,
   type CommandResult,
+  type UserSource,
 } from "@deguboard/core";
 import { z } from "zod";
 import { readBody, serveStatic } from "./static.js";
@@ -21,8 +22,10 @@ export interface AppOptions {
   /** web のビルド結果。なければ API だけ */
   staticDir?: string | undefined;
   commands?: readonly AnyCommand[] | undefined;
-  /** 主体のユーザ名。省略時は git の user.name */
+  /** 主体のユーザ名。省略時は git config の deguboard.user、git の user.name、OS のユーザ名の順 */
   user?: string | undefined;
+  /** user の出どころ（flag か env）。省けば flag */
+  userSource?: UserSource | undefined;
   /** マージドライバとして登録する、dg を呼ぶ argv の前置（dg serve が渡す） */
   mergeDriver?: readonly string[] | undefined;
 }
@@ -63,6 +66,7 @@ export function createApp(options: AppOptions): Handler {
   const client = createLocalClient({
     cwd: options.cwd,
     user: options.user,
+    userSource: options.userSource,
     commands: options.commands,
     mergeDriver: options.mergeDriver,
     actions: ACTION_NAMES,

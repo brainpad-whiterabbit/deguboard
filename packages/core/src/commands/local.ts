@@ -9,7 +9,7 @@ import { remoteWebUrl } from "../git/repo.js";
 import { syncStatus } from "../git/sync.js";
 import type { CommandClient, CommandFailure, StatusView } from "./client.js";
 import { openContext } from "./context.js";
-import type { ActorKind } from "../model/actor.js";
+import type { ActorKind, UserSource } from "../model/actor.js";
 import type { AnyCommand, CommandContext, CommandResult } from "./define.js";
 import { commands as allCommands, findCommand } from "./registry.js";
 import { runCommand } from "./define.js";
@@ -17,8 +17,10 @@ import { runCommand } from "./define.js";
 export interface LocalClientOptions {
   /** 対象のリポジトリ */
   cwd: string;
-  /** 主体のユーザ名。省略時は git の user.name */
+  /** 主体のユーザ名。省略時は git config の deguboard.user、git の user.name、OS のユーザ名の順 */
   user?: string | undefined;
+  /** user の出どころ（flag か env）。省けば flag */
+  userSource?: UserSource | undefined;
   /** 主体の種別。既定は human（画面）。dg mcp は agent */
   actor?: ActorKind | undefined;
   commands?: readonly AnyCommand[] | undefined;
@@ -35,7 +37,10 @@ export interface LocalClient extends CommandClient {
 
 export function createLocalClient(options: LocalClientOptions): LocalClient {
   const commands = (options.commands ?? allCommands).filter((c) => c.needs === "store");
-  const actor = { kind: options.actor ?? "human", ...(options.user ? { user: options.user } : {}) };
+  const actor = {
+    kind: options.actor ?? "human",
+    ...(options.user ? { user: options.user, userSource: options.userSource ?? "flag" } : {}),
+  };
   let ctxPromise: Promise<CommandContext> | undefined;
   let queue: Promise<unknown> = Promise.resolve();
 

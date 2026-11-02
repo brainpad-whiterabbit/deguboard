@@ -3,6 +3,22 @@
 
 export type ActorKind = "human" | "agent";
 
+/**
+ * ユーザ名の出どころ（AG-1）。優先順は flag（--user）> env（DEGUBOARD_USER）> git-config（git config の deguboard.user）
+ * > user.name（git の user.name）> os（OS のユーザ名）。whoami が返し、画面と CLI の食い違いを見分けるのに使う
+ */
+export type UserSource = "flag" | "env" | "git-config" | "user.name" | "os";
+
+/** 入口が受け取ったユーザ名（--user と DEGUBOARD_USER）を出どころ付きで選ぶ。どちらもなければ空で、core が git から決める */
+export function pickUser(
+  flag: string | undefined,
+  env: string | undefined,
+): { user?: string; userSource?: UserSource } {
+  if (flag) return { user: flag, userSource: "flag" };
+  if (env) return { user: env, userSource: "env" };
+  return {};
+}
+
 const AGENT_SUFFIX = "/agent";
 
 /** ユーザ名と種別から ID を作る */

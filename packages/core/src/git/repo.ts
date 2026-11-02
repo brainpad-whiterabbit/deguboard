@@ -4,6 +4,7 @@ import { access, mkdir } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { OperationError } from "../errors.js";
+import type { UserSource } from "../model/actor.js";
 import { GitError, runGit } from "./run.js";
 
 export interface GitRepo {
@@ -119,10 +120,21 @@ export async function requireIdentity(
   return { name, email };
 }
 
-/** 主体の既定のユーザ名。git の user.name、なければ OS のユーザ名（ホスト名は含めない） */
-export async function defaultUser(repo: Pick<GitRepo, "dataDir">): Promise<string> {
-  const name = (
-    await runGit(repo.dataDir, ["config", "--get", "user.name"], { allowFailure: true })
-  ).stdout.trim();
-  return name || os.userInfo().username;
+/**
+ * 主体の既定のユーザ名と出どころ。git config の deguboard.user、なければ user.name、なければ OS のユーザ名（ホスト名は含めない）。
+ * deguboard.user は人ごとの設定（--global かリポジトリの .git/config）で、環境変数の届かない入口（VS Code）でも効く
+ */
+export async function defaultUser(
+  repo: Pick<GitRepo, "dataDir">,
+): Promise<{ user: string; source: Extract<UserSource, "git-config" | "user.name" | "os"> }> {
+  for (const [key, source] of [
+    ["deguboard.user", "git-config"],
+    ["user.name", "user.name"],
+  ] as const) {
+    const name = (
+      await runGit(repo.dataDir, ["config", "--get", key], { allowFailure: true })
+    ).stdout.trim();
+    if (name) return { user: name, source };
+  }
+  return { user: os.userInfo().username, source: "os" };
 }
