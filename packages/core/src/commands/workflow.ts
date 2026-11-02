@@ -40,7 +40,7 @@ export const workflowShow = defineCommand({
   group: "workflow",
   summary:
     "Workflow の定義と、from→to ごとに合成した遷移の制約を出す。書かれていない遷移は誰でも条件なしで行える",
-  input: z.object({ workflow: slugSchema }),
+  input: z.object({ workflow: slugSchema.describe("出す Workflow の ID（workflows/<id>.yaml）") }),
   write: false,
   needs: "store",
   async run(ctx, input) {
