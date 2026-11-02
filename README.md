@@ -12,11 +12,11 @@ deguboard は、Git で管理するチケットとユーザー定義のワーク
 | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
 | `dg` でチケット・エピック・プロジェクト・イテレーション・ワークフローを管理し、変更を `deguboard` ブランチにコミットする                                                                                             | できる                                            |
 | ブラウザ（`dg serve`）と VS Code 拡張の同じ画面で、カンバン・バックログ・履歴・Run のタブと、チケット・エピック・イテレーションの詳細を見て操作する                                                                  | できる                                            |
-| ワークフロー（遷移の条件・照合規則・追加フィールド・表示名）を業務ごとに YAML で定義する                                                                                                                             | できる                                            |
+| ワークフロー（遷移の条件・照合規則・追加フィールド・表示名）を業務ごとに YAML で定義し、`dg workflow show` で見て `dg workflow set` で書き換える                                                                     | できる                                            |
 | Claude Code との会話からチケットを起票し、分解・依存・進める順（Plan）の承認・イテレーション計画を進める（Skill と MCP）                                                                                             | できる                                            |
 | AI の実行を Run として記録し、トークン使用量と結果を Run・チケット・エピック・イテレーション・プロジェクト・エージェント・モデル・工程の単位で集計する                                                               | できる（使用量の取り込みは Claude Code と Codex） |
 | `dg guide all` の手順に `--auto` を付けて（Claude Code では `/dgall --auto`）、戻せる判断を自動で選び、`auto.merge` が true なら検査・受け入れ条件・別エージェントの見直し・衝突なしを確かめて PR を自動でマージする | できる                                            |
-| `dg guide all` と `work` の手順で、Plan の待ちのない複数のチケットをチケットごとのサブエージェントで同時に進める（上限は手順が決める）                                                                               | できる                                            |
+| `dg guide parallel` の手順（`all` と `work` から引く）で、Plan の待ちのない複数のチケットをサブエージェントで同時に進める                                                                                            | できる                                            |
 | `dg guide work` の手順で、PR を出す前に別のサブエージェントが見直し、指摘を上限付きの修正ループで直す。品質ゲートは `dg guide review` にまとめ、自動マージの前にも使う                                               | できる                                            |
 
 deguboard はエージェントを起動も監視もしない。チケットの状態は、作業ブランチの Git 上の事実（ある・push 済み・マージ済み）から前に進む。
@@ -55,7 +55,7 @@ dg skill install              # Claude Code の Skill（/dgimport・/dgplan・/d
 
 チームの 2 人目からは、リポジトリを clone して `dg init` を実行する。リモートにある `deguboard` ブランチを取り込むので、同じチケットが見える。
 
-VS Code の拡張は、今は VSIX から入れる。上の `mise run install` が入れ、手で入れるなら `mise run vsix`（build も先に走る）の後に `code --install-extension packages/vscode/deguboard-vscode.vsix` を実行する。拡張を入れて Activity Bar の deguboard のアイコンを押すと、サイドバーにカンバンが開く。カンバンの帯と行の印は[拡張の README](packages/vscode/README.md)、仕様は[要件定義書](docs/requirements.md)の UI-2・UI-13。チケットを押すと詳細がエディタ領域に開く。拡張は `dg` なしで動き、`dg` が PATH にないときは案内を出す。
+VS Code の拡張は、今は VSIX から入れる。上の `mise run install` が入れ、手で入れるなら `mise run vsix`（build も先に走る）の後に `code --install-extension packages/vscode/deguboard-vscode.vsix` を実行する。拡張を入れて Activity Bar の deguboard のアイコンを押すと、サイドバーにカンバンが開く。カンバンの見た目は[拡張の README](packages/vscode/README.md)、仕様は[要件定義書](docs/requirements.md)の UI-2・UI-13。チケットを押すと詳細がエディタ領域に開く。拡張は `dg` なしで動き、`dg` が PATH にないときは案内を出す。
 
 ### Run の記録と集計
 
@@ -65,7 +65,7 @@ Run は 1 回の AI の作業の記録で、エージェントがチケットの
 dg config set metrics.read_transcripts true   # finish が会話記録から使用量を取り込む（既定は false。config はチームで共有する）
 export DEGUBOARD_NO_TRANSCRIPTS=1             # このマシンでは会話記録を読ませないとき
 dg run list --running                         # 実行中の Run。閉じ損ねたものは dg run finish <ID> --result interrupted
-dg metrics show --iteration s1 --by ticket    # 絞り込み（--ticket・--epic・--agent など）と単位ごとの集計
+dg metrics show --iteration s1 --by ticket    # 絞り込み（--ticket・--epic・--step など）と単位ごとの集計
 ```
 
 使用量を取り込めるのは今は Claude Code（`--agent claude-code`）と Codex（`--agent codex`）の Run だけで、取れなかった値は 0 と数えず欠けた数として出る。画面では、Run のタブで実行中の Run・単位を選んだ実績・完了した Run を、チケット詳細の Run の節でそのチケットの Run を見る。記録の形・Git に入れる範囲・集計の約束は[要件定義書](docs/requirements.md)の「5.9 Run」と「6.6 作業の実績」。
