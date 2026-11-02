@@ -24,7 +24,7 @@ import {
 export interface McpOptions {
   /** 対象のリポジトリ */
   cwd: string;
-  /** 主体のユーザ名。省略時は git config の deguboard.user か git の user.name */
+  /** 主体のユーザ名。省略時は git config の deguboard.user、git の user.name、OS のユーザ名の順 */
   user?: string | undefined;
   /** user の出どころ（flag か env）。省けば flag */
   userSource?: UserSource | undefined;

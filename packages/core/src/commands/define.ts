@@ -9,7 +9,7 @@ import type { WorktreeOrigin } from "../git/worktree.js";
 /** 操作の主体。入口が決める（CLI は環境変数かオプション、UI は常に human） */
 export interface ActorInfo {
   kind: ActorKind;
-  /** ユーザ名。既定は git config の deguboard.user か git の user.name */
+  /** ユーザ名。既定は git config の deguboard.user、git の user.name、OS のユーザ名の順 */
   user: string;
   /** ユーザ名の出どころ（whoami が返す） */
   userSource: UserSource;
