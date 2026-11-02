@@ -162,6 +162,11 @@ describe("dg guide", () => {
     // 閉じ損ねた・返らない見直し役の Run は親が interrupted で閉じ、見直し役を起動し直す
     expect(review).toContain("**見直し役が閉じ損ねた・返らない**");
     expect(review).toContain("見直し役を起動し直す");
+    expect(review).toContain("起動し直しても返らなければ「見直し役を起動できない」に従う");
+    expect(await readGuide("parallel")).toContain(
+      "手直し・見直しの Run も同じく閉じ、unclaim せず `dg guide review` の「終わり方」に従う",
+    );
+    expect(all).toContain("手直しが失敗した・手直し・見直しが返らないチケットは todo に戻さず");
     // done の「終わらなかったとき」は実装の Run と手直し・見直しの Run を分け、review へ案内する
     const done = await readGuide("done");
     expect(done).toContain("実装の Run は閉じてから");

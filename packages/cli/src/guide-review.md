@@ -50,6 +50,6 @@ PR を人に出す前（`dg guide work`）と、自動でマージする前（`d
 - **通った**：親が `gh pr ready <PR>` で PR を出し（人にレビューを頼む）、`dg guide work` の手順 7（`sync`）に進む
 - **上限を超えた**（重い指摘が残る）：3 回目の手直しは始めない。PR は draft のまま、チケットは in_progress のまま置き、残った指摘・直した回数・PR を人に報告して、続けて直すか・ready にするか・やめる（`ticket unclaim`）かを聞く。実装の失敗とは違い、自分では unclaim しない。人を待つ間も、それを待たないチケットは進める
 - **手直しが failure で返った・返らない**：上限を超えたときと同じく、PR は draft・チケットは in_progress のまま置いて人に報告する。返らずに `interrupted` で閉じた手直しの Run（閉じ損ねた Run を含む）も同じ扱い。unclaim しない（`dg guide work` の unclaim は実装の失敗と、実装を途中でやめたときだけ）
-- **見直し役が閉じ損ねた・返らない**：親が `run list --running --ticket <id>` で見直し役の `review` の Run を探して `run finish <Run の ID> --result interrupted --error <理由>` で閉じ、見直し役を起動し直す（新しい見直し役が自分の `review` の Run を始める）。PR は draft・チケットは in_progress のまま置き、unclaim しない
+- **見直し役が閉じ損ねた・返らない**：親が `dg guide work` の「閉じ損ねた Run を閉じる」のとおり見直し役の Run（代わりの step で記録したものを含む。step ではなく起動したサブエージェントで見分ける）を `interrupted` で閉じ、見直し役を起動し直す（新しい見直し役が自分の Run を始める）。PR は draft・チケットは in_progress のまま置き、unclaim しない。起動し直しても返らなければ「見直し役を起動できない」に従う
 - **見直し役を起動できない**：PR を ready にし、見直していないことを PR の本文と人への報告に書く
 - **人を待つ**：上限を超えた・手直しが failure で返った・返らないチケットは、draft・in_progress のまま人を待つ間、同時に進める枠に数えない。続けて直すと決まったら、`fix` の Run を始めて直し、同じ見直しと修正ループに戻す
