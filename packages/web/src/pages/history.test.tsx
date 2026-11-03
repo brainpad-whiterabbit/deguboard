@@ -499,6 +499,41 @@ describe("サイドバーの履歴", () => {
       ["t1", "t2"],
     );
   });
+
+  it("検索の番号はバックログと同じく部分一致で当たり（t1 で t12）、番号の当たった部分に印を付ける", async () => {
+    window.location.hash = "#/history?view=epic";
+    const client = mockClient();
+    client.data.epics = [
+      { ...client.data.epics[0]!, id: "e1", status: "closed", closed_at: "2026-10-31T00:00:00Z" },
+      {
+        ...client.data.epics[0]!,
+        id: "e2",
+        title: "二番目",
+        status: "closed",
+        closed_at: "2026-10-30T00:00:00Z",
+      },
+    ];
+    client.data.tickets = [
+      ticket({ id: "t12", title: "欄", status: "done", epic: "e1" }),
+      ticket({ id: "t2", title: "一覧", status: "done", epic: "e1" }),
+      ticket({ id: "t3", title: "設定", status: "done", epic: "e2" }),
+    ];
+    render(
+      <StoreProvider client={client}>
+        <HostProvider host={sidebarHost()}>
+          <App />
+        </HostProvider>
+      </StoreProvider>,
+    );
+    await screen.findByText("二番目");
+    fireEvent.change(screen.getByLabelText("チケットを探す"), { target: { value: "T1" } });
+    const items = [...document.querySelectorAll<HTMLDetailsElement>("details.history-item")];
+    expect(items).toHaveLength(1);
+    expect([...items[0]!.querySelectorAll(".history-list code")].map((c) => c.textContent)).toEqual(
+      ["t12"],
+    );
+    expect(items[0]!.querySelector(".history-list code mark")!.textContent).toBe("t1");
+  });
 });
 
 describe("タブを移って戻ったとき", () => {

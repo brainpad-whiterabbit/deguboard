@@ -82,10 +82,22 @@ export function createWebviewClient(
 /** id を振る前の要求。union の各要素から id を外す（Omit は union を分配しない） */
 type Draft<T> = T extends unknown ? Omit<T, "id"> : never;
 
+/**
+ * 拡張と合わせる値。core の WEBVIEW_CONTRACT の写し（web は core の実行時のコードを取り込まない）。
+ * 同じ値であることを webview.test.ts で確かめる。画面のルートの写しは持たず、router の hrefOf が core の routes と同じハッシュを返すことを確かめる
+ */
+export const WEBVIEW_CONTRACT_COPY = {
+  /** バックログの行の右クリックの文脈（data-vscode-context の webviewSection） */
+  backlogRowSection: "backlogTicket",
+  /** 拡張ホスト → Webview の通知の名前。Record なので core の WebviewEvent の name が増えると型の検査で漏れが分かる */
+  eventNames: { reload: true, navigate: true, toggle: true } satisfies Record<
+    WebviewEvent["name"],
+    true
+  >,
+} as const;
+
 function isWebviewEvent(value: unknown): value is WebviewEvent {
   if (typeof value !== "object" || value === null) return false;
   const v = value as Partial<WebviewEvent>;
-  return (
-    v.kind === "event" && (v.name === "reload" || v.name === "navigate" || v.name === "toggle")
-  );
+  return v.kind === "event" && !!v.name && Object.hasOwn(WEBVIEW_CONTRACT_COPY.eventNames, v.name);
 }

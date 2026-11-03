@@ -18,7 +18,7 @@ const metaOf = (id: string) =>
     .querySelector(".history-ticket-meta")!.textContent;
 
 describe("履歴用の行", () => {
-  it("検索語を渡すと、タイトルの当たった部分・同じ番号・当たったラベルに印を付ける", async () => {
+  it("検索語を渡すと、タイトルの当たった部分・番号の当たった部分・当たったラベルに印を付ける", async () => {
     mount(
       <>
         <HistoryTicketRow

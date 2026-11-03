@@ -1,4 +1,5 @@
-// ticket list の絞り込み。UI のバックログと共用する
+// ticket list の絞り込み。画面のバックログ（web の filterBacklog）は画面だけの条件（Epic なし・自分など）を持つので別に書き、
+// 検索語の当て方（matchesQuery）だけを web の ticketMatchesQuery に写す（同じ結果になることを web の types.test.ts で確かめる）
 
 import { z } from "zod";
 import { STATUSES } from "../model/common.js";
@@ -47,13 +48,24 @@ export function matchesFilter(store: Store, t: Ticket, f: TicketFilter): boolean
   if (f.assignee && t.assignee !== f.assignee) return false;
   if (f.created_by && t.created_by !== f.created_by) return false;
   if (f.ready && !isReady(store, t)) return false;
-  if (f.query) {
-    const q = f.query.toLowerCase();
-    const hit =
-      t.id.includes(q) ||
-      t.title.toLowerCase().includes(q) ||
-      t.labels.some((l) => l.toLowerCase().includes(q));
-    if (!hit) return false;
-  }
+  if (f.query && !matchesQuery(t, f.query)) return false;
   return true;
+}
+
+/**
+ * 検索語に当たるか：番号・タイトル（labels なら加えてラベル）の部分一致。前後の空白は除き、大文字小文字は区別しない。
+ * 空の検索語はすべてに当たる。ticket list の query と、画面のバックログ・履歴の検索の当て方の正本
+ */
+export function matchesQuery(
+  t: Pick<Ticket, "id" | "title" | "labels">,
+  query: string,
+  labels = true,
+): boolean {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+  return (
+    t.id.toLowerCase().includes(q) ||
+    t.title.toLowerCase().includes(q) ||
+    (labels && t.labels.some((l) => l.toLowerCase().includes(q)))
+  );
 }

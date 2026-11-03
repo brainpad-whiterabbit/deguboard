@@ -1,8 +1,15 @@
 // @vitest-environment jsdom
-import type { WebviewEvent, WebviewRequest, WebviewResponse } from "@deguboard/core";
+// 拡張と合わせる値の写しを照らすためだけに core の実行時のコード（WEBVIEW_CONTRACT）を取り込む（画面のコードは型だけを取る。ADR-007）
+import {
+  WEBVIEW_CONTRACT,
+  type WebviewEvent,
+  type WebviewRequest,
+  type WebviewResponse,
+} from "@deguboard/core";
 import { describe, expect, it } from "vitest";
+import { hrefOf, parseRoute } from "../router.js";
 import { ClientError } from "./http.js";
-import { createWebviewClient } from "./webview.js";
+import { createWebviewClient, WEBVIEW_CONTRACT_COPY } from "./webview.js";
 
 /** 拡張ホストの代わり。受け取った要求を記録し、答えを window に流す */
 function host() {
@@ -91,5 +98,34 @@ describe("postMessage の CommandClient", () => {
     off();
     h.reply({ kind: "event", name: "reload" });
     expect(received).toHaveLength(3);
+  });
+});
+
+describe("拡張と合わせる値（core の WEBVIEW_CONTRACT の写し）", () => {
+  it("右クリックの文脈名と通知の名前は core と同じ", () => {
+    expect(WEBVIEW_CONTRACT_COPY.backlogRowSection).toBe(WEBVIEW_CONTRACT.backlogRowSection);
+    expect(Object.keys(WEBVIEW_CONTRACT_COPY.eventNames).sort()).toEqual(
+      [...WEBVIEW_CONTRACT.eventNames].sort(),
+    );
+  });
+
+  it("拡張が開くルートは router の hrefOf が返すハッシュと同じで、その画面に戻る", () => {
+    expect(hrefOf({ page: "board" })).toBe(WEBVIEW_CONTRACT.routes.board);
+    expect(hrefOf({ page: "config" })).toBe(WEBVIEW_CONTRACT.routes.config);
+    expect(parseRoute(WEBVIEW_CONTRACT.routes.board).page).toBe("board");
+    expect(parseRoute(WEBVIEW_CONTRACT.routes.config).page).toBe("config");
+  });
+
+  it("core の通知の名前はどれも通知として受け取り、知らない名前は応答として扱う", () => {
+    const h = host();
+    const client = createWebviewClient(h);
+    const received: string[] = [];
+    const off = client.onEvent((e) => received.push(e.name));
+    for (const name of WEBVIEW_CONTRACT.eventNames)
+      h.reply({ kind: "event", name, hash: "#/board" });
+    h.reply({ kind: "event", name: "unknown" });
+    h.reply({ kind: "event", name: "toString" });
+    off();
+    expect(received).toEqual([...WEBVIEW_CONTRACT.eventNames]);
   });
 });

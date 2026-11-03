@@ -39,6 +39,7 @@ import {
   byNumber,
   isFinished,
   isStatus,
+  ticketMatchesQuery,
   type EpicRow,
   type HistoryEvent,
   type HistoryLog,
@@ -80,16 +81,6 @@ function CountChips({
   );
 }
 
-/** 検索語（空でない）に当たるか：番号が同じか、タイトル（labels なら加えてラベル）に含む。大文字小文字は区別しない */
-function ticketMatches(t: Ticket, query: string, labels = true): boolean {
-  const q = query.trim().toLowerCase();
-  return (
-    t.id.toLowerCase() === q ||
-    t.title.toLowerCase().includes(q) ||
-    (labels && t.labels.some((l) => l.toLowerCase().includes(q)))
-  );
-}
-
 /**
  * 検索：当たるチケットを含むものだけ残す。key はチケットの iteration か epic。
  * サイドバーではラベルにも当て、行を開いて当たったチケットを出すので、終わったチケット（行の中に出るもの）だけを見る
@@ -105,7 +96,8 @@ function filterHistory<T extends { id: string }>(
   const hit = new Set<string>(
     tickets
       .filter(
-        (t) => t[key] && (!sidebar || isFinished(t.status)) && ticketMatches(t, query, sidebar),
+        (t) =>
+          t[key] && (!sidebar || isFinished(t.status)) && ticketMatchesQuery(t, query, sidebar),
       )
       .map((t) => t[key]!),
   );
@@ -275,11 +267,10 @@ function finishedTickets(
   finishedAt: ReadonlyMap<string, string>,
   f: FinishedFilter,
 ): FinishedRow[] {
-  const q = f.query.trim().toLowerCase();
   return tickets
     .filter((t) => isFinished(t.status))
     .filter((t) => !f.result || t.status === f.result)
-    .filter((t) => !q || ticketMatches(t, q))
+    .filter((t) => ticketMatchesQuery(t, f.query))
     .map((t) => {
       const at = finishedAt.get(t.id);
       return { ticket: t, at: at ?? t.updated_at, approximate: at === undefined };
@@ -538,7 +529,7 @@ function IterationItem({
               header={
                 fold.searching ? (
                   <SearchHitsBar
-                    hits={finished.filter((t) => ticketMatches(t, query)).length}
+                    hits={finished.filter((t) => ticketMatchesQuery(t, query)).length}
                     total={finished.length}
                     fold={fold}
                   />
@@ -657,7 +648,7 @@ function SearchHits({
   /** Epic の行の中では Epic を省き Iteration を出す */
   showIteration?: boolean;
 }) {
-  const hits = finished.filter((t) => ticketMatches(t, query));
+  const hits = finished.filter((t) => ticketMatchesQuery(t, query));
   return (
     <div className="history-groups">
       <SearchHitsBar hits={hits.length} total={finished.length} fold={fold} />
@@ -683,8 +674,9 @@ function finishedOfEpic(epic: string, tickets: readonly Ticket[]): Ticket[] {
 }
 
 /**
- * サイドバーの閉じた Epic の行：番号・タイトル（2 行まで）、件数のチップ（Iteration の行と同じ形。完了・中止は Epic の
- * チケットを数える）、2 段目に閉じた日・チケットが入っていた Iteration。進捗バーは出さない。
+ * サイドバーの閉じた Epic の行：番号・タイトル（2 行まで）、件数のチップ（Iteration の行と同じ形。完了・中止は core の
+ * epic.list が返す進み（progress.by_status）の done・abandoned を読み、web では数え直さない）、2 段目に閉じた日・
+ * チケットが入っていた Iteration。進捗バーは出さない。
  * 開くと中の終わったチケットを番号の順の 1 本の一覧（履歴用の行。Epic は省き Iteration を出す）で出す。
  * 終わったチケットのない Epic は薄く出し、開けない
  */
@@ -700,7 +692,6 @@ function SidebarEpicItem({
   const store = useStore();
   const iterations = iterationsOfEpic(e.id, store.tickets);
   const finished = finishedOfEpic(e.id, store.tickets);
-  const abandoned = finished.filter((t) => t.status === "abandoned").length;
   const head = (
     <>
       <DetailLink route={{ page: "epics", id: e.id }}>
@@ -710,8 +701,8 @@ function SidebarEpicItem({
         {e.title}
       </span>
       <CountChips
-        completed={finished.length - abandoned}
-        abandoned={abandoned}
+        completed={e.progress.by_status.done}
+        abandoned={e.progress.by_status.abandoned}
         title="完了と中止は今の Epic のチケットから数えた件数"
       />
       <small>
@@ -746,7 +737,7 @@ function SidebarEpicItem({
           <div className="history-groups">
             {fold.searching ? (
               <SearchHitsBar
-                hits={finished.filter((t) => ticketMatches(t, query)).length}
+                hits={finished.filter((t) => ticketMatchesQuery(t, query)).length}
                 total={finished.length}
                 fold={fold}
               />

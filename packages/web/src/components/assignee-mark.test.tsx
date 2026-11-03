@@ -1,3 +1,5 @@
+// 主体 ID の形の写しを照らすためだけに core の実行時のコード（actorIdOf）を取り込む（画面のコードは型だけを取る。ADR-007）
+import { actorIdOf } from "@deguboard/core";
 import { describe, expect, it } from "vitest";
 import { assigneeMarkOf } from "./assignee-mark.js";
 
@@ -25,6 +27,17 @@ describe("担当の印（assigneeMarkOf）", () => {
       initial: "E",
       agent: true,
       title: "eiki/agent · Run なし",
+    });
+  });
+
+  it("主体 ID の形は core の actorIdOf の写しで、core が作る agent の ID を agent、人の ID を人と見分ける", () => {
+    expect(assigneeMarkOf(actorIdOf("hana", "agent"), "codex")).toMatchObject({
+      initial: "H",
+      agent: true,
+    });
+    expect(assigneeMarkOf(actorIdOf("hana", "human"), "codex")).toMatchObject({
+      initial: "H",
+      agent: false,
     });
   });
 });

@@ -1,12 +1,12 @@
 // Workflow の参照・検証（WF-3）・書き換え
 
-import { access } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
 import { OperationError, UsageError } from "../errors.js";
 import { withWrite } from "../git/write.js";
 import { slugSchema } from "../model/common.js";
 import type { WorkflowDefinition } from "../model/workflow.js";
+import { pathExists } from "../storage/exists.js";
 import { formatIssue } from "../storage/issue.js";
 import { DIRS, workflowPath } from "../storage/paths.js";
 import { WORKFLOW_TEMPLATES, findWorkflowTemplate } from "../workflow/templates/index.js";
@@ -137,7 +137,7 @@ export const workflowSet = defineCommand({
     const result = await withWrite(
       ctx,
       async () => {
-        const created = !(await exists(path.join(ctx.store.root, relPath)));
+        const created = !(await pathExists(path.join(ctx.store.root, relPath)));
         const before = ctx.store.workflows.get(input.workflow)?.definition ?? null;
         const entry = await ctx.store.writeWorkflow(definition, comment);
         return {
@@ -160,14 +160,5 @@ export const workflowSet = defineCommand({
     return ok(result.value, result.write, warnings);
   },
 });
-
-async function exists(p: string): Promise<boolean> {
-  try {
-    await access(p);
-    return true;
-  } catch {
-    return false;
-  }
-}
 
 export const workflowCommands = [workflowList, workflowShow, workflowValidate, workflowSet];

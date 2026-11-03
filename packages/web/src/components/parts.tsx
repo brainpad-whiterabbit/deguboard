@@ -10,6 +10,7 @@ import {
   type MouseEvent,
   type ReactNode,
 } from "react";
+import { WEBVIEW_CONTRACT_COPY } from "../client/webview.js";
 import { useHost } from "../host.js";
 import { hrefOf, type Route } from "../router.js";
 import { useStore } from "../store.js";
@@ -467,12 +468,12 @@ function DraggableTr({ ticket, children }: { ticket: Ticket; children: ReactNode
 }
 
 /**
- * バックログの行の右クリックの文脈。webviewSection は拡張の package.json の when と合わせる（packages/vscode/src/context-menu.ts）。
+ * バックログの行の右クリックの文脈。webviewSection は core の WEBVIEW_CONTRACT の写しで、拡張の package.json の when と合う。
  * 既定の切り取り・コピー・貼り付けは出さない
  */
 function rowMenuContext(t: Ticket): string {
   return JSON.stringify({
-    webviewSection: "backlogTicket",
+    webviewSection: WEBVIEW_CONTRACT_COPY.backlogRowSection,
     ticket: t.id,
     iteration: t.iteration ?? null,
     project: t.project,

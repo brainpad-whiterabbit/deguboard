@@ -40,6 +40,7 @@ import {
   isOwnAssignee,
   ITERATION_LABELS,
   matchesClaim,
+  ticketMatchesQuery,
   NO_CLAIM,
   type Iteration,
   type Ticket,
@@ -81,7 +82,6 @@ export function filterBacklog(
   f: BacklogFilter,
   me: Pick<WhoamiView, "own_ids"> | null = null,
 ): Ticket[] {
-  const q = f.query.trim().toLowerCase();
   return tickets
     .filter((t) => !isFinished(t.status))
     .filter((t) => !f.status || t.status === f.status)
@@ -90,13 +90,7 @@ export function filterBacklog(
     .filter((t) => !f.label || t.labels.includes(f.label))
     .filter((t) => matchesClaim(t, f.assignee))
     .filter((t) => !f.mine || (!!t.assignee && isOwnAssignee(me, t.assignee)))
-    .filter(
-      (t) =>
-        !q ||
-        t.id.toLowerCase().includes(q) ||
-        t.title.toLowerCase().includes(q) ||
-        t.labels.some((l) => l.toLowerCase().includes(q)),
-    )
+    .filter((t) => ticketMatchesQuery(t, f.query))
     .sort(byPriorityThenNumber);
 }
 

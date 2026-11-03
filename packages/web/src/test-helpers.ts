@@ -157,7 +157,12 @@ export function mockClient(data = fixture()): MockClient {
       own_ids: ["eiki", "eiki/agent"],
     }),
     "ticket.list": () => data.tickets,
-    "epic.list": () => data.epics,
+    // core の epic.list と同じく、進みは Epic のチケットから求める（fixture の progress は使わない）
+    "epic.list": () =>
+      data.epics.map((e) => ({
+        ...e,
+        progress: progressOf(data.tickets.filter((t) => t.epic === e.id)),
+      })),
     "iteration.list": () => data.iterations,
     "plan.list": () => data.plans.map((p) => withPlanFacts(p, data.tickets)),
     "workflow.show": () => data.workflow,

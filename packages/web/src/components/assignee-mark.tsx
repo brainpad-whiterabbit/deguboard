@@ -12,6 +12,10 @@ export interface AssigneeMarkView {
   title: string;
 }
 
+/**
+ * agent の主体 ID の末尾（eiki/agent）。core の model/actor.ts の AGENT_SUFFIX（actorIdOf が付ける）の写し
+ * （web は core の実行時のコードを取り込まない）。同じ形であることを assignee-mark.test.tsx で確かめる
+ */
 const AGENT_SUFFIX = "/agent";
 
 /** 担当の主体 ID（eiki・eiki/agent）と Run の agent から印を決める。担当がなければ null */

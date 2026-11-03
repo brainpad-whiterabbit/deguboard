@@ -34,7 +34,7 @@ function Highlight({ text, query }: { text: string; query?: string | undefined }
  * 履歴用のチケットの行。2 段目は「中止」（中止のときだけ）・Iteration（showIteration のとき）・Epic（なければ Epic なし）・
  * PR 番号（なければ PR なし）・note の順に「・」で区切って出す。
  * Epic のタブのように Epic が分かっている一覧では showEpic={false} で Epic を省く。
- * query を渡すと、タイトルの当たった部分と、番号が同じときは番号に印を付け、当たったラベルを note の前に足す
+ * query を渡すと、番号とタイトルの当たった部分に印を付け、当たったラベルを note の前に足す
  */
 export function HistoryTicketRow({
   ticket: t,
@@ -92,7 +92,9 @@ export function HistoryTicketRow({
     <div className={`history-ticket${abandoned ? " abandoned" : ""}`}>
       <TicketLink id={t.id} className={`row ticket-row history-ticket-main status-${t.status}`}>
         <StatusDot status={t.status} />
-        <code>{q && t.id.toLowerCase() === q ? <mark>{t.id}</mark> : t.id}</code>
+        <code>
+          <Highlight text={t.id} query={q} />
+        </code>
         <span className="row-title" title={t.title}>
           <Highlight text={t.title} query={q} />
         </span>

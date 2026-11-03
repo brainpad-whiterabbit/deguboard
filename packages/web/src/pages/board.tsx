@@ -463,6 +463,8 @@ function IterationChips({
   return (
     <div className="iteration-chips" role="group" aria-label="Iteration" ref={strip}>
       {open.map((i) => {
+        // core の iteration.list は進みを返さず、札は画面の都合（閉じた Epic の終わったチケットを除く）で数える対象を決めるので、
+        // core の progressOf の写し（ticketProgress）で数える。core が進みを返す Epic の行（履歴）は core の値を読む
         const progress = ticketProgress(tickets.filter((t) => t.iteration === i.id));
         const period = i.start || i.end ? `\n期間 ${i.start ?? "?"} 〜 ${i.end ?? "?"}` : "";
         const goal = i.goal ? `\n目標 ${i.goal}` : "";
