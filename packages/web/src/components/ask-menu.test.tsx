@@ -371,7 +371,9 @@ describe("パネルの詳細から頼む（UI-15）", () => {
     await waitFor(() => expect(pressed()).toBe("最後まで進める"));
     // 対象はその詳細
     expect(within(composer()).getByText("s1")).toBeTruthy();
-    expect(askInputs(client).at(-1)).toMatchObject({ targets: ["s1"], action: "all" });
+    await waitFor(() =>
+      expect(askInputs(client).at(-1)).toMatchObject({ targets: ["s1"], action: "all" }),
+    );
   });
 
   it("Iteration の詳細の中の行は吹き出しと右クリックで頼め、候補に「s1 から外す」を含む。終わったチケットには出さない", async () => {
@@ -399,11 +401,13 @@ describe("パネルの詳細から頼む（UI-15）", () => {
     await waitFor(() => expect(items()).toContain("s1 から外す"));
     fireEvent.click(within(menu()).getByRole("menuitem", { name: "s1 から外す" }));
     await waitFor(() => expect(pressed()).toBe("s1 から外す"));
-    expect(askInputs(client).at(-1)).toMatchObject({
-      targets: ["t3"],
-      within: "s1",
-      action: "remove",
-    });
+    await waitFor(() =>
+      expect(askInputs(client).at(-1)).toMatchObject({
+        targets: ["t3"],
+        within: "s1",
+        action: "remove",
+      }),
+    );
   });
 
   it("Epic の詳細のタイトルと中の行から頼め、行の候補に「e1 から外す」を含む", async () => {
@@ -438,7 +442,9 @@ describe("パネルの詳細から頼む（UI-15）", () => {
     await waitFor(() => expect(items()[0]).toBe("進めるおすすめ"));
     fireEvent.click(within(menu()).getByRole("menuitem", { name: "分ける" }));
     await waitFor(() => expect(pressed()).toBe("分ける"));
-    expect(askInputs(client).at(-1)).toMatchObject({ targets: ["t3"], action: "split" });
+    await waitFor(() =>
+      expect(askInputs(client).at(-1)).toMatchObject({ targets: ["t3"], action: "split" }),
+    );
   });
 
   it("拡張の右クリックから within つきの ask の event が来たら、その場所の外すで入力欄を開く", async () => {

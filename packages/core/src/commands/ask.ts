@@ -4,10 +4,11 @@
 
 import { z } from "zod";
 import { UsageError } from "../errors.js";
-import { isTerminal, type Status } from "../model/common.js";
+import { isTerminal, STATUSES, type Status } from "../model/common.js";
 import { parseId, type IdKind } from "../model/id.js";
 import { peekRunningRuns } from "../run/record.js";
 import type { Store } from "../storage/store.js";
+import { findConstraint } from "../workflow/resolve.js";
 import { defineCommand, ok } from "./define.js";
 import { ticketsInIteration } from "./helpers.js";
 
@@ -60,6 +61,8 @@ export type AskSubject =
       deps_done: boolean;
       /** このマシンで実行中の Run があるか */
       running: boolean;
+      /** 今の Status からの遷移のうち、Workflow の by に agent が入っていない行き先（WF-1）。省けば制約なし */
+      agent_denied?: string[];
     }
   | {
       kind: "iteration";
@@ -101,10 +104,12 @@ export interface AskView {
   label: string;
   skill: string | null;
   format: AskFormat;
-  /** prompt はエージェントに貼る依頼文、command は人が打つ dg のコマンド（頼むことの操作が actor.human_only に入っているとき） */
+  /** prompt はエージェントに貼る依頼文、command は人が打つ dg のコマンド（頼むことの操作が actor.human_only に入っているか、Workflow の by が遷移を人に限るとき） */
   kind: "prompt" | "command";
-  /** 当たった actor.human_only の操作。空なら kind は prompt */
+  /** 当たった actor.human_only の操作 */
   human_only: string[];
+  /** 当たった Workflow の by が人に限る遷移（`t12: todo → abandoned`）。human_only とともに空なら kind は prompt */
+  workflow_by: string[];
   /** 依頼文か、人が打つコマンド（1 行に 1 つ） */
   text: string;
 }
@@ -130,6 +135,8 @@ const ids = (s: Subjects) => s.map((t) => t.id);
 const isStalled = (t: TicketSubject) => t.status === "in_progress" && !t.running;
 const isWaiting = (t: TicketSubject) => t.status === "todo" && !t.deps_done;
 const kindName = (t: AskSubject) => (t.kind === "iteration" ? "Iteration" : "Epic");
+/** done から戻す先。abandoned はやめるので、done の取り消しの戻す先に入れない */
+const UNDO_DONE_TO = ["todo", "in_progress", "review"] as const;
 
 /**
  * 対象のチケットが入っている場所（Iteration・Epic の詳細の中の行から頼むとき）。外すの候補を足すのに使う。
@@ -148,10 +155,21 @@ function withinOf(s: Subjects, within: AskWithin | undefined) {
 }
 type Within = NonNullable<ReturnType<typeof withinOf>>;
 
-/** 人が打つ 1 手。check のどれかが actor.human_only に入っていれば、頼むことを人に回す */
+/** チケットを to へ動かす遷移が Workflow の by で人に限られるなら、その遷移（`t12: todo → abandoned`） */
+function deniedMove(s: AskSubject, to: readonly string[]): string | undefined {
+  if (s.kind !== "ticket") return undefined;
+  const denied = s.agent_denied ?? [];
+  // 戻す先が選べる遷移は、どれも人に限られるときだけ人に回す。行える先があればエージェントに頼む
+  if (to.length === 0 || !to.every((st) => denied.includes(st))) return undefined;
+  return `${s.id}: ${s.status} → ${to.join("・")}`;
+}
+
+/** 人が打つ 1 手。check のどれかが actor.human_only に入っているか、denied があれば、頼むことを人に回す */
 interface HumanStep {
   check: readonly string[];
   command: string;
+  /** Workflow の by が人に限る遷移（`t12: todo → abandoned`）。agent も行えるなら省く */
+  denied?: string;
 }
 
 interface ActionDef {
@@ -167,6 +185,8 @@ interface ActionDef {
   /** 操作が 1 つに決まる頼むことだけ持つ。Skill の手順に任せるものは、拒否されたらエージェントが人に頼む */
   human?(s: Subjects, w?: Within): HumanStep[];
 }
+
+const withDenied = (denied: string | undefined) => (denied ? { denied } : {});
 
 const ACTIONS: Record<AskAction, ActionDef> = {
   create: {
@@ -388,7 +408,11 @@ const ACTIONS: Record<AskAction, ActionDef> = {
     text: () =>
       "次のチケットをやめて abandoned にしてください（人の指示）。理由は指示のとおりに本文へ書いてください。",
     human: (s) =>
-      s.map((t) => ({ check: ["ticket.move"], command: `dg ticket move ${t.id} abandoned` })),
+      s.map((t) => ({
+        check: ["ticket.move"],
+        command: `dg ticket move ${t.id} abandoned`,
+        ...withDenied(deniedMove(t, ["abandoned"])),
+      })),
   },
   undo_done: {
     skill: null,
@@ -399,6 +423,7 @@ const ACTIONS: Record<AskAction, ActionDef> = {
       s.map((t) => ({
         check: ["ticket.move"],
         command: `dg ticket move ${t.id} "<戻す Status>"`,
+        ...withDenied(deniedMove(t, UNDO_DONE_TO)),
       })),
   },
   status: {
@@ -452,6 +477,9 @@ function baseActions(s: Subjects): AskAction[] {
       // Iteration に入れてから進める（todo・abandoned のほかは Iteration が要る）
       if (tickets.some((t) => t.iteration === null))
         return ["assign", "create_iteration", "fix", "split", "check", "abandon", "free"];
+      // closed の Iteration に残った持ち越しは、計画より先に別の Iteration へ割り当てる
+      if (tickets.some((t) => t.iteration_status === "closed"))
+        return ["assign", "create_iteration", "plan", "fix", "split", "check", "abandon", "free"];
       if (tickets.length > 1) return ["plan", "assign", "check", "abandon", "free"];
       // 着手可でも、planned の Iteration（バックログ）ではまず計画を立て、active の Iteration（カンバン）なら進める
       if (tickets[0]!.deps_done)
@@ -554,15 +582,17 @@ export function buildAsk(input: BuildAskInput): AskView {
     format,
   };
 
-  // 人に限った操作は、依頼しても TRANSITION_REJECTED になるので、人が打つコマンドを返す
+  // 人に限った操作と遷移は、依頼しても TRANSITION_REJECTED になるので、人が打つコマンドを返す
   const humanOnly = new Set(input.humanOnly ?? []);
   const steps = def.human?.(s, w) ?? [];
   const hit = [...new Set(steps.flatMap((h) => h.check.filter((c) => humanOnly.has(c))))];
-  if (hit.length > 0)
+  const workflowBy = steps.flatMap((h) => (h.denied ? [h.denied] : []));
+  if (hit.length > 0 || workflowBy.length > 0)
     return {
       ...view,
       kind: "command",
       human_only: hit,
+      workflow_by: workflowBy,
       text: steps.map((h) => h.command).join("\n"),
     };
 
@@ -583,6 +613,7 @@ export function buildAsk(input: BuildAskInput): AskView {
     ...view,
     kind: "prompt",
     human_only: [],
+    workflow_by: [],
     text: sections
       .filter((lines) => lines.length > 0)
       .map((lines) => lines.join("\n"))
@@ -599,6 +630,16 @@ const KIND_OF_PREFIX: Record<string, IdKind> = {
 
 function isComplete(statuses: readonly (Status | undefined)[]): boolean {
   return statuses.length > 0 && statuses.every((st) => st !== undefined && isTerminal(st));
+}
+
+/** 今の Status からの遷移のうち、Workflow の by に agent が入っていない行き先。Workflow が読めなければ空（move のときに拒否される） */
+function agentDenied(store: Store, t: Parameters<Store["workflowFor"]>[0]): string[] {
+  const wf = store.workflowFor(t);
+  if (!wf) return [];
+  return STATUSES.filter((to) => {
+    const by = to === t.status ? undefined : findConstraint(wf.resolved, t.status, to)?.by;
+    return by !== undefined && !by.includes("agent");
+  });
 }
 
 /** ID から対象を引く。種類は頭の文字で決めるので、番号だけは受けない */
@@ -621,6 +662,7 @@ export function askSubjectOf(store: Store, ref: string, running: ReadonlySet<str
         epic: t.epic ?? null,
         deps_done: store.depsDone(t),
         running: running.has(t.id),
+        agent_denied: agentDenied(store, t),
       };
     }
     case "iteration": {
@@ -660,7 +702,7 @@ export const ask = defineCommand({
   name: "ask",
   group: "ask",
   summary:
-    "エージェントに貼る依頼文を作る（読み取りだけ）。対象の種類と状態から頼むことの候補とおすすめ（先頭）を返し、頼むこと・指示・形式（Skill か文章だけ）から文を組む。頼むことの操作が actor.human_only に入っていれば、人が打つ dg のコマンドを返す",
+    "エージェントに貼る依頼文を作る（読み取りだけ）。対象の種類と状態から頼むことの候補とおすすめ（先頭）を返し、頼むこと・指示・形式（Skill か文章だけ）から文を組む。頼むことの操作が actor.human_only に入っているか、Workflow の by が遷移を人に限れば、人が打つ dg のコマンドを返す",
   input: z.object({
     targets: z
       .array(z.string().min(1))

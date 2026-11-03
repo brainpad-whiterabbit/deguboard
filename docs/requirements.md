@@ -265,7 +265,7 @@ Web UI は `dg serve` が配信し、VS Code 拡張は同じ React アプリを 
 - AG-5 Agent Adapter が使用量の取得と作業ディレクトリの差を吸収し、製品ごとの実装は Core の `agents/adapters/` に閉じる。今は `claude-code` と `codex`。起動方法と権限は扱わない（EX-1、[ADR-007](adr/ADR-007-architecture.md)）
 - AG-6 ソフトウェア開発向けの Action（worktree・ブランチ・テスト・PR 作成・マージ）は Core の `actions` に置き、汎用部分は依存しない。`dg` のコマンドにせず Core 内のライブラリに留め、公開するのは名前の一覧（`ACTION_NAMES`）だけ（[ADR-007](adr/ADR-007-architecture.md)）
 - AG-7 任意のシェルの Action は `actions.shell: true` のときだけ使え、毎回確認を経る
-- AG-8 `ask` は対象（チケット・Iteration・Epic・Plan。複数可）・頼むこと・指示・形式から、エージェントに貼る依頼文を返す読み取りだけのコマンド。候補とおすすめは対象の種類と状態から決め、頼むことの操作が `actor.human_only` に入っていれば人が打つ `dg` のコマンドを返す。文の形は [ADR-010](adr/ADR-010-ui-writes-and-agent-requests.md)、頼むことの一覧と文面は `dg ask --help` とコードが正本。`ask-menu` は画面の場所ごとの候補をまとめて返す
+- AG-8 `ask` は対象（チケット・Iteration・Epic・Plan。複数可）・頼むこと・指示・形式から、エージェントに貼る依頼文を返す読み取りだけのコマンド。候補とおすすめは対象の種類と状態から決め、頼むことの操作が `actor.human_only` に入っているか、チケットの遷移を Workflow の `by` が人に限っていれば（WF-1）人が打つ `dg` のコマンドを返す。文の形は [ADR-010](adr/ADR-010-ui-writes-and-agent-requests.md)、頼むことの一覧と文面は `dg ask --help` とコードが正本。`ask-menu` は画面の場所ごとの候補をまとめて返す
 
 ### 6.6 作業の実績
 
