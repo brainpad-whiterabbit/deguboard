@@ -201,7 +201,7 @@ describe("依頼文の組み立て", () => {
 });
 
 describe("人に回すかを決める操作の名前", () => {
-  it("すべての頼むことの human の check は、registry にあるコマンドの名前（打ち間違えると人に回らないまま依頼文を返す）", () => {
+  it("すべての頼むことを候補に出して human の check を残らず集め、どれも registry にあるコマンドの名前か確かめる（打ち間違えると人に回らないまま依頼文を返す）", () => {
     const plan = (status: PlanState, complete = false): AskSubject => ({
       kind: "plan",
       id: "p33",
@@ -226,12 +226,12 @@ describe("人に回すかを決める操作の名前", () => {
       [iteration("active")],
       [iteration("planned")],
       [epic("closed")],
-      [epic("active")],
+      [epic("open")],
       [plan("closed")],
       [plan("pending_approval")],
       [plan("approved", true)],
       [plan("approved")],
-      [ticket(), epic("active")],
+      [ticket(), epic("open")],
     ];
     const names = new Set(commands.map((c) => c.name));
     const seen = new Set<string>();
@@ -246,8 +246,24 @@ describe("人に回すかを決める操作の名前", () => {
         }
       }
     expect([...ASK_ACTIONS].filter((a) => !seen.has(a))).toEqual([]);
-    expect(checked).toContain("ticket.move");
     expect(unknown).toEqual([]);
+    // 人に回しうる操作をすべて集めたか（対象の状態の並べ方の誤りで、照らさない名前が出ないように）
+    expect([...checked].sort()).toEqual([
+      "epic.add",
+      "epic.close",
+      "epic.create",
+      "epic.reopen",
+      "epic.update",
+      "iteration.add",
+      "iteration.close",
+      "iteration.create",
+      "iteration.reopen",
+      "iteration.update",
+      "plan.approve",
+      "ticket.create",
+      "ticket.import",
+      "ticket.move",
+    ]);
   });
 });
 
