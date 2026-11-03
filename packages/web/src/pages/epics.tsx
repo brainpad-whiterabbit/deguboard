@@ -201,7 +201,7 @@ function EpicTicketList({ epic, removable }: { epic: EpicDetail; removable: bool
               {section.label} <span className="muted">{items.length}</span>
             </summary>
             <ul className="rows">
-              {/* 行の吹き出しと右クリックで頼める。この Epic を within に渡し、「e2 から外す」を候補に足す（UI-15） */}
+              {/* 行の吹き出しと右クリックで頼める。この Epic を within に渡し、「e2 から外す」を候補に足す。Ctrl/⌘・Shift+クリックで複数選べる（UI-15） */}
               {items.map((t) => (
                 <AskSpotBox
                   key={t.id}
@@ -210,6 +210,7 @@ function EpicTicketList({ epic, removable }: { epic: EpicDetail; removable: bool
                   label={`行 ${t.id}`}
                   section={ASK_SECTIONS.detailTicket}
                   within={epic.id}
+                  select
                 >
                   <TicketRow ticket={t} />
                   {removable && <RemoveButton epic={epic.id} ticket={t.id} />}

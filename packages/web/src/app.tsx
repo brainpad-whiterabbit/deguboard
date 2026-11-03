@@ -4,7 +4,8 @@
 
 import { useEffect, useRef, type MouseEvent } from "react";
 import { AskComposer } from "./components/ask-composer.js";
-import { AskHint, AskMenuProvider } from "./components/ask-menu.js";
+import { AskHint, AskMenuProvider, SelectionBar } from "./components/ask-menu.js";
+import { SelectionProvider } from "./components/selection.js";
 import { useAsk, useHost, useUiState } from "./host.js";
 import { useStore, type Store } from "./store.js";
 import { hrefOf, isDetailRoute, parseRoute, toggleRoute, useRoute, type Route } from "./router.js";
@@ -179,24 +180,30 @@ export function App() {
         </header>
       )}
       <NoticeBar />
-      <main className="page">
-        {/* 最初の読み込みが終わるまでは空状態の文言を出さない。読み直しの間は画面を出したままにする（フォームの入力を失わない） */}
-        {!store.loaded ? (
-          <>
-            <p className="muted">読み込み中…</p>
-            {/* Webview では前回の一覧がないときだけここに来る。文字だけにせず、節と行の骨組みを出す */}
-            {host.surface === "browser" ? null : <LoadingSkeleton />}
-          </>
-        ) : (
-          // サイドバーではチケット詳細を出さない（エディタ領域のパネルに開く）。Run の画面もなく、カンバンを出す（UI-12）。
-          // 行・見出しの吹き出しと右クリックの候補は、出ている場所の分を AskMenuProvider がまとめて引く（UI-15）
-          <AskMenuProvider>
-            {/* 案内は頼める場所のある画面（カンバン・バックログ・履歴）にだけ出す */}
-            {sidebar && ASK_HINT_PAGES.has(shown.page) ? <AskHint /> : null}
-            <Page route={shown} />
-          </AskMenuProvider>
-        )}
-      </main>
+      {/* 一覧の行の複数選択は画面ごと（替えたら外す）。選んでいる間は下に帯を出す（UI-15） */}
+      <SelectionProvider scope={hrefOf(shown)}>
+        {/* 行・見出しの吹き出しと右クリックの候補は、出ている場所（選択の帯を含む）の分を AskMenuProvider がまとめて引く（UI-15） */}
+        <AskMenuProvider>
+          <main className="page">
+            {/* 最初の読み込みが終わるまでは空状態の文言を出さない。読み直しの間は画面を出したままにする（フォームの入力を失わない） */}
+            {!store.loaded ? (
+              <>
+                <p className="muted">読み込み中…</p>
+                {/* Webview では前回の一覧がないときだけここに来る。文字だけにせず、節と行の骨組みを出す */}
+                {host.surface === "browser" ? null : <LoadingSkeleton />}
+              </>
+            ) : (
+              // サイドバーではチケット詳細を出さない（エディタ領域のパネルに開く）。Run の画面もなく、カンバンを出す（UI-12）
+              <>
+                {/* 案内は頼める場所のある画面（カンバン・バックログ・履歴）にだけ出す */}
+                {sidebar && ASK_HINT_PAGES.has(shown.page) ? <AskHint /> : null}
+                <Page route={shown} />
+              </>
+            )}
+          </main>
+          {store.loaded ? <SelectionBar /> : null}
+        </AskMenuProvider>
+      </SelectionProvider>
       {/* 開き直したら（対象が替わったら）中の状態を捨てる。指示の下書きと形式は見た目の状態に残る */}
       {ask.request && store.loaded ? (
         <AskComposer

@@ -6,7 +6,9 @@
 // まとめて 1 回で引き、一覧が読み直されたら（Status が変わったかもしれない）引き直す。Provider の外では一覧を開いたときに引く。
 // 部品は場所によらない（左パネルのカンバン・バックログ・履歴と、パネルのチケット・Iteration・Epic の詳細のタイトルと中の行で使う）。
 // 詳細のタイトルは幅に余裕があるので、吹き出しをタイトルの横に常に出す（pinned）。詳細の中の行は、チケットが入っている
-// Iteration・Epic を within に渡し、「そこから外す」を候補に足す（右クリックで選んだときも、拡張はそのパネルの下に入力欄を開く）
+// Iteration・Epic を within に渡し、「そこから外す」を候補に足す（右クリックで選んだときも、拡張はそのパネルの下に入力欄を開く）。
+// 一覧の行は select で複数選べ（selection.tsx）、選んだ行の吹き出し・右クリックは選んだ全件を対象にする。選んでいる間は
+// 画面の下に「n 件を選択 ・ 頼む」の帯（SelectionBar）を出す
 
 import {
   createContext,
@@ -18,6 +20,7 @@ import {
   useRef,
   useState,
   type KeyboardEvent,
+  type MouseEvent,
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
@@ -25,6 +28,7 @@ import { WEBVIEW_CONTRACT_COPY } from "../client/webview.js";
 import { useAsk, useUiState } from "../host.js";
 import { useStore } from "../store.js";
 import type { AskCandidate, AskMenu } from "../types.js";
+import { SELECT_ATTR, selectKind, useSelection } from "./selection.js";
 
 /**
  * 頼める場所の webviewSection（core の WEBVIEW_CONTRACT.askSections の写し）。サブメニューの when は askActions だけを見るので、
@@ -154,6 +158,11 @@ export interface AskSpotOptions {
   pinned?: boolean | undefined;
   /** 対象のチケットが入っている Iteration・Epic（詳細の中の行）。候補に「そこから外す」が足される */
   within?: string | undefined;
+  /**
+   * 一覧の行（対象は targets の 1 件）を Ctrl/⌘・Shift+クリックで選べるようにする（selection.tsx）。
+   * 選んだ行が 2 件以上なら、吹き出し・右クリック・Shift+F10 は選んだ全件を対象にする
+   */
+  select?: boolean | undefined;
 }
 
 export interface AskSpot {
@@ -162,10 +171,20 @@ export interface AskSpot {
     "data-vscode-context": string;
     "data-ask-spot": "" | "active";
     onKeyDown(e: KeyboardEvent<HTMLElement>): void;
+    /** 選べる行だけ：行の ID・選んでいる印と、Ctrl/⌘・Shift+クリックで選ぶ（詳細は開かない） */
+    "data-select-id"?: string;
+    "data-selected"?: "";
+    onClickCapture?(e: MouseEvent<HTMLElement>): void;
+    onMouseDown?(e: MouseEvent<HTMLElement>): void;
   };
   /** 要素の中に描くもの：吹き出しのボタンと、開いているときの一覧（body に出す） */
   overlay: ReactNode;
+  /** 頼むことの一覧を from の下に開く（選択の帯の「頼む」） */
+  open(from: HTMLElement): void;
 }
+
+/** 選択のクリックとして扱わない場所（吹き出し・頼むことの一覧・行の中のボタンや入力） */
+const NOT_SELECT_CLICK = "button, input, select, textarea, .ask-menu";
 
 /**
  * 行・見出しを頼める場所にする。options が null なら何もしない（props は空の文脈、overlay は null）。
@@ -173,11 +192,17 @@ export interface AskSpot {
  */
 export function useAskSpot(options: AskSpotOptions | null): AskSpot {
   const ask = useAsk();
+  const selection = useSelection();
   const [open, setOpen] = useState(false);
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
   const bubbleRef = useRef<HTMLButtonElement>(null);
-  const targets = options?.targets ?? [];
-  const within = options?.within;
+  // 選べる行で、選んだ行が 2 件以上あってこの行も入っていれば、選んだ全件を対象にする
+  const rowId = options?.select && selection ? options.targets[0] : undefined;
+  const selected = rowId !== undefined && selection!.has(rowId);
+  const many = selected && selection!.ids.length > 1;
+  const targets = many ? selection!.ids : (options?.targets ?? []);
+  const within = many ? selection!.within : options?.within;
+  const label = many ? `選んだ ${targets.length} 件` : (options?.label ?? "");
   const key = askKey(targets, within);
   const menu = useAskMenu(options ? key : null, open);
   const candidates = options ? (menu?.candidates ?? null) : null;
@@ -217,7 +242,7 @@ export function useAskSpot(options: AskSpotOptions | null): AskSpot {
           ref={bubbleRef}
           type="button"
           className={options.pinned ? "ask-bubble pinned" : "ask-bubble"}
-          aria-label={`エージェントに頼む（${options.label}）`}
+          aria-label={`エージェントに頼む（${label}）`}
           aria-haspopup="menu"
           aria-expanded={open}
           title="エージェントに頼む（Shift+F10）"
@@ -238,7 +263,7 @@ export function useAskSpot(options: AskSpotOptions | null): AskSpot {
       {open && anchor ? (
         <AskMenuList
           anchor={anchor}
-          label={options.label}
+          label={label}
           menu={menu}
           onPick={(c) => {
             setOpen(false);
@@ -263,9 +288,79 @@ export function useAskSpot(options: AskSpotOptions | null): AskSpot {
           show(bubbleRef.current ?? e.currentTarget);
         }
       },
+      ...(rowId !== undefined && selection && options
+        ? {
+            [SELECT_ATTR]: rowId,
+            ...(selected ? { "data-selected": "" as const } : {}),
+            // 捕捉の段階で受け、選んだら行のリンク（TicketLink）と App のハッシュの受け手に渡さない
+            onClickCapture(e: MouseEvent<HTMLElement>) {
+              if (e.button !== 0 || (e.target as Element).closest?.(NOT_SELECT_CLICK)) return;
+              if (selection.click(rowId, e, { section: options.section, within: options.within })) {
+                e.preventDefault();
+                e.stopPropagation();
+              }
+            },
+            // Shift+クリックで文字を選ばない
+            onMouseDown(e: MouseEvent<HTMLElement>) {
+              if (e.button === 0 && selectKind(e) === "range") e.preventDefault();
+            },
+          }
+        : {}),
     },
     overlay,
+    open: show,
   };
+}
+
+/**
+ * 行を選んでいる間に画面の下に出す帯：「n 件を選択 ・ 頼む」と「選択を外す」。「頼む」で選んだ全件の頼むことの一覧を出す。
+ * 入力欄を開いている間は出さない（入力欄が同じ場所に出る）。帯の右クリックも選んだ全件を対象にする
+ */
+export function SelectionBar() {
+  const selection = useSelection();
+  const ask = useAsk();
+  const ids = selection?.ids ?? [];
+  const spot = useAskSpot(
+    selection && ids.length > 0
+      ? {
+          targets: ids,
+          label: `選んだ ${ids.length} 件`,
+          section: selection.section ?? ASK_SECTIONS.boardTicket,
+          within: selection.within,
+          bubble: false,
+        }
+      : null,
+  );
+  if (!selection || ids.length === 0 || ask.request) return null;
+  return (
+    <div className="selection-bar" role="region" aria-label="選んだ行" {...spot.props}>
+      <span className="selection-count" aria-live="polite">
+        {ids.length} 件を選択
+      </span>
+      <span className="muted" aria-hidden="true">
+        ・
+      </span>
+      <button
+        type="button"
+        className="primary selection-ask"
+        aria-haspopup="menu"
+        title="選んだ行をまとめてエージェントに頼む"
+        onClick={(e) => spot.open(e.currentTarget)}
+      >
+        頼む
+      </button>
+      <span className="selection-gap" />
+      <button
+        type="button"
+        className="selection-clear"
+        title="選択を外す（Esc）"
+        onClick={selection.clear}
+      >
+        選択を外す
+      </button>
+      {spot.overlay}
+    </div>
+  );
 }
 
 /** 頼める場所の要素。as の要素に useAskSpot の props と overlay を付ける */

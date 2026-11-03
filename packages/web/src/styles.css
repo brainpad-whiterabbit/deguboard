@@ -3059,3 +3059,48 @@ td.ask-cell {
   background: var(--vscode-toolbar-hoverBackground, var(--vscode-list-hoverBackground));
   color: var(--vscode-foreground);
 }
+/* 一覧の行の複数選択（UI-15。components/selection.tsx）。選んだ行は VS Code の一覧の選択の色と左端の線で示す */
+[data-selected],
+[data-selected][data-ask-spot="active"] {
+  background: var(--vscode-list-activeSelectionBackground, var(--vscode-list-hoverBackground));
+  box-shadow: inset 2px 0 0 var(--vscode-focusBorder);
+}
+[data-selected] > .ask-bubble,
+[data-selected] > .ask-cell > .ask-bubble {
+  opacity: 1;
+}
+/* 選んでいる間に画面の下に出す「n 件を選択 ・ 頼む」の帯。入力欄と同じ場所に出し、入力欄を開いている間は出さない */
+.selection-bar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0.4rem 0.6rem;
+  font-size: 12px;
+  background: var(--vscode-sideBar-background);
+  border-top: 1px solid var(--dg-border);
+  box-shadow: 0 -6px 18px rgb(0 0 0 / 10%);
+}
+.selection-bar[data-ask-spot="active"] {
+  background: var(--vscode-sideBar-background);
+}
+.selection-count {
+  font-weight: 600;
+}
+.selection-bar button {
+  padding: 0.15em 0.7em;
+  font-size: 12px;
+}
+.selection-gap {
+  flex: 1;
+}
+/* 絞り込みの件数は右クリックで頼める。点線の下線で示す */
+.quick-filters .count[data-ask-spot] {
+  padding: 0 4px;
+  border-radius: 3px;
+  border-bottom: 1px dashed var(--vscode-focusBorder);
+  cursor: context-menu;
+}
+.quick-filters .count[data-ask-spot]:hover {
+  background: var(--vscode-list-hoverBackground);
+}

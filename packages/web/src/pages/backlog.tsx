@@ -5,7 +5,7 @@
 // open の Epic は進捗つきの欄に並べ（UI-10）、押すとその Epic のチケットに絞る（もう一度押すと解除）。広い画面では Epic の作成も欄から行う。
 // サイドバーでは検索を常に出し、その右端の漏斗（カンバンと同じ FilterToggle）で絞り込みの欄を検索の下に開く（開閉は host.state に残す）。
 // その下によく使う絞り込み（自分・作業中・high）のチップと、欄で効いている条件の札（× で外す）を並べ、
-// 絞り込みか検索が効いているときだけ行の右端に「n / m 件」を出す。漏斗は条件が効いている間だけ色付きにする。
+// 絞り込みか検索が効いているときだけ行の右端に「n / m 件」を出す（右クリックで絞った結果をまとめて頼める）。漏斗は条件が効いている間だけ色付きにする。
 // サイドバーの Epic の欄は open の Epic があるときだけ、番号・題・進捗のチップと「Epic なし」のチップを並べる（2 行を超える分は「ほか N」）
 // サイドバーの行の右端には、カンバンと同じ優先度の札と、開いた Plan に入っていれば Plan の番号と着手可・待ちを出す（カンバンと同じ部品と判定。components/row-end.tsx の BacklogRowEnd）。
 // サイドバーの行は担当者の列を出さず、別の人の担当だけ右端に頭文字の丸で出す（自分か自分の agent は出さない。store.me）。
@@ -358,13 +358,7 @@ export function BacklogPage() {
           statusLabel={store.labelOf("in_progress")}
           meKnown={store.me !== null}
           onChange={set}
-          count={
-            filtering ? (
-              <span className="muted count" title={`全 ${total} 件のうち ${rows.length} 件`}>
-                {rows.length} / {total} 件
-              </span>
-            ) : null
-          }
+          count={filtering ? <FilteredCount rows={rows} total={total} /> : null}
         />
       ) : null}
       <div className="backlog-layout">
@@ -385,6 +379,32 @@ export function BacklogPage() {
         </div>
       </div>
     </section>
+  );
+}
+
+/**
+ * 絞っているときの「n / m 件」（サイドバー）。右クリックと Shift+F10 で、絞った結果のチケットをまとめて頼める（UI-15。吹き出しは置かない）。
+ * 0 件なら頼む対象がないので件数だけ
+ */
+function FilteredCount({ rows, total }: { rows: readonly Ticket[]; total: number }) {
+  const spot = useAskSpot(
+    rows.length > 0
+      ? {
+          targets: rows.map((t) => t.id),
+          label: `絞り込みの結果 ${rows.length} 件`,
+          section: ASK_SECTIONS.backlogHeading,
+          bubble: false,
+        }
+      : null,
+  );
+  return (
+    <span
+      className="muted count"
+      title={`全 ${total} 件のうち ${rows.length} 件${rows.length > 0 ? "（右クリックでまとめて頼む）" : ""}`}
+      {...(rows.length > 0 ? { ...spot.props, tabIndex: 0 } : {})}
+    >
+      {rows.length} / {total} 件{spot.overlay}
+    </span>
   );
 }
 
