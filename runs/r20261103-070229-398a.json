@@ -1,0 +1,23 @@
+{
+  "id": "r20261103-070229-398a",
+  "ticket": "t289",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-03T07:02:29Z",
+  "finished_at": "2026-11-03T07:03:28Z",
+  "result": "success",
+  "error": null,
+  "retries": 3,
+  "retry_reasons": [
+    "ticket.tsx のコピーのボタンが両方に出ると読めるよう行を分けた",
+    "sidebar.layout.ts 冒頭の幅に 320px を足した",
+    "vscode の README の正本に test/layout/ を足した"
+  ],
+  "usage": {
+    "input": 4,
+    "output": 1505,
+    "cache_read": 145997,
+    "cache_write": 2078
+  }
+}
