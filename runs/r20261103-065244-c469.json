@@ -1,0 +1,25 @@
+{
+  "id": "r20261103-065244-c469",
+  "ticket": "t290",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-03T06:52:44Z",
+  "finished_at": "2026-11-03T06:54:05Z",
+  "result": "success",
+  "error": null,
+  "retries": 5,
+  "retry_reasons": [
+    "ticket.tsx の doc コメントを fieldText と OptionalAttr の直前に戻した",
+    "ブラウザの保存のテストの要らない ticket.update の差し替えを消した",
+    "mock の ticket.update で acceptance を属性として書き込まないようにした",
+    "mock で一覧が変わらない違いを mockClient のコメントに書いた",
+    "ticket.show が 1 回のテストを本物のタイマーで待たないようにした"
+  ],
+  "usage": {
+    "input": 10,
+    "output": 3053,
+    "cache_read": 699737,
+    "cache_write": 4708
+  }
+}
