@@ -99,6 +99,6 @@ describe("履歴用の一覧", () => {
     mount(<HistoryTicketList tickets={tickets.slice(0, 8)} head={8} />);
     await screen.findByText("t1");
     expect(shown()).toHaveLength(8);
-    expect(screen.queryByRole("button")).toBeNull();
+    expect(screen.queryByRole("button", { name: /^ほか/ })).toBeNull();
   });
 });

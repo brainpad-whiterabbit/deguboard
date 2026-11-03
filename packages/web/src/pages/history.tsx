@@ -28,6 +28,7 @@ import {
   type ReactNode,
   type SyntheticEvent,
 } from "react";
+import { ASK_SECTIONS, useAskSpot } from "../components/ask-menu.js";
 import { DetailLink, ProgressBar, StatusDot, Tags, TicketLink } from "../components/parts.js";
 import { HistoryTicketList, HistoryTicketRow } from "../components/history-rows.js";
 import { useHost, useUiState } from "../host.js";
@@ -471,10 +472,16 @@ function IterationItem({
   const goal = i.goal?.trim();
   const period = i.start || i.end ? `${i.start ?? "?"} 〜 ${i.end ?? "?"}` : "";
   const meta = [goal ? i.name : "", period].filter(Boolean).join(" ・ ");
+  // 左パネルでは閉じた Iteration の行から頼む（UI-15）
+  const spot = useAskSpot(
+    sidebar
+      ? { targets: [i.id], label: `Iteration ${i.id}`, section: ASK_SECTIONS.historyRow }
+      : null,
+  );
   return (
     <li>
       <details className={`history-item${sidebar ? " fold" : ""}`} {...foldProps(fold)}>
-        <summary className="history-row">
+        <summary className="history-row" {...(sidebar ? spot.props : {})}>
           <DetailLink route={{ page: "iterations", id: i.id }}>
             <code>{i.id}</code>
           </DetailLink>
@@ -521,6 +528,7 @@ function IterationItem({
               </>
             )}
           </small>
+          {spot.overlay}
         </summary>
         {sidebar ? (
           !fold.open ? null : fold.searching && !fold.all ? (
@@ -697,6 +705,12 @@ function SidebarEpicItem({
   const store = useStore();
   const iterations = iterationsOfEpic(e.id, store.tickets);
   const finished = finishedOfEpic(e.id, store.tickets);
+  // 閉じた Epic の行から頼む（左パネルだけの部品。UI-15）
+  const spot = useAskSpot({
+    targets: [e.id],
+    label: `Epic ${e.id}`,
+    section: ASK_SECTIONS.historyRow,
+  });
   const head = (
     <>
       <DetailLink route={{ page: "epics", id: e.id }}>
@@ -722,20 +736,25 @@ function SidebarEpicItem({
           </span>
         ))}
       </small>
+      {spot.overlay}
     </>
   );
   if (finished.length === 0)
     return (
       <li>
         <div className="history-item history-empty">
-          <div className="history-row history-epic">{head}</div>
+          <div className="history-row history-epic" tabIndex={0} {...spot.props}>
+            {head}
+          </div>
         </div>
       </li>
     );
   return (
     <li>
       <details className="history-item fold" {...foldProps(fold)}>
-        <summary className="history-row history-epic">{head}</summary>
+        <summary className="history-row history-epic" {...spot.props}>
+          {head}
+        </summary>
         {!fold.open ? null : fold.searching && !fold.all ? (
           <SearchHits finished={finished} query={query} fold={fold} showIteration />
         ) : (

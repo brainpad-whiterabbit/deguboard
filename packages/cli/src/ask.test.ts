@@ -9,6 +9,7 @@ import {
   init,
   openContext,
   runCommand,
+  type AskMenu,
   type AskSubject,
   type AskView,
 } from "@deguboard/core";
@@ -108,5 +109,36 @@ describe("dg ask", () => {
     expect(human.err).toContain("★割り当てる（assign）");
     // 候補にない頼むことは使い方の誤り（終了コード 2）
     expect((await dg(f.cloneA, ["ask", "t1", "--action", "release"])).code).toBe(2);
+  });
+
+  it("ask-menu は組ごとに ask と同じ候補を返し、引けない組は error に理由を入れる（左パネルの吹き出しと右クリック）", async () => {
+    const f = await createFixture();
+    cleanups.push(f.cleanup);
+    await runCommand(init, await openContext({ cwd: f.cloneA, initialize: {} }), {});
+    expect((await dg(f.cloneA, ["ticket", "create", "一"])).code).toBe(0);
+    expect((await dg(f.cloneA, ["ticket", "create", "二"])).code).toBe(0);
+
+    const cli = await dg(f.cloneA, ["--json", "ask-menu", "t1", "t1 t2", "t1", "t99"]);
+    expect(cli.code).toBe(0);
+    const menus = (JSON.parse(cli.out) as { data: AskMenu[] }).data;
+    // 同じ組は 1 つにまとめる
+    expect(menus.map((m) => m.key)).toEqual(["t1", "t1 t2", "t99"]);
+    const client = createLocalClient({ cwd: f.cloneA, user: "ui" });
+    // 空の組は対象なし（CLI は空の位置引数を落とすので、プロセス内の CommandClient で確かめる）
+    menus.push(...(await client.run<AskMenu[]>("ask-menu", { sets: [""] })).data);
+    for (const [key, targets] of [
+      ["t1", ["t1"]],
+      ["t1 t2", ["t1", "t2"]],
+      ["", []],
+    ] as const) {
+      const one = await client.run<AskView>("ask", { targets });
+      expect(menus.find((m) => m.key === key)).toEqual({
+        key,
+        candidates: one.data.candidates,
+        error: null,
+      });
+    }
+    expect(menus.find((m) => m.key === "t99")).toMatchObject({ candidates: [] });
+    expect(menus.find((m) => m.key === "t99")!.error).toContain("t99");
   });
 });

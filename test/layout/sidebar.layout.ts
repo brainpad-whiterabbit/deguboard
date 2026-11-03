@@ -576,6 +576,71 @@ describe.each(SCHEMES)("Iteration の札の列（%s）", (scheme) => {
   );
 });
 
+describe("エージェントに頼む吹き出し（UI-15）", () => {
+  /** カンバンの todo の行の吹き出しの不透明度（マウスを載せた行とそれ以外） */
+  const opacities = (page: Page) =>
+    page.evaluate(() =>
+      [...document.querySelectorAll(".column .row-drag > .ask-bubble")].map((b) =>
+        Number(getComputedStyle(b).opacity),
+      ),
+    );
+
+  it.each(WIDTHS)(
+    "幅 %ipx で、ふだんは隠して右端の印を見せ、マウスを載せた行にだけ出し、押した一覧は画面の中に収まる",
+    async (width) => {
+      const context = await browser.newContext({ viewport: { width, height: 900 } });
+      const page = await context.newPage();
+      try {
+        await page.goto(`${server.url}?surface=sidebar#/board`, { waitUntil: "networkidle" });
+        const rows = page.locator(".column .row-drag");
+        await rows.first().waitFor();
+        await page.mouse.move(0, 0);
+        expect(
+          (await opacities(page)).every((o) => o === 0),
+          "ふだんは隠す",
+        ).toBe(true);
+        const row = rows.nth(1);
+        await row.hover();
+        const shown = await opacities(page);
+        expect(shown[1], "マウスを載せた行").toBe(1);
+        expect(
+          shown.filter((o) => o > 0),
+          "ほかの行は隠したまま",
+        ).toHaveLength(1);
+        await row.locator(".ask-bubble").click();
+        const menu = page.locator(".ask-menu");
+        await menu.waitFor();
+        await expect.poll(() => menu.locator("[role=menuitem]").count()).toBeGreaterThan(0);
+        const box = (await menu.boundingBox())!;
+        expect(box.x, "一覧の左端").toBeGreaterThanOrEqual(0);
+        expect(box.x + box.width, "一覧の右端").toBeLessThanOrEqual(width);
+        expect(await menu.locator("[role=menuitem]").first().textContent()).toContain("おすすめ");
+      } finally {
+        await context.close();
+      }
+    },
+  );
+
+  it("タッチの画面（hover: none）では、マウスを載せなくても吹き出しを出す", async () => {
+    const context = await browser.newContext({
+      viewport: { width: 300, height: 900 },
+      isMobile: true,
+      hasTouch: true,
+    });
+    const page = await context.newPage();
+    try {
+      await page.goto(`${server.url}?surface=sidebar#/board`, { waitUntil: "networkidle" });
+      await page.locator(".column .row-drag").first().waitFor();
+      expect(await page.evaluate(() => matchMedia("(hover: none)").matches)).toBe(true);
+      const all = await opacities(page);
+      expect(all.length).toBeGreaterThan(0);
+      expect(all.every((o) => o > 0)).toBe(true);
+    } finally {
+      await context.close();
+    }
+  });
+});
+
 describe.each(SCHEMES)("設定画面（%s）", (scheme) => {
   it.each(WIDTHS)(
     "幅 %ipx で、確認の帯を開いても、長い worktree.root と actions.test のリストがあっても横にはみ出さない",

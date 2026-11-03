@@ -4,18 +4,22 @@
 // 選んだチップ（pressed）は「ほか N」に隠さず、出す分の最後に回す
 
 import { Children, isValidElement, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import type { AskSpot } from "./ask-menu.js";
 
 export function Chip({
   pressed,
   onClick,
   title,
   className,
+  extra,
   children,
 }: {
   pressed: boolean;
   onClick: () => void;
   title?: string;
   className?: string;
+  /** ボタンに足す属性（エージェントに頼む場所の右クリックの文脈と Shift+F10。ask-menu.tsx の useAskSpot の props） */
+  extra?: AskSpot["props"] | undefined;
   children: ReactNode;
 }) {
   return (
@@ -25,6 +29,7 @@ export function Chip({
       aria-pressed={pressed}
       title={title}
       onClick={onClick}
+      {...extra}
     >
       {children}
     </button>

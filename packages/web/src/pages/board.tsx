@@ -10,6 +10,7 @@
 // 待ちと承認待ちの行（実行中の Run がないもの）はタイトルを説明文の色で薄く出す。
 // 左パネルの行の頭には、実行中の Run があるチケットなら回るリング（右端の下の段に「実行中」）を、実行中の Run のない in_progress なら止まった半分塗りの丸を出す。
 // 入っている Iteration か Epic が閉じた done・abandoned のチケットは出さない（履歴でたどる）。
+// 左パネルの行・状態の節の見出し・Iteration の見出し・Plan の帯は、エージェントに頼める場所にする（吹き出し・右クリック・Shift+F10。UI-15）。
 // 節の開閉・最後に選んだ Iteration は host.state に覚える。
 // ドラッグ＆ドロップは ticket.move を呼び、拒否されたら通知に理由を出して元の列に戻す（読み直すだけで戻る）
 
@@ -23,6 +24,7 @@ import {
   type DragEndEvent,
 } from "@dnd-kit/core";
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
+import { ASK_SECTIONS, useAskSpot } from "../components/ask-menu.js";
 import {
   ActivityMark,
   DraggableRow,
@@ -443,6 +445,16 @@ function SidebarBoardHead({
       ? "planned・active のすべて"
       : "開いた Iteration はない";
   const period = it ? shortPeriod(it.start, it.end) : undefined;
+  // 選んでいる Iteration の見出し（名前・期間・目標の段）から、その Iteration を頼む（「すべて」のときは出さない）
+  const spot = useAskSpot(
+    it
+      ? {
+          targets: [it.id],
+          label: `Iteration の見出し ${it.id}`,
+          section: ASK_SECTIONS.boardHeading,
+        }
+      : null,
+  );
   return (
     <header className="board-head sidebar-head">
       <div className="head-line">
@@ -463,7 +475,7 @@ function SidebarBoardHead({
           />
         ) : null}
       </div>
-      <div className="head-line sub muted">
+      <div className="head-line sub muted" {...(it ? { ...spot.props, tabIndex: 0 } : {})}>
         <span className="name">{name}</span>
         {period ? <span className="period">{period}</span> : null}
         {it?.goal ? (
@@ -471,6 +483,7 @@ function SidebarBoardHead({
             {it.goal}
           </span>
         ) : null}
+        {spot.overlay}
       </div>
       {open.length > 0 ? (
         <div className="head-line">
@@ -694,6 +707,16 @@ function Column({
   const { setNodeRef, isOver } = useDroppable({ id: status });
   const sidebar = host.surface === "sidebar";
   const empty = tickets.length === 0;
+  // 節の見出しから、節のチケットをまとめて頼む（空の節は頼む対象がないので出さない）
+  const spot = useAskSpot(
+    sidebar && !empty
+      ? {
+          targets: tickets.map((t) => t.id),
+          label: `状態の節 ${store.labelOf(status)}`,
+          section: ASK_SECTIONS.boardHeading,
+        }
+      : null,
+  );
   return (
     <details
       ref={setNodeRef}
@@ -702,7 +725,7 @@ function Column({
       className={`column fold status-${status}${empty ? " is-empty" : ""}${isOver ? " over" : ""}`}
       data-status={status}
     >
-      <summary>
+      <summary {...(spot.overlay ? spot.props : {})}>
         <h2>
           <StatusDot status={status} />
           <span>{store.labelOf(status)}</span>
@@ -712,6 +735,7 @@ function Column({
             {tickets.length}
           </span>
         </h2>
+        {spot.overlay}
       </summary>
       {sidebar ? (
         empty ? null : (
@@ -732,6 +756,7 @@ function Column({
                   }
                   flash={flashing.has(t.id)}
                   variant="kanban"
+                  ask={ASK_SECTIONS.boardTicket}
                   head={activity ? <ActivityMark activity={activity} /> : undefined}
                   end={
                     mark || running || t.assignee ? (

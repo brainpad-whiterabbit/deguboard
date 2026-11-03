@@ -1,9 +1,11 @@
 // 履歴用のチケットの行と一覧（左パネルの履歴）。Iteration・Epic・チケットのタブで共用する。
 // 行は 2 段：1 段目は状態の丸印・番号・タイトル（サイドバーでは 2 行まで）、2 段目は Epic・PR などの付記。
 // 優先度と担当者は出さない（終わったものを見る画面なので）。中止の行は薄くし、付記の頭に「中止」と書いて完了と見分ける。
-// 検索中は query を渡し、当たった部分（タイトル・番号・ラベル）に印（mark）を付ける
+// 検索中は query を渡し、当たった部分（タイトル・番号・ラベル）に印（mark）を付ける。
+// 行はエージェントに頼める場所にする（右端の吹き出し・右クリック・Shift+F10。ask-menu.tsx）
 
 import { Fragment, useState, type ReactNode } from "react";
+import { ASK_SECTIONS, useAskSpot } from "./ask-menu.js";
 import { DetailLink, StatusDot, TicketLink } from "./parts.js";
 import { useStore } from "../store.js";
 import type { Ticket } from "../types.js";
@@ -53,6 +55,12 @@ export function HistoryTicketRow({
   query?: string | undefined;
 }) {
   const store = useStore();
+  // 行から頼む（UI-15。吹き出し・右クリック・Shift+F10）
+  const spot = useAskSpot({
+    targets: [t.id],
+    label: `行 ${t.id}`,
+    section: ASK_SECTIONS.historyRow,
+  });
   const q = query?.trim().toLowerCase() ?? "";
   const abandoned = t.status === "abandoned";
   const parts: ReactNode[] = [];
@@ -89,7 +97,7 @@ export function HistoryTicketRow({
     );
   if (note != null) parts.push(note);
   return (
-    <div className={`history-ticket${abandoned ? " abandoned" : ""}`}>
+    <div className={`history-ticket${abandoned ? " abandoned" : ""}`} {...spot.props}>
       <TicketLink id={t.id} className={`row ticket-row history-ticket-main status-${t.status}`}>
         <StatusDot status={t.status} />
         <code>
@@ -107,6 +115,7 @@ export function HistoryTicketRow({
           </span>
         ))}
       </small>
+      {spot.overlay}
     </div>
   );
 }

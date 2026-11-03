@@ -11,6 +11,7 @@ import {
   type ReactNode,
 } from "react";
 import { WEBVIEW_CONTRACT_COPY } from "../client/webview.js";
+import { useAskSpot, type AskSection } from "./ask-menu.js";
 import { useHost } from "../host.js";
 import { hrefOf, type Route } from "../router.js";
 import { useStore } from "../store.js";
@@ -451,7 +452,10 @@ export function sameAssignee(tickets: readonly Pick<Ticket, "assignee">[]): bool
   return !!first && tickets.every((t) => t.assignee === first);
 }
 
-/** 1 行のチケット（サイドバー）。行全体をつかんで動かす。variant・head・end は TicketRow に渡す。dimmed でタイトルを説明文の色にする */
+/**
+ * 1 行のチケット（サイドバー）。行全体をつかんで動かす。variant・head・end は TicketRow に渡す。dimmed でタイトルを説明文の色にする。
+ * ask を渡すと行をエージェントに頼める場所にする（右端の吹き出し・右クリック・Shift+F10。ask-menu.tsx）
+ */
 export function DraggableRow({
   ticket,
   hideAssignee,
@@ -460,6 +464,7 @@ export function DraggableRow({
   head,
   end,
   dimmed = false,
+  ask,
 }: {
   ticket: Ticket;
   hideAssignee?: boolean | undefined;
@@ -469,15 +474,21 @@ export function DraggableRow({
   end?: ReactNode;
   /** すぐに手を付けられない行（カンバンの待ち・承認待ち）としてタイトルを薄く出す */
   dimmed?: boolean | undefined;
+  /** エージェントに頼む場所の右クリックの文脈（webviewSection）。対象はこの行のチケット */
+  ask?: AskSection | undefined;
 }) {
   // 分けて受ける。d.ref を ref に渡すと、規則（react/refs）が d を ref と見なし、d.style などを描画中の ref の読みと誤る
   const { ref, style, isDragging, props } = useDraggableTicket(ticket.id);
+  const spot = useAskSpot(
+    ask ? { targets: [ticket.id], label: `行 ${ticket.id}`, section: ask } : null,
+  );
   return (
     <div
       ref={ref}
       style={style}
       className={`row-drag${dimmed ? " is-waiting" : ""}${isDragging ? " dragging" : ""}`}
       {...props}
+      {...(ask ? spot.props : {})}
     >
       <TicketRow
         ticket={ticket}
@@ -487,6 +498,7 @@ export function DraggableRow({
         head={head}
         end={end}
       />
+      {spot.overlay}
     </div>
   );
 }
@@ -502,17 +514,22 @@ function DraggableTr({ ticket, children }: { ticket: Ticket; children: ReactNode
 }
 
 /**
- * バックログの行の右クリックの文脈。webviewSection は core の WEBVIEW_CONTRACT の写しで、拡張の package.json の when と合う。
- * 既定の切り取り・コピー・貼り付けは出さない
+ * バックログの行（サイドバー）。右クリックの文脈は webviewSection（core の WEBVIEW_CONTRACT の写しで、拡張の package.json の when と合う）と
+ * チケット・Iteration・Project で、エージェントに頼む吹き出しとサブメニューの候補も載せる（useAskSpot。既定の切り取り・コピー・貼り付けは出さない）
  */
-function rowMenuContext(t: Ticket): string {
-  return JSON.stringify({
-    webviewSection: WEBVIEW_CONTRACT_COPY.backlogRowSection,
-    ticket: t.id,
-    iteration: t.iteration ?? null,
-    project: t.project,
-    preventDefaultContextMenuItems: true,
+function BacklogItem({ ticket: t, children }: { ticket: Ticket; children: ReactNode }) {
+  const spot = useAskSpot({
+    targets: [t.id],
+    label: `行 ${t.id}`,
+    section: WEBVIEW_CONTRACT_COPY.backlogRowSection,
+    context: { ticket: t.id, iteration: t.iteration ?? null, project: t.project },
   });
+  return (
+    <li {...spot.props}>
+      {children}
+      {spot.overlay}
+    </li>
+  );
 }
 
 /**
@@ -536,8 +553,8 @@ export function TicketTable({
    */
   assigneeInEnd?: boolean;
   /**
-   * サイドバーの行に VS Code の右クリックのメニューの文脈（data-vscode-context）を付ける。左パネルのバックログで使う。
-   * メニューとコマンドは拡張の package.json の webview/context と context-menu.ts。ブラウザでは何も起きない
+   * サイドバーの行に VS Code の右クリックのメニューの文脈（data-vscode-context）を付け、エージェントに頼む吹き出しを出す。左パネルのバックログで使う。
+   * メニューとコマンドは拡張の package.json の webview/context と context-menu.ts。ブラウザでは右クリックのメニューは出ない
    */
   rowMenu?: boolean;
   /**
@@ -555,21 +572,35 @@ export function TicketTable({
     const variant = assigneeInEnd ? "backlog" : "list";
     return (
       <ul className={assigneeInEnd ? "rows backlog-rows" : "rows"}>
-        {tickets.map((t) => (
-          <li key={t.id} data-vscode-context={rowMenu ? rowMenuContext(t) : undefined}>
-            {draggable ? (
-              <DraggableRow
-                ticket={t}
-                hideAssignee={hideAssignee}
-                variant={variant}
-                end={endOf(t)}
-              />
-            ) : (
-              <TicketRow ticket={t} hideAssignee={hideAssignee} variant={variant} end={endOf(t)} />
-            )}
-            {extra ? extra(t) : null}
-          </li>
-        ))}
+        {tickets.map((t) => {
+          const content = (
+            <>
+              {draggable ? (
+                <DraggableRow
+                  ticket={t}
+                  hideAssignee={hideAssignee}
+                  variant={variant}
+                  end={endOf(t)}
+                />
+              ) : (
+                <TicketRow
+                  ticket={t}
+                  hideAssignee={hideAssignee}
+                  variant={variant}
+                  end={endOf(t)}
+                />
+              )}
+              {extra ? extra(t) : null}
+            </>
+          );
+          return rowMenu ? (
+            <BacklogItem key={t.id} ticket={t}>
+              {content}
+            </BacklogItem>
+          ) : (
+            <li key={t.id}>{content}</li>
+          );
+        })}
       </ul>
     );
   }

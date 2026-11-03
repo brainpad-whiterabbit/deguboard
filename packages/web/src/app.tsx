@@ -1,9 +1,10 @@
 // 画面の骨組み：上のバー（Project の切り替え・画面の切り替え・同期の印）と、ハッシュで選んだページ。
 // サイドバーでは同期の印とボタン・設定の歯車・エージェントに頼む吹き出しを出さない（ビューのタイトル行のボタンとバッジで代える。UI-12）。
-// エージェントに頼む入力欄（UI-15）は、開いていればページの下に出す
+// エージェントに頼む入力欄（UI-15）は、開いていればページの下に出す。左パネルでは初めて開いたときに 1 度だけ、行の吹き出しと右クリックの案内を出す
 
 import { useEffect, useRef, type MouseEvent } from "react";
 import { AskComposer } from "./components/ask-composer.js";
+import { AskHint, AskMenuProvider } from "./components/ask-menu.js";
 import { useAsk, useHost, useUiState } from "./host.js";
 import { useStore, type Store } from "./store.js";
 import { hrefOf, isDetailRoute, parseRoute, toggleRoute, useRoute, type Route } from "./router.js";
@@ -187,13 +188,23 @@ export function App() {
             {host.surface === "browser" ? null : <LoadingSkeleton />}
           </>
         ) : (
-          // サイドバーではチケット詳細を出さない（エディタ領域のパネルに開く）。Run の画面もなく、カンバンを出す（UI-12）
-          <Page route={shown} />
+          // サイドバーではチケット詳細を出さない（エディタ領域のパネルに開く）。Run の画面もなく、カンバンを出す（UI-12）。
+          // 行・見出しの吹き出しと右クリックの候補は、出ている場所の分を AskMenuProvider がまとめて引く（UI-15）
+          <AskMenuProvider>
+            {/* 案内は頼める場所のある画面（カンバン・バックログ・履歴）にだけ出す */}
+            {sidebar && ASK_HINT_PAGES.has(shown.page) ? <AskHint /> : null}
+            <Page route={shown} />
+          </AskMenuProvider>
         )}
       </main>
       {/* 開き直したら（対象が替わったら）中の状態を捨てる。指示の下書きと形式は見た目の状態に残る */}
       {ask.request && store.loaded ? (
-        <AskComposer key={ask.serial} targets={ask.request.targets} onClose={ask.close} />
+        <AskComposer
+          key={ask.serial}
+          targets={ask.request.targets}
+          action={ask.request.action}
+          onClose={ask.close}
+        />
       ) : null}
     </div>
   );
@@ -243,6 +254,9 @@ function sidebarRoute(route: Route, sidebar: boolean): Route {
   if (route.page === "runs") return { page: "board" };
   return route;
 }
+
+/** 左パネルで初めての案内を出す画面（行・見出しから頼める画面） */
+const ASK_HINT_PAGES: ReadonlySet<Route["page"]> = new Set(["board", "backlog", "history"]);
 
 function Page({ route }: { route: Route }) {
   switch (route.page) {

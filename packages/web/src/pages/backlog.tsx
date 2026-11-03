@@ -8,7 +8,8 @@
 // 絞り込みか検索が効いているときだけ行の右端に「n / m 件」を出す。漏斗は条件が効いている間だけ色付きにする。
 // サイドバーの Epic の欄は open の Epic があるときだけ、番号・題・進捗のチップと「Epic なし」のチップを並べる（2 行を超える分は「ほか N」）
 // サイドバーの行の右端には、カンバンと同じ優先度の札と、開いた Plan に入っていれば Plan の番号と着手可・待ちを出す（カンバンと同じ部品と判定。components/row-end.tsx の BacklogRowEnd）。
-// サイドバーの行は担当者の列を出さず、別の人の担当だけ右端に頭文字の丸で出す（自分か自分の agent は出さない。store.me）
+// サイドバーの行は担当者の列を出さず、別の人の担当だけ右端に頭文字の丸で出す（自分か自分の agent は出さない。store.me）。
+// サイドバーの行・区画の見出し・Epic の札は、エージェントに頼める場所にする（行と見出しは吹き出し、札は右クリックと Shift+F10。UI-15）
 
 import {
   DndContext,
@@ -19,6 +20,7 @@ import {
   type DragEndEvent,
 } from "@dnd-kit/core";
 import { useMemo, useState, type ReactNode } from "react";
+import { ASK_SECTIONS, useAskSpot } from "../components/ask-menu.js";
 import { Chip, ChipRow } from "../components/chips.js";
 import {
   IterationActions,
@@ -44,6 +46,7 @@ import {
   matchesClaim,
   ticketMatchesQuery,
   NO_CLAIM,
+  type EpicRow,
   type Iteration,
   type Ticket,
   type WhoamiView,
@@ -483,6 +486,16 @@ function Section({
   // 2 段目に状態・月日の期間・目標を 1 行で（目標が溢れたら省略してツールチップで全文。カンバンと同じ）。開始・閉じるは置かず、詳細の画面で行う。
   // 0 件の区画は帯も 2 段目もない 1 行にし、「Iteration なし」は行の右端の「+」で作る
   const period = it ? shortPeriod(it.start, it.end) : undefined;
+  // 左パネルの区画の見出しから頼む：Iteration の区画はその Iteration、「Iteration なし」は中のチケットをまとめて（0 件なら出さない）
+  const spot = useAskSpot(
+    sidebar && (it || tickets.length > 0)
+      ? {
+          targets: it ? [it.id] : tickets.map((t) => t.id),
+          label: `区画の見出し ${it ? it.id : "Iteration なし"}`,
+          section: ASK_SECTIONS.backlogHeading,
+        }
+      : null,
+  );
   const sidebarHead = (
     <>
       <span className="head-line">
@@ -584,7 +597,10 @@ function Section({
         open={tickets.length === 0 ? creating : open}
         onToggle={(e) => tickets.length > 0 && setOpen(e.currentTarget.open)}
       >
-        <summary>{sidebarHead}</summary>
+        <summary {...(spot.overlay ? spot.props : {})}>
+          {sidebarHead}
+          {spot.overlay}
+        </summary>
         {body}
       </details>
     );
@@ -638,17 +654,7 @@ function EpicChips({ selected, onSelect }: { selected: string; onSelect: (epic: 
         lessLabel="Epic を畳む"
       >
         {epics.map((e) => (
-          <Chip
-            key={e.id}
-            className="epic-chip"
-            pressed={selected === e.id}
-            title={selected === e.id ? "絞り込みを外す" : `${e.id} ${e.title} で絞る`}
-            onClick={() => onSelect(e.id)}
-          >
-            <code>{e.id}</code>
-            <span className="chip-title">{e.title}</span>
-            <ProgressBar progress={e.progress} short />
-          </Chip>
+          <EpicChip key={e.id} epic={e} pressed={selected === e.id} onSelect={onSelect} />
         ))}
         <Chip
           key={NO_EPIC}
@@ -662,6 +668,40 @@ function EpicChips({ selected, onSelect }: { selected: string; onSelect: (epic: 
         </Chip>
       </ChipRow>
     </div>
+  );
+}
+
+/**
+ * サイドバーの Epic の札。押すとその Epic で絞る。札は狭いので吹き出しは置かず、右クリックと Shift+F10 でその Epic を頼む（UI-15）
+ */
+function EpicChip({
+  epic: e,
+  pressed,
+  onSelect,
+}: {
+  epic: EpicRow;
+  pressed: boolean;
+  onSelect: (epic: string) => void;
+}) {
+  const spot = useAskSpot({
+    targets: [e.id],
+    label: `Epic の札 ${e.id}`,
+    section: ASK_SECTIONS.epicChip,
+    bubble: false,
+  });
+  return (
+    <Chip
+      className="epic-chip"
+      pressed={pressed}
+      title={pressed ? "絞り込みを外す" : `${e.id} ${e.title} で絞る`}
+      onClick={() => onSelect(e.id)}
+      extra={spot.props}
+    >
+      <code>{e.id}</code>
+      <span className="chip-title">{e.title}</span>
+      <ProgressBar progress={e.progress} short />
+      {spot.overlay}
+    </Chip>
   );
 }
 
