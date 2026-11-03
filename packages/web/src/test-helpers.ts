@@ -159,6 +159,9 @@ export interface MockClient extends CommandClient {
   data: Fixture;
 }
 
+/** mockClient の ticket.show・ticket.update が返す本文 */
+const TICKET_BODY = "## 概要\n\n本文\n\n## 受け入れ条件\n\n- [ ] a\n";
+
 export function mockClient(data = fixture()): MockClient {
   const calls: MockClient["calls"] = [];
   const handlers: MockClient["handlers"] = {
@@ -187,11 +190,26 @@ export function mockClient(data = fixture()): MockClient {
       const t = data.tickets.find((x) => x.id === (input as { ticket: string }).ticket)!;
       return {
         ...t,
-        body: "## 概要\n\n本文\n\n## 受け入れ条件\n\n- [ ] a\n",
+        body: TICKET_BODY,
         dependents: [],
         deps_done: true,
         pending_deps: [],
       };
+    },
+    // core の ticket.update と同じく、属性を直して（null は外す）チケットの属性と本文を返す
+    "ticket.update": (input) => {
+      const {
+        ticket: id,
+        fields,
+        ...patch
+      } = input as { ticket: string; fields?: Record<string, unknown> } & Record<string, unknown>;
+      const t = data.tickets.find((x) => x.id === id)! as unknown as Record<string, unknown>;
+      for (const [key, value] of Object.entries({ ...patch, ...fields })) {
+        if (key === "body") continue;
+        if (value === null) delete t[key];
+        else t[key] = value;
+      }
+      return { ...t, body: (patch["body"] as string | undefined) ?? TICKET_BODY };
     },
     "ticket.move": (input) => {
       const { ticket: id, status } = input as { ticket: string; status: Ticket["status"] };

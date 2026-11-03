@@ -118,6 +118,40 @@ const PROGRESS_STATUSES = [
 ] as const satisfies readonly Status[];
 
 /**
+ * 進捗の帯と右の数字の枠。segments を左から積み、幅は total に対する件数の比。
+ * StackedProgress と本文の節の見出しのメーター（markdown.tsx の TaskMeter）が使う
+ */
+export function ProgressMeter({
+  segments,
+  total,
+  className,
+  title,
+  children,
+}: {
+  segments: { key: string; className: string; count: number }[];
+  total: number;
+  className: string;
+  title: string;
+  /** 帯の右に出す数字 */
+  children: ReactNode;
+}) {
+  return (
+    <span className={className} title={title}>
+      <span className="bar">
+        {segments.map((seg) => (
+          <span
+            key={seg.key}
+            className={seg.className}
+            style={{ width: `${(seg.count / total) * 100}%` }}
+          />
+        ))}
+      </span>
+      <span className="muted">{children}</span>
+    </span>
+  );
+}
+
+/**
  * 進捗の帯と数字。Status ごとの件数を done から積み、色は --dg-status-*、ツールチップに内訳を出す。
  * partial なら done 以外を斜線にする。ProgressBar と StatusBand が使う
  */
@@ -140,18 +174,18 @@ function StackedProgress({
   })).filter((seg) => seg.count > 0);
   const title = segments.map((seg) => `${store.labelOf(seg.status)} ${seg.count}`).join(" / ");
   return (
-    <span className={className} title={title || "チケットはない"}>
-      <span className="bar">
-        {segments.map((seg) => (
-          <span
-            key={seg.status}
-            className={`status-${seg.status}${partial && seg.status !== "done" ? " partial" : ""}`}
-            style={{ width: `${(seg.count / progress.total) * 100}%` }}
-          />
-        ))}
-      </span>
-      <span className="muted">{children}</span>
-    </span>
+    <ProgressMeter
+      className={className}
+      title={title || "チケットはない"}
+      total={progress.total}
+      segments={segments.map((seg) => ({
+        key: seg.status,
+        className: `status-${seg.status}${partial && seg.status !== "done" ? " partial" : ""}`,
+        count: seg.count,
+      }))}
+    >
+      {children}
+    </ProgressMeter>
   );
 }
 

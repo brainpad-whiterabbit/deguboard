@@ -19,13 +19,13 @@ import { Markdown } from "../markdown.js";
 import { hrefOf } from "../router.js";
 import { useStore, type Store } from "../store.js";
 import {
-  isFinished,
   movableStatuses,
   PRIORITIES,
   STATUSES,
   type FieldDefinition,
   type Priority,
   type Status,
+  type Ticket,
   type TicketDetail,
   type WorkflowView,
 } from "../types.js";
@@ -55,6 +55,21 @@ function draftOf(t: TicketDetail, fields: readonly FieldDefinition[]): Draft {
 }
 
 /** 任意フィールドの値の文字列（入力欄の値）。未設定は空 */
+/**
+ * ticket.update の結果（チケットの属性と本文）に、ticket.show だけが出す値（受け入れ条件・依存元・依存先の状態・Plan）を前の詳細から足す。
+ * 外した属性（epic など）は結果にないので、前の詳細に重ねず結果を土台にする
+ */
+function withDerived(updated: Ticket & { body: string }, prev: TicketDetail): TicketDetail {
+  return {
+    ...updated,
+    acceptance: prev.acceptance,
+    dependents: prev.dependents,
+    deps_done: prev.deps_done,
+    pending_deps: prev.pending_deps,
+    plan: prev.plan,
+  };
+}
+
 function fieldText(value: unknown): string {
   return value === undefined ? "" : String(value);
 }
@@ -89,6 +104,14 @@ function fieldInputType(def: FieldDefinition): "text" | "number" | "date" {
 }
 
 /** パネルで値がなければ「なし」の行にまとめる属性 */
+/** 依存先・依存元の 1 行に出すもの。status は分からなければ null、finished は終わった依存先か */
+interface Relation {
+  id: string;
+  title: string;
+  status: Status | null;
+  finished: boolean;
+}
+
 interface OptionalAttr {
   /** 行の key と、その場で直している属性の key */
   key: string;
@@ -198,23 +221,29 @@ export function TicketPage({ id }: { id: string }) {
     if (status !== ticket.status) await store.run("ticket.move", { ticket: ticket.id, status });
   };
 
-  const dependsOn = ticket.depends_on.map(
-    (d) => store.tickets.find((t) => t.id === d) ?? { id: d, title: "" },
-  );
-  const dependents = ticket.dependents.map(
-    (d) => store.tickets.find((t) => t.id === d) ?? { id: d, title: "" },
-  );
+  const rowOf = (id: string) => store.tickets.find((t) => t.id === id);
+  // 依存先が終わったかは ticket.show の pending_deps で決める（別の Project の依存先も見る。t284 の帯と同じ判定）。
+  // 丸印の Status も終わっていない依存先は pending_deps のものを使い、一覧にない終わった依存先には丸印を付けない
+  const dependsOn: Relation[] = ticket.depends_on.map((id) => {
+    const pending = ticket.pending_deps.find((p) => p.id === id);
+    const row = rowOf(id);
+    return {
+      id,
+      title: row?.title ?? "",
+      status: pending ? pending.status : (row?.status ?? null),
+      finished: !pending,
+    };
+  });
+  const dependents: Relation[] = ticket.dependents.map((id) => {
+    const row = rowOf(id);
+    return { id, title: row?.title ?? "", status: row?.status ?? null, finished: false };
+  });
   /** 依存先・依存元の 1 行。パネルでは頭に Status の丸印を付け、終わった（done・abandoned）依存先は薄くする */
-  const relation = (d: (typeof dependsOn)[number], dimDone: boolean) => (
-    <div
-      key={d.id}
-      className={
-        panel && dimDone && "status" in d && isFinished(d.status) ? "dep-finished" : undefined
-      }
-    >
-      {panel && "status" in d ? <StatusDot status={d.status} /> : null}
+  const relation = (d: Relation, dimDone: boolean) => (
+    <div key={d.id} className={panel && dimDone && d.finished ? "dep-finished" : undefined}>
+      {panel && d.status ? <StatusDot status={d.status} /> : null}
       <TicketLink id={d.id} title={d.title} />
-      {!panel && dimDone && "status" in d ? (
+      {!panel && dimDone && d.status ? (
         <>
           {" "}
           <StatusBadge status={d.status} />
@@ -244,7 +273,7 @@ export function TicketPage({ id }: { id: string }) {
 
   /**
    * パネルで属性 1 つをその場で直す部品。確定した値を toPatch で ticket.update の入力にし、その属性だけを渡す。
-   * 失敗なら欄を開いたままにする。成功なら直したチケットを読み直してから閉じる（「＋足す」で入れた属性が一瞬「なし」に戻らないよう）
+   * 失敗なら欄を開いたままにする。成功なら ticket.update の結果を詳細に入れてから閉じる（「＋足す」で入れた属性が一瞬「なし」に戻らないよう）
    */
   const inline = (
     key: string,
@@ -270,12 +299,14 @@ export function TicketPage({ id }: { id: string }) {
         if (saving.current) return false;
         saving.current = true;
         try {
-          const r = await store.run("ticket.update", { ticket: ticket.id, ...toPatch(raw) });
+          const r = await store.run<Ticket & { body: string }>("ticket.update", {
+            ticket: ticket.id,
+            ...toPatch(raw),
+          });
           if (!r.ok) return false;
-          await store.client
-            .run<TicketDetail>("ticket.show", { ticket: ticket.id })
-            .then((shown) => setTicket(shown.data))
-            .catch(() => {});
+          // 直した属性は ticket.update の結果（チケットの属性と本文）で先に入れる。依存や受け入れ条件などは
+          // 一覧の読み直しで走る ticket.show（上の effect）が入れ直すので、ここでは ticket.show を呼ばない
+          setTicket((prev) => (prev ? withDerived(r.data, prev) : prev));
           // 保存の間に別の属性を直し始めていたら、その欄は閉じない
           setEditing((current) => (current === key ? null : current));
           return true;

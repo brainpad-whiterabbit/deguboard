@@ -81,7 +81,7 @@ export function TicketRuns({ id }: { id: string }) {
             </thead>
             <tbody>
               {runs.map((r) => {
-                const est = r.usage.estimated === true;
+                const u = usageTexts(r);
                 return (
                   <tr key={r.id} title={r.id}>
                     <td>{r.step}</td>
@@ -93,9 +93,9 @@ export function TicketRuns({ id }: { id: string }) {
                     </td>
                     <td
                       className="num"
-                      title={`cache read ${formatTokens(r.usage.cache_read, est)} / cache write ${formatTokens(r.usage.cache_write, est)}${est ? "（推定を含む）" : ""}`}
+                      title={`cache read ${u.cache_read} / cache write ${u.cache_write}${u.estimated ? "（推定を含む）" : ""}`}
                     >
-                      {formatTokens(r.usage.input, est)} / {formatTokens(r.usage.output, est)}
+                      {u.input} / {u.output}
                     </td>
                     <td>
                       <time dateTime={r.started_at}>{formatTime(r.started_at)}</time>
@@ -120,8 +120,20 @@ export function TicketRuns({ id }: { id: string }) {
 
 type UsageKey = "input" | "output" | "cache_read" | "cache_write";
 
+/** 1 件の Run のトークン数の書き方（表と PanelRunRow で共通）。推定を含めば「~」を前に付ける */
+function usageTexts(r: RunView): Record<UsageKey, string> & { estimated: boolean } {
+  const estimated = r.usage.estimated === true;
+  return {
+    input: formatTokens(r.usage.input, estimated),
+    output: formatTokens(r.usage.output, estimated),
+    cache_read: formatTokens(r.usage.cache_read, estimated),
+    cache_write: formatTokens(r.usage.cache_write, estimated),
+    estimated,
+  };
+}
+
 /** トークン数の合計。取れなかった（null の）Run は足さずに数える */
-export function sumTokens(
+function sumTokens(
   runs: RunView[],
   key: UsageKey,
 ): { sum: number; missing: number; estimated: boolean } {
@@ -171,7 +183,7 @@ function RunsSummary({ runs }: { runs: RunView[] }) {
 
 /** パネルの Run の 1 行。開くと agent・トークンの内訳・終了・Run ID を出す */
 function PanelRunRow({ run: r }: { run: RunView }) {
-  const est = r.usage.estimated === true;
+  const u = usageTexts(r);
   return (
     <li>
       <details className="ticket-run fold">
@@ -199,10 +211,9 @@ function PanelRunRow({ run: r }: { run: RunView }) {
           <dd>{r.agent}</dd>
           <dt>トークン</dt>
           <dd className="num">
-            入力 {formatTokens(r.usage.input, est)} / 出力 {formatTokens(r.usage.output, est)} /
-            cache read {formatTokens(r.usage.cache_read, est)} / cache write{" "}
-            {formatTokens(r.usage.cache_write, est)}
-            {est ? <span className="muted">（推定を含む）</span> : null}
+            入力 {u.input} / 出力 {u.output} / cache read {u.cache_read} / cache write{" "}
+            {u.cache_write}
+            {u.estimated ? <span className="muted">（推定を含む）</span> : null}
           </dd>
           <dt>終了</dt>
           <dd>

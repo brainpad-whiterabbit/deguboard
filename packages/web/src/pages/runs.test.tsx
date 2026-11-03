@@ -5,7 +5,12 @@ import { App } from "../app.js";
 import { StoreProvider } from "../store.js";
 import { mockClient } from "../test-helpers.js";
 import type { MetricsView, RunMetrics, RunView } from "../types.js";
-import { formatDuration, formatTokens, runResultLabel } from "../components/run-parts.js";
+import {
+  RESULT_LABELS,
+  formatDuration,
+  formatTokens,
+  runResultKey,
+} from "../components/run-parts.js";
 import { formatValue, resultsText, splitRuns } from "./runs.js";
 
 afterEach(() => {
@@ -64,9 +69,10 @@ describe("Run の画面の表示", () => {
   });
 
   it("結果の表示名：実行中、result のないまま終わった Run は「未完了」", () => {
-    expect(runResultLabel(run({ id: "r20261101-000000-aaaa", running: true }))).toBe("実行中");
-    expect(runResultLabel(run({ id: "r20261101-000000-aaaa", running: false }))).toBe("未完了");
-    expect(runResultLabel(run({ id: "r20261101-000000-aaaa", result: "failure" }))).toBe("失敗");
+    const label = (r: RunView) => RESULT_LABELS[runResultKey(r)];
+    expect(label(run({ id: "r20261101-000000-aaaa", running: true }))).toBe("実行中");
+    expect(label(run({ id: "r20261101-000000-aaaa", running: false }))).toBe("未完了");
+    expect(label(run({ id: "r20261101-000000-aaaa", result: "failure" }))).toBe("失敗");
   });
 
   it("結果の内訳は 0 件を省き、すべて 0 なら「—」", () => {

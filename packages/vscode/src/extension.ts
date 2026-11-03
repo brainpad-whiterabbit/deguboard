@@ -85,7 +85,7 @@ export function activate(context: vscode.ExtensionContext): void {
     ),
     vscode.commands.registerCommand(BACKLOG_ROW_COMMANDS.copyId, (arg: unknown) =>
       withMenuTicket(arg, async (_folder, row) => {
-        await vscode.env.clipboard.writeText(row.ticket);
+        await copyToClipboard(row.ticket);
         void vscode.window.setStatusBarMessage(`deguboard: ${row.ticket} をコピーした`, 3000);
       }),
     ),
@@ -156,7 +156,7 @@ async function showInSidebar(route: string): Promise<void> {
   await deliverToSidebar("navigate", route);
 }
 
-/** Webview に頼まれた文字（ブランチ名など）をクリップボードに入れる。Webview の navigator.clipboard が使えないときの道 */
+/** 文字をクリップボードに入れる。Webview の navigator.clipboard が使えないときの道と、バックログの「ID をコピー」で使う */
 async function copyToClipboard(text: string): Promise<void> {
   await vscode.env.clipboard.writeText(text);
 }
