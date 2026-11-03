@@ -1,29 +1,12 @@
-// 小さな表示部品：チケットへのリンク、優先度・Status の印、ラベル、進捗、ドラッグできるチケットの行
+// 小さな表示部品：チケットへのリンク、優先度・Status の印、ラベル、進捗、チケットの行
 
-import { useDraggable } from "@dnd-kit/core";
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  type ComponentProps,
-  type CSSProperties,
-  type MouseEvent,
-  type ReactNode,
-} from "react";
+import { type ComponentProps, type MouseEvent, type ReactNode } from "react";
 import { WEBVIEW_CONTRACT_COPY } from "../client/webview.js";
-import { DRAGGED_ATTR, useAskSpot, type AskSection } from "./ask-menu.js";
+import { useAskSpot, type AskSection } from "./ask-menu.js";
 import { useHost } from "../host.js";
 import { hrefOf, type Route } from "../router.js";
 import { useStore } from "../store.js";
-import {
-  actorLabel,
-  isFinished,
-  type Priority,
-  type Progress,
-  type Status,
-  type Ticket,
-} from "../types.js";
+import { actorLabel, type Priority, type Progress, type Status, type Ticket } from "../types.js";
 
 /**
  * チケット詳細へのリンク。チケットへのリンクはすべてここを通す。
@@ -56,7 +39,7 @@ export function TicketLink({
       {...rest}
       href={hrefOf({ page: "ticket", id })}
       onClick={(e) => {
-        // 呼び出し側が preventDefault したら（ドラッグ直後など）開かない
+        // 呼び出し側が preventDefault したら（行の選択など）開かない
         rest.onClick?.(e);
         if (e.defaultPrevented || host.surface === "browser") return;
         e.preventDefault();
@@ -222,88 +205,6 @@ export function StatusBand({ progress }: { progress: Progress }) {
   );
 }
 
-/**
- * 閉じるのボタン（Iteration・Epic）。Webview では押すと画面の中に確認を出し、未完了の件数を見せてから閉じる
- * （Webview では confirm() が使えない）。ブラウザでは今のまま 1 回で閉じる。
- * 見出し（summary）の中にも置くので、クリックは節の開閉に伝えない
- */
-export function CloseButton({
-  subject,
-  unfinished,
-  note,
-  onClose,
-}: {
-  /** 確認の文に出す名前（s4 sprint4 など） */
-  subject: string;
-  unfinished: number;
-  /** 未完了があるときに添える、閉じたあとにどうなるか */
-  note?: string | undefined;
-  onClose: () => void;
-}) {
-  const host = useHost();
-  const [confirming, setConfirming] = useState(false);
-  if (host.surface === "browser") {
-    return (
-      <button type="button" onClick={onClose}>
-        閉じる
-      </button>
-    );
-  }
-  const stop = (e: MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-  };
-  return (
-    <>
-      <button
-        type="button"
-        aria-expanded={confirming}
-        onClick={(e) => {
-          stop(e);
-          setConfirming(true);
-        }}
-      >
-        閉じる
-      </button>
-      {confirming ? (
-        <div className="confirm" role="group" aria-label={`${subject} を閉じる確認`} onClick={stop}>
-          <p>
-            {subject} を閉じる。
-            {unfinished > 0 ? `未完了が ${unfinished} 件ある。${note ?? ""}` : "未完了はない。"}
-          </p>
-          <div className="actions">
-            <button
-              type="button"
-              className="danger"
-              onClick={(e) => {
-                stop(e);
-                setConfirming(false);
-                onClose();
-              }}
-            >
-              {unfinished > 0 ? `${unfinished} 件を残して閉じる` : "閉じる"}
-            </button>
-            <button
-              type="button"
-              onClick={(e) => {
-                stop(e);
-                setConfirming(false);
-              }}
-            >
-              やめる
-            </button>
-          </div>
-        </div>
-      ) : null}
-    </>
-  );
-}
-
-/** 未完了（done・abandoned 以外）のチケットの件数 */
-export function unfinishedCount(tickets: readonly Pick<Ticket, "status">[]): number {
-  return tickets.filter((t) => !isFinished(t.status)).length;
-}
-
 /** 状態の丸印。色は --dg-status-*。読み上げの名前は label、なければ一覧の Workflow の表示名 */
 export function StatusDot({ status, label }: { status: Status; label?: string }) {
   const store = useStore();
@@ -416,47 +317,6 @@ export function TicketRow({
 }
 
 /**
- * チケットをドラッグできるようにする（@dnd-kit。id はチケットの ID）。動かした直後の click では詳細を開かない
- * （捕捉の段階で preventDefault し、TicketLink と App の followHashLink はそれを見て何もしない）
- */
-function useDraggableTicket(id: string) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id });
-  const dragged = useRef(false);
-  const node = useRef<HTMLElement | null>(null);
-  const ref = useCallback(
-    (el: HTMLElement | null) => {
-      node.current = el;
-      setNodeRef(el);
-    },
-    [setNodeRef],
-  );
-  useEffect(() => {
-    if (!isDragging) return;
-    dragged.current = true;
-    // 外側の行の選択（ask-menu.tsx の useAskSpot。捕捉の段階で先に走る）にも、ドラッグ直後の click だと伝える
-    node.current?.setAttribute(DRAGGED_ATTR, "");
-  }, [isDragging]);
-  const style: CSSProperties | undefined = transform
-    ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` }
-    : undefined;
-  return {
-    ref,
-    style,
-    isDragging,
-    props: {
-      ...listeners,
-      ...attributes,
-      onClickCapture: (e: MouseEvent) => {
-        node.current?.removeAttribute(DRAGGED_ATTR);
-        if (!dragged.current) return;
-        dragged.current = false;
-        e.preventDefault();
-      },
-    },
-  };
-}
-
-/**
  * 行のチケットの担当がすべて同じ 1 人か。そのときは行ごとに担当を出さない（TicketRow の hideAssignee）。
  * 担当のないチケットが混ざる・行がないときは false
  */
@@ -466,10 +326,10 @@ export function sameAssignee(tickets: readonly Pick<Ticket, "assignee">[]): bool
 }
 
 /**
- * 1 行のチケット（サイドバー）。行全体をつかんで動かす。variant・head・end は TicketRow に渡す。dimmed でタイトルを説明文の色にする。
+ * 1 行のチケット（サイドバーのカンバン）。variant・head・end は TicketRow に渡す。dimmed でタイトルを説明文の色にする。
  * ask を渡すと行をエージェントに頼める場所にする（右端の吹き出し・右クリック・Shift+F10。ask-menu.tsx）。Ctrl/⌘・Shift+クリックで複数選べる（selection.tsx）
  */
-export function DraggableRow({
+export function AskRow({
   ticket,
   hideAssignee,
   flash,
@@ -490,25 +350,11 @@ export function DraggableRow({
   /** エージェントに頼む場所の右クリックの文脈（webviewSection）。対象はこの行のチケット */
   ask?: AskSection | undefined;
 }) {
-  // 分けて受ける。d.ref を ref に渡すと、規則（react/refs）が d を ref と見なし、d.style などを描画中の ref の読みと誤る
-  const { ref, style, isDragging, props } = useDraggableTicket(ticket.id);
   const spot = useAskSpot(
     ask ? { targets: [ticket.id], label: `行 ${ticket.id}`, section: ask, select: true } : null,
   );
-  const select = spot.props.onClickCapture;
   return (
-    <div
-      ref={ref}
-      style={style}
-      className={`row-drag${dimmed ? " is-waiting" : ""}${isDragging ? " dragging" : ""}`}
-      {...props}
-      {...(ask ? spot.props : {})}
-      // 動かした直後の click を止めるもの（useDraggableTicket）と、Ctrl/⌘・Shift+クリックで選ぶもの（useAskSpot）を両方受ける
-      onClickCapture={(e) => {
-        props.onClickCapture(e);
-        if (!e.defaultPrevented) select?.(e);
-      }}
-    >
+    <div className={`row-item${dimmed ? " is-waiting" : ""}`} {...(ask ? spot.props : {})}>
       <TicketRow
         ticket={ticket}
         hideAssignee={hideAssignee}
@@ -519,16 +365,6 @@ export function DraggableRow({
       />
       {spot.overlay}
     </div>
-  );
-}
-
-/** 表の 1 行（広い画面）。行全体をつかんで動かす */
-function DraggableTr({ ticket, children }: { ticket: Ticket; children: ReactNode }) {
-  const { ref, style, isDragging, props } = useDraggableTicket(ticket.id);
-  return (
-    <tr ref={ref} style={style} className={`row-drag${isDragging ? " dragging" : ""}`} {...props}>
-      {children}
-    </tr>
   );
 }
 
@@ -591,21 +427,16 @@ function AskTr({ ticket, ask, children }: { ticket: Ticket; ask: RowAsk; childre
 }
 
 /**
- * チケットの一覧。広い画面では表、サイドバーでは 1 行ずつの並び。行の先頭のリンクで詳細へ。
- * draggable なら行をドラッグできる（外側に DndContext が要る）
+ * チケットの一覧。広い画面では表、サイドバーでは 1 行ずつの並び。行の先頭のリンクで詳細へ
  */
 export function TicketTable({
   tickets,
-  extra,
-  draggable = false,
   assigneeInEnd = false,
   rowMenu = false,
   end,
   ask,
 }: {
   tickets: readonly Ticket[];
-  extra?: ((t: Ticket) => React.ReactNode) | undefined;
-  draggable?: boolean;
   /**
    * サイドバーで行の担当者の列を出さない（担当は end が右端に出す。左パネルのバックログ。TicketRowVariant の backlog）。
    * 状態の丸印は todo を白抜きにする（in_progress と review は色の違う塗り。styles.css の .backlog-rows）
@@ -635,24 +466,7 @@ export function TicketTable({
       <ul className={assigneeInEnd ? "rows backlog-rows" : "rows"}>
         {tickets.map((t) => {
           const content = (
-            <>
-              {draggable ? (
-                <DraggableRow
-                  ticket={t}
-                  hideAssignee={hideAssignee}
-                  variant={variant}
-                  end={endOf(t)}
-                />
-              ) : (
-                <TicketRow
-                  ticket={t}
-                  hideAssignee={hideAssignee}
-                  variant={variant}
-                  end={endOf(t)}
-                />
-              )}
-              {extra ? extra(t) : null}
-            </>
+            <TicketRow ticket={t} hideAssignee={hideAssignee} variant={variant} end={endOf(t)} />
           );
           return rowMenu ? (
             <BacklogItem key={t.id} ticket={t}>
@@ -680,7 +494,6 @@ export function TicketTable({
           <th>Iteration</th>
           <th>Epic</th>
           <th>ラベル</th>
-          {extra ? <th /> : null}
           {ask ? <th aria-label="エージェントに頼む" /> : null}
         </tr>
       </thead>
@@ -703,14 +516,9 @@ export function TicketTable({
               <td>
                 <Tags labels={t.labels} />
               </td>
-              {extra ? <td>{extra(t)}</td> : null}
             </>
           );
-          return draggable ? (
-            <DraggableTr key={t.id} ticket={t}>
-              {cells}
-            </DraggableTr>
-          ) : ask ? (
+          return ask ? (
             <AskTr key={t.id} ticket={t} ask={ask}>
               {cells}
             </AskTr>

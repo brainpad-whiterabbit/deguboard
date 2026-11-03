@@ -73,17 +73,15 @@ function isVisible(): boolean {
 
 /**
  * tickets（Project のすべてのチケット）の変化を見て、点滅させるチケットの ID の集合を返す。enabled が false なら何もしない。
- * ignore(id) で、画面から自分で動かすチケットの次の 1 回の変化を点滅させない（自分のドラッグ）。書き込みが失敗したら release(id) で戻す。
  * 比べるのは Iteration で絞る前のすべてのチケットなので、絞り込みを変えただけでは点滅しない
  */
 export function useChangeFlash(
   tickets: readonly Ticket[],
   state: UiState,
   enabled: boolean,
-): { flashing: ReadonlySet<string>; ignore: (id: string) => void; release: (id: string) => void } {
+): { flashing: ReadonlySet<string> } {
   const [flash, setFlash] = useState<FlashState>({});
   const pending = useRef<string[]>([]);
-  const ignored = useRef(new Set<string>());
 
   const start = useCallback((ids: readonly string[]) => {
     if (ids.length === 0) return;
@@ -93,10 +91,10 @@ export function useChangeFlash(
   useEffect(() => {
     if (!enabled) return;
     const current = summarizeTickets(tickets);
-    const changed = changedTickets(state.get<TicketSummary>(SUMMARY_KEY), current).filter(
-      (id) => !ignored.current.delete(id),
-    );
+    const changed = changedTickets(state.get<TicketSummary>(SUMMARY_KEY), current);
     state.set(SUMMARY_KEY, current);
+    // 前回の描画（host.state に残した要約）という外のものと比べて点滅を始めるので、描画中には求められない
+    // oxlint-disable-next-line react/set-state-in-effect
     if (isVisible()) start(changed);
     else pending.current.push(...changed);
   }, [tickets, state, enabled, start]);
@@ -122,9 +120,5 @@ export function useChangeFlash(
     return () => clearTimeout(timer);
   }, [flash]);
 
-  return {
-    flashing: new Set(Object.keys(flash)),
-    ignore: useCallback((id: string) => void ignored.current.add(id), []),
-    release: useCallback((id: string) => void ignored.current.delete(id), []),
-  };
+  return { flashing: new Set(Object.keys(flash)) };
 }

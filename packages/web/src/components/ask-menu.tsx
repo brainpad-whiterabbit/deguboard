@@ -186,9 +186,6 @@ export interface AskSpot {
 /** 選択のクリックとして扱わない場所（吹き出し・頼むことの一覧・行の中のボタンや入力） */
 const NOT_SELECT_CLICK = "button, input, select, textarea, .ask-menu";
 
-/** ドラッグした直後の行の印（parts.tsx の useDraggableTicket が付け、その click で外す）。その click では選ばない */
-export const DRAGGED_ATTR = "data-dragged";
-
 /**
  * 行・見出しを頼める場所にする。options が null なら何もしない（props は空の文脈、overlay は null）。
  * 返す props を要素に付け、overlay を要素の中に描く（要素は position: relative になる。styles.css の [data-ask-spot]）
@@ -249,7 +246,7 @@ export function useAskSpot(options: AskSpotOptions | null): AskSpot {
           aria-haspopup="menu"
           aria-expanded={open}
           title="エージェントに頼む（Shift+F10）"
-          // 行のドラッグ（@dnd-kit）と、見出し（summary）の開閉・Plan の行の開閉を起こさない
+          // 見出し（summary）の開閉・Plan の行の開閉を起こさない
           onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => {
             e.preventDefault();
@@ -301,8 +298,6 @@ export function useAskSpot(options: AskSpotOptions | null): AskSpot {
             onClickCapture(e: MouseEvent<HTMLElement>) {
               const target = e.target as Element;
               if (e.button !== 0 || target.closest?.(NOT_SELECT_CLICK)) return;
-              // ドラッグした直後の click は、中の行（useDraggableTicket）が受けて止める。ここでは選ばず、伝える
-              if (target.closest?.(`[${DRAGGED_ATTR}]`)) return;
               if (selection.click(rowId, e, { section: options.section, within: options.within })) {
                 e.preventDefault();
                 e.stopPropagation();

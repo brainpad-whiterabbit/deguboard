@@ -40,7 +40,7 @@
 
 - React 19 を Vite でビルドし、`base: "./"` で相対パスにして `dg serve` でも VS Code の Webview でも読めるようにする
 - CSS は自前で、VS Code の `--vscode-*` 変数を基準にする。ブラウザ向けの既定値は `styles.css` の `:root` に置く
-- ドラッグ＆ドロップは `@dnd-kit/core`。画面の切り替えは URL のハッシュで自前。状態管理のライブラリは入れず、React の context だけで持つ
+- ドラッグ＆ドロップは置かない（画面からの書き込みはチケット詳細と設定画面だけ。[ADR-010](ADR-010-ui-writes-and-agent-requests.md)）ので、使っていた `@dnd-kit/core` は依存から外した。画面の切り替えは URL のハッシュで自前。状態管理のライブラリは入れず、React の context だけで持つ
 - 更新は書き込み後の読み直しと `GET /api/status` のポーリング。VS Code では拡張ホストがデータのファイルを見張って読み直しを通知する。WebSocket と SSE は入れない
 - テストは Vitest + Testing Library + jsdom で、`CommandClient` を差し替えて画面を結合して確かめる
 

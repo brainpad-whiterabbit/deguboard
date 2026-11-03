@@ -1,27 +1,14 @@
-// Iteration（UI-5）の詳細：チケットの追加・除外、開始・終了。一覧の画面はなく、planned と active はカンバンの絞り込みで選ぶ（board.tsx）。
-// 作成のフォームと開始・閉じるのボタンは components/iteration-parts.tsx に置く。作成のフォームはカンバン（サイドバーでは札の列の「+」から）とバックログから、
-// 開始・閉じるのボタンは広い画面のカンバンとバックログの区画の見出しから使う。この詳細の画面は自前の開始・閉じるのボタンを持ち（サイドバーではここで行う）、
-// 確認の文に添える ITERATION_CLOSE_NOTE と、ほかに active があるときに開始・再開を押せなくする判定（otherActiveIteration）を共用する
+// Iteration（UI-5）の詳細：期間・目標と中のチケット。一覧の画面はなく、planned と active はカンバンの絞り込みで選ぶ（board.tsx）。
+// 表示だけで書き込まない。開始・閉じる・再開とチケットの足し外しは、タイトルと行の吹き出し・右クリックからエージェントに頼む（ADR-010・UI-15）
 
 import { useEffect, useState } from "react";
-import {
-  blockedByActiveReason,
-  ITERATION_CLOSE_NOTE,
-  otherActiveIteration,
-} from "../components/iteration-parts.js";
 import { ASK_SECTIONS, AskSpotBox } from "../components/ask-menu.js";
-import { CloseButton, TicketTable, unfinishedCount } from "../components/parts.js";
+import { TicketTable } from "../components/parts.js";
 import { NO_VALUE } from "../components/run-parts.js";
 import { useHost } from "../host.js";
 import { hrefOf } from "../router.js";
 import { useStore } from "../store.js";
-import {
-  byNumber,
-  byPriorityThenNumber,
-  isFinished,
-  ITERATION_LABELS,
-  type IterationDetail,
-} from "../types.js";
+import { byPriorityThenNumber, ITERATION_LABELS, type IterationDetail } from "../types.js";
 
 export function IterationsPage({ id }: { id: string }) {
   return <IterationDetailView id={id} />;
@@ -32,7 +19,6 @@ function IterationDetailView({ id }: { id: string }) {
   const host = useHost();
   const [it, setIt] = useState<IterationDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [adding, setAdding] = useState("");
 
   useEffect(() => {
     let alive = true;
@@ -48,16 +34,7 @@ function IterationDetailView({ id }: { id: string }) {
   if (error) return <p className="error">{error}</p>;
   if (!it) return <p className="muted">読み込み中…</p>;
 
-  const members = new Set(it.items.map((t) => t.id));
-  const candidates = store.tickets
-    .filter((t) => !members.has(t.id) && !isFinished(t.status))
-    .sort(byNumber);
   const items = [...it.items].sort(byPriorityThenNumber);
-  // 開始・再開はほかに active があると拒否される（IT-1）ので、押せなくして理由を出す
-  const other = it.status === "active" ? undefined : otherActiveIteration(store.iterations, it);
-  const reason = other
-    ? blockedByActiveReason(other, it, it.status === "closed" ? "再開" : "開始")
-    : undefined;
 
   return (
     <section>
@@ -92,84 +69,7 @@ function IterationDetailView({ id }: { id: string }) {
           ? ` ・ 完了 ${it.completed ?? NO_VALUE} / 持ち越し ${it.carried_over ?? NO_VALUE}`
           : ""}
       </p>
-      <div className="actions">
-        {it.status === "planned" && (
-          <button
-            type="button"
-            className="primary"
-            disabled={!!other}
-            title={reason}
-            onClick={() => void store.run("iteration.start", { iteration: it.id })}
-          >
-            開始する
-          </button>
-        )}
-        {it.status !== "closed" && (
-          <CloseButton
-            subject={`${it.id} ${it.name}`}
-            unfinished={unfinishedCount(it.items)}
-            note={ITERATION_CLOSE_NOTE}
-            onClose={() => void store.run("iteration.close", { iteration: it.id })}
-          />
-        )}
-        {it.status === "closed" && (
-          <button
-            type="button"
-            disabled={!!other}
-            title={reason}
-            onClick={() => void store.run("iteration.reopen", { iteration: it.id })}
-          >
-            再開する
-          </button>
-        )}
-      </div>
-      {reason ? <p className="muted">{reason}</p> : null}
-      {it.status !== "closed" && (
-        <form
-          className="inline-form"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (adding)
-              void store
-                .run("iteration.add", { iteration: it.id, tickets: [adding] })
-                .then(() => setAdding(""));
-          }}
-        >
-          <select
-            value={adding}
-            onChange={(e) => setAdding(e.target.value)}
-            aria-label="足すチケット"
-          >
-            <option value="">チケットを選ぶ</option>
-            {candidates.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.id} {t.title}
-              </option>
-            ))}
-          </select>
-          <button type="submit" disabled={!adding}>
-            足す
-          </button>
-        </form>
-      )}
-      <TicketTable
-        tickets={items}
-        ask={{ section: ASK_SECTIONS.detailTicket, within: it.id }}
-        extra={
-          it.status !== "closed"
-            ? (t) => (
-                <button
-                  type="button"
-                  onClick={() =>
-                    void store.run("iteration.remove", { iteration: it.id, tickets: [t.id] })
-                  }
-                >
-                  外す
-                </button>
-              )
-            : undefined
-        }
-      />
+      <TicketTable tickets={items} ask={{ section: ASK_SECTIONS.detailTicket, within: it.id }} />
     </section>
   );
 }
