@@ -28,6 +28,7 @@ import {
   type ReactNode,
   type SyntheticEvent,
 } from "react";
+import { useCommandData } from "../command-data.js";
 import { ASK_SECTIONS, useAskSpot } from "../components/ask-menu.js";
 import { DetailLink, ProgressBar, StatusDot, Tags, TicketLink } from "../components/parts.js";
 import { HistoryTicketList, HistoryTicketRow } from "../components/history-rows.js";
@@ -244,22 +245,10 @@ interface CarriedOver {
 }
 
 function useCarriedOver(): CarriedOver {
-  const store = useStore();
   const [needed, setNeeded] = useState(false);
-  const [events, setEvents] = useState<readonly HistoryEvent[] | null>(null);
-  useEffect(() => {
-    if (!needed) return;
-    let alive = true;
-    store.client
-      .run<HistoryLog>("history", {})
-      .then((r) => alive && setEvents(r.data.events))
-      .catch(() => alive && setEvents([]));
-    return () => {
-      alive = false;
-    };
-  }, [needed, store.client, store.tickets]);
+  const { data, error } = useCommandData<HistoryLog>("history", needed ? {} : null);
   const need = useCallback(() => setNeeded(true), []);
-  return { need, events };
+  return { need, events: error ? [] : (data?.events ?? null) };
 }
 
 /** 終わったチケットを終えた新しい順に。検索は番号・タイトル・ラベル */
@@ -851,8 +840,7 @@ function TicketView({
 }) {
   const store = useStore();
   const sidebar = useHost().surface === "sidebar";
-  const [log, setLog] = useState<HistoryLog | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const { data: log, error } = useCommandData<HistoryLog>("history", {});
   const result = route.result ?? "";
   const setResult = (value: string) =>
     replaceRoute({
@@ -860,16 +848,6 @@ function TicketView({
       page: "history",
       result: value === "done" || value === "abandoned" ? value : undefined,
     });
-  useEffect(() => {
-    let alive = true;
-    store.client
-      .run<HistoryLog>("history", {})
-      .then((r) => alive && (setLog(r.data), setError(null)))
-      .catch((e: unknown) => alive && setError(e instanceof Error ? e.message : String(e)));
-    return () => {
-      alive = false;
-    };
-  }, [store.client, store.tickets]);
   const finishedAt = useMemo(() => finishedAtOf(log?.events ?? []), [log]);
   const all = useMemo(
     () => finishedTickets(store.tickets, finishedAt, { query: "", result: "" }),

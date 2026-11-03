@@ -19,8 +19,12 @@ function sourceFiles(dir = SRC): string[] {
   });
 }
 
-/** `.run("name"` と `.run<型>("name"` の呼び出し。型引数は 1 段の入れ子まで読む。name は第 1 引数の字句（文字列なら引用符つき） */
-const RUN_CALL = /\.run\s*(?:<(?:[^<>]|<[^<>]*>)*>)?\(\s*([^\s,)]+)/g;
+/**
+ * `.run("name"` と `.run<型>("name"` の呼び出しと、読むためのフック `useCommandData("name"`（command-data.ts）の呼び出し。
+ * フックの宣言（function useCommandData）は除く。型引数は 1 段の入れ子まで読む。name は第 1 引数の字句（文字列なら引用符つき）
+ */
+const RUN_CALL =
+  /(?:\.run|(?<!function )\buseCommandData)\s*(?:<(?:[^<>]|<[^<>]*>)*>)?\(\s*([^\s,)]+)/g;
 
 function runCalls(file: string): string[] {
   const text = readFileSync(join(SRC, file), "utf8");
@@ -42,13 +46,13 @@ const ALLOWED_WRITES: Readonly<Record<string, readonly string[]>> = {
 describe("画面から呼ぶ書き込みのコマンド（ADR-010）", () => {
   const files = sourceFiles();
 
-  it("コマンドの名前は文字列で直に書く（名前を変数で渡すのは store.run の中だけ）", () => {
+  it("コマンドの名前は文字列で直に書く（名前を変数で渡すのは store.run と useCommandData の中だけ）", () => {
     const dynamic = files.flatMap((f) =>
       runCalls(f)
         .filter((name) => !name.startsWith('"'))
         .map((name) => `${f}: ${name}`),
     );
-    expect(dynamic).toEqual(["store.tsx: name"]);
+    expect(dynamic.sort()).toEqual(["command-data.ts: name", "store.tsx: name"]);
   });
 
   it("呼ぶコマンドはすべて core にある", () => {
