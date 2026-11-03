@@ -131,13 +131,15 @@ VSIX は `mise run vsix`（`@vscode/vsce`。判断は [ADR-008](adr/ADR-008-tech
 npm に出すのは `@deguboard/core`・`@deguboard/server`・`deguboard`（cli）の 3 つで、版は全パッケージで揃える（[ADR-006](adr/ADR-006-ui-and-writes.md)）。`web` は cli に同梱し、`vscode` は VSIX で配る。手順は mise のタスクで、`main` の clean な状態で行う：
 
 ```sh
-mise run release:version -- 0.1.0   # 5 パッケージの version を揃える → PR で main に入れる
+mise run release:version -- <版>    # 5 パッケージの version を揃える（例: 0.10.0）→ PR で main に入れる
 mise run check && mise run pack      # build のあと release/ に 3 つの tarball。別ディレクトリで入れて dg --version と dg init を試す
 mise run test:layout                 # build のあと画面の配置と吹き出しの一覧（check に入らない。ブラウザがなければ先に mise run playwright:install）
 mise run release:publish             # pnpm publish -r --access public（npm login 済みで）
-git tag v0.1.0 && git push origin v0.1.0
+git tag v<版> && git push origin v<版>
 mise run vsix                        # GitHub の Release に deguboard-vscode.vsix を添付する
 ```
+
+`release/` は `mise run pack` が置く生成物で、`.gitignore` により Git には入れない。`pack` は毎回 `release/` を消してから作るので、手元に残った古い版の tarball は消してよい。
 
 公開は必ず `pnpm publish`（`release:publish`）で行う。`workspace:*` の版への書き換えと `publishConfig.exports` の差し替えは pnpm だけが行い、`npm publish` では `src/` を指す `development` 条件が残る。
 
