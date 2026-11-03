@@ -1,6 +1,12 @@
 // 人向けの出力と --json。どちらも core の CommandResult をそのまま写す
 
-import { formatIssue, type CommandResult, type Issue, type WriteOutcome } from "@deguboard/core";
+import {
+  formatIssue,
+  type AskView,
+  type CommandResult,
+  type Issue,
+  type WriteOutcome,
+} from "@deguboard/core";
 import type { ErrorView } from "./errors.js";
 
 export interface Streams {
@@ -38,7 +44,13 @@ export function printHuman(
 ): void {
   const data = result.data;
   const group = commandName.split(".")[0] ?? "";
-  if (isIssueReport(data)) {
+  if (commandName === "ask" && isAskView(data)) {
+    // 依頼文はそのまま貼れるよう標準出力に文だけを出し、候補は標準エラーに出す
+    streams.out(data.text);
+    streams.err(
+      `候補: ${data.candidates.map((c) => `${c.recommended ? "★" : ""}${c.label}（${c.action}）`).join("、")}`,
+    );
+  } else if (isIssueReport(data)) {
     if (data.issues.length === 0) streams.out("指摘はない");
     for (const issue of data.issues) streams.out(formatIssue(issue));
   } else if (Array.isArray(data)) {
@@ -51,6 +63,10 @@ export function printHuman(
   }
   for (const w of result.warnings) streams.err(`警告: ${w}`);
   if (result.write) streams.err(describeWrite(result.write));
+}
+
+function isAskView(data: unknown): data is Pick<AskView, "text" | "candidates"> {
+  return typeof data === "object" && data !== null && "text" in data && "candidates" in data;
 }
 
 function isIssueReport(data: unknown): data is { ok: boolean; issues: Issue[] } {

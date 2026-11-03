@@ -1,5 +1,6 @@
 // すべてのコマンド。入口（CLI・HTTP・Webview・MCP）はこの配列を写す
 
+import { askCommands } from "./ask.js";
 import type { AnyCommand } from "./define.js";
 import { epicCommands } from "./epic.js";
 import { historyCommands } from "./history.js";
@@ -23,6 +24,7 @@ export const commands: readonly AnyCommand[] = [
   ...metricsCommands,
   ...workflowCommands,
   ...runCommands,
+  ...askCommands,
 ] as AnyCommand[];
 
 /** 群のエイリアス（`sprint` は `iteration`） */
