@@ -5,7 +5,7 @@ import { OperationError } from "../errors.js";
 import { withWrite } from "../git/write.js";
 import type { TicketId } from "../model/id.js";
 import { isTerminal, slugSchema } from "../model/common.js";
-import { PLAN_TIERS, type Plan } from "../model/plan.js";
+import { PLAN_TIERS, type Plan, type PlanTier } from "../model/plan.js";
 import { pendingDeps, progressOf, type Progress, type Ticket } from "../model/ticket.js";
 import type { Doc } from "../storage/documents.js";
 import type { Store } from "../storage/store.js";
@@ -115,7 +115,7 @@ export const planCreate = defineCommand({
         const cycle = afterCycle(after);
         if (cycle)
           throw new OperationError("REJECTED", `after が循環している: ${cycle.join(" → ")}`);
-        const details: Record<string, { scope?: string; approach?: string; tier?: string }> = {};
+        const details: Record<string, { scope?: string; approach?: string; tier?: PlanTier }> = {};
         for (const [field, map] of [
           ["scope", input.scope],
           ["approach", input.approach],

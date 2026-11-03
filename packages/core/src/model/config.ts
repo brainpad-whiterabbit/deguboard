@@ -106,7 +106,9 @@ export const configSchema = z.looseObject({
       standard: z
         .string()
         .default("")
-        .describe("Plan の段階 standard（普通の実装）に使うモデル。空なら親のモデル"),
+        .describe(
+          "Plan の段階 standard（light・heavy に当たらないもの）に使うモデル。空なら親のモデル",
+        ),
       heavy: z
         .string()
         .default("")
