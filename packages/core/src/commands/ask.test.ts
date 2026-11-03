@@ -100,6 +100,10 @@ describe("依頼文の組み立て", () => {
       "/dgimport",
       "次の内容をチケットにして s10 に入れてください。人の指示による起票なので --created-by human を付けてください。",
     ]);
+    // 分けるも新しいチケットを起票するので、起票者の扱いを添える
+    const split = buildAsk({ subjects: [ticket()], action: "split" });
+    expect(split.text.split("\n")[0]).toBe("/dgimport t265");
+    expect(split.text).toContain("--created-by human");
   });
 
   it("閉じる・再開・done の取り消し・やめるの依頼文には「人の指示」と書き添える", () => {
@@ -146,6 +150,14 @@ describe("依頼文の組み立て", () => {
       human_only: ["plan.approve"],
       text: "dg plan approve p21",
     });
+    // Epic の直すは題・概要を直すので、人に回すコマンドも題と本文を直す
+    const edit = buildAsk({
+      subjects: [epic("open")],
+      action: "edit",
+      humanOnly: ["epic.update"],
+    });
+    expect(edit).toMatchObject({ kind: "command", label: "題・概要を直す" });
+    expect(edit.text).toBe(`dg epic update ${epic("open").id} --title "<題>" --body "<概要>"`);
     // 入っていない操作は依頼文のまま
     expect(buildAsk({ subjects: [epic("open")], action: "close", humanOnly }).kind).toBe("prompt");
     // Skill の手順に任せる頼むことは、拒否されたらエージェントが人に頼むので依頼文のまま

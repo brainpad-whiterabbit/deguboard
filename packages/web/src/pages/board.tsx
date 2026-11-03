@@ -12,7 +12,8 @@
 // 入っている Iteration か Epic が閉じた done・abandoned のチケットは出さない（履歴でたどる）。
 // 左パネルの行・状態の節の見出し・Iteration の見出し・Plan の帯は、エージェントに頼める場所にする（吹き出し・右クリック・Shift+F10。UI-15）。
 // 節の開閉・最後に選んだ Iteration は host.state に覚える。
-// 表示だけで書き込まない。Status の変更と Iteration の作成・開始・閉じるは、吹き出し・右クリックからエージェントに頼む（ADR-010）
+// 表示だけで書き込まない。チケットを進める・片付ける・やめる・done を取り消すと、Iteration の作成・閉じるは、吹き出し・右クリックから
+// エージェントに頼む（ADR-010）。Status を直に選んで変える頼むことはなく、Iteration の開始は着手（claim）の手順が行う（ADR-006）
 
 import { useLayoutEffect, useMemo, useRef } from "react";
 import { ASK_SECTIONS, useAskSpot } from "../components/ask-menu.js";

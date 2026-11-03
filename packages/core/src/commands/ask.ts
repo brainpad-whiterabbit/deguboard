@@ -263,7 +263,8 @@ const ACTIONS: Record<AskAction, ActionDef> = {
     skill: "dgimport",
     label: () => "分ける",
     text: () =>
-      "次のチケットを分けてください。元のチケットの扱い（残す・abandoned にする）は案を示してください。",
+      "次のチケットを分けてください。元のチケットの扱い（残す・abandoned にする）は案を示してください。" +
+      CREATED_BY_HUMAN_LATER,
   },
   remove: {
     skill: "dgassign",
@@ -290,7 +291,10 @@ const ACTIONS: Record<AskAction, ActionDef> = {
       s.map((t) =>
         t.kind === "iteration"
           ? { check: ["iteration.update"], command: `dg iteration update ${t.id} --name "<名前>"` }
-          : { check: ["epic.update"], command: `dg epic update ${t.id} --title "<題>"` },
+          : {
+              check: ["epic.update"],
+              command: `dg epic update ${t.id} --title "<題>" --body "<概要>"`,
+            },
       ),
   },
   assign: {
@@ -761,7 +765,7 @@ export const askMenu = defineCommand({
   name: "ask-menu",
   group: "ask",
   summary:
-    "画面の行・見出しごとの頼むことの候補（先頭がおすすめ）をまとめて返す（読み取りだけ）。組ごとに ask の candidates と同じものを返し、引けない組は error に理由を入れる。左パネルの吹き出しと右クリックのメニューが使う",
+    "画面の行・見出しごとの頼むことの候補（先頭がおすすめ）をまとめて返す（読み取りだけ）。組ごとに ask の candidates と同じものを返し、引けない組は error に理由を入れる。画面（VS Code の左パネル・エディタのパネルの詳細・ブラウザ）の吹き出しと右クリックのメニューが使う",
   input: z.object({
     sets: z
       .array(z.string())
