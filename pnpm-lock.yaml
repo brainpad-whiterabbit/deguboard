@@ -163,7 +163,7 @@ settings:
   excludeLinksFromLockfile: false
 
 overrides:
-  '@vscode/vsce>minimatch': 11.0.3
+  '@vscode/vsce>minimatch': 11.0.4
 
 importers:
 
@@ -1698,9 +1698,9 @@ packages:
     engines: {node: '>=4'}
     hasBin: true
 
-  minimatch@11.0.3:
-    resolution: {integrity: sha512-iny/40PEGkNJQ5/Pv6z3nm6FbRAby32GeZRjCUJk2WnNDbgPSTcdI+DDvLqsgBdD4cD5sMtMheqPPnehCCa8Nw==}
-    engines: {node: 18 || 20 || >=22}
+  minimatch@11.0.4:
+    resolution: {integrity: sha512-/UJ1dEoVQTjPNDh6SGlUo+ueLMmoHTas4q+8yaAR/5t6nLAIiBDJtoYUh20IYleix7ehiQkgczb84PE3uzHkxg==}
+    engines: {node: 20 || >=22}
 
   ms@2.1.3:
     resolution: {integrity: sha512-6FlzubTLZG3J2a/NVCAleEhjzq5oxgHyaCU9yYXvcLsvoVaHJq/s5xXI6/XXP6tz7R9xAOtHnSO/tXtF3WRTlA==}
@@ -2817,7 +2817,7 @@ snapshots:
       jsonc-parser: 3.3.1
       marked: 18.1.2
       mime: 1.6.0
-      minimatch: 11.0.3
+      minimatch: 11.0.4
       parse5: 8.0.1
       proper-lockfile: 4.1.2
       read: 1.0.7
@@ -3343,7 +3343,7 @@ snapshots:
 
   mime@1.6.0: {}
 
-  minimatch@11.0.3:
+  minimatch@11.0.4:
     dependencies:
       '@isaacs/nonrecursive-glob-match': 1.0.3
       brace-expansion: 5.0.12
