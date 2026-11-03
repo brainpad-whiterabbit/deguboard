@@ -21,7 +21,7 @@ export interface StatusView extends SyncStatus {
 }
 
 /**
- * Webview → 拡張ホストの要求。id で応答と対応づける。action は画面の外（エディタ）に働きかける操作で、応答の data は null。
+ * Webview → 拡張ホストの要求。id で応答と対応づける。action は Webview の外（エディタ・サイドバー・クリップボード）に働きかける操作で、応答の data は null。
  * open は詳細のルート（#/tickets/t12、#/iterations/s3、#/epics/e2）をエディタ領域のパネルに開く。
  * show は一覧の画面のルート（#/board?epic=e2 など）をサイドバーのビューに出す（パネルは詳細だけを出すので。UI-12）。
  * copy は text をクリップボードに入れる（Webview で navigator.clipboard が使えないときに画面が頼む）

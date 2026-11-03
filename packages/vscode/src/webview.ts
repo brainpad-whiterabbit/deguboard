@@ -121,7 +121,7 @@ function escapeAttribute(value: string): string {
     .replace(/"/g, "&quot;");
 }
 
-/** 画面の外（エディタ）への働きかけ。サイドバーとパネルが持ち、持たない画面からの action は拒否する */
+/** Webview の外（エディタ・サイドバー・クリップボード）への働きかけ。サイドバーとパネルが持ち、持たない画面からの action は拒否する */
 export interface WebviewActions {
   /** 詳細のルート（#/tickets/t12 など）をエディタ領域のパネルに開く */
   open(route: string): void | Promise<void>;

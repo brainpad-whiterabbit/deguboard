@@ -33,7 +33,7 @@ description = "vitest でテストする"
 run = "pnpm run test"
 
 [tasks."test:layout"]
-description = "画面の配置とドラッグを Chromium で確かめる（サイドバーの幅 300px・260px、パネルのチケット詳細の右の列・見出しの帯・Run、ライトとダーク、バックログの区画とカンバンの列の間のドラッグ）。ブラウザが要るので check には入れない（先に mise run playwright:install）"
+description = "画面の配置とドラッグを Chromium で確かめる（サイドバーの幅 320px・300px・260px、パネルのチケット詳細の右の列・見出しの帯・Run・鉛筆のボタン、ライトとダーク、バックログの区画とカンバンの列の間のドラッグ）。ブラウザが要るので check には入れない（先に mise run playwright:install）"
 depends = ["build"]
 run = "pnpm run test:layout"
 
@@ -51,7 +51,7 @@ description = "ビルド済みの VSIX を VS Code に入れる（ビルドは�
 run = "pnpm run vsix:install"
 
 [tasks."playwright:install"]
-description = "Playwright MCP（.mcp.json）が使う Chromium を入れる（版は @playwright/mcp が使う playwright-core に合わせて固定）"
+description = "Playwright MCP（.mcp.json）と test:layout が使う Chromium を入れる（版は @playwright/mcp が使う playwright-core に合わせて固定）"
 run = "pnpm run playwright:install"
 
 [tasks.pack]
