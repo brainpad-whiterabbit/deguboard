@@ -1,10 +1,20 @@
 // 画面がどこに載っているか（surface）と、画面の外への働きかけを 1 つの文脈で持つ（UI-12）。
 // ブラウザではチケットや Iteration の詳細へのリンクはハッシュ遷移、サイドバーとパネルでは拡張ホストに頼む（パネルは自分の中で遷移し、題が変わる）。
 // パネルは詳細だけを出すので、パネルから一覧の画面へのリンクは拡張ホストに頼んでサイドバーに出す（show）。
-// クリップボードへのコピーは navigator.clipboard を試し、Webview で使えなければ拡張ホストに頼む。
-// 拡張ホストからの通知（再読み込み・遷移）は HostBridge が store とハッシュに結ぶ
+// クリップボードへのコピーは、Webview では拡張ホストに頼み（vscode.env.clipboard）、ブラウザでは navigator.clipboard に書く。
+// エージェントに頼む入力欄（UI-15）を開いているかと対象は、HostProvider の中の AskContext が見た目の状態として持つ。
+// 拡張ホストからの通知（再読み込み・遷移・入力欄を開く）は HostBridge が store・ハッシュ・入力欄に結ぶ
 
-import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import type { WebviewClient } from "./client/webview.js";
 import { hrefOf, navigate, toggleRoute, type Route } from "./router.js";
 import { useStore } from "./store.js";
@@ -18,7 +28,7 @@ export interface Host {
   open(route: Route): void;
   /** 一覧の画面（カンバンなど）を出す。パネルでは拡張ホストに頼んでサイドバーに、サイドバーとブラウザではハッシュ遷移 */
   show(route: Route): void;
-  /** text をクリップボードに入れる。navigator.clipboard を試し、Webview で使えなければ拡張ホストに頼む。どちらもだめなら reject */
+  /** text をクリップボードに入れる。Webview では拡張ホストに頼み、ブラウザでは navigator.clipboard に書く。書けなければ reject */
   copy(text: string): Promise<void>;
   /** 見た目の状態（開閉・最後に選んだもの）の置き場 */
   state: UiState;
@@ -41,7 +51,8 @@ export function createHost(surface: Surface, client: WebviewClient | null, state
       surface,
       open: (route) => void client.open(hrefOf(route)),
       show: (route) => (surface === "panel" ? void client.show(hrefOf(route)) : navigate(route)),
-      copy: (text) => writeClipboard(text).catch(() => client.copy(text)),
+      // Webview の navigator.clipboard は VS Code の版や設定で使えないことがあるので、試さずに拡張ホストに頼む
+      copy: (text) => client.copy(text),
       state: state ?? browserHost.state,
     };
   }
@@ -64,7 +75,59 @@ export function readSurface(dataset: DOMStringMap, search = ""): Surface {
 }
 
 export function HostProvider({ host, children }: { host: Host; children: ReactNode }) {
-  return <HostContext.Provider value={host}>{children}</HostContext.Provider>;
+  return (
+    <HostContext.Provider value={host}>
+      <AskProvider>{children}</AskProvider>
+    </HostContext.Provider>
+  );
+}
+
+/** エージェントに頼む入力欄を開く頼み。targets は対象の ID（空なら対象なし）。見た目の状態の ask.open に残す */
+export interface AskRequest {
+  targets: string[];
+}
+
+/** 見た目の状態の鍵。拡張ホストが HTML の data-ask で渡した対象は、main.tsx が描く前にここへ書く */
+export const ASK_OPEN_KEY = "ask.open";
+
+export interface Ask {
+  /** 開いている入力欄の対象。閉じていれば null */
+  request: AskRequest | null;
+  /** 入力欄を開く。開いていれば対象を入れ替える（頼むことはおすすめに戻る。指示の下書きは残す） */
+  open(targets: readonly string[]): void;
+  close(): void;
+  /** 開いた回数。開き直したら入力欄の中の状態（外した対象・選んだ頼むこと）を捨てるための key に使う */
+  serial: number;
+}
+
+const AskContext = createContext<Ask>({ request: null, open() {}, close() {}, serial: 0 });
+
+function AskProvider({ children }: { children: ReactNode }) {
+  const [request, setRequest] = useUiState<AskRequest | null>(ASK_OPEN_KEY, null);
+  const [serial, setSerial] = useState(0);
+  const open = useCallback(
+    (targets: readonly string[]) => {
+      setRequest({ targets: [...targets] });
+      setSerial((n) => n + 1);
+    },
+    [setRequest],
+  );
+  const close = useCallback(() => setRequest(null), [setRequest]);
+  // 形の違うもの（前の版や壊れた値）は閉じたものとみなす
+  const valid =
+    request && Array.isArray(request.targets) && request.targets.every((t) => typeof t === "string")
+      ? request
+      : null;
+  const value = useMemo(
+    () => ({ request: valid, open, close, serial }),
+    [valid, open, close, serial],
+  );
+  return <AskContext.Provider value={value}>{children}</AskContext.Provider>;
+}
+
+/** エージェントに頼む入力欄の開閉（UI-15） */
+export function useAsk(): Ask {
+  return useContext(AskContext);
 }
 
 export function useHost(): Host {
@@ -75,21 +138,24 @@ export function useHost(): Host {
 export function useUiState<T>(key: string, initial: T): [T, (value: T) => void] {
   const host = useHost();
   const [value, setValue] = useState<T>(() => host.state.get<T>(key) ?? initial);
-  return [
-    value,
-    (next) => {
+  const set = useCallback(
+    (next: T) => {
       setValue(next);
       host.state.set(key, next);
     },
-  ];
+    [host, key],
+  );
+  return [value, set];
 }
 
 /**
  * 拡張ホストからの通知を受ける。navigate はハッシュを書き換え、toggle はその画面と来る前の画面を切り替え（歯車の設定画面）、
- * reload は store を読み直す（同期は拡張ホストが済ませてから送ってくる）。StoreProvider の中に置く
+ * reload は store を読み直す（同期は拡張ホストが済ませてから送ってくる）、ask はエージェントに頼む入力欄を開く。
+ * StoreProvider と HostProvider の中に置く
  */
 export function HostBridge({ client }: { client: WebviewClient }) {
   const store = useStore();
+  const { open: openAsk } = useAsk();
   const reloadRef = useRef(store.reload);
   // 最新の reload を通知の受け手から呼ぶ。描画中に ref を書かない（react/refs）ので、描いた後に写す
   useEffect(() => {
@@ -101,8 +167,9 @@ export function HostBridge({ client }: { client: WebviewClient }) {
         if (event.name === "navigate") window.location.hash = event.hash;
         else if (event.name === "toggle") toggleRoute(event.hash);
         else if (event.name === "reload") void reloadRef.current();
+        else if (event.name === "ask") openAsk(event.targets);
       }),
-    [client],
+    [client, openAsk],
   );
   return null;
 }

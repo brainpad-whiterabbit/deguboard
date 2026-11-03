@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client";
 import { App } from "./app.js";
 import { createHttpClient } from "./client/http.js";
 import { createWebviewClient } from "./client/webview.js";
-import { createHost, HostBridge, HostProvider, readSurface } from "./host.js";
+import { ASK_OPEN_KEY, createHost, HostBridge, HostProvider, readSurface } from "./host.js";
 import { StoreProvider } from "./store.js";
 import { createUiState } from "./ui-state.js";
 import "./styles.css";
@@ -20,6 +20,9 @@ const webviewClient = vscodeApi ? createWebviewClient(vscodeApi) : null;
 const client = webviewClient ?? createHttpClient();
 const uiState = vscodeApi ? createUiState(vscodeApi) : undefined;
 const host = createHost(surface, webviewClient, uiState);
+// 拡張ホストがサイドバーを作る前に「エージェントに頼む」を押されたときは、対象を data-ask（空白区切りの ID）で渡してくる（UI-15）
+if (dataset.ask !== undefined)
+  host.state.set(ASK_OPEN_KEY, { targets: dataset.ask.split(/\s+/).filter(Boolean) });
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

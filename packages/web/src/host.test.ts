@@ -41,27 +41,22 @@ describe("クリップボードへのコピー", () => {
     };
   }
 
-  it("navigator.clipboard が使えれば、それに書き、拡張ホストには頼まない", async () => {
+  it("Webview では navigator.clipboard が使えても試さず、拡張ホスト（vscode.env.clipboard）に頼む", async () => {
     const writeText = vi.fn(async () => {});
     setClipboard({ writeText });
-    const client = fakeClient();
-    await createHost("panel", client).copy("feat/x");
+    for (const surface of ["panel", "sidebar"] as const) {
+      const client = fakeClient();
+      await createHost(surface, client).copy("feat/x");
+      expect(client.copy).toHaveBeenCalledWith("feat/x");
+    }
+    expect(writeText).not.toHaveBeenCalled();
+  });
+
+  it("ブラウザでは navigator.clipboard に書く", async () => {
+    const writeText = vi.fn(async () => {});
+    setClipboard({ writeText });
+    await createHost("browser", null).copy("feat/x");
     expect(writeText).toHaveBeenCalledWith("feat/x");
-    expect(client.copy).not.toHaveBeenCalled();
-  });
-
-  it("Webview で navigator.clipboard がなければ、拡張ホストにコピーを頼む", async () => {
-    setClipboard(undefined);
-    const client = fakeClient();
-    await createHost("panel", client).copy("feat/x");
-    expect(client.copy).toHaveBeenCalledWith("feat/x");
-  });
-
-  it("Webview で navigator.clipboard が拒んでも、拡張ホストにコピーを頼む", async () => {
-    setClipboard({ writeText: vi.fn(async () => Promise.reject(new Error("NotAllowedError"))) });
-    const client = fakeClient();
-    await createHost("sidebar", client).copy("feat/x");
-    expect(client.copy).toHaveBeenCalledWith("feat/x");
   });
 
   it("ブラウザで navigator.clipboard がなければ失敗を返す（頼む先がない）", async () => {

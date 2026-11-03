@@ -13,7 +13,7 @@ import {
 } from "./context-menu.js";
 
 interface Contributes {
-  commands: { command: string; title: string; icon?: string }[];
+  commands: { command: string; title: string; category?: string; icon?: string }[];
   menus: Record<string, { command: string; when?: string; group?: string }[]>;
 }
 
@@ -54,9 +54,10 @@ describe("package.json の右クリックのメニュー", () => {
 describe("package.json のビューのタイトル行", () => {
   const { commands, menus } = pkg.contributes;
 
-  it("同期の右に歯車（設定画面の切り替え）を並べる", () => {
+  it("吹き出し（エージェントに頼む）・同期・歯車（設定画面の切り替え）の順に並べる", () => {
     const items = menus["view/title"]!;
     expect(items.map((m) => [m.command, m.group])).toEqual([
+      ["deguboard.askInSidebar", "navigation@0"],
       ["deguboard.sync", "navigation@1"],
       ["deguboard.config", "navigation@2"],
     ]);
@@ -65,6 +66,18 @@ describe("package.json のビューのタイトル行", () => {
       title: "設定",
       icon: "$(gear)",
     });
+  });
+
+  it("「エージェントに頼む」はコマンドパレットに「deguboard: エージェントに頼む」で出し、タイトル行の吹き出しはパレットに重ねて出さない（UI-15）", () => {
+    for (const id of ["deguboard.ask", "deguboard.askInSidebar"])
+      expect(commands.find((c) => c.command === id)).toMatchObject({
+        title: "エージェントに頼む",
+        category: "deguboard",
+        icon: "$(comment-discussion)",
+      });
+    const palette = menus["commandPalette"]!;
+    expect(palette.some((m) => m.command === "deguboard.ask")).toBe(false);
+    expect(palette).toContainEqual({ command: "deguboard.askInSidebar", when: "false" });
   });
 });
 
