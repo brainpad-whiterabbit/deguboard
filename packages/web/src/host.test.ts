@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import type { WebviewClient } from "./client/webview.js";
 import { createHost, readSurface } from "./host.js";
 
 describe("載っている場所（surface）", () => {
@@ -22,5 +23,49 @@ describe("載っている場所（surface）", () => {
     expect(host.surface).toBe("sidebar");
     host.open({ page: "ticket", id: "t3" });
     expect(window.location.hash).toBe("#/tickets/t3");
+  });
+});
+
+describe("クリップボードへのコピー", () => {
+  const original = Object.getOwnPropertyDescriptor(navigator, "clipboard");
+  afterEach(() => {
+    if (original) Object.defineProperty(navigator, "clipboard", original);
+    else delete (navigator as { clipboard?: unknown }).clipboard;
+  });
+  function setClipboard(value: unknown) {
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value });
+  }
+  function fakeClient() {
+    return { copy: vi.fn(async () => {}) } as unknown as WebviewClient & {
+      copy: ReturnType<typeof vi.fn>;
+    };
+  }
+
+  it("navigator.clipboard が使えれば、それに書き、拡張ホストには頼まない", async () => {
+    const writeText = vi.fn(async () => {});
+    setClipboard({ writeText });
+    const client = fakeClient();
+    await createHost("panel", client).copy("feat/x");
+    expect(writeText).toHaveBeenCalledWith("feat/x");
+    expect(client.copy).not.toHaveBeenCalled();
+  });
+
+  it("Webview で navigator.clipboard がなければ、拡張ホストにコピーを頼む", async () => {
+    setClipboard(undefined);
+    const client = fakeClient();
+    await createHost("panel", client).copy("feat/x");
+    expect(client.copy).toHaveBeenCalledWith("feat/x");
+  });
+
+  it("Webview で navigator.clipboard が拒んでも、拡張ホストにコピーを頼む", async () => {
+    setClipboard({ writeText: vi.fn(async () => Promise.reject(new Error("NotAllowedError"))) });
+    const client = fakeClient();
+    await createHost("sidebar", client).copy("feat/x");
+    expect(client.copy).toHaveBeenCalledWith("feat/x");
+  });
+
+  it("ブラウザで navigator.clipboard がなければ失敗を返す（頼む先がない）", async () => {
+    setClipboard(undefined);
+    await expect(createHost("browser", null).copy("feat/x")).rejects.toThrow();
   });
 });

@@ -39,6 +39,7 @@ describe("進捗バー", () => {
             surface: "sidebar",
             open: () => {},
             show: () => {},
+            copy: async () => {},
             state: createUiState(memoryBackend()),
           }}
         >

@@ -22,6 +22,8 @@ export interface WebviewClient extends CommandClient {
   open(route: string): Promise<void>;
   /** 一覧の画面のルート（#/board?epic=e2 など）をサイドバーのビューに出してもらう */
   show(route: string): Promise<void>;
+  /** text をクリップボードに入れてもらう（Webview で navigator.clipboard が使えないとき） */
+  copy(text: string): Promise<void>;
   /** 拡張ホストからの通知を受ける。戻り値で購読を外す */
   onEvent(listener: (event: WebviewEvent) => void): () => void;
 }
@@ -71,6 +73,9 @@ export function createWebviewClient(
     },
     async show(route: string): Promise<void> {
       await send({ kind: "action", name: "show", route });
+    },
+    async copy(text: string): Promise<void> {
+      await send({ kind: "action", name: "copy", text });
     },
     onEvent(listener) {
       listeners.add(listener);

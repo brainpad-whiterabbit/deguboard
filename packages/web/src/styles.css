@@ -401,6 +401,39 @@ h3 {
   grid-template-columns: repeat(4, minmax(220px, 1fr)) max-content;
 }
 
+/* 値の右のコピーのボタン（チケット詳細のブランチ名）。長い値は折り返してボタンを右に残し、押した結果を下に短く出す */
+.copyable-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.3em;
+}
+.copyable-line code {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+button.copy-button {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  padding: 0.15em;
+  color: var(--vscode-descriptionForeground);
+  background: transparent;
+  border-color: transparent;
+}
+button.copy-button:hover {
+  color: var(--vscode-foreground);
+  background: var(--vscode-toolbar-hoverBackground, var(--vscode-button-secondaryBackground));
+}
+button.copy-button svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.2;
+}
+.copy-result:not(:empty) {
+  display: block;
+  font-size: 0.9em;
+}
+
 /* 文字だけのボタン（+ Iteration を作る） */
 button.link {
   padding: 0;
@@ -690,7 +723,7 @@ button.link:hover {
 }
 .view-switch button:hover {
   color: var(--vscode-foreground);
-  background: var(--vscode-toolbar-hoverBackground, transparent);
+  background: var(--vscode-toolbar-hoverBackground, var(--vscode-button-secondaryBackground));
 }
 .view-switch button:focus-visible {
   outline-offset: -2px;

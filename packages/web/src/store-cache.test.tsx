@@ -13,7 +13,7 @@ afterEach(() => {
 });
 
 function sidebarHost(state: UiState): Host {
-  return { surface: "sidebar", open: () => {}, show: () => {}, state };
+  return { surface: "sidebar", open: () => {}, show: () => {}, copy: async () => {}, state };
 }
 
 /** 一覧の読み込みを止めておける client。release で読み込みを進める */

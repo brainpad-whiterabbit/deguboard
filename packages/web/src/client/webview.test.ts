@@ -79,6 +79,15 @@ describe("postMessage の CommandClient", () => {
     await expect(p).resolves.toBeUndefined();
   });
 
+  it("copy は kind: action の name: copy で text を送り、応答で解決する", async () => {
+    const h = host();
+    const client = createWebviewClient(h);
+    const p = client.copy("feat/x");
+    expect(h.requests).toEqual([{ id: 1, kind: "action", name: "copy", text: "feat/x" }]);
+    h.reply({ id: 1, ok: true, data: null, warnings: [], write: null });
+    await expect(p).resolves.toBeUndefined();
+  });
+
   it("拡張ホストからの通知（kind: event）は購読者に配り、外した後は届かない。形の違うメッセージは無視する", () => {
     const h = host();
     const client = createWebviewClient(h);

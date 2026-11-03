@@ -65,6 +65,7 @@ function sidebarHost(): Host {
     surface: "sidebar",
     open: () => {},
     show: () => {},
+    copy: async () => {},
     state: createUiState(memoryBackend()),
   };
 }
