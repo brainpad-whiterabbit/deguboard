@@ -252,10 +252,7 @@ export function AskComposer({
         </div>
       </div>
       {shown?.kind === "command" ? (
-        <p className="ask-human muted">
-          {shown.human_only.join("・")}{" "}
-          は人に限った操作（actor.human_only）なので、人が打つコマンドをコピーする
-        </p>
+        <p className="ask-human muted">{humanReason(shown)}なので、人が打つコマンドをコピーする</p>
       ) : null}
       {full && shown ? (
         <pre className="ask-full" aria-label="全文">
@@ -290,4 +287,14 @@ function splitKey(key: string): string[] {
 
 function messageOf(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
+}
+
+/** 人が打つコマンドを返した理由。actor.human_only の操作と、Workflow の by が人に限る遷移 */
+function humanReason(view: AskView): string {
+  const reasons: string[] = [];
+  if (view.human_only.length > 0)
+    reasons.push(`${view.human_only.join("・")} は人に限った操作（actor.human_only）`);
+  if (view.workflow_by.length > 0)
+    reasons.push(`${view.workflow_by.join("・")} は Workflow が人に限った遷移（by）`);
+  return reasons.join("、");
 }

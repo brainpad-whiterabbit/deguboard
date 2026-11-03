@@ -16,6 +16,7 @@ import { planCreate } from "./plan.js";
 import { runStart } from "./run.js";
 import { configSet, init } from "./setup.js";
 import { ticketCreate, ticketMove, ticketUpdate } from "./ticket.js";
+import { workflowSet } from "./workflow.js";
 
 const cleanups: Array<() => Promise<void>> = [];
 afterEach(async () => {
@@ -143,6 +144,34 @@ describe("依頼文の組み立て", () => {
     expect(buildAsk({ subjects: [epic("open")], action: "close", humanOnly }).kind).toBe("prompt");
     // Skill の手順に任せる頼むことは、拒否されたらエージェントが人に頼むので依頼文のまま
     expect(buildAsk({ subjects: [ticket()], action: "work", humanOnly }).kind).toBe("prompt");
+  });
+
+  it("やめる・done の取り消しは、Workflow の by に agent が入っていない遷移なら人が打つコマンドを返し、入っていれば依頼文のまま", () => {
+    // todo → abandoned が人に限られる
+    const abandon = buildAsk({
+      subjects: [ticket({ agent_denied: ["abandoned"] }), ticket({ id: "t266" })],
+      action: "abandon",
+    });
+    expect(abandon).toMatchObject({
+      kind: "command",
+      human_only: [],
+      workflow_by: ["t265: todo → abandoned"],
+      text: "dg ticket move t265 abandoned\ndg ticket move t266 abandoned",
+    });
+    // 戻す先がすべて人に限られる done は、取り消しを人に回す
+    const done = (agent_denied: string[]) =>
+      buildAsk({ subjects: [ticket({ status: "done", agent_denied })], action: "undo_done" });
+    expect(done(["todo", "in_progress", "review"])).toMatchObject({
+      kind: "command",
+      workflow_by: ["t265: done → todo・in_progress・review"],
+      text: 'dg ticket move t265 "<戻す Status>"',
+    });
+    // agent も行える遷移は依頼文のまま（戻す先が 1 つでも行えればエージェントに頼む）
+    expect(done(["todo", "in_progress"])).toMatchObject({ kind: "prompt", workflow_by: [] });
+    expect(done([]).kind).toBe("prompt");
+    expect(
+      buildAsk({ subjects: [ticket({ agent_denied: ["done"] })], action: "abandon" }).kind,
+    ).toBe("prompt");
   });
 
   it("Skill を使わない頼むことは、Skill 形式でも 1 行目に dg の呼び方を添える", () => {
@@ -294,5 +323,59 @@ describe("ask", () => {
       human_only: ["iteration.close"],
       text: "dg iteration close s1",
     });
+  });
+
+  it("チケットの Workflow の by を見て、人に限る遷移は人が打つコマンドを、agent を含む遷移は依頼文を返す", async () => {
+    const { ctx } = await initialized();
+    await runCommand(workflowSet, ctx, {
+      workflow: "general",
+      definition: {
+        id: "general",
+        name: "General",
+        transitions: [
+          { from: "todo", to: "abandoned", by: ["human"] },
+          { from: "done", to: "todo", by: ["human"] },
+          { from: "done", to: "in_progress", by: ["human"] },
+          { from: "done", to: "review", by: ["human"] },
+        ],
+      },
+    });
+    await runCommand(ticketCreate, ctx, { title: "A" });
+    await runCommand(ticketCreate, ctx, { title: "B" });
+    await runCommand(ticketMove, ctx, { ticket: "t2", status: "done" });
+    const run = async (input: Record<string, unknown>) => (await runCommand(ask, ctx, input)).data;
+
+    const abandon = await run({ targets: ["t1"], action: "abandon" });
+    expect(abandon.targets[0]).toMatchObject({ agent_denied: ["abandoned"] });
+    expect(abandon).toMatchObject({
+      kind: "command",
+      human_only: [],
+      workflow_by: ["t1: todo → abandoned"],
+      text: "dg ticket move t1 abandoned",
+    });
+    expect(await run({ targets: ["t2"], action: "undo_done" })).toMatchObject({
+      kind: "command",
+      workflow_by: ["t2: done → todo・in_progress・review"],
+      text: 'dg ticket move t2 "<戻す Status>"',
+    });
+
+    // agent を含む遷移に変えると、依頼文に戻る
+    await runCommand(workflowSet, ctx, {
+      workflow: "general",
+      definition: {
+        id: "general",
+        name: "General",
+        transitions: [
+          { from: "todo", to: "abandoned", by: ["human", "agent"] },
+          { from: "done", to: "todo", by: ["human"] },
+          { from: "done", to: "review", by: ["agent"] },
+        ],
+      },
+    });
+    expect(await run({ targets: ["t1"], action: "abandon" })).toMatchObject({
+      kind: "prompt",
+      workflow_by: [],
+    });
+    expect((await run({ targets: ["t2"], action: "undo_done" })).kind).toBe("prompt");
   });
 });
