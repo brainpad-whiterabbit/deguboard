@@ -29,3 +29,4 @@ details:
     approach: t262・t256・t257・t260 で requirements を書き換えた後に、UI-* の細部をコード・テストへの参照に置き換えて 90% 未満にする。テストにない細部はテストを足してから消す
 approved_by: eiki.kitajima/agent
 approved_at: 2026-11-03T01:17:11Z
+closed_at: 2026-11-03T02:11:40Z
