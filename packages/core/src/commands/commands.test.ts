@@ -582,6 +582,29 @@ describe("チケットの流れ", () => {
     ]);
     const shown = await runCommand(ticketShow, ctx, { ticket: "t2" });
     expect(shown.data.deps_done).toBe(true);
+    expect(shown.data.pending_deps).toEqual([]);
+  });
+
+  it("show は終わっていない依存先を ID と Status で出し、別の Project の終わった依存先は出さず、見つからない依存先は Status を null で出す", async () => {
+    const f = await fixture();
+    const ctx = await initialized(f.cloneA);
+    await runCommand(projectCreate, ctx, { id: "other" });
+    await runCommand(ticketCreate, ctx, { title: "別の Project・済み", project: "other" });
+    await runCommand(ticketCreate, ctx, { title: "別の Project・途中", project: "other" });
+    await runCommand(ticketCreate, ctx, { title: "やめた" });
+    await runCommand(ticketMove, ctx, { ticket: "t1", status: "done" });
+    await runCommand(ticketMove, ctx, { ticket: "t2", status: "in_progress" });
+    await runCommand(ticketMove, ctx, { ticket: "t3", status: "abandoned" });
+    await runCommand(ticketCreate, ctx, { title: "待ち", depends_on: ["t1", "t2", "t3"] });
+    const shown = await runCommand(ticketShow, ctx, { ticket: "t4" });
+    expect(shown.data.pending_deps).toEqual([{ id: "t2", status: "in_progress" }]);
+    expect(shown.data.deps_done).toBe(false);
+    // 依存先を消すと Status の分からない待ちとして残る（deps_done と同じく待つ）
+    await runCommand(ticketDelete, ctx, { ticket: "t1" });
+    expect((await runCommand(ticketShow, ctx, { ticket: "t4" })).data.pending_deps).toEqual([
+      { id: "t1", status: null },
+      { id: "t2", status: "in_progress" },
+    ]);
   });
 
   it("unclaim は自分（同じユーザの人と AI）の claim だけ外し、他人のものは force が要る", async () => {

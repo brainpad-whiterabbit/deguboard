@@ -398,6 +398,7 @@ describe("画面", () => {
       ...(show(input) as object),
       dependents: ["t10"],
       deps_done: depsDone,
+      pending_deps: depsDone ? [] : [{ id: "t2", status: "in_progress" }],
     });
     mount(client, hostOf("panel"));
     const h1 = await screen.findByRole("heading", { level: 1, name: "待ち" });
@@ -430,6 +431,33 @@ describe("画面", () => {
     expect(document.querySelector(".deps-band")).toBeNull();
   });
 
+  it("エディタのパネルの依存先の帯は ticket.show の pending_deps だけを出し、一覧にない別の Project の終わった依存先は出さない", async () => {
+    window.location.hash = "#/tickets/t9";
+    // t5 は別の Project で done（今の Project の ticket.list には出ない）。t6 は見つからない依存先
+    const data = fixture({
+      tickets: [
+        ticket({ id: "t2", title: "途中", status: "in_progress" }),
+        ticket({ id: "t9", title: "待ち", depends_on: ["t5", "t2", "t6"] }),
+      ],
+    });
+    const client = mockClient(data);
+    const show = client.handlers["ticket.show"]!;
+    client.handlers["ticket.show"] = (input) => ({
+      ...(show(input) as object),
+      deps_done: false,
+      pending_deps: [
+        { id: "t2", status: "in_progress" },
+        { id: "t6", status: null },
+      ],
+    });
+    mount(client, hostOf("panel"));
+    await screen.findByRole("heading", { level: 1, name: "待ち" });
+    const band = document.querySelector(".deps-band")!;
+    expect(band.textContent).toBe("依存先が終わっていない：t2In Progresst6");
+    expect(band.querySelector('a[href="#/tickets/t5"]')).toBeNull();
+    expect(band.querySelectorAll(".status-dot")).toHaveLength(1);
+  });
+
   it("ブラウザのチケット詳細は、依存先が終わっていなくても本文の上の帯を出さず、右の列の依存先の下に知らせる", async () => {
     window.location.hash = "#/tickets/t9";
     const data = fixture({
@@ -440,7 +468,11 @@ describe("画面", () => {
     });
     const client = mockClient(data);
     const show = client.handlers["ticket.show"]!;
-    client.handlers["ticket.show"] = (input) => ({ ...(show(input) as object), deps_done: false });
+    client.handlers["ticket.show"] = (input) => ({
+      ...(show(input) as object),
+      deps_done: false,
+      pending_deps: [{ id: "t2", status: "in_progress" }],
+    });
     mount(client);
     await screen.findByRole("heading", { level: 1, name: "待ち" });
     expect(document.querySelector(".deps-band")).toBeNull();
