@@ -2,7 +2,7 @@ id: p36
 project: default
 tickets: [t321, t322, t323, t324, t325]
 after: {}
-pending_approval: true
+pending_approval: false
 details:
   t321:
     scope: README に models.* の設定項目と dg config set の例、Plan の説明に --tier と段階がモデルに対応することを足す。細部は requirements PL-1・5.10 へのリンクにとどめる
@@ -24,3 +24,5 @@ details:
     scope: packages/vscode/package.json の @types/vscode を 1.123.0 にし lockfile を更新する。ほかの依存は触らない
     approach: development.md のとおり mise exec -- pnpm add -D @types/vscode@1.123.0 --filter deguboard-vscode で上げ、mise run check を通す
     tier: light
+approved_by: eiki.kitajima/agent
+approved_at: 2026-11-03T22:55:04Z
