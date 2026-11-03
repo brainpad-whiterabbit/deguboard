@@ -239,7 +239,7 @@ steps: # 任意。Run の step の語彙（WF-5）
 Web UI は `dg serve` が配信し、VS Code 拡張は同じ React アプリを Webview に載せる（[ADR-006](adr/ADR-006-ui-and-writes.md)）。
 
 - UI-1 プロジェクトの切り替え
-- UI-2 カンバン：planned か active の Iteration 1 つ（既定は active）か「すべて」のチケットを Status ごとの列に出し、ドラッグで Status を変える（`ticket move`）。Epic と担当者で絞れる
+- UI-2 カンバン：planned か active の Iteration 1 つ（既定は active）か「すべて」（その全部）のチケットを Status ごとの列に出し、ドラッグで Status を変える（`ticket move`）。Iteration のないチケットはバックログで見る。Epic と担当者で絞れる
 - UI-3 バックログ：done・abandoned 以外のチケットを Iteration ごとの区画に出し、検索と絞り込みができる。区画の間のドラッグで Iteration を変える（`ticket update`）
 - UI-4 チケット詳細：本文・属性・Epic・依存・起票者と担当者・作業ブランチ・PR・Run・経過（CL-7）を出し、属性と本文を編集できる
 - UI-5 Iteration：作成・開始・閉じる、詳細の画面でチケットの追加・除外ができる。ほかに active があれば開始・再開は押せず理由を出す（IT-1）。閉じた Iteration・Epic と終わったチケットは履歴の画面で見る
@@ -248,8 +248,8 @@ Web UI は `dg serve` が配信し、VS Code 拡張は同じ React アプリを 
 - UI-8 `dg serve` は既定で `127.0.0.1` にバインドする。認証は持たない
 - UI-9 Run の画面：実行中・完了の Run と MT-3 の集計。ブラウザだけに置く
 - UI-10 Epic：open の Epic の進捗（EP-3）を出し、Epic で絞れる。詳細の画面でチケットの追加・除外、閉じる・再開ができる
-- UI-11 VS Code 拡張は `core` を同梱して `dg` なしで動き、`dg` が PATH にないときと、`dg` と `core` の版のメジャーが違うときは知らせる（[ADR-006](adr/ADR-006-ui-and-writes.md)）
-- UI-12 VS Code 拡張はサイドバーを主画面にし（UI-9 を除く）、エディタのパネルには詳細だけを出す。タイトル行に同期・設定の操作と未 push・未取り込みの件数を出す。データと Run の記録の変化を見張り、CLI やエージェントの書き込みを自動で映す（[ADR-006](adr/ADR-006-ui-and-writes.md)）
+- UI-11 VS Code 拡張は `core` を同梱して `dg` なしで動き、`dg` が PATH にないときと、`dg` と `core` の版のメジャーが違うときは知らせる
+- UI-12 VS Code 拡張はサイドバーを主画面にし、エディタのパネルには詳細だけを出す。タイトル行に同期・設定の操作と未 push・未取り込みの件数を出す。データと Run の記録の変化を見張り、CLI やエージェントの書き込みを自動で映す
 - UI-13 実行計画：カンバンの上に、選んだ範囲のチケットを含む Plan の進捗、作業中と次（PL-6 の `next`）のチケット、`after` の依存グラフを出す。表示だけで書き込まない
 - UI-14 設定画面：`config.yaml` の全項目（5.10）を出し、`config.set` で保存する。チーム全員に効くことを示し、`git.*`・`worktree.root`・`actions.*`・`actor.human_only`・`auto.merge` は保存前に確かめる。VS Code の settings.json は使わない
 
