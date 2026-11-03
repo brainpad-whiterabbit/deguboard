@@ -133,7 +133,7 @@ describe("dg", () => {
     const status = await git(path.join(f.cloneB, ".git", "deguboard"), ["status", "--porcelain"]);
     expect(status.stdout).toBe("");
     const json = await dg(f.cloneB, ["--json", "init"]);
-    expect(json.json()).toMatchObject({ ok: true, data: { created: [] } });
+    expect(json.json()).toMatchObject({ ok: true, data: { created: [] }, write: null });
   });
 
   it("claim の --without-branch は branch を記録せず、--branch と一緒なら使い方の誤り。update の --branch none で外す", async () => {
