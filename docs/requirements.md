@@ -230,7 +230,7 @@ steps: # 任意。Run の step の語彙（WF-5）
 - SY-1 `dg init` は deguboard ブランチを作るか取り込み、専用 worktree を用意し、`default` プロジェクトとテンプレートのワークフローを置く
 - SY-2 書き込みの単位は「取り込み → 変更 → 検証 → コミット →（`push.mode: auto` か即時の操作なら）push」。push が拒否されたら取り込み直して再送する。送れなければコミットを残し、次の同期で再送する
 - SY-3 claim・作成・`iteration start / reopen` は push の成功をもって取得とする。拒否されたらローカルのコミットを捨てて取り込み直し、判定し直す
-- SY-4 同期は rebase で取り込み、チケットと Epic の frontmatter はマージドライバがフィールド単位で 3-way マージする（片側だけ変えたフィールドはその値、`updated_at` は新しい方）。`dg init` と `dg sync` がドライバを git config と deguboard ブランチの `.gitattributes` に登録する。同じフィールドを両側が違う値に変えたときと本文の同じ行の競合は、rebase を中止してローカルのコミットを残し、`dg sync` が競合を報告する。競合が残る間は push・照合・作成・claim・`iteration start / reopen` が止まる。人は deguboard worktree で `git rebase <remote>/deguboard` から解いて `git rebase --continue` するか、`git reset --hard <remote>/deguboard` でローカルのコミットを捨てて操作をやり直し、`dg sync` を回す
+- SY-4 同期は rebase で取り込み、チケットと Epic の frontmatter はマージドライバがフィールド単位で 3-way マージする（片側だけ変えたフィールドはその値、`updated_at` は新しい方）。`dg init` と `dg sync` がドライバを git config と deguboard ブランチの `.gitattributes` に登録する。同じフィールドを両側が違う値に変えたときと本文の同じ行の競合は、rebase を中止してローカルのコミットを残し、`dg sync` が競合を報告する。競合が残る間は push・照合・作成・claim・`iteration start / reopen` が止まり、人が解消してから `dg sync` を回す（戻し方は `dg guide overview` の「同期が止まったとき」）
 - SY-5 同一マシンの書き込みは `deguboard-local/locks/` のロックで直列にし、同じチケットと step の Run の二重起動も同じ場所のロックで防ぐ。チーム間の排他には使わない
 - SY-6 リモートがなくても、同期を除くすべての操作が動く
 
@@ -257,7 +257,7 @@ Web UI は `dg serve` が配信し、VS Code 拡張は同じ React アプリを 
 
 ### 6.5 エージェント連携
 
-- AG-1 エージェントは PATH の `dg` を Bash から `dg … --json --actor agent` で呼び、データのファイルを直接編集しない。human と agent の区別は申告（`--actor` か環境変数 `DEGUBOARD_ACTOR`。既定は human）に基づき、Skill と `dg guide` の手順は必ず agent を名乗る。主体の ID はユーザ名（`--user`、環境変数 `DEGUBOARD_USER`、git config の `deguboard.user`、git の `user.name`、OS のユーザ名の順）と種別から `<ユーザ>`（human）か `<ユーザ>/agent`（agent）になり、`created_by` と `assignee` に記録される（TK-7）。`whoami` は操作している主体とユーザ名の出どころ、本人とみなす ID（`<ユーザ>` と `<ユーザ>/agent`）を返し、画面はこれで担当者が自分かを見分ける。権限管理ではない（対象外）
+- AG-1 エージェントは PATH の `dg` を Bash から `dg … --json --actor agent` で呼び、データのファイルを直接編集しない。human と agent の区別は申告（`--actor` か環境変数 `DEGUBOARD_ACTOR`。既定は human）に基づき、Skill と `dg guide` の手順は必ず agent を名乗る。主体の ID はユーザ名（`--user`。既定の決め方は `dg --help`）と種別から `<ユーザ>`（human）か `<ユーザ>/agent`（agent）になり、`created_by` と `assignee` に記録される（TK-7）。`whoami` は操作している主体とユーザ名の出どころ、本人とみなす ID（`<ユーザ>` と `<ユーザ>/agent`）を返す。権限管理ではない（対象外）
 - AG-2 Claude Code 向けに、段階ごとに `dg guide <topic>` を読む薄い Skill（`dg<トピック>`。例 `/dgimport`）を `dg skill install` で配る。名前と説明は guide の frontmatter が正本。手を加えていない Skill は再実行で更新し、手を加えたものは強制の指定がなければ残す
 - AG-3 エージェントは要件の整理が終わったら、必要に応じてチケット化を提案し、承認を得て `ticket import` で起票する。分解・Epic への束ね・依存の整理・Iteration への割り当ても提案して承認を得る
 - AG-4 MCP サーバー（`dg mcp`。stdio）は、Bash のないクライアント（Claude Desktop など）から起票・閲覧・状態の更新をする入口として、Core のコマンド定義から生成する薄い層で提供する。CLI と同じ操作ができ（`init` と CLI だけの `guide`・`skill`・`serve`・`open` を除く）、ツールの結果は `--json` と同じ形（CL-1）で、主体は常に agent（`<ユーザ>/agent`）。対象のリポジトリは `-C` で指せる（クライアントがリポジトリの外で起動するため）
@@ -276,7 +276,7 @@ Web UI は `dg serve` が配信し、VS Code 拡張は同じ React アプリを 
 
 - EX-1 deguboard はエージェントを起動しない。チケットの処理はエージェント側の Skill が `dg` を呼んで進める
 - EX-2 終了していない Run は一覧で見え、`interrupted` として閉じられる
-- EX-3 段階を続けて進める手順は Skill 側に置き、着手できるチケット（Plan があれば PL-6 の `ready`・`next`、なければ `ticket list --ready`）に従う。`dg guide all --auto` は戻せる判断を自動で選び、`auto.merge` が true なら条件を満たした PR をマージする。Plan の待ちのない複数のチケットはチケットごとのサブエージェントで同時に進め、1 件の失敗やマージ待ちでほかを止めない。品質ゲート（検査・受け入れ条件・別のサブエージェントの見直し・衝突なし）は PR を出す前とマージの前に通し、手直しの Run に直した指摘を `retry_reasons` で残す。修正の回数の上限を超えたら PR を draft のまま人に渡す。同時に進める上限・修正ループの回数・Run の分け方は guide（`parallel`・`review`・`all`）が正本
+- EX-3 段階を続けて進める手順は Skill 側に置き、着手できるチケット（Plan があれば PL-6 の `ready`・`next`、なければ `ticket list --ready`）に従う。`dg guide all --auto` は戻せる判断を自動で選び、`auto.merge` が true なら条件を満たした PR をマージする。品質ゲート（検査・受け入れ条件・別のサブエージェントの見直し・衝突なし）は PR を出す前とマージの前に通し、修正の上限を超えたら PR を draft のまま人に渡す。同時の進め方・修正ループ・Run の分け方は guide（`parallel`・`review`・`all`）が正本
 - EX-4 Workflow が `by: [human]` で人に限った遷移は、エージェントからは行えない
 
 ## 7. 非機能要件
