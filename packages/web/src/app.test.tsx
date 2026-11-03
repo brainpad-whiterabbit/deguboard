@@ -377,6 +377,74 @@ describe("画面", () => {
     expect(dts().includes("なし")).toBe(false);
   });
 
+  it("エディタのパネルのチケット詳細は、依存先が終わっていなければ本文の上に依存先の ID と Status の帯を出し、依存先・依存元に Status の丸印を付けて終わった依存先を薄くする", async () => {
+    window.location.hash = "#/tickets/t9";
+    const data = fixture({
+      tickets: [
+        ticket({ id: "t1", title: "済み", status: "done" }),
+        ticket({ id: "t2", title: "途中", status: "in_progress" }),
+        ticket({ id: "t9", title: "待ち", depends_on: ["t1", "t2"] }),
+        ticket({ id: "t10", title: "後", status: "review", depends_on: ["t9"] }),
+      ],
+    });
+    const client = mockClient(data);
+    const show = client.handlers["ticket.show"]!;
+    let depsDone = false;
+    client.handlers["ticket.show"] = (input) => ({
+      ...(show(input) as object),
+      dependents: ["t10"],
+      deps_done: depsDone,
+    });
+    mount(client, hostOf("panel"));
+    const h1 = await screen.findByRole("heading", { level: 1, name: "待ち" });
+    const main = h1.closest(".detail-main")!;
+    const band = main.querySelector(".deps-band")!;
+    expect(band.textContent).toBe("依存先が終わっていない：t2In Progress");
+    expect(band.querySelector(".status-dot.status-in_progress")).toBeTruthy();
+    expect(band.querySelector('a[href="#/tickets/t2"]')).toBeTruthy();
+    // 帯は見出しの帯の下、本文の上
+    expect(band.previousElementSibling).toBe(main.querySelector(".detail-head"));
+    expect(band.nextElementSibling!.classList.contains("markdown")).toBe(true);
+
+    const aside = document.querySelector(".detail > aside") as HTMLElement;
+    const deps = within(aside).getByRole("region", { name: "つながり" });
+    const rowOf = (id: string) => deps.querySelector(`a[href="#/tickets/${id}"]`)!.parentElement!;
+    expect(rowOf("t1").querySelector(".status-dot.status-done")).toBeTruthy();
+    expect(rowOf("t1").classList.contains("dep-finished")).toBe(true);
+    expect(rowOf("t2").querySelector(".status-dot.status-in_progress")).toBeTruthy();
+    expect(rowOf("t2").classList.contains("dep-finished")).toBe(false);
+    expect(rowOf("t10").querySelector(".status-dot.status-review")).toBeTruthy();
+    // 帯があるので右の列には「依存先が終わっていない」を重ねて出さない
+    expect(aside.textContent).not.toContain("依存先が終わっていない");
+    cleanup();
+
+    // 依存先が終わっていれば帯は出ない
+    depsDone = true;
+    window.location.hash = "#/tickets/t9";
+    mount(client, hostOf("panel"));
+    await screen.findByRole("heading", { level: 1, name: "待ち" });
+    expect(document.querySelector(".deps-band")).toBeNull();
+  });
+
+  it("ブラウザのチケット詳細は、依存先が終わっていなくても本文の上の帯を出さず、右の列の依存先の下に知らせる", async () => {
+    window.location.hash = "#/tickets/t9";
+    const data = fixture({
+      tickets: [
+        ticket({ id: "t2", title: "途中", status: "in_progress" }),
+        ticket({ id: "t9", title: "待ち", depends_on: ["t2"] }),
+      ],
+    });
+    const client = mockClient(data);
+    const show = client.handlers["ticket.show"]!;
+    client.handlers["ticket.show"] = (input) => ({ ...(show(input) as object), deps_done: false });
+    mount(client);
+    await screen.findByRole("heading", { level: 1, name: "待ち" });
+    expect(document.querySelector(".deps-band")).toBeNull();
+    expect(document.querySelector(".detail > aside")!.textContent).toContain(
+      "依存先が終わっていない",
+    );
+  });
+
   it("エディタのパネルのチケット詳細は、タイトルの直下の帯に Status の丸印・優先度・Iteration・担当・PR を 1 行で出す", async () => {
     window.location.hash = "#/tickets/t9";
     const data = fixture({

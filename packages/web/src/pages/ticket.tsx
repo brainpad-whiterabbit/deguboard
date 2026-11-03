@@ -1,6 +1,7 @@
 // チケット詳細（UI-4）。本文（概要・受け入れ条件）、属性、Epic、依存先と依存元、作業ブランチ、Run の一覧と、経過（deguboard ブランチの履歴）。
 // 属性と本文を編集でき、Status は ticket.move と同じ検査を通る。パネルの Status の選択には Workflow で今から移れる Status だけを並べる。
 // VS Code のパネルでは、タイトルの下に Status・優先度・Iteration・担当・PR の 1 行と編集のボタンを置いてスクロールしても上に残す。
+// パネルでは依存先が終わっていなければ本文の上の帯で知らせ、依存先・依存元に Status の丸印を付ける（終わった依存先は薄く）。
 // 右の列は幅を固定し、Status の選択を先頭に、属性を「計画・つながり・作業・記録」の見出しで分け、値のない属性は最後の 1 行にまとめる。
 // 作成・更新は経過と同じ手元時刻で、今年なら年を省く
 
@@ -116,6 +117,26 @@ export function TicketPage({ id }: { id: string }) {
   const dependents = ticket.dependents.map(
     (d) => store.tickets.find((t) => t.id === d) ?? { id: d, title: "" },
   );
+  /** 依存先・依存元の 1 行。パネルでは頭に Status の丸印を付け、終わった（done・abandoned）依存先は薄くする */
+  const relation = (d: (typeof dependsOn)[number], dimDone: boolean) => (
+    <div
+      key={d.id}
+      className={
+        panel && dimDone && "status" in d && finished(d.status) ? "dep-finished" : undefined
+      }
+    >
+      {panel && "status" in d ? <StatusDot status={d.status} /> : null}
+      <TicketLink id={d.id} title={d.title} />
+      {!panel && dimDone && "status" in d ? (
+        <>
+          {" "}
+          <StatusBadge status={d.status} />
+        </>
+      ) : null}
+    </div>
+  );
+  // 終わっていない依存先（WF-2 の deps_done と同じく done・abandoned 以外。一覧にない依存先は Status が分からないので含める）
+  const pendingDeps = dependsOn.filter((d) => !("status" in d) || !finished(d.status));
   // パネルで見ているとき（編集中でないとき）は、値のない属性を行にせず最後の「なし」の 1 行にまとめる
   const emptyLabels =
     panel && !draft
@@ -262,31 +283,17 @@ export function TicketPage({ id }: { id: string }) {
       "依存先",
       <>
         {dependsOn.length ? (
-          dependsOn.map((d) => (
-            <div key={d.id}>
-              <TicketLink id={d.id} title={d.title} />
-              {"status" in d ? (
-                <>
-                  {" "}
-                  <StatusBadge status={d.status} />
-                </>
-              ) : null}
-            </div>
-          ))
+          dependsOn.map((d) => relation(d, true))
         ) : (
           <span className="muted">なし</span>
         )}
-        {!ticket.deps_done && <div className="muted">依存先が終わっていない</div>}
+        {!ticket.deps_done && !panel && <div className="muted">依存先が終わっていない</div>}
       </>,
     ),
     dependents: row(
       "依存元",
       dependents.length ? (
-        dependents.map((d) => (
-          <div key={d.id}>
-            <TicketLink id={d.id} title={d.title} />
-          </div>
-        ))
+        dependents.map((d) => relation(d, false))
       ) : (
         <span className="muted">なし</span>
       ),
@@ -380,6 +387,22 @@ export function TicketPage({ id }: { id: string }) {
         ) : (
           header
         )}
+        {panel && !ticket.deps_done ? (
+          <p className="notice info deps-band" role="status">
+            <span>
+              依存先が終わっていない：
+              {pendingDeps.map((d) => (
+                <span key={d.id} className="deps-band-item">
+                  {"status" in d ? <StatusDot status={d.status} /> : null}
+                  <TicketLink id={d.id}>
+                    <code>{d.id}</code>
+                  </TicketLink>
+                  {"status" in d ? store.labelOf(d.status) : null}
+                </span>
+              ))}
+            </span>
+          </p>
+        ) : null}
         {draft ? (
           <textarea
             className="body"
@@ -430,6 +453,11 @@ export function TicketPage({ id }: { id: string }) {
       </aside>
     </section>
   );
+}
+
+/** 依存を待たない Status か（WF-2。やめたチケットは待たない） */
+function finished(status: Status): boolean {
+  return status === "done" || status === "abandoned";
 }
 
 function FieldValue({
