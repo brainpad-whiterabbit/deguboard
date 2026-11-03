@@ -72,10 +72,10 @@ dg metrics show --iteration s1 --by ticket    # 絞り込み（--ticket・--epic
 
 ### Plan の段階とモデル
 
-Plan のチケットごとの段階 `--tier`（`light` / `standard` / `heavy`。省けば standard）は、設定の `models.light` / `models.standard` / `models.heavy` でモデルに対応し、`dg guide work` の手順がそのモデルのサブエージェントに実装を渡す。空なら親のモデルのまま。決め方は `dg guide plan`、正本は[要件定義書](docs/requirements.md)の PL-1 と 5.10。
+Plan はチケットごとに段階 `--tier`（`light` / `standard` / `heavy`。省けば standard）を持つ。段階は設定の `models.light` / `models.standard` / `models.heavy` でモデルに対応し、`dg guide work` の手順がそのモデルのサブエージェントに実装を渡す（空なら親のモデルのまま）。段階の目安は `dg guide plan`、正本は[要件定義書](docs/requirements.md)の PL-1 と 5.10。
 
 ```sh
-dg plan create t12 t13 --tier t12=light --tier t13=heavy   # light：文書・設定・文言だけ。heavy：設計の判断や難しい不具合
+dg plan create t12 t13 --tier t12=light --tier t13=heavy   # チケットごとの段階。目安は dg guide plan
 dg config set models.heavy <モデル名>                       # 段階ごとのモデル（light・standard も）。既定は空
 ```
 
