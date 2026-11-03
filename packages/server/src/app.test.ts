@@ -91,13 +91,22 @@ describe("HTTP サーバー", () => {
     const s = await serve(f.cloneA);
     await post(s, "ticket.create", { title: "A" });
     await post(s, "ticket.create", { title: "B" });
+    // 段階（tier）は light / standard / heavy だけ。それ以外は入力の形の誤り（400・INVALID_INPUT）
+    const invalid = await post(s, "plan.create", { tickets: ["t1"], tier: { t1: "huge" } });
+    expect(invalid.status).toBe(400);
+    expect(invalid.body).toMatchObject({ ok: false, error: { code: "INVALID_INPUT" } });
     const created = await post(s, "plan.create", {
       tickets: ["t1", "t2"],
       after: { t2: ["t1"] },
       approach: { t1: "小さく" },
+      tier: { t1: "light", t2: "heavy" },
     });
     expect(created.status).toBe(200);
     expect(created.body.data).toMatchObject({ id: "p1", after: { t2: ["t1"] } });
+    expect(created.body.data.details).toEqual({
+      t1: { approach: "小さく", tier: "light" },
+      t2: { tier: "heavy" },
+    });
     const dup = await post(s, "plan.create", { tickets: ["t2"] });
     expect(dup.status).toBe(409);
     expect(dup.body.error.code).toBe("REJECTED");
