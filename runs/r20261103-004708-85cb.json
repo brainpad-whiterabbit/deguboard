@@ -1,0 +1,21 @@
+{
+  "id": "r20261103-004708-85cb",
+  "ticket": "t253",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-03T00:47:08Z",
+  "finished_at": "2026-11-03T00:48:59Z",
+  "result": "success",
+  "error": null,
+  "retries": 1,
+  "retry_reasons": [
+    "書き込みのない init の --json で write が null になることを確かめていなかった"
+  ],
+  "usage": {
+    "input": 4,
+    "output": 756,
+    "cache_read": 116786,
+    "cache_write": 1022
+  }
+}
