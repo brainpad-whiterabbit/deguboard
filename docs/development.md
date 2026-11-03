@@ -133,6 +133,7 @@ npm に出すのは `@deguboard/core`・`@deguboard/server`・`deguboard`（cli�
 ```sh
 mise run release:version -- 0.1.0   # 5 パッケージの version を揃える → PR で main に入れる
 mise run check && mise run pack      # build のあと release/ に 3 つの tarball。別ディレクトリで入れて dg --version と dg init を試す
+mise run test:layout                 # build のあと画面の配置とドラッグ（check に入らない。ブラウザがなければ先に mise run playwright:install）
 mise run release:publish             # pnpm publish -r --access public（npm login 済みで）
 git tag v0.1.0 && git push origin v0.1.0
 mise run vsix                        # GitHub の Release に deguboard-vscode.vsix を添付する
