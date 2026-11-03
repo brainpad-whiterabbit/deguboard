@@ -1,6 +1,9 @@
 packages:
   - packages/*
 
+# 依存の版は固定する（ADR-008）。`pnpm add` が `-E` なしでも `^` を付けずに書くようにする
+savePrefix: ""
+
 # 依存のビルドスクリプトの許可（pnpm 12 の allowBuilds。ignoredBuiltDependencies は読まれない）。
 # vsce-sign の postinstall は Marketplace への署名用のバイナリを選ぶだけで、VSIX を作るのに要らないので拒否する
 allowBuilds:
