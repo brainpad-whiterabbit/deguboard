@@ -1,0 +1,24 @@
+{
+  "id": "r20261102-235906-5bce",
+  "ticket": "t210",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-02T23:59:06Z",
+  "finished_at": "2026-11-03T00:00:23Z",
+  "result": "success",
+  "error": null,
+  "retries": 4,
+  "retry_reasons": [
+    "範囲の版は savePrefix でも範囲で書かれることを development.md と ADR-008 に書いた",
+    "一覧に載っていない ADR で更新日の指摘を重ねない",
+    "置き換え済みの ADR を飛ばすテストを足した",
+    "ADR-001 に載り方と更新日を足し、成功のメッセージに件数を出した"
+  ],
+  "usage": {
+    "input": 6,
+    "output": 2815,
+    "cache_read": 215427,
+    "cache_write": 2863
+  }
+}
