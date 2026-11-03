@@ -1,0 +1,24 @@
+{
+  "id": "r20261103-093415-ab29",
+  "ticket": "t295",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-03T09:34:15Z",
+  "finished_at": "2026-11-03T09:36:07Z",
+  "result": "success",
+  "error": null,
+  "retries": 4,
+  "retry_reasons": [
+    "approve が human_only を見ない",
+    "planned の Iteration の todo のおすすめが計画でない",
+    "Skill を使わない頼むことに dg の呼び方が付かない",
+    "対象も指示もない自由な依頼が空文字になる"
+  ],
+  "usage": {
+    "input": 14,
+    "output": 6666,
+    "cache_read": 1342358,
+    "cache_write": 9702
+  }
+}

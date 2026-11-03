@@ -1,0 +1,19 @@
+{
+  "id": "r20261103-093633-7cb7",
+  "ticket": "t295",
+  "step": "review",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-03T09:36:33Z",
+  "finished_at": "2026-11-03T09:37:37Z",
+  "result": "success",
+  "error": null,
+  "retries": 0,
+  "retry_reasons": [],
+  "usage": {
+    "input": 28,
+    "output": 3968,
+    "cache_read": 654420,
+    "cache_write": 34784
+  }
+}
