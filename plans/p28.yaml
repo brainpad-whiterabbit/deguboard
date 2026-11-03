@@ -37,3 +37,4 @@ details:
     approach: 判定の述語を board.tsx か router.ts に 1 つ置き app.tsx と boardSelection から使う。BOARD_ITERATION の export を外す
 approved_by: eiki.kitajima/agent
 approved_at: 2026-11-03T02:17:20Z
+closed_at: 2026-11-03T03:11:01Z
