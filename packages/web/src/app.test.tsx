@@ -1316,7 +1316,7 @@ describe("画面", () => {
     await screen.findByRole("heading", { level: 2, name: "経過" });
     const items = async () =>
       waitFor(() => {
-        const list = [...document.querySelectorAll(".timeline-list li > span:last-child")];
+        const list = [...document.querySelectorAll(".timeline-list .timeline-text")];
         expect(list).toHaveLength(3);
         return list.map((e) => e.textContent);
       });
@@ -1326,6 +1326,14 @@ describe("画面", () => {
       "Iteration s1 から外した ・ PR #5",
     ]);
     expect(screen.getByText(/これより前の経過は欠けている/)).toBeTruthy();
+    // 同じ日付なので日付の行は 1 つ。各行は時刻だけと作者を出し、Status の変わらない行は中の空いた丸
+    const days = [...document.querySelectorAll(".timeline-day")].map((e) => e.textContent);
+    expect(days).toEqual(["2026-11-01"]);
+    const times = [...document.querySelectorAll(".timeline-list li:not(.timeline-day) > time")];
+    expect(times.map((e) => e.textContent)).toEqual(["00:00", "01:00", "02:00"]);
+    const authors = [...document.querySelectorAll(".timeline-author")].map((e) => e.textContent);
+    expect(authors).toEqual(["eiki", "eiki", "eiki"]);
+    expect(document.querySelectorAll(".timeline-list .status-dot-empty")).toHaveLength(1);
   });
 
   it("履歴のチケットの見方は終わったチケットを終えた新しい順に出し、分からないものは更新日で並べてそう出す。結果・検索で絞れ、Epic のセレクトはない", async () => {
