@@ -232,12 +232,16 @@ export function ConfigPage() {
           {g.fields.map((f) => {
             const value = valueAt(view!.config, f.key);
             const modified = isModified(value, f.default);
+            // 確かめを待つ間は、待っている項目のほかは入力欄も「既定に戻す」も触れない
+            // （触れると待ちが移り、元の項目の下書きが確かめの枠なしで残る）
+            const locked = saving === f.key || (pending !== null && pending.key !== f.key);
             return (
               <FieldRow
                 key={f.key}
                 field={f}
                 modified={modified}
                 busy={saving === f.key}
+                locked={locked}
                 message={messages[f.key]}
                 confirm={
                   pending?.key === f.key ? (
@@ -255,7 +259,7 @@ export function ConfigPage() {
                   field={f}
                   value={value}
                   draft={drafts[f.key]}
-                  disabled={saving === f.key || (pending !== null && pending.key !== f.key)}
+                  disabled={locked}
                   onDraft={(v) => setDrafts((d) => ({ ...d, [f.key]: v }))}
                   onChange={(v) => change(f.key, v)}
                 />
@@ -272,6 +276,7 @@ function FieldRow({
   field,
   modified,
   busy,
+  locked,
   message,
   confirm,
   onReset,
@@ -280,6 +285,8 @@ function FieldRow({
   field: ConfigField;
   modified: boolean;
   busy: boolean;
+  /** 入力欄と「既定に戻す」を押せなくする（保存中か、ほかの項目が確かめを待っている） */
+  locked: boolean;
   message: FieldMessage | undefined;
   confirm: ReactNode;
   onReset(): void;
@@ -308,7 +315,7 @@ function FieldRow({
             type="button"
             className="config-reset"
             onClick={onReset}
-            disabled={busy}
+            disabled={locked}
             title={`既定の ${formatValue(field.default)} に戻す`}
           >
             既定に戻す
