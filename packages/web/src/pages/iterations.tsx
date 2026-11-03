@@ -55,7 +55,7 @@ function IterationDetailView({ id }: { id: string }) {
   // 開始・再開はほかに active があると拒否される（IT-1）ので、押せなくして理由を出す
   const other = it.status === "active" ? undefined : otherActiveIteration(store.iterations, it);
   const reason = other
-    ? blockedByActiveReason(other, it.status === "closed" ? "再開" : "開始")
+    ? blockedByActiveReason(other, it, it.status === "closed" ? "再開" : "開始")
     : undefined;
 
   return (
@@ -114,7 +114,7 @@ function IterationDetailView({ id }: { id: string }) {
           </button>
         )}
       </div>
-      {reason ? <p className="muted blocked-note">{reason}</p> : null}
+      {reason ? <p className="muted">{reason}</p> : null}
       {it.status !== "closed" && (
         <form
           className="inline-form"
