@@ -1070,6 +1070,18 @@ textarea.body {
   gap: 0.4em;
   align-items: baseline;
 }
+/* 節の見出しの右の「済 / 全」とメーター（markdown.tsx の TaskMeter）。見出しの太さと大きさを受けない */
+.markdown .task-meter {
+  margin-left: 0.6em;
+  font-size: 0.85rem;
+  font-weight: normal;
+  vertical-align: middle;
+}
+.markdown .task-meter .bar {
+  width: 60px;
+  height: 4px;
+  border-radius: 2px;
+}
 /* 進捗は Status ごとの積み上げ。色は --dg-status-* */
 .progress {
   display: inline-flex;
