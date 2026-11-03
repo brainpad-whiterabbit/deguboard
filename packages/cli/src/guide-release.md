@@ -22,6 +22,7 @@ Iteration のチケットがすべて done かを確かめ、リポジトリの�
    - 作業中の checkout ではなく、`git fetch {{git.remote}} {{git.base_branch}}` の後に `git worktree add --detach {{worktree.root}}/release-<S> {{git.remote}}/{{git.base_branch}}` で作った一時 worktree で進める。リリースのブランチ・依存のインストール・ビルドもこの中で行う
    - リリースの PR のマージは一時 worktree の外で行う。マージの後の確かめと公開は、マージを取り込んでから一時 worktree を作り直して行う
    - 承認を待たずに進めてよいのは準備の操作（一時 worktree、ブランチ、版の更新、CHANGELOG、確かめのコマンド、PR の作成）。PR の中で見直せるため
+   - リリースの PR が版の数字と手順が決めた CHANGELOG・ロックファイルだけを変えるなら、別のサブエージェントの見直しを省いてよい（条件は `dg guide review` の「品質ゲート」）。ほかのファイルも変えるなら省かない
    - **承認を得てから行う**：リリースの PR のマージ、公開の操作（タグの push・配布先への公開）。それぞれの前に聞く。手順に `--dry-run` などの確かめ方があれば先に実行し、結果を判断の材料に示す
    - 終わったら（やめたときも）一時 worktree を消す。`git worktree remove` が止まったら `git -C <パス> status --short --branch` で残りを確かめ、リリースに要る変更が残っていなければ `--force` で消す。残っていれば消さずに伝える
 4. **Iteration を閉じる**：「閉じる」「ここで止める」で聞き、承認されたら `dg --json --actor agent iteration close <S>`。次の Iteration は、それに入ったチケットに着手するときに `dg guide work` の手順 2 で始まる（聞かない）
