@@ -104,7 +104,10 @@ export const init = defineCommand({
         remote: ctx.repo.remote,
         created: result.value,
       },
-      result.write,
+      // 何も書かなかった init（2 回目や、リモートから取り込んだ 2 人目の clone）は書き込みの結果を返さない。
+      // committed: false を返すと入口が「作業ツリーに残した」と案内してしまう。取り込みの警告は残す
+      result.write.committed ? result.write : undefined,
+      result.write.committed ? [] : result.write.warnings,
     );
   },
 });

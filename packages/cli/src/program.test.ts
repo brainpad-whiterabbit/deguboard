@@ -119,6 +119,23 @@ describe("dg", () => {
     expect(list.out).toContain("t1  in_progress  high      Login validation");
   });
 
+  it("init は書き込みがあればコミットを案内し、2 人目の clone の書き込みのない init では「作業ツリーに残した」を出さない", async () => {
+    const f = await fixture();
+    const first = await dg(f.cloneA, ["init"]);
+    expect(first.code).toBe(0);
+    expect(first.err).toContain("コミット済み・push 済み");
+    const second = await dg(f.cloneB, ["init"]);
+    expect(second.code).toBe(0);
+    expect(second.out).toContain("from_remote");
+    expect(second.err).not.toContain("作業ツリーに残した");
+    expect(second.err).not.toContain("コミット済み");
+    // deguboard worktree に未コミットの変更は残っていない
+    const status = await git(path.join(f.cloneB, ".git", "deguboard"), ["status", "--porcelain"]);
+    expect(status.stdout).toBe("");
+    const json = await dg(f.cloneB, ["--json", "init"]);
+    expect(json.json()).toMatchObject({ ok: true, data: { created: [] } });
+  });
+
   it("claim の --without-branch は branch を記録せず、--branch と一緒なら使い方の誤り。update の --branch none で外す", async () => {
     const f = await fixture();
     await dg(f.cloneA, ["init"]);

@@ -125,10 +125,14 @@ describe("init", () => {
     const r2 = await runCommand(init, again, {});
     expect(r2.data.worktree).toBe("existing");
     expect(r2.data.created).toEqual([]);
-    // 別の clone は リモートから取り込む
+    expect(r2.write).toBeUndefined();
+    // 別の clone は リモートから取り込み、何も書かないので書き込みの結果を返さない
     const b = await openContext({ cwd: f.cloneB, initialize: {} });
     expect(b.worktree).toBe("from_remote");
     expect(b.store.workflows.size).toBe(3);
+    const rb = await runCommand(init, b, {});
+    expect(rb.data).toMatchObject({ worktree: "from_remote", created: [] });
+    expect(rb.write).toBeUndefined();
   });
 
   it("リモートがなくても init と起票ができる", async () => {
