@@ -9,7 +9,7 @@ after:
   t279:
     - t275
     - t278
-pending_approval: true
+pending_approval: false
 details:
   t273:
     scope: ADR-006 のカンバンの判断の文と、更新日・docs/adr/README.md の一覧
@@ -35,3 +35,5 @@ details:
   t279:
     scope: web の開いた Iteration の判定と test-helpers の export
     approach: 判定の述語を board.tsx か router.ts に 1 つ置き app.tsx と boardSelection から使う。BOARD_ITERATION の export を外す
+approved_by: eiki.kitajima/agent
+approved_at: 2026-11-03T02:17:20Z
