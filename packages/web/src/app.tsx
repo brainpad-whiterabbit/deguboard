@@ -191,7 +191,8 @@ export function App() {
           // サイドバーではチケット詳細を出さない（エディタ領域のパネルに開く）。Run の画面もなく、カンバンを出す（UI-12）。
           // 行・見出しの吹き出しと右クリックの候補は、出ている場所の分を AskMenuProvider がまとめて引く（UI-15）
           <AskMenuProvider>
-            {sidebar ? <AskHint /> : null}
+            {/* 案内は頼める場所のある画面（カンバン・バックログ・履歴）にだけ出す */}
+            {sidebar && ASK_HINT_PAGES.has(shown.page) ? <AskHint /> : null}
             <Page route={shown} />
           </AskMenuProvider>
         )}
@@ -253,6 +254,9 @@ function sidebarRoute(route: Route, sidebar: boolean): Route {
   if (route.page === "runs") return { page: "board" };
   return route;
 }
+
+/** 左パネルで初めての案内を出す画面（行・見出しから頼める画面） */
+const ASK_HINT_PAGES: ReadonlySet<Route["page"]> = new Set(["board", "backlog", "history"]);
 
 function Page({ route }: { route: Route }) {
   switch (route.page) {

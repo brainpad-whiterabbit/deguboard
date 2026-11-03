@@ -57,7 +57,10 @@ export const WEBVIEW_CONTRACT = {
    * 頼むことの候補（ask-menu の action を空白区切り）・おすすめを載せ、package.json の when が候補を見て項目を出す
    */
   askContext: { targets: "askTargets", actions: "askActions", recommended: "askRecommended" },
-  /** 頼める行・見出しの webviewSection（バックログの行は backlogRowSection） */
+  /**
+   * 頼める行・見出しの webviewSection（バックログの行は backlogRowSection）。サブメニューの when は askActions だけを見て section は見ない。
+   * section は場所の種類の名前で、場所ごとの項目を右クリックに足すときに when で使う
+   */
   askSections: ["boardTicket", "boardHeading", "backlogHeading", "epicChip", "historyRow"],
   /** 拡張が開く画面のルート（web の router のハッシュ） */
   routes: { board: "#/board", config: "#/config" },

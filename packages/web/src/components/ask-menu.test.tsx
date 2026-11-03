@@ -300,3 +300,32 @@ describe("入力欄を頼むことを選んで開く", () => {
     await waitFor(() => expect(pressed()).toBe("★確かめて片付ける"));
   });
 });
+
+describe("案内と失敗の扱い（見直しの指摘）", () => {
+  it("初めての案内は頼める場所のない設定画面には出さず、カンバンに移ると出す", async () => {
+    window.location.hash = "#/config";
+    mount(mockClient(boardFixture()), { state: createUiState(memoryBackend()) });
+    await screen.findByRole("link", { name: "カンバン" });
+    await waitFor(() => expect(document.querySelector(".page")!.textContent).not.toBe(""));
+    expect(screen.queryByText(ASK_HINT)).toBeNull();
+    act(() => {
+      window.location.hash = "#/board";
+    });
+    await screen.findByText("画面");
+    expect(screen.getByText(ASK_HINT)).toBeTruthy();
+  });
+
+  it("ask-menu の呼び出しが丸ごと失敗したら、一覧に「読み込み中…」を残さず理由を出す", async () => {
+    const client = mockClient(boardFixture());
+    client.handlers["ask-menu"] = () => {
+      throw new Error("拡張ホストに届かない");
+    };
+    mount(client);
+    await screen.findByText("画面");
+    await waitFor(() => expect(client.calls.some((c) => c.name === "ask-menu")).toBe(true));
+    fireEvent.click(bubble("行 t3"));
+    await waitFor(() => expect(within(menu()).getByText(/拡張ホストに届かない/)).toBeTruthy());
+    expect(within(menu()).queryByText("読み込み中…")).toBeNull();
+    expect(within(menu()).queryAllByRole("menuitem")).toHaveLength(0);
+  });
+});

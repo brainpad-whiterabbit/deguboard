@@ -57,7 +57,7 @@ export function AskComposer({
   const { client } = store;
   const [targets, setTargets] = useState<string[]>(() => [...initialTargets]);
   // null はおすすめ（候補の先頭）
-  const [picked, setAction] = useState<AskAction | null>(initialAction ?? null);
+  const [picked, setPicked] = useState<AskAction | null>(initialAction ?? null);
   const [format, setFormat] = useUiState<AskFormat>(ASK_FORMAT_KEY, "skill");
   const [note, setNote] = useUiState<string>(ASK_NOTE_KEY, "");
   const [full, setFull] = useState(false);
@@ -133,7 +133,7 @@ export function AskComposer({
   function removeTarget(id: string) {
     setTargets(targets.filter((t) => t !== id));
     // 頼むことの候補は対象で変わるので、おすすめに戻す
-    setAction(null);
+    setPicked(null);
     setResult(null);
   }
 
@@ -157,7 +157,7 @@ export function AskComposer({
               aria-pressed={c.action === chosen}
               title={c.skill ?? "Skill を使わない"}
               onClick={() => {
-                setAction(c.action);
+                setPicked(c.action);
                 setResult(null);
                 noteRef.current?.focus();
               }}

@@ -4,7 +4,7 @@
 // 対象・候補・おすすめを載せる（キーは core の WEBVIEW_CONTRACT.askContext）。
 // 候補は core の ask-menu（読み取りだけ）が組ごとに決め、web では組み立て直さない。画面の頼める場所は AskMenuProvider が
 // まとめて 1 回で引き、一覧が読み直されたら（Status が変わったかもしれない）引き直す。Provider の外では一覧を開いたときに引く。
-// 部品は場所によらず使える（左パネルのカンバン・バックログ・履歴。パネルの詳細でも同じ useAskSpot を使う）
+// 部品は場所によらない（今は左パネルのカンバン・バックログ・履歴で使う。パネルの詳細でも同じ useAskSpot を使える）
 
 import {
   createContext,
@@ -24,7 +24,10 @@ import { useAsk, useUiState } from "../host.js";
 import { useStore } from "../store.js";
 import type { AskCandidate, AskMenu } from "../types.js";
 
-/** 頼める場所の webviewSection（拡張の package.json の when と合う） */
+/**
+ * 頼める場所の webviewSection（core の WEBVIEW_CONTRACT.askSections の写し）。サブメニューの when は askActions だけを見るので、
+ * これは場所の種類の名前（場所ごとの項目を右クリックに足すときに使う）
+ */
 export const ASK_SECTIONS = WEBVIEW_CONTRACT_COPY.askSections;
 export type AskSection =
   | (typeof ASK_SECTIONS)[keyof typeof ASK_SECTIONS]
@@ -84,9 +87,15 @@ export function AskMenuProvider({ children }: { children: ReactNode }) {
           return next;
         });
       })
-      .catch(() => {
-        // 引けなかった組は、次に要るときに引き直す
-        for (const k of keys) mine.delete(k);
+      .catch((e: unknown) => {
+        // 呼び出しが丸ごと失敗したら、組ごとに理由を出し（Provider の外の経路と同じ）、次に読み直したときに引き直す
+        if (asked.current !== mine) return;
+        const error = e instanceof Error ? e.message : String(e);
+        setMenus((prev) => {
+          const next = new Map(prev);
+          for (const key of keys) next.set(key, { key, candidates: [], error });
+          return next;
+        });
       });
   }, [client, round, tickets, iterations, epics, plans, runningTickets]);
 
