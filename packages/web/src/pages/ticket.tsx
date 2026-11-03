@@ -1,5 +1,5 @@
 // チケット詳細（UI-4）。本文（概要・受け入れ条件）、属性、Epic、依存先と依存元、作業ブランチ、Run の一覧と、経過（deguboard ブランチの履歴）。
-// 属性と本文を編集でき、Status は ticket.move と同じ検査を通る。
+// 属性と本文を編集でき、Status は ticket.move と同じ検査を通る。パネルの Status の選択には Workflow で今から移れる Status だけを並べる。
 // VS Code のパネルでは、タイトルの下に Status・優先度・Iteration・担当・PR の 1 行と編集のボタンを置いてスクロールしても上に残す。
 // 右の列は幅を固定し、Status の選択を先頭に、属性を「計画・つながり・作業・記録」の見出しで分け、値のない属性は最後の 1 行にまとめる。
 // 作成・更新は経過と同じ手元時刻で、今年なら年を省く
@@ -13,6 +13,7 @@ import { Markdown } from "../markdown.js";
 import { hrefOf } from "../router.js";
 import { useStore } from "../store.js";
 import {
+  movableStatuses,
   PRIORITIES,
   STATUSES,
   type FieldDefinition,
@@ -162,7 +163,10 @@ export function TicketPage({ id }: { id: string }) {
         onChange={(e) => void move(e.target.value as Status)}
         aria-label="Status"
       >
-        {STATUSES.map((s) => (
+        {(panel
+          ? movableStatuses(ticket.status, store.workflow?.transitions ?? [], store.me?.kind)
+          : STATUSES
+        ).map((s) => (
           <option key={s} value={s}>
             {store.labelOf(s)}
           </option>
