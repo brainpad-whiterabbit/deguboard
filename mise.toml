@@ -33,7 +33,7 @@ description = "vitest でテストする"
 run = "pnpm run test"
 
 [tasks."test:layout"]
-description = "画面の配置とドラッグを Chromium で確かめる（サイドバーの幅 300px・260px、ライトとダーク、バックログの区画とカンバンの列の間のドラッグ）。ブラウザが要るので check には入れない（先に mise run playwright:install）"
+description = "画面の配置とドラッグを Chromium で確かめる（サイドバーの幅 300px・260px、パネルのチケット詳細の右の列・見出しの帯・Run、ライトとダーク、バックログの区画とカンバンの列の間のドラッグ）。ブラウザが要るので check には入れない（先に mise run playwright:install）"
 depends = ["build"]
 run = "pnpm run test:layout"
 
