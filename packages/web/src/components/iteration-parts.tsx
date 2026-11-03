@@ -4,27 +4,37 @@
 import { useState } from "react";
 import { CloseButton, unfinishedCount } from "./parts.js";
 import { useStore } from "../store.js";
-import type { Iteration } from "../types.js";
+import { byNumber, type Iteration } from "../types.js";
 
 /** Iteration を閉じたとき未完了のチケットがどうなるか（確認の文に添える） */
 export const ITERATION_CLOSE_NOTE = "閉じると持ち越しになり、Iteration から外れる。";
 
 /**
  * 同じ Project でほかに active の Iteration があればそれを返す。active は Project に 1 つなので（IT-1）、
- * あれば開始・再開は拒否される。拒否の判定は core のコマンドが行い、画面はボタンを押せなくして理由を出すだけ
+ * あれば開始・再開は拒否される。拒否の判定は core のコマンドが行い、画面はボタンを押せなくして理由を出すだけ。
+ * core の rejectIfOtherActive（commands/iteration.ts。判定は model/iteration.ts の otherActiveOf）の写しで、
+ * 同じ結果になることを iteration-parts.test.ts で確かめる（web は core の実行時のコードを取り込まない。ADR-007）
  */
 export function otherActiveIteration(
-  iterations: Iteration[],
+  iterations: readonly Iteration[],
   it: { id: string; project: string },
 ): Iteration | undefined {
-  return iterations.find(
-    (i) => i.id !== it.id && i.project === it.project && i.status === "active",
-  );
+  return iterations
+    .filter((i) => i.id !== it.id && i.project === it.project && i.status === "active")
+    .sort(byNumber)[0];
 }
 
-/** 開始・再開を押せない理由（ボタンの title と、ボタンの横の文に出す） */
-export function blockedByActiveReason(other: Iteration, verb: "開始" | "再開"): string {
-  return `${other.id} ${other.name} が進行中なので${verb}できない（進行中の Iteration は 1 つ）。先に ${other.id} を閉じる`;
+/**
+ * 開始・再開を押せない理由（ボタンの title と、詳細ではボタンの下の文に出す）。core の rejectIfOtherActive の理由
+ * （otherActiveMessage）の写しで、文の形は同じにする。そろえないのは、画面の表示名に合わせて active を「進行中」と書き
+ * 名前を添えることと、エージェントに向けた「（閉じるかは人が決める）」を省くこと（押すのは人なので）
+ */
+export function blockedByActiveReason(
+  other: Pick<Iteration, "id" | "name">,
+  it: { id: string },
+  verb: "開始" | "再開",
+): string {
+  return `${other.id} ${other.name} が進行中なので ${it.id} を${verb}できない（進行中の Iteration は Project に 1 つ）。先に ${other.id} を閉じる`;
 }
 
 /**
@@ -35,11 +45,11 @@ export function IterationActions({ iteration: it }: { iteration: Iteration }) {
   const store = useStore();
   if (it.status === "closed") return null;
   const other = it.status === "planned" ? otherActiveIteration(store.iterations, it) : undefined;
-  const reason = other ? blockedByActiveReason(other, "開始") : undefined;
+  const reason = other ? blockedByActiveReason(other, it, "開始") : undefined;
   return (
     <>
       {other ? (
-        <span className="muted blocked-note" title={reason}>
+        <span className="muted" title={reason}>
           {other.id} が進行中
         </span>
       ) : null}

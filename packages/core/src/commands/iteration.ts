@@ -4,7 +4,12 @@ import { z } from "zod";
 import { OperationError } from "../errors.js";
 import { withWrite } from "../git/write.js";
 import { isTerminal, slugSchema } from "../model/common.js";
-import { ITERATION_STATUSES, type Iteration } from "../model/iteration.js";
+import {
+  ITERATION_STATUSES,
+  otherActiveMessage,
+  otherActiveOf,
+  type Iteration,
+} from "../model/iteration.js";
 import type { Ticket } from "../model/ticket.js";
 import type { Doc } from "../storage/documents.js";
 import type { Store } from "../storage/store.js";
@@ -20,18 +25,16 @@ import {
 
 const isoDate = z.iso.date();
 
-/** active の Iteration は Project に 1 つ（IT-1）。ほかに active があれば拒否する */
+/**
+ * active の Iteration は Project に 1 つ（IT-1）。ほかに active があれば拒否する。
+ * web（iteration-parts.tsx の otherActiveIteration・blockedByActiveReason）はこの判定を写してボタンを押せなくする
+ */
 function rejectIfOtherActive(store: Store, it: Doc<Iteration>, verb: string): void {
-  const other = sortedDocs(
-    [...store.iterations.values()].filter(
-      (i) => i.id !== it.id && i.data.project === it.data.project && i.data.status === "active",
-    ),
-  )[0];
-  if (other)
-    throw new OperationError(
-      "REJECTED",
-      `${other.id} が active なので ${it.id} を${verb}できない（active の Iteration は Project に 1 つ）。先に ${other.id} を閉じる（閉じるかは人が決める）`,
-    );
+  const other = otherActiveOf(
+    [...store.iterations.values()].map((i) => i.data),
+    it.data,
+  );
+  if (other) throw new OperationError("REJECTED", otherActiveMessage(other.id, it.id, verb));
 }
 
 export const iterationCreate = defineCommand({

@@ -2267,7 +2267,7 @@ describe("画面", () => {
     // ほかに active（s1）があるので開始は押せず、title に理由を出す（IT-1）
     const start = screen.getByRole("button", { name: "開始する" }) as HTMLButtonElement;
     expect(start.disabled).toBe(true);
-    expect(start.title).toContain("s1 今 が進行中なので開始できない");
+    expect(start.title).toContain("s1 今 が進行中なので s2 を開始できない");
     fireEvent.click(start);
     expect(client.calls.some((c) => c.name === "iteration.start")).toBe(false);
     fireEvent.click(screen.getByRole("button", { name: "+ Iteration を作る" }));
@@ -2286,7 +2286,7 @@ describe("画面", () => {
     client.handlers["iteration.start"] = (input) => input;
     mount(client);
     await screen.findByText("API");
-    expect(document.querySelector(".blocked-note")).toBeNull();
+    expect(screen.queryByText(/が進行中/)).toBeNull();
     const start = screen.getByRole("button", { name: "開始する" }) as HTMLButtonElement;
     expect(start.disabled).toBe(false);
     expect(start.title).toBe("");
@@ -2314,15 +2314,15 @@ describe("画面", () => {
     const start = (await screen.findByRole("button", { name: "開始する" })) as HTMLButtonElement;
     expect(start.disabled).toBe(true);
     expect(start.title).toBe(
-      "s1 今 が進行中なので開始できない（進行中の Iteration は 1 つ）。先に s1 を閉じる",
+      "s1 今 が進行中なので s2 を開始できない（進行中の Iteration は Project に 1 つ）。先に s1 を閉じる",
     );
-    expect(document.querySelector("p.blocked-note")!.textContent).toBe(start.title);
+    expect(screen.getByText(start.title).tagName).toBe("P");
     cleanup();
     window.location.hash = "#/iterations/s0";
     mount(client);
     const reopen = (await screen.findByRole("button", { name: "再開する" })) as HTMLButtonElement;
     expect(reopen.disabled).toBe(true);
-    expect(reopen.title).toContain("s1 今 が進行中なので再開できない");
+    expect(reopen.title).toContain("s1 今 が進行中なので s0 を再開できない");
     fireEvent.click(reopen);
     expect(client.calls.some((c) => c.name === "iteration.reopen")).toBe(false);
   });
@@ -2336,13 +2336,28 @@ describe("画面", () => {
     mount(client);
     const reopen = (await screen.findByRole("button", { name: "再開する" })) as HTMLButtonElement;
     expect(reopen.disabled).toBe(false);
-    expect(document.querySelector(".blocked-note")).toBeNull();
+    expect(screen.queryByText(/が進行中/)).toBeNull();
     fireEvent.click(reopen);
     await waitFor(() =>
       expect(client.calls.find((c) => c.name === "iteration.reopen")?.input).toEqual({
         iteration: "s0",
       }),
     );
+    // active の詳細は開始・再開のボタンがないので、ほかに active があっても（壊れたデータ）理由の文を出さない
+    cleanup();
+    client.data.iterations = [
+      iteration({ id: "s1", name: "今", status: "active" }),
+      iteration({ id: "s2", name: "も", status: "active" }),
+    ];
+    client.handlers["iteration.show"] = (input) => ({
+      ...client.data.iterations.find((i) => i.id === (input as { iteration: string }).iteration),
+      items: [],
+    });
+    window.location.hash = "#/iterations/s2";
+    mount(client);
+    await screen.findByRole("button", { name: "閉じる" });
+    expect(screen.queryByText(/が進行中/)).toBeNull();
+    expect(screen.queryByRole("button", { name: /開始する|再開する/ })).toBeNull();
   });
 
   it("サイドバーのバックログの区画は折りたたみの節で、開閉が host.state に残る", async () => {
