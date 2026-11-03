@@ -608,15 +608,20 @@ button.link:hover {
 .ticket-run-retries {
   flex: none;
 }
+/* 狭いときは model を先に縮める（開始と所要より強く縮む） */
 .ticket-run-model {
-  flex: 0 1 auto;
+  flex: 0 1000 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* model を省き切っても入らなければ、開始と所要も「…」で切る（黙って欠けさせない） */
 .ticket-run-time {
-  flex: none;
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   margin-left: auto;
   white-space: nowrap;
   font-variant-numeric: tabular-nums;

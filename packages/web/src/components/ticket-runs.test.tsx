@@ -229,5 +229,12 @@ describe("パネルのチケット詳細の Run", () => {
       ),
     ).toBe("~12,355");
     expect(formatTokenSum([run({ id: "ra", usage: { ...empty, input: 0 } })], "input")).toBe("0");
+    // null の Run の推定は合計に入らないので「~」を付けない
+    expect(
+      formatTokenSum(
+        [run({ id: "ra" }), run({ id: "rb", usage: { ...empty, estimated: true } })],
+        "input",
+      ),
+    ).toBe("12,345 + —");
   });
 });

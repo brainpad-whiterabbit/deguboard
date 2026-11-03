@@ -131,8 +131,11 @@ export function sumTokens(
   for (const r of runs) {
     const v = r.usage[key];
     if (v === null) missing++;
-    else sum += v;
-    if (r.usage.estimated === true) estimated = true;
+    else {
+      sum += v;
+      // 合計に入れた値だけで推定を判断する
+      if (r.usage.estimated === true) estimated = true;
+    }
   }
   return { sum, missing, estimated };
 }
