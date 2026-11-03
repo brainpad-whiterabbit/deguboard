@@ -4,4 +4,7 @@ name: sprint9
 goal: カンバンの範囲を planned と active の Iteration にそろえ、audit-s8 の持ち越しを片付ける
 start: 2027-01-10
 end: 2027-01-23
-status: active
+status: closed
+closed_at: 2026-11-03T03:17:54Z
+completed: 15
+carried_over: 0
