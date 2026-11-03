@@ -27,3 +27,4 @@ details:
     approach: t318 のマージ後に claim --without-branch で config set し、config show で確かめて done にする
 approved_by: eiki.kitajima/agent
 approved_at: 2026-11-03T13:42:51Z
+closed_at: 2026-11-03T22:42:08Z
