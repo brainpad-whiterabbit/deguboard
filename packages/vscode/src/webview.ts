@@ -127,6 +127,8 @@ export interface WebviewActions {
   open(route: string): void | Promise<void>;
   /** 一覧の画面のルート（#/board?epic=e2 など）をサイドバーのビューに出す */
   show(route: string): void | Promise<void>;
+  /** text をクリップボードに入れる（Webview で navigator.clipboard が使えないとき） */
+  copy(text: string): void | Promise<void>;
 }
 
 /** Webview からの要求を CommandClient（か actions）に通し、同じ id の応答にする。失敗は ok: false で返す */
@@ -144,10 +146,12 @@ export async function handleRequest(
         return {
           id: request.id,
           ok: false,
-          error: { code: "UNSUPPORTED_ACTION", message: "この画面からはエディタで開けない" },
+          error: { code: "UNSUPPORTED_ACTION", message: "この画面からはその操作ができない" },
         };
       }
-      await (request.name === "show" ? actions.show(request.route) : actions.open(request.route));
+      if (request.name === "copy") await actions.copy(request.text);
+      else if (request.name === "show") await actions.show(request.route);
+      else await actions.open(request.route);
       return { id: request.id, ok: true, data: null, warnings: [], write: null };
     }
     const result = await client.run(request.name, request.input);
@@ -173,6 +177,7 @@ export function isWebviewRequest(value: unknown): value is WebviewRequest {
     case "run":
       return typeof v.name === "string";
     case "action":
+      if (v.name === "copy") return typeof (v as { text?: unknown }).text === "string";
       return (
         (v.name === "open" || v.name === "show") &&
         typeof v.route === "string" &&

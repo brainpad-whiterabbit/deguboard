@@ -23,12 +23,14 @@ export interface StatusView extends SyncStatus {
 /**
  * Webview → 拡張ホストの要求。id で応答と対応づける。action は画面の外（エディタ）に働きかける操作で、応答の data は null。
  * open は詳細のルート（#/tickets/t12、#/iterations/s3、#/epics/e2）をエディタ領域のパネルに開く。
- * show は一覧の画面のルート（#/board?epic=e2 など）をサイドバーのビューに出す（パネルは詳細だけを出すので。UI-12）
+ * show は一覧の画面のルート（#/board?epic=e2 など）をサイドバーのビューに出す（パネルは詳細だけを出すので。UI-12）。
+ * copy は text をクリップボードに入れる（Webview で navigator.clipboard が使えないときに画面が頼む）
  */
 export type WebviewRequest =
   | { id: number; kind: "run"; name: string; input: unknown }
   | { id: number; kind: "status" }
-  | { id: number; kind: "action"; name: "open" | "show"; route: string };
+  | { id: number; kind: "action"; name: "open" | "show"; route: string }
+  | { id: number; kind: "action"; name: "copy"; text: string };
 
 /**
  * 拡張ホスト → Webview の通知。要求と対応づかないので id を持たない（UI-12）。reload は store を読み直す（同期・再読み込み・ファイルの変化の後）。

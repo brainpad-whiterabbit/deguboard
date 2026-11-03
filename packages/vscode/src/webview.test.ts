@@ -140,7 +140,7 @@ describe("Webview の要求", () => {
     const ok = await handleRequest(
       fakeClient(),
       { id: 4, kind: "action", name: "open", route: "#/tickets/t12" },
-      { open: (route) => void opened.push(route), show: () => {} },
+      { open: (route) => void opened.push(route), show: () => {}, copy: () => {} },
     );
     expect(ok).toEqual({ id: 4, ok: true, data: null, warnings: [], write: null });
     expect(opened).toEqual(["#/tickets/t12"]);
@@ -159,11 +159,26 @@ describe("Webview の要求", () => {
     const ok = await handleRequest(
       fakeClient(),
       { id: 6, kind: "action", name: "show", route: "#/board?epic=e2" },
-      { open: (route) => void opened.push(route), show: (route) => void shown.push(route) },
+      {
+        open: (route) => void opened.push(route),
+        show: (route) => void shown.push(route),
+        copy: () => {},
+      },
     );
     expect(ok).toEqual({ id: 6, ok: true, data: null, warnings: [], write: null });
     expect(shown).toEqual(["#/board?epic=e2"]);
     expect(opened).toEqual([]);
+  });
+
+  it("action の copy は actions.copy に text を渡す（Webview の navigator.clipboard が使えないときの道）", async () => {
+    const copied: string[] = [];
+    const ok = await handleRequest(
+      fakeClient(),
+      { id: 7, kind: "action", name: "copy", text: "feat/branch-copy-button" },
+      { open: () => {}, show: () => {}, copy: (text) => void copied.push(text) },
+    );
+    expect(ok).toEqual({ id: 7, ok: true, data: null, warnings: [], write: null });
+    expect(copied).toEqual(["feat/branch-copy-button"]);
   });
 
   it("要求の形を確かめる", () => {
@@ -176,6 +191,8 @@ describe("Webview の要求", () => {
     expect(isWebviewRequest({ id: 1, kind: "action", name: "open", route: "https://x" })).toBe(
       false,
     );
+    expect(isWebviewRequest({ id: 1, kind: "action", name: "copy", text: "feat/x" })).toBe(true);
+    expect(isWebviewRequest({ id: 1, kind: "action", name: "copy" })).toBe(false);
     expect(isWebviewRequest({ id: "1", kind: "status" })).toBe(false);
     expect(isWebviewRequest({ id: 1, kind: "run" })).toBe(false);
     expect(isWebviewRequest({ id: 1, kind: "action", name: "other", ticket: "t1" })).toBe(false);

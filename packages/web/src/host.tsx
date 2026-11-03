@@ -1,6 +1,7 @@
 // 画面がどこに載っているか（surface）と、画面の外への働きかけを 1 つの文脈で持つ（UI-12）。
 // ブラウザではチケットや Iteration の詳細へのリンクはハッシュ遷移、サイドバーとパネルでは拡張ホストに頼む（パネルは自分の中で遷移し、題が変わる）。
 // パネルは詳細だけを出すので、パネルから一覧の画面へのリンクは拡張ホストに頼んでサイドバーに出す（show）。
+// クリップボードへのコピーは navigator.clipboard を試し、Webview で使えなければ拡張ホストに頼む。
 // 拡張ホストからの通知（再読み込み・遷移）は HostBridge が store とハッシュに結ぶ
 
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
@@ -17,6 +18,8 @@ export interface Host {
   open(route: Route): void;
   /** 一覧の画面（カンバンなど）を出す。パネルでは拡張ホストに頼んでサイドバーに、サイドバーとブラウザではハッシュ遷移 */
   show(route: Route): void;
+  /** text をクリップボードに入れる。navigator.clipboard を試し、Webview で使えなければ拡張ホストに頼む。どちらもだめなら reject */
+  copy(text: string): Promise<void>;
   /** 見た目の状態（開閉・最後に選んだもの）の置き場 */
   state: UiState;
 }
@@ -25,6 +28,7 @@ const browserHost: Host = {
   surface: "browser",
   open: (route) => navigate(route),
   show: (route) => navigate(route),
+  copy: (text) => writeClipboard(text),
   state: createUiState(localStorageBackend()),
 };
 
@@ -37,10 +41,17 @@ export function createHost(surface: Surface, client: WebviewClient | null, state
       surface,
       open: (route) => void client.open(hrefOf(route)),
       show: (route) => (surface === "panel" ? void client.show(hrefOf(route)) : navigate(route)),
+      copy: (text) => writeClipboard(text).catch(() => client.copy(text)),
       state: state ?? browserHost.state,
     };
   }
   return { ...browserHost, surface };
+}
+
+/** navigator.clipboard に書く。ない（安全でない文脈など）か拒まれたら reject */
+async function writeClipboard(text: string): Promise<void> {
+  if (!navigator.clipboard) throw new Error("navigator.clipboard が使えない");
+  await navigator.clipboard.writeText(text);
 }
 
 /**

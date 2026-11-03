@@ -19,6 +19,7 @@ function browserHost(surface: Host["surface"] = "browser"): Host {
     surface,
     open: () => {},
     show: () => {},
+    copy: async () => {},
     state: createUiState(memoryBackend()),
   };
 }

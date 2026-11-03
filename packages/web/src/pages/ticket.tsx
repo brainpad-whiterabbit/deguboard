@@ -3,9 +3,10 @@
 // VS Code のパネルでは、タイトルの下に Status・優先度・Iteration・担当・PR の 1 行と編集のボタンを置いてスクロールしても上に残す。
 // パネルでは依存先が終わっていなければ本文の上の帯で知らせ、依存先・依存元に Status の丸印を付ける（終わった依存先は薄く）。
 // 右の列は幅を固定し、Status の選択を先頭に、属性を「計画・つながり・作業・記録」の見出しで分け、値のない属性は最後の 1 行にまとめる。
-// 作成・更新は経過と同じ手元時刻で、今年なら年を省く
+// 作成・更新は経過と同じ手元時刻で、今年なら年を省く。ブランチ名の右にコピーのボタンを置く
 
 import { Fragment, useEffect, useState, type ReactNode } from "react";
+import { CopyableCode } from "../components/copyable-code.js";
 import { PriorityBadge, StatusBadge, StatusDot, Tags, TicketLink } from "../components/parts.js";
 import { TicketRuns } from "../components/ticket-runs.js";
 import { formatTime, TicketTimeline } from "../components/timeline.js";
@@ -313,7 +314,11 @@ export function TicketPage({ id }: { id: string }) {
     ),
     branch: row(
       "ブランチ",
-      ticket.branch ? <code>{ticket.branch}</code> : <span className="muted">なし</span>,
+      ticket.branch ? (
+        <CopyableCode text={ticket.branch} label="ブランチ名をコピー" />
+      ) : (
+        <span className="muted">なし</span>
+      ),
     ),
     pr: row(
       "PR",

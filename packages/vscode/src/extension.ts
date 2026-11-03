@@ -143,6 +143,7 @@ async function resolveSidebar(
             })
           : showInSidebar(route),
       show: showInSidebar,
+      copy: copyToClipboard,
     },
   });
 }
@@ -153,6 +154,11 @@ async function resolveSidebar(
  */
 async function showInSidebar(route: string): Promise<void> {
   await deliverToSidebar("navigate", route);
+}
+
+/** Webview に頼まれた文字（ブランチ名など）をクリップボードに入れる。Webview の navigator.clipboard が使えないときの道 */
+async function copyToClipboard(text: string): Promise<void> {
+  await vscode.env.clipboard.writeText(text);
 }
 
 /**
@@ -290,6 +296,7 @@ async function openPanel(
           ? openPanel(context, folder, { column: options.column, route })
           : showInSidebar(route),
       show: showInSidebar,
+      copy: copyToClipboard,
     },
   });
 }

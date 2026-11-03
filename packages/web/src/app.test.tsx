@@ -29,7 +29,7 @@ function hostOf(
   open: (route: Route) => void = () => {},
   show: (route: Route) => void = () => {},
 ): Host {
-  return { surface, open, show, state: createUiState(memoryBackend()) };
+  return { surface, open, show, copy: async () => {}, state: createUiState(memoryBackend()) };
 }
 
 /** 実行中の Run（run.list の 1 件） */
@@ -81,6 +81,7 @@ function mountWithBridge(
     status: () => client.status(),
     open: async () => {},
     show: async () => {},
+    copy: async () => {},
     onEvent: (listener) => {
       send = listener;
       return () => (send = undefined);
