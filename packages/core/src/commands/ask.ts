@@ -430,6 +430,9 @@ export function askActions(s: Subjects): AskAction[] {
       // Iteration に入れてから進める（todo・abandoned のほかは Iteration が要る）
       if (tickets.some((t) => t.iteration === null))
         return ["assign", "create_iteration", "fix", "split", "check", "abandon", "free"];
+      // closed の Iteration に残った持ち越しは、計画より先に別の Iteration へ割り当てる
+      if (tickets.some((t) => t.iteration_status === "closed"))
+        return ["assign", "create_iteration", "plan", "fix", "split", "check", "abandon", "free"];
       if (tickets.length > 1) return ["plan", "assign", "check", "abandon", "free"];
       // 着手可でも、planned の Iteration（バックログ）ではまず計画を立て、active の Iteration（カンバン）なら進める
       if (tickets[0]!.deps_done)
