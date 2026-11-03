@@ -1484,6 +1484,11 @@ button.danger {
 .chip[aria-pressed="true"] .progress .muted {
   color: inherit;
 }
+/* 塗った札（Epic の .chip と Iteration の .iteration-chip）の番号の code は塗りの文字色に揃え、VS Code が code に付ける既定の色に負けないようにする */
+.chip[aria-pressed="true"] code,
+.iteration-chip[aria-pressed="true"] code {
+  color: inherit;
+}
 /* 塗ったチップの上では進捗の帯を文字の色で描く（状態の色はボタンの色に埋もれる） */
 .chip[aria-pressed="true"] .progress .bar {
   background: color-mix(in srgb, currentColor 35%, transparent);
@@ -1844,8 +1849,7 @@ button.danger {
   background: var(--vscode-button-background);
   border-color: var(--vscode-button-background);
 }
-/* 番号の code も塗りの文字色に揃え、VS Code が code に付ける既定の色に負けないようにする */
-.iteration-chip[aria-pressed="true"] code,
+/* 件数も塗りの文字色に揃える（番号の code は .chip の節の規則） */
 .iteration-chip[aria-pressed="true"] .chip-count {
   color: inherit;
 }
