@@ -11,7 +11,7 @@ Git-native な AI ワークフロー・チケット管理ツール [deguboard](h
   - 行の右端に担当の印（人は頭文字の丸、agent は持ち主の頭文字の丸と汎用のアイコン（Run の agent によらず 1 種）。ホバーで主体 ID と Run の agent）と Plan の番号、todo なら着手可か待ちの相手を出す。待ちと承認待ちの行は、実行中の Run がなければタイトルを薄くする
 - サイドバーのバックログは次のように出す。細部は要件定義書の [UI-3・UI-12](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/requirements.md#64-画面web-uivs-code-拡張)
   - 行を右クリックすると「Iteration を移す」（ドラッグと同じ）・「詳細を開く」・「ID をコピー」が出る
-  - 検索欄の下によく使う絞り込みのチップと、効いている条件を × で外せる札を出す。行にはカンバンと同じ Plan の番号と着手可・待ち、自分とその agent 以外の担当の印を出す
+  - 検索欄の右端の漏斗で絞り込みの欄を開く。検索欄の下によく使う絞り込みのチップと、効いている条件を × で外せる札を出す。行にはカンバンと同じ Plan の番号と着手可・待ち、自分とその agent 以外の担当の印を出す
 - サイドバーの履歴は次のように出す。要件定義書の [UI-5](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/requirements.md#64-画面web-uivs-code-拡張)
   - 件数付きの「Iteration / Epic / チケット」で見方を切り替える。Iteration・Epic の行を開くと中の終わったチケットを 1 本の一覧で出し、チケットの見方は終えた新しい順の 1 本の一覧にする
   - 検索中は当たったチケットを含む行を開き、当たったものだけを印付きで出す
