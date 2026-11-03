@@ -1,0 +1,5 @@
+id: s11
+project: default
+name: sprint11
+goal: 画面からの変更を、チケット詳細・設定画面とエージェントへの依頼にそろえる
+status: planned
