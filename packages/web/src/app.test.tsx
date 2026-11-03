@@ -386,7 +386,8 @@ describe("画面", () => {
     expect(window.location.hash).toBe("#/backlog");
   });
 
-  it.each(["#/tickets/t3", "#/runs"])(
+  // VS Code では Run の画面を出さない（UI-12）ので、Run を出すのはパネルのチケット詳細だけ
+  it.each(["#/tickets/t3"])(
     "拡張ホストから reload の event が来ると、%s の Run を取り直す（ターミナルの dg run start はチケットを変えない）",
     async (hash) => {
       window.location.hash = hash;
@@ -395,7 +396,6 @@ describe("画面", () => {
       client.handlers["ticket.list"] = () => [...client.data.tickets];
       let runs: RunView[] = [];
       client.handlers["run.list"] = () => runs;
-      client.handlers["metrics.show"] = () => null;
       const send = mountWithBridge(client, { surface: "panel", readRunning: false });
       await waitFor(() => expect(client.calls.some((c) => c.name === "run.list")).toBe(true));
       const before = client.calls.filter((c) => c.name === "run.list").length;

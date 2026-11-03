@@ -148,7 +148,7 @@ async function resolveSidebar(
 }
 
 /**
- * 一覧の画面（カンバン・バックログ・履歴・Run）をサイドバーのビューに出してフォーカスを移す。パネルの中身は変えない。
+ * 一覧の画面（カンバン・バックログ・履歴）をサイドバーのビューに出してフォーカスを移す。パネルの中身は変えない。
  * サイドバーがまだ描かれていなければ、初期ルートとして覚えてからビューを開く（resolveSidebar が使う）
  */
 async function showInSidebar(route: string): Promise<void> {
@@ -377,7 +377,7 @@ function clientFor(folder: vscode.WorkspaceFolder): CommandClient {
 
 /**
  * データのファイル（tickets/*.md・runs/*.json と、実行中の Run の deguboard-local/runs/*.json。対象は watch.ts）を見張り、
- * 変わったらサイドバーとパネルに読み直しを頼む。Run の画面とチケット詳細の Run の節は、読み直しで一覧が変わると Run も取り直す。
+ * 変わったらサイドバーとパネルに読み直しを頼む。チケット詳細の Run の節は、読み直しで一覧が変わると Run も取り直す。
  * 1 回の書き込みで複数のファイルが変わるので 200ms まとめる。画面からの書き込みも拾うが、読み直しが 1 回増えるだけ。
  * 置き場所は core が status で返す data_dir（.git/deguboard/）。取れなければ見張らない（画面は同期ボタンの読み直しで動く）
  */

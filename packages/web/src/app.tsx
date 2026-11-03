@@ -225,7 +225,7 @@ function followHashLink(e: MouseEvent<HTMLElement>, show?: (route: Route) => voi
   else window.location.hash = href;
 }
 
-/** サイドバーで出す画面。チケット詳細はバックログに、Run の画面（残ったハッシュや nav.runs から来る）はカンバンに替える */
+/** サイドバーで出す画面。チケット詳細はバックログに、Run の画面（前の版で残ったハッシュから来る）はカンバンに替える */
 function sidebarRoute(route: Route, sidebar: boolean): Route {
   if (!sidebar) return route;
   if (route.page === "ticket") return { page: "backlog" };
