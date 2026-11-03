@@ -5,7 +5,7 @@ after:
   t317:
     - t314
     - t316
-pending_approval: true
+pending_approval: false
 details:
   t313:
     scope: README.md の何ができるか・チケット詳細の説明・仕様の参照と、拡張の README のエージェントに頼む項
@@ -22,3 +22,5 @@ details:
   t317:
     scope: ask.ts の重複、ID の接頭辞の対応、Draft の置き場所、MenuTicket の不要なフィールド、Plan の状態名、ask-menu の鍵の照合テスト、extension.ts の届け方
     approach: 振る舞いを変えない整理として、既存のテストで確かめつつ鍵の一致のテストを足す
+approved_by: eiki.kitajima/agent
+approved_at: 2026-11-03T12:19:33Z
