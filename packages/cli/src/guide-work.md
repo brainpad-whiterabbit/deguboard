@@ -46,7 +46,7 @@ Run は 1 回の作業の記録で、使用量（トークン）が残る。実�
 
 ## 段階のモデル
 
-Plan の `details.<id>.tier`（省けば standard）を `config.yaml` の `models.*`（今の設定：light `{{models.light}}`・standard `{{models.standard}}`・heavy `{{models.heavy}}`。空なら親のモデル）でモデルに対応させる。モデルを選べない環境では、すべて親のモデルで進める。
+Plan の `details.<id>.tier`（省けば standard）を `config.yaml` の `models.*`（今の設定：light `{{models.light}}`・standard `{{models.standard}}`・heavy `{{models.heavy}}`。なし（空）なら親のモデル）でモデルに対応させる。モデルを選べない環境では、すべて親のモデルで進める。
 
 - **実装**：段階のモデルが親と違うときだけ、そのモデルのサブエージェントに手順 4〜6 の実装を渡す（渡すものは `dg guide parallel` の「サブエージェントに渡す」と同じ）。run start に `--model <モデル>` を付けさせる。同じなら今までどおり親が実装する
 - **調べもの**：実装の中でコードや記録を調べるサブエージェントは、段階によらず `models.light` で起動する（空なら親のモデル）

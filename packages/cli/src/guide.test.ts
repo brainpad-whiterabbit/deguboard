@@ -119,6 +119,21 @@ describe("dg guide", () => {
     ).toContain("今の設定：`true`");
   });
 
+  it("work は段階のモデルを config の models.* で埋め、空なら「なし」と出す。見直し役は親のモデル", async () => {
+    const work = await readGuide("work");
+    expect(fillPlaceholders(work, defaultConfig())).toContain(
+      "light `なし`・standard `なし`・heavy `なし`",
+    );
+    expect(
+      fillPlaceholders(work, {
+        ...defaultConfig(),
+        models: { light: "haiku", standard: "sonnet", heavy: "opus" },
+      }),
+    ).toContain("light `haiku`・standard `sonnet`・heavy `opus`");
+    expect(await readGuide("review")).toContain("段階によらず親のモデル");
+    expect(await readGuide("plan")).toContain("--tier");
+  });
+
   it("parallel は親が claim の前に Iteration に入れると案内し、check は lint_iteration_missing の直す案を示し、どちらも今の設定を埋める", async () => {
     const parallel = await readGuide("parallel");
     const parent = parallel.match(/^- \*\*親\*\*：.*$/m)?.[0] ?? "";
