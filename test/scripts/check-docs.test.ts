@@ -67,6 +67,13 @@ describe("check-docs の ADR の更新日", () => {
     expect(stderr).toContain("ADR-008-tech-stack.md の更新日が 2000-01-01 で");
   });
 
+  it("置き換え済みの ADR は更新日がずれても指摘しない", async () => {
+    await rewrite(ADR, /^- ステータス：.*$/m, "- ステータス：置き換え（ADR-009）");
+    await rewrite(ADR, /^- 更新日：\d{4}-\d{2}-\d{2}$/m, "- 更新日：2000-01-01");
+    const { stderr } = await run();
+    expect(stderr).not.toContain("更新日");
+  });
+
   it("ADR に更新日の行がなければ落ちる", async () => {
     await rewrite(ADR, /^- 更新日：.*\n/m, "");
     const { code, stderr } = await run();

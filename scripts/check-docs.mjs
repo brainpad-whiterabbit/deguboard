@@ -73,9 +73,12 @@ for (const m of index.matchAll(
 )) {
   indexDates.set(m[1], m[2]);
 }
+let datedCount = 0;
 for (const file of adrFiles) {
+  if (!linked.has(file)) continue; // 一覧に載っていないことは上で指摘した
   const text = await readFile(path.join(adrDir, file), "utf8");
   if (/^- ステータス：置き換え/m.test(text)) continue;
+  datedCount++;
   const own = /^- 更新日：(\d{4}-\d{2}-\d{2})\s*$/m.exec(text)?.[1];
   const listed = indexDates.get(file);
   if (own === undefined) {
@@ -128,7 +131,7 @@ if (errors.length > 0) {
   process.exit(1);
 }
 console.log(
-  `check:docs: 予算内（文書 ${budgets.length} 件、ADR ${adrFiles.length} 件、guide ${guideFiles.length} 件）、リンク ${linkCount} 件に切れなし`,
+  `check:docs: 予算内（文書 ${budgets.length} 件、ADR ${adrFiles.length} 件（更新日の一致 ${datedCount} 件）、guide ${guideFiles.length} 件）、リンク ${linkCount} 件に切れなし`,
 );
 
 function checkBudget(rel, size, limit) {
