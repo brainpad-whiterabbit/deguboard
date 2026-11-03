@@ -165,6 +165,34 @@ describe("設定画面", () => {
     expect(setCalls(client)).toEqual([]);
   });
 
+  it("確かめを待つ間は、待っている項目のほかの「既定に戻す」を押せず、待ちと下書きが残る", async () => {
+    const { client } = configClient();
+    mount(client);
+    await screen.findByText("コミットの仕方");
+    const reset = (key: string) =>
+      within(fieldOf(key)).getByRole<HTMLButtonElement>("button", { name: "既定に戻す" });
+    // actions.test（既定から変えてある）に足して、確かめを待たせる
+    const add = within(fieldOf("actions.test")).getByPlaceholderText("項目を足す");
+    fireEvent.change(add, { target: { value: "--fast" } });
+    fireEvent.keyDown(add, { key: "Enter" });
+    expect(within(fieldOf("actions.test")).getByRole("alertdialog")).toBeTruthy();
+
+    // ほかの項目の「既定に戻す」は押せず、押しても待ちは移らない
+    expect(reset("commit.mode").disabled).toBe(true);
+    fireEvent.click(reset("commit.mode"));
+    expect(within(fieldOf("actions.test")).getByRole("alertdialog")).toBeTruthy();
+    expect(within(fieldOf("actions.test")).getAllByRole("listitem")).toHaveLength(4);
+    // 待っている項目の「既定に戻す」は押せる
+    expect(reset("actions.test").disabled).toBe(false);
+
+    // やめると、ほかの項目の「既定に戻す」も押せるようになる
+    fireEvent.click(within(fieldOf("actions.test")).getByRole("button", { name: "やめる" }));
+    expect(within(fieldOf("actions.test")).queryByRole("alertdialog")).toBeNull();
+    expect(reset("commit.mode").disabled).toBe(false);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(setCalls(client)).toEqual([]);
+  });
+
   it("確かめない項目は変えたらすぐ保存し、保存した項目と値を出す", async () => {
     const { client } = configClient();
     mount(client);
