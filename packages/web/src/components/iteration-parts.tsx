@@ -10,18 +10,45 @@ import type { Iteration } from "../types.js";
 export const ITERATION_CLOSE_NOTE = "閉じると持ち越しになり、Iteration から外れる。";
 
 /**
+ * 同じ Project でほかに active の Iteration があればそれを返す。active は Project に 1 つなので（IT-1）、
+ * あれば開始・再開は拒否される。拒否の判定は core のコマンドが行い、画面はボタンを押せなくして理由を出すだけ
+ */
+export function otherActiveIteration(
+  iterations: Iteration[],
+  it: { id: string; project: string },
+): Iteration | undefined {
+  return iterations.find(
+    (i) => i.id !== it.id && i.project === it.project && i.status === "active",
+  );
+}
+
+/** 開始・再開を押せない理由（ボタンの title と、ボタンの横の文に出す） */
+export function blockedByActiveReason(other: Iteration, verb: "開始" | "再開"): string {
+  return `${other.id} ${other.name} が進行中なので${verb}できない（進行中の Iteration は 1 つ）。先に ${other.id} を閉じる`;
+}
+
+/**
  * Iteration の開始・閉じるのボタン。広い画面のカンバンの見出しとバックログの区画の見出しに置く。
  * サイドバー（左パネル）のカンバンとバックログには置かず、詳細の画面（IterationDetailView）で行う
  */
 export function IterationActions({ iteration: it }: { iteration: Iteration }) {
   const store = useStore();
   if (it.status === "closed") return null;
+  const other = it.status === "planned" ? otherActiveIteration(store.iterations, it) : undefined;
+  const reason = other ? blockedByActiveReason(other, "開始") : undefined;
   return (
     <>
+      {other ? (
+        <span className="muted blocked-note" title={reason}>
+          {other.id} が進行中
+        </span>
+      ) : null}
       {it.status === "planned" ? (
         <button
           type="button"
           className="primary"
+          disabled={!!other}
+          title={reason}
           onClick={(e) => {
             e.preventDefault();
             e.stopPropagation();
