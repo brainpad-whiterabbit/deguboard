@@ -285,9 +285,11 @@ describe("dg guide", () => {
     expect(review).toContain("**版上げの PR は見直しを省ける**");
     expect(review).toContain("コード・文書・手順を変えないときに限り");
     expect(review).toContain("人の承認が見直しの代わりになる");
-    expect(release).toContain("`dg guide review` の「品質ゲート」");
+    expect(review).toContain("（版上げの例外は下）");
+    expect(release).toContain("`dg guide review` の「品質ゲート」の版上げの条件に従う");
     // 条件の中身は review にだけ書く
-    expect(release).not.toContain("人の承認が見直しの代わりになる");
+    expect(release).not.toContain("コード・文書・手順を変えないときに限り");
+    expect(release).not.toContain("CHANGELOG・ロックファイル");
   });
 
   it("config の値を埋める（既定なら main と origin、空の配列は「なし」）", () => {
