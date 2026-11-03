@@ -2,6 +2,7 @@
 
 import { useDraggable } from "@dnd-kit/core";
 import {
+  useCallback,
   useEffect,
   useRef,
   useState,
@@ -11,7 +12,7 @@ import {
   type ReactNode,
 } from "react";
 import { WEBVIEW_CONTRACT_COPY } from "../client/webview.js";
-import { useAskSpot, type AskSection } from "./ask-menu.js";
+import { DRAGGED_ATTR, useAskSpot, type AskSection } from "./ask-menu.js";
 import { useHost } from "../host.js";
 import { hrefOf, type Route } from "../router.js";
 import { useStore } from "../store.js";
@@ -421,20 +422,32 @@ export function TicketRow({
 function useDraggableTicket(id: string) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id });
   const dragged = useRef(false);
+  const node = useRef<HTMLElement | null>(null);
+  const ref = useCallback(
+    (el: HTMLElement | null) => {
+      node.current = el;
+      setNodeRef(el);
+    },
+    [setNodeRef],
+  );
   useEffect(() => {
-    if (isDragging) dragged.current = true;
+    if (!isDragging) return;
+    dragged.current = true;
+    // 外側の行の選択（ask-menu.tsx の useAskSpot。捕捉の段階で先に走る）にも、ドラッグ直後の click だと伝える
+    node.current?.setAttribute(DRAGGED_ATTR, "");
   }, [isDragging]);
   const style: CSSProperties | undefined = transform
     ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` }
     : undefined;
   return {
-    ref: setNodeRef,
+    ref,
     style,
     isDragging,
     props: {
       ...listeners,
       ...attributes,
       onClickCapture: (e: MouseEvent) => {
+        node.current?.removeAttribute(DRAGGED_ATTR);
         if (!dragged.current) return;
         dragged.current = false;
         e.preventDefault();
@@ -454,7 +467,7 @@ export function sameAssignee(tickets: readonly Pick<Ticket, "assignee">[]): bool
 
 /**
  * 1 行のチケット（サイドバー）。行全体をつかんで動かす。variant・head・end は TicketRow に渡す。dimmed でタイトルを説明文の色にする。
- * ask を渡すと行をエージェントに頼める場所にする（右端の吹き出し・右クリック・Shift+F10。ask-menu.tsx）
+ * ask を渡すと行をエージェントに頼める場所にする（右端の吹き出し・右クリック・Shift+F10。ask-menu.tsx）。Ctrl/⌘・Shift+クリックで複数選べる（selection.tsx）
  */
 export function DraggableRow({
   ticket,
@@ -480,8 +493,9 @@ export function DraggableRow({
   // 分けて受ける。d.ref を ref に渡すと、規則（react/refs）が d を ref と見なし、d.style などを描画中の ref の読みと誤る
   const { ref, style, isDragging, props } = useDraggableTicket(ticket.id);
   const spot = useAskSpot(
-    ask ? { targets: [ticket.id], label: `行 ${ticket.id}`, section: ask } : null,
+    ask ? { targets: [ticket.id], label: `行 ${ticket.id}`, section: ask, select: true } : null,
   );
+  const select = spot.props.onClickCapture;
   return (
     <div
       ref={ref}
@@ -489,6 +503,11 @@ export function DraggableRow({
       className={`row-drag${dimmed ? " is-waiting" : ""}${isDragging ? " dragging" : ""}`}
       {...props}
       {...(ask ? spot.props : {})}
+      // 動かした直後の click を止めるもの（useDraggableTicket）と、Ctrl/⌘・Shift+クリックで選ぶもの（useAskSpot）を両方受ける
+      onClickCapture={(e) => {
+        props.onClickCapture(e);
+        if (!e.defaultPrevented) select?.(e);
+      }}
     >
       <TicketRow
         ticket={ticket}
@@ -523,6 +542,7 @@ function BacklogItem({ ticket: t, children }: { ticket: Ticket; children: ReactN
     label: `行 ${t.id}`,
     section: WEBVIEW_CONTRACT_COPY.backlogRowSection,
     context: { ticket: t.id, iteration: t.iteration ?? null, project: t.project },
+    select: true,
   });
   return (
     <li {...spot.props}>
@@ -539,7 +559,13 @@ export interface RowAsk {
 }
 
 function rowAskOptions(t: Ticket, ask: RowAsk) {
-  return { targets: [t.id], label: `行 ${t.id}`, section: ask.section, within: ask.within };
+  return {
+    targets: [t.id],
+    label: `行 ${t.id}`,
+    section: ask.section,
+    within: ask.within,
+    select: true,
+  };
 }
 
 /** 頼める 1 行（サイドバーの並び）。吹き出しは行の右端に重ねる */
