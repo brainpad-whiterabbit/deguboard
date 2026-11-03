@@ -14,7 +14,7 @@ after:
   t300:
     - t294
     - t299
-pending_approval: true
+pending_approval: false
 details:
   t294:
     scope: ADR-010 の新設と、ADR-006・ADR 一覧からの参照。コードと requirements.md は触らない
@@ -37,3 +37,5 @@ details:
   t300:
     scope: ドラッグ・作成フォーム・Iteration と Epic の詳細の書き込み・「Iteration を移す」を外し、テストと UI-2・3・5・7・10・12 を直す
     approach: "@dnd-kit の使い所と書き込みのボタンを外し、書き込みのコマンドを呼ぶ場所を確かめるテストを足す"
+approved_by: eiki.kitajima/agent
+approved_at: 2026-11-03T08:50:32Z
