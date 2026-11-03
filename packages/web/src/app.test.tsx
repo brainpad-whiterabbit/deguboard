@@ -386,7 +386,8 @@ describe("画面", () => {
     expect(window.location.hash).toBe("#/backlog");
   });
 
-  it.each(["#/tickets/t3", "#/runs"])(
+  // VS Code では Run の画面を出さない（UI-12）ので、Run を出すのはパネルのチケット詳細だけ
+  it.each(["#/tickets/t3"])(
     "拡張ホストから reload の event が来ると、%s の Run を取り直す（ターミナルの dg run start はチケットを変えない）",
     async (hash) => {
       window.location.hash = hash;
@@ -395,7 +396,6 @@ describe("画面", () => {
       client.handlers["ticket.list"] = () => [...client.data.tickets];
       let runs: RunView[] = [];
       client.handlers["run.list"] = () => runs;
-      client.handlers["metrics.show"] = () => null;
       const send = mountWithBridge(client, { surface: "panel", readRunning: false });
       await waitFor(() => expect(client.calls.some((c) => c.name === "run.list")).toBe(true));
       const before = client.calls.filter((c) => c.name === "run.list").length;
@@ -1103,7 +1103,7 @@ describe("画面", () => {
       [...rowOf(id).querySelectorAll(".counts .badge")].map((b) => b.textContent);
     expect(chips("s1")).toEqual(["完了 3", "持ち越し 1"]);
     expect(rowOf("s1").querySelector("small")!.textContent).toBe(
-      "最初 ・ 2026-09-29 〜 2026-10-10 ・ 内訳: Epic なし 1 ・ Run の集計",
+      "最初 ・ 2026-09-29 〜 2026-10-10 ・ 内訳: Epic なし 1",
     );
     // s2 には閉じたときの記録がないので、web で数え直さず「—」と出し、持ち越しのチップは出さない
     expect(chips("s2")).toEqual(["完了 —"]);
@@ -1150,7 +1150,7 @@ describe("画面", () => {
     );
     await screen.findByRole("heading", { level: 1, name: "履歴" });
     const row = document.querySelector(".history-row")!;
-    expect(row.querySelector("small")!.textContent).toBe("内訳: e1 2 ・ Run の集計");
+    expect(row.querySelector("small")!.textContent).toBe("内訳: e1 2");
     expect([...row.querySelectorAll(".counts .badge")].map((b) => b.textContent)).toEqual([
       "完了 —",
       "中止 1",
@@ -1803,6 +1803,21 @@ describe("画面", () => {
     window.location.hash = "#/epics/e1";
     await screen.findByRole("heading", { level: 1, name: /e1 最初の版/ });
     expect(tabs().querySelector("[aria-current=page]")!.textContent).toBe("バックログ");
+  });
+
+  it("左パネルのタブはカンバン・バックログ・履歴の 3 つで、#/runs はカンバンとして開く", async () => {
+    window.location.hash = "#/runs";
+    const client = mockClient();
+    mount(client, hostOf("sidebar"));
+    await waitFor(() => expect(document.querySelector(".sidebar-head")).toBeTruthy());
+    const tabs = screen.getByRole("navigation", { name: "画面" });
+    expect([...tabs.querySelectorAll("a")].map((a) => a.textContent)).toEqual([
+      "カンバン",
+      "バックログ",
+      "履歴",
+    ]);
+    expect(tabs.querySelector("[aria-current=page]")!.textContent).toBe("カンバン");
+    expect(client.calls.some((c) => c.name === "metrics.show")).toBe(false);
   });
 
   it("バックログの Epic の欄は open の Epic の進捗と「Epic なし」の件数を出し、押すと絞り、もう一度押すと解除する", async () => {
