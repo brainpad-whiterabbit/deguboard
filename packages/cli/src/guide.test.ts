@@ -291,6 +291,19 @@ describe("dg guide", () => {
     for (const text of [work, all]) expect(text).not.toContain("--json mergeable");
   });
 
+  it("review は版上げの PR で見直しを省ける条件を品質ゲートに書き、release はそこへ案内する", async () => {
+    const review = await readGuide("review");
+    const release = await readGuide("release");
+    expect(review).toContain("**版上げの PR は見直しを省ける**");
+    expect(review).toContain("コード・文書・手順を変えないときに限り");
+    expect(review).toContain("人の承認が見直しの代わりになる");
+    expect(review).toContain("（版上げの例外は下）");
+    expect(release).toContain("`dg guide review` の「品質ゲート」の版上げの条件に従う");
+    // 条件の中身は review にだけ書く
+    expect(release).not.toContain("コード・文書・手順を変えないときに限り");
+    expect(release).not.toContain("CHANGELOG・ロックファイル");
+  });
+
   it("config の値を埋める（既定なら main と origin、空の配列は「なし」）", () => {
     expect(
       fillPlaceholders(
