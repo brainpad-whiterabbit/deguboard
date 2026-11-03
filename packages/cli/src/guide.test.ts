@@ -61,6 +61,18 @@ describe("dg guide", () => {
     expect(work).not.toContain("--body");
   });
 
+  it("work は PR を作る前に、触れた節の正本とコメントを読み直してずれを同じ PR で直し、報告に書くと案内する", async () => {
+    const work = await readGuide("work");
+    const flow = work.split("## 流れ")[1]?.split("## Run を記録する")[0] ?? "";
+    const reread = flow.indexOf("正本とコメントを読み直す");
+    expect(reread).toBeGreaterThan(-1);
+    expect(reread).toBeLessThan(flow.indexOf("gh pr create --draft"));
+    expect(flow).toMatch(
+      /仕様書（requirements）・ADR・README.*同じ PR で直す[\s\S]*読み直した正本と直した箇所を書く/,
+    );
+    expect(await readGuide("parallel")).toContain("読み直した正本と直した箇所");
+  });
+
   it("work は PR の要らない作業を --without-branch で claim し、確かめたら done、残れば review と案内する", async () => {
     const work = await readGuide("work");
     expect(work).toContain("## PR の要らない作業");
