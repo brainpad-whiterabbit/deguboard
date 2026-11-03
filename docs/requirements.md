@@ -230,34 +230,34 @@ steps: # 任意。Run の step の語彙（WF-5）
 - SY-1 `dg init` は deguboard ブランチを作るか取り込み、専用 worktree を用意し、`default` プロジェクトとテンプレートのワークフローを置く
 - SY-2 書き込みの単位は「取り込み → 変更 → 検証 → コミット →（`push.mode: auto` か即時の操作なら）push」。push が拒否されたら取り込み直して再送する。送れなければコミットを残し、次の同期で再送する
 - SY-3 claim・作成・`iteration start / reopen` は push の成功をもって取得とする。拒否されたらローカルのコミットを捨てて取り込み直し、判定し直す
-- SY-4 同期は rebase で取り込み、チケットと Epic の frontmatter はマージドライバがフィールド単位で 3-way マージする（片側だけ変えたフィールドはその値、`updated_at` は新しい方）。`dg init` と `dg sync` がドライバを git config と deguboard ブランチの `.gitattributes` に登録する。同じフィールドを両側が違う値に変えたときと本文の同じ行の競合は、rebase を中止してローカルのコミットを残し、`dg sync` が競合を報告する。競合が残る間は push・照合・作成・claim・`iteration start / reopen` が止まる。人は deguboard worktree で `git rebase <remote>/deguboard` から解いて `git rebase --continue` するか、`git reset --hard <remote>/deguboard` でローカルのコミットを捨てて操作をやり直し、`dg sync` を回す
+- SY-4 同期は rebase で取り込み、チケットと Epic の frontmatter はマージドライバがフィールド単位で 3-way マージする（片側だけ変えたフィールドはその値、`updated_at` は新しい方）。`dg init` と `dg sync` がドライバを git config と deguboard ブランチの `.gitattributes` に登録する。同じフィールドを両側が違う値に変えたときと本文の同じ行の競合は、rebase を中止してローカルのコミットを残し、`dg sync` が競合を報告する。競合が残る間は push・照合・作成・claim・`iteration start / reopen` が止まり、人が解消してから `dg sync` を回す（戻し方は `dg guide overview` の「同期が止まったとき」）
 - SY-5 同一マシンの書き込みは `deguboard-local/locks/` のロックで直列にし、同じチケットと step の Run の二重起動も同じ場所のロックで防ぐ。チーム間の排他には使わない
 - SY-6 リモートがなくても、同期を除くすべての操作が動く
 
 ### 6.4 画面（Web UI・VS Code 拡張）
 
-Web UI は `dg serve` が配信し、VS Code 拡張は同じ React アプリを Webview に載せる。表示と操作は両方で同じ（[ADR-006](adr/ADR-006-ui-and-writes.md)）。
+Web UI は `dg serve` が配信し、VS Code 拡張は同じ React アプリを Webview に載せる（[ADR-006](adr/ADR-006-ui-and-writes.md)）。
 
 - UI-1 プロジェクトの切り替え
-- UI-2 カンバン：planned か active の Iteration 1 つ（既定は active、なければ番号の小さい planned）か「すべて」（その全部）のチケットを Status ごとの列に出す（表示名は Workflow の `labels`）。Iteration のないチケットはバックログで見る。開いた Iteration がなければ列を出さず、バックログと Iteration の作成へ案内する。ドラッグ＆ドロップで Status を変え、`ticket move` と同じ検査で拒否されたら理由を出して戻す。Epic と担当者で絞れる。閉じた Epic の終わったチケットは出さない。VS Code のサイドバーでは、範囲を札で切り替え、行に変化の点滅・実行中の Run の印・担当の印を出し、開いた Plan に入っていれば Plan の番号と、todo なら着手可・待ちの相手（PL-6 の `waiting`）・承認待ち（Plan が承認待ち）を出し、待ちと承認待ちの行は実行中の Run がなければタイトルを薄くする
-- UI-3 バックログ：done・abandoned 以外のチケットを Iteration ごとの区画に分けて出し、検索と絞り込みができる。別の区画へのドラッグで Iteration を変え、`ticket update` と同じ検査で拒否されたら理由を出して戻す。VS Code のサイドバーでは、区画の見出しを Iteration の状態の色の帯と 2 段（番号・名前・件数／期間・目標）にし、開始・閉じるは詳細の画面で行う。Epic の欄は open の Epic があるときだけチップで出す。行には優先度の札と、カンバンと同じく、開いた Plan に入っていれば Plan の番号・着手可・待ちの相手・承認待ちを、担当者が `whoami` とその agent 以外なら担当の印（頭文字の丸。全名はツールチップ）を出す。検索欄の右端の漏斗（カンバンと同じ）で絞り込みの欄を開き、その下によく使う絞り込み（自分・作業中・high）のチップと、効いている条件を × で外せる札を出し、件数は絞り込みが効いているときだけ「n / m 件」で出す
-- UI-4 チケット詳細：本文（概要・受け入れ条件）、属性、Epic、依存先と依存元、起票者と担当者、作業ブランチ、PR、Run の一覧、経過（CL-7）。PR はリモートの URL から PR のページへのリンクにする（直せなければ番号だけ）。属性と本文を編集できる
-- UI-5 Iteration：作成・開始・閉じる、詳細の画面でチケットの追加・除外ができる。ほかに active があれば開始・再開は押せず理由を出す（IT-1）。閉じた Iteration・Epic と終わったチケットは履歴の画面で見る（終えた日は CL-7 から求める）
-- UI-6 未 push のコミットと、取り込んでいないリモートの更新があることを印で知らせる。同期のボタンで `dg sync` と同じ同期を行い、画面を読み直す。リモートがなければ照合と読み直しだけを行う
-- UI-7 画面からの書き込みは Core の同じコマンドを通り、`commit.mode` に従ってコミットする
+- UI-2 カンバン：planned か active の Iteration 1 つ（既定は active）か「すべて」（その全部）のチケットを Status ごとの列に出し、ドラッグで Status を変える（`ticket move`）。Iteration のないチケットはバックログで見る。Epic と担当者で絞れる
+- UI-3 バックログ：done・abandoned 以外のチケットを Iteration ごとの区画に出し、検索と絞り込みができる。区画の間のドラッグで Iteration を変える（`ticket update`）
+- UI-4 チケット詳細：本文・属性・Epic・依存・起票者と担当者・作業ブランチ・PR・Run・経過（CL-7）を出し、属性と本文を編集できる
+- UI-5 Iteration：作成・開始・閉じる、詳細の画面でチケットの追加・除外ができる。ほかに active があれば開始・再開は押せず理由を出す（IT-1）。閉じた Iteration・Epic と終わったチケットは履歴の画面で見る
+- UI-6 未 push のコミットと未取り込みのリモートの更新を印で知らせ、同期のボタンで `dg sync` と同じ同期をして読み直す
+- UI-7 画面からの書き込みは Core の同じコマンドと検査を通り、拒否されたら理由を出して戻す。`commit.mode` に従ってコミットする
 - UI-8 `dg serve` は既定で `127.0.0.1` にバインドする。認証は持たない
-- UI-9 実行中・完了の Run と MT-3 の単位別集計。ブラウザだけに置き、VS Code の左パネルにはタブも履歴からのリンクも出さない
-- UI-10 Epic：open の Epic の進捗（EP-3）を出し、Epic でチケットを絞れる。詳細の画面で Epic のチケットを Status ごとに出し、チケットの追加・除外、閉じる・再開ができる。VS Code では Status ごとの列（カンバン）にせず、未完了・完了・中止の段に分けた 1 本の一覧で出す
-- UI-11 VS Code 拡張は `dg` を同梱せず、Webview のために `core` を同梱する。画面は `dg` なしで動き、`dg` が PATH にないときはインストールを案内する。`dg` の版と拡張の `core` の版のメジャーが違えば知らせる（[ADR-006](adr/ADR-006-ui-and-writes.md)）
-- UI-12 VS Code 拡張はサイドバーのビューを主画面にして同じ画面（Run の画面を除く。UI-9）を出し、エディタ領域のパネルにはサイドバーから開いた詳細（チケット・Iteration・Epic）だけを出す。パネルからの一覧の画面へのリンクは、サイドバーをその画面に切り替える。ビューのタイトル行に同期のボタン（UI-6）・設定の歯車（UI-14）と未 push・未取り込みの件数を出す。サイドバーのバックログの行の右クリックで「Iteration を移す」（閉じていない Iteration か「Iteration なし」から選び、ドラッグと同じ `ticket update`）・「詳細を開く」・「ID をコピー」を出す。データ worktree と実行中の Run の記録の変化を見張り、CLI やエージェントの書き込みを自動で画面に映す（[ADR-006](adr/ADR-006-ui-and-writes.md)）
-- UI-13 実行計画：カンバン（UI-2）の上に、選んだ範囲のチケットを含む Plan を出す（閉じた Plan は畳む）。Plan ごとに番号・状態・進捗と、作業中のチケット・次に着手するチケット（PL-6 の `next`。手順と同じ）を出し、`after` の依存グラフ（ノードの待ちは `waiting`）を開閉できる。表示だけで書き込まない
-- UI-14 設定画面：歯車（UI-12。ブラウザは上のバー）と画面内の戻るボタンで、設定画面と来る前の画面（なければカンバン）を切り替える。`config.yaml` の全項目（5.10）をまとまりごとに名前・キー・スキーマの説明・型に合う入力欄で出し、検索で絞れる。値を変えると `config.set` で保存し、拒否なら理由を出して戻す。既定から変えた項目に印と既定に戻す操作を出し、チーム全員に効くことを常に示す。`git.*`・`worktree.root`・`actions.*`・`actor.human_only`・`auto.merge` は保存前に確かめる。VS Code の settings.json は使わない
+- UI-9 Run の画面：実行中・完了の Run と MT-3 の集計。ブラウザだけに置く
+- UI-10 Epic：open の Epic の進捗（EP-3）を出し、Epic で絞れる。詳細の画面でチケットの追加・除外、閉じる・再開ができる
+- UI-11 VS Code 拡張は `core` を同梱して `dg` なしで動き、`dg` が PATH にないときと、`dg` と `core` の版のメジャーが違うときは知らせる
+- UI-12 VS Code 拡張はサイドバーを主画面にし、エディタのパネルには詳細だけを出す。タイトル行に同期・設定の操作と未 push・未取り込みの件数を出す。データと Run の記録の変化を見張り、CLI やエージェントの書き込みを自動で映す
+- UI-13 実行計画：カンバンの上に、選んだ範囲のチケットを含む Plan の進捗、作業中と次（PL-6 の `next`）のチケット、`after` の依存グラフを出す。表示だけで書き込まない
+- UI-14 設定画面：`config.yaml` の全項目（5.10）を出し、`config.set` で保存する。チーム全員に効くことを示し、`git.*`・`worktree.root`・`actions.*`・`actor.human_only`・`auto.merge` は保存前に確かめる。VS Code の settings.json は使わない
 
-画面の並び順・色・文言とサイドバーの細部は web のコード（`packages/web/src/`）とテストが正本。
+画面の並び・色・文言・印などの細部は `packages/web/src/` と `packages/vscode/src/` のコードとテストが正本。
 
 ### 6.5 エージェント連携
 
-- AG-1 エージェントは PATH の `dg` を Bash から `dg … --json --actor agent` で呼び、データのファイルを直接編集しない。human と agent の区別は申告（`--actor` か環境変数 `DEGUBOARD_ACTOR`。既定は human）に基づき、Skill と `dg guide` の手順は必ず agent を名乗る。主体の ID はユーザ名（`--user`、環境変数 `DEGUBOARD_USER`、git config の `deguboard.user`、git の `user.name`、OS のユーザ名の順）と種別から `<ユーザ>`（human）か `<ユーザ>/agent`（agent）になり、`created_by` と `assignee` に記録される（TK-7）。`whoami` は操作している主体とユーザ名の出どころ、本人とみなす ID（`<ユーザ>` と `<ユーザ>/agent`）を返し、画面はこれで担当者が自分かを見分ける。権限管理ではない（対象外）
+- AG-1 エージェントは PATH の `dg` を Bash から `dg … --json --actor agent` で呼び、データのファイルを直接編集しない。human と agent の区別は申告（`--actor` か環境変数 `DEGUBOARD_ACTOR`。既定は human）に基づき、Skill と `dg guide` の手順は必ず agent を名乗る。主体の ID はユーザ名（`--user`。既定の決め方は `dg --help`）と種別から `<ユーザ>`（human）か `<ユーザ>/agent`（agent）になり、`created_by` と `assignee` に記録される（TK-7）。`whoami` は操作している主体とユーザ名の出どころ、本人とみなす ID（`<ユーザ>` と `<ユーザ>/agent`）を返す。権限管理ではない（対象外）
 - AG-2 Claude Code 向けに、段階ごとに `dg guide <topic>` を読む薄い Skill（`dg<トピック>`。例 `/dgimport`）を `dg skill install` で配る。名前と説明は guide の frontmatter が正本。手を加えていない Skill は再実行で更新し、手を加えたものは強制の指定がなければ残す
 - AG-3 エージェントは要件の整理が終わったら、必要に応じてチケット化を提案し、承認を得て `ticket import` で起票する。分解・Epic への束ね・依存の整理・Iteration への割り当ても提案して承認を得る
 - AG-4 MCP サーバー（`dg mcp`。stdio）は、Bash のないクライアント（Claude Desktop など）から起票・閲覧・状態の更新をする入口として、Core のコマンド定義から生成する薄い層で提供する。CLI と同じ操作ができ（`init` と CLI だけの `guide`・`skill`・`serve`・`open` を除く）、ツールの結果は `--json` と同じ形（CL-1）で、主体は常に agent（`<ユーザ>/agent`）。対象のリポジトリは `-C` で指せる（クライアントがリポジトリの外で起動するため）
@@ -276,7 +276,7 @@ Web UI は `dg serve` が配信し、VS Code 拡張は同じ React アプリを 
 
 - EX-1 deguboard はエージェントを起動しない。チケットの処理はエージェント側の Skill が `dg` を呼んで進める
 - EX-2 終了していない Run は一覧で見え、`interrupted` として閉じられる
-- EX-3 段階を続けて進める手順は Skill 側に置き、着手できるチケット（Plan があれば PL-6 の `ready`・`next`、なければ `ticket list --ready`）に従う。`dg guide all --auto` は戻せる判断を自動で選び、`auto.merge` が true なら条件を満たした PR をマージする。Plan の待ちのない複数のチケットはチケットごとのサブエージェントで同時に進め、1 件の失敗やマージ待ちでほかを止めない。品質ゲート（検査・受け入れ条件・別のサブエージェントの見直し・衝突なし）は PR を出す前とマージの前に通し、手直しの Run に直した指摘を `retry_reasons` で残す。修正の回数の上限を超えたら PR を draft のまま人に渡す。同時に進める上限・修正ループの回数・Run の分け方は guide（`parallel`・`review`・`all`）が正本
+- EX-3 段階を続けて進める手順は Skill 側に置き、着手できるチケット（Plan があれば PL-6 の `ready`・`next`、なければ `ticket list --ready`）に従う。`dg guide all --auto` は戻せる判断を自動で選び、`auto.merge` が true なら条件を満たした PR をマージする。品質ゲート（検査・受け入れ条件・別のサブエージェントの見直し・衝突なし）は PR を出す前とマージの前に通し、修正の上限を超えたら PR を draft のまま人に渡す。同時の進め方・修正ループ・Run の分け方は guide（`parallel`・`review`・`all`）が正本
 - EX-4 Workflow が `by: [human]` で人に限った遷移は、エージェントからは行えない
 
 ## 7. 非機能要件
