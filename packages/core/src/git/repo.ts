@@ -1,10 +1,11 @@
 // リポジトリの位置の解決（requirements.md 5.1、ADR-002）
 
-import { access, mkdir } from "node:fs/promises";
+import { mkdir } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { OperationError } from "../errors.js";
 import type { UserSource } from "../model/actor.js";
+import { pathExists } from "../storage/exists.js";
 import { GitError, runGit } from "./run.js";
 
 export interface GitRepo {
@@ -93,12 +94,7 @@ export async function remoteWebUrl(
 }
 
 export async function isInitialized(paths: RepoPaths): Promise<boolean> {
-  try {
-    await access(path.join(paths.dataDir, ".git"));
-    return true;
-  } catch {
-    return false;
-  }
+  return pathExists(path.join(paths.dataDir, ".git"));
 }
 
 /** コミットの作者が決まるか。決まらなければ IDENTITY_MISSING（捏造しない） */

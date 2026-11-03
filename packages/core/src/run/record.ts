@@ -4,7 +4,7 @@
 //   - 同じチケットと step の二重の start は、deguboard-local/locks/ のロックの中で実行中の記録を見て拒否する
 //   - チケットの frontmatter には書き足さない。チケットの Run は Run の ticket から引く（書き足すと Run のたびにチケットが衝突する）
 
-import { access, mkdir, readdir, unlink } from "node:fs/promises";
+import { mkdir, readdir, unlink } from "node:fs/promises";
 import path from "node:path";
 import { OperationError } from "../errors.js";
 import { withLock } from "../git/lock.js";
@@ -23,6 +23,7 @@ import {
   type RunUsage,
 } from "../model/run.js";
 import { createDoc, readDoc, type Doc } from "../storage/documents.js";
+import { pathExists } from "../storage/exists.js";
 import type { Issue } from "../storage/issue.js";
 import { DIRS, runPath } from "../storage/paths.js";
 
@@ -33,10 +34,7 @@ type RunDirs = Pick<GitRepo, "localDir" | "dataDir">;
 
 /** runs/ に集計があるか。索引は古いことがあるのでファイルで確かめる（batch でまだコミットしていない集計も含む） */
 async function hasSummary(repo: RunDirs, id: string): Promise<boolean> {
-  return access(path.join(repo.dataDir, runPath(id))).then(
-    () => true,
-    () => false,
-  );
+  return pathExists(path.join(repo.dataDir, runPath(id)));
 }
 
 async function removeRunning(repo: RunDirs, id: string): Promise<void> {
@@ -116,14 +114,13 @@ export function runAgentByTicket(
 
 /**
  * 終わっていない Run を、ロックを取らず何も消さずに読む（一覧の表示のため）。
- * runs/ に同じ ID の集計がある記録（finish の残り）は、consumed で除く。読めないファイルは飛ばす
+ * runs/ に同じ ID の集計がある記録（finish の残り）は、readRunningRuns と同じくファイルで確かめて除く。読めないファイルは飛ばす
  */
-export async function peekRunningRuns(
-  repo: RunDirs,
-  consumed: (id: RunId) => boolean,
-): Promise<Run[]> {
+export async function peekRunningRuns(repo: RunDirs): Promise<Run[]> {
   const { runs } = await readLocalRuns(repo);
-  return runs.filter((r) => !consumed(r.data.id)).map((r) => r.data);
+  const running: Run[] = [];
+  for (const run of runs) if (!(await hasSummary(repo, run.id))) running.push(run.data);
+  return running;
 }
 
 export interface StartRunInput {

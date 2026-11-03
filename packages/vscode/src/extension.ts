@@ -12,6 +12,7 @@ import {
   createLocalClient,
   pickUser,
   toCommandFailure,
+  WEBVIEW_CONTRACT,
   type CommandClient,
   type StatusView,
   type WebviewEvent,
@@ -41,8 +42,6 @@ import {
 } from "./webview.js";
 
 const VIEW_ID = "deguboard.screens";
-/** 設定画面のルート（web の router の #/config） */
-const CONFIG_ROUTE = "#/config";
 const PANEL_TYPE = "deguboard";
 
 /** エディタ領域のパネル。作業フォルダごとに 1 つで、詳細はこれを使い回す */
@@ -66,7 +65,10 @@ export function activate(context: vscode.ExtensionContext): void {
     // （サイドバーが描かれていなくても動く）。リモートがなくても読み直しだけはするので、手の再読み込みも兼ねる
     vscode.commands.registerCommand("deguboard.sync", () => void syncFolder()),
     // ビューのタイトル行の歯車。サイドバーの中をカンバン（来る前の画面）と設定画面（config.yaml）で切り替える
-    vscode.commands.registerCommand("deguboard.config", () => void toggleInSidebar(CONFIG_ROUTE)),
+    vscode.commands.registerCommand(
+      "deguboard.config",
+      () => void toggleInSidebar(WEBVIEW_CONTRACT.routes.config),
+    ),
     // 左パネルのバックログの行の右クリック（package.json の webview/context。引数は行の data-vscode-context）
     vscode.commands.registerCommand(BACKLOG_ROW_COMMANDS.move, (arg: unknown) =>
       withMenuTicket(arg, moveFromMenu),
@@ -123,7 +125,7 @@ async function resolveSidebar(
     if (sidebar === view) sidebar = undefined;
   });
   if (folders.length > 1) view.description = folder.name;
-  const route = pendingSidebarRoute ?? "#/board";
+  const route = pendingSidebarRoute ?? WEBVIEW_CONTRACT.routes.board;
   pendingSidebarRoute = undefined;
   await attach(context, view.webview, folder, {
     surface: "sidebar",

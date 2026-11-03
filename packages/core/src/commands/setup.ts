@@ -1,6 +1,6 @@
 // 用意と同期：init・sync・commit・validate・lint・config・whoami
 
-import { writeFile, access } from "node:fs/promises";
+import { writeFile } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
 import { OperationError } from "../errors.js";
@@ -23,6 +23,7 @@ import { isTerminal } from "../model/common.js";
 import { configFields, configSchema, type Config, type ConfigField } from "../model/config.js";
 import { parseAcceptance, type Ticket } from "../model/ticket.js";
 import type { Doc } from "../storage/documents.js";
+import { pathExists } from "../storage/exists.js";
 import { checkReferences } from "../storage/integrity.js";
 import type { Issue } from "../storage/issue.js";
 import { CONFIG_FILE, workflowPath } from "../storage/paths.js";
@@ -57,7 +58,7 @@ export const init = defineCommand({
         const store = ctx.store;
         const created: string[] = [];
         const configPath = path.join(store.root, CONFIG_FILE);
-        if (!(await exists(configPath))) {
+        if (!(await pathExists(configPath))) {
           await store.writeConfig({
             default_project: "default",
             git: { remote: input.remote ?? "origin", base_branch: input.base_branch ?? "main" },
@@ -65,7 +66,7 @@ export const init = defineCommand({
           created.push(CONFIG_FILE);
         }
         const ignorePath = path.join(store.root, ".gitignore");
-        if (!(await exists(ignorePath))) {
+        if (!(await pathExists(ignorePath))) {
           // 原子的書き込みの一時ファイルをコミットに入れない
           await writeFile(ignorePath, "*.tmp\n");
           created.push(".gitignore");
@@ -74,7 +75,7 @@ export const init = defineCommand({
         if (await ensureGitattributes(store.root)) created.push(".gitattributes");
         for (const t of WORKFLOW_TEMPLATES) {
           // 誤りがあって索引から外れた Workflow も、ファイルがあれば書き換えない（WF-4）
-          if (await exists(path.join(store.root, workflowPath(t.id)))) continue;
+          if (await pathExists(path.join(store.root, workflowPath(t.id)))) continue;
           await store.writeWorkflow(
             t as Record<string, unknown>,
             `${t.name} のワークフロー。dg init が同梱のテンプレートから置いた`,
@@ -106,15 +107,6 @@ export const init = defineCommand({
     );
   },
 });
-
-async function exists(p: string): Promise<boolean> {
-  try {
-    await access(p);
-    return true;
-  } catch {
-    return false;
-  }
-}
 
 /** Workflow が pr_* を参照していれば gh を呼ぶ */
 function needsPr(wf: WorkflowEntry): boolean {

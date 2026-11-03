@@ -39,6 +39,23 @@ export type WebviewEvent =
   | { kind: "event"; name: "navigate"; hash: string }
   | { kind: "event"; name: "toggle"; hash: string };
 
+/**
+ * 拡張と画面で合わせる値（UI-12）。拡張（vscode）はここを読み、web は実行時のコードを取り込まないので写しを持ち、
+ * 同じ値であることを web のテスト（webview-contract.test.ts）で確かめる
+ */
+export const WEBVIEW_CONTRACT = {
+  /** バックログの行の右クリックの文脈（data-vscode-context の webviewSection）。拡張の package.json の when と合わせる */
+  backlogRowSection: "backlogTicket",
+  /** 拡張が開く画面のルート（web の router のハッシュ） */
+  routes: { board: "#/board", config: "#/config" },
+  /** 拡張ホスト → Webview の通知の名前（WebviewEvent の name の全件） */
+  eventNames: ["reload", "navigate", "toggle"],
+} as const satisfies {
+  backlogRowSection: string;
+  routes: Record<string, `#/${string}`>;
+  eventNames: readonly WebviewEvent["name"][];
+};
+
 /** 拡張ホスト → Webview の応答。HTTP の本文と同じ形に id を足したもの */
 export type WebviewResponse =
   | {

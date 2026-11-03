@@ -13,7 +13,7 @@ import { workflowValidate } from "./workflow.js";
 import { iterationAdd, iterationCreate } from "./iteration.js";
 import { projectCreate } from "./project.js";
 import { ticketCreate, ticketList, type TicketRow } from "./ticket.js";
-import { finishRun } from "../run/record.js";
+import { finishRun, peekRunningRuns } from "../run/record.js";
 import type { Run } from "../model/run.js";
 
 vi.mock("node:fs/promises", async (importOriginal) =>
@@ -322,7 +322,7 @@ describe("run", () => {
     });
   });
 
-  it("集計のコミットの後、実行中の記録を消す前に止まっても、start・finish・list がその記録を消して進める", async () => {
+  it("集計のコミットの後、実行中の記録を消す前に止まっても、start・finish・list がその記録を消して進め、一覧の表示も実行中に数えない", async () => {
     const ctx = await prepared();
     // 止まった finish の残りを作る：集計を書いた後に、実行中の記録を戻す
     const leftover = async (): Promise<{ run: Run; file: string }> => {
@@ -348,8 +348,12 @@ describe("run", () => {
     ).rejects.toMatchObject({ code: "REJECTED" });
     expect(await exists(b.file)).toBe(false);
 
-    // list：実行中として出さず、残りを消す
+    // 一覧の表示（ticket.list の run_agent）：readRunningRuns と同じくファイルで確かめて実行中に数えず、ロックを取らないので残りは消さない
     const c = await leftover();
+    expect(await peekRunningRuns(ctx.repo)).toEqual([]);
+    expect(await exists(c.file)).toBe(true);
+
+    // list：実行中として出さず、残りを消す
     const listed = (await runCommand(runList, ctx, { running: true })).data as RunView[];
     expect(listed).toEqual([]);
     expect(await exists(c.file)).toBe(false);

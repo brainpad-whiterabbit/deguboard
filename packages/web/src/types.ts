@@ -95,6 +95,23 @@ export const BOARD_STATUSES = [
 export function isFinished(status: Status): status is "done" | "abandoned" {
   return status === "done" || status === "abandoned";
 }
+/**
+ * 検索語に当たるか：番号・タイトル（labels なら加えてラベル）の部分一致。前後の空白は除き、大文字小文字は区別しない。
+ * 空の検索語はすべてに当たる。core の matchesQuery（ticket list の query）の写しで、同じ結果になることを types.test.ts で確かめる
+ */
+export function ticketMatchesQuery(
+  t: Pick<Ticket, "id" | "title" | "labels">,
+  query: string,
+  labels = true,
+): boolean {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+  return (
+    t.id.toLowerCase().includes(q) ||
+    t.title.toLowerCase().includes(q) ||
+    (labels && t.labels.some((l) => l.toLowerCase().includes(q)))
+  );
+}
 /** 文字列が Status の値か（履歴の変更の値は Status とは限らない） */
 export function isStatus(value: string | null): value is Status {
   return (STATUSES as readonly string[]).includes(value ?? "");

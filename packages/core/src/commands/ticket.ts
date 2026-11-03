@@ -340,8 +340,7 @@ export const ticketList = defineCommand({
       matchesFilter(ctx.store, d.data, filter),
     );
     // run_agent は実行中の Run（このマシンの deguboard-local/runs/）と runs/ の集計から 1 回で引く
-    const running =
-      docs.length > 0 ? await peekRunningRuns(ctx.repo, (id) => ctx.store.runs.has(id)) : [];
+    const running = docs.length > 0 ? await peekRunningRuns(ctx.repo) : [];
     const agents = runAgentByTicket(
       running,
       [...ctx.store.runs.values()].map((r) => r.data),

@@ -4,10 +4,10 @@
 // 移す先の候補は core の iteration.list に閉じていない Iteration だけを頼み、移すのはドラッグと同じ ticket.update を呼ぶだけにする。
 // 閉じた Iteration に移せないことは ticket.update が拒否して決める（ここでは判断しない）
 
-import type { CommandClient, Iteration } from "@deguboard/core";
+import { WEBVIEW_CONTRACT, type CommandClient, type Iteration } from "@deguboard/core";
 
-/** バックログの行の data-vscode-context の webviewSection。package.json の when と合わせる */
-export const BACKLOG_ROW_SECTION = "backlogTicket";
+/** バックログの行の data-vscode-context の webviewSection（core の WEBVIEW_CONTRACT）。package.json の when と合わせる */
+export const BACKLOG_ROW_SECTION = WEBVIEW_CONTRACT.backlogRowSection;
 
 /** 右クリックのメニューのコマンド。package.json の contributes.commands と合わせる */
 export const BACKLOG_ROW_COMMANDS = {
