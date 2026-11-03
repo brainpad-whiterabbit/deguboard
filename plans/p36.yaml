@@ -1,0 +1,26 @@
+id: p36
+project: default
+tickets: [t321, t322, t323, t324, t325]
+after: {}
+pending_approval: true
+details:
+  t321:
+    scope: README に models.* の設定項目と dg config set の例、Plan の説明に --tier と段階がモデルに対応することを足す。細部は requirements PL-1・5.10 へのリンクにとどめる
+    approach: README の設定の節と Plan の節に短く足し、check:docs の予算を確かめる。requirements は直さない
+    tier: light
+  t322:
+    scope: program.test.ts の plan create に --tier の記録と不正値の拒否、app.test.ts の plan.create に tier、schema.test.ts に不正な tier の拒否、e2e/routes.test.ts に plan.create（tier 付き）と config.set の手順を足す
+    approach: 既存のテストの流儀（describe・日本語のテスト名・fixture）に合わせて足し、実装は変えない。routes.test.ts の STEPS は 3 経路の既存の形に従う
+    tier: standard
+  t323:
+    scope: ADR-004 の採らなかった案の書き方（更新日と一覧）、development.md のリリース手順の版の例、release/ の 0.2.0 の tarball の扱い（消すか development.md に書く）
+    approach: 3 点を 1 つの PR で直す。release/ は .gitignore の扱いを見て消す案を基本にし、PR に理由を書く
+    tier: light
+  t324:
+    scope: guide.test.ts の文言検査を節の切り出しと要点語の含有に寄せ、複数行をまたぐ正規表現を [\s\S]*? にそろえ、fillPlaceholders の空文字のテストを足す。guide の md 本文は変えない
+    approach: 既存の split('## 見出し') の流儀に合わせて書き換え、mise run check で全件通ることを確かめる
+    tier: standard
+  t325:
+    scope: packages/vscode/package.json の @types/vscode を 1.123.0 にし lockfile を更新する。ほかの依存は触らない
+    approach: development.md のとおり mise exec -- pnpm add -D @types/vscode@1.123.0 --filter deguboard-vscode で上げ、mise run check を通す
+    tier: light
