@@ -1,0 +1,21 @@
+{
+  "id": "r20261103-004319-beb9",
+  "ticket": "t251",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-03T00:43:19Z",
+  "finished_at": "2026-11-03T00:45:09Z",
+  "result": "success",
+  "error": null,
+  "retries": 1,
+  "retry_reasons": [
+    "CL-4 の拒否のエラーコードが core の取り込みの拒否と食い違っていた"
+  ],
+  "usage": {
+    "input": 4,
+    "output": 1743,
+    "cache_read": 116251,
+    "cache_write": 1816
+  }
+}
