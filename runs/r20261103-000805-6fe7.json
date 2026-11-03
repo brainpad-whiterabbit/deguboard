@@ -1,0 +1,23 @@
+{
+  "id": "r20261103-000805-6fe7",
+  "ticket": "t204",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-03T00:08:05Z",
+  "finished_at": "2026-11-03T00:09:25Z",
+  "result": "success",
+  "error": null,
+  "retries": 3,
+  "retry_reasons": [
+    "client.ts のコメントが指すテストのファイル名を webview.test.ts に直した",
+    "履歴の行のテスト名を番号の部分一致に合わせ、t1 で t12 に当たるテストを足した",
+    "peekRunningRuns の集計の確認を Promise.all にした"
+  ],
+  "usage": {
+    "input": 12,
+    "output": 3485,
+    "cache_read": 770098,
+    "cache_write": 5923
+  }
+}
