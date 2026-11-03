@@ -1,0 +1,23 @@
+{
+  "id": "r20261103-002537-8a2d",
+  "ticket": "t247",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-03T00:25:37Z",
+  "finished_at": "2026-11-03T00:26:42Z",
+  "result": "success",
+  "error": null,
+  "retries": 3,
+  "retry_reasons": [
+    "拡張の showInSidebar のコメントが一覧の画面に Run を挙げていた",
+    "拡張の watchData のコメントが Run の画面の取り直しを書いていた",
+    "パネルで #/runs の Run を取り直すテストが起きない場面を試していた"
+  ],
+  "usage": {
+    "input": 8,
+    "output": 2249,
+    "cache_read": 670907,
+    "cache_write": 3844
+  }
+}
