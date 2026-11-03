@@ -170,6 +170,23 @@ export interface WorkflowView {
   transitions: { from: Status; to: Status; by?: string[]; requires: string[] }[];
 }
 
+/**
+ * Status の選択に並べる Status：今の Status と、今から移れる Status（STATUSES の順）。core の canTransition の写しで、
+ * 書かれていない遷移は自由（ADR-003）、by が主体（whoami の kind）を含まない遷移は外す。主体が分からなければ by は見ない。
+ * requires は事実を画面で持たないので見ず、満たさないときは ticket.move の拒否で理由を出す
+ */
+export function movableStatuses(
+  current: Status,
+  transitions: WorkflowView["transitions"],
+  kind: WhoamiView["kind"] | undefined,
+): Status[] {
+  return STATUSES.filter((to) => {
+    if (to === current) return true;
+    const by = transitions.find((t) => t.from === current && t.to === to)?.by;
+    return !by || (kind ? by.includes(kind) : by.length > 0);
+  });
+}
+
 const PRIORITY_RANK: Record<Priority, number> = { high: 0, medium: 1, low: 2 };
 
 function ticketNumber(id: string): number {
