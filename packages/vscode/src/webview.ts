@@ -146,7 +146,7 @@ export async function handleRequest(
         return {
           id: request.id,
           ok: false,
-          error: { code: "UNSUPPORTED_ACTION", message: "この画面からはエディタで開けない" },
+          error: { code: "UNSUPPORTED_ACTION", message: "この画面からはその操作ができない" },
         };
       }
       if (request.name === "copy") await actions.copy(request.text);

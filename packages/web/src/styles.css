@@ -723,7 +723,7 @@ button.link:hover {
 }
 .view-switch button:hover {
   color: var(--vscode-foreground);
-  background: var(--vscode-toolbar-hoverBackground, var(--vscode-button-secondaryBackground));
+  background: var(--vscode-toolbar-hoverBackground, transparent);
 }
 .view-switch button:focus-visible {
   outline-offset: -2px;
