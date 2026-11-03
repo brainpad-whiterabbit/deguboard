@@ -415,25 +415,6 @@ button.link:hover {
   border-color: var(--dg-border);
 }
 
-/* バックログの畳んだ絞り込み（サイドバー） */
-.filters {
-  margin-bottom: 0.5rem;
-}
-.filters > summary {
-  padding: 0.25rem 0.25rem;
-  color: var(--vscode-descriptionForeground);
-  gap: 0.6em;
-}
-.filters > summary .muted {
-  font-size: 0.92em;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.filters > .toolbar {
-  margin: 0.25rem 0 0;
-}
-
 /* 履歴：閉じた Iteration の 2 段の行 */
 .history {
   list-style: none;
@@ -1484,6 +1465,11 @@ button.danger {
 .chip[aria-pressed="true"] .progress .muted {
   color: inherit;
 }
+/* 塗った札（Epic の .chip と Iteration の .iteration-chip）の番号の code は塗りの文字色に揃え、VS Code が code に付ける既定の色に負けないようにする */
+.chip[aria-pressed="true"] code,
+.iteration-chip[aria-pressed="true"] code {
+  color: inherit;
+}
 /* 塗ったチップの上では進捗の帯を文字の色で描く（状態の色はボタンの色に埋もれる） */
 .chip[aria-pressed="true"] .progress .bar {
   background: color-mix(in srgb, currentColor 35%, transparent);
@@ -1524,10 +1510,6 @@ button.danger {
   box-sizing: border-box;
   background: transparent;
   border: 1.5px solid var(--dg-status-todo);
-}
-.filters > summary .count {
-  margin-left: auto;
-  flex: none;
 }
 .backlog-section.empty-section > summary {
   margin-bottom: 0;
@@ -1737,7 +1719,7 @@ button.danger {
   gap: 8px;
   font-size: 0.92em;
 }
-.sidebar-head .filter-toggle {
+.filter-toggle {
   flex: none;
   display: inline-flex;
   align-items: center;
@@ -1748,16 +1730,16 @@ button.danger {
   border-color: transparent;
   border-radius: 3px;
 }
-.sidebar-head .filter-toggle:hover,
-.sidebar-head .filter-toggle.open {
+.filter-toggle:hover,
+.filter-toggle.open {
   color: var(--vscode-foreground);
   background: var(--vscode-toolbar-hoverBackground, var(--vscode-list-hoverBackground));
 }
 /* 絞っている間は漏斗を色付きにし、中を塗る */
-.sidebar-head .filter-toggle.active {
+.filter-toggle.active {
   color: var(--vscode-textLink-foreground);
 }
-.sidebar-head .filter-toggle.active path {
+.filter-toggle.active path {
   fill-opacity: 1;
 }
 .sidebar-head .period,
@@ -1844,8 +1826,7 @@ button.danger {
   background: var(--vscode-button-background);
   border-color: var(--vscode-button-background);
 }
-/* 番号の code も塗りの文字色に揃え、VS Code が code に付ける既定の色に負けないようにする */
-.iteration-chip[aria-pressed="true"] code,
+/* 件数も塗りの文字色に揃える（番号の code は .chip の節の規則） */
 .iteration-chip[aria-pressed="true"] .chip-count {
   color: inherit;
 }
@@ -1912,6 +1893,19 @@ button.danger {
 }
 .quick-filters .filter-chip {
   line-height: 1.6;
+}
+.quick-filters .count {
+  margin-left: auto;
+  flex: none;
+  font-size: 0.92em;
+}
+/* 左パネルのバックログの検索欄は、右端に漏斗（.filter-toggle）を置いて 1 行に収める */
+[data-surface="sidebar"] .toolbar.backlog-search {
+  flex-wrap: nowrap;
+}
+[data-surface="sidebar"] .toolbar.backlog-search input[type="search"] {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 /* 絞り込みの欄は漏斗で開いたときだけ見出しの下に出す小さな 1 行 */
 .board-filters.compact {

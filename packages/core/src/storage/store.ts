@@ -7,7 +7,6 @@ import { readdir, readFile, rename, stat } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
 import { OperationError } from "../errors.js";
-import { isTerminal } from "../model/common.js";
 import { configSchema, type Config } from "../model/config.js";
 import { epicSchema, type Epic } from "../model/epic.js";
 import {
@@ -26,7 +25,7 @@ import { iterationSchema, type Iteration } from "../model/iteration.js";
 import { planSchema, type Plan } from "../model/plan.js";
 import { projectSchema, type Project } from "../model/project.js";
 import { isRunId, runSchema, type Run, type RunId } from "../model/run.js";
-import { ticketSchema, type Ticket } from "../model/ticket.js";
+import { pendingDeps, ticketSchema, type Ticket } from "../model/ticket.js";
 import type { WorkflowDefinition } from "../model/workflow.js";
 import type { ResolvedWorkflow } from "../workflow/resolve.js";
 import { validateWorkflow, type WorkflowValidationOptions } from "../workflow/validate.js";
@@ -270,10 +269,7 @@ export class Store {
 
   /** deps_done（WF-2）。依存先がすべて done か abandoned なら真。やめたチケットは待たない */
   depsDone(ticket: Ticket): boolean {
-    return ticket.depends_on.every((id) => {
-      const status = this.tickets.get(id)?.data.status;
-      return status !== undefined && isTerminal(status);
-    });
+    return pendingDeps(ticket, (id) => this.tickets.get(id)?.data.status).length === 0;
   }
 
   // ---- 書き込み（write-through）----

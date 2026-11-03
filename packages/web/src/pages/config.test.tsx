@@ -12,7 +12,7 @@ import {
   formatValue,
   groupOf,
   isModified,
-  matchesQuery,
+  fieldMatchesQuery,
   nameOf,
   valueAt,
 } from "./config.js";
@@ -372,8 +372,8 @@ describe("設定画面の部品", () => {
     expect(groupOf("actor.human_only")).toBe("agent");
     expect(groupOf("default_project")).toBe("git");
     expect(groupOf("new.item")).toBe("other");
-    expect(matchesQuery(FIELDS[1]!, "リモート")).toBe(true);
-    expect(matchesQuery(FIELDS[1]!, "GIT.REMOTE")).toBe(true);
-    expect(matchesQuery(FIELDS[1]!, "push")).toBe(false);
+    expect(fieldMatchesQuery(FIELDS[1]!, "リモート")).toBe(true);
+    expect(fieldMatchesQuery(FIELDS[1]!, "GIT.REMOTE")).toBe(true);
+    expect(fieldMatchesQuery(FIELDS[1]!, "push")).toBe(false);
   });
 });

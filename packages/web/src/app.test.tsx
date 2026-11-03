@@ -386,7 +386,8 @@ describe("画面", () => {
     expect(window.location.hash).toBe("#/backlog");
   });
 
-  it.each(["#/tickets/t3", "#/runs"])(
+  // VS Code では Run の画面を出さない（UI-12）ので、Run を出すのはパネルのチケット詳細だけ
+  it.each(["#/tickets/t3"])(
     "拡張ホストから reload の event が来ると、%s の Run を取り直す（ターミナルの dg run start はチケットを変えない）",
     async (hash) => {
       window.location.hash = hash;
@@ -395,7 +396,6 @@ describe("画面", () => {
       client.handlers["ticket.list"] = () => [...client.data.tickets];
       let runs: RunView[] = [];
       client.handlers["run.list"] = () => runs;
-      client.handlers["metrics.show"] = () => null;
       const send = mountWithBridge(client, { surface: "panel", readRunning: false });
       await waitFor(() => expect(client.calls.some((c) => c.name === "run.list")).toBe(true));
       const before = client.calls.filter((c) => c.name === "run.list").length;
@@ -1103,7 +1103,7 @@ describe("画面", () => {
       [...rowOf(id).querySelectorAll(".counts .badge")].map((b) => b.textContent);
     expect(chips("s1")).toEqual(["完了 3", "持ち越し 1"]);
     expect(rowOf("s1").querySelector("small")!.textContent).toBe(
-      "最初 ・ 2026-09-29 〜 2026-10-10 ・ 内訳: Epic なし 1 ・ Run の集計",
+      "最初 ・ 2026-09-29 〜 2026-10-10 ・ 内訳: Epic なし 1",
     );
     // s2 には閉じたときの記録がないので、web で数え直さず「—」と出し、持ち越しのチップは出さない
     expect(chips("s2")).toEqual(["完了 —"]);
@@ -1150,7 +1150,7 @@ describe("画面", () => {
     );
     await screen.findByRole("heading", { level: 1, name: "履歴" });
     const row = document.querySelector(".history-row")!;
-    expect(row.querySelector("small")!.textContent).toBe("内訳: e1 2 ・ Run の集計");
+    expect(row.querySelector("small")!.textContent).toBe("内訳: e1 2");
     expect([...row.querySelectorAll(".counts .badge")].map((b) => b.textContent)).toEqual([
       "完了 —",
       "中止 1",
@@ -1342,26 +1342,37 @@ describe("画面", () => {
     expect(link.getAttribute("href")).toBe("#/tickets/t2");
   });
 
-  it("サイドバーのバックログは検索だけ出し、絞り込みは畳む。件数は絞り込みが効いているときだけ「n / m 件」で絞り込みの行に出て、消すボタンは条件があるときだけ", async () => {
+  it("サイドバーのバックログは検索欄の右端の漏斗で絞り込みの欄を開閉し、漏斗は条件が効いている間だけ色付き。件数は絞っているときだけ「n / m 件」でチップの行の右端に出て、消すボタンは条件があるときだけ", async () => {
     window.location.hash = "#/backlog";
     const host = hostOf("sidebar");
     mount(mockClient(), host);
     await screen.findByText("API");
     expect(screen.getByLabelText("検索")).toBeTruthy();
-    const fold = document.querySelector<HTMLDetailsElement>("details.filters")!;
-    const count = () => fold.querySelector("summary .count")?.textContent ?? null;
+    expect(document.querySelector("details.filters")).toBeNull();
+    const funnel = () => screen.getByRole("button", { name: /^絞り込み(（絞っている）)?$/ });
+    const fields = () => document.getElementById("backlog-filters");
+    const count = () => document.querySelector(".quick-filters .count")?.textContent ?? null;
+    // 漏斗は検索欄と同じ行の右端にある
+    expect(funnel().previousElementSibling).toBe(screen.getByLabelText("検索"));
     expect(count()).toBeNull();
     expect(document.querySelector(".toolbar > .muted")).toBeNull();
-    expect(fold.open).toBe(false);
-    expect(screen.queryByRole("button", { name: "絞り込みを消す" })).toBeNull();
+    expect(fields()).toBeNull();
+    expect(funnel().getAttribute("aria-expanded")).toBe("false");
+    expect(funnel().classList.contains("active")).toBe(false);
     fireEvent.click(screen.getByRole("button", { name: /最初の版/ }));
     expect(count()).toBe("1 / 2 件");
+    expect(funnel().classList.contains("active")).toBe(true);
+    expect(funnel().getAttribute("aria-label")).toBe("絞り込み（絞っている）");
     // Epic の条件は Epic のチップで見えているので、札にはしない
     expect(document.querySelector(".quick-filters .filter-chip")).toBeNull();
-    fold.open = true;
-    fireEvent(fold, new Event("toggle"));
+    fireEvent.click(funnel());
     expect(host.state.get("backlog.filters")).toBe(true);
-    expect(screen.getByRole("button", { name: "絞り込みを消す" })).toBeTruthy();
+    expect(funnel().getAttribute("aria-expanded")).toBe("true");
+    expect(funnel().getAttribute("aria-controls")).toBe("backlog-filters");
+    expect(within(fields()!).getByRole("button", { name: "絞り込みを消す" })).toBeTruthy();
+    fireEvent.click(funnel());
+    expect(host.state.get("backlog.filters")).toBe(false);
+    expect(fields()).toBeNull();
   });
 
   it("サイドバーのバックログの区画は、行の右端に優先度の札を付け、見出しを状態の帯と 2 段（番号・名前・件数／状態・月日の期間・目標）にし、「…」と開始・閉じるを出さない", async () => {
@@ -1541,8 +1552,7 @@ describe("画面", () => {
       ["作業中", "false"],
       ["high", "false"],
     ]);
-    const count = () =>
-      document.querySelector("details.filters summary .count")?.textContent ?? null;
+    const count = () => document.querySelector(".quick-filters .count")?.textContent ?? null;
     fireEvent.click(chip("作業中"));
     expect(chip("作業中").getAttribute("aria-pressed")).toBe("true");
     expect(count()).toBe("1 / 3 件");
@@ -1579,9 +1589,10 @@ describe("画面", () => {
     expect(screen.getByText("本人の AI の")).toBeTruthy();
     expect(screen.queryByText("別の人の")).toBeNull();
     expect(screen.queryByText("API")).toBeNull();
-    expect(document.querySelector("details.filters summary .count")!.textContent).toBe("2 / 5 件");
+    expect(document.querySelector(".quick-filters .count")!.textContent).toBe("2 / 5 件");
     // 「自分」はチップで見えているので札にしない。「絞り込みを消す」で外れる
     expect(group.querySelector(".filter-chip")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /^絞り込み(（絞っている）)?$/ }));
     fireEvent.click(screen.getByRole("button", { name: "絞り込みを消す" }));
     expect(mine.getAttribute("aria-pressed")).toBe("false");
     expect(screen.getByText("別の人の")).toBeTruthy();
@@ -1606,25 +1617,26 @@ describe("画面", () => {
     expect(screen.getByText("画面")).toBeTruthy();
   });
 
-  it("サイドバーのバックログは畳んだ欄で効いている条件を検索欄の下に札で出し、× で外せる。× の読み上げは何を外すかを言う", async () => {
+  it("サイドバーのバックログは漏斗で開いた欄で効いている条件を検索欄の下に札で出し、× で外せる。× の読み上げは何を外すかを言う", async () => {
     window.location.hash = "#/backlog";
     mount(mockClient(), hostOf("sidebar"));
     await screen.findByText("API");
     const group = screen.getByRole("group", { name: "絞り込み" });
-    const fold = document.querySelector<HTMLDetailsElement>("details.filters")!;
-    const select = (name: string) => within(fold).getByLabelText<HTMLSelectElement>(name);
+    fireEvent.click(screen.getByRole("button", { name: /^絞り込み(（絞っている）)?$/ }));
+    const fields = document.getElementById("backlog-filters")!;
+    const select = (name: string) => within(fields).getByLabelText<HTMLSelectElement>(name);
     fireEvent.change(select("Status"), { target: { value: "todo" } });
     fireEvent.change(select("ラベル"), { target: { value: "web" } });
     const texts = () => [...group.querySelectorAll(".filter-chip-text")].map((c) => c.textContent);
     expect(texts()).toEqual(["Status Todo", "ラベル web"]);
-    expect(fold.querySelector("summary .count")!.textContent).toBe("1 / 2 件");
+    expect(document.querySelector(".quick-filters .count")!.textContent).toBe("1 / 2 件");
     fireEvent.click(screen.getByRole("button", { name: "ラベル web の絞り込みを外す" }));
     expect(select("ラベル").value).toBe("");
     expect(texts()).toEqual(["Status Todo"]);
     fireEvent.click(screen.getByRole("button", { name: "Status Todo の絞り込みを外す" }));
     expect(select("Status").value).toBe("");
     expect(group.querySelector(".filter-chip")).toBeNull();
-    expect(fold.querySelector("summary .count")).toBeNull();
+    expect(document.querySelector(".quick-filters .count")).toBeNull();
     // 「作業中」以外の Status と「high」以外の優先度は札になる。「作業中」を押すと Status の札は消える
     fireEvent.change(select("優先度"), { target: { value: "low" } });
     expect(texts()).toEqual(["優先度 low"]);
@@ -1643,8 +1655,7 @@ describe("画面", () => {
     expect(chips.map((c) => c.textContent)).toEqual(["e1最初の版0/1", "Epic なし1"]);
     expect(chips.map((c) => c.getAttribute("aria-pressed"))).toEqual(["false", "false"]);
     expect(document.querySelector(".epic-list")).toBeNull();
-    const count = () =>
-      document.querySelector("details.filters summary .count")?.textContent ?? null;
+    const count = () => document.querySelector(".quick-filters .count")?.textContent ?? null;
     fireEvent.click(chips[0]!);
     expect(chips[0]!.getAttribute("aria-pressed")).toBe("true");
     expect(count()).toBe("1 / 2 件");
@@ -1803,6 +1814,37 @@ describe("画面", () => {
     window.location.hash = "#/epics/e1";
     await screen.findByRole("heading", { level: 1, name: /e1 最初の版/ });
     expect(tabs().querySelector("[aria-current=page]")!.textContent).toBe("バックログ");
+  });
+
+  it("ブラウザのバックログは絞り込みの欄を検索と同じ行に常に出し、漏斗を出さない。件数は「n 件」", async () => {
+    window.location.hash = "#/backlog";
+    mount();
+    await screen.findByText("API");
+    const toolbar = screen.getByLabelText("検索").closest(".toolbar")!;
+    for (const name of ["Status", "優先度", "ラベル"])
+      expect(within(toolbar as HTMLElement).getByLabelText(name)).toBeTruthy();
+    expect(
+      within(toolbar as HTMLElement).getByRole("button", { name: "絞り込みを消す" }),
+    ).toBeTruthy();
+    expect(document.querySelector(".filter-toggle")).toBeNull();
+    expect(document.getElementById("backlog-filters")).toBeNull();
+    expect(document.querySelector(".quick-filters")).toBeNull();
+    expect(document.querySelector(".toolbar > .muted")!.textContent).toBe("2 件");
+  });
+
+  it("左パネルのタブはカンバン・バックログ・履歴の 3 つで、#/runs はカンバンとして開く", async () => {
+    window.location.hash = "#/runs";
+    const client = mockClient();
+    mount(client, hostOf("sidebar"));
+    await waitFor(() => expect(document.querySelector(".sidebar-head")).toBeTruthy());
+    const tabs = screen.getByRole("navigation", { name: "画面" });
+    expect([...tabs.querySelectorAll("a")].map((a) => a.textContent)).toEqual([
+      "カンバン",
+      "バックログ",
+      "履歴",
+    ]);
+    expect(tabs.querySelector("[aria-current=page]")!.textContent).toBe("カンバン");
+    expect(client.calls.some((c) => c.name === "metrics.show")).toBe(false);
   });
 
   it("バックログの Epic の欄は open の Epic の進捗と「Epic なし」の件数を出し、押すと絞り、もう一度押すと解除する", async () => {

@@ -6,7 +6,7 @@ import { withWrite } from "../git/write.js";
 import type { TicketId } from "../model/id.js";
 import { isTerminal, slugSchema } from "../model/common.js";
 import type { Plan } from "../model/plan.js";
-import { progressOf, type Progress, type Ticket } from "../model/ticket.js";
+import { pendingDeps, progressOf, type Progress, type Ticket } from "../model/ticket.js";
 import type { Doc } from "../storage/documents.js";
 import type { Store } from "../storage/store.js";
 import { defineCommand, ok } from "./define.js";
@@ -179,7 +179,7 @@ export type ReadinessTicket = Pick<Ticket, "id" | "status" | "depends_on">;
 /**
  * 着手できるかを求める（PL-6）。ticketOf はチケットを引く（見つからなければ undefined）。
  * 消したチケットは Plan の中にないものとして扱い、after がそれ（か Plan の外）を指しても待たない（画面の依存グラフの辺と同じ）。
- * depends_on の待ちは deps_done（WF-2）と同じく、done・abandoned でない依存先（見つからないものも含む）を相手に出す。
+ * depends_on の待ちは deps_done（WF-2）と同じ pendingDeps で求める（見つからない依存先も相手に出す）。
  * 次は、Plan の順（tickets）で先の着手できる todo。なければ先頭の todo とその待ちの相手。todo がなければ null
  */
 export function planReadiness(
@@ -199,7 +199,9 @@ export function planReadiness(
       (dep) =>
         dep !== id && plan.tickets.includes(dep) && ticketOf(dep) !== undefined && !finished(dep),
     );
-    const depWaits = t.depends_on.filter((dep) => !finished(dep) && !afterWaits.includes(dep));
+    const depWaits = pendingDeps(t, (dep) => ticketOf(dep)?.status).filter(
+      (dep) => !afterWaits.includes(dep),
+    );
     waiting[id] = [...afterWaits, ...depWaits];
     if (t.status === "todo") todo.push(id);
   }
