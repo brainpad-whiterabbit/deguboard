@@ -5,6 +5,7 @@ import { useEffect, useId, useMemo, useState, type MouseEvent } from "react";
 import { useHost, useUiState } from "../host.js";
 import { useStore } from "../store.js";
 import { actorLabel, type PlanRow, type Ticket, type TicketRow } from "../types.js";
+import { ASK_SECTIONS, useAskSpot } from "./ask-menu.js";
 import { ProgressBar, StatusDot, TicketLink } from "./parts.js";
 import {
   PLAN_STATE_LABELS,
@@ -76,6 +77,12 @@ function PlanItem({ plan, state, byId }: ItemProps) {
   const [open, setOpen] = useState(() => host.state.get<boolean>(key) === true);
   const detailId = useId();
   const closed = state === "closed";
+  // 左パネルでは Plan の行をエージェントに頼める場所にする（吹き出し・右クリック・Shift+F10。UI-15）
+  const spot = useAskSpot(
+    host.surface === "sidebar"
+      ? { targets: [plan.id], label: `Plan の帯 ${plan.id}`, section: ASK_SECTIONS.boardHeading }
+      : null,
+  );
   const onRowClick = (e: MouseEvent) => {
     if ((e.target as Element).closest("a")) return;
     setOpen(!open);
@@ -86,7 +93,7 @@ function PlanItem({ plan, state, byId }: ItemProps) {
     <div
       className={`plan-item plan-color-${planColor(plan.id)}${closed ? " plan-item-closed" : ""}`}
     >
-      <div className="plan-row" onClick={onRowClick}>
+      <div className="plan-row" onClick={onRowClick} {...(spot.overlay ? spot.props : {})}>
         <button
           type="button"
           className="plan-line"
@@ -98,6 +105,7 @@ function PlanItem({ plan, state, byId }: ItemProps) {
           <ProgressBar progress={plan.progress} short />
         </button>
         {closed ? null : <PlanSub plan={plan} state={state} byId={byId} />}
+        {spot.overlay}
       </div>
       {open ? (
         <div className="plan-detail" id={detailId}>

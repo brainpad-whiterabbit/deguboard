@@ -12,15 +12,19 @@ import {
   createLocalClient,
   pickUser,
   toCommandFailure,
+  ASK_ACTIONS,
   WEBVIEW_CONTRACT,
+  type AskAction,
   type CommandClient,
   type StatusView,
   type WebviewEvent,
 } from "@deguboard/core";
 import * as vscode from "vscode";
 import {
+  askCommandId,
   BACKLOG_ROW_COMMANDS,
   iterationPicks,
+  menuAskOf,
   menuTicketOf,
   moveToIteration,
   ticketRoute,
@@ -76,6 +80,14 @@ export function activate(context: vscode.ExtensionContext): void {
     // （パネルが手前になければ左パネルの下）に、対象なしで出す
     vscode.commands.registerCommand("deguboard.ask", () => void askFromPalette()),
     vscode.commands.registerCommand("deguboard.askInSidebar", () => void askInSidebar([])),
+    // 行・見出しの右クリックの「エージェントに頼む ›」（package.json の webview/context のサブメニュー。引数は data-vscode-context）。
+    // 選んだ頼むことで、左パネルの下の入力欄を開く（UI-15）
+    ...ASK_ACTIONS.map((action) =>
+      vscode.commands.registerCommand(askCommandId(action), (arg: unknown) => {
+        const asked = menuAskOf(arg, action);
+        if (asked) void askInSidebar(asked.targets, asked.action);
+      }),
+    ),
     // 左パネルのバックログの行の右クリック（package.json の webview/context。引数は行の data-vscode-context）
     vscode.commands.registerCommand(BACKLOG_ROW_COMMANDS.move, (arg: unknown) =>
       withMenuTicket(arg, moveFromMenu),
@@ -187,9 +199,9 @@ async function deliverToSidebar(name: "navigate" | "toggle", route: string): Pro
   await vscode.commands.executeCommand(`${VIEW_ID}.focus`);
 }
 
-/** 左パネルの下にエージェントに頼む入力欄を出す。描かれていなければ対象を覚えてからビューを開く */
-async function askInSidebar(targets: string[]): Promise<void> {
-  const delivery = askDelivery(sidebar !== undefined, targets);
+/** 左パネルの下にエージェントに頼む入力欄を出す（action を渡せばその頼むことで）。描かれていなければ対象を覚えてからビューを開く */
+async function askInSidebar(targets: string[], action?: AskAction): Promise<void> {
+  const delivery = askDelivery(sidebar !== undefined, targets, action);
   if ("post" in delivery) void sidebar?.webview.postMessage(delivery.post);
   else pendingSidebarAsk = delivery.pending;
   await vscode.commands.executeCommand(`${VIEW_ID}.focus`);

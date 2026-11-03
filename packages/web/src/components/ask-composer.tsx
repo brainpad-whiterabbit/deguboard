@@ -44,9 +44,12 @@ function subOf(t: AskTarget): string {
 
 export function AskComposer({
   targets: initialTargets,
+  action: initialAction,
   onClose,
 }: {
   targets: readonly string[];
+  /** 選んで開く頼むこと（行・見出しの吹き出しと右クリック）。省くか候補になければおすすめ */
+  action?: AskAction | undefined;
   onClose(): void;
 }) {
   const store = useStore();
@@ -54,7 +57,7 @@ export function AskComposer({
   const { client } = store;
   const [targets, setTargets] = useState<string[]>(() => [...initialTargets]);
   // null はおすすめ（候補の先頭）
-  const [action, setAction] = useState<AskAction | null>(null);
+  const [picked, setAction] = useState<AskAction | null>(initialAction ?? null);
   const [format, setFormat] = useUiState<AskFormat>(ASK_FORMAT_KEY, "skill");
   const [note, setNote] = useUiState<string>(ASK_NOTE_KEY, "");
   const [full, setFull] = useState(false);
@@ -84,6 +87,8 @@ export function AskComposer({
     };
   }, [client, targetsKey, store.tickets]);
 
+  // 選んだ頼むことが候補にない（開いた後に Status が変わったなど）ときは、おすすめに戻す
+  const action = picked && base?.candidates.some((c) => c.action === picked) ? picked : null;
   useEffect(() => {
     if (!base) return;
     let alive = true;

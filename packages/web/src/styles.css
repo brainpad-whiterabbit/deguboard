@@ -2885,3 +2885,147 @@ button.ask-copy svg {
 .ask-result:empty {
   display: none;
 }
+
+/* 行・見出しからエージェントに頼む（UI-15。components/ask-menu.tsx）。吹き出しはふだん隠して右端の印を見せ、マウスを載せたとき・
+   フォーカスがあるとき・一覧を開いているか入力欄の対象のとき（data-ask-spot="active"）に出す。タッチの画面では常に出す */
+[data-ask-spot] {
+  position: relative;
+}
+[data-ask-spot="active"] {
+  background: var(--vscode-list-inactiveSelectionBackground, var(--vscode-list-hoverBackground));
+}
+.ask-bubble {
+  position: absolute;
+  top: 50%;
+  right: 4px;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: var(--vscode-list-hoverBackground);
+  color: var(--vscode-foreground);
+  opacity: 0;
+  transform: translateY(-50%);
+  cursor: pointer;
+}
+.ask-bubble svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+}
+.ask-bubble:hover {
+  background: var(--vscode-list-hoverBackground);
+  color: var(--vscode-textLink-foreground);
+}
+[data-ask-spot]:hover > .ask-bubble,
+[data-ask-spot]:focus-within > .ask-bubble,
+[data-ask-spot="active"] > .ask-bubble {
+  opacity: 1;
+}
+[data-ask-spot="active"] > .ask-bubble {
+  background: var(--vscode-list-activeSelectionBackground);
+}
+@media (hover: none) {
+  .ask-bubble {
+    opacity: 0.75;
+  }
+}
+/* 頼むことの一覧。body に出し、吹き出しの右端に合わせる（位置は ask-menu.tsx が決める）。VS Code のメニューの見た目に合わせる */
+.ask-menu {
+  position: fixed;
+  z-index: 50;
+  display: grid;
+  min-width: 11rem;
+  max-width: calc(100vw - 8px);
+  padding: 4px;
+  font-size: 12px;
+  background: var(--vscode-menu-background, var(--vscode-editorWidget-background));
+  color: var(--vscode-menu-foreground, var(--vscode-foreground));
+  border: 1px solid var(--vscode-menu-border, var(--dg-border));
+  border-radius: 6px;
+  box-shadow:
+    0 8px 24px rgb(0 0 0 / 18%),
+    0 2px 6px rgb(0 0 0 / 8%);
+}
+.ask-menu-label,
+.ask-menu-note {
+  padding: 2px 8px;
+  font-size: 11px;
+}
+.ask-menu-label {
+  color: var(--vscode-descriptionForeground);
+}
+.ask-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 3px 8px;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.ask-menu-item:hover,
+.ask-menu-item:focus-visible {
+  outline: none;
+  background: var(--vscode-menu-selectionBackground, var(--vscode-button-background));
+  color: var(--vscode-menu-selectionForeground, var(--vscode-button-foreground));
+}
+.ask-menu-rec {
+  margin-left: auto;
+  padding: 0 4px;
+  font-size: 10px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: var(--vscode-list-activeSelectionBackground);
+}
+.ask-menu-item:hover .ask-menu-rec,
+.ask-menu-item:focus-visible .ask-menu-rec {
+  background: transparent;
+  border-color: currentColor;
+}
+/* 初めて左パネルを開いたときの案内。× で消したら出さない */
+.ask-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 6px;
+  padding: 3px 3px 3px 8px;
+  font-size: 11.5px;
+  color: var(--vscode-descriptionForeground);
+  background: var(--vscode-editorWidget-background);
+  border: 1px solid var(--dg-border);
+  border-radius: 4px;
+}
+.ask-hint svg {
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+}
+.ask-hint span {
+  flex: 1;
+  min-width: 0;
+}
+.ask-hint-close {
+  padding: 0 6px;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: inherit;
+  font-size: 14px;
+  line-height: 1.2;
+  cursor: pointer;
+}
+.ask-hint-close:hover {
+  background: var(--vscode-toolbar-hoverBackground, var(--vscode-list-hoverBackground));
+  color: var(--vscode-foreground);
+}

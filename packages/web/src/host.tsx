@@ -18,6 +18,7 @@ import {
 import type { WebviewClient } from "./client/webview.js";
 import { hrefOf, navigate, toggleRoute, type Route } from "./router.js";
 import { useStore } from "./store.js";
+import type { AskAction } from "./types.js";
 import { createUiState, localStorageBackend, type UiState } from "./ui-state.js";
 
 export type Surface = "sidebar" | "panel" | "browser";
@@ -82,9 +83,13 @@ export function HostProvider({ host, children }: { host: Host; children: ReactNo
   );
 }
 
-/** エージェントに頼む入力欄を開く頼み。targets は対象の ID（空なら対象なし）。見た目の状態の ask.open に残す */
+/**
+ * エージェントに頼む入力欄を開く頼み。targets は対象の ID（空なら対象なし）、action は選んで開く頼むこと（省けばおすすめ）。
+ * 見た目の状態の ask.open に残す
+ */
 export interface AskRequest {
   targets: string[];
+  action?: AskAction | undefined;
 }
 
 /** 見た目の状態の鍵。拡張ホストが HTML の data-ask で渡した対象は、main.tsx が描く前にここへ書く */
@@ -93,8 +98,8 @@ export const ASK_OPEN_KEY = "ask.open";
 export interface Ask {
   /** 開いている入力欄の対象。閉じていれば null */
   request: AskRequest | null;
-  /** 入力欄を開く。開いていれば対象を入れ替える（頼むことはおすすめに戻る。指示の下書きは残す） */
-  open(targets: readonly string[]): void;
+  /** 入力欄を開く。開いていれば対象を入れ替える（頼むことは action か、なければおすすめ。指示の下書きは残す） */
+  open(targets: readonly string[], action?: AskAction): void;
   close(): void;
   /** 開いた回数。開き直したら入力欄の中の状態（外した対象・選んだ頼むこと）を捨てるための key に使う */
   serial: number;
@@ -106,8 +111,8 @@ function AskProvider({ children }: { children: ReactNode }) {
   const [request, setRequest] = useUiState<AskRequest | null>(ASK_OPEN_KEY, null);
   const [serial, setSerial] = useState(0);
   const open = useCallback(
-    (targets: readonly string[]) => {
-      setRequest({ targets: [...targets] });
+    (targets: readonly string[], action?: AskAction) => {
+      setRequest(action ? { targets: [...targets], action } : { targets: [...targets] });
       setSerial((n) => n + 1);
     },
     [setRequest],
@@ -167,7 +172,7 @@ export function HostBridge({ client }: { client: WebviewClient }) {
         if (event.name === "navigate") window.location.hash = event.hash;
         else if (event.name === "toggle") toggleRoute(event.hash);
         else if (event.name === "reload") void reloadRef.current();
-        else if (event.name === "ask") openAsk(event.targets);
+        else if (event.name === "ask") openAsk(event.targets, event.action);
       }),
     [client, openAsk],
   );

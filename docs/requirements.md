@@ -207,7 +207,7 @@ steps: # 任意。Run の step の語彙（WF-5）
 ### 6.1 `dg` CLI
 
 - CL-1 すべてのコマンドに `--json` があり、エージェントはそれを読む。成功は `{ ok: true, data, warnings, write }`、失敗は `{ ok: false, error: { code, message, detail } }`。終了コードは 0（成功）/ 1（失敗。`validate`・`lint` は指摘があるとき）/ 2（使い方の誤り）。`error.code` の語彙は `packages/core/src/errors.ts` が正本
-- CL-2 コマンドの一覧とオプションは `dg --help` が正本。群は用意（`init`・`sync`・`commit`・`validate`・`lint`・`config`・`whoami`）、`project`、`ticket`、`iteration`（`sprint` はエイリアス）、`epic`、`workflow`、`plan`、`history`、`run` と `metrics`、エージェントへの依頼文（`ask`）、画面と MCP（`serve`・`open`・`mcp`）、手順（`guide`・`skill install`）
+- CL-2 コマンドの一覧とオプションは `dg --help` が正本。群は用意（`init`・`sync`・`commit`・`validate`・`lint`・`config`・`whoami`）、`project`、`ticket`、`iteration`（`sprint` はエイリアス）、`epic`、`workflow`、`plan`、`history`、`run` と `metrics`、エージェントへの依頼文（`ask`・`ask-menu`）、画面と MCP（`serve`・`open`・`mcp`）、手順（`guide`・`skill install`）
 - CL-3 書き込みを伴うコマンドは、`commit.mode` に従って deguboard ブランチにコミットする。作成（`init`、`project / ticket / epic / iteration / plan create`、`ticket import`）・`ticket claim`・`iteration start / reopen` は `commit.mode`・`push.mode` によらず即座にコミットして push する（採番と排他のため）
 - CL-4 `ticket import` は YAML / JSON の下書き（配列）を 1 コミットで取り込む。下書きの中の仮キーを `depends_on` から参照でき、`epic` に既存の Epic を書ける。取り込めない下書きは起票せずに拒む（条件は `guide import`）
 - CL-5 `dg guide <topic>` は、エージェント向けの手順を `config.yaml` の値を埋めて出す。トピックの一覧は `dg guide overview`（省略時）。手順の正本は CLI に同梱した Markdown（`packages/cli/src/guide-*.md`）
@@ -252,7 +252,7 @@ Web UI は `dg serve` が配信し、VS Code 拡張は同じ React アプリを 
 - UI-12 VS Code 拡張はサイドバーを主画面にし、エディタのパネルには詳細だけを出す。タイトル行に同期・設定の操作と未 push・未取り込みの件数を出す。データと Run の記録の変化を見張り、CLI やエージェントの書き込みを自動で映す
 - UI-13 実行計画：カンバンの上に、選んだ範囲のチケットを含む Plan の進捗、作業中と次（PL-6 の `next`）のチケット、`after` の依存グラフを出す。表示だけで書き込まない
 - UI-14 設定画面：`config.yaml` の全項目（5.10）を出し、`config.set` で保存する。チーム全員に効くことを示し、`git.*`・`worktree.root`・`actions.*`・`actor.human_only`・`auto.merge` は保存前に確かめる。VS Code の settings.json は使わない
-- UI-15 エージェントに頼む：左パネルとパネルの下の入力欄で、対象・頼むこと（おすすめが先頭）・指示から `dg ask` の依頼文を作ってコピーする（拡張は `vscode.env.clipboard`）。データには書き込まない。拡張のタイトル行とコマンドパレットから対象なしで開ける（[ADR-010](adr/ADR-010-ui-writes-and-agent-requests.md)）
+- UI-15 エージェントに頼む：左パネルとパネルの下の入力欄で、対象・頼むこと（おすすめが先頭）・指示から `dg ask` の依頼文を作ってコピーする（拡張は `vscode.env.clipboard`）。データには書き込まない。拡張のタイトル行とコマンドパレットから対象なしで、左パネルの行・見出しの吹き出しと右クリック・Shift+F10 から頼むことを選んで開ける（[ADR-010](adr/ADR-010-ui-writes-and-agent-requests.md)）
 
 画面の並び・色・文言・印などの細部は `packages/web/src/` と `packages/vscode/src/` のコードとテストが正本。
 
@@ -265,7 +265,7 @@ Web UI は `dg serve` が配信し、VS Code 拡張は同じ React アプリを 
 - AG-5 Agent Adapter が使用量の取得と作業ディレクトリの差を吸収し、製品ごとの実装は Core の `agents/adapters/` に閉じる。今は `claude-code` と `codex`。起動方法と権限は扱わない（EX-1、[ADR-007](adr/ADR-007-architecture.md)）
 - AG-6 ソフトウェア開発向けの Action（worktree・ブランチ・テスト・PR 作成・マージ）は Core の `actions` に置き、汎用部分は依存しない。`dg` のコマンドにせず Core 内のライブラリに留め、公開するのは名前の一覧（`ACTION_NAMES`）だけ（[ADR-007](adr/ADR-007-architecture.md)）
 - AG-7 任意のシェルの Action は `actions.shell: true` のときだけ使え、毎回確認を経る
-- AG-8 `ask` は対象（チケット・Iteration・Epic・Plan。複数可）・頼むこと・指示・形式から、エージェントに貼る依頼文を返す読み取りだけのコマンド。候補とおすすめは対象の種類と状態から決め、頼むことの操作が `actor.human_only` に入っていれば人が打つ `dg` のコマンドを返す。文の形は [ADR-010](adr/ADR-010-ui-writes-and-agent-requests.md)、頼むことの一覧と文面は `dg ask --help` とコードが正本
+- AG-8 `ask` は対象（チケット・Iteration・Epic・Plan。複数可）・頼むこと・指示・形式から、エージェントに貼る依頼文を返す読み取りだけのコマンド。候補とおすすめは対象の種類と状態から決め、頼むことの操作が `actor.human_only` に入っていれば人が打つ `dg` のコマンドを返す。文の形は [ADR-010](adr/ADR-010-ui-writes-and-agent-requests.md)、頼むことの一覧と文面は `dg ask --help` とコードが正本。`ask-menu` は画面の場所ごとの候補をまとめて返す
 
 ### 6.6 作業の実績
 

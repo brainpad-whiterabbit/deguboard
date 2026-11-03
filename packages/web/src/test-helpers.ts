@@ -1,6 +1,13 @@
 // テスト用の CommandClient。コマンド名ごとの応答を持ち、呼ばれた記録を残す
 
-import { buildAsk, planReadiness, progressOf, type AskSubject } from "@deguboard/core";
+import {
+  askCandidates,
+  buildAsk,
+  planReadiness,
+  progressOf,
+  type AskMenu,
+  type AskSubject,
+} from "@deguboard/core";
 import type { CommandClient, CommandResult, StatusView } from "@deguboard/core";
 import type {
   EpicRow,
@@ -165,6 +172,17 @@ const TICKET_BODY = "## 概要\n\n本文\n\n## 受け入れ条件\n\n- [ ] a\n";
 function askSubjectOf(data: Fixture, id: string): AskSubject {
   const it = data.iterations.find((i) => i.id === id);
   if (it) return { kind: "iteration", id, title: it.name, status: it.status, complete: false };
+  const ep = data.epics.find((e) => e.id === id);
+  if (ep) return { kind: "epic", id, title: ep.title, status: ep.status };
+  const p = data.plans.find((x) => x.id === id);
+  if (p)
+    return {
+      kind: "plan",
+      id,
+      status: p.closed_at ? "closed" : p.pending_approval ? "pending_approval" : "approved",
+      tickets: p.tickets,
+      complete: false,
+    };
   const t = data.tickets.find((x) => x.id === id);
   if (!t) throw new Error(`テストの fixture にない対象: ${id}`);
   return {
@@ -208,6 +226,17 @@ export function mockClient(data = fixture()): MockClient {
       const { targets = [], ...rest } = input as { targets?: string[] } & Record<string, unknown>;
       return buildAsk({ subjects: targets.map((id) => askSubjectOf(data, id)), ...rest });
     },
+    // core の ask-menu と同じく、組（空白区切りの ID）ごとに候補を返す。fixture にない対象は error
+    "ask-menu": (input) =>
+      ((input as { sets?: string[] }).sets ?? []).map((key): AskMenu => {
+        try {
+          const ids = key.split(" ").filter(Boolean);
+          const candidates = askCandidates(ids.map((id) => askSubjectOf(data, id)));
+          return { key, candidates, error: null };
+        } catch (e) {
+          return { key, candidates: [], error: e instanceof Error ? e.message : String(e) };
+        }
+      }),
     "ticket.show": (input) => {
       const t = data.tickets.find((x) => x.id === (input as { ticket: string }).ticket)!;
       return {

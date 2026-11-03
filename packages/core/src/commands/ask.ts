@@ -628,17 +628,11 @@ export const ask = defineCommand({
   needs: "store",
   positionals: ["targets"],
   async run(ctx, input) {
-    const refs = [...new Set(input.targets.map((r) => r.trim()))];
-    const hasTicket = refs.some((r) => r.startsWith("t"));
-    const running = new Set(
-      hasTicket ? (await peekRunningRuns(ctx.repo)).map((r) => r.ticket) : [],
-    );
-    const subjects = refs.map((r) => askSubjectOf(ctx.store, r, running));
-    // 同じ対象を番号の書き方を変えて重ねたもの（t1 と t01 など）を除く
-    const unique = subjects.filter((t, n) => subjects.findIndex((u) => u.id === t.id) === n);
+    const refs = input.targets.map((r) => r.trim());
+    const running = await runningTickets(ctx.repo, refs);
     return ok(
       buildAsk({
-        subjects: unique,
+        subjects: subjectsOf(ctx.store, refs, running),
         action: input.action,
         note: input.note,
         format: input.format,
@@ -648,4 +642,66 @@ export const ask = defineCommand({
   },
 });
 
-export const askCommands = [ask];
+/** 画面の 1 か所（行・見出し）の候補。key は対象の ID を空白でつないだもの（空なら対象なし） */
+export interface AskMenu {
+  key: string;
+  /** 対象の種類と状態から決めた候補（ask の candidates と同じ）。先頭がおすすめ。引けなければ空 */
+  candidates: AskCandidate[];
+  /** 対象を引けなかった理由（消えたチケットなど）。引けたら null */
+  error: string | null;
+}
+
+export const askMenu = defineCommand({
+  name: "ask-menu",
+  group: "ask",
+  summary:
+    "画面の行・見出しごとの頼むことの候補（先頭がおすすめ）をまとめて返す（読み取りだけ）。組ごとに ask の candidates と同じものを返し、引けない組は error に理由を入れる。左パネルの吹き出しと右クリックのメニューが使う",
+  input: z.object({
+    sets: z
+      .array(z.string())
+      .default([])
+      .describe('対象の組（ID を空白で区切る。t12・"t1 t2"・s3）。空の文字列は対象なし'),
+  }),
+  write: false,
+  needs: "store",
+  positionals: ["sets"],
+  async run(ctx, input) {
+    const keys = [...new Set(input.sets.map((k) => splitRefs(k).join(" ")))];
+    const running = await runningTickets(ctx.repo, keys.flatMap(splitRefs));
+    return ok(
+      keys.map((key): AskMenu => {
+        try {
+          const candidates = askCandidates(subjectsOf(ctx.store, splitRefs(key), running));
+          return { key, candidates, error: null };
+        } catch (e) {
+          return { key, candidates: [], error: e instanceof Error ? e.message : String(e) };
+        }
+      }),
+    );
+  },
+});
+
+function splitRefs(key: string): string[] {
+  return key.split(/\s+/).filter(Boolean);
+}
+
+/** チケットを含むときだけ、このマシンで実行中の Run があるチケットを読む */
+async function runningTickets(
+  repo: Parameters<typeof peekRunningRuns>[0],
+  refs: readonly string[],
+): Promise<ReadonlySet<string>> {
+  if (!refs.some((r) => r.startsWith("t"))) return new Set();
+  return new Set((await peekRunningRuns(repo)).map((r) => r.ticket));
+}
+
+/** ID から対象を引く。同じ対象を番号の書き方を変えて重ねたもの（t1 と t01 など）は 1 つにする */
+function subjectsOf(
+  store: Store,
+  refs: readonly string[],
+  running: ReadonlySet<string>,
+): AskSubject[] {
+  const subjects = [...new Set(refs)].map((r) => askSubjectOf(store, r, running));
+  return subjects.filter((t, n) => subjects.findIndex((u) => u.id === t.id) === n);
+}
+
+export const askCommands = [ask, askMenu];

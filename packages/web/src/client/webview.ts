@@ -94,6 +94,16 @@ type Draft<T> = T extends unknown ? Omit<T, "id"> : never;
 export const WEBVIEW_CONTRACT_COPY = {
   /** バックログの行の右クリックの文脈（data-vscode-context の webviewSection） */
   backlogRowSection: "backlogTicket",
+  /** エージェントに頼む右クリックのサブメニューの文脈のキー（UI-15） */
+  askContext: { targets: "askTargets", actions: "askActions", recommended: "askRecommended" },
+  /** 頼める行・見出しの webviewSection */
+  askSections: {
+    boardTicket: "boardTicket",
+    boardHeading: "boardHeading",
+    backlogHeading: "backlogHeading",
+    epicChip: "epicChip",
+    historyRow: "historyRow",
+  },
   /** 拡張ホスト → Webview の通知の名前。Record なので core の WebviewEvent の name が増えると型の検査で漏れが分かる */
   eventNames: { reload: true, navigate: true, toggle: true, ask: true } satisfies Record<
     WebviewEvent["name"],

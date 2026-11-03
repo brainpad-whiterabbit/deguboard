@@ -263,6 +263,12 @@ describe("エージェントに頼む入力欄の届け方（UI-15）", () => {
     });
   });
 
+  it("右クリックのサブメニューで選んだ頼むことは event の action に付ける", () => {
+    expect(askDelivery(true, ["t1"], "split")).toEqual({
+      post: { kind: "event", name: "ask", targets: ["t1"], action: "split" },
+    });
+  });
+
   it("まだ描かれていなければ event を送らず、対象を覚えて HTML に埋める", () => {
     expect(askDelivery(false, [])).toEqual({ pending: [] });
   });

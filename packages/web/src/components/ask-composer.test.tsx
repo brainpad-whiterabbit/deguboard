@@ -27,6 +27,7 @@ const READS = new Set([
   "workflow.show",
   "run.list",
   "ask",
+  "ask-menu",
 ]);
 
 function askClient(): MockClient {
