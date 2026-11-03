@@ -2,4 +2,7 @@ id: s11
 project: default
 name: sprint11
 goal: 画面からの変更を、チケット詳細・設定画面とエージェントへの依頼にそろえる
-status: active
+status: closed
+closed_at: 2026-11-03T12:53:19Z
+completed: 21
+carried_over: 0
