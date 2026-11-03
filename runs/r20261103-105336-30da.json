@@ -1,0 +1,19 @@
+{
+  "id": "r20261103-105336-30da",
+  "ticket": "t298",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-03T10:53:36Z",
+  "finished_at": "2026-11-03T10:57:41Z",
+  "result": "success",
+  "error": null,
+  "retries": 0,
+  "retry_reasons": [],
+  "usage": {
+    "input": 20,
+    "output": 3686,
+    "cache_read": 2256466,
+    "cache_write": 6860
+  }
+}

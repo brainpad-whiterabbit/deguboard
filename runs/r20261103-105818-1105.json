@@ -1,0 +1,21 @@
+{
+  "id": "r20261103-105818-1105",
+  "ticket": "t307",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-03T10:58:18Z",
+  "finished_at": "2026-11-03T10:59:55Z",
+  "result": "success",
+  "error": null,
+  "retries": 1,
+  "retry_reasons": [
+    "epic の Status の誤りで epic.add が照合されていなかった"
+  ],
+  "usage": {
+    "input": 12,
+    "output": 2849,
+    "cache_read": 367460,
+    "cache_write": 4068
+  }
+}
