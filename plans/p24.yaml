@@ -12,3 +12,4 @@ details:
     approach: board.tsx の漏斗のボタンとアイコンを components に移して両方で使い、backlog.tsx の details をやめる。backlog・board のテストを直し、スクリーンショットを pr-screenshots に置く
 approved_by: eiki.kitajima/agent
 approved_at: 2026-11-03T00:17:10Z
+closed_at: 2026-11-03T00:42:29Z
