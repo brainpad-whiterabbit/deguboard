@@ -146,6 +146,22 @@ describe("dg guide", () => {
     );
   });
 
+  it("check は lint_iteration_multiple_active でどれを閉じるかを人に聞き、work の手順 2 は Iteration の start が拒否されたら読み直して planned のままなら人に頼む", async () => {
+    const check = await readGuide("check");
+    const multiple = check.match(/^.*`lint_iteration_multiple_active`.*$/m)?.[0] ?? "";
+    expect(multiple).toContain("どれを閉じるかを人に聞く");
+    expect(multiple).toContain("閉じるのは人の指示で行う");
+    const work = await readGuide("work");
+    const step2 = work.slice(work.indexOf("\n2. claim する"), work.indexOf("\n3. 作業ブランチ"));
+    const start = step2.match(/^ {3}- Iteration を始める：.*$/m)?.[0] ?? "";
+    expect(start).toContain("iteration start <S>");
+    expect(start).toContain("拒否されたら `iteration show` を読み直し");
+    expect(start).toContain("active なら何もせず");
+    expect(start).toContain("planned のまま");
+    expect(start).toContain("人に頼む");
+    expect(start).toContain("どちらでも作業は続ける");
+  });
+
   it("parallel は着手できるチケットを上限付きでサブエージェントに並べ、役割を分け、1 件でほかを止めないと案内し、work・all・review はそこへ案内する", async () => {
     const parallel = await readGuide("parallel");
     expect(parallel).toContain("# 着手できるチケットを並べて進める");

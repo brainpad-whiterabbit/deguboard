@@ -729,6 +729,25 @@ describe("チケットの流れ", () => {
     expect((await git(racer.repo.dataDir, ["status", "--porcelain"])).stdout).toBe("");
   });
 
+  it("ticket list の query は前後の空白を除き大文字小文字を区別せず、番号・タイトル・ラベルの部分一致で当たり、空白だけならすべてに当たる", async () => {
+    const f = await fixture();
+    const ctx = await initialized(f.cloneA);
+    await runCommand(ticketImport, ctx, {
+      drafts: Array.from({ length: 12 }, (_, i) => ({
+        title: `チケット ${i + 1}`,
+        labels: i === 4 ? ["Frontend"] : [],
+      })),
+    });
+    const ids = async (query: string) =>
+      (await runCommand(ticketList, ctx, { query })).data.map((t) => t.id);
+    expect(await ids(" T1 ")).toEqual(["t1", "t10", "t11", "t12"]);
+    expect(await ids("frontEND")).toEqual(["t5"]);
+    expect(await ids("チケット 12")).toEqual(["t12"]);
+    const all = (await runCommand(ticketList, ctx, {})).data.map((t) => t.id);
+    expect(all).toHaveLength(12);
+    expect(await ids("   ")).toEqual(all);
+  });
+
   it("import は仮キーを depends_on から参照でき、1 コミットで採番する", async () => {
     const f = await fixture();
     const ctx = await initialized(f.cloneA);
@@ -1077,6 +1096,63 @@ describe("Epic と Iteration", () => {
       message: expect.stringContaining("s2 が active"),
     });
     expect(racer.store.iterations.get("s1")?.data.status).toBe("planned");
+    expect(racer.store.iterations.get("s2")?.data.status).toBe("active");
+    expect((await git(racer.repo.dataDir, ["status", "--porcelain"])).stdout).toBe("");
+  });
+
+  it("reopen で push に負けても、相手が別の変更なら検査からやり直して成功し、警告を重ねない", async () => {
+    const f = await fixture();
+    const a = await initialized(f.cloneA);
+    await runCommand(iterationCreate, a, { name: "Sprint 1" });
+    await runCommand(ticketCreate, a, { title: "A" });
+    await runCommand(iterationAdd, a, { iteration: "s1", tickets: ["t1"] });
+    await runCommand(iterationClose, a, { iteration: "s1" });
+    await runCommand(sync, a, {});
+    const b = await openContext({
+      cwd: f.cloneB,
+      initialize: {},
+      actor: { kind: "agent", user: "b" },
+    });
+    const hooks = {
+      beforePush: async () => {
+        hooks.beforePush = async () => {};
+        await runCommand(iterationCreate, b, { name: "Sprint 2" });
+      },
+    };
+    const racer = await openContext({ cwd: f.cloneA, actor: { kind: "agent", user: "a" }, hooks });
+    const reopened = await runCommand(iterationReopen, racer, { iteration: "s1" });
+    expect(reopened.data.status).toBe("active");
+    expect(reopened.warnings).toEqual([
+      "閉じたときに外した 1 件は戻らない。iteration add で入れ直す",
+    ]);
+    // 相手の変更も取り込んでいる
+    expect(racer.store.iterations.get("s2")?.data.name).toBe("Sprint 2");
+    expect((await git(racer.repo.dataDir, ["status", "--porcelain"])).stdout).toBe("");
+  });
+
+  it("reopen で push に負け、相手が別の Iteration を start していれば、検査からやり直して拒否される", async () => {
+    const f = await fixture();
+    const a = await initialized(f.cloneA);
+    for (const name of ["Sprint 1", "Sprint 2"]) await runCommand(iterationCreate, a, { name });
+    await runCommand(iterationClose, a, { iteration: "s1" });
+    await runCommand(sync, a, {});
+    const b = await openContext({
+      cwd: f.cloneB,
+      initialize: {},
+      actor: { kind: "agent", user: "b" },
+    });
+    const hooks = {
+      beforePush: async () => {
+        hooks.beforePush = async () => {};
+        await runCommand(iterationStart, b, { iteration: "s2" });
+      },
+    };
+    const racer = await openContext({ cwd: f.cloneA, actor: { kind: "agent", user: "a" }, hooks });
+    await expect(runCommand(iterationReopen, racer, { iteration: "s1" })).rejects.toMatchObject({
+      code: "REJECTED",
+      message: expect.stringContaining("s2 が active"),
+    });
+    expect(racer.store.iterations.get("s1")?.data.status).toBe("closed");
     expect(racer.store.iterations.get("s2")?.data.status).toBe("active");
     expect((await git(racer.repo.dataDir, ["status", "--porcelain"])).stdout).toBe("");
   });
