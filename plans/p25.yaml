@@ -1,0 +1,29 @@
+id: p25
+project: default
+tickets: [t249, t250, t251, t252, t253, t254, t255]
+after:
+  t255:
+    - t250
+pending_approval: true
+details:
+  t249:
+    scope: 受け入れ条件の 4 つのテストを足すだけで、実装は変えない
+    approach: commands.test.ts の hooks.beforePush の競合テストに倣い、check-docs.test と guide.test は既存の形に足す
+  t250:
+    scope: web の名前の付け替え・app.tsx のコメント・withPlanFacts・depends_on の待ちの判定の共通化。振る舞いは変えない
+    approach: model に純粋な関数を置き depsDone と planReadiness が使う。web は改名だけ
+  t251:
+    scope: EX-3・CL-4・UI-3 と ADR-007 または development.md の記述だけ
+    approach: requirements は書き換えか参照で増やさず、ADR-007 に例外を書いて development.md は参照にする
+  t252:
+    scope: packages/vscode/README.md と README.md の 2 か所の記述だけ
+    approach: README の予算を増やさない短い書き方にする
+  t253:
+    scope: 書き込みのない dg init のメッセージだけ
+    approach: init の結果に書き込みがないときは commit の案内の警告を出さない。bare リモート付きの一時リポジトリでテストする
+  t254:
+    scope: 選んだ Epic の札の code の色の CSS とスクリーンショット
+    approach: t237 の規則を .chip にも効く形にまとめ、code の色を模して撮る
+  t255:
+    scope: 確かめを待つ間の「既定に戻す」の扱いだけ
+    approach: 待っている項目のほかの「既定に戻す」を disabled にし、config.test.tsx で確かめる
