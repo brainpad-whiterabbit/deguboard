@@ -125,8 +125,8 @@ export function StoreProvider({
   // 前回の一覧があれば、それを読み終えたものとして先に描く
   const [loaded, setLoaded] = useState(!!cached);
   const [notice, setNotice] = useState<Notice | null>(null);
-  const projectRef = useRef<string | null>(null);
-  projectRef.current = projectId;
+  // 読み直しが見る選択中の Project。描画中に ref を書かない（react/refs）ので、setProjectId と一緒に書く
+  const projectRef = useRef<string | null>(cached?.projectId ?? null);
 
   const refreshStatus = useCallback(async () => {
     try {
@@ -152,6 +152,7 @@ export function StoreProvider({
         projectList.data[0] ??
         null;
       if (!current) {
+        projectRef.current = null;
         setProjectId(null);
         setTickets([]);
         setEpics([]);
@@ -160,6 +161,7 @@ export function StoreProvider({
         setWorkflow(null);
         return;
       }
+      projectRef.current = current.id;
       setProjectId(current.id);
       const project = current.id;
       const [t, e, i, p, w] = await Promise.all([
@@ -207,6 +209,8 @@ export function StoreProvider({
   }, [client, cache, readRunning, refreshStatus]);
 
   useEffect(() => {
+    // 最初の読み込み。reload は読み込み中の印（setLoading(true)）を同期で立てるが、外（コマンド）から読む始まりの印なので残す
+    // oxlint-disable-next-line react/set-state-in-effect
     void reload();
   }, [reload]);
 

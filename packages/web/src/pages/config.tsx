@@ -133,6 +133,8 @@ export function ConfigPage() {
 
   // 開いたときと、読み直し（同期・ファイルの変化・ほかの書き込み）が終わるたびに読み直す
   useEffect(() => {
+    // load は await の後でしか状態を変えないが、規則は同期の setState と見なす
+    // oxlint-disable-next-line react/set-state-in-effect
     if (!store.loading) void load();
   }, [store.loading, load]);
 

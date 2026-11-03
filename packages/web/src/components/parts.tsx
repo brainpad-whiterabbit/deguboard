@@ -436,13 +436,14 @@ export function DraggableRow({
   /** すぐに手を付けられない行（カンバンの待ち・承認待ち）としてタイトルを薄く出す */
   dimmed?: boolean | undefined;
 }) {
-  const d = useDraggableTicket(ticket.id);
+  // 分けて受ける。d.ref を ref に渡すと、規則（react/refs）が d を ref と見なし、d.style などを描画中の ref の読みと誤る
+  const { ref, style, isDragging, props } = useDraggableTicket(ticket.id);
   return (
     <div
-      ref={d.ref}
-      style={d.style}
-      className={`row-drag${dimmed ? " is-waiting" : ""}${d.isDragging ? " dragging" : ""}`}
-      {...d.props}
+      ref={ref}
+      style={style}
+      className={`row-drag${dimmed ? " is-waiting" : ""}${isDragging ? " dragging" : ""}`}
+      {...props}
     >
       <TicketRow
         ticket={ticket}
@@ -458,14 +459,9 @@ export function DraggableRow({
 
 /** 表の 1 行（広い画面）。行全体をつかんで動かす */
 function DraggableTr({ ticket, children }: { ticket: Ticket; children: ReactNode }) {
-  const d = useDraggableTicket(ticket.id);
+  const { ref, style, isDragging, props } = useDraggableTicket(ticket.id);
   return (
-    <tr
-      ref={d.ref}
-      style={d.style}
-      className={`row-drag${d.isDragging ? " dragging" : ""}`}
-      {...d.props}
-    >
+    <tr ref={ref} style={style} className={`row-drag${isDragging ? " dragging" : ""}`} {...props}>
       {children}
     </tr>
   );
