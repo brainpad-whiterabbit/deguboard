@@ -1,8 +1,10 @@
 // 画面の骨組み：上のバー（Project の切り替え・画面の切り替え・同期の印）と、ハッシュで選んだページ。
-// サイドバーでは同期の印とボタン・設定の歯車を出さない（ビューのタイトル行の同期のボタンとバッジ・歯車で代える。UI-12）
+// サイドバーでは同期の印とボタン・設定の歯車・エージェントに頼む吹き出しを出さない（ビューのタイトル行のボタンとバッジで代える。UI-12）。
+// エージェントに頼む入力欄（UI-15）は、開いていればページの下に出す
 
 import { useEffect, useRef, type MouseEvent } from "react";
-import { useHost, useUiState } from "./host.js";
+import { AskComposer } from "./components/ask-composer.js";
+import { useAsk, useHost, useUiState } from "./host.js";
 import { useStore, type Store } from "./store.js";
 import { hrefOf, isDetailRoute, parseRoute, toggleRoute, useRoute, type Route } from "./router.js";
 import { BoardPage, boardIterationSelection } from "./pages/board.js";
@@ -85,6 +87,7 @@ export function App() {
   const route = useRoute();
   const store = useStore();
   const host = useHost();
+  const ask = useAsk();
   const sidebar = host.surface === "sidebar";
   // カンバン・履歴・Run のタブは最後に見たハッシュ（絞り込み・見方・検索語）を指し、他のタブから戻ったときに残す
   const lastHref: Partial<Record<Route["page"], string>> = {
@@ -143,6 +146,22 @@ export function App() {
             </label>
           )}
           {sidebar ? null : <SyncIndicator />}
+          {/* 左パネルの吹き出しはビューのタイトル行にある（拡張の view/title）。ブラウザはここに置き、対象なしで開け閉めする */}
+          {sidebar ? null : (
+            <button
+              type="button"
+              className={`ask-toggle${ask.request ? " active" : ""}`}
+              aria-label="エージェントに頼む"
+              aria-pressed={ask.request !== null}
+              title="エージェントに頼む（依頼文を作ってコピーする）"
+              onClick={() => (ask.request ? ask.close() : ask.open([]))}
+            >
+              <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+                <path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z" />
+                <path d="M5.5 7h5" />
+              </svg>
+            </button>
+          )}
           {/* 左パネルの歯車はビューのタイトル行にある（拡張の view/title）。ブラウザはここに置く */}
           {sidebar ? null : (
             <button
@@ -172,6 +191,10 @@ export function App() {
           <Page route={shown} />
         )}
       </main>
+      {/* 開き直したら（対象が替わったら）中の状態を捨てる。指示の下書きと形式は見た目の状態に残る */}
+      {ask.request && store.loaded ? (
+        <AskComposer key={ask.serial} targets={ask.request.targets} onClose={ask.close} />
+      ) : null}
     </div>
   );
 }

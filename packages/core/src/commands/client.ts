@@ -24,7 +24,7 @@ export interface StatusView extends SyncStatus {
  * Webview → 拡張ホストの要求。id で応答と対応づける。action は Webview の外（エディタ・サイドバー・クリップボード）に働きかける操作で、応答の data は null。
  * open は詳細のルート（#/tickets/t12、#/iterations/s3、#/epics/e2）をエディタ領域のパネルに開く。
  * show は一覧の画面のルート（#/board?epic=e2 など）をサイドバーのビューに出す（パネルは詳細だけを出すので。UI-12）。
- * copy は text をクリップボードに入れる（Webview で navigator.clipboard が使えないときに画面が頼む）
+ * copy は text をクリップボードに入れる（Webview の画面はコピーをすべて拡張ホストに頼み、vscode.env.clipboard で書く）
  */
 export type WebviewRequest =
   | { id: number; kind: "run"; name: string; input: unknown }
@@ -34,12 +34,14 @@ export type WebviewRequest =
 
 /**
  * 拡張ホスト → Webview の通知。要求と対応づかないので id を持たない（UI-12）。reload は store を読み直す（同期・再読み込み・ファイルの変化の後）。
- * toggle はその画面と来る前の画面を切り替える（ビューのタイトル行の歯車で設定画面を開け閉めする）
+ * toggle はその画面と来る前の画面を切り替える（ビューのタイトル行の歯車で設定画面を開け閉めする）。
+ * ask はエージェントへの依頼文を作る入力欄を、targets（ID。空なら対象なし）を対象にして開く（UI-15。タイトル行の吹き出しとコマンドパレット）
  */
 export type WebviewEvent =
   | { kind: "event"; name: "reload" }
   | { kind: "event"; name: "navigate"; hash: string }
-  | { kind: "event"; name: "toggle"; hash: string };
+  | { kind: "event"; name: "toggle"; hash: string }
+  | { kind: "event"; name: "ask"; targets: string[] };
 
 /**
  * 拡張と画面で合わせる値（UI-12）。拡張（vscode）はここを読み、web は実行時のコードを取り込まないので写しを持ち、
@@ -51,7 +53,7 @@ export const WEBVIEW_CONTRACT = {
   /** 拡張が開く画面のルート（web の router のハッシュ） */
   routes: { board: "#/board", config: "#/config" },
   /** 拡張ホスト → Webview の通知の名前（WebviewEvent の name の全件） */
-  eventNames: ["reload", "navigate", "toggle"],
+  eventNames: ["reload", "navigate", "toggle", "ask"],
 } as const satisfies {
   backlogRowSection: string;
   routes: Record<string, `#/${string}`>;

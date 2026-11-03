@@ -29,6 +29,7 @@ import {
 import { dgAdvice, resolveDg } from "./dg.js";
 import { watchTargets } from "./watch.js";
 import {
+  askDelivery,
   badgeOf,
   coalesce,
   handleRequest,
@@ -56,6 +57,8 @@ let sidebar: vscode.WebviewView | undefined;
 let sidebarFolder: vscode.WorkspaceFolder | undefined;
 /** サイドバーがまだ描かれていないときに出す画面。サイドバーを開いて作るときの初期ルートにする */
 let pendingSidebarRoute: string | undefined;
+/** サイドバーがまだ描かれていないときに出す、エージェントに頼む入力欄の対象。サイドバーを作るときに HTML に埋める */
+let pendingSidebarAsk: string[] | undefined;
 /** 同期の実行中。重ねて走らせない */
 let syncing = false;
 
@@ -69,6 +72,10 @@ export function activate(context: vscode.ExtensionContext): void {
       "deguboard.config",
       () => void toggleInSidebar(WEBVIEW_CONTRACT.routes.config),
     ),
+    // エージェントに頼む入力欄（UI-15）。タイトル行の吹き出しは左パネルの下に、コマンドパレットは開いているパネルの下
+    // （パネルが手前になければ左パネルの下）に、対象なしで出す
+    vscode.commands.registerCommand("deguboard.ask", () => void askFromPalette()),
+    vscode.commands.registerCommand("deguboard.askInSidebar", () => void askInSidebar([])),
     // 左パネルのバックログの行の右クリック（package.json の webview/context。引数は行の data-vscode-context）
     vscode.commands.registerCommand(BACKLOG_ROW_COMMANDS.move, (arg: unknown) =>
       withMenuTicket(arg, moveFromMenu),
@@ -126,10 +133,13 @@ async function resolveSidebar(
   });
   if (folders.length > 1) view.description = folder.name;
   const route = pendingSidebarRoute ?? WEBVIEW_CONTRACT.routes.board;
+  const ask = pendingSidebarAsk;
   pendingSidebarRoute = undefined;
+  pendingSidebarAsk = undefined;
   await attach(context, view.webview, folder, {
     surface: "sidebar",
     route,
+    ask,
     onStatus: (status) => {
       view.badge = badgeOf(status);
     },
@@ -156,7 +166,7 @@ async function showInSidebar(route: string): Promise<void> {
   await deliverToSidebar("navigate", route);
 }
 
-/** 文字をクリップボードに入れる。Webview の navigator.clipboard が使えないときの道と、バックログの「ID をコピー」で使う */
+/** 文字をクリップボードに入れる。Webview の画面のコピー（依頼文・ブランチ名）と、バックログの「ID をコピー」で使う */
 async function copyToClipboard(text: string): Promise<void> {
   await vscode.env.clipboard.writeText(text);
 }
@@ -175,6 +185,23 @@ async function deliverToSidebar(name: "navigate" | "toggle", route: string): Pro
   if ("post" in delivery) void sidebar?.webview.postMessage(delivery.post);
   else pendingSidebarRoute = delivery.pending;
   await vscode.commands.executeCommand(`${VIEW_ID}.focus`);
+}
+
+/** 左パネルの下にエージェントに頼む入力欄を出す。描かれていなければ対象を覚えてからビューを開く */
+async function askInSidebar(targets: string[]): Promise<void> {
+  const delivery = askDelivery(sidebar !== undefined, targets);
+  if ("post" in delivery) void sidebar?.webview.postMessage(delivery.post);
+  else pendingSidebarAsk = delivery.pending;
+  await vscode.commands.executeCommand(`${VIEW_ID}.focus`);
+}
+
+/** コマンドパレットの「エージェントに頼む」。手前のパネルがあればその下に、なければ左パネルの下に出す */
+async function askFromPalette(): Promise<void> {
+  const panel = [...panels.values()].find((p) => p.active);
+  if (!panel) return askInSidebar([]);
+  const delivery = askDelivery(true, []);
+  if ("post" in delivery) void panel.webview.postMessage(delivery.post);
+  panel.reveal(undefined, false);
 }
 
 /** フォルダのサイドバーとパネルの両方に通知を送る */
@@ -332,6 +359,8 @@ async function retitle(
 interface AttachOptions {
   surface: Surface;
   route: string;
+  /** 開いたらすぐ出す、エージェントに頼む入力欄の対象。省けば出さない */
+  ask?: string[] | undefined;
   /** status の応答を横取りして知らせる（サイドバーのバッジ）。ホスト側で別にポーリングしない */
   onStatus?: (status: StatusView) => void;
   actions?: WebviewActions;
@@ -363,6 +392,7 @@ async function attach(
     nonce: randomBytes(16).toString("hex"),
     surface: options.surface,
     route: options.route,
+    ask: options.ask,
   });
 }
 

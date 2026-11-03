@@ -21,11 +21,14 @@ export interface HtmlOptions {
   surface: Surface;
   /** 最初に出す画面のハッシュ（#/board、#/tickets/t12）。Webview が起動する前に決まるので HTML に埋める */
   route: string;
+  /** 開いたらすぐ出す、エージェントに頼む入力欄の対象（ID。空なら対象なし）。省けば出さない（UI-15） */
+  ask?: readonly string[] | undefined;
 }
 
 /**
  * Vite が出した index.html（base: "./"）を Webview 向けに直す：
- * 相対パスを Webview の URI に、crossorigin を外し、nonce つきの CSP を入れ、<html> に surface と初期ルートを付ける
+ * 相対パスを Webview の URI に、crossorigin を外し、nonce つきの CSP を入れ、<html> に surface と初期ルート
+ * （と、すぐ出す入力欄の対象。data-ask は空白区切りの ID で、空なら対象なし）を付ける
  */
 export function renderWebviewHtml(indexHtml: string, options: HtmlOptions): string {
   // style-src に 'unsafe-inline' は要らない：CSS は Vite が <link> に出し、React と dnd-kit は style を CSSOM で当てる
@@ -46,7 +49,9 @@ export function renderWebviewHtml(indexHtml: string, options: HtmlOptions): stri
     .replace(/<script\b/g, `<script nonce="${options.nonce}"`)
     .replace(
       /<html\b/,
-      `<html data-surface="${escapeAttribute(options.surface)}" data-route="${escapeAttribute(options.route)}"`,
+      `<html data-surface="${escapeAttribute(options.surface)}" data-route="${escapeAttribute(options.route)}"${
+        options.ask ? ` data-ask="${escapeAttribute(options.ask.join(" "))}"` : ""
+      }`,
     )
     .replace(
       "<head>",
@@ -99,6 +104,19 @@ export function sidebarDelivery(
   return rendered ? { post: { kind: "event", name, hash: route } } : { pending: route };
 }
 
+/**
+ * エージェントに頼む入力欄を出す頼み（UI-15）の届け方。描かれた Webview には ask の event を送り、
+ * まだ描かれていなければ、対象を覚えさせて HTML に埋める（Webview が起動する前の event は届かないので。resolveSidebar が使う）
+ */
+export function askDelivery(
+  rendered: boolean,
+  targets: readonly string[],
+): { post: WebviewEvent } | { pending: string[] } {
+  return rendered
+    ? { post: { kind: "event", name: "ask", targets: [...targets] } }
+    : { pending: [...targets] };
+}
+
 /** 画面を出せないとき（フォルダを開いていない）に Webview に出す、スクリプトのない HTML */
 export function renderMessageHtml(text: string): string {
   return `<!doctype html>
@@ -127,7 +145,7 @@ export interface WebviewActions {
   open(route: string): void | Promise<void>;
   /** 一覧の画面のルート（#/board?epic=e2 など）をサイドバーのビューに出す */
   show(route: string): void | Promise<void>;
-  /** text をクリップボードに入れる（Webview で navigator.clipboard が使えないとき） */
+  /** text をクリップボードに入れる（Webview の画面のコピーはすべてここに来る。vscode.env.clipboard で書く） */
   copy(text: string): void | Promise<void>;
 }
 

@@ -2,6 +2,7 @@ import type { CommandClient, CommandResult } from "@deguboard/core";
 import { OperationError, UsageError } from "@deguboard/core";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  askDelivery,
   badgeOf,
   handleRequest,
   isWebviewRequest,
@@ -170,7 +171,7 @@ describe("Webview の要求", () => {
     expect(opened).toEqual([]);
   });
 
-  it("action の copy は actions.copy に text を渡す（Webview の navigator.clipboard が使えないときの道）", async () => {
+  it("action の copy は actions.copy に text を渡す（Webview の画面のコピーはすべてこの道で vscode.env.clipboard に書く）", async () => {
     const copied: string[] = [];
     const ok = await handleRequest(
       fakeClient(),
@@ -251,6 +252,35 @@ describe("サイドバーへの画面の届け方（歯車の toggleInSidebar �
       post: { kind: "event", name: "navigate", hash: "#/backlog" },
     });
     expect(sidebarDelivery(false, "navigate", "#/backlog")).toEqual({ pending: "#/backlog" });
+  });
+});
+
+describe("エージェントに頼む入力欄の届け方（UI-15）", () => {
+  it("Webview が描かれていれば ask の event を対象つきで送る", () => {
+    expect(askDelivery(true, [])).toEqual({ post: { kind: "event", name: "ask", targets: [] } });
+    expect(askDelivery(true, ["t1", "s2"])).toEqual({
+      post: { kind: "event", name: "ask", targets: ["t1", "s2"] },
+    });
+  });
+
+  it("まだ描かれていなければ event を送らず、対象を覚えて HTML に埋める", () => {
+    expect(askDelivery(false, [])).toEqual({ pending: [] });
+  });
+
+  it("HTML の data-ask は空白区切りの ID で、対象なしは空の値。省けば付けない", () => {
+    const base = {
+      asset: (p: string) => p,
+      cspSource: "c",
+      nonce: "n",
+      surface: "sidebar" as const,
+    };
+    expect(renderWebviewHtml(INDEX, { ...base, route: "#/board", ask: [] })).toContain(
+      'data-route="#/board" data-ask="" lang="ja"',
+    );
+    expect(renderWebviewHtml(INDEX, { ...base, route: "#/board", ask: ["t1", "s2"] })).toContain(
+      'data-ask="t1 s2"',
+    );
+    expect(renderWebviewHtml(INDEX, { ...base, route: "#/board" })).not.toContain("data-ask");
   });
 });
 

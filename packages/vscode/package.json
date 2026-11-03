@@ -62,6 +62,18 @@
         "icon": "$(gear)"
       },
       {
+        "command": "deguboard.ask",
+        "title": "エージェントに頼む",
+        "category": "deguboard",
+        "icon": "$(comment-discussion)"
+      },
+      {
+        "command": "deguboard.askInSidebar",
+        "title": "エージェントに頼む",
+        "category": "deguboard",
+        "icon": "$(comment-discussion)"
+      },
+      {
         "command": "deguboard.backlog.moveIteration",
         "title": "Iteration を移す",
         "category": "deguboard"
@@ -80,6 +92,11 @@
     "menus": {
       "view/title": [
         {
+          "command": "deguboard.askInSidebar",
+          "when": "view == deguboard.screens",
+          "group": "navigation@0"
+        },
+        {
           "command": "deguboard.sync",
           "when": "view == deguboard.screens",
           "group": "navigation@1"
@@ -97,6 +114,10 @@
         },
         {
           "command": "deguboard.config",
+          "when": "false"
+        },
+        {
+          "command": "deguboard.askInSidebar",
           "when": "false"
         },
         {

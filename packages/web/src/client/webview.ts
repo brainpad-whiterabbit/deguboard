@@ -22,7 +22,7 @@ export interface WebviewClient extends CommandClient {
   open(route: string): Promise<void>;
   /** 一覧の画面のルート（#/board?epic=e2 など）をサイドバーのビューに出してもらう */
   show(route: string): Promise<void>;
-  /** text をクリップボードに入れてもらう（Webview で navigator.clipboard が使えないとき） */
+  /** text をクリップボードに入れてもらう（拡張ホストが vscode.env.clipboard で書く。Webview の画面のコピーはすべてこれ） */
   copy(text: string): Promise<void>;
   /** 拡張ホストからの通知を受ける。戻り値で購読を外す */
   onEvent(listener: (event: WebviewEvent) => void): () => void;
@@ -95,7 +95,7 @@ export const WEBVIEW_CONTRACT_COPY = {
   /** バックログの行の右クリックの文脈（data-vscode-context の webviewSection） */
   backlogRowSection: "backlogTicket",
   /** 拡張ホスト → Webview の通知の名前。Record なので core の WebviewEvent の name が増えると型の検査で漏れが分かる */
-  eventNames: { reload: true, navigate: true, toggle: true } satisfies Record<
+  eventNames: { reload: true, navigate: true, toggle: true, ask: true } satisfies Record<
     WebviewEvent["name"],
     true
   >,

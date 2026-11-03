@@ -1,6 +1,6 @@
 // テスト用の CommandClient。コマンド名ごとの応答を持ち、呼ばれた記録を残す
 
-import { planReadiness, progressOf } from "@deguboard/core";
+import { buildAsk, planReadiness, progressOf, type AskSubject } from "@deguboard/core";
 import type { CommandClient, CommandResult, StatusView } from "@deguboard/core";
 import type {
   EpicRow,
@@ -162,6 +162,23 @@ export interface MockClient extends CommandClient {
 /** mockClient の ticket.show・ticket.update が返す本文 */
 const TICKET_BODY = "## 概要\n\n本文\n\n## 受け入れ条件\n\n- [ ] a\n";
 
+function askSubjectOf(data: Fixture, id: string): AskSubject {
+  const it = data.iterations.find((i) => i.id === id);
+  if (it) return { kind: "iteration", id, title: it.name, status: it.status, complete: false };
+  const t = data.tickets.find((x) => x.id === id);
+  if (!t) throw new Error(`テストの fixture にない対象: ${id}`);
+  return {
+    kind: "ticket",
+    id,
+    title: t.title,
+    status: t.status,
+    iteration: t.iteration ?? null,
+    iteration_status: data.iterations.find((i) => i.id === t.iteration)?.status ?? null,
+    deps_done: t.deps_done,
+    running: false,
+  };
+}
+
 export function mockClient(data = fixture()): MockClient {
   const calls: MockClient["calls"] = [];
   const handlers: MockClient["handlers"] = {
@@ -186,6 +203,11 @@ export function mockClient(data = fixture()): MockClient {
     "workflow.show": () => data.workflow,
     history: () => ({ events: [], shallow: false, incomplete: [] }),
     "run.list": () => [],
+    // core の ask と同じく、対象を fixture から引いて buildAsk で依頼文を作る（チケットと Iteration だけ。実行中の Run はない）
+    ask: (input) => {
+      const { targets = [], ...rest } = input as { targets?: string[] } & Record<string, unknown>;
+      return buildAsk({ subjects: targets.map((id) => askSubjectOf(data, id)), ...rest });
+    },
     "ticket.show": (input) => {
       const t = data.tickets.find((x) => x.id === (input as { ticket: string }).ticket)!;
       return {
