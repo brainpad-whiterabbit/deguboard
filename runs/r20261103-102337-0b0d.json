@@ -1,0 +1,25 @@
+{
+  "id": "r20261103-102337-0b0d",
+  "ticket": "t297",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-03T10:23:37Z",
+  "finished_at": "2026-11-03T10:25:58Z",
+  "result": "success",
+  "error": null,
+  "retries": 5,
+  "retry_reasons": [
+    "askSections のコメントを when の事実に合わせた",
+    "初めての案内をカンバン・バックログ・履歴に限った（テスト追加）",
+    "ask-menu の丸ごとの失敗を組ごとの error として一覧に出す（テスト追加）",
+    "ask-composer の setter を setPicked にした",
+    "ask-menu.tsx の冒頭コメントを「パネルの詳細でも使える」にとどめた"
+  ],
+  "usage": {
+    "input": 10,
+    "output": 3903,
+    "cache_read": 1596301,
+    "cache_write": 5534
+  }
+}
