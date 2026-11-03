@@ -140,7 +140,11 @@ export const runList = defineCommand({
     "Run を開始の順に出す。終わっていない Run（running: true。このマシンの deguboard-local/runs/）も出す。Iteration・Project はチケットの今の値でたどる（metrics.show と同じ）。duration_seconds は実行時間（終わっていなければ null）",
   input: z.object({
     ticket: ticketRef.optional().describe("このチケットの Run だけ"),
-    iteration: iterationRef.optional().describe("この Iteration のチケットの Run だけ"),
+    iteration: iterationRef
+      .optional()
+      .describe(
+        "この Iteration のチケットの Run だけ。今ない Iteration（打ち間違い・文書を直接消したものなど）はエラーにせず空を返す。ticket.list・metrics.show の絞り込みと同じく、あるかは確かめない",
+      ),
     project: slugSchema.optional().describe("この Project のチケットの Run だけ"),
     running: z.boolean().optional().describe("終わっていない Run だけ"),
   }),
@@ -148,7 +152,7 @@ export const runList = defineCommand({
   needs: "store",
   async run(ctx, input) {
     const ticket = input.ticket ? ctx.store.require("ticket", input.ticket).data.id : undefined;
-    // 閉じた・消えた Iteration の Run も引けるよう、metrics.show と同じく今あるかは確かめず ID の形だけ整える
+    // ticket.list・metrics.show と同じく、今あるかは確かめず ID の形だけ整える（入力の説明を見る）
     const iteration = idShapeOf(input.iteration, "iteration");
     const local = await readRunningRuns(ctx.repo);
     const runs: Array<{ run: Run; running: boolean }> = [
