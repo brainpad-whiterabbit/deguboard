@@ -1,0 +1,9 @@
+id: p27
+project: default
+tickets: [t272]
+after: {}
+pending_approval: true
+details:
+  t272:
+    scope: test/layout の準備と期待の値（sidebar.layout.ts など）だけ。画面のコードは変えない
+    approach: "準備で active の Iteration を閉じてから次を start し、t247 以降の今の画面に合わせて期待を直す。直したら PR #253 の上でも通ることを確かめる"
