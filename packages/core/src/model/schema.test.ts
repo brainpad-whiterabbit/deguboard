@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { configFields, configSchema, defaultConfig } from "./config.js";
-import { PLAN_TIERS, planSchema } from "./plan.js";
+import { planSchema } from "./plan.js";
 import { emptyUsage, isRunId, newRunId, runSchema } from "./run.js";
 import { ticketSchema } from "./ticket.js";
 import { workflowDefinitionSchema } from "./workflow.js";
@@ -89,7 +89,7 @@ describe("スキーマ", () => {
 
   it("Plan の details.<ticket>.tier は light / standard / heavy だけを受け、それ以外は読む側でも拒否する（PL-1）", () => {
     const base = { id: "p1", project: "default", tickets: ["t1"] };
-    for (const tier of PLAN_TIERS) {
+    for (const tier of ["light", "standard", "heavy"]) {
       const p = planSchema.parse({ ...base, details: { t1: { tier } } });
       expect(p.details["t1"]?.tier).toBe(tier);
     }

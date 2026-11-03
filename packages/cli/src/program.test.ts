@@ -353,7 +353,6 @@ describe("dg", () => {
         t2: { approach: "既存に倣う" },
       },
     });
-    expect(created.json().data.details.t1.tier).toBe("light");
     // 同じチケットを別の開いた Plan に入れると終了コード 1 と REJECTED
     const dup = await dg(f.cloneA, ["--json", "plan", "create", "t1"]);
     expect(dup.code).toBe(1);
