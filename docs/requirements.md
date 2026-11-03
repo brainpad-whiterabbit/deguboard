@@ -151,7 +151,7 @@ closed_at: 2026-11-20T09:00:00Z # closed のときだけ
 
 ### 5.7 Plan（`plans/p7.yaml`）
 
-- PL-1 `id`、`project`、`tickets`、`after`（計画内だけの待ち。チケットの依存とは別）、`pending_approval`、`approved_by`、`approved_at`、`details.<ticket>.{scope, approach}`、`closed_at` を持つ
+- PL-1 `id`、`project`、`tickets`、`after`（計画内だけの待ち。チケットの依存とは別）、`pending_approval`、`approved_by`、`approved_at`、`details.<ticket>.{scope, approach, tier}`（`tier` は難しさの段階 `light` / `standard` / `heavy`。モデル名は書かない）、`closed_at` を持つ
 - PL-2 進捗は Plan に書かない。チケットの状態から都度求める。Plan を書くのは作成・承認・終了のときだけ
 - PL-3 1 つのチケットは同時に 1 つの開いた（`closed_at` のない）Plan にしか入らない。done・abandoned のチケット、存在しないチケット、Plan と別の Project のチケットは入れられない。`after` と `details` は Plan に入れたチケットだけを指し、`after` は循環できない
 - PL-4 `plan create` は承認待ち（`pending_approval: true`）で作る。`plan approve` は承認待ちの Plan に `approved_by`（操作した主体）と `approved_at` を書いて `pending_approval` を外す。`plan close` は `closed_at` を書き、終わっていないチケットが残れば警告する。閉じた Plan は承認も閉じ直しもできない。承認と終了は既定で誰でも行える（人に限るなら `actor.human_only`、5.10）
@@ -194,9 +194,11 @@ steps: # 任意。Run の step の語彙（WF-5）
 
 ### 5.10 設定（`config.yaml`）
 
-項目は `default_project`、`git.remote`・`git.base_branch`、`worktree.root`、`commit.mode`、`push.mode`、`metrics.read_transcripts`（既定 `false`）、`actions.shell`（AG-7、既定 `false`）・`actions.test`、`actor.human_only`、`auto.merge`（既定 `false`）、`lint.require_iteration`。既定値は、エージェントや記録に関わる安全側の `false` だけを書く。
+項目は `default_project`、`git.remote`・`git.base_branch`、`worktree.root`、`commit.mode`、`push.mode`、`metrics.read_transcripts`（既定 `false`）、`actions.shell`（AG-7、既定 `false`）・`actions.test`、`actor.human_only`、`auto.merge`（既定 `false`）、`lint.require_iteration`、`models.light`・`models.standard`・`models.heavy`。既定値は、エージェントや記録に関わる安全側の `false` だけを書く。
 
 `actor.human_only` は `epic.close` のようなコマンド名の一覧で、入れたコマンドを agent が呼ぶと `TRANSITION_REJECTED` で拒否する。既定は空で、すべての操作をエージェントにも許す。チケットの遷移を人に限るのは Workflow の `by`（WF-1）で、この項目では扱わない。
+
+`models.*` は Plan の段階（PL-1）をモデル名に対応させる。dg は記録するだけで、手順（`dg guide work`）がサブエージェントのモデルに渡す。空なら親のモデルのまま。
 
 各項目の意味・値・既定値はスキーマ（`packages/core/src/model/config.ts`）が正本。利用者ごとの上書きは設けない。
 

@@ -67,6 +67,9 @@ describe("スキーマ", () => {
       "actions.test",
       "auto.merge",
       "lint.require_iteration",
+      "models.light",
+      "models.standard",
+      "models.heavy",
       "actor.human_only",
     ]);
     const byKey = new Map(fields.map((f) => [f.key, f]));
@@ -78,6 +81,8 @@ describe("スキーマ", () => {
     expect(byKey.get("auto.merge")).toMatchObject({ type: "boolean", default: false });
     expect(byKey.get("actions.test")).toMatchObject({ type: "list", default: [] });
     expect(byKey.get("git.remote")).toMatchObject({ type: "string", default: "origin" });
+    for (const tier of ["light", "standard", "heavy"])
+      expect(byKey.get(`models.${tier}`)).toMatchObject({ type: "string", default: "" });
     for (const f of fields) expect(f.description, f.key).not.toBe("");
   });
 

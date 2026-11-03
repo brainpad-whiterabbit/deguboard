@@ -5,7 +5,7 @@ import { OperationError } from "../errors.js";
 import { withWrite } from "../git/write.js";
 import type { TicketId } from "../model/id.js";
 import { isTerminal, slugSchema } from "../model/common.js";
-import type { Plan } from "../model/plan.js";
+import { PLAN_TIERS, type Plan } from "../model/plan.js";
 import { pendingDeps, progressOf, type Progress, type Ticket } from "../model/ticket.js";
 import type { Doc } from "../storage/documents.js";
 import type { Store } from "../storage/store.js";
@@ -63,6 +63,12 @@ export const planCreate = defineCommand({
       .describe("計画内だけの待ち（t3=t1,t2 で t3 を t1・t2 の後に進める）"),
     scope: z.record(z.string(), freeText).optional().describe("チケットごとの範囲（t3=文）"),
     approach: z.record(z.string(), freeText).optional().describe("チケットごとの方針（t3=文）"),
+    tier: z
+      .record(z.string(), z.enum(PLAN_TIERS))
+      .optional()
+      .describe(
+        "チケットごとの段階（t3=light。light / standard / heavy）。config の models.* でモデルに対応させる",
+      ),
   }),
   write: true,
   needs: "store",
@@ -109,10 +115,11 @@ export const planCreate = defineCommand({
         const cycle = afterCycle(after);
         if (cycle)
           throw new OperationError("REJECTED", `after が循環している: ${cycle.join(" → ")}`);
-        const details: Record<string, { scope?: string; approach?: string }> = {};
+        const details: Record<string, { scope?: string; approach?: string; tier?: string }> = {};
         for (const [field, map] of [
           ["scope", input.scope],
           ["approach", input.approach],
+          ["tier", input.tier],
         ] as const) {
           for (const [key, value] of Object.entries(map ?? {})) {
             const id = member(key, field);

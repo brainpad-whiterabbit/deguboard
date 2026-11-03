@@ -5,7 +5,7 @@ argument-hint: "<チケットの ID...|Iteration|Epic|next [N]> | <Plan の ID>"
 
 # 計画（plan）
 
-複数のチケットを、どの順で進めるかを決める。計画は Plan（`p3`）に記録する。Plan は進める順（`after`）とチケットごとの範囲と方針（`details` の `scope`・`approach`）を持つ。承認待ちで作り、人の承認を受けて `plan approve` で承認済みにする。
+複数のチケットを、どの順で進めるかを決める。計画は Plan（`p3`）に記録する。Plan は進める順（`after`）とチケットごとの範囲・方針・段階（`details` の `scope`・`approach`・`tier`）を持つ。承認待ちで作り、人の承認を受けて `plan approve` で承認済みにする。
 
 ## 対象を決める
 
@@ -23,7 +23,7 @@ argument-hint: "<チケットの ID...|Iteration|Epic|next [N]> | <Plan の ID>"
 3. 着手できるものを出す：`dg --json --actor agent ticket list --ready`。todo で依存先がすべて done か abandoned のもの（`deps_done`）。担当者の有無は見ないので、`assignee` が別のユーザのものは避ける（自分のものだけなら `--assignee agent`）
 4. 順序の案を作る。依存が先、優先度が高いものが先。並行できるもの（互いに依存しないもの）はまとめて示す
 5. 承認待ちの Plan に記録する（下の「Plan の作り方」）。結果の `data.id` が Plan の ID
-6. 人に見せて承認を得る。`dg --json --actor agent plan show <p>` の `items`（Plan の順）・`after`・`details` を表で示し、「承認する」「修正する」「承認待ちのまま止める」の選択肢で聞く。直すよう言われたら、`plan close <p>` で閉じて作り直す（Plan は作った後に書き換えられない）
+6. 人に見せて承認を得る。`dg --json --actor agent plan show <p>` の `items`（Plan の順）・`after`・`details` を表で示し（段階の列を設ける）、「承認する」「修正する」「承認待ちのまま止める」の選択肢で聞く。直すよう言われたら、`plan close <p>` で閉じて作り直す（Plan は作った後に書き換えられない）
 7. 人が承認したら `dg --json --actor agent plan approve <p>` で承認を記録する（`approved_by` は操作した主体）。人の承認を得ないまま approve しない。承認待ちの Plan のチケットには着手しない
 8. 承認済みの Plan は `dg guide work` の手順で進める（下の「次の手順を選ぶ」）。Plan の ID を見失ったら、`dg --json --actor agent plan list --status open` で開いた Plan を一覧するか、チケットの `ticket show` の `plan`（入っている開いた Plan）で引く
 
@@ -33,11 +33,13 @@ argument-hint: "<チケットの ID...|Iteration|Epic|next [N]> | <Plan の ID>"
 dg --json --actor agent plan create t12 t13 t14 t15 \
   --after t13=t12 --after t14=t12 --after t15=t13,t14 \
   --scope t13="一覧と詳細の API。認証は含めない" \
-  --approach t13="core のコマンド定義を足し、HTTP は写すだけ"
+  --approach t13="core のコマンド定義を足し、HTTP は写すだけ" \
+  --tier t12=light --tier t13=standard --tier t15=heavy
 ```
 
 - 並べた順が実行順の目安。`--after t15=t13,t14` は「t15 を t13・t14 の後に進める」で、計画の中だけの待ち（チケットの `depends_on` とは別）。並行できるものは互いに after を書かない
 - `--scope`・`--approach` はチケットごとに 1 文で書く。着手するときに `plan show` の `details` で読み返す
+- `--tier` はチケットの難しさの段階で、どのモデルで実装するか（`config.yaml` の `models.*`。`dg guide work`）を決める。light：文書・設定・文言だけ。heavy：設計の判断・データの形・複数パッケージにまたがる・原因の分からない不具合。standard：それ以外。迷ったら重い方にする。省くと standard と同じに扱う
 - done・abandoned のチケットと、別の開いた Plan に入っているチケット（`ticket show` の `plan` が空でないもの）は入れられない（`REJECTED`）。別の Plan に入っていれば、その Plan を閉じてよいか人に確かめる
 - 依存が足りなければ `dg --json --actor agent ticket update <id> --depends-on t12,t13` で直す。`--depends-on` は一覧を**置き換える**ので、残す依存も全部指定する（`--label` も同じ）。循環は拒否される
 - 計画の途中で新しい作業が見つかったら、勝手に進めず `dg guide import` の手順で起票を提案する
