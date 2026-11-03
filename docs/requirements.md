@@ -252,7 +252,7 @@ Web UI は `dg serve` が配信し、VS Code 拡張は同じ React アプリを 
 - UI-12 VS Code 拡張はサイドバーを主画面にし、エディタのパネルには詳細だけを出す。タイトル行に同期・設定の操作と未 push・未取り込みの件数を出す。データと Run の記録の変化を見張り、CLI やエージェントの書き込みを自動で映す
 - UI-13 実行計画：カンバンの上に、選んだ範囲のチケットを含む Plan の進捗、作業中と次（PL-6 の `next`）のチケット、`after` の依存グラフを出す。表示だけで書き込まない
 - UI-14 設定画面：`config.yaml` の全項目（5.10）を出し、`config.set` で保存する。チーム全員に効くことを示し、`git.*`・`worktree.root`・`actions.*`・`actor.human_only`・`auto.merge` は保存前に確かめる。VS Code の settings.json は使わない
-- UI-15 エージェントに頼む：左パネルとパネルの下の入力欄で、対象・頼むこと（おすすめが先頭）・指示から `dg ask` の依頼文を作ってコピーする（拡張は `vscode.env.clipboard`）。データには書き込まない。拡張のタイトル行とコマンドパレットから対象なしで、左パネルの行・見出しの吹き出しと右クリック・Shift+F10 から頼むことを選んで開ける（[ADR-010](adr/ADR-010-ui-writes-and-agent-requests.md)）
+- UI-15 エージェントに頼む：左パネルとパネルの下の入力欄で、対象・頼むこと（おすすめが先頭）・指示から `dg ask` の依頼文を作ってコピーする（拡張は `vscode.env.clipboard`）。データには書き込まない。拡張のタイトル行とコマンドパレットから対象なしで、左パネルの行・見出しとパネルの詳細（チケット・Iteration・Epic）のタイトルと中の行の吹き出しと右クリック・Shift+F10 から頼むことを選んで、その画面の下に開ける（[ADR-010](adr/ADR-010-ui-writes-and-agent-requests.md)）
 
 画面の並び・色・文言・印などの細部は `packages/web/src/` と `packages/vscode/src/` のコードとテストが正本。
 

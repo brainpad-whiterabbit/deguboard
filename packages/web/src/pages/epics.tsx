@@ -3,6 +3,7 @@
 // VS Code（パネル）ではチケットを未完了・完了・中止の小見出しの付いた 1 本の一覧にする（カンバンはサイドバーで見る。UI-12）。ブラウザは Status ごとの列
 
 import { useEffect, useState } from "react";
+import { ASK_SECTIONS, AskSpotBox } from "../components/ask-menu.js";
 import {
   CloseButton,
   PriorityBadge,
@@ -63,10 +64,18 @@ export function EpicsPage({ id }: { id: string }) {
         </div>
       )}
       <header className="detail-header">
-        <h1>
+        {/* タイトルの横の吹き出しと右クリックで、この Epic をエージェントに頼む（UI-15） */}
+        <AskSpotBox
+          as="h1"
+          className="ask-title"
+          targets={[epic.id]}
+          label={`タイトル ${epic.id}`}
+          section={ASK_SECTIONS.detailTitle}
+          pinned
+        >
           <code>{epic.id}</code> {epic.title}{" "}
           <span className="badge">{EPIC_LABELS[epic.status]}</span>
-        </h1>
+        </AskSpotBox>
         <ProgressBar progress={epic.progress} />
       </header>
       <div className="actions">
@@ -192,11 +201,19 @@ function EpicTicketList({ epic, removable }: { epic: EpicDetail; removable: bool
               {section.label} <span className="muted">{items.length}</span>
             </summary>
             <ul className="rows">
+              {/* 行の吹き出しと右クリックで頼める。この Epic を within に渡し、「e2 から外す」を候補に足す（UI-15） */}
               {items.map((t) => (
-                <li key={t.id}>
+                <AskSpotBox
+                  key={t.id}
+                  as="li"
+                  targets={[t.id]}
+                  label={`行 ${t.id}`}
+                  section={ASK_SECTIONS.detailTicket}
+                  within={epic.id}
+                >
                   <TicketRow ticket={t} />
                   {removable && <RemoveButton epic={epic.id} ticket={t.id} />}
-                </li>
+                </AskSpotBox>
               ))}
             </ul>
           </details>

@@ -4,7 +4,9 @@
 // 対象・候補・おすすめを載せる（キーは core の WEBVIEW_CONTRACT.askContext）。
 // 候補は core の ask-menu（読み取りだけ）が組ごとに決め、web では組み立て直さない。画面の頼める場所は AskMenuProvider が
 // まとめて 1 回で引き、一覧が読み直されたら（Status が変わったかもしれない）引き直す。Provider の外では一覧を開いたときに引く。
-// 部品は場所によらない（今は左パネルのカンバン・バックログ・履歴で使う。パネルの詳細でも同じ useAskSpot を使える）
+// 部品は場所によらない（左パネルのカンバン・バックログ・履歴と、パネルのチケット・Iteration・Epic の詳細のタイトルと中の行で使う）。
+// 詳細のタイトルは幅に余裕があるので、吹き出しをタイトルの横に常に出す（pinned）。詳細の中の行は、チケットが入っている
+// Iteration・Epic を within に渡し、「そこから外す」を候補に足す（右クリックで選んだときも、拡張はそのパネルの下に入力欄を開く）
 
 import {
   createContext,
@@ -38,9 +40,9 @@ export const ASK_HINT_KEY = "ask.hintDismissed";
 
 export const ASK_HINT = "行の吹き出しか右クリックでエージェントに頼めます";
 
-/** 対象の組の鍵。ID を空白でつなぐ（core の ask-menu の key と同じ） */
-export function askKey(targets: readonly string[]): string {
-  return targets.join(" ");
+/** 対象の組の鍵。ID を空白でつなぎ、場所（within）があれば @ を付けて後ろに置く（core の ask-menu の key と同じ） */
+export function askKey(targets: readonly string[], within?: string): string {
+  return [...targets, ...(within ? [`@${within}`] : [])].join(" ");
 }
 
 interface MenuCache {
@@ -148,6 +150,10 @@ export interface AskSpotOptions {
   context?: Readonly<Record<string, unknown>> | undefined;
   /** 吹き出しのボタンを置くか。札のように狭い場所は置かず、右クリックと Shift+F10 だけにする */
   bubble?: boolean | undefined;
+  /** 吹き出しを右端に重ねず、中身の横に常に出す（詳細のタイトル。styles.css の .ask-bubble.pinned） */
+  pinned?: boolean | undefined;
+  /** 対象のチケットが入っている Iteration・Epic（詳細の中の行）。候補に「そこから外す」が足される */
+  within?: string | undefined;
 }
 
 export interface AskSpot {
@@ -171,16 +177,19 @@ export function useAskSpot(options: AskSpotOptions | null): AskSpot {
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
   const bubbleRef = useRef<HTMLButtonElement>(null);
   const targets = options?.targets ?? [];
-  const key = askKey(targets);
+  const within = options?.within;
+  const key = askKey(targets, within);
   const menu = useAskMenu(options ? key : null, open);
   const candidates = options ? (menu?.candidates ?? null) : null;
-  const asking = !!options && ask.request !== null && askKey(ask.request.targets) === key;
+  const asking =
+    !!options && ask.request !== null && askKey(ask.request.targets, ask.request.within) === key;
   const ctx = WEBVIEW_CONTRACT_COPY.askContext;
   const context = options
     ? JSON.stringify({
         webviewSection: options.section,
         ...options.context,
-        [ctx.targets]: key,
+        [ctx.targets]: askKey(targets),
+        ...(within ? { [ctx.within]: within } : {}),
         // 候補を読み終えるまでは載せない（サブメニューを出さない）
         ...(candidates && candidates.length > 0
           ? {
@@ -207,7 +216,7 @@ export function useAskSpot(options: AskSpotOptions | null): AskSpot {
         <button
           ref={bubbleRef}
           type="button"
-          className="ask-bubble"
+          className={options.pinned ? "ask-bubble pinned" : "ask-bubble"}
           aria-label={`エージェントに頼む（${options.label}）`}
           aria-haspopup="menu"
           aria-expanded={open}
@@ -233,7 +242,7 @@ export function useAskSpot(options: AskSpotOptions | null): AskSpot {
           menu={menu}
           onPick={(c) => {
             setOpen(false);
-            ask.open(targets, c.action);
+            ask.open(targets, c.action, within);
           }}
           onClose={close}
         />
@@ -266,7 +275,7 @@ export function AskSpotBox({
   children,
   ...options
 }: AskSpotOptions & {
-  as?: "div" | "li" | "summary";
+  as?: "div" | "li" | "summary" | "h1" | "header";
   className?: string | undefined;
   children: ReactNode;
 }) {

@@ -532,6 +532,38 @@ function BacklogItem({ ticket: t, children }: { ticket: Ticket; children: ReactN
   );
 }
 
+/** 一覧の行をエージェントに頼む場所にするときの指定。within はチケットが入っている Iteration・Epic（詳細の中の行） */
+export interface RowAsk {
+  section: AskSection;
+  within?: string | undefined;
+}
+
+function rowAskOptions(t: Ticket, ask: RowAsk) {
+  return { targets: [t.id], label: `行 ${t.id}`, section: ask.section, within: ask.within };
+}
+
+/** 頼める 1 行（サイドバーの並び）。吹き出しは行の右端に重ねる */
+function AskLi({ ticket, ask, children }: { ticket: Ticket; ask: RowAsk; children: ReactNode }) {
+  const spot = useAskSpot(rowAskOptions(ticket, ask));
+  return (
+    <li {...spot.props}>
+      {children}
+      {spot.overlay}
+    </li>
+  );
+}
+
+/** 頼める表の 1 行（広い画面）。吹き出しは末尾のセルに置く（tr の直下にボタンは置けない） */
+function AskTr({ ticket, ask, children }: { ticket: Ticket; ask: RowAsk; children: ReactNode }) {
+  const spot = useAskSpot(rowAskOptions(ticket, ask));
+  return (
+    <tr {...spot.props}>
+      {children}
+      <td className="ask-cell">{spot.overlay}</td>
+    </tr>
+  );
+}
+
 /**
  * チケットの一覧。広い画面では表、サイドバーでは 1 行ずつの並び。行の先頭のリンクで詳細へ。
  * draggable なら行をドラッグできる（外側に DndContext が要る）
@@ -543,6 +575,7 @@ export function TicketTable({
   assigneeInEnd = false,
   rowMenu = false,
   end,
+  ask,
 }: {
   tickets: readonly Ticket[];
   extra?: ((t: Ticket) => React.ReactNode) | undefined;
@@ -562,6 +595,8 @@ export function TicketTable({
    * 渡さなければ優先度の印（RowPriority）
    */
   end?: ((t: Ticket) => ReactNode) | undefined;
+  /** 行をエージェントに頼む場所にする（吹き出し・右クリック・Shift+F10。Iteration の詳細の中の行）。rowMenu があればそちらを使う */
+  ask?: RowAsk | undefined;
 }) {
   const store = useStore();
   const host = useHost();
@@ -597,6 +632,10 @@ export function TicketTable({
             <BacklogItem key={t.id} ticket={t}>
               {content}
             </BacklogItem>
+          ) : ask ? (
+            <AskLi key={t.id} ticket={t} ask={ask}>
+              {content}
+            </AskLi>
           ) : (
             <li key={t.id}>{content}</li>
           );
@@ -616,6 +655,7 @@ export function TicketTable({
           <th>Epic</th>
           <th>ラベル</th>
           {extra ? <th /> : null}
+          {ask ? <th aria-label="エージェントに頼む" /> : null}
         </tr>
       </thead>
       <tbody>
@@ -644,6 +684,10 @@ export function TicketTable({
             <DraggableTr key={t.id} ticket={t}>
               {cells}
             </DraggableTr>
+          ) : ask ? (
+            <AskTr key={t.id} ticket={t} ask={ask}>
+              {cells}
+            </AskTr>
           ) : (
             <tr key={t.id}>{cells}</tr>
           );

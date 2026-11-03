@@ -329,3 +329,152 @@ describe("案内と失敗の扱い（見直しの指摘）", () => {
     expect(within(menu()).queryAllByRole("menuitem")).toHaveLength(0);
   });
 });
+
+describe("パネルの詳細から頼む（UI-15）", () => {
+  /** s1（active）に t3（todo）と t1（done）を入れた fixture。Iteration の詳細は iteration.show で中のチケットを返す */
+  function detailClient(): MockClient {
+    const data = fixture({
+      iterations: [iteration({ id: "s1", name: "最初", status: "active" })],
+    });
+    data.tickets = data.tickets.map((t) =>
+      t.id === "t3" || t.id === "t1" ? { ...t, iteration: "s1" } : t,
+    );
+    const client = mockClient(data);
+    client.handlers["iteration.show"] = () => ({
+      ...client.data.iterations[0],
+      items: client.data.tickets.filter((t) => t.iteration === "s1"),
+    });
+    client.handlers["epic.show"] = () => ({
+      ...client.data.epics[0],
+      body: "",
+      tickets: client.data.tickets.filter((t) => t.epic === "e1"),
+    });
+    return client;
+  }
+  const askInputs = (client: MockClient) =>
+    client.calls.filter((c) => c.name === "ask").map((c) => c.input as Record<string, unknown>);
+
+  it("Iteration の詳細のタイトルの横に吹き出しが常にあり、押すと一覧が出る。右クリックの文脈にも同じ候補を載せ、選ぶとパネルの下に入力欄が出る", async () => {
+    window.location.hash = "#/iterations/s1";
+    const client = detailClient();
+    mount(client, { surface: "panel" });
+    const title = (await screen.findByRole("heading", { level: 1 })).closest("[data-ask-spot]")!;
+    // 吹き出しはマウスを載せなくても出ている（右端に重ねず、タイトルの横に置く）
+    expect(bubble("タイトル s1").className).toBe("ask-bubble pinned");
+    await waitFor(() => expect(contextOf(title)["askRecommended"]).toBe("plan"));
+    expect(contextOf(title)).toMatchObject({ webviewSection: "detailTitle", askTargets: "s1" });
+    fireEvent.click(bubble("タイトル s1"));
+    await waitFor(() => expect(items()[0]).toBe("計画を立てるおすすめ"));
+    // 一覧と右クリックのサブメニューは同じ候補（数と並び）
+    expect(items()).toHaveLength((contextOf(title)["askActions"] as string).split(" ").length);
+    fireEvent.click(within(menu()).getByRole("menuitem", { name: "最後まで進める" }));
+    await waitFor(() => expect(pressed()).toBe("最後まで進める"));
+    // 対象はその詳細
+    expect(within(composer()).getByText("s1")).toBeTruthy();
+    expect(askInputs(client).at(-1)).toMatchObject({ targets: ["s1"], action: "all" });
+  });
+
+  it("Iteration の詳細の中の行は吹き出しと右クリックで頼め、候補に「s1 から外す」を含む。終わったチケットには出さない", async () => {
+    window.location.hash = "#/iterations/s1";
+    const client = detailClient();
+    mount(client, { surface: "panel" });
+    const row = (await screen.findByRole("link", { name: "画面" })).closest("tr")!;
+    await waitFor(() => expect(contextOf(row)["askActions"]).toBeDefined());
+    expect(contextOf(row)).toMatchObject({
+      webviewSection: "detailTicket",
+      askTargets: "t3",
+      askWithin: "s1",
+      askRecommended: "work",
+    });
+    expect(contextOf(row)["askActions"]).toContain("remove");
+    const done = screen.getByRole("link", { name: "ログイン" }).closest("tr")!;
+    await waitFor(() => expect(contextOf(done)["askActions"]).toBeDefined());
+    expect(contextOf(done)["askActions"]).not.toContain("remove");
+    // 候補は場所（@s1）つきの組でまとめて引く
+    const sets = client.calls
+      .filter((c) => c.name === "ask-menu")
+      .flatMap((c) => (c.input as { sets: string[] }).sets);
+    expect(sets).toContain("t3 @s1");
+    fireEvent.click(bubble("行 t3"));
+    await waitFor(() => expect(items()).toContain("s1 から外す"));
+    fireEvent.click(within(menu()).getByRole("menuitem", { name: "s1 から外す" }));
+    await waitFor(() => expect(pressed()).toBe("s1 から外す"));
+    expect(askInputs(client).at(-1)).toMatchObject({
+      targets: ["t3"],
+      within: "s1",
+      action: "remove",
+    });
+  });
+
+  it("Epic の詳細のタイトルと中の行から頼め、行の候補に「e1 から外す」を含む", async () => {
+    window.location.hash = "#/epics/e1";
+    const client = detailClient();
+    mount(client, { surface: "panel" });
+    await screen.findByRole("heading", { level: 1 });
+    expect(bubble("タイトル e1").className).toBe("ask-bubble pinned");
+    fireEvent.click(bubble("タイトル e1"));
+    await waitFor(() => expect(items()[0]).toBe("起票して e1 に足すおすすめ"));
+    fireEvent.keyDown(menu(), { key: "Escape" });
+    const row = screen.getByText("API").closest("li")!;
+    await waitFor(() => expect(contextOf(row)["askActions"]).toBeDefined());
+    expect(contextOf(row)).toMatchObject({
+      webviewSection: "detailTicket",
+      askTargets: "t2",
+      askWithin: "e1",
+    });
+    fireEvent.click(bubble("行 t2"));
+    await waitFor(() => expect(items()).toContain("e1 から外す"));
+  });
+
+  it("チケットの詳細のタイトルの横に吹き出しがあり、右クリックの文脈にそのチケットの候補を載せる", async () => {
+    window.location.hash = "#/tickets/t3";
+    const client = detailClient();
+    mount(client, { surface: "panel" });
+    await screen.findByRole("heading", { level: 1, name: "画面" });
+    const title = document.querySelector("header[data-ask-spot]")!;
+    await waitFor(() => expect(contextOf(title)["askRecommended"]).toBe("work"));
+    expect(contextOf(title)).toMatchObject({ webviewSection: "detailTitle", askTargets: "t3" });
+    fireEvent.click(bubble("タイトル t3"));
+    await waitFor(() => expect(items()[0]).toBe("進めるおすすめ"));
+    fireEvent.click(within(menu()).getByRole("menuitem", { name: "分ける" }));
+    await waitFor(() => expect(pressed()).toBe("分ける"));
+    expect(askInputs(client).at(-1)).toMatchObject({ targets: ["t3"], action: "split" });
+  });
+
+  it("拡張の右クリックから within つきの ask の event が来たら、その場所の外すで入力欄を開く", async () => {
+    window.location.hash = "#/iterations/s1";
+    const client = detailClient();
+    let send: ((event: WebviewEvent) => void) | undefined;
+    const bridge: WebviewClient = {
+      run: (name, input) => client.run(name, input),
+      status: () => client.status(),
+      open: async () => {},
+      show: async () => {},
+      copy: async () => {},
+      onEvent: (listener) => {
+        send = listener;
+        return () => (send = undefined);
+      },
+    };
+    const host: Host = {
+      surface: "panel",
+      open: () => {},
+      show: () => {},
+      copy: async () => {},
+      state: createUiState(memoryBackend({ [ASK_HINT_KEY]: true })),
+    };
+    render(
+      <StoreProvider client={client}>
+        <HostProvider host={host}>
+          <HostBridge client={bridge} />
+          <App />
+        </HostProvider>
+      </StoreProvider>,
+    );
+    await screen.findByRole("heading", { level: 1 });
+    act(() =>
+      send!({ kind: "event", name: "ask", targets: ["t3"], action: "remove", within: "s1" }),
+    );
+    await waitFor(() => expect(pressed()).toBe("s1 から外す"));
+  });
+});

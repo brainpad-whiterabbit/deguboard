@@ -269,6 +269,12 @@ describe("エージェントに頼む入力欄の届け方（UI-15）", () => {
     });
   });
 
+  it("詳細の中の行から開いたときは、チケットが入っている場所を event の within に付ける", () => {
+    expect(askDelivery(true, ["t1"], "remove", "s1")).toEqual({
+      post: { kind: "event", name: "ask", targets: ["t1"], action: "remove", within: "s1" },
+    });
+  });
+
   it("まだ描かれていなければ event を送らず、対象を覚えて HTML に埋める", () => {
     expect(askDelivery(false, [])).toEqual({ pending: [] });
   });

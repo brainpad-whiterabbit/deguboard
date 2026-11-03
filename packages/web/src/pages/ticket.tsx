@@ -10,6 +10,7 @@
 // どちらもブランチ名の右にコピーのボタンを置く
 
 import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
+import { ASK_SECTIONS, AskSpotBox } from "../components/ask-menu.js";
 import { CopyableCode } from "../components/copyable-code.js";
 import { ConfirmSelect, InlineEdit, optionsOf, type Choice } from "../components/inline-edit.js";
 import { PriorityBadge, StatusBadge, StatusDot, Tags, TicketLink } from "../components/parts.js";
@@ -586,8 +587,17 @@ export function TicketPage({ id }: { id: string }) {
     { title: "記録", items: [rows.createdBy, rows.created, rows.updated] },
   ];
 
+  // タイトルの横の吹き出しと右クリックで、このチケットをエージェントに頼む（UI-15）。題を直している間は吹き出しを出さない
   const header = (
-    <header>
+    <AskSpotBox
+      as="header"
+      className="ask-title"
+      targets={[ticket.id]}
+      label={`タイトル ${ticket.id}`}
+      section={ASK_SECTIONS.detailTitle}
+      pinned
+      bubble={!draft}
+    >
       <code>{ticket.id}</code>
       {draft ? (
         <input
@@ -599,7 +609,7 @@ export function TicketPage({ id }: { id: string }) {
       ) : (
         <h1>{ticket.title}</h1>
       )}
-    </header>
+    </AskSpotBox>
   );
 
   return (

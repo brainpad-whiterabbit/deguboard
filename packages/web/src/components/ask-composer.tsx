@@ -26,6 +26,7 @@ const COPY_KEYS =
 
 interface AskInput {
   targets: string[];
+  within?: string | undefined;
   action?: AskAction | undefined;
   note?: string | undefined;
   format?: AskFormat | undefined;
@@ -45,9 +46,12 @@ function subOf(t: AskTarget): string {
 export function AskComposer({
   targets: initialTargets,
   action: initialAction,
+  within,
   onClose,
 }: {
   targets: readonly string[];
+  /** 対象のチケットが入っている Iteration・Epic（詳細の中の行から開いたとき）。外すの候補が出る */
+  within?: string | undefined;
   /** 選んで開く頼むこと（行・見出しの吹き出しと右クリック）。省くか候補になければおすすめ */
   action?: AskAction | undefined;
   onClose(): void;
@@ -79,13 +83,13 @@ export function AskComposer({
   useEffect(() => {
     let alive = true;
     client
-      .run<AskView>("ask", { targets: splitKey(targetsKey) } satisfies AskInput)
+      .run<AskView>("ask", { targets: splitKey(targetsKey), within } satisfies AskInput)
       .then((r) => alive && (setBase(r.data), setError(null)))
       .catch((e: unknown) => alive && (setBase(null), setError(messageOf(e))));
     return () => {
       alive = false;
     };
-  }, [client, targetsKey, store.tickets]);
+  }, [client, targetsKey, within, store.tickets]);
 
   // 選んだ頼むことが候補にない（開いた後に Status が変わったなど）ときは、おすすめに戻す
   const action = picked && base?.candidates.some((c) => c.action === picked) ? picked : null;
@@ -94,6 +98,7 @@ export function AskComposer({
     let alive = true;
     const input: AskInput = {
       targets: splitKey(targetsKey),
+      within,
       action: action ?? undefined,
       note: settledNote,
       format,
@@ -105,7 +110,7 @@ export function AskComposer({
     return () => {
       alive = false;
     };
-  }, [client, base, targetsKey, action, settledNote, format]);
+  }, [client, base, targetsKey, within, action, settledNote, format]);
 
   const chosen = action ?? base?.candidates[0]?.action ?? null;
   const candidate = base?.candidates.find((c) => c.action === chosen) ?? null;
@@ -117,6 +122,7 @@ export function AskComposer({
     try {
       const r = await client.run<AskView>("ask", {
         targets,
+        within,
         action: action ?? undefined,
         note,
         format,

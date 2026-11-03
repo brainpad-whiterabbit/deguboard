@@ -2934,6 +2934,36 @@ button.ask-copy svg {
     opacity: 0.75;
   }
 }
+/* 詳細のタイトルの吹き出し。右端に重ねず、タイトルの横に常に出す */
+.ask-bubble.pinned {
+  position: static;
+  display: inline-grid;
+  margin-left: 6px;
+  vertical-align: middle;
+  border: 1px solid var(--vscode-panel-border, var(--vscode-widget-border, transparent));
+  background: transparent;
+  opacity: 1;
+  transform: none;
+}
+.ask-bubble.pinned:hover,
+[data-ask-spot="active"] > .ask-bubble.pinned {
+  background: var(--vscode-list-hoverBackground);
+}
+/* タイトルは入力欄の対象でも塗らない（吹き出しの色だけで示す） */
+.ask-title[data-ask-spot="active"] {
+  background: transparent;
+}
+/* 表の行（広い画面の Iteration の詳細）は、吹き出しを行の末尾のセルに置く */
+td.ask-cell {
+  position: relative;
+  width: 28px;
+  padding: 0;
+}
+[data-ask-spot]:hover > .ask-cell > .ask-bubble,
+[data-ask-spot]:focus-within > .ask-cell > .ask-bubble,
+[data-ask-spot="active"] > .ask-cell > .ask-bubble {
+  opacity: 1;
+}
 /* 頼むことの一覧。body に出し、吹き出しの右端に合わせる（位置は ask-menu.tsx が決める）。VS Code のメニューの見た目に合わせる */
 .ask-menu {
   position: fixed;
