@@ -145,8 +145,12 @@ describe("run", () => {
       ((await runCommand(runList, ctx, input)).data as RunView[]).map((r) => r.id);
     expect(await listed({ iteration: "s1" })).toEqual([t1.id]);
     expect(await listed({ iteration: "1" })).toEqual([t1.id]);
-    // 今ない Iteration は空で返す（閉じて消えたものも引けるよう、あるかは確かめない）
+    // 今ない Iteration はエラーにせず空で返す（ticket.list の --iteration・--epic と同じ）
     expect(await listed({ iteration: "s9" })).toEqual([]);
+    expect(
+      ((await runCommand(ticketList, ctx, { iteration: "s9" })).data as unknown[]).length,
+    ).toBe(0);
+    expect(((await runCommand(ticketList, ctx, { epic: "e9" })).data as unknown[]).length).toBe(0);
     await expect(runCommand(runList, ctx, { iteration: "x" })).rejects.toMatchObject({
       name: "UsageError",
     });
