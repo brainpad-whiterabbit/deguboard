@@ -1,0 +1,21 @@
+{
+  "id": "r20261103-135151-a8a8",
+  "ticket": "t318",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-03T13:51:51Z",
+  "finished_at": "2026-11-03T13:52:52Z",
+  "result": "success",
+  "error": null,
+  "retries": 1,
+  "retry_reasons": [
+    "段階のモデルで実装を渡すときの run start の主体が手順 4 と食い違っていた"
+  ],
+  "usage": {
+    "input": 6,
+    "output": 1521,
+    "cache_read": 403293,
+    "cache_write": 2597
+  }
+}
