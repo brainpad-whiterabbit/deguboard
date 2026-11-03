@@ -1,0 +1,24 @@
+{
+  "id": "r20261103-003150-b9bb",
+  "ticket": "t248",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-03T00:31:50Z",
+  "finished_at": "2026-11-03T00:33:03Z",
+  "result": "success",
+  "error": null,
+  "retries": 4,
+  "retry_reasons": [
+    "web のバックログが変わらないことを確かめるテストがなかった",
+    "件数の置き場所のコメントが前の絞り込みの行を指していた",
+    "チケットの概要が絞り込みの欄に Epic を挙げていた",
+    "UI-3 の一文で検索欄が 2 回続いていた"
+  ],
+  "usage": {
+    "input": 10,
+    "output": 2557,
+    "cache_read": 937012,
+    "cache_write": 3699
+  }
+}
