@@ -7,7 +7,7 @@ after:
     - t256
     - t257
     - t260
-pending_approval: true
+pending_approval: false
 details:
   t262:
     scope: web のカンバン（左パネルとブラウザ）の Iteration の選択・帯の範囲・開いた Iteration がないときの案内と、UI-2・UI-13 の書き換え
@@ -27,3 +27,5 @@ details:
   t258:
     scope: docs/requirements.md の画面の細部（UI-*）を削り、消した内容が web のコードかテストにあることを確かめる
     approach: t262・t256・t257・t260 で requirements を書き換えた後に、UI-* の細部をコード・テストへの参照に置き換えて 90% 未満にする。テストにない細部はテストを足してから消す
+approved_by: eiki.kitajima/agent
+approved_at: 2026-11-03T01:17:11Z
