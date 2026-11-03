@@ -4,6 +4,7 @@ import { progressOf } from "@deguboard/core";
 import { STATUSES, type Epic, type Iteration, type Ticket } from "../types.js";
 import { iteration, ticket } from "../test-helpers.js";
 import {
+  boardIterationSelection,
   boardSelection,
   hideClosedFinished,
   rowActivity,
@@ -95,6 +96,31 @@ describe("左パネルのカンバンの行の頭の印", () => {
 
   it("実行中の Run を読み終えるまで（null）は、in_progress でも出さない", () => {
     expect(rowActivity({ id: "t2", status: "in_progress" }, null)).toBeUndefined();
+  });
+});
+
+describe("カンバンの iteration の値が指す範囲（boardIterationSelection）", () => {
+  const all = [
+    iteration({ id: "s0", name: "前", status: "closed" }),
+    iteration({ id: "s1", name: "今", status: "active" }),
+    iteration({ id: "s2", name: "次", status: "planned" }),
+  ];
+  const idOf = (id: string | undefined) => {
+    const selection = boardIterationSelection(all, id);
+    return selection && (selection.kind === "all" ? "*" : selection.iteration.id);
+  };
+
+  it("「すべて」（*）と、active・planned の Iteration の ID は範囲を指す", () => {
+    expect(idOf("*")).toBe("*");
+    expect(idOf("s1")).toBe("s1");
+    expect(idOf("s2")).toBe("s2");
+  });
+
+  it("閉じた Iteration・存在しない Iteration・前の版の「なし」（-）・値なしは範囲を指さない", () => {
+    expect(idOf("s0")).toBeUndefined();
+    expect(idOf("s99")).toBeUndefined();
+    expect(idOf("-")).toBeUndefined();
+    expect(idOf(undefined)).toBeUndefined();
   });
 });
 

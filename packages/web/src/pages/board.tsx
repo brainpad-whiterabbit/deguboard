@@ -74,6 +74,20 @@ import {
 type Selection = { kind: "all" } | { kind: "iteration"; iteration: Iteration };
 
 /**
+ * カンバンの iteration の値（ハッシュか最後に選んだもの）が指す範囲。ALL_ITERATIONS なら「すべて」、
+ * 閉じていない（planned か active の）Iteration の ID ならその Iteration。閉じた・存在しない Iteration と、それ以外の値（古い「なし」など）は undefined。
+ * カンバンの範囲（boardSelection）と、カンバンのタブの行き先に残したハッシュを使えるか（app.tsx）の両方がこれで判定する
+ */
+export function boardIterationSelection<I extends Pick<Iteration, "id" | "status">>(
+  iterations: readonly I[],
+  id: string | undefined,
+): { kind: "all" } | { kind: "iteration"; iteration: I } | undefined {
+  if (id === ALL_ITERATIONS) return { kind: "all" };
+  const iteration = iterations.find((i) => i.id === id && i.status !== "closed");
+  return iteration ? { kind: "iteration", iteration } : undefined;
+}
+
+/**
  * カンバンの範囲を決める（UI-2）。open は planned と active の Iteration（番号の順）。
  * ハッシュの iteration（query）が open の Iteration か「すべて」ならそれ、でなければ（閉じた・存在しない Iteration、古い「なし」の値）
  * 最後に選んだもの（remembered）が使えればそれ、どちらもなければ既定（active、なければ番号の小さい planned）。open が空なら「すべて」
@@ -83,11 +97,7 @@ export function boardSelection(
   query: string | undefined,
   remembered: string | undefined,
 ): Selection {
-  const pick = (id: string | undefined): Selection | undefined => {
-    if (id === ALL_ITERATIONS) return { kind: "all" };
-    const iteration = open.find((i) => i.id === id);
-    return iteration ? { kind: "iteration", iteration } : undefined;
-  };
+  const pick = (id: string | undefined): Selection | undefined => boardIterationSelection(open, id);
   // active は Project に 1 つ（IT-1）なので、札で選んでいなければそれを選ぶ
   const fallback = open.find((i) => i.status === "active") ?? open[0];
   return (
