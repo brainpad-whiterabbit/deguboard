@@ -137,6 +137,34 @@ describe("設定画面", () => {
     await waitFor(() => expect(within(fieldOf("commit.mode")).queryByText("変更あり")).toBeNull());
   });
 
+  it("確かめを待つ間に保存されている値へ戻すと、確かめを消して config.set を呼ばない", async () => {
+    const { client } = configClient();
+    mount(client);
+    await screen.findByText("コミットの仕方");
+    // チェック：入れて、枠を閉じずに外す
+    const shell = within(fieldOf("actions.shell")).getByRole<HTMLInputElement>("checkbox");
+    fireEvent.click(shell);
+    expect(within(fieldOf("actions.shell")).getByRole("alertdialog")).toBeTruthy();
+    fireEvent.click(shell);
+    expect(within(fieldOf("actions.shell")).queryByRole("alertdialog")).toBeNull();
+    expect(shell.checked).toBe(false);
+
+    // リスト：足して、枠を閉じずに外す
+    const add = within(fieldOf("actor.human_only")).getByPlaceholderText("項目を足す");
+    fireEvent.change(add, { target: { value: "epic.close" } });
+    fireEvent.keyDown(add, { key: "Enter" });
+    expect(within(fieldOf("actor.human_only")).getByRole("alertdialog")).toBeTruthy();
+    fireEvent.click(within(fieldOf("actor.human_only")).getByLabelText("epic.close を外す"));
+    expect(within(fieldOf("actor.human_only")).queryByRole("alertdialog")).toBeNull();
+
+    // 待ちが解けたので、ほかの項目も触れる
+    expect(within(fieldOf("git.remote")).getByRole<HTMLInputElement>("textbox").disabled).toBe(
+      false,
+    );
+    await new Promise((r) => setTimeout(r, 0));
+    expect(setCalls(client)).toEqual([]);
+  });
+
   it("確かめない項目は変えたらすぐ保存し、保存した項目と値を出す", async () => {
     const { client } = configClient();
     mount(client);

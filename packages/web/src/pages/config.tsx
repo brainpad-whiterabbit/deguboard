@@ -42,7 +42,7 @@ const NAMES: Record<string, string> = {
  * actions.test は確認なしで実行するコマンドなので、シェルの許可（actions.shell）と同じ重さで扱う（ADR-006・ADR-007）
  */
 export const CONFIRM_KEYS: ReadonlyMap<string, string> = new Map([
-  ["git.remote", "チーム全員の同期先が変わる"],
+  ["git.remote", "同期先が変わる"],
   ["git.base_branch", "マージ済みの判定の基準が変わる"],
   ["worktree.root", "作業場所が変わる"],
   ["actions.test", "テストとして確認なしで実行するコマンドが変わる（シェルを許すのと同じ）"],
@@ -163,12 +163,14 @@ export function ConfigPage() {
     [store],
   );
 
-  /** 値を変えたとき。確かめる項目は待たせ、それ以外はすぐ保存する。変わっていなければ何もしない */
+  /** 値を変えたとき。確かめる項目は待たせ、それ以外はすぐ保存する。変わっていなければ待ちを解くだけ */
   const change = useCallback(
     (key: string, value: unknown) => {
       if (!view) return;
       if (!isModified(value, valueAt(view.config, key))) {
         setDrafts((d) => without(d, key));
+        // 確かめを待つ間に保存されている値へ戻したら、待っている古い値を保存させない
+        setPending((p) => (p?.key === key ? null : p));
         return;
       }
       if (CONFIRM_KEYS.has(key)) setPending({ key, value });
