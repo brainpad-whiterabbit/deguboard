@@ -47,6 +47,11 @@ describe("dg guide", () => {
     }
   });
 
+  it("import は受け入れ条件が 7 項目以上のチケットを分けることを、根拠とともに勧める", async () => {
+    const tips = (await readGuide("import")).split("## よいチケットの書き方")[1] ?? "";
+    expect(tips).toMatch(/受け入れ条件が 7 項目以上.*分けることを勧める.*10 件のうち 9 件/);
+  });
+
   it("work と done は ticket check を案内し、本文全体を書き戻す手順を残さない", async () => {
     const work = await readGuide("work");
     const done = await readGuide("done");
