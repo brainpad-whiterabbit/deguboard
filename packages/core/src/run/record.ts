@@ -118,9 +118,8 @@ export function runAgentByTicket(
  */
 export async function peekRunningRuns(repo: RunDirs): Promise<Run[]> {
   const { runs } = await readLocalRuns(repo);
-  const running: Run[] = [];
-  for (const run of runs) if (!(await hasSummary(repo, run.id))) running.push(run.data);
-  return running;
+  const consumed = await Promise.all(runs.map((r) => hasSummary(repo, r.id)));
+  return runs.filter((_, n) => !consumed[n]).map((r) => r.data);
 }
 
 export interface StartRunInput {

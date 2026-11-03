@@ -41,7 +41,7 @@ export type WebviewEvent =
 
 /**
  * 拡張と画面で合わせる値（UI-12）。拡張（vscode）はここを読み、web は実行時のコードを取り込まないので写しを持ち、
- * 同じ値であることを web のテスト（webview-contract.test.ts）で確かめる
+ * 同じ値であることを web のテスト（packages/web/src/client/webview.test.ts）で確かめる
  */
 export const WEBVIEW_CONTRACT = {
   /** バックログの行の右クリックの文脈（data-vscode-context の webviewSection）。拡張の package.json の when と合わせる */
