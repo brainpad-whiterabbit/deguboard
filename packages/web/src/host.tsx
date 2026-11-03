@@ -91,7 +91,10 @@ export function useUiState<T>(key: string, initial: T): [T, (value: T) => void] 
 export function HostBridge({ client }: { client: WebviewClient }) {
   const store = useStore();
   const reloadRef = useRef(store.reload);
-  reloadRef.current = store.reload;
+  // 最新の reload を通知の受け手から呼ぶ。描画中に ref を書かない（react/refs）ので、描いた後に写す
+  useEffect(() => {
+    reloadRef.current = store.reload;
+  });
   useEffect(
     () =>
       client.onEvent((event) => {

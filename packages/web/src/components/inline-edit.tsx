@@ -71,7 +71,12 @@ export function ConfirmSelect({
   onBlur: () => void;
 }) {
   const [current, setCurrent] = useState(value);
-  useEffect(() => setCurrent(value), [value]);
+  // 外から値が変わったら選択も合わせる。effect で合わせると古い値で 1 度描くので、描画中に合わせる（react/set-state-in-effect）
+  const [seen, setSeen] = useState(value);
+  if (seen !== value) {
+    setSeen(value);
+    setCurrent(value);
+  }
   const keying = useRef(false);
   const touched = useRef(false);
   // 一覧から選んで keyup か時間切れを待っている値

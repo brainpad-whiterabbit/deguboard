@@ -109,16 +109,17 @@ function useTicketWorkflow(store: Store, ticket: TicketDetail | null): WorkflowV
     : undefined;
   const other = id !== undefined && id !== store.project?.workflow ? id : null;
   const [loaded, setLoaded] = useState<{ id: string; view: WorkflowView } | null>(null);
+  const { client, notify } = store;
   useEffect(() => {
     if (!other) return;
     let alive = true;
-    store.client
+    client
       .run<WorkflowView>("workflow.show", { workflow: other })
       .then((r) => alive && setLoaded({ id: other, view: r.data }))
       .catch(
         (e: unknown) =>
           alive &&
-          store.notify({
+          notify({
             kind: "error",
             text: `Workflow ${other} を読めない`,
             detail: e instanceof Error ? e.message : String(e),
@@ -127,7 +128,7 @@ function useTicketWorkflow(store: Store, ticket: TicketDetail | null): WorkflowV
     return () => {
       alive = false;
     };
-  }, [other, store.client, store.notify]);
+  }, [other, client, notify]);
   if (!other) return store.workflow;
   return loaded?.id === other ? loaded.view : null;
 }

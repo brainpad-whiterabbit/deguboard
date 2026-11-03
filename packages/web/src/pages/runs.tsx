@@ -107,6 +107,8 @@ function RunsView({
   // 取り直す間は前の集計とエラーを出さない（単位を変えたときに見出しと中身が食い違わないように）
   useEffect(() => {
     let alive = true;
+    // 取り直しの始めに前の結果を消す。読み直しの合図（store.tickets・tick）ごとに外（コマンド）から取り直すので effect に置く
+    // oxlint-disable-next-line react/set-state-in-effect
     setError(null);
     setMetrics(null);
     const filter = iteration ? { project, iteration } : { project };

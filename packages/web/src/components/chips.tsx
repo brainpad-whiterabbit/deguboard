@@ -72,7 +72,9 @@ export function ChipRow({
     observer.observe(el);
     return () => observer.disconnect();
   }, []);
-  // 3 行目に落ちたチップを隠す。「ほか N」が 3 行目に落ちたら 1 つずつ減らす
+  // 3 行目に落ちたチップを隠す。「ほか N」が 3 行目に落ちたら 1 つずつ減らす。
+  // 描くたびに測り直すので依存の配列を付けない。減らすのは 3 行目があるときだけで、limit が 1 まで下がれば止まる
+  // oxlint-disable-next-line react-hooks/exhaustive-deps
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el || expanded) return;
