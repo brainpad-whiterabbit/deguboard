@@ -1,0 +1,24 @@
+{
+  "id": "r20261103-111552-c208",
+  "ticket": "t299",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-03T11:15:52Z",
+  "finished_at": "2026-11-03T11:18:16Z",
+  "result": "success",
+  "error": null,
+  "retries": 4,
+  "retry_reasons": [
+    "Shift+クリックの範囲に閉じた details の中の見えない行が入った",
+    "バックログの検索・絞り込みを変えても選択が残り、隠れた行が対象に残った",
+    "修飾キーのドラッグの後、次のクリックが一度効かなかった",
+    "Esc・絞り込み・ドラッグ直後のテストがなく、修飾キーで既定の動きを止める理由がコメントになかった"
+  ],
+  "usage": {
+    "input": 18,
+    "output": 9353,
+    "cache_read": 1775213,
+    "cache_write": 10997
+  }
+}
