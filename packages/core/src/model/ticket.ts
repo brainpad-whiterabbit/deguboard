@@ -62,7 +62,7 @@ export function progressOf(tickets: readonly Pick<Ticket, "status">[]): Progress
 
 /**
  * depends_on の残りの待ちの相手（WF-2）。done・abandoned でない依存先を depends_on の順で返す。
- * statusOf は依存先の Status を引き、見つからない依存先（undefined）も待ちに数える。deps_done と Plan の待ち（PL-6）はここだけを使う
+ * statusOf は依存先の Status を引き、見つからない依存先（undefined）も待ちに数える。deps_done・ticket.show の pending_deps・Plan の待ち（PL-6）はここだけを使う
  */
 export function pendingDeps(
   ticket: Pick<Ticket, "depends_on">,

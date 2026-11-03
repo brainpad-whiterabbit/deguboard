@@ -31,7 +31,7 @@
 ### lint は oxlint、整形は oxfmt
 
 - lint は oxlint（`.oxlintrc.json`）。既定の `correctness` から始め、規則は必要になったときに足す
-- `plugins` は既定の組を置き換えるので、使う言語とライブラリの plugin（web の React には `react`）を明示する。指摘は直し、直すと振る舞いが変わるものだけ行ごとに理由を書いて外す
+- `plugins` は既定の組を置き換えるので、使う言語とライブラリの plugin（web の React には `react`）を明示する。指摘は直し、直すと振る舞いが変わるものと誤検知だけを行ごとに理由を書いて外す
 - 整形は oxfmt（`.oxfmtrc.json`）。既定の設定から始める
 - ESLint・Prettier・Biome は入れない
 - 版は package.json に固定する
