@@ -3,7 +3,7 @@
 import { z } from "zod";
 import { OperationError } from "../errors.js";
 import { withWrite } from "../git/write.js";
-import { slugSchema } from "../model/common.js";
+import { isTerminal, slugSchema } from "../model/common.js";
 import { ITERATION_STATUSES, type Iteration } from "../model/iteration.js";
 import type { Ticket } from "../model/ticket.js";
 import type { Doc } from "../storage/documents.js";
@@ -252,9 +252,7 @@ export const iterationClose = defineCommand({
           throw new OperationError("REJECTED", `${it.id} は既に閉じている`);
         const tickets = ticketsInIteration(ctx.store, it.id);
         const completed = tickets.filter((t) => t.data.status === "done").length;
-        const carried = tickets.filter(
-          (t) => t.data.status !== "done" && t.data.status !== "abandoned",
-        );
+        const carried = tickets.filter((t) => !isTerminal(t.data.status));
         for (const t of carried)
           await ctx.store.update("ticket", t.id, { iteration: undefined, updated_at: nowIso(ctx) });
         return ctx.store.update("iteration", it.id, {

@@ -4,16 +4,13 @@ import { z } from "zod";
 import { OperationError } from "../errors.js";
 import { withWrite } from "../git/write.js";
 import type { TicketId } from "../model/id.js";
-import { slugSchema } from "../model/common.js";
+import { isTerminal, slugSchema } from "../model/common.js";
 import type { Plan } from "../model/plan.js";
 import { progressOf, type Progress, type Ticket } from "../model/ticket.js";
 import type { Doc } from "../storage/documents.js";
 import type { Store } from "../storage/store.js";
 import { defineCommand, ok } from "./define.js";
 import { nowIso, openPlanOf, planRef, projectOf, sortedDocs, ticketRef } from "./helpers.js";
-
-/** 終わったチケット。Plan に入れられない（PL-3） */
-const FINISHED: readonly Ticket["status"][] = ["done", "abandoned"];
 
 /** 1 つの値（CLI の `--after t3=t1,t2`）でも配列（HTTP）でも受ける */
 const refList = z.union([z.string(), z.number(), z.array(z.union([z.string(), z.number()]))]);
@@ -81,7 +78,7 @@ export const planCreate = defineCommand({
           if (tickets.includes(t.data.id)) continue;
           if (t.data.project !== project)
             throw new OperationError("REJECTED", `${t.id} は Project ${project} のチケットでない`);
-          if (FINISHED.includes(t.data.status))
+          if (isTerminal(t.data.status))
             throw new OperationError(
               "REJECTED",
               `${t.id} は ${t.data.status} なので Plan に入れられない`,
@@ -191,7 +188,7 @@ export function planReadiness(
 ): PlanReadiness {
   const finished = (id: string) => {
     const status = ticketOf(id)?.status;
-    return status !== undefined && FINISHED.includes(status);
+    return status !== undefined && isTerminal(status);
   };
   const waiting: Record<string, TicketId[]> = {};
   const todo: TicketId[] = [];
@@ -332,7 +329,7 @@ export const planClose = defineCommand({
           throw new OperationError("REJECTED", `${plan.id} は既に閉じている`);
         const open = plan.data.tickets.filter((id) => {
           const status = ctx.store.tickets.get(id)?.data.status;
-          return status !== undefined && !FINISHED.includes(status);
+          return status !== undefined && !isTerminal(status);
         });
         if (open.length > 0) warnings.push(`${open.join(", ")} を残したまま閉じた`);
         return ctx.store.update("plan", plan.id, { closed_at: nowIso(ctx) });

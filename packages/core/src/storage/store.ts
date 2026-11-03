@@ -7,6 +7,7 @@ import { readdir, readFile, rename, stat } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
 import { OperationError } from "../errors.js";
+import { isTerminal } from "../model/common.js";
 import { configSchema, type Config } from "../model/config.js";
 import { epicSchema, type Epic } from "../model/epic.js";
 import {
@@ -271,7 +272,7 @@ export class Store {
   depsDone(ticket: Ticket): boolean {
     return ticket.depends_on.every((id) => {
       const status = this.tickets.get(id)?.data.status;
-      return status === "done" || status === "abandoned";
+      return status !== undefined && isTerminal(status);
     });
   }
 
