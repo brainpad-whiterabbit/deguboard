@@ -1,0 +1,43 @@
+id: p29
+project: default
+tickets: [t263, t266, t267, t268, t265, t264, t270, t271, t269]
+after:
+  t265:
+    - t263
+  t264:
+    - t265
+  t270:
+    - t264
+  t271:
+    - t270
+  t269:
+    - t271
+pending_approval: true
+details:
+  t263:
+    scope: パネルの詳細の見出しの帯（Status・優先度・Iteration・担当・PR の 1 行と編集ボタン）。ブラウザ版は変えない
+    approach: pages/ticket.tsx で surface=panel のときだけ帯を出し、sticky は styles.css で付ける
+  t266:
+    scope: 本文の節ごとのタスクリストの済/全とメーター
+    approach: markdown.tsx で節ごとに数え、見出しに出す。数え方は markdown.test.ts で確かめる
+  t267:
+    scope: チケット詳細の Run の 1 行表示と見出しの合計。Run の画面の表は変えない
+    approach: components/ticket-runs.tsx をパネル用の部品にし、合計の null は — で示す
+  t268:
+    scope: 経過の日付の区切り・空いた丸・作者の表示
+    approach: components/timeline.tsx で日付の行を挟み、区切りを timeline.test.ts で確かめる
+  t265:
+    scope: パネルの右の列の幅 248px 固定と属性の 4 つの見出し分け、日時の年の省略
+    approach: pages/ticket.tsx の属性の並びを分け、幅は surface=panel の CSS で固定する
+  t264:
+    scope: パネルの Status の選択を transitions で絞る。core は変えない
+    approach: store.workflow の transitions から今の Status を from に持つ to を引く関数を作りテストする
+  t270:
+    scope: 依存先が終わっていない帯と、依存先・依存元の Status の丸印
+    approach: pages/ticket.tsx で deps_done と store.tickets から引き、帯の出る・出ないをテストする
+  t271:
+    scope: ブランチ名のコピーのボタンと host を通したコピー
+    approach: navigator.clipboard を試し、使えなければ host のメッセージで拡張にコピーを頼む
+  t269:
+    scope: 右の列の属性のその場の編集と、編集ボタンをタイトルと本文だけにすること
+    approach: 属性ごとの小さな編集部品を作り、確定で ticket.update に 1 属性だけ渡す
