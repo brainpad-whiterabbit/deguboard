@@ -1,0 +1,24 @@
+{
+  "id": "r20261103-223317-cff0",
+  "ticket": "t311",
+  "step": "fix",
+  "agent": "copilot",
+  "model": null,
+  "started_at": "2026-11-03T22:33:17Z",
+  "finished_at": "2026-11-03T22:34:39Z",
+  "result": "success",
+  "error": null,
+  "retries": 4,
+  "retry_reasons": [
+    "手順に固定した 34% の数値を外し定性的な一言にした",
+    "正本をリポジトリの規約から引く書き方にし、仕様書（requirements）・ADR・README を例示にした",
+    "報告に書く記述の重複を削り手順 6 だけに残した",
+    "時期を「実装を終えて PR を作る前に」とはっきりさせた"
+  ],
+  "usage": {
+    "input": null,
+    "output": null,
+    "cache_read": null,
+    "cache_write": null
+  }
+}
