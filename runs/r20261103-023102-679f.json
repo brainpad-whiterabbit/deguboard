@@ -1,0 +1,22 @@
+{
+  "id": "r20261103-023102-679f",
+  "ticket": "t275",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-03T02:31:02Z",
+  "finished_at": "2026-11-03T02:32:40Z",
+  "result": "success",
+  "error": null,
+  "retries": 2,
+  "retry_reasons": [
+    "test:layout の説明にカンバンのドラッグを足した",
+    "サイドバーのドラッグのテストの確かめを広い画面にそろえた"
+  ],
+  "usage": {
+    "input": 4,
+    "output": 896,
+    "cache_read": 150179,
+    "cache_write": 1517
+  }
+}
