@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
+import type { Status } from "./common.js";
+import type { TicketId } from "./id.js";
 import {
   acceptanceSection,
   parseAcceptance,
+  pendingDeps,
   replaceAcceptance,
   setAcceptance,
   ticketBodyTemplate,
@@ -76,5 +79,19 @@ describe("チケットの本文", () => {
     // 範囲外の番号と節のない本文は変えない
     expect(setAcceptance(checklist, [99], true)).toBe(checklist);
     expect(setAcceptance("本文だけ", [1], true)).toBe("本文だけ");
+  });
+});
+
+describe("depends_on の待ち（pendingDeps）", () => {
+  it("done・abandoned でない依存先と見つからない依存先を depends_on の順で返す", () => {
+    const statuses: Partial<Record<TicketId, Status>> = {
+      t1: "done",
+      t2: "review",
+      t3: "abandoned",
+      t4: "todo",
+    };
+    const ticket = { depends_on: ["t4", "t1", "t9", "t2", "t3"] as TicketId[] };
+    expect(pendingDeps(ticket, (id) => statuses[id])).toEqual(["t4", "t9", "t2"]);
+    expect(pendingDeps({ depends_on: [] }, () => undefined)).toEqual([]);
   });
 });

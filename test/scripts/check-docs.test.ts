@@ -80,4 +80,15 @@ describe("check-docs の ADR の更新日", () => {
     expect(code).toBe(1);
     expect(stderr).toContain("ADR-008-tech-stack.md: 「- 更新日：YYYY-MM-DD」の行がない");
   });
+
+  it("一覧の行から更新日を消すと落ちる", async () => {
+    await rewrite(
+      "docs/adr/README.md",
+      /(\[ADR-008\]\(ADR-008-tech-stack\.md\).*\|)\s*\d{4}-\d{2}-\d{2}\s*\|$/m,
+      "$1",
+    );
+    const { code, stderr } = await run();
+    expect(code).toBe(1);
+    expect(stderr).toContain("docs/adr/README.md: ADR-008-tech-stack.md の行に更新日がない");
+  });
 });

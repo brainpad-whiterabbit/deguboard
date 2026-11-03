@@ -135,7 +135,7 @@ export function planGraph(plan: PlanRow, byId: ReadonlyMap<string, Ticket>): Pla
 }
 
 /** 帯の行の「次」：着手できるチケット、待っている todo とその待ちの相手、承認待ちのどれか */
-export type PlanNext =
+export type BandNext =
   | { kind: "ready"; id: string }
   | { kind: "blocked"; id: string; waitFor: string[] }
   | { kind: "approval" };
@@ -144,7 +144,7 @@ export interface PlanProgressLine {
   /** in_progress のチケット（Plan の順） */
   working: string[];
   /** 出すものがなければ null（終わった Plan、todo の残らない Plan） */
-  next: PlanNext | null;
+  next: BandNext | null;
 }
 
 /**

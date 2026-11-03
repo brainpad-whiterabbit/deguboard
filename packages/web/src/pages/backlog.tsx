@@ -3,8 +3,9 @@
 // Iteration が 1 つもない（planned・active がない）Project では区画に分けず 1 つの表で出す。
 // チケットを別の区画にドラッグすると ticket.update で Iteration を変える。拒否されたら通知に理由を出して元の区画に戻す（読み直すだけで戻る）。
 // open の Epic は進捗つきの欄に並べ（UI-10）、押すとその Epic のチケットに絞る（もう一度押すと解除）。広い画面では Epic の作成も欄から行う。
-// サイドバーでは検索を常に出し、その下によく使う絞り込み（自分・作業中・high）のチップと、畳んだ欄で効いている条件の札（× で外す）を並べる。
-// 絞り込みの欄は畳み（開閉は host.state に残す）、見出しの件数は絞り込みが効いているときだけ「n / m 件」で出す。
+// サイドバーでは検索を常に出し、その右端の漏斗（カンバンと同じ FilterToggle）で絞り込みの欄を検索の下に開く（開閉は host.state に残す）。
+// その下によく使う絞り込み（自分・作業中・high）のチップと、欄で効いている条件の札（× で外す）を並べ、
+// 絞り込みか検索が効いているときだけ行の右端に「n / m 件」を出す。漏斗は条件が効いている間だけ色付きにする。
 // サイドバーの Epic の欄は open の Epic があるときだけ、番号・題・進捗のチップと「Epic なし」のチップを並べる（2 行を超える分は「ほか N」）
 // サイドバーの行の右端には、カンバンと同じ優先度の札と、開いた Plan に入っていれば Plan の番号と着手可・待ちを出す（カンバンと同じ部品と判定。components/row-end.tsx の BacklogRowEnd）。
 // サイドバーの行は担当者の列を出さず、別の人の担当だけ右端に頭文字の丸で出す（自分か自分の agent は出さない。store.me）
@@ -26,6 +27,7 @@ import {
 } from "../components/iteration-parts.js";
 import { ProgressBar, TicketTable } from "../components/parts.js";
 import { BacklogRowEnd, kanbanPlanMarks, type PlanMark } from "../components/row-end.js";
+import { FilterToggle } from "../components/filter-toggle.js";
 import { useHost, useUiState } from "../host.js";
 import { hrefOf } from "../router.js";
 import { useStore } from "../store.js";
@@ -318,7 +320,7 @@ export function BacklogPage() {
 
   return (
     <section>
-      <div className="toolbar">
+      <div className={`toolbar${sidebar ? " backlog-search" : ""}`}>
         <h1>バックログ</h1>
         <input
           type="search"
@@ -327,10 +329,25 @@ export function BacklogPage() {
           onChange={(e) => set({ query: e.target.value })}
           aria-label="検索"
         />
-        {sidebar ? null : filters}
-        {/* サイドバーでは件数を絞り込みの行に置き、1 行を使わない */}
+        {sidebar ? (
+          <FilterToggle
+            open={filtersOpen}
+            active={active.length > 0}
+            title="Status・優先度・ラベル・担当で絞り込む"
+            controls="backlog-filters"
+            onToggle={() => setFiltersOpen(!filtersOpen)}
+          />
+        ) : (
+          filters
+        )}
+        {/* サイドバーでは件数をチップの行の右端に置き、1 行を使わない */}
         {sidebar ? null : <span className="muted">{rows.length} 件</span>}
       </div>
+      {sidebar && filtersOpen ? (
+        <div className="toolbar backlog-filters" id="backlog-filters">
+          {filters}
+        </div>
+      ) : null}
       {sidebar ? (
         <QuickFilters
           filter={filter}
@@ -338,24 +355,14 @@ export function BacklogPage() {
           statusLabel={store.labelOf("in_progress")}
           meKnown={store.me !== null}
           onChange={set}
-        />
-      ) : null}
-      {sidebar ? (
-        <details
-          className="fold filters"
-          open={filtersOpen}
-          onToggle={(e) => setFiltersOpen(e.currentTarget.open)}
-        >
-          <summary>
-            絞り込み
-            {filtering ? (
+          count={
+            filtering ? (
               <span className="muted count" title={`全 ${total} 件のうち ${rows.length} 件`}>
                 {rows.length} / {total} 件
               </span>
-            ) : null}
-          </summary>
-          <div className="toolbar">{filters}</div>
-        </details>
+            ) : null
+          }
+        />
       ) : null}
       <div className="backlog-layout">
         <EpicPanel
@@ -380,7 +387,7 @@ export function BacklogPage() {
 
 /**
  * サイドバーの検索欄の下の 1 行：よく使う絞り込みのチップ（押すと絞り、効いているものは塗る）と、
- * ほかの場所で見えていない効いている条件の札（× で外す）。札が多ければ折り返す（条件を隠さない）
+ * ほかの場所で見えていない効いている条件の札（× で外す）、右端に件数（count）。札が多ければ折り返す（条件を隠さない）
  */
 function QuickFilters({
   filter,
@@ -388,6 +395,7 @@ function QuickFilters({
   statusLabel,
   meKnown,
   onChange,
+  count,
 }: {
   filter: BacklogFilter;
   folded: readonly ActiveFilter[];
@@ -395,6 +403,8 @@ function QuickFilters({
   /** 操作している人が分かっているか。分かるまで「自分」は出さない */
   meKnown: boolean;
   onChange: (patch: Partial<BacklogFilter>) => void;
+  /** 絞っているときの「n / m 件」。絞っていなければ null */
+  count: ReactNode;
 }) {
   return (
     <div className="chip-row quick-filters" role="group" aria-label="絞り込み">
@@ -424,6 +434,7 @@ function QuickFilters({
           </button>
         </span>
       ))}
+      {count}
     </div>
   );
 }
