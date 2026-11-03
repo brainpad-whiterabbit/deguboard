@@ -46,7 +46,7 @@ describe("前回の一覧の cache", () => {
     state.set(SNAPSHOT_KEY, {
       projectId: "default",
       projects: before.projects,
-      tickets: [ticket({ id: "t9", title: "前回の題" })],
+      tickets: [ticket({ id: "t9", title: "前回の題", iteration: "s0" })],
       epics: before.epics,
       iterations: before.iterations,
       plans: before.plans,

@@ -2,8 +2,14 @@ import { describe, expect, it } from "vitest";
 // 進みの数え方の写しを照らすためだけに core の実行時のコードを取り込む（画面のコードは型だけを取る。ADR-007）
 import { progressOf } from "@deguboard/core";
 import { STATUSES, type Epic, type Iteration, type Ticket } from "../types.js";
-import { ticket } from "../test-helpers.js";
-import { hideClosedFinished, rowActivity, ticketProgress } from "./board.js";
+import { iteration, ticket } from "../test-helpers.js";
+import {
+  boardSelection,
+  hideClosedFinished,
+  rowActivity,
+  ticketProgress,
+  ticketsInSelection,
+} from "./board.js";
 
 const iterations: Pick<Iteration, "id" | "status">[] = [
   { id: "s1", status: "closed" },
@@ -89,5 +95,63 @@ describe("左パネルのカンバンの行の頭の印", () => {
 
   it("実行中の Run を読み終えるまで（null）は、in_progress でも出さない", () => {
     expect(rowActivity({ id: "t2", status: "in_progress" }, null)).toBeUndefined();
+  });
+});
+
+describe("カンバンの範囲（Iteration の選択）", () => {
+  const s1 = iteration({ id: "s1", name: "今", status: "active" });
+  const s2 = iteration({ id: "s2", name: "次", status: "planned" });
+  const s3 = iteration({ id: "s3", name: "次の次", status: "planned" });
+  const idOf = (
+    open: Parameters<typeof boardSelection>[0],
+    query?: string,
+    remembered?: string,
+  ) => {
+    const selection = boardSelection(open, query, remembered);
+    return selection.kind === "all" ? "*" : selection.iteration.id;
+  };
+
+  it("札を選んでいなければ active を選び、active がなければ番号の小さい planned を選ぶ", () => {
+    expect(idOf([s1, s2, s3])).toBe("s1");
+    expect(idOf([s2, s3])).toBe("s2");
+  });
+
+  it("ハッシュの iteration が開いた Iteration か「すべて」（*）ならそれを選ぶ", () => {
+    expect(idOf([s1, s2], "s2")).toBe("s2");
+    expect(idOf([s1, s2], "*")).toBe("*");
+  });
+
+  it("ハッシュの iteration が閉じた Iteration・存在しない Iteration・前の版の「なし」（-）を指したら既定に戻る", () => {
+    // 閉じた Iteration は open に入らない
+    expect(idOf([s1, s2], "s0")).toBe("s1");
+    expect(idOf([s1, s2], "s99")).toBe("s1");
+    expect(idOf([s1, s2], "-")).toBe("s1");
+    expect(idOf([s2, s3], "-")).toBe("s2");
+  });
+
+  it("ハッシュで選んでいなければ最後に選んだもの（使えるときだけ）を選ぶ", () => {
+    expect(idOf([s1, s2], undefined, "s2")).toBe("s2");
+    expect(idOf([s1, s2], undefined, "*")).toBe("*");
+    expect(idOf([s1, s2], undefined, "s0")).toBe("s1");
+    expect(idOf([s1, s2], "s2", "*")).toBe("s2");
+  });
+
+  it("開いた Iteration がなければ「すべて」", () => {
+    expect(idOf([])).toBe("*");
+    expect(idOf([], "s1")).toBe("*");
+  });
+
+  it("「すべて」は開いた Iteration のチケットだけで、Iteration に入っていないチケットと閉じた Iteration のチケットは含めない", () => {
+    const tickets = [
+      ticket({ id: "t1", iteration: "s1" }),
+      ticket({ id: "t2", iteration: "s2" }),
+      ticket({ id: "t3", iteration: "s0" }),
+      ticket({ id: "t4" }),
+    ];
+    const ids = (selection: Parameters<typeof ticketsInSelection>[2]) =>
+      ticketsInSelection(tickets, [s1, s2], selection).map((t) => t.id);
+    expect(ids({ kind: "all" })).toEqual(["t1", "t2"]);
+    expect(ids({ kind: "iteration", iteration: s2 })).toEqual(["t2"]);
+    expect(ticketsInSelection(tickets, [], { kind: "all" })).toEqual([]);
   });
 });

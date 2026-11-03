@@ -7,7 +7,7 @@ import { useStore, type Store } from "./store.js";
 import {
   hrefOf,
   isDetailRoute,
-  NO_ITERATION,
+  ALL_ITERATIONS,
   parseRoute,
   toggleRoute,
   useRoute,
@@ -50,7 +50,7 @@ function lastHashUsable(saved: LastHash, store: Store): boolean {
   if (route.page === "board") {
     if (
       route.iteration &&
-      route.iteration !== NO_ITERATION &&
+      route.iteration !== ALL_ITERATIONS &&
       !store.iterations.some((i) => i.id === route.iteration && i.status !== "closed")
     )
       return false;

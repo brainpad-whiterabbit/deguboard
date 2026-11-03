@@ -46,6 +46,9 @@ export function iteration(partial: Partial<Iteration> & { id: string; name: stri
   return { project: "default", goal: "", status: "planned", ...partial };
 }
 
+/** fixture が iterations を渡されないときに置く active の Iteration */
+export const DEFAULT_ITERATION = iteration({ id: "s0", name: "既定", status: "active" });
+
 /** plan.list の 1 行。progress・waiting・ready・next は空のまま（fixture の plan.list は withPlanFacts でチケットから求めて載せる） */
 export function plan(partial: Partial<PlanRow> & { id: string; tickets: string[] }): PlanRow {
   return {
@@ -74,6 +77,14 @@ function withPlanFacts(row: PlanRow, tickets: readonly Ticket[]): PlanRow {
 }
 
 export function fixture(partial: Partial<Fixture> = {}): Fixture {
+  // iterations を渡さなければ、active の Iteration（s0）を 1 つ置き、Iteration を持たないチケットをそこに入れる（カンバンは開いた Iteration のチケットだけを出すので）
+  if (!partial.iterations) {
+    const result = fixture({ ...partial, iterations: [DEFAULT_ITERATION] });
+    return {
+      ...result,
+      tickets: result.tickets.map((t) => ("iteration" in t ? t : { ...t, iteration: "s0" })),
+    };
+  }
   return {
     projects: [
       {

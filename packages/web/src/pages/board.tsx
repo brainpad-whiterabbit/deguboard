@@ -1,8 +1,8 @@
 // カンバン（UI-2）。絞り込みの欄（Iteration・Epic・担当者）、選んだ Iteration の見出し、
-// その Iteration のチケットを含む Plan の帯（実行計画）と、その Iteration のチケットを状態ごとの節（todo / in_progress / review / done。中止は畳んだ節）で出す。
-// Iteration の選択肢は planned と active と「Iteration なし」、Epic の選択肢は open だけ。
-// Iteration が 1 つもない Project では Iteration で絞らず、全チケットのカンバンにする。絞り込みの値はハッシュに持つ。
-// VS Code の左パネル（surface=sidebar）では、Iteration を選択欄の代わりに札の列（なし・+ を含む）で切り替え、見出しを 2 段と進みの帯に詰め、
+// 選んだ範囲のチケットを含む Plan の帯（実行計画）と、その範囲のチケットを状態ごとの節（todo / in_progress / review / done。中止は畳んだ節）で出す。
+// 範囲は planned か active の Iteration 1 つか「すべて」（planned と active の Iteration すべて）で、Iteration に入っていないチケットはバックログで見る。
+// Epic の選択肢は open だけ。開いた Iteration がなければ、列も帯も出さずにバックログと Iteration の作成へ案内する。絞り込みの値はハッシュに持つ。
+// VS Code の左パネル（surface=sidebar）では、Iteration を選択欄の代わりに札の列（すべて・+ を含む）で切り替え、見出しを 2 段と進みの帯に詰め、
 // 詳細・…・開始・閉じる・件数は出さない（件数は帯の done/全体）。Epic・担当の絞り込みは見出しの右端の漏斗で開き（開閉は host.state）、
 // 絞っている間は見出しの下に値の札（× で外す）を出す。状態の節はペイン風の見出しにする。
 // 左パネルの行は担当の名前の列を出さず、右端の上の段（Plan の番号の左）に担当の印（AssigneeMark。人は頭文字の丸、agent は持ち主の丸と汎用のアイコン）を出す。
@@ -50,7 +50,7 @@ import {
 } from "../components/row-end.js";
 import { useChangeFlash } from "../components/change-flash.js";
 import { useHost, useUiState } from "../host.js";
-import { hrefOf, navigate, NO_ITERATION, type BoardQuery } from "../router.js";
+import { ALL_ITERATIONS, hrefOf, navigate, type BoardQuery } from "../router.js";
 import { useStore } from "../store.js";
 import {
   BOARD_STATUSES,
@@ -70,8 +70,44 @@ import {
   type TicketRow,
 } from "../types.js";
 
-/** 選んでいるもの。all は Iteration のない Project（Iteration で絞らない） */
-type Selection = { kind: "all" } | { kind: "none" } | { kind: "iteration"; iteration: Iteration };
+/** 選んでいる範囲。all は planned と active の Iteration すべて */
+type Selection = { kind: "all" } | { kind: "iteration"; iteration: Iteration };
+
+/**
+ * カンバンの範囲を決める（UI-2）。open は planned と active の Iteration（番号の順）。
+ * ハッシュの iteration（query）が open の Iteration か「すべて」ならそれ、でなければ（閉じた・存在しない Iteration、古い「なし」の値）
+ * 最後に選んだもの（remembered）が使えればそれ、どちらもなければ既定（active、なければ番号の小さい planned）。open が空なら「すべて」
+ */
+export function boardSelection(
+  open: readonly Iteration[],
+  query: string | undefined,
+  remembered: string | undefined,
+): Selection {
+  const pick = (id: string | undefined): Selection | undefined => {
+    if (id === ALL_ITERATIONS) return { kind: "all" };
+    const iteration = open.find((i) => i.id === id);
+    return iteration ? { kind: "iteration", iteration } : undefined;
+  };
+  // active は Project に 1 つ（IT-1）なので、札で選んでいなければそれを選ぶ
+  const fallback = open.find((i) => i.status === "active") ?? open[0];
+  return (
+    pick(query) ??
+    pick(remembered) ??
+    (fallback ? { kind: "iteration", iteration: fallback } : { kind: "all" })
+  );
+}
+
+/** 範囲（selection）のチケット。「すべて」は open の Iteration に入っているチケットだけで、Iteration に入っていないチケットは含めない */
+export function ticketsInSelection<T extends Pick<Ticket, "iteration">>(
+  tickets: readonly T[],
+  open: readonly Pick<Iteration, "id">[],
+  selection: Selection,
+): T[] {
+  if (selection.kind === "iteration")
+    return tickets.filter((t) => t.iteration === selection.iteration.id);
+  const ids = new Set(open.map((i) => i.id));
+  return tickets.filter((t) => !!t.iteration && ids.has(t.iteration));
+}
 
 export function BoardPage({ query }: { query: BoardQuery }) {
   const store = useStore();
@@ -91,20 +127,13 @@ export function BoardPage({ query }: { query: BoardQuery }) {
     () => store.iterations.filter((i) => i.status !== "closed").sort(byNumber),
     [store.iterations],
   );
-  const selection = useMemo<Selection>(() => {
-    if (open.length === 0) return { kind: "all" };
-    if (query.iteration === NO_ITERATION) return { kind: "none" };
-    const pick =
-      open.find((i) => i.id === query.iteration) ??
-      open.find((i) => i.id === lastIteration) ??
-      // active は Project に 1 つ（IT-1）なので、札で選んでいなければそれを選ぶ
-      open.find((i) => i.status === "active") ??
-      open[0]!;
-    return { kind: "iteration", iteration: pick };
-  }, [open, query.iteration, lastIteration]);
+  const selection = useMemo(
+    () => boardSelection(open, query.iteration, lastIteration),
+    [open, query.iteration, lastIteration],
+  );
 
   const select = (iteration: string) => {
-    setLastIteration(iteration === NO_ITERATION ? undefined : iteration);
+    setLastIteration(iteration);
     // 担当者は Iteration ごとに顔ぶれが変わるので外す。Epic は残す
     navigate({ page: "board", iteration, epic: query.epic });
   };
@@ -117,15 +146,10 @@ export function BoardPage({ query }: { query: BoardQuery }) {
       ...patch,
     });
 
-  const scoped = useMemo(() => {
-    const inScope = (t: Ticket) =>
-      selection.kind === "all"
-        ? true
-        : selection.kind === "none"
-          ? !t.iteration
-          : t.iteration === selection.iteration.id;
-    return store.tickets.filter(inScope);
-  }, [store.tickets, selection]);
+  const scoped = useMemo(
+    () => ticketsInSelection(store.tickets, open, selection),
+    [store.tickets, open, selection],
+  );
   // 閉じた Epic は出さない。Epic の詳細から閉じた Epic で開いたときは、選んでいるものだけ残す
   const epics = useMemo(
     () => store.epics.filter((e) => e.status === "open" || e.id === query.epic),
@@ -248,24 +272,20 @@ export function BoardPage({ query }: { query: BoardQuery }) {
       ) : (
         <>
           <div className="board-filters">
-            {selection.kind === "all" ? (
-              <span className="muted">Iteration はない</span>
-            ) : (
-              <label>
-                Iteration
-                <select
-                  value={selection.kind === "none" ? NO_ITERATION : selection.iteration.id}
-                  onChange={(e) => select(e.target.value)}
-                >
-                  {open.map((i) => (
-                    <option key={i.id} value={i.id}>
-                      {i.id} {i.name}（{ITERATION_LABELS[i.status]}）
-                    </option>
-                  ))}
-                  <option value={NO_ITERATION}>Iteration なし</option>
-                </select>
-              </label>
-            )}
+            <label>
+              Iteration
+              <select
+                value={selection.kind === "all" ? ALL_ITERATIONS : selection.iteration.id}
+                onChange={(e) => select(e.target.value)}
+              >
+                <option value={ALL_ITERATIONS}>すべて（planned と active）</option>
+                {open.map((i) => (
+                  <option key={i.id} value={i.id}>
+                    {i.id} {i.name}（{ITERATION_LABELS[i.status]}）
+                  </option>
+                ))}
+              </select>
+            </label>
             {creating ? null : (
               <button type="button" className="link" onClick={() => setCreating(true)}>
                 + Iteration を作る
@@ -280,35 +300,65 @@ export function BoardPage({ query }: { query: BoardQuery }) {
           ) : null}
         </>
       )}
-      <PlanBand scope={scoped} />
-      <DndContext sensors={sensors} onDragEnd={(e) => void onDragEnd(e)}>
-        <div className="board">
-          {BOARD_STATUSES.map((status) => (
-            <Column
-              key={status}
-              status={status}
-              tickets={tickets.filter((t) => t.status === status)}
-              planOf={planOf}
-              planMarks={planMarks}
-              flashing={flash.flashing}
-              // 完了は既定で畳む（どの surface でも。開いた状態は useUiState が保つ）
-              defaultOpen={status !== "done"}
-            />
-          ))}
-          {/* 中止は切り替えではなく、あるときだけ最後の列（サイドバーでは最後の節）に畳んで置く */}
-          {abandoned.length > 0 ? (
-            <Column
-              status="abandoned"
-              tickets={abandoned}
-              planOf={planOf}
-              planMarks={planMarks}
-              flashing={flash.flashing}
-              defaultOpen={false}
-            />
-          ) : null}
-        </div>
-      </DndContext>
+      {open.length === 0 ? (
+        <NoOpenIteration onCreate={creating ? undefined : () => setCreating(true)} />
+      ) : (
+        <>
+          <PlanBand scope={scoped} />
+          <DndContext sensors={sensors} onDragEnd={(e) => void onDragEnd(e)}>
+            <div className="board">
+              {BOARD_STATUSES.map((status) => (
+                <Column
+                  key={status}
+                  status={status}
+                  tickets={tickets.filter((t) => t.status === status)}
+                  planOf={planOf}
+                  planMarks={planMarks}
+                  flashing={flash.flashing}
+                  // 完了は既定で畳む（どの surface でも。開いた状態は useUiState が保つ）
+                  defaultOpen={status !== "done"}
+                />
+              ))}
+              {/* 中止は切り替えではなく、あるときだけ最後の列（サイドバーでは最後の節）に畳んで置く */}
+              {abandoned.length > 0 ? (
+                <Column
+                  status="abandoned"
+                  tickets={abandoned}
+                  planOf={planOf}
+                  planMarks={planMarks}
+                  flashing={flash.flashing}
+                  defaultOpen={false}
+                />
+              ) : null}
+            </div>
+          </DndContext>
+        </>
+      )}
     </section>
+  );
+}
+
+/** 開いた Iteration がないときの案内（UI-2）。列と帯の代わりに出し、バックログと Iteration の作成へ導く。onCreate は作るフォームを開いていなければ渡す */
+function NoOpenIteration({ onCreate }: { onCreate: (() => void) | undefined }) {
+  return (
+    <div className="empty board-empty">
+      <p>
+        開いた Iteration（planned・active）はない。カンバンは planned と active の Iteration
+        のチケットを出す。
+      </p>
+      <p>
+        Iteration に入っていないチケットは <a href={hrefOf({ page: "backlog" })}>バックログ</a>{" "}
+        で見る。
+        {onCreate ? (
+          <>
+            {" "}
+            <button type="button" className="link" onClick={onCreate}>
+              + Iteration を作る
+            </button>
+          </>
+        ) : null}
+      </p>
+    </div>
   );
 }
 
@@ -372,7 +422,7 @@ function SidebarBoardHead({
   filter,
 }: {
   open: Iteration[];
-  /** 札の進みと「なし n」を数えるチケット。閉じた Iteration・Epic の終わったチケットを除き（hideClosedFinished）、Epic・担当の絞り込みとは関係なく一定 */
+  /** 札の進みを数えるチケット。閉じた Iteration・Epic の終わったチケットを除き（hideClosedFinished）、Epic・担当の絞り込みとは関係なく一定 */
   tickets: readonly Ticket[];
   selection: Selection;
   progress: Progress;
@@ -381,7 +431,11 @@ function SidebarBoardHead({
   filter: { open: boolean; active: boolean; onToggle: () => void } | undefined;
 }) {
   const it = selection.kind === "iteration" ? selection.iteration : undefined;
-  const name = it ? it.name : selection.kind === "none" ? "Iteration なし" : "Iteration はない";
+  const name = it
+    ? it.name
+    : open.length > 0
+      ? "planned・active のすべて"
+      : "開いた Iteration はない";
   const period = it ? shortPeriod(it.start, it.end) : undefined;
   return (
     <header className="board-head sidebar-head">
@@ -412,18 +466,20 @@ function SidebarBoardHead({
           </span>
         ) : null}
       </div>
-      <div className="head-line">
-        <StatusBand progress={progress} />
-      </div>
+      {open.length > 0 ? (
+        <div className="head-line">
+          <StatusBand progress={progress} />
+        </div>
+      ) : null}
     </header>
   );
 }
 
 /**
- * 左パネルの Iteration の札の列（UI-2）。planned と active の Iteration を番号順に並べ、最後に「なし n」（Iteration に入っていない
- * 終わっていないチケットの数）と「+」（Iteration を作る）を置く。札は番号・進みの輪・done/全体で、選んでいる札は塗り、
+ * 左パネルの Iteration の札の列（UI-2）。先頭に「すべて」（planned と active の Iteration すべて。開いた Iteration がなくても出す）、
+ * planned と active の Iteration を番号順に並べ、最後に「+」（Iteration を作る）を置く。札は番号・進みの輪・done/全体で、選んでいる札は塗り、
  * active は実線、planned は破線の枠。名前・期間・目標はツールチップで読む。
- * 幅に入らなければ列だけが横にスクロールし、選んでいる札が見える位置まで寄せる。Iteration のない Project では「+」だけ
+ * 幅に入らなければ列だけが横にスクロールし、選んでいる札が見える位置まで寄せる
  */
 function IterationChips({
   open,
@@ -439,12 +495,7 @@ function IterationChips({
   onCreate: () => void;
 }) {
   const strip = useRef<HTMLDivElement>(null);
-  const selected =
-    selection.kind === "iteration"
-      ? selection.iteration.id
-      : selection.kind === "none"
-        ? NO_ITERATION
-        : undefined;
+  const selected = selection.kind === "iteration" ? selection.iteration.id : ALL_ITERATIONS;
   // 選んでいる札が列の見える範囲から外れていたら、列だけを横にスクロールして寄せる（scrollIntoView は画面ごと動かすので使わない）
   useLayoutEffect(() => {
     const el = strip.current;
@@ -456,9 +507,22 @@ function IterationChips({
     if (left < el.scrollLeft) el.scrollLeft = left;
     else if (right > el.scrollLeft + el.clientWidth) el.scrollLeft = right - el.clientWidth;
   }, [selected, open.length]);
-  const loose = tickets.filter((t) => !t.iteration && !isFinished(t.status)).length;
+  const all = ticketProgress(ticketsInSelection(tickets, open, { kind: "all" }));
   return (
     <div className="iteration-chips" role="group" aria-label="Iteration" ref={strip}>
+      <button
+        type="button"
+        className="iteration-chip all"
+        aria-pressed={selected === ALL_ITERATIONS}
+        title="すべて（planned と active の Iteration）"
+        onClick={() => onSelect(ALL_ITERATIONS)}
+      >
+        すべて
+        <ProgressRing progress={all} />
+        <span className="chip-count">
+          {all.done}/{all.total}
+        </span>
+      </button>
       {open.map((i) => {
         // core の iteration.list は進みを返さず、札は画面の都合（閉じた Epic の終わったチケットを除く）で数える対象を決めるので、
         // core の progressOf の写し（ticketProgress）で数える。core が進みを返す Epic の行（履歴）は core の値を読む
@@ -482,17 +546,6 @@ function IterationChips({
           </button>
         );
       })}
-      {selection.kind === "all" ? null : (
-        <button
-          type="button"
-          className="iteration-chip loose"
-          aria-pressed={selected === NO_ITERATION}
-          title={`Iteration なし（終わっていないチケット ${loose} 件）`}
-          onClick={() => onSelect(NO_ITERATION)}
-        >
-          なし {loose}
-        </button>
-      )}
       <button
         type="button"
         className="iteration-chip create"
