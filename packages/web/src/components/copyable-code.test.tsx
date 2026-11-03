@@ -36,8 +36,7 @@ describe("値とコピーのボタン", () => {
     expect(screen.getByRole("status").textContent).toBe("");
   });
 
-  it("パネルで navigator.clipboard がなければ拡張ホストに頼み、「コピーした」を出す", async () => {
-    setClipboard(undefined);
+  it("パネルでは拡張ホストに頼み、「コピーした」を出す", async () => {
     const copy = vi.fn(async () => {});
     const client = { copy } as unknown as WebviewClient;
     render(
@@ -52,7 +51,7 @@ describe("値とコピーのボタン", () => {
     expect(screen.getByRole("status").textContent).toBe("コピーした");
   });
 
-  it("どちらの道でもコピーできなければ「コピーできない」を出す", async () => {
+  it("ブラウザで navigator.clipboard がなければ「コピーできない」を出す", async () => {
     setClipboard(undefined);
     render(
       <HostProvider host={createHost("browser", null)}>
