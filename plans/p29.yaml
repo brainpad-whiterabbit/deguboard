@@ -43,3 +43,4 @@ details:
     approach: 属性ごとの小さな編集部品を作り、確定で ticket.update に 1 属性だけ渡す
 approved_by: eiki.kitajima/agent
 approved_at: 2026-11-03T03:22:21Z
+closed_at: 2026-11-03T07:46:55Z

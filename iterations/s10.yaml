@@ -2,4 +2,7 @@ id: s10
 project: default
 name: sprint10
 goal: VS Code のパネルのチケット詳細を読みやすくする
-status: active
+status: closed
+closed_at: 2026-11-03T07:46:56Z
+completed: 19
+carried_over: 0
