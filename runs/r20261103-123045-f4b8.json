@@ -1,0 +1,25 @@
+{
+  "id": "r20261103-123045-f4b8",
+  "ticket": "t316",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-03T12:30:45Z",
+  "finished_at": "2026-11-03T12:32:03Z",
+  "result": "success",
+  "error": null,
+  "retries": 5,
+  "retry_reasons": [
+    "backlog.tsx のコメントに残った Iteration の開始を外した",
+    "cli の ask-menu のテスト名を画面の吹き出しと右クリックにした",
+    "ActionDef.skill の JSDoc を実装と ADR-010 に合わせた",
+    "Iteration の直すを人に回すコマンドに --goal・--start・--end を足しテストした",
+    "ask の summary と AG-8 に操作が 1 つに決まる頼むことの範囲を足した"
+  ],
+  "usage": {
+    "input": 10,
+    "output": 3145,
+    "cache_read": 464837,
+    "cache_write": 4795
+  }
+}
