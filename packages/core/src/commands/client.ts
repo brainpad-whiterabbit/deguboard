@@ -37,13 +37,19 @@ export type WebviewRequest =
  * 拡張ホスト → Webview の通知。要求と対応づかないので id を持たない（UI-12）。reload は store を読み直す（同期・再読み込み・ファイルの変化の後）。
  * toggle はその画面と来る前の画面を切り替える（ビューのタイトル行の歯車で設定画面を開け閉めする）。
  * ask はエージェントへの依頼文を作る入力欄を、targets（ID。空なら対象なし）を対象にして開く（UI-15。タイトル行の吹き出しとコマンドパレット）。
- * action を付ければその頼むことを選んで開く（行・見出しの右クリックのサブメニュー）
+ * action を付ければその頼むことを選んで開く（行・見出しの右クリックのサブメニュー）。within は対象のチケットが入っている Iteration・Epic（詳細の中の行）
  */
 export type WebviewEvent =
   | { kind: "event"; name: "reload" }
   | { kind: "event"; name: "navigate"; hash: string }
   | { kind: "event"; name: "toggle"; hash: string }
-  | { kind: "event"; name: "ask"; targets: string[]; action?: AskAction | undefined };
+  | {
+      kind: "event";
+      name: "ask";
+      targets: string[];
+      action?: AskAction | undefined;
+      within?: string | undefined;
+    };
 
 /**
  * 拡張と画面で合わせる値（UI-12）。拡張（vscode）はここを読み、web は実行時のコードを取り込まないので写しを持ち、
@@ -54,21 +60,35 @@ export const WEBVIEW_CONTRACT = {
   backlogRowSection: "backlogTicket",
   /**
    * エージェントに頼む右クリックのサブメニュー（UI-15）。行・見出しの data-vscode-context に、対象の ID（空白区切り）・
-   * 頼むことの候補（ask-menu の action を空白区切り）・おすすめを載せ、package.json の when が候補を見て項目を出す
+   * 頼むことの候補（ask-menu の action を空白区切り）・おすすめを載せ、package.json の when が候補を見て項目を出す。
+   * Iteration・Epic の詳細の中の行は、対象のチケットが入っている場所（ask の within）を within に載せる
    */
-  askContext: { targets: "askTargets", actions: "askActions", recommended: "askRecommended" },
+  askContext: {
+    targets: "askTargets",
+    actions: "askActions",
+    recommended: "askRecommended",
+    within: "askWithin",
+  },
   /**
    * 頼める行・見出しの webviewSection（バックログの行は backlogRowSection）。サブメニューの when は askActions だけを見て section は見ない。
    * section は場所の種類の名前で、場所ごとの項目を右クリックに足すときに when で使う
    */
-  askSections: ["boardTicket", "boardHeading", "backlogHeading", "epicChip", "historyRow"],
+  askSections: [
+    "boardTicket",
+    "boardHeading",
+    "backlogHeading",
+    "epicChip",
+    "historyRow",
+    "detailTitle",
+    "detailTicket",
+  ],
   /** 拡張が開く画面のルート（web の router のハッシュ） */
   routes: { board: "#/board", config: "#/config" },
   /** 拡張ホスト → Webview の通知の名前（WebviewEvent の name の全件） */
   eventNames: ["reload", "navigate", "toggle", "ask"],
 } as const satisfies {
   backlogRowSection: string;
-  askContext: Record<"targets" | "actions" | "recommended", string>;
+  askContext: Record<"targets" | "actions" | "recommended" | "within", string>;
   askSections: readonly string[];
   routes: Record<string, `#/${string}`>;
   eventNames: readonly WebviewEvent["name"][];

@@ -192,6 +192,7 @@ function askSubjectOf(data: Fixture, id: string): AskSubject {
     status: t.status,
     iteration: t.iteration ?? null,
     iteration_status: data.iterations.find((i) => i.id === t.iteration)?.status ?? null,
+    epic: t.epic ?? null,
     deps_done: t.deps_done,
     running: false,
   };
@@ -226,12 +227,17 @@ export function mockClient(data = fixture()): MockClient {
       const { targets = [], ...rest } = input as { targets?: string[] } & Record<string, unknown>;
       return buildAsk({ subjects: targets.map((id) => askSubjectOf(data, id)), ...rest });
     },
-    // core の ask-menu と同じく、組（空白区切りの ID）ごとに候補を返す。fixture にない対象は error
+    // core の ask-menu と同じく、組（空白区切りの ID。@ を付けたものは場所）ごとに候補を返す。fixture にない対象は error
     "ask-menu": (input) =>
       ((input as { sets?: string[] }).sets ?? []).map((key): AskMenu => {
         try {
-          const ids = key.split(" ").filter(Boolean);
-          const candidates = askCandidates(ids.map((id) => askSubjectOf(data, id)));
+          const tokens = key.split(" ").filter(Boolean);
+          const ids = tokens.filter((id) => !id.startsWith("@"));
+          const within = tokens.find((id) => id.startsWith("@"))?.slice(1);
+          const candidates = askCandidates(
+            ids.map((id) => askSubjectOf(data, id)),
+            within,
+          );
           return { key, candidates, error: null };
         } catch (e) {
           return { key, candidates: [], error: e instanceof Error ? e.message : String(e) };

@@ -294,7 +294,8 @@ describe("画面", () => {
     expect(screen.getByText("起票者").nextElementSibling?.textContent).toBe("eiki/agent");
     fireEvent.change(screen.getByLabelText("Status"), { target: { value: "in_progress" } });
     expect((await screen.findByRole("alert")).textContent).toContain("依存先が終わっていない");
-    expect(client.calls.at(-1)).toMatchObject({
+    // タイトルの吹き出しの候補（ask-menu）は読み取りだけなので、書き込みの呼び出しの順からは除く
+    expect(client.calls.filter((c) => c.name !== "ask-menu").at(-1)).toMatchObject({
       name: "ticket.move",
       input: { ticket: "t3", status: "in_progress" },
     });

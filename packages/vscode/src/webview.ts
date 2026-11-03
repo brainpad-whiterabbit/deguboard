@@ -106,7 +106,7 @@ export function sidebarDelivery(
 }
 
 /**
- * エージェントに頼む入力欄を出す頼み（UI-15）の届け方。描かれた Webview には ask の event を送り（action があれば付ける）、
+ * エージェントに頼む入力欄を出す頼み（UI-15）の届け方。描かれた Webview には ask の event を送り（action・within があれば付ける）、
  * まだ描かれていなければ、対象を覚えさせて HTML に埋める（Webview が起動する前の event は届かないので。resolveSidebar が使う）。
  * 右クリックのサブメニューは描かれた Webview からしか開かないので、描かれていないときは頼むことを覚えない（おすすめで開く）
  */
@@ -114,12 +114,17 @@ export function askDelivery(
   rendered: boolean,
   targets: readonly string[],
   action?: AskAction,
+  within?: string,
 ): { post: WebviewEvent } | { pending: string[] } {
   return rendered
     ? {
-        post: action
-          ? { kind: "event", name: "ask", targets: [...targets], action }
-          : { kind: "event", name: "ask", targets: [...targets] },
+        post: {
+          kind: "event",
+          name: "ask",
+          targets: [...targets],
+          ...(action ? { action } : {}),
+          ...(within ? { within } : {}),
+        },
       }
     : { pending: [...targets] };
 }

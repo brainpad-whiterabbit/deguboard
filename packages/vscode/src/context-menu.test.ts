@@ -191,7 +191,10 @@ describe("行・見出しの「エージェントに頼む ›」のサブメニ
     expect(submenus).toEqual([expected.submenu]);
     // 右クリックのメニューの先頭に置き、候補（askActions）を載せた行・見出しだけに出す
     expect(menus["webview/context"]![0]).toEqual(expected.context);
-    expect(expected.context.when).toBe("webviewId == 'deguboard.screens' && askActions");
+    // 左パネル（ビューの ID）とパネル（viewType）の両方に出す
+    expect(expected.context.when).toBe(
+      "(webviewId == 'deguboard.screens' || webviewId == 'deguboard') && askActions",
+    );
     expect(menus[ASK_SUBMENU]).toEqual(expected.items);
     for (const c of expected.commands) expect(commands).toContainEqual(c);
     for (const p of expected.palette) expect(menus["commandPalette"]).toContainEqual(p);
@@ -204,6 +207,7 @@ describe("行・見出しの「エージェントに頼む ›」のサブメニ
       targets: "askTargets",
       actions: "askActions",
       recommended: "askRecommended",
+      within: "askWithin",
     });
   });
 
@@ -232,6 +236,7 @@ describe("行・見出しの「エージェントに頼む ›」のサブメニ
         status: "done",
         iteration: "s1",
         iteration_status: "closed",
+        epic: null,
         deps_done: true,
         running: false,
       },
@@ -256,13 +261,45 @@ describe("行・見出しの「エージェントに頼む ›」のサブメニ
       askActions: "plan assign check free",
       askRecommended: "plan",
     };
-    expect(menuAskOf(arg, "plan")).toEqual({ targets: ["t1", "t2"], action: "plan" });
+    expect(menuAskOf(arg, "plan")).toEqual({
+      targets: ["t1", "t2"],
+      action: "plan",
+      panel: false,
+    });
     expect(menuAskOf({ ...arg, askTargets: "" }, "check")).toEqual({
       targets: [],
       action: "check",
+      panel: false,
     });
     expect(menuAskOf(arg, "work")).toBeUndefined();
     expect(menuAskOf({ webviewSection: "boardTicket" }, "plan")).toBeUndefined();
     expect(menuAskOf(null, "plan")).toBeUndefined();
+  });
+
+  it("パネルの詳細の行の右クリックは、場所（askWithin）とパネルから開いたこと（引数の webview が viewType）を取る", () => {
+    const arg = {
+      webview: "deguboard",
+      webviewSection: "detailTicket",
+      askTargets: "t1",
+      askWithin: "s1",
+      askActions: "work fix remove free",
+      askRecommended: "work",
+    };
+    expect(menuAskOf(arg, "remove")).toEqual({
+      targets: ["t1"],
+      action: "remove",
+      within: "s1",
+      panel: true,
+    });
+    expect(menuAskOf({ ...arg, webview: "deguboard.screens" }, "remove")).toMatchObject({
+      panel: false,
+    });
+    // 外すはおすすめでなければ次の節に出る
+    expect(shown({ askActions: arg.askActions, askRecommended: "work" })).toEqual([
+      "work",
+      "fix",
+      "remove",
+      "free",
+    ]);
   });
 });
