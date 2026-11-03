@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { formatShortTime } from "./ticket.js";
+import { formatShortTime } from "./date-time.js";
 
-describe("チケット詳細の日時（formatShortTime）", () => {
+describe("日時（formatShortTime）", () => {
   const now = new Date("2026-11-03T12:00:00Z");
 
   it("今年の日時は年を省いて月日と時刻を出す", () => {

@@ -1,0 +1,195 @@
+// ブラウザのチケット詳細の右の列（属性）。Status は Workflow によらずすべてを並べ、属性を 1 つの一覧に出す。
+// 編集のボタンを押している間（draft があるとき）は、優先度・ラベル・Epic・Iteration・任意フィールド・担当を入力欄にし、保存でまとめて ticket.update に渡す
+
+import type { Store } from "../store.js";
+import {
+  STATUSES,
+  type FieldDefinition,
+  type Priority,
+  type Status,
+  type TicketDetail,
+} from "../types.js";
+import { optionsOf } from "./inline-edit.js";
+import { fieldText, FieldInput, FieldView, parseFieldValue } from "./ticket-fields.js";
+import {
+  parseLabels,
+  PRIORITY_CHOICES,
+  propRow,
+  StatusSelect,
+  ticketAttrs,
+} from "./ticket-props.js";
+
+/** 編集のボタンで直している間の値。パネルではタイトルと本文だけを使う */
+export interface Draft {
+  title: string;
+  priority: Priority;
+  labels: string;
+  epic: string;
+  iteration: string;
+  assignee: string;
+  body: string;
+  fields: Record<string, string>;
+}
+
+export function draftOf(t: TicketDetail, fields: readonly FieldDefinition[]): Draft {
+  return {
+    title: t.title,
+    priority: t.priority,
+    labels: t.labels.join(", "),
+    epic: t.epic ?? "",
+    iteration: t.iteration ?? "",
+    assignee: t.assignee ?? "",
+    body: t.body,
+    fields: Object.fromEntries(fields.map((f) => [f.id, fieldText(t[f.id])])),
+  };
+}
+
+/** ブラウザの保存で、タイトルと本文に足して ticket.update に渡す属性。任意フィールドは値のあるものだけ */
+export function attrPatchOf(
+  draft: Draft,
+  fields: readonly FieldDefinition[],
+): Record<string, unknown> {
+  const patch: Record<string, unknown> = {
+    priority: draft.priority,
+    labels: parseLabels(draft.labels),
+    epic: draft.epic || null,
+    iteration: draft.iteration || null,
+    assignee: draft.assignee.trim() || null,
+  };
+  const values = Object.fromEntries(
+    fields
+      .map((f) => [f.id, parseFieldValue(f, draft.fields[f.id] ?? "")])
+      .filter(([, v]) => v !== undefined),
+  );
+  if (Object.keys(values).length) patch["fields"] = values;
+  return patch;
+}
+
+export function BrowserProps({
+  store,
+  ticket,
+  fields,
+  labelOf,
+  draft,
+  setDraft,
+}: {
+  store: Store;
+  ticket: TicketDetail;
+  fields: readonly FieldDefinition[];
+  labelOf: (s: Status) => string;
+  draft: Draft | null;
+  setDraft: (d: Draft) => void;
+}) {
+  const a = ticketAttrs(store, ticket, false);
+  return (
+    <dl className="props">
+      {propRow(
+        "status",
+        "Status",
+        <StatusSelect store={store} ticket={ticket} statuses={STATUSES} labelOf={labelOf} />,
+      )}
+      {propRow(
+        "priority",
+        "優先度",
+        draft ? (
+          <select
+            value={draft.priority}
+            onChange={(e) => setDraft({ ...draft, priority: e.target.value as Priority })}
+            aria-label="優先度"
+          >
+            {optionsOf(PRIORITY_CHOICES)}
+          </select>
+        ) : (
+          a.priorityView
+        ),
+      )}
+      {propRow(
+        "labels",
+        "ラベル",
+        draft ? (
+          <input
+            value={draft.labels}
+            onChange={(e) => setDraft({ ...draft, labels: e.target.value })}
+            placeholder="カンマ区切り"
+            aria-label="ラベル"
+          />
+        ) : (
+          a.labelsView
+        ),
+      )}
+      {propRow(
+        "epic",
+        "Epic",
+        draft ? (
+          <select
+            value={draft.epic}
+            onChange={(e) => setDraft({ ...draft, epic: e.target.value })}
+            aria-label="Epic"
+          >
+            {optionsOf(a.epicChoices)}
+          </select>
+        ) : (
+          a.epicView
+        ),
+      )}
+      {propRow(
+        "iteration",
+        "Iteration",
+        draft ? (
+          <select
+            value={draft.iteration}
+            onChange={(e) => setDraft({ ...draft, iteration: e.target.value })}
+            aria-label="Iteration"
+          >
+            {optionsOf(a.iterationChoices)}
+          </select>
+        ) : (
+          a.iterationView
+        ),
+      )}
+      {fields.map((f) =>
+        propRow(
+          `field:${f.id}`,
+          f.label ?? f.id,
+          draft ? (
+            <FieldInput
+              def={f}
+              value={draft.fields[f.id] ?? ""}
+              onChange={(v) => setDraft({ ...draft, fields: { ...draft.fields, [f.id]: v } })}
+            />
+          ) : (
+            <FieldView value={ticket[f.id]} />
+          ),
+        ),
+      )}
+      {propRow(
+        "dependsOn",
+        "依存先",
+        <>
+          {a.dependsOnView}
+          {!ticket.deps_done && <div className="muted">依存先が終わっていない</div>}
+        </>,
+      )}
+      {propRow("dependents", "依存元", a.dependentsView)}
+      {propRow(
+        "assignee",
+        "担当",
+        draft ? (
+          <input
+            value={draft.assignee}
+            onChange={(e) => setDraft({ ...draft, assignee: e.target.value })}
+            placeholder="eiki か eiki/agent"
+            aria-label="担当"
+          />
+        ) : (
+          a.assigneeView
+        ),
+      )}
+      {propRow("branch", "ブランチ", a.branchView)}
+      {propRow("pr", "PR", a.prView)}
+      {propRow("createdBy", "起票者", a.createdByView)}
+      {propRow("created", "作成", a.createdView)}
+      {propRow("updated", "更新", a.updatedView)}
+    </dl>
+  );
+}
