@@ -320,23 +320,27 @@ describe("画面", () => {
     window.location.hash = "#/tickets/t3";
     mount(mockClient(), hostOf("panel"));
     const h1 = await screen.findByRole("heading", { level: 1, name: "画面" });
-    const edit = screen.getByRole("button", { name: "本文と属性を編集" });
+    const edit = screen.getByRole("button", { name: "編集" });
     const meta = edit.closest(".detail-meta")!;
     expect(meta.lastElementChild!.contains(edit)).toBe(true);
     expect(meta.closest(".detail-head")).toBe(h1.closest(".detail-head"));
     // 値のない Iteration・担当・PR は帯に出さない
-    expect(meta.textContent).toBe("Todomedium本文と属性を編集");
+    expect(meta.textContent).toBe("Todomedium編集");
     const created = screen.getByText("作成").nextElementSibling!.querySelector("time")!;
     expect(created.getAttribute("title")).toBe("2026-01-01T00:00:00Z");
     expect(created.textContent).toBe("01-01 00:00");
     expect(screen.queryByText("依存先")).toBeNull();
     expect(screen.queryByText("ブランチ")).toBeNull();
     const empty = screen.getByText("なし", { selector: "dt" }).nextElementSibling!;
-    expect(empty.textContent).toBe("Epic・Iteration・依存先・依存元・担当・ブランチ・PR");
-    // 編集中はすべての属性を出す
+    expect(empty.textContent).toBe("Epic・Iteration・依存先・依存元・担当・ブランチ・PR＋足す");
+    // 編集のボタンで入力欄になるのはタイトルと本文だけ。属性は入力欄にならず、「なし」の行も残す
     fireEvent.click(edit);
-    expect(screen.getByLabelText("Epic")).toBeTruthy();
-    expect(screen.queryByText("なし", { selector: "dt" })).toBeNull();
+    expect(screen.getByLabelText("タイトル")).toBeTruthy();
+    expect(screen.getByLabelText("本文")).toBeTruthy();
+    expect(screen.queryByLabelText("Epic")).toBeNull();
+    expect(screen.queryByLabelText("優先度")).toBeNull();
+    expect(screen.queryByLabelText("ラベル")).toBeNull();
+    expect(screen.getByText("なし", { selector: "dt" })).toBeTruthy();
     vi.useRealTimers();
   });
 
@@ -368,14 +372,12 @@ describe("画面", () => {
     expect(groupOf("記録")).toEqual(["起票者", "作成", "更新"]);
     expect(dts().at(-1)).toBe("なし");
     expect(aside.querySelector("dd.props-empty")!.textContent).toBe(
-      "ラベル・Epic・規模・依存先・依存元・PR",
+      "ラベル・Epic・規模・依存先・依存元・PR＋足す",
     );
-    // 編集中はすべての属性を見出しの下に出す
-    fireEvent.click(screen.getByRole("button", { name: "本文と属性を編集" }));
-    expect(groupOf("計画")).toEqual(["Iteration", "Epic", "担当", "優先度", "ラベル", "規模"]);
-    expect(groupOf("つながり")).toEqual(["依存先", "依存元"]);
-    expect(groupOf("作業")).toEqual(["ブランチ", "PR"]);
-    expect(dts().includes("なし")).toBe(false);
+    // 「＋足す」で選んだ属性は、値を入れている間だけ見出しの下の行に出る
+    fireEvent.click(screen.getByRole("button", { name: "＋足す" }));
+    fireEvent.change(screen.getByLabelText("値を入れる属性"), { target: { value: "epic" } });
+    expect(groupOf("計画")).toEqual(["Iteration", "Epic", "担当", "優先度"]);
   });
 
   it("エディタのパネルのチケット詳細は、依存先が終わっていなければ本文の上に依存先の ID と Status の帯を出し、依存先・依存元に Status の丸印を付けて終わった依存先を薄くする", async () => {
@@ -468,7 +470,7 @@ describe("画面", () => {
     const meta = head.querySelector(".detail-meta")!;
     expect(head.firstElementChild).toBe(h1.closest("header"));
     expect(meta.querySelector(".status-dot.status-in_progress")).toBeTruthy();
-    expect(meta.textContent).toBe("In Progresshighs1eiki/agent#12本文と属性を編集");
+    expect(meta.textContent).toBe("In Progresshighs1eiki/agent#12編集");
     expect(meta.querySelector('a[href="https://github.com/o/r/pull/12"]')).toBeTruthy();
     expect(meta.querySelector('a[href="#/iterations/s1"]')).toBeTruthy();
   });
@@ -542,6 +544,168 @@ describe("画面", () => {
       epic: "e1",
       iteration: null,
       assignee: "eiki/agent",
+    });
+  });
+
+  it("ブラウザのチケット詳細の属性はその場で直せず、値を押しても入力欄にならない", async () => {
+    window.location.hash = "#/tickets/t3";
+    mount(mockClient());
+    await screen.findByRole("heading", { level: 1, name: "画面" });
+    expect(screen.queryByRole("button", { name: "優先度を変える" })).toBeNull();
+    expect(document.querySelector(".inline-edit")).toBeNull();
+  });
+
+  describe("エディタのパネルのチケット詳細の属性をその場で直す", () => {
+    /** ticket.update の入力を記録する client で t3 を開く */
+    async function open(data = fixture()) {
+      window.location.hash = "#/tickets/t3";
+      const client = mockClient(data);
+      client.handlers["ticket.update"] = (input) => input;
+      mount(client, hostOf("panel"));
+      await screen.findByRole("heading", { level: 1, name: "画面" });
+      const updates = () =>
+        client.calls.filter((c) => c.name === "ticket.update").map((c) => c.input);
+      return { client, updates };
+    }
+
+    it("値を押すとその属性だけが選択になり、選ぶと ticket.update にその属性だけを渡す", async () => {
+      const { updates } = await open();
+      fireEvent.click(screen.getByRole("button", { name: "優先度を変える" }));
+      const select = screen.getByLabelText("優先度") as HTMLSelectElement;
+      expect(select.tagName).toBe("SELECT");
+      expect(document.activeElement).toBe(select);
+      // ほかの属性は入力欄にならない
+      expect(screen.queryByLabelText("ラベル")).toBeNull();
+      expect(screen.queryByLabelText("タイトル")).toBeNull();
+      fireEvent.change(select, { target: { value: "high" } });
+      await waitFor(() => expect(updates()).toEqual([{ ticket: "t3", priority: "high" }]));
+      expect(screen.queryByLabelText("優先度")).toBeNull();
+    });
+
+    it("入力欄は Enter で確定してその属性だけを渡し、Esc で取り消すと保存しない", async () => {
+      const { updates } = await open();
+      fireEvent.click(screen.getByRole("button", { name: "ラベルを変える" }));
+      const input = screen.getByLabelText("ラベル") as HTMLInputElement;
+      expect(input.value).toBe("web");
+      fireEvent.change(input, { target: { value: "web, ui" } });
+      fireEvent.keyDown(input, { key: "Escape" });
+      expect(screen.queryByLabelText("ラベル")).toBeNull();
+      expect(updates()).toEqual([]);
+
+      fireEvent.click(screen.getByRole("button", { name: "ラベルを変える" }));
+      const again = screen.getByLabelText("ラベル") as HTMLInputElement;
+      // 取り消した入力は残らない
+      expect(again.value).toBe("web");
+      fireEvent.change(again, { target: { value: "web, ui" } });
+      fireEvent.keyDown(again, { key: "Enter" });
+      await waitFor(() => expect(updates()).toEqual([{ ticket: "t3", labels: ["web", "ui"] }]));
+    });
+
+    it("選択も Esc で取り消せ、値が変わらなければ保存しない", async () => {
+      const { updates } = await open();
+      fireEvent.click(screen.getByRole("button", { name: "優先度を変える" }));
+      fireEvent.keyDown(screen.getByLabelText("優先度"), { key: "Escape" });
+      expect(screen.queryByLabelText("優先度")).toBeNull();
+      fireEvent.click(screen.getByRole("button", { name: "ラベルを変える" }));
+      fireEvent.keyDown(screen.getByLabelText("ラベル"), { key: "Enter" });
+      expect(screen.queryByLabelText("ラベル")).toBeNull();
+      expect(updates()).toEqual([]);
+    });
+
+    it("編集のボタンで入力欄になるのはタイトルと本文だけで、保存はタイトルと本文だけを渡す", async () => {
+      const { updates } = await open();
+      fireEvent.click(screen.getByRole("button", { name: "編集" }));
+      const aside = document.querySelector(".detail > aside")!;
+      // 右の列は Status の選択のほかに入力欄を出さない
+      expect(
+        [...aside.querySelectorAll("input, select, textarea")].map((e) =>
+          e.getAttribute("aria-label"),
+        ),
+      ).toEqual(["Status"]);
+      fireEvent.change(screen.getByLabelText("タイトル"), { target: { value: "新しい題" } });
+      fireEvent.change(screen.getByLabelText("本文"), { target: { value: "新しい本文" } });
+      fireEvent.click(screen.getByRole("button", { name: "保存" }));
+      await waitFor(() =>
+        expect(updates()).toEqual([{ ticket: "t3", title: "新しい題", body: "新しい本文" }]),
+      );
+    });
+
+    it("「なし」の行の「＋足す」から値のない属性を選んで値を入れ、その属性だけを渡す", async () => {
+      const { updates } = await open();
+      const empty = () => document.querySelector("dd.props-empty")!;
+      fireEvent.click(within(empty() as HTMLElement).getByRole("button", { name: "＋足す" }));
+      const pick = screen.getByLabelText("値を入れる属性") as HTMLSelectElement;
+      // 値を入れられるのは Epic・Iteration・担当（依存・ブランチ・PR は選べない）
+      expect([...pick.options].filter((o) => !o.disabled).map((o) => o.text)).toEqual([
+        "Epic",
+        "Iteration",
+        "担当",
+      ]);
+      fireEvent.change(pick, { target: { value: "epic" } });
+      // 選んだ Epic は「なし」から外れて行になり、選択が開く
+      expect(empty().textContent).not.toContain("Epic");
+      const epic = screen.getByLabelText("Epic") as HTMLSelectElement;
+      expect(document.activeElement).toBe(epic);
+      fireEvent.change(epic, { target: { value: "e1" } });
+      await waitFor(() => expect(updates()).toEqual([{ ticket: "t3", epic: "e1" }]));
+
+      // 担当は入力欄。Esc で取り消すと「なし」に戻る
+      fireEvent.click(within(empty() as HTMLElement).getByRole("button", { name: "＋足す" }));
+      fireEvent.change(screen.getByLabelText("値を入れる属性"), { target: { value: "assignee" } });
+      fireEvent.keyDown(screen.getByLabelText("担当"), { key: "Escape" });
+      expect(empty().textContent).toContain("担当");
+      fireEvent.click(within(empty() as HTMLElement).getByRole("button", { name: "＋足す" }));
+      fireEvent.change(screen.getByLabelText("値を入れる属性"), { target: { value: "assignee" } });
+      const assignee = screen.getByLabelText("担当");
+      fireEvent.change(assignee, { target: { value: "eiki/agent" } });
+      fireEvent.keyDown(assignee, { key: "Enter" });
+      await waitFor(() =>
+        expect(updates().at(-1)).toEqual({ ticket: "t3", assignee: "eiki/agent" }),
+      );
+    });
+
+    it("任意フィールドは型に合わせた値で fields にその 1 つだけを渡し、空にすると外す", async () => {
+      const data = fixture({
+        tickets: [ticket({ id: "t3", title: "画面", size: 3 } as Parameters<typeof ticket>[0])],
+      });
+      data.workflow.definition.fields = [
+        { id: "size", label: "規模", type: "number" },
+        { id: "kind", label: "種類", type: "enum", options: ["bug", "feature"] },
+      ];
+      const { updates } = await open(data);
+      fireEvent.click(screen.getByRole("button", { name: "規模を変える" }));
+      const size = screen.getByLabelText("規模") as HTMLInputElement;
+      expect(size.type).toBe("number");
+      fireEvent.change(size, { target: { value: "5" } });
+      fireEvent.keyDown(size, { key: "Enter" });
+      await waitFor(() => expect(updates()).toEqual([{ ticket: "t3", fields: { size: 5 } }]));
+
+      fireEvent.click(screen.getByRole("button", { name: "＋足す" }));
+      fireEvent.change(screen.getByLabelText("値を入れる属性"), {
+        target: { value: "field:kind" },
+      });
+      fireEvent.change(screen.getByLabelText("種類"), { target: { value: "bug" } });
+      await waitFor(() =>
+        expect(updates().at(-1)).toEqual({ ticket: "t3", fields: { kind: "bug" } }),
+      );
+
+      fireEvent.click(screen.getByRole("button", { name: "規模を変える" }));
+      const cleared = screen.getByLabelText("規模");
+      fireEvent.change(cleared, { target: { value: "" } });
+      fireEvent.keyDown(cleared, { key: "Enter" });
+      await waitFor(() =>
+        expect(updates().at(-1)).toEqual({ ticket: "t3", fields: { size: null } }),
+      );
+    });
+
+    it("Epic・Iteration の値のリンクを押すと、その場で直さずにリンク先へ移る", async () => {
+      const data = fixture({
+        tickets: [ticket({ id: "t3", title: "画面", epic: "e1" })],
+      });
+      await open(data);
+      const link = screen.getByRole("button", { name: "Epicを変える" }).querySelector("a")!;
+      fireEvent.click(link);
+      expect(screen.queryByLabelText("Epic")).toBeNull();
     });
   });
 
