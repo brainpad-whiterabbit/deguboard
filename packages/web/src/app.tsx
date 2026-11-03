@@ -4,16 +4,8 @@
 import { useEffect, useRef, type MouseEvent } from "react";
 import { useHost, useUiState } from "./host.js";
 import { useStore, type Store } from "./store.js";
-import {
-  hrefOf,
-  isDetailRoute,
-  ALL_ITERATIONS,
-  parseRoute,
-  toggleRoute,
-  useRoute,
-  type Route,
-} from "./router.js";
-import { BoardPage } from "./pages/board.js";
+import { hrefOf, isDetailRoute, parseRoute, toggleRoute, useRoute, type Route } from "./router.js";
+import { BoardPage, boardIterationSelection } from "./pages/board.js";
 import { BacklogPage } from "./pages/backlog.js";
 import { TicketPage } from "./pages/ticket.js";
 import { EpicsPage } from "./pages/epics.js";
@@ -48,11 +40,7 @@ function lastHashUsable(saved: LastHash, store: Store): boolean {
   if (saved.project !== (store.project?.id ?? null)) return false;
   const route = parseRoute(saved.href);
   if (route.page === "board") {
-    if (
-      route.iteration &&
-      route.iteration !== ALL_ITERATIONS &&
-      !store.iterations.some((i) => i.id === route.iteration && i.status !== "closed")
-    )
+    if (route.iteration && !boardIterationSelection(store.iterations, route.iteration))
       return false;
     if (route.epic && !store.epics.some((e) => e.id === route.epic && e.status === "open"))
       return false;

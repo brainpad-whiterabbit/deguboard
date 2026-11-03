@@ -47,7 +47,7 @@ export function iteration(partial: Partial<Iteration> & { id: string; name: stri
 }
 
 /** boardFixture が置く active の Iteration */
-export const BOARD_ITERATION = iteration({ id: "s0", name: "既定", status: "active" });
+const BOARD_ITERATION = iteration({ id: "s0", name: "既定", status: "active" });
 
 /** plan.list の 1 行。progress・waiting・ready・next は空のまま（fixture の plan.list は withPlanFacts でチケットから求めて載せる） */
 export function plan(partial: Partial<PlanRow> & { id: string; tickets: string[] }): PlanRow {
