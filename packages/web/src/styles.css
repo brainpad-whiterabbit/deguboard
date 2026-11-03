@@ -1168,6 +1168,42 @@ table.list th {
 .props input {
   width: 100%;
 }
+/* VS Code のパネル：右の列は 248px に固定して本文に幅を回す。属性は見出しで分けるが、dt の幅は全体でそろえる
+   （見出しの節と dl は display: contents にして、1 つの格子に並べる） */
+@media (min-width: 801px) {
+  [data-surface="panel"] .detail {
+    grid-template-columns: minmax(0, 1fr) 248px;
+  }
+}
+.props-groups > section,
+.props-groups dl {
+  display: contents;
+}
+.props-groups dd {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.props-group-title {
+  grid-column: 1 / -1;
+  margin: 0.6rem 0 -0.1rem;
+  padding-bottom: 0.15rem;
+  border-bottom: 1px solid var(--dg-border);
+  color: var(--vscode-descriptionForeground);
+  font-size: 0.85em;
+  font-weight: 600;
+}
+/* 1 列（800px 以下）のときは左の列の箱をほどき、見出しの帯が右の列（属性）までスクロールしても上に残るようにする */
+@media (max-width: 800px) {
+  [data-surface="panel"] .detail {
+    row-gap: 0;
+  }
+  [data-surface="panel"] .detail-main {
+    display: contents;
+  }
+  [data-surface="panel"] .detail > aside {
+    margin-top: 1.5rem;
+  }
+}
 .actions {
   display: flex;
   gap: 0.5rem;
