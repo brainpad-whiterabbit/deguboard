@@ -1,0 +1,22 @@
+{
+  "id": "r20261103-230425-cfb3",
+  "ticket": "t321",
+  "step": "fix",
+  "agent": "copilot",
+  "model": null,
+  "started_at": "2026-11-03T23:04:25Z",
+  "finished_at": "2026-11-03T23:06:19Z",
+  "result": "success",
+  "error": null,
+  "retries": 2,
+  "retry_reasons": [
+    "README の段階の判断基準の要約を消し dg guide plan を指すだけにした",
+    "1 文に詰め込んだ説明を 2 文に分けた"
+  ],
+  "usage": {
+    "input": null,
+    "output": null,
+    "cache_read": null,
+    "cache_write": null
+  }
+}
