@@ -1,0 +1,22 @@
+{
+  "id": "r20261103-033454-b37c",
+  "ticket": "t267",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-03T03:34:54Z",
+  "finished_at": "2026-11-03T03:35:54Z",
+  "result": "success",
+  "error": null,
+  "retries": 2,
+  "retry_reasons": [
+    "狭いパネルで開始と所要が黙って切れるので、model を先に縮めて開始と所要も省略記号で切る",
+    "null の Run の推定で合計に「~」が付くので、合計に入れた値だけで推定を判断する"
+  ],
+  "usage": {
+    "input": 14,
+    "output": 2307,
+    "cache_read": 600548,
+    "cache_write": 4235
+  }
+}
