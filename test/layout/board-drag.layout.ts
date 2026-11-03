@@ -108,6 +108,8 @@ describe("カンバンの列の間のドラッグ", () => {
     await drag(page, row, column(page, "in_progress").locator("summary"));
     await expect.poll(() => statusOf("t2")).toBe("in_progress");
     await linkIn(page, "in_progress", "t2").waitFor();
+    expect(await column(page, "todo").locator('a[href="#/tickets/t2"]').count()).toBe(0);
+    expect(await page.locator(".notice.error").count()).toBe(0);
     await page.close();
   });
 
