@@ -1,0 +1,29 @@
+id: p26
+project: default
+tickets: [t262, t256, t257, t259, t260, t258]
+after:
+  t258:
+    - t262
+    - t256
+    - t257
+    - t260
+pending_approval: true
+details:
+  t262:
+    scope: web のカンバン（左パネルとブラウザ）の Iteration の選択・帯の範囲・開いた Iteration がないときの案内と、UI-2・UI-13 の書き換え
+    approach: board.tsx の selection から none を外し「すべて」を planned と active の和にし、plansInScope に渡すチケットをその範囲に絞る。ハッシュの既定へのフォールバックを関数に切り出してテストする
+  t256:
+    scope: web の Iteration の「開始する」「再開する」のボタンと該当する UI-* の記述
+    approach: 勧める案：ほかに active があるときは押せなくして title と文で理由（active の Iteration 名）を出す。拒否の判定は core の IT-1 のまま、web は表示だけ変える
+  t257:
+    scope: 設定画面の CONFIRM_KEYS・config.test.tsx と UI-14・ADR-006 の記述
+    approach: 勧める案：auto.merge はエージェントに PR のマージを許す設定で基準の「エージェントに許す操作」に当たるので確かめる項目に入れ、理由を ADR-006 に 1 文で書く
+  t259:
+    scope: package.json の @playwright/mcp と playwright-core の版と lockfile
+    approach: "@playwright/mcp 0.0.84 と、それが依存する playwright-core の版に一緒に固定で上げ、playwright:install と test:layout を通す"
+  t260:
+    scope: run list --iteration の存在しない ID の扱いと、そのヘルプかテスト
+    approach: ticket list など既存の一覧の絞り込みの扱いを調べ、ほかがエラーならそろえ、空ならそのまま理由をヘルプに書く。調べた結果は PR の本文に書く
+  t258:
+    scope: docs/requirements.md の画面の細部（UI-*）を削り、消した内容が web のコードかテストにあることを確かめる
+    approach: t262・t256・t257・t260 で requirements を書き換えた後に、UI-* の細部をコード・テストへの参照に置き換えて 90% 未満にする。テストにない細部はテストを足してから消す
