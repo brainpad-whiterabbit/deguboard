@@ -1,16 +1,10 @@
 // その場で直す属性の値（パネルのチケット詳細の右の列）。値を押すと選択か入力欄になり、Enter（選択は一覧から選んでも）で確定、Esc で取り消す。
 // 閉じた選択で ↑↓ を押すと値だけが変わり、保存しない（Enter で確定する）。欄から外れたら取り消す。
 // 保存は呼ぶ側（ticket.update に 1 属性だけ渡す）に任せ、ここは値の文字列を返して結果を待ち、失敗なら欄を開いたままにする。
-// Enter・Esc・選んで閉じたら、フォーカスを値のボタンに戻す
+// Enter・Esc・選んで閉じたら、フォーカスを値のボタンに戻す。
+// 値がリンク（Epic・Iteration）なら、リンクと値のボタンを入れ子にせず並べ、ボタンは鉛筆の印だけにする
 
-import {
-  useEffect,
-  useRef,
-  useState,
-  type KeyboardEvent,
-  type MouseEvent,
-  type ReactNode,
-} from "react";
+import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 
 /** 選択の 1 項目 */
 export interface Choice {
@@ -157,6 +151,7 @@ export function InlineEdit({
   inputType = "text",
   placeholder,
   normalize = (raw) => raw,
+  link,
   children,
 }: {
   /** 属性の名前。編集欄の aria-label と、値のボタンの名前（「〜を変える」）に使う */
@@ -174,6 +169,8 @@ export function InlineEdit({
   placeholder?: string;
   /** 今の値と比べる前に入力を揃える（ラベルの区切りの空白など） */
   normalize?: (raw: string) => string;
+  /** 値をリンクで出すとき。ボタンの外に置き、ボタンには children の代わりに鉛筆の印を出す */
+  link?: ReactNode;
   /** 見ているときの値 */
   children: ReactNode;
 }) {
@@ -198,29 +195,38 @@ export function InlineEdit({
     });
   };
   if (!editing) {
-    // 値の中のリンク（Epic・Iteration）は押せばそのまま移る
-    const start = (e: MouseEvent) => {
-      if (!(e.target as Element).closest("a")) onStart();
-    };
-    const key = (e: KeyboardEvent) => {
-      if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) {
-        e.preventDefault();
-        onStart();
-      }
-    };
-    return (
+    const valueButton = (
       <span
         ref={button}
-        className="inline-edit"
+        className={link ? "inline-edit inline-edit-icon" : "inline-edit"}
         role="button"
         tabIndex={0}
         aria-label={`${label}を変える`}
         title="押して変える"
-        onClick={start}
-        onKeyDown={key}
+        onClick={onStart}
+        onKeyDown={(e: KeyboardEvent) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onStart();
+          }
+        }}
       >
-        {children}
+        {link ? (
+          <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">
+            <path d="M10.5 2.5l3 3-8 8h-3v-3z" />
+          </svg>
+        ) : (
+          children
+        )}
       </span>
+    );
+    return link ? (
+      <span className="inline-edit-linked">
+        {link}
+        {valueButton}
+      </span>
+    ) : (
+      valueButton
     );
   }
   return choices ? (

@@ -1228,6 +1228,33 @@ table.list th {
 .inline-edit:focus-visible {
   outline: 1px solid var(--vscode-focusBorder);
 }
+/* 値がリンク（Epic・Iteration）のときは、リンクの右に鉛筆の印のボタンを並べる（入れ子にしない） */
+.inline-edit-linked {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 0.3em;
+  max-width: 100%;
+}
+.inline-edit-linked > a {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.inline-edit-icon {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  margin: 0;
+  padding: 0.15em;
+  color: var(--vscode-descriptionForeground);
+}
+.inline-edit-icon:hover {
+  color: var(--vscode-foreground);
+}
+.inline-edit-icon svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.2;
+}
 .props {
   display: grid;
   grid-template-columns: max-content 1fr;

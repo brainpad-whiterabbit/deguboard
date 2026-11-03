@@ -256,6 +256,7 @@ export function TicketPage({ id }: { id: string }) {
       inputType?: "text" | "number" | "date";
       placeholder?: string;
       normalize?: (raw: string) => string;
+      link?: ReactNode;
     } = {},
   ) => (
     <InlineEdit
@@ -411,6 +412,7 @@ export function TicketPage({ id }: { id: string }) {
       panel ? (
         inline("epic", "Epic", ticket.epic ?? "", (raw) => ({ epic: raw || null }), epicView, {
           choices: epicChoices,
+          link: ticket.epic && epicView,
         })
       ) : draft ? (
         <select
@@ -434,7 +436,7 @@ export function TicketPage({ id }: { id: string }) {
           ticket.iteration ?? "",
           (raw) => ({ iteration: raw || null }),
           iterationView,
-          { choices: iterationChoices },
+          { choices: iterationChoices, link: ticket.iteration && iterationView },
         )
       ) : draft ? (
         <select
