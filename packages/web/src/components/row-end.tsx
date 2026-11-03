@@ -83,7 +83,7 @@ export function KanbanRowEnd({
   mark: PlanMark | undefined;
   running: boolean;
 }) {
-  const readiness = planReadiness(ticket, mark);
+  const readiness = readinessBadge(ticket, mark);
   // 実行中の Run があれば、todo でも着手可・待ちより「実行中」を出す（手が動いていることの方が大事なので）
   const sub = running ? (
     <span className="row-running" title="このマシンで Run が実行中">
@@ -115,7 +115,7 @@ function RowPlan({ plan }: { plan: string }) {
 }
 
 /** 左パネルの行の着手可・待ちの相手・承認待ち（kanbanReadiness で 1 回だけ判定する）。開いた Plan に入っていない行と todo でない行は null */
-function planReadiness(ticket: Pick<Ticket, "status">, mark: PlanMark | undefined): ReactNode {
+function readinessBadge(ticket: Pick<Ticket, "status">, mark: PlanMark | undefined): ReactNode {
   const state = kanbanReadiness(ticket, mark);
   if (!mark || state === null) return null;
   if (state === "pending") {
@@ -168,7 +168,7 @@ export function BacklogRowEnd({
       </span>
     );
   }
-  const readiness = planReadiness(ticket, mark);
+  const readiness = readinessBadge(ticket, mark);
   return (
     <span className="row-end">
       <span className="row-end-top">

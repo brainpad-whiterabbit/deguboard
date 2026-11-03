@@ -90,7 +90,7 @@ export function nameOf(key: string): string {
 }
 
 /** 検索語が表示名・キー・説明のどれかに含まれるか（大文字小文字は区別しない） */
-export function matchesQuery(field: ConfigField, query: string): boolean {
+export function fieldMatchesQuery(field: ConfigField, query: string): boolean {
   const q = query.trim().toLowerCase();
   if (!q) return true;
   return [nameOf(field.key), field.key, field.description].some((s) => s.toLowerCase().includes(q));
@@ -185,7 +185,7 @@ export function ConfigPage() {
   }, [pending]);
 
   const groups = useMemo(() => {
-    const fields = (view?.fields ?? []).filter((f) => matchesQuery(f, query));
+    const fields = (view?.fields ?? []).filter((f) => fieldMatchesQuery(f, query));
     return [...GROUPS, OTHER_GROUP]
       .map((g) => ({ ...g, fields: fields.filter((f) => groupOf(f.key) === g.id) }))
       .filter((g) => g.fields.length > 0);

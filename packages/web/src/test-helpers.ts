@@ -46,7 +46,7 @@ export function iteration(partial: Partial<Iteration> & { id: string; name: stri
   return { project: "default", goal: "", status: "planned", ...partial };
 }
 
-/** plan.list の 1 行。progress・waiting・ready・next は空のまま。チケットから求めるなら withPlanFacts を通す（fixture の plan.list は通す） */
+/** plan.list の 1 行。progress・waiting・ready・next は空のまま（fixture の plan.list は withPlanFacts でチケットから求めて載せる） */
 export function plan(partial: Partial<PlanRow> & { id: string; tickets: string[] }): PlanRow {
   return {
     project: "default",
@@ -66,8 +66,8 @@ export function plan(partial: Partial<PlanRow> & { id: string; tickets: string[]
   };
 }
 
-/** core の plan.list と同じく、進捗と着手できるか（PL-6）をチケットから求めて Plan の行に載せる */
-export function withPlanFacts(row: PlanRow, tickets: readonly Ticket[]): PlanRow {
+/** fixture の plan.list だけが使う。core の plan.list と同じく、進捗と着手できるか（PL-6）をチケットから求めて Plan の行に載せる */
+function withPlanFacts(row: PlanRow, tickets: readonly Ticket[]): PlanRow {
   const byId = new Map<string, Ticket>(tickets.map((t) => [t.id, t]));
   const found = row.tickets.flatMap((id) => byId.get(id) ?? []);
   return { ...row, progress: progressOf(found), ...planReadiness(row, (id) => byId.get(id)) };

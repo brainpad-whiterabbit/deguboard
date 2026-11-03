@@ -1,8 +1,15 @@
 // Ticket の frontmatter（tickets/t12.md。requirements.md 5.4）
 
 import { z } from "zod";
-import { isoDateTime, slugSchema, STATUSES, statusSchema, type Status } from "./common.js";
-import { epicIdSchema, iterationIdSchema, ticketIdSchema } from "./id.js";
+import {
+  isoDateTime,
+  isTerminal,
+  slugSchema,
+  STATUSES,
+  statusSchema,
+  type Status,
+} from "./common.js";
+import { epicIdSchema, iterationIdSchema, ticketIdSchema, type TicketId } from "./id.js";
 
 export const PRIORITIES = ["low", "medium", "high"] as const;
 export type Priority = (typeof PRIORITIES)[number];
@@ -51,6 +58,20 @@ export function progressOf(tickets: readonly Pick<Ticket, "status">[]): Progress
   const by_status = Object.fromEntries(STATUSES.map((s) => [s, 0])) as Record<Status, number>;
   for (const t of tickets) by_status[t.status] += 1;
   return { total: tickets.length - by_status.abandoned, done: by_status.done, by_status };
+}
+
+/**
+ * depends_on の残りの待ちの相手（WF-2）。done・abandoned でない依存先を depends_on の順で返す。
+ * statusOf は依存先の Status を引き、見つからない依存先（undefined）も待ちに数える。deps_done と Plan の待ち（PL-6）はここだけを使う
+ */
+export function pendingDeps(
+  ticket: Pick<Ticket, "depends_on">,
+  statusOf: (id: TicketId) => Status | undefined,
+): TicketId[] {
+  return ticket.depends_on.filter((id) => {
+    const status = statusOf(id);
+    return status === undefined || !isTerminal(status);
+  });
 }
 
 /** `## 受け入れ条件` の見出し行。節の切り出しと雛形で共有する */

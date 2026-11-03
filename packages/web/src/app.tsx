@@ -66,7 +66,7 @@ function lastHashUsable(saved: LastHash, store: Store): boolean {
  * タブの行き先（最後に見たハッシュ）を nav.<page> に残して返す。その画面にいる間は今のハッシュを残し、
  * Project を切り替えたら既定の行き先に戻す。残したハッシュが使えなければ既定の行き先を返す。
  * Project の切り替えはハッシュを変えないので、切り替えたときのハッシュは前の Project の絞り込みとみなし、
- * ハッシュが変わるまではそれを残さず既定の行き先を残す（Iteration・Epic の ID は Project ごとの連番で、新しい Project でも通りうる）
+ * ハッシュが変わるまではそれを残さず既定の行き先を残す（そのハッシュの Iteration・Epic は前の Project のもので、新しい Project の絞り込みではない）
  */
 function useLastHref(page: LastHashPage, route: Route, store: Store): string {
   const fallback = hrefOf({ page } as Route);
