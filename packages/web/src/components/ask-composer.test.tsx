@@ -161,7 +161,8 @@ describe("エージェントに頼む入力欄（UI-15）", () => {
     expect(view.copied[0]).toBe(
       "/dgdone t5\nPR のマージを照合し、残った受け入れ条件を確かめて片付けてください。\n\n対象:\n- t5「見直す」（review, s1）",
     );
-    expect(box.getByRole("status").textContent).toContain("コピーしました");
+    // 知らせはコピーが済んでから入るので、描き直されるのを待つ
+    await waitFor(() => expect(box.getByRole("status").textContent).toContain("コピーしました"));
 
     // 頼むことを選び直すと知らせを消し、⌘↵ でも（待たずに）今の指示まで入れてコピーする
     fireEvent.click(suggestions().find((b) => b.textContent === "直す")!);
@@ -174,7 +175,7 @@ describe("エージェントに頼む入力欄（UI-15）", () => {
     expect(view.copied[1]).toContain("指示:\n題を短く");
     fireEvent.keyDown(note, { key: "Enter", ctrlKey: true });
     await waitFor(() => expect(view.copied).toHaveLength(3));
-    expect(box.getByRole("status").textContent).toContain("コピーしました");
+    await waitFor(() => expect(box.getByRole("status").textContent).toContain("コピーしました"));
   });
 
   it("コピーできなければ、欄の下にそう出す", async () => {
@@ -330,9 +331,12 @@ describe("エージェントに頼む入力欄（UI-15）", () => {
       view.askCurrent();
       await waitFor(() => expect(chips()).toEqual(["s1"]));
 
-      // 開いていれば対象を入れ替える
+      // 開いていれば対象を入れ替える。ハッシュは代入した時点で変わるので、カンバンが描き直されて s2 の札が選ばれるのを待ってから頼む
       act(() => void (window.location.hash = "#/board?iteration=s2"));
-      await waitFor(() => expect(window.location.hash).toBe("#/board?iteration=s2"));
+      const s2 = within(screen.getByRole("group", { name: "Iteration" }))
+        .getAllByRole("button")
+        .find((b) => b.querySelector("code")?.textContent === "s2")!;
+      await waitFor(() => expect(s2.getAttribute("aria-pressed")).toBe("true"));
       view.askCurrent();
       await waitFor(() => expect(chips()).toEqual(["s2"]));
     });
@@ -346,9 +350,10 @@ describe("エージェントに頼む入力欄（UI-15）", () => {
       await waitFor(() => expect(chips()).toEqual(["s0"]));
       fireEvent.click(within(composer()).getByRole("button", { name: "閉じる" }));
 
-      // 行を閉じると対象なしに戻る
+      // 行を閉じると対象なしに戻る。開いた状態を書いただけでは描き直されていないので、行の中のチケットが消えるのを待ってから頼む
       fireEvent.click(screen.getByText("前").closest("summary")!);
       await waitFor(() => expect(state.get("history.opened")).toEqual([]));
+      await waitFor(() => expect(screen.queryByText("済んだ")).toBeNull());
       view.askCurrent();
       await waitFor(() => expect(suggestions()[0]!.textContent).toContain("★起票する"));
       expect(chips()).toEqual([]);
