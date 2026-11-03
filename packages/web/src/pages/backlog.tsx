@@ -340,7 +340,7 @@ export function BacklogPage() {
         ) : (
           filters
         )}
-        {/* サイドバーでは件数を絞り込みの行に置き、1 行を使わない */}
+        {/* サイドバーでは件数をチップの行の右端に置き、1 行を使わない */}
         {sidebar ? null : <span className="muted">{rows.length} 件</span>}
       </div>
       {sidebar && filtersOpen ? (

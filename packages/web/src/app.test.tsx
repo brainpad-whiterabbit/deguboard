@@ -1816,6 +1816,22 @@ describe("画面", () => {
     expect(tabs().querySelector("[aria-current=page]")!.textContent).toBe("バックログ");
   });
 
+  it("ブラウザのバックログは絞り込みの欄を検索と同じ行に常に出し、漏斗を出さない。件数は「n 件」", async () => {
+    window.location.hash = "#/backlog";
+    mount();
+    await screen.findByText("API");
+    const toolbar = screen.getByLabelText("検索").closest(".toolbar")!;
+    for (const name of ["Status", "優先度", "ラベル"])
+      expect(within(toolbar as HTMLElement).getByLabelText(name)).toBeTruthy();
+    expect(
+      within(toolbar as HTMLElement).getByRole("button", { name: "絞り込みを消す" }),
+    ).toBeTruthy();
+    expect(document.querySelector(".filter-toggle")).toBeNull();
+    expect(document.getElementById("backlog-filters")).toBeNull();
+    expect(document.querySelector(".quick-filters")).toBeNull();
+    expect(document.querySelector(".toolbar > .muted")!.textContent).toBe("2 件");
+  });
+
   it("バックログの Epic の欄は open の Epic の進捗と「Epic なし」の件数を出し、押すと絞り、もう一度押すと解除する", async () => {
     window.location.hash = "#/backlog";
     const client = mockClient();
