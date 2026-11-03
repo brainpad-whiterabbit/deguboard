@@ -197,19 +197,21 @@ describe("設定画面", () => {
     const { client } = configClient();
     mount(client);
     await screen.findByText("コミットの仕方");
-    fireEvent.click(within(fieldOf("auto.merge")).getByRole("checkbox"));
-    expect(await screen.findByText("保存した: auto.merge を true にした")).toBeTruthy();
+    fireEvent.click(within(fieldOf("metrics.read_transcripts")).getByRole("checkbox"));
+    expect(
+      await screen.findByText("保存した: metrics.read_transcripts を true にした"),
+    ).toBeTruthy();
     fireEvent.change(within(fieldOf("commit.mode")).getByRole("combobox"), {
       target: { value: "manual" },
     });
     expect(await screen.findByText("保存した: commit.mode を manual にした")).toBeTruthy();
     expect(setCalls(client)).toEqual([
-      { key: "auto.merge", value: true },
+      { key: "metrics.read_transcripts", value: true },
       { key: "commit.mode", value: "manual" },
     ]);
   });
 
-  it("actions.test・actions.shell・actor.human_only も保存の前に確かめ、変わることを出し、やめると戻す", async () => {
+  it("actions.test・actions.shell・actor.human_only・auto.merge も保存の前に確かめ、変わることを出し、やめると戻す", async () => {
     const { client } = configClient();
     mount(client);
     await screen.findByText("コミットの仕方");
@@ -227,6 +229,16 @@ describe("設定画面", () => {
     expect(shell.textContent).toContain("任意のシェルを実行できるかが変わる");
     fireEvent.click(within(shell).getByText("やめる"));
     expect(within(fieldOf("actions.shell")).getByRole<HTMLInputElement>("checkbox").checked).toBe(
+      false,
+    );
+    expect(setCalls(client)).toEqual([]);
+
+    // 自動マージ：エージェントに PR のマージを許すので、保存するまで config.set を呼ばない
+    fireEvent.click(within(fieldOf("auto.merge")).getByRole("checkbox"));
+    const merge = within(fieldOf("auto.merge")).getByRole("alertdialog");
+    expect(merge.textContent).toContain("エージェントが PR を自動でマージするかが変わる");
+    fireEvent.click(within(merge).getByText("やめる"));
+    expect(within(fieldOf("auto.merge")).getByRole<HTMLInputElement>("checkbox").checked).toBe(
       false,
     );
     expect(setCalls(client)).toEqual([]);
@@ -378,6 +390,7 @@ describe("設定画面の部品", () => {
       "actions.shell",
       "actions.test",
       "actor.human_only",
+      "auto.merge",
       "git.base_branch",
       "git.remote",
       "worktree.root",

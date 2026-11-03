@@ -39,7 +39,8 @@ const NAMES: Record<string, string> = {
 
 /**
  * 保存の前に確かめる項目と、確かめの文に出す変わること。誤るとチーム全員に効き、戻すまで気づきにくい。
- * actions.test は確認なしで実行するコマンドなので、シェルの許可（actions.shell）と同じ重さで扱う（ADR-006・ADR-007）
+ * actions.test は確認なしで実行するコマンドなので、シェルの許可（actions.shell）と同じ重さで扱う。
+ * auto.merge はエージェントに PR のマージを許すので、エージェントに許す操作として扱う（ADR-006・ADR-007）
  */
 export const CONFIRM_KEYS: ReadonlyMap<string, string> = new Map([
   ["git.remote", "同期先が変わる"],
@@ -48,6 +49,7 @@ export const CONFIRM_KEYS: ReadonlyMap<string, string> = new Map([
   ["actions.test", "テストとして確認なしで実行するコマンドが変わる（シェルを許すのと同じ）"],
   ["actions.shell", "エージェントが任意のシェルを実行できるかが変わる"],
   ["actor.human_only", "エージェントに許す操作が変わる"],
+  ["auto.merge", "エージェントが PR を自動でマージするかが変わる"],
 ]);
 
 type Values = Record<string, unknown>;
