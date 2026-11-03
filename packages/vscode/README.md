@@ -4,12 +4,12 @@ Git-native な AI ワークフロー・チケット管理ツール [deguboard](h
 
 - Activity Bar の deguboard のアイコンを押すと、サイドバーに開いているフォルダ（リポジトリ）の画面が出て、上部のタブでカンバン・バックログ・履歴を切り替える（Run の画面はブラウザの `dg serve` だけ）。チケット・Iteration・Epic を押すと詳細がエディタ領域に開く（チケットの詳細は本文・属性・依存・Run の一覧・経過）。`dg` やエージェントが書いた変更（Run の開始・終了を含む）は自動で画面に映る。タイトル行の同期ボタンで `dg sync` と同じ同期をして画面を読み直す（リモートがなければ読み直すだけ）。未 push・未取り込みの件数はバッジで出す。タイトル行の歯車で `config.yaml` の設定画面を開き、もう一度押すと元の画面に戻る（チーム全員に効く。VS Code の settings.json は使わない）。Project が 1 つなら Project の段は出さない
 - サイドバーのカンバンは次のように出す
-  - 見出しの 1 段目に閉じていない Iteration の札（進みつき）と「なし n」「+」を並べ、押すと切り替える（「+」は Iteration を作る）
+  - 見出しの 1 段目に「すべて」と閉じていない Iteration の札（進みつき）と「+」を並べ、押すと切り替える（「すべて」は閉じていない Iteration すべて、「+」は Iteration を作る）
   - 見出しの右端の漏斗で Epic と担当の絞り込みを開く。絞っている値は見出しの下に札で出し、× で外せる
   - 節の上の実行計画の帯は Plan ごとに 2 行（番号・状態・進み、作業中と次に着手するチケット）で、行を押すとその Plan の依存グラフを開閉する
   - 行の頭の回る印と「実行中」で、このマシンで Run が実行中のチケットを示す
   - 行の右端に担当の印（人は頭文字の丸、agent は持ち主の頭文字の丸と汎用のアイコン（Run の agent によらず 1 種）。ホバーで主体 ID と Run の agent）と Plan の番号、todo なら着手可か待ちの相手を出す。待ちと承認待ちの行は、実行中の Run がなければタイトルを薄くする
-- サイドバーのバックログは次のように出す。細部は要件定義書の [UI-3・UI-12](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/requirements.md#64-画面web-uivs-code-拡張)
+- サイドバーのバックログは次のように出す。細部の正本はコードとテスト（`packages/web/src/`・`packages/vscode/src/`）
   - 行を右クリックすると「Iteration を移す」（ドラッグと同じ）・「詳細を開く」・「ID をコピー」が出る
   - 検索欄の右端の漏斗で絞り込みの欄を開く。検索欄の下によく使う絞り込みのチップと、効いている条件を × で外せる札を出す。行にはカンバンと同じ Plan の番号と着手可・待ち、優先度の札（low・medium・high）、自分とその agent 以外の担当の印を出す
 - サイドバーの履歴は次のように出す。要件定義書の [UI-5](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/requirements.md#64-画面web-uivs-code-拡張)

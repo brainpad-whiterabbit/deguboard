@@ -9,7 +9,10 @@ import type { WebviewEvent } from "@deguboard/core";
 import { HostBridge, HostProvider, type Host } from "./host.js";
 import { parseRoute, type Route } from "./router.js";
 import { StoreProvider } from "./store.js";
-import { fixture, iteration, mockClient, plan, ticket } from "./test-helpers.js";
+import { boardFixture, fixture, iteration, mockClient, plan, ticket } from "./test-helpers.js";
+
+/** カンバンのテストの client（チケットを active の Iteration に入れた fixture） */
+const boardClient = () => mockClient(boardFixture());
 import type { RunView } from "./types.js";
 import { createUiState, memoryBackend } from "./ui-state.js";
 
@@ -102,21 +105,52 @@ function kanbanRowOf(title: string): Element {
 }
 
 describe("画面", () => {
-  it("カンバンは Workflow の表示名の 4 列で、チケットを Status の列に出す。Iteration がなければ Iteration で絞らず、中止は 0 件なら出さない", async () => {
-    mount();
+  it("カンバンは Workflow の表示名の 4 列で、チケットを Status の列に出す。中止は 0 件なら出さない", async () => {
+    mount(boardClient());
     await screen.findByText("ログイン");
     const headings = screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent);
     expect(headings).toEqual(["Todo1", "In Progress1", "Code Review0", "Done1"]);
     expect(screen.queryByText("Abandoned")).toBeNull();
     expect(screen.queryByLabelText("abandoned を出す")).toBeNull();
-    expect(screen.queryByLabelText("Iteration")).toBeNull();
-    expect(screen.getByText("Iteration はない")).toBeTruthy();
     expect(screen.getByText("3 件")).toBeTruthy();
   });
 
+  it.each(["browser", "sidebar"] as const)(
+    "開いた Iteration がなければ（%s）、列も帯も出さず、開いた Iteration がないことと、バックログと Iteration の作成への案内を出す。「すべて」は選べる",
+    async (surface) => {
+      const client = mockClient(
+        fixture({ iterations: [iteration({ id: "s1", name: "昔", status: "closed" })] }),
+      );
+      client.data.tickets[0]!.iteration = "s1";
+      client.data.plans.push(plan({ id: "p1", tickets: ["t1"], status: "closed" }));
+      mount(client, hostOf(surface));
+      await screen.findByText(/開いた Iteration（planned・active）はない/);
+      expect(document.querySelector(".board")).toBeNull();
+      expect(document.querySelector(".plan-band")).toBeNull();
+      expect(screen.queryByText("ログイン")).toBeNull();
+      const guide = document.querySelector(".board-empty")!;
+      expect(guide.querySelector("a")!.getAttribute("href")).toBe("#/backlog");
+      // 作るボタンは案内の中の 1 つだけ（ブラウザの上の欄には出さない）
+      expect(screen.getAllByRole("button", { name: "+ Iteration を作る" })).toHaveLength(1);
+      expect(guide.querySelector("button")!.textContent).toBe("+ Iteration を作る");
+      if (surface === "browser") {
+        const select = screen.getByLabelText<HTMLSelectElement>("Iteration");
+        expect([...select.querySelectorAll("option")].map((o) => o.textContent)).toEqual([
+          "すべて（planned と active）",
+        ]);
+      } else {
+        const chips = [...document.querySelectorAll(".iteration-chip")].map((c) => c.textContent);
+        expect(chips).toEqual(["すべて0/0", "+"]);
+        expect(document.querySelector(".status-band")).toBeNull();
+      }
+    },
+  );
+
   it("中止のチケットがあるときだけ、畳んだ「中止」の列を完了の右（最後）に出す", async () => {
-    const client = mockClient();
-    client.data.tickets.push(ticket({ id: "t9", title: "やめた", status: "abandoned" }));
+    const client = boardClient();
+    client.data.tickets.push(
+      ticket({ id: "t9", title: "やめた", status: "abandoned", iteration: "s0" }),
+    );
     mount(client);
     await screen.findByText("ログイン");
     const columns = [...document.querySelectorAll<HTMLDetailsElement>(".board > details.column")];
@@ -133,22 +167,24 @@ describe("画面", () => {
     expect(screen.getByText("3 件")).toBeTruthy();
   });
 
-  it("Iteration の選択肢は planned と active と「Iteration なし」で、既定は active。選ぶとその Iteration のチケットだけになり、ハッシュに残る", async () => {
+  it("Iteration の選択肢は「すべて」と planned と active で、既定は active。選ぶとその Iteration のチケットだけになり、ハッシュに残る。「すべて」は開いた Iteration のチケットだけを出す", async () => {
     const client = mockClient();
     client.data.iterations = [
       iteration({ id: "s1", name: "最初", status: "active" }),
       iteration({ id: "s2", name: "次", status: "planned" }),
       iteration({ id: "s0", name: "昔", status: "closed" }),
     ];
+    client.data.tickets[0]!.iteration = "s0";
     client.data.tickets[1]!.iteration = "s1";
     client.data.tickets[2]!.iteration = "s2";
+    client.data.tickets.push(ticket({ id: "t4", title: "入っていない" }));
     mount(client);
     await screen.findByText("API");
     const select = screen.getByLabelText<HTMLSelectElement>("Iteration");
     expect([...select.querySelectorAll("option")].map((o) => o.textContent)).toEqual([
+      "すべて（planned と active）",
       "s1 最初（進行中）",
       "s2 次（予定）",
-      "Iteration なし",
     ]);
     expect(select.value).toBe("s1");
     expect(document.querySelector(".iteration-table")).toBeNull();
@@ -158,13 +194,18 @@ describe("画面", () => {
     expect(window.location.hash).toBe("#/board?iteration=s2");
     await screen.findByText("画面");
     expect(screen.queryByText("API")).toBeNull();
-    fireEvent.change(screen.getByLabelText("Iteration"), { target: { value: "-" } });
-    await screen.findByText("ログイン");
+    fireEvent.change(screen.getByLabelText("Iteration"), { target: { value: "*" } });
+    expect(window.location.hash).toBe("#/board?iteration=*");
+    await screen.findByText("API");
+    expect(screen.getByText("画面")).toBeTruthy();
+    // Iteration に入っていないチケットと、閉じた Iteration のチケットは出さない
+    expect(screen.queryByText("入っていない")).toBeNull();
+    expect(screen.queryByText("ログイン")).toBeNull();
     expect(screen.queryByRole("heading", { level: 1 })).toBeNull();
   });
 
   it("Epic の選択肢は open だけ。閉じた Epic は選んでいるときだけ残す", async () => {
-    const client = mockClient();
+    const client = boardClient();
     client.data.epics = [
       ...client.data.epics,
       { ...client.data.epics[0]!, id: "e9", title: "済んだ", status: "closed" },
@@ -182,7 +223,7 @@ describe("画面", () => {
   });
 
   it("Epic と担当者で絞れる。旧 ID は @ の前だけを出し、担当者のないものは「なし」", async () => {
-    const client = mockClient();
+    const client = boardClient();
     client.data.tickets[1]!.assignee = "eiki@laptop";
     mount(client);
     await screen.findByText("API");
@@ -358,11 +399,14 @@ describe("画面", () => {
   });
 
   it("拡張ホストから reload の event が来ると読み直して表示が変わり、navigate の event でハッシュが変わる", async () => {
-    const client = mockClient();
+    const client = boardClient();
     const send = mountWithBridge(client, { readRunning: false });
     await screen.findByText("ログイン");
     // 別の経路（ターミナルの dg など）でチケットが増えた。本物の読み直しと同じく新しい配列を返す
-    client.data.tickets = [...client.data.tickets, ticket({ id: "t9", title: "外で起票した" })];
+    client.data.tickets = [
+      ...client.data.tickets,
+      ticket({ id: "t9", title: "外で起票した", iteration: "s0" }),
+    ];
     expect(screen.queryByText("外で起票した")).toBeNull();
     act(() => send()({ kind: "event", name: "reload" }));
     expect(await screen.findByText("外で起票した")).toBeTruthy();
@@ -427,7 +471,7 @@ describe("画面", () => {
   it.each(["browser", "panel", "sidebar"] as const)(
     "%s でも完了の節は既定で畳み、ほかの節は開く",
     async (surface) => {
-      mount(mockClient(), surface === "browser" ? undefined : hostOf(surface));
+      mount(boardClient(), surface === "browser" ? undefined : hostOf(surface));
       await screen.findByText("ログイン");
       const columns = [...document.querySelectorAll<HTMLDetailsElement>("details.column")];
       expect(columns.map((c) => [c.dataset.status, c.open])).toEqual([
@@ -508,13 +552,31 @@ describe("画面", () => {
   });
 
   it("サイドバーのカンバンの行は担当の名前の列を出さず、右端の上の段（Plan の番号の左）に担当の印を出す。人は頭文字の丸、agent は持ち主の丸と Run の agent によらない汎用のアイコン", async () => {
-    const client = mockClient();
+    const client = boardClient();
     client.data.tickets.push(
-      ticket({ id: "t4", title: "人", assignee: "eiki" }),
-      ticket({ id: "t5", title: "Claude", assignee: "eiki/agent", run_agent: "claude-code" }),
-      ticket({ id: "t6", title: "Codex", assignee: "hana/agent", run_agent: "codex" }),
-      ticket({ id: "t7", title: "汎用", assignee: "eiki/agent", run_agent: "my-bot" }),
-      ticket({ id: "t8", title: "Run なし", assignee: "eiki/agent" }),
+      ticket({ id: "t4", title: "人", assignee: "eiki", iteration: "s0" }),
+      ticket({
+        id: "t5",
+        title: "Claude",
+        assignee: "eiki/agent",
+        run_agent: "claude-code",
+        iteration: "s0",
+      }),
+      ticket({
+        id: "t6",
+        title: "Codex",
+        assignee: "hana/agent",
+        run_agent: "codex",
+        iteration: "s0",
+      }),
+      ticket({
+        id: "t7",
+        title: "汎用",
+        assignee: "eiki/agent",
+        run_agent: "my-bot",
+        iteration: "s0",
+      }),
+      ticket({ id: "t8", title: "Run なし", assignee: "eiki/agent", iteration: "s0" }),
     );
     client.data.plans.push(plan({ id: "p7", tickets: ["t5"] }));
     mount(client, hostOf("sidebar"));
@@ -550,7 +612,7 @@ describe("画面", () => {
 
   it("サイドバーのカンバンは、前回の描画から Status が変わった行を点滅させ（開き直しても host.state で比べる）、ブラウザでは点滅させない", async () => {
     const host = hostOf("sidebar");
-    const client = mockClient();
+    const client = boardClient();
     mount(client, host);
     await screen.findByText("画面");
     expect(document.querySelector(".row.changed")).toBeNull();
@@ -562,14 +624,14 @@ describe("画面", () => {
     );
     expect(screen.getByText("ログイン").closest(".row")!.classList.contains("changed")).toBe(false);
     cleanup();
-    mount(mockClient());
+    mount(boardClient());
     await screen.findByText("画面");
     expect(document.querySelector(".row.changed")).toBeNull();
   });
 
   it("節の開閉は host.state に残り、開き直しても保たれる", async () => {
     const host = hostOf("sidebar");
-    mount(mockClient(), host);
+    mount(boardClient(), host);
     await screen.findByText("ログイン");
     const done = document.querySelector<HTMLDetailsElement>('details[data-status="done"]')!;
     expect(done.open).toBe(false);
@@ -577,7 +639,7 @@ describe("画面", () => {
     fireEvent(done, new Event("toggle"));
     expect(host.state.get("board.section.done")).toBe(true);
     cleanup();
-    mount(mockClient(), host);
+    mount(boardClient(), host);
     await screen.findByText("ログイン");
     expect(document.querySelector<HTMLDetailsElement>('details[data-status="done"]')!.open).toBe(
       true,
@@ -585,7 +647,7 @@ describe("画面", () => {
   });
 
   it("サイドバーではカンバンの列が折りたためる節になり、チケットは 1 行で出る。空の節は見出しの 1 行だけで「なし」は出さない", async () => {
-    mount(mockClient(), hostOf("sidebar"));
+    mount(boardClient(), hostOf("sidebar"));
     await screen.findByText("ログイン");
     const app = document.querySelector(".app")!;
     expect(app.getAttribute("data-surface")).toBe("sidebar");
@@ -603,7 +665,7 @@ describe("画面", () => {
   });
 
   it("サイドバーの節の件数は、終わった状態（Done）の節だけ塗らずに数字だけにする", async () => {
-    mount(mockClient(), hostOf("sidebar"));
+    mount(boardClient(), hostOf("sidebar"));
     await screen.findByText("ログイン");
     const plain = Object.fromEntries(
       [...document.querySelectorAll<HTMLDetailsElement>("details.column")].map((d) => [
@@ -615,7 +677,7 @@ describe("画面", () => {
   });
 
   it("サイドバーのカンバンの行は状態の丸印を出さず、優先度の印（high・low）を右に出す。バックログの行は変わらない", async () => {
-    const client = mockClient();
+    const client = boardClient();
     client.data.tickets[2]!.priority = "low";
     mount(client, hostOf("sidebar"));
     await screen.findByText("ログイン");
@@ -635,12 +697,12 @@ describe("画面", () => {
   });
 
   it("サイドバーのカンバンの行は、開いた Plan に入っていれば右端に Plan の番号を Plan の色で出し、todo なら着手可・待ちの相手・承認待ちを出す", async () => {
-    const client = mockClient();
+    const client = boardClient();
     client.data.tickets.push(
-      ticket({ id: "t4", title: "待つ", priority: "high" }),
-      ticket({ id: "t5", title: "外", priority: "low" }),
-      ticket({ id: "t6", title: "閉じた計画" }),
-      ticket({ id: "t7", title: "承認前" }),
+      ticket({ id: "t4", title: "待つ", priority: "high", iteration: "s0" }),
+      ticket({ id: "t5", title: "外", priority: "low", iteration: "s0" }),
+      ticket({ id: "t6", title: "閉じた計画", iteration: "s0" }),
+      ticket({ id: "t7", title: "承認前", iteration: "s0" }),
     );
     client.data.plans.push(
       plan({
@@ -763,13 +825,13 @@ describe("画面", () => {
   });
 
   it("サイドバーのカンバンの行には右クリックのメニューの文脈を付けない", async () => {
-    mount(mockClient(), hostOf("sidebar"));
+    mount(boardClient(), hostOf("sidebar"));
     await screen.findByText("ログイン");
     expect(document.querySelector("[data-vscode-context]")).toBeNull();
   });
 
   it("サイドバーのカンバンの行の頭に、実行中の Run があれば回るリングと「実行中」を、Run のない in_progress なら止まった半分塗りの丸を出し、読み直しで変わる", async () => {
-    const client = mockClient();
+    const client = boardClient();
     client.data.plans.push(plan({ id: "p7", tickets: ["t2"] }));
     /** このマシンで実行中の Run（run.list の running: true だけに返す） */
     let running: RunView[] = [runningRun("t3")];
@@ -812,12 +874,12 @@ describe("画面", () => {
   });
 
   it("サイドバーのカンバンでは、待ちと承認待ちの todo の行だけタイトルを薄くし、実行中の Run がある行は待ちでも薄くしない", async () => {
-    const client = mockClient();
+    const client = boardClient();
     client.data.tickets.push(
-      ticket({ id: "t4", title: "待つ" }),
-      ticket({ id: "t5", title: "外" }),
-      ticket({ id: "t7", title: "承認前" }),
-      ticket({ id: "t8", title: "待ちで実行中" }),
+      ticket({ id: "t4", title: "待つ", iteration: "s0" }),
+      ticket({ id: "t5", title: "外", iteration: "s0" }),
+      ticket({ id: "t7", title: "承認前", iteration: "s0" }),
+      ticket({ id: "t8", title: "待ちで実行中", iteration: "s0" }),
     );
     client.data.plans.push(
       plan({
@@ -850,7 +912,7 @@ describe("画面", () => {
   });
 
   it("実行中の Run を読み終えるまでは、in_progress の行に頭の印を出さず、ほかの一覧はそれを待たずに出す", async () => {
-    const client = mockClient();
+    const client = boardClient();
     let finish: (runs: RunView[]) => void = () => {};
     client.handlers["run.list"] = () => new Promise<RunView[]>((resolve) => (finish = resolve));
     render(
@@ -870,10 +932,10 @@ describe("画面", () => {
   });
 
   it("実行中の Run を読み終えるまでは待ちの行を薄くせず、読み終えると実行中でない待ちの行だけ薄くする", async () => {
-    const client = mockClient();
+    const client = boardClient();
     client.data.tickets.push(
-      ticket({ id: "t4", title: "待つ" }),
-      ticket({ id: "t8", title: "待ちで実行中" }),
+      ticket({ id: "t4", title: "待つ", iteration: "s0" }),
+      ticket({ id: "t8", title: "待ちで実行中", iteration: "s0" }),
     );
     client.data.plans.push(
       plan({ id: "p7", tickets: ["t2", "t4", "t8"], after: { t4: ["t2"], t8: ["t2"] } }),
@@ -905,7 +967,7 @@ describe("画面", () => {
   });
 
   it("readRunning でなければ（左パネルでなければ）実行中の Run を読まず、行に頭の印を出さない", async () => {
-    const client = mockClient();
+    const client = boardClient();
     mount(client, hostOf("sidebar"));
     await screen.findByText("API");
     expect(client.calls.some((c) => c.name === "run.list")).toBe(false);
@@ -913,7 +975,7 @@ describe("画面", () => {
   });
 
   it("広い画面のカンバンのカードには Run の印を出さない", async () => {
-    const client = mockClient();
+    const client = boardClient();
     let answered = false;
     client.handlers["run.list"] = () => {
       answered = true;
@@ -941,7 +1003,7 @@ describe("画面", () => {
   });
 
   it("実行中の Run の読み直しが重なり、後から古い結果が返っても、新しい結果のリングを残す", async () => {
-    const client = mockClient();
+    const client = boardClient();
     /** run.list（running）の応答を、呼ばれた順に後から返す */
     const pending: ((runs: RunView[]) => void)[] = [];
     client.handlers["run.list"] = () => new Promise<RunView[]>((resolve) => pending.push(resolve));
@@ -966,7 +1028,7 @@ describe("画面", () => {
   });
 
   it("実行中の Run が読み直しで読めなくても、前のリングを残し、エラーの通知を出さない", async () => {
-    const client = mockClient();
+    const client = boardClient();
     let fail = false;
     client.handlers["run.list"] = () => {
       if (fail) throw new Error("runs を読めない");
@@ -992,7 +1054,7 @@ describe("画面", () => {
   });
 
   it("サイドバーでは同期の印とボタンを出さない（ビューのタイトル行とバッジで代える）", async () => {
-    const client = mockClient();
+    const client = boardClient();
     client.data.status = { ...client.data.status, ahead: 2 };
     mount(client, hostOf("sidebar"));
     await screen.findByText("ログイン");
@@ -1013,7 +1075,7 @@ describe("画面", () => {
     const intercept = (e: Event) => e.preventDefault();
     document.addEventListener("click", intercept);
     try {
-      mount(mockClient(), hostOf("sidebar"));
+      mount(boardClient(), hostOf("sidebar"));
       await screen.findByText("ログイン");
       const board = screen.getByRole("link", { name: "カンバン" });
       expect(board.getAttribute("aria-current")).toBe("page");
@@ -1768,7 +1830,7 @@ describe("画面", () => {
 
   it("info の通知（コマンドの警告）は数秒で消える", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
-    const client = mockClient();
+    const client = boardClient();
     client.handlers["sync"] = () => ({});
     mount(client);
     await screen.findByText("ログイン");
@@ -1789,12 +1851,11 @@ describe("画面", () => {
   });
 
   it("最初の読み込みが終わるまで「読み込み中…」を出し、空の Project では終わってから空状態になる", async () => {
-    const client = mockClient();
-    client.data.tickets = [];
+    const client = mockClient(fixture({ tickets: [] }));
     mount(client);
     expect(screen.getByText("読み込み中…")).toBeTruthy();
-    expect(screen.queryByText("Iteration はない")).toBeNull();
-    await screen.findByText("Iteration はない");
+    expect(screen.queryByText(/開いた Iteration（planned・active）はない/)).toBeNull();
+    await screen.findByText(/開いた Iteration（planned・active）はない/);
     expect(screen.queryByText("読み込み中…")).toBeNull();
   });
 
@@ -1890,7 +1951,7 @@ describe("画面", () => {
     await screen.findByText("API");
     const head = document.querySelector(".sidebar-head")!;
     const lines = [...head.querySelectorAll(":scope > .head-line")].map((l) => l.textContent);
-    expect(lines).toEqual(["s11/3なし 0+", "今11/15–11/28左パネルを整える", "1/3 done"]);
+    expect(lines).toEqual(["すべて1/3s11/3+", "今11/15–11/28左パネルを整える", "1/3 done"]);
     expect(head.querySelector(".goal")!.getAttribute("title")).toBe("左パネルを整える");
     const bar = [...head.querySelectorAll<HTMLElement>(".status-band .bar > span")];
     expect(bar.map((b) => b.className)).toEqual([
@@ -1910,7 +1971,7 @@ describe("画面", () => {
     expect(document.querySelector(".board-filters.compact")).toBeNull();
   });
 
-  it("サイドバーのカンバンは planned と active の Iteration を番号順の札で並べ、進み・枠・ツールチップで見分け、押すと切り替わる", async () => {
+  it("サイドバーのカンバンは「すべて」と planned と active の Iteration を番号順の札で並べ、進み・枠・ツールチップで見分け、押すと切り替わる", async () => {
     const client = mockClient();
     client.data.iterations = [
       iteration({ id: "s3", name: "次の次", status: "planned" }),
@@ -1932,57 +1993,77 @@ describe("画面", () => {
     await screen.findByText("ログイン");
     const group = screen.getByRole("group", { name: "Iteration" });
     const chips = [...group.querySelectorAll<HTMLButtonElement>(".iteration-chip")];
-    // 閉じた Iteration は出さず、番号順に並べ、最後に なし と + を置く
-    expect(chips.map((c) => c.textContent)).toEqual(["s11/2", "s20/1", "s30/0", "なし 0", "+"]);
+    // 先頭に すべて、閉じた Iteration は出さず番号順に並べ、最後に + を置く
+    expect(chips.map((c) => c.textContent)).toEqual(["すべて1/3", "s11/2", "s20/1", "s30/0", "+"]);
     expect(chips.map((c) => c.className)).toEqual([
+      "iteration-chip all",
       "iteration-chip active",
       "iteration-chip planned",
       "iteration-chip planned",
-      "iteration-chip loose",
       "iteration-chip create",
     ]);
     // 既定は active の札を選び、選んでいる札だけが押された状態
     expect(chips.map((c) => c.getAttribute("aria-pressed"))).toEqual([
-      "true",
       "false",
+      "true",
       "false",
       "false",
       null,
     ]);
-    expect(chips[0]!.querySelector("svg.ring")).toBeTruthy();
-    expect(chips[0]!.title).toBe(
+    expect(chips[1]!.querySelector("svg.ring")).toBeTruthy();
+    expect(chips[1]!.title).toBe(
       "s1 今（進行中）\n期間 2026-11-01 〜 2026-11-14\n目標 札で切り替える",
     );
-    expect(chips[1]!.title).toBe("s2 次（予定）");
+    expect(chips[2]!.title).toBe("s2 次（予定）");
 
-    fireEvent.click(chips[1]!);
+    fireEvent.click(chips[2]!);
     await waitFor(() => expect(window.location.hash).toContain("iteration=s2"));
     await screen.findByText("画面");
     expect(screen.queryByText("API")).toBeNull();
     expect(
       [...document.querySelectorAll(".iteration-chip")].map((c) => c.getAttribute("aria-pressed")),
-    ).toEqual(["false", "true", "false", "false", null]);
+    ).toEqual(["false", "false", "true", "false", null]);
     expect(document.querySelector(".sidebar-head .head-line.sub .name")!.textContent).toBe("次");
   });
 
-  it("サイドバーのカンバンの「なし n」は Iteration に入っていない終わっていないチケットを数え、押すと Iteration なしを選ぶ", async () => {
+  it("サイドバーのカンバンの「すべて」は planned と active の Iteration のチケットを数えて出し、Iteration に入っていないチケットと閉じた Iteration のチケットは出さない。「なし」の札はない", async () => {
     const client = mockClient();
-    client.data.iterations = [iteration({ id: "s1", name: "今", status: "active" })];
-    client.data.tickets[0]!.iteration = "s1";
-    // 残りの 2 件は Iteration なし。done は数えない
-    client.data.tickets[2]!.status = "done";
+    client.data.iterations = [
+      iteration({ id: "s1", name: "今", status: "active" }),
+      iteration({ id: "s2", name: "次", status: "planned" }),
+      iteration({ id: "s0", name: "前", status: "closed" }),
+    ];
+    client.data.tickets[0]!.iteration = "s0";
+    client.data.tickets[1]!.iteration = "s1";
+    client.data.tickets[2]!.iteration = "s2";
+    client.data.tickets.push(ticket({ id: "t4", title: "入っていない" }));
+    client.data.plans.push(
+      plan({ id: "p1", tickets: ["t1"], status: "closed" }),
+      plan({ id: "p2", tickets: ["t2", "t4"], status: "closed" }),
+      plan({ id: "p3", tickets: ["t4"] }),
+    );
     mount(client, hostOf("sidebar"));
-    await screen.findByText("ログイン");
-    const loose = document.querySelector<HTMLButtonElement>(".iteration-chip.loose")!;
-    expect(loose.textContent).toBe("なし 1");
-    fireEvent.click(loose);
-    await waitFor(() => expect(window.location.hash).toContain("iteration=-"));
-    expect(document.querySelector(".iteration-chip.loose")!.getAttribute("aria-pressed")).toBe(
-      "true",
-    );
+    await screen.findByText("API");
+    expect(document.querySelector(".iteration-chip.loose")).toBeNull();
+    const all = document.querySelector<HTMLButtonElement>(".iteration-chip.all")!;
+    expect(all.textContent).toBe("すべて0/2");
+    fireEvent.click(all);
+    await waitFor(() => expect(window.location.hash).toContain("iteration=*"));
+    expect(all.getAttribute("aria-pressed")).toBe("true");
     expect(document.querySelector(".sidebar-head .head-line.sub .name")!.textContent).toBe(
-      "Iteration なし",
+      "planned・active のすべて",
     );
+    await screen.findByText("画面");
+    expect(kanbanRowOf("API")).toBeTruthy();
+    expect(kanbanRowOf("画面")).toBeTruthy();
+    expect(kanbanRowOf("入っていない")).toBeUndefined();
+    expect(kanbanRowOf("ログイン")).toBeUndefined();
+    // 帯は範囲のチケットを含む Plan だけ。範囲の閉じた Plan は「閉じた計画」に畳む
+    const band = document.querySelector(".plan-band")!;
+    expect(band.querySelector(".plan-closed summary")!.textContent).toBe("閉じた計画 1");
+    expect(band.textContent).toContain("p2");
+    expect(band.textContent).not.toContain("p1");
+    expect(band.textContent).not.toContain("p3");
   });
 
   it("サイドバーのカンバンの札の done/全体は、すぐ下の進みの帯と同じく閉じた Epic の終わったチケットを数えない", async () => {
@@ -2024,11 +2105,11 @@ describe("画面", () => {
   });
 
   it("サイドバーでは Project が 1 つなら Project の段を出さず、2 つ以上なら出す", async () => {
-    mount(mockClient(), hostOf("sidebar"));
+    mount(boardClient(), hostOf("sidebar"));
     await screen.findByText("ログイン");
     expect(document.querySelector(".project-select")).toBeNull();
     cleanup();
-    const client = mockClient();
+    const client = boardClient();
     client.data.projects.push({ ...client.data.projects[0]!, id: "other", name: "Other" });
     mount(client, hostOf("sidebar"));
     await screen.findByText("ログイン");
@@ -2036,7 +2117,7 @@ describe("画面", () => {
   });
 
   it("サイドバーのカンバンの Epic・担当の欄は漏斗で開き（開閉は host.state）、絞っている間は値の札を出して漏斗を色付きにし、× で外せる", async () => {
-    const client = mockClient();
+    const client = boardClient();
     client.data.tickets[1]!.assignee = "eiki/agent";
     const host = hostOf("sidebar");
     mount(client, host);
@@ -2092,13 +2173,12 @@ describe("画面", () => {
     expect(window.location.hash).not.toContain("create");
   });
 
-  it("Iteration のない Project でも、サイドバーのカンバンの「+」から Iteration を作れる（なし の札は出さない）", async () => {
+  it("開いた Iteration のない Project でも、サイドバーのカンバンの「+」から Iteration を作れる", async () => {
     mount(mockClient(), hostOf("sidebar"));
-    await screen.findByText("ログイン");
+    await screen.findByText(/開いた Iteration（planned・active）はない/);
     expect(document.querySelector(".sidebar-head .head-line.sub .name")!.textContent).toBe(
-      "Iteration はない",
+      "開いた Iteration はない",
     );
-    expect(document.querySelector(".iteration-chip.loose")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Iteration を作る" }));
     expect(screen.getByLabelText("名前")).toBeTruthy();
   });
@@ -2180,20 +2260,89 @@ describe("画面", () => {
     const sections = [...document.querySelectorAll(".backlog-section")];
     expect(sections.map((e) => e.querySelector("header")!.textContent)).toEqual([
       "s1 今進行中1 件閉じる2026-11-01 〜 ? ・ 画面",
-      "s2 次予定0 件開始する閉じる",
+      "s2 次予定0 件s1 が進行中開始する閉じる",
       "Iteration なし1 件+ Iteration を作る",
     ]);
     expect(sections[1]!.querySelector("table")).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "開始する" }));
+    // ほかに active（s1）があるので開始は押せず、title に理由を出す（IT-1）
+    const start = screen.getByRole("button", { name: "開始する" }) as HTMLButtonElement;
+    expect(start.disabled).toBe(true);
+    expect(start.title).toContain("s1 今 が進行中なので開始できない");
+    fireEvent.click(start);
+    expect(client.calls.some((c) => c.name === "iteration.start")).toBe(false);
+    fireEvent.click(screen.getByRole("button", { name: "+ Iteration を作る" }));
+    fireEvent.change(screen.getByLabelText("名前"), { target: { value: "その次" } });
+    fireEvent.click(screen.getByRole("button", { name: "作る" }));
+    await waitFor(() => expect(client.calls.some((c) => c.name === "iteration.create")).toBe(true));
+  });
+
+  it("バックログの見出しの開始は、ほかに active がなければ押せて開始する", async () => {
+    window.location.hash = "#/backlog";
+    const client = mockClient();
+    client.data.iterations = [
+      iteration({ id: "s1", name: "前", status: "closed" }),
+      iteration({ id: "s2", name: "次", status: "planned" }),
+    ];
+    client.handlers["iteration.start"] = (input) => input;
+    mount(client);
+    await screen.findByText("API");
+    expect(document.querySelector(".blocked-note")).toBeNull();
+    const start = screen.getByRole("button", { name: "開始する" }) as HTMLButtonElement;
+    expect(start.disabled).toBe(false);
+    expect(start.title).toBe("");
+    fireEvent.click(start);
     await waitFor(() =>
       expect(client.calls.find((c) => c.name === "iteration.start")?.input).toEqual({
         iteration: "s2",
       }),
     );
-    fireEvent.click(screen.getByRole("button", { name: "+ Iteration を作る" }));
-    fireEvent.change(screen.getByLabelText("名前"), { target: { value: "その次" } });
-    fireEvent.click(screen.getByRole("button", { name: "作る" }));
-    await waitFor(() => expect(client.calls.some((c) => c.name === "iteration.create")).toBe(true));
+  });
+
+  it("Iteration 詳細の開始・再開は、ほかに active があると押せず、理由を文と title に出す", async () => {
+    const client = mockClient();
+    client.data.iterations = [
+      iteration({ id: "s1", name: "今", status: "active" }),
+      iteration({ id: "s2", name: "次", status: "planned" }),
+      iteration({ id: "s0", name: "前", status: "closed" }),
+    ];
+    client.handlers["iteration.show"] = (input) => ({
+      ...client.data.iterations.find((i) => i.id === (input as { iteration: string }).iteration),
+      items: [],
+    });
+    window.location.hash = "#/iterations/s2";
+    mount(client);
+    const start = (await screen.findByRole("button", { name: "開始する" })) as HTMLButtonElement;
+    expect(start.disabled).toBe(true);
+    expect(start.title).toBe(
+      "s1 今 が進行中なので開始できない（進行中の Iteration は 1 つ）。先に s1 を閉じる",
+    );
+    expect(document.querySelector("p.blocked-note")!.textContent).toBe(start.title);
+    cleanup();
+    window.location.hash = "#/iterations/s0";
+    mount(client);
+    const reopen = (await screen.findByRole("button", { name: "再開する" })) as HTMLButtonElement;
+    expect(reopen.disabled).toBe(true);
+    expect(reopen.title).toContain("s1 今 が進行中なので再開できない");
+    fireEvent.click(reopen);
+    expect(client.calls.some((c) => c.name === "iteration.reopen")).toBe(false);
+  });
+
+  it("Iteration 詳細の再開は、ほかに active がなければ押せて再開する。active の詳細には理由の文を出さない", async () => {
+    const client = mockClient();
+    client.data.iterations = [iteration({ id: "s0", name: "前", status: "closed" })];
+    client.handlers["iteration.show"] = () => ({ ...client.data.iterations[0], items: [] });
+    client.handlers["iteration.reopen"] = (input) => input;
+    window.location.hash = "#/iterations/s0";
+    mount(client);
+    const reopen = (await screen.findByRole("button", { name: "再開する" })) as HTMLButtonElement;
+    expect(reopen.disabled).toBe(false);
+    expect(document.querySelector(".blocked-note")).toBeNull();
+    fireEvent.click(reopen);
+    await waitFor(() =>
+      expect(client.calls.find((c) => c.name === "iteration.reopen")?.input).toEqual({
+        iteration: "s0",
+      }),
+    );
   });
 
   it("サイドバーのバックログの区画は折りたたみの節で、開閉が host.state に残る", async () => {
@@ -2301,6 +2450,12 @@ describe("上のタブの行き先", () => {
   it.each([
     ["閉じた Iteration を指すカンバン", "nav.board", "#/board?iteration=s4", "#/board"],
     ["閉じた Epic を指すカンバン", "nav.board", "#/board?epic=e9", "#/board"],
+    [
+      "前の版の「Iteration なし」（-）を指すカンバン",
+      "nav.board",
+      "#/board?iteration=-",
+      "#/board",
+    ],
     [
       "今の Project にない Iteration を指すカンバン",
       "nav.board",

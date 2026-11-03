@@ -46,6 +46,9 @@ export function iteration(partial: Partial<Iteration> & { id: string; name: stri
   return { project: "default", goal: "", status: "planned", ...partial };
 }
 
+/** boardFixture が置く active の Iteration */
+export const BOARD_ITERATION = iteration({ id: "s0", name: "既定", status: "active" });
+
 /** plan.list の 1 行。progress・waiting・ready・next は空のまま（fixture の plan.list は withPlanFacts でチケットから求めて載せる） */
 export function plan(partial: Partial<PlanRow> & { id: string; tickets: string[] }): PlanRow {
   return {
@@ -71,6 +74,18 @@ function withPlanFacts(row: PlanRow, tickets: readonly Ticket[]): PlanRow {
   const byId = new Map<string, Ticket>(tickets.map((t) => [t.id, t]));
   const found = row.tickets.flatMap((id) => byId.get(id) ?? []);
   return { ...row, progress: progressOf(found), ...planReadiness(row, (id) => byId.get(id)) };
+}
+
+/**
+ * カンバンのテスト用の fixture。カンバンは開いた Iteration のチケットだけを出すので、active の Iteration（BOARD_ITERATION）を置き、
+ * Iteration を持たないチケット（既定の t1〜t3 を含む）をそこに入れる。後から足すチケットは iteration を明示する
+ */
+export function boardFixture(partial: Partial<Fixture> = {}): Fixture {
+  const result = fixture({ iterations: [BOARD_ITERATION], ...partial });
+  return {
+    ...result,
+    tickets: result.tickets.map((t) => (t.iteration ? t : { ...t, iteration: BOARD_ITERATION.id })),
+  };
 }
 
 export function fixture(partial: Partial<Fixture> = {}): Fixture {

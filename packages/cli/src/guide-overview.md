@@ -17,7 +17,7 @@ deguboard は Git で管理するチケットのツール。あなた（AI エ�
 
 書き込みと `sync` は、リモートの deguboard ブランチを取り込んでから push する。止まったら次のとおりにする。どの場合もデータのファイルは直さない。
 
-- **競合**：`sync` の `data.conflicts` が空でない（`ok` は true のまま）か、起票・claim が `SYNC_CONFLICT` で失敗した。両側が同じフィールドを違う値に変えたか、本文の同じ行を変えている。ローカルのコミットは残り、解消するまで push・照合・起票・claim が止まる。自分では解かず、`conflicts` のファイルと `data.status` の `ahead`・`behind` を人に伝え、どちらの値を残すかを決めて解消してもらう（人向けの戻し方は要件定義書の SY-4）。解消されたら `sync` を回し、`conflicts` が空になったことを確かめてから続ける
+- **競合**：`sync` の `data.conflicts` が空でない（`ok` は true のまま）か、起票・claim が `SYNC_CONFLICT` で失敗した。両側が同じフィールドを違う値に変えたか、本文の同じ行を変えている。ローカルのコミットは残り、解消するまで push・照合・起票・claim が止まる。自分では解かず、`conflicts` のファイルと `data.status` の `ahead`・`behind` を人に伝え、どちらの値を残すかを決めて解消してもらう（人の戻し方：deguboard worktree で `git rebase <remote>/deguboard` から解いて `git rebase --continue` するか、`git reset --hard <remote>/deguboard` でローカルのコミットを捨てて操作をやり直す）。解消されたら `sync` を回し、`conflicts` が空になったことを確かめてから続ける
 - **push の拒否が続く**：起票・claim が `PUSH_FAILED` で失敗したら、何も取得できておらず、コミットも残っていない。少し置いて同じ操作をやり直す（claim なら先に `ticket show` で誰かが着手していないか確かめる）。それ以外の書き込みで push できなかった警告が出たら、コミットはローカルに残り、次の `sync` が再送する
 - **リモートに届かない**：コミットはローカルに残り、起票した番号は仮番号（`provisional: true`）になる。届くようになったら `sync` を回す。仮番号がリモートの番号と重なっていれば `sync` が振り直し、`data.renumbered` に `{ from, to }` を出す。振り直されたら、人に伝えた番号を直して伝え直す。仮番号のほかに競合があるときと、`manual` で未コミットの変更が残るときは振り直せず、上の競合として出る
 

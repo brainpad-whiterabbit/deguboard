@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { App } from "../app.js";
 import { HostProvider, type Host } from "../host.js";
 import { StoreProvider } from "../store.js";
-import { iteration, mockClient, plan, ticket } from "../test-helpers.js";
+import { boardFixture, iteration, mockClient, plan, ticket } from "../test-helpers.js";
 import { createUiState, memoryBackend } from "../ui-state.js";
 
 afterEach(() => {
@@ -23,7 +23,7 @@ function browserHost(surface: Host["surface"] = "browser"): Host {
   };
 }
 
-function mount(client = mockClient(), host = browserHost()) {
+function mount(client = mockClient(boardFixture()), host = browserHost()) {
   render(
     <StoreProvider client={client}>
       <HostProvider host={host}>
@@ -36,7 +36,7 @@ function mount(client = mockClient(), host = browserHost()) {
 
 /** t1（done）→ t3 を待つ承認済みの Plan と、閉じた Plan を持つ（進捗と待ちは fixture の plan.list が core と同じく求める） */
 function withPlans() {
-  const client = mockClient();
+  const client = mockClient(boardFixture());
   client.data.plans = [
     plan({ id: "p1", tickets: ["t2"], status: "closed" }),
     plan({
@@ -69,7 +69,7 @@ describe("実行計画の帯", () => {
   });
 
   it("2 行目に作業中の番号と次に着手するチケットを出す。待ちがあれば待っているチケットと「t2 待ち」、承認待ちは承認を待っていること", async () => {
-    const client = mockClient();
+    const client = mockClient(boardFixture());
     client.data.plans = [
       plan({ id: "p2", tickets: ["t1", "t3"], after: { t3: ["t1"] } }),
       plan({ id: "p3", tickets: ["t2", "t3"], after: { t3: ["t2"] } }),
@@ -220,7 +220,7 @@ describe("実行計画の帯", () => {
   });
 
   it("サイドバーのチップは、done のチケットにだけ status-done のクラスを付ける（番号の取り消し線）", async () => {
-    const client = mockClient();
+    const client = mockClient(boardFixture());
     // t1 は done、t2 は in_progress、t3 は todo。待ちの辺がないのでチップで出す
     client.data.plans = [plan({ id: "p3", tickets: ["t1", "t2", "t3"] })];
     const host = browserHost("sidebar");
@@ -238,7 +238,7 @@ describe("実行計画の帯", () => {
   });
 
   it("ブラウザでは待ちの辺のない Plan もグラフで出す", async () => {
-    const client = mockClient();
+    const client = mockClient(boardFixture());
     client.data.plans = [plan({ id: "p3", tickets: ["t2", "t3"] })];
     const host = browserHost();
     host.state.set("board.planGraph.p3", true);

@@ -54,7 +54,7 @@ describe("ハッシュのルーティング", () => {
     for (const route of [
       { page: "board" as const, epic: "e1" },
       { page: "board" as const, iteration: "s4", epic: "e1", assignee: "eiki/agent" },
-      { page: "board" as const, iteration: "-" },
+      { page: "board" as const, iteration: "*" },
       { page: "ticket" as const, id: "t3" },
       { page: "epics" as const, id: "e1" },
       { page: "iterations" as const, id: "s2" },
