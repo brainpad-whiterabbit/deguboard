@@ -1,0 +1,27 @@
+id: p35
+project: default
+tickets: [t318, t310, t311, t312, t319]
+after:
+  t311:
+    - t318
+  t312:
+    - t318
+  t319:
+    - t318
+pending_approval: true
+details:
+  t318:
+    scope: plan create の --tier と details.tier、config の models.*（設定画面を含む）、guide-plan・work・parallel・review の段階のモデルの手順、requirements PL-1・5.10 と ADR-004
+    approach: core の plan create と configFields に足して CLI・HTTP・Webview は写すだけにし、guide の追記は check:docs の予算に収める
+  t310:
+    scope: 受け入れ条件が 7 項目以上なら分けることを勧める。guide-import の記述を基本とし、lint の警告にするかは実装で決めて PR に理由を書く
+    approach: guide-import の「よいチケットの書き方」に目安と根拠を足す。lint にするなら setup.ts の規則と 6/7 項目の境界のテストを足す
+  t311:
+    scope: guide-work の PR を作る前の段に、触れた節の正本とコメントを読み直してずれを同じ PR で直し、報告に書く手順を足す
+    approach: t318 が guide-work を直した後に、同じファイルの衝突を避けて短い 1 段を足し check:docs の予算を確かめる
+  t312:
+    scope: 版上げのチケットを見直しから外す決まりと条件を guide-review か guide-release に書き、外れた 5 件と t212 の抜けを調べて PR と報告に書く
+    approach: dg の Run・PR の記録で見直しのない 5 件と t212 を調べてから、t318 が直した後の guide-review に決まりを書く
+  t319:
+    scope: このリポジトリの config.yaml に models.light=haiku・standard=sonnet・heavy=opus を設定する（PR なし）
+    approach: t318 のマージ後に claim --without-branch で config set し、config show で確かめて done にする
