@@ -1,15 +1,47 @@
 // チケット詳細の右の列（属性）で、パネル（ticket-props-panel.tsx）とブラウザ（ticket-props-browser.tsx）が共に使うもの。
-// 属性の 1 行、Status の選択、依存先・依存元の行、Epic・Iteration の選択の項目、読むだけの属性の値と、PR のリンク。
+// 編集のボタンで直している間の値（Draft）、属性の 1 行、Status の選択、依存先・依存元の行、Epic・Iteration の選択の項目、読むだけの属性の値と、PR のリンク。
 // 依存先が終わったかは ticket.show の pending_deps で決める（別の Project の依存先も見る。パネルの帯と同じ判定）
 
 import { Fragment, type ReactNode } from "react";
 import type { Store } from "../store.js";
-import { PRIORITIES, type Status, type TicketDetail } from "../types.js";
+import {
+  PRIORITIES,
+  type FieldDefinition,
+  type Priority,
+  type Status,
+  type TicketDetail,
+} from "../types.js";
 import { hrefOf } from "../router.js";
 import { CopyableCode } from "./copyable-code.js";
 import { DateTime } from "./date-time.js";
 import type { Choice } from "./inline-edit.js";
 import { PriorityBadge, StatusBadge, StatusDot, Tags, TicketLink } from "./parts.js";
+import { fieldText } from "./ticket-fields.js";
+
+/** 編集のボタンで直している間の値。パネルではタイトルと本文だけを、ブラウザでは属性も使う */
+export interface Draft {
+  title: string;
+  priority: Priority;
+  labels: string;
+  epic: string;
+  iteration: string;
+  assignee: string;
+  body: string;
+  fields: Record<string, string>;
+}
+
+export function draftOf(t: TicketDetail, fields: readonly FieldDefinition[]): Draft {
+  return {
+    title: t.title,
+    priority: t.priority,
+    labels: t.labels.join(", "),
+    epic: t.epic ?? "",
+    iteration: t.iteration ?? "",
+    assignee: t.assignee ?? "",
+    body: t.body,
+    fields: Object.fromEntries(fields.map((f) => [f.id, fieldText(t[f.id])])),
+  };
+}
 
 export const PRIORITY_CHOICES: Choice[] = PRIORITIES.map((p) => ({ value: p, label: p }));
 

@@ -15,6 +15,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { askKey, parseAskKey } from "./ask-key.js";
 import type { WebviewClient } from "./client/webview.js";
 import { hrefOf, navigate, toggleRoute, type Route } from "./router.js";
 import { useStore } from "./store.js";
@@ -167,8 +168,8 @@ export function useAsk(): Ask {
  */
 export function useAskCurrent(targets: readonly string[]): void {
   const { setCurrent } = useAsk();
-  const key = targets.join(" ");
-  useEffect(() => setCurrent(key ? key.split(" ") : []), [key, setCurrent]);
+  const key = askKey(targets);
+  useEffect(() => setCurrent(parseAskKey(key).targets), [key, setCurrent]);
 }
 
 export function useHost(): Host {

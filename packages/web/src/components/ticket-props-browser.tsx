@@ -10,39 +10,15 @@ import {
   type TicketDetail,
 } from "../types.js";
 import { optionsOf } from "./inline-edit.js";
-import { fieldText, FieldInput, FieldView, parseFieldValue } from "./ticket-fields.js";
+import { FieldInput, FieldView, parseFieldValue } from "./ticket-fields.js";
 import {
+  type Draft,
   parseLabels,
   PRIORITY_CHOICES,
   propRow,
   StatusSelect,
   ticketAttrs,
 } from "./ticket-props.js";
-
-/** 編集のボタンで直している間の値。パネルではタイトルと本文だけを使う */
-export interface Draft {
-  title: string;
-  priority: Priority;
-  labels: string;
-  epic: string;
-  iteration: string;
-  assignee: string;
-  body: string;
-  fields: Record<string, string>;
-}
-
-export function draftOf(t: TicketDetail, fields: readonly FieldDefinition[]): Draft {
-  return {
-    title: t.title,
-    priority: t.priority,
-    labels: t.labels.join(", "),
-    epic: t.epic ?? "",
-    iteration: t.iteration ?? "",
-    assignee: t.assignee ?? "",
-    body: t.body,
-    fields: Object.fromEntries(fields.map((f) => [f.id, fieldText(t[f.id])])),
-  };
-}
 
 /** ブラウザの保存で、タイトルと本文に足して ticket.update に渡す属性。任意フィールドは値のあるものだけ */
 export function attrPatchOf(

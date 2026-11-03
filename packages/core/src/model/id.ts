@@ -8,6 +8,12 @@ export type IdKind = (typeof ID_KINDS)[number];
 
 const ID_PREFIX = { ticket: "t", epic: "e", iteration: "s", plan: "p" } as const;
 
+/** ID の頭の文字から種類を決める（t12 は ticket、s3 は iteration）。形は確かめないので、parseId と合わせて使う */
+export function idKindOf(ref: string): IdKind | undefined {
+  const head = ref.trim().charAt(0);
+  return ID_KINDS.find((k) => ID_PREFIX[k] === head);
+}
+
 export type TicketId = `t${number}`;
 export type EpicId = `e${number}`;
 export type IterationId = `s${number}`;

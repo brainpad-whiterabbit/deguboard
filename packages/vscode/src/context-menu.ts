@@ -3,10 +3,10 @@
 // package.json の when が見て、頼むことごとのコマンドを出す（先頭の節がおすすめ、次の節が残りの候補）。選ぶと右クリックした画面
 // （左パネルかパネル）の下の入力欄をその頼むことで開く。
 // 以下はバックログの行の「詳細を開く」「ID をコピー」。データには書き込まない（ADR-010）。
-// 行は web が data-vscode-context に webviewSection・ticket・iteration・project を載せ（parts.tsx の TicketTable）、
+// 行は web が data-vscode-context に webviewSection・ticket を載せ（parts.tsx の BacklogItem）、
 // package.json の webview/context が webviewSection を見てメニューを出す。コマンドはその文脈を引数で受け取る
 
-import { ASK_ACTIONS, WEBVIEW_CONTRACT, type AskAction } from "@deguboard/core";
+import { ASK_ACTIONS, parseAskMenuKey, WEBVIEW_CONTRACT, type AskAction } from "@deguboard/core";
 
 /** バックログの行の data-vscode-context の webviewSection（core の WEBVIEW_CONTRACT）。package.json の when と合わせる */
 export const BACKLOG_ROW_SECTION = WEBVIEW_CONTRACT.backlogRowSection;
@@ -17,11 +17,9 @@ export const BACKLOG_ROW_COMMANDS = {
   copyId: "deguboard.backlog.copyId",
 } as const;
 
-/** 右クリックした行のチケット。iteration は今の所属（なければ null） */
+/** 右クリックした行のチケット */
 export interface MenuTicket {
   ticket: string;
-  iteration: string | null;
-  project: string;
 }
 
 /** コマンドの引数（行の data-vscode-context）からチケットを取る。形が違えば undefined */
@@ -29,9 +27,8 @@ export function menuTicketOf(arg: unknown): MenuTicket | undefined {
   if (typeof arg !== "object" || arg === null) return undefined;
   const v = arg as Record<string, unknown>;
   if (v["webviewSection"] !== BACKLOG_ROW_SECTION) return undefined;
-  if (typeof v["ticket"] !== "string" || typeof v["project"] !== "string") return undefined;
-  const iteration = typeof v["iteration"] === "string" ? v["iteration"] : null;
-  return { ticket: v["ticket"], iteration, project: v["project"] };
+  if (typeof v["ticket"] !== "string") return undefined;
+  return { ticket: v["ticket"] };
 }
 
 /** 「詳細を開く」でパネルに出すルート */
@@ -137,7 +134,7 @@ export function menuAskOf(arg: unknown, action: AskAction): MenuAsk | undefined 
   if (!actions.split(/\s+/).includes(action)) return undefined;
   const within = v[CTX.within];
   return {
-    targets: targets.split(/\s+/).filter(Boolean),
+    targets: parseAskMenuKey(targets).refs,
     action,
     ...(typeof within === "string" && within ? { within } : {}),
     panel: v["webview"] === PANEL_VIEW_TYPE,
