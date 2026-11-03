@@ -1,0 +1,21 @@
+{
+  "id": "r20261103-061352-d04b",
+  "ticket": "t286",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-03T06:13:52Z",
+  "finished_at": "2026-11-03T06:19:24Z",
+  "result": "success",
+  "error": null,
+  "retries": 1,
+  "retry_reasons": [
+    "テスト名のスクロール先を英語のまま出していたのを日本語のラベルにした"
+  ],
+  "usage": {
+    "input": 20,
+    "output": 3709,
+    "cache_read": 834369,
+    "cache_write": 5835
+  }
+}
