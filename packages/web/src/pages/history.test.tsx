@@ -101,9 +101,7 @@ describe("Iteration の行", () => {
       </StoreProvider>,
     );
     const row = (await screen.findByText("左パネルを主画面にする")).closest(".history-row")!;
-    expect(row.querySelector("small")!.textContent).toBe(
-      "sprint4 ・ 内訳: e1 2, Epic なし 2 ・ Run の集計",
-    );
+    expect(row.querySelector("small")!.textContent).toBe("sprint4 ・ 内訳: e1 2, Epic なし 2");
     expect([...row.querySelectorAll(".counts .badge")].map((b) => b.textContent)).toEqual([
       "完了 3",
       "中止 1",
@@ -118,7 +116,26 @@ describe("Iteration の行", () => {
 });
 
 describe("Iteration の行の Run の集計", () => {
-  it("閉じた Iteration の行に Run の画面へのリンクを置き、押すとその Iteration で絞った集計を開く。履歴に Run の数字は出さない", async () => {
+  it("左パネルでは閉じた Iteration の行に Run の集計のリンクを出さない", async () => {
+    window.location.hash = "#/history";
+    const client = mockClient();
+    client.data.iterations = [
+      iteration({ id: "s4", name: "sprint4", status: "closed", completed: 1 }),
+    ];
+    client.data.tickets = [ticket({ id: "t1", status: "done", iteration: "s4" })];
+    render(
+      <StoreProvider client={client}>
+        <HostProvider host={sidebarHost()}>
+          <App />
+        </HostProvider>
+      </StoreProvider>,
+    );
+    const row = (await screen.findByText("sprint4")).closest(".history-row")!;
+    expect(row.querySelector("small")!.textContent).toBe("内訳: Epic なし 1");
+    expect(within(row as HTMLElement).queryByRole("link", { name: "Run の集計" })).toBeNull();
+  });
+
+  it("ブラウザでは閉じた Iteration の行に Run の画面へのリンクを置き、押すとその Iteration で絞った集計を開く。履歴に Run の数字は出さない", async () => {
     window.location.hash = "#/history";
     const client = mockClient();
     client.data.iterations = [
@@ -131,11 +148,10 @@ describe("Iteration の行の Run の集計", () => {
       total: { runs: 0 },
       groups: [],
     });
+    // ブラウザの画面（左パネルには Run の画面がなく、リンクを出さない）
     render(
       <StoreProvider client={client}>
-        <HostProvider host={sidebarHost()}>
-          <App />
-        </HostProvider>
+        <App />
       </StoreProvider>,
     );
     const row = (await screen.findByText("sprint4")).closest(".history-row")!;

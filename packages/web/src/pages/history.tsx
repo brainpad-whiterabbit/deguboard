@@ -5,7 +5,7 @@
 // 1 段目は番号・目標（目標がなければ名前）と件数のチップ（完了・中止・持ち越し）、2 段目は名前（目標を 1 段目に出したとき）・期間と、
 // 終わったチケットの Epic ごとの内訳（Epic なしを含み、合計は終わったチケットの件数に合う）。
 // 行を開くと中の done・abandoned のチケットを出す。Run の実績はここに出さず、2 段目の「Run の集計」から
-// その Iteration で絞った Run の画面（#/runs?by=iteration&iteration=s5）を開いて見る。
+// その Iteration で絞った Run の画面（#/runs?by=iteration&iteration=s5）を開いて見る（左パネルには Run の画面がなく、リンクも出さない）。
 // Epic の見方：closed の Epic を閉じた新しい順に、進捗・閉じた日と、チケットが入っていた Iteration を出す。
 // チケットの見方：done・abandoned のチケットを終えた新しい順に、結果・Iteration・Epic・PR・終えた日を出す。終えた時刻は
 // history のコマンド（deguboard ブランチの履歴）から求め、履歴が浅くて分からないものは updated_at で代え、そう出す。
@@ -507,14 +507,19 @@ function IterationItem({
                 ))}
               </span>
             ) : null}
-            {meta || epics.length > 0 ? " ・ " : ""}
-            {/* Run の数字はここに出さず、その Iteration で絞った Run の画面へのリンクだけを置く */}
-            <a
-              className="history-runs-link"
-              href={hrefOf({ page: "runs", by: "iteration", iteration: i.id })}
-            >
-              Run の集計
-            </a>
+            {/* Run の数字はここに出さず、その Iteration で絞った Run の画面へのリンクだけを置く。
+                左パネルには Run の画面がないので出さない（UI-12） */}
+            {sidebar ? null : (
+              <>
+                {meta || epics.length > 0 ? " ・ " : ""}
+                <a
+                  className="history-runs-link"
+                  href={hrefOf({ page: "runs", by: "iteration", iteration: i.id })}
+                >
+                  Run の集計
+                </a>
+              </>
+            )}
           </small>
         </summary>
         {sidebar ? (

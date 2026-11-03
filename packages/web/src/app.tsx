@@ -28,6 +28,8 @@ const NAV: { page: Route["page"]; label: string }[] = [
   { page: "history", label: "履歴" },
   { page: "runs", label: "Run" },
 ];
+/** 左パネルのタブ。Run の画面はブラウザだけに置く（UI-12） */
+const SIDEBAR_NAV = NAV.filter((n) => n.page !== "runs");
 
 /** タブの行き先を最後に見たハッシュにする画面。バックログは絞り込みをハッシュに持たないので固定 */
 type LastHashPage = "board" | "history" | "runs";
@@ -102,13 +104,14 @@ export function App() {
     history: useLastHref("history", route, store),
     runs: useLastHref("runs", route, store),
   };
+  const shown = sidebarRoute(route, sidebar);
   // Iteration の詳細はカンバンのタブ、Epic の詳細はバックログのタブの下にあるものとして扱う（一覧の画面はない）
   const active =
-    route.page === "ticket" || route.page === "epics"
+    shown.page === "ticket" || shown.page === "epics"
       ? "backlog"
-      : route.page === "iterations"
+      : shown.page === "iterations"
         ? "board"
-        : route.page;
+        : shown.page;
   // エディタのパネルは詳細（チケット・Iteration・Epic）だけを出し、1 枚で完結するので、タブ・Project・同期のヘッダーを出さない（UI-12）
   const panel = host.surface === "panel";
   return (
@@ -121,7 +124,7 @@ export function App() {
         <header className="topbar">
           {sidebar ? null : <strong className="brand">deguboard</strong>}
           <nav aria-label="画面">
-            {NAV.map((n) => (
+            {(sidebar ? SIDEBAR_NAV : NAV).map((n) => (
               <a
                 key={n.page}
                 href={lastHref[n.page] ?? hrefOf({ page: n.page } as Route)}
@@ -177,8 +180,8 @@ export function App() {
             {host.surface === "browser" ? null : <LoadingSkeleton />}
           </>
         ) : (
-          // サイドバーではチケット詳細を出さない（エディタ領域のパネルに開く。UI-12）
-          <Page route={sidebar && route.page === "ticket" ? { page: "backlog" } : route} />
+          // サイドバーではチケット詳細を出さない（エディタ領域のパネルに開く）。Run の画面もなく、カンバンを出す（UI-12）
+          <Page route={shown} />
         )}
       </main>
     </div>
@@ -220,6 +223,14 @@ function followHashLink(e: MouseEvent<HTMLElement>, show?: (route: Route) => voi
   const route = parseRoute(href);
   if (show && !isDetailRoute(route)) show(route);
   else window.location.hash = href;
+}
+
+/** サイドバーで出す画面。チケット詳細はバックログに、Run の画面（前の版で残ったハッシュから来る）はカンバンに替える */
+function sidebarRoute(route: Route, sidebar: boolean): Route {
+  if (!sidebar) return route;
+  if (route.page === "ticket") return { page: "backlog" };
+  if (route.page === "runs") return { page: "board" };
+  return route;
 }
 
 function Page({ route }: { route: Route }) {
