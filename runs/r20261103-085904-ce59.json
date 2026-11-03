@@ -1,0 +1,22 @@
+{
+  "id": "r20261103-085904-ce59",
+  "ticket": "t294",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": null,
+  "started_at": "2026-11-03T08:59:04Z",
+  "finished_at": "2026-11-03T08:59:51Z",
+  "result": "success",
+  "error": null,
+  "retries": 2,
+  "retry_reasons": [
+    "入口の数を設定画面と同期を除く範囲に限った",
+    "--created-by human を添える依頼を起票だけにした"
+  ],
+  "usage": {
+    "input": null,
+    "output": null,
+    "cache_read": null,
+    "cache_write": null
+  }
+}

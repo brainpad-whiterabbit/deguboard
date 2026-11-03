@@ -1,0 +1,23 @@
+{
+  "id": "r20261103-085551-2b53",
+  "ticket": "t294",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-03T08:55:51Z",
+  "finished_at": "2026-11-03T08:56:49Z",
+  "result": "success",
+  "error": null,
+  "retries": 3,
+  "retry_reasons": [
+    "同期を書き込みに数えないとした誤りを直した",
+    "書き込みを許した元の理由への答えを ADR-010 に足した",
+    "ADR-006 の拡張だけで使える範囲の理由を今の決定に合わせた"
+  ],
+  "usage": {
+    "input": 4,
+    "output": 1480,
+    "cache_read": 743354,
+    "cache_write": 3222
+  }
+}
