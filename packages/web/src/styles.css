@@ -1208,6 +1208,26 @@ table.list th {
 .props-empty {
   font-size: 0.92em;
 }
+/* 「なし」の行の「＋足す」は値のない属性の並びの下に置く */
+.props-empty .props-add {
+  display: block;
+  margin-top: 0.2rem;
+}
+/* パネルのその場で直す属性の値。押せることが分かるよう、乗せると背景を付ける */
+.inline-edit {
+  display: inline-block;
+  max-width: 100%;
+  margin: -0.1em -0.25em;
+  padding: 0.1em 0.25em;
+  border-radius: 2px;
+  cursor: pointer;
+}
+.inline-edit:hover {
+  background: var(--vscode-list-hoverBackground);
+}
+.inline-edit:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
+}
 .props {
   display: grid;
   grid-template-columns: max-content 1fr;
