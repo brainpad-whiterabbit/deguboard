@@ -1,0 +1,22 @@
+{
+  "id": "r20261103-095403-a202",
+  "ticket": "t296",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-03T09:54:03Z",
+  "finished_at": "2026-11-03T09:55:07Z",
+  "result": "success",
+  "error": null,
+  "retries": 2,
+  "retry_reasons": [
+    "古くなったコピーのテスト名",
+    "コピーの道のコメントの言い方"
+  ],
+  "usage": {
+    "input": 4,
+    "output": 1681,
+    "cache_read": 417374,
+    "cache_write": 2562
+  }
+}
