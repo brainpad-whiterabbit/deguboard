@@ -228,7 +228,8 @@ function Page({ route }: { route: Route }) {
     case "backlog":
       return <BacklogPage />;
     case "ticket":
-      return <TicketPage id={route.id} />;
+      // チケットが変われば編集中の状態（入力・その場で直している属性）を持ち越さない
+      return <TicketPage key={route.id} id={route.id} />;
     case "epics":
       return <EpicsPage id={route.id} />;
     case "iterations":

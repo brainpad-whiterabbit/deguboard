@@ -698,6 +698,85 @@ describe("画面", () => {
       );
     });
 
+    it("閉じた選択で ↓ を押しても保存せず、Enter で確定する", async () => {
+      const { updates } = await open();
+      fireEvent.click(screen.getByRole("button", { name: "優先度を変える" }));
+      const select = screen.getByLabelText("優先度") as HTMLSelectElement;
+      // Chromium は閉じた選択の ↓ で keydown の中で change を出す
+      fireEvent.keyDown(select, { key: "ArrowDown" });
+      fireEvent.change(select, { target: { value: "high" } });
+      fireEvent.keyUp(select, { key: "ArrowDown" });
+      expect(screen.getByLabelText("優先度")).toBe(select);
+      expect(select.value).toBe("high");
+      expect(updates()).toEqual([]);
+      fireEvent.keyDown(select, { key: "Enter" });
+      await waitFor(() => expect(updates()).toEqual([{ ticket: "t3", priority: "high" }]));
+    });
+
+    it("「＋足す」の属性の選択も ↓ では選ばず、Enter でその属性の欄を開く", async () => {
+      await open();
+      fireEvent.click(screen.getByRole("button", { name: "＋足す" }));
+      const pick = screen.getByLabelText("値を入れる属性") as HTMLSelectElement;
+      fireEvent.keyDown(pick, { key: "ArrowDown" });
+      fireEvent.change(pick, { target: { value: "epic" } });
+      fireEvent.keyUp(pick, { key: "ArrowDown" });
+      expect(screen.queryByLabelText("Epic")).toBeNull();
+      fireEvent.keyDown(pick, { key: "Enter" });
+      expect(screen.getByLabelText("Epic")).toBeTruthy();
+    });
+
+    it("確定・取り消しの後はフォーカスを値のボタンに戻す", async () => {
+      await open();
+      fireEvent.click(screen.getByRole("button", { name: "ラベルを変える" }));
+      fireEvent.keyDown(screen.getByLabelText("ラベル"), { key: "Escape" });
+      expect(document.activeElement).toBe(screen.getByRole("button", { name: "ラベルを変える" }));
+      fireEvent.click(screen.getByRole("button", { name: "優先度を変える" }));
+      fireEvent.change(screen.getByLabelText("優先度"), { target: { value: "low" } });
+      await waitFor(() =>
+        expect(document.activeElement).toBe(screen.getByRole("button", { name: "優先度を変える" })),
+      );
+    });
+
+    it("保存が拒否されたら欄を開いたままにし、入力した文字を残す", async () => {
+      const { client, updates } = await open();
+      client.handlers["ticket.update"] = () => {
+        throw new ClientError({ code: "REJECTED", message: "担当は直せない" });
+      };
+      fireEvent.click(screen.getByRole("button", { name: "＋足す" }));
+      fireEvent.change(screen.getByLabelText("値を入れる属性"), { target: { value: "assignee" } });
+      fireEvent.change(screen.getByLabelText("担当"), { target: { value: "someone" } });
+      fireEvent.keyDown(screen.getByLabelText("担当"), { key: "Enter" });
+      expect((await screen.findByRole("alert")).textContent).toContain("担当は直せない");
+      expect((screen.getByLabelText("担当") as HTMLInputElement).value).toBe("someone");
+      // 渡したのは担当だけ（拒否された）
+      expect(updates()).toEqual([{ ticket: "t3", assignee: "someone" }]);
+    });
+
+    it("ラベルは区切りの空白だけが違えば保存しない", async () => {
+      const data = fixture({
+        tickets: [ticket({ id: "t3", title: "画面", labels: ["web", "ui"] })],
+      });
+      const { updates } = await open(data);
+      fireEvent.click(screen.getByRole("button", { name: "ラベルを変える" }));
+      const input = screen.getByLabelText("ラベル");
+      fireEvent.change(input, { target: { value: "web,ui " } });
+      fireEvent.keyDown(input, { key: "Enter" });
+      expect(screen.queryByLabelText("ラベル")).toBeNull();
+      expect(updates()).toEqual([]);
+    });
+
+    it("別のチケットに移ると、その場で直している欄を持ち越さない", async () => {
+      await open();
+      fireEvent.click(screen.getByRole("button", { name: "優先度を変える" }));
+      expect(screen.getByLabelText("優先度")).toBeTruthy();
+      act(() => {
+        window.location.hash = "#/tickets/t2";
+        window.dispatchEvent(new HashChangeEvent("hashchange"));
+      });
+      await screen.findByRole("heading", { level: 1, name: "API" });
+      expect(screen.queryByLabelText("優先度")).toBeNull();
+    });
+
     it("Epic・Iteration の値のリンクを押すと、その場で直さずにリンク先へ移る", async () => {
       const data = fixture({
         tickets: [ticket({ id: "t3", title: "画面", epic: "e1" })],

@@ -9,7 +9,7 @@
 
 import { Fragment, useEffect, useState, type ReactNode } from "react";
 import { CopyableCode } from "../components/copyable-code.js";
-import { InlineEdit, optionsOf, type Choice } from "../components/inline-edit.js";
+import { ConfirmSelect, InlineEdit, optionsOf, type Choice } from "../components/inline-edit.js";
 import { PriorityBadge, StatusBadge, StatusDot, Tags, TicketLink } from "../components/parts.js";
 import { TicketRuns } from "../components/ticket-runs.js";
 import { formatTime, TicketTimeline } from "../components/timeline.js";
@@ -201,14 +201,22 @@ export function TicketPage({ id }: { id: string }) {
   const emptyAttrs = panel ? optional.filter((a) => a.empty && a.key !== editing) : [];
   const shown = (key: string) => !emptyAttrs.some((a) => a.key === key);
 
-  /** パネルで属性 1 つをその場で直す部品。確定した値を toPatch で ticket.update の入力にし、その属性だけを渡す */
+  /**
+   * パネルで属性 1 つをその場で直す部品。確定した値を toPatch で ticket.update の入力にし、その属性だけを渡す。
+   * 失敗なら欄を開いたままにする。成功なら直したチケットを読み直してから閉じる（「＋足す」で入れた属性が一瞬「なし」に戻らないよう）
+   */
   const inline = (
     key: string,
     label: string,
     value: string,
     toPatch: (raw: string) => Record<string, unknown>,
     display: ReactNode,
-    opts: { choices?: Choice[]; inputType?: "text" | "number" | "date"; placeholder?: string } = {},
+    opts: {
+      choices?: Choice[];
+      inputType?: "text" | "number" | "date";
+      placeholder?: string;
+      normalize?: (raw: string) => string;
+    } = {},
   ) => (
     <InlineEdit
       label={label}
@@ -216,9 +224,15 @@ export function TicketPage({ id }: { id: string }) {
       editing={editing === key}
       onStart={() => setEditing(key)}
       onCancel={() => setEditing(null)}
-      onCommit={(raw) => {
+      onCommit={async (raw) => {
+        const r = await store.run("ticket.update", { ticket: ticket.id, ...toPatch(raw) });
+        if (!r.ok) return false;
+        await store.client
+          .run<TicketDetail>("ticket.show", { ticket: ticket.id })
+          .then((shown) => setTicket(shown.data))
+          .catch(() => {});
         setEditing(null);
-        void store.run("ticket.update", { ticket: ticket.id, ...toPatch(raw) });
+        return true;
       }}
       {...opts}
     >
@@ -329,7 +343,7 @@ export function TicketPage({ id }: { id: string }) {
           ticket.labels.join(", "),
           (raw) => ({ labels: parseLabels(raw) }),
           ticket.labels.length ? labelsView : none,
-          { placeholder: "カンマ区切り" },
+          { placeholder: "カンマ区切り", normalize: (raw) => parseLabels(raw).join(", ") },
         )
       ) : draft ? (
         <input
@@ -619,27 +633,20 @@ function AddAttr({
         ＋足す
       </button>
     );
+  // ↑↓ では選ばず、Enter かマウスで選んだときだけその属性の欄を開く
   return (
-    <select
-      autoFocus
+    <ConfirmSelect
       className="props-add"
-      defaultValue=""
-      aria-label="値を入れる属性"
-      onChange={(e) => onPick(e.target.value)}
-      onKeyDown={(e) => {
-        if (e.key === "Escape") onClose();
-      }}
+      label="値を入れる属性"
+      value=""
+      choices={[
+        { value: "", label: "属性を選ぶ", disabled: true },
+        ...attrs.map((a) => ({ value: a.key, label: a.label })),
+      ]}
+      onConfirm={(key) => (key ? onPick(key) : onClose())}
+      onCancel={onClose}
       onBlur={onClose}
-    >
-      <option value="" disabled>
-        属性を選ぶ
-      </option>
-      {attrs.map((a) => (
-        <option key={a.key} value={a.key}>
-          {a.label}
-        </option>
-      ))}
-    </select>
+    />
   );
 }
 
