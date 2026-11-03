@@ -1,0 +1,23 @@
+{
+  "id": "r20261103-223807-d7f1",
+  "ticket": "t312",
+  "step": "fix",
+  "agent": "copilot",
+  "model": null,
+  "started_at": "2026-11-03T22:38:07Z",
+  "finished_at": "2026-11-03T22:39:37Z",
+  "result": "success",
+  "error": null,
+  "retries": 3,
+  "retry_reasons": [
+    "release の版上げの条件を review への参照だけに縮め、重複をなくした",
+    "review の品質ゲートの表に版上げの例外があることを書いた",
+    "テストで条件の文言が release にないことを確かめるようにした"
+  ],
+  "usage": {
+    "input": null,
+    "output": null,
+    "cache_read": null,
+    "cache_write": null
+  }
+}
