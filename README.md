@@ -62,7 +62,7 @@ VS Code の拡張は、今は VSIX から入れる。上の `mise run install` �
 Run は 1 回の AI の作業の記録で、エージェントがチケットの工程（step）の始めと終わりに `dg run start` / `dg run finish` を呼んで残す。Skill と `dg guide work` の手順がこれを呼ぶので、人がするのは使用量を取り込む許可と、結果を見ることだけ。
 
 ```sh
-dg config set metrics.read_transcripts true   # finish が会話記録から使用量を取り込む（既定は false。config はチームで共有する）
+dg config set metrics.read_transcripts true   # finish が会話記録から使用量を取り込む（既定は false。config はチームで共有し、既定の batch では dg sync で送る）
 export DEGUBOARD_NO_TRANSCRIPTS=1             # このマシンでは会話記録を読ませないとき
 dg run list --running                         # 実行中の Run。閉じ損ねたものは dg run finish <ID> --result interrupted
 dg run list --iteration s1                    # その Iteration のチケットの Run
