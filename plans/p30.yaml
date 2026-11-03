@@ -12,7 +12,7 @@ after:
     - t285
   t289:
     - t290
-pending_approval: true
+pending_approval: false
 details:
   t284:
     scope: 終わっていない依存先を core が返し、web は出すだけにする。finished() を消す
@@ -38,3 +38,5 @@ details:
   t289:
     scope: 古くなったコメント・mise のタスクの説明・README の記述の 5 項目
     approach: ほかの PR の後に今の実装に合わせて書き直す。README は予算の 90% 未満に収める
+approved_by: eiki.kitajima/agent
+approved_at: 2026-11-03T06:00:05Z
