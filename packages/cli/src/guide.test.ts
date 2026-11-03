@@ -90,7 +90,8 @@ describe("dg guide", () => {
 
   it("work は PR を作る前に、触れた節の正本とコメントを読み直してずれを同じ PR で直し、報告に書くと案内する", async () => {
     const flow = section(await readGuide("work"), "## 流れ");
-    for (const word of ["requirements", "ADR", "README"]) expect(flow).toContain(word);
+    const reread = lineWith(flow, "正本とコメントを読み直す");
+    for (const word of ["requirements", "ADR", "README"]) expect(reread).toContain(word);
     // 読み直し → 同じ PR で直す → PR を作る → 本文に読み直した正本と直した箇所を書く、の順
     expect(flow).toMatch(
       /正本とコメントを読み直す[\s\S]*?同じ PR で直す[\s\S]*?gh pr create --draft[\s\S]*?読み直した正本と直した箇所/,
@@ -187,6 +188,7 @@ describe("dg guide", () => {
     const parent = bullet(parallel, "親");
     for (const word of ["Iteration に入れる", "claim", "worktree", "手順 1", "手順 2"])
       expect(parent).toContain(word);
+    expect(parent.indexOf("Iteration に入れる")).toBeLessThan(parent.indexOf("claim"));
     expect(parallel).toContain("iteration add <S> <id>");
     const check = await readGuide("check");
     expect(check).toContain("lint_iteration_missing");
@@ -219,7 +221,7 @@ describe("dg guide", () => {
       "iteration start <S>",
       "拒否されたら",
       "iteration show",
-      "active",
+      "active なら何もせず",
       "planned のまま",
       "人に頼む",
       "作業は続ける",
@@ -299,7 +301,9 @@ describe("dg guide", () => {
     // Run を自分で呼ぶ理由は review に置き、work は参照する
     expect(runs).toContain("Run の ID");
     expect(runs).toContain("会話記録");
-    expect(lineWith(work, "Run の分け方")).toContain("`dg guide review`");
+    const selfCall = bullet(section(work, "## Run を記録する"), "自分で呼ぶ");
+    expect(selfCall).toContain("`dg guide review`");
+    expect(selfCall).toContain("Run の分け方");
     // 手直しの失敗・中断では unclaim せず、review の「終わり方」に従う
     const fixFailed = bullet(ending, "手直しが failure で返った・返らない");
     expect(fixFailed).toContain("unclaim は実装の失敗と");
@@ -315,8 +319,7 @@ describe("dg guide", () => {
     for (const word of ["unclaim せず", "`dg guide review`", "終わり方"])
       expect(parallelFix).toContain(word);
     const allFailed = lineWith(all, "todo に戻さず");
-    expect(allFailed).toContain("手直し");
-    expect(allFailed).toContain("見直し");
+    for (const word of ["手直し", "見直し", "返らない"]) expect(allFailed).toContain(word);
     // done の「終わらなかったとき」は実装の Run と手直し・見直しの Run を分け、review へ案内する
     const unfinished = section(await readGuide("done"), "## 終わらなかったとき");
     expect(unfinished).toContain("実装の Run は閉じてから");
@@ -348,20 +351,21 @@ describe("dg guide", () => {
   it("config の値を埋める（既定なら main と origin、空の配列と空の文字列は「なし」）", () => {
     expect(
       fillPlaceholders(
-        "{{git.remote}}/{{git.base_branch}} {{commit.mode}} {{actor.human_only}} {{models.light}} {{nope}}",
+        "{{git.remote}}/{{git.base_branch}} {{commit.mode}} {{actor.human_only}} {{nope}}",
         defaultConfig(),
       ),
-    ).toBe("origin/main batch なし なし {{nope}}");
+    ).toBe("origin/main batch なし {{nope}}");
     expect(
       fillPlaceholders("{{actor.human_only}}", {
         ...defaultConfig(),
         actor: { human_only: ["epic.close", "iteration.close"] },
       }),
     ).toBe("epic.close, iteration.close");
+    // 既定が空でも、空の文字列を明示して「なし」になることを確かめる
     expect(
       fillPlaceholders("{{models.light}}", {
         ...defaultConfig(),
-        models: { light: "", standard: "sonnet", heavy: "" },
+        models: { ...defaultConfig().models, light: "" },
       }),
     ).toBe("なし");
   });
