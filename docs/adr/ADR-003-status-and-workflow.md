@@ -21,7 +21,7 @@ deguboard はソフトウェア開発だけでなく、コンサルティング�
 - 既定ではどの遷移も human / agent / reconcile の誰でも条件なしで行える。Core が固定するのは Status の集合と前進の順、同じ Status への move の拒否、`abandoned` と todo に入るときの副作用だけ（ST-2・ST-8）
 - Workflow の `transitions` は遷移ごとに主体（`by`）と条件（`requires`）の制約を足す（WF-1。例は requirements の 5.8）
 - 照合（reconcile）は遷移の制約とは別の仕様で、前進の順に進めるだけ（ST-4）。`by` に `reconcile` を含まない遷移は照合でも止まる
-- Epic と Iteration を閉じる・再開するのは Workflow の外で、既定では誰でも行える。人に限るなら config の `actor.human_only` にコマンド名を書く。再開の細部は IT-1
+- Workflow が縛るのはチケットの遷移だけ。Epic と Iteration の操作は ADR-009
 
 ### Workflow YAML は制約と語彙を書く
 
@@ -42,13 +42,6 @@ deguboard はソフトウェア開発だけでなく、コンサルティング�
 
 業務ごとのテンプレートを CLI に同梱し、`dg init` がすべて置く（WF-4）。違いは `reconcile`・`fields`・`labels`・`steps` で、Status は共通。既にある Workflow の変更は `dg workflow set`（WF-6）で入れる。
 
-### Epic は置き、Milestone は置かない
-
-- Epic は目的ごとにチケットを束ねる独立したエンティティ（`epics/e3.md`）。チケットの一種にはせず、claim・ブランチ・5 つの Status を持たない
-- 状態は `open` / `closed` で、進捗は保存しない（EP-1・EP-3）。所属はチケット側の `epic` だけで表し、入れ子にせず、Iteration をまたぐ（EP-2）。チケットの遷移は縛らない
-- Milestone は持たず、期間の目標は Iteration で表す。Iteration の所属もチケット側の `iteration` だけで表す（IT-2）
-- active の Iteration は Project に 1 つに限り、`start`・`reopen` はほかに active があれば拒否する。claim と同じく即座に push して排他にし、それでも 2 つになったもの（直接の編集・マージ）は `lint` が指摘する（IT-1）
-
 ## 理由
 
 - Status を固定すれば、UI・CLI・照合・集計を 1 つの実装で書け、ワークフローごとの差を吸収する層が要らない。業務の違いは工程（Run の step）と照合規則と任意フィールドで表せる
@@ -59,9 +52,6 @@ deguboard はソフトウェア開発だけでなく、コンサルティング�
 - `workflow set` が書く前に検証するのは、誤った定義は索引から外れ、それを使うチケットの遷移と照合が止まるため
 - 語彙にない step を拒否するのは、書き換えない `runs/` の集計（ADR-005）に表記の揺れを残さないため。`steps` を省いた YAML は縛らない（DT-2）
 - 遷移を既定で自由にするのは、望ましい遷移が業務で違う（レビューを経ない作業、やり直し、やめる判断）ため。Core が表を持つと拒否の理由が業務の外から来て、緩める手段がない。縛りたいチームは `requires: [deps_done]` や `by: [human]` を 1 行書けば足り、エンジンは制約の検査と照合だけで済む
-- Epic と Iteration の操作も既定で自由にし、制限を config の `actor.human_only` に置くのは、チケットの遷移と同じく「誰に任せるか」がチームで違うため。Workflow はチケットの遷移の語彙なので、Workflow の外の操作はコマンド名で縛る
-- active を 1 つに限るのは、「今の Iteration」を手順（チケットを入れる先・既定の勧め）とカンバンの既定の選択が同じ 1 つに決められるようにするため。複数を許すと、前の Iteration を閉じ忘れたまま次を始めたときに古い方が既定になる。閉じ忘れは拒否で気づかせ、どちらを閉じるかは人が決める
-- Epic（目的の範囲）・Iteration（期間）・Plan（実行順）は役割が違うので別のエンティティにする。Epic に 5 つの Status を持たせないのは、「作業中」「確認待ち」が Epic に意味を持たないため。進捗を保存しないのは、チケットを動かすたびに Epic も書き換えて衝突させないため
 
 ## 採らなかった案
 
@@ -73,8 +63,3 @@ deguboard はソフトウェア開発だけでなく、コンサルティング�
 - **受け入れ条件のチェックを遷移の条件にする**：マージ済みなのに done にならないチケットが残る。照合の `sync` の警告にとどめる
 - **Iteration に入れることを遷移の条件（`requires`）にする**：受け入れ条件と同じく照合の遷移が止まる。`lint.require_iteration` の指摘にとどめる
 - **`abandoned` を持たず削除で表す**：経緯と実績が消える
-- **Epic をチケットの一種にする**（`type: epic` と `parent`）：claim・カンバン・照合に例外が入る
-- **Epic や Iteration 側にチケットの一覧を持つ**：チケット側と二重の正本になり、食い違いと push の衝突が起きる
-- **ラベルで Epic を代用する**：目的の本文・進捗・閉じる操作を表せない
-- **Milestone を置く**：Iteration と役割が重なり、データモデルが増えるだけ
-- **active を複数許し、画面と手順が選ぶ**：「今の Iteration」が人と画面と手順で食い違う。並行の作業は 1 つの Iteration の中で表せる

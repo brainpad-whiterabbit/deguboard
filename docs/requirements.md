@@ -298,8 +298,8 @@ Web UI は `dg serve` が配信し、VS Code 拡張は同じ React アプリを 
 次のものは範囲に含めない。必要になったら ADR を書き換えてから本書に足す。
 
 - deguboard がエージェントを起動・監視すること、ツール側のスケジューラ（[ADR-004](adr/ADR-004-agents-and-state.md)）
-- Milestone（Iteration で表す。[ADR-003](adr/ADR-003-status-and-workflow.md)）
-- Epic の入れ子と、チケットの親子関係（サブタスク）。束ねるのは Epic の 1 段だけ（[ADR-003](adr/ADR-003-status-and-workflow.md)）
+- Milestone（Iteration で表す。[ADR-009](adr/ADR-009-epic-and-iteration.md)）
+- Epic の入れ子と、チケットの親子関係（サブタスク）。束ねるのは Epic の 1 段だけ（[ADR-009](adr/ADR-009-epic-and-iteration.md)）
 - 推定費用の記録（[ADR-005](adr/ADR-005-work-metrics.md)）
 - Workflow の条件に利用者のスクリプトを使うこと
 - 複数 PC 間の排他（claim の push で足りる）
