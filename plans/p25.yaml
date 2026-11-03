@@ -4,7 +4,7 @@ tickets: [t249, t250, t251, t252, t253, t254, t255]
 after:
   t255:
     - t250
-pending_approval: true
+pending_approval: false
 details:
   t249:
     scope: 受け入れ条件の 4 つのテストを足すだけで、実装は変えない
@@ -27,3 +27,5 @@ details:
   t255:
     scope: 確かめを待つ間の「既定に戻す」の扱いだけ
     approach: 待っている項目のほかの「既定に戻す」を disabled にし、config.test.tsx で確かめる
+approved_by: eiki.kitajima/agent
+approved_at: 2026-11-03T00:32:44Z
