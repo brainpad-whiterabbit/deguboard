@@ -2255,20 +2255,89 @@ describe("画面", () => {
     const sections = [...document.querySelectorAll(".backlog-section")];
     expect(sections.map((e) => e.querySelector("header")!.textContent)).toEqual([
       "s1 今進行中1 件閉じる2026-11-01 〜 ? ・ 画面",
-      "s2 次予定0 件開始する閉じる",
+      "s2 次予定0 件s1 が進行中開始する閉じる",
       "Iteration なし1 件+ Iteration を作る",
     ]);
     expect(sections[1]!.querySelector("table")).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "開始する" }));
+    // ほかに active（s1）があるので開始は押せず、title に理由を出す（IT-1）
+    const start = screen.getByRole("button", { name: "開始する" }) as HTMLButtonElement;
+    expect(start.disabled).toBe(true);
+    expect(start.title).toContain("s1 今 が進行中なので開始できない");
+    fireEvent.click(start);
+    expect(client.calls.some((c) => c.name === "iteration.start")).toBe(false);
+    fireEvent.click(screen.getByRole("button", { name: "+ Iteration を作る" }));
+    fireEvent.change(screen.getByLabelText("名前"), { target: { value: "その次" } });
+    fireEvent.click(screen.getByRole("button", { name: "作る" }));
+    await waitFor(() => expect(client.calls.some((c) => c.name === "iteration.create")).toBe(true));
+  });
+
+  it("バックログの見出しの開始は、ほかに active がなければ押せて開始する", async () => {
+    window.location.hash = "#/backlog";
+    const client = mockClient();
+    client.data.iterations = [
+      iteration({ id: "s1", name: "前", status: "closed" }),
+      iteration({ id: "s2", name: "次", status: "planned" }),
+    ];
+    client.handlers["iteration.start"] = (input) => input;
+    mount(client);
+    await screen.findByText("API");
+    expect(document.querySelector(".blocked-note")).toBeNull();
+    const start = screen.getByRole("button", { name: "開始する" }) as HTMLButtonElement;
+    expect(start.disabled).toBe(false);
+    expect(start.title).toBe("");
+    fireEvent.click(start);
     await waitFor(() =>
       expect(client.calls.find((c) => c.name === "iteration.start")?.input).toEqual({
         iteration: "s2",
       }),
     );
-    fireEvent.click(screen.getByRole("button", { name: "+ Iteration を作る" }));
-    fireEvent.change(screen.getByLabelText("名前"), { target: { value: "その次" } });
-    fireEvent.click(screen.getByRole("button", { name: "作る" }));
-    await waitFor(() => expect(client.calls.some((c) => c.name === "iteration.create")).toBe(true));
+  });
+
+  it("Iteration 詳細の開始・再開は、ほかに active があると押せず、理由を文と title に出す", async () => {
+    const client = mockClient();
+    client.data.iterations = [
+      iteration({ id: "s1", name: "今", status: "active" }),
+      iteration({ id: "s2", name: "次", status: "planned" }),
+      iteration({ id: "s0", name: "前", status: "closed" }),
+    ];
+    client.handlers["iteration.show"] = (input) => ({
+      ...client.data.iterations.find((i) => i.id === (input as { iteration: string }).iteration),
+      items: [],
+    });
+    window.location.hash = "#/iterations/s2";
+    mount(client);
+    const start = (await screen.findByRole("button", { name: "開始する" })) as HTMLButtonElement;
+    expect(start.disabled).toBe(true);
+    expect(start.title).toBe(
+      "s1 今 が進行中なので開始できない（進行中の Iteration は 1 つ）。先に s1 を閉じる",
+    );
+    expect(document.querySelector("p.blocked-note")!.textContent).toBe(start.title);
+    cleanup();
+    window.location.hash = "#/iterations/s0";
+    mount(client);
+    const reopen = (await screen.findByRole("button", { name: "再開する" })) as HTMLButtonElement;
+    expect(reopen.disabled).toBe(true);
+    expect(reopen.title).toContain("s1 今 が進行中なので再開できない");
+    fireEvent.click(reopen);
+    expect(client.calls.some((c) => c.name === "iteration.reopen")).toBe(false);
+  });
+
+  it("Iteration 詳細の再開は、ほかに active がなければ押せて再開する。active の詳細には理由の文を出さない", async () => {
+    const client = mockClient();
+    client.data.iterations = [iteration({ id: "s0", name: "前", status: "closed" })];
+    client.handlers["iteration.show"] = () => ({ ...client.data.iterations[0], items: [] });
+    client.handlers["iteration.reopen"] = (input) => input;
+    window.location.hash = "#/iterations/s0";
+    mount(client);
+    const reopen = (await screen.findByRole("button", { name: "再開する" })) as HTMLButtonElement;
+    expect(reopen.disabled).toBe(false);
+    expect(document.querySelector(".blocked-note")).toBeNull();
+    fireEvent.click(reopen);
+    await waitFor(() =>
+      expect(client.calls.find((c) => c.name === "iteration.reopen")?.input).toEqual({
+        iteration: "s0",
+      }),
+    );
   });
 
   it("サイドバーのバックログの区画は折りたたみの節で、開閉が host.state に残る", async () => {
