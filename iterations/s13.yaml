@@ -2,4 +2,7 @@ id: s13
 project: default
 name: sprint13
 goal: ""
-status: active
+status: closed
+closed_at: 2026-11-03T23:29:01Z
+completed: 11
+carried_over: 0
