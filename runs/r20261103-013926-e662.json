@@ -1,0 +1,23 @@
+{
+  "id": "r20261103-013926-e662",
+  "ticket": "t262",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-03T01:39:26Z",
+  "finished_at": "2026-11-03T01:44:46Z",
+  "result": "success",
+  "error": null,
+  "retries": 3,
+  "retry_reasons": [
+    "レイアウトのテストの札を新しい仕様に合わせた",
+    "fixture の Iteration の既定がテストの経路を変えていたのを直した",
+    "開いた Iteration がないときの作るボタンの重なりを消し、案内を短くした"
+  ],
+  "usage": {
+    "input": 50,
+    "output": 15500,
+    "cache_read": 5348323,
+    "cache_write": 30184
+  }
+}
