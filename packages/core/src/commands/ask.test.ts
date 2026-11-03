@@ -6,6 +6,7 @@ import {
   ask,
   askActions,
   askHumanChecks,
+  askMenu,
   buildAsk,
   type AskSubject,
   type AskView,
@@ -34,6 +35,7 @@ const ticket = (over: Partial<Extract<AskSubject, { kind: "ticket" }>> = {}): As
   status: "todo",
   iteration: "s10",
   iteration_status: "active",
+  epic: null,
   deps_done: true,
   running: false,
   ...over,
@@ -209,38 +211,40 @@ describe("人に回すかを決める操作の名前", () => {
       tickets: ["t307"],
       complete,
     });
-    // 頼むことがどれも候補に出るよう、対象の種類と状態を並べる
-    const samples: AskSubject[][] = [
-      [],
-      [ticket({ status: "review" })],
-      [ticket({ status: "done" })],
-      [ticket({ status: "abandoned" })],
-      [ticket({ status: "in_progress" })],
-      [ticket({ iteration: null, iteration_status: null })],
-      [ticket({ iteration_status: "closed" })],
-      [ticket(), ticket({ id: "t266" })],
-      [ticket({ iteration_status: "active" })],
-      [ticket({ deps_done: false })],
-      [iteration("closed")],
-      [iteration("active", true)],
-      [iteration("active")],
-      [iteration("planned")],
-      [epic("closed")],
-      [epic("open")],
-      [plan("closed")],
-      [plan("pending_approval")],
-      [plan("approved", true)],
-      [plan("approved")],
-      [ticket(), epic("open")],
+    // 頼むことがどれも候補に出るよう、対象の種類と状態（と外すのための within）を並べる
+    const samples: Array<[AskSubject[], string?]> = [
+      [[]],
+      [[ticket({ status: "review" })]],
+      [[ticket({ status: "done" })]],
+      [[ticket({ status: "abandoned" })]],
+      [[ticket({ status: "in_progress" })]],
+      [[ticket({ iteration: null, iteration_status: null })]],
+      [[ticket({ iteration_status: "closed" })]],
+      [[ticket(), ticket({ id: "t266" })]],
+      [[ticket({ iteration_status: "active" })]],
+      [[ticket({ deps_done: false })]],
+      [[iteration("closed")]],
+      [[iteration("active", true)]],
+      [[iteration("active")]],
+      [[iteration("planned")]],
+      [[epic("closed")]],
+      [[epic("open")]],
+      [[plan("closed")]],
+      [[plan("pending_approval")]],
+      [[plan("approved", true)]],
+      [[plan("approved")]],
+      [[ticket(), epic("open")]],
+      [[ticket()], "s10"],
+      [[ticket({ epic: "e9" })], "e9"],
     ];
     const names = new Set(commands.map((c) => c.name));
     const seen = new Set<string>();
     const checked = new Set<string>();
     const unknown: string[] = [];
-    for (const s of samples)
-      for (const action of askActions(s)) {
+    for (const [s, within] of samples)
+      for (const action of askActions(s, within)) {
         seen.add(action);
-        for (const name of askHumanChecks(action, s)) {
+        for (const name of askHumanChecks(action, s, within)) {
           checked.add(name);
           if (!names.has(name)) unknown.push(`${action}: ${name}`);
         }
@@ -252,11 +256,13 @@ describe("人に回すかを決める操作の名前", () => {
       "epic.add",
       "epic.close",
       "epic.create",
+      "epic.remove",
       "epic.reopen",
       "epic.update",
       "iteration.add",
       "iteration.close",
       "iteration.create",
+      "iteration.remove",
       "iteration.reopen",
       "iteration.update",
       "plan.approve",
@@ -312,6 +318,49 @@ describe("頼むことの候補", () => {
       view.candidates.map((_, n) => n === 0),
     );
     expect(view.candidates.at(-1)).toMatchObject({ action: "free", skill: null });
+  });
+
+  it("詳細の中の行（within）なら、入っている Iteration・Epic から外すを直すの後に足す。入っていない・終わったチケットには足さない", () => {
+    expect(askActions([ticket()], "s10")).toEqual([
+      "work",
+      "plan",
+      "fix",
+      "remove",
+      "split",
+      "check",
+      "abandon",
+      "free",
+    ]);
+    // 直すのない候補（in_progress で実行中）では自由にの前
+    expect(askActions([ticket({ status: "in_progress", running: true })], "s10")).toEqual([
+      "status",
+      "fix",
+      "remove",
+      "free",
+    ]);
+    expect(askActions([ticket({ epic: "e9" })], "e9")).toContain("remove");
+    expect(askActions([ticket()], "s11")).not.toContain("remove");
+    expect(askActions([ticket()], "e9")).not.toContain("remove");
+    expect(askActions([ticket({ status: "done" })], "s10")).not.toContain("remove");
+    expect(askActions([iteration("active")], "s10")).not.toContain("remove");
+
+    const view = buildAsk({ subjects: [ticket()], action: "remove", within: "s10" });
+    expect(view.label).toBe("s10 から外す");
+    expect(view.text.split("\n").slice(0, 2)).toEqual([
+      "/dgassign t265",
+      "次のチケットを s10 から外してください。",
+    ]);
+    const human = buildAsk({
+      subjects: [ticket({ epic: "e9" })],
+      action: "remove",
+      within: "e9",
+      humanOnly: ["epic.remove"],
+    });
+    expect(human).toMatchObject({ kind: "command", text: "dg epic remove e9 t265" });
+    // within がなければ外すは候補にない
+    expect(() => buildAsk({ subjects: [ticket()], action: "remove" })).toThrow(
+      expect.objectContaining({ code: "INVALID_INPUT" }),
+    );
   });
 
   it("止まったものの再開は、1 行目に実行中の Run のないチケットだけを並べる", () => {
@@ -386,6 +435,25 @@ describe("ask", () => {
     await expect(runCommand(ask, ctx, { targets: ["t9"] })).rejects.toMatchObject({
       code: "NOT_FOUND",
     });
+  });
+
+  it("within は Iteration・Epic を引いて確かめ、ask-menu の組は @ を付けた場所を受ける", async () => {
+    const { ctx } = await initialized();
+    await runCommand(ticketCreate, ctx, { title: "A" });
+    await runCommand(iterationCreate, ctx, { name: "Sprint 1" });
+    await runCommand(iterationAdd, ctx, { iteration: "s1", tickets: ["t1"] });
+    const view = (await runCommand(ask, ctx, { targets: ["t1"], within: "s1" })).data;
+    expect(view.candidates.map((c) => c.label)).toContain("s1 から外す");
+    await expect(runCommand(ask, ctx, { targets: ["t1"], within: "t1" })).rejects.toMatchObject({
+      code: "INVALID_INPUT",
+    });
+    await expect(runCommand(ask, ctx, { targets: ["t1"], within: "s9" })).rejects.toMatchObject({
+      code: "NOT_FOUND",
+    });
+    const menus = (await runCommand(askMenu, ctx, { sets: ["@s1 t1", "t1"] })).data;
+    expect(menus.map((m) => m.key)).toEqual(["t1 @s1", "t1"]);
+    expect(menus[0]!.candidates.map((c) => c.action)).toContain("remove");
+    expect(menus[1]!.candidates.map((c) => c.action)).not.toContain("remove");
   });
 
   it("config の actor.human_only を見て、人が打つコマンドを返す", async () => {

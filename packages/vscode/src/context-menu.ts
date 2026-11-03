@@ -1,6 +1,7 @@
-// 左パネルの右クリックのメニュー（UI-12・UI-15）。VS Code の API に触れない部分で、extension.ts から呼ぶ。
+// 左パネルとパネルの右クリックのメニュー（UI-12・UI-15）。VS Code の API に触れない部分で、extension.ts から呼ぶ。
 // 行・見出しの「エージェントに頼む ›」のサブメニューは、web が data-vscode-context に載せた対象・候補・おすすめ（WEBVIEW_CONTRACT.askContext）を
-// package.json の when が見て、頼むことごとのコマンドを出す（先頭の節がおすすめ、次の節が残りの候補）。選ぶと左パネルの下の入力欄をその頼むことで開く。
+// package.json の when が見て、頼むことごとのコマンドを出す（先頭の節がおすすめ、次の節が残りの候補）。選ぶと右クリックした画面
+// （左パネルかパネル）の下の入力欄をその頼むことで開く。
 // 以下はバックログの行の「Iteration を移す」など。
 // 行は web が data-vscode-context に webviewSection・ticket・iteration・project を載せ（parts.tsx の TicketTable）、
 // package.json の webview/context が webviewSection を見てメニューを出す。コマンドはその文脈を引数で受け取る。
@@ -105,6 +106,7 @@ export const ASK_MENU_TITLES: Readonly<Record<AskAction, string>> = {
   create_epic: "Epic を作る",
   fix: "直す",
   split: "分ける",
+  remove: "Iteration・Epic から外す",
   edit: "題・名前を直す",
   assign: "割り当てる",
   plan: "計画を立てる",
@@ -130,7 +132,10 @@ export function askCommandId(action: AskAction): string {
 }
 
 const CTX = WEBVIEW_CONTRACT.askContext;
-const SIDEBAR_WHEN = "webviewId == 'deguboard.screens'";
+/** 左パネルのビューの ID と、エディタのパネルの viewType。右クリックの引数の webview もこの値になる */
+export const SIDEBAR_VIEW_ID = "deguboard.screens";
+export const PANEL_VIEW_TYPE = "deguboard";
+const ASK_WHEN = `(webviewId == '${SIDEBAR_VIEW_ID}' || webviewId == '${PANEL_VIEW_TYPE}')`;
 
 /**
  * package.json の menus と contributes.commands に置く項目。package.json はこの形と同じであることを context-menu.test.ts で確かめる。
@@ -146,7 +151,7 @@ export function askMenuContributions() {
     submenu: { id: ASK_SUBMENU, label: "エージェントに頼む" },
     context: {
       submenu: ASK_SUBMENU,
-      when: `${SIDEBAR_WHEN} && ${CTX.actions}`,
+      when: `${ASK_WHEN} && ${CTX.actions}`,
       group: "0_ask@1",
     },
     items: ASK_ACTIONS.flatMap((action, n) => [
@@ -165,10 +170,15 @@ export function askMenuContributions() {
   };
 }
 
-/** サブメニューで選んだ頼むことの対象。targets は ID（空なら対象なし） */
+/**
+ * サブメニューで選んだ頼むことの対象。targets は ID（空なら対象なし）、within は対象のチケットが入っている Iteration・Epic（詳細の中の行）。
+ * panel は右クリックした画面がエディタのパネルか（VS Code が引数の webview に載せる viewType で見る）
+ */
 export interface MenuAsk {
   targets: string[];
   action: AskAction;
+  within?: string;
+  panel: boolean;
 }
 
 /** 頼むことのコマンドの引数（行・見出しの data-vscode-context）から対象を取る。候補にない頼むことや形が違えば undefined */
@@ -179,5 +189,11 @@ export function menuAskOf(arg: unknown, action: AskAction): MenuAsk | undefined 
   const actions = v[CTX.actions];
   if (typeof targets !== "string" || typeof actions !== "string") return undefined;
   if (!actions.split(/\s+/).includes(action)) return undefined;
-  return { targets: targets.split(/\s+/).filter(Boolean), action };
+  const within = v[CTX.within];
+  return {
+    targets: targets.split(/\s+/).filter(Boolean),
+    action,
+    ...(typeof within === "string" && within ? { within } : {}),
+    panel: v["webview"] === PANEL_VIEW_TYPE,
+  };
 }

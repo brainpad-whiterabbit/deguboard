@@ -9,6 +9,7 @@ import {
   ITERATION_CLOSE_NOTE,
   otherActiveIteration,
 } from "../components/iteration-parts.js";
+import { ASK_SECTIONS, AskSpotBox } from "../components/ask-menu.js";
 import { CloseButton, TicketTable, unfinishedCount } from "../components/parts.js";
 import { NO_VALUE } from "../components/run-parts.js";
 import { useHost } from "../host.js";
@@ -72,10 +73,18 @@ function IterationDetailView({ id }: { id: string }) {
           </a>
         </div>
       )}
-      <h1>
+      {/* タイトルの横の吹き出しと右クリックで、この Iteration をエージェントに頼む（UI-15） */}
+      <AskSpotBox
+        as="h1"
+        className="ask-title"
+        targets={[it.id]}
+        label={`タイトル ${it.id}`}
+        section={ASK_SECTIONS.detailTitle}
+        pinned
+      >
         <code>{it.id}</code> {it.name}{" "}
         <span className={`badge iteration-${it.status}`}>{ITERATION_LABELS[it.status]}</span>
-      </h1>
+      </AskSpotBox>
       <p className="muted">
         {it.start ?? "?"} 〜 {it.end ?? "?"}
         {it.goal ? ` ・ ${it.goal}` : ""}
@@ -145,6 +154,7 @@ function IterationDetailView({ id }: { id: string }) {
       )}
       <TicketTable
         tickets={items}
+        ask={{ section: ASK_SECTIONS.detailTicket, within: it.id }}
         extra={
           it.status !== "closed"
             ? (t) => (

@@ -27,6 +27,8 @@ import {
   menuAskOf,
   menuTicketOf,
   moveToIteration,
+  PANEL_VIEW_TYPE,
+  SIDEBAR_VIEW_ID,
   ticketRoute,
   type MenuTicket,
 } from "./context-menu.js";
@@ -46,8 +48,8 @@ import {
   type WebviewActions,
 } from "./webview.js";
 
-const VIEW_ID = "deguboard.screens";
-const PANEL_TYPE = "deguboard";
+const VIEW_ID = SIDEBAR_VIEW_ID;
+const PANEL_TYPE = PANEL_VIEW_TYPE;
 
 /** エディタ領域のパネル。作業フォルダごとに 1 つで、詳細はこれを使い回す */
 const panels = new Map<string, vscode.WebviewPanel>();
@@ -81,11 +83,13 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand("deguboard.ask", () => void askFromPalette()),
     vscode.commands.registerCommand("deguboard.askInSidebar", () => void askInSidebar([])),
     // 行・見出しの右クリックの「エージェントに頼む ›」（package.json の webview/context のサブメニュー。引数は data-vscode-context）。
-    // 選んだ頼むことで、左パネルの下の入力欄を開く（UI-15）
+    // 選んだ頼むことで、右クリックした画面（左パネルかパネル）の下の入力欄を開く（UI-15）
     ...ASK_ACTIONS.map((action) =>
       vscode.commands.registerCommand(askCommandId(action), (arg: unknown) => {
         const asked = menuAskOf(arg, action);
-        if (asked) void askInSidebar(asked.targets, asked.action);
+        if (!asked) return;
+        if (asked.panel) void askInPanel(asked.targets, asked.action, asked.within);
+        else void askInSidebar(asked.targets, asked.action, asked.within);
       }),
     ),
     // 左パネルのバックログの行の右クリック（package.json の webview/context。引数は行の data-vscode-context）
@@ -200,11 +204,24 @@ async function deliverToSidebar(name: "navigate" | "toggle", route: string): Pro
 }
 
 /** 左パネルの下にエージェントに頼む入力欄を出す（action を渡せばその頼むことで）。描かれていなければ対象を覚えてからビューを開く */
-async function askInSidebar(targets: string[], action?: AskAction): Promise<void> {
-  const delivery = askDelivery(sidebar !== undefined, targets, action);
+async function askInSidebar(targets: string[], action?: AskAction, within?: string): Promise<void> {
+  const delivery = askDelivery(sidebar !== undefined, targets, action, within);
   if ("post" in delivery) void sidebar?.webview.postMessage(delivery.post);
   else pendingSidebarAsk = delivery.pending;
   await vscode.commands.executeCommand(`${VIEW_ID}.focus`);
+}
+
+/**
+ * パネルの詳細の右クリックで選んだ頼むことで、そのパネルの下に入力欄を出す。右クリックしたパネルは手前にある（active）ので、それに送る。
+ * 見つからなければ（閉じた直後など）左パネルの下に出す
+ */
+async function askInPanel(targets: string[], action: AskAction, within?: string): Promise<void> {
+  const panel =
+    [...panels.values()].find((p) => p.active) ?? [...panels.values()].find((p) => p.visible);
+  if (!panel) return askInSidebar(targets, action, within);
+  const delivery = askDelivery(true, targets, action, within);
+  if ("post" in delivery) void panel.webview.postMessage(delivery.post);
+  panel.reveal(undefined, false);
 }
 
 /** コマンドパレットの「エージェントに頼む」。手前のパネルがあればその下に、なければ左パネルの下に出す */

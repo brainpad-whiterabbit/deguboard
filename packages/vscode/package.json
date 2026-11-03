@@ -114,6 +114,11 @@
         "category": "deguboard"
       },
       {
+        "command": "deguboard.ask.remove",
+        "title": "Iteration・Epic から外す",
+        "category": "deguboard"
+      },
+      {
         "command": "deguboard.ask.edit",
         "title": "題・名前を直す",
         "category": "deguboard"
@@ -269,6 +274,10 @@
           "when": "false"
         },
         {
+          "command": "deguboard.ask.remove",
+          "when": "false"
+        },
+        {
           "command": "deguboard.ask.edit",
           "when": "false"
         },
@@ -340,7 +349,7 @@
       "webview/context": [
         {
           "submenu": "deguboard.askMenu",
-          "when": "webviewId == 'deguboard.screens' && askActions",
+          "when": "(webviewId == 'deguboard.screens' || webviewId == 'deguboard') && askActions",
           "group": "0_ask@1"
         },
         {
@@ -411,6 +420,16 @@
           "group": "2_more@5"
         },
         {
+          "command": "deguboard.ask.remove",
+          "when": "askRecommended == 'remove'",
+          "group": "1_recommended@1"
+        },
+        {
+          "command": "deguboard.ask.remove",
+          "when": "askActions =~ /\\bremove\\b/ && askRecommended != 'remove'",
+          "group": "2_more@6"
+        },
+        {
           "command": "deguboard.ask.edit",
           "when": "askRecommended == 'edit'",
           "group": "1_recommended@1"
@@ -418,7 +437,7 @@
         {
           "command": "deguboard.ask.edit",
           "when": "askActions =~ /\\bedit\\b/ && askRecommended != 'edit'",
-          "group": "2_more@6"
+          "group": "2_more@7"
         },
         {
           "command": "deguboard.ask.assign",
@@ -428,7 +447,7 @@
         {
           "command": "deguboard.ask.assign",
           "when": "askActions =~ /\\bassign\\b/ && askRecommended != 'assign'",
-          "group": "2_more@7"
+          "group": "2_more@8"
         },
         {
           "command": "deguboard.ask.plan",
@@ -438,7 +457,7 @@
         {
           "command": "deguboard.ask.plan",
           "when": "askActions =~ /\\bplan\\b/ && askRecommended != 'plan'",
-          "group": "2_more@8"
+          "group": "2_more@9"
         },
         {
           "command": "deguboard.ask.approve",
@@ -448,7 +467,7 @@
         {
           "command": "deguboard.ask.approve",
           "when": "askActions =~ /\\bapprove\\b/ && askRecommended != 'approve'",
-          "group": "2_more@9"
+          "group": "2_more@10"
         },
         {
           "command": "deguboard.ask.work",
@@ -458,7 +477,7 @@
         {
           "command": "deguboard.ask.work",
           "when": "askActions =~ /\\bwork\\b/ && askRecommended != 'work'",
-          "group": "2_more@10"
+          "group": "2_more@11"
         },
         {
           "command": "deguboard.ask.resume",
@@ -468,7 +487,7 @@
         {
           "command": "deguboard.ask.resume",
           "when": "askActions =~ /\\bresume\\b/ && askRecommended != 'resume'",
-          "group": "2_more@11"
+          "group": "2_more@12"
         },
         {
           "command": "deguboard.ask.all",
@@ -478,7 +497,7 @@
         {
           "command": "deguboard.ask.all",
           "when": "askActions =~ /\\ball\\b/ && askRecommended != 'all'",
-          "group": "2_more@12"
+          "group": "2_more@13"
         },
         {
           "command": "deguboard.ask.done",
@@ -488,7 +507,7 @@
         {
           "command": "deguboard.ask.done",
           "when": "askActions =~ /\\bdone\\b/ && askRecommended != 'done'",
-          "group": "2_more@13"
+          "group": "2_more@14"
         },
         {
           "command": "deguboard.ask.check",
@@ -498,7 +517,7 @@
         {
           "command": "deguboard.ask.check",
           "when": "askActions =~ /\\bcheck\\b/ && askRecommended != 'check'",
-          "group": "2_more@14"
+          "group": "2_more@15"
         },
         {
           "command": "deguboard.ask.release",
@@ -508,7 +527,7 @@
         {
           "command": "deguboard.ask.release",
           "when": "askActions =~ /\\brelease\\b/ && askRecommended != 'release'",
-          "group": "2_more@15"
+          "group": "2_more@16"
         },
         {
           "command": "deguboard.ask.close",
@@ -518,7 +537,7 @@
         {
           "command": "deguboard.ask.close",
           "when": "askActions =~ /\\bclose\\b/ && askRecommended != 'close'",
-          "group": "2_more@16"
+          "group": "2_more@17"
         },
         {
           "command": "deguboard.ask.reopen",
@@ -528,7 +547,7 @@
         {
           "command": "deguboard.ask.reopen",
           "when": "askActions =~ /\\breopen\\b/ && askRecommended != 'reopen'",
-          "group": "2_more@17"
+          "group": "2_more@18"
         },
         {
           "command": "deguboard.ask.abandon",
@@ -538,7 +557,7 @@
         {
           "command": "deguboard.ask.abandon",
           "when": "askActions =~ /\\babandon\\b/ && askRecommended != 'abandon'",
-          "group": "2_more@18"
+          "group": "2_more@19"
         },
         {
           "command": "deguboard.ask.undo_done",
@@ -548,7 +567,7 @@
         {
           "command": "deguboard.ask.undo_done",
           "when": "askActions =~ /\\bundo_done\\b/ && askRecommended != 'undo_done'",
-          "group": "2_more@19"
+          "group": "2_more@20"
         },
         {
           "command": "deguboard.ask.status",
@@ -558,7 +577,7 @@
         {
           "command": "deguboard.ask.status",
           "when": "askActions =~ /\\bstatus\\b/ && askRecommended != 'status'",
-          "group": "2_more@20"
+          "group": "2_more@21"
         },
         {
           "command": "deguboard.ask.retro",
@@ -568,7 +587,7 @@
         {
           "command": "deguboard.ask.retro",
           "when": "askActions =~ /\\bretro\\b/ && askRecommended != 'retro'",
-          "group": "2_more@21"
+          "group": "2_more@22"
         },
         {
           "command": "deguboard.ask.free",
@@ -578,7 +597,7 @@
         {
           "command": "deguboard.ask.free",
           "when": "askActions =~ /\\bfree\\b/ && askRecommended != 'free'",
-          "group": "2_more@22"
+          "group": "2_more@23"
         }
       ]
     }
