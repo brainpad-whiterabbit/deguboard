@@ -1,4 +1,5 @@
-// チケットと Epic の本文（## 概要・## 受け入れ条件）を表示する最小の Markdown。見出し・段落・箇条書き・チェックリスト・インラインコードだけ
+// チケットと Epic の本文（## 概要・## 受け入れ条件）を表示する最小の Markdown。見出し・段落・箇条書き・チェックリスト・インラインコードだけ。
+// タスクリストのある節は、見出しに済んだ数とメーターを出す
 
 import type { ReactNode } from "react";
 
@@ -39,6 +40,46 @@ export function parseBlocks(body: string): Block[] {
   return blocks;
 }
 
+/** 節のタスクリストの済んだ数と全体の数 */
+export type TaskCount = { done: number; total: number };
+
+/**
+ * 見出しごとに、次の見出し（深さを問わない）までのタスクリストを数える。
+ * 返す Map の鍵は blocks の中の見出しの位置。見出しの名前には頼らず、タスクリストのない節は入れない
+ */
+export function sectionTasks(blocks: Block[]): Map<number, TaskCount> {
+  const counts = new Map<number, TaskCount>();
+  let current: TaskCount | null = null;
+  blocks.forEach((b, i) => {
+    if (b.kind === "heading") {
+      current = { done: 0, total: 0 };
+      counts.set(i, current);
+    } else if (b.kind === "list" && current) {
+      for (const x of b.items) {
+        if (x.checked === null) continue;
+        current.total += 1;
+        if (x.checked) current.done += 1;
+      }
+    }
+  });
+  for (const [i, c] of counts) if (c.total === 0) counts.delete(i);
+  return counts;
+}
+
+/** 見出しの右に出す「済 / 全」と細いメーター */
+function TaskMeter({ count }: { count: TaskCount }) {
+  return (
+    <span className="progress task-meter" title={`済 ${count.done} / 全 ${count.total}`}>
+      <span className="bar">
+        <span className="status-done" style={{ width: `${(count.done / count.total) * 100}%` }} />
+      </span>
+      <span className="muted">
+        {count.done} / {count.total}
+      </span>
+    </span>
+  );
+}
+
 function inline(text: string): ReactNode[] {
   return text
     .split(/(`[^`]+`)/)
@@ -54,12 +95,19 @@ function inline(text: string): ReactNode[] {
 export function Markdown({ body }: { body: string }) {
   const blocks = parseBlocks(body);
   if (blocks.length === 0) return <p className="muted">（本文なし）</p>;
+  const tasks = sectionTasks(blocks);
   return (
     <div className="markdown">
       {blocks.map((b, i) => {
         if (b.kind === "heading") {
           const Tag = `h${Math.min(b.level + 2, 6)}` as "h3" | "h4" | "h5" | "h6";
-          return <Tag key={i}>{inline(b.text)}</Tag>;
+          const count = tasks.get(i);
+          return (
+            <Tag key={i}>
+              {inline(b.text)}
+              {count && <TaskMeter count={count} />}
+            </Tag>
+          );
         }
         if (b.kind === "paragraph") return <p key={i}>{inline(b.text)}</p>;
         return (
