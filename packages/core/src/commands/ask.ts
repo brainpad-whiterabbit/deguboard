@@ -173,7 +173,7 @@ interface HumanStep {
 }
 
 interface ActionDef {
-  /** Skill の名前（dg skill install で配る dg<トピック>）。null なら 1 行目を置かない */
+  /** Skill の名前（dg skill install で配る dg<トピック>）。null なら Skill の形でも 1 行目に dg の呼び方（ASK_TEXT_PREAMBLE）を置く（ADR-010） */
   skill: string | null;
   /** 1 行目に対象の ID を並べない（起票・作成。対象は「対象:」に書く） */
   bare?: boolean;
@@ -290,7 +290,10 @@ const ACTIONS: Record<AskAction, ActionDef> = {
     human: (s) =>
       s.map((t) =>
         t.kind === "iteration"
-          ? { check: ["iteration.update"], command: `dg iteration update ${t.id} --name "<名前>"` }
+          ? {
+              check: ["iteration.update"],
+              command: `dg iteration update ${t.id} --name "<名前>" --goal "<目標>" --start "<開始日>" --end "<終了日>"`,
+            }
           : {
               check: ["epic.update"],
               command: `dg epic update ${t.id} --title "<題>" --body "<概要>"`,
@@ -711,7 +714,7 @@ export const ask = defineCommand({
   name: "ask",
   group: "ask",
   summary:
-    "エージェントに貼る依頼文を作る（読み取りだけ）。対象の種類と状態から頼むことの候補とおすすめ（先頭）を返し、頼むこと・指示・形式（Skill か文章だけ）から文を組む。頼むことの操作が actor.human_only に入っているか、Workflow の by が遷移を人に限れば、人が打つ dg のコマンドを返す",
+    "エージェントに貼る依頼文を作る（読み取りだけ）。対象の種類と状態から頼むことの候補とおすすめ（先頭）を返し、頼むこと・指示・形式（Skill か文章だけ）から文を組む。操作が 1 つに決まる頼むことは、その操作が actor.human_only に入っているか、Workflow の by が遷移を人に限れば、人が打つ dg のコマンドを返す",
   input: z.object({
     targets: z
       .array(z.string().min(1))

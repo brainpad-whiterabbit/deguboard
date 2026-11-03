@@ -158,6 +158,16 @@ describe("依頼文の組み立て", () => {
     });
     expect(edit).toMatchObject({ kind: "command", label: "題・概要を直す" });
     expect(edit.text).toBe(`dg epic update ${epic("open").id} --title "<題>" --body "<概要>"`);
+    // Iteration の直すは名前・目標・期間を直すので、人に回すコマンドも名前・目標・期間を直す
+    const editIt = buildAsk({
+      subjects: [iteration("active")],
+      action: "edit",
+      humanOnly: ["iteration.update"],
+    });
+    expect(editIt).toMatchObject({ kind: "command", label: "名前・目標・期間を直す" });
+    expect(editIt.text).toBe(
+      'dg iteration update s10 --name "<名前>" --goal "<目標>" --start "<開始日>" --end "<終了日>"',
+    );
     // 入っていない操作は依頼文のまま
     expect(buildAsk({ subjects: [epic("open")], action: "close", humanOnly }).kind).toBe("prompt");
     // Skill の手順に任せる頼むことは、拒否されたらエージェントが人に頼むので依頼文のまま
