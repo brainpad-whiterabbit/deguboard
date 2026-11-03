@@ -1,0 +1,39 @@
+id: p31
+project: default
+tickets: [t294, t295, t296, t297, t298, t299, t300]
+after:
+  t296:
+    - t295
+  t297:
+    - t296
+  t298:
+    - t296
+  t299:
+    - t297
+    - t298
+  t300:
+    - t294
+    - t299
+pending_approval: true
+details:
+  t294:
+    scope: ADR-010 の新設と、ADR-006・ADR 一覧からの参照。コードと requirements.md は触らない
+    approach: 案のページの決めたことを背景・決定・理由に写し、check:docs の予算に収める
+  t295:
+    scope: 依頼文を作る読み取りだけのコマンド（候補とおすすめ、Skill と文章の形式、human_only のときの人のコマンド）とテスト
+    approach: packages/core/src/commands/ に定義を置き、Skill 名の照合テストは guide のトピックを持つ cli 側に置く
+  t296:
+    scope: 入力欄の部品、タイトル行の吹き出しとコマンドパレットの入口、コピー、UI-15
+    approach: web に部品を 1 つ作り、コピーは拡張では host 経由の vscode.env.clipboard、ブラウザでは navigator.clipboard にする
+  t297:
+    scope: 左パネルのカンバン・バックログ・履歴の吹き出しと右クリックのサブメニュー、Shift+F10、初回の案内
+    approach: 候補は t295 のコマンドから取り、右クリックは package.json の submenus と webviewSection を足して同じ一覧を出す
+  t298:
+    scope: パネルのチケット・Sprint・Epic の詳細のタイトルの吹き出しと右クリック、中の行の吹き出しと右クリック
+    approach: t297 の吹き出しの部品を使い回し、入力欄はパネルの下に出す
+  t299:
+    scope: Ctrl/⌘・Shift+クリックの複数選択と選択の帯、絞り込みの件数の右クリック
+    approach: 選択の状態は web の UI の状態に持ち、吹き出し・右クリックは選択があればその全件を対象にする
+  t300:
+    scope: ドラッグ・作成フォーム・Iteration と Epic の詳細の書き込み・「Iteration を移す」を外し、テストと UI-2・3・5・7・10・12 を直す
+    approach: "@dnd-kit の使い所と書き込みのボタンを外し、書き込みのコマンドを呼ぶ場所を確かめるテストを足す"
