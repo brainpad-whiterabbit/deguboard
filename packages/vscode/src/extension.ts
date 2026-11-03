@@ -38,6 +38,7 @@ import {
   askDelivery,
   badgeOf,
   coalesce,
+  currentAskDelivery,
   handleRequest,
   isWebviewRequest,
   renderMessageHtml,
@@ -78,10 +79,10 @@ export function activate(context: vscode.ExtensionContext): void {
       "deguboard.config",
       () => void toggleInSidebar(WEBVIEW_CONTRACT.routes.config),
     ),
-    // エージェントに頼む入力欄（UI-15）。タイトル行の吹き出しは左パネルの下に、コマンドパレットは開いているパネルの下
-    // （パネルが手前になければ左パネルの下）に、対象なしで出す
+    // エージェントに頼む入力欄（UI-15）。タイトル行の吹き出しは左パネルの下に、画面の今の対象（カンバンで選んでいる Iteration、
+    // 履歴で開いている行。なければ対象なし）で出す。コマンドパレットは開いているパネルの下（パネルが手前になければ左パネルの下）に、対象なしで出す
     vscode.commands.registerCommand("deguboard.ask", () => void askFromPalette()),
-    vscode.commands.registerCommand("deguboard.askInSidebar", () => void askInSidebar([])),
+    vscode.commands.registerCommand("deguboard.askInSidebar", () => void askCurrentInSidebar()),
     // 行・見出しの右クリックの「エージェントに頼む ›」（package.json の webview/context のサブメニュー。引数は data-vscode-context）。
     // 選んだ頼むことで、右クリックした画面（左パネルかパネル）の下の入力欄を開く（UI-15）
     ...ASK_ACTIONS.map((action) =>
@@ -206,6 +207,14 @@ async function deliverToSidebar(name: "navigate" | "toggle", route: string): Pro
 /** 左パネルの下にエージェントに頼む入力欄を出す（action を渡せばその頼むことで）。描かれていなければ対象を覚えてからビューを開く */
 async function askInSidebar(targets: string[], action?: AskAction, within?: string): Promise<void> {
   const delivery = askDelivery(sidebar !== undefined, targets, action, within);
+  if ("post" in delivery) void sidebar?.webview.postMessage(delivery.post);
+  else pendingSidebarAsk = delivery.pending;
+  await vscode.commands.executeCommand(`${VIEW_ID}.focus`);
+}
+
+/** タイトル行の吹き出し。左パネルの画面に今の対象を問い、それを対象にして左パネルの下に入力欄を出す（描かれていなければ対象なし） */
+async function askCurrentInSidebar(): Promise<void> {
+  const delivery = currentAskDelivery(sidebar !== undefined);
   if ("post" in delivery) void sidebar?.webview.postMessage(delivery.post);
   else pendingSidebarAsk = delivery.pending;
   await vscode.commands.executeCommand(`${VIEW_ID}.focus`);

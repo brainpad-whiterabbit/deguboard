@@ -31,7 +31,7 @@ import {
 import { ASK_SECTIONS, useAskSpot } from "../components/ask-menu.js";
 import { DetailLink, ProgressBar, StatusDot, Tags, TicketLink } from "../components/parts.js";
 import { HistoryTicketList, HistoryTicketRow } from "../components/history-rows.js";
-import { useHost, useUiState } from "../host.js";
+import { useAskCurrent, useHost, useUiState } from "../host.js";
 import { NO_VALUE } from "../components/run-parts.js";
 import { formatTime } from "../components/timeline.js";
 import { hrefOf, navigate, replaceRoute, type HistoryQuery, type HistoryView } from "../router.js";
@@ -323,6 +323,21 @@ function ViewSwitch({
   );
 }
 
+/**
+ * 履歴のタイトル行の吹き出しの対象（UI-15）。shown は出ている行の番号、isOpen は行が開いているか、opened は検索前に開いた行（開いた順）。
+ * 開いている行のうち最後に開いたものにし、それがなく（検索で開いた行だけ）開いている行が 1 つならそれにする。どちらもなければ対象なし
+ */
+export function historyAskTarget(
+  shown: readonly string[],
+  isOpen: (id: string) => boolean,
+  opened: readonly string[],
+): string[] {
+  const open = shown.filter(isOpen);
+  const last = opened.findLast((id) => open.includes(id));
+  if (last) return [last];
+  return open.length === 1 ? [open[0]!] : [];
+}
+
 /** サイドバーの検索欄の案内（バックログと同じ言い方） */
 const SIDEBAR_SEARCH = "番号・タイトル・ラベルで検索";
 
@@ -369,6 +384,17 @@ export function HistoryPage({ route }: { route: HistoryQuery }) {
       ticket: { hit: finished(query), total: finished(""), filtered: searching },
     };
   }, [iterations, epics, store.tickets, query, sidebar, view]);
+  // タイトル行の吹き出しは開いている行を対象にする（UI-15）。ブラウザの Epic の行は開かない
+  const foldable = view === "iteration" || (view === "epic" && sidebar);
+  useAskCurrent(
+    foldable
+      ? historyAskTarget(
+          rows.map((r) => r.id),
+          (id) => foldOf(id).open,
+          opened[0],
+        )
+      : [],
+  );
   if (view === "ticket")
     return <TicketView route={route} counts={counts} query={query} setQuery={setQuery} />;
   return (

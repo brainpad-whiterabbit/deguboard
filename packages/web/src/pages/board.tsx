@@ -51,7 +51,7 @@ import {
   type PlanMark,
 } from "../components/row-end.js";
 import { useChangeFlash } from "../components/change-flash.js";
-import { useHost, useUiState } from "../host.js";
+import { useAskCurrent, useHost, useUiState } from "../host.js";
 import { ALL_ITERATIONS, hrefOf, navigate, type BoardQuery } from "../router.js";
 import { useStore } from "../store.js";
 import {
@@ -143,6 +143,8 @@ export function BoardPage({ query }: { query: BoardQuery }) {
     () => boardSelection(open, query.iteration, lastIteration),
     [open, query.iteration, lastIteration],
   );
+  // タイトル行の吹き出しは選んでいる Iteration を対象にする。「すべて」なら対象なし（UI-15）
+  useAskCurrent(selection.kind === "iteration" ? [selection.iteration.id] : []);
 
   const select = (iteration: string) => {
     setLastIteration(iteration);

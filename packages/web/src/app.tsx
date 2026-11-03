@@ -148,7 +148,7 @@ export function App() {
             </label>
           )}
           {sidebar ? null : <SyncIndicator />}
-          {/* 左パネルの吹き出しはビューのタイトル行にある（拡張の view/title）。ブラウザはここに置き、対象なしで開け閉めする */}
+          {/* 左パネルの吹き出しはビューのタイトル行にある（拡張の view/title）。ブラウザはここに置き、画面の今の対象（なければ対象なし）で開け閉めする */}
           {sidebar ? null : (
             <button
               type="button"
@@ -156,7 +156,7 @@ export function App() {
               aria-label="エージェントに頼む"
               aria-pressed={ask.request !== null}
               title="エージェントに頼む（依頼文を作ってコピーする）"
-              onClick={() => (ask.request ? ask.close() : ask.open([]))}
+              onClick={() => (ask.request ? ask.close() : ask.open(ask.current()))}
             >
               <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
                 <path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z" />
