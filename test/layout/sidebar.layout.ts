@@ -561,8 +561,8 @@ describe.each(SCHEMES)("Iteration の札の列（%s）", (scheme) => {
               fullPage: true,
             });
           }
-          // すべて・s2〜s7・+ の 8 枚
-          expect(m.chips, `${label} の札の数`).toBe(8);
+          // すべて・s2〜s7 の 7 枚
+          expect(m.chips, `${label} の札の数`).toBe(7);
           expect(m.selected, "選んでいる札").toMatch(new RegExp(`^${label}`));
           expect(m.stripScroll, "札の列が幅に入らない").toBeGreaterThan(m.stripClient);
           expect(m.visible, `${label} の札が列の見える範囲にある`).toBe(true);
@@ -580,7 +580,7 @@ describe("エージェントに頼む吹き出し（UI-15）", () => {
   /** カンバンの todo の行の吹き出しの不透明度（マウスを載せた行とそれ以外） */
   const opacities = (page: Page) =>
     page.evaluate(() =>
-      [...document.querySelectorAll(".column .row-drag > .ask-bubble")].map((b) =>
+      [...document.querySelectorAll(".column .row-item > .ask-bubble")].map((b) =>
         Number(getComputedStyle(b).opacity),
       ),
     );
@@ -592,7 +592,7 @@ describe("エージェントに頼む吹き出し（UI-15）", () => {
       const page = await context.newPage();
       try {
         await page.goto(`${server.url}?surface=sidebar#/board`, { waitUntil: "networkidle" });
-        const rows = page.locator(".column .row-drag");
+        const rows = page.locator(".column .row-item");
         await rows.first().waitFor();
         await page.mouse.move(0, 0);
         expect(
@@ -630,7 +630,7 @@ describe("エージェントに頼む吹き出し（UI-15）", () => {
     const page = await context.newPage();
     try {
       await page.goto(`${server.url}?surface=sidebar#/board`, { waitUntil: "networkidle" });
-      await page.locator(".column .row-drag").first().waitFor();
+      await page.locator(".column .row-item").first().waitFor();
       expect(await page.evaluate(() => matchMedia("(hover: none)").matches)).toBe(true);
       const all = await opacities(page);
       expect(all.length).toBeGreaterThan(0);

@@ -1,9 +1,9 @@
 // カンバン（UI-2）。絞り込みの欄（Iteration・Epic・担当者）、選んだ Iteration の見出し、
 // 選んだ範囲のチケットを含む Plan の帯（実行計画）と、その範囲のチケットを状態ごとの節（todo / in_progress / review / done。中止は畳んだ節）で出す。
 // 範囲は planned か active の Iteration 1 つか「すべて」（planned と active の Iteration すべて）で、Iteration に入っていないチケットはバックログで見る。
-// Epic の選択肢は open だけ。開いた Iteration がなければ、列も帯も出さずにバックログと Iteration の作成へ案内する。絞り込みの値はハッシュに持つ。
-// VS Code の左パネル（surface=sidebar）では、Iteration を選択欄の代わりに札の列（すべて・+ を含む）で切り替え、見出しを 2 段と進みの帯に詰め、
-// 詳細・…・開始・閉じる・件数は出さない（件数は帯の done/全体）。Epic・担当の絞り込みは見出しの右端の漏斗で開き（開閉は host.state）、
+// Epic の選択肢は open だけ。開いた Iteration がなければ、列も帯も出さずにバックログへ案内する。絞り込みの値はハッシュに持つ。
+// VS Code の左パネル（surface=sidebar）では、Iteration を選択欄の代わりに札の列（すべてを含む）で切り替え、見出しを 2 段と進みの帯に詰め、
+// 詳細・件数は出さない（件数は帯の done/全体）。Epic・担当の絞り込みは見出しの右端の漏斗で開き（開閉は host.state）、
 // 絞っている間は見出しの下に値の札（× で外す）を出す。状態の節はペイン風の見出しにする。
 // 左パネルの行は担当の名前の列を出さず、右端の上の段（Plan の番号の左）に担当の印（AssigneeMark。人は頭文字の丸、agent は持ち主の丸と汎用のアイコン）を出す。
 // 左パネルの行の右端には、開いた Plan に入っているチケットなら Plan の番号と、todo なら着手可か待ちの相手（Plan の after とチケットの depends_on）か承認待ち（Plan が承認待ち）を出す。
@@ -12,22 +12,13 @@
 // 入っている Iteration か Epic が閉じた done・abandoned のチケットは出さない（履歴でたどる）。
 // 左パネルの行・状態の節の見出し・Iteration の見出し・Plan の帯は、エージェントに頼める場所にする（吹き出し・右クリック・Shift+F10。UI-15）。
 // 節の開閉・最後に選んだ Iteration は host.state に覚える。
-// ドラッグ＆ドロップは ticket.move を呼び、拒否されたら通知に理由を出して元の列に戻す（読み直すだけで戻る）
+// 表示だけで書き込まない。Status の変更と Iteration の作成・開始・閉じるは、吹き出し・右クリックからエージェントに頼む（ADR-010）
 
-import {
-  DndContext,
-  PointerSensor,
-  useDraggable,
-  useDroppable,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-} from "@dnd-kit/core";
-import { useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useLayoutEffect, useMemo, useRef } from "react";
 import { ASK_SECTIONS, useAskSpot } from "../components/ask-menu.js";
 import {
   ActivityMark,
-  DraggableRow,
+  AskRow,
   PriorityBadge,
   type RowActivity,
   StatusBand,
@@ -37,11 +28,7 @@ import {
 } from "../components/parts.js";
 import { FilterToggle } from "../components/filter-toggle.js";
 import { PlanBand } from "../components/plan-band.js";
-import {
-  IterationActions,
-  IterationCreateForm,
-  shortPeriod,
-} from "../components/iteration-parts.js";
+import { shortPeriod } from "../components/iteration-parts.js";
 import { openPlanByTicket, planColor } from "../components/plan-graph.js";
 import {
   isWaitingReadiness,
@@ -124,16 +111,12 @@ export function ticketsInSelection<T extends Pick<Ticket, "iteration">>(
 export function BoardPage({ query }: { query: BoardQuery }) {
   const store = useStore();
   const host = useHost();
-  // 読み直しが終わるまでの間だけ、落とした先の列に見せる
-  const [moving, setMoving] = useState<{ id: string; status: Status } | null>(null);
   const [lastIteration, setLastIteration] = useUiState<string | undefined>(
     "board.iteration",
     undefined,
   );
-  const [creating, setCreating] = useState(false);
   // 左パネルの絞り込みの欄（Epic・担当）を開いているか
   const [filtersOpen, setFiltersOpen] = useUiState("board.filters", false);
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
   const open = useMemo(
     () => store.iterations.filter((i) => i.status !== "closed").sort(byNumber),
@@ -175,9 +158,8 @@ export function BoardPage({ query }: { query: BoardQuery }) {
       hideClosedFinished(scoped, store.iterations, store.epics, query.epic)
         .filter((t) => !query.epic || t.epic === query.epic)
         .filter((t) => matchesClaim(t, query.assignee ?? ""))
-        .map((t) => (moving && moving.id === t.id ? { ...t, status: moving.status } : t))
         .sort(byPriorityThenNumber),
-    [scoped, store.iterations, store.epics, query.epic, query.assignee, moving],
+    [scoped, store.iterations, store.epics, query.epic, query.assignee],
   );
   const chipTickets = useMemo(
     () => hideClosedFinished(store.tickets, store.iterations, store.epics),
@@ -190,19 +172,6 @@ export function BoardPage({ query }: { query: BoardQuery }) {
   // サイドバーでは、前回の描画から Status か Iteration が変わった行を点滅させる（UI-2。CLI やエージェントの書き込みに気づけるように）
   const sidebar = host.surface === "sidebar";
   const flash = useChangeFlash(store.tickets, host.state, sidebar);
-
-  const onDragEnd = async (event: DragEndEvent) => {
-    const id = String(event.active.id);
-    const status = event.over?.id as Status | undefined;
-    const ticket = store.tickets.find((t) => t.id === id);
-    if (!status || !ticket || ticket.status === status) return;
-    setMoving({ id, status });
-    // 自分で動かした行は点滅させない
-    flash.ignore(id);
-    const result = await store.run("ticket.move", { ticket: id, status });
-    if (!result.ok) flash.release(id);
-    setMoving(null);
-  };
 
   const filterSelects = (
     <>
@@ -240,17 +209,12 @@ export function BoardPage({ query }: { query: BoardQuery }) {
       ) : null}
     </>
   );
-  const createForm = creating ? (
-    <div className="board-filters">
-      <IterationCreateForm onDone={() => setCreating(false)} />
-    </div>
-  ) : null;
 
   return (
     <section>
       {sidebar ? (
         <>
-          {/* 左パネルは見出しを 2 段と進みの帯に詰め、詳細・操作は出さない（Iteration の開始は `dg guide work` の手順が claim のときに行い、閉じるは Iteration の詳細の画面で行う） */}
+          {/* 左パネルは見出しを 2 段と進みの帯に詰め、詳細は出さない */}
           <SidebarBoardHead
             open={open}
             // 札は閉じた Iteration・Epic の終わったチケットを除いて数え、Epic・担当の絞り込みでは変えない
@@ -259,7 +223,6 @@ export function BoardPage({ query }: { query: BoardQuery }) {
             // 帯は絞り込み（Epic・担当）の後のチケットで数える
             progress={ticketProgress(tickets)}
             onSelect={select}
-            onCreate={() => setCreating(true)}
             filter={
               epics.length > 0 || claims.length > 0
                 ? {
@@ -270,7 +233,6 @@ export function BoardPage({ query }: { query: BoardQuery }) {
                 : undefined
             }
           />
-          {createForm}
           {filtersOpen && (epics.length > 0 || claims.length > 0) ? (
             <div className="board-filters compact" id="board-filters">
               {filterSelects}
@@ -300,74 +262,58 @@ export function BoardPage({ query }: { query: BoardQuery }) {
                 ))}
               </select>
             </label>
-            {/* 開いた Iteration がなければ、作るボタンは案内（NoOpenIteration）の側にだけ出す */}
-            {creating || open.length === 0 ? null : (
-              <button type="button" className="link" onClick={() => setCreating(true)}>
-                + Iteration を作る
-              </button>
-            )}
             {filterSelects}
             <span className="muted count">{tickets.length - abandoned.length} 件</span>
           </div>
-          {createForm}
           {selection.kind === "iteration" ? (
             <IterationHead iteration={selection.iteration} />
           ) : null}
         </>
       )}
       {open.length === 0 ? (
-        <NoOpenIteration onCreate={creating ? undefined : () => setCreating(true)} />
+        <NoOpenIteration />
       ) : (
         <>
           <PlanBand scope={scoped} />
-          <DndContext sensors={sensors} onDragEnd={(e) => void onDragEnd(e)}>
-            <div className="board">
-              {BOARD_STATUSES.map((status) => (
-                <Column
-                  key={status}
-                  status={status}
-                  tickets={tickets.filter((t) => t.status === status)}
-                  planOf={planOf}
-                  planMarks={planMarks}
-                  flashing={flash.flashing}
-                  // 完了は既定で畳む（どの surface でも。開いた状態は useUiState が保つ）
-                  defaultOpen={status !== "done"}
-                />
-              ))}
-              {/* 中止は切り替えではなく、あるときだけ最後の列（サイドバーでは最後の節）に畳んで置く */}
-              {abandoned.length > 0 ? (
-                <Column
-                  status="abandoned"
-                  tickets={abandoned}
-                  planOf={planOf}
-                  planMarks={planMarks}
-                  flashing={flash.flashing}
-                  defaultOpen={false}
-                />
-              ) : null}
-            </div>
-          </DndContext>
+          <div className="board">
+            {BOARD_STATUSES.map((status) => (
+              <Column
+                key={status}
+                status={status}
+                tickets={tickets.filter((t) => t.status === status)}
+                planOf={planOf}
+                planMarks={planMarks}
+                flashing={flash.flashing}
+                // 完了は既定で畳む（どの surface でも。開いた状態は useUiState が保つ）
+                defaultOpen={status !== "done"}
+              />
+            ))}
+            {/* 中止は切り替えではなく、あるときだけ最後の列（サイドバーでは最後の節）に畳んで置く */}
+            {abandoned.length > 0 ? (
+              <Column
+                status="abandoned"
+                tickets={abandoned}
+                planOf={planOf}
+                planMarks={planMarks}
+                flashing={flash.flashing}
+                defaultOpen={false}
+              />
+            ) : null}
+          </div>
         </>
       )}
     </section>
   );
 }
 
-/** 開いた Iteration がないときの案内（UI-2）。列と帯の代わりに出し、バックログと Iteration の作成へ導く。onCreate は作るフォームを開いていなければ渡す */
-function NoOpenIteration({ onCreate }: { onCreate: (() => void) | undefined }) {
+/** 開いた Iteration がないときの案内（UI-2）。列と帯の代わりに出し、バックログへ導く */
+function NoOpenIteration() {
   return (
     <div className="empty board-empty">
       <p>開いた Iteration（planned・active）はない</p>
       <p>
         チケットは <a href={hrefOf({ page: "backlog" })}>バックログ</a> で見る
       </p>
-      {onCreate ? (
-        <p>
-          <button type="button" className="link" onClick={onCreate}>
-            + Iteration を作る
-          </button>
-        </p>
-      ) : null}
     </div>
   );
 }
@@ -394,7 +340,7 @@ export function hideClosedFinished<T extends Ticket>(
   );
 }
 
-/** 選んだ Iteration の見出し：番号・名前・状態・期間・目標と、開始・終了・詳細 */
+/** 選んだ Iteration の見出し：番号・名前・状態・期間・目標と詳細へのリンク */
 function IterationHead({ iteration: it }: { iteration: Iteration }) {
   return (
     <header className="board-head">
@@ -410,7 +356,6 @@ function IterationHead({ iteration: it }: { iteration: Iteration }) {
       {it.goal ? <span className="muted goal">{it.goal}</span> : null}
       <span className="actions">
         <a href={hrefOf({ page: "iterations", id: it.id })}>詳細</a>
-        <IterationActions iteration={it} />
       </span>
     </header>
   );
@@ -419,7 +364,7 @@ function IterationHead({ iteration: it }: { iteration: Iteration }) {
 /**
  * 左パネルのカンバンの見出し（UI-2）。1 段目に Iteration の札の列（IterationChips）と右端の絞り込みボタン（漏斗）、
  * 2 段目に選んでいるものの名前・期間・目標（1 行で省略）、3 段目に状態ごとの色の帯と「n/m done」（件数はここだけ）。
- * 詳細・…・開始・閉じるは出さない。
+ * 詳細は出さない。
  * filter は絞り込める Epic か担当があるときだけ渡す（漏斗を出す）。絞っている間は漏斗を色付きにする
  */
 function SidebarBoardHead({
@@ -428,7 +373,6 @@ function SidebarBoardHead({
   selection,
   progress,
   onSelect,
-  onCreate,
   filter,
 }: {
   open: Iteration[];
@@ -437,7 +381,6 @@ function SidebarBoardHead({
   selection: Selection;
   progress: Progress;
   onSelect: (iteration: string) => void;
-  onCreate: () => void;
   filter: { open: boolean; active: boolean; onToggle: () => void } | undefined;
 }) {
   const it = selection.kind === "iteration" ? selection.iteration : undefined;
@@ -460,13 +403,7 @@ function SidebarBoardHead({
   return (
     <header className="board-head sidebar-head">
       <div className="head-line">
-        <IterationChips
-          open={open}
-          tickets={tickets}
-          selection={selection}
-          onSelect={onSelect}
-          onCreate={onCreate}
-        />
+        <IterationChips open={open} tickets={tickets} selection={selection} onSelect={onSelect} />
         {filter ? (
           <FilterToggle
             open={filter.open}
@@ -498,7 +435,7 @@ function SidebarBoardHead({
 
 /**
  * 左パネルの Iteration の札の列（UI-2）。先頭に「すべて」（planned と active の Iteration すべて。開いた Iteration がなくても出す）、
- * planned と active の Iteration を番号順に並べ、最後に「+」（Iteration を作る）を置く。札は番号・進みの輪・done/全体で、選んでいる札は塗り、
+ * planned と active の Iteration を番号順に並べる。札は番号・進みの輪・done/全体で、選んでいる札は塗り、
  * active は実線、planned は破線の枠。名前・期間・目標はツールチップで読む。
  * 幅に入らなければ列だけが横にスクロールし、選んでいる札が見える位置まで寄せる
  */
@@ -507,13 +444,11 @@ function IterationChips({
   tickets,
   selection,
   onSelect,
-  onCreate,
 }: {
   open: Iteration[];
   tickets: readonly Ticket[];
   selection: Selection;
   onSelect: (iteration: string) => void;
-  onCreate: () => void;
 }) {
   const strip = useRef<HTMLDivElement>(null);
   const selected = selection.kind === "iteration" ? selection.iteration.id : ALL_ITERATIONS;
@@ -567,15 +502,6 @@ function IterationChips({
           </button>
         );
       })}
-      <button
-        type="button"
-        className="iteration-chip create"
-        aria-label="Iteration を作る"
-        title="Iteration を作る"
-        onClick={onCreate}
-      >
-        +
-      </button>
     </div>
   );
 }
@@ -683,7 +609,6 @@ export function ticketProgress(tickets: readonly Pick<Ticket, "status">[]): Prog
  * 状態ごとの節。広い画面では横に並び、サイドバーでは縦に積む（UI-12）。開閉は host.state に覚える。
  * 見出しに状態の丸印と件数。サイドバーでは枠と背景のないペイン風の見出しで、空の節は見出しの 1 行だけにする。
  * サイドバーの件数は、終わった状態（isFinished）の節では塗らずに数字だけにする
- * （ドロップ先は details 全体なので、空の節の見出しにも落とせる）
  */
 function Column({
   status,
@@ -706,7 +631,6 @@ function Column({
   const store = useStore();
   const host = useHost();
   const [open, setOpen] = useUiState(`board.section.${status}`, defaultOpen);
-  const { setNodeRef, isOver } = useDroppable({ id: status });
   const sidebar = host.surface === "sidebar";
   const empty = tickets.length === 0;
   // 節の見出しから、節のチケットをまとめて頼む（空の節は頼む対象がないので出さない）
@@ -721,10 +645,9 @@ function Column({
   );
   return (
     <details
-      ref={setNodeRef}
       open={open}
       onToggle={(e) => setOpen(e.currentTarget.open)}
-      className={`column fold status-${status}${empty ? " is-empty" : ""}${isOver ? " over" : ""}`}
+      className={`column fold status-${status}${empty ? " is-empty" : ""}`}
       data-status={status}
     >
       <summary {...(spot.overlay ? spot.props : {})}>
@@ -747,7 +670,7 @@ function Column({
               const activity = rowActivity(t, store.runningTickets);
               const running = activity === "running";
               return (
-                <DraggableRow
+                <AskRow
                   key={t.id}
                   ticket={t}
                   // 実行中の Run を読み終えるまで（null）は薄くしない（読み終えて実行中とわかった行が一瞬薄く出ないように）
@@ -794,23 +717,12 @@ export function rowActivity(
   return ticket.status === "in_progress" ? "idle" : undefined;
 }
 
+/** 広い画面のカンバンのカード */
 function Card({ ticket, plan }: { ticket: Ticket; plan: string | undefined }) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
-    id: ticket.id,
-  });
-  const style = transform
-    ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` }
-    : undefined;
   return (
-    <article
-      ref={setNodeRef}
-      style={style}
-      className={`card status-${ticket.status}${isDragging ? " dragging" : ""}`}
-      {...listeners}
-      {...attributes}
-    >
+    <article className={`card status-${ticket.status}`}>
       <div className="meta">
-        <TicketLink id={ticket.id} onPointerDown={(e) => e.stopPropagation()} />
+        <TicketLink id={ticket.id} />
         <PriorityBadge priority={ticket.priority} />
         {ticket.epic ? <span>{ticket.epic}</span> : null}
         {ticket.iteration ? <span>{ticket.iteration}</span> : null}

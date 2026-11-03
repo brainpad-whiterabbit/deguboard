@@ -23,10 +23,8 @@ import * as vscode from "vscode";
 import {
   askCommandId,
   BACKLOG_ROW_COMMANDS,
-  iterationPicks,
   menuAskOf,
   menuTicketOf,
-  moveToIteration,
   PANEL_VIEW_TYPE,
   SIDEBAR_VIEW_ID,
   ticketRoute,
@@ -94,9 +92,6 @@ export function activate(context: vscode.ExtensionContext): void {
       }),
     ),
     // 左パネルのバックログの行の右クリック（package.json の webview/context。引数は行の data-vscode-context）
-    vscode.commands.registerCommand(BACKLOG_ROW_COMMANDS.move, (arg: unknown) =>
-      withMenuTicket(arg, moveFromMenu),
-    ),
     vscode.commands.registerCommand(BACKLOG_ROW_COMMANDS.open, (arg: unknown) =>
       withMenuTicket(arg, (folder, row) =>
         // サイドバーのリンクと同じく、フォーカスはサイドバーに残す
@@ -294,30 +289,6 @@ async function withMenuTicket(
   const folder = sidebarFolder;
   if (!row || !folder) return;
   await fn(folder, row);
-}
-
-/**
- * 「Iteration を移す」。候補（閉じていない Iteration と「Iteration なし」）を QuickPick で選ばせ、ドラッグと同じ ticket.update を呼ぶ。
- * 拒否されたら通知に理由を出す。画面はデータの見張りでも読み直すが、待たずに読み直しを頼む
- */
-async function moveFromMenu(folder: vscode.WorkspaceFolder, row: MenuTicket): Promise<void> {
-  const client = clientFor(folder);
-  try {
-    const picks = await iterationPicks(client, row);
-    const pick = await vscode.window.showQuickPick(picks, {
-      title: `${row.ticket} を移す Iteration`,
-      placeHolder: "Iteration を選ぶ",
-    });
-    if (!pick) return;
-    if (await moveToIteration(client, row, pick)) {
-      broadcast(folder, { kind: "event", name: "reload" });
-    }
-  } catch (error) {
-    const failure = toCommandFailure(error);
-    void vscode.window.showErrorMessage(
-      `deguboard: ${row.ticket} を移せない: ${failure.message}${failure.detail ? `（${failure.detail}）` : ""}`,
-    );
-  }
 }
 
 /**

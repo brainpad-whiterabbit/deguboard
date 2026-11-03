@@ -249,20 +249,19 @@ describe("見直しの指摘（UI-15）", () => {
     await waitFor(() => expect(bar()).toBeNull());
   });
 
-  it("バックログでドラッグした直後の行の click では選ばず、その次の Ctrl+クリックから選べる", async () => {
-    // Iteration があると区画に分け、行をドラッグできる（選ぶのは外側の li、ドラッグは中の行）
+  it("バックログの Iteration の区画の行は、ふつうのクリックで詳細を開き、Ctrl+クリックで選ぶ", async () => {
     const client = mockClient(
       fixture({ iterations: [iteration({ id: "s1", name: "来週", status: "planned" })] }),
     );
     window.location.hash = "#/backlog";
-    mount(client);
+    const { open } = mount(client);
     await screen.findByText("画面");
-    // useDraggableTicket がドラッグの始まりに中の行へ付ける印を付けておく
-    screen.getByText("画面").closest(".row-drag")!.setAttribute("data-dragged", "");
-    fireEvent.click(linkOf("画面"), { ctrlKey: true });
+    fireEvent.click(linkOf("画面"));
+    expect(open).toHaveBeenCalledWith({ page: "ticket", id: "t3" });
     expect(selected()).toEqual([]);
     fireEvent.click(linkOf("画面"), { ctrlKey: true });
     expect(selected()).toEqual(["t3"]);
+    expect(open).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -313,8 +312,10 @@ describe("カンバンとパネルの詳細の行を複数選ぶ（UI-15）", ()
       askWithin: "s1",
     });
     expect(contextOf(api)["askActions"]).toContain("remove");
-    // 行の中のボタン（外す）を修飾キーつきで押しても選び方は変わらない
-    fireEvent.click(within(api).getByRole("button", { name: "外す" }), { ctrlKey: true });
+    // 行の中のボタン（吹き出し）を修飾キーつきで押しても選び方は変わらない
+    fireEvent.click(within(api).getByRole("button", { name: /エージェントに頼む/ }), {
+      ctrlKey: true,
+    });
     expect(selected()).toEqual(["t2", "t3"]);
     expect(bar()!.textContent).toContain("2 件を選択");
   });

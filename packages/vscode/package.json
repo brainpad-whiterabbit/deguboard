@@ -74,11 +74,6 @@
         "icon": "$(comment-discussion)"
       },
       {
-        "command": "deguboard.backlog.moveIteration",
-        "title": "Iteration を移す",
-        "category": "deguboard"
-      },
-      {
         "command": "deguboard.backlog.openTicket",
         "title": "詳細を開く",
         "category": "deguboard"
@@ -242,10 +237,6 @@
           "when": "false"
         },
         {
-          "command": "deguboard.backlog.moveIteration",
-          "when": "false"
-        },
-        {
           "command": "deguboard.backlog.openTicket",
           "when": "false"
         },
@@ -351,11 +342,6 @@
           "submenu": "deguboard.askMenu",
           "when": "(webviewId == 'deguboard.screens' || webviewId == 'deguboard') && askActions",
           "group": "0_ask@1"
-        },
-        {
-          "command": "deguboard.backlog.moveIteration",
-          "when": "webviewId == 'deguboard.screens' && webviewSection == 'backlogTicket'",
-          "group": "1_move@1"
         },
         {
           "command": "deguboard.backlog.openTicket",

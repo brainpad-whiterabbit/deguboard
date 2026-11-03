@@ -1,8 +1,8 @@
 // バックログ（UI-3）。done と abandoned 以外を Iteration ごとの区画（active → planned → Iteration なし）に分け、区画の中は優先度と番号で出す。
-// 番号・タイトル・ラベルで検索、Status・優先度・ラベル・担当者で絞り込む。区画の見出しから Iteration の開始・閉じる（サイドバーを除く）、「Iteration なし」から作成。
+// 番号・タイトル・ラベルで検索、Status・優先度・ラベル・担当者で絞り込む。
 // Iteration が 1 つもない（planned・active がない）Project では区画に分けず 1 つの表で出す。
-// チケットを別の区画にドラッグすると ticket.update で Iteration を変える。拒否されたら通知に理由を出して元の区画に戻す（読み直すだけで戻る）。
-// open の Epic は進捗つきの欄に並べ（UI-10）、押すとその Epic のチケットに絞る（もう一度押すと解除）。広い画面では Epic の作成も欄から行う。
+// 表示だけで書き込まない。Iteration の移動・作成・開始・閉じると Epic の作成は、吹き出し・右クリックからエージェントに頼む（ADR-010）。
+// open の Epic は進捗つきの欄に並べ（UI-10）、押すとその Epic のチケットに絞る（もう一度押すと解除）。
 // サイドバーでは検索を常に出し、その右端の漏斗（カンバンと同じ FilterToggle）で絞り込みの欄を検索の下に開く（開閉は host.state に残す）。
 // その下によく使う絞り込み（自分・作業中・high）のチップと、欄で効いている条件の札（× で外す）を並べ、
 // 絞り込みか検索が効いているときだけ行の右端に「n / m 件」を出す（右クリックで絞った結果をまとめて頼める）。漏斗は条件が効いている間だけ色付きにする。
@@ -11,22 +11,10 @@
 // サイドバーの行は担当者の列を出さず、別の人の担当だけ右端に頭文字の丸で出す（自分か自分の agent は出さない。store.me）。
 // サイドバーの行・区画の見出し・Epic の札は、エージェントに頼める場所にする（行と見出しは吹き出し、札は右クリックと Shift+F10。UI-15）
 
-import {
-  DndContext,
-  PointerSensor,
-  useDroppable,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-} from "@dnd-kit/core";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { ASK_SECTIONS, useAskSpot } from "../components/ask-menu.js";
 import { Chip, ChipRow } from "../components/chips.js";
-import {
-  IterationActions,
-  IterationCreateForm,
-  shortPeriod,
-} from "../components/iteration-parts.js";
+import { shortPeriod } from "../components/iteration-parts.js";
 import { ProgressBar, TicketTable } from "../components/parts.js";
 import { BacklogRowEnd, kanbanPlanMarks, type PlanMark } from "../components/row-end.js";
 import { FilterToggle } from "../components/filter-toggle.js";
@@ -225,16 +213,7 @@ export function BacklogPage() {
     () => claimOptions(store.tickets.filter((t) => !isFinished(t.status))),
     [store.tickets],
   );
-  // 読み直しが終わるまでの間だけ、落とした先の区画に見せる
-  const [moving, setMoving] = useState<{ id: string; iteration: Ticket["iteration"] } | null>(null);
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
-  const tickets = useMemo(
-    () =>
-      moving
-        ? store.tickets.map((t) => (t.id === moving.id ? { ...t, iteration: moving.iteration } : t))
-        : store.tickets,
-    [store.tickets, moving],
-  );
+  const tickets = store.tickets;
   const rows = useMemo(() => filterBacklog(tickets, filter, store.me), [tickets, filter, store.me]);
   // 絞り込み・検索はハッシュに入らないので、変えたら行の選択を外す（隠れた行を頼む対象に残さない。カンバンは画面が替わって外れる）
   const selection = useSelection();
@@ -249,17 +228,6 @@ export function BacklogPage() {
     <BacklogRowEnd ticket={t} mark={planMarks.get(t.id)} me={store.me} />
   );
   const total = useMemo(() => filterBacklog(tickets, EMPTY_FILTER).length, [tickets]);
-  const onDragEnd = async (event: DragEndEvent) => {
-    const id = String(event.active.id);
-    const over = event.over?.id;
-    const ticket = store.tickets.find((t) => t.id === id);
-    if (over === undefined || !ticket) return;
-    const iteration = over === NO_SECTION ? undefined : (String(over) as Ticket["iteration"]);
-    if ((ticket.iteration ?? undefined) === iteration) return;
-    setMoving({ id, iteration });
-    await store.run("ticket.update", { ticket: id, iteration: iteration ?? null });
-    setMoving(null);
-  };
   const statuses = BOARD_STATUSES.filter((s) => s !== "done");
   const active = activeFilters(filter, (st) => store.labelOf(st as Ticket["status"]));
   const filtering = active.length > 0 || filter.query.trim() !== "";
@@ -373,11 +341,9 @@ export function BacklogPage() {
         />
         <div className="backlog-main">
           {store.iterations.some((i) => i.status !== "closed") ? (
-            <DndContext sensors={sensors} onDragEnd={(e) => void onDragEnd(e)}>
-              {sectionsOf(rows, store.iterations, tickets).map((s) => (
-                <Section key={s.iteration?.id ?? NO_SECTION} section={s} rowEnd={rowEnd} />
-              ))}
-            </DndContext>
+            sectionsOf(rows, store.iterations, tickets).map((s) => (
+              <Section key={s.iteration?.id ?? "none"} section={s} rowEnd={rowEnd} />
+            ))
           ) : (
             <TicketTable tickets={rows} assigneeInEnd rowMenu end={rowEnd} />
           )}
@@ -468,12 +434,9 @@ function QuickFilters({
 }
 
 /**
- * 1 つの区画：見出し（番号・名前・状態・期間・目標・件数・詳細と開始・閉じる。「Iteration なし」は作成）とチケットの表。
- * 0 件なら見出しだけ。サイドバーでは折りたたみの節にし、開閉を host.state に残す。サイドバーの見出しは帯と 2 段で、開始・閉じるを置かない
+ * 1 つの区画：見出し（番号・名前・状態・期間・目標・件数・詳細へのリンク）とチケットの表。
+ * 0 件なら見出しだけ。サイドバーでは折りたたみの節にし、開閉を host.state に残す。サイドバーの見出しは帯と 2 段
  */
-/** 「Iteration なし」の区画の落とし先の ID（Iteration の ID と重ならない） */
-const NO_SECTION = "-";
-
 function Section({
   section: { iteration: it, tickets },
   rowEnd,
@@ -483,14 +446,8 @@ function Section({
   rowEnd: (t: Ticket) => ReactNode;
 }) {
   const host = useHost();
-  // 区画全体が落とし先。閉じた Iteration には入れられないので落とし先にしない
-  const { setNodeRef, isOver } = useDroppable({
-    id: it?.id ?? NO_SECTION,
-    disabled: it?.status === "closed",
-  });
   const sidebar = host.surface === "sidebar";
   const [open, setOpen] = useUiState(`backlog.section.${it?.id ?? "none"}`, true);
-  const [creating, setCreating] = useState(false);
   const link = it ? (
     <a
       href={hrefOf({ page: "iterations", id: it.id })}
@@ -508,8 +465,8 @@ function Section({
     "Iteration なし"
   );
   // サイドバーの見出し（カンバンの SidebarBoardHead と同じ部品）：左の帯の色で Iteration の状態を出し、1 段目に番号・名前・件数、
-  // 2 段目に状態・月日の期間・目標を 1 行で（目標が溢れたら省略してツールチップで全文。カンバンと同じ）。開始・閉じるは置かず、詳細の画面で行う。
-  // 0 件の区画は帯も 2 段目もない 1 行にし、「Iteration なし」は行の右端の「+」で作る
+  // 2 段目に状態・月日の期間・目標を 1 行で（目標が溢れたら省略してツールチップで全文。カンバンと同じ）。
+  // 0 件の区画は帯も 2 段目もない 1 行にする
   const period = it ? shortPeriod(it.start, it.end) : undefined;
   // 左パネルの区画の見出しから頼む：Iteration の区画はその Iteration、「Iteration なし」は中のチケットをまとめて（0 件なら出さない）
   const spot = useAskSpot(
@@ -526,22 +483,6 @@ function Section({
       <span className="head-line">
         <span className="name">{link}</span>
         <span className="muted count">{tickets.length} 件</span>
-        {it || creating ? null : (
-          <button
-            type="button"
-            className="link create"
-            aria-label="Iteration を作る"
-            title="Iteration を作る"
-            onClick={(e) => {
-              // 見出し（summary）の中のボタンなので、節の開閉を起こさない
-              e.preventDefault();
-              setCreating(true);
-              setOpen(true);
-            }}
-          >
-            +
-          </button>
-        )}
       </span>
       {it && tickets.length > 0 ? (
         <span className="head-line sub muted">
@@ -578,24 +519,6 @@ function Section({
         <span className="name">Iteration なし</span>
       )}
       <span className="muted count">{tickets.length} 件</span>
-      <span className="actions">
-        {it ? (
-          <IterationActions iteration={it} />
-        ) : creating ? null : (
-          <button
-            type="button"
-            className="link"
-            onClick={(e) => {
-              // 見出し（summary）の中のボタンなので、節の開閉を起こさない
-              e.preventDefault();
-              setCreating(true);
-              setOpen(true);
-            }}
-          >
-            + Iteration を作る
-          </button>
-        )}
-      </span>
       {it && (it.start || it.end || it.goal) ? (
         <small className="muted meta">
           {it.start || it.end ? `${it.start ?? "?"} 〜 ${it.end ?? "?"}` : ""}
@@ -605,21 +528,16 @@ function Section({
       ) : null}
     </>
   );
-  const body = (
-    <>
-      {creating ? <IterationCreateForm onDone={() => setCreating(false)} /> : null}
-      {tickets.length > 0 ? (
-        <TicketTable tickets={tickets} draggable assigneeInEnd rowMenu end={rowEnd} />
-      ) : null}
-    </>
-  );
+  const body =
+    tickets.length > 0 ? (
+      <TicketTable tickets={tickets} assigneeInEnd rowMenu end={rowEnd} />
+    ) : null;
   if (sidebar) {
     return (
       <details
-        ref={setNodeRef}
-        className={`fold backlog-section sidebar-section iteration-${it?.status ?? "none"}${isOver ? " over" : ""}${tickets.length === 0 ? " empty-section" : ""}`}
-        // 0 件の区画は畳んだ 1 行にする（作るフォームを開いたときだけ開く）
-        open={tickets.length === 0 ? creating : open}
+        className={`fold backlog-section sidebar-section iteration-${it?.status ?? "none"}${tickets.length === 0 ? " empty-section" : ""}`}
+        // 0 件の区画は畳んだ 1 行にする
+        open={tickets.length > 0 && open}
         onToggle={(e) => tickets.length > 0 && setOpen(e.currentTarget.open)}
       >
         <summary {...(spot.overlay ? spot.props : {})}>
@@ -631,7 +549,7 @@ function Section({
     );
   }
   return (
-    <section ref={setNodeRef} className={`backlog-section${isOver ? " over" : ""}`}>
+    <section className="backlog-section">
       <header>{head}</header>
       {body}
     </section>
@@ -640,7 +558,7 @@ function Section({
 
 /**
  * open の Epic の欄：番号（詳細へ）・タイトル・進捗と、Epic に入っていないチケットの件数。
- * タイトルを押すとその Epic で絞り、もう一度押すと解除する。「+」から Epic を作る。
+ * タイトルを押すとその Epic で絞り、もう一度押すと解除する。
  * サイドバーでは EpicChips を出す
  */
 function EpicPanel({ selected, onSelect }: { selected: string; onSelect: (epic: string) => void }) {
@@ -732,96 +650,46 @@ function EpicChip({
 
 /** 広い画面の Epic の欄。番号はハッシュの遷移で詳細へ（エディタのパネルはバックログを出さない） */
 function EpicList({ selected, onSelect }: { selected: string; onSelect: (epic: string) => void }) {
-  const store = useStore();
-  const [creating, setCreating] = useState(false);
-  const [title, setTitle] = useState("");
   const { epics, noEpic } = useOpenEpics();
-  const create = async () => {
-    if (!title.trim() || !store.project) return;
-    const r = await store.run("epic.create", { title: title.trim(), project: store.project.id });
-    if (r.ok) {
-      setTitle("");
-      setCreating(false);
-    }
-  };
-  const startCreating = () => setCreating(true);
-
-  const add = (
-    <button
-      type="button"
-      className="link"
-      onClick={startCreating}
-      aria-label="Epic を作る"
-      title="Epic を作る"
-    >
-      +
-    </button>
-  );
   const body = (
-    <>
-      {creating ? (
-        <form
-          className="inline-form"
-          onSubmit={(e) => {
-            e.preventDefault();
-            void create();
-          }}
-        >
-          <input
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="新しい Epic の題"
-            aria-label="新しい Epic の題"
-            autoFocus
-          />
-          <button type="submit" className="primary" disabled={!title.trim()}>
-            作る
-          </button>
-          <button type="button" onClick={() => setCreating(false)}>
-            やめる
-          </button>
-        </form>
-      ) : null}
-      <ul className="rows epic-list">
-        {epics.map((e) => (
-          <li key={e.id} className={selected === e.id ? "selected" : undefined}>
-            <a href={hrefOf({ page: "epics", id: e.id })}>
-              <code>{e.id}</code>
-            </a>
-            <button
-              type="button"
-              className="epic-pick"
-              aria-pressed={selected === e.id}
-              title={selected === e.id ? "絞り込みを解除する" : "この Epic で絞る"}
-              onClick={() => onSelect(e.id)}
-            >
-              <span className="row-title">{e.title}</span>
-              <ProgressBar progress={e.progress} />
-            </button>
-          </li>
-        ))}
-        <li className={selected === NO_EPIC ? "selected" : undefined}>
-          <span />
+    <ul className="rows epic-list">
+      {epics.map((e) => (
+        <li key={e.id} className={selected === e.id ? "selected" : undefined}>
+          <a href={hrefOf({ page: "epics", id: e.id })}>
+            <code>{e.id}</code>
+          </a>
           <button
             type="button"
             className="epic-pick"
-            aria-pressed={selected === NO_EPIC}
-            title={selected === NO_EPIC ? "絞り込みを解除する" : "Epic のないチケットで絞る"}
-            onClick={() => onSelect(NO_EPIC)}
+            aria-pressed={selected === e.id}
+            title={selected === e.id ? "絞り込みを解除する" : "この Epic で絞る"}
+            onClick={() => onSelect(e.id)}
           >
-            <span className="row-title muted">Epic なし</span>
-            <span className="muted">{noEpic} 件</span>
+            <span className="row-title">{e.title}</span>
+            <ProgressBar progress={e.progress} />
           </button>
         </li>
-      </ul>
-    </>
+      ))}
+      <li className={selected === NO_EPIC ? "selected" : undefined}>
+        <span />
+        <button
+          type="button"
+          className="epic-pick"
+          aria-pressed={selected === NO_EPIC}
+          title={selected === NO_EPIC ? "絞り込みを解除する" : "Epic のないチケットで絞る"}
+          onClick={() => onSelect(NO_EPIC)}
+        >
+          <span className="row-title muted">Epic なし</span>
+          <span className="muted">{noEpic} 件</span>
+        </button>
+      </li>
+    </ul>
   );
 
   return (
     <aside className="epic-panel">
       <header>
         <h2>Epic</h2>
-        {add}
       </header>
       {body}
     </aside>

@@ -72,15 +72,6 @@ describe("点滅の hook", () => {
     expect(hook.result.current.flashing.size).toBe(0);
   });
 
-  it("ignore したチケットの次の 1 回の変化は点滅させない（自分のドラッグ）", () => {
-    const { hook, update } = setup();
-    act(() => hook.result.current.ignore("t1"));
-    update([ticket({ id: "t1", status: "in_progress" })]);
-    expect(hook.result.current.flashing.size).toBe(0);
-    update([ticket({ id: "t1", status: "review" })]);
-    expect([...hook.result.current.flashing]).toEqual(["t1"]);
-  });
-
   it("隠れている間に見つけた変化は、見えたときに点滅させる", () => {
     const { hook, update } = setup();
     const visibility = setVisibility("hidden");

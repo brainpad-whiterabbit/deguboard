@@ -32,7 +32,7 @@ export interface HtmlOptions {
  * （と、すぐ出す入力欄の対象。data-ask は空白区切りの ID で、空なら対象なし）を付ける
  */
 export function renderWebviewHtml(indexHtml: string, options: HtmlOptions): string {
-  // style-src に 'unsafe-inline' は要らない：CSS は Vite が <link> に出し、React と dnd-kit は style を CSSOM で当てる
+  // style-src に 'unsafe-inline' は要らない：CSS は Vite が <link> に出し、React は style を CSSOM で当てる
   // （CSP が止めるのは style 属性と <style> だけ）。違反が出たら DevTools の Console に見えるので、そのときに戻す
   const csp = [
     "default-src 'none'",

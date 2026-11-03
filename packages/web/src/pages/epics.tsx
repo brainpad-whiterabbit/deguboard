@@ -1,17 +1,16 @@
-// Epic の詳細（UI-10）。進捗（EP-3）と、Epic のチケットを Status ごとに出す。チケットの追加・除外、閉じる・再開。
+// Epic の詳細（UI-10）。進捗（EP-3）と、Epic のチケットを Status ごとに出す。
+// 表示だけで書き込まない。閉じる・再開とチケットの足し外しは、タイトルと行の吹き出し・右クリックからエージェントに頼む（ADR-010・UI-15）。
 // 一覧の画面は持たない（open はバックログの欄、closed は履歴）。
 // VS Code（パネル）ではチケットを未完了・完了・中止の小見出しの付いた 1 本の一覧にする（カンバンはサイドバーで見る。UI-12）。ブラウザは Status ごとの列
 
 import { useEffect, useState } from "react";
 import { ASK_SECTIONS, AskSpotBox } from "../components/ask-menu.js";
 import {
-  CloseButton,
   PriorityBadge,
   ProgressBar,
   StatusDot,
   TicketLink,
   TicketRow,
-  unfinishedCount,
 } from "../components/parts.js";
 import { useHost } from "../host.js";
 import { Markdown } from "../markdown.js";
@@ -20,7 +19,6 @@ import { useStore } from "../store.js";
 import {
   EPIC_LABELS,
   STATUSES,
-  byNumber,
   byPriorityThenNumber,
   isFinished,
   type EpicDetail,
@@ -33,7 +31,6 @@ export function EpicsPage({ id }: { id: string }) {
   const webview = host.surface !== "browser";
   const [epic, setEpic] = useState<EpicDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [adding, setAdding] = useState("");
 
   useEffect(() => {
     let alive = true;
@@ -48,12 +45,6 @@ export function EpicsPage({ id }: { id: string }) {
 
   if (error) return <p className="error">{error}</p>;
   if (!epic) return <p className="muted">読み込み中…</p>;
-
-  const members = new Set(epic.tickets.map((t) => t.id));
-  const candidates = store.tickets
-    .filter((t) => !members.has(t.id) && t.status !== "abandoned")
-    .sort(byNumber);
-  const open = epic.status === "open";
 
   return (
     <section>
@@ -80,50 +71,11 @@ export function EpicsPage({ id }: { id: string }) {
       </header>
       <div className="actions">
         <a href={hrefOf({ page: "board", epic: epic.id })}>この Epic でカンバンを見る</a>
-        {open ? (
-          <CloseButton
-            subject={`${epic.id} ${epic.title}`}
-            unfinished={unfinishedCount(epic.tickets)}
-            onClose={() => void store.run("epic.close", { epic: epic.id })}
-          />
-        ) : (
-          <button type="button" onClick={() => void store.run("epic.reopen", { epic: epic.id })}>
-            再開する
-          </button>
-        )}
       </div>
       <Markdown body={epic.body} />
       <h2>チケット</h2>
-      {open && (
-        <form
-          className="inline-form"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (adding)
-              void store
-                .run("epic.add", { epic: epic.id, tickets: [adding] })
-                .then(() => setAdding(""));
-          }}
-        >
-          <select
-            value={adding}
-            onChange={(e) => setAdding(e.target.value)}
-            aria-label="足すチケット"
-          >
-            <option value="">チケットを選ぶ</option>
-            {candidates.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.id} {t.title}
-              </option>
-            ))}
-          </select>
-          <button type="submit" disabled={!adding}>
-            足す
-          </button>
-        </form>
-      )}
       {webview ? (
-        <EpicTicketList epic={epic} removable={open} />
+        <EpicTicketList epic={epic} />
       ) : (
         <div className="groups">
           {STATUSES.map((s) => {
@@ -142,7 +94,6 @@ export function EpicsPage({ id }: { id: string }) {
                     <div className="meta">
                       <TicketLink id={t.id} />
                       <PriorityBadge priority={t.priority} />
-                      {open && <RemoveButton epic={epic.id} ticket={t.id} />}
                     </div>
                     <div className="title">{t.title}</div>
                   </div>
@@ -153,20 +104,6 @@ export function EpicsPage({ id }: { id: string }) {
         </div>
       )}
     </section>
-  );
-}
-
-/** Epic から外すボタン */
-function RemoveButton({ epic, ticket }: { epic: string; ticket: string }) {
-  const store = useStore();
-  return (
-    <button
-      type="button"
-      onClick={() => void store.run("epic.remove", { epic, tickets: [ticket] })}
-      title="Epic から外す"
-    >
-      外す
-    </button>
   );
 }
 
@@ -185,7 +122,7 @@ function sectionOf(status: Status): (typeof EPIC_SECTIONS)[number]["key"] {
  * VS Code（パネル）の Epic のチケットの一覧。未完了・完了・中止の段ごとに小見出しと件数を付け、行はサイドバーと同じ 1 行（TicketRow）。
  * 段の中は Status の順（Workflow の並び）、同じ Status なら優先度と番号の順
  */
-function EpicTicketList({ epic, removable }: { epic: EpicDetail; removable: boolean }) {
+function EpicTicketList({ epic }: { epic: EpicDetail }) {
   const order = new Map<string, number>(STATUSES.map((s, i) => [s, i]));
   const sorted = [...epic.tickets].sort(
     (a, b) => (order.get(a.status) ?? 0) - (order.get(b.status) ?? 0) || byPriorityThenNumber(a, b),
@@ -213,7 +150,6 @@ function EpicTicketList({ epic, removable }: { epic: EpicDetail; removable: bool
                   select
                 >
                   <TicketRow ticket={t} />
-                  {removable && <RemoveButton epic={epic.id} ticket={t.id} />}
                 </AskSpotBox>
               ))}
             </ul>

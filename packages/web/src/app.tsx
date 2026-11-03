@@ -241,7 +241,7 @@ function LoadingSkeleton() {
  * show を渡したとき（パネル）は、一覧の画面へのリンクをハッシュにせず show に渡す（サイドバーに出す。パネルは詳細だけ）。
  * VS Code の Webview は <a> のクリックを横取りし、href がハッシュだけのリンクはページ内アンカーへのスクロールとみなして
  * preventDefault するので、ブラウザに任せるとハッシュが変わらない。React の onClick は document のハンドラより先に走る。
- * TicketLink（サイドバー）やドラッグ直後のように先に preventDefault されたもの、修飾キーつきのクリックには触らない
+ * TicketLink（サイドバー）や行の選択のように先に preventDefault されたもの、修飾キーつきのクリックには触らない
  */
 function followHashLink(e: MouseEvent<HTMLElement>, show?: (route: Route) => void) {
   if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey)
