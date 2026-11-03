@@ -1,0 +1,24 @@
+id: p34
+project: default
+tickets: [t313, t314, t315, t316, t317]
+after:
+  t317:
+    - t314
+    - t316
+pending_approval: true
+details:
+  t313:
+    scope: README.md の何ができるか・チケット詳細の説明・仕様の参照と、拡張の README のエージェントに頼む項
+    approach: 実装を正本として README を直す。細部は書き写さず requirements の UI-7・UI-15 と ADR-010 を参照する
+  t314:
+    scope: ask-composer.test.tsx の今の対象の 2 件とコピーの知らせの待ち方
+    approach: 描き直された結果を findBy・waitFor で待つ形にし、実装は変えない
+  t315:
+    scope: test/layout/ask-menu.layout.ts のドラッグの確かめ
+    approach: page.on(request) で書き込みのコマンドの要求が 0 件であることを確かめ、固定の待ちは補いにする
+  t316:
+    scope: iterations.tsx・board.tsx のコメント、ask-menu のヘルプ、ADR-010 の書き方、ask.ts の edit と split の文言
+    approach: 実装を正本としてコメント・ヘルプ・ADR-010 を直し、edit と split は文言かコマンドの小さな修正にとどめる
+  t317:
+    scope: ask.ts の重複、ID の接頭辞の対応、Draft の置き場所、MenuTicket の不要なフィールド、Plan の状態名、ask-menu の鍵の照合テスト、extension.ts の届け方
+    approach: 振る舞いを変えない整理として、既存のテストで確かめつつ鍵の一致のテストを足す
