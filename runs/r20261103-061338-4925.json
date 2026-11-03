@@ -1,0 +1,23 @@
+{
+  "id": "r20261103-061338-4925",
+  "ticket": "t283",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-03T06:13:38Z",
+  "finished_at": "2026-11-03T06:15:13Z",
+  "result": "success",
+  "error": null,
+  "retries": 3,
+  "retry_reasons": [
+    "StatusDot の読み上げ名をチケットの Workflow の表示名にそろえた",
+    "Workflow の読み込みの失敗を通知に出す",
+    "別の Project のチケットのテストを足した"
+  ],
+  "usage": {
+    "input": 12,
+    "output": 4677,
+    "cache_read": 482624,
+    "cache_write": 6242
+  }
+}
