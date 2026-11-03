@@ -9,7 +9,8 @@ deguboard は、Git で管理するチケットとユーザー定義のワーク
 ## 何ができるか
 
 - `dg` でチケット・エピック・プロジェクト・イテレーション・ワークフローを管理し、変更を `deguboard` ブランチにコミットする
-- ブラウザ（`dg serve`）と VS Code 拡張の画面で、カンバン・バックログ・履歴・Run（ブラウザだけ）のタブ、チケット・エピック・イテレーションの詳細（VS Code のチケット詳細は属性をその場で直す）、設定画面（ブラウザは上のバー、VS Code はタイトル行の歯車）を見て操作する
+- ブラウザ（`dg serve`）と VS Code 拡張の画面で、カンバン・バックログ・履歴・Run（ブラウザだけ）のタブと、チケット・エピック・イテレーションの詳細を見る。画面から書き込むのは、チケット詳細（タイトル・本文・Status・属性）と設定画面（ブラウザは上のバー、VS Code はタイトル行の歯車）と同期だけ
+- ほかの変更はエージェントに頼む。画面の行・見出しと上のバー（VS Code はタイトル行）の吹き出しか、VS Code の右クリックで対象と頼むことを選び、指示を添えた依頼文をコピーしてエージェントに貼る。同じ依頼文は `dg ask` でも作れる。依頼文を作るだけで、データには書き込まない
 - ワークフロー（遷移の条件・照合規則・追加フィールド・表示名）を業務ごとに YAML で定義し、`dg workflow show` で見て `dg workflow set` で書き換える
 - Claude Code との会話からチケットを起票し、分解・依存・進める順（Plan）の承認・イテレーション計画を進める（Skill と MCP）
 - AI の実行を Run として記録し、トークン使用量と結果を Run・チケット・エピック・イテレーション・プロジェクト・エージェント・モデル・工程の単位で集計する（使用量の取り込みは Claude Code と Codex）
@@ -53,7 +54,7 @@ dg skill install              # Claude Code の Skill（/dgimport・/dgplan・/d
 
 チームの 2 人目からは、リポジトリを clone して `dg init` を実行する。リモートにある `deguboard` ブランチを取り込むので、同じチケットが見える。
 
-VS Code の拡張は、今は VSIX から入れる。上の `mise run install` が入れ、手で入れるなら `mise run vsix`（build も先に走る）の後に `code --install-extension packages/vscode/deguboard-vscode.vsix` を実行する。拡張を入れて Activity Bar の deguboard のアイコンを押すと、サイドバーにカンバンが開く。画面の見た目は[拡張の README](packages/vscode/README.md)、仕様は[要件定義書](docs/requirements.md)の UI-2・UI-12〜14。拡張は `dg` なしで動き、`dg` が PATH にないときは案内を出す。
+VS Code の拡張は、今は VSIX から入れる。上の `mise run install` が入れ、手で入れるなら `mise run vsix`（build も先に走る）の後に `code --install-extension packages/vscode/deguboard-vscode.vsix` を実行する。拡張を入れて Activity Bar の deguboard のアイコンを押すと、サイドバーにカンバンが開く。画面の見た目は[拡張の README](packages/vscode/README.md)、仕様は[要件定義書](docs/requirements.md)の UI-2・UI-7・UI-12〜15。拡張は `dg` なしで動き、`dg` が PATH にないときは案内を出す。
 
 ### Run の記録と集計
 
