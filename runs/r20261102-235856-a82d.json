@@ -1,0 +1,23 @@
+{
+  "id": "r20261102-235856-a82d",
+  "ticket": "t168",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-02T23:58:56Z",
+  "finished_at": "2026-11-03T00:04:31Z",
+  "result": "success",
+  "error": null,
+  "retries": 3,
+  "retry_reasons": [
+    "start・reopen 以外の経路で active が 2 つになっても検出しなかった",
+    "guide-all の start に拒否されたときの扱いを添えていなかった",
+    "拒否のメッセージが閉じる判断を人に残すと書いていなかった"
+  ],
+  "usage": {
+    "input": 42,
+    "output": 12390,
+    "cache_read": 1885727,
+    "cache_write": 26920
+  }
+}
