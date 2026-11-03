@@ -956,13 +956,33 @@ describe("画面", () => {
       expect(screen.queryByLabelText("優先度")).toBeNull();
     });
 
-    it("Epic・Iteration の値のリンクを押すと、その場で直さずにリンク先へ移る", async () => {
+    it("Epic・Iteration の値のリンクと「変える」のボタンは入れ子にならず、どちらも名前が読める", async () => {
       const data = fixture({
-        tickets: [ticket({ id: "t3", title: "画面", epic: "e1" })],
+        tickets: [ticket({ id: "t3", title: "画面", epic: "e1", iteration: "s1" })],
+        iterations: [iteration({ id: "s1", name: "最初" })],
       });
       await open(data);
-      const link = screen.getByRole("button", { name: "Epicを変える" }).querySelector("a")!;
-      fireEvent.click(link);
+      for (const [label, linkName] of [
+        ["Epic", "e1 最初の版"],
+        ["Iteration", "s1"],
+      ] as const) {
+        const button = screen.getByRole("button", { name: `${label}を変える` });
+        // 同じ属性の行の中で、リンクはボタンと並ぶ
+        const link = within(button.closest("dd")!).getByRole("link", { name: linkName });
+        expect(button.contains(link)).toBe(false);
+        expect(link.contains(button)).toBe(false);
+        expect(within(button).queryByRole("link")).toBeNull();
+        // ボタンを押すと選択になり、Esc で閉じるとフォーカスはボタンに戻る
+        fireEvent.click(button);
+        const select = screen.getByLabelText(label);
+        expect(select.tagName).toBe("SELECT");
+        fireEvent.keyDown(select, { key: "Escape" });
+        expect(document.activeElement).toBe(
+          screen.getByRole("button", { name: `${label}を変える` }),
+        );
+      }
+      // リンクを押してもその場では直さない
+      fireEvent.click(screen.getByRole("link", { name: "e1 最初の版" }));
       expect(screen.queryByLabelText("Epic")).toBeNull();
     });
   });
