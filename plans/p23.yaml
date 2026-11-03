@@ -7,3 +7,4 @@ details:
   t247:
     scope: VS Code の左パネル（surface が sidebar）で Run のタブと履歴の「Run の集計」のリンクを出さず、#/runs に来たらカンバンに戻す。web（browser）は変えない。requirements.md の UI-9・UI-12 と ADR-006 を直す
     approach: app.tsx の NAV と useLastHref・画面の分岐、history.tsx のリンクを surface で切り替え、app.test.tsx・history.test.tsx に sidebar と browser の両方のテストを足す
+closed_at: 2026-11-03T00:16:51Z
