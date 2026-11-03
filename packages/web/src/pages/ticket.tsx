@@ -1,9 +1,10 @@
 // チケット詳細（UI-4）。本文（概要・受け入れ条件）、属性、Epic、依存先と依存元、作業ブランチ、Run の一覧と、経過（deguboard ブランチの履歴）。
 // 属性と本文を編集でき、Status は ticket.move と同じ検査を通る。
-// VS Code のパネルでは、編集のボタンをタイトルの行に置き、作成・更新を経過と同じ手元時刻で出し、値のない属性は最後の 1 行にまとめる
+// VS Code のパネルでは、タイトルの下に Status・優先度・Iteration・担当・PR の 1 行と編集のボタンを置いてスクロールしても上に残し、
+// 作成・更新を経過と同じ手元時刻で出し、値のない属性は最後の 1 行にまとめる
 
 import { useEffect, useState } from "react";
-import { PriorityBadge, StatusBadge, Tags, TicketLink } from "../components/parts.js";
+import { PriorityBadge, StatusBadge, StatusDot, Tags, TicketLink } from "../components/parts.js";
 import { TicketRuns } from "../components/ticket-runs.js";
 import { formatTime, TicketTimeline } from "../components/timeline.js";
 import { useHost } from "../host.js";
@@ -144,23 +145,48 @@ export function TicketPage({ id }: { id: string }) {
     </button>
   );
 
+  const header = (
+    <header>
+      <code>{ticket.id}</code>
+      {draft ? (
+        <input
+          value={draft.title}
+          onChange={(e) => setDraft({ ...draft, title: e.target.value })}
+          aria-label="タイトル"
+          style={{ flex: 1 }}
+        />
+      ) : (
+        <h1>{ticket.title}</h1>
+      )}
+    </header>
+  );
+
   return (
     <section className="detail">
       <div>
-        <header>
-          <code>{ticket.id}</code>
-          {draft ? (
-            <input
-              value={draft.title}
-              onChange={(e) => setDraft({ ...draft, title: e.target.value })}
-              aria-label="タイトル"
-              style={{ flex: 1 }}
-            />
-          ) : (
-            <h1>{ticket.title}</h1>
-          )}
-          {panel ? <div className="actions header-actions">{editButtons}</div> : null}
-        </header>
+        {panel ? (
+          // 見出しの帯。表示だけで、Status を変えるのは右の列の選択
+          <div className="detail-head">
+            {header}
+            <div className="detail-meta">
+              <span className="detail-meta-status">
+                <StatusDot status={ticket.status} />
+                {store.labelOf(ticket.status)}
+              </span>
+              <PriorityBadge priority={ticket.priority} />
+              {ticket.iteration ? (
+                <a href={hrefOf({ page: "iterations", id: ticket.iteration })}>
+                  {ticket.iteration}
+                </a>
+              ) : null}
+              {ticket.assignee ? <span>{ticket.assignee}</span> : null}
+              {ticket.pr ? <PrLink pr={ticket.pr} webUrl={store.status?.web_url} /> : null}
+              <div className="actions header-actions">{editButtons}</div>
+            </div>
+          </div>
+        ) : (
+          header
+        )}
         {draft ? (
           <textarea
             className="body"
@@ -357,18 +383,10 @@ export function TicketPage({ id }: { id: string }) {
             <>
               <dt>PR</dt>
               <dd>
-                {!ticket.pr ? (
-                  <span className="muted">なし</span>
-                ) : store.status?.web_url ? (
-                  <a
-                    href={`${store.status.web_url}/pull/${ticket.pr}`}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    #{ticket.pr}
-                  </a>
+                {ticket.pr ? (
+                  <PrLink pr={ticket.pr} webUrl={store.status?.web_url} />
                 ) : (
-                  `#${ticket.pr}`
+                  <span className="muted">なし</span>
                 )}
               </dd>
             </>
@@ -444,6 +462,16 @@ function FieldRow({
         )}
       </dd>
     </>
+  );
+}
+
+/** PR の番号。リモートの Web の URL が分かればそのページへのリンクにする */
+function PrLink({ pr, webUrl }: { pr: number; webUrl?: string | null | undefined }) {
+  if (!webUrl) return <>#{pr}</>;
+  return (
+    <a href={`${webUrl}/pull/${pr}`} target="_blank" rel="noreferrer">
+      #{pr}
+    </a>
   );
 }
 
