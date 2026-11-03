@@ -523,7 +523,7 @@ button.link:hover {
   font-size: 1em;
   margin: 1.5rem 0 0.4rem;
 }
-/* チケット詳細の経過：時刻・丸印・変化 */
+/* チケット詳細の経過：日付の行と、時刻・丸印・変化・作者の行。Status の変わらない行は中の空いた丸 */
 .timeline-list {
   list-style: none;
   margin: 0;
@@ -531,14 +531,38 @@ button.link:hover {
 }
 .timeline-list li {
   display: grid;
-  grid-template-columns: 9.5em 12px minmax(0, 1fr);
+  grid-template-columns: 3em 8px minmax(0, 1fr) auto;
   gap: 0.5rem;
   align-items: baseline;
   padding: 1px 0;
 }
+.timeline-list li.timeline-day {
+  display: block;
+  margin-top: 0.5rem;
+  font-weight: 600;
+}
+.timeline-list li.timeline-day:first-child {
+  margin-top: 0;
+}
 .timeline-list time {
   color: var(--vscode-descriptionForeground);
   font-variant-numeric: tabular-nums;
+}
+.timeline-list li.timeline-day time {
+  color: inherit;
+}
+.timeline-list .status-dot-empty {
+  box-sizing: border-box;
+  background: transparent;
+  border: 1px solid var(--vscode-descriptionForeground);
+}
+.timeline-author {
+  color: var(--vscode-descriptionForeground);
+  font-size: 0.9em;
+  max-width: 12em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 /* Run の表（チケット詳細の Run と Run の画面）。狭い配置では表を横にスクロールする。結果の色は --dg-* から取る */
 .runs-scroll {
