@@ -1010,7 +1010,10 @@ describe("Epic と Iteration", () => {
     expect(reopened.data.completed).toBeUndefined();
     expect(reopened.data.carried_over).toBeUndefined();
     // 再開は即座に push するので、まとめ待ちの変更を先にコミットした警告も並ぶ
-    expect(reopened.warnings.filter((w) => w.includes("戻らない"))).toHaveLength(1);
+    expect(reopened.warnings).toEqual([
+      "まとめ待ちの変更を先にコミットした",
+      "閉じたときに外した 1 件は戻らない。iteration add で入れ直す",
+    ]);
     // 持ち越したチケットは戻らないので入れ直す
     expect(agent.store.tickets.get("t1")?.data.iteration).toBeUndefined();
     await runCommand(iterationAdd, agent, { iteration: "s1", tickets: ["t1"] });
@@ -1020,7 +1023,7 @@ describe("Epic と Iteration", () => {
     await runCommand(ticketMove, agent, { ticket: "t1", status: "done" });
     await runCommand(iterationClose, agent, { iteration: "s1" });
     const again = await runCommand(iterationReopen, agent, { iteration: "s1" });
-    expect((again.warnings ?? []).filter((w) => w.includes("戻らない"))).toHaveLength(0);
+    expect(again.warnings).toEqual(["まとめ待ちの変更を先にコミットした"]);
   });
 
   it("active の Iteration は Project に 1 つで、ほかに active があれば start と reopen を拒否する（IT-1）", async () => {
