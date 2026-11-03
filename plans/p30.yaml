@@ -1,0 +1,40 @@
+id: p30
+project: default
+tickets: [t284, t286, t287, t283, t288, t285, t290, t289]
+after:
+  t283:
+    - t284
+  t288:
+    - t283
+  t285:
+    - t288
+  t290:
+    - t285
+  t289:
+    - t290
+pending_approval: true
+details:
+  t284:
+    scope: 終わっていない依存先を core が返し、web は出すだけにする。finished() を消す
+    approach: core の ticket.show に終わっていない依存先（ID と Status）を足し、ticket.tsx の pendingDeps を置き換える。別 Project のテストを足す
+  t286:
+    scope: パネルのチケット詳細の配置の test:layout
+    approach: test/layout に panel.layout.ts を足し、248px・帯の sticky（2 列と 1 列）・Run の横スクロールなしを確かめる
+  t287:
+    scope: ADR-006 に surface で編集の仕方・選択肢・知らせ方を分けることと理由を書く
+    approach: 予算 91% なので既存の記述を削って収め、ブラウザに揃えるかは今のまま分けると書くか、別に起票する
+  t283:
+    scope: パネルの Status の選択をチケットの workflow で絞り、画面のテストを足す
+    approach: ticket.show の workflow（なければ Project の既定）で workflow.show を引き、app.test.tsx に panel と browser の選択肢のテストを足す
+  t288:
+    scope: Epic・Iteration の行でリンクと変える操作を分ける
+    approach: 値のボタンからリンクを外に出すか別の変えるボタンを置き、読み上げの名前をテストする
+  t285:
+    scope: oxlint の React の規則を効かせ、9 件を直すか理由付きで外す
+    approach: .oxlintrc.json の plugins に react を足し、指摘を 1 件ずつ直す。直さないものは規則ごとに理由を書く
+  t290:
+    scope: s10 の web と拡張の小さな重複と無駄の 6 項目
+    approach: 1 項目ずつ直し、ticket.show が 1 回だけのテストを足す。直さないものは PR に理由を書く
+  t289:
+    scope: 古くなったコメント・mise のタスクの説明・README の記述の 5 項目
+    approach: ほかの PR の後に今の実装に合わせて書き直す。README は予算の 90% 未満に収める
