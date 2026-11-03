@@ -104,9 +104,20 @@ export interface Ask {
   close(): void;
   /** 開いた回数。開き直したら入力欄の中の状態（外した対象・選んだ頼むこと）を捨てるための key に使う */
   serial: number;
+  /** 画面の今の対象（カンバンで選んでいる Iteration、履歴で開いている行）。なければ空。タイトル行の吹き出しが使う */
+  current(): string[];
+  /** 画面が今の対象を知らせる（useAskCurrent が使う）。戻り値で取り下げる（その画面が出していた値のときだけ空にする） */
+  setCurrent(targets: readonly string[]): () => void;
 }
 
-const AskContext = createContext<Ask>({ request: null, open() {}, close() {}, serial: 0 });
+const AskContext = createContext<Ask>({
+  request: null,
+  open() {},
+  close() {},
+  serial: 0,
+  current: () => [],
+  setCurrent: () => () => {},
+});
 
 function AskProvider({ children }: { children: ReactNode }) {
   const [request, setRequest] = useUiState<AskRequest | null>(ASK_OPEN_KEY, null);
@@ -123,14 +134,24 @@ function AskProvider({ children }: { children: ReactNode }) {
     [setRequest],
   );
   const close = useCallback(() => setRequest(null), [setRequest]);
+  // 今の対象は描画に使わないので state にしない（変わるたびに描き直さない）
+  const currentRef = useRef<readonly string[]>([]);
+  const current = useCallback(() => [...currentRef.current], []);
+  const setCurrent = useCallback((targets: readonly string[]) => {
+    const mine = [...targets];
+    currentRef.current = mine;
+    return () => {
+      if (currentRef.current === mine) currentRef.current = [];
+    };
+  }, []);
   // 形の違うもの（前の版や壊れた値）は閉じたものとみなす
   const valid =
     request && Array.isArray(request.targets) && request.targets.every((t) => typeof t === "string")
       ? request
       : null;
   const value = useMemo(
-    () => ({ request: valid, open, close, serial }),
-    [valid, open, close, serial],
+    () => ({ request: valid, open, close, serial, current, setCurrent }),
+    [valid, open, close, serial, current, setCurrent],
   );
   return <AskContext.Provider value={value}>{children}</AskContext.Provider>;
 }
@@ -138,6 +159,16 @@ function AskProvider({ children }: { children: ReactNode }) {
 /** エージェントに頼む入力欄の開閉（UI-15） */
 export function useAsk(): Ask {
   return useContext(AskContext);
+}
+
+/**
+ * 画面の今の対象を知らせる（UI-15）。タイトル行の吹き出し（ブラウザは上のバーの吹き出し）は、これを対象にして入力欄を開く。
+ * 画面を離れる（外す）と取り下げ、対象なしに戻る
+ */
+export function useAskCurrent(targets: readonly string[]): void {
+  const { setCurrent } = useAsk();
+  const key = targets.join(" ");
+  useEffect(() => setCurrent(key ? key.split(" ") : []), [key, setCurrent]);
 }
 
 export function useHost(): Host {
@@ -160,12 +191,13 @@ export function useUiState<T>(key: string, initial: T): [T, (value: T) => void] 
 
 /**
  * 拡張ホストからの通知を受ける。navigate はハッシュを書き換え、toggle はその画面と来る前の画面を切り替え（歯車の設定画面）、
- * reload は store を読み直す（同期は拡張ホストが済ませてから送ってくる）、ask はエージェントに頼む入力欄を開く。
+ * reload は store を読み直す（同期は拡張ホストが済ませてから送ってくる）、ask はエージェントに頼む入力欄を開く
+ * （current つきはタイトル行の吹き出しで、画面の今の対象を対象にする）。
  * StoreProvider と HostProvider の中に置く
  */
 export function HostBridge({ client }: { client: WebviewClient }) {
   const store = useStore();
-  const { open: openAsk } = useAsk();
+  const { open: openAsk, current } = useAsk();
   const reloadRef = useRef(store.reload);
   // 最新の reload を通知の受け手から呼ぶ。描画中に ref を書かない（react/refs）ので、描いた後に写す
   useEffect(() => {
@@ -177,9 +209,10 @@ export function HostBridge({ client }: { client: WebviewClient }) {
         if (event.name === "navigate") window.location.hash = event.hash;
         else if (event.name === "toggle") toggleRoute(event.hash);
         else if (event.name === "reload") void reloadRef.current();
-        else if (event.name === "ask") openAsk(event.targets, event.action, event.within);
+        else if (event.name === "ask")
+          openAsk(event.current ? current() : event.targets, event.action, event.within);
       }),
-    [client, openAsk],
+    [client, openAsk, current],
   );
   return null;
 }

@@ -37,7 +37,8 @@ export type WebviewRequest =
  * 拡張ホスト → Webview の通知。要求と対応づかないので id を持たない（UI-12）。reload は store を読み直す（同期・再読み込み・ファイルの変化の後）。
  * toggle はその画面と来る前の画面を切り替える（ビューのタイトル行の歯車で設定画面を開け閉めする）。
  * ask はエージェントへの依頼文を作る入力欄を、targets（ID。空なら対象なし）を対象にして開く（UI-15。タイトル行の吹き出しとコマンドパレット）。
- * action を付ければその頼むことを選んで開く（行・見出しの右クリックのサブメニュー）。within は対象のチケットが入っている Iteration・Epic（詳細の中の行）
+ * action を付ければその頼むことを選んで開く（行・見出しの右クリックのサブメニュー）。within は対象のチケットが入っている Iteration・Epic（詳細の中の行）。
+ * current を付ければ、targets の代わりに画面の今の対象（カンバンで選んでいる Iteration、履歴で開いている行）にする。なければ対象なし（タイトル行の吹き出し）
  */
 export type WebviewEvent =
   | { kind: "event"; name: "reload" }
@@ -49,6 +50,7 @@ export type WebviewEvent =
       targets: string[];
       action?: AskAction | undefined;
       within?: string | undefined;
+      current?: boolean | undefined;
     };
 
 /**

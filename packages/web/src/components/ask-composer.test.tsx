@@ -80,6 +80,8 @@ function mountWebview(
     copied,
     state,
     ask: (targets: string[]) => act(() => send!({ kind: "event", name: "ask", targets })),
+    /** タイトル行の吹き出し：画面の今の対象で開く */
+    askCurrent: () => act(() => send!({ kind: "event", name: "ask", targets: [], current: true })),
   };
 }
 
@@ -264,7 +266,8 @@ describe("エージェントに頼む入力欄（UI-15）", () => {
     expect(client.calls.filter((c) => !READS.has(c.name))).toEqual([]);
   });
 
-  it("ブラウザでは上のバーの吹き出しで対象なしの入力欄を開け閉めし、左パネルではバーに出さない（タイトル行にある）", async () => {
+  it("ブラウザでは上のバーの吹き出しで入力欄を開け閉めし（対象のない画面では対象なし）、左パネルではバーに出さない（タイトル行にある）", async () => {
+    window.location.hash = "#/backlog";
     const client = askClient();
     const host: Host = {
       surface: "browser",
@@ -292,5 +295,96 @@ describe("エージェントに頼む入力欄（UI-15）", () => {
     mountWebview(askClient());
     await screen.findByText("見直す");
     expect(screen.queryByRole("button", { name: "エージェントに頼む" })).toBeNull();
+  });
+
+  describe("タイトル行の吹き出しは画面の今の対象で開く", () => {
+    function targetClient(): MockClient {
+      return mockClient(
+        fixture({
+          iterations: [
+            iteration({ id: "s1", name: "一", status: "active" }),
+            iteration({ id: "s2", name: "二", status: "planned" }),
+            iteration({
+              id: "s0",
+              name: "前",
+              status: "closed",
+              closed_at: "2026-01-02T00:00:00Z",
+            }),
+          ],
+          tickets: [
+            ticket({ id: "t5", title: "見直す", status: "review", iteration: "s1" }),
+            ticket({ id: "t4", title: "済んだ", status: "done", iteration: "s0" }),
+          ],
+        }),
+      );
+    }
+    /** 入力欄の対象のチップ（「x を外す」のボタン）の ID */
+    const chips = () =>
+      within(composer())
+        .queryAllByRole("button", { name: / を外す$/ })
+        .map((b) => b.getAttribute("aria-label")!.replace(/ を外す$/, ""));
+
+    it("カンバンで選んでいる Iteration を対象にする（既定の active も、札で選んだ planned も）", async () => {
+      const view = mountWebview(targetClient());
+      await screen.findByText("見直す");
+      view.askCurrent();
+      await waitFor(() => expect(chips()).toEqual(["s1"]));
+
+      // 開いていれば対象を入れ替える
+      act(() => void (window.location.hash = "#/board?iteration=s2"));
+      await waitFor(() => expect(window.location.hash).toBe("#/board?iteration=s2"));
+      view.askCurrent();
+      await waitFor(() => expect(chips()).toEqual(["s2"]));
+    });
+
+    it("履歴で開いている行を対象にし、開いている行がなければ対象なしにする", async () => {
+      window.location.hash = "#/history";
+      const state = createUiState(memoryBackend({ "history.opened": ["s0"] }));
+      const view = mountWebview(targetClient(), { state });
+      await screen.findByText("済んだ");
+      view.askCurrent();
+      await waitFor(() => expect(chips()).toEqual(["s0"]));
+      fireEvent.click(within(composer()).getByRole("button", { name: "閉じる" }));
+
+      // 行を閉じると対象なしに戻る
+      fireEvent.click(screen.getByText("前").closest("summary")!);
+      await waitFor(() => expect(state.get("history.opened")).toEqual([]));
+      view.askCurrent();
+      await waitFor(() => expect(suggestions()[0]!.textContent).toContain("★起票する"));
+      expect(chips()).toEqual([]);
+    });
+
+    it.each([
+      ["カンバンで「すべて」", "#/board?iteration=*"],
+      ["バックログ", "#/backlog"],
+      ["設定", "#/config"],
+    ])("%sでは今までどおり対象なしで開く", async (_name, hash) => {
+      window.location.hash = hash;
+      const view = mountWebview(targetClient());
+      await waitFor(() => expect(screen.queryByText("読み込み中…")).toBeNull());
+      view.askCurrent();
+      await waitFor(() => expect(suggestions()[0]!.textContent).toContain("★起票する"));
+      expect(chips()).toEqual([]);
+    });
+
+    it("ブラウザの上のバーの吹き出しも、カンバンで選んでいる Iteration を対象にする", async () => {
+      const host: Host = {
+        surface: "browser",
+        open: () => {},
+        show: () => {},
+        copy: vi.fn(async () => {}),
+        state: createUiState(memoryBackend()),
+      };
+      render(
+        <StoreProvider client={targetClient()}>
+          <HostProvider host={host}>
+            <App />
+          </HostProvider>
+        </StoreProvider>,
+      );
+      await screen.findByText("見直す");
+      fireEvent.click(screen.getByRole("button", { name: "エージェントに頼む" }));
+      await waitFor(() => expect(chips()).toEqual(["s1"]));
+    });
   });
 });

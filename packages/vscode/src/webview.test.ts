@@ -7,6 +7,7 @@ import {
   handleRequest,
   isWebviewRequest,
   coalesce,
+  currentAskDelivery,
   renderMessageHtml,
   renderWebviewHtml,
   sidebarDelivery,
@@ -277,6 +278,13 @@ describe("エージェントに頼む入力欄の届け方（UI-15）", () => {
 
   it("まだ描かれていなければ event を送らず、対象を覚えて HTML に埋める", () => {
     expect(askDelivery(false, [])).toEqual({ pending: [] });
+  });
+
+  it("タイトル行の吹き出しは current つきの ask の event を送り、画面に今の対象を問う。描かれていなければ対象なしを覚える", () => {
+    expect(currentAskDelivery(true)).toEqual({
+      post: { kind: "event", name: "ask", targets: [], current: true },
+    });
+    expect(currentAskDelivery(false)).toEqual({ pending: [] });
   });
 
   it("HTML の data-ask は空白区切りの ID で、対象なしは空の値。省けば付けない", () => {

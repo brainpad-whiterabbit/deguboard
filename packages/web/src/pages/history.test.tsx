@@ -6,11 +6,38 @@ import { HostProvider, type Host } from "../host.js";
 import { StoreProvider } from "../store.js";
 import { iteration, mockClient, ticket } from "../test-helpers.js";
 import { createUiState, memoryBackend } from "../ui-state.js";
-import { carriedOverFrom, epicCountsOf, groupByEpic } from "./history.js";
+import { carriedOverFrom, epicCountsOf, groupByEpic, historyAskTarget } from "./history.js";
 
 afterEach(() => {
   cleanup();
   window.location.hash = "";
+});
+
+describe("履歴のタイトル行の吹き出しの対象（UI-15）", () => {
+  const openOf = (ids: string[]) => (id: string) => ids.includes(id);
+
+  it("開いている行のうち最後に開いたものを対象にする", () => {
+    expect(historyAskTarget(["s3", "s2", "s1"], openOf(["s1", "s3"]), ["s1", "s3"])).toEqual([
+      "s3",
+    ]);
+    expect(historyAskTarget(["s3", "s2", "s1"], openOf(["s1", "s3"]), ["s3", "s1"])).toEqual([
+      "s1",
+    ]);
+  });
+
+  it("出ていない行・閉じた行は対象にしない", () => {
+    expect(historyAskTarget(["s2"], openOf(["s2"]), ["s2", "s5"])).toEqual(["s2"]);
+    expect(historyAskTarget(["s2", "s1"], openOf(["s2"]), ["s2", "s1"])).toEqual(["s2"]);
+  });
+
+  it("検索で開いた行だけなら、1 つのときだけ対象にする", () => {
+    expect(historyAskTarget(["s2"], openOf(["s2"]), [])).toEqual(["s2"]);
+    expect(historyAskTarget(["s2", "s1"], openOf(["s2", "s1"]), [])).toEqual([]);
+  });
+
+  it("開いている行がなければ対象なし", () => {
+    expect(historyAskTarget(["s2", "s1"], openOf([]), ["s1"])).toEqual([]);
+  });
 });
 
 describe("履歴のまとめ方", () => {
