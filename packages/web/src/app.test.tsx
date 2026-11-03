@@ -313,12 +313,16 @@ describe("画面", () => {
     ).toBe(true);
   });
 
-  it("エディタのパネルのチケット詳細は、編集のボタンをタイトルの行に置き、作成・更新を手元時刻で出し、値のない属性を「なし」の 1 行にまとめる", async () => {
+  it("エディタのパネルのチケット詳細は、編集のボタンをタイトルの下の属性の行の右端に置き、作成・更新を手元時刻で出し、値のない属性を「なし」の 1 行にまとめる", async () => {
     window.location.hash = "#/tickets/t3";
     mount(mockClient(), hostOf("panel"));
     const h1 = await screen.findByRole("heading", { level: 1, name: "画面" });
     const edit = screen.getByRole("button", { name: "本文と属性を編集" });
-    expect(edit.closest("header")).toBe(h1.closest("header"));
+    const meta = edit.closest(".detail-meta")!;
+    expect(meta.lastElementChild!.contains(edit)).toBe(true);
+    expect(meta.closest(".detail-head")).toBe(h1.closest(".detail-head"));
+    // 値のない Iteration・担当・PR は帯に出さない
+    expect(meta.textContent).toBe("Todomedium本文と属性を編集");
     const created = screen.getByText("作成").nextElementSibling!.querySelector("time")!;
     expect(created.getAttribute("title")).toBe("2026-01-01T00:00:00Z");
     expect(created.textContent).toMatch(/^2026-01-01 \d\d:\d\d$/);
@@ -330,6 +334,33 @@ describe("画面", () => {
     fireEvent.click(edit);
     expect(screen.getByLabelText("Epic")).toBeTruthy();
     expect(screen.queryByText("なし", { selector: "dt" })).toBeNull();
+  });
+
+  it("エディタのパネルのチケット詳細は、タイトルの直下の帯に Status の丸印・優先度・Iteration・担当・PR を 1 行で出す", async () => {
+    window.location.hash = "#/tickets/t9";
+    const data = fixture({
+      tickets: [
+        ticket({
+          id: "t9",
+          title: "帯",
+          status: "in_progress",
+          priority: "high",
+          iteration: "s1",
+          assignee: "eiki/agent",
+          pr: 12,
+        }),
+      ],
+      status: { ...fixture().status, web_url: "https://github.com/o/r" },
+    });
+    mount(mockClient(data), hostOf("panel"));
+    const h1 = await screen.findByRole("heading", { level: 1, name: "帯" });
+    const head = h1.closest(".detail-head")!;
+    const meta = head.querySelector(".detail-meta")!;
+    expect(head.firstElementChild).toBe(h1.closest("header"));
+    expect(meta.querySelector(".status-dot.status-in_progress")).toBeTruthy();
+    expect(meta.textContent).toBe("In Progresshighs1eiki/agent#12本文と属性を編集");
+    expect(meta.querySelector('a[href="https://github.com/o/r/pull/12"]')).toBeTruthy();
+    expect(meta.querySelector('a[href="#/iterations/s1"]')).toBeTruthy();
   });
 
   it("チケット詳細の PR は、リモートの Web の URL があれば PR のページへのリンクにし、なければ番号だけを出す", async () => {
@@ -361,6 +392,8 @@ describe("画面", () => {
     expect(screen.getByText("作成").nextElementSibling!.textContent).toBe("2026-01-01T00:00:00Z");
     expect(screen.getByText("依存先")).toBeTruthy();
     expect(screen.queryByText("なし", { selector: "dt" })).toBeNull();
+    // 見出しの帯はパネルだけ
+    expect(document.querySelector(".detail-head")).toBeNull();
   });
 
   it("編集して保存すると ticket.update に属性と本文を渡す", async () => {
