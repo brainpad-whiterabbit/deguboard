@@ -317,11 +317,16 @@ describe("dg", () => {
     expect(list.out).toContain("s1");
   });
 
-  it("plan create / approve / show / close がコアの定義を写し、--after と --scope を key=value で受ける", async () => {
+  it("plan create / approve / show / close がコアの定義を写し、--after・--scope・--tier を key=value で受ける", async () => {
     const f = await fixture();
     await dg(f.cloneA, ["init"]);
     await dg(f.cloneA, ["ticket", "create", "A"]);
     await dg(f.cloneA, ["ticket", "create", "B"]);
+    // 段階（tier）は light / standard / heavy だけ。それ以外は INVALID_INPUT で、Plan は作られない
+    const invalid = await dg(f.cloneA, ["--json", "plan", "create", "t1", "--tier", "t1=huge"]);
+    expect(invalid.code).toBe(2);
+    expect(invalid.json()).toMatchObject({ ok: false, error: { code: "INVALID_INPUT" } });
+    expect(invalid.json().error?.message).toContain("plan.create");
     const created = await dg(f.cloneA, [
       "--json",
       "plan",
@@ -334,6 +339,8 @@ describe("dg", () => {
       "t1=API と CLI、画面なし",
       "--approach",
       "2=既存に倣う",
+      "--tier",
+      "t1=light",
     ]);
     expect(created.code).toBe(0);
     expect(created.json().data).toMatchObject({
@@ -341,7 +348,10 @@ describe("dg", () => {
       tickets: ["t1", "t2"],
       after: { t2: ["t1"] },
       pending_approval: true,
-      details: { t1: { scope: "API と CLI、画面なし" }, t2: { approach: "既存に倣う" } },
+      details: {
+        t1: { scope: "API と CLI、画面なし", tier: "light" },
+        t2: { approach: "既存に倣う" },
+      },
     });
     // 同じチケットを別の開いた Plan に入れると終了コード 1 と REJECTED
     const dup = await dg(f.cloneA, ["--json", "plan", "create", "t1"]);

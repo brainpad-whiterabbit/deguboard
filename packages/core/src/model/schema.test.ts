@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { configFields, configSchema, defaultConfig } from "./config.js";
+import { planSchema } from "./plan.js";
 import { emptyUsage, isRunId, newRunId, runSchema } from "./run.js";
 import { ticketSchema } from "./ticket.js";
 import { workflowDefinitionSchema } from "./workflow.js";
@@ -84,6 +85,22 @@ describe("スキーマ", () => {
     for (const tier of ["light", "standard", "heavy"])
       expect(byKey.get(`models.${tier}`)).toMatchObject({ type: "string", default: "" });
     for (const f of fields) expect(f.description, f.key).not.toBe("");
+  });
+
+  it("Plan の details.<ticket>.tier は light / standard / heavy だけを受け、それ以外は読む側でも拒否する（PL-1）", () => {
+    const base = { id: "p1", project: "default", tickets: ["t1"] };
+    for (const tier of ["light", "standard", "heavy"]) {
+      const p = planSchema.parse({ ...base, details: { t1: { tier } } });
+      expect(p.details["t1"]?.tier).toBe(tier);
+    }
+    // tier を省いた details も読め、details 自体がなければ空になる
+    expect(planSchema.parse({ ...base, details: { t1: { scope: "範囲" } } }).details).toEqual({
+      t1: { scope: "範囲" },
+    });
+    expect(planSchema.parse(base).details).toEqual({});
+    expect(() => planSchema.parse({ ...base, details: { t1: { tier: "huge" } } })).toThrow();
+    expect(() => planSchema.parse({ ...base, details: { t1: { tier: "" } } })).toThrow();
+    expect(() => planSchema.parse({ ...base, details: { t1: { tier: 1 } } })).toThrow();
   });
 
   it("Workflow は形だけを検証し、条件の名前は見ない", () => {

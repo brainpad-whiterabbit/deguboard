@@ -92,6 +92,44 @@ const STEPS: Step[] = [
     input: { title: "画面", depends_on: ["t2"] },
     argv: ["ticket", "create", "画面", "--depends-on", "t2"],
   },
+  // config：段階（tier）に対応させるモデルを設定する。CLI は文字列で受け、core が形に直す
+  {
+    name: "config.set",
+    input: { key: "models.light", value: "e2e-light-model" },
+    argv: ["config", "set", "models.light", "e2e-light-model"],
+  },
+  { name: "config.show", input: {}, argv: ["config", "show"] },
+  // Plan：段階（tier）を details に記録する。不正な段階は 3 経路とも入力の形の誤り
+  {
+    name: "plan.create",
+    input: { tickets: ["t2"], tier: { t2: "huge" } },
+    argv: ["plan", "create", "t2", "--tier", "t2=huge"],
+    rejected: "INVALID_INPUT",
+  },
+  {
+    name: "plan.create",
+    input: {
+      tickets: ["t2", "t3"],
+      after: { t3: ["t2"] },
+      scope: { t2: "API だけ" },
+      tier: { t2: "standard", t3: "light" },
+    },
+    argv: [
+      "plan",
+      "create",
+      "t2",
+      "t3",
+      "--after",
+      "t3=t2",
+      "--scope",
+      "t2=API だけ",
+      "--tier",
+      "t2=standard",
+      "--tier",
+      "t3=light",
+    ],
+  },
+  { name: "plan.show", input: { plan: "p1" }, argv: ["plan", "show", "p1"] },
   // 失敗も 3 経路で同じ形になること（見つからない・入力の形の誤り）
   {
     name: "ticket.show",
@@ -407,6 +445,21 @@ describe("3 経路の E2E", () => {
       start: "2026-11-02",
       end: "2026-11-07",
     });
+    // config.set した models.light が config.show と config.yaml に残る
+    expect(at("config.show").data).toMatchObject({ models: { light: "e2e-light-model" } });
+    expect(base.files["config.yaml"]).toContain("light: e2e-light-model");
+    // plan.create の段階（tier）が details に記録され、plans/p1.yaml に書かれる。進捗はチケットの状態から求める（PL-2）
+    expect(at("plan.create", 1).data).toMatchObject({
+      id: "p1",
+      tickets: ["t2", "t3"],
+      after: { t3: ["t2"] },
+      details: { t2: { scope: "API だけ", tier: "standard" }, t3: { tier: "light" } },
+    });
+    expect(at("plan.show").data).toMatchObject({
+      details: { t2: { tier: "standard" }, t3: { tier: "light" } },
+      progress: { total: 2, done: 0 },
+    });
+    expect(base.files["plans/p1.yaml"]).toContain("tier: light");
     expect(at("whoami").data).toEqual({
       id: USER,
       user: USER,
