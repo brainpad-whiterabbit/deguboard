@@ -412,6 +412,11 @@ export const ASK_SKILLS: readonly string[] = [
   ...new Set(Object.values(ACTIONS).flatMap((a) => (a.skill ? [a.skill] : []))),
 ];
 
+/** 頼むことを人に回すか決めるときに actor.human_only と照らす操作の名前。名前が commands にあることをテストで確かめる */
+export function askHumanChecks(action: AskAction, s: Subjects): string[] {
+  return (ACTIONS[action].human?.(s) ?? []).flatMap((h) => h.check);
+}
+
 /** 対象の種類と状態から、頼むことの候補を決める。先頭がおすすめ */
 export function askActions(s: Subjects): AskAction[] {
   if (s.length === 0) return ["create", "create_iteration", "create_epic", "check", "free"];

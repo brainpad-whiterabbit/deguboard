@@ -1,18 +1,22 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { createFixture } from "../../test/helpers/git-fixture.js";
 import {
+  ASK_ACTIONS,
   ASK_TEXT_PREAMBLE,
   ask,
   askActions,
+  askHumanChecks,
   buildAsk,
   type AskSubject,
   type AskView,
+  type PlanState,
 } from "./ask.js";
 import { openContext } from "./context.js";
 import { runCommand, type CommandContext } from "./define.js";
 import { epicCreate } from "./epic.js";
 import { iterationAdd, iterationCreate, iterationStart } from "./iteration.js";
 import { planCreate } from "./plan.js";
+import { commands } from "./registry.js";
 import { runStart } from "./run.js";
 import { configSet, init } from "./setup.js";
 import { ticketCreate, ticketMove, ticketUpdate } from "./ticket.js";
@@ -193,6 +197,57 @@ describe("依頼文の組み立て", () => {
     expect(() => buildAsk({ subjects: [ticket({ status: "review" })], action: "all" })).toThrow(
       expect.objectContaining({ code: "INVALID_INPUT", detail: expect.stringContaining("done（") }),
     );
+  });
+});
+
+describe("人に回すかを決める操作の名前", () => {
+  it("すべての頼むことの human の check は、registry にあるコマンドの名前（打ち間違えると人に回らないまま依頼文を返す）", () => {
+    const plan = (status: PlanState, complete = false): AskSubject => ({
+      kind: "plan",
+      id: "p33",
+      status,
+      tickets: ["t307"],
+      complete,
+    });
+    // 頼むことがどれも候補に出るよう、対象の種類と状態を並べる
+    const samples: AskSubject[][] = [
+      [],
+      [ticket({ status: "review" })],
+      [ticket({ status: "done" })],
+      [ticket({ status: "abandoned" })],
+      [ticket({ status: "in_progress" })],
+      [ticket({ iteration: null, iteration_status: null })],
+      [ticket({ iteration_status: "closed" })],
+      [ticket(), ticket({ id: "t266" })],
+      [ticket({ iteration_status: "active" })],
+      [ticket({ deps_done: false })],
+      [iteration("closed")],
+      [iteration("active", true)],
+      [iteration("active")],
+      [iteration("planned")],
+      [epic("closed")],
+      [epic("active")],
+      [plan("closed")],
+      [plan("pending_approval")],
+      [plan("approved", true)],
+      [plan("approved")],
+      [ticket(), epic("active")],
+    ];
+    const names = new Set(commands.map((c) => c.name));
+    const seen = new Set<string>();
+    const checked = new Set<string>();
+    const unknown: string[] = [];
+    for (const s of samples)
+      for (const action of askActions(s)) {
+        seen.add(action);
+        for (const name of askHumanChecks(action, s)) {
+          checked.add(name);
+          if (!names.has(name)) unknown.push(`${action}: ${name}`);
+        }
+      }
+    expect([...ASK_ACTIONS].filter((a) => !seen.has(a))).toEqual([]);
+    expect(checked).toContain("ticket.move");
+    expect(unknown).toEqual([]);
   });
 });
 
