@@ -2,7 +2,7 @@
 // 日付が変わるところに日付の行を挟み、各行は時刻・丸印・変化・作者にする。Status の変わらない行は中の空いた丸で列をそろえる。
 // 履歴が浅く起票が欠けていれば、それより前が欠けていることを出す
 
-import { useEffect, useState } from "react";
+import { useCommandData } from "../command-data.js";
 import { useStore } from "../store.js";
 import type { HistoryChange, HistoryEvent, HistoryLog, Status } from "../types.js";
 import { StatusDot } from "./parts.js";
@@ -68,19 +68,8 @@ function describeEvent(e: HistoryEvent, labelOf: (s: string) => string): string 
 /** チケット詳細の「経過」の節 */
 export function TicketTimeline({ id }: { id: string }) {
   const store = useStore();
-  const [log, setLog] = useState<HistoryLog | null>(null);
-  const [error, setError] = useState<string | null>(null);
   // 一覧が読み直されたら（書き込みや同期のあと）経過も読み直す
-  useEffect(() => {
-    let alive = true;
-    store.client
-      .run<HistoryLog>("history", { ticket: id })
-      .then((r) => alive && (setLog(r.data), setError(null)))
-      .catch((e: unknown) => alive && setError(e instanceof Error ? e.message : String(e)));
-    return () => {
-      alive = false;
-    };
-  }, [id, store.client, store.tickets]);
+  const { data: log, error } = useCommandData<HistoryLog>("history", { ticket: id });
   const labelOf = (s: string) => store.labelOf(s as Status);
   return (
     <section className="timeline">

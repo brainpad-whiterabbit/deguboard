@@ -3,7 +3,6 @@
 // 一覧の画面は持たない（open はバックログの欄、closed は履歴）。
 // VS Code（パネル）ではチケットを未完了・完了・中止の小見出しの付いた 1 本の一覧にする（カンバンはサイドバーで見る。UI-12）。ブラウザは Status ごとの列
 
-import { useEffect, useState } from "react";
 import { ASK_SECTIONS, AskSpotBox } from "../components/ask-menu.js";
 import {
   PriorityBadge,
@@ -12,6 +11,7 @@ import {
   TicketLink,
   TicketRow,
 } from "../components/parts.js";
+import { useCommandData } from "../command-data.js";
 import { useHost } from "../host.js";
 import { Markdown } from "../markdown.js";
 import { hrefOf } from "../router.js";
@@ -29,19 +29,8 @@ export function EpicsPage({ id }: { id: string }) {
   const store = useStore();
   const host = useHost();
   const webview = host.surface !== "browser";
-  const [epic, setEpic] = useState<EpicDetail | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let alive = true;
-    store.client
-      .run<EpicDetail>("epic.show", { epic: id })
-      .then((r) => alive && (setEpic(r.data), setError(null)))
-      .catch((e: unknown) => alive && setError(e instanceof Error ? e.message : String(e)));
-    return () => {
-      alive = false;
-    };
-  }, [id, store.client, store.epics, store.tickets]);
+  // 一覧のチケットか Epic が読み直されたら Epic も読み直す
+  const { data: epic, error } = useCommandData<EpicDetail>("epic.show", { epic: id }, store.epics);
 
   if (error) return <p className="error">{error}</p>;
   if (!epic) return <p className="muted">読み込み中…</p>;

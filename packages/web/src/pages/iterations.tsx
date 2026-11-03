@@ -1,10 +1,10 @@
 // Iteration（UI-5）の詳細：期間・目標と中のチケット。一覧の画面はなく、planned と active はカンバンの絞り込みで選ぶ（board.tsx）。
 // 表示だけで書き込まない。開始・閉じる・再開とチケットの足し外しは、タイトルと行の吹き出し・右クリックからエージェントに頼む（ADR-010・UI-15）
 
-import { useEffect, useState } from "react";
 import { ASK_SECTIONS, AskSpotBox } from "../components/ask-menu.js";
 import { TicketTable } from "../components/parts.js";
 import { NO_VALUE } from "../components/run-parts.js";
+import { useCommandData } from "../command-data.js";
 import { useHost } from "../host.js";
 import { hrefOf } from "../router.js";
 import { useStore } from "../store.js";
@@ -17,19 +17,12 @@ export function IterationsPage({ id }: { id: string }) {
 function IterationDetailView({ id }: { id: string }) {
   const store = useStore();
   const host = useHost();
-  const [it, setIt] = useState<IterationDetail | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let alive = true;
-    store.client
-      .run<IterationDetail>("iteration.show", { iteration: id })
-      .then((r) => alive && (setIt(r.data), setError(null)))
-      .catch((e: unknown) => alive && setError(e instanceof Error ? e.message : String(e)));
-    return () => {
-      alive = false;
-    };
-  }, [id, store.client, store.iterations, store.tickets]);
+  // 一覧のチケットか Iteration が読み直されたら Iteration も読み直す
+  const { data: it, error } = useCommandData<IterationDetail>(
+    "iteration.show",
+    { iteration: id },
+    store.iterations,
+  );
 
   if (error) return <p className="error">{error}</p>;
   if (!it) return <p className="muted">読み込み中…</p>;

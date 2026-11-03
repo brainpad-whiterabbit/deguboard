@@ -7,6 +7,7 @@
 // パネルの編集のボタンはタイトルと本文だけを入力欄にし、ブラウザでは編集のボタンでタイトル・本文・属性をまとめて直す
 
 import { useEffect, useState } from "react";
+import { useCommandData } from "../command-data.js";
 import { ASK_SECTIONS, AskSpotBox } from "../components/ask-menu.js";
 import { StatusDot, PriorityBadge, TicketLink } from "../components/parts.js";
 import {
@@ -28,7 +29,8 @@ import type { Status, TicketDetail, WorkflowView } from "../types.js";
 /**
  * チケットの Workflow。チケットの workflow、なければ Project の既定で、core の requireWorkflowFor と同じ解決にする。
  * 一覧が読んだ Project の既定（store.workflow）と同じなら引き直さない。別の Workflow は読み終えるまで null。
- * 読めなければ理由を通知に出し、null のまま（パネルの Status の選択は今の Status だけで、任意フィールドも出さない）
+ * 読めなければ理由を通知に出し、null のまま（パネルの Status の選択は今の Status だけで、任意フィールドも出さない）。
+ * useCommandData は使わない：失敗を画面のエラーでなく通知に出し、一覧の読み直しでは引き直さない（Workflow の定義はチケットの書き込みで変わらない）
  */
 function useTicketWorkflow(store: Store, ticket: TicketDetail | null): WorkflowView | null {
   const id = ticket
@@ -64,25 +66,17 @@ export function TicketPage({ id }: { id: string }) {
   const store = useStore();
   const host = useHost();
   const panel = host.surface === "panel";
-  const [ticket, setTicket] = useState<TicketDetail | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  // 一覧（store.tickets）が読み直されたら本文も読み直す
+  const {
+    data: ticket,
+    error,
+    setData: setTicket,
+  } = useCommandData<TicketDetail>("ticket.show", { ticket: id });
   const [draft, setDraft] = useState<Draft | null>(null);
   const workflow = useTicketWorkflow(store, ticket);
   const fields = workflow?.definition.fields ?? [];
   /** このチケットの Status の表示名（依存先・依存元はそれぞれの一覧の表示名のまま） */
   const labelOf = (s: Status) => workflow?.labels[s] ?? store.labelOf(s);
-
-  // 一覧（store.tickets）が読み直されたら本文も読み直す
-  useEffect(() => {
-    let alive = true;
-    store.client
-      .run<TicketDetail>("ticket.show", { ticket: id })
-      .then((r) => alive && (setTicket(r.data), setError(null)))
-      .catch((e: unknown) => alive && setError(e instanceof Error ? e.message : String(e)));
-    return () => {
-      alive = false;
-    };
-  }, [id, store.client, store.tickets]);
 
   if (error) return <p className="error">{error}</p>;
   if (!ticket) return <p className="muted">読み込み中…</p>;

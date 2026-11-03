@@ -78,7 +78,8 @@ export function AskComposer({
     noteRef.current?.focus();
   }, []);
 
-  // 一覧が読み直されたら（Status が変わったかもしれない）候補も引き直す。対象は並びの文字列で見る（同じ並びなら引き直さない）
+  // 一覧が読み直されたら（Status が変わったかもしれない）候補も引き直す。対象は並びの文字列で見る（同じ並びなら引き直さない）。
+  // この 2 つの読み込みは useCommandData を使わない：失敗したら前の結果を消し、エラーを全文の読み込みと 1 つの欄で分け合うため
   const targetsKey = targets.join(" ");
   useEffect(() => {
     let alive = true;

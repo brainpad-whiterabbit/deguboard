@@ -25,6 +25,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { WEBVIEW_CONTRACT_COPY } from "../client/webview.js";
+import { useCommandData } from "../command-data.js";
 import { useAsk, useUiState } from "../host.js";
 import { useStore } from "../store.js";
 import type { AskCandidate, AskMenu } from "../types.js";
@@ -59,7 +60,8 @@ const AskMenuContext = createContext<MenuCache | null>(null);
 
 /**
  * 画面に出ている頼める場所の候補を、まとめて ask-menu で引いて持つ。同じ描画で増えた場所は 1 回の呼び出しにまとめる。
- * 一覧（チケット・Iteration・Epic・Plan・実行中の Run）が読み直されたら、出ている場所の分をすべて引き直す（引き直すまでは前の候補を出す）
+ * 一覧（チケット・Iteration・Epic・Plan・実行中の Run）が読み直されたら、出ている場所の分をすべて引き直す（引き直すまでは前の候補を出す）。
+ * useCommandData は使わない：場所ごとの組をまとめて 1 回で引き、まだ引いていない組だけを足していくため
  */
 export function AskMenuProvider({ children }: { children: ReactNode }) {
   const store = useStore();
@@ -121,26 +123,15 @@ export function AskMenuProvider({ children }: { children: ReactNode }) {
 /** 組の候補。Provider があればその持ち分、なければ一覧を開いたとき（open が true になったとき）に引く。key が null なら引かない */
 function useAskMenu(key: string | null, open: boolean): AskMenu | undefined {
   const cache = useContext(AskMenuContext);
-  const { client, tickets } = useStore();
-  const [own, setOwn] = useState<AskMenu | undefined>(undefined);
   useEffect(() => (key === null ? undefined : cache?.want(key)), [cache, key]);
-  useEffect(() => {
-    if (cache || !open || key === null) return;
-    let alive = true;
-    client
-      .run<AskMenu[]>("ask-menu", { sets: [key] })
-      .then((r) => alive && setOwn(r.data[0]))
-      .catch(
-        (e: unknown) =>
-          alive &&
-          setOwn({ key, candidates: [], error: e instanceof Error ? e.message : String(e) }),
-      );
-    return () => {
-      alive = false;
-    };
-  }, [cache, client, key, open, tickets]);
+  // Provider がなければ自分で引く。失敗は組の理由として出す（Provider の経路と同じ）
+  const own = useCommandData<AskMenu[]>(
+    "ask-menu",
+    cache || !open || key === null ? null : { sets: [key] },
+  );
   if (key === null) return undefined;
-  return cache ? cache.menus.get(key) : own;
+  if (cache) return cache.menus.get(key);
+  return own.error ? { key, candidates: [], error: own.error } : own.data?.[0];
 }
 
 export interface AskSpotOptions {

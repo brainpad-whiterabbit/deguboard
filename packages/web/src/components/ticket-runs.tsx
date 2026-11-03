@@ -4,9 +4,8 @@
 // 取れなかったトークン数（null）は 0 と見せず「—」で出し、合計でも取れなかった Run があれば「+ —」を付ける（RN-2）。
 // 結果と数の書き方は run-parts.tsx で Run の画面と共通
 
-import { useEffect, useState } from "react";
+import { useCommandData } from "../command-data.js";
 import { useHost } from "../host.js";
-import { useStore } from "../store.js";
 import type { RunView } from "../types.js";
 import {
   formatDuration,
@@ -23,22 +22,9 @@ import { formatTime } from "./timeline.js";
 
 /** チケット詳細の「Run」の節 */
 export function TicketRuns({ id }: { id: string }) {
-  const store = useStore();
   const panel = useHost().surface === "panel";
-  const [runs, setRuns] = useState<RunView[] | null>(null);
-  const [warnings, setWarnings] = useState<string[]>([]);
-  const [error, setError] = useState<string | null>(null);
   // 一覧が読み直されたら（書き込みや同期のあと）Run も読み直す
-  useEffect(() => {
-    let alive = true;
-    store.client
-      .run<RunView[]>("run.list", { ticket: id })
-      .then((r) => alive && (setRuns(r.data), setWarnings(r.warnings), setError(null)))
-      .catch((e: unknown) => alive && setError(e instanceof Error ? e.message : String(e)));
-    return () => {
-      alive = false;
-    };
-  }, [id, store.client, store.tickets]);
+  const { data: runs, warnings, error } = useCommandData<RunView[]>("run.list", { ticket: id });
   return (
     <section className="runs">
       {panel && runs && runs.length > 0 ? (

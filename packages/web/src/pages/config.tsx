@@ -131,7 +131,8 @@ export function ConfigPage() {
     }
   }, [store.client]);
 
-  // 開いたときと、読み直し（同期・ファイルの変化・ほかの書き込み）が終わるたびに読み直す
+  // 開いたときと、読み直し（同期・ファイルの変化・ほかの書き込み）が終わるたびに読み直す。
+  // useCommandData は使わない：一覧が変わったとき（store.tickets）でなく、読み直しが終わったとき（store.loading）を合図にし、読み直しの間も読まないため
   useEffect(() => {
     // load は await の後でしか状態を変えないが、規則は同期の setState と見なす
     // oxlint-disable-next-line react/set-state-in-effect
