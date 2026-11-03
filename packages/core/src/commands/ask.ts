@@ -51,6 +51,8 @@ export type AskSubject =
       title: string;
       status: string;
       iteration: string | null;
+      /** 入っている Iteration の status（planned・active・closed）。Iteration がなければ null */
+      iteration_status: string | null;
       /** 依存先がすべて done か abandoned か（WF-2） */
       deps_done: boolean;
       /** このマシンで実行中の Run があるか */
@@ -267,6 +269,7 @@ const ACTIONS: Record<AskAction, ActionDef> = {
     skill: "dgplan",
     label: () => "承認する",
     text: () => "承認待ちのこの Plan の内容を示し、承認を求めてください。",
+    human: (s) => s.map((t) => ({ check: ["plan.approve"], command: `dg plan approve ${t.id}` })),
   },
   work: {
     skill: "dgwork",
@@ -403,8 +406,11 @@ export function askActions(s: Subjects): AskAction[] {
       if (tickets.some((t) => t.iteration === null))
         return ["assign", "create_iteration", "fix", "split", "check", "abandon", "free"];
       if (tickets.length > 1) return ["plan", "assign", "check", "abandon", "free"];
+      // 着手可でも、planned の Iteration（バックログ）ではまず計画を立て、active の Iteration（カンバン）なら進める
       if (tickets[0]!.deps_done)
-        return ["work", "plan", "fix", "split", "check", "abandon", "free"];
+        return tickets[0]!.iteration_status === "active"
+          ? ["work", "plan", "fix", "split", "check", "abandon", "free"]
+          : ["plan", "work", "fix", "split", "check", "abandon", "free"];
       return ["check", "fix", "split", "plan", "abandon", "free"];
     }
     return ["check", "assign", "free"];
@@ -509,15 +515,18 @@ export function buildAsk(input: BuildAskInput): AskView {
       text: steps.map((h) => h.command).join("\n"),
     };
 
+  const note = input.note?.trim();
+  if (chosen === "free" && s.length === 0 && !note)
+    throw new UsageError("自由に頼むときは、対象か指示（note）が要る");
   const lead: string[] = [];
-  if (format === "text") lead.push(ASK_TEXT_PREAMBLE);
-  else if (candidate.skill)
+  // Skill を使わない頼むことは、Skill 形式でも 1 行目の代わりに dg の呼び方を添える
+  if (format === "text" || !candidate.skill) lead.push(ASK_TEXT_PREAMBLE);
+  else
     lead.push(def.bare ? candidate.skill : [candidate.skill, ...ids(def.args?.(s) ?? s)].join(" "));
   const text = def.text(s);
   if (text) lead.push(text);
   const sections = [lead];
   if (targets.length > 0) sections.push(["対象:", ...targets.map((t) => `- ${t.line}`)]);
-  const note = input.note?.trim();
   if (note) sections.push(["指示:", note]);
   return {
     ...view,
@@ -555,6 +564,9 @@ export function askSubjectOf(store: Store, ref: string, running: ReadonlySet<str
         title: t.title,
         status: t.status,
         iteration: t.iteration ?? null,
+        iteration_status: t.iteration
+          ? (store.iterations.get(t.iteration)?.data.status ?? null)
+          : null,
         deps_done: store.depsDone(t),
         running: running.has(t.id),
       };

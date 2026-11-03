@@ -28,6 +28,7 @@ const ticket = (over: Partial<Extract<AskSubject, { kind: "ticket" }>> = {}): As
   title: "右の列を細くする",
   status: "todo",
   iteration: "s10",
+  iteration_status: "active",
   deps_done: true,
   running: false,
   ...over,
@@ -126,10 +127,37 @@ describe("依頼文の組み立て", () => {
       humanOnly,
     });
     expect(abandon.text).toBe("dg ticket move t265 abandoned\ndg ticket move t266 abandoned");
+    const approve = buildAsk({
+      subjects: [
+        { kind: "plan", id: "p21", status: "pending_approval", tickets: ["t1"], complete: false },
+      ],
+      action: "approve",
+      humanOnly: ["plan.approve"],
+    });
+    expect(approve).toMatchObject({
+      kind: "command",
+      human_only: ["plan.approve"],
+      text: "dg plan approve p21",
+    });
     // 入っていない操作は依頼文のまま
     expect(buildAsk({ subjects: [epic("open")], action: "close", humanOnly }).kind).toBe("prompt");
     // Skill の手順に任せる頼むことは、拒否されたらエージェントが人に頼むので依頼文のまま
     expect(buildAsk({ subjects: [ticket()], action: "work", humanOnly }).kind).toBe("prompt");
+  });
+
+  it("Skill を使わない頼むことは、Skill 形式でも 1 行目に dg の呼び方を添える", () => {
+    const view = buildAsk({ subjects: [iteration("active")], action: "close" });
+    expect(view.skill).toBeNull();
+    expect(view.text.split("\n")[0]).toBe(ASK_TEXT_PREAMBLE);
+  });
+
+  it("対象も指示もない自由な依頼は使い方の誤り", () => {
+    expect(() => buildAsk({ subjects: [], action: "free" })).toThrow(
+      expect.objectContaining({ code: "INVALID_INPUT" }),
+    );
+    expect(buildAsk({ subjects: [], action: "free", note: "様子を見て" }).text).toBe(
+      `${ASK_TEXT_PREAMBLE}\n\n指示:\n様子を見て`,
+    );
   });
 
   it("候補にない頼むことは使い方の誤りで、候補を添える", () => {
@@ -146,6 +174,9 @@ describe("頼むことの候補", () => {
     expect(first([ticket({ status: "in_progress" })])).toBe("resume");
     expect(first([ticket({ status: "in_progress", running: true })])).toBe("status");
     expect(first([ticket()])).toBe("work");
+    // planned の Iteration（バックログ）の着手可の todo は、まず計画を立てる
+    expect(first([ticket({ iteration_status: "planned" })])).toBe("plan");
+    expect(askActions([ticket({ iteration_status: "planned" })])).toContain("work");
     expect(first([ticket({ deps_done: false })])).toBe("check");
     expect(first([ticket({ iteration: null })])).toBe("assign");
     expect(first([ticket({ status: "done" })])).toBe("create");
@@ -224,6 +255,13 @@ describe("ask", () => {
       line: "Iteration s1「Sprint 1」（active）",
     });
     expect((await run({ targets: ["e1"] })).label).toBe("起票して e1 に足す");
+    // planned の Iteration に入った着手可の todo は計画から
+    await runCommand(ticketCreate, ctx, { title: "C" });
+    await runCommand(iterationCreate, ctx, { name: "Sprint 2" });
+    await runCommand(iterationAdd, ctx, { iteration: "s2", tickets: ["t3"] });
+    const t3 = await run({ targets: ["t3"] });
+    expect(t3.targets[0]).toMatchObject({ iteration_status: "planned" });
+    expect(t3.action).toBe("plan");
 
     // 止まった in_progress は再開、実行中の Run があれば様子を聞く
     await runCommand(ticketMove, ctx, { ticket: "t1", status: "in_progress" });

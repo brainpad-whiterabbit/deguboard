@@ -48,6 +48,7 @@ describe("dg ask", () => {
           title: "A",
           status: "review",
           iteration: "s1",
+          iteration_status: "active",
           deps_done: true,
           running: false,
         },
