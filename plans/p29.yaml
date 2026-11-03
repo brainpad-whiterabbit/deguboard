@@ -12,7 +12,7 @@ after:
     - t270
   t269:
     - t271
-pending_approval: true
+pending_approval: false
 details:
   t263:
     scope: パネルの詳細の見出しの帯（Status・優先度・Iteration・担当・PR の 1 行と編集ボタン）。ブラウザ版は変えない
@@ -41,3 +41,5 @@ details:
   t269:
     scope: 右の列の属性のその場の編集と、編集ボタンをタイトルと本文だけにすること
     approach: 属性ごとの小さな編集部品を作り、確定で ticket.update に 1 属性だけ渡す
+approved_by: eiki.kitajima/agent
+approved_at: 2026-11-03T03:22:21Z
