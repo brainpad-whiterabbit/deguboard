@@ -8,7 +8,7 @@ after:
     - t318
   t319:
     - t318
-pending_approval: true
+pending_approval: false
 details:
   t318:
     scope: plan create の --tier と details.tier、config の models.*（設定画面を含む）、guide-plan・work・parallel・review の段階のモデルの手順、requirements PL-1・5.10 と ADR-004
@@ -25,3 +25,5 @@ details:
   t319:
     scope: このリポジトリの config.yaml に models.light=haiku・standard=sonnet・heavy=opus を設定する（PR なし）
     approach: t318 のマージ後に claim --without-branch で config set し、config show で確かめて done にする
+approved_by: eiki.kitajima/agent
+approved_at: 2026-11-03T13:42:51Z
