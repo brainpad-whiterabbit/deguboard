@@ -1,0 +1,21 @@
+{
+  "id": "r20261103-002029-14bd",
+  "ticket": "t246",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-03T00:20:29Z",
+  "finished_at": "2026-11-03T00:21:38Z",
+  "result": "success",
+  "error": null,
+  "retries": 1,
+  "retry_reasons": [
+    "ADR-001 の太字の「大きな方針変更だけ」が分ける場合の例外と食い違っていた"
+  ],
+  "usage": {
+    "input": 2,
+    "output": 908,
+    "cache_read": 71585,
+    "cache_write": 811
+  }
+}
