@@ -1,0 +1,19 @@
+{
+  "id": "r20261103-112134-5090",
+  "ticket": "t308",
+  "step": "implement",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-03T11:21:34Z",
+  "finished_at": "2026-11-03T11:29:15Z",
+  "result": "success",
+  "error": null,
+  "retries": 0,
+  "retry_reasons": [],
+  "usage": {
+    "input": 104,
+    "output": 29533,
+    "cache_read": 5172159,
+    "cache_write": 90426
+  }
+}
