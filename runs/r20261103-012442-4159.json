@@ -1,0 +1,21 @@
+{
+  "id": "r20261103-012442-4159",
+  "ticket": "t260",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-03T01:24:42Z",
+  "finished_at": "2026-11-03T01:26:21Z",
+  "result": "success",
+  "error": null,
+  "retries": 1,
+  "retry_reasons": [
+    "run list のヘルプの理由を実際の動きに合わせた"
+  ],
+  "usage": {
+    "input": 8,
+    "output": 2107,
+    "cache_read": 244829,
+    "cache_write": 3228
+  }
+}
