@@ -180,7 +180,7 @@ steps: # 任意。Run の step の語彙（WF-5）
 ```
 
 - WF-1 Status は全ワークフロー共通の 5 つ（`todo` / `in_progress` / `review` / `done` / `abandoned`）。前進の順は todo → in_progress → review → done で、`abandoned` は前進の軸の外の終端。既定では 5 つの間のどの遷移も、human / agent / reconcile の誰でも条件なしで行える。ワークフローは `transitions` で from → to ごとに `by`（行える主体。`[]` で禁止）と `requires`（条件）の制約を足すだけで、Status は増やせない（[ADR-003](adr/ADR-003-status-and-workflow.md)）
-- WF-2 `requires` と `reconcile.when` に書けるのは組み込みの事実（`deps_done`、`branch_exists`、`branch_pushed`、`branch_merged`、`pr_open`、`pr_draft`、`pr_merged`）とその否定（`!pr_draft`）だけ。`deps_done` は `depends_on` のすべてが done か abandoned のとき真（やめたチケットは待たない。別の Project の依存先も見る）。`ticket list` と `ticket show` はチケットごとの `deps_done` を出す。利用者のスクリプトは実行しない
+- WF-2 `requires` と `reconcile.when` に書けるのは組み込みの事実（`deps_done`、`branch_exists`、`branch_pushed`、`branch_merged`、`pr_open`、`pr_draft`、`pr_merged`）とその否定（`!pr_draft`）だけ。`deps_done` は `depends_on` のすべてが done か abandoned のとき真（やめたチケットは待たない。別の Project の依存先も見る）。`ticket list` と `ticket show` はチケットごとの `deps_done` を出し、`ticket show` は終わっていない依存先も ID と Status で出す。利用者のスクリプトは実行しない
 - WF-3 存在しない Status を指す項目、未知の条件・Action、同じ遷移・step の重複は読み込み時と `dg workflow validate` で指摘する
 - WF-4 `software-development`・`consulting`・`general` のテンプレートを同梱し、`dg init` が 3 つとも置く（既にある Workflow は書き換えない）。`default` プロジェクトの Workflow はそのどれかを選べ、既定は `general`
 - WF-5 `steps` は Run の step の語彙で、項目は `id`・`label`・`actions`（Action の名前）・`approval`（承認の要否）。`run start` は語彙にない step を拒否する（`steps` がなければ縛らない）。手続きは `dg guide` が持つ

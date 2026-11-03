@@ -318,6 +318,8 @@ export type TicketDetail = Ticket & {
   acceptance: AcceptanceItem[];
   dependents: TicketId[];
   deps_done: boolean;
+  /** 終わっていない依存先（WF-2。deps_done と同じ判定で、別の Project も見る）。見つからない依存先の status は null */
+  pending_deps: { id: TicketId; status: Status | null }[];
   /** 入っている開いた Plan の ID */
   plan: string | null;
 };
@@ -361,7 +363,7 @@ export const ticketShow = defineCommand({
   positionals: ["ticket"],
   group: "ticket",
   summary:
-    "チケットの属性と本文、受け入れ条件の項目（acceptance）、依存元（dependents）、依存先が終わったか（deps_done）、入っている開いた Plan（plan）を出す",
+    "チケットの属性と本文、受け入れ条件の項目（acceptance）、依存元（dependents）、依存先が終わったか（deps_done）と終わっていない依存先（pending_deps）、入っている開いた Plan（plan）を出す",
   input: z.object({ ticket: ticketRef }),
   write: false,
   needs: "store",
@@ -372,6 +374,10 @@ export const ticketShow = defineCommand({
       acceptance: parseAcceptance(doc.body) ?? [],
       dependents: dependents(ctx.store, doc.data.id),
       deps_done: ctx.store.depsDone(doc.data),
+      pending_deps: ctx.store.pendingDeps(doc.data).map((id) => ({
+        id,
+        status: ctx.store.tickets.get(id)?.data.status ?? null,
+      })),
       plan: openPlanOf(ctx.store, doc.data.id)?.id ?? null,
     });
   },

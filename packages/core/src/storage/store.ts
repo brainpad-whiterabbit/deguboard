@@ -267,9 +267,14 @@ export class Store {
     return `${{ ticket: "t", epic: "e", iteration: "s", plan: "p" }[kind]}${nextNumber(used)}` as IdOf<K>;
   }
 
+  /** 終わっていない依存先（WF-2）。done・abandoned でない依存先を depends_on の順で返す。別の Project も見て、見つからない依存先も含める */
+  pendingDeps(ticket: Ticket): TicketId[] {
+    return pendingDeps(ticket, (id) => this.tickets.get(id)?.data.status);
+  }
+
   /** deps_done（WF-2）。依存先がすべて done か abandoned なら真。やめたチケットは待たない */
   depsDone(ticket: Ticket): boolean {
-    return pendingDeps(ticket, (id) => this.tickets.get(id)?.data.status).length === 0;
+    return this.pendingDeps(ticket).length === 0;
   }
 
   // ---- 書き込み（write-through）----

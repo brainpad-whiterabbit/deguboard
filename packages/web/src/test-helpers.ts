@@ -190,6 +190,7 @@ export function mockClient(data = fixture()): MockClient {
         body: "## 概要\n\n本文\n\n## 受け入れ条件\n\n- [ ] a\n",
         dependents: [],
         deps_done: true,
+        pending_deps: [],
       };
     },
     "ticket.move": (input) => {

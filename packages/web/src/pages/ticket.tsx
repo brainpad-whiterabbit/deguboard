@@ -18,6 +18,7 @@ import { Markdown } from "../markdown.js";
 import { hrefOf } from "../router.js";
 import { useStore } from "../store.js";
 import {
+  isFinished,
   movableStatuses,
   PRIORITIES,
   STATUSES,
@@ -168,7 +169,7 @@ export function TicketPage({ id }: { id: string }) {
     <div
       key={d.id}
       className={
-        panel && dimDone && "status" in d && finished(d.status) ? "dep-finished" : undefined
+        panel && dimDone && "status" in d && isFinished(d.status) ? "dep-finished" : undefined
       }
     >
       {panel && "status" in d ? <StatusDot status={d.status} /> : null}
@@ -181,8 +182,6 @@ export function TicketPage({ id }: { id: string }) {
       ) : null}
     </div>
   );
-  // 終わっていない依存先（WF-2 の deps_done と同じく done・abandoned 以外。一覧にない依存先は Status が分からないので含める）
-  const pendingDeps = dependsOn.filter((d) => !("status" in d) || !finished(d.status));
   const optional: OptionalAttr[] = [
     { key: "labels", label: "ラベル", empty: ticket.labels.length === 0, addable: true },
     { key: "epic", label: "Epic", empty: !ticket.epic, addable: true },
@@ -553,17 +552,17 @@ export function TicketPage({ id }: { id: string }) {
         ) : (
           header
         )}
-        {panel && !ticket.deps_done ? (
+        {panel && ticket.pending_deps.length > 0 ? (
           <p className="notice info deps-band" role="status">
             <span>
               依存先が終わっていない：
-              {pendingDeps.map((d) => (
+              {ticket.pending_deps.map((d) => (
                 <span key={d.id} className="deps-band-item">
-                  {"status" in d ? <StatusDot status={d.status} /> : null}
+                  {d.status ? <StatusDot status={d.status} /> : null}
                   <TicketLink id={d.id}>
                     <code>{d.id}</code>
                   </TicketLink>
-                  {"status" in d ? store.labelOf(d.status) : null}
+                  {d.status ? store.labelOf(d.status) : null}
                 </span>
               ))}
             </span>
@@ -657,11 +656,6 @@ function AddAttr({
       onBlur={onClose}
     />
   );
-}
-
-/** 依存を待たない Status か（WF-2。やめたチケットは待たない） */
-function finished(status: Status): boolean {
-  return status === "done" || status === "abandoned";
 }
 
 /** 任意フィールドの値。未設定は「未設定」 */
