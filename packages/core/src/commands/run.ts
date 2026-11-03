@@ -143,7 +143,7 @@ export const runList = defineCommand({
     iteration: iterationRef
       .optional()
       .describe(
-        "この Iteration のチケットの Run だけ。今ない Iteration はエラーにせず空を返す（閉じて消えたものも引けるよう、ticket.list・metrics.show の絞り込みと同じくあるかは確かめない）",
+        "この Iteration のチケットの Run だけ。今ない Iteration（打ち間違い・文書を直接消したものなど）はエラーにせず空を返す。ticket.list・metrics.show の絞り込みと同じく、あるかは確かめない",
       ),
     project: slugSchema.optional().describe("この Project のチケットの Run だけ"),
     running: z.boolean().optional().describe("終わっていない Run だけ"),
@@ -152,7 +152,7 @@ export const runList = defineCommand({
   needs: "store",
   async run(ctx, input) {
     const ticket = input.ticket ? ctx.store.require("ticket", input.ticket).data.id : undefined;
-    // 閉じた・消えた Iteration の Run も引けるよう、今あるかは確かめず ID の形だけ整える（入力の説明を見る）
+    // ticket.list・metrics.show と同じく、今あるかは確かめず ID の形だけ整える（入力の説明を見る）
     const iteration = idShapeOf(input.iteration, "iteration");
     const local = await readRunningRuns(ctx.repo);
     const runs: Array<{ run: Run; running: boolean }> = [
