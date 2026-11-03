@@ -1,10 +1,10 @@
 // 画面の配置の確認（t58）。dg serve の画面を Chromium で ?surface=sidebar の配置で開き、
 // サイドバーの幅（300px・260px）とライト・ダークで、横スクロールが出ないことと、文字が決めた行数に収まることを確かめる。
 // 行数の基準：
-// - タブ（nav a）、カンバンの見出し、チケットの行でない行のタイトル（Epic・Run など .row-title）は 1 行。折り返してはいけない
+// - タブ（nav a）、カンバンの見出し、チケットの行でない行のタイトル（Epic など .row-title）は 1 行。折り返してはいけない
 //   カンバンの見出しは、Iteration の見出し（.sidebar-head .head-line：札の列・漏斗の段、名前・期間・目標の段、進みの帯の段）と
 //   状態の節の見出し（.column summary h2）、履歴の見方の切り替え（.view-switch）
-// - ほかの画面の見出し（バックログ・履歴の summary、Run・Epic の h2 など）は検査しない
+// - ほかの画面の見出し（バックログ・履歴の summary、Epic の h2 など）は検査しない
 // - チケットの行のタイトル（.ticket-row .row-title）は 2 行まで。サイドバーでは 2 行で切る CSS（-webkit-line-clamp: 2）なので、3 行以上は崩れ
 // 行数は要素の枠の中に見えている行だけを数える（2 行で切られて隠れた行は数えない）
 // カンバンの行の右端（担当の印・Plan の番号など）は、行の枠からはみ出さず、タイトルと重ならないことも確かめる
@@ -22,8 +22,13 @@ import { startServer } from "../../packages/server/src/index.js";
 const WEB_DIST = path.resolve(import.meta.dirname, "../../packages/web/dist");
 const WIDTHS = [300, 260];
 const SCHEMES = ["light", "dark"] as const;
-/** サイドバーで出す画面。履歴は閉じた Iteration の行（目標の長いものを含む）を、Run は実行中と完了した Run を出す */
-const PAGES = ["#/board", "#/backlog", "#/epics/e1", "#/history", "#/runs"];
+/**
+ * サイドバーで出す画面。履歴は閉じた Iteration の行（目標の長いものを含む）を出す。
+ * Run の画面はブラウザだけに置き、左パネルには出さない（UI-9・UI-12。#/runs はカンバンとして開く）ので含めない
+ */
+const PAGES = ["#/board", "#/backlog", "#/epics/e1", "#/history"];
+/** 左パネルのタブの数（カンバン・バックログ・履歴。Run のタブは出さない。UI-12） */
+const SIDEBAR_TABS = 3;
 const LONG = "サイドバーの配置を確かめるための、かなり長めのタイトルのチケット";
 
 /** 設定画面の長い worktree.root。区切り（空白）がないので、折り返せないと横にはみ出す */
@@ -55,12 +60,13 @@ beforeAll(async () => {
     template: "software-development",
   });
   server = await startServer({ cwd: fixture.cloneA, port: 0, user: "layout", staticDir: WEB_DIST });
-  // 閉じた Iteration（履歴）・進行中の Iteration・長い名前の Epic と、状態の揃ったチケット
+  // 閉じた Iteration（履歴）・進行中の Iteration・長い名前の Epic と、状態の揃ったチケット。
+  // ほかの Iteration を始める前に active のものを閉じる（IT-1）
   await call("iteration.create", { name: "終わった週" });
   await call("iteration.start", { iteration: "s1" });
   await call("iteration.close", { iteration: "s1" });
+  // s2 は作るだけにし、s8 を閉じた後に始める（active の Iteration は Project に 1 つ。IT-1）
   await call("iteration.create", { name: "今週" });
-  await call("iteration.start", { iteration: "s2" });
   await call("epic.create", {
     title: "とても長い名前の Epic：サイドバーの幅で省略されるかを確かめる",
   });
@@ -118,6 +124,7 @@ beforeAll(async () => {
   await call("ticket.move", { ticket: "t13", status: "done" });
   await call("ticket.move", { ticket: "t14", status: "abandoned" });
   await call("iteration.close", { iteration: "s8" });
+  await call("iteration.start", { iteration: "s2" });
   // 設定画面：長い worktree.root（区切りのない長いパス）と、項目の多い actions.test
   await call("config.set", { key: "worktree.root", value: LONG_ROOT });
   await call("config.set", { key: "actions.test", value: TEST_COMMAND });
@@ -227,7 +234,7 @@ describe.each(SCHEMES)("サイドバーの配置（%s）", (scheme) => {
             });
           }
           expect(m.scrollWidth, `${hash} の横スクロール`).toBeLessThanOrEqual(m.clientWidth);
-          expect(m.tabs, `${hash} のタブ`).toBe(4);
+          expect(m.tabs, `${hash} のタブ`).toBe(SIDEBAR_TABS);
           expect(m.wrapped, `${hash} で決めた行数を超えた要素`).toEqual([]);
           // カンバンの長いタイトルは 2 行に折り返す（1 行で切る CSS に戻ったら気づけるように）
           if (hash === "#/board") {
@@ -617,8 +624,8 @@ describe.each(SCHEMES)("設定画面（%s）", (scheme) => {
             fullPage: true,
           });
         }
-        // 設定画面でもサイドバーのタブ（カンバン・バックログ・履歴・Run）は出したまま
-        expect(m.tabs, "タブ").toBe(4);
+        // 設定画面でもサイドバーのタブ（カンバン・バックログ・履歴）は出したまま
+        expect(m.tabs, "タブ").toBe(SIDEBAR_TABS);
         expect(m.fields, "設定の項目").toBeGreaterThan(10);
         expect(m.listItems, "actions.test の項目").toBe(TEST_COMMAND.length);
         expect(m.confirm, "確認の帯に新しい値").toContain(`${LONG_ROOT}/next`);
