@@ -1,7 +1,7 @@
 # ADR-007 アーキテクチャ
 
 - ステータス：承認
-- 更新日：2026-11-02
+- 更新日：2026-11-03
 
 ## 背景
 
@@ -21,7 +21,7 @@ CLI・MCP・HTTP・VS Code 拡張という複数の入口から同じ機能を�
 
 - `core` は何にも依存しない（VS Code API・HTTP・React を知らない）
 - `server`・`vscode` は `core` だけに依存する。`cli` は `dg serve` と `dg mcp` のために `server` にも依存する
-- `web` は `core` の型と `CommandClient` のインターフェースだけに依存する
+- `web` は `core` の型と `CommandClient` のインターフェースだけに依存する（`import type` だけ。Vite が node のモジュールを束ねないため）。例外は Vitest が node で動かすテストとテスト用の `CommandClient`（`test-helpers.ts`）で、core の実行時のコードを取り込んでよい
 - 逆向きの依存は作らない。検出は `.oxlintrc.json` の `no-restricted-imports`（禁じる import の正本）
 
 ### `core/commands` が 3 つの入口の正本
