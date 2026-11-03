@@ -300,10 +300,24 @@ describe("画面", () => {
     });
   });
 
-  /** Project の既定（遷移の制約なし）と別に、todo → done を誰にも許さない Workflow を持つチケット t9 の client */
-  function ownWorkflowClient() {
+  /**
+   * Project の既定（遷移の制約なし）と別に、todo → done を誰にも許さない Workflow strict を持つチケット t9 の client。
+   * otherProject なら t9 は workflow を持たず、既定の Workflow が strict の別の Project に入る
+   */
+  function ownWorkflowClient({ otherProject = false } = {}) {
     const data = fixture({
-      tickets: [ticket({ id: "t9", title: "別の流れ", workflow: "strict" })],
+      tickets: [
+        otherProject
+          ? ticket({ id: "t9", title: "別の流れ", project: "other" })
+          : ticket({ id: "t9", title: "別の流れ", workflow: "strict" }),
+      ],
+    });
+    data.projects.push({
+      id: "other",
+      name: "Other",
+      description: "",
+      workflow: "strict",
+      status: "active",
     });
     const client = mockClient(data);
     client.handlers["workflow.show"] = (input) =>
@@ -334,7 +348,9 @@ describe("画面", () => {
       expect(statusOptions()).toEqual(["todo", "in_progress", "review", "abandoned"]),
     );
     expect(screen.getByLabelText("Status").textContent).toContain("未着手");
-    expect(document.querySelector(".detail-meta-status")!.textContent).toBe("未着手");
+    const head = document.querySelector(".detail-meta-status")!;
+    expect(head.textContent).toBe("未着手");
+    expect(head.querySelector(".status-dot")!.getAttribute("aria-label")).toBe("未着手");
     expect(screen.getByText("なし", { selector: "dt" }).nextElementSibling!.textContent).toContain(
       "規模",
     );
@@ -344,6 +360,32 @@ describe("画面", () => {
           c.name === "workflow.show" && (c.input as { workflow: string }).workflow === "strict",
       ),
     ).toBe(true);
+  });
+
+  it("workflow のないチケットが別の Project にあれば、その Project の既定の Workflow でパネルの Status の選択を絞る", async () => {
+    window.location.hash = "#/tickets/t9";
+    const client = ownWorkflowClient({ otherProject: true });
+    mount(client, hostOf("panel"));
+    await screen.findByRole("heading", { level: 1, name: "別の流れ" });
+    await waitFor(() =>
+      expect(statusOptions()).toEqual(["todo", "in_progress", "review", "abandoned"]),
+    );
+    expect(document.querySelector(".detail-meta-status")!.textContent).toBe("未着手");
+  });
+
+  it("チケットの Workflow が読めなければ理由を通知に出し、パネルの Status の選択は今の Status だけにする", async () => {
+    window.location.hash = "#/tickets/t9";
+    const client = ownWorkflowClient();
+    const show = client.handlers["workflow.show"]!;
+    client.handlers["workflow.show"] = (input) => {
+      if ((input as { workflow: string }).workflow === "strict")
+        throw new ClientError({ code: "NOT_FOUND", message: "Workflow strict が見つからない" });
+      return show(input);
+    };
+    mount(client, hostOf("panel"));
+    await screen.findByRole("heading", { level: 1, name: "別の流れ" });
+    expect((await screen.findByRole("alert")).textContent).toContain("Workflow strict を読めない");
+    expect(statusOptions()).toEqual(["todo"]);
   });
 
   it("ブラウザのチケット詳細の Status の選択は、チケットの Workflow で移れない Status も含めて全件並べる", async () => {

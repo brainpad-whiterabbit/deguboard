@@ -100,7 +100,8 @@ interface OptionalAttr {
 
 /**
  * チケットの Workflow。チケットの workflow、なければ Project の既定で、core の requireWorkflowFor と同じ解決にする。
- * 一覧が読んだ Project の既定（store.workflow）と同じなら引き直さない。別の Workflow は読み終えるまで null
+ * 一覧が読んだ Project の既定（store.workflow）と同じなら引き直さない。別の Workflow は読み終えるまで null。
+ * 読めなければ理由を通知に出し、null のまま（パネルの Status の選択は今の Status だけで、任意フィールドも出さない）
  */
 function useTicketWorkflow(store: Store, ticket: TicketDetail | null): WorkflowView | null {
   const id = ticket
@@ -114,11 +115,19 @@ function useTicketWorkflow(store: Store, ticket: TicketDetail | null): WorkflowV
     store.client
       .run<WorkflowView>("workflow.show", { workflow: other })
       .then((r) => alive && setLoaded({ id: other, view: r.data }))
-      .catch(() => {});
+      .catch(
+        (e: unknown) =>
+          alive &&
+          store.notify({
+            kind: "error",
+            text: `Workflow ${other} を読めない`,
+            detail: e instanceof Error ? e.message : String(e),
+          }),
+      );
     return () => {
       alive = false;
     };
-  }, [other, store.client]);
+  }, [other, store.client, store.notify]);
   if (!other) return store.workflow;
   return loaded?.id === other ? loaded.view : null;
 }
@@ -567,7 +576,7 @@ export function TicketPage({ id }: { id: string }) {
             {header}
             <div className="detail-meta">
               <span className="detail-meta-status">
-                <StatusDot status={ticket.status} />
+                <StatusDot status={ticket.status} label={labelOf(ticket.status)} />
                 {labelOf(ticket.status)}
               </span>
               <PriorityBadge priority={ticket.priority} />
