@@ -1009,7 +1009,8 @@ describe("Epic と Iteration", () => {
     expect(reopened.data.closed_at).toBeUndefined();
     expect(reopened.data.completed).toBeUndefined();
     expect(reopened.data.carried_over).toBeUndefined();
-    expect(reopened.warnings).toHaveLength(1);
+    // 再開は即座に push するので、まとめ待ちの変更を先にコミットした警告も並ぶ
+    expect(reopened.warnings.filter((w) => w.includes("戻らない"))).toHaveLength(1);
     // 持ち越したチケットは戻らないので入れ直す
     expect(agent.store.tickets.get("t1")?.data.iteration).toBeUndefined();
     await runCommand(iterationAdd, agent, { iteration: "s1", tickets: ["t1"] });
@@ -1019,7 +1020,7 @@ describe("Epic と Iteration", () => {
     await runCommand(ticketMove, agent, { ticket: "t1", status: "done" });
     await runCommand(iterationClose, agent, { iteration: "s1" });
     const again = await runCommand(iterationReopen, agent, { iteration: "s1" });
-    expect(again.warnings ?? []).toHaveLength(0);
+    expect((again.warnings ?? []).filter((w) => w.includes("戻らない"))).toHaveLength(0);
   });
 
   it("active の Iteration は Project に 1 つで、ほかに active があれば start と reopen を拒否する（IT-1）", async () => {
@@ -1050,6 +1051,59 @@ describe("Epic と Iteration", () => {
     expect((await runCommand(iterationReopen, ctx, { iteration: "s1" })).data.status).toBe(
       "active",
     );
+  });
+
+  it("2 つの clone が同時に別の Iteration を start すると、push で負けた側は検査からやり直して拒否される", async () => {
+    const f = await fixture();
+    const a = await initialized(f.cloneA);
+    for (const name of ["Sprint 1", "Sprint 2"]) await runCommand(iterationCreate, a, { name });
+    const b = await openContext({
+      cwd: f.cloneB,
+      initialize: {},
+      actor: { kind: "agent", user: "b" },
+    });
+    const hooks = {
+      beforePush: async () => {
+        hooks.beforePush = async () => {};
+        await runCommand(iterationStart, b, { iteration: "s2" });
+      },
+    };
+    const racer = await openContext({ cwd: f.cloneA, actor: { kind: "agent", user: "a" }, hooks });
+    await expect(runCommand(iterationStart, racer, { iteration: "s1" })).rejects.toMatchObject({
+      code: "REJECTED",
+      message: expect.stringContaining("s2 が active"),
+    });
+    expect(racer.store.iterations.get("s1")?.data.status).toBe("planned");
+    expect(racer.store.iterations.get("s2")?.data.status).toBe("active");
+    expect((await git(racer.repo.dataDir, ["status", "--porcelain"])).stdout).toBe("");
+  });
+
+  it("lint は同じ Project に 2 つ以上ある active の Iteration を指摘し、別の Project の active は数えない", async () => {
+    const f = await fixture();
+    const ctx = await initialized(f.cloneA);
+    await runCommand(projectCreate, ctx, { id: "other" });
+    for (const name of ["Sprint 1", "Sprint 2", "Sprint 3"])
+      await runCommand(iterationCreate, ctx, { name });
+    await runCommand(iterationCreate, ctx, { name: "別の Project", project: "other" });
+    await runCommand(iterationStart, ctx, { iteration: "s1" });
+    await runCommand(iterationStart, ctx, { iteration: "s4" });
+    const multiple = async () =>
+      (await runCommand(lint, ctx, {})).data.issues
+        .filter((i) => i.code === "lint_iteration_multiple_active")
+        .map((i) => [i.id, i.message]);
+    expect(await multiple()).toEqual([]);
+    // 手の編集やマージで 2 つ目の active ができた場合（start の検査を通らない）
+    await ctx.store.update("iteration", "s3", { status: "active" });
+    const message = "同じ Project に active の Iteration が 2 つある（s1, s3）";
+    expect(await multiple()).toEqual([
+      ["s1", message],
+      ["s3", message],
+    ]);
+    expect(
+      (await runCommand(lint, ctx, { project: "other" })).data.issues.filter(
+        (i) => i.code === "lint_iteration_multiple_active",
+      ),
+    ).toEqual([]);
   });
 });
 

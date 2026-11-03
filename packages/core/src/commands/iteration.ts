@@ -30,7 +30,7 @@ function rejectIfOtherActive(store: Store, it: Doc<Iteration>, verb: string): vo
   if (other)
     throw new OperationError(
       "REJECTED",
-      `${other.id} が active なので ${it.id} を${verb}できない（active の Iteration は Project に 1 つ）。先に ${other.id} を閉じる`,
+      `${other.id} が active なので ${it.id} を${verb}できない（active の Iteration は Project に 1 つ）。先に ${other.id} を閉じる（閉じるかは人が決める）`,
     );
 }
 
@@ -227,7 +227,8 @@ export const iterationStart = defineCommand({
         rejectIfOtherActive(ctx.store, it, "開始");
         return ctx.store.update("iteration", it.id, { status: "active" });
       },
-      { message: (doc) => `${doc.id} を開始: ${doc.data.name}` },
+      // active を 1 つに保つ排他なので、claim と同じく即座に push し、拒否されたら検査からやり直す
+      { message: (doc) => `${doc.id} を開始: ${doc.data.name}`, immediate: true, cas: true },
     );
     return ok(result.value.data, result.write);
   },
@@ -283,6 +284,8 @@ export const iterationReopen = defineCommand({
     const result = await withWrite(
       ctx,
       async () => {
+        // cas でやり直すと mutate が再び走るので、警告は毎回作り直す
+        warnings.length = 0;
         const it = ctx.store.require("iteration", input.iteration);
         if (it.data.status !== "closed")
           throw new OperationError("REJECTED", `${it.id} は閉じていない`);
@@ -298,7 +301,7 @@ export const iterationReopen = defineCommand({
           carried_over: undefined,
         });
       },
-      { message: (doc) => `${doc.id} を再開: ${doc.data.name}` },
+      { message: (doc) => `${doc.id} を再開: ${doc.data.name}`, immediate: true, cas: true },
     );
     return ok(result.value.data, result.write, warnings);
   },

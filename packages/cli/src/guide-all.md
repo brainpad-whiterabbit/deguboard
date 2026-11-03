@@ -15,7 +15,7 @@ Iteration かチケットを、割り当てからリリースまでの段階で�
 - `--no-assign`：割り当ての段階を飛ばす。点検で Iteration に入れる案が出ても反映せず、終わりの報告に残す
 - `--auto`：下の「`--auto` で自動で選ぶ」に従う。`--no-assign` と一緒に指定できる
 
-以下では対象の Iteration を `<S>` と書く。`<S>` は聞かずに始める：作業の段階でチケットを claim するとき、`<S>` が planned なら `dg guide work` の手順 2 のとおり `iteration start <S>` で active にする（active や Iteration のないチケットでは何もしない）。閉じるのは人の指示で行う。
+以下では対象の Iteration を `<S>` と書く。`<S>` は聞かずに始める：作業の段階でチケットを claim するとき、`<S>` が planned なら `dg guide work` の手順 2 のとおり `iteration start <S>` で active にする（active や Iteration のないチケットでは何もしない。拒否されたときも手順 2 のとおり）。閉じるのは人の指示で行う。
 
 ## 段階
 

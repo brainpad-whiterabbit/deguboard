@@ -47,7 +47,7 @@ deguboard はソフトウェア開発だけでなく、コンサルティング�
 - Epic は目的ごとにチケットを束ねる独立したエンティティ（`epics/e3.md`）。チケットの一種にはせず、claim・ブランチ・5 つの Status を持たない
 - 状態は `open` / `closed` で、進捗は保存しない（EP-1・EP-3）。所属はチケット側の `epic` だけで表し、入れ子にせず、Iteration をまたぐ（EP-2）。チケットの遷移は縛らない
 - Milestone は持たず、期間の目標は Iteration で表す。Iteration の所属もチケット側の `iteration` だけで表す（IT-2）
-- active の Iteration は Project に 1 つに限り、`start`・`reopen` はほかに active があれば拒否する（IT-1）
+- active の Iteration は Project に 1 つに限り、`start`・`reopen` はほかに active があれば拒否する。claim と同じく即座に push して排他にし、それでも 2 つになったもの（直接の編集・マージ）は `lint` が指摘する（IT-1）
 
 ## 理由
 

@@ -146,7 +146,7 @@ closed_at: 2026-11-20T09:00:00Z # closed のときだけ
 
 ### 5.6 Iteration（`iterations/s3.yaml`）
 
-- IT-1 `id`、`project`、`name`、`goal`、`start`、`end`、`status`（`planned` / `active` / `closed`）を持つ。閉じるのは既定で誰でも行え（人に限るなら `actor.human_only`、5.10）、閉じたときに `closed_at` と完了・持ち越しの件数（`completed`・`carried_over`）を書く。`reopen` は active に戻して `closed_at` と件数を消し、外した持ち越しのチケットは戻さない。active は Project に 1 つで、`start`・`reopen` はほかに active があれば拒否する（先に閉じる）。`name`・`goal`・`start`・`end` は `update` で後から直せ、閉じた Iteration でも直せる
+- IT-1 `id`、`project`、`name`、`goal`、`start`、`end`、`status`（`planned` / `active` / `closed`）を持つ。閉じるのは既定で誰でも行え（人に限るなら `actor.human_only`、5.10）、閉じたときに `closed_at` と完了・持ち越しの件数（`completed`・`carried_over`）を書く。`reopen` は active に戻して `closed_at` と件数を消し、外した持ち越しのチケットは戻さない。active は Project に 1 つに保つ。`start`・`reopen` はほかに active があれば拒否し、同時の操作や直接の編集で 2 つになれば `lint` が指摘する。`name`・`goal`・`start`・`end` は `update` で後から直せ、閉じた Iteration でも直せる
 - IT-2 所属はチケットの `iteration` で表し、Iteration 側にチケットの一覧は持たない（Epic と同じ）。入れるのは同じ Project のチケットだけで、閉じた Iteration には入れられない。Iteration 内の並びは優先度と番号で、閉じるときに done・abandoned 以外のチケットの `iteration` を外す
 
 ### 5.7 Plan（`plans/p7.yaml`）
@@ -208,7 +208,7 @@ steps: # 任意。Run の step の語彙（WF-5）
 
 - CL-1 すべてのコマンドに `--json` があり、エージェントはそれを読む。成功は `{ ok: true, data, warnings, write }`、失敗は `{ ok: false, error: { code, message, detail } }`。終了コードは 0（成功）/ 1（失敗。`validate`・`lint` は指摘があるとき）/ 2（使い方の誤り）。`error.code` の語彙は `packages/core/src/errors.ts` が正本
 - CL-2 コマンドの一覧とオプションは `dg --help` が正本。群は用意（`init`・`sync`・`commit`・`validate`・`lint`・`config`・`whoami`）、`project`、`ticket`、`iteration`（`sprint` はエイリアス）、`epic`、`workflow`、`plan`、`history`、`run` と `metrics`、画面と MCP（`serve`・`open`・`mcp`）、手順（`guide`・`skill install`）
-- CL-3 書き込みを伴うコマンドは、`commit.mode` に従って deguboard ブランチにコミットする。作成（`init`、`project / ticket / epic / iteration / plan create`、`ticket import`）と `ticket claim` は `commit.mode`・`push.mode` によらず即座にコミットして push する（採番と排他のため）
+- CL-3 書き込みを伴うコマンドは、`commit.mode` に従って deguboard ブランチにコミットする。作成（`init`、`project / ticket / epic / iteration / plan create`、`ticket import`）・`ticket claim`・`iteration start / reopen` は `commit.mode`・`push.mode` によらず即座にコミットして push する（採番と排他のため）
 - CL-4 `ticket import` は YAML / JSON の下書き（配列）を 1 コミットで取り込む。下書きの中の仮キーを `depends_on` から参照でき、`epic` に既存の Epic を書ける
 - CL-5 `dg guide <topic>` は、エージェント向けの手順を `config.yaml` の値を埋めて出す。トピックの一覧は `dg guide overview`（省略時）。手順の正本は CLI に同梱した Markdown（`packages/cli/src/guide-*.md`）
 - CL-6 CLI はビジネスロジックを持たず、Core のコマンド定義（`packages/core/src/commands/`）を写す

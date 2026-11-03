@@ -19,7 +19,7 @@ async function initialized(f: Fixture): Promise<CommandContext> {
   return openContext({ cwd: f.cloneA, actor });
 }
 
-/** t1・t2 を起票し、s1 と e1 に入れて進め、s1 を閉じて t2 を持ち越し、t2 を claim して PR を記録する */
+/** t1・t2 を起票し、s1 を始めて s1 と e1 に入れて進め、s1 を閉じて t2 を持ち越し、t2 を claim して PR を記録する */
 async function scenario(): Promise<CommandContext> {
   const f = await createFixture();
   cleanups.push(f.cleanup);
@@ -28,10 +28,11 @@ async function scenario(): Promise<CommandContext> {
   await runCommand(ticketCreate, ctx, { title: "B" });
   await runCommand(epicCreate, ctx, { title: "E" });
   await runCommand(iterationCreate, ctx, { name: "Sprint 1" });
+  // start は即座にコミットするので、まとめる前に行う
+  await runCommand(iterationStart, ctx, { iteration: "s1" });
   // commit.mode は batch なので、ここからは 1 コミットにまとまる
   await runCommand(iterationAdd, ctx, { iteration: "s1", tickets: ["t1", "t2"] });
   await runCommand(epicAdd, ctx, { epic: "e1", tickets: ["t1"] });
-  await runCommand(iterationStart, ctx, { iteration: "s1" });
   await runCommand(ticketMove, ctx, { ticket: "t1", status: "in_progress" });
   await runCommand(ticketMove, ctx, { ticket: "t1", status: "done" });
   await runCommand(commit, ctx, {});
