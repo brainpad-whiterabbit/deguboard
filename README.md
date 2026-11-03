@@ -12,7 +12,7 @@ deguboard は、Git で管理するチケットとユーザー定義のワーク
 - ブラウザ（`dg serve`）と VS Code 拡張の画面で、カンバン・バックログ・履歴・Run（ブラウザだけ）のタブと、チケット・エピック・イテレーションの詳細を見る。画面から書き込むのは、チケット詳細（タイトル・本文・Status・属性）と設定画面（ブラウザは上のバー、VS Code はタイトル行の歯車）と同期だけ
 - ほかの変更はエージェントに頼む。画面の行・見出しと上のバー（VS Code はタイトル行）の吹き出しか、VS Code の右クリックで対象と頼むことを選び、指示を添えた依頼文をコピーしてエージェントに貼る。同じ依頼文は `dg ask` でも作れる。依頼文を作るだけで、データには書き込まない
 - ワークフロー（遷移の条件・照合規則・追加フィールド・表示名）を業務ごとに YAML で定義し、`dg workflow show` で見て `dg workflow set` で書き換える
-- Claude Code との会話からチケットを起票し、分解・依存・進める順（Plan）の承認・イテレーション計画を進める（Skill と MCP）
+- Claude Code との会話からチケットを起票し、分解・依存・進める順（Plan）の承認・イテレーション計画を進める（Skill と MCP）。段階ごとにモデルを変えられる（「[Plan の段階とモデル](#plan-の段階とモデル)」）
 - AI の実行を Run として記録し、トークン使用量と結果を Run・チケット・エピック・イテレーション・プロジェクト・エージェント・モデル・工程の単位で集計する（使用量の取り込みは Claude Code と Codex）
 - `dg guide all` の手順に `--auto` を付けて（Claude Code では `/dgall --auto`）、戻せる判断を自動で選び、`auto.merge` が true なら検査・受け入れ条件・別エージェントの見直し・衝突なしを確かめて PR を自動でマージする
 - `dg guide parallel` の手順（`all` と `work` から引く）で、Plan の待ちのない複数のチケットをサブエージェントで同時に進める
@@ -69,6 +69,15 @@ dg metrics show --iteration s1 --by ticket    # 絞り込み（--ticket・--epic
 ```
 
 使用量を取り込めるのは今は Claude Code（`--agent claude-code`）と Codex（`--agent codex`）の Run だけで、取れなかった値は 0 と数えず欠けた数として出る。画面では、Run のタブで実行中・完了の Run と単位ごとの実績を、チケット詳細の Run の節と履歴の Iteration の行の「Run の集計」でそのチケット・Iteration の Run を見る（Run のタブと「Run の集計」はブラウザだけ）。記録の形・Git に入れる範囲・集計の約束は[要件定義書](docs/requirements.md)の「5.9 Run」と「6.6 作業の実績」。
+
+### Plan の段階とモデル
+
+Plan はチケットごとに段階 `--tier`（`light` / `standard` / `heavy`。省けば standard）を持つ。段階は設定の `models.light` / `models.standard` / `models.heavy` でモデルに対応し、`dg guide work` の手順がそのモデルのサブエージェントに実装を渡す（空なら親のモデルのまま）。段階の目安は `dg guide plan`、正本は[要件定義書](docs/requirements.md)の PL-1 と 5.10。
+
+```sh
+dg plan create t12 t13 --tier t12=light --tier t13=heavy   # チケットごとの段階。目安は dg guide plan
+dg config set models.heavy <モデル名>                       # 段階ごとのモデル（light・standard も）。既定は空
+```
 
 ### MCP で使う
 
