@@ -1,5 +1,6 @@
 // チケット詳細（UI-4）。本文（概要・受け入れ条件）、属性、Epic、依存先と依存元、作業ブランチ、Run の一覧と、経過（deguboard ブランチの履歴）。
 // 属性と本文を編集でき、Status は ticket.move と同じ検査を通る。パネルの Status の選択には Workflow で今から移れる Status だけを並べる。
+// Status の選択・表示名と任意フィールドは、チケット自身の Workflow（なければ Project の既定）で決める。
 // VS Code のパネルでは、タイトルの下に Status・優先度・Iteration・担当・PR の 1 行と編集のボタンを置いてスクロールしても上に残す。
 // パネルでは依存先が終わっていなければ本文の上の帯で知らせ、依存先・依存元に Status の丸印を付ける（終わった依存先は薄く）。
 // 右の列は幅を固定し、Status の選択を先頭に、属性を「計画・つながり・作業・記録」の見出しで分け、値のない属性は最後の 1 行にまとめる。
@@ -16,7 +17,7 @@ import { formatTime, TicketTimeline } from "../components/timeline.js";
 import { useHost } from "../host.js";
 import { Markdown } from "../markdown.js";
 import { hrefOf } from "../router.js";
-import { useStore } from "../store.js";
+import { useStore, type Store } from "../store.js";
 import {
   isFinished,
   movableStatuses,
@@ -26,6 +27,7 @@ import {
   type Priority,
   type Status,
   type TicketDetail,
+  type WorkflowView,
 } from "../types.js";
 
 interface Draft {
@@ -96,6 +98,40 @@ interface OptionalAttr {
   addable: boolean;
 }
 
+/**
+ * チケットの Workflow。チケットの workflow、なければ Project の既定で、core の requireWorkflowFor と同じ解決にする。
+ * 一覧が読んだ Project の既定（store.workflow）と同じなら引き直さない。別の Workflow は読み終えるまで null。
+ * 読めなければ理由を通知に出し、null のまま（パネルの Status の選択は今の Status だけで、任意フィールドも出さない）
+ */
+function useTicketWorkflow(store: Store, ticket: TicketDetail | null): WorkflowView | null {
+  const id = ticket
+    ? (ticket.workflow ?? store.projects.find((p) => p.id === ticket.project)?.workflow)
+    : undefined;
+  const other = id !== undefined && id !== store.project?.workflow ? id : null;
+  const [loaded, setLoaded] = useState<{ id: string; view: WorkflowView } | null>(null);
+  useEffect(() => {
+    if (!other) return;
+    let alive = true;
+    store.client
+      .run<WorkflowView>("workflow.show", { workflow: other })
+      .then((r) => alive && setLoaded({ id: other, view: r.data }))
+      .catch(
+        (e: unknown) =>
+          alive &&
+          store.notify({
+            kind: "error",
+            text: `Workflow ${other} を読めない`,
+            detail: e instanceof Error ? e.message : String(e),
+          }),
+      );
+    return () => {
+      alive = false;
+    };
+  }, [other, store.client, store.notify]);
+  if (!other) return store.workflow;
+  return loaded?.id === other ? loaded.view : null;
+}
+
 const PRIORITY_CHOICES: Choice[] = PRIORITIES.map((p) => ({ value: p, label: p }));
 
 export function TicketPage({ id }: { id: string }) {
@@ -110,7 +146,10 @@ export function TicketPage({ id }: { id: string }) {
   const [adding, setAdding] = useState(false);
   // その場で直した属性を保存している間は、次の確定を受けない（Enter を素早く 2 回押しても 1 回だけ渡す）
   const saving = useRef(false);
-  const fields = store.workflow?.definition.fields ?? [];
+  const workflow = useTicketWorkflow(store, ticket);
+  const fields = workflow?.definition.fields ?? [];
+  /** このチケットの Status の表示名（依存先・依存元はそれぞれの一覧の表示名のまま） */
+  const labelOf = (s: Status) => workflow?.labels[s] ?? store.labelOf(s);
 
   // 一覧（store.tickets）が読み直されたら本文も読み直す
   useEffect(() => {
@@ -313,11 +352,13 @@ export function TicketPage({ id }: { id: string }) {
         aria-label="Status"
       >
         {(panel
-          ? movableStatuses(ticket.status, store.workflow?.transitions ?? [], store.me?.kind)
+          ? workflow
+            ? movableStatuses(ticket.status, workflow.transitions, store.me?.kind)
+            : [ticket.status]
           : STATUSES
         ).map((s) => (
           <option key={s} value={s}>
-            {store.labelOf(s)}
+            {labelOf(s)}
           </option>
         ))}
       </select>,
@@ -535,8 +576,8 @@ export function TicketPage({ id }: { id: string }) {
             {header}
             <div className="detail-meta">
               <span className="detail-meta-status">
-                <StatusDot status={ticket.status} />
-                {store.labelOf(ticket.status)}
+                <StatusDot status={ticket.status} label={labelOf(ticket.status)} />
+                {labelOf(ticket.status)}
               </span>
               <PriorityBadge priority={ticket.priority} />
               {ticket.iteration ? (

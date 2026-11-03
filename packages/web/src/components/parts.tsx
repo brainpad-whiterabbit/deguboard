@@ -268,11 +268,15 @@ export function unfinishedCount(tickets: readonly Pick<Ticket, "status">[]): num
   return tickets.filter((t) => !isFinished(t.status)).length;
 }
 
-/** 状態の丸印。色は --dg-status-* */
-export function StatusDot({ status }: { status: Status }) {
+/** 状態の丸印。色は --dg-status-*。読み上げの名前は label、なければ一覧の Workflow の表示名 */
+export function StatusDot({ status, label }: { status: Status; label?: string }) {
   const store = useStore();
   return (
-    <span className={`status-dot status-${status}`} role="img" aria-label={store.labelOf(status)} />
+    <span
+      className={`status-dot status-${status}`}
+      role="img"
+      aria-label={label ?? store.labelOf(status)}
+    />
   );
 }
 
