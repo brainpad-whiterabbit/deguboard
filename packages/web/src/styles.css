@@ -1149,6 +1149,29 @@ table.list th {
 [data-surface="panel"] .detail .markdown > :first-child {
   margin-top: 0;
 }
+/* パネルのチケット詳細：依存先が終わっていないことを本文の上で知らせる帯。依存先ごとに丸印・ID・Status を並べる */
+.deps-band {
+  margin: 0 0 0.75rem;
+  padding: 0.4rem 0.75rem;
+}
+.deps-band-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3em;
+  margin-left: 0.6em;
+}
+/* 依存先・依存元の丸印。終わった依存先は薄く出す */
+.props-groups dd > div:has(> .status-dot) {
+  display: flex;
+  align-items: baseline;
+  gap: 0.35em;
+}
+.props-groups dd > div > .status-dot {
+  align-self: center;
+}
+.dep-finished {
+  opacity: 0.55;
+}
 .props-empty {
   font-size: 0.92em;
 }
