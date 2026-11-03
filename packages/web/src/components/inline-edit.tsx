@@ -1,4 +1,4 @@
-// その場で直す属性の値（パネルのチケット詳細の右の列）。値を押すと選択か入力欄になり、Enter（選択はマウスで選んでも）で確定、Esc で取り消す。
+// その場で直す属性の値（パネルのチケット詳細の右の列）。値を押すと選択か入力欄になり、Enter（選択は一覧から選んでも）で確定、Esc で取り消す。
 // 閉じた選択で ↑↓ を押すと値だけが変わり、保存しない（Enter で確定する）。欄から外れたら取り消す。
 // 保存は呼ぶ側（ticket.update に 1 属性だけ渡す）に任せ、ここは値の文字列を返して結果を待ち、失敗なら欄を開いたままにする。
 // Enter・Esc・選んで閉じたら、フォーカスを値のボタンに戻す
@@ -28,9 +28,34 @@ export function optionsOf(choices: readonly Choice[]) {
   ));
 }
 
+/** 一覧から選んだ後、Esc の keyup を待つ時間（ミリ秒）。この間に Esc が来なければ確定する */
+export const PICK_SETTLE_MS = 300;
+
+/** 閉じた選択の値を変えるキー（Chromium は keydown の既定の動作の中で同期して change を出す）。Space と Alt+↑↓ は一覧を開くので含めない */
+function changesClosedSelect(e: KeyboardEvent): boolean {
+  if (e.altKey || e.ctrlKey || e.metaKey) return false;
+  return (
+    [
+      "ArrowUp",
+      "ArrowDown",
+      "ArrowLeft",
+      "ArrowRight",
+      "Home",
+      "End",
+      "PageUp",
+      "PageDown",
+    ].includes(e.key) ||
+    (e.key.length === 1 && e.key !== " ")
+  );
+}
+
 /**
- * Enter かマウスで選んだときだけ確定する選択。閉じた選択の上のキー操作（↑↓・頭文字）で変わった値は確定せずに持つ。
- * Chromium は閉じた選択の ↑↓ で keydown の中で change を出すので、keydown から keyup までの change はキー操作とみなす
+ * Enter かマウスで選んだときだけ確定する選択。
+ * - 閉じた選択の上のキー操作（↑↓・頭文字）で変わった値は確定せずに持ち、Enter で確定する。そのキーの keydown の中で出た change をキー操作とみなす
+ * - 一覧（マウス・Space・Alt+↓ で開く）から選んだ change は、続く keyup が Enter なら確定、Esc なら取り消す。
+ *   Chromium は一覧で強調した値を Esc で閉じても change を出し、一覧の中の keydown はページに届かないため。
+ *   keyup が来なければ（マウスで選んだとき）PICK_SETTLE_MS 後に確定する
+ * - 一度もマウスやキーで触れずに出た change（支援技術など）はすぐ確定する
  */
 export function ConfirmSelect({
   label,
@@ -52,30 +77,69 @@ export function ConfirmSelect({
   onBlur: () => void;
 }) {
   const [current, setCurrent] = useState(value);
+  useEffect(() => setCurrent(value), [value]);
   const keying = useRef(false);
+  const touched = useRef(false);
+  // 一覧から選んで keyup か時間切れを待っている値
+  const pending = useRef<{ value: string; timer: ReturnType<typeof setTimeout> } | null>(null);
+  const clearPending = () => {
+    if (pending.current) clearTimeout(pending.current.timer);
+    const v = pending.current?.value;
+    pending.current = null;
+    return v;
+  };
+  useEffect(() => () => void clearPending(), []);
+  const cancel = () => {
+    clearPending();
+    setCurrent(value);
+    onCancel();
+  };
   return (
     <select
       autoFocus
       className={className}
       value={current}
       aria-label={label}
+      onMouseDown={() => {
+        touched.current = true;
+      }}
       onKeyDown={(e) => {
+        touched.current = true;
         if (e.key === "Escape") {
           e.preventDefault();
-          onCancel();
+          cancel();
         } else if (e.key === "Enter") {
           e.preventDefault();
+          clearPending();
           onConfirm(e.currentTarget.value);
-        } else keying.current = true;
+        } else if (changesClosedSelect(e)) {
+          // keyup に頼らない（一覧が開くと keyup はページに届かない）
+          keying.current = true;
+          setTimeout(() => {
+            keying.current = false;
+          });
+        }
       }}
-      onKeyUp={() => {
-        keying.current = false;
+      onKeyUp={(e) => {
+        if (!pending.current) return;
+        if (e.key === "Escape") cancel();
+        else onConfirm(clearPending()!);
       }}
       onChange={(e) => {
-        setCurrent(e.target.value);
-        if (!keying.current) onConfirm(e.target.value);
+        const v = e.target.value;
+        setCurrent(v);
+        if (keying.current) return;
+        if (!touched.current) return onConfirm(v);
+        clearPending();
+        pending.current = {
+          value: v,
+          timer: setTimeout(() => onConfirm(clearPending()!), PICK_SETTLE_MS),
+        };
       }}
-      onBlur={onBlur}
+      onBlur={() => {
+        clearPending();
+        onBlur();
+      }}
     >
       {optionsOf(choices)}
     </select>

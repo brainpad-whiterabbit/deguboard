@@ -7,7 +7,7 @@
 // 値のない属性は「なし」の行の「＋足す」から選んで値を入れる。ブラウザでは編集のボタンでタイトル・本文・属性をまとめて直す。
 // 作成・更新は経過と同じ手元時刻で、今年なら年を省く。ブランチ名の右にコピーのボタンを置く
 
-import { Fragment, useEffect, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
 import { CopyableCode } from "../components/copyable-code.js";
 import { ConfirmSelect, InlineEdit, optionsOf, type Choice } from "../components/inline-edit.js";
 import { PriorityBadge, StatusBadge, StatusDot, Tags, TicketLink } from "../components/parts.js";
@@ -107,6 +107,8 @@ export function TicketPage({ id }: { id: string }) {
   // パネルでその場で直している属性の key（OptionalAttr の key か "priority"）と、「＋足す」の選択を開いているか
   const [editing, setEditing] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
+  // その場で直した属性を保存している間は、次の確定を受けない（Enter を素早く 2 回押しても 1 回だけ渡す）
+  const saving = useRef(false);
   const fields = store.workflow?.definition.fields ?? [];
 
   // 一覧（store.tickets）が読み直されたら本文も読み直す
@@ -225,14 +227,21 @@ export function TicketPage({ id }: { id: string }) {
       onStart={() => setEditing(key)}
       onCancel={() => setEditing(null)}
       onCommit={async (raw) => {
-        const r = await store.run("ticket.update", { ticket: ticket.id, ...toPatch(raw) });
-        if (!r.ok) return false;
-        await store.client
-          .run<TicketDetail>("ticket.show", { ticket: ticket.id })
-          .then((shown) => setTicket(shown.data))
-          .catch(() => {});
-        setEditing(null);
-        return true;
+        if (saving.current) return false;
+        saving.current = true;
+        try {
+          const r = await store.run("ticket.update", { ticket: ticket.id, ...toPatch(raw) });
+          if (!r.ok) return false;
+          await store.client
+            .run<TicketDetail>("ticket.show", { ticket: ticket.id })
+            .then((shown) => setTicket(shown.data))
+            .catch(() => {});
+          // 保存の間に別の属性を直し始めていたら、その欄は閉じない
+          setEditing((current) => (current === key ? null : current));
+          return true;
+        } finally {
+          saving.current = false;
+        }
       }}
       {...opts}
     >

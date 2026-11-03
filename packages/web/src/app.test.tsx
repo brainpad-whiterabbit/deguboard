@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-li
 import { act } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { App, INFO_NOTICE_MS } from "./app.js";
+import { PICK_SETTLE_MS } from "./components/inline-edit.js";
 import { ClientError } from "./client/http.js";
 import type { WebviewClient } from "./client/webview.js";
 import type { WebviewEvent } from "@deguboard/core";
@@ -711,6 +712,47 @@ describe("画面", () => {
       expect(updates()).toEqual([]);
       fireEvent.keyDown(select, { key: "Enter" });
       await waitFor(() => expect(updates()).toEqual([{ ticket: "t3", priority: "high" }]));
+    });
+
+    it("Space か Alt+↓ で開いた一覧から選んだ change は、keyup がなくても確定する（Enter の keyup ならすぐ）", async () => {
+      const { updates } = await open();
+      fireEvent.click(screen.getByRole("button", { name: "優先度を変える" }));
+      let select = screen.getByLabelText("優先度");
+      // 一覧が開くと keyup はページに届かない。一覧の中の ↓ と Enter の keydown も届かず、change と Enter の keyup だけが来る
+      fireEvent.keyDown(select, { key: " " });
+      fireEvent.change(select, { target: { value: "high" } });
+      fireEvent.keyUp(select, { key: "Enter" });
+      await waitFor(() => expect(updates()).toEqual([{ ticket: "t3", priority: "high" }]));
+
+      fireEvent.click(await screen.findByRole("button", { name: "優先度を変える" }));
+      select = screen.getByLabelText("優先度");
+      fireEvent.keyDown(select, { key: "ArrowDown", altKey: true });
+      fireEvent.change(select, { target: { value: "low" } });
+      await waitFor(() => expect(updates().at(-1)).toEqual({ ticket: "t3", priority: "low" }));
+    });
+
+    it("一覧から選んだ後の Esc の keyup では保存せずに取り消す", async () => {
+      const { updates } = await open();
+      fireEvent.click(screen.getByRole("button", { name: "優先度を変える" }));
+      const select = screen.getByLabelText("優先度");
+      // Chromium は一覧で強調した値を Esc で閉じても change を出す
+      fireEvent.mouseDown(select);
+      fireEvent.change(select, { target: { value: "high" } });
+      fireEvent.keyUp(select, { key: "Escape" });
+      expect(screen.queryByLabelText("優先度")).toBeNull();
+      await new Promise((r) => setTimeout(r, PICK_SETTLE_MS + 50));
+      expect(updates()).toEqual([]);
+    });
+
+    it("保存の間に Enter をもう一度押しても ticket.update は 1 回だけ", async () => {
+      const { updates } = await open();
+      fireEvent.click(screen.getByRole("button", { name: "ラベルを変える" }));
+      const input = screen.getByLabelText("ラベル");
+      fireEvent.change(input, { target: { value: "web, ui" } });
+      fireEvent.keyDown(input, { key: "Enter" });
+      fireEvent.keyDown(input, { key: "Enter" });
+      await waitFor(() => expect(screen.queryByLabelText("ラベル")).toBeNull());
+      expect(updates()).toEqual([{ ticket: "t3", labels: ["web", "ui"] }]);
     });
 
     it("「＋足す」の属性の選択も ↓ では選ばず、Enter でその属性の欄を開く", async () => {
