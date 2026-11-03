@@ -1,0 +1,60 @@
+id: p33
+project: default
+tickets: [t298, t305, t306, t307, t291, t299, t308, t300, t281, t292, t309]
+after:
+  t306:
+    - t305
+  t307:
+    - t306
+  t291:
+    - t298
+  t299:
+    - t298
+  t308:
+    - t299
+  t300:
+    - t299
+    - t308
+  t281:
+    - t300
+  t292:
+    - t300
+    - t291
+  t309:
+    - t300
+    - t307
+pending_approval: true
+details:
+  t298:
+    scope: パネルのチケット・Sprint・Epic の詳細のタイトルの吹き出しと右クリック、中の行の吹き出しと右クリック
+    approach: t297 の useAskSpot を使い回し、右クリックの when をパネルに広げ、入力欄はパネルの下に出す
+  t305:
+    scope: ask の abandon・undo_done で、Workflow の遷移の by が人に限るなら人のコマンドを返すこととテスト
+    approach: core の ask.ts の human の判定に、対象のチケットの Workflow の遷移の by を見る判定を足す
+  t306:
+    scope: closed の Iteration に残った todo のおすすめを割り当てにすることとテスト
+    approach: ask.ts の askActions の todo の分岐で iteration_status が closed のときを分ける
+  t307:
+    scope: ask の全頼むことの human の check の名前を registry と照合するテスト
+    approach: core のテストで ASK_ACTIONS を回して commands の名前と照らす。実装は変えない
+  t291:
+    scope: ticket.tsx の右の列をパネル用とブラウザ用の部品に分け、任意フィールドの部品と formatShortTime を外に出す
+    approach: t298 の変更の後に分け、画面の振る舞いは既存のテストで確かめる
+  t299:
+    scope: Ctrl/⌘・Shift+クリックの複数選択と選択の帯、絞り込みの件数の右クリック
+    approach: 選択の状態は web の UI の状態に持ち、吹き出し・右クリックは選択があればその全件を対象にする
+  t308:
+    scope: カンバンと履歴のタイトル行の吹き出しで、今の Iteration や開いている行を対象に入力欄を開くことと UI-15
+    approach: 拡張のタイトル行のコマンドから画面に今の対象を問い、ask の event に載せる。対象がなければ今までどおり
+  t300:
+    scope: ドラッグ・作成フォーム・Iteration と Epic の詳細の書き込み・「Iteration を移す」を外し、テスト・UI-2・3・5・7・10・12・ADR-008・development.md を直す
+    approach: "@dnd-kit の使い所と書き込みのボタンを外し、書き込みのコマンドを呼ぶ場所を確かめるテストを足す"
+  t281:
+    scope: ドラッグをなくした後の @dnd-kit の扱いを決めて ADR-008 に書く
+    approach: t300 で @dnd-kit を使わなくなっていれば移らずに依存から外したことを、使っていれば移る条件を ADR-008 に書く
+  t292:
+    scope: 残ったコマンドを読む useEffect を 1 つのフックにまとめる
+    approach: t291・t300 の後に残った箇所を数え直してからまとめる
+  t309:
+    scope: requirements.md の細部を正本へ移し、予算の 90% を下回るようにする
+    approach: s11 で増えた UI-15・CL-2・AG-8 と古い節から細部を正本（ヘルプ・コード・テスト）へ移し、約束だけを残す
