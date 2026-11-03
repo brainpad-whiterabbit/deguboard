@@ -1,0 +1,23 @@
+{
+  "id": "r20261103-060748-4748",
+  "ticket": "t287",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-03T06:07:48Z",
+  "finished_at": "2026-11-03T06:09:39Z",
+  "result": "success",
+  "error": null,
+  "retries": 3,
+  "retry_reasons": [
+    "Iteration の開始・閉じるを詳細から行うのはサイドバーだけと戻した",
+    "auto.merge がエージェントに許す操作に当たることを ADR-006 に戻した",
+    "ブラウザの詳細が前のままの中身を書き、実績の理由を戻した"
+  ],
+  "usage": {
+    "input": 8,
+    "output": 4842,
+    "cache_read": 297010,
+    "cache_write": 5192
+  }
+}
