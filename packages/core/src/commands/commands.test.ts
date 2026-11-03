@@ -1285,6 +1285,29 @@ describe("Plan", () => {
     expect(ctx.store.plans.size).toBe(0);
   });
 
+  it("create は段階（tier）を details に記録し、不正な値と Plan の外のチケットを拒否する", async () => {
+    const f = await fixture();
+    const ctx = await initialized(f.cloneA);
+    for (const title of ["A", "B"]) await runCommand(ticketCreate, ctx, { title });
+    await expect(
+      runCommand(planCreate, ctx, { tickets: ["t1"], tier: { t1: "huge" as "light" } }),
+    ).rejects.toMatchObject({ code: "INVALID_INPUT" });
+    await expect(
+      runCommand(planCreate, ctx, { tickets: ["t1"], tier: { t2: "light" } }),
+    ).rejects.toMatchObject({ code: "REJECTED" });
+    expect(ctx.store.plans.size).toBe(0);
+    await runCommand(planCreate, ctx, {
+      tickets: ["t1", "t2"],
+      scope: { t1: "範囲" },
+      tier: { t1: "light", t2: "heavy" },
+    });
+    const shown = await runCommand(planShow, ctx, { plan: "p1" });
+    expect(shown.data.details).toEqual({
+      t1: { scope: "範囲", tier: "light" },
+      t2: { tier: "heavy" },
+    });
+  });
+
   it("show は進捗を Plan に書かず、チケットの状態から求めて待ちを出す（PL-2）", async () => {
     const f = await fixture();
     const ctx = await initialized(f.cloneA);

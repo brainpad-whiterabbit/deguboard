@@ -14,7 +14,7 @@ import type { ConfigField, ConfigShowView } from "../types.js";
 /** 画面のまとまり。キーの最上位（commit.mode なら commit）で振り分ける */
 const GROUPS: { id: string; label: string; tops: string[] }[] = [
   { id: "commit", label: "コミットと push", tops: ["commit", "push"] },
-  { id: "agent", label: "エージェント", tops: ["actions", "auto", "lint", "actor"] },
+  { id: "agent", label: "エージェント", tops: ["actions", "auto", "lint", "models", "actor"] },
   { id: "metrics", label: "計測", tops: ["metrics"] },
   { id: "git", label: "Git", tops: ["git", "worktree", "default_project"] },
 ];
@@ -29,6 +29,9 @@ const NAMES: Record<string, string> = {
   "actions.test": "テストのコマンド",
   "auto.merge": "PR を自動でマージする",
   "lint.require_iteration": "Iteration に入れてから進める",
+  "models.light": "段階 light のモデル",
+  "models.standard": "段階 standard のモデル",
+  "models.heavy": "段階 heavy のモデル",
   "actor.human_only": "人だけに許すコマンド",
   "metrics.read_transcripts": "会話記録から使用量を読む",
   "git.remote": "同期先のリモート",

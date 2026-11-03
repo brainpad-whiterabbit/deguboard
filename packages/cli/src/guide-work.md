@@ -26,7 +26,7 @@ argument-hint: "<Plan の ID|チケットの ID>"
    git worktree add --no-track -b <ブランチ名> <worktree の場所> {{git.remote}}/{{git.base_branch}}
    ```
 
-4. 実装の Run を始めて実装する（下の「Run を記録する」）：`dg --json --actor agent run start <id> <step> --agent <エージェント>`（software-development・general では `implement`）。返った Run の ID を控える。実装は本文の `## 受け入れ条件` を満たすことを目標にし、リポジトリの検査（lint・テスト）を通す
+4. 実装の Run を始めて実装する（下の「Run を記録する」）：`dg --json --actor agent run start <id> <step> --agent <エージェント>`（software-development・general では `implement`）。返った Run の ID を控える。Plan の段階（`details.<id>.tier`）のモデルが親と違えば、この手順の run start から手順 6 の Run を閉じるまでをそのモデルのサブエージェントに渡す（下の「段階のモデル」）。実装は本文の `## 受け入れ条件` を満たすことを目標にし、リポジトリの検査（lint・テスト）を通す
 5. 受け入れ条件を 1 項目ずつ確かめる。`dg --json --actor agent ticket show <id>` の `acceptance`（`index`・`text`・`checked`）を読み、成果物やテストで満たしたと確認できた項目だけ `dg --json --actor agent ticket check <id> <番号...>` で付ける。確認できない項目は付けず、PR の本文と人への報告に理由を書く
 6. コミットして push し、PR を draft で作る（`gh pr create --draft`）。PR の本文にチケットの ID（`t12`）と、付けられなかった受け入れ条件を書く。PR の番号をチケットに記録する：`dg --json --actor agent ticket update <id> --pr <番号>`（照合はブランチ名でも PR を引くが、使い回したブランチでは別の PR を拾いうる）。draft の PR を作ったら実装の Run を閉じる。続けて `dg guide review` のとおり、別のサブエージェントの見直しと上限付きの修正ループで品質ゲートを通し、`gh pr ready <PR>` で出す（上限を超えたときもそこに従う）
 7. `dg --json --actor agent sync` を回す。Workflow が PR の事実を見るなら（software-development）、draft でない PR が開いていれば review に進む（`gh` が要る）。見ないなら（general など）、PR を出したら自分で `dg --json --actor agent ticket move <id> review` に進める
@@ -43,6 +43,14 @@ Run は 1 回の作業の記録で、使用量（トークン）が残る。実�
 - 同じ step の Run が実行中で start が拒否されたら、下の「閉じ損ねた Run を閉じる」で閉じて始め直す。サブエージェントなら閉じずに親に返す（親が `interrupted` で閉じる）
 - **結果**：実装の Run は draft の PR を作ったら `success`。自分の判断でやめる（検査が通らない、範囲がはっきりしない）なら `--result failure --error <理由>` で閉じる。`interrupted` は閉じ損ねた Run だけに使う
 - **やり直しの理由**：`--retry-reason` の書き方は `dg guide review` の「Run の分け方」
+
+## 段階のモデル
+
+Plan の `details.<id>.tier`（省けば standard）を `config.yaml` の `models.*`（今の設定：light `{{models.light}}`・standard `{{models.standard}}`・heavy `{{models.heavy}}`。なし（空）なら親のモデル）でモデルに対応させる。モデルを選べない環境では、すべて親のモデルで進める。
+
+- **実装**：段階のモデルが親と違うときだけ、そのモデルのサブエージェントに手順 4〜6（run start から draft の PR を作って実装の Run を閉じるまで）を渡す。サブエージェントは `--model <モデル>` を付けて自分で run start する。渡すもの・しないこと・返すものと、返った後に親が行う `ticket check`・`ticket update --pr` は `dg guide parallel` と同じ。同じモデルなら今までどおり親が run start して実装する
+- **調べもの**：実装の中でコードや記録を調べるサブエージェントは、段階によらず `models.light` で起動する（空なら親のモデル）
+- **見直しと手直し**：見直し役は段階によらず親のモデル、修正ループは実装者と同じモデル（`dg guide review`）
 
 ## Plan に従って進める
 

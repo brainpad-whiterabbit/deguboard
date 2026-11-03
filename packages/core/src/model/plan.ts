@@ -4,6 +4,10 @@ import { z } from "zod";
 import { isoDateTime, slugSchema } from "./common.js";
 import { planIdSchema, ticketIdSchema } from "./id.js";
 
+/** チケットの難しさの段階。config の models.* でモデル名に対応させる（モデル名は Plan に書かない） */
+export const PLAN_TIERS = ["light", "standard", "heavy"] as const;
+export type PlanTier = (typeof PLAN_TIERS)[number];
+
 export const planSchema = z.looseObject({
   id: planIdSchema,
   project: slugSchema,
@@ -16,7 +20,11 @@ export const planSchema = z.looseObject({
   details: z
     .record(
       ticketIdSchema,
-      z.looseObject({ scope: z.string().optional(), approach: z.string().optional() }),
+      z.looseObject({
+        scope: z.string().optional(),
+        approach: z.string().optional(),
+        tier: z.enum(PLAN_TIERS).optional(),
+      }),
     )
     .default({}),
   closed_at: isoDateTime.optional(),

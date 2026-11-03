@@ -95,6 +95,28 @@ export const configSchema = z.looseObject({
         ),
     })
     .prefault({}),
+  models: z
+    .looseObject({
+      light: z
+        .string()
+        .default("")
+        .describe(
+          "Plan の段階 light（文書・設定・文言だけ）と、実装の中の調べものに使うモデル。空なら親のモデル",
+        ),
+      standard: z
+        .string()
+        .default("")
+        .describe(
+          "Plan の段階 standard（light・heavy に当たらないもの）に使うモデル。空なら親のモデル",
+        ),
+      heavy: z
+        .string()
+        .default("")
+        .describe(
+          "Plan の段階 heavy（設計の判断・データの形・複数パッケージ・原因の分からない不具合）に使うモデル。空なら親のモデル",
+        ),
+    })
+    .prefault({}),
   actor: z
     .looseObject({
       human_only: z
