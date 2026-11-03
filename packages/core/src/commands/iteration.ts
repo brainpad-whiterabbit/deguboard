@@ -25,10 +25,7 @@ import {
 
 const isoDate = z.iso.date();
 
-/**
- * active の Iteration は Project に 1 つ（IT-1）。ほかに active があれば拒否する。
- * web（iteration-parts.tsx の otherActiveIteration・blockedByActiveReason）はこの判定を写してボタンを押せなくする
- */
+/** active の Iteration は Project に 1 つ（IT-1）。ほかに active があれば拒否する */
 function rejectIfOtherActive(store: Store, it: Doc<Iteration>, verb: string): void {
   const other = otherActiveOf(
     [...store.iterations.values()].map((i) => i.data),
