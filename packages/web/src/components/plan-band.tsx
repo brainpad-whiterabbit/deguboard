@@ -13,7 +13,7 @@ import {
   planProgressLine,
   plansInScope,
   type GraphNode,
-  type PlanNext,
+  type BandNext,
   type PlanState,
 } from "./plan-graph.js";
 
@@ -125,7 +125,7 @@ function PlanSub({ plan, state, byId }: ItemProps) {
           <Ids ids={working} byId={byId} />
         </span>
       ) : null}
-      {next ? <PlanNextText next={next} byId={byId} /> : null}
+      {next ? <BandNextText next={next} byId={byId} /> : null}
     </div>
   );
 }
@@ -142,7 +142,7 @@ function Ids({ ids, byId }: { ids: readonly string[]; byId: ReadonlyMap<string, 
   );
 }
 
-function PlanNextText({ next, byId }: { next: PlanNext; byId: ReadonlyMap<string, Ticket> }) {
+function BandNextText({ next, byId }: { next: BandNext; byId: ReadonlyMap<string, Ticket> }) {
   if (next.kind === "approval") {
     return <span className="plan-next muted">人の承認を待っている</span>;
   }
