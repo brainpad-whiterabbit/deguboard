@@ -67,7 +67,9 @@ describe("dg guide", () => {
     const reread = flow.indexOf("正本とコメントを読み直す");
     expect(reread).toBeGreaterThan(-1);
     expect(reread).toBeLessThan(flow.indexOf("gh pr create --draft"));
-    expect(flow).toMatch(/requirements・ADR・README.*同じ PR で直す.*PR の本文と人への報告に書く/);
+    expect(flow).toMatch(
+      /仕様書（requirements）・ADR・README.*同じ PR で直す[\s\S]*読み直した正本と直した箇所を書く/,
+    );
     expect(await readGuide("parallel")).toContain("読み直した正本と直した箇所");
   });
 
