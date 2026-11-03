@@ -159,6 +159,9 @@ export interface MockClient extends CommandClient {
   data: Fixture;
 }
 
+/** mockClient の ticket.show・ticket.update が返す本文 */
+const TICKET_BODY = "## 概要\n\n本文\n\n## 受け入れ条件\n\n- [ ] a\n";
+
 export function mockClient(data = fixture()): MockClient {
   const calls: MockClient["calls"] = [];
   const handlers: MockClient["handlers"] = {
@@ -187,11 +190,30 @@ export function mockClient(data = fixture()): MockClient {
       const t = data.tickets.find((x) => x.id === (input as { ticket: string }).ticket)!;
       return {
         ...t,
-        body: "## 概要\n\n本文\n\n## 受け入れ条件\n\n- [ ] a\n",
+        body: TICKET_BODY,
         dependents: [],
         deps_done: true,
         pending_deps: [],
       };
+    },
+    // core の ticket.update と同じく、属性を直して（null は外す）チケットの属性と本文を返す。
+    // 本物と違い data.tickets の中のオブジェクトをその場で書き換え、ticket.list は同じ配列を返すので、
+    // 保存の後に読み直しても store.tickets は変わらず、一覧の読み直しによる ticket.show も走らない。
+    // それを確かめるテストでは ticket.list を毎回別の配列で返すよう差し替える
+    "ticket.update": (input) => {
+      const {
+        ticket: id,
+        fields,
+        ...patch
+      } = input as { ticket: string; fields?: Record<string, unknown> } & Record<string, unknown>;
+      const t = data.tickets.find((x) => x.id === id)! as unknown as Record<string, unknown>;
+      for (const [key, value] of Object.entries({ ...patch, ...fields })) {
+        // body と acceptance は本文（の節）を置き換える入力で、属性ではない
+        if (key === "body" || key === "acceptance") continue;
+        if (value === null) delete t[key];
+        else t[key] = value;
+      }
+      return { ...t, body: (patch["body"] as string | undefined) ?? TICKET_BODY };
     },
     "ticket.move": (input) => {
       const { ticket: id, status } = input as { ticket: string; status: Ticket["status"] };

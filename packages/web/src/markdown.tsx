@@ -2,6 +2,7 @@
 // タスクリストのある節は、見出しに済んだ数とメーターを出す
 
 import type { ReactNode } from "react";
+import { ProgressMeter } from "./components/parts.js";
 
 type Block =
   | { kind: "heading"; level: number; text: string }
@@ -69,14 +70,14 @@ export function sectionTasks(blocks: Block[]): Map<number, TaskCount> {
 /** 見出しの右に出す「済 / 全」と細いメーター */
 function TaskMeter({ count }: { count: TaskCount }) {
   return (
-    <span className="progress task-meter" title={`済 ${count.done} / 全 ${count.total}`}>
-      <span className="bar">
-        <span className="status-done" style={{ width: `${(count.done / count.total) * 100}%` }} />
-      </span>
-      <span className="muted">
-        {count.done} / {count.total}
-      </span>
-    </span>
+    <ProgressMeter
+      className="progress task-meter"
+      title={`済 ${count.done} / 全 ${count.total}`}
+      total={count.total}
+      segments={[{ key: "done", className: "status-done", count: count.done }]}
+    >
+      {count.done} / {count.total}
+    </ProgressMeter>
   );
 }
 

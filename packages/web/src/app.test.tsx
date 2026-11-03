@@ -563,6 +563,44 @@ describe("画面", () => {
     expect(band.querySelectorAll(".status-dot")).toHaveLength(1);
   });
 
+  it("エディタのパネルの右の列の依存先の丸印と薄くする判定は pending_deps に合わせ、一覧にない別の Project の依存先も同じに扱う", async () => {
+    window.location.hash = "#/tickets/t9";
+    // t5 は別の Project で done、t7 は別の Project で review（どちらも今の Project の ticket.list には出ない）。t6 は見つからない依存先
+    const data = fixture({
+      tickets: [
+        ticket({ id: "t1", title: "済み", status: "done" }),
+        ticket({ id: "t2", title: "途中", status: "in_progress" }),
+        ticket({ id: "t9", title: "待ち", depends_on: ["t1", "t5", "t2", "t6", "t7"] }),
+      ],
+    });
+    const client = mockClient(data);
+    const show = client.handlers["ticket.show"]!;
+    client.handlers["ticket.show"] = (input) => ({
+      ...(show(input) as object),
+      deps_done: false,
+      pending_deps: [
+        { id: "t2", status: "in_progress" },
+        { id: "t6", status: null },
+        { id: "t7", status: "review" },
+      ],
+    });
+    mount(client, hostOf("panel"));
+    await screen.findByRole("heading", { level: 1, name: "待ち" });
+    const aside = document.querySelector(".detail > aside") as HTMLElement;
+    const deps = within(aside).getByRole("region", { name: "つながり" });
+    const rowOf = (id: string) => deps.querySelector(`a[href="#/tickets/${id}"]`)!.parentElement!;
+    const dim = (id: string) => rowOf(id).classList.contains("dep-finished");
+    const dot = (id: string) => rowOf(id).querySelector(".status-dot")?.className ?? null;
+    // 薄くするのは pending_deps にない依存先だけ（帯と同じ判定）
+    expect(["t1", "t5", "t2", "t6", "t7"].filter(dim)).toEqual(["t1", "t5"]);
+    // 丸印の Status は、終わっていない依存先は pending_deps、終わった依存先は一覧のもの。分からなければ付けない
+    expect(dot("t1")).toContain("status-done");
+    expect(dot("t5")).toBeNull();
+    expect(dot("t2")).toContain("status-in_progress");
+    expect(dot("t6")).toBeNull();
+    expect(dot("t7")).toContain("status-review");
+  });
+
   it("ブラウザのチケット詳細は、依存先が終わっていなくても本文の上の帯を出さず、右の列の依存先の下に知らせる", async () => {
     window.location.hash = "#/tickets/t9";
     const data = fixture({
@@ -665,7 +703,6 @@ describe("画面", () => {
   it("編集して保存すると ticket.update に属性と本文を渡す", async () => {
     window.location.hash = "#/tickets/t3";
     const client = mockClient();
-    client.handlers["ticket.update"] = (input) => input;
     mount(client);
     await screen.findByRole("heading", { level: 1, name: "画面" });
     fireEvent.click(screen.getByRole("button", { name: "編集" }));
@@ -698,7 +735,6 @@ describe("画面", () => {
     async function open(data = fixture()) {
       window.location.hash = "#/tickets/t3";
       const client = mockClient(data);
-      client.handlers["ticket.update"] = (input) => input;
       mount(client, hostOf("panel"));
       await screen.findByRole("heading", { level: 1, name: "画面" });
       const updates = () =>
@@ -863,21 +899,27 @@ describe("画面", () => {
 
       fireEvent.click(await screen.findByRole("button", { name: "優先度を変える" }));
       select = screen.getByLabelText("優先度");
+      // keyup の来ない確定は PICK_SETTLE_MS を偽のタイマーで進めて確かめる
+      vi.useFakeTimers();
       fireEvent.keyDown(select, { key: "ArrowDown", altKey: true });
       fireEvent.change(select, { target: { value: "low" } });
-      await waitFor(() => expect(updates().at(-1)).toEqual({ ticket: "t3", priority: "low" }));
+      act(() => vi.advanceTimersByTime(PICK_SETTLE_MS - 1));
+      expect(updates().at(-1)).toEqual({ ticket: "t3", priority: "high" });
+      act(() => vi.advanceTimersByTime(1));
+      expect(updates().at(-1)).toEqual({ ticket: "t3", priority: "low" });
     });
 
     it("一覧から選んだ後の Esc の keyup では保存せずに取り消す", async () => {
       const { updates } = await open();
       fireEvent.click(screen.getByRole("button", { name: "優先度を変える" }));
       const select = screen.getByLabelText("優先度");
+      vi.useFakeTimers();
       // Chromium は一覧で強調した値を Esc で閉じても change を出す
       fireEvent.mouseDown(select);
       fireEvent.change(select, { target: { value: "high" } });
       fireEvent.keyUp(select, { key: "Escape" });
       expect(screen.queryByLabelText("優先度")).toBeNull();
-      await new Promise((r) => setTimeout(r, PICK_SETTLE_MS + 50));
+      act(() => vi.advanceTimersByTime(PICK_SETTLE_MS));
       expect(updates()).toEqual([]);
     });
 
@@ -890,6 +932,29 @@ describe("画面", () => {
       fireEvent.keyDown(input, { key: "Enter" });
       await waitFor(() => expect(screen.queryByLabelText("ラベル")).toBeNull());
       expect(updates()).toEqual([{ ticket: "t3", labels: ["web", "ui"] }]);
+    });
+
+    it("1 回の保存で ticket.show は 1 回だけ呼ぶ（一覧の読み直しで本文を読み直す分だけ）", async () => {
+      const data = fixture();
+      const { client } = await open(data);
+      // 本物の client と同じく、一覧は読むたびに別の配列で返す（読み直すと store.tickets が変わる）
+      client.handlers["ticket.list"] = () => [...data.tickets];
+      const shows = () => client.calls.filter((c) => c.name === "ticket.show").length;
+      // 開いたときの読み込みが落ち着いてから数える。mockClient の応答は Promise だけで返るので、
+      // タイマーで待たずに act を何度か回して、残りの応答と effect を流し切る
+      const settle = async () => {
+        for (let i = 0; i < 5; i++) await act(async () => {});
+      };
+      await settle();
+      const before = shows();
+      fireEvent.click(screen.getByRole("button", { name: "優先度を変える" }));
+      fireEvent.change(screen.getByLabelText("優先度"), { target: { value: "high" } });
+      await waitFor(() => expect(screen.queryByLabelText("優先度")).toBeNull());
+      await waitFor(() => expect(shows()).toBe(before + 1));
+      // 閉じた時点で直した値が出ている（ticket.update の結果で入れる）
+      expect(screen.getByRole("button", { name: "優先度を変える" }).textContent).toContain("high");
+      await settle();
+      expect(shows()).toBe(before + 1);
     });
 
     it("「＋足す」の属性の選択も ↓ では選ばず、Enter でその属性の欄を開く", async () => {

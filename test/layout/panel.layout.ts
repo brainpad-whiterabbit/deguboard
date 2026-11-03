@@ -4,6 +4,7 @@
 // - タイトルと属性の 1 行の帯（.detail-head）は、スクロールしても .page の上端に残る。2 列でも、
 //   1 列（幅 800px 以下）で右の列（属性）までスクロールしても残る（t263・t265）
 // - Run の一覧は、パネルの幅（380px）でも横にスクロールしない（t267）
+// - Epic・Iteration の鉛筆のボタン（.inline-edit-icon）は 24px 四方で、行の高さを変えない（t290）
 // ブラウザが要るので mise run test には入れず、mise run test:layout で回す（先に mise run build と mise run playwright:install）
 
 import { access } from "node:fs/promises";
@@ -186,6 +187,35 @@ describe.each(SCHEMES)("パネルのチケット詳細の配置（%s）", (schem
       }
     },
   );
+
+  it("Epic・Iteration の鉛筆のボタンは 24px 四方で、行の高さはリンクの高さのまま", async () => {
+    const { context, page } = await openDetail(1100, scheme);
+    try {
+      const rows = await page.evaluate(() =>
+        [...document.querySelectorAll(".detail > aside .inline-edit-icon")].map((icon) => {
+          const box = icon.getBoundingClientRect();
+          const link = icon.closest(".inline-edit-linked")!.querySelector("a")!;
+          return {
+            label: icon.getAttribute("aria-label"),
+            size: [box.width, box.height],
+            dd: icon.closest("dd")!.getBoundingClientRect().height,
+            link: link.getBoundingClientRect().height,
+          };
+        }),
+      );
+      expect(rows.map((r) => r.label)).toEqual(["Iterationを変える", "Epicを変える"]);
+      for (const r of rows) {
+        if (Math.abs(r.dd - r.link) > 1) await keep(page, `${scheme}-pencil`);
+        expect(r.size, `${r.label}の大きさ`).toEqual([24, 24]);
+        expect(
+          Math.abs(r.dd - r.link),
+          `${r.label}の行の高さとリンクの高さの差`,
+        ).toBeLessThanOrEqual(1);
+      }
+    } finally {
+      await context.close();
+    }
+  });
 
   it("幅 380px で、Run の一覧が横にスクロールせず、画面も横に溢れない", async () => {
     const { context, page } = await openDetail(380, scheme);

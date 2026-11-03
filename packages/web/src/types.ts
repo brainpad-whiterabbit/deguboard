@@ -19,12 +19,14 @@ import type {
   PlanRow,
   Priority,
   Progress,
+  Project,
   RunMetrics,
   RunView,
   Status,
   Ticket,
   TicketDetail,
   TicketRow,
+  TransitionConstraint,
   WhoamiView,
   WorkflowDefinition,
 } from "@deguboard/core";
@@ -48,6 +50,7 @@ export type {
   PlanRow,
   Priority,
   Progress,
+  Project,
   RunMetrics,
   RunView,
   Status,
@@ -156,18 +159,11 @@ export function matchesClaim(ticket: Ticket, claim: string): boolean {
   return ticket.assignee === claim;
 }
 
-export interface Project {
-  id: string;
-  name: string;
-  description: string;
-  workflow: string;
-  status: "active" | "archived";
-}
-
+/** workflow.show の出力のうち画面が使うもの（遷移の制約は core の TransitionConstraint のまま） */
 export interface WorkflowView {
   definition: WorkflowDefinition;
   labels: Record<Status, string>;
-  transitions: { from: Status; to: Status; by?: string[]; requires: string[] }[];
+  transitions: readonly TransitionConstraint[];
 }
 
 /**

@@ -1239,12 +1239,18 @@ table.list th {
   min-width: 0;
   overflow-wrap: anywhere;
 }
+/* 鉛筆のボタンは押しやすいよう 24px 四方にし、上下の負の余白で 1 行の高さ（1lh）に収めて行の高さを変えない */
 .inline-edit-icon {
   display: inline-flex;
   flex: none;
   align-items: center;
-  margin: 0;
-  padding: 0.15em;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 24px;
+  height: 24px;
+  margin: -4px 0;
+  margin-block: calc((1lh - 24px) / 2);
+  padding: 0;
   color: var(--vscode-descriptionForeground);
 }
 .inline-edit-icon:hover {

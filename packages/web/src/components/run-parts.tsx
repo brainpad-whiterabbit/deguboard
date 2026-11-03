@@ -24,11 +24,6 @@ export function runResultKey(run: RunView): RunResultKey {
   return run.result ?? "unfinished";
 }
 
-/** 結果の表示名 */
-export function runResultLabel(run: RunView): string {
-  return RESULT_LABELS[runResultKey(run)];
-}
-
 /** 結果の印（色つきの文字）。失敗・中断の理由はツールチップで読む */
 export function RunResult({ run }: { run: RunView }) {
   const key = runResultKey(run);
