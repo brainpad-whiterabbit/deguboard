@@ -21,6 +21,31 @@ async function dg(cwd: string, argv: string[]) {
   return { code, out: out.join("\n"), err: err.join("\n") };
 }
 
+// 文言の検査は節（見出し・手順・行）を切り出してから要点語の含有で行い、強調記号や括弧・接続の語には頼らない。
+// 順序を確かめるときだけ正規表現を使い、行をまたぐところは [\s\S]*? でつなぐ
+
+/** 見出しの節を、同じか浅い階層の次の見出しの手前まで切り出す。見出しがなければ空 */
+function section(text: string, heading: string): string {
+  const level = /^#+/.exec(heading)?.[0].length ?? 2;
+  const body = text.split(`${heading}\n`)[1] ?? "";
+  return body.split(new RegExp(`\\n#{1,${level}} `))[0] ?? "";
+}
+
+/** 番号付きの手順 n を、下位の箇条書きを含めて次の手順の手前まで切り出す。なければ空 */
+function step(text: string, n: number): string {
+  return text.split(new RegExp(`\\n${n}\\. `))[1]?.split(/\n\d+\. /)[0] ?? "";
+}
+
+/** 要点語を含む最初の行。なければ空 */
+function lineWith(text: string, word: string): string {
+  return text.split("\n").find((line) => line.includes(word)) ?? "";
+}
+
+/** 「- **名前**：…」の箇条書きの行を、強調記号によらず名前で引く。なければ空 */
+function bullet(text: string, name: string): string {
+  return text.split("\n").find((line) => line.replace(/\*\*/g, "").startsWith(`- ${name}：`)) ?? "";
+}
+
 describe("dg guide", () => {
   it("すべてのトピックが読め、見出しで始まり、未知の項目を残さない", async () => {
     for (const topic of GUIDE_TOPICS) {
@@ -48,8 +73,10 @@ describe("dg guide", () => {
   });
 
   it("import は受け入れ条件が 7 項目以上のチケットを分けることを、根拠とともに勧める", async () => {
-    const tips = (await readGuide("import")).split("## よいチケットの書き方")[1] ?? "";
-    expect(tips).toMatch(/受け入れ条件が 7 項目以上.*分けることを勧める.*10 件のうち 9 件/);
+    const tips = section(await readGuide("import"), "## よいチケットの書き方");
+    expect(tips).toMatch(
+      /受け入れ条件が 7 項目以上[\s\S]*?分けることを勧める[\s\S]*?10 件のうち 9 件/,
+    );
   });
 
   it("work と done は ticket check を案内し、本文全体を書き戻す手順を残さない", async () => {
@@ -62,39 +89,40 @@ describe("dg guide", () => {
   });
 
   it("work は PR を作る前に、触れた節の正本とコメントを読み直してずれを同じ PR で直し、報告に書くと案内する", async () => {
-    const work = await readGuide("work");
-    const flow = work.split("## 流れ")[1]?.split("## Run を記録する")[0] ?? "";
-    const reread = flow.indexOf("正本とコメントを読み直す");
-    expect(reread).toBeGreaterThan(-1);
-    expect(reread).toBeLessThan(flow.indexOf("gh pr create --draft"));
+    const flow = section(await readGuide("work"), "## 流れ");
+    for (const word of ["requirements", "ADR", "README"]) expect(flow).toContain(word);
+    // 読み直し → 同じ PR で直す → PR を作る → 本文に読み直した正本と直した箇所を書く、の順
     expect(flow).toMatch(
-      /仕様書（requirements）・ADR・README.*同じ PR で直す[\s\S]*読み直した正本と直した箇所を書く/,
+      /正本とコメントを読み直す[\s\S]*?同じ PR で直す[\s\S]*?gh pr create --draft[\s\S]*?読み直した正本と直した箇所/,
     );
     expect(await readGuide("parallel")).toContain("読み直した正本と直した箇所");
   });
 
   it("work は PR の要らない作業を --without-branch で claim し、確かめたら done、残れば review と案内する", async () => {
-    const work = await readGuide("work");
-    expect(work).toContain("## PR の要らない作業");
-    expect(work).toContain("ticket claim <id> --without-branch");
-    expect(work).toContain("ticket move <id> done");
-    expect(work).toContain("ticket move <id> review");
+    const noBranch = section(await readGuide("work"), "## PR の要らない作業");
+    expect(noBranch).toContain("ticket claim <id> --without-branch");
+    expect(noBranch).toContain("ticket move <id> done");
+    expect(noBranch).toContain("ticket move <id> review");
   });
 
   it("work の PR の要らない作業は、claim --without-branch の前に上の手順 1 を案内し、今の設定を埋める", async () => {
     const work = await readGuide("work");
-    const section = (text: string) => text.slice(text.indexOf("## PR の要らない作業"));
-    const noBranch = section(work);
-    const reference = noBranch.indexOf(
-      "上の手順 1（着手できるか確かめ、`lint.require_iteration` が true なら Iteration に入れる",
-    );
+    const noBranch = section(work, "## PR の要らない作業");
+    const reference = noBranch.indexOf("上の手順 1");
     expect(reference).toBeGreaterThan(-1);
     expect(reference).toBeLessThan(noBranch.indexOf("ticket claim <id> --without-branch"));
+    expect(lineWith(noBranch, "上の手順 1")).toContain("lint.require_iteration");
+    expect(lineWith(noBranch, "上の手順 1")).toContain("Iteration に入れる");
     // 選び方は上の手順 1 にだけ書き、この節には書き写さない
     expect(noBranch).not.toContain("iteration add <S> <id>");
-    expect(section(fillPlaceholders(work, defaultConfig()))).toContain("今の設定：`false`");
+    expect(section(fillPlaceholders(work, defaultConfig()), "## PR の要らない作業")).toContain(
+      "今の設定：`false`",
+    );
     expect(
-      section(fillPlaceholders(work, { ...defaultConfig(), lint: { require_iteration: true } })),
+      section(
+        fillPlaceholders(work, { ...defaultConfig(), lint: { require_iteration: true } }),
+        "## PR の要らない作業",
+      ),
     ).toContain("今の設定：`true`");
   });
 
@@ -114,8 +142,10 @@ describe("dg guide", () => {
 
   it("all は --auto で自動で選ぶものと承認を残すものを分け、自動マージは auto.merge を true にしたときだけ条件を確かめて行う", async () => {
     const all = await readGuide("all");
-    for (const heading of ["## `--auto` で自動で選ぶ", "### マージの前の条件", "**自動にしない"])
-      expect(all).toContain(heading);
+    const auto = section(all, "## `--auto` で自動で選ぶ");
+    for (const word of ["自動で選ぶ", "自動にしない", "auto.merge", "マージの前の条件"])
+      expect(auto).toContain(word);
+    expect(section(all, "### マージの前の条件")).toContain("品質ゲート");
     expect(fillPlaceholders(all, defaultConfig())).toContain("今の設定：`false`");
     expect(fillPlaceholders(all, { ...defaultConfig(), auto: { merge: true } })).toContain(
       "今の設定：`true`",
@@ -127,9 +157,10 @@ describe("dg guide", () => {
 
   it("work は lint.require_iteration が true なら claim の前に Iteration に入れると案内し、今の設定を埋める", async () => {
     const work = await readGuide("work");
-    expect(work.indexOf("Iteration に入れる")).toBeLessThan(work.indexOf("ticket claim <id>"));
-    expect(work).toContain("iteration add <S> <id>");
-    expect(work).toContain("lint_iteration_missing");
+    const flow = section(work, "## 流れ");
+    expect(flow.indexOf("Iteration に入れる")).toBeLessThan(flow.indexOf("ticket claim <id>"));
+    expect(flow).toContain("iteration add <S> <id>");
+    expect(flow).toContain("lint_iteration_missing");
     expect(fillPlaceholders(work, defaultConfig())).toContain("今の設定：`false`");
     expect(
       fillPlaceholders(work, { ...defaultConfig(), lint: { require_iteration: true } }),
@@ -153,10 +184,9 @@ describe("dg guide", () => {
 
   it("parallel は親が claim の前に Iteration に入れると案内し、check は lint_iteration_missing の直す案を示し、どちらも今の設定を埋める", async () => {
     const parallel = await readGuide("parallel");
-    const parent = parallel.match(/^- \*\*親\*\*：.*$/m)?.[0] ?? "";
-    expect(parent.indexOf("Iteration に入れる")).toBeGreaterThan(-1);
-    expect(parent.indexOf("Iteration に入れる")).toBeLessThan(parent.indexOf("claim"));
-    expect(parallel).toContain("手順 1 の「Iteration に入れる」と手順 2・3");
+    const parent = bullet(parallel, "親");
+    for (const word of ["Iteration に入れる", "claim", "worktree", "手順 1", "手順 2"])
+      expect(parent).toContain(word);
     expect(parallel).toContain("iteration add <S> <id>");
     const check = await readGuide("check");
     expect(check).toContain("lint_iteration_missing");
@@ -169,29 +199,32 @@ describe("dg guide", () => {
       ).toContain("今の設定：`true`");
     }
     // work の手順 1 が Iteration に入れる、手順 2 が claim、手順 3 が worktree で、parallel の参照と合う
-    const work = await readGuide("work");
-    expect(work).toMatch(/\n1\. 着手できるか確かめる[^\n]*\n   - Iteration に入れる/);
-    expect(work).toMatch(/\n2\. claim する/);
-    expect(work).toMatch(/\n3\. 作業ブランチと worktree を作る/);
-    expect(await readGuide("all")).toContain(
-      "Iteration に入れる（`lint.require_iteration` が true のとき）",
+    const flow = section(await readGuide("work"), "## 流れ");
+    expect(step(flow, 1)).toContain("着手できるか確かめる");
+    expect(step(flow, 1)).toContain("Iteration に入れる");
+    expect(step(flow, 2)).toContain("claim する");
+    expect(step(flow, 3)).toContain("worktree");
+    expect(lineWith(await readGuide("all"), "lint.require_iteration")).toContain(
+      "Iteration に入れる",
     );
   });
 
   it("check は lint_iteration_multiple_active でどれを閉じるかを人に聞き、work の手順 2 は Iteration の start が拒否されたら読み直して planned のままなら人に頼む", async () => {
-    const check = await readGuide("check");
-    const multiple = check.match(/^.*`lint_iteration_multiple_active`.*$/m)?.[0] ?? "";
+    const multiple = lineWith(await readGuide("check"), "lint_iteration_multiple_active");
     expect(multiple).toContain("どれを閉じるかを人に聞く");
-    expect(multiple).toContain("閉じるのは人の指示で行う");
-    const work = await readGuide("work");
-    const step2 = work.slice(work.indexOf("\n2. claim する"), work.indexOf("\n3. 作業ブランチ"));
-    const start = step2.match(/^ {3}- Iteration を始める：.*$/m)?.[0] ?? "";
-    expect(start).toContain("iteration start <S>");
-    expect(start).toContain("拒否されたら `iteration show` を読み直し");
-    expect(start).toContain("active なら何もせず");
-    expect(start).toContain("planned のまま");
-    expect(start).toContain("人に頼む");
-    expect(start).toContain("どちらでも作業は続ける");
+    expect(multiple).toContain("人の指示で行う");
+    const step2 = step(section(await readGuide("work"), "## 流れ"), 2);
+    const start = lineWith(step2, "Iteration を始める");
+    for (const word of [
+      "iteration start <S>",
+      "拒否されたら",
+      "iteration show",
+      "active",
+      "planned のまま",
+      "人に頼む",
+      "作業は続ける",
+    ])
+      expect(start).toContain(word);
   });
 
   it("parallel は着手できるチケットを上限付きでサブエージェントに並べ、役割を分け、1 件でほかを止めないと案内し、work・all・review はそこへ案内する", async () => {
@@ -200,8 +233,8 @@ describe("dg guide", () => {
     for (const word of [
       "`ready`",
       "同時に 3 件まで",
-      "**サブエージェントがしない**",
-      "**1 件でほかを止めない**",
+      "サブエージェントがしない",
+      "1 件でほかを止めない",
       "CLAIM_LOST",
       "マージ待ち",
       "`ticket update --pr`",
@@ -210,10 +243,10 @@ describe("dg guide", () => {
     for (const topic of ["work", "all", "review"] as const) {
       const text = await readGuide(topic);
       expect(text, topic).toContain("`dg guide parallel`");
-      expect(text, topic).not.toContain("「着手できるチケットを並べて進める」");
+      expect(text, topic).not.toContain("着手できるチケットを並べて進める");
     }
     // 中身は parallel にだけ書く
-    expect(await readGuide("work")).not.toContain("**サブエージェントがしない**");
+    expect(await readGuide("work")).not.toContain("サブエージェントがしない");
   });
 
   it("review は品質ゲートを 1 か所に置き、work は PR を出す前の見直しと上限付きの修正ループを、all はマージの前の条件をそこへ案内し、実装・見直し・手直しの Run を分ける", async () => {
@@ -228,23 +261,24 @@ describe("dg guide", () => {
       "## 終わり方",
     ])
       expect(review).toContain(heading);
-    for (const word of [
-      "`gh pr create --draft`",
-      "**上限**：重い指摘を直すのは 2 回まで",
-      "--retry-reason <直した指摘の要約>",
-      "チケットは in_progress のまま",
-      "人に報告",
-      "`gh pr ready <PR>`",
-      "MERGEABLE",
-    ])
-      expect(review).toContain(word);
+    const fixLoop = section(review, "## 指摘を直す（修正ループ）");
+    expect(bullet(fixLoop, "上限")).toContain("重い指摘を直すのは 2 回まで");
+    const runs = section(review, "## Run の分け方");
+    expect(runs).toContain("--retry-reason <直した指摘の要約>");
+    const ending = section(review, "## 終わり方");
+    for (const word of ["チケットは in_progress のまま", "人に報告", "`gh pr ready <PR>`"])
+      expect(ending).toContain(word);
+    expect(section(review, "## 見直す")).toContain("`gh pr create --draft`");
+    expect(section(review, "## 品質ゲート")).toContain("MERGEABLE");
     // 条件の中身は review にだけ書き、work と all は参照する
     expect(work).toContain("`dg guide review`");
     expect(work).toContain("上限付きの修正ループ");
     // 実装の Run は draft の PR で閉じ、見直しと手直しは別の step の Run にする
-    expect(work).toContain("run start <id> <step>");
-    expect(work).toContain("（software-development・general では `implement`）");
-    expect(work).toContain("draft の PR を作ったら実装の Run を閉じる");
+    const flow = section(work, "## 流れ");
+    expect(flow).toContain("run start <id> <step>");
+    expect(lineWith(flow, "run start <id> <step>")).toContain("`implement`");
+    expect(lineWith(flow, "run start <id> <step>")).toContain("software-development");
+    expect(lineWith(flow, "gh pr create --draft")).toContain("実装の Run を閉じる");
     expect(work).toContain("--retry-reason");
     for (const step of ["`review`", "`fix`"]) {
       expect(review).toContain(step);
@@ -252,71 +286,84 @@ describe("dg guide", () => {
     }
     expect(review).not.toContain("Run を開けたまま");
     // 上限は親が数え、fix の Run の数では数えない。合う step がなければ代わりの step で記録する
-    expect(review).toContain("回数は親が、重い指摘を直した回で数える");
-    expect(review).toContain("**合う step がない**");
+    expect(bullet(fixLoop, "上限")).toContain("親が");
+    expect(bullet(fixLoop, "上限")).toContain("重い指摘を直した回で数える");
+    const noStep = bullet(runs, "合う step がない");
+    expect(noStep).toContain("`fix` がなければ `review`");
     // step は definition に足して --file で書く。--template は定義を丸ごと置き換える
-    expect(review).toContain("`dg workflow set <id> --file <path>`");
-    expect(review).toContain("定義を丸ごと置き換える");
-    expect(review).not.toContain("`dg workflow set <id> --template <名前>` か `--file`");
+    expect(noStep).toContain("`dg workflow set <id> --file <path>`");
+    expect(noStep).toContain("定義を丸ごと置き換える");
     // テンプレートにも fix がない consulting では人に伝えない
-    expect(review).toContain(
-      "consulting のようにテンプレートにも `fix` がない Workflow では伝えず",
-    );
-    expect(work).toContain("「合う step がない」");
+    for (const word of ["consulting", "テンプレート", "伝えず"]) expect(noStep).toContain(word);
+    expect(work).toContain("合う step がない");
     // Run を自分で呼ぶ理由は review に置き、work は参照する
-    expect(review).toContain("Run の ID を最初に含む会話記録");
-    expect(work).toContain("（理由は `dg guide review` の「Run の分け方」）");
+    expect(runs).toContain("Run の ID");
+    expect(runs).toContain("会話記録");
+    expect(lineWith(work, "Run の分け方")).toContain("`dg guide review`");
     // 手直しの失敗・中断では unclaim せず、review の「終わり方」に従う
-    expect(review).toContain("**手直しが failure で返った・返らない**");
-    expect(work).toContain("手直し・見直しの Run は `dg guide review` の「終わり方」");
-    expect(work).toContain("手直し・見直しは unclaim せず");
-    expect(review).toContain("unclaim は実装の失敗と、実装を途中でやめたときだけ");
-    expect(review).not.toContain("unclaim は実装の失敗とやめたときだけ");
+    const fixFailed = bullet(ending, "手直しが failure で返った・返らない");
+    expect(fixFailed).toContain("unclaim は実装の失敗と");
+    expect(fixFailed).toContain("実装を途中でやめたときだけ");
+    expect(lineWith(work, "手直し・見直しは unclaim せず")).toContain("終わり方");
+    expect(lineWith(work, "手直し・見直しは unclaim せず")).toContain("`dg guide review`");
     // 閉じ損ねた・返らない見直し役の Run は親が interrupted で閉じ、見直し役を起動し直す
-    expect(review).toContain("**見直し役が閉じ損ねた・返らない**");
-    expect(review).toContain("見直し役を起動し直す");
-    expect(review).toContain("起動し直しても返らなければ「見直し役を起動できない」に従う");
-    expect(await readGuide("parallel")).toContain(
-      "手直し・見直しの Run も同じく閉じ、unclaim せず `dg guide review` の「終わり方」に従う",
-    );
-    expect(all).toContain("手直しが失敗した・手直し・見直しが返らないチケットは todo に戻さず");
+    const reviewerLost = bullet(ending, "見直し役が閉じ損ねた・返らない");
+    for (const word of ["interrupted", "見直し役を起動し直す", "見直し役を起動できない"])
+      expect(reviewerLost).toContain(word);
+    expect(bullet(ending, "見直し役を起動できない")).toBeTruthy();
+    const parallelFix = lineWith(await readGuide("parallel"), "手直し・見直しの Run");
+    for (const word of ["unclaim せず", "`dg guide review`", "終わり方"])
+      expect(parallelFix).toContain(word);
+    const allFailed = lineWith(all, "todo に戻さず");
+    expect(allFailed).toContain("手直し");
+    expect(allFailed).toContain("見直し");
     // done の「終わらなかったとき」は実装の Run と手直し・見直しの Run を分け、review へ案内する
-    const done = await readGuide("done");
-    expect(done).toContain("実装の Run は閉じてから");
-    expect(done).toContain(
-      "手直し・見直しの Run は unclaim せず、`dg guide review` の「終わり方」",
-    );
+    const unfinished = section(await readGuide("done"), "## 終わらなかったとき");
+    expect(unfinished).toContain("実装の Run は閉じてから");
+    for (const word of ["手直し・見直しの Run", "unclaim せず", "`dg guide review`", "終わり方"])
+      expect(unfinished).toContain(word);
     expect(work).not.toContain("開けたまま");
-    expect(all).toContain("`dg guide review` の「品質ゲート」");
+    expect(section(all, "### マージの前の条件")).toContain("`dg guide review`");
     for (const text of [work, all]) expect(text).not.toContain("--json mergeable");
   });
 
   it("review は版上げの PR で見直しを省ける条件を品質ゲートに書き、release はそこへ案内する", async () => {
-    const review = await readGuide("review");
+    const gate = section(await readGuide("review"), "## 品質ゲート");
+    for (const word of [
+      "版上げの PR は見直しを省ける",
+      "コード・文書・手順を変えない",
+      "人の承認が見直しの代わりになる",
+      "版上げの例外は下",
+    ])
+      expect(gate).toContain(word);
     const release = await readGuide("release");
-    expect(review).toContain("**版上げの PR は見直しを省ける**");
-    expect(review).toContain("コード・文書・手順を変えないときに限り");
-    expect(review).toContain("人の承認が見直しの代わりになる");
-    expect(review).toContain("（版上げの例外は下）");
-    expect(release).toContain("`dg guide review` の「品質ゲート」の版上げの条件に従う");
+    const steps = section(release, "## リリースの手順");
+    for (const word of ["`dg guide review`", "品質ゲート", "版上げの条件"])
+      expect(steps).toContain(word);
     // 条件の中身は review にだけ書く
-    expect(release).not.toContain("コード・文書・手順を変えないときに限り");
-    expect(release).not.toContain("CHANGELOG・ロックファイル");
+    expect(release).not.toContain("コード・文書・手順を変えない");
+    expect(release).not.toContain("ロックファイル");
   });
 
-  it("config の値を埋める（既定なら main と origin、空の配列は「なし」）", () => {
+  it("config の値を埋める（既定なら main と origin、空の配列と空の文字列は「なし」）", () => {
     expect(
       fillPlaceholders(
-        "{{git.remote}}/{{git.base_branch}} {{commit.mode}} {{actor.human_only}} {{nope}}",
+        "{{git.remote}}/{{git.base_branch}} {{commit.mode}} {{actor.human_only}} {{models.light}} {{nope}}",
         defaultConfig(),
       ),
-    ).toBe("origin/main batch なし {{nope}}");
+    ).toBe("origin/main batch なし なし {{nope}}");
     expect(
       fillPlaceholders("{{actor.human_only}}", {
         ...defaultConfig(),
         actor: { human_only: ["epic.close", "iteration.close"] },
       }),
     ).toBe("epic.close, iteration.close");
+    expect(
+      fillPlaceholders("{{models.light}}", {
+        ...defaultConfig(),
+        models: { light: "", standard: "sonnet", heavy: "" },
+      }),
+    ).toBe("なし");
   });
 
   it("overview にはすべてのトピックが載り、未知のトピックは終了コード 2", async () => {
