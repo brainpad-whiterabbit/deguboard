@@ -1,5 +1,5 @@
 // 書き込みの 1 単位（SY-2・SY-3・DT-4）：取り込み → 変更 → 検証 → コミット →（auto なら）push。
-// push が拒否されたら取り込み直して再送する。CAS（作成・claim）は自分のコミットを捨てて変更からやり直す
+// push が拒否されたら取り込み直して再送する。CAS（作成・claim・Iteration の開始と再開）は自分のコミットを捨てて変更からやり直す
 
 import { OperationError } from "../errors.js";
 import type { Config } from "../model/config.js";
@@ -35,7 +35,7 @@ export interface WriteContext {
 export interface WriteOptions<T> {
   /** コミットメッセージ。1 行目に要約 */
   message: string | ((value: T) => string);
-  /** commit.mode によらず即座にコミットして push する（作成・claim） */
+  /** commit.mode によらず即座にコミットして push する（作成・claim・Iteration の開始と再開） */
   immediate?: boolean;
   /** push の成功をもって取得とする。拒否されたらコミットを捨てて変更からやり直す */
   cas?: boolean;
@@ -59,7 +59,7 @@ export interface WriteResult<T> {
 
 const BATCH_MESSAGE = "変更をまとめてコミット";
 
-/** 未コミットの変更を 1 コミットにする。`dg commit`・`dg sync`・即時の操作（作成・claim）の直前に呼ばれる。コミットしたら true */
+/** 未コミットの変更を 1 コミットにする。`dg commit`・`dg sync`・即時の操作（作成・claim・Iteration の開始と再開）の直前に呼ばれる。コミットしたら true */
 export async function flushPending(ctx: WriteContext, message = BATCH_MESSAGE): Promise<boolean> {
   if (!(await isDirty(ctx.repo))) return false;
   await requireIdentity(ctx.repo);
@@ -165,7 +165,7 @@ async function writeLocked<T>(
 
     // rejected：取り込み直して再送
     if (opts.cas) {
-      // 自分のコミットを捨て、最新の状態で変更からやり直す（採番し直し・claim の判定し直し）
+      // 自分のコミットを捨て、最新の状態で変更からやり直す（採番し直し・claim と Iteration の開始の判定し直し）
       await resetHard(repo, before);
       await ctx.store.rescan();
       if (attempts >= maxAttempts) {

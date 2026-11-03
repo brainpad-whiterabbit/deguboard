@@ -31,7 +31,7 @@
 ### コミットの単位は設定で選ぶ
 
 - `config.yaml` の `commit.mode` でコミットの単位を、`push.mode` で push の時期を選ぶ（値の意味は設定のスキーマの説明）。既定はまとめてコミットする `batch`。時間でまとめるのは Core ではなく server・拡張の責務
-- claim と作成は mode によらず即座にコミットして push する（排他と採番のため。CL-3、[ADR-002](ADR-002-storage-and-id.md)・[ADR-004](ADR-004-agents-and-state.md)）
+- claim・作成・Iteration の開始と再開は mode によらず即座にコミットして push する（排他と採番のため。CL-3、[ADR-002](ADR-002-storage-and-id.md)・[ADR-004](ADR-004-agents-and-state.md)）
 
 ### `dg` は npm で配り、拡張は同梱しない
 

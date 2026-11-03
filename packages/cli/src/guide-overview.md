@@ -9,7 +9,7 @@ deguboard は Git で管理するチケットのツール。あなた（AI エ�
 - あなたは `<ユーザ>/agent`（例：`eiki/agent`）として記録される。ユーザは `--user`・`DEGUBOARD_USER`・git config の `deguboard.user`・git の `user.name`・OS のユーザ名の順で決まり（`whoami` の `user_source` が出どころ）、人本人は `<ユーザ>`。チケットの起票者（`created_by`）と担当者（`assignee`）はこの形で入る。コマンドの `--created-by` と `--assignee` には `human`（ユーザ本人）か `agent`（ユーザの AI）の略記も書ける
 - データのファイル（`.git/deguboard/` の下）を直接編集しない。読むのも `dg … show --json`
 - チケットの ID は `t12` でも `12` でもよい。Epic は `e3`、Iteration は `s3`。リポジトリの外から呼ぶときは `-C <dir>`
-- 書き込みは `commit.mode`（今は `{{commit.mode}}`）に従ってコミットされる。起票と claim は即座にコミットして push される。`batch` ではそれ以外の変更が作業ツリーに残るので、区切りで `dg --json --actor agent sync` を回す。`manual` では `sync` もコミットしないので、人に `dg commit` を頼む
+- 書き込みは `commit.mode`（今は `{{commit.mode}}`）に従ってコミットされる。起票・claim・Iteration の start と reopen は即座にコミットして push される。`batch` ではそれ以外の変更が作業ツリーに残るので、区切りで `dg --json --actor agent sync` を回す。`manual` では `sync` もコミットしないので、人に `dg commit` を頼む
 - 作業の実績は Run で残す。チケットの作業を始めるときに自分で `dg --json --actor agent run start <id> <step> --agent <エージェント>` を呼んで Run の ID を控え、終えたら `run finish <Run の ID> --result <結果>` で閉じる。使用量（トークン数）は finish が会話記録から取り込むので、数を自分で書かない。手順は `dg guide work` の「Run を記録する」
 - 起票の結果に `provisional: true` があれば push できていない仮番号で、ID が変わりうる。人に伝え、`sync` を回す
 

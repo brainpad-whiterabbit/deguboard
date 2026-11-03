@@ -21,6 +21,7 @@ import { CONFLICT_REMEDY, flushPending, withWrite } from "../git/write.js";
 import { ownActorIds, type ActorKind, type UserSource } from "../model/actor.js";
 import { isTerminal } from "../model/common.js";
 import { configFields, configSchema, type Config, type ConfigField } from "../model/config.js";
+import type { Iteration } from "../model/iteration.js";
 import { parseAcceptance, type Ticket } from "../model/ticket.js";
 import type { Doc } from "../storage/documents.js";
 import { checkReferences } from "../storage/integrity.js";
@@ -30,7 +31,7 @@ import type { WorkflowEntry } from "../storage/store.js";
 import { reconcileStatus, regressionWarnings } from "../workflow/reconcile.js";
 import { WORKFLOW_TEMPLATES } from "../workflow/templates/index.js";
 import { defineCommand, ok, type CommandContext } from "./define.js";
-import { nowIso } from "./helpers.js";
+import { nowIso, sortedDocs } from "./helpers.js";
 
 const TEMPLATE_IDS = WORKFLOW_TEMPLATES.map((t) => t.id) as [string, ...string[]];
 
@@ -364,7 +365,7 @@ export const lint = defineCommand({
   name: "lint",
   group: "setup",
   summary:
-    "本文の推奨の節（## 概要・## 受け入れ条件）の欠けと空、Workflow の fields に合わない値、閉じた Epic に残る終わっていないチケット、lint.require_iteration が true なら Iteration に入らずに todo・abandoned 以外に進んだチケット（閉じた Epic の done は除く）、チケットがすべて終わったのに開いている Epic・Plan を指摘する。done のチケットの未チェックの受け入れ条件は指摘しない",
+    "本文の推奨の節（## 概要・## 受け入れ条件）の欠けと空、Workflow の fields に合わない値、閉じた Epic に残る終わっていないチケット、lint.require_iteration が true なら Iteration に入らずに todo・abandoned 以外に進んだチケット（閉じた Epic の done は除く）、チケットがすべて終わったのに開いている Epic・Plan、同じ Project に 2 つ以上ある active の Iteration を指摘する。done のチケットの未チェックの受け入れ条件は指摘しない",
   input: z.object({
     project: z.string().optional().describe("Project で絞る。省略時はすべて"),
   }),
@@ -463,6 +464,27 @@ export const lint = defineCommand({
           doc.id,
           "lint_plan_finished_open",
           "チケットがすべて終わったが Plan が開いている",
+        );
+    }
+    // active の Iteration は Project に 1 つ（IT-1）。同時の start や直接の編集・マージで 2 つになったものを拾う
+    const activeByProject = new Map<string, Doc<Iteration>[]>();
+    for (const doc of sortedDocs([...ctx.store.iterations.values()])) {
+      if (input.project && doc.data.project !== input.project) continue;
+      if (doc.data.status !== "active") continue;
+      activeByProject.set(doc.data.project, [
+        ...(activeByProject.get(doc.data.project) ?? []),
+        doc,
+      ]);
+    }
+    for (const docs of activeByProject.values()) {
+      if (docs.length < 2) continue;
+      const ids = docs.map((d) => d.id).join(", ");
+      for (const doc of docs)
+        warn(
+          doc.path,
+          doc.id,
+          "lint_iteration_multiple_active",
+          `同じ Project に active の Iteration が ${docs.length} つある（${ids}）`,
         );
     }
     return ok({ ok: issues.length === 0, issues });
