@@ -1,9 +1,10 @@
 // チケット詳細（UI-4）。本文（概要・受け入れ条件）、属性、Epic、依存先と依存元、作業ブランチ、Run の一覧と、経過（deguboard ブランチの履歴）。
 // 属性と本文を編集でき、Status は ticket.move と同じ検査を通る。
-// VS Code のパネルでは、タイトルの下に Status・優先度・Iteration・担当・PR の 1 行と編集のボタンを置いてスクロールしても上に残し、
-// 作成・更新を経過と同じ手元時刻で出し、値のない属性は最後の 1 行にまとめる
+// VS Code のパネルでは、タイトルの下に Status・優先度・Iteration・担当・PR の 1 行と編集のボタンを置いてスクロールしても上に残す。
+// 右の列は幅を固定し、Status の選択を先頭に、属性を「計画・つながり・作業・記録」の見出しで分け、値のない属性は最後の 1 行にまとめる。
+// 作成・更新は経過と同じ手元時刻で、今年なら年を省く
 
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState, type ReactNode } from "react";
 import { PriorityBadge, StatusBadge, StatusDot, Tags, TicketLink } from "../components/parts.js";
 import { TicketRuns } from "../components/ticket-runs.js";
 import { formatTime, TicketTimeline } from "../components/timeline.js";
@@ -145,6 +146,194 @@ export function TicketPage({ id }: { id: string }) {
     </button>
   );
 
+  /** 属性の 1 行（dt と dd）。パネルで値がなく「なし」にまとめた属性は出さない */
+  const row = (label: string, value: ReactNode) =>
+    shown(label) ? (
+      <Fragment key={label}>
+        <dt>{label}</dt>
+        <dd>{value}</dd>
+      </Fragment>
+    ) : null;
+  const rows = {
+    status: row(
+      "Status",
+      <select
+        value={ticket.status}
+        onChange={(e) => void move(e.target.value as Status)}
+        aria-label="Status"
+      >
+        {STATUSES.map((s) => (
+          <option key={s} value={s}>
+            {store.labelOf(s)}
+          </option>
+        ))}
+      </select>,
+    ),
+    priority: row(
+      "優先度",
+      draft ? (
+        <select
+          value={draft.priority}
+          onChange={(e) => setDraft({ ...draft, priority: e.target.value as Priority })}
+          aria-label="優先度"
+        >
+          {PRIORITIES.map((p) => (
+            <option key={p} value={p}>
+              {p}
+            </option>
+          ))}
+        </select>
+      ) : (
+        <PriorityBadge priority={ticket.priority} />
+      ),
+    ),
+    labels: row(
+      "ラベル",
+      draft ? (
+        <input
+          value={draft.labels}
+          onChange={(e) => setDraft({ ...draft, labels: e.target.value })}
+          placeholder="カンマ区切り"
+          aria-label="ラベル"
+        />
+      ) : (
+        <Tags labels={ticket.labels} />
+      ),
+    ),
+    epic: row(
+      "Epic",
+      draft ? (
+        <select
+          value={draft.epic}
+          onChange={(e) => setDraft({ ...draft, epic: e.target.value })}
+          aria-label="Epic"
+        >
+          <option value="">なし</option>
+          {store.epics
+            .filter((e) => e.status === "open" || e.id === ticket.epic)
+            .map((e) => (
+              <option key={e.id} value={e.id}>
+                {e.id} {e.title}
+              </option>
+            ))}
+        </select>
+      ) : ticket.epic ? (
+        <a href={hrefOf({ page: "epics", id: ticket.epic })}>
+          {ticket.epic} {store.epics.find((e) => e.id === ticket.epic)?.title ?? ""}
+        </a>
+      ) : (
+        <span className="muted">なし</span>
+      ),
+    ),
+    iteration: row(
+      "Iteration",
+      draft ? (
+        <select
+          value={draft.iteration}
+          onChange={(e) => setDraft({ ...draft, iteration: e.target.value })}
+          aria-label="Iteration"
+        >
+          <option value="">なし</option>
+          {store.iterations
+            .filter((i) => i.status !== "closed" || i.id === ticket.iteration)
+            .map((i) => (
+              <option key={i.id} value={i.id}>
+                {i.id} {i.name}
+              </option>
+            ))}
+        </select>
+      ) : ticket.iteration ? (
+        <a href={hrefOf({ page: "iterations", id: ticket.iteration })}>{ticket.iteration}</a>
+      ) : (
+        <span className="muted">なし</span>
+      ),
+    ),
+    fields: fields.map((f) =>
+      row(
+        f.label ?? f.id,
+        <FieldValue def={f} draft={draft} setDraft={setDraft} value={ticket[f.id]} />,
+      ),
+    ),
+    dependsOn: row(
+      "依存先",
+      <>
+        {dependsOn.length ? (
+          dependsOn.map((d) => (
+            <div key={d.id}>
+              <TicketLink id={d.id} title={d.title} />
+              {"status" in d ? (
+                <>
+                  {" "}
+                  <StatusBadge status={d.status} />
+                </>
+              ) : null}
+            </div>
+          ))
+        ) : (
+          <span className="muted">なし</span>
+        )}
+        {!ticket.deps_done && <div className="muted">依存先が終わっていない</div>}
+      </>,
+    ),
+    dependents: row(
+      "依存元",
+      dependents.length ? (
+        dependents.map((d) => (
+          <div key={d.id}>
+            <TicketLink id={d.id} title={d.title} />
+          </div>
+        ))
+      ) : (
+        <span className="muted">なし</span>
+      ),
+    ),
+    assignee: row(
+      "担当",
+      draft ? (
+        <input
+          value={draft.assignee}
+          onChange={(e) => setDraft({ ...draft, assignee: e.target.value })}
+          placeholder="eiki か eiki/agent"
+          aria-label="担当"
+        />
+      ) : (
+        (ticket.assignee ?? <span className="muted">なし</span>)
+      ),
+    ),
+    branch: row(
+      "ブランチ",
+      ticket.branch ? <code>{ticket.branch}</code> : <span className="muted">なし</span>,
+    ),
+    pr: row(
+      "PR",
+      ticket.pr ? (
+        <PrLink pr={ticket.pr} webUrl={store.status?.web_url} />
+      ) : (
+        <span className="muted">なし</span>
+      ),
+    ),
+    createdBy: row("起票者", ticket.created_by ?? <span className="muted">不明</span>),
+    created: row("作成", <DateTime iso={ticket.created_at} local={panel} />),
+    updated: row("更新", <DateTime iso={ticket.updated_at} local={panel} />),
+    empty:
+      emptyLabels.length > 0 ? (
+        <>
+          <dt>なし</dt>
+          <dd className="muted props-empty">{emptyLabels.join("・")}</dd>
+        </>
+      ) : null,
+  };
+  // パネルでは属性を「計画・つながり・作業・記録」の見出しで分ける。値のある行が 1 つもない見出しは出さない
+  const groups = [
+    {
+      title: "計画",
+      items: [rows.iteration, rows.epic, rows.assignee, rows.priority, rows.labels, ...rows.fields],
+    },
+    { title: "つながり", items: [rows.dependsOn, rows.dependents] },
+    { title: "作業", items: [rows.branch, rows.pr] },
+    { title: "記録", items: [rows.createdBy, rows.created, rows.updated] },
+  ];
+
   const header = (
     <header>
       <code>{ticket.id}</code>
@@ -163,7 +352,7 @@ export function TicketPage({ id }: { id: string }) {
 
   return (
     <section className="detail">
-      <div>
+      <div className="detail-main">
         {panel ? (
           // 見出しの帯。表示だけで、Status を変えるのは右の列の選択
           <div className="detail-head">
@@ -202,218 +391,44 @@ export function TicketPage({ id }: { id: string }) {
         <TicketTimeline id={ticket.id} />
       </div>
       <aside>
-        <dl className="props">
-          <dt>Status</dt>
-          <dd>
-            <select
-              value={ticket.status}
-              onChange={(e) => void move(e.target.value as Status)}
-              aria-label="Status"
-            >
-              {STATUSES.map((s) => (
-                <option key={s} value={s}>
-                  {store.labelOf(s)}
-                </option>
+        {panel ? (
+          // パネル：Status の選択を先頭に置き、属性は見出しで分ける。値のない属性の「なし」は最後
+          <div className="props props-groups">
+            <dl>{rows.status}</dl>
+            {groups
+              .filter(({ items }) => items.some(Boolean))
+              .map(({ title, items }) => (
+                <section key={title} aria-label={title}>
+                  <h2 className="props-group-title">{title}</h2>
+                  <dl>{items}</dl>
+                </section>
               ))}
-            </select>
-          </dd>
-          <dt>優先度</dt>
-          <dd>
-            {draft ? (
-              <select
-                value={draft.priority}
-                onChange={(e) => setDraft({ ...draft, priority: e.target.value as Priority })}
-                aria-label="優先度"
-              >
-                {PRIORITIES.map((p) => (
-                  <option key={p} value={p}>
-                    {p}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <PriorityBadge priority={ticket.priority} />
-            )}
-          </dd>
-          {shown("ラベル") && (
-            <>
-              <dt>ラベル</dt>
-              <dd>
-                {draft ? (
-                  <input
-                    value={draft.labels}
-                    onChange={(e) => setDraft({ ...draft, labels: e.target.value })}
-                    placeholder="カンマ区切り"
-                    aria-label="ラベル"
-                  />
-                ) : (
-                  <Tags labels={ticket.labels} />
-                )}
-              </dd>
-            </>
-          )}
-          {shown("Epic") && (
-            <>
-              <dt>Epic</dt>
-              <dd>
-                {draft ? (
-                  <select
-                    value={draft.epic}
-                    onChange={(e) => setDraft({ ...draft, epic: e.target.value })}
-                    aria-label="Epic"
-                  >
-                    <option value="">なし</option>
-                    {store.epics
-                      .filter((e) => e.status === "open" || e.id === ticket.epic)
-                      .map((e) => (
-                        <option key={e.id} value={e.id}>
-                          {e.id} {e.title}
-                        </option>
-                      ))}
-                  </select>
-                ) : ticket.epic ? (
-                  <a href={hrefOf({ page: "epics", id: ticket.epic })}>
-                    {ticket.epic} {store.epics.find((e) => e.id === ticket.epic)?.title ?? ""}
-                  </a>
-                ) : (
-                  <span className="muted">なし</span>
-                )}
-              </dd>
-            </>
-          )}
-          {shown("Iteration") && (
-            <>
-              <dt>Iteration</dt>
-              <dd>
-                {draft ? (
-                  <select
-                    value={draft.iteration}
-                    onChange={(e) => setDraft({ ...draft, iteration: e.target.value })}
-                    aria-label="Iteration"
-                  >
-                    <option value="">なし</option>
-                    {store.iterations
-                      .filter((i) => i.status !== "closed" || i.id === ticket.iteration)
-                      .map((i) => (
-                        <option key={i.id} value={i.id}>
-                          {i.id} {i.name}
-                        </option>
-                      ))}
-                  </select>
-                ) : ticket.iteration ? (
-                  <a href={hrefOf({ page: "iterations", id: ticket.iteration })}>
-                    {ticket.iteration}
-                  </a>
-                ) : (
-                  <span className="muted">なし</span>
-                )}
-              </dd>
-            </>
-          )}
-          {fields
-            .filter((f) => shown(f.label ?? f.id))
-            .map((f) => (
-              <FieldRow key={f.id} def={f} draft={draft} setDraft={setDraft} value={ticket[f.id]} />
-            ))}
-          {shown("依存先") && (
-            <>
-              <dt>依存先</dt>
-              <dd>
-                {dependsOn.length ? (
-                  dependsOn.map((d) => (
-                    <div key={d.id}>
-                      <TicketLink id={d.id} title={d.title} />
-                      {"status" in d ? (
-                        <>
-                          {" "}
-                          <StatusBadge status={d.status} />
-                        </>
-                      ) : null}
-                    </div>
-                  ))
-                ) : (
-                  <span className="muted">なし</span>
-                )}
-                {!ticket.deps_done && <div className="muted">依存先が終わっていない</div>}
-              </dd>
-            </>
-          )}
-          {shown("依存元") && (
-            <>
-              <dt>依存元</dt>
-              <dd>
-                {dependents.length ? (
-                  dependents.map((d) => (
-                    <div key={d.id}>
-                      <TicketLink id={d.id} title={d.title} />
-                    </div>
-                  ))
-                ) : (
-                  <span className="muted">なし</span>
-                )}
-              </dd>
-            </>
-          )}
-          {shown("担当") && (
-            <>
-              <dt>担当</dt>
-              <dd>
-                {draft ? (
-                  <input
-                    value={draft.assignee}
-                    onChange={(e) => setDraft({ ...draft, assignee: e.target.value })}
-                    placeholder="eiki か eiki/agent"
-                    aria-label="担当"
-                  />
-                ) : (
-                  (ticket.assignee ?? <span className="muted">なし</span>)
-                )}
-              </dd>
-            </>
-          )}
-          {shown("ブランチ") && (
-            <>
-              <dt>ブランチ</dt>
-              <dd>
-                {ticket.branch ? <code>{ticket.branch}</code> : <span className="muted">なし</span>}
-              </dd>
-            </>
-          )}
-          {shown("PR") && (
-            <>
-              <dt>PR</dt>
-              <dd>
-                {ticket.pr ? (
-                  <PrLink pr={ticket.pr} webUrl={store.status?.web_url} />
-                ) : (
-                  <span className="muted">なし</span>
-                )}
-              </dd>
-            </>
-          )}
-          <dt>起票者</dt>
-          <dd>{ticket.created_by ?? <span className="muted">不明</span>}</dd>
-          <dt>作成</dt>
-          <dd>
-            <DateTime iso={ticket.created_at} local={panel} />
-          </dd>
-          <dt>更新</dt>
-          <dd>
-            <DateTime iso={ticket.updated_at} local={panel} />
-          </dd>
-          {emptyLabels.length > 0 ? (
-            <>
-              <dt>なし</dt>
-              <dd className="muted props-empty">{emptyLabels.join("・")}</dd>
-            </>
-          ) : null}
-        </dl>
+            <dl>{rows.empty}</dl>
+          </div>
+        ) : (
+          <dl className="props">
+            {rows.status}
+            {rows.priority}
+            {rows.labels}
+            {rows.epic}
+            {rows.iteration}
+            {rows.fields}
+            {rows.dependsOn}
+            {rows.dependents}
+            {rows.assignee}
+            {rows.branch}
+            {rows.pr}
+            {rows.createdBy}
+            {rows.created}
+            {rows.updated}
+          </dl>
+        )}
       </aside>
     </section>
   );
 }
 
-function FieldRow({
+function FieldValue({
   def,
   draft,
   setDraft,
@@ -425,43 +440,29 @@ function FieldRow({
   value: unknown;
 }) {
   const label = def.label ?? def.id;
-  return (
-    <>
-      <dt>{label}</dt>
-      <dd>
-        {draft ? (
-          def.type === "enum" || def.type === "boolean" ? (
-            <select
-              value={draft.fields[def.id] ?? ""}
-              onChange={(e) =>
-                setDraft({ ...draft, fields: { ...draft.fields, [def.id]: e.target.value } })
-              }
-              aria-label={label}
-            >
-              <option value="">未設定</option>
-              {(def.type === "boolean" ? ["true", "false"] : (def.options ?? [])).map((o) => (
-                <option key={o} value={o}>
-                  {o}
-                </option>
-              ))}
-            </select>
-          ) : (
-            <input
-              type={def.type === "number" ? "number" : def.type === "date" ? "date" : "text"}
-              value={draft.fields[def.id] ?? ""}
-              onChange={(e) =>
-                setDraft({ ...draft, fields: { ...draft.fields, [def.id]: e.target.value } })
-              }
-              aria-label={label}
-            />
-          )
-        ) : value === undefined ? (
-          <span className="muted">未設定</span>
-        ) : (
-          String(value)
-        )}
-      </dd>
-    </>
+  if (!draft)
+    return value === undefined ? <span className="muted">未設定</span> : <>{String(value)}</>;
+  const set = (v: string) => setDraft({ ...draft, fields: { ...draft.fields, [def.id]: v } });
+  return def.type === "enum" || def.type === "boolean" ? (
+    <select
+      value={draft.fields[def.id] ?? ""}
+      onChange={(e) => set(e.target.value)}
+      aria-label={label}
+    >
+      <option value="">未設定</option>
+      {(def.type === "boolean" ? ["true", "false"] : (def.options ?? [])).map((o) => (
+        <option key={o} value={o}>
+          {o}
+        </option>
+      ))}
+    </select>
+  ) : (
+    <input
+      type={def.type === "number" ? "number" : def.type === "date" ? "date" : "text"}
+      value={draft.fields[def.id] ?? ""}
+      onChange={(e) => set(e.target.value)}
+      aria-label={label}
+    />
   );
 }
 
@@ -475,12 +476,21 @@ function PrLink({ pr, webUrl }: { pr: number; webUrl?: string | null | undefined
   );
 }
 
-/** 日時。local なら経過と同じ手元時刻（2026-11-01 13:48）で出し、ISO の値はツールチップに。そうでなければ ISO のまま */
+/** 手元時刻の日時（2026-11-01 13:48）。now と同じ年なら年を省く（11-01 13:48） */
+export function formatShortTime(iso: string, now: Date = new Date()): string {
+  const text = formatTime(iso);
+  const d = new Date(iso);
+  return !Number.isNaN(d.getTime()) && d.getFullYear() === now.getFullYear()
+    ? text.slice(text.indexOf("-") + 1)
+    : text;
+}
+
+/** 日時。local なら手元時刻で今年なら年を省いて出し、ISO の値はツールチップに。そうでなければ ISO のまま */
 function DateTime({ iso, local }: { iso: string; local: boolean }) {
   if (!local) return <>{iso}</>;
   return (
     <time dateTime={iso} title={iso}>
-      {formatTime(iso)}
+      {formatShortTime(iso)}
     </time>
   );
 }

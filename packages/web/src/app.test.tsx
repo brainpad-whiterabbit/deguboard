@@ -313,7 +313,9 @@ describe("画面", () => {
     ).toBe(true);
   });
 
-  it("エディタのパネルのチケット詳細は、編集のボタンをタイトルの下の属性の行の右端に置き、作成・更新を手元時刻で出し、値のない属性を「なし」の 1 行にまとめる", async () => {
+  it("エディタのパネルのチケット詳細は、編集のボタンをタイトルの下の属性の行の右端に置き、作成・更新を手元時刻で今年なら年を省いて出し、値のない属性を「なし」の 1 行にまとめる", async () => {
+    // 作成（2026-01-01）が今年になるよう、今を 2026 年にする
+    vi.useFakeTimers({ toFake: ["Date"], now: new Date("2026-06-01T00:00:00Z") });
     window.location.hash = "#/tickets/t3";
     mount(mockClient(), hostOf("panel"));
     const h1 = await screen.findByRole("heading", { level: 1, name: "画面" });
@@ -325,7 +327,7 @@ describe("画面", () => {
     expect(meta.textContent).toBe("Todomedium本文と属性を編集");
     const created = screen.getByText("作成").nextElementSibling!.querySelector("time")!;
     expect(created.getAttribute("title")).toBe("2026-01-01T00:00:00Z");
-    expect(created.textContent).toMatch(/^2026-01-01 \d\d:\d\d$/);
+    expect(created.textContent).toBe("01-01 00:00");
     expect(screen.queryByText("依存先")).toBeNull();
     expect(screen.queryByText("ブランチ")).toBeNull();
     const empty = screen.getByText("なし", { selector: "dt" }).nextElementSibling!;
@@ -334,6 +336,45 @@ describe("画面", () => {
     fireEvent.click(edit);
     expect(screen.getByLabelText("Epic")).toBeTruthy();
     expect(screen.queryByText("なし", { selector: "dt" })).toBeNull();
+    vi.useRealTimers();
+  });
+
+  it("エディタのパネルのチケット詳細の右の列は、Status の選択を先頭に置き、属性を「計画・つながり・作業・記録」の見出しで分け、「なし」の 1 行を最後に出す", async () => {
+    window.location.hash = "#/tickets/t9";
+    const data = fixture({
+      tickets: [
+        ticket({ id: "t9", title: "分け", iteration: "s1", assignee: "eiki", branch: "feat/x" }),
+      ],
+    });
+    data.workflow.definition.fields = [{ id: "size", label: "規模", type: "string" }];
+    mount(mockClient(data), hostOf("panel"));
+    await screen.findByRole("heading", { level: 1, name: "分け" });
+    const aside = document.querySelector(".detail > aside")!;
+    const dts = () => [...aside.querySelectorAll("dt")].map((d) => d.textContent);
+    expect(aside.querySelector("dt")!.textContent).toBe("Status");
+    expect(aside.querySelector("dd select[aria-label='Status']")).toBeTruthy();
+    const titles = [...aside.querySelectorAll("h2")].map((h) => h.textContent);
+    // 依存先・依存元がともにないので「つながり」の見出しは出さない
+    expect(titles).toEqual(["計画", "作業", "記録"]);
+    const groupOf = (title: string) =>
+      [
+        ...within(aside as HTMLElement)
+          .getByRole("region", { name: title })
+          .querySelectorAll("dt"),
+      ].map((d) => d.textContent);
+    expect(groupOf("計画")).toEqual(["Iteration", "担当", "優先度"]);
+    expect(groupOf("作業")).toEqual(["ブランチ"]);
+    expect(groupOf("記録")).toEqual(["起票者", "作成", "更新"]);
+    expect(dts().at(-1)).toBe("なし");
+    expect(aside.querySelector("dd.props-empty")!.textContent).toBe(
+      "ラベル・Epic・規模・依存先・依存元・PR",
+    );
+    // 編集中はすべての属性を見出しの下に出す
+    fireEvent.click(screen.getByRole("button", { name: "本文と属性を編集" }));
+    expect(groupOf("計画")).toEqual(["Iteration", "Epic", "担当", "優先度", "ラベル", "規模"]);
+    expect(groupOf("つながり")).toEqual(["依存先", "依存元"]);
+    expect(groupOf("作業")).toEqual(["ブランチ", "PR"]);
+    expect(dts().includes("なし")).toBe(false);
   });
 
   it("エディタのパネルのチケット詳細は、タイトルの直下の帯に Status の丸印・優先度・Iteration・担当・PR を 1 行で出す", async () => {
@@ -392,8 +433,24 @@ describe("画面", () => {
     expect(screen.getByText("作成").nextElementSibling!.textContent).toBe("2026-01-01T00:00:00Z");
     expect(screen.getByText("依存先")).toBeTruthy();
     expect(screen.queryByText("なし", { selector: "dt" })).toBeNull();
-    // 見出しの帯はパネルだけ
+    // 見出しの帯と属性の見出し分けはパネルだけ。属性は 1 つの並びのまま
     expect(document.querySelector(".detail-head")).toBeNull();
+    expect(document.querySelector(".props-groups")).toBeNull();
+    expect([...document.querySelectorAll(".detail > aside dt")].map((d) => d.textContent)).toEqual([
+      "Status",
+      "優先度",
+      "ラベル",
+      "Epic",
+      "Iteration",
+      "依存先",
+      "依存元",
+      "担当",
+      "ブランチ",
+      "PR",
+      "起票者",
+      "作成",
+      "更新",
+    ]);
   });
 
   it("編集して保存すると ticket.update に属性と本文を渡す", async () => {
