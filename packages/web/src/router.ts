@@ -4,7 +4,7 @@
 import { useEffect, useState } from "react";
 import { METRIC_UNITS, type MetricUnit } from "./types.js";
 
-/** カンバンの絞り込み。iteration は選んだ Iteration の ID か、Iteration に入っていないチケット（NO_ITERATION）。省けば既定（active） */
+/** カンバンの絞り込み。iteration は選んだ Iteration の ID か、planned と active の Iteration すべて（ALL_ITERATIONS）。省けば既定（boardSelection） */
 export interface BoardQuery {
   iteration?: string | undefined;
   epic?: string | undefined;
@@ -33,8 +33,8 @@ interface RunsQuery {
 /** Run の画面の集計の単位。省けばチケットごと */
 export const DEFAULT_UNIT: MetricUnit = "ticket";
 
-/** カンバンで「Iteration に入っていないチケット」を選ぶ値 */
-export const NO_ITERATION = "-";
+/** カンバンで「すべて」（planned と active の Iteration すべて）を選ぶ値 */
+export const ALL_ITERATIONS = "*";
 
 export type Route =
   | ({ page: "board" } & BoardQuery)

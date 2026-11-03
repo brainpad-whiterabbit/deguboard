@@ -176,6 +176,14 @@ h3 {
   border-radius: 3px;
 }
 
+/* 開いた Iteration がないときのカンバンの案内 */
+.board-empty {
+  margin-top: 0.5rem;
+}
+.board-empty p {
+  margin: 0.25em 0;
+}
+
 .app {
   display: flex;
   flex-direction: column;
@@ -1803,11 +1811,10 @@ button.danger {
 .iteration-chip .chip-count {
   color: var(--vscode-descriptionForeground);
 }
-/* active は実線、planned は破線の枠。なし と + は薄い枠 */
+/* すべて と active は実線、planned は破線の枠。+ は薄い枠 */
 .iteration-chip.planned {
   border-style: dashed;
 }
-.iteration-chip.loose,
 .iteration-chip.create {
   border-color: var(--vscode-panel-border);
   color: var(--vscode-descriptionForeground);

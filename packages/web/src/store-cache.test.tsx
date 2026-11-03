@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { App } from "./app.js";
 import { HostProvider, type Host } from "./host.js";
 import { SNAPSHOT_KEY, StoreProvider } from "./store.js";
-import { fixture, mockClient, ticket } from "./test-helpers.js";
+import { boardFixture, fixture, mockClient, ticket } from "./test-helpers.js";
 import { createUiState, memoryBackend, type UiState } from "./ui-state.js";
 
 afterEach(() => {
@@ -18,7 +18,7 @@ function sidebarHost(state: UiState): Host {
 
 /** 一覧の読み込みを止めておける client。release で読み込みを進める */
 function slowClient() {
-  const client = mockClient();
+  const client = mockClient(boardFixture());
   let release = () => {};
   const gate = new Promise<void>((resolve) => (release = resolve));
   const run = client.run.bind(client);
@@ -42,11 +42,11 @@ function mount(client: ReturnType<typeof mockClient>, state: UiState, cache?: Ui
 describe("前回の一覧の cache", () => {
   it("cache に前回の一覧があれば読み込みを待たずに描き、読み終えたら差し替えて cache を書き換える", async () => {
     const state = createUiState(memoryBackend());
-    const before = fixture();
+    const before = boardFixture();
     state.set(SNAPSHOT_KEY, {
       projectId: "default",
       projects: before.projects,
-      tickets: [ticket({ id: "t9", title: "前回の題" })],
+      tickets: [ticket({ id: "t9", title: "前回の題", iteration: "s0" })],
       epics: before.epics,
       iterations: before.iterations,
       plans: before.plans,
@@ -66,7 +66,7 @@ describe("前回の一覧の cache", () => {
   it("読み直しで cache を書くとき、前の版の鍵（store.snapshot.v1）を消す", async () => {
     const backend = memoryBackend({ "store.snapshot.v1": { tickets: [] }, other: 1 });
     const state = createUiState(backend);
-    mount(mockClient(), state, state);
+    mount(mockClient(boardFixture()), state, state);
     await screen.findByText("ログイン");
     const saved = backend.getState() as Record<string, unknown>;
     expect("store.snapshot.v1" in saved).toBe(false);
