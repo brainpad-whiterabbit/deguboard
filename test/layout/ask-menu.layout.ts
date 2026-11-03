@@ -1,13 +1,13 @@
 // 吹き出しの一覧（UI-15）。dg serve の画面を Chromium で開き、
 // カンバンとバックログの行・区画の見出し、Iteration の詳細の行の吹き出しを押すと頼むことの一覧が画面の中に出て、
-// 選ぶと入力欄が開くことと、行をドラッグしてもデータが変わらないこと（画面から書き込むのはチケット詳細と設定画面だけ。ADR-010）を確かめる。
+// 選ぶと入力欄が開くことと、行をドラッグしても書き込みの要求を送らずデータが変わらないこと（画面から書き込むのはチケット詳細と設定画面だけ。ADR-010）を確かめる。
 // ブラウザが要るので mise run test には入れず、mise run test:layout で回す（先に mise run build と mise run playwright:install）
 
 import { access } from "node:fs/promises";
 import path from "node:path";
 import { chromium, type Browser, type Locator, type Page } from "playwright-core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { init, openContext, runCommand } from "../../packages/core/src/index.js";
+import { findCommand, init, openContext, runCommand } from "../../packages/core/src/index.js";
 import { createFixture, type Fixture } from "../../packages/core/test/helpers/git-fixture.js";
 import { startServer } from "../../packages/server/src/index.js";
 
@@ -34,6 +34,22 @@ async function call<O = unknown>(name: string, input: Record<string, unknown>): 
 
 const show = (ticket: string) =>
   call<{ status: string; iteration?: string }>("ticket.show", { ticket });
+
+/**
+ * page がこの後に送る書き込みのコマンドの要求（POST の /api/commands/<name> で、core のコマンドが write のもの）を集める。
+ * 書き込みかどうかは core のコマンド定義の write の印で決める（packages/web の write-commands.test.ts と同じ考え方）
+ */
+function watchWrites(page: Page): string[] {
+  const writes: string[] = [];
+  page.on("request", (request) => {
+    if (request.method() !== "POST") return;
+    const match = /\/api\/commands\/([^/?#]+)$/.exec(new URL(request.url()).pathname);
+    if (!match) return;
+    const name = decodeURIComponent(match[1]!);
+    if (findCommand(name)?.write) writes.push(name);
+  });
+  return writes;
+}
 
 /** source をつかんで target の上で離す（前はここで Status や Iteration が変わった） */
 async function drag(page: Page, source: Locator, target: Locator): Promise<void> {
@@ -96,8 +112,11 @@ describe("吹き出しの一覧（UI-15）", () => {
       has: page.locator('a[href="#/tickets/t1"]'),
     });
     await row.waitFor();
+    const writes = watchWrites(page);
     await drag(page, row, page.locator('.column[data-status="review"] summary'));
+    // 要求は離した直後に出るので、固定の待ちは遅れて出る要求を拾うための補い
     await page.waitForTimeout(300);
+    expect(writes, "ドラッグで送った書き込みのコマンド").toEqual([]);
     expect((await show("t1")).status).toBe("todo");
     expect(await page.locator('.column[data-status="todo"] a[href="#/tickets/t1"]').count()).toBe(
       1,
@@ -120,8 +139,11 @@ describe("吹き出しの一覧（UI-15）", () => {
     const section = (head: string) => page.locator(".backlog-section").filter({ hasText: head });
     const row = page.locator(".backlog-rows li", { has: page.locator('a[href="#/tickets/t3"]') });
     await row.waitFor();
+    const writes = watchWrites(page);
     await drag(page, row, section("来週").locator("summary"));
+    // 要求は離した直後に出るので、固定の待ちは遅れて出る要求を拾うための補い
     await page.waitForTimeout(300);
+    expect(writes, "ドラッグで送った書き込みのコマンド").toEqual([]);
     expect((await show("t3")).iteration).toBeUndefined();
     // 0 件の区画にも作るボタン（+）は出さない
     expect(await page.getByRole("button", { name: "Iteration を作る" }).count()).toBe(0);
@@ -150,8 +172,11 @@ describe("吹き出しの一覧（UI-15）", () => {
     await page.goto(`${server.url}#/board`, { waitUntil: "networkidle" });
     const card = page.locator(".card", { has: page.locator('a[href="#/tickets/t1"]') });
     await card.waitFor();
+    const writes = watchWrites(page);
     await drag(page, card, page.locator('.column[data-status="in_progress"]'));
+    // 要求は離した直後に出るので、固定の待ちは遅れて出る要求を拾うための補い
     await page.waitForTimeout(300);
+    expect(writes, "ドラッグで送った書き込みのコマンド").toEqual([]);
     expect((await show("t1")).status).toBe("todo");
     expect(await page.getByRole("button", { name: "+ Iteration を作る" }).count()).toBe(0);
     await page.close();
