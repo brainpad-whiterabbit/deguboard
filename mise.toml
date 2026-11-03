@@ -60,7 +60,7 @@ depends = ["build"]
 run = "pnpm run pack"
 
 [tasks."release:version"]
-description = "全パッケージの版を揃える。例: mise run release:version -- 0.1.0"
+description = "全パッケージの版を揃える。例: mise run release:version -- 0.10.0"
 run = "pnpm run release:version"
 
 [tasks."release:publish"]
