@@ -1,0 +1,23 @@
+{
+  "id": "r20261103-230822-9365",
+  "ticket": "t322",
+  "step": "fix",
+  "agent": "copilot",
+  "model": null,
+  "started_at": "2026-11-03T23:08:22Z",
+  "finished_at": "2026-11-03T23:09:58Z",
+  "result": "success",
+  "error": null,
+  "retries": 3,
+  "retry_reasons": [
+    "program.test.ts の重複した details.t1.tier の検査を消した",
+    "schema.test.ts の tier の受理側を PLAN_TIERS でなくリテラルで検査した",
+    "PR 本文の受け入れ条件 1 を終了コード 2 で満たしたに更新した"
+  ],
+  "usage": {
+    "input": null,
+    "output": null,
+    "cache_read": null,
+    "cache_write": null
+  }
+}
