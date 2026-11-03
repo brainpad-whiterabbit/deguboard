@@ -159,13 +159,13 @@ describe.each(SCHEMES)("パネルのチケット詳細の配置（%s）", (schem
   });
 
   it.each([
-    [1100, "bottom"],
-    [800, "aside"],
-    [800, "bottom"],
-    [600, "aside"],
+    [1100, "いちばん下", "bottom"],
+    [800, "右の列", "aside"],
+    [800, "いちばん下", "bottom"],
+    [600, "右の列", "aside"],
   ] as const)(
-    "幅 %ipx で %s までスクロールしても、見出しの帯が .page の上端に残る",
-    async (width, target) => {
+    "幅 %ipx で%sまでスクロールしても、見出しの帯が .page の上端に残る",
+    async (width, _label, target) => {
       // 高さを右の列より低くし、1 列で右の列の上端までスクロールできるようにする（左の列が画面の上に消える）
       const { context, page } = await openDetail(width, scheme, 360);
       try {
