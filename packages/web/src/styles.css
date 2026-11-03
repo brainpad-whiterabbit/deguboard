@@ -570,6 +570,73 @@ button.link:hover {
 .run-unfinished {
   color: var(--vscode-descriptionForeground);
 }
+/* 結果の丸印（パネルのチケット詳細の Run）。色は上の .run-* の文字色 */
+.run-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+  flex: none;
+}
+/* パネルのチケット詳細の Run：見出しに合計、1 行に step・丸印・model と再試行・開始と所要。開くと残りを出す。横にスクロールしない */
+.runs h2 .ticket-runs-summary {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0 0.75em;
+  margin-left: 0.5em;
+  font-weight: normal;
+  color: var(--vscode-descriptionForeground);
+  font-variant-numeric: tabular-nums;
+}
+.ticket-runs {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+/* 狭ければ model を省略して 1 行に収める */
+.ticket-run > summary {
+  padding: 2px 0;
+  min-width: 0;
+  overflow: hidden;
+}
+.ticket-run > summary:hover,
+.ticket-run[open] > summary {
+  background: var(--vscode-list-hoverBackground);
+}
+.ticket-run-step,
+.ticket-run-retries {
+  flex: none;
+}
+.ticket-run-model {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ticket-run-time {
+  flex: none;
+  margin-left: auto;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.ticket-run-detail {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.15rem 0.75rem;
+  margin: 0.25rem 0 0.5rem 1.2em;
+}
+.ticket-run-detail dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.ticket-run-detail dt {
+  color: var(--vscode-descriptionForeground);
+}
+.ticket-run-detail .num {
+  font-variant-numeric: tabular-nums;
+}
 /* 履歴の見方の切り替え：枠も塗りもない文字と件数のバッジ。選んだ見方だけ文字を濃く太くする */
 /* 折り返さない。入らないときは切り替えの中だけが横にスクロールする。
    overflow でフォーカスの枠が切れないよう、枠はボタンの内側に描く */
