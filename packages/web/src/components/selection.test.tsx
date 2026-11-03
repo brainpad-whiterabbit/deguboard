@@ -22,14 +22,18 @@ afterEach(() => {
   window.location.hash = "";
 });
 
-function mount(client: MockClient, surface: Host["surface"] = "sidebar") {
+function mount(
+  client: MockClient,
+  surface: Host["surface"] = "sidebar",
+  state: Record<string, unknown> = {},
+) {
   const open = vi.fn<(route: Route) => void>();
   const host: Host = {
     surface,
     open,
     show: () => {},
     copy: async () => {},
-    state: createUiState(memoryBackend({ [ASK_HINT_KEY]: true })),
+    state: createUiState(memoryBackend({ [ASK_HINT_KEY]: true, ...state })),
   };
   render(
     <StoreProvider client={client}>
@@ -200,6 +204,65 @@ describe("左パネルのバックログの行を複数選ぶ（UI-15）", () =>
     });
     const none = await screen.findByText(/0 \/ 4 件/);
     expect(none.hasAttribute("data-vscode-context")).toBe(false);
+  });
+});
+
+describe("見直しの指摘（UI-15）", () => {
+  it("Shift+クリックの範囲が畳んだ節をまたいでも、見えない行は選ばない", async () => {
+    const client = mockClient(boardFixture());
+    client.data.tickets.push(
+      ticket({ id: "t4", title: "見てもらう", status: "review", iteration: "s0" }),
+    );
+    // in_progress の節（t2）を畳んでおく。並びは todo（t3）→ in_progress（t2）→ review（t4）
+    mount(client, "sidebar", { "board.section.in_progress": false, "board.section.review": true });
+    await screen.findByText("見てもらう");
+    fireEvent.click(linkOf("画面"), { ctrlKey: true });
+    fireEvent.click(linkOf("見てもらう"), { shiftKey: true });
+    expect(selected()).toEqual(["t3", "t4"]);
+    expect(bar()!.textContent).toContain("2 件を選択");
+  });
+
+  it("頼むことの一覧を Esc で閉じても選択は残り、もう一度の Esc で外す", async () => {
+    window.location.hash = "#/backlog";
+    mount(backlogClient());
+    await screen.findByText("四つ目");
+    fireEvent.click(linkOf("画面"), { ctrlKey: true });
+    fireEvent.click(linkOf("四つ目"), { ctrlKey: true });
+    fireEvent.click(within(bar()!).getByRole("button", { name: "頼む" }));
+    await waitFor(() => expect(items()[0]).toBe("割り当てるおすすめ"));
+    fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(selected()).toEqual(["t3", "t4"]);
+    fireEvent.keyDown(document.body, { key: "Escape" });
+    expect(selected()).toEqual([]);
+  });
+
+  it("バックログの検索・絞り込みを変えたら選択を外す（隠れた行を対象に残さない）", async () => {
+    window.location.hash = "#/backlog";
+    mount(backlogClient());
+    await screen.findByText("四つ目");
+    fireEvent.click(linkOf("画面"), { ctrlKey: true });
+    expect(selected()).toEqual(["t3"]);
+    fireEvent.change(screen.getByRole("searchbox", { name: "検索" }), {
+      target: { value: "つ目" },
+    });
+    await waitFor(() => expect(bar()).toBeNull());
+  });
+
+  it("バックログでドラッグした直後の行の click では選ばず、その次の Ctrl+クリックから選べる", async () => {
+    // Iteration があると区画に分け、行をドラッグできる（選ぶのは外側の li、ドラッグは中の行）
+    const client = mockClient(
+      fixture({ iterations: [iteration({ id: "s1", name: "来週", status: "planned" })] }),
+    );
+    window.location.hash = "#/backlog";
+    mount(client);
+    await screen.findByText("画面");
+    // useDraggableTicket がドラッグの始まりに中の行へ付ける印を付けておく
+    screen.getByText("画面").closest(".row-drag")!.setAttribute("data-dragged", "");
+    fireEvent.click(linkOf("画面"), { ctrlKey: true });
+    expect(selected()).toEqual([]);
+    fireEvent.click(linkOf("画面"), { ctrlKey: true });
+    expect(selected()).toEqual(["t3"]);
   });
 });
 

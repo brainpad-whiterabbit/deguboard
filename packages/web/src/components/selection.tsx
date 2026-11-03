@@ -48,11 +48,14 @@ const EMPTY: SelectionState = { ids: [], anchor: null, section: null, within: un
 
 const SelectionContext = createContext<RowSelection | null>(null);
 
-/** 画面に出ている選べる行の ID（並び順） */
+/**
+ * 画面に出ている選べる行の ID（並び順）。畳んだ節（閉じた details）の中の行は見えないので除く
+ * （Shift+クリックの範囲が閉じた節をまたいでも、見えない行を選ばない）
+ */
 function shownIds(): string[] {
-  return [...document.querySelectorAll<HTMLElement>(`[${SELECT_ATTR}]`)].map((el) =>
-    el.getAttribute(SELECT_ATTR)!,
-  );
+  return [...document.querySelectorAll<HTMLElement>(`[${SELECT_ATTR}]`)]
+    .filter((el) => !el.closest("details:not([open])"))
+    .map((el) => el.getAttribute(SELECT_ATTR)!);
 }
 
 /** ids を画面の並びに揃える（画面にないものは後ろに残す） */

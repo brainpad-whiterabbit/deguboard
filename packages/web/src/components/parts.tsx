@@ -2,6 +2,7 @@
 
 import { useDraggable } from "@dnd-kit/core";
 import {
+  useCallback,
   useEffect,
   useRef,
   useState,
@@ -11,7 +12,7 @@ import {
   type ReactNode,
 } from "react";
 import { WEBVIEW_CONTRACT_COPY } from "../client/webview.js";
-import { useAskSpot, type AskSection } from "./ask-menu.js";
+import { DRAGGED_ATTR, useAskSpot, type AskSection } from "./ask-menu.js";
 import { useHost } from "../host.js";
 import { hrefOf, type Route } from "../router.js";
 import { useStore } from "../store.js";
@@ -421,20 +422,32 @@ export function TicketRow({
 function useDraggableTicket(id: string) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id });
   const dragged = useRef(false);
+  const node = useRef<HTMLElement | null>(null);
+  const ref = useCallback(
+    (el: HTMLElement | null) => {
+      node.current = el;
+      setNodeRef(el);
+    },
+    [setNodeRef],
+  );
   useEffect(() => {
-    if (isDragging) dragged.current = true;
+    if (!isDragging) return;
+    dragged.current = true;
+    // 外側の行の選択（ask-menu.tsx の useAskSpot。捕捉の段階で先に走る）にも、ドラッグ直後の click だと伝える
+    node.current?.setAttribute(DRAGGED_ATTR, "");
   }, [isDragging]);
   const style: CSSProperties | undefined = transform
     ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` }
     : undefined;
   return {
-    ref: setNodeRef,
+    ref,
     style,
     isDragging,
     props: {
       ...listeners,
       ...attributes,
       onClickCapture: (e: MouseEvent) => {
+        node.current?.removeAttribute(DRAGGED_ATTR);
         if (!dragged.current) return;
         dragged.current = false;
         e.preventDefault();

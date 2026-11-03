@@ -19,7 +19,7 @@ import {
   useSensors,
   type DragEndEvent,
 } from "@dnd-kit/core";
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { ASK_SECTIONS, useAskSpot } from "../components/ask-menu.js";
 import { Chip, ChipRow } from "../components/chips.js";
 import {
@@ -30,6 +30,7 @@ import {
 import { ProgressBar, TicketTable } from "../components/parts.js";
 import { BacklogRowEnd, kanbanPlanMarks, type PlanMark } from "../components/row-end.js";
 import { FilterToggle } from "../components/filter-toggle.js";
+import { useSelection } from "../components/selection.js";
 import { useHost, useUiState } from "../host.js";
 import { hrefOf } from "../router.js";
 import { useStore } from "../store.js";
@@ -235,6 +236,10 @@ export function BacklogPage() {
     [store.tickets, moving],
   );
   const rows = useMemo(() => filterBacklog(tickets, filter, store.me), [tickets, filter, store.me]);
+  // 絞り込み・検索はハッシュに入らないので、変えたら行の選択を外す（隠れた行を頼む対象に残さない。カンバンは画面が替わって外れる）
+  const selection = useSelection();
+  const clearSelection = selection?.clear;
+  useEffect(() => clearSelection?.(), [filter, clearSelection]);
   // サイドバーの行の右端に、開いた Plan の番号と着手可・待ちを出す（判定はカンバンと同じ kanbanPlanMarks）
   const planMarks = useMemo(
     () => (sidebar ? kanbanPlanMarks(store.plans) : new Map<string, PlanMark>()),
