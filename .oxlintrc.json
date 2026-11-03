@@ -135,7 +135,7 @@
               {
                 "name": "@deguboard/core",
                 "allowTypeImports": true,
-                "message": "web は core から型だけを取り込む。実行時のコードは Vite が node のモジュールを束ねるので禁止（ADR-007）"
+                "message": "web は core から型だけを取り込む。実行時のコードは Vite が node のモジュールを束ねないので禁止（ADR-007）"
               }
             ],
             "patterns": [

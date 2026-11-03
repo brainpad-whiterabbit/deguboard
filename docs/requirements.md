@@ -209,7 +209,7 @@ steps: # 任意。Run の step の語彙（WF-5）
 - CL-1 すべてのコマンドに `--json` があり、エージェントはそれを読む。成功は `{ ok: true, data, warnings, write }`、失敗は `{ ok: false, error: { code, message, detail } }`。終了コードは 0（成功）/ 1（失敗。`validate`・`lint` は指摘があるとき）/ 2（使い方の誤り）。`error.code` の語彙は `packages/core/src/errors.ts` が正本
 - CL-2 コマンドの一覧とオプションは `dg --help` が正本。群は用意（`init`・`sync`・`commit`・`validate`・`lint`・`config`・`whoami`）、`project`、`ticket`、`iteration`（`sprint` はエイリアス）、`epic`、`workflow`、`plan`、`history`、`run` と `metrics`、画面と MCP（`serve`・`open`・`mcp`）、手順（`guide`・`skill install`）
 - CL-3 書き込みを伴うコマンドは、`commit.mode` に従って deguboard ブランチにコミットする。作成（`init`、`project / ticket / epic / iteration / plan create`、`ticket import`）・`ticket claim`・`iteration start / reopen` は `commit.mode`・`push.mode` によらず即座にコミットして push する（採番と排他のため）
-- CL-4 `ticket import` は YAML / JSON の下書き（配列）を 1 コミットで取り込む。下書きの中の仮キーを `depends_on` から参照でき、`epic` に既存の Epic を書ける
+- CL-4 `ticket import` は YAML / JSON の下書き（配列）を 1 コミットで取り込む。下書きの中の仮キーを `depends_on` から参照でき、`epic` に既存の Epic を書ける。取り込めない下書きは起票せずに拒む（条件は `guide import`）
 - CL-5 `dg guide <topic>` は、エージェント向けの手順を `config.yaml` の値を埋めて出す。トピックの一覧は `dg guide overview`（省略時）。手順の正本は CLI に同梱した Markdown（`packages/cli/src/guide-*.md`）
 - CL-6 CLI はビジネスロジックを持たず、Core のコマンド定義（`packages/core/src/commands/`）を写す
 - CL-7 `history` は deguboard ブランチの git の履歴から、チケット・Epic・Iteration の起票と、`status`・`iteration`・`epic`・`assignee`・`pr` の変化を、時刻・コミット・作者・コミットの 1 行目とともに古い順に返す。データの形は変えず、差分から読む。Epic・Iteration で絞ると、一度でも入っていたチケット（持ち越しで外されたものを含む）の経過も返す。浅い clone では欠けたこと（`shallow`・`incomplete`）を返して失敗しない
@@ -240,7 +240,7 @@ Web UI は `dg serve` が配信し、VS Code 拡張は同じ React アプリを 
 
 - UI-1 プロジェクトの切り替え
 - UI-2 カンバン：選んだ Iteration（既定は active）のチケットを Status ごとの列に出す（表示名は Workflow の `labels`）。ドラッグ＆ドロップで Status を変え、`ticket move` と同じ検査で拒否されたら理由を出して戻す。Epic と担当者で絞れる。閉じた Iteration・Epic の終わったチケットは出さない。VS Code のサイドバーでは、Iteration を planned と active の札で切り替え、行に変化の点滅・実行中の Run の印・担当の印を出し、開いた Plan に入っていれば Plan の番号と、todo なら着手可・待ちの相手（PL-6 の `waiting`）・承認待ち（Plan が承認待ち）を出し、待ちと承認待ちの行は実行中の Run がなければタイトルを薄くする
-- UI-3 バックログ：done・abandoned 以外のチケットを Iteration ごとの区画に分けて出し、検索と絞り込みができる。別の区画へのドラッグで Iteration を変え、`ticket update` と同じ検査で拒否されたら理由を出して戻す。VS Code のサイドバーでは、区画の見出しを Iteration の状態の色の帯と 2 段（番号・名前・件数／期間・目標）にし、開始・閉じるは詳細の画面で行う。Epic の欄は open の Epic があるときだけチップで出す。行には、開いた Plan に入っていればカンバンと同じ Plan の番号と着手可・待ちの相手・承認待ちを出す。担当者は名前の列を出さず、操作している人（`whoami`）とその agent のときは出さず、別の人のときだけカンバンと同じ担当の印（頭文字の丸。全名はツールチップ）を出す。検索欄の右端の漏斗（カンバンと同じ）で絞り込みの欄を開き、その下によく使う絞り込み（自分・作業中・high）のチップと、効いている条件を × で外せる札を出し、件数は絞り込みが効いているときだけ「n / m 件」で出す
+- UI-3 バックログ：done・abandoned 以外のチケットを Iteration ごとの区画に分けて出し、検索と絞り込みができる。別の区画へのドラッグで Iteration を変え、`ticket update` と同じ検査で拒否されたら理由を出して戻す。VS Code のサイドバーでは、区画の見出しを Iteration の状態の色の帯と 2 段（番号・名前・件数／期間・目標）にし、開始・閉じるは詳細の画面で行う。Epic の欄は open の Epic があるときだけチップで出す。行には優先度の札と、カンバンと同じく、開いた Plan に入っていれば Plan の番号・着手可・待ちの相手・承認待ちを、担当者が `whoami` とその agent 以外なら担当の印（頭文字の丸。全名はツールチップ）を出す。検索欄の右端の漏斗（カンバンと同じ）で絞り込みの欄を開き、その下によく使う絞り込み（自分・作業中・high）のチップと、効いている条件を × で外せる札を出し、件数は絞り込みが効いているときだけ「n / m 件」で出す
 - UI-4 チケット詳細：本文（概要・受け入れ条件）、属性、Epic、依存先と依存元、起票者と担当者、作業ブランチ、PR、Run の一覧、経過（CL-7）。PR はリモートの URL から PR のページへのリンクにする（直せなければ番号だけ）。属性と本文を編集できる
 - UI-5 Iteration：作成・開始・閉じる、詳細の画面でチケットの追加・除外ができる。閉じた Iteration・Epic と終わったチケットは履歴の画面で見る（終えた日は CL-7 から求める）
 - UI-6 未 push のコミットと、取り込んでいないリモートの更新があることを印で知らせる。同期のボタンで `dg sync` と同じ同期を行い、画面を読み直す。リモートがなければ照合と読み直しだけを行う
@@ -276,7 +276,7 @@ Web UI は `dg serve` が配信し、VS Code 拡張は同じ React アプリを 
 
 - EX-1 deguboard はエージェントを起動しない。チケットの処理はエージェント側の Skill が `dg` を呼んで進める
 - EX-2 終了していない Run は一覧で見え、`interrupted` として閉じられる
-- EX-3 段階を続けて進める手順は Skill 側に置き、着手できるチケット（`ticket list` の `ready` での絞り込みか、各行の `deps_done`）と Plan の順序に従う。`dg guide all --auto` は戻せる判断を自動で選び、`auto.merge` が true なら条件を満たした PR をマージする。Plan の待ちのない複数のチケットはチケットごとのサブエージェントで同時に進め、1 件の失敗やマージ待ちでほかを止めない。品質ゲート（検査・受け入れ条件・別のサブエージェントの見直し・衝突なし）は PR を出す前とマージの前に通し、手直しの Run に直した指摘を `retry_reasons` で残す。修正の回数の上限を超えたら PR を draft のまま人に渡す。同時に進める上限・修正ループの回数・Run の分け方は guide（`parallel`・`review`・`all`）が正本
+- EX-3 段階を続けて進める手順は Skill 側に置き、着手できるチケット（Plan があれば PL-6 の `ready`・`next`、なければ `ticket list --ready`）に従う。`dg guide all --auto` は戻せる判断を自動で選び、`auto.merge` が true なら条件を満たした PR をマージする。Plan の待ちのない複数のチケットはチケットごとのサブエージェントで同時に進め、1 件の失敗やマージ待ちでほかを止めない。品質ゲート（検査・受け入れ条件・別のサブエージェントの見直し・衝突なし）は PR を出す前とマージの前に通し、手直しの Run に直した指摘を `retry_reasons` で残す。修正の回数の上限を超えたら PR を draft のまま人に渡す。同時に進める上限・修正ループの回数・Run の分け方は guide（`parallel`・`review`・`all`）が正本
 - EX-4 Workflow が `by: [human]` で人に限った遷移は、エージェントからは行えない
 
 ## 7. 非機能要件

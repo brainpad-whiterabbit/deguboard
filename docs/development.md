@@ -112,7 +112,7 @@ core の `commands` を HTTP に写す。Node 標準の `node:http` で、フレ
 
 ### `packages/web`（`@deguboard/web`）
 
-画面の React アプリ。構成の判断は [ADR-008](adr/ADR-008-tech-stack.md)。core からは型と `CommandClient`（`core/commands/client.ts`）だけを取り込み、実行時のコードは取り込まない（`import type` だけ。Vite が node のモジュールを束ねないため）。`CommandClient` の実装は `client/` に HTTP と postMessage の 2 つ、画面は `pages/`、状態は `store.tsx`、画面の切り替えはハッシュ（`router.ts`）。各ファイルの役割は冒頭のコメントが正本。
+画面の React アプリ。構成の判断は [ADR-008](adr/ADR-008-tech-stack.md)。core からは型と `CommandClient`（`core/commands/client.ts`）だけを取り込む。テストの例外を含む取り込みの範囲は [ADR-007 の「依存の向き」](adr/ADR-007-architecture.md#依存の向き)。`CommandClient` の実装は `client/` に HTTP と postMessage の 2 つ、画面は `pages/`、状態は `store.tsx`、画面の切り替えはハッシュ（`router.ts`）。各ファイルの役割は冒頭のコメントが正本。
 
 型検査は `tsconfig.json` を別に持つ（DOM と JSX が要るため）。ビルドは Vite で `dist/` に出し、`dg serve` は cli に写した `web/` を配信する（`cli/program.ts` の `webDist`）。テストは `// @vitest-environment jsdom` を付け、`test-helpers.ts` の `mockClient` で `CommandClient` を差し替える。
 
