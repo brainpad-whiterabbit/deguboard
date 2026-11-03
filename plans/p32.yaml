@@ -20,7 +20,7 @@ after:
   t292:
     - t300
     - t291
-pending_approval: true
+pending_approval: false
 details:
   t295:
     scope: 依頼文を作る読み取りだけのコマンド（候補とおすすめ、Skill と文章の形式、human_only のときの人のコマンド）とテスト
@@ -49,3 +49,5 @@ details:
   t292:
     scope: 残ったコマンドを読む useEffect を 1 つのフックにまとめる
     approach: t291・t300 の後に残った箇所を数え直してからまとめる
+approved_by: eiki.kitajima/agent
+approved_at: 2026-11-03T09:17:57Z
