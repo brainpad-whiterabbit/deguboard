@@ -196,7 +196,10 @@ export function mockClient(data = fixture()): MockClient {
         pending_deps: [],
       };
     },
-    // core の ticket.update と同じく、属性を直して（null は外す）チケットの属性と本文を返す
+    // core の ticket.update と同じく、属性を直して（null は外す）チケットの属性と本文を返す。
+    // 本物と違い data.tickets の中のオブジェクトをその場で書き換え、ticket.list は同じ配列を返すので、
+    // 保存の後に読み直しても store.tickets は変わらず、一覧の読み直しによる ticket.show も走らない。
+    // それを確かめるテストでは ticket.list を毎回別の配列で返すよう差し替える
     "ticket.update": (input) => {
       const {
         ticket: id,
@@ -205,7 +208,8 @@ export function mockClient(data = fixture()): MockClient {
       } = input as { ticket: string; fields?: Record<string, unknown> } & Record<string, unknown>;
       const t = data.tickets.find((x) => x.id === id)! as unknown as Record<string, unknown>;
       for (const [key, value] of Object.entries({ ...patch, ...fields })) {
-        if (key === "body") continue;
+        // body と acceptance は本文（の節）を置き換える入力で、属性ではない
+        if (key === "body" || key === "acceptance") continue;
         if (value === null) delete t[key];
         else t[key] = value;
       }

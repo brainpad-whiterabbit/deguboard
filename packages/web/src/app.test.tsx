@@ -703,7 +703,6 @@ describe("画面", () => {
   it("編集して保存すると ticket.update に属性と本文を渡す", async () => {
     window.location.hash = "#/tickets/t3";
     const client = mockClient();
-    client.handlers["ticket.update"] = (input) => input;
     mount(client);
     await screen.findByRole("heading", { level: 1, name: "画面" });
     fireEvent.click(screen.getByRole("button", { name: "編集" }));
@@ -941,8 +940,11 @@ describe("画面", () => {
       // 本物の client と同じく、一覧は読むたびに別の配列で返す（読み直すと store.tickets が変わる）
       client.handlers["ticket.list"] = () => [...data.tickets];
       const shows = () => client.calls.filter((c) => c.name === "ticket.show").length;
-      // 開いたときの読み込みが落ち着いてから数える
-      const settle = () => act(() => new Promise((r) => setTimeout(r, 20)));
+      // 開いたときの読み込みが落ち着いてから数える。mockClient の応答は Promise だけで返るので、
+      // タイマーで待たずに act を何度か回して、残りの応答と effect を流し切る
+      const settle = async () => {
+        for (let i = 0; i < 5; i++) await act(async () => {});
+      };
       await settle();
       const before = shows();
       fireEvent.click(screen.getByRole("button", { name: "優先度を変える" }));

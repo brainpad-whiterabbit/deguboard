@@ -54,7 +54,6 @@ function draftOf(t: TicketDetail, fields: readonly FieldDefinition[]): Draft {
   };
 }
 
-/** 任意フィールドの値の文字列（入力欄の値）。未設定は空 */
 /**
  * ticket.update の結果（チケットの属性と本文）に、ticket.show だけが出す値（受け入れ条件・依存元・依存先の状態・Plan）を前の詳細から足す。
  * 外した属性（epic など）は結果にないので、前の詳細に重ねず結果を土台にする
@@ -70,6 +69,7 @@ function withDerived(updated: Ticket & { body: string }, prev: TicketDetail): Ti
   };
 }
 
+/** 任意フィールドの値の文字列（入力欄の値）。未設定は空 */
 function fieldText(value: unknown): string {
   return value === undefined ? "" : String(value);
 }
@@ -103,7 +103,6 @@ function fieldInputType(def: FieldDefinition): "text" | "number" | "date" {
   return def.type === "number" ? "number" : def.type === "date" ? "date" : "text";
 }
 
-/** パネルで値がなければ「なし」の行にまとめる属性 */
 /** 依存先・依存元の 1 行に出すもの。status は分からなければ null、finished は終わった依存先か */
 interface Relation {
   id: string;
@@ -112,6 +111,7 @@ interface Relation {
   finished: boolean;
 }
 
+/** パネルで値がなければ「なし」の行にまとめる属性 */
 interface OptionalAttr {
   /** 行の key と、その場で直している属性の key */
   key: string;
