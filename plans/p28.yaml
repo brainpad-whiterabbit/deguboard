@@ -1,0 +1,37 @@
+id: p28
+project: default
+tickets: [t273, t275, t276, t278, t280, t274, t277, t279]
+after:
+  t274:
+    - t273
+  t277:
+    - t274
+  t279:
+    - t275
+    - t278
+pending_approval: true
+details:
+  t273:
+    scope: ADR-006 のカンバンの判断の文と、更新日・docs/adr/README.md の一覧
+    approach: t262 の UI-2 と board.tsx の振る舞いに合わせて 1〜2 文を書き換え、理由を添える
+  t275:
+    scope: カンバンの列の間のドラッグのテスト（成功と拒否）
+    approach: onDragEnd を単体で確かめられる形に切り出して jsdom で確かめるか、test/layout にカンバンのドラッグを足す。画面の振る舞いは変えない
+  t276:
+    scope: docs/development.md のリリースの手順
+    approach: リリースの前に mise run build と mise run test:layout を回す 1 行を足す。check には入れない
+  t278:
+    scope: web の Iteration の開始・再開のボタンの判定とそのテスト
+    approach: 判定は写しのまま core の rejectIfOtherActive の写しと明記し、文言を core にそろえ、一致・別 Project・自分を除くテストを足す。blocked-note は外すか定義する。core から受け取る形はこのチケットではしない
+  t280:
+    scope: pnpm-workspace.yaml の overrides と lockfile
+    approach: minimatch の上書きを 11 系の最新に上げ、mise run vsix と check を通す
+  t274:
+    scope: ADR-004・README.md・packages/vscode/README.md・guide-overview.md の参照と記述
+    approach: 参照先を dg --help の --user・コードとテストにし、vscode README のカンバンに Iteration のないチケットはバックログで見ると足し、guide の止まる操作に iteration start / reopen を足す。README は増やさない
+  t277:
+    scope: README.md の大きさ
+    approach: 「何ができるか」の表の「状態」列をやめて箇条書きにし、90% 未満にする。中身は変えない
+  t279:
+    scope: web の開いた Iteration の判定と test-helpers の export
+    approach: 判定の述語を board.tsx か router.ts に 1 つ置き app.tsx と boardSelection から使う。BOARD_ITERATION の export を外す
