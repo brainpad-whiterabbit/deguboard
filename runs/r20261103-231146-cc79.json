@@ -1,0 +1,21 @@
+{
+  "id": "r20261103-231146-cc79",
+  "ticket": "t325",
+  "step": "fix",
+  "agent": "copilot",
+  "model": null,
+  "started_at": "2026-11-03T23:11:46Z",
+  "finished_at": "2026-11-03T23:13:03Z",
+  "result": "success",
+  "error": null,
+  "retries": 1,
+  "retry_reasons": [
+    "PR 本文の受け入れ条件を直した条件に合わせ、ADR-008 に DefinitelyTyped の運用だと補足"
+  ],
+  "usage": {
+    "input": null,
+    "output": null,
+    "cache_read": null,
+    "cache_write": null
+  }
+}
