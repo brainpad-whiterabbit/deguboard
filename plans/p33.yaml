@@ -23,7 +23,7 @@ after:
   t309:
     - t300
     - t307
-pending_approval: true
+pending_approval: false
 details:
   t298:
     scope: パネルのチケット・Sprint・Epic の詳細のタイトルの吹き出しと右クリック、中の行の吹き出しと右クリック
@@ -58,3 +58,5 @@ details:
   t309:
     scope: requirements.md の細部を正本へ移し、予算の 90% を下回るようにする
     approach: s11 で増えた UI-15・CL-2・AG-8 と古い節から細部を正本（ヘルプ・コード・テスト）へ移し、約束だけを残す
+approved_by: eiki.kitajima/agent
+approved_at: 2026-11-03T10:39:52Z
