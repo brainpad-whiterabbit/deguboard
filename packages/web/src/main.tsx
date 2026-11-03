@@ -2,6 +2,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./app.js";
 import { createHttpClient } from "./client/http.js";
+import { parseAskKey } from "./ask-key.js";
 import { createWebviewClient } from "./client/webview.js";
 import { ASK_OPEN_KEY, createHost, HostBridge, HostProvider, readSurface } from "./host.js";
 import { StoreProvider } from "./store.js";
@@ -20,9 +21,9 @@ const webviewClient = vscodeApi ? createWebviewClient(vscodeApi) : null;
 const client = webviewClient ?? createHttpClient();
 const uiState = vscodeApi ? createUiState(vscodeApi) : undefined;
 const host = createHost(surface, webviewClient, uiState);
-// 拡張ホストがサイドバーを作る前に「エージェントに頼む」を押されたときは、対象を data-ask（空白区切りの ID）で渡してくる（UI-15）
+// 拡張ホストがサイドバーを作る前に「エージェントに頼む」を押されたときは、対象を data-ask（ask-key.ts の鍵の形）で渡してくる（UI-15）
 if (dataset.ask !== undefined)
-  host.state.set(ASK_OPEN_KEY, { targets: dataset.ask.split(/\s+/).filter(Boolean) });
+  host.state.set(ASK_OPEN_KEY, { targets: parseAskKey(dataset.ask).targets });
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

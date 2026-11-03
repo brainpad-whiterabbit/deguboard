@@ -370,14 +370,14 @@ export function AskRow({
 
 /**
  * バックログの行（サイドバー）。右クリックの文脈は webviewSection（core の WEBVIEW_CONTRACT の写しで、拡張の package.json の when と合う）と
- * チケット・Iteration・Project で、エージェントに頼む吹き出しとサブメニューの候補も載せる（useAskSpot。既定の切り取り・コピー・貼り付けは出さない）
+ * チケット（拡張の「詳細を開く」「ID をコピー」が使う）で、エージェントに頼む吹き出しとサブメニューの候補も載せる（useAskSpot。既定の切り取り・コピー・貼り付けは出さない）
  */
 function BacklogItem({ ticket: t, children }: { ticket: Ticket; children: ReactNode }) {
   const spot = useAskSpot({
     targets: [t.id],
     label: `行 ${t.id}`,
     section: WEBVIEW_CONTRACT_COPY.backlogRowSection,
-    context: { ticket: t.id, iteration: t.iteration ?? null, project: t.project },
+    context: { ticket: t.id },
     select: true,
   });
   return (

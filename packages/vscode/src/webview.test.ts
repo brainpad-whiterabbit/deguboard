@@ -3,6 +3,7 @@ import { OperationError, UsageError } from "@deguboard/core";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   askDelivery,
+  askEvent,
   badgeOf,
   handleRequest,
   isWebviewRequest,
@@ -276,6 +277,13 @@ describe("エージェントに頼む入力欄の届け方（UI-15）", () => {
     });
   });
 
+  it("パネルに送る event は描かれたサイドバーに送るものと同じ", () => {
+    expect(askEvent(["t1"], "remove", "s1")).toEqual(
+      (askDelivery(true, ["t1"], "remove", "s1") as { post: unknown }).post,
+    );
+    expect(askEvent([])).toEqual({ kind: "event", name: "ask", targets: [] });
+  });
+
   it("まだ描かれていなければ event を送らず、対象を覚えて HTML に埋める", () => {
     expect(askDelivery(false, [])).toEqual({ pending: [] });
   });
@@ -287,7 +295,7 @@ describe("エージェントに頼む入力欄の届け方（UI-15）", () => {
     expect(currentAskDelivery(false)).toEqual({ pending: [] });
   });
 
-  it("HTML の data-ask は空白区切りの ID で、対象なしは空の値。省けば付けない", () => {
+  it("HTML の data-ask は core の askMenuKey の形（空白区切りの ID）で、対象なしは空の値。省けば付けない", () => {
     const base = {
       asset: (p: string) => p,
       cspSource: "c",

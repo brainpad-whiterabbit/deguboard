@@ -24,6 +24,7 @@ import {
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
+import { askKey } from "../ask-key.js";
 import { WEBVIEW_CONTRACT_COPY } from "../client/webview.js";
 import { useCommandData } from "../command-data.js";
 import { useAsk, useUiState } from "../host.js";
@@ -44,11 +45,6 @@ export type AskSection =
 export const ASK_HINT_KEY = "ask.hintDismissed";
 
 export const ASK_HINT = "行の吹き出しか右クリックでエージェントに頼めます";
-
-/** 対象の組の鍵。ID を空白でつなぎ、場所（within）があれば @ を付けて後ろに置く（core の ask-menu の key と同じ） */
-export function askKey(targets: readonly string[], within?: string): string {
-  return [...targets, ...(within ? [`@${within}`] : [])].join(" ");
-}
 
 interface MenuCache {
   menus: ReadonlyMap<string, AskMenu>;
@@ -141,7 +137,7 @@ export interface AskSpotOptions {
   label: string;
   /** 右クリックの文脈の webviewSection */
   section: AskSection;
-  /** 右クリックの文脈に足すもの（バックログの行の ticket・iteration・project） */
+  /** 右クリックの文脈に足すもの（バックログの行の ticket） */
   context?: Readonly<Record<string, unknown>> | undefined;
   /** 吹き出しのボタンを置くか。札のように狭い場所は置かず、右クリックと Shift+F10 だけにする */
   bubble?: boolean | undefined;

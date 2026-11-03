@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { compareIds, formatId, idFromFileName, idNumber, nextNumber, parseId } from "./id.js";
+import {
+  compareIds,
+  formatId,
+  idFromFileName,
+  idKindOf,
+  idNumber,
+  nextNumber,
+  parseId,
+} from "./id.js";
 
 describe("ID", () => {
   it("t12 でも 12 でも同じチケットを指す", () => {
@@ -13,6 +21,18 @@ describe("ID", () => {
     expect(parseId("e12", "ticket")).toBeUndefined();
     expect(parseId("0", "ticket")).toBeUndefined();
     expect(parseId("t", "ticket")).toBeUndefined();
+  });
+
+  it("頭の文字から種類を決め、知らない頭や番号だけは undefined", () => {
+    expect(["t12", "s3", "e2", " p7"].map(idKindOf)).toEqual([
+      "ticket",
+      "iteration",
+      "epic",
+      "plan",
+    ]);
+    expect(idKindOf("12")).toBeUndefined();
+    expect(idKindOf("x1")).toBeUndefined();
+    expect(idKindOf("")).toBeUndefined();
   });
 
   it("番号順に並べる（辞書順では t100 が t2 より前になる）", () => {

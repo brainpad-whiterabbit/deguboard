@@ -4,9 +4,10 @@
 // 指示の下書きと形式は見た目の状態に残し、閉じて開き直しても消えない
 
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { askKey, parseAskKey } from "../ask-key.js";
 import { useHost, useUiState } from "../host.js";
 import { useStore } from "../store.js";
-import type { AskAction, AskFormat, AskTarget, AskView } from "../types.js";
+import type { AskAction, AskFormat, AskView } from "../types.js";
 
 /** 指示を打つ間、依頼文の取り直しを待つ時間（ミリ秒）。打つたびに ask を呼ばない */
 export const ASK_NOTE_SETTLE_MS = 150;
@@ -30,17 +31,6 @@ interface AskInput {
   action?: AskAction | undefined;
   note?: string | undefined;
   format?: AskFormat | undefined;
-}
-
-/** 札の小さな添え字。チケット・Iteration・Epic は Status、Plan は承認の状態 */
-function subOf(t: AskTarget): string {
-  if (t.kind === "plan")
-    return t.status === "pending_approval"
-      ? "承認待ち"
-      : t.status === "closed"
-        ? "閉じた"
-        : "承認済み";
-  return t.status;
 }
 
 export function AskComposer({
@@ -80,11 +70,11 @@ export function AskComposer({
 
   // 一覧が読み直されたら（Status が変わったかもしれない）候補も引き直す。対象は並びの文字列で見る（同じ並びなら引き直さない）。
   // この 2 つの読み込みは useCommandData を使わない：失敗したら前の結果を消し、エラーを全文の読み込みと 1 つの欄で分け合うため
-  const targetsKey = targets.join(" ");
+  const targetsKey = askKey(targets);
   useEffect(() => {
     let alive = true;
     client
-      .run<AskView>("ask", { targets: splitKey(targetsKey), within } satisfies AskInput)
+      .run<AskView>("ask", { targets: parseAskKey(targetsKey).targets, within } satisfies AskInput)
       .then((r) => alive && (setBase(r.data), setError(null)))
       .catch((e: unknown) => alive && (setBase(null), setError(messageOf(e))));
     return () => {
@@ -98,7 +88,7 @@ export function AskComposer({
     if (!base) return;
     let alive = true;
     const input: AskInput = {
-      targets: splitKey(targetsKey),
+      targets: parseAskKey(targetsKey).targets,
       within,
       action: action ?? undefined,
       note: settledNote,
@@ -194,7 +184,7 @@ export function AskComposer({
             {skillPill ? <span className="ask-pill ask-pill-skill">{skillPill}</span> : null}
             {(base?.targets ?? []).map((t) => (
               <span key={t.id} className="ask-pill ask-pill-target" title={t.line}>
-                {t.id} <small>{subOf(t)}</small>
+                {t.id} <small>{t.sub}</small>
                 <button
                   type="button"
                   aria-label={`${t.id} を外す`}
@@ -286,10 +276,6 @@ function useSettled<T>(value: T, wait: number): T {
     return () => clearTimeout(timer);
   }, [value, wait]);
   return settled;
-}
-
-function splitKey(key: string): string[] {
-  return key ? key.split(" ") : [];
 }
 
 function messageOf(e: unknown): string {

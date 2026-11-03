@@ -2,7 +2,9 @@
 
 import {
   askCandidates,
+  askMenuKey,
   buildAsk,
+  parseAskMenuKey,
   planReadiness,
   progressOf,
   type AskMenu,
@@ -227,15 +229,15 @@ export function mockClient(data = fixture()): MockClient {
       const { targets = [], ...rest } = input as { targets?: string[] } & Record<string, unknown>;
       return buildAsk({ subjects: targets.map((id) => askSubjectOf(data, id)), ...rest });
     },
-    // core の ask-menu と同じく、組（空白区切りの ID。@ を付けたものは場所）ごとに候補を返す。fixture にない対象は error
+    // core の ask-menu と同じく、組（core の askMenuKey の形にそろえた鍵）ごとに候補を返す。fixture にない対象は error。
+    // 返す key は core と同じくそろえた形なので、画面が別の形の鍵で引くと候補が見つからない
     "ask-menu": (input) =>
-      ((input as { sets?: string[] }).sets ?? []).map((key): AskMenu => {
+      ((input as { sets?: string[] }).sets ?? []).map((set): AskMenu => {
+        const { refs, within } = parseAskMenuKey(set);
+        const key = askMenuKey(refs, within);
         try {
-          const tokens = key.split(" ").filter(Boolean);
-          const ids = tokens.filter((id) => !id.startsWith("@"));
-          const within = tokens.find((id) => id.startsWith("@"))?.slice(1);
           const candidates = askCandidates(
-            ids.map((id) => askSubjectOf(data, id)),
+            refs.map((id) => askSubjectOf(data, id)),
             within,
           );
           return { key, candidates, error: null };

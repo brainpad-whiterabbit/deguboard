@@ -34,6 +34,7 @@ import { dgAdvice, resolveDg } from "./dg.js";
 import { watchTargets } from "./watch.js";
 import {
   askDelivery,
+  askEvent,
   badgeOf,
   coalesce,
   currentAskDelivery,
@@ -175,7 +176,7 @@ async function resolveSidebar(
  * サイドバーがまだ描かれていなければ、初期ルートとして覚えてからビューを開く（resolveSidebar が使う）
  */
 async function showInSidebar(route: string): Promise<void> {
-  await deliverToSidebar("navigate", route);
+  await deliverToSidebar(sidebarDelivery(sidebar !== undefined, "navigate", route), rememberRoute);
 }
 
 /** 文字をクリップボードに入れる。Webview の画面のコピー（依頼文・ブランチ名）と、バックログの「ID をコピー」で使う */
@@ -188,31 +189,49 @@ async function copyToClipboard(text: string): Promise<void> {
  * サイドバーがまだ描かれていなければ、その画面を初期ルートにしてビューを開く
  */
 async function toggleInSidebar(route: string): Promise<void> {
-  await deliverToSidebar("toggle", route);
+  await deliverToSidebar(sidebarDelivery(sidebar !== undefined, "toggle", route), rememberRoute);
 }
 
-/** sidebarDelivery の決めたとおりに、描かれたサイドバーへ送るか初期ルートとして覚えて、ビューを開く */
-async function deliverToSidebar(name: "navigate" | "toggle", route: string): Promise<void> {
-  const delivery = sidebarDelivery(sidebar !== undefined, name, route);
+/**
+ * webview.ts の届け方（sidebarDelivery・askDelivery・currentAskDelivery）の決めたとおりに、描かれたサイドバーへ送るか、
+ * まだ描かれていなければ remember で覚えて（resolveSidebar が使う）、ビューを開く
+ */
+async function deliverToSidebar<P>(
+  delivery: { post: WebviewEvent } | { pending: P },
+  remember: (pending: P) => void,
+): Promise<void> {
   if ("post" in delivery) void sidebar?.webview.postMessage(delivery.post);
-  else pendingSidebarRoute = delivery.pending;
+  else remember(delivery.pending);
   await vscode.commands.executeCommand(`${VIEW_ID}.focus`);
 }
+
+const rememberRoute = (route: string) => {
+  pendingSidebarRoute = route;
+};
+const rememberAsk = (targets: string[]) => {
+  pendingSidebarAsk = targets;
+};
 
 /** 左パネルの下にエージェントに頼む入力欄を出す（action を渡せばその頼むことで）。描かれていなければ対象を覚えてからビューを開く */
 async function askInSidebar(targets: string[], action?: AskAction, within?: string): Promise<void> {
-  const delivery = askDelivery(sidebar !== undefined, targets, action, within);
-  if ("post" in delivery) void sidebar?.webview.postMessage(delivery.post);
-  else pendingSidebarAsk = delivery.pending;
-  await vscode.commands.executeCommand(`${VIEW_ID}.focus`);
+  await deliverToSidebar(askDelivery(sidebar !== undefined, targets, action, within), rememberAsk);
 }
 
 /** タイトル行の吹き出し。左パネルの画面に今の対象を問い、それを対象にして左パネルの下に入力欄を出す（描かれていなければ対象なし） */
 async function askCurrentInSidebar(): Promise<void> {
-  const delivery = currentAskDelivery(sidebar !== undefined);
-  if ("post" in delivery) void sidebar?.webview.postMessage(delivery.post);
-  else pendingSidebarAsk = delivery.pending;
-  await vscode.commands.executeCommand(`${VIEW_ID}.focus`);
+  await deliverToSidebar(currentAskDelivery(sidebar !== undefined), rememberAsk);
+}
+
+/** パネルの下に入力欄を出して、そのパネルを手前に出す。パネルがなければ左パネルの下に出す */
+async function askBelow(
+  panel: vscode.WebviewPanel | undefined,
+  targets: string[],
+  action?: AskAction,
+  within?: string,
+): Promise<void> {
+  if (!panel) return askInSidebar(targets, action, within);
+  void panel.webview.postMessage(askEvent(targets, action, within));
+  panel.reveal(undefined, false);
 }
 
 /**
@@ -220,21 +239,16 @@ async function askCurrentInSidebar(): Promise<void> {
  * 見つからなければ（閉じた直後など）左パネルの下に出す
  */
 async function askInPanel(targets: string[], action: AskAction, within?: string): Promise<void> {
-  const panel =
-    [...panels.values()].find((p) => p.active) ?? [...panels.values()].find((p) => p.visible);
-  if (!panel) return askInSidebar(targets, action, within);
-  const delivery = askDelivery(true, targets, action, within);
-  if ("post" in delivery) void panel.webview.postMessage(delivery.post);
-  panel.reveal(undefined, false);
+  const all = [...panels.values()];
+  await askBelow(all.find((p) => p.active) ?? all.find((p) => p.visible), targets, action, within);
 }
 
-/** コマンドパレットの「エージェントに頼む」。手前のパネルがあればその下に、なければ左パネルの下に出す */
+/** コマンドパレットの「エージェントに頼む」。手前のパネルがあればその下に、なければ左パネルの下に対象なしで出す */
 async function askFromPalette(): Promise<void> {
-  const panel = [...panels.values()].find((p) => p.active);
-  if (!panel) return askInSidebar([]);
-  const delivery = askDelivery(true, []);
-  if ("post" in delivery) void panel.webview.postMessage(delivery.post);
-  panel.reveal(undefined, false);
+  await askBelow(
+    [...panels.values()].find((p) => p.active),
+    [],
+  );
 }
 
 /** フォルダのサイドバーとパネルの両方に通知を送る */

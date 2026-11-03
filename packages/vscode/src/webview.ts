@@ -1,6 +1,7 @@
 // Webview に web を載せる部分のうち、VS Code の API に触れない純粋な処理。extension.ts から呼ぶ
 
 import {
+  askMenuKey,
   toCommandFailure,
   type AskAction,
   type CommandClient,
@@ -29,7 +30,7 @@ export interface HtmlOptions {
 /**
  * Vite が出した index.html（base: "./"）を Webview 向けに直す：
  * 相対パスを Webview の URI に、crossorigin を外し、nonce つきの CSP を入れ、<html> に surface と初期ルート
- * （と、すぐ出す入力欄の対象。data-ask は空白区切りの ID で、空なら対象なし）を付ける
+ * （と、すぐ出す入力欄の対象。data-ask は core の askMenuKey の形で、空なら対象なし）を付ける
  */
 export function renderWebviewHtml(indexHtml: string, options: HtmlOptions): string {
   // style-src に 'unsafe-inline' は要らない：CSS は Vite が <link> に出し、React は style を CSSOM で当てる
@@ -51,7 +52,7 @@ export function renderWebviewHtml(indexHtml: string, options: HtmlOptions): stri
     .replace(
       /<html\b/,
       `<html data-surface="${escapeAttribute(options.surface)}" data-route="${escapeAttribute(options.route)}"${
-        options.ask ? ` data-ask="${escapeAttribute(options.ask.join(" "))}"` : ""
+        options.ask ? ` data-ask="${escapeAttribute(askMenuKey(options.ask))}"` : ""
       }`,
     )
     .replace(
@@ -116,17 +117,22 @@ export function askDelivery(
   action?: AskAction,
   within?: string,
 ): { post: WebviewEvent } | { pending: string[] } {
-  return rendered
-    ? {
-        post: {
-          kind: "event",
-          name: "ask",
-          targets: [...targets],
-          ...(action ? { action } : {}),
-          ...(within ? { within } : {}),
-        },
-      }
-    : { pending: [...targets] };
+  return rendered ? { post: askEvent(targets, action, within) } : { pending: [...targets] };
+}
+
+/** エージェントに頼む入力欄を出す ask の event（action・within があれば付ける）。描かれた Webview に送る */
+export function askEvent(
+  targets: readonly string[],
+  action?: AskAction,
+  within?: string,
+): WebviewEvent {
+  return {
+    kind: "event",
+    name: "ask",
+    targets: [...targets],
+    ...(action ? { action } : {}),
+    ...(within ? { within } : {}),
+  };
 }
 
 /**

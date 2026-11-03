@@ -10,14 +10,9 @@ import { useEffect, useState } from "react";
 import { useCommandData } from "../command-data.js";
 import { ASK_SECTIONS, AskSpotBox } from "../components/ask-menu.js";
 import { StatusDot, PriorityBadge, TicketLink } from "../components/parts.js";
-import {
-  attrPatchOf,
-  BrowserProps,
-  draftOf,
-  type Draft,
-} from "../components/ticket-props-browser.js";
+import { attrPatchOf, BrowserProps } from "../components/ticket-props-browser.js";
 import { PanelProps } from "../components/ticket-props-panel.js";
-import { PrLink } from "../components/ticket-props.js";
+import { draftOf, PrLink, type Draft } from "../components/ticket-props.js";
 import { TicketRuns } from "../components/ticket-runs.js";
 import { TicketTimeline } from "../components/timeline.js";
 import { useHost } from "../host.js";

@@ -82,40 +82,25 @@ describe("package.json のビューのタイトル行", () => {
 });
 
 describe("メニューの引数", () => {
-  it("行の data-vscode-context からチケット・今の Iteration・Project を取る", () => {
+  it("行の data-vscode-context からチケットを取る", () => {
     expect(
       menuTicketOf({
         webviewSection: BACKLOG_ROW_SECTION,
         ticket: "t12",
-        iteration: "s3",
-        project: "default",
+        askTargets: "t12",
         preventDefaultContextMenuItems: true,
       }),
-    ).toEqual({ ticket: "t12", iteration: "s3", project: "default" });
-    expect(
-      menuTicketOf({
-        webviewSection: BACKLOG_ROW_SECTION,
-        ticket: "t12",
-        iteration: null,
-        project: "default",
-      }),
-    ).toEqual({ ticket: "t12", iteration: null, project: "default" });
+    ).toEqual({ ticket: "t12" });
   });
 
   it("バックログの行でない・形が違う引数は undefined", () => {
     expect(menuTicketOf(undefined)).toBeUndefined();
-    expect(menuTicketOf({ webviewSection: "other", ticket: "t1", project: "default" })).toBe(
-      undefined,
-    );
-    expect(menuTicketOf({ webviewSection: BACKLOG_ROW_SECTION, project: "default" })).toBe(
-      undefined,
-    );
+    expect(menuTicketOf({ webviewSection: "other", ticket: "t1" })).toBeUndefined();
+    expect(menuTicketOf({ webviewSection: BACKLOG_ROW_SECTION })).toBeUndefined();
   });
 
   it("「詳細を開く」はチケット詳細のルートを開く", () => {
-    expect(ticketRoute({ ticket: "t12", iteration: null, project: "default" })).toBe(
-      "#/tickets/t12",
-    );
+    expect(ticketRoute({ ticket: "t12" })).toBe("#/tickets/t12");
   });
 });
 

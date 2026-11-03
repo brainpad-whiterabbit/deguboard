@@ -1484,14 +1484,12 @@ describe("画面", () => {
     expect(contextOf("入った")).toEqual({
       webviewSection: "backlogTicket",
       ticket: "t4",
-      iteration: "s1",
-      project: "default",
       askTargets: "t4",
       askActions: "work plan fix split check abandon free",
       askRecommended: "work",
       preventDefaultContextMenuItems: true,
     });
-    expect(contextOf("画面")).toMatchObject({ ticket: "t3", iteration: null });
+    expect(contextOf("画面")).toMatchObject({ ticket: "t3" });
   });
 
   it("サイドバーのカンバンの行と節の見出しには、エージェントに頼む右クリックの文脈だけを付ける（バックログの行の「詳細を開く」などは出さない）", async () => {

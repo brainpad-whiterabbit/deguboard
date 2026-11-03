@@ -5,7 +5,7 @@
 import { z } from "zod";
 import { UsageError } from "../errors.js";
 import { isTerminal, STATUSES, type Status } from "../model/common.js";
-import { parseId, type IdKind } from "../model/id.js";
+import { idKindOf, parseId } from "../model/id.js";
 import { peekRunningRuns } from "../run/record.js";
 import type { Store } from "../storage/store.js";
 import { findConstraint } from "../workflow/resolve.js";
@@ -85,6 +85,8 @@ export type AskSubject =
 export type AskTarget = AskSubject & {
   /** 依頼文の「対象:」に並べる 1 行 */
   line: string;
+  /** 画面の札の小さな添え字。チケット・Iteration・Epic は Status、Plan は承認の状態の表示名（承認待ち・承認済み・閉じた） */
+  sub: string;
 };
 
 export interface AskCandidate {
@@ -104,7 +106,7 @@ export interface AskView {
   label: string;
   skill: string | null;
   format: AskFormat;
-  /** prompt はエージェントに貼る依頼文、command は人が打つ dg のコマンド（頼むことの操作が actor.human_only に入っているか、Workflow の by が遷移を人に限るとき） */
+  /** prompt はエージェントに貼る依頼文、command は人が打つ dg のコマンド（操作が 1 つに決まる頼むことで、その操作が actor.human_only に入っているか、Workflow の by が遷移を人に限るとき） */
   kind: "prompt" | "command";
   /** 当たった actor.human_only の操作 */
   human_only: string[];
@@ -139,17 +141,14 @@ const kindName = (t: AskSubject) => (t.kind === "iteration" ? "Iteration" : "Epi
 const UNDO_DONE_TO = ["todo", "in_progress", "review"] as const;
 
 /**
- * 対象のチケットが入っている場所（Iteration・Epic の詳細の中の行から頼むとき）。外すの候補を足すのに使う。
- * 頭の文字で種類を決める（s3 は Iteration、e2 は Epic）
+ * within（対象のチケットが入っている Iteration・Epic。詳細の中の行から頼むとき）を種類と ID にする。外すの候補を足すのに使う。
+ * 種類は頭の文字で決め（s3 は Iteration、e2 は Epic）、対象がすべてチケットで、どれもそこに入っているときだけ返す
  */
-export type AskWithin = string;
-
-/** within を種類と ID にする。対象がすべてチケットで、どれもその Iteration・Epic に入っているときだけ返す */
-function withinOf(s: Subjects, within: AskWithin | undefined) {
+function withinOf(s: Subjects, within: string | undefined) {
   if (!within) return undefined;
-  const kind = within.startsWith("s") ? "iteration" : within.startsWith("e") ? "epic" : undefined;
+  const kind = idKindOf(within);
   const tickets = only(s, "ticket");
-  if (!kind || !tickets) return undefined;
+  if ((kind !== "iteration" && kind !== "epic") || !tickets) return undefined;
   const inside = tickets.every((t) => (kind === "iteration" ? t.iteration : t.epic) === within);
   return inside ? { kind, id: within } : undefined;
 }
@@ -454,16 +453,21 @@ export const ASK_SKILLS: readonly string[] = [
   ...new Set(Object.values(ACTIONS).flatMap((a) => (a.skill ? [a.skill] : []))),
 ];
 
+/** 頼むことで人が打つ手。buildAsk が人に回すかを決めるのと askHumanChecks は、ここから同じ手を得る */
+function humanSteps(action: AskAction, s: Subjects, w: Within | undefined): HumanStep[] {
+  return ACTIONS[action].human?.(s, w) ?? [];
+}
+
 /** 頼むことを人に回すか決めるときに actor.human_only と照らす操作の名前。名前が commands にあることをテストで確かめる */
-export function askHumanChecks(action: AskAction, s: Subjects, within?: AskWithin): string[] {
-  return (ACTIONS[action].human?.(s, withinOf(s, within)) ?? []).flatMap((h) => h.check);
+export function askHumanChecks(action: AskAction, s: Subjects, within?: string): string[] {
+  return humanSteps(action, s, withinOf(s, within)).flatMap((h) => h.check);
 }
 
 /**
  * 対象の種類と状態から、頼むことの候補を決める。先頭がおすすめ。
  * within（対象のチケットが入っている Iteration・Epic）を渡し、チケットがどれもそこに入っていて終わっていなければ、外すを直すの後（直すがなければ自由にの前）に足す
  */
-export function askActions(s: Subjects, within?: AskWithin): AskAction[] {
+function askActions(s: Subjects, within?: string): AskAction[] {
   const actions = baseActions(s);
   const tickets = only(s, "ticket");
   if (!withinOf(s, within) || !tickets || tickets.some((t) => isTerminal(t.status as Status)))
@@ -528,7 +532,7 @@ function baseActions(s: Subjects): AskAction[] {
   return ["check", "plan", "free"];
 }
 
-export function askCandidates(s: Subjects, within?: AskWithin): AskCandidate[] {
+export function askCandidates(s: Subjects, within?: string): AskCandidate[] {
   const w = withinOf(s, within);
   return askActions(s, within).map((action, n) => ({
     action,
@@ -544,8 +548,13 @@ const PLAN_STATE_LABEL: Record<PlanState, string> = {
   closed: "閉じた",
 };
 
+/** 画面の札の添え字（AskTarget の sub） */
+function targetSub(t: AskSubject): string {
+  return t.kind === "plan" ? PLAN_STATE_LABEL[t.status] : t.status;
+}
+
 /** 「対象:」の 1 行。ID とタイトル（と Status・Iteration）だけで、本文は入れない */
-export function targetLine(t: AskSubject): string {
+function targetLine(t: AskSubject): string {
   switch (t.kind) {
     case "ticket":
       return `${t.id}「${t.title}」（${t.status}, ${t.iteration ?? "Iteration なし"}）`;
@@ -567,7 +576,7 @@ export interface BuildAskInput {
   /** config の actor.human_only */
   humanOnly?: readonly string[] | undefined;
   /** 対象のチケットが入っている Iteration・Epic（詳細の中の行から頼むとき）。外すの候補が出る */
-  within?: AskWithin | undefined;
+  within?: string | undefined;
 }
 
 /** 依頼文を作る。頼むことが候補になければ UsageError */
@@ -584,7 +593,7 @@ export function buildAsk(input: BuildAskInput): AskView {
       `候補：${candidates.map((c) => `${c.action}（${c.label}）`).join("、")}`,
     );
   const def = ACTIONS[chosen];
-  const targets = s.map((t) => ({ ...t, line: targetLine(t) }));
+  const targets = s.map((t) => ({ ...t, line: targetLine(t), sub: targetSub(t) }));
   const view = {
     targets,
     candidates,
@@ -596,7 +605,7 @@ export function buildAsk(input: BuildAskInput): AskView {
 
   // 人に限った操作と遷移は、依頼しても TRANSITION_REJECTED になるので、人が打つコマンドを返す
   const humanOnly = new Set(input.humanOnly ?? []);
-  const steps = def.human?.(s, w) ?? [];
+  const steps = humanSteps(chosen, s, w);
   const hit = [...new Set(steps.flatMap((h) => h.check.filter((c) => humanOnly.has(c))))];
   const workflowBy = steps.flatMap((h) => (h.denied ? [h.denied] : []));
   if (hit.length > 0 || workflowBy.length > 0)
@@ -633,13 +642,6 @@ export function buildAsk(input: BuildAskInput): AskView {
   };
 }
 
-const KIND_OF_PREFIX: Record<string, IdKind> = {
-  t: "ticket",
-  s: "iteration",
-  e: "epic",
-  p: "plan",
-};
-
 function isComplete(statuses: readonly (Status | undefined)[]): boolean {
   return statuses.length > 0 && statuses.every((st) => st !== undefined && isTerminal(st));
 }
@@ -655,8 +657,8 @@ function agentDenied(store: Store, t: Parameters<Store["workflowFor"]>[0]): stri
 }
 
 /** ID から対象を引く。種類は頭の文字で決めるので、番号だけは受けない */
-export function askSubjectOf(store: Store, ref: string, running: ReadonlySet<string>): AskSubject {
-  const kind = KIND_OF_PREFIX[ref.trim().charAt(0)];
+function askSubjectOf(store: Store, ref: string, running: ReadonlySet<string>): AskSubject {
+  const kind = idKindOf(ref);
   if (!kind || !parseId(ref, kind))
     throw new UsageError(`${ref} は対象の ID ではない（t12・s3・e2・p7 の形で書く）`);
   switch (kind) {
@@ -755,7 +757,7 @@ export const ask = defineCommand({
   },
 });
 
-/** 画面の 1 か所（行・見出し）の候補。key は対象の ID を空白でつないだもの（空なら対象なし） */
+/** 画面の 1 か所（行・見出し）の候補。key は askMenuKey の形（対象の ID を空白でつなぎ、場所を @ を付けて後ろに置く。空なら対象なし） */
 export interface AskMenu {
   key: string;
   /** 対象の種類と状態から決めた候補（ask の candidates と同じ）。先頭がおすすめ。引けなければ空 */
@@ -784,12 +786,12 @@ export const askMenu = defineCommand({
     const keys = [...new Set(input.sets.map(normalizeKey))];
     const running = await runningTickets(
       ctx.repo,
-      keys.flatMap((k) => parseKey(k).refs),
+      keys.flatMap((k) => parseAskMenuKey(k).refs),
     );
     return ok(
       keys.map((key): AskMenu => {
         try {
-          const { refs, within } = parseKey(key);
+          const { refs, within } = parseAskMenuKey(key);
           const candidates = askCandidates(
             subjectsOf(ctx.store, refs, running),
             withinRef(ctx.store, within),
@@ -803,13 +805,17 @@ export const askMenu = defineCommand({
   },
 });
 
-function splitRefs(key: string): string[] {
-  return key.split(/\s+/).filter(Boolean);
+/**
+ * ask-menu の組の鍵。対象の ID を空白でつなぎ、場所（within）があれば @ を付けて後ろに置く（返す key はこの形）。
+ * web は core を実行時に取り込めないので同じ書式を写し（ask-key.ts）、一致を web のテストで確かめる
+ */
+export function askMenuKey(refs: readonly string[], within?: string): string {
+  return [...refs, ...(within ? [`@${within}`] : [])].join(" ");
 }
 
 /** 組の文字列を対象と場所（@ を付けた 1 つ。重ねたら後のもの）に分ける */
-function parseKey(key: string): { refs: string[]; within: string | undefined } {
-  const tokens = splitRefs(key);
+export function parseAskMenuKey(key: string): { refs: string[]; within: string | undefined } {
+  const tokens = key.split(/\s+/).filter(Boolean);
   const within = tokens
     .filter((t) => t.startsWith("@"))
     .at(-1)
@@ -819,15 +825,15 @@ function parseKey(key: string): { refs: string[]; within: string | undefined } {
 
 /** 組の文字列を、対象の ID の後に場所を置いた形にそろえる（返す key はこの形） */
 function normalizeKey(key: string): string {
-  const { refs, within } = parseKey(key);
-  return [...refs, ...(within ? [`@${within}`] : [])].join(" ");
+  const { refs, within } = parseAskMenuKey(key);
+  return askMenuKey(refs, within);
 }
 
 /** within を確かめる。Iteration・Epic の ID でなければ使い方の誤り、なければ NOT_FOUND */
 function withinRef(store: Store, within: string | undefined): string | undefined {
   const ref = within?.trim();
   if (!ref) return undefined;
-  const kind = KIND_OF_PREFIX[ref.charAt(0)];
+  const kind = idKindOf(ref);
   if ((kind !== "iteration" && kind !== "epic") || !parseId(ref, kind))
     throw new UsageError(`${ref} は Iteration・Epic の ID ではない（s3・e2 の形で書く）`);
   return store.require(kind, ref).id;
@@ -838,7 +844,7 @@ async function runningTickets(
   repo: Parameters<typeof peekRunningRuns>[0],
   refs: readonly string[],
 ): Promise<ReadonlySet<string>> {
-  if (!refs.some((r) => r.startsWith("t"))) return new Set();
+  if (!refs.some((r) => idKindOf(r) === "ticket")) return new Set();
   return new Set((await peekRunningRuns(repo)).map((r) => r.ticket));
 }
 

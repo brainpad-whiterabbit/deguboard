@@ -4,9 +4,11 @@ import {
   ASK_ACTIONS,
   ASK_TEXT_PREAMBLE,
   ask,
-  askActions,
+  askCandidates,
   askHumanChecks,
   askMenu,
+  askMenuKey,
+  parseAskMenuKey,
   buildAsk,
   type AskSubject,
   type AskView,
@@ -22,6 +24,10 @@ import { runStart } from "./run.js";
 import { configSet, init } from "./setup.js";
 import { ticketCreate, ticketMove, ticketUpdate } from "./ticket.js";
 import { workflowSet } from "./workflow.js";
+
+/** 候補の頼むことだけを順に並べる */
+const askActions = (s: AskSubject[], within?: string) =>
+  askCandidates(s, within).map((c) => c.action);
 
 const cleanups: Array<() => Promise<void>> = [];
 afterEach(async () => {
@@ -430,6 +436,7 @@ describe("ask", () => {
     expect((await run({ targets: ["s1"] })).targets[0]).toMatchObject({
       kind: "iteration",
       line: "Iteration s1「Sprint 1」（active）",
+      sub: "active",
     });
     expect((await run({ targets: ["e1"] })).label).toBe("起票して e1 に足す");
     // planned の Iteration に入った着手可の todo は計画から
@@ -448,7 +455,10 @@ describe("ask", () => {
 
     // Plan は承認待ちなら承認する
     await runCommand(planCreate, ctx, { tickets: ["t1", "t2"] });
-    expect((await run({ targets: ["p1"] })).targets[0]!.line).toBe("Plan p1（承認待ち、t1 t2）");
+    expect((await run({ targets: ["p1"] })).targets[0]).toMatchObject({
+      line: "Plan p1（承認待ち、t1 t2）",
+      sub: "承認待ち",
+    });
 
     // 番号だけの ID は種類が決まらないので使い方の誤り、ないものは NOT_FOUND
     await expect(runCommand(ask, ctx, { targets: ["1"] })).rejects.toMatchObject({
@@ -476,6 +486,15 @@ describe("ask", () => {
     expect(menus.map((m) => m.key)).toEqual(["t1 @s1", "t1"]);
     expect(menus[0]!.candidates.map((c) => c.action)).toContain("remove");
     expect(menus[1]!.candidates.map((c) => c.action)).not.toContain("remove");
+  });
+
+  it("ask-menu の組の鍵は ID を空白でつなぎ @ を付けた場所を後ろに置き、分けると元に戻る", () => {
+    expect(askMenuKey([])).toBe("");
+    expect(askMenuKey(["t1", "t2"], "s3")).toBe("t1 t2 @s3");
+    expect(parseAskMenuKey("t1 t2 @s3")).toEqual({ refs: ["t1", "t2"], within: "s3" });
+    // 場所を重ねたら後のもの、空白が重なっても分ける
+    expect(parseAskMenuKey(" @e1  t1 @s3 ")).toEqual({ refs: ["t1"], within: "s3" });
+    expect(parseAskMenuKey("")).toEqual({ refs: [], within: undefined });
   });
 
   it("config の actor.human_only を見て、人が打つコマンドを返す", async () => {
