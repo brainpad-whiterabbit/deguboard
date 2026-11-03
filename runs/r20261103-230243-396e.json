@@ -1,0 +1,22 @@
+{
+  "id": "r20261103-230243-396e",
+  "ticket": "t323",
+  "step": "fix",
+  "agent": "copilot",
+  "model": null,
+  "started_at": "2026-11-03T23:02:43Z",
+  "finished_at": "2026-11-03T23:04:13Z",
+  "result": "success",
+  "error": null,
+  "retries": 2,
+  "retry_reasons": [
+    "mise.toml の release:version の版の例を 0.10.0 にする",
+    "ADR-004 の採らなかった案の補足を「太字：理由」の形に揃える"
+  ],
+  "usage": {
+    "input": null,
+    "output": null,
+    "cache_read": null,
+    "cache_write": null
+  }
+}
