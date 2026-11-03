@@ -1,0 +1,12 @@
+id: p24
+project: default
+tickets: [t247, t248]
+after: {}
+pending_approval: true
+details:
+  t247:
+    scope: VS Code の左パネル（surface が sidebar）で Run のタブと履歴の「Run の集計」のリンクを出さず、#/runs に来たらカンバンに戻す。web は変えない。requirements.md の UI-9・UI-12 と ADR-006 を直す
+    approach: app.tsx の NAV と useLastHref・画面の分岐、history.tsx のリンクを surface で切り替え、app.test.tsx・history.test.tsx に sidebar と browser の両方のテストを足す
+  t248:
+    scope: 左パネルのバックログの畳んだ「絞り込み」の行を、検索欄の右端の漏斗のボタンで開く欄に替え、件数は絞っているときだけチップの行の右端に出す。web は変えない
+    approach: board.tsx の漏斗のボタンとアイコンを components に移して両方で使い、backlog.tsx の details をやめる。backlog・board のテストを直し、スクリーンショットを pr-screenshots に置く
