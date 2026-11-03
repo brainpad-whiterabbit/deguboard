@@ -9,7 +9,10 @@ import type { WebviewEvent } from "@deguboard/core";
 import { HostBridge, HostProvider, type Host } from "./host.js";
 import { parseRoute, type Route } from "./router.js";
 import { StoreProvider } from "./store.js";
-import { fixture, iteration, mockClient, plan, ticket } from "./test-helpers.js";
+import { boardFixture, fixture, iteration, mockClient, plan, ticket } from "./test-helpers.js";
+
+/** カンバンのテストの client（チケットを active の Iteration に入れた fixture） */
+const boardClient = () => mockClient(boardFixture());
 import type { RunView } from "./types.js";
 import { createUiState, memoryBackend } from "./ui-state.js";
 
@@ -103,7 +106,7 @@ function kanbanRowOf(title: string): Element {
 
 describe("画面", () => {
   it("カンバンは Workflow の表示名の 4 列で、チケットを Status の列に出す。中止は 0 件なら出さない", async () => {
-    mount();
+    mount(boardClient());
     await screen.findByText("ログイン");
     const headings = screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent);
     expect(headings).toEqual(["Todo1", "In Progress1", "Code Review0", "Done1"]);
@@ -127,7 +130,9 @@ describe("画面", () => {
       expect(screen.queryByText("ログイン")).toBeNull();
       const guide = document.querySelector(".board-empty")!;
       expect(guide.querySelector("a")!.getAttribute("href")).toBe("#/backlog");
-      expect(screen.getAllByText("+ Iteration を作る").length).toBeGreaterThan(0);
+      // 作るボタンは案内の中の 1 つだけ（ブラウザの上の欄には出さない）
+      expect(screen.getAllByRole("button", { name: "+ Iteration を作る" })).toHaveLength(1);
+      expect(guide.querySelector("button")!.textContent).toBe("+ Iteration を作る");
       if (surface === "browser") {
         const select = screen.getByLabelText<HTMLSelectElement>("Iteration");
         expect([...select.querySelectorAll("option")].map((o) => o.textContent)).toEqual([
@@ -142,7 +147,7 @@ describe("画面", () => {
   );
 
   it("中止のチケットがあるときだけ、畳んだ「中止」の列を完了の右（最後）に出す", async () => {
-    const client = mockClient();
+    const client = boardClient();
     client.data.tickets.push(
       ticket({ id: "t9", title: "やめた", status: "abandoned", iteration: "s0" }),
     );
@@ -200,7 +205,7 @@ describe("画面", () => {
   });
 
   it("Epic の選択肢は open だけ。閉じた Epic は選んでいるときだけ残す", async () => {
-    const client = mockClient();
+    const client = boardClient();
     client.data.epics = [
       ...client.data.epics,
       { ...client.data.epics[0]!, id: "e9", title: "済んだ", status: "closed" },
@@ -218,7 +223,7 @@ describe("画面", () => {
   });
 
   it("Epic と担当者で絞れる。旧 ID は @ の前だけを出し、担当者のないものは「なし」", async () => {
-    const client = mockClient();
+    const client = boardClient();
     client.data.tickets[1]!.assignee = "eiki@laptop";
     mount(client);
     await screen.findByText("API");
@@ -310,7 +315,7 @@ describe("画面", () => {
 
   it("エディタのパネルのチケット詳細は、編集のボタンをタイトルの行に置き、作成・更新を手元時刻で出し、値のない属性を「なし」の 1 行にまとめる", async () => {
     window.location.hash = "#/tickets/t3";
-    mount(mockClient(fixture({ iterations: [] })), hostOf("panel"));
+    mount(mockClient(), hostOf("panel"));
     const h1 = await screen.findByRole("heading", { level: 1, name: "画面" });
     const edit = screen.getByRole("button", { name: "本文と属性を編集" });
     expect(edit.closest("header")).toBe(h1.closest("header"));
@@ -360,7 +365,7 @@ describe("画面", () => {
 
   it("編集して保存すると ticket.update に属性と本文を渡す", async () => {
     window.location.hash = "#/tickets/t3";
-    const client = mockClient(fixture({ iterations: [] }));
+    const client = mockClient();
     client.handlers["ticket.update"] = (input) => input;
     mount(client);
     await screen.findByRole("heading", { level: 1, name: "画面" });
@@ -394,7 +399,7 @@ describe("画面", () => {
   });
 
   it("拡張ホストから reload の event が来ると読み直して表示が変わり、navigate の event でハッシュが変わる", async () => {
-    const client = mockClient();
+    const client = boardClient();
     const send = mountWithBridge(client, { readRunning: false });
     await screen.findByText("ログイン");
     // 別の経路（ターミナルの dg など）でチケットが増えた。本物の読み直しと同じく新しい配列を返す
@@ -466,7 +471,7 @@ describe("画面", () => {
   it.each(["browser", "panel", "sidebar"] as const)(
     "%s でも完了の節は既定で畳み、ほかの節は開く",
     async (surface) => {
-      mount(mockClient(), surface === "browser" ? undefined : hostOf(surface));
+      mount(boardClient(), surface === "browser" ? undefined : hostOf(surface));
       await screen.findByText("ログイン");
       const columns = [...document.querySelectorAll<HTMLDetailsElement>("details.column")];
       expect(columns.map((c) => [c.dataset.status, c.open])).toEqual([
@@ -547,7 +552,7 @@ describe("画面", () => {
   });
 
   it("サイドバーのカンバンの行は担当の名前の列を出さず、右端の上の段（Plan の番号の左）に担当の印を出す。人は頭文字の丸、agent は持ち主の丸と Run の agent によらない汎用のアイコン", async () => {
-    const client = mockClient();
+    const client = boardClient();
     client.data.tickets.push(
       ticket({ id: "t4", title: "人", assignee: "eiki", iteration: "s0" }),
       ticket({
@@ -607,7 +612,7 @@ describe("画面", () => {
 
   it("サイドバーのカンバンは、前回の描画から Status が変わった行を点滅させ（開き直しても host.state で比べる）、ブラウザでは点滅させない", async () => {
     const host = hostOf("sidebar");
-    const client = mockClient();
+    const client = boardClient();
     mount(client, host);
     await screen.findByText("画面");
     expect(document.querySelector(".row.changed")).toBeNull();
@@ -619,14 +624,14 @@ describe("画面", () => {
     );
     expect(screen.getByText("ログイン").closest(".row")!.classList.contains("changed")).toBe(false);
     cleanup();
-    mount(mockClient());
+    mount(boardClient());
     await screen.findByText("画面");
     expect(document.querySelector(".row.changed")).toBeNull();
   });
 
   it("節の開閉は host.state に残り、開き直しても保たれる", async () => {
     const host = hostOf("sidebar");
-    mount(mockClient(), host);
+    mount(boardClient(), host);
     await screen.findByText("ログイン");
     const done = document.querySelector<HTMLDetailsElement>('details[data-status="done"]')!;
     expect(done.open).toBe(false);
@@ -634,7 +639,7 @@ describe("画面", () => {
     fireEvent(done, new Event("toggle"));
     expect(host.state.get("board.section.done")).toBe(true);
     cleanup();
-    mount(mockClient(), host);
+    mount(boardClient(), host);
     await screen.findByText("ログイン");
     expect(document.querySelector<HTMLDetailsElement>('details[data-status="done"]')!.open).toBe(
       true,
@@ -642,7 +647,7 @@ describe("画面", () => {
   });
 
   it("サイドバーではカンバンの列が折りたためる節になり、チケットは 1 行で出る。空の節は見出しの 1 行だけで「なし」は出さない", async () => {
-    mount(mockClient(), hostOf("sidebar"));
+    mount(boardClient(), hostOf("sidebar"));
     await screen.findByText("ログイン");
     const app = document.querySelector(".app")!;
     expect(app.getAttribute("data-surface")).toBe("sidebar");
@@ -660,7 +665,7 @@ describe("画面", () => {
   });
 
   it("サイドバーの節の件数は、終わった状態（Done）の節だけ塗らずに数字だけにする", async () => {
-    mount(mockClient(), hostOf("sidebar"));
+    mount(boardClient(), hostOf("sidebar"));
     await screen.findByText("ログイン");
     const plain = Object.fromEntries(
       [...document.querySelectorAll<HTMLDetailsElement>("details.column")].map((d) => [
@@ -672,7 +677,7 @@ describe("画面", () => {
   });
 
   it("サイドバーのカンバンの行は状態の丸印を出さず、優先度の印（high・low）を右に出す。バックログの行は変わらない", async () => {
-    const client = mockClient();
+    const client = boardClient();
     client.data.tickets[2]!.priority = "low";
     mount(client, hostOf("sidebar"));
     await screen.findByText("ログイン");
@@ -692,7 +697,7 @@ describe("画面", () => {
   });
 
   it("サイドバーのカンバンの行は、開いた Plan に入っていれば右端に Plan の番号を Plan の色で出し、todo なら着手可・待ちの相手・承認待ちを出す", async () => {
-    const client = mockClient();
+    const client = boardClient();
     client.data.tickets.push(
       ticket({ id: "t4", title: "待つ", priority: "high", iteration: "s0" }),
       ticket({ id: "t5", title: "外", priority: "low", iteration: "s0" }),
@@ -780,7 +785,7 @@ describe("画面", () => {
 
   it("サイドバーの Iteration のないバックログの行にも Plan の番号と着手可を出し、Plan の外の行は優先度の札だけ", async () => {
     window.location.hash = "#/backlog";
-    const client = mockClient(fixture({ iterations: [] }));
+    const client = mockClient();
     client.data.tickets.push(
       ticket({ id: "t4", title: "待つ", priority: "high" }),
       ticket({ id: "t5", title: "外", priority: "high" }),
@@ -800,7 +805,7 @@ describe("画面", () => {
 
   it("サイドバーのバックログの行に右クリックのメニューの文脈（data-vscode-context）を付け、ドラッグの行はそのまま", async () => {
     window.location.hash = "#/backlog";
-    const client = mockClient(fixture({ iterations: [] }));
+    const client = mockClient();
     client.data.iterations.push(iteration({ id: "s1", name: "最初", status: "active" }));
     client.data.tickets.push(ticket({ id: "t4", title: "入った", iteration: "s1" }));
     mount(client, hostOf("sidebar"));
@@ -820,13 +825,13 @@ describe("画面", () => {
   });
 
   it("サイドバーのカンバンの行には右クリックのメニューの文脈を付けない", async () => {
-    mount(mockClient(), hostOf("sidebar"));
+    mount(boardClient(), hostOf("sidebar"));
     await screen.findByText("ログイン");
     expect(document.querySelector("[data-vscode-context]")).toBeNull();
   });
 
   it("サイドバーのカンバンの行の頭に、実行中の Run があれば回るリングと「実行中」を、Run のない in_progress なら止まった半分塗りの丸を出し、読み直しで変わる", async () => {
-    const client = mockClient();
+    const client = boardClient();
     client.data.plans.push(plan({ id: "p7", tickets: ["t2"] }));
     /** このマシンで実行中の Run（run.list の running: true だけに返す） */
     let running: RunView[] = [runningRun("t3")];
@@ -869,7 +874,7 @@ describe("画面", () => {
   });
 
   it("サイドバーのカンバンでは、待ちと承認待ちの todo の行だけタイトルを薄くし、実行中の Run がある行は待ちでも薄くしない", async () => {
-    const client = mockClient();
+    const client = boardClient();
     client.data.tickets.push(
       ticket({ id: "t4", title: "待つ", iteration: "s0" }),
       ticket({ id: "t5", title: "外", iteration: "s0" }),
@@ -907,7 +912,7 @@ describe("画面", () => {
   });
 
   it("実行中の Run を読み終えるまでは、in_progress の行に頭の印を出さず、ほかの一覧はそれを待たずに出す", async () => {
-    const client = mockClient();
+    const client = boardClient();
     let finish: (runs: RunView[]) => void = () => {};
     client.handlers["run.list"] = () => new Promise<RunView[]>((resolve) => (finish = resolve));
     render(
@@ -927,7 +932,7 @@ describe("画面", () => {
   });
 
   it("実行中の Run を読み終えるまでは待ちの行を薄くせず、読み終えると実行中でない待ちの行だけ薄くする", async () => {
-    const client = mockClient();
+    const client = boardClient();
     client.data.tickets.push(
       ticket({ id: "t4", title: "待つ", iteration: "s0" }),
       ticket({ id: "t8", title: "待ちで実行中", iteration: "s0" }),
@@ -962,7 +967,7 @@ describe("画面", () => {
   });
 
   it("readRunning でなければ（左パネルでなければ）実行中の Run を読まず、行に頭の印を出さない", async () => {
-    const client = mockClient();
+    const client = boardClient();
     mount(client, hostOf("sidebar"));
     await screen.findByText("API");
     expect(client.calls.some((c) => c.name === "run.list")).toBe(false);
@@ -970,7 +975,7 @@ describe("画面", () => {
   });
 
   it("広い画面のカンバンのカードには Run の印を出さない", async () => {
-    const client = mockClient();
+    const client = boardClient();
     let answered = false;
     client.handlers["run.list"] = () => {
       answered = true;
@@ -998,7 +1003,7 @@ describe("画面", () => {
   });
 
   it("実行中の Run の読み直しが重なり、後から古い結果が返っても、新しい結果のリングを残す", async () => {
-    const client = mockClient();
+    const client = boardClient();
     /** run.list（running）の応答を、呼ばれた順に後から返す */
     const pending: ((runs: RunView[]) => void)[] = [];
     client.handlers["run.list"] = () => new Promise<RunView[]>((resolve) => pending.push(resolve));
@@ -1023,7 +1028,7 @@ describe("画面", () => {
   });
 
   it("実行中の Run が読み直しで読めなくても、前のリングを残し、エラーの通知を出さない", async () => {
-    const client = mockClient();
+    const client = boardClient();
     let fail = false;
     client.handlers["run.list"] = () => {
       if (fail) throw new Error("runs を読めない");
@@ -1049,7 +1054,7 @@ describe("画面", () => {
   });
 
   it("サイドバーでは同期の印とボタンを出さない（ビューのタイトル行とバッジで代える）", async () => {
-    const client = mockClient();
+    const client = boardClient();
     client.data.status = { ...client.data.status, ahead: 2 };
     mount(client, hostOf("sidebar"));
     await screen.findByText("ログイン");
@@ -1070,7 +1075,7 @@ describe("画面", () => {
     const intercept = (e: Event) => e.preventDefault();
     document.addEventListener("click", intercept);
     try {
-      mount(mockClient(), hostOf("sidebar"));
+      mount(boardClient(), hostOf("sidebar"));
       await screen.findByText("ログイン");
       const board = screen.getByRole("link", { name: "カンバン" });
       expect(board.getAttribute("aria-current")).toBe("page");
@@ -1825,7 +1830,7 @@ describe("画面", () => {
 
   it("info の通知（コマンドの警告）は数秒で消える", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
-    const client = mockClient();
+    const client = boardClient();
     client.handlers["sync"] = () => ({});
     mount(client);
     await screen.findByText("ログイン");
@@ -1846,7 +1851,7 @@ describe("画面", () => {
   });
 
   it("最初の読み込みが終わるまで「読み込み中…」を出し、空の Project では終わってから空状態になる", async () => {
-    const client = mockClient(fixture({ iterations: [], tickets: [] }));
+    const client = mockClient(fixture({ tickets: [] }));
     mount(client);
     expect(screen.getByText("読み込み中…")).toBeTruthy();
     expect(screen.queryByText(/開いた Iteration（planned・active）はない/)).toBeNull();
@@ -2100,11 +2105,11 @@ describe("画面", () => {
   });
 
   it("サイドバーでは Project が 1 つなら Project の段を出さず、2 つ以上なら出す", async () => {
-    mount(mockClient(), hostOf("sidebar"));
+    mount(boardClient(), hostOf("sidebar"));
     await screen.findByText("ログイン");
     expect(document.querySelector(".project-select")).toBeNull();
     cleanup();
-    const client = mockClient();
+    const client = boardClient();
     client.data.projects.push({ ...client.data.projects[0]!, id: "other", name: "Other" });
     mount(client, hostOf("sidebar"));
     await screen.findByText("ログイン");
@@ -2112,7 +2117,7 @@ describe("画面", () => {
   });
 
   it("サイドバーのカンバンの Epic・担当の欄は漏斗で開き（開閉は host.state）、絞っている間は値の札を出して漏斗を色付きにし、× で外せる", async () => {
-    const client = mockClient();
+    const client = boardClient();
     client.data.tickets[1]!.assignee = "eiki/agent";
     const host = hostOf("sidebar");
     mount(client, host);
@@ -2169,7 +2174,7 @@ describe("画面", () => {
   });
 
   it("開いた Iteration のない Project でも、サイドバーのカンバンの「+」から Iteration を作れる", async () => {
-    mount(mockClient(fixture({ iterations: [] })), hostOf("sidebar"));
+    mount(mockClient(), hostOf("sidebar"));
     await screen.findByText(/開いた Iteration（planned・active）はない/);
     expect(document.querySelector(".sidebar-head .head-line.sub .name")!.textContent).toBe(
       "開いた Iteration はない",

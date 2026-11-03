@@ -286,7 +286,8 @@ export function BoardPage({ query }: { query: BoardQuery }) {
                 ))}
               </select>
             </label>
-            {creating ? null : (
+            {/* 開いた Iteration がなければ、作るボタンは案内（NoOpenIteration）の側にだけ出す */}
+            {creating || open.length === 0 ? null : (
               <button type="button" className="link" onClick={() => setCreating(true)}>
                 + Iteration を作る
               </button>
@@ -342,22 +343,17 @@ export function BoardPage({ query }: { query: BoardQuery }) {
 function NoOpenIteration({ onCreate }: { onCreate: (() => void) | undefined }) {
   return (
     <div className="empty board-empty">
+      <p>開いた Iteration（planned・active）はない</p>
       <p>
-        開いた Iteration（planned・active）はない。カンバンは planned と active の Iteration
-        のチケットを出す。
+        チケットは <a href={hrefOf({ page: "backlog" })}>バックログ</a> で見る
       </p>
-      <p>
-        Iteration に入っていないチケットは <a href={hrefOf({ page: "backlog" })}>バックログ</a>{" "}
-        で見る。
-        {onCreate ? (
-          <>
-            {" "}
-            <button type="button" className="link" onClick={onCreate}>
-              + Iteration を作る
-            </button>
-          </>
-        ) : null}
-      </p>
+      {onCreate ? (
+        <p>
+          <button type="button" className="link" onClick={onCreate}>
+            + Iteration を作る
+          </button>
+        </p>
+      ) : null}
     </div>
   );
 }

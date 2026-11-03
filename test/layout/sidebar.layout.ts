@@ -520,11 +520,11 @@ describe.each(SCHEMES)("Iteration の札の列（%s）", (scheme) => {
       });
       const page = await context.newPage();
       try {
-        // 既定（active の s2）と、列の端にある札（s7・なし）を選んだとき
+        // 既定（active の s2）と、列の両端にある札（先頭の すべて・最後の Iteration の s7）を選んだとき
         for (const [query, label] of [
           ["", "s2"],
           ["?iteration=s7", "s7"],
-          ["?iteration=-", "なし"],
+          ["?iteration=*", "すべて"],
         ] as const) {
           await page.goto(`${server.url}?surface=sidebar#/board${query}`, {
             waitUntil: "networkidle",
@@ -554,7 +554,7 @@ describe.each(SCHEMES)("Iteration の札の列（%s）", (scheme) => {
               fullPage: true,
             });
           }
-          // s2〜s7・なし・+ の 8 枚
+          // すべて・s2〜s7・+ の 8 枚
           expect(m.chips, `${label} の札の数`).toBe(8);
           expect(m.selected, "選んでいる札").toMatch(new RegExp(`^${label}`));
           expect(m.stripScroll, "札の列が幅に入らない").toBeGreaterThan(m.stripClient);
