@@ -197,15 +197,21 @@ describe("依頼文の組み立て", () => {
 });
 
 describe("頼むことの候補", () => {
-  it("チケットの状態からおすすめを先頭にする（review は片付ける、止まった in_progress は再開する、着手可の todo は進める）", () => {
+  it("チケットの状態からおすすめを先頭にする（review は片付ける、止まった in_progress は再開する、着手可の todo は進める、closed の Iteration に残った todo は割り当てる）", () => {
     const first = (s: AskSubject[]) => askActions(s)[0];
     expect(first([ticket({ status: "review" })])).toBe("done");
     expect(first([ticket({ status: "in_progress" })])).toBe("resume");
     expect(first([ticket({ status: "in_progress", running: true })])).toBe("status");
+    // active の Iteration（カンバン）の着手可の todo は進める
     expect(first([ticket()])).toBe("work");
     // planned の Iteration（バックログ）の着手可の todo は、まず計画を立てる
     expect(first([ticket({ iteration_status: "planned" })])).toBe("plan");
     expect(askActions([ticket({ iteration_status: "planned" })])).toContain("work");
+    // closed の Iteration に残った todo は、着手可でも依存が残っていても、複数でもまず割り当てる
+    expect(first([ticket({ iteration_status: "closed" })])).toBe("assign");
+    expect(first([ticket({ iteration_status: "closed", deps_done: false })])).toBe("assign");
+    expect(first([ticket(), ticket({ id: "t266", iteration_status: "closed" })])).toBe("assign");
+    expect(askActions([ticket({ iteration_status: "closed" })])).toContain("plan");
     expect(first([ticket({ deps_done: false })])).toBe("check");
     expect(first([ticket({ iteration: null })])).toBe("assign");
     expect(first([ticket({ status: "done" })])).toBe("create");
