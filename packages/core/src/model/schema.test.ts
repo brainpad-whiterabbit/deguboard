@@ -72,6 +72,9 @@ describe("スキーマ", () => {
       "models.standard",
       "models.heavy",
       "actor.human_only",
+      "priority.high",
+      "priority.medium",
+      "priority.low",
     ]);
     const byKey = new Map(fields.map((f) => [f.key, f]));
     expect(byKey.get("commit.mode")).toMatchObject({

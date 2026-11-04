@@ -55,6 +55,14 @@ argument-hint: "[対象（案の名前・文書のパス・チケットの ID）
 - 引用しない値の「空白＋#」以降は YAML のコメントになり、捨てられる。`#` を含む値（`#/config` など）は引用符で囲むか、body の `|` で書く
 - 本文の項目（title・summary・acceptance の各項目・body）の引用しない値の行末にコメントがあると、import は本文が切れたとみなして起票しない（INVALID_INPUT）。ほかの項目の行末コメントと、行だけのコメントは使える
 
+## 優先度の判断基準
+
+`priority` は、次の基準で選ぶ（`config.yaml` の `priority` で書き換えられる）。
+
+- high：{{priority.high}}
+- medium（既定）：{{priority.medium}}
+- low：{{priority.low}}
+
 ## よいチケットの書き方
 
 - 題は「何をどうする」が一読でわかる 1 行。実装の手段ではなく成果で書く

@@ -127,6 +127,26 @@ export const configSchema = z.looseObject({
         ),
     })
     .prefault({}),
+  priority: z
+    .looseObject({
+      high: z
+        .string()
+        .default(
+          "利用者に見える不具合・利用者を誤らせる文書・悪用できる脆弱性・ライセンスの漏れ・検査が通らない・ほかのチケットを止めている",
+        )
+        .describe("優先度 high の判断基準。起票と見直しが使う"),
+      medium: z
+        .string()
+        .default(
+          "機能の追加と改善・テストの抜けと不安定なテスト・内部の文書の食い違い・今は害のない規約違反・大きく古い依存",
+        )
+        .describe("優先度 medium（既定）の判断基準。起票と見直しが使う"),
+      low: z
+        .string()
+        .default("使われていないコードと依存・設定の重複・言い回しの揺れ・急がない調査と検討")
+        .describe("優先度 low の判断基準。起票と見直しが使う"),
+    })
+    .prefault({}),
 });
 export type Config = z.output<typeof configSchema>;
 
