@@ -2660,7 +2660,7 @@ table.list td.nowrap {
 }
 .ask-head {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 0.25rem;
   min-width: 0;
 }
@@ -2668,9 +2668,8 @@ table.list td.nowrap {
   flex: 1;
   min-width: 0;
   display: flex;
+  flex-wrap: wrap;
   gap: 0.25rem;
-  overflow-x: auto;
-  scrollbar-width: none;
 }
 button.ask-suggestion {
   flex: none;
