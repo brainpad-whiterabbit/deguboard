@@ -1,15 +1,18 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { HostProvider, type Host } from "../host.js";
 import { StoreProvider } from "../store.js";
 import { iteration, iterationDetail, mockClient } from "../test-helpers.js";
 import type { IterationDetail } from "../types.js";
 import { createUiState, memoryBackend } from "../ui-state.js";
+import { COPY_NOTICE_MS } from "./copyable-code.js";
 import { IterationNext } from "./iteration-next.js";
 
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
   window.location.hash = "";
 });
 
@@ -117,5 +120,44 @@ describe("Iteration 詳細の案内の表示（core の next を出すだけ）"
     expect(screen.getByText(/持ち越し 2 件/)).toBeTruthy();
     expect(screen.getByText(/コミットすると出ます/)).toBeTruthy();
     expect(screen.queryByRole("button")).toBeNull();
+  });
+});
+
+describe("依頼文のコピーの結果の表示", () => {
+  it("コピーに失敗したら「コピーできない」と出し、一定時間で消える（成功の表示は出ない）", async () => {
+    const copy = vi.fn(async () => {
+      throw new Error("denied");
+    });
+    mount(withNext({ kind: "ready", ask: "release" }), copy);
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    fireEvent.click(screen.getByRole("button", { name: "依頼文をコピー" }));
+    await act(async () => {});
+    expect(screen.getByText("コピーできない")).toBeTruthy();
+    expect(screen.queryByText("コピーした")).toBeNull();
+    act(() => {
+      vi.advanceTimersByTime(COPY_NOTICE_MS);
+    });
+    expect(screen.queryByText("コピーできない")).toBeNull();
+  });
+
+  it("依頼文を引けなかったとき（ask の失敗）も「コピーできない」と出し、コピーはしない", async () => {
+    const copy = vi.fn(async () => {});
+    const { run } = mount(withNext({ kind: "ready", ask: "release" }), copy);
+    run.mockRejectedValueOnce(new Error("ask 失敗"));
+    fireEvent.click(screen.getByRole("button", { name: "依頼文をコピー" }));
+    await screen.findByText("コピーできない");
+    expect(copy).not.toHaveBeenCalled();
+  });
+
+  it("コピーに成功した「コピーした」も一定時間で消える", async () => {
+    mount(withNext({ kind: "ready", ask: "release" }));
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    fireEvent.click(screen.getByRole("button", { name: "依頼文をコピー" }));
+    await act(async () => {});
+    expect(screen.getByText("コピーした")).toBeTruthy();
+    act(() => {
+      vi.advanceTimersByTime(COPY_NOTICE_MS);
+    });
+    expect(screen.queryByText("コピーした")).toBeNull();
   });
 });
