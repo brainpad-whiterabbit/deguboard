@@ -2,4 +2,7 @@ id: s14
 project: default
 name: sprint14
 goal: Iteration 詳細とエージェントに頼む小窓を使いやすくする
-status: active
+status: closed
+closed_at: 2026-11-04T23:21:47Z
+completed: 20
+carried_over: 0
