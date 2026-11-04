@@ -1,0 +1,24 @@
+{
+  "id": "r20261104-113140-595c",
+  "ticket": "t339",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "opus",
+  "started_at": "2026-11-04T11:31:40Z",
+  "finished_at": "2026-11-04T11:33:56Z",
+  "result": "success",
+  "error": null,
+  "retries": 4,
+  "retry_reasons": [
+    "分けると直すが同じ呼び出しになる",
+    "組み直すと承認するが同じ呼び出しになる",
+    "持ち越しとふつうの割り当てが同じ呼び出しになる",
+    "ADR-010 の例外の書き方を直す"
+  ],
+  "usage": {
+    "input": 16,
+    "output": 5981,
+    "cache_read": 925517,
+    "cache_write": 7486
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "id": "r20261104-113022-eedc",
+  "ticket": "t331",
+  "step": "review",
+  "agent": "claude-code",
+  "model": "opus",
+  "started_at": "2026-11-04T11:30:22Z",
+  "finished_at": "2026-11-04T11:32:36Z",
+  "result": "success",
+  "error": null,
+  "retries": 0,
+  "retry_reasons": [],
+  "usage": {
+    "input": 30,
+    "output": 5876,
+    "cache_read": 699181,
+    "cache_write": 26629
+  }
+}

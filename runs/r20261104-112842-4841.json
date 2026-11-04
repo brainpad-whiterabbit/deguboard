@@ -1,0 +1,22 @@
+{
+  "id": "r20261104-112842-4841",
+  "ticket": "t338",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "sonnet",
+  "started_at": "2026-11-04T11:28:42Z",
+  "finished_at": "2026-11-04T11:32:37Z",
+  "result": "success",
+  "error": null,
+  "retries": 2,
+  "retry_reasons": [
+    "300px のテストで札が折り返したこと（札の行が 2 以上）を assert した（t2 の 4 枚の札は 300px でも 2 行になる）",
+    "テスト冒頭のコメントに札の折り返しと閉じるボタンを足し、300px の折り返しのスクリーンショットを PR に足した"
+  ],
+  "usage": {
+    "input": 18,
+    "output": 7069,
+    "cache_read": 531645,
+    "cache_write": 8415
+  }
+}
