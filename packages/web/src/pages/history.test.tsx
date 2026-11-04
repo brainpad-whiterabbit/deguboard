@@ -6,6 +6,7 @@ import { HostProvider, type Host } from "../host.js";
 import { StoreProvider } from "../store.js";
 import { iteration, mockClient, ticket } from "../test-helpers.js";
 import { createUiState, memoryBackend } from "../ui-state.js";
+// 持ち越しの求め方の写しを照らすためだけに core の実行時のコード（carriedOverFrom）を取り込む（画面のコードは型だけを取る。ADR-007）
 import { carriedOverFrom as coreCarriedOverFrom } from "@deguboard/core";
 import { carriedOverFrom, epicCountsOf, groupByEpic, historyAskTarget } from "./history.js";
 
@@ -98,6 +99,12 @@ describe("履歴のまとめ方", () => {
       ev("t6", "s1", "s1"),
       ev("t7", "s2", "s3"),
       ev("t2", "s2", "s1"),
+      {
+        kind: "epic",
+        id: "e1",
+        at: "x",
+        changes: [{ field: "iteration", from: "s1", to: null }],
+      } as never,
       {
         kind: "ticket",
         id: "t8",
