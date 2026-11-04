@@ -2,9 +2,11 @@ id: p41
 project: default
 tickets: [t362]
 after: {}
-pending_approval: true
+pending_approval: false
 details:
   t362:
     scope: パネルの Iteration 詳細の配置テストを段分けの一覧の行に合わせる
     approach: テストの locator だけを直し、画面の実装は変えない。実装に食い違いがあれば報告する
     tier: standard
+approved_by: eiki.kitajima/agent
+approved_at: 2026-11-04T13:14:06Z
