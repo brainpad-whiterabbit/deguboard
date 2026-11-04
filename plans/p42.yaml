@@ -1,0 +1,33 @@
+id: p42
+project: default
+tickets: [t341, t342, t343, t344, t345]
+after:
+  t343:
+    - t342
+  t344:
+    - t341
+    - t343
+  t345:
+    - t344
+pending_approval: true
+details:
+  t341:
+    scope: 履歴の Iteration・Epic の行を 2 段にし、閉じた日・目標なし・内訳の出し方と開いた一覧の Epic なしを直す
+    approach: history.tsx の IterationItem・SidebarEpicItem・CountChips と history-rows.tsx を直し、web のテストと配置テストで確かめる
+    tier: standard
+  t342:
+    scope: チケットの見方を history の結果を待たずに updated_at 順で出し、届いたら終えた時刻で並べ直す
+    approach: TicketView の読み込みを分け、読み中の小さな表示と失敗時の扱いを足して web のテストで確かめる
+    tier: standard
+  t343:
+    scope: チケットの見方の結果の select を件数付きの文字の切り替えにし、検索欄を全幅に戻す
+    approach: ViewSwitch と同じ形の切り替えを TicketView に置き、?result= のハッシュを保ってテストで確かめる
+    tier: standard
+  t344:
+    scope: 履歴の 3 つの見方と開いた一覧の日付を今日・昨日・月/日・年/月/日にし、正確な日時をツールチップで出す
+    approach: 日付の書き方の関数を 1 つ足して境目をテストし、history.tsx・history-rows.tsx の日付をそれに置き換える
+    tier: standard
+  t345:
+    scope: 履歴用の行で中止の点を塗らない輪にし、タイトルを薄くする
+    approach: history-rows.tsx の HistoryTicketRow と CSS を直し、web のテストで確かめる。打ち消し線は使わない
+    tier: light
