@@ -2,4 +2,7 @@ id: s12
 project: default
 name: sprint12
 goal: 優先度の見せ方と判断基準をそろえる
-status: active
+status: closed
+closed_at: 2026-11-04T10:59:34Z
+completed: 8
+carried_over: 0
