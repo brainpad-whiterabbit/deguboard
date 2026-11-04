@@ -129,11 +129,34 @@ describe("依頼文の組み立て", () => {
     ).toBe(
       "指示の内容をチケットにして s10 に入れてください（人の指示なので --created-by human を付ける）。",
     );
-    // 分けるは呼び出しの ID で決まる
-    const split = buildAsk({ subjects: [ticket()], action: "split" });
-    expect(split.text).toBe("/dgimport t265");
+    // 分けるは直すと同じ呼び出しになるので、分けることを添える
+    expect(buildAsk({ subjects: [ticket()], action: "fix" }).text).toBe("/dgimport t265");
+    const split = buildAsk({ subjects: [ticket()], action: "split", note: "画面と CLI で" });
+    expect(split.text).toBe("/dgimport t265\nt265 を分けて\n画面と CLI で");
     expect(buildAsk({ subjects: [ticket()], action: "split", format: "text" }).text).toContain(
       "--created-by human",
+    );
+  });
+
+  it("同じ呼び出しになる頼むことは、頼みごとの 1 行で区別する（組み直すと承認する・持ち越しとふつうの割り当て）", () => {
+    const pending: AskSubject = {
+      kind: "plan",
+      id: "p3",
+      status: "pending_approval",
+      tickets: ["t1"],
+      complete: false,
+    };
+    expect(buildAsk({ subjects: [pending], action: "approve" }).text).toBe("/dgplan p3");
+    expect(buildAsk({ subjects: [pending], action: "plan" }).text).toBe(
+      "/dgplan p3\np3 を組み直して",
+    );
+    // Plan でない対象の計画は呼び出しだけ
+    expect(buildAsk({ subjects: [ticket()], action: "plan" }).text).toBe("/dgplan t265");
+    expect(buildAsk({ subjects: [iteration("closed")], action: "assign" }).text).toBe(
+      "/dgassign s10\ns10 の持ち越しを割り当てて",
+    );
+    expect(buildAsk({ subjects: [iteration("active")], action: "assign" }).text).toBe(
+      "/dgassign s10",
     );
   });
 

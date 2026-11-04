@@ -129,7 +129,7 @@ describe("エージェントに頼む入力欄（UI-15）", () => {
     await waitFor(() => expect(suggestions()[0]!.textContent).toContain("★確かめて片付ける"));
     expect(box.queryByRole("button", { name: "s1 を外す" })).toBeNull();
     await waitFor(() => expect(box.getByLabelText("全文").textContent).toBe("/dgdone t5"));
-    expect(box.getByLabelText("全文").textContent).not.toContain("Iteration s1「");
+    expect(box.getByLabelText("全文").textContent).not.toContain("対象:");
 
     // 形式を文章にすると Skill の札と呼び出しが消え、頼む 1 文と dg の呼び方になる
     fireEvent.click(box.getByRole("button", { name: "形式：Skill" }));

@@ -179,7 +179,7 @@ interface ActionDef {
   label(s: Subjects, w?: Within): string;
   /** 文章だけの形の頼む 1 文。対象の ID を含める */
   text(s: Subjects, w?: Within): string;
-  /** Skill の呼び出しだけでは頼むことが決まらないとき（起票・作成・外す）、呼び出しの次の行に置く短い頼みごと */
+  /** Skill の呼び出しだけでは頼むことが決まらないとき（起票・作成・外す・分ける・組み直す・持ち越し）、指示の行と同じ位置に置く短い頼みごとの 1 行 */
   intent?(s: Subjects, w?: Within): string;
   /** 1 行目に並べる対象。省けばすべて */
   args?(s: Subjects): Subjects;
@@ -282,6 +282,8 @@ const ACTIONS: Record<AskAction, ActionDef> = {
     label: () => "分ける",
     text: (s) =>
       `${idList(s)} を分け、元のチケットの扱い（残す・abandoned にする）は案を示してください${CREATED_BY_HUMAN_LATER}。`,
+    // 直すと同じ呼び出しになるので、分けることを添える
+    intent: (s) => `${idList(s)} を分けて`,
   },
   remove: {
     skill: "dgassign",
@@ -337,6 +339,11 @@ const ACTIONS: Record<AskAction, ActionDef> = {
         return `${ep.id} に入れるチケットを選んでください（足す・外すチケットが指示にあればそのとおりに）。`;
       return `${idList(s)} を合う Iteration・Epic に割り当ててください（移す先が指示にあればそのとおりに）。`;
     },
+    // 閉じた Iteration はふつうの割り当てと同じ呼び出しになるので、持ち越しであることを添える
+    intent(s) {
+      const it = single(s, "iteration");
+      return it?.status === "closed" ? `${it.id} の持ち越しを割り当てて` : "";
+    },
   },
   plan: {
     skill: "dgplan",
@@ -345,6 +352,8 @@ const ACTIONS: Record<AskAction, ActionDef> = {
       single(s, "plan")
         ? `${idList(s)} を組み直し、承認を待ってください。`
         : `${idList(s)} を進める Plan を立て、承認を待ってください。`,
+    // 承認待ちの Plan では承認すると同じ呼び出しになるので、組み直すことを添える
+    intent: (s) => (single(s, "plan") ? `${idList(s)} を組み直して` : ""),
   },
   approve: {
     skill: "dgplan",
@@ -647,7 +656,7 @@ export function buildAsk(input: BuildAskInput): AskView {
   // 題・本文・Status はエージェントが dg で読むので、依頼文には ID だけを入れる（ADR-010）
   const lines: string[] = [];
   if (format === "skill" && candidate.skill) {
-    // Skill の形は呼び出しと指示だけ。呼び出しで頼むことが決まらないもの（起票・作成・外す）だけ短い頼みごとを挟む
+    // Skill の形は呼び出しと指示だけ。呼び出しで頼むことが決まらないもの（起票・作成・外す・分ける・組み直す・持ち越し）だけ短い頼みごとを挟む
     lines.push(
       def.bare ? candidate.skill : [candidate.skill, ...ids(def.args?.(s) ?? s)].join(" "),
     );
