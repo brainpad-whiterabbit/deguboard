@@ -17,7 +17,7 @@
 // Epic の見方は進捗バーをやめてタイトルを 2 行まで出し、Iteration の行と同じ件数を付ける。行を開くと中の終わったチケットを
 // 番号の順の 1 本の一覧（2 段目は Iteration・PR）で出し、終わったチケットのない Epic は薄く出して開けない。
 // チケットの見方は日付の見出しを付けず、終えた新しい順の 1 本の一覧（履歴用の行。2 段目は Iteration・PR・終えた日）で出す。
-// 検索欄と結果の絞り込みは 1 行に並べる。
+// 検索欄は 3 つの見方で全幅にし、チケットの見方だけその下に結果の絞り込み（すべて・完了・中止）を件数付きの文字の切り替えで出す。
 // サイドバーの Iteration と Epic の見方では、検索語があるあいだ残った行を開き、当たったチケットだけを印付きで出す。
 // 「すべて見る」でその行の全件の一覧に戻せる。検索中に閉じた行や「すべて見る」は検索語を変えると捨て、検索語を消すと検索前の開閉に戻る
 
@@ -865,6 +865,11 @@ function TicketView({
     () => finishedTickets(store.tickets, finishedAt, { query, result }),
     [store.tickets, finishedAt, query, result],
   );
+  // 結果の切り替えの件数は、結果で絞る前の検索に当たった数
+  const hits = useMemo(
+    () => finishedTickets(store.tickets, finishedAt, { query, result: "" }),
+    [store.tickets, finishedAt, query],
+  );
   // チケットの見方では結果の絞り込みもチケットのバッジに映す
   const filtered = query.trim() !== "" || result !== "";
   return (
@@ -876,25 +881,39 @@ function TicketView({
           view="ticket"
           counts={{ ...counts, ticket: { hit: rows.length, total: all.length, filtered } }}
         />
-        {/* 検索欄と結果の絞り込みは 1 行に並べる（サイドバーでも折り返さない） */}
-        <div className="history-filter">
-          <input
-            type="search"
-            placeholder={sidebar ? SIDEBAR_SEARCH : "番号・タイトル・ラベルで探す"}
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            aria-label="チケットを探す"
-          />
-          <label>
-            結果
-            <select value={result} onChange={(e) => setResult(e.target.value)}>
-              <option value="">すべて</option>
-              <option value="done">{store.labelOf("done")}</option>
-              <option value="abandoned">{store.labelOf("abandoned")}</option>
-            </select>
-          </label>
-        </div>
+        <input
+          type="search"
+          placeholder={sidebar ? SIDEBAR_SEARCH : "番号・タイトル・ラベルで探す"}
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          aria-label="チケットを探す"
+        />
       </div>
+      {/* 結果の絞り込みは見方の切り替えと同じ文字の切り替え。件数は検索に当たった数で、中止が 0 件なら中止は出さない（選んでいるときは残す） */}
+      <span className="view-switch result-switch" role="group" aria-label="結果">
+        {(
+          [
+            ["", "すべて", hits.length],
+            ["done", store.labelOf("done"), hits.filter((r) => r.ticket.status === "done").length],
+            [
+              "abandoned",
+              store.labelOf("abandoned"),
+              hits.filter((r) => r.ticket.status === "abandoned").length,
+            ],
+          ] as const
+        )
+          .filter(([value, , n]) => value !== "abandoned" || n > 0 || result === "abandoned")
+          .map(([value, label, n]) => (
+            <button
+              key={value}
+              type="button"
+              aria-pressed={result === value}
+              onClick={() => setResult(value)}
+            >
+              {label} <span className="badge">{n}</span>
+            </button>
+          ))}
+      </span>
       {error ? <p className="error">{error}</p> : null}
       {log && (log.shallow || all.some((r) => r.approximate)) ? (
         <p className="muted">

@@ -2116,13 +2116,13 @@ describe("画面", () => {
     expect(t1.textContent).toContain("#3");
     expect(t1.querySelector("a[href='#/iterations/s1']")).toBeTruthy();
     expect(t1.querySelector("a[href='#/epics/e1']")).toBeTruthy();
-    fireEvent.change(screen.getByLabelText("結果"), { target: { value: "abandoned" } });
+    fireEvent.click(screen.getByRole("button", { name: /^Abandoned/ }));
     expect(ids()).toEqual(["t3"]);
     // 結果の絞り込みもチケットのバッジに映す
     expect(screen.getByRole("button", { name: /^チケット/ }).textContent).toBe(
       "チケット 1\u2009/\u20093",
     );
-    fireEvent.change(screen.getByLabelText("結果"), { target: { value: "" } });
+    fireEvent.click(screen.getByRole("button", { name: /^すべて/ }));
     expect(screen.queryByLabelText("Epic")).toBeNull();
     fireEvent.change(screen.getByLabelText("チケットを探す"), { target: { value: "web" } });
     expect(ids()).toEqual(["t2"]);
