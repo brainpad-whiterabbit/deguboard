@@ -1,0 +1,21 @@
+{
+  "id": "r20261104-132106-94e4",
+  "ticket": "t362",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "sonnet",
+  "started_at": "2026-11-04T13:21:06Z",
+  "finished_at": "2026-11-04T13:21:52Z",
+  "result": "success",
+  "error": null,
+  "retries": 1,
+  "retry_reasons": [
+    "見直しの軽い指摘（PANEL_WIDTH の JSDoc が古い）"
+  ],
+  "usage": {
+    "input": null,
+    "output": null,
+    "cache_read": null,
+    "cache_write": null
+  }
+}
