@@ -37,6 +37,7 @@ export function AskComposer({
   targets: initialTargets,
   action: initialAction,
   within,
+  copyOnOpen = false,
   onClose,
 }: {
   targets: readonly string[];
@@ -44,6 +45,8 @@ export function AskComposer({
   within?: string | undefined;
   /** 選んで開く頼むこと（行・見出しの吹き出しと右クリック）。省くか候補になければおすすめ */
   action?: AskAction | undefined;
+  /** 開いたときに、選んだ頼むこと（action）の依頼文をそのままコピーする（メニューで選んで開いたとき。復元では false） */
+  copyOnOpen?: boolean;
   onClose(): void;
 }) {
   const store = useStore();
@@ -107,14 +110,24 @@ export function AskComposer({
   const candidate = base?.candidates.find((c) => c.action === chosen) ?? null;
   const shown = view && view.action === chosen ? view : null;
 
-  /** 今の指示で引き直してからコピーする（待っている間に打った分も入れる） */
-  async function copy() {
+  // 選んで開いたときは、開くと同時にコピーする（指示を足さないことが多い）。開いた 1 回だけ
+  const copiedOnOpen = useRef(false);
+  useEffect(() => {
+    if (!copyOnOpen || !initialAction || copiedOnOpen.current) return;
+    copiedOnOpen.current = true;
+    void copy(initialAction);
+    // 開いたときの 1 回だけ。copy は最新の状態を使うが、依存に入れると引き直すたびに再コピーする
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /** 今の指示で引き直してからコピーする（待っている間に打った分も入れる）。pick は選んだ直後の頼むこと（まだ state に入っていない） */
+  async function copy(pick: AskAction | null = action) {
     setResult(null);
     try {
       const r = await client.run<AskView>("ask", {
         targets,
         within,
-        action: action ?? undefined,
+        action: pick ?? undefined,
         note,
         format,
       } satisfies AskInput);
@@ -157,6 +170,8 @@ export function AskComposer({
                 setPicked(c.action);
                 setResult(null);
                 noteRef.current?.focus();
+                // 選び直したら、その依頼文をコピーする
+                void copy(c.action);
               }}
             >
               {c.recommended ? (
