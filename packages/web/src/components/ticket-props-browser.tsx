@@ -68,13 +68,16 @@ export function BrowserProps({
         "priority",
         "優先度",
         draft ? (
-          <select
-            value={draft.priority}
-            onChange={(e) => setDraft({ ...draft, priority: e.target.value as Priority })}
-            aria-label="優先度"
-          >
-            {optionsOf(PRIORITY_CHOICES)}
-          </select>
+          <>
+            <select
+              value={draft.priority}
+              onChange={(e) => setDraft({ ...draft, priority: e.target.value as Priority })}
+              aria-label="優先度"
+            >
+              {optionsOf(PRIORITY_CHOICES)}
+            </select>
+            <div className="inline-hint muted">{store.priorityCriteria[draft.priority]}</div>
+          </>
         ) : (
           a.priorityView
         ),

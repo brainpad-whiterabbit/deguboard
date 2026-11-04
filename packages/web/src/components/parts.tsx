@@ -72,8 +72,70 @@ export function DetailLink({ route, children }: { route: Route; children: ReactN
   );
 }
 
-export function PriorityBadge({ priority }: { priority: Priority }) {
-  return <span className={`badge priority-${priority}`}>{priority}</span>;
+/**
+ * 優先度の並び方のひとこと（byPriorityThenNumber で high が先、low が後に並ぶ）。ツールチップの 1 行目に添える
+ */
+const PRIORITY_ORDER_NOTE: Record<Priority, string> = {
+  high: "上に並ぶ",
+  medium: "既定の並び",
+  low: "下に並ぶ",
+};
+
+/** 優先度の記号（10px の SVG。high は上向きの矢印、medium は =、low は下向きの矢印）。色は文字に合わせて currentColor */
+export function PriorityGlyph({ priority }: { priority: Priority }) {
+  const common = {
+    className: "priority-glyph",
+    width: 10,
+    height: 10,
+    viewBox: "0 0 10 10",
+    "aria-hidden": true,
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: 1.5,
+    strokeLinecap: "round" as const,
+    strokeLinejoin: "round" as const,
+  };
+  if (priority === "high")
+    return (
+      <svg {...common}>
+        <path d="M5 8.5V2M2.5 4.5 5 2l2.5 2.5" />
+      </svg>
+    );
+  if (priority === "low")
+    return (
+      <svg {...common}>
+        <path d="M5 1.5V8M2.5 5.5 5 8l2.5-2.5" />
+      </svg>
+    );
+  return (
+    <svg {...common}>
+      <path d="M2.5 4h5M2.5 6.5h5" />
+    </svg>
+  );
+}
+
+/** 優先度の印のツールチップ：1 行目に値と並び方、2 行目から判断基準（config、なければ core の既定）。基準がまだ読めていなければ 1 行目だけ */
+export function priorityTitle(priority: Priority, criteria: Record<Priority, string>): string {
+  const head = `優先度 ${priority}（${PRIORITY_ORDER_NOTE[priority]}）`;
+  const note = criteria[priority];
+  return note ? `${head}\n${note}` : head;
+}
+
+/**
+ * 優先度の印（TK-8）：記号（矢印・=）と値の文字をそろえて出す。色は high が赤の太字、medium が前景色、low が説明文の色。
+ * マウスを載せると値・並び方・判断基準をツールチップに出す。帯・カード・表の列では 3 つの値を出し、行では high・low だけ（RowPriority）
+ */
+export function PriorityMark({ priority }: { priority: Priority }) {
+  const store = useStore();
+  return (
+    <span
+      className={`priority-mark priority-${priority}`}
+      title={priorityTitle(priority, store.priorityCriteria)}
+    >
+      <PriorityGlyph priority={priority} />
+      <span className="priority-text">{priority}</span>
+    </span>
+  );
 }
 
 export function StatusBadge({ status }: { status: Status }) {
@@ -238,28 +300,15 @@ export function ActivityMark({ activity }: { activity: RowActivity }) {
 
 /**
  * 行の種類。list は一覧（履歴など）の行、kanban はカンバンの行
- * （状態は節で分かるので丸印を出さず、優先度は high に加えて low も小さく出す）、
+ * （状態は節で分かるので丸印を出さず、担当は右端に出す）、
  * backlog は左パネルのバックログの行（list と同じだが担当者の列を出さず、担当は右端に出す。row-end.tsx の BacklogRowEnd）
  */
 export type TicketRowVariant = "list" | "kanban" | "backlog";
 
-/** 行の右端の優先度の印。high は札、kanban の行では low も小さな灰色の文字で出す。それ以外は空のセル（行の格子の位置を保つ） */
-export function RowPriority({
-  priority,
-  variant = "list",
-}: {
-  priority: Priority;
-  variant?: TicketRowVariant | undefined;
-}) {
-  if (priority === "high") return <PriorityBadge priority="high" />;
-  if (variant === "kanban" && priority === "low") {
-    return (
-      <span className="row-low" title="優先度 low">
-        low
-      </span>
-    );
-  }
-  return <span />;
+/** 行の右端の優先度の印。high・low は矢印と文字で出し、medium は出さない。行では右端の 1 段目の左端に置く（row-end.tsx） */
+export function RowPriority({ priority }: { priority: Priority }) {
+  if (priority === "medium") return null;
+  return <PriorityMark priority={priority} />;
 }
 
 /**
@@ -311,7 +360,7 @@ export function TicketRow({
       ) : (
         <span />
       )}
-      {end ?? <RowPriority priority={ticket.priority} variant={variant} />}
+      {end ?? <RowPriority priority={ticket.priority} />}
     </TicketLink>
   );
 }
@@ -509,7 +558,7 @@ export function TicketTable({
               </td>
               <td>{store.labelOf(t.status)}</td>
               <td>
-                <PriorityBadge priority={t.priority} />
+                <PriorityMark priority={t.priority} />
               </td>
               <td>{t.iteration ?? ""}</td>
               <td>{t.epic ? <a href={hrefOf({ page: "epics", id: t.epic })}>{t.epic}</a> : ""}</td>

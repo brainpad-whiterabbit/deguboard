@@ -15,7 +15,7 @@ import { hrefOf } from "../router.js";
 import { CopyableCode } from "./copyable-code.js";
 import { DateTime } from "./date-time.js";
 import type { Choice } from "./inline-edit.js";
-import { PriorityBadge, StatusBadge, StatusDot, Tags, TicketLink } from "./parts.js";
+import { PriorityMark, StatusBadge, StatusDot, Tags, TicketLink } from "./parts.js";
 import { fieldText } from "./ticket-fields.js";
 
 /** 編集のボタンで直している間の値。パネルではタイトルと本文だけを、ブラウザでは属性も使う */
@@ -43,7 +43,13 @@ export function draftOf(t: TicketDetail, fields: readonly FieldDefinition[]): Dr
   };
 }
 
-export const PRIORITY_CHOICES: Choice[] = PRIORITIES.map((p) => ({ value: p, label: p }));
+/** 詳細の優先度の選択の記号（option には SVG を置けないので文字で添える。印の矢印・= に合わせる） */
+const PRIORITY_SYMBOL: Record<Priority, string> = { high: "↑", medium: "=", low: "↓" };
+
+export const PRIORITY_CHOICES: Choice[] = PRIORITIES.map((p) => ({
+  value: p,
+  label: `${PRIORITY_SYMBOL[p]} ${p}`,
+}));
 
 /** カンマ区切りのラベルを一覧にする */
 export function parseLabels(raw: string): string[] {
@@ -164,7 +170,7 @@ export function ticketAttrs(store: Store, ticket: TicketDetail, panel: boolean) 
         .filter((i) => i.status !== "closed" || i.id === ticket.iteration)
         .map((i) => ({ value: i.id, label: `${i.id} ${i.name}` })),
     ] satisfies Choice[],
-    priorityView: <PriorityBadge priority={ticket.priority} />,
+    priorityView: <PriorityMark priority={ticket.priority} />,
     labelsView: <Tags labels={ticket.labels} />,
     epicView,
     iterationView,

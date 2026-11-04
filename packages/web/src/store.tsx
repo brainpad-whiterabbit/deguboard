@@ -23,6 +23,7 @@ import type {
   EpicRow,
   Iteration,
   PlanRow,
+  Priority,
   Project,
   RunView,
   Status,
@@ -30,7 +31,11 @@ import type {
   WhoamiView,
   WorkflowView,
 } from "./types.js";
+import type { Config } from "@deguboard/core";
 import type { UiState } from "./ui-state.js";
+
+/** 優先度の判断基準（config.yaml の priority。config.show が core の既定を混ぜて返す）。読み終えるまでは空 */
+const EMPTY_PRIORITY_CRITERIA: Record<Priority, string> = { high: "", medium: "", low: "" };
 
 /** cache に残す一覧。読み直しが終わるたびに書き換える */
 interface Snapshot {
@@ -77,6 +82,8 @@ export interface Store {
   /** 実行中（running）の Run があるチケットの ID。読み終えるまでと、readRunning でないときは null */
   runningTickets: ReadonlySet<string> | null;
   status: StatusView | null;
+  /** 優先度の値ごとの判断基準（config.yaml の priority、なければ core の既定）。印のツールチップと詳細の選択の説明に使う */
+  priorityCriteria: Record<Priority, string>;
   loading: boolean;
   /** 最初の読み込みが終わったか。終わるまで画面は空状態の文言を出さない */
   loaded: boolean;
@@ -121,6 +128,8 @@ export function StoreProvider({
   // 読み直しが重なったとき、古い読み直しの実行中の Run で上書きしない
   const runningSeq = useRef(0);
   const [status, setStatus] = useState<StatusView | null>(null);
+  const [priorityCriteria, setPriorityCriteria] =
+    useState<Record<Priority, string>>(EMPTY_PRIORITY_CRITERIA);
   const [loading, setLoading] = useState(true);
   // 前回の一覧があれば、それを読み終えたものとして先に描く
   const [loaded, setLoaded] = useState(!!cached);
@@ -141,11 +150,12 @@ export function StoreProvider({
     try {
       const [projectList, config, whoami] = await Promise.all([
         client.run<Project[]>("project.list"),
-        client.run<{ default_project: string }>("config.show"),
+        client.run<{ default_project: string; priority?: Config["priority"] }>("config.show"),
         client.run<WhoamiView>("whoami"),
       ]);
       setProjects(projectList.data);
       setMe(whoami.data);
+      if (config.data.priority) setPriorityCriteria(config.data.priority);
       const current =
         projectList.data.find((p) => p.id === projectRef.current) ??
         projectList.data.find((p) => p.id === config.data.default_project) ??
@@ -257,6 +267,7 @@ export function StoreProvider({
       me,
       runningTickets,
       status,
+      priorityCriteria,
       loading,
       loaded,
       notice,
@@ -278,6 +289,7 @@ export function StoreProvider({
       me,
       runningTickets,
       status,
+      priorityCriteria,
       loading,
       loaded,
       notice,

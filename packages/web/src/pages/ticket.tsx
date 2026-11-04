@@ -9,7 +9,7 @@
 import { useEffect, useState } from "react";
 import { useCommandData } from "../command-data.js";
 import { ASK_SECTIONS, AskSpotBox } from "../components/ask-menu.js";
-import { StatusDot, PriorityBadge, TicketLink } from "../components/parts.js";
+import { StatusDot, PriorityMark, TicketLink } from "../components/parts.js";
 import { attrPatchOf, BrowserProps } from "../components/ticket-props-browser.js";
 import { PanelProps } from "../components/ticket-props-panel.js";
 import { draftOf, PrLink, type Draft } from "../components/ticket-props.js";
@@ -144,7 +144,7 @@ export function TicketPage({ id }: { id: string }) {
                 <StatusDot status={ticket.status} label={labelOf(ticket.status)} />
                 {labelOf(ticket.status)}
               </span>
-              <PriorityBadge priority={ticket.priority} />
+              <PriorityMark priority={ticket.priority} />
               {ticket.iteration ? (
                 <a href={hrefOf({ page: "iterations", id: ticket.iteration })}>
                   {ticket.iteration}

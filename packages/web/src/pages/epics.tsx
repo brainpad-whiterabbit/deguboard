@@ -5,7 +5,7 @@
 
 import { ASK_SECTIONS, AskSpotBox } from "../components/ask-menu.js";
 import {
-  PriorityBadge,
+  PriorityMark,
   ProgressBar,
   StatusDot,
   TicketLink,
@@ -82,7 +82,7 @@ export function EpicsPage({ id }: { id: string }) {
                   <div key={t.id} className={`card status-${s}`} style={{ cursor: "default" }}>
                     <div className="meta">
                       <TicketLink id={t.id} />
-                      <PriorityBadge priority={t.priority} />
+                      <PriorityMark priority={t.priority} />
                     </div>
                     <div className="title">{t.title}</div>
                   </div>
