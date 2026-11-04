@@ -116,6 +116,7 @@ updated_at: 2026-10-31T05:10:00Z
 - TK-5 受け入れ条件のチェックは、作業した人かエージェントが PR や成果物で確認できたときに付ける。deguboard が自動で付けることはなく、照合で done に進めたチケットに未チェックが残れば `sync` が警告する（遷移は止めない。[ADR-003](adr/ADR-003-status-and-workflow.md)）
 - TK-6 `epic` は同じ Project の Epic の ID。閉じた Epic には付けられない
 - TK-7 `created_by`（起票者）と `assignee`（担当者）は主体の ID（`<ユーザ>` か `<ユーザ>/agent`）。`created_by` は作成時に書き、既定は操作した主体で、エージェントが人の指示・承認で起票するときはユーザ本人を指定する。`assignee` は `claim` が claim した主体で上書きし、`update` でも付け外しできる。旧名 `claimed_by` は `assignee` と読む
+- TK-8 `priority` は `low`・`medium`（既定）・`high`。値ごとの判断基準は Core の既定にあり、`config.yaml` の `priority`（5.10）で書き換えられる。起票（`dg guide import`）と見直し（`dg guide audit`）はこの基準を使う
 
 ### 5.5 Epic（`epics/e3.md`）
 
@@ -194,7 +195,9 @@ steps: # 任意。Run の step の語彙（WF-5）
 
 ### 5.10 設定（`config.yaml`）
 
-項目は `default_project`、`git.remote`・`git.base_branch`、`worktree.root`、`commit.mode`、`push.mode`、`metrics.read_transcripts`（既定 `false`）、`actions.shell`（AG-7、既定 `false`）・`actions.test`、`actor.human_only`、`auto.merge`（既定 `false`）、`lint.require_iteration`、`models.light`・`models.standard`・`models.heavy`。既定値は、エージェントや記録に関わる安全側の `false` だけを書く。
+項目は `default_project`、`git.remote`・`git.base_branch`、`worktree.root`、`commit.mode`、`push.mode`、`metrics.read_transcripts`（既定 `false`）、`actions.shell`（AG-7、既定 `false`）・`actions.test`、`actor.human_only`、`auto.merge`（既定 `false`）、`lint.require_iteration`、`models.light`・`models.standard`・`models.heavy`、`priority.high`・`priority.medium`・`priority.low`。既定値は、エージェントや記録に関わる安全側の `false` だけを書く。
+
+`priority.*` は、起票と見直しが優先度を選ぶときの値ごとの判断基準（概要の文）。既定は Core にあり、ここで書き換えるとその値を使う（TK-8）。
 
 `actor.human_only` は `epic.close` のようなコマンド名の一覧で、入れたコマンドを agent が呼ぶと `TRANSITION_REJECTED` で拒否する。既定は空で、すべての操作をエージェントにも許す。チケットの遷移を人に限るのは Workflow の `by`（WF-1）で、この項目では扱わない。
 
