@@ -382,7 +382,7 @@ describe("パネルの詳細から頼む（UI-15）", () => {
     window.location.hash = "#/iterations/s1";
     const client = detailClient();
     mount(client, { surface: "panel" });
-    const row = (await screen.findByRole("link", { name: "画面" })).closest("tr")!;
+    const row = (await screen.findByText("画面")).closest("li")!;
     await waitFor(() => expect(contextOf(row)["askActions"]).toBeDefined());
     expect(contextOf(row)).toMatchObject({
       webviewSection: "detailTicket",
@@ -391,7 +391,7 @@ describe("パネルの詳細から頼む（UI-15）", () => {
       askRecommended: "work",
     });
     expect(contextOf(row)["askActions"]).toContain("remove");
-    const done = screen.getByRole("link", { name: "ログイン" }).closest("tr")!;
+    const done = screen.getByText("ログイン").closest("li")!;
     await waitFor(() => expect(contextOf(done)["askActions"]).toBeDefined());
     expect(contextOf(done)["askActions"]).not.toContain("remove");
     // 候補は場所（@s1）つきの組でまとめて引く

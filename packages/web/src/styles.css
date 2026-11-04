@@ -1414,8 +1414,8 @@ textarea.body {
 .progress .bar span.partial {
   background: repeating-linear-gradient(135deg, var(--dg-status) 0 2px, transparent 2px 4px);
 }
-/* VS Code（パネル）の Epic のチケットの一覧（pages/epics.tsx の EpicTicketList） */
-.epic-tickets {
+/* VS Code（パネル）の Epic・Iteration のチケットの一覧（components/ticket-sections.tsx の TicketSections） */
+.ticket-sections {
   display: grid;
   gap: 0.25rem;
   margin-top: 0.75rem;

@@ -299,18 +299,21 @@ describe("カンバンとパネルの詳細の行を複数選ぶ（UI-15）", ()
       );
     window.location.hash = "#/iterations/s1";
     const { open } = mount(client, "panel");
-    const api = (await screen.findByRole("link", { name: "API" })).closest("tr")!;
-    fireEvent.click(screen.getByRole("link", { name: "API" }), { ctrlKey: true });
-    fireEvent.click(screen.getByRole("link", { name: "画面" }), { shiftKey: true });
+    const api = (await screen.findByText("API")).closest("li")!;
+    fireEvent.click(screen.getByRole("link", { name: /API/ }), { ctrlKey: true });
+    fireEvent.click(screen.getByRole("link", { name: /画面/ }), { shiftKey: true });
     expect(open).not.toHaveBeenCalled();
-    // 範囲は表の並び（t2 → t1 → t3）
-    expect(selected()).toEqual(["t2", "t1", "t3"]);
-    fireEvent.click(screen.getByRole("link", { name: "ログイン" }), { ctrlKey: true });
-    expect(selected()).toEqual(["t2", "t3"]);
+    // 範囲は段の並び（t3 → t2 → t1。未完了の中は Status の順）
+    expect(selected()).toEqual(["t3", "t2"]);
+    // 畳んだ完了の段の行も ctrl で足し引きできる
+    fireEvent.click(screen.getByRole("link", { name: /ログイン/ }), { ctrlKey: true });
+    expect(selected()).toEqual(["t3", "t2", "t1"]);
+    fireEvent.click(screen.getByRole("link", { name: /ログイン/ }), { ctrlKey: true });
+    expect(selected()).toEqual(["t3", "t2"]);
     await waitFor(() => expect(contextOf(api)["askActions"]).toBeDefined());
     expect(contextOf(api)).toMatchObject({
       webviewSection: "detailTicket",
-      askTargets: "t2 t3",
+      askTargets: "t3 t2",
       askWithin: "s1",
     });
     expect(contextOf(api)["askActions"]).toContain("remove");
@@ -318,7 +321,7 @@ describe("カンバンとパネルの詳細の行を複数選ぶ（UI-15）", ()
     fireEvent.click(within(api).getByRole("button", { name: /エージェントに頼む/ }), {
       ctrlKey: true,
     });
-    expect(selected()).toEqual(["t2", "t3"]);
+    expect(selected()).toEqual(["t3", "t2"]);
     expect(bar()!.textContent).toContain("2 件を選択");
   });
 });
