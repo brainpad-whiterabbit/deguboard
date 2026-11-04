@@ -1,0 +1,52 @@
+id: p40
+project: default
+tickets: [t354, t352, t358, t359, t351, t353, t357, t355, t350]
+after:
+  t351:
+    - t354
+  t353:
+    - t351
+  t357:
+    - t353
+  t355:
+    - t353
+  t350:
+    - t355
+pending_approval: true
+details:
+  t354:
+    scope: 完了と期限切れの判定を core の 1 つの関数にまとめ、iterationNextOf と ask の候補から使う
+    approach: helpers.ts に判定の関数を置き、既存のテストを変えずに通す
+    tier: standard
+  t352:
+    scope: ask-composer.test.tsx の固定の待ち時間を、解決を制御できる Promise での順序の制御に替える
+    approach: テストだけを直す。copySeq を壊すと落ちることを手元で確かめる
+    tier: standard
+  t358:
+    scope: ADR-010 の Skill のない頼むことの列挙に持ち越しの相談を足し、持ち越しの割り当てと書き分ける
+    approach: ADR-010 を短く直し、更新日と一覧を合わせる
+    tier: light
+  t359:
+    scope: isWebviewRequest がクエリ付きのルートを受けるテストを足し、app.test.tsx の冗長な useRealTimers を消す
+    approach: テストだけを直す
+    tier: light
+  t351:
+    scope: localDate・isOverdue の単体テストと、固定した now での overdue の境界のテストにする
+    approach: ctx.now を注入し、TZ を一時的に変えて手元の暦を確かめる。難しければテスト名を直す
+    tier: standard
+  t353:
+    scope: AskCopy の失敗・iterationNextOf の closed で持ち越しなし・履歴が読めない・全件終わりかつ期限切れのテストを足す
+    approach: テストを足し、優先の結果が決まっていなければ core で決めてテストに書く
+    tier: standard
+  t357:
+    scope: AskCopy と CopyableCode のコピー通知を共通の部品にし、期限切れの見た目を値で決める
+    approach: copyable-code.tsx にフックか部品を置き、periodNote が overdue を返す形にする
+    tier: standard
+  t355:
+    scope: history.tsx の carriedOverFrom を core の結果で置き換えるか、一致を確かめるテストを足す
+    approach: 履歴の画面が iteration show の next.moved で足りるかを先に確かめ、足りなければ一致のテストにする
+    tier: standard
+  t350:
+    scope: iteration show の help に next・plans と履歴を読む費用を書く
+    approach: iteration.ts の summary を直す
+    tier: light
