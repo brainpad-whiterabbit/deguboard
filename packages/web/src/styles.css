@@ -584,13 +584,6 @@ button.link:hover {
   background: transparent;
   padding: 0;
 }
-.history-filter {
-  display: flex;
-  flex-wrap: nowrap;
-  align-items: center;
-  gap: inherit;
-  min-width: 0;
-}
 /* チケット詳細の節（経過・Run）の見出し */
 .timeline h2,
 .runs h2 {
@@ -825,6 +818,9 @@ button.link:hover {
 .view-switch button[aria-pressed="true"] {
   color: var(--vscode-foreground);
   font-weight: 600;
+}
+.result-switch {
+  margin-bottom: 0.5rem;
 }
 .view-switch .badge {
   padding: 0.05em 0.3em;
@@ -2372,17 +2368,6 @@ textarea.body {
 /* 件数は 1 段目の右端に出すので、頼む吹き出し（右端に重なる）の分だけ右に余白を取り、件数に重ねない */
 [data-surface="sidebar"] .history-row[data-ask-spot] {
   padding-right: 30px;
-}
-/* 履歴のチケットの見方の検索欄と結果の絞り込み：サイドバーでも 1 行に並べ、検索欄が残りの幅を使う */
-[data-surface="sidebar"] .history-filter {
-  flex: 1 0 100%;
-}
-[data-surface="sidebar"] .history-filter input[type="search"] {
-  flex: 1 1 0;
-  min-width: 0;
-}
-[data-surface="sidebar"] .history-filter label {
-  flex: none;
 }
 /* サイドバーのチケットの行はタイトルを 2 行まで折り返す。丸印・番号・担当・印は 1 行目に揃える */
 [data-surface="sidebar"] .ticket-row {

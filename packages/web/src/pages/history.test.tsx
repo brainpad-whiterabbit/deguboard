@@ -775,7 +775,9 @@ describe("タブを移って戻ったとき", () => {
       [...document.querySelectorAll(".history-list code")].map((c) => c.textContent);
     await waitFor(() => expect(codes()).toHaveLength(3));
     fireEvent.change(screen.getByLabelText("チケットを探す"), { target: { value: "ログ" } });
-    fireEvent.change(screen.getByLabelText("結果"), { target: { value: "done" } });
+    fireEvent.click(
+      within(screen.getByRole("group", { name: "結果" })).getByRole("button", { name: /^Done/ }),
+    );
     expect(codes()).toEqual(["t1"]);
     expect(window.location.hash).toBe("#/history?view=ticket&q=%E3%83%AD%E3%82%B0&result=done");
     nav("カンバン");
@@ -783,7 +785,9 @@ describe("タブを移って戻ったとき", () => {
     nav("履歴");
     await waitFor(() => expect(codes()).toEqual(["t1"]));
     expect(screen.getByLabelText<HTMLInputElement>("チケットを探す").value).toBe("ログ");
-    expect(screen.getByLabelText<HTMLSelectElement>("結果").value).toBe("done");
+    expect(
+      within(screen.getByRole("group", { name: "結果" })).getByRole("button", { name: /^Done/ }),
+    ).toHaveProperty("ariaPressed", "true");
     // 見方を変えても検索語は残る
     fireEvent.click(screen.getByRole("button", { name: /^Iteration/ }));
     await waitFor(() =>
@@ -874,6 +878,39 @@ describe("ブラウザの履歴", () => {
       ).toEqual(["t2"]),
     );
     expect(screen.getByLabelText<HTMLInputElement>("チケットを探す").value).toBe("ログ");
-    expect(screen.getByLabelText<HTMLSelectElement>("結果").value).toBe("abandoned");
+    expect(
+      within(screen.getByRole("group", { name: "結果" })).getByRole("button", {
+        name: /^Abandoned/,
+      }),
+    ).toHaveProperty("ariaPressed", "true");
+  });
+
+  it("結果の切り替えは検索に当たった数を出し、中止が 0 件なら中止を出さない", async () => {
+    window.location.hash = "#/history?view=ticket";
+    const client = mockClient();
+    client.data.tickets = [
+      ticket({ id: "t1", title: "ログイン", status: "done" }),
+      ticket({ id: "t2", title: "ログアウト", status: "abandoned" }),
+      ticket({ id: "t3", title: "一覧", status: "done" }),
+    ];
+    client.handlers["history"] = () => ({ events: [], shallow: false, incomplete: [] });
+    render(
+      <StoreProvider client={client}>
+        <HostProvider host={sidebarHost()}>
+          <App />
+        </HostProvider>
+      </StoreProvider>,
+    );
+    const group = await screen.findByRole("group", { name: "結果" });
+    const names = () =>
+      within(group)
+        .getAllByRole("button")
+        .map((b) => b.textContent);
+    expect(names()).toEqual(["すべて 3", "Done 2", "Abandoned 1"]);
+    fireEvent.change(screen.getByLabelText("チケットを探す"), { target: { value: "一覧" } });
+    expect(names()).toEqual(["すべて 1", "Done 1"]);
+    // 中止を選んでいるときは、検索に当たらず 0 件でも中止を残す
+    window.location.hash = "#/history?view=ticket&result=abandoned&q=%E4%B8%80%E8%A6%A7";
+    await waitFor(() => expect(names()).toEqual(["すべて 1", "Done 1", "Abandoned 0"]));
   });
 });
