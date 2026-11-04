@@ -109,7 +109,7 @@ function gateAsk(client: MockClient) {
     },
     /** 溜まった応答を、後から出した順（reverse）か出した順で全部解決し、新しく溜まる分がなくなるまで流す */
     release: async (order: "reverse" | "forward" = "forward") => {
-      holding = false;
+      // 解決した後に出る ask も溜めて解決するため、溜まらなくなるまで holding を保つ
       while (pending.length > 0) {
         const batch = pending.splice(0);
         if (order === "reverse") batch.reverse();
@@ -119,6 +119,7 @@ function gateAsk(client: MockClient) {
         await flush();
         await flush();
       }
+      holding = false;
     },
     count: () => pending.length,
   };
@@ -470,7 +471,7 @@ describe("エージェントに頼む入力欄（UI-15）", () => {
     const restored = mountWebview(restoredClient, { state });
     await waitFor(() => expect(restoredGate.count()).toBeGreaterThan(0));
     await restoredGate.release();
-    await waitFor(() => expect(suggestions().length).toBeGreaterThan(0));
+    expect(suggestions().length).toBeGreaterThan(0);
     expect(restored.copied).toHaveLength(0);
   });
 
