@@ -87,6 +87,44 @@ function mountWebview(
   };
 }
 
+/**
+ * ask の応答を、こちらが解決するまで止められるようにする（固定の待ち時間でなく順序で確かめるため）。
+ * hold() のあとの ask は溜まり、release が溜まった分を指定の順で解決して、後続の処理まで流しきる
+ */
+function gateAsk(client: MockClient) {
+  const original = client.run.bind(client);
+  const pending: (() => void)[] = [];
+  let holding = false;
+  client.run = ((name: string, input?: unknown) => {
+    const result = original<unknown>(name, input);
+    if (name !== "ask" || !holding) return result;
+    return new Promise<unknown>((resolve, reject) => {
+      pending.push(() => void result.then(resolve, reject));
+    });
+  }) as unknown as typeof client.run;
+  const flush = () => act(async () => {});
+  return {
+    hold: () => {
+      holding = true;
+    },
+    /** 溜まった応答を、後から出した順（reverse）か出した順で全部解決し、新しく溜まる分がなくなるまで流す */
+    release: async (order: "reverse" | "forward" = "forward") => {
+      // 解決した後に出る ask も溜めて解決するため、溜まらなくなるまで holding を保つ
+      while (pending.length > 0) {
+        const batch = pending.splice(0);
+        if (order === "reverse") batch.reverse();
+        await act(async () => {
+          for (const resolve of batch) resolve();
+        });
+        await flush();
+        await flush();
+      }
+      holding = false;
+    },
+    count: () => pending.length,
+  };
+}
+
 const composer = () => screen.getByRole("region", { name: "エージェントに頼む" });
 const suggestions = () =>
   within(within(composer()).getByRole("group", { name: "頼むこと" })).getAllByRole("button");
@@ -254,25 +292,29 @@ describe("エージェントに頼む入力欄（UI-15）", () => {
 
   it("入力欄は依頼文を作るだけで、読み取りのコマンド（ask など）しか呼ばない", async () => {
     const client = askClient();
+    const gate = gateAsk(client);
     const view = mountWebview(client);
     await screen.findByText("見直す");
     view.ask(["t5", "s1"]);
     await waitFor(() => expect(suggestions().length).toBeGreaterThan(0));
     const box = within(composer());
     const picks = suggestions();
+    gate.hold();
     for (const b of picks) fireEvent.click(b);
     fireEvent.click(box.getByRole("button", { name: "t5 を外す" }));
     fireEvent.click(box.getByRole("button", { name: "形式：Skill" }));
     fireEvent.change(box.getByRole("textbox", { name: "指示" }), { target: { value: "x" } });
     fireEvent.click(box.getByRole("button", { name: "コピー" }));
-    // 続けて押したコピーは最後の 1 回だけ書き込む（t340）
+    // 続けて押したコピーは最後の 1 回だけ書き込む（t340）。ask の応答を止めて押し、新しい方から先に解決する
+    // （古い方が後から返っても書き込まないことを、待ち時間でなく解決の順で確かめる）
     expect(picks.length).toBeGreaterThan(1);
-    await waitFor(() => expect(view.copied).toHaveLength(1));
+    expect(gate.count()).toBeGreaterThan(1);
+    expect(view.copied).toHaveLength(0);
+    await gate.release("reverse");
+    expect(view.copied).toHaveLength(1);
     // 最後の指示（x）と最後に選んだ頼むことの文が入っている
     expect(view.copied[0]).toMatch(/^s1 を進める Plan を立て/);
     expect(view.copied[0]?.endsWith("\nx")).toBe(true);
-    await new Promise((r) => setTimeout(r, 100));
-    expect(view.copied).toHaveLength(1);
     expect(client.calls.some((c) => c.name === "ask")).toBe(true);
     expect(client.calls.filter((c) => !READS.has(c.name))).toEqual([]);
   });
@@ -422,9 +464,14 @@ describe("エージェントに頼む入力欄（UI-15）", () => {
     const state = createUiState(
       memoryBackend({ [ASK_OPEN_KEY]: { targets: ["t5"], action: "fix" } }),
     );
-    const restored = mountWebview(askClient(), { state });
-    await waitFor(() => expect(suggestions().length).toBeGreaterThan(0));
-    await new Promise((r) => setTimeout(r, 50));
+    // ask の応答を止めて開き、すべて解決して流しきってから、コピーが 1 回も来ていないことを確かめる
+    const restoredClient = askClient();
+    const restoredGate = gateAsk(restoredClient);
+    restoredGate.hold();
+    const restored = mountWebview(restoredClient, { state });
+    await waitFor(() => expect(restoredGate.count()).toBeGreaterThan(0));
+    await restoredGate.release();
+    expect(suggestions().length).toBeGreaterThan(0);
     expect(restored.copied).toHaveLength(0);
   });
 
