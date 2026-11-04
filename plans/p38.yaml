@@ -2,9 +2,11 @@ id: p38
 project: default
 tickets: [t329]
 after: {}
-pending_approval: true
+pending_approval: false
 details:
   t329:
     scope: vscode README のバックログ行の優先度の記述・requirements 5.10/TK-8 と config describe の priority 用途・models の guide 参照を実装に合わせる
     approach: 文書のみの修正。vscode/README.md・docs/requirements.md・config.ts の describe を直し mise run check を通す
     tier: light
+approved_by: eiki.kitajima/agent
+approved_at: 2026-11-04T04:20:13Z
