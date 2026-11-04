@@ -10,7 +10,7 @@ import { peekRunningRuns } from "../run/record.js";
 import type { Store } from "../storage/store.js";
 import { findConstraint } from "../workflow/resolve.js";
 import { defineCommand, ok } from "./define.js";
-import { ticketsInIteration } from "./helpers.js";
+import { isOverdue, localDate, ticketsInIteration } from "./helpers.js";
 
 /** 頼むこと。どの対象で候補に出るかは askCandidates が決める */
 export const ASK_ACTIONS = [
@@ -30,6 +30,7 @@ export const ASK_ACTIONS = [
   "done",
   "check",
   "release",
+  "carry",
   "close",
   "reopen",
   "abandon",
@@ -71,6 +72,8 @@ export type AskSubject =
       status: string;
       /** 中のチケットが 1 件以上あり、すべて done か abandoned か */
       complete: boolean;
+      /** active で終了日を過ぎ、未完了のチケットがあるか（持ち越しの相談。省けば false） */
+      overdue?: boolean;
     }
   | { kind: "epic"; id: string; title: string; status: string }
   | {
@@ -413,6 +416,13 @@ const ACTIONS: Record<AskAction, ActionDef> = {
     text: (s) =>
       `${idList(s)} をリリースし、リリースの PR のマージと公開の前に承認を求めてください。`,
   },
+  // 閉じる（close）とは別：データを書き換えず、未完了を持ち越すか続けるかの相談だけを頼む（閉じるのは人の指示で、人に回す対象にしない）
+  carry: {
+    skill: null,
+    label: () => "持ち越しを相談する",
+    text: (s) =>
+      `${idList(s)} は終了日を過ぎて未完了のチケットがあります。持ち越すか続けるかを、未完了の一覧を示して相談してください（相談だけで、Iteration・チケットのデータは書き換えない）。`,
+  },
   close: {
     skill: null,
     label: () => "閉じる",
@@ -545,6 +555,7 @@ function baseActions(s: Subjects): AskAction[] {
     if (it.status === "closed") return ["retro", "assign", "reopen", "free"];
     const rest: AskAction[] = ["create", "assign", "edit", "close", "check", "free"];
     if (it.status === "active" && it.complete) return ["release", "plan", "all", ...rest];
+    if (it.status === "active" && it.overdue) return ["carry", "plan", "all", "release", ...rest];
     return it.status === "active" ? ["plan", "all", "release", ...rest] : ["plan", "all", ...rest];
   }
 
@@ -687,7 +698,12 @@ function agentDenied(store: Store, t: Parameters<Store["workflowFor"]>[0]): stri
 }
 
 /** ID から対象を引く。種類は頭の文字で決めるので、番号だけは受けない */
-function askSubjectOf(store: Store, ref: string, running: ReadonlySet<string>): AskSubject {
+function askSubjectOf(
+  store: Store,
+  ref: string,
+  running: ReadonlySet<string>,
+  today: string,
+): AskSubject {
   const kind = idKindOf(ref);
   if (!kind || !parseId(ref, kind))
     throw new UsageError(`${ref} は対象の ID ではない（t12・s3・e2・p7 の形で書く）`);
@@ -718,6 +734,10 @@ function askSubjectOf(store: Store, ref: string, running: ReadonlySet<string>): 
         title: it.name,
         status: it.status,
         complete: isComplete(statuses),
+        overdue:
+          it.status === "active" &&
+          isOverdue(it.end, today) &&
+          statuses.some((st) => !isTerminal(st)),
       };
     }
     case "epic": {
@@ -778,7 +798,7 @@ export const ask = defineCommand({
     const running = await runningTickets(ctx.repo, refs);
     return ok(
       buildAsk({
-        subjects: subjectsOf(ctx.store, refs, running),
+        subjects: subjectsOf(ctx.store, refs, running, localDate(ctx.now())),
         action: input.action,
         note: input.note,
         format: input.format,
@@ -825,7 +845,7 @@ export const askMenu = defineCommand({
         try {
           const { refs, within } = parseAskMenuKey(key);
           const candidates = askCandidates(
-            subjectsOf(ctx.store, refs, running),
+            subjectsOf(ctx.store, refs, running, localDate(ctx.now())),
             withinRef(ctx.store, within),
           );
           return { key, candidates, error: null };
@@ -885,8 +905,9 @@ function subjectsOf(
   store: Store,
   refs: readonly string[],
   running: ReadonlySet<string>,
+  today: string,
 ): AskSubject[] {
-  const subjects = [...new Set(refs)].map((r) => askSubjectOf(store, r, running));
+  const subjects = [...new Set(refs)].map((r) => askSubjectOf(store, r, running, today));
   return subjects.filter((t, n) => subjects.findIndex((u) => u.id === t.id) === n);
 }
 

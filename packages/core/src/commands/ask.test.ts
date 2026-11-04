@@ -46,12 +46,13 @@ const ticket = (over: Partial<Extract<AskSubject, { kind: "ticket" }>> = {}): As
   running: false,
   ...over,
 });
-const iteration = (status: string, complete = false): AskSubject => ({
+const iteration = (status: string, complete = false, overdue = false): AskSubject => ({
   kind: "iteration",
   id: "s10",
   title: "チケット詳細の改善",
   status,
   complete,
+  overdue,
 });
 const epic = (status: string): AskSubject => ({
   kind: "epic",
@@ -174,6 +175,26 @@ describe("依頼文の組み立て", () => {
       expect(view.kind).toBe("prompt");
       expect(view.text).toContain("（人の指示");
     }
+  });
+
+  it("終了日を過ぎて未完了がある active の Iteration は持ち越しの相談（carry）がおすすめで、close を使わない。human_only に iteration.close があってもコマンドにならない", () => {
+    const overdue: AskSubject = iteration("active", false, true);
+    expect(askActions([overdue])[0]).toBe("carry");
+    // 期限内・全件終了・閉じたものには出さない
+    for (const s of [iteration("active"), iteration("active", true), iteration("closed")])
+      expect(askActions([s])).not.toContain("carry");
+    const view = buildAsk({
+      subjects: [overdue],
+      action: "carry",
+      humanOnly: ["iteration.close", "iteration.update"],
+    });
+    expect(view.kind).toBe("prompt");
+    expect(view.human_only).toEqual([]);
+    expect(view.text).toContain("持ち越すか続けるか");
+    expect(view.text).toContain("書き換えない");
+    // 閉じる依頼（人の指示で閉じる）の文にならない
+    expect(view.text).not.toContain("閉じてください");
+    expect(view.text).not.toContain("dg iteration close");
   });
 
   it("頼むことの操作が actor.human_only に入っていれば、依頼文の代わりに人が打つ dg のコマンドを返す", () => {
@@ -308,6 +329,7 @@ describe("人に回すかを決める操作の名前", () => {
       [[iteration("closed")]],
       [[iteration("active", true)]],
       [[iteration("active")]],
+      [[iteration("active", false, true)]],
       [[iteration("planned")]],
       [[epic("closed")]],
       [[epic("open")]],

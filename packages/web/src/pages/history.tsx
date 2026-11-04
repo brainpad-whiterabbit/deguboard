@@ -193,7 +193,8 @@ export function groupByEpic(
 /**
  * Iteration から持ち越したチケットの ID（番号の順）。閉じると持ち越したチケットの iteration は外れるので、今のファイルからは分からない。
  * 履歴（history のコマンド）で、その Iteration から外れる・別の Iteration に移る出来事のあったチケットを持ち越しとみなす。
- * 今もその Iteration に入っているものは除く
+ * 今もその Iteration に入っているものは除く。
+ * core の iteration.show の next（iteration.ts の carriedOverFrom）も同じ求め方（web は core の実行時のコードを取り込めないので写し）
  */
 export function carriedOverFrom(
   iteration: string,

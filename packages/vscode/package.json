@@ -164,6 +164,11 @@
         "category": "deguboard"
       },
       {
+        "command": "deguboard.ask.carry",
+        "title": "持ち越しを相談する",
+        "category": "deguboard"
+      },
+      {
         "command": "deguboard.ask.close",
         "title": "閉じる",
         "category": "deguboard"
@@ -306,6 +311,10 @@
         },
         {
           "command": "deguboard.ask.release",
+          "when": "false"
+        },
+        {
+          "command": "deguboard.ask.carry",
           "when": "false"
         },
         {
@@ -516,6 +525,16 @@
           "group": "2_more@16"
         },
         {
+          "command": "deguboard.ask.carry",
+          "when": "askRecommended == 'carry'",
+          "group": "1_recommended@1"
+        },
+        {
+          "command": "deguboard.ask.carry",
+          "when": "askActions =~ /\\bcarry\\b/ && askRecommended != 'carry'",
+          "group": "2_more@17"
+        },
+        {
           "command": "deguboard.ask.close",
           "when": "askRecommended == 'close'",
           "group": "1_recommended@1"
@@ -523,7 +542,7 @@
         {
           "command": "deguboard.ask.close",
           "when": "askActions =~ /\\bclose\\b/ && askRecommended != 'close'",
-          "group": "2_more@17"
+          "group": "2_more@18"
         },
         {
           "command": "deguboard.ask.reopen",
@@ -533,7 +552,7 @@
         {
           "command": "deguboard.ask.reopen",
           "when": "askActions =~ /\\breopen\\b/ && askRecommended != 'reopen'",
-          "group": "2_more@18"
+          "group": "2_more@19"
         },
         {
           "command": "deguboard.ask.abandon",
@@ -543,7 +562,7 @@
         {
           "command": "deguboard.ask.abandon",
           "when": "askActions =~ /\\babandon\\b/ && askRecommended != 'abandon'",
-          "group": "2_more@19"
+          "group": "2_more@20"
         },
         {
           "command": "deguboard.ask.undo_done",
@@ -553,7 +572,7 @@
         {
           "command": "deguboard.ask.undo_done",
           "when": "askActions =~ /\\bundo_done\\b/ && askRecommended != 'undo_done'",
-          "group": "2_more@20"
+          "group": "2_more@21"
         },
         {
           "command": "deguboard.ask.status",
@@ -563,7 +582,7 @@
         {
           "command": "deguboard.ask.status",
           "when": "askActions =~ /\\bstatus\\b/ && askRecommended != 'status'",
-          "group": "2_more@21"
+          "group": "2_more@22"
         },
         {
           "command": "deguboard.ask.retro",
@@ -573,7 +592,7 @@
         {
           "command": "deguboard.ask.retro",
           "when": "askActions =~ /\\bretro\\b/ && askRecommended != 'retro'",
-          "group": "2_more@22"
+          "group": "2_more@23"
         },
         {
           "command": "deguboard.ask.free",
@@ -583,7 +602,7 @@
         {
           "command": "deguboard.ask.free",
           "when": "askActions =~ /\\bfree\\b/ && askRecommended != 'free'",
-          "group": "2_more@23"
+          "group": "2_more@24"
         }
       ]
     }

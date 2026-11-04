@@ -2,8 +2,10 @@
 
 import { z } from "zod";
 import { OperationError } from "../errors.js";
+import { readHistory, type HistoryEvent } from "../git/history.js";
 import { withWrite } from "../git/write.js";
 import { isTerminal, slugSchema } from "../model/common.js";
+import type { TicketId } from "../model/id.js";
 import {
   ITERATION_STATUSES,
   otherActiveMessage,
@@ -14,8 +16,11 @@ import { progressOf, type Progress, type Ticket } from "../model/ticket.js";
 import type { Doc } from "../storage/documents.js";
 import type { Store } from "../storage/store.js";
 import { defineCommand, ok } from "./define.js";
+import type { AskAction } from "./ask.js";
 import {
+  isOverdue,
   iterationRef,
+  localDate,
   nowIso,
   projectOf,
   sortedDocs,
@@ -94,8 +99,94 @@ export const iterationList = defineCommand({
   },
 });
 
-/** iteration.show の出力。items は優先度と番号の順（IT-2）。progress は Epic と同じ形で、中のチケットから都度求める（EP-3） */
-export type IterationDetail = Iteration & { progress: Progress; items: Ticket[] };
+/** 持ち越したチケットと、その今の Iteration（なければ null） */
+export interface CarriedTicket {
+  id: string;
+  iteration: string | null;
+}
+
+/**
+ * Iteration の状態に応じた次の操作（UI-5）。ask はその依頼文を ask コマンドで頼む頼むこと（なければ null）。
+ * 画面は種類を出し、ask の依頼文をコピーさせるだけで、判断はここに置く
+ */
+export type IterationNext =
+  /** active で、中のチケットがすべて done か abandoned */
+  | { kind: "ready"; ask: AskAction }
+  /** active で、終了日を過ぎて未完了が残っている */
+  | { kind: "overdue"; unfinished: number; ask: AskAction }
+  /** planned。最初のチケットの claim で active になる */
+  | { kind: "planned"; ask: null }
+  /**
+   * 閉じて持ち越しがある。moved は履歴から求めた持ち越し先で、まだコミットしていない（commit.mode が batch）
+   * などで履歴に出ない分は含まない（carried より少なければ、画面は「コミットすると出る」と添える）
+   */
+  | { kind: "closed"; carried: number; moved: CarriedTicket[]; ask: AskAction | null };
+
+/**
+ * 履歴から、その Iteration から外れた（持ち越した）チケットの ID を番号の順に返す。今もそこに入っているものは除く。
+ * web の履歴の画面（history.tsx の carriedOverFrom）も同じ求め方で、一致をテストで確かめる
+ */
+export function carriedOverFrom(
+  iteration: string,
+  events: readonly HistoryEvent[],
+  tickets: readonly Pick<Ticket, "id" | "iteration">[],
+): string[] {
+  const moved = new Set<string>();
+  for (const e of events)
+    if (
+      e.kind === "ticket" &&
+      e.changes.some((c) => c.field === "iteration" && c.from === iteration && c.to !== iteration)
+    )
+      moved.add(e.id);
+  const still = new Set<string>(tickets.filter((t) => t.iteration === iteration).map((t) => t.id));
+  return [...moved]
+    .filter((id) => !still.has(id))
+    .sort((a, b) => (Number(a.slice(1)) || 0) - (Number(b.slice(1)) || 0));
+}
+
+/** 次の操作を決める。案内が要らなければ null（active で期限内、閉じて持ち越しなし、など） */
+export async function iterationNextOf(
+  ctx: { store: Store; repo: { dataDir: string }; now(): Date },
+  it: Iteration,
+  items: readonly Ticket[],
+): Promise<IterationNext | null> {
+  if (it.status === "planned") return { kind: "planned", ask: null };
+  if (it.status === "closed") {
+    if (!it.carried_over) return null;
+    let ids: string[] = [];
+    try {
+      ids = carriedOverFrom(
+        it.id,
+        (await readHistory(ctx.repo.dataDir)).events,
+        [...ctx.store.tickets.values()].map((t) => t.data),
+      );
+    } catch {
+      // 履歴が読めなければ持ち越し先は出さない（件数だけ）
+    }
+    const moved = ids.flatMap((id) => {
+      const t = ctx.store.tickets.get(id as TicketId);
+      return t ? [{ id, iteration: t.data.iteration ?? null }] : [];
+    });
+    return {
+      kind: "closed",
+      carried: it.carried_over,
+      moved,
+      ask: moved.some((m) => m.iteration === null) ? "assign" : null,
+    };
+  }
+  const unfinished = items.filter((t) => !isTerminal(t.status)).length;
+  if (items.length > 0 && unfinished === 0) return { kind: "ready", ask: "release" };
+  if (unfinished > 0 && isOverdue(it.end, localDate(ctx.now())))
+    return { kind: "overdue", unfinished, ask: "carry" };
+  return null;
+}
+
+/** iteration.show の出力。items は優先度と番号の順（IT-2）。progress は Epic と同じ形で、中のチケットから都度求める（EP-3）。next は次の操作の案内 */
+export type IterationDetail = Iteration & {
+  progress: Progress;
+  items: Ticket[];
+  next: IterationNext | null;
+};
 
 export const iterationShow = defineCommand({
   name: "iteration.show",
@@ -108,7 +199,12 @@ export const iterationShow = defineCommand({
   async run(ctx, input) {
     const doc = ctx.store.require("iteration", input.iteration);
     const items = ticketsInIteration(ctx.store, doc.id).map((t) => t.data);
-    return ok<IterationDetail>({ ...doc.data, progress: progressOf(items), items });
+    return ok<IterationDetail>({
+      ...doc.data,
+      progress: progressOf(items),
+      items,
+      next: await iterationNextOf(ctx, doc.data, items),
+    });
   },
 });
 
