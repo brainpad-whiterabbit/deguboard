@@ -1,10 +1,36 @@
 import { describe, expect, it } from "vitest";
-import { shortPeriod } from "./iteration-parts.js";
+import { localDate, periodNote, shortPeriod } from "./iteration-parts.js";
 
 describe("Iteration の見出しの期間", () => {
   it("期間は月/日に縮めて – でつなぎ、片方だけなら ? を置く", () => {
     expect(shortPeriod("2026-11-15", "2026-11-28")).toBe("11/15–11/28");
     expect(shortPeriod("2026-11-05", undefined)).toBe("11/5–?");
     expect(shortPeriod(undefined, undefined)).toBeUndefined();
+  });
+});
+
+describe("Iteration の残り・超過の日数", () => {
+  const active = (end?: string) =>
+    end ? { status: "active" as const, end } : { status: "active" as const };
+
+  it("active なら終了日までの残り日数を数え、当日は「今日まで」", () => {
+    expect(periodNote(active("2026-11-30"), "2026-11-17")).toBe("残り 13 日");
+    expect(periodNote(active("2026-11-30"), "2026-11-29")).toBe("残り 1 日");
+    expect(periodNote(active("2026-11-30"), "2026-11-30")).toBe("今日まで");
+  });
+
+  it("終了日を過ぎていれば超過日数を数える。月をまたいでも暦日で数える", () => {
+    expect(periodNote(active("2026-11-30"), "2026-12-01")).toBe("1 日超過");
+    expect(periodNote(active("2026-10-31"), "2026-11-04")).toBe("4 日超過");
+  });
+
+  it("active でない・終了日がないときは添えない", () => {
+    expect(periodNote({ status: "planned", end: "2026-11-30" }, "2026-11-17")).toBeUndefined();
+    expect(periodNote({ status: "closed", end: "2026-11-30" }, "2026-12-05")).toBeUndefined();
+    expect(periodNote(active(undefined), "2026-11-17")).toBeUndefined();
+  });
+
+  it("今日は手元の暦日で YYYY-MM-DD にする", () => {
+    expect(localDate(new Date(2026, 0, 5, 23, 59))).toBe("2026-01-05");
   });
 });

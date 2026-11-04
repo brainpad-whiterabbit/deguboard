@@ -10,7 +10,15 @@ import type { WebviewEvent } from "@deguboard/core";
 import { HostBridge, HostProvider, type Host } from "./host.js";
 import { parseRoute, type Route } from "./router.js";
 import { StoreProvider } from "./store.js";
-import { boardFixture, fixture, iteration, mockClient, plan, ticket } from "./test-helpers.js";
+import {
+  boardFixture,
+  fixture,
+  iteration,
+  iterationDetail,
+  mockClient,
+  plan,
+  ticket,
+} from "./test-helpers.js";
 
 /** カンバンのテストの client（チケットを active の Iteration に入れた fixture） */
 const boardClient = () => mockClient(boardFixture());
@@ -2105,7 +2113,7 @@ describe("画面", () => {
   it("エディタのパネルで Iteration の詳細を出すときもヘッダーを出さない", async () => {
     const client = mockClient();
     client.data.iterations = [iteration({ id: "s1", name: "最初", status: "closed" })];
-    client.handlers["iteration.show"] = () => ({ ...client.data.iterations[0], items: [] });
+    client.handlers["iteration.show"] = () => iterationDetail(client.data.iterations[0]!);
     window.location.hash = "#/iterations/s1";
     mount(client, hostOf("panel"));
     await screen.findByRole("heading", { level: 1, name: /s1 最初/ });
@@ -2538,10 +2546,91 @@ describe("画面", () => {
     window.location.hash = "#/iterations/s1";
     const client = mockClient();
     client.data.iterations = [iteration({ id: "s1", name: "最初", status: "active" })];
-    client.handlers["iteration.show"] = () => ({ ...client.data.iterations[0], items: [] });
+    client.handlers["iteration.show"] = () => iterationDetail(client.data.iterations[0]!);
     mount(client, hostOf("panel"));
     await screen.findByRole("heading", { level: 1 });
     expect(screen.queryByRole("link", { name: "← カンバン" })).toBeNull();
+  });
+
+  it("Iteration 詳細の見出しの下は期間（短い形と残り・超過の日数）・目標・進捗を別の行に出す（UI-5）", async () => {
+    vi.useFakeTimers({ toFake: ["Date"], now: new Date(2026, 10, 17, 12) });
+    const client = mockClient();
+    client.data.iterations = [
+      iteration({
+        id: "s1",
+        name: "今",
+        status: "active",
+        start: "2026-11-17",
+        end: "2026-11-30",
+        goal: "見出しを分ける",
+      }),
+    ];
+    client.data.tickets[0]!.iteration = "s1";
+    client.data.tickets[1]!.iteration = "s1";
+    client.data.tickets[0]!.status = "done";
+    client.data.tickets[1]!.status = "todo";
+    const items = () => client.data.tickets.filter((t) => t.iteration === "s1");
+    client.handlers["iteration.show"] = () => iterationDetail(client.data.iterations[0]!, items());
+    window.location.hash = "#/iterations/s1";
+    mount(client, hostOf("panel"));
+    await screen.findByRole("heading", { level: 1, name: /s1 今/ });
+    const summary = document.querySelector(".iteration-summary")!;
+    const rows = () =>
+      [...summary.querySelectorAll("dt")].map((dt) => [
+        dt.textContent,
+        dt.nextElementSibling!.textContent,
+      ]);
+    expect(rows()).toEqual([
+      ["期間", "11/17–11/30残り 13 日"],
+      ["目標", "見出しを分ける"],
+      ["進捗", "完了 1/2"],
+    ]);
+    expect(summary.querySelector(".progress")).toBeTruthy();
+
+    // 終了日を過ぎたら超過日数。期間がどちらもなければ期間の行を出さない
+    cleanup();
+    vi.setSystemTime(new Date(2026, 11, 2, 9));
+    mount(client, hostOf("panel"));
+    await screen.findByRole("heading", { level: 1, name: /s1 今/ });
+    expect(document.querySelector(".period-note.overdue")!.textContent).toBe("2 日超過");
+    cleanup();
+    client.data.iterations[0] = iteration({ id: "s1", name: "今", status: "active" });
+    mount(client, hostOf("panel"));
+    await screen.findByRole("heading", { level: 1, name: /s1 今/ });
+    expect(
+      [...document.querySelectorAll(".iteration-summary dt")].map((dt) => dt.textContent),
+    ).toEqual(["進捗"]);
+    expect(screen.queryByText(/\?/)).toBeNull();
+  });
+
+  it("閉じた Iteration の詳細は、進捗の位置に完了・持ち越しの件数を出す", async () => {
+    const client = mockClient();
+    client.data.iterations = [
+      iteration({
+        id: "s0",
+        name: "前",
+        status: "closed",
+        start: "2026-10-01",
+        end: "2026-10-14",
+        completed: 3,
+        carried_over: 1,
+      }),
+    ];
+    client.handlers["iteration.show"] = () => iterationDetail(client.data.iterations[0]!);
+    window.location.hash = "#/iterations/s0";
+    mount(client, hostOf("panel"));
+    await screen.findByRole("heading", { level: 1, name: /s0 前/ });
+    const summary = document.querySelector(".iteration-summary")!;
+    expect(
+      [...summary.querySelectorAll("dt")].map((dt) => [
+        dt.textContent,
+        dt.nextElementSibling!.textContent,
+      ]),
+    ).toEqual([
+      ["期間", "10/1–10/14"],
+      ["進捗", "完了 3 ・ 持ち越し 1"],
+    ]);
+    expect(summary.querySelector(".progress")).toBeNull();
   });
 
   it("info の通知（コマンドの警告）は数秒で消える", async () => {
@@ -2888,10 +2977,10 @@ describe("画面", () => {
       client.data.tickets[1]!.iteration = "s1";
       client.handlers["iteration.show"] = (input) => {
         const id = (input as { iteration: string }).iteration;
-        return {
-          ...client.data.iterations.find((i) => i.id === id),
-          items: client.data.tickets.filter((t) => t.iteration === id),
-        };
+        return iterationDetail(
+          client.data.iterations.find((i) => i.id === id)!,
+          client.data.tickets.filter((t) => t.iteration === id),
+        );
       };
       for (const id of ["s1", "s2", "s0"]) {
         cleanup();

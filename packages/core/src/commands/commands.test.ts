@@ -986,6 +986,12 @@ describe("Epic と Iteration", () => {
     const shown = await runCommand(iterationShow, ctx, { iteration: "s1" });
     expect(shown.data.items.map((t) => t.id)).toEqual(["t2", "t1"]);
     expect(shown.data).not.toHaveProperty("tickets");
+    // 進捗は Epic と同じ形で、abandoned を除いた件数と done の件数（EP-3）
+    expect(shown.data.progress).toEqual({
+      total: 2,
+      done: 1,
+      by_status: { todo: 1, in_progress: 0, review: 0, done: 1, abandoned: 0 },
+    });
     const agent = await openContext({ cwd: f.cloneA, actor: { kind: "agent", user: "claude" } });
     const closed = await runCommand(iterationClose, agent, { iteration: "s1" });
     expect(closed.data).toMatchObject({ status: "closed", completed: 1, carried_over: 1 });

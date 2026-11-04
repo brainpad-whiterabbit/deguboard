@@ -10,7 +10,7 @@ import {
   otherActiveOf,
   type Iteration,
 } from "../model/iteration.js";
-import type { Ticket } from "../model/ticket.js";
+import { progressOf, type Progress, type Ticket } from "../model/ticket.js";
 import type { Doc } from "../storage/documents.js";
 import type { Store } from "../storage/store.js";
 import { defineCommand, ok } from "./define.js";
@@ -94,21 +94,21 @@ export const iterationList = defineCommand({
   },
 });
 
-/** iteration.show の出力。items は優先度と番号の順（IT-2） */
-export type IterationDetail = Iteration & { items: Ticket[] };
+/** iteration.show の出力。items は優先度と番号の順（IT-2）。progress は Epic と同じ形で、中のチケットから都度求める（EP-3） */
+export type IterationDetail = Iteration & { progress: Progress; items: Ticket[] };
 
 export const iterationShow = defineCommand({
   name: "iteration.show",
   positionals: ["iteration"],
   group: "iteration",
-  summary: "Iteration と、入っているチケットを優先度と番号の順で出す",
+  summary: "Iteration と進捗、入っているチケットを優先度と番号の順で出す",
   input: z.object({ iteration: iterationRef }),
   write: false,
   needs: "store",
   async run(ctx, input) {
     const doc = ctx.store.require("iteration", input.iteration);
     const items = ticketsInIteration(ctx.store, doc.id).map((t) => t.data);
-    return ok<IterationDetail>({ ...doc.data, items });
+    return ok<IterationDetail>({ ...doc.data, progress: progressOf(items), items });
   },
 });
 

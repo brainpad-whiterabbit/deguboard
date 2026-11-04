@@ -6,12 +6,13 @@ import { HostProvider, type Host } from "../host.js";
 import type { Route } from "../router.js";
 import { StoreProvider } from "../store.js";
 import {
+  type MockClient,
   boardFixture,
   fixture,
   iteration,
+  iterationDetail,
   mockClient,
   ticket,
-  type MockClient,
 } from "../test-helpers.js";
 import { createUiState, memoryBackend } from "../ui-state.js";
 import { ASK_HINT_KEY } from "./ask-menu.js";
@@ -291,10 +292,11 @@ describe("カンバンとパネルの詳細の行を複数選ぶ（UI-15）", ()
     const data = fixture({ iterations: [iteration({ id: "s1", name: "最初", status: "active" })] });
     data.tickets = data.tickets.map((t) => ({ ...t, iteration: "s1" }));
     const client = mockClient(data);
-    client.handlers["iteration.show"] = () => ({
-      ...client.data.iterations[0],
-      items: client.data.tickets.filter((t) => t.iteration === "s1"),
-    });
+    client.handlers["iteration.show"] = () =>
+      iterationDetail(
+        client.data.iterations[0]!,
+        client.data.tickets.filter((t) => t.iteration === "s1"),
+      );
     window.location.hash = "#/iterations/s1";
     const { open } = mount(client, "panel");
     const api = (await screen.findByRole("link", { name: "API" })).closest("tr")!;

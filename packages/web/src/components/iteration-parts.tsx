@@ -1,4 +1,9 @@
-// Iteration の部品：見出しに出す短い期間。カンバン（board.tsx）とバックログ（backlog.tsx）の左パネルの見出しで共用する
+// Iteration の部品：見出しに出す短い期間と残り・超過の日数、詳細の見出しの下の期間・目標・進捗の欄。
+// 短い期間はカンバン（board.tsx）とバックログ（backlog.tsx）の左パネルの見出しでも共用する
+
+import { ProgressBar } from "./parts.js";
+import { NO_VALUE } from "./run-parts.js";
+import type { IterationDetail } from "../types.js";
 
 /** 見出しに出す期間を短くする（2026-11-15 と 2026-11-28 → 11/15–11/28）。どちらもなければ undefined */
 export function shortPeriod(start?: string, end?: string): string | undefined {
@@ -8,4 +13,70 @@ export function shortPeriod(start?: string, end?: string): string | undefined {
     return m ? `${Number(m[1])}/${Number(m[2])}` : (d ?? "?");
   };
   return `${md(start)}–${md(end)}`;
+}
+
+/** 手元の時刻の暦日（YYYY-MM-DD）。残り日数は利用者の暦で数える */
+export function localDate(now: Date = new Date()): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * 期間に添える残り・超過の日数（active の Iteration だけ）。today は YYYY-MM-DD で、既定は手元の今日。
+ * 終了日の前は「残り n 日」、終了日の当日は「今日まで」、過ぎたら「n 日超過」。終了日がない・active でなければ undefined
+ */
+export function periodNote(
+  it: Pick<IterationDetail, "status" | "end">,
+  today: string = localDate(),
+): string | undefined {
+  if (it.status !== "active" || !it.end) return undefined;
+  const end = Date.parse(it.end.slice(0, 10));
+  const now = Date.parse(today);
+  if (Number.isNaN(end) || Number.isNaN(now)) return undefined;
+  const days = Math.round((end - now) / DAY_MS);
+  if (days > 0) return `残り ${days} 日`;
+  if (days === 0) return "今日まで";
+  return `${-days} 日超過`;
+}
+
+/**
+ * Iteration 詳細の見出しの下の欄：期間（短い形と残り・超過の日数）・目標・進捗を別の行に出す（UI-5）。
+ * 期間の開始・終了がどちらもない・目標が空なら、その行を出さない。閉じた Iteration は進捗の位置に完了・持ち越しの件数を出す
+ */
+export function IterationSummary({ it }: { it: IterationDetail }) {
+  const period = shortPeriod(it.start, it.end);
+  const note = periodNote(it);
+  return (
+    <dl className="iteration-summary">
+      {period ? (
+        <>
+          <dt>期間</dt>
+          <dd>
+            {period}
+            {note ? (
+              <span className={note.endsWith("超過") ? "period-note overdue" : "period-note"}>
+                {note}
+              </span>
+            ) : null}
+          </dd>
+        </>
+      ) : null}
+      {it.goal ? (
+        <>
+          <dt>目標</dt>
+          <dd>{it.goal}</dd>
+        </>
+      ) : null}
+      <dt>進捗</dt>
+      <dd>
+        {it.status === "closed" ? (
+          `完了 ${it.completed ?? NO_VALUE} ・ 持ち越し ${it.carried_over ?? NO_VALUE}`
+        ) : (
+          <ProgressBar progress={it.progress} />
+        )}
+      </dd>
+    </dl>
+  );
 }

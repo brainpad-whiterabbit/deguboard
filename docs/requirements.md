@@ -141,14 +141,14 @@ closed_at: 2026-11-20T09:00:00Z # closed のときだけ
 
 - EP-1 必須は `id`・`project`・`title`・`status`・`created_at`・`updated_at`。`status` は `open` / `closed` で、閉じたときに `closed_at` を書く。本文は Markdown で、`## 概要` を推奨し `dg lint` が欠けを指摘する
 - EP-2 所属はチケットの `epic` で表し、Epic 側にチケットの一覧は持たない。入れるのは同じ Project のチケットだけ。Epic は入れ子にしない
-- EP-3 進捗は保存しない。done の件数と abandoned を除く件数をチケットから都度求める
+- EP-3 進捗は保存しない。done の件数と abandoned を除く件数をチケットから都度求める。`epic show` と `iteration show` は同じ形の `progress` を返す
 - EP-4 閉じる・再開するのは既定で誰でも行える（人に限るなら `actor.human_only`、5.10）。done・abandoned 以外のチケットが残るときは閉じるのを拒否し、強制の指定で閉じられる（残ったチケットの `epic` はそのまま）。閉じた Epic にはチケットを足せない（TK-6）
 - EP-5 Epic の状態はチケットの遷移を縛らない。Epic に削除はない（閉じて残す）
 
 ### 5.6 Iteration（`iterations/s3.yaml`）
 
 - IT-1 `id`、`project`、`name`、`goal`、`start`、`end`、`status`（`planned` / `active` / `closed`）を持つ。閉じるのは既定で誰でも行え（人に限るなら `actor.human_only`、5.10）、閉じたときに `closed_at` と完了・持ち越しの件数（`completed`・`carried_over`）を書く。`reopen` は active に戻して `closed_at` と件数を消す。active は Project に 1 つに保つ
-- IT-2 所属はチケットの `iteration` で表し、Iteration 側にチケットの一覧は持たない（Epic と同じ）。入れるのは同じ Project のチケットだけで、閉じた Iteration には入れられない。Iteration 内の並びは優先度と番号で、閉じるときに done・abandoned 以外のチケットの `iteration` を外す
+- IT-2 所属はチケットの `iteration` で表し、Iteration 側にチケットの一覧は持たない（Epic と同じ）。入れるのは同じ Project のチケットだけで、閉じた Iteration には入れられない。Iteration 内の並びは優先度と番号で、閉じるときに done・abandoned 以外のチケットの `iteration` を外す。進捗は Epic と同じく都度求める（EP-3）
 
 ### 5.7 Plan（`plans/p7.yaml`）
 
@@ -245,7 +245,7 @@ Web UI は `dg serve` が配信し、VS Code 拡張は同じ React アプリを 
 - UI-2 カンバン：planned か active の Iteration 1 つ（既定は active）か「すべて」（その全部）のチケットを Status ごとの列に出す。Iteration のないチケットはバックログで見る。Epic と担当者で絞れる
 - UI-3 バックログ：done・abandoned 以外のチケットを Iteration ごとの区画に出し、検索と絞り込みができる
 - UI-4 チケット詳細：本文・属性・Epic・依存・起票者と担当者・作業ブランチ・PR・Run・経過（CL-7）を出し、属性と本文を編集できる
-- UI-5 Iteration：詳細の画面で期間・目標と中のチケットを出す。閉じた Iteration・Epic と終わったチケットは履歴の画面で見る
+- UI-5 Iteration：詳細の画面で期間（active なら残り・超過の日数）・目標・進捗（EP-3。閉じたものは完了・持ち越しの件数）と中のチケットを出す。閉じた Iteration・Epic と終わったチケットは履歴の画面で見る
 - UI-6 未 push のコミットと未取り込みのリモートの更新を印で知らせ、同期のボタンで `dg sync` と同じ同期をして読み直す
 - UI-7 画面から書き込むのはチケット詳細と設定画面と同期だけで、ほかの変更は UI-15 で頼む。書き込みは Core の同じコマンドと検査を通り、拒否されたら理由を出して戻す。`commit.mode` に従ってコミットする
 - UI-8 `dg serve` は既定で `127.0.0.1` にバインドする。認証は持たない
