@@ -116,7 +116,7 @@ updated_at: 2026-10-31T05:10:00Z
 - TK-5 受け入れ条件のチェックは、作業した人かエージェントが PR や成果物で確認できたときに付ける。deguboard が自動で付けることはなく、照合で done に進めたチケットに未チェックが残れば `sync` が警告する（遷移は止めない。[ADR-003](adr/ADR-003-status-and-workflow.md)）
 - TK-6 `epic` は同じ Project の Epic の ID。閉じた Epic には付けられない
 - TK-7 `created_by`（起票者）と `assignee`（担当者）は主体の ID（`<ユーザ>` か `<ユーザ>/agent`）。`created_by` は作成時に書き、既定は操作した主体で、エージェントが人の指示・承認で起票するときはユーザ本人を指定する。`assignee` は `claim` が claim した主体で上書きし、`update` でも付け外しできる。旧名 `claimed_by` は `assignee` と読む
-- TK-8 `priority` は `low`・`medium`（既定）・`high`。値ごとの判断基準は Core の既定にあり、`config.yaml` の `priority`（5.10）で書き換えられる。起票（`dg guide import`）と見直し（`dg guide audit`）はこの基準を使う
+- TK-8 `priority` は `low`・`medium`（既定）・`high`。値ごとの判断基準は Core の既定にあり、`config.yaml` の `priority`（5.10）で書き換えられる。起票（`dg guide import`）・見直し（`dg guide audit`）と画面の優先度の印・選択の説明がこの基準を使う
 
 ### 5.5 Epic（`epics/e3.md`）
 
@@ -197,11 +197,11 @@ steps: # 任意。Run の step の語彙（WF-5）
 
 項目は `default_project`、`git.remote`・`git.base_branch`、`worktree.root`、`commit.mode`、`push.mode`、`metrics.read_transcripts`（既定 `false`）、`actions.shell`（AG-7、既定 `false`）・`actions.test`、`actor.human_only`、`auto.merge`（既定 `false`）、`lint.require_iteration`、`models.light`・`models.standard`・`models.heavy`、`priority.high`・`priority.medium`・`priority.low`。既定値は、エージェントや記録に関わる安全側の `false` だけを書く。
 
-`priority.*` は、起票と見直しが優先度を選ぶときの値ごとの判断基準（概要の文）。既定は Core にあり、ここで書き換えるとその値を使う（TK-8）。
+`priority.*` は、優先度を選ぶときの値ごとの判断基準（概要の文）。起票・見直しに加えて画面の優先度の印のツールチップと選択の説明にも使う。既定は Core にあり、ここで書き換えるとその値を使う（TK-8）。
 
 `actor.human_only` は `epic.close` のようなコマンド名の一覧で、入れたコマンドを agent が呼ぶと `TRANSITION_REJECTED` で拒否する。既定は空で、すべての操作をエージェントにも許す。チケットの遷移を人に限るのは Workflow の `by`（WF-1）で、この項目では扱わない。
 
-`models.*` は Plan の段階（PL-1）をモデル名に対応させる。dg は記録するだけで、手順（`dg guide work`）がサブエージェントのモデルに渡す。空なら親のモデルのまま。
+`models.*` は Plan の段階（PL-1）をモデル名に対応させる。dg は記録するだけで、手順（`dg guide run` の「段階のモデル」）がサブエージェントのモデルに渡す。空なら親のモデルのまま。
 
 各項目の意味・値・既定値はスキーマ（`packages/core/src/model/config.ts`）が正本。利用者ごとの上書きは設けない。`config.set` で既定が空でない文字列の項目（`priority.*` など）を空にすると、その項目を消して既定に戻す（配列の項目を空にすると空の配列になる）。
 
