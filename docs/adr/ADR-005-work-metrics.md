@@ -1,7 +1,7 @@
 # ADR-005 作業の実績
 
 - ステータス：承認
-- 更新日：2026-11-02
+- 更新日：2026-11-04
 
 ## 背景
 
@@ -14,7 +14,7 @@
 - 使用量は Run 単位で記録する。1 つのチケットに複数の Run を紐づける
 - 数は公式に提供される使用量の情報（今は会話記録）から取る。エージェントに数字を言わせて書かない
 - 取れない指標は `null` にして警告する。架空の値で補完せず、推定した値には `estimated: true` を付ける
-- Claude Code と Codex で取得方法が違う部分は Adapter が吸収する
+- エージェントごとに取得方法が違う部分は Adapter が吸収する（今は Claude Code・Codex・Copilot）
 
 ### 記録するもの
 
@@ -34,7 +34,7 @@
 
 ### 会話記録を読む許可はリポジトリの設定に置く
 
-- 会話記録（`~/.claude/projects/**`・`~/.codex/sessions/**` など）を読むかどうかは `config.yaml` の `metrics.read_transcripts`（true / false）で決める。チームの方針として Git で共有する
+- 会話記録（`~/.claude/projects/**`・`~/.codex/sessions/**`・`~/.copilot/session-state/**` など）を読むかどうかは `config.yaml` の `metrics.read_transcripts`（true / false）で決める。チームの方針として Git で共有する
 - 個人が拒むときは環境変数 `DEGUBOARD_NO_TRANSCRIPTS` で、そのマシンでは読まない（MT-2）
 - 許可がなければ、使用量は `null` のまま、日時・結果などの Run の記録だけを残す。読まなかったとき・取れなかったときは `run finish` が警告を返す
 
