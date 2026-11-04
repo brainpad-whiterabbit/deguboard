@@ -7,6 +7,7 @@ import type { Store } from "../store.js";
 import {
   movableStatuses,
   type FieldDefinition,
+  type Priority,
   type Status,
   type Ticket,
   type TicketDetail,
@@ -114,6 +115,7 @@ export function PanelProps({
     display: ReactNode,
     opts: {
       choices?: Choice[];
+      hint?: (value: string) => ReactNode;
       inputType?: "text" | "number" | "date";
       placeholder?: string;
       normalize?: (raw: string) => string;
@@ -199,7 +201,10 @@ export function PanelProps({
             ticket.priority,
             (raw) => ({ priority: raw }),
             a.priorityView,
-            { choices: PRIORITY_CHOICES },
+            {
+              choices: PRIORITY_CHOICES,
+              hint: (v) => store.priorityCriteria[v as Priority],
+            },
           ),
         ),
         row(

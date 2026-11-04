@@ -6,7 +6,9 @@ import { afterEach, describe, expect, it } from "vitest";
 import { StoreProvider } from "../store.js";
 import {
   ActivityMark,
+  PriorityMark,
   ProgressBar,
+  RowPriority,
   StatusDot,
   TicketRow,
   TicketTable,
@@ -96,6 +98,60 @@ describe("進捗バー", () => {
     );
     const bar = (await screen.findByText("0/0")).previousElementSibling!;
     expect(bar.children).toHaveLength(0);
+  });
+});
+
+describe("優先度の印", () => {
+  it("記号（SVG）と値の文字を出し、色のクラスを付ける。3 つの値を出す（medium も =）", async () => {
+    mount(
+      <>
+        <PriorityMark priority="high" />
+        <PriorityMark priority="medium" />
+        <PriorityMark priority="low" />
+      </>,
+    );
+    await screen.findByText("high");
+    const marks = [...document.querySelectorAll(".priority-mark")];
+    expect(marks.map((m) => m.className)).toEqual([
+      "priority-mark priority-high",
+      "priority-mark priority-medium",
+      "priority-mark priority-low",
+    ]);
+    // どの値にも 10px の SVG の記号と値の文字が付く
+    for (const m of marks) {
+      const svg = m.querySelector("svg.priority-glyph")!;
+      expect(svg.getAttribute("width")).toBe("10");
+      expect(m.querySelector(".priority-text")).toBeTruthy();
+    }
+    expect(marks.map((m) => m.querySelector(".priority-text")!.textContent)).toEqual([
+      "high",
+      "medium",
+      "low",
+    ]);
+  });
+
+  it("ツールチップは 1 行目に値と並び方、2 行目から判断基準（config、なければ既定）を出す", async () => {
+    mount(<PriorityMark priority="high" />);
+    await screen.findByText("high");
+    const title = document.querySelector(".priority-mark")!.getAttribute("title")!;
+    const [head, ...rest] = title.split("\n");
+    expect(head).toBe("優先度 high（上に並ぶ）");
+    // 2 行目からは mockClient の config.show の priority.high（判断基準）
+    expect(rest.join("\n")).toBe("利用者に見える不具合・ほかのチケットを止めている");
+  });
+
+  it("行の印（RowPriority）は high・low を出し、medium は出さない", async () => {
+    mount(
+      <>
+        <RowPriority priority="high" />
+        <RowPriority priority="medium" />
+        <RowPriority priority="low" />
+      </>,
+    );
+    await screen.findByText("high");
+    expect(
+      [...document.querySelectorAll(".priority-mark .priority-text")].map((m) => m.textContent),
+    ).toEqual(["high", "low"]);
   });
 });
 

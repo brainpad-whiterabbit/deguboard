@@ -204,7 +204,14 @@ export function mockClient(data = fixture()): MockClient {
   const calls: MockClient["calls"] = [];
   const handlers: MockClient["handlers"] = {
     "project.list": () => data.projects,
-    "config.show": () => ({ default_project: "default" }),
+    "config.show": () => ({
+      default_project: "default",
+      priority: {
+        high: "利用者に見える不具合・ほかのチケットを止めている",
+        medium: "機能の追加と改善・テストの抜け",
+        low: "使われていないコードと依存・急がない調査",
+      },
+    }),
     whoami: () => ({
       id: "eiki",
       user: "eiki",

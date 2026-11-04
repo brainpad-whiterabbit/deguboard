@@ -4,7 +4,7 @@
 
 import type { ReactNode } from "react";
 import { AssigneeMark } from "./assignee-mark.js";
-import { PriorityBadge, RowPriority } from "./parts.js";
+import { RowPriority } from "./parts.js";
 import { openPlanByTicket, planColor, waitsOf } from "./plan-graph.js";
 import {
   isOwnAssignee,
@@ -69,10 +69,10 @@ export function isWaitingReadiness(readiness: KanbanReadiness | null): boolean {
 }
 
 /**
- * 左パネルのカンバンの行の右端（開いた Plan に入っているか、実行中の Run があるか、担当のあるチケット）。縦に 2 段で、上に担当の印と Plan の番号を Plan の色で、
- * 下に実行中の Run があれば「実行中」（Plan の外の行でも）、なければ todo なら承認待ち（Plan が承認待ち）・
- * 待ちの相手（after と depends_on の終わっていないもの）・着手可、どれでもなければ優先度の印を出す。
- * 下の段に優先度の印でないものを出すときに優先度の印（high・low）もあれば、優先度の印を上の段の Plan の番号の左に寄せる
+ * 左パネルのカンバンの行の右端（開いた Plan に入っているか、実行中の Run があるか、担当のあるチケット）。縦に 2 段で、
+ * 上の段の左端に優先度の印（high・low。medium は出さない）を置き、続けて担当の印と Plan の番号を Plan の色で出す。
+ * 下の段は実行中の Run があれば「実行中」（Plan の外の行でも）、なければ todo なら承認待ち（Plan が承認待ち）・
+ * 待ちの相手（after と depends_on の終わっていないもの）・着手可を出す（着手可・待ちだけ）。どれもなければ下の段は出さない
  */
 export function KanbanRowEnd({
   ticket,
@@ -92,15 +92,14 @@ export function KanbanRowEnd({
   ) : (
     readiness
   );
-  const priority = <RowPriority priority={ticket.priority} variant="kanban" />;
   return (
     <span className="row-end">
       <span className="row-end-top">
-        {sub ? priority : null}
+        <RowPriority priority={ticket.priority} />
         <AssigneeMark assignee={ticket.assignee} runAgent={ticket.run_agent} />
         {mark ? <RowPlan plan={mark.plan} /> : null}
       </span>
-      <span className="row-end-sub">{sub ?? priority}</span>
+      {sub ? <span className="row-end-sub">{sub}</span> : null}
     </span>
   );
 }
@@ -134,12 +133,10 @@ function readinessBadge(ticket: Pick<Ticket, "status">, mark: PlanMark | undefin
 }
 
 /**
- * 左パネルのバックログの行の右端（UI-3）：開いた Plan に入っていれば、カンバンの行と同じ部品で縦に 2 段、上に Plan の番号、
- * 下に todo なら着手可・待ちの相手・承認待ち（判定は kanbanPlanMarks と kanbanReadiness）。入っていなければ上の段に優先度の札（と担当の印）だけを出す。
- * 担当者が別の人なら、カンバンと同じ担当の印（頭文字の丸。agent なら汎用のアイコンを添える。全名はツールチップ）を上の段の Plan の番号の左に出す。
- * 自分か自分の agent（isOwnAssignee。core の whoami の own_ids）なら出さない。
- * 優先度はどの行にもカンバンのカードと同じ low・medium・high の札（PriorityBadge）で出す。
- * 下の段に着手可・待ちを出すときは、優先度の札を上の段の Plan の番号の左に寄せる
+ * 左パネルのバックログの行の右端（UI-3）：縦に 2 段で、上の段の左端に優先度の印（high・low。medium は出さない）を置き、
+ * 続けて担当の印と Plan の番号を出す。開いた Plan に入っていれば下の段に todo の着手可・待ちの相手・承認待ちを出す（判定は kanbanPlanMarks と kanbanReadiness）。
+ * 担当者が別の人なら、カンバンと同じ担当の印（頭文字の丸。agent なら汎用のアイコンを添える。全名はツールチップ）を優先度の印と Plan の番号の間に出す。
+ * 自分か自分の agent（isOwnAssignee。core の whoami の own_ids）なら出さない
  */
 export function BacklogRowEnd({
   ticket,
@@ -156,27 +153,17 @@ export function BacklogRowEnd({
     ticket.assignee && !isOwnAssignee(me, ticket.assignee) ? (
       <AssigneeMark assignee={ticket.assignee} runAgent={ticket.run_agent} />
     ) : null;
-  const priority = <PriorityBadge priority={ticket.priority} />;
-  // Plan の外の行も .row-end で包み、札の高さ（.row-end .badge）をほかの行と揃える
-  if (!mark) {
-    return (
-      <span className="row-end">
-        <span className="row-end-top">
-          {priority}
-          {who}
-        </span>
-      </span>
-    );
-  }
-  const readiness = readinessBadge(ticket, mark);
+  const priority = <RowPriority priority={ticket.priority} />;
+  const readiness = mark ? readinessBadge(ticket, mark) : null;
+  // Plan の外の行も .row-end で包み、印の高さをほかの行と揃える
   return (
     <span className="row-end">
       <span className="row-end-top">
-        {readiness ? priority : null}
+        {priority}
         {who}
-        <RowPlan plan={mark.plan} />
+        {mark ? <RowPlan plan={mark.plan} /> : null}
       </span>
-      <span className="row-end-sub">{readiness ?? priority}</span>
+      {readiness ? <span className="row-end-sub">{readiness}</span> : null}
     </span>
   );
 }

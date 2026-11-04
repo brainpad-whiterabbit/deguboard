@@ -256,7 +256,6 @@ h3 {
   background: transparent;
   color: var(--vscode-descriptionForeground);
 }
-.badge.priority-high,
 .badge.count-abandoned {
   background: var(--vscode-inputValidation-errorBackground);
   border-color: var(
@@ -265,10 +264,40 @@ h3 {
   );
   color: inherit;
 }
-.badge.priority-low {
-  background: transparent;
+/*
+ * 優先度の印（TK-8）：記号（矢印・=）と値の文字をそろえて出す。帯・カード・表の列では 3 つの値を、行では high・low だけ出す。
+ * 色は high が赤の太字、medium が前景色、low が説明文の色。記号は文字色（currentColor）に合わせる
+ */
+.priority-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+.priority-glyph {
+  flex: none;
+}
+.priority-text {
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 11px;
+  line-height: 1;
+}
+.priority-high {
+  color: var(--vscode-errorForeground);
+  font-weight: 700;
+}
+.priority-medium {
+  color: var(--vscode-foreground);
+}
+.priority-low {
   color: var(--vscode-descriptionForeground);
-  border-color: var(--dg-border);
+}
+/* 詳細の優先度の選択の下に出す判断基準 */
+.inline-hint {
+  margin-top: 2px;
+  font-size: 0.85em;
+  white-space: normal;
 }
 /* Status の印は状態色の薄塗りと縁 */
 .badge[class*="status-"] {
@@ -483,7 +512,7 @@ button.link:hover {
   white-space: nowrap;
   font-weight: 500;
 }
-/* 件数のチップ：完了は地の色、中止は赤み（.badge.count-abandoned は .badge.priority-high と同じ規則）・持ち越しは黄みの色付き（1 件以上のときだけ出る） */
+/* 件数のチップ：完了は地の色、中止は赤み（.badge.count-abandoned）・持ち越しは黄みの色付き（1 件以上のときだけ出る） */
 .history-row .counts {
   display: inline-flex;
   flex-wrap: wrap;
@@ -1442,7 +1471,7 @@ textarea.body {
   grid-template-columns: auto auto minmax(0, 1fr) auto auto;
 }
 /*
- * カンバンの行は状態の丸印と担当者の列を出さない：番号・タイトル・右端（担当の印・優先度・Plan の番号・待ち・実行中）。low は小さな灰色の文字。
+ * カンバンの行は状態の丸印と担当者の列を出さない：番号・タイトル・右端（優先度の印・担当の印・Plan の番号・待ち・実行中）。
  * 頭の印（実行中の Run・in_progress）がある行は、番号の前に列を足す（has-head）
  */
 .ticket-row.kanban-row {
@@ -1489,14 +1518,9 @@ textarea.body {
 .row-running {
   color: var(--dg-status-in_progress);
 }
-.row-low {
-  font-family: ui-monospace, Menlo, Consolas, monospace;
-  font-size: 0.82em;
-  color: var(--vscode-descriptionForeground);
-}
 /*
- * カンバンの行の右端（開いた Plan に入っているチケット）：縦に 2 段で右に揃える。上は Plan の番号を Plan の色で、
- * 下は着手可（緑系）・待ちの相手と承認待ち（黄系）・優先度の印。段の高さは行の 1 行分（右端が 2 段なので行は 2 行の高さになる）
+ * カンバンとバックログの行の右端：縦に 2 段で右に揃える。上の段は優先度の印（high・low）・担当の印・Plan の番号を Plan の色で、
+ * 下の段は着手可（緑系）・待ちの相手と承認待ち（黄系）だけ。段の高さは行の 1 行分（右端が 2 段なので行は 2 行の高さになる）
  */
 .row-end {
   display: flex;
@@ -1516,13 +1540,6 @@ textarea.body {
 /* Plan の番号は縮めず、下の段（着手可・待ち）だけを小さくする */
 .row-end-sub {
   font-size: 0.85em;
-}
-.row-end .badge {
-  line-height: 14px;
-}
-.row-end-sub .badge,
-.row-end-sub .row-low {
-  font-size: 1em;
 }
 /*
  * カンバンの行の担当の印（UI-2）：持ち主の頭文字の丸と、agent なら汎用の図形のアイコン（Run の agent によらず 1 種）。

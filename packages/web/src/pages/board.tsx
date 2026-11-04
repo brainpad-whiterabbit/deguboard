@@ -20,7 +20,7 @@ import { ASK_SECTIONS, useAskSpot } from "../components/ask-menu.js";
 import {
   ActivityMark,
   AskRow,
-  PriorityBadge,
+  PriorityMark,
   type RowActivity,
   StatusBand,
   StatusDot,
@@ -724,7 +724,7 @@ function Card({ ticket, plan }: { ticket: Ticket; plan: string | undefined }) {
     <article className={`card status-${ticket.status}`}>
       <div className="meta">
         <TicketLink id={ticket.id} />
-        <PriorityBadge priority={ticket.priority} />
+        <PriorityMark priority={ticket.priority} />
         {ticket.epic ? <span>{ticket.epic}</span> : null}
         {ticket.iteration ? <span>{ticket.iteration}</span> : null}
         {plan ? <span className={`plan-tag plan-color-${planColor(plan)}`}>{plan}</span> : null}

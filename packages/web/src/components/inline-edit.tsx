@@ -56,6 +56,7 @@ export function ConfirmSelect({
   value,
   choices,
   className,
+  hint,
   onConfirm,
   onCancel,
   onBlur,
@@ -64,6 +65,8 @@ export function ConfirmSelect({
   value: string;
   choices: readonly Choice[];
   className?: string;
+  /** 選んでいる値の下に出す説明（優先度の判断基準など）。渡さなければ出さない */
+  hint?: ((value: string) => ReactNode) | undefined;
   onConfirm: (value: string) => void;
   /** Esc で閉じる */
   onCancel: () => void;
@@ -94,54 +97,57 @@ export function ConfirmSelect({
     onCancel();
   };
   return (
-    <select
-      autoFocus
-      className={className}
-      value={current}
-      aria-label={label}
-      onMouseDown={() => {
-        touched.current = true;
-      }}
-      onKeyDown={(e) => {
-        touched.current = true;
-        if (e.key === "Escape") {
-          e.preventDefault();
-          cancel();
-        } else if (e.key === "Enter") {
-          e.preventDefault();
+    <>
+      <select
+        autoFocus
+        className={className}
+        value={current}
+        aria-label={label}
+        onMouseDown={() => {
+          touched.current = true;
+        }}
+        onKeyDown={(e) => {
+          touched.current = true;
+          if (e.key === "Escape") {
+            e.preventDefault();
+            cancel();
+          } else if (e.key === "Enter") {
+            e.preventDefault();
+            clearPending();
+            onConfirm(e.currentTarget.value);
+          } else if (changesClosedSelect(e)) {
+            // keyup に頼らない（一覧が開くと keyup はページに届かない）
+            keying.current = true;
+            setTimeout(() => {
+              keying.current = false;
+            });
+          }
+        }}
+        onKeyUp={(e) => {
+          if (!pending.current) return;
+          if (e.key === "Escape") cancel();
+          else onConfirm(clearPending()!);
+        }}
+        onChange={(e) => {
+          const v = e.target.value;
+          setCurrent(v);
+          if (keying.current) return;
+          if (!touched.current) return onConfirm(v);
           clearPending();
-          onConfirm(e.currentTarget.value);
-        } else if (changesClosedSelect(e)) {
-          // keyup に頼らない（一覧が開くと keyup はページに届かない）
-          keying.current = true;
-          setTimeout(() => {
-            keying.current = false;
-          });
-        }
-      }}
-      onKeyUp={(e) => {
-        if (!pending.current) return;
-        if (e.key === "Escape") cancel();
-        else onConfirm(clearPending()!);
-      }}
-      onChange={(e) => {
-        const v = e.target.value;
-        setCurrent(v);
-        if (keying.current) return;
-        if (!touched.current) return onConfirm(v);
-        clearPending();
-        pending.current = {
-          value: v,
-          timer: setTimeout(() => onConfirm(clearPending()!), PICK_SETTLE_MS),
-        };
-      }}
-      onBlur={() => {
-        clearPending();
-        onBlur();
-      }}
-    >
-      {optionsOf(choices)}
-    </select>
+          pending.current = {
+            value: v,
+            timer: setTimeout(() => onConfirm(clearPending()!), PICK_SETTLE_MS),
+          };
+        }}
+        onBlur={() => {
+          clearPending();
+          onBlur();
+        }}
+      >
+        {optionsOf(choices)}
+      </select>
+      {hint ? <div className="inline-hint muted">{hint(current)}</div> : null}
+    </>
   );
 }
 
@@ -153,6 +159,7 @@ export function InlineEdit({
   onCancel,
   onCommit,
   choices,
+  hint,
   inputType = "text",
   placeholder,
   normalize = (raw) => raw,
@@ -170,6 +177,8 @@ export function InlineEdit({
   onCommit: (raw: string) => Promise<boolean>;
   /** あれば選択、なければ入力欄 */
   choices?: readonly Choice[];
+  /** 選択の下に出す説明（優先度の判断基準など）。choices のときだけ使う */
+  hint?: ((value: string) => ReactNode) | undefined;
   inputType?: "text" | "number" | "date";
   placeholder?: string;
   /** 今の値と比べる前に入力を揃える（ラベルの区切りの空白など） */
@@ -239,6 +248,7 @@ export function InlineEdit({
       label={label}
       value={value}
       choices={choices}
+      hint={hint}
       onConfirm={commit}
       onCancel={close}
       onBlur={onCancel}
