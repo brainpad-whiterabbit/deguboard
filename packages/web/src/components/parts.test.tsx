@@ -12,6 +12,7 @@ import {
   StatusDot,
   TicketRow,
   TicketTable,
+  priorityTitle,
   sameAssignee,
 } from "./parts.js";
 import { mockClient, ticket } from "../test-helpers.js";
@@ -138,6 +139,14 @@ describe("優先度の印", () => {
     expect(head).toBe("優先度 high（上に並ぶ）");
     // 2 行目からは mockClient の config.show の priority.high（判断基準）
     expect(rest.join("\n")).toBe("利用者に見える不具合・ほかのチケットを止めている");
+  });
+
+  it("priorityTitle は判断基準が空（未ロード）なら 1 行目だけを返し、改行も基準も付けない", () => {
+    const empty = { high: "", medium: "", low: "" };
+    expect(priorityTitle("high", empty)).toBe("優先度 high（上に並ぶ）");
+    expect(priorityTitle("low", empty)).not.toContain("\n");
+    // 基準があれば 2 行目に付く
+    expect(priorityTitle("high", { ...empty, high: "基準" })).toBe("優先度 high（上に並ぶ）\n基準");
   });
 
   it("行の印（RowPriority）は high・low を出し、medium は出さない", async () => {

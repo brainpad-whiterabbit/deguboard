@@ -1618,6 +1618,19 @@ describe("用意", () => {
     expect(shown.auto.merge).toBe(false);
   });
 
+  it("config.set は enum の項目（commit.mode）を空にしても既定に戻さず弾き、値は変わらない", async () => {
+    const f = await fixture();
+    const ctx = await initialized(f.cloneA);
+    await runCommand(configSet, ctx, { key: "commit.mode", value: "each" });
+    for (const value of ["", null]) {
+      await expect(runCommand(configSet, ctx, { key: "commit.mode", value })).rejects.toMatchObject(
+        { code: "VALIDATION_FAILED" },
+      );
+    }
+    const shown = (await runCommand(configShow, ctx, {})).data as ConfigShowView["config"];
+    expect(shown.commit.mode).toBe("each");
+  });
+
   it("config.set は既定が空でない文字列の項目を空にすると既定に戻し、既定が空の項目は空のまま、配列の項目は空の配列にする", async () => {
     const f = await fixture();
     const ctx = await initialized(f.cloneA);
