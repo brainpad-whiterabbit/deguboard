@@ -431,6 +431,78 @@ describe("サイドバーの履歴", () => {
     expect(screen.queryByLabelText("Epic")).toBeNull();
   });
 
+  it("チケットの見方は history の結果が届く前から更新日の新しい順で出し、届いたら終えた時刻の順に並べ直す。失敗しても更新日の順のまま出す", async () => {
+    const finished = (id: string, at: string) => ({
+      kind: "ticket",
+      id,
+      commit: id,
+      author: "a",
+      subject: "s",
+      type: "changed",
+      at,
+      changes: [{ field: "status", from: "review", to: "done" }],
+    });
+    const setup = (history: () => unknown) => {
+      window.location.hash = "#/history?view=ticket";
+      const client = mockClient();
+      client.data.tickets = [
+        ticket({
+          id: "t1",
+          title: "更新が古い",
+          status: "done",
+          updated_at: "2026-10-01T00:00:00Z",
+        }),
+        ticket({
+          id: "t2",
+          title: "更新が新しい",
+          status: "done",
+          updated_at: "2026-10-20T00:00:00Z",
+        }),
+      ];
+      client.handlers["history"] = history;
+      render(
+        <StoreProvider client={client}>
+          <HostProvider host={sidebarHost()}>
+            <App />
+          </HostProvider>
+        </StoreProvider>,
+      );
+    };
+    const ids = () =>
+      [...document.querySelectorAll(".history-list code")].map((c) => c.textContent);
+    const dates = () =>
+      [...document.querySelectorAll(".history-ticket-meta time")].map((c) => c.textContent);
+
+    // 結果が届く前
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    setup(async () => {
+      await gate;
+      return {
+        events: [finished("t1", "2026-10-25T12:00:00Z"), finished("t2", "2026-10-10T12:00:00Z")],
+        shallow: false,
+        incomplete: [],
+      };
+    });
+    await waitFor(() => expect(ids()).toEqual(["t2", "t1"]));
+    expect(screen.getByRole("status").textContent).toContain("終えた時刻を読み込み中");
+    expect(dates()).toEqual(["~2026-10-20", "~2026-10-01"]);
+    // 届いたら終えた時刻の順に並べ直し、日付も置き換わり、読み中の表示は消える
+    release();
+    await waitFor(() => expect(ids()).toEqual(["t1", "t2"]));
+    expect(dates()).toEqual(["2026-10-25", "2026-10-10"]);
+    expect(screen.queryByRole("status")).toBeNull();
+    cleanup();
+
+    // 失敗しても更新日の順のまま出す
+    setup(async () => {
+      throw new Error("history が読めない");
+    });
+    await waitFor(() => expect(document.querySelector(".error")).not.toBeNull());
+    expect(ids()).toEqual(["t2", "t1"]);
+    expect(screen.queryByRole("status")).toBeNull();
+  });
+
   it("チケットの見方の「ほか N 件」は、検索や結果の絞り込みを変えると閉じた状態に戻る", async () => {
     window.location.hash = "#/history?view=ticket";
     const client = mockClient();

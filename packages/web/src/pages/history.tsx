@@ -829,7 +829,7 @@ function EpicItem({ epic: e }: { epic: EpicRow }) {
   );
 }
 
-/** チケットの見方：終わったチケットの一覧。history のコマンドで終えた時刻を求める */
+/** チケットの見方：終わったチケットの一覧。history の結果を待たず updated_at の順で出し、届いたら終えた時刻で並べ直す */
 function TicketView({
   route,
   counts,
@@ -898,8 +898,12 @@ function TicketView({
         </p>
       ) : null}
       {!log && !error ? (
-        <p className="muted">読み込み中…</p>
-      ) : all.length === 0 ? (
+        // 終えた時刻は history の結果が届くまで分からないので、updated_at の順で先に出しておく
+        <p className="muted history-loading" role="status">
+          終えた時刻を読み込み中…（届くまでは更新日の順）
+        </p>
+      ) : null}
+      {all.length === 0 ? (
         <p className="empty">終わったチケットはない</p>
       ) : rows.length === 0 ? (
         <p className="empty">当たるチケットはない</p>
