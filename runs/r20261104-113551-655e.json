@@ -1,0 +1,23 @@
+{
+  "id": "r20261104-113551-655e",
+  "ticket": "t331",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "sonnet",
+  "started_at": "2026-11-04T11:35:51Z",
+  "finished_at": "2026-11-04T11:37:52Z",
+  "result": "success",
+  "error": null,
+  "retries": 3,
+  "retry_reasons": [
+    "copilot の隔離テストを COPILOT_AGENT_SESSION_ID なしにして worktreeCandidates の分岐を通し、別 Run を start した session も足した",
+    "優先度の基準が空のとき選択の hint が空になるテストをブラウザとパネルに足した",
+    "enum の空値のループに undefined を足した"
+  ],
+  "usage": {
+    "input": 12,
+    "output": 4023,
+    "cache_read": 340841,
+    "cache_write": 9157
+  }
+}
