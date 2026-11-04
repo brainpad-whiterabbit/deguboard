@@ -1,0 +1,23 @@
+{
+  "id": "r20261104-125840-de61",
+  "ticket": "t355",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "sonnet",
+  "started_at": "2026-11-04T12:58:40Z",
+  "finished_at": "2026-11-04T13:00:22Z",
+  "result": "success",
+  "error": null,
+  "retries": 3,
+  "retry_reasons": [
+    "ticket 以外の出来事を足し条件を消すと落ちることを確認",
+    "core の実行時のコードを取り込む理由のコメントを足した",
+    "写す理由に ADR-007 を戻した"
+  ],
+  "usage": {
+    "input": 4,
+    "output": 1494,
+    "cache_read": 97369,
+    "cache_write": 2109
+  }
+}
