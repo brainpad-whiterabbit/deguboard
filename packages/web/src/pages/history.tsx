@@ -900,7 +900,7 @@ function TicketView({
       {!log && !error ? (
         // 終えた時刻は history の結果が届くまで分からないので、updated_at の順で先に出しておく
         <p className="muted history-loading" role="status">
-          終えた時刻を読み込み中…（届くまでは更新日の順）
+          終えた時刻を読み込み中…（それまでは更新日の順）
         </p>
       ) : null}
       {all.length === 0 ? (
