@@ -1,0 +1,19 @@
+{
+  "id": "r20261104-112504-fa96",
+  "ticket": "t330",
+  "step": "implement",
+  "agent": "claude-code",
+  "model": "haiku",
+  "started_at": "2026-11-04T11:25:04Z",
+  "finished_at": "2026-11-04T11:27:03Z",
+  "result": "failure",
+  "error": "@types/vscode 1.123.0 は npm に公開されていない（公開版は 1.120.0 → 1.125.0）。ADR-008 は engines を超えない最新の公開版（1.120.0）に固定すると決めている。変更なしで mise run check は通ったので、方針を人が決めるまで PR は作らない",
+  "retries": 0,
+  "retry_reasons": [],
+  "usage": {
+    "input": 8,
+    "output": 3224,
+    "cache_read": 175355,
+    "cache_write": 5954
+  }
+}
