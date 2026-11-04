@@ -598,9 +598,19 @@ export const configSet = defineCommand({
         const [top, ...rest] = input.key.split(".");
         if (!top) throw new OperationError("VALIDATION_FAILED", "key が空");
         const current = (ctx.store.config as Record<string, unknown>)[top];
+        // 既定が空でない文字列の項目（priority.* など）を空にしたら、キーを消して既定に戻す。
+        // 葉を undefined にすると writeConfig がそのキーを書かず、読み込みのスキーマが既定で補う。
+        // 配列の項目（actor.human_only）は candidates のカンマ区切りで空の配列になるので、ここでは触らない
+        const field = configFields().find((f) => f.key === input.key);
+        const clearsToDefault =
+          field?.type === "string" &&
+          typeof field.default === "string" &&
+          field.default !== "" &&
+          (input.value === "" || input.value === undefined || input.value === null);
         // CLI の文字列は値に直したもの・元の文字列・カンマ区切りの配列の順に試す。元の文字列も試すので、文字列の項目に "2026"・"true" を入れられる
-        const candidates: unknown[] = [coerce(input.value)];
-        if (typeof input.value === "string") candidates.push(input.value, splitList(input.value));
+        const candidates: unknown[] = clearsToDefault ? [undefined] : [coerce(input.value)];
+        if (!clearsToDefault && typeof input.value === "string")
+          candidates.push(input.value, splitList(input.value));
         let value: unknown;
         let error: z.ZodError | undefined;
         for (const leaf of candidates) {
