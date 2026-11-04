@@ -37,6 +37,7 @@ export function AskComposer({
   targets: initialTargets,
   action: initialAction,
   within,
+  copyOnOpen = false,
   onClose,
 }: {
   targets: readonly string[];
@@ -44,6 +45,8 @@ export function AskComposer({
   within?: string | undefined;
   /** 選んで開く頼むこと（行・見出しの吹き出しと右クリック）。省くか候補になければおすすめ */
   action?: AskAction | undefined;
+  /** 開いたときに、選んだ頼むこと（action）の依頼文をそのままコピーする（メニューで選んで開いたとき。復元では false） */
+  copyOnOpen?: boolean;
   onClose(): void;
 }) {
   const store = useStore();
@@ -107,27 +110,50 @@ export function AskComposer({
   const candidate = base?.candidates.find((c) => c.action === chosen) ?? null;
   const shown = view && view.action === chosen ? view : null;
 
-  /** 今の指示で引き直してからコピーする（待っている間に打った分も入れる） */
-  async function copy() {
+  // 選んで開いたときは、開くと同時にコピーする（指示を足さないことが多い）。開いた 1 回だけ
+  const copiedOnOpen = useRef(false);
+  const copySeq = useRef(0);
+  useEffect(() => {
+    // 候補が引けてから、選んだ頼むこと（候補にあれば）でコピーする。候補になければおすすめ
+    if (!copyOnOpen || !initialAction || !base || copiedOnOpen.current) return;
+    copiedOnOpen.current = true;
+    void copy(
+      initialAction && base.candidates.some((c) => c.action === initialAction)
+        ? initialAction
+        : null,
+    );
+    // 開いたときの 1 回だけ。copy は最新の状態を使うが、依存に入れると引き直すたびに再コピーする
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [base]);
+
+  /** 今の指示で引き直してからコピーする（待っている間に打った分も入れる）。pick は選んだ直後の頼むこと（まだ state に入っていない） */
+  async function copy(pick: AskAction | null = action) {
+    // 並んで走ったときは最後に押した 1 回だけ書き込む（古い方が後でクリップボードを上書きしない）
+    const mine = ++copySeq.current;
     setResult(null);
     try {
       const r = await client.run<AskView>("ask", {
         targets,
         within,
-        action: action ?? undefined,
+        action: pick ?? undefined,
         note,
         format,
       } satisfies AskInput);
+      if (mine !== copySeq.current) return;
       setView(r.data);
       setError(null);
+      // 注意：ブラウザ（Safari など）は await の後のクリップボード書き込みを、操作の直後でないとして拒むことがある。拒まれたら下の理由を出す
       await host.copy(r.data.text);
+      if (mine !== copySeq.current) return;
       setResult({ ok: true, text: COPIED });
     } catch (e) {
+      if (mine !== copySeq.current) return;
       setResult({ ok: false, text: `コピーできない: ${messageOf(e)}` });
     }
   }
 
   function removeTarget(id: string) {
+    copySeq.current++;
     setTargets(targets.filter((t) => t !== id));
     // 頼むことの候補は対象で変わるので、おすすめに戻す
     setPicked(null);
@@ -157,6 +183,8 @@ export function AskComposer({
                 setPicked(c.action);
                 setResult(null);
                 noteRef.current?.focus();
+                // 選び直したら、その依頼文をコピーする
+                void copy(c.action);
               }}
             >
               {c.recommended ? (
@@ -205,6 +233,7 @@ export function AskComposer({
           }
           value={note}
           onChange={(e) => {
+            copySeq.current++;
             setNote(e.target.value);
             setResult(null);
           }}
@@ -228,7 +257,10 @@ export function AskComposer({
             type="button"
             className="ask-ghost"
             title="Skill の呼び出しか、Skill を使わない文章だけか"
-            onClick={() => setFormat(format === "skill" ? "text" : "skill")}
+            onClick={() => {
+              copySeq.current++;
+              setFormat(format === "skill" ? "text" : "skill");
+            }}
           >
             {format === "skill" ? "形式：Skill" : "形式：文章"}
           </button>

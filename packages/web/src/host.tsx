@@ -103,7 +103,7 @@ export interface Ask {
   /** 入力欄を開く。開いていれば対象を入れ替える（頼むことは action か、なければおすすめ。指示の下書きは残す） */
   open(targets: readonly string[], action?: AskAction, within?: string): void;
   close(): void;
-  /** 開いた回数。開き直したら入力欄の中の状態（外した対象・選んだ頼むこと）を捨てるための key に使う */
+  /** 開いた回数。開き直したら入力欄の中の状態（外した対象・選んだ頼むこと）を捨てるための key に使う。0 なら見た目の状態からの復元で、頼むことを選んで開いたときのコピーはしない（判別にも使う） */
   serial: number;
   /** 画面の今の対象（カンバンで選んでいる Iteration、履歴で開いている行）。なければ空。タイトル行の吹き出しが使う */
   current(): string[];

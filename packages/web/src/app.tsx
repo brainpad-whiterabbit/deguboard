@@ -210,6 +210,7 @@ export function App() {
           key={ask.serial}
           targets={ask.request.targets}
           action={ask.request.action}
+          copyOnOpen={ask.serial > 0}
           within={ask.request.within}
           onClose={ask.close}
         />

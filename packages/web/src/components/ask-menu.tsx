@@ -1,5 +1,5 @@
 // 行・見出しからエージェントに頼む（UI-15・ADR-010）。マウスを載せたときと選んだときに右端へ吹き出しのボタンを出し、
-// 押すか Shift+F10 で頼むことの一覧（先頭がおすすめ）を直接出す。選ぶと入力欄（ask-composer.tsx）をその頼むことで開く。
+// 押すか Shift+F10 で頼むことの一覧（先頭がおすすめ）を直接出す。選ぶと入力欄（ask-composer.tsx）をその頼むことで開き、依頼文をコピーする。
 // 同じ候補を右クリックのメニュー（拡張の webview/context のサブメニュー）にも出せるよう、行・見出しの data-vscode-context に
 // 対象・候補・おすすめを載せる（キーは core の WEBVIEW_CONTRACT.askContext）。
 // 候補は core の ask-menu（読み取りだけ）が組ごとに決め、web では組み立て直さない。画面の頼める場所は AskMenuProvider が

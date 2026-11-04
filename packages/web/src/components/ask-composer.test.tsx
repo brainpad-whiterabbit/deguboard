@@ -8,6 +8,7 @@ import { ASK_OPEN_KEY, HostBridge, HostProvider, type Host } from "../host.js";
 import { StoreProvider } from "../store.js";
 import { fixture, iteration, mockClient, ticket, type MockClient } from "../test-helpers.js";
 import { createUiState, memoryBackend, type UiState } from "../ui-state.js";
+import type { AskAction } from "../types.js";
 import { ASK_NOTE_KEY } from "./ask-composer.js";
 
 afterEach(() => {
@@ -79,7 +80,8 @@ function mountWebview(
   return {
     copied,
     state,
-    ask: (targets: string[]) => act(() => send!({ kind: "event", name: "ask", targets })),
+    ask: (targets: string[], action?: AskAction) =>
+      act(() => send!({ kind: "event", name: "ask", targets, ...(action ? { action } : {}) })),
     /** タイトル行の吹き出し：画面の今の対象で開く */
     askCurrent: () => act(() => send!({ kind: "event", name: "ask", targets: [], current: true })),
   };
@@ -165,13 +167,16 @@ describe("エージェントに頼む入力欄（UI-15）", () => {
     // 頼むことを選び直すと知らせを消し、⌘↵ でも（待たずに）今の指示まで入れてコピーする
     fireEvent.click(suggestions().find((b) => b.textContent === "直す")!);
     expect(box.getByRole("status").textContent).toBe("");
+    // 選び直しでもコピーする（t340）
+    await waitFor(() => expect(view.copied).toHaveLength(2));
+    expect(view.copied[1]).toBe("/dgimport t5");
     const note = box.getByRole("textbox", { name: "指示" });
     fireEvent.change(note, { target: { value: "題を短く" } });
     fireEvent.keyDown(note, { key: "Enter", metaKey: true });
-    await waitFor(() => expect(view.copied).toHaveLength(2));
-    expect(view.copied[1]).toBe("/dgimport t5\n題を短く");
-    fireEvent.keyDown(note, { key: "Enter", ctrlKey: true });
     await waitFor(() => expect(view.copied).toHaveLength(3));
+    expect(view.copied[2]).toBe("/dgimport t5\n題を短く");
+    fireEvent.keyDown(note, { key: "Enter", ctrlKey: true });
+    await waitFor(() => expect(view.copied).toHaveLength(4));
     await waitFor(() => expect(box.getByRole("status").textContent).toContain("コピーしました"));
   });
 
@@ -254,12 +259,20 @@ describe("エージェントに頼む入力欄（UI-15）", () => {
     view.ask(["t5", "s1"]);
     await waitFor(() => expect(suggestions().length).toBeGreaterThan(0));
     const box = within(composer());
-    for (const b of suggestions()) fireEvent.click(b);
+    const picks = suggestions();
+    for (const b of picks) fireEvent.click(b);
     fireEvent.click(box.getByRole("button", { name: "t5 を外す" }));
     fireEvent.click(box.getByRole("button", { name: "形式：Skill" }));
     fireEvent.change(box.getByRole("textbox", { name: "指示" }), { target: { value: "x" } });
     fireEvent.click(box.getByRole("button", { name: "コピー" }));
+    // 続けて押したコピーは最後の 1 回だけ書き込む（t340）
+    expect(picks.length).toBeGreaterThan(1);
     await waitFor(() => expect(view.copied).toHaveLength(1));
+    // 最後の指示（x）と最後に選んだ頼むことの文が入っている
+    expect(view.copied[0]).toMatch(/^s1 を進める Plan を立て/);
+    expect(view.copied[0]?.endsWith("\nx")).toBe(true);
+    await new Promise((r) => setTimeout(r, 100));
+    expect(view.copied).toHaveLength(1);
     expect(client.calls.some((c) => c.name === "ask")).toBe(true);
     expect(client.calls.filter((c) => !READS.has(c.name))).toEqual([]);
   });
@@ -388,5 +401,68 @@ describe("エージェントに頼む入力欄（UI-15）", () => {
       fireEvent.click(screen.getByRole("button", { name: "エージェントに頼む" }));
       await waitFor(() => expect(chips()).toEqual(["s1"]));
     });
+  });
+
+  it("頼むことを選んで開くと、開くと同時に依頼文をコピーして「コピーしました」を出す。開き直しの復元ではコピーしない（t340）", async () => {
+    const view = mountWebview(askClient());
+    await screen.findByText("見直す");
+    view.ask(["t5"], "fix");
+    await waitFor(() => expect(view.copied).toHaveLength(1));
+    expect(view.copied[0]).toBe("/dgimport t5");
+    await waitFor(() =>
+      expect(within(composer()).getByRole("status").textContent).toContain("コピーしました"),
+    );
+    // 札の選び直しでも、その依頼文をコピーする
+    fireEvent.click(suggestions().find((b) => b.textContent?.includes("確かめて片付ける"))!);
+    await waitFor(() => expect(view.copied).toHaveLength(2));
+    expect(view.copied[1]).toBe("/dgdone t5");
+
+    // 見た目の状態から復元して開いたときは、勝手にコピーしない
+    cleanup();
+    const state = createUiState(
+      memoryBackend({ [ASK_OPEN_KEY]: { targets: ["t5"], action: "fix" } }),
+    );
+    const restored = mountWebview(askClient(), { state });
+    await waitFor(() => expect(suggestions().length).toBeGreaterThan(0));
+    await new Promise((r) => setTimeout(r, 50));
+    expect(restored.copied).toHaveLength(0);
+  });
+
+  it("選んで開いたときのコピーに失敗したら、小窓は開いたまま理由を出す（t340）", async () => {
+    const client = askClient();
+    let send: ((event: WebviewEvent) => void) | undefined;
+    render(
+      <StoreProvider client={client}>
+        <HostProvider
+          host={{
+            surface: "browser",
+            open: () => {},
+            show: () => {},
+            copy: () => Promise.reject(new Error("拒まれた")),
+            state: createUiState(memoryBackend()),
+          }}
+        >
+          <HostBridge
+            client={{
+              run: (n, i) => client.run(n, i),
+              status: () => client.status(),
+              open: async () => {},
+              show: async () => {},
+              copy: async () => {},
+              onEvent: (l) => ((send = l), () => {}),
+            }}
+          />
+          <App />
+        </HostProvider>
+      </StoreProvider>,
+    );
+    await screen.findByText("見直す");
+    act(() => send!({ kind: "event", name: "ask", targets: ["t5"], action: "fix" }));
+    await waitFor(() =>
+      expect(within(composer()).getByRole("status").textContent).toContain(
+        "コピーできない: 拒まれた",
+      ),
+    );
+    expect(composer()).toBeTruthy();
   });
 });
