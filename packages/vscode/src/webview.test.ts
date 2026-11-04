@@ -173,6 +173,22 @@ describe("Webview の要求", () => {
     expect(opened).toEqual([]);
   });
 
+  it("パネルの Iteration 詳細の「この Iteration でカンバンを見る」の show は、絞り込みのハッシュをそのまま actions.show に渡す", async () => {
+    const opened: string[] = [];
+    const shown: string[] = [];
+    await handleRequest(
+      fakeClient(),
+      { id: 8, kind: "action", name: "show", route: "#/board?iteration=s3" },
+      {
+        open: (route) => void opened.push(route),
+        show: (route) => void shown.push(route),
+        copy: () => {},
+      },
+    );
+    expect(shown).toEqual(["#/board?iteration=s3"]);
+    expect(opened).toEqual([]);
+  });
+
   it("action の copy は actions.copy に text を渡す（Webview の画面のコピーはすべてこの道で vscode.env.clipboard に書く）", async () => {
     const copied: string[] = [];
     const ok = await handleRequest(
@@ -254,6 +270,15 @@ describe("サイドバーへの画面の届け方（歯車の toggleInSidebar �
       post: { kind: "event", name: "navigate", hash: "#/backlog" },
     });
     expect(sidebarDelivery(false, "navigate", "#/backlog")).toEqual({ pending: "#/backlog" });
+  });
+
+  it("Iteration で絞ったカンバンは、描かれていれば絞り込みつきの navigate を送り、なければ絞り込みつきのハッシュを初期ルートにする", () => {
+    expect(sidebarDelivery(true, "navigate", "#/board?iteration=s3")).toEqual({
+      post: { kind: "event", name: "navigate", hash: "#/board?iteration=s3" },
+    });
+    expect(sidebarDelivery(false, "navigate", "#/board?iteration=s3")).toEqual({
+      pending: "#/board?iteration=s3",
+    });
   });
 });
 

@@ -2566,14 +2566,48 @@ describe("画面", () => {
     expect(screen.getByRole("link", { name: "← バックログ" })).toBeTruthy();
   });
 
-  it("エディタのパネルの Iteration 詳細は「← カンバン」を出さない", async () => {
+  it("エディタのパネルの Iteration 詳細は「← カンバン」を出さず、「この Iteration でカンバンを見る」でその Iteration で絞ったカンバンをサイドバーに出してもらう", async () => {
     window.location.hash = "#/iterations/s1";
     const client = mockClient();
     client.data.iterations = [iteration({ id: "s1", name: "最初", status: "active" })];
     client.handlers["iteration.show"] = () => iterationDetail(client.data.iterations[0]!);
-    mount(client, hostOf("panel"));
+    const shown: Route[] = [];
+    mount(
+      client,
+      hostOf(
+        "panel",
+        () => {},
+        (route) => shown.push(route),
+      ),
+    );
     await screen.findByRole("heading", { level: 1 });
     expect(screen.queryByRole("link", { name: "← カンバン" })).toBeNull();
+    fireEvent.click(screen.getByRole("link", { name: "この Iteration でカンバンを見る" }));
+    expect(shown).toEqual([{ page: "board", iteration: "s1" }]);
+    expect(window.location.hash).toBe("#/iterations/s1");
+  });
+
+  it("エディタのパネルの閉じた Iteration の詳細は、カンバンで選べないので「この Iteration でカンバンを見る」を出さない", async () => {
+    window.location.hash = "#/iterations/s1";
+    const client = mockClient();
+    client.data.iterations = [iteration({ id: "s1", name: "最初", status: "closed" })];
+    client.handlers["iteration.show"] = () => iterationDetail(client.data.iterations[0]!);
+    mount(client, hostOf("panel"));
+    await screen.findByRole("heading", { level: 1 });
+    expect(screen.queryByRole("link", { name: "この Iteration でカンバンを見る" })).toBeNull();
+  });
+
+  it("ブラウザの Iteration 詳細は今のまま「← カンバン」でその Iteration のカンバンへ移り、「この Iteration でカンバンを見る」を出さない", async () => {
+    window.location.hash = "#/iterations/s1";
+    const client = mockClient();
+    client.data.iterations = [iteration({ id: "s1", name: "最初", status: "active" })];
+    client.handlers["iteration.show"] = () => iterationDetail(client.data.iterations[0]!);
+    mount(client);
+    await screen.findByRole("heading", { level: 1 });
+    expect(screen.getByRole("link", { name: "← カンバン" }).getAttribute("href")).toBe(
+      "#/board?iteration=s1",
+    );
+    expect(screen.queryByRole("link", { name: "この Iteration でカンバンを見る" })).toBeNull();
   });
 
   it("エディタのパネルの Iteration 詳細はチケットを未完了・完了・中止の段に分け、完了と中止は畳み、Iteration の列を出さない（UI-5）", async () => {
