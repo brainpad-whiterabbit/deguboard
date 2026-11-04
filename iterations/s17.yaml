@@ -1,0 +1,5 @@
+id: s17
+project: default
+name: sprint17
+goal: VS Code 拡張を VS Code そのもの（ステータスバー・エディタ・パレット・ターミナル）とつなぐ
+status: planned
