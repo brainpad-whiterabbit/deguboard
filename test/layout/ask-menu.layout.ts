@@ -16,7 +16,7 @@ const WEB_DIST = path.resolve(import.meta.dirname, "../../packages/web/dist");
 const WIDTH = 300;
 /** 札が確実に折り返す狭い幅 */
 const NARROW_WIDTH = 200;
-/** エディタのパネルの幅（Iteration の詳細は表で出す） */
+/** エディタのパネルの幅（Iteration の詳細は段分けの一覧で出す） */
 const PANEL_WIDTH = 800;
 
 let fixture: Fixture;
