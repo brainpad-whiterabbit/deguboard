@@ -19,7 +19,7 @@ import { defineCommand, ok } from "./define.js";
 import { plansContaining, type PlanBrief } from "./plan.js";
 import type { AskAction } from "./ask.js";
 import {
-  isOverdue,
+  iterationReadiness,
   iterationRef,
   localDate,
   nowIso,
@@ -180,10 +180,13 @@ export async function iterationNextOf(
       ask: moved.some((m) => m.iteration === null && !isTerminal(m.status)) ? "assign" : null,
     };
   }
-  const unfinished = items.filter((t) => !isTerminal(t.status)).length;
-  if (items.length > 0 && unfinished === 0) return { kind: "ready", ask: "release" };
-  if (unfinished > 0 && isOverdue(it.end, localDate(ctx.now())))
-    return { kind: "overdue", unfinished, ask: "carry" };
+  const { complete, overdue, unfinished } = iterationReadiness(
+    it,
+    items.map((t) => t.status),
+    localDate(ctx.now()),
+  );
+  if (complete) return { kind: "ready", ask: "release" };
+  if (overdue) return { kind: "overdue", unfinished, ask: "carry" };
   return null;
 }
 

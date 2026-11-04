@@ -10,7 +10,7 @@ import { peekRunningRuns } from "../run/record.js";
 import type { Store } from "../storage/store.js";
 import { findConstraint } from "../workflow/resolve.js";
 import { defineCommand, ok } from "./define.js";
-import { isOverdue, localDate, ticketsInIteration } from "./helpers.js";
+import { iterationReadiness, localDate, ticketsInIteration } from "./helpers.js";
 
 /** 頼むこと。どの対象で候補に出るかは askCandidates が決める */
 export const ASK_ACTIONS = [
@@ -727,17 +727,18 @@ function askSubjectOf(
     }
     case "iteration": {
       const it = store.require("iteration", ref).data;
-      const statuses = ticketsInIteration(store, it.id).map((t) => t.data.status);
+      const { complete, overdue } = iterationReadiness(
+        it,
+        ticketsInIteration(store, it.id).map((t) => t.data.status),
+        today,
+      );
       return {
         kind,
         id: it.id,
         title: it.name,
         status: it.status,
-        complete: isComplete(statuses),
-        overdue:
-          it.status === "active" &&
-          isOverdue(it.end, today) &&
-          statuses.some((st) => !isTerminal(st)),
+        complete,
+        overdue,
       };
     }
     case "epic": {
