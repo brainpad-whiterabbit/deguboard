@@ -58,7 +58,7 @@ export function iteration(partial: Partial<Iteration> & { id: string; name: stri
 
 /** iteration.show の応答。進捗は core と同じく中のチケットから求める */
 export function iterationDetail(it: Iteration, items: Ticket[] = []): IterationDetail {
-  return { ...it, progress: progressOf(items), items, next: null };
+  return { ...it, progress: progressOf(items), items, next: null, plans: [] };
 }
 
 /** boardFixture が置く active の Iteration */

@@ -12,6 +12,7 @@ import {
   iterationUpdate,
 } from "./iteration.js";
 import { commit, init } from "./setup.js";
+import { planCreate } from "./plan.js";
 import { ticketCreate, ticketMove } from "./ticket.js";
 
 const cleanups: Array<() => Promise<void>> = [];
@@ -129,5 +130,24 @@ describe("carriedOverFrom", () => {
     ];
     const tickets = [{ id: "t3", iteration: "s1" }] as never;
     expect(carriedOverFrom("s1", events, tickets)).toEqual(["t2", "t10"]);
+  });
+});
+
+describe("iteration.show の plans（UI-5 の Plan の節）", () => {
+  it("中のチケットを含む Plan を状態と進捗つきで出し、含まない Plan と Plan がないときは出さない", async () => {
+    const ctx = await ready();
+    await runCommand(iterationCreate, ctx, { name: "S1" });
+    for (const title of ["A", "B", "C", "D"]) await runCommand(ticketCreate, ctx, { title });
+    await runCommand(iterationAdd, ctx, { iteration: "s1", tickets: ["t1", "t2"] });
+    const plans = async () =>
+      (await runCommand(iterationShow, ctx, { iteration: "s1" })).data.plans;
+    expect(await plans()).toEqual([]);
+    // t1 と外の t3 を含む Plan は出る（進捗は Plan 全体）。t4 だけの Plan は出ない
+    await runCommand(planCreate, ctx, { tickets: ["t1", "t3"] });
+    await runCommand(planCreate, ctx, { tickets: ["t4"] });
+    const got = await plans();
+    expect(got.map((p) => [p.id, p.status, p.progress.done, p.progress.total])).toEqual([
+      ["p1", "pending", 0, 2],
+    ]);
   });
 });
