@@ -12,7 +12,7 @@ import {
 import { UsageError } from "@deguboard/core";
 import { parse as parseYaml } from "yaml";
 
-/** 流れの順に並べる。frontmatter に description を持つトピックは dg<トピック> の Skill として配る（AG-2）。overview・parallel・review は Skill を持たず、ほかのトピックから読む */
+/** 流れの順に並べる。frontmatter に description を持つトピックは dg<トピック> の Skill として配る（AG-2）。overview・run・parallel・review は Skill を持たず、ほかのトピックから読む */
 export const GUIDE_TOPICS = [
   "overview",
   "import",
@@ -20,6 +20,7 @@ export const GUIDE_TOPICS = [
   "check",
   "plan",
   "work",
+  "run",
   "parallel",
   "review",
   "audit",

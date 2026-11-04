@@ -60,7 +60,7 @@ describe("dg guide", () => {
       const meta = await readGuideMeta(topic);
       const text = await readGuide(topic);
       expect(text.startsWith("---"), topic).toBe(false);
-      if (topic === "overview" || topic === "parallel" || topic === "review") {
+      if (topic === "overview" || topic === "run" || topic === "parallel" || topic === "review") {
         expect(meta.description, topic).toBeUndefined();
         continue;
       }
@@ -168,13 +168,13 @@ describe("dg guide", () => {
     ).toContain("今の設定：`true`");
   });
 
-  it("work は段階のモデルを config の models.* で埋め、空なら「なし」と出す。見直し役は親のモデル", async () => {
-    const work = await readGuide("work");
-    expect(fillPlaceholders(work, defaultConfig())).toContain(
+  it("run は段階のモデルを config の models.* で埋め、空なら「なし」と出す。見直し役は親のモデル", async () => {
+    const run = await readGuide("run");
+    expect(fillPlaceholders(run, defaultConfig())).toContain(
       "light `なし`・standard `なし`・heavy `なし`",
     );
     expect(
-      fillPlaceholders(work, {
+      fillPlaceholders(run, {
         ...defaultConfig(),
         models: { light: "haiku", standard: "sonnet", heavy: "opus" },
       }),
@@ -254,6 +254,7 @@ describe("dg guide", () => {
   it("review は品質ゲートを 1 か所に置き、work は PR を出す前の見直しと上限付きの修正ループを、all はマージの前の条件をそこへ案内し、実装・見直し・手直しの Run を分ける", async () => {
     const review = await readGuide("review");
     const work = await readGuide("work");
+    const run = await readGuide("run");
     const all = await readGuide("all");
     for (const heading of [
       "## 品質ゲート",
@@ -281,10 +282,10 @@ describe("dg guide", () => {
     expect(lineWith(flow, "run start <id> <step>")).toContain("`implement`");
     expect(lineWith(flow, "run start <id> <step>")).toContain("software-development");
     expect(lineWith(flow, "gh pr create --draft")).toContain("実装の Run を閉じる");
-    expect(work).toContain("--retry-reason");
+    expect(run).toContain("--retry-reason");
     for (const step of ["`review`", "`fix`"]) {
       expect(review).toContain(step);
-      expect(work).toContain(step);
+      expect(run).toContain(step);
     }
     expect(review).not.toContain("Run を開けたまま");
     // 上限は親が数え、fix の Run の数では数えない。合う step がなければ代わりの step で記録する
@@ -297,11 +298,11 @@ describe("dg guide", () => {
     expect(noStep).toContain("定義を丸ごと置き換える");
     // テンプレートにも fix がない consulting では人に伝えない
     for (const word of ["consulting", "テンプレート", "伝えず"]) expect(noStep).toContain(word);
-    expect(work).toContain("合う step がない");
-    // Run を自分で呼ぶ理由は review に置き、work は参照する
+    expect(run).toContain("合う step がない");
+    // Run を自分で呼ぶ理由は review に置き、run は参照する
     expect(runs).toContain("Run の ID");
     expect(runs).toContain("会話記録");
-    const selfCall = bullet(section(work, "## Run を記録する"), "自分で呼ぶ");
+    const selfCall = bullet(section(run, "## Run を記録する"), "自分で呼ぶ");
     expect(selfCall).toContain("`dg guide review`");
     expect(selfCall).toContain("Run の分け方");
     // 手直しの失敗・中断では unclaim せず、review の「終わり方」に従う
