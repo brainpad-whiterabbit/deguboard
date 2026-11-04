@@ -13,7 +13,7 @@ after:
     - t335
   t337:
     - t336
-pending_approval: true
+pending_approval: false
 details:
   t338:
     scope: ask-composer の札の行を折り返し、幅 300px でも閉じるボタンを残す。配置テストを足す
@@ -55,3 +55,5 @@ details:
     scope: パネルの Iteration 詳細から左パネルのカンバンをその Iteration で絞って開く
     approach: host にカンバンを開くメッセージを足し、vscode 拡張で左パネルを開いて絞り込みを渡す。ブラウザは今のまま
     tier: heavy
+approved_by: eiki.kitajima/agent
+approved_at: 2026-11-04T11:18:53Z
