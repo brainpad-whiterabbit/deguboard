@@ -1,0 +1,30 @@
+id: p37
+project: default
+tickets: [t301, t302, t326, t303, t304]
+after:
+  t303:
+    - t302
+  t304:
+    - t302
+pending_approval: true
+details:
+  t301:
+    scope: "guide-import.md の「よいチケットの書き方」に任意の ## 参考 節の書き方を足す。lint の対象にしない"
+    approach: docs の追記のみ。## 参考 節が lint 指摘にならないことを確かめる
+    tier: light
+  t302:
+    scope: 優先度の判断基準を core の既定と config.yaml の priority に置き、guide import/audit と requirements が使う
+    approach: core に既定基準を足し config で上書き可にし、guide-import 出力と guide-audit の表を基準参照に置き換え requirements を直す
+    tier: heavy
+  t326:
+    scope: guide-work.md の独立した節を新しい dg guide topic に切り出し予算を 90% 未満にする
+    approach: 独立した節を新トピックへ移し guide-all/parallel/review の参照と Skill・テストを合わせる
+    tier: standard
+  t303:
+    scope: 優先度の印を矢印+文字の 1 部品にそろえツールチップに基準を出す。PriorityBadge 等を消す
+    approach: vscode と web の優先度表示を共通部品に置き換え t302 の基準を読む。画面のスクショを PR に載せる
+    tier: heavy
+  t304:
+    scope: 設定画面で優先度の判断基準を見て直せるようにする
+    approach: 設定画面に基準の欄を足し config.yaml の priority に保存。空で既定に戻す
+    tier: standard
