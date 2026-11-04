@@ -9,7 +9,7 @@ after:
     - t343
   t345:
     - t344
-pending_approval: true
+pending_approval: false
 details:
   t341:
     scope: 履歴の Iteration・Epic の行を 2 段にし、閉じた日・目標なし・内訳の出し方と開いた一覧の Epic なしを直す
@@ -31,3 +31,5 @@ details:
     scope: 履歴用の行で中止の点を塗らない輪にし、タイトルを薄くする
     approach: history-rows.tsx の HistoryTicketRow と CSS を直し、web のテストで確かめる。打ち消し線は使わない
     tier: light
+approved_by: eiki.kitajima/agent
+approved_at: 2026-11-04T23:23:51Z
