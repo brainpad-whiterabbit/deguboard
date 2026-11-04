@@ -819,6 +819,9 @@ button.link:hover {
   color: var(--vscode-foreground);
   font-weight: 600;
 }
+.result-switch {
+  margin-bottom: 0.5rem;
+}
 .view-switch .badge {
   padding: 0.05em 0.3em;
   font-weight: normal;
@@ -2366,7 +2369,6 @@ textarea.body {
 [data-surface="sidebar"] .history-row[data-ask-spot] {
   padding-right: 30px;
 }
-/* 履歴のチケットの見方の検索欄と結果の絞り込み：サイドバーでも 1 行に並べ、検索欄が残りの幅を使う */
 /* サイドバーのチケットの行はタイトルを 2 行まで折り返す。丸印・番号・担当・印は 1 行目に揃える */
 [data-surface="sidebar"] .ticket-row {
   align-items: start;

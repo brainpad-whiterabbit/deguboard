@@ -3,7 +3,7 @@
 // 行数の基準：
 // - タブ（nav a）、カンバンの見出し、チケットの行でない行のタイトル（Epic など .row-title）は 1 行。折り返してはいけない
 //   カンバンの見出しは、Iteration の見出し（.sidebar-head .head-line：札の列・漏斗の段、名前・期間・目標の段、進みの帯の段）と
-//   状態の節の見出し（.column summary h2）、履歴の見方の切り替え（.view-switch）
+//   状態の節の見出し（.column summary h2）、履歴の見方の切り替え（.view-switch の「見方」）。チケットの見方の結果の切り替え（.result-switch）は別に確かめる
 // - ほかの画面の見出し（バックログ・履歴の summary、Epic の h2 など）は検査しない
 // - チケットの行のタイトル（.ticket-row .row-title）は 2 行まで。サイドバーでは 2 行で切る CSS（-webkit-line-clamp: 2）なので、3 行以上は崩れ
 // 行数は要素の枠の中に見えている行だけを数える（2 行で切られて隠れた行は数えない）
@@ -178,12 +178,12 @@ function measure(page: Page) {
       /** 1 行の検査をするカンバンの見出しの数。種類ごとに分けて数え、クラス名が変わって検査が黙って消えないようにする */
       headLines: document.querySelectorAll(".sidebar-head .head-line").length,
       sectionHeadings: document.querySelectorAll(".column summary h2").length,
-      viewSwitches: document.querySelectorAll(".view-switch").length,
+      viewSwitches: document.querySelectorAll('.view-switch[aria-label="見方"]').length,
       wrapped: [
         ...overflowing("nav a", 1),
         ...overflowing(".sidebar-head .head-line", 1),
         ...overflowing(".column summary h2", 1),
-        ...overflowing(".view-switch", 1),
+        ...overflowing('.view-switch[aria-label="見方"]', 1),
         ...overflowing(".row-title:not(.ticket-row .row-title)", 1),
         ...overflowing(".ticket-row .row-title", 2),
       ],
@@ -269,7 +269,7 @@ describe.each(SCHEMES)("履歴の見方の切り替え（%s）", (scheme) => {
           await page.goto(`${server.url}?surface=sidebar#/history?view=${view}`, {
             waitUntil: "networkidle",
           });
-          const toggle = page.locator(".view-switch");
+          const toggle = page.locator('[role=group][aria-label="見方"]');
           await toggle.waitFor();
           for (const query of ["", "番号"]) {
             await page.getByLabel("チケットを探す").fill(query);
@@ -309,7 +309,7 @@ describe.each(SCHEMES)("履歴の見方の切り替え（%s）", (scheme) => {
 
 describe.each(SCHEMES)("履歴のチケットの見方の絞り込み（%s）", (scheme) => {
   it.each([320, 300])(
-    "幅 %ipx で、検索欄と結果の絞り込みが 1 行に収まり、画面から溢れない",
+    "幅 %ipx で、検索欄が幅いっぱいで、その下の結果の切り替えが 1 行に収まり画面から溢れない（中止を選んだときも）",
     async (width) => {
       const context = await browser.newContext({
         viewport: { width, height: 900 },
@@ -317,32 +317,49 @@ describe.each(SCHEMES)("履歴のチケットの見方の絞り込み（%s）", 
       });
       const page = await context.newPage();
       try {
-        await page.goto(`${server.url}?surface=sidebar#/history?view=ticket`, {
-          waitUntil: "networkidle",
-        });
-        const filter = page.locator(".history-filter");
-        await filter.waitFor();
-        await page.locator(".history-ticket").first().waitFor();
-        const m = await filter.evaluate((el) => {
-          const search = el.querySelector('input[type="search"]')!.getBoundingClientRect();
-          const select = el.querySelector("select")!.getBoundingClientRect();
-          const main = document.querySelector(".page")!;
-          const right = main.getBoundingClientRect().right;
-          return {
-            selects: document.querySelectorAll(".toolbar select").length,
-            sameLine: select.top < search.bottom && search.top < select.bottom,
-            searchWidth: search.width,
-            right: Math.max(search.right, select.right),
-            width: right - parseFloat(getComputedStyle(main).paddingRight),
-            pageScroll: main.scrollWidth,
-            pageClient: main.clientWidth,
-          };
-        });
-        expect(m.selects, "絞り込みは結果のセレクトだけ").toBe(1);
-        expect(m.sameLine, "検索欄と結果の絞り込みが 1 行").toBe(true);
-        expect(m.searchWidth, "検索欄が潰れない").toBeGreaterThan(100);
-        expect(m.right, "幅に収まる").toBeLessThanOrEqual(m.width + 0.5);
-        expect(m.pageScroll, "画面が横に溢れない").toBeLessThanOrEqual(m.pageClient);
+        for (const result of ["", "&result=abandoned"]) {
+          await page.goto(`${server.url}?surface=sidebar#/history?view=ticket${result}`, {
+            waitUntil: "networkidle",
+          });
+          const group = page.locator('[role=group][aria-label="結果"]');
+          await group.waitFor();
+          const m = await group.evaluate((el) => {
+            const search = document.querySelector('input[type="search"]')!.getBoundingClientRect();
+            const buttons = [...el.querySelectorAll("button")].map((b) =>
+              b.getBoundingClientRect(),
+            );
+            const main = document.querySelector(".page")!;
+            const box = main.getBoundingClientRect();
+            const pad = parseFloat(getComputedStyle(main).paddingRight);
+            return {
+              count: buttons.length,
+              pressed: el.querySelectorAll('button[aria-pressed="true"]').length,
+              selects: document.querySelectorAll(".toolbar select").length,
+              searchRight: search.right,
+              searchWidth: search.width,
+              searchBottom: search.bottom,
+              top: el.getBoundingClientRect().top,
+              tops: new Set(buttons.map((b) => Math.round(b.top))).size,
+              right: Math.max(...buttons.map((b) => b.right)),
+              width: box.right - pad,
+              pageScroll: main.scrollWidth,
+              pageClient: main.clientWidth,
+            };
+          });
+          const label = `結果「${result}」`;
+          expect(m.selects, `${label} 結果の select はない`).toBe(0);
+          expect(m.count, `${label} のボタン`).toBeGreaterThanOrEqual(2);
+          expect(m.count, `${label} のボタン`).toBeLessThanOrEqual(3);
+          expect(m.pressed, `${label} で選んだものが 1 つ`).toBe(1);
+          expect(m.searchWidth, `${label} 検索欄が潰れない`).toBeGreaterThan(200);
+          expect(m.searchRight, `${label} 検索欄が幅いっぱい`).toBeGreaterThanOrEqual(m.width - 2);
+          expect(m.top, `${label} 結果の切り替えが検索欄の下`).toBeGreaterThanOrEqual(
+            m.searchBottom,
+          );
+          expect(m.tops, `${label} で 1 行`).toBe(1);
+          expect(m.right, `${label} で幅に収まる`).toBeLessThanOrEqual(m.width + 0.5);
+          expect(m.pageScroll, `${label} で画面が横に溢れない`).toBeLessThanOrEqual(m.pageClient);
+        }
       } finally {
         await context.close();
       }

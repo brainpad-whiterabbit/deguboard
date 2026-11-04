@@ -909,5 +909,8 @@ describe("ブラウザの履歴", () => {
     expect(names()).toEqual(["すべて 3", "Done 2", "Abandoned 1"]);
     fireEvent.change(screen.getByLabelText("チケットを探す"), { target: { value: "一覧" } });
     expect(names()).toEqual(["すべて 1", "Done 1"]);
+    // 中止を選んでいるときは、検索に当たらず 0 件でも中止を残す
+    window.location.hash = "#/history?view=ticket&result=abandoned&q=%E4%B8%80%E8%A6%A7";
+    await waitFor(() => expect(names()).toEqual(["すべて 1", "Done 1", "Abandoned 0"]));
   });
 });
