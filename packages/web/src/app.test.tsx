@@ -740,6 +740,17 @@ describe("画面", () => {
     );
   });
 
+  it("優先度の判断基準が読めていない（config.show に priority がない）ときは、選択の説明（hint）が空になる", async () => {
+    window.location.hash = "#/tickets/t3";
+    const client = mockClient();
+    client.handlers["config.show"] = () => ({ default_project: "default" });
+    mount(client);
+    await screen.findByRole("heading", { level: 1, name: "画面" });
+    fireEvent.click(screen.getByRole("button", { name: "編集" }));
+    expect(screen.getByLabelText("優先度")).toBeTruthy();
+    expect(document.querySelector(".inline-hint")!.textContent).toBe("");
+  });
+
   it("ブラウザのチケット詳細の属性はその場で直せず、値を押しても入力欄にならない", async () => {
     window.location.hash = "#/tickets/t3";
     mount(mockClient());
@@ -772,6 +783,17 @@ describe("画面", () => {
       fireEvent.change(select, { target: { value: "high" } });
       await waitFor(() => expect(updates()).toEqual([{ ticket: "t3", priority: "high" }]));
       expect(screen.queryByLabelText("優先度")).toBeNull();
+    });
+
+    it("優先度の判断基準が読めていないときは、選択の説明（hint）が空になる", async () => {
+      window.location.hash = "#/tickets/t3";
+      const client = mockClient();
+      client.handlers["config.show"] = () => ({ default_project: "default" });
+      mount(client, hostOf("panel"));
+      await screen.findByRole("heading", { level: 1, name: "画面" });
+      fireEvent.click(screen.getByRole("button", { name: "優先度を変える" }));
+      expect(screen.getByLabelText("優先度")).toBeTruthy();
+      expect(document.querySelector(".inline-hint")!.textContent).toBe("");
     });
 
     it("優先度の選択は選択肢を記号と値にし、選んでいる値の判断基準を下に出す（TK-8）", async () => {

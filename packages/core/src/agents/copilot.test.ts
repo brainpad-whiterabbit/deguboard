@@ -184,9 +184,8 @@ describe("Copilot の Adapter", () => {
   });
 
   it("同じ作業ツリーでも親の Run ID を含まない別 session（サブエージェント）の使用量は合算しない", async () => {
-    const { eventsFile, topLevel, query } = await setup({
-      COPILOT_AGENT_SESSION_ID: "sess-parent",
-    });
+    // COPILOT_AGENT_SESSION_ID を渡さず、両方の session を作業ツリーからの探し方で拾わせる
+    const { eventsFile, topLevel, query } = await setup();
     await writeEvents(eventsFile("sess-parent"), [
       sessionStart("sess-parent", topLevel),
       mention(0),
@@ -196,6 +195,19 @@ describe("Copilot の Adapter", () => {
     await writeEvents(eventsFile("sess-sub"), [
       sessionStart("sess-sub", topLevel),
       usageRecord(1, { input: 7000, output: 7000, cacheRead: 0, cacheWrite: 0 }),
+    ]);
+    // 同じ gitRoot で、自分で別の Run を run start した session も数えない
+    await writeEvents(eventsFile("sess-sub-run"), [
+      sessionStart("sess-sub-run", topLevel),
+      {
+        ...mention(0),
+        data: {
+          toolCallId: "c2",
+          success: true,
+          result: { content: '[dg] $ dg run start\n{"id":"r20260101-100500-ffff"}' },
+        },
+      },
+      usageRecord(1, { input: 9000, output: 9000, cacheRead: 0, cacheWrite: 0 }),
     ]);
     const got = await copilotAdapter.readTranscriptUsage(query());
     expect(got.usage).toEqual({ input: 20, output: 20, cache_read: 0, cache_write: 80 });

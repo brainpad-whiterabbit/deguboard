@@ -1622,7 +1622,7 @@ describe("用意", () => {
     const f = await fixture();
     const ctx = await initialized(f.cloneA);
     await runCommand(configSet, ctx, { key: "commit.mode", value: "each" });
-    for (const value of ["", null]) {
+    for (const value of ["", null, undefined]) {
       await expect(runCommand(configSet, ctx, { key: "commit.mode", value })).rejects.toMatchObject(
         { code: "VALIDATION_FAILED" },
       );
