@@ -207,6 +207,10 @@ describe("Webview の要求", () => {
       true,
     );
     expect(isWebviewRequest({ id: 1, kind: "action", name: "show", route: "#/board" })).toBe(true);
+    // クエリ付きのルート（Iteration で絞ったカンバン）も show で受ける
+    expect(
+      isWebviewRequest({ id: 1, kind: "action", name: "show", route: "#/board?iteration=s3" }),
+    ).toBe(true);
     expect(isWebviewRequest({ id: 1, kind: "action", name: "open", route: "https://x" })).toBe(
       false,
     );
