@@ -204,7 +204,8 @@ export const iterationShow = defineCommand({
   name: "iteration.show",
   positionals: ["iteration"],
   group: "iteration",
-  summary: "Iteration と進捗、入っているチケットを優先度と番号の順で出す",
+  summary:
+    "Iteration と進捗・次の操作（next）・中のチケットを含む Plan（plans）、入っているチケットを優先度と番号の順で出す。持ち越しのある閉じた Iteration は履歴を読むので重い",
   input: z.object({ iteration: iterationRef }),
   write: false,
   needs: "store",
