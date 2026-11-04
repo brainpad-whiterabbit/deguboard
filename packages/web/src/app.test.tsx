@@ -2512,7 +2512,9 @@ describe("画面", () => {
     expect(screen.queryByLabelText("足すチケット")).toBeNull();
     expect(document.querySelectorAll(".card")).toHaveLength(0);
     expect(document.querySelectorAll(".column")).toHaveLength(0);
-    const sections = [...document.querySelectorAll<HTMLDetailsElement>(".epic-tickets > details")];
+    const sections = [
+      ...document.querySelectorAll<HTMLDetailsElement>(".ticket-sections > details"),
+    ];
     expect(sections.map((d) => d.querySelector("summary")!.textContent)).toEqual([
       "未完了 2",
       "完了 1",
@@ -2550,6 +2552,35 @@ describe("画面", () => {
     mount(client, hostOf("panel"));
     await screen.findByRole("heading", { level: 1 });
     expect(screen.queryByRole("link", { name: "← カンバン" })).toBeNull();
+  });
+
+  it("エディタのパネルの Iteration 詳細はチケットを未完了・完了・中止の段に分け、完了と中止は畳み、Iteration の列を出さない（UI-5）", async () => {
+    window.location.hash = "#/iterations/s1";
+    const client = mockClient();
+    client.data.iterations = [iteration({ id: "s1", name: "最初", status: "active" })];
+    const items = [
+      ticket({ id: "t2", title: "API", status: "in_progress", iteration: "s1" }),
+      ticket({ id: "t4", title: "設計", status: "todo", priority: "high", iteration: "s1" }),
+      ticket({ id: "t5", title: "調査", status: "done", iteration: "s1" }),
+      ticket({ id: "t6", title: "古い案", status: "abandoned", iteration: "s1" }),
+    ];
+    client.handlers["iteration.show"] = () => iterationDetail(client.data.iterations[0]!, items);
+    mount(client, hostOf("panel"));
+    await screen.findByText("設計");
+    expect(document.querySelectorAll("table.list")).toHaveLength(0);
+    const sections = [
+      ...document.querySelectorAll<HTMLDetailsElement>(".ticket-sections > details"),
+    ];
+    expect(sections.map((d) => d.querySelector("summary")!.textContent)).toEqual([
+      "未完了 2",
+      "完了 1",
+      "中止 1",
+    ]);
+    expect(sections.map((d) => d.open)).toEqual([true, false, false]);
+    expect([...sections[0]!.querySelectorAll(".row code")].map((c) => c.textContent)).toEqual([
+      "t4",
+      "t2",
+    ]);
   });
 
   it("Iteration 詳細の見出しの下は期間（短い形と残り・超過の日数）・目標・進捗を別の行に出す（UI-5）", async () => {

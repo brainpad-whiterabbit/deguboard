@@ -5,6 +5,7 @@
 import { ASK_SECTIONS, AskSpotBox } from "../components/ask-menu.js";
 import { IterationSummary } from "../components/iteration-parts.js";
 import { TicketTable } from "../components/parts.js";
+import { TicketSections } from "../components/ticket-sections.js";
 import { useCommandData } from "../command-data.js";
 import { useHost } from "../host.js";
 import { hrefOf } from "../router.js";
@@ -57,7 +58,12 @@ function IterationDetailView({ id }: { id: string }) {
         <span className={`badge iteration-${it.status}`}>{ITERATION_LABELS[it.status]}</span>
       </AskSpotBox>
       <IterationSummary it={it} />
-      <TicketTable tickets={items} ask={{ section: ASK_SECTIONS.detailTicket, within: it.id }} />
+      {/* パネルは未完了・完了・中止の段に分けた 1 行の並び（Epic 詳細と共用。UI-12）。ブラウザは表 */}
+      {host.surface === "panel" ? (
+        <TicketSections tickets={it.items} within={it.id} section={ASK_SECTIONS.detailTicket} />
+      ) : (
+        <TicketTable tickets={items} ask={{ section: ASK_SECTIONS.detailTicket, within: it.id }} />
+      )}
     </section>
   );
 }
