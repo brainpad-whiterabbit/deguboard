@@ -16,7 +16,7 @@ const WEB_DIST = path.resolve(import.meta.dirname, "../../packages/web/dist");
 const WIDTH = 300;
 /** 札が確実に折り返す狭い幅 */
 const NARROW_WIDTH = 200;
-/** エディタのパネルの幅（Iteration の詳細は表で出す） */
+/** エディタのパネルの幅（Iteration の詳細は段分けの一覧で出す） */
 const PANEL_WIDTH = 800;
 
 let fixture: Fixture;
@@ -158,8 +158,11 @@ describe("吹き出しの一覧（UI-15）", () => {
 
   it("パネルの Iteration の詳細は開始・閉じる・外すのボタンを出さず、行の一覧に「s1 から外す」を出す", async () => {
     const page = await browser.newPage({ viewport: { width: PANEL_WIDTH, height: 800 } });
+    // パネルは段分けの一覧（TicketSections）。未完了の段は開いている
     await page.goto(`${server.url}?surface=panel#/iterations/s1`, { waitUntil: "networkidle" });
-    const row = page.locator("tr", { has: page.locator('a[href="#/tickets/t1"]') }).first();
+    const row = page
+      .locator(".ticket-sections ul.rows > li", { has: page.locator('a[href="#/tickets/t1"]') })
+      .first();
     await row.waitFor();
     for (const name of ["開始する", "閉じる", "外す", "足す"])
       expect(await page.getByRole("button", { name, exact: true }).count(), name).toBe(0);
