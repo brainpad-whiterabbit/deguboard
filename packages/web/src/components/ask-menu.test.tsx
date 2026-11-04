@@ -7,13 +7,14 @@ import type { WebviewClient } from "../client/webview.js";
 import { HostBridge, HostProvider, type Host } from "../host.js";
 import { StoreProvider } from "../store.js";
 import {
+  type MockClient,
   boardFixture,
   fixture,
   iteration,
+  iterationDetail,
   mockClient,
   plan,
   ticket,
-  type MockClient,
 } from "../test-helpers.js";
 import { createUiState, memoryBackend, type UiState } from "../ui-state.js";
 import { ASK_HINT, ASK_HINT_KEY } from "./ask-menu.js";
@@ -340,10 +341,11 @@ describe("パネルの詳細から頼む（UI-15）", () => {
       t.id === "t3" || t.id === "t1" ? { ...t, iteration: "s1" } : t,
     );
     const client = mockClient(data);
-    client.handlers["iteration.show"] = () => ({
-      ...client.data.iterations[0],
-      items: client.data.tickets.filter((t) => t.iteration === "s1"),
-    });
+    client.handlers["iteration.show"] = () =>
+      iterationDetail(
+        client.data.iterations[0]!,
+        client.data.tickets.filter((t) => t.iteration === "s1"),
+      );
     client.handlers["epic.show"] = () => ({
       ...client.data.epics[0],
       body: "",

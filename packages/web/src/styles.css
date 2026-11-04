@@ -709,6 +709,28 @@ button.link:hover {
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
+/* Iteration 詳細の見出しの下の欄（iteration-parts.tsx の IterationSummary）：期間・目標・進捗を見出しと値の 2 列で並べる */
+.iteration-summary {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 0.3rem 0.75rem;
+  align-items: center;
+  margin: 0.25rem 0 0.75rem;
+}
+.iteration-summary dt {
+  color: var(--vscode-descriptionForeground);
+}
+.iteration-summary dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.iteration-summary .period-note {
+  margin-left: 0.5rem;
+  color: var(--vscode-descriptionForeground);
+}
+.iteration-summary .period-note.overdue {
+  color: var(--dg-error);
+}
 .ticket-run-detail {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);

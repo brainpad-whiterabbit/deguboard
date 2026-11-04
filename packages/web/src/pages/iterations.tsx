@@ -1,10 +1,10 @@
-// Iteration（UI-5）の詳細：期間・目標と中のチケット。一覧の画面はなく、planned と active はカンバンの絞り込みで選ぶ（board.tsx）。
+// Iteration（UI-5）の詳細：期間・目標・進捗と中のチケット。見出しの下の欄は IterationSummary（iteration-parts.tsx）。一覧の画面はなく、planned と active はカンバンの絞り込みで選ぶ（board.tsx）。
 // 表示だけで書き込まない。名前・目標・期間の直し・閉じる・再開とチケットの足し外しは、タイトルと行の吹き出し・右クリックからエージェントに頼む
 // （ADR-010・UI-15）。開始は頼むことになく、着手（claim）の手順が planned の Iteration を active にする（ADR-006）
 
 import { ASK_SECTIONS, AskSpotBox } from "../components/ask-menu.js";
+import { IterationSummary } from "../components/iteration-parts.js";
 import { TicketTable } from "../components/parts.js";
-import { NO_VALUE } from "../components/run-parts.js";
 import { useCommandData } from "../command-data.js";
 import { useHost } from "../host.js";
 import { hrefOf } from "../router.js";
@@ -56,13 +56,7 @@ function IterationDetailView({ id }: { id: string }) {
         <code>{it.id}</code> {it.name}{" "}
         <span className={`badge iteration-${it.status}`}>{ITERATION_LABELS[it.status]}</span>
       </AskSpotBox>
-      <p className="muted">
-        {it.start ?? "?"} 〜 {it.end ?? "?"}
-        {it.goal ? ` ・ ${it.goal}` : ""}
-        {it.status === "closed"
-          ? ` ・ 完了 ${it.completed ?? NO_VALUE} / 持ち越し ${it.carried_over ?? NO_VALUE}`
-          : ""}
-      </p>
+      <IterationSummary it={it} />
       <TicketTable tickets={items} ask={{ section: ASK_SECTIONS.detailTicket, within: it.id }} />
     </section>
   );

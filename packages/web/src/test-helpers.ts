@@ -14,6 +14,7 @@ import type { CommandClient, CommandResult, StatusView } from "@deguboard/core";
 import type {
   EpicRow,
   Iteration,
+  IterationDetail,
   PlanRow,
   Project,
   Ticket,
@@ -53,6 +54,11 @@ export function ticket(partial: Partial<TicketRow> & { id: string }): TicketRow 
 
 export function iteration(partial: Partial<Iteration> & { id: string; name: string }): Iteration {
   return { project: "default", goal: "", status: "planned", ...partial };
+}
+
+/** iteration.show の応答。進捗は core と同じく中のチケットから求める */
+export function iterationDetail(it: Iteration, items: Ticket[] = []): IterationDetail {
+  return { ...it, progress: progressOf(items), items };
 }
 
 /** boardFixture が置く active の Iteration */
