@@ -456,7 +456,6 @@ describe("画面", () => {
     expect(screen.queryByLabelText("優先度")).toBeNull();
     expect(screen.queryByLabelText("ラベル")).toBeNull();
     expect(screen.getByText("なし", { selector: "dt" })).toBeTruthy();
-    vi.useRealTimers();
   });
 
   it("エディタのパネルのチケット詳細の右の列は、Status の選択を先頭に置き、属性を「計画・つながり・作業・記録」の見出しで分け、「なし」の 1 行を最後に出す", async () => {
