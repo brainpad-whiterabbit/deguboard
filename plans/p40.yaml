@@ -12,7 +12,7 @@ after:
     - t353
   t350:
     - t355
-pending_approval: true
+pending_approval: false
 details:
   t354:
     scope: 完了と期限切れの判定を core の 1 つの関数にまとめ、iterationNextOf と ask の候補から使う
@@ -50,3 +50,5 @@ details:
     scope: iteration show の help に next・plans と履歴を読む費用を書く
     approach: iteration.ts の summary を直す
     tier: light
+approved_by: eiki.kitajima/agent
+approved_at: 2026-11-04T12:30:02Z
