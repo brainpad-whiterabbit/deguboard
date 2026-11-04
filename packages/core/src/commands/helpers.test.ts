@@ -38,7 +38,6 @@ describe("localDate（手元の暦日）", () => {
     process.env.TZ = "Pacific/Honolulu";
     expect(localDate(instant)).toBe("2024-06-15");
     // UTC の 6/16 3:00 は、ホノルルでは 6/15 17:00
-    process.env.TZ = "Pacific/Honolulu";
     expect(localDate(new Date("2024-06-16T03:00:00Z"))).toBe("2024-06-15");
     process.env.TZ = "UTC";
     expect(localDate(new Date("2024-06-16T03:00:00Z"))).toBe("2024-06-16");

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { localDate, periodNote, shortPeriod } from "./iteration-parts.js";
 
 describe("Iteration の見出しの期間", () => {
@@ -30,7 +30,26 @@ describe("Iteration の残り・超過の日数", () => {
     expect(periodNote(active(undefined), "2026-11-17")).toBeUndefined();
   });
 
-  it("今日は手元の暦日で YYYY-MM-DD にする", () => {
-    expect(localDate(new Date(2026, 0, 5, 23, 59))).toBe("2026-01-05");
+  describe("今日の暦日", () => {
+    const tz = process.env.TZ;
+    afterEach(() => {
+      if (tz === undefined) delete process.env.TZ;
+      else process.env.TZ = tz;
+    });
+
+    it("月日を 0 埋めして YYYY-MM-DD にする", () => {
+      expect(localDate(new Date(2026, 0, 5, 23, 59))).toBe("2026-01-05");
+    });
+
+    it("手元の暦と UTC の日付が食い違う時刻では、手元の暦の日付を返す", () => {
+      // UTC では 6/15 15:30 だが、東京（+9）では 6/16 0:30、ホノルル（-10）では 6/15 5:30
+      const instant = new Date("2024-06-15T15:30:00Z");
+      process.env.TZ = "Asia/Tokyo";
+      expect(localDate(instant)).toBe("2024-06-16");
+      process.env.TZ = "Pacific/Honolulu";
+      expect(localDate(instant)).toBe("2024-06-15");
+      // UTC の 6/16 3:00 は、ホノルルでは 6/15 17:00
+      expect(localDate(new Date("2024-06-16T03:00:00Z"))).toBe("2024-06-15");
+    });
   });
 });
