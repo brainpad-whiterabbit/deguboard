@@ -11,7 +11,17 @@ import { createReadStream } from "node:fs";
 import path from "node:path";
 import { createInterface } from "node:readline";
 import type { AgentAdapter, AgentEnv, CollectedUsage, UsageQuery } from "../define.js";
-import { count, fresh, homeDir, list, none, parse, TAIL_MS, timeOf } from "./transcript.js";
+import {
+  count,
+  fresh,
+  homeDir,
+  list,
+  none,
+  parse,
+  searchRoots,
+  TAIL_MS,
+  timeOf,
+} from "./transcript.js";
 
 type Counts = CollectedUsage["usage"];
 
@@ -23,27 +33,6 @@ function configDir(env: AgentEnv): string {
 /** 作業ディレクトリから projects/ の下のディレクトリ名を作る（英数字以外を - にする） */
 export function projectDirName(dir: string): string {
   return dir.replace(/[^A-Za-z0-9]/g, "-");
-}
-
-/** dir が base と同じか、その下にあるか */
-function within(dir: string, base: string): boolean {
-  const rel = path.relative(base, dir);
-  return rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel));
-}
-
-/**
- * 会話記録を探す作業ディレクトリ。作業ツリーと主の作業ツリー（common dir の親）と、主の作業ツリーの親までの上位。
- * HOME とその上はほかのリポジトリの会話記録も入るので探さない
- */
-export function searchRoots(topLevel: string, commonDir: string, home: string): string[] {
-  const main = path.dirname(path.resolve(commonDir));
-  const limit = path.dirname(main);
-  const roots = new Set([path.resolve(topLevel), main]);
-  for (let d = path.dirname(path.resolve(topLevel)); within(d, limit); d = path.dirname(d)) {
-    roots.add(d);
-    if (path.dirname(d) === d) break;
-  }
-  return [...roots].filter((d) => !within(path.resolve(home), d));
 }
 
 /** session の会話記録と、そのサブエージェントの会話記録 */

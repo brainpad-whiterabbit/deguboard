@@ -2,10 +2,32 @@
 
 import { readdir, stat } from "node:fs/promises";
 import os from "node:os";
+import path from "node:path";
 import type { AgentEnv, CollectedUsage, UsageQuery } from "../define.js";
 
 export function homeDir(env: AgentEnv): string {
   return env["HOME"] || os.homedir();
+}
+
+/** dir が base と同じか、その下にあるか */
+export function within(dir: string, base: string): boolean {
+  const rel = path.relative(base, dir);
+  return rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel));
+}
+
+/**
+ * 会話記録を探す作業ディレクトリ。作業ツリーと主の作業ツリー（common dir の親）と、主の作業ツリーの親までの上位。
+ * HOME とその上はほかのリポジトリの会話記録も入るので探さない
+ */
+export function searchRoots(topLevel: string, commonDir: string, home: string): string[] {
+  const main = path.dirname(path.resolve(commonDir));
+  const limit = path.dirname(main);
+  const roots = new Set([path.resolve(topLevel), main]);
+  for (let d = path.dirname(path.resolve(topLevel)); within(d, limit); d = path.dirname(d)) {
+    roots.add(d);
+    if (path.dirname(d) === d) break;
+  }
+  return [...roots].filter((d) => !within(path.resolve(home), d));
 }
 
 /** ディレクトリの中の名前。読めなければ空 */

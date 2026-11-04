@@ -3,7 +3,8 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Run } from "../model/run.js";
-import { claudeCodeAdapter, projectDirName, searchRoots } from "./adapters/claude-code.js";
+import { claudeCodeAdapter, projectDirName } from "./adapters/claude-code.js";
+import { searchRoots } from "./adapters/transcript.js";
 import { agentNames, collectRunUsage, type UsageQuery } from "./index.js";
 
 const cleanups: Array<() => Promise<void>> = [];

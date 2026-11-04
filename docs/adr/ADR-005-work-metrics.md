@@ -34,7 +34,7 @@
 
 ### 会話記録を読む許可はリポジトリの設定に置く
 
-- 会話記録（`~/.claude/projects/**`・`~/.codex/sessions/**` など）を読むかどうかは `config.yaml` の `metrics.read_transcripts`（true / false）で決める。チームの方針として Git で共有する
+- 会話記録（`~/.claude/projects/**`・`~/.codex/sessions/**`・`~/.copilot/session-state/**` など）を読むかどうかは `config.yaml` の `metrics.read_transcripts`（true / false）で決める。チームの方針として Git で共有する
 - 個人が拒むときは環境変数 `DEGUBOARD_NO_TRANSCRIPTS` で、そのマシンでは読まない（MT-2）
 - 許可がなければ、使用量は `null` のまま、日時・結果などの Run の記録だけを残す。読まなかったとき・取れなかったときは `run finish` が警告を返す
 

@@ -262,7 +262,7 @@ Web UI は `dg serve` が配信し、VS Code 拡張は同じ React アプリを 
 - AG-2 Claude Code 向けに、段階ごとに `dg guide <topic>` を読む薄い Skill（`dg<トピック>`。例 `/dgimport`）を `dg skill install` で配る。名前と説明は guide の frontmatter が正本。手を加えていない Skill は再実行で更新し、手を加えたものは強制の指定がなければ残す
 - AG-3 エージェントは要件の整理が終わったら、必要に応じてチケット化を提案し、承認を得て `ticket import` で起票する。分解・Epic への束ね・依存の整理・Iteration への割り当ても提案して承認を得る
 - AG-4 MCP サーバー（`dg mcp`。stdio）は、Bash のないクライアント（Claude Desktop など）から起票・閲覧・状態の更新をする入口として、Core のコマンド定義から生成する薄い層で提供する。CLI と同じ操作ができ（`init` と CLI だけの `guide`・`skill`・`serve`・`open` を除く）、ツールの結果は `--json` と同じ形（CL-1）で、主体は常に agent（`<ユーザ>/agent`）。対象のリポジトリは `-C` で指せる（クライアントがリポジトリの外で起動するため）
-- AG-5 Agent Adapter が使用量の取得と作業ディレクトリの差を吸収し、製品ごとの実装は Core の `agents/adapters/` に閉じる。今は `claude-code` と `codex`。起動方法と権限は扱わない（EX-1、[ADR-007](adr/ADR-007-architecture.md)）
+- AG-5 Agent Adapter が使用量の取得と作業ディレクトリの差を吸収し、製品ごとの実装は Core の `agents/adapters/` に閉じる。今は `claude-code`・`codex`・`copilot`。起動方法と権限は扱わない（EX-1、[ADR-007](adr/ADR-007-architecture.md)）
 - AG-6 ソフトウェア開発向けの Action（worktree・ブランチ・テスト・PR 作成・マージ）は Core の `actions` に置き、汎用部分は依存しない。`dg` のコマンドにせず Core 内のライブラリに留め、公開するのは名前の一覧（`ACTION_NAMES`）だけ（[ADR-007](adr/ADR-007-architecture.md)）
 - AG-7 任意のシェルの Action は `actions.shell: true` のときだけ使え、毎回確認を経る
 - AG-8 `ask` は対象（チケット・Iteration・Epic・Plan。複数可）・頼むこと・指示・形式から、エージェントに貼る依頼文を返す読み取りだけのコマンド。操作が 1 つに決まる頼むことが人に限られた操作（`actor.human_only`・WF-1 の `by`）なら人が打つ `dg` のコマンドを返す。候補・おすすめ・文面は `dg ask --help` とコード、文の形は [ADR-010](adr/ADR-010-ui-writes-and-agent-requests.md) が正本。`ask-menu` は画面の場所ごとの候補をまとめて返す
