@@ -7,6 +7,7 @@ import {
   iterationAdd,
   iterationClose,
   iterationCreate,
+  iterationNextOf,
   iterationShow,
   iterationStart,
   iterationUpdate,
@@ -64,6 +65,55 @@ describe("iteration.show の next（UI-5 の次の操作）", () => {
     expect(await next(ctx)).toBeNull();
     await runCommand(iterationUpdate, ctx, { iteration: "s1", end: "2024-06-16" });
     expect(await next(ctx)).toBeNull();
+  });
+
+  it("active：全件が終わっていて終了日も過ぎていれば overdue でなく ready になる（時計を固定）", async () => {
+    const ctx = await ready(() => new Date(2024, 5, 15, 12, 0, 0));
+    await runCommand(iterationCreate, ctx, { name: "S1", end: "2024-06-14" });
+    await runCommand(iterationStart, ctx, { iteration: "s1" });
+    await runCommand(ticketCreate, ctx, { title: "A" });
+    await runCommand(ticketCreate, ctx, { title: "B" });
+    await runCommand(iterationAdd, ctx, { iteration: "s1", tickets: ["t1", "t2"] });
+    await runCommand(ticketMove, ctx, { ticket: "t1", status: "abandoned" });
+    // 1 件残っていれば overdue
+    expect(await next(ctx)).toEqual({ kind: "overdue", unfinished: 1, ask: "carry" });
+    await runCommand(ticketMove, ctx, { ticket: "t2", status: "abandoned" });
+    expect(await next(ctx)).toEqual({ kind: "ready", ask: "release" });
+  });
+
+  it("closed：持ち越しが 0 件（チケットなし・全件完了）なら案内なし", async () => {
+    const ctx = await ready();
+    await runCommand(iterationCreate, ctx, { name: "S1" });
+    await runCommand(iterationCreate, ctx, { name: "S2" });
+    await runCommand(iterationStart, ctx, { iteration: "s1" });
+    await runCommand(iterationClose, ctx, { iteration: "s1" });
+    expect(await next(ctx, "s1")).toBeNull();
+    await runCommand(iterationStart, ctx, { iteration: "s2" });
+    await runCommand(ticketCreate, ctx, { title: "A" });
+    await runCommand(iterationAdd, ctx, { iteration: "s2", tickets: ["t1"] });
+    await runCommand(ticketMove, ctx, { ticket: "t1", status: "done" });
+    await runCommand(iterationClose, ctx, { iteration: "s2" });
+    expect(await next(ctx, "s2")).toBeNull();
+  });
+
+  it("closed：履歴が読めなければ持ち越し先は出さず、件数だけ返す（assign も勧めない）", async () => {
+    const ctx = await ready();
+    await runCommand(iterationCreate, ctx, { name: "S1" });
+    await runCommand(iterationStart, ctx, { iteration: "s1" });
+    await runCommand(ticketCreate, ctx, { title: "A" });
+    await runCommand(iterationAdd, ctx, { iteration: "s1", tickets: ["t1"] });
+    await runCommand(commit, ctx, {});
+    await runCommand(iterationClose, ctx, { iteration: "s1" });
+    await runCommand(commit, ctx, {});
+    const it = ctx.store.require("iteration", "s1").data;
+    // 存在しないディレクトリでは git log が失敗する
+    const broken = { ...ctx, repo: { dataDir: "/nonexistent/deguboard-history" } };
+    expect(await iterationNextOf(broken, it, [])).toEqual({
+      kind: "closed",
+      carried: 1,
+      moved: [],
+      ask: null,
+    });
   });
 
   it("closed：履歴から持ち越し先を返し、Iteration のないものがあれば assign。コミット前の分は moved に入らない", async () => {
