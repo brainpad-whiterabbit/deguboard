@@ -1,0 +1,57 @@
+id: p39
+project: default
+tickets: [t338, t339, t330, t331, t333, t340, t334, t335, t336, t337]
+after:
+  t340:
+    - t338
+  t334:
+    - t333
+  t335:
+    - t334
+    - t339
+  t336:
+    - t335
+  t337:
+    - t336
+pending_approval: true
+details:
+  t338:
+    scope: ask-composer の札の行を折り返し、幅 300px でも閉じるボタンを残す。配置テストを足す
+    approach: styles.css の .ask-suggestions を flex-wrap にし、test/layout に小窓の幅の検査を足す
+    tier: standard
+  t339:
+    scope: Skill の形式は呼び出しと指示だけ、文章の形式は頼む 1 文＋dg の呼び方 1 文＋指示に短くする。ADR-010・AG-8 を直す
+    approach: core の ask.ts の text 組み立てを変え、core・CLI・HTTP・Webview のテストを新しい形に直す
+    tier: heavy
+  t330:
+    scope: "@types/vscode を engines.vscode の最小版 1.123 に合わせる"
+    approach: "@types/vscode を ^1.123.0 に上げ、lockfile を更新して check を通す。型エラーがあれば直す"
+    tier: light
+  t331:
+    scope: priorityTitle の空の基準・configSet の enum の空値・copilot の session 隔離の 3 つの明示テストを足す
+    approach: 実装は変えずテストだけを足す。テストが落ちたら実装の食い違いとして報告する
+    tier: standard
+  t333:
+    scope: iteration.show に progress を足し、パネルの見出しを期間（残り・超過日数）・目標・進捗に分ける
+    approach: core の IterationDetail に epic と同じ progressOf を使い、web の iterations.tsx と iteration-parts.tsx を直す
+    tier: heavy
+  t340:
+    scope: メニューで頼むことを選んだら小窓を開くと同時に依頼文をコピーし、札の選び直しでもコピーする
+    approach: ask-menu の onPick と ask-composer の copy をつなぎ、失敗時は理由を出す。web のテストを足す
+    tier: standard
+  t334:
+    scope: パネルの Iteration 詳細のチケットを未完了・完了・中止の段に分け、左パネルと同じ 1 行で出す
+    approach: epics.tsx の段の定義と並べ方を共用部品に出し、Iteration 詳細でも使う
+    tier: standard
+  t335:
+    scope: Iteration の状態に応じた次の操作の案内と依頼文のコピーを詳細に出す。UI-5 を書き足す
+    approach: ask-menu の頼みごとを使って依頼文を作り、書き込みはしない
+    tier: standard
+  t336:
+    scope: 中のチケットを含む Plan を ID・状態・done / 件数付きで詳細に出す
+    approach: store の plans から抽出する関数を作ってテストし、iterations.tsx に節を足す
+    tier: standard
+  t337:
+    scope: パネルの Iteration 詳細から左パネルのカンバンをその Iteration で絞って開く
+    approach: host にカンバンを開くメッセージを足し、vscode 拡張で左パネルを開いて絞り込みを渡す。ブラウザは今のまま
+    tier: heavy
