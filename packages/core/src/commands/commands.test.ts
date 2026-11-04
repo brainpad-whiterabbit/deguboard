@@ -9,6 +9,7 @@ import {
 } from "../../test/helpers/git-fixture.js";
 import { UsageError } from "../errors.js";
 import { pickUser } from "../model/actor.js";
+import { defaultConfig } from "../model/config.js";
 import { resetGhCache } from "../git/facts.js";
 import { osUserName } from "../git/repo.js";
 import { openContext, type ContextOptions } from "./context.js";
@@ -1615,6 +1616,31 @@ describe("用意", () => {
     const shown = (await runCommand(configShow, ctx, {})).data as ConfigShowView["config"];
     expect(shown.git).toMatchObject({ base_branch: "2026", remote: "true", depth: 3 });
     expect(shown.auto.merge).toBe(false);
+  });
+
+  it("config.set は既定が空でない文字列の項目を空にすると既定に戻し、既定が空の項目は空のまま、配列の項目は空の配列にする", async () => {
+    const f = await fixture();
+    const ctx = await initialized(f.cloneA);
+    const defaults = defaultConfig();
+    // priority.* を書き換えてから空にすると、Core の既定の文に戻る
+    await runCommand(configSet, ctx, { key: "priority.high", value: "独自の基準" });
+    const cleared = await runCommand(configSet, ctx, { key: "priority.high", value: "" });
+    expect(cleared.data.priority.high).toBe(defaults.priority.high);
+    // 読み直しても既定のまま。キーを消すので config.yaml には書かれない
+    const shown = (await runCommand(configShow, ctx, {})).data as ConfigShowView["config"];
+    expect(shown.priority.high).toBe(defaults.priority.high);
+    // 最上位の文字列の項目（既定 "default"）も空で既定に戻る
+    await runCommand(configSet, ctx, { key: "default_project", value: "other" });
+    const proj = await runCommand(configSet, ctx, { key: "default_project", value: "" });
+    expect(proj.data.default_project).toBe("default");
+    // 既定が空の項目（models.*）は空のまま
+    await runCommand(configSet, ctx, { key: "models.light", value: "sonnet" });
+    const light = await runCommand(configSet, ctx, { key: "models.light", value: "" });
+    expect(light.data.models.light).toBe("");
+    // 配列の項目は空にすると空の配列（既定の空に一致）
+    await runCommand(configSet, ctx, { key: "actor.human_only", value: "epic.close" });
+    const human = await runCommand(configSet, ctx, { key: "actor.human_only", value: "" });
+    expect(human.data.actor.human_only).toEqual([]);
   });
 
   it("validate は読めない Run のファイルを指摘し、ほかの読み込みは止めない", async () => {
