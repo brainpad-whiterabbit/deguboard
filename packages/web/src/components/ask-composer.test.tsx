@@ -169,6 +169,7 @@ describe("エージェントに頼む入力欄（UI-15）", () => {
     expect(box.getByRole("status").textContent).toBe("");
     // 選び直しでもコピーする（t340）
     await waitFor(() => expect(view.copied).toHaveLength(2));
+    expect(view.copied[1]).toBe("/dgimport t5");
     const note = box.getByRole("textbox", { name: "指示" });
     fireEvent.change(note, { target: { value: "題を短く" } });
     fireEvent.keyDown(note, { key: "Enter", metaKey: true });
@@ -267,6 +268,11 @@ describe("エージェントに頼む入力欄（UI-15）", () => {
     // 続けて押したコピーは最後の 1 回だけ書き込む（t340）
     expect(picks.length).toBeGreaterThan(1);
     await waitFor(() => expect(view.copied).toHaveLength(1));
+    // 最後の指示（x）と最後に選んだ頼むことの文が入っている
+    expect(view.copied[0]).toMatch(/^s1 を進める Plan を立て/);
+    expect(view.copied[0]?.endsWith("\nx")).toBe(true);
+    await new Promise((r) => setTimeout(r, 100));
+    expect(view.copied).toHaveLength(1);
     expect(client.calls.some((c) => c.name === "ask")).toBe(true);
     expect(client.calls.filter((c) => !READS.has(c.name))).toEqual([]);
   });

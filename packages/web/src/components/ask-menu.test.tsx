@@ -157,6 +157,7 @@ describe("左パネルのカンバンから頼む（UI-15）", () => {
     await waitFor(() => expect(items()[0]).toBe("進めるおすすめ"));
     fireEvent.click(within(menu()).getByRole("menuitem", { name: "分ける" }));
     await waitFor(() => expect(copied).toHaveLength(1));
+    expect(copied[0]).toBe("/dgimport t3\nt3 を分けて");
     await waitFor(() =>
       expect(within(composer()).getByRole("status").textContent).toContain("コピーしました"),
     );
@@ -168,7 +169,7 @@ describe("左パネルのカンバンから頼む（UI-15）", () => {
     await waitFor(() => expect(items()[0]).toBe("進めるおすすめ"));
     fireEvent.click(within(menu()).getByRole("menuitem", { name: "点検する" }));
     await waitFor(() => expect(copied).toHaveLength(2));
-    expect(copied[1]).not.toBe(copied[0]);
+    expect(copied[1]).toBe("/dgcheck t3");
     await waitFor(() =>
       expect(within(composer()).getByRole("status").textContent).toContain("コピーしました"),
     );

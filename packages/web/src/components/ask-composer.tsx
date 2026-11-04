@@ -114,12 +114,17 @@ export function AskComposer({
   const copiedOnOpen = useRef(false);
   const copySeq = useRef(0);
   useEffect(() => {
-    if (!copyOnOpen || !initialAction || copiedOnOpen.current) return;
+    // 候補が引けてから、選んだ頼むこと（候補にあれば）でコピーする。候補になければおすすめ
+    if (!copyOnOpen || !initialAction || !base || copiedOnOpen.current) return;
     copiedOnOpen.current = true;
-    void copy(initialAction);
+    void copy(
+      initialAction && base.candidates.some((c) => c.action === initialAction)
+        ? initialAction
+        : null,
+    );
     // 開いたときの 1 回だけ。copy は最新の状態を使うが、依存に入れると引き直すたびに再コピーする
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [base]);
 
   /** 今の指示で引き直してからコピーする（待っている間に打った分も入れる）。pick は選んだ直後の頼むこと（まだ state に入っていない） */
   async function copy(pick: AskAction | null = action) {
@@ -148,6 +153,7 @@ export function AskComposer({
   }
 
   function removeTarget(id: string) {
+    copySeq.current++;
     setTargets(targets.filter((t) => t !== id));
     // 頼むことの候補は対象で変わるので、おすすめに戻す
     setPicked(null);
@@ -227,6 +233,7 @@ export function AskComposer({
           }
           value={note}
           onChange={(e) => {
+            copySeq.current++;
             setNote(e.target.value);
             setResult(null);
           }}
@@ -250,7 +257,10 @@ export function AskComposer({
             type="button"
             className="ask-ghost"
             title="Skill の呼び出しか、Skill を使わない文章だけか"
-            onClick={() => setFormat(format === "skill" ? "text" : "skill")}
+            onClick={() => {
+              copySeq.current++;
+              setFormat(format === "skill" ? "text" : "skill");
+            }}
           >
             {format === "skill" ? "形式：Skill" : "形式：文章"}
           </button>
