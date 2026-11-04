@@ -1,8 +1,7 @@
 // Iteration 詳細の「次の操作」の案内（UI-5）。何を案内するか・どの頼むことで頼むかは core（iteration.show の next）が決め、
 // ここは種類ごとの文を出し、頼めるものは core の ask コマンドで作った依頼文をコピーするボタンを置くだけ。データには書き込まない（UI-7・UI-15）
 
-import { useEffect, useState } from "react";
-import { COPY_NOTICE_MS } from "./copyable-code.js";
+import { CopyResult, useCopyNotice } from "./copyable-code.js";
 import { DetailLink } from "./parts.js";
 import { useHost } from "../host.js";
 import { useStore } from "../store.js";
@@ -70,12 +69,7 @@ function NextText({ next }: { next: Next }) {
 function AskCopy({ id, action }: { id: string; action: AskAction | null }) {
   const host = useHost();
   const { client } = useStore();
-  const [result, setResult] = useState<"copied" | "failed" | null>(null);
-  useEffect(() => {
-    if (!result) return;
-    const timer = setTimeout(() => setResult(null), COPY_NOTICE_MS);
-    return () => clearTimeout(timer);
-  }, [result]);
+  const { result, track } = useCopyNotice();
   if (!action) return null;
   return (
     <>
@@ -83,20 +77,16 @@ function AskCopy({ id, action }: { id: string; action: AskAction | null }) {
         type="button"
         title="エージェントに頼む依頼文をコピーする（書き込みはしない）"
         onClick={() =>
-          void client
-            .run<AskView>("ask", { targets: [id], action, format: "skill" })
-            .then((r) => host.copy(r.data.text))
-            .then(
-              () => setResult("copied"),
-              () => setResult("failed"),
-            )
+          track(
+            client
+              .run<AskView>("ask", { targets: [id], action, format: "skill" })
+              .then((r) => host.copy(r.data.text)),
+          )
         }
       >
         依頼文をコピー
       </button>
-      <span className="copy-result muted" role="status" aria-live="polite">
-        {result === "copied" ? "コピーした" : result === "failed" ? "コピーできない" : ""}
-      </span>
+      <CopyResult result={result} />
     </>
   );
 }

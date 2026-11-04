@@ -25,20 +25,20 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
  * 期間に添える残り・超過の日数（active の Iteration だけ）。today は YYYY-MM-DD で、既定は手元の今日。
- * 終了日の前は「残り n 日」、終了日の当日は「今日まで」、過ぎたら「n 日超過」。終了日がない・active でなければ undefined
+ * 終了日の前は「残り n 日」、終了日の当日は「今日まで」、過ぎたら「n 日超過」（overdue が true）。終了日がない・active でなければ undefined
  */
 export function periodNote(
   it: Pick<IterationDetail, "status" | "end">,
   today: string = localDate(),
-): string | undefined {
+): { text: string; overdue: boolean } | undefined {
   if (it.status !== "active" || !it.end) return undefined;
   const end = Date.parse(it.end.slice(0, 10));
   const now = Date.parse(today);
   if (Number.isNaN(end) || Number.isNaN(now)) return undefined;
   const days = Math.round((end - now) / DAY_MS);
-  if (days > 0) return `残り ${days} 日`;
-  if (days === 0) return "今日まで";
-  return `${-days} 日超過`;
+  if (days > 0) return { text: `残り ${days} 日`, overdue: false };
+  if (days === 0) return { text: "今日まで", overdue: false };
+  return { text: `${-days} 日超過`, overdue: true };
 }
 
 /**
@@ -56,8 +56,8 @@ export function IterationSummary({ it }: { it: IterationDetail }) {
           <dd>
             {period}
             {note ? (
-              <span className={note.endsWith("超過") ? "period-note overdue" : "period-note"}>
-                {note}
+              <span className={note.overdue ? "period-note overdue" : "period-note"}>
+                {note.text}
               </span>
             ) : null}
           </dd>

@@ -8,14 +8,34 @@ import { useHost } from "../host.js";
 /** 結果の文言を出しておく時間（ミリ秒） */
 export const COPY_NOTICE_MS = 1500;
 
-export function CopyableCode({ text, label }: { text: string; label: string }) {
-  const host = useHost();
+/** コピーの結果（コピーした・コピーできない）を COPY_NOTICE_MS だけ持つ。track に渡した Promise の成否で結果を決める */
+export function useCopyNotice() {
   const [result, setResult] = useState<"copied" | "failed" | null>(null);
   useEffect(() => {
     if (!result) return;
     const timer = setTimeout(() => setResult(null), COPY_NOTICE_MS);
     return () => clearTimeout(timer);
   }, [result]);
+  const track = (copying: Promise<unknown>) =>
+    void copying.then(
+      () => setResult("copied"),
+      () => setResult("failed"),
+    );
+  return { result, track };
+}
+
+/** コピーの結果を読み上げ付きで出す span（結果がないときは空） */
+export function CopyResult({ result }: { result: "copied" | "failed" | null }) {
+  return (
+    <span className="copy-result muted" role="status" aria-live="polite">
+      {result === "copied" ? "コピーした" : result === "failed" ? "コピーできない" : ""}
+    </span>
+  );
+}
+
+export function CopyableCode({ text, label }: { text: string; label: string }) {
+  const host = useHost();
+  const { result, track } = useCopyNotice();
   return (
     <span className="copyable">
       <span className="copyable-line">
@@ -25,12 +45,7 @@ export function CopyableCode({ text, label }: { text: string; label: string }) {
           className="copy-button"
           aria-label={label}
           title={label}
-          onClick={() =>
-            void host.copy(text).then(
-              () => setResult("copied"),
-              () => setResult("failed"),
-            )
-          }
+          onClick={() => track(host.copy(text))}
         >
           <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">
             <rect x="5.5" y="5.5" width="8" height="8" rx="1" />
@@ -38,9 +53,7 @@ export function CopyableCode({ text, label }: { text: string; label: string }) {
           </svg>
         </button>
       </span>
-      <span className="copy-result muted" role="status" aria-live="polite">
-        {result === "copied" ? "コピーした" : result === "failed" ? "コピーできない" : ""}
-      </span>
+      <CopyResult result={result} />
     </span>
   );
 }
