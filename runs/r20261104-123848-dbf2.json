@@ -1,0 +1,22 @@
+{
+  "id": "r20261104-123848-dbf2",
+  "ticket": "t352",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "sonnet",
+  "started_at": "2026-11-04T12:38:48Z",
+  "finished_at": "2026-11-04T12:40:23Z",
+  "result": "success",
+  "error": null,
+  "retries": 2,
+  "retry_reasons": [
+    "gateAsk の release が holding を早く外し、解決後の ask が溜まらずループが 1 周で抜けていた",
+    "復元のテストの意味のない waitFor を expect にした"
+  ],
+  "usage": {
+    "input": 4,
+    "output": 1093,
+    "cache_read": 113225,
+    "cache_write": 1734
+  }
+}
