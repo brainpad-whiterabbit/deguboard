@@ -264,8 +264,9 @@ describe("エージェントに頼む入力欄（UI-15）", () => {
     fireEvent.click(box.getByRole("button", { name: "形式：Skill" }));
     fireEvent.change(box.getByRole("textbox", { name: "指示" }), { target: { value: "x" } });
     fireEvent.click(box.getByRole("button", { name: "コピー" }));
-    // 札の選び直しごとのコピー（t340）と、最後のボタンのコピー
-    await waitFor(() => expect(view.copied.length).toBeGreaterThanOrEqual(picks.length + 1));
+    // 続けて押したコピーは最後の 1 回だけ書き込む（t340）
+    expect(picks.length).toBeGreaterThan(1);
+    await waitFor(() => expect(view.copied).toHaveLength(1));
     expect(client.calls.some((c) => c.name === "ask")).toBe(true);
     expect(client.calls.filter((c) => !READS.has(c.name))).toEqual([]);
   });

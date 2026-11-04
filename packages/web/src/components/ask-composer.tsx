@@ -112,6 +112,7 @@ export function AskComposer({
 
   // 選んで開いたときは、開くと同時にコピーする（指示を足さないことが多い）。開いた 1 回だけ
   const copiedOnOpen = useRef(false);
+  const copySeq = useRef(0);
   useEffect(() => {
     if (!copyOnOpen || !initialAction || copiedOnOpen.current) return;
     copiedOnOpen.current = true;
@@ -122,6 +123,8 @@ export function AskComposer({
 
   /** 今の指示で引き直してからコピーする（待っている間に打った分も入れる）。pick は選んだ直後の頼むこと（まだ state に入っていない） */
   async function copy(pick: AskAction | null = action) {
+    // 並んで走ったときは最後に押した 1 回だけ書き込む（古い方が後でクリップボードを上書きしない）
+    const mine = ++copySeq.current;
     setResult(null);
     try {
       const r = await client.run<AskView>("ask", {
@@ -131,11 +134,15 @@ export function AskComposer({
         note,
         format,
       } satisfies AskInput);
+      if (mine !== copySeq.current) return;
       setView(r.data);
       setError(null);
+      // 注意：ブラウザ（Safari など）は await の後のクリップボード書き込みを、操作の直後でないとして拒むことがある。拒まれたら下の理由を出す
       await host.copy(r.data.text);
+      if (mine !== copySeq.current) return;
       setResult({ ok: true, text: COPIED });
     } catch (e) {
+      if (mine !== copySeq.current) return;
       setResult({ ok: false, text: `コピーできない: ${messageOf(e)}` });
     }
   }

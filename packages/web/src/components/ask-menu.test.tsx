@@ -29,9 +29,16 @@ function mount(
   {
     surface = "sidebar",
     state = createUiState(memoryBackend({ [ASK_HINT_KEY]: true })),
-  }: { surface?: Host["surface"]; state?: UiState } = {},
+    copied = [],
+  }: { surface?: Host["surface"]; state?: UiState; copied?: string[] } = {},
 ) {
-  const host: Host = { surface, open: () => {}, show: () => {}, copy: async () => {}, state };
+  const host: Host = {
+    surface,
+    open: () => {},
+    show: () => {},
+    copy: async (text) => void copied.push(text),
+    state,
+  };
   return render(
     <StoreProvider client={client}>
       <HostProvider host={host}>
@@ -138,6 +145,32 @@ describe("左パネルのカンバンから頼む（UI-15）", () => {
     // 入力欄の対象になった行は選んだ印のまま
     expect(screen.getByText("画面").closest("[data-ask-spot]")!.getAttribute("data-ask-spot")).toBe(
       "active",
+    );
+  });
+
+  it("吹き出しと Shift+F10 の一覧で頼むことを選ぶと、開くと同時にその依頼文をコピーして「コピーしました」を出す（t340）", async () => {
+    const copied: string[] = [];
+    mount(boardClient(), { copied });
+    await screen.findByText("画面");
+    // 吹き出し
+    fireEvent.click(bubble("行 t3"));
+    await waitFor(() => expect(items()[0]).toBe("進めるおすすめ"));
+    fireEvent.click(within(menu()).getByRole("menuitem", { name: "分ける" }));
+    await waitFor(() => expect(copied).toHaveLength(1));
+    await waitFor(() =>
+      expect(within(composer()).getByRole("status").textContent).toContain("コピーしました"),
+    );
+    fireEvent.click(within(composer()).getByRole("button", { name: "閉じる" }));
+    // Shift+F10
+    const link = screen.getByText("画面").closest("a")!;
+    link.focus();
+    fireEvent.keyDown(link, { key: "F10", shiftKey: true });
+    await waitFor(() => expect(items()[0]).toBe("進めるおすすめ"));
+    fireEvent.click(within(menu()).getByRole("menuitem", { name: "点検する" }));
+    await waitFor(() => expect(copied).toHaveLength(2));
+    expect(copied[1]).not.toBe(copied[0]);
+    await waitFor(() =>
+      expect(within(composer()).getByRole("status").textContent).toContain("コピーしました"),
     );
   });
 
