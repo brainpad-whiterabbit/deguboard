@@ -3,7 +3,7 @@
 import { z } from "zod";
 import { UsageError } from "../errors.js";
 import { compareIds, parseId, type IdKind, type IdOf, type TicketId } from "../model/id.js";
-import { toIsoDateTime } from "../model/common.js";
+import { isTerminal, toIsoDateTime, type Status } from "../model/common.js";
 import type { Plan } from "../model/plan.js";
 import type { Ticket } from "../model/ticket.js";
 import type { Doc } from "../storage/documents.js";
@@ -21,6 +21,23 @@ export function localDate(now: Date): string {
 /** 終了日（YYYY-MM-DD か日時）が today より前か。終了日の当日は過ぎていない。終了日がなければ false */
 export function isOverdue(end: string | undefined, today: string): boolean {
   return end !== undefined && end.slice(0, 10) < today;
+}
+
+/**
+ * Iteration の中のチケットの Status から、完了（1 件以上で全件が終わり）と期限切れ（active で終了日を過ぎて未完了あり）を求める。
+ * iteration.show の next と ask の候補が同じ判定を使う正本
+ */
+export function iterationReadiness(
+  it: { status: string; end?: string | undefined },
+  statuses: readonly (Status | undefined)[],
+  today: string,
+): { complete: boolean; overdue: boolean; unfinished: number } {
+  const unfinished = statuses.filter((st) => st === undefined || !isTerminal(st)).length;
+  return {
+    complete: statuses.length > 0 && unfinished === 0,
+    overdue: it.status === "active" && isOverdue(it.end, today) && unfinished > 0,
+    unfinished,
+  };
 }
 
 /**
