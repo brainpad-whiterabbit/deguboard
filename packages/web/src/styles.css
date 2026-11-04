@@ -731,6 +731,17 @@ button.link:hover {
 .iteration-summary .period-note.overdue {
   color: var(--dg-error);
 }
+/* Iteration 詳細の次の操作の案内（iteration-next.tsx） */
+.iteration-next {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.75rem;
+  margin: 0 0 0.75rem;
+  padding: 0.4rem 0.6rem;
+  border-left: 3px solid var(--vscode-focusBorder);
+  background: var(--vscode-textBlockQuote-background);
+}
 .ticket-run-detail {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);

@@ -12,6 +12,17 @@ import type { CommandContext } from "./define.js";
 
 export const nowIso = (ctx: CommandContext): string => toIsoDateTime(ctx.now());
 
+/** 手元の暦日（YYYY-MM-DD）。Iteration の期限は利用者の暦で数える（web の periodNote と同じ） */
+export function localDate(now: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+}
+
+/** 終了日（YYYY-MM-DD か日時）が today より前か。終了日の当日は過ぎていない。終了日がなければ false */
+export function isOverdue(end: string | undefined, today: string): boolean {
+  return end !== undefined && end.slice(0, 10) < today;
+}
+
 /**
  * 今あるかは確かめず、ID の形だけを確かめて整える（消えた・閉じたものの記録も引けるように）。
  * 未指定なら undefined、形が違えば UsageError

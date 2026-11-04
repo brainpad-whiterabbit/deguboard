@@ -60,6 +60,7 @@ export const ASK_MENU_TITLES: Readonly<Record<AskAction, string>> = {
   done: "確かめて片付ける",
   check: "点検する",
   release: "リリースする",
+  carry: "持ち越しを相談する",
   close: "閉じる",
   reopen: "再開する（閉じたもの）",
   abandon: "やめる",
