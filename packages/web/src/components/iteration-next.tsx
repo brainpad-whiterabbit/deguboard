@@ -48,6 +48,8 @@ function NextText({ next }: { next: Next }) {
                     <DetailLink route={{ page: "iterations", id: t.iteration }}>
                       {t.iteration}
                     </DetailLink>
+                  ) : t.status === "done" || t.status === "abandoned" ? (
+                    `${t.status === "done" ? "完了" : "中止"}済み`
                   ) : (
                     "Iteration なし"
                   )}

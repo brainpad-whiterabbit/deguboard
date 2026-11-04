@@ -84,10 +84,31 @@ describe("iteration.show の next（UI-5 の次の操作）", () => {
       kind: "closed",
       carried: 2,
       moved: [
-        { id: "t1", iteration: "s2" },
-        { id: "t2", iteration: null },
+        { id: "t1", iteration: "s2", status: "todo" },
+        { id: "t2", iteration: null, status: "todo" },
       ],
       ask: "assign",
+    });
+  });
+});
+
+describe("closed の持ち越しの割り当て", () => {
+  it("持ち越したあとに done になって Iteration のないものだけなら、ask は null", async () => {
+    const ctx = await ready();
+    await runCommand(iterationCreate, ctx, { name: "S1" });
+    await runCommand(iterationStart, ctx, { iteration: "s1" });
+    await runCommand(ticketCreate, ctx, { title: "A" });
+    await runCommand(iterationAdd, ctx, { iteration: "s1", tickets: ["t1"] });
+    await runCommand(commit, ctx, {});
+    await runCommand(iterationClose, ctx, { iteration: "s1" });
+    await runCommand(commit, ctx, {});
+    await runCommand(ticketMove, ctx, { ticket: "t1", status: "abandoned" });
+    await runCommand(commit, ctx, {});
+    expect(await next(ctx)).toEqual({
+      kind: "closed",
+      carried: 1,
+      moved: [{ id: "t1", iteration: null, status: "abandoned" }],
+      ask: null,
     });
   });
 });

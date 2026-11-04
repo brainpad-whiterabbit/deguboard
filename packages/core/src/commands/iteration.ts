@@ -4,7 +4,7 @@ import { z } from "zod";
 import { OperationError } from "../errors.js";
 import { readHistory, type HistoryEvent } from "../git/history.js";
 import { withWrite } from "../git/write.js";
-import { isTerminal, slugSchema } from "../model/common.js";
+import { isTerminal, slugSchema, type Status } from "../model/common.js";
 import type { TicketId } from "../model/id.js";
 import {
   ITERATION_STATUSES,
@@ -102,7 +102,10 @@ export const iterationList = defineCommand({
 /** 持ち越したチケットと、その今の Iteration（なければ null） */
 export interface CarriedTicket {
   id: string;
+  /** 今の Iteration。なければ null */
   iteration: string | null;
+  /** 今の Status（持ち越したあとに done・abandoned になったものを画面で区別する） */
+  status: Status;
 }
 
 /**
@@ -124,7 +127,7 @@ export type IterationNext =
 
 /**
  * 履歴から、その Iteration から外れた（持ち越した）チケットの ID を番号の順に返す。今もそこに入っているものは除く。
- * web の履歴の画面（history.tsx の carriedOverFrom）も同じ求め方で、一致をテストで確かめる
+ * web の履歴の画面（history.tsx の carriedOverFrom）も同じ求め方（web は core の実行時のコードを取り込めないので写している）
  */
 export function carriedOverFrom(
   iteration: string,
@@ -153,6 +156,7 @@ export async function iterationNextOf(
   if (it.status === "planned") return { kind: "planned", ask: null };
   if (it.status === "closed") {
     if (!it.carried_over) return null;
+    // 費用：持ち越しのある closed の Iteration は、show のたびに履歴（git log -p）全体を読む。名前だけ要る呼び出しは iteration.list を使う
     let ids: string[] = [];
     try {
       ids = carriedOverFrom(
@@ -165,13 +169,14 @@ export async function iterationNextOf(
     }
     const moved = ids.flatMap((id) => {
       const t = ctx.store.tickets.get(id as TicketId);
-      return t ? [{ id, iteration: t.data.iteration ?? null }] : [];
+      return t ? [{ id, iteration: t.data.iteration ?? null, status: t.data.status }] : [];
     });
     return {
       kind: "closed",
       carried: it.carried_over,
       moved,
-      ask: moved.some((m) => m.iteration === null) ? "assign" : null,
+      // 割り当てを勧めるのは、今 Iteration がなく、まだ終わっていないものがあるときだけ（持ち越し後に終わったものは勧めない）
+      ask: moved.some((m) => m.iteration === null && !isTerminal(m.status)) ? "assign" : null,
     };
   }
   const unfinished = items.filter((t) => !isTerminal(t.status)).length;

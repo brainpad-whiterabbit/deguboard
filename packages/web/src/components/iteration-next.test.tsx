@@ -89,16 +89,18 @@ describe("Iteration 詳細の案内の表示（core の next を出すだけ）"
     const { run } = mount(
       withNext({
         kind: "closed",
-        carried: 2,
+        carried: 3,
         moved: [
-          { id: "t1", iteration: "s2" },
-          { id: "t2", iteration: null },
+          { id: "t1", iteration: "s2", status: "todo" },
+          { id: "t2", iteration: null, status: "todo" },
+          { id: "t3", iteration: null, status: "done" },
         ],
         ask: "assign",
       }),
     );
     expect(screen.getByRole("link", { name: "s2" }).getAttribute("href")).toContain("s2");
     expect(screen.getByText(/t2 → Iteration なし/)).toBeTruthy();
+    expect(screen.getByText(/t3 → 完了済み/)).toBeTruthy();
     expect(screen.queryByText(/コミットすると/)).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "依頼文をコピー" }));
     await waitFor(() =>

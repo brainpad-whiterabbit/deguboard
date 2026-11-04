@@ -370,10 +370,12 @@ async function retitle(
         ? (await client.run<{ title: string }>("ticket.show", { ticket: subject.id })).data.title
         : subject.kind === "epic"
           ? (await client.run<{ title: string }>("epic.show", { epic: subject.id })).data.title
-          : (await client.run<{ name: string }>("iteration.show", { iteration: subject.id })).data
-              .name;
+          : // iteration.show は持ち越しのある閉じた Iteration で履歴を全件読むので、名前だけなら list で読む
+            (await client.run<{ id: string; name: string }[]>("iteration.list", {})).data.find(
+              (i) => i.id === subject.id,
+            )?.name;
     // 読んでいる間に別の画面へ移っていたら上書きしない
-    if (panel.title === subject.id) panel.title = `${subject.id} ${name}`;
+    if (panel.title === subject.id) panel.title = name ? `${subject.id} ${name}` : subject.id;
   } catch {
     // 題が番号だけになるだけで、画面は Webview が自分で読む
   }
