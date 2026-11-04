@@ -6,6 +6,7 @@ import { HostProvider, type Host } from "../host.js";
 import { StoreProvider } from "../store.js";
 import { iteration, mockClient, ticket } from "../test-helpers.js";
 import { createUiState, memoryBackend } from "../ui-state.js";
+import { carriedOverFrom as coreCarriedOverFrom } from "@deguboard/core";
 import { carriedOverFrom, epicCountsOf, groupByEpic, historyAskTarget } from "./history.js";
 
 afterEach(() => {
@@ -84,6 +85,36 @@ describe("履歴のまとめ方", () => {
     ] as unknown as Parameters<typeof carriedOverFrom>[1];
     const tickets = [ticket({ id: "t5", iteration: "s1" })];
     expect(carriedOverFrom("s1", events, tickets)).toEqual(["t2", "t3"]);
+  });
+
+  it("core の carriedOverFrom（iteration.show の next）と同じ入力で同じ結果を返す（写しがずれたら落ちる）", () => {
+    const ev = (id: string, from: string | null, to: string | null) =>
+      ({ kind: "ticket", id, at: "x", changes: [{ field: "iteration", from, to }] }) as never;
+    const events = [
+      ev("t10", "s1", null),
+      ev("t2", "s1", "s2"),
+      ev("t3", "s1", null),
+      ev("t4", null, "s1"),
+      ev("t6", "s1", "s1"),
+      ev("t7", "s2", "s3"),
+      ev("t2", "s2", "s1"),
+      {
+        kind: "ticket",
+        id: "t8",
+        at: "x",
+        changes: [{ field: "status", from: "todo", to: "done" }],
+      } as never,
+    ];
+    for (const [it, tickets] of [
+      ["s1", [ticket({ id: "t3", iteration: "s1" })]],
+      ["s1", []],
+      ["s2", [ticket({ id: "t7", iteration: "s2" })]],
+      ["s9", []],
+    ] as const) {
+      expect(carriedOverFrom(it, events, tickets)).toEqual(
+        coreCarriedOverFrom(it, events, tickets),
+      );
+    }
   });
 });
 
