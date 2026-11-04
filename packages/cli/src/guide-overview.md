@@ -10,7 +10,7 @@ deguboard は Git で管理するチケットのツール。あなた（AI エ�
 - データのファイル（`.git/deguboard/` の下）を直接編集しない。読むのも `dg … show --json`
 - チケットの ID は `t12` でも `12` でもよい。Epic は `e3`、Iteration は `s3`。リポジトリの外から呼ぶときは `-C <dir>`
 - 書き込みは `commit.mode`（今は `{{commit.mode}}`）に従ってコミットされる。起票・claim・Iteration の start と reopen は即座にコミットして push される。`batch` ではそれ以外の変更が作業ツリーに残るので、区切りで `dg --json --actor agent sync` を回す。`manual` では `sync` もコミットしないので、人に `dg commit` を頼む
-- 作業の実績は Run で残す。チケットの作業を始めるときに自分で `dg --json --actor agent run start <id> <step> --agent <エージェント>` を呼んで Run の ID を控え、終えたら `run finish <Run の ID> --result <結果>` で閉じる。使用量（トークン数）は finish が会話記録から取り込むので、数を自分で書かない。手順は `dg guide work` の「Run を記録する」
+- 作業の実績は Run で残す。チケットの作業を始めるときに自分で `dg --json --actor agent run start <id> <step> --agent <エージェント>` を呼んで Run の ID を控え、終えたら `run finish <Run の ID> --result <結果>` で閉じる。使用量（トークン数）は finish が会話記録から取り込むので、数を自分で書かない。手順は `dg guide run` の「Run を記録する」
 - 起票の結果に `provisional: true` があれば push できていない仮番号で、ID が変わりうる。人に伝え、`sync` を回す
 
 ## 同期が止まったとき
@@ -39,6 +39,7 @@ deguboard は Git で管理するチケットのツール。あなた（AI エ�
 | check    | dgcheck   | `sync`・`validate`・`lint` の指摘と直す案を表で示し、承認を得て直す                                                               | 計画を立てる前・「点検して」と言われたとき                     |
 | plan     | dgplan    | どの順で進めるかを決め、Plan に記録して人の承認を得る（依存、`--ready`、`plan create`・`plan approve`）                           | 複数のチケットを進める前                                       |
 | work     | dgwork    | 1 枚のチケットを進める（Plan の順と範囲、claim、worktree、受け入れ条件の確認、PR、照合。PR の要らない作業も）                     | チケットに着手するとき                                         |
+| run      | なし      | Run の記録と Plan の段階ごとのモデル、閉じ損ねた Run の始末（work・parallel・review から読む補助）                                | Run を記録・モデルを選ぶ・閉じ損ねた Run を始末するとき        |
 | parallel | なし      | Plan の着手できるチケットをチケットごとのサブエージェントで同時に進める（上限、親とサブエージェントの役割、1 件でほかを止めない） | 着手できるチケットが複数あり、サブエージェントを起動できるとき |
 | review   | なし      | PR を出す前とマージの前の品質ゲート（検査・受け入れ条件・見直し・衝突なし）と、別のサブエージェントの見直し・上限付きの修正ループ | PR を draft で出したあと・自動でマージする前                   |
 | audit    | dgaudit   | リリースの前にリポジトリ全体を観点ごとに見直し、指摘を承認を得て起票する（サブエージェント。ファイルは直さない）                  | Iteration か Epic のチケットがすべて done になったとき         |

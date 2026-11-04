@@ -26,32 +26,12 @@ argument-hint: "<Plan の ID|チケットの ID>"
    git worktree add --no-track -b <ブランチ名> <worktree の場所> {{git.remote}}/{{git.base_branch}}
    ```
 
-4. 実装の Run を始めて実装する（下の「Run を記録する」）：`dg --json --actor agent run start <id> <step> --agent <エージェント>`（software-development・general では `implement`）。返った Run の ID を控える。Plan の段階（`details.<id>.tier`）のモデルが親と違えば、この手順の run start から手順 6 の Run を閉じるまでをそのモデルのサブエージェントに渡す（下の「段階のモデル」）。実装は本文の `## 受け入れ条件` を満たすことを目標にし、リポジトリの検査（lint・テスト）を通す
+4. 実装の Run を始めて実装する（`dg guide run` の「Run を記録する」）：`dg --json --actor agent run start <id> <step> --agent <エージェント>`（software-development・general では `implement`）。返った Run の ID を控える。Plan の段階（`details.<id>.tier`）のモデルが親と違えば、この手順の run start から手順 6 の Run を閉じるまでをそのモデルのサブエージェントに渡す（`dg guide run` の「段階のモデル」）。実装は本文の `## 受け入れ条件` を満たすことを目標にし、リポジトリの検査（lint・テスト）を通す
    - 正本とコメントを読み直す：実装を終えて PR を作る前に、触れた節の正本（リポジトリの規約が正本とする文書。仕様書（requirements）・ADR・README など）とコードのコメントを読み直し、実装とずれた記述を同じ PR で直す（文書・コメントと実装のずれは、手直しの理由で最も多い）
 5. 受け入れ条件を 1 項目ずつ確かめる。`dg --json --actor agent ticket show <id>` の `acceptance`（`index`・`text`・`checked`）を読み、成果物やテストで満たしたと確認できた項目だけ `dg --json --actor agent ticket check <id> <番号...>` で付ける。確認できない項目は付けず、PR の本文と人への報告に理由を書く
 6. コミットして push し、PR を draft で作る（`gh pr create --draft`）。PR の本文にチケットの ID（`t12`）と、付けられなかった受け入れ条件、読み直した正本と直した箇所を書く。PR の番号をチケットに記録する：`dg --json --actor agent ticket update <id> --pr <番号>`（照合はブランチ名でも PR を引くが、使い回したブランチでは別の PR を拾いうる）。draft の PR を作ったら実装の Run を閉じる。続けて `dg guide review` のとおり、別のサブエージェントの見直しと上限付きの修正ループで品質ゲートを通し、`gh pr ready <PR>` で出す（上限を超えたときもそこに従う）
 7. `dg --json --actor agent sync` を回す。Workflow が PR の事実を見るなら（software-development）、draft でない PR が開いていれば review に進む（`gh` が要る）。見ないなら（general など）、PR を出したら自分で `dg --json --actor agent ticket move <id> review` に進める
 8. 人のレビューの指摘は、`fix` の Run で同じブランチで直して push する（`dg guide review` の「Run の分け方」）。マージは人が行う。マージ後は `dg guide done`
-
-## Run を記録する
-
-Run は 1 回の作業の記録で、使用量（トークン）が残る。実装の Run は手順 4〜6、見直しと手直しは別の Run（`dg guide review` の「Run の分け方」）。PR の要らない作業も、作業の前後で始めて閉じる。
-
-- **step**：チケットの Project の Workflow（`dg --json --actor agent project list` の `workflow`）を `dg --json --actor agent workflow show <workflow>` で読み、`data.definition.steps` から今の作業に合うものの `id` を選ぶ。`steps` がなければ `implement`・`review`・`fix`・`investigate` を使う。合う語がないとき（init の前からある Workflow や consulting に `fix` がないなど）は `dg guide review` の「Run の分け方」の「合う step がない」（代わりの step と、人に伝えるかどうか）
-- **agent**：自分の Adapter の名前（`dg run start --help`。Claude Code なら `claude-code`）
-- **自分で呼ぶ**：run start と finish は作業するエージェント自身が呼ぶ（理由は `dg guide review` の「Run の分け方」）
-- 使用量は書かない。取れずに finish が警告しても止めない
-- 同じ step の Run が実行中で start が拒否されたら、下の「閉じ損ねた Run を閉じる」で閉じて始め直す。サブエージェントなら閉じずに親に返す（親が `interrupted` で閉じる）
-- **結果**：実装の Run は draft の PR を作ったら `success`。自分の判断でやめる（検査が通らない、範囲がはっきりしない）なら `--result failure --error <理由>` で閉じる。`interrupted` は閉じ損ねた Run だけに使う
-- **やり直しの理由**：`--retry-reason` の書き方は `dg guide review` の「Run の分け方」
-
-## 段階のモデル
-
-Plan の `details.<id>.tier`（省けば standard）を `config.yaml` の `models.*`（今の設定：light `{{models.light}}`・standard `{{models.standard}}`・heavy `{{models.heavy}}`。なし（空）なら親のモデル）でモデルに対応させる。モデルを選べない環境では、すべて親のモデルで進める。
-
-- **実装**：段階のモデルが親と違うときだけ、そのモデルのサブエージェントに手順 4〜6（run start から draft の PR を作って実装の Run を閉じるまで）を渡す。サブエージェントは `--model <モデル>` を付けて自分で run start する。渡すもの・しないこと・返すものと、返った後に親が行う `ticket check`・`ticket update --pr` は `dg guide parallel` と同じ。同じモデルなら今までどおり親が run start して実装する
-- **調べもの**：実装の中でコードや記録を調べるサブエージェントは、段階によらず `models.light` で起動する（空なら親のモデル）
-- **見直しと手直し**：見直し役は段階によらず親のモデル、修正ループは実装者と同じモデル（`dg guide review`）
 
 ## Plan に従って進める
 
@@ -67,7 +47,7 @@ Plan の `details.<id>.tier`（省けば standard）を `config.yaml` の `model
 チケットのデータの整備・確認・調査など、リポジトリのファイルを変えない作業は、ブランチも PR も作らない。照合には頼らず、自分で done まで進める。
 
 1. claim する：上の手順 1（着手できるか確かめ、`lint.require_iteration` が true なら Iteration に入れる。今の設定：`{{lint.require_iteration}}`）を済ませてから、`dg --json --actor agent ticket claim <id> --without-branch`。planned の Iteration は上の手順 2 のとおり始める
-2. Run を始めて作業し、終えたら閉じる（上の「Run を記録する」）。worktree は作らない。何をしたかと結果は、最後に人への報告に書く
+2. Run を始めて作業し、終えたら閉じる（`dg guide run` の「Run を記録する」）。worktree は作らない。何をしたかと結果は、最後に人への報告に書く
 3. 受け入れ条件を 1 項目ずつ確かめ、満たした項目だけ `ticket check` で付ける（上の手順 5 と同じ）
 4. すべて付いたら `dg --json --actor agent ticket move <id> done`。付けられない項目が残ったら `ticket move <id> review` にして、残った項目と理由を人に報告する（done にするのは人）
 5. 途中でリポジトリのファイルを変える必要が出たら、`ticket update <id> --branch <種類>/<内容>` で記録して上の流れに移る。逆にブランチが要らなくなったら `--branch none`
@@ -75,12 +55,8 @@ Plan の `details.<id>.tier`（省けば standard）を `config.yaml` の `model
 ## 状態について
 
 - 自分で `status` を進めるのは普段 in_progress → review まで。done は照合（マージ）で進む。照合で進まないときや人に指示されたときだけ `ticket move <id> done` で進める（制限は `dg guide overview`）
-- 実装を途中でやめるなら、Run を閉じてから（「Run を記録する」の「結果」）`dg --json --actor agent ticket unclaim <id>`（todo に戻る）。手直し・見直しは unclaim せず `dg guide review` の「終わり方」。review にあるなら人に差し戻しを頼む
+- 実装を途中でやめるなら、Run を閉じてから（`dg guide run` の「Run を記録する」の「結果」）`dg --json --actor agent ticket unclaim <id>`（todo に戻る）。手直し・見直しは unclaim せず `dg guide review` の「終わり方」。review にあるなら人に差し戻しを頼む
 - 作業中に別の作業が見つかったら、そのチケットに混ぜず `dg guide import` の手順で起票を提案する
-
-## 閉じ損ねた Run を閉じる
-
-finish を呼べずに残った Run は、`dg --json --actor agent run list --running --ticket <id>` で `step`・`agent` が合うものを探し、`run finish <Run の ID> --result interrupted --error <理由>` で閉じる。続けるなら同じ step の Run を始め直す。やめるなら、実装の Run は `ticket unclaim <id>`、手直し・見直しの Run は `dg guide review` の「終わり方」
 
 ## 任意フィールド
 
