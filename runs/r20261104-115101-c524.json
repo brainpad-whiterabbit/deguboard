@@ -1,0 +1,25 @@
+{
+  "id": "r20261104-115101-c524",
+  "ticket": "t340",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "sonnet",
+  "started_at": "2026-11-04T11:51:01Z",
+  "finished_at": "2026-11-04T11:53:36Z",
+  "result": "success",
+  "error": null,
+  "retries": 5,
+  "retry_reasons": [
+    "メニュー・選び直しのテストで依頼文を toBe で確かめた",
+    "最後の 1 回だけのテストに内容と待った後の件数を足した",
+    "開くときのコピーを候補で確かめた action か おすすめにした",
+    "対象を外す・指示・形式の変更で進行中のコピーを無効にした",
+    "ADR-010 に Shift+F10 を足した"
+  ],
+  "usage": {
+    "input": 12,
+    "output": 3837,
+    "cache_read": 503643,
+    "cache_write": 6122
+  }
+}

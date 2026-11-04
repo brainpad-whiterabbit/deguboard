@@ -1,0 +1,19 @@
+{
+  "id": "r20261104-114447-6507",
+  "ticket": "t335",
+  "step": "implement",
+  "agent": "claude-code",
+  "model": "sonnet",
+  "started_at": "2026-11-04T11:44:47Z",
+  "finished_at": "2026-11-04T11:50:24Z",
+  "result": "success",
+  "error": null,
+  "retries": 0,
+  "retry_reasons": [],
+  "usage": {
+    "input": 108,
+    "output": 21540,
+    "cache_read": 4690548,
+    "cache_write": 78432
+  }
+}
