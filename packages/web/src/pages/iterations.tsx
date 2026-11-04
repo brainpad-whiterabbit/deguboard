@@ -35,7 +35,7 @@ function IterationDetailView({ id }: { id: string }) {
 
   return (
     <section>
-      {/* パネルは詳細だけを出すので、戻る先の一覧がない（一覧はサイドバー。UI-12） */}
+      {/* パネルは詳細だけを出すので、戻る先の一覧がない（一覧はサイドバー。カンバンへは下の「この Iteration でカンバンを見る」。UI-12） */}
       {host.surface === "panel" ? null : (
         <div className="toolbar">
           <a
@@ -62,6 +62,13 @@ function IterationDetailView({ id }: { id: string }) {
       <IterationSummary it={it} />
       {/* 状態に応じた次の操作の案内と依頼文のコピー（書き込まない） */}
       <IterationNext it={it} />
+      {/* パネルからはこの Iteration で絞った左パネルのカンバンを開く（一覧の画面へのリンクは host.show でサイドバーに出る。UI-12）。
+          閉じた Iteration はカンバンで選べないので出さない */}
+      {host.surface === "panel" && it.status !== "closed" ? (
+        <div className="actions">
+          <a href={hrefOf({ page: "board", iteration: it.id })}>この Iteration でカンバンを見る</a>
+        </div>
+      ) : null}
       {/* 中のチケットを含む Plan（なければ節を出さない） */}
       <IterationPlans plans={it.plans} />
       {/* パネルは未完了・完了・中止の段に分けた 1 行の並び（Epic 詳細と共用。UI-12）。ブラウザは表 */}
