@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { createFixture } from "../../test/helpers/git-fixture.js";
 import {
   ASK_ACTIONS,
-  ASK_TEXT_PREAMBLE,
+  ASK_DG_USAGE,
   ask,
   askCandidates,
   askHumanChecks,
@@ -61,55 +61,103 @@ const epic = (status: string): AskSubject => ({
 });
 
 describe("依頼文の組み立て", () => {
-  it("Skill 形式は 1 行目が Skill の呼び出しで、対象は ID とタイトル（と Status・Iteration）だけを並べ、指示を添える", () => {
+  it("Skill 形式は Skill の呼び出しと指示だけで、題・説明の文・対象の一覧を入れない", () => {
     const view = buildAsk({
       subjects: [ticket({ status: "review" })],
       note: "  スクリーンショットも見て  ",
     });
     expect(view).toMatchObject({ action: "done", skill: "/dgdone", kind: "prompt" });
+    expect(view.text).toBe("/dgdone t265\nスクリーンショットも見て");
+    // 指示がなければ呼び出しの 1 行だけ。複数の対象は 1 行目に並べる
+    expect(buildAsk({ subjects: [ticket(), ticket({ id: "t266" })], action: "plan" }).text).toBe(
+      "/dgplan t265 t266",
+    );
+    // 題と Status・Iteration は画面の札のツールチップ（line）にだけ出す
+    expect(view.text).not.toContain("右の列を細くする");
+    expect(view.targets[0]!.line).toBe("t265「右の列を細くする」（review, s10）");
+    expect(buildAsk({ subjects: [ticket({ iteration: null })] }).targets[0]!.line).toBe(
+      "t265「右の列を細くする」（todo, Iteration なし）",
+    );
+  });
+
+  it("文章だけの形式は、対象の ID を含む頼む 1 文・dg の呼び方（--json --actor agent）・指示の 3 行になる", () => {
+    const view = buildAsk({
+      subjects: [ticket({ status: "review" })],
+      format: "text",
+      note: "急がない",
+    });
     expect(view.text).toBe(
       [
-        "/dgdone t265",
-        "PR のマージを照合し、残った受け入れ条件を確かめて片付けてください。",
-        "",
-        "対象:",
-        "- t265「右の列を細くする」（review, s10）",
-        "",
-        "指示:",
-        "スクリーンショットも見て",
+        "t265 の PR のマージを照合し、残った受け入れ条件を確かめて片付けてください。",
+        ASK_DG_USAGE,
+        "急がない",
       ].join("\n"),
     );
-    expect(view.targets[0]!.line).toBe("t265「右の列を細くする」（review, s10）");
-    // Iteration のないチケットは「Iteration なし」と書く
-    expect(buildAsk({ subjects: [ticket({ iteration: null })] }).text).toContain(
-      "- t265「右の列を細くする」（todo, Iteration なし）",
+    expect(ASK_DG_USAGE).toContain("--json --actor agent");
+    expect(view.text).not.toContain("/dgdone");
+    expect(view.text).not.toContain("右の列を細くする");
+    // 複数の対象は頼む 1 文に並べる
+    expect(
+      buildAsk({
+        subjects: [ticket(), ticket({ id: "t266" })],
+        action: "plan",
+        format: "text",
+      }).text.split("\n")[0],
+    ).toBe("t265・t266 を進める Plan を立て、承認を待ってください。");
+  });
+
+  it("起票・作成は 1 行目に ID を並べず、行き先は次の行の短い頼みごとに書き、文章だけの形には --created-by human を添える", () => {
+    for (const action of ["create", "create_iteration", "create_epic"] as const) {
+      const view = buildAsk({ subjects: [], action });
+      expect(view.text.split("\n")[0]).toBe(action === "create" ? "/dgimport" : "/dgassign");
+      expect(buildAsk({ subjects: [], action, format: "text" }).text).toContain(
+        "--created-by human",
+      );
+    }
+    // 対象のない起票は呼び出しだけ。Iteration・Epic を作るは呼び出しだけでは決まらないので頼みごとを添える
+    expect(buildAsk({ subjects: [], action: "create" }).text).toBe("/dgimport");
+    expect(buildAsk({ subjects: [], action: "create_iteration" }).text).toBe(
+      "/dgassign\nIteration を作って",
+    );
+    const into = buildAsk({ subjects: [iteration("active")], action: "create", note: "見出し" });
+    expect(into.label).toBe("起票して s10 に入れる");
+    expect(into.text).toBe("/dgimport\n起票して s10 に入れて\n見出し");
+    expect(
+      buildAsk({ subjects: [iteration("active")], action: "create", format: "text" }).text.split(
+        "\n",
+      )[0],
+    ).toBe(
+      "指示の内容をチケットにして s10 に入れてください（人の指示なので --created-by human を付ける）。",
+    );
+    // 分けるは直すと同じ呼び出しになるので、分けることを添える
+    expect(buildAsk({ subjects: [ticket()], action: "fix" }).text).toBe("/dgimport t265");
+    const split = buildAsk({ subjects: [ticket()], action: "split", note: "画面と CLI で" });
+    expect(split.text).toBe("/dgimport t265\nt265 を分けて\n画面と CLI で");
+    expect(buildAsk({ subjects: [ticket()], action: "split", format: "text" }).text).toContain(
+      "--created-by human",
     );
   });
 
-  it("文章だけの形式は 1 行目の Skill の代わりに dg の呼び方（--json --actor agent）を添える", () => {
-    const view = buildAsk({ subjects: [ticket({ status: "review" })], format: "text" });
-    const lines = view.text.split("\n");
-    expect(lines[0]).toBe(ASK_TEXT_PREAMBLE);
-    expect(lines[0]).toContain("--json --actor agent");
-    expect(view.text).not.toContain("/dgdone");
-  });
-
-  it("起票・Iteration を作る・Epic を作るの依頼文には --created-by human を付ける指示が入り、1 行目に ID を並べない", () => {
-    for (const action of ["create", "create_iteration", "create_epic"] as const) {
-      const view = buildAsk({ subjects: [], action });
-      expect(view.text).toContain("--created-by human");
-      expect(view.text.split("\n")[0]).toBe(action === "create" ? "/dgimport" : "/dgassign");
-    }
-    const into = buildAsk({ subjects: [iteration("active")], action: "create" });
-    expect(into.label).toBe("起票して s10 に入れる");
-    expect(into.text.split("\n").slice(0, 2)).toEqual([
-      "/dgimport",
-      "次の内容をチケットにして s10 に入れてください。人の指示による起票なので --created-by human を付けてください。",
-    ]);
-    // 分けるも新しいチケットを起票するので、起票者の扱いを添える
-    const split = buildAsk({ subjects: [ticket()], action: "split" });
-    expect(split.text.split("\n")[0]).toBe("/dgimport t265");
-    expect(split.text).toContain("--created-by human");
+  it("同じ呼び出しになる頼むことは、頼みごとの 1 行で区別する（組み直すと承認する・持ち越しとふつうの割り当て）", () => {
+    const pending: AskSubject = {
+      kind: "plan",
+      id: "p3",
+      status: "pending_approval",
+      tickets: ["t1"],
+      complete: false,
+    };
+    expect(buildAsk({ subjects: [pending], action: "approve" }).text).toBe("/dgplan p3");
+    expect(buildAsk({ subjects: [pending], action: "plan" }).text).toBe(
+      "/dgplan p3\np3 を組み直して",
+    );
+    // Plan でない対象の計画は呼び出しだけ
+    expect(buildAsk({ subjects: [ticket()], action: "plan" }).text).toBe("/dgplan t265");
+    expect(buildAsk({ subjects: [iteration("closed")], action: "assign" }).text).toBe(
+      "/dgassign s10\ns10 の持ち越しを割り当てて",
+    );
+    expect(buildAsk({ subjects: [iteration("active")], action: "assign" }).text).toBe(
+      "/dgassign s10",
+    );
   });
 
   it("閉じる・再開・done の取り消し・やめるの依頼文には「人の指示」と書き添える", () => {
@@ -124,7 +172,7 @@ describe("依頼文の組み立て", () => {
     for (const [subject, action] of cases) {
       const view = buildAsk({ subjects: [subject], action });
       expect(view.kind).toBe("prompt");
-      expect(view.text).toContain("（人の指示）");
+      expect(view.text).toContain("（人の指示");
     }
   });
 
@@ -208,18 +256,24 @@ describe("依頼文の組み立て", () => {
     ).toBe("prompt");
   });
 
-  it("Skill を使わない頼むことは、Skill 形式でも 1 行目に dg の呼び方を添える", () => {
+  it("Skill を使わない頼むことは、Skill 形式でも頼む 1 文と dg の呼び方の形になる", () => {
     const view = buildAsk({ subjects: [iteration("active")], action: "close" });
     expect(view.skill).toBeNull();
-    expect(view.text.split("\n")[0]).toBe(ASK_TEXT_PREAMBLE);
+    expect(view.text).toBe(
+      [
+        "s10 を閉じてください（人の指示。終わっていないチケットがあれば閉じる前に知らせる）。",
+        ASK_DG_USAGE,
+      ].join("\n"),
+    );
   });
 
   it("対象も指示もない自由な依頼は使い方の誤り", () => {
     expect(() => buildAsk({ subjects: [], action: "free" })).toThrow(
       expect.objectContaining({ code: "INVALID_INPUT" }),
     );
+    // 対象のない自由な依頼は、頼む 1 文がなく dg の呼び方と指示だけ
     expect(buildAsk({ subjects: [], action: "free", note: "様子を見て" }).text).toBe(
-      `${ASK_TEXT_PREAMBLE}\n\n指示:\n様子を見て`,
+      `${ASK_DG_USAGE}\n様子を見て`,
     );
   });
 
@@ -374,10 +428,7 @@ describe("頼むことの候補", () => {
 
     const view = buildAsk({ subjects: [ticket()], action: "remove", within: "s10" });
     expect(view.label).toBe("s10 から外す");
-    expect(view.text.split("\n").slice(0, 2)).toEqual([
-      "/dgassign t265",
-      "次のチケットを s10 から外してください。",
-    ]);
+    expect(view.text).toBe("/dgassign t265\ns10 から外して");
     const human = buildAsk({
       subjects: [ticket({ epic: "e9" })],
       action: "remove",
@@ -399,8 +450,11 @@ describe("頼むことの候補", () => {
       ],
     });
     expect(view.action).toBe("resume");
-    expect(view.text.split("\n")[0]).toBe("/dgwork t264");
-    expect(view.text).toContain("t263 は Run が実行中なので触らないでください");
+    expect(view.text).toBe("/dgwork t264");
+    // 文章だけの形では、実行中のものに触らないよう添える
+    expect(buildAsk({ subjects: view.targets, format: "text" }).text.split("\n")[0]).toBe(
+      "止まっている t264 の作業を再開してください（t263 は Run が実行中なので触らない）。",
+    );
   });
 });
 
@@ -427,9 +481,7 @@ describe("ask", () => {
     const run = async (input: Record<string, unknown>) => (await runCommand(ask, ctx, input)).data;
     const t1 = await run({ targets: ["t1"] });
     expect(t1.action).toBe("work");
-    expect(t1.text).toBe(
-      "/dgwork t1\n次のチケットを進めてください。\n\n対象:\n- t1「A」（todo, s1）",
-    );
+    expect(t1.text).toBe("/dgwork t1");
     expect(t1.text).not.toContain("本文の秘密");
     // 依存先が終わっていない todo は待ちを確かめる
     expect((await run({ targets: ["t2"] })).label).toBe("待ちを確かめる");

@@ -83,7 +83,7 @@ export type AskSubject =
     };
 
 export type AskTarget = AskSubject & {
-  /** 依頼文の「対象:」に並べる 1 行 */
+  /** 対象の ID とタイトル（と Status・Iteration）の 1 行。画面の札のツールチップに出す。依頼文には入れない */
   line: string;
   /** 画面の札の小さな添え字。チケット・Iteration・Epic は Status、Plan は承認の状態の表示名（承認待ち・承認済み・閉じた） */
   sub: string;
@@ -116,13 +116,13 @@ export interface AskView {
   text: string;
 }
 
-/** 文章だけの形式で、1 行目の Skill の代わりに添える dg の呼び方（AG-1） */
-export const ASK_TEXT_PREAMBLE =
-  "deguboard（dg）のデータについての依頼です。dg は `dg … --json --actor agent` で呼び、.git/deguboard/ のファイルは直接編集しないでください。";
+/** 文章だけの形式で、頼む 1 文の次に添える dg の呼び方（AG-1） */
+export const ASK_DG_USAGE =
+  "dg は `dg … --json --actor agent` で呼び、.git/deguboard/ のファイルは直接編集しないでください。";
 
-const CREATED_BY_HUMAN = "人の指示による起票なので --created-by human を付けてください。";
+const CREATED_BY_HUMAN = "（人の指示なので --created-by human を付ける）";
 const CREATED_BY_HUMAN_LATER =
-  "人の指示なので、チケットを起票するときは --created-by human を付けてください。";
+  "（チケットを起票するなら、人の指示なので --created-by human を付ける）";
 
 type Subjects = readonly AskSubject[];
 type TicketSubject = Extract<AskSubject, { kind: "ticket" }>;
@@ -136,7 +136,6 @@ const single = <K extends AskSubject["kind"]>(s: Subjects, kind: K) =>
 const ids = (s: Subjects) => s.map((t) => t.id);
 const isStalled = (t: TicketSubject) => t.status === "in_progress" && !t.running;
 const isWaiting = (t: TicketSubject) => t.status === "todo" && !t.deps_done;
-const kindName = (t: AskSubject) => (t.kind === "iteration" ? "Iteration" : "Epic");
 /** done から戻す先。abandoned はやめるので、done の取り消しの戻す先に入れない */
 const UNDO_DONE_TO = ["todo", "in_progress", "review"] as const;
 
@@ -172,13 +171,16 @@ interface HumanStep {
 }
 
 interface ActionDef {
-  /** Skill の名前（dg skill install で配る dg<トピック>）。null なら Skill の形でも 1 行目に dg の呼び方（ASK_TEXT_PREAMBLE）を置く（ADR-010） */
+  /** Skill の名前（dg skill install で配る dg<トピック>）。null なら Skill の形でも文章だけの形で返す（ADR-010） */
   skill: string | null;
-  /** 1 行目に対象の ID を並べない（起票・作成。対象は「対象:」に書く） */
+  /** 1 行目に対象の ID を並べない（起票・作成） */
   bare?: boolean;
   /** w は対象のチケットが入っている場所（withinOf が認めたもの）。外すだけが使う */
   label(s: Subjects, w?: Within): string;
+  /** 文章だけの形の頼む 1 文。対象の ID を含める */
   text(s: Subjects, w?: Within): string;
+  /** Skill の呼び出しだけでは頼むことが決まらないとき（起票・作成・外す・分ける・組み直す・持ち越し）、指示の行と同じ位置に置く短い頼みごとの 1 行 */
+  intent?(s: Subjects, w?: Within): string;
   /** 1 行目に並べる対象。省けばすべて */
   args?(s: Subjects): Subjects;
   /** 操作が 1 つに決まる頼むことだけ持つ。Skill の手順に任せるものは、拒否されたらエージェントが人に頼む */
@@ -186,6 +188,44 @@ interface ActionDef {
 }
 
 const withDenied = (denied: string | undefined) => (denied ? { denied } : {});
+/** 頼む 1 文に入れる対象の ID */
+const idList = (s: Subjects) => ids(s).join("・");
+
+/** 起票の行き先。頼む 1 文と、Skill の呼び出しの次の行の頼みごとの両方に使う */
+function createTarget(s: Subjects): { text: string; intent?: string } {
+  const it = single(s, "iteration");
+  const ep = single(s, "epic");
+  const tickets = only(s, "ticket");
+  const L = idList(s);
+  if (it)
+    return {
+      text: `指示の内容をチケットにして ${it.id} に入れてください`,
+      intent: `起票して ${it.id} に入れて`,
+    };
+  if (ep?.status === "closed")
+    return {
+      text: `${ep.id} の続きの作業をチケットにし、新しい Epic にまとめるかは案を示してください`,
+      intent: `${ep.id} の続きを起票して`,
+    };
+  if (ep)
+    return {
+      text: `指示の内容をチケットにして ${ep.id} に足してください`,
+      intent: `起票して ${ep.id} に足して`,
+    };
+  if (tickets?.every((t) => t.status === "done"))
+    return {
+      text: `${L} の後に見つかった不具合や続きの作業をチケットにしてください`,
+      intent: `${L} の不具合・続きを起票して`,
+    };
+  if (tickets?.every((t) => t.status === "abandoned"))
+    return { text: `${L} の代わりを起票し直してください`, intent: `${L} を起票し直して` };
+  if (s.length > 0)
+    return {
+      text: `${L} に関わる内容をチケットにしてください`,
+      intent: `${L} に関わる内容を起票して`,
+    };
+  return { text: "指示の内容をチケットにしてください" };
+}
 
 const ACTIONS: Record<AskAction, ActionDef> = {
   create: {
@@ -200,25 +240,8 @@ const ACTIONS: Record<AskAction, ActionDef> = {
       if (only(s, "ticket")?.every((t) => t.status === "abandoned")) return "起票し直す";
       return "起票する";
     },
-    text(s) {
-      const it = single(s, "iteration");
-      const ep = single(s, "epic");
-      const tickets = only(s, "ticket");
-      const lead = it
-        ? `次の内容をチケットにして ${it.id} に入れてください。`
-        : ep?.status === "closed"
-          ? "この Epic の続きの作業をチケットにしてください。新しい Epic にまとめるかは案を示してください。"
-          : ep
-            ? `次の内容をチケットにして ${ep.id} に足してください。`
-            : tickets?.every((t) => t.status === "done")
-              ? "次のチケットの後に見つかった不具合や続きの作業をチケットにしてください。"
-              : tickets?.every((t) => t.status === "abandoned")
-                ? "次のチケットの代わりを起票し直してください。"
-                : s.length > 0
-                  ? "次の対象に関わる内容をチケットにしてください。"
-                  : "次の内容をチケットにしてください。";
-      return `${lead}${CREATED_BY_HUMAN}`;
-    },
+    text: (s) => `${createTarget(s).text}${CREATED_BY_HUMAN}。`,
+    intent: (s) => createTarget(s).intent ?? "",
     human(s) {
       const steps: HumanStep[] = [
         { check: ["ticket.create", "ticket.import"], command: 'dg ticket create "<タイトル>"' },
@@ -236,10 +259,8 @@ const ACTIONS: Record<AskAction, ActionDef> = {
     bare: true,
     label: () => "Iteration を作る",
     text: (s) =>
-      (s.length > 0
-        ? "次のチケットを入れる Iteration を作ってください。名前・目標・期間は指示のとおりにし、なければ案を示してください。"
-        : "Iteration を作ってください。名前・目標・期間は指示のとおりにし、入れるチケットがあれば案を示してください。") +
-      CREATED_BY_HUMAN_LATER,
+      `${s.length > 0 ? `${idList(s)} を入れる ` : ""}Iteration を、名前・目標・期間は指示のとおり（なければ案を示して）作ってください${CREATED_BY_HUMAN_LATER}。`,
+    intent: (s) => `${s.length > 0 ? `${idList(s)} を入れる ` : ""}Iteration を作って`,
     human: () => [{ check: ["iteration.create"], command: 'dg iteration create "<名前>"' }],
   },
   create_epic: {
@@ -247,28 +268,28 @@ const ACTIONS: Record<AskAction, ActionDef> = {
     bare: true,
     label: () => "Epic を作る",
     text: (s) =>
-      (s.length > 0
-        ? "次のチケットを束ねる Epic を作ってください。題と概要は指示のとおりにし、なければ案を示してください。"
-        : "Epic を作ってください。題と概要は指示のとおりにし、束ねるチケットがあれば案を示してください。") +
-      CREATED_BY_HUMAN_LATER,
+      `${s.length > 0 ? `${idList(s)} を束ねる ` : ""}Epic を、題と概要は指示のとおり（なければ案を示して）作ってください${CREATED_BY_HUMAN_LATER}。`,
+    intent: (s) => `${s.length > 0 ? `${idList(s)} を束ねる ` : ""}Epic を作って`,
     human: () => [{ check: ["epic.create"], command: 'dg epic create "<題>"' }],
   },
   fix: {
     skill: "dgimport",
     label: () => "直す",
-    text: () => "次のチケットを指示のとおりに直してください。",
+    text: (s) => `${idList(s)} を指示のとおりに直してください。`,
   },
   split: {
     skill: "dgimport",
     label: () => "分ける",
-    text: () =>
-      "次のチケットを分けてください。元のチケットの扱い（残す・abandoned にする）は案を示してください。" +
-      CREATED_BY_HUMAN_LATER,
+    text: (s) =>
+      `${idList(s)} を分け、元のチケットの扱い（残す・abandoned にする）は案を示してください${CREATED_BY_HUMAN_LATER}。`,
+    // 直すと同じ呼び出しになるので、分けることを添える
+    intent: (s) => `${idList(s)} を分けて`,
   },
   remove: {
     skill: "dgassign",
     label: (_s, w) => `${w?.id ?? "Iteration・Epic"} から外す`,
-    text: (_s, w) => `次のチケットを ${w?.id ?? "入っている Iteration・Epic"} から外してください。`,
+    text: (s, w) => `${idList(s)} を ${w?.id ?? "入っている Iteration・Epic"} から外してください。`,
+    intent: (_s, w) => `${w?.id ?? "入っている Iteration・Epic"} から外して`,
     human: (s, w) =>
       w
         ? [
@@ -284,8 +305,8 @@ const ACTIONS: Record<AskAction, ActionDef> = {
     label: (s) => (single(s, "iteration") ? "名前・目標・期間を直す" : "題・概要を直す"),
     text: (s) =>
       single(s, "iteration")
-        ? "この Iteration の名前・目標・期間を、指示のとおりに直してください。"
-        : "この Epic の題と概要を、指示のとおりに直してください。",
+        ? `${idList(s)} の名前・目標・期間を、指示のとおりに直してください。`
+        : `${idList(s)} の題と概要を、指示のとおりに直してください。`,
     human: (s) =>
       s.map((t) =>
         t.kind === "iteration"
@@ -310,12 +331,18 @@ const ACTIONS: Record<AskAction, ActionDef> = {
     text(s) {
       const it = single(s, "iteration");
       if (it?.status === "closed")
-        return "この Iteration の持ち越しのチケットを、今の Iteration か新しい Iteration に割り当ててください。";
+        return `${it.id} の持ち越しのチケットを、今の Iteration か新しい Iteration に割り当ててください。`;
       if (it)
-        return `未割り当ての todo から ${it.id} に入れるものを選んでください。足す・外すチケットが指示にあればそのとおりに。`;
-      if (single(s, "epic"))
-        return "この Epic に入れるチケットを選んでください。足す・外すチケットが指示にあればそのとおりに。";
-      return "次のチケットを合う Iteration・Epic に割り当ててください。移す先が指示にあればそのとおりに。";
+        return `未割り当ての todo から ${it.id} に入れるものを選んでください（足す・外すチケットが指示にあればそのとおりに）。`;
+      const ep = single(s, "epic");
+      if (ep)
+        return `${ep.id} に入れるチケットを選んでください（足す・外すチケットが指示にあればそのとおりに）。`;
+      return `${idList(s)} を合う Iteration・Epic に割り当ててください（移す先が指示にあればそのとおりに）。`;
+    },
+    // 閉じた Iteration はふつうの割り当てと同じ呼び出しになるので、持ち越しであることを添える
+    intent(s) {
+      const it = single(s, "iteration");
+      return it?.status === "closed" ? `${it.id} の持ち越しを割り当てて` : "";
     },
   },
   plan: {
@@ -323,13 +350,15 @@ const ACTIONS: Record<AskAction, ActionDef> = {
     label: (s) => (single(s, "plan") ? "組み直す" : "計画を立てる"),
     text: (s) =>
       single(s, "plan")
-        ? "この Plan を組み直し、承認を待ってください。"
-        : "次の対象を進める Plan を立て、承認を待ってください。",
+        ? `${idList(s)} を組み直し、承認を待ってください。`
+        : `${idList(s)} を進める Plan を立て、承認を待ってください。`,
+    // 承認待ちの Plan では承認すると同じ呼び出しになるので、組み直すことを添える
+    intent: (s) => (single(s, "plan") ? `${idList(s)} を組み直して` : ""),
   },
   approve: {
     skill: "dgplan",
     label: () => "承認する",
-    text: () => "承認待ちのこの Plan の内容を示し、承認を求めてください。",
+    text: (s) => `承認待ちの ${idList(s)} の内容を示し、承認を求めてください。`,
     human: (s) => s.map((t) => ({ check: ["plan.approve"], command: `dg plan approve ${t.id}` })),
   },
   work: {
@@ -337,8 +366,8 @@ const ACTIONS: Record<AskAction, ActionDef> = {
     label: (s) => (single(s, "plan") ? "Plan を進める" : "進める"),
     text: (s) =>
       single(s, "plan")
-        ? "この Plan を着手できるものから進めてください。"
-        : "次のチケットを進めてください。",
+        ? `${idList(s)} を着手できるものから進めてください。`
+        : `${idList(s)} を進めてください。`,
   },
   resume: {
     skill: "dgwork",
@@ -346,27 +375,27 @@ const ACTIONS: Record<AskAction, ActionDef> = {
     // 実行中の Run と同じ Skill を重ねて呼ばないよう、1 行目には止まったものだけを並べる
     args: (s) => (only(s, "ticket") ?? []).filter(isStalled),
     text(s) {
-      const running = (only(s, "ticket") ?? []).filter((t) => t.running).map((t) => t.id);
+      const tickets = only(s, "ticket") ?? [];
+      const running = tickets.filter((t) => t.running);
       return (
-        "止まっている次のチケットの作業を再開してください。" +
-        (running.length > 0
-          ? `${running.join("・")} は Run が実行中なので触らないでください。`
-          : "")
+        `止まっている ${idList(tickets.filter(isStalled))} の作業を再開してください` +
+        (running.length > 0 ? `（${idList(running)} は Run が実行中なので触らない）` : "") +
+        "。"
       );
     },
   },
   all: {
     skill: "dgall",
     label: () => "最後まで進める",
-    text: () => "この Iteration を最後まで進めてください。承認の場所は Skill の手順どおりに。",
+    text: (s) => `${idList(s)} を最後まで進めてください（承認の場所は手順どおりに）。`,
   },
   done: {
     skill: "dgdone",
     label: () => "確かめて片付ける",
     text: (s) =>
       single(s, "plan")
-        ? "この Plan のマージ済みのチケットを照合して片付け、終わっていれば Plan を閉じてください。"
-        : "PR のマージを照合し、残った受け入れ条件を確かめて片付けてください。",
+        ? `${idList(s)} のマージ済みのチケットを照合して片付け、終わっていれば Plan を閉じてください。`
+        : `${idList(s)} の PR のマージを照合し、残った受け入れ条件を確かめて片付けてください。`,
   },
   check: {
     skill: "dgcheck",
@@ -375,20 +404,20 @@ const ACTIONS: Record<AskAction, ActionDef> = {
       s.length === 0
         ? "全体を点検し、直す案を表で示してください。"
         : only(s, "ticket")?.every(isWaiting)
-          ? "依存先の進みと、次のチケットを進める順を確かめてください。直す案があれば表で示してください。"
-          : "次の対象を点検し、直す案を表で示してください。",
+          ? `${idList(s)} の依存先の進みと進める順を確かめ、直す案があれば表で示してください。`
+          : `${idList(s)} を点検し、直す案を表で示してください。`,
   },
   release: {
     skill: "dgrelease",
     label: () => "リリースする",
-    text: () =>
-      "この Iteration をリリースしてください。リリースの PR のマージと公開の前に承認を求めてください。",
+    text: (s) =>
+      `${idList(s)} をリリースし、リリースの PR のマージと公開の前に承認を求めてください。`,
   },
   close: {
     skill: null,
     label: () => "閉じる",
     text: (s) =>
-      `この ${kindName(s[0]!)} を閉じてください（人の指示）。終わっていないチケットがあれば、閉じる前に知らせてください。`,
+      `${idList(s)} を閉じてください（人の指示。終わっていないチケットがあれば閉じる前に知らせる）。`,
     human: (s) =>
       s.map((t) => ({
         check: [`${t.kind}.close`],
@@ -400,8 +429,8 @@ const ACTIONS: Record<AskAction, ActionDef> = {
     label: () => "再開する",
     text: (s) =>
       s[0]?.kind === "iteration"
-        ? "この Iteration を再開してください（人の指示）。ほかに active があれば、再開の前に知らせてください。"
-        : "この Epic を再開してください（人の指示）。",
+        ? `${idList(s)} を再開してください（人の指示。ほかに active があれば再開の前に知らせる）。`
+        : `${idList(s)} を再開してください（人の指示）。`,
     human: (s) =>
       s.map((t) => ({
         check: [`${t.kind}.reopen`],
@@ -411,8 +440,8 @@ const ACTIONS: Record<AskAction, ActionDef> = {
   abandon: {
     skill: null,
     label: () => "やめる",
-    text: () =>
-      "次のチケットをやめて abandoned にしてください（人の指示）。理由は指示のとおりに本文へ書いてください。",
+    text: (s) =>
+      `${idList(s)} をやめて abandoned にしてください（人の指示。理由は指示のとおりに本文へ書く）。`,
     human: (s) =>
       s.map((t) => ({
         check: ["ticket.move"],
@@ -423,8 +452,8 @@ const ACTIONS: Record<AskAction, ActionDef> = {
   undo_done: {
     skill: null,
     label: () => "done を取り消す",
-    text: () =>
-      "次のチケットの done を取り消してください（人の指示）。戻す Status と理由は指示のとおりに。",
+    text: (s) =>
+      `${idList(s)} の done を取り消してください（人の指示。戻す Status と理由は指示のとおりに）。`,
     human: (s) =>
       s.map((t) => ({
         check: ["ticket.move"],
@@ -435,17 +464,21 @@ const ACTIONS: Record<AskAction, ActionDef> = {
   status: {
     skill: null,
     label: () => "様子を聞く",
-    text: () => "次のチケットの作業の様子を教えてください。データは書き換えないでください。",
+    text: (s) => `${idList(s)} の作業の様子を教えてください（データは書き換えない）。`,
   },
   retro: {
     skill: null,
     label: () => "振り返る",
     text: (s) =>
       s[0]?.kind === "iteration"
-        ? "この Iteration の振り返りをまとめてください。終わったチケット・Run の集計・持ち越しから、うまくいったことと次に直すことを挙げてください。データは書き換えないでください。"
-        : "この Epic の振り返りをまとめてください。データは書き換えないでください。",
+        ? `${idList(s)} の振り返りを、終わったチケット・Run の集計・持ち越しから、うまくいったことと次に直すことを挙げてまとめてください（データは書き換えない）。`
+        : `${idList(s)} の振り返りをまとめてください（データは書き換えない）。`,
   },
-  free: { skill: null, label: () => "自由に", text: () => "" },
+  free: {
+    skill: null,
+    label: () => "自由に",
+    text: (s) => (s.length > 0 ? `${idList(s)} について、指示のとおりにしてください。` : ""),
+  },
 };
 
 /** 依頼文に使う Skill の名前（dg<トピック>）。dg skill install で配る名前と一致することを cli のテストで確かめる */
@@ -553,7 +586,7 @@ function targetSub(t: AskSubject): string {
   return t.kind === "plan" ? PLAN_STATE_LABEL[t.status] : t.status;
 }
 
-/** 「対象:」の 1 行。ID とタイトル（と Status・Iteration）だけで、本文は入れない */
+/** AskTarget の line。ID とタイトル（と Status・Iteration）だけで、本文は入れない */
 function targetLine(t: AskSubject): string {
   switch (t.kind) {
     case "ticket":
@@ -620,26 +653,23 @@ export function buildAsk(input: BuildAskInput): AskView {
   const note = input.note?.trim();
   if (chosen === "free" && s.length === 0 && !note)
     throw new UsageError("自由に頼むときは、対象か指示（note）が要る");
-  const lead: string[] = [];
-  // Skill を使わない頼むことは、Skill 形式でも 1 行目の代わりに dg の呼び方を添える
-  if (format === "text" || !candidate.skill) lead.push(ASK_TEXT_PREAMBLE);
-  else
-    lead.push(def.bare ? candidate.skill : [candidate.skill, ...ids(def.args?.(s) ?? s)].join(" "));
-  const text = def.text(s, w);
-  if (text) lead.push(text);
-  const sections = [lead];
-  if (targets.length > 0) sections.push(["対象:", ...targets.map((t) => `- ${t.line}`)]);
-  if (note) sections.push(["指示:", note]);
-  return {
-    ...view,
-    kind: "prompt",
-    human_only: [],
-    workflow_by: [],
-    text: sections
-      .filter((lines) => lines.length > 0)
-      .map((lines) => lines.join("\n"))
-      .join("\n\n"),
-  };
+  // 題・本文・Status はエージェントが dg で読むので、依頼文には ID だけを入れる（ADR-010）
+  const lines: string[] = [];
+  if (format === "skill" && candidate.skill) {
+    // Skill の形は呼び出しと指示だけ。呼び出しで頼むことが決まらないもの（起票・作成・外す・分ける・組み直す・持ち越し）だけ短い頼みごとを挟む
+    lines.push(
+      def.bare ? candidate.skill : [candidate.skill, ...ids(def.args?.(s) ?? s)].join(" "),
+    );
+    const intent = def.intent?.(s, w);
+    if (intent) lines.push(intent);
+  } else {
+    // 文章だけの形と Skill を使わない頼むことは、頼む 1 文と dg の呼び方を添える
+    const text = def.text(s, w);
+    if (text) lines.push(text);
+    lines.push(ASK_DG_USAGE);
+  }
+  if (note) lines.push(note);
+  return { ...view, kind: "prompt", human_only: [], workflow_by: [], text: lines.join("\n") };
 }
 
 function isComplete(statuses: readonly (Status | undefined)[]): boolean {
@@ -730,7 +760,9 @@ export const ask = defineCommand({
     format: z
       .enum(ASK_FORMATS)
       .default("skill")
-      .describe("skill は 1 行目が Skill の呼び出し、text は Skill の代わりに dg の呼び方を添える"),
+      .describe(
+        "skill は Skill の呼び出しと指示だけ、text は頼む 1 文と dg の呼び方と指示。Skill のない頼むことは skill でも text の形",
+      ),
     within: z
       .string()
       .optional()

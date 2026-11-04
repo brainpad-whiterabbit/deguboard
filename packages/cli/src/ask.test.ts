@@ -101,12 +101,16 @@ describe("dg ask", () => {
     expect(fromCli.ok).toBe(true);
     expect(fromHttp).toEqual(fromCli);
     expect(fromWebview.data).toEqual(fromCli.data);
-    expect(fromCli.data.text).toContain("次のチケットを指示のとおりに直してください。");
+    expect(fromCli.data.text).toBe(
+      [
+        "t1 を指示のとおりに直してください。",
+        "dg は `dg … --json --actor agent` で呼び、.git/deguboard/ のファイルは直接編集しないでください。",
+        "文言だけ",
+      ].join("\n"),
+    );
 
     const human = await dg(f.cloneA, ["ask", "t1", "--action", "fix"]);
-    expect(human.out).toBe(
-      "/dgimport t1\n次のチケットを指示のとおりに直してください。\n\n対象:\n- t1「画面の直し」（todo, Iteration なし）",
-    );
+    expect(human.out).toBe("/dgimport t1");
     expect(human.err).toContain("★割り当てる（assign）");
     // 候補にない頼むことは使い方の誤り（終了コード 2）
     expect((await dg(f.cloneA, ["ask", "t1", "--action", "release"])).code).toBe(2);

@@ -36,6 +36,7 @@ argument-hint: "[Iteration|Epic|チケットの ID...]"
 
 - 人かその AI に担当を付ける：`dg --json --actor agent ticket update <t12> --assignee human`（ユーザ本人）、`--assignee agent`（ユーザの AI）、`--assignee <ID>`（別のユーザ。`bob` や `bob/agent`）。外すのは `--assignee none`
 - 担当は予定の印で、排他ではない。着手は claim で決まり、claim した主体が担当者になる
+- チケットを起票するなら、`dg guide import` の「起票者と担当者」の扱い（`--created-by`）に従う
 
 ## 割り当てを提案するとき
 
