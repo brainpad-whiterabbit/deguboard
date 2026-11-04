@@ -122,29 +122,29 @@ describe("エージェントに頼む入力欄（UI-15）", () => {
     expect(box.getByRole("button", { name: "t5 を外す" })).toBeTruthy();
     expect(box.getByRole("button", { name: "s1 を外す" })).toBeTruthy();
     fireEvent.click(box.getByRole("button", { name: "全文" }));
-    await waitFor(() =>
-      expect(box.getByLabelText("全文").textContent).toMatch(/^\/dgcheck t5 s1\n/),
-    );
+    await waitFor(() => expect(box.getByLabelText("全文").textContent).toBe("/dgcheck t5 s1"));
 
     fireEvent.click(box.getByRole("button", { name: "s1 を外す" }));
     // review のチケット 1 件になり、おすすめは片付けるに替わる。1 行目からも s1 が消える
     await waitFor(() => expect(suggestions()[0]!.textContent).toContain("★確かめて片付ける"));
     expect(box.queryByRole("button", { name: "s1 を外す" })).toBeNull();
-    await waitFor(() => expect(box.getByLabelText("全文").textContent).toMatch(/^\/dgdone t5\n/));
+    await waitFor(() => expect(box.getByLabelText("全文").textContent).toBe("/dgdone t5"));
     expect(box.getByLabelText("全文").textContent).not.toContain("Iteration s1「");
 
-    // 形式を文章にすると Skill の札と 1 行目が消え、dg の呼び方を添える
+    // 形式を文章にすると Skill の札と呼び出しが消え、頼む 1 文と dg の呼び方になる
     fireEvent.click(box.getByRole("button", { name: "形式：Skill" }));
-    await waitFor(() => expect(box.getByLabelText("全文").textContent).toMatch(/^deguboard（dg）/));
+    await waitFor(() =>
+      expect(box.getByLabelText("全文").textContent).toMatch(/^t5 の PR のマージを照合し/),
+    );
     expect(box.queryByText("/dgdone")).toBeNull();
     expect(box.getByRole("button", { name: "形式：文章" })).toBeTruthy();
 
-    // 指示は複数行で書け、全文の「指示:」に入る
+    // 指示は複数行で書け、全文の終わりにそのまま入る
     fireEvent.change(box.getByRole("textbox", { name: "指示" }), {
       target: { value: "1 行目\n2 行目" },
     });
     await waitFor(() =>
-      expect(box.getByLabelText("全文").textContent).toContain("指示:\n1 行目\n2 行目"),
+      expect(box.getByLabelText("全文").textContent).toMatch(/\n1 行目\n2 行目$/),
     );
     expect(box.getByRole("button", { name: "コピー" })).toBeTruthy();
   });
@@ -158,9 +158,7 @@ describe("エージェントに頼む入力欄（UI-15）", () => {
     const box = within(composer());
     fireEvent.click(box.getByRole("button", { name: "コピー" }));
     await waitFor(() => expect(view.copied).toHaveLength(1));
-    expect(view.copied[0]).toBe(
-      "/dgdone t5\nPR のマージを照合し、残った受け入れ条件を確かめて片付けてください。\n\n対象:\n- t5「見直す」（review, s1）",
-    );
+    expect(view.copied[0]).toBe("/dgdone t5");
     // 知らせはコピーが済んでから入るので、描き直されるのを待つ
     await waitFor(() => expect(box.getByRole("status").textContent).toContain("コピーしました"));
 
@@ -171,8 +169,7 @@ describe("エージェントに頼む入力欄（UI-15）", () => {
     fireEvent.change(note, { target: { value: "題を短く" } });
     fireEvent.keyDown(note, { key: "Enter", metaKey: true });
     await waitFor(() => expect(view.copied).toHaveLength(2));
-    expect(view.copied[1]).toMatch(/^\/dgimport t5\n/);
-    expect(view.copied[1]).toContain("指示:\n題を短く");
+    expect(view.copied[1]).toBe("/dgimport t5\n題を短く");
     fireEvent.keyDown(note, { key: "Enter", ctrlKey: true });
     await waitFor(() => expect(view.copied).toHaveLength(3));
     await waitFor(() => expect(box.getByRole("status").textContent).toContain("コピーしました"));
