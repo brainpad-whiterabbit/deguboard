@@ -1,0 +1,19 @@
+{
+  "id": "r20261104-032229-9c98",
+  "ticket": "t302",
+  "step": "review",
+  "agent": "copilot",
+  "model": null,
+  "started_at": "2026-11-04T03:22:29Z",
+  "finished_at": "2026-11-04T03:24:35Z",
+  "result": "success",
+  "error": null,
+  "retries": 0,
+  "retry_reasons": [],
+  "usage": {
+    "input": null,
+    "output": null,
+    "cache_read": null,
+    "cache_write": null
+  }
+}
