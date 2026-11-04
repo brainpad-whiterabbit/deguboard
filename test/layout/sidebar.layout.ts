@@ -352,7 +352,7 @@ describe.each(SCHEMES)("履歴のチケットの見方の絞り込み（%s）", 
 
 describe.each(SCHEMES)("履歴の Iteration の行（%s）", (scheme) => {
   it.each([320, ...WIDTHS])(
-    "幅 %ipx で、目標は 2 行までで、件数のチップが行の枠からはみ出さず目標と重ならない",
+    "幅 %ipx で、目標は 2 行までで、件数が 1 段目の右端で行の枠からはみ出さず目標と重ならない",
     async (width) => {
       const context = await browser.newContext({
         viewport: { width, height: 900 },
@@ -361,18 +361,18 @@ describe.each(SCHEMES)("履歴の Iteration の行（%s）", (scheme) => {
       const page = await context.newPage();
       try {
         await page.goto(`${server.url}?surface=sidebar#/history`, { waitUntil: "networkidle" });
-        const row = page.locator(".history-row", { hasText: "sprint8" });
+        const row = page.locator(".history-row", { hasText: "左パネルを主画面" });
         await row.waitFor();
         const m = await row.evaluate((el) => {
           const box = el.getBoundingClientRect();
           const name = el.querySelector(".name")!;
           const nameBox = name.getBoundingClientRect();
-          const chips = [...el.querySelectorAll(".counts .badge")].map((b) =>
+          const chips = [...el.querySelectorAll(".counts > span")].map((b) =>
             b.getBoundingClientRect(),
           );
           const main = document.querySelector(".page")!;
           return {
-            chips: [...el.querySelectorAll(".counts .badge")].map((b) => b.textContent),
+            chips: [...el.querySelectorAll(".counts > span")].map((b) => b.textContent),
             // 見えている行の数：文字の矩形の上端のうち、枠の中にあるものを数える
             nameLines: (() => {
               const range = document.createRange();
@@ -383,16 +383,16 @@ describe.each(SCHEMES)("履歴の Iteration の行（%s）", (scheme) => {
               return new Set(tops).size;
             })(),
             chipsInside: chips.every((c) => c.left >= box.left && c.right <= box.right + 0.5),
-            chipsBelowName: chips.every((c) => c.top >= nameBox.bottom - 0.5),
+            chipsBesideName: chips.every((c) => c.left >= nameBox.right - 0.5),
             pageScroll: main.scrollWidth,
             pageClient: main.clientWidth,
           };
         });
-        expect(m.chips).toEqual(["完了 1", "中止 1", "持ち越し 1"]);
+        expect(m.chips).toEqual(["1", "中止 1", "持ち越し 1"]);
         expect(m.nameLines, "目標が見えている").toBeGreaterThan(0);
         expect(m.nameLines, "目標は 2 行まで").toBeLessThanOrEqual(2);
-        expect(m.chipsInside, "チップが行の枠に収まる").toBe(true);
-        expect(m.chipsBelowName, "チップが目標と重ならない").toBe(true);
+        expect(m.chipsInside, "件数が行の枠に収まる").toBe(true);
+        expect(m.chipsBesideName, "件数が目標の右に並び重ならない").toBe(true);
         expect(m.pageScroll, "画面が横に溢れない").toBeLessThanOrEqual(m.pageClient);
       } finally {
         await context.close();

@@ -2,8 +2,9 @@
 // 見方・検索語・結果の絞り込みはハッシュ（?view=・?q=・?result=）に持ち、開いた行は見た目の状態（useUiState）に持つ。
 // どちらもタブを移って戻ったときに残す（履歴のタブのリンクは最後に見た履歴のハッシュを指す。app.tsx）
 // Iteration の見方：closed の Iteration を閉じた新しい順に 2 段の行で出す（KanbanForge の History のタブと同じ形）。
-// 1 段目は番号・目標（目標がなければ名前）と件数のチップ（完了・中止・持ち越し）、2 段目は名前（目標を 1 段目に出したとき）・期間と、
-// 終わったチケットの Epic ごとの内訳（Epic なしを含み、合計は終わったチケットの件数に合う）。
+// 1 段目は番号・目標（目標がなければ薄く「目標なし」。名前は出さない）と件数（完了は数字、中止・持ち越しは 1 件以上のときだけ
+// 色付きの文字）、2 段目は閉じた日と、終わったチケットの Epic ごとの内訳（見出しなし。Epic なしを含み、合計は終わったチケットの件数に合う。
+// すべて Epic なしなら出さない）。予定の期間は実際に閉じた日と食い違うので出さない。
 // 行を開くと中の done・abandoned のチケットを出す。Run の実績はここに出さず、2 段目の「Run の集計」から
 // その Iteration で絞った Run の画面（#/runs?by=iteration&iteration=s5）を開いて見る（左パネルには Run の画面がなく、リンクも出さない）。
 // Epic の見方：closed の Epic を閉じた新しい順に、進捗・閉じた日と、チケットが入っていた Iteration を出す。
@@ -13,7 +14,7 @@
 // 番号を押すと詳細を開く（サイドバーとパネルでは拡張ホストに頼んでエディタに、ブラウザではハッシュ遷移）。
 // サイドバーでは狭い幅で読めるよう描き方を変える：Iteration の行は開閉の印を付け、開くと番号の順の 1 本の一覧（履歴用の行。
 // components/history-rows.tsx）で出し、持ち越しを最後に分ける。
-// Epic の見方は進捗バーをやめてタイトルを 2 行まで出し、Iteration の行と同じ件数のチップを付ける。行を開くと中の終わったチケットを
+// Epic の見方は進捗バーをやめてタイトルを 2 行まで出し、Iteration の行と同じ件数を付ける。行を開くと中の終わったチケットを
 // 番号の順の 1 本の一覧（2 段目は Iteration・PR）で出し、終わったチケットのない Epic は薄く出して開けない。
 // チケットの見方は日付の見出しを付けず、終えた新しい順の 1 本の一覧（履歴用の行。2 段目は Iteration・PR・終えた日）で出す。
 // 検索欄と結果の絞り込みは 1 行に並べる。
@@ -60,8 +61,8 @@ function byClosedDesc<T extends { id: string; closed_at?: string | undefined }>(
 }
 
 /**
- * 件数のチップ（Iteration と Epic の行で共用）。完了は記録がなければ「—」で出す。
- * 中止と持ち越しは 1 件以上のときだけ色付きで出す
+ * 件数（Iteration と Epic の行で共用。1 段目の右端）。完了は数字だけで、記録がなければ「—」で出す。
+ * 中止と持ち越しは 1 件以上のときだけ、色付きの文字で添える
  */
 function CountChips({
   completed,
@@ -76,9 +77,11 @@ function CountChips({
 }) {
   return (
     <span className="counts" title={title}>
-      <span className="badge">完了 {completed ?? NO_VALUE}</span>
-      {abandoned > 0 ? <span className="badge count-abandoned">中止 {abandoned}</span> : null}
-      {carried > 0 ? <span className="badge warn">持ち越し {carried}</span> : null}
+      <span className="count-done" title="完了">
+        {completed ?? NO_VALUE}
+      </span>
+      {abandoned > 0 ? <span className="count-abandoned">中止 {abandoned}</span> : null}
+      {carried > 0 ? <span className="count-carried">持ち越し {carried}</span> : null}
     </span>
   );
 }
@@ -486,10 +489,12 @@ function IterationItem({
     .sort(byNumber);
   const epics = epicCountsOf(finished);
   const abandoned = finished.filter((t) => t.status === "abandoned").length;
-  // 目標があれば 1 段目に目標を出し、名前は 2 段目に小さく出す。期間の記録がなければ何も書かない
+  // 1 段目は目標（なければ薄く「目標なし」。名前は出さず、ツールチップにだけ置く）。2 段目は閉じた日と Epic ごとの内訳。
+  // 予定の期間（start〜end）は実際に閉じた日と食い違うので出さない
   const goal = i.goal?.trim();
-  const period = i.start || i.end ? `${i.start ?? "?"} 〜 ${i.end ?? "?"}` : "";
-  const meta = [goal ? i.name : "", period].filter(Boolean).join(" ・ ");
+  const closedOn = i.closed_at ? `${i.closed_at.slice(0, 10)} に閉じた` : "閉じた日は不明";
+  // 終わったチケットがすべて Epic なしなら内訳は出さない（Epic なしだけの内訳は情報にならない）
+  const showEpics = epics.some((e) => e.epic !== null);
   // 左パネルでは閉じた Iteration の行から頼む（UI-15）
   const spot = useAskSpot(
     sidebar
@@ -503,8 +508,8 @@ function IterationItem({
           <DetailLink route={{ page: "iterations", id: i.id }}>
             <code>{i.id}</code>
           </DetailLink>
-          <span className="name" title={goal ? `${goal}（${i.name}）` : i.name}>
-            {goal || i.name}
+          <span className={goal ? "name" : "name history-none"} title={i.name}>
+            {goal || "目標なし"}
           </span>
           {/* 完了と持ち越しは iteration.close が記録した値（core が数える）をそのまま出し、web では数え直さない。
               中止は記録がないので Iteration に入っている abandoned を数える */}
@@ -515,10 +520,10 @@ function IterationItem({
             title="完了と持ち越しは閉じたときに記録した件数"
           />
           <small>
-            {meta}
-            {epics.length > 0 ? (
+            {closedOn}
+            {showEpics ? (
               <span className="epics">
-                {meta ? " ・ " : ""}内訳:{" "}
+                {" ・ "}
                 {epics.map((e, n) => (
                   <span key={e.epic ?? "-"}>
                     {n > 0 ? ", " : ""}
@@ -536,7 +541,7 @@ function IterationItem({
                 左パネルには Run の画面がないので出さない（UI-12） */}
             {sidebar ? null : (
               <>
-                {meta || epics.length > 0 ? " ・ " : ""}
+                {" ・ "}
                 <a
                   className="history-runs-link"
                   href={hrefOf({ page: "runs", by: "iteration", iteration: i.id })}
@@ -705,7 +710,7 @@ function finishedOfEpic(epic: string, tickets: readonly Ticket[]): Ticket[] {
 }
 
 /**
- * サイドバーの閉じた Epic の行：番号・タイトル（2 行まで）、件数のチップ（Iteration の行と同じ形。完了・中止は core の
+ * サイドバーの閉じた Epic の行：番号・タイトル（2 行まで）、件数（Iteration の行と同じ形。完了・中止は core の
  * epic.list が返す進み（progress.by_status）の done・abandoned を読み、web では数え直さない）、2 段目に閉じた日・
  * チケットが入っていた Iteration。進捗バーは出さない。
  * 開くと中の終わったチケットを番号の順の 1 本の一覧（履歴用の行。Epic は省き Iteration を出す）で出す。

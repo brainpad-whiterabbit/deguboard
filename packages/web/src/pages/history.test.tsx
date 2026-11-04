@@ -146,6 +146,9 @@ describe("Iteration の行", () => {
         goal: "左パネルを主画面にする",
         status: "closed",
         closed_at: "2026-11-01T00:00:00Z",
+        // 予定の期間は実際に閉じた日と食い違うので出さない
+        start: "2026-11-15",
+        end: "2026-11-28",
         completed: 3,
         carried_over: 2,
       }),
@@ -167,9 +170,11 @@ describe("Iteration の行", () => {
       </StoreProvider>,
     );
     const row = (await screen.findByText("左パネルを主画面にする")).closest(".history-row")!;
-    expect(row.querySelector("small")!.textContent).toBe("sprint4 ・ 内訳: e1 2, Epic なし 2");
-    expect([...row.querySelectorAll(".counts .badge")].map((b) => b.textContent)).toEqual([
-      "完了 3",
+    expect(row.querySelector("small")!.textContent).toBe(
+      "2026-11-01 に閉じた ・ e1 2, Epic なし 2",
+    );
+    expect([...row.querySelectorAll(".counts > span")].map((b) => b.textContent)).toEqual([
+      "3",
       "中止 1",
       "持ち越し 2",
     ]);
@@ -178,6 +183,43 @@ describe("Iteration の行", () => {
     );
     const counts = epicCountsOf(finished);
     expect(counts.reduce((n, c) => n + c.count, 0)).toBe(finished.length);
+  });
+});
+
+describe("Iteration の行の 1 段目と 2 段目", () => {
+  it("目標がなければ名前（sprint4）ではなく「目標なし」を薄く出し、目標があれば名前を出さない。内訳は終わったチケットがすべて Epic なしなら出さない", async () => {
+    window.location.hash = "#/history";
+    const client = mockClient();
+    client.data.iterations = [
+      iteration({ id: "s4", name: "sprint4", status: "closed", closed_at: "2026-11-01T00:00:00Z" }),
+      iteration({
+        id: "s5",
+        name: "sprint5",
+        goal: "目標あり",
+        status: "closed",
+        closed_at: "2026-11-02T00:00:00Z",
+      }),
+    ];
+    client.data.tickets = [
+      ticket({ id: "t1", status: "done", iteration: "s4" }),
+      ticket({ id: "t2", status: "done", iteration: "s5" }),
+    ];
+    render(
+      <StoreProvider client={client}>
+        <HostProvider host={sidebarHost()}>
+          <App />
+        </HostProvider>
+      </StoreProvider>,
+    );
+    const none = (await screen.findByText("目標なし")).closest(".history-row")!;
+    expect(screen.getByText("目標なし").classList.contains("history-none")).toBe(true);
+    expect(none.querySelector("small")!.textContent).toBe("2026-11-01 に閉じた");
+    expect(none.querySelector(".epics")).toBeNull();
+    const goal = screen.getByText("目標あり").closest(".history-row")!;
+    expect(goal.querySelector("small")!.textContent).toBe("2026-11-02 に閉じた");
+    expect(document.body.textContent).not.toContain("sprint4");
+    expect(document.body.textContent).not.toContain("sprint5");
+    expect(document.body.textContent).not.toContain("内訳");
   });
 });
 
@@ -196,8 +238,8 @@ describe("Iteration の行の Run の集計", () => {
         </HostProvider>
       </StoreProvider>,
     );
-    const row = (await screen.findByText("sprint4")).closest(".history-row")!;
-    expect(row.querySelector("small")!.textContent).toBe("内訳: Epic なし 1");
+    const row = (await screen.findByText("目標なし")).closest(".history-row")!;
+    expect(row.querySelector("small")!.textContent).toBe("閉じた日は不明");
     expect(within(row as HTMLElement).queryByRole("link", { name: "Run の集計" })).toBeNull();
   });
 
@@ -220,7 +262,7 @@ describe("Iteration の行の Run の集計", () => {
         <App />
       </StoreProvider>,
     );
-    const row = (await screen.findByText("sprint4")).closest(".history-row")!;
+    const row = (await screen.findByText("目標なし")).closest(".history-row")!;
     const link = within(row as HTMLElement).getByRole("link", { name: "Run の集計" });
     expect(link.getAttribute("href")).toBe("#/runs?by=iteration&iteration=s4");
     // 履歴の画面は Run の記録を読まない（数字を出さない）
@@ -256,7 +298,9 @@ describe("サイドバーの履歴", () => {
   it("開いた Iteration のチケットは Epic で分けず番号の順の 1 本の一覧で出し、持ち越しがなければ持ち越しの節を出さない", async () => {
     window.location.hash = "#/history";
     const client = mockClient();
-    client.data.iterations = [iteration({ id: "s4", name: "sprint4", status: "closed" })];
+    client.data.iterations = [
+      iteration({ id: "s4", name: "sprint4", goal: "sprint4", status: "closed" }),
+    ];
     client.data.tickets = [
       ticket({ id: "t10", status: "done", iteration: "s4", epic: "e1", pr: 30 }),
       ticket({ id: "t2", status: "done", iteration: "s4", epic: "e2" }),
@@ -308,9 +352,7 @@ describe("サイドバーの履歴", () => {
     expect(row.querySelector(".progress")).toBeNull();
     expect(row.closest("details")).toBeNull();
     expect(row.closest(".history-item")!.classList.contains("history-empty")).toBe(true);
-    expect([...row.querySelectorAll(".counts .badge")].map((b) => b.textContent)).toEqual([
-      "完了 0",
-    ]);
+    expect([...row.querySelectorAll(".counts > span")].map((b) => b.textContent)).toEqual(["0"]);
     expect(row.querySelector("small")!.textContent).toBe(
       "終わったチケットなし ・ 2026-10-31 に閉じた ・ s1",
     );
@@ -344,8 +386,8 @@ describe("サイドバーの履歴", () => {
       </StoreProvider>,
     );
     const row = (await screen.findByText("最初の版")).closest(".history-epic")!;
-    expect([...row.querySelectorAll(".counts .badge")].map((b) => b.textContent)).toEqual([
-      "完了 2",
+    expect([...row.querySelectorAll(".counts > span")].map((b) => b.textContent)).toEqual([
+      "2",
       "中止 1",
     ]);
     expect(row.querySelector("small")!.textContent).toBe("2026-10-31 に閉じた ・ s1");
@@ -528,9 +570,27 @@ describe("サイドバーの履歴", () => {
     window.location.hash = "#/history";
     const client = mockClient();
     client.data.iterations = [
-      iteration({ id: "s4", name: "sprint4", status: "closed", closed_at: "2026-10-02T00:00:00Z" }),
-      iteration({ id: "s3", name: "sprint3", status: "closed", closed_at: "2026-10-01T00:00:00Z" }),
-      iteration({ id: "s2", name: "sprint2", status: "closed", closed_at: "2026-09-01T00:00:00Z" }),
+      iteration({
+        id: "s4",
+        name: "sprint4",
+        goal: "sprint4",
+        status: "closed",
+        closed_at: "2026-10-02T00:00:00Z",
+      }),
+      iteration({
+        id: "s3",
+        name: "sprint3",
+        goal: "sprint3",
+        status: "closed",
+        closed_at: "2026-10-01T00:00:00Z",
+      }),
+      iteration({
+        id: "s2",
+        name: "sprint2",
+        goal: "sprint2",
+        status: "closed",
+        closed_at: "2026-09-01T00:00:00Z",
+      }),
     ];
     client.data.tickets = [
       ticket({ id: "t1", title: "検索の欄", status: "done", iteration: "s4" }),
@@ -585,7 +645,9 @@ describe("サイドバーの履歴", () => {
   it("検索中に閉じた行と「すべて見る」は、検索語を変えると捨てる", async () => {
     window.location.hash = "#/history";
     const client = mockClient();
-    client.data.iterations = [iteration({ id: "s4", name: "sprint4", status: "closed" })];
+    client.data.iterations = [
+      iteration({ id: "s4", name: "sprint4", goal: "sprint4", status: "closed" }),
+    ];
     client.data.tickets = [
       ticket({ id: "t1", title: "検索の欄", status: "done", iteration: "s4" }),
       ticket({ id: "t2", title: "一覧", status: "done", iteration: "s4" }),
@@ -734,8 +796,8 @@ describe("タブを移って戻ったとき", () => {
     window.location.hash = "#/history";
     const client = mockClient();
     client.data.iterations = [
-      iteration({ id: "s4", name: "sprint4", status: "closed" }),
-      iteration({ id: "s5", name: "sprint5", status: "closed" }),
+      iteration({ id: "s4", name: "sprint4", goal: "sprint4", status: "closed" }),
+      iteration({ id: "s5", name: "sprint5", goal: "sprint5", status: "closed" }),
     ];
     client.data.epics[0] = { ...client.data.epics[0]!, status: "closed" };
     client.data.tickets = [

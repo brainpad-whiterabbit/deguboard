@@ -249,7 +249,9 @@ describe("左パネルのバックログと履歴から頼む（UI-15）", () =>
   it("履歴のチケットの行と Iteration の行から頼める", async () => {
     const client = mockClient(
       fixture({
-        iterations: [iteration({ id: "s1", name: "終わった週", status: "closed" })],
+        iterations: [
+          iteration({ id: "s1", name: "終わった週", goal: "終わった週", status: "closed" }),
+        ],
         tickets: [ticket({ id: "t1", title: "終えた", status: "done", iteration: "s1" })],
       }),
     );
