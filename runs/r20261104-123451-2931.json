@@ -1,0 +1,19 @@
+{
+  "id": "r20261104-123451-2931",
+  "ticket": "t352",
+  "step": "review",
+  "agent": "claude-code",
+  "model": "opus",
+  "started_at": "2026-11-04T12:34:51Z",
+  "finished_at": "2026-11-04T12:37:40Z",
+  "result": "success",
+  "error": null,
+  "retries": 0,
+  "retry_reasons": [],
+  "usage": {
+    "input": 26,
+    "output": 8714,
+    "cache_read": 617352,
+    "cache_write": 20773
+  }
+}
