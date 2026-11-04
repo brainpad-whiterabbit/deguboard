@@ -33,7 +33,7 @@ function Highlight({ text, query }: { text: string; query?: string | undefined }
 }
 
 /**
- * 履歴用のチケットの行。2 段目は「中止」（中止のときだけ）・Iteration（showIteration のとき）・Epic（なければ Epic なし）・
+ * 履歴用のチケットの行。2 段目は「中止」（中止のときだけ）・Iteration（showIteration のとき）・Epic（あるときだけ）・
  * PR 番号（なければ PR なし）・note の順に「・」で区切って出す。
  * Epic のタブのように Epic が分かっている一覧では showEpic={false} で Epic を省く。
  * query を渡すと、番号とタイトルの当たった部分に印を付け、当たったラベルを note の前に足す
@@ -73,14 +73,9 @@ export function HistoryTicketRow({
         <span className="history-none">Iteration なし</span>
       ),
     );
-  if (showEpic)
-    parts.push(
-      t.epic ? (
-        <DetailLink route={{ page: "epics", id: t.epic }}>{t.epic}</DetailLink>
-      ) : (
-        <span className="history-none">Epic なし</span>
-      ),
-    );
+  // Epic のないチケットは何も書かない（Iteration の行の内訳で分かり、行ごとに繰り返すと読むところが埋もれる）
+  if (showEpic && t.epic)
+    parts.push(<DetailLink route={{ page: "epics", id: t.epic }}>{t.epic}</DetailLink>);
   parts.push(t.pr ? <span>#{t.pr}</span> : <span className="history-none">PR なし</span>);
   const labels = q ? t.labels.filter((l) => l.toLowerCase().includes(q)) : [];
   if (labels.length > 0)

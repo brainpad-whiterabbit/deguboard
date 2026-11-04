@@ -512,7 +512,7 @@ button.link:hover {
   white-space: nowrap;
   font-weight: 500;
 }
-/* 件数のチップ：完了は地の色、中止は赤み（.badge.count-abandoned）・持ち越しは黄みの色付き（1 件以上のときだけ出る） */
+/* 件数：完了は数字だけ、中止は赤み・持ち越しは黄みの色付きの文字（1 件以上のときだけ出る） */
 .history-row .counts {
   display: inline-flex;
   flex-wrap: wrap;
@@ -520,6 +520,21 @@ button.link:hover {
   gap: 0.25rem;
   align-self: center;
   font-variant-numeric: tabular-nums;
+}
+.history-row .counts .count-done {
+  font-weight: 600;
+}
+.history-row .counts .count-abandoned {
+  color: var(--vscode-errorForeground);
+  white-space: nowrap;
+}
+.history-row .counts .count-carried {
+  color: var(--dg-warning);
+  white-space: nowrap;
+}
+.history-row .name.history-none {
+  font-weight: normal;
+  opacity: 0.6;
 }
 .history-row small {
   grid-column: 2 / span 2;
@@ -2346,19 +2361,17 @@ textarea.body {
 [data-surface="sidebar"] .history-epic small {
   grid-column: 2 / -1;
 }
-/* サイドバーの Iteration の行：目標（なければ名前）は 2 行まで折り返して幅いっぱいに使い、件数のチップはその下に左寄せで並べる */
+/* サイドバーの Iteration の行：目標（なければ「目標なし」）は 2 行まで折り返し、件数は 1 段目の右端に置く */
 [data-surface="sidebar"] .history-item .history-row .name {
-  grid-column: 2 / -1;
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
   white-space: normal;
   overflow-wrap: anywhere;
 }
-[data-surface="sidebar"] .history-item .history-row .counts {
-  grid-column: 2 / -1;
-  justify-content: flex-start;
-  margin: 0.1rem 0;
+/* 件数は 1 段目の右端に出すので、頼む吹き出し（右端に重なる）の分だけ右に余白を取り、件数に重ねない */
+[data-surface="sidebar"] .history-row[data-ask-spot] {
+  padding-right: 30px;
 }
 /* 履歴のチケットの見方の検索欄と結果の絞り込み：サイドバーでも 1 行に並べ、検索欄が残りの幅を使う */
 [data-surface="sidebar"] .history-filter {

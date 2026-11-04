@@ -360,6 +360,7 @@ describe("エージェントに頼む入力欄（UI-15）", () => {
             iteration({
               id: "s0",
               name: "前",
+              goal: "前",
               status: "closed",
               closed_at: "2026-01-02T00:00:00Z",
             }),

@@ -44,11 +44,11 @@ describe("履歴用の行", () => {
         .querySelectorAll("mark");
     expect([...marks("t1")].map((m) => m.textContent)).toEqual(["Search", "search"]);
     expect([...marks("t2")].map((m) => m.textContent)).toEqual(["search"]);
-    expect(metaOf("t2")).toBe("Epic なし ・ PR なし ・ ラベル search-ui");
+    expect(metaOf("t2")).toBe("PR なし ・ ラベル search-ui");
     expect([...marks("t3")].map((m) => m.closest("code") !== null)).toEqual([true]);
   });
 
-  it("2 段目に Epic と PR 番号を出し、ないものは「なし」と書く。優先度のバッジは出さない", async () => {
+  it("2 段目に Epic と PR 番号を出し、Epic のないものは何も書かず、PR のないものは「PR なし」と書く。優先度のバッジは出さない", async () => {
     mount(
       <>
         <HistoryTicketRow
@@ -59,7 +59,7 @@ describe("履歴用の行", () => {
     );
     await screen.findByText("t1");
     expect(metaOf("t1")).toBe("e1 ・ #12");
-    expect(metaOf("t2")).toBe("Epic なし ・ PR なし");
+    expect(metaOf("t2")).toBe("PR なし");
     expect(document.querySelector(".priority-high")).toBeNull();
     expect(document.querySelector(".row-assignee")).toBeNull();
   });
