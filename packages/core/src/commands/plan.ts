@@ -176,6 +176,21 @@ function planStatus(plan: Plan): PlanStatus {
   return plan.pending_approval ? "pending" : "approved";
 }
 
+/** iteration.show に出す Plan の 1 行（UI-5）。状態と進捗は plan.list と同じ求め方 */
+export type PlanBrief = { id: Plan["id"]; status: PlanStatus; progress: Progress };
+
+/** 中のチケットを 1 件でも含む Plan を、番号順に状態と進捗つきで出す。閉じた Plan も含める */
+export function plansContaining(store: Store, ticketIds: readonly string[]): PlanBrief[] {
+  const ids = new Set(ticketIds);
+  return sortedDocs(store.plans.values())
+    .filter((d) => d.data.tickets.some((t) => ids.has(t)))
+    .map((d) => ({
+      id: d.data.id,
+      status: planStatus(d.data),
+      progress: progressOf(ticketsOf(store, d.data).map((t) => t.data)),
+    }));
+}
+
 function ticketsOf(store: Store, plan: Plan): Doc<Ticket>[] {
   return plan.tickets.flatMap((id) => store.tickets.get(id) ?? []);
 }

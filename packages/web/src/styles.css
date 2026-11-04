@@ -742,6 +742,26 @@ button.link:hover {
   border-left: 3px solid var(--vscode-focusBorder);
   background: var(--vscode-textBlockQuote-background);
 }
+/* Iteration 詳細の Plan の節（iteration-plans.tsx） */
+.iteration-plans h2 {
+  font-size: 1em;
+  margin: 0 0 0.25rem;
+}
+.iteration-plans ul {
+  list-style: none;
+  margin: 0 0 0.75rem;
+  padding: 0;
+}
+.iteration-plans li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.2rem 0.6rem;
+  padding: 0.1rem 0;
+}
+.iteration-plan-count {
+  font-variant-numeric: tabular-nums;
+}
 .ticket-run-detail {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);

@@ -16,6 +16,7 @@ import { progressOf, type Progress, type Ticket } from "../model/ticket.js";
 import type { Doc } from "../storage/documents.js";
 import type { Store } from "../storage/store.js";
 import { defineCommand, ok } from "./define.js";
+import { plansContaining, type PlanBrief } from "./plan.js";
 import type { AskAction } from "./ask.js";
 import {
   isOverdue,
@@ -186,11 +187,13 @@ export async function iterationNextOf(
   return null;
 }
 
-/** iteration.show の出力。items は優先度と番号の順（IT-2）。progress は Epic と同じ形で、中のチケットから都度求める（EP-3）。next は次の操作の案内 */
+/** iteration.show の出力。items は優先度と番号の順（IT-2）。progress は Epic と同じ形で、中のチケットから都度求める（EP-3）。next は次の操作の案内、plans は中のチケットを含む Plan */
 export type IterationDetail = Iteration & {
   progress: Progress;
   items: Ticket[];
   next: IterationNext | null;
+  /** 中のチケットを 1 件でも含む Plan（状態と進捗つき。なければ空） */
+  plans: PlanBrief[];
 };
 
 export const iterationShow = defineCommand({
@@ -209,6 +212,10 @@ export const iterationShow = defineCommand({
       progress: progressOf(items),
       items,
       next: await iterationNextOf(ctx, doc.data, items),
+      plans: plansContaining(
+        ctx.store,
+        items.map((t) => t.id),
+      ),
     });
   },
 });

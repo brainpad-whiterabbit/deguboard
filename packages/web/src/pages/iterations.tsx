@@ -1,9 +1,10 @@
-// Iteration（UI-5）の詳細：期間・目標・進捗と中のチケット。見出しの下の欄は IterationSummary（iteration-parts.tsx）、状態に応じた次の操作の案内は IterationNext（iteration-next.tsx）。一覧の画面はなく、planned と active はカンバンの絞り込みで選ぶ（board.tsx）。
+// Iteration（UI-5）の詳細：期間・目標・進捗と中のチケット。見出しの下の欄は IterationSummary（iteration-parts.tsx）、状態に応じた次の操作の案内は IterationNext（iteration-next.tsx）、中のチケットを含む Plan の節は IterationPlans（iteration-plans.tsx）。一覧の画面はなく、planned と active はカンバンの絞り込みで選ぶ（board.tsx）。
 // 表示だけで書き込まない。名前・目標・期間の直し・閉じる・再開とチケットの足し外しは、タイトルと行の吹き出し・右クリックからエージェントに頼む
 // （ADR-010・UI-15）。開始は頼むことになく、着手（claim）の手順が planned の Iteration を active にする（ADR-006）
 
 import { ASK_SECTIONS, AskSpotBox } from "../components/ask-menu.js";
 import { IterationNext } from "../components/iteration-next.js";
+import { IterationPlans } from "../components/iteration-plans.js";
 import { IterationSummary } from "../components/iteration-parts.js";
 import { TicketTable } from "../components/parts.js";
 import { TicketSections } from "../components/ticket-sections.js";
@@ -61,6 +62,8 @@ function IterationDetailView({ id }: { id: string }) {
       <IterationSummary it={it} />
       {/* 状態に応じた次の操作の案内と依頼文のコピー（書き込まない） */}
       <IterationNext it={it} />
+      {/* 中のチケットを含む Plan（なければ節を出さない） */}
+      <IterationPlans plans={it.plans} />
       {/* パネルは未完了・完了・中止の段に分けた 1 行の並び（Epic 詳細と共用。UI-12）。ブラウザは表 */}
       {host.surface === "panel" ? (
         <TicketSections tickets={it.items} within={it.id} section={ASK_SECTIONS.detailTicket} />
