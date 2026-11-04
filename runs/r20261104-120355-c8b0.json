@@ -1,0 +1,22 @@
+{
+  "id": "r20261104-120355-c8b0",
+  "ticket": "t335",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "sonnet",
+  "started_at": "2026-11-04T12:03:55Z",
+  "finished_at": "2026-11-04T12:05:09Z",
+  "result": "success",
+  "error": null,
+  "retries": 2,
+  "retry_reasons": [
+    "持ち越し後に終わったチケットには assign を勧めない（moved に status）",
+    "requirements.md の IT-2 に iteration show の next を足した"
+  ],
+  "usage": {
+    "input": 8,
+    "output": 3563,
+    "cache_read": 648826,
+    "cache_write": 5293
+  }
+}

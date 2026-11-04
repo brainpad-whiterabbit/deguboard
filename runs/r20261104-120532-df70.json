@@ -1,0 +1,19 @@
+{
+  "id": "r20261104-120532-df70",
+  "ticket": "t335",
+  "step": "review",
+  "agent": "claude-code",
+  "model": "opus",
+  "started_at": "2026-11-04T12:05:32Z",
+  "finished_at": "2026-11-04T12:07:04Z",
+  "result": "success",
+  "error": null,
+  "retries": 0,
+  "retry_reasons": [],
+  "usage": {
+    "input": 28,
+    "output": 4751,
+    "cache_read": 659074,
+    "cache_write": 25892
+  }
+}

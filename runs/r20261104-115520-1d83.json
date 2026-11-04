@@ -1,0 +1,25 @@
+{
+  "id": "r20261104-115520-1d83",
+  "ticket": "t335",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "sonnet",
+  "started_at": "2026-11-04T11:55:20Z",
+  "finished_at": "2026-11-04T12:00:06Z",
+  "result": "success",
+  "error": null,
+  "retries": 5,
+  "retry_reasons": [
+    "持ち越しの相談を close から carry の頼むことに分けた",
+    "判断を web から core の iteration.show の next に移した",
+    "closed の持ち越し先を core が返し、batch で出ない分は理由を添えた",
+    "ADR-010 の入口の節に案内を足した",
+    "planned の文言と assign のコピーを足した"
+  ],
+  "usage": {
+    "input": 54,
+    "output": 21545,
+    "cache_read": 3774951,
+    "cache_write": 41376
+  }
+}
