@@ -1,0 +1,21 @@
+{
+  "id": "r20261104-030847-13f5",
+  "ticket": "t328",
+  "step": "fix",
+  "agent": "copilot",
+  "model": "claude-opus-4.8-fast",
+  "started_at": "2026-11-04T03:08:47Z",
+  "finished_at": "2026-11-04T03:09:54Z",
+  "result": "success",
+  "error": null,
+  "retries": 1,
+  "retry_reasons": [
+    "ADR-005 の Adapter の記述を Copilot を含む 3 製品に更新"
+  ],
+  "usage": {
+    "input": null,
+    "output": null,
+    "cache_read": null,
+    "cache_write": null
+  }
+}
