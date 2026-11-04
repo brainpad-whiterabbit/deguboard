@@ -14,14 +14,14 @@ describe("Iteration の残り・超過の日数", () => {
     end ? { status: "active" as const, end } : { status: "active" as const };
 
   it("active なら終了日までの残り日数を数え、当日は「今日まで」", () => {
-    expect(periodNote(active("2026-11-30"), "2026-11-17")).toBe("残り 13 日");
-    expect(periodNote(active("2026-11-30"), "2026-11-29")).toBe("残り 1 日");
-    expect(periodNote(active("2026-11-30"), "2026-11-30")).toBe("今日まで");
+    expect(periodNote(active("2026-11-30"), "2026-11-17")?.text).toBe("残り 13 日");
+    expect(periodNote(active("2026-11-30"), "2026-11-29")?.text).toBe("残り 1 日");
+    expect(periodNote(active("2026-11-30"), "2026-11-30")?.text).toBe("今日まで");
   });
 
   it("終了日を過ぎていれば超過日数を数える。月をまたいでも暦日で数える", () => {
-    expect(periodNote(active("2026-11-30"), "2026-12-01")).toBe("1 日超過");
-    expect(periodNote(active("2026-10-31"), "2026-11-04")).toBe("4 日超過");
+    expect(periodNote(active("2026-11-30"), "2026-12-01")?.text).toBe("1 日超過");
+    expect(periodNote(active("2026-10-31"), "2026-11-04")?.text).toBe("4 日超過");
   });
 
   it("active でない・終了日がないときは添えない", () => {

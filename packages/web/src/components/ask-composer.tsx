@@ -113,18 +113,21 @@ export function AskComposer({
   // 選んで開いたときは、開くと同時にコピーする（指示を足さないことが多い）。開いた 1 回だけ
   const copiedOnOpen = useRef(false);
   const copySeq = useRef(0);
+  // 最新の copy を ref で持つ。effect は引き直しのたびに再実行されても、copiedOnOpen で 1 回だけ呼ぶ
+  const copyRef = useRef<(pick: AskAction | null) => Promise<void>>(async () => {});
+  useEffect(() => {
+    copyRef.current = copy;
+  });
   useEffect(() => {
     // 候補が引けてから、選んだ頼むこと（候補にあれば）でコピーする。候補になければおすすめ
     if (!copyOnOpen || !initialAction || !base || copiedOnOpen.current) return;
     copiedOnOpen.current = true;
-    void copy(
+    void copyRef.current(
       initialAction && base.candidates.some((c) => c.action === initialAction)
         ? initialAction
         : null,
     );
-    // 開いたときの 1 回だけ。copy は最新の状態を使うが、依存に入れると引き直すたびに再コピーする
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [base]);
+  }, [base, copyOnOpen, initialAction]);
 
   /** 今の指示で引き直してからコピーする（待っている間に打った分も入れる）。pick は選んだ直後の頼むこと（まだ state に入っていない） */
   async function copy(pick: AskAction | null = action) {
