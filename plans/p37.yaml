@@ -6,7 +6,7 @@ after:
     - t302
   t304:
     - t302
-pending_approval: true
+pending_approval: false
 details:
   t301:
     scope: "guide-import.md の「よいチケットの書き方」に任意の ## 参考 節の書き方を足す。lint の対象にしない"
@@ -28,3 +28,5 @@ details:
     scope: 設定画面で優先度の判断基準を見て直せるようにする
     approach: 設定画面に基準の欄を足し config.yaml の priority に保存。空で既定に戻す
     tier: standard
+approved_by: eiki.kitajima/agent
+approved_at: 2026-11-04T03:15:33Z
