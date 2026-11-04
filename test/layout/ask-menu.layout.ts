@@ -1,6 +1,6 @@
 // 吹き出しの一覧（UI-15）。dg serve の画面を Chromium で開き、
 // カンバンとバックログの行・区画の見出し、Iteration の詳細の行の吹き出しを押すと頼むことの一覧が画面の中に出て、
-// 選ぶと入力欄が開くことと、行をドラッグしても書き込みの要求を送らずデータが変わらないこと（画面から書き込むのはチケット詳細と設定画面だけ。ADR-010）を確かめる。
+// 選ぶと入力欄が開くことと、入力欄の頼むことの札が折り返して幅に収まり、閉じるボタンが残ること、行をドラッグしても書き込みの要求を送らずデータが変わらないこと（画面から書き込むのはチケット詳細と設定画面だけ。ADR-010）を確かめる。
 // ブラウザが要るので mise run test には入れず、mise run test:layout で回す（先に mise run build と mise run playwright:install）
 
 import { access } from "node:fs/promises";
@@ -14,6 +14,8 @@ import { startServer } from "../../packages/server/src/index.js";
 const WEB_DIST = path.resolve(import.meta.dirname, "../../packages/web/dist");
 /** 左パネルの幅 */
 const WIDTH = 300;
+/** 札が確実に折り返す狭い幅 */
+const NARROW_WIDTH = 200;
 /** エディタのパネルの幅（Iteration の詳細は表で出す） */
 const PANEL_WIDTH = 800;
 
@@ -181,4 +183,41 @@ describe("吹き出しの一覧（UI-15）", () => {
     expect(await page.getByRole("button", { name: "+ Iteration を作る" }).count()).toBe(0);
     await page.close();
   });
+
+  it.each([WIDTH, NARROW_WIDTH])(
+    "幅 %ipx の左パネルの入力欄は頼むことの札を折り返して幅の中に収め、すべての札を選べて、閉じるボタンも残る",
+    async (width) => {
+      const page = await browser.newPage({ viewport: { width, height: 800 } });
+      await page.goto(`${server.url}?surface=sidebar#/board`, { waitUntil: "networkidle" });
+      const row = page.locator('.column[data-status="in_progress"] .row-item', {
+        has: page.locator('a[href="#/tickets/t2"]'),
+      });
+      await row.waitFor();
+      await openMenu(page, row, width);
+      await page.locator(".ask-menu [role=menuitem]").first().click();
+      const composer = page.locator(".ask-composer");
+      await composer.waitFor();
+      const chips = composer.locator("button.ask-suggestion");
+      await expect.poll(() => chips.count()).toBeGreaterThan(1);
+      const count = await chips.count();
+      // 札が 1 行に収まらず折り返した（300px でも 4 枚の札が 2 行になる）
+      const rows = new Set(
+        await chips.evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().y))),
+      );
+      expect(rows.size, "札の行の数").toBeGreaterThanOrEqual(2);
+      for (let i = 0; i < count; i++) {
+        const box = (await chips.nth(i).boundingBox())!;
+        expect(box.x, `札 ${i} の左端`).toBeGreaterThanOrEqual(0);
+        expect(box.x + box.width, `札 ${i} の右端`).toBeLessThanOrEqual(width);
+        // 幅の外に隠れず、押せる
+        await chips.nth(i).click();
+        expect(await chips.nth(i).getAttribute("aria-pressed"), `札 ${i} を選ぶ`).toBe("true");
+      }
+      const close = (await composer.getByRole("button", { name: "閉じる" }).boundingBox())!;
+      expect(close.x + close.width, "閉じるボタンの右端").toBeLessThanOrEqual(width);
+      await composer.getByRole("button", { name: "閉じる" }).click();
+      expect(await composer.count()).toBe(0);
+      await page.close();
+    },
+  );
 });
