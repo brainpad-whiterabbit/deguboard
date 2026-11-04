@@ -1,0 +1,23 @@
+{
+  "id": "r20261104-124504-3bd2",
+  "ticket": "t351",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "sonnet",
+  "started_at": "2026-11-04T12:45:04Z",
+  "finished_at": "2026-11-04T12:46:09Z",
+  "result": "success",
+  "error": null,
+  "retries": 3,
+  "retry_reasons": [
+    "web の localDate のテストが UTC 固定で getUTC* でも通る（TZ 切替で修正）",
+    "core の helpers.test.ts の TZ 設定の重複行を削除",
+    "PR 本文に iterationReadiness を範囲に含めた経緯を追記"
+  ],
+  "usage": {
+    "input": 4,
+    "output": 1596,
+    "cache_read": 111885,
+    "cache_write": 2733
+  }
+}
