@@ -20,12 +20,12 @@ afterEach(async () => {
   await Promise.all(cleanups.splice(0).map((c) => c()));
 });
 
-async function ready(): Promise<CommandContext> {
+async function ready(now?: () => Date): Promise<CommandContext> {
   const f: Fixture = await createFixture();
   cleanups.push(f.cleanup);
   const actor = { kind: "human" as const, user: "eiki" };
   await runCommand(init, await openContext({ cwd: f.cloneA, initialize: {}, actor }), {});
-  return openContext({ cwd: f.cloneA, actor });
+  return openContext({ cwd: f.cloneA, actor, ...(now ? { now } : {}) });
 }
 
 const next = async (ctx: CommandContext, id = "s1") =>
@@ -51,18 +51,18 @@ describe("iteration.show の next（UI-5 の次の操作）", () => {
     expect(await next(ctx)).toEqual({ kind: "ready", ask: "release" });
   });
 
-  it("active：終了日を過ぎて未完了があれば overdue（件数と carry）。終了日の当日は過ぎていない", async () => {
-    const ctx = await ready();
-    await runCommand(iterationCreate, ctx, { name: "S1", end: "2000-01-01" });
+  it("active：終了日を過ぎて未完了があれば overdue（件数と carry）。終了日の当日は過ぎていない（時計を固定）", async () => {
+    // 2024-06-15 12:00（手元の暦）に固定する。実時計や日付の変わる瞬間に依存しない
+    const ctx = await ready(() => new Date(2024, 5, 15, 12, 0, 0));
+    await runCommand(iterationCreate, ctx, { name: "S1", end: "2024-06-14" });
     await runCommand(iterationStart, ctx, { iteration: "s1" });
     await runCommand(ticketCreate, ctx, { title: "A" });
     await runCommand(ticketCreate, ctx, { title: "B" });
     await runCommand(iterationAdd, ctx, { iteration: "s1", tickets: ["t1", "t2"] });
     expect(await next(ctx)).toEqual({ kind: "overdue", unfinished: 2, ask: "carry" });
-    const today = new Date();
-    const pad = (n: number) => String(n).padStart(2, "0");
-    const end = `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`;
-    await runCommand(iterationUpdate, ctx, { iteration: "s1", end });
+    await runCommand(iterationUpdate, ctx, { iteration: "s1", end: "2024-06-15" });
+    expect(await next(ctx)).toBeNull();
+    await runCommand(iterationUpdate, ctx, { iteration: "s1", end: "2024-06-16" });
     expect(await next(ctx)).toBeNull();
   });
 
