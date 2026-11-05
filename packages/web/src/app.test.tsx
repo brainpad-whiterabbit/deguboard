@@ -1252,6 +1252,26 @@ describe("画面", () => {
     expect(window.location.hash).toBe("#/backlog");
   });
 
+  it("dg init 前（NOT_INITIALIZED）は始め方を出し、エラーの通知は出さない。init の後の reload の event でいつもの画面に変わる", async () => {
+    const client = boardClient();
+    const notInitialized = () => {
+      throw new ClientError({ code: "NOT_INITIALIZED", message: "初期化されていない" });
+    };
+    const original = client.handlers["project.list"]!;
+    client.handlers["project.list"] = notInitialized;
+    const send = mountWithBridge(client, { readRunning: false });
+    expect(await screen.findByRole("heading", { name: "deguboard を始める" })).toBeTruthy();
+    // dg init のコマンドが出て、押すとコピーする（データには何も書かない）
+    expect(screen.getByText("dg init")).toBeTruthy();
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(client.calls.some((c) => c.name === "sync" || c.name.endsWith(".create"))).toBe(false);
+
+    client.handlers["project.list"] = original;
+    act(() => send()({ kind: "event", name: "reload" }));
+    expect(await screen.findByText("ログイン")).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "deguboard を始める" })).toBeNull();
+  });
+
   it("拡張ホストから toggle の event が来ると、設定画面と来る前の画面を切り替える（ビューのタイトル行の歯車）", async () => {
     const client = mockClient();
     client.handlers["config.show"] = () => ({ config: { default_project: "default" }, fields: [] });

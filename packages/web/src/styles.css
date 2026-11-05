@@ -3180,3 +3180,28 @@ td.ask-cell {
 .selection-gap {
   flex: 1;
 }
+
+/* dg init 前の始め方の案内（components/onboarding.tsx）。サイドバーの狭い幅で縦に並べる */
+.onboarding h2 {
+  margin: 0 0 6px;
+  font-size: 14px;
+}
+.onboarding-steps {
+  margin: 10px 0;
+  padding: 0;
+  list-style: none;
+}
+.onboarding-steps li {
+  margin: 0 0 10px;
+  padding: 8px;
+  background: var(--vscode-editorWidget-background);
+  border: 1px solid var(--dg-border);
+  border-radius: 4px;
+}
+.onboarding-steps h3 {
+  margin: 0 0 2px;
+  font-size: 12.5px;
+}
+.onboarding-steps p {
+  margin: 0 0 6px;
+}

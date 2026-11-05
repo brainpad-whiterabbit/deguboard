@@ -5,6 +5,7 @@
 import { useEffect, useRef, type MouseEvent } from "react";
 import { AskComposer } from "./components/ask-composer.js";
 import { AskHint, AskMenuProvider, SelectionBar } from "./components/ask-menu.js";
+import { Onboarding } from "./components/onboarding.js";
 import { useRowNav } from "./components/row-nav.js";
 import { SelectionProvider } from "./components/selection.js";
 import { useAsk, useHost, useUiState } from "./host.js";
@@ -201,6 +202,9 @@ export function App() {
                 {/* Webview では前回の一覧がないときだけここに来る。文字だけにせず、節と行の骨組みを出す */}
                 {host.surface === "browser" ? null : <LoadingSkeleton />}
               </>
+            ) : store.notInitialized ? (
+              // dg init 前は一覧の代わりに始め方を出す（init の後は見張りの読み直しで普段の画面に変わる）
+              <Onboarding />
             ) : (
               // サイドバーではチケット詳細を出さない（エディタ領域のパネルに開く）。Run の画面もなく、カンバンを出す（UI-12）
               <>

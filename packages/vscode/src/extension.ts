@@ -4,6 +4,7 @@
 // 今のブランチに紐づくチケットをステータスバーに出す（statusbar.ts）。
 // コード中の ID（t12・s3・e2・p7）にホバーとリンクを付ける（ids.ts）。存在する ID だけで、索引は見張りで更新する。
 // データ worktree と実行中の Run の記録を見張り、CLI やエージェントの書き込みを画面に映す。
+// dg init 前は .git/deguboard/ ができるのを見張り（watchInit）、できたら見張りを張り直して画面を普段の画面に変える。
 // Webview からの要求は core のプロセス内 CommandClient に通す（ADR-006・ADR-007）。サーバーは起動しない。
 // dg は同梱せず、PATH の dg を案内する（UI-11）。VS Code の API に触れるのはこのファイルだけ
 
@@ -59,7 +60,7 @@ import {
   ticketOfBranch,
   type BranchTicket,
 } from "./statusbar.js";
-import { watchTargets } from "./watch.js";
+import { gitCommonDir, initWatchTarget, watchTargets } from "./watch.js";
 import {
   askDelivery,
   askEvent,
@@ -86,6 +87,8 @@ const panels = new Map<string, vscode.WebviewPanel>();
 const clients = new Map<string, CommandClient>();
 /** フォルダごとのデータ worktree（.git/deguboard/）と実行中の Run（.git/deguboard-local/runs/）の監視。CLI やエージェントの書き込みを画面に映す */
 const watchers = new Map<string, vscode.Disposable>();
+/** dg init 前のフォルダごとの、データ worktree ができるのを待つ見張り。watchData が張れたら外す（initWatchTarget） */
+const initWatchers = new Map<string, vscode.Disposable>();
 /** watchData が data_dir を問い合わせている最中のフォルダ。重ねて張らない */
 const watchStarting = new Set<string>();
 /** 今出ているサイドバーのビュー。右クリックで非表示にされると dispose され、再表示で作り直される */
@@ -166,7 +169,10 @@ export function activate(context: vscode.ExtensionContext): void {
         route: ticketRoute({ ticket: statusTicket }),
       });
     }),
-    vscode.workspace.onDidChangeWorkspaceFolders(() => void refreshStatusBar()),
+    vscode.workspace.onDidChangeWorkspaceFolders((e) => {
+      for (const folder of e.removed) forgetFolder(folder);
+      void refreshStatusBar();
+    }),
     // コード中の ID のホバーとリンク（エディタとコミットメッセージの入力欄）。リンクはその ID の詳細のパネルを開く
     vscode.commands.registerCommand(OPEN_ID_COMMAND, (a0: unknown, a1?: unknown) => {
       const args = openIdArgs(a0, a1);
@@ -235,6 +241,8 @@ export function deactivate(): void {
   watchers.clear();
   for (const watcher of headWatchers.values()) watcher.dispose();
   headWatchers.clear();
+  for (const watcher of initWatchers.values()) watcher.dispose();
+  initWatchers.clear();
   statusItem?.dispose();
   statusItem = undefined;
   clients.clear();
@@ -530,6 +538,28 @@ async function attach(
   });
 }
 
+/** そのフォルダが今も開いているか。非同期の待ちの後に、外されたフォルダの見張りを張らないために確かめる */
+function isOpenFolder(folder: vscode.WorkspaceFolder): boolean {
+  const key = folder.uri.toString();
+  return (vscode.workspace.workspaceFolders ?? []).some((f) => f.uri.toString() === key);
+}
+
+/** 外したフォルダの見張り・client・索引を捨てる（残すと外したフォルダの変化で読み直し続ける） */
+function forgetFolder(folder: vscode.WorkspaceFolder): void {
+  const key = folder.uri.toString();
+  for (const map of [watchers, headWatchers, initWatchers]) {
+    map.get(key)?.dispose();
+    map.delete(key);
+  }
+  watchStarting.delete(key);
+  panels.get(key)?.dispose();
+  panels.delete(key);
+  clients.delete(key);
+  idIndexes.delete(key);
+  idIndexFailedAt.delete(key);
+  approvalSeen.delete(key);
+}
+
 function clientFor(folder: vscode.WorkspaceFolder): CommandClient {
   const key = folder.uri.toString();
   let client = clients.get(key);
@@ -561,11 +591,15 @@ async function watchData(folder: vscode.WorkspaceFolder, client: CommandClient):
   try {
     dataDir = (await client.status()).data_dir;
   } catch {
-    // 初期化前のリポジトリなど。入れずに戻り、次の refreshStatusBar か画面を開いたとき（attach）に張り直す
+    // 初期化前のリポジトリなど。データの見張りは張れないので、データ worktree ができるのを待つ（できたら張り直す）。
+    // 張れなかった理由が初期化前でなくても、待つだけで害はない
+    void watchInit(folder, client);
     return;
   } finally {
     watchStarting.delete(key);
   }
+  // 問い合わせの間にフォルダが外されたなら張らない（外したフォルダの見張りを残さない）
+  if (!isOpenFolder(folder)) return;
   const pending = coalesce(() => {
     broadcast(folder, { kind: "event", name: "reload" });
     void refreshStatusBar();
@@ -586,6 +620,46 @@ async function watchData(folder: vscode.WorkspaceFolder, client: CommandClient):
     dispose() {
       pending.cancel();
       for (const watcher of fsWatchers) watcher.dispose();
+    },
+  });
+  // 初期化前から待っていた場合：待つのをやめ、いつもの画面に変えさせる（開き直さなくてよい）
+  if (initWatchers.has(key)) {
+    initWatchers.get(key)?.dispose();
+    initWatchers.delete(key);
+    pending.fire();
+  }
+}
+
+/**
+ * dg init 前のフォルダで、データ worktree（.git/deguboard/）ができるのを見張る。できたら watchData を呼び直す
+ * （張れたら watchData が見張りを外し、画面の読み直しを頼む）。覚えた ID 索引の失敗（30 秒）も忘れさせる。
+ * git のリポジトリでないフォルダでは何も張らない。フォルダごとに 1 回だけ張る
+ */
+async function watchInit(folder: vscode.WorkspaceFolder, client: CommandClient): Promise<void> {
+  const key = folder.uri.toString();
+  if (initWatchers.has(key)) return;
+  initWatchers.set(key, { dispose() {} }); // 張っている間に重ねて張らない
+  const commonDir = await gitCommonDir(folder.uri.fsPath);
+  if (!commonDir || !isOpenFolder(folder)) {
+    initWatchers.delete(key);
+    return;
+  }
+  // 待っている間に外された（watchData が先に張れた）なら張らない
+  if (!initWatchers.has(key)) return;
+  const target = initWatchTarget(commonDir);
+  const watcher = vscode.workspace.createFileSystemWatcher(
+    new vscode.RelativePattern(vscode.Uri.file(target.base), target.pattern),
+  );
+  const pending = coalesce(() => {
+    forgetIdIndexFailure(folder);
+    void watchData(folder, client);
+  }, 200);
+  watcher.onDidCreate(pending.fire);
+  watcher.onDidChange(pending.fire);
+  initWatchers.set(key, {
+    dispose() {
+      pending.cancel();
+      watcher.dispose();
     },
   });
 }
@@ -823,7 +897,7 @@ async function watchHead(folder: vscode.WorkspaceFolder): Promise<void> {
   if (headWatchers.has(key)) return;
   headWatchers.set(key, { dispose() {} }); // 張っている間に重ねて張らない
   const file = await headFile(folder.uri.fsPath);
-  if (!file) {
+  if (!file || !isOpenFolder(folder)) {
     headWatchers.delete(key);
     return;
   }

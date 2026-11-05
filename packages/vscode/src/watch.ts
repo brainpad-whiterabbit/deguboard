@@ -1,6 +1,8 @@
 // 拡張ホストが見張るファイルの対象（UI-12）。VS Code API に触れない純粋な関数にしてテストする。
+// dg init 前はデータ worktree がなく見張れないので、できるのを待つ対象（initWatchTarget）も持つ。
 // CLI やエージェントの書き込みはどれも、データ worktree（<common>/deguboard/）か実行中の Run の記録（<common>/deguboard-local/runs/）のファイルを変える
 
+import { execFile } from "node:child_process";
 import path from "node:path";
 
 /** 見張る 1 件。base のディレクトリからの相対の glob で対象を表す（vscode.RelativePattern に渡す） */
@@ -26,6 +28,31 @@ export function watchTargets(dataDir: string): WatchTarget[] {
     { base: path.join(dataDir, "runs"), pattern: "*.json" },
     { base: path.join(localDir, "runs"), pattern: "*.json" },
   ];
+}
+
+/**
+ * dg init 前に見張る対象：git common dir の下にデータ worktree（<common>/deguboard/）ができること。
+ * 初期化済みかは core が <common>/deguboard/.git の有無で決める（isInitialized）。確かめ直しは watchData が status を呼ぶ。
+ * データの見張り（watchTargets）は data_dir が取れてからしか張れないので、初期化前はこちらで待つ。
+ * base は今ある <common> にする。deguboard/ がまだない base を VS Code はポーリングで待ち、できた瞬間の base 自身の追加しか出さず、
+ * init が base とほぼ同時に書く .git の作成を取りこぼすため。そのぶん .git の配下を再帰で見て広いが、
+ * 確かめ直しは status を呼ぶだけで、見張りは init の後に外す
+ */
+export function initWatchTarget(commonDir: string): WatchTarget {
+  return { base: commonDir, pattern: "deguboard/{.git,**}" };
+}
+
+/**
+ * git common dir の絶対パス。リポジトリでないフォルダや git が動かないときは undefined（見張らない）。
+ * --path-format は Git 2.31 から（約束は 2.30 以上）なので使わず、core の resolveRepoPaths と同じく cwd から解く
+ */
+export function gitCommonDir(cwd: string): Promise<string | undefined> {
+  return new Promise((resolve) => {
+    execFile("git", ["rev-parse", "--git-common-dir"], { cwd, timeout: 5_000 }, (error, stdout) => {
+      const raw = error ? "" : stdout.trim();
+      resolve(raw === "" ? undefined : path.resolve(cwd, raw));
+    });
+  });
 }
 
 /** 絶対パスのファイルがどれかの対象に入るか。テストで対象を確かめるために使う */

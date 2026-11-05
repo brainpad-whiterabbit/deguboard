@@ -169,7 +169,40 @@
           "group": "9_copy@1"
         }
       ]
-    }
+    },
+    "walkthroughs": [
+      {
+        "id": "deguboard.start",
+        "title": "deguboard を始める",
+        "description": "リポジトリの初期化から、チケットを起こしてエージェントに頼むまで。",
+        "steps": [
+          {
+            "id": "deguboard.start.init",
+            "title": "リポジトリを初期化する",
+            "description": "`dg init` を実行して、チケットを置く場所を作ります。",
+            "media": {
+              "markdown": "media/walkthrough/init.md"
+            }
+          },
+          {
+            "id": "deguboard.start.ticket",
+            "title": "チケットを起こす",
+            "description": "やりたいことを 1 件のチケットにします。",
+            "media": {
+              "markdown": "media/walkthrough/ticket.md"
+            }
+          },
+          {
+            "id": "deguboard.start.agent",
+            "title": "エージェントに頼む",
+            "description": "Skill を入れ、依頼文を作ってコピーします。",
+            "media": {
+              "markdown": "media/walkthrough/agent.md"
+            }
+          }
+        ]
+      }
+    ]
   },
   "activationEvents": [
     "onStartupFinished"
