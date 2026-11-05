@@ -248,6 +248,7 @@ export function useAskSpot(options: AskSpotOptions | null): AskSpot {
           menu={menu}
           onPick={(c) => {
             setOpen(false);
+            returnTo.current = null;
             ask.open(targets, c.action, within);
           }}
           onClose={close}

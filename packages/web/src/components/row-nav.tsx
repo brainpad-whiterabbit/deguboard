@@ -27,8 +27,11 @@ function syncRoving(root: HTMLElement, current?: HTMLElement) {
     const want = el === cur ? "0" : "-1";
     if (el.getAttribute("tabindex") !== want) el.setAttribute("tabindex", want);
   }
-  // 選べる行の吹き出しのボタンは Tab で止めない（opacity:0 でも tabindex を持ち、全部の行で止まるため）。a と Shift+F10 で開ける
-  for (const b of root.querySelectorAll<HTMLElement>("[data-select-id] .ask-bubble")) {
+  // 選べる行の中の、行の主リンク以外（吹き出しのボタン、履歴の 2 段目の Iteration・Epic のリンク）は Tab で止めない。
+  // 止めると行ごとに Tab が止まり、1 回で一覧を抜けられない。吹き出しは a と Shift+F10 で開ける。マウスでは今までどおり押せる
+  for (const b of root.querySelectorAll<HTMLElement>(
+    "[data-select-id] button, [data-select-id] a:not(.ticket-row)",
+  )) {
     if (b.getAttribute("tabindex") !== "-1") b.setAttribute("tabindex", "-1");
   }
 }

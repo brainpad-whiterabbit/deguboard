@@ -182,4 +182,34 @@ describe("サイドバーの行のキー操作", () => {
     expect(visibleRows()).not.toContain(zeroRow);
     await waitFor(() => expect(visibleRows().filter((a) => a.tabIndex === 0)).toEqual([first()]));
   });
+
+  it("履歴の行の Iteration・Epic のリンクも Tab で止まらず、移れる行は今の 1 行だけ", async () => {
+    window.location.hash = "#/history?view=ticket";
+    const client = mockClient();
+    client.data.tickets = [
+      ticket({ id: "t8", title: "一つ目", status: "done", iteration: "s1", epic: "e1" }),
+      ticket({ id: "t9", title: "二つ目", status: "done", iteration: "s1", epic: "e1" }),
+    ];
+    const ev = (id: string) => ({
+      kind: "ticket",
+      id,
+      commit: id,
+      author: "a",
+      subject: "s",
+      type: "changed",
+      at: "2026-10-20T12:00:00Z",
+      changes: [{ field: "status", from: "review", to: "done" }],
+    });
+    client.handlers["history"] = () => ({ events: [ev("t8"), ev("t9")], truncated: false });
+    mount(client);
+    await screen.findByText("一つ目");
+    expect(document.querySelectorAll(".history-ticket-meta a").length).toBeGreaterThan(0);
+    await waitFor(() => {
+      const tabbable = [
+        ...document.querySelectorAll<HTMLElement>("[data-select-id] a, [data-select-id] button"),
+      ].filter((el) => el.tabIndex >= 0);
+      expect(tabbable).toHaveLength(1);
+      expect(tabbable[0]!.matches("a.ticket-row")).toBe(true);
+    });
+  });
 });
