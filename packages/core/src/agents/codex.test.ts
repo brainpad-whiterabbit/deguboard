@@ -120,6 +120,22 @@ describe("Codex の Adapter", () => {
     });
   });
 
+  it("ID が同じ時刻に出る 2 つのファイルでは、パスの順で小さい方に結び付ける", async () => {
+    const { sessions, query } = await setup();
+    // 大きいパスのファイルを先に書く（書いた順や列挙の順に頼らないため）
+    const rollout = (input: number) => [
+      meta(-60),
+      turnContext(-60, "gpt-test"),
+      tokenCount(-1, [0, 0, 0, 0]),
+      mention(0),
+      tokenCount(1, [input, 0, 0, 0]),
+    ];
+    await writeRollout(path.join(sessions, "rollout-2026-01-01T09-00-00-b.jsonl"), rollout(900));
+    await writeRollout(path.join(sessions, "rollout-2026-01-01T09-00-00-a.jsonl"), rollout(100));
+    const got = await codexAdapter.readTranscriptUsage(query());
+    expect(got.usage.input).toBe(100);
+  });
+
   describe("同じ会話記録で期間が重なる Run", () => {
     // A（RUN_ID、10:00 開始）を開いたまま、同じ session で B（10:10 開始）を始めた記録
     const B = "r20260101-101000-beef";

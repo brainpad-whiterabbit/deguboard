@@ -231,7 +231,7 @@ export async function bindFile(
  * 選んだファイル（chosen）が譲る相手にしていた Run のうち、読んだほかのファイル（all）で ID が先か同じ時刻に出たものを返す。
  * その Run は Adapter がそちらのファイルに結び付くので、chosen はその Run に譲らず、期間の応答を数える（返した ID は譲る相手から外す）。
  * all は Run を探す範囲と同じ、会話記録の置き場所のすべて（Claude Code は projects/ の下、Codex は sessions/ の下）。
- * 狭いと、探す範囲の外（別の worktree など）で始まった Run に譲ってしまう。
+ * all を探す範囲と同じにしておかないと、別の worktree などで始まった Run に譲ってしまう。
  * 同じ時刻のときは、bindFile がパスの順で結び付けるが、ここでは量を落とさない側（譲らない）に倒す。そのため、その時刻の応答は二重に数えられうる
  */
 export function claimedElsewhere(
