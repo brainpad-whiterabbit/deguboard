@@ -42,7 +42,7 @@ done
 Plans
 1
 [aria-label] Dependency graph of p1
-[title] Open p1 details
+[title] Open details of p1
 p1
 Active
 [title] Code Review 1 / In Progress 1
@@ -763,7 +763,7 @@ Done
 View this Iteration on the board
 [aria-label] Plan
 Plan
-[title] Open p1 details
+[title] Open details of p1
 p1
 Approved
 0
@@ -807,7 +807,7 @@ Progress
 Done — · Carried over —
 [aria-label] Plan
 Plan
-[title] Open p1 details
+[title] Open details of p1
 p1
 Approved
 0
@@ -901,9 +901,9 @@ Project
 Default
 [title] Remote: origin
 Uncommitted changes
-Unpushed 1
-Unpulled 2
-Unreadable files 1
+1 unpushed
+2 to pull
+1 unreadable files
 [title] Pull from the remote, push unpushed commits, and advance statuses from branch facts
 Sync
 [title] Ask Agent (create and copy a request)
@@ -946,7 +946,7 @@ Details
 Plans
 1
 [aria-label] Dependency graph of p1
-[title] Open p1 details
+[title] Open details of p1
 p1
 Active
 [title] Code Review 1 / In Progress 1
@@ -1001,9 +1001,9 @@ Project
 Default
 [title] Remote: origin
 Uncommitted changes
-Unpushed 1
-Unpulled 2
-Unreadable files 1
+1 unpushed
+2 to pull
+1 unreadable files
 [title] Pull from the remote, push unpushed commits, and advance statuses from branch facts
 Sync
 [title] Ask Agent (create and copy a request)
@@ -1214,7 +1214,7 @@ done
 Plans
 1
 [aria-label] Dependency graph of p1
-[title] Open p1 details
+[title] Open details of p1
 p1
 Active
 [title] Code Review 1 / In Progress 1
@@ -1321,7 +1321,7 @@ Get Started with deguboard
 This repository does not use deguboard yet. If
 dg
 is on your PATH, start with the steps below. Copy each command and run it in a terminal.
-1. Initialize
+1. Initialize the repository
 Create a place for tickets in this repository. Run it in a terminal.
 dg init
 [title] Copy dg init

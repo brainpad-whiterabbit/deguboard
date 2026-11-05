@@ -15,9 +15,9 @@ export const EN: Readonly<Record<string, string>> = {
   "設定（config.yaml）": "Settings (config.yaml)",
   "読み込み中…": "Loading…",
   未コミットの変更: "Uncommitted changes",
-  "未 push {0}": "Unpushed {0}",
-  "未取り込み {0}": "Unpulled {0}",
-  "読めないファイル {0}": "Unreadable files {0}",
+  "未 push {0}": "{0} unpushed",
+  "未取り込み {0}": "{0} to pull",
+  "読めないファイル {0}": "{0} unreadable files",
   "リモート: {0}": "Remote: {0}",
   なし: "None",
   同期の状態は未取得: "Sync status not loaded",
@@ -129,9 +129,9 @@ export const EN: Readonly<Record<string, string>> = {
   進捗: "Progress",
   "完了 {0} ・ 持ち越し {1}": "Done {0} · Carried over {1}",
   // components/iteration-plans.tsx
-  "{0} の詳細を開く": "Open {0} details",
+  "{0} の詳細を開く": "Open details of {0}",
   // components/onboarding.tsx
-  "1. 初期化する": "1. Initialize",
+  "1. 初期化する": "1. Initialize the repository",
   "このリポジトリにチケットを置く場所を作ります。ターミナルで実行します。":
     "Create a place for tickets in this repository. Run it in a terminal.",
   "2. チケットを起こす": "2. Create a ticket",

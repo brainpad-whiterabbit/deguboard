@@ -6,6 +6,7 @@
 // - Run の一覧は、パネルの幅（380px）でも横にスクロールしない（t267）
 // - Epic・Iteration の鉛筆のボタン（.inline-edit-icon）は 24px 四方で、行の高さを変えない（t290）
 // - Plan 詳細（#/plans/p1）は、パネルの幅（380px）でも広い幅でも、欄・依存グラフ・チケットの範囲と進め方が横に溢れない（t424）
+// チケット詳細の検査は、表示言語の日本語と英語（language.ts）の両方で確かめる（t383）
 // ブラウザが要るので mise run test には入れず、mise run test:layout で回す（先に mise run build と mise run playwright:install）
 
 import { access } from "node:fs/promises";
@@ -15,6 +16,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { init, openContext, runCommand } from "../../packages/core/src/index.js";
 import { createFixture, type Fixture } from "../../packages/core/test/helpers/git-fixture.js";
 import { startServer } from "../../packages/server/src/index.js";
+import { LANGUAGES, useLanguage, type Language } from "./language.js";
 
 const WEB_DIST = path.resolve(import.meta.dirname, "../../packages/web/dist");
 const SCHEMES = ["light", "dark"] as const;
@@ -117,8 +119,14 @@ afterAll(async () => {
 });
 
 /** 幅 width・高さ height の ?surface=panel でチケット t2 の詳細を開き、Run と属性が出るまで待つ */
-async function openDetail(width: number, scheme: (typeof SCHEMES)[number], height = 600) {
+async function openDetail(
+  width: number,
+  scheme: (typeof SCHEMES)[number],
+  height = 600,
+  language: Language = "ja",
+) {
   const context = await browser.newContext({ viewport: { width, height }, colorScheme: scheme });
+  await useLanguage(context, language);
   const page = await context.newPage();
   await page.goto(`${server.url}?surface=panel#/tickets/t2`, { waitUntil: "networkidle" });
   await page.locator(".detail-head").waitFor();
@@ -151,16 +159,19 @@ function stickyAt(page: Page, target: "bottom" | "aside") {
   }, target);
 }
 
-describe.each(SCHEMES)("パネルのチケット詳細の配置（%s）", (scheme) => {
+// 英語の文は日本語より長くなりやすいので、表示言語が英語（VS Code の data-language）の画面でも同じに確かめる（t383）
+describe.each(
+  SCHEMES.flatMap((scheme) => LANGUAGES.map((language) => [scheme, language] as const)),
+)("パネルのチケット詳細の配置（%s・%s）", (scheme, language) => {
   it.each([1100, 1600])("幅 %ipx で、2 列になり右の列が 248px に固定される", async (width) => {
-    const { context, page } = await openDetail(width, scheme);
+    const { context, page } = await openDetail(width, scheme, 600, language);
     try {
       const m = await page.evaluate(() => {
         const main = document.querySelector(".detail-main")!.getBoundingClientRect();
         const aside = document.querySelector(".detail > aside")!.getBoundingClientRect();
         return { aside: aside.width, mainRight: main.right, asideLeft: aside.left };
       });
-      if (m.aside !== 248) await keep(page, `${scheme}-${width}-aside`);
+      if (m.aside !== 248) await keep(page, `${scheme}-${language}-${width}-aside`);
       expect(m.aside, "右の列の幅").toBe(248);
       expect(m.asideLeft, "右の列が本文の右に並ぶ").toBeGreaterThan(m.mainRight);
     } finally {
@@ -177,7 +188,7 @@ describe.each(SCHEMES)("パネルのチケット詳細の配置（%s）", (schem
     "幅 %ipx で%sまでスクロールしても、見出しの帯が .page の上端に残る",
     async (width, _label, target) => {
       // 高さを右の列より低くし、1 列で右の列の上端までスクロールできるようにする（左の列が画面の上に消える）
-      const { context, page } = await openDetail(width, scheme, 360);
+      const { context, page } = await openDetail(width, scheme, 360, language);
       try {
         const columns = await page.evaluate(
           () =>
@@ -186,7 +197,8 @@ describe.each(SCHEMES)("パネルのチケット詳細の配置（%s）", (schem
         );
         expect(columns, "列の数").toBe(width > 800 ? 2 : 1);
         const m = await stickyAt(page, target);
-        if (Math.abs(m.gap) > 1) await keep(page, `${scheme}-${width}-${target}-sticky`);
+        if (Math.abs(m.gap) > 1)
+          await keep(page, `${scheme}-${language}-${width}-${target}-sticky`);
         // スクロールしていなければ帯が上にあるのは当たり前なので、スクロールしたことも確かめる
         expect(m.scrollTop, "スクロールした量").toBeGreaterThan(m.height);
         if (target === "aside") expect(m.asideReached, "右の列までスクロールした").toBe(true);
@@ -198,7 +210,7 @@ describe.each(SCHEMES)("パネルのチケット詳細の配置（%s）", (schem
   );
 
   it("Epic・Iteration の鉛筆のボタンは 24px 四方で、行の高さはリンクの高さのまま", async () => {
-    const { context, page } = await openDetail(1100, scheme);
+    const { context, page } = await openDetail(1100, scheme, 600, language);
     try {
       const rows = await page.evaluate(() =>
         [...document.querySelectorAll(".detail > aside .inline-edit-icon")].map((icon) => {
@@ -212,9 +224,13 @@ describe.each(SCHEMES)("パネルのチケット詳細の配置（%s）", (schem
           };
         }),
       );
-      expect(rows.map((r) => r.label)).toEqual(["Iterationを変える", "Epicを変える"]);
+      expect(rows.map((r) => r.label)).toEqual(
+        language === "ja"
+          ? ["Iterationを変える", "Epicを変える"]
+          : ["Change Iteration", "Change Epic"],
+      );
       for (const r of rows) {
-        if (Math.abs(r.dd - r.link) > 1) await keep(page, `${scheme}-pencil`);
+        if (Math.abs(r.dd - r.link) > 1) await keep(page, `${scheme}-${language}-pencil`);
         expect(r.size, `${r.label}の大きさ`).toEqual([24, 24]);
         expect(
           Math.abs(r.dd - r.link),
@@ -227,7 +243,7 @@ describe.each(SCHEMES)("パネルのチケット詳細の配置（%s）", (schem
   });
 
   it("幅 380px で、Run の一覧が横にスクロールせず、画面も横に溢れない", async () => {
-    const { context, page } = await openDetail(380, scheme);
+    const { context, page } = await openDetail(380, scheme, 600, language);
     try {
       // 開いた Run の詳細（失敗の理由など）もはみ出さないことを見るため、すべて開く
       for (const summary of await page.locator(".ticket-run > summary").all())
@@ -253,7 +269,7 @@ describe.each(SCHEMES)("パネルのチケット詳細の配置（%s）", (schem
       });
       const wide = (pair: number[]) => pair[0]! > pair[1]!;
       if (wide(m.runs) || wide(m.list) || wide(m.page) || wide(m.doc) || m.over > 0)
-        await keep(page, `${scheme}-380-runs`);
+        await keep(page, `${scheme}-${language}-380-runs`);
       expect(m.parts, "Run の行と詳細の部品の数").toBeGreaterThan(4 * 4);
       expect(m.runs[0], "Run の節の横スクロール").toBeLessThanOrEqual(m.runs[1]!);
       expect(m.list[0], "Run の一覧の横スクロール").toBeLessThanOrEqual(m.list[1]!);

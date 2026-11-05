@@ -29,7 +29,7 @@ export interface HtmlOptions {
   route: string;
   /** 開いたらすぐ出す、エージェントに頼む入力欄の対象（ID。空なら対象なし）。省けば出さない（UI-15） */
   ask?: readonly string[] | undefined;
-  /** VS Code の表示言語（vscode.env.language。en・ja など）。<html data-language> に埋め、web が文言を選ぶのに使う（t383）。省けば付けない */
+  /** VS Code の表示言語（vscode.env.language。en・ja など）。<html data-language> に埋め、web の l10n.ts が文言と <html lang> を選ぶのに使う。省けば付けない */
   language?: string | undefined;
 }
 
