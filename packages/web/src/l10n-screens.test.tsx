@@ -175,7 +175,10 @@ function richClient(): MockClient {
       filter: { project: "default" },
       by,
       total: metrics({ estimated_runs: 1 }),
-      groups: [{ key: by === "epic" ? "e1" : "t2", ...metrics() }, { key: null, ...metrics() }],
+      groups: [
+        { key: by === "epic" ? "e1" : "t2", ...metrics() },
+        { key: null, ...metrics() },
+      ],
     } satisfies MetricsView;
   };
   const config = {

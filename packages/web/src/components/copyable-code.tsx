@@ -1,9 +1,6 @@
-// code で出す値と、その右に値をクリップボードに入れる小さなボタン（チケット詳細のブランチ名）。コピーは host に任せ
-// （Webview では拡張ホスト、ブラウザでは navigator.clipboard）、押した後しばらく「コピーした」（だめなら「コピーできない」）を下に出す。
-// 長い値は折り返し、ボタンは値の右に残す
-
 import { useEffect, useState } from "react";
 import { useHost } from "../host.js";
+import { tr } from "../l10n.js";
 
 /** 結果の文言を出しておく時間（ミリ秒） */
 export const COPY_NOTICE_MS = 1500;
@@ -28,7 +25,7 @@ export function useCopyNotice() {
 export function CopyResult({ result }: { result: "copied" | "failed" | null }) {
   return (
     <span className="copy-result muted" role="status" aria-live="polite">
-      {result === "copied" ? "コピーした" : result === "failed" ? "コピーできない" : ""}
+      {result === "copied" ? tr("コピーした") : result === "failed" ? tr("コピーできない") : ""}
     </span>
   );
 }

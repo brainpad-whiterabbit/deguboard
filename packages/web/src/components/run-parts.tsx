@@ -1,8 +1,6 @@
-// Run の表示部品（チケット詳細の Run の節と Run の画面で共通）：結果の表示名と印・丸印、トークン数・件数・時間の書き方、横にスクロールする表の枠。
-// 取れなかった値（null）は 0 と見せず「—」で出し（RN-2）、推定を含む値には「~」を前に付ける
-
 import type { ReactNode } from "react";
 import type { RunView } from "../types.js";
+import { tr, msg } from "../l10n.js";
 
 /** 値がないときの表示 */
 export const NO_VALUE = "—";
@@ -11,11 +9,11 @@ export const NO_VALUE = "—";
 export type RunResultKey = "success" | "failure" | "interrupted" | "running" | "unfinished";
 
 export const RESULT_LABELS: Record<RunResultKey, string> = {
-  success: "成功",
-  failure: "失敗",
-  interrupted: "中断",
-  running: "実行中",
-  unfinished: "未完了",
+  success: msg("成功"),
+  failure: msg("失敗"),
+  interrupted: msg("中断"),
+  running: msg("実行中"),
+  unfinished: msg("未完了"),
 };
 
 /** 結果の種類（実行中・未完了を含む） */
@@ -43,7 +41,7 @@ export function RunResultDot({ run }: { run: RunView }) {
       className={`run-dot run-${key}`}
       role="img"
       aria-label={label}
-      title={run.error ? `${label}：${run.error}` : label}
+      title={run.error ? tr("{0}：{1}", label, run.error) : label}
     />
   );
 }
@@ -69,7 +67,8 @@ export function formatDuration(seconds: number | null, estimated = false): strin
   const s = Math.round(seconds);
   const h = Math.floor(s / 3600);
   const m = Math.floor((s % 3600) / 60);
-  const text = h > 0 ? `${h}時間 ${m}分` : m > 0 ? `${m}分 ${s % 60}秒` : `${s}秒`;
+  const text =
+    h > 0 ? tr("{0}時間 {1}分", h, m) : m > 0 ? tr("{0}分 {1}秒", m, s % 60) : tr("{0}秒", s);
   return `${estimated ? "~" : ""}${text}`;
 }
 

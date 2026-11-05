@@ -1,8 +1,3 @@
-// Plan の詳細（UI-13）。plan.show の出力を出すだけで、着手できるか・待ち・次（PL-6）は求め直さない。
-// 見出しの下に状態・進み・Iteration・承認（閉じた Plan は閉じた日時）・作業中と次を、その下に依存グラフ（帯と共用の PlanGraphView）と、
-// Plan の順のチケットごとの範囲・進め方・tier を出す（details のないチケットは題と状態だけ）。
-// 表示だけで書き込まない。承認・組み直し・閉じるは、タイトルの吹き出しからエージェントに頼む（ADR-010・UI-15）。一覧の画面はなく、開いた Plan はカンバンの帯で見る
-
 import { useMemo } from "react";
 import { ASK_SECTIONS, AskSpotBox } from "../components/ask-menu.js";
 import { DateTime } from "../components/date-time.js";
@@ -20,6 +15,7 @@ import { useHost } from "../host.js";
 import { hrefOf } from "../router.js";
 import { useStore } from "../store.js";
 import { actorLabel, type PlanDetail, type Ticket } from "../types.js";
+import { tr, trNode } from "../l10n.js";
 
 export function PlansPage({ id }: { id: string }) {
   const store = useStore();
@@ -30,7 +26,7 @@ export function PlansPage({ id }: { id: string }) {
     store.plans,
   );
   if (error) return <p className="error">{error}</p>;
-  if (!data) return <p className="muted">読み込み中…</p>;
+  if (!data) return <p className="muted">{tr("読み込み中…")}</p>;
   return <PlanDetailView detail={data} warnings={warnings} />;
 }
 
@@ -54,7 +50,7 @@ function PlanDetailView({ detail, warnings }: { detail: PlanDetail; warnings: st
       {/* パネルは詳細だけを出すので、戻る先の一覧がない（一覧はサイドバー。UI-12） */}
       {host.surface === "panel" ? null : (
         <div className="toolbar">
-          <a href={hrefOf({ page: "board" })}>← カンバン</a>
+          <a href={hrefOf({ page: "board" })}>{tr("← カンバン")}</a>
         </div>
       )}
       {/* タイトルの横の吹き出しで、この Plan をエージェントに頼む（承認・組み直し・閉じる。UI-15） */}
@@ -62,16 +58,17 @@ function PlanDetailView({ detail, warnings }: { detail: PlanDetail; warnings: st
         as="h1"
         className={`ask-title plan-title plan-color-${planColor(detail.id)}`}
         targets={[detail.id]}
-        label={`タイトル ${detail.id}`}
+        label={tr("タイトル {0}", detail.id)}
         section={ASK_SECTIONS.detailTitle}
         pinned
       >
         {/* 見出しの左に帯と同じ色の線を付ける */}
-        <code>{detail.id}</code> 実行計画{" "}
+        <code>{detail.id}</code>
+        {tr(" 実行計画")}{" "}
         <span className={`badge plan-state-${state}`}>{PLAN_STATE_LABELS[state]}</span>
       </AskSpotBox>
       <dl className="iteration-summary plan-summary">
-        <dt>進み</dt>
+        <dt>{tr("進み")}</dt>
         <dd>
           <ProgressBar progress={detail.progress} />
         </dd>
@@ -88,7 +85,7 @@ function PlanDetailView({ detail, warnings }: { detail: PlanDetail; warnings: st
             </dd>
           </>
         ) : null}
-        <dt>承認</dt>
+        <dt>{tr("承認")}</dt>
         <dd>
           {detail.approved_by ? (
             <>
@@ -102,13 +99,13 @@ function PlanDetailView({ detail, warnings }: { detail: PlanDetail; warnings: st
             </>
           ) : (
             <span className="muted">
-              {detail.pending_approval ? "人の承認を待っている" : "承認の記録はない"}
+              {detail.pending_approval ? tr("人の承認を待っている") : tr("承認の記録はない")}
             </span>
           )}
         </dd>
         {detail.closed_at ? (
           <>
-            <dt>閉じた</dt>
+            <dt>{tr("閉じた")}</dt>
             <dd>
               <DateTime iso={detail.closed_at} local={local} />
             </dd>
@@ -116,7 +113,7 @@ function PlanDetailView({ detail, warnings }: { detail: PlanDetail; warnings: st
         ) : null}
         {working.length > 0 ? (
           <>
-            <dt>作業中</dt>
+            <dt>{tr("作業中")}</dt>
             <dd className="plan-summary-links">
               {working.map((t) => (
                 <TicketLink key={t} id={t} title={byId.get(t)?.title} />
@@ -126,11 +123,11 @@ function PlanDetailView({ detail, warnings }: { detail: PlanDetail; warnings: st
         ) : null}
         {next && next.kind !== "approval" ? (
           <>
-            <dt>次</dt>
+            <dt>{tr("次")}</dt>
             <dd className="plan-summary-links">
               <TicketLink id={next.id} title={byId.get(next.id)?.title} />
               {next.kind === "blocked" ? (
-                <span className="muted">{next.waitFor.join(", ")} 待ち</span>
+                <span className="muted">{trNode("{0} 待ち", next.waitFor.join(", "))}</span>
               ) : null}
             </dd>
           </>
@@ -143,9 +140,9 @@ function PlanDetailView({ detail, warnings }: { detail: PlanDetail; warnings: st
           ))}
         </ul>
       ) : null}
-      <h2>依存グラフ</h2>
+      <h2>{tr("依存グラフ")}</h2>
       <PlanGraphView plan={row} byId={byId} />
-      <h2>チケット</h2>
+      <h2>{tr("チケット")}</h2>
       <ol className="plan-tickets">
         {detail.items.map((t) => {
           const d = details[t.id];
@@ -162,13 +159,13 @@ function PlanDetailView({ detail, warnings }: { detail: PlanDetail; warnings: st
                 <dl className="plan-ticket-details">
                   {d.scope ? (
                     <>
-                      <dt>範囲</dt>
+                      <dt>{tr("範囲")}</dt>
                       <dd>{d.scope}</dd>
                     </>
                   ) : null}
                   {d.approach ? (
                     <>
-                      <dt>進め方</dt>
+                      <dt>{tr("進め方")}</dt>
                       <dd>{d.approach}</dd>
                     </>
                   ) : null}

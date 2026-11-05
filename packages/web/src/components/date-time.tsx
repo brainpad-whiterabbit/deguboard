@@ -1,6 +1,5 @@
-// 日時の表示。履歴の日付は今日・昨日を言葉にし、今年は月/日、それより前は年/月/日にする（formatShortDay）。パネルのチケット詳細の作成・更新は経過と同じ手元時刻で、今年なら年を省く（ブラウザは ISO のまま）
-
 import { formatTime } from "./timeline.js";
+import { tr, trNode } from "../l10n.js";
 
 /** 手元時刻の日時（2026-11-01 13:48）。now と同じ年なら年を省く（11-01 13:48） */
 export function formatShortTime(iso: string, now: Date = new Date()): string {
@@ -21,8 +20,8 @@ export function formatShortDay(iso: string, now: Date = new Date()): string {
   const day = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate());
   // 夏時間で 1 日が 24 時間でない日があるので、日付の差は暦の日で数える
   const diff = Math.round((day(now).getTime() - day(d).getTime()) / 86_400_000);
-  if (diff === 0) return "今日";
-  if (diff === 1) return "昨日";
+  if (diff === 0) return tr("今日");
+  if (diff === 1) return tr("昨日");
   const p = (n: number) => String(n).padStart(2, "0");
   const md = `${p(d.getMonth() + 1)}/${p(d.getDate())}`;
   return d.getFullYear() === now.getFullYear() ? md : `${d.getFullYear()}/${md}`;
@@ -40,7 +39,7 @@ export function ShortDay({
 }) {
   const exact = formatTime(iso);
   return (
-    <time dateTime={iso} title={note ? `${note}（${exact}）` : exact}>
+    <time dateTime={iso} title={note ? tr("{0}（{1}）", note, exact) : exact}>
       {approximate ? "~" : ""}
       {formatShortDay(iso)}
     </time>
@@ -49,13 +48,7 @@ export function ShortDay({
 
 /** 履歴の「<日付> に閉じた」。closed_at がなければ「閉じた日は不明」 */
 export function ClosedOn({ iso }: { iso: string | null | undefined }) {
-  return iso ? (
-    <>
-      <ShortDay iso={iso} /> に閉じた
-    </>
-  ) : (
-    <>閉じた日は不明</>
-  );
+  return iso ? <>{trNode("{0} に閉じた", <ShortDay iso={iso} />)}</> : <>{tr("閉じた日は不明")}</>;
 }
 
 /** 日時。local なら手元時刻で今年なら年を省いて出し、ISO の値はツールチップに。そうでなければ ISO のまま */

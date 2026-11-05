@@ -1,7 +1,3 @@
-// 左パネルのカンバン（board.tsx）とバックログ（backlog.tsx）の行の右端の部品と、その判定。
-// 開いた Plan に入っているチケットの Plan の番号と待ち（kanbanPlanMarks）、todo の行の着手可・待ち・承認待ち（kanbanReadiness）を、
-// カンバンの行（KanbanRowEnd）とバックログの行（BacklogRowEnd）で同じ判定と同じ部品で出す
-
 import type { ReactNode } from "react";
 import { AssigneeMark } from "./assignee-mark.js";
 import { RowPriority } from "./parts.js";
@@ -14,6 +10,7 @@ import {
   type WhoamiView,
   isFinished,
 } from "../types.js";
+import { tr } from "../l10n.js";
 
 /** 左パネルのカンバンとバックログの行に出す、チケットが入っている開いた Plan と、残っている待ちの相手 */
 export interface PlanMark {
@@ -48,7 +45,7 @@ export function kanbanPlanMarks(
 export function waitLabel(waitingOn: readonly string[]): string {
   const [first, ...rest] = waitingOn;
   if (first === undefined) return "";
-  return `${first}${rest.length > 0 ? `+${rest.length}` : ""} 待ち`;
+  return tr("{0}{1} 待ち", first, rest.length > 0 ? `+${rest.length}` : "");
 }
 
 /** 左パネルのカンバンとバックログの todo の行が着手できるか：承認待ち（Plan が承認待ち）・待ち（待ちの相手が残る）・着手可。開いた Plan に入っていない行と todo でない行は null */
@@ -92,8 +89,8 @@ export function KanbanRowEnd({
   const readiness = readinessBadge(ticket, mark);
   // 実行中の Run があれば、todo でも着手可・待ちより「実行中」を出す（手が動いていることの方が大事なので）
   const sub = running ? (
-    <span className="row-running" title="このマシンで Run が実行中">
-      実行中
+    <span className="row-running" title={tr("このマシンで Run が実行中")}>
+      {tr("実行中")}
     </span>
   ) : (
     readiness
@@ -122,7 +119,7 @@ function RowPlan({ plan }: { plan: string }) {
 /** 開いた Plan に入っていない行の、Plan の番号の位置に出す破線の空き枠（警告に見せない専用の色。バックログの行には出さない） */
 function RowPlanSlot() {
   return (
-    <span className="row-plan-slot" title="開いた Plan に入っていない">
+    <span className="row-plan-slot" title={tr("開いた Plan に入っていない")}>
       —
     </span>
   );
@@ -134,14 +131,14 @@ function readinessBadge(ticket: Pick<Ticket, "status">, mark: PlanMark | undefin
   if (!mark || state === null) return null;
   if (state === "pending") {
     return (
-      <span className="row-wait" title={`${mark.plan} は人の承認を待っている`}>
-        承認待ち
+      <span className="row-wait" title={tr("{0} は人の承認を待っている", mark.plan)}>
+        {tr("承認待ち")}
       </span>
     );
   }
-  if (state === "ready") return <span className="row-ready">着手可</span>;
+  if (state === "ready") return <span className="row-ready">{tr("着手可")}</span>;
   return (
-    <span className="row-wait" title={`${mark.waitingOn.join("・")} を待っている`}>
+    <span className="row-wait" title={tr("{0} を待っている", mark.waitingOn.join(tr("・")))}>
       {waitLabel(mark.waitingOn)}
     </span>
   );

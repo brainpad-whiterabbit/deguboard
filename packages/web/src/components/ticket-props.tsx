@@ -1,7 +1,3 @@
-// チケット詳細の右の列（属性）で、パネル（ticket-props-panel.tsx）とブラウザ（ticket-props-browser.tsx）が共に使うもの。
-// 編集のボタンで直している間の値（Draft）、属性の 1 行、Status の選択、依存先・依存元の行、Epic・Iteration の選択の項目、読むだけの属性の値と、PR のリンク。
-// 依存先が終わったかは ticket.show の pending_deps で決める（別の Project の依存先も見る。パネルの帯と同じ判定）
-
 import { Fragment, type ReactNode } from "react";
 import type { Store } from "../store.js";
 import {
@@ -18,6 +14,7 @@ import type { Choice } from "./inline-edit.js";
 import { PriorityMark, StatusBadge, StatusDot, Tags, TicketLink } from "./parts.js";
 import { WorktreeRow } from "./worktree-row.js";
 import { fieldText } from "./ticket-fields.js";
+import { tr, msg } from "../l10n.js";
 
 /** 編集のボタンで直している間の値。パネルではタイトルと本文だけを、ブラウザでは属性も使う */
 export interface Draft {
@@ -70,7 +67,7 @@ export function propRow(key: string, label: string, value: ReactNode) {
   );
 }
 
-export const none = <span className="muted">なし</span>;
+export const none = <span className="muted">{msg("なし")}</span>;
 
 /** Status の選択。選ぶと ticket.move（Workflow の検査を通る）。statuses は並べる Status */
 export function StatusSelect({
@@ -160,13 +157,13 @@ export function ticketAttrs(store: Store, ticket: TicketDetail, panel: boolean) 
   );
   return {
     epicChoices: [
-      { value: "", label: "なし" },
+      { value: "", label: tr("なし") },
       ...store.epics
         .filter((e) => e.status === "open" || e.id === ticket.epic)
         .map((e) => ({ value: e.id, label: `${e.id} ${e.title}` })),
     ] satisfies Choice[],
     iterationChoices: [
-      { value: "", label: "なし" },
+      { value: "", label: tr("なし") },
       ...store.iterations
         .filter((i) => i.status !== "closed" || i.id === ticket.iteration)
         .map((i) => ({ value: i.id, label: `${i.id} ${i.name}` })),
@@ -185,14 +182,14 @@ export function ticketAttrs(store: Store, ticket: TicketDetail, panel: boolean) 
       : none,
     branchView: ticket.branch ? (
       <>
-        <CopyableCode text={ticket.branch} label="ブランチ名をコピー" />
+        <CopyableCode text={ticket.branch} label={tr("ブランチ名をコピー")} />
         {ticket.worktree ? <WorktreeRow ticket={ticket.id} path={ticket.worktree} /> : null}
       </>
     ) : (
       none
     ),
     prView: ticket.pr ? <PrLink pr={ticket.pr} webUrl={store.status?.web_url} /> : none,
-    createdByView: ticket.created_by ?? <span className="muted">不明</span>,
+    createdByView: ticket.created_by ?? <span className="muted">{tr("不明")}</span>,
     createdView: <DateTime iso={ticket.created_at} local={panel} />,
     updatedView: <DateTime iso={ticket.updated_at} local={panel} />,
   };

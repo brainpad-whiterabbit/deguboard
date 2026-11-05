@@ -1,7 +1,3 @@
-// VS Code のパネルのチケット詳細の右の列（属性）。Status の選択を先頭に、属性を「計画・つながり・作業・記録」の見出しで分け、
-// 値のない属性は最後の「なし」の 1 行にまとめる。Status の選択には Workflow で今から移れる Status だけを並べる。
-// 属性は値を押してその場で直し、確定で ticket.update に 1 属性だけ渡す。値のない属性は「なし」の行の「＋足す」から選んで値を入れる
-
 import { useRef, useState, type ReactNode } from "react";
 import type { Store } from "../store.js";
 import {
@@ -29,6 +25,7 @@ import {
   StatusSelect,
   ticketAttrs,
 } from "./ticket-props.js";
+import { tr } from "../l10n.js";
 
 /** パネルで値がなければ「なし」の行にまとめる属性 */
 interface OptionalAttr {
@@ -83,7 +80,7 @@ export function PanelProps({
   const a = ticketAttrs(store, ticket, true);
 
   const optional: OptionalAttr[] = [
-    { key: "labels", label: "ラベル", empty: ticket.labels.length === 0, addable: true },
+    { key: "labels", label: tr("ラベル"), empty: ticket.labels.length === 0, addable: true },
     { key: "epic", label: "Epic", empty: !ticket.epic, addable: true },
     { key: "iteration", label: "Iteration", empty: !ticket.iteration, addable: true },
     ...fields.map((f) => ({
@@ -92,10 +89,20 @@ export function PanelProps({
       empty: ticket[f.id] === undefined,
       addable: true,
     })),
-    { key: "dependsOn", label: "依存先", empty: ticket.depends_on.length === 0, addable: false },
-    { key: "dependents", label: "依存元", empty: ticket.dependents.length === 0, addable: false },
-    { key: "assignee", label: "担当", empty: !ticket.assignee, addable: true },
-    { key: "branch", label: "ブランチ", empty: !ticket.branch, addable: false },
+    {
+      key: "dependsOn",
+      label: tr("依存先"),
+      empty: ticket.depends_on.length === 0,
+      addable: false,
+    },
+    {
+      key: "dependents",
+      label: tr("依存元"),
+      empty: ticket.dependents.length === 0,
+      addable: false,
+    },
+    { key: "assignee", label: tr("担当"), empty: !ticket.assignee, addable: true },
+    { key: "branch", label: tr("ブランチ"), empty: !ticket.branch, addable: false },
     { key: "pr", label: "PR", empty: !ticket.pr, addable: false },
   ];
   // 値のない属性は行にせず最後の「なし」の 1 行にまとめる（「＋足す」で選んで直している属性は行に出す）
@@ -159,7 +166,7 @@ export function PanelProps({
     : [ticket.status];
   const groups = [
     {
-      title: "計画",
+      title: tr("計画"),
       items: [
         row(
           "iteration",
@@ -183,22 +190,22 @@ export function PanelProps({
         ),
         row(
           "assignee",
-          "担当",
+          tr("担当"),
           inline(
             "assignee",
-            "担当",
+            tr("担当"),
             ticket.assignee ?? "",
             (raw) => ({ assignee: raw.trim() || null }),
             a.assigneeView,
-            { placeholder: "eiki か eiki/agent" },
+            { placeholder: tr("eiki か eiki/agent") },
           ),
         ),
         row(
           "priority",
-          "優先度",
+          tr("優先度"),
           inline(
             "priority",
-            "優先度",
+            tr("優先度"),
             ticket.priority,
             (raw) => ({ priority: raw }),
             a.priorityView,
@@ -210,14 +217,14 @@ export function PanelProps({
         ),
         row(
           "labels",
-          "ラベル",
+          tr("ラベル"),
           inline(
             "labels",
-            "ラベル",
+            tr("ラベル"),
             ticket.labels.join(", "),
             (raw) => ({ labels: parseLabels(raw) }),
             ticket.labels.length ? a.labelsView : none,
-            { placeholder: "カンマ区切り", normalize: (raw) => parseLabels(raw).join(", ") },
+            { placeholder: tr("カンマ区切り"), normalize: (raw) => parseLabels(raw).join(", ") },
           ),
         ),
         ...fields.map((f) => {
@@ -241,22 +248,22 @@ export function PanelProps({
       ],
     },
     {
-      title: "つながり",
+      title: tr("つながり"),
       items: [
-        row("dependsOn", "依存先", a.dependsOnView),
-        row("dependents", "依存元", a.dependentsView),
+        row("dependsOn", tr("依存先"), a.dependsOnView),
+        row("dependents", tr("依存元"), a.dependentsView),
       ],
     },
     {
-      title: "作業",
-      items: [row("branch", "ブランチ", a.branchView), row("pr", "PR", a.prView)],
+      title: tr("作業"),
+      items: [row("branch", tr("ブランチ"), a.branchView), row("pr", "PR", a.prView)],
     },
     {
-      title: "記録",
+      title: tr("記録"),
       items: [
-        row("createdBy", "起票者", a.createdByView),
-        row("created", "作成", a.createdView),
-        row("updated", "更新", a.updatedView),
+        row("createdBy", tr("起票者"), a.createdByView),
+        row("created", tr("作成"), a.createdView),
+        row("updated", tr("更新"), a.updatedView),
       ],
     },
   ];
@@ -282,9 +289,9 @@ export function PanelProps({
       <dl>
         {emptyAttrs.length ? (
           <>
-            <dt>なし</dt>
+            <dt>{tr("なし")}</dt>
             <dd className="muted props-empty">
-              <span>{emptyAttrs.map((o) => o.label).join("・")}</span>
+              <span>{emptyAttrs.map((o) => o.label).join(tr("・"))}</span>
               <AddAttr
                 attrs={emptyAttrs.filter((o) => o.addable)}
                 open={adding}
@@ -321,17 +328,17 @@ function AddAttr({
   if (!open)
     return (
       <button type="button" className="link props-add" onClick={onOpen}>
-        ＋足す
+        {tr("＋足す")}
       </button>
     );
   // ↑↓ では選ばず、Enter かマウスで選んだときだけその属性の欄を開く
   return (
     <ConfirmSelect
       className="props-add"
-      label="値を入れる属性"
+      label={tr("値を入れる属性")}
       value=""
       choices={[
-        { value: "", label: "属性を選ぶ", disabled: true },
+        { value: "", label: tr("属性を選ぶ"), disabled: true },
         ...attrs.map((o) => ({ value: o.key, label: o.label })),
       ]}
       onConfirm={(key) => (key ? onPick(key) : onClose())}

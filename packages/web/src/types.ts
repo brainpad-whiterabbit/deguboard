@@ -1,5 +1,3 @@
-// 画面が使う型。core からは型だけを取り、実行時のコードは取り込まない（web は core の型と CommandClient にだけ依存する。ADR-007）
-
 import type {
   AskAction,
   AskCandidate,
@@ -40,6 +38,7 @@ import type {
   WhoamiView,
   WorkflowDefinition,
 } from "@deguboard/core";
+import { tr, msg } from "./l10n.js";
 
 export type {
   AskAction,
@@ -87,13 +86,13 @@ export type {
  */
 export const UNIT_LABELS: Record<MetricUnit, string> = {
   run: "Run",
-  ticket: "チケット",
+  ticket: msg("チケット"),
   epic: "Epic",
   iteration: "Iteration",
   project: "Project",
   agent: "Agent",
   model: "Model",
-  step: "工程",
+  step: msg("工程"),
 };
 /** Run の画面で選べる集計の単位。画面は選んだ Project で絞って集計するので project は除く */
 export const METRIC_UNITS: readonly MetricUnit[] = (
@@ -143,11 +142,14 @@ export const PRIORITIES = ["low", "medium", "high"] as const satisfies readonly 
 
 /** Iteration と Epic の状態の表示名 */
 export const ITERATION_LABELS: Record<Iteration["status"], string> = {
-  planned: "予定",
-  active: "進行中",
-  closed: "終了",
+  planned: msg("予定"),
+  active: msg("進行中"),
+  closed: msg("終了"),
 };
-export const EPIC_LABELS: Record<Epic["status"], string> = { open: "進行中", closed: "終了" };
+export const EPIC_LABELS: Record<Epic["status"], string> = {
+  open: msg("進行中"),
+  closed: msg("終了"),
+};
 
 /** 絞り込みで「担当者なし」を表す値。主体の ID（`eiki` / `eiki/agent`）とは重ならない */
 export const NO_CLAIM = "-";

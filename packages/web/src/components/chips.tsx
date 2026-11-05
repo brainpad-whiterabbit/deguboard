@@ -1,9 +1,5 @@
-// 絞り込みのチップ。押した状態は aria-pressed で伝え、選んだチップは塗る（styles.css の .chip）。
-// ChipRow はチップを折り返して並べ、2 行を超えるときは 2 行で止めて残りを「ほか N」にまとめる（押すとすべて出し、「畳む」で戻す）。
-// 行は描画した位置（offsetTop）で数え、チップの並び・中身（contentKey）・幅・選んだチップが変わったら数え直す。
-// 選んだチップ（pressed）は「ほか N」に隠さず、出す分の最後に回す
-
 import { Children, isValidElement, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { tr, trNode } from "../l10n.js";
 
 export function Chip({
   pressed,
@@ -104,7 +100,7 @@ export function ChipRow({
           aria-label={moreLabel(hidden)}
           onClick={() => setExpanded(true)}
         >
-          ほか {hidden}
+          {trNode("ほか {0}", hidden)}
         </button>
       ) : null}
       {expanded ? (
@@ -118,7 +114,7 @@ export function ChipRow({
             setFit(null);
           }}
         >
-          畳む
+          {tr("畳む")}
         </button>
       ) : null}
     </div>

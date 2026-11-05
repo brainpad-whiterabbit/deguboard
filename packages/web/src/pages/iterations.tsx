@@ -1,7 +1,3 @@
-// Iteration（UI-5）の詳細：期間・目標・進捗と中のチケット。見出しの下の欄は IterationSummary（iteration-parts.tsx）、状態に応じた次の操作の案内は IterationNext（iteration-next.tsx）、中のチケットを含む Plan の節は IterationPlans（iteration-plans.tsx）。一覧の画面はなく、planned と active はカンバンの絞り込みで選ぶ（board.tsx）。
-// 表示だけで書き込まない。名前・目標・期間の直し・閉じる・再開とチケットの足し外しは、タイトルと行の吹き出しからエージェントに頼む
-// （ADR-010・UI-15）。開始は頼むことになく、着手（claim）の手順が planned の Iteration を active にする（ADR-006）
-
 import { ASK_SECTIONS, AskSpotBox } from "../components/ask-menu.js";
 import { IterationNext } from "../components/iteration-next.js";
 import { IterationPlans } from "../components/iteration-plans.js";
@@ -13,6 +9,7 @@ import { useHost } from "../host.js";
 import { hrefOf } from "../router.js";
 import { useStore } from "../store.js";
 import { byPriorityThenNumber, ITERATION_LABELS, type IterationDetail } from "../types.js";
+import { tr } from "../l10n.js";
 
 export function IterationsPage({ id }: { id: string }) {
   return <IterationDetailView id={id} />;
@@ -29,7 +26,7 @@ function IterationDetailView({ id }: { id: string }) {
   );
 
   if (error) return <p className="error">{error}</p>;
-  if (!it) return <p className="muted">読み込み中…</p>;
+  if (!it) return <p className="muted">{tr("読み込み中…")}</p>;
 
   const items = [...it.items].sort(byPriorityThenNumber);
 
@@ -43,7 +40,7 @@ function IterationDetailView({ id }: { id: string }) {
               it.status === "closed" ? { page: "board" } : { page: "board", iteration: it.id },
             )}
           >
-            ← カンバン
+            {tr("← カンバン")}
           </a>
         </div>
       )}
@@ -52,7 +49,7 @@ function IterationDetailView({ id }: { id: string }) {
         as="h1"
         className="ask-title"
         targets={[it.id]}
-        label={`タイトル ${it.id}`}
+        label={tr("タイトル {0}", it.id)}
         section={ASK_SECTIONS.detailTitle}
         pinned
       >
@@ -66,7 +63,9 @@ function IterationDetailView({ id }: { id: string }) {
           閉じた Iteration はカンバンで選べないので出さない */}
       {host.surface === "panel" && it.status !== "closed" ? (
         <div className="actions">
-          <a href={hrefOf({ page: "board", iteration: it.id })}>この Iteration でカンバンを見る</a>
+          <a href={hrefOf({ page: "board", iteration: it.id })}>
+            {tr("この Iteration でカンバンを見る")}
+          </a>
         </div>
       ) : null}
       {/* 中のチケットを含む Plan（なければ節を出さない） */}

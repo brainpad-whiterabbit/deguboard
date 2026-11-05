@@ -1,5 +1,3 @@
-// 小さな表示部品：チケットへのリンク、優先度・Status の印、ラベル、進捗、チケットの行
-
 import { type ComponentProps, type MouseEvent, type ReactNode } from "react";
 import { WEBVIEW_CONTRACT_COPY } from "../client/webview.js";
 import { useAskSpot, type AskSection } from "./ask-menu.js";
@@ -7,6 +5,7 @@ import { useHost } from "../host.js";
 import { hrefOf, type Route } from "../router.js";
 import { useStore } from "../store.js";
 import { actorLabel, type Priority, type Progress, type Status, type Ticket } from "../types.js";
+import { tr, msg } from "../l10n.js";
 
 /**
  * チケット詳細へのリンク。チケットへのリンクはすべてここを通す。
@@ -88,9 +87,9 @@ export function DetailLink({
  * 優先度の並び方のひとこと（byPriorityThenNumber で high が先、low が後に並ぶ）。ツールチップの 1 行目に添える
  */
 const PRIORITY_ORDER_NOTE: Record<Priority, string> = {
-  high: "上に並ぶ",
-  medium: "既定の並び",
-  low: "下に並ぶ",
+  high: msg("上に並ぶ"),
+  medium: msg("既定の並び"),
+  low: msg("下に並ぶ"),
 };
 
 /** 優先度の記号（10px の SVG。high は上向きの矢印、medium は =、low は下向きの矢印）。色は文字に合わせて currentColor */
@@ -128,7 +127,7 @@ export function PriorityGlyph({ priority }: { priority: Priority }) {
 
 /** 優先度の印のツールチップ：1 行目に値と並び方、2 行目から判断基準（config、なければ core の既定）。基準がまだ読めていなければ 1 行目だけ */
 export function priorityTitle(priority: Priority, criteria: Record<Priority, string>): string {
-  const head = `優先度 ${priority}（${PRIORITY_ORDER_NOTE[priority]}）`;
+  const head = tr("優先度 {0}（{1}）", priority, PRIORITY_ORDER_NOTE[priority]);
   const note = criteria[priority];
   return note ? `${head}\n${note}` : head;
 }
@@ -235,7 +234,7 @@ function StackedProgress({
   return (
     <ProgressMeter
       className={className}
-      title={title || "チケットはない"}
+      title={title || tr("チケットはない")}
       total={progress.total}
       segments={segments.map((seg) => ({
         key: seg.status,
@@ -260,9 +259,9 @@ export function ProgressBar({ progress, short }: { progress: Progress; short?: b
   const active = (progress.by_status.in_progress ?? 0) + (progress.by_status.review ?? 0);
   return (
     <StackedProgress progress={progress} className="progress" partial={webview}>
-      {words ? "完了 " : ""}
+      {words ? tr("完了 ") : ""}
       {progress.done}/{progress.total}
-      {words && active > 0 ? ` ・ 進行中 ${active}` : ""}
+      {words && active > 0 ? tr(" ・ 進行中 {0}", active) : ""}
     </StackedProgress>
   );
 }
@@ -299,7 +298,7 @@ export type RowActivity = "running" | "idle";
  * 動きを減らす設定ではリングを回さない（styles.css）
  */
 export function ActivityMark({ activity }: { activity: RowActivity }) {
-  const label = activity === "running" ? "Run が実行中" : "着手済み（実行中の Run なし）";
+  const label = activity === "running" ? tr("Run が実行中") : tr("着手済み（実行中の Run なし）");
   return (
     <span
       className={`activity-mark activity-${activity}`}
@@ -412,7 +411,9 @@ export function AskRow({
   ask?: AskSection | undefined;
 }) {
   const spot = useAskSpot(
-    ask ? { targets: [ticket.id], label: `行 ${ticket.id}`, section: ask, select: true } : null,
+    ask
+      ? { targets: [ticket.id], label: tr("行 {0}", ticket.id), section: ask, select: true }
+      : null,
   );
   return (
     <div className={`row-item${dimmed ? " is-waiting" : ""}`} {...(ask ? spot.props : {})}>
@@ -436,7 +437,7 @@ export function AskRow({
 function BacklogItem({ ticket: t, children }: { ticket: Ticket; children: ReactNode }) {
   const spot = useAskSpot({
     targets: [t.id],
-    label: `行 ${t.id}`,
+    label: tr("行 {0}", t.id),
     section: WEBVIEW_CONTRACT_COPY.backlogRowSection,
     context: { ticket: t.id },
     select: true,
@@ -458,7 +459,7 @@ export interface RowAsk {
 function rowAskOptions(t: Ticket, ask: RowAsk) {
   return {
     targets: [t.id],
-    label: `行 ${t.id}`,
+    label: tr("行 {0}", t.id),
     section: ask.section,
     within: ask.within,
     select: true,
@@ -518,7 +519,7 @@ export function TicketTable({
 }) {
   const store = useStore();
   const host = useHost();
-  if (tickets.length === 0) return <p className="empty">該当するチケットはない</p>;
+  if (tickets.length === 0) return <p className="empty">{tr("該当するチケットはない")}</p>;
   if (host.surface === "sidebar") {
     const hideAssignee = sameAssignee(tickets);
     const endOf = (t: Ticket) => (end ? end(t) : <RowPriority priority={t.priority} />);
@@ -548,14 +549,14 @@ export function TicketTable({
     <table className="list">
       <thead>
         <tr>
-          <th>番号</th>
-          <th>タイトル</th>
+          <th>{tr("番号")}</th>
+          <th>{tr("タイトル")}</th>
           <th>Status</th>
-          <th>優先度</th>
+          <th>{tr("優先度")}</th>
           <th>Iteration</th>
           <th>Epic</th>
-          <th>ラベル</th>
-          {ask ? <th aria-label="エージェントに頼む" /> : null}
+          <th>{tr("ラベル")}</th>
+          {ask ? <th aria-label={tr("エージェントに頼む")} /> : null}
         </tr>
       </thead>
       <tbody>

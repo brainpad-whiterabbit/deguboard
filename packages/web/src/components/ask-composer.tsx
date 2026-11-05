@@ -1,9 +1,3 @@
-// エージェントに頼む入力欄（UI-15・ADR-010）。左パネルとエディタのパネル（ブラウザでも）の下に出し、欄に書いたものがそのまま貼る文になる。
-// 頼むことの候補・おすすめ・依頼文は core の ask コマンド（読み取りだけ）が決め、ここでは組み立て直さない。データには書き込まない。
-// 上の 1 行が頼むことの候補（★ がおすすめ）、欄の頭が Skill と対象の札、本体が指示、下が全文・形式・コピー。
-// 開いているターミナルがあれば（Webview だけ）、送り先を選んで「送る」でその入力に入れられる。Enter は押さず、ターミナルは起動しない。なければコピーだけ。
-// 指示の下書きと形式は見た目の状態に残し、閉じて開き直しても消えない。形式は人が切り替えるまで残さず、既定は ask が dg の Skill の有無から決める
-
 import type { TerminalChoice } from "@deguboard/core";
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { askKey, parseAskKey } from "../ask-key.js";
@@ -11,6 +5,7 @@ import { useHost, useUiState } from "../host.js";
 import { canSend, resolveSendTarget, sentMessage, switchedMessage } from "../send-target.js";
 import { useStore } from "../store.js";
 import type { AskAction, AskFormat, AskView } from "../types.js";
+import { tr, trNode, msg } from "../l10n.js";
 
 /** 指示を打つ間、依頼文の取り直しを待つ時間（ミリ秒）。打つたびに ask を呼ばない */
 export const ASK_NOTE_SETTLE_MS = 150;
@@ -24,7 +19,7 @@ export function chosenAskFormat(value: unknown): AskFormat | undefined {
 export const ASK_NOTE_KEY = "ask.note";
 export const ASK_FORMAT_KEY = "ask.format";
 
-const COPIED = "✓ コピーしました。エージェントの入力欄に貼ってください";
+const COPIED = msg("✓ コピーしました。エージェントの入力欄に貼ってください");
 
 /** ⌘↵（Mac）か Ctrl+↵（ほか）。押せるのはどちらでも同じ */
 const COPY_KEYS =
@@ -158,7 +153,7 @@ export function AskComposer({
         await host.copy(text);
         return COPIED;
       },
-      "コピーできない",
+      tr("コピーできない"),
     );
   }
 
@@ -176,7 +171,7 @@ export function AskComposer({
           clipboardKept: sent?.clipboardKept ?? false,
         });
       },
-      "送れない",
+      tr("送れない"),
     );
   }
 
@@ -225,16 +220,16 @@ export function AskComposer({
 
   const skillPill = format === "skill" && shown?.kind !== "command" ? candidate?.skill : null;
   return (
-    <section className="ask-composer" aria-label="エージェントに頼む" onKeyDown={onKeyDown}>
+    <section className="ask-composer" aria-label={tr("エージェントに頼む")} onKeyDown={onKeyDown}>
       <div className="ask-head">
-        <div className="ask-suggestions" role="group" aria-label="頼むこと">
+        <div className="ask-suggestions" role="group" aria-label={tr("頼むこと")}>
           {(base?.candidates ?? []).map((c) => (
             <button
               key={c.action}
               type="button"
               className="ask-suggestion"
               aria-pressed={c.action === chosen}
-              title={c.skill ?? "Skill を使わない"}
+              title={c.skill ?? tr("Skill を使わない")}
               onClick={() => {
                 setPicked(c.action);
                 setResult(null);
@@ -244,7 +239,7 @@ export function AskComposer({
               }}
             >
               {c.recommended ? (
-                <span className="ask-star" aria-label="おすすめ">
+                <span className="ask-star" aria-label={tr("おすすめ")}>
                   ★
                 </span>
               ) : null}
@@ -255,8 +250,8 @@ export function AskComposer({
         <button
           type="button"
           className="ask-close"
-          aria-label="閉じる"
-          title="閉じる（Esc）"
+          aria-label={tr("閉じる")}
+          title={tr("閉じる（Esc）")}
           onClick={onClose}
         >
           ×
@@ -271,7 +266,7 @@ export function AskComposer({
                 {t.id} <small>{t.sub}</small>
                 <button
                   type="button"
-                  aria-label={`${t.id} を外す`}
+                  aria-label={tr("{0} を外す", t.id)}
                   onClick={() => removeTarget(t.id)}
                 >
                   ×
@@ -283,9 +278,9 @@ export function AskComposer({
         <textarea
           ref={noteRef}
           rows={2}
-          aria-label="指示"
+          aria-label={tr("指示")}
           placeholder={
-            candidate && !candidate.skill ? "頼むことを書く" : "指示を足す（なくてもよい）"
+            candidate && !candidate.skill ? tr("頼むことを書く") : tr("指示を足す（なくてもよい）")
           }
           value={note}
           onChange={(e) => {
@@ -302,11 +297,11 @@ export function AskComposer({
         />
         {canSend(terminals) && sendTo ? (
           <div className="ask-send-row">
-            <span className="muted">送り先</span>
+            <span className="muted">{tr("送り先")}</span>
             <select
               className="ask-terminal"
-              aria-label="送り先のターミナル"
-              title="依頼文を入れるターミナル（開いているものから選ぶ。起動はしない）"
+              aria-label={tr("送り先のターミナル")}
+              title={tr("依頼文を入れるターミナル（開いているものから選ぶ。起動はしない）")}
               value={sendTo.id}
               onChange={(e) => {
                 setTerminalId(Number(e.target.value));
@@ -322,11 +317,11 @@ export function AskComposer({
             <button
               type="button"
               className="ask-send"
-              title="選んだターミナルの入力に依頼文を入れる（Enter は押さない）"
+              title={tr("選んだターミナルの入力に依頼文を入れる（Enter は押さない）")}
               onClick={() => void send()}
               disabled={!base}
             >
-              送る
+              {tr("送る")}
             </button>
           </div>
         ) : null}
@@ -337,19 +332,21 @@ export function AskComposer({
             aria-expanded={full}
             onClick={() => setFull(!full)}
           >
-            全文
+            {tr("全文")}
           </button>
           <button
             type="button"
             className="ask-ghost"
-            title="Skill の呼び出しか、Skill を使わない文章だけか。既定は dg の Skill がリポジトリか ~/.claude/skills にあれば Skill、なければ文章"
+            title={tr(
+              "Skill の呼び出しか、Skill を使わない文章だけか。既定は dg の Skill がリポジトリか ~/.claude/skills にあれば Skill、なければ文章",
+            )}
             disabled={!format}
             onClick={() => {
               copySeq.current++;
               setFormat(format === "skill" ? "text" : "skill");
             }}
           >
-            {format === "text" ? "形式：文章" : "形式：Skill"}
+            {format === "text" ? tr("形式：文章") : tr("形式：Skill")}
           </button>
           <span className="spacer" />
           <span className="ask-keys muted">{COPY_KEYS}</span>
@@ -359,19 +356,23 @@ export function AskComposer({
             onClick={() => void copy()}
             disabled={!base}
           >
-            <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">
-              <rect x="5.5" y="5.5" width="8" height="8" rx="1" />
-              <path d="M3.5 10.5h-1v-8h8v1" />
-            </svg>
-            コピー
+            {trNode(
+              "{0}コピー",
+              <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">
+                <rect x="5.5" y="5.5" width="8" height="8" rx="1" />
+                <path d="M3.5 10.5h-1v-8h8v1" />
+              </svg>,
+            )}
           </button>
         </div>
       </div>
       {shown?.kind === "command" ? (
-        <p className="ask-human muted">{humanReason(shown)}なので、人が打つコマンドをコピーする</p>
+        <p className="ask-human muted">
+          {trNode("{0}なので、人が打つコマンドをコピーする", humanReason(shown))}
+        </p>
       ) : null}
       {full && shown ? (
-        <pre className="ask-full" aria-label="全文">
+        <pre className="ask-full" aria-label={tr("全文")}>
           {shown.text}
         </pre>
       ) : null}
@@ -430,8 +431,8 @@ function messageOf(e: unknown): string {
 function humanReason(view: AskView): string {
   const reasons: string[] = [];
   if (view.human_only.length > 0)
-    reasons.push(`${view.human_only.join("・")} は人に限った操作（actor.human_only）`);
+    reasons.push(tr("{0} は人に限った操作（actor.human_only）", view.human_only.join(tr("・"))));
   if (view.workflow_by.length > 0)
-    reasons.push(`${view.workflow_by.join("・")} は Workflow が人に限った遷移（by）`);
-  return reasons.join("、");
+    reasons.push(tr("{0} は Workflow が人に限った遷移（by）", view.workflow_by.join(tr("・"))));
+  return reasons.join(tr("、"));
 }

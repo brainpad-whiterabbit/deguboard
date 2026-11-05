@@ -2,8 +2,9 @@
 // 日本語では鍵をそのまま出すので、日本語の表示は訳の表がなくても前と同じになり、ブラウザ（dg serve）は日本語のまま動く。
 // 表示言語は拡張ホストが <html data-language> で渡し（vscode.env.language）、main.tsx が起動のときに setLanguage で決める。
 // 付いていなければ（dg serve）日本語、ja で始まれば日本語、ほかは英語（拡張ホストの文言と同じ決め方）。
-// 鍵は t("...")・tNode("...")・msg("...") の文字列リテラルで書く（l10n.test.ts がソースから鍵を拾い、訳の表と突き合わせる）。
-// 表のように描く前に決める文言は msg で鍵として印を付け、描くときに t(値) で訳す。{0}・{1} の位置に引数を埋める
+// 鍵は tr("...")・trNode("...")・msg("...") の文字列リテラルで書く（l10n.test.ts がソースから鍵を拾い、訳の表と突き合わせる）。
+// t でなく tr と呼ぶのは、画面のコードでチケットを t と書くことが多く、名前がぶつかるため。
+// 表のように描く前に決める文言は msg で鍵として印を付け、描くときに tr(値) で訳す。{0}・{1} の位置に引数を埋める
 
 import { Fragment, type ReactNode } from "react";
 import { EN } from "./l10n-en.js";
@@ -33,21 +34,20 @@ function message(key: string): string {
   return current === "ja" ? key : (EN[key] ?? key);
 }
 
-/** {0}・{1} を引数で埋める。引数のない番号はそのまま残す */
-export function format(text: string, args: ReadonlyArray<string | number>): string {
-  return text.replace(/\{(\d+)\}/g, (whole, n: string) => {
-    const value = args[Number(n)];
-    return value === undefined ? whole : String(value);
-  });
+/** {0}・{1} を引数で埋める（テンプレートリテラルの `${x}` と同じく String で文字にする）。引数のない番号はそのまま残す */
+export function format(text: string, args: readonly unknown[]): string {
+  return text.replace(/\{(\d+)\}/g, (whole, n: string) =>
+    Number(n) < args.length ? String(args[Number(n)]) : whole,
+  );
 }
 
 /** 文言を今の言語で返す。日本語では鍵の {0} を埋めただけのもの */
-export function t(key: string, ...args: Array<string | number>): string {
+export function tr(key: string, ...args: unknown[]): string {
   return format(message(key), args);
 }
 
 /** 文の途中に要素（リンク・コードなど）を挟む文言。{0} の位置に args の要素を置く */
-export function tNode(key: string, ...args: ReactNode[]): ReactNode {
+export function trNode(key: string, ...args: ReactNode[]): ReactNode {
   const parts = message(key).split(/(\{\d+\})/);
   return parts.map((part, i) => {
     const m = /^\{(\d+)\}$/.exec(part);
@@ -56,7 +56,7 @@ export function tNode(key: string, ...args: ReactNode[]): ReactNode {
   });
 }
 
-/** 描く前に決める文言（表など）の鍵に印を付ける。訳さずに鍵を返すので、描くときに t(値) で訳す */
+/** 描く前に決める文言（表など）の鍵に印を付ける。訳さずに鍵を返すので、描くときに tr(値) で訳す */
 export function msg(key: string): string {
   return key;
 }

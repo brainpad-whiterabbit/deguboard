@@ -1,10 +1,3 @@
-// 画面がどこに載っているか（surface）と、画面の外への働きかけを 1 つの文脈で持つ（UI-12）。
-// ブラウザではチケットや Iteration の詳細へのリンクはハッシュ遷移、サイドバーとパネルでは拡張ホストに頼む（パネルは自分の中で遷移し、題が変わる）。
-// パネルは詳細だけを出すので、パネルから一覧の画面へのリンクは拡張ホストに頼んでサイドバーに出す（show）。
-// クリップボードへのコピーは、Webview では拡張ホストに頼み（vscode.env.clipboard）、ブラウザでは navigator.clipboard に書く。
-// エージェントに頼む入力欄（UI-15）を開いているかと対象は、HostProvider の中の AskContext が見た目の状態として持つ。
-// 拡張ホストからの通知（再読み込み・遷移・入力欄を開く）は HostBridge が store・ハッシュ・入力欄に結ぶ
-
 import {
   createContext,
   useCallback,
@@ -22,6 +15,7 @@ import { hrefOf, navigate, toggleRoute, type Route } from "./router.js";
 import { useStore } from "./store.js";
 import type { AskAction } from "./types.js";
 import { createUiState, localStorageBackend, type UiState } from "./ui-state.js";
+import { tr } from "./l10n.js";
 
 export type Surface = "sidebar" | "panel" | "browser";
 
@@ -89,7 +83,7 @@ export function createHost(surface: Surface, client: WebviewClient | null, state
 
 /** navigator.clipboard に書く。ない（安全でない文脈など）か拒まれたら reject */
 async function writeClipboard(text: string): Promise<void> {
-  if (!navigator.clipboard) throw new Error("navigator.clipboard が使えない");
+  if (!navigator.clipboard) throw new Error(tr("navigator.clipboard が使えない"));
   await navigator.clipboard.writeText(text);
 }
 

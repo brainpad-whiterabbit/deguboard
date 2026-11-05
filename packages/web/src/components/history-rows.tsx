@@ -1,14 +1,9 @@
-// 履歴用のチケットの行と一覧（左パネルの履歴）。Iteration・Epic・チケットのタブで共用する。
-// 行は 2 段：1 段目は状態の丸印・番号・タイトル（サイドバーでは 2 行まで）、2 段目は Epic・PR などの付記。
-// 優先度と担当者は出さない（終わったものを見る画面なので）。中止の行は点を塗らない輪にしてタイトルを薄くし、付記の頭に「中止」と書いて、色だけに頼らず完了と見分ける。
-// 検索中は query を渡し、当たった部分（タイトル・番号・ラベル）に印（mark）を付ける。
-// 行はエージェントに頼める場所にする（右端の吹き出し・Shift+F10。ask-menu.tsx）
-
 import { Fragment, useState, type ReactNode } from "react";
 import { ASK_SECTIONS, useAskSpot } from "./ask-menu.js";
 import { DetailLink, StatusDot, TicketLink } from "./parts.js";
 import { useStore } from "../store.js";
 import type { Ticket } from "../types.js";
+import { tr, trNode } from "../l10n.js";
 
 /** 一覧で最初に出す行の数。多いときは残りを「ほか N 件」のボタンで開ける */
 const HISTORY_LIST_HEAD = 8;
@@ -58,7 +53,7 @@ export function HistoryTicketRow({
   // 行から頼む（UI-15。吹き出し・Shift+F10）
   const spot = useAskSpot({
     targets: [t.id],
-    label: `行 ${t.id}`,
+    label: tr("行 {0}", t.id),
     section: ASK_SECTIONS.historyRow,
     select: true,
   });
@@ -71,24 +66,27 @@ export function HistoryTicketRow({
       t.iteration ? (
         <DetailLink route={{ page: "iterations", id: t.iteration }}>{t.iteration}</DetailLink>
       ) : (
-        <span className="history-none">Iteration なし</span>
+        <span className="history-none">{tr("Iteration なし")}</span>
       ),
     );
   // Epic のないチケットは何も書かない（Iteration の行の内訳で分かり、行ごとに繰り返すと読むところが埋もれる）
   if (showEpic && t.epic)
     parts.push(<DetailLink route={{ page: "epics", id: t.epic }}>{t.epic}</DetailLink>);
-  parts.push(t.pr ? <span>#{t.pr}</span> : <span className="history-none">PR なし</span>);
+  parts.push(t.pr ? <span>#{t.pr}</span> : <span className="history-none">{tr("PR なし")}</span>);
   const labels = q ? t.labels.filter((l) => l.toLowerCase().includes(q)) : [];
   if (labels.length > 0)
     parts.push(
       <span className="history-hit-labels">
-        ラベル{" "}
-        {labels.map((l, n) => (
-          <Fragment key={l}>
-            {n > 0 ? ", " : ""}
-            <Highlight text={l} query={q} />
-          </Fragment>
-        ))}
+        {trNode(
+          "ラベル{0}{1}",
+          " ",
+          labels.map((l, n) => (
+            <Fragment key={l}>
+              {n > 0 ? ", " : ""}
+              <Highlight text={l} query={q} />
+            </Fragment>
+          )),
+        )}
       </span>,
     );
   if (note != null) parts.push(note);
@@ -106,7 +104,7 @@ export function HistoryTicketRow({
       <small className="history-ticket-meta">
         {parts.map((p, n) => (
           <span key={n}>
-            {n > 0 ? " ・ " : ""}
+            {n > 0 ? tr(" ・ ") : ""}
             {p}
           </span>
         ))}
@@ -140,7 +138,7 @@ export function HistoryTicketList({
       ))}
       {folded ? (
         <button type="button" className="link history-more" onClick={() => setAll(true)}>
-          ほか {tickets.length - head} 件
+          {trNode("ほか {0} 件", tickets.length - head)}
         </button>
       ) : null}
     </div>

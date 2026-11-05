@@ -1,17 +1,3 @@
-// バックログ（UI-3）。done と abandoned 以外を Iteration ごとの区画（active → planned → Iteration なし）に分け、区画の中は優先度と番号で出す。
-// 番号・タイトル・ラベルで検索、Status・優先度・ラベル・担当者で絞り込む。
-// Iteration が 1 つもない（planned・active がない）Project では区画に分けず 1 つの表で出す。
-// 表示だけで書き込まない。Iteration の移動・作成・閉じると Epic の作成は、吹き出しからエージェントに頼む（ADR-010）。
-// Iteration の開始は着手（claim）の手順が行う（ADR-006）。
-// open の Epic は進捗つきの欄に並べ（UI-10）、押すとその Epic のチケットに絞る（もう一度押すと解除）。
-// サイドバーでは検索を常に出し、その右端の漏斗（カンバンと同じ FilterToggle）で絞り込みの欄を検索の下に開く（開閉は host.state に残す）。
-// その下によく使う絞り込み（自分・作業中・high）のチップと、欄で効いている条件の札（× で外す）を並べ、
-// 絞り込みか検索が効いているときだけ行の右端に「n / m 件」を出す。漏斗は条件が効いている間だけ色付きにする。
-// サイドバーの Epic の欄は open の Epic があるときだけ、番号・題・進捗のチップと「Epic なし」のチップを並べる（2 行を超える分は「ほか N」）
-// サイドバーの行の右端には、カンバンと同じ優先度の札と、開いた Plan に入っていれば Plan の番号と着手可・待ちを出す（カンバンと同じ部品と判定。components/row-end.tsx の BacklogRowEnd）。
-// サイドバーの行は担当者の列を出さず、別の人の担当だけ右端に頭文字の丸で出す（自分か自分の agent は出さない。store.me）。
-// サイドバーの行・区画の見出しは、エージェントに頼める場所にする（吹き出しと Shift+F10。UI-15）。Epic の札と件数は頼む入口にしない
-
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { ASK_SECTIONS, useAskSpot } from "../components/ask-menu.js";
 import { Chip, ChipRow } from "../components/chips.js";
@@ -41,6 +27,7 @@ import {
   type Ticket,
   type WhoamiView,
 } from "../types.js";
+import { tr, trNode, msg } from "../l10n.js";
 
 export interface BacklogFilter {
   query: string;
@@ -100,23 +87,23 @@ interface ActiveFilter {
 /** 効いている条件（検索を除く）。検索は常に見えているので含めない */
 function activeFilters(f: BacklogFilter, labelOf: (status: string) => string): ActiveFilter[] {
   const parts: ActiveFilter[] = [];
-  if (f.mine) parts.push({ key: "mine", text: "担当 自分", clear: { mine: false } });
+  if (f.mine) parts.push({ key: "mine", text: tr("担当 自分"), clear: { mine: false } });
   if (f.status) {
     parts.push({ key: "status", text: `Status ${labelOf(f.status)}`, clear: { status: "" } });
   }
   if (f.priority)
-    parts.push({ key: "priority", text: `優先度 ${f.priority}`, clear: { priority: "" } });
+    parts.push({ key: "priority", text: tr("優先度 {0}", f.priority), clear: { priority: "" } });
   if (f.epic) {
-    const text = `Epic ${f.epic === NO_EPIC ? "なし" : f.epic}`;
+    const text = `Epic ${f.epic === NO_EPIC ? tr("なし") : f.epic}`;
     parts.push({ key: "epic", text, clear: { epic: "" } });
   }
-  if (f.label) parts.push({ key: "label", text: `ラベル ${f.label}`, clear: { label: "" } });
+  if (f.label) parts.push({ key: "label", text: tr("ラベル {0}", f.label), clear: { label: "" } });
   if (f.assignee) {
-    const who = f.assignee === NO_CLAIM ? "なし" : actorLabel(f.assignee);
+    const who = f.assignee === NO_CLAIM ? tr("なし") : actorLabel(f.assignee);
     parts.push({
       key: "assignee",
-      text: `担当 ${who}`,
-      title: f.assignee === NO_CLAIM ? "担当なし" : f.assignee,
+      text: tr("担当 {0}", who),
+      title: f.assignee === NO_CLAIM ? tr("担当なし") : f.assignee,
       clear: { assignee: "" },
     });
   }
@@ -130,14 +117,14 @@ function activeFilters(f: BacklogFilter, labelOf: (status: string) => string): A
 const QUICK_FILTERS = [
   {
     key: "mine",
-    text: "自分",
-    what: () => "自分か自分の agent の担当",
+    text: msg("自分"),
+    what: () => tr("自分か自分の agent の担当"),
     on: (f: BacklogFilter) => f.mine,
     toggle: (f: BacklogFilter): Partial<BacklogFilter> => ({ mine: !f.mine }),
   },
   {
     key: "status",
-    text: "作業中",
+    text: msg("作業中"),
     what: (statusLabel: string) => `Status ${statusLabel}`,
     on: (f: BacklogFilter) => f.status === "in_progress",
     toggle: (f: BacklogFilter): Partial<BacklogFilter> => ({
@@ -147,7 +134,7 @@ const QUICK_FILTERS = [
   {
     key: "priority",
     text: "high",
-    what: () => "優先度 high",
+    what: () => tr("優先度 high"),
     on: (f: BacklogFilter) => f.priority === "high",
     toggle: (f: BacklogFilter): Partial<BacklogFilter> => ({
       priority: f.priority === "high" ? "" : "high",
@@ -243,7 +230,7 @@ export function BacklogPage() {
       <label>
         Status
         <select value={filter.status} onChange={(e) => set({ status: e.target.value })}>
-          <option value="">すべて</option>
+          <option value="">{tr("すべて")}</option>
           {statuses.map((s) => (
             <option key={s} value={s}>
               {store.labelOf(s)}
@@ -252,44 +239,50 @@ export function BacklogPage() {
         </select>
       </label>
       <label>
-        優先度
-        <select value={filter.priority} onChange={(e) => set({ priority: e.target.value })}>
-          <option value="">すべて</option>
-          {PRIORITIES.map((p) => (
-            <option key={p} value={p}>
-              {p}
-            </option>
-          ))}
-        </select>
+        {trNode(
+          "優先度{0}",
+          <select value={filter.priority} onChange={(e) => set({ priority: e.target.value })}>
+            <option value="">{tr("すべて")}</option>
+            {PRIORITIES.map((p) => (
+              <option key={p} value={p}>
+                {p}
+              </option>
+            ))}
+          </select>,
+        )}
       </label>
       <label>
-        ラベル
-        <select value={filter.label} onChange={(e) => set({ label: e.target.value })}>
-          <option value="">すべて</option>
-          {labels.map((l) => (
-            <option key={l} value={l}>
-              {l}
-            </option>
-          ))}
-        </select>
+        {trNode(
+          "ラベル{0}",
+          <select value={filter.label} onChange={(e) => set({ label: e.target.value })}>
+            <option value="">{tr("すべて")}</option>
+            {labels.map((l) => (
+              <option key={l} value={l}>
+                {l}
+              </option>
+            ))}
+          </select>,
+        )}
       </label>
       {claims.length > 0 ? (
         <label>
-          担当
-          <select value={filter.assignee} onChange={(e) => set({ assignee: e.target.value })}>
-            <option value="">すべて</option>
-            {claims.map((c) => (
-              <option key={c} value={c} title={c}>
-                {c === NO_CLAIM ? "なし" : actorLabel(c)}
-              </option>
-            ))}
-          </select>
+          {trNode(
+            "担当{0}",
+            <select value={filter.assignee} onChange={(e) => set({ assignee: e.target.value })}>
+              <option value="">{tr("すべて")}</option>
+              {claims.map((c) => (
+                <option key={c} value={c} title={c}>
+                  {c === NO_CLAIM ? tr("なし") : actorLabel(c)}
+                </option>
+              ))}
+            </select>,
+          )}
         </label>
       ) : null}
       {/* サイドバーでは条件があるときだけ出す */}
       {!sidebar || active.length > 0 ? (
         <button type="button" onClick={() => setFilter(EMPTY_FILTER)}>
-          絞り込みを消す
+          {tr("絞り込みを消す")}
         </button>
       ) : null}
     </>
@@ -298,19 +291,19 @@ export function BacklogPage() {
   return (
     <section>
       <div className={`toolbar${sidebar ? " backlog-search" : ""}`}>
-        <h1>バックログ</h1>
+        <h1>{tr("バックログ")}</h1>
         <input
           type="search"
-          placeholder="番号・タイトル・ラベルで検索"
+          placeholder={tr("番号・タイトル・ラベルで検索")}
           value={filter.query}
           onChange={(e) => set({ query: e.target.value })}
-          aria-label="検索"
+          aria-label={tr("検索")}
         />
         {sidebar ? (
           <FilterToggle
             open={filtersOpen}
             active={active.length > 0}
-            title="Status・優先度・ラベル・担当で絞り込む"
+            title={tr("Status・優先度・ラベル・担当で絞り込む")}
             controls="backlog-filters"
             onToggle={() => setFiltersOpen(!filtersOpen)}
           />
@@ -318,7 +311,7 @@ export function BacklogPage() {
           filters
         )}
         {/* サイドバーでは件数をチップの行の右端に置き、1 行を使わない */}
-        {sidebar ? null : <span className="muted">{rows.length} 件</span>}
+        {sidebar ? null : <span className="muted">{trNode("{0} 件", rows.length)}</span>}
       </div>
       {sidebar && filtersOpen ? (
         <div className="toolbar backlog-filters" id="backlog-filters">
@@ -357,8 +350,8 @@ export function BacklogPage() {
 /** 絞っているときの「n / m 件」（サイドバー） */
 function FilteredCount({ rows, total }: { rows: readonly Ticket[]; total: number }) {
   return (
-    <span className="muted count" title={`全 ${total} 件のうち ${rows.length} 件`}>
-      {rows.length} / {total} 件
+    <span className="muted count" title={tr("全 {0} 件のうち {1} 件", total, rows.length)}>
+      {trNode("{0} / {1} 件", rows.length, total)}
     </span>
   );
 }
@@ -385,7 +378,7 @@ function QuickFilters({
   count: ReactNode;
 }) {
   return (
-    <div className="chip-row quick-filters" role="group" aria-label="絞り込み">
+    <div className="chip-row quick-filters" role="group" aria-label={tr("絞り込み")}>
       {QUICK_FILTERS.filter((q) => q.key !== "mine" || meKnown).map((q) => {
         const pressed = q.on(filter);
         const what = q.what(statusLabel);
@@ -393,7 +386,7 @@ function QuickFilters({
           <Chip
             key={q.key}
             pressed={pressed}
-            title={pressed ? `${what} の絞り込みを外す` : `${what} で絞る`}
+            title={pressed ? tr("{0} の絞り込みを外す", what) : tr("{0} で絞る", what)}
             onClick={() => onChange(q.toggle(filter))}
           >
             {q.text}
@@ -405,7 +398,7 @@ function QuickFilters({
           <span className="filter-chip-text">{a.text}</span>
           <button
             type="button"
-            aria-label={`${a.text} の絞り込みを外す`}
+            aria-label={tr("{0} の絞り込みを外す", a.text)}
             onClick={() => onChange(a.clear)}
           >
             ×
@@ -435,7 +428,7 @@ function Section({
   const link = it ? (
     <a
       href={hrefOf({ page: "iterations", id: it.id })}
-      title="詳細"
+      title={tr("詳細")}
       onClick={(e) => {
         // Webview では詳細を拡張ホストに頼んでエディタ領域に開く（履歴の行と同じ）
         if (host.surface === "browser") return;
@@ -446,7 +439,7 @@ function Section({
       <code>{it.id}</code> {it.name}
     </a>
   ) : (
-    "Iteration なし"
+    tr("Iteration なし")
   );
   // サイドバーの見出し（カンバンの SidebarBoardHead と同じ部品）：左の帯の色で Iteration の状態を出し、1 段目に番号・名前・件数、
   // 2 段目に状態・月日の期間・目標を 1 行で（目標が溢れたら省略してツールチップで全文。カンバンと同じ）。
@@ -457,7 +450,7 @@ function Section({
     sidebar && (it || tickets.length > 0)
       ? {
           targets: it ? [it.id] : tickets.map((t) => t.id),
-          label: `区画の見出し ${it ? it.id : "Iteration なし"}`,
+          label: tr("区画の見出し {0}", it ? it.id : tr("Iteration なし")),
           section: ASK_SECTIONS.backlogHeading,
         }
       : null,
@@ -466,7 +459,7 @@ function Section({
     <>
       <span className="head-line">
         <span className="name">{link}</span>
-        <span className="muted count">{tickets.length} 件</span>
+        <span className="muted count">{trNode("{0} 件", tickets.length)}</span>
       </span>
       {it && tickets.length > 0 ? (
         <span className="head-line sub muted">
@@ -487,7 +480,7 @@ function Section({
         <>
           <a
             href={hrefOf({ page: "iterations", id: it.id })}
-            title="詳細"
+            title={tr("詳細")}
             onClick={(e) => {
               // Webview では詳細を拡張ホストに頼んでエディタ領域に開く（履歴の行と同じ）
               if (host.surface === "browser") return;
@@ -500,13 +493,13 @@ function Section({
           <span className={`badge iteration-${it.status}`}>{ITERATION_LABELS[it.status]}</span>
         </>
       ) : (
-        <span className="name">Iteration なし</span>
+        <span className="name">{tr("Iteration なし")}</span>
       )}
-      <span className="muted count">{tickets.length} 件</span>
+      <span className="muted count">{trNode("{0} 件", tickets.length)}</span>
       {it && (it.start || it.end || it.goal) ? (
         <small className="muted meta">
-          {it.start || it.end ? `${it.start ?? "?"} 〜 ${it.end ?? "?"}` : ""}
-          {(it.start || it.end) && it.goal ? " ・ " : ""}
+          {it.start || it.end ? tr("{0} 〜 {1}", it.start ?? "?", it.end ?? "?") : ""}
+          {(it.start || it.end) && it.goal ? tr(" ・ ") : ""}
           {it.goal}
         </small>
       ) : null}
@@ -572,13 +565,13 @@ function EpicChips({ selected, onSelect }: { selected: string; onSelect: (epic: 
     <div className="epic-chips">
       <span className="chip-label">Epic</span>
       <ChipRow
-        label="Epic で絞る"
+        label={tr("Epic で絞る")}
         contentKey={
           epics.map((e) => `${e.id}:${e.title}:${e.progress.done}/${e.progress.total}`).join("|") +
           `|${noEpic}`
         }
-        moreLabel={(n) => `Epic をあと ${n} 本出す`}
-        lessLabel="Epic を畳む"
+        moreLabel={(n) => tr("Epic をあと {0} 本出す", n)}
+        lessLabel={tr("Epic を畳む")}
       >
         {epics.map((e) => (
           <EpicChip key={e.id} epic={e} pressed={selected === e.id} onSelect={onSelect} />
@@ -587,11 +580,10 @@ function EpicChips({ selected, onSelect }: { selected: string; onSelect: (epic: 
           key={NO_EPIC}
           className="epic-chip loose"
           pressed={selected === NO_EPIC}
-          title={selected === NO_EPIC ? "絞り込みを外す" : "Epic のないチケットで絞る"}
+          title={selected === NO_EPIC ? tr("絞り込みを外す") : tr("Epic のないチケットで絞る")}
           onClick={() => onSelect(NO_EPIC)}
         >
-          Epic なし
-          <span className="chip-count">{noEpic}</span>
+          {trNode("Epic なし{0}", <span className="chip-count">{noEpic}</span>)}
         </Chip>
       </ChipRow>
     </div>
@@ -612,7 +604,7 @@ function EpicChip({
     <Chip
       className="epic-chip"
       pressed={pressed}
-      title={pressed ? "絞り込みを外す" : `${e.id} ${e.title} で絞る`}
+      title={pressed ? tr("絞り込みを外す") : tr("{0} {1} で絞る", e.id, e.title)}
       onClick={() => onSelect(e.id)}
     >
       <code>{e.id}</code>
@@ -636,7 +628,7 @@ function EpicList({ selected, onSelect }: { selected: string; onSelect: (epic: s
             type="button"
             className="epic-pick"
             aria-pressed={selected === e.id}
-            title={selected === e.id ? "絞り込みを解除する" : "この Epic で絞る"}
+            title={selected === e.id ? tr("絞り込みを解除する") : tr("この Epic で絞る")}
             onClick={() => onSelect(e.id)}
           >
             <span className="row-title">{e.title}</span>
@@ -650,11 +642,11 @@ function EpicList({ selected, onSelect }: { selected: string; onSelect: (epic: s
           type="button"
           className="epic-pick"
           aria-pressed={selected === NO_EPIC}
-          title={selected === NO_EPIC ? "絞り込みを解除する" : "Epic のないチケットで絞る"}
+          title={selected === NO_EPIC ? tr("絞り込みを解除する") : tr("Epic のないチケットで絞る")}
           onClick={() => onSelect(NO_EPIC)}
         >
-          <span className="row-title muted">Epic なし</span>
-          <span className="muted">{noEpic} 件</span>
+          <span className="row-title muted">{tr("Epic なし")}</span>
+          <span className="muted">{trNode("{0} 件", noEpic)}</span>
         </button>
       </li>
     </ul>

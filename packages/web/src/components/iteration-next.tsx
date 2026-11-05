@@ -1,12 +1,10 @@
-// Iteration 詳細の「次の操作」の案内（UI-5）。何を案内するか・どの頼むことで頼むかは core（iteration.show の next）が決め、
-// ここは種類ごとの文を出し、頼めるものは core の ask コマンドで作った依頼文をコピーするボタンを置くだけ。データには書き込まない（UI-7・UI-15）
-
 import { CopyResult, useCopyNotice } from "./copyable-code.js";
 import { ASK_FORMAT_KEY, chosenAskFormat } from "./ask-composer.js";
 import { DetailLink } from "./parts.js";
 import { useHost } from "../host.js";
 import { useStore } from "../store.js";
 import type { AskAction, AskView, IterationDetail } from "../types.js";
+import { tr, trNode } from "../l10n.js";
 
 type Next = NonNullable<IterationDetail["next"]>;
 
@@ -24,42 +22,50 @@ export function IterationNext({ it }: { it: IterationDetail }) {
 function NextText({ next }: { next: Next }) {
   switch (next.kind) {
     case "ready":
-      return <span>全件が終わっています。リリースできます</span>;
+      return <span>{tr("全件が終わっています。リリースできます")}</span>;
     case "overdue":
       return (
-        <span>終了日を過ぎ、未完了が {next.unfinished} 件あります。持ち越しを相談できます</span>
+        <span>
+          {trNode("終了日を過ぎ、未完了が {0} 件あります。持ち越しを相談できます", next.unfinished)}
+        </span>
       );
     case "planned":
       return (
-        <span>ほかに active がなければ、最初のチケットを着手（claim）すると active になります</span>
+        <span>
+          {tr("ほかに active がなければ、最初のチケットを着手（claim）すると active になります")}
+        </span>
       );
     case "closed":
       return (
         <span>
-          持ち越し {next.carried} 件
+          {tr("持ち越し ")}
+          {next.carried}
+          {tr(" 件")}
           {next.moved.length > 0 ? (
             <>
-              ：
-              {next.moved.map((t, n) => (
-                <span key={t.id}>
-                  {n > 0 ? "、" : ""}
-                  {t.id} →{" "}
-                  {t.iteration ? (
-                    <DetailLink route={{ page: "iterations", id: t.iteration }}>
-                      {t.iteration}
-                    </DetailLink>
-                  ) : t.status === "done" || t.status === "abandoned" ? (
-                    `${t.status === "done" ? "完了" : "中止"}済み`
-                  ) : (
-                    "Iteration なし"
-                  )}
-                </span>
-              ))}
+              {trNode(
+                "：{0}",
+                next.moved.map((t, n) => (
+                  <span key={t.id}>
+                    {n > 0 ? tr("、") : ""}
+                    {t.id} →{" "}
+                    {t.iteration ? (
+                      <DetailLink route={{ page: "iterations", id: t.iteration }}>
+                        {t.iteration}
+                      </DetailLink>
+                    ) : t.status === "done" || t.status === "abandoned" ? (
+                      tr("{0}済み", t.status === "done" ? tr("完了") : tr("中止"))
+                    ) : (
+                      tr("Iteration なし")
+                    )}
+                  </span>
+                )),
+              )}
             </>
           ) : null}
           {/* 履歴（コミット済みの変更）から求めるので、batch でまだコミットしていない分は出ない */}
           {next.moved.length < next.carried ? (
-            <span className="muted">（持ち越し先はコミットすると出ます）</span>
+            <span className="muted">{tr("（持ち越し先はコミットすると出ます）")}</span>
           ) : null}
         </span>
       );
@@ -77,7 +83,7 @@ function AskCopy({ id, action }: { id: string; action: AskAction | null }) {
     <>
       <button
         type="button"
-        title="エージェントに頼む依頼文をコピーする（書き込みはしない）"
+        title={tr("エージェントに頼む依頼文をコピーする（書き込みはしない）")}
         onClick={() => {
           const format = chosenAskFormat(host.state.get<unknown>(ASK_FORMAT_KEY));
           track(
@@ -87,7 +93,7 @@ function AskCopy({ id, action }: { id: string; action: AskAction | null }) {
           );
         }}
       >
-        依頼文をコピー
+        {tr("依頼文をコピー")}
       </button>
       <CopyResult result={result} />
     </>

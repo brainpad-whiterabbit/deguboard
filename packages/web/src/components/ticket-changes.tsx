@@ -1,19 +1,15 @@
-// チケット詳細の「変更」の節（UI-4）。作業ブランチのあるチケットに「変更を見る」を出し、押すと ticket.changes で
-// base（git.base_branch）との merge-base からの変わったファイルを、種類（A・M・D・R の印）と行数つきで出す。読むだけで書き込まない。
-// VS Code（Webview）ではファイルを押すと拡張ホストが差分エディタを開き、ブラウザ（dg serve）には差分エディタがないので一覧だけを出す。
-// 押すまでは読まない（git diff を詳細を開くたびに走らせない）。開いた後は一覧の読み直し（同期のあと）で読み直す
-
 import { useState } from "react";
 import { useCommandData } from "../command-data.js";
 import { useHost } from "../host.js";
 import type { BranchChanges, ChangedFile, ChangeKind } from "../types.js";
+import { tr, trNode, msg } from "../l10n.js";
 
 const KIND_MARK: Record<ChangeKind, { mark: string; label: string }> = {
-  added: { mark: "A", label: "追加" },
-  modified: { mark: "M", label: "変更" },
-  deleted: { mark: "D", label: "削除" },
-  renamed: { mark: "R", label: "名前の変更" },
-  copied: { mark: "C", label: "写し" },
+  added: { mark: "A", label: msg("追加") },
+  modified: { mark: "M", label: msg("変更") },
+  deleted: { mark: "D", label: msg("削除") },
+  renamed: { mark: "R", label: msg("名前の変更") },
+  copied: { mark: "C", label: msg("写し") },
 };
 
 export function TicketChanges({ ticket }: { ticket: string }) {
@@ -21,10 +17,12 @@ export function TicketChanges({ ticket }: { ticket: string }) {
   return (
     <section className="changes">
       <h2>
-        変更
-        <button type="button" className="changes-toggle" onClick={() => setOpen(!open)}>
-          {open ? "閉じる" : "変更を見る"}
-        </button>
+        {trNode(
+          "変更{0}",
+          <button type="button" className="changes-toggle" onClick={() => setOpen(!open)}>
+            {open ? tr("閉じる") : tr("変更を見る")}
+          </button>,
+        )}
       </h2>
       {open ? <ChangesList ticket={ticket} /> : null}
     </section>
@@ -37,7 +35,7 @@ function ChangesList({ ticket }: { ticket: string }) {
   const [failed, setFailed] = useState(false);
   // 一覧を出せない理由（ブランチがない・base がない）は core の message をそのまま出す
   if (error) return <p className="error">{error}</p>;
-  if (!data) return <p className="muted">読み込み中…</p>;
+  if (!data) return <p className="muted">{tr("読み込み中…")}</p>;
   const total = data.files.reduce(
     (sum, f) => ({ add: sum.add + (f.additions ?? 0), del: sum.del + (f.deletions ?? 0) }),
     { add: 0, del: 0 },
@@ -46,15 +44,21 @@ function ChangesList({ ticket }: { ticket: string }) {
   return (
     <>
       <p className="changes-summary muted">
-        <code>
-          {data.base_ref}...{data.head_ref}
-        </code>{" "}
-        {data.files.length} ファイル <span className="changes-add">+{total.add}</span>{" "}
-        <span className="changes-del">−{total.del}</span>
-        {openDiff ? null : "（差分は VS Code で開ける）"}
+        {trNode(
+          "{0}{1}{2} ファイル {3}{4}{5}{6}",
+          <code>
+            {data.base_ref}...{data.head_ref}
+          </code>,
+          " ",
+          data.files.length,
+          <span className="changes-add">+{total.add}</span>,
+          " ",
+          <span className="changes-del">−{total.del}</span>,
+          openDiff ? null : tr("（差分は VS Code で開ける）"),
+        )}
       </p>
       {data.files.length === 0 ? (
-        <p className="empty">{data.base_ref} との間に変更はない</p>
+        <p className="empty">{trNode("{0} との間に変更はない", data.base_ref)}</p>
       ) : (
         <ul className="changes-list">
           {data.files.map((f) => (
@@ -63,7 +67,7 @@ function ChangesList({ ticket }: { ticket: string }) {
                 <button
                   type="button"
                   className="changes-file"
-                  title={`${f.path} の差分を開く`}
+                  title={tr("{0} の差分を開く", f.path)}
                   onClick={() => {
                     setFailed(false);
                     openDiff({
@@ -87,7 +91,7 @@ function ChangesList({ ticket }: { ticket: string }) {
         </ul>
       )}
       <span className="muted" role="status" aria-live="polite">
-        {failed ? "差分を開けない" : ""}
+        {failed ? tr("差分を開けない") : ""}
       </span>
     </>
   );
@@ -112,7 +116,7 @@ function FileRow({ file: f }: { file: ChangedFile }) {
       </span>
       <span className="changes-stat">
         {f.binary ? (
-          <span className="muted">バイナリ</span>
+          <span className="muted">{tr("バイナリ")}</span>
         ) : (
           <>
             <span className="changes-add">+{f.additions}</span>{" "}

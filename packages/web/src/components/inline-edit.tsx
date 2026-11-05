@@ -1,10 +1,5 @@
-// その場で直す属性の値（パネルのチケット詳細の右の列）。値を押すと選択か入力欄になり、Enter（選択は一覧から選んでも）で確定、Esc で取り消す。
-// 閉じた選択で ↑↓ を押すと値だけが変わり、保存しない（Enter で確定する）。欄から外れたら取り消す。
-// 保存は呼ぶ側（ticket.update に 1 属性だけ渡す）に任せ、ここは値の文字列を返して結果を待ち、失敗なら欄を開いたままにする。
-// Enter・Esc・選んで閉じたら、フォーカスを値のボタンに戻す。
-// 値がリンク（Epic・Iteration）なら、リンクと値のボタンを入れ子にせず並べ、ボタンは鉛筆の印だけにする
-
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { tr } from "../l10n.js";
 
 /** 選択の 1 項目 */
 export interface Choice {
@@ -215,8 +210,8 @@ export function InlineEdit({
         className={link ? "inline-edit inline-edit-icon" : "inline-edit"}
         role="button"
         tabIndex={0}
-        aria-label={`${label}を変える`}
-        title="押して変える"
+        aria-label={tr("{0}を変える", label)}
+        title={tr("押して変える")}
         onClick={onStart}
         onKeyDown={(e: KeyboardEvent) => {
           if (e.key === "Enter" || e.key === " ") {

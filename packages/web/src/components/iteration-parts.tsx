@@ -1,9 +1,7 @@
-// Iteration の部品：見出しに出す短い期間と残り・超過の日数、詳細の見出しの下の期間・目標・進捗の欄。
-// 短い期間はカンバン（board.tsx）とバックログ（backlog.tsx）の左パネルの見出しでも共用する
-
 import { ProgressBar } from "./parts.js";
 import { NO_VALUE } from "./run-parts.js";
 import type { IterationDetail } from "../types.js";
+import { tr } from "../l10n.js";
 
 /** 見出しに出す期間を短くする（2026-11-15 と 2026-11-28 → 11/15–11/28）。どちらもなければ undefined */
 export function shortPeriod(start?: string, end?: string): string | undefined {
@@ -36,9 +34,9 @@ export function periodNote(
   const now = Date.parse(today);
   if (Number.isNaN(end) || Number.isNaN(now)) return undefined;
   const days = Math.round((end - now) / DAY_MS);
-  if (days > 0) return { text: `残り ${days} 日`, overdue: false };
-  if (days === 0) return { text: "今日まで", overdue: false };
-  return { text: `${-days} 日超過`, overdue: true };
+  if (days > 0) return { text: tr("残り {0} 日", days), overdue: false };
+  if (days === 0) return { text: tr("今日まで"), overdue: false };
+  return { text: tr("{0} 日超過", -days), overdue: true };
 }
 
 /**
@@ -52,7 +50,7 @@ export function IterationSummary({ it }: { it: IterationDetail }) {
     <dl className="iteration-summary">
       {period ? (
         <>
-          <dt>期間</dt>
+          <dt>{tr("期間")}</dt>
           <dd>
             {period}
             {note ? (
@@ -65,14 +63,14 @@ export function IterationSummary({ it }: { it: IterationDetail }) {
       ) : null}
       {it.goal ? (
         <>
-          <dt>目標</dt>
+          <dt>{tr("目標")}</dt>
           <dd>{it.goal}</dd>
         </>
       ) : null}
-      <dt>進捗</dt>
+      <dt>{tr("進捗")}</dt>
       <dd>
         {it.status === "closed" ? (
-          `完了 ${it.completed ?? NO_VALUE} ・ 持ち越し ${it.carried_over ?? NO_VALUE}`
+          tr("完了 {0} ・ 持ち越し {1}", it.completed ?? NO_VALUE, it.carried_over ?? NO_VALUE)
         ) : (
           <ProgressBar progress={it.progress} />
         )}
