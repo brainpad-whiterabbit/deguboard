@@ -1880,6 +1880,22 @@ describe("用意", () => {
     await runCommand(ticketMove, ctx, { ticket: "t2", status: "abandoned" });
     const through = await runCommand(lint, ctx, {});
     expect(through.data.issues.map((i) => i.code)).not.toContain("lint_plan_wait_cycle");
+    // Plan の外で終わったチケットからは辺を出さないので、そこを回って戻る循環も指摘しない
+    await runCommand(ticketMove, ctx, { ticket: "t2", status: "todo" });
+    await runCommand(ticketCreate, ctx, {
+      title: "C",
+      summary: "s",
+      acceptance,
+      depends_on: ["t1"],
+    });
+    await runCommand(ticketUpdate, ctx, { ticket: "t2", depends_on: ["t3"] });
+    const outer = await runCommand(lint, ctx, {});
+    expect(outer.data.issues.map((i) => i.message)).toEqual([
+      "after と depends_on が循環している: t1 →(after) t2 →(depends_on) t3 →(depends_on) t1",
+    ]);
+    await runCommand(ticketMove, ctx, { ticket: "t3", status: "done" });
+    const outerDone = await runCommand(lint, ctx, {});
+    expect(outerDone.data.issues.map((i) => i.code)).not.toContain("lint_plan_wait_cycle");
     // 閉じた Plan は指摘しない
     await runCommand(planClose, ctx, { plan: "p1" });
     const closed = await runCommand(lint, ctx, {});
