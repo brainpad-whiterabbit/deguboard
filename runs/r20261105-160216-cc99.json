@@ -1,0 +1,36 @@
+{
+  "id": "r20261105-160216-cc99",
+  "ticket": "t384",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-sonnet-5-5",
+  "started_at": "2026-11-05T16:02:16Z",
+  "finished_at": "2026-11-05T16:07:13Z",
+  "result": "success",
+  "error": null,
+  "retries": 7,
+  "retry_reasons": [
+    "行の吹き出しが Tab で全部の行に止まる",
+    "節を畳むと tabIndex=0 の行が隠れ一覧に入れない",
+    "Space と a の効く範囲に合わせて README と UI-15 の文を直した",
+    "ADR-010 の入口にキーボードの入口を足した",
+    "README の理由と実装の細部をコードのコメントへ移した",
+    "a の判定を大文字小文字を区別せず、IME 変換中は受けない",
+    "選んだ状態の aria を見送る理由をコメントに書いた"
+  ],
+  "usage": {
+    "input": 16,
+    "output": 5515,
+    "cache_read": 835305,
+    "cache_write": 8837
+  },
+  "tools": {
+    "read": 0,
+    "search": 0,
+    "write": 0,
+    "bash": 8,
+    "other": 0,
+    "read_before_write": 0,
+    "search_before_write": 0
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "id": "r20261105-161257-c1f0",
+  "ticket": "t378",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-sonnet-5-5",
+  "started_at": "2026-11-05T16:12:57Z",
+  "finished_at": "2026-11-05T16:13:47Z",
+  "result": "success",
+  "error": null,
+  "retries": 2,
+  "retry_reasons": [
+    "notifyApprovals に意味のないブロックが残る",
+    "README の承認待ちの節が周りより長く表記が揃わない"
+  ],
+  "usage": {
+    "input": 4,
+    "output": 903,
+    "cache_read": 203613,
+    "cache_write": 2209
+  },
+  "tools": {
+    "read": 0,
+    "search": 0,
+    "write": 0,
+    "bash": 2,
+    "other": 0,
+    "read_before_write": 0,
+    "search_before_write": 0
+  }
+}

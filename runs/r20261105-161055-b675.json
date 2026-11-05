@@ -1,0 +1,32 @@
+{
+  "id": "r20261105-161055-b675",
+  "ticket": "t384",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-sonnet-5-5",
+  "started_at": "2026-11-05T16:10:55Z",
+  "finished_at": "2026-11-05T16:13:10Z",
+  "result": "success",
+  "error": null,
+  "retries": 3,
+  "retry_reasons": [
+    "履歴の行の Iteration・Epic のリンクで Tab が止まる",
+    "README と UI-15 の Space・a の範囲を実際（ブラウザでは履歴の行だけ）に絞った",
+    "一覧から選んだあとも returnTo を空にした"
+  ],
+  "usage": {
+    "input": 6,
+    "output": 2155,
+    "cache_read": 340936,
+    "cache_write": 2587
+  },
+  "tools": {
+    "read": 0,
+    "search": 0,
+    "write": 0,
+    "bash": 3,
+    "other": 0,
+    "read_before_write": 0,
+    "search_before_write": 0
+  }
+}
