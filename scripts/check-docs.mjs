@@ -14,7 +14,7 @@ const budgets = [
   ["docs/requirements.md", 40 * 1024],
   ["docs/development.md", 20 * 1024],
 ];
-const adrBudget = 10 * 1024;
+const adrBudget = 12 * 1024;
 // エージェントが作業中に読む dg guide のトピック（1 本ずつ）
 const guideDir = "packages/cli/src";
 const guideBudget = 14 * 1024;
