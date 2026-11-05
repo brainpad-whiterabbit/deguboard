@@ -5,7 +5,7 @@ import type { Config } from "../model/config.js";
 import { claudeCodeAdapter } from "./adapters/claude-code.js";
 import { codexAdapter } from "./adapters/codex.js";
 import { copilotAdapter } from "./adapters/copilot.js";
-import type { AgentAdapter, CollectedUsage, SkillQuery, UsageQuery } from "./define.js";
+import type { AgentAdapter, CollectedUsage, SkillDirs, SkillQuery, UsageQuery } from "./define.js";
 
 export type * from "./define.js";
 
@@ -18,7 +18,14 @@ export function agentNames(): string[] {
 
 /** Adapter が Skill を読むディレクトリをまとめたもの。ask が形式の既定を決めるのに使う（ADR-010） */
 export function agentSkillDirs(query: SkillQuery): string[] {
-  return ADAPTERS.flatMap((a) => a.skillDirs?.(query) ?? []);
+  return ADAPTERS.flatMap((a) =>
+    a.skillDirs ? [a.skillDirs.project(query.topLevel), a.skillDirs.personal(query.env)] : [],
+  );
+}
+
+/** agent の Skill の置き場所。dg skill install が書く先を決めるのに使う。Skill のない agent は undefined */
+export function skillDirsOf(agent: string): SkillDirs | undefined {
+  return findAdapter(agent)?.skillDirs;
 }
 
 function findAdapter(agent: string): AgentAdapter | undefined {

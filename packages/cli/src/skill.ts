@@ -4,7 +4,7 @@
 import { createHash } from "node:crypto";
 import { mkdir, readFile, rm, rmdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { resolveRepoPaths } from "@deguboard/core";
+import { resolveRepoPaths, skillDirsOf, type AgentEnv } from "@deguboard/core";
 import { stringify as stringifyYaml } from "yaml";
 import { GUIDE_TOPICS, readGuide, readGuideMeta, type GuideTopic } from "./guide.js";
 
@@ -17,7 +17,7 @@ const RETIRED_SKILLS: Record<string, string[]> = {
 const MARKER = /^<!-- dg skill sha256:([0-9a-f]{64}) -->\n/m;
 
 export interface SkillFile {
-  /** Skill の名前（dg<トピック>）。置き場所は <基点>/.claude/skills/<名前>/SKILL.md */
+  /** Skill の名前（dg<トピック>）。置き場所は <Skill のディレクトリ>/<名前>/SKILL.md */
   name: string;
   topic: GuideTopic;
   /** 印を含む SKILL.md の中身 */
@@ -85,20 +85,24 @@ async function readIfExists(path: string): Promise<string | undefined> {
 }
 
 /**
- * Skill を書く。scope が project なら cwd を含むリポジトリの最上位、personal ならホームディレクトリの下に置く。
+ * Skill を書く。置き場所は claude-code の Adapter の skillDirs が決め、ask が Skill の有無を見る先と同じになる（AG-5）。
+ * scope が project なら cwd を含むリポジトリの最上位、personal ならホームディレクトリ（env の HOME、空か未設定なら OS のホーム）の下。
  * 手を加えていない Skill は最新の中身で上書きし、手を加えたものは force がなければ残す
  */
 export async function installSkill(options: {
   cwd: string;
   scope: "project" | "personal";
-  home: string;
+  env: AgentEnv;
   force: boolean;
   /** true なら何も書かず消さず、書く先と中身だけを返す */
   dryRun?: boolean;
 }): Promise<SkillInstallResult> {
-  const base =
-    options.scope === "personal" ? options.home : (await resolveRepoPaths(options.cwd)).topLevel;
-  const dir = join(base, ".claude", "skills");
+  const dirs = skillDirsOf("claude-code");
+  if (!dirs) throw new Error("claude-code の Adapter が Skill の置き場所を持たない");
+  const dir =
+    options.scope === "personal"
+      ? dirs.personal(options.env)
+      : dirs.project((await resolveRepoPaths(options.cwd)).topLevel);
   const dryRun = options.dryRun ?? false;
   const result: SkillInstallResult = {
     scope: options.scope,
