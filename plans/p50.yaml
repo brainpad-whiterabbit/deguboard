@@ -1,0 +1,26 @@
+id: p50
+project: default
+tickets: [t347, t408, t348, t349]
+after:
+  t348:
+    - t347
+  t349:
+    - t348
+pending_approval: true
+details:
+  t347:
+    scope: "open-board.gif と ask-agent.gif を画面操作だけで録り、録り直しの手順を残す（PR #381、手直し中）"
+    approach: record-gifs.mjs と mise run gifs。VS Code の外枠は仮の GUI でよい（人の判断）
+    tier: heavy
+  t408:
+    scope: 閉じた Run に run refresh を流してモデル名と使用量を埋め戻す（PR なし）
+    approach: --dry-run の差分と metrics show の missing の前後を報告してから書く
+    tier: standard
+  t348:
+    scope: import・run-all・retro の 3 本を仮の GUI を Playwright で動かして録る
+    approach: t347 の record-gifs.mjs に台本を足し、左パネルは実際の dg serve、ターミナルのエージェントは模した画面にする。20 秒以下・1MB 以下
+    tier: heavy
+  t349:
+    scope: 拡張の README を紹介ページ案の本文に置き換え、5 本の GIF を表示できるようにする
+    approach: 紹介ページ案の原稿を写し、t368 のセキュリティの節を残し、images を VSIX に入れる（vsix-files.test.ts の許可リストも直す）か絶対 URL にする
+    tier: standard
