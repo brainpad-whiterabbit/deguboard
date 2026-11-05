@@ -41,6 +41,8 @@ export interface FileAtSide {
   exists: boolean;
   /** NUL を含むので文字として出さない。text は空 */
   binary: boolean;
+  /** サブモジュール（木の項目が commit）。中身は出さず、text はそのコミットの ID */
+  submodule: boolean;
   text: string;
 }
 
@@ -195,6 +197,7 @@ export function mergeChanges(names: NameStatusEntry[], numbers: NumstatEntry[]):
 
 /**
  * 作業ブランチの変更の片側のファイルの中身。base は merge-base、head は作業ブランチの先端のもの。
+ * 読めるのは変更の一覧にあるファイルだけで（base の側は名前の変更の元のパス）、ほかは NOT_FOUND。
  * その側にないファイル（追加の base・削除の head）は exists: false で空にする（差分エディタの片側を空にする）。
  * expected（一覧で読んだその側のコミット）を渡すと、ブランチが進んで変わっていれば REJECTED にする（一覧と違う中身を出さない）
  */
@@ -213,13 +216,53 @@ export async function readChangedFile(
       `一覧を読んだ後に ${short(side === "base" ? refs.base : refs.head)} が変わったので、変更の一覧を読み直す`,
     );
   }
-  // `<commit>:<path>` のパスはリポジトリの最上位から。「./」で始めると cwd からになるので付けない
-  const object = `${commit}:${filePath}`;
-  const kind = await runGit(repo.topLevel, ["cat-file", "-t", object], { allowFailure: true });
-  if (kind.code !== 0 || kind.stdout.trim() !== "blob") {
-    return { path: filePath, commit, exists: false, binary: false, text: "" };
+  // 読めるのは変更の一覧にあるファイルだけ（base の側は名前の変更の元のパス）。dg serve や MCP から木の中の任意のファイルを読ませない
+  const listed = parseNameStatus(
+    (
+      await runGit(repo.topLevel, [
+        ...DIFF_ARGS,
+        "--name-status",
+        refs.baseCommit,
+        refs.headCommit,
+        "--",
+      ])
+    ).stdout,
+  );
+  const allowed = listed.some(
+    (e) => (side === "base" ? (e.old_path ?? e.path) : e.path) === filePath,
+  );
+  if (!allowed) {
+    throw new OperationError("NOT_FOUND", `${filePath} は ${branch} の変更の一覧にない`);
   }
-  const shown = await runGit(repo.topLevel, ["cat-file", "blob", object]);
+  const missing = {
+    path: filePath,
+    commit,
+    exists: false,
+    binary: false,
+    submodule: false,
+    text: "",
+  };
+  // 木の項目の種類で、ファイル（blob）とサブモジュール（commit）を分ける。パスは字のまま（glob にしない）
+  const entry = await runGit(
+    repo.topLevel,
+    ["--literal-pathspecs", "ls-tree", "-z", commit, "--", filePath],
+    { allowFailure: true },
+  );
+  const m = /^(\d+) (\w+) ([0-9a-f]+)\t(.*)$/s.exec(entry.stdout.split("\0")[0] ?? "");
+  if (entry.code !== 0 || !m || m[4] !== filePath) return missing;
+  if (m[2] === "commit") {
+    return { ...missing, exists: true, submodule: true, text: m[3]! };
+  }
+  if (m[2] !== "blob") return missing;
+  // `<commit>:<path>` のパスはリポジトリの最上位から。「./」で始めると cwd からになるので付けない
+  const shown = await runGit(repo.topLevel, ["cat-file", "blob", `${commit}:${filePath}`]);
   const binary = shown.stdout.includes("\0");
-  return { path: filePath, commit, exists: true, binary, text: binary ? "" : shown.stdout };
+  return {
+    path: filePath,
+    commit,
+    exists: true,
+    binary,
+    submodule: false,
+    text: binary ? "" : shown.stdout,
+  };
 }

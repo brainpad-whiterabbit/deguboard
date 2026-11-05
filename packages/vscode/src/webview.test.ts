@@ -515,11 +515,21 @@ describe("変更の差分エディタ（t375）", () => {
     expect(parseDiffQuery("ticket=t1&side=left&path=a&commit=x&folder=f")).toBeUndefined();
   });
 
-  it("ない側は空、バイナリは一言を中身にする", () => {
-    const file = { path: "a", commit: "c", exists: false, binary: false, text: "" };
+  it("ない側は空、バイナリとサブモジュールは一言を中身にする", () => {
+    const file = {
+      path: "a",
+      commit: "c",
+      exists: false,
+      binary: false,
+      submodule: false,
+      text: "",
+    };
     expect(diffContent(file)).toBe("");
     expect(diffContent({ ...file, exists: true, text: "x\n" })).toBe("x\n");
     expect(diffContent({ ...file, exists: true, binary: true })).toContain("バイナリ");
+    expect(diffContent({ ...file, exists: true, submodule: true, text: "abc123" })).toBe(
+      "（サブモジュールの変更は中身を出さない。コミット abc123）\n",
+    );
   });
 
   it("openDiff の要求を actions に渡し、形の違う要求は受けない", async () => {

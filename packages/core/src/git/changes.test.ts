@@ -186,8 +186,30 @@ describe("作業ブランチの変更", () => {
       exists: false,
       text: "",
     });
-    // main だけに足したファイルは merge-base にないので、左にも出ない
-    expect((await readChangedFile(repo, "feat/x", "base", "main-only.txt")).exists).toBe(false);
+    // 名前の変更は、左を元のパス、右を先のパスで読む
+    expect((await readChangedFile(repo, "feat/x", "base", "名前 前.txt")).exists).toBe(true);
+    expect((await readChangedFile(repo, "feat/x", "head", "名前 後.txt")).exists).toBe(true);
+    // 変更の一覧にないファイルは、木にあっても読まない（main だけのファイル・変えていないファイル・側の違うパス）
+    for (const [side, p] of [
+      ["base", "main-only.txt"],
+      ["head", "main-only.txt"],
+      ["head", "名前 前.txt"],
+      ["base", "名前 後.txt"],
+      ["head", "../a/keep.txt"],
+    ] as const) {
+      await expect(readChangedFile(repo, "feat/x", side, p)).rejects.toMatchObject({
+        code: "NOT_FOUND",
+      });
+    }
+    await git(f.cloneA, ["switch", "-q", "feat/x"]);
+    await put(f.cloneA, "untouched.txt", "x\n");
+    await commitAll(f.cloneA, "足す");
+    await git(f.cloneA, ["rm", "-q", "untouched.txt"]);
+    await commitAll(f.cloneA, "消す");
+    // 足して消したファイルは一覧に出ないので読まない
+    await expect(readChangedFile(repo, "feat/x", "head", "untouched.txt")).rejects.toMatchObject({
+      code: "NOT_FOUND",
+    });
     expect(await readChangedFile(repo, "feat/x", "head", "img.bin")).toMatchObject({
       exists: true,
       binary: true,
@@ -215,6 +237,47 @@ describe("作業ブランチの変更", () => {
     const ahead = await listBranchChanges(a.repo, "feat/x");
     expect(ahead.head_ref).toBe("feat/x");
     expect(ahead.files.map((x) => x.path)).toContain("more.txt");
+  });
+
+  it("サブモジュールは中身を読まず、submodule とコミットの ID を返す", async () => {
+    const f = await fixture();
+    await prepare(f);
+    await git(f.cloneA, ["switch", "-q", "feat/x"]);
+    const sha = (await git(f.cloneA, ["rev-parse", "main"])).stdout.trim();
+    await git(f.cloneA, ["update-index", "--add", "--cacheinfo", `160000,${sha},vendor/sub`]);
+    await git(f.cloneA, ["commit", "-qm", "サブモジュール"]);
+    const { repo } = await openRepo(f.cloneA);
+    const r = await listBranchChanges(repo, "feat/x");
+    expect(r.files.find((x) => x.path === "vendor/sub")?.kind).toBe("added");
+    expect(await readChangedFile(repo, "feat/x", "head", "vendor/sub")).toMatchObject({
+      exists: true,
+      submodule: true,
+      binary: false,
+      text: sha,
+    });
+    expect((await readChangedFile(repo, "feat/x", "base", "vendor/sub")).exists).toBe(false);
+  });
+
+  it("ローカルとリモートが分かれたときは、リモートの追跡ブランチで比べる（PR と同じ）", async () => {
+    const f = await fixture();
+    await prepare(f);
+    await git(f.cloneA, ["push", "-q", "origin", "feat/x"]);
+    // B がリモートに 1 つ足し、A は別の 1 つをローカルに足す（分かれる）
+    await git(f.cloneB, ["fetch", "-q", "origin"]);
+    await git(f.cloneB, ["switch", "-q", "feat/x"]);
+    await put(f.cloneB, "remote-side.txt", "リモート\n");
+    await commitAll(f.cloneB, "リモートの作業");
+    await git(f.cloneB, ["push", "-q", "origin", "feat/x"]);
+    await git(f.cloneA, ["switch", "-q", "feat/x"]);
+    await put(f.cloneA, "local-side.txt", "ローカル\n");
+    await commitAll(f.cloneA, "ローカルの作業");
+    await git(f.cloneA, ["fetch", "-q", "origin"]);
+    const { repo } = await openRepo(f.cloneA);
+    const r = await listBranchChanges(repo, "feat/x");
+    expect(r.head_ref).toBe("origin/feat/x");
+    const paths = r.files.map((x) => x.path);
+    expect(paths).toContain("remote-side.txt");
+    expect(paths).not.toContain("local-side.txt");
   });
 
   it("ローカルにもリモートにもないブランチは理由つきの NOT_FOUND にする", async () => {

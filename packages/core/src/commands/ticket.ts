@@ -420,6 +420,7 @@ export const ticketChangedFile = defineCommand({
   group: "ticket",
   summary:
     "ticket.changes と同じ比べ方で、変わったファイルの片側の中身を出す（base は merge-base、head は作業ブランチの先端）。" +
+    "読めるのは変更の一覧にあるファイルだけ（base の側は名前の変更の元のパス）で、ほかは NOT_FOUND。サブモジュールは submodule: true で、中身の代わりにコミットの ID。" +
     "その側にないファイルは exists: false で空、バイナリは binary: true で空。commit を渡すと、一覧の後にブランチが進んでいれば REJECTED",
   input: z.object({
     ticket: ticketRef,

@@ -367,8 +367,9 @@ export function parseDiffQuery(query: string): DiffSideRef | undefined {
   return { folder, ticket, side, path, commit };
 }
 
-/** 片側の文書の中身。ないファイルは空、バイナリは中身の代わりに一言を出す（差分エディタは文字しか比べない） */
+/** 片側の文書の中身。ないファイルは空、バイナリとサブモジュールは中身の代わりに一言を出す（差分エディタは文字しか比べない） */
 export function diffContent(file: FileAtSide): string {
+  if (file.submodule) return `（サブモジュールの変更は中身を出さない。コミット ${file.text}）\n`;
   if (file.binary) return "（バイナリのファイルなので中身を出さない）\n";
   return file.text;
 }
