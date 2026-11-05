@@ -4,7 +4,7 @@ tickets: [t409, t413, t414, t412]
 after:
   t414:
     - t413
-pending_approval: true
+pending_approval: false
 details:
   t409:
     scope: 拡張の README の導入を公開前でも誤らせない書き方にし、ルートの README と INSTALL_HINT とそろえる
@@ -22,3 +22,5 @@ details:
     scope: record-gifs.mjs の PNG と GIF の処理に単体テストを足し、一時リポジトリの組み立てを git-fixture とそろえるか理由を書く
     approach: decodePng と encodeGif を scripts の別のモジュールに切り出して test/scripts でテストする
     tier: standard
+approved_by: eiki.kitajima/agent
+approved_at: 2026-11-05T09:34:08Z
