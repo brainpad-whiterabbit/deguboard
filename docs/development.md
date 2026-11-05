@@ -126,6 +126,8 @@ VS Code 拡張。拡張ホストから core の `createLocalClient` を呼び、
 
 VSIX は `mise run vsix`（`@vscode/vsce`。判断は [ADR-008](adr/ADR-008-tech-stack.md)）で `packages/vscode/deguboard-vscode.vsix` にでき、`mise run vsix:install`（`mise run install` の最後にも走る）で VS Code に入る（`code` CLI がないか、`DEGUBOARD_VSIX_INSTALL_TIMEOUT_MS`（既定 60 秒）までに答えなければ、手で入れるコマンドを出して飛ばす。リモートの `code` は VS Code の窓口が答えないと待ち続けるので止める。リモート開発なら統合ターミナルから）。入れたらウィンドウを再読み込みする。入るものは `.vscodeignore` が決める。
 
+拡張の README の使い方の GIF（`packages/vscode/images/`）は、画面を変えたら `mise run gifs` で録り直す（台本は `scripts/record-gifs.mjs`）。
+
 ## リリース
 
 npm に出すのは `@deguboard/core`・`@deguboard/server`・`deguboard`（cli）の 3 つで、版は全パッケージで揃える（[ADR-006](adr/ADR-006-ui-and-writes.md)）。`web` は cli に同梱し、`vscode` は VSIX で配る。手順は mise のタスクで、`main` の clean な状態で行う：

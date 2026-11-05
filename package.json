@@ -18,6 +18,7 @@
     "vsix": "pnpm --filter deguboard-vscode package",
     "vsix:install": "node scripts/install-vsix.mjs",
     "playwright:install": "playwright-core install chromium chromium-headless-shell",
+    "gifs": "node scripts/record-gifs.mjs",
     "pack": "rm -rf release && pnpm --filter @deguboard/core --filter @deguboard/server --filter deguboard exec pnpm pack --pack-destination ../../release",
     "release:version": "pnpm -r exec npm version --no-git-tag-version --allow-same-version",
     "audit": "pnpm audit --prod",
@@ -26,6 +27,7 @@
   "devDependencies": {
     "@playwright/mcp": "0.0.84",
     "@types/node": "24.19.2",
+    "gifenc": "1.0.3",
     "oxfmt": "0.75.0",
     "oxlint": "1.90.0",
     "playwright-core": "1.65.0-alpha-2026-10-30",

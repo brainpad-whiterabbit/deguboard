@@ -54,6 +54,11 @@ run = "pnpm run vsix:install"
 description = "Playwright MCP（.mcp.json）と test:layout が使う Chromium を入れる（版は @playwright/mcp が使う playwright-core に合わせて固定）"
 run = "pnpm run playwright:install"
 
+[tasks.gifs]
+description = "拡張の README の使い方の GIF（packages/vscode/images/open-board.gif・ask-agent.gif）を録り直す。一時リポジトリの dg serve の左パネルを Chromium で操作して撮る（台本と外枠は scripts/record-gifs.mjs）。各 6〜10 秒・1MB 以下に収まらなければ失敗する。先に mise run playwright:install"
+depends = ["build"]
+run = "pnpm run gifs"
+
 [tasks.pack]
 description = "公開する 3 パッケージ（core・server・cli）の tarball を release/ に作る（build を先に走らせる）"
 depends = ["build"]
