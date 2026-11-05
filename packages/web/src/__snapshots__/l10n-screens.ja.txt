@@ -1,0 +1,1346 @@
+## サイドバーのカンバン
+[aria-label] 画面
+カンバン
+バックログ
+履歴
+行にマウスを載せると出る吹き出しで、エージェントに頼めます
+[title] 閉じる（もう出さない）
+[aria-label] 案内を閉じる
+×
+[aria-label] Iteration
+[title] すべて（planned と active の Iteration）
+すべて
+1
+/
+4
+[title] s1 最初の Iteration（進行中）
+期間 2026-11-01 〜 2026-11-14
+目標 目標
+s1
+1
+/
+3
+[title] s2 次の Iteration（予定）
+s2
+0
+/
+1
+[title] Epic・担当で絞り込む
+[aria-label] 絞り込み
+最初の Iteration
+11/1–11/14
+[title] 目標
+目標
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（Iteration の見出し s1）
+[title] Done 1 / Code Review 1 / In Progress 1
+1
+/
+3
+done
+[aria-label] 実行計画
+実行計画
+1
+[aria-label] p1 の依存グラフ
+[title] p1 の詳細を開く
+p1
+進行中
+[title] Code Review 1 / In Progress 1
+0
+/
+2
+作業中
+[title] API
+t2
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（Plan の帯 p1）
+[aria-label] Todo
+Todo
+0
+[aria-label] In Progress
+In Progress
+1
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（状態の節 In Progress）
+[title] Run が実行中
+[aria-label] Run が実行中
+t2
+[title] API
+API
+[title] 優先度 high（上に並ぶ）
+high
+[title] eiki/agent · Run なし
+[aria-label] eiki/agent · Run なし
+E
+[title] Plan p1
+p1
+[title] このマシンで Run が実行中
+実行中
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（行 t2）
+[aria-label] Code Review
+Code Review
+1
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（状態の節 Code Review）
+t3
+[title] 画面
+画面
+[title] Plan p1
+p1
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（行 t3）
+[aria-label] Done
+Done
+1
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（状態の節 Done）
+t1
+[title] ログイン
+ログイン
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（行 t1）
+
+## サイドバーのバックログ
+[aria-label] 画面
+カンバン
+バックログ
+履歴
+行にマウスを載せると出る吹き出しで、エージェントに頼めます
+[title] 閉じる（もう出さない）
+[aria-label] 案内を閉じる
+×
+バックログ
+[aria-label] 検索
+[placeholder] 番号・タイトル・ラベルで検索
+[title] Status・優先度・ラベル・担当で絞り込む
+[aria-label] 絞り込み
+[aria-label] 絞り込み
+[title] 自分か自分の agent の担当 で絞る
+自分
+[title] Status In Progress で絞る
+作業中
+[title] 優先度 high で絞る
+high
+Epic
+[aria-label] Epic で絞る
+[title] e1 最初の版 で絞る
+e1
+最初の版
+[title] In Progress 1
+0
+/
+1
+[title] Epic のないチケットで絞る
+Epic なし
+3
+[title] 詳細
+s1
+最初の Iteration
+2
+件
+進行中
+11/1–11/14
+[title] 目標
+目標
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（区画の見出し s1）
+[aria-label] In Progress
+t2
+[title] API
+API
+[title] 優先度 high（上に並ぶ）
+high
+[title] Plan p1
+p1
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（行 t2）
+[aria-label] Code Review
+t3
+[title] 画面
+画面
+[title] Plan p1
+p1
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（行 t3）
+[title] 詳細
+s2
+次の Iteration
+1
+件
+予定
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（区画の見出し s2）
+[aria-label] Todo
+t6
+[title] 次に回す
+次に回す
+[title] Plan p2
+p2
+[title] p2 は人の承認を待っている
+承認待ち
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（行 t6）
+Iteration なし
+1
+件
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（区画の見出し Iteration なし）
+[aria-label] Todo
+t5
+[title] 未割り当て
+未割り当て
+[title] 優先度 low（下に並ぶ）
+low
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（行 t5）
+
+## サイドバーの履歴
+[aria-label] 画面
+カンバン
+バックログ
+履歴
+行にマウスを載せると出る吹き出しで、エージェントに頼めます
+[title] 閉じる（もう出さない）
+[aria-label] 案内を閉じる
+×
+履歴
+[aria-label] 見方
+Iteration
+1
+Epic
+0
+チケット
+2
+[aria-label] チケットを探す
+[placeholder] 番号・タイトル・ラベルで検索
+s0
+[title] 前の Iteration
+目標なし
+[title] 完了と持ち越しは閉じたときに記録した件数
+[title] 完了
+—
+中止
+1
+閉じた日は不明
+・
+e1
+1
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（Iteration s0）
+
+## サイドバーの設定
+[aria-label] 画面
+カンバン
+バックログ
+履歴
+設定
+前の画面に戻る
+チーム全員に効く設定
+deguboard ブランチの
+config.yaml
+に保存し、push すると同じリポジトリを使う全員に効く。利用者ごとの上書きはない
+[aria-label] 設定を検索
+[placeholder] 設定を検索（名前・キー・説明）
+コミットと push
+コミットの仕方
+commit.mode
+[title] 既定は batch
+変更あり
+commit.mode
+each
+batch
+（既定）
+manual
+[title] 既定の batch に戻す
+既定に戻す
+push の仕方
+push.mode
+[title] 既定は auto
+変更あり
+push.mode
+auto
+（既定）
+manual
+[title] 既定の auto に戻す
+既定に戻す
+エージェント
+シェルの Action を許す
+actions.shell
+[title] 既定は false
+変更あり
+actions.shell
+無効
+[title] 既定の false に戻す
+既定に戻す
+テストのコマンド
+actions.test
+[title] 既定は 空
+変更あり
+actions.test
+空
+[aria-label] 項目
+[placeholder] 項目を足す
+足す
+[title] 既定の 空 に戻す
+既定に戻す
+PR を自動でマージする
+auto.merge
+[title] 既定は false
+変更あり
+auto.merge
+無効
+[title] 既定の false に戻す
+既定に戻す
+Iteration に入れてから進める
+lint.require_iteration
+[title] 既定は false
+変更あり
+lint.require_iteration
+無効
+[title] 既定の false に戻す
+既定に戻す
+段階 light のモデル
+models.light
+[title] 既定は 
+変更あり
+models.light
+[title] 既定の  に戻す
+既定に戻す
+段階 standard のモデル
+models.standard
+[title] 既定は 
+変更あり
+models.standard
+[title] 既定の  に戻す
+既定に戻す
+段階 heavy のモデル
+models.heavy
+[title] 既定は 
+変更あり
+models.heavy
+[title] 既定の  に戻す
+既定に戻す
+人だけに許すコマンド
+actor.human_only
+[title] 既定は 空
+変更あり
+actor.human_only
+空
+[aria-label] 項目
+[placeholder] 項目を足す
+足す
+[title] 既定の 空 に戻す
+既定に戻す
+計測
+会話記録から使用量を読む
+metrics.read_transcripts
+[title] 既定は false
+変更あり
+metrics.read_transcripts
+無効
+[title] 既定の false に戻す
+既定に戻す
+通知
+承認待ちが増えたら通知する
+notify.approvals
+[title] 既定は true
+変更あり
+notify.approvals
+無効
+[title] 既定の true に戻す
+既定に戻す
+Git
+既定の Project
+default_project
+default_project
+[value] default
+同期先のリモート
+git.remote
+git.remote
+[value] origin
+基準のブランチ
+git.base_branch
+git.base_branch
+[value] main
+worktree の置き場所
+worktree.root
+[title] 既定は ../<repo>.worktrees
+変更あり
+worktree.root
+[title] 既定の ../<repo>.worktrees に戻す
+既定に戻す
+チケット
+優先度 high の判断基準
+priority.high
+[title] 既定は 利用者に見える不具合・利用者を誤らせる文書・悪用できる脆弱性・ライセンスの漏れ・検査が通らない・ほかのチケットを止めている
+変更あり
+priority.high
+[title] 既定の 利用者に見える不具合・利用者を誤らせる文書・悪用できる脆弱性・ライセンスの漏れ・検査が通らない・ほかのチケットを止めている に戻す
+既定に戻す
+優先度 medium の判断基準
+priority.medium
+[title] 既定は 機能の追加と改善・テストの抜けと不安定なテスト・内部の文書の食い違い・今は害のない規約違反・大きく古い依存
+変更あり
+priority.medium
+[title] 既定の 機能の追加と改善・テストの抜けと不安定なテスト・内部の文書の食い違い・今は害のない規約違反・大きく古い依存 に戻す
+既定に戻す
+優先度 low の判断基準
+priority.low
+[title] 既定は 使われていないコードと依存・設定の重複・言い回しの揺れ・急がない調査と検討
+変更あり
+priority.low
+[title] 既定の 使われていないコードと依存・設定の重複・言い回しの揺れ・急がない調査と検討 に戻す
+既定に戻す
+
+## パネルのチケット詳細
+t2
+API
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（タイトル t2）
+[aria-label] In Progress
+In Progress
+[title] 優先度 high（上に並ぶ）
+high
+s1
+eiki/agent
+[title] タイトルと本文を編集
+編集
+概要
+本文
+受け入れ条件
+[title] 済 0 / 全 1
+0
+/
+1
+[title] 済みにする
+[aria-label] 受け入れ条件 1
+a
+変更
+変更を見る
+Run
+3
+件
+成功 1 · 失敗 1 · 実行中 1
+[title] トークン（入力 / 出力）
+3,600
+/
+900
+implement
+[title] 成功
+[aria-label] 成功
+opus
+再試行
+1
+2026-11-01 00:00
+30分 0秒
+結果
+成功
+agent
+claude-code
+トークン
+入力
+1,200
+/ 出力
+300
+/ cache read
+—
+/ cache write
+—
+終了
+2026-11-01 00:30
+Run ID
+r20261101-000000-aaaa
+implement
+[title] 失敗：テストが落ちた
+[aria-label] 失敗
+opus
+2026-11-01 00:00
+30分 0秒
+結果
+[title] テストが落ちた
+失敗
+テストが落ちた
+agent
+claude-code
+トークン
+入力
+1,200
+/ 出力
+300
+/ cache read
+—
+/ cache write
+—
+終了
+2026-11-01 00:30
+Run ID
+r20261101-010000-bbbb
+implement
+[title] 実行中
+[aria-label] 実行中
+opus
+再試行
+1
+2026-11-01 00:00
+—
+結果
+実行中
+agent
+claude-code
+トークン
+入力
+1,200
+/ 出力
+300
+/ cache read
+—
+/ cache write
+—
+終了
+—
+Run ID
+r20261101-020000-cccc
+経過
+2026-11-04
+10:00
+[aria-label] In Progress
+Todo → In Progress
+2026-11-03
+10:00
+Iteration s0 → s2
+Status
+[aria-label] Status
+Todo
+In Progress
+Code Review
+Done
+Abandoned
+[aria-label] 計画
+計画
+Iteration
+s1
+[title] 押して変える
+[aria-label] Iterationを変える
+Epic
+e1
+最初の版
+[title] 押して変える
+[aria-label] Epicを変える
+担当
+[title] 押して変える
+[aria-label] 担当を変える
+eiki/agent
+優先度
+[title] 押して変える
+[aria-label] 優先度を変える
+[title] 優先度 high（上に並ぶ）
+high
+ラベル
+[title] 押して変える
+[aria-label] ラベルを変える
+api
+[aria-label] 作業
+作業
+ブランチ
+feat/api
+[title] ブランチ名をコピー
+[aria-label] ブランチ名をコピー
+[aria-label] 記録
+記録
+起票者
+不明
+作成
+[title] 2026-01-01T00:00:00Z
+01-01 00:00
+更新
+[title] 2026-01-01T00:00:00Z
+01-01 00:00
+なし
+依存先・依存元・PR
+
+## パネルの依存のあるチケット詳細
+t3
+画面
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（タイトル t3）
+[aria-label] Code Review
+Code Review
+[title] 優先度 medium（既定の並び）
+medium
+s1
+[title] タイトルと本文を編集
+編集
+概要
+本文
+受け入れ条件
+[title] 済 0 / 全 1
+0
+/
+1
+[title] 済みにする
+[aria-label] 受け入れ条件 1
+a
+Run
+3
+件
+成功 1 · 失敗 1 · 実行中 1
+[title] トークン（入力 / 出力）
+3,600
+/
+900
+implement
+[title] 成功
+[aria-label] 成功
+opus
+再試行
+1
+2026-11-01 00:00
+30分 0秒
+結果
+成功
+agent
+claude-code
+トークン
+入力
+1,200
+/ 出力
+300
+/ cache read
+—
+/ cache write
+—
+終了
+2026-11-01 00:30
+Run ID
+r20261101-000000-aaaa
+implement
+[title] 失敗：テストが落ちた
+[aria-label] 失敗
+opus
+2026-11-01 00:00
+30分 0秒
+結果
+[title] テストが落ちた
+失敗
+テストが落ちた
+agent
+claude-code
+トークン
+入力
+1,200
+/ 出力
+300
+/ cache read
+—
+/ cache write
+—
+終了
+2026-11-01 00:30
+Run ID
+r20261101-010000-bbbb
+implement
+[title] 実行中
+[aria-label] 実行中
+opus
+再試行
+1
+2026-11-01 00:00
+—
+結果
+実行中
+agent
+claude-code
+トークン
+入力
+1,200
+/ 出力
+300
+/ cache read
+—
+/ cache write
+—
+終了
+—
+Run ID
+r20261101-020000-cccc
+経過
+2026-11-04
+10:00
+[aria-label] In Progress
+Todo → In Progress
+2026-11-03
+10:00
+Iteration s0 → s2
+Status
+[aria-label] Status
+Todo
+In Progress
+Code Review
+Done
+Abandoned
+[aria-label] 計画
+計画
+Iteration
+s1
+[title] 押して変える
+[aria-label] Iterationを変える
+優先度
+[title] 押して変える
+[aria-label] 優先度を変える
+[title] 優先度 medium（既定の並び）
+medium
+[aria-label] つながり
+つながり
+依存先
+[aria-label] In Progress
+t2
+API
+[aria-label] 記録
+記録
+起票者
+不明
+作成
+[title] 2026-01-01T00:00:00Z
+01-01 00:00
+更新
+[title] 2026-01-01T00:00:00Z
+01-01 00:00
+なし
+ラベル・Epic・依存元・担当・ブランチ・PR
+＋足す
+
+## パネルの Epic 詳細
+e1
+最初の版
+進行中
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（タイトル e1）
+[title] In Progress 1
+完了
+0
+/
+1
+・ 進行中 1
+この Epic でカンバンを見る
+概要
+Epic の本文
+チケット
+未完了
+1
+[aria-label] In Progress
+t2
+[title] API
+API
+[title] eiki/agent
+eiki/agent
+[title] 優先度 high（上に並ぶ）
+high
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（行 t2）
+中止
+1
+[aria-label] Abandoned
+t4
+[title] やめた
+やめた
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（行 t4）
+
+## パネルの Iteration 詳細
+s1
+最初の Iteration
+進行中
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（タイトル s1）
+期間
+11/1–11/14
+残り 10 日
+目標
+目標
+進捗
+[title] Done 1 / Code Review 1 / In Progress 1
+完了
+1
+/
+3
+・ 進行中 2
+この Iteration でカンバンを見る
+[aria-label] Plan
+Plan
+[title] p1 の詳細を開く
+p1
+承認済み
+0
+/
+2
+done
+未完了
+2
+[aria-label] In Progress
+t2
+[title] API
+API
+[title] eiki/agent
+eiki/agent
+[title] 優先度 high（上に並ぶ）
+high
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（行 t2）
+[aria-label] Code Review
+t3
+[title] 画面
+画面
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（行 t3）
+完了
+1
+[aria-label] Done
+t1
+[title] ログイン
+ログイン
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（行 t1）
+
+## パネルの閉じた Iteration 詳細
+s0
+前の Iteration
+終了
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（タイトル s0）
+進捗
+完了 — ・ 持ち越し —
+[aria-label] Plan
+Plan
+[title] p1 の詳細を開く
+p1
+承認済み
+0
+/
+2
+done
+中止
+1
+[aria-label] Abandoned
+t4
+[title] やめた
+やめた
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（行 t4）
+
+## パネルの Plan 詳細
+p1
+実行計画
+進行中
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（タイトル p1）
+進み
+[title] Code Review 1 / In Progress 1
+完了
+0
+/
+2
+・ 進行中 2
+Iteration
+s1
+最初の Iteration
+承認
+承認の記録はない
+作業中
+t2
+API
+依存グラフ
+[aria-label] In Progress
+[title] API
+t2
+[aria-label] Code Review
+[title] 画面
+t3
+待ち終わり
+待ち中
+チケット
+[aria-label] In Progress
+t2
+API
+In Progress
+[aria-label] Code Review
+t3
+画面
+Code Review
+
+## パネルの承認待ちの Plan 詳細
+p2
+実行計画
+承認待ち
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（タイトル p2）
+進み
+[title] Todo 1
+完了
+0
+/
+1
+Iteration
+s2
+次の Iteration
+承認
+人の承認を待っている
+依存グラフ
+[aria-label] Todo
+[title] 次に回す
+t6
+チケット
+[aria-label] Todo
+t6
+次に回す
+Todo
+
+## ブラウザのカンバン
+deguboard
+[aria-label] 画面
+カンバン
+バックログ
+履歴
+Run
+Project
+Default
+[title] リモート: origin
+未コミットの変更
+未 push 1
+未取り込み 2
+読めないファイル 1
+[title] リモートを取り込み、未 push を送り、ブランチの事実で状態を進める
+同期
+[title] エージェントに頼む（依頼文を作ってコピーする）
+[aria-label] エージェントに頼む
+[title] 設定（config.yaml）
+[aria-label] 設定
+⚙
+Iteration
+すべて（planned と active）
+s1
+最初の Iteration
+（
+進行中
+）
+s2
+次の Iteration
+（
+予定
+）
+Epic
+すべて
+e1
+最初の版
+担当
+すべて
+[title] eiki/agent
+eiki/agent
+[title] -
+なし
+3
+件
+s1
+最初の Iteration
+進行中
+2026-11-01
+〜
+2026-11-14
+目標
+詳細
+[aria-label] 実行計画
+実行計画
+1
+[aria-label] p1 の依存グラフ
+[title] p1 の詳細を開く
+p1
+進行中
+[title] Code Review 1 / In Progress 1
+0
+/
+2
+作業中
+[title] API
+t2
+[aria-label] Todo
+Todo
+0
+[aria-label] In Progress
+In Progress
+1
+t2
+[title] 優先度 high（上に並ぶ）
+high
+e1
+s1
+p1
+API
+api
+[title] eiki/agent
+eiki/agent
+[aria-label] Code Review
+Code Review
+1
+t3
+[title] 優先度 medium（既定の並び）
+medium
+s1
+p1
+画面
+[aria-label] Done
+Done
+1
+t1
+[title] 優先度 medium（既定の並び）
+medium
+s1
+ログイン
+
+## ブラウザの Run
+deguboard
+[aria-label] 画面
+カンバン
+バックログ
+履歴
+Run
+Project
+Default
+[title] リモート: origin
+未コミットの変更
+未 push 1
+未取り込み 2
+読めないファイル 1
+[title] リモートを取り込み、未 push を送り、ブランチの事実で状態を進める
+同期
+[title] エージェントに頼む（依頼文を作ってコピーする）
+[aria-label] エージェントに頼む
+[title] 設定（config.yaml）
+[aria-label] 設定
+⚙
+Run
+読み直す
+実行中
+1
+・ 完了
+2
+実行中
+Run
+チケット
+工程
+Agent
+Model
+結果
+開始
+r20261101-020000-cccc
+t2
+API
+implement
+claude-code
+opus
+実行中
+再試行
+1
+2026-11-01 00:00
+実績
+単位
+Run
+チケット
+Epic
+Iteration
+Agent
+Model
+工程
+結果
+成功 1 ・ 失敗 1
+Run
+2
+再試行
+1
+時間
+~1分 30秒
+入力
+~1,200
+出力
+—
+[title] 値が取れず、合計に入れなかった Run の数
+欠け 1
+キャッシュ読み
+—
+[title] 値が取れず、合計に入れなかった Run の数
+欠け 1
+キャッシュ書き
+—
+[title] 値が取れず、合計に入れなかった Run の数
+欠け 1
+推定の値を含む Run が
+1
+件ある（「~」を付けた値は推定を含む）
+チケット
+Run
+結果
+再試行
+時間
+入力
+出力
+キャッシュ読み
+キャッシュ書き
+推定
+t2
+API
+2
+成功 1 ・ 失敗 1
+1
+1分 30秒
+1,200
+—
+[title] 値が取れず、合計に入れなかった Run の数
+(欠け 1)
+—
+[title] 値が取れず、合計に入れなかった Run の数
+(欠け 1)
+—
+[title] 値が取れず、合計に入れなかった Run の数
+(欠け 1)
+0
+なし
+2
+成功 1 ・ 失敗 1
+1
+1分 30秒
+1,200
+—
+[title] 値が取れず、合計に入れなかった Run の数
+(欠け 1)
+—
+[title] 値が取れず、合計に入れなかった Run の数
+(欠け 1)
+—
+[title] 値が取れず、合計に入れなかった Run の数
+(欠け 1)
+0
+完了した Run
+Run
+チケット
+工程
+Agent
+Model
+結果
+開始
+時間
+入力
+出力
+r20261101-010000-bbbb
+t2
+API
+implement
+claude-code
+opus
+[title] テストが落ちた
+失敗
+2026-11-01 00:00
+30分 0秒
+1,200
+300
+r20261101-000000-aaaa
+t2
+API
+implement
+claude-code
+opus
+成功
+再試行
+1
+2026-11-01 00:00
+30分 0秒
+1,200
+300
+
+## サイドバーのエージェントに頼む入力欄
+[aria-label] エージェントに頼む（Iteration の見出し s1）
+Iteration の見出し s1
+[title] /dgplan
+計画を立てる
+おすすめ
+[title] /dgall
+最後まで進める
+[title] /dgrelease
+リリースする
+[title] /dgimport
+起票して s1 に入れる
+[title] /dgassign
+チケットを足す・外す
+[title] Skill を使わない
+名前・目標・期間を直す
+[title] Skill を使わない
+閉じる
+[title] /dgcheck
+点検する
+[title] Skill を使わない
+自由に
+---
+[aria-label] 画面
+カンバン
+バックログ
+履歴
+行にマウスを載せると出る吹き出しで、エージェントに頼めます
+[title] 閉じる（もう出さない）
+[aria-label] 案内を閉じる
+×
+[aria-label] Iteration
+[title] すべて（planned と active の Iteration）
+すべて
+1
+/
+4
+[title] s1 最初の Iteration（進行中）
+期間 2026-11-01 〜 2026-11-14
+目標 目標
+s1
+1
+/
+3
+[title] s2 次の Iteration（予定）
+s2
+0
+/
+1
+[title] Epic・担当で絞り込む
+[aria-label] 絞り込み
+最初の Iteration
+11/1–11/14
+[title] 目標
+目標
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（Iteration の見出し s1）
+[title] Done 1 / Code Review 1 / In Progress 1
+1
+/
+3
+done
+[aria-label] 実行計画
+実行計画
+1
+[aria-label] p1 の依存グラフ
+[title] p1 の詳細を開く
+p1
+進行中
+[title] Code Review 1 / In Progress 1
+0
+/
+2
+作業中
+[title] API
+t2
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（Plan の帯 p1）
+[aria-label] Todo
+Todo
+0
+[aria-label] In Progress
+In Progress
+1
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（状態の節 In Progress）
+[title] Run が実行中
+[aria-label] Run が実行中
+t2
+[title] API
+API
+[title] 優先度 high（上に並ぶ）
+high
+[title] eiki/agent · Run なし
+[aria-label] eiki/agent · Run なし
+E
+[title] Plan p1
+p1
+[title] このマシンで Run が実行中
+実行中
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（行 t2）
+[aria-label] Code Review
+Code Review
+1
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（状態の節 Code Review）
+t3
+[title] 画面
+画面
+[title] Plan p1
+p1
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（行 t3）
+[aria-label] Done
+Done
+1
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（状態の節 Done）
+t1
+[title] ログイン
+ログイン
+[title] エージェントに頼む（Shift+F10）
+[aria-label] エージェントに頼む（行 t1）
+[aria-label] エージェントに頼む
+[aria-label] 頼むこと
+[title] /dgplan
+[aria-label] おすすめ
+★
+計画を立てる
+[title] /dgall
+最後まで進める
+[title] /dgrelease
+リリースする
+[title] /dgimport
+起票して s1 に入れる
+[title] /dgassign
+チケットを足す・外す
+[title] Skill を使わない
+名前・目標・期間を直す
+[title] Skill を使わない
+閉じる
+[title] /dgcheck
+点検する
+[title] Skill を使わない
+自由に
+[title] 閉じる（Esc）
+[aria-label] 閉じる
+×
+/dgplan
+[title] Iteration s1「最初の Iteration」（active）
+s1
+active
+[aria-label] s1 を外す
+×
+[aria-label] 指示
+[placeholder] 指示を足す（なくてもよい）
+全文
+[title] Skill の呼び出しか、Skill を使わない文章だけか。既定は dg の Skill がリポジトリか ~/.claude/skills にあれば Skill、なければ文章
+形式：Skill
+Ctrl+↵
+コピー
+✓ コピーしました。エージェントの入力欄に貼ってください
+
+## dg init 前の始め方
+[aria-label] 画面
+カンバン
+バックログ
+履歴
+deguboard を始める
+このリポジトリはまだ deguboard を使っていません。
+dg
+が PATH にあれば、次の順で始められます。コピーしてターミナルで実行してください。
+1. 初期化する
+このリポジトリにチケットを置く場所を作ります。ターミナルで実行します。
+dg init
+[title] dg init をコピー
+[aria-label] dg init をコピー
+2. チケットを起こす
+やりたいことを 1 件のチケットにします。
+dg ticket create "最初のチケット"
+[title] dg ticket create "最初のチケット" をコピー
+[aria-label] dg ticket create "最初のチケット" をコピー
+3. エージェントに頼む
+Skill を入れると、エージェントが手順を読んでチケットを進めます。
+dg skill install
+[title] dg skill install をコピー
+[aria-label] dg skill install をコピー
+1 を済ませると、開き直さなくてもいつもの画面に変わります。
