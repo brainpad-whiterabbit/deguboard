@@ -1,0 +1,30 @@
+{
+  "id": "r20261105-224538-61fb",
+  "ticket": "t448",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-05T22:45:38Z",
+  "finished_at": "2026-11-05T22:46:52Z",
+  "result": "success",
+  "error": null,
+  "retries": 1,
+  "retry_reasons": [
+    "ヘルパーへの書き直しでおすすめの期待が 3 か所落ちた"
+  ],
+  "usage": {
+    "input": 10,
+    "output": 3474,
+    "cache_read": 281598,
+    "cache_write": 7642
+  },
+  "tools": {
+    "read": 4,
+    "search": 0,
+    "write": 8,
+    "bash": 2,
+    "other": 0,
+    "read_before_write": 0,
+    "search_before_write": 0
+  }
+}
