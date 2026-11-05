@@ -1047,6 +1047,27 @@ describe("Epic と Iteration", () => {
     });
   });
 
+  it("close は終了日を閉じた日（手元の暦日）に書き換え、reopen しても終了日はそのまま", async () => {
+    const f = await fixture();
+    // 手元の暦日で数えるので、時差によらず同じ日になる昼の時刻にする
+    const clock = new Date(2026, 10, 3, 12, 0, 0);
+    const ctx = await initialized(f.cloneA, { now: () => clock });
+    // 予定の終了日が閉じた日より後でも、終了日がなくても閉じた日になる
+    await runCommand(iterationCreate, ctx, {
+      name: "Sprint 1",
+      start: "2026-11-01",
+      end: "2026-11-14",
+    });
+    await runCommand(iterationCreate, ctx, { name: "Sprint 2" });
+    const first = await runCommand(iterationClose, ctx, { iteration: "s1" });
+    expect(first.data).toMatchObject({ start: "2026-11-01", end: "2026-11-03" });
+    const second = await runCommand(iterationClose, ctx, { iteration: "s2" });
+    expect(second.data.end).toBe("2026-11-03");
+    expect(second.data.start).toBeUndefined();
+    const reopened = await runCommand(iterationReopen, ctx, { iteration: "s1" });
+    expect(reopened.data.end).toBe("2026-11-03");
+  });
+
   it("閉じた Iteration は reopen で active に戻り、件数が消えてチケットを入れ直せる", async () => {
     const f = await fixture();
     const ctx = await initialized(f.cloneA);

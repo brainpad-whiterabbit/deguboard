@@ -147,7 +147,7 @@ closed_at: 2026-11-20T09:00:00Z # closed のときだけ
 
 ### 5.6 Iteration（`iterations/s3.yaml`）
 
-- IT-1 `id`、`project`、`name`、`goal`、`start`、`end`、`status`（`planned` / `active` / `closed`）を持つ。閉じるのは既定で誰でも行え（人に限るなら `actor.human_only`、5.10）、閉じたときに `closed_at` と完了・持ち越しの件数（`completed`・`carried_over`）を書く。`reopen` は active に戻して `closed_at` と件数を消す。active は Project に 1 つに保つ
+- IT-1 `id`、`project`、`name`、`goal`、`start`、`end`、`status`（`planned` / `active` / `closed`）を持つ。閉じるのは既定で誰でも行え（人に限るなら `actor.human_only`、5.10）、閉じたときに `closed_at` と完了・持ち越しの件数（`completed`・`carried_over`）を書き、`end` を閉じた日に書き換える。`reopen` は active に戻して `closed_at` と件数を消す（`end` は閉じた日のまま）。active は Project に 1 つに保つ
 - IT-2 所属はチケットの `iteration` で表し、Iteration 側にチケットの一覧は持たない（Epic と同じ）。入れるのは同じ Project のチケットだけで、閉じた Iteration には入れられない。Iteration 内の並びは優先度と番号で、閉じるときに done・abandoned 以外のチケットの `iteration` を外す。進捗は Epic と同じく都度求める（EP-3）。`iteration show` は次の操作 `next`（ready／overdue と未完了の件数／planned／closed と持ち越し先 `moved`、頼むこと `ask`）と、中のチケットを含む Plan `plans`（`id`・`status`・`progress`。閉じた Plan も）を返し、画面はこれを読む
 
 ### 5.7 Plan（`plans/p7.yaml`）

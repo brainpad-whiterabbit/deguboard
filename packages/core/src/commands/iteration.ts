@@ -352,7 +352,7 @@ export const iterationClose = defineCommand({
   positionals: ["iteration"],
   group: "iteration",
   summary:
-    "Iteration を閉じ、完了と持ち越しの件数を記録する。持ち越したチケットの iteration は外す",
+    "Iteration を閉じ、完了と持ち越しの件数を記録する。終了日（end）は閉じた日（手元の暦日）に書き換える。持ち越したチケットの iteration は外す",
   input: z.object({ iteration: iterationRef }),
   write: true,
   needs: "store",
@@ -368,8 +368,10 @@ export const iterationClose = defineCommand({
         const carried = tickets.filter((t) => !isTerminal(t.data.status));
         for (const t of carried)
           await ctx.store.update("ticket", t.id, { iteration: undefined, updated_at: nowIso(ctx) });
+        // 予定の終了日は実際とずれるので、閉じた日に書き換えて実際の期間を残す（IT-1）
         return ctx.store.update("iteration", it.id, {
           status: "closed",
+          end: localDate(ctx.now()),
           closed_at: nowIso(ctx),
           completed,
           carried_over: carried.length,
@@ -386,7 +388,7 @@ export const iterationReopen = defineCommand({
   positionals: ["iteration"],
   group: "iteration",
   summary:
-    "閉じた Iteration を再開して active に戻す（同じ Project にほかの active があれば拒否する）。closed_at と完了・持ち越しの件数は消す。持ち越したチケットは戻らないので iteration add で入れ直す",
+    "閉じた Iteration を再開して active に戻す（同じ Project にほかの active があれば拒否する）。closed_at と完了・持ち越しの件数は消す。終了日は閉じた日のままなので、要れば iteration update で直す。持ち越したチケットは戻らないので iteration add で入れ直す",
   input: z.object({ iteration: iterationRef }),
   write: true,
   needs: "store",
