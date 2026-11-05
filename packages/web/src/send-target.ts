@@ -29,7 +29,19 @@ export function switchedMessage(to: TerminalChoice): string {
   return `選んでいたターミナルが閉じたので、${to.label} に切り替えました`;
 }
 
-/** 送った後に出す知らせ。Enter を押していないので、人が確かめて押すことを添える */
-export function sentMessage(target: TerminalChoice): string {
-  return `✓ ${target.label} の入力に送りました。内容を確かめて Enter を押してください`;
+/**
+ * 送った後に出す知らせ。Enter を押していないので、人が確かめて押すことを添える。
+ * 複数行は VS Code の貼り付けに任せるので、確認の小窓で取り消されたかは分からない。clipboardKept は、貼り付けに使ったクリップボードを戻せなかったとき
+ */
+export function sentMessage(
+  target: TerminalChoice,
+  {
+    multiline = false,
+    clipboardKept = false,
+  }: { multiline?: boolean; clipboardKept?: boolean } = {},
+): string {
+  if (!multiline)
+    return `✓ ${target.label} の入力に送りました。内容を確かめて Enter を押してください`;
+  const note = clipboardKept ? "。クリップボードを通して貼り付けました" : "";
+  return `✓ ${target.label} に送りました（貼り付けの確認が出たら選んでください）${note}。内容を確かめて Enter を押してください`;
 }

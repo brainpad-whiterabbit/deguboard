@@ -98,7 +98,7 @@ function mountWithBridge(
     show: async () => {},
     copy: async () => {},
     terminals: async () => [],
-    sendToTerminal: async () => {},
+    sendToTerminal: async () => null,
     onEvent: (listener) => {
       send = listener;
       return () => (send = undefined);

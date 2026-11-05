@@ -68,6 +68,7 @@ function mountWebview(
     sendToTerminal: async (terminal, text) => {
       if (!(terminals ?? []).some((t) => t.id === terminal)) throw new Error("閉じている");
       void sent.push([terminal, text]);
+      return null;
     },
     onEvent: (listener) => {
       listeners.add(listener);
@@ -343,7 +344,7 @@ describe("エージェントに頼む入力欄（UI-15）", () => {
               show: async () => {},
               copy: async () => {},
               terminals: async () => [],
-              sendToTerminal: async () => {},
+              sendToTerminal: async () => null,
               onEvent: (l) => ((send = l), () => {}),
             }}
           />
@@ -669,5 +670,20 @@ describe("開いているターミナルへ送る（UI-15）", () => {
     fireEvent.change(select, { target: { value: "7" } });
     await view.terminalsChanged([{ id: 4, label: "zsh", active: true }]);
     await waitFor(() => expect(box.getByRole("status").textContent).toContain("zsh に切り替え"));
+  });
+
+  it("複数行の依頼文を送ったときは、貼り付けの確認が出うることを知らせに添える", async () => {
+    const view = mountWebview(askClient(), { terminals: TERMINALS });
+    await screen.findByText("見直す");
+    view.ask(["t5"]);
+    const box = within(composer());
+    fireEvent.change(await box.findByRole("textbox", { name: "指示" }), {
+      target: { value: "1 行目\n2 行目" },
+    });
+    fireEvent.click(box.getByRole("button", { name: "送る" }));
+    await waitFor(() => expect(view.sent).toHaveLength(1));
+    await waitFor(() =>
+      expect(box.getByRole("status").textContent).toContain("貼り付けの確認が出たら"),
+    );
   });
 });

@@ -15,7 +15,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import type { TerminalChoice } from "@deguboard/core";
+import type { TerminalChoice, TerminalSendResult } from "@deguboard/core";
 import { askKey, parseAskKey } from "./ask-key.js";
 import type { WebviewClient } from "./client/webview.js";
 import { hrefOf, navigate, toggleRoute, type Route } from "./router.js";
@@ -43,7 +43,7 @@ export interface TerminalsHost {
   /** 今開いているターミナル */
   list(): Promise<TerminalChoice[]>;
   /** text を terminal の入力に入れる。Enter は押さない。ターミナルが閉じていたら reject */
-  send(terminal: number, text: string): Promise<void>;
+  send(terminal: number, text: string): Promise<TerminalSendResult | null>;
   /** 開いた・閉じたで一覧が変わるたびに呼ぶ。戻り値で購読を外す */
   onChange(listener: (terminals: TerminalChoice[]) => void): () => void;
 }

@@ -20,6 +20,7 @@ import {
   type CommandClient,
   type StatusView,
   type TerminalChoice,
+  type TerminalSendResult,
   type WebviewEvent,
 } from "@deguboard/core";
 import * as vscode from "vscode";
@@ -137,6 +138,9 @@ export function activate(context: vscode.ExtensionContext): void {
     // ターミナルが開いた・閉じたら、頼む小窓の送り先を更新させる（UI-15）。ターミナルを開くのは人で、拡張は開かない
     vscode.window.onDidOpenTerminal(() => broadcastTerminals()),
     vscode.window.onDidCloseTerminal((closed) => broadcastTerminals(closed)),
+    // アクティブなターミナル（送り先の既定）と名前の変化も送り先に反映する
+    vscode.window.onDidChangeActiveTerminal(() => broadcastTerminals()),
+    vscode.window.onDidChangeTerminalState(() => broadcastTerminals()),
     // ビューのタイトル行の同期ボタン（UI-12）。拡張ホストで実行してから、サイドバーとパネルの両方に読み直しを頼む
     // （サイドバーが描かれていなくても動く）。リモートがなくても読み直しだけはするので、手の再読み込みも兼ねる
     vscode.commands.registerCommand("deguboard.sync", () => void syncFolder()),
@@ -337,19 +341,34 @@ function listTerminals(closing?: vscode.Terminal): TerminalChoice[] {
  * 開いているターミナルの入力に text を入れる。Enter は押さない（第 2 引数 false）。
  * ターミナルは起動しない（createTerminal を呼ばない。EX-1）。選んだターミナルが閉じていたら断る
  */
-async function sendToTerminal(id: number, text: string): Promise<void> {
+async function sendToTerminal(id: number, text: string): Promise<TerminalSendResult> {
   const terminal = vscode.window.terminals.find((t) => terminalIds.get(t) === id);
   if (!terminal) throw new Error("送り先のターミナルが閉じている");
   const input = terminalInput(text);
-  terminal.show(true);
   if (input.kind === "line") {
+    terminal.show(true);
     terminal.sendText(input.text, false);
-    return;
+    return { clipboardKept: false };
   }
   // 複数行は VS Code の貼り付けに任せる（対応しない入力では VS Code が警告を出す）。使うのは既にあるコマンドだけで、起動はしない。
-  // 貼り付けは今アクティブなターミナルに入るので、show() で選んだものを前に出してから呼ぶ
+  // 貼り付けは今アクティブなターミナルに入るので、show() で選んだものを前に出してから呼ぶ。
+  // 利用者のクリップボードを借りるので、貼った後に元へ戻す（paste は警告の小窓を出す前にクリップボードを読むので、await の後に戻して安全）
+  let previous: string | undefined;
+  try {
+    previous = await vscode.env.clipboard.readText();
+  } catch {
+    previous = undefined;
+  }
   await vscode.env.clipboard.writeText(input.text);
+  terminal.show();
   await vscode.commands.executeCommand("workbench.action.terminal.paste");
+  if (previous === undefined) return { clipboardKept: true };
+  try {
+    await vscode.env.clipboard.writeText(previous);
+    return { clipboardKept: false };
+  } catch {
+    return { clipboardKept: true };
+  }
 }
 
 /** 文字をクリップボードに入れる。Webview の画面のコピー（依頼文・ブランチ名）と、バックログの「ID をコピー」で使う */

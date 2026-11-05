@@ -5,6 +5,7 @@ import {
   toCommandFailure,
   type CommandClient,
   type TerminalChoice,
+  type TerminalSendResult,
   type StatusView,
   type WebviewEvent,
   type WebviewRequest,
@@ -173,7 +174,10 @@ export interface WebviewActions {
   /** 開いているターミナルの一覧（UI-15）。持たない画面は空 */
   terminals(): TerminalChoice[];
   /** 開いているターミナル terminal の入力に text を入れる。Enter は押さず、ターミナルは起動しない。なければ reject */
-  sendToTerminal(terminal: number, text: string): void | Promise<void>;
+  sendToTerminal(
+    terminal: number,
+    text: string,
+  ): TerminalSendResult | void | Promise<TerminalSendResult | void>;
 }
 
 /** Webview からの要求を CommandClient（か actions）に通し、同じ id の応答にする。失敗は ok: false で返す */
@@ -198,7 +202,8 @@ export async function handleRequest(
         return { id: request.id, ok: true, data: actions.terminals(), warnings: [], write: null };
       }
       if (request.name === "sendToTerminal") {
-        await actions.sendToTerminal(request.terminal, request.text);
+        const sent = await actions.sendToTerminal(request.terminal, request.text);
+        return { id: request.id, ok: true, data: sent ?? null, warnings: [], write: null };
       } else if (request.name === "copy") await actions.copy(request.text);
       else if (request.name === "show") await actions.show(request.route);
       else if (request.name === "open") await actions.open(request.route);

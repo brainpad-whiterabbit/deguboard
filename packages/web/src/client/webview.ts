@@ -6,6 +6,7 @@ import type {
   CommandResult,
   StatusView,
   TerminalChoice,
+  TerminalSendResult,
   WebviewEvent,
   WebviewRequest,
   WebviewResponse,
@@ -28,7 +29,7 @@ export interface WebviewClient extends CommandClient {
   /** 開いているターミナルの一覧を拡張ホストに尋ねる（UI-15） */
   terminals(): Promise<TerminalChoice[]>;
   /** 開いているターミナル terminal の入力に text を入れてもらう。Enter は押さず、ターミナルは起動しない（EX-1） */
-  sendToTerminal(terminal: number, text: string): Promise<void>;
+  sendToTerminal(terminal: number, text: string): Promise<TerminalSendResult | null>;
   /** 拡張ホストからの通知を受ける。戻り値で購読を外す */
   onEvent(listener: (event: WebviewEvent) => void): () => void;
 }
@@ -85,8 +86,9 @@ export function createWebviewClient(
     async terminals(): Promise<TerminalChoice[]> {
       return (await send({ kind: "action", name: "terminals" })).data as TerminalChoice[];
     },
-    async sendToTerminal(terminal: number, text: string): Promise<void> {
-      await send({ kind: "action", name: "sendToTerminal", terminal, text });
+    async sendToTerminal(terminal: number, text: string): Promise<TerminalSendResult | null> {
+      return (await send({ kind: "action", name: "sendToTerminal", terminal, text }))
+        .data as TerminalSendResult | null;
     },
     onEvent(listener) {
       listeners.add(listener);

@@ -170,8 +170,11 @@ export function AskComposer({
     await deliver(
       action,
       async (text) => {
-        await terminalsHost.send(target.id, text);
-        return sentMessage(target);
+        const sent = await terminalsHost.send(target.id, text);
+        return sentMessage(target, {
+          multiline: text.includes("\n"),
+          clipboardKept: sent?.clipboardKept ?? false,
+        });
       },
       "送れない",
     );

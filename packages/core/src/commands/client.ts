@@ -35,6 +35,11 @@ export type WebviewRequest =
   | { id: number; kind: "action"; name: "terminals" }
   | { id: number; kind: "action"; name: "sendToTerminal"; terminal: number; text: string };
 
+/** sendToTerminal の応答の data。clipboardKept は、貼り付けのために書いたクリップボードを元に戻せず、依頼文が残っていること */
+export interface TerminalSendResult {
+  clipboardKept: boolean;
+}
+
 /** 開いているターミナル 1 つ。id は拡張ホストが振る（閉じるまで変わらない）。label は同じ名前が並んでも見分けられる表示名 */
 export interface TerminalChoice {
   id: number;

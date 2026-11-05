@@ -6,7 +6,7 @@ import type { TerminalChoice } from "@deguboard/core";
 /**
  * 開いているターミナルを小窓の送り先の一覧にする。同じ名前が並ぶとき（zsh が 2 つなど）は、
  * 2 つ目から「zsh (2)」と番号を足して見分ける。空の名前は「ターミナル」にする。
- * 名前は一覧を作った時点のもので、ターミナルが名前を変えても通知は送らない（開閉のときに作り直すだけ）ので、古くなりうる
+ * 名前は一覧を作った時点のもの。開閉・アクティブの変化・状態の変化で作り直すが、名前の変化だけを知らせる通知は VS Code にないので、古くなりうる
  */
 export function describeTerminals(
   terminals: readonly { id: number; name: string; active?: boolean }[],
