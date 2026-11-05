@@ -642,9 +642,14 @@ async function gotoTicket(context: vscode.ExtensionContext): Promise<void> {
   const uri =
     vscode.window.activeTextEditor?.document.uri ??
     (vscode.workspace.workspaceFolders ?? [])[0]?.uri;
+  // 利用者が自分で起動したので、30 秒以内の失敗の記録があっても読み直す
+  const target = uri
+    ? (vscode.workspace.getWorkspaceFolder(uri) ?? (vscode.workspace.workspaceFolders ?? [])[0])
+    : undefined;
+  if (target) forgetIdIndexFailure(target);
   const found = uri ? await idIndexFor(uri) : undefined;
   if (!found) {
-    void vscode.window.showInformationMessage("deguboard: このフォルダにはチケットのデータがない");
+    void vscode.window.showInformationMessage("deguboard: チケットのデータを読めない");
     return;
   }
   const items = gotoItems(found.index).map((i) => ({

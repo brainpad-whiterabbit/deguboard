@@ -109,8 +109,8 @@
     "keybindings": [
       {
         "command": "deguboard.gotoTicket",
-        "key": "ctrl+k ctrl+alt+t",
-        "mac": "cmd+k cmd+alt+t"
+        "key": "ctrl+k ctrl+alt+g",
+        "mac": "cmd+k alt+cmd+g"
       }
     ],
     "menus": {
