@@ -1,0 +1,19 @@
+{
+  "id": "r20261105-003153-5dbb",
+  "ticket": "t365",
+  "step": "review",
+  "agent": "claude-code-reviewer",
+  "model": null,
+  "started_at": "2026-11-05T00:31:53Z",
+  "finished_at": "2026-11-05T00:33:16Z",
+  "result": "success",
+  "error": null,
+  "retries": 0,
+  "retry_reasons": [],
+  "usage": {
+    "input": null,
+    "output": null,
+    "cache_read": null,
+    "cache_write": null
+  }
+}
