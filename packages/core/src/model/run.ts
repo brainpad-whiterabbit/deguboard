@@ -44,6 +44,27 @@ const runUsageSchema = z.looseObject({
 });
 export type RunUsage = z.output<typeof runUsageSchema>;
 
+/** ツールの呼び出しの種類。Bash は読むものと書くものに分けない */
+export const TOOL_KINDS = ["read", "search", "write", "bash", "other"] as const;
+export type ToolKind = (typeof TOOL_KINDS)[number];
+
+const toolCount = z.number().int().nonnegative();
+
+/**
+ * 種類ごとのツールの呼び出しの回数と、最初に書く（write）までの読む・探すの回数。
+ * 書かずに終わった Run では、最初に書くまでの回数は全体の回数と同じ
+ */
+const runToolsSchema = z.looseObject({
+  read: toolCount,
+  search: toolCount,
+  write: toolCount,
+  bash: toolCount,
+  other: toolCount,
+  read_before_write: toolCount,
+  search_before_write: toolCount,
+});
+export type RunTools = z.output<typeof runToolsSchema>;
+
 /** 1 Run 1 ファイル（RN-1）。取れなかった値は null で、キーは省かない */
 export const runSchema = z.looseObject({
   id: runIdSchema,
@@ -60,6 +81,8 @@ export const runSchema = z.looseObject({
   /** やり直しの理由（1 件 1 行の要約）。この項目より前に書いた Run にはキーがないので、読むときに空の配列にそろえる */
   retry_reasons: z.array(z.string()).default([]),
   usage: runUsageSchema,
+  /** ツールの回数。取れなければ null。この項目より前に書いた Run にはキーがないので、読むときに null にそろえる */
+  tools: runToolsSchema.nullable().default(null),
 });
 export type Run = z.output<typeof runSchema>;
 

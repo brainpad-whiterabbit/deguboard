@@ -29,6 +29,7 @@ const run = (): Run => ({
   retries: 0,
   retry_reasons: [],
   usage: { input: null, output: null, cache_read: null, cache_write: null },
+  tools: null,
 });
 
 /** token_count の行。tokens は累計の [input（キャッシュを含む）, cached, output, cache_write]。cache_write がなければ古い版の形 */
@@ -114,6 +115,8 @@ describe("Codex の Adapter", () => {
     expect(got).toEqual({
       usage: { input: 800, output: 100, cache_read: 1200, cache_write: 10 },
       model: "gpt-test",
+      // ツールの回数は数えない
+      tools: null,
       warnings: [],
     });
   });

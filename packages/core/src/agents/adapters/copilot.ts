@@ -11,7 +11,7 @@
 //     cache_read は cacheReadTokens、cache_write は cacheWriteTokens、output は outputTokens
 //   - 探す範囲：環境変数 COPILOT_AGENT_SESSION_ID があればその session の記録。そこに Run がなければ、session.start の gitRoot/cwd が
 //     作業ツリーと主の作業ツリーとその上位（HOME より下）に入る session の記録。どちらも started_at より後に書かれたファイルだけ
-//   - 返すのは数とモデル名だけ。会話の中身・コマンド・パスは返さない（MT-4）
+//   - ツールの回数は数えない（null）。返すのは数とモデル名だけ。会話の中身・コマンド・パスは返さない（MT-4）
 
 import { createReadStream } from "node:fs";
 import path from "node:path";
@@ -208,6 +208,6 @@ export const copilotAdapter: AgentAdapter = {
       missing.length > 0
         ? [`Copilot の session 記録から ${missing.join("・")} を取れない。null で残す`]
         : [];
-    return { usage, model: mainModel(best.models), warnings };
+    return { usage, model: mainModel(best.models), tools: null, warnings };
   },
 };

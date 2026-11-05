@@ -49,6 +49,7 @@ export async function collectRunUsage(
   const skipped = (reason: string): CollectedUsage => ({
     usage: { input: null, output: null, cache_read: null, cache_write: null },
     model: null,
+    tools: null,
     warnings: [`${reason}。使用量は null で残す`],
   });
   const adapter = findAdapter(query.run.agent);

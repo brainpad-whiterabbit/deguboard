@@ -24,7 +24,7 @@ export const metricsShow = defineCommand({
   name: "metrics.show",
   group: "metrics",
   summary:
-    "Run を集計する。絞り込みは Run・チケット・Epic・Iteration・Project・Agent・Model・Step（Epic・Iteration・Project はチケットの今の値でたどる）。取れなかった値は足さず missing に数え、推定を含む Run は estimated_runs に数える。集計値は保存しない",
+    "Run を集計する。絞り込みは Run・チケット・Epic・Iteration・Project・Agent・Model・Step（Epic・Iteration・Project はチケットの今の値でたどる）。取れなかった値は足さず missing に数え、推定を含む Run は estimated_runs に数える。ツールの回数（tools）も種類ごとに足し、ない Run は missing.tools に数える。集計値は保存しない",
   input: z.object({
     run: runIdSchema.optional().describe("この Run だけ"),
     ticket: ticketRef.optional().describe("このチケットの Run だけ"),

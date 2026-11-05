@@ -31,7 +31,8 @@ import {
 } from "../types.js";
 
 type ResultKey = keyof RunMetrics["results"];
-type ValueKey = keyof RunMetrics["missing"];
+/** 表に出す値。ツールの回数（tools）は画面に出していない */
+type ValueKey = Exclude<keyof RunMetrics["missing"], "tools">;
 
 const VALUE_LABELS: Record<ValueKey, string> = {
   duration_seconds: "時間",

@@ -1,4 +1,4 @@
-// Claude Code の Adapter（AG-5・MT-2、ADR-005）。会話記録（<設定>/projects/<作業ディレクトリ>/<session>.jsonl）から使用量を補う。
+// Claude Code の Adapter（AG-5・MT-2、ADR-005）。会話記録（<設定>/projects/<作業ディレクトリ>/<session>.jsonl）から使用量とツールの回数を補う。
 //   - Run に結び付ける記録：Run の ID を最初に含む会話記録のファイル。dg run start の出力を受け取ったエージェントの記録になる。
 //     ID が最初に出たのが finished_at より後のファイル（閉じた後に run refresh を呼んだセッションなど）は Run の記録とみなさない。
 //     サブエージェントは親と同じ session の subagents/ に別のファイルを持ち、作業ディレクトリと時刻だけでは並行するエージェントと区別できない
@@ -6,11 +6,14 @@
 //     分かれるので message.id で重ねない。subagents/ の外のファイルの isSidechain の行（古い版が親のファイルに書くサブエージェントの行）は数えない
 //   - 探す範囲：環境変数 CLAUDE_CODE_SESSION_ID があればその session のファイル。そこに Run がなければ、作業ツリーと主の作業ツリーと、
 //     主の作業ツリーの親までの上位のディレクトリ（HOME とその上は除く）に当たる projects/ の下。どちらも started_at より後に書かれたファイルだけ
-//   - 返すのは数とモデル名だけ。会話の中身・コマンド・パスは返さない（MT-4）
+//   - ツールの回数：数える行の message.content の tool_use を、tool_use の id で重ねずに名前で種類に分けて数える（TOOL_KINDS）。
+//     最初に書く（write）までの読む・探すも数える。Bash はコマンドで分けない
+//   - 返すのは数とモデル名だけ。会話の中身・コマンド・パスは返さない（MT-4）。ツールは名前を種類に変えて数だけを返す
 
 import { createReadStream } from "node:fs";
 import path from "node:path";
 import { createInterface } from "node:readline";
+import type { ToolKind } from "../../model/run.js";
 import type { AgentAdapter, AgentEnv, CollectedUsage, UsageQuery } from "../define.js";
 import {
   count,
@@ -21,6 +24,7 @@ import {
   parse,
   searchRoots,
   seenAfterRun,
+  tallyTools,
   TAIL_MS,
   timeOf,
 } from "./transcript.js";
@@ -75,13 +79,44 @@ interface Scan {
   firstSeen: number | undefined;
   /** message.id ごとの使用量とモデル名 */
   messages: Map<string, { usage: Record<string, unknown>; model: unknown }>;
+  /** tool_use の id ごとの種類。Map の順が呼び出しの順 */
+  tools: Map<string, ToolKind>;
+}
+
+/** Claude Code のツールの名前と種類。載っていない名前（Agent・TodoWrite・Web・MCP など）は other */
+const TOOL_KIND_OF: Readonly<Record<string, ToolKind>> = {
+  Read: "read",
+  NotebookRead: "read",
+  Grep: "search",
+  Glob: "search",
+  LS: "search",
+  Edit: "write",
+  MultiEdit: "write",
+  Write: "write",
+  NotebookEdit: "write",
+  Bash: "bash",
+};
+
+/** 応答の中の tool_use を、id をキーにして種類で積む。名前は種類に変えるだけで残さない */
+function addTools(tools: Scan["tools"], message: Record<string, unknown>, key: string): void {
+  const content = message["content"];
+  if (!Array.isArray(content)) return;
+  content.forEach((block: unknown, n) => {
+    if (typeof block !== "object" || block === null) return;
+    const b = block as Record<string, unknown>;
+    if (b["type"] !== "tool_use") return;
+    const id = typeof b["id"] === "string" ? b["id"] : `${key}#${n}`;
+    if (tools.has(id)) return;
+    const name = typeof b["name"] === "string" ? b["name"] : "";
+    tools.set(id, Object.hasOwn(TOOL_KIND_OF, name) ? TOOL_KIND_OF[name]! : "other");
+  });
 }
 
 /** 行の中の timestamp の値。最上位の timestamp は message の後にあり、入れ子の中にも同じキーがありうるので、すべてを候補にする */
 const TIMESTAMPS = /"timestamp":"([^"]+)"/g;
 
 async function scan(file: string, query: UsageQuery, from: number, to: number): Promise<Scan> {
-  const result: Scan = { firstSeen: undefined, messages: new Map() };
+  const result: Scan = { firstSeen: undefined, messages: new Map(), tools: new Map() };
   // subagents/ の外のファイルでは、サブエージェントの行（isSidechain）は親の使用量でない
   const sidechainFile = file.split(path.sep).includes("subagents");
   const lines = createInterface({ input: createReadStream(file), crlfDelay: Infinity });
@@ -107,9 +142,12 @@ async function scan(file: string, query: UsageQuery, from: number, to: number): 
     if (Number.isNaN(at) || at < from || at > to) continue;
     if (!sidechainFile && entry["isSidechain"] === true) continue;
     const message = entry["message"] as Record<string, unknown> | undefined;
-    const usage = message?.["usage"];
-    if (!message || typeof usage !== "object" || usage === null) continue;
+    if (!message) continue;
     const key = String(message["id"] ?? entry["requestId"] ?? entry["uuid"] ?? line);
+    // 同じ応答の tool_use は別の行に分かれて書かれるので、使用量より先に行ごとに積む
+    addTools(result.tools, message, key);
+    const usage = message["usage"];
+    if (typeof usage !== "object" || usage === null) continue;
     // 同じ応答の行は後の行が最終の値を持つ
     result.messages.set(key, { usage: usage as Record<string, unknown>, model: message["model"] });
   }
@@ -176,6 +214,11 @@ export const claudeCodeAdapter: AgentAdapter = {
         `Claude Code の会話記録に Run ${query.run.id} の期間の応答がない。使用量は null で残す`,
       );
     }
-    return { usage: sum(best.messages), model: mainModel(best.messages), warnings: [] };
+    return {
+      usage: sum(best.messages),
+      model: mainModel(best.messages),
+      tools: tallyTools(best.tools.values()),
+      warnings: [],
+    };
   },
 };

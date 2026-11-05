@@ -61,6 +61,7 @@ function runningRun(ticketId: string): RunView {
     retries: 0,
     retry_reasons: [],
     usage: { input: null, output: null, cache_read: null, cache_write: null },
+    tools: null,
     running: true,
     duration_seconds: null,
   } as RunView;
@@ -1190,6 +1191,7 @@ describe("画面", () => {
           retries: 0,
           retry_reasons: [],
           usage: { input: null, output: null, cache_read: null, cache_write: null },
+          tools: null,
           running: true,
           duration_seconds: null,
         } as RunView,

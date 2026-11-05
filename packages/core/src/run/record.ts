@@ -20,6 +20,7 @@ import {
   type Run,
   type RunId,
   type RunResult,
+  type RunTools,
   type RunUsage,
 } from "../model/run.js";
 import { createDoc, readDoc, type Doc } from "../storage/documents.js";
@@ -157,6 +158,7 @@ export async function startRun(repo: RunDirs, input: StartRunInput): Promise<Run
       retries: 0,
       retry_reasons: [],
       usage: emptyUsage(),
+      tools: null,
     };
     const doc = await createDoc(repo.localDir, runPath(id), "json", runSchema, run);
     return doc.data;
@@ -175,6 +177,8 @@ export interface FinishRunInput {
    * エージェントの自己申告の数字は入れない（MT-1）ので、CLI・MCP の入力には出さない
    */
   usage?: { [K in keyof RunUsage]?: RunUsage[K] | undefined } | undefined;
+  /** 会話記録から数えたツールの回数。渡さなければ実行中の記録の値（start は null を書く） */
+  tools?: RunTools | null | undefined;
   now: Date;
 }
 
@@ -217,6 +221,7 @@ export async function finishRun(
       ...(base["usage"] as Record<string, unknown>),
       ...Object.fromEntries(Object.entries(input.usage ?? {}).filter(([, v]) => v !== undefined)),
     },
+    tools: input.tools === undefined ? local.data.tools : input.tools,
   };
   const written = await withWrite(
     ctx,
