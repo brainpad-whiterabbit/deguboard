@@ -1,0 +1,32 @@
+{
+  "id": "r20261105-174714-9030",
+  "ticket": "t375",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-05T17:47:14Z",
+  "finished_at": "2026-11-05T17:48:49Z",
+  "result": "success",
+  "error": null,
+  "retries": 3,
+  "retry_reasons": [
+    "changed-file が変更の外のファイルも読める",
+    "ローカルとリモートが分かれたときのテストがない",
+    "サブモジュールの変更は中身が出ない"
+  ],
+  "usage": {
+    "input": 8,
+    "output": 5796,
+    "cache_read": 734921,
+    "cache_write": 6438
+  },
+  "tools": {
+    "read": 0,
+    "search": 0,
+    "write": 0,
+    "bash": 4,
+    "other": 0,
+    "read_before_write": 0,
+    "search_before_write": 0
+  }
+}
