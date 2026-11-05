@@ -3,7 +3,6 @@
 import {
   askMenuKey,
   toCommandFailure,
-  type AskAction,
   type CommandClient,
   type StatusView,
   type WebviewEvent,
@@ -107,32 +106,19 @@ export function sidebarDelivery(
 }
 
 /**
- * エージェントに頼む入力欄を出す頼み（UI-15）の届け方。描かれた Webview には ask の event を送り（action・within があれば付ける）、
+ * エージェントに頼む入力欄を出す頼み（UI-15）の届け方。描かれた Webview には ask の event を送り、
  * まだ描かれていなければ、対象を覚えさせて HTML に埋める（Webview が起動する前の event は届かないので。resolveSidebar が使う）。
- * 右クリックのサブメニューは描かれた Webview からしか開かないので、描かれていないときは頼むことを覚えない（おすすめで開く）
  */
 export function askDelivery(
   rendered: boolean,
   targets: readonly string[],
-  action?: AskAction,
-  within?: string,
 ): { post: WebviewEvent } | { pending: string[] } {
-  return rendered ? { post: askEvent(targets, action, within) } : { pending: [...targets] };
+  return rendered ? { post: askEvent(targets) } : { pending: [...targets] };
 }
 
-/** エージェントに頼む入力欄を出す ask の event（action・within があれば付ける）。描かれた Webview に送る */
-export function askEvent(
-  targets: readonly string[],
-  action?: AskAction,
-  within?: string,
-): WebviewEvent {
-  return {
-    kind: "event",
-    name: "ask",
-    targets: [...targets],
-    ...(action ? { action } : {}),
-    ...(within ? { within } : {}),
-  };
+/** エージェントに頼む入力欄を出す ask の event。描かれた Webview に送る */
+export function askEvent(targets: readonly string[]): WebviewEvent {
+  return { kind: "event", name: "ask", targets: [...targets] };
 }
 
 /**

@@ -154,7 +154,7 @@ describe("dg ask", () => {
     expect(await both()).toMatchObject({ format: "skill", text: "/dgimport t1" });
   });
 
-  it("ask-menu は組ごとに ask と同じ候補を返し、引けない組は error に理由を入れる（画面の吹き出しと右クリック）", async () => {
+  it("ask-menu は組ごとに ask と同じ候補を返し、引けない組は error に理由を入れる（画面の吹き出し）", async () => {
     const f = await createFixture();
     cleanups.push(f.cleanup);
     await runCommand(init, await openContext({ cwd: f.cloneA, initialize: {} }), {});

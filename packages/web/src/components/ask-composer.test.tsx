@@ -8,7 +8,6 @@ import { ASK_OPEN_KEY, HostBridge, HostProvider, type Host } from "../host.js";
 import { StoreProvider } from "../store.js";
 import { fixture, iteration, mockClient, ticket, type MockClient } from "../test-helpers.js";
 import { createUiState, memoryBackend, type UiState } from "../ui-state.js";
-import type { AskAction } from "../types.js";
 import { ASK_FORMAT_KEY, ASK_NOTE_KEY } from "./ask-composer.js";
 
 afterEach(() => {
@@ -38,6 +37,12 @@ function askClient(): MockClient {
       tickets: [ticket({ id: "t5", title: "見直す", status: "review", iteration: "s1" })],
     }),
   );
+}
+
+/** 行の吹き出しを押して、頼むことの一覧から選ぶ（選んで開くと同時に依頼文をコピーする） */
+async function pickFromBubble(place: string, label: string) {
+  fireEvent.click(screen.getByRole("button", { name: `エージェントに頼む（${place}）` }));
+  fireEvent.click(await screen.findByRole("menuitem", { name: new RegExp(label) }));
 }
 
 /** 拡張ホストとの接続の代わりを挟んで描く。返す send で ask の event を送る */
@@ -80,8 +85,7 @@ function mountWebview(
   return {
     copied,
     state,
-    ask: (targets: string[], action?: AskAction) =>
-      act(() => send!({ kind: "event", name: "ask", targets, ...(action ? { action } : {}) })),
+    ask: (targets: string[]) => act(() => send!({ kind: "event", name: "ask", targets })),
     /** タイトル行の吹き出し：画面の今の対象で開く */
     askCurrent: () => act(() => send!({ kind: "event", name: "ask", targets: [], current: true })),
   };
@@ -523,7 +527,7 @@ describe("エージェントに頼む入力欄（UI-15）", () => {
   it("頼むことを選んで開くと、開くと同時に依頼文をコピーして「コピーしました」を出す。開き直しの復元ではコピーしない（t340）", async () => {
     const view = mountWebview(askClient());
     await screen.findByText("見直す");
-    view.ask(["t5"], "fix");
+    await pickFromBubble("行 t5", "直す");
     await waitFor(() => expect(view.copied).toHaveLength(1));
     expect(view.copied[0]).toBe("/dgimport t5");
     await waitFor(() =>
@@ -552,34 +556,23 @@ describe("エージェントに頼む入力欄（UI-15）", () => {
 
   it("選んで開いたときのコピーに失敗したら、小窓は開いたまま理由を出す（t340）", async () => {
     const client = askClient();
-    let send: ((event: WebviewEvent) => void) | undefined;
     render(
       <StoreProvider client={client}>
         <HostProvider
           host={{
-            surface: "browser",
+            surface: "sidebar",
             open: () => {},
             show: () => {},
             copy: () => Promise.reject(new Error("拒まれた")),
             state: createUiState(memoryBackend()),
           }}
         >
-          <HostBridge
-            client={{
-              run: (n, i) => client.run(n, i),
-              status: () => client.status(),
-              open: async () => {},
-              show: async () => {},
-              copy: async () => {},
-              onEvent: (l) => ((send = l), () => {}),
-            }}
-          />
           <App />
         </HostProvider>
       </StoreProvider>,
     );
     await screen.findByText("見直す");
-    act(() => send!({ kind: "event", name: "ask", targets: ["t5"], action: "fix" }));
+    await pickFromBubble("行 t5", "直す");
     await waitFor(() =>
       expect(within(composer()).getByRole("status").textContent).toContain(
         "コピーできない: 拒まれた",

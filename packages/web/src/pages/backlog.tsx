@@ -1,16 +1,16 @@
 // バックログ（UI-3）。done と abandoned 以外を Iteration ごとの区画（active → planned → Iteration なし）に分け、区画の中は優先度と番号で出す。
 // 番号・タイトル・ラベルで検索、Status・優先度・ラベル・担当者で絞り込む。
 // Iteration が 1 つもない（planned・active がない）Project では区画に分けず 1 つの表で出す。
-// 表示だけで書き込まない。Iteration の移動・作成・閉じると Epic の作成は、吹き出し・右クリックからエージェントに頼む（ADR-010）。
+// 表示だけで書き込まない。Iteration の移動・作成・閉じると Epic の作成は、吹き出しからエージェントに頼む（ADR-010）。
 // Iteration の開始は着手（claim）の手順が行う（ADR-006）。
 // open の Epic は進捗つきの欄に並べ（UI-10）、押すとその Epic のチケットに絞る（もう一度押すと解除）。
 // サイドバーでは検索を常に出し、その右端の漏斗（カンバンと同じ FilterToggle）で絞り込みの欄を検索の下に開く（開閉は host.state に残す）。
 // その下によく使う絞り込み（自分・作業中・high）のチップと、欄で効いている条件の札（× で外す）を並べ、
-// 絞り込みか検索が効いているときだけ行の右端に「n / m 件」を出す（右クリックで絞った結果をまとめて頼める）。漏斗は条件が効いている間だけ色付きにする。
+// 絞り込みか検索が効いているときだけ行の右端に「n / m 件」を出す。漏斗は条件が効いている間だけ色付きにする。
 // サイドバーの Epic の欄は open の Epic があるときだけ、番号・題・進捗のチップと「Epic なし」のチップを並べる（2 行を超える分は「ほか N」）
 // サイドバーの行の右端には、カンバンと同じ優先度の札と、開いた Plan に入っていれば Plan の番号と着手可・待ちを出す（カンバンと同じ部品と判定。components/row-end.tsx の BacklogRowEnd）。
 // サイドバーの行は担当者の列を出さず、別の人の担当だけ右端に頭文字の丸で出す（自分か自分の agent は出さない。store.me）。
-// サイドバーの行・区画の見出し・Epic の札は、エージェントに頼める場所にする（行と見出しは吹き出し、札は右クリックと Shift+F10。UI-15）
+// サイドバーの行・区画の見出しは、エージェントに頼める場所にする（吹き出しと Shift+F10。UI-15）。Epic の札と件数は頼む入口にしない
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { ASK_SECTIONS, useAskSpot } from "../components/ask-menu.js";
@@ -354,28 +354,11 @@ export function BacklogPage() {
   );
 }
 
-/**
- * 絞っているときの「n / m 件」（サイドバー）。右クリックと Shift+F10 で、絞った結果のチケットをまとめて頼める（UI-15。吹き出しは置かない）。
- * 0 件なら頼む対象がないので件数だけ
- */
+/** 絞っているときの「n / m 件」（サイドバー） */
 function FilteredCount({ rows, total }: { rows: readonly Ticket[]; total: number }) {
-  const spot = useAskSpot(
-    rows.length > 0
-      ? {
-          targets: rows.map((t) => t.id),
-          label: `絞り込みの結果 ${rows.length} 件`,
-          section: ASK_SECTIONS.backlogHeading,
-          bubble: false,
-        }
-      : null,
-  );
   return (
-    <span
-      className="muted count"
-      title={`全 ${total} 件のうち ${rows.length} 件${rows.length > 0 ? "（右クリックでまとめて頼む）" : ""}`}
-      {...(rows.length > 0 ? { ...spot.props, tabIndex: 0 } : {})}
-    >
-      {rows.length} / {total} 件{spot.overlay}
+    <span className="muted count" title={`全 ${total} 件のうち ${rows.length} 件`}>
+      {rows.length} / {total} 件
     </span>
   );
 }
@@ -615,9 +598,7 @@ function EpicChips({ selected, onSelect }: { selected: string; onSelect: (epic: 
   );
 }
 
-/**
- * サイドバーの Epic の札。押すとその Epic で絞る。札は狭いので吹き出しは置かず、右クリックと Shift+F10 でその Epic を頼む（UI-15）
- */
+/** サイドバーの Epic の札。押すとその Epic で絞る。札は狭いので頼む入口は置かない（頼むのは Epic の詳細から） */
 function EpicChip({
   epic: e,
   pressed,
@@ -627,24 +608,16 @@ function EpicChip({
   pressed: boolean;
   onSelect: (epic: string) => void;
 }) {
-  const spot = useAskSpot({
-    targets: [e.id],
-    label: `Epic の札 ${e.id}`,
-    section: ASK_SECTIONS.epicChip,
-    bubble: false,
-  });
   return (
     <Chip
       className="epic-chip"
       pressed={pressed}
       title={pressed ? "絞り込みを外す" : `${e.id} ${e.title} で絞る`}
       onClick={() => onSelect(e.id)}
-      extra={spot.props}
     >
       <code>{e.id}</code>
       <span className="chip-title">{e.title}</span>
       <ProgressBar progress={e.progress} short />
-      {spot.overlay}
     </Chip>
   );
 }

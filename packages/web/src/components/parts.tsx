@@ -376,7 +376,7 @@ export function sameAssignee(tickets: readonly Pick<Ticket, "assignee">[]): bool
 
 /**
  * 1 行のチケット（サイドバーのカンバン）。variant・head・end は TicketRow に渡す。dimmed でタイトルを説明文の色にする。
- * ask を渡すと行をエージェントに頼める場所にする（右端の吹き出し・右クリック・Shift+F10。ask-menu.tsx）。Ctrl/⌘・Shift+クリックで複数選べる（selection.tsx）
+ * ask を渡すと行をエージェントに頼める場所にする（右端の吹き出し・Shift+F10。ask-menu.tsx）。Ctrl/⌘・Shift+クリックで複数選べる（selection.tsx）
  */
 export function AskRow({
   ticket,
@@ -396,7 +396,7 @@ export function AskRow({
   end?: ReactNode;
   /** すぐに手を付けられない行（カンバンの待ち・承認待ち）としてタイトルを薄く出す */
   dimmed?: boolean | undefined;
-  /** エージェントに頼む場所の右クリックの文脈（webviewSection）。対象はこの行のチケット */
+  /** エージェントに頼む場所の種類。対象はこの行のチケット */
   ask?: AskSection | undefined;
 }) {
   const spot = useAskSpot(
@@ -419,7 +419,7 @@ export function AskRow({
 
 /**
  * バックログの行（サイドバー）。右クリックの文脈は webviewSection（core の WEBVIEW_CONTRACT の写しで、拡張の package.json の when と合う）と
- * チケット（拡張の「詳細を開く」「ID をコピー」が使う）で、エージェントに頼む吹き出しとサブメニューの候補も載せる（useAskSpot。既定の切り取り・コピー・貼り付けは出さない）
+ * チケット（拡張の「詳細を開く」「ID をコピー」が使う）だけ載せる（useAskSpot。既定の切り取り・コピー・貼り付けは出さない）。頼む入口は吹き出し
  */
 function BacklogItem({ ticket: t, children }: { ticket: Ticket; children: ReactNode }) {
   const spot = useAskSpot({
@@ -492,7 +492,7 @@ export function TicketTable({
    */
   assigneeInEnd?: boolean;
   /**
-   * サイドバーの行に VS Code の右クリックのメニューの文脈（data-vscode-context）を付け、エージェントに頼む吹き出しを出す。左パネルのバックログで使う。
+   * サイドバーの行に VS Code の右クリックのメニュー（詳細を開く・ID をコピー）の文脈（data-vscode-context）を付け、エージェントに頼む吹き出しを出す。左パネルのバックログで使う。
    * メニューとコマンドは拡張の package.json の webview/context と context-menu.ts。ブラウザでは右クリックのメニューは出ない
    */
   rowMenu?: boolean;
@@ -501,7 +501,7 @@ export function TicketTable({
    * 渡さなければ優先度の印（RowPriority）
    */
   end?: ((t: Ticket) => ReactNode) | undefined;
-  /** 行をエージェントに頼む場所にする（吹き出し・右クリック・Shift+F10。Iteration の詳細の中の行）。rowMenu があればそちらを使う */
+  /** 行をエージェントに頼む場所にする（吹き出し・Shift+F10。Iteration の詳細の中の行）。rowMenu があればそちらを使う */
   ask?: RowAsk | undefined;
 }) {
   const store = useStore();

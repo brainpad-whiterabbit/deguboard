@@ -48,9 +48,9 @@ export function AskComposer({
   targets: readonly string[];
   /** 対象のチケットが入っている Iteration・Epic（詳細の中の行から開いたとき）。外すの候補が出る */
   within?: string | undefined;
-  /** 選んで開く頼むこと（行・見出しの吹き出しと右クリック）。省くか候補になければおすすめ */
+  /** 選んで開く頼むこと（行・見出しの吹き出し）。省くか候補になければおすすめ */
   action?: AskAction | undefined;
-  /** 開いたときに、選んだ頼むこと（action）の依頼文をそのままコピーする（メニューで選んで開いたとき。復元では false） */
+  /** 開いたときに、選んだ頼むこと（action）の依頼文をそのままコピーする（一覧で選んで開いたとき。復元では false） */
   copyOnOpen?: boolean;
   onClose(): void;
 }) {

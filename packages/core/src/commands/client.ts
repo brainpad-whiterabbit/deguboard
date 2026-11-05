@@ -2,7 +2,6 @@
 // HTTP と postMessage の実装は web が持ち、入口の側はプロセス内の実装（local.ts）を HTTP・postMessage に写す。core はここで形を決める
 
 import type { SyncStatus } from "../git/sync.js";
-import type { AskAction } from "./ask.js";
 import type { CommandResult } from "./define.js";
 
 /** 入口の失敗。CLI の --json のエラーと同じ形 */
@@ -37,7 +36,6 @@ export type WebviewRequest =
  * 拡張ホスト → Webview の通知。要求と対応づかないので id を持たない（UI-12）。reload は store を読み直す（同期・再読み込み・ファイルの変化の後）。
  * toggle はその画面と来る前の画面を切り替える（ビューのタイトル行の歯車で設定画面を開け閉めする）。
  * ask はエージェントへの依頼文を作る入力欄を、targets（ID。空なら対象なし）を対象にして開く（UI-15。タイトル行の吹き出しとコマンドパレット）。
- * action を付ければその頼むことを選んで開く（行・見出しの右クリックのサブメニュー）。within は対象のチケットが入っている Iteration・Epic（詳細の中の行）。
  * current を付ければ、targets の代わりに画面の今の対象（カンバンで選んでいる Iteration、履歴で開いている行）にする。なければ対象なし（タイトル行の吹き出し）
  */
 export type WebviewEvent =
@@ -48,8 +46,6 @@ export type WebviewEvent =
       kind: "event";
       name: "ask";
       targets: string[];
-      action?: AskAction | undefined;
-      within?: string | undefined;
       current?: boolean | undefined;
     };
 
@@ -61,25 +57,13 @@ export const WEBVIEW_CONTRACT = {
   /** バックログの行の右クリックの文脈（data-vscode-context の webviewSection）。拡張の package.json の when と合わせる */
   backlogRowSection: "backlogTicket",
   /**
-   * エージェントに頼む右クリックのサブメニュー（UI-15）。行・見出しの data-vscode-context に、対象の ID（空白区切り）・
-   * 頼むことの候補（ask-menu の action を空白区切り）・おすすめを載せ、package.json の when が候補を見て項目を出す。
-   * Iteration・Epic の詳細の中の行は、対象のチケットが入っている場所（ask の within）を within に載せる
-   */
-  askContext: {
-    targets: "askTargets",
-    actions: "askActions",
-    recommended: "askRecommended",
-    within: "askWithin",
-  },
-  /**
-   * 頼める行・見出しの webviewSection（バックログの行は backlogRowSection）。サブメニューの when は askActions だけを見て section は見ない。
-   * section は場所の種類の名前で、場所ごとの項目を右クリックに足すときに when で使う
+   * 頼める行・見出しの場所の種類の名前（バックログの行は backlogRowSection）。右クリックのメニューには載せず、
+   * 画面の中で選んだ行の場所を区別するのに使う
    */
   askSections: [
     "boardTicket",
     "boardHeading",
     "backlogHeading",
-    "epicChip",
     "historyRow",
     "detailTitle",
     "detailTicket",
@@ -90,7 +74,6 @@ export const WEBVIEW_CONTRACT = {
   eventNames: ["reload", "navigate", "toggle", "ask"],
 } as const satisfies {
   backlogRowSection: string;
-  askContext: Record<"targets" | "actions" | "recommended" | "within", string>;
   askSections: readonly string[];
   routes: Record<string, `#/${string}`>;
   eventNames: readonly WebviewEvent["name"][];

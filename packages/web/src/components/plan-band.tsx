@@ -77,7 +77,7 @@ function PlanItem({ plan, state, byId }: ItemProps) {
   const [open, setOpen] = useState(() => host.state.get<boolean>(key) === true);
   const detailId = useId();
   const closed = state === "closed";
-  // 左パネルでは Plan の行をエージェントに頼める場所にする（吹き出し・右クリック・Shift+F10。UI-15）
+  // 左パネルでは Plan の行をエージェントに頼める場所にする（吹き出し・Shift+F10。UI-15）
   const spot = useAskSpot(
     host.surface === "sidebar"
       ? { targets: [plan.id], label: `Plan の帯 ${plan.id}`, section: ASK_SECTIONS.boardHeading }

@@ -210,8 +210,7 @@ export function HostBridge({ client }: { client: WebviewClient }) {
         if (event.name === "navigate") window.location.hash = event.hash;
         else if (event.name === "toggle") toggleRoute(event.hash);
         else if (event.name === "reload") void reloadRef.current();
-        else if (event.name === "ask")
-          openAsk(event.current ? current() : event.targets, event.action, event.within);
+        else if (event.name === "ask") openAsk(event.current ? current() : event.targets);
       }),
     [client, openAsk, current],
   );

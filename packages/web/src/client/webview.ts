@@ -94,19 +94,11 @@ type Draft<T> = T extends unknown ? Omit<T, "id"> : never;
 export const WEBVIEW_CONTRACT_COPY = {
   /** バックログの行の右クリックの文脈（data-vscode-context の webviewSection） */
   backlogRowSection: "backlogTicket",
-  /** エージェントに頼む右クリックのサブメニューの文脈のキー（UI-15） */
-  askContext: {
-    targets: "askTargets",
-    actions: "askActions",
-    recommended: "askRecommended",
-    within: "askWithin",
-  },
-  /** 頼める行・見出しの webviewSection */
+  /** 頼める行・見出しの場所の種類の名前 */
   askSections: {
     boardTicket: "boardTicket",
     boardHeading: "boardHeading",
     backlogHeading: "backlogHeading",
-    epicChip: "epicChip",
     historyRow: "historyRow",
     detailTitle: "detailTitle",
     detailTicket: "detailTicket",

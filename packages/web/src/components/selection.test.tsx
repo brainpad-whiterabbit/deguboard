@@ -136,24 +136,19 @@ describe("左パネルのバックログの行を複数選ぶ（UI-15）", () =>
     expect(bar()).toBeNull();
   });
 
-  it("選んだ行の吹き出し・右クリックの文脈・帯の「頼む」は、選んだ全件を対象にした一覧を出し、選ぶと全件で入力欄を開く", async () => {
+  it("選んだ行の吹き出し・帯の「頼む」は、選んだ全件を対象にした一覧を出し、選ぶと全件で入力欄を開く", async () => {
     window.location.hash = "#/backlog";
     const client = backlogClient();
     mount(client);
     await screen.findByText("四つ目");
     fireEvent.click(linkOf("画面"), { ctrlKey: true });
     fireEvent.click(linkOf("四つ目"), { ctrlKey: true });
-    // 右クリックの文脈：選んだ行はどちらも全件
-    for (const title of ["画面", "四つ目"]) {
-      await waitFor(() => expect(contextOf(rowOf(title))["askActions"]).toBeDefined());
-      expect(contextOf(rowOf(title))).toMatchObject({
-        webviewSection: "backlogTicket",
-        askTargets: "t3 t4",
-        askRecommended: "assign",
-      });
-    }
-    // 選んでいない行は自分だけ
-    expect(contextOf(rowOf("五つ目"))["askTargets"]).toBe("t5");
+    // 右クリックの文脈には頼む対象を載せない（「詳細を開く」「ID をコピー」の行のチケットだけ）
+    expect(contextOf(rowOf("四つ目"))).toEqual({
+      webviewSection: "backlogTicket",
+      ticket: "t4",
+      preventDefaultContextMenuItems: true,
+    });
     // 吹き出し
     // 選んだ行はどちらも吹き出しを出したまま（場所の名前は「選んだ 2 件」）
     expect(
@@ -177,7 +172,7 @@ describe("左パネルのバックログの行を複数選ぶ（UI-15）", () =>
     expect(selected()).toEqual(["t3", "t4"]);
   });
 
-  it("絞り込みの件数（n / m 件）の右クリックの文脈と Shift+F10 で、絞った結果を対象にした一覧が出る", async () => {
+  it("絞り込みの件数（n / m 件）は頼む入口にしない（右クリックの文脈も Shift+F10 もない）", async () => {
     window.location.hash = "#/backlog";
     const client = backlogClient();
     mount(client);
@@ -186,25 +181,13 @@ describe("左パネルのバックログの行を複数選ぶ（UI-15）", () =>
       target: { value: "つ目" },
     });
     const count = await screen.findByText(/2 \/ 4 件/);
-    await waitFor(() => expect(contextOf(count)["askActions"]).toBeDefined());
-    expect(contextOf(count)).toMatchObject({
-      webviewSection: "backlogHeading",
-      askTargets: "t4 t5",
-      askRecommended: "assign",
-    });
-    // 吹き出しは置かない
+    expect(count.hasAttribute("data-vscode-context")).toBe(false);
+    expect(count.hasAttribute("data-ask-spot")).toBe(false);
+    expect(count.getAttribute("title")).toBe("全 4 件のうち 2 件");
     expect(within(count).queryByRole("button")).toBeNull();
     count.focus();
     fireEvent.keyDown(count, { key: "F10", shiftKey: true });
-    await waitFor(() => expect(items()[0]).toBe("割り当てるおすすめ"));
-    expect(within(menu()).getByText("絞り込みの結果 2 件")).toBeTruthy();
-    // 0 件なら頼めない
-    fireEvent.keyDown(document.activeElement!, { key: "Escape" });
-    fireEvent.change(screen.getByRole("searchbox", { name: "検索" }), {
-      target: { value: "ないもの" },
-    });
-    const none = await screen.findByText(/0 \/ 4 件/);
-    expect(none.hasAttribute("data-vscode-context")).toBe(false);
+    expect(screen.queryByRole("menu")).toBeNull();
   });
 });
 
@@ -276,12 +259,12 @@ describe("カンバンとパネルの詳細の行を複数選ぶ（UI-15）", ()
     expect(open).not.toHaveBeenCalled();
     // 画面の並び（todo の節が in_progress の節より上）で持つ
     expect(selected()).toEqual(["t3", "t2"]);
-    await waitFor(() => expect(contextOf(rowOf("API"))["askActions"]).toBeDefined());
-    expect(contextOf(rowOf("API"))).toMatchObject({
-      webviewSection: "boardTicket",
-      askTargets: "t3 t2",
-      askRecommended: "check",
-    });
+    // 選んだ行の吹き出しは、節をまたいだ全件の一覧（おすすめは点検）を出す
+    fireEvent.click(
+      within(rowOf("API")).getByRole("button", { name: "エージェントに頼む（選んだ 2 件）" }),
+    );
+    await waitFor(() => expect(items()[0]).toBe("点検するおすすめ"));
+    fireEvent.keyDown(document.activeElement!, { key: "Escape" });
     expect(bar()!.textContent).toContain("2 件を選択");
     // Iteration を替えると（画面が替わると）外す
     window.location.hash = "#/board?iteration=all";
@@ -310,13 +293,11 @@ describe("カンバンとパネルの詳細の行を複数選ぶ（UI-15）", ()
     expect(selected()).toEqual(["t3", "t2", "t1"]);
     fireEvent.click(screen.getByRole("link", { name: /ログイン/ }), { ctrlKey: true });
     expect(selected()).toEqual(["t3", "t2"]);
-    await waitFor(() => expect(contextOf(api)["askActions"]).toBeDefined());
-    expect(contextOf(api)).toMatchObject({
-      webviewSection: "detailTicket",
-      askTargets: "t3 t2",
-      askWithin: "s1",
-    });
-    expect(contextOf(api)["askActions"]).toContain("remove");
+    // 選んだ行の吹き出しの一覧は、選んだ全件を Iteration（within）つきの組で引く
+    fireEvent.click(within(api).getByRole("button", { name: "エージェントに頼む（選んだ 2 件）" }));
+    await waitFor(() => expect(items().length).toBeGreaterThan(0));
+    expect(items()).toContain("s1 から外す");
+    fireEvent.keyDown(document.activeElement!, { key: "Escape" });
     // 行の中のボタン（吹き出し）を修飾キーつきで押しても選び方は変わらない
     fireEvent.click(within(api).getByRole("button", { name: /エージェントに頼む/ }), {
       ctrlKey: true,

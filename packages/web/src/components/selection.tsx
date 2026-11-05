@@ -1,7 +1,7 @@
 // 一覧の行の複数選択（UI-15）。VS Code の一覧と同じく、Ctrl/⌘+クリックで 1 行ずつ足し外し、Shift+クリックで前に押した行からの範囲を選ぶ。
 // ふつうのクリックは今までどおり詳細を開き、選択を外す（次の Shift+クリックの起点になる）。Esc でも外す。
 // 選択は画面の見た目の状態として SelectionProvider が持つ（データには書かない。画面を替えたら外す）。
-// 行は useAskSpot の select で選べるようになり（ask-menu.tsx）、選んだ行の吹き出し・右クリックは選んだ全件を対象にする。
+// 行は useAskSpot の select で選べるようになり（ask-menu.tsx）、選んだ行の吹き出しは選んだ全件を対象にする。
 // 選んでいる間は画面の下に「n 件を選択 ・ 頼む」の帯（SelectionBar）を出し、「頼む」で選んだ全件の頼むことの一覧を出す。
 // 範囲は画面に出ている行（data-select-id）の並びで決め、選んだ ID もその並びで持つ
 
@@ -24,7 +24,7 @@ interface SelectionState {
   ids: readonly string[];
   /** Shift+クリックの起点（最後に押した行） */
   anchor: string | null;
-  /** 選んだ行の場所（右クリックの文脈の webviewSection と、詳細の中の行なら入っている Iteration・Epic） */
+  /** 選んだ行の場所（場所の種類と、詳細の中の行なら入っている Iteration・Epic） */
   section: AskSection | null;
   within: string | undefined;
 }
