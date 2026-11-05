@@ -76,7 +76,7 @@ export interface SkillInstallResult {
   retiredKept: string[];
   /** --dry-run のとき true。書かず消さずに、書く（書いた・更新した）ことになる Skill の置き先と中身を files に返す */
   dryRun: boolean;
-  /** --dry-run のときだけ入る。書くことになる SKILL.md の絶対パスと中身 */
+  /** --dry-run のときは、書くことになる SKILL.md の絶対パスと中身。それ以外は空の配列 */
   files: Array<{ name: string; path: string; content: string }>;
 }
 
@@ -156,10 +156,12 @@ export async function installSkill(options: {
 export function skillInstallWarnings(result: SkillInstallResult): string[] {
   return [
     ...result.conflicts.map(
-      (name) => `${name}: 手を加えてあるので上書きしなかった。上書きするなら --force を付ける`,
+      (name) =>
+        `${name}: 手を加えてあるので上書き${result.dryRun ? "しない" : "しなかった"}。上書きするなら --force を付ける`,
     ),
     ...result.retiredKept.map(
-      (name) => `${name}: 廃止した Skill だが、手を加えてあるので消さなかった。要らなければ消す`,
+      (name) =>
+        `${name}: 廃止した Skill だが、手を加えてあるので消${result.dryRun ? "さない" : "さなかった"}。要らなければ消す`,
     ),
   ];
 }
