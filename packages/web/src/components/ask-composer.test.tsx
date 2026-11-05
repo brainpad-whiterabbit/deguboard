@@ -232,6 +232,37 @@ describe("エージェントに頼む入力欄（UI-15）", () => {
     expect(asks().at(-1)).toBe("skill");
   });
 
+  it("ask の結果が届く前は形式のボタンが押せず、届いたら core が決めた既定の形式が出る", async () => {
+    const client = askClient();
+    // dg の Skill が入っていないリポジトリの代わり：形式を省けば文章の形
+    const original = client.handlers["ask"]!;
+    client.handlers["ask"] = (input) => {
+      const i = input as { format?: string };
+      return original({ ...i, format: i.format ?? "text" });
+    };
+    const gate = gateAsk(client);
+    const view = mountWebview(client);
+    await screen.findByText("見直す");
+    gate.hold();
+    view.ask(["t5"]);
+    const box = within(composer());
+    // 結果が届くまで（ask の返りを止めている間）は、形式のボタンは押せず、押しても何も起きない
+    await waitFor(() => expect(gate.count()).toBeGreaterThan(0));
+    const before = box.getByRole("button", { name: /^形式：/ }) as HTMLButtonElement;
+    expect(before.disabled).toBe(true);
+    fireEvent.click(before);
+    expect(view.state.get(ASK_FORMAT_KEY)).toBeUndefined();
+    await gate.release();
+    // 届いたら押せて、既定（この場合は文章）の形式が出る
+    const after = await waitFor(() => {
+      const b = box.getByRole("button", { name: "形式：文章" }) as HTMLButtonElement;
+      expect(b.disabled).toBe(false);
+      return b;
+    });
+    expect(after).toBeTruthy();
+    expect(view.state.get(ASK_FORMAT_KEY)).toBeUndefined();
+  });
+
   it("コピーのボタンと ⌘↵（Ctrl+↵）で、core の ask が作った全文を拡張ホストにコピーさせ、欄の下に「コピーしました」と出す", async () => {
     const client = askClient();
     const view = mountWebview(client);

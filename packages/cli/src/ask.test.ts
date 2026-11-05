@@ -120,7 +120,7 @@ describe("dg ask", () => {
     expect((await dg(f.cloneA, ["ask", "t1", "--action", "release"])).code).toBe(2);
   });
 
-  it("--format を省けば、CLI・HTTP とも dg の Skill の有無から形式を決める（Skill がなければ文章）", async () => {
+  it("--format を省けば、CLI・HTTP・Webview とも dg の Skill の有無から形式を決める（Skill がなければ文章）", async () => {
     const f = await createFixture();
     cleanups.push(f.cleanup);
     const home = await mkdtemp(join(tmpdir(), "dg-home-"));
@@ -140,6 +140,11 @@ describe("dg ask", () => {
       });
       const fromCli = (JSON.parse(cli.out) as { data: AskView }).data;
       expect(((await res.json()) as { data: AskView }).data).toEqual(fromCli);
+      const local = await createLocalClient({ cwd: f.cloneA, user: "ui" }).run<AskView>("ask", {
+        targets: ["t1"],
+        action: "fix",
+      });
+      expect(local.data).toEqual(fromCli);
       return fromCli;
     };
     expect((await both()).format).toBe("text");
