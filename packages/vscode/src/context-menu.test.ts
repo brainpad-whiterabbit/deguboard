@@ -88,7 +88,6 @@ describe("メニューの引数", () => {
       menuTicketOf({
         webviewSection: BACKLOG_ROW_SECTION,
         ticket: "t12",
-        askTargets: "t12",
         preventDefaultContextMenuItems: true,
       }),
     ).toEqual({ ticket: "t12" });

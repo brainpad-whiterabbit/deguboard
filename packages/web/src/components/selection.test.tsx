@@ -160,6 +160,8 @@ describe("左パネルのバックログの行を複数選ぶ（UI-15）", () =>
     await waitFor(() => expect(items()[0]).toBe("割り当てるおすすめ"));
     expect(within(menu()).getByText("選んだ 2 件")).toBeTruthy();
     fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+    // 帯の右クリックの文脈には、押しても動かない「詳細を開く」「ID をコピー」の webviewSection を載せない
+    expect(contextOf(bar()!)).toEqual({ preventDefaultContextMenuItems: true });
     // 帯の「頼む」
     fireEvent.click(within(bar()!).getByRole("button", { name: "頼む" }));
     await waitFor(() => expect(items()[0]).toBe("割り当てるおすすめ"));

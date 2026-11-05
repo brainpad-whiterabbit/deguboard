@@ -195,7 +195,8 @@ export function useAskSpot(options: AskSpotOptions | null): AskSpot {
   // 右クリックのメニューはバックログの行だけ「詳細を開く」「ID をコピー」を出す。ほかの場所は既定の切り取り・コピー・貼り付けを出さない
   const context = options
     ? JSON.stringify({
-        ...(options.section === WEBVIEW_CONTRACT_COPY.backlogRowSection
+        // ticket（options.context）のある行だけ。選択の帯のように行でない場所には載せない
+        ...(options.section === WEBVIEW_CONTRACT_COPY.backlogRowSection && options.context
           ? { webviewSection: options.section, ...options.context }
           : {}),
         preventDefaultContextMenuItems: true,
