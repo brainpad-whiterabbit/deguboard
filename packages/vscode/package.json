@@ -62,6 +62,11 @@
     },
     "commands": [
       {
+        "command": "deguboard.openCurrentTicket",
+        "title": "今のブランチのチケットを開く",
+        "category": "deguboard"
+      },
+      {
         "command": "deguboard.sync",
         "title": "同期",
         "category": "deguboard",
@@ -116,6 +121,10 @@
       ],
       "commandPalette": [
         {
+          "command": "deguboard.openCurrentTicket",
+          "when": "false"
+        },
+        {
           "command": "deguboard.sync",
           "when": "false"
         },
@@ -150,6 +159,9 @@
       ]
     }
   },
+  "activationEvents": [
+    "onStartupFinished"
+  ],
   "icon": "media/icon.png",
   "galleryBanner": {
     "color": "#161b23",

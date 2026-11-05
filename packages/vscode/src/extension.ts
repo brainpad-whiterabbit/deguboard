@@ -1,12 +1,14 @@
 // 拡張ホストの入口。Activity Bar のアイコンからサイドバーのビューに web を載せ、それを主画面にする（UI-12）。
 // エディタ領域のパネルはサイドバーから開いた詳細（チケット・Iteration・Epic）だけを出し、一覧の画面（カンバンなど）はサイドバーに出す。
 // パネルの題は詳細の番号と名前にする（パネルにはヘッダーを出さないので、題で見分ける）。
+// 今のブランチに紐づくチケットをステータスバーに出す（statusbar.ts）。
 // データ worktree と実行中の Run の記録を見張り、CLI やエージェントの書き込みを画面に映す。
 // Webview からの要求は core のプロセス内 CommandClient に通す（ADR-006・ADR-007）。サーバーは起動しない。
 // dg は同梱せず、PATH の dg を案内する（UI-11）。VS Code の API に触れるのはこのファイルだけ
 
 import { randomBytes } from "node:crypto";
 import { readFile } from "node:fs/promises";
+import path from "node:path";
 import {
   ACTION_NAMES,
   createLocalClient,
@@ -25,6 +27,15 @@ import {
   type MenuTicket,
 } from "./context-menu.js";
 import { dgAdvice, resolveDg } from "./dg.js";
+import {
+  currentBranch,
+  headFile,
+  statusBarText,
+  statusBarTooltip,
+  STATUSBAR_COMMAND,
+  ticketOfBranch,
+  type BranchTicket,
+} from "./statusbar.js";
 import { watchTargets } from "./watch.js";
 import {
   askDelivery,
@@ -52,6 +63,8 @@ const panels = new Map<string, vscode.WebviewPanel>();
 const clients = new Map<string, CommandClient>();
 /** フォルダごとのデータ worktree（.git/deguboard/）と実行中の Run（.git/deguboard-local/runs/）の監視。CLI やエージェントの書き込みを画面に映す */
 const watchers = new Map<string, vscode.Disposable>();
+/** watchData が data_dir を問い合わせている最中のフォルダ。重ねて張らない */
+const watchStarting = new Set<string>();
 /** 今出ているサイドバーのビュー。右クリックで非表示にされると dispose され、再表示で作り直される */
 let sidebar: vscode.WebviewView | undefined;
 /** サイドバーが対象にするフォルダ（最初の作業フォルダ）。ビューのタイトル行のコマンドはこのフォルダに対して動く */
@@ -62,6 +75,16 @@ let pendingSidebarRoute: string | undefined;
 let pendingSidebarAsk: string[] | undefined;
 /** 同期の実行中。重ねて走らせない */
 let syncing = false;
+/** dg の案内を出したか */
+let advised = false;
+/** 今のブランチのチケットを出すステータスバーの項目（最初の作業フォルダが対象）。紐づくチケットがなければ隠す */
+let statusItem: vscode.StatusBarItem | undefined;
+/** 今のチケットの ID。項目を押したときに開く */
+let statusTicket: string | undefined;
+/** refreshStatusBar の世代番号。最新の呼び出しの結果だけを反映する */
+let statusGeneration = 0;
+/** ブランチの変わり（worktree の HEAD）の見張り。作業フォルダごと */
+const headWatchers = new Map<string, vscode.Disposable>();
 
 export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
@@ -94,6 +117,15 @@ export function activate(context: vscode.ExtensionContext): void {
         void vscode.window.setStatusBarMessage(`deguboard: ${row.ticket} をコピーした`, 3000);
       }),
     ),
+    vscode.commands.registerCommand(STATUSBAR_COMMAND, () => {
+      const folder = (vscode.workspace.workspaceFolders ?? [])[0];
+      if (!folder || !statusTicket) return;
+      return openPanel(context, folder, {
+        column: vscode.ViewColumn.Beside,
+        route: ticketRoute({ ticket: statusTicket }),
+      });
+    }),
+    vscode.workspace.onDidChangeWorkspaceFolders(() => void refreshStatusBar()),
     vscode.window.registerWebviewViewProvider(
       VIEW_ID,
       { resolveWebviewView: (view) => resolveSidebar(context, view) },
@@ -101,7 +133,7 @@ export function activate(context: vscode.ExtensionContext): void {
       { webviewOptions: { retainContextWhenHidden: true } },
     ),
   );
-  void adviseAboutDg();
+  void refreshStatusBar();
 }
 
 export function deactivate(): void {
@@ -109,6 +141,10 @@ export function deactivate(): void {
   panels.clear();
   for (const watcher of watchers.values()) watcher.dispose();
   watchers.clear();
+  for (const watcher of headWatchers.values()) watcher.dispose();
+  headWatchers.clear();
+  statusItem?.dispose();
+  statusItem = undefined;
   clients.clear();
 }
 
@@ -117,6 +153,7 @@ async function resolveSidebar(
   context: vscode.ExtensionContext,
   view: vscode.WebviewView,
 ): Promise<void> {
+  void adviseAboutDg();
   const folders = vscode.workspace.workspaceFolders ?? [];
   const folder = folders[0];
   if (!folder) {
@@ -286,6 +323,7 @@ async function openPanel(
   folder: vscode.WorkspaceFolder,
   options: { column: vscode.ViewColumn; route: string; preserveFocus?: boolean },
 ): Promise<void> {
+  void adviseAboutDg();
   const key = folder.uri.toString();
   const existing = panels.get(key);
   const { route } = options;
@@ -372,6 +410,8 @@ async function attach(
   const webRoot = vscode.Uri.joinPath(context.extensionUri, "dist", "web");
   webview.options = { enableScripts: true, localResourceRoots: [webRoot] };
   const client = clientFor(folder);
+  // 初期化前のリポジトリで張れなかった見張りを、画面を開くたびに張り直す（張れていれば何もしない）
+  void watchData(folder, client);
   webview.onDidReceiveMessage((message: unknown) => {
     if (!isWebviewRequest(message)) return;
     void handleRequest(client, message, options.actions).then((response) => {
@@ -416,14 +456,21 @@ function clientFor(folder: vscode.WorkspaceFolder): CommandClient {
  */
 async function watchData(folder: vscode.WorkspaceFolder, client: CommandClient): Promise<void> {
   const key = folder.uri.toString();
-  if (watchers.has(key)) return;
+  if (watchers.has(key) || watchStarting.has(key)) return;
+  watchStarting.add(key);
   let dataDir: string;
   try {
     dataDir = (await client.status()).data_dir;
   } catch {
+    // 初期化前のリポジトリなど。入れずに戻り、次の refreshStatusBar か画面を開いたとき（attach）に張り直す
     return;
+  } finally {
+    watchStarting.delete(key);
   }
-  const pending = coalesce(() => broadcast(folder, { kind: "event", name: "reload" }), 200);
+  const pending = coalesce(() => {
+    broadcast(folder, { kind: "event", name: "reload" });
+    void refreshStatusBar();
+  }, 200);
   const fsWatchers = watchTargets(dataDir).map((target) => {
     const watcher = vscode.workspace.createFileSystemWatcher(
       new vscode.RelativePattern(vscode.Uri.file(target.base), target.pattern),
@@ -441,14 +488,85 @@ async function watchData(folder: vscode.WorkspaceFolder, client: CommandClient):
   });
 }
 
+/**
+ * 最初の作業フォルダの今のブランチに紐づくチケット（ticket.list の branch が一致するもの）の ID・Status と、Run が実行中かを
+ * ステータスバーに出す。紐づくチケットがなければ隠す。データの変化（watchData）とブランチの変わり（HEAD の見張り）で呼び直す。
+ * 読めないとき（deguboard のデータがないリポジトリなど）も隠すだけで、通知は出さない
+ */
+async function refreshStatusBar(): Promise<void> {
+  // 並んで走ったとき、最新でない結果で新しい表示を上書きしないよう世代で捨てる
+  const generation = ++statusGeneration;
+  const folder = (vscode.workspace.workspaceFolders ?? [])[0];
+  if (!folder) {
+    hideStatusBar();
+    return;
+  }
+  try {
+    const client = clientFor(folder);
+    void watchHead(folder);
+    void watchData(folder, client);
+    const branch = await currentBranch(folder.uri.fsPath);
+    const ticket = ticketOfBranch(
+      (await client.run<BranchTicket[]>("ticket.list", {})).data,
+      branch,
+    );
+    if (generation !== statusGeneration) return;
+    if (!ticket) return hideStatusBar();
+    const running = (
+      await client.run<{ ticket: string }[]>("run.list", { ticket: ticket.id, running: true })
+    ).data.some((r) => r.ticket === ticket.id);
+    if (generation !== statusGeneration) return;
+    statusItem ??= vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 0);
+    statusItem.command = STATUSBAR_COMMAND;
+    statusItem.text = statusBarText(ticket, running);
+    statusItem.tooltip = statusBarTooltip(ticket, running);
+    statusTicket = ticket.id;
+    statusItem.show();
+  } catch {
+    if (generation === statusGeneration) hideStatusBar();
+  }
+}
+
+function hideStatusBar(): void {
+  statusTicket = undefined;
+  statusItem?.hide();
+}
+
+/** worktree の HEAD を見張り、ブランチが変わったらステータスバーを更新する（フォルダごとに 1 回だけ張る） */
+async function watchHead(folder: vscode.WorkspaceFolder): Promise<void> {
+  const key = folder.uri.toString();
+  if (headWatchers.has(key)) return;
+  headWatchers.set(key, { dispose() {} }); // 張っている間に重ねて張らない
+  const file = await headFile(folder.uri.fsPath);
+  if (!file) {
+    headWatchers.delete(key);
+    return;
+  }
+  const watcher = vscode.workspace.createFileSystemWatcher(
+    new vscode.RelativePattern(vscode.Uri.file(path.dirname(file)), "HEAD"),
+  );
+  const pending = coalesce(() => void refreshStatusBar(), 200);
+  watcher.onDidCreate(pending.fire);
+  watcher.onDidChange(pending.fire);
+  headWatchers.set(key, {
+    dispose() {
+      pending.cancel();
+      watcher.dispose();
+    },
+  });
+}
+
 function panelTitle(folder: vscode.WorkspaceFolder): string {
   return (vscode.workspace.workspaceFolders?.length ?? 0) > 1
     ? `deguboard: ${folder.name}`
     : "deguboard";
 }
 
-/** 起動時に 1 回、PATH の dg を確かめて知らせる。画面は dg なしで動くので止めない */
+/** 最初の使用時に 1 回、PATH の dg を確かめて知らせる。画面は dg なしで動くので止めない */
 async function adviseAboutDg(): Promise<void> {
+  // 起動時ではなく、サイドバーかパネルを最初に使うときに 1 回だけ出す（deguboard を使わないウィンドウでは出さない）
+  if (advised) return;
+  advised = true;
   const advice = dgAdvice(await resolveDg(), __CORE_VERSION__);
   if (!advice) return;
   const show =
