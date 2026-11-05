@@ -69,5 +69,5 @@ Workflow の `fields`（見積など）は `dg --json --actor agent ticket updat
 PR を出したら（PR の要らない作業を終えたときも）、結果を伝えて次の選択肢で聞く。
 
 - **次のチケットに進む**（勧める。Plan に着手できるチケットが残っていれば）：`plan show` を読み直し、この手順で次の 1 枚を進める
-- **完了にする**：PR がマージされていれば、`dg guide done` の手順で片付ける（Claude Code では `/dgdone <ID>`）
-- **ここで止める**：マージを待つ。マージ後に `/dgdone` で片付ける
+- **完了にする**：PR がマージされていれば、`dg guide done` の手順で片付ける（Skill があれば `/dgdone <ID>`）
+- **ここで止める**：マージを待つ。マージ後に `dg guide done` の手順で片付ける（Skill があれば `/dgdone`）

@@ -60,7 +60,7 @@ dg --json --actor agent plan create t12 t13 t14 t15 \
 
 Plan を承認したら（承認済みの Plan を指定されたときも）、次の選択肢で聞く。承認待ちのまま止めたときは聞かない。
 
-- **Plan を進める**（勧める）：`dg guide work` の手順で Plan の ID を指定して進める（Claude Code では `/dgwork p3`）。進める側は Plan の記録（`plan show`）を手がかりに始める
+- **Plan を進める**（勧める）：`dg guide work` の手順で Plan の ID を指定して進める（Skill があれば `/dgwork p3`）。進める側は Plan の記録（`plan show`）を手がかりに始める
 - **ここで止める**：別のセッションで Plan の ID を指定して進める
 
-順だけを示したときは、「計画を立てる」（`/dgplan next <N>`）・「割り当てる」（未割り当てのチケットがあれば `/dgassign`）・「ここで止める」で聞く。
+順だけを示したときは、「計画を立てる」（`dg guide plan` の手順。Skill があれば `/dgplan next <N>`）・「割り当てる」（未割り当てのチケットがあれば `dg guide assign` の手順。Skill があれば `/dgassign`）・「ここで止める」で聞く。

@@ -39,6 +39,6 @@ argument-hint: "[Iteration|Epic|チケットの ID...]"
 
 結果を伝えたら（指摘がなかったときも）、次の選択肢で聞く。
 
-- **計画を立てる**（勧める）：対象の todo を `dg guide plan` の手順で計画する（Claude Code では `/dgplan <対象>`）
-- **割り当てる**：Iteration に入っていない todo があれば `dg guide assign` の手順で割り当てる（`/dgassign`）
+- **計画を立てる**（勧める）：対象の todo を `dg guide plan` の手順で計画する（Skill があれば `/dgplan <対象>`）
+- **割り当てる**：Iteration に入っていない todo があれば `dg guide assign` の手順で割り当てる（Skill があれば `/dgassign`）
 - **ここで止める**

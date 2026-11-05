@@ -16,7 +16,7 @@ Iteration のチケットがすべて done かを確かめ、リポジトリの�
 
 ## リリースの手順
 
-1. **done かを確かめる**：`dg --json --actor agent sync` の後、`dg --json --actor agent iteration show <S>` で、チケットがすべて done か abandoned かを確かめる。チケットがなければそう伝えて止まる。残っていれば一覧（ID・題・状態・PR）を示し、「完了にする」（`dg guide done`。Claude Code では `/dgdone <S>`）と「ここで止める」で聞く
+1. **done かを確かめる**：`dg --json --actor agent sync` の後、`dg --json --actor agent iteration show <S>` で、チケットがすべて done か abandoned かを確かめる。チケットがなければそう伝えて止まる。残っていれば一覧（ID・題・状態・PR）を示し、「完了にする」（`dg guide done`。Skill があれば `/dgdone <S>`）と「ここで止める」で聞く
 2. **リリースの手順を探す**：リポジトリの規約（CLAUDE.md・README・開発の文書）のリリースの節を探し、どの文書のどの手順に従うかを示す。なければ下の「リリースの手順がないとき」
 3. **手順に従って進める**：手順にない操作（版の決め方を変える、手でタグを打つ、手順を飛ばす）はしない。止まったら理由を示して聞く
    - 作業中の checkout ではなく、`git fetch {{git.remote}} {{git.base_branch}}` の後に `git worktree add --detach {{worktree.root}}/release-<S> {{git.remote}}/{{git.base_branch}}` で作った一時 worktree で進める。リリースのブランチ・依存のインストール・ビルドもこの中で行う
@@ -38,6 +38,6 @@ Iteration のチケットがすべて done かを確かめ、リポジトリの�
 
 結果を伝えたら、次の選択肢で聞く。
 
-- **次の計画を立てる**：todo のチケットが残っていれば `dg guide plan` の手順で計画する（Claude Code では `/dgplan next`）
-- **割り当てる**：Iteration に入っていない todo があれば `dg guide assign` の手順で割り当てる（`/dgassign`）
+- **次の計画を立てる**：todo のチケットが残っていれば `dg guide plan` の手順で計画する（Skill があれば `/dgplan next`）
+- **割り当てる**：Iteration に入っていない todo があれば `dg guide assign` の手順で割り当てる（Skill があれば `/dgassign`）
 - **ここで止める**
