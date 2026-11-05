@@ -1,0 +1,20 @@
+{
+  "id": "r20261105-055340-e4d6",
+  "ticket": "t405",
+  "step": "implement",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-05T05:53:40Z",
+  "finished_at": "2026-11-05T05:56:38Z",
+  "result": "success",
+  "error": null,
+  "retries": 0,
+  "retry_reasons": [],
+  "usage": {
+    "input": 14,
+    "output": 3895,
+    "cache_read": 1921124,
+    "cache_write": 5522
+  },
+  "tools": null
+}
