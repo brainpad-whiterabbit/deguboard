@@ -1,3 +1,6 @@
+// 実行計画の帯が使う計算：Plan の状態・並び・範囲と、after・depends_on から求める依存グラフの段。画面に依存しない純粋な関数だけを置く。
+// 着手できるか・待ちの相手・次は core の plan.list（PL-6）が求めた値を読むだけで、ここでは求め直さない
+
 import type { PlanDetail, PlanRow, Status, Ticket } from "../types.js";
 import { msg } from "../l10n.js";
 

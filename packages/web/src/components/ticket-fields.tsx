@@ -1,3 +1,6 @@
+// チケットの任意フィールド（Workflow の fields）の部品。値の文字列・型に合わせた変換・選択の項目・入力欄の型と、表示と入力欄。
+// チケット詳細の右の列（パネルはその場で直す、ブラウザは編集のボタンでまとめて直す）で使う
+
 import type { FieldDefinition } from "../types.js";
 import { optionsOf, type Choice } from "./inline-edit.js";
 import { tr } from "../l10n.js";

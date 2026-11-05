@@ -1,3 +1,6 @@
+// Iteration の部品：見出しに出す短い期間と残り・超過の日数、詳細の見出しの下の期間・目標・進捗の欄。
+// 短い期間はカンバン（board.tsx）とバックログ（backlog.tsx）の左パネルの見出しでも共用する
+
 import { ProgressBar } from "./parts.js";
 import { NO_VALUE } from "./run-parts.js";
 import type { IterationDetail } from "../types.js";

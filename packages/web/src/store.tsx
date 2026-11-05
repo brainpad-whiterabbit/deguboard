@@ -1,3 +1,12 @@
+// 画面の状態。選んだ Project のチケット・Epic・Iteration・Plan・Workflow と同期の状態を CommandClient から読み、書き込みのあとに読み直す。
+// 状態管理のライブラリは入れず、React の context だけで持つ。
+// cache を渡すと（VS Code の Webview）、読み終えた一覧を残しておき、次に開いたときはそれをすぐ描いてから読み直して差し替える。
+// 最初の読み込みは core の中で 1 本ずつ処理されるコマンドが 7 本並び、サイドバーとパネルが同じ列を使うので、その間を空の画面にしない。
+// 操作している人（whoami。主体の ID・ユーザ名と、本人とみなす ID の own_ids）も一覧と一緒に読み、me に持つ（担当者が自分かの判定に使う）。
+// 実行中の Run（run.list の running だけ。このマシンの deguboard-local/runs/ を読むだけで、終わった Run の集計は読まない）は、
+// readRunning のとき（左パネルのカンバンの行の印に使う）だけ、ほかの一覧を描いた後に遅れて読む。
+// チケットの ID の集まりだけを持ち、cache には残さない（前回の「実行中」を次に開いたときに出さない）
+
 import type { CommandClient, CommandFailure, StatusView } from "@deguboard/core";
 import {
   createContext,

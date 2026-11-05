@@ -1,3 +1,6 @@
+// Iteration 詳細の「次の操作」の案内（UI-5）。何を案内するか・どの頼むことで頼むかは core（iteration.show の next）が決め、
+// ここは種類ごとの文を出し、頼めるものは core の ask コマンドで作った依頼文をコピーするボタンを置くだけ。データには書き込まない（UI-7・UI-15）
+
 import { CopyResult, useCopyNotice } from "./copyable-code.js";
 import { ASK_FORMAT_KEY, chosenAskFormat } from "./ask-composer.js";
 import { DetailLink } from "./parts.js";

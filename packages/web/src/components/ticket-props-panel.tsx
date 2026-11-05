@@ -1,3 +1,7 @@
+// VS Code のパネルのチケット詳細の右の列（属性）。Status の選択を先頭に、属性を「計画・つながり・作業・記録」の見出しで分け、
+// 値のない属性は最後の「なし」の 1 行にまとめる。Status の選択には Workflow で今から移れる Status だけを並べる。
+// 属性は値を押してその場で直し、確定で ticket.update に 1 属性だけ渡す。値のない属性は「なし」の行の「＋足す」から選んで値を入れる
+
 import { useRef, useState, type ReactNode } from "react";
 import type { Store } from "../store.js";
 import {

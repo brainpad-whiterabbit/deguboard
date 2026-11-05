@@ -1,3 +1,11 @@
+// Run の実行状況と実績（UI-9）。run.list で実行中と完了した Run を、metrics.show で集計（MT-3）を出す。
+// 集計の単位はハッシュの ?by= に持ち（既定はチケット）、run.list・metrics.show とも選んだ Project で絞って取る。
+// ハッシュに ?iteration= があればその Iteration のチケットの Run だけに絞り（履歴の Iteration の行の「Run の集計」から開く）、
+// 絞っていることと解除のリンクを上に出す。単位を変えても絞り込みは残す。
+// 取れなかった値は 0 と見せず「—」と出し、欠けた Run の数（missing）と推定を含む Run の数（estimated_runs）も出す。
+// 結果・数の書き方はチケット詳細の Run の節と共通（components/run-parts.tsx）。
+// サイドバーでは Run を 1 行ずつの行で出し、集計の表は横にスクロールさせる
+
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { DetailLink, TicketLink } from "../components/parts.js";
 import {

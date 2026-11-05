@@ -15,7 +15,7 @@ All
 4
 [title] s1 最初の Iteration (Active)
 Period 2026-11-01 – 2026-11-14
-Goal 目標
+Goal 目標データの文
 s1
 1
 /
@@ -29,8 +29,8 @@ s2
 [aria-label] Filter
 最初の Iteration
 11/1–11/14
-[title] 目標
-目標
+[title] 目標データの文
+目標データの文
 [title] Ask Agent (Shift+F10)
 [aria-label] Ask Agent (Iteration heading s1)
 [title] Done 1 / Code Review 1 / In Progress 1
@@ -84,8 +84,8 @@ Code Review
 [title] Ask Agent (Shift+F10)
 [aria-label] Ask Agent (Status section Code Review)
 t3
-[title] 画面
-画面
+[title] 題データの三
+題データの三
 [title] Plan p1
 p1
 [title] Ask Agent (Shift+F10)
@@ -138,10 +138,11 @@ No Epic
 s1
 最初の Iteration
 2
+items
 Active
 11/1–11/14
-[title] 目標
-目標
+[title] 目標データの文
+目標データの文
 [title] Ask Agent (Shift+F10)
 [aria-label] Ask Agent (Section heading s1)
 [aria-label] In Progress
@@ -156,8 +157,8 @@ p1
 [aria-label] Ask Agent (Row t2)
 [aria-label] Code Review
 t3
-[title] 画面
-画面
+[title] 題データの三
+題データの三
 [title] Plan p1
 p1
 [title] Ask Agent (Shift+F10)
@@ -166,6 +167,7 @@ p1
 s2
 次の Iteration
 1
+item
 Planned
 [title] Ask Agent (Shift+F10)
 [aria-label] Ask Agent (Section heading s2)
@@ -181,6 +183,7 @@ Awaiting approval
 [aria-label] Ask Agent (Row t6)
 No Iteration
 1
+item
 [title] Ask Agent (Shift+F10)
 [aria-label] Ask Agent (Section heading No Iteration)
 [aria-label] Todo
@@ -403,8 +406,8 @@ s1
 eiki/agent
 [title] Edit title and description
 Edit
-概要
-本文
+見出しデータの一
+本文データの文
 受け入れ条件
 [title] 0 of 1 done
 0
@@ -412,11 +415,12 @@ Edit
 1
 [title] Mark as done
 [aria-label] Acceptance criterion 1
-a
+条件データの一
 Changes
 Show changes
 Run
 3
+items
 Success 1 · Failure 1 · Running 1
 [title] Tokens (input / output)
 3,600
@@ -542,8 +546,8 @@ Branch
 feat/api
 [title] Copy branch name
 [aria-label] Copy branch name
-[aria-label] Record
-Record
+[aria-label] Records
+Records
 Created by
 Unknown
 Created
@@ -557,7 +561,7 @@ Depends on, Dependents, PR
 
 ## パネルの依存のあるチケット詳細
 t3
-画面
+題データの三
 [title] Ask Agent (Shift+F10)
 [aria-label] Ask Agent (Title t3)
 [aria-label] Code Review
@@ -567,8 +571,8 @@ medium
 s1
 [title] Edit title and description
 Edit
-概要
-本文
+見出しデータの一
+本文データの文
 受け入れ条件
 [title] 0 of 1 done
 0
@@ -576,9 +580,10 @@ Edit
 1
 [title] Mark as done
 [aria-label] Acceptance criterion 1
-a
+条件データの一
 Run
 3
+items
 Success 1 · Failure 1 · Running 1
 [title] Tokens (input / output)
 3,600
@@ -691,8 +696,8 @@ Depends on
 [aria-label] In Progress
 t2
 API
-[aria-label] Record
-Record
+[aria-label] Records
+Records
 Created by
 Unknown
 Created
@@ -718,8 +723,8 @@ Done
 1
 · In progress 1
 View this Epic on the board
-概要
-Epic の本文
+見出しデータの一
+Epic のデータの文
 Tickets
 Unfinished
 1
@@ -752,7 +757,7 @@ Period
 11/1–11/14
 10d left
 Goal
-目標
+目標データの文
 Progress
 [title] Done 1 / Code Review 1 / In Progress 1
 Done
@@ -784,8 +789,8 @@ high
 [aria-label] Ask Agent (Row t2)
 [aria-label] Code Review
 t3
-[title] 画面
-画面
+[title] 題データの三
+題データの三
 [title] Ask Agent (Shift+F10)
 [aria-label] Ask Agent (Row t3)
 Done
@@ -849,7 +854,7 @@ Dependency graph
 [title] API
 t2
 [aria-label] Code Review
-[title] 画面
+[title] 題データの三
 t3
 wait done
 waiting
@@ -860,7 +865,7 @@ API
 In Progress
 [aria-label] Code Review
 t3
-画面
+題データの三
 Code Review
 
 ## パネルの承認待ちの Plan 詳細
@@ -934,13 +939,14 @@ eiki/agent
 [title] -
 None
 3
+items
 s1
 最初の Iteration
 Active
 2026-11-01
 –
 2026-11-14
-目標
+目標データの文
 Details
 [aria-label] Plans
 Plans
@@ -980,7 +986,7 @@ t3
 medium
 s1
 p1
-画面
+題データの三
 [aria-label] Done
 Done
 1
@@ -1067,7 +1073,7 @@ Cache write
 [title] Runs without a value, not included in the total
 Missing 1
 1
-runs include estimated values (values marked with ~ include estimates)
+run includes estimated values (values marked with ~ include estimates)
 Tickets
 Run
 Result
@@ -1187,7 +1193,7 @@ All
 4
 [title] s1 最初の Iteration (Active)
 Period 2026-11-01 – 2026-11-14
-Goal 目標
+Goal 目標データの文
 s1
 1
 /
@@ -1201,8 +1207,8 @@ s2
 [aria-label] Filter
 最初の Iteration
 11/1–11/14
-[title] 目標
-目標
+[title] 目標データの文
+目標データの文
 [title] Ask Agent (Shift+F10)
 [aria-label] Ask Agent (Iteration heading s1)
 [title] Done 1 / Code Review 1 / In Progress 1
@@ -1256,8 +1262,8 @@ Code Review
 [title] Ask Agent (Shift+F10)
 [aria-label] Ask Agent (Status section Code Review)
 t3
-[title] 画面
-画面
+[title] 題データの三
+題データの三
 [title] Plan p1
 p1
 [title] Ask Agent (Shift+F10)

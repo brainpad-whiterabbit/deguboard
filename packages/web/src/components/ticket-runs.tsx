@@ -1,3 +1,9 @@
+// チケット詳細の Run の一覧（UI-4）。run.list をチケットで絞った結果（実行中の Run を含む）を開始の順に出す。
+// VS Code のパネル以外は表、パネルは 1 行に step・結果の丸印・model と再試行・開始と所要を出し、開くと残りを出す。
+// パネルの見出しには件数・結果の内訳・トークンの合計を出す。
+// 取れなかったトークン数（null）は 0 と見せず「—」で出し、合計でも取れなかった Run があれば「+ —」を付ける（RN-2）。
+// 結果と数の書き方は run-parts.tsx で Run の画面と共通
+
 import { useCommandData } from "../command-data.js";
 import { useHost } from "../host.js";
 import type { RunView } from "../types.js";

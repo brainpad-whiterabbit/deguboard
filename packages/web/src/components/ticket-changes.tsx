@@ -1,3 +1,8 @@
+// チケット詳細の「変更」の節（UI-4）。作業ブランチのあるチケットに「変更を見る」を出し、押すと ticket.changes で
+// base（git.base_branch）との merge-base からの変わったファイルを、種類（A・M・D・R の印）と行数つきで出す。読むだけで書き込まない。
+// VS Code（Webview）ではファイルを押すと拡張ホストが差分エディタを開き、ブラウザ（dg serve）には差分エディタがないので一覧だけを出す。
+// 押すまでは読まない（git diff を詳細を開くたびに走らせない）。開いた後は一覧の読み直し（同期のあと）で読み直す
+
 import { useState } from "react";
 import { useCommandData } from "../command-data.js";
 import { useHost } from "../host.js";

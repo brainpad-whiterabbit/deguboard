@@ -1,3 +1,7 @@
+// カンバンの上の「実行計画」の帯。表示だけで書き込まない。Plan ごとに、進みの行と作業中・次の行の 2 行を出し、行を押すとその Plan の依存グラフを行の下に開閉する（Plan ごとに覚える）。
+// Plan の番号は Plan 詳細（pages/plans.tsx）へのリンクで、押しても開閉しない。依存グラフ（PlanGraphView）は Plan 詳細と共用する。
+// 閉じた Plan は「閉じた計画」の節に 1 行ずつ入れる。サイドバーでは、待ちの辺のない Plan をグラフにせず、チケットのチップを横に折り返して出す（ID だけの箱が縦に積まれて場所を取るので）
+
 import { useEffect, useId, useMemo, useState, type MouseEvent } from "react";
 import { useHost, useUiState } from "../host.js";
 import { useStore } from "../store.js";

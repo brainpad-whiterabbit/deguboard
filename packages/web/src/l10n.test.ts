@@ -1,10 +1,10 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { askCandidates, type AskSubject } from "@deguboard/core";
+import { askCandidates, buildAsk, type AskSubject } from "@deguboard/core";
 import { afterEach, describe, expect, it } from "vitest";
 import { format, languageOf, msg, setLanguage, tr, trCore } from "./l10n.js";
-import { CORE_EN, EN } from "./l10n-en.js";
+import { CORE_EN, EN, EN_ONE } from "./l10n-en.js";
 
 const srcDir = dirname(fileURLToPath(import.meta.url));
 
@@ -80,9 +80,16 @@ describe("表示言語の決め方と訳し方", () => {
   });
   it("英語では訳の表で出し、表にない鍵は鍵のまま出す", () => {
     setLanguage("en");
-    expect(tr("{0} 件", 3)).toBe("3");
+    expect(tr("{0} 件", 3)).toBe("3 items");
     expect(tr("カンバン")).toBe("Board");
     expect(tr("表にない {0}", 1)).toBe("表にない 1");
+  });
+  it("英語では数の引数が 1 なら単数の形で出し、日本語は数で形を変えない", () => {
+    expect(tr("{0} 件", 1)).toBe("1 件");
+    setLanguage("en");
+    expect(tr("{0} 件", 1)).toBe("1 item");
+    expect(tr("{0} 件", 2)).toBe("2 items");
+    expect(tr("{0} / {1} 件", 1, 1)).toBe("1 / 1 item");
   });
   it("core の候補の名前は、日本語ではそのまま、英語では ID を埋めた訳で出し、頼むことで訳を分ける", () => {
     expect(trCore("起票して s3 に入れる")).toBe("起票して s3 に入れる");
@@ -107,6 +114,14 @@ describe("画面の文言の置き場所", () => {
         expect(value, key).not.toMatch(JAPANESE);
         expect(placeholders(value), key).toEqual(placeholders(key.replace(/^\w+:/, "")));
       }
+    }
+  });
+  it("単数の形（EN_ONE）は EN にある鍵だけに置き、日本語を含まず {0} の並びと数の引数の番号が合う", () => {
+    for (const [key, { arg, text }] of Object.entries(EN_ONE)) {
+      expect(EN[key], key).toBeDefined();
+      expect(text, key).not.toMatch(JAPANESE);
+      expect(placeholders(text), key).toEqual(placeholders(key));
+      expect(placeholders(key), key).toContain(`{${arg}}`);
     }
   });
   it("コメントを除いたソースに、鍵の外で日本語の文言を直書きしない", () => {
@@ -208,8 +223,16 @@ describe("core が返す決まった文の訳", () => {
     expect(count).toBeGreaterThan(0);
     expect([...untranslated]).toEqual([]);
   });
-  it("札の添え字の Plan の承認の状態は英語に訳せる", () => {
+  it("札の添え字の Plan の承認の状態は、core の ask が返す sub のどれも英語に訳せる", () => {
+    // 添え字は core の ask の出力（targets[].sub）から取る。core の文言が変われば訳せなくなって気づく
+    const subs = (["pending_approval", "approved", "closed"] as const).map(
+      (status) =>
+        buildAsk({
+          subjects: [{ kind: "plan", id: "p1", status, tickets: ["t1"], complete: false }],
+        }).targets[0]!.sub,
+    );
+    expect(subs.every((sub) => JAPANESE.test(sub))).toBe(true);
     setLanguage("en");
-    for (const sub of ["承認待ち", "承認済み", "閉じた"]) expect(trCore(sub)).not.toMatch(JAPANESE);
+    for (const sub of subs) expect(trCore(sub), sub).not.toMatch(JAPANESE);
   });
 });

@@ -1,3 +1,6 @@
+// 頼む小窓の「送る」（UI-15）の判断のうち、画面に依らない純粋な部分。
+// 送り先は開いているターミナルの中から選ぶだけで、ターミナルは起動しない（EX-1）
+
 import type { TerminalChoice } from "@deguboard/core";
 import { tr } from "./l10n.js";
 

@@ -7,7 +7,7 @@
 // t でなく tr と呼ぶのは、画面のコードでチケットを t と書くことが多く、名前がぶつかるため。
 // 表のように描く前に決める文言は msg で鍵として印を付け、描くときに tr(値) で訳す。{0}・{1} の位置に引数を埋める
 
-import { CORE_EN, EN } from "./l10n-en.js";
+import { CORE_EN, EN, EN_ONE } from "./l10n-en.js";
 
 export type Language = "ja" | "en";
 
@@ -29,9 +29,15 @@ export function language(): Language {
   return current;
 }
 
-/** 鍵（日本語の文）を今の言語の文にする。英語の訳がなければ鍵のまま出す。{0} は埋めない（tr と l10n-node.tsx の trNode が埋める） */
-export function message(key: string): string {
-  return current === "ja" ? key : (EN[key] ?? key);
+/**
+ * 鍵（日本語の文）を今の言語の文にする。英語の訳がなければ鍵のまま出す。英語で数の引数が 1 なら単数の形（EN_ONE）にする。
+ * {0} は埋めない（tr と l10n-node.tsx の trNode が埋める）
+ */
+export function message(key: string, args: readonly unknown[] = []): string {
+  if (current === "ja") return key;
+  const one = EN_ONE[key];
+  if (one && Number(args[one.arg]) === 1) return one.text;
+  return EN[key] ?? key;
 }
 
 /** {0}・{1} を引数で埋める（テンプレートリテラルの `${x}` と同じく String で文字にする）。引数のない番号はそのまま残す */
@@ -43,7 +49,7 @@ export function format(text: string, args: readonly unknown[]): string {
 
 /** 文言を今の言語で返す。日本語では鍵の {0} を埋めただけのもの */
 export function tr(key: string, ...args: unknown[]): string {
-  return format(message(key), args);
+  return format(message(key, args), args);
 }
 
 /** 描く前に決める文言（表など）の鍵に印を付ける。訳さずに鍵を返すので、描くときに tr(値) で訳す */

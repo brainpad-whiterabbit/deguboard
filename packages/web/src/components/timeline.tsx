@@ -1,3 +1,7 @@
+// チケットの経過（UI-4）。history のコマンドの結果（deguboard ブランチの履歴）を時刻の順に 1 行ずつ出す。
+// 日付が変わるところに日付の行を挟み、各行は時刻・丸印・変化・作者にする。Status の変わらない行は中の空いた丸で列をそろえる。
+// 履歴が浅く起票が欠けていれば、それより前が欠けていることを出す
+
 import { useCommandData } from "../command-data.js";
 import { useStore } from "../store.js";
 import type { HistoryChange, HistoryEvent, HistoryLog, Status } from "../types.js";

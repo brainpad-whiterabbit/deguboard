@@ -1,4 +1,10 @@
+// 左パネルのカンバン（UI-2）とバックログ（UI-3）の行の担当の印。人は頭文字の丸、agent は持ち主の頭文字の丸と agent のアイコンを並べる。
+// agent のアイコンは Run の agent（claude-code・codex など）によらず汎用の図形 1 種にする。Run の agent はホバーの文で読む。
+// 各社のロゴや商標の画像は使わない（Anthropic の商標の決まりは事前の承認を求めるため）
+
 import { tr } from "../l10n.js";
+
+/** 担当の印に出すもの */
 export interface AssigneeMarkView {
   /** 持ち主の人（agent なら持ち主）の頭文字。大文字にする */
   initial: string;

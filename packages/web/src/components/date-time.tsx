@@ -1,3 +1,5 @@
+// 日時の表示。履歴の日付は今日・昨日を言葉にし、今年は月/日、それより前は年/月/日にする（formatShortDay）。パネルのチケット詳細の作成・更新は経過と同じ手元時刻で、今年なら年を省く（ブラウザは ISO のまま）
+
 import { formatTime } from "./timeline.js";
 import { tr } from "../l10n.js";
 import { trNode } from "../l10n-node.js";

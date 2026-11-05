@@ -1,3 +1,12 @@
+// チケット詳細（UI-4）。本文（概要・受け入れ条件）、属性、Epic、依存先と依存元、作業ブランチ、作業ブランチの変更（ticket-changes.tsx）、Run の一覧と、経過（deguboard ブランチの履歴）。
+// 属性と本文を編集でき、Status は ticket.move と同じ検査を通る。
+// Status の選択・表示名と任意フィールドは、チケット自身の Workflow（なければ Project の既定）で決める。
+// VS Code のパネルでは、タイトルの下に Status・優先度・Iteration・担当・PR の 1 行と編集のボタンを置いてスクロールしても上に残す。
+// パネルでは依存先が終わっていなければ本文の上の帯で知らせる。
+// 右の列（属性）は、パネルが components/ticket-props-panel.tsx（値を押してその場で直す）、ブラウザが components/ticket-props-browser.tsx。
+// パネルの編集のボタンはタイトルと本文だけを入力欄にし、ブラウザでは編集のボタンでタイトル・本文・属性をまとめて直す。
+// 本文の受け入れ条件のチェックボックスは、押すとその項目だけを ticket.check で付け外しする（読んだ本文を base に渡し、間に書き込みがあれば拒否されて戻す）
+
 import { useEffect, useState } from "react";
 import { useCommandData } from "../command-data.js";
 import { ASK_SECTIONS, AskSpotBox } from "../components/ask-menu.js";

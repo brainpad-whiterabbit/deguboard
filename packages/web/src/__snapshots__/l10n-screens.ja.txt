@@ -15,7 +15,7 @@
 4
 [title] s1 最初の Iteration（進行中）
 期間 2026-11-01 〜 2026-11-14
-目標 目標
+目標 目標データの文
 s1
 1
 /
@@ -29,8 +29,8 @@ s2
 [aria-label] 絞り込み
 最初の Iteration
 11/1–11/14
-[title] 目標
-目標
+[title] 目標データの文
+目標データの文
 [title] エージェントに頼む（Shift+F10）
 [aria-label] エージェントに頼む（Iteration の見出し s1）
 [title] Done 1 / Code Review 1 / In Progress 1
@@ -84,8 +84,8 @@ Code Review
 [title] エージェントに頼む（Shift+F10）
 [aria-label] エージェントに頼む（状態の節 Code Review）
 t3
-[title] 画面
-画面
+[title] 題データの三
+題データの三
 [title] Plan p1
 p1
 [title] エージェントに頼む（Shift+F10）
@@ -141,8 +141,8 @@ s1
 件
 進行中
 11/1–11/14
-[title] 目標
-目標
+[title] 目標データの文
+目標データの文
 [title] エージェントに頼む（Shift+F10）
 [aria-label] エージェントに頼む（区画の見出し s1）
 [aria-label] In Progress
@@ -157,8 +157,8 @@ p1
 [aria-label] エージェントに頼む（行 t2）
 [aria-label] Code Review
 t3
-[title] 画面
-画面
+[title] 題データの三
+題データの三
 [title] Plan p1
 p1
 [title] エージェントに頼む（Shift+F10）
@@ -406,8 +406,8 @@ s1
 eiki/agent
 [title] タイトルと本文を編集
 編集
-概要
-本文
+見出しデータの一
+本文データの文
 受け入れ条件
 [title] 済 0 / 全 1
 0
@@ -415,7 +415,7 @@ eiki/agent
 1
 [title] 済みにする
 [aria-label] 受け入れ条件 1
-a
+条件データの一
 変更
 変更を見る
 Run
@@ -561,7 +561,7 @@ feat/api
 
 ## パネルの依存のあるチケット詳細
 t3
-画面
+題データの三
 [title] エージェントに頼む（Shift+F10）
 [aria-label] エージェントに頼む（タイトル t3）
 [aria-label] Code Review
@@ -571,8 +571,8 @@ medium
 s1
 [title] タイトルと本文を編集
 編集
-概要
-本文
+見出しデータの一
+本文データの文
 受け入れ条件
 [title] 済 0 / 全 1
 0
@@ -580,7 +580,7 @@ s1
 1
 [title] 済みにする
 [aria-label] 受け入れ条件 1
-a
+条件データの一
 Run
 3
 件
@@ -723,8 +723,8 @@ e1
 1
 ・ 進行中 1
 この Epic でカンバンを見る
-概要
-Epic の本文
+見出しデータの一
+Epic のデータの文
 チケット
 未完了
 1
@@ -757,7 +757,7 @@ s1
 11/1–11/14
 残り 10 日
 目標
-目標
+目標データの文
 進捗
 [title] Done 1 / Code Review 1 / In Progress 1
 完了
@@ -789,8 +789,8 @@ high
 [aria-label] エージェントに頼む（行 t2）
 [aria-label] Code Review
 t3
-[title] 画面
-画面
+[title] 題データの三
+題データの三
 [title] エージェントに頼む（Shift+F10）
 [aria-label] エージェントに頼む（行 t3）
 完了
@@ -854,7 +854,7 @@ API
 [title] API
 t2
 [aria-label] Code Review
-[title] 画面
+[title] 題データの三
 t3
 待ち終わり
 待ち中
@@ -865,7 +865,7 @@ API
 In Progress
 [aria-label] Code Review
 t3
-画面
+題データの三
 Code Review
 
 ## パネルの承認待ちの Plan 詳細
@@ -946,7 +946,7 @@ s1
 2026-11-01
 〜
 2026-11-14
-目標
+目標データの文
 詳細
 [aria-label] 実行計画
 実行計画
@@ -986,7 +986,7 @@ t3
 medium
 s1
 p1
-画面
+題データの三
 [aria-label] Done
 Done
 1
@@ -1194,7 +1194,7 @@ Iteration の見出し s1
 4
 [title] s1 最初の Iteration（進行中）
 期間 2026-11-01 〜 2026-11-14
-目標 目標
+目標 目標データの文
 s1
 1
 /
@@ -1208,8 +1208,8 @@ s2
 [aria-label] 絞り込み
 最初の Iteration
 11/1–11/14
-[title] 目標
-目標
+[title] 目標データの文
+目標データの文
 [title] エージェントに頼む（Shift+F10）
 [aria-label] エージェントに頼む（Iteration の見出し s1）
 [title] Done 1 / Code Review 1 / In Progress 1
@@ -1263,8 +1263,8 @@ Code Review
 [title] エージェントに頼む（Shift+F10）
 [aria-label] エージェントに頼む（状態の節 Code Review）
 t3
-[title] 画面
-画面
+[title] 題データの三
+題データの三
 [title] Plan p1
 p1
 [title] エージェントに頼む（Shift+F10）

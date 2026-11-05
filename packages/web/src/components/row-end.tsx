@@ -1,3 +1,7 @@
+// 左パネルのカンバン（board.tsx）とバックログ（backlog.tsx）の行の右端の部品と、その判定。
+// 開いた Plan に入っているチケットの Plan の番号と待ち（kanbanPlanMarks）、todo の行の着手可・待ち・承認待ち（kanbanReadiness）を、
+// カンバンの行（KanbanRowEnd）とバックログの行（BacklogRowEnd）で同じ判定と同じ部品で出す
+
 import type { ReactNode } from "react";
 import { AssigneeMark } from "./assignee-mark.js";
 import { RowPriority } from "./parts.js";

@@ -1,3 +1,7 @@
+// チケットと Epic の本文（## 概要・## 受け入れ条件）を表示する最小の Markdown。見出し・段落・箇条書き・チェックリスト・インラインコードだけ。
+// タスクリストのある節は、見出しに済んだ数とメーターを出す。
+// onToggle を渡すと、`## 受け入れ条件` の節の項目（core の ticket.check の番号が付く行）だけチェックボックスを押せる。ほかの節は表示だけ
+
 import type { ReactNode } from "react";
 import { ProgressMeter } from "./components/parts.js";
 import { tr } from "./l10n.js";

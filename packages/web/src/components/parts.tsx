@@ -1,3 +1,5 @@
+// 小さな表示部品：チケットへのリンク、優先度・Status の印、ラベル、進捗、チケットの行
+
 import { type ComponentProps, type MouseEvent, type ReactNode } from "react";
 import { WEBVIEW_CONTRACT_COPY } from "../client/webview.js";
 import { useAskSpot, type AskSection } from "./ask-menu.js";

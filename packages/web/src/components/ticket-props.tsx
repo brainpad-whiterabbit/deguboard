@@ -1,3 +1,7 @@
+// チケット詳細の右の列（属性）で、パネル（ticket-props-panel.tsx）とブラウザ（ticket-props-browser.tsx）が共に使うもの。
+// 編集のボタンで直している間の値（Draft）、属性の 1 行、Status の選択、依存先・依存元の行、Epic・Iteration の選択の項目、読むだけの属性の値と、PR のリンク。
+// 依存先が終わったかは ticket.show の pending_deps で決める（別の Project の依存先も見る。パネルの帯と同じ判定）
+
 import { Fragment, type ReactNode } from "react";
 import type { Store } from "../store.js";
 import {

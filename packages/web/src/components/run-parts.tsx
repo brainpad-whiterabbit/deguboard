@@ -1,3 +1,6 @@
+// Run の表示部品（チケット詳細の Run の節と Run の画面で共通）：結果の表示名と印・丸印、トークン数・件数・時間の書き方、横にスクロールする表の枠。
+// 取れなかった値（null）は 0 と見せず「—」で出し（RN-2）、推定を含む値には「~」を前に付ける
+
 import type { ReactNode } from "react";
 import type { RunView } from "../types.js";
 import { tr, msg } from "../l10n.js";

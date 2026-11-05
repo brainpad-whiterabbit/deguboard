@@ -1,3 +1,5 @@
+// VS Code（パネル）の Epic・Iteration の詳細で、中のチケットを未完了・完了・中止の段に分けて出す共用部品（UI-5・UI-10・UI-12）。
+
 import { AskSpotBox, type AskSection } from "./ask-menu.js";
 import { TicketRow } from "./parts.js";
 import { STATUSES, byPriorityThenNumber, isFinished, type Status, type Ticket } from "../types.js";

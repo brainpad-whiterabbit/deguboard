@@ -1,3 +1,8 @@
+// Epic の詳細（UI-10）。進捗（EP-3）と、Epic のチケットを Status ごとに出す。
+// 表示だけで書き込まない。閉じる・再開とチケットの足し外しは、タイトルと行の吹き出しからエージェントに頼む（ADR-010・UI-15）。
+// 一覧の画面は持たない（open はバックログの欄、closed は履歴）。
+// VS Code（パネル）ではチケットを未完了・完了・中止の小見出しの付いた 1 本の一覧にする（components/ticket-sections.tsx。Iteration 詳細と共用）（カンバンはサイドバーで見る。UI-12）。ブラウザは Status ごとの列
+
 import { ASK_SECTIONS, AskSpotBox } from "../components/ask-menu.js";
 import { PriorityMark, ProgressBar, StatusDot, TicketLink } from "../components/parts.js";
 import { TicketSections } from "../components/ticket-sections.js";

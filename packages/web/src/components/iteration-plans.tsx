@@ -1,3 +1,6 @@
+// Iteration 詳細の「Plan」の節（UI-5）。中のチケットを含む Plan の抽出と状態・進捗は core（iteration.show の plans）が求めるので、ここは出すだけ。
+// 該当する Plan がなければ節を出さない。書き込まない。Plan の番号は Plan 詳細へのリンク（Webview ではエディタのパネルに開く）
+
 import { DetailLink } from "./parts.js";
 import { PLAN_STATE_LABELS } from "./plan-graph.js";
 import type { IterationDetail } from "../types.js";

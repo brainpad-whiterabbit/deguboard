@@ -111,7 +111,7 @@ export const EN: Readonly<Record<string, string>> = {
     "Past the end date with {0} unfinished. You can discuss carrying them over",
   "ほかに active がなければ、最初のチケットを着手（claim）すると active になります":
     "If no other Iteration is active, claiming the first ticket makes this active",
-  "持ち越し {0} 件": "Carried over {0}",
+  "持ち越し {0} 件": "{0} carried over",
   "：{0}": ": {0}",
   "{0}済み": "{0}",
   完了: "Done",
@@ -230,7 +230,7 @@ export const EN: Readonly<Record<string, string>> = {
   計画: "Planning",
   つながり: "Relations",
   作業: "Work",
-  記録: "Record",
+  記録: "Records",
   "＋足す": "+ Add",
   値を入れる属性: "Attribute to set",
   属性を選ぶ: "Choose an attribute",
@@ -246,7 +246,7 @@ export const EN: Readonly<Record<string, string>> = {
   終了: "Ended",
   " 再試行 {0}": " Retries {0}",
   "（推定を含む）": " (includes estimates)",
-  "{0} 件": "{0}",
+  "{0} 件": "{0} items",
   "トークン（入力 / 出力）{0}": "Tokens (input / output){0}",
   "。値が取れなかった Run が {0} 件あり、合計に入れていない":
     ". {0} runs had no value and are not in the total",
@@ -257,7 +257,7 @@ export const EN: Readonly<Record<string, string>> = {
   "{0} {1} に入れた": "Added to {0} {1}",
   "{0} {1} から外した": "Removed from {0} {1}",
   "担当: {0}": "Assignee: {0}",
-  担当を外した: "Unassigned",
+  担当を外した: "Assignee removed",
   "PR を外した": "Removed PR",
   消した: "Removed",
   起票: "Created",
@@ -282,7 +282,7 @@ export const EN: Readonly<Record<string, string>> = {
   "優先度 {0}": "Priority {0}",
   "ラベル {0}": "Label {0}",
   "担当 {0}": "Assignee {0}",
-  担当なし: "Unassigned",
+  担当なし: "Assignee: none",
   自分: "Mine",
   "自分か自分の agent の担当": "me or my agent as assignee",
   "優先度 high": "Priority high",
@@ -294,8 +294,8 @@ export const EN: Readonly<Record<string, string>> = {
   "番号・タイトル・ラベルで検索": "Search by ID, title, or label",
   検索: "Search",
   "Status・優先度・ラベル・担当で絞り込む": "Filter by status, priority, label, or assignee",
-  "全 {0} 件のうち {1} 件": "{1} of {0}",
-  "{0} / {1} 件": "{0} / {1}",
+  "全 {0} 件のうち {1} 件": "{1} of {0} items",
+  "{0} / {1} 件": "{0} / {1} items",
   "{0} の絞り込みを外す": "Remove filter {0}",
   "{0} で絞る": "Filter by {0}",
   詳細: "Details",
@@ -407,8 +407,8 @@ export const EN: Readonly<Record<string, string>> = {
   "閉じた Iteration はない": "No closed Iterations",
   "当たる Epic はない": "No matching Epics",
   "当たる Iteration はない": "No matching Iterations",
-  "すべて {0} 件": "All {0}",
-  "当たった {0} / {1} 件": "Matched {0} / {1}",
+  "すべて {0} 件": "All {0} items",
+  "当たった {0} / {1} 件": "Matched {0} / {1} items",
   当たったものだけ: "Matches only",
   すべて見る: "Show all",
   目標なし: "No goal",
@@ -534,4 +534,26 @@ export const CORE_EN: Readonly<Record<string, string>> = {
   承認待ち: "Awaiting approval",
   承認済み: "Approved",
   閉じた: "Closed",
+};
+
+/**
+ * 数が 1 のときの英語の形（単数）。鍵は EN と同じで、arg は数を入れる引数の番号。
+ * tr・trNode は、英語でその引数が 1 のときにこちらを使う（日本語は数で形を変えない）
+ */
+export const EN_ONE: Readonly<Record<string, { arg: number; text: string }>> = {
+  "{0} 件": { arg: 0, text: "{0} item" },
+  "{0} / {1} 件": { arg: 1, text: "{0} / {1} item" },
+  "全 {0} 件のうち {1} 件": { arg: 0, text: "{1} of {0} item" },
+  "すべて {0} 件": { arg: 0, text: "All {0} item" },
+  "当たった {0} / {1} 件": { arg: 1, text: "Matched {0} / {1} item" },
+  "{0}{1}{2} ファイル {3}{4}{5}{6}": { arg: 2, text: "{0}{1}{2} file {3}{4}{5}{6}" },
+  "。値が取れなかった Run が {0} 件あり、合計に入れていない": {
+    arg: 0,
+    text: ". {0} run had no value and is not in the total",
+  },
+  "推定の値を含む Run が {0} 件ある（「~」を付けた値は推定を含む）": {
+    arg: 0,
+    text: "{0} run includes estimated values (values marked with ~ include estimates)",
+  },
+  "Epic をあと {0} 本出す": { arg: 0, text: "Show {0} more Epic" },
 };

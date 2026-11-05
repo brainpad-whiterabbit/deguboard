@@ -1,4 +1,8 @@
+// 左パネルの絞り込みの欄を開閉する漏斗のボタン。カンバンの見出しとバックログの検索欄の右端で使う。
+// 絞っている間（active）は色付きにして中を塗り、開いている間（open）は押した見た目にする（styles.css の .filter-toggle）
+
 import { tr } from "../l10n.js";
+
 export function FilterToggle({
   open,
   active,

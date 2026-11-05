@@ -1,3 +1,7 @@
+// 画面の骨組み：上のバー（Project の切り替え・画面の切り替え・同期の印）と、ハッシュで選んだページ。
+// サイドバーでは同期の印とボタン・設定の歯車・エージェントに頼む吹き出しを出さない（ビューのタイトル行のボタンとバッジで代える。UI-12）。
+// エージェントに頼む入力欄（UI-15）は、開いていればページの下に出す。左パネルでは初めて開いたときに 1 度だけ、行の吹き出しの案内を出す
+
 import { useEffect, useRef, type MouseEvent } from "react";
 import { AskComposer } from "./components/ask-composer.js";
 import { AskHint, AskMenuProvider, SelectionBar } from "./components/ask-menu.js";

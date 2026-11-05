@@ -1,3 +1,6 @@
+// ブラウザのチケット詳細の右の列（属性）。Status は Workflow によらずすべてを並べ、属性を 1 つの一覧に出す。
+// 編集のボタンを押している間（draft があるとき）は、優先度・ラベル・Epic・Iteration・任意フィールド・担当を入力欄にし、保存でまとめて ticket.update に渡す
+
 import type { Store } from "../store.js";
 import {
   STATUSES,

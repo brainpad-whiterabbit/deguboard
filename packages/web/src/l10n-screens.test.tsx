@@ -88,7 +88,7 @@ function richClient(): MockClient {
     id: "s1",
     name: "最初の Iteration",
     status: "active",
-    goal: "目標",
+    goal: "目標データの文",
     start: "2026-11-01",
     end: "2026-11-14",
   });
@@ -108,7 +108,13 @@ function richClient(): MockClient {
       assignee: "eiki/agent",
       labels: ["api"],
     }),
-    ticket({ id: "t3", title: "画面", status: "review", iteration: "s1", depends_on: ["t2"] }),
+    ticket({
+      id: "t3",
+      title: "題データの三",
+      status: "review",
+      iteration: "s1",
+      depends_on: ["t2"],
+    }),
     ticket({ id: "t4", title: "やめた", status: "abandoned", iteration: "s0", epic: "e1" }),
     ticket({ id: "t5", title: "未割り当て", status: "todo", priority: "low" }),
     ticket({ id: "t6", title: "次に回す", status: "todo", iteration: "s2" }),
@@ -128,9 +134,15 @@ function richClient(): MockClient {
       plans: [{ id: "p1", status: "approved", progress: { total: 2, done: 0, by_status: {} } }],
     };
   };
+  // 本文は fixture の既定（test-helpers の「本文」）でなく、画面の文言とぶつからない語にする
+  const showTicket = client.handlers["ticket.show"]!;
+  client.handlers["ticket.show"] = (input) => ({
+    ...(showTicket(input) as object),
+    body: "## 見出しデータの一\n\n本文データの文\n\n## 受け入れ条件\n\n- [ ] 条件データの一\n",
+  });
   client.handlers["epic.show"] = () => ({
     ...data.epics[0],
-    body: "## 概要\n\nEpic の本文\n",
+    body: "## 見出しデータの一\n\nEpic のデータの文\n",
     tickets: data.tickets.filter((t) => t.epic === "e1"),
   });
   client.handlers["history"] = () => ({
@@ -186,7 +198,8 @@ function richClient(): MockClient {
     git: { remote: "origin", base_branch: "main" },
     commit: { mode: "each" },
   };
-  // 説明は core の文（訳さない）なので、英語の画面を確かめるときに紛れないよう キーにする
+  // 項目の説明は core の configFields の文で、英語の画面でも core の言語のまま出す（UI-11）。
+  // 英語の画面に日本語が残らないことを確かめるときに、訳すべき画面の文言と紛れないよう、説明をキーに差し替える
   const fields = configFields().map((f) => ({ ...f, description: f.key }));
   client.handlers["config.show"] = (input) =>
     (input as { fields?: boolean }).fields ? { config, fields } : config;
@@ -195,27 +208,30 @@ function richClient(): MockClient {
 
 /**
  * 英語の画面で日本語が残っていないかを見るときに除く文：fixture のデータ（訳さない）と、
- * core の config の既定値（優先度の判断基準。利用者が書き換える config.yaml の値で、core の言語のまま）
+ * core の config の既定値（優先度の判断基準。利用者が書き換える config.yaml の値で、core の言語のまま）。
+ * データは画面の文言（tr の鍵）とぶつからない固有の語にする（鍵と同じ語を除くと、訳し漏れが隠れる）
  */
 const DATA_TEXTS = [
   ...configFields().flatMap((f) => (typeof f.default === "string" ? [f.default] : [])),
   "最初の Iteration",
   "次の Iteration",
   "前の Iteration",
-  "目標",
+  "目標データの文",
   "ログイン",
-  "画面",
+  "題データの三",
   "やめた",
   "未割り当て",
   "次に回す",
   "最初の版",
-  "Epic の本文",
-  "概要",
-  "本文",
-  "受け入れ条件",
+  "Epic のデータの文",
+  "見出しデータの一",
+  "本文データの文",
+  "条件データの一",
   "テストが落ちた",
-  "既定",
 ];
+
+/** 行全体がこれと同じときだけ除くデータ。本文の受け入れ条件の節の見出しは、本文の書式の決まった語（チケットの中身） */
+const DATA_LINES = ["受け入れ条件"];
 
 /** 画面の文言を、テキストと読み上げ・ツールチップ・入力の案内の属性ごとに 1 行ずつ並べる */
 function screenText(root: Element = document.body): string {
@@ -340,6 +356,7 @@ describe("画面の文言の表示言語", () => {
     for (const scene of SCENES) {
       const text = await renderScene(scene, "en");
       for (const line of text.split("\n")) {
+        if (DATA_LINES.includes(line)) continue;
         let rest = line;
         for (const d of DATA_TEXTS) rest = rest.split(d).join("");
         if (JAPANESE.test(rest)) found.push(`${scene.name}: ${line}`);
