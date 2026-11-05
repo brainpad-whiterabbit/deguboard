@@ -1,14 +1,14 @@
 # deguboard
 
-Git で管理するチケットとユーザー定義のワークフローを組み合わせた、AI エージェント対応のタスク管理ツール [deguboard](https://github.com/brainpad-whiterabbit/deguboard) の CLI。コマンドは `dg`。
+The CLI of [deguboard](https://github.com/brainpad-whiterabbit/deguboard), a task management tool for AI agents that combines tickets managed in Git with user-defined workflows. The command is `dg`.
 
 ```sh
 npm i -g deguboard
 dg --help
 ```
 
-このパッケージには、`dg serve` が配信する画面と、エージェント向けの手順（`dg guide`）・Claude Code の Skill（`dg skill install`）を同梱する。
+This package bundles the UI served by `dg serve`, the workflows for agents (`dg guide`), and the Claude Code Skills (`dg skill install`).
 
-- 前提・使い始め方・できること：[リポジトリの README](https://github.com/brainpad-whiterabbit/deguboard#readme)
-- 仕様：[要件定義書](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/requirements.md)
-- コマンドの細部：`dg --help`、`dg <コマンド> --help`
+- Requirements, getting started, and features: [the repository README](https://github.com/brainpad-whiterabbit/deguboard#readme)
+- Specification (in Japanese): [Requirements](https://github.com/brainpad-whiterabbit/deguboard/blob/main/docs/requirements.md)
+- Command details: `dg --help`, `dg <command> --help`

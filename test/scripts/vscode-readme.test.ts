@@ -9,7 +9,7 @@ import { CUT_HEADING, extensionReadme, relativeLinks } from "../../scripts/lib/v
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 
 describe("拡張の README の生成", () => {
-  it("「ほかの使い方」より前だけを写す", () => {
+  it("切り出す見出しより前だけを写す", () => {
     const text = extensionReadme(`# x\n\n紹介\n\n${CUT_HEADING}\n\n細部\n`);
     expect(text).toBe("# x\n\n紹介\n");
   });
@@ -32,7 +32,7 @@ describe("拡張の README の生成", () => {
   it("今のルートの README から作った拡張の README に相対リンクが残らない", () => {
     const text = extensionReadme(readFileSync(path.join(root, "README.md"), "utf8"));
     expect(relativeLinks(text)).toEqual([]);
-    expect(text).toContain("## セキュリティとプライバシー");
+    expect(text).toContain("## Security and privacy");
     expect(text).not.toContain(CUT_HEADING);
   });
 });
