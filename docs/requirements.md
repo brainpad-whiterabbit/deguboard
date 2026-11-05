@@ -226,7 +226,7 @@ Web UI は `dg serve` が配信し、VS Code 拡張は同じアプリを Webview
 - UI-12 VS Code 拡張はサイドバーを主画面にし、エディタのパネルには詳細（チケット・Epic・Iteration・Plan）だけを出す。今のブランチのチケットをステータスバーに出す。コード中とコミットメッセージの入力欄の ID（t12・s3・e2・p7）のうち存在するものに、ホバーで要約を出し、Ctrl/⌘+クリックで詳細を開く。コマンド「チケットへ移動」（既定のキーあり）で、ID かタイトルからチケット・Iteration・Epic・Plan を選んで詳細を開く。データと Run の記録の変化を見張り、CLI やエージェントの書き込みを自動で映す。承認待ちの Plan と review のチケットの件数をサイドバーのタイトルに出し（Activity Bar のバッジは UI-6 の未 push・未取り込み）、増えたら通知して詳細を開ける。通知は `notify.approvals`（5.10）で切る。`dg init` 前のリポジトリでは、サイドバーに始め方（init・起票・Skill の入れ方。コマンドはコピーするだけ）を出し、init を済ませれば開き直さずに普段の画面に変わる。VS Code の Walkthrough（「deguboard を始める」）にも同じ手順を置く
 - UI-13 実行計画：カンバンの上に、選んだ範囲のチケットを含む Plan の進捗、作業中と次（PL-6）のチケット、依存グラフを出す。Plan の番号（帯と Iteration 詳細）から Plan 詳細を開き、承認と閉じた日時、Plan の順のチケットごとの範囲・進め方・tier も出す。表示だけで書き込まない
 - UI-14 設定画面：`config.yaml` の全項目（5.10）を出し、`config.set` で保存する。影響の大きい項目は保存前に確かめる。VS Code の settings.json は使わない
-- UI-15 エージェントに頼む：行・見出しなどから `dg ask` の依頼文を作ってコピーする。VS Code では、開いているターミナルを選んでその入力へ送ることもできる（Enter は押さず、ターミナルは起動しない。なければコピーだけ）。データには書き込まない。複数の行はまとめて頼める。サイドバーの行はキーボードでも移って開き、選んで頼める（ブラウザでは履歴の行が選んで頼める）（README の「キーボードで操作する」）（入口は [ADR-010](adr/ADR-010-ui-writes-and-agent-requests.md)）
+- UI-15 エージェントに頼む：行・見出しなどから `dg ask` の依頼文を作ってコピーする。VS Code では、開いているターミナルを選んでその入力へ送ることもできる（1 行のときは Enter を押さず、複数行は VS Code の貼り付けに任せる。対応しない入力では VS Code の警告に頼る。ターミナルは起動しない。なければコピーだけ）。データには書き込まない。複数の行はまとめて頼める。サイドバーの行はキーボードでも移って開き、選んで頼める（ブラウザでは履歴の行が選んで頼める）（キーの割り当ての正本は `packages/web/src/components/row-nav.tsx`・`ask-menu.tsx`。README は利用者への案内）（入口は [ADR-010](adr/ADR-010-ui-writes-and-agent-requests.md)）
 - UI-16 VS Code 拡張は、制限モードと仮想ワークスペースでは動かない（理由は `packages/vscode/package.json` の `capabilities`）
 
 画面の並び・色・文言・印などの細部は `packages/web/src/` と `packages/vscode/src/` のコードとテストが正本。
