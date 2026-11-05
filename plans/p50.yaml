@@ -6,7 +6,7 @@ after:
     - t347
   t349:
     - t348
-pending_approval: true
+pending_approval: false
 details:
   t347:
     scope: "open-board.gif と ask-agent.gif を画面操作だけで録り、録り直しの手順を残す（PR #381、手直し中）"
@@ -24,3 +24,5 @@ details:
     scope: 拡張の README を紹介ページ案の本文に置き換え、5 本の GIF を表示できるようにする
     approach: 紹介ページ案の原稿を写し、t368 のセキュリティの節を残し、images を VSIX に入れる（vsix-files.test.ts の許可リストも直す）か絶対 URL にする
     tier: standard
+approved_by: eiki.kitajima/agent
+approved_at: 2026-11-05T08:21:59Z
