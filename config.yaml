@@ -11,6 +11,6 @@ metrics:
 lint:
   require_iteration: true
 models:
-  light: haiku
-  standard: sonnet
-  heavy: opus
+  light: sonnet
+  standard: opus
+  heavy: fable
