@@ -1,0 +1,23 @@
+{
+  "id": "r20261105-014441-1896",
+  "ticket": "t387",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "sonnet",
+  "started_at": "2026-11-05T01:44:41Z",
+  "finished_at": "2026-11-05T01:51:31Z",
+  "result": "success",
+  "error": null,
+  "retries": 3,
+  "retry_reasons": [
+    "Skill なしで文章の形の依頼文がコピーされることのテストを追加",
+    "ADR-010 の形式の記述を小窓と同じ（人の切り替え、なければ既定）に直した",
+    "形式の値を検査する chosenAskFormat を置いた"
+  ],
+  "usage": {
+    "input": 18,
+    "output": 3744,
+    "cache_read": 527058,
+    "cache_write": 8543
+  }
+}

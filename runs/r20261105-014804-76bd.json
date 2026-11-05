@@ -1,0 +1,21 @@
+{
+  "id": "r20261105-014804-76bd",
+  "ticket": "t392",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "sonnet",
+  "started_at": "2026-11-05T01:48:04Z",
+  "finished_at": "2026-11-05T01:51:33Z",
+  "result": "success",
+  "error": null,
+  "retries": 1,
+  "retry_reasons": [
+    "files を toEqual([]) に強めた"
+  ],
+  "usage": {
+    "input": 8,
+    "output": 895,
+    "cache_read": 212883,
+    "cache_write": 2264
+  }
+}
