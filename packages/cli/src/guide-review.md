@@ -34,13 +34,14 @@ PR を人に出す前（`dg guide work`）と、自動でマージする前（`d
 
 ## Run の分け方
 
-実装・見直し・手直しは別の Run に分け、それぞれの量を `metrics show --step` で見られるようにする。step は Workflow の `steps` から選ぶ（`dg guide run` の「Run を記録する」）。どの Run も、作業するエージェント自身が start と finish を呼ぶ。使用量は Run の ID を最初に含む会話記録から取るので、親などが代わりに start すると作業した分を数えない。
+計画・実装・見直し・手直しは別の Run に分け、それぞれの量を `metrics show --step` で見られるようにする。step は Workflow の `steps` から選ぶ（`dg guide run` の「Run を記録する」）。どの Run も、作業するエージェント自身が start と finish を呼ぶ。使用量は Run の ID を最初に含む会話記録から取るので、親などが代わりに start すると作業した分を数えない。
 
-| 作業                                    | step        | 始める               | 閉じる                                             |
-| --------------------------------------- | ----------- | -------------------- | -------------------------------------------------- |
-| 実装して draft の PR を作る             | `implement` | claim の後           | draft の PR を作ったとき                           |
-| 見直し役の見直し                        | `review`    | 見直しを始めるとき   | 指摘の一覧を返す前（指摘の有無によらず `success`） |
-| 修正ループの 1 回・人のレビューの手直し | `fix`       | 指摘を直し始めるとき | 直して push したとき                               |
+| 作業                                    | step        | 始める                   | 閉じる                                             |
+| --------------------------------------- | ----------- | ------------------------ | -------------------------------------------------- |
+| 親が調べて Plan の範囲・方針を書く      | `plan`      | チケットを調べ始めるとき | Plan に書き終えたとき（`dg guide plan`）           |
+| 実装して draft の PR を作る             | `implement` | claim の後               | draft の PR を作ったとき                           |
+| 見直し役の見直し                        | `review`    | 見直しを始めるとき       | 指摘の一覧を返す前（指摘の有無によらず `success`） |
+| 修正ループの 1 回・人のレビューの手直し | `fix`       | 指摘を直し始めるとき     | 直して push したとき                               |
 
 - **やり直しの理由**：手直しの Run（`fix`、または下の代わりの step で記録した手直し）は `run finish <Run の ID> --result success --retry-reason <直した指摘の要約>` で閉じる。書くのは直した指摘（見直し役・人のレビュー）だけで、指摘 1 件に 1 つ繰り返す。検査の失敗を直したことは書かない。回数は理由の数になる（`--retries` は省く）。要約は 1 行で、秘密・コマンドの文字列・パスは書かない。実装と見直しの Run には付けない
 - **合う step がない**：Workflow の `steps` に `fix` がなければ `review`、`review` もなければ実装の step で代わりに記録する（`review` がなければ見直し役も実装の step で記録する）。同梱のテンプレートが持つ `fix`・`review` が Workflow にない（init の前からある Workflow など）ときだけ、足すよう人に伝える。consulting のようにテンプレートにも `fix` がない Workflow では伝えず、代わりの step で記録するだけにする。足すのは `dg --json --actor agent workflow show <id>` の `data.definition` の `steps` に項目を足したファイルを `dg workflow set <id> --file <path>` で書く（`dg init` は既にある Workflow を書き換えない。`--template` は labels・transitions・fields・独自の steps を捨てて定義を丸ごと置き換えるので、手を加えた Workflow には使わない）

@@ -146,6 +146,7 @@ describe("workflow set", () => {
     expect(back.data.before?.name).toBe("Strict General");
     expect(back.data.after.name).toBe("General");
     expect(back.data.after.steps?.map((s) => s.id)).toEqual([
+      "plan",
       "investigate",
       "implement",
       "review",

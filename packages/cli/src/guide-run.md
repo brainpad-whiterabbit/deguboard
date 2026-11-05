@@ -4,9 +4,9 @@
 
 ## Run を記録する
 
-Run は 1 回の作業の記録で、使用量（トークン）が残る。実装の Run は `dg guide work` の手順 4〜6、見直しと手直しは別の Run（`dg guide review` の「Run の分け方」）。PR の要らない作業も、作業の前後で始めて閉じる。
+Run は 1 回の作業の記録で、使用量（トークン）が残る。計画の Run は `dg guide plan`、実装の Run は `dg guide work` の手順 4〜6、見直しと手直しは別の Run（`dg guide review` の「Run の分け方」）。PR の要らない作業も、作業の前後で始めて閉じる。
 
-- **step**：チケットの Project の Workflow（`dg --json --actor agent project list` の `workflow`）を `dg --json --actor agent workflow show <workflow>` で読み、`data.definition.steps` から今の作業に合うものの `id` を選ぶ。`steps` がなければ `implement`・`review`・`fix`・`investigate` を使う。合う語がないとき（init の前からある Workflow や consulting に `fix` がないなど）は `dg guide review` の「Run の分け方」の「合う step がない」（代わりの step と、人に伝えるかどうか）
+- **step**：チケットの Project の Workflow（`dg --json --actor agent project list` の `workflow`）を `dg --json --actor agent workflow show <workflow>` で読み、`data.definition.steps` から今の作業に合うものの `id` を選ぶ。`steps` がなければ（`plan` は記録しない）`implement`・`review`・`fix`・`investigate` を使う。合う語がないとき（init の前からある Workflow や consulting に `fix` がないなど）は `dg guide review` の「Run の分け方」の「合う step がない」（代わりの step と、人に伝えるかどうか）
 - **agent**：自分の Adapter の名前（`dg run start --help`。Claude Code なら `claude-code`）
 - **自分で呼ぶ**：run start と finish は作業するエージェント自身が呼ぶ（理由は `dg guide review` の「Run の分け方」）
 - 使用量は書かない。取れずに finish が警告しても止めない
