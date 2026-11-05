@@ -72,7 +72,7 @@ describe("dg guide", () => {
     }
   });
 
-  it("次の手順は Skill があれば Skill を起動し、なければ dg guide <topic> を読んで続けると共通の節で案内し、各 guide の Skill の例は dg guide と並べて「Skill があれば」と書く", async () => {
+  it("次の手順は Skill がなければ dg guide を読んで続けると案内する", async () => {
     const choices = lineWith(await readGuide("import"), "次の手順が選ばれたら");
     for (const word of ["Skill", "使えなければ", "`dg guide <topic>`", "その手順で続ける"])
       expect(choices).toContain(word);
