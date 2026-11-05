@@ -15,8 +15,6 @@ export interface UsageQuery {
   env: AgentEnv;
   /** dg を呼んだ作業ツリーの最上位 */
   topLevel: string;
-  /** 絶対パスの git common dir（主の作業ツリーを求めるのに使う） */
-  commonDir: string;
   /**
    * ほかの Run の期間（閉じた Run と、このマシンで実行中の Run。実行中なら finished_at は null）。
    * 同じ会話記録で期間が重なる Run と応答を分けるのに使う。なければ分けない

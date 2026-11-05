@@ -83,7 +83,6 @@ async function setup(env: Record<string, string> = {}) {
     finishedAt: FINISHED,
     env: { HOME: home, ...env },
     topLevel: path.join(home, "repo"),
-    commonDir: path.join(home, "repo", ".git"),
     ...over,
   });
   return { home, sessions, query };

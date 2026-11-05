@@ -116,7 +116,6 @@ async function setup(env: Record<string, string> = {}) {
     finishedAt: FINISHED,
     env: { HOME: home, ...env },
     topLevel,
-    commonDir: path.join(topLevel, ".git"),
     ...over,
   });
   return { home, stateDir, topLevel, eventsFile, query };

@@ -9,8 +9,8 @@
 //   - 写し方：Copilot の inputTokens はキャッシュの読み書きを含む総量なので、input は inputTokens から cacheReadTokens と
 //     cacheWriteTokens を引いた新規の入力にする（Copilot 自身の課金内訳 copilotUsage.tokenDetails の input と一致する）。
 //     cache_read は cacheReadTokens、cache_write は cacheWriteTokens、output は outputTokens
-//   - 探す範囲：session-state の下のすべての session の記録のうち、started_at より後に書かれたもの。呼ぶ session によらずに同じ記録を
-//     選ぶよう、環境変数 COPILOT_AGENT_SESSION_ID の session は同じ時刻のときの決め手にだけ使う
+//   - 探す範囲：session-state の下のすべての session の記録のうち、started_at より後に書かれたもの。同じ時刻なら、パスの順で選ぶ
+//     （呼ぶ session の環境によらない）
 //   - ツールの回数は数えない（null）。返すのは数とモデル名だけ。会話の中身・コマンド・パスは返さない（MT-4）
 
 import { createReadStream } from "node:fs";
@@ -39,14 +39,6 @@ function sessionStateDir(env: AgentEnv): string {
 /** session のディレクトリの中の記録ファイル */
 function eventsFile(stateDir: string, session: string): string {
   return path.join(stateDir, session, "events.jsonl");
-}
-
-/** COPILOT_AGENT_SESSION_ID の session の記録か。形が正しくなければどれも当たらない */
-function inSession(query: UsageQuery, stateDir: string): (file: string) => boolean {
-  const session = query.env["COPILOT_AGENT_SESSION_ID"];
-  if (!session || !/^[\w-]+$/.test(session)) return () => false;
-  const own = eventsFile(stateDir, session);
-  return (file) => file === own;
 }
 
 /** session-state の下のすべての session の記録のうち、started_at より後に書かれたもの */
@@ -162,7 +154,7 @@ export const copilotAdapter: AgentAdapter = {
     const to = Date.parse(query.finishedAt) + 999;
     // 探す範囲は session-state の下のすべて。呼ぶ session（finish と refresh で違う）によらずに同じ記録を選ぶ
     const files = await allCandidates(query, stateDir);
-    const bound = await bindFile(query, files, to, [], inSession(query, stateDir));
+    const bound = await bindFile(query, files, to, []);
     const best = bound.file
       ? await scan(bound.file, query, from, to).catch(() => undefined)
       : undefined;

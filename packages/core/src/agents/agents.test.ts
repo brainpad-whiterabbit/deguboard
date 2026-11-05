@@ -98,7 +98,6 @@ async function setup(env: Record<string, string> = {}) {
     finishedAt: FINISHED,
     env: { HOME: home, ...env },
     topLevel,
-    commonDir: path.join(topLevel, ".git"),
     ...over,
   });
   return { home, topLevel, projectDir, query };
@@ -442,7 +441,6 @@ describe("Claude Code の Adapter", () => {
     const got = await claudeCodeAdapter.readTranscriptUsage(
       query({
         topLevel: path.join(home, "main.worktrees", "feat"),
-        commonDir: path.join(main, ".git"),
       }),
     );
     expect(got.usage.input).toBe(1);
@@ -471,7 +469,7 @@ describe("Claude Code の Adapter", () => {
     }
   });
 
-  it("ID が出た時刻が同じなら、CLAUDE_CODE_SESSION_ID の session のファイルを選ぶ", async () => {
+  it("ID が出た時刻が同じなら、呼ぶ session によらずファイルのパスの順で選ぶ", async () => {
     const { projectDir, query, home } = await setup();
     await writeTranscript(path.join(projectDir, "s1.jsonl"), [
       mention(0),
@@ -481,14 +479,12 @@ describe("Claude Code の Adapter", () => {
       mention(0),
       assistant("m2", 1, [9, 9, 9, 9]),
     ]);
-    for (const [session, input] of [
-      ["s1", 5],
-      ["s2", 9],
-    ] as const) {
-      const got = await claudeCodeAdapter.readTranscriptUsage(
-        query({ env: { HOME: home, CLAUDE_CODE_SESSION_ID: session } }),
-      );
-      expect(got.usage.input).toBe(input);
+    // パスの順では s1.jsonl が先。どの session を呼んでも同じ（s2 の subagents の記録を呼んでも s1 を選ぶ）
+    for (const session of ["s1", "s2", undefined]) {
+      const env =
+        session === undefined ? { HOME: home } : { HOME: home, CLAUDE_CODE_SESSION_ID: session };
+      const got = await claudeCodeAdapter.readTranscriptUsage(query({ env }));
+      expect(got.usage.input).toBe(5);
     }
   });
 

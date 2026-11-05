@@ -239,7 +239,10 @@ export const codexAdapter: AgentAdapter = {
       const s = await scan(file, query, to).catch(() => undefined);
       if (s) read.push(s.claims);
       if (s?.firstSeen === undefined || seenAfterRun(s.firstSeen, to)) continue;
-      if (!best || s.firstSeen < (best.firstSeen ?? Infinity)) [best, bestFile] = [s, file];
+      // 同じ時刻のときは、パスの順で小さい方（bindFile と同じ決め方）
+      const at = s.firstSeen;
+      if (!best || at < (best.firstSeen ?? Infinity) || (at === best.firstSeen && file < bestFile))
+        [best, bestFile] = [s, file];
     }
     // ほかのファイルで ID が先に出た Run には譲らずに読み直す
     const elsewhere = best ? claimedElsewhere(best.claims, read) : new Set<string>();
