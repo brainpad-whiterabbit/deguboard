@@ -1,0 +1,19 @@
+{
+  "id": "r20261105-015237-f367",
+  "ticket": "t387",
+  "step": "review",
+  "agent": "claude-code-reviewer",
+  "model": null,
+  "started_at": "2026-11-05T01:52:37Z",
+  "finished_at": "2026-11-05T01:55:56Z",
+  "result": "success",
+  "error": null,
+  "retries": 0,
+  "retry_reasons": [],
+  "usage": {
+    "input": null,
+    "output": null,
+    "cache_read": null,
+    "cache_write": null
+  }
+}
