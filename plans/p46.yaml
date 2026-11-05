@@ -10,7 +10,7 @@ after:
     - t399
   t401:
     - t400
-pending_approval: true
+pending_approval: false
 details:
   t396:
     scope: 閉じた Run のモデル名と使用量を会話記録から取り直すコマンドを足し、取れない値は残して警告し、--dry-run で差分を出す
@@ -44,3 +44,5 @@ details:
     scope: "このリポジトリの Workflow の todo → in_progress に requires: [deps_done] を足し、claim・照合・--without-branch への効きを確かめる"
     approach: PR なし。workflow show の前後を比べて workflow set で足し、一時チケットで拒否と許可を確かめて元に戻し、結果を報告する
     tier: standard
+approved_by: eiki.kitajima/agent
+approved_at: 2026-11-05T04:13:36Z
