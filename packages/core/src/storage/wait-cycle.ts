@@ -1,5 +1,6 @@
 // 待ちの循環の検出。Plan の作成（plan.create）と dg lint が共有する
 
+import { isTerminal } from "../model/common.js";
 import { pendingDeps } from "../model/ticket.js";
 import type { Store } from "./store.js";
 
@@ -63,14 +64,22 @@ export function findCrossingCycle(
   tickets: readonly string[],
   after: Readonly<Record<string, readonly string[] | undefined>>,
 ): WaitCycle | undefined {
-  const afterEdges = (id: string): WaitEdge[] =>
-    (after[id] ?? []).map((to) => ({ to, via: "after" }));
   if (Object.keys(after).length === 0) return undefined;
+  // planReadiness（PL-6）と同じく、終わったチケットは待たず、終わったチケットからは辺を出さない。
+  // after の向かう先は Plan に入っていて存在し、終わっていないものだけ
+  const live = (id: string) => {
+    const status = store.resolve("ticket", id)?.data.status;
+    return status !== undefined && !isTerminal(status);
+  };
   const crossing = findCycle(tickets, (id) => {
     const t = store.resolve("ticket", id)?.data;
-    const deps = t ? pendingDeps(t, (dep) => store.resolve("ticket", dep)?.data.status) : [];
+    if (!t || !live(id)) return [];
+    const afterEdges = (after[id] ?? [])
+      .filter((to) => to !== id && tickets.includes(to) && live(to))
+      .map((to): WaitEdge => ({ to, via: "after" }));
+    const deps = pendingDeps(t, (dep) => store.resolve("ticket", dep)?.data.status);
     return [
-      ...afterEdges(id),
+      ...afterEdges,
       ...deps
         .filter((to) => to !== id && store.resolve("ticket", to) !== undefined)
         .map((to): WaitEdge => ({ to, via: "depends_on" })),

@@ -1876,6 +1876,10 @@ describe("用意", () => {
         "after と depends_on が循環している: t1 →(after) t2 →(depends_on) t1",
       ],
     ]);
+    // 終わったチケットは待ちにならないので、そこを通る循環は指摘しない
+    await runCommand(ticketMove, ctx, { ticket: "t2", status: "abandoned" });
+    const through = await runCommand(lint, ctx, {});
+    expect(through.data.issues.map((i) => i.code)).not.toContain("lint_plan_wait_cycle");
     // 閉じた Plan は指摘しない
     await runCommand(planClose, ctx, { plan: "p1" });
     const closed = await runCommand(lint, ctx, {});
