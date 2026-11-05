@@ -257,6 +257,7 @@ Web UI は `dg serve` が配信し、VS Code 拡張は同じ React アプリを 
 - UI-13 実行計画：カンバンの上に、選んだ範囲のチケットを含む Plan の進捗、作業中と次（PL-6 の `next`）のチケット、`after` と Plan の中のチケット同士の `depends_on` の依存グラフを出す（`depends_on` の矢印は点線で `after` と見分け、段は両方から求める。Plan の外への `depends_on` は描かない）。表示だけで書き込まない
 - UI-14 設定画面：`config.yaml` の全項目（5.10）を出し、`config.set` で保存する。チーム全員に効くことを示し、影響の大きい項目は保存前に確かめる。VS Code の settings.json は使わない
 - UI-15 エージェントに頼む：行・見出し・タイトル行などから、対象・頼むこと（おすすめが先頭）・指示で `dg ask` の依頼文を作ってコピーする（頼むことを選んだ時点でコピーし、指示を足したらボタンか ⌘↵ で）。データには書き込まない。複数の行はまとめて頼める（入口は [ADR-010](adr/ADR-010-ui-writes-and-agent-requests.md)）
+- UI-16 VS Code 拡張は、制限モード（信頼していないフォルダー）と仮想ワークスペースでは動かない。manifest の `capabilities` に `supported: false` と理由（リポジトリの git の設定が任意のコマンドを実行させ得るため）を書く
 
 画面の並び・色・文言・印などの細部は `packages/web/src/` と `packages/vscode/src/` のコードとテストが正本。
 

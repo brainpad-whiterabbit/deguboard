@@ -15,6 +15,10 @@ interface Contributes {
 
 const pkg = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as {
   contributes: Contributes;
+  capabilities?: {
+    untrustedWorkspaces?: { supported?: unknown; description?: string };
+    virtualWorkspaces?: { supported?: unknown } | boolean;
+  };
 };
 
 describe("package.json の右クリックのメニュー", () => {
@@ -101,5 +105,18 @@ describe("メニューの引数", () => {
 
   it("「詳細を開く」はチケット詳細のルートを開く", () => {
     expect(ticketRoute({ ticket: "t12" })).toBe("#/tickets/t12");
+  });
+});
+
+describe("package.json の capabilities", () => {
+  it("制限モード（信頼していないフォルダー）では動かないことを、理由つきで明示する", () => {
+    const u = pkg.capabilities?.untrustedWorkspaces;
+    expect(u?.supported).toBe(false);
+    expect(u?.description).toContain("git の設定");
+  });
+
+  it("仮想ワークスペースでは動かないことを明示する", () => {
+    const v = pkg.capabilities?.virtualWorkspaces;
+    expect(typeof v === "object" ? v.supported : v).toBe(false);
   });
 });
