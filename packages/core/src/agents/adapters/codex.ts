@@ -8,7 +8,8 @@
 //     dg run finish を呼んだ応答は入らない（Claude Code の Adapter と 1 応答ずれる。ADR-005）。書く順は openai/codex の
 //     codex-rs/core/src/session/turn.rs で確かめた（2026-10-31 の main。本物の記録では未確認）
 //   - 期間が重なる Run：同じファイルで、後に始まった開いている Run の ID が先に出ていれば（OverlapClaims）、その間の token_count の
-//     累計の増え（直前の累計との差）を除く。turn_context のモデル名も数えない。読んだほかのファイルで ID が先に出た Run には譲らない
+//     累計の増え（直前の累計との差）を除く。turn_context のモデル名も数えない。ほかのファイルで ID が同じか先に出た Run には譲らない
+//     （探す範囲が sessions/ の下のすべてなので、Claude Code の Adapter が projects/ の下のすべてで比べるのと同じ規則になる）
 //   - 写し方：input は input_tokens から cached_input_tokens を引いた値（キャッシュを読まなかった入力。Claude Code と同じ意味）、
 //     cache_read は cached_input_tokens、output は output_tokens、cache_write は cache_write_input_tokens。
 //     cache_write_input_tokens を書かない版の記録では cache_write を null にして警告する

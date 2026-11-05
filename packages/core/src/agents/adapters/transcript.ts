@@ -1,8 +1,10 @@
 // Adapter が会話記録を読むときに共通で使う小さな部品（AG-5、ADR-005）。特定の AI 製品の形はここに書かない
 
+import { createReadStream } from "node:fs";
 import { readdir, stat } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { createInterface } from "node:readline";
 import type { RunTools, ToolKind } from "../../model/run.js";
 import type { AgentEnv, CollectedUsage, UsageQuery } from "../define.js";
 
@@ -111,7 +113,7 @@ const START_MS = 60_000;
  * 応答は、その応答より前に ID が出ていて、その時刻に開いている Run のうち、いちばん新しく始まったものだけに数える。
  * 比べるのは自分より後に始まって期間が重なる Run だけで、その ID がこのファイルで最初に出たのが開始から START_MS 以内のもの
  * （そのファイルで dg run start を呼んだ Run）。後から一覧などで ID を見ただけの、ほかの記録の Run には譲らない。
- * 開始から START_MS 以内でも、ほかのファイルで ID が先に出た Run（elsewhere。claimedElsewhere で求める）には譲らない
+ * 開始から START_MS 以内でも、ほかのファイルで ID が同じか先に出た Run（elsewhere。claimedElsewhere で求める）には譲らない
  */
 export class OverlapClaims {
   /** まだ ID が出ていない、自分より後に始まって期間が重なる Run の開始と終わり */
@@ -164,16 +166,39 @@ export class OverlapClaims {
     }
   }
 
+  /** まだ ID が出ていない Run があるか。なければ残りの行を見なくてよい */
+  get watching(): boolean {
+    return this.pending.size > 0;
+  }
+
   /** 時刻 at の応答を自分に数えるか。後に始まった開いている Run の ID が先に出ていれば、そちらに譲る */
   owns(at: number): boolean {
     return !this.newer.some((s) => s.from <= at && at <= s.to);
   }
 }
 
+/** ファイルの行を見て、期間が重なるほかの Run の ID が最初に出た時刻だけを記録する。使用量は読まない */
+export async function sightings(
+  file: string,
+  query: UsageQuery,
+  from: number,
+  to: number,
+): Promise<OverlapClaims> {
+  const claims = new OverlapClaims(query, from, to);
+  const lines = createInterface({ input: createReadStream(file), crlfDelay: Infinity });
+  for await (const line of lines) {
+    if (!claims.watching) break;
+    claims.see(line);
+  }
+  lines.close();
+  return claims;
+}
+
 /**
  * 選んだファイル（chosen）で譲る相手にした Run のうち、読んだほかのファイル（all）で ID が同じか先の時刻に出たもの。
  * その Run は Adapter がそちらのファイルに結び付けうるので、chosen の応答を数えない。譲ると二重計上を防ぐどころか、どちらも数えなくなる。
- * all は Adapter が Run を探す範囲のすべて（Claude Code は session と作業ツリーの両方）にする。狭いと別の記録の Run に譲ってしまう。
+ * all は Run を探す範囲より広く、会話記録の置き場所のすべて（Claude Code は projects/ の下、Codex は sessions/ の下）にする。
+ * 狭いと、探す範囲の外（別の worktree など）で始まった Run に譲ってしまう。
  * 同じ時刻なら、どちらに結び付くかは列挙の順で決まり分からないので、量を落とさない側（譲らない）に倒す
  */
 export function claimedElsewhere(chosen: OverlapClaims, all: Iterable<OverlapClaims>): Set<string> {
