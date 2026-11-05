@@ -1,0 +1,46 @@
+id: p46
+project: default
+tickets: [t396, t397, t398, t402, t403, t399, t400, t401]
+after:
+  t399:
+    - t396
+  t400:
+    - t397
+    - t398
+    - t399
+  t401:
+    - t400
+pending_approval: true
+details:
+  t396:
+    scope: 閉じた Run のモデル名と使用量を会話記録から取り直すコマンドを足し、取れない値は残して警告し、--dry-run で差分を出す
+    approach: core に run の取り直しのコマンド定義を足して CLI・HTTP に写し、requirements の RN・MT を直してテストする
+    tier: heavy
+  t397:
+    scope: "guide-import.md の ## 参考 節の説明に、計画の after の材料と PR と見比べる起票時の見込みという目的を足す"
+    approach: guide-import.md の文面だけを直し、見込みとして直すファイルのパスを書くよう促す。guide のテストと check:docs を通す
+    tier: light
+  t398:
+    scope: guide-review.md の「見直す」に参考節と PR の変更ファイルの見比べを足し、食い違いは軽い指摘として PR 本文に残す
+    approach: guide-review.md と guide-work.md の手順 6 の文面を直し、参考節がなければ見比べないと書く。guide のテストを通す
+    tier: light
+  t402:
+    scope: 実行計画のグラフに Plan の中の depends_on を after と見分けられる矢印で描き、段にも入れる
+    approach: plan-graph.ts で depends_on を辺に足して段を求め直し、plan-band と CSS で点線を描く。UI-13 とテスト・スクリーンショット
+    tier: standard
+  t403:
+    scope: 右クリックの頼むサブメニューと deguboard.ask.* と askContext を消し、Epic の札と件数からは頼めなくする
+    approach: vscode の context-menu・package.json、web の ask-menu・backlog、core の WEBVIEW_CONTRACT から外し、ADR-010・README・ASK_HINT を直す
+    tier: standard
+  t399:
+    scope: Run にツールの種類ごとの回数と最初に書くまでの読む・探すの回数を足し、Claude Code の Adapter が数え metrics show が出す
+    approach: core の run モデルと record・claude-code Adapter・metrics を直し、requirements 5.9・RN-1・MT と ADR-005 を合わせてテストする
+    tier: heavy
+  t400:
+    scope: Workflow のテンプレートに plan の step を足し、guide plan・work・parallel に親の調べる間を plan の Run にすると書く
+    approach: templates の steps と guide-plan・run・work・parallel・review の文面、ADR-005 を直し、このリポジトリの Workflow に workflow set で plan を足す
+    tier: standard
+  t401:
+    scope: "このリポジトリの Workflow の todo → in_progress に requires: [deps_done] を足し、claim・照合・--without-branch への効きを確かめる"
+    approach: PR なし。workflow show の前後を比べて workflow set で足し、一時チケットで拒否と許可を確かめて元に戻し、結果を報告する
+    tier: standard
