@@ -1292,6 +1292,43 @@ describe("Plan", () => {
     expect(ctx.store.plans.size).toBe(0);
   });
 
+  it("create は after と depends_on（Plan の外の終わっていないチケットを含む）をまたぐ循環を拒否し、経路をメッセージに出す", async () => {
+    const f = await fixture();
+    const ctx = await initialized(f.cloneA);
+    await runCommand(ticketCreate, ctx, { title: "A" });
+    await runCommand(ticketCreate, ctx, { title: "B", depends_on: ["t1"] });
+    await runCommand(ticketCreate, ctx, { title: "C", depends_on: ["t2"] });
+    // t1 が after で t2 を待ち、t2 は depends_on で t1 を待つ
+    await expect(
+      runCommand(planCreate, ctx, { tickets: ["t1", "t2"], after: { t1: "t2" } }),
+    ).rejects.toMatchObject({
+      code: "REJECTED",
+      message: expect.stringContaining("t1 →(after) t2 →(depends_on) t1"),
+    });
+    // Plan の外のチケット（t2）の depends_on を回って戻る循環も拒否する
+    await expect(
+      runCommand(planCreate, ctx, { tickets: ["t1", "t3"], after: { t1: "t3" } }),
+    ).rejects.toMatchObject({
+      code: "REJECTED",
+      message: expect.stringContaining("t1 →(after) t3 →(depends_on) t2 →(depends_on) t1"),
+    });
+    // after だけの循環は今までどおりの言い方で拒否する
+    await expect(
+      runCommand(planCreate, ctx, { tickets: ["t1", "t2"], after: { t1: "t2", t2: "t1" } }),
+    ).rejects.toMatchObject({
+      code: "REJECTED",
+      message: expect.stringContaining("after が循環している: t1 → t2 → t1"),
+    });
+    expect(ctx.store.plans.size).toBe(0);
+    // depends_on と同じ向きの after は循環しない
+    await runCommand(planCreate, ctx, { tickets: ["t1", "t2", "t3"], after: { t3: "t1" } });
+    await runCommand(planClose, ctx, { plan: "p1" });
+    // 終わった依存先は待たないので、そこを通る循環はない
+    await runCommand(ticketMove, ctx, { ticket: "t2", status: "abandoned" });
+    await runCommand(planCreate, ctx, { tickets: ["t1", "t3"], after: { t1: "t3" } });
+    expect(ctx.store.plans.size).toBe(2);
+  });
+
   it("create は段階（tier）を details に記録し、不正な値と Plan の外のチケットを拒否する", async () => {
     const f = await fixture();
     const ctx = await initialized(f.cloneA);

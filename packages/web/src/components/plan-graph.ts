@@ -92,8 +92,8 @@ export interface PlanGraph {
 
 /**
  * after（Plan の中の待ち）と、Plan の中のチケット同士の depends_on から依存グラフを組む。段は両方から求める。消えたチケットと Plan の外への待ちは飛ばす。
- * 循環は plan.create（after だけ）と TK-2（depends_on だけ）がそれぞれ拒否するが、after と depends_on をまたぐ循環は拒否されない。
- * 壊れたデータでも止まらないよう、たどっている途中の待ちは数えない
+ * 循環は plan.create（after だけと、after と depends_on をまたぐもの）と TK-2（depends_on だけ）が拒否する。
+ * Plan を作った後の depends_on の書き換えはまたぐ循環を検査しないので、それや壊れたデータでも止まらないよう、たどっている途中の待ちは数えない
  */
 export function planGraph(plan: PlanRow, byId: ReadonlyMap<string, Ticket>): PlanGraph {
   const ids = plan.tickets.filter((id) => byId.has(id));

@@ -24,28 +24,49 @@ function splitRefs(value: z.output<typeof refList>): string[] {
     .filter(Boolean);
 }
 
-/** 計画内の待ちが循環していれば、その一例を返す */
-function afterCycle(after: Record<string, string[]>): string[] | undefined {
+/** 待ちの辺（from が to を待つ）。via は辺の出どころ */
+interface WaitEdge {
+  to: string;
+  via: "after" | "depends_on";
+}
+
+/** 待ちが循環していれば、その一例（始まりのチケットと、たどった辺）を返す */
+function findCycle(
+  ids: readonly string[],
+  edgesOf: (id: string) => readonly WaitEdge[],
+): { start: string; edges: WaitEdge[] } | undefined {
   const state = new Map<string, "visiting" | "done">();
-  const stack: string[] = [];
-  const visit = (id: string): string[] | undefined => {
+  // たどっている途中のチケットと、そこから出た辺（path[i] は onPath[i] から出た辺）
+  const onPath: string[] = [];
+  const path: WaitEdge[] = [];
+  const visit = (id: string): { start: string; edges: WaitEdge[] } | undefined => {
     if (state.get(id) === "done") return undefined;
-    if (state.get(id) === "visiting") return [...stack.slice(stack.indexOf(id)), id];
+    if (state.get(id) === "visiting") return { start: id, edges: path.slice(onPath.indexOf(id)) };
     state.set(id, "visiting");
-    stack.push(id);
-    for (const next of after[id] ?? []) {
-      const found = visit(next);
+    onPath.push(id);
+    for (const next of edgesOf(id)) {
+      path.push(next);
+      const found = visit(next.to);
       if (found) return found;
+      path.pop();
     }
-    stack.pop();
+    onPath.pop();
     state.set(id, "done");
     return undefined;
   };
-  for (const id of Object.keys(after)) {
+  for (const id of ids) {
     const found = visit(id);
     if (found) return found;
   }
   return undefined;
+}
+
+/** after の循環は ID だけを並べ、after と depends_on をまたぐ循環は辺ごとに出どころを添える */
+function cyclePath(cycle: { start: string; edges: WaitEdge[] }, labeled: boolean): string {
+  return [
+    cycle.start,
+    ...cycle.edges.map((e) => (labeled ? `→(${e.via}) ${e.to}` : `→ ${e.to}`)),
+  ].join(" ");
 }
 
 export const planCreate = defineCommand({
@@ -112,9 +133,34 @@ export const planCreate = defineCommand({
             throw new OperationError("REJECTED", `${id} は自分自身を待てない`);
           after[id] = [...new Set([...(after[id] ?? []), ...waits])];
         }
-        const cycle = afterCycle(after);
+        const afterEdges = (id: string): WaitEdge[] =>
+          (after[id] ?? []).map((to) => ({ to, via: "after" }));
+        const cycle = findCycle(Object.keys(after), afterEdges);
         if (cycle)
-          throw new OperationError("REJECTED", `after が循環している: ${cycle.join(" → ")}`);
+          throw new OperationError("REJECTED", `after が循環している: ${cyclePath(cycle, false)}`);
+        // after と depends_on を合わせても循環しない（互いを待って着手できなくなる）。
+        // depends_on は Plan の外の終わっていないチケットもたどる（外を回って戻る待ちも止まる）。
+        // after の辺を含まない循環（depends_on だけ。壊れたデータ）は TK-2 と validate に任せる
+        const crossing =
+          Object.keys(after).length === 0
+            ? undefined
+            : findCycle(tickets, (id) => {
+                const t = ctx.store.resolve("ticket", id)?.data;
+                const deps = t
+                  ? pendingDeps(t, (dep) => ctx.store.resolve("ticket", dep)?.data.status)
+                  : [];
+                return [
+                  ...afterEdges(id),
+                  ...deps
+                    .filter((to) => to !== id && ctx.store.resolve("ticket", to) !== undefined)
+                    .map((to): WaitEdge => ({ to, via: "depends_on" })),
+                ];
+              });
+        if (crossing?.edges.some((e) => e.via === "after"))
+          throw new OperationError(
+            "REJECTED",
+            `after と depends_on が循環している: ${cyclePath(crossing, true)}`,
+          );
         const details: Record<string, { scope?: string; approach?: string; tier?: PlanTier }> = {};
         for (const [field, map] of [
           ["scope", input.scope],
