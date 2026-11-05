@@ -122,9 +122,12 @@ export interface AskView {
   text: string;
 }
 
+/** PATH に dg がないときの置き換えの案内。Skill（cli の skill.md の {{dgPathNote}}）と文章だけの形式が同じ文を写す正本（AG-2・AG-8） */
+export const DG_PATH_NOTE =
+  "PATH に `dg` がなければ、リポジトリの案内が書く呼び方（`npx deguboard`、`mise run dg --` など）で `dg` を置き換える。手順の中の `dg` も同じ。";
+
 /** 文章だけの形式で、頼む 1 文の次に添える dg の呼び方（AG-1） */
-export const ASK_DG_USAGE =
-  "dg は `dg … --json --actor agent` で呼び、.git/deguboard/ のファイルは直接編集しないでください。";
+export const ASK_DG_USAGE = `dg は \`dg … --json --actor agent\` で呼び、.git/deguboard/ のファイルは直接編集しないでください。${DG_PATH_NOTE}`;
 
 const CREATED_BY_HUMAN = "（人の指示なので --created-by human を付ける）";
 const CREATED_BY_HUMAN_LATER =

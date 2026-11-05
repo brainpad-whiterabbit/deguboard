@@ -7,6 +7,7 @@ import {
   ASK_ACTIONS,
   type AskAction,
   ASK_DG_USAGE,
+  DG_PATH_NOTE,
   askGuideLine,
   ask,
   askCandidates,
@@ -101,6 +102,9 @@ describe("依頼文の組み立て", () => {
       ].join("\n"),
     );
     expect(ASK_DG_USAGE).toContain("--json --actor agent");
+    // PATH に dg がないときの置き換えの案内も、文章の形式に入る
+    expect(ASK_DG_USAGE).toContain(DG_PATH_NOTE);
+    expect(view.text).toContain("mise run dg --");
     expect(view.text).not.toContain("/dgdone");
     expect(view.text).not.toContain("右の列を細くする");
     // 複数の対象は頼む 1 文に並べる

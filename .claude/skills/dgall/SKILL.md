@@ -4,7 +4,7 @@ description: deguboard の Iteration かチケットを、割り当て → 点�
 argument-hint: <Iteration|チケットの ID...> [--no-assign] [--auto]
 ---
 
-<!-- dg skill sha256:dab4d9e8f062e993df19e2b4acf233e8dd65786c1a6e7013a7040352a2a6098b -->
+<!-- dg skill sha256:27df31fe85cbd3190ba275427e53de9bc738ba7337570b34eca1e431385ecc26 -->
 
 # 一気通し（all）
 
@@ -12,7 +12,7 @@ argument-hint: <Iteration|チケットの ID...> [--no-assign] [--auto]
 
 - `dg` は必ず `--json --actor agent` を付けて呼ぶ（例：`dg --json --actor agent ticket show t12`）。あなたは agent を名乗る。拒否された操作（`TRANSITION_REJECTED`）は人に頼む
 - チケットは `dg` でだけ読み書きする。データのファイル（`.git/deguboard/` の下）を直接編集しない
-- PATH に `dg` がなければ、リポジトリの案内（`CLAUDE.md` など）が書く呼び方（`npx deguboard`、`mise run dg --` など）で `dg` を置き換える。手順の中の `dg` も同じ
+- PATH に `dg` がなければ、リポジトリの案内が書く呼び方（`npx deguboard`、`mise run dg --` など）で `dg` を置き換える。手順の中の `dg` も同じ。
 
 指定：$ARGUMENTS
 

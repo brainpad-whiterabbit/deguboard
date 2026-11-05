@@ -4,7 +4,7 @@
 import { createHash } from "node:crypto";
 import { mkdir, readFile, rm, rmdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { resolveRepoPaths, skillDirsOf, type AgentEnv } from "@deguboard/core";
+import { DG_PATH_NOTE, resolveRepoPaths, skillDirsOf, type AgentEnv } from "@deguboard/core";
 import { stringify as stringifyYaml } from "yaml";
 import { GUIDE_TOPICS, readGuide, readGuideMeta, type GuideTopic } from "./guide.js";
 
@@ -39,7 +39,10 @@ export async function buildSkills(): Promise<SkillFile[]> {
       { name, description: meta.description, "argument-hint": meta["argument-hint"] ?? "" },
       { lineWidth: 0 },
     );
-    const body = template.replaceAll("{{title}}", title).replaceAll("{{topic}}", topic);
+    const body = template
+      .replaceAll("{{title}}", title)
+      .replaceAll("{{topic}}", topic)
+      .replaceAll("{{dgPathNote}}", DG_PATH_NOTE);
     // 整形（mise run format）で変わらない形にする。ハッシュは印の行を除いた中身から求める
     const unmarked = `---\n${frontmatter}---\n\n\n${body}`;
     skills.push({

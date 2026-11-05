@@ -4,7 +4,7 @@ description: deguboard の Iteration（か Epic）のチケットがすべて do
 argument-hint: "[Iteration|Epic]"
 ---
 
-<!-- dg skill sha256:9cf942ff3c80d12914fc6c97840587549f41809fa218fb76d2ac71d04e9a47a6 -->
+<!-- dg skill sha256:edd8ecfffe6671825429ebdffa6a28d8dea8e09b66f618adcd17b9dd7b38d775 -->
 
 # 見直し（audit）
 
@@ -12,7 +12,7 @@ argument-hint: "[Iteration|Epic]"
 
 - `dg` は必ず `--json --actor agent` を付けて呼ぶ（例：`dg --json --actor agent ticket show t12`）。あなたは agent を名乗る。拒否された操作（`TRANSITION_REJECTED`）は人に頼む
 - チケットは `dg` でだけ読み書きする。データのファイル（`.git/deguboard/` の下）を直接編集しない
-- PATH に `dg` がなければ、リポジトリの案内（`CLAUDE.md` など）が書く呼び方（`npx deguboard`、`mise run dg --` など）で `dg` を置き換える。手順の中の `dg` も同じ
+- PATH に `dg` がなければ、リポジトリの案内が書く呼び方（`npx deguboard`、`mise run dg --` など）で `dg` を置き換える。手順の中の `dg` も同じ。
 
 指定：$ARGUMENTS
 
