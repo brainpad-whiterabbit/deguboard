@@ -15,7 +15,7 @@ import {
   type RunRefreshItem,
   type RunView,
 } from "./run.js";
-import { commit, configSet, init } from "./setup.js";
+import { commit, configSet, init, validate } from "./setup.js";
 import { workflowValidate } from "./workflow.js";
 import { metricsShow } from "./metrics.js";
 import { iterationAdd, iterationCreate } from "./iteration.js";
@@ -442,7 +442,7 @@ describe("run", () => {
     ]);
   });
 
-  it("Workflow の steps にない step（記録済みの plan の Run）があっても、workflow.validate・run list・metrics show は警告も失敗も出さない", async () => {
+  it("Workflow の steps にない step（記録済みの plan の Run）があっても、validate・workflow.validate・run list・metrics show は警告も失敗も出さない", async () => {
     const ctx = await prepared();
     // plan を持つ旧い定義で plan の Run を記録してから、plan のない定義に直す
     await ctx.store.writeWorkflow({
@@ -462,6 +462,9 @@ describe("run", () => {
     });
     const validated = await runCommand(workflowValidate, ctx, { workflow: "general" });
     expect(validated.warnings).toEqual([]);
+    const all = await runCommand(validate, ctx, {});
+    expect(all.data).toMatchObject({ ok: true, issues: [] });
+    expect(all.warnings).toEqual([]);
     const listed = await runCommand(runList, ctx, {});
     expect(listed.warnings).toEqual([]);
     expect((listed.data as RunView[]).map((r) => r.step)).toEqual(["plan"]);

@@ -377,7 +377,7 @@ describe("dg guide", () => {
     for (const text of [work, all]) expect(text).not.toContain("--json mergeable");
   });
 
-  it("plan の Run は記録せず、plan・work・parallel・all・review は案内しない", async () => {
+  it("plan・work・parallel・all・run・review は plan の Run を案内しない", async () => {
     expect(await readGuide("plan")).not.toContain("run start <id> plan");
     for (const topic of ["plan", "work", "parallel", "all", "run", "review"])
       expect(await readGuide(topic)).not.toMatch(/`plan` の Run|step.*`plan`|\| `plan`/);
