@@ -1,0 +1,35 @@
+{
+  "id": "r20261105-234219-4e91",
+  "ticket": "t462",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-05T23:42:19Z",
+  "finished_at": "2026-11-05T23:43:33Z",
+  "result": "success",
+  "error": null,
+  "retries": 6,
+  "retry_reasons": [
+    "plan の英語の文を ID の列挙と and が混ざらないよう , then wait for approval に直す",
+    "resume の英語の添え書きを複数の対象に合う since a Run is running on them に直す",
+    "abandon の英語の文を対象の数に合わせて by moving it/them to abandoned に直す",
+    "create_iteration・create_epic・split の英語の括弧の連続を、--created-by human の添え書きを別の文にして解消する",
+    "all の英語の文を pausing for approval where the steps say to に直す",
+    "ASK_DG_USAGE_EN（DG_PATH_NOTE_EN）の言い回しを the command the repository's guide tells you to use に直す"
+  ],
+  "usage": {
+    "input": 12,
+    "output": 3392,
+    "cache_read": 753375,
+    "cache_write": 4361
+  },
+  "tools": {
+    "read": 0,
+    "search": 0,
+    "write": 0,
+    "bash": 6,
+    "other": 0,
+    "read_before_write": 0,
+    "search_before_write": 0
+  }
+}
