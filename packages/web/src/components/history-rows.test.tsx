@@ -64,7 +64,7 @@ describe("履歴用の行", () => {
     expect(document.querySelector(".row-assignee")).toBeNull();
   });
 
-  it("中止の行は薄くし、2 段目の頭に中止と書く。Iteration と付記は渡したときだけ出し、Epic は省ける", async () => {
+  it("中止の行は状態の点を輪（status-abandoned）にし、2 段目の頭に中止と書く。Iteration と付記は渡したときだけ出し、Epic は省ける", async () => {
     mount(
       <HistoryTicketRow
         ticket={ticket({ id: "t3", status: "abandoned", iteration: "s2", epic: "e1" })}
@@ -78,6 +78,8 @@ describe("履歴用の行", () => {
     expect(row.classList.contains("abandoned")).toBe(true);
     expect(metaOf("t3")).toBe("Abandoned ・ s2 ・ PR なし ・ 今は s3");
     expect(row.querySelector(".history-abandoned")).toBeTruthy();
+    expect(row.querySelector(".status-dot.status-abandoned")).toBeTruthy();
+    expect(row.querySelector(".history-ticket-main .row-title")).toBeTruthy();
   });
 });
 
