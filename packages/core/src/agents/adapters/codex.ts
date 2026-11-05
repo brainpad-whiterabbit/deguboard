@@ -1,7 +1,8 @@
 // Codex の Adapter（AG-5・MT-2、ADR-005）。会話記録（<CODEX_HOME>/sessions/YYYY/MM/DD/rollout-*.jsonl）から使用量を補う。
 //   - 記録の行は {"timestamp", "type", "payload"}。使用量は type が event_msg で payload.type が token_count の行の
 //     payload.info.total_token_usage（session の累計）、モデル名は type が turn_context の行の payload.model
-//   - Run に結び付ける記録：Claude Code の Adapter と同じく、Run の ID を最初に含む会話記録のファイル
+//   - Run に結び付ける記録：Claude Code の Adapter と同じく、Run の ID を最初に含む会話記録のファイル（ID が最初に出たのが
+//     finished_at より後のファイルは除く）
 //   - 数える量：Run の ID が出る前の最後の累計と、finished_at までの最後の累計の差。累計が減っていれば（記録の作り直しなど）取れない。
 //     Codex は応答のツールを実行し終えてからその応答の token_count を書くので、dg run start を呼んだ応答は Run に入り、
 //     dg run finish を呼んだ応答は入らない（Claude Code の Adapter と 1 応答ずれる。ADR-005）。書く順は openai/codex の
@@ -17,7 +18,17 @@ import { createReadStream } from "node:fs";
 import path from "node:path";
 import { createInterface } from "node:readline";
 import type { AgentAdapter, AgentEnv, CollectedUsage, UsageQuery } from "../define.js";
-import { count, fresh, homeDir, list, none, parse, TAIL_MS, timeOf } from "./transcript.js";
+import {
+  count,
+  fresh,
+  homeDir,
+  list,
+  none,
+  parse,
+  seenAfterRun,
+  TAIL_MS,
+  timeOf,
+} from "./transcript.js";
 
 type Counts = CollectedUsage["usage"];
 
@@ -180,7 +191,7 @@ export const codexAdapter: AgentAdapter = {
     let best: Scan | undefined;
     for (const file of await sessionFiles(query)) {
       const s = await scan(file, query, to).catch(() => undefined);
-      if (s?.firstSeen === undefined) continue;
+      if (s?.firstSeen === undefined || seenAfterRun(s.firstSeen, to)) continue;
       if (!best || s.firstSeen < (best.firstSeen ?? Infinity)) best = s;
     }
     if (!best) {

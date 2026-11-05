@@ -368,7 +368,7 @@ describe("dg", () => {
     expect(closed.json().warnings).toEqual(["t1, t2 を残したまま閉じた"]);
   });
 
-  it("run start / list / finish がコアの定義を写し、二重の start は 1、止まった Run は interrupted で閉じる", async () => {
+  it("run start / list / finish / refresh がコアの定義を写し、二重の start は 1、止まった Run は interrupted で閉じる", async () => {
     const f = await fixture();
     await dg(f.cloneA, ["init"]);
     await dg(f.cloneA, ["ticket", "create", "A"]);
@@ -411,6 +411,10 @@ describe("dg", () => {
     expect((await dg(f.cloneA, ["--json", "run", "list", "--running"])).json().data).toEqual([]);
     const bad = await dg(f.cloneA, ["--json", "run", "finish", id, "--result", "done"]);
     expect(bad.code).toBe(2);
+    // run refresh は閉じた Run を位置引数で受け、--dry-run では書き換えずに差分を返す
+    const refreshed = await dg(f.cloneA, ["--json", "run", "refresh", id, "--dry-run"]);
+    expect(refreshed.code).toBe(0);
+    expect(refreshed.json().data).toMatchObject([{ id, changes: [], updated: false }]);
   });
 
   it("ticket import はファイルの下書きを読み、key を depends_on に解決する", async () => {

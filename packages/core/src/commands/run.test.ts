@@ -7,7 +7,14 @@ import { slowLock } from "../../test/helpers/slow-lock.js";
 import { openContext } from "./context.js";
 import { runCommand, type CommandContext } from "./define.js";
 import { findCommand } from "./registry.js";
-import { runFinish, runList, runStart, type RunView } from "./run.js";
+import {
+  runFinish,
+  runList,
+  runRefresh,
+  runStart,
+  type RunRefreshItem,
+  type RunView,
+} from "./run.js";
 import { commit, configSet, init } from "./setup.js";
 import { workflowValidate } from "./workflow.js";
 import { iterationAdd, iterationCreate } from "./iteration.js";
@@ -471,8 +478,8 @@ describe("run", () => {
     expect(codes(failed.data)).toEqual([["workflow_step_duplicate", "error"]]);
   });
 
-  it("CLI・MCP・HTTP が写す一覧に run.start・run.finish・run.list がある", () => {
-    for (const name of ["run.start", "run.finish", "run.list"]) {
+  it("CLI・MCP・HTTP が写す一覧に run.start・run.finish・run.list・run.refresh がある", () => {
+    for (const name of ["run.start", "run.finish", "run.list", "run.refresh"]) {
       expect(findCommand(name)?.needs).toBe("store");
     }
   });
@@ -803,5 +810,265 @@ describe("run finish のモデル名と finished_at", () => {
     ctx.now = () => at;
     const done = await runCommand(runFinish, ctx, { run: later.id, result: "success" });
     expect((done.data as Run).finished_at).toBe(at.toISOString().replace(/\.\d{3}Z$/, "Z"));
+  });
+});
+
+describe("run refresh の取り直し（RN-4・MT-5）", () => {
+  /** 会話記録を読める・コミットごとに push する文脈。会話記録は finish の後に置き、閉じた Run を取り直す */
+  async function closedRuns() {
+    const ctx = await prepared();
+    await runCommand(configSet, ctx, { key: "commit.mode", value: "each" });
+    await runCommand(configSet, ctx, { key: "metrics.read_transcripts", value: "true" });
+    await runCommand(commit, ctx, {});
+    ctx.config = ctx.store.config;
+    const home = await mkdtemp(path.join(os.tmpdir(), "dg-home-"));
+    cleanups.push(() => rm(home, { recursive: true, force: true }));
+    ctx.env = { HOME: home };
+    const projectDir = path.join(
+      home,
+      ".claude",
+      "projects",
+      ctx.repo.topLevel.replace(/[^A-Za-z0-9]/g, "-"),
+    );
+    /** Run の期間の応答 1 つを持つ会話記録。usage のキーを省けばその値は取れない */
+    const transcriptFor = async (run: Run, usage: Record<string, number>) => {
+      const intro = { type: "user", timestamp: run.started_at, message: { content: run.id } };
+      const line = {
+        type: "assistant",
+        timestamp: new Date(Date.parse(run.started_at) + 100).toISOString(),
+        message: {
+          id: `m-${run.id}`,
+          model: "claude-opus-from-transcript",
+          content: "答え",
+          usage,
+        },
+      };
+      await mkdir(projectDir, { recursive: true });
+      await writeFile(
+        path.join(projectDir, `${run.id}.jsonl`),
+        [intro, line].map((l) => JSON.stringify(l)).join("\n") + "\n",
+      );
+    };
+    /** 会話記録のないまま閉じた Run（使用量は null、モデル名は start の別名） */
+    const closedRun = async (ticket: string, model = "opus") => {
+      const run = (
+        await runCommand(runStart, ctx, { ticket, step: "implement", agent: "claude-code", model })
+      ).data as Run;
+      return (await runCommand(runFinish, ctx, { run: run.id, result: "success" })).data as Run;
+    };
+    const saved = async (id: string) =>
+      readFile(path.join(ctx.repo.dataDir, "runs", `${id}.json`), "utf8");
+    const head = async () => (await git(ctx.repo.dataDir, ["rev-parse", "HEAD"])).stdout.trim();
+    return { ctx, transcriptFor, closedRun, saved, head };
+  }
+
+  const full = {
+    input_tokens: 3,
+    output_tokens: 4,
+    cache_read_input_tokens: 50,
+    cache_creation_input_tokens: 6,
+  };
+
+  it("閉じた Run の別名のモデル名と null の使用量を会話記録の値で書き換え、1 回の書き込みでコミットする", async () => {
+    const { ctx, transcriptFor, closedRun, saved } = await closedRuns();
+    const a = await closedRun("t1");
+    const b = await closedRun("t2");
+    await transcriptFor(a, full);
+    await transcriptFor(b, full);
+    const r = await runCommand(runRefresh, ctx, { runs: [a.id, b.id] });
+    expect(r.warnings).toEqual([]);
+    expect(r.write).toMatchObject({ committed: true, pushed: true });
+    const items = r.data as RunRefreshItem[];
+    expect(items.map((i) => [i.id, i.updated])).toEqual([
+      [a.id, true],
+      [b.id, true],
+    ]);
+    expect(items[0]?.changes).toEqual([
+      { field: "model", from: "opus", to: "claude-opus-from-transcript" },
+      { field: "usage.input", from: null, to: 3 },
+      { field: "usage.output", from: null, to: 4 },
+      { field: "usage.cache_read", from: null, to: 50 },
+      { field: "usage.cache_write", from: null, to: 6 },
+    ]);
+    const after = JSON.parse(await saved(a.id)) as Run;
+    // 取り直すのはモデル名と使用量だけで、ほかの値は変えない
+    expect(after).toEqual({
+      ...a,
+      model: "claude-opus-from-transcript",
+      usage: { input: 3, output: 4, cache_read: 50, cache_write: 6 },
+    });
+    const changed = (
+      await git(ctx.repo.dataDir, ["show", "--name-only", "--format=%s", "HEAD"])
+    ).stdout.trim();
+    expect(changed.split("\n")).toEqual([
+      `Run を会話記録から取り直す: ${a.id} ${b.id}`,
+      "",
+      // git は名前の順に並べる
+      ...[`runs/${a.id}.json`, `runs/${b.id}.json`].sort(),
+    ]);
+    // 同じ値なら差分はなく、書かない
+    const again = await runCommand(runRefresh, ctx, { runs: [a.id] });
+    expect((again.data as RunRefreshItem[])[0]).toMatchObject({ changes: [], updated: false });
+    expect(again.write).toBeUndefined();
+  });
+
+  it("--dry-run は書き換える差分を返し、記録もコミットも変えない", async () => {
+    const { ctx, transcriptFor, closedRun, saved, head } = await closedRuns();
+    const a = await closedRun("t1");
+    await transcriptFor(a, full);
+    const before = await saved(a.id);
+    const sha = await head();
+    const r = await runCommand(runRefresh, ctx, { runs: [a.id], dry_run: true });
+    expect(r.write).toBeUndefined();
+    expect((r.data as RunRefreshItem[])[0]).toMatchObject({
+      id: a.id,
+      updated: false,
+      changes: expect.arrayContaining([
+        { field: "model", from: "opus", to: "claude-opus-from-transcript" },
+        { field: "usage.cache_read", from: null, to: 50 },
+      ]),
+    });
+    expect(await saved(a.id)).toBe(before);
+    expect(await head()).toBe(sha);
+  });
+
+  it("取れなかった値は今の値を消さずに残し、値の名前を挙げて警告する", async () => {
+    const { ctx, transcriptFor, saved } = await closedRuns();
+    // 使用量の一部が記録済みの閉じた Run
+    const started = (
+      await runCommand(runStart, ctx, {
+        ticket: "t1",
+        step: "implement",
+        agent: "claude-code",
+        model: "opus",
+      })
+    ).data as Run;
+    await finishRun(ctx, started.id, {
+      result: "success",
+      usage: { cache_read: 900, cache_write: 90 },
+      now: new Date(),
+    });
+    // 会話記録には cache の値がない
+    await transcriptFor(started, { input_tokens: 3, output_tokens: 4 });
+    const r = await runCommand(runRefresh, ctx, { runs: [started.id] });
+    expect((r.data as RunRefreshItem[])[0]).toMatchObject({
+      kept: ["usage.cache_read", "usage.cache_write"],
+      updated: true,
+    });
+    expect(r.warnings).toEqual([
+      `Run ${started.id}: usage.cache_read・usage.cache_write は会話記録から取れなかったので今の値を残す`,
+    ]);
+    expect((JSON.parse(await saved(started.id)) as Run).usage).toEqual({
+      input: 3,
+      output: 4,
+      cache_read: 900,
+      cache_write: 90,
+    });
+
+    // 会話記録がなければ何も書き換えず、Adapter の理由を「今の値を残す」で 1 回だけ出す
+    const lost = (
+      await runCommand(runStart, ctx, {
+        ticket: "t2",
+        step: "implement",
+        agent: "claude-code",
+        model: "opus",
+      })
+    ).data as Run;
+    await runCommand(runFinish, ctx, { run: lost.id, result: "success" });
+    const before = await saved(lost.id);
+    const none = await runCommand(runRefresh, ctx, { runs: [lost.id] });
+    expect(none.write).toBeUndefined();
+    expect(none.warnings).toEqual([
+      `Run ${lost.id}: Claude Code の会話記録に Run ${lost.id} が見つからない。今の値を残す`,
+    ]);
+    expect((none.data as RunRefreshItem[])[0]?.kept).toHaveLength(5);
+    expect(await saved(lost.id)).toBe(before);
+  });
+
+  it("Adapter のない agent の Run も、警告の末尾は「今の値を残す」になる", async () => {
+    const { ctx, saved } = await closedRuns();
+    const started = (
+      await runCommand(runStart, ctx, { ticket: "t1", step: "implement", agent: "no-such-agent" })
+    ).data as Run;
+    await runCommand(runFinish, ctx, { run: started.id, result: "success" });
+    const before = await saved(started.id);
+    const r = await runCommand(runRefresh, ctx, { runs: [started.id] });
+    expect(r.warnings).toEqual([
+      expect.stringMatching(
+        new RegExp(
+          `^Run ${started.id}: agent no-such-agent の Adapter がない（.*）。今の値を残す$`,
+        ),
+      ),
+    ]);
+    expect(await saved(started.id)).toBe(before);
+  });
+
+  it("使用量の 4 つをすべて取り直せたら usage.estimated を外し、一部だけなら残す（RN-2）", async () => {
+    const { ctx, transcriptFor, saved } = await closedRuns();
+    const closeEstimated = async (ticket: string) => {
+      const s = (
+        await runCommand(runStart, ctx, { ticket, step: "implement", agent: "claude-code" })
+      ).data as Run;
+      await finishRun(ctx, s.id, {
+        result: "success",
+        usage: { input: 1, output: 1, cache_read: 1, cache_write: 1, estimated: true },
+        now: new Date(),
+      });
+      return s;
+    };
+    const a = await closeEstimated("t1");
+    await transcriptFor(a, full);
+    const r = await runCommand(runRefresh, ctx, { runs: [a.id] });
+    expect((r.data as RunRefreshItem[])[0]?.changes).toContainEqual({
+      field: "usage.estimated",
+      from: true,
+      to: null,
+    });
+    expect((JSON.parse(await saved(a.id)) as Run).usage).toEqual({
+      input: 3,
+      output: 4,
+      cache_read: 50,
+      cache_write: 6,
+    });
+
+    const b = await closeEstimated("t2");
+    await transcriptFor(b, { input_tokens: 3, output_tokens: 4 });
+    await runCommand(runRefresh, ctx, { runs: [b.id] });
+    expect((JSON.parse(await saved(b.id)) as Run).usage).toMatchObject({
+      input: 3,
+      cache_read: 1,
+      estimated: true,
+    });
+  });
+
+  it("read_transcripts が false なら会話記録を読まず、今の値を残して警告する（MT-2）", async () => {
+    const { ctx, transcriptFor, closedRun, saved } = await closedRuns();
+    const a = await closedRun("t1");
+    await transcriptFor(a, full);
+    await runCommand(configSet, ctx, { key: "metrics.read_transcripts", value: "false" });
+    ctx.config = ctx.store.config;
+    const before = await saved(a.id);
+    const r = await runCommand(runRefresh, ctx, { runs: [a.id] });
+    expect(r.warnings[0]).toMatch(/会話記録を読まない。今の値を残す$/);
+    expect(await saved(a.id)).toBe(before);
+  });
+
+  it("実行中・見つからない・ID の形でない Run は、ほかの Run も書き換えずに拒否する", async () => {
+    const { ctx, transcriptFor, closedRun, saved } = await closedRuns();
+    const a = await closedRun("t1");
+    await transcriptFor(a, full);
+    const before = await saved(a.id);
+    const running = await start(ctx, "t2");
+    await expect(runCommand(runRefresh, ctx, { runs: [a.id, running.id] })).rejects.toMatchObject({
+      code: "REJECTED",
+      message: expect.stringContaining("実行中"),
+    });
+    await expect(
+      runCommand(runRefresh, ctx, { runs: [a.id, "r20261101-000000-0000"] }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(runCommand(runRefresh, ctx, { runs: ["nope"] })).rejects.toMatchObject({
+      code: "INVALID_INPUT",
+    });
+    expect(await saved(a.id)).toBe(before);
   });
 });

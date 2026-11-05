@@ -1,5 +1,6 @@
 // Claude Code の Adapter（AG-5・MT-2、ADR-005）。会話記録（<設定>/projects/<作業ディレクトリ>/<session>.jsonl）から使用量を補う。
 //   - Run に結び付ける記録：Run の ID を最初に含む会話記録のファイル。dg run start の出力を受け取ったエージェントの記録になる。
+//     ID が最初に出たのが finished_at より後のファイル（閉じた後に run refresh を呼んだセッションなど）は Run の記録とみなさない。
 //     サブエージェントは親と同じ session の subagents/ に別のファイルを持ち、作業ディレクトリと時刻だけでは並行するエージェントと区別できない
 //   - 数える行：そのファイルの assistant の行のうち、Run の ID が出た後の started_at〜finished_at のもの。同じ応答が複数行に
 //     分かれるので message.id で重ねない。subagents/ の外のファイルの isSidechain の行（古い版が親のファイルに書くサブエージェントの行）は数えない
@@ -19,6 +20,7 @@ import {
   none,
   parse,
   searchRoots,
+  seenAfterRun,
   TAIL_MS,
   timeOf,
 } from "./transcript.js";
@@ -159,7 +161,7 @@ export const claudeCodeAdapter: AgentAdapter = {
     for (const candidates of [sessionCandidates, worktreeCandidates]) {
       for (const file of await candidates(query, projects)) {
         const s = await scan(file, query, from, to).catch(() => undefined);
-        if (s?.firstSeen === undefined) continue;
+        if (s?.firstSeen === undefined || seenAfterRun(s.firstSeen, to)) continue;
         if (!best || s.firstSeen < (best.firstSeen ?? Infinity)) best = s;
       }
       if (best) break;

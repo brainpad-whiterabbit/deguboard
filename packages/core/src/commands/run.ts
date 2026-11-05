@@ -1,4 +1,4 @@
-// Run の操作（requirements.md 5.9、6.6 MT-1・MT-2、6.7 EX-2、ADR-005）。記録の置き場所とロックは run/record.ts、
+// Run の操作（requirements.md 5.9 RN-4、6.6 MT-1・MT-2・MT-5、6.7 EX-2、ADR-005）。記録の置き場所とロックは run/record.ts、
 // 使用量の取り込みは agents（Run の agent の値で Adapter を選ぶ。特定の AI 製品をここに書かない。AG-5）
 
 import { z } from "zod";
@@ -6,7 +6,8 @@ import { agentNames, collectRunUsage } from "../agents/index.js";
 import { slugSchema, toIsoDateTime } from "../model/common.js";
 import { filterRuns, placeRun, runDurationSeconds, type MetricFilter } from "../model/metrics.js";
 import { OperationError, UsageError } from "../errors.js";
-import { isRunId, RUN_RESULTS, type Run } from "../model/run.js";
+import { isRunId, RUN_RESULTS, type Run, type RunId, type RunUsage } from "../model/run.js";
+import { withWrite } from "../git/write.js";
 import { finishRun, readRunningRuns, startRun } from "../run/record.js";
 import { findStep } from "../workflow/resolve.js";
 import { defineCommand, ok } from "./define.js";
@@ -194,4 +195,163 @@ export const runList = defineCommand({
   },
 });
 
-export const runCommands = [runStart, runFinish, runList];
+/** 取り直しで比べる値。usage の 4 つは usage.<キー> と書く */
+const REFRESH_FIELDS = ["model", "input", "output", "cache_read", "cache_write"] as const;
+type RefreshField = (typeof REFRESH_FIELDS)[number];
+type UsageKey = Exclude<RefreshField, "model">;
+const fieldLabel = (f: RefreshField) => (f === "model" ? "model" : `usage.${f}`);
+
+/** 取り直した 1 件。changes は書き換える（dry_run では書き換えることになる）値、kept は取れずに今の値を残した値 */
+export interface RunRefreshItem {
+  id: RunId;
+  ticket: string;
+  agent: string;
+  /** to が null なのは値を消すとき（usage.estimated だけ） */
+  changes: Array<{
+    field: string;
+    from: string | number | boolean | null;
+    to: string | number | null;
+  }>;
+  kept: string[];
+  updated: boolean;
+}
+
+/**
+ * 会話記録から取れた値だけを今の記録に重ねる。取れなかった値（null）は今の値を残す。
+ * 使用量の 4 つをすべて取り直せたら、推定の印（usage.estimated）は外す（RN-2）
+ */
+function refreshPlan(
+  run: Run,
+  collected: { model: string | null; usage: Partial<Record<UsageKey, number | null>> },
+) {
+  const changes: RunRefreshItem["changes"] = [];
+  const kept: string[] = [];
+  const usage: Partial<RunUsage> = {};
+  let model: string | undefined;
+  for (const field of REFRESH_FIELDS) {
+    const now = field === "model" ? run.model : run.usage[field];
+    const next = field === "model" ? collected.model : (collected.usage[field] ?? null);
+    if (next === null) {
+      kept.push(fieldLabel(field));
+      continue;
+    }
+    if (next === now) continue;
+    changes.push({ field: fieldLabel(field), from: now, to: next });
+    if (field === "model") model = next as string;
+    else usage[field] = next as number;
+  }
+  const allUsage = REFRESH_FIELDS.every((f) => f === "model" || collected.usage[f] != null);
+  const dropEstimated = allUsage && run.usage.estimated !== undefined;
+  if (dropEstimated)
+    changes.push({ field: "usage.estimated", from: run.usage.estimated!, to: null });
+  return { changes, kept, model, usage, dropEstimated };
+}
+
+/**
+ * Adapter の警告の末尾の「null で残す」は finish の言い方なので外し、取り直しの末尾（今の値を残す）は呼ぶ側が付ける。
+ * Adapter の文言が変わって外せなくても、末尾は必ず「今の値を残す」になる
+ */
+const keepWording = (warning: string) =>
+  `${warning.replace(/。(使用量は )?null で残す$/, "")}。今の値を残す`;
+
+export const runRefresh = defineCommand({
+  name: "run.refresh",
+  positionals: ["runs"],
+  group: "run",
+  summary:
+    "閉じた Run のモデル名と使用量を、agent の Adapter で会話記録から取り直す（finish と同じ探し方。metrics.read_transcripts と DEGUBOARD_NO_TRANSCRIPTS に従う）。取れた値だけを書き換え、取れなかった値は今の値を残して警告する。--dry-run では書かずに差分（changes）だけを返す",
+  input: z.object({
+    runs: z
+      .array(z.string().min(1))
+      .min(1)
+      .describe("閉じた Run の ID（r20261031-041500-3fa2）。複数指定できる"),
+    dry_run: z.boolean().optional().describe("書き換えずに、書き換えることになる差分だけを返す"),
+  }),
+  write: true,
+  needs: "store",
+  async run(ctx, input) {
+    const ids = [...new Set(input.runs)] as RunId[];
+    const closed = (id: RunId) => {
+      const doc = ctx.store.runs.get(id);
+      if (!doc) throw new OperationError("NOT_FOUND", `閉じた Run ${id} が見つからない`);
+      return doc;
+    };
+    const running = new Set((await readRunningRuns(ctx.repo)).runs.map((r) => r.id));
+    for (const id of ids) {
+      if (!isRunId(id))
+        throw new UsageError(`${id} は Run の ID の形（r20261031-041500-3fa2）でない`);
+      if (running.has(id))
+        throw new OperationError(
+          "REJECTED",
+          `Run ${id} は実行中。dg run finish ${id} で閉じれば finish が会話記録から取り込む`,
+        );
+      closed(id);
+    }
+    const warnings: string[] = [];
+    /** Adapter が理由を警告した Run。kept の警告を重ねて出さない */
+    const explained = new Set<RunId>();
+    const collected = new Map<string, Awaited<ReturnType<typeof collectRunUsage>>>();
+    for (const id of ids) {
+      const run = closed(id).data;
+      const got = await collectRunUsage(ctx.config, {
+        run,
+        // 閉じた Run は終了日時で期間を区切る（finish と同じ範囲を読む）
+        finishedAt: run.finished_at ?? run.started_at,
+        env: ctx.env ?? process.env,
+        topLevel: ctx.repo.topLevel,
+        commonDir: ctx.repo.commonDir,
+      });
+      collected.set(id, got);
+      if (got.warnings.length > 0) explained.add(id);
+      warnings.push(...got.warnings.map((w) => `Run ${id}: ${keepWording(w)}`));
+    }
+    // 書き込みのやり直し（push の拒否）で索引が読み直されても、その時の記録に重ねる
+    const plan = (): RunRefreshItem[] =>
+      ids.map((id) => {
+        const run = closed(id).data;
+        const { changes, kept } = refreshPlan(run, collected.get(id)!);
+        return { id, ticket: run.ticket, agent: run.agent, changes, kept, updated: false };
+      });
+    const items = plan();
+    for (const item of items) {
+      if (item.kept.length > 0 && !explained.has(item.id))
+        warnings.push(
+          `Run ${item.id}: ${item.kept.join("・")} は会話記録から取れなかったので今の値を残す`,
+        );
+    }
+    if (input.dry_run || items.every((i) => i.changes.length === 0)) {
+      return ok(items, undefined, warnings);
+    }
+    const written = await withWrite(
+      ctx,
+      async () => {
+        const next = plan();
+        for (const item of next) {
+          if (item.changes.length === 0) continue;
+          const doc = closed(item.id as RunId);
+          const { model, usage, dropEstimated } = refreshPlan(doc.data, collected.get(item.id)!);
+          const base = doc.yaml.toJS() as Record<string, unknown>;
+          // usage の中の未知のキーは残す（DT-2）
+          const nextUsage = { ...(base["usage"] as Record<string, unknown>), ...usage };
+          if (dropEstimated) delete nextUsage["estimated"];
+          await ctx.store.update("run", item.id, {
+            ...(model === undefined ? {} : { model }),
+            usage: nextUsage,
+          });
+          item.updated = true;
+        }
+        return next;
+      },
+      {
+        message: (done) =>
+          `Run を会話記録から取り直す: ${done
+            .filter((i) => i.updated)
+            .map((i) => i.id)
+            .join(" ")}`,
+      },
+    );
+    return ok(written.value, written.write, warnings);
+  },
+});
+
+export const runCommands = [runStart, runFinish, runList, runRefresh];

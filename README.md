@@ -67,6 +67,7 @@ dg config set metrics.read_transcripts true   # finish が会話記録から使�
 export DEGUBOARD_NO_TRANSCRIPTS=1             # このマシンでは会話記録を読ませないとき
 dg run list --running                         # 実行中の Run。閉じ損ねたものは dg run finish <ID> --result interrupted
 dg run list --iteration s1                    # その Iteration のチケットの Run
+dg run refresh <ID> --dry-run                 # 閉じた Run のモデル名と使用量を会話記録から取り直す差分（--dry-run を外すと書き換える）
 dg metrics show --iteration s1 --by ticket    # 絞り込み（--ticket・--epic・--step など）と単位ごとの集計
 ```
 

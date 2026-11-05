@@ -63,6 +63,13 @@ export const parse = (line: string): Record<string, unknown> | undefined => {
 export const timeOf = (entry: Record<string, unknown>): number =>
   typeof entry["timestamp"] === "string" ? Date.parse(entry["timestamp"]) : NaN;
 
+/**
+ * Run の ID が最初に出た時刻が期間の終わり（to）より後のファイルは、その Run の記録でない。
+ * 閉じた後に ID を書いた別のセッション（run refresh を呼んだセッションなど）を選ばないために候補から外す。時刻の分からない行（Infinity）は外さない
+ */
+export const seenAfterRun = (firstSeen: number, to: number): boolean =>
+  Number.isFinite(firstSeen) && firstSeen > to;
+
 /** 行の順が少し前後しても読み切るための猶予。期間の終わりからこれだけ過ぎた行で読むのをやめる */
 export const TAIL_MS = 60_000;
 

@@ -57,7 +57,7 @@ export const configSchema = z.looseObject({
         .boolean()
         .default(false)
         .describe(
-          "run finish が Adapter で会話記録を読んで使用量を補うか。DEGUBOARD_NO_TRANSCRIPTS のマシンでは true でも読まない（MT-2）",
+          "run finish・run refresh が Adapter で会話記録を読んで使用量を補うか。DEGUBOARD_NO_TRANSCRIPTS のマシンでは true でも読まない（MT-2）",
         ),
     })
     .prefault({}),

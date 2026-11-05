@@ -118,7 +118,7 @@ describe("HTTP サーバー", () => {
     expect(closed.body.data.closed_at).toBeDefined();
   });
 
-  it("run.list も HTTP に写り、Project で絞って実行時間 duration_seconds を返す", async () => {
+  it("run.list・run.refresh も HTTP に写り、Project で絞って実行時間 duration_seconds を返す", async () => {
     const f = await fixture();
     await runCommand(init, await openContext({ cwd: f.cloneA, initialize: {} }), {});
     const s = await serve(f.cloneA);
@@ -133,6 +133,10 @@ describe("HTTP サーバー", () => {
     expect(finished.body.data).toMatchObject([{ id: started.body.data.id, running: false }]);
     expect(typeof finished.body.data[0].duration_seconds).toBe("number");
     expect((await post(s, "run.list", { project: "other" })).body.data).toEqual([]);
+    // 閉じた Run の取り直しも HTTP に写る
+    const refreshed = await post(s, "run.refresh", { runs: [started.body.data.id], dry_run: true });
+    expect(refreshed.status).toBe(200);
+    expect(refreshed.body.data).toMatchObject([{ id: started.body.data.id, updated: false }]);
   });
 
   it("metrics.show も HTTP に写り、step で絞り込み・集計できる", async () => {
