@@ -87,6 +87,18 @@ const STEPS: Step[] = [
     input: { ticket: "t2", priority: "low", depends_on: ["t1"] },
     argv: ["ticket", "update", "t2", "--priority", "low", "--depends-on", "t1"],
   },
+  // 受け入れ条件の印：画面が読んだ本文（base）と今の本文が違えば 3 経路とも拒否し、書かない
+  {
+    name: "ticket.check",
+    input: { ticket: "t1", items: [2], base: "古い本文" },
+    argv: ["ticket", "check", "t1", "2", "--base", "古い本文"],
+    rejected: "REJECTED",
+  },
+  {
+    name: "ticket.check",
+    input: { ticket: "t1", items: [2] },
+    argv: ["ticket", "check", "t1", "2"],
+  },
   {
     name: "ticket.create",
     input: { title: "画面", depends_on: ["t2"] },

@@ -15,11 +15,39 @@ describe("本文の Markdown", () => {
       {
         kind: "list",
         items: [
-          { checked: false, text: "a" },
-          { checked: true, text: "b" },
+          { checked: false, text: "a", acceptance: 1 },
+          { checked: true, text: "b", acceptance: 2 },
           { checked: null, text: "c" },
         ],
       },
+    ]);
+  });
+
+  it("受け入れ条件の番号は ## 受け入れ条件 の節の `- [ ]` の行で、文のない行を飛ばし、次の ## で終わる（core の ticket.check の番号）", () => {
+    const blocks = parseBlocks(
+      [
+        "## 概要",
+        "- [ ] 節の外",
+        "## 受け入れ条件",
+        "- [ ] a",
+        "- [ ] ",
+        "* [ ] 星の行は数えない",
+        "### 小見出し",
+        "- [X] b",
+        "## メモ",
+        "- [ ] 節の外",
+      ].join("\n"),
+    );
+    const numbered = blocks.flatMap((b) =>
+      b.kind === "list" ? b.items.map((x) => [x.text, x.acceptance ?? null]) : [],
+    );
+    expect(numbered).toEqual([
+      ["節の外", null],
+      ["a", 1],
+      ["", null],
+      ["星の行は数えない", null],
+      ["b", 2],
+      ["節の外", null],
     ]);
   });
 

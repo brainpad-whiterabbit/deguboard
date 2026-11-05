@@ -1,5 +1,6 @@
 // チケットと Epic の本文（## 概要・## 受け入れ条件）を表示する最小の Markdown。見出し・段落・箇条書き・チェックリスト・インラインコードだけ。
-// タスクリストのある節は、見出しに済んだ数とメーターを出す
+// タスクリストのある節は、見出しに済んだ数とメーターを出す。
+// onToggle を渡すと、`## 受け入れ条件` の節の項目（core の ticket.check の番号が付く行）だけチェックボックスを押せる。ほかの節は表示だけ
 
 import type { ReactNode } from "react";
 import { ProgressMeter } from "./components/parts.js";
@@ -7,7 +8,14 @@ import { ProgressMeter } from "./components/parts.js";
 type Block =
   | { kind: "heading"; level: number; text: string }
   | { kind: "paragraph"; text: string }
-  | { kind: "list"; items: { checked: boolean | null; text: string }[] };
+  | { kind: "list"; items: ListItem[] };
+
+/** 箇条書きの 1 行。acceptance は受け入れ条件の番号（core の parseAcceptance の index と同じ数え方）で、節の外の行にはない */
+type ListItem = { checked: boolean | null; text: string; acceptance?: number };
+
+/** core の ticket.ts の ACCEPTANCE_HEADING と CHECK_LINE と同じ形。節は次の `## ` の行まで */
+const ACCEPTANCE_HEADING = /^## 受け入れ条件[ \t]*$/;
+const ACCEPTANCE_ITEM = /^- \[[ xX]\] (.*)$/;
 
 export function parseBlocks(body: string): Block[] {
   const blocks: Block[] = [];
@@ -16,18 +24,26 @@ export function parseBlocks(body: string): Block[] {
     if (paragraph.length) blocks.push({ kind: "paragraph", text: paragraph.join(" ") });
     paragraph = [];
   };
+  // 受け入れ条件の節の中なら、これまでに数えた項目の数。節の外は null
+  let acceptance: number | null = null;
   for (const line of body.split(/\r?\n/)) {
     const heading = /^(#{1,6})\s+(.*)$/.exec(line);
     const item = /^[-*]\s+(?:\[([ xX])\]\s+)?(.*)$/.exec(line);
+    if (line.startsWith("## ")) acceptance = ACCEPTANCE_HEADING.test(line) ? 0 : null;
     if (heading) {
       flush();
       blocks.push({ kind: "heading", level: heading[1]!.length, text: heading[2] ?? "" });
     } else if (item) {
       flush();
-      const entry = {
+      const entry: ListItem = {
         checked: item[1] === undefined ? null : item[1] !== " ",
         text: item[2] ?? "",
       };
+      // 文のない行（雛形の `- [ ] `）は core と同じく数えない
+      if (acceptance !== null && ACCEPTANCE_ITEM.exec(line)?.[1]?.trim()) {
+        acceptance += 1;
+        entry.acceptance = acceptance;
+      }
       const last = blocks.at(-1);
       if (last?.kind === "list") last.items.push(entry);
       else blocks.push({ kind: "list", items: [entry] });
@@ -93,8 +109,24 @@ function inline(text: string): ReactNode[] {
     );
 }
 
-export function Markdown({ body }: { body: string }) {
-  const blocks = parseBlocks(body);
+/** 受け入れ条件の印の付け外し。pending は保存を待つ項目で、その印を先に出し、待つ間はどの項目も押せない */
+export interface AcceptanceToggle {
+  onToggle(index: number, checked: boolean): void;
+  pending: { index: number; checked: boolean } | null;
+}
+
+export function Markdown({ body, toggle }: { body: string; toggle?: AcceptanceToggle }) {
+  const pending = toggle?.pending;
+  const blocks = parseBlocks(body).map((b) =>
+    b.kind === "list" && pending
+      ? {
+          ...b,
+          items: b.items.map((x) =>
+            x.acceptance === pending.index ? { ...x, checked: pending.checked } : x,
+          ),
+        }
+      : b,
+  );
   if (blocks.length === 0) return <p className="muted">（本文なし）</p>;
   const tasks = sectionTasks(blocks);
   return (
@@ -115,7 +147,18 @@ export function Markdown({ body }: { body: string }) {
           <ul key={i} className={b.items.some((x) => x.checked !== null) ? "checklist" : ""}>
             {b.items.map((x, j) => (
               <li key={j}>
-                {x.checked !== null && <input type="checkbox" checked={x.checked} readOnly />}
+                {x.checked === null ? null : toggle && x.acceptance !== undefined ? (
+                  <input
+                    type="checkbox"
+                    checked={x.checked}
+                    disabled={pending != null}
+                    aria-label={`受け入れ条件 ${x.acceptance}`}
+                    title={x.checked ? "未済に戻す" : "済みにする"}
+                    onChange={(e) => toggle.onToggle(x.acceptance!, e.target.checked)}
+                  />
+                ) : (
+                  <input type="checkbox" checked={x.checked} readOnly />
+                )}
                 <span>{inline(x.text)}</span>
               </li>
             ))}

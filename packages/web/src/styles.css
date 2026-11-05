@@ -1495,6 +1495,10 @@ textarea.body {
   gap: 0.4em;
   align-items: baseline;
 }
+/* 押して付け外しできる受け入れ条件の印（チケット詳細）。表示だけの印は readonly */
+.markdown ul.checklist input:not([readonly]):not(:disabled) {
+  cursor: pointer;
+}
 /* 節の見出しの右の「済 / 全」とメーター（markdown.tsx の TaskMeter）。見出しの太さと大きさを受けない */
 .markdown .task-meter {
   margin-left: 0.6em;

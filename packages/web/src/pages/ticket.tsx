@@ -4,7 +4,8 @@
 // VS Code のパネルでは、タイトルの下に Status・優先度・Iteration・担当・PR の 1 行と編集のボタンを置いてスクロールしても上に残す。
 // パネルでは依存先が終わっていなければ本文の上の帯で知らせる。
 // 右の列（属性）は、パネルが components/ticket-props-panel.tsx（値を押してその場で直す）、ブラウザが components/ticket-props-browser.tsx。
-// パネルの編集のボタンはタイトルと本文だけを入力欄にし、ブラウザでは編集のボタンでタイトル・本文・属性をまとめて直す
+// パネルの編集のボタンはタイトルと本文だけを入力欄にし、ブラウザでは編集のボタンでタイトル・本文・属性をまとめて直す。
+// 本文の受け入れ条件のチェックボックスは、押すとその項目だけを ticket.check で付け外しする（読んだ本文を base に渡し、間に書き込みがあれば拒否されて戻す）
 
 import { useEffect, useState } from "react";
 import { useCommandData } from "../command-data.js";
@@ -16,7 +17,7 @@ import { draftOf, PrLink, type Draft } from "../components/ticket-props.js";
 import { TicketRuns } from "../components/ticket-runs.js";
 import { TicketTimeline } from "../components/timeline.js";
 import { useHost } from "../host.js";
-import { Markdown } from "../markdown.js";
+import { Markdown, type AcceptanceToggle } from "../markdown.js";
 import { hrefOf } from "../router.js";
 import { useStore, type Store } from "../store.js";
 import type { Status, TicketDetail, WorkflowView } from "../types.js";
@@ -68,6 +69,7 @@ export function TicketPage({ id }: { id: string }) {
     setData: setTicket,
   } = useCommandData<TicketDetail>("ticket.show", { ticket: id });
   const [draft, setDraft] = useState<Draft | null>(null);
+  const [pendingCheck, setPendingCheck] = useState<AcceptanceToggle["pending"]>(null);
   const workflow = useTicketWorkflow(store, ticket);
   const fields = workflow?.definition.fields ?? [];
   /** このチケットの Status の表示名（依存先・依存元はそれぞれの一覧の表示名のまま） */
@@ -86,6 +88,23 @@ export function TicketPage({ id }: { id: string }) {
       ...(panel ? {} : attrPatchOf(draft, fields)),
     });
     if (r.ok) setDraft(null);
+  };
+
+  // 押した印を先に出して保存を待つ。拒否されたら印を戻し（理由は store.run が通知に出す）、今の本文を読み直す
+  const toggleCheck = async (index: number, checked: boolean) => {
+    setPendingCheck({ index, checked });
+    const r = await store.run<{ body: string; updated_at: string }>("ticket.check", {
+      ticket: ticket.id,
+      items: [index],
+      undo: !checked,
+      base: ticket.body,
+    });
+    if (r.ok) {
+      const { body, updated_at } = r.data;
+      setTicket((prev) => (prev ? { ...prev, body, updated_at } : prev));
+    }
+    setPendingCheck(null);
+    if (!r.ok) await store.reload();
   };
 
   const editButtons = draft ? (
@@ -182,7 +201,10 @@ export function TicketPage({ id }: { id: string }) {
             aria-label="本文"
           />
         ) : (
-          <Markdown body={ticket.body} />
+          <Markdown
+            body={ticket.body}
+            toggle={{ onToggle: (i, c) => void toggleCheck(i, c), pending: pendingCheck }}
+          />
         )}
         {panel ? null : <div className="actions">{editButtons}</div>}
         <TicketRuns id={ticket.id} />

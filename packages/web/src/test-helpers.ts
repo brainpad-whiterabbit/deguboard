@@ -7,10 +7,12 @@ import {
   parseAskMenuKey,
   planReadiness,
   progressOf,
+  setAcceptance,
   type AskMenu,
   type AskSubject,
 } from "@deguboard/core";
 import type { CommandClient, CommandResult, StatusView } from "@deguboard/core";
+import { ClientError } from "./client/http.js";
 import type {
   EpicRow,
   Iteration,
@@ -208,6 +210,8 @@ function askSubjectOf(data: Fixture, id: string): AskSubject {
 
 export function mockClient(data = fixture()): MockClient {
   const calls: MockClient["calls"] = [];
+  /** ticket.check で書き換えた本文。ticket.show はこれを返し、なければ TICKET_BODY */
+  const bodies: Record<string, string> = {};
   const handlers: MockClient["handlers"] = {
     "project.list": () => data.projects,
     "config.show": () => ({
@@ -274,7 +278,7 @@ export function mockClient(data = fixture()): MockClient {
       const t = data.tickets.find((x) => x.id === (input as { ticket: string }).ticket)!;
       return {
         ...t,
-        body: TICKET_BODY,
+        body: bodies[t.id] ?? TICKET_BODY,
         dependents: [],
         deps_done: true,
         pending_deps: [],
@@ -298,6 +302,29 @@ export function mockClient(data = fixture()): MockClient {
         else t[key] = value;
       }
       return { ...t, body: (patch["body"] as string | undefined) ?? TICKET_BODY };
+    },
+    // core の ticket.check と同じく、base が今の本文と違えば REJECTED、同じなら番号の項目の印だけを書き換える
+    "ticket.check": (input) => {
+      const {
+        ticket: id,
+        items = [],
+        undo,
+        base,
+      } = input as {
+        ticket: string;
+        items?: number[];
+        undo?: boolean;
+        base?: string;
+      };
+      const t = data.tickets.find((x) => x.id === id)!;
+      const body = bodies[id] ?? TICKET_BODY;
+      if (base !== undefined && base !== body)
+        throw new ClientError({
+          code: "REJECTED",
+          message: `${id} の本文は読んだ後に変わっている`,
+        });
+      bodies[id] = setAcceptance(body, items, !undo);
+      return { ...t, body: bodies[id] };
     },
     "ticket.move": (input) => {
       const { ticket: id, status } = input as { ticket: string; status: Ticket["status"] };
