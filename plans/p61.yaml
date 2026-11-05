@@ -2,7 +2,7 @@ id: p61
 project: default
 tickets: [t447, t448, t449, t454]
 after: {}
-pending_approval: true
+pending_approval: false
 details:
   t447:
     scope: Walkthrough の init.md と init.ja.md の導入の案内を、README と拡張の通知と同じ公開前の入れ方に直す
@@ -20,3 +20,5 @@ details:
     scope: UI-15・README・ADR-010 の Enter を押さない記述とキーの割り当ての正本の指し先を ADR-010 と ADR-001 に合わせる
     approach: UI-15 と README の言い切りを 1 行と複数行の扱いに合わせ、正本の指し先をコード（row-nav.tsx・ask-menu.tsx）にする
     tier: light
+approved_by: maji/agent
+approved_at: 2026-11-05T22:24:58Z
