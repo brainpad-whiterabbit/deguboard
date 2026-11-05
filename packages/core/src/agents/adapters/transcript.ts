@@ -3,34 +3,12 @@
 import { createReadStream } from "node:fs";
 import { readdir, stat } from "node:fs/promises";
 import os from "node:os";
-import path from "node:path";
 import { createInterface } from "node:readline";
 import type { RunTools, ToolKind } from "../../model/run.js";
 import type { AgentEnv, CollectedUsage, UsageQuery } from "../define.js";
 
 export function homeDir(env: AgentEnv): string {
   return env["HOME"] || os.homedir();
-}
-
-/** dir が base と同じか、その下にあるか */
-export function within(dir: string, base: string): boolean {
-  const rel = path.relative(base, dir);
-  return rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel));
-}
-
-/**
- * 会話記録を探す作業ディレクトリ。作業ツリーと主の作業ツリー（common dir の親）と、主の作業ツリーの親までの上位。
- * HOME とその上はほかのリポジトリの会話記録も入るので、Run を結び付ける候補としては探さない
- */
-export function searchRoots(topLevel: string, commonDir: string, home: string): string[] {
-  const main = path.dirname(path.resolve(commonDir));
-  const limit = path.dirname(main);
-  const roots = new Set([path.resolve(topLevel), main]);
-  for (let d = path.dirname(path.resolve(topLevel)); within(d, limit); d = path.dirname(d)) {
-    roots.add(d);
-    if (path.dirname(d) === d) break;
-  }
-  return [...roots].filter((d) => !within(path.resolve(home), d));
 }
 
 /** ディレクトリの中の名前。読めなければ空 */
@@ -106,7 +84,7 @@ export const none = (warning: string): CollectedUsage => ({
 });
 
 /** ほかの Run を始めた記録とみなす、ID が最初に出るまでの開始からの猶予 */
-const START_MS = 60_000;
+export const START_MS = 60_000;
 
 /**
  * 同じ会話記録で期間が重なる Run に、1 つの応答を二重に数えないための判定（ADR-005）。
@@ -126,6 +104,8 @@ export class OverlapClaims {
   readonly claimants = new Set<string>();
   /** ほかのファイルで ID が先に出た Run。譲る相手にしない */
   private readonly elsewhere: ReadonlySet<string>;
+  /** 譲る相手になりうる Run の ID（自分より後に始まって期間が重なる同じ agent の Run） */
+  readonly rivals: readonly string[];
 
   constructor(
     query: UsageQuery,
@@ -148,6 +128,7 @@ export class OverlapClaims {
       if (later) this.pending.set(id, { from: start, to: end });
     }
     this.elsewhere = elsewhere;
+    this.rivals = [...this.pending.keys()];
   }
 
   /** 行を読んだ後に呼び、その行に初めて出たほかの Run の ID を記録する */
@@ -183,16 +164,15 @@ export function pastAll(line: string, limit: number): boolean {
 }
 
 /**
- * 選んだファイル（chosen）で譲る相手にした Run の ID が、file で最初に出た時刻だけを記録する。使用量は読まない。
- * chosen で最も遅く ID が出た時刻を TAIL_MS 過ぎた行で読むのをやめる（それより後に出ても claimedElsewhere の比べで効かない）
+ * file で ids のそれぞれが最初に出た時刻（時刻の分からない行は Infinity）。使用量は読まない。
+ * 行の timestamp がすべて limit を過ぎたら読むのをやめる（それより後に出ても使わない）
  */
 export async function sightings(
   file: string,
-  chosen: OverlapClaims,
-): Promise<{ seen: ReadonlyMap<string, number> }> {
+  ids: readonly string[],
+  limit: number,
+): Promise<Map<string, number>> {
   const seen = new Map<string, number>();
-  const ids = [...chosen.claimants];
-  const limit = Math.max(...ids.map((id) => chosen.seen.get(id) ?? Infinity)) + TAIL_MS;
   const input = createReadStream(file);
   try {
     const lines = createInterface({ input, crlfDelay: Infinity });
@@ -208,7 +188,44 @@ export async function sightings(
   } finally {
     input.destroy();
   }
-  return { seen };
+  return seen;
+}
+
+/** bindFile の結果。file は Run を結び付けるファイル（なければ undefined）、others はそのほかのファイルで rivals が最初に出た時刻 */
+export interface Bound {
+  file: string | undefined;
+  others: Array<{ seen: ReadonlyMap<string, number> }>;
+}
+
+/**
+ * Run を結び付けるファイルを選ぶ（ADR-005）。files（会話記録の置き場所のすべて）のそれぞれで Run の ID と rivals が最初に出た時刻を読み、
+ * Run の ID が最も早く出たファイルを返す。ID は dg run start が作るので、最も早く出たファイルがその Run を始めた記録で、
+ * run start の警告などで後から ID を見ただけのファイルは選ばない。呼ぶ session の環境によらず同じファイルになるよう、
+ * session のファイル（preferred）は同じ時刻のときの決め手にだけ使い、それも同じなら files の順で決める。
+ * ID が最初に出たのが to より後のファイルは除く（seenAfterRun）。rivals は to + START_MS までに出なければ譲る相手にならないので、
+ * そこから TAIL_MS 過ぎた行で読むのをやめる
+ */
+export async function bindFile(
+  query: UsageQuery,
+  files: readonly string[],
+  to: number,
+  rivals: readonly string[],
+  preferred: (file: string) => boolean,
+): Promise<Bound> {
+  const ids = [query.run.id, ...rivals];
+  const limit = to + START_MS + TAIL_MS;
+  const read: Array<{ file: string; seen: Map<string, number> }> = [];
+  let best: { file: string; at: number } | undefined;
+  for (const file of new Set(files)) {
+    const seen = await sightings(file, ids, limit).catch(() => undefined);
+    if (!seen) continue;
+    read.push({ file, seen });
+    const at = seen.get(query.run.id);
+    if (at === undefined || seenAfterRun(at, to)) continue;
+    if (!best || at < best.at || (at === best.at && preferred(file) && !preferred(best.file)))
+      best = { file, at };
+  }
+  return { file: best?.file, others: read.filter((r) => r.file !== best?.file) };
 }
 
 /**

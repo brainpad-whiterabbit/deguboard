@@ -1,14 +1,14 @@
 // Claude Code の Adapter（AG-5・MT-2、ADR-005）。会話記録（<設定>/projects/<作業ディレクトリ>/<session>.jsonl）から使用量とツールの回数を補う。
-//   - Run に結び付ける記録：Run の ID を最初に含む会話記録のファイル。dg run start の出力を受け取ったエージェントの記録になる。
-//     ID が最初に出たのが finished_at より後のファイル（閉じた後に run refresh を呼んだセッションなど）は Run の記録とみなさない。
+//   - Run に結び付ける記録：探す範囲で Run の ID を最も早く含む会話記録のファイル（bindFile）。dg run start の出力を受け取ったエージェントの
+//     記録になり、run start の警告などで後から ID を見ただけのファイルは選ばない。ID が最初に出たのが finished_at より後のファイル
+//     （閉じた後に run refresh を呼んだセッションなど）は除く。同じ時刻なら CLAUDE_CODE_SESSION_ID の session のファイルを選ぶ。
 //     サブエージェントは親と同じ session の subagents/ に別のファイルを持ち、作業ディレクトリと時刻だけでは並行するエージェントと区別できない
 //   - 数える行：そのファイルの assistant の行のうち、Run の ID が出た後の started_at〜finished_at のもの。同じ応答が複数行に
 //     分かれるので message.id で重ねない。subagents/ の外のファイルの isSidechain の行（古い版が親のファイルに書くサブエージェントの行）は数えない。
 //     同じファイルで期間が重なるほかの Run があれば、応答は ID が先に出ていて開いている Run のうち最も新しく始まったものにだけ数える（OverlapClaims）。
-//     ほかのファイルで ID が同じか先に出た Run には譲らない（その Run の記録はそちらのファイル）。譲る相手がいれば、探す範囲の外も含む
-//     projects/ の下のすべてで相手の ID を探して比べる（別の worktree で始めた Run に譲らない）。すべて譲ったら量は 0
-//   - 探す範囲：環境変数 CLAUDE_CODE_SESSION_ID があればその session のファイル。そこに Run がなければ、作業ツリーと主の作業ツリーと、
-//     主の作業ツリーの親までの上位のディレクトリ（HOME とその上は除く）に当たる projects/ の下。どちらも started_at より後に書かれたファイルだけ
+//     ほかのファイルで ID が同じか先に出た Run には譲らない（その Run の記録はそちらのファイル）。すべて譲ったら量は 0
+//   - 探す範囲：projects/ の下のすべて（別の worktree・別のディレクトリで始めたセッションも）のうち、started_at より後に書かれたファイル。
+//     どのファイルも Run の ID と譲る相手の ID が最初に出るまでと、finished_at を過ぎるまでしか読まない。数える行を読むのは選んだファイルだけ
 //   - ツールの回数：数える行の message.content の tool_use を、tool_use の id で重ねずに名前で種類に分けて数える（TOOL_KINDS）。
 //     最初に書く（write）までの読む・探すも数える。Bash はコマンドで分けない
 //   - 返すのは数とモデル名だけ。会話の中身・コマンド・パスは返さない（MT-4）。ツールは名前を種類に変えて数だけを返す
@@ -19,6 +19,7 @@ import { createInterface } from "node:readline";
 import type { ToolKind } from "../../model/run.js";
 import type { AgentAdapter, AgentEnv, CollectedUsage, UsageQuery } from "../define.js";
 import {
+  bindFile,
   claimedElsewhere,
   count,
   fresh,
@@ -27,9 +28,6 @@ import {
   none,
   OverlapClaims,
   parse,
-  searchRoots,
-  seenAfterRun,
-  sightings,
   tallyTools,
   TAIL_MS,
   timeOf,
@@ -48,24 +46,13 @@ export function projectDirName(dir: string): string {
   return dir.replace(/[^A-Za-z0-9]/g, "-");
 }
 
-/** session の会話記録と、そのサブエージェントの会話記録 */
-async function sessionFiles(projectDir: string, session: string): Promise<string[]> {
-  const sub = path.join(projectDir, session, "subagents");
-  return [
-    path.join(projectDir, `${session}.jsonl`),
-    ...(await list(sub)).filter((f) => f.endsWith(".jsonl")).map((f) => path.join(sub, f)),
-  ];
-}
-
-/** CLAUDE_CODE_SESSION_ID の session のファイル。なければ・形が正しくなければ空 */
-async function sessionCandidates(query: UsageQuery, projects: string): Promise<string[]> {
+/** CLAUDE_CODE_SESSION_ID の session のファイル（親とそのサブエージェント）か。形が正しくなければどれも当たらない */
+function inSession(query: UsageQuery): (file: string) => boolean {
   const session = query.env["CLAUDE_CODE_SESSION_ID"];
-  if (!session || !/^[\w-]+$/.test(session)) return [];
-  const files: string[] = [];
-  for (const dir of await list(projects)) {
-    files.push(...(await sessionFiles(path.join(projects, dir), session)));
-  }
-  return fresh(query, files);
+  if (!session || !/^[\w-]+$/.test(session)) return () => false;
+  return (file) =>
+    path.basename(file) === `${session}.jsonl` ||
+    path.basename(path.dirname(path.dirname(file))) === session;
 }
 
 /** projects/ の下の 1 つのディレクトリの会話記録と、そのサブエージェントの会話記録 */
@@ -73,21 +60,15 @@ async function projectFiles(dir: string): Promise<string[]> {
   const files: string[] = [];
   for (const entry of await list(dir)) {
     if (entry.endsWith(".jsonl")) files.push(path.join(dir, entry));
-    else files.push(...(await sessionFiles(dir, entry)).slice(1));
+    else {
+      const sub = path.join(dir, entry, "subagents");
+      for (const f of await list(sub)) if (f.endsWith(".jsonl")) files.push(path.join(sub, f));
+    }
   }
   return files;
 }
 
-/** 作業ツリーから探すファイル。主の作業ツリーでセッションを始め、別の worktree で作業することがある */
-async function worktreeCandidates(query: UsageQuery, projects: string): Promise<string[]> {
-  const files: string[] = [];
-  for (const root of searchRoots(query.topLevel, query.commonDir, homeDir(query.env))) {
-    files.push(...(await projectFiles(path.join(projects, projectDirName(root)))));
-  }
-  return fresh(query, files);
-}
-
-/** projects/ の下のすべての会話記録。譲る相手の Run がどこで始まったかを比べるのに使う */
+/** projects/ の下のすべての会話記録のうち、started_at より後に書かれたもの */
 async function allCandidates(query: UsageQuery, projects: string): Promise<string[]> {
   const files: string[] = [];
   for (const dir of await list(projects))
@@ -247,35 +228,18 @@ export const claudeCodeAdapter: AgentAdapter = {
     // 時刻は秒までなので、終わりはその秒の終わりまで含める
     const from = Date.parse(query.run.started_at);
     const to = Date.parse(query.finishedAt) + 999;
+    // 探す範囲は projects/ の下のすべて。呼ぶ session（finish と refresh で違う）によらずに同じファイルを選ぶ
+    const files = await allCandidates(query, projects);
+    const rivals = new OverlapClaims(query, from, to).rivals;
+    const bound = await bindFile(query, files, to, rivals, inSession(query));
     let best: Scan | undefined;
-    let bestFile = "";
-    const read: Array<{ seen: ReadonlyMap<string, number> }> = [];
-    const scanned = new Set<string>();
-    // session のファイルに Run がなければ（別のセッションの環境を受け継いだなど）、作業ツリーから探す
-    for (const candidates of [sessionCandidates, worktreeCandidates]) {
-      if (best) break;
-      for (const file of await candidates(query, projects)) {
-        if (scanned.has(file)) continue;
-        scanned.add(file);
-        const s = await scan(file, query, from, to).catch(() => undefined);
-        if (s) read.push(s.claims);
-        if (s?.firstSeen === undefined || seenAfterRun(s.firstSeen, to)) continue;
-        if (!best || s.firstSeen < (best.firstSeen ?? Infinity)) [best, bestFile] = [s, file];
+    if (bound.file) {
+      best = await scan(bound.file, query, from, to).catch(() => undefined);
+      // ほかのファイルで ID が同じか先に出た Run には譲らずに読み直す
+      const elsewhere = best ? claimedElsewhere(best.claims, bound.others) : new Set<string>();
+      if (elsewhere.size > 0) {
+        best = await scan(bound.file, query, from, to, elsewhere).catch(() => undefined);
       }
-    }
-    // 譲る相手がいれば、探す範囲の外（別の worktree など）も含む projects/ の下のすべてで、その ID が先に出たファイルを探す。
-    // ID は dg run start が作るので、最も早く出たファイルがその Run を始めた記録で、その Run の Adapter もそこに結び付ける
-    if (best && best.claims.claimants.size > 0) {
-      for (const file of await allCandidates(query, projects)) {
-        if (scanned.has(file)) continue;
-        const c = await sightings(file, best.claims).catch(() => undefined);
-        if (c) read.push(c);
-      }
-    }
-    // ほかのファイルで ID が先に出た Run には譲らずに読み直す
-    const elsewhere = best ? claimedElsewhere(best.claims, read) : new Set<string>();
-    if (elsewhere.size > 0) {
-      best = await scan(bestFile, query, from, to, elsewhere).catch(() => undefined);
     }
     if (!best) {
       return none(

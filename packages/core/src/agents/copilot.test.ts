@@ -172,7 +172,7 @@ describe("Copilot の Adapter", () => {
     expect(got.model).toBe("model-b");
   });
 
-  it("COPILOT_AGENT_SESSION_ID になければ、作業ツリーに結び付く session から探す", async () => {
+  it("COPILOT_AGENT_SESSION_ID の session に Run がなければ、ほかの session から探す", async () => {
     const { eventsFile, topLevel, query } = await setup({ COPILOT_AGENT_SESSION_ID: "sess-env" });
     // 環境の session には Run がない
     await writeEvents(eventsFile("sess-env"), [sessionStart("sess-env", topLevel), usageRecord(1)]);
@@ -186,7 +186,7 @@ describe("Copilot の Adapter", () => {
     expect(got.usage).toEqual({ input: 20, output: 20, cache_read: 0, cache_write: 80 });
   });
 
-  it("COPILOT_AGENT_SESSION_ID の session に Run の ID が期間の後に出るだけなら（閉じた後の run refresh）、作業ツリーから探す", async () => {
+  it("COPILOT_AGENT_SESSION_ID の session に Run の ID が期間の後に出るだけなら（閉じた後の run refresh）、ほかの session に結び付ける", async () => {
     const { eventsFile, topLevel, query } = await setup({ COPILOT_AGENT_SESSION_ID: "sess-now" });
     await writeEvents(eventsFile("sess-now"), [
       sessionStart("sess-now", topLevel),
@@ -203,7 +203,7 @@ describe("Copilot の Adapter", () => {
   });
 
   it("同じ作業ツリーでも親の Run ID を含まない別 session（サブエージェント）の使用量は合算しない", async () => {
-    // COPILOT_AGENT_SESSION_ID を渡さず、両方の session を作業ツリーからの探し方で拾わせる
+    // COPILOT_AGENT_SESSION_ID を渡さず、すべての session から探させる
     const { eventsFile, topLevel, query } = await setup();
     await writeEvents(eventsFile("sess-parent"), [
       sessionStart("sess-parent", topLevel),
@@ -232,17 +232,23 @@ describe("Copilot の Adapter", () => {
     expect(got.usage).toEqual({ input: 20, output: 20, cache_read: 0, cache_write: 80 });
   });
 
-  it("別の作業ツリーの session は数えない（別 session を混ぜない）", async () => {
-    const { eventsFile, query } = await setup();
-    // gitRoot が探す範囲の外の session。Run の ID があっても対象にしない
-    await writeEvents(eventsFile("sess-other-repo"), [
-      sessionStart("sess-other-repo", "/elsewhere/other-repo"),
+  it("作業ツリーの外の session でも、Run の ID を最も早く含む記録に、session の環境によらず結び付ける", async () => {
+    const { eventsFile, query, home } = await setup();
+    await writeEvents(eventsFile("sess-start"), [
+      sessionStart("sess-start", "/elsewhere/other-dir"),
       mention(0),
-      usageRecord(1, { input: 100, output: 20 }),
+      usageRecord(1, { input: 100, output: 20, cacheRead: 0, cacheWrite: 80 }),
     ]);
-    const got = await copilotAdapter.readTranscriptUsage(query());
-    expect(got.usage).toEqual({ input: null, output: null, cache_read: null, cache_write: null });
-    expect(got.warnings).toEqual([expect.stringContaining("見つからない")]);
+    // 別の session が 10:00:30 に run start の警告などで ID を見ただけ
+    await writeEvents(eventsFile("sess-warn"), [
+      sessionStart("sess-warn", "/elsewhere/other-dir"),
+      mention(0.5),
+      usageRecord(1, { input: 9000, output: 9000, cacheRead: 0, cacheWrite: 0 }),
+    ]);
+    for (const env of [{ COPILOT_AGENT_SESSION_ID: "sess-warn" }, {}]) {
+      const got = await copilotAdapter.readTranscriptUsage(query({ env: { HOME: home, ...env } }));
+      expect(got.usage).toEqual({ input: 20, output: 20, cache_read: 0, cache_write: 80 });
+    }
   });
 
   it("cacheWriteTokens のない記録では cache_write を null にして警告する", async () => {
