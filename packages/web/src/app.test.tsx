@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { act } from "react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App, INFO_NOTICE_MS } from "./app.js";
 import { PICK_SETTLE_MS } from "./components/inline-edit.js";
 import { ClientError } from "./client/http.js";
@@ -24,6 +24,11 @@ import {
 const boardClient = () => mockClient(boardFixture());
 import type { RunView } from "./types.js";
 import { createUiState, memoryBackend } from "./ui-state.js";
+
+// 履歴の日付の書き方は今に依るので、今を固定する（Date だけ。個別に timer を使う試験は自分で入れ替える）
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"], now: new Date("2026-11-04T12:00:00Z") });
+});
 
 afterEach(() => {
   cleanup();
@@ -1901,10 +1906,10 @@ describe("画面", () => {
     const chips = (id: string) =>
       [...rowOf(id).querySelectorAll(".counts > span")].map((b) => b.textContent);
     expect(chips("s1")).toEqual(["3", "持ち越し 1"]);
-    expect(rowOf("s1").querySelector("small")!.textContent).toBe("2026-10-10 に閉じた");
+    expect(rowOf("s1").querySelector("small")!.textContent).toBe("10/10 に閉じた");
     // s2 には閉じたときの記録がないので、web で数え直さず「—」と出し、持ち越しのチップは出さない
     expect(chips("s2")).toEqual(["—"]);
-    expect(rowOf("s2").querySelector("small")!.textContent).toBe("2026-10-24 に閉じた");
+    expect(rowOf("s2").querySelector("small")!.textContent).toBe("10/24 に閉じた");
     fireEvent.change(screen.getByLabelText("チケットを探す"), { target: { value: "ログイン" } });
     expect(names()).toEqual(["core"]);
     // 件数の行はなく、見方のバッジが「当たった数 / 全体」になる
@@ -1999,9 +2004,7 @@ describe("画面", () => {
     expect(screen.getByRole("button", { name: /^Iteration/ }).getAttribute("aria-pressed")).toBe(
       "false",
     );
-    expect(document.querySelector(".history-row small")!.textContent).toBe(
-      "2026-10-20 に閉じた ・ s1",
-    );
+    expect(document.querySelector(".history-row small")!.textContent).toBe("10/20 に閉じた ・ s1");
     expect(screen.getByRole("link", { name: "s1" }).getAttribute("href")).toBe("#/iterations/s1");
     fireEvent.change(screen.getByLabelText("チケットを探す"), { target: { value: "t1" } });
     expect(names()).toEqual(["新しい"]);
