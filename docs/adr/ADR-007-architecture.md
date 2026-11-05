@@ -1,7 +1,7 @@
 # ADR-007 アーキテクチャ
 
 - ステータス：承認
-- 更新日：2026-11-03
+- 更新日：2026-11-05
 
 ## 背景
 
@@ -37,7 +37,7 @@ CLI・MCP・HTTP・VS Code 拡張という複数の入口から同じ機能を�
 Core の中は責務ごとのモジュール（`model`・`storage`・`git`・`workflow`・`run`・`agents`・`actions`・`commands`）に分け、最初からパッケージには分けない。各モジュールの役割は [development.md の「パッケージ」](../development.md#パッケージ)。
 
 - Run の集計は独立のモジュールにせず、純粋関数を表示のたびに呼ぶ（ADR-005）
-- `agents` は Agent Adapter のインターフェースと製品ごとの実装で、使用量の取得と作業ディレクトリの差を吸収する。起動方法・権限は置かない（deguboard は起動しない。EX-1）。汎用部分は `agents/index.ts` だけを通す
+- `agents` は Agent Adapter のインターフェースと製品ごとの実装で、使用量の取得と作業ディレクトリと Skill の置き場所の差を吸収する。起動方法・権限は置かない（deguboard は起動しない。EX-1）。汎用部分は `agents/index.ts` だけを通す
 - モジュールが肥大化したら、そのときにパッケージへ切り出す
 
 ### Action の呼び方

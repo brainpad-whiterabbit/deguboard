@@ -5,7 +5,7 @@ import type { Config } from "../model/config.js";
 import { claudeCodeAdapter } from "./adapters/claude-code.js";
 import { codexAdapter } from "./adapters/codex.js";
 import { copilotAdapter } from "./adapters/copilot.js";
-import type { AgentAdapter, CollectedUsage, UsageQuery } from "./define.js";
+import type { AgentAdapter, CollectedUsage, SkillQuery, UsageQuery } from "./define.js";
 
 export type * from "./define.js";
 
@@ -14,6 +14,11 @@ const ADAPTERS: readonly AgentAdapter[] = [claudeCodeAdapter, codexAdapter, copi
 /** Adapter のある agent の名前 */
 export function agentNames(): string[] {
   return ADAPTERS.map((a) => a.name);
+}
+
+/** Adapter が Skill を読むディレクトリをまとめたもの。ask が形式の既定を決めるのに使う（ADR-010） */
+export function agentSkillDirs(query: SkillQuery): string[] {
+  return ADAPTERS.flatMap((a) => a.skillDirs?.(query) ?? []);
 }
 
 function findAdapter(agent: string): AgentAdapter | undefined {

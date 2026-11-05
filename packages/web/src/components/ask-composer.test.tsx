@@ -9,7 +9,7 @@ import { StoreProvider } from "../store.js";
 import { fixture, iteration, mockClient, ticket, type MockClient } from "../test-helpers.js";
 import { createUiState, memoryBackend, type UiState } from "../ui-state.js";
 import type { AskAction } from "../types.js";
-import { ASK_NOTE_KEY } from "./ask-composer.js";
+import { ASK_FORMAT_KEY, ASK_NOTE_KEY } from "./ask-composer.js";
 
 afterEach(() => {
   cleanup();
@@ -187,6 +187,49 @@ describe("エージェントに頼む入力欄（UI-15）", () => {
       expect(box.getByLabelText("全文").textContent).toMatch(/\n1 行目\n2 行目$/),
     );
     expect(box.getByRole("button", { name: "コピー" })).toBeTruthy();
+  });
+
+  it("形式の既定は core の ask が Skill の有無から決め（ask に形式を渡さない）、人が切り替えた形式は残してそのまま渡す", async () => {
+    const client = askClient();
+    // dg の Skill が入っていないリポジトリの代わり：形式を省けば文章の形（core の ask と同じ）
+    const original = client.handlers["ask"]!;
+    client.handlers["ask"] = (input) => {
+      const i = input as { format?: string };
+      return original({ ...i, format: i.format ?? "text" });
+    };
+    const view = mountWebview(client);
+    await screen.findByText("見直す");
+    view.ask(["t5"]);
+    const box = within(composer());
+    await waitFor(() => expect(box.getByRole("button", { name: "形式：文章" })).toBeTruthy());
+    expect(box.queryByText("/dgdone")).toBeNull();
+    fireEvent.click(box.getByRole("button", { name: "全文" }));
+    await waitFor(() =>
+      expect(box.getByLabelText("全文").textContent).toMatch(/^t5 の PR のマージを照合し/),
+    );
+    const asks = () =>
+      client.calls
+        .filter((c) => c.name === "ask")
+        .map((c) => (c.input as { format?: string }).format);
+    expect(asks().every((f) => f === undefined)).toBe(true);
+    expect(view.state.get(ASK_FORMAT_KEY)).toBeUndefined();
+
+    // 人が Skill に切り替えたら、Skill がなくても Skill の形で引き、閉じて開き直しても保つ
+    fireEvent.click(box.getByRole("button", { name: "形式：文章" }));
+    await waitFor(() => expect(box.getByLabelText("全文").textContent).toBe("/dgdone t5"));
+    expect(box.getByText("/dgdone")).toBeTruthy();
+    expect(view.state.get(ASK_FORMAT_KEY)).toBe("skill");
+    fireEvent.click(box.getByRole("button", { name: "閉じる" }));
+    view.ask(["t5"]);
+    await waitFor(() =>
+      expect(within(composer()).getByRole("button", { name: "形式：Skill" })).toBeTruthy(),
+    );
+    fireEvent.click(within(composer()).getByRole("button", { name: "全文" }));
+    await waitFor(() =>
+      expect(within(composer()).getByLabelText("全文").textContent).toBe("/dgdone t5"),
+    );
+    // 候補を引く 1 回目は形式を渡さず、全文は選んだ形式で引く
+    expect(asks().at(-1)).toBe("skill");
   });
 
   it("コピーのボタンと ⌘↵（Ctrl+↵）で、core の ask が作った全文を拡張ホストにコピーさせ、欄の下に「コピーしました」と出す", async () => {
