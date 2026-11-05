@@ -2,5 +2,9 @@ id: s16
 project: default
 name: sprint16
 goal: Marketplace で配れるよう、拡張の紹介（README・アイコン・GIF）とセキュリティの見せ方を整える
-status: active
+status: closed
 start: 2026-11-05
+end: 2026-11-05
+closed_at: 2026-11-05T12:08:36Z
+completed: 26
+carried_over: 0
