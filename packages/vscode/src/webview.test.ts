@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { bundleTranslator, setTranslator } from "./l10n.js";
 import type { CommandClient, CommandResult } from "@deguboard/core";
 import { OperationError, UsageError } from "@deguboard/core";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -17,6 +19,15 @@ import {
   sidebarDelivery,
   subjectOfRoute,
 } from "./webview.js";
+
+// 文言は日本語の訳で確かめる（表示言語が日本語のときに今までと同じ文言が出ること）。英語は l10n.test.ts で確かめる
+setTranslator(
+  bundleTranslator(
+    JSON.parse(
+      readFileSync(new URL("../l10n/bundle.l10n.ja.json", import.meta.url), "utf8"),
+    ) as Record<string, string>,
+  ),
+);
 
 const INDEX = `<!doctype html>
 <html lang="ja">
@@ -64,9 +75,25 @@ describe("Webview の HTML", () => {
     );
   });
 
+  it("表示言語を渡せば <html> に data-language で付け、省けば付けない（web が文言を選ぶのに使う）", () => {
+    const options = {
+      asset: (p: string) => p,
+      cspSource: "c",
+      nonce: "n",
+      surface: "panel" as const,
+    };
+    expect(renderWebviewHtml(INDEX, { ...options, route: "#/board", language: "en" })).toContain(
+      'data-route="#/board" data-language="en" lang="ja"',
+    );
+    expect(renderWebviewHtml(INDEX, { ...options, route: "#/board" })).not.toContain(
+      "data-language",
+    );
+  });
+
   it("画面を出せないときの HTML はスクリプトを持たず、文言を escape する", () => {
-    const html = renderMessageHtml("<フォルダ> を開く");
+    const html = renderMessageHtml("<フォルダ> を開く", "ja");
     expect(html).toContain("&lt;フォルダ&gt; を開く");
+    expect(html).toContain('<html lang="ja">');
     expect(html).not.toContain("<script");
   });
 });

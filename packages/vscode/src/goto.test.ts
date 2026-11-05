@@ -1,6 +1,17 @@
+import { readFileSync } from "node:fs";
+import { bundleTranslator, setTranslator } from "./l10n.js";
 import { describe, expect, it } from "vitest";
 import { gotoItems } from "./goto.js";
 import { buildIdIndex } from "./ids.js";
+
+// 文言は日本語の訳で確かめる（表示言語が日本語のときに今までと同じ文言が出ること）。英語は l10n.test.ts で確かめる
+setTranslator(
+  bundleTranslator(
+    JSON.parse(
+      readFileSync(new URL("../l10n/bundle.l10n.ja.json", import.meta.url), "utf8"),
+    ) as Record<string, string>,
+  ),
+);
 
 const index = buildIdIndex({
   tickets: [

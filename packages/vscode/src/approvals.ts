@@ -2,6 +2,7 @@
 // VS Code の API に触れない部分で、extension.ts から呼ぶ
 
 import { routeOfId } from "./ids.js";
+import { t } from "./l10n.js";
 
 /** 承認待ちの 1 件。Plan は承認待ち、チケットは review */
 export interface ApprovalItem {
@@ -41,18 +42,24 @@ export function newApprovals(previous: ReadonlySet<string> | undefined, now: App
  * コンテナとビューが 1 つずつのとき VS Code は見出しを「コンテナ名: ビュー名」にするので、件数のときは名前を重ねない
  */
 export function viewTitle(count: number): string {
-  return count > 0 ? `承認待ち ${count}` : "deguboard";
+  return count > 0 ? t("Awaiting Approval/Review {0}", count) : "deguboard";
 }
 
 /** 通知の文。複数なら先頭の 2 件の ID と残りの数を出す */
 export function approvalMessage(items: ApprovalItem[]): string {
   const label = (i: ApprovalItem): string => (i.kind === "plan" ? `Plan ${i.id}` : i.id);
-  const head = items.slice(0, 2).map(label).join("・");
-  const rest = items.length > 2 ? ` ほか ${items.length - 2} 件` : "";
+  const [first, second] = items.slice(0, 2).map(label);
+  const head = second === undefined ? (first ?? "") : t("{0}, {1}", first ?? "", second);
+  const ids = items.length > 2 ? t("{0} and {1} more", head, items.length - 2) : head;
   const kinds = new Set(items.map((i) => i.kind));
-  const what =
-    kinds.size === 2 ? "承認待ち・レビュー待ち" : kinds.has("plan") ? "承認待ち" : "レビュー待ち";
-  return `deguboard: ${what}が増えた（${head}${rest}）`;
+  // 種類ごとに文を分ける（語順が言語で違うので、「何が」だけを差し込まない）
+  const text =
+    kinds.size === 2
+      ? t("New items awaiting approval or review ({0})", ids)
+      : kinds.has("plan")
+        ? t("New plans awaiting approval ({0})", ids)
+        : t("New tickets awaiting review ({0})", ids);
+  return `deguboard: ${text}`;
 }
 
 /** 通知から開く詳細のルート。形の違う ID は undefined */

@@ -1,13 +1,13 @@
-# 3. エージェントに頼む
+# 3. Ask an agent
 
-Claude Code を使うなら、Skill を入れておくとエージェントが手順を読んで進めます。
+If you use Claude Code, install the Skill so the agent can read the steps and follow them.
 
 ```sh
 dg skill install
 ```
 
-ほかのエージェントには「`dg guide` を読んでから `dg` で進めて」と頼みます。
+For other agents, ask them to "read `dg guide`, then proceed with `dg`".
 
-チケットの行の吹き出しか、サイドバーのタイトル行の吹き出しから、依頼文を作ってコピーできます。コピーするだけで、データには何も書きません。
+Use the speech bubble on a ticket row or in the sidebar's title bar to write a request and copy it. Copying does not write anything to the data.
 
-[エージェントに頼む入力欄を開く](command:deguboard.askInSidebar)
+[Open the request box for the agent](command:deguboard.askInSidebar)

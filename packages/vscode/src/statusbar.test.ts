@@ -1,5 +1,6 @@
+import { bundleTranslator, setTranslator } from "./l10n.js";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -10,6 +11,15 @@ import {
   statusBarTooltip,
   ticketOfBranch,
 } from "./statusbar.js";
+
+// 文言は日本語の訳で確かめる（表示言語が日本語のときに今までと同じ文言が出ること）。英語は l10n.test.ts で確かめる
+setTranslator(
+  bundleTranslator(
+    JSON.parse(
+      readFileSync(new URL("../l10n/bundle.l10n.ja.json", import.meta.url), "utf8"),
+    ) as Record<string, string>,
+  ),
+);
 
 const tickets = [
   { id: "t1", status: "done", branch: "feat/a" },

@@ -13,6 +13,7 @@ import {
   type WebviewRequest,
   type WebviewResponse,
 } from "@deguboard/core";
+import { t } from "./l10n.js";
 
 /** 画面がどこに載っているか。web は <html data-surface> で読み、サイドバーではレイアウトとリンクの挙動を変える（UI-12） */
 export type Surface = "sidebar" | "panel";
@@ -28,12 +29,14 @@ export interface HtmlOptions {
   route: string;
   /** 開いたらすぐ出す、エージェントに頼む入力欄の対象（ID。空なら対象なし）。省けば出さない（UI-15） */
   ask?: readonly string[] | undefined;
+  /** VS Code の表示言語（vscode.env.language。en・ja など）。<html data-language> に埋め、web が文言を選ぶのに使う（t383）。省けば付けない */
+  language?: string | undefined;
 }
 
 /**
  * Vite が出した index.html（base: "./"）を Webview 向けに直す：
  * 相対パスを Webview の URI に、crossorigin を外し、nonce つきの CSP を入れ、<html> に surface と初期ルート
- * （と、すぐ出す入力欄の対象。data-ask は core の askMenuKey の形で、空なら対象なし）を付ける
+ * （と、すぐ出す入力欄の対象。data-ask は core の askMenuKey の形で、空なら対象なし。表示言語の data-language）を付ける
  */
 export function renderWebviewHtml(indexHtml: string, options: HtmlOptions): string {
   // style-src に 'unsafe-inline' は要らない：CSS は Vite が <link> に出し、React は style を CSSOM で当てる
@@ -56,7 +59,7 @@ export function renderWebviewHtml(indexHtml: string, options: HtmlOptions): stri
       /<html\b/,
       `<html data-surface="${escapeAttribute(options.surface)}" data-route="${escapeAttribute(options.route)}"${
         options.ask ? ` data-ask="${escapeAttribute(askMenuKey(options.ask))}"` : ""
-      }`,
+      }${options.language ? ` data-language="${escapeAttribute(options.language)}"` : ""}`,
     )
     .replace(
       "<head>",
@@ -143,10 +146,10 @@ export function currentAskDelivery(
     : { pending: [] };
 }
 
-/** 画面を出せないとき（フォルダを開いていない）に Webview に出す、スクリプトのない HTML */
-export function renderMessageHtml(text: string): string {
+/** 画面を出せないとき（フォルダを開いていない）に Webview に出す、スクリプトのない HTML。language は text の言語（vscode.env.language） */
+export function renderMessageHtml(text: string, language: string): string {
   return `<!doctype html>
-<html lang="ja">
+<html lang="${escapeAttribute(language)}">
   <head>
     <meta charset="UTF-8" />
     <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'" />
@@ -201,7 +204,10 @@ export async function handleRequest(
         return {
           id: request.id,
           ok: false,
-          error: { code: "UNSUPPORTED_ACTION", message: "この画面からはその操作ができない" },
+          error: {
+            code: "UNSUPPORTED_ACTION",
+            message: t("This view does not support that action"),
+          },
         };
       }
       if (request.name === "openWorktree") {
@@ -212,7 +218,7 @@ export async function handleRequest(
           return {
             id: request.id,
             ok: false,
-            error: { code: "NOT_FOUND", message: `${request.ticket} の worktree が見つからない` },
+            error: { code: "NOT_FOUND", message: t("No worktree found for {0}", request.ticket) },
           };
         }
         await actions.openFolder(detail.data.worktree);
@@ -297,10 +303,10 @@ export function badgeOf(status: StatusView): { value: number; tooltip: string } 
   const value = status.ahead + status.behind;
   if (value === 0) return undefined;
   const parts: string[] = [];
-  if (status.ahead > 0) parts.push(`未 push ${status.ahead}`);
-  if (status.behind > 0) parts.push(`未取り込み ${status.behind}`);
-  if (status.dirty) parts.push("未コミットの変更");
-  if (status.issues > 0) parts.push(`読めないファイル ${status.issues}`);
+  if (status.ahead > 0) parts.push(t("{0} unpushed", status.ahead));
+  if (status.behind > 0) parts.push(t("{0} to pull", status.behind));
+  if (status.dirty) parts.push(t("Uncommitted changes"));
+  if (status.issues > 0) parts.push(t("{0} unreadable files", status.issues));
   return { value, tooltip: parts.join(" / ") };
 }
 
@@ -339,7 +345,7 @@ export function diffDocuments(
   return {
     left: side("base", leftPath, request.base_commit),
     right: side("head", request.path, request.head_commit),
-    title: `${name}（${request.ticket} の変更）`,
+    title: t("{0} (changes in {1})", name, request.ticket),
   };
 }
 
@@ -369,7 +375,8 @@ export function parseDiffQuery(query: string): DiffSideRef | undefined {
 
 /** 片側の文書の中身。ないファイルは空、バイナリとサブモジュールは中身の代わりに一言を出す（差分エディタは文字しか比べない） */
 export function diffContent(file: FileAtSide): string {
-  if (file.submodule) return `（サブモジュールの変更は中身を出さない。コミット ${file.text}）\n`;
-  if (file.binary) return "（バイナリのファイルなので中身を出さない）\n";
+  if (file.submodule)
+    return `${t("(Submodule change: contents not shown. Commit {0})", file.text)}\n`;
+  if (file.binary) return `${t("(Binary file: contents not shown)")}\n`;
   return file.text;
 }

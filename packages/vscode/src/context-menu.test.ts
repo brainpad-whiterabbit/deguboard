@@ -13,7 +13,17 @@ interface Contributes {
   menus: Record<string, { command?: string; submenu?: string; when?: string; group?: string }[]>;
 }
 
-const pkg = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as {
+// manifest の %鍵% は、表示言語が日本語のときの文言（package.nls.ja.json）で埋めて読む
+const nlsJa = JSON.parse(
+  readFileSync(new URL("../package.nls.ja.json", import.meta.url), "utf8"),
+) as Record<string, string>;
+const pkg = JSON.parse(
+  readFileSync(new URL("../package.json", import.meta.url), "utf8"),
+  (_key, value: unknown) => {
+    const m = typeof value === "string" ? /^%([\w.-]+)%$/.exec(value) : null;
+    return m ? (nlsJa[m[1]!] ?? value) : value;
+  },
+) as {
   contributes: Contributes;
   capabilities?: {
     untrustedWorkspaces?: { supported?: unknown; description?: string };

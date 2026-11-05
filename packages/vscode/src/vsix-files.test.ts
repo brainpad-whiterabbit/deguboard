@@ -25,7 +25,9 @@ const allowed: RegExp[] = [
   /^dist\/web\/assets\/[\w.-]+\.(js|css)$/,
   /^media\/deguboard\.svg$/,
   /^media\/icon\.png$/,
-  /^media\/walkthrough\/[\w-]+\.md$/,
+  /^media\/walkthrough\/[\w-]+(\.ja)?\.md$/,
+  /^package\.nls(\.ja)?\.json$/,
+  /^l10n\/bundle\.l10n(\.ja)?\.json$/,
 ];
 
 /** 許可リストにないファイルを返す */
@@ -43,6 +45,17 @@ describe("VSIX に入るファイル", () => {
       .map((l) => l.trim())
       .filter(Boolean);
     expect(files).toContain("package.json");
+    // 表示言語ごとの文言がないと、manifest は %鍵% のまま、通知は鍵のまま出る
+    expect(files).toEqual(
+      expect.arrayContaining([
+        "package.nls.json",
+        "package.nls.ja.json",
+        "l10n/bundle.l10n.json",
+        "l10n/bundle.l10n.ja.json",
+        "media/walkthrough/init.md",
+        "media/walkthrough/init.ja.md",
+      ]),
+    );
     expect(unexpectedFiles(files)).toEqual([]);
   });
 

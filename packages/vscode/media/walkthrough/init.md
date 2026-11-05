@@ -1,11 +1,11 @@
-# 1. リポジトリを初期化する
+# 1. Initialize the repository
 
-管理したいリポジトリで、ターミナルから一度だけ実行します。チケットを置く場所（`.git/deguboard/`）ができます。
+In the repository you want to manage, run this once from a terminal. It creates the place where tickets are stored (`.git/deguboard/`).
 
 ```sh
 dg init
 ```
 
-`dg` が見つからないときは、先に `npm i -g deguboard` で入れます。
+If `dg` is not found, install it first with `npm i -g deguboard`.
 
-実行すると、開き直さなくてもサイドバーがいつもの画面に変わります。
+Once it finishes, the sidebar switches to the usual views without reopening.

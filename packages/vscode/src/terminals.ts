@@ -2,6 +2,7 @@
 // 拡張はターミナルを起動しない（EX-1）。送り先は vscode.window.terminals の中から人が選ぶ
 
 import type { TerminalChoice } from "@deguboard/core";
+import { t } from "./l10n.js";
 
 /**
  * 開いているターミナルを小窓の送り先の一覧にする。同じ名前が並ぶとき（zsh が 2 つなど）は、
@@ -13,7 +14,7 @@ export function describeTerminals(
 ): TerminalChoice[] {
   const seen = new Map<string, number>();
   return terminals.map(({ id, name, active }) => {
-    const base = name.trim() || "ターミナル";
+    const base = name.trim() || t("Terminal");
     const n = (seen.get(base) ?? 0) + 1;
     seen.set(base, n);
     return { id, label: n === 1 ? base : `${base} (${n})`, ...(active ? { active: true } : {}) };

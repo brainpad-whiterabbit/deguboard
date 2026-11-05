@@ -3,9 +3,15 @@
 // ID の形は core の用語（接頭辞＋ゼロ埋めなしの連番。t12・s3・e2・p7）に合わせる
 
 import { ticketRoute } from "./context-menu.js";
+import { t } from "./l10n.js";
 
 /** ID の種類 */
 export type IdKind = "ticket" | "iteration" | "epic" | "plan";
+
+/** 種類の表示名（ホバーと「チケットへ移動」で使う）。Iteration・Epic・Plan は用語なので訳さない */
+export function kindLabel(kind: IdKind): string {
+  return { ticket: t("Ticket"), iteration: "Iteration", epic: "Epic", plan: "Plan" }[kind];
+}
 
 /** 文章の中で見つけた ID と、その位置（text の先頭からの文字数。end は含まない） */
 export interface FoundId {
@@ -68,13 +74,13 @@ export type IdIndex = ReadonlyMap<string, IdEntry>;
 /** 一覧の行から索引を作る。ここに載った ID だけにホバーとリンクを付ける（存在しない ID には付けない） */
 export function buildIdIndex(src: IdSources): IdIndex {
   const index = new Map<string, IdEntry>();
-  for (const t of src.tickets) {
-    index.set(t.id, {
-      id: t.id,
+  for (const ticket of src.tickets) {
+    index.set(ticket.id, {
+      id: ticket.id,
       kind: "ticket",
-      title: t.title,
-      status: t.status,
-      details: [t.assignee ? `担当: ${t.assignee}` : "担当: なし"],
+      title: ticket.title,
+      status: ticket.status,
+      details: [ticket.assignee ? t("Assignee: {0}", ticket.assignee) : t("Assignee: none")],
     });
   }
   for (const i of src.iterations) {
@@ -83,7 +89,7 @@ export function buildIdIndex(src: IdSources): IdIndex {
       kind: "iteration",
       title: i.name,
       status: i.status,
-      details: i.goal ? [`目標: ${i.goal}`] : [],
+      details: i.goal ? [t("Goal: {0}", i.goal)] : [],
     });
   }
   for (const e of src.epics) {
@@ -92,7 +98,7 @@ export function buildIdIndex(src: IdSources): IdIndex {
       kind: "epic",
       title: e.title,
       status: e.status,
-      details: e.progress ? [`進捗: ${e.progress.done}/${e.progress.total}`] : [],
+      details: e.progress ? [t("Progress: {0}/{1}", e.progress.done, e.progress.total)] : [],
     });
   }
   for (const p of src.plans) {
@@ -101,7 +107,7 @@ export function buildIdIndex(src: IdSources): IdIndex {
       kind: "plan",
       title: "",
       status: p.status,
-      details: [`チケット: ${p.tickets.join(" ")}`],
+      details: [t("Tickets: {0}", p.tickets.join(" "))],
     });
   }
   return index;
@@ -109,10 +115,7 @@ export function buildIdIndex(src: IdSources): IdIndex {
 
 /** ホバーに出す Markdown。1 行目に ID・Status と見出し、続けて補足。タイトルは Markdown として解釈させない */
 export function hoverMarkdown(entry: IdEntry): string {
-  const label = { ticket: "チケット", iteration: "Iteration", epic: "Epic", plan: "Plan" }[
-    entry.kind
-  ];
-  const head = `**${entry.id}**（${label}・${entry.status}）${entry.title ? ` ${escapeMarkdown(entry.title)}` : ""}`;
+  const head = `${t("**{0}** ({1} · {2})", entry.id, kindLabel(entry.kind), entry.status)}${entry.title ? ` ${escapeMarkdown(entry.title)}` : ""}`;
   return [head, ...entry.details.map(escapeMarkdown)].join("\n\n");
 }
 

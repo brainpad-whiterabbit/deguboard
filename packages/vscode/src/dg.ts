@@ -2,6 +2,7 @@
 // 版のメジャーが同梱の core と違えば知らせる（UI-11）。同梱は npm が使えない環境が出たときに足す
 
 import { execFile } from "node:child_process";
+import { t } from "./l10n.js";
 
 export type DgLookup =
   | { kind: "found"; version: string }
@@ -11,10 +12,20 @@ export type DgLookup =
 /** テスト用に差し替えられる `dg --version` の実行 */
 export type RunVersion = () => Promise<string>;
 
-// 手順そのものは書かず、ルートの README の「公開前に使い始める」を指す
-const INSTALL_HINT =
-  "npm には未公開なので、今は README の「公開前に使い始める」（https://github.com/brainpad-whiterabbit/deguboard#公開前に使い始める）のとおり clone してビルドし、dg を PATH に通す。" +
-  "公開後は npm i -g deguboard（mise なら mise use -g npm:deguboard）で入れる";
+// 手順そのものは書かず、ルートの README の「公開前に使い始める」を指す（見出しの日本語は URL のためにエンコードしておく）
+const INSTALL_GUIDE_ANCHOR =
+  "%E5%85%AC%E9%96%8B%E5%89%8D%E3%81%AB%E4%BD%BF%E3%81%84%E5%A7%8B%E3%82%81%E3%82%8B";
+const INSTALL_GUIDE_URL = `https://github.com/brainpad-whiterabbit/deguboard#${INSTALL_GUIDE_ANCHOR}`;
+
+/** 入れ方の案内。表示言語で変わるので、呼ぶたびに作る */
+function installHint(): string {
+  return t(
+    "dg is not on npm yet. For now, clone and build it as described in the “{0}” (Getting started before release) section of the README ({1}), and put dg on your PATH. Once released, install it with npm i -g deguboard (with mise: mise use -g npm:deguboard).",
+    // README の見出しは日本語なので、英語の文でも見出しの名前はそのまま出す
+    decodeURIComponent(INSTALL_GUIDE_ANCHOR),
+    INSTALL_GUIDE_URL,
+  );
+}
 
 function runDgVersion(): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -27,7 +38,9 @@ function runDgVersion(): Promise<string> {
 export async function resolveDg(run: RunVersion = runDgVersion): Promise<DgLookup> {
   try {
     const version = (await run()).trim();
-    return version ? { kind: "found", version } : { kind: "error", detail: "dg --version が空" };
+    return version
+      ? { kind: "found", version }
+      : { kind: "error", detail: t("dg --version printed nothing") };
   } catch (error) {
     const code = (error as NodeJS.ErrnoException).code;
     if (code === "ENOENT") return { kind: "missing" };
@@ -52,17 +65,24 @@ export function dgAdvice(lookup: DgLookup, coreVersion: string): DgAdvice | unde
     case "missing":
       return {
         level: "info",
-        text: `dg が PATH にない。画面は dg なしで動く。エージェントや CLI から使うには dg を入れる。${INSTALL_HINT}`,
+        text: t(
+          "dg is not on your PATH. The views work without dg; install dg to use deguboard from agents and the CLI. {0}",
+          installHint(),
+        ),
       };
     case "error":
-      return { level: "warning", text: `dg --version が失敗した：${lookup.detail}` };
+      return { level: "warning", text: t("dg --version failed: {0}", lookup.detail) };
     case "found": {
       const dg = majorOf(lookup.version);
       const core = majorOf(coreVersion);
       if (dg === undefined || core === undefined || dg === core) return undefined;
       return {
         level: "warning",
-        text: `dg の版（${lookup.version}）と拡張の core の版（${coreVersion}）のメジャーが違う。どちらかを揃える`,
+        text: t(
+          "The major version of dg ({0}) differs from the extension's core ({1}). Update one of them to match.",
+          lookup.version,
+          coreVersion,
+        ),
       };
     }
   }

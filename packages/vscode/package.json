@@ -3,7 +3,7 @@
   "displayName": "deguboard",
   "version": "0.15.0",
   "private": true,
-  "description": "AI エージェントに仕事を任せるためのカンバン。小さなチケットに分けて並列に進め、その働きを測れます。",
+  "description": "%description%",
   "categories": [
     "AI",
     "Other",
@@ -40,6 +40,7 @@
     "@vscode/vsce": "4.1.0",
     "vite": "8.3.5"
   },
+  "l10n": "./l10n",
   "contributes": {
     "viewsContainers": {
       "activitybar": [
@@ -63,46 +64,46 @@
     "commands": [
       {
         "command": "deguboard.gotoTicket",
-        "title": "チケットへ移動",
+        "title": "%command.gotoTicket.title%",
         "category": "deguboard"
       },
       {
         "command": "deguboard.openCurrentTicket",
-        "title": "今のブランチのチケットを開く",
+        "title": "%command.openCurrentTicket.title%",
         "category": "deguboard"
       },
       {
         "command": "deguboard.sync",
-        "title": "同期",
+        "title": "%command.sync.title%",
         "category": "deguboard",
         "icon": "$(sync)"
       },
       {
         "command": "deguboard.config",
-        "title": "設定",
+        "title": "%command.config.title%",
         "category": "deguboard",
         "icon": "$(gear)"
       },
       {
         "command": "deguboard.ask",
-        "title": "エージェントに頼む",
+        "title": "%command.ask.title%",
         "category": "deguboard",
         "icon": "$(comment-discussion)"
       },
       {
         "command": "deguboard.askInSidebar",
-        "title": "エージェントに頼む",
+        "title": "%command.askInSidebar.title%",
         "category": "deguboard",
         "icon": "$(comment-discussion)"
       },
       {
         "command": "deguboard.backlog.openTicket",
-        "title": "詳細を開く",
+        "title": "%command.backlog.openTicket.title%",
         "category": "deguboard"
       },
       {
         "command": "deguboard.backlog.copyId",
-        "title": "ID をコピー",
+        "title": "%command.backlog.copyId.title%",
         "category": "deguboard"
       }
     ],
@@ -173,31 +174,31 @@
     "walkthroughs": [
       {
         "id": "deguboard.start",
-        "title": "deguboard を始める",
-        "description": "リポジトリの初期化から、チケットを起こしてエージェントに頼むまで。",
+        "title": "%walkthrough.start.title%",
+        "description": "%walkthrough.start.description%",
         "steps": [
           {
             "id": "deguboard.start.init",
-            "title": "リポジトリを初期化する",
-            "description": "`dg init` を実行して、チケットを置く場所を作ります。",
+            "title": "%walkthrough.start.init.title%",
+            "description": "%walkthrough.start.init.description%",
             "media": {
-              "markdown": "media/walkthrough/init.md"
+              "markdown": "%walkthrough.start.init.markdown%"
             }
           },
           {
             "id": "deguboard.start.ticket",
-            "title": "チケットを起こす",
-            "description": "やりたいことを 1 件のチケットにします。",
+            "title": "%walkthrough.start.ticket.title%",
+            "description": "%walkthrough.start.ticket.description%",
             "media": {
-              "markdown": "media/walkthrough/ticket.md"
+              "markdown": "%walkthrough.start.ticket.markdown%"
             }
           },
           {
             "id": "deguboard.start.agent",
-            "title": "エージェントに頼む",
-            "description": "Skill を入れ、依頼文を作ってコピーします。",
+            "title": "%walkthrough.start.agent.title%",
+            "description": "%walkthrough.start.agent.description%",
             "media": {
-              "markdown": "media/walkthrough/agent.md"
+              "markdown": "%walkthrough.start.agent.markdown%"
             }
           }
         ]
@@ -218,11 +219,11 @@
   "capabilities": {
     "untrustedWorkspaces": {
       "supported": false,
-      "description": "deguboard はワークスペースのリポジトリで git を実行します。リポジトリの git の設定（core.fsmonitor など）は任意のコマンドを実行させ得るため、信頼していないフォルダー（制限モード）では動きません。"
+      "description": "%capabilities.untrustedWorkspaces.description%"
     },
     "virtualWorkspaces": {
       "supported": false,
-      "description": "deguboard はローカルのファイルシステムと git のコマンドを使うため、仮想ワークスペースでは動きません。"
+      "description": "%capabilities.virtualWorkspaces.description%"
     }
   }
 }

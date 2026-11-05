@@ -64,6 +64,7 @@ import {
   ticketOfBranch,
   type BranchTicket,
 } from "./statusbar.js";
+import { setTranslator, t } from "./l10n.js";
 import { describeTerminals, terminalInput } from "./terminals.js";
 import { gitCommonDir, initWatchTarget, watchTargets } from "./watch.js";
 import {
@@ -140,6 +141,8 @@ const idIndexLoading = new Map<string, Promise<IdIndex | undefined>>();
 const idIndexDirty = new Set<string>();
 
 export function activate(context: vscode.ExtensionContext): void {
+  // 拡張ホストの文言を表示言語で出す（l10n.ts）。ほかの処理より先に差し込む
+  setTranslator((message, ...args) => vscode.l10n.t(message, ...args));
   context.subscriptions.push(
     // ターミナルが開いた・閉じたら、頼む小窓の送り先を更新させる（UI-15）。ターミナルを開くのは人で、拡張は開かない
     vscode.window.onDidOpenTerminal(() => broadcastTerminals()),
@@ -173,7 +176,7 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand(BACKLOG_ROW_COMMANDS.copyId, (arg: unknown) =>
       withMenuTicket(arg, async (_folder, row) => {
         await copyToClipboard(row.ticket);
-        void vscode.window.setStatusBarMessage(`deguboard: ${row.ticket} をコピーした`, 3000);
+        void vscode.window.setStatusBarMessage(`deguboard: ${t("Copied {0}", row.ticket)}`, 3000);
       }),
     ),
     vscode.commands.registerCommand(STATUSBAR_COMMAND, () => {
@@ -230,7 +233,7 @@ export function activate(context: vscode.ExtensionContext): void {
               new vscode.Range(line, f.start, line, f.end),
               vscode.Uri.parse(openIdCommandUri(f.id, found.folder)),
             );
-            link.tooltip = `${f.id} の詳細を開く`;
+            link.tooltip = t("Open details of {0}", f.id);
             links.push(link);
           }
         }
@@ -279,7 +282,10 @@ async function resolveSidebar(
   const folder = folders[0];
   if (!folder) {
     view.webview.options = {};
-    view.webview.html = renderMessageHtml("フォルダを開いてから使う（対象のリポジトリ）");
+    view.webview.html = renderMessageHtml(
+      t("Open a folder (the target repository) to use deguboard"),
+      vscode.env.language,
+    );
     return;
   }
   sidebar = view;
@@ -355,7 +361,7 @@ function listTerminals(closing?: vscode.Terminal): TerminalChoice[] {
  */
 async function sendToTerminal(id: number, text: string): Promise<TerminalSendResult> {
   const terminal = vscode.window.terminals.find((t) => terminalIds.get(t) === id);
-  if (!terminal) throw new Error("送り先のターミナルが閉じている");
+  if (!terminal) throw new Error(t("The selected terminal has been closed"));
   const input = terminalInput(text);
   if (input.kind === "line") {
     terminal.show(true);
@@ -408,11 +414,11 @@ async function openDiff(folder: vscode.WorkspaceFolder, request: DiffRequest): P
 /** 差分エディタの片側の中身。読めなければ理由を中身として出す（差分エディタにはエラーを出す場所がないため） */
 async function diffSideContent(uri: vscode.Uri): Promise<string> {
   const ref = parseDiffQuery(uri.query);
-  if (!ref) return "（読めない URI）\n";
+  if (!ref) return `${t("(Unreadable URI)")}\n`;
   const folder = (vscode.workspace.workspaceFolders ?? []).find(
     (f) => f.uri.toString() === ref.folder,
   );
-  if (!folder) return "（作業フォルダが閉じられた）\n";
+  if (!folder) return `${t("(The workspace folder was closed)")}\n`;
   try {
     const result = await clientFor(folder).run<FileAtSide>("ticket.changed-file", {
       ticket: ref.ticket,
@@ -422,7 +428,7 @@ async function diffSideContent(uri: vscode.Uri): Promise<string> {
     });
     return diffContent(result.data);
   } catch (error) {
-    return `（読めない：${toCommandFailure(error).message}）\n`;
+    return `${t("(Cannot read: {0})", toCommandFailure(error).message)}\n`;
   }
 }
 
@@ -508,7 +514,9 @@ function broadcast(folder: vscode.WorkspaceFolder, event: WebviewEvent): void {
 async function syncFolder(): Promise<void> {
   const folder = sidebarFolder ?? (vscode.workspace.workspaceFolders ?? [])[0];
   if (!folder) {
-    void vscode.window.showErrorMessage("deguboard: フォルダを開いてから使う（対象のリポジトリ）");
+    void vscode.window.showErrorMessage(
+      `deguboard: ${t("Open a folder (the target repository) to use deguboard")}`,
+    );
     return;
   }
   if (syncing) return;
@@ -519,19 +527,22 @@ async function syncFolder(): Promise<void> {
     const status = await client.status();
     if (!status.remote) {
       void vscode.window.showInformationMessage(
-        "deguboard: リモートがないので同期は要らない。読み直した",
+        `deguboard: ${t("No remote, so there is nothing to sync. Reloaded.")}`,
       );
       return;
     }
-    await vscode.window.withProgress({ location: { viewId: VIEW_ID }, title: "同期" }, async () => {
-      const result = await client.run("sync");
-      if (result.warnings.length > 0) {
-        void vscode.window.showWarningMessage(`deguboard: ${result.warnings.join(" / ")}`);
-      }
-    });
+    await vscode.window.withProgress(
+      { location: { viewId: VIEW_ID }, title: t("Syncing") },
+      async () => {
+        const result = await client.run("sync");
+        if (result.warnings.length > 0) {
+          void vscode.window.showWarningMessage(`deguboard: ${result.warnings.join(" / ")}`);
+        }
+      },
+    );
   } catch (error) {
     void vscode.window.showErrorMessage(
-      `deguboard: 同期できない: ${toCommandFailure(error).message}`,
+      `deguboard: ${t("Cannot sync: {0}", toCommandFailure(error).message)}`,
     );
   } finally {
     syncing = false;
@@ -672,6 +683,7 @@ async function attach(
     surface: options.surface,
     route: options.route,
     ask: options.ask,
+    language: vscode.env.language,
   });
 }
 
@@ -880,7 +892,7 @@ async function notifyApprovals(
 ): Promise<void> {
   const context = extensionContext;
   if (!context) return;
-  const open = "開く";
+  const open = t("Open");
   const choice = await vscode.window.showInformationMessage(approvalMessage(arrived), open);
   if (choice !== open) return;
   let item: ApprovalItem | undefined = arrived[0];
@@ -891,7 +903,7 @@ async function notifyApprovals(
         description: i.title ?? (i.kind === "plan" ? "Plan" : ""),
         item: i,
       })),
-      { placeHolder: "開く承認待ちを選ぶ" },
+      { placeHolder: t("Select an item awaiting approval or review") },
     );
     item = picked?.item;
   }
@@ -936,7 +948,7 @@ async function gotoTicket(context: vscode.ExtensionContext): Promise<void> {
     (vscode.workspace.workspaceFolders ?? [])[0]?.uri;
   const found = uri ? await idIndexFor(uri, { retry: true }) : undefined;
   if (!found) {
-    void vscode.window.showInformationMessage("deguboard: チケットのデータを読めない");
+    void vscode.window.showInformationMessage(`deguboard: ${t("Cannot read the ticket data")}`);
     return;
   }
   const items = gotoItems(found.index).map((i) => ({
@@ -946,7 +958,7 @@ async function gotoTicket(context: vscode.ExtensionContext): Promise<void> {
     id: i.id,
   }));
   const picked = await vscode.window.showQuickPick(items, {
-    placeHolder: "ID かタイトルの一部で絞り込む（例: t12、ログイン）",
+    placeHolder: t("Filter by ID or part of the title (e.g. t12, login)"),
     matchOnDescription: true,
     matchOnDetail: true,
   });

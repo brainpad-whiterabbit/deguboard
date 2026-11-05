@@ -2,6 +2,7 @@
 // VS Code の API に触れない部分で、extension.ts から呼ぶ。ブランチは git で読み、チケットの branch と照らす
 
 import { execFile } from "node:child_process";
+import { t } from "./l10n.js";
 
 /** ステータスバーの項目を決めるのに要るチケットの項目（ticket.list の行の一部） */
 export interface BranchTicket {
@@ -58,6 +59,8 @@ export function statusBarText(ticket: BranchTicket, running: boolean): string {
 
 /** ホバーの文言 */
 export function statusBarTooltip(ticket: BranchTicket, running: boolean): string {
-  const run = running ? "。Run が実行中" : "";
-  return `deguboard: ${ticket.id}（${ticket.status}）${run}。押すと詳細を開く`;
+  const text = running
+    ? t("{0} ({1}). A run is in progress. Click to open details.", ticket.id, ticket.status)
+    : t("{0} ({1}). Click to open details.", ticket.id, ticket.status);
+  return `deguboard: ${text}`;
 }
