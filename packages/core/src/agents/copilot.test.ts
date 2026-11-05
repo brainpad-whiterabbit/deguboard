@@ -30,6 +30,7 @@ const run = (over: Partial<Run> = {}): Run => ({
   retries: 0,
   retry_reasons: [],
   usage: { input: null, output: null, cache_read: null, cache_write: null },
+  tools: null,
   ...over,
 });
 
@@ -137,6 +138,8 @@ describe("Copilot の Adapter", () => {
     expect(got).toEqual({
       usage: { input: 20, output: 50, cache_read: 90, cache_write: 490 },
       model: "gpt-test",
+      // ツールの回数は数えない
+      tools: null,
       warnings: [],
     });
   });
@@ -153,7 +156,7 @@ describe("Copilot の Adapter", () => {
     expect(serialized).not.toContain("SECRET-API-CALL-ID");
     expect(serialized).not.toContain("/home/secret/path");
     expect(serialized).not.toContain("1.5");
-    expect(Object.keys(got)).toEqual(["usage", "model", "warnings"]);
+    expect(Object.keys(got)).toEqual(["usage", "model", "tools", "warnings"]);
   });
 
   it("いちばん多くの応答のモデルを選ぶ", async () => {

@@ -1,7 +1,7 @@
 // Run の集計（requirements.md 6.6 MT-3、ADR-005）。集計値は保存せず、表示のたびに Run から求める純粋関数
 
 import { idNumber } from "./id.js";
-import type { Run } from "./run.js";
+import { TOOL_KINDS, type Run, type RunTools } from "./run.js";
 import type { Ticket } from "./ticket.js";
 
 /** 集計と絞り込みの単位。Agent/Model は agent と model に分けて持つ。step は Run の step（implement・review など） */
@@ -21,6 +21,8 @@ export type MetricUnit = (typeof METRIC_UNITS)[number];
 const METRIC_VALUES = ["duration_seconds", "input", "output", "cache_read", "cache_write"] as const;
 export type MetricValue = (typeof METRIC_VALUES)[number];
 
+const TOOL_VALUES = [...TOOL_KINDS, "read_before_write", "search_before_write"] as const;
+
 export interface RunMetrics {
   runs: number;
   /** unfinished は result が null（実行中か、結果を記録せずに終わった）の Run */
@@ -32,8 +34,10 @@ export interface RunMetrics {
   output: number | null;
   cache_read: number | null;
   cache_write: number | null;
-  /** 値が欠けていて足さなかった Run の数 */
-  missing: Record<MetricValue, number>;
+  /** ツールの回数の合計。値のある Run がなければ null */
+  tools: RunTools | null;
+  /** 値が欠けていて足さなかった Run の数。tools はツールの回数（tools）が null の Run */
+  missing: Record<MetricValue | "tools", number>;
   /** 推定の値（usage.estimated）を含む Run の数。0 でなければ合計も推定を含む */
   estimated_runs: number;
 }
@@ -69,13 +73,15 @@ export function summarizeRuns(runs: readonly Run[]): RunMetrics {
     cache_read: null,
     cache_write: null,
   };
-  const missing: Record<MetricValue, number> = {
+  const missing: Record<MetricValue | "tools", number> = {
     duration_seconds: 0,
     input: 0,
     output: 0,
     cache_read: 0,
     cache_write: 0,
+    tools: 0,
   };
+  let tools: RunTools | null = null;
   const results = { success: 0, failure: 0, interrupted: 0, unfinished: 0 };
   let retries = 0;
   let estimated = 0;
@@ -95,8 +101,22 @@ export function summarizeRuns(runs: readonly Run[]): RunMetrics {
       if (v === null) missing[key] += 1;
       else sums[key] = (sums[key] ?? 0) + v;
     }
+    if (run.tools === null) missing.tools += 1;
+    else {
+      const t: RunTools = tools ?? (Object.fromEntries(TOOL_VALUES.map((k) => [k, 0])) as RunTools);
+      for (const key of TOOL_VALUES) t[key] += run.tools[key];
+      tools = t;
+    }
   }
-  return { runs: runs.length, results, retries, ...sums, missing, estimated_runs: estimated };
+  return {
+    runs: runs.length,
+    results,
+    retries,
+    ...sums,
+    tools,
+    missing,
+    estimated_runs: estimated,
+  };
 }
 
 export type MetricFilter = Partial<Record<MetricUnit, string>>;

@@ -82,7 +82,7 @@ export const runFinish = defineCommand({
   positionals: ["run"],
   group: "run",
   summary:
-    "実行中の Run を閉じ、完了時の集計を runs/ に書く（commit.mode に従ってコミット）。止まった Run は --result interrupted で閉じる。使用量は自己申告を受けず、agent の Adapter が会話記録から取り込む。取れなければ null のまま警告する",
+    "実行中の Run を閉じ、完了時の集計を runs/ に書く（commit.mode に従ってコミット）。止まった Run は --result interrupted で閉じる。使用量とツールの回数（tools）は自己申告を受けず、agent の Adapter が会話記録から取り込む。使用量が取れなければ null のまま警告する。ツールを数えない Adapter では tools は null",
   input: z.object({
     run: z.string().min(1).describe("Run の ID（r20261031-041500-3fa2）"),
     result: z.enum(RUN_RESULTS).describe("success・failure・interrupted"),
@@ -143,6 +143,7 @@ export const runFinish = defineCommand({
       // 会話記録のモデル名 > 明示したモデル名 > 実行中の記録のモデル名（別名でなく正式な ID を残す）
       model: collected?.model ?? input.model,
       usage: collected?.usage,
+      tools: collected?.tools,
       now,
     });
     return ok(run, write, collected?.warnings ?? []);
@@ -195,7 +196,7 @@ export const runList = defineCommand({
   },
 });
 
-/** 取り直しで比べる値。usage の 4 つは usage.<キー> と書く */
+/** 取り直しで比べる値。usage の 4 つは usage.<キー> と書く。ツールの回数（tools）は取り直さない（RN-4） */
 const REFRESH_FIELDS = ["model", "input", "output", "cache_read", "cache_write"] as const;
 type RefreshField = (typeof REFRESH_FIELDS)[number];
 type UsageKey = Exclude<RefreshField, "model">;

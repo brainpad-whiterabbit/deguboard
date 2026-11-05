@@ -154,6 +154,19 @@ describe("スキーマ", () => {
     expect(runSchema.parse({ ...base, retry_reasons: ["検査が落ちた"] }).retry_reasons).toEqual([
       "検査が落ちた",
     ]);
+    // tools より前に書いた Run（キーがない）は null にそろえ、ある Run は回数を読む
+    expect(r.tools).toBeNull();
+    const tools = {
+      read: 3,
+      search: 2,
+      write: 1,
+      bash: 4,
+      other: 0,
+      read_before_write: 2,
+      search_before_write: 2,
+    };
+    expect(runSchema.parse({ ...base, tools }).tools).toEqual(tools);
+    expect(runSchema.safeParse({ ...base, tools: { ...tools, read: -1 } }).success).toBe(false);
     // null を省いたり、0 未満や知らない結果を書いたりはできない
     const { model: _model, ...noModel } = base;
     expect(runSchema.safeParse(noModel).success).toBe(false);

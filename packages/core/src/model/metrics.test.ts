@@ -17,6 +17,7 @@ function run(id: string, over: Partial<Run> = {}): Run {
     retries: 0,
     retry_reasons: [],
     usage: { input: 100, output: 10, cache_read: 0, cache_write: 5 },
+    tools: null,
     ...over,
   };
 }
@@ -45,6 +46,28 @@ describe("Run の集計", () => {
     expect(none.input).toBeNull();
     expect(none.missing.input).toBe(1);
     expect(summarizeRuns([])).toMatchObject({ runs: 0, input: null, duration_seconds: null });
+  });
+
+  it("ツールの回数は種類ごとに足し、null の Run は足さずに missing.tools に数える。すべて欠ければ null", () => {
+    const tools = (n: number) => ({
+      read: n,
+      search: n,
+      write: n,
+      bash: n,
+      other: n,
+      read_before_write: n,
+      search_before_write: n,
+    });
+    const m = summarizeRuns([
+      run("00", { tools: tools(1) }),
+      run("01"),
+      run("02", { tools: { ...tools(2), write: 0 } }),
+    ]);
+    expect(m.tools).toEqual({ ...tools(3), write: 1 });
+    expect(m.missing.tools).toBe(1);
+    const none = summarizeRuns([run("03")]);
+    expect(none.tools).toBeNull();
+    expect(none.missing.tools).toBe(1);
   });
 
   it("推定の値を含む Run の数を estimated_runs で示す", () => {

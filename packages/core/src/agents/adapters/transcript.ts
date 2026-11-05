@@ -3,6 +3,7 @@
 import { readdir, stat } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import type { RunTools, ToolKind } from "../../model/run.js";
 import type { AgentEnv, CollectedUsage, UsageQuery } from "../define.js";
 
 export function homeDir(env: AgentEnv): string {
@@ -73,9 +74,31 @@ export const seenAfterRun = (firstSeen: number, to: number): boolean =>
 /** 行の順が少し前後しても読み切るための猶予。期間の終わりからこれだけ過ぎた行で読むのをやめる */
 export const TAIL_MS = 60_000;
 
+/** 呼び出しの順に並べたツールの種類から、種類ごとの回数と、最初に書くまでの読む・探すの回数を求める */
+export function tallyTools(kinds: Iterable<ToolKind>): RunTools {
+  const tools: RunTools = {
+    read: 0,
+    search: 0,
+    write: 0,
+    bash: 0,
+    other: 0,
+    read_before_write: 0,
+    search_before_write: 0,
+  };
+  let written = false;
+  for (const kind of kinds) {
+    tools[kind] += 1;
+    if (kind === "write") written = true;
+    else if (!written && kind === "read") tools.read_before_write += 1;
+    else if (!written && kind === "search") tools.search_before_write += 1;
+  }
+  return tools;
+}
+
 /** 何も取れなかったときの値 */
 export const none = (warning: string): CollectedUsage => ({
   usage: { input: null, output: null, cache_read: null, cache_write: null },
   model: null,
+  tools: null,
   warnings: [warning],
 });

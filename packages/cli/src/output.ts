@@ -110,6 +110,7 @@ const COLUMNS: Record<string, string[]> = {
     "output",
     "cache_read",
     "cache_write",
+    "tools",
     "missing",
     "estimated_runs",
   ],

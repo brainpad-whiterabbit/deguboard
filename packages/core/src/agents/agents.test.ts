@@ -38,6 +38,7 @@ const run = (over: Partial<Run> = {}): Run => ({
   retries: 0,
   retry_reasons: [],
   usage: { input: null, output: null, cache_read: null, cache_write: null },
+  tools: null,
   ...over,
 });
 
@@ -61,6 +62,18 @@ function assistant(id: string, minutes: number, tokens: number[], model = "claud
       },
     },
   };
+}
+
+/** tool_use を持つ偽の assistant の行。calls は [tool_use の id, ツールの名前] */
+function toolUse(id: string, minutes: number, calls: Array<[string, string]>) {
+  const line = assistant(id, minutes, [1, 1, 1, 1]);
+  line.message.content = calls.map(([callId, name]) => ({
+    type: "tool_use",
+    id: callId,
+    name,
+    input: { command: "cat /home/secret/file" },
+  })) as unknown as typeof line.message.content;
+  return line;
 }
 
 /** Run の ID を含む行（dg run start の出力を受け取ったツールの結果） */
@@ -113,8 +126,81 @@ describe("Claude Code の Adapter", () => {
     expect(got).toEqual({
       usage: { input: 11, output: 22, cache_read: 330, cache_write: 44 },
       model: "claude-test-1",
+      tools: {
+        read: 0,
+        search: 0,
+        write: 0,
+        bash: 0,
+        other: 0,
+        read_before_write: 0,
+        search_before_write: 0,
+      },
       warnings: [],
     });
+  });
+
+  it("期間内の応答の tool_use を id で重ねずに種類ごとに数え、最初に書くまでの読む・探すも数える", async () => {
+    const { projectDir, query } = await setup();
+    await writeTranscript(path.join(projectDir, "s1.jsonl"), [
+      toolUse("m0", -5, [["u0", "Read"]]), // 期間の前
+      mention(0),
+      toolUse("m1", 1, [
+        ["u1", "Grep"],
+        ["u2", "Read"],
+      ]),
+      toolUse("m1", 1, [["u2", "Read"]]), // 同じ tool_use の別の行
+      toolUse("m2", 2, [
+        ["u3", "Bash"],
+        ["u4", "Glob"],
+      ]),
+      toolUse("m3", 3, [["u5", "Edit"]]),
+      toolUse("m4", 4, [
+        ["u6", "Read"],
+        ["u7", "Write"],
+        ["u8", "Agent"],
+        ["u9", "mcp__x__y"],
+      ]),
+      toolUse("m5", 40, [["u10", "Read"]]), // 期間の後
+    ]);
+    const got = await claudeCodeAdapter.readTranscriptUsage(query());
+    expect(got.tools).toEqual({
+      read: 2,
+      search: 2,
+      write: 2,
+      bash: 1,
+      other: 2,
+      read_before_write: 1,
+      search_before_write: 2,
+    });
+    // 写すのは数だけで、ツールの入力（コマンド・パス）は返さない（MT-4）
+    expect(JSON.stringify(got)).not.toContain("secret");
+  });
+
+  it("書かずに終わった Run では、最初に書くまでの回数は全体の回数になる", async () => {
+    const { projectDir, query } = await setup();
+    await writeTranscript(path.join(projectDir, "s1.jsonl"), [
+      mention(0),
+      toolUse("m1", 1, [
+        ["u1", "Read"],
+        ["u2", "Grep"],
+        ["u3", "Read"],
+        ["u4", "Bash"],
+      ]),
+    ]);
+    const got = await claudeCodeAdapter.readTranscriptUsage(query());
+    expect(got.tools).toMatchObject({
+      read: 2,
+      search: 1,
+      read_before_write: 2,
+      search_before_write: 1,
+    });
+  });
+
+  it("Run が見つからなければ、ツールの回数も null", async () => {
+    const { projectDir, query } = await setup();
+    await writeTranscript(path.join(projectDir, "s1.jsonl"), [toolUse("m1", 1, [["u1", "Read"]])]);
+    const got = await claudeCodeAdapter.readTranscriptUsage(query());
+    expect(got.tools).toBeNull();
   });
 
   it("並行するエージェントの記録は Run の ID を含まないので数えず、ID を後から受け取った記録より最初に含む記録を選ぶ", async () => {

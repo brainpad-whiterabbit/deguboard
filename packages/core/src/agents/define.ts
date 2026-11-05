@@ -1,7 +1,7 @@
 // Agent Adapter の形（AG-5・MT-1、ADR-005・ADR-007）。
 // 特定の AI 製品に依存する処理は adapters/ に閉じ、Core の汎用部分はこの形と agents/index.ts の一覧だけを見る
 
-import type { Run, RunUsage } from "../model/run.js";
+import type { Run, RunTools, RunUsage } from "../model/run.js";
 
 /** 環境変数。テストが HOME などを差し替えられるように、process.env を直接読まずに受け取る */
 export type AgentEnv = Readonly<Record<string, string | undefined>>;
@@ -24,6 +24,8 @@ export interface CollectedUsage {
   usage: Pick<RunUsage, "input" | "output" | "cache_read" | "cache_write">;
   /** 会話記録から分かったモデル名。分からなければ null */
   model: string | null;
+  /** 使用量と同じ範囲で数えたツールの回数。数えられない Adapter・記録は null */
+  tools: RunTools | null;
   warnings: string[];
 }
 
@@ -45,7 +47,7 @@ export interface SkillDirs {
 export interface AgentAdapter {
   /** Run の agent の値。この名前の Run の使用量を取り込む */
   name: string;
-  /** 会話記録から使用量を読む。読む許可（metrics.read_transcripts・DEGUBOARD_NO_TRANSCRIPTS）は呼び出し側が確かめる */
+  /** 会話記録から使用量とツールの回数を読む。読む許可（metrics.read_transcripts・DEGUBOARD_NO_TRANSCRIPTS）は呼び出し側が確かめる */
   readTranscriptUsage(query: UsageQuery): Promise<CollectedUsage>;
   /** この製品が Skill を読むディレクトリ。Skill のない製品は持たない */
   skillDirs?: SkillDirs;

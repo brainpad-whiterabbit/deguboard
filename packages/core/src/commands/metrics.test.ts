@@ -42,6 +42,15 @@ async function scenario(): Promise<CommandContext> {
     id: "r20261031-040000-0001",
     ticket: "t1",
     usage: { input: 1000, output: 100, cache_read: 50, cache_write: null },
+    tools: {
+      read: 5,
+      search: 3,
+      write: 2,
+      bash: 4,
+      other: 1,
+      read_before_write: 4,
+      search_before_write: 3,
+    },
   });
   await ctx.store.create("run", {
     ...base,
@@ -67,7 +76,7 @@ async function scenario(): Promise<CommandContext> {
 }
 
 describe("metrics show", () => {
-  it("Run を集計し、null は足さずに欠けた数を返し、推定を含む Run を数える", async () => {
+  it("Run を集計し、null は足さずに欠けた数を返し、推定を含む Run を数える。ツールの回数のない Run は tools の欠けに数える", async () => {
     const ctx = await scenario();
     const r = await runCommand(metricsShow, ctx, {});
     expect(r.write).toBeUndefined();
@@ -82,7 +91,23 @@ describe("metrics show", () => {
         output: 100,
         cache_read: 50,
         cache_write: null,
-        missing: { duration_seconds: 1, input: 1, output: 2, cache_read: 2, cache_write: 3 },
+        tools: {
+          read: 5,
+          search: 3,
+          write: 2,
+          bash: 4,
+          other: 1,
+          read_before_write: 4,
+          search_before_write: 3,
+        },
+        missing: {
+          duration_seconds: 1,
+          input: 1,
+          output: 2,
+          cache_read: 2,
+          cache_write: 3,
+          tools: 2,
+        },
         estimated_runs: 1,
       },
       groups: [],

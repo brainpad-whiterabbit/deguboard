@@ -520,7 +520,27 @@ describe("run finish の使用量の取り込み（MT-1・MT-2・MT-4）", () =>
         message: {
           id: "m1",
           model: "model-from-transcript",
-          content: [{ type: "tool_use", input: { command: "cat /etc/secret-command" } }],
+          content: [
+            { type: "tool_use", id: "u1", name: "Grep", input: { pattern: "secret-command" } },
+            {
+              type: "tool_use",
+              id: "u2",
+              name: "Edit",
+              input: { file_path: "/etc/secret-command" },
+            },
+            {
+              type: "tool_use",
+              id: "u3",
+              name: "Read",
+              input: { file_path: "/etc/secret-command" },
+            },
+            {
+              type: "tool_use",
+              id: "u4",
+              name: "Bash",
+              input: { command: "cat /etc/secret-command" },
+            },
+          ],
           usage: usage(3),
         },
       },
@@ -537,7 +557,18 @@ describe("run finish の使用量の取り込み（MT-1・MT-2・MT-4）", () =>
     );
   }
 
-  it("Claude Code の Run は会話記録から input・output・cache_read・cache_write とモデル名が埋まる", async () => {
+  /** transcript の tool_use の回数。Grep・Edit・Read・Bash の順なので、書くまでは探す 1 回だけ */
+  const TOOLS = {
+    read: 1,
+    search: 1,
+    write: 1,
+    bash: 1,
+    other: 0,
+    read_before_write: 0,
+    search_before_write: 1,
+  };
+
+  it("Claude Code の Run は会話記録から input・output・cache_read・cache_write とモデル名とツールの回数が埋まる", async () => {
     const { ctx, projectDir } = await withTranscripts(true);
     const run = await start(ctx, "t1");
     await transcript(projectDir, run);
@@ -546,6 +577,7 @@ describe("run finish の使用量の取り込み（MT-1・MT-2・MT-4）", () =>
     expect(r.data).toMatchObject({
       model: "model-from-transcript",
       usage: { input: 7, output: 14, cache_read: 700, cache_write: 70 },
+      tools: TOOLS,
     });
   });
 
@@ -584,6 +616,7 @@ describe("run finish の使用量の取り込み（MT-1・MT-2・MT-4）", () =>
         cache_write: null,
       });
       expect((r.data as Run).model).toBeNull();
+      expect((r.data as Run).tools).toBeNull();
       expect(r.warnings).toEqual([expect.stringMatching(/会話記録を読まない/)]);
     }
   });
@@ -624,9 +657,11 @@ describe("run finish の使用量の取り込み（MT-1・MT-2・MT-4）", () =>
         "retries",
         "retry_reasons",
         "usage",
+        "tools",
       ].sort(),
     );
     expect(saved["usage"]).toEqual({ input: 7, output: 14, cache_read: 700, cache_write: 70 });
+    expect(saved["tools"]).toEqual(TOOLS);
   });
 });
 

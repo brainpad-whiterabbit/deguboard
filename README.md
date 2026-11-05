@@ -71,7 +71,7 @@ dg run refresh <ID> --dry-run                 # 閉じた Run のモデル名と
 dg metrics show --iteration s1 --by ticket    # 絞り込み（--ticket・--epic・--step など）と単位ごとの集計
 ```
 
-使用量を取り込めるのは今は Claude Code（`--agent claude-code`）・Codex（`--agent codex`）・Copilot CLI（`--agent copilot`）の Run だけで、取れなかった値は 0 と数えず欠けた数として出る。画面では、Run のタブで実行中・完了の Run と単位ごとの実績を、チケット詳細の Run の節と履歴の Iteration の行の「Run の集計」でそのチケット・Iteration の Run を見る（Run のタブと「Run の集計」はブラウザだけ）。記録の形・Git に入れる範囲・集計の約束は[要件定義書](docs/requirements.md)の「5.9 Run」と「6.6 作業の実績」。
+使用量を取り込めるのは今は Claude Code（`--agent claude-code`）・Codex（`--agent codex`）・Copilot CLI（`--agent copilot`）の Run だけ（ツールの回数は Claude Code だけ）で、取れなかった値は 0 と数えず欠けた数として出る。画面では、Run のタブで実行中・完了の Run と単位ごとの実績を、チケット詳細の Run の節と履歴の Iteration の行の「Run の集計」でそのチケット・Iteration の Run を見る（Run のタブと「Run の集計」はブラウザだけ）。記録の形・Git に入れる範囲・集計の約束は[要件定義書](docs/requirements.md)の「5.9 Run」と「6.6 作業の実績」。
 
 ### Plan の段階とモデル
 

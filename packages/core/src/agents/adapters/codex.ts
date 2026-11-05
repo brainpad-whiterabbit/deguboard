@@ -12,7 +12,7 @@
 //     cache_write_input_tokens を書かない版の記録では cache_write を null にして警告する
 //   - 探す範囲：環境変数 CODEX_HOME（なければ ~/.codex）の sessions/ の下で、started_at より後に書かれた .jsonl。
 //     圧縮した記録（.jsonl.zst）は読まない
-//   - 返すのは数とモデル名だけ。会話の中身・コマンド・パスは返さない（MT-4）
+//   - ツールの回数は数えない（null）。返すのは数とモデル名だけ。会話の中身・コマンド・パスは返さない（MT-4）
 
 import { createReadStream } from "node:fs";
 import path from "node:path";
@@ -208,6 +208,6 @@ export const codexAdapter: AgentAdapter = {
       missing.length > 0
         ? [`Codex の会話記録から ${missing.join("・")} を取れない。null で残す`]
         : [];
-    return { usage, model: mainModel(best), warnings };
+    return { usage, model: mainModel(best), tools: null, warnings };
   },
 };
