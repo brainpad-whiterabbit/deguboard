@@ -21,7 +21,7 @@ argument-hint: "[Iteration|Epic|チケットの ID...]"
    - 閉じた Epic に終わっていないチケットが残る：別の Epic に移す・Epic から外す・abandoned にする、のどれかを案にする
    - チケットがすべて終わったのに Epic・Plan が開いている：閉じる（`epic close` / `plan close`）を案にする
    - Iteration に入っていない（`lint_iteration_missing`）：`dg guide work` の手順 1 のとおり Iteration を選んで `iteration add <S> <id>` で入れるを案にする。入れ先がない（閉じた Iteration には入れられない。done のチケットなど）なら、Iteration を作るか設定を変えるかを人に聞く
-   - 開いた Plan の after と depends_on が循環している（`lint_plan_wait_cycle`）：`ticket update --depends-on` で辺を外すか、Plan を閉じて after を変えて作り直す、待っているチケットを abandoned にするを案にする（閉じる・abandoned にするかは人に聞く）
+   - 開いた Plan の after と depends_on が循環している（`lint_plan_wait_cycle`）：`ticket update --depends-on` で辺を外す・Plan を閉じて after を変えて作り直す・待っているチケットを abandoned にする、のどれかを案にする（Plan を閉じるか・abandoned にするかは人に聞く）
    - 同じ Project に active の Iteration が 2 つ以上（`lint_iteration_multiple_active`）：どれを閉じるかを人に聞く（閉じるのは人の指示で行う）
    - `sync` の警告（照合できない、未チェックの受け入れ条件が残ったまま done になった）：`dg guide done` の手順で確かめる案にする
 3. **表で示して承認を得る**：次の表を示し、反映する行を `#` の複数選択で聞く（「反映しない」も入れる）。直し方が 1 つに決まらない行は案を並べ、選択肢の外の入力で受ける

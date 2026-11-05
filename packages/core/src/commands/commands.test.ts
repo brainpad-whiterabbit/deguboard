@@ -1880,7 +1880,7 @@ describe("用意", () => {
     await runCommand(ticketMove, ctx, { ticket: "t2", status: "abandoned" });
     const through = await runCommand(lint, ctx, {});
     expect(through.data.issues.map((i) => i.code)).not.toContain("lint_plan_wait_cycle");
-    // Plan の外で終わったチケットからは辺を出さないので、そこを回って戻る循環も指摘しない
+    // Plan の外の t3 まで回る循環は経路つきで指摘し、t3 が終わると（終わったチケットへの depends_on は待ちにならないので）指摘しない
     await runCommand(ticketMove, ctx, { ticket: "t2", status: "todo" });
     await runCommand(ticketCreate, ctx, {
       title: "C",
