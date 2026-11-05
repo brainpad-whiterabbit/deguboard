@@ -659,4 +659,15 @@ describe("開いているターミナルへ送る（UI-15）", () => {
     await view.terminalsChanged([]);
     await waitFor(() => expect(box.queryByRole("button", { name: "送る" })).toBeNull());
   });
+
+  it("選んだターミナルが閉じたら、アクティブなターミナルに切り替えて知らせる", async () => {
+    const view = mountWebview(askClient(), { terminals: TERMINALS });
+    await screen.findByText("見直す");
+    view.ask(["t5"]);
+    const box = within(composer());
+    const select = await box.findByRole("combobox", { name: "送り先のターミナル" });
+    fireEvent.change(select, { target: { value: "7" } });
+    await view.terminalsChanged([{ id: 4, label: "zsh", active: true }]);
+    await waitFor(() => expect(box.getByRole("status").textContent).toContain("zsh に切り替え"));
+  });
 });

@@ -39,6 +39,8 @@ export type WebviewRequest =
 export interface TerminalChoice {
   id: number;
   label: string;
+  /** 今アクティブなターミナル。送り先の既定にする */
+  active?: boolean | undefined;
 }
 
 /**

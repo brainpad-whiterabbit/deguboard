@@ -8,12 +8,25 @@ export function canSend(terminals: readonly TerminalChoice[]): boolean {
   return terminals.length > 0;
 }
 
-/** 選んでいるターミナル。選んだものが閉じていたら先頭に戻す。1 つもなければ null */
+/**
+ * 選んでいるターミナル。未選択（null）か、選んだものが閉じていたら、アクティブなターミナル、なければ先頭。1 つもなければ null。
+ * 選んだものが閉じた場合の切り替えは黙ってしない（呼ぶ側が switchedMessage で知らせる）
+ */
 export function resolveSendTarget(
   terminals: readonly TerminalChoice[],
   chosen: number | null,
 ): TerminalChoice | null {
-  return terminals.find((t) => t.id === chosen) ?? terminals[0] ?? null;
+  return (
+    terminals.find((t) => t.id === chosen) ??
+    terminals.find((t) => t.active) ??
+    terminals[0] ??
+    null
+  );
+}
+
+/** 選んだターミナルが閉じて、別のターミナルに切り替えたときの知らせ */
+export function switchedMessage(to: TerminalChoice): string {
+  return `選んでいたターミナルが閉じたので、${to.label} に切り替えました`;
 }
 
 /** 送った後に出す知らせ。Enter を押していないので、人が確かめて押すことを添える */

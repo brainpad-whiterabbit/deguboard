@@ -8,7 +8,7 @@ import type { TerminalChoice } from "@deguboard/core";
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { askKey, parseAskKey } from "../ask-key.js";
 import { useHost, useUiState } from "../host.js";
-import { canSend, resolveSendTarget, sentMessage } from "../send-target.js";
+import { canSend, resolveSendTarget, sentMessage, switchedMessage } from "../send-target.js";
 import { useStore } from "../store.js";
 import type { AskAction, AskFormat, AskView } from "../types.js";
 
@@ -77,6 +77,12 @@ export function AskComposer({
   const terminals = useTerminals();
   const [terminalId, setTerminalId] = useState<number | null>(null);
   const sendTo = resolveSendTarget(terminals, terminalId);
+  // 選んだターミナルが閉じたら、黙って替えず知らせる（描画の中で自分の state を直す。effect で直すと描画が 1 回余る）
+  if (terminalId !== null && !terminals.some((t) => t.id === terminalId)) {
+    setTerminalId(null);
+    const next = resolveSendTarget(terminals, null);
+    if (next) setResult({ ok: true, text: switchedMessage(next) });
+  }
   const settledNote = useSettled(note, ASK_NOTE_SETTLE_MS);
 
   useEffect(() => {

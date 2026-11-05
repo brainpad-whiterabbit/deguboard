@@ -61,7 +61,7 @@ import {
   ticketOfBranch,
   type BranchTicket,
 } from "./statusbar.js";
-import { describeTerminals, terminalPayload } from "./terminals.js";
+import { describeTerminals, terminalInput } from "./terminals.js";
 import { gitCommonDir, initWatchTarget, watchTargets } from "./watch.js";
 import {
   askDelivery,
@@ -325,7 +325,11 @@ function listTerminals(closing?: vscode.Terminal): TerminalChoice[] {
   return describeTerminals(
     vscode.window.terminals
       .filter((t) => t !== closing)
-      .map((t) => ({ id: terminalId(t), name: t.name })),
+      .map((t) => ({
+        id: terminalId(t),
+        name: t.name,
+        active: t === vscode.window.activeTerminal,
+      })),
   );
 }
 
@@ -336,7 +340,16 @@ function listTerminals(closing?: vscode.Terminal): TerminalChoice[] {
 async function sendToTerminal(id: number, text: string): Promise<void> {
   const terminal = vscode.window.terminals.find((t) => terminalIds.get(t) === id);
   if (!terminal) throw new Error("送り先のターミナルが閉じている");
-  terminal.sendText(terminalPayload(text), false);
+  const input = terminalInput(text);
+  terminal.show(true);
+  if (input.kind === "line") {
+    terminal.sendText(input.text, false);
+    return;
+  }
+  // 複数行は VS Code の貼り付けに任せる（対応しない入力では VS Code が警告を出す）。使うのは既にあるコマンドだけで、起動はしない。
+  // 貼り付けは今アクティブなターミナルに入るので、show() で選んだものを前に出してから呼ぶ
+  await vscode.env.clipboard.writeText(input.text);
+  await vscode.commands.executeCommand("workbench.action.terminal.paste");
 }
 
 /** 文字をクリップボードに入れる。Webview の画面のコピー（依頼文・ブランチ名）と、バックログの「ID をコピー」で使う */
