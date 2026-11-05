@@ -1,0 +1,67 @@
+id: p49
+project: default
+tickets: [t346, t367, t369, t407, t406, t347, t408, t366, t370, t371, t368, t349]
+after:
+  t366:
+    - t346
+  t370:
+    - t346
+    - t369
+  t371:
+    - t369
+  t368:
+    - t366
+    - t367
+  t349:
+    - t368
+    - t347
+pending_approval: true
+details:
+  t346:
+    scope: media/icon.png を文字なしのデグーの 128px にし、package.json の Marketplace 項目を概要の値にする
+    approach: 一時置き場の notext-128.png を使い、VSIX に入ることを mise run vsix で確かめる
+    tier: standard
+  t367:
+    scope: リポジトリ直下に SECURITY.md（private vulnerability reporting と対象の版）を置き README からリンクする
+    approach: 文書の追加だけ。check:docs の予算を確かめる
+    tier: light
+  t369:
+    scope: mise run audit で本番依存を監査し、リリースの手順に入れる
+    approach: pnpm audit --prod を呼ぶ mise タスクを足し development.md のリリース手順に書く。main の結果を PR に書く
+    tier: standard
+  t407:
+    scope: plan create で after と depends_on をまたぐ循環を拒否し経路をメッセージに出す
+    approach: core の plan.ts の循環検査に Plan 内の depends_on の辺を合わせ、requirements と plan-graph のコメントを直しテストを足す
+    tier: heavy
+  t406:
+    scope: guide-plan.md の手順 4 に参考節のファイルが重なるものを after でつなぐ案内を足す
+    approach: guide の文面と文面のテストだけ直す
+    tier: light
+  t347:
+    scope: open-board.gif と ask-agent.gif を画面操作だけで録り、録り直しの手順を残す
+    approach: ?surface=sidebar を Playwright で操作して録り、mise タスクで再生成できるようにする。6〜10 秒・1MB 以下
+    tier: heavy
+  t408:
+    scope: 閉じた Run に run refresh を流してモデル名と使用量を埋め戻す（PR なし）
+    approach: --dry-run の差分と metrics show の missing の前後を報告してから書く
+    tier: standard
+  t366:
+    scope: manifest に untrustedWorkspaces supported false と理由、virtualWorkspaces false を明示する
+    approach: package.json の capabilities を足し manifest のテストで値を確かめる
+    tier: standard
+  t370:
+    scope: vsix に入れてよいファイルの一覧と vsce ls を照らすテストを check に入れる
+    approach: 許可リストを置き vsce ls --tree なしの出力と比べるテストを vscode パッケージに足す
+    tier: standard
+  t371:
+    scope: リリースの手順に vsix の SHA256 を Release 本文に書く手順と確かめ方を足す
+    approach: development.md のリリース手順と雛形だけ直す
+    tier: light
+  t368:
+    scope: README と拡張の README にセキュリティとプライバシーの節を足す
+    approach: 通信なし・テレメトリなし・データの場所・呼ぶコマンド・制限モードと SECURITY.md へのリンクを短く書く
+    tier: light
+  t349:
+    scope: 拡張の README を紹介ページ案の本文に置き換え、5 本の GIF を表示できるようにする
+    approach: 紹介ページ案の原稿を写し、t368 の節を残し、images を VSIX に入れるか絶対 URL にする。t348（人）の GIF を待つ
+    tier: standard
