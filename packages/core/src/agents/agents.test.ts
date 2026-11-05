@@ -206,6 +206,25 @@ describe("Claude Code の Adapter", () => {
     }
   });
 
+  it("CLAUDE_CODE_SESSION_ID の session に Run の ID が期間の後に出るだけなら（閉じた後の run refresh）、作業ツリーから探す", async () => {
+    const { projectDir, query, home } = await setup();
+    await writeTranscript(path.join(projectDir, "s1.jsonl"), [
+      mention(0),
+      assistant("m1", 1, [7, 7, 7, 7]),
+    ]);
+    // 閉じた後に別のセッションで run refresh を呼び、その出力に ID が載った
+    await writeTranscript(path.join(home, ".claude", "projects", "-x", "now.jsonl"), [
+      assistant("n0", 50, [100, 100, 100, 100]),
+      mention(60),
+      assistant("n1", 61, [100, 100, 100, 100]),
+    ]);
+    const got = await claudeCodeAdapter.readTranscriptUsage(
+      query({ env: { HOME: home, CLAUDE_CODE_SESSION_ID: "now" }, finishedAt: FINISHED }),
+    );
+    expect(got.warnings).toEqual([]);
+    expect(got.usage).toEqual({ input: 7, output: 7, cache_read: 7, cache_write: 7 });
+  });
+
   it("更新日時が started_at より古いファイルは探さない", async () => {
     const { projectDir, query } = await setup();
     const file = path.join(projectDir, "s1.jsonl");

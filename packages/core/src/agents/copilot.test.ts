@@ -183,6 +183,22 @@ describe("Copilot の Adapter", () => {
     expect(got.usage).toEqual({ input: 20, output: 20, cache_read: 0, cache_write: 80 });
   });
 
+  it("COPILOT_AGENT_SESSION_ID の session に Run の ID が期間の後に出るだけなら（閉じた後の run refresh）、作業ツリーから探す", async () => {
+    const { eventsFile, topLevel, query } = await setup({ COPILOT_AGENT_SESSION_ID: "sess-now" });
+    await writeEvents(eventsFile("sess-now"), [
+      sessionStart("sess-now", topLevel),
+      mention(60),
+      usageRecord(61, { input: 999, output: 999 }),
+    ]);
+    await writeEvents(eventsFile("sess-run"), [
+      sessionStart("sess-run", topLevel),
+      mention(0),
+      usageRecord(1, { input: 100, output: 20, cacheRead: 0, cacheWrite: 80 }),
+    ]);
+    const got = await copilotAdapter.readTranscriptUsage(query());
+    expect(got.usage).toEqual({ input: 20, output: 20, cache_read: 0, cache_write: 80 });
+  });
+
   it("同じ作業ツリーでも親の Run ID を含まない別 session（サブエージェント）の使用量は合算しない", async () => {
     // COPILOT_AGENT_SESSION_ID を渡さず、両方の session を作業ツリーからの探し方で拾わせる
     const { eventsFile, topLevel, query } = await setup();

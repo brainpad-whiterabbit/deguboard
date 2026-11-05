@@ -206,12 +206,20 @@ export interface RunRefreshItem {
   id: RunId;
   ticket: string;
   agent: string;
-  changes: Array<{ field: string; from: string | number | null; to: string | number }>;
+  /** to が null なのは値を消すとき（usage.estimated だけ） */
+  changes: Array<{
+    field: string;
+    from: string | number | boolean | null;
+    to: string | number | null;
+  }>;
   kept: string[];
   updated: boolean;
 }
 
-/** 会話記録から取れた値だけを今の記録に重ねる。取れなかった値（null）は今の値を残す */
+/**
+ * 会話記録から取れた値だけを今の記録に重ねる。取れなかった値（null）は今の値を残す。
+ * 使用量の 4 つをすべて取り直せたら、推定の印（usage.estimated）は外す（RN-2）
+ */
 function refreshPlan(
   run: Run,
   collected: { model: string | null; usage: Partial<Record<UsageKey, number | null>> },
@@ -232,12 +240,19 @@ function refreshPlan(
     if (field === "model") model = next as string;
     else usage[field] = next as number;
   }
-  return { changes, kept, model, usage };
+  const allUsage = REFRESH_FIELDS.every((f) => f === "model" || collected.usage[f] != null);
+  const dropEstimated = allUsage && run.usage.estimated !== undefined;
+  if (dropEstimated)
+    changes.push({ field: "usage.estimated", from: run.usage.estimated!, to: null });
+  return { changes, kept, model, usage, dropEstimated };
 }
 
-/** Adapter の警告の「null で残す」は finish の言い方なので、取り直しでは今の値を残すと言い直す */
+/**
+ * Adapter の警告の末尾の「null で残す」は finish の言い方なので外し、取り直しの末尾（今の値を残す）は呼ぶ側が付ける。
+ * Adapter の文言が変わって外せなくても、末尾は必ず「今の値を残す」になる
+ */
 const keepWording = (warning: string) =>
-  warning.replace(/。(使用量は )?null で残す$/, "。今の値を残す");
+  `${warning.replace(/。(使用量は )?null で残す$/, "")}。今の値を残す`;
 
 export const runRefresh = defineCommand({
   name: "run.refresh",
@@ -273,6 +288,8 @@ export const runRefresh = defineCommand({
       closed(id);
     }
     const warnings: string[] = [];
+    /** Adapter が理由を警告した Run。kept の警告を重ねて出さない */
+    const explained = new Set<RunId>();
     const collected = new Map<string, Awaited<ReturnType<typeof collectRunUsage>>>();
     for (const id of ids) {
       const run = closed(id).data;
@@ -285,6 +302,7 @@ export const runRefresh = defineCommand({
         commonDir: ctx.repo.commonDir,
       });
       collected.set(id, got);
+      if (got.warnings.length > 0) explained.add(id);
       warnings.push(...got.warnings.map((w) => `Run ${id}: ${keepWording(w)}`));
     }
     // 書き込みのやり直し（push の拒否）で索引が読み直されても、その時の記録に重ねる
@@ -296,7 +314,7 @@ export const runRefresh = defineCommand({
       });
     const items = plan();
     for (const item of items) {
-      if (item.kept.length > 0)
+      if (item.kept.length > 0 && !explained.has(item.id))
         warnings.push(
           `Run ${item.id}: ${item.kept.join("・")} は会話記録から取れなかったので今の値を残す`,
         );
@@ -311,12 +329,14 @@ export const runRefresh = defineCommand({
         for (const item of next) {
           if (item.changes.length === 0) continue;
           const doc = closed(item.id as RunId);
-          const { model, usage } = refreshPlan(doc.data, collected.get(item.id)!);
+          const { model, usage, dropEstimated } = refreshPlan(doc.data, collected.get(item.id)!);
           const base = doc.yaml.toJS() as Record<string, unknown>;
+          // usage の中の未知のキーは残す（DT-2）
+          const nextUsage = { ...(base["usage"] as Record<string, unknown>), ...usage };
+          if (dropEstimated) delete nextUsage["estimated"];
           await ctx.store.update("run", item.id, {
             ...(model === undefined ? {} : { model }),
-            // usage の中の未知のキーは残す（DT-2）
-            usage: { ...(base["usage"] as Record<string, unknown>), ...usage },
+            usage: nextUsage,
           });
           item.updated = true;
         }

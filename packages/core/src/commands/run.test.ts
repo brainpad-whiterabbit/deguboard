@@ -965,7 +965,7 @@ describe("run refresh の取り直し（RN-4・MT-5）", () => {
       cache_write: 90,
     });
 
-    // 会話記録がなければ何も書き換えず、Adapter の理由も「今の値を残す」で出す
+    // 会話記録がなければ何も書き換えず、Adapter の理由を「今の値を残す」で 1 回だけ出す
     const lost = (
       await runCommand(runStart, ctx, {
         ticket: "t2",
@@ -980,9 +980,65 @@ describe("run refresh の取り直し（RN-4・MT-5）", () => {
     expect(none.write).toBeUndefined();
     expect(none.warnings).toEqual([
       `Run ${lost.id}: Claude Code の会話記録に Run ${lost.id} が見つからない。今の値を残す`,
-      `Run ${lost.id}: model・usage.input・usage.output・usage.cache_read・usage.cache_write は会話記録から取れなかったので今の値を残す`,
     ]);
+    expect((none.data as RunRefreshItem[])[0]?.kept).toHaveLength(5);
     expect(await saved(lost.id)).toBe(before);
+  });
+
+  it("Adapter のない agent の Run も、警告の末尾は「今の値を残す」になる", async () => {
+    const { ctx, saved } = await closedRuns();
+    const started = (
+      await runCommand(runStart, ctx, { ticket: "t1", step: "implement", agent: "no-such-agent" })
+    ).data as Run;
+    await runCommand(runFinish, ctx, { run: started.id, result: "success" });
+    const before = await saved(started.id);
+    const r = await runCommand(runRefresh, ctx, { runs: [started.id] });
+    expect(r.warnings).toEqual([
+      expect.stringMatching(
+        new RegExp(
+          `^Run ${started.id}: agent no-such-agent の Adapter がない（.*）。今の値を残す$`,
+        ),
+      ),
+    ]);
+    expect(await saved(started.id)).toBe(before);
+  });
+
+  it("使用量の 4 つをすべて取り直せたら usage.estimated を外し、一部だけなら残す（RN-2）", async () => {
+    const { ctx, transcriptFor, saved } = await closedRuns();
+    const closeEstimated = async (ticket: string) => {
+      const s = (
+        await runCommand(runStart, ctx, { ticket, step: "implement", agent: "claude-code" })
+      ).data as Run;
+      await finishRun(ctx, s.id, {
+        result: "success",
+        usage: { input: 1, output: 1, cache_read: 1, cache_write: 1, estimated: true },
+        now: new Date(),
+      });
+      return s;
+    };
+    const a = await closeEstimated("t1");
+    await transcriptFor(a, full);
+    const r = await runCommand(runRefresh, ctx, { runs: [a.id] });
+    expect((r.data as RunRefreshItem[])[0]?.changes).toContainEqual({
+      field: "usage.estimated",
+      from: true,
+      to: null,
+    });
+    expect((JSON.parse(await saved(a.id)) as Run).usage).toEqual({
+      input: 3,
+      output: 4,
+      cache_read: 50,
+      cache_write: 6,
+    });
+
+    const b = await closeEstimated("t2");
+    await transcriptFor(b, { input_tokens: 3, output_tokens: 4 });
+    await runCommand(runRefresh, ctx, { runs: [b.id] });
+    expect((JSON.parse(await saved(b.id)) as Run).usage).toMatchObject({
+      input: 3,
+      cache_read: 1,
+      estimated: true,
+    });
   });
 
   it("read_transcripts が false なら会話記録を読まず、今の値を残して警告する（MT-2）", async () => {

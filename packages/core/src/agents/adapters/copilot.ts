@@ -2,7 +2,8 @@
 //   - 記録の行は {"type", "data", "id", "timestamp", "parentId"}。使用量は type が session.usage_record の行の data.usage
 //     （応答 1 回ごとの値で、累計ではない）、モデル名は同じ data.usage.model
 //   - Run に結び付ける記録：Claude Code・Codex の Adapter と同じく、Run の ID を最初に含む session の記録。dg run start の
-//     出力は tool.execution_complete の結果に入り、その応答の session.usage_record は応答の終わりに書かれるので Run に入る
+//     出力は tool.execution_complete の結果に入り、その応答の session.usage_record は応答の終わりに書かれるので Run に入る。
+//     ID が最初に出たのが finished_at より後の記録（閉じた後に run refresh を呼んだ session など）は Run の記録とみなさない
 //   - 数える行：Run の ID が出た後の、started_at〜finished_at の session.usage_record。サブエージェント（task ツール）は別の
 //     session-state のディレクトリに自分の記録を持ち、自分で run start した分だけその記録から数える（親の Run には混ぜない。ADR-005）
 //   - 写し方：Copilot の inputTokens はキャッシュの読み書きを含む総量なので、input は inputTokens から cacheReadTokens と
@@ -24,6 +25,7 @@ import {
   none,
   parse,
   searchRoots,
+  seenAfterRun,
   TAIL_MS,
   timeOf,
   within,
@@ -185,7 +187,7 @@ export const copilotAdapter: AgentAdapter = {
     for (const candidates of [sessionCandidates, worktreeCandidates]) {
       for (const file of await candidates(query, stateDir)) {
         const s = await scan(file, query, from, to).catch(() => undefined);
-        if (s?.firstSeen === undefined) continue;
+        if (s?.firstSeen === undefined || seenAfterRun(s.firstSeen, to)) continue;
         if (!best || s.firstSeen < (best.firstSeen ?? Infinity)) best = s;
       }
       if (best) break;
