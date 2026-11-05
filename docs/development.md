@@ -133,6 +133,7 @@ npm に出すのは `@deguboard/core`・`@deguboard/server`・`deguboard`（cli�
 ```sh
 mise run release:version -- <版>    # 5 パッケージの version を揃える（例: 0.10.0）→ PR で main に入れる
 mise run check && mise run pack      # build のあと release/ に 3 つの tarball。別ディレクトリで入れて dg --version と dg init を試す
+mise run audit                       # 本番の依存の既知の脆弱性を検査する（ネットワークが要る。あれば失敗するので、直すか人が判断してから進める）
 mise run test:layout                 # build のあと画面の配置と吹き出しの一覧（check に入らない。ブラウザがなければ先に mise run playwright:install）
 mise run release:publish             # pnpm publish -r --access public（npm login 済みで）
 git tag v<版> && git push origin v<版>

@@ -67,6 +67,10 @@ run = "pnpm run release:version"
 description = "core・server・cli を npm に公開する（main の clean な状態で。npm login が要る）"
 run = "pnpm run release:publish"
 
+[tasks.audit]
+description = "本番の依存（pnpm audit --prod）に既知の脆弱性がないか検査する。脆弱性があれば失敗する。ネットワークが要るので check には入れず、リリースの手順で実行する"
+run = "pnpm run audit"
+
 [tasks.dg]
 description = "ビルド済みの dg を動かす。例: mise run dg -- ticket list"
 run = "pnpm run dg"

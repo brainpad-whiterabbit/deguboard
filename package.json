@@ -20,6 +20,7 @@
     "playwright:install": "playwright-core install chromium chromium-headless-shell",
     "pack": "rm -rf release && pnpm --filter @deguboard/core --filter @deguboard/server --filter deguboard exec pnpm pack --pack-destination ../../release",
     "release:version": "pnpm -r exec npm version --no-git-tag-version --allow-same-version",
+    "audit": "pnpm audit --prod",
     "release:publish": "pnpm publish -r --access public"
   },
   "devDependencies": {
