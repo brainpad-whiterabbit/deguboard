@@ -1,0 +1,22 @@
+{
+  "id": "r20261105-042043-5315",
+  "ticket": "t398",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-05T04:20:43Z",
+  "finished_at": "2026-11-05T04:23:29Z",
+  "result": "success",
+  "error": null,
+  "retries": 2,
+  "retry_reasons": [
+    "all と parallel の親の作業に、直さなかった軽い指摘の PR 本文への書き足しを足す",
+    "参考節との食い違いの語をそろえ、手直しの返す一覧に直さなかった軽い指摘と理由を足す"
+  ],
+  "usage": {
+    "input": 14,
+    "output": 8636,
+    "cache_read": 623455,
+    "cache_write": 14840
+  }
+}
