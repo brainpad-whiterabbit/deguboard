@@ -1,0 +1,32 @@
+{
+  "id": "r20261105-103040-a946",
+  "ticket": "t416",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-sonnet-5-5",
+  "started_at": "2026-11-05T10:30:40Z",
+  "finished_at": "2026-11-05T10:32:13Z",
+  "result": "success",
+  "error": null,
+  "retries": 3,
+  "retry_reasons": [
+    "テンプレートに残った plan のコメントを消した",
+    "run.test.ts で validate コマンドも確かめた",
+    "guide.test.ts のテスト名に run を足した"
+  ],
+  "usage": {
+    "input": 4,
+    "output": 987,
+    "cache_read": 129459,
+    "cache_write": 1543
+  },
+  "tools": {
+    "read": 0,
+    "search": 0,
+    "write": 0,
+    "bash": 2,
+    "other": 0,
+    "read_before_write": 0,
+    "search_before_write": 0
+  }
+}
