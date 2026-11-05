@@ -602,6 +602,14 @@ export const configSet = defineCommand({
         // 葉を undefined にすると writeConfig がそのキーを書かず、読み込みのスキーマが既定で補う。
         // 配列の項目（actor.human_only）は candidates のカンマ区切りで空の配列になるので、ここでは触らない
         const field = configFields().find((f) => f.key === input.key);
+        // enum の項目は空文字・null と同じく、値を省いた（undefined）呼び出しも誤りとして弾く。
+        // 通すと葉が undefined になり、スキーマの既定で補われて黙って既定に戻ってしまう
+        if (field?.type === "enum" && input.value === undefined)
+          throw new OperationError(
+            "VALIDATION_FAILED",
+            `${input.key} の値が正しくない`,
+            `値を省けない。選択肢：${(field.options ?? []).join("・")}`,
+          );
         const clearsToDefault =
           field?.type === "string" &&
           typeof field.default === "string" &&
