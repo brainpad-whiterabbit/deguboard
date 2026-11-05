@@ -140,12 +140,22 @@ export function routeOfId(id: string): string | undefined {
   }
 }
 
-/** リンクを押したときのコマンド。引数は [ID, フォルダの URI]（extension.ts が登録する） */
+/**
+ * リンクを押したときのコマンド（extension.ts が登録する）。command: の query の JSON が配列だと、VS Code は要素をばらして
+ * executeCommand(id, ...args) で渡す。ハンドラの引数は (ID, フォルダの URI) の 2 つになる（openIdArgs が配列のままの呼び出しも受ける）
+ */
 export const OPEN_ID_COMMAND = "deguboard.openId";
 
-/** DocumentLink の target にする command: の URI。引数は [ID, フォルダの URI] の JSON を URI エンコードして渡す（VS Code の command URI の形） */
+/** DocumentLink の target にする command: の URI。引数は [ID, フォルダの URI] の JSON 配列を URI エンコードして渡す（VS Code が配列をばらして渡す） */
 export function openIdCommandUri(id: string, folder: string): string {
   return `command:${OPEN_ID_COMMAND}?${encodeURIComponent(JSON.stringify([id, folder]))}`;
+}
+
+/** コマンドの引数から ID とフォルダの URI を取る。ばらされた (id, folder) と、配列のままの [id, folder] の両方を受ける。形が違えば undefined */
+export function openIdArgs(a0: unknown, a1?: unknown): { id: string; folder?: string } | undefined {
+  const [id, folder] = Array.isArray(a0) ? (a0 as unknown[]) : [a0, a1];
+  if (typeof id !== "string") return undefined;
+  return typeof folder === "string" ? { id, folder } : { id };
 }
 
 /** 1 行の中でリンクを付ける ID。索引にある（存在する）もので、詳細のパネルがある種類に絞る */

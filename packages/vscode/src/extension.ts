@@ -32,6 +32,7 @@ import {
   buildIdIndex,
   findIds,
   linksOf,
+  openIdArgs,
   hoverMarkdown,
   ID_DOCUMENT_SELECTOR,
   OPEN_ID_COMMAND,
@@ -150,15 +151,16 @@ export function activate(context: vscode.ExtensionContext): void {
     }),
     vscode.workspace.onDidChangeWorkspaceFolders(() => void refreshStatusBar()),
     // コード中の ID のホバーとリンク（エディタとコミットメッセージの入力欄）。リンクはその ID の詳細のパネルを開く
-    vscode.commands.registerCommand(OPEN_ID_COMMAND, (arg: unknown) => {
-      const id = Array.isArray(arg) ? arg[0] : arg;
-      // 引数の 2 つ目は ID のあるフォルダの URI。複数のフォルダを開いていても、索引を作ったフォルダで開く
+    vscode.commands.registerCommand(OPEN_ID_COMMAND, (a0: unknown, a1?: unknown) => {
+      const args = openIdArgs(a0, a1);
+      if (!args) return;
+      const { id } = args;
+      // 2 つ目の引数は ID のあるフォルダの URI。複数のフォルダを開いていても、索引を作ったフォルダで開く（両辺を Uri.parse で正規化して比べる）
       const folders = vscode.workspace.workspaceFolders ?? [];
-      const folder =
-        (Array.isArray(arg) && typeof arg[1] === "string"
-          ? folders.find((f) => f.uri.toString() === vscode.Uri.parse(arg[1] as string).toString())
-          : undefined) ?? folders[0];
-      if (typeof id !== "string" || !folder) return;
+      const wanted =
+        args.folder === undefined ? undefined : vscode.Uri.parse(args.folder).toString();
+      const folder = folders.find((f) => f.uri.toString() === wanted) ?? folders[0];
+      if (!folder) return;
       const route = routeOfId(id);
       if (!route) return;
       return openPanel(context, folder, { column: vscode.ViewColumn.Beside, route });
@@ -608,6 +610,7 @@ async function refreshStatusBar(): Promise<void> {
 /**
  * 文書のあるフォルダ（なければ最初の作業フォルダ）の ID の索引と、そのフォルダの URI。まだなければ 1 回だけ読む（読み込み中ならそれを待つだけ）。
  * 読めなかったことは ID_INDEX_RETRY_MS の間覚えるので、データのないリポジトリで要求のたびに dg を呼ばない。読めなければ undefined。
+ * コミットメッセージの入力欄（vscode-scm）の文書はどの作業フォルダにも属さないので、最初の作業フォルダの索引を使う（制約）。
  * 見張りで索引を作り直しても、すでに開いている文書のリンクは付け直されない（VS Code はリンクを文書の編集のときに取り直す）
  */
 async function idIndexFor(
@@ -656,11 +659,12 @@ function loadIdIndex(
         if (index) {
           idIndexes.set(key, index);
           idIndexFailedAt.delete(key);
-        } else {
-          idIndexes.delete(key);
-          idIndexFailedAt.set(key, Date.now());
+          return index;
         }
-        return index;
+        // 読み直しが一時的に失敗しても、前の索引があれば残す。失敗の時刻は索引がないときだけ覚える
+        const previous = idIndexes.get(key);
+        if (!previous) idIndexFailedAt.set(key, Date.now());
+        return previous;
       }
     } finally {
       idIndexLoading.delete(key);

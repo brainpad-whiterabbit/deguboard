@@ -6,6 +6,7 @@ import {
   ID_DOCUMENT_SELECTOR,
   kindOfId,
   linksOf,
+  openIdArgs,
   openIdCommandUri,
   routeOfId,
 } from "./ids.js";
@@ -113,6 +114,18 @@ describe("routeOfId・openIdCommandUri", () => {
     const uri = openIdCommandUri("t12", "file:///w");
     expect(uri.startsWith("command:deguboard.openId?")).toBe(true);
     expect(JSON.parse(decodeURIComponent(uri.split("?")[1]!))).toEqual(["t12", "file:///w"]);
+  });
+});
+
+describe("openIdArgs", () => {
+  it("VS Code がばらして渡す (id, folder) と、配列のままの [id, folder] の両方を受ける", () => {
+    expect(openIdArgs("t1", "file:///w")).toEqual({ id: "t1", folder: "file:///w" });
+    expect(openIdArgs(["t1", "file:///w"])).toEqual({ id: "t1", folder: "file:///w" });
+    expect(openIdArgs("t1")).toEqual({ id: "t1" });
+  });
+  it("ID が文字列でなければ undefined", () => {
+    expect(openIdArgs(undefined)).toBeUndefined();
+    expect(openIdArgs([1, "x"])).toBeUndefined();
   });
 });
 
