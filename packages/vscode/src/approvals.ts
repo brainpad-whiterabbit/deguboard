@@ -42,7 +42,7 @@ export function newApprovals(previous: ReadonlySet<string> | undefined, now: App
  * コンテナとビューが 1 つずつのとき VS Code は見出しを「コンテナ名: ビュー名」にするので、件数のときは名前を重ねない
  */
 export function viewTitle(count: number): string {
-  return count > 0 ? t("Awaiting Approval {0}", count) : "deguboard";
+  return count > 0 ? t("Awaiting Approval/Review {0}", count) : "deguboard";
 }
 
 /** 通知の文。複数なら先頭の 2 件の ID と残りの数を出す */

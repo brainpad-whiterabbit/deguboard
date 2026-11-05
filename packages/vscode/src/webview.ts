@@ -304,7 +304,7 @@ export function badgeOf(status: StatusView): { value: number; tooltip: string } 
   if (value === 0) return undefined;
   const parts: string[] = [];
   if (status.ahead > 0) parts.push(t("{0} unpushed", status.ahead));
-  if (status.behind > 0) parts.push(t("{0} not pulled", status.behind));
+  if (status.behind > 0) parts.push(t("{0} to pull", status.behind));
   if (status.dirty) parts.push(t("Uncommitted changes"));
   if (status.issues > 0) parts.push(t("{0} unreadable files", status.issues));
   return { value, tooltip: parts.join(" / ") };

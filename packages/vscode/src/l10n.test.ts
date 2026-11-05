@@ -67,7 +67,7 @@ describe("t と訳の表", () => {
     expect(t("not in bundle {0}", 1)).toBe("not in bundle 1");
   });
   it("英語では通知とホバーが英語で出る", () => {
-    expect(viewTitle(3)).toBe("Awaiting Approval 3");
+    expect(viewTitle(3)).toBe("Awaiting Approval/Review 3");
     expect(
       approvalMessage([
         { kind: "plan", id: "p58" },
@@ -83,6 +83,13 @@ describe("t と訳の表", () => {
 });
 
 describe("拡張ホストの文言の置き場所", () => {
+  it("t の鍵は文字列リテラルで書く（変数やテンプレートの鍵は bundle との突き合わせから漏れるため）", () => {
+    // setTranslator に渡す vscode.l10n.t(message, ...) は鍵を中継するだけなので、前が「.」の呼び出しは除く。l10n.ts の t の定義も除く
+    const found = sourceCode().flatMap(({ file, code }) =>
+      [...code.matchAll(/(?<![\w.$])(?<!function )t\(\s*[^"\s]/g)].map((m) => `${file}: ${m[0]}`),
+    );
+    expect(found).toEqual([]);
+  });
   it("ソースの鍵と bundle.l10n.json・bundle.l10n.ja.json の鍵が過不足なく揃う", () => {
     const keys = [...sourceKeys()].sort();
     expect(keys.length).toBeGreaterThan(0);

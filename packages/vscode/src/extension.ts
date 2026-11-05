@@ -903,7 +903,7 @@ async function notifyApprovals(
         description: i.title ?? (i.kind === "plan" ? "Plan" : ""),
         item: i,
       })),
-      { placeHolder: t("Select an item to open") },
+      { placeHolder: t("Select an item awaiting approval or review") },
     );
     item = picked?.item;
   }
