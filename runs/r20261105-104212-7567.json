@@ -1,0 +1,33 @@
+{
+  "id": "r20261105-104212-7567",
+  "ticket": "t417",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-05T10:42:12Z",
+  "finished_at": "2026-11-05T10:43:28Z",
+  "result": "success",
+  "error": null,
+  "retries": 4,
+  "retry_reasons": [
+    "OverlapClaims の 1 分の条件に対し guide-run に run start は単独で呼ぶと書いた",
+    "同じ秒の Run の順のコメントを開始の順とは限らないと直した",
+    "run start の警告に始めた覚えのない ID なら無視してよいと足した",
+    "ADR-005 に実行中の Run は開いたままとみなすと足した"
+  ],
+  "usage": {
+    "input": 8,
+    "output": 2328,
+    "cache_read": 593052,
+    "cache_write": 3563
+  },
+  "tools": {
+    "read": 0,
+    "search": 0,
+    "write": 0,
+    "bash": 4,
+    "other": 0,
+    "read_before_write": 0,
+    "search_before_write": 0
+  }
+}

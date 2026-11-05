@@ -26,10 +26,6 @@ fields:
     type: number
     label: Estimate
 steps:
-  - id: plan
-    label: Plan
-    actions: []
-    approval: false
   - id: investigate
     label: Investigate
     actions: []
