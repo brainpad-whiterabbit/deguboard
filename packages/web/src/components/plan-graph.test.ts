@@ -151,7 +151,11 @@ describe("依存グラフ", () => {
   it("after と depends_on をまたぐ循環でも段の計算は止まる", () => {
     const byId = byIdOf([ticket({ id: "t1" }), ticket({ id: "t2", depends_on: ["t1"] })]);
     const g = planGraph(plan({ id: "p1", tickets: ["t1", "t2"], after: { t1: ["t2"] } }), byId);
-    expect(g.nodes.map((n) => n.id)).toEqual(["t1", "t2"]);
+    // t1 から先にたどるので、t2 の待ち t1 は数えず t2 が 0 段、t1 が 1 段
+    expect(g.nodes.map((n) => [n.id, n.layer])).toEqual([
+      ["t1", 1],
+      ["t2", 0],
+    ]);
     expect(g.edges.map((e) => `${e.from}>${e.to}:${e.kind}`)).toEqual([
       "t2>t1:after",
       "t1>t2:depends_on",

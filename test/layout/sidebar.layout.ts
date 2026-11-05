@@ -105,6 +105,8 @@ beforeAll(async () => {
     after: { t12: ["t7", "t8", "t9"] },
   });
   await call("plan.approve", { plan: "p1" });
+  // Plan の中の depends_on（t11 が t10 を待つ）。グラフの凡例に depends_on の 2 項目が出る
+  await call("ticket.update", { ticket: "t11", depends_on: ["t10"] });
   // 担当の印（t1 は人、t7 は Codex の Run の agent、t8 は Run のない agent、t10 は汎用の agent）
   await call("ticket.update", { ticket: "t7", assignee: "agent" });
   await call("run.start", { ticket: "t7", step: "implement", agent: "codex" });
@@ -524,6 +526,42 @@ describe.each(SCHEMES)("実行計画の帯（%s）", (scheme) => {
       }
     },
   );
+});
+
+describe.each(SCHEMES)("実行計画のグラフの凡例（%s）", (scheme) => {
+  it.each(WIDTHS)("幅 %ipx で、depends_on を含む凡例が折り返して幅に収まる", async (width) => {
+    const context = await browser.newContext({
+      viewport: { width, height: 900 },
+      colorScheme: scheme,
+    });
+    const page = await context.newPage();
+    try {
+      await page.goto(`${server.url}?surface=sidebar#/board`, { waitUntil: "networkidle" });
+      await page.locator("button.plan-line").first().click();
+      await page.locator(".plan-graph-legend").waitFor();
+      const m = await page.evaluate(() => {
+        const legend = document.querySelector(".plan-graph-legend")!;
+        const graph = document.querySelector(".plan-graph")!;
+        return {
+          text: legend.textContent,
+          legendScroll: legend.scrollWidth,
+          legendClient: legend.clientWidth,
+          graphScroll: graph.scrollWidth,
+          graphClient: graph.clientWidth,
+          docScroll: document.documentElement.scrollWidth,
+          docClient: document.documentElement.clientWidth,
+        };
+      });
+      expect(m.text).toContain("depends_on 待ち中");
+      expect(m.legendScroll, "凡例の横の溢れ").toBeLessThanOrEqual(m.legendClient);
+      expect(m.graphScroll, "グラフの横スクロールに凡例が入らない").toBeLessThanOrEqual(
+        Math.max(m.graphClient, m.legendClient),
+      );
+      expect(m.docScroll, "文書の横スクロール").toBeLessThanOrEqual(m.docClient);
+    } finally {
+      await context.close();
+    }
+  });
 });
 
 describe.each(SCHEMES)("状態の節と実行計画の帯の見出し（%s）", (scheme) => {

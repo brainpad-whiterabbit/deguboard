@@ -1140,7 +1140,8 @@ button.link:hover {
 }
 .plan-graph-legend {
   display: flex;
-  gap: 0.8rem;
+  flex-wrap: wrap;
+  gap: 0.2rem 0.8rem;
   margin-top: 0.3rem;
   font-size: 0.85em;
 }
