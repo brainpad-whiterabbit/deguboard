@@ -1859,6 +1859,29 @@ describe("用意", () => {
     ]);
   });
 
+  it("lint は Plan を作った後の depends_on の変更でできた after とまたぐ循環を、開いた Plan だけ経路つきで指摘する", async () => {
+    const f = await fixture();
+    const ctx = await initialized(f.cloneA);
+    const acceptance = ["a"];
+    await runCommand(ticketCreate, ctx, { title: "A", summary: "s", acceptance });
+    await runCommand(ticketCreate, ctx, { title: "B", summary: "s", acceptance });
+    await runCommand(planCreate, ctx, { tickets: ["t1", "t2"], after: { t1: "t2" } });
+    // 作ったときは循環しないが、後から t2 が t1 を待つようにするとまたぐ循環になる（update は拒否しない）
+    await runCommand(ticketUpdate, ctx, { ticket: "t2", depends_on: ["t1"] });
+    const l = await runCommand(lint, ctx, {});
+    expect(l.data.issues.map((i) => [i.id, i.code, i.message])).toEqual([
+      [
+        "p1",
+        "lint_plan_wait_cycle",
+        "after と depends_on が循環している: t1 →(after) t2 →(depends_on) t1",
+      ],
+    ]);
+    // 閉じた Plan は指摘しない
+    await runCommand(planClose, ctx, { plan: "p1" });
+    const closed = await runCommand(lint, ctx, {});
+    expect(closed.data.issues.map((i) => i.code)).not.toContain("lint_plan_wait_cycle");
+  });
+
   it("lint.require_iteration が true のときだけ、Iteration に入らずに todo・abandoned 以外に進んだチケットを指摘し、閉じた Epic の done は除く", async () => {
     const f = await fixture();
     const ctx = await initialized(f.cloneA);
