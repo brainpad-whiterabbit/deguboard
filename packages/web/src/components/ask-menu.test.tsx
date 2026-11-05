@@ -64,9 +64,11 @@ const pressed = () =>
     .getAllByRole("button")
     .find((b) => b.getAttribute("aria-pressed") === "true")?.textContent;
 /** 吹き出しを押し、候補が届くのを待ってから名前の項目を選ぶ（候補は非同期に届くので、待たずに引くと読み込み中で落ちる） */
-async function pick(place: string, name: string | RegExp) {
+async function pick(place: string, name: string | RegExp, recommended?: string) {
   fireEvent.click(bubble(place));
-  fireEvent.click(await within(menu()).findByRole("menuitem", { name }));
+  const item = await within(menu()).findByRole("menuitem", { name });
+  if (recommended !== undefined) expect(items()[0]).toBe(recommended);
+  fireEvent.click(item);
 }
 
 function boardClient(): MockClient {
@@ -155,7 +157,7 @@ describe("左パネルのカンバンから頼む（UI-15）", () => {
     mount(boardClient(), { copied });
     await screen.findByText("画面");
     // 吹き出し
-    await pick("行 t3", "分ける");
+    await pick("行 t3", "分ける", "進めるおすすめ");
     await waitFor(() => expect(copied).toHaveLength(1));
     expect(copied[0]).toBe("/dgimport t3\nt3 を分けて");
     await waitFor(() =>
@@ -405,7 +407,7 @@ describe("パネルの詳細から頼む（UI-15）", () => {
     await screen.findByRole("heading", { level: 1 });
     // 吹き出しはマウスを載せなくても出ている（右端に重ねず、タイトルの横に置く）
     expect(bubble("タイトル s1").className).toBe("ask-bubble pinned");
-    await pick("タイトル s1", "最後まで進める");
+    await pick("タイトル s1", "最後まで進める", "計画を立てるおすすめ");
     await waitFor(() => expect(pressed()).toBe("最後まで進める"));
     // 対象はその詳細
     expect(within(composer()).getByText("s1")).toBeTruthy();
@@ -468,7 +470,7 @@ describe("パネルの詳細から頼む（UI-15）", () => {
     await screen.findByRole("heading", { level: 1, name: "画面" });
     const title = document.querySelector("header[data-ask-spot]")!;
     expect(contextOf(title)).toEqual({ preventDefaultContextMenuItems: true });
-    await pick("タイトル t3", "分ける");
+    await pick("タイトル t3", "分ける", "進めるおすすめ");
     await waitFor(() => expect(pressed()).toBe("分ける"));
     await waitFor(() =>
       expect(askInputs(client).at(-1)).toMatchObject({ targets: ["t3"], action: "split" }),
