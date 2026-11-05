@@ -1,8 +1,10 @@
 // Adapter が会話記録を読むときに共通で使う小さな部品（AG-5、ADR-005）。特定の AI 製品の形はここに書かない
 
+import { createReadStream } from "node:fs";
 import { readdir, stat } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { createInterface } from "node:readline";
 import type { RunTools, ToolKind } from "../../model/run.js";
 import type { AgentEnv, CollectedUsage, UsageQuery } from "../define.js";
 
@@ -18,7 +20,7 @@ export function within(dir: string, base: string): boolean {
 
 /**
  * 会話記録を探す作業ディレクトリ。作業ツリーと主の作業ツリー（common dir の親）と、主の作業ツリーの親までの上位。
- * HOME とその上はほかのリポジトリの会話記録も入るので探さない
+ * HOME とその上はほかのリポジトリの会話記録も入るので、Run を結び付ける候補としては探さない
  */
 export function searchRoots(topLevel: string, commonDir: string, home: string): string[] {
   const main = path.dirname(path.resolve(commonDir));
@@ -109,9 +111,9 @@ const START_MS = 60_000;
 /**
  * 同じ会話記録で期間が重なる Run に、1 つの応答を二重に数えないための判定（ADR-005）。
  * 応答は、その応答より前に ID が出ていて、その時刻に開いている Run のうち、いちばん新しく始まったものだけに数える。
- * 比べるのは自分より後に始まって期間が重なる Run だけで、その ID がこのファイルで最初に出たのが開始から START_MS 以内のもの
+ * 比べるのは自分より後に始まって期間が重なる同じ agent の Run だけで、その ID がこのファイルで最初に出たのが開始から START_MS 以内のもの
  * （そのファイルで dg run start を呼んだ Run）。後から一覧などで ID を見ただけの、ほかの記録の Run には譲らない。
- * 開始から START_MS 以内でも、ほかのファイルで ID が先に出た Run（elsewhere。claimedElsewhere で求める）には譲らない
+ * 開始から START_MS 以内でも、ほかのファイルで ID が同じか先に出た Run（elsewhere。claimedElsewhere で求める）には譲らない
  */
 export class OverlapClaims {
   /** まだ ID が出ていない、自分より後に始まって期間が重なる Run の開始と終わり */
@@ -133,7 +135,8 @@ export class OverlapClaims {
   ) {
     const self = query.run;
     for (const [id, span] of query.others ?? []) {
-      if (id === self.id) continue;
+      // ほかの agent の Run はその agent の会話記録に結び付くので、このファイルの応答を譲らない
+      if (id === self.id || (span.agent !== undefined && span.agent !== self.agent)) continue;
       const start = Date.parse(span.started_at);
       // 終わりは秒までなので、その秒の終わりまで含める。実行中なら開いたまま
       const end = span.finished_at === null ? Infinity : Date.parse(span.finished_at) + 999;
@@ -170,13 +173,55 @@ export class OverlapClaims {
   }
 }
 
+/** 行の中の timestamp の値。最上位の timestamp のほか、入れ子の中の同じキーも当たる */
+export const TIMESTAMPS = /"timestamp":"([^"]+)"/g;
+
+/** 行の timestamp がすべて limit を過ぎているか。timestamp のない行は過ぎていないとみなす */
+export function pastAll(line: string, limit: number): boolean {
+  const stamps = Array.from(line.matchAll(TIMESTAMPS), (m) => Date.parse(m[1] ?? ""));
+  return stamps.length > 0 && stamps.every((t) => t > limit);
+}
+
+/**
+ * 選んだファイル（chosen）で譲る相手にした Run の ID が、file で最初に出た時刻だけを記録する。使用量は読まない。
+ * chosen で最も遅く ID が出た時刻を TAIL_MS 過ぎた行で読むのをやめる（それより後に出ても claimedElsewhere の比べで効かない）
+ */
+export async function sightings(
+  file: string,
+  chosen: OverlapClaims,
+): Promise<{ seen: ReadonlyMap<string, number> }> {
+  const seen = new Map<string, number>();
+  const ids = [...chosen.claimants];
+  const limit = Math.max(...ids.map((id) => chosen.seen.get(id) ?? Infinity)) + TAIL_MS;
+  const input = createReadStream(file);
+  try {
+    const lines = createInterface({ input, crlfDelay: Infinity });
+    for await (const line of lines) {
+      if (seen.size === ids.length || pastAll(line, limit)) break;
+      for (const id of ids) {
+        if (seen.has(id) || !line.includes(id)) continue;
+        const entry = parse(line);
+        const at = entry ? timeOf(entry) : NaN;
+        seen.set(id, Number.isNaN(at) ? Infinity : at);
+      }
+    }
+  } finally {
+    input.destroy();
+  }
+  return { seen };
+}
+
 /**
  * 選んだファイル（chosen）で譲る相手にした Run のうち、読んだほかのファイル（all）で ID が同じか先の時刻に出たもの。
  * その Run は Adapter がそちらのファイルに結び付けうるので、chosen の応答を数えない。譲ると二重計上を防ぐどころか、どちらも数えなくなる。
- * all は Adapter が Run を探す範囲のすべて（Claude Code は session と作業ツリーの両方）にする。狭いと別の記録の Run に譲ってしまう。
+ * all は Run を探す範囲より広く、会話記録の置き場所のすべて（Claude Code は projects/ の下、Codex は sessions/ の下）にする。
+ * 狭いと、探す範囲の外（別の worktree など）で始まった Run に譲ってしまう。
  * 同じ時刻なら、どちらに結び付くかは列挙の順で決まり分からないので、量を落とさない側（譲らない）に倒す
  */
-export function claimedElsewhere(chosen: OverlapClaims, all: Iterable<OverlapClaims>): Set<string> {
+export function claimedElsewhere(
+  chosen: OverlapClaims,
+  all: Iterable<{ seen: ReadonlyMap<string, number> }>,
+): Set<string> {
   const out = new Set<string>();
   for (const id of chosen.claimants) {
     const here = chosen.seen.get(id) ?? Infinity;

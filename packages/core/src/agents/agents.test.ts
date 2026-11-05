@@ -343,6 +343,46 @@ describe("Claude Code の Adapter", () => {
       expect(got.usage.output).toBe(11);
     });
 
+    it("ほかの agent の Run には、同じファイルで 1 分以内に ID が出ても譲らない", async () => {
+      const { projectDir, query } = await setup();
+      await writeTranscript(path.join(projectDir, "s1.jsonl"), lines);
+      const others = new Map([[B, { started_at: B_STARTED, finished_at: null, agent: "codex" }]]);
+      const got = await claudeCodeAdapter.readTranscriptUsage(
+        query({ finishedAt: at(20), others }),
+      );
+      expect(got.usage.output).toBe(11);
+    });
+
+    it("探す範囲の外（別の worktree）の会話記録で始まった Run の ID を 1 分以内に表示しただけでは、その Run に譲らない", async () => {
+      const { home, projectDir, query } = await setup();
+      // A は s1、B は別の worktree の projects ディレクトリの s2 で始めた。s1 は 10:10:30 に B の ID を見ただけ
+      await writeTranscript(path.join(projectDir, "s1.jsonl"), [
+        mention(0),
+        assistant("m1", 5, [1, 1, 1, 1]),
+        mentionOf(B, 10.5),
+        assistant("m2", 12, [10, 10, 10, 10]),
+      ]);
+      const otherDir = path.join(
+        home,
+        ".claude",
+        "projects",
+        projectDirName(path.join(home, "repo.worktrees", "other")),
+      );
+      await writeTranscript(path.join(otherDir, "s2.jsonl"), [
+        mentionOf(B, 10),
+        assistant("n1", 12, [1000, 1000, 1000, 1000]),
+      ]);
+      // finish（A の session）でも refresh（別の session・session なし）でも同じ値になる
+      for (const env of [{ CLAUDE_CODE_SESSION_ID: "s1" }, { CLAUDE_CODE_SESSION_ID: "x" }, {}]) {
+        const q = query({ finishedAt: at(20), others: spans([[B, B_STARTED, null]]) });
+        const got = await claudeCodeAdapter.readTranscriptUsage({
+          ...q,
+          env: { ...q.env, ...env },
+        });
+        expect(got.usage.output).toBe(11);
+      }
+    });
+
     it("同じファイルで始めた 2 本は片方だけに数え、別のファイルで始まった Run の ID を見ても両方を 0 にしない", async () => {
       const { projectDir, query } = await setup();
       // 1 つの見直し役が s1 で A（10:10:00）と C（10:10:01）を始め（出力に ID は出ない）、10:10:09 の一覧で
