@@ -2,4 +2,7 @@ id: s15
 project: default
 name: sprint15
 goal: 履歴タブを短く正確に読めるようにし、Skill なしでも頼めるようにし、Run の記録と実行計画の見え方を正確にする
-status: active
+status: closed
+closed_at: 2026-11-05T06:36:24Z
+completed: 29
+carried_over: 0
