@@ -1,4 +1,4 @@
-# VSIX に入れるのは dist（extension.cjs・web・束ねた依存のライセンス表示）と media（Activity Bar のアイコン）と README と LICENSE（package の script がルートから写す）だけ。package.json は常に入る
+# VSIX に入れるのは dist（extension.cjs・web・束ねた依存のライセンス表示）と media（Activity Bar のアイコンと Marketplace のアイコン）と README と LICENSE（package の script がルートから写す）だけ。package.json は常に入る
 **
 !dist/**
 !media/**
