@@ -82,6 +82,16 @@ dg config set metrics.read_transcripts true
 
 設定はチームで共有されます。自分のマシンだけ止めるときは `DEGUBOARD_NO_TRANSCRIPTS=1` を設定します。
 
+### 承認待ちに気づく
+
+承認待ちの Plan と review のチケットがあると、サイドバーのタイトルが「DEGUBOARD: 承認待ち 3」のように件数つきになり（なければ「DEGUBOARD」）、増えたときは通知が出て「開く」でその詳細が開きます。Activity Bar のアイコンの数字は別物で、未 push のコミットと未取り込みのリモートの更新の合計です。
+
+通知は設定画面（歯車）の「通知」で切れます（チームで共有。件数の表示は残ります）。
+
+```sh
+dg config set notify.approvals false
+```
+
 ## セキュリティとプライバシー
 
 - 拡張はテレメトリを送らず、HTTP サーバーも起動しません。通信は `git` のリモートへの接続と、`gh` の GitHub への接続だけです。

@@ -61,6 +61,16 @@ export const configSchema = z.looseObject({
         ),
     })
     .prefault({}),
+  notify: z
+    .looseObject({
+      approvals: z
+        .boolean()
+        .default(true)
+        .describe(
+          "承認待ちの Plan や review のチケットが増えたとき、VS Code 拡張が通知を出すか。チームの全員に効く（件数の表示は常に出る）",
+        ),
+    })
+    .prefault({}),
   actions: z
     .looseObject({
       shell: z

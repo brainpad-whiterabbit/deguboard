@@ -16,6 +16,7 @@ const GROUPS: { id: string; label: string; tops: string[] }[] = [
   { id: "commit", label: "コミットと push", tops: ["commit", "push"] },
   { id: "agent", label: "エージェント", tops: ["actions", "auto", "lint", "models", "actor"] },
   { id: "metrics", label: "計測", tops: ["metrics"] },
+  { id: "notify", label: "通知", tops: ["notify"] },
   { id: "git", label: "Git", tops: ["git", "worktree", "default_project"] },
   { id: "ticket", label: "チケット", tops: ["priority"] },
 ];
@@ -35,6 +36,7 @@ const NAMES: Record<string, string> = {
   "models.heavy": "段階 heavy のモデル",
   "actor.human_only": "人だけに許すコマンド",
   "metrics.read_transcripts": "会話記録から使用量を読む",
+  "notify.approvals": "承認待ちが増えたら通知する",
   "git.remote": "同期先のリモート",
   "git.base_branch": "基準のブランチ",
   "worktree.root": "worktree の置き場所",
