@@ -376,6 +376,8 @@ describe("dg guide", () => {
     const plan = await readGuide("plan");
     expect(plan).toContain("run start <id> plan");
     expect(plan).toContain("1 枚ずつ");
+    expect(plan).toContain("順だけを示すとき");
+    expect(await readGuide("all")).toContain("`plan` の Run");
     expect(await readGuide("work")).toContain("`plan` の Run");
     expect(await readGuide("parallel")).toContain("`plan` の Run");
   });

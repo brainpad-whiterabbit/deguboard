@@ -18,11 +18,12 @@ argument-hint: "<チケットの ID...|Iteration|Epic|next [N]> | <Plan の ID>"
 
 ## 流れ
 
+手順 2 の前に、対象のチケットごとに `plan` の Run（`dg guide run`）で調べる。`run start <id> plan --agent <エージェント>` → `ticket show <id>` で読む → scope・approach・tier の文を決める → `run finish <Run の ID> --result success` → 次のチケット（並行させず 1 枚ずつ。手順 5 で全部まとめて記録する）。順だけを示すとき・`steps` に `plan` がないときは記録しない。手順 6 で作り直すときも記録しない。
+
 1. 対象を集める：`dg --json --actor agent ticket list --project {{default_project}}`（Epic で絞るなら `--epic e3`、Iteration なら `--iteration s3`）
 2. 依存を確かめる：各チケットの `depends_on` と、`dg --json --actor agent ticket show <id>` の `dependents`（自分に依存しているもの）
 3. 着手できるものを出す：`dg --json --actor agent ticket list --ready`。todo で依存先がすべて done か abandoned のもの（`deps_done`）。担当者の有無は見ないので、`assignee` が別のユーザのものは避ける（自分のものだけなら `--assignee agent`）
 4. 順序の案を作る。依存が先、優先度が高いものが先。並行できるもの（互いに依存しないもの）はまとめて示す
-   - 調べる間は `plan` の Run（`dg guide run`）：手順 2 の各チケットの `ticket show` から、チケットごとに `dg --json --actor agent run start <id> plan --agent <エージェント>` で始める。そのチケットの scope・approach・tier の文を決めたら `run finish <Run の ID> --result success` で閉じ、次のチケットの Run を始める（並行させず 1 枚ずつ。手順 5 で全部まとめて記録する）。順だけを示すとき・`steps` に `plan` がないときは記録しない
 5. 承認待ちの Plan に記録する（下の「Plan の作り方」）。結果の `data.id` が Plan の ID
 6. 人に見せて承認を得る。`dg --json --actor agent plan show <p>` の `items`（Plan の順）・`after`・`details` を表で示し（段階の列を設ける）、「承認する」「修正する」「承認待ちのまま止める」の選択肢で聞く。直すよう言われたら、`plan close <p>` で閉じて作り直す（Plan は作った後に書き換えられない）
 7. 人が承認したら `dg --json --actor agent plan approve <p>` で承認を記録する（`approved_by` は操作した主体）。人の承認を得ないまま approve しない。承認待ちの Plan のチケットには着手しない
