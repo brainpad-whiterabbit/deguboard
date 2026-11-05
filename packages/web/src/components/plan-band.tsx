@@ -189,7 +189,7 @@ const yOf = (n: GraphNode) => n.row * (NODE_H + ROW_GAP);
 
 /**
  * 依存グラフ。段を左から右に並べ、段の中は Plan の順。辺は SVG で描き、ノードはチケットへのリンクを上に重ねる。
- * 待ち終わった辺は実線、待ち中は破線。ノードにホバー・フォーカスすると繋がるノードと辺を強調する
+ * 待ち終わった辺は実線、待ち中は破線。depends_on の辺は点線で after と見分ける。ノードにホバー・フォーカスすると繋がるノードと辺を強調する
  */
 function PlanGraphView({ plan, byId }: { plan: PlanRow; byId: ReadonlyMap<string, Ticket> }) {
   const host = useHost();
@@ -223,6 +223,7 @@ function PlanGraphView({ plan, byId }: { plan: PlanRow; byId: ReadonlyMap<string
               refY="3"
               markerWidth="6"
               markerHeight="6"
+              markerUnits="userSpaceOnUse"
               orient="auto"
             >
               <path d="M0,0 L6,3 L0,6 z" className="plan-graph-arrow" />
@@ -241,7 +242,7 @@ function PlanGraphView({ plan, byId }: { plan: PlanRow; byId: ReadonlyMap<string
               <path
                 key={`${e.from}-${e.to}`}
                 d={`M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}`}
-                className={`plan-graph-edge${e.done ? "" : " plan-graph-edge-pending"}${lit ? " related" : ""}`}
+                className={`plan-graph-edge${e.done ? "" : " plan-graph-edge-pending"}${e.kind === "depends_on" ? " plan-graph-edge-depends" : ""}${lit ? " related" : ""}`}
                 markerEnd={`url(#${arrow})`}
               />
             );
@@ -283,6 +284,20 @@ function PlanGraphView({ plan, byId }: { plan: PlanRow; byId: ReadonlyMap<string
             </svg>
             待ち中
           </span>
+          {graph.edges.some((e) => e.kind === "depends_on") ? (
+            <span>
+              <svg width="20" height="6" aria-hidden="true">
+                <line
+                  x1="0"
+                  y1="3"
+                  x2="20"
+                  y2="3"
+                  className="plan-graph-edge plan-graph-edge-depends"
+                />
+              </svg>
+              depends_on
+            </span>
+          ) : null}
         </div>
       ) : null}
     </div>
