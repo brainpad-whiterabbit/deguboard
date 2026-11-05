@@ -1,0 +1,20 @@
+{
+  "id": "r20261105-074427-b507",
+  "ticket": "t346",
+  "step": "plan",
+  "agent": "claude-code",
+  "model": null,
+  "started_at": "2026-11-05T07:44:27Z",
+  "finished_at": "2026-11-05T07:44:28Z",
+  "result": "success",
+  "error": null,
+  "retries": 0,
+  "retry_reasons": [],
+  "usage": {
+    "input": null,
+    "output": null,
+    "cache_read": null,
+    "cache_write": null
+  },
+  "tools": null
+}
