@@ -15,7 +15,9 @@ export interface FoundId {
 /**
  * ID の形。abc12・feat/t12・v1.t2・t12abc・t12-foo・t12.md のように、語や経路の一部になっているものは拾わない
  * （前は英数字・_・/・.・- でないこと、後ろは英数字・_・/ でなく、- や . のあとに語が続かないこと）。
- * 文末の「t12.」「t12,」や括弧・引用符・#・@ に続く ID は拾う
+ * 文末の「t12.」「t12,」や括弧（全角を含む）・引用符・バッククォート・#・@ に続く ID と、日本語に隣り合う「t12を」「はt12」は拾う。
+ * 既知の誤検出（仕様）：コードの変数名の `e1`・`t1`、`s3://` の s3、`?id=t12` のように、形が合えば拾う。
+ * ただしホバーとリンクは存在する ID にしか付かないので、実害は存在する番号と偶然重なるときだけ
  */
 const ID_PATTERN = /(?<![\w/.-])[tsep][1-9]\d*(?![\w/]|[-.]\w)/g;
 
@@ -137,16 +139,21 @@ export function routeOfId(id: string): string | undefined {
 /** リンクを押したときのコマンド。引数は ID の 1 つ（extension.ts が登録する） */
 export const OPEN_ID_COMMAND = "deguboard.openId";
 
-/** DocumentLink の target にする command: の URI。引数は JSON を URI エンコードして渡す（VS Code の command URI の形） */
-export function openIdCommandUri(id: string): string {
-  return `command:${OPEN_ID_COMMAND}?${encodeURIComponent(JSON.stringify([id]))}`;
+/** DocumentLink の target にする command: の URI。引数は [ID, フォルダの URI] の JSON を URI エンコードして渡す（VS Code の command URI の形） */
+export function openIdCommandUri(id: string, folder: string): string {
+  return `command:${OPEN_ID_COMMAND}?${encodeURIComponent(JSON.stringify([id, folder]))}`;
+}
+
+/** 1 行の中でリンクを付ける ID。索引にある（存在する）もので、詳細のパネルがある種類（Plan 以外）に絞る */
+export function linksOf(line: string, index: IdIndex): FoundId[] {
+  return findIds(line).filter((f) => index.has(f.id) && routeOfId(f.id) !== undefined);
 }
 
 /**
- * Provider を付ける文書。コミットメッセージの入力欄は scheme が vscode-scm の文書で、
- * languages だけの selector では対象にならない（language で絞ると scheme の違うこの文書が漏れる）ので、scheme で指定する
- * （VS Code の API ドキュメント：DocumentSelector は language・scheme・pattern で文書を選ぶ。vscode.d.ts の DocumentFilter）。
- * 通常のファイルは file と、未保存の untitled、リモートの文書 vscode-remote も含めるため、file・untitled・vscode-scm にする
+ * Provider を付ける文書。コミットメッセージの入力欄は scheme が vscode-scm の文書なので、languages だけの selector では漏れる。scheme で指定する。
+ * vscode-scm は公開の API には出ていない。VS Code のソースの src/vs/base/common/network.ts が
+ * `Schemas.vscodeSourceControl = 'vscode-scm'` を定め、mainThreadSCM.ts が言語 scminput のモデルをこの scheme で作って拡張ホストに同期する。
+ * 将来変わりうるので、実機で確かめる。通常のファイルは file、保存前の文書は untitled
  */
 export const ID_DOCUMENT_SELECTOR = [
   { scheme: "file" },

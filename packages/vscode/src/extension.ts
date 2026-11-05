@@ -31,6 +31,7 @@ import { dgAdvice, resolveDg } from "./dg.js";
 import {
   buildIdIndex,
   findIds,
+  linksOf,
   hoverMarkdown,
   ID_DOCUMENT_SELECTOR,
   OPEN_ID_COMMAND,
@@ -99,9 +100,10 @@ let statusGeneration = 0;
 const headWatchers = new Map<string, vscode.Disposable>();
 
 /** フォルダごとの存在する ID の索引。データの見張り（watchData）で作り直し、毎回 dg を呼ばない */
-const idIndexes = new Map<string, IdIndex>();
-/** 読み込み中の索引（同じフォルダで重ねて読まない） */
+const idIndexes = new Map<string, IdIndex | null>();
+/** 読み込み中の索引（同じフォルダで重ねて読まない）と、読み込み中に変化が来て読み直しが要るフォルダ */
 const idIndexLoading = new Map<string, Promise<IdIndex | undefined>>();
+const idIndexDirty = new Set<string>();
 
 export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
@@ -146,7 +148,12 @@ export function activate(context: vscode.ExtensionContext): void {
     // コード中の ID のホバーとリンク（エディタとコミットメッセージの入力欄）。リンクはその ID の詳細のパネルを開く
     vscode.commands.registerCommand(OPEN_ID_COMMAND, (arg: unknown) => {
       const id = Array.isArray(arg) ? arg[0] : arg;
-      const folder = (vscode.workspace.workspaceFolders ?? [])[0];
+      // 引数の 2 つ目は ID のあるフォルダの URI。複数のフォルダを開いていても、索引を作ったフォルダで開く
+      const folders = vscode.workspace.workspaceFolders ?? [];
+      const folder =
+        (Array.isArray(arg) && typeof arg[1] === "string"
+          ? folders.find((f) => f.uri.toString() === arg[1])
+          : undefined) ?? folders[0];
       if (typeof id !== "string" || !folder) return;
       const route = routeOfId(id);
       if (!route) return;
@@ -154,7 +161,7 @@ export function activate(context: vscode.ExtensionContext): void {
     }),
     vscode.languages.registerHoverProvider([...ID_DOCUMENT_SELECTOR], {
       async provideHover(document, position) {
-        const index = await idIndexFor(document.uri);
+        const index = (await idIndexFor(document.uri))?.index;
         if (!index) return undefined;
         const line = document.lineAt(position.line).text;
         const hit = findIds(line).find(
@@ -168,17 +175,14 @@ export function activate(context: vscode.ExtensionContext): void {
     }),
     vscode.languages.registerDocumentLinkProvider([...ID_DOCUMENT_SELECTOR], {
       async provideDocumentLinks(document) {
-        const index = await idIndexFor(document.uri);
-        if (!index) return [];
+        const found = await idIndexFor(document.uri);
+        if (!found) return [];
         const links: vscode.DocumentLink[] = [];
         for (let line = 0; line < document.lineCount; line++) {
-          for (const f of findIds(document.lineAt(line).text)) {
-            const entry = index.get(f.id);
-            // 詳細のパネルがある ID（Plan 以外）だけにリンクを付ける
-            if (!entry || !routeOfId(f.id)) continue;
+          for (const f of linksOf(document.lineAt(line).text, found.index)) {
             const link = new vscode.DocumentLink(
               new vscode.Range(line, f.start, line, f.end),
-              vscode.Uri.parse(openIdCommandUri(f.id)),
+              vscode.Uri.parse(openIdCommandUri(f.id, found.folder)),
             );
             link.tooltip = `${f.id} の詳細を開く`;
             links.push(link);
@@ -339,6 +343,7 @@ async function syncFolder(): Promise<void> {
   }
   if (syncing) return;
   syncing = true;
+  forgetIdIndexFailure(folder);
   try {
     const client = clientFor(folder);
     const status = await client.status();
@@ -519,6 +524,7 @@ function clientFor(folder: vscode.WorkspaceFolder): CommandClient {
  * 置き場所は core が status で返す data_dir（.git/deguboard/）。取れなければ見張らない（画面は同期ボタンの読み直しで動く）
  */
 async function watchData(folder: vscode.WorkspaceFolder, client: CommandClient): Promise<void> {
+  forgetIdIndexFailure(folder);
   const key = folder.uri.toString();
   if (watchers.has(key) || watchStarting.has(key)) return;
   watchStarting.add(key);
@@ -566,6 +572,7 @@ async function refreshStatusBar(): Promise<void> {
     hideStatusBar();
     return;
   }
+  forgetIdIndexFailure(folder);
   try {
     const client = clientFor(folder);
     void watchHead(folder);
@@ -592,45 +599,73 @@ async function refreshStatusBar(): Promise<void> {
   }
 }
 
-/** 文書のあるフォルダ（なければ最初の作業フォルダ）の ID の索引。まだなければ 1 回だけ読む。読めなければ undefined */
-async function idIndexFor(uri: vscode.Uri): Promise<IdIndex | undefined> {
+/**
+ * 文書のあるフォルダ（なければ最初の作業フォルダ）の ID の索引と、そのフォルダの URI。まだなければ 1 回だけ読む。
+ * 読めなかったことも覚える（null）ので、データのないリポジトリで要求のたびに dg を呼ばない。読めなければ undefined
+ */
+async function idIndexFor(
+  uri: vscode.Uri,
+): Promise<{ index: IdIndex; folder: string } | undefined> {
   const folder =
     vscode.workspace.getWorkspaceFolder(uri) ?? (vscode.workspace.workspaceFolders ?? [])[0];
   if (!folder) return undefined;
-  return idIndexes.get(folder.uri.toString()) ?? loadIdIndex(folder);
+  const key = folder.uri.toString();
+  const index = idIndexes.has(key) ? idIndexes.get(key) : await loadIdIndex(folder);
+  return index ? { index, folder: key } : undefined;
 }
 
-/** チケット・Iteration・Epic・Plan の一覧を読んで索引を作り直す。読めないとき（データのないリポジトリなど）は通知を出さず、索引を捨てる */
+/** 覚えた「読めなかった」を忘れる。データの見張り・ステータスバーの更新・同期のとき、次の要求で読み直させる */
+function forgetIdIndexFailure(folder: vscode.WorkspaceFolder): void {
+  const key = folder.uri.toString();
+  if (idIndexes.get(key) === null) idIndexes.delete(key);
+}
+
+/**
+ * チケット（abandoned も）・Iteration・Epic・Plan の一覧を読んで索引を作り直す。読めないとき（データのないリポジトリなど）は
+ * 通知を出さず、読めなかったことを覚える。読み込み中に呼ばれたら印を立て、終わったあとで 1 回だけ読み直す（変化を取りこぼさない）
+ */
 function loadIdIndex(folder: vscode.WorkspaceFolder): Promise<IdIndex | undefined> {
   const key = folder.uri.toString();
   const running = idIndexLoading.get(key);
-  if (running) return running;
+  if (running) {
+    idIndexDirty.add(key);
+    return running;
+  }
   const load = (async () => {
     try {
-      const client = clientFor(folder);
-      const [tickets, iterations, epics, plans] = await Promise.all([
-        client.run<IdSources["tickets"]>("ticket.list", {}),
-        client.run<IdSources["iterations"]>("iteration.list", {}),
-        client.run<IdSources["epics"]>("epic.list", {}),
-        client.run<IdSources["plans"]>("plan.list", {}),
-      ]);
-      const index = buildIdIndex({
-        tickets: tickets.data,
-        iterations: iterations.data,
-        epics: epics.data,
-        plans: plans.data,
-      });
-      idIndexes.set(key, index);
-      return index;
-    } catch {
-      idIndexes.delete(key);
-      return undefined;
+      for (;;) {
+        idIndexDirty.delete(key);
+        const index = await readIdIndex(folder);
+        if (idIndexDirty.has(key)) continue;
+        idIndexes.set(key, index ?? null);
+        return index;
+      }
     } finally {
       idIndexLoading.delete(key);
     }
   })();
   idIndexLoading.set(key, load);
   return load;
+}
+
+async function readIdIndex(folder: vscode.WorkspaceFolder): Promise<IdIndex | undefined> {
+  try {
+    const client = clientFor(folder);
+    const [tickets, iterations, epics, plans] = await Promise.all([
+      client.run<IdSources["tickets"]>("ticket.list", { include_abandoned: true }),
+      client.run<IdSources["iterations"]>("iteration.list", {}),
+      client.run<IdSources["epics"]>("epic.list", {}),
+      client.run<IdSources["plans"]>("plan.list", {}),
+    ]);
+    return buildIdIndex({
+      tickets: tickets.data,
+      iterations: iterations.data,
+      epics: epics.data,
+      plans: plans.data,
+    });
+  } catch {
+    return undefined;
+  }
 }
 
 function hideStatusBar(): void {

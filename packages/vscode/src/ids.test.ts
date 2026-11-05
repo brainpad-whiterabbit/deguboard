@@ -5,6 +5,7 @@ import {
   hoverMarkdown,
   ID_DOCUMENT_SELECTOR,
   kindOfId,
+  linksOf,
   openIdCommandUri,
   routeOfId,
 } from "./ids.js";
@@ -27,6 +28,15 @@ describe("findIds", () => {
       "s3",
       "p7",
     ]);
+  });
+  it("全角の括弧・バッククォート・日本語に隣り合う ID は拾う", () => {
+    expect(ids("（t374）")).toEqual(["t374"]);
+    expect(ids("t12を直す")).toEqual(["t12"]);
+    expect(ids("これはt12です")).toEqual(["t12"]);
+    expect(ids("`t12`")).toEqual(["t12"]);
+  });
+  it("既知の誤検出：変数名・s3://・?id= の形は、形が合えば拾う（存在しなければ索引で外れる）", () => {
+    expect(ids("const e1 = t1; s3://bucket ?id=t12")).toEqual(["e1", "t1", "s3", "t12"]);
   });
   it("abc12 のような語の中の部分一致は拾わない", () => {
     expect(ids("abc12 test12 Set3 pt12 t12abc 12t3")).toEqual([]);
@@ -100,9 +110,16 @@ describe("routeOfId・openIdCommandUri", () => {
     expect(routeOfId("x1")).toBeUndefined();
   });
   it("コマンド URI の引数に ID が入る", () => {
-    const uri = openIdCommandUri("t12");
+    const uri = openIdCommandUri("t12", "file:///w");
     expect(uri.startsWith("command:deguboard.openId?")).toBe(true);
-    expect(JSON.parse(decodeURIComponent(uri.split("?")[1]!))).toEqual(["t12"]);
+    expect(JSON.parse(decodeURIComponent(uri.split("?")[1]!))).toEqual(["t12", "file:///w"]);
+  });
+});
+
+describe("linksOf", () => {
+  it("存在する ID のうち詳細のパネルがあるものだけを返す（存在しない ID と Plan は外す）", () => {
+    const found = linksOf("t1 t999 s1 e1 p1 e9", index).map((f) => f.id);
+    expect(found).toEqual(["t1", "s1", "e1"]);
   });
 });
 
