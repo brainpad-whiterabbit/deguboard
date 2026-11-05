@@ -118,6 +118,20 @@ describe("dg guide", () => {
       );
   });
 
+  it("review は参考節と変更ファイルの見比べを見る観点に入れ、食い違いは軽い指摘として返し、参考節がなければ見比べないと案内し、PR の本文には親が書き足すと決める", async () => {
+    const review = await readGuide("review");
+    const look = bullet(section(review, "## 見直す"), "見る");
+    for (const word of ["## 参考", "食い違い", "節がなければ見比べない"])
+      expect(look, word).toContain(word);
+    expect(bullet(section(review, "## 見直す"), "返す")).toContain("重い指摘に数えない");
+    const fixLoop = section(review, "## 指摘を直す（修正ループ）");
+    expect(fixLoop).toContain("食い違い");
+    expect(fixLoop).toContain("親が理由と一緒に PR の本文に書き足す");
+    expect(lineWith(section(await readGuide("work"), "## 流れ"), "gh pr create --draft")).toContain(
+      "`dg guide review`",
+    );
+  });
+
   it("work は PR の要らない作業を --without-branch で claim し、確かめたら done、残れば review と案内する", async () => {
     const noBranch = section(await readGuide("work"), "## PR の要らない作業");
     expect(noBranch).toContain("ticket claim <id> --without-branch");
