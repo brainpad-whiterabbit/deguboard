@@ -5,6 +5,7 @@
 import { useEffect, useRef, type MouseEvent } from "react";
 import { AskComposer } from "./components/ask-composer.js";
 import { AskHint, AskMenuProvider, SelectionBar } from "./components/ask-menu.js";
+import { useRowNav } from "./components/row-nav.js";
 import { SelectionProvider } from "./components/selection.js";
 import { useAsk, useHost, useUiState } from "./host.js";
 import { useStore, type Store } from "./store.js";
@@ -108,6 +109,8 @@ export function App() {
         : shown.page;
   // エディタのパネルは詳細（チケット・Iteration・Epic・Plan）だけを出し、1 枚で完結するので、タブ・Project・同期のヘッダーを出さない（UI-12）
   const panel = host.surface === "panel";
+  // サイドバーの行を ↑↓・Enter・Space・a で操作する（roving tabindex。components/row-nav.tsx）
+  const { ref: rowNavRef, ...rowNav } = useRowNav(sidebar);
   return (
     <div
       className="app"
@@ -185,7 +188,12 @@ export function App() {
       <SelectionProvider scope={hrefOf(shown)}>
         {/* 行・見出しの吹き出しの候補は、出ている場所（選択の帯を含む）の分を AskMenuProvider がまとめて引く（UI-15） */}
         <AskMenuProvider>
-          <main className="page">
+          <main
+            className="page"
+            ref={rowNavRef}
+            onKeyDown={rowNav.onKeyDown}
+            onFocus={rowNav.onFocus}
+          >
             {/* 最初の読み込みが終わるまでは空状態の文言を出さない。読み直しの間は画面を出したままにする（フォームの入力を失わない） */}
             {!store.loaded ? (
               <>

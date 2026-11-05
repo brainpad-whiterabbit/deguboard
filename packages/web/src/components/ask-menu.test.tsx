@@ -186,8 +186,8 @@ describe("左パネルのカンバンから頼む（UI-15）", () => {
     expect(document.activeElement?.textContent).toBe("自由に");
     fireEvent.keyDown(document.activeElement!, { key: "Escape" });
     expect(screen.queryByRole("menu")).toBeNull();
-    // 呼んだ行の吹き出しに戻る（次の Tab で行の続きへ進める）
-    expect(document.activeElement).toBe(bubble("行 t3"));
+    // 呼んだ行のリンクに戻る（そのまま ↑↓ で行を移れる）
+    expect(document.activeElement).toBe(link);
   });
 
   it("見出しの吹き出しを押しても節は開閉しない。外を押すと一覧を閉じる", async () => {

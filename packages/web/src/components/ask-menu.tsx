@@ -7,7 +7,8 @@
 // 詳細のタイトルは幅に余裕があるので、吹き出しをタイトルの横に常に出す（pinned）。詳細の中の行は、チケットが入っている
 // Iteration・Epic を within に渡し、「そこから外す」を候補に足す。
 // 一覧の行は select で複数選べ（selection.tsx）、選んだ行の吹き出しは選んだ全件を対象にする。選んでいる間は
-// 画面の下に「n 件を選択 ・ 頼む」の帯（SelectionBar）を出す
+// 画面の下に「n 件を選択 ・ 頼む」の帯（SelectionBar）を出す。
+// 選べる行はキーでも操作できる（リンクにフォーカスがあるとき）：Space で選びに足し外しし、a か Shift+F10 で頼む一覧を開く。↑↓・Enter は row-nav.tsx
 
 import {
   createContext,
@@ -180,6 +181,8 @@ export function useAskSpot(options: AskSpotOptions | null): AskSpot {
   const selection = useSelection();
   const [open, setOpen] = useState(false);
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
+  // キーで開いたとき、閉じたら戻すフォーカスの先（行のリンク）
+  const returnTo = useRef<HTMLElement | null>(null);
   const bubbleRef = useRef<HTMLButtonElement>(null);
   // 選べる行で、選んだ行が 2 件以上あってこの行も入っていれば、選んだ全件を対象にする
   const rowId = options?.select && selection ? options.targets[0] : undefined;
@@ -209,7 +212,8 @@ export function useAskSpot(options: AskSpotOptions | null): AskSpot {
   };
   const close = (refocus: boolean) => {
     setOpen(false);
-    if (refocus) anchor?.focus();
+    if (refocus) (returnTo.current ?? anchor)?.focus();
+    returnTo.current = null;
   };
 
   const overlay = options ? (
@@ -244,6 +248,7 @@ export function useAskSpot(options: AskSpotOptions | null): AskSpot {
           menu={menu}
           onPick={(c) => {
             setOpen(false);
+            returnTo.current = null;
             ask.open(targets, c.action, within);
           }}
           onClose={close}
@@ -262,6 +267,35 @@ export function useAskSpot(options: AskSpotOptions | null): AskSpot {
         if ((e.shiftKey && e.key === "F10") || e.key === "ContextMenu") {
           e.preventDefault();
           e.stopPropagation();
+          returnTo.current = e.target as HTMLElement;
+          show(bubbleRef.current ?? e.currentTarget);
+          return;
+        }
+        // 選べる行（リンクにフォーカスがあるとき）：Space で選び、a で頼む。修飾キーなしで、VS Code の既定のキー割り当てとぶつからない
+        // （Webview の中の文字キーは Webview に届く。a は「ask」で、Space で選んだあと片手で Shift+F10 と同じ一覧を出す）。
+        // 変換中（IME）は受けない。CapsLock でも効くよう大文字小文字を区別しない
+        if (
+          rowId === undefined ||
+          !selection ||
+          e.nativeEvent.isComposing ||
+          e.altKey ||
+          e.ctrlKey ||
+          e.metaKey ||
+          e.shiftKey
+        )
+          return;
+        const t = e.target as HTMLElement;
+        if (!t.matches?.("a.ticket-row")) return;
+        if (e.key === " ") {
+          e.preventDefault();
+          // Ctrl/⌘+クリックと同じ：この行を選びに足し外しする
+          selection.click(rowId, { ctrlKey: true } as MouseEvent, {
+            section: options.section,
+            within: options.within,
+          });
+        } else if (e.key.toLowerCase() === "a") {
+          e.preventDefault();
+          returnTo.current = t;
           show(bubbleRef.current ?? e.currentTarget);
         }
       },
