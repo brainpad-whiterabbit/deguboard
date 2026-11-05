@@ -1,0 +1,30 @@
+{
+  "id": "r20261105-170905-d6ea",
+  "ticket": "t380",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-sonnet-5-5",
+  "started_at": "2026-11-05T17:09:05Z",
+  "finished_at": "2026-11-05T17:09:48Z",
+  "result": "success",
+  "error": null,
+  "retries": 1,
+  "retry_reasons": [
+    "複数行で show の後に待たずに貼り付ける順に変わった"
+  ],
+  "usage": {
+    "input": 2,
+    "output": 426,
+    "cache_read": 149068,
+    "cache_write": 719
+  },
+  "tools": {
+    "read": 0,
+    "search": 0,
+    "write": 0,
+    "bash": 1,
+    "other": 0,
+    "read_before_write": 0,
+    "search_before_write": 0
+  }
+}

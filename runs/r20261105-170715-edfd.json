@@ -1,0 +1,33 @@
+{
+  "id": "r20261105-170715-edfd",
+  "ticket": "t380",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-sonnet-5-5",
+  "started_at": "2026-11-05T17:07:15Z",
+  "finished_at": "2026-11-05T17:08:33Z",
+  "result": "success",
+  "error": null,
+  "retries": 4,
+  "retry_reasons": [
+    "アクティブなターミナルの変化で既定の送り先が古いまま",
+    "複数行でクリップボードを黙って上書きする",
+    "貼り付けを取り消しても送りましたと出る",
+    "PR の本文が古い"
+  ],
+  "usage": {
+    "input": 10,
+    "output": 5770,
+    "cache_read": 710138,
+    "cache_write": 8498
+  },
+  "tools": {
+    "read": 0,
+    "search": 0,
+    "write": 0,
+    "bash": 5,
+    "other": 0,
+    "read_before_write": 0,
+    "search_before_write": 0
+  }
+}
