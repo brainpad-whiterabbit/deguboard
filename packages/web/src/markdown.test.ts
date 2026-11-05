@@ -1,6 +1,8 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+// web の番号付けが core の ticket.check の番号と一致するかを照らすためだけに、core の実行時のコードを取り込む
+import { parseAcceptance } from "@deguboard/core";
 import { Markdown, parseBlocks, sectionTasks } from "./markdown.js";
 
 describe("本文の Markdown", () => {
@@ -20,6 +22,45 @@ describe("本文の Markdown", () => {
           { checked: null, text: "c" },
         ],
       },
+    ]);
+  });
+
+  describe("受け入れ条件の番号は core の parseAcceptance と一致する", () => {
+    /** web が番号を振った項目を、番号・文・印で core の形にそろえる */
+    const webAcceptance = (body: string) =>
+      parseBlocks(body).flatMap((b) =>
+        b.kind === "list"
+          ? b.items.flatMap((x) =>
+              x.acceptance === undefined
+                ? []
+                : [{ index: x.acceptance, text: x.text.trim(), checked: x.checked === true }],
+            )
+          : [],
+      );
+    const cases: Record<string, string> = {
+      入れ子: "## 受け入れ条件\n\n- [ ] a\n  - [ ] 入れ子は数えない\n- [ ] b\n",
+      コードブロックの中: "## 受け入れ条件\n\n- [ ] a\n\n```\n- [ ] b\n```\n",
+      大文字の印: "## 受け入れ条件\n\n- [X] a\n- [x] b\n- [ ] c\n",
+      空の文: "## 受け入れ条件\n\n- [ ] \n- [ ]   \n- [ ] a\n",
+      見出しが2つ:
+        "## 受け入れ条件\n\n- [ ] a\n\n## メモ\n\n- [ ] x\n\n## 受け入れ条件\n\n- [ ] b\n",
+      CRLF: "## 概要\r\n\r\n本文\r\n\r\n## 受け入れ条件\r\n\r\n- [ ] a\r\n- [x] b\r\n",
+    };
+    for (const [name, body] of Object.entries(cases)) {
+      it(name, () => {
+        expect(webAcceptance(body)).toEqual(parseAcceptance(body) ?? []);
+      });
+    }
+  });
+
+  it("見出しが 2 つあると、core と同じく最初の節の項目にだけ番号を振る", () => {
+    const blocks = parseBlocks("## 受け入れ条件\n\n- [ ] a\n\n## 受け入れ条件\n\n- [ ] b\n");
+    const numbered = blocks.flatMap((b) =>
+      b.kind === "list" ? b.items.map((x) => [x.text, x.acceptance ?? null]) : [],
+    );
+    expect(numbered).toEqual([
+      ["a", 1],
+      ["b", null],
     ]);
   });
 

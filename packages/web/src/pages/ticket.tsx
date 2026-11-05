@@ -103,8 +103,9 @@ export function TicketPage({ id }: { id: string }) {
       const { body, updated_at } = r.data;
       setTicket((prev) => (prev ? { ...prev, body, updated_at } : prev));
     }
-    setPendingCheck(null);
+    // 拒否されたら、読み直し終えるまで押せないままにする
     if (!r.ok) await store.reload();
+    setPendingCheck(null);
   };
 
   const editButtons = draft ? (

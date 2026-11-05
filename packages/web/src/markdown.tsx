@@ -13,7 +13,7 @@ type Block =
 /** 箇条書きの 1 行。acceptance は受け入れ条件の番号（core の parseAcceptance の index と同じ数え方）で、節の外の行にはない */
 type ListItem = { checked: boolean | null; text: string; acceptance?: number };
 
-/** core の ticket.ts の ACCEPTANCE_HEADING と CHECK_LINE と同じ形。節は次の `## ` の行まで */
+/** core の ticket.ts の ACCEPTANCE_HEADING と CHECK_LINE と同じ形。節は最初の見出しから次の `## ` の行まで */
 const ACCEPTANCE_HEADING = /^## 受け入れ条件[ \t]*$/;
 const ACCEPTANCE_ITEM = /^- \[[ xX]\] (.*)$/;
 
@@ -24,12 +24,18 @@ export function parseBlocks(body: string): Block[] {
     if (paragraph.length) blocks.push({ kind: "paragraph", text: paragraph.join(" ") });
     paragraph = [];
   };
-  // 受け入れ条件の節の中なら、これまでに数えた項目の数。節の外は null
+  // 受け入れ条件の節の中なら、これまでに数えた項目の数。節の外は null。
+  // core は最初の見出しの節だけを見るので、2 つ目からの見出しでは節に入らない（seen）
   let acceptance: number | null = null;
+  let seen = false;
   for (const line of body.split(/\r?\n/)) {
     const heading = /^(#{1,6})\s+(.*)$/.exec(line);
     const item = /^[-*]\s+(?:\[([ xX])\]\s+)?(.*)$/.exec(line);
-    if (line.startsWith("## ")) acceptance = ACCEPTANCE_HEADING.test(line) ? 0 : null;
+    if (line.startsWith("## ")) {
+      const enter: boolean = !seen && ACCEPTANCE_HEADING.test(line);
+      seen ||= enter;
+      acceptance = enter ? 0 : null;
+    }
     if (heading) {
       flush();
       blocks.push({ kind: "heading", level: heading[1]!.length, text: heading[2] ?? "" });

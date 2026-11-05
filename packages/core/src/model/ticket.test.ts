@@ -80,6 +80,15 @@ describe("チケットの本文", () => {
     expect(setAcceptance(checklist, [99], true)).toBe(checklist);
     expect(setAcceptance("本文だけ", [1], true)).toBe("本文だけ");
   });
+
+  it("CRLF の本文も項目を読み、印を書き換えても行末の \\r を保つ", () => {
+    const crlf = "## 受け入れ条件\r\n\r\n- [ ] a\r\n- [x] b\r\n";
+    expect(parseAcceptance(crlf)).toEqual([
+      { index: 1, text: "a", checked: false },
+      { index: 2, text: "b", checked: true },
+    ]);
+    expect(setAcceptance(crlf, [1, 2], true)).toBe("## 受け入れ条件\r\n\r\n- [x] a\r\n- [x] b\r\n");
+  });
 });
 
 describe("depends_on の待ち（pendingDeps）", () => {
