@@ -19,7 +19,8 @@ import { useAsk, useUiState } from "../host.js";
 import { useStore } from "../store.js";
 import type { AskCandidate, AskMenu } from "../types.js";
 import { SELECT_ATTR, selectKind, useSelection } from "./selection.js";
-import { tr, trNode, msg } from "../l10n.js";
+import { tr, trCore, msg } from "../l10n.js";
+import { trNode } from "../l10n-node.js";
 
 /**
  * 頼める場所の種類の名前（core の WEBVIEW_CONTRACT.askSections の写し）。選んだ行の場所を区別するのに使う
@@ -490,7 +491,7 @@ function AskMenuList({
             title={c.skill ?? tr("Skill を使わない")}
             onClick={() => onPick(c)}
           >
-            <span>{c.label}</span>
+            <span>{trCore(c.label, c.action)}</span>
             {c.recommended ? <span className="ask-menu-rec">{tr("おすすめ")}</span> : null}
           </button>
         ))
@@ -509,7 +510,7 @@ export function AskHint() {
       <svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true">
         <path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z" />
       </svg>
-      <span>{ASK_HINT}</span>
+      <span>{tr(ASK_HINT)}</span>
       <button
         type="button"
         className="ask-hint-close"

@@ -1,5 +1,6 @@
 import { formatTime } from "./timeline.js";
-import { tr, trNode } from "../l10n.js";
+import { tr } from "../l10n.js";
+import { trNode } from "../l10n-node.js";
 
 /** 手元時刻の日時（2026-11-01 13:48）。now と同じ年なら年を省く（11-01 13:48） */
 export function formatShortTime(iso: string, now: Date = new Date()): string {

@@ -13,7 +13,8 @@ import { Markdown, type AcceptanceToggle } from "../markdown.js";
 import { hrefOf } from "../router.js";
 import { useStore, type Store } from "../store.js";
 import type { Status, TicketDetail, WorkflowView } from "../types.js";
-import { tr, trNode } from "../l10n.js";
+import { tr } from "../l10n.js";
+import { trNode } from "../l10n-node.js";
 
 /**
  * チケットの Workflow。チケットの workflow、なければ Project の既定で、core の requireWorkflowFor と同じ解決にする。

@@ -15,7 +15,8 @@ import { useHost } from "../host.js";
 import { hrefOf } from "../router.js";
 import { useStore } from "../store.js";
 import { actorLabel, type PlanDetail, type Ticket } from "../types.js";
-import { tr, trNode } from "../l10n.js";
+import { tr } from "../l10n.js";
+import { trNode } from "../l10n-node.js";
 
 export function PlansPage({ id }: { id: string }) {
   const store = useStore();
@@ -65,7 +66,7 @@ function PlanDetailView({ detail, warnings }: { detail: PlanDetail; warnings: st
         {/* 見出しの左に帯と同じ色の線を付ける */}
         <code>{detail.id}</code>
         {tr(" 実行計画")}{" "}
-        <span className={`badge plan-state-${state}`}>{PLAN_STATE_LABELS[state]}</span>
+        <span className={`badge plan-state-${state}`}>{tr(PLAN_STATE_LABELS[state])}</span>
       </AskSpotBox>
       <dl className="iteration-summary plan-summary">
         <dt>{tr("進み")}</dt>

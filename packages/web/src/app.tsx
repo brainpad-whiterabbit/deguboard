@@ -126,7 +126,7 @@ export function App() {
                 className={active === n.page ? "active" : ""}
                 aria-current={active === n.page ? "page" : undefined}
               >
-                {n.label}
+                {tr(n.label)}
               </a>
             ))}
           </nav>

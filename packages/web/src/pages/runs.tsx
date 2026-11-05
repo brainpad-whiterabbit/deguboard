@@ -21,7 +21,8 @@ import {
   type RunMetrics,
   type RunView,
 } from "../types.js";
-import { tr, trNode, msg } from "../l10n.js";
+import { tr, msg } from "../l10n.js";
+import { trNode } from "../l10n-node.js";
 
 type ResultKey = keyof RunMetrics["results"];
 /** 表に出す値。ツールの回数（tools）は画面に出していない */
@@ -52,7 +53,7 @@ export function formatValue(key: ValueKey, v: number | null, estimated = false):
 export function resultsText(m: RunMetrics): string {
   return (
     RESULT_KEYS.filter((k) => m.results[k] > 0)
-      .map((k) => `${RESULT_LABELS[k]} ${m.results[k]}`)
+      .map((k) => `${tr(RESULT_LABELS[k])} ${m.results[k]}`)
       .join(tr(" ・ ")) || NO_VALUE
   );
 }
@@ -174,7 +175,7 @@ function RunsView({
                 >
                   {METRIC_UNITS.map((u) => (
                     <option key={u} value={u}>
-                      {UNIT_LABELS[u]}
+                      {tr(UNIT_LABELS[u])}
                     </option>
                   ))}
                 </select>,
@@ -312,7 +313,7 @@ function MetricsTables({ metrics }: { metrics: MetricsView }) {
         </div>
         {VALUE_KEYS.map((k) => (
           <div key={k}>
-            <dt>{VALUE_LABELS[k]}</dt>
+            <dt>{tr(VALUE_LABELS[k])}</dt>
             <dd className={t[k] === null ? "muted" : undefined}>{formatValue(k, t[k], est)}</dd>
             <Missing count={t.missing[k]} />
           </div>
@@ -330,13 +331,13 @@ function MetricsTables({ metrics }: { metrics: MetricsView }) {
         <table className="list metrics-table">
           <thead>
             <tr>
-              <th>{UNIT_LABELS[by]}</th>
+              <th>{tr(UNIT_LABELS[by])}</th>
               <th className="num">Run</th>
               <th>{tr("結果")}</th>
               <th className="num">{tr("再試行")}</th>
               {VALUE_KEYS.map((k) => (
                 <th key={k} className="num">
-                  {VALUE_LABELS[k]}
+                  {tr(VALUE_LABELS[k])}
                 </th>
               ))}
               <th className="num">{tr("推定")}</th>

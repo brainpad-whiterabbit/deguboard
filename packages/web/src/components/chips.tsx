@@ -1,5 +1,6 @@
 import { Children, isValidElement, useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import { tr, trNode } from "../l10n.js";
+import { tr } from "../l10n.js";
+import { trNode } from "../l10n-node.js";
 
 export function Chip({
   pressed,
@@ -35,8 +36,8 @@ export function Chip({
 export function ChipRow({
   label,
   contentKey = "",
-  moreLabel = (n) => `あと ${n} 個出す`,
-  lessLabel = "畳む",
+  moreLabel = (n) => tr("あと {0} 個出す", n),
+  lessLabel = tr("畳む"),
   children,
 }: {
   label: string;

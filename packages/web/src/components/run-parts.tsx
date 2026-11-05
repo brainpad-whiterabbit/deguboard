@@ -27,7 +27,7 @@ export function RunResult({ run }: { run: RunView }) {
   const key = runResultKey(run);
   return (
     <span className={`run-result run-${key}`} title={run.error ?? undefined}>
-      {RESULT_LABELS[key]}
+      {tr(RESULT_LABELS[key])}
     </span>
   );
 }
@@ -35,7 +35,7 @@ export function RunResult({ run }: { run: RunView }) {
 /** 結果の丸印（パネルのチケット詳細の Run の 1 行）。表示名は読み上げとツールチップで、失敗・中断の理由もツールチップで読む */
 export function RunResultDot({ run }: { run: RunView }) {
   const key = runResultKey(run);
-  const label = RESULT_LABELS[key];
+  const label = tr(RESULT_LABELS[key]);
   return (
     <span
       className={`run-dot run-${key}`}

@@ -3,7 +3,8 @@ import { ASK_SECTIONS, useAskSpot } from "./ask-menu.js";
 import { DetailLink, StatusDot, TicketLink } from "./parts.js";
 import { useStore } from "../store.js";
 import type { Ticket } from "../types.js";
-import { tr, trNode } from "../l10n.js";
+import { tr } from "../l10n.js";
+import { trNode } from "../l10n-node.js";
 
 /** 一覧で最初に出す行の数。多いときは残りを「ほか N 件」のボタンで開ける */
 const HISTORY_LIST_HEAD = 8;

@@ -1,0 +1,1339 @@
+## サイドバーのカンバン
+[aria-label] Views
+Board
+Backlog
+History
+Hover over a row to show a bubble for asking an agent
+[title] Close (don't show again)
+[aria-label] Dismiss tip
+×
+[aria-label] Iteration
+[title] All (planned and active Iterations)
+All
+1
+/
+4
+[title] s1 最初の Iteration (Active)
+Period 2026-11-01 – 2026-11-14
+Goal 目標
+s1
+1
+/
+3
+[title] s2 次の Iteration (Planned)
+s2
+0
+/
+1
+[title] Filter by Epic or assignee
+[aria-label] Filter
+最初の Iteration
+11/1–11/14
+[title] 目標
+目標
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Iteration heading s1)
+[title] Done 1 / Code Review 1 / In Progress 1
+1
+/
+3
+done
+[aria-label] Plans
+Plans
+1
+[aria-label] Dependency graph of p1
+[title] Open p1 details
+p1
+Active
+[title] Code Review 1 / In Progress 1
+0
+/
+2
+Working
+[title] API
+t2
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Plan band p1)
+[aria-label] Todo
+Todo
+0
+[aria-label] In Progress
+In Progress
+1
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Status section In Progress)
+[title] A run is in progress
+[aria-label] A run is in progress
+t2
+[title] API
+API
+[title] Priority high (listed first)
+high
+[title] eiki/agent · No runs
+[aria-label] eiki/agent · No runs
+E
+[title] Plan p1
+p1
+[title] A run is in progress on this machine
+Running
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Row t2)
+[aria-label] Code Review
+Code Review
+1
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Status section Code Review)
+t3
+[title] 画面
+画面
+[title] Plan p1
+p1
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Row t3)
+[aria-label] Done
+Done
+1
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Status section Done)
+t1
+[title] ログイン
+ログイン
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Row t1)
+
+## サイドバーのバックログ
+[aria-label] Views
+Board
+Backlog
+History
+Hover over a row to show a bubble for asking an agent
+[title] Close (don't show again)
+[aria-label] Dismiss tip
+×
+Backlog
+[aria-label] Search
+[placeholder] Search by ID, title, or label
+[title] Filter by status, priority, label, or assignee
+[aria-label] Filter
+[aria-label] Filter
+[title] Filter by me or my agent as assignee
+Mine
+[title] Filter by Status In Progress
+Working
+[title] Filter by Priority high
+high
+Epic
+[aria-label] Filter by Epic
+[title] Filter by e1 最初の版
+e1
+最初の版
+[title] In Progress 1
+0
+/
+1
+[title] Filter by tickets without an Epic
+No Epic
+3
+[title] Details
+s1
+最初の Iteration
+2
+Active
+11/1–11/14
+[title] 目標
+目標
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Section heading s1)
+[aria-label] In Progress
+t2
+[title] API
+API
+[title] Priority high (listed first)
+high
+[title] Plan p1
+p1
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Row t2)
+[aria-label] Code Review
+t3
+[title] 画面
+画面
+[title] Plan p1
+p1
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Row t3)
+[title] Details
+s2
+次の Iteration
+1
+Planned
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Section heading s2)
+[aria-label] Todo
+t6
+[title] 次に回す
+次に回す
+[title] Plan p2
+p2
+[title] p2 is awaiting human approval
+Awaiting approval
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Row t6)
+No Iteration
+1
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Section heading No Iteration)
+[aria-label] Todo
+t5
+[title] 未割り当て
+未割り当て
+[title] Priority low (listed last)
+low
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Row t5)
+
+## サイドバーの履歴
+[aria-label] Views
+Board
+Backlog
+History
+Hover over a row to show a bubble for asking an agent
+[title] Close (don't show again)
+[aria-label] Dismiss tip
+×
+History
+[aria-label] View by
+Iteration
+1
+Epic
+0
+Tickets
+2
+[aria-label] Find tickets
+[placeholder] Search by ID, title, or label
+s0
+[title] 前の Iteration
+No goal
+[title] Done and carried-over counts were recorded at closing
+[title] Done
+—
+Abandoned
+1
+Closed date unknown
+·
+e1
+1
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Iteration s0)
+
+## サイドバーの設定
+[aria-label] Views
+Board
+Backlog
+History
+Settings
+Back to the previous view
+Settings shared by the whole team
+Saved to
+config.yaml
+on the deguboard branch. Once pushed, it applies to everyone using this repository. There are no per-user overrides
+[aria-label] Search settings
+[placeholder] Search settings (name, key, description)
+Commit and Push
+Commit mode
+commit.mode
+[title] Default: batch
+Modified
+commit.mode
+each
+batch
+(default)
+manual
+[title] Reset to default batch
+Reset to Default
+Push mode
+push.mode
+[title] Default: auto
+Modified
+push.mode
+auto
+(default)
+manual
+[title] Reset to default auto
+Reset to Default
+Agents
+Allow shell Actions
+actions.shell
+[title] Default: false
+Modified
+actions.shell
+Off
+[title] Reset to default false
+Reset to Default
+Test command
+actions.test
+[title] Default: Empty
+Modified
+actions.test
+Empty
+[aria-label] Items
+[placeholder] Add item
+Add
+[title] Reset to default Empty
+Reset to Default
+Merge PRs automatically
+auto.merge
+[title] Default: false
+Modified
+auto.merge
+Off
+[title] Reset to default false
+Reset to Default
+Require an Iteration before starting
+lint.require_iteration
+[title] Default: false
+Modified
+lint.require_iteration
+Off
+[title] Reset to default false
+Reset to Default
+Model for tier light
+models.light
+[title] Default: 
+Modified
+models.light
+[title] Reset to default 
+Reset to Default
+Model for tier standard
+models.standard
+[title] Default: 
+Modified
+models.standard
+[title] Reset to default 
+Reset to Default
+Model for tier heavy
+models.heavy
+[title] Default: 
+Modified
+models.heavy
+[title] Reset to default 
+Reset to Default
+Commands limited to people
+actor.human_only
+[title] Default: Empty
+Modified
+actor.human_only
+Empty
+[aria-label] Items
+[placeholder] Add item
+Add
+[title] Reset to default Empty
+Reset to Default
+Metrics
+Read usage from transcripts
+metrics.read_transcripts
+[title] Default: false
+Modified
+metrics.read_transcripts
+Off
+[title] Reset to default false
+Reset to Default
+Notifications
+Notify when approvals are waiting
+notify.approvals
+[title] Default: true
+Modified
+notify.approvals
+Off
+[title] Reset to default true
+Reset to Default
+Git
+Default Project
+default_project
+default_project
+[value] default
+Remote to sync with
+git.remote
+git.remote
+[value] origin
+Base branch
+git.base_branch
+git.base_branch
+[value] main
+Worktree location
+worktree.root
+[title] Default: ../<repo>.worktrees
+Modified
+worktree.root
+[title] Reset to default ../<repo>.worktrees
+Reset to Default
+Tickets
+Criteria for priority high
+priority.high
+[title] Default: 利用者に見える不具合・利用者を誤らせる文書・悪用できる脆弱性・ライセンスの漏れ・検査が通らない・ほかのチケットを止めている
+Modified
+priority.high
+[title] Reset to default 利用者に見える不具合・利用者を誤らせる文書・悪用できる脆弱性・ライセンスの漏れ・検査が通らない・ほかのチケットを止めている
+Reset to Default
+Criteria for priority medium
+priority.medium
+[title] Default: 機能の追加と改善・テストの抜けと不安定なテスト・内部の文書の食い違い・今は害のない規約違反・大きく古い依存
+Modified
+priority.medium
+[title] Reset to default 機能の追加と改善・テストの抜けと不安定なテスト・内部の文書の食い違い・今は害のない規約違反・大きく古い依存
+Reset to Default
+Criteria for priority low
+priority.low
+[title] Default: 使われていないコードと依存・設定の重複・言い回しの揺れ・急がない調査と検討
+Modified
+priority.low
+[title] Reset to default 使われていないコードと依存・設定の重複・言い回しの揺れ・急がない調査と検討
+Reset to Default
+
+## パネルのチケット詳細
+t2
+API
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Title t2)
+[aria-label] In Progress
+In Progress
+[title] Priority high (listed first)
+high
+s1
+eiki/agent
+[title] Edit title and description
+Edit
+概要
+本文
+受け入れ条件
+[title] 0 of 1 done
+0
+/
+1
+[title] Mark as done
+[aria-label] Acceptance criterion 1
+a
+Changes
+Show changes
+Run
+3
+Success 1 · Failure 1 · Running 1
+[title] Tokens (input / output)
+3,600
+/
+900
+implement
+[title] Success
+[aria-label] Success
+opus
+Retries
+1
+2026-11-01 00:00
+30m 0s
+Result
+Success
+agent
+claude-code
+Tokens
+Input
+1,200
+/ Output
+300
+/ cache read
+—
+/ cache write
+—
+Ended
+2026-11-01 00:30
+Run ID
+r20261101-000000-aaaa
+implement
+[title] Failure: テストが落ちた
+[aria-label] Failure
+opus
+2026-11-01 00:00
+30m 0s
+Result
+[title] テストが落ちた
+Failure
+テストが落ちた
+agent
+claude-code
+Tokens
+Input
+1,200
+/ Output
+300
+/ cache read
+—
+/ cache write
+—
+Ended
+2026-11-01 00:30
+Run ID
+r20261101-010000-bbbb
+implement
+[title] Running
+[aria-label] Running
+opus
+Retries
+1
+2026-11-01 00:00
+—
+Result
+Running
+agent
+claude-code
+Tokens
+Input
+1,200
+/ Output
+300
+/ cache read
+—
+/ cache write
+—
+Ended
+—
+Run ID
+r20261101-020000-cccc
+Timeline
+2026-11-04
+10:00
+[aria-label] In Progress
+Todo → In Progress
+2026-11-03
+10:00
+Iteration s0 → s2
+Status
+[aria-label] Status
+Todo
+In Progress
+Code Review
+Done
+Abandoned
+[aria-label] Planning
+Planning
+Iteration
+s1
+[title] Click to change
+[aria-label] Change Iteration
+Epic
+e1
+最初の版
+[title] Click to change
+[aria-label] Change Epic
+Assignee
+[title] Click to change
+[aria-label] Change Assignee
+eiki/agent
+Priority
+[title] Click to change
+[aria-label] Change Priority
+[title] Priority high (listed first)
+high
+Labels
+[title] Click to change
+[aria-label] Change Labels
+api
+[aria-label] Work
+Work
+Branch
+feat/api
+[title] Copy branch name
+[aria-label] Copy branch name
+[aria-label] Record
+Record
+Created by
+Unknown
+Created
+[title] 2026-01-01T00:00:00Z
+01-01 00:00
+Updated
+[title] 2026-01-01T00:00:00Z
+01-01 00:00
+None
+Depends on, Dependents, PR
+
+## パネルの依存のあるチケット詳細
+t3
+画面
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Title t3)
+[aria-label] Code Review
+Code Review
+[title] Priority medium (default order)
+medium
+s1
+[title] Edit title and description
+Edit
+概要
+本文
+受け入れ条件
+[title] 0 of 1 done
+0
+/
+1
+[title] Mark as done
+[aria-label] Acceptance criterion 1
+a
+Run
+3
+Success 1 · Failure 1 · Running 1
+[title] Tokens (input / output)
+3,600
+/
+900
+implement
+[title] Success
+[aria-label] Success
+opus
+Retries
+1
+2026-11-01 00:00
+30m 0s
+Result
+Success
+agent
+claude-code
+Tokens
+Input
+1,200
+/ Output
+300
+/ cache read
+—
+/ cache write
+—
+Ended
+2026-11-01 00:30
+Run ID
+r20261101-000000-aaaa
+implement
+[title] Failure: テストが落ちた
+[aria-label] Failure
+opus
+2026-11-01 00:00
+30m 0s
+Result
+[title] テストが落ちた
+Failure
+テストが落ちた
+agent
+claude-code
+Tokens
+Input
+1,200
+/ Output
+300
+/ cache read
+—
+/ cache write
+—
+Ended
+2026-11-01 00:30
+Run ID
+r20261101-010000-bbbb
+implement
+[title] Running
+[aria-label] Running
+opus
+Retries
+1
+2026-11-01 00:00
+—
+Result
+Running
+agent
+claude-code
+Tokens
+Input
+1,200
+/ Output
+300
+/ cache read
+—
+/ cache write
+—
+Ended
+—
+Run ID
+r20261101-020000-cccc
+Timeline
+2026-11-04
+10:00
+[aria-label] In Progress
+Todo → In Progress
+2026-11-03
+10:00
+Iteration s0 → s2
+Status
+[aria-label] Status
+Todo
+In Progress
+Code Review
+Done
+Abandoned
+[aria-label] Planning
+Planning
+Iteration
+s1
+[title] Click to change
+[aria-label] Change Iteration
+Priority
+[title] Click to change
+[aria-label] Change Priority
+[title] Priority medium (default order)
+medium
+[aria-label] Relations
+Relations
+Depends on
+[aria-label] In Progress
+t2
+API
+[aria-label] Record
+Record
+Created by
+Unknown
+Created
+[title] 2026-01-01T00:00:00Z
+01-01 00:00
+Updated
+[title] 2026-01-01T00:00:00Z
+01-01 00:00
+None
+Labels, Epic, Dependents, Assignee, Branch, PR
++ Add
+
+## パネルの Epic 詳細
+e1
+最初の版
+Active
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Title e1)
+[title] In Progress 1
+Done
+0
+/
+1
+· In progress 1
+View this Epic on the board
+概要
+Epic の本文
+Tickets
+Unfinished
+1
+[aria-label] In Progress
+t2
+[title] API
+API
+[title] eiki/agent
+eiki/agent
+[title] Priority high (listed first)
+high
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Row t2)
+Abandoned
+1
+[aria-label] Abandoned
+t4
+[title] やめた
+やめた
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Row t4)
+
+## パネルの Iteration 詳細
+s1
+最初の Iteration
+Active
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Title s1)
+Period
+11/1–11/14
+10d left
+Goal
+目標
+Progress
+[title] Done 1 / Code Review 1 / In Progress 1
+Done
+1
+/
+3
+· In progress 2
+View this Iteration on the board
+[aria-label] Plan
+Plan
+[title] Open p1 details
+p1
+Approved
+0
+/
+2
+done
+Unfinished
+2
+[aria-label] In Progress
+t2
+[title] API
+API
+[title] eiki/agent
+eiki/agent
+[title] Priority high (listed first)
+high
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Row t2)
+[aria-label] Code Review
+t3
+[title] 画面
+画面
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Row t3)
+Done
+1
+[aria-label] Done
+t1
+[title] ログイン
+ログイン
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Row t1)
+
+## パネルの閉じた Iteration 詳細
+s0
+前の Iteration
+Ended
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Title s0)
+Progress
+Done — · Carried over —
+[aria-label] Plan
+Plan
+[title] Open p1 details
+p1
+Approved
+0
+/
+2
+done
+Abandoned
+1
+[aria-label] Abandoned
+t4
+[title] やめた
+やめた
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Row t4)
+
+## パネルの Plan 詳細
+p1
+Plan
+Active
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Title p1)
+Progress
+[title] Code Review 1 / In Progress 1
+Done
+0
+/
+2
+· In progress 2
+Iteration
+s1
+最初の Iteration
+Approval
+No approval recorded
+Working
+t2
+API
+Dependency graph
+[aria-label] In Progress
+[title] API
+t2
+[aria-label] Code Review
+[title] 画面
+t3
+wait done
+waiting
+Tickets
+[aria-label] In Progress
+t2
+API
+In Progress
+[aria-label] Code Review
+t3
+画面
+Code Review
+
+## パネルの承認待ちの Plan 詳細
+p2
+Plan
+Awaiting approval
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Title p2)
+Progress
+[title] Todo 1
+Done
+0
+/
+1
+Iteration
+s2
+次の Iteration
+Approval
+Awaiting human approval
+Dependency graph
+[aria-label] Todo
+[title] 次に回す
+t6
+Tickets
+[aria-label] Todo
+t6
+次に回す
+Todo
+
+## ブラウザのカンバン
+deguboard
+[aria-label] Views
+Board
+Backlog
+History
+Run
+Project
+Default
+[title] Remote: origin
+Uncommitted changes
+Unpushed 1
+Unpulled 2
+Unreadable files 1
+[title] Pull from the remote, push unpushed commits, and advance statuses from branch facts
+Sync
+[title] Ask Agent (create and copy a request)
+[aria-label] Ask Agent
+[title] Settings (config.yaml)
+[aria-label] Settings
+⚙
+Iteration
+All (planned and active)
+s1
+最初の Iteration
+(
+Active
+)
+s2
+次の Iteration
+(
+Planned
+)
+Epic
+All
+e1
+最初の版
+Assignee
+All
+[title] eiki/agent
+eiki/agent
+[title] -
+None
+3
+s1
+最初の Iteration
+Active
+2026-11-01
+–
+2026-11-14
+目標
+Details
+[aria-label] Plans
+Plans
+1
+[aria-label] Dependency graph of p1
+[title] Open p1 details
+p1
+Active
+[title] Code Review 1 / In Progress 1
+0
+/
+2
+Working
+[title] API
+t2
+[aria-label] Todo
+Todo
+0
+[aria-label] In Progress
+In Progress
+1
+t2
+[title] Priority high (listed first)
+high
+e1
+s1
+p1
+API
+api
+[title] eiki/agent
+eiki/agent
+[aria-label] Code Review
+Code Review
+1
+t3
+[title] Priority medium (default order)
+medium
+s1
+p1
+画面
+[aria-label] Done
+Done
+1
+t1
+[title] Priority medium (default order)
+medium
+s1
+ログイン
+
+## ブラウザの Run
+deguboard
+[aria-label] Views
+Board
+Backlog
+History
+Run
+Project
+Default
+[title] Remote: origin
+Uncommitted changes
+Unpushed 1
+Unpulled 2
+Unreadable files 1
+[title] Pull from the remote, push unpushed commits, and advance statuses from branch facts
+Sync
+[title] Ask Agent (create and copy a request)
+[aria-label] Ask Agent
+[title] Settings (config.yaml)
+[aria-label] Settings
+⚙
+Run
+Reload
+Running
+1
+· Finished
+2
+Running
+Run
+Tickets
+Step
+Agent
+Model
+Result
+Started
+r20261101-020000-cccc
+t2
+API
+implement
+claude-code
+opus
+Running
+Retries
+1
+2026-11-01 00:00
+Results
+Group by
+Run
+Tickets
+Epic
+Iteration
+Agent
+Model
+Step
+Result
+Success 1 · Failure 1
+Run
+2
+Retries
+1
+Time
+~1m 30s
+Input
+~1,200
+Output
+—
+[title] Runs without a value, not included in the total
+Missing 1
+Cache read
+—
+[title] Runs without a value, not included in the total
+Missing 1
+Cache write
+—
+[title] Runs without a value, not included in the total
+Missing 1
+1
+runs include estimated values (values marked with ~ include estimates)
+Tickets
+Run
+Result
+Retries
+Time
+Input
+Output
+Cache read
+Cache write
+Estimated
+t2
+API
+2
+Success 1 · Failure 1
+1
+1m 30s
+1,200
+—
+[title] Runs without a value, not included in the total
+(missing 1)
+—
+[title] Runs without a value, not included in the total
+(missing 1)
+—
+[title] Runs without a value, not included in the total
+(missing 1)
+0
+None
+2
+Success 1 · Failure 1
+1
+1m 30s
+1,200
+—
+[title] Runs without a value, not included in the total
+(missing 1)
+—
+[title] Runs without a value, not included in the total
+(missing 1)
+—
+[title] Runs without a value, not included in the total
+(missing 1)
+0
+Finished runs
+Run
+Tickets
+Step
+Agent
+Model
+Result
+Started
+Time
+Input
+Output
+r20261101-010000-bbbb
+t2
+API
+implement
+claude-code
+opus
+[title] テストが落ちた
+Failure
+2026-11-01 00:00
+30m 0s
+1,200
+300
+r20261101-000000-aaaa
+t2
+API
+implement
+claude-code
+opus
+Success
+Retries
+1
+2026-11-01 00:00
+30m 0s
+1,200
+300
+
+## サイドバーのエージェントに頼む入力欄
+[aria-label] Ask Agent (Iteration heading s1)
+Iteration heading s1
+[title] /dgplan
+Plan
+Recommended
+[title] /dgall
+Run to completion
+[title] /dgrelease
+Release
+[title] /dgimport
+Create tickets in s1
+[title] /dgassign
+Add or remove tickets
+[title] No Skill
+Edit name, goal, and period
+[title] No Skill
+Close
+[title] /dgcheck
+Check
+[title] No Skill
+Free-form
+---
+[aria-label] Views
+Board
+Backlog
+History
+Hover over a row to show a bubble for asking an agent
+[title] Close (don't show again)
+[aria-label] Dismiss tip
+×
+[aria-label] Iteration
+[title] All (planned and active Iterations)
+All
+1
+/
+4
+[title] s1 最初の Iteration (Active)
+Period 2026-11-01 – 2026-11-14
+Goal 目標
+s1
+1
+/
+3
+[title] s2 次の Iteration (Planned)
+s2
+0
+/
+1
+[title] Filter by Epic or assignee
+[aria-label] Filter
+最初の Iteration
+11/1–11/14
+[title] 目標
+目標
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Iteration heading s1)
+[title] Done 1 / Code Review 1 / In Progress 1
+1
+/
+3
+done
+[aria-label] Plans
+Plans
+1
+[aria-label] Dependency graph of p1
+[title] Open p1 details
+p1
+Active
+[title] Code Review 1 / In Progress 1
+0
+/
+2
+Working
+[title] API
+t2
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Plan band p1)
+[aria-label] Todo
+Todo
+0
+[aria-label] In Progress
+In Progress
+1
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Status section In Progress)
+[title] A run is in progress
+[aria-label] A run is in progress
+t2
+[title] API
+API
+[title] Priority high (listed first)
+high
+[title] eiki/agent · No runs
+[aria-label] eiki/agent · No runs
+E
+[title] Plan p1
+p1
+[title] A run is in progress on this machine
+Running
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Row t2)
+[aria-label] Code Review
+Code Review
+1
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Status section Code Review)
+t3
+[title] 画面
+画面
+[title] Plan p1
+p1
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Row t3)
+[aria-label] Done
+Done
+1
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Status section Done)
+t1
+[title] ログイン
+ログイン
+[title] Ask Agent (Shift+F10)
+[aria-label] Ask Agent (Row t1)
+[aria-label] Ask Agent
+[aria-label] Request
+[title] /dgplan
+[aria-label] Recommended
+★
+Plan
+[title] /dgall
+Run to completion
+[title] /dgrelease
+Release
+[title] /dgimport
+Create tickets in s1
+[title] /dgassign
+Add or remove tickets
+[title] No Skill
+Edit name, goal, and period
+[title] No Skill
+Close
+[title] /dgcheck
+Check
+[title] No Skill
+Free-form
+[title] Close (Esc)
+[aria-label] Close
+×
+/dgplan
+[title] Iteration s1 "最初の Iteration" (active)
+s1
+active
+[aria-label] Remove s1
+×
+[aria-label] Instructions
+[placeholder] Add instructions (optional)
+Full text
+[title] Invoke a Skill, or plain text without a Skill. Defaults to Skill if the dg Skills are in the repository or ~/.claude/skills, otherwise text
+Format: Skill
+Ctrl+↵
+Copy
+✓ Copied. Paste it into the agent's input
+
+## dg init 前の始め方
+[aria-label] Views
+Board
+Backlog
+History
+Get Started with deguboard
+This repository does not use deguboard yet. If
+dg
+is on your PATH, start with the steps below. Copy each command and run it in a terminal.
+1. Initialize
+Create a place for tickets in this repository. Run it in a terminal.
+dg init
+[title] Copy dg init
+[aria-label] Copy dg init
+2. Create a ticket
+Turn what you want to do into a ticket.
+dg ticket create "First ticket"
+[title] Copy dg ticket create "First ticket"
+[aria-label] Copy dg ticket create "First ticket"
+3. Ask an agent
+With the Skills installed, agents read the steps and work on tickets.
+dg skill install
+[title] Copy dg skill install
+[aria-label] Copy dg skill install
+After step 1, the usual view appears without reopening.

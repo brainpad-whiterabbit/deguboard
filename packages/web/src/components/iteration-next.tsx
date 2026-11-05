@@ -4,7 +4,8 @@ import { DetailLink } from "./parts.js";
 import { useHost } from "../host.js";
 import { useStore } from "../store.js";
 import type { AskAction, AskView, IterationDetail } from "../types.js";
-import { tr, trNode } from "../l10n.js";
+import { tr } from "../l10n.js";
+import { trNode } from "../l10n-node.js";
 
 type Next = NonNullable<IterationDetail["next"]>;
 
@@ -38,9 +39,7 @@ function NextText({ next }: { next: Next }) {
     case "closed":
       return (
         <span>
-          {tr("持ち越し ")}
-          {next.carried}
-          {tr(" 件")}
+          {tr("持ち越し {0} 件", next.carried)}
           {next.moved.length > 0 ? (
             <>
               {trNode(

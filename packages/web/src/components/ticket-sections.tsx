@@ -53,7 +53,7 @@ export function TicketSections({
       {groupBySection(tickets).map(({ section, items }) => (
         <details key={section.key} className="fold" open={!section.folded}>
           <summary>
-            {section.label} <span className="muted">{items.length}</span>
+            {tr(section.label)} <span className="muted">{items.length}</span>
           </summary>
           <ul className="rows">
             {items.map((t) => (

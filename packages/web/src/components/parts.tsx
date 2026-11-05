@@ -127,7 +127,7 @@ export function PriorityGlyph({ priority }: { priority: Priority }) {
 
 /** 優先度の印のツールチップ：1 行目に値と並び方、2 行目から判断基準（config、なければ core の既定）。基準がまだ読めていなければ 1 行目だけ */
 export function priorityTitle(priority: Priority, criteria: Record<Priority, string>): string {
-  const head = tr("優先度 {0}（{1}）", priority, PRIORITY_ORDER_NOTE[priority]);
+  const head = tr("優先度 {0}（{1}）", priority, tr(PRIORITY_ORDER_NOTE[priority]));
   const note = criteria[priority];
   return note ? `${head}\n${note}` : head;
 }

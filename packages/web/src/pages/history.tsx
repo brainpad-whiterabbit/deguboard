@@ -26,7 +26,8 @@ import {
   type Iteration,
   type Ticket,
 } from "../types.js";
-import { tr, trNode, msg } from "../l10n.js";
+import { tr, msg } from "../l10n.js";
+import { trNode } from "../l10n-node.js";
 
 /** 閉じた新しい順。closed_at がなければ番号の新しい順 */
 function byClosedDesc<T extends { id: string; closed_at?: string | undefined }>(
@@ -289,7 +290,7 @@ function ViewSwitch({
             aria-pressed={view === v.view}
             onClick={() => navigate({ ...route, page: "history", view: v.view })}
           >
-            {v.label}{" "}
+            {tr(v.label)}{" "}
             <span className="badge">
               {c.filtered ? `${c.hit}\u2009/\u2009${c.total}` : c.total}
             </span>
@@ -381,7 +382,7 @@ export function HistoryPage({ route }: { route: HistoryQuery }) {
         <ViewSwitch route={route} view={view} counts={counts} />
         <input
           type="search"
-          placeholder={sidebar ? SIDEBAR_SEARCH : tr("チケットの番号・タイトルで探す")}
+          placeholder={sidebar ? tr(SIDEBAR_SEARCH) : tr("チケットの番号・タイトルで探す")}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           aria-label={tr("チケットを探す")}
@@ -870,7 +871,7 @@ function TicketView({
         />
         <input
           type="search"
-          placeholder={sidebar ? SIDEBAR_SEARCH : tr("番号・タイトル・ラベルで探す")}
+          placeholder={sidebar ? tr(SIDEBAR_SEARCH) : tr("番号・タイトル・ラベルで探す")}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           aria-label={tr("チケットを探す")}

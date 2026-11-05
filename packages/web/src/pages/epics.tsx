@@ -38,7 +38,7 @@ export function EpicsPage({ id }: { id: string }) {
           pinned
         >
           <code>{epic.id}</code> {epic.title}{" "}
-          <span className="badge">{EPIC_LABELS[epic.status]}</span>
+          <span className="badge">{tr(EPIC_LABELS[epic.status])}</span>
         </AskSpotBox>
         <ProgressBar progress={epic.progress} />
       </header>

@@ -27,7 +27,8 @@ import {
   type Ticket,
   type WhoamiView,
 } from "../types.js";
-import { tr, trNode, msg } from "../l10n.js";
+import { tr, msg } from "../l10n.js";
+import { trNode } from "../l10n-node.js";
 
 export interface BacklogFilter {
   query: string;
@@ -389,7 +390,7 @@ function QuickFilters({
             title={pressed ? tr("{0} の絞り込みを外す", what) : tr("{0} で絞る", what)}
             onClick={() => onChange(q.toggle(filter))}
           >
-            {q.text}
+            {tr(q.text)}
           </Chip>
         );
       })}
@@ -463,7 +464,7 @@ function Section({
       </span>
       {it && tickets.length > 0 ? (
         <span className="head-line sub muted">
-          <span className={`state iteration-${it.status}`}>{ITERATION_LABELS[it.status]}</span>
+          <span className={`state iteration-${it.status}`}>{tr(ITERATION_LABELS[it.status])}</span>
           {period ? <span className="period">{period}</span> : null}
           {it.goal ? (
             <span className="goal" title={it.goal}>
@@ -490,7 +491,7 @@ function Section({
           >
             <code>{it.id}</code> {it.name}
           </a>
-          <span className={`badge iteration-${it.status}`}>{ITERATION_LABELS[it.status]}</span>
+          <span className={`badge iteration-${it.status}`}>{tr(ITERATION_LABELS[it.status])}</span>
         </>
       ) : (
         <span className="name">{tr("Iteration なし")}</span>

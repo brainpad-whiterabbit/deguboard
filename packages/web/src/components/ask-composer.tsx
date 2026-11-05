@@ -5,7 +5,8 @@ import { useHost, useUiState } from "../host.js";
 import { canSend, resolveSendTarget, sentMessage, switchedMessage } from "../send-target.js";
 import { useStore } from "../store.js";
 import type { AskAction, AskFormat, AskView } from "../types.js";
-import { tr, trNode, msg } from "../l10n.js";
+import { language, tr, trCore, msg } from "../l10n.js";
+import { trNode } from "../l10n-node.js";
 
 /** 指示を打つ間、依頼文の取り直しを待つ時間（ミリ秒）。打つたびに ask を呼ばない */
 export const ASK_NOTE_SETTLE_MS = 150;
@@ -151,7 +152,7 @@ export function AskComposer({
       pick,
       async (text) => {
         await host.copy(text);
-        return COPIED;
+        return tr(COPIED);
       },
       tr("コピーできない"),
     );
@@ -243,7 +244,7 @@ export function AskComposer({
                   ★
                 </span>
               ) : null}
-              {c.label}
+              {trCore(c.label, c.action)}
             </button>
           ))}
         </div>
@@ -262,8 +263,8 @@ export function AskComposer({
           <div className="ask-pills">
             {skillPill ? <span className="ask-pill ask-pill-skill">{skillPill}</span> : null}
             {(base?.targets ?? []).map((t) => (
-              <span key={t.id} className="ask-pill ask-pill-target" title={t.line}>
-                {t.id} <small>{t.sub}</small>
+              <span key={t.id} className="ask-pill ask-pill-target" title={targetLine(t)}>
+                {t.id} <small>{trCore(t.sub)}</small>
                 <button
                   type="button"
                   aria-label={tr("{0} を外す", t.id)}
@@ -435,4 +436,22 @@ function humanReason(view: AskView): string {
   if (view.workflow_by.length > 0)
     reasons.push(tr("{0} は Workflow が人に限った遷移（by）", view.workflow_by.join(tr("・"))));
   return reasons.join(tr("、"));
+}
+
+/**
+ * 対象の札のツールチップ。日本語では core の line をそのまま出し、英語では同じ中身（ID・タイトル・Status・Iteration）を
+ * 英語の区切りで組む（core の line は日本語の括弧と「Iteration なし」を含むため）。タイトルは訳さない
+ */
+function targetLine(t: AskView["targets"][number]): string {
+  if (language() === "ja") return t.line;
+  switch (t.kind) {
+    case "ticket":
+      return `${t.id} "${t.title}" (${t.status}, ${t.iteration ?? tr("Iteration なし")})`;
+    case "iteration":
+      return `Iteration ${t.id} "${t.title}" (${t.status})`;
+    case "epic":
+      return `Epic ${t.id} "${t.title}" (${t.status})`;
+    case "plan":
+      return `Plan ${t.id} (${[trCore(t.sub), t.tickets.join(" ")].filter(Boolean).join(", ")})`;
+  }
 }

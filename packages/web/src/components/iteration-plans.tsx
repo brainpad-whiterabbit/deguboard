@@ -14,7 +14,7 @@ export function IterationPlans({ plans }: { plans: IterationDetail["plans"] }) {
             <DetailLink route={{ page: "plans", id: p.id }} title={tr("{0} の詳細を開く", p.id)}>
               <code>{p.id}</code>
             </DetailLink>
-            <span className="plan-state">{PLAN_STATE_LABELS[p.status]}</span>
+            <span className="plan-state">{tr(PLAN_STATE_LABELS[p.status])}</span>
             <span className="iteration-plan-count">
               {p.progress.done}/{p.progress.total} done
             </span>

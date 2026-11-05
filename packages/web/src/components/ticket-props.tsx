@@ -14,7 +14,7 @@ import type { Choice } from "./inline-edit.js";
 import { PriorityMark, StatusBadge, StatusDot, Tags, TicketLink } from "./parts.js";
 import { WorktreeRow } from "./worktree-row.js";
 import { fieldText } from "./ticket-fields.js";
-import { tr, msg } from "../l10n.js";
+import { tr } from "../l10n.js";
 
 /** 編集のボタンで直している間の値。パネルではタイトルと本文だけを、ブラウザでは属性も使う */
 export interface Draft {
@@ -67,7 +67,16 @@ export function propRow(key: string, label: string, value: ReactNode) {
   );
 }
 
-export const none = <span className="muted">{msg("なし")}</span>;
+/** 値のない属性の「なし」。描くときに訳す（表示言語は起動のときに決まるので、読み込んだときに訳さない） */
+function NoneText() {
+  return <>{tr("なし")}</>;
+}
+
+export const none = (
+  <span className="muted">
+    <NoneText />
+  </span>
+);
 
 /** Status の選択。選ぶと ticket.move（Workflow の検査を通る）。statuses は並べる Status */
 export function StatusSelect({

@@ -3,7 +3,8 @@ import { failureOf } from "../client/http.js";
 import { hrefOf, toggleRoute } from "../router.js";
 import { useStore } from "../store.js";
 import type { ConfigField, ConfigShowView } from "../types.js";
-import { tr, trNode, msg } from "../l10n.js";
+import { tr, msg } from "../l10n.js";
+import { trNode } from "../l10n-node.js";
 
 /** 画面のまとまり。キーの最上位（commit.mode なら commit）で振り分ける */
 const GROUPS: { id: string; label: string; tops: string[] }[] = [
@@ -91,7 +92,8 @@ export function groupOf(key: string): string {
 }
 
 export function nameOf(key: string): string {
-  return NAMES[key] ?? key;
+  const name = NAMES[key];
+  return name === undefined ? key : tr(name);
 }
 
 /** 検索語が表示名・キー・説明のどれかに含まれるか（大文字小文字は区別しない） */
@@ -238,7 +240,7 @@ export function ConfigPage() {
       {view && groups.length === 0 ? <p className="empty">{tr("該当する設定がない")}</p> : null}
       {groups.map((g) => (
         <section key={g.id} className="config-group" aria-labelledby={`config-group-${g.id}`}>
-          <h3 id={`config-group-${g.id}`}>{g.label}</h3>
+          <h3 id={`config-group-${g.id}`}>{tr(g.label)}</h3>
           {g.fields.map((f) => {
             const value = valueAt(view!.config, f.key);
             const modified = isModified(value, f.default);
@@ -515,7 +517,7 @@ function ConfirmBox({
           "{0} を {1} にする。{2}。チーム全員に効く。保存する？",
           <code>{field.key}</code>,
           <code>{formatValue(value)}</code>,
-          CONFIRM_KEYS.get(field.key),
+          tr(CONFIRM_KEYS.get(field.key) ?? ""),
         )}
       </p>
       <div className="config-confirm-actions">

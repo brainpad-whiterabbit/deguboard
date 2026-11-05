@@ -54,7 +54,7 @@ function IterationDetailView({ id }: { id: string }) {
         pinned
       >
         <code>{it.id}</code> {it.name}{" "}
-        <span className={`badge iteration-${it.status}`}>{ITERATION_LABELS[it.status]}</span>
+        <span className={`badge iteration-${it.status}`}>{tr(ITERATION_LABELS[it.status])}</span>
       </AskSpotBox>
       <IterationSummary it={it} />
       {/* 状態に応じた次の操作の案内と依頼文のコピー（書き込まない） */}

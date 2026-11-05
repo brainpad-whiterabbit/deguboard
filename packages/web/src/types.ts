@@ -38,7 +38,7 @@ import type {
   WhoamiView,
   WorkflowDefinition,
 } from "@deguboard/core";
-import { tr, msg } from "./l10n.js";
+import { msg } from "./l10n.js";
 
 export type {
   AskAction,

@@ -13,7 +13,8 @@ import {
   RunsScroll,
 } from "./run-parts.js";
 import { formatTime } from "./timeline.js";
-import { tr, trNode } from "../l10n.js";
+import { tr } from "../l10n.js";
+import { trNode } from "../l10n-node.js";
 
 /** チケット詳細の「Run」の節 */
 export function TicketRuns({ id }: { id: string }) {
@@ -148,7 +149,7 @@ function RunsSummary({ runs }: { runs: RunView[] }) {
   const counts = new Map<string, number>();
   for (const r of runs) counts.set(runResultKey(r), (counts.get(runResultKey(r)) ?? 0) + 1);
   const breakdown = RESULT_KEYS.filter((k) => counts.has(k))
-    .map((k) => `${RESULT_LABELS[k]} ${counts.get(k)}`)
+    .map((k) => `${tr(RESULT_LABELS[k])} ${counts.get(k)}`)
     .join(" · ");
   const missing = Math.max(sumTokens(runs, "input").missing, sumTokens(runs, "output").missing);
   return (

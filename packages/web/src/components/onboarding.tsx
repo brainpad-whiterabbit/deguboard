@@ -1,6 +1,7 @@
 import { useHost } from "../host.js";
 import { CopyableCode } from "./copyable-code.js";
-import { tr, trNode, msg } from "../l10n.js";
+import { tr, msg } from "../l10n.js";
+import { trNode } from "../l10n-node.js";
 
 /** 案内の手順。コマンドはコピーして、ターミナルで自分で実行する */
 export const ONBOARDING_STEPS: { title: string; body: string; command: string }[] = [
@@ -36,9 +37,9 @@ export function Onboarding() {
       <ol className="onboarding-steps">
         {ONBOARDING_STEPS.map((step) => (
           <li key={step.command}>
-            <h3>{step.title}</h3>
-            <p className="muted">{step.body}</p>
-            <CopyableCode text={step.command} label={tr("{0} をコピー", step.command)} />
+            <h3>{tr(step.title)}</h3>
+            <p className="muted">{tr(step.body)}</p>
+            <CopyableCode text={tr(step.command)} label={tr("{0} をコピー", tr(step.command))} />
           </li>
         ))}
       </ol>

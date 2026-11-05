@@ -14,7 +14,8 @@ import {
   type BandNext,
   type PlanState,
 } from "./plan-graph.js";
-import { tr, trNode } from "../l10n.js";
+import { tr } from "../l10n.js";
+import { trNode } from "../l10n-node.js";
 
 /** 前の版の帯全体の開閉の鍵。使わなくなったので消す */
 const OLD_KEYS = ["board.plansExpanded"];
@@ -112,7 +113,7 @@ function PlanItem({ plan, state, byId }: ItemProps) {
           >
             <code>{plan.id}</code>
           </DetailLink>
-          <span className={`plan-state plan-state-${state}`}>{PLAN_STATE_LABELS[state]}</span>
+          <span className={`plan-state plan-state-${state}`}>{tr(PLAN_STATE_LABELS[state])}</span>
           <ProgressBar progress={plan.progress} short />
         </div>
         {closed ? null : <PlanSub plan={plan} state={state} byId={byId} />}

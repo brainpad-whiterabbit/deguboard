@@ -1,5 +1,5 @@
 import type { PlanDetail, PlanRow, Status, Ticket } from "../types.js";
-import { tr, msg } from "../l10n.js";
+import { msg } from "../l10n.js";
 
 /** 帯に出す Plan の状態。core の status（pending・approved・closed）に、チケットの状態から求める進行中・完了を足す */
 export type PlanState = "working" | "pending" | "approved" | "finished" | "closed";

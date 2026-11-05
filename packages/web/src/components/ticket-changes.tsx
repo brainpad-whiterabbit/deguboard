@@ -2,7 +2,8 @@ import { useState } from "react";
 import { useCommandData } from "../command-data.js";
 import { useHost } from "../host.js";
 import type { BranchChanges, ChangedFile, ChangeKind } from "../types.js";
-import { tr, trNode, msg } from "../l10n.js";
+import { tr, msg } from "../l10n.js";
+import { trNode } from "../l10n-node.js";
 
 const KIND_MARK: Record<ChangeKind, { mark: string; label: string }> = {
   added: { mark: "A", label: msg("追加") },
@@ -101,7 +102,7 @@ function FileRow({ file: f }: { file: ChangedFile }) {
   const kind = KIND_MARK[f.kind];
   return (
     <>
-      <abbr className={`change-kind change-${f.kind}`} title={kind.label}>
+      <abbr className={`change-kind change-${f.kind}`} title={tr(kind.label)}>
         {kind.mark}
       </abbr>
       <span className="changes-path">

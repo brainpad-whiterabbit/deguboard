@@ -193,8 +193,12 @@ function richClient(): MockClient {
   return client;
 }
 
-/** fixture のデータの文（訳さない）。英語の画面で日本語が残っていないかを見るときに除く */
+/**
+ * 英語の画面で日本語が残っていないかを見るときに除く文：fixture のデータ（訳さない）と、
+ * core の config の既定値（優先度の判断基準。利用者が書き換える config.yaml の値で、core の言語のまま）
+ */
 const DATA_TEXTS = [
+  ...configFields().flatMap((f) => (typeof f.default === "string" ? [f.default] : [])),
   "最初の Iteration",
   "次の Iteration",
   "前の Iteration",

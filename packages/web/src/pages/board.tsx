@@ -44,7 +44,8 @@ import {
   type Ticket,
   type TicketRow,
 } from "../types.js";
-import { tr, trNode } from "../l10n.js";
+import { tr } from "../l10n.js";
+import { trNode } from "../l10n-node.js";
 
 /** 選んでいる範囲。all は planned と active の Iteration すべて */
 type Selection = { kind: "all" } | { kind: "iteration"; iteration: Iteration };
@@ -246,7 +247,7 @@ export function BoardPage({ query }: { query: BoardQuery }) {
                 <option value={ALL_ITERATIONS}>{tr("すべて（planned と active）")}</option>
                 {open.map((i) => (
                   <option key={i.id} value={i.id}>
-                    {trNode("{0} {1}（{2}）", i.id, i.name, ITERATION_LABELS[i.status])}
+                    {trNode("{0} {1}（{2}）", i.id, i.name, tr(ITERATION_LABELS[i.status]))}
                   </option>
                 ))}
               </select>
@@ -342,7 +343,7 @@ function IterationHead({ iteration: it }: { iteration: Iteration }) {
         <code>{it.id}</code>{" "}
         <DetailLink route={{ page: "iterations", id: it.id }}>{it.name}</DetailLink>
       </h1>
-      <span className={`badge iteration-${it.status}`}>{ITERATION_LABELS[it.status]}</span>
+      <span className={`badge iteration-${it.status}`}>{tr(ITERATION_LABELS[it.status])}</span>
       {it.start || it.end ? (
         <span className="muted">{trNode("{0} 〜 {1}", it.start ?? "?", it.end ?? "?")}</span>
       ) : null}
@@ -493,7 +494,7 @@ function IterationChips({
               "{0} {1}（{2}）{3}{4}",
               i.id,
               i.name,
-              ITERATION_LABELS[i.status],
+              tr(ITERATION_LABELS[i.status]),
               period,
               goal,
             )}
