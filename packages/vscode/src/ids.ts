@@ -140,7 +140,7 @@ export function routeOfId(id: string): string | undefined {
   }
 }
 
-/** リンクを押したときのコマンド。引数は ID の 1 つ（extension.ts が登録する） */
+/** リンクを押したときのコマンド。引数は [ID, フォルダの URI]（extension.ts が登録する） */
 export const OPEN_ID_COMMAND = "deguboard.openId";
 
 /** DocumentLink の target にする command: の URI。引数は [ID, フォルダの URI] の JSON を URI エンコードして渡す（VS Code の command URI の形） */

@@ -100,7 +100,11 @@ let statusGeneration = 0;
 const headWatchers = new Map<string, vscode.Disposable>();
 
 /** フォルダごとの存在する ID の索引。データの見張り（watchData）で作り直し、毎回 dg を呼ばない */
-const idIndexes = new Map<string, IdIndex | null>();
+const idIndexes = new Map<string, IdIndex>();
+/** 索引を読めなかった時刻（ミリ秒）。データのないリポジトリで要求のたびに dg を呼ばないよう覚える。ID_INDEX_RETRY_MS を過ぎたら読み直す */
+const idIndexFailedAt = new Map<string, number>();
+/** 読めなかったことを覚えておく時間。ターミナルの dg init などで後からデータができても、これを過ぎれば拾う */
+const ID_INDEX_RETRY_MS = 30_000;
 /** 読み込み中の索引（同じフォルダで重ねて読まない）と、読み込み中に変化が来て読み直しが要るフォルダ */
 const idIndexLoading = new Map<string, Promise<IdIndex | undefined>>();
 const idIndexDirty = new Set<string>();
@@ -152,7 +156,7 @@ export function activate(context: vscode.ExtensionContext): void {
       const folders = vscode.workspace.workspaceFolders ?? [];
       const folder =
         (Array.isArray(arg) && typeof arg[1] === "string"
-          ? folders.find((f) => f.uri.toString() === arg[1])
+          ? folders.find((f) => f.uri.toString() === vscode.Uri.parse(arg[1] as string).toString())
           : undefined) ?? folders[0];
       if (typeof id !== "string" || !folder) return;
       const route = routeOfId(id);
@@ -212,6 +216,7 @@ export function deactivate(): void {
   statusItem = undefined;
   clients.clear();
   idIndexes.clear();
+  idIndexFailedAt.clear();
 }
 
 /** サイドバーのビュー。最初の作業フォルダを対象にし、詳細を押すとエディタ領域のパネルに開く */
@@ -540,7 +545,8 @@ async function watchData(folder: vscode.WorkspaceFolder, client: CommandClient):
   const pending = coalesce(() => {
     broadcast(folder, { kind: "event", name: "reload" });
     void refreshStatusBar();
-    void loadIdIndex(folder);
+    // 変化があったので、読み込み中なら終わった後にもう 1 回読み直させる
+    void loadIdIndex(folder, { changed: true });
   }, 200);
   const fsWatchers = watchTargets(dataDir).map((target) => {
     const watcher = vscode.workspace.createFileSystemWatcher(
@@ -600,8 +606,9 @@ async function refreshStatusBar(): Promise<void> {
 }
 
 /**
- * 文書のあるフォルダ（なければ最初の作業フォルダ）の ID の索引と、そのフォルダの URI。まだなければ 1 回だけ読む。
- * 読めなかったことも覚える（null）ので、データのないリポジトリで要求のたびに dg を呼ばない。読めなければ undefined
+ * 文書のあるフォルダ（なければ最初の作業フォルダ）の ID の索引と、そのフォルダの URI。まだなければ 1 回だけ読む（読み込み中ならそれを待つだけ）。
+ * 読めなかったことは ID_INDEX_RETRY_MS の間覚えるので、データのないリポジトリで要求のたびに dg を呼ばない。読めなければ undefined。
+ * 見張りで索引を作り直しても、すでに開いている文書のリンクは付け直されない（VS Code はリンクを文書の編集のときに取り直す）
  */
 async function idIndexFor(
   uri: vscode.Uri,
@@ -610,25 +617,34 @@ async function idIndexFor(
     vscode.workspace.getWorkspaceFolder(uri) ?? (vscode.workspace.workspaceFolders ?? [])[0];
   if (!folder) return undefined;
   const key = folder.uri.toString();
-  const index = idIndexes.has(key) ? idIndexes.get(key) : await loadIdIndex(folder);
+  let index = idIndexes.get(key);
+  if (!index) {
+    const failedAt = idIndexFailedAt.get(key);
+    if (failedAt !== undefined && Date.now() - failedAt < ID_INDEX_RETRY_MS) return undefined;
+    // 読み込み中ならそれを待つだけ（読み直しの印は立てない）
+    index = await (idIndexLoading.get(key) ?? loadIdIndex(folder));
+  }
   return index ? { index, folder: key } : undefined;
 }
 
 /** 覚えた「読めなかった」を忘れる。データの見張り・ステータスバーの更新・同期のとき、次の要求で読み直させる */
 function forgetIdIndexFailure(folder: vscode.WorkspaceFolder): void {
-  const key = folder.uri.toString();
-  if (idIndexes.get(key) === null) idIndexes.delete(key);
+  idIndexFailedAt.delete(folder.uri.toString());
 }
 
 /**
  * チケット（abandoned も）・Iteration・Epic・Plan の一覧を読んで索引を作り直す。読めないとき（データのないリポジトリなど）は
- * 通知を出さず、読めなかったことを覚える。読み込み中に呼ばれたら印を立て、終わったあとで 1 回だけ読み直す（変化を取りこぼさない）
+ * 通知を出さず、読めなかった時刻を覚える。changed（データの見張りからの呼び出し）が読み込み中に来たら、
+ * 終わったあとで 1 回だけ読み直す（変化を取りこぼさない）。要求が読み込みを待つだけの呼び出しでは印を立てない
  */
-function loadIdIndex(folder: vscode.WorkspaceFolder): Promise<IdIndex | undefined> {
+function loadIdIndex(
+  folder: vscode.WorkspaceFolder,
+  options: { changed?: boolean } = {},
+): Promise<IdIndex | undefined> {
   const key = folder.uri.toString();
   const running = idIndexLoading.get(key);
   if (running) {
-    idIndexDirty.add(key);
+    if (options.changed) idIndexDirty.add(key);
     return running;
   }
   const load = (async () => {
@@ -637,7 +653,13 @@ function loadIdIndex(folder: vscode.WorkspaceFolder): Promise<IdIndex | undefine
         idIndexDirty.delete(key);
         const index = await readIdIndex(folder);
         if (idIndexDirty.has(key)) continue;
-        idIndexes.set(key, index ?? null);
+        if (index) {
+          idIndexes.set(key, index);
+          idIndexFailedAt.delete(key);
+        } else {
+          idIndexes.delete(key);
+          idIndexFailedAt.set(key, Date.now());
+        }
         return index;
       }
     } finally {
