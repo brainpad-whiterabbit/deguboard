@@ -1,0 +1,30 @@
+{
+  "id": "r20261105-142612-69f4",
+  "ticket": "t411",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-sonnet-5-5",
+  "started_at": "2026-11-05T14:26:12Z",
+  "finished_at": "2026-11-05T14:30:19Z",
+  "result": "success",
+  "error": null,
+  "retries": 1,
+  "retry_reasons": [
+    "lint が終わったチケットを通る循環も誤って指摘する"
+  ],
+  "usage": {
+    "input": 8,
+    "output": 2529,
+    "cache_read": 239769,
+    "cache_write": 5131
+  },
+  "tools": {
+    "read": 0,
+    "search": 0,
+    "write": 0,
+    "bash": 4,
+    "other": 0,
+    "read_before_write": 0,
+    "search_before_write": 0
+  }
+}
