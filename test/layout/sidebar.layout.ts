@@ -367,6 +367,56 @@ describe.each(SCHEMES)("履歴のチケットの見方の絞り込み（%s）", 
   );
 });
 
+describe.each(SCHEMES)("履歴の中止の行（%s）", (scheme) => {
+  it("点は塗らない輪（border）で、完了の点は塗り、タイトルは薄く打ち消し線がない", async () => {
+    const context = await browser.newContext({
+      viewport: { width: 300, height: 900 },
+      colorScheme: scheme,
+    });
+    const page = await context.newPage();
+    try {
+      await page.goto(`${server.url}?surface=sidebar#/history?view=ticket`, {
+        waitUntil: "networkidle",
+      });
+      await page.locator(".history-ticket.abandoned").first().waitFor();
+      const m = await page.evaluate(() => {
+        const read = (sel: string) => {
+          const row = document.querySelector(sel)!;
+          const dot = getComputedStyle(row.querySelector(".status-dot")!);
+          const title = getComputedStyle(row.querySelector(".row-title")!);
+          return {
+            bg: dot.backgroundColor,
+            borderWidth: parseFloat(dot.borderTopWidth),
+            borderStyle: dot.borderTopStyle,
+            borderColor: dot.borderTopColor,
+            boxSizing: dot.boxSizing,
+            width: dot.width,
+            opacity: parseFloat(title.opacity),
+            decoration: title.textDecorationLine,
+          };
+        };
+        return {
+          abandoned: read(".history-ticket.abandoned"),
+          done: read(".history-ticket:not(.abandoned)"),
+        };
+      });
+      expect(m.abandoned.bg, "中止の点は塗らない").toBe("rgba(0, 0, 0, 0)");
+      expect(m.abandoned.borderWidth, "中止の点は border の輪").toBeGreaterThan(0);
+      expect(m.abandoned.borderStyle).toBe("solid");
+      expect(m.abandoned.borderColor, "輪の色が見える").not.toBe("rgba(0, 0, 0, 0)");
+      expect(m.abandoned.boxSizing, "白抜きの点と同じ border-box").toBe("border-box");
+      expect(m.abandoned.width, "輪も完了の点と同じ大きさ").toBe(m.done.width);
+      expect(m.abandoned.opacity, "中止のタイトルは薄い").toBeLessThan(1);
+      expect(m.abandoned.decoration, "打ち消し線を使わない").toBe("none");
+      expect(m.done.bg, "完了の点は塗る").not.toBe("rgba(0, 0, 0, 0)");
+      expect(m.done.borderWidth, "完了の点に輪はない").toBe(0);
+      expect(m.done.opacity, "完了のタイトルは薄くしない").toBe(1);
+    } finally {
+      await context.close();
+    }
+  });
+});
+
 describe.each(SCHEMES)("履歴の Iteration の行（%s）", (scheme) => {
   it.each([320, ...WIDTHS])(
     "幅 %ipx で、目標は 2 行までで、件数が 1 段目の右端で行の枠からはみ出さず目標と重ならない",
