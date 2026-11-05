@@ -1,0 +1,10 @@
+id: p52
+project: default
+tickets: [t418]
+after: {}
+pending_approval: true
+details:
+  t418:
+    scope: 5 パッケージの version を 0.15.0 に揃える版上げの PR を作り、リリースの手順の確かめを回す
+    approach: mise run release:version -- 0.15.0 の後、check・pack・audit・test:layout を回す。t415 のマージ後の main から切る
+    tier: light
