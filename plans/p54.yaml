@@ -1,0 +1,16 @@
+id: p54
+project: default
+tickets: [t419, t418]
+after:
+  t418:
+    - t419
+pending_approval: true
+details:
+  t419:
+    scope: 期間が重なる Run の応答を、ID を見ただけの Run に譲らないようにし、t276・t280 の review を取り直す
+    approach: OverlapClaims の譲る相手の判定を直してテストを足し、dry-run で片方だけに数えることを確かめる。取り直しの書き込みは親がマージ後に行う
+    tier: heavy
+  t418:
+    scope: 5 パッケージの version を 0.15.0 に揃える版上げの PR を作り、リリースの手順の確かめを回す
+    approach: リリースは人の指示を待つ。指示が出たら mise run release:version -- 0.15.0 の後に check・pack・audit・test:layout
+    tier: light
