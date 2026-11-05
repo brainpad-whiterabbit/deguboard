@@ -25,6 +25,7 @@ const allowed: RegExp[] = [
   /^dist\/web\/assets\/[\w.-]+\.(js|css)$/,
   /^media\/deguboard\.svg$/,
   /^media\/icon\.png$/,
+  /^media\/walkthrough\/[\w-]+\.md$/,
 ];
 
 /** 許可リストにないファイルを返す */

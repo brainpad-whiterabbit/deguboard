@@ -87,6 +87,8 @@ export interface Store {
   loading: boolean;
   /** 最初の読み込みが終わったか。終わるまで画面は空状態の文言を出さない */
   loaded: boolean;
+  /** データ worktree がまだない（dg init 前。core が NOT_INITIALIZED を返した）。画面は一覧の代わりに始め方を出す */
+  notInitialized: boolean;
   notice: Notice | null;
   selectProject(id: string): void;
   /** すべて読み直す */
@@ -134,6 +136,7 @@ export function StoreProvider({
   // 前回の一覧があれば、それを読み終えたものとして先に描く
   const [loaded, setLoaded] = useState(!!cached);
   const [notice, setNotice] = useState<Notice | null>(null);
+  const [notInitialized, setNotInitialized] = useState(false);
   // 読み直しが見る選択中の Project。描画中に ref を書かない（react/refs）ので、setProjectId と一緒に書く
   const projectRef = useRef<string | null>(cached?.projectId ?? null);
 
@@ -153,6 +156,7 @@ export function StoreProvider({
         client.run<{ default_project: string; priority?: Config["priority"] }>("config.show"),
         client.run<WhoamiView>("whoami"),
       ]);
+      setNotInitialized(false);
       setProjects(projectList.data);
       setMe(whoami.data);
       if (config.data.priority) setPriorityCriteria(config.data.priority);
@@ -211,7 +215,9 @@ export function StoreProvider({
       }
     } catch (error) {
       const f = failureOf(error);
-      setNotice({ kind: "error", text: f.message, detail: f.detail });
+      // 初期化前は失敗ではなく始まりの状態。エラーの通知は出さず、始め方を出す
+      if (f.code === "NOT_INITIALIZED") setNotInitialized(true);
+      else setNotice({ kind: "error", text: f.message, detail: f.detail });
     } finally {
       setLoading(false);
       setLoaded(true);
@@ -270,6 +276,7 @@ export function StoreProvider({
       priorityCriteria,
       loading,
       loaded,
+      notInitialized,
       notice,
       selectProject,
       reload,
@@ -292,6 +299,7 @@ export function StoreProvider({
       priorityCriteria,
       loading,
       loaded,
+      notInitialized,
       notice,
       selectProject,
       reload,
