@@ -1,0 +1,32 @@
+{
+  "id": "r20261105-075924-83c2",
+  "ticket": "t407",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-05T07:59:24Z",
+  "finished_at": "2026-11-05T08:01:13Z",
+  "result": "success",
+  "error": null,
+  "retries": 3,
+  "retry_reasons": [
+    "after の辺を含まない循環はまたぐ循環として拒否しない",
+    "終わっていない依存先を pendingDeps で求める",
+    "テスト名に Plan の外を回る循環を含むことを書く"
+  ],
+  "usage": {
+    "input": 4,
+    "output": 1671,
+    "cache_read": 133732,
+    "cache_write": 1905
+  },
+  "tools": {
+    "read": 0,
+    "search": 0,
+    "write": 0,
+    "bash": 2,
+    "other": 0,
+    "read_before_write": 0,
+    "search_before_write": 0
+  }
+}
