@@ -2,11 +2,11 @@
 // ここは種類ごとの文を出し、頼めるものは core の ask コマンドで作った依頼文をコピーするボタンを置くだけ。データには書き込まない（UI-7・UI-15）
 
 import { CopyResult, useCopyNotice } from "./copyable-code.js";
-import { ASK_FORMAT_KEY } from "./ask-composer.js";
+import { ASK_FORMAT_KEY, chosenAskFormat } from "./ask-composer.js";
 import { DetailLink } from "./parts.js";
 import { useHost } from "../host.js";
 import { useStore } from "../store.js";
-import type { AskAction, AskFormat, AskView, IterationDetail } from "../types.js";
+import type { AskAction, AskView, IterationDetail } from "../types.js";
 
 type Next = NonNullable<IterationDetail["next"]>;
 
@@ -79,7 +79,7 @@ function AskCopy({ id, action }: { id: string; action: AskAction | null }) {
         type="button"
         title="エージェントに頼む依頼文をコピーする（書き込みはしない）"
         onClick={() => {
-          const format = host.state.get<AskFormat>(ASK_FORMAT_KEY);
+          const format = chosenAskFormat(host.state.get<unknown>(ASK_FORMAT_KEY));
           track(
             client
               .run<AskView>("ask", { targets: [id], action, ...(format ? { format } : {}) })

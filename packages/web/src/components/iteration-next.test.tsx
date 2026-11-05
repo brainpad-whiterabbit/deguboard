@@ -4,7 +4,7 @@ import { act } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { HostProvider, type Host } from "../host.js";
 import { StoreProvider } from "../store.js";
-import { iteration, iterationDetail, mockClient } from "../test-helpers.js";
+import { fixture, iteration, iterationDetail, mockClient } from "../test-helpers.js";
 import type { IterationDetail } from "../types.js";
 import { createUiState, memoryBackend } from "../ui-state.js";
 import { COPY_NOTICE_MS } from "./copyable-code.js";
@@ -25,13 +25,19 @@ function mount(
   it: IterationDetail,
   copy = vi.fn(async () => {}),
   state = createUiState(memoryBackend()),
+  noSkill = false,
 ) {
-  const client = mockClient();
+  const client = mockClient(
+    fixture({ iterations: [iteration({ id: "s1", name: "a", status: "active" })] }),
+  );
   const original = client.run.bind(client);
   const run = vi.fn(async (name: string, input?: unknown) =>
-    name === "ask"
-      ? { data: { text: `依頼文 ${JSON.stringify(input)}` }, warnings: [] }
-      : original(name, input),
+    name === "ask" && noSkill
+      ? // Skill のない状況：core の ask と同じく、形式を省いたときの既定を文章にする
+        original(name, { format: "text", ...(input as object) })
+      : name === "ask"
+        ? { data: { text: `依頼文 ${JSON.stringify(input)}` }, warnings: [] }
+        : original(name, input),
   );
   client.run = run as never;
   const host: Host = {
@@ -84,6 +90,21 @@ describe("Iteration 詳細の案内の表示（core の next を出すだけ）"
         format: "text",
       }),
     );
+  });
+
+  it("形式を選んでおらず Skill もなければ、文章の形の依頼文（dg guide を読む一文あり、Skill の呼び出しなし）をコピーする", async () => {
+    const { run, copy } = mount(
+      withNext({ kind: "ready", ask: "release" }),
+      undefined,
+      createUiState(memoryBackend()),
+      true,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "依頼文をコピー" }));
+    await waitFor(() => expect(copy).toHaveBeenCalled());
+    expect(run).toHaveBeenCalledWith("ask", { targets: ["s1"], action: "release" });
+    const text = (copy.mock.calls[0] as unknown as [string])[0];
+    expect(text.startsWith("/dgrelease")).toBe(false);
+    expect(text).toContain("dg guide release");
   });
 
   it("overdue は未完了の件数と、carry の依頼文のコピーを出す（close ではない）", async () => {
