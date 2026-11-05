@@ -1,0 +1,34 @@
+{
+  "id": "r20261105-051438-d8ba",
+  "ticket": "t400",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-sonnet-5-5",
+  "started_at": "2026-11-05T05:14:38Z",
+  "finished_at": "2026-11-05T05:24:49Z",
+  "result": "success",
+  "error": null,
+  "retries": 5,
+  "retry_reasons": [
+    "plan の Run の閉じる時点が手順 5 と両立しない",
+    "順だけを示すとき plan の Run が開いたまま残る",
+    "plan の Run の範囲が受け入れ条件を超え implement と重なる",
+    "guide all の Run の記録の説明に plan がない",
+    "run.test の steps のコメントと期待値が古い"
+  ],
+  "usage": {
+    "input": 22,
+    "output": 4368,
+    "cache_read": 780612,
+    "cache_write": 13045
+  },
+  "tools": {
+    "read": 0,
+    "search": 0,
+    "write": 0,
+    "bash": 10,
+    "other": 1,
+    "read_before_write": 0,
+    "search_before_write": 0
+  }
+}

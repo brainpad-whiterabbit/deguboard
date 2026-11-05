@@ -1,5 +1,3 @@
-# Software Development のワークフロー。dg init が同梱のテンプレートから置いた
-
 id: software-development
 name: Software Development
 labels:
@@ -24,18 +22,34 @@ fields:
     type: number
     label: Estimate
 steps:
+  - id: plan
+    actions: []
+    approval: false
+    label: Plan
   - id: investigate
     label: Investigate
+    actions: []
+    approval: false
   - id: implement
     label: Implement
-    actions: [create_worktree, create_branch, run_tests, create_pr]
+    actions:
+      - create_worktree
+      - create_branch
+      - run_tests
+      - create_pr
+    approval: false
   - id: review
     label: Review
-    actions: [run_tests]
+    actions:
+      - run_tests
+    approval: false
   - id: fix
     label: Fix
-    actions: [run_tests]
+    actions:
+      - run_tests
+    approval: false
   - id: merge
     label: Merge
-    actions: [merge_pr]
+    actions:
+      - merge_pr
     approval: true
