@@ -1,0 +1,21 @@
+{
+  "id": "r20261105-010628-02df",
+  "ticket": "t385",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "sonnet",
+  "started_at": "2026-11-05T01:06:28Z",
+  "finished_at": "2026-11-05T01:08:30Z",
+  "result": "success",
+  "error": null,
+  "retries": 1,
+  "retry_reasons": [
+    "development.md の tarball の確かめのコマンドが複数の tgz で動かない"
+  ],
+  "usage": {
+    "input": 2,
+    "output": 193,
+    "cache_read": 46876,
+    "cache_write": 676
+  }
+}
