@@ -1764,11 +1764,11 @@ describe("用意", () => {
     expect(shown.auto.merge).toBe(false);
   });
 
-  it("config.set は enum の項目（commit.mode）を空にしても既定に戻さず弾き、値は変わらない", async () => {
+  it("config.set は enum の項目（commit.mode）を空・null・値の省略にしても既定に戻さず弾き、値は変わらない", async () => {
     const f = await fixture();
     const ctx = await initialized(f.cloneA);
     await runCommand(configSet, ctx, { key: "commit.mode", value: "each" });
-    for (const value of ["", null]) {
+    for (const value of ["", null, undefined]) {
       await expect(runCommand(configSet, ctx, { key: "commit.mode", value })).rejects.toMatchObject(
         { code: "VALIDATION_FAILED" },
       );
