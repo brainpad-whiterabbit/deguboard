@@ -12,6 +12,11 @@ import type { AskAction, AskFormat, AskView } from "../types.js";
 /** 指示を打つ間、依頼文の取り直しを待つ時間（ミリ秒）。打つたびに ask を呼ばない */
 export const ASK_NOTE_SETTLE_MS = 150;
 
+/** 見た目の状態に残った形式。ask の形式として正しい値のときだけ返し、それ以外は未選択（undefined）にする */
+export function chosenAskFormat(value: unknown): AskFormat | undefined {
+  return value === "skill" || value === "text" ? value : undefined;
+}
+
 /** 見た目の状態の鍵 */
 export const ASK_NOTE_KEY = "ask.note";
 export const ASK_FORMAT_KEY = "ask.format";
