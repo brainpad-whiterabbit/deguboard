@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
@@ -160,6 +160,38 @@ describe("init", () => {
 });
 
 describe("チケットの流れ", () => {
+  it("ticket show は作業ブランチの worktree のパスを git の一覧から引き、その worktree でも同じデータを読める（t381）", async () => {
+    const f = await fixture();
+    const ctx = await initialized(f.cloneA);
+    await runCommand(ticketCreate, ctx, { title: "Open worktree" });
+    await runCommand(ticketCreate, ctx, { title: "No branch" });
+    const claimed = await runCommand(ticketClaim, ctx, { ticket: "t1" });
+    const branch = claimed.data.branch!;
+    const worktreeOf = async () =>
+      (await runCommand(ticketShow, ctx, { ticket: "t1" })).data.worktree;
+    // ブランチを切っていない・ブランチのないチケットは null
+    expect(await worktreeOf()).toBeNull();
+    expect((await runCommand(ticketShow, ctx, { ticket: "t2" })).data.worktree).toBeNull();
+    // config の worktree.root とは別の場所に作っても、git の一覧から見つかる
+    const dir = path.join(f.root, "elsewhere", "wt");
+    await mkdir(path.dirname(dir), { recursive: true });
+    await git(f.cloneA, ["worktree", "add", "-q", "-b", branch, dir]);
+    expect(await worktreeOf()).toBe(await realpath(dir));
+    // その worktree から開いても common dir の deguboard を共有し、同じチケットが見える
+    const inner = await openContext({ cwd: dir, actor: { kind: "human", user: "eiki" } });
+    expect(inner.repo.dataDir).toBe(ctx.repo.dataDir);
+    expect((await runCommand(ticketShow, inner, { ticket: "t1" })).data.worktree).toBe(
+      await realpath(dir),
+    );
+    // ディレクトリが消えた登録は出さない
+    await rm(dir, { recursive: true });
+    expect(await worktreeOf()).toBeNull();
+    // git の一覧を読めなくても null で、ticket show は落ちない
+    const broken = { ...ctx, repo: { ...ctx.repo, topLevel: path.join(f.root, "not-a-repo") } };
+    await mkdir(broken.repo.topLevel);
+    expect((await runCommand(ticketShow, broken, { ticket: "t1" })).data.worktree).toBeNull();
+  });
+
   it("起票 → claim → review → マージの照合で done になる", async () => {
     const f = await fixture();
     const ctx = await initialized(f.cloneA);

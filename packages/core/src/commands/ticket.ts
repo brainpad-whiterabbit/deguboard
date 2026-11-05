@@ -3,6 +3,7 @@
 import { z } from "zod";
 import { OperationError, UsageError } from "../errors.js";
 import { collectBranchFacts, findMergedLeftover } from "../git/facts.js";
+import { findBranchWorktree } from "../git/worktree.js";
 import { withWrite } from "../git/write.js";
 import { resolveActorRef, sameUser } from "../model/actor.js";
 import { STATUSES, isTerminal, slugSchema, statusSchema, type Status } from "../model/common.js";
@@ -322,6 +323,8 @@ export type TicketDetail = Ticket & {
   pending_deps: { id: TicketId; status: Status | null }[];
   /** 入っている開いた Plan の ID */
   plan: string | null;
+  /** 作業ブランチを checkout している worktree の絶対パス。ブランチがない・worktree がないときは null（UI-4） */
+  worktree: string | null;
 };
 
 export const ticketList = defineCommand({
@@ -363,7 +366,7 @@ export const ticketShow = defineCommand({
   positionals: ["ticket"],
   group: "ticket",
   summary:
-    "チケットの属性と本文、受け入れ条件の項目（acceptance）、依存元（dependents）、依存先が終わったか（deps_done）と終わっていない依存先（pending_deps）、入っている開いた Plan（plan）を出す",
+    "チケットの属性と本文、受け入れ条件の項目（acceptance）、依存元（dependents）、依存先が終わったか（deps_done）と終わっていない依存先（pending_deps）、入っている開いた Plan（plan）、作業ブランチの worktree のパス（worktree。なければ null）を出す",
   input: z.object({ ticket: ticketRef }),
   write: false,
   needs: "store",
@@ -379,6 +382,7 @@ export const ticketShow = defineCommand({
         status: ctx.store.tickets.get(id)?.data.status ?? null,
       })),
       plan: openPlanOf(ctx.store, doc.data.id)?.id ?? null,
+      worktree: doc.data.branch ? await findBranchWorktree(ctx.repo, doc.data.branch) : null,
     });
   },
 });

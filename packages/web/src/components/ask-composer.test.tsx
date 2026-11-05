@@ -65,6 +65,7 @@ function mountWebview(
     show: async () => {},
     copy: async (text) => void copied.push(text),
     terminals: async () => terminals ?? [],
+    openWorktree: async () => {},
     sendToTerminal: async (terminal, text) => {
       if (!(terminals ?? []).some((t) => t.id === terminal)) throw new Error("閉じている");
       void sent.push([terminal, text]);
@@ -345,6 +346,7 @@ describe("エージェントに頼む入力欄（UI-15）", () => {
               copy: async () => {},
               terminals: async () => [],
               sendToTerminal: async () => null,
+              openWorktree: async () => {},
               onEvent: (l) => ((send = l), () => {}),
             }}
           />
