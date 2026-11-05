@@ -18,6 +18,8 @@ argument-hint: "<チケットの ID...|Iteration|Epic|next [N]> | <Plan の ID>"
 
 ## 流れ
 
+手順 2 の前に、対象のチケットごとに `plan` の Run（`dg guide run`）で調べる。`run start <id> plan --agent <エージェント>` → `ticket show <id>` で読む → scope・approach・tier の文を決める → `run finish <Run の ID> --result success` → 次のチケット（並行させず 1 枚ずつ。手順 5 で全部まとめて記録する）。順だけを示すとき・`steps` に `plan` がないときは記録しない。手順 6 で作り直すときも記録しない。
+
 1. 対象を集める：`dg --json --actor agent ticket list --project {{default_project}}`（Epic で絞るなら `--epic e3`、Iteration なら `--iteration s3`）
 2. 依存を確かめる：各チケットの `depends_on` と、`dg --json --actor agent ticket show <id>` の `dependents`（自分に依存しているもの）
 3. 着手できるものを出す：`dg --json --actor agent ticket list --ready`。todo で依存先がすべて done か abandoned のもの（`deps_done`）。担当者の有無は見ないので、`assignee` が別のユーザのものは避ける（自分のものだけなら `--assignee agent`）

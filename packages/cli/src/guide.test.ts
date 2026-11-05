@@ -372,6 +372,16 @@ describe("dg guide", () => {
     for (const text of [work, all]) expect(text).not.toContain("--json mergeable");
   });
 
+  it("plan・work・parallel は plan の Run を 1 枚ずつ記録すると案内する", async () => {
+    const plan = await readGuide("plan");
+    expect(plan).toContain("run start <id> plan");
+    expect(plan).toContain("1 枚ずつ");
+    expect(plan).toContain("順だけを示すとき");
+    expect(await readGuide("all")).toContain("`plan` の Run");
+    expect(await readGuide("work")).toContain("`plan` の Run");
+    expect(await readGuide("parallel")).toContain("`plan` の Run");
+  });
+
   it("review は版上げの PR で見直しを省ける条件を品質ゲートに書き、release はそこへ案内する", async () => {
     const gate = section(await readGuide("review"), "## 品質ゲート");
     for (const word of [
