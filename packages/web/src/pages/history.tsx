@@ -4,7 +4,7 @@
 // Iteration の見方：closed の Iteration を閉じた新しい順に 2 段の行で出す（KanbanForge の History のタブと同じ形）。
 // 1 段目は番号・目標（目標がなければ薄く「目標なし」。名前は出さない）と件数（完了は数字、中止・持ち越しは 1 件以上のときだけ
 // 色付きの文字）、2 段目は閉じた日と、終わったチケットの Epic ごとの内訳（見出しなし。Epic なしを含み、合計は終わったチケットの件数に合う。
-// すべて Epic なしなら出さない）。期間（start〜end）は出さない（start は予定の日のままで、t421 より前に閉じたものは end も予定のまま）。
+// すべて Epic なしなら出さない）。期間（start〜end）は出さない（t421 より前に閉じたものは start・end が予定の日のままで、実際の期間と食い違う）。
 // 行を開くと中の done・abandoned のチケットを出す。Run の実績はここに出さず、2 段目の「Run の集計」から
 // その Iteration で絞った Run の画面（#/runs?by=iteration&iteration=s5）を開いて見る（左パネルには Run の画面がなく、リンクも出さない）。
 // Epic の見方：closed の Epic を閉じた新しい順に、進捗・閉じた日と、チケットが入っていた Iteration を出す。
@@ -490,7 +490,7 @@ function IterationItem({
   const epics = epicCountsOf(finished);
   const abandoned = finished.filter((t) => t.status === "abandoned").length;
   // 1 段目は目標（なければ薄く「目標なし」。名前は出さず、ツールチップにだけ置く）。2 段目は閉じた日と Epic ごとの内訳。
-  // 期間（start〜end）は出さない（start は予定の日のままで、t421 より前に閉じたものは end も予定のまま）
+  // 期間（start〜end）は出さない（t421 より前に閉じたものは start・end が予定の日のままで、実際の期間と食い違う）
   const goal = i.goal?.trim();
   // 終わったチケットがすべて Epic なしなら内訳は出さない（Epic なしだけの内訳は情報にならない）
   const showEpics = epics.some((e) => e.epic !== null);

@@ -21,7 +21,7 @@ argument-hint: "[Iteration|Epic|チケットの ID...]"
 - 直す：`dg --json --actor agent iteration update <s3> --goal "<目標>"`。`--name`・`--start`・`--end` も、指定したものだけ変わる。閉じた Iteration も直せる
 - 入れる：`dg --json --actor agent iteration add <s3> <t12> <t13>`。別の Iteration に入っていたチケットは移る。所属はチケットの `iteration` に記録され、並びは優先度と番号
 - 外す：`dg --json --actor agent iteration remove <s3> <t12>`
-- 開始：`dg --json --actor agent iteration start <s3>`（planned → active）。active は Project に 1 つで、ほかに active があれば開始も再開も拒否される。前のものを閉じるかは人に聞く
+- 開始：`dg --json --actor agent iteration start <s3>`（planned → active）。開始日は始めた日になる。active は Project に 1 つで、ほかに active があれば開始も再開も拒否される。前のものを閉じるかは人に聞く
 - 閉じる：`dg --json --actor agent iteration close <s3>`。done の件数と持ち越しの件数が記録され、終了日は閉じた日になり、持ち越したチケットは Iteration から外れる。人の指示で閉じる（制限は `dg guide overview`）
 - 再開：`dg --json --actor agent iteration reopen <s3>`。active に戻り、件数は消える。持ち越したチケットは戻らないので `iteration add` で入れ直す。人の指示で行う
 

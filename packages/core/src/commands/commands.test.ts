@@ -1047,6 +1047,36 @@ describe("Epic と Iteration", () => {
     });
   });
 
+  it("start は開始日を始めた日（手元の暦日）に書き換えて終了日は変えず、reopen では開始日を変えない", async () => {
+    const f = await fixture();
+    // 手元の暦日で数えるので、時差によらず同じ日になる昼の時刻にする
+    let clock = new Date(2026, 10, 3, 12, 0, 0);
+    const ctx = await initialized(f.cloneA, { now: () => clock });
+    // 予定の開始日が後でも前でも、開始日がなくても始めた日になる
+    for (const dates of [
+      { start: "2026-11-10", end: "2026-11-20" },
+      { start: "2026-10-20", end: "2026-11-01" },
+      {},
+    ]) {
+      await runCommand(iterationCreate, ctx, { name: "Sprint", ...dates });
+    }
+    const expected = [
+      { id: "s1", end: "2026-11-20" },
+      { id: "s2", end: "2026-11-01" },
+      { id: "s3", end: undefined },
+    ];
+    for (const { id, end } of expected) {
+      const started = await runCommand(iterationStart, ctx, { iteration: id });
+      expect(started.data.start).toBe("2026-11-03");
+      expect(started.data.end).toBe(end);
+      // active は Project に 1 つなので、次を始める前に閉じる
+      await runCommand(iterationClose, ctx, { iteration: id });
+    }
+    clock = new Date(2026, 10, 5, 12, 0, 0);
+    const reopened = await runCommand(iterationReopen, ctx, { iteration: "s3" });
+    expect(reopened.data).toMatchObject({ start: "2026-11-03", end: "2026-11-03" });
+  });
+
   it("close は終了日を閉じた日（手元の暦日）に書き換え、開始日が後なら開始日も揃え、reopen しても終了日はそのまま", async () => {
     const f = await fixture();
     // 手元の暦日で数えるので、時差によらず同じ日になる昼の時刻にする
