@@ -1,0 +1,28 @@
+{
+  "id": "r20261105-164214-e7a6",
+  "ticket": "t380",
+  "step": "implement",
+  "agent": "claude-code",
+  "model": "claude-sonnet-5-5",
+  "started_at": "2026-11-05T16:42:14Z",
+  "finished_at": "2026-11-05T16:53:38Z",
+  "result": "success",
+  "error": null,
+  "retries": 0,
+  "retry_reasons": [],
+  "usage": {
+    "input": 2,
+    "output": 146,
+    "cache_read": 121634,
+    "cache_write": 541
+  },
+  "tools": {
+    "read": 0,
+    "search": 0,
+    "write": 0,
+    "bash": 1,
+    "other": 0,
+    "read_before_write": 0,
+    "search_before_write": 0
+  }
+}

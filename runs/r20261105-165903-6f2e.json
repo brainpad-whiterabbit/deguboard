@@ -1,0 +1,37 @@
+{
+  "id": "r20261105-165903-6f2e",
+  "ticket": "t380",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-sonnet-5-5",
+  "started_at": "2026-11-05T16:59:03Z",
+  "finished_at": "2026-11-05T17:02:37Z",
+  "result": "success",
+  "error": null,
+  "retries": 8,
+  "retry_reasons": [
+    "複数行が bracketed paste に対応しない入力で行ごとに実行されうる",
+    "ADR-010 が Enter を押さないと条件なしで約束している",
+    "選んだターミナルが閉じたとき黙って先頭に切り替わる（アクティブを既定にし知らせる）",
+    "1 行で送るときにターミナルが見えない",
+    "1 行のタブが入力に入る",
+    "ターミナル名が古くなりうることのコメント",
+    "README 74 行目の余分な空白",
+    "ADR-010 の採らなかった案から Claude Code を送り込む案が消えていた"
+  ],
+  "usage": {
+    "input": 12,
+    "output": 7517,
+    "cache_read": 776260,
+    "cache_write": 8544
+  },
+  "tools": {
+    "read": 0,
+    "search": 0,
+    "write": 0,
+    "bash": 6,
+    "other": 0,
+    "read_before_write": 0,
+    "search_before_write": 0
+  }
+}
