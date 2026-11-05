@@ -410,6 +410,8 @@ async function attach(
   const webRoot = vscode.Uri.joinPath(context.extensionUri, "dist", "web");
   webview.options = { enableScripts: true, localResourceRoots: [webRoot] };
   const client = clientFor(folder);
+  // 初期化前のリポジトリで張れなかった見張りを、画面を開くたびに張り直す（張れていれば何もしない）
+  void watchData(folder, client);
   webview.onDidReceiveMessage((message: unknown) => {
     if (!isWebviewRequest(message)) return;
     void handleRequest(client, message, options.actions).then((response) => {
