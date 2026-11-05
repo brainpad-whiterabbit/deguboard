@@ -352,7 +352,7 @@ export const iterationClose = defineCommand({
   positionals: ["iteration"],
   group: "iteration",
   summary:
-    "Iteration を閉じ、完了と持ち越しの件数を記録する。終了日（end）は閉じた日（手元の暦日）に書き換える。持ち越したチケットの iteration は外す",
+    "Iteration を閉じ、完了と持ち越しの件数を記録する。終了日（end）は閉じた日（手元の暦日）に書き換え、開始日がそれより後なら開始日も閉じた日にする。持ち越したチケットの iteration は外す",
   input: z.object({ iteration: iterationRef }),
   write: true,
   needs: "store",
@@ -368,10 +368,13 @@ export const iterationClose = defineCommand({
         const carried = tickets.filter((t) => !isTerminal(t.data.status));
         for (const t of carried)
           await ctx.store.update("ticket", t.id, { iteration: undefined, updated_at: nowIso(ctx) });
-        // 予定の終了日は実際とずれるので、閉じた日に書き換えて実際の期間を残す（IT-1）
+        // 予定の終了日は実際とずれるので、閉じた日に書き換えて実際の期間を残す（IT-1）。
+        // 開始日が閉じた日より後（始める前に閉じた）なら、期間が逆にならないよう開始日も閉じた日にする
+        const today = localDate(ctx.now());
         return ctx.store.update("iteration", it.id, {
           status: "closed",
-          end: localDate(ctx.now()),
+          ...(it.data.start !== undefined && it.data.start > today ? { start: today } : {}),
+          end: today,
           closed_at: nowIso(ctx),
           completed,
           carried_over: carried.length,
