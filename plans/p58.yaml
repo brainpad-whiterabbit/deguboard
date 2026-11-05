@@ -1,0 +1,109 @@
+id: p58
+project: default
+tickets: [t373, t423, t356, t374, t424, t411, t376, t377, t426, t378, t384, t360, t379, t380, t381, t375, t382, t383]
+after:
+  t374:
+    - t373
+  t376:
+    - t374
+  t378:
+    - t376
+  t379:
+    - t378
+  t380:
+    - t379
+  t381:
+    - t380
+  t375:
+    - t381
+  t382:
+    - t375
+  t424:
+    - t423
+  t377:
+    - t424
+  t384:
+    - t377
+  t383:
+    - t384
+    - t382
+  t411:
+    - t356
+  t426:
+    - t411
+  t360:
+    - t426
+pending_approval: true
+details:
+  t373:
+    scope: ステータスバーに今のブランチに紐づくチケットの ID・Status・実行中の Run を出し、押すと詳細を開く
+    approach: 拡張ホストで今の worktree のブランチを読み、ticket list の branch と照らす。データの変化の監視（watch.ts）で更新する
+    tier: standard
+  t423:
+    scope: 左パネルと広い画面のカンバンの見出しの Iteration 名を Iteration 詳細へのリンクにする
+    approach: board.tsx の SidebarBoardHead・IterationHead の名前を hrefOf のリンクにし、UI-2 とテストを直す
+    tier: standard
+  t356:
+    scope: config.set で enum の項目に undefined を渡したときの扱いを決めて実装とテストと文書を合わせる
+    approach: 空文字・null と同じく undefined も弾く（値を省いた呼び出しを誤りとして扱う）方に決め、setup.ts とテストと requirements の設定の節を直す
+    tier: standard
+  t374:
+    scope: エディタとコミットメッセージの入力欄のチケット・Iteration・Epic・Plan の ID にホバーとリンクを付ける
+    approach: HoverProvider と DocumentLinkProvider を拡張ホストに足し、存在する ID だけに付ける。リンクは詳細のパネルを開くコマンドにする
+    tier: standard
+  t424:
+    scope: Plan 詳細の画面を足し、実行計画の帯と Iteration 詳細の Plan の番号から開く。core と HTTP は変えない
+    approach: router に plans のルートを足し、plan.show を表示だけで出すページを作る。帯と Iteration 詳細の番号をリンクにし、UI-12・UI-13 と test:layout を足す
+    tier: heavy
+  t411:
+    scope: Plan を作った後の depends_on の変更で after とまたぐ循環ができたときの扱いを決めて実装とテストと文書を合わせる
+    approach: update は拒否せず、lint で開いた Plan のまたぐ循環を指摘する方に決め、PL-3 と plan-graph.ts のコメントを直す
+    tier: standard
+  t376:
+    scope: コマンドパレットと既定のキーから ID かタイトルでチケット・Iteration・Epic・Plan を選んで詳細を開く
+    approach: QuickPick のコマンドと keybindings を package.json に足し、拡張の README にキーを書く
+    tier: standard
+  t377:
+    scope: チケット詳細の本文の受け入れ条件のチェックボックスを押して付け外しし、保存する
+    approach: 既存の ticket.check 系のコマンドを Webview とブラウザから呼び、競合の拒否では画面を戻す
+    tier: heavy
+  t426:
+    scope: t425 の見直しで残った会話記録の結び付けの古い記述と同じ時刻の決め方を直す
+    approach: 使われない commonDir を消し、claimedElsewhere のコメントを直し、同じ時刻の決め方を session によらない順にするか ADR-005 に例外を書く
+    tier: light
+  t378:
+    scope: 承認待ちの Plan と review のチケットの件数をバッジで出し、増えたら通知する（設定で切れる）
+    approach: 拡張ホストで件数を数えてビューの badge に出し、増えたら showInformationMessage から開く。設定は UI-14 に合わせる
+    tier: standard
+  t384:
+    scope: サイドバーのカンバン・バックログ・履歴の行を ↑↓・Enter・Space で操作できるようにする
+    approach: web のサイドバーの行に roving tabindex とキー操作を足し、拡張の README にキーを書く
+    tier: standard
+  t360:
+    scope: playwright-core の alpha 固定の理由を確かめて書き、軽微な devDependency の更新を決める
+    approach: "@playwright/mcp の要求を確かめ、理由を ADR-008 に書き、軽微な更新を入れて check と test:layout を通す"
+    tier: standard
+  t379:
+    scope: dg init 前のリポジトリで、サイドバーに始め方の案内と Walkthrough を出す
+    approach: 拡張ホストで init 済みかを見て案内を出し、ボタンはコピーだけにする。walkthroughs を package.json に足し、init 後は監視で画面を変える
+    tier: standard
+  t380:
+    scope: 頼む小窓の依頼文を開いているターミナルの入力へ送れるようにする（起動はしない）
+    approach: Webview から拡張ホストへ送り先の一覧と送信のメッセージを足し、terminal.sendText(text, false) で送る。ADR-010 と UI-15 を直す
+    tier: standard
+  t381:
+    scope: チケット詳細から作業ブランチの worktree を新しいウィンドウで開けるようにする
+    approach: git worktree list でブランチの worktree を探して詳細に出し、vscode.openFolder を新しいウィンドウで呼ぶ
+    tier: standard
+  t375:
+    scope: review のチケットの作業ブランチの変更を一覧し、VS Code の差分エディタで main との差分を開く
+    approach: core に読むだけの変更一覧のコマンドを足し、詳細に「変更を見る」を出し、拡張ホストで vscode.diff を開く
+    tier: heavy
+  t382:
+    scope: 拡張の manifest と拡張ホストの通知を英語でも出す
+    approach: package.nls.json・package.nls.ja.json と vscode.l10n の bundle に文言を移し、表示言語で切り替える
+    tier: heavy
+  t383:
+    scope: サイドバーと詳細のパネルの画面の文言を表示言語に合わせて英語でも出す。ブラウザは日本語のまま
+    approach: web に文言の辞書を置き、拡張ホストから表示言語を渡して切り替える。チケットの中身は訳さない
+    tier: heavy
