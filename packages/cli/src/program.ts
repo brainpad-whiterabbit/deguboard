@@ -3,7 +3,6 @@
 import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { existsSync } from "node:fs";
-import { homedir } from "node:os";
 import { dirname, resolve } from "node:path";
 import type { Readable, Writable } from "node:stream";
 import { fileURLToPath } from "node:url";
@@ -193,7 +192,7 @@ export function buildProgram(options: ProgramOptions = {}): Command {
         const result = await installSkill({
           cwd: resolve(options.cwd ?? process.cwd(), global.C ?? "."),
           scope: opts.personal ? "personal" : "project",
-          home: env["HOME"] ?? homedir(),
+          env,
           force: opts.force ?? false,
           dryRun: opts.dryRun ?? false,
         });

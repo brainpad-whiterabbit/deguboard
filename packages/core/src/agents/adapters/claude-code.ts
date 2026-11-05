@@ -145,11 +145,10 @@ function mainModel(messages: Scan["messages"]): string | null {
 
 export const claudeCodeAdapter: AgentAdapter = {
   name: "claude-code",
-  // dg skill install の置き場所（project はリポジトリの最上位、personal はホームディレクトリの下）と同じ
-  skillDirs: ({ env, topLevel }) => [
-    path.join(topLevel, ".claude", "skills"),
-    path.join(homeDir(env), ".claude", "skills"),
-  ],
+  skillDirs: {
+    project: (topLevel) => path.join(topLevel, ".claude", "skills"),
+    personal: (env) => path.join(homeDir(env), ".claude", "skills"),
+  },
   async readTranscriptUsage(query) {
     const projects = path.join(configDir(query.env), "projects");
     // 時刻は秒までなので、終わりはその秒の終わりまで含める

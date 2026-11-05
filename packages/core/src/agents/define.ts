@@ -34,11 +34,19 @@ export interface SkillQuery {
   topLevel: string;
 }
 
+/** この製品が Skill（<名前>/SKILL.md）を読むディレクトリ。dg skill install が書く先と、ask が Skill の有無を見る先の両方の正本 */
+export interface SkillDirs {
+  /** リポジトリの Skill。topLevel は作業ツリーの最上位 */
+  project(topLevel: string): string;
+  /** どのリポジトリでも読む個人の Skill。ホームディレクトリは env の HOME（空か未設定なら OS のホーム） */
+  personal(env: AgentEnv): string;
+}
+
 export interface AgentAdapter {
   /** Run の agent の値。この名前の Run の使用量を取り込む */
   name: string;
   /** 会話記録から使用量を読む。読む許可（metrics.read_transcripts・DEGUBOARD_NO_TRANSCRIPTS）は呼び出し側が確かめる */
   readTranscriptUsage(query: UsageQuery): Promise<CollectedUsage>;
-  /** dg skill install が Skill（<名前>/SKILL.md）を置く、この製品が Skill を読むディレクトリ。Skill のない製品は持たない */
-  skillDirs?(query: SkillQuery): string[];
+  /** この製品が Skill を読むディレクトリ。Skill のない製品は持たない */
+  skillDirs?: SkillDirs;
 }

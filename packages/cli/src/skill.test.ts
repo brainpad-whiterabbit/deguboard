@@ -13,10 +13,11 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
+import { agentSkillDirs, askSkillInstalled } from "@deguboard/core";
 import { createLocalOnlyRepo } from "../../core/test/helpers/git-fixture.js";
 import { readGuide } from "./guide.js";
 import { run } from "./program.js";
-import { buildSkills } from "./skill.js";
+import { buildSkills, installSkill } from "./skill.js";
 
 const cleanups: Array<() => Promise<void>> = [];
 afterEach(async () => {
@@ -187,6 +188,38 @@ describe("dg skill install", () => {
       scope: "personal",
     });
     expect(await exists(skillPath(home, "dgimport"))).toBe(true);
+  });
+
+  it("書いた場所は、頼むことが Skill の有無を見る場所（agentSkillDirs）に入り、入れれば有りと判定される（AG-5）", async () => {
+    const local = await createLocalOnlyRepo();
+    cleanups.push(local.cleanup);
+    const home = await tempHome();
+    const env = { HOME: home };
+    const query = { env, topLevel: local.dir };
+    expect(await askSkillInstalled(agentSkillDirs(query))).toBe(false);
+    for (const scope of ["project", "personal"] as const) {
+      const result = await installSkill({ cwd: local.dir, scope, env, force: false });
+      expect(agentSkillDirs(query)).toContain(result.dir);
+      expect(await askSkillInstalled([result.dir])).toBe(true);
+    }
+  });
+
+  it("HOME が空か未設定なら、install も判定も OS のホームディレクトリを使う", async () => {
+    const local = await createLocalOnlyRepo();
+    cleanups.push(local.cleanup);
+    const expected = path.join(os.homedir(), ".claude", "skills");
+    for (const env of [{ HOME: "" }, {}]) {
+      // 本物のホームに書かないように、書く先だけを確かめる
+      const result = await installSkill({
+        cwd: local.dir,
+        scope: "personal",
+        env,
+        force: false,
+        dryRun: true,
+      });
+      expect(result.dir).toBe(expected);
+      expect(agentSkillDirs({ env, topLevel: local.dir })).toContain(expected);
+    }
   });
 
   it("リポジトリの外で --personal なしなら失敗する", async () => {
