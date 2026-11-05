@@ -81,7 +81,9 @@ export const planCreate = defineCommand({
     after: z
       .record(z.string(), refList)
       .optional()
-      .describe("計画内だけの待ち（t3=t1,t2 で t3 を t1・t2 の後に進める）"),
+      .describe(
+        "計画内だけの待ち（t3=t1,t2 で t3 を t1・t2 の後に進める）。循環は拒否され、経路が出る（after を外すか向きを変える）",
+      ),
     scope: z.record(z.string(), freeText).optional().describe("チケットごとの範囲（t3=文）"),
     approach: z.record(z.string(), freeText).optional().describe("チケットごとの方針（t3=文）"),
     tier: z

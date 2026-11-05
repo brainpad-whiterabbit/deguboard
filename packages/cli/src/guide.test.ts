@@ -177,6 +177,11 @@ describe("dg guide", () => {
       expect(plan).toContain(command);
     expect(plan).toContain("人の承認を得ないまま approve しない");
     expect(plan).toContain("plan.approve");
+    // 循環は plan create で拒否され経路が出る（after だけと、after・depends_on をまたぐもの）。外すか向きを変える
+    const cycle = lineWith(plan, "after` だけの循環");
+    expect(cycle).toContain("`after`・`depends_on` をまたぐ循環");
+    expect(cycle).toContain("経路が出る");
+    expect(cycle).toContain("向きを変える");
     for (const word of ["plan show", "`next`", "`ready`", "waiting", "scope", "approach"])
       expect(work).toContain(word);
     expect(done).toContain("plan close");
