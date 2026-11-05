@@ -2,8 +2,8 @@ id: s8
 project: default
 name: sprint8
 goal: バックログを消化する（見直しの持ち越し・重複の片付け・小さな改善）
-start: 2026-12-27
-end: 2027-01-09
+start: 2026-11-03
+end: 2026-11-03
 status: closed
 closed_at: 2026-11-03T00:57:23Z
 completed: 27

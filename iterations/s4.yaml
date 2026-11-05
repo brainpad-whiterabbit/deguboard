@@ -1,9 +1,9 @@
 id: s4
 project: default
 name: sprint4
-goal: ""
+goal: 文書を予算に収め、ロックと --json のエラーを堅くし、VS Code のパネルを詳細だけにして左パネルを読みやすくする
 start: 2026-11-01
-end: 2026-11-14
+end: 2026-11-01
 status: closed
 closed_at: 2026-11-01T12:51:45Z
 completed: 29

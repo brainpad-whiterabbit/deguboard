@@ -1,8 +1,10 @@
 id: s18
 project: default
-name: s1
-goal: ""
+name: sprint18
+goal: 誤って作った空の Iteration（チケットなし）
 status: closed
 closed_at: 2026-11-05T06:16:51Z
 completed: 0
 carried_over: 0
+start: 2026-11-05
+end: 2026-11-05

@@ -1,9 +1,9 @@
 id: s6
 project: default
 name: sprint6
-goal: 左パネルのバックログを読みやすくする
-start: 2026-11-29
-end: 2026-12-12
+goal: 左パネルのバックログを読みやすくし、主体名の決め方と同名ブランチの照合を直す
+start: 2026-11-02
+end: 2026-11-02
 status: closed
 closed_at: 2026-11-02T12:51:36Z
 completed: 23

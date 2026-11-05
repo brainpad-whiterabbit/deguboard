@@ -1,9 +1,9 @@
 id: s7
 project: default
 name: sprint7
-goal: 左パネルの履歴を読みやすくし、設定画面を開けるようにする
-start: 2026-12-13
-end: 2026-12-26
+goal: 左パネルの履歴を読みやすくし、設定画面を開けるようにし、Iteration に入らないチケットを lint で指摘できるようにする
+start: 2026-11-02
+end: 2026-11-03
 status: closed
 closed_at: 2026-11-02T22:55:15Z
 completed: 18

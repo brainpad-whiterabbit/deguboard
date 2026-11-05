@@ -1,8 +1,10 @@
 id: s12
 project: default
 name: sprint12
-goal: 優先度の見せ方と判断基準をそろえる
+goal: 優先度の見せ方と判断基準をそろえ、Copilot SDK の使用量を Run に取り込む
 status: closed
 closed_at: 2026-11-04T10:59:34Z
 completed: 8
 carried_over: 0
+start: 2026-11-04
+end: 2026-11-04

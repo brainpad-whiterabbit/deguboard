@@ -1,8 +1,10 @@
 id: s13
 project: default
 name: sprint13
-goal: ""
+goal: サブエージェントのモデルを Plan の段階（tier）で切り替えられるようにし、作業と見直しの手順を詰める
 status: closed
 closed_at: 2026-11-03T23:29:01Z
 completed: 11
 carried_over: 0
+start: 2026-11-03
+end: 2026-11-04

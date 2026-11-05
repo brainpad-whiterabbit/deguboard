@@ -1,8 +1,10 @@
 id: s1
 project: default
 name: sprint1
-goal: ""
+goal: 最初の版（e1）：core・CLI・HTTP・web・VS Code 拡張を揃え、0.1.0 を出す
 status: closed
 closed_at: 2026-10-31T16:28:21Z
 completed: 37
 carried_over: 1
+start: 2026-11-01
+end: 2026-11-01

@@ -1,8 +1,10 @@
 id: s2
 project: default
 name: sprint2
-goal: ""
+goal: 起票者と担当者を分け（created_by・assignee）、照合が作業ブランチを merged と誤判定するのを直す
 status: closed
 closed_at: 2026-10-31T16:42:49Z
 completed: 7
 carried_over: 1
+start: 2026-11-01
+end: 2026-11-01

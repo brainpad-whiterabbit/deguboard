@@ -1,5 +1,6 @@
 id: s16
 project: default
 name: sprint16
-goal: Marketplace で配れる拡張の紹介（README・アイコン・GIF）を整える
+goal: Marketplace で配れるよう、拡張の紹介（README・アイコン・GIF）とセキュリティの見せ方を整える
 status: active
+start: 2026-11-05
