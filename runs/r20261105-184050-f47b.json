@@ -1,0 +1,35 @@
+{
+  "id": "r20261105-184050-f47b",
+  "ticket": "t383",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-05T18:40:50Z",
+  "finished_at": "2026-11-05T18:46:02Z",
+  "result": "success",
+  "error": null,
+  "retries": 6,
+  "retry_reasons": [
+    "codemod がファイル冒頭の設計コメントを消した",
+    "設定の項目の説明が core の言語のままであることを UI-11 とテストのコメントに書いていない",
+    "Plan の承認の状態の訳のテストが core の出力でなく直書きの文で確かめている",
+    "英語の targetLine が core の targetLine の写しであることを書いていない",
+    "英語の画面の検査の fixture のデータが画面の文言の鍵とぶつかり訳し漏れを隠す",
+    "英語の細部（件数の名詞・単数と複数・Records・担当なしの言い回し）"
+  ],
+  "usage": {
+    "input": 46,
+    "output": 17586,
+    "cache_read": 6458988,
+    "cache_write": 25855
+  },
+  "tools": {
+    "read": 0,
+    "search": 0,
+    "write": 0,
+    "bash": 23,
+    "other": 0,
+    "read_before_write": 0,
+    "search_before_write": 0
+  }
+}
