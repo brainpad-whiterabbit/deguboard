@@ -1,0 +1,24 @@
+id: p51
+project: default
+tickets: [t409, t413, t414, t412]
+after:
+  t414:
+    - t413
+pending_approval: true
+details:
+  t409:
+    scope: 拡張の README の導入を公開前でも誤らせない書き方にし、ルートの README と INSTALL_HINT とそろえる
+    approach: 導入の手順に公開前の入れ方（Release の VSIX とルートの README）を短く添える。dg.test.ts の期待値は変えない
+    tier: light
+  t413:
+    scope: plan create のヘルプか guide-plan にまたぐ循環の拒否を書き、UI-16 の理由を manifest にそろえる
+    approach: 文の追加だけ。requirements は予算 99% なので文を増やさず言い換える
+    tier: light
+  t414:
+    scope: plan create の循環の検査で拒否しない側のテストを足す
+    approach: commands.test.ts の Plan の describe に 2 件足す
+    tier: light
+  t412:
+    scope: record-gifs.mjs の PNG と GIF の処理に単体テストを足し、一時リポジトリの組み立てを git-fixture とそろえるか理由を書く
+    approach: decodePng と encodeGif を scripts の別のモジュールに切り出して test/scripts でテストする
+    tier: standard
