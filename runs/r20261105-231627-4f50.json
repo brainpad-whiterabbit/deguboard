@@ -1,0 +1,28 @@
+{
+  "id": "r20261105-231627-4f50",
+  "ticket": "t442",
+  "step": "implement",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-05T23:16:27Z",
+  "finished_at": "2026-11-05T23:25:54Z",
+  "result": "failure",
+  "error": "実装とコミットは済んだが git push が GitHub に拒否され（fatal error in commit_refs_rules）、draft の PR を作れなかった",
+  "retries": 0,
+  "retry_reasons": [],
+  "usage": {
+    "input": 88,
+    "output": 20314,
+    "cache_read": 3206745,
+    "cache_write": 77331
+  },
+  "tools": {
+    "read": 0,
+    "search": 0,
+    "write": 0,
+    "bash": 39,
+    "other": 6,
+    "read_before_write": 0,
+    "search_before_write": 0
+  }
+}
