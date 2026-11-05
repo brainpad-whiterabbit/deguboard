@@ -1,0 +1,32 @@
+{
+  "id": "r20261105-110024-a24a",
+  "ticket": "t419",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-05T11:00:24Z",
+  "finished_at": "2026-11-05T11:03:14Z",
+  "result": "success",
+  "error": null,
+  "retries": 3,
+  "retry_reasons": [
+    "session のファイルで見つかると作業ツリーの候補を読まず、別の session で始まった Run に譲っていた",
+    "同じ時刻のとき Adapter の結び付けと一致しなかった（譲らない側に倒した）",
+    "Codex の同じファイルの 2 本を片方だけに数えるテストがなかった"
+  ],
+  "usage": {
+    "input": 18,
+    "output": 7160,
+    "cache_read": 1119349,
+    "cache_write": 9402
+  },
+  "tools": {
+    "read": 0,
+    "search": 0,
+    "write": 0,
+    "bash": 9,
+    "other": 0,
+    "read_before_write": 0,
+    "search_before_write": 0
+  }
+}
