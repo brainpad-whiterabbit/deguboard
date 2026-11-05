@@ -1,4 +1,4 @@
-// 実行計画の帯が使う計算：Plan の状態・並び・範囲と、after から求める依存グラフの段。画面に依存しない純粋な関数だけを置く。
+// 実行計画の帯が使う計算：Plan の状態・並び・範囲と、after・depends_on から求める依存グラフの段。画面に依存しない純粋な関数だけを置く。
 // 着手できるか・待ちの相手・次は core の plan.list（PL-6）が求めた値を読むだけで、ここでは求め直さない
 
 import type { PlanRow, Status, Ticket } from "../types.js";
@@ -79,6 +79,8 @@ export interface GraphEdge {
   to: string;
   /** 待ち終わった（待つ側の core の waiting に待たれる側がない） */
   done: boolean;
+  /** 辺の由来。Plan の after か、チケットの depends_on だけ（同じ組に両方あれば after） */
+  kind: "after" | "depends_on";
 }
 
 export interface PlanGraph {
@@ -89,8 +91,9 @@ export interface PlanGraph {
 }
 
 /**
- * after（Plan の中の待ち）から依存グラフを組む。消えたチケットと Plan の外への待ちは飛ばす。
- * 循環は plan.create が拒否するが、壊れたデータでも止まらないよう、たどっている途中の待ちは数えない
+ * after（Plan の中の待ち）と、Plan の中のチケット同士の depends_on から依存グラフを組む。段は両方から求める。消えたチケットと Plan の外への待ちは飛ばす。
+ * 循環は plan.create（after だけ）と TK-2（depends_on だけ）がそれぞれ拒否するが、after と depends_on をまたぐ循環は拒否されない。
+ * 壊れたデータでも止まらないよう、たどっている途中の待ちは数えない
  */
 export function planGraph(plan: PlanRow, byId: ReadonlyMap<string, Ticket>): PlanGraph {
   const ids = plan.tickets.filter((id) => byId.has(id));
@@ -98,6 +101,14 @@ export function planGraph(plan: PlanRow, byId: ReadonlyMap<string, Ticket>): Pla
   // after のキーは TicketId（t の番号）の型なので、文字列で引けるよう広げる
   const after: Record<string, readonly string[]> = plan.after;
   const afterOf = (id: string) => (after[id] ?? []).filter((dep) => dep !== id && inPlan.has(dep));
+  // depends_on は after にない相手だけを足す（同じ組は after の辺 1 本にまとめる）
+  const dependsOf = (id: string) => {
+    const viaAfter = new Set(afterOf(id));
+    return (byId.get(id)?.depends_on ?? []).filter(
+      (dep) => dep !== id && inPlan.has(dep) && !viaAfter.has(dep),
+    );
+  };
+  const waitsFor = (id: string) => [...afterOf(id), ...dependsOf(id)];
 
   const depth = new Map<string, number>();
   const visiting = new Set<string>();
@@ -106,7 +117,7 @@ export function planGraph(plan: PlanRow, byId: ReadonlyMap<string, Ticket>): Pla
     if (known !== undefined) return known;
     visiting.add(id);
     let d = 0;
-    for (const dep of afterOf(id)) {
+    for (const dep of waitsFor(id)) {
       if (!visiting.has(dep)) d = Math.max(d, layerOf(dep) + 1);
     }
     visiting.delete(id);
@@ -129,7 +140,13 @@ export function planGraph(plan: PlanRow, byId: ReadonlyMap<string, Ticket>): Pla
   });
   const edges = ids.flatMap((to) => {
     const open = waitsOf(plan, to);
-    return afterOf(to).map((from) => ({ from, to, done: !open.includes(from) }));
+    const edge = (kind: GraphEdge["kind"]) => (from: string) => ({
+      from,
+      to,
+      done: !open.includes(from),
+      kind,
+    });
+    return [...afterOf(to).map(edge("after")), ...dependsOf(to).map(edge("depends_on"))];
   });
   return { nodes, edges, layers: counts.length, rows: Math.max(0, ...counts) };
 }

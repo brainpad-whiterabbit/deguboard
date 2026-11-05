@@ -142,6 +142,24 @@ describe("実行計画の帯", () => {
     expect(itemOf("p3").querySelector(".plan-graph")).toBeNull();
   });
 
+  it("depends_on だけでつながった組は点線の辺で描き、段も分け、凡例に出す", async () => {
+    const host = browserHost();
+    const client = mockClient(boardFixture());
+    client.data.tickets = client.data.tickets.map((t) =>
+      t.id === "t3" ? { ...t, depends_on: ["t1"] } : t,
+    );
+    client.data.plans = [plan({ id: "p2", tickets: ["t1", "t3"], approved_by: "eiki" })];
+    host.state.set("board.planGraph.p2", true);
+    mount(client, host);
+    await screen.findByRole("region", { name: "実行計画" });
+    const nodes = [...document.querySelectorAll<HTMLAnchorElement>("a.plan-node")];
+    expect(nodes.map((a) => a.style.left)).toEqual(["0px", "108px"]);
+    const edges = document.querySelectorAll(".plan-graph-canvas .plan-graph-edge");
+    expect(edges).toHaveLength(1);
+    expect(edges[0]!.classList.contains("plan-graph-edge-depends")).toBe(true);
+    expect(document.querySelector(".plan-graph-legend")!.textContent).toContain("depends_on");
+  });
+
   it("行の中のチケットの番号を押すとチケットを開き、グラフは開閉しない", async () => {
     const opened: unknown[] = [];
     const host = { ...browserHost("sidebar"), open: (r: unknown) => opened.push(r) };

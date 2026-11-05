@@ -86,7 +86,7 @@ describe("Plan の状態", () => {
 });
 
 describe("依存グラフ", () => {
-  it("after から段を求め、段の中は Plan の順に並べる。待ち中かは core の waiting を読む", () => {
+  it("after だけのとき、段の中は Plan の順に並べる。待ち中かは core の waiting を読む", () => {
     const byId = byIdOf([
       ticket({ id: "t1", status: "done" }),
       ticket({ id: "t2", status: "in_progress" }),
@@ -111,11 +111,55 @@ describe("依存グラフ", () => {
     ]);
     // 辺は待つ側の waiting に待たれる側が残れば待ち中
     expect(g.edges).toEqual([
-      { from: "t1", to: "t3", done: true },
-      { from: "t2", to: "t4", done: false },
-      { from: "t3", to: "t4", done: false },
+      { from: "t1", to: "t3", done: true, kind: "after" },
+      { from: "t2", to: "t4", done: false, kind: "after" },
+      { from: "t3", to: "t4", done: false, kind: "after" },
     ]);
     expect([g.layers, g.rows]).toEqual([3, 2]);
+  });
+
+  it("Plan の中の depends_on も辺と段になり、同じ組に after もあれば after の 1 本にまとめ、Plan の外は描かない", () => {
+    const byId = byIdOf([
+      ticket({ id: "t1", status: "done" }),
+      ticket({ id: "t2", depends_on: ["t1", "t9"] }),
+      ticket({ id: "t3", depends_on: ["t2", "t1"] }),
+      ticket({ id: "t4" }),
+    ]);
+    const g = planGraph(
+      plan({
+        id: "p1",
+        tickets: ["t1", "t2", "t3", "t4"],
+        after: { t3: ["t2"] },
+        // t3 は t2 を待つ（t1 は done）。t2 の depends_on t1 は終わっている
+        waiting: { t1: [], t2: [], t3: ["t2"], t4: [] },
+      }),
+      byId,
+    );
+    expect(g.nodes.map((n) => [n.id, n.layer])).toEqual([
+      ["t1", 0],
+      ["t2", 1],
+      ["t3", 2],
+      ["t4", 0],
+    ]);
+    expect(g.edges).toEqual([
+      { from: "t1", to: "t2", done: true, kind: "depends_on" },
+      { from: "t2", to: "t3", done: false, kind: "after" },
+      { from: "t1", to: "t3", done: true, kind: "depends_on" },
+    ]);
+  });
+
+  it("after と depends_on をまたぐ循環でも段の計算は止まる", () => {
+    const byId = byIdOf([ticket({ id: "t1" }), ticket({ id: "t2", depends_on: ["t1"] })]);
+    const g = planGraph(plan({ id: "p1", tickets: ["t1", "t2"], after: { t1: ["t2"] } }), byId);
+    // t1 から先にたどるので、t2 の待ち t1 は数えず t2 が 0 段、t1 が 1 段
+    expect(g.nodes.map((n) => [n.id, n.layer])).toEqual([
+      ["t1", 1],
+      ["t2", 0],
+    ]);
+    expect(g.edges.map((e) => `${e.from}>${e.to}:${e.kind}`)).toEqual([
+      "t2>t1:after",
+      "t1>t2:depends_on",
+    ]);
   });
 
   it("after がなければ 1 段に並べる", () => {
