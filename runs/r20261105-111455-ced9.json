@@ -1,0 +1,30 @@
+{
+  "id": "r20261105-111455-ced9",
+  "ticket": "t421",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-05T11:14:55Z",
+  "finished_at": "2026-11-05T11:16:38Z",
+  "result": "success",
+  "error": null,
+  "retries": 1,
+  "retry_reasons": [
+    "開始日も始めた日にする（人の指示で範囲を足した）"
+  ],
+  "usage": {
+    "input": 12,
+    "output": 4301,
+    "cache_read": 702800,
+    "cache_write": 7201
+  },
+  "tools": {
+    "read": 1,
+    "search": 0,
+    "write": 5,
+    "bash": 4,
+    "other": 0,
+    "read_before_write": 0,
+    "search_before_write": 0
+  }
+}

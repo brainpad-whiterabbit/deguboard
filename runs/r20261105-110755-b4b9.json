@@ -1,0 +1,33 @@
+{
+  "id": "r20261105-110755-b4b9",
+  "ticket": "t421",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-05T11:07:55Z",
+  "finished_at": "2026-11-05T11:09:41Z",
+  "result": "success",
+  "error": null,
+  "retries": 4,
+  "retry_reasons": [
+    "始める前に閉じると期間が逆になる",
+    "履歴の期間を出さない理由のコメントが古い",
+    "guide の閉じる手順に終了日がない",
+    "終了日を過ぎてから閉じるテストがない"
+  ],
+  "usage": {
+    "input": 10,
+    "output": 4183,
+    "cache_read": 544062,
+    "cache_write": 5075
+  },
+  "tools": {
+    "read": 0,
+    "search": 0,
+    "write": 5,
+    "bash": 4,
+    "other": 0,
+    "read_before_write": 0,
+    "search_before_write": 0
+  }
+}
