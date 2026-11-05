@@ -35,7 +35,7 @@
 - 整形は oxfmt（`.oxfmtrc.json`）。既定の設定から始める
 - ESLint・Prettier・Biome は入れない
 - 版は package.json に固定する
-- oxlint は 1.91 で React Compiler 系の規則（`react(immutability)`）が増え、web の既存コードが失敗するので 1.90 に留める。直す作業を起こしてから上げる
+- oxlint は、新しい版で増えた React Compiler 系の規則（`react(immutability)`）が web の既存コードで失敗するので上げずに留める。直す作業を起こしてから上げる
 
 ### 画面（web）は依存を少なく
 
@@ -50,7 +50,7 @@
 - 拡張ホストは CommonJS を読むので、`packages/vscode` は Vite の SSR ビルドで `dist/extension.cjs` の 1 ファイルに束ねる。core は `development` 条件で `src` から取り込み、`vscode` だけ外部にする
 - web のビルド結果は `dist/web` に写して Webview から読む。拡張のためのバンドラは増やさない（esbuild や webpack は入れない）
 - 拡張の `engines.vscode` は `^1.123.0` にする。拡張ホストが Node 24 になった最初の版（Electron 42.3、Node 24.15）で、束ねる core の `engines.node`（>=24）と Vite の `target: "node24"` に揃う。1.122 までは Node 22（1.104 は Electron 37.3、Node 22.18）。`@types/vscode` は API が変わった版しか公開されない（DefinitelyTyped の運用。1.120.0 の次は 1.125.0）ので、engines を超えない最新の公開版（1.120.0）に固定する。engines と番号が揃わなくても上げない（vsce が engines を超えていないか検査する）
-- ルートの `playwright-core` は安定版にせず、`@playwright/mcp`（0.0.84）が依存に固定する alpha（`playwright`・`playwright-core` とも 1.65.0-alpha-2026-10-30、範囲ではなく完全一致）に揃える。別の版にすると playwright-core が二重に入り、`playwright:install` が入れるブラウザと MCP が使う版がずれる。@playwright/mcp が安定版を要求するようになったら一緒に移す
+- ルートの `playwright-core` は安定版にせず、`@playwright/mcp` が依存に完全一致で固定する playwright-core の版（alpha）に揃える。別の版にすると playwright-core が二重に入り、`playwright:install` が入れるブラウザと MCP が使う版がずれる。@playwright/mcp が安定版を要求するようになったら一緒に移す
 - VSIX は `@vscode/vsce` で作る（`mise run vsix`）。依存は束ねてあるので `--no-dependencies` で、pnpm の node_modules の形に影響されない。要らない postinstall の拒否は pnpm-workspace.yaml
 
 ### 文書の検査
