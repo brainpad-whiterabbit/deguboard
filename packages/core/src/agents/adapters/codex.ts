@@ -2,7 +2,7 @@
 //   - 記録の行は {"timestamp", "type", "payload"}。使用量は type が event_msg で payload.type が token_count の行の
 //     payload.info.total_token_usage（session の累計）、モデル名は type が turn_context の行の payload.model
 //   - Run に結び付ける記録：Claude Code の Adapter と同じく、Run の ID を最初に含む会話記録のファイル（ID が最初に出たのが
-//     finished_at より後のファイルは除く）
+//     finished_at より後のファイルは除く）。同じ時刻なら、ファイルのパスの順で選ぶ（呼ぶ session によらない）
 //   - 数える量：Run の ID が出る前の最後の累計と、finished_at までの最後の累計の差。累計が減っていれば（記録の作り直しなど）取れない。
 //     Codex は応答のツールを実行し終えてからその応答の token_count を書くので、dg run start を呼んだ応答は Run に入り、
 //     dg run finish を呼んだ応答は入らない（Claude Code の Adapter と 1 応答ずれる。ADR-005）。書く順は openai/codex の
@@ -239,7 +239,10 @@ export const codexAdapter: AgentAdapter = {
       const s = await scan(file, query, to).catch(() => undefined);
       if (s) read.push(s.claims);
       if (s?.firstSeen === undefined || seenAfterRun(s.firstSeen, to)) continue;
-      if (!best || s.firstSeen < (best.firstSeen ?? Infinity)) [best, bestFile] = [s, file];
+      // 同じ時刻のときは、パスの順で小さい方（bindFile と同じ決め方）
+      const at = s.firstSeen;
+      if (!best || at < (best.firstSeen ?? Infinity) || (at === best.firstSeen && file < bestFile))
+        [best, bestFile] = [s, file];
     }
     // ほかのファイルで ID が先に出た Run には譲らずに読み直す
     const elsewhere = best ? claimedElsewhere(best.claims, read) : new Set<string>();

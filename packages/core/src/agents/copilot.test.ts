@@ -116,7 +116,6 @@ async function setup(env: Record<string, string> = {}) {
     finishedAt: FINISHED,
     env: { HOME: home, ...env },
     topLevel,
-    commonDir: path.join(topLevel, ".git"),
     ...over,
   });
   return { home, stateDir, topLevel, eventsFile, query };
@@ -172,10 +171,30 @@ describe("Copilot の Adapter", () => {
     expect(got.model).toBe("model-b");
   });
 
-  it("COPILOT_AGENT_SESSION_ID の session に Run がなければ、ほかの session から探す", async () => {
-    const { eventsFile, topLevel, query } = await setup({ COPILOT_AGENT_SESSION_ID: "sess-env" });
-    // 環境の session には Run がない
-    await writeEvents(eventsFile("sess-env"), [sessionStart("sess-env", topLevel), usageRecord(1)]);
+  it("ID が同じ時刻に出る 2 つの session では、パスの順で小さい session の記録に結び付ける", async () => {
+    const { eventsFile, topLevel, query } = await setup();
+    // 大きいパスの session を先に書く（書いた順や列挙の順に頼らないため）
+    await writeEvents(eventsFile("sess-b"), [
+      sessionStart("sess-b", topLevel),
+      mention(0),
+      usageRecord(1, { input: 900 }),
+    ]);
+    await writeEvents(eventsFile("sess-a"), [
+      sessionStart("sess-a", topLevel),
+      mention(0),
+      usageRecord(1, { input: 100 }),
+    ]);
+    const got = await copilotAdapter.readTranscriptUsage(query());
+    expect(got.usage.input).toBe(100);
+  });
+
+  it("Run の ID を含まない session があっても、ほかの session から探す", async () => {
+    const { eventsFile, topLevel, query } = await setup();
+    // sess-empty には Run がない
+    await writeEvents(eventsFile("sess-empty"), [
+      sessionStart("sess-empty", topLevel),
+      usageRecord(1),
+    ]);
     // 同じ作業ツリーの別の session に Run がある
     await writeEvents(eventsFile("sess-other"), [
       sessionStart("sess-other", topLevel),
@@ -186,8 +205,8 @@ describe("Copilot の Adapter", () => {
     expect(got.usage).toEqual({ input: 20, output: 20, cache_read: 0, cache_write: 80 });
   });
 
-  it("COPILOT_AGENT_SESSION_ID の session に Run の ID が期間の後に出るだけなら（閉じた後の run refresh）、ほかの session に結び付ける", async () => {
-    const { eventsFile, topLevel, query } = await setup({ COPILOT_AGENT_SESSION_ID: "sess-now" });
+  it("ID が期間の後に出るだけの記録は選ばず（閉じた後の run refresh）、ほかの session に結び付ける", async () => {
+    const { eventsFile, topLevel, query } = await setup();
     await writeEvents(eventsFile("sess-now"), [
       sessionStart("sess-now", topLevel),
       mention(60),
@@ -203,7 +222,7 @@ describe("Copilot の Adapter", () => {
   });
 
   it("同じ作業ツリーでも親の Run ID を含まない別 session（サブエージェント）の使用量は合算しない", async () => {
-    // COPILOT_AGENT_SESSION_ID を渡さず、すべての session から探させる
+    // すべての session から探す（別 session の記録は Run の ID を含まないので数えない）
     const { eventsFile, topLevel, query } = await setup();
     await writeEvents(eventsFile("sess-parent"), [
       sessionStart("sess-parent", topLevel),

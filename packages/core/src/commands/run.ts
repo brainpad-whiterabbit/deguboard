@@ -153,7 +153,6 @@ export const runFinish = defineCommand({
           finishedAt: toIsoDateTime(now),
           env: ctx.env ?? process.env,
           topLevel: ctx.repo.topLevel,
-          commonDir: ctx.repo.commonDir,
           others: runSpans(ctx.store.runs.values(), local),
         })
       : undefined;
@@ -324,7 +323,6 @@ export const runRefresh = defineCommand({
         finishedAt: run.finished_at ?? run.started_at,
         env: ctx.env ?? process.env,
         topLevel: ctx.repo.topLevel,
-        commonDir: ctx.repo.commonDir,
         others,
       });
       collected.set(id, got);

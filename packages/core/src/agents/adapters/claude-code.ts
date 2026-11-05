@@ -1,7 +1,7 @@
 // Claude Code の Adapter（AG-5・MT-2、ADR-005）。会話記録（<設定>/projects/<作業ディレクトリ>/<session>.jsonl）から使用量とツールの回数を補う。
 //   - Run に結び付ける記録：探す範囲で Run の ID を最も早く含む会話記録のファイル（bindFile）。dg run start の出力を受け取ったエージェントの
 //     記録になり、run start の警告などで後から ID を見ただけのファイルは選ばない。ID が最初に出たのが finished_at より後のファイル
-//     （閉じた後に run refresh を呼んだセッションなど）は除く。同じ時刻なら CLAUDE_CODE_SESSION_ID の session のファイルを選ぶ。
+//     （閉じた後に run refresh を呼んだセッションなど）は除く。同じ時刻なら、ファイルのパスの順で選ぶ（呼ぶ session によらない）。
 //     サブエージェントは親と同じ session の subagents/ に別のファイルを持ち、作業ディレクトリと時刻だけでは並行するエージェントと区別できない
 //   - 数える行：そのファイルの assistant の行のうち、Run の ID が出た後の started_at〜finished_at のもの。同じ応答が複数行に
 //     分かれるので message.id で重ねない。subagents/ の外のファイルの isSidechain の行（古い版が親のファイルに書くサブエージェントの行）は数えない。
@@ -44,15 +44,6 @@ function configDir(env: AgentEnv): string {
 /** 作業ディレクトリから projects/ の下のディレクトリ名を作る（英数字以外を - にする） */
 export function projectDirName(dir: string): string {
   return dir.replace(/[^A-Za-z0-9]/g, "-");
-}
-
-/** CLAUDE_CODE_SESSION_ID の session のファイル（親とそのサブエージェント）か。形が正しくなければどれも当たらない */
-function inSession(query: UsageQuery): (file: string) => boolean {
-  const session = query.env["CLAUDE_CODE_SESSION_ID"];
-  if (!session || !/^[\w-]+$/.test(session)) return () => false;
-  return (file) =>
-    path.basename(file) === `${session}.jsonl` ||
-    path.basename(path.dirname(path.dirname(file))) === session;
 }
 
 /** projects/ の下の 1 つのディレクトリの会話記録と、そのサブエージェントの会話記録 */
@@ -231,7 +222,7 @@ export const claudeCodeAdapter: AgentAdapter = {
     // 探す範囲は projects/ の下のすべて。呼ぶ session（finish と refresh で違う）によらずに同じファイルを選ぶ
     const files = await allCandidates(query, projects);
     const rivals = new OverlapClaims(query, from, to).rivals;
-    const bound = await bindFile(query, files, to, rivals, inSession(query));
+    const bound = await bindFile(query, files, to, rivals);
     let best: Scan | undefined;
     if (bound.file) {
       best = await scan(bound.file, query, from, to).catch(() => undefined);

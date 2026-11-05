@@ -200,8 +200,8 @@ export interface Bound {
 /**
  * Run を結び付けるファイルを選ぶ（ADR-005）。files（会話記録の置き場所のすべて）のそれぞれで Run の ID と rivals が最初に出た時刻を読み、
  * Run の ID が最も早く出たファイルを返す。ID は dg run start が作るので、最も早く出たファイルがその Run を始めた記録で、
- * run start の警告などで後から ID を見ただけのファイルは選ばない。呼ぶ session の環境によらず同じファイルになるよう、
- * session のファイル（preferred）は同じ時刻のときの決め手にだけ使い、それも同じなら files の順で決める。
+ * run start の警告などで後から ID を見ただけのファイルは選ばない。同じ時刻（ミリ秒）のときは、ファイルのパスの順で決める。
+ * 呼ぶ session（CLAUDE_CODE_SESSION_ID など）の環境は選びに使わないので、finish と refresh で同じファイルになる。
  * ID が最初に出たのが to より後のファイルは除く（seenAfterRun）。rivals は to + START_MS までに出なければ譲る相手にならないので、
  * そこから TAIL_MS 過ぎた行で読むのをやめる
  */
@@ -210,7 +210,6 @@ export async function bindFile(
   files: readonly string[],
   to: number,
   rivals: readonly string[],
-  preferred: (file: string) => boolean,
 ): Promise<Bound> {
   const ids = [query.run.id, ...rivals];
   const limit = to + START_MS + TAIL_MS;
@@ -222,18 +221,18 @@ export async function bindFile(
     read.push({ file, seen });
     const at = seen.get(query.run.id);
     if (at === undefined || seenAfterRun(at, to)) continue;
-    if (!best || at < best.at || (at === best.at && preferred(file) && !preferred(best.file)))
-      best = { file, at };
+    // 同じ時刻のときは、パスの辞書順で小さい方。files の列挙の順によらない
+    if (!best || at < best.at || (at === best.at && file < best.file)) best = { file, at };
   }
   return { file: best?.file, others: read.filter((r) => r.file !== best?.file) };
 }
 
 /**
- * 選んだファイル（chosen）で譲る相手にした Run のうち、読んだほかのファイル（all）で ID が同じか先の時刻に出たもの。
- * その Run は Adapter がそちらのファイルに結び付けうるので、chosen の応答を数えない。譲ると二重計上を防ぐどころか、どちらも数えなくなる。
- * all は Run を探す範囲より広く、会話記録の置き場所のすべて（Claude Code は projects/ の下、Codex は sessions/ の下）にする。
- * 狭いと、探す範囲の外（別の worktree など）で始まった Run に譲ってしまう。
- * 同じ時刻なら、どちらに結び付くかは列挙の順で決まり分からないので、量を落とさない側（譲らない）に倒す
+ * 選んだファイル（chosen）が譲る相手にしていた Run のうち、読んだほかのファイル（all）で ID が先か同じ時刻に出たものを返す。
+ * その Run は Adapter がそちらのファイルに結び付くので、chosen はその Run に譲らず、期間の応答を数える（返した ID は譲る相手から外す）。
+ * all は Run を探す範囲と同じ、会話記録の置き場所のすべて（Claude Code は projects/ の下、Codex は sessions/ の下）。
+ * all を探す範囲と同じにしておかないと、別の worktree などで始まった Run に譲ってしまう。
+ * 同じ時刻のときは、bindFile がパスの順で結び付けるが、ここでは量を落とさない側（譲らない）に倒す。そのため、その時刻の応答は二重に数えられうる
  */
 export function claimedElsewhere(
   chosen: OverlapClaims,

@@ -4,7 +4,7 @@ import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Run } from "../model/run.js";
 import { claudeCodeAdapter, projectDirName } from "./adapters/claude-code.js";
-import { sightings } from "./adapters/transcript.js";
+import { bindFile, sightings } from "./adapters/transcript.js";
 import { agentNames, collectRunUsage, type UsageQuery } from "./index.js";
 
 const cleanups: Array<() => Promise<void>> = [];
@@ -98,7 +98,6 @@ async function setup(env: Record<string, string> = {}) {
     finishedAt: FINISHED,
     env: { HOME: home, ...env },
     topLevel,
-    commonDir: path.join(topLevel, ".git"),
     ...over,
   });
   return { home, topLevel, projectDir, query };
@@ -442,7 +441,6 @@ describe("Claude Code の Adapter", () => {
     const got = await claudeCodeAdapter.readTranscriptUsage(
       query({
         topLevel: path.join(home, "main.worktrees", "feat"),
-        commonDir: path.join(main, ".git"),
       }),
     );
     expect(got.usage.input).toBe(1);
@@ -471,7 +469,7 @@ describe("Claude Code の Adapter", () => {
     }
   });
 
-  it("ID が出た時刻が同じなら、CLAUDE_CODE_SESSION_ID の session のファイルを選ぶ", async () => {
+  it("ID が出た時刻が同じなら、呼ぶ session によらずファイルのパスの順で選ぶ", async () => {
     const { projectDir, query, home } = await setup();
     await writeTranscript(path.join(projectDir, "s1.jsonl"), [
       mention(0),
@@ -481,15 +479,25 @@ describe("Claude Code の Adapter", () => {
       mention(0),
       assistant("m2", 1, [9, 9, 9, 9]),
     ]);
-    for (const [session, input] of [
-      ["s1", 5],
-      ["s2", 9],
-    ] as const) {
-      const got = await claudeCodeAdapter.readTranscriptUsage(
-        query({ env: { HOME: home, CLAUDE_CODE_SESSION_ID: session } }),
-      );
-      expect(got.usage.input).toBe(input);
+    // パスの順では s1.jsonl が先。どの session から呼んでも同じ（s2 の session から呼んでも s1 を選ぶ）
+    for (const session of ["s1", "s2", undefined]) {
+      const env =
+        session === undefined ? { HOME: home } : { HOME: home, CLAUDE_CODE_SESSION_ID: session };
+      const got = await claudeCodeAdapter.readTranscriptUsage(query({ env }));
+      expect(got.usage.input).toBe(5);
     }
+  });
+
+  it("bindFile は同じ時刻のとき、files の順によらずパスの辞書順で小さい方を選ぶ", async () => {
+    const { projectDir, query } = await setup();
+    const small = path.join(projectDir, "a.jsonl");
+    const large = path.join(projectDir, "b.jsonl");
+    await writeTranscript(small, [mention(0)]);
+    await writeTranscript(large, [mention(0)]);
+    const to = Date.parse(FINISHED) + 999;
+    // 大きい方を先に渡しても、小さい方を選ぶ（readdir の順に頼らない）
+    expect((await bindFile(query(), [large, small], to, [])).file).toBe(small);
+    expect((await bindFile(query(), [small, large], to, [])).file).toBe(small);
   });
 
   it("HOME など作業ツリーに当たらないディレクトリのセッションでも、Run の ID が最も早く出た記録に結び付ける", async () => {
@@ -552,7 +560,7 @@ describe("Claude Code の Adapter", () => {
     expect(all).toEqual(new Map([[B, Date.parse(at(41))]]));
   });
 
-  it("CLAUDE_CODE_SESSION_ID が不正な形か、その session に Run がなければ、ほかの記録から探す", async () => {
+  it("呼ぶ session の ID が不正な形でも、その session に Run がなくても、ほかの記録から探す", async () => {
     const { projectDir, query, home } = await setup();
     await writeTranscript(path.join(projectDir, "s1.jsonl"), [
       mention(0),
@@ -569,7 +577,7 @@ describe("Claude Code の Adapter", () => {
     }
   });
 
-  it("CLAUDE_CODE_SESSION_ID の session に Run の ID が期間の後に出るだけなら（閉じた後の run refresh）、ほかの記録に結び付ける", async () => {
+  it("ID が期間の後に出るだけのファイルは選ばず（閉じた後の run refresh）、ほかの記録に結び付ける", async () => {
     const { projectDir, query, home } = await setup();
     await writeTranscript(path.join(projectDir, "s1.jsonl"), [
       mention(0),
