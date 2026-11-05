@@ -15,7 +15,7 @@ after:
   t349:
     - t368
     - t347
-pending_approval: true
+pending_approval: false
 details:
   t346:
     scope: media/icon.png を文字なしのデグーの 128px にし、package.json の Marketplace 項目を概要の値にする
@@ -65,3 +65,5 @@ details:
     scope: 拡張の README を紹介ページ案の本文に置き換え、5 本の GIF を表示できるようにする
     approach: 紹介ページ案の原稿を写し、t368 の節を残し、images を VSIX に入れるか絶対 URL にする。t348（人）の GIF を待つ
     tier: standard
+approved_by: eiki.kitajima/agent
+approved_at: 2026-11-05T07:45:29Z
