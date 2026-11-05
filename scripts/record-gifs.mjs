@@ -1,4 +1,4 @@
-// 拡張の README に載せる使い方の GIF（packages/vscode/images/ の 5 本）を録り直す。mise run gifs から呼ぶ。引数に名前（import.gif など）を渡せばその分だけ録る。
+// README（と、そこから作る拡張の README）に載せる使い方の GIF（packages/vscode/images/ の 5 本）を録り直す。mise run gifs から呼ぶ。引数に名前（import.gif など）を渡せばその分だけ録る。
 // 一時ディレクトリに bare リモート付きのリポジトリを作って見本のチケットを起票し、dg serve の左パネルの画面（?surface=sidebar）を
 // Chromium（playwright-core）で操作して 1 コマずつスクリーンショットを撮り、gifenc で GIF にまとめる。ffmpeg などの外のツールは使わない。
 // VS Code 本体は録れないので、Activity Bar とエディタの部分は画面の外枠として自前で描く（frameHtml）。左パネルの中身は実際の画面。
