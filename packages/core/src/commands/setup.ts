@@ -652,19 +652,21 @@ function resolveLeaf(
   throw new OperationError("VALIDATION_FAILED", `${key} の値が正しくない`, z.prettifyError(error!));
 }
 
-const LOCAL_FLAG_DESCRIPTION =
-  "個人の設定（<git-common-dir>/deguboard-local/config.yaml。Git に入らず、コミットも push もしない）に書く。個人で上書きできる項目（config show --fields の scope が local）だけ。値は個人 > チーム > 既定 の順に読まれる";
+const LOCAL_FILE_NOTE =
+  "個人の設定は <git-common-dir>/deguboard-local/config.yaml（Git に入らず、コミットも push もしない）。個人で上書きできる項目（config show --fields の scope が local）だけで、値は個人 > チーム > 既定 の順に読まれる";
+const LOCAL_SET_DESCRIPTION = `チームの config.yaml でなく個人の設定に書く。${LOCAL_FILE_NOTE}`;
+const LOCAL_UNSET_DESCRIPTION = `個人の上書きを外してチームの値に戻す。${LOCAL_FILE_NOTE}`;
 
 export const configSet = defineCommand({
   name: "config.set",
   positionals: ["key", "value"],
   group: "setup",
   summary:
-    "config.yaml の 1 項目を変える（commit.mode のようにドットで指す）。配列の項目はカンマ区切りで、空文字で空にする。既定が空でない文字列の項目（priority.* など）は空文字で既定に戻す。選択肢の項目（commit.mode など）は空・null・省略を弾く。--local で個人の設定に書く",
+    "config.yaml の 1 項目を変える（commit.mode のようにドットで指す）。配列の項目はカンマ区切りで、空文字で空にする。既定が空でない文字列の項目（priority.* など）は空文字で既定に戻す。選択肢の項目（commit.mode など）は空・null・省略を弾く。--local で個人の設定に書く。返すのは書いた側の値（チームの値か、個人を重ねた値）",
   input: z.object({
     key: z.string().min(1).describe("項目。例: commit.mode"),
     value: z.unknown().describe("値"),
-    local: z.boolean().optional().describe(LOCAL_FLAG_DESCRIPTION),
+    local: z.boolean().optional().describe(LOCAL_SET_DESCRIPTION),
   }),
   write: true,
   needs: "store",
@@ -682,7 +684,8 @@ export const configSet = defineCommand({
       ctx,
       async () => {
         const { top, rest, field } = splitKey(input.key, false);
-        // チームの値を元にする（個人の上書きを重ねた値を元にすると、上書きがチームのファイルに写ってしまう）
+        // チームの値を元にする（個人の上書きを重ねた値を元にすると、上書きがチームのファイルに写ってしまう）。
+        // 戻りも書いたチームの値（writeConfig）。重ねた値を返すと、個人の上書きがある項目で保存が効かなかったように見える
         const team = ctx.store.teamConfig;
         let leaf = resolveLeaf(input.key, input.value, field, rest, team);
         if (input.key === "actor.human_only") {
@@ -711,10 +714,10 @@ export const configUnset = defineCommand({
   positionals: ["key"],
   group: "setup",
   summary:
-    "config.yaml の 1 項目を消して既定に戻す（commit.mode のようにドットで指す）。--local なら個人の上書きを外してチームの値に戻す",
+    "config.yaml の 1 項目を消して既定に戻す（commit.mode のようにドットで指す）。--local なら個人の上書きを外してチームの値に戻す。返すのは書いた側の値（チームの値か、個人を重ねた値）",
   input: z.object({
     key: z.string().min(1).describe("項目。例: commit.mode"),
-    local: z.boolean().optional().describe(LOCAL_FLAG_DESCRIPTION),
+    local: z.boolean().optional().describe(LOCAL_UNSET_DESCRIPTION),
   }),
   write: true,
   needs: "store",

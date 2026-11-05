@@ -202,7 +202,7 @@ function richClient(): MockClient {
   // 英語の画面に日本語が残らないことを確かめるときに、訳すべき画面の文言と紛れないよう、説明をキーに差し替える
   const fields = configFields().map((f) => ({ ...f, description: f.key }));
   client.handlers["config.show"] = (input) =>
-    (input as { fields?: boolean }).fields ? { config, fields } : config;
+    (input as { fields?: boolean }).fields ? { config, team: config, local: {}, fields } : config;
   return client;
 }
 

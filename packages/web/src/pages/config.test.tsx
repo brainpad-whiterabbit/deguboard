@@ -163,6 +163,33 @@ describe("設定画面", () => {
     expect(client.calls).toContainEqual({ name: "config.show", input: { fields: true } });
   });
 
+  it("個人の上書きがあっても欄にはチームの値を出し、保存の後もチームの値（config.set の戻り）を出す", async () => {
+    const { client, config: team } = configClient();
+    // 個人は commit.mode を manual で上書きしている。config.show は重ねた値と、チームの値・個人の上書きを別に返す
+    const merged = { ...team, commit: { mode: "manual" } };
+    client.handlers["config.show"] = (input) =>
+      (input as { fields?: boolean }).fields
+        ? { config: merged, team, local: { "commit.mode": "manual" }, fields: FIELDS }
+        : merged;
+    mount(client);
+    await screen.findByText("コミットの仕方");
+    const select = within(fieldOf("commit.mode")).getByRole<HTMLSelectElement>("combobox");
+    expect(select.value).toBe("each");
+    expect(screen.getByRole("note").textContent).toContain("dg config set --local");
+    // チームの値（each）を選び直しても変わっていないので保存しない
+    fireEvent.change(select, { target: { value: "each" } });
+    expect(setCalls(client)).toEqual([]);
+    // batch に変えるとチームに保存し、欄と「保存した」はチームの値になる（個人の manual は出ない）
+    fireEvent.change(select, { target: { value: "batch" } });
+    await waitFor(() => expect(setCalls(client)).toEqual([{ key: "commit.mode", value: "batch" }]));
+    expect(await screen.findByText("保存した: commit.mode を batch にした")).toBeTruthy();
+    await waitFor(() =>
+      expect(within(fieldOf("commit.mode")).getByRole<HTMLSelectElement>("combobox").value).toBe(
+        "batch",
+      ),
+    );
+  });
+
   it("既定から変えた項目に印と「既定に戻す」を出し、押すと既定値を config.set で保存する", async () => {
     const { client } = configClient();
     mount(client);

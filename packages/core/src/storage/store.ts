@@ -348,7 +348,7 @@ export class Store {
     this.deletedTicketNumbers.add(idNumber(id));
   }
 
-  /** チームの config.yaml を書き換える（最上位の項目ごと。undefined は消す）。返すのは個人の上書きを重ねた値 */
+  /** チームの config.yaml を書き換える（最上位の項目ごと。undefined は消す）。返すのは書いたチームの値（個人の上書きを重ねない。画面と CLI が書いた値をそのまま見せるため） */
   async writeConfig(patch: Record<string, unknown>): Promise<Config> {
     const { doc } = await this.readConfigDocument();
     patchYamlDocument(doc, patch);
@@ -363,7 +363,7 @@ export class Store {
     await writeFileAtomic(path.join(this.root, CONFIG_FILE), stringifyYaml(doc));
     this.teamConfig = parsed.data;
     this.overlay();
-    return this.config;
+    return this.teamConfig;
   }
 
   /**
