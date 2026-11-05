@@ -5,7 +5,7 @@ after:
   t418:
     - t416
     - t417
-pending_approval: true
+pending_approval: false
 details:
   t416:
     scope: ADR-005（t415）のとおりチケットごとの plan の Run をやめる。テンプレートの steps・dg guide の案内・このリポジトリの Workflow から plan を外す
@@ -19,3 +19,5 @@ details:
     scope: 5 パッケージの version を 0.15.0 に揃える版上げの PR を作り、リリースの手順の確かめを回す
     approach: リリースは人の指示を待つ。指示が出たら mise run release:version -- 0.15.0 の後に check・pack・audit・test:layout
     tier: light
+approved_by: eiki.kitajima/agent
+approved_at: 2026-11-05T10:22:31Z
