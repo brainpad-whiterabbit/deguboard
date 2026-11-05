@@ -1,0 +1,10 @@
+id: p47
+project: default
+tickets: [t404]
+after: {}
+pending_approval: true
+details:
+  t404:
+    scope: 左パネルのカンバンの行で、開いた Plan に入っていない todo・in_progress・review に、Plan の番号の位置へ破線の空き枠「—」を出す。バックログの行は変えない
+    approach: row-end.tsx の KanbanRowEnd で mark がなく終わっていない行に空き枠の部品を出し、styles.css に専用の色を足す。UI-2 を直し、判定と表示のテストとライト・ダークのスクリーンショット
+    tier: standard
