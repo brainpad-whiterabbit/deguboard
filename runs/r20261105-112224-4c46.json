@@ -1,0 +1,33 @@
+{
+  "id": "r20261105-112224-4c46",
+  "ticket": "t422",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-05T11:22:24Z",
+  "finished_at": "2026-11-05T11:26:42Z",
+  "result": "success",
+  "error": null,
+  "retries": 4,
+  "retry_reasons": [
+    "sightings が相手の ID だけを見張り、最も遅く出た時刻を過ぎたら読むのをやめるようにした",
+    "会話記録のストリームを finally で destroy する（sightings・scan）",
+    "譲る相手を同じ agent の Run に絞った",
+    "searchRoots のコメントを言い換えた"
+  ],
+  "usage": {
+    "input": 24,
+    "output": 8336,
+    "cache_read": 1143038,
+    "cache_write": 13303
+  },
+  "tools": {
+    "read": 0,
+    "search": 0,
+    "write": 0,
+    "bash": 13,
+    "other": 0,
+    "read_before_write": 0,
+    "search_before_write": 0
+  }
+}
