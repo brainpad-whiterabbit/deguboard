@@ -1,0 +1,30 @@
+{
+  "id": "r20261105-152912-295d",
+  "ticket": "t360",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-sonnet-5-5",
+  "started_at": "2026-11-05T15:29:12Z",
+  "finished_at": "2026-11-05T15:30:01Z",
+  "result": "success",
+  "error": null,
+  "retries": 1,
+  "retry_reasons": [
+    "ADR-008 に版番号を写していて上げるたびに古くなる"
+  ],
+  "usage": {
+    "input": 2,
+    "output": 712,
+    "cache_read": 40475,
+    "cache_write": 537
+  },
+  "tools": {
+    "read": 0,
+    "search": 0,
+    "write": 0,
+    "bash": 1,
+    "other": 0,
+    "read_before_write": 0,
+    "search_before_write": 0
+  }
+}
