@@ -11,9 +11,9 @@
   "retries": 0,
   "retry_reasons": [],
   "usage": {
-    "input": 22,
-    "output": 4909,
-    "cache_read": 504706,
-    "cache_write": 11844
+    "input": 0,
+    "output": 0,
+    "cache_read": 0,
+    "cache_write": 0
   }
 }
