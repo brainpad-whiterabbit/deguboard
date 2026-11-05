@@ -5,7 +5,8 @@
 //     finished_at より後のファイルは除く）
 //   - 数える量：Run の ID が出る前の最後の累計と、finished_at までの最後の累計の差。累計が減っていれば（記録の作り直しなど）取れない。
 //     Codex は応答のツールを実行し終えてからその応答の token_count を書くので、dg run start を呼んだ応答は Run に入り、
-//     dg run finish を呼んだ応答は入らない（Claude Code の Adapter と 1 応答ずれる。ADR-005）。書く順は openai/codex の
+//     dg run finish を呼んだ応答は入らない（Claude Code の Adapter と 1 応答ずれる）。finish を呼んだ応答の数は読む時点で
+//     書かれておらず揃えられないが、数える応答の数は Claude Code と同じなのでそのままにする。書く順は openai/codex の
 //     codex-rs/core/src/session/turn.rs で確かめた（2026-10-31 の main。本物の記録では未確認）
 //   - 期間が重なる Run：同じファイルで、後に始まった開いている Run の ID が先に出ていれば（OverlapClaims）、その間の token_count の
 //     累計の増え（直前の累計との差）を除く。turn_context のモデル名も数えない。ほかのファイルで ID が同じか先に出た Run には譲らない
