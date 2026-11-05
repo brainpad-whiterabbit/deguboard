@@ -28,6 +28,12 @@ const SAMPLES: Record<string, string> = {
     'import type { Server } from "@deguboard/server";\nexport type S = Server;\n',
   "packages/web/src/value-import.test.tsx":
     'import { progressOf } from "@deguboard/core";\nexport const f = progressOf;\n',
+  "packages/core/src/node-http-import.ts":
+    'import { createServer } from "node:http";\nexport const s = createServer;\n',
+  "packages/core/src/commands/bare-http-import.ts":
+    'import { createServer } from "http";\nexport const s = createServer;\n',
+  "packages/core/src/node-path-import.ts":
+    'import { join } from "node:path";\nexport const j = join;\n',
 };
 
 interface Diagnostic {
@@ -100,5 +106,19 @@ describe("web の import の制限（.oxlintrc.json）", () => {
 
   it("web のテストのファイルでも core 以外の @deguboard/* を import すると落ちる", () => {
     expect(restricted.get("packages/web/src/server-import.test.ts")).toBe(1);
+  });
+});
+
+describe("core の import の制限（.oxlintrc.json）", () => {
+  it("core の本体で node:http を import すると落ちる", () => {
+    expect(restricted.get("packages/core/src/node-http-import.ts")).toBe(1);
+  });
+
+  it("core の汎用部分（core/commands）で素の http を import すると落ちる。上の override が下の制限を上書きするので、ここも別に確かめる", () => {
+    expect(restricted.get("packages/core/src/commands/bare-http-import.ts")).toBe(1);
+  });
+
+  it("core で node:path など HTTP 以外の node モジュールを import しても通る", () => {
+    expect(restricted.get("packages/core/src/node-path-import.ts")).toBeUndefined();
   });
 });

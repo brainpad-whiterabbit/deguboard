@@ -19,7 +19,7 @@ CLI・MCP・HTTP・VS Code 拡張という複数の入口から同じ機能を�
 
 ### 依存の向き
 
-- `core` は何にも依存しない（VS Code API・HTTP・React を知らない）
+- `core` は何にも依存しない（VS Code API・HTTP・React を知らない。HTTP の node モジュール `http`・`https`・`net`・`tls`・`http2` も読まない）
 - `server`・`vscode` は `core` だけに依存する。`cli` は `dg serve` と `dg mcp` のために `server` にも依存する
 - `web` は `core` の型と `CommandClient` のインターフェースだけに依存する（`import type` だけ。Vite が node のモジュールを束ねないため）。例外は Vitest が node で動かすテストとテスト用の `CommandClient`（`test-helpers.ts`）で、core の実行時のコードを取り込んでよい
 - 逆向きの依存は作らない。検出は `.oxlintrc.json` の `no-restricted-imports`（禁じる import の正本）
@@ -29,6 +29,7 @@ CLI・MCP・HTTP・VS Code 拡張という複数の入口から同じ機能を�
 - すべての操作を「名前・Zod の入力スキーマ・実装関数」の組として `core/commands` に定義する
 - CLI のサブコマンドとヘルプ、HTTP のエンドポイント、Webview のメッセージ、MCP のツール定義は、この定義から生成する。入口にロジックを書かない
 - MCP（`dg mcp`）は `cli` に置き、同じコマンド定義を主体 agent で写す（範囲は AG-4）
+- 例外は AG-4 の CLI だけの操作（`guide`・`skill`・`serve`・`open` など）で、`core/commands` に置かず `cli` に置く
 - UI は `CommandClient`（コマンド名と入力を渡して結果を受け取る 1 つのインターフェース）を通じて呼ぶ
 - 文脈の管理（開く・再走査・直列化・名前でコマンドを引く）はプロセス内の `CommandClient` として core に 1 つ置き、`server` は HTTP に、`vscode` は Webview の postMessage に写す
 
