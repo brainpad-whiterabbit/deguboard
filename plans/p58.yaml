@@ -33,7 +33,7 @@ after:
     - t411
   t360:
     - t426
-pending_approval: true
+pending_approval: false
 details:
   t373:
     scope: ステータスバーに今のブランチに紐づくチケットの ID・Status・実行中の Run を出し、押すと詳細を開く
@@ -107,3 +107,5 @@ details:
     scope: サイドバーと詳細のパネルの画面の文言を表示言語に合わせて英語でも出す。ブラウザは日本語のまま
     approach: web に文言の辞書を置き、拡張ホストから表示言語を渡して切り替える。チケットの中身は訳さない
     tier: heavy
+approved_by: maji/agent
+approved_at: 2026-11-05T14:06:09Z
