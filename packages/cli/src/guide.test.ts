@@ -118,18 +118,26 @@ describe("dg guide", () => {
       );
   });
 
-  it("review は参考節と変更ファイルの見比べを見る観点に入れ、食い違いは軽い指摘として返し、参考節がなければ見比べないと案内し、PR の本文には親が書き足すと決める", async () => {
+  it("review は参考節との食い違いを軽い指摘として返し、参考節がなければ見比べないと案内し、直さなかった軽い指摘は親が PR の本文に書き足すと決め、親とサブエージェントの一覧にも入れる", async () => {
     const review = await readGuide("review");
     const look = bullet(section(review, "## 見直す"), "見る");
-    for (const word of ["## 参考", "食い違い", "節がなければ見比べない"])
+    for (const word of [
+      "## 参考",
+      "参考節との食い違い",
+      "節がなければ見比べない",
+      "範囲の外の指摘",
+    ])
       expect(look, word).toContain(word);
-    expect(bullet(section(review, "## 見直す"), "返す")).toContain("重い指摘に数えない");
+    expect(bullet(section(review, "## 見直す"), "返す")).toContain("参考節との食い違いは軽い指摘");
     const fixLoop = section(review, "## 指摘を直す（修正ループ）");
-    expect(fixLoop).toContain("食い違い");
-    expect(fixLoop).toContain("親が理由と一緒に PR の本文に書き足す");
-    expect(lineWith(section(await readGuide("work"), "## 流れ"), "gh pr create --draft")).toContain(
-      "`dg guide review`",
-    );
+    expect(fixLoop).toContain("参考節との食い違い");
+    expect(fixLoop).toContain("親が PR の本文に書き足す");
+    expect(fixLoop).toContain("直さなかった軽い指摘と理由");
+    expect(section(await readGuide("all"), "## 文脈の扱い")).toContain("直さなかった軽い指摘");
+    expect(await readGuide("parallel")).toContain("直さなかった軽い指摘を PR の本文に書き足し");
+    expect(await readGuide("parallel")).toContain("直さなかった軽い指摘と理由");
+    expect(step(section(await readGuide("work"), "## 流れ"), 6)).toContain("親が書き足す");
+    expect(step(section(await readGuide("work"), "## 流れ"), 6)).toContain("指摘を直す");
   });
 
   it("work は PR の要らない作業を --without-branch で claim し、確かめたら done、残れば review と案内する", async () => {
