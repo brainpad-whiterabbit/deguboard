@@ -128,7 +128,7 @@ export const DG_PATH_NOTE =
 
 /** DG_PATH_NOTE の英語。英語の依頼文（language が en）の文章だけの形式に使う */
 export const DG_PATH_NOTE_EN =
-  "If `dg` is not on PATH, replace `dg` with the invocation the repository's guide gives (`npx deguboard`, `mise run dg --`, etc.). The same applies to `dg` in the steps.";
+  "If `dg` is not on PATH, replace `dg` with the command the repository's guide tells you to use (`npx deguboard`, `mise run dg --`, etc.). The same applies to `dg` in the steps.";
 
 /** 文章だけの形式で、頼む 1 文の次に添える dg の呼び方（AG-1） */
 export const ASK_DG_USAGE = `dg は \`dg … --json --actor agent\` で呼び、.git/deguboard/ のファイルは直接編集しないでください。${DG_PATH_NOTE}`;
@@ -155,7 +155,7 @@ const createdByHumanLater = (lang: AskLanguage) =>
   say(
     lang,
     "（チケットを起票するなら、人の指示なので --created-by human を付ける）",
-    " (if you create tickets, pass --created-by human, since this is a human's instruction)",
+    ". If you create tickets, pass --created-by human, since this is a human's instruction",
   );
 
 type Subjects = readonly AskSubject[];
@@ -502,7 +502,7 @@ const ACTIONS: Record<AskAction, ActionDef> = {
         : say(
             lang,
             `${idList(s, lang)} を進める Plan を立て、承認を待ってください。`,
-            `Make a Plan to proceed with ${idList(s, lang)} and wait for approval.`,
+            `Make a Plan to proceed with ${idList(s, lang)}, then wait for approval.`,
           ),
     // 承認待ちの Plan では承認すると同じ呼び出しになるので、組み直すことを添える
     intent: (s, _w, lang) =>
@@ -549,7 +549,7 @@ const ACTIONS: Record<AskAction, ActionDef> = {
           (running.length > 0 ? `（${others} は Run が実行中なので触らない）` : "") +
           "。",
         `Resume the stalled work on ${stalled}` +
-          (running.length > 0 ? ` (leave ${others} alone, since its Run is running)` : "") +
+          (running.length > 0 ? ` (leave ${others} alone, since a Run is running on them)` : "") +
           ".",
       );
     },
@@ -561,7 +561,7 @@ const ACTIONS: Record<AskAction, ActionDef> = {
       say(
         lang,
         `${idList(s, lang)} を最後まで進めてください（承認の場所は手順どおりに）。`,
-        `Take ${idList(s, lang)} all the way through (with the approvals where the steps place them).`,
+        `Take ${idList(s, lang)} all the way through, pausing for approval where the steps say to.`,
       ),
   },
   done: {
@@ -666,7 +666,7 @@ const ACTIONS: Record<AskAction, ActionDef> = {
       say(
         lang,
         `${idList(s, lang)} をやめて abandoned にしてください（人の指示。理由は指示のとおりに本文へ書く）。`,
-        `Abandon ${idList(s, lang)} and move it to abandoned (a human's instruction; write the reason in the body as instructed).`,
+        `Abandon ${idList(s, lang)} by moving ${s.length > 1 ? "them" : "it"} to abandoned (a human's instruction; write the reason in the body as instructed).`,
       ),
     human: (s) =>
       s.map((t) => ({

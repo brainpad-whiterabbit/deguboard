@@ -438,7 +438,17 @@ describe("依頼文の定型の文の言語（UI-11）", () => {
         format: "text",
         language: "en",
       }).text.split("\n")[0],
-    ).toBe("Make a Plan to proceed with t265, t266 and wait for approval.");
+    ).toBe("Make a Plan to proceed with t265, t266, then wait for approval.");
+    const firstEn = (subjects: AskSubject[], action: AskAction) =>
+      buildAsk({ subjects, action, format: "text", language: "en" }).text.split("\n")[0];
+    // 添え書きは括弧を重ねず別の文にし、複数の対象にも合う形にする
+    expect(firstEn([], "create_iteration")).toBe(
+      "Create an Iteration, with the name, goal, and dates as instructed (propose them if not given). If you create tickets, pass --created-by human, since this is a human's instruction.",
+    );
+    expect(firstEn([ticket(), ticket({ id: "t266" })], "abandon")).toBe(
+      "Abandon t265, t266 by moving them to abandoned (a human's instruction; write the reason in the body as instructed).",
+    );
+    expect(firstEn([ticket()], "abandon")).toMatch(/^Abandon t265 by moving it to abandoned/);
     expect(
       buildAsk({ subjects: [iteration("active")], action: "create", language: "en" }).text,
     ).toBe("/dgimport\nCreate tickets and add them to s10");
