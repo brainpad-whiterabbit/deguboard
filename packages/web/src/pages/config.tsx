@@ -1,5 +1,6 @@
 // 設定画面（#/config）。config.show の fields で config.yaml の全項目を値・既定値・説明（スキーマの describe）つきで読み、
-// 値を変えるたびに config.set で 1 項目ずつ保存する。設定はチームで共有する config.yaml だけで、VS Code の settings.json は使わない
+// 値を変えるたびに config.set で 1 項目ずつ保存する。書くのはチームで共有する config.yaml で（個人の上書きは CLI の config set --local）、
+// VS Code の settings.json は使わない
 // （requirements.md 5.10「利用者ごとの上書きは設けない」）。左パネルではビューのタイトル行の歯車、ブラウザでは上のバーの歯車で開け閉めし、画面の中の「前の画面に戻る」も歯車と同じく来る前の画面に戻る。
 // 選択欄とチェックは変えたらすぐ、テキストは Enter か欄を離れたとき、リストは足す・外すたびに保存する。
 // 同期先とブランチの判定・worktree の置き場所・実行するコマンドとエージェントに許す操作を変える項目（CONFIRM_KEYS）は、保存の前に欄の下で確かめる。

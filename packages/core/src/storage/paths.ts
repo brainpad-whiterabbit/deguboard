@@ -1,6 +1,10 @@
 // deguboard worktree の中の配置（requirements.md 5.1）。すべて worktree からの相対パス
 
 export const CONFIG_FILE = "config.yaml";
+/** 個人の設定。deguboard-local/（Git 管理外）からの相対パス。上書きできる項目は model/config.ts の scope */
+export const LOCAL_CONFIG_FILE = "config.yaml";
+/** 個人の設定を指摘（Issue）で指すときの名前。worktree の外なので相対パスにはならない */
+export const LOCAL_CONFIG_LABEL = "deguboard-local/config.yaml";
 export const DIRS = {
   projects: "projects",
   tickets: "tickets",

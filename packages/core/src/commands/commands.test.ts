@@ -38,6 +38,7 @@ import { projectCreate } from "./project.js";
 import {
   configSet,
   configShow,
+  configUnset,
   init,
   lint,
   sync,
@@ -1891,6 +1892,200 @@ describe("用意", () => {
     await runCommand(configSet, ctx, { key: "actor.human_only", value: "epic.close" });
     const human = await runCommand(configSet, ctx, { key: "actor.human_only", value: "" });
     expect(human.data.actor.human_only).toEqual([]);
+  });
+
+  it("config.set --local は個人の設定（deguboard-local/config.yaml）に書き、各コマンドは個人 > チーム > 既定 の値を使い、コミットも push もしない（t437）", async () => {
+    const f = await fixture();
+    const ctx = await initialized(f.cloneA);
+    await runCommand(configSet, ctx, { key: "models.light", value: "team-light" });
+    await runCommand(configSet, ctx, { key: "commit.mode", value: "each" });
+    const head = (await git(ctx.repo.dataDir, ["rev-parse", "HEAD"])).stdout;
+    const status = (await git(ctx.repo.dataDir, ["status", "--porcelain"])).stdout;
+    const remoteHead = (await git(f.remoteDir, ["rev-parse", "deguboard"])).stdout;
+    const teamFile = await readFile(path.join(ctx.repo.dataDir, "config.yaml"), "utf8");
+
+    const set = await runCommand(configSet, ctx, {
+      key: "models.light",
+      value: "my-light",
+      local: true,
+    });
+    expect(set.data.models.light).toBe("my-light");
+    expect(set.write).toBeUndefined();
+    await runCommand(configSet, ctx, { key: "commit.mode", value: "manual", local: true });
+    await runCommand(configSet, ctx, { key: "notify.approvals", value: "false", local: true });
+    // 個人のファイルに入り、チームのファイル・コミット・リモートは変わらない
+    const localFile = path.join(ctx.repo.localDir, "config.yaml");
+    const text = await readFile(localFile, "utf8");
+    expect(text).toContain("light: my-light");
+    expect(text).toContain("mode: manual");
+    expect(text).toContain("approvals: false");
+    expect(await readFile(path.join(ctx.repo.dataDir, "config.yaml"), "utf8")).toBe(teamFile);
+    expect((await git(ctx.repo.dataDir, ["rev-parse", "HEAD"])).stdout).toBe(head);
+    expect((await git(ctx.repo.dataDir, ["status", "--porcelain"])).stdout).toBe(status);
+    expect((await git(f.remoteDir, ["rev-parse", "deguboard"])).stdout).toBe(remoteHead);
+    // 開き直した文脈（ほかのコマンド）も重ねた値を読む。チームの値はそのまま
+    const again = await openContext({ cwd: f.cloneA, actor: { kind: "human", user: "eiki" } });
+    expect(again.config.models.light).toBe("my-light");
+    expect(again.config.commit.mode).toBe("manual");
+    expect(again.config.notify.approvals).toBe(false);
+    expect(again.store.teamConfig.models.light).toBe("team-light");
+    expect(again.store.teamConfig.commit.mode).toBe("each");
+    // 別の clone には届かない（Git に入らない）
+    const other = await openContext({ cwd: f.cloneB, initialize: {} });
+    expect(other.store.localConfig).toEqual({});
+    expect(other.config.models.light).not.toBe("my-light");
+    // 文字列の項目に空文字を入れると個人の上書きを外す（既定が空でない default_project）
+    await runCommand(configSet, ctx, { key: "default_project", value: "mine", local: true });
+    expect(ctx.store.config.default_project).toBe("mine");
+    const cleared = await runCommand(configSet, ctx, {
+      key: "default_project",
+      value: "",
+      local: true,
+    });
+    expect(cleared.data.default_project).toBe("default");
+    expect(await readFile(localFile, "utf8")).not.toContain("default_project");
+  });
+
+  it("config.set --local はチーム専用・未知の項目と不正な値を VALIDATION_FAILED で拒み、個人のファイルに書かない", async () => {
+    const f = await fixture();
+    const ctx = await initialized(f.cloneA);
+    const localFile = path.join(ctx.repo.localDir, "config.yaml");
+    for (const [key, value] of [
+      ["auto.merge", "true"],
+      ["metrics.read_transcripts", "true"],
+      ["git.base_branch", "develop"],
+      ["actor.human_only", "epic.close"],
+      ["nope.key", "x"],
+      ["commit.mode", "nope"],
+    ]) {
+      await expect(runCommand(configSet, ctx, { key, value, local: true })).rejects.toMatchObject({
+        code: "VALIDATION_FAILED",
+      });
+    }
+    await expect(readFile(localFile, "utf8")).rejects.toThrow();
+    // チームの値も変わっていない
+    expect(ctx.store.config.auto.merge).toBe(false);
+    expect(ctx.store.config.commit.mode).toBe("batch");
+  });
+
+  it("config.unset は --local で個人の上書きを外してチームの値に戻し、--local なしでチームの値を既定に戻す", async () => {
+    const f = await fixture();
+    const ctx = await initialized(f.cloneA);
+    const localFile = path.join(ctx.repo.localDir, "config.yaml");
+    await runCommand(configSet, ctx, { key: "commit.mode", value: "each" });
+    await runCommand(configSet, ctx, { key: "commit.mode", value: "manual", local: true });
+    await runCommand(configSet, ctx, { key: "models.heavy", value: "opus", local: true });
+    expect(ctx.store.config.commit.mode).toBe("manual");
+    const head = (await git(ctx.repo.dataDir, ["rev-parse", "HEAD"])).stdout;
+
+    const unsetLocal = await runCommand(configUnset, ctx, { key: "commit.mode", local: true });
+    expect(unsetLocal.data.commit.mode).toBe("each");
+    expect(unsetLocal.write).toBeUndefined();
+    expect(await readFile(localFile, "utf8")).not.toContain("commit");
+    expect((await git(ctx.repo.dataDir, ["rev-parse", "HEAD"])).stdout).toBe(head);
+    // 上書きが残らなければ個人のファイルを消す
+    await runCommand(configUnset, ctx, { key: "models.heavy", local: true });
+    await expect(readFile(localFile, "utf8")).rejects.toThrow();
+    expect(ctx.store.localConfig).toEqual({});
+    // チーム専用の項目は --local で外せない（個人の設定には入らない）
+    await expect(
+      runCommand(configUnset, ctx, { key: "auto.merge", local: true }),
+    ).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
+
+    // --local なしはチームの config.yaml からキーを消して既定に戻す。ほかの書き込みと同じ経路（withWrite）を通る
+    const unsetTeam = await runCommand(configUnset, ctx, { key: "commit.mode" });
+    expect(unsetTeam.data.commit.mode).toBe("batch");
+    expect(unsetTeam.write).toBeDefined();
+    expect(await readFile(path.join(ctx.repo.dataDir, "config.yaml"), "utf8")).not.toContain(
+      "commit",
+    );
+    // 選択肢の項目も unset なら既定に戻せる（set の空は弾く）。配列の項目は空の配列に
+    await runCommand(configSet, ctx, { key: "actor.human_only", value: "epic.close" });
+    const human = await runCommand(configUnset, ctx, { key: "actor.human_only" });
+    expect(human.data.actor.human_only).toEqual([]);
+  });
+
+  it("個人のファイルにあるチーム専用・未知の項目と読めない値は無視して validate が警告し、チームの set は個人の上書きを写さない", async () => {
+    const f = await fixture();
+    const ctx = await initialized(f.cloneA);
+    await mkdir(ctx.repo.localDir, { recursive: true });
+    await writeFile(
+      path.join(ctx.repo.localDir, "config.yaml"),
+      [
+        "commit:",
+        "  mode: each",
+        "auto:",
+        "  merge: true",
+        "push:",
+        "  mode: なし",
+        "unknown_key: 1",
+        "",
+      ].join("\n"),
+    );
+    const reopened = await openContext({ cwd: f.cloneA, actor: { kind: "human", user: "eiki" } });
+    expect(reopened.config.commit.mode).toBe("each");
+    expect(reopened.config.auto.merge).toBe(false);
+    expect(reopened.config.push.mode).toBe("auto");
+    const v = await runCommand(validate, reopened, {});
+    expect(v.data.ok).toBe(true);
+    expect(v.data.issues.map((i) => [i.severity, i.path, i.code, i.message])).toEqual([
+      [
+        "warning",
+        "deguboard-local/config.yaml",
+        "local_config_ignored",
+        "個人の設定の auto.merge を無視した",
+      ],
+      [
+        "warning",
+        "deguboard-local/config.yaml",
+        "local_config_ignored",
+        "個人の設定の push.mode を無視した",
+      ],
+      [
+        "warning",
+        "deguboard-local/config.yaml",
+        "local_config_ignored",
+        "個人の設定の unknown_key を無視した",
+      ],
+    ]);
+    // 同じ最上位（commit）のチームの項目を変えても、個人の上書き（each）はチームのファイルに写らない
+    await runCommand(configSet, reopened, { key: "commit.extra", value: "1" });
+    const teamText = await readFile(path.join(reopened.repo.dataDir, "config.yaml"), "utf8");
+    expect(teamText).toContain("extra: 1");
+    expect(teamText).not.toContain("each");
+    expect(reopened.store.teamConfig.commit.mode).toBe("batch");
+    expect(reopened.store.config.commit.mode).toBe("each");
+    // 個人の set は、前から無視されていた項目を残したまま書ける
+    await runCommand(configSet, reopened, { key: "models.light", value: "l", local: true });
+    const localText = await readFile(path.join(reopened.repo.localDir, "config.yaml"), "utf8");
+    expect(localText).toContain("unknown_key: 1");
+    expect(localText).toContain("light: l");
+    // YAML として読めなければ警告して無視し、チームの値で動く
+    await writeFile(path.join(ctx.repo.localDir, "config.yaml"), "commit: [\n");
+    const broken = await openContext({ cwd: f.cloneA, actor: { kind: "human", user: "eiki" } });
+    expect(broken.config.commit.mode).toBe("batch");
+    const bv = await runCommand(validate, broken, {});
+    expect(bv.data.ok).toBe(true);
+    expect(bv.data.issues.map((i) => [i.severity, i.code])).toEqual([["warning", "yaml_error"]]);
+  });
+
+  it("config.show --fields は項目ごとの scope と、チームの値・個人の上書きを返す", async () => {
+    const f = await fixture();
+    const ctx = await initialized(f.cloneA);
+    await runCommand(configSet, ctx, { key: "models.light", value: "team-light" });
+    await runCommand(configSet, ctx, { key: "models.light", value: "my-light", local: true });
+    await runCommand(configSet, ctx, { key: "actions.shell", value: "true", local: true });
+    const shown = (await runCommand(configShow, ctx, { fields: true })).data as ConfigShowView;
+    expect(shown.config.models.light).toBe("my-light");
+    expect(shown.team.models.light).toBe("team-light");
+    expect(shown.local).toEqual({ "models.light": "my-light", "actions.shell": true });
+    const byKey = new Map(shown.fields.map((x) => [x.key, x]));
+    expect(byKey.get("models.light")?.scope).toBe("local");
+    expect(byKey.get("auto.merge")?.scope).toBe("team");
+    // --fields なしは重ねた値だけ
+    expect((await runCommand(configShow, ctx, {})).data).toMatchObject({
+      models: { light: "my-light" },
+    });
   });
 
   it("validate は読めない Run のファイルを指摘し、ほかの読み込みは止めない", async () => {

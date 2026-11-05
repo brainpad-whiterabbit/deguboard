@@ -330,6 +330,54 @@ describe("Store", () => {
     expect(store.tickets.get("t1")?.body).toContain("本日");
   });
 
+  it("localDir を渡すと個人の config.yaml を重ねて読み、無ければ読まず、あれば変わらない間は読み直さない（t437）", async () => {
+    const root = await fixture({});
+    const localDir = await mkdtemp(path.join(os.tmpdir(), "deguboard-store-local-"));
+    dirs.push(localDir);
+    vi.spyOn(Date, "now").mockReturnValue(Date.now() + 60_000);
+    // 無い：チームの値のまま。読み直した数にも数えない
+    const store = await Store.open(root, { localDir });
+    const files = store.lastScan.read;
+    expect(store.config.commit.mode).toBe("batch");
+    expect(store.localConfig).toEqual({});
+    await store.rescan();
+    expect(store.lastScan).toEqual({ read: 0, reused: files });
+    // 置くと次の rescan で重なり、変わらなければ覚えた結果を使う
+    await writeFile(
+      path.join(localDir, "config.yaml"),
+      "commit:\n  mode: each\nauto:\n  merge: true\n",
+    );
+    await store.rescan();
+    expect(store.lastScan.read).toBe(1);
+    expect(store.config.commit.mode).toBe("each");
+    expect(store.teamConfig.commit.mode).toBe("batch");
+    expect(store.localConfig).toEqual({ "commit.mode": "each" });
+    expect(store.issues.map((i) => [i.severity, i.code, i.path])).toEqual([
+      ["warning", "local_config_ignored", "deguboard-local/config.yaml"],
+    ]);
+    await store.rescan();
+    expect(store.lastScan).toEqual({ read: 0, reused: files + 1 });
+    expect(store.config.commit.mode).toBe("each");
+    // writeLocalConfig は無視されている項目（auto.merge）を残して葉だけ書き、消して空になればファイルも消す
+    await store.writeLocalConfig("models.light", "sonnet");
+    expect(await readFile(path.join(localDir, "config.yaml"), "utf8")).toContain("merge: true");
+    expect(store.config.models.light).toBe("sonnet");
+    await store.writeLocalConfig("commit.mode", undefined);
+    expect(store.config.commit.mode).toBe("batch");
+    expect(store.localConfig).toEqual({ "models.light": "sonnet" });
+    // 新たに無視される項目（チーム専用）を書こうとすると拒む。前から無視されている auto.merge は書き換えても拒まない
+    await expect(store.writeLocalConfig("metrics.read_transcripts", true)).rejects.toMatchObject({
+      code: "VALIDATION_FAILED",
+    });
+    await store.writeLocalConfig("auto.merge", false);
+    expect(store.config.auto.merge).toBe(false);
+    // localDir を渡さなければ個人の設定は書けない
+    const plain = await Store.open(root);
+    await expect(plain.writeLocalConfig("commit.mode", "each")).rejects.toMatchObject({
+      code: "VALIDATION_FAILED",
+    });
+  });
+
   it("更新が新しいファイルは印が同じでも覚えずに毎回読み、時刻が過ぎてから覚える", async () => {
     const root = await fixture({ "tickets/t1.md": ticketText("t1") });
     const now = vi.spyOn(Date, "now");

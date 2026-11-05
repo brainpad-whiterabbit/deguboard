@@ -23,18 +23,37 @@ afterEach(() => {
   window.localStorage.clear();
 });
 
-/** core の configFields と同じ形の項目（説明は短くしたもの） */
+/** core の configFields と同じ形の項目（説明は短くしたもの）。scope は core と同じ：local は個人で上書きできる項目 */
 const FIELDS: ConfigField[] = [
-  { key: "default_project", type: "string", description: "省略時の Project", default: "default" },
-  { key: "git.remote", type: "string", description: "同期先のリモート", default: "origin" },
-  { key: "git.base_branch", type: "string", description: "基準", default: "main" },
-  { key: "worktree.root", type: "string", description: "置き場所", default: "../<repo>.worktrees" },
+  {
+    key: "default_project",
+    type: "string",
+    description: "省略時の Project",
+    default: "default",
+    scope: "local",
+  },
+  {
+    key: "git.remote",
+    type: "string",
+    description: "同期先のリモート",
+    default: "origin",
+    scope: "local",
+  },
+  { key: "git.base_branch", type: "string", description: "基準", default: "main", scope: "team" },
+  {
+    key: "worktree.root",
+    type: "string",
+    description: "置き場所",
+    default: "../<repo>.worktrees",
+    scope: "local",
+  },
   {
     key: "commit.mode",
     type: "enum",
     options: ["each", "batch", "manual"],
     description: "each: 書き込みのたびにコミット",
     default: "batch",
+    scope: "local",
   },
   {
     key: "push.mode",
@@ -42,17 +61,37 @@ const FIELDS: ConfigField[] = [
     options: ["auto", "manual"],
     description: "auto: コミットのたびに push",
     default: "auto",
+    scope: "local",
   },
   {
     key: "metrics.read_transcripts",
     type: "boolean",
     description: "会話記録を読む",
     default: false,
+    scope: "team",
   },
-  { key: "actions.shell", type: "boolean", description: "シェルを許す", default: false },
-  { key: "actions.test", type: "list", description: "テストのコマンド", default: [] },
-  { key: "auto.merge", type: "boolean", description: "自動でマージ", default: false },
-  { key: "actor.human_only", type: "list", description: "人だけ", default: [] },
+  {
+    key: "actions.shell",
+    type: "boolean",
+    description: "シェルを許す",
+    default: false,
+    scope: "local",
+  },
+  {
+    key: "actions.test",
+    type: "list",
+    description: "テストのコマンド",
+    default: [],
+    scope: "team",
+  },
+  {
+    key: "auto.merge",
+    type: "boolean",
+    description: "自動でマージ",
+    default: false,
+    scope: "team",
+  },
+  { key: "actor.human_only", type: "list", description: "人だけ", default: [], scope: "team" },
 ];
 
 function configClient() {
@@ -69,7 +108,9 @@ function configClient() {
     actor: { human_only: [] as string[] },
   };
   client.handlers["config.show"] = (input) =>
-    (input as { fields?: boolean }).fields ? { config, fields: FIELDS } : config;
+    (input as { fields?: boolean }).fields
+      ? { config, team: config, local: {}, fields: FIELDS }
+      : config;
   client.handlers["config.set"] = (input) => {
     const { key, value } = input as { key: string; value: unknown };
     if (value === "bad")

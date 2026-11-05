@@ -45,7 +45,11 @@ export async function openContext(opts: ContextOptions): Promise<CommandContext>
     const remote = await resolveRemote(paths, opts.initialize.remote ?? "origin");
     worktree = await ensureDeguboardWorktree(paths, remote);
   }
-  const store = await Store.open(paths.dataDir, { actions: opts.actions });
+  // 個人の設定（deguboard-local/config.yaml）もここで重ねるので、CLI・HTTP・VS Code 拡張は同じ値を読む
+  const store = await Store.open(paths.dataDir, {
+    actions: opts.actions,
+    localDir: paths.localDir,
+  });
   const remoteName = opts.initialize?.remote ?? store.config.git.remote;
   const repo: GitRepo = {
     ...paths,
