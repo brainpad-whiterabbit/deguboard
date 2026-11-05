@@ -1,0 +1,33 @@
+{
+  "id": "r20261105-141719-9a53",
+  "ticket": "t373",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-sonnet-5-5",
+  "started_at": "2026-11-05T14:17:19Z",
+  "finished_at": "2026-11-05T14:22:36Z",
+  "result": "success",
+  "error": null,
+  "retries": 4,
+  "retry_reasons": [
+    "拡張がサイドバーを開くまで起動せずステータスバーが出ない",
+    "同じブランチの古い done のチケットを先に拾う",
+    "refreshStatusBar が並ぶと古い結果で上書きしうる",
+    "紐づくチケットがないとき openCurrentTicket が黙って何もしない"
+  ],
+  "usage": {
+    "input": 12,
+    "output": 3236,
+    "cache_read": 387031,
+    "cache_write": 3526
+  },
+  "tools": {
+    "read": 0,
+    "search": 0,
+    "write": 0,
+    "bash": 6,
+    "other": 0,
+    "read_before_write": 0,
+    "search_before_write": 0
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "id": "r20261105-142512-f466",
+  "ticket": "t373",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-sonnet-5-5",
+  "started_at": "2026-11-05T14:25:12Z",
+  "finished_at": "2026-11-05T14:29:15Z",
+  "result": "success",
+  "error": null,
+  "retries": 4,
+  "retry_reasons": [
+    "dg の案内の通知が全ウィンドウで起動のたびに出る",
+    "初期化前のリポジトリで見張りが張れず dg init の後も表示が出ない",
+    "requirements.md の UI-12 の「エディタの」とどのチケットかが不明",
+    "ticketOfBranch が番号の並べ直しで重複"
+  ],
+  "usage": {
+    "input": 6,
+    "output": 2991,
+    "cache_read": 210278,
+    "cache_write": 3447
+  },
+  "tools": {
+    "read": 0,
+    "search": 0,
+    "write": 0,
+    "bash": 3,
+    "other": 0,
+    "read_before_write": 0,
+    "search_before_write": 0
+  }
+}

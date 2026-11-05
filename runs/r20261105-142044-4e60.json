@@ -1,0 +1,33 @@
+{
+  "id": "r20261105-142044-4e60",
+  "ticket": "t423",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-sonnet-5-5",
+  "started_at": "2026-11-05T14:20:44Z",
+  "finished_at": "2026-11-05T14:22:29Z",
+  "result": "success",
+  "error": null,
+  "retries": 4,
+  "retry_reasons": [
+    "サイドバーの名前のリンクが詳細をパネルでなくサイドバーに開く",
+    "名前のリンクのクリックを確かめるテストがない",
+    "UI-2 の「すべて」の範囲が読み取れない",
+    "IterationHead のコメントがリンクの数を誤読させる"
+  ],
+  "usage": {
+    "input": 10,
+    "output": 2436,
+    "cache_read": 335270,
+    "cache_write": 5173
+  },
+  "tools": {
+    "read": 0,
+    "search": 0,
+    "write": 0,
+    "bash": 5,
+    "other": 0,
+    "read_before_write": 0,
+    "search_before_write": 0
+  }
+}
