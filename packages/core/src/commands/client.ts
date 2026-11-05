@@ -25,6 +25,7 @@ export interface StatusView extends SyncStatus {
  * open は詳細のルート（#/tickets/t12、#/iterations/s3、#/epics/e2）をエディタ領域のパネルに開く。
  * show は一覧の画面のルート（#/board?epic=e2 など）をサイドバーのビューに出す（パネルは詳細だけを出すので。UI-12）。
  * copy は text をクリップボードに入れる（Webview の画面はコピーをすべて拡張ホストに頼み、vscode.env.clipboard で書く）。
+ * openWorktree はチケットの作業ブランチの worktree を新しいウィンドウで開く（パスは Webview から受けず、拡張ホストが ticket.show で引く。UI-4）。
  * terminals は開いているターミナルの一覧を返す（応答の data は TerminalChoice[]）。sendToTerminal は text を terminal の入力に入れる（Enter は押さない。UI-15）
  */
 export type WebviewRequest =
@@ -32,6 +33,7 @@ export type WebviewRequest =
   | { id: number; kind: "status" }
   | { id: number; kind: "action"; name: "open" | "show"; route: string }
   | { id: number; kind: "action"; name: "copy"; text: string }
+  | { id: number; kind: "action"; name: "openWorktree"; ticket: string }
   | { id: number; kind: "action"; name: "terminals" }
   | { id: number; kind: "action"; name: "sendToTerminal"; terminal: number; text: string };
 

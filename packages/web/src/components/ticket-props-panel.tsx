@@ -41,7 +41,7 @@ interface OptionalAttr {
 }
 
 /**
- * ticket.update の結果（チケットの属性と本文）に、ticket.show だけが出す値（受け入れ条件・依存元・依存先の状態・Plan）を前の詳細から足す。
+ * ticket.update の結果（チケットの属性と本文）に、ticket.show だけが出す値（受け入れ条件・依存元・依存先の状態・Plan・worktree）を前の詳細から足す。
  * 外した属性（epic など）は結果にないので、前の詳細に重ねず結果を土台にする
  */
 function withDerived(updated: Ticket & { body: string }, prev: TicketDetail): TicketDetail {
@@ -52,6 +52,7 @@ function withDerived(updated: Ticket & { body: string }, prev: TicketDetail): Ti
     deps_done: prev.deps_done,
     pending_deps: prev.pending_deps,
     plan: prev.plan,
+    worktree: prev.worktree,
   };
 }
 

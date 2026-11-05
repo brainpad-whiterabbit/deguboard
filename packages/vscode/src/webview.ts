@@ -171,6 +171,8 @@ export interface WebviewActions {
   show(route: string): void | Promise<void>;
   /** text をクリップボードに入れる（Webview の画面のコピーはすべてここに来る。vscode.env.clipboard で書く） */
   copy(text: string): void | Promise<void>;
+  /** フォルダ folder（worktree の絶対パス）を新しいウィンドウで開く（vscode.openFolder）。持たない画面は拒否する */
+  openFolder(folder: string): void | Promise<void>;
   /** 開いているターミナルの一覧（UI-15）。持たない画面は空 */
   terminals(): TerminalChoice[];
   /** 開いているターミナル terminal の入力に text を入れる。Enter は押さず、ターミナルは起動しない。なければ reject */
@@ -197,6 +199,20 @@ export async function handleRequest(
           ok: false,
           error: { code: "UNSUPPORTED_ACTION", message: "この画面からはその操作ができない" },
         };
+      }
+      if (request.name === "openWorktree") {
+        const detail = await client.run<{ worktree: string | null }>("ticket.show", {
+          ticket: request.ticket,
+        });
+        if (!detail.data.worktree) {
+          return {
+            id: request.id,
+            ok: false,
+            error: { code: "NOT_FOUND", message: `${request.ticket} の worktree が見つからない` },
+          };
+        }
+        await actions.openFolder(detail.data.worktree);
+        return { id: request.id, ok: true, data: null, warnings: [], write: null };
       }
       if (request.name === "terminals") {
         return { id: request.id, ok: true, data: actions.terminals(), warnings: [], write: null };
@@ -234,6 +250,7 @@ export function isWebviewRequest(value: unknown): value is WebviewRequest {
     case "action":
       if (v.name === "copy") return typeof (v as { text?: unknown }).text === "string";
       if (v.name === "terminals") return true;
+      if (v.name === "openWorktree") return typeof (v as { ticket?: unknown }).ticket === "string";
       if (v.name === "sendToTerminal") {
         const m = v as { terminal?: unknown; text?: unknown };
         return typeof m.terminal === "number" && typeof m.text === "string";

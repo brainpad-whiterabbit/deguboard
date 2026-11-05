@@ -306,6 +306,7 @@ describe("入力欄を頼むことを選んで開く", () => {
       copy: async () => {},
       terminals: async () => [],
       sendToTerminal: async () => null,
+      openWorktree: async () => {},
       onEvent: (listener) => {
         send = listener;
         return () => (send = undefined);

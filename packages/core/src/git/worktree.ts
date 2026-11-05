@@ -1,6 +1,7 @@
 // deguboard worktree の用意（SY-1）。orphan ブランチ `deguboard` を <common-dir>/deguboard/ に checkout する
 
 import { ensureLocalDir, type RepoPaths } from "./repo.js";
+import { pathExists } from "../storage/exists.js";
 import { runGit } from "./run.js";
 
 export const DATA_BRANCH = "deguboard";
@@ -17,6 +18,28 @@ async function branchExists(paths: RepoPaths, ref: string): Promise<boolean> {
 async function hasWorktree(paths: RepoPaths): Promise<boolean> {
   const out = (await runGit(paths.topLevel, ["worktree", "list", "--porcelain"])).stdout;
   return out.split("\n").some((line) => line === `worktree ${paths.dataDir}`);
+}
+
+/**
+ * 作業ブランチ branch を checkout している worktree のパス（絶対パス）。なければ null。
+ * 場所は `config.worktree.root` とは限らない（手で作った worktree もある）ので、置き場所を決めつけず git の一覧で引く。
+ * ディレクトリが消えた登録（prunable）と、deguboard の専用 worktree は対象にしない。読むだけで、何も書かない
+ */
+export async function findBranchWorktree(paths: RepoPaths, branch: string): Promise<string | null> {
+  const out = (await runGit(paths.topLevel, ["worktree", "list", "--porcelain"])).stdout;
+  for (const block of out.split("\n\n")) {
+    let dir: string | null = null;
+    let checkedOut: string | null = null;
+    let prunable = false;
+    for (const line of block.split("\n")) {
+      if (line.startsWith("worktree ")) dir = line.slice("worktree ".length);
+      else if (line.startsWith("branch ")) checkedOut = line.slice("branch ".length);
+      else if (line === "prunable" || line.startsWith("prunable ")) prunable = true;
+    }
+    if (dir === null || prunable || dir === paths.dataDir) continue;
+    if (checkedOut === `refs/heads/${branch}` && (await pathExists(dir))) return dir;
+  }
+  return null;
 }
 
 /**

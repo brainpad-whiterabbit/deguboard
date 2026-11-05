@@ -16,6 +16,7 @@ import { CopyableCode } from "./copyable-code.js";
 import { DateTime } from "./date-time.js";
 import type { Choice } from "./inline-edit.js";
 import { PriorityMark, StatusBadge, StatusDot, Tags, TicketLink } from "./parts.js";
+import { WorktreeRow } from "./worktree-row.js";
 import { fieldText } from "./ticket-fields.js";
 
 /** 編集のボタンで直している間の値。パネルではタイトルと本文だけを、ブラウザでは属性も使う */
@@ -183,7 +184,10 @@ export function ticketAttrs(store: Store, ticket: TicketDetail, panel: boolean) 
       ? dependents.map((d) => <RelationRow key={d.id} d={d} dimDone={false} panel={panel} />)
       : none,
     branchView: ticket.branch ? (
-      <CopyableCode text={ticket.branch} label="ブランチ名をコピー" />
+      <>
+        <CopyableCode text={ticket.branch} label="ブランチ名をコピー" />
+        {ticket.worktree ? <WorktreeRow ticket={ticket.id} path={ticket.worktree} /> : null}
+      </>
     ) : (
       none
     ),

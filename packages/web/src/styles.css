@@ -3220,3 +3220,11 @@ td.ask-cell {
 .onboarding-steps p {
   margin: 0 0 6px;
 }
+
+.worktree-row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.25em;
+  margin-top: 0.3em;
+}

@@ -35,6 +35,8 @@ export interface Host {
   copy(text: string): Promise<void>;
   /** 見た目の状態（開閉・最後に選んだもの）の置き場 */
   state: UiState;
+  /** チケットの作業ブランチの worktree を新しいウィンドウで開く。Webview だけにあり、ブラウザ（dg serve）にはない（パスを出すだけになる。ブラウザからは別のウィンドウでフォルダを開けない） */
+  openWorktree?: ((ticket: string) => Promise<void>) | undefined;
   /** 開いているターミナルへ依頼文を送る口（UI-15）。Webview だけにあり、ブラウザ（dg serve）にはない（コピーだけになる） */
   terminals?: TerminalsHost | undefined;
 }
@@ -68,6 +70,7 @@ export function createHost(surface: Surface, client: WebviewClient | null, state
       // Webview の navigator.clipboard は VS Code の版や設定で使えないことがあるので、試さずに拡張ホストに頼む
       copy: (text) => client.copy(text),
       state: state ?? browserHost.state,
+      openWorktree: (ticket) => client.openWorktree(ticket),
       terminals: {
         list: () => client.terminals(),
         send: (terminal, text) => client.sendToTerminal(terminal, text),
