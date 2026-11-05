@@ -908,7 +908,7 @@ Default
 Uncommitted changes
 1 unpushed
 2 to pull
-1 unreadable files
+1 unreadable file
 [title] Pull from the remote, push unpushed commits, and advance statuses from branch facts
 Sync
 [title] Ask Agent (create and copy a request)
@@ -1009,7 +1009,7 @@ Default
 Uncommitted changes
 1 unpushed
 2 to pull
-1 unreadable files
+1 unreadable file
 [title] Pull from the remote, push unpushed commits, and advance statuses from branch facts
 Sync
 [title] Ask Agent (create and copy a request)

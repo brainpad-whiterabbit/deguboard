@@ -556,4 +556,9 @@ export const EN_ONE: Readonly<Record<string, { arg: number; text: string }>> = {
     text: "{0} run includes estimated values (values marked with ~ include estimates)",
   },
   "Epic をあと {0} 本出す": { arg: 0, text: "Show {0} more Epic" },
+  "読めないファイル {0}": { arg: 0, text: "{0} unreadable file" },
+  "終了日を過ぎ、未完了が {0} 件あります。持ち越しを相談できます": {
+    arg: 0,
+    text: "Past the end date with {0} unfinished. You can discuss carrying it over",
+  },
 };
