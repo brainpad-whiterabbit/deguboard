@@ -38,8 +38,8 @@ const STEP = 50;
 // process.env を書き換える。この録画スクリプトは素の node で動き、ビルド済みの dg（dist）だけを呼ぶ。
 // また作るものも違い、こちらは clone 1 つに dg init と Skill の取り込みまで済ませた見本、あちらは clone 2 つの競合の検証用。
 // bare リモートの作成・clone・ユーザーの設定という数行は重なるが、共有のための層（ビルド・型・環境変数の扱い）の方が重いので別に持つ。
-// グローバル設定を避ける環境変数は git-fixture と同じにそろえてある。
-// 開発者のグローバル設定（hooksPath・gpgsign など）に影響されないようにする
+// 開発者のグローバル設定（hooksPath・gpgsign など）に影響されないようにする（git-fixture と同じ）。
+// git-fixture が足す裏の maintenance・gc の停止（GIT_CONFIG_COUNT）は、ここでは要らないので足さない（一時ディレクトリの後片付けは rm の再試行で足りる）
 const gitEnv = { ...process.env, GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1" };
 const git = (cwd, args) => run("git", args, { cwd, env: gitEnv });
 const dg = (cwd, args) =>

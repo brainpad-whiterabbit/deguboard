@@ -27,11 +27,14 @@ function chunk(type: string, data: Buffer): Buffer {
 }
 
 /** 1 行ごとのフィルタ（0〜4）を指定して PNG を組み立てる。pixels は行ごとの RGB */
-function makePng(pixels: Rgb[][], { channels = 3, filters = [0], bitDepth = 8 } = {}): Buffer {
+function makePng(
+  pixels: Rgb[][],
+  { channels = 3, filters = [0], bitDepth = 8, alpha = 255 } = {},
+): Buffer {
   const height = pixels.length;
   const width = pixels[0]!.length;
   const lines = pixels.map((row) =>
-    Buffer.from(row.flatMap((p) => (channels === 4 ? [...p, 255] : p))),
+    Buffer.from(row.flatMap((p) => (channels === 4 ? [...p, alpha] : p))),
   );
   const stride = width * channels;
   const rows: Buffer[] = [];
@@ -77,6 +80,7 @@ const paint = (w: number, h: number, fn: (x: number, y: number) => Rgb): Rgb[][]
 interface GifFrame {
   delay: number;
   transparent: number | null;
+  dispose: number;
   indices: Uint8Array;
 }
 
@@ -89,7 +93,7 @@ function readGif(bytes: Uint8Array) {
   let pos = 13;
   if (b[10]! & 0x80) pos += 3 * 2 ** ((b[10]! & 7) + 1);
   const frames: GifFrame[] = [];
-  let gce = { delay: 0, transparent: null as number | null };
+  let gce = { delay: 0, transparent: null as number | null, dispose: 0 };
   const subBlocks = () => {
     const parts: Buffer[] = [];
     for (;;) {
@@ -107,7 +111,11 @@ function readGif(bytes: Uint8Array) {
       const label = b[pos++]!;
       const data = subBlocks();
       if (label === 0xf9) {
-        gce = { delay: data.readUInt16LE(1) * 10, transparent: data[0]! & 1 ? data[3]! : null };
+        gce = {
+          delay: data.readUInt16LE(1) * 10,
+          transparent: data[0]! & 1 ? data[3]! : null,
+          dispose: (data[0]! >> 2) & 7,
+        };
       }
     } else if (tag === 0x2c) {
       const flags = b[pos + 8]!;
@@ -168,7 +176,7 @@ describe("decodePng", () => {
   });
 
   it("RGBA の PNG も読め、透明度は不透明にそろえる", () => {
-    const { rgba } = decodePng(makePng(image, { channels: 4, filters: [4, 3, 2, 1] }));
+    const { rgba } = decodePng(makePng(image, { channels: 4, filters: [4, 3, 2, 1], alpha: 128 }));
     expect([...rgba]).toEqual(expected);
   });
 
@@ -188,6 +196,19 @@ describe("buildPalette", () => {
     const { colors, palette } = buildPalette([img]);
     expect(colors).toHaveLength(255);
     expect(palette).toHaveLength(256);
+    expect(palette[255]).toEqual([0, 0, 0]);
+  });
+});
+
+describe("buildPalette の間引き", () => {
+  it("13 コマ以上でも、間引きで落ちる位置にある最後のコマの色を見本に入れる", () => {
+    // 26 コマだと間引きの幅は 2 で、最後（25）は幅では拾われず「必ず入れる」枝だけで入る
+    const img = (rgb: Rgb) => decodePng(makePng(paint(4, 4, () => rgb)));
+    const images = Array.from({ length: 26 }, (_, i) =>
+      img(i === 25 ? [10, 200, 30] : [200, 0, 0]),
+    );
+    const { colors } = buildPalette(images);
+    expect(colors.some(([r, g, b]) => g! > 150 && r! < 60 && b! < 80)).toBe(true);
   });
 });
 
@@ -235,6 +256,7 @@ describe("encodeGif", () => {
     );
     const second = gif.frames[1]!;
     expect(second.transparent).toBe(255);
+    expect(gif.frames.map((f) => f.dispose)).toEqual([1, 1]);
     const changed = [...second.indices].flatMap((v, i) => (v === 255 ? [] : [i]));
     expect(changed).toEqual([3 * w + 2]);
   });
