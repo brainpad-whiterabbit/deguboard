@@ -1,0 +1,22 @@
+id: p45
+project: default
+tickets: [t394, t395, t396]
+after:
+  t395:
+    - t394
+  t396:
+    - t395
+pending_approval: true
+details:
+  t394:
+    scope: run finish のモデル名を会話記録から取れた名前を最優先にし、取れないときだけ明示・start の名前を使う
+    approach: core の run の finish の優先順を変え、run.test に両方の場合を足し、run start/finish のヘルプと ADR-005 を合わせる
+    tier: standard
+  t395:
+    scope: Adapter のない agent 名の run start に、使用量とモデル名を取り込めない警告を返し、guide review・parallel に名乗り方を書く
+    approach: core の run start で Adapter の有無を見て warnings に足し、guide-review.md・guide-parallel.md に一文足してテストする
+    tier: standard
+  t396:
+    scope: 閉じた Run のモデル名と使用量を会話記録から取り直すコマンドを足し、取れない値は残して警告し、--dry-run で差分を出す
+    approach: core に run の取り直しのコマンド定義を足して CLI・HTTP に写し、requirements の RN・MT を直してテストする
+    tier: heavy
