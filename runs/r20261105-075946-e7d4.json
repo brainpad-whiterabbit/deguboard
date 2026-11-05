@@ -1,0 +1,32 @@
+{
+  "id": "r20261105-075946-e7d4",
+  "ticket": "t367",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-05T07:59:46Z",
+  "finished_at": "2026-11-05T08:01:33Z",
+  "result": "success",
+  "error": null,
+  "retries": 3,
+  "retry_reasons": [
+    "修正の対象を版の数字（0.14.x）から最新のリリースに変え、VSIX と npm の扱いを明記（SECURITY.md）",
+    "404 の理由を権限ではなく機能が未有効のためと書き直し、公開時に Settings で有効にする人の作業を書いた（PR 本文）",
+    "ticket check の拒否の記述を PR 本文から消した（PR 本文）"
+  ],
+  "usage": {
+    "input": 18,
+    "output": 3165,
+    "cache_read": 556398,
+    "cache_write": 4289
+  },
+  "tools": {
+    "read": 1,
+    "search": 0,
+    "write": 3,
+    "bash": 5,
+    "other": 0,
+    "read_before_write": 0,
+    "search_before_write": 0
+  }
+}
