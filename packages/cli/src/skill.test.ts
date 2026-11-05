@@ -132,11 +132,12 @@ describe("dg skill install", () => {
     const parsed = JSON.parse(result.out);
     expect(parsed.data.conflicts).toEqual(["dgwork"]);
     expect(parsed.data.retiredKept).toEqual(["deguboard"]);
-    expect(parsed.data.files.map((f: { name: string }) => f.name)).not.toContain("dgwork");
+    expect(parsed.data.files).toEqual([]);
     expect(parsed.warnings.join("\n")).toContain("上書きしない。");
     expect(parsed.warnings.join("\n")).toContain("消さない。");
     expect(parsed.warnings.join("\n")).not.toContain("しなかった");
     expect(await readFile(edited, "utf8")).toBe("手で書いた\n");
+    expect(await readFile(retired, "utf8")).toBe(`${RETIRED_TEMPLATE}手を加えた\n`);
     // 実際に入れるときは過去形のまま
     const real = JSON.parse((await dg(local.dir, ["--json", "skill", "install"])).out);
     expect(real.warnings.join("\n")).toContain("上書きしなかった");
@@ -156,7 +157,9 @@ describe("dg skill install", () => {
       dir: path.join(home, ".claude", "skills"),
     });
     expect(data.files.length).toBeGreaterThan(0);
-    expect(data.files[0].path.startsWith(path.join(home, ".claude", "skills"))).toBe(true);
+    for (const file of data.files as Array<{ path: string }>) {
+      expect(file.path.startsWith(path.join(home, ".claude", "skills") + path.sep)).toBe(true);
+    }
     expect(await exists(path.join(home, ".claude"))).toBe(false);
   });
 
