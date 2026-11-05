@@ -618,10 +618,13 @@ async function refreshStatusBar(): Promise<void> {
  */
 async function idIndexFor(
   uri: vscode.Uri,
+  options: { retry?: boolean } = {},
 ): Promise<{ index: IdIndex; folder: string } | undefined> {
   const folder =
     vscode.workspace.getWorkspaceFolder(uri) ?? (vscode.workspace.workspaceFolders ?? [])[0];
   if (!folder) return undefined;
+  // retry: 利用者が自分で起動したときは、覚えた失敗があっても読み直す
+  if (options.retry) forgetIdIndexFailure(folder);
   const key = folder.uri.toString();
   let index = idIndexes.get(key);
   if (!index) {
@@ -642,12 +645,7 @@ async function gotoTicket(context: vscode.ExtensionContext): Promise<void> {
   const uri =
     vscode.window.activeTextEditor?.document.uri ??
     (vscode.workspace.workspaceFolders ?? [])[0]?.uri;
-  // 利用者が自分で起動したので、30 秒以内の失敗の記録があっても読み直す
-  const target = uri
-    ? (vscode.workspace.getWorkspaceFolder(uri) ?? (vscode.workspace.workspaceFolders ?? [])[0])
-    : undefined;
-  if (target) forgetIdIndexFailure(target);
-  const found = uri ? await idIndexFor(uri) : undefined;
+  const found = uri ? await idIndexFor(uri, { retry: true }) : undefined;
   if (!found) {
     void vscode.window.showInformationMessage("deguboard: チケットのデータを読めない");
     return;
@@ -672,7 +670,7 @@ async function gotoTicket(context: vscode.ExtensionContext): Promise<void> {
   await openPanel(context, folder, { column: vscode.ViewColumn.Beside, route });
 }
 
-/** 覚えた「読めなかった」を忘れる。データの見張り・ステータスバーの更新・同期のとき、次の要求で読み直させる */
+/** 覚えた「読めなかった」を忘れる。データの見張り・ステータスバーの更新・同期・利用者が「チケットへ移動」を起動したとき、次の要求で読み直させる */
 function forgetIdIndexFailure(folder: vscode.WorkspaceFolder): void {
   idIndexFailedAt.delete(folder.uri.toString());
 }
