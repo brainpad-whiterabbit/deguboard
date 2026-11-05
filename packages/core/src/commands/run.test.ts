@@ -424,7 +424,11 @@ describe("run", () => {
     await expect(start(ctx, "t1", "deploy")).resolves.toMatchObject({ step: "deploy" });
     // Workflow が読めなければ確かめずに始め、警告する
     ctx.store.workflows.delete("general");
-    const r = await runCommand(runStart, ctx, { ticket: "t2", step: "anything", agent: "x" });
+    const r = await runCommand(runStart, ctx, {
+      ticket: "t2",
+      step: "anything",
+      agent: "claude-code",
+    });
     expect(r.warnings).toEqual([
       "t2 の Workflow が見つからないか読めないので、step anything を確かめていない",
     ]);
@@ -536,6 +540,25 @@ describe("run finish の使用量の取り込み（MT-1・MT-2・MT-4）", () =>
       model: "model-from-transcript",
       usage: { input: 7, output: 14, cache_read: 700, cache_write: 70 },
     });
+  });
+
+  it("start は Adapter のない agent 名でも記録し、使用量とモデル名を取り込めないと警告する。Adapter のある名前では警告しない", async () => {
+    const { ctx } = await withTranscripts(true, {});
+    const ok1 = await runCommand(runStart, ctx, {
+      ticket: "t1",
+      step: "implement",
+      agent: "claude-code",
+    });
+    expect(ok1.warnings).toEqual([]);
+    const r = await runCommand(runStart, ctx, {
+      ticket: "t1",
+      step: "review",
+      agent: "no-such-reviewer",
+    });
+    expect((r.data as Run).agent).toBe("no-such-reviewer");
+    expect(r.warnings).toEqual([
+      expect.stringMatching(/no-such-reviewer.*Adapter がない.*claude-code/),
+    ]);
   });
 
   it("read_transcripts が false か DEGUBOARD_NO_TRANSCRIPTS=1 なら会話記録を読まず、null にして警告する", async () => {

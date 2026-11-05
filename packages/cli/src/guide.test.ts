@@ -111,6 +111,11 @@ describe("dg guide", () => {
       /正本とコメントを読み直す[\s\S]*?同じ PR で直す[\s\S]*?gh pr create --draft[\s\S]*?読み直した正本と直した箇所/,
     );
     expect(await readGuide("parallel")).toContain("読み直した正本と直した箇所");
+    // サブエージェントも自分の Adapter の名前で run start する（役割名だと使用量とモデル名が取れない）
+    for (const topic of ["parallel", "review"])
+      expect(await readGuide(topic), topic).toMatch(
+        /自分の Adapter の名前。Claude Code なら `claude-code`/,
+      );
   });
 
   it("work は PR の要らない作業を --without-branch で claim し、確かめたら done、残れば review と案内する", async () => {

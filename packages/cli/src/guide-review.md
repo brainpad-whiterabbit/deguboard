@@ -19,7 +19,7 @@ PR を人に出す前（`dg guide work`）と、自動でマージする前（`d
 
 実装者は PR を draft で作り（`gh pr create --draft`）、実装の Run を閉じて返す。draft のうちは照合が review に進めない。親は、実装したのとは別のサブエージェントを見直し役として起動する。見直し役は Plan の段階によらず親のモデルで起動する（品質ゲートを弱めない）。
 
-- **渡す**：チケットの本文（`dg --json --actor agent ticket show <id>`）・ブランチと worktree のパス・差分の取り方（`git fetch {{git.remote}}` の後 `git diff {{git.remote}}/{{git.base_branch}}...<ブランチ>`）・規約の場所・一時ファイルの置き場所・`review` の Run を始めて閉じること（`--agent` の名前）
+- **渡す**：チケットの本文（`dg --json --actor agent ticket show <id>`）・ブランチと worktree のパス・差分の取り方（`git fetch {{git.remote}}` の後 `git diff {{git.remote}}/{{git.base_branch}}...<ブランチ>`）・規約の場所・一時ファイルの置き場所・`review` の Run を始めて閉じること（`--agent` は見直し役も自分の Adapter の名前。Claude Code なら `claude-code`。`claude-code-reviewer` のような役割名にすると使用量とモデル名を取り込めない）
 - **見る**：受け入れ条件の漏れ・不具合・文書との食い違い・規約の違反・範囲の外の変更
 - **Run**：見直し役自身が `review` の Run を始めて見直し、一覧を返す前に閉じる（下の「Run の分け方」）
 - **しない**：ファイルを変える・コミットする・push する・Run のほかに `dg` に書き込む

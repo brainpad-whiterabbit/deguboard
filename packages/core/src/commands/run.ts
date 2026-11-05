@@ -60,6 +60,11 @@ export const runStart = defineCommand({
         `${ticket.data.id} の Workflow が見つからないか読めないので、step ${input.step} を確かめていない`,
       );
     }
+    if (!agentNames().includes(input.agent)) {
+      warnings.push(
+        `agent ${input.agent} には Adapter がないので、finish は使用量とモデル名を取り込めない（Adapter のある名前: ${agentNames().join("・")}。サブエージェントも自分の Adapter の名前で始める）`,
+      );
+    }
     const run = await startRun(ctx.repo, {
       ticket: ticket.data.id,
       step: input.step,
