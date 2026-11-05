@@ -8,7 +8,7 @@
 //     dg run finish を呼んだ応答は入らない（Claude Code の Adapter と 1 応答ずれる。ADR-005）。書く順は openai/codex の
 //     codex-rs/core/src/session/turn.rs で確かめた（2026-10-31 の main。本物の記録では未確認）
 //   - 期間が重なる Run：同じファイルで、後に始まった開いている Run の ID が先に出ていれば（OverlapClaims）、その間の token_count の
-//     累計の増え（直前の累計との差）を除く。turn_context のモデル名も数えない
+//     累計の増え（直前の累計との差）を除く。turn_context のモデル名も数えない。読んだほかのファイルで ID が先に出た Run には譲らない
 //   - 写し方：input は input_tokens から cached_input_tokens を引いた値（キャッシュを読まなかった入力。Claude Code と同じ意味）、
 //     cache_read は cached_input_tokens、output は output_tokens、cache_write は cache_write_input_tokens。
 //     cache_write_input_tokens を書かない版の記録では cache_write を null にして警告する
@@ -21,6 +21,7 @@ import path from "node:path";
 import { createInterface } from "node:readline";
 import type { AgentAdapter, AgentEnv, CollectedUsage, UsageQuery } from "../define.js";
 import {
+  claimedElsewhere,
   count,
   fresh,
   homeDir,
@@ -71,6 +72,8 @@ interface Scan {
   modelBefore: string | undefined;
   /** Run の ID が出た後の、モデル名ごとの turn の数 */
   models: Map<string, number>;
+  /** 期間が重なるほかの Run の ID が出た時刻と、譲る相手 */
+  claims: OverlapClaims;
 }
 
 function totalOf(entry: Record<string, unknown>): Total | undefined {
@@ -124,7 +127,13 @@ function cede(ceded: Total, cur: Total, prev: Total | undefined): void {
   }
 }
 
-async function scan(file: string, query: UsageQuery, to: number): Promise<Scan> {
+async function scan(
+  file: string,
+  query: UsageQuery,
+  to: number,
+  elsewhere?: ReadonlySet<string>,
+): Promise<Scan> {
+  const claims = new OverlapClaims(query, Date.parse(query.run.started_at), to, elsewhere);
   const result: Scan = {
     firstSeen: undefined,
     before: undefined,
@@ -132,11 +141,11 @@ async function scan(file: string, query: UsageQuery, to: number): Promise<Scan> 
     ceded: { input: 0, cached: 0, cacheWrite: 0, output: 0 },
     modelBefore: undefined,
     models: new Map(),
+    claims,
   };
   // Run の ID が出るまでは候補の生の行を持つだけで JSON を読まない。ID が出たら後ろから遡り、最初に使える行だけを読む
   const usageLines: string[] = [];
   const contextLines: string[] = [];
-  const claims = new OverlapClaims(query, Date.parse(query.run.started_at), to);
   const lines = createInterface({ input: createReadStream(file), crlfDelay: Infinity });
   for await (const line of lines) {
     // ほかの Run の ID はその行の後の累計から効く。数える token_count・turn_context の行は Run の ID を含まないので、先に記録してよい
@@ -218,11 +227,18 @@ export const codexAdapter: AgentAdapter = {
     // 時刻は秒までなので、終わりはその秒の終わりまで含める
     const to = Date.parse(query.finishedAt) + 999;
     let best: Scan | undefined;
+    let bestFile = "";
+    const read: OverlapClaims[] = [];
     for (const file of await sessionFiles(query)) {
       const s = await scan(file, query, to).catch(() => undefined);
+      if (s) read.push(s.claims);
       if (s?.firstSeen === undefined || seenAfterRun(s.firstSeen, to)) continue;
-      if (!best || s.firstSeen < (best.firstSeen ?? Infinity)) best = s;
+      if (!best || s.firstSeen < (best.firstSeen ?? Infinity)) [best, bestFile] = [s, file];
     }
+    // ほかのファイルで ID が先に出た Run には譲らずに読み直す
+    const elsewhere = best ? claimedElsewhere(best.claims, read) : new Set<string>();
+    if (elsewhere.size > 0)
+      best = await scan(bestFile, query, to, elsewhere).catch(() => undefined);
     if (!best) {
       return none(`Codex の会話記録に Run ${query.run.id} が見つからない。使用量は null で残す`);
     }

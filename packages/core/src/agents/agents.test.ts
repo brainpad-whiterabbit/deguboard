@@ -304,6 +304,91 @@ describe("Claude Code の Adapter", () => {
       expect(got.model).toBeNull();
       expect(got.warnings).toEqual([]);
     });
+
+    it("別のファイルで始まった Run の ID を 1 分以内に表示しただけでは、その Run に譲らない", async () => {
+      const { projectDir, query } = await setup();
+      // B は s2 で 10:10 に始めた。s1 は 10:10:30 に一覧などで B の ID を見ただけ
+      await writeTranscript(path.join(projectDir, "s1.jsonl"), [
+        mention(0),
+        assistant("m1", 5, [1, 1, 1, 1]),
+        mentionOf(B, 10.5),
+        assistant("m2", 12, [10, 10, 10, 10]),
+      ]);
+      await writeTranscript(path.join(projectDir, "s2.jsonl"), [
+        mentionOf(B, 10),
+        assistant("n1", 12, [1000, 1000, 1000, 1000]),
+      ]);
+      const got = await claudeCodeAdapter.readTranscriptUsage(
+        query({ finishedAt: at(20), others: spans([[B, B_STARTED, null]]) }),
+      );
+      expect(got.usage.output).toBe(11);
+    });
+
+    it("session のファイルで Run が見つかっても、別の session で始まった Run の ID を見ただけでは譲らない", async () => {
+      // A は session sa、B は別の session sb で始めた。sa は 10:10:30 に B の ID を見ただけ
+      const { projectDir, query } = await setup({ CLAUDE_CODE_SESSION_ID: "sa" });
+      await writeTranscript(path.join(projectDir, "sa.jsonl"), [
+        mention(0),
+        assistant("m1", 5, [1, 1, 1, 1]),
+        mentionOf(B, 10.5),
+        assistant("m2", 12, [10, 10, 10, 10]),
+      ]);
+      await writeTranscript(path.join(projectDir, "sb.jsonl"), [
+        mentionOf(B, 10),
+        assistant("n1", 12, [1000, 1000, 1000, 1000]),
+      ]);
+      const got = await claudeCodeAdapter.readTranscriptUsage(
+        query({ finishedAt: at(20), others: spans([[B, B_STARTED, null]]) }),
+      );
+      expect(got.usage.output).toBe(11);
+    });
+
+    it("同じファイルで始めた 2 本は片方だけに数え、別のファイルで始まった Run の ID を見ても両方を 0 にしない", async () => {
+      const { projectDir, query } = await setup();
+      // 1 つの見直し役が s1 で A（10:10:00）と C（10:10:01）を始め（出力に ID は出ない）、10:10:09 の一覧で
+      // A・C と、s2 で 10:10:03 に始めた D の ID を見た
+      const A_STARTED = "2026-01-01T10:10:00Z";
+      const C = "r20260101-101001-cafe";
+      const D = "r20260101-101003-dead";
+      const sec = (s: number) => 10 + s / 60;
+      await writeTranscript(path.join(projectDir, "s1.jsonl"), [
+        {
+          type: "user",
+          timestamp: at(sec(9)),
+          message: {
+            role: "user",
+            content: [{ type: "tool_result", content: `${RUN_ID} ${C} ${D}` }],
+          },
+        },
+        assistant("m1", 12, [10, 10, 10, 10]),
+      ]);
+      await writeTranscript(path.join(projectDir, "s2.jsonl"), [
+        mentionOf(D, sec(4)),
+        assistant("n1", 12, [1000, 1000, 1000, 1000]),
+      ]);
+      const all: Array<[string, string, string | null]> = [
+        [RUN_ID, A_STARTED, at(20)],
+        [C, "2026-01-01T10:10:01Z", at(20)],
+        [D, "2026-01-01T10:10:03Z", null],
+      ];
+      const others = (self: string) => spans(all.filter(([id]) => id !== self));
+      const a = await claudeCodeAdapter.readTranscriptUsage(
+        query({
+          run: run({ started_at: A_STARTED }),
+          finishedAt: at(20),
+          others: others(RUN_ID),
+        }),
+      );
+      const c = await claudeCodeAdapter.readTranscriptUsage(
+        query({
+          run: run({ id: C, started_at: "2026-01-01T10:10:01Z" }),
+          finishedAt: at(20),
+          others: others(C),
+        }),
+      );
+      expect(a.usage.output).toBe(0);
+      expect(c.usage.output).toBe(10);
+    });
   });
 
   it("主の作業ツリーで始めたセッションの記録も、worktree の作業ツリーから探す", async () => {

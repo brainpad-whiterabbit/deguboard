@@ -170,6 +170,71 @@ describe("Codex の Adapter", () => {
       expect(b.usage.output).toBe(10);
       expect(a.usage).toEqual({ input: 66, output: 101, cache_read: 44, cache_write: 2 });
     });
+
+    it("別のファイルで始まった Run の ID を 1 分以内に表示しただけでは、その Run に譲らない", async () => {
+      const { sessions, query } = await setup();
+      // B は rollout-b で 10:10 に始めた。rollout-a は 10:10:30 に一覧などで B の ID を見ただけ
+      await writeRollout(path.join(sessions, "rollout-a.jsonl"), [
+        mention(0),
+        tokenCount(5, [10, 4, 1, 1]),
+        mentionOf(B, 10.5),
+        tokenCount(12, [30, 10, 11, 2]),
+      ]);
+      await writeRollout(path.join(sessions, "rollout-b.jsonl"), [
+        mentionOf(B, 10),
+        tokenCount(12, [1000, 1000, 1000, 1000]),
+      ]);
+      const got = await codexAdapter.readTranscriptUsage(
+        query({ finishedAt: at(20), others: spans([[B, B_STARTED, null]]) }),
+      );
+      expect(got.usage).toEqual({ input: 20, output: 11, cache_read: 10, cache_write: 2 });
+    });
+
+    it("同じファイルで始めた 2 本は片方だけに数え、別のファイルで始まった Run の ID を見ても両方を 0 にしない", async () => {
+      const { sessions, query } = await setup();
+      // 1 つの見直し役が rollout-a で A（10:10:00）と C（10:10:01）を始め（出力に ID は出ない）、10:10:09 の一覧で
+      // A・C と、rollout-d で 10:10:03 に始めた D の ID を見た
+      const A_STARTED = "2026-01-01T10:10:00Z";
+      const C_STARTED = "2026-01-01T10:10:01Z";
+      const C = "r20260101-101001-cafe";
+      const D = "r20260101-101003-dead";
+      const sec = (s: number) => 10 + s / 60;
+      await writeRollout(path.join(sessions, "rollout-a.jsonl"), [
+        tokenCount(9, [5, 0, 5, 0]),
+        {
+          timestamp: at(sec(9)),
+          type: "response_item",
+          payload: { type: "function_call_output", call_id: "c3", output: `${RUN_ID} ${C} ${D}` },
+        },
+        tokenCount(12, [35, 10, 15, 2]),
+      ]);
+      await writeRollout(path.join(sessions, "rollout-d.jsonl"), [
+        mentionOf(D, sec(4)),
+        tokenCount(12, [1000, 1000, 1000, 1000]),
+      ]);
+      const all: Array<[string, string, string | null]> = [
+        [RUN_ID, A_STARTED, at(20)],
+        [C, C_STARTED, at(20)],
+        [D, "2026-01-01T10:10:03Z", null],
+      ];
+      const others = (self: string) => spans(all.filter(([id]) => id !== self));
+      const a = await codexAdapter.readTranscriptUsage(
+        query({
+          run: { ...run(), started_at: A_STARTED },
+          finishedAt: at(20),
+          others: others(RUN_ID),
+        }),
+      );
+      const c = await codexAdapter.readTranscriptUsage(
+        query({
+          run: { ...run(), id: C, started_at: C_STARTED },
+          finishedAt: at(20),
+          others: others(C),
+        }),
+      );
+      expect(a.usage).toEqual({ input: 0, output: 0, cache_read: 0, cache_write: 0 });
+      expect(c.usage).toEqual({ input: 20, output: 10, cache_read: 10, cache_write: 2 });
+    });
   });
 
   it("Run の ID の前に累計がなければ session の始まりから数え、turn がなければ前のモデル名を入れる", async () => {

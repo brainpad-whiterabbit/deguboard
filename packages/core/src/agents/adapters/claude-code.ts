@@ -4,7 +4,9 @@
 //     サブエージェントは親と同じ session の subagents/ に別のファイルを持ち、作業ディレクトリと時刻だけでは並行するエージェントと区別できない
 //   - 数える行：そのファイルの assistant の行のうち、Run の ID が出た後の started_at〜finished_at のもの。同じ応答が複数行に
 //     分かれるので message.id で重ねない。subagents/ の外のファイルの isSidechain の行（古い版が親のファイルに書くサブエージェントの行）は数えない。
-//     同じファイルで期間が重なるほかの Run があれば、応答は ID が先に出ていて開いている Run のうち最も新しく始まったものにだけ数える（OverlapClaims）。すべて譲ったら量は 0
+//     同じファイルで期間が重なるほかの Run があれば、応答は ID が先に出ていて開いている Run のうち最も新しく始まったものにだけ数える（OverlapClaims）。
+//     ほかのファイルで ID が先に出た Run には譲らない（その Run の記録はそちらのファイル）。譲る相手がいれば、session のファイルで
+//     Run が見つかっても作業ツリーの候補まで読んで比べる。すべて譲ったら量は 0
 //   - 探す範囲：環境変数 CLAUDE_CODE_SESSION_ID があればその session のファイル。そこに Run がなければ、作業ツリーと主の作業ツリーと、
 //     主の作業ツリーの親までの上位のディレクトリ（HOME とその上は除く）に当たる projects/ の下。どちらも started_at より後に書かれたファイルだけ
 //   - ツールの回数：数える行の message.content の tool_use を、tool_use の id で重ねずに名前で種類に分けて数える（TOOL_KINDS）。
@@ -17,6 +19,7 @@ import { createInterface } from "node:readline";
 import type { ToolKind } from "../../model/run.js";
 import type { AgentAdapter, AgentEnv, CollectedUsage, UsageQuery } from "../define.js";
 import {
+  claimedElsewhere,
   count,
   fresh,
   homeDir,
@@ -85,6 +88,8 @@ interface Scan {
   tools: Map<string, ToolKind>;
   /** 後に始まった開いている Run に譲った応答があるか */
   ceded: boolean;
+  /** 期間が重なるほかの Run の ID が出た時刻と、譲る相手 */
+  claims: OverlapClaims;
 }
 
 /** Claude Code のツールの名前と種類。載っていない名前（Agent・TodoWrite・Web・MCP など）は other */
@@ -119,16 +124,23 @@ function addTools(tools: Scan["tools"], message: Record<string, unknown>, key: s
 /** 行の中の timestamp の値。最上位の timestamp は message の後にあり、入れ子の中にも同じキーがありうるので、すべてを候補にする */
 const TIMESTAMPS = /"timestamp":"([^"]+)"/g;
 
-async function scan(file: string, query: UsageQuery, from: number, to: number): Promise<Scan> {
+async function scan(
+  file: string,
+  query: UsageQuery,
+  from: number,
+  to: number,
+  elsewhere?: ReadonlySet<string>,
+): Promise<Scan> {
+  const claims = new OverlapClaims(query, from, to, elsewhere);
   const result: Scan = {
     firstSeen: undefined,
     messages: new Map(),
     tools: new Map(),
     ceded: false,
+    claims,
   };
   // subagents/ の外のファイルでは、サブエージェントの行（isSidechain）は親の使用量でない
   const sidechainFile = file.split(path.sep).includes("subagents");
-  const claims = new OverlapClaims(query, from, to);
   /** 1 行を積む。読むのをやめるときだけ false */
   const take = (line: string): boolean => {
     if (result.firstSeen === undefined) {
@@ -217,14 +229,27 @@ export const claudeCodeAdapter: AgentAdapter = {
     const from = Date.parse(query.run.started_at);
     const to = Date.parse(query.finishedAt) + 999;
     let best: Scan | undefined;
+    let bestFile = "";
+    const read: OverlapClaims[] = [];
+    const scanned = new Set<string>();
     // session のファイルに Run がなければ（別のセッションの環境を受け継いだなど）、作業ツリーから探す
     for (const candidates of [sessionCandidates, worktreeCandidates]) {
+      // 結び付けるファイルは決まっても、譲る相手がいれば、その ID が先に出たファイルを探すために残りも読む
+      if (best && best.claims.claimants.size === 0) break;
+      const found = best !== undefined;
       for (const file of await candidates(query, projects)) {
+        if (scanned.has(file)) continue;
+        scanned.add(file);
         const s = await scan(file, query, from, to).catch(() => undefined);
-        if (s?.firstSeen === undefined || seenAfterRun(s.firstSeen, to)) continue;
-        if (!best || s.firstSeen < (best.firstSeen ?? Infinity)) best = s;
+        if (s) read.push(s.claims);
+        if (found || s?.firstSeen === undefined || seenAfterRun(s.firstSeen, to)) continue;
+        if (!best || s.firstSeen < (best.firstSeen ?? Infinity)) [best, bestFile] = [s, file];
       }
-      if (best) break;
+    }
+    // ほかのファイルで ID が先に出た Run には譲らずに読み直す
+    const elsewhere = best ? claimedElsewhere(best.claims, read) : new Set<string>();
+    if (elsewhere.size > 0) {
+      best = await scan(bestFile, query, from, to, elsewhere).catch(() => undefined);
     }
     if (!best) {
       return none(

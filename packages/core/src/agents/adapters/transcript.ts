@@ -110,15 +110,27 @@ const START_MS = 60_000;
  * 同じ会話記録で期間が重なる Run に、1 つの応答を二重に数えないための判定（ADR-005）。
  * 応答は、その応答より前に ID が出ていて、その時刻に開いている Run のうち、いちばん新しく始まったものだけに数える。
  * 比べるのは自分より後に始まって期間が重なる Run だけで、その ID がこのファイルで最初に出たのが開始から START_MS 以内のもの
- * （そのファイルで dg run start を呼んだ Run）。後から一覧などで ID を見ただけの、ほかの記録の Run には譲らない
+ * （そのファイルで dg run start を呼んだ Run）。後から一覧などで ID を見ただけの、ほかの記録の Run には譲らない。
+ * 開始から START_MS 以内でも、ほかのファイルで ID が先に出た Run（elsewhere。claimedElsewhere で求める）には譲らない
  */
 export class OverlapClaims {
   /** まだ ID が出ていない、自分より後に始まって期間が重なる Run の開始と終わり */
   private readonly pending = new Map<string, { from: number; to: number }>();
   /** ID が出た、譲る相手の期間 */
   private readonly newer: Array<{ from: number; to: number }> = [];
+  /** pending の Run の ID がこのファイルで最初に出た時刻。時刻の分からない行は Infinity */
+  readonly seen = new Map<string, number>();
+  /** 譲る相手にした Run の ID */
+  readonly claimants = new Set<string>();
+  /** ほかのファイルで ID が先に出た Run。譲る相手にしない */
+  private readonly elsewhere: ReadonlySet<string>;
 
-  constructor(query: UsageQuery, from: number, to: number) {
+  constructor(
+    query: UsageQuery,
+    from: number,
+    to: number,
+    elsewhere: ReadonlySet<string> = new Set(),
+  ) {
     const self = query.run;
     for (const [id, span] of query.others ?? []) {
       if (id === self.id) continue;
@@ -132,6 +144,7 @@ export class OverlapClaims {
         (span.started_at === self.started_at && id.localeCompare(self.id) > 0);
       if (later) this.pending.set(id, { from: start, to: end });
     }
+    this.elsewhere = elsewhere;
   }
 
   /** 行を読んだ後に呼び、その行に初めて出たほかの Run の ID を記録する */
@@ -142,7 +155,12 @@ export class OverlapClaims {
       this.pending.delete(id);
       const entry = parse(line);
       const at = entry ? timeOf(entry) : NaN;
-      if (Number.isNaN(at) || at <= span.from + START_MS) this.newer.push(span);
+      this.seen.set(id, Number.isNaN(at) ? Infinity : at);
+      if (this.elsewhere.has(id)) continue;
+      if (Number.isNaN(at) || at <= span.from + START_MS) {
+        this.newer.push(span);
+        this.claimants.add(id);
+      }
     }
   }
 
@@ -150,4 +168,22 @@ export class OverlapClaims {
   owns(at: number): boolean {
     return !this.newer.some((s) => s.from <= at && at <= s.to);
   }
+}
+
+/**
+ * 選んだファイル（chosen）で譲る相手にした Run のうち、読んだほかのファイル（all）で ID が同じか先の時刻に出たもの。
+ * その Run は Adapter がそちらのファイルに結び付けうるので、chosen の応答を数えない。譲ると二重計上を防ぐどころか、どちらも数えなくなる。
+ * all は Adapter が Run を探す範囲のすべて（Claude Code は session と作業ツリーの両方）にする。狭いと別の記録の Run に譲ってしまう。
+ * 同じ時刻なら、どちらに結び付くかは列挙の順で決まり分からないので、量を落とさない側（譲らない）に倒す
+ */
+export function claimedElsewhere(chosen: OverlapClaims, all: Iterable<OverlapClaims>): Set<string> {
+  const out = new Set<string>();
+  for (const id of chosen.claimants) {
+    const here = chosen.seen.get(id) ?? Infinity;
+    for (const other of all) {
+      const there = other.seen.get(id);
+      if (other !== chosen && there !== undefined && there <= here) out.add(id);
+    }
+  }
+  return out;
 }
