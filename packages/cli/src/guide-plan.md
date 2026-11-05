@@ -39,7 +39,7 @@ dg --json --actor agent plan create t12 t13 t14 t15 \
   --tier t12=light --tier t13=standard --tier t15=heavy
 ```
 
-- 並べた順が実行順の目安。`--after t15=t13,t14` は「t15 を t13・t14 の後に進める」で、計画の中だけの待ち（チケットの `depends_on` とは別）。並行できるものは互いに after を書かない
+- 並べた順が実行順の目安。`--after t15=t13,t14` は「t15 を t13・t14 の後に進める」で、計画の中だけの待ち（チケットの `depends_on` とは別）。並行できるものは互いに after を書かない。`after` だけの循環と、`after`・`depends_on` をまたぐ循環は拒否され、経路が出る。その after を外すか向きを変える
 - `--scope`・`--approach` はチケットごとに 1 文で書く。着手するときに `plan show` の `details` で読み返す
 - `--tier` はチケットの難しさの段階で、どのモデルで実装するか（`config.yaml` の `models.*`。`dg guide work`）を決める。light：文書・設定・文言だけ。heavy：設計の判断・データの形・複数パッケージにまたがる・原因の分からない不具合。standard：それ以外。迷ったら重い方にする。省くと standard と同じに扱う
 - done・abandoned のチケットと、別の開いた Plan に入っているチケット（`ticket show` の `plan` が空でないもの）は入れられない（`REJECTED`）。別の Plan に入っていれば、その Plan を閉じてよいか人に確かめる
