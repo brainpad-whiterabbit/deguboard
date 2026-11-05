@@ -3,9 +3,21 @@
   "displayName": "deguboard",
   "version": "0.14.0",
   "private": true,
-  "description": "deguboard の VS Code 拡張。Activity Bar のアイコンからサイドバーに web の画面を出し、拡張ホストから core を呼ぶ。dg は同梱しない",
+  "description": "AI エージェントに仕事を任せるためのカンバン。小さなチケットに分けて並列に進め、その働きを測れます。",
   "categories": [
-    "Other"
+    "AI",
+    "Other",
+    "Visualization"
+  ],
+  "keywords": [
+    "ai agent",
+    "claude code",
+    "codex",
+    "copilot",
+    "git",
+    "kanban",
+    "ticket",
+    "カンバン"
   ],
   "license": "MIT",
   "repository": {
@@ -137,6 +149,11 @@
         }
       ]
     }
+  },
+  "icon": "media/icon.png",
+  "galleryBanner": {
+    "color": "#161b23",
+    "theme": "dark"
   },
   "engines": {
     "vscode": "^1.123.0"
