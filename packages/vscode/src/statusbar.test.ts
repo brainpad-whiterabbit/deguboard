@@ -21,6 +21,15 @@ describe("ticketOfBranch", () => {
   it("ブランチが branch に一致するチケットを返す", () => {
     expect(ticketOfBranch(tickets, "feat/b")?.id).toBe("t2");
   });
+  it("同じブランチに複数あれば終わっていないものを優先し、なければ番号の大きいもの", () => {
+    const list = [
+      { id: "t9", status: "done", branch: "x" },
+      { id: "t10", status: "done", branch: "x" },
+      { id: "t2", status: "review", branch: "x" },
+    ];
+    expect(ticketOfBranch(list, "x")?.id).toBe("t2");
+    expect(ticketOfBranch(list.slice(0, 2), "x")?.id).toBe("t10");
+  });
   it("紐づくチケットがないブランチでは undefined", () => {
     expect(ticketOfBranch(tickets, "main")).toBeUndefined();
   });

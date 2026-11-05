@@ -38,13 +38,15 @@ export function headFile(cwd: string): Promise<string | undefined> {
   });
 }
 
-/** ブランチが branch に一致するチケット。なければ undefined（そのブランチではステータスバーに出さない） */
+/** ブランチが branch に一致するチケット。終わっていないものを優先し、なければ番号の最も大きいもの。なければ undefined（出さない） */
 export function ticketOfBranch(
   tickets: readonly BranchTicket[],
   branch: string | undefined,
 ): BranchTicket | undefined {
   if (branch === undefined) return undefined;
-  return tickets.find((t) => t.branch === branch);
+  const num = (t: BranchTicket) => Number(/\d+/.exec(t.id)?.[0] ?? 0);
+  const matched = tickets.filter((t) => t.branch === branch).sort((a, b) => num(b) - num(a));
+  return matched.find((t) => t.status !== "done" && t.status !== "abandoned") ?? matched[0];
 }
 
 /** ステータスバーの文言。実行中の Run があれば回るアイコンを付ける */

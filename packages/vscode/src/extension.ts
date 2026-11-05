@@ -77,6 +77,8 @@ let syncing = false;
 let statusItem: vscode.StatusBarItem | undefined;
 /** 今のチケットの ID。項目を押したときに開く */
 let statusTicket: string | undefined;
+/** refreshStatusBar の世代番号。最新の呼び出しの結果だけを反映する */
+let statusGeneration = 0;
 /** ブランチの変わり（worktree の HEAD）の見張り。作業フォルダごと */
 const headWatchers = new Map<string, vscode.Disposable>();
 
@@ -481,6 +483,8 @@ async function watchData(folder: vscode.WorkspaceFolder, client: CommandClient):
  * 読めないとき（deguboard のデータがないリポジトリなど）も隠すだけで、通知は出さない
  */
 async function refreshStatusBar(): Promise<void> {
+  // 並んで走ったとき、最新でない結果で新しい表示を上書きしないよう世代で捨てる
+  const generation = ++statusGeneration;
   const folder = (vscode.workspace.workspaceFolders ?? [])[0];
   if (!folder) {
     hideStatusBar();
@@ -494,10 +498,12 @@ async function refreshStatusBar(): Promise<void> {
       (await client.run<BranchTicket[]>("ticket.list", {})).data,
       branch,
     );
+    if (generation !== statusGeneration) return;
     if (!ticket) return hideStatusBar();
     const running = (
       await client.run<{ ticket: string }[]>("run.list", { ticket: ticket.id, running: true })
     ).data.some((r) => r.ticket === ticket.id);
+    if (generation !== statusGeneration) return;
     statusItem ??= vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 0);
     statusItem.command = STATUSBAR_COMMAND;
     statusItem.text = statusBarText(ticket, running);
@@ -505,7 +511,7 @@ async function refreshStatusBar(): Promise<void> {
     statusTicket = ticket.id;
     statusItem.show();
   } catch {
-    hideStatusBar();
+    if (generation === statusGeneration) hideStatusBar();
   }
 }
 

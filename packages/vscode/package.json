@@ -121,6 +121,10 @@
       ],
       "commandPalette": [
         {
+          "command": "deguboard.openCurrentTicket",
+          "when": "false"
+        },
+        {
           "command": "deguboard.sync",
           "when": "false"
         },
@@ -155,6 +159,9 @@
       ]
     }
   },
+  "activationEvents": [
+    "onStartupFinished"
+  ],
   "icon": "media/icon.png",
   "galleryBanner": {
     "color": "#161b23",
