@@ -1,0 +1,30 @@
+{
+  "id": "r20261105-085727-27db",
+  "ticket": "t349",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-sonnet-5-5",
+  "started_at": "2026-11-05T08:57:27Z",
+  "finished_at": "2026-11-05T08:58:23Z",
+  "result": "success",
+  "error": null,
+  "retries": 1,
+  "retry_reasons": [
+    "dg.ts 14 行のコメントが書き直した README と食い違う"
+  ],
+  "usage": {
+    "input": 2,
+    "output": 822,
+    "cache_read": 56064,
+    "cache_write": 436
+  },
+  "tools": {
+    "read": 0,
+    "search": 0,
+    "write": 0,
+    "bash": 1,
+    "other": 0,
+    "read_before_write": 0,
+    "search_before_write": 0
+  }
+}
