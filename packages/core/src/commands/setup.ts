@@ -584,7 +584,7 @@ export const configSet = defineCommand({
   positionals: ["key", "value"],
   group: "setup",
   summary:
-    "config.yaml の 1 項目を変える（commit.mode のようにドットで指す）。配列の項目はカンマ区切りで、空文字で空にする。既定が空でない文字列の項目（priority.* など）は空文字で既定に戻す。選択肢の項目（commit.mode など）は空・省略を弾く",
+    "config.yaml の 1 項目を変える（commit.mode のようにドットで指す）。配列の項目はカンマ区切りで、空文字で空にする。既定が空でない文字列の項目（priority.* など）は空文字で既定に戻す。選択肢の項目（commit.mode など）は空・null・省略を弾く",
   input: z.object({
     key: z.string().min(1).describe("項目。例: commit.mode"),
     value: z.unknown().describe("値"),
