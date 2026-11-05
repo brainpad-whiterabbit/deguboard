@@ -4,7 +4,7 @@ tickets: [t428, t429]
 after:
   t429:
     - t428
-pending_approval: true
+pending_approval: false
 details:
   t428:
     scope: ルートの README.md の構成と文面、Run・tier の細部の正本への移し
@@ -14,3 +14,5 @@ details:
     scope: mise run vsix での拡張の README の生成とテスト、gitignore
     approach: package の script から scripts の生成スクリプトを呼び、見出し「ほかの使い方」で切る
     tier: standard
+approved_by: eiki.kitajima/agent
+approved_at: 2026-11-05T12:28:02Z
