@@ -9,7 +9,7 @@ after:
     - t388
   t392:
     - t388
-pending_approval: true
+pending_approval: false
 details:
   t385:
     scope: npm に出す 3 パッケージの tarball に LICENSE を入れ、作業ブランチに入れず、development.md の確かめに足す
@@ -47,3 +47,5 @@ details:
     scope: skill install --dry-run の警告の言い回しと files のコメントを直し、personal と衝突の場合をテストする
     approach: skill.ts の警告を dryRun で言い分け、skill.test に 2 件足す
     tier: standard
+approved_by: eiki.kitajima/agent
+approved_at: 2026-11-05T00:58:08Z
