@@ -326,7 +326,8 @@ export const iterationStart = defineCommand({
   name: "iteration.start",
   positionals: ["iteration"],
   group: "iteration",
-  summary: "Iteration を開始する（active にする）。同じ Project にほかの active があれば拒否する",
+  summary:
+    "Iteration を開始する（active にする）。開始日（start）は始めた日（手元の暦日）に書き換え、終了日は変えない。同じ Project にほかの active があれば拒否する",
   input: z.object({ iteration: iterationRef }),
   write: true,
   needs: "store",
@@ -338,7 +339,11 @@ export const iterationStart = defineCommand({
         if (it.data.status !== "planned")
           throw new OperationError("REJECTED", `${it.id} は ${it.data.status} なので開始できない`);
         rejectIfOtherActive(ctx.store, it, "開始");
-        return ctx.store.update("iteration", it.id, { status: "active" });
+        // 予定の開始日は実際とずれるので、始めた日に書き換えて実際の期間を残す（IT-1）。end は予定のまま
+        return ctx.store.update("iteration", it.id, {
+          status: "active",
+          start: localDate(ctx.now()),
+        });
       },
       // active を 1 つに保つ排他なので、claim と同じく即座に push し、拒否されたら検査からやり直す
       { message: (doc) => `${doc.id} を開始: ${doc.data.name}`, immediate: true, cas: true },
@@ -352,7 +357,7 @@ export const iterationClose = defineCommand({
   positionals: ["iteration"],
   group: "iteration",
   summary:
-    "Iteration を閉じ、完了と持ち越しの件数を記録する。持ち越したチケットの iteration は外す",
+    "Iteration を閉じ、完了と持ち越しの件数を記録する。終了日（end）は閉じた日（手元の暦日）に書き換え、開始日がそれより後なら開始日も閉じた日にする。持ち越したチケットの iteration は外す",
   input: z.object({ iteration: iterationRef }),
   write: true,
   needs: "store",
@@ -368,8 +373,13 @@ export const iterationClose = defineCommand({
         const carried = tickets.filter((t) => !isTerminal(t.data.status));
         for (const t of carried)
           await ctx.store.update("ticket", t.id, { iteration: undefined, updated_at: nowIso(ctx) });
+        // 予定の終了日は実際とずれるので、閉じた日に書き換えて実際の期間を残す（IT-1）。
+        // 開始日が閉じた日より後（始める前に閉じた）なら、期間が逆にならないよう開始日も閉じた日にする
+        const today = localDate(ctx.now());
         return ctx.store.update("iteration", it.id, {
           status: "closed",
+          ...(it.data.start !== undefined && it.data.start > today ? { start: today } : {}),
+          end: today,
           closed_at: nowIso(ctx),
           completed,
           carried_over: carried.length,
@@ -386,7 +396,7 @@ export const iterationReopen = defineCommand({
   positionals: ["iteration"],
   group: "iteration",
   summary:
-    "閉じた Iteration を再開して active に戻す（同じ Project にほかの active があれば拒否する）。closed_at と完了・持ち越しの件数は消す。持ち越したチケットは戻らないので iteration add で入れ直す",
+    "閉じた Iteration を再開して active に戻す（同じ Project にほかの active があれば拒否する）。closed_at と完了・持ち越しの件数は消す。開始日は変えず、終了日は閉じた日のままなので、要れば iteration update で直す。持ち越したチケットは戻らないので iteration add で入れ直す",
   input: z.object({ iteration: iterationRef }),
   write: true,
   needs: "store",
