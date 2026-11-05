@@ -29,7 +29,18 @@
                 "message": "core は何にも依存しない（ADR-007）"
               },
               {
-                "group": ["node:http", "node:https", "node:net", "node:http2"],
+                "group": [
+                  "node:http",
+                  "node:https",
+                  "node:net",
+                  "node:tls",
+                  "node:http2",
+                  "http",
+                  "https",
+                  "net",
+                  "tls",
+                  "http2"
+                ],
                 "message": "core は HTTP と通信のモジュールを import しない（ADR-007）"
               },
               {
@@ -75,7 +86,18 @@
                 "message": "core は何にも依存しない（ADR-007）"
               },
               {
-                "group": ["node:http", "node:https", "node:net", "node:http2"],
+                "group": [
+                  "node:http",
+                  "node:https",
+                  "node:net",
+                  "node:tls",
+                  "node:http2",
+                  "http",
+                  "https",
+                  "net",
+                  "tls",
+                  "http2"
+                ],
                 "message": "core は HTTP と通信のモジュールを import しない（ADR-007）"
               },
               {
