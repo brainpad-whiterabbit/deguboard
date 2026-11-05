@@ -1,0 +1,31 @@
+{
+  "id": "r20261105-152000-5ed6",
+  "ticket": "t424",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-05T15:20:00Z",
+  "finished_at": "2026-11-05T15:22:55Z",
+  "result": "success",
+  "error": null,
+  "retries": 2,
+  "retry_reasons": [
+    "plan-line に button の見た目の指定が残る",
+    "GIF の台本が番号のリンクに重なる位置を押す"
+  ],
+  "usage": {
+    "input": 28,
+    "output": 2942,
+    "cache_read": 1928862,
+    "cache_write": 9944
+  },
+  "tools": {
+    "read": 0,
+    "search": 0,
+    "write": 0,
+    "bash": 8,
+    "other": 3,
+    "read_before_write": 0,
+    "search_before_write": 0
+  }
+}

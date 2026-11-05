@@ -1,0 +1,36 @@
+{
+  "id": "r20261105-152239-c88e",
+  "ticket": "t374",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-sonnet-5-5",
+  "started_at": "2026-11-05T15:22:39Z",
+  "finished_at": "2026-11-05T15:24:35Z",
+  "result": "success",
+  "error": null,
+  "retries": 7,
+  "retry_reasons": [
+    "読み込み中の変化を取りこぼし索引が古いまま残る",
+    "abandoned のチケットが索引に載らない",
+    "データのないリポジトリで失敗を覚えず読み直し続ける",
+    "selector のコメントの根拠が違う",
+    "存在しない ID の絞り込みにテストがない",
+    "正規表現のテストが足りない",
+    "複数フォルダでパネルのフォルダがずれる"
+  ],
+  "usage": {
+    "input": 6,
+    "output": 5392,
+    "cache_read": 203448,
+    "cache_write": 8311
+  },
+  "tools": {
+    "read": 0,
+    "search": 0,
+    "write": 0,
+    "bash": 3,
+    "other": 0,
+    "read_before_write": 0,
+    "search_before_write": 0
+  }
+}
