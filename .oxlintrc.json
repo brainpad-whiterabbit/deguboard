@@ -29,6 +29,10 @@
                 "message": "core は何にも依存しない（ADR-007）"
               },
               {
+                "group": ["node:http", "node:https", "node:net", "node:http2"],
+                "message": "core は HTTP と通信のモジュールを import しない（ADR-007）"
+              },
+              {
                 "regex": "^\\.\\.?/(\\.\\./)*(cli|server|web|vscode)(/|$)",
                 "message": "core は他のパッケージを相対パスでも import しない（ADR-007）"
               },
@@ -69,6 +73,10 @@
                   "react-dom/*"
                 ],
                 "message": "core は何にも依存しない（ADR-007）"
+              },
+              {
+                "group": ["node:http", "node:https", "node:net", "node:http2"],
+                "message": "core は HTTP と通信のモジュールを import しない（ADR-007）"
               },
               {
                 "regex": "^\\.\\.?/(\\.\\./)*(cli|server|web|vscode)(/|$)",

@@ -29,6 +29,7 @@ CLI・MCP・HTTP・VS Code 拡張という複数の入口から同じ機能を�
 - すべての操作を「名前・Zod の入力スキーマ・実装関数」の組として `core/commands` に定義する
 - CLI のサブコマンドとヘルプ、HTTP のエンドポイント、Webview のメッセージ、MCP のツール定義は、この定義から生成する。入口にロジックを書かない
 - MCP（`dg mcp`）は `cli` に置き、同じコマンド定義を主体 agent で写す（範囲は AG-4）
+- 例外は CLI だけの操作（`guide`・`skill`・`serve`・`open`。AG-4）で、`core/commands` に置かず `cli` に置く。`core` が HTTP の node モジュールを読まないことは `.oxlintrc.json` が検査する
 - UI は `CommandClient`（コマンド名と入力を渡して結果を受け取る 1 つのインターフェース）を通じて呼ぶ
 - 文脈の管理（開く・再走査・直列化・名前でコマンドを引く）はプロセス内の `CommandClient` として core に 1 つ置き、`server` は HTTP に、`vscode` は Webview の postMessage に写す
 
