@@ -7,12 +7,14 @@ import {
   viewTitle,
 } from "./approvals.js";
 
-const items = approvalItems([{ id: "p58" }], [{ id: "t1" }, { id: "t2" }]);
+const items = approvalItems([{ id: "p58" }], [{ id: "t1", title: "一つ目" }, { id: "t2" }]);
 
 describe("approvalItems", () => {
   it("承認待ちの Plan を先に、review のチケットを後に並べる", () => {
     expect(items.map((i) => i.id)).toEqual(["p58", "t1", "t2"]);
     expect(items[0]?.kind).toBe("plan");
+    expect(items[1]?.title).toBe("一つ目");
+    expect(items[2]).not.toHaveProperty("title");
   });
   it("どちらもなければ空", () => {
     expect(approvalItems([], [])).toEqual([]);
@@ -40,7 +42,7 @@ describe("newApprovals", () => {
 describe("viewTitle", () => {
   it("0 件なら素のタイトル、あれば件数を足す", () => {
     expect(viewTitle(0)).toBe("deguboard");
-    expect(viewTitle(3)).toBe("deguboard · 承認待ち 3");
+    expect(viewTitle(3)).toBe("承認待ち 3");
   });
 });
 

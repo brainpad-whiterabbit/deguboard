@@ -632,7 +632,7 @@ async function refreshStatusBar(): Promise<void> {
 
 /**
  * 最初の作業フォルダの承認待ち（承認待ちの Plan と review のチケット。UI-12）を数え、サイドバーのタイトルに件数を出す。
- * 前に見た集合になかったものが現れたら、config.yaml の vscode.notify_approvals が true のとき（既定）通知し、
+ * 前に見た集合になかったものが現れたら、config.yaml の notify.approvals が true のとき（既定）通知し、
  * 「開く」で詳細のパネルを開く。起動して初めて読めたときは基準にするだけで通知しない。読めないとき（データのないリポジトリなど）は何も出さない。
  * Activity Bar のバッジは未 push・未取り込み（badgeOf）が使うので、承認待ちはタイトルに出す
  */
@@ -643,8 +643,9 @@ async function refreshApprovals(): Promise<void> {
   try {
     const client = clientFor(folder);
     const plans = (await client.run<{ id: string }[]>("plan.list", { status: "pending" })).data;
-    const tickets = (await client.run<{ id: string }[]>("ticket.list", { status: ["review"] }))
-      .data;
+    const tickets = (
+      await client.run<{ id: string; title?: string }[]>("ticket.list", { status: ["review"] })
+    ).data;
     if (generation !== approvalGeneration) return;
     const items = approvalItems(plans, tickets);
     const key = folder.uri.toString();
@@ -653,9 +654,8 @@ async function refreshApprovals(): Promise<void> {
     approvalCount = items.length;
     if (sidebar) sidebar.title = viewTitle(approvalCount);
     if (arrived.length === 0) return;
-    const config = (await client.run<{ vscode?: { notify_approvals?: boolean } }>("config.show"))
-      .data;
-    if (config.vscode?.notify_approvals === false) return;
+    const config = (await client.run<{ notify?: { approvals?: boolean } }>("config.show")).data;
+    if (config.notify?.approvals === false) return;
     void notifyApprovals(folder, arrived);
   } catch {
     // 読めないときは前の表示のまま。通知は出さない
@@ -678,7 +678,7 @@ async function notifyApprovals(
       const picked = await vscode.window.showQuickPick(
         arrived.map((i) => ({
           label: i.id,
-          description: i.kind === "plan" ? "Plan" : "review",
+          description: i.title ?? (i.kind === "plan" ? "Plan" : ""),
           item: i,
         })),
         { placeHolder: "開く承認待ちを選ぶ" },

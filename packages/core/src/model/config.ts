@@ -61,9 +61,9 @@ export const configSchema = z.looseObject({
         ),
     })
     .prefault({}),
-  vscode: z
+  notify: z
     .looseObject({
-      notify_approvals: z
+      approvals: z
         .boolean()
         .default(true)
         .describe(

@@ -7,13 +7,22 @@ import { routeOfId } from "./ids.js";
 export interface ApprovalItem {
   kind: "plan" | "ticket";
   id: string;
+  /** チケットのタイトル。Plan にはタイトルがない */
+  title?: string;
 }
 
 /** 承認待ちの Plan と review のチケットの ID を並べる（Plan が先）。数えるだけで、状態の判定は呼び出し側の絞り込みに任せる */
-export function approvalItems(plans: { id: string }[], tickets: { id: string }[]): ApprovalItem[] {
+export function approvalItems(
+  plans: { id: string }[],
+  tickets: { id: string; title?: string }[],
+): ApprovalItem[] {
   return [
     ...plans.map((p): ApprovalItem => ({ kind: "plan", id: p.id })),
-    ...tickets.map((t): ApprovalItem => ({ kind: "ticket", id: t.id })),
+    ...tickets.map((t): ApprovalItem => ({
+      kind: "ticket",
+      id: t.id,
+      ...(t.title ? { title: t.title } : {}),
+    })),
   ];
 }
 
@@ -27,9 +36,12 @@ export function newApprovals(previous: ReadonlySet<string> | undefined, now: App
   return now.filter((i) => !previous.has(i.id));
 }
 
-/** サイドバーのビューのタイトル。承認待ちがあれば件数を足す（Activity Bar のバッジは未 push・未取り込み用なので使わない） */
+/**
+ * サイドバーのビューのタイトル。承認待ちがあれば「承認待ち 3」、なければ "deguboard"（Activity Bar のバッジは未 push・未取り込み用なので使わない）。
+ * コンテナとビューが 1 つずつのとき VS Code は見出しを「コンテナ名: ビュー名」にするので、件数のときは名前を重ねない
+ */
 export function viewTitle(count: number): string {
-  return count > 0 ? `deguboard · 承認待ち ${count}` : "deguboard";
+  return count > 0 ? `承認待ち ${count}` : "deguboard";
 }
 
 /** 通知の文。複数なら先頭の 2 件の ID と残りの数を出す */
