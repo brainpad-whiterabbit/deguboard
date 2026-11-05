@@ -4,7 +4,7 @@ description: 会話で検討した結果（設計の相談・不具合の調査�
 argument-hint: "[対象（案の名前・文書のパス・チケットの ID）]"
 ---
 
-<!-- dg skill sha256:382adff2060c2d4099bb8fb1b6fad9bfc1f5a83df3e04ffd51024cce0fc0eca2 -->
+<!-- dg skill sha256:2badd6bd503fddeaf2499eadb4be7674ce498d6e567130ae80bcdaefc6abb655 -->
 
 # 起票（import）
 
@@ -12,7 +12,7 @@ argument-hint: "[対象（案の名前・文書のパス・チケットの ID）
 
 - `dg` は必ず `--json --actor agent` を付けて呼ぶ（例：`dg --json --actor agent ticket show t12`）。あなたは agent を名乗る。拒否された操作（`TRANSITION_REJECTED`）は人に頼む
 - チケットは `dg` でだけ読み書きする。データのファイル（`.git/deguboard/` の下）を直接編集しない
-- PATH に `dg` がなければ、リポジトリの案内（`CLAUDE.md` など）が書く呼び方（`npx deguboard`、`mise run dg --` など）で `dg` を置き換える。手順の中の `dg` も同じ
+- PATH に `dg` がなければ、リポジトリの案内が書く呼び方（`npx deguboard`、`mise run dg --` など）で `dg` を置き換える。手順の中の `dg` も同じ。
 
 指定：$ARGUMENTS
 

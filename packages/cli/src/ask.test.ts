@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  ASK_DG_USAGE,
   ASK_ACTIONS,
   ASK_SKILLS,
   askCandidates,
@@ -107,7 +108,7 @@ describe("dg ask", () => {
     expect(fromCli.data.text).toBe(
       [
         "t1 を指示のとおりに直してください。",
-        "dg は `dg … --json --actor agent` で呼び、.git/deguboard/ のファイルは直接編集しないでください。",
+        ASK_DG_USAGE,
         "手順は `dg guide import` を読み、そのとおりに進めてください。",
         "文言だけ",
       ].join("\n"),

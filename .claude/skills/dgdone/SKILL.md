@@ -4,7 +4,7 @@ description: deguboard のマージ済みのチケットを照合して done を
 argument-hint: "[チケットの ID...|Plan の ID|Iteration]"
 ---
 
-<!-- dg skill sha256:8a09343d6609425c340a317f23809dac0c46228228e5cf9e9100d1a4e68c7eb3 -->
+<!-- dg skill sha256:7347fc0a7d5438b318632907a6fdea040dbf85a63f16d678f199152b5f917a3a -->
 
 # 完了（done）
 
@@ -12,7 +12,7 @@ argument-hint: "[チケットの ID...|Plan の ID|Iteration]"
 
 - `dg` は必ず `--json --actor agent` を付けて呼ぶ（例：`dg --json --actor agent ticket show t12`）。あなたは agent を名乗る。拒否された操作（`TRANSITION_REJECTED`）は人に頼む
 - チケットは `dg` でだけ読み書きする。データのファイル（`.git/deguboard/` の下）を直接編集しない
-- PATH に `dg` がなければ、リポジトリの案内（`CLAUDE.md` など）が書く呼び方（`npx deguboard`、`mise run dg --` など）で `dg` を置き換える。手順の中の `dg` も同じ
+- PATH に `dg` がなければ、リポジトリの案内が書く呼び方（`npx deguboard`、`mise run dg --` など）で `dg` を置き換える。手順の中の `dg` も同じ。
 
 指定：$ARGUMENTS
 

@@ -4,7 +4,7 @@ description: deguboard の承認済みの Plan のチケットを、着手でき
 argument-hint: <Plan の ID|チケットの ID>
 ---
 
-<!-- dg skill sha256:53edb22c623e1267eec94f9cd1285e775aa8440edcab1cca367f3c4cfb95948b -->
+<!-- dg skill sha256:86fd9285d5b3187fe7d5164089055d796e949b05b97f00a19d136a053ba4a484 -->
 
 # 作業（work）
 
@@ -12,7 +12,7 @@ argument-hint: <Plan の ID|チケットの ID>
 
 - `dg` は必ず `--json --actor agent` を付けて呼ぶ（例：`dg --json --actor agent ticket show t12`）。あなたは agent を名乗る。拒否された操作（`TRANSITION_REJECTED`）は人に頼む
 - チケットは `dg` でだけ読み書きする。データのファイル（`.git/deguboard/` の下）を直接編集しない
-- PATH に `dg` がなければ、リポジトリの案内（`CLAUDE.md` など）が書く呼び方（`npx deguboard`、`mise run dg --` など）で `dg` を置き換える。手順の中の `dg` も同じ
+- PATH に `dg` がなければ、リポジトリの案内が書く呼び方（`npx deguboard`、`mise run dg --` など）で `dg` を置き換える。手順の中の `dg` も同じ。
 
 指定：$ARGUMENTS
 

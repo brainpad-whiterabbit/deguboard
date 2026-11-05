@@ -13,7 +13,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
-import { agentSkillDirs, askSkillInstalled } from "@deguboard/core";
+import { DG_PATH_NOTE, agentSkillDirs, askSkillInstalled } from "@deguboard/core";
 import { createLocalOnlyRepo } from "../../core/test/helpers/git-fixture.js";
 import { readGuide } from "./guide.js";
 import { run } from "./program.js";
@@ -56,6 +56,13 @@ const exists = (p: string) =>
   );
 
 describe("dg skill install", () => {
+  it("どの Skill にも、PATH に dg がないときの置き換えの案内（core の DG_PATH_NOTE）が入る", async () => {
+    for (const s of await buildSkills()) {
+      expect(s.content).toContain(DG_PATH_NOTE);
+      expect(s.content).not.toContain("{{");
+    }
+  });
+
   it("リポジトリの最上位の .claude/skills/ に dg<トピック> の Skill を書き、--json は置き場所と名前を返す", async () => {
     const local = await createLocalOnlyRepo();
     cleanups.push(local.cleanup);

@@ -4,7 +4,7 @@ description: deguboard のチケットを進める順を決めて Plan に記録
 argument-hint: <チケットの ID...|Iteration|Epic|next [N]> | <Plan の ID>
 ---
 
-<!-- dg skill sha256:e8cd90dd9a5f018ea4985f3d1707649b9af913bd1ef2270591ec30634e5e8079 -->
+<!-- dg skill sha256:37c9928f706601c3162405663ce2944636a27440ab58eca252dd01298cb47168 -->
 
 # 計画（plan）
 
@@ -12,7 +12,7 @@ argument-hint: <チケットの ID...|Iteration|Epic|next [N]> | <Plan の ID>
 
 - `dg` は必ず `--json --actor agent` を付けて呼ぶ（例：`dg --json --actor agent ticket show t12`）。あなたは agent を名乗る。拒否された操作（`TRANSITION_REJECTED`）は人に頼む
 - チケットは `dg` でだけ読み書きする。データのファイル（`.git/deguboard/` の下）を直接編集しない
-- PATH に `dg` がなければ、リポジトリの案内（`CLAUDE.md` など）が書く呼び方（`npx deguboard`、`mise run dg --` など）で `dg` を置き換える。手順の中の `dg` も同じ
+- PATH に `dg` がなければ、リポジトリの案内が書く呼び方（`npx deguboard`、`mise run dg --` など）で `dg` を置き換える。手順の中の `dg` も同じ。
 
 指定：$ARGUMENTS
 
