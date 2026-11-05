@@ -2304,7 +2304,12 @@ textarea.body {
   padding: 0 6px 2px 2.4rem;
   color: var(--vscode-descriptionForeground);
 }
-.history-ticket.abandoned {
+/* 履歴用の中止の行：点は塗らず輪にして形で見分け（枠は説明の色で、ダークでも見える）、タイトルだけ薄くする。打ち消し線は使わない */
+.history-ticket.abandoned .status-dot {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--vscode-descriptionForeground);
+}
+.history-ticket.abandoned .row-title {
   opacity: 0.6;
 }
 /* 履歴用の行（components/history-rows.tsx）：1 段目は丸印・番号・タイトルだけ。2 段目の「中止」は太く、「なし」は薄く。「ほか N 件」は付記と頭を揃える */
