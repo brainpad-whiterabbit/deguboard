@@ -102,11 +102,11 @@ describe("buildIdIndex・hoverMarkdown", () => {
 });
 
 describe("routeOfId・openIdCommandUri", () => {
-  it("チケット・Iteration・Epic は詳細のルートを返し、Plan は返さない", () => {
+  it("チケット・Iteration・Epic・Plan は詳細のルートを返し、形の違う ID は返さない", () => {
     expect(routeOfId("t1")).toBe("#/tickets/t1");
     expect(routeOfId("s1")).toBe("#/iterations/s1");
     expect(routeOfId("e1")).toBe("#/epics/e1");
-    expect(routeOfId("p1")).toBeUndefined();
+    expect(routeOfId("p1")).toBe("#/plans/p1");
     expect(routeOfId("x1")).toBeUndefined();
   });
   it("コマンド URI の引数に ID が入る", () => {
@@ -117,9 +117,9 @@ describe("routeOfId・openIdCommandUri", () => {
 });
 
 describe("linksOf", () => {
-  it("存在する ID のうち詳細のパネルがあるものだけを返す（存在しない ID と Plan は外す）", () => {
+  it("存在する ID だけを返す（存在しない ID は外す）", () => {
     const found = linksOf("t1 t999 s1 e1 p1 e9", index).map((f) => f.id);
-    expect(found).toEqual(["t1", "s1", "e1"]);
+    expect(found).toEqual(["t1", "s1", "e1", "p1"]);
   });
 });
 

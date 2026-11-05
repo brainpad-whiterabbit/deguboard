@@ -2,6 +2,8 @@
 // 文章から ID を拾う正規表現と、存在する ID の索引（ticket.list などの行から作る）、ホバーの文言、開くルートを決める。
 // ID の形は core の用語（接頭辞＋ゼロ埋めなしの連番。t12・s3・e2・p7）に合わせる
 
+import { ticketRoute } from "./context-menu.js";
+
 /** ID の種類 */
 export type IdKind = "ticket" | "iteration" | "epic" | "plan";
 
@@ -120,17 +122,19 @@ function escapeMarkdown(text: string): string {
 }
 
 /**
- * Ctrl/⌘+クリックで開く詳細のルート。チケット・Iteration・Epic の詳細だけがパネルを持つ。
- * Plan と形の違う ID には詳細の画面がないので undefined（Plan はホバーだけ付け、リンクは付けない）
+ * Ctrl/⌘+クリックで開く詳細のルート。チケット・Iteration・Epic・Plan の詳細がパネルを持つ。
+ * チケットは context-menu.ts の ticketRoute と同じ。形の違う ID は undefined
  */
 export function routeOfId(id: string): string | undefined {
   switch (kindOfId(id)) {
     case "ticket":
-      return `#/tickets/${id}`;
+      return ticketRoute({ ticket: id });
     case "iteration":
       return `#/iterations/${id}`;
     case "epic":
       return `#/epics/${id}`;
+    case "plan":
+      return `#/plans/${id}`;
     default:
       return undefined;
   }
@@ -144,7 +148,7 @@ export function openIdCommandUri(id: string, folder: string): string {
   return `command:${OPEN_ID_COMMAND}?${encodeURIComponent(JSON.stringify([id, folder]))}`;
 }
 
-/** 1 行の中でリンクを付ける ID。索引にある（存在する）もので、詳細のパネルがある種類（Plan 以外）に絞る */
+/** 1 行の中でリンクを付ける ID。索引にある（存在する）もので、詳細のパネルがある種類に絞る */
 export function linksOf(line: string, index: IdIndex): FoundId[] {
   return findIds(line).filter((f) => index.has(f.id) && routeOfId(f.id) !== undefined);
 }
