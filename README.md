@@ -25,6 +25,7 @@ deguboard はエージェントを起動も監視もしない。チケットの�
 - [要件定義書](docs/requirements.md)：今の仕様の正本
 - [ADR](docs/adr/README.md)：設計判断の背景と理由
 - [開発ガイド](docs/development.md)：このリポジトリで開発する人向け
+- [SECURITY.md](SECURITY.md)：脆弱性の報告先と修正の対象の版
 - `dg guide <topic>`：エージェント向けの手順の正本（CLI に同梱）
 
 ## 使い始める
