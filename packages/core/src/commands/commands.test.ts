@@ -89,6 +89,13 @@ async function writeStrictWorkflow(ctx: CommandContext): Promise<void> {
   await ctx.store.rescan();
 }
 
+/** チケットの depends_on の行を直接書き換える（TK-2 が拒否する循環を、壊れたデータとして作るとき）。rescan は呼び出し側で */
+async function setDependsOn(ctx: CommandContext, id: string, value: string): Promise<void> {
+  const file = path.join(ctx.repo.dataDir, `tickets/${id}.md`);
+  const text = await readFile(file, "utf8");
+  await writeFile(file, text.replace(/^depends_on: .*$/m, `depends_on: ${value}`));
+}
+
 /** init まで済ませた文脈を開く */
 async function initialized(
   cwd: string,
@@ -1327,6 +1334,35 @@ describe("Plan", () => {
     await runCommand(ticketMove, ctx, { ticket: "t2", status: "abandoned" });
     await runCommand(planCreate, ctx, { tickets: ["t1", "t3"], after: { t1: "t3" } });
     expect(ctx.store.plans.size).toBe(2);
+  });
+
+  it("create は after が空の Plan を、depends_on だけの循環があっても拒否しない", async () => {
+    const f = await fixture();
+    const ctx = await initialized(f.cloneA);
+    for (const title of ["A", "B"]) await runCommand(ticketCreate, ctx, { title });
+    // TK-2 は作成時に循環を拒否するので、ファイルを直接書いて壊れたデータ（t1 と t2 が互いを待つ）を作る
+    await setDependsOn(ctx, "t1", "[t2]");
+    await setDependsOn(ctx, "t2", "[t1]");
+    await ctx.store.rescan();
+    const created = await runCommand(planCreate, ctx, { tickets: ["t1", "t2"] });
+    expect(created.data).toMatchObject({ id: "p1", tickets: ["t1", "t2"] });
+    expect(ctx.store.plans.size).toBe(1);
+  });
+
+  it("create は after があっても、見つかる循環が after の辺を含まない（depends_on だけ）なら拒否しない", async () => {
+    const f = await fixture();
+    const ctx = await initialized(f.cloneA);
+    for (const title of ["A", "B", "C"]) await runCommand(ticketCreate, ctx, { title });
+    // t1 と t2 は depends_on だけで互いを待つ（壊れたデータ）。t3 は after で t1 を待つ（after の辺は循環しない）
+    await setDependsOn(ctx, "t1", "[t2]");
+    await setDependsOn(ctx, "t2", "[t1]");
+    await ctx.store.rescan();
+    const created = await runCommand(planCreate, ctx, {
+      tickets: ["t1", "t2", "t3"],
+      after: { t3: "t1" },
+    });
+    expect(created.data).toMatchObject({ id: "p1", tickets: ["t1", "t2", "t3"] });
+    expect(created.data).toMatchObject({ after: { t3: ["t1"] } });
   });
 
   it("create は段階（tier）を details に記録し、不正な値と Plan の外のチケットを拒否する", async () => {
