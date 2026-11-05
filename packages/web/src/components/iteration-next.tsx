@@ -2,10 +2,11 @@
 // ここは種類ごとの文を出し、頼めるものは core の ask コマンドで作った依頼文をコピーするボタンを置くだけ。データには書き込まない（UI-7・UI-15）
 
 import { CopyResult, useCopyNotice } from "./copyable-code.js";
+import { ASK_FORMAT_KEY } from "./ask-composer.js";
 import { DetailLink } from "./parts.js";
 import { useHost } from "../host.js";
 import { useStore } from "../store.js";
-import type { AskAction, AskView, IterationDetail } from "../types.js";
+import type { AskAction, AskFormat, AskView, IterationDetail } from "../types.js";
 
 type Next = NonNullable<IterationDetail["next"]>;
 
@@ -65,7 +66,8 @@ function NextText({ next }: { next: Next }) {
   }
 }
 
-/** 依頼文をコピーするボタン。押したときに ask で依頼文を引いてコピーする（組み立ては core） */
+/** 依頼文をコピーするボタン。押したときに ask で依頼文を引いてコピーする（組み立ては core）。
+ *  形式は頼む小窓で人が切り替えたもの（ASK_FORMAT_KEY）に従い、選んでいなければ渡さず ask の既定（Skill の有無）に任せる */
 function AskCopy({ id, action }: { id: string; action: AskAction | null }) {
   const host = useHost();
   const { client } = useStore();
@@ -76,13 +78,14 @@ function AskCopy({ id, action }: { id: string; action: AskAction | null }) {
       <button
         type="button"
         title="エージェントに頼む依頼文をコピーする（書き込みはしない）"
-        onClick={() =>
+        onClick={() => {
+          const format = host.state.get<AskFormat>(ASK_FORMAT_KEY);
           track(
             client
-              .run<AskView>("ask", { targets: [id], action, format: "skill" })
+              .run<AskView>("ask", { targets: [id], action, ...(format ? { format } : {}) })
               .then((r) => host.copy(r.data.text)),
-          )
-        }
+          );
+        }}
       >
         依頼文をコピー
       </button>

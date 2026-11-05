@@ -21,7 +21,11 @@ const withNext = (next: IterationDetail["next"]): IterationDetail => ({
   next,
 });
 
-function mount(it: IterationDetail, copy = vi.fn(async () => {})) {
+function mount(
+  it: IterationDetail,
+  copy = vi.fn(async () => {}),
+  state = createUiState(memoryBackend()),
+) {
   const client = mockClient();
   const original = client.run.bind(client);
   const run = vi.fn(async (name: string, input?: unknown) =>
@@ -35,7 +39,7 @@ function mount(it: IterationDetail, copy = vi.fn(async () => {})) {
     open: () => {},
     show: () => {},
     copy,
-    state: createUiState(memoryBackend()),
+    state,
   };
   render(
     <StoreProvider client={client}>
@@ -63,10 +67,23 @@ describe("Iteration 詳細の案内の表示（core の next を出すだけ）"
     expect(run).toHaveBeenCalledWith("ask", {
       targets: ["s1"],
       action: "release",
-      format: "skill",
     });
     expect(run.mock.calls.map((c) => c[0]).filter((n) => WRITES.test(n))).toEqual([]);
     await screen.findByText("コピーした");
+  });
+
+  it("頼む小窓で形式を選んでいれば、その形式を ask に渡す", async () => {
+    const state = createUiState(memoryBackend());
+    state.set("ask.format", "text");
+    const { run } = mount(withNext({ kind: "ready", ask: "release" }), undefined, state);
+    fireEvent.click(screen.getByRole("button", { name: "依頼文をコピー" }));
+    await waitFor(() =>
+      expect(run).toHaveBeenCalledWith("ask", {
+        targets: ["s1"],
+        action: "release",
+        format: "text",
+      }),
+    );
   });
 
   it("overdue は未完了の件数と、carry の依頼文のコピーを出す（close ではない）", async () => {
@@ -77,7 +94,6 @@ describe("Iteration 詳細の案内の表示（core の next を出すだけ）"
       expect(run).toHaveBeenCalledWith("ask", {
         targets: ["s1"],
         action: "carry",
-        format: "skill",
       }),
     );
   });
@@ -110,7 +126,6 @@ describe("Iteration 詳細の案内の表示（core の next を出すだけ）"
       expect(run).toHaveBeenCalledWith("ask", {
         targets: ["s1"],
         action: "assign",
-        format: "skill",
       }),
     );
   });
