@@ -31,13 +31,15 @@ export function watchTargets(dataDir: string): WatchTarget[] {
 }
 
 /**
- * dg init 前に見張る対象：データ worktree の .git（<common>/deguboard/.git）ができること。
- * 初期化済みかは core が同じファイルの有無で決める（isInitialized）。確かめ直しは watchData が status を呼ぶ。
+ * dg init 前に見張る対象：git common dir の下にデータ worktree（<common>/deguboard/）ができること。
+ * 初期化済みかは core が <common>/deguboard/.git の有無で決める（isInitialized）。確かめ直しは watchData が status を呼ぶ。
  * データの見張り（watchTargets）は data_dir が取れてからしか張れないので、初期化前はこちらで待つ。
- * 単純なパターン（非再帰）にして、.git 全体を再帰で見ない。base がまだなくても VS Code はできるまで待つ
+ * base は今ある <common> にする。deguboard/ がまだない base を VS Code はポーリングで待ち、できた瞬間の base 自身の追加しか出さず、
+ * init が base とほぼ同時に書く .git の作成を取りこぼすため。そのぶん .git の配下を再帰で見て広いが、
+ * 確かめ直しは status を呼ぶだけで、見張りは init の後に外す
  */
 export function initWatchTarget(commonDir: string): WatchTarget {
-  return { base: path.join(commonDir, "deguboard"), pattern: ".git" };
+  return { base: commonDir, pattern: "deguboard/{.git,**}" };
 }
 
 /**

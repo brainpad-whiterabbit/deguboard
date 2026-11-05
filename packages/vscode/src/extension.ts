@@ -538,6 +538,12 @@ async function attach(
   });
 }
 
+/** そのフォルダが今も開いているか。非同期の待ちの後に、外されたフォルダの見張りを張らないために確かめる */
+function isOpenFolder(folder: vscode.WorkspaceFolder): boolean {
+  const key = folder.uri.toString();
+  return (vscode.workspace.workspaceFolders ?? []).some((f) => f.uri.toString() === key);
+}
+
 /** 外したフォルダの見張り・client・索引を捨てる（残すと外したフォルダの変化で読み直し続ける） */
 function forgetFolder(folder: vscode.WorkspaceFolder): void {
   const key = folder.uri.toString();
@@ -545,6 +551,9 @@ function forgetFolder(folder: vscode.WorkspaceFolder): void {
     map.get(key)?.dispose();
     map.delete(key);
   }
+  watchStarting.delete(key);
+  panels.get(key)?.dispose();
+  panels.delete(key);
   clients.delete(key);
   idIndexes.delete(key);
   idIndexFailedAt.delete(key);
@@ -589,6 +598,8 @@ async function watchData(folder: vscode.WorkspaceFolder, client: CommandClient):
   } finally {
     watchStarting.delete(key);
   }
+  // 問い合わせの間にフォルダが外されたなら張らない（外したフォルダの見張りを残さない）
+  if (!isOpenFolder(folder)) return;
   const pending = coalesce(() => {
     broadcast(folder, { kind: "event", name: "reload" });
     void refreshStatusBar();
@@ -629,7 +640,7 @@ async function watchInit(folder: vscode.WorkspaceFolder, client: CommandClient):
   if (initWatchers.has(key)) return;
   initWatchers.set(key, { dispose() {} }); // 張っている間に重ねて張らない
   const commonDir = await gitCommonDir(folder.uri.fsPath);
-  if (!commonDir) {
+  if (!commonDir || !isOpenFolder(folder)) {
     initWatchers.delete(key);
     return;
   }
@@ -886,7 +897,7 @@ async function watchHead(folder: vscode.WorkspaceFolder): Promise<void> {
   if (headWatchers.has(key)) return;
   headWatchers.set(key, { dispose() {} }); // 張っている間に重ねて張らない
   const file = await headFile(folder.uri.fsPath);
-  if (!file) {
+  if (!file || !isOpenFolder(folder)) {
     headWatchers.delete(key);
     return;
   }

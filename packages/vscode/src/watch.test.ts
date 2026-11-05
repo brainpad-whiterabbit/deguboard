@@ -52,18 +52,14 @@ describe("watchTargets", () => {
 describe("initWatchTarget（dg init 前に待つ対象）", () => {
   const init = [initWatchTarget(common)];
 
-  it("データ worktree の .git ができるのを拾う（isInitialized と同じ）", () => {
-    expect(isWatched(init, path.join(common, "deguboard/.git"))).toBe(true);
+  it("データ worktree の .git（isInitialized の目印）と配下のファイルができるのを拾う", () => {
+    for (const rel of ["deguboard/.git", "deguboard/config.yaml", "deguboard/tickets/t1.md"]) {
+      expect(isWatched(init, path.join(common, rel)), rel).toBe(true);
+    }
   });
 
   it("deguboard-local やほかの .git の中身には反応しない", () => {
-    for (const rel of [
-      "deguboard/config.yaml",
-      "deguboard/tickets/t1.md",
-      "deguboard-local/runs/r1.json",
-      "HEAD",
-      "objects/ab/cdef",
-    ]) {
+    for (const rel of ["deguboard-local/runs/r1.json", "HEAD", "objects/ab/cdef"]) {
       expect(isWatched(init, path.join(common, rel)), rel).toBe(false);
     }
   });
