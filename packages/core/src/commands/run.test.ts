@@ -722,7 +722,7 @@ describe("run finish のモデル名と finished_at", () => {
     return { ctx, startWith };
   }
 
-  it("モデル名は finish で明示した名前 > start の記録の名前 > 会話記録の名前の順に採る", async () => {
+  it("モデル名は会話記録の名前 > finish で明示した名前 > start の記録の名前の順に採る", async () => {
     const { ctx, startWith } = await withModelTranscript();
     const finish = async (run: Run, model?: string) =>
       (
@@ -733,16 +733,36 @@ describe("run finish のモデル名と finished_at", () => {
         })
       ).data as Run;
 
-    // 明示した名前は start の記録の名前と会話記録の名前より先
-    expect((await finish(await startWith("t1", "model-at-start"), "model-explicit")).model).toBe(
-      "model-explicit",
+    // 会話記録から取れれば、start・finish の別名より先
+    expect((await finish(await startWith("t1", "sonnet"), "opus")).model).toBe(
+      "model-from-transcript",
     );
-    // start の記録の名前は会話記録の名前より先
-    expect((await finish(await startWith("t1", "model-at-start"))).model).toBe("model-at-start");
-    // どちらもなければ会話記録の名前
-    expect((await finish(await startWith("t1"))).model).toBe("model-from-transcript");
-    // start の記録の名前がなくても明示した名前が先
-    expect((await finish(await startWith("t2"), "model-explicit")).model).toBe("model-explicit");
+    expect((await finish(await startWith("t1", "sonnet"))).model).toBe("model-from-transcript");
+    expect((await finish(await startWith("t2"))).model).toBe("model-from-transcript");
+  });
+
+  it("会話記録からモデル名が取れないときは、finish で明示した名前 > start の記録の名前を使う", async () => {
+    const ctx = await prepared();
+    const finish = async (ticket: string, startModel?: string, model?: string) => {
+      const run = (
+        await runCommand(runStart, ctx, {
+          ticket,
+          step: "implement",
+          agent: "claude-code",
+          ...(startModel ? { model: startModel } : {}),
+        })
+      ).data as Run;
+      return (
+        await runCommand(runFinish, ctx, {
+          run: run.id,
+          result: "success",
+          ...(model ? { model } : {}),
+        })
+      ).data as Run;
+    };
+    expect((await finish("t1", "model-at-start", "model-explicit")).model).toBe("model-explicit");
+    expect((await finish("t1", "model-at-start")).model).toBe("model-at-start");
+    expect((await finish("t2", undefined, "model-explicit")).model).toBe("model-explicit");
   });
 
   it("finish の時刻が start より前（時計のずれ）なら finished_at を started_at に揃え、実行時間は 0 になる", async () => {

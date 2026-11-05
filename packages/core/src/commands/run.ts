@@ -33,7 +33,13 @@ export const runStart = defineCommand({
     agent: token.describe(
       `エージェント名。${agentNames().join("・")} なら finish が会話記録から使用量を取り込む（metrics.read_transcripts）`,
     ),
-    model: z.string().min(1).optional().describe("モデル名。分からなければ省く（null で残す）"),
+    model: z
+      .string()
+      .min(1)
+      .optional()
+      .describe(
+        "モデル名（別名でもよい）。finish が会話記録から正式な名前を取れればそちらを記録し、取れないときだけこの名前を使う。分からなければ省く（null で残す）",
+      ),
   }),
   write: true,
   needs: "store",
@@ -93,7 +99,11 @@ export const runFinish = defineCommand({
       .describe(
         "やり直しの理由。見直しや人のレビューで直した指摘の 1 行の要約。秘密・コマンドの文字列・パスは書かない",
       ),
-    model: z.string().min(1).optional().describe("モデル名。start で渡さなかったとき"),
+    model: z
+      .string()
+      .min(1)
+      .optional()
+      .describe("モデル名。会話記録から取れないときだけ使う（start の名前より先）"),
   }),
   write: true,
   needs: "store",
@@ -124,8 +134,8 @@ export const runFinish = defineCommand({
       error: input.error,
       retries: input.retries ?? reasons?.length,
       retryReasons: reasons,
-      // 明示したモデル名 > 実行中の記録のモデル名 > 会話記録のモデル名
-      model: input.model ?? (running?.data.model ? undefined : (collected?.model ?? undefined)),
+      // 会話記録のモデル名 > 明示したモデル名 > 実行中の記録のモデル名（別名でなく正式な ID を残す）
+      model: collected?.model ?? input.model,
       usage: collected?.usage,
       now,
     });

@@ -12,7 +12,7 @@
 | [ADR-002](ADR-002-storage-and-id.md)               | チケットの保存と ID                      | データ             | 2026-11-02 |
 | [ADR-003](ADR-003-status-and-workflow.md)          | ステータスとワークフロー                 | ワークフロー       | 2026-11-03 |
 | [ADR-004](ADR-004-agents-and-state.md)             | エージェントと状態の記録                 | エージェントと照合 | 2026-11-05 |
-| [ADR-005](ADR-005-work-metrics.md)                 | 作業の実績                               | 作業の実績         | 2026-11-04 |
+| [ADR-005](ADR-005-work-metrics.md)                 | 作業の実績                               | 作業の実績         | 2026-11-05 |
 | [ADR-006](ADR-006-ui-and-writes.md)                | UI と書き込み                            | UI                 | 2026-11-03 |
 | [ADR-007](ADR-007-architecture.md)                 | アーキテクチャ                           | アーキテクチャ     | 2026-11-05 |
 | [ADR-008](ADR-008-tech-stack.md)                   | 技術構成と開発環境                       | 技術構成           | 2026-11-03 |
