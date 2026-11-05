@@ -1,4 +1,4 @@
-// 画面の切り替えは URL のハッシュで行う（#/board、#/tickets/t12）。Webview の URL は固定でパスの遷移ができないため、ルーターのライブラリは入れない。
+// 画面の切り替えは URL のハッシュで行う（#/board、#/tickets/t12、#/plans/p3）。Webview の URL は固定でパスの遷移ができないため、ルーターのライブラリは入れない。
 // Webview は <a href="#…"> のクリックを横取りしてハッシュを変えないので、リンクのクリックは App が受けてハッシュを書く（app.tsx の followHashLink）
 
 import { useEffect, useState } from "react";
@@ -42,6 +42,7 @@ export type Route =
   | { page: "ticket"; id: string }
   | { page: "epics"; id: string }
   | { page: "iterations"; id: string }
+  | { page: "plans"; id: string }
   | ({ page: "history" } & HistoryQuery)
   | ({ page: "runs" } & RunsQuery)
   | { page: "config" };
@@ -96,6 +97,9 @@ export function parseRoute(hash: string): Route {
     case "iterations":
       // Iteration の一覧の画面はない（planned・active はカンバンの絞り込み、closed は履歴）。ID がなければカンバン
       return id ? { page: "iterations", id } : board();
+    case "plans":
+      // Plan の一覧の画面はない（開いた Plan はカンバンの実行計画の帯）。ID がなければカンバン
+      return id ? { page: "plans", id } : board();
     default:
       return board();
   }
@@ -117,6 +121,8 @@ export function hrefOf(route: Route): string {
       return `#/epics/${route.id}`;
     case "iterations":
       return `#/iterations/${route.id}`;
+    case "plans":
+      return `#/plans/${route.id}`;
     case "history": {
       const params = new URLSearchParams();
       if (route.view && route.view !== "iteration") params.set("view", route.view);
@@ -137,9 +143,14 @@ export function hrefOf(route: Route): string {
   }
 }
 
-/** 詳細の画面（チケット・Epic・Iteration）か。エディタのパネルはこれだけを出す（UI-12） */
+/** 詳細の画面（チケット・Epic・Iteration・Plan）か。エディタのパネルはこれだけを出す（UI-12） */
 export function isDetailRoute(route: Route): boolean {
-  return route.page === "ticket" || route.page === "epics" || route.page === "iterations";
+  return (
+    route.page === "ticket" ||
+    route.page === "epics" ||
+    route.page === "iterations" ||
+    route.page === "plans"
+  );
 }
 
 export function navigate(route: Route): void {

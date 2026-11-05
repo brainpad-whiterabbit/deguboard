@@ -1,4 +1,5 @@
 // カンバンの上の「実行計画」の帯。表示だけで書き込まない。Plan ごとに、進みの行と作業中・次の行の 2 行を出し、行を押すとその Plan の依存グラフを行の下に開閉する（Plan ごとに覚える）。
+// Plan の番号は Plan 詳細（pages/plans.tsx）へのリンクで、押しても開閉しない。依存グラフ（PlanGraphView）は Plan 詳細と共用する。
 // 閉じた Plan は「閉じた計画」の節に 1 行ずつ入れる。サイドバーでは、待ちの辺のない Plan をグラフにせず、チケットのチップを横に折り返して出す（ID だけの箱が縦に積まれて場所を取るので）
 
 import { useEffect, useId, useMemo, useState, type MouseEvent } from "react";
@@ -6,7 +7,7 @@ import { useHost, useUiState } from "../host.js";
 import { useStore } from "../store.js";
 import { actorLabel, type PlanRow, type Ticket, type TicketRow } from "../types.js";
 import { ASK_SECTIONS, useAskSpot } from "./ask-menu.js";
-import { ProgressBar, StatusDot, TicketLink } from "./parts.js";
+import { DetailLink, ProgressBar, StatusDot, TicketLink } from "./parts.js";
 import {
   PLAN_STATE_LABELS,
   planColor,
@@ -67,8 +68,9 @@ interface ItemProps {
 }
 
 /**
- * Plan の行：1 行目に色の線・番号・状態・進み、2 行目に作業中と次（閉じた Plan は 1 行目だけ）。
- * 行を押すと下に依存グラフを開閉する。チケットの番号（リンク）を押したときはチケットを開き、開閉しない。
+ * Plan の行：1 行目に色の線・開閉の印・番号・状態・進み、2 行目に作業中と次（閉じた Plan は 1 行目だけ）。
+ * 行を押すと下に依存グラフを開閉する。Plan の番号（リンク）を押したときは Plan 詳細を、チケットの番号を押したときはチケットを開き、開閉しない。
+ * 開閉のボタンは開閉の印だけを持つ（リンクをボタンの中に入れられないので）。
  * 開いた Plan だけを見た目の状態に覚え、閉じたら鍵を消す（閉じた Plan の鍵が溜まらないよう）
  */
 function PlanItem({ plan, state, byId }: ItemProps) {
@@ -94,16 +96,24 @@ function PlanItem({ plan, state, byId }: ItemProps) {
       className={`plan-item plan-color-${planColor(plan.id)}${closed ? " plan-item-closed" : ""}`}
     >
       <div className="plan-row" onClick={onRowClick} {...(spot.overlay ? spot.props : {})}>
-        <button
-          type="button"
-          className="plan-line"
-          aria-expanded={open}
-          aria-controls={open ? detailId : undefined}
-        >
-          <code>{plan.id}</code>
+        <div className="plan-line">
+          <button
+            type="button"
+            className="plan-toggle"
+            aria-label={`${plan.id} の依存グラフ`}
+            aria-expanded={open}
+            aria-controls={open ? detailId : undefined}
+          />
+          <DetailLink
+            route={{ page: "plans", id: plan.id }}
+            className="plan-id"
+            title={`${plan.id} の詳細を開く`}
+          >
+            <code>{plan.id}</code>
+          </DetailLink>
           <span className={`plan-state plan-state-${state}`}>{PLAN_STATE_LABELS[state]}</span>
           <ProgressBar progress={plan.progress} short />
-        </button>
+        </div>
         {closed ? null : <PlanSub plan={plan} state={state} byId={byId} />}
         {spot.overlay}
       </div>
@@ -191,7 +201,13 @@ const yOf = (n: GraphNode) => n.row * (NODE_H + ROW_GAP);
  * 依存グラフ。段を左から右に並べ、段の中は Plan の順。辺は SVG で描き、ノードはチケットへのリンクを上に重ねる。
  * 待ち終わった辺は実線、待ち中は破線。depends_on の辺は点線（待ち中は間を空けた太い点）で after と見分ける。ノードにホバー・フォーカスすると繋がるノードと辺を強調する
  */
-function PlanGraphView({ plan, byId }: { plan: PlanRow; byId: ReadonlyMap<string, Ticket> }) {
+export function PlanGraphView({
+  plan,
+  byId,
+}: {
+  plan: PlanRow;
+  byId: ReadonlyMap<string, Ticket>;
+}) {
   const host = useHost();
   const graph = useMemo(() => planGraph(plan, byId), [plan, byId]);
   const [focus, setFocus] = useState<string | null>(null);

@@ -108,7 +108,7 @@ describe("実行計画の帯", () => {
       [...document.querySelectorAll(".plan-item")].find(
         (i) => i.querySelector(".plan-line code")!.textContent === id,
       )!;
-    const toggle = itemOf("p2").querySelector<HTMLButtonElement>("button.plan-line")!;
+    const toggle = itemOf("p2").querySelector<HTMLButtonElement>("button.plan-toggle")!;
     expect(toggle.getAttribute("aria-expanded")).toBe("false");
     expect(toggle.hasAttribute("aria-controls")).toBe(false);
     fireEvent.click(toggle);
@@ -168,7 +168,9 @@ describe("実行計画の帯", () => {
     fireEvent.click(document.querySelector<HTMLAnchorElement>("a.plan-next-ticket")!);
     expect(opened).toEqual([{ page: "ticket", id: "t3" }]);
     expect(document.querySelector(".plan-graph")).toBeNull();
-    expect(document.querySelector("button.plan-line")!.getAttribute("aria-expanded")).toBe("false");
+    expect(document.querySelector("button.plan-toggle")!.getAttribute("aria-expanded")).toBe(
+      "false",
+    );
   });
 
   it("閉じた計画を開くと 1 Plan 1 行で並び、押せばグラフを開ける。節の開閉は覚える", async () => {
@@ -181,7 +183,7 @@ describe("実行計画の帯", () => {
     const item = closed.querySelector(".plan-item")!;
     expect(item.classList.contains("plan-item-closed")).toBe(true);
     expect(item.querySelector(".plan-sub")).toBeNull();
-    fireEvent.click(item.querySelector("button.plan-line")!);
+    fireEvent.click(item.querySelector("button.plan-toggle")!);
     expect([...item.querySelectorAll("a.plan-node")].map((a) => a.getAttribute("href"))).toEqual([
       "#/tickets/t2",
     ]);

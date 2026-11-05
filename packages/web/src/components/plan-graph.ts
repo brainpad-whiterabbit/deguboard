@@ -1,7 +1,7 @@
 // 実行計画の帯が使う計算：Plan の状態・並び・範囲と、after・depends_on から求める依存グラフの段。画面に依存しない純粋な関数だけを置く。
 // 着手できるか・待ちの相手・次は core の plan.list（PL-6）が求めた値を読むだけで、ここでは求め直さない
 
-import type { PlanRow, Status, Ticket } from "../types.js";
+import type { PlanDetail, PlanRow, Status, Ticket } from "../types.js";
 
 /** 帯に出す Plan の状態。core の status（pending・approved・closed）に、チケットの状態から求める進行中・完了を足す */
 export type PlanState = "working" | "pending" | "approved" | "finished" | "closed";
@@ -13,6 +13,22 @@ export const PLAN_STATE_LABELS: Record<PlanState, string> = {
   finished: "完了",
   closed: "閉じた",
 };
+
+/**
+ * plan.show の出力（Plan 詳細）を plan.list の 1 行の形にする。状態は core と同じく closed_at と pending_approval から、
+ * Plan 全体の待ちは items[].waiting から組む（求め直さず並べ替えるだけ）。帯と同じ部品（planState・planGraph・planProgressLine）に渡すため
+ */
+export function planRowOf(detail: PlanDetail): PlanRow {
+  const waiting: Record<string, string[]> = {};
+  for (const t of detail.items) if (t.waiting.length > 0) waiting[t.id] = t.waiting;
+  const { items: _items, ...plan } = detail;
+  return {
+    ...plan,
+    status:
+      detail.closed_at !== undefined ? "closed" : detail.pending_approval ? "pending" : "approved",
+    waiting: waiting as PlanRow["waiting"],
+  };
+}
 
 /** 帯の並び。手が動いているものを上に、終わったものを下に置く */
 const STATE_ORDER: readonly PlanState[] = ["working", "pending", "approved", "finished", "closed"];

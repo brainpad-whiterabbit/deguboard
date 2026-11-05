@@ -762,6 +762,64 @@ button.link:hover {
 .iteration-plan-count {
   font-variant-numeric: tabular-nums;
 }
+/* Plan 詳細（pages/plans.tsx）。見出しの左に帯と同じ色の線を付け、欄は Iteration 詳細の欄（.iteration-summary）と同じ 2 列 */
+.plan-title {
+  border-left: 3px solid var(--dg-plan);
+  padding-left: 0.4em;
+}
+.plan-page h2 {
+  font-size: 1em;
+  margin: 0.75rem 0 0.25rem;
+}
+.plan-summary-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.2rem 0.75rem;
+}
+.plan-warnings {
+  margin: 0 0 0.5rem;
+  padding-left: 1.2em;
+}
+/* Plan の順のチケット。1 行目に状態の丸印・番号・題・状態・tier、その下に範囲と進め方 */
+.plan-tickets {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.plan-ticket {
+  padding: 0.3rem 0;
+  border-bottom: 1px solid var(--dg-border);
+}
+.plan-ticket-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.2rem 0.6rem;
+  min-width: 0;
+}
+.plan-ticket-title {
+  flex: 1 1 12rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.plan-tier {
+  font-variant-numeric: tabular-nums;
+}
+.plan-ticket-details {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 0.15rem 0.75rem;
+  margin: 0.25rem 0 0 1.2em;
+}
+.plan-ticket-details dt {
+  color: var(--vscode-descriptionForeground);
+}
+.plan-ticket-details dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
 .ticket-run-detail {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
@@ -924,28 +982,42 @@ button.link:hover {
   align-items: center;
   gap: 0.2rem 0.6rem;
   width: 100%;
+  line-height: 18px;
+}
+/* 開閉のボタンは開閉の印だけを持つ（番号は Plan 詳細へのリンクで、ボタンの外に置く）。印は .fold と同じ形 */
+.plan-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 12px;
+  height: 18px;
+  margin: 0 -0.4em 0 0;
   padding: 0;
   border: none;
   background: none;
   color: inherit;
-  font: inherit;
-  line-height: 18px;
-  text-align: left;
   cursor: pointer;
 }
-/* 開閉の印は .fold と同じ形 */
-.plan-line::before {
+.plan-toggle:hover {
+  background: none;
+}
+.plan-toggle::before {
   content: "";
   width: 5px;
   height: 5px;
-  margin: 0 -0.2em 0 0.1em;
   border: solid var(--vscode-descriptionForeground);
   border-width: 0 1.5px 1.5px 0;
   transform: rotate(-45deg);
 }
-.plan-line[aria-expanded="true"]::before {
+.plan-toggle[aria-expanded="true"]::before {
   transform: rotate(45deg);
   margin-top: -3px;
+}
+.plan-id {
+  text-decoration: none;
+}
+.plan-id:hover {
+  text-decoration: underline;
 }
 .plan-line code {
   font-weight: 600;
