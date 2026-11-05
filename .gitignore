@@ -9,6 +9,7 @@ packages/cli/web/
 release/
 .playwright-mcp/
 packages/vscode/LICENSE
+packages/vscode/README.md
 packages/cli/LICENSE
 packages/core/LICENSE
 packages/server/LICENSE

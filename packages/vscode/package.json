@@ -30,7 +30,7 @@
   "main": "./dist/extension.cjs",
   "scripts": {
     "build": "vite build && rm -rf dist/web && cp -r ../web/dist dist/web",
-    "package": "cp ../../LICENSE LICENSE && vsce package --no-dependencies --out deguboard-vscode.vsix"
+    "package": "node ../../scripts/vscode-readme.mjs && cp ../../LICENSE LICENSE && vsce package --no-dependencies --out deguboard-vscode.vsix"
   },
   "dependencies": {
     "@deguboard/core": "workspace:*"

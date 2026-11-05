@@ -124,9 +124,9 @@ VS Code 拡張。拡張ホストから core の `createLocalClient` を呼び、
 
 ビルドは Vite で `dist/extension.cjs` に束ね、web の `dist` を `dist/web` に写す（[ADR-008](adr/ADR-008-tech-stack.md)）。同梱する core の版は `vite.config.ts` の `define` で埋める。手元で動かすには `mise run build` のあと VS Code で `packages/vscode` を開いて F5（拡張開発ホスト）、Activity Bar の deguboard のアイコン。
 
-VSIX は `mise run vsix`（`@vscode/vsce`。判断は [ADR-008](adr/ADR-008-tech-stack.md)）で `packages/vscode/deguboard-vscode.vsix` にでき、`mise run vsix:install`（`mise run install` の最後にも走る）で VS Code に入る（`code` CLI がないか、`DEGUBOARD_VSIX_INSTALL_TIMEOUT_MS`（既定 60 秒）までに答えなければ、手で入れるコマンドを出して飛ばす。リモートの `code` は VS Code の窓口が答えないと待ち続けるので止める。リモート開発なら統合ターミナルから）。入れたらウィンドウを再読み込みする。入るものは `.vscodeignore` が決め、入ってよいファイルの一覧は `packages/vscode/src/vsix-files.test.ts` が `vsce ls` と照らす（一覧にないものが入ると `mise run check` が落ちる。入れるファイルを増やす PR は一覧も直す）。
+VSIX は `mise run vsix`（`@vscode/vsce`。判断は [ADR-008](adr/ADR-008-tech-stack.md)）で `packages/vscode/deguboard-vscode.vsix` にでき、`mise run vsix:install`（`mise run install` の最後にも走る）で VS Code に入る（`code` CLI がないか、`DEGUBOARD_VSIX_INSTALL_TIMEOUT_MS`（既定 60 秒）までに答えなければ、手で入れるコマンドを出して飛ばす。リモートの `code` は VS Code の窓口が答えないと待ち続けるので止める。リモート開発なら統合ターミナルから）。入れたらウィンドウを再読み込みする。入るものは `.vscodeignore` が決め、入ってよいファイルの一覧は `packages/vscode/src/vsix-files.test.ts` が `vsce ls` と照らす（一覧にないものが入ると `mise run check` が落ちる。入れるファイルを増やす PR は一覧も直す）。拡張の README（Marketplace の紹介）はルートの README.md の「ほかの使い方」より前を `scripts/vscode-readme.mjs` が写して作り、git には入れない。紹介はルートの README で直し、その部分のリンクは絶対 URL にする（相対リンクがあると作れない）。
 
-拡張の README の使い方の GIF（`packages/vscode/images/`）は、画面を変えたら `mise run gifs` で録り直す（台本は `scripts/record-gifs.mjs`）。
+README の使い方の GIF（`packages/vscode/images/`）は、画面を変えたら `mise run gifs` で録り直す（台本は `scripts/record-gifs.mjs`）。
 
 ## リリース
 
