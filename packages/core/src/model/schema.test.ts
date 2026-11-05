@@ -64,6 +64,7 @@ describe("スキーマ", () => {
       "commit.mode",
       "push.mode",
       "metrics.read_transcripts",
+      "vscode.notify_approvals",
       "actions.shell",
       "actions.test",
       "auto.merge",
@@ -83,6 +84,7 @@ describe("スキーマ", () => {
       default: "batch",
     });
     expect(byKey.get("auto.merge")).toMatchObject({ type: "boolean", default: false });
+    expect(byKey.get("vscode.notify_approvals")).toMatchObject({ type: "boolean", default: true });
     expect(byKey.get("actions.test")).toMatchObject({ type: "list", default: [] });
     expect(byKey.get("git.remote")).toMatchObject({ type: "string", default: "origin" });
     for (const tier of ["light", "standard", "heavy"])

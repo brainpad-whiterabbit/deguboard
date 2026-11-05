@@ -27,6 +27,14 @@ import {
   ticketRoute,
   type MenuTicket,
 } from "./context-menu.js";
+import {
+  type ApprovalItem,
+  approvalItems,
+  approvalMessage,
+  approvalRoute,
+  newApprovals,
+  viewTitle,
+} from "./approvals.js";
 import { dgAdvice, resolveDg } from "./dg.js";
 import { GOTO_COMMAND, gotoItems } from "./goto.js";
 import {
@@ -98,6 +106,14 @@ let statusItem: vscode.StatusBarItem | undefined;
 let statusTicket: string | undefined;
 /** refreshStatusBar の世代番号。最新の呼び出しの結果だけを反映する */
 let statusGeneration = 0;
+/** 通知から詳細を開くために覚える、拡張のコンテキスト */
+let extensionContext: vscode.ExtensionContext | undefined;
+/** フォルダごとの、前に見た承認待ち（承認待ちの Plan と review のチケット）の ID。ないうちは基準がなく、通知しない */
+const approvalSeen = new Map<string, Set<string>>();
+/** refreshApprovals の世代番号。最新の呼び出しの結果だけを反映する */
+let approvalGeneration = 0;
+/** 今の承認待ちの件数（最初の作業フォルダ）。サイドバーのタイトルに出す */
+let approvalCount = 0;
 /** ブランチの変わり（worktree の HEAD）の見張り。作業フォルダごと */
 const headWatchers = new Map<string, vscode.Disposable>();
 
@@ -208,6 +224,8 @@ export function activate(context: vscode.ExtensionContext): void {
     ),
   );
   void refreshStatusBar();
+  extensionContext = context;
+  void refreshApprovals();
 }
 
 export function deactivate(): void {
@@ -243,6 +261,7 @@ async function resolveSidebar(
     if (sidebar === view) sidebar = undefined;
   });
   if (folders.length > 1) view.description = folder.name;
+  view.title = viewTitle(approvalCount);
   const route = pendingSidebarRoute ?? WEBVIEW_CONTRACT.routes.board;
   const ask = pendingSidebarAsk;
   pendingSidebarRoute = undefined;
@@ -550,6 +569,7 @@ async function watchData(folder: vscode.WorkspaceFolder, client: CommandClient):
   const pending = coalesce(() => {
     broadcast(folder, { kind: "event", name: "reload" });
     void refreshStatusBar();
+    void refreshApprovals();
     // 変化があったので、読み込み中なら終わった後にもう 1 回読み直させる
     void loadIdIndex(folder, { changed: true });
   }, 200);
@@ -607,6 +627,66 @@ async function refreshStatusBar(): Promise<void> {
     statusItem.show();
   } catch {
     if (generation === statusGeneration) hideStatusBar();
+  }
+}
+
+/**
+ * 最初の作業フォルダの承認待ち（承認待ちの Plan と review のチケット。UI-12）を数え、サイドバーのタイトルに件数を出す。
+ * 前に見た集合になかったものが現れたら、config.yaml の vscode.notify_approvals が true のとき（既定）通知し、
+ * 「開く」で詳細のパネルを開く。起動して初めて読めたときは基準にするだけで通知しない。読めないとき（データのないリポジトリなど）は何も出さない。
+ * Activity Bar のバッジは未 push・未取り込み（badgeOf）が使うので、承認待ちはタイトルに出す
+ */
+async function refreshApprovals(): Promise<void> {
+  const generation = ++approvalGeneration;
+  const folder = (vscode.workspace.workspaceFolders ?? [])[0];
+  if (!folder) return;
+  try {
+    const client = clientFor(folder);
+    const plans = (await client.run<{ id: string }[]>("plan.list", { status: "pending" })).data;
+    const tickets = (await client.run<{ id: string }[]>("ticket.list", { status: ["review"] }))
+      .data;
+    if (generation !== approvalGeneration) return;
+    const items = approvalItems(plans, tickets);
+    const key = folder.uri.toString();
+    const arrived = newApprovals(approvalSeen.get(key), items);
+    approvalSeen.set(key, new Set(items.map((i) => i.id)));
+    approvalCount = items.length;
+    if (sidebar) sidebar.title = viewTitle(approvalCount);
+    if (arrived.length === 0) return;
+    const config = (await client.run<{ vscode?: { notify_approvals?: boolean } }>("config.show"))
+      .data;
+    if (config.vscode?.notify_approvals === false) return;
+    void notifyApprovals(folder, arrived);
+  } catch {
+    // 読めないときは前の表示のまま。通知は出さない
+  }
+}
+
+/** 増えた承認待ちを知らせ、「開く」で詳細を開く。複数あれば選ばせる。前に見た集合との差だけを知らせるので、同じものは重ねて出ない */
+async function notifyApprovals(
+  folder: vscode.WorkspaceFolder,
+  arrived: ApprovalItem[],
+): Promise<void> {
+  const context = extensionContext;
+  if (!context) return;
+  {
+    const open = "開く";
+    const choice = await vscode.window.showInformationMessage(approvalMessage(arrived), open);
+    if (choice !== open) return;
+    let item: ApprovalItem | undefined = arrived[0];
+    if (arrived.length > 1) {
+      const picked = await vscode.window.showQuickPick(
+        arrived.map((i) => ({
+          label: i.id,
+          description: i.kind === "plan" ? "Plan" : "review",
+          item: i,
+        })),
+        { placeHolder: "開く承認待ちを選ぶ" },
+      );
+      item = picked?.item;
+    }
+    const route = item && approvalRoute(item);
+    if (route) await openPanel(context, folder, { column: vscode.ViewColumn.Beside, route });
   }
 }
 
