@@ -14,6 +14,7 @@ import { BacklogPage } from "./pages/backlog.js";
 import { TicketPage } from "./pages/ticket.js";
 import { EpicsPage } from "./pages/epics.js";
 import { IterationsPage } from "./pages/iterations.js";
+import { PlansPage } from "./pages/plans.js";
 import { HistoryPage } from "./pages/history.js";
 import { RunsPage } from "./pages/runs.js";
 import { ConfigPage } from "./pages/config.js";
@@ -98,14 +99,14 @@ export function App() {
     runs: useLastHref("runs", route, store),
   };
   const shown = sidebarRoute(route, sidebar);
-  // Iteration の詳細はカンバンのタブ、Epic の詳細はバックログのタブの下にあるものとして扱う（一覧の画面はない）
+  // Iteration と Plan の詳細はカンバンのタブ、Epic の詳細はバックログのタブの下にあるものとして扱う（一覧の画面はない）
   const active =
     shown.page === "ticket" || shown.page === "epics"
       ? "backlog"
-      : shown.page === "iterations"
+      : shown.page === "iterations" || shown.page === "plans"
         ? "board"
         : shown.page;
-  // エディタのパネルは詳細（チケット・Iteration・Epic）だけを出し、1 枚で完結するので、タブ・Project・同期のヘッダーを出さない（UI-12）
+  // エディタのパネルは詳細（チケット・Iteration・Epic・Plan）だけを出し、1 枚で完結するので、タブ・Project・同期のヘッダーを出さない（UI-12）
   const panel = host.surface === "panel";
   return (
     <div
@@ -280,6 +281,8 @@ function Page({ route }: { route: Route }) {
       return <EpicsPage id={route.id} />;
     case "iterations":
       return <IterationsPage id={route.id} />;
+    case "plans":
+      return <PlansPage key={route.id} id={route.id} />;
     case "history":
       return <HistoryPage route={route} />;
     case "runs":

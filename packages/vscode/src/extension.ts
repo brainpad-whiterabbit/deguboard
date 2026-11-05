@@ -360,7 +360,7 @@ async function openPanel(
   });
 }
 
-/** パネルの題。チケットや Iteration の詳細を出しているときは「t12 タイトル」「s3 名前」にしてエディタのタブで見分けられるようにする（ヘッダーを出さないので。UI-12） */
+/** パネルの題。チケットや Iteration の詳細を出しているときは「t12 タイトル」「s3 名前」（Plan は「p5」）にしてエディタのタブで見分けられるようにする（ヘッダーを出さないので。UI-12） */
 async function retitle(
   panel: vscode.WebviewPanel,
   folder: vscode.WorkspaceFolder,
@@ -372,6 +372,8 @@ async function retitle(
     return;
   }
   panel.title = subject.id;
+  // Plan には名前がないので、題は番号だけにする
+  if (subject.kind === "plan") return;
   try {
     const client = clientFor(folder);
     const name =

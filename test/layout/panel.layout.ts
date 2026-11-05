@@ -5,6 +5,7 @@
 //   1 列（幅 800px 以下）で右の列（属性）までスクロールしても残る（t263・t265）
 // - Run の一覧は、パネルの幅（380px）でも横にスクロールしない（t267）
 // - Epic・Iteration の鉛筆のボタン（.inline-edit-icon）は 24px 四方で、行の高さを変えない（t290）
+// - Plan 詳細（#/plans/p1）は、パネルの幅（380px）でも広い幅でも、欄・依存グラフ・チケットの範囲と進め方が横に溢れない（t424）
 // ブラウザが要るので mise run test には入れず、mise run test:layout で回す（先に mise run build と mise run playwright:install）
 
 import { access } from "node:fs/promises";
@@ -94,6 +95,14 @@ beforeAll(async () => {
     });
   }
   await call("run.start", { ticket: "t2", step: "implement", agent: "my-bot", model: LONG_MODEL });
+  // Plan p1：t2 が t1 を待つ（depends_on）。t2 には長い範囲と進め方と tier を書く
+  await call("plan.create", {
+    tickets: ["t1", "t2"],
+    scope: { t2: "パネルの幅で折り返すかを見るための長い範囲の文。".repeat(4) },
+    approach: { t2: "1 行目の進め方\n2 行目の進め方（改行を残す）" },
+    tier: { t2: "heavy" },
+  });
+  await call("plan.approve", { plan: "p1" });
   browser = await chromium.launch().catch((error: unknown) => {
     throw new Error(
       `Chromium を起動できない。mise run playwright:install を実行する（${String(error)}）`,
@@ -255,4 +264,52 @@ describe.each(SCHEMES)("パネルのチケット詳細の配置（%s）", (schem
       await context.close();
     }
   });
+});
+
+describe.each(SCHEMES)("パネルの Plan 詳細の配置（%s）", (scheme) => {
+  it.each([380, 1100])(
+    "幅 %ipx で、欄・依存グラフ・チケットの範囲と進め方が出て、画面が横に溢れない",
+    async (width) => {
+      const context = await browser.newContext({
+        viewport: { width, height: 700 },
+        colorScheme: scheme,
+      });
+      const page = await context.newPage();
+      try {
+        await page.goto(`${server.url}?surface=panel#/plans/p1`, { waitUntil: "networkidle" });
+        await page.locator(".plan-ticket-details").waitFor();
+        const m = await page.evaluate(() => {
+          const main = document.querySelector<HTMLElement>(".page")!;
+          const right = main.getBoundingClientRect().right;
+          const parts = [
+            ...document.querySelectorAll(
+              ".plan-title, .plan-summary > *, .plan-ticket-head > *, .plan-ticket-details > *",
+            ),
+          ];
+          return {
+            // パネルは詳細だけを出し、タブ・Project・同期のヘッダーを出さない（UI-12）
+            topbar: document.querySelector(".topbar") !== null,
+            dts: [...document.querySelectorAll(".plan-summary dt")].map((dt) => dt.textContent),
+            nodes: document.querySelectorAll(".plan-graph a.plan-node").length,
+            tickets: document.querySelectorAll(".plan-ticket").length,
+            parts: parts.length,
+            over: parts.filter((el) => el.getBoundingClientRect().right > right + 0.5).length,
+            page: [main.scrollWidth, main.clientWidth],
+            doc: [document.documentElement.scrollWidth, document.documentElement.clientWidth],
+          };
+        });
+        const wide = (pair: number[]) => pair[0]! > pair[1]!;
+        if (wide(m.page) || wide(m.doc) || m.over > 0) await keep(page, `${scheme}-${width}-plan`);
+        expect(m.topbar, "パネルのヘッダー").toBe(false);
+        expect(m.dts).toEqual(["進み", "Iteration", "承認", "作業中", "次"]);
+        expect(m.nodes, "依存グラフのノード").toBe(2);
+        expect(m.tickets, "Plan のチケット").toBe(2);
+        expect(m.over, ".page からはみ出した部品").toBe(0);
+        expect(m.page[0], ".page の横スクロール").toBeLessThanOrEqual(m.page[1]!);
+        expect(m.doc[0], "画面の横スクロール").toBeLessThanOrEqual(m.doc[1]!);
+      } finally {
+        await context.close();
+      }
+    },
+  );
 });

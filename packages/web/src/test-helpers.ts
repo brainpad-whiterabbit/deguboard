@@ -234,6 +234,18 @@ export function mockClient(data = fixture()): MockClient {
       })),
     "iteration.list": () => data.iterations,
     "plan.list": () => data.plans.map((p) => withPlanFacts(p, data.tickets)),
+    // core の plan.show と同じく、Plan の順のチケット（消えたものは飛ばす）に待ちの相手と着手できるかを足して返す。状態と Plan 全体の待ちは持たない
+    "plan.show": (input) => {
+      const id = (input as { plan: string }).plan;
+      const found = data.plans.find((x) => x.id === id);
+      if (!found) throw new Error(`${id} が見つからない`);
+      const { status: _status, waiting, ...rest } = withPlanFacts(found, data.tickets);
+      const items = rest.tickets.flatMap((tid) => {
+        const t = data.tickets.find((x) => x.id === tid);
+        return t ? [{ ...t, waiting: waiting[tid] ?? [], ready: rest.ready.includes(tid) }] : [];
+      });
+      return { ...rest, items };
+    },
     "workflow.show": () => data.workflow,
     history: () => ({ events: [], shallow: false, incomplete: [] }),
     "run.list": () => [],

@@ -56,12 +56,24 @@ export function TicketLink({
   );
 }
 
-/** Epic・Iteration などの詳細へのリンク。ブラウザではハッシュ遷移、Webview では拡張ホストに頼んでエディタ領域に開く */
-export function DetailLink({ route, children }: { route: Route; children: ReactNode }) {
+/** Epic・Iteration・Plan などの詳細へのリンク。ブラウザではハッシュ遷移、Webview では拡張ホストに頼んでエディタ領域に開く */
+export function DetailLink({
+  route,
+  children,
+  className,
+  title,
+}: {
+  route: Route;
+  children: ReactNode;
+  className?: string | undefined;
+  title?: string | undefined;
+}) {
   const host = useHost();
   return (
     <a
       href={hrefOf(route)}
+      className={className}
+      title={title}
       onClick={(e: MouseEvent) => {
         e.preventDefault();
         host.open(route);

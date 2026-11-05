@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { hrefOf, parseRoute } from "./router.js";
+import { hrefOf, isDetailRoute, parseRoute } from "./router.js";
 
 describe("ハッシュのルーティング", () => {
   it("ハッシュから画面と ID を読み、空ならカンバン", () => {
@@ -14,6 +14,9 @@ describe("ハッシュのルーティング", () => {
     // Iteration の一覧の画面はないので、ID がなければカンバン
     expect(parseRoute("#/iterations")).toEqual({ page: "board" });
     expect(parseRoute("#/iterations/s2")).toEqual({ page: "iterations", id: "s2" });
+    expect(parseRoute("#/plans/p5")).toEqual({ page: "plans", id: "p5" });
+    // Plan の一覧の画面はないので、ID がなければカンバン
+    expect(parseRoute("#/plans")).toEqual({ page: "board" });
     expect(parseRoute("#/history")).toEqual({ page: "history" });
     expect(parseRoute("#/history?view=epic")).toEqual({ page: "history", view: "epic" });
     expect(parseRoute("#/history?view=ticket")).toEqual({ page: "history", view: "ticket" });
@@ -58,6 +61,7 @@ describe("ハッシュのルーティング", () => {
       { page: "ticket" as const, id: "t3" },
       { page: "epics" as const, id: "e1" },
       { page: "iterations" as const, id: "s2" },
+      { page: "plans" as const, id: "p5" },
       { page: "history" as const, view: "epic" as const },
       { page: "history" as const, q: "t1?a&b" },
       {
@@ -74,5 +78,12 @@ describe("ハッシュのルーティング", () => {
     ]) {
       expect(parseRoute(hrefOf(route))).toEqual(route);
     }
+  });
+
+  it("チケット・Epic・Iteration・Plan の詳細だけを詳細のルートとして扱う（エディタのパネルに開く。UI-12）", () => {
+    for (const hash of ["#/tickets/t1", "#/epics/e1", "#/iterations/s1", "#/plans/p1"])
+      expect(isDetailRoute(parseRoute(hash)), hash).toBe(true);
+    for (const hash of ["#/board", "#/backlog", "#/history", "#/runs", "#/config", "#/plans"])
+      expect(isDetailRoute(parseRoute(hash)), hash).toBe(false);
   });
 });

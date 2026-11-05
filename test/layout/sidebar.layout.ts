@@ -537,7 +537,7 @@ describe.each(SCHEMES)("実行計画のグラフの凡例（%s）", (scheme) => 
     const page = await context.newPage();
     try {
       await page.goto(`${server.url}?surface=sidebar#/board`, { waitUntil: "networkidle" });
-      await page.locator("button.plan-line").first().click();
+      await page.locator("button.plan-toggle").first().click();
       await page.locator(".plan-graph-legend").waitFor();
       const m = await page.evaluate(() => {
         const legend = document.querySelector(".plan-graph-legend")!;

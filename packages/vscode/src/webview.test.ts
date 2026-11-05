@@ -252,6 +252,9 @@ describe("パネルの題", () => {
     expect(subjectOfRoute("#/tickets/t12?x=1")).toEqual({ kind: "ticket", id: "t12" });
     expect(subjectOfRoute("#/iterations/s3")).toEqual({ kind: "iteration", id: "s3" });
     expect(subjectOfRoute("#/epics/e2")).toEqual({ kind: "epic", id: "e2" });
+    expect(subjectOfRoute("#/plans/p5")).toEqual({ kind: "plan", id: "p5" });
+    // Plan の一覧の画面はないので、ID のないルートは詳細でない
+    expect(subjectOfRoute("#/plans")).toBeUndefined();
     expect(subjectOfRoute("#/board")).toBeUndefined();
     expect(subjectOfRoute("#/tickets")).toBeUndefined();
     expect(subjectOfRoute("#/tickets/")).toBeUndefined();
