@@ -1,0 +1,32 @@
+{
+  "id": "r20261105-150525-6636",
+  "ticket": "t411",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-sonnet-5-5",
+  "started_at": "2026-11-05T15:05:25Z",
+  "finished_at": "2026-11-05T15:06:17Z",
+  "result": "success",
+  "error": null,
+  "retries": 3,
+  "retry_reasons": [
+    "足したテストのコメントが効いている仕組みと合わない",
+    "guide-check の直し方の並べ方がそろわない",
+    "PL-3 の文の形がほかの項目とずれる"
+  ],
+  "usage": {
+    "input": 2,
+    "output": 978,
+    "cache_read": 71648,
+    "cache_write": 502
+  },
+  "tools": {
+    "read": 0,
+    "search": 0,
+    "write": 0,
+    "bash": 1,
+    "other": 0,
+    "read_before_write": 0,
+    "search_before_write": 0
+  }
+}
