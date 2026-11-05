@@ -2,7 +2,11 @@ id: software-development
 name: Software Development
 labels:
   review: Code Review
-transitions: []
+transitions:
+  - from: todo
+    to: in_progress
+    requires:
+      - deps_done
 reconcile:
   - when:
       - pr_merged
@@ -23,9 +27,9 @@ fields:
     label: Estimate
 steps:
   - id: plan
+    label: Plan
     actions: []
     approval: false
-    label: Plan
   - id: investigate
     label: Investigate
     actions: []
