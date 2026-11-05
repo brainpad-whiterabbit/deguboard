@@ -1,0 +1,21 @@
+id: p53
+project: default
+tickets: [t416, t417, t418]
+after:
+  t418:
+    - t416
+    - t417
+pending_approval: true
+details:
+  t416:
+    scope: ADR-005（t415）のとおりチケットごとの plan の Run をやめる。テンプレートの steps・dg guide の案内・このリポジトリの Workflow から plan を外す
+    approach: core のテンプレートと guide-plan・work・parallel・run・all の記述を直し、記録済みの plan の Run が validate・metrics で警告にならないことをテストで確かめる。Workflow の plan は workflow set で外す。t415 のマージ後に着手
+    tier: standard
+  t417:
+    scope: 同じ会話記録で期間が重なる Run が同じ応答を二重に数えないようにする
+    approach: Claude Code と Codex の Adapter で、応答をいちばん新しく始まった開いている Run にだけ数える規則を入れてテストし、run start の警告・guide-review・ADR-005 を直し、過去の 11 組を run refresh で取り直す
+    tier: heavy
+  t418:
+    scope: 5 パッケージの version を 0.15.0 に揃える版上げの PR を作り、リリースの手順の確かめを回す
+    approach: リリースは人の指示を待つ。指示が出たら mise run release:version -- 0.15.0 の後に check・pack・audit・test:layout
+    tier: light
