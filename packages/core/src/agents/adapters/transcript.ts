@@ -102,3 +102,52 @@ export const none = (warning: string): CollectedUsage => ({
   tools: null,
   warnings: [warning],
 });
+
+/** ほかの Run を始めた記録とみなす、ID が最初に出るまでの開始からの猶予 */
+const START_MS = 60_000;
+
+/**
+ * 同じ会話記録で期間が重なる Run に、1 つの応答を二重に数えないための判定（ADR-005）。
+ * 応答は、その応答より前に ID が出ていて、その時刻に開いている Run のうち、いちばん新しく始まったものだけに数える。
+ * 比べるのは自分より後に始まって期間が重なる Run だけで、その ID がこのファイルで最初に出たのが開始から START_MS 以内のもの
+ * （そのファイルで dg run start を呼んだ Run）。後から一覧などで ID を見ただけの、ほかの記録の Run には譲らない
+ */
+export class OverlapClaims {
+  /** まだ ID が出ていない、自分より後に始まって期間が重なる Run の開始と終わり */
+  private readonly pending = new Map<string, { from: number; to: number }>();
+  /** ID が出た、譲る相手の期間 */
+  private readonly newer: Array<{ from: number; to: number }> = [];
+
+  constructor(query: UsageQuery, from: number, to: number) {
+    const self = query.run;
+    for (const [id, span] of query.others ?? []) {
+      if (id === self.id) continue;
+      const start = Date.parse(span.started_at);
+      // 終わりは秒までなので、その秒の終わりまで含める。実行中なら開いたまま
+      const end = span.finished_at === null ? Infinity : Date.parse(span.finished_at) + 999;
+      if (Number.isNaN(start) || Number.isNaN(end) || start > to || end < from) continue;
+      // 同じ秒なら ID の順で決める（決まればよく、開始の順とは限らない）
+      const later =
+        start > Date.parse(self.started_at) ||
+        (span.started_at === self.started_at && id.localeCompare(self.id) > 0);
+      if (later) this.pending.set(id, { from: start, to: end });
+    }
+  }
+
+  /** 行を読んだ後に呼び、その行に初めて出たほかの Run の ID を記録する */
+  see(line: string): void {
+    if (this.pending.size === 0) return;
+    for (const [id, span] of this.pending) {
+      if (!line.includes(id)) continue;
+      this.pending.delete(id);
+      const entry = parse(line);
+      const at = entry ? timeOf(entry) : NaN;
+      if (Number.isNaN(at) || at <= span.from + START_MS) this.newer.push(span);
+    }
+  }
+
+  /** 時刻 at の応答を自分に数えるか。後に始まった開いている Run の ID が先に出ていれば、そちらに譲る */
+  owns(at: number): boolean {
+    return !this.newer.some((s) => s.from <= at && at <= s.to);
+  }
+}

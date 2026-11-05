@@ -2,7 +2,7 @@
 // 使用量の取り込みは agents（Run の agent の値で Adapter を選ぶ。特定の AI 製品をここに書かない。AG-5）
 
 import { z } from "zod";
-import { agentNames, collectRunUsage } from "../agents/index.js";
+import { agentNames, collectRunUsage, type RunSpan } from "../agents/index.js";
 import { slugSchema, toIsoDateTime } from "../model/common.js";
 import { filterRuns, placeRun, runDurationSeconds, type MetricFilter } from "../model/metrics.js";
 import { OperationError, UsageError } from "../errors.js";
@@ -19,6 +19,15 @@ import { idShapeOf, iterationRef, ticketRef } from "./helpers.js";
  */
 export type RunView = Run & { running: boolean; duration_seconds: number | null };
 
+/** Adapter が期間の重なる Run と応答を分けるための、閉じた Run とこのマシンで実行中の Run の期間 */
+function runSpans(closed: Iterable<{ data: Run }>, running: Iterable<{ data: Run }>) {
+  const spans = new Map<string, RunSpan>();
+  for (const { data } of [...closed, ...running]) {
+    spans.set(data.id, { started_at: data.started_at, finished_at: data.finished_at });
+  }
+  return spans;
+}
+
 /** 空白・改行を含まない 1 語。step の語彙は run.start がチケットの Workflow の steps（WF-5）で確かめる */
 const token = z.string().regex(/^\S+$/, "空白・改行を含まない 1 語");
 
@@ -27,7 +36,7 @@ export const runStart = defineCommand({
   positionals: ["ticket", "step"],
   group: "run",
   summary:
-    "Run を始める。実行中の記録は deguboard-local/runs/ にだけ置き、Git には入れない。同じチケットと step の Run が実行中か、step がチケットの Workflow の steps にないなら拒否する",
+    "Run を始める。実行中の記録は deguboard-local/runs/ にだけ置き、Git には入れない。同じチケットと step の Run が実行中か、step がチケットの Workflow の steps にないなら拒否する。このマシンで同じ agent の Run が実行中なら警告して始める",
   input: z.object({
     ticket: ticketRef,
     step: token.describe("工程。チケットの Workflow の steps の id（dg workflow show で見る）"),
@@ -64,6 +73,13 @@ export const runStart = defineCommand({
     if (!agentNames().includes(input.agent)) {
       warnings.push(
         `agent ${input.agent} には Adapter がないので、finish は使用量とモデル名を取り込めない（Adapter のある名前: ${agentNames().join("・")}。サブエージェントも自分の Adapter の名前で始める）`,
+      );
+    }
+    // 同じ会話記録で期間が重なると、応答は後に始めた Run にだけ数える（ADR-005）。閉じ忘れに気づけるように知らせる
+    const open = (await readRunningRuns(ctx.repo)).runs.filter((r) => r.data.agent === input.agent);
+    if (open.length > 0) {
+      warnings.push(
+        `このマシンで ${input.agent} の Run ${open.map((r) => `${r.id}（${r.data.ticket} ${r.data.step}）`).join("・")}が開いたまま。同じ会話記録なら、この後の応答は新しい Run にだけ数える。終わった Run は dg run finish で閉じる（並行する別のエージェントの Run や、自分が始めた覚えのない ID なら無視してよい）`,
       );
     }
     const run = await startRun(ctx.repo, {
@@ -125,7 +141,8 @@ export const runFinish = defineCommand({
     }
     const now = ctx.now();
     // 実行中の記録がなければ取り込まず、finishRun が見つからない・終わっていると拒否する
-    const running = (await readRunningRuns(ctx.repo)).runs.find((r) => r.id === input.run);
+    const local = (await readRunningRuns(ctx.repo)).runs;
+    const running = local.find((r) => r.id === input.run);
     const collected = running
       ? await collectRunUsage(ctx.config, {
           run: running.data,
@@ -133,6 +150,7 @@ export const runFinish = defineCommand({
           env: ctx.env ?? process.env,
           topLevel: ctx.repo.topLevel,
           commonDir: ctx.repo.commonDir,
+          others: runSpans(ctx.store.runs.values(), local),
         })
       : undefined;
     const { run, write } = await finishRun(ctx, input.run, {
@@ -277,7 +295,8 @@ export const runRefresh = defineCommand({
       if (!doc) throw new OperationError("NOT_FOUND", `閉じた Run ${id} が見つからない`);
       return doc;
     };
-    const running = new Set((await readRunningRuns(ctx.repo)).runs.map((r) => r.id));
+    const local = (await readRunningRuns(ctx.repo)).runs;
+    const running = new Set(local.map((r) => r.id));
     for (const id of ids) {
       if (!isRunId(id))
         throw new UsageError(`${id} は Run の ID の形（r20261031-041500-3fa2）でない`);
@@ -292,6 +311,7 @@ export const runRefresh = defineCommand({
     /** Adapter が理由を警告した Run。kept の警告を重ねて出さない */
     const explained = new Set<RunId>();
     const collected = new Map<string, Awaited<ReturnType<typeof collectRunUsage>>>();
+    const others = runSpans(ctx.store.runs.values(), local);
     for (const id of ids) {
       const run = closed(id).data;
       const got = await collectRunUsage(ctx.config, {
@@ -301,6 +321,7 @@ export const runRefresh = defineCommand({
         env: ctx.env ?? process.env,
         topLevel: ctx.repo.topLevel,
         commonDir: ctx.repo.commonDir,
+        others,
       });
       collected.set(id, got);
       if (got.warnings.length > 0) explained.add(id);

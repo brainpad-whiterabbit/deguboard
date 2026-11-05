@@ -10,6 +10,8 @@ Run は 1 回の作業の記録で、使用量（トークン）が残る。実�
 - **agent**：自分の Adapter の名前（`dg run start --help`。Claude Code なら `claude-code`）
 - **自分で呼ぶ**：run start と finish は作業するエージェント自身が呼ぶ（理由は `dg guide review` の「Run の分け方」）
 - 使用量は書かない。取れずに finish が警告しても止めない
+- run start は単独で呼び、ほかのコマンドとつながない（ID が会話記録に出るのが遅れると、同じ会話で重ねた Run の応答を正しく分けられない）
+- start が同じ agent の Run が開いたままと警告したら、自分の終わった Run なら閉じる（同じ会話で重ねた Run は、応答を後に始めた方にだけ数える）。並行するほかのエージェントの Run や、始めた覚えのない ID なら無視してよい
 - 同じ step の Run が実行中で start が拒否されたら、下の「閉じ損ねた Run を閉じる」で閉じて始め直す。サブエージェントなら閉じずに親に返す（親が `interrupted` で閉じる）
 - **結果**：実装の Run は draft の PR を作ったら `success`。自分の判断でやめる（検査が通らない、範囲がはっきりしない）なら `--result failure --error <理由>` で閉じる。`interrupted` は閉じ損ねた Run だけに使う
 - **やり直しの理由**：`--retry-reason` の書き方は `dg guide review` の「Run の分け方」

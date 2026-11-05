@@ -121,6 +121,57 @@ describe("Codex の Adapter", () => {
     });
   });
 
+  describe("同じ会話記録で期間が重なる Run", () => {
+    // A（RUN_ID、10:00 開始）を開いたまま、同じ session で B（10:10 開始）を始めた記録
+    const B = "r20260101-101000-beef";
+    const B_STARTED = at(10).replace(".000", "");
+    const mentionOf = (id: string, minutes: number) => ({
+      timestamp: at(minutes),
+      type: "response_item",
+      payload: { type: "function_call_output", call_id: "c2", output: `{"id":"${id}"}` },
+    });
+    const lines = [
+      mention(0),
+      turnContext(1, "gpt-a"),
+      tokenCount(5, [10, 4, 1, 1]),
+      mentionOf(B, 10),
+      turnContext(11, "gpt-b"),
+      tokenCount(12, [30, 10, 11, 2]),
+      tokenCount(25, [130, 50, 111, 3]),
+    ];
+    const runB = (): Run => ({ ...run(), id: B, started_at: B_STARTED });
+    const spans = (entries: Array<[string, string, string | null]>) =>
+      new Map(entries.map(([id, started_at, finished_at]) => [id, { started_at, finished_at }]));
+
+    it("先に閉じた側（A）は B の ID の後の累計の増えを除き、後に閉じた側（B）は A と重ならずに数える", async () => {
+      const { sessions, query } = await setup();
+      await writeRollout(path.join(sessions, "rollout-a.jsonl"), lines);
+      const a = await codexAdapter.readTranscriptUsage(
+        query({ finishedAt: at(20), others: spans([[B, B_STARTED, null]]) }),
+      );
+      const b = await codexAdapter.readTranscriptUsage(
+        query({ run: runB(), others: spans([[RUN_ID, STARTED, at(20)]]) }),
+      );
+      expect(a.usage).toEqual({ input: 6, output: 1, cache_read: 4, cache_write: 1 });
+      expect(a.model).toBe("gpt-a");
+      expect(b.usage).toEqual({ input: 74, output: 110, cache_read: 46, cache_write: 2 });
+      expect(b.model).toBe("gpt-b");
+    });
+
+    it("後に始めた B を先に閉じても、A は B の期間の増えだけを除く", async () => {
+      const { sessions, query } = await setup();
+      await writeRollout(path.join(sessions, "rollout-a.jsonl"), lines);
+      const b = await codexAdapter.readTranscriptUsage(
+        query({ run: runB(), finishedAt: at(15), others: spans([[RUN_ID, STARTED, null]]) }),
+      );
+      const a = await codexAdapter.readTranscriptUsage(
+        query({ others: spans([[B, B_STARTED, at(15)]]) }),
+      );
+      expect(b.usage.output).toBe(10);
+      expect(a.usage).toEqual({ input: 66, output: 101, cache_read: 44, cache_write: 2 });
+    });
+  });
+
   it("Run の ID の前に累計がなければ session の始まりから数え、turn がなければ前のモデル名を入れる", async () => {
     const { sessions, query } = await setup();
     await writeRollout(path.join(sessions, "rollout-a.jsonl"), [

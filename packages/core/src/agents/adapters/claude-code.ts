@@ -3,7 +3,8 @@
 //     ID が最初に出たのが finished_at より後のファイル（閉じた後に run refresh を呼んだセッションなど）は Run の記録とみなさない。
 //     サブエージェントは親と同じ session の subagents/ に別のファイルを持ち、作業ディレクトリと時刻だけでは並行するエージェントと区別できない
 //   - 数える行：そのファイルの assistant の行のうち、Run の ID が出た後の started_at〜finished_at のもの。同じ応答が複数行に
-//     分かれるので message.id で重ねない。subagents/ の外のファイルの isSidechain の行（古い版が親のファイルに書くサブエージェントの行）は数えない
+//     分かれるので message.id で重ねない。subagents/ の外のファイルの isSidechain の行（古い版が親のファイルに書くサブエージェントの行）は数えない。
+//     同じファイルで期間が重なるほかの Run があれば、応答は ID が先に出ていて開いている Run のうち最も新しく始まったものにだけ数える（OverlapClaims）。すべて譲ったら量は 0
 //   - 探す範囲：環境変数 CLAUDE_CODE_SESSION_ID があればその session のファイル。そこに Run がなければ、作業ツリーと主の作業ツリーと、
 //     主の作業ツリーの親までの上位のディレクトリ（HOME とその上は除く）に当たる projects/ の下。どちらも started_at より後に書かれたファイルだけ
 //   - ツールの回数：数える行の message.content の tool_use を、tool_use の id で重ねずに名前で種類に分けて数える（TOOL_KINDS）。
@@ -21,6 +22,7 @@ import {
   homeDir,
   list,
   none,
+  OverlapClaims,
   parse,
   searchRoots,
   seenAfterRun,
@@ -81,6 +83,8 @@ interface Scan {
   messages: Map<string, { usage: Record<string, unknown>; model: unknown }>;
   /** tool_use の id ごとの種類。Map の順が呼び出しの順 */
   tools: Map<string, ToolKind>;
+  /** 後に始まった開いている Run に譲った応答があるか */
+  ceded: boolean;
 }
 
 /** Claude Code のツールの名前と種類。載っていない名前（Agent・TodoWrite・Web・MCP など）は other */
@@ -116,40 +120,58 @@ function addTools(tools: Scan["tools"], message: Record<string, unknown>, key: s
 const TIMESTAMPS = /"timestamp":"([^"]+)"/g;
 
 async function scan(file: string, query: UsageQuery, from: number, to: number): Promise<Scan> {
-  const result: Scan = { firstSeen: undefined, messages: new Map(), tools: new Map() };
+  const result: Scan = {
+    firstSeen: undefined,
+    messages: new Map(),
+    tools: new Map(),
+    ceded: false,
+  };
   // subagents/ の外のファイルでは、サブエージェントの行（isSidechain）は親の使用量でない
   const sidechainFile = file.split(path.sep).includes("subagents");
-  const lines = createInterface({ input: createReadStream(file), crlfDelay: Infinity });
-  for await (const line of lines) {
+  const claims = new OverlapClaims(query, from, to);
+  /** 1 行を積む。読むのをやめるときだけ false */
+  const take = (line: string): boolean => {
     if (result.firstSeen === undefined) {
       // Run の ID が出るまでは JSON を読まず、集計も積まない
-      if (!line.includes(query.run.id)) continue;
+      if (!line.includes(query.run.id)) return true;
       const entry = parse(line);
       const at = entry ? timeOf(entry) : NaN;
       result.firstSeen = Number.isNaN(at) ? Infinity : at;
-      continue;
+      return true;
     }
-    if (!line.includes('"assistant"')) continue;
+    if (!line.includes('"assistant"')) return true;
     // 期間に入る timestamp の文字列がない行は JSON.parse しない
     const stamps = Array.from(line.matchAll(TIMESTAMPS), (m) => Date.parse(m[1] ?? ""));
     if (!stamps.some((t) => t >= from && t <= to)) {
-      if (stamps.length > 0 && stamps.every((t) => t > to + TAIL_MS)) break;
-      continue;
+      return !(stamps.length > 0 && stamps.every((t) => t > to + TAIL_MS));
     }
     const entry = parse(line);
-    if (!entry || entry["type"] !== "assistant") continue;
+    if (!entry || entry["type"] !== "assistant") return true;
     const at = timeOf(entry);
-    if (Number.isNaN(at) || at < from || at > to) continue;
-    if (!sidechainFile && entry["isSidechain"] === true) continue;
+    if (Number.isNaN(at) || at < from || at > to) return true;
+    if (!sidechainFile && entry["isSidechain"] === true) return true;
+    // 後に始まった開いている Run の ID が先に出ていれば、その応答はそちらに数える
+    if (!claims.owns(at)) {
+      result.ceded = true;
+      return true;
+    }
     const message = entry["message"] as Record<string, unknown> | undefined;
-    if (!message) continue;
+    if (!message) return true;
     const key = String(message["id"] ?? entry["requestId"] ?? entry["uuid"] ?? line);
     // 同じ応答の tool_use は別の行に分かれて書かれるので、使用量より先に行ごとに積む
     addTools(result.tools, message, key);
     const usage = message["usage"];
-    if (typeof usage !== "object" || usage === null) continue;
+    if (typeof usage !== "object" || usage === null) return true;
     // 同じ応答の行は後の行が最終の値を持つ
     result.messages.set(key, { usage: usage as Record<string, unknown>, model: message["model"] });
+    return true;
+  };
+  const lines = createInterface({ input: createReadStream(file), crlfDelay: Infinity });
+  for await (const line of lines) {
+    const more = take(line);
+    // ほかの Run の ID はその行の後の応答から効く
+    claims.see(line);
+    if (!more) break;
   }
   return result;
 }
@@ -209,13 +231,17 @@ export const claudeCodeAdapter: AgentAdapter = {
         `Claude Code の会話記録に Run ${query.run.id} が見つからない。使用量は null で残す`,
       );
     }
-    if (best.messages.size === 0) {
+    if (best.messages.size === 0 && !best.ceded) {
       return none(
         `Claude Code の会話記録に Run ${query.run.id} の期間の応答がない。使用量は null で残す`,
       );
     }
     return {
-      usage: sum(best.messages),
+      // 期間の応答をすべて後に始めた Run に譲ったなら、この Run の量は 0
+      usage:
+        best.messages.size === 0
+          ? { input: 0, output: 0, cache_read: 0, cache_write: 0 }
+          : sum(best.messages),
       model: mainModel(best.messages),
       tools: tallyTools(best.tools.values()),
       warnings: [],

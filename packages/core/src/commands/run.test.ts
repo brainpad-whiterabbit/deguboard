@@ -437,9 +437,9 @@ describe("run", () => {
       step: "anything",
       agent: "claude-code",
     });
-    expect(r.warnings).toEqual([
+    expect(r.warnings).toContain(
       "t2 の Workflow が見つからないか読めないので、step anything を確かめていない",
-    ]);
+    );
   });
 
   it("Workflow の steps にない step（記録済みの plan の Run）があっても、validate・workflow.validate・run list・metrics show は警告も失敗も出さない", async () => {
@@ -629,6 +629,56 @@ describe("run finish の使用量の取り込み（MT-1・MT-2・MT-4）", () =>
     expect(r.warnings).toEqual([
       expect.stringMatching(/no-such-reviewer.*Adapter がない.*claude-code/),
     ]);
+  });
+
+  it("start はこのマシンで同じ agent の Run が開いたままなら警告して記録し、finish は重なった応答を後に始めた Run にだけ数える", async () => {
+    const { ctx, projectDir } = await withTranscripts(true, {});
+    const t0 = Date.parse("2026-01-01T10:00:00Z");
+    const t = (minutes: number) => new Date(t0 + minutes * 60_000);
+    ctx.now = () => t(0);
+    const a = (
+      await runCommand(runStart, ctx, { ticket: "t1", step: "implement", agent: "claude-code" })
+    ).data as Run;
+    ctx.now = () => t(10);
+    const other = await runCommand(runStart, ctx, { ticket: "t2", step: "review", agent: "codex" });
+    expect(other.warnings).toEqual([]);
+    const started = await runCommand(runStart, ctx, {
+      ticket: "t2",
+      step: "implement",
+      agent: "claude-code",
+    });
+    const b = started.data as Run;
+    expect(started.warnings).toEqual([
+      expect.stringMatching(new RegExp(`claude-code の Run ${a.id}（t1 implement）が開いたまま`)),
+    ]);
+    const reply = (id: string, minutes: number, output: number) => ({
+      type: "assistant",
+      timestamp: t(minutes).toISOString(),
+      message: {
+        id,
+        model: "m",
+        content: "答え",
+        usage: { input_tokens: 0, output_tokens: output },
+      },
+    });
+    const mention = (id: string, minutes: number) => ({
+      type: "user",
+      timestamp: t(minutes).toISOString(),
+      message: { content: id },
+    });
+    await mkdir(projectDir, { recursive: true });
+    await writeFile(
+      path.join(projectDir, "s1.jsonl"),
+      [mention(a.id, 0), reply("m1", 1, 1), mention(b.id, 10), reply("m2", 12, 10)]
+        .map((l) => JSON.stringify(l))
+        .join("\n") + "\n",
+    );
+    ctx.now = () => t(20);
+    const fa = await runCommand(runFinish, ctx, { run: a.id, result: "success" });
+    ctx.now = () => t(30);
+    const fb = await runCommand(runFinish, ctx, { run: b.id, result: "success" });
+    expect((fa.data as Run).usage.output).toBe(1);
+    expect((fb.data as Run).usage.output).toBe(10);
   });
 
   it("read_transcripts が false か DEGUBOARD_NO_TRANSCRIPTS=1 なら会話記録を読まず、null にして警告する", async () => {
