@@ -31,6 +31,8 @@ import { useAsk, useUiState } from "../host.js";
 import { useStore } from "../store.js";
 import type { AskCandidate, AskMenu } from "../types.js";
 import { SELECT_ATTR, selectKind, useSelection } from "./selection.js";
+import { tr, trCore, msg } from "../l10n.js";
+import { trNode } from "../l10n-node.js";
 
 /**
  * 頼める場所の種類の名前（core の WEBVIEW_CONTRACT.askSections の写し）。選んだ行の場所を区別するのに使う
@@ -43,7 +45,7 @@ export type AskSection =
 /** 初めての案内を消したかの鍵（見た目の状態） */
 export const ASK_HINT_KEY = "ask.hintDismissed";
 
-export const ASK_HINT = "行にマウスを載せると出る吹き出しで、エージェントに頼めます";
+export const ASK_HINT = msg("行にマウスを載せると出る吹き出しで、エージェントに頼めます");
 
 interface MenuCache {
   menus: ReadonlyMap<string, AskMenu>;
@@ -190,7 +192,7 @@ export function useAskSpot(options: AskSpotOptions | null): AskSpot {
   const many = selected && selection!.ids.length > 1;
   const targets = many ? selection!.ids : (options?.targets ?? []);
   const within = many ? selection!.within : options?.within;
-  const label = many ? `選んだ ${targets.length} 件` : (options?.label ?? "");
+  const label = many ? tr("選んだ {0} 件", targets.length) : (options?.label ?? "");
   const key = askKey(targets, within);
   const menu = useAskMenu(options ? key : null, open);
   const asking =
@@ -223,10 +225,10 @@ export function useAskSpot(options: AskSpotOptions | null): AskSpot {
           ref={bubbleRef}
           type="button"
           className={options.pinned ? "ask-bubble pinned" : "ask-bubble"}
-          aria-label={`エージェントに頼む（${label}）`}
+          aria-label={tr("エージェントに頼む（{0}）", label)}
           aria-haspopup="menu"
           aria-expanded={open}
-          title="エージェントに頼む（Shift+F10）"
+          title={tr("エージェントに頼む（Shift+F10）")}
           // 見出し（summary）の開閉・Plan の行の開閉を起こさない
           onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => {
@@ -338,7 +340,7 @@ export function SelectionBar() {
     selection && ids.length > 0
       ? {
           targets: ids,
-          label: `選んだ ${ids.length} 件`,
+          label: tr("選んだ {0} 件", ids.length),
           section: selection.section ?? ASK_SECTIONS.boardTicket,
           within: selection.within,
           bubble: false,
@@ -347,30 +349,30 @@ export function SelectionBar() {
   );
   if (!selection || ids.length === 0 || ask.request) return null;
   return (
-    <div className="selection-bar" role="region" aria-label="選んだ行" {...spot.props}>
+    <div className="selection-bar" role="region" aria-label={tr("選んだ行")} {...spot.props}>
       <span className="selection-count" aria-live="polite">
-        {ids.length} 件を選択
+        {trNode("{0} 件を選択", ids.length)}
       </span>
       <span className="muted" aria-hidden="true">
-        ・
+        {tr("・")}
       </span>
       <button
         type="button"
         className="primary selection-ask"
         aria-haspopup="menu"
-        title="選んだ行をまとめてエージェントに頼む"
+        title={tr("選んだ行をまとめてエージェントに頼む")}
         onClick={(e) => spot.open(e.currentTarget)}
       >
-        頼む
+        {tr("頼む")}
       </button>
       <span className="selection-gap" />
       <button
         type="button"
         className="selection-clear"
-        title="選択を外す（Esc）"
+        title={tr("選択を外す（Esc）")}
         onClick={selection.clear}
       >
-        選択を外す
+        {tr("選択を外す")}
       </button>
       {spot.overlay}
     </div>
@@ -479,7 +481,7 @@ function AskMenuList({
       ref={ref}
       className="ask-menu"
       role="menu"
-      aria-label={`エージェントに頼む（${label}）`}
+      aria-label={tr("エージェントに頼む（{0}）", label)}
       style={pos ? { left: pos.left, top: pos.top } : { visibility: "hidden" }}
       onKeyDown={onKeyDown}
       // body に出しても React の上の要素（見出し・Plan の行）へは伝わるので止める
@@ -488,7 +490,7 @@ function AskMenuList({
     >
       <div className="ask-menu-label">{label}</div>
       {!menu ? (
-        <div className="ask-menu-note muted">読み込み中…</div>
+        <div className="ask-menu-note muted">{tr("読み込み中…")}</div>
       ) : menu.error ? (
         <div className="ask-menu-note error">{menu.error}</div>
       ) : (
@@ -498,11 +500,11 @@ function AskMenuList({
             type="button"
             role="menuitem"
             className="ask-menu-item"
-            title={c.skill ?? "Skill を使わない"}
+            title={c.skill ?? tr("Skill を使わない")}
             onClick={() => onPick(c)}
           >
-            <span>{c.label}</span>
-            {c.recommended ? <span className="ask-menu-rec">おすすめ</span> : null}
+            <span>{trCore(c.label, c.action)}</span>
+            {c.recommended ? <span className="ask-menu-rec">{tr("おすすめ")}</span> : null}
           </button>
         ))
       )}
@@ -520,12 +522,12 @@ export function AskHint() {
       <svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true">
         <path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z" />
       </svg>
-      <span>{ASK_HINT}</span>
+      <span>{tr(ASK_HINT)}</span>
       <button
         type="button"
         className="ask-hint-close"
-        aria-label="案内を閉じる"
-        title="閉じる（もう出さない）"
+        aria-label={tr("案内を閉じる")}
+        title={tr("閉じる（もう出さない）")}
         onClick={() => setDismissed(true)}
       >
         ×

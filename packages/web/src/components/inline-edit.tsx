@@ -5,6 +5,7 @@
 // 値がリンク（Epic・Iteration）なら、リンクと値のボタンを入れ子にせず並べ、ボタンは鉛筆の印だけにする
 
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { tr } from "../l10n.js";
 
 /** 選択の 1 項目 */
 export interface Choice {
@@ -215,8 +216,8 @@ export function InlineEdit({
         className={link ? "inline-edit inline-edit-icon" : "inline-edit"}
         role="button"
         tabIndex={0}
-        aria-label={`${label}を変える`}
-        title="押して変える"
+        aria-label={tr("{0}を変える", label)}
+        title={tr("押して変える")}
         onClick={onStart}
         onKeyDown={(e: KeyboardEvent) => {
           if (e.key === "Enter" || e.key === " ") {

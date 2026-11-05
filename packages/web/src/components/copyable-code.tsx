@@ -4,6 +4,7 @@
 
 import { useEffect, useState } from "react";
 import { useHost } from "../host.js";
+import { tr } from "../l10n.js";
 
 /** 結果の文言を出しておく時間（ミリ秒） */
 export const COPY_NOTICE_MS = 1500;
@@ -28,7 +29,7 @@ export function useCopyNotice() {
 export function CopyResult({ result }: { result: "copied" | "failed" | null }) {
   return (
     <span className="copy-result muted" role="status" aria-live="polite">
-      {result === "copied" ? "コピーした" : result === "failed" ? "コピーできない" : ""}
+      {result === "copied" ? tr("コピーした") : result === "failed" ? tr("コピーできない") : ""}
     </span>
   );
 }

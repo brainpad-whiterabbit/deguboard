@@ -20,11 +20,12 @@ import { PlansPage } from "./pages/plans.js";
 import { HistoryPage } from "./pages/history.js";
 import { RunsPage } from "./pages/runs.js";
 import { ConfigPage } from "./pages/config.js";
+import { tr, msg } from "./l10n.js";
 
 const NAV: { page: Route["page"]; label: string }[] = [
-  { page: "board", label: "カンバン" },
-  { page: "backlog", label: "バックログ" },
-  { page: "history", label: "履歴" },
+  { page: "board", label: msg("カンバン") },
+  { page: "backlog", label: msg("バックログ") },
+  { page: "history", label: msg("履歴") },
   { page: "runs", label: "Run" },
 ];
 /** 左パネルのタブ。Run の画面はブラウザだけに置く（UI-12） */
@@ -121,7 +122,7 @@ export function App() {
       {panel ? null : (
         <header className="topbar">
           {sidebar ? null : <strong className="brand">deguboard</strong>}
-          <nav aria-label="画面">
+          <nav aria-label={tr("画面")}>
             {(sidebar ? SIDEBAR_NAV : NAV).map((n) => (
               <a
                 key={n.page}
@@ -129,7 +130,7 @@ export function App() {
                 className={active === n.page ? "active" : ""}
                 aria-current={active === n.page ? "page" : undefined}
               >
-                {n.label}
+                {tr(n.label)}
               </a>
             ))}
           </nav>
@@ -146,7 +147,7 @@ export function App() {
                 {store.projects.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.name}
-                    {p.status === "archived" ? "（アーカイブ）" : ""}
+                    {p.status === "archived" ? tr("（アーカイブ）") : ""}
                   </option>
                 ))}
               </select>
@@ -158,9 +159,9 @@ export function App() {
             <button
               type="button"
               className={`ask-toggle${ask.request ? " active" : ""}`}
-              aria-label="エージェントに頼む"
+              aria-label={tr("エージェントに頼む")}
               aria-pressed={ask.request !== null}
-              title="エージェントに頼む（依頼文を作ってコピーする）"
+              title={tr("エージェントに頼む（依頼文を作ってコピーする）")}
               onClick={() => (ask.request ? ask.close() : ask.open(ask.current()))}
             >
               <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
@@ -174,9 +175,9 @@ export function App() {
             <button
               type="button"
               className={`config-toggle${route.page === "config" ? " active" : ""}`}
-              aria-label="設定"
+              aria-label={tr("設定")}
               aria-pressed={route.page === "config"}
-              title="設定（config.yaml）"
+              title={tr("設定（config.yaml）")}
               onClick={() => toggleRoute(hrefOf({ page: "config" }))}
             >
               ⚙
@@ -198,7 +199,7 @@ export function App() {
             {/* 最初の読み込みが終わるまでは空状態の文言を出さない。読み直しの間は画面を出したままにする（フォームの入力を失わない） */}
             {!store.loaded ? (
               <>
-                <p className="muted">読み込み中…</p>
+                <p className="muted">{tr("読み込み中…")}</p>
                 {/* Webview では前回の一覧がないときだけここに来る。文字だけにせず、節と行の骨組みを出す */}
                 {host.surface === "browser" ? null : <LoadingSkeleton />}
               </>
@@ -309,12 +310,15 @@ function SyncIndicator() {
   const store = useStore();
   const s = store.status;
   const marks: string[] = [];
-  if (s?.dirty) marks.push("未コミットの変更");
-  if (s && s.ahead > 0) marks.push(`未 push ${s.ahead}`);
-  if (s && s.behind > 0) marks.push(`未取り込み ${s.behind}`);
-  if (s && s.issues > 0) marks.push(`読めないファイル ${s.issues}`);
+  if (s?.dirty) marks.push(tr("未コミットの変更"));
+  if (s && s.ahead > 0) marks.push(tr("未 push {0}", s.ahead));
+  if (s && s.behind > 0) marks.push(tr("未取り込み {0}", s.behind));
+  if (s && s.issues > 0) marks.push(tr("読めないファイル {0}", s.issues));
   return (
-    <div className="sync" title={s ? `リモート: ${s.remote ?? "なし"}` : "同期の状態は未取得"}>
+    <div
+      className="sync"
+      title={s ? tr("リモート: {0}", s.remote ?? tr("なし")) : tr("同期の状態は未取得")}
+    >
       {marks.length > 0 ? (
         marks.map((m) => (
           <span key={m} className="badge warn">
@@ -322,7 +326,7 @@ function SyncIndicator() {
           </span>
         ))
       ) : (
-        <span className="badge ok">同期済み</span>
+        <span className="badge ok">{tr("同期済み")}</span>
       )}
       <button
         type="button"
@@ -330,11 +334,11 @@ function SyncIndicator() {
         disabled={store.loading}
         title={
           s?.remote
-            ? "リモートを取り込み、未 push を送り、ブランチの事実で状態を進める"
-            : "リモートがないので、ブランチの事実で状態を進めて読み直すだけ"
+            ? tr("リモートを取り込み、未 push を送り、ブランチの事実で状態を進める")
+            : tr("リモートがないので、ブランチの事実で状態を進めて読み直すだけ")
         }
       >
-        同期
+        {tr("同期")}
       </button>
     </div>
   );
@@ -359,7 +363,7 @@ function NoticeBar() {
         {n.text}
         {n.detail ? <small> — {n.detail}</small> : null}
       </span>
-      <button type="button" onClick={() => store.notify(null)} aria-label="閉じる">
+      <button type="button" onClick={() => store.notify(null)} aria-label={tr("閉じる")}>
         ×
       </button>
     </div>

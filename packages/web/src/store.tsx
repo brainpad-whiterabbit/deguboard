@@ -33,6 +33,7 @@ import type {
 } from "./types.js";
 import type { Config } from "@deguboard/core";
 import type { UiState } from "./ui-state.js";
+import { tr } from "./l10n.js";
 
 /** 優先度の判断基準（config.yaml の priority。config.show が core の既定を混ぜて返す）。読み終えるまでは空 */
 const EMPTY_PRIORITY_CRITERIA: Record<Priority, string> = { high: "", medium: "", low: "" };
@@ -311,6 +312,6 @@ export function StoreProvider({
 
 export function useStore(): Store {
   const store = useContext(StoreContext);
-  if (!store) throw new Error("StoreProvider の中で使う");
+  if (!store) throw new Error(tr("StoreProvider の中で使う"));
   return store;
 }

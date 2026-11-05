@@ -4,6 +4,7 @@
 
 import type { ReactNode } from "react";
 import { ProgressMeter } from "./components/parts.js";
+import { tr } from "./l10n.js";
 
 type Block =
   | { kind: "heading"; level: number; text: string }
@@ -94,7 +95,7 @@ function TaskMeter({ count }: { count: TaskCount }) {
   return (
     <ProgressMeter
       className="progress task-meter"
-      title={`済 ${count.done} / 全 ${count.total}`}
+      title={tr("済 {0} / 全 {1}", count.done, count.total)}
       total={count.total}
       segments={[{ key: "done", className: "status-done", count: count.done }]}
     >
@@ -133,7 +134,7 @@ export function Markdown({ body, toggle }: { body: string; toggle?: AcceptanceTo
         }
       : b,
   );
-  if (blocks.length === 0) return <p className="muted">（本文なし）</p>;
+  if (blocks.length === 0) return <p className="muted">{tr("（本文なし）")}</p>;
   const tasks = sectionTasks(blocks);
   return (
     <div className="markdown">
@@ -158,8 +159,8 @@ export function Markdown({ body, toggle }: { body: string; toggle?: AcceptanceTo
                     type="checkbox"
                     checked={x.checked}
                     disabled={pending != null}
-                    aria-label={`受け入れ条件 ${x.acceptance}`}
-                    title={x.checked ? "未済に戻す" : "済みにする"}
+                    aria-label={tr("受け入れ条件 {0}", x.acceptance)}
+                    title={x.checked ? tr("未済に戻す") : tr("済みにする")}
                     onChange={(e) => toggle.onToggle(x.acceptance!, e.target.checked)}
                   />
                 ) : (

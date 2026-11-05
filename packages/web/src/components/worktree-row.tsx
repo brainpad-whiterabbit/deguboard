@@ -4,6 +4,7 @@
 import { useState } from "react";
 import { useHost } from "../host.js";
 import { CopyableCode } from "./copyable-code.js";
+import { tr } from "../l10n.js";
 
 export function WorktreeRow({ ticket, path }: { ticket: string; path: string }) {
   const host = useHost();
@@ -11,7 +12,7 @@ export function WorktreeRow({ ticket, path }: { ticket: string; path: string }) 
   const open = host.openWorktree;
   return (
     <div className="worktree-row">
-      <CopyableCode text={path} label="worktree のパスをコピー" />
+      <CopyableCode text={path} label={tr("worktree のパスをコピー")} />
       {open ? (
         <button
           type="button"
@@ -21,11 +22,11 @@ export function WorktreeRow({ ticket, path }: { ticket: string; path: string }) 
             open(ticket).catch(() => setFailed(true));
           }}
         >
-          新しいウィンドウで開く
+          {tr("新しいウィンドウで開く")}
         </button>
       ) : null}
       <span className="muted" role="status" aria-live="polite">
-        {failed ? "開けない" : ""}
+        {failed ? tr("開けない") : ""}
       </span>
     </div>
   );

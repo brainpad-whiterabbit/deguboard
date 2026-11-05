@@ -19,6 +19,7 @@ import {
   StatusSelect,
   ticketAttrs,
 } from "./ticket-props.js";
+import { tr } from "../l10n.js";
 
 /** ブラウザの保存で、タイトルと本文に足して ticket.update に渡す属性。任意フィールドは値のあるものだけ */
 export function attrPatchOf(
@@ -66,13 +67,13 @@ export function BrowserProps({
       )}
       {propRow(
         "priority",
-        "優先度",
+        tr("優先度"),
         draft ? (
           <>
             <select
               value={draft.priority}
               onChange={(e) => setDraft({ ...draft, priority: e.target.value as Priority })}
-              aria-label="優先度"
+              aria-label={tr("優先度")}
             >
               {optionsOf(PRIORITY_CHOICES)}
             </select>
@@ -84,13 +85,13 @@ export function BrowserProps({
       )}
       {propRow(
         "labels",
-        "ラベル",
+        tr("ラベル"),
         draft ? (
           <input
             value={draft.labels}
             onChange={(e) => setDraft({ ...draft, labels: e.target.value })}
-            placeholder="カンマ区切り"
-            aria-label="ラベル"
+            placeholder={tr("カンマ区切り")}
+            aria-label={tr("ラベル")}
           />
         ) : (
           a.labelsView
@@ -143,32 +144,32 @@ export function BrowserProps({
       )}
       {propRow(
         "dependsOn",
-        "依存先",
+        tr("依存先"),
         <>
           {a.dependsOnView}
-          {!ticket.deps_done && <div className="muted">依存先が終わっていない</div>}
+          {!ticket.deps_done && <div className="muted">{tr("依存先が終わっていない")}</div>}
         </>,
       )}
-      {propRow("dependents", "依存元", a.dependentsView)}
+      {propRow("dependents", tr("依存元"), a.dependentsView)}
       {propRow(
         "assignee",
-        "担当",
+        tr("担当"),
         draft ? (
           <input
             value={draft.assignee}
             onChange={(e) => setDraft({ ...draft, assignee: e.target.value })}
-            placeholder="eiki か eiki/agent"
-            aria-label="担当"
+            placeholder={tr("eiki か eiki/agent")}
+            aria-label={tr("担当")}
           />
         ) : (
           a.assigneeView
         ),
       )}
-      {propRow("branch", "ブランチ", a.branchView)}
+      {propRow("branch", tr("ブランチ"), a.branchView)}
       {propRow("pr", "PR", a.prView)}
-      {propRow("createdBy", "起票者", a.createdByView)}
-      {propRow("created", "作成", a.createdView)}
-      {propRow("updated", "更新", a.updatedView)}
+      {propRow("createdBy", tr("起票者"), a.createdByView)}
+      {propRow("created", tr("作成"), a.createdView)}
+      {propRow("updated", tr("更新"), a.updatedView)}
     </dl>
   );
 }

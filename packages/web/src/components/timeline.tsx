@@ -6,6 +6,7 @@ import { useCommandData } from "../command-data.js";
 import { useStore } from "../store.js";
 import type { HistoryChange, HistoryEvent, HistoryLog, Status } from "../types.js";
 import { StatusDot } from "./parts.js";
+import { tr } from "../l10n.js";
 
 /** ISO の時刻を手元の時刻で `2026-11-01 13:48` の形に */
 export function formatTime(iso: string): string {
@@ -47,22 +48,24 @@ function describeChange(c: HistoryChange, labelOf: (s: string) => string): strin
     case "iteration":
     case "epic": {
       const name = c.field === "iteration" ? "Iteration" : "Epic";
-      if (!c.from) return `${name} ${c.to} に入れた`;
-      if (!c.to) return `${name} ${c.from} から外した`;
+      if (!c.from) return tr("{0} {1} に入れた", name, c.to);
+      if (!c.to) return tr("{0} {1} から外した", name, c.from);
       return `${name} ${c.from} → ${c.to}`;
     }
     case "assignee":
-      return c.to ? `担当: ${c.to}` : "担当を外した";
+      return c.to ? tr("担当: {0}", c.to) : tr("担当を外した");
     case "pr":
-      return c.to ? `PR #${c.to}` : "PR を外した";
+      return c.to ? `PR #${c.to}` : tr("PR を外した");
   }
 }
 
 /** 1 つの出来事を短い文に */
 function describeEvent(e: HistoryEvent, labelOf: (s: string) => string): string {
-  if (e.type === "deleted") return "消した";
+  if (e.type === "deleted") return tr("消した");
   const changes = e.changes.map((c) => describeChange(c, labelOf));
-  return e.type === "created" ? ["起票", ...changes].join(" ・ ") : changes.join(" ・ ");
+  return e.type === "created"
+    ? [tr("起票"), ...changes].join(tr(" ・ "))
+    : changes.join(tr(" ・ "));
 }
 
 /** チケット詳細の「経過」の節 */
@@ -73,18 +76,18 @@ export function TicketTimeline({ id }: { id: string }) {
   const labelOf = (s: string) => store.labelOf(s as Status);
   return (
     <section className="timeline">
-      <h2>経過</h2>
+      <h2>{tr("経過")}</h2>
       {error ? (
         <p className="error">{error}</p>
       ) : !log ? (
-        <p className="muted">読み込み中…</p>
+        <p className="muted">{tr("読み込み中…")}</p>
       ) : (
         <>
           {log.incomplete.includes(id) ? (
-            <p className="muted">履歴が浅い clone なので、これより前の経過は欠けている</p>
+            <p className="muted">{tr("履歴が浅い clone なので、これより前の経過は欠けている")}</p>
           ) : null}
           {log.events.length === 0 ? (
-            <p className="empty">経過はない（まだコミットされていない）</p>
+            <p className="empty">{tr("経過はない（まだコミットされていない）")}</p>
           ) : (
             <ol className="timeline-list">
               {groupByDay(log.events).flatMap((g) => [

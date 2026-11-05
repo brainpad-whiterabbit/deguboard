@@ -1,5 +1,5 @@
 // 画面の配置の確認（t58）。dg serve の画面を Chromium で ?surface=sidebar の配置で開き、
-// サイドバーの幅（300px・260px、一部は 320px も）とライト・ダークで、横スクロールが出ないことと、文字が決めた行数に収まることを確かめる。
+// サイドバーの幅（300px・260px、一部は 320px も）とライト・ダーク（最初の検査は表示言語の日本語・英語も。language.ts）で、横スクロールが出ないことと、文字が決めた行数に収まることを確かめる。
 // 行数の基準：
 // - タブ（nav a）、カンバンの見出し、チケットの行でない行のタイトル（Epic など .row-title）は 1 行。折り返してはいけない
 //   カンバンの見出しは、Iteration の見出し（.sidebar-head .head-line：札の列・漏斗の段、名前・期間・目標の段、進みの帯の段）と
@@ -18,6 +18,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { init, openContext, runCommand } from "../../packages/core/src/index.js";
 import { createFixture, type Fixture } from "../../packages/core/test/helpers/git-fixture.js";
 import { startServer } from "../../packages/server/src/index.js";
+import { LANGUAGES, useLanguage } from "./language.js";
 
 const WEB_DIST = path.resolve(import.meta.dirname, "../../packages/web/dist");
 const WIDTHS = [300, 260];
@@ -180,7 +181,9 @@ function measure(page: Page) {
       /** 1 行の検査をするカンバンの見出しの数。種類ごとに分けて数え、クラス名が変わって検査が黙って消えないようにする */
       headLines: document.querySelectorAll(".sidebar-head .head-line").length,
       sectionHeadings: document.querySelectorAll(".column summary h2").length,
-      viewSwitches: document.querySelectorAll('.view-switch[aria-label="見方"]').length,
+      viewSwitches: document.querySelectorAll(
+        '.view-switch[aria-label="見方"], .view-switch[aria-label="View by"]',
+      ).length,
       wrapped: [
         ...overflowing("nav a", 1),
         ...overflowing(".sidebar-head .head-line", 1),
@@ -211,7 +214,10 @@ function measure(page: Page) {
   });
 }
 
-describe.each(SCHEMES)("サイドバーの配置（%s）", (scheme) => {
+// 英語の文は日本語より長くなりやすいので、表示言語が英語（VS Code の data-language）の画面でも同じに確かめる（t383）
+describe.each(
+  SCHEMES.flatMap((scheme) => LANGUAGES.map((language) => [scheme, language] as const)),
+)("サイドバーの配置（%s・%s）", (scheme, language) => {
   it.each(WIDTHS)(
     "幅 %ipx で、どの画面も横スクロールが出ず、タブ・見出し・チケットでない行のタイトルは 1 行、チケットの行のタイトルは 2 行までに収まる",
     async (width) => {
@@ -219,6 +225,7 @@ describe.each(SCHEMES)("サイドバーの配置（%s）", (scheme) => {
         viewport: { width, height: 900 },
         colorScheme: scheme,
       });
+      await useLanguage(context, language);
       const page = await context.newPage();
       try {
         for (const hash of PAGES) {
@@ -231,7 +238,7 @@ describe.each(SCHEMES)("サイドバーの配置（%s）", (scheme) => {
           if (m.scrollWidth > m.clientWidth || m.wrapped.length > 0) {
             // 崩れた画面は後から見られるように残す（.gitignore の .playwright-mcp/）
             await page.screenshot({
-              path: `.playwright-mcp/layout-${scheme}-${width}-${hash.replace(/\W+/g, "_")}.png`,
+              path: `.playwright-mcp/layout-${scheme}-${language}-${width}-${hash.replace(/\W+/g, "_")}.png`,
               fullPage: true,
             });
           }

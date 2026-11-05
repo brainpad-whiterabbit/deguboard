@@ -3,6 +3,7 @@
 
 import type { FieldDefinition } from "../types.js";
 import { optionsOf, type Choice } from "./inline-edit.js";
+import { tr } from "../l10n.js";
 
 /** 任意フィールドの値の文字列（入力欄の値）。未設定は空 */
 export function fieldText(value: unknown): string {
@@ -22,7 +23,7 @@ export function parseFieldValue(def: FieldDefinition, raw: string): unknown {
 export function fieldChoices(def: FieldDefinition): Choice[] | undefined {
   if (def.type !== "enum" && def.type !== "boolean") return undefined;
   const options = def.type === "boolean" ? ["true", "false"] : (def.options ?? []);
-  return [{ value: "", label: "未設定" }, ...options.map((o) => ({ value: o, label: o }))];
+  return [{ value: "", label: tr("未設定") }, ...options.map((o) => ({ value: o, label: o }))];
 }
 
 /** 任意フィールドの入力欄の型 */
@@ -32,7 +33,7 @@ export function fieldInputType(def: FieldDefinition): "text" | "number" | "date"
 
 /** 任意フィールドの値。未設定は「未設定」 */
 export function FieldView({ value }: { value: unknown }) {
-  return value === undefined ? <span className="muted">未設定</span> : <>{String(value)}</>;
+  return value === undefined ? <span className="muted">{tr("未設定")}</span> : <>{String(value)}</>;
 }
 
 /** ブラウザの編集中の任意フィールドの入力。value は入力欄の値の文字列 */

@@ -7,13 +7,15 @@ import { useState } from "react";
 import { useCommandData } from "../command-data.js";
 import { useHost } from "../host.js";
 import type { BranchChanges, ChangedFile, ChangeKind } from "../types.js";
+import { tr, msg } from "../l10n.js";
+import { trNode } from "../l10n-node.js";
 
 const KIND_MARK: Record<ChangeKind, { mark: string; label: string }> = {
-  added: { mark: "A", label: "追加" },
-  modified: { mark: "M", label: "変更" },
-  deleted: { mark: "D", label: "削除" },
-  renamed: { mark: "R", label: "名前の変更" },
-  copied: { mark: "C", label: "写し" },
+  added: { mark: "A", label: msg("追加") },
+  modified: { mark: "M", label: msg("変更") },
+  deleted: { mark: "D", label: msg("削除") },
+  renamed: { mark: "R", label: msg("名前の変更") },
+  copied: { mark: "C", label: msg("写し") },
 };
 
 export function TicketChanges({ ticket }: { ticket: string }) {
@@ -21,10 +23,12 @@ export function TicketChanges({ ticket }: { ticket: string }) {
   return (
     <section className="changes">
       <h2>
-        変更
-        <button type="button" className="changes-toggle" onClick={() => setOpen(!open)}>
-          {open ? "閉じる" : "変更を見る"}
-        </button>
+        {trNode(
+          "変更{0}",
+          <button type="button" className="changes-toggle" onClick={() => setOpen(!open)}>
+            {open ? tr("閉じる") : tr("変更を見る")}
+          </button>,
+        )}
       </h2>
       {open ? <ChangesList ticket={ticket} /> : null}
     </section>
@@ -37,7 +41,7 @@ function ChangesList({ ticket }: { ticket: string }) {
   const [failed, setFailed] = useState(false);
   // 一覧を出せない理由（ブランチがない・base がない）は core の message をそのまま出す
   if (error) return <p className="error">{error}</p>;
-  if (!data) return <p className="muted">読み込み中…</p>;
+  if (!data) return <p className="muted">{tr("読み込み中…")}</p>;
   const total = data.files.reduce(
     (sum, f) => ({ add: sum.add + (f.additions ?? 0), del: sum.del + (f.deletions ?? 0) }),
     { add: 0, del: 0 },
@@ -46,15 +50,21 @@ function ChangesList({ ticket }: { ticket: string }) {
   return (
     <>
       <p className="changes-summary muted">
-        <code>
-          {data.base_ref}...{data.head_ref}
-        </code>{" "}
-        {data.files.length} ファイル <span className="changes-add">+{total.add}</span>{" "}
-        <span className="changes-del">−{total.del}</span>
-        {openDiff ? null : "（差分は VS Code で開ける）"}
+        {trNode(
+          "{0}{1}{2} ファイル {3}{4}{5}{6}",
+          <code>
+            {data.base_ref}...{data.head_ref}
+          </code>,
+          " ",
+          data.files.length,
+          <span className="changes-add">+{total.add}</span>,
+          " ",
+          <span className="changes-del">−{total.del}</span>,
+          openDiff ? null : tr("（差分は VS Code で開ける）"),
+        )}
       </p>
       {data.files.length === 0 ? (
-        <p className="empty">{data.base_ref} との間に変更はない</p>
+        <p className="empty">{trNode("{0} との間に変更はない", data.base_ref)}</p>
       ) : (
         <ul className="changes-list">
           {data.files.map((f) => (
@@ -63,7 +73,7 @@ function ChangesList({ ticket }: { ticket: string }) {
                 <button
                   type="button"
                   className="changes-file"
-                  title={`${f.path} の差分を開く`}
+                  title={tr("{0} の差分を開く", f.path)}
                   onClick={() => {
                     setFailed(false);
                     openDiff({
@@ -87,7 +97,7 @@ function ChangesList({ ticket }: { ticket: string }) {
         </ul>
       )}
       <span className="muted" role="status" aria-live="polite">
-        {failed ? "差分を開けない" : ""}
+        {failed ? tr("差分を開けない") : ""}
       </span>
     </>
   );
@@ -97,7 +107,7 @@ function FileRow({ file: f }: { file: ChangedFile }) {
   const kind = KIND_MARK[f.kind];
   return (
     <>
-      <abbr className={`change-kind change-${f.kind}`} title={kind.label}>
+      <abbr className={`change-kind change-${f.kind}`} title={tr(kind.label)}>
         {kind.mark}
       </abbr>
       <span className="changes-path">
@@ -112,7 +122,7 @@ function FileRow({ file: f }: { file: ChangedFile }) {
       </span>
       <span className="changes-stat">
         {f.binary ? (
-          <span className="muted">バイナリ</span>
+          <span className="muted">{tr("バイナリ")}</span>
         ) : (
           <>
             <span className="changes-add">+{f.additions}</span>{" "}

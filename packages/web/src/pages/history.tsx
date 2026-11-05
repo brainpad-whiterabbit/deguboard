@@ -49,6 +49,8 @@ import {
   type Iteration,
   type Ticket,
 } from "../types.js";
+import { tr, msg } from "../l10n.js";
+import { trNode } from "../l10n-node.js";
 
 /** 閉じた新しい順。closed_at がなければ番号の新しい順 */
 function byClosedDesc<T extends { id: string; closed_at?: string | undefined }>(
@@ -77,11 +79,15 @@ function CountChips({
 }) {
   return (
     <span className="counts" title={title}>
-      <span className="count-done" title="完了">
+      <span className="count-done" title={tr("完了")}>
         {completed ?? NO_VALUE}
       </span>
-      {abandoned > 0 ? <span className="count-abandoned">中止 {abandoned}</span> : null}
-      {carried > 0 ? <span className="count-carried">持ち越し {carried}</span> : null}
+      {abandoned > 0 ? (
+        <span className="count-abandoned">{trNode("中止 {0}", abandoned)}</span>
+      ) : null}
+      {carried > 0 ? (
+        <span className="count-carried">{trNode("持ち越し {0}", carried)}</span>
+      ) : null}
     </span>
   );
 }
@@ -277,7 +283,7 @@ function finishedTickets(
 const VIEWS: { view: HistoryView; label: string }[] = [
   { view: "iteration", label: "Iteration" },
   { view: "epic", label: "Epic" },
-  { view: "ticket", label: "チケット" },
+  { view: "ticket", label: msg("チケット") },
 ];
 
 /** 見方ごとの件数。filtered なら「当たった数 / 全体」で出す */
@@ -297,7 +303,7 @@ function ViewSwitch({
   counts: ViewCounts;
 }) {
   return (
-    <span className="view-switch" role="group" aria-label="見方">
+    <span className="view-switch" role="group" aria-label={tr("見方")}>
       {VIEWS.map((v) => {
         const c = counts[v.view];
         return (
@@ -307,7 +313,7 @@ function ViewSwitch({
             aria-pressed={view === v.view}
             onClick={() => navigate({ ...route, page: "history", view: v.view })}
           >
-            {v.label}{" "}
+            {tr(v.label)}{" "}
             <span className="badge">
               {c.filtered ? `${c.hit}\u2009/\u2009${c.total}` : c.total}
             </span>
@@ -334,7 +340,7 @@ export function historyAskTarget(
 }
 
 /** サイドバーの検索欄の案内（バックログと同じ言い方） */
-const SIDEBAR_SEARCH = "番号・タイトル・ラベルで検索";
+const SIDEBAR_SEARCH = msg("番号・タイトル・ラベルで検索");
 
 export function HistoryPage({ route }: { route: HistoryQuery }) {
   const store = useStore();
@@ -395,23 +401,23 @@ export function HistoryPage({ route }: { route: HistoryQuery }) {
   return (
     <section>
       <div className="toolbar">
-        <h1>履歴</h1>
+        <h1>{tr("履歴")}</h1>
         <ViewSwitch route={route} view={view} counts={counts} />
         <input
           type="search"
-          placeholder={sidebar ? SIDEBAR_SEARCH : "チケットの番号・タイトルで探す"}
+          placeholder={sidebar ? tr(SIDEBAR_SEARCH) : tr("チケットの番号・タイトルで探す")}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          aria-label="チケットを探す"
+          aria-label={tr("チケットを探す")}
         />
       </div>
       {all.length === 0 ? (
         <p className="empty">
-          {view === "epic" ? "閉じた Epic はない" : "閉じた Iteration はない"}
+          {view === "epic" ? tr("閉じた Epic はない") : tr("閉じた Iteration はない")}
         </p>
       ) : rows.length === 0 ? (
         <p className="empty">
-          {view === "epic" ? "当たる Epic はない" : "当たる Iteration はない"}
+          {view === "epic" ? tr("当たる Epic はない") : tr("当たる Iteration はない")}
         </p>
       ) : (
         <ul className="history">
@@ -459,10 +465,10 @@ function foldProps(fold: RowFold) {
 function SearchHitsBar({ hits, total, fold }: { hits: number; total: number; fold: RowFold }) {
   return (
     <p className="history-hits">
-      {fold.all ? `すべて ${total} 件` : `当たった ${hits} / ${total} 件`}
+      {fold.all ? tr("すべて {0} 件", total) : tr("当たった {0} / {1} 件", hits, total)}
       {hits < total ? (
         <button type="button" className="link" onClick={() => fold.setAll(!fold.all)}>
-          {fold.all ? "当たったものだけ" : "すべて見る"}
+          {fold.all ? tr("当たったものだけ") : tr("すべて見る")}
         </button>
       ) : null}
     </p>
@@ -508,7 +514,7 @@ function IterationItem({
             <code>{i.id}</code>
           </DetailLink>
           <span className={goal ? "name" : "name history-none"} title={i.name}>
-            {goal || "目標なし"}
+            {goal || tr("目標なし")}
           </span>
           {/* 完了と持ち越しは iteration.close が記録した値（core が数える）をそのまま出し、web では数え直さない。
               中止は記録がないので Iteration に入っている abandoned を数える */}
@@ -516,20 +522,20 @@ function IterationItem({
             completed={i.completed}
             abandoned={abandoned}
             carried={i.carried_over}
-            title="完了と持ち越しは閉じたときに記録した件数"
+            title={tr("完了と持ち越しは閉じたときに記録した件数")}
           />
           <small>
             <ClosedOn iso={i.closed_at} />
             {showEpics ? (
               <span className="epics">
-                {" ・ "}
+                {tr(" ・ ")}
                 {epics.map((e, n) => (
                   <span key={e.epic ?? "-"}>
                     {n > 0 ? ", " : ""}
                     {e.epic ? (
                       <DetailLink route={{ page: "epics", id: e.epic }}>{e.epic}</DetailLink>
                     ) : (
-                      "Epic なし"
+                      tr("Epic なし")
                     )}{" "}
                     {e.count}
                   </span>
@@ -540,12 +546,12 @@ function IterationItem({
                 左パネルには Run の画面がないので出さない（UI-12） */}
             {sidebar ? null : (
               <>
-                {" ・ "}
+                {tr(" ・ ")}
                 <a
                   className="history-runs-link"
                   href={hrefOf({ page: "runs", by: "iteration", iteration: i.id })}
                 >
-                  Run の集計
+                  {tr("Run の集計")}
                 </a>
               </>
             )}
@@ -573,7 +579,7 @@ function IterationItem({
             />
           )
         ) : finished.length === 0 ? (
-          <p className="empty">終わったチケットはない</p>
+          <p className="empty">{tr("終わったチケットはない")}</p>
         ) : (
           <ul className="rows history-tickets">
             {finished.map((t) => (
@@ -628,7 +634,7 @@ function SidebarIterationTickets({
     <div className="history-groups">
       {header}
       {finished.length === 0 ? (
-        <p className="empty">終わったチケットはない</p>
+        <p className="empty">{tr("終わったチケットはない")}</p>
       ) : (
         <HistoryTicketList
           tickets={finished}
@@ -638,7 +644,10 @@ function SidebarIterationTickets({
       {carriedTickets.length > 0 ? (
         <section className="history-group history-carried">
           <h3>
-            持ち越し <span className="muted">{carriedTickets.length} 件</span>
+            {trNode(
+              "持ち越し {0}",
+              <span className="muted">{trNode("{0} 件", carriedTickets.length)}</span>,
+            )}
           </h3>
           <HistoryTicketList
             tickets={carriedTickets}
@@ -649,13 +658,16 @@ function SidebarIterationTickets({
                 note={
                   t.iteration ? (
                     <>
-                      今は{" "}
-                      <DetailLink route={{ page: "iterations", id: t.iteration }}>
-                        {t.iteration}
-                      </DetailLink>
+                      {trNode(
+                        "今は{0}{1}",
+                        " ",
+                        <DetailLink route={{ page: "iterations", id: t.iteration }}>
+                          {t.iteration}
+                        </DetailLink>,
+                      )}
                     </>
                   ) : (
-                    "今は Iteration なし"
+                    tr("今は Iteration なし")
                   )
                 }
               />
@@ -744,16 +756,16 @@ function SidebarEpicItem({
       <CountChips
         completed={e.progress.by_status.done}
         abandoned={e.progress.by_status.abandoned}
-        title="完了と中止は今の Epic のチケットから数えた件数"
+        title={tr("完了と中止は今の Epic のチケットから数えた件数")}
       />
       <small>
         {finished.length === 0
-          ? `${e.progress.total > 0 ? "終わったチケットなし" : "チケットなし"} ・ `
+          ? tr("{0} ・ ", e.progress.total > 0 ? tr("終わったチケットなし") : tr("チケットなし"))
           : ""}
         <ClosedOn iso={e.closed_at} />
         {iterations.map((id) => (
           <span key={id}>
-            {" ・ "}
+            {tr(" ・ ")}
             <DetailLink route={{ page: "iterations", id }}>{id}</DetailLink>
           </span>
         ))}
@@ -824,7 +836,7 @@ function EpicItem({ epic: e }: { epic: EpicRow }) {
         <ClosedOn iso={e.closed_at} />
         {iterations.map((id) => (
           <span key={id}>
-            {" ・ "}
+            {tr(" ・ ")}
             <DetailLink route={{ page: "iterations", id }}>{id}</DetailLink>
           </span>
         ))}
@@ -874,7 +886,7 @@ function TicketView({
   return (
     <section>
       <div className="toolbar">
-        <h1>履歴</h1>
+        <h1>{tr("履歴")}</h1>
         <ViewSwitch
           route={route}
           view="ticket"
@@ -882,17 +894,17 @@ function TicketView({
         />
         <input
           type="search"
-          placeholder={sidebar ? SIDEBAR_SEARCH : "番号・タイトル・ラベルで探す"}
+          placeholder={sidebar ? tr(SIDEBAR_SEARCH) : tr("番号・タイトル・ラベルで探す")}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          aria-label="チケットを探す"
+          aria-label={tr("チケットを探す")}
         />
       </div>
       {/* 結果の絞り込みは見方の切り替えと同じ文字の切り替え。件数は検索に当たった数で、中止が 0 件なら中止は出さない（選んでいるときは残す） */}
-      <span className="view-switch result-switch" role="group" aria-label="結果">
+      <span className="view-switch result-switch" role="group" aria-label={tr("結果")}>
         {(
           [
-            ["", "すべて", hits.length],
+            ["", tr("すべて"), hits.length],
             ["done", store.labelOf("done"), hits.filter((r) => r.ticket.status === "done").length],
             [
               "abandoned",
@@ -916,20 +928,21 @@ function TicketView({
       {error ? <p className="error">{error}</p> : null}
       {log && (log.shallow || all.some((r) => r.approximate)) ? (
         <p className="muted">
-          履歴が浅いか欠けているので、終えた日の分からないチケットは更新日（updated_at）で並べている（日付に
-          ~ を付けた）
+          {tr(
+            "履歴が浅いか欠けているので、終えた日の分からないチケットは更新日（updated_at）で並べている（日付に ~ を付けた）",
+          )}
         </p>
       ) : null}
       {!log && !error ? (
         // 終えた時刻は history の結果が届くまで分からないので、updated_at の順で先に出しておく
         <p className="muted history-loading" role="status">
-          終えた時刻を読み込み中…（それまでは更新日の順）
+          {tr("終えた時刻を読み込み中…（それまでは更新日の順）")}
         </p>
       ) : null}
       {all.length === 0 ? (
-        <p className="empty">終わったチケットはない</p>
+        <p className="empty">{tr("終わったチケットはない")}</p>
       ) : rows.length === 0 ? (
-        <p className="empty">当たるチケットはない</p>
+        <p className="empty">{tr("当たるチケットはない")}</p>
       ) : sidebar ? (
         // 「ほか N 件」を開いた状態は、検索や結果の絞り込みが変わったら戻す
         <SidebarFinished key={`${result}\u0000${query}`} rows={rows} />
@@ -960,7 +973,7 @@ function TicketView({
                 <ShortDay
                   iso={at}
                   approximate={approximate}
-                  note={approximate ? "履歴から分からないので更新日" : "終えた日時"}
+                  note={approximate ? tr("履歴から分からないので更新日") : tr("終えた日時")}
                 />
               </span>
             </li>
@@ -993,7 +1006,7 @@ function SidebarFinished({ rows }: { rows: readonly FinishedRow[] }) {
                 <ShortDay
                   iso={at}
                   approximate={approximate}
-                  note={approximate ? "履歴から分からないので更新日" : "終えた日時"}
+                  note={approximate ? tr("履歴から分からないので更新日") : tr("終えた日時")}
                 />
               }
             />

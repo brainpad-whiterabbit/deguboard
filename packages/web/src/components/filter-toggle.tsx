@@ -1,6 +1,8 @@
 // 左パネルの絞り込みの欄を開閉する漏斗のボタン。カンバンの見出しとバックログの検索欄の右端で使う。
 // 絞っている間（active）は色付きにして中を塗り、開いている間（open）は押した見た目にする（styles.css の .filter-toggle）
 
+import { tr } from "../l10n.js";
+
 export function FilterToggle({
   open,
   active,
@@ -20,7 +22,7 @@ export function FilterToggle({
     <button
       type="button"
       className={`filter-toggle${active ? " active" : ""}${open ? " open" : ""}`}
-      aria-label={active ? "絞り込み（絞っている）" : "絞り込み"}
+      aria-label={active ? tr("絞り込み（絞っている）") : tr("絞り込み")}
       title={title}
       aria-expanded={open}
       aria-controls={open ? controls : undefined}

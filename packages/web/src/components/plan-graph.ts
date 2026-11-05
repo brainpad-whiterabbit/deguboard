@@ -2,16 +2,17 @@
 // 着手できるか・待ちの相手・次は core の plan.list（PL-6）が求めた値を読むだけで、ここでは求め直さない
 
 import type { PlanDetail, PlanRow, Status, Ticket } from "../types.js";
+import { msg } from "../l10n.js";
 
 /** 帯に出す Plan の状態。core の status（pending・approved・closed）に、チケットの状態から求める進行中・完了を足す */
 export type PlanState = "working" | "pending" | "approved" | "finished" | "closed";
 
 export const PLAN_STATE_LABELS: Record<PlanState, string> = {
-  working: "進行中",
-  pending: "承認待ち",
-  approved: "承認済み",
-  finished: "完了",
-  closed: "閉じた",
+  working: msg("進行中"),
+  pending: msg("承認待ち"),
+  approved: msg("承認済み"),
+  finished: msg("完了"),
+  closed: msg("閉じた"),
 };
 
 /**

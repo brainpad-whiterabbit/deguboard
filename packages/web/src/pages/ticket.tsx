@@ -22,6 +22,8 @@ import { Markdown, type AcceptanceToggle } from "../markdown.js";
 import { hrefOf } from "../router.js";
 import { useStore, type Store } from "../store.js";
 import type { Status, TicketDetail, WorkflowView } from "../types.js";
+import { tr } from "../l10n.js";
+import { trNode } from "../l10n-node.js";
 
 /**
  * チケットの Workflow。チケットの workflow、なければ Project の既定で、core の requireWorkflowFor と同じ解決にする。
@@ -47,7 +49,7 @@ function useTicketWorkflow(store: Store, ticket: TicketDetail | null): WorkflowV
           alive &&
           notify({
             kind: "error",
-            text: `Workflow ${other} を読めない`,
+            text: tr("Workflow {0} を読めない", other),
             detail: e instanceof Error ? e.message : String(e),
           }),
       );
@@ -77,7 +79,7 @@ export function TicketPage({ id }: { id: string }) {
   const labelOf = (s: Status) => workflow?.labels[s] ?? store.labelOf(s);
 
   if (error) return <p className="error">{error}</p>;
-  if (!ticket) return <p className="muted">読み込み中…</p>;
+  if (!ticket) return <p className="muted">{tr("読み込み中…")}</p>;
 
   // パネルの編集はタイトルと本文だけ。ブラウザは属性もまとめて渡す
   const save = async () => {
@@ -112,19 +114,19 @@ export function TicketPage({ id }: { id: string }) {
   const editButtons = draft ? (
     <>
       <button type="button" className="primary" onClick={() => void save()}>
-        保存
+        {tr("保存")}
       </button>
       <button type="button" onClick={() => setDraft(null)}>
-        取り消し
+        {tr("取り消し")}
       </button>
     </>
   ) : (
     <button
       type="button"
-      title={panel ? "タイトルと本文を編集" : undefined}
+      title={panel ? tr("タイトルと本文を編集") : undefined}
       onClick={() => setDraft(draftOf(ticket, fields))}
     >
-      編集
+      {tr("編集")}
     </button>
   );
 
@@ -134,7 +136,7 @@ export function TicketPage({ id }: { id: string }) {
       as="header"
       className="ask-title"
       targets={[ticket.id]}
-      label={`タイトル ${ticket.id}`}
+      label={tr("タイトル {0}", ticket.id)}
       section={ASK_SECTIONS.detailTitle}
       pinned
       bubble={!draft}
@@ -144,7 +146,7 @@ export function TicketPage({ id }: { id: string }) {
         <input
           value={draft.title}
           onChange={(e) => setDraft({ ...draft, title: e.target.value })}
-          aria-label="タイトル"
+          aria-label={tr("タイトル")}
           style={{ flex: 1 }}
         />
       ) : (
@@ -182,16 +184,18 @@ export function TicketPage({ id }: { id: string }) {
         {panel && ticket.pending_deps.length > 0 ? (
           <p className="notice info deps-band" role="status">
             <span>
-              依存先が終わっていない：
-              {ticket.pending_deps.map((d) => (
-                <span key={d.id} className="deps-band-item">
-                  {d.status ? <StatusDot status={d.status} /> : null}
-                  <TicketLink id={d.id}>
-                    <code>{d.id}</code>
-                  </TicketLink>
-                  {d.status ? store.labelOf(d.status) : null}
-                </span>
-              ))}
+              {trNode(
+                "依存先が終わっていない：{0}",
+                ticket.pending_deps.map((d) => (
+                  <span key={d.id} className="deps-band-item">
+                    {d.status ? <StatusDot status={d.status} /> : null}
+                    <TicketLink id={d.id}>
+                      <code>{d.id}</code>
+                    </TicketLink>
+                    {d.status ? store.labelOf(d.status) : null}
+                  </span>
+                )),
+              )}
             </span>
           </p>
         ) : null}
@@ -200,7 +204,7 @@ export function TicketPage({ id }: { id: string }) {
             className="body"
             value={draft.body}
             onChange={(e) => setDraft({ ...draft, body: e.target.value })}
-            aria-label="本文"
+            aria-label={tr("本文")}
           />
         ) : (
           <Markdown

@@ -7,11 +7,15 @@ import { createWebviewClient } from "./client/webview.js";
 import { ASK_OPEN_KEY, createHost, HostBridge, HostProvider, readSurface } from "./host.js";
 import { StoreProvider } from "./store.js";
 import { createUiState } from "./ui-state.js";
+import { languageOf, setLanguage } from "./l10n.js";
 import "./styles.css";
 
 // VS Code の Webview に載っているときは postMessage で拡張ホストと話し、ブラウザでは dg serve の HTTP を呼ぶ（ADR-006）。
 // 拡張ホストは <html> の data 属性で、どこに載っているか（surface）と最初に出す画面（route）を渡す（UI-12）
 const dataset = document.documentElement.dataset;
+// 文言の言語は拡張ホストが data-language（vscode.env.language）で渡す。ブラウザ（dg serve）では付かないので日本語（t383）
+setLanguage(languageOf(dataset.language));
+document.documentElement.lang = languageOf(dataset.language);
 // acquireVsCodeApi は 1 回しか呼べないので、postMessage と getState / setState の両方をここから配る
 const vscodeApi = typeof acquireVsCodeApi === "function" ? acquireVsCodeApi() : null;
 // ブラウザでは開発用の ?surface= も読む（Webview の URL は拡張ホストのものなので見ない）

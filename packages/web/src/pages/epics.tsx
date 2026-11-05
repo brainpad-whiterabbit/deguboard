@@ -12,6 +12,7 @@ import { Markdown } from "../markdown.js";
 import { hrefOf } from "../router.js";
 import { useStore } from "../store.js";
 import { EPIC_LABELS, STATUSES, byPriorityThenNumber, type EpicDetail } from "../types.js";
+import { tr } from "../l10n.js";
 
 export function EpicsPage({ id }: { id: string }) {
   const store = useStore();
@@ -21,14 +22,14 @@ export function EpicsPage({ id }: { id: string }) {
   const { data: epic, error } = useCommandData<EpicDetail>("epic.show", { epic: id }, store.epics);
 
   if (error) return <p className="error">{error}</p>;
-  if (!epic) return <p className="muted">読み込み中…</p>;
+  if (!epic) return <p className="muted">{tr("読み込み中…")}</p>;
 
   return (
     <section>
       {/* パネルは詳細だけを出すので、戻る先の一覧がない（一覧はサイドバー。UI-12） */}
       {webview ? null : (
         <div className="toolbar">
-          <a href={hrefOf({ page: "backlog" })}>← バックログ</a>
+          <a href={hrefOf({ page: "backlog" })}>{tr("← バックログ")}</a>
         </div>
       )}
       <header className="detail-header">
@@ -37,20 +38,20 @@ export function EpicsPage({ id }: { id: string }) {
           as="h1"
           className="ask-title"
           targets={[epic.id]}
-          label={`タイトル ${epic.id}`}
+          label={tr("タイトル {0}", epic.id)}
           section={ASK_SECTIONS.detailTitle}
           pinned
         >
           <code>{epic.id}</code> {epic.title}{" "}
-          <span className="badge">{EPIC_LABELS[epic.status]}</span>
+          <span className="badge">{tr(EPIC_LABELS[epic.status])}</span>
         </AskSpotBox>
         <ProgressBar progress={epic.progress} />
       </header>
       <div className="actions">
-        <a href={hrefOf({ page: "board", epic: epic.id })}>この Epic でカンバンを見る</a>
+        <a href={hrefOf({ page: "board", epic: epic.id })}>{tr("この Epic でカンバンを見る")}</a>
       </div>
       <Markdown body={epic.body} />
-      <h2>チケット</h2>
+      <h2>{tr("チケット")}</h2>
       {webview ? (
         <TicketSections
           tickets={epic.tickets}
@@ -69,7 +70,7 @@ export function EpicsPage({ id }: { id: string }) {
                   <span>{store.labelOf(s)}</span>
                   <span className="muted">{items.length}</span>
                 </h2>
-                {items.length === 0 ? <p className="empty">なし</p> : null}
+                {items.length === 0 ? <p className="empty">{tr("なし")}</p> : null}
                 {items.map((t) => (
                   <div key={t.id} className={`card status-${s}`} style={{ cursor: "default" }}>
                     <div className="meta">

@@ -4,6 +4,8 @@
 // 選んだチップ（pressed）は「ほか N」に隠さず、出す分の最後に回す
 
 import { Children, isValidElement, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { tr } from "../l10n.js";
+import { trNode } from "../l10n-node.js";
 
 export function Chip({
   pressed,
@@ -39,8 +41,8 @@ export function Chip({
 export function ChipRow({
   label,
   contentKey = "",
-  moreLabel = (n) => `あと ${n} 個出す`,
-  lessLabel = "畳む",
+  moreLabel = (n) => tr("あと {0} 個出す", n),
+  lessLabel = tr("畳む"),
   children,
 }: {
   label: string;
@@ -104,7 +106,7 @@ export function ChipRow({
           aria-label={moreLabel(hidden)}
           onClick={() => setExpanded(true)}
         >
-          ほか {hidden}
+          {trNode("ほか {0}", hidden)}
         </button>
       ) : null}
       {expanded ? (
@@ -118,7 +120,7 @@ export function ChipRow({
             setFit(null);
           }}
         >
-          畳む
+          {tr("畳む")}
         </button>
       ) : null}
     </div>

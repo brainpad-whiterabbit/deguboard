@@ -29,17 +29,19 @@ import {
   type RunMetrics,
   type RunView,
 } from "../types.js";
+import { tr, msg } from "../l10n.js";
+import { trNode } from "../l10n-node.js";
 
 type ResultKey = keyof RunMetrics["results"];
 /** 表に出す値。ツールの回数（tools）は画面に出していない */
 type ValueKey = Exclude<keyof RunMetrics["missing"], "tools">;
 
 const VALUE_LABELS: Record<ValueKey, string> = {
-  duration_seconds: "時間",
-  input: "入力",
-  output: "出力",
-  cache_read: "キャッシュ読み",
-  cache_write: "キャッシュ書き",
+  duration_seconds: msg("時間"),
+  input: msg("入力"),
+  output: msg("出力"),
+  cache_read: msg("キャッシュ読み"),
+  cache_write: msg("キャッシュ書き"),
 };
 const VALUE_KEYS = Object.keys(VALUE_LABELS) as ValueKey[];
 /** 結果の内訳の順。satisfies で core の RunMetrics["results"] の全件と照らす */
@@ -59,8 +61,8 @@ export function formatValue(key: ValueKey, v: number | null, estimated = false):
 export function resultsText(m: RunMetrics): string {
   return (
     RESULT_KEYS.filter((k) => m.results[k] > 0)
-      .map((k) => `${RESULT_LABELS[k]} ${m.results[k]}`)
-      .join(" ・ ") || NO_VALUE
+      .map((k) => `${tr(RESULT_LABELS[k])} ${m.results[k]}`)
+      .join(tr(" ・ ")) || NO_VALUE
   );
 }
 
@@ -82,7 +84,7 @@ export function RunsPage({
   const store = useStore();
   const project = store.project?.id;
   // Project がなければ集計できない（読み込み中のまま止めない）
-  if (!project) return <p className="empty">Project がない</p>;
+  if (!project) return <p className="empty">{tr("Project がない")}</p>;
   return <RunsView project={project} by={by} iteration={iteration} />;
 }
 
@@ -138,19 +140,19 @@ function RunsView({
       <div className="toolbar">
         <h1>Run</h1>
         <button type="button" onClick={reload}>
-          読み直す
+          {tr("読み直す")}
         </button>
         {runs && !error ? (
           <span className="muted">
-            実行中 {running.length} ・ 完了 {finished.length}
+            {trNode("実行中 {0} ・ 完了 {1}", running.length, finished.length)}
           </span>
         ) : null}
       </div>
       {iteration ? (
         <p className="runs-filter">
           <DetailLink route={{ page: "iterations", id: iteration }}>{iteration}</DetailLink>
-          <span> のチケットの Run だけ</span>
-          <a href={hrefOf({ page: "runs", by })}>解除</a>
+          <span>{tr(" のチケットの Run だけ")}</span>
+          <a href={hrefOf({ page: "runs", by })}>{tr("解除")}</a>
         </p>
       ) : null}
       {warnings.length > 0 && !error ? <p className="muted">{warnings.join(" / ")}</p> : null}
@@ -158,39 +160,45 @@ function RunsView({
         // 取れなかったときは一覧を出さない（「Run はない」と事実と違うことを言わない）
         <p className="error">{error}</p>
       ) : runs === null ? (
-        <p className="muted">読み込み中…</p>
+        <p className="muted">{tr("読み込み中…")}</p>
       ) : (
         <>
-          <h2>実行中</h2>
+          <h2>{tr("実行中")}</h2>
           {running.length === 0 ? (
-            <p className="empty">実行中の Run はない</p>
+            <p className="empty">{tr("実行中の Run はない")}</p>
           ) : (
             <RunTable runs={running} sidebar={sidebar} />
           )}
 
           <div className="toolbar runs-metrics-head">
-            <h2>実績</h2>
+            <h2>{tr("実績")}</h2>
             <label>
-              単位
-              <select
-                value={by}
-                onChange={(e) =>
-                  navigate({ page: "runs", by: e.target.value as MetricUnit, iteration })
-                }
-              >
-                {METRIC_UNITS.map((u) => (
-                  <option key={u} value={u}>
-                    {UNIT_LABELS[u]}
-                  </option>
-                ))}
-              </select>
+              {trNode(
+                "単位{0}",
+                <select
+                  value={by}
+                  onChange={(e) =>
+                    navigate({ page: "runs", by: e.target.value as MetricUnit, iteration })
+                  }
+                >
+                  {METRIC_UNITS.map((u) => (
+                    <option key={u} value={u}>
+                      {tr(UNIT_LABELS[u])}
+                    </option>
+                  ))}
+                </select>,
+              )}
             </label>
           </div>
-          {metrics ? <MetricsTables metrics={metrics} /> : <p className="muted">読み込み中…</p>}
+          {metrics ? (
+            <MetricsTables metrics={metrics} />
+          ) : (
+            <p className="muted">{tr("読み込み中…")}</p>
+          )}
 
-          <h2>完了した Run</h2>
+          <h2>{tr("完了した Run")}</h2>
           {finished.length === 0 ? (
-            <p className="empty">完了した Run はない</p>
+            <p className="empty">{tr("完了した Run はない")}</p>
           ) : (
             <RunTable runs={finished} sidebar={sidebar} />
           )}
@@ -208,7 +216,7 @@ function RunTable({ runs, sidebar }: { runs: readonly RunView[]; sidebar: boolea
     return (
       <ul className="rows run-rows">
         {runs.map((r) => (
-          <li key={r.id} title={`${r.id} ・ ${r.agent}${r.model ? ` / ${r.model}` : ""}`}>
+          <li key={r.id} title={tr("{0} ・ {1}{2}", r.id, r.agent, r.model ? ` / ${r.model}` : "")}>
             <RunResult run={r} />
             <TicketLink id={r.ticket} />
             <span className="row-title">{r.step}</span>
@@ -227,17 +235,17 @@ function RunTable({ runs, sidebar }: { runs: readonly RunView[]; sidebar: boolea
         <thead>
           <tr>
             <th>Run</th>
-            <th>チケット</th>
-            <th>工程</th>
+            <th>{tr("チケット")}</th>
+            <th>{tr("工程")}</th>
             <th>Agent</th>
             <th>Model</th>
-            <th>結果</th>
-            <th>開始</th>
+            <th>{tr("結果")}</th>
+            <th>{tr("開始")}</th>
             {done ? (
               <>
-                <th className="num">時間</th>
-                <th className="num">入力</th>
-                <th className="num">出力</th>
+                <th className="num">{tr("時間")}</th>
+                <th className="num">{tr("入力")}</th>
+                <th className="num">{tr("出力")}</th>
               </>
             ) : null}
           </tr>
@@ -258,7 +266,9 @@ function RunTable({ runs, sidebar }: { runs: readonly RunView[]; sidebar: boolea
                 <td>{r.model ?? <span className="muted">{NO_VALUE}</span>}</td>
                 <td className="nowrap">
                   <RunResult run={r} />
-                  {r.retries > 0 ? <small className="muted"> 再試行 {r.retries}</small> : null}
+                  {r.retries > 0 ? (
+                    <small className="muted">{trNode(" 再試行 {0}", r.retries)}</small>
+                  ) : null}
                 </td>
                 <td className="nowrap">{formatTime(r.started_at)}</td>
                 {done ? (
@@ -285,8 +295,8 @@ function Num({ value, text }: { value: number | null; text: string }) {
 function Missing({ count, inline = false }: { count: number; inline?: boolean }) {
   if (count === 0) return null;
   return (
-    <small className="muted" title="値が取れず、合計に入れなかった Run の数">
-      {inline ? ` (欠け ${count})` : `欠け ${count}`}
+    <small className="muted" title={tr("値が取れず、合計に入れなかった Run の数")}>
+      {inline ? tr(" (欠け {0})", count) : tr("欠け {0}", count)}
     </small>
   );
 }
@@ -295,23 +305,23 @@ function Missing({ count, inline = false }: { count: number; inline?: boolean })
 function MetricsTables({ metrics }: { metrics: MetricsView }) {
   const t = metrics.total;
   const by = metrics.by ?? DEFAULT_UNIT;
-  if (t.runs === 0) return <p className="empty">集計する Run はない</p>;
+  if (t.runs === 0) return <p className="empty">{tr("集計する Run はない")}</p>;
   const est = t.estimated_runs > 0;
   return (
     <>
       <dl className="metric-cards">
         <div className="wide">
-          <dt>結果</dt>
+          <dt>{tr("結果")}</dt>
           <dd className="results">{resultsText(t)}</dd>
         </div>
         <div>
           <dt>Run</dt>
           <dd>{formatTokens(t.runs)}</dd>
-          <small className="muted">再試行 {formatTokens(t.retries)}</small>
+          <small className="muted">{trNode("再試行 {0}", formatTokens(t.retries))}</small>
         </div>
         {VALUE_KEYS.map((k) => (
           <div key={k}>
-            <dt>{VALUE_LABELS[k]}</dt>
+            <dt>{tr(VALUE_LABELS[k])}</dt>
             <dd className={t[k] === null ? "muted" : undefined}>{formatValue(k, t[k], est)}</dd>
             <Missing count={t.missing[k]} />
           </div>
@@ -319,23 +329,26 @@ function MetricsTables({ metrics }: { metrics: MetricsView }) {
       </dl>
       {est ? (
         <p className="muted">
-          推定の値を含む Run が {t.estimated_runs} 件ある（「~」を付けた値は推定を含む）
+          {trNode(
+            "推定の値を含む Run が {0} 件ある（「~」を付けた値は推定を含む）",
+            t.estimated_runs,
+          )}
         </p>
       ) : null}
       <RunsScroll>
         <table className="list metrics-table">
           <thead>
             <tr>
-              <th>{UNIT_LABELS[by]}</th>
+              <th>{tr(UNIT_LABELS[by])}</th>
               <th className="num">Run</th>
-              <th>結果</th>
-              <th className="num">再試行</th>
+              <th>{tr("結果")}</th>
+              <th className="num">{tr("再試行")}</th>
               {VALUE_KEYS.map((k) => (
                 <th key={k} className="num">
-                  {VALUE_LABELS[k]}
+                  {tr(VALUE_LABELS[k])}
                 </th>
               ))}
-              <th className="num">推定</th>
+              <th className="num">{tr("推定")}</th>
             </tr>
           </thead>
           <tbody>
@@ -368,7 +381,7 @@ function GroupKey({ unit, group }: { unit: MetricUnit; group: MetricGroup }) {
   const store = useStore();
   const host = useHost();
   const key = group.key;
-  if (key === null) return <span className="muted">なし</span>;
+  if (key === null) return <span className="muted">{tr("なし")}</span>;
   switch (unit) {
     case "ticket":
       // サイドバーでは幅を取らないよう番号だけ

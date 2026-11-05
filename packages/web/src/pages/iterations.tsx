@@ -13,6 +13,7 @@ import { useHost } from "../host.js";
 import { hrefOf } from "../router.js";
 import { useStore } from "../store.js";
 import { byPriorityThenNumber, ITERATION_LABELS, type IterationDetail } from "../types.js";
+import { tr } from "../l10n.js";
 
 export function IterationsPage({ id }: { id: string }) {
   return <IterationDetailView id={id} />;
@@ -29,7 +30,7 @@ function IterationDetailView({ id }: { id: string }) {
   );
 
   if (error) return <p className="error">{error}</p>;
-  if (!it) return <p className="muted">読み込み中…</p>;
+  if (!it) return <p className="muted">{tr("読み込み中…")}</p>;
 
   const items = [...it.items].sort(byPriorityThenNumber);
 
@@ -43,7 +44,7 @@ function IterationDetailView({ id }: { id: string }) {
               it.status === "closed" ? { page: "board" } : { page: "board", iteration: it.id },
             )}
           >
-            ← カンバン
+            {tr("← カンバン")}
           </a>
         </div>
       )}
@@ -52,12 +53,12 @@ function IterationDetailView({ id }: { id: string }) {
         as="h1"
         className="ask-title"
         targets={[it.id]}
-        label={`タイトル ${it.id}`}
+        label={tr("タイトル {0}", it.id)}
         section={ASK_SECTIONS.detailTitle}
         pinned
       >
         <code>{it.id}</code> {it.name}{" "}
-        <span className={`badge iteration-${it.status}`}>{ITERATION_LABELS[it.status]}</span>
+        <span className={`badge iteration-${it.status}`}>{tr(ITERATION_LABELS[it.status])}</span>
       </AskSpotBox>
       <IterationSummary it={it} />
       {/* 状態に応じた次の操作の案内と依頼文のコピー（書き込まない） */}
@@ -66,7 +67,9 @@ function IterationDetailView({ id }: { id: string }) {
           閉じた Iteration はカンバンで選べないので出さない */}
       {host.surface === "panel" && it.status !== "closed" ? (
         <div className="actions">
-          <a href={hrefOf({ page: "board", iteration: it.id })}>この Iteration でカンバンを見る</a>
+          <a href={hrefOf({ page: "board", iteration: it.id })}>
+            {tr("この Iteration でカンバンを見る")}
+          </a>
         </div>
       ) : null}
       {/* 中のチケットを含む Plan（なければ節を出さない） */}

@@ -116,11 +116,13 @@ core の `commands` を HTTP に写す。Node 標準の `node:http` で、フレ
 
 型検査は `tsconfig.json` を別に持つ（DOM と JSX が要るため）。ビルドは Vite で `dist/` に出し、`dg serve` は cli に写した `web/` を配信する（`cli/program.ts` の `webDist`）。テストは `// @vitest-environment jsdom` を付け、`test-helpers.ts` の `mockClient` で `CommandClient` を差し替える。
 
+画面の文言は `l10n.ts` の `tr`（鍵は日本語の文。要素を挟む文は `l10n-node.tsx` の `trNode`）で書き、英語の訳は `l10n-en.ts` に置く。言語は Webview の `<html data-language>` で決まり、ない（`dg serve`）と日本語。揃っているかは `l10n.test.ts`、日本語の文言が変わっていないかは `l10n-screens.test.tsx` のスナップショットが確かめる。
+
 見た目は Playwright MCP（`.mcp.json`。Chromium は `mise run playwright:install`）で一時リポジトリの `dg serve` を見る。`?surface=sidebar`・`panel` で配置が変わる。Webview に固有の色や CSP は人が見る。
 
 ### `packages/vscode`（`deguboard-vscode`）
 
-VS Code 拡張。拡張ホストから core の `createLocalClient` を呼び、Webview に web のビルド結果を載せる。サーバーは起動せず、`dg` は同梱しない（[ADR-006](adr/ADR-006-ui-and-writes.md)）。VS Code の API に触れるのは入口の `extension.ts` だけで、Webview に載せる純粋な処理は `webview.ts`、PATH の `dg` を引くのは `dg.ts`。文言は言語ごとのファイルに置く：manifest は `package.nls.json`（英語・既定）と `package.nls.ja.json`、拡張ホストは `l10n.ts` の `t`（鍵は英語の文）と `l10n/bundle.l10n.ja.json`、Walkthrough は `media/walkthrough/*.md` と `*.ja.md`。揃っているかは `l10n.test.ts` が確かめる。
+VS Code 拡張。拡張ホストから core の `createLocalClient` を呼び、Webview に web のビルド結果を載せる。サーバーは起動せず、`dg` は同梱しない（[ADR-006](adr/ADR-006-ui-and-writes.md)）。VS Code の API に触れるのは入口の `extension.ts` だけで、Webview に載せる純粋な処理は `webview.ts`、PATH の `dg` を引くのは `dg.ts`。文言は言語ごとのファイルに置く：manifest は `package.nls.json`（英語・既定）と `package.nls.ja.json`、拡張ホストは `l10n.ts` の `t`（鍵は英語の文）と `l10n/bundle.l10n.ja.json`、Walkthrough は `media/walkthrough/*.md` と `*.ja.md`。揃っているかは `l10n.test.ts` が確かめる。Webview の画面の文言は web に置き（「`packages/web`」の節）、拡張ホストは表示言語を `<html data-language>` で渡すだけ。
 
 ビルドは Vite で `dist/extension.cjs` に束ね、web の `dist` を `dist/web` に写す（[ADR-008](adr/ADR-008-tech-stack.md)）。同梱する core の版は `vite.config.ts` の `define` で埋める。手元で動かすには `mise run build` のあと VS Code で `packages/vscode` を開いて F5（拡張開発ホスト）、Activity Bar の deguboard のアイコン。
 

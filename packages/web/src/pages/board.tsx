@@ -61,6 +61,8 @@ import {
   type Ticket,
   type TicketRow,
 } from "../types.js";
+import { tr } from "../l10n.js";
+import { trNode } from "../l10n-node.js";
 
 /** 選んでいる範囲。all は planned と active の Iteration すべて */
 type Selection = { kind: "all" } | { kind: "iteration"; iteration: Iteration };
@@ -185,7 +187,7 @@ export function BoardPage({ query }: { query: BoardQuery }) {
             value={query.epic ?? ""}
             onChange={(e) => setFilter({ epic: e.target.value || undefined })}
           >
-            <option value="">すべて</option>
+            <option value="">{tr("すべて")}</option>
             {epics.map((e) => (
               <option key={e.id} value={e.id}>
                 {e.id} {e.title}
@@ -196,18 +198,20 @@ export function BoardPage({ query }: { query: BoardQuery }) {
       ) : null}
       {claims.length > 0 ? (
         <label>
-          担当
-          <select
-            value={query.assignee ?? ""}
-            onChange={(e) => setFilter({ assignee: e.target.value || undefined })}
-          >
-            <option value="">すべて</option>
-            {claims.map((c) => (
-              <option key={c} value={c} title={c}>
-                {c === NO_CLAIM ? "なし" : actorLabel(c)}
-              </option>
-            ))}
-          </select>
+          {trNode(
+            "担当{0}",
+            <select
+              value={query.assignee ?? ""}
+              onChange={(e) => setFilter({ assignee: e.target.value || undefined })}
+            >
+              <option value="">{tr("すべて")}</option>
+              {claims.map((c) => (
+                <option key={c} value={c} title={c}>
+                  {c === NO_CLAIM ? tr("なし") : actorLabel(c)}
+                </option>
+              ))}
+            </select>,
+          )}
         </label>
       ) : null}
     </>
@@ -257,16 +261,18 @@ export function BoardPage({ query }: { query: BoardQuery }) {
                 value={selection.kind === "all" ? ALL_ITERATIONS : selection.iteration.id}
                 onChange={(e) => select(e.target.value)}
               >
-                <option value={ALL_ITERATIONS}>すべて（planned と active）</option>
+                <option value={ALL_ITERATIONS}>{tr("すべて（planned と active）")}</option>
                 {open.map((i) => (
                   <option key={i.id} value={i.id}>
-                    {i.id} {i.name}（{ITERATION_LABELS[i.status]}）
+                    {trNode("{0} {1}（{2}）", i.id, i.name, tr(ITERATION_LABELS[i.status]))}
                   </option>
                 ))}
               </select>
             </label>
             {filterSelects}
-            <span className="muted count">{tickets.length - abandoned.length} 件</span>
+            <span className="muted count">
+              {trNode("{0} 件", tickets.length - abandoned.length)}
+            </span>
           </div>
           {selection.kind === "iteration" ? (
             <IterationHead iteration={selection.iteration} />
@@ -313,9 +319,12 @@ export function BoardPage({ query }: { query: BoardQuery }) {
 function NoOpenIteration() {
   return (
     <div className="empty board-empty">
-      <p>開いた Iteration（planned・active）はない</p>
+      <p>{tr("開いた Iteration（planned・active）はない")}</p>
       <p>
-        チケットは <a href={hrefOf({ page: "backlog" })}>バックログ</a> で見る
+        {trNode(
+          "チケットは {0} で見る",
+          <a href={hrefOf({ page: "backlog" })}>{tr("バックログ")}</a>,
+        )}
       </p>
     </div>
   );
@@ -351,15 +360,13 @@ function IterationHead({ iteration: it }: { iteration: Iteration }) {
         <code>{it.id}</code>{" "}
         <DetailLink route={{ page: "iterations", id: it.id }}>{it.name}</DetailLink>
       </h1>
-      <span className={`badge iteration-${it.status}`}>{ITERATION_LABELS[it.status]}</span>
+      <span className={`badge iteration-${it.status}`}>{tr(ITERATION_LABELS[it.status])}</span>
       {it.start || it.end ? (
-        <span className="muted">
-          {it.start ?? "?"} 〜 {it.end ?? "?"}
-        </span>
+        <span className="muted">{trNode("{0} 〜 {1}", it.start ?? "?", it.end ?? "?")}</span>
       ) : null}
       {it.goal ? <span className="muted goal">{it.goal}</span> : null}
       <span className="actions">
-        <a href={hrefOf({ page: "iterations", id: it.id })}>詳細</a>
+        <a href={hrefOf({ page: "iterations", id: it.id })}>{tr("詳細")}</a>
       </span>
     </header>
   );
@@ -391,15 +398,15 @@ function SidebarBoardHead({
   const name = it
     ? it.name
     : open.length > 0
-      ? "planned・active のすべて"
-      : "開いた Iteration はない";
+      ? tr("planned・active のすべて")
+      : tr("開いた Iteration はない");
   const period = it ? shortPeriod(it.start, it.end) : undefined;
   // 選んでいる Iteration の見出し（名前・期間・目標の段）から、その Iteration を頼む（「すべて」のときは出さない）
   const spot = useAskSpot(
     it
       ? {
           targets: [it.id],
-          label: `Iteration の見出し ${it.id}`,
+          label: tr("Iteration の見出し {0}", it.id),
           section: ASK_SECTIONS.boardHeading,
         }
       : null,
@@ -412,7 +419,7 @@ function SidebarBoardHead({
           <FilterToggle
             open={filter.open}
             active={filter.active}
-            title="Epic・担当で絞り込む"
+            title={tr("Epic・担当で絞り込む")}
             controls="board-filters"
             onToggle={filter.onToggle}
           />
@@ -476,28 +483,38 @@ function IterationChips({
         type="button"
         className="iteration-chip all"
         aria-pressed={selected === ALL_ITERATIONS}
-        title="すべて（planned と active の Iteration）"
+        title={tr("すべて（planned と active の Iteration）")}
         onClick={() => onSelect(ALL_ITERATIONS)}
       >
-        すべて
-        <ProgressRing progress={all} />
-        <span className="chip-count">
-          {all.done}/{all.total}
-        </span>
+        {trNode(
+          "すべて{0}{1}",
+          <ProgressRing progress={all} />,
+          <span className="chip-count">
+            {all.done}/{all.total}
+          </span>,
+        )}
       </button>
       {open.map((i) => {
         // core の iteration.list は進みを返さず、札は画面の都合（閉じた Epic の終わったチケットを除く）で数える対象を決めるので、
         // core の progressOf の写し（ticketProgress）で数える。core が進みを返す Epic の行（履歴）は core の値を読む
         const progress = ticketProgress(tickets.filter((t) => t.iteration === i.id));
-        const period = i.start || i.end ? `\n期間 ${i.start ?? "?"} 〜 ${i.end ?? "?"}` : "";
-        const goal = i.goal ? `\n目標 ${i.goal}` : "";
+        const period =
+          i.start || i.end ? tr("\n期間 {0} 〜 {1}", i.start ?? "?", i.end ?? "?") : "";
+        const goal = i.goal ? tr("\n目標 {0}", i.goal) : "";
         return (
           <button
             key={i.id}
             type="button"
             className={`iteration-chip ${i.status}`}
             aria-pressed={selected === i.id}
-            title={`${i.id} ${i.name}（${ITERATION_LABELS[i.status]}）${period}${goal}`}
+            title={tr(
+              "{0} {1}（{2}）{3}{4}",
+              i.id,
+              i.name,
+              tr(ITERATION_LABELS[i.status]),
+              period,
+              goal,
+            )}
             onClick={() => onSelect(i.id)}
           >
             <code>{i.id}</code>
@@ -560,7 +577,7 @@ function FilterChips({
   onClear: (patch: Partial<BoardQuery>) => void;
 }) {
   if (!epicId && !assignee) return null;
-  const who = assignee === NO_CLAIM ? "なし" : assignee ? actorLabel(assignee) : "";
+  const who = assignee === NO_CLAIM ? tr("なし") : assignee ? actorLabel(assignee) : "";
   return (
     <div className="filter-chips">
       {epicId ? (
@@ -568,7 +585,7 @@ function FilterChips({
           <span className="filter-chip-text">Epic {epicId}</span>
           <button
             type="button"
-            aria-label={`Epic ${epicId} の絞り込みを外す`}
+            aria-label={tr("Epic {0} の絞り込みを外す", epicId)}
             onClick={() => onClear({ epic: undefined })}
           >
             ×
@@ -576,11 +593,11 @@ function FilterChips({
         </span>
       ) : null}
       {assignee ? (
-        <span className="filter-chip" title={assignee === NO_CLAIM ? "担当なし" : assignee}>
-          <span className="filter-chip-text">担当 {who}</span>
+        <span className="filter-chip" title={assignee === NO_CLAIM ? tr("担当なし") : assignee}>
+          <span className="filter-chip-text">{trNode("担当 {0}", who)}</span>
           <button
             type="button"
-            aria-label={`担当 ${who} の絞り込みを外す`}
+            aria-label={tr("担当 {0} の絞り込みを外す", who)}
             onClick={() => onClear({ assignee: undefined })}
           >
             ×
@@ -644,7 +661,7 @@ function Column({
     sidebar && !empty
       ? {
           targets: tickets.map((t) => t.id),
-          label: `状態の節 ${store.labelOf(status)}`,
+          label: tr("状態の節 {0}", store.labelOf(status)),
           section: ASK_SECTIONS.boardHeading,
         }
       : null,

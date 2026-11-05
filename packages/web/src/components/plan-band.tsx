@@ -18,6 +18,8 @@ import {
   type BandNext,
   type PlanState,
 } from "./plan-graph.js";
+import { tr } from "../l10n.js";
+import { trNode } from "../l10n-node.js";
 
 /** 前の版の帯全体の開閉の鍵。使わなくなったので消す */
 const OLD_KEYS = ["board.plansExpanded"];
@@ -36,9 +38,9 @@ export function PlanBand({ scope }: { scope: readonly Ticket[] }) {
   const open = items.filter((i) => i.state !== "closed");
   const closed = items.filter((i) => i.state === "closed");
   return (
-    <section className="plan-band" aria-label="実行計画">
+    <section className="plan-band" aria-label={tr("実行計画")}>
       <h2 className="plan-band-head">
-        実行計画 <span className="plan-band-count">{open.length}</span>
+        {trNode("実行計画 {0}", <span className="plan-band-count">{open.length}</span>)}
       </h2>
       {open.map(({ plan, state }) => (
         <PlanItem key={plan.id} plan={plan} state={state} byId={byId} />
@@ -50,7 +52,7 @@ export function PlanBand({ scope }: { scope: readonly Ticket[] }) {
           onToggle={(e) => setClosedOpen(e.currentTarget.open)}
         >
           <summary>
-            閉じた計画 <span className="muted">{closed.length}</span>
+            {trNode("閉じた計画 {0}", <span className="muted">{closed.length}</span>)}
           </summary>
           {closed.map(({ plan, state }) => (
             <PlanItem key={plan.id} plan={plan} state={state} byId={byId} />
@@ -82,7 +84,11 @@ function PlanItem({ plan, state, byId }: ItemProps) {
   // 左パネルでは Plan の行をエージェントに頼める場所にする（吹き出し・Shift+F10。UI-15）
   const spot = useAskSpot(
     host.surface === "sidebar"
-      ? { targets: [plan.id], label: `Plan の帯 ${plan.id}`, section: ASK_SECTIONS.boardHeading }
+      ? {
+          targets: [plan.id],
+          label: tr("Plan の帯 {0}", plan.id),
+          section: ASK_SECTIONS.boardHeading,
+        }
       : null,
   );
   const onRowClick = (e: MouseEvent) => {
@@ -100,18 +106,18 @@ function PlanItem({ plan, state, byId }: ItemProps) {
           <button
             type="button"
             className="plan-toggle"
-            aria-label={`${plan.id} の依存グラフ`}
+            aria-label={tr("{0} の依存グラフ", plan.id)}
             aria-expanded={open}
             aria-controls={open ? detailId : undefined}
           />
           <DetailLink
             route={{ page: "plans", id: plan.id }}
             className="plan-id"
-            title={`${plan.id} の詳細を開く`}
+            title={tr("{0} の詳細を開く", plan.id)}
           >
             <code>{plan.id}</code>
           </DetailLink>
-          <span className={`plan-state plan-state-${state}`}>{PLAN_STATE_LABELS[state]}</span>
+          <span className={`plan-state plan-state-${state}`}>{tr(PLAN_STATE_LABELS[state])}</span>
           <ProgressBar progress={plan.progress} short />
         </div>
         {closed ? null : <PlanSub plan={plan} state={state} byId={byId} />}
@@ -121,7 +127,7 @@ function PlanItem({ plan, state, byId }: ItemProps) {
         <div className="plan-detail" id={detailId}>
           {plan.approved_by ? (
             <span className="plan-approver muted" title={plan.approved_by}>
-              承認 {actorLabel(plan.approved_by)}
+              {trNode("承認 {0}", actorLabel(plan.approved_by))}
             </span>
           ) : null}
           <PlanGraphView plan={plan} byId={byId} />
@@ -139,7 +145,7 @@ function PlanSub({ plan, state, byId }: ItemProps) {
     <div className="plan-sub">
       {working.length > 0 ? (
         <span className="plan-working">
-          <span className="plan-sub-label">作業中</span>
+          <span className="plan-sub-label">{tr("作業中")}</span>
           <Ids ids={working} byId={byId} />
         </span>
       ) : null}
@@ -162,12 +168,12 @@ function Ids({ ids, byId }: { ids: readonly string[]; byId: ReadonlyMap<string, 
 
 function BandNextText({ next, byId }: { next: BandNext; byId: ReadonlyMap<string, Ticket> }) {
   if (next.kind === "approval") {
-    return <span className="plan-next muted">人の承認を待っている</span>;
+    return <span className="plan-next muted">{tr("人の承認を待っている")}</span>;
   }
   const title = byId.get(next.id)?.title ?? "";
   return (
     <span className="plan-next">
-      <span className="plan-sub-label">次</span>
+      <span className="plan-sub-label">{tr("次")}</span>
       <TicketLink
         id={next.id}
         className={`plan-next-ticket${next.kind === "ready" ? " plan-next-ready" : ""}`}
@@ -182,7 +188,7 @@ function BandNextText({ next, byId }: { next: BandNext; byId: ReadonlyMap<string
       {next.kind === "blocked" ? (
         <span className="plan-wait">
           <Ids ids={next.waitFor} byId={byId} />
-          <span>待ち</span>
+          <span>{tr("待ち")}</span>
         </span>
       ) : null}
     </span>
@@ -211,7 +217,7 @@ export function PlanGraphView({
   const host = useHost();
   const graph = useMemo(() => planGraph(plan, byId), [plan, byId]);
   const [focus, setFocus] = useState<string | null>(null);
-  if (graph.nodes.length === 0) return <p className="empty">チケットはない</p>;
+  if (graph.nodes.length === 0) return <p className="empty">{tr("チケットはない")}</p>;
   if (host.surface === "sidebar" && graph.edges.length === 0) {
     return <PlanChips nodes={graph.nodes} byId={byId} />;
   }
@@ -284,27 +290,33 @@ export function PlanGraphView({
       {graph.edges.length > 0 ? (
         <div className="plan-graph-legend muted">
           <span>
-            <svg width="20" height="6" aria-hidden="true">
-              <line x1="0" y1="3" x2="20" y2="3" className="plan-graph-edge" />
-            </svg>
-            {hasDepends ? "after " : ""}待ち終わり
+            {trNode(
+              "{0}{1}待ち終わり",
+              <svg width="20" height="6" aria-hidden="true">
+                <line x1="0" y1="3" x2="20" y2="3" className="plan-graph-edge" />
+              </svg>,
+              hasDepends ? "after " : "",
+            )}
           </span>
           <span>
-            <svg width="20" height="6" aria-hidden="true">
-              <line
-                x1="0"
-                y1="3"
-                x2="20"
-                y2="3"
-                className="plan-graph-edge plan-graph-edge-pending"
-              />
-            </svg>
-            {hasDepends ? "after " : ""}待ち中
+            {trNode(
+              "{0}{1}待ち中",
+              <svg width="20" height="6" aria-hidden="true">
+                <line
+                  x1="0"
+                  y1="3"
+                  x2="20"
+                  y2="3"
+                  className="plan-graph-edge plan-graph-edge-pending"
+                />
+              </svg>,
+              hasDepends ? "after " : "",
+            )}
           </span>
           {hasDepends
             ? [
-                { label: "depends_on 待ち終わり", cls: "" },
-                { label: "depends_on 待ち中", cls: " plan-graph-edge-pending" },
+                { label: tr("depends_on 待ち終わり"), cls: "" },
+                { label: tr("depends_on 待ち中"), cls: " plan-graph-edge-pending" },
               ].map(({ label, cls }) => (
                 <span key={label}>
                   <svg width="20" height="6" aria-hidden="true">

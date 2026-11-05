@@ -19,6 +19,8 @@ import {
   RunsScroll,
 } from "./run-parts.js";
 import { formatTime } from "./timeline.js";
+import { tr } from "../l10n.js";
+import { trNode } from "../l10n-node.js";
 
 /** チケット詳細の「Run」の節 */
 export function TicketRuns({ id }: { id: string }) {
@@ -42,9 +44,9 @@ export function TicketRuns({ id }: { id: string }) {
       {error ? (
         <p className="error">{error}</p>
       ) : !runs ? (
-        <p className="muted">読み込み中…</p>
+        <p className="muted">{tr("読み込み中…")}</p>
       ) : runs.length === 0 ? (
-        <p className="empty">Run はない</p>
+        <p className="empty">{tr("Run はない")}</p>
       ) : panel ? (
         <ul className="ticket-runs">
           {runs.map((r) => (
@@ -59,10 +61,10 @@ export function TicketRuns({ id }: { id: string }) {
                 <th>step</th>
                 <th>agent</th>
                 <th>model</th>
-                <th>結果</th>
-                <th title="入力 / 出力">トークン</th>
-                <th>開始</th>
-                <th>終了</th>
+                <th>{tr("結果")}</th>
+                <th title={tr("入力 / 出力")}>{tr("トークン")}</th>
+                <th>{tr("開始")}</th>
+                <th>{tr("終了")}</th>
               </tr>
             </thead>
             <tbody>
@@ -75,11 +77,13 @@ export function TicketRuns({ id }: { id: string }) {
                     <td>{r.model ?? <span className="muted">{NO_VALUE}</span>}</td>
                     <td>
                       <RunResult run={r} />
-                      {r.retries > 0 ? <span className="muted"> 再試行 {r.retries}</span> : null}
+                      {r.retries > 0 ? (
+                        <span className="muted">{trNode(" 再試行 {0}", r.retries)}</span>
+                      ) : null}
                     </td>
                     <td
                       className="num"
-                      title={`cache read ${u.cache_read} / cache write ${u.cache_write}${u.estimated ? "（推定を含む）" : ""}`}
+                      title={`cache read ${u.cache_read} / cache write ${u.cache_write}${u.estimated ? tr("（推定を含む）") : ""}`}
                     >
                       {u.input} / {u.output}
                     </td>
@@ -151,15 +155,20 @@ function RunsSummary({ runs }: { runs: RunView[] }) {
   const counts = new Map<string, number>();
   for (const r of runs) counts.set(runResultKey(r), (counts.get(runResultKey(r)) ?? 0) + 1);
   const breakdown = RESULT_KEYS.filter((k) => counts.has(k))
-    .map((k) => `${RESULT_LABELS[k]} ${counts.get(k)}`)
+    .map((k) => `${tr(RESULT_LABELS[k])} ${counts.get(k)}`)
     .join(" · ");
   const missing = Math.max(sumTokens(runs, "input").missing, sumTokens(runs, "output").missing);
   return (
     <small className="ticket-runs-summary">
-      <span>{runs.length} 件</span>
+      <span>{trNode("{0} 件", runs.length)}</span>
       <span>{breakdown}</span>
       <span
-        title={`トークン（入力 / 出力）${missing > 0 ? `。値が取れなかった Run が ${missing} 件あり、合計に入れていない` : ""}`}
+        title={tr(
+          "トークン（入力 / 出力）{0}",
+          missing > 0
+            ? tr("。値が取れなかった Run が {0} 件あり、合計に入れていない", missing)
+            : "",
+        )}
       >
         {formatTokenSum(runs, "input")} / {formatTokenSum(runs, "output")}
       </span>
@@ -180,7 +189,7 @@ function PanelRunRow({ run: r }: { run: RunView }) {
             {r.model ?? <span className="muted">{NO_VALUE}</span>}
           </span>
           {r.retries > 0 ? (
-            <span className="ticket-run-retries muted">再試行 {r.retries}</span>
+            <span className="ticket-run-retries muted">{trNode("再試行 {0}", r.retries)}</span>
           ) : null}
           <span className="ticket-run-time muted">
             <time dateTime={r.started_at}>{formatTime(r.started_at)}</time>{" "}
@@ -188,20 +197,26 @@ function PanelRunRow({ run: r }: { run: RunView }) {
           </span>
         </summary>
         <dl className="ticket-run-detail">
-          <dt>結果</dt>
+          <dt>{tr("結果")}</dt>
           <dd>
             <RunResult run={r} />
             {r.error ? <span className="muted"> {r.error}</span> : null}
           </dd>
           <dt>agent</dt>
           <dd>{r.agent}</dd>
-          <dt>トークン</dt>
+          <dt>{tr("トークン")}</dt>
           <dd className="num">
-            入力 {u.input} / 出力 {u.output} / cache read {u.cache_read} / cache write{" "}
-            {u.cache_write}
-            {u.estimated ? <span className="muted">（推定を含む）</span> : null}
+            {trNode(
+              "入力 {0} / 出力 {1} / cache read {2} / cache write{3}{4}{5}",
+              u.input,
+              u.output,
+              u.cache_read,
+              " ",
+              u.cache_write,
+              u.estimated ? <span className="muted">{tr("（推定を含む）")}</span> : null,
+            )}
           </dd>
-          <dt>終了</dt>
+          <dt>{tr("終了")}</dt>
           <dd>
             {r.finished_at ? (
               <time dateTime={r.finished_at}>{formatTime(r.finished_at)}</time>

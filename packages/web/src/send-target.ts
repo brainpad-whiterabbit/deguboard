@@ -2,6 +2,7 @@
 // 送り先は開いているターミナルの中から選ぶだけで、ターミナルは起動しない（EX-1）
 
 import type { TerminalChoice } from "@deguboard/core";
+import { tr } from "./l10n.js";
 
 /** 「送る」を出すか。開いているターミナルが 1 つでもあるときだけ（なければコピーだけ） */
 export function canSend(terminals: readonly TerminalChoice[]): boolean {
@@ -26,7 +27,7 @@ export function resolveSendTarget(
 
 /** 選んだターミナルが閉じて、別のターミナルに切り替えたときの知らせ */
 export function switchedMessage(to: TerminalChoice): string {
-  return `選んでいたターミナルが閉じたので、${to.label} に切り替えました`;
+  return tr("選んでいたターミナルが閉じたので、{0} に切り替えました", to.label);
 }
 
 /**
@@ -41,7 +42,11 @@ export function sentMessage(
   }: { multiline?: boolean; clipboardKept?: boolean } = {},
 ): string {
   if (!multiline)
-    return `✓ ${target.label} の入力に送りました。内容を確かめて Enter を押してください`;
-  const note = clipboardKept ? "。クリップボードを通して貼り付けました" : "";
-  return `✓ ${target.label} に送りました（貼り付けの確認が出たら選んでください）${note}。内容を確かめて Enter を押してください`;
+    return tr("✓ {0} の入力に送りました。内容を確かめて Enter を押してください", target.label);
+  const note = clipboardKept ? tr("。クリップボードを通して貼り付けました") : "";
+  return tr(
+    "✓ {0} に送りました（貼り付けの確認が出たら選んでください）{1}。内容を確かめて Enter を押してください",
+    target.label,
+    note,
+  );
 }

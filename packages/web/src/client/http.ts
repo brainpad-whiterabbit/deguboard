@@ -1,6 +1,7 @@
 // CommandClient の HTTP 実装。dg serve の /api/commands/<name> と /api/status を呼ぶ（ADR-006）
 
 import type { CommandClient, CommandFailure, CommandResult, StatusView } from "@deguboard/core";
+import { tr } from "../l10n.js";
 
 /** 入口が返した失敗。code は core のエラーコードか入口のコード（UNKNOWN_COMMAND など） */
 export class ClientError extends Error implements CommandFailure {
@@ -26,7 +27,7 @@ export function createHttpClient(baseUrl = "", fetchImpl: typeof fetch = fetch):
     } catch (error) {
       throw new ClientError({
         code: "UNREACHABLE",
-        message: "サーバーに届かない。dg serve が動いているか確かめる",
+        message: tr("サーバーに届かない。dg serve が動いているか確かめる"),
         detail: error instanceof Error ? error.message : String(error),
       });
     }
@@ -36,7 +37,7 @@ export function createHttpClient(baseUrl = "", fetchImpl: typeof fetch = fetch):
     } catch {
       throw new ClientError({
         code: "INVALID_RESPONSE",
-        message: `応答が JSON ではない（${res.status}）`,
+        message: tr("応答が JSON ではない（{0}）", res.status),
       });
     }
     if (!body.ok) throw new ClientError(body.error);

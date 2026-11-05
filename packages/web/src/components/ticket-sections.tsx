@@ -1,13 +1,15 @@
 // VS Code（パネル）の Epic・Iteration の詳細で、中のチケットを未完了・完了・中止の段に分けて出す共用部品（UI-5・UI-10・UI-12）。
+
 import { AskSpotBox, type AskSection } from "./ask-menu.js";
 import { TicketRow } from "./parts.js";
 import { STATUSES, byPriorityThenNumber, isFinished, type Status, type Ticket } from "../types.js";
+import { tr, msg } from "../l10n.js";
 
 /** 一覧の段。未完了は開いたまま、完了と中止は既定で畳む。0 件の段は出さない */
 export const TICKET_SECTIONS = [
-  { key: "open", label: "未完了", folded: false },
-  { key: "done", label: "完了", folded: true },
-  { key: "abandoned", label: "中止", folded: true },
+  { key: "open", label: msg("未完了"), folded: false },
+  { key: "done", label: msg("完了"), folded: true },
+  { key: "abandoned", label: msg("中止"), folded: true },
 ] as const;
 
 export type TicketSectionKey = (typeof TICKET_SECTIONS)[number]["key"];
@@ -53,7 +55,7 @@ export function TicketSections({
       {groupBySection(tickets).map(({ section, items }) => (
         <details key={section.key} className="fold" open={!section.folded}>
           <summary>
-            {section.label} <span className="muted">{items.length}</span>
+            {tr(section.label)} <span className="muted">{items.length}</span>
           </summary>
           <ul className="rows">
             {items.map((t) => (
@@ -61,7 +63,7 @@ export function TicketSections({
                 key={t.id}
                 as="li"
                 targets={[t.id]}
-                label={`行 ${t.id}`}
+                label={tr("行 {0}", t.id)}
                 section={askSection}
                 within={within}
                 select

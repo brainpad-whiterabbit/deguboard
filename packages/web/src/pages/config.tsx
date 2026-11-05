@@ -10,40 +10,42 @@ import { failureOf } from "../client/http.js";
 import { hrefOf, toggleRoute } from "../router.js";
 import { useStore } from "../store.js";
 import type { ConfigField, ConfigShowView } from "../types.js";
+import { tr, msg } from "../l10n.js";
+import { trNode } from "../l10n-node.js";
 
 /** 画面のまとまり。キーの最上位（commit.mode なら commit）で振り分ける */
 const GROUPS: { id: string; label: string; tops: string[] }[] = [
-  { id: "commit", label: "コミットと push", tops: ["commit", "push"] },
-  { id: "agent", label: "エージェント", tops: ["actions", "auto", "lint", "models", "actor"] },
-  { id: "metrics", label: "計測", tops: ["metrics"] },
-  { id: "notify", label: "通知", tops: ["notify"] },
+  { id: "commit", label: msg("コミットと push"), tops: ["commit", "push"] },
+  { id: "agent", label: msg("エージェント"), tops: ["actions", "auto", "lint", "models", "actor"] },
+  { id: "metrics", label: msg("計測"), tops: ["metrics"] },
+  { id: "notify", label: msg("通知"), tops: ["notify"] },
   { id: "git", label: "Git", tops: ["git", "worktree", "default_project"] },
-  { id: "ticket", label: "チケット", tops: ["priority"] },
+  { id: "ticket", label: msg("チケット"), tops: ["priority"] },
 ];
 /** GROUPS に入っていない項目（スキーマに足したばかりのもの）の受け皿 */
-const OTHER_GROUP = { id: "other", label: "その他" };
+const OTHER_GROUP = { id: "other", label: msg("その他") };
 
 /** 項目の表示名。ないものはキーをそのまま出す */
 const NAMES: Record<string, string> = {
-  "commit.mode": "コミットの仕方",
-  "push.mode": "push の仕方",
-  "actions.shell": "シェルの Action を許す",
-  "actions.test": "テストのコマンド",
-  "auto.merge": "PR を自動でマージする",
-  "lint.require_iteration": "Iteration に入れてから進める",
-  "models.light": "段階 light のモデル",
-  "models.standard": "段階 standard のモデル",
-  "models.heavy": "段階 heavy のモデル",
-  "actor.human_only": "人だけに許すコマンド",
-  "metrics.read_transcripts": "会話記録から使用量を読む",
-  "notify.approvals": "承認待ちが増えたら通知する",
-  "git.remote": "同期先のリモート",
-  "git.base_branch": "基準のブランチ",
-  "worktree.root": "worktree の置き場所",
-  default_project: "既定の Project",
-  "priority.high": "優先度 high の判断基準",
-  "priority.medium": "優先度 medium の判断基準",
-  "priority.low": "優先度 low の判断基準",
+  "commit.mode": msg("コミットの仕方"),
+  "push.mode": msg("push の仕方"),
+  "actions.shell": msg("シェルの Action を許す"),
+  "actions.test": msg("テストのコマンド"),
+  "auto.merge": msg("PR を自動でマージする"),
+  "lint.require_iteration": msg("Iteration に入れてから進める"),
+  "models.light": msg("段階 light のモデル"),
+  "models.standard": msg("段階 standard のモデル"),
+  "models.heavy": msg("段階 heavy のモデル"),
+  "actor.human_only": msg("人だけに許すコマンド"),
+  "metrics.read_transcripts": msg("会話記録から使用量を読む"),
+  "notify.approvals": msg("承認待ちが増えたら通知する"),
+  "git.remote": msg("同期先のリモート"),
+  "git.base_branch": msg("基準のブランチ"),
+  "worktree.root": msg("worktree の置き場所"),
+  default_project: msg("既定の Project"),
+  "priority.high": msg("優先度 high の判断基準"),
+  "priority.medium": msg("優先度 medium の判断基準"),
+  "priority.low": msg("優先度 low の判断基準"),
 };
 
 /**
@@ -52,13 +54,13 @@ const NAMES: Record<string, string> = {
  * auto.merge はエージェントに PR のマージを許すので、エージェントに許す操作として扱う（ADR-006・ADR-007）
  */
 export const CONFIRM_KEYS: ReadonlyMap<string, string> = new Map([
-  ["git.remote", "同期先が変わる"],
-  ["git.base_branch", "マージ済みの判定の基準が変わる"],
-  ["worktree.root", "作業場所が変わる"],
-  ["actions.test", "テストとして確認なしで実行するコマンドが変わる（シェルを許すのと同じ）"],
-  ["actions.shell", "エージェントが任意のシェルを実行できるかが変わる"],
-  ["actor.human_only", "エージェントに許す操作が変わる"],
-  ["auto.merge", "エージェントが PR を自動でマージするかが変わる"],
+  ["git.remote", msg("同期先が変わる")],
+  ["git.base_branch", msg("マージ済みの判定の基準が変わる")],
+  ["worktree.root", msg("作業場所が変わる")],
+  ["actions.test", msg("テストとして確認なしで実行するコマンドが変わる（シェルを許すのと同じ）")],
+  ["actions.shell", msg("エージェントが任意のシェルを実行できるかが変わる")],
+  ["actor.human_only", msg("エージェントに許す操作が変わる")],
+  ["auto.merge", msg("エージェントが PR を自動でマージするかが変わる")],
 ]);
 
 type Values = Record<string, unknown>;
@@ -87,7 +89,7 @@ export function isModified(value: unknown, defaultValue: unknown): boolean {
 
 /** 保存した値の短い書き方。リストは [a, b]、空のリストは「空」 */
 export function formatValue(value: unknown): string {
-  if (Array.isArray(value)) return value.length === 0 ? "空" : `[${value.join(", ")}]`;
+  if (Array.isArray(value)) return value.length === 0 ? tr("空") : `[${value.join(", ")}]`;
   return String(value);
 }
 
@@ -97,7 +99,8 @@ export function groupOf(key: string): string {
 }
 
 export function nameOf(key: string): string {
-  return NAMES[key] ?? key;
+  const name = NAMES[key];
+  return name === undefined ? key : tr(name);
 }
 
 /** 検索語が表示名・キー・説明のどれかに含まれるか（大文字小文字は区別しない） */
@@ -158,16 +161,16 @@ export function ConfigPage() {
         const res = await store.client.run<ConfigShowView["config"]>("config.set", { key, value });
         setView((v) => (v ? { ...v, config: res.data } : v));
         setMessages((d) => without(d, key));
-        setSaved(`${key} を ${formatValue(valueAt(res.data, key))} にした`);
+        setSaved(tr("{0} を {1} にした", key, formatValue(valueAt(res.data, key))));
         if (res.warnings.length) store.notify({ kind: "info", text: res.warnings.join(" / ") });
         void store.reload();
       } catch (error) {
         // 値は保存されている値に戻す（下書きを消すと欄は view の値を出す）
         const f = failureOf(error);
-        const detail = f.detail ? `（${f.detail}）` : "";
+        const detail = f.detail ? tr("（{0}）", f.detail) : "";
         setMessages((m) => ({
           ...m,
-          [key]: { kind: "error", text: `保存できない: ${f.message}${detail}` },
+          [key]: { kind: "error", text: tr("保存できない: {0}{1}", f.message, detail) },
         }));
       } finally {
         setSaving(null);
@@ -208,41 +211,43 @@ export function ConfigPage() {
   return (
     <div className="config-page">
       <div className="config-head">
-        <h2>設定</h2>
+        <h2>{tr("設定")}</h2>
         {/* 歯車と同じく、来る前の画面（なければカンバン）に戻る */}
         <button
           type="button"
           className="link config-back"
           onClick={() => toggleRoute(hrefOf({ page: "config" }))}
         >
-          前の画面に戻る
+          {tr("前の画面に戻る")}
         </button>
       </div>
       <p className="config-team" role="note">
-        <strong>チーム全員に効く設定</strong>
+        <strong>{tr("チーム全員に効く設定")}</strong>
         <span>
-          deguboard ブランチの <code>config.yaml</code> に保存し、push
-          すると同じリポジトリを使う全員に効く。利用者ごとの上書きはない
+          {trNode(
+            "deguboard ブランチの {0} に保存し、push すると同じリポジトリを使う全員に効く。利用者ごとの上書きはない",
+            <code>config.yaml</code>,
+          )}
         </span>
       </p>
       <div className="config-tools">
         <input
           type="search"
-          placeholder="設定を検索（名前・キー・説明）"
-          aria-label="設定を検索"
+          placeholder={tr("設定を検索（名前・キー・説明）")}
+          aria-label={tr("設定を検索")}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
       </div>
       <p className="config-saved muted" role="status" aria-live="polite">
-        {saved ? `保存した: ${saved}` : null}
+        {saved ? tr("保存した: {0}", saved) : null}
       </p>
-      {loadError ? <p className="error">設定を読めない: {loadError}</p> : null}
-      {!view && !loadError ? <p className="muted">読み込み中…</p> : null}
-      {view && groups.length === 0 ? <p className="empty">該当する設定がない</p> : null}
+      {loadError ? <p className="error">{trNode("設定を読めない: {0}", loadError)}</p> : null}
+      {!view && !loadError ? <p className="muted">{tr("読み込み中…")}</p> : null}
+      {view && groups.length === 0 ? <p className="empty">{tr("該当する設定がない")}</p> : null}
       {groups.map((g) => (
         <section key={g.id} className="config-group" aria-labelledby={`config-group-${g.id}`}>
-          <h3 id={`config-group-${g.id}`}>{g.label}</h3>
+          <h3 id={`config-group-${g.id}`}>{tr(g.label)}</h3>
           {g.fields.map((f) => {
             const value = valueAt(view!.config, f.key);
             const modified = isModified(value, f.default);
@@ -315,11 +320,14 @@ function FieldRow({
         </label>
         <code className="config-key">{field.key}</code>
         {modified ? (
-          <span className="badge config-modified" title={`既定は ${formatValue(field.default)}`}>
-            変更あり
+          <span
+            className="badge config-modified"
+            title={tr("既定は {0}", formatValue(field.default))}
+          >
+            {tr("変更あり")}
           </span>
         ) : null}
-        {busy ? <span className="muted">保存中…</span> : null}
+        {busy ? <span className="muted">{tr("保存中…")}</span> : null}
       </div>
       <p className="config-desc muted">{field.description}</p>
       <div className="config-control">
@@ -330,9 +338,9 @@ function FieldRow({
             className="config-reset"
             onClick={onReset}
             disabled={locked}
-            title={`既定の ${formatValue(field.default)} に戻す`}
+            title={tr("既定の {0} に戻す", formatValue(field.default))}
           >
-            既定に戻す
+            {tr("既定に戻す")}
           </button>
         ) : null}
       </div>
@@ -381,7 +389,7 @@ function FieldInput({
           {(field.options ?? []).map((o) => (
             <option key={o} value={o}>
               {o}
-              {o === field.default ? "（既定）" : ""}
+              {o === field.default ? tr("（既定）") : ""}
             </option>
           ))}
         </select>
@@ -400,7 +408,7 @@ function FieldInput({
               onChange(e.target.checked);
             }}
           />
-          {checked ? "有効" : "無効"}
+          {checked ? tr("有効") : tr("無効")}
         </label>
       );
     }
@@ -457,14 +465,14 @@ function ListInput({
   };
   return (
     <div className="config-list">
-      {items.length === 0 ? <span className="muted">空</span> : null}
-      <ul aria-label="項目">
+      {items.length === 0 ? <span className="muted">{tr("空")}</span> : null}
+      <ul aria-label={tr("項目")}>
         {items.map((item, i) => (
           <li key={`${i}-${item}`} className="config-list-item">
             <code>{item}</code>
             <button
               type="button"
-              aria-label={`${item} を外す`}
+              aria-label={tr("{0} を外す", item)}
               disabled={disabled}
               onClick={() => onChange(items.filter((_, j) => j !== i))}
             >
@@ -477,7 +485,7 @@ function ListInput({
         <input
           id={id}
           type="text"
-          placeholder="項目を足す"
+          placeholder={tr("項目を足す")}
           value={text}
           disabled={disabled}
           onChange={(e) => setText(e.target.value)}
@@ -486,7 +494,7 @@ function ListInput({
           }}
         />
         <button type="button" onClick={add} disabled={disabled || !text.trim()}>
-          足す
+          {tr("足す")}
         </button>
       </span>
     </div>
@@ -506,17 +514,25 @@ function ConfirmBox({
   onCancel(): void;
 }) {
   return (
-    <div className="config-confirm" role="alertdialog" aria-label={`${field.key} の保存の確認`}>
+    <div
+      className="config-confirm"
+      role="alertdialog"
+      aria-label={tr("{0} の保存の確認", field.key)}
+    >
       <p>
-        <code>{field.key}</code> を <code>{formatValue(value)}</code> にする。
-        {CONFIRM_KEYS.get(field.key)}。チーム全員に効く。保存する？
+        {trNode(
+          "{0} を {1} にする。{2}。チーム全員に効く。保存する？",
+          <code>{field.key}</code>,
+          <code>{formatValue(value)}</code>,
+          tr(CONFIRM_KEYS.get(field.key) ?? ""),
+        )}
       </p>
       <div className="config-confirm-actions">
         <button type="button" className="primary" onClick={onSave}>
-          保存する
+          {tr("保存する")}
         </button>
         <button type="button" onClick={onCancel}>
-          やめる
+          {tr("やめる")}
         </button>
       </div>
     </div>

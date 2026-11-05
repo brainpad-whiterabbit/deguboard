@@ -3,6 +3,7 @@
 
 import type { ReactNode } from "react";
 import type { RunView } from "../types.js";
+import { tr, msg } from "../l10n.js";
 
 /** 値がないときの表示 */
 export const NO_VALUE = "—";
@@ -11,11 +12,11 @@ export const NO_VALUE = "—";
 export type RunResultKey = "success" | "failure" | "interrupted" | "running" | "unfinished";
 
 export const RESULT_LABELS: Record<RunResultKey, string> = {
-  success: "成功",
-  failure: "失敗",
-  interrupted: "中断",
-  running: "実行中",
-  unfinished: "未完了",
+  success: msg("成功"),
+  failure: msg("失敗"),
+  interrupted: msg("中断"),
+  running: msg("実行中"),
+  unfinished: msg("未完了"),
 };
 
 /** 結果の種類（実行中・未完了を含む） */
@@ -29,7 +30,7 @@ export function RunResult({ run }: { run: RunView }) {
   const key = runResultKey(run);
   return (
     <span className={`run-result run-${key}`} title={run.error ?? undefined}>
-      {RESULT_LABELS[key]}
+      {tr(RESULT_LABELS[key])}
     </span>
   );
 }
@@ -37,13 +38,13 @@ export function RunResult({ run }: { run: RunView }) {
 /** 結果の丸印（パネルのチケット詳細の Run の 1 行）。表示名は読み上げとツールチップで、失敗・中断の理由もツールチップで読む */
 export function RunResultDot({ run }: { run: RunView }) {
   const key = runResultKey(run);
-  const label = RESULT_LABELS[key];
+  const label = tr(RESULT_LABELS[key]);
   return (
     <span
       className={`run-dot run-${key}`}
       role="img"
       aria-label={label}
-      title={run.error ? `${label}：${run.error}` : label}
+      title={run.error ? tr("{0}：{1}", label, run.error) : label}
     />
   );
 }
@@ -69,7 +70,8 @@ export function formatDuration(seconds: number | null, estimated = false): strin
   const s = Math.round(seconds);
   const h = Math.floor(s / 3600);
   const m = Math.floor((s % 3600) / 60);
-  const text = h > 0 ? `${h}時間 ${m}分` : m > 0 ? `${m}分 ${s % 60}秒` : `${s}秒`;
+  const text =
+    h > 0 ? tr("{0}時間 {1}分", h, m) : m > 0 ? tr("{0}分 {1}秒", m, s % 60) : tr("{0}秒", s);
   return `${estimated ? "~" : ""}${text}`;
 }
 

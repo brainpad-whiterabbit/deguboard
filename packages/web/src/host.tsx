@@ -22,6 +22,7 @@ import { hrefOf, navigate, toggleRoute, type Route } from "./router.js";
 import { useStore } from "./store.js";
 import type { AskAction } from "./types.js";
 import { createUiState, localStorageBackend, type UiState } from "./ui-state.js";
+import { tr } from "./l10n.js";
 
 export type Surface = "sidebar" | "panel" | "browser";
 
@@ -89,7 +90,7 @@ export function createHost(surface: Surface, client: WebviewClient | null, state
 
 /** navigator.clipboard に書く。ない（安全でない文脈など）か拒まれたら reject */
 async function writeClipboard(text: string): Promise<void> {
-  if (!navigator.clipboard) throw new Error("navigator.clipboard が使えない");
+  if (!navigator.clipboard) throw new Error(tr("navigator.clipboard が使えない"));
   await navigator.clipboard.writeText(text);
 }
 
