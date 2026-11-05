@@ -28,6 +28,7 @@ import {
   type MenuTicket,
 } from "./context-menu.js";
 import { dgAdvice, resolveDg } from "./dg.js";
+import { GOTO_COMMAND, gotoItems } from "./goto.js";
 import {
   buildIdIndex,
   findIds,
@@ -165,6 +166,8 @@ export function activate(context: vscode.ExtensionContext): void {
       if (!route) return;
       return openPanel(context, folder, { column: vscode.ViewColumn.Beside, route });
     }),
+    // 「チケットへ移動」。ID の索引から QuickPick を出し、選んだ ID の詳細を開く
+    vscode.commands.registerCommand(GOTO_COMMAND, () => gotoTicket(context)),
     vscode.languages.registerHoverProvider([...ID_DOCUMENT_SELECTOR], {
       async provideHover(document, position) {
         const index = (await idIndexFor(document.uri))?.index;
@@ -615,10 +618,13 @@ async function refreshStatusBar(): Promise<void> {
  */
 async function idIndexFor(
   uri: vscode.Uri,
+  options: { retry?: boolean } = {},
 ): Promise<{ index: IdIndex; folder: string } | undefined> {
   const folder =
     vscode.workspace.getWorkspaceFolder(uri) ?? (vscode.workspace.workspaceFolders ?? [])[0];
   if (!folder) return undefined;
+  // retry: 利用者が自分で起動したときは、覚えた失敗があっても読み直す
+  if (options.retry) forgetIdIndexFailure(folder);
   const key = folder.uri.toString();
   let index = idIndexes.get(key);
   if (!index) {
@@ -630,7 +636,41 @@ async function idIndexFor(
   return index ? { index, folder: key } : undefined;
 }
 
-/** 覚えた「読めなかった」を忘れる。データの見張り・ステータスバーの更新・同期のとき、次の要求で読み直させる */
+/**
+ * 「チケットへ移動」。開いているエディタの文書があるフォルダ（なければ最初の作業フォルダ）の索引から選ばせる。
+ * 複数のフォルダを開いているときも、出すのは 1 つのフォルダのデータだけ（ID はフォルダごとに重なりうるため）。
+ * 索引が読めなければ（データのないリポジトリなど）、メッセージを 1 回出す。このコマンドは利用者が起動したときだけ動く
+ */
+async function gotoTicket(context: vscode.ExtensionContext): Promise<void> {
+  const uri =
+    vscode.window.activeTextEditor?.document.uri ??
+    (vscode.workspace.workspaceFolders ?? [])[0]?.uri;
+  const found = uri ? await idIndexFor(uri, { retry: true }) : undefined;
+  if (!found) {
+    void vscode.window.showInformationMessage("deguboard: チケットのデータを読めない");
+    return;
+  }
+  const items = gotoItems(found.index).map((i) => ({
+    label: i.label,
+    description: i.description,
+    detail: i.detail,
+    id: i.id,
+  }));
+  const picked = await vscode.window.showQuickPick(items, {
+    placeHolder: "ID かタイトルの一部で絞り込む（例: t12、ログイン）",
+    matchOnDescription: true,
+    matchOnDetail: true,
+  });
+  if (!picked) return;
+  const folder = (vscode.workspace.workspaceFolders ?? []).find(
+    (f) => f.uri.toString() === found.folder,
+  );
+  const route = routeOfId(picked.id);
+  if (!folder || !route) return;
+  await openPanel(context, folder, { column: vscode.ViewColumn.Beside, route });
+}
+
+/** 覚えた「読めなかった」を忘れる。データの見張り・ステータスバーの更新・同期・利用者が「チケットへ移動」を起動したとき、次の要求で読み直させる */
 function forgetIdIndexFailure(folder: vscode.WorkspaceFolder): void {
   idIndexFailedAt.delete(folder.uri.toString());
 }
