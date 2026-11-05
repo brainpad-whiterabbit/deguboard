@@ -74,7 +74,7 @@ mise run dg -- guide done      # マージ後の後始末
 - `@deguboard/core` と `@deguboard/server` の `exports` は条件つきで、テストと型検査・vscode のビルド（`development` 条件）は `src/` を、ビルド済みの `dg` は `dist/` を見る。公開する tarball では `publishConfig.exports` が `development` 条件を外し、`dist/` だけを指す（`mise run pack` で確かめる）。テストの前にビルドは要らない
 - テストはソースの隣の `*.test.ts`（画面は `*.test.tsx`）に置き、ルートの `vitest.config.ts` が `packages/*/src/**/*.test.{ts,tsx}` と `test/**/*.test.ts` をまとめて走らせる。パッケージごとの設定ファイルは作らない
 - パッケージをまたぐテストは `test/` に置く。`e2e/routes.test.ts` は CLI・HTTP・Webview の 3 経路の結果とコミットの一致（NF-2）を、`layout/` は画面の配置と吹き出しの一覧を確かめる（`mise run test:layout`。ブラウザが要るので check に入れない）
-- Git を使うテストは `packages/core/test/helpers/git-fixture.ts` で、一時ディレクトリに bare リモートと 2 つの clone を作って行う。開発者のグローバル設定に影響されないよう、fixture が `GIT_CONFIG_GLOBAL=/dev/null` と `GIT_CONFIG_NOSYSTEM=1` を与える。後片付けの rm が裏の git maintenance と競合しないよう、環境変数（`GIT_CONFIG_COUNT`）で `maintenance.auto` と `gc.auto` を止め、bare リモートには `receive.autogc false` も設定し、rm は再試行させる
+- Git を使うテストは `packages/core/test/helpers/git-fixture.ts` で、一時ディレクトリに bare リモートと 2 つの clone を作って行う。fixture が開発者のグローバル設定と裏の git maintenance からテストを切り離す（方法は fixture のコメント）
 - 依存を足すときは `mise exec -- pnpm add <名前>@<版> --filter <パッケージ>` で足し（版は `1.2.3` の完全な形で書く。`pnpm-workspace.yaml` の `savePrefix` で固定の版で書かれるが、`7`・`^7` のような範囲を渡すと範囲のまま書かれる。版を上げるのも `add <名前>@<新しい版>`、削除は `remove`、開発用は `-D` を付ける、ルートに足すときは `--filter` を外す。overrides を変えたときは `mise exec -- pnpm install`）、更新した lockfile もコミットする（`mise run install` は `--frozen-lockfile`）
 
 ## パッケージ
@@ -85,16 +85,16 @@ mise run dg -- guide done      # マージ後の後始末
 
 ドメインモデル・ストレージ・Git 操作・ワークフロー・Run・コマンド定義。`src/` のモジュール（ADR-007 の「Core の中の境界」はこの表を参照する）：
 
-| モジュール  | 役割                                                                                                                                                                                                                                                                                                                        |
-| ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `model/`    | Zod のスキーマ（config・Project・Ticket・Epic・Iteration・Plan・Workflow・Run）、ID の解析と採番、Status と前進の順、Run の集計の純粋関数（`metrics.ts`）                                                                                                                                                                   |
-| `storage/`  | frontmatter と YAML の読み書き（コメントとキー順を保つ）、原子的書き込み、`Store`（起動時に走査してメモリ上に索引を作る）、参照の整合                                                                                                                                                                                       |
-| `workflow/` | 遷移の制約の合成と検査、条件の評価、`reconcile` の評価、定義の検証、同梱テンプレート                                                                                                                                                                                                                                        |
-| `git/`      | deguboard worktree の用意、取り込みと push、書き込みの 1 単位 `withWrite`、仮番号の振り直し、事実の収集、frontmatter のマージドライバ（`merge.ts`。SY-4）、経過の読み取り（`history.ts`。CL-7）                                                                                                                             |
-| `run/`      | Run の start・finish。実行中の記録は `deguboard-local/runs/`、二重の start は `locks/runs` のロックで拒む                                                                                                                                                                                                                   |
-| `agents/`   | Agent Adapter（`adapters/claude-code.ts`・`adapters/codex.ts`・`adapters/copilot.ts`）。`run finish`・`run refresh` が会話記録から使用量（finish はツールの回数も）を取り込み、`dg skill install` が書く先と `ask` が Skill の有無を見る先を、同じ置き場所（`skillDirs`）から引く。汎用部分は `index.ts` だけを import する |
-| `actions/`  | 登録済みの Action（ライブラリ。コマンドにはしない）。core の公開は `ACTION_NAMES` だけ                                                                                                                                                                                                                                      |
-| `commands/` | 3 つの入口の正本。`defineCommand` で「名前・Zod の入力・実装」を組にし、`openContext` と `runCommand` で呼ぶ                                                                                                                                                                                                                |
+| モジュール  | 役割                                                                                                                                                                                            |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `model/`    | Zod のスキーマ（config・Project・Ticket・Epic・Iteration・Plan・Workflow・Run）、ID の解析と採番、Status と前進の順、Run の集計の純粋関数（`metrics.ts`）                                       |
+| `storage/`  | frontmatter と YAML の読み書き（コメントとキー順を保つ）、原子的書き込み、`Store`（起動時に走査してメモリ上に索引を作る）、参照の整合                                                           |
+| `workflow/` | 遷移の制約の合成と検査、条件の評価、`reconcile` の評価、定義の検証、同梱テンプレート                                                                                                            |
+| `git/`      | deguboard worktree の用意、取り込みと push、書き込みの 1 単位 `withWrite`、仮番号の振り直し、事実の収集、frontmatter のマージドライバ（`merge.ts`。SY-4）、経過の読み取り（`history.ts`。CL-7） |
+| `run/`      | Run の start・finish。実行中の記録は `deguboard-local/runs/`、二重の start は `locks/runs` のロックで拒む                                                                                       |
+| `agents/`   | Agent Adapter（`adapters/` に製品ごと）。会話記録からの使用量の取り込みと、Skill の置き場所（`skillDirs`）。汎用部分は `index.ts` だけを import する                                            |
+| `actions/`  | 登録済みの Action（ライブラリ。コマンドにはしない）。core の公開は `ACTION_NAMES` だけ                                                                                                          |
+| `commands/` | 3 つの入口の正本。`defineCommand` で「名前・Zod の入力・実装」を組にし、`openContext` と `runCommand` で呼ぶ                                                                                    |
 
 入口がコマンドを呼ぶ流れ：`openContext({ cwd, actor, actions: ACTION_NAMES })` → `runCommand(findCommand("ticket.create"), ctx, input)`。入力の形の誤りは `UsageError`（終了コード 2）、実行時の失敗は `OperationError`（終了コード 1、`code` に種類）。
 
@@ -124,7 +124,7 @@ VS Code 拡張。拡張ホストから core の `createLocalClient` を呼び、
 
 ビルドは Vite で `dist/extension.cjs` に束ね、web の `dist` を `dist/web` に写す（[ADR-008](adr/ADR-008-tech-stack.md)）。同梱する core の版は `vite.config.ts` の `define` で埋める。手元で動かすには `mise run build` のあと VS Code で `packages/vscode` を開いて F5（拡張開発ホスト）、Activity Bar の deguboard のアイコン。
 
-VSIX は `mise run vsix`（`@vscode/vsce`。判断は [ADR-008](adr/ADR-008-tech-stack.md)）で `packages/vscode/deguboard-vscode.vsix` にでき、`mise run vsix:install`（`mise run install` の最後にも走る）で VS Code に入る（`code` CLI がないか、`DEGUBOARD_VSIX_INSTALL_TIMEOUT_MS`（既定 60 秒）までに答えなければ、手で入れるコマンドを出して飛ばす。リモートの `code` は VS Code の窓口が答えないと待ち続けるので止める。リモート開発なら統合ターミナルから）。入れたらウィンドウを再読み込みする。入るものは `.vscodeignore` が決め、入ってよいファイルの一覧は `packages/vscode/src/vsix-files.test.ts` が `vsce ls` と照らす（一覧にないものが入ると `mise run check` が落ちる。入れるファイルを増やす PR は一覧も直す）。拡張の README（Marketplace の紹介）はルートの README.md の「ほかの使い方」より前を `scripts/vscode-readme.mjs` が写して作り、git には入れない。紹介はルートの README で直し、その部分のリンクは絶対 URL にする（相対リンクがあると作れない）。
+VSIX は `mise run vsix`（`@vscode/vsce`。判断は [ADR-008](adr/ADR-008-tech-stack.md)）で `packages/vscode/deguboard-vscode.vsix` にでき、`mise run vsix:install`（`mise run install` の最後にも走る）で VS Code に入る（入れられないときは手で入れるコマンドを出す。条件は `scripts/install-vsix.mjs` の冒頭。リモート開発なら統合ターミナルから）。入れたらウィンドウを再読み込みする。入るものは `.vscodeignore` が決め、入ってよいファイルの一覧は `packages/vscode/src/vsix-files.test.ts` が `vsce ls` と照らす（一覧にないものが入ると `mise run check` が落ちる。入れるファイルを増やす PR は一覧も直す）。拡張の README（Marketplace の紹介）はルートの README.md の「ほかの使い方」より前を `scripts/vscode-readme.mjs` が写して作り、git には入れない。紹介はルートの README で直し、その部分のリンクは絶対 URL にする（相対リンクがあると作れない）。
 
 README の使い方の GIF（`packages/vscode/images/`）は、画面を変えたら `mise run gifs` で録り直す（台本は `scripts/record-gifs.mjs`）。
 

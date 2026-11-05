@@ -337,14 +337,15 @@ describe("dg guide", () => {
     // 上限は親が数え、fix の Run の数では数えない。合う step がなければ代わりの step で記録する
     expect(bullet(fixLoop, "上限")).toContain("親が");
     expect(bullet(fixLoop, "上限")).toContain("重い指摘を直した回で数える");
-    const noStep = bullet(runs, "合う step がない");
+    // 代わりの step の手順は step を選ぶ run に置き、review は参照する
+    expect(bullet(runs, "合う step がない")).toContain("`dg guide run`");
+    const noStep = bullet(section(run, "## Run を記録する"), "合う step がない");
     expect(noStep).toContain("`fix` がなければ `review`");
     // step は definition に足して --file で書く。--template は定義を丸ごと置き換える
     expect(noStep).toContain("`dg workflow set <id> --file <path>`");
     expect(noStep).toContain("定義を丸ごと置き換える");
     // テンプレートにも fix がない consulting では人に伝えない
     for (const word of ["consulting", "テンプレート", "伝えず"]) expect(noStep).toContain(word);
-    expect(run).toContain("合う step がない");
     // Run を自分で呼ぶ理由は review に置き、run は参照する
     expect(runs).toContain("Run の ID");
     expect(runs).toContain("会話記録");

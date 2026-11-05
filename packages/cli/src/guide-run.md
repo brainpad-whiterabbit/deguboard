@@ -6,7 +6,8 @@
 
 Run は 1 回の作業の記録で、使用量（トークン）が残る。実装の Run は `dg guide work` の手順 4〜6、見直しと手直しは別の Run（`dg guide review` の「Run の分け方」）。PR の要らない作業も、作業の前後で始めて閉じる。
 
-- **step**：チケットの Project の Workflow（`dg --json --actor agent project list` の `workflow`）を `dg --json --actor agent workflow show <workflow>` で読み、`data.definition.steps` から今の作業に合うものの `id` を選ぶ。`steps` がなければ `implement`・`review`・`fix`・`investigate` を使う。合う語がないとき（init の前からある Workflow や consulting に `fix` がないなど）は `dg guide review` の「Run の分け方」の「合う step がない」（代わりの step と、人に伝えるかどうか）
+- **step**：チケットの Project の Workflow（`dg --json --actor agent project list` の `workflow`）を `dg --json --actor agent workflow show <workflow>` で読み、`data.definition.steps` から今の作業に合うものの `id` を選ぶ。`steps` がなければ `implement`・`review`・`fix`・`investigate` を使う
+- **合う step がない**：`steps` に `fix` がなければ `review`、`review` もなければ実装の step で代わりに記録する（`review` がなければ見直し役も実装の step で記録する）。同梱のテンプレートが持つ `fix`・`review` が Workflow にない（init の前からある Workflow など）ときだけ、足すよう人に伝える。consulting のようにテンプレートにも `fix` がない Workflow では伝えず、代わりの step で記録するだけにする。足すのは `dg --json --actor agent workflow show <id>` の `data.definition` の `steps` に項目を足したファイルを `dg workflow set <id> --file <path>` で書く（`dg init` は既にある Workflow を書き換えない。`--template` は labels・transitions・fields・独自の steps を捨てて定義を丸ごと置き換えるので、手を加えた Workflow には使わない）
 - **agent**：自分の Adapter の名前（`dg run start --help`。Claude Code なら `claude-code`）
 - **自分で呼ぶ**：run start と finish は作業するエージェント自身が呼ぶ（理由は `dg guide review` の「Run の分け方」）
 - 使用量は書かない。取れずに finish が警告しても止めない
