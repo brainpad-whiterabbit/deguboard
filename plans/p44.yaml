@@ -1,0 +1,49 @@
+id: p44
+project: default
+tickets: [t385, t386, t388, t387, t391, t393, t389, t390, t392]
+after:
+  t389:
+    - t386
+    - t388
+  t390:
+    - t388
+  t392:
+    - t388
+pending_approval: true
+details:
+  t385:
+    scope: npm に出す 3 パッケージの tarball に LICENSE を入れ、作業ブランチに入れず、development.md の確かめに足す
+    approach: VSIX と同じくルートの LICENSE を pack・publish の前に写し、.gitignore に足して npm pack --dry-run で確かめる
+    tier: standard
+  t386:
+    scope: guide-choices と各 guide の「次の手順を選ぶ」を Skill がなければ dg guide を読んで続ける案内にし、overview に Skill は任意と書く
+    approach: guide の md の文面だけを直し、guide の文面のテストを合わせる
+    tier: light
+  t388:
+    scope: skill install の書く場所と ask の判定の見る場所・HOME の解決を 1 つの定義にする
+    approach: claude-code の Adapter に scope ごとの置き場所を持たせ cli/skill.ts はそれを使い、homeDir を揃えてテストで一致を確かめる
+    tier: heavy
+  t387:
+    scope: Iteration 詳細の依頼文をコピーの形式を、人の切り替えか ask の既定に従わせる
+    approach: iteration-next.tsx で ASK_FORMAT_KEY の値を渡すか format を省き、テストの期待値を直す
+    tier: standard
+  t391:
+    scope: 中止の輪を配置テストで確かめ border で描き、使われない CSS を消し、閉じた日を 1 部品にする
+    approach: sidebar.layout.ts に computed style の確かめを足し、styles.css と history.tsx・date-time.tsx を整理する
+    tier: standard
+  t393:
+    scope: ADR-007 に CLI だけの操作の例外を書き、oxlint の core の import 制限に node:http 系を足す
+    approach: ADR-007 を予算内で書き換え、.oxlintrc.json と写しを揃えて lint のテストを通す
+    tier: light
+  t389:
+    scope: PATH に dg がないときの置き換えの案内を 1 か所に置き、Skill と文章の形式の両方に届ける
+    approach: 案内の文面を guide-overview か core の 1 か所に置き、skill.md と ASK_DG_USAGE はそれを写し、テストで確かめる
+    tier: standard
+  t390:
+    scope: 形式の既定の 3 経路一致・届く前の状態・formatShortDay の時差と夏時間の境目のテストを足す
+    approach: cli/ask.test に local client を足し、ask-composer.test で保留の Promise を使い、date-time.test で TZ を切り替える
+    tier: standard
+  t392:
+    scope: skill install --dry-run の警告の言い回しと files のコメントを直し、personal と衝突の場合をテストする
+    approach: skill.ts の警告を dryRun で言い分け、skill.test に 2 件足す
+    tier: standard
