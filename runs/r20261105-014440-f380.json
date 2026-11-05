@@ -1,0 +1,23 @@
+{
+  "id": "r20261105-014440-f380",
+  "ticket": "t393",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "haiku",
+  "started_at": "2026-11-05T01:44:40Z",
+  "finished_at": "2026-11-05T01:47:38Z",
+  "result": "success",
+  "error": null,
+  "retries": 3,
+  "retry_reasons": [
+    "素の名前 http・https・net・tls・http2 が core の制限をすり抜けていた（両方の group に足した）",
+    "ADR-007 の追加の 1 行を分けた（HTTP の検査は依存の節へ、例外は AG-4 の幅を持たせた）",
+    "core の制限に回帰テストがなかった（node:http・素の http・node:path の見本を足した）"
+  ],
+  "usage": {
+    "input": 14,
+    "output": 5586,
+    "cache_read": 510913,
+    "cache_write": 9023
+  }
+}
