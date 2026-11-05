@@ -28,6 +28,8 @@ export interface UsageQuery {
 export interface RunSpan {
   started_at: string;
   finished_at: string | null;
+  /** Run の agent。なければ自分と同じ agent とみなす */
+  agent?: string;
 }
 
 /** Adapter が取り込んだ値。取れなかったキーは null（RN-2）。数とモデル名だけで、会話の中身・パスは返さない（MT-4） */

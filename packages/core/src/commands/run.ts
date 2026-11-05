@@ -23,7 +23,11 @@ export type RunView = Run & { running: boolean; duration_seconds: number | null 
 function runSpans(closed: Iterable<{ data: Run }>, running: Iterable<{ data: Run }>) {
   const spans = new Map<string, RunSpan>();
   for (const { data } of [...closed, ...running]) {
-    spans.set(data.id, { started_at: data.started_at, finished_at: data.finished_at });
+    spans.set(data.id, {
+      started_at: data.started_at,
+      finished_at: data.finished_at,
+      agent: data.agent,
+    });
   }
   return spans;
 }

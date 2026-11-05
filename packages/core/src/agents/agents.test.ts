@@ -343,6 +343,16 @@ describe("Claude Code の Adapter", () => {
       expect(got.usage.output).toBe(11);
     });
 
+    it("ほかの agent の Run には、同じファイルで 1 分以内に ID が出ても譲らない", async () => {
+      const { projectDir, query } = await setup();
+      await writeTranscript(path.join(projectDir, "s1.jsonl"), lines);
+      const others = new Map([[B, { started_at: B_STARTED, finished_at: null, agent: "codex" }]]);
+      const got = await claudeCodeAdapter.readTranscriptUsage(
+        query({ finishedAt: at(20), others }),
+      );
+      expect(got.usage.output).toBe(11);
+    });
+
     it("探す範囲の外（別の worktree）の会話記録で始まった Run の ID を 1 分以内に表示しただけでは、その Run に譲らない", async () => {
       const { home, projectDir, query } = await setup();
       // A は s1、B は別の worktree の projects ディレクトリの s2 で始めた。s1 は 10:10:30 に B の ID を見ただけ

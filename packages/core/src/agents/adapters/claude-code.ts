@@ -33,6 +33,7 @@ import {
   tallyTools,
   TAIL_MS,
   timeOf,
+  TIMESTAMPS,
 } from "./transcript.js";
 
 type Counts = CollectedUsage["usage"];
@@ -136,9 +137,6 @@ function addTools(tools: Scan["tools"], message: Record<string, unknown>, key: s
   });
 }
 
-/** 行の中の timestamp の値。最上位の timestamp は message の後にあり、入れ子の中にも同じキーがありうるので、すべてを候補にする */
-const TIMESTAMPS = /"timestamp":"([^"]+)"/g;
-
 async function scan(
   file: string,
   query: UsageQuery,
@@ -167,7 +165,8 @@ async function scan(
       return true;
     }
     if (!line.includes('"assistant"')) return true;
-    // 期間に入る timestamp の文字列がない行は JSON.parse しない
+    // 期間に入る timestamp の文字列がない行は JSON.parse しない。最上位の timestamp は message の後にあり、
+    // 入れ子の中にも同じキーがありうるので、すべてを候補にする
     const stamps = Array.from(line.matchAll(TIMESTAMPS), (m) => Date.parse(m[1] ?? ""));
     if (!stamps.some((t) => t >= from && t <= to)) {
       return !(stamps.length > 0 && stamps.every((t) => t > to + TAIL_MS));
@@ -193,12 +192,17 @@ async function scan(
     result.messages.set(key, { usage: usage as Record<string, unknown>, model: message["model"] });
     return true;
   };
-  const lines = createInterface({ input: createReadStream(file), crlfDelay: Infinity });
-  for await (const line of lines) {
-    const more = take(line);
-    // ほかの Run の ID はその行の後の応答から効く
-    claims.see(line);
-    if (!more) break;
+  const input = createReadStream(file);
+  try {
+    const lines = createInterface({ input, crlfDelay: Infinity });
+    for await (const line of lines) {
+      const more = take(line);
+      // ほかの Run の ID はその行の後の応答から効く
+      claims.see(line);
+      if (!more) break;
+    }
+  } finally {
+    input.destroy();
   }
   return result;
 }
@@ -245,7 +249,7 @@ export const claudeCodeAdapter: AgentAdapter = {
     const to = Date.parse(query.finishedAt) + 999;
     let best: Scan | undefined;
     let bestFile = "";
-    const read: OverlapClaims[] = [];
+    const read: Array<{ seen: ReadonlyMap<string, number> }> = [];
     const scanned = new Set<string>();
     // session のファイルに Run がなければ（別のセッションの環境を受け継いだなど）、作業ツリーから探す
     for (const candidates of [sessionCandidates, worktreeCandidates]) {
@@ -264,7 +268,7 @@ export const claudeCodeAdapter: AgentAdapter = {
     if (best && best.claims.claimants.size > 0) {
       for (const file of await allCandidates(query, projects)) {
         if (scanned.has(file)) continue;
-        const c = await sightings(file, query, from, to).catch(() => undefined);
+        const c = await sightings(file, best.claims).catch(() => undefined);
         if (c) read.push(c);
       }
     }
