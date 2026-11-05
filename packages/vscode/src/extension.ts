@@ -669,25 +669,23 @@ async function notifyApprovals(
 ): Promise<void> {
   const context = extensionContext;
   if (!context) return;
-  {
-    const open = "開く";
-    const choice = await vscode.window.showInformationMessage(approvalMessage(arrived), open);
-    if (choice !== open) return;
-    let item: ApprovalItem | undefined = arrived[0];
-    if (arrived.length > 1) {
-      const picked = await vscode.window.showQuickPick(
-        arrived.map((i) => ({
-          label: i.id,
-          description: i.title ?? (i.kind === "plan" ? "Plan" : ""),
-          item: i,
-        })),
-        { placeHolder: "開く承認待ちを選ぶ" },
-      );
-      item = picked?.item;
-    }
-    const route = item && approvalRoute(item);
-    if (route) await openPanel(context, folder, { column: vscode.ViewColumn.Beside, route });
+  const open = "開く";
+  const choice = await vscode.window.showInformationMessage(approvalMessage(arrived), open);
+  if (choice !== open) return;
+  let item: ApprovalItem | undefined = arrived[0];
+  if (arrived.length > 1) {
+    const picked = await vscode.window.showQuickPick(
+      arrived.map((i) => ({
+        label: i.id,
+        description: i.title ?? (i.kind === "plan" ? "Plan" : ""),
+        item: i,
+      })),
+      { placeHolder: "開く承認待ちを選ぶ" },
+    );
+    item = picked?.item;
   }
+  const route = item && approvalRoute(item);
+  if (route) await openPanel(context, folder, { column: vscode.ViewColumn.Beside, route });
 }
 
 /**
