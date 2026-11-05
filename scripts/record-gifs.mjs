@@ -267,9 +267,10 @@ function frameHtml(appUrl, icon, agent = false) {
   .term-lines .dim{color:#8b8b8b}
   .term-lines .ok{color:#73c991}
   .term-lines .ask{color:#e2c08d}
+  .term-lines .sel{color:#4daafc}
   .term-lines .tool{color:#d4d4d4}
   .term-lines .tool i{font-style:normal;color:#73c991}
-  .term-input{flex:none;border:1px solid #4a4a4a;border-radius:6px;padding:4px 8px;display:flex;gap:6px;min-height:26px;max-height:62px;overflow:hidden}
+  .term-input{flex:none;border:1px solid #4a4a4a;border-radius:6px;padding:4px 8px;display:flex;gap:6px;min-height:26px;overflow:hidden}
   .term-input .text{flex:1;min-width:0;word-break:break-all}
   .term-input.focus{border-color:#8b8b8b}
   .term-input.focus .text::after{content:"";display:inline-block;width:7px;height:13px;background:#d4d4d4;vertical-align:-2px;margin-left:1px}
@@ -596,7 +597,7 @@ async function askAgent(rec, app, frame) {
   await rec.hold(1800);
 }
 
-/** agent の外枠を整える：左パネルを開き、エディタにファイル名とコード、ターミナルの高さを入れる */
+/** agent の外枠を整える：左パネルを開き、エディタにファイル名とコード、ターミナルの高さを入れる（コードが空ならターミナルだけ） */
 async function setupAgent(rec, { file, code, term }) {
   await rec.page.evaluate(
     ([side, file, code, term]) => {
@@ -605,6 +606,11 @@ async function setupAgent(rec, { file, code, term }) {
       document.querySelector(".tab-code").textContent = file;
       document.querySelector(".src").innerHTML = code;
       document.querySelector(".term").style.setProperty("--term", term);
+      // コードがなければエディタを隠し、ターミナルをタブの下の高さいっぱいにする
+      if (!code) {
+        document.querySelector(".editor").style.display = "none";
+        document.querySelector(".term").style.flex = "1 1 0";
+      }
     },
     [SIDE, file, code, term],
   );
@@ -685,7 +691,13 @@ async function importFlow(rec, app, _frame, { work, tmp }) {
   await termSay(rec, "dim", "  1. ログインの API 呼び出しを 1 回にまとめる ・ high", 300);
   await termSay(rec, "dim", "  2. 失敗の理由ごとにエラーの文言を分ける", 300);
   await termSay(rec, "dim", "  3. ログインの所要時間を計るテストを足す ・ 1 を待つ", 300);
-  await termSay(rec, "ask", "? この内容で起票しますか  ❯ 起票する   直す", 900);
+  await termSay(rec, "ask", "? この内容で起票しますか", 200);
+  await termSay(rec, "sel", "  ❯ 1. 起票する", 100);
+  await termSay(rec, "dim", "    2. 直す", 700);
+  // 選択肢を 1 で選んで Enter で送る
+  await termType(rec, "1");
+  await rec.hold(400);
+  await termEnter(rec);
   const drafts = [
     {
       key: "api",
@@ -724,7 +736,7 @@ async function importFlow(rec, app, _frame, { work, tmp }) {
 
 /** /dgall --auto を付けて頼み、起票・計画のあと、計画の帯から依存のグラフを開き、チケットが Todo から In Progress を経てすべて Done になる */
 async function runAllFlow(rec, app, _frame, { work, tmp }) {
-  await setupAgent(rec, { file: "claude", code: "", term: "100%" });
+  await setupAgent(rec, { file: "claude", code: "", term: "auto" });
   await rec.hold(500);
   await rec.moveTo(rec.page.locator(".term-input"), 500, 0.3);
   await rec.click();
@@ -921,7 +933,13 @@ async function main() {
     { name: "import.gif", hash: "#/backlog", script: importFlow, repo: importRepo, agent: true },
     { name: "run-all.gif", hash: "#/board", script: runAllFlow, repo: runAllRepo, agent: true },
     { name: "retro.gif", hash: "#/history", script: retroFlow, repo: retroRepo, agent: true },
-  ].filter((job) => only.length === 0 || only.includes(job.name));
+  ];
+  const unknown = only.filter((name) => !jobs.some((job) => job.name === name));
+  if (unknown.length)
+    throw new Error(
+      `知らない GIF の名前: ${unknown.join("、")}（${jobs.map((j) => j.name).join("・")} から選ぶ）`,
+    );
+  if (only.length) jobs.splice(0, jobs.length, ...jobs.filter((job) => only.includes(job.name)));
   const tmp = await realpath(await mkdtemp(path.join(os.tmpdir(), "deguboard-gifs-")));
   const servers = [];
   let browser;
