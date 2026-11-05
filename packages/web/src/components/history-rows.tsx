@@ -2,7 +2,7 @@
 // 行は 2 段：1 段目は状態の丸印・番号・タイトル（サイドバーでは 2 行まで）、2 段目は Epic・PR などの付記。
 // 優先度と担当者は出さない（終わったものを見る画面なので）。中止の行は点を塗らない輪にしてタイトルを薄くし、付記の頭に「中止」と書いて、色だけに頼らず完了と見分ける。
 // 検索中は query を渡し、当たった部分（タイトル・番号・ラベル）に印（mark）を付ける。
-// 行はエージェントに頼める場所にする（右端の吹き出し・右クリック・Shift+F10。ask-menu.tsx）
+// 行はエージェントに頼める場所にする（右端の吹き出し・Shift+F10。ask-menu.tsx）
 
 import { Fragment, useState, type ReactNode } from "react";
 import { ASK_SECTIONS, useAskSpot } from "./ask-menu.js";
@@ -55,7 +55,7 @@ export function HistoryTicketRow({
   query?: string | undefined;
 }) {
   const store = useStore();
-  // 行から頼む（UI-15。吹き出し・右クリック・Shift+F10）
+  // 行から頼む（UI-15。吹き出し・Shift+F10）
   const spot = useAskSpot({
     targets: [t.id],
     label: `行 ${t.id}`,

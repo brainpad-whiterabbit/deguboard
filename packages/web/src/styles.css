@@ -3084,13 +3084,3 @@ td.ask-cell {
 .selection-gap {
   flex: 1;
 }
-/* 絞り込みの件数は右クリックで頼める。点線の下線で示す */
-.quick-filters .count[data-ask-spot] {
-  padding: 0 4px;
-  border-radius: 3px;
-  border-bottom: 1px dashed var(--vscode-focusBorder);
-  cursor: context-menu;
-}
-.quick-filters .count[data-ask-spot]:hover {
-  background: var(--vscode-list-hoverBackground);
-}

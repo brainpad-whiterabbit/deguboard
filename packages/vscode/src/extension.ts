@@ -12,21 +12,15 @@ import {
   createLocalClient,
   pickUser,
   toCommandFailure,
-  ASK_ACTIONS,
   WEBVIEW_CONTRACT,
-  type AskAction,
   type CommandClient,
   type StatusView,
   type WebviewEvent,
 } from "@deguboard/core";
 import * as vscode from "vscode";
 import {
-  askCommandId,
   BACKLOG_ROW_COMMANDS,
-  menuAskOf,
   menuTicketOf,
-  PANEL_VIEW_TYPE,
-  SIDEBAR_VIEW_ID,
   ticketRoute,
   type MenuTicket,
 } from "./context-menu.js";
@@ -48,8 +42,9 @@ import {
   type WebviewActions,
 } from "./webview.js";
 
-const VIEW_ID = SIDEBAR_VIEW_ID;
-const PANEL_TYPE = PANEL_VIEW_TYPE;
+/** 左パネルのビューの ID（package.json の views と合わせる）と、エディタのパネルの viewType */
+const VIEW_ID = "deguboard.screens";
+const PANEL_TYPE = "deguboard";
 
 /** エディタ領域のパネル。作業フォルダごとに 1 つで、詳細はこれを使い回す */
 const panels = new Map<string, vscode.WebviewPanel>();
@@ -82,16 +77,6 @@ export function activate(context: vscode.ExtensionContext): void {
     // 履歴で開いている行。なければ対象なし）で出す。コマンドパレットは開いているパネルの下（パネルが手前になければ左パネルの下）に、対象なしで出す
     vscode.commands.registerCommand("deguboard.ask", () => void askFromPalette()),
     vscode.commands.registerCommand("deguboard.askInSidebar", () => void askCurrentInSidebar()),
-    // 行・見出しの右クリックの「エージェントに頼む ›」（package.json の webview/context のサブメニュー。引数は data-vscode-context）。
-    // 選んだ頼むことで、右クリックした画面（左パネルかパネル）の下の入力欄を開く（UI-15）
-    ...ASK_ACTIONS.map((action) =>
-      vscode.commands.registerCommand(askCommandId(action), (arg: unknown) => {
-        const asked = menuAskOf(arg, action);
-        if (!asked) return;
-        if (asked.panel) void askInPanel(asked.targets, asked.action, asked.within);
-        else void askInSidebar(asked.targets, asked.action, asked.within);
-      }),
-    ),
     // 左パネルのバックログの行の右クリック（package.json の webview/context。引数は行の data-vscode-context）
     vscode.commands.registerCommand(BACKLOG_ROW_COMMANDS.open, (arg: unknown) =>
       withMenuTicket(arg, (folder, row) =>
@@ -212,9 +197,9 @@ const rememberAsk = (targets: string[]) => {
   pendingSidebarAsk = targets;
 };
 
-/** 左パネルの下にエージェントに頼む入力欄を出す（action を渡せばその頼むことで）。描かれていなければ対象を覚えてからビューを開く */
-async function askInSidebar(targets: string[], action?: AskAction, within?: string): Promise<void> {
-  await deliverToSidebar(askDelivery(sidebar !== undefined, targets, action, within), rememberAsk);
+/** 左パネルの下にエージェントに頼む入力欄を出す。描かれていなければ対象を覚えてからビューを開く */
+async function askInSidebar(targets: string[]): Promise<void> {
+  await deliverToSidebar(askDelivery(sidebar !== undefined, targets), rememberAsk);
 }
 
 /** タイトル行の吹き出し。左パネルの画面に今の対象を問い、それを対象にして左パネルの下に入力欄を出す（描かれていなければ対象なし） */
@@ -223,24 +208,10 @@ async function askCurrentInSidebar(): Promise<void> {
 }
 
 /** パネルの下に入力欄を出して、そのパネルを手前に出す。パネルがなければ左パネルの下に出す */
-async function askBelow(
-  panel: vscode.WebviewPanel | undefined,
-  targets: string[],
-  action?: AskAction,
-  within?: string,
-): Promise<void> {
-  if (!panel) return askInSidebar(targets, action, within);
-  void panel.webview.postMessage(askEvent(targets, action, within));
+async function askBelow(panel: vscode.WebviewPanel | undefined, targets: string[]): Promise<void> {
+  if (!panel) return askInSidebar(targets);
+  void panel.webview.postMessage(askEvent(targets));
   panel.reveal(undefined, false);
-}
-
-/**
- * パネルの詳細の右クリックで選んだ頼むことで、そのパネルの下に入力欄を出す。右クリックしたパネルは手前にある（active）ので、それに送る。
- * 見つからなければ（閉じた直後など）左パネルの下に出す
- */
-async function askInPanel(targets: string[], action: AskAction, within?: string): Promise<void> {
-  const all = [...panels.values()];
-  await askBelow(all.find((p) => p.active) ?? all.find((p) => p.visible), targets, action, within);
 }
 
 /** コマンドパレットの「エージェントに頼む」。手前のパネルがあればその下に、なければ左パネルの下に対象なしで出す */

@@ -1,13 +1,12 @@
 // 行・見出しからエージェントに頼む（UI-15・ADR-010）。マウスを載せたときと選んだときに右端へ吹き出しのボタンを出し、
 // 押すか Shift+F10 で頼むことの一覧（先頭がおすすめ）を直接出す。選ぶと入力欄（ask-composer.tsx）をその頼むことで開き、依頼文をコピーする。
-// 同じ候補を右クリックのメニュー（拡張の webview/context のサブメニュー）にも出せるよう、行・見出しの data-vscode-context に
-// 対象・候補・おすすめを載せる（キーは core の WEBVIEW_CONTRACT.askContext）。
+// 右クリックのメニューには頼む入口を置かない（バックログの行の data-vscode-context は「詳細を開く」「ID をコピー」用の ticket だけ）。
 // 候補は core の ask-menu（読み取りだけ）が組ごとに決め、web では組み立て直さない。画面の頼める場所は AskMenuProvider が
 // まとめて 1 回で引き、一覧が読み直されたら（Status が変わったかもしれない）引き直す。Provider の外では一覧を開いたときに引く。
 // 部品は場所によらない（左パネルのカンバン・バックログ・履歴と、パネルのチケット・Iteration・Epic の詳細のタイトルと中の行で使う）。
 // 詳細のタイトルは幅に余裕があるので、吹き出しをタイトルの横に常に出す（pinned）。詳細の中の行は、チケットが入っている
-// Iteration・Epic を within に渡し、「そこから外す」を候補に足す（右クリックで選んだときも、拡張はそのパネルの下に入力欄を開く）。
-// 一覧の行は select で複数選べ（selection.tsx）、選んだ行の吹き出し・右クリックは選んだ全件を対象にする。選んでいる間は
+// Iteration・Epic を within に渡し、「そこから外す」を候補に足す。
+// 一覧の行は select で複数選べ（selection.tsx）、選んだ行の吹き出しは選んだ全件を対象にする。選んでいる間は
 // 画面の下に「n 件を選択 ・ 頼む」の帯（SelectionBar）を出す
 
 import {
@@ -33,8 +32,7 @@ import type { AskCandidate, AskMenu } from "../types.js";
 import { SELECT_ATTR, selectKind, useSelection } from "./selection.js";
 
 /**
- * 頼める場所の webviewSection（core の WEBVIEW_CONTRACT.askSections の写し）。サブメニューの when は askActions だけを見るので、
- * これは場所の種類の名前（場所ごとの項目を右クリックに足すときに使う）
+ * 頼める場所の種類の名前（core の WEBVIEW_CONTRACT.askSections の写し）。選んだ行の場所を区別するのに使う
  */
 export const ASK_SECTIONS = WEBVIEW_CONTRACT_COPY.askSections;
 export type AskSection =
@@ -44,7 +42,7 @@ export type AskSection =
 /** 初めての案内を消したかの鍵（見た目の状態） */
 export const ASK_HINT_KEY = "ask.hintDismissed";
 
-export const ASK_HINT = "行の吹き出しか右クリックでエージェントに頼めます";
+export const ASK_HINT = "行にマウスを載せると出る吹き出しで、エージェントに頼めます";
 
 interface MenuCache {
   menus: ReadonlyMap<string, AskMenu>;
@@ -135,11 +133,11 @@ export interface AskSpotOptions {
   targets: readonly string[];
   /** 一覧の頭に出す場所の名前（「行 t12」「Iteration の見出し s3」） */
   label: string;
-  /** 右クリックの文脈の webviewSection */
+  /** 場所の種類。バックログの行（backlogRowSection）だけ、右クリックの文脈（data-vscode-context）の webviewSection に載る */
   section: AskSection;
-  /** 右クリックの文脈に足すもの（バックログの行の ticket） */
+  /** バックログの行の右クリックの文脈に足すもの（ticket） */
   context?: Readonly<Record<string, unknown>> | undefined;
-  /** 吹き出しのボタンを置くか。札のように狭い場所は置かず、右クリックと Shift+F10 だけにする */
+  /** 吹き出しのボタンを置くか。置かなくても Shift+F10 で一覧を開ける（選択の帯が使う） */
   bubble?: boolean | undefined;
   /** 吹き出しを右端に重ねず、中身の横に常に出す（詳細のタイトル。styles.css の .ask-bubble.pinned） */
   pinned?: boolean | undefined;
@@ -147,13 +145,13 @@ export interface AskSpotOptions {
   within?: string | undefined;
   /**
    * 一覧の行（対象は targets の 1 件）を Ctrl/⌘・Shift+クリックで選べるようにする（selection.tsx）。
-   * 選んだ行が 2 件以上なら、吹き出し・右クリック・Shift+F10 は選んだ全件を対象にする
+   * 選んだ行が 2 件以上なら、吹き出し・Shift+F10 は選んだ全件を対象にする
    */
   select?: boolean | undefined;
 }
 
 export interface AskSpot {
-  /** 行・見出しの要素に付ける属性（右クリックの文脈・Shift+F10・吹き出しを出し続ける印） */
+  /** 行・見出しの要素に付ける属性（既定の右クリックのメニューを止める文脈・Shift+F10・吹き出しを出し続ける印） */
   props: {
     "data-vscode-context": string;
     "data-ask-spot": "" | "active";
@@ -192,22 +190,14 @@ export function useAskSpot(options: AskSpotOptions | null): AskSpot {
   const label = many ? `選んだ ${targets.length} 件` : (options?.label ?? "");
   const key = askKey(targets, within);
   const menu = useAskMenu(options ? key : null, open);
-  const candidates = options ? (menu?.candidates ?? null) : null;
   const asking =
     !!options && ask.request !== null && askKey(ask.request.targets, ask.request.within) === key;
-  const ctx = WEBVIEW_CONTRACT_COPY.askContext;
+  // 右クリックのメニューはバックログの行だけ「詳細を開く」「ID をコピー」を出す。ほかの場所は既定の切り取り・コピー・貼り付けを出さない
   const context = options
     ? JSON.stringify({
-        webviewSection: options.section,
-        ...options.context,
-        [ctx.targets]: askKey(targets),
-        ...(within ? { [ctx.within]: within } : {}),
-        // 候補を読み終えるまでは載せない（サブメニューを出さない）
-        ...(candidates && candidates.length > 0
-          ? {
-              [ctx.actions]: candidates.map((c) => c.action).join(" "),
-              [ctx.recommended]: candidates[0]!.action,
-            }
+        // ticket（options.context）のある行だけ。選択の帯のように行でない場所には載せない
+        ...(options.section === WEBVIEW_CONTRACT_COPY.backlogRowSection && options.context
+          ? { webviewSection: options.section, ...options.context }
           : {}),
         preventDefaultContextMenuItems: true,
       })
@@ -304,7 +294,7 @@ export function useAskSpot(options: AskSpotOptions | null): AskSpot {
 
 /**
  * 行を選んでいる間に画面の下に出す帯：「n 件を選択 ・ 頼む」と「選択を外す」。「頼む」で選んだ全件の頼むことの一覧を出す。
- * 入力欄を開いている間は出さない（入力欄が同じ場所に出る）。帯の右クリックも選んだ全件を対象にする
+ * 入力欄を開いている間は出さない（入力欄が同じ場所に出る）。
  */
 export function SelectionBar() {
   const selection = useSelection();

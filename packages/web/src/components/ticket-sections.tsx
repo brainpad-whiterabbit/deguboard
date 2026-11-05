@@ -37,7 +37,7 @@ export function groupBySection<T extends Ticket>(
 
 /**
  * チケットの一覧。未完了・完了・中止の段ごとに小見出しと件数を付け、行はサイドバーと同じ 1 行（TicketRow）。
- * 行の吹き出しと右クリックで頼める。within に入っている Epic・Iteration を渡す。Ctrl/⌘・Shift+クリックで複数選べる（UI-15）
+ * 行の吹き出しで頼める。within に入っている Epic・Iteration を渡す。Ctrl/⌘・Shift+クリックで複数選べる（UI-15）
  */
 export function TicketSections({
   tickets,

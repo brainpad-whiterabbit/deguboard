@@ -71,24 +71,24 @@ function boardClient(): MockClient {
 }
 
 describe("左パネルのカンバンから頼む（UI-15）", () => {
-  it("行・状態の節の見出し・Iteration の見出し・Plan の帯に吹き出しを置き、右クリックの文脈に対象・候補・おすすめを載せる", async () => {
+  it("行・状態の節の見出し・Iteration の見出し・Plan の帯に吹き出しを置き、右クリックの文脈には頼む対象・候補・おすすめを載せない", async () => {
     mount(boardClient());
     await screen.findByText("画面");
-    // 行（todo で着手できる t3）
+    const recommended = async (place: string) => {
+      fireEvent.click(bubble(place));
+      await waitFor(() => expect(items()[0]).toMatch(/おすすめ$/));
+      const first = items()[0];
+      fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+      return first;
+    };
+    // 行（todo で着手できる t3）。既定の右クリックのメニューだけを止める
     const row = screen.getByText("画面").closest("[data-ask-spot]")!;
-    await waitFor(() => expect(contextOf(row)["askActions"]).toBeDefined());
-    expect(contextOf(row)).toEqual({
-      webviewSection: "boardTicket",
-      askTargets: "t3",
-      askActions: "work plan fix split check abandon free",
-      askRecommended: "work",
-      preventDefaultContextMenuItems: true,
-    });
-    expect(within(row as HTMLElement).getByRole("button", { name: /行 t3/ })).toBeTruthy();
+    expect(contextOf(row)).toEqual({ preventDefaultContextMenuItems: true });
+    expect(await recommended("行 t3")).toBe("進めるおすすめ");
     // 状態の節の見出し（in_progress の節は中のチケットをまとめて）
     const section = document.querySelector('.column[data-status="in_progress"] > summary')!;
-    await waitFor(() => expect(contextOf(section)["askRecommended"]).toBe("resume"));
-    expect(contextOf(section)).toMatchObject({ webviewSection: "boardHeading", askTargets: "t2" });
+    expect(contextOf(section)).toEqual({ preventDefaultContextMenuItems: true });
+    expect(await recommended("状態の節 In Progress")).toBe("再開するおすすめ");
     // 空の節（review）は頼む対象がないので出さない
     expect(
       document
@@ -97,12 +97,9 @@ describe("左パネルのカンバンから頼む（UI-15）", () => {
     ).toBe(false);
     // Iteration の見出しと Plan の帯
     const head = document.querySelector(".sidebar-head .head-line.sub")!;
-    await waitFor(() => expect(contextOf(head)["askRecommended"]).toBe("plan"));
-    expect(contextOf(head)).toMatchObject({ webviewSection: "boardHeading", askTargets: "s0" });
-    expect(bubble("Iteration の見出し s0")).toBeTruthy();
-    const band = document.querySelector(".plan-row")!;
-    await waitFor(() => expect(contextOf(band)["askRecommended"]).toBe("approve"));
-    expect(bubble("Plan の帯 p7")).toBeTruthy();
+    expect(contextOf(head)).toEqual({ preventDefaultContextMenuItems: true });
+    expect(await recommended("Iteration の見出し s0")).toBe("計画を立てるおすすめ");
+    expect(await recommended("Plan の帯 p7")).toBe("承認するおすすめ");
   });
 
   it("出ている場所の候補は 1 回の ask-menu でまとめて引き、一覧が読み直されたら引き直す", async () => {
@@ -219,31 +216,35 @@ describe("左パネルのバックログと履歴から頼む（UI-15）", () =>
     return client;
   }
 
-  it("行・区画の見出し（Iteration と Iteration なし）・Epic の札から頼め、札には吹き出しを置かない", async () => {
+  it("行・区画の見出し（Iteration と Iteration なし）から頼め、Epic の札からは頼めない", async () => {
     window.location.hash = "#/backlog";
     mount(backlogClient());
     await screen.findByText("入った");
-    // 行：planned の Iteration の todo は計画を立てるがおすすめ
+    // 行：planned の Iteration の todo は計画を立てるがおすすめ。バックログの行は「詳細を開く」「ID をコピー」の文脈だけ載せる
+    const row = screen.getByText("入った").closest("li")!;
+    expect(contextOf(row)).toEqual({
+      webviewSection: "backlogTicket",
+      ticket: "t4",
+      preventDefaultContextMenuItems: true,
+    });
     fireEvent.click(bubble("行 t4"));
     await waitFor(() => expect(items()[0]).toBe("計画を立てるおすすめ"));
     fireEvent.keyDown(document.activeElement!, { key: "Escape" });
     // 区画の見出し（「Iteration なし」は中のチケットをまとめて。in_progress と todo が混ざるので点検する）
-    const sections = [...document.querySelectorAll(".sidebar-section > summary")];
-    await waitFor(() =>
-      expect(sections.map((s) => contextOf(s)["askRecommended"])).toEqual(["plan", "check"]),
-    );
-    expect(sections.map((s) => contextOf(s)["askTargets"])).toEqual(["s1", "t2 t3"]);
-    expect(contextOf(sections[0]!)["webviewSection"]).toBe("backlogHeading");
-    // Epic の札は右クリックと Shift+F10 だけ
+    fireEvent.click(bubble("区画の見出し s1"));
+    await waitFor(() => expect(items()[0]).toBe("計画を立てるおすすめ"));
+    fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+    fireEvent.click(bubble("区画の見出し Iteration なし"));
+    await waitFor(() => expect(items()[0]).toBe("点検するおすすめ"));
+    fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+    // Epic の札は頼む入口にしない（吹き出しも、右クリックの文脈も、Shift+F10 もない）
     const chip = screen.getByRole("button", { name: /^e1/ });
-    expect(contextOf(chip)).toMatchObject({ webviewSection: "epicChip", askTargets: "e1" });
+    expect(chip.hasAttribute("data-vscode-context")).toBe(false);
+    expect(chip.hasAttribute("data-ask-spot")).toBe(false);
     expect(screen.queryByRole("button", { name: "エージェントに頼む（Epic の札 e1）" })).toBeNull();
     chip.focus();
     fireEvent.keyDown(chip, { key: "F10", shiftKey: true });
-    await waitFor(() => expect(items()[0]).toBe("起票して e1 に足すおすすめ"));
-    fireEvent.click(within(menu()).getByRole("menuitem", { name: "チケットを足す・外す" }));
-    // 一覧を選んでも札の絞り込みは押されない
-    expect(chip.getAttribute("aria-pressed")).toBe("false");
+    expect(screen.queryByRole("menu")).toBeNull();
   });
 
   it("履歴のチケットの行と Iteration の行から頼める", async () => {
@@ -261,8 +262,6 @@ describe("左パネルのバックログと履歴から頼む（UI-15）", () =>
     fireEvent.click(bubble("Iteration s1"));
     await waitFor(() => expect(items()[0]).toBe("振り返るおすすめ"));
     fireEvent.keyDown(document.activeElement!, { key: "Escape" });
-    const spot = screen.getByText("終わった週").closest("[data-ask-spot]")!;
-    expect(contextOf(spot)["webviewSection"]).toBe("historyRow");
 
     window.location.hash = "#/history?view=ticket";
     await screen.findByText("終えた");
@@ -326,8 +325,9 @@ describe("入力欄を頼むことを選んで開く", () => {
       </StoreProvider>,
     );
     await screen.findByText("画面");
-    // 右クリックのサブメニューから選んだのと同じ：action つきの ask の event
-    act(() => send!({ kind: "event", name: "ask", targets: ["t3"], action: "split" }));
+    // 行の吹き出しの一覧から「分ける」を選んで開く
+    fireEvent.click(bubble("行 t3"));
+    fireEvent.click(within(menu()).getByRole("menuitem", { name: /分ける/ }));
     await waitFor(() => expect(pressed()).toBe("分ける"));
     // review に変わると「分ける」は候補にないので、おすすめ（確かめて片付ける）に戻る
     client.data.tickets = client.data.tickets.map((t) =>
@@ -392,19 +392,15 @@ describe("パネルの詳細から頼む（UI-15）", () => {
   const askInputs = (client: MockClient) =>
     client.calls.filter((c) => c.name === "ask").map((c) => c.input as Record<string, unknown>);
 
-  it("Iteration の詳細のタイトルの横に吹き出しが常にあり、押すと一覧が出る。右クリックの文脈にも同じ候補を載せ、選ぶとパネルの下に入力欄が出る", async () => {
+  it("Iteration の詳細のタイトルの横に吹き出しが常にあり、押すと一覧が出て、選ぶとパネルの下に入力欄が出る", async () => {
     window.location.hash = "#/iterations/s1";
     const client = detailClient();
     mount(client, { surface: "panel" });
-    const title = (await screen.findByRole("heading", { level: 1 })).closest("[data-ask-spot]")!;
+    await screen.findByRole("heading", { level: 1 });
     // 吹き出しはマウスを載せなくても出ている（右端に重ねず、タイトルの横に置く）
     expect(bubble("タイトル s1").className).toBe("ask-bubble pinned");
-    await waitFor(() => expect(contextOf(title)["askRecommended"]).toBe("plan"));
-    expect(contextOf(title)).toMatchObject({ webviewSection: "detailTitle", askTargets: "s1" });
     fireEvent.click(bubble("タイトル s1"));
     await waitFor(() => expect(items()[0]).toBe("計画を立てるおすすめ"));
-    // 一覧と右クリックのサブメニューは同じ候補（数と並び）
-    expect(items()).toHaveLength((contextOf(title)["askActions"] as string).split(" ").length);
     fireEvent.click(within(menu()).getByRole("menuitem", { name: "最後まで進める" }));
     await waitFor(() => expect(pressed()).toBe("最後まで進める"));
     // 対象はその詳細
@@ -414,27 +410,27 @@ describe("パネルの詳細から頼む（UI-15）", () => {
     );
   });
 
-  it("Iteration の詳細の中の行は吹き出しと右クリックで頼め、候補に「s1 から外す」を含む。終わったチケットには出さない", async () => {
+  it("Iteration の詳細の中の行は吹き出しで頼め、候補に「s1 から外す」を含む。終わったチケットには出さない", async () => {
     window.location.hash = "#/iterations/s1";
     const client = detailClient();
     mount(client, { surface: "panel" });
     const row = (await screen.findByText("画面")).closest("li")!;
-    await waitFor(() => expect(contextOf(row)["askActions"]).toBeDefined());
-    expect(contextOf(row)).toMatchObject({
-      webviewSection: "detailTicket",
-      askTargets: "t3",
-      askWithin: "s1",
-      askRecommended: "work",
-    });
-    expect(contextOf(row)["askActions"]).toContain("remove");
-    const done = screen.getByText("ログイン").closest("li")!;
-    await waitFor(() => expect(contextOf(done)["askActions"]).toBeDefined());
-    expect(contextOf(done)["askActions"]).not.toContain("remove");
+    expect(contextOf(row)).toEqual({ preventDefaultContextMenuItems: true });
     // 候補は場所（@s1）つきの組でまとめて引く
-    const sets = client.calls
-      .filter((c) => c.name === "ask-menu")
-      .flatMap((c) => (c.input as { sets: string[] }).sets);
-    expect(sets).toContain("t3 @s1");
+    const askedSets = () =>
+      client.calls
+        .filter((c) => c.name === "ask-menu")
+        .flatMap((c) => (c.input as { sets: string[] }).sets);
+    await waitFor(() => expect(askedSets()).toContain("t3 @s1"));
+    fireEvent.click(bubble("行 t3"));
+    await waitFor(() => expect(items()).toContain("s1 から外す"));
+    expect(items()[0]).toBe("進めるおすすめ");
+    fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+    // 終わったチケットには出さない
+    fireEvent.click(bubble("行 t1"));
+    await waitFor(() => expect(items().length).toBeGreaterThan(0));
+    expect(items()).not.toContain("s1 から外す");
+    fireEvent.keyDown(document.activeElement!, { key: "Escape" });
     fireEvent.click(bubble("行 t3"));
     await waitFor(() => expect(items()).toContain("s1 から外す"));
     fireEvent.click(within(menu()).getByRole("menuitem", { name: "s1 から外す" }));
@@ -458,24 +454,18 @@ describe("パネルの詳細から頼む（UI-15）", () => {
     await waitFor(() => expect(items()[0]).toBe("起票して e1 に足すおすすめ"));
     fireEvent.keyDown(menu(), { key: "Escape" });
     const row = screen.getByText("API").closest("li")!;
-    await waitFor(() => expect(contextOf(row)["askActions"]).toBeDefined());
-    expect(contextOf(row)).toMatchObject({
-      webviewSection: "detailTicket",
-      askTargets: "t2",
-      askWithin: "e1",
-    });
+    expect(contextOf(row)).toEqual({ preventDefaultContextMenuItems: true });
     fireEvent.click(bubble("行 t2"));
     await waitFor(() => expect(items()).toContain("e1 から外す"));
   });
 
-  it("チケットの詳細のタイトルの横に吹き出しがあり、右クリックの文脈にそのチケットの候補を載せる", async () => {
+  it("チケットの詳細のタイトルの横に吹き出しがある", async () => {
     window.location.hash = "#/tickets/t3";
     const client = detailClient();
     mount(client, { surface: "panel" });
     await screen.findByRole("heading", { level: 1, name: "画面" });
     const title = document.querySelector("header[data-ask-spot]")!;
-    await waitFor(() => expect(contextOf(title)["askRecommended"]).toBe("work"));
-    expect(contextOf(title)).toMatchObject({ webviewSection: "detailTitle", askTargets: "t3" });
+    expect(contextOf(title)).toEqual({ preventDefaultContextMenuItems: true });
     fireEvent.click(bubble("タイトル t3"));
     await waitFor(() => expect(items()[0]).toBe("進めるおすすめ"));
     fireEvent.click(within(menu()).getByRole("menuitem", { name: "分ける" }));
@@ -483,42 +473,5 @@ describe("パネルの詳細から頼む（UI-15）", () => {
     await waitFor(() =>
       expect(askInputs(client).at(-1)).toMatchObject({ targets: ["t3"], action: "split" }),
     );
-  });
-
-  it("拡張の右クリックから within つきの ask の event が来たら、その場所の外すで入力欄を開く", async () => {
-    window.location.hash = "#/iterations/s1";
-    const client = detailClient();
-    let send: ((event: WebviewEvent) => void) | undefined;
-    const bridge: WebviewClient = {
-      run: (name, input) => client.run(name, input),
-      status: () => client.status(),
-      open: async () => {},
-      show: async () => {},
-      copy: async () => {},
-      onEvent: (listener) => {
-        send = listener;
-        return () => (send = undefined);
-      },
-    };
-    const host: Host = {
-      surface: "panel",
-      open: () => {},
-      show: () => {},
-      copy: async () => {},
-      state: createUiState(memoryBackend({ [ASK_HINT_KEY]: true })),
-    };
-    render(
-      <StoreProvider client={client}>
-        <HostProvider host={host}>
-          <HostBridge client={bridge} />
-          <App />
-        </HostProvider>
-      </StoreProvider>,
-    );
-    await screen.findByRole("heading", { level: 1 });
-    act(() =>
-      send!({ kind: "event", name: "ask", targets: ["t3"], action: "remove", within: "s1" }),
-    );
-    await waitFor(() => expect(pressed()).toBe("s1 から外す"));
   });
 });

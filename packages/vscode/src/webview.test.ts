@@ -294,22 +294,8 @@ describe("エージェントに頼む入力欄の届け方（UI-15）", () => {
     });
   });
 
-  it("右クリックのサブメニューで選んだ頼むことは event の action に付ける", () => {
-    expect(askDelivery(true, ["t1"], "split")).toEqual({
-      post: { kind: "event", name: "ask", targets: ["t1"], action: "split" },
-    });
-  });
-
-  it("詳細の中の行から開いたときは、チケットが入っている場所を event の within に付ける", () => {
-    expect(askDelivery(true, ["t1"], "remove", "s1")).toEqual({
-      post: { kind: "event", name: "ask", targets: ["t1"], action: "remove", within: "s1" },
-    });
-  });
-
   it("パネルに送る event は描かれたサイドバーに送るものと同じ", () => {
-    expect(askEvent(["t1"], "remove", "s1")).toEqual(
-      (askDelivery(true, ["t1"], "remove", "s1") as { post: unknown }).post,
-    );
+    expect(askEvent(["t1"])).toEqual((askDelivery(true, ["t1"]) as { post: unknown }).post);
     expect(askEvent([])).toEqual({ kind: "event", name: "ask", targets: [] });
   });
 

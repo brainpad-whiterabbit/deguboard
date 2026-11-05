@@ -107,7 +107,7 @@ export function TicketPage({ id }: { id: string }) {
     </button>
   );
 
-  // タイトルの横の吹き出しと右クリックで、このチケットをエージェントに頼む（UI-15）。題を直している間は吹き出しを出さない
+  // タイトルの横の吹き出しで、このチケットをエージェントに頼む（UI-15）。題を直している間は吹き出しを出さない
   const header = (
     <AskSpotBox
       as="header"

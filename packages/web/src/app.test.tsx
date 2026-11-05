@@ -1544,30 +1544,23 @@ describe("画面", () => {
     await screen.findByText("入った");
     const contextOf = (title: string) =>
       JSON.parse(screen.getByText(title).closest("li")!.getAttribute("data-vscode-context")!);
-    // エージェントに頼むサブメニューの候補（ask-menu）は読み終えてから載る
-    await waitFor(() => expect(contextOf("入った").askActions).toBeDefined());
+    // 「詳細を開く」「ID をコピー」が使う文脈だけで、エージェントに頼む対象・候補・おすすめは載せない
     expect(contextOf("入った")).toEqual({
       webviewSection: "backlogTicket",
       ticket: "t4",
-      askTargets: "t4",
-      askActions: "work plan fix split check abandon free",
-      askRecommended: "work",
       preventDefaultContextMenuItems: true,
     });
     expect(contextOf("画面")).toMatchObject({ ticket: "t3" });
   });
 
-  it("サイドバーのカンバンの行と節の見出しには、エージェントに頼む右クリックの文脈だけを付ける（バックログの行の「詳細を開く」などは出さない）", async () => {
+  it("サイドバーのカンバンの行と節の見出しの右クリックの文脈は、既定のメニューを止めるだけで、頼む対象も「詳細を開く」などの文脈も付けない", async () => {
     mount(boardClient(), hostOf("sidebar"));
     await screen.findByText("ログイン");
     const contexts = [...document.querySelectorAll("[data-vscode-context]")].map(
       (el) => JSON.parse(el.getAttribute("data-vscode-context")!) as Record<string, unknown>,
     );
     expect(contexts.length).toBeGreaterThan(0);
-    for (const c of contexts) {
-      expect(["boardTicket", "boardHeading"]).toContain(c["webviewSection"]);
-      expect(c["ticket"]).toBeUndefined();
-    }
+    for (const c of contexts) expect(c).toEqual({ preventDefaultContextMenuItems: true });
   });
 
   it("サイドバーのカンバンの行の頭に、実行中の Run があれば回るリングと「実行中」を、Run のない in_progress なら止まった半分塗りの丸を出し、読み直しで変わる", async () => {
