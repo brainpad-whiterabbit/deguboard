@@ -38,14 +38,16 @@ export function headFile(cwd: string): Promise<string | undefined> {
   });
 }
 
-/** ブランチが branch に一致するチケット。終わっていないものを優先し、なければ番号の最も大きいもの。なければ undefined（出さない） */
+/**
+ * ブランチが branch に一致するチケット。終わっていないものを優先し、なければ最後（番号の最も大きいもの）。
+ * ticket.list は番号の順に返すので、並べ直さず後ろから探す。なければ undefined（出さない）
+ */
 export function ticketOfBranch(
   tickets: readonly BranchTicket[],
   branch: string | undefined,
 ): BranchTicket | undefined {
   if (branch === undefined) return undefined;
-  const num = (t: BranchTicket) => Number(/\d+/.exec(t.id)?.[0] ?? 0);
-  const matched = tickets.filter((t) => t.branch === branch).sort((a, b) => num(b) - num(a));
+  const matched = tickets.filter((t) => t.branch === branch).reverse();
   return matched.find((t) => t.status !== "done" && t.status !== "abandoned") ?? matched[0];
 }
 

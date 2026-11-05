@@ -63,6 +63,8 @@ const panels = new Map<string, vscode.WebviewPanel>();
 const clients = new Map<string, CommandClient>();
 /** フォルダごとのデータ worktree（.git/deguboard/）と実行中の Run（.git/deguboard-local/runs/）の監視。CLI やエージェントの書き込みを画面に映す */
 const watchers = new Map<string, vscode.Disposable>();
+/** watchData が data_dir を問い合わせている最中のフォルダ。重ねて張らない */
+const watchStarting = new Set<string>();
 /** 今出ているサイドバーのビュー。右クリックで非表示にされると dispose され、再表示で作り直される */
 let sidebar: vscode.WebviewView | undefined;
 /** サイドバーが対象にするフォルダ（最初の作業フォルダ）。ビューのタイトル行のコマンドはこのフォルダに対して動く */
@@ -73,6 +75,8 @@ let pendingSidebarRoute: string | undefined;
 let pendingSidebarAsk: string[] | undefined;
 /** 同期の実行中。重ねて走らせない */
 let syncing = false;
+/** dg の案内を出したか */
+let advised = false;
 /** 今のブランチのチケットを出すステータスバーの項目（最初の作業フォルダが対象）。紐づくチケットがなければ隠す */
 let statusItem: vscode.StatusBarItem | undefined;
 /** 今のチケットの ID。項目を押したときに開く */
@@ -129,7 +133,6 @@ export function activate(context: vscode.ExtensionContext): void {
       { webviewOptions: { retainContextWhenHidden: true } },
     ),
   );
-  void adviseAboutDg();
   void refreshStatusBar();
 }
 
@@ -150,6 +153,7 @@ async function resolveSidebar(
   context: vscode.ExtensionContext,
   view: vscode.WebviewView,
 ): Promise<void> {
+  void adviseAboutDg();
   const folders = vscode.workspace.workspaceFolders ?? [];
   const folder = folders[0];
   if (!folder) {
@@ -319,6 +323,7 @@ async function openPanel(
   folder: vscode.WorkspaceFolder,
   options: { column: vscode.ViewColumn; route: string; preserveFocus?: boolean },
 ): Promise<void> {
+  void adviseAboutDg();
   const key = folder.uri.toString();
   const existing = panels.get(key);
   const { route } = options;
@@ -449,12 +454,16 @@ function clientFor(folder: vscode.WorkspaceFolder): CommandClient {
  */
 async function watchData(folder: vscode.WorkspaceFolder, client: CommandClient): Promise<void> {
   const key = folder.uri.toString();
-  if (watchers.has(key)) return;
+  if (watchers.has(key) || watchStarting.has(key)) return;
+  watchStarting.add(key);
   let dataDir: string;
   try {
     dataDir = (await client.status()).data_dir;
   } catch {
+    // 初期化前のリポジトリなど。入れずに戻り、refreshStatusBar が次に呼ばれたとき張り直す
     return;
+  } finally {
+    watchStarting.delete(key);
   }
   const pending = coalesce(() => {
     broadcast(folder, { kind: "event", name: "reload" });
@@ -493,6 +502,7 @@ async function refreshStatusBar(): Promise<void> {
   try {
     const client = clientFor(folder);
     void watchHead(folder);
+    void watchData(folder, client);
     const branch = await currentBranch(folder.uri.fsPath);
     const ticket = ticketOfBranch(
       (await client.run<BranchTicket[]>("ticket.list", {})).data,
@@ -550,8 +560,11 @@ function panelTitle(folder: vscode.WorkspaceFolder): string {
     : "deguboard";
 }
 
-/** 起動時に 1 回、PATH の dg を確かめて知らせる。画面は dg なしで動くので止めない */
+/** 最初の使用時に 1 回、PATH の dg を確かめて知らせる。画面は dg なしで動くので止めない */
 async function adviseAboutDg(): Promise<void> {
+  // 起動時ではなく、サイドバーかパネルを最初に使うときに 1 回だけ出す（deguboard を使わないウィンドウでは出さない）
+  if (advised) return;
+  advised = true;
   const advice = dgAdvice(await resolveDg(), __CORE_VERSION__);
   if (!advice) return;
   const show =
