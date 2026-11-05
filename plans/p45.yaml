@@ -6,7 +6,7 @@ after:
     - t394
   t396:
     - t395
-pending_approval: true
+pending_approval: false
 details:
   t394:
     scope: run finish のモデル名を会話記録から取れた名前を最優先にし、取れないときだけ明示・start の名前を使う
@@ -20,3 +20,5 @@ details:
     scope: 閉じた Run のモデル名と使用量を会話記録から取り直すコマンドを足し、取れない値は残して警告し、--dry-run で差分を出す
     approach: core に run の取り直しのコマンド定義を足して CLI・HTTP に写し、requirements の RN・MT を直してテストする
     tier: heavy
+approved_by: eiki.kitajima/agent
+approved_at: 2026-11-05T02:01:36Z
