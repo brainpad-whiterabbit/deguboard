@@ -352,6 +352,7 @@ async function sendToTerminal(id: number, text: string): Promise<TerminalSendRes
   }
   // 複数行は VS Code の貼り付けに任せる（対応しない入力では VS Code が警告を出す）。使うのは既にあるコマンドだけで、起動はしない。
   // 貼り付けは今アクティブなターミナルに入るので、show() で選んだものを前に出してから呼ぶ。
+  // show の後に writeText の一往復を待ってから貼るので、その間にメインスレッドが送り先を active にしている（writeText を show の前に置くと待ちがなくなる）。
   // 利用者のクリップボードを借りるので、貼った後に元へ戻す（paste は警告の小窓を出す前にクリップボードを読むので、await の後に戻して安全）
   let previous: string | undefined;
   try {
@@ -359,8 +360,8 @@ async function sendToTerminal(id: number, text: string): Promise<TerminalSendRes
   } catch {
     previous = undefined;
   }
-  await vscode.env.clipboard.writeText(input.text);
   terminal.show();
+  await vscode.env.clipboard.writeText(input.text);
   await vscode.commands.executeCommand("workbench.action.terminal.paste");
   if (previous === undefined) return { clipboardKept: true };
   try {
