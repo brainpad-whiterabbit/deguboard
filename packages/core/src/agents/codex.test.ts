@@ -170,6 +170,25 @@ describe("Codex の Adapter", () => {
       expect(b.usage.output).toBe(10);
       expect(a.usage).toEqual({ input: 66, output: 101, cache_read: 44, cache_write: 2 });
     });
+
+    it("別のファイルで始まった Run の ID を 1 分以内に表示しただけでは、その Run に譲らない", async () => {
+      const { sessions, query } = await setup();
+      // B は rollout-b で 10:10 に始めた。rollout-a は 10:10:30 に一覧などで B の ID を見ただけ
+      await writeRollout(path.join(sessions, "rollout-a.jsonl"), [
+        mention(0),
+        tokenCount(5, [10, 4, 1, 1]),
+        mentionOf(B, 10.5),
+        tokenCount(12, [30, 10, 11, 2]),
+      ]);
+      await writeRollout(path.join(sessions, "rollout-b.jsonl"), [
+        mentionOf(B, 10),
+        tokenCount(12, [1000, 1000, 1000, 1000]),
+      ]);
+      const got = await codexAdapter.readTranscriptUsage(
+        query({ finishedAt: at(20), others: spans([[B, B_STARTED, null]]) }),
+      );
+      expect(got.usage).toEqual({ input: 20, output: 11, cache_read: 10, cache_write: 2 });
+    });
   });
 
   it("Run の ID の前に累計がなければ session の始まりから数え、turn がなければ前のモデル名を入れる", async () => {
