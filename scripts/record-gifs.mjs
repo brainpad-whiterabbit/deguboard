@@ -1,10 +1,14 @@
-// 拡張の README に載せる使い方の GIF（packages/vscode/images/open-board.gif・ask-agent.gif）を録り直す。mise run gifs から呼ぶ。
+// 拡張の README に載せる使い方の GIF（packages/vscode/images/ の 5 本）を録り直す。mise run gifs から呼ぶ。引数に名前（import.gif など）を渡せばその分だけ録る。
 // 一時ディレクトリに bare リモート付きのリポジトリを作って見本のチケットを起票し、dg serve の左パネルの画面（?surface=sidebar）を
 // Chromium（playwright-core）で操作して 1 コマずつスクリーンショットを撮り、gifenc で GIF にまとめる。ffmpeg などの外のツールは使わない。
-// VS Code 本体は録れないので、Activity Bar とエディタの部分は画面の外枠として自前で描く（FRAME_HTML）。左パネルの中身は実際の画面。
+// VS Code 本体は録れないので、Activity Bar とエディタの部分は画面の外枠として自前で描く（frameHtml）。左パネルの中身は実際の画面。
 // マウスのカーソルはスクリーンショットに映らないので、外枠の上に矢印を描いて動かす。コマの表示時間は撮った時刻ではなく台本（各 shot の delay）で決めるので、
 // 機械の速さによらず同じ長さになる。ask-agent.gif の貼り付け先は、コピーした依頼文が分かるように外枠に描いた入力欄で、VS Code やエージェントの画面ではない。
-// 先に mise run build（タスクが依存する）と mise run playwright:install が要る。各 GIF は 6〜10 秒・1MB 以下（t347）に収まらなければ失敗する。
+// エージェントの流れの 3 本（import・run-all・retro。t348）は、実際の実行の録画ではなく仮の GUI で録る。ターミナルのエージェント（Claude Code の入力と出力）は
+// 外枠に描いた模した画面で、エージェントが dg を動かした結果（起票・計画・状態の遷移）は、台本が一時リポジトリで実際に dg のコマンドを流して左パネルに反映させる。
+// この 3 本の左パネルとエディタのパネル（チケットの詳細）は、拡張ホストの代わりの小さな仲立ち（vscodeShim）で Webview として動かし、
+// 詳細を開く・コピー・読み直しを拡張と同じ通り道で受ける。retro.gif の分析レポートは模したもの（数字は見本）。
+// 先に mise run build（タスクが依存する）と mise run playwright:install が要る。各 GIF が決めた秒数（open-board・ask-agent は 6〜10 秒、ほかは 20 秒以下）と 1MB 以下に収まらなければ失敗する。
 import { execFile } from "node:child_process";
 import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
@@ -38,8 +42,8 @@ const git = (cwd, args) => run("git", args, { cwd, env: gitEnv });
 const dg = (cwd, args) =>
   run("node", [dgBin, "-C", cwd, "--json", "--user", "見本", ...args], { env: gitEnv });
 
-/** 見本のリポジトリを作り、カンバン・バックログ・履歴に何かが出るようにチケットを置く */
-async function createRepo(dir) {
+/** bare リモート付きのリポジトリを作り、dg の初期化と Skill の取り込みまで済ませる。作業ディレクトリを返す */
+async function initRepo(dir) {
   const remote = path.join(dir, "remote.git");
   const work = path.join(dir, "work");
   await git(dir, ["init", "--quiet", "--bare", "-b", "main", remote]);
@@ -51,6 +55,12 @@ async function createRepo(dir) {
   await dg(work, ["init", "--template", "software-development"]);
   // リポジトリに dg の Skill があると、依頼文の形式の既定が Skill になる（開発者の ~/.claude/skills に左右されない）
   await dg(work, ["skill", "install"]);
+  return work;
+}
+
+/** 見本のリポジトリを作り、カンバン・バックログ・履歴に何かが出るようにチケットを置く */
+async function createRepo(dir) {
+  const work = await initRepo(dir);
   // 閉じた Iteration（履歴に出る）・進行中・予定の 3 つ
   await dg(work, ["iteration", "create", "スプリント 1", "--goal", "ログインまわりを固める"]);
   await dg(work, ["iteration", "start", "s1"]);
@@ -87,8 +97,135 @@ async function createRepo(dir) {
   return work;
 }
 
-/** VS Code の窓に見立てた外枠。左パネルの中身は iframe の実際の画面 */
-function frameHtml(appUrl, icon) {
+/** チケットを作り、Status を順に進める。作った ID を返す */
+async function createTicket(work, title, { iteration, priority = "medium", moves = [] } = {}) {
+  const args = [
+    "ticket",
+    "create",
+    title,
+    "--priority",
+    priority,
+    "--acceptance",
+    "画面で確かめられる",
+  ];
+  if (iteration) args.push("--iteration", iteration);
+  const { stdout } = await dg(work, args);
+  const { id } = JSON.parse(stdout).data;
+  for (const status of moves) await dg(work, ["ticket", "move", id, status]);
+  return id;
+}
+
+/** import.gif の見本：バックログに 3 件だけある。起票は台本が dg ticket import で行う */
+async function importRepo(dir) {
+  const work = await initRepo(dir);
+  await dg(work, ["iteration", "create", "スプリント 1", "--goal", "書き出しを足す"]);
+  await dg(work, ["iteration", "start", "s1"]);
+  await createTicket(work, "CSV で書き出せるようにする", { iteration: "s1" });
+  await createTicket(work, "ダークテーマの色を見直す", { priority: "low" });
+  await createTicket(work, "ラベルの色を選べるようにする");
+  return work;
+}
+
+/** run-all.gif の見本：始めたばかりの空の Iteration。起票・計画・遷移は台本が dg で行う */
+async function runAllRepo(dir) {
+  const work = await initRepo(dir);
+  await dg(work, ["iteration", "create", "スプリント 1", "--goal", "CSV で書き出せるようにする"]);
+  await dg(work, ["iteration", "start", "s1"]);
+  return work;
+}
+
+/** retro.gif の見本：閉じた Iteration が 2 つ（新しい s2 を振り返る）と、進行中が 1 つ */
+async function retroRepo(dir) {
+  const work = await initRepo(dir);
+  const done = ["in_progress", "review", "done"];
+  const sprints = [
+    [
+      "エージェントに頼む",
+      ["吹き出しから頼むことを選ぶ", "依頼文をコピーする", "指示を足せるようにする"],
+    ],
+    [
+      "優先度の見せ方",
+      [
+        "優先度を矢印と文字で出す",
+        "行の 1 段目に high と low を出す",
+        "ツールチップに判断基準を出す",
+        "詳細で優先度を選べるようにする",
+        "優先度の基準を設定で書き換える",
+      ],
+    ],
+  ];
+  for (const [n, [goal, titles]] of sprints.entries()) {
+    const id = `s${n + 1}`;
+    await dg(work, ["iteration", "create", `スプリント ${n + 1}`, "--goal", goal]);
+    await dg(work, ["iteration", "start", id]);
+    for (const title of titles) await createTicket(work, title, { iteration: id, moves: done });
+    await dg(work, ["iteration", "close", id]);
+  }
+  await dg(work, ["iteration", "create", "スプリント 3", "--goal", "履歴を見やすくする"]);
+  await dg(work, ["iteration", "start", "s3"]);
+  await createTicket(work, "履歴の行に期間を出す", { iteration: "s3", moves: ["in_progress"] });
+  await createTicket(work, "検索の語を残す", { iteration: "s3" });
+  return work;
+}
+
+/**
+ * 拡張ホストの代わりの仲立ち。Chromium の各フレームで画面のスクリプトより先に走り（addInitScript）、
+ * ?gif-host=sidebar|panel の付いた画面にだけ acquireVsCodeApi を置いて Webview として動かす（surface は data 属性で渡す）。
+ * コマンドは dg serve の HTTP に写し、詳細を開く・コピーは外枠（親のフレーム）に postMessage で渡し、一覧を出す（show）はハッシュを変える。
+ * 見た目の状態はフレームの中だけに持つ
+ */
+function vscodeShim() {
+  const surface = new URLSearchParams(location.search).get("gif-host");
+  if (surface !== "sidebar" && surface !== "panel") return;
+  // 初めての案内は閉じ、カンバンの Done の節は開いておく（チケットが Done に並ぶのを見せる）
+  let state = { "ask.hintDismissed": true, "board.section.done": true };
+  const reply = (data) => window.dispatchEvent(new MessageEvent("message", { data }));
+  const answer = async (msg) => {
+    try {
+      if (msg.kind === "action") {
+        if (msg.name === "show") location.hash = msg.route;
+        else window.parent.postMessage({ gif: msg.name, route: msg.route, text: msg.text }, "*");
+        return reply({ id: msg.id, ok: true, data: null, warnings: [], write: null });
+      }
+      const res =
+        msg.kind === "run"
+          ? await fetch(`/api/commands/${encodeURIComponent(msg.name)}`, {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({ input: msg.input }),
+            })
+          : await fetch("/api/status");
+      const body = await res.json();
+      reply(
+        body.ok
+          ? {
+              id: msg.id,
+              ok: true,
+              data: body.data,
+              warnings: body.warnings ?? [],
+              write: body.write ?? null,
+            }
+          : { id: msg.id, ok: false, error: body.error },
+      );
+    } catch (error) {
+      reply({ id: msg.id, ok: false, error: { code: "UNREACHABLE", message: String(error) } });
+    }
+  };
+  window.acquireVsCodeApi = () => {
+    document.documentElement.dataset.surface = surface;
+    return {
+      postMessage: (msg) => void answer(msg),
+      getState: () => state,
+      setState: (value) => (state = value),
+    };
+  };
+}
+
+/**
+ * VS Code の窓に見立てた外枠。左パネルの中身は iframe の実際の画面。
+ * agent を付ければエディタの下にターミナルのエージェント（Claude Code）を模した画面を置き、詳細を開く頼みでエディタにパネルの画面（iframe）を開く
+ */
+function frameHtml(appUrl, icon, agent = false) {
   return `<!doctype html><html><head><meta charset="utf-8"><style>
   *{box-sizing:border-box}
   html,body{margin:0;height:100%;background:#1f1f1f;font-family:"IPAPGothic",sans-serif;overflow:hidden}
@@ -113,6 +250,43 @@ function frameHtml(appUrl, icon) {
   .agent pre:empty::before{content:"ここに貼る";color:#6b6b6b}
   .cursor{position:fixed;left:0;top:0;width:16px;height:22px;z-index:10;pointer-events:none}
   .ring{position:fixed;width:22px;height:22px;margin:-11px 0 0 -11px;border-radius:50%;border:2px solid #4daafc;z-index:9;pointer-events:none;display:none}
+  .tabs b[hidden],.editor [hidden]{display:none}
+  .tabs b.off{background:#181818;color:#8b8b8b}
+  .editor{flex:1;min-height:0;position:relative;overflow:hidden}
+  .editor pre{margin:0;padding:12px 18px;color:#9cdcfe;font:12px/1.7 "IPAGothic",monospace;white-space:pre}
+  .editor pre em{font-style:normal;color:#c586c0}
+  .editor iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:#1f1f1f}
+  .term{height:var(--term,46%);flex:none;border-top:1px solid #2b2b2b;background:#181818;display:flex;flex-direction:column;padding:6px 12px 10px;gap:3px;color:#d4d4d4;font:11.5px/1.55 "IPAGothic",monospace;overflow:hidden}
+  .term-head{color:#8b8b8b;font:11px "IPAPGothic",sans-serif;flex:none;margin-bottom:2px}
+  .term-head b{font-weight:400;color:#d4d4d4;border-bottom:1px solid #d4d4d4;padding-bottom:1px}
+  .term-lines{flex:1;min-height:0;display:flex;flex-direction:column;justify-content:flex-end;overflow:hidden}
+  .term-lines div{white-space:pre-wrap;word-break:break-all;flex:none}
+  .term-lines .you{color:#d4d4d4;margin-bottom:3px;padding-left:1.3em;position:relative}
+  .term-lines .you::before{content:">";color:#8b8b8b;position:absolute;left:0}
+  .term-lines .dot::first-letter{color:#d4d4d4}
+  .term-lines .dim{color:#8b8b8b}
+  .term-lines .ok{color:#73c991}
+  .term-lines .ask{color:#e2c08d}
+  .term-lines .tool{color:#d4d4d4}
+  .term-lines .tool i{font-style:normal;color:#73c991}
+  .term-input{flex:none;border:1px solid #4a4a4a;border-radius:6px;padding:4px 8px;display:flex;gap:6px;min-height:26px;max-height:62px;overflow:hidden}
+  .term-input .text{flex:1;min-width:0;word-break:break-all}
+  .term-input.focus{border-color:#8b8b8b}
+  .term-input.focus .text::after{content:"";display:inline-block;width:7px;height:13px;background:#d4d4d4;vertical-align:-2px;margin-left:1px}
+  .term-input .text div,.term-lines .you div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .report{padding:12px 18px;color:#cccccc;font-size:11.5px;display:flex;flex-direction:column;gap:5px}
+  .report h3{margin:0 0 2px;font-size:15px;color:#e8e8e8}
+  .report p{margin:0}
+  .report .sub{color:#8b8b8b;font-size:10.5px;margin-bottom:4px}
+  .rbar{display:grid;grid-template-columns:76px 1fr 96px;gap:8px;align-items:center;font-size:11px}
+  .rbar code{font:11px "IPAGothic",monospace}
+  .rbar i{display:block;height:9px;border-radius:2px;background:#4daafc;width:0}
+  .rbar.hot i{background:#e5534b}
+  .rbar span{color:#8b8b8b;font:10.5px "IPAGothic",monospace;text-align:right}
+  .report .call{margin-top:6px;border-left:3px solid #e5534b;background:#2a2d2e;padding:5px 8px;line-height:1.55}
+  .report .call b{color:#f47067}
+  .report ul{margin:2px 0 0;padding-left:1.3em;line-height:1.6}
+  .report [hidden]{display:none}
 </style></head><body><div class="win">
   <div class="bar">
     <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/></svg></span>
@@ -121,18 +295,79 @@ function frameHtml(appUrl, icon) {
     <span class="dg">${icon}</span>
   </div>
   <div class="side"><iframe src="${appUrl}" allow="clipboard-read; clipboard-write"></iframe></div>
-  <div class="main">
+  ${
+    agent
+      ? AGENT_MAIN
+      : `<div class="main">
     <div class="tabs"><b>README.md</b></div>
     <div class="code">${[62, 48, 0, 70, 55, 40, 0, 66, 30]
       .map((w) => `<i style="width:${w}%;${w ? "" : "background:none"}"></i>`)
       .join("")}</div>
     <div class="agent"><small>エージェントの入力欄（例）</small><pre></pre></div>
-  </div>
+  </div>`
+  }
 </div>
 <div class="ring"></div>
 <svg class="cursor" viewBox="0 0 16 22"><path d="M1 1v17l4.5-4.2 3 6.7 2.8-1.3-3-6.5H14z" fill="#fff" stroke="#000" stroke-width="1.2" stroke-linejoin="round"/></svg>
+${agent ? `<script>${AGENT_SCRIPT}</script>` : ""}
 </body></html>`;
 }
+
+/** agent の外枠のエディタとターミナル。エディタの中身（コード・詳細のパネル・レポート）は台本が切り替える */
+const AGENT_MAIN = `<div class="main">
+    <div class="tabs"><b class="tab-code">README.md</b><b class="tab-doc" hidden></b></div>
+    <div class="editor"><pre class="src"></pre><iframe class="detail" hidden></iframe><div class="report" hidden></div></div>
+    <div class="term">
+      <div class="term-head"><b>ターミナル</b>　claude</div>
+      <div class="term-lines"></div>
+      <div class="term-input"><span>&gt;</span><span class="text"></span></div>
+    </div>
+  </div>`;
+
+/**
+ * agent の外枠が左パネル・詳細のパネルの仲立ち（vscodeShim）から受ける頼み。copy は受けた文を残し（台本が貼る）、
+ * open は詳細のルートをエディタのパネル（iframe）に開く。開いていればハッシュだけを変える（VS Code のパネルと同じく 1 枚を使い回す）
+ */
+const AGENT_SCRIPT = `
+window.copied = "";
+addEventListener("message", (e) => {
+  const m = e.data;
+  if (!m || !m.gif) return;
+  if (m.gif === "copy") window.copied = m.text;
+  if (m.gif !== "open") return;
+  const f = document.querySelector(".detail");
+  if (f.hidden) {
+    f.src = location.origin + "/?gif-host=panel" + m.route;
+    f.hidden = false;
+  } else f.contentWindow.location.hash = m.route;
+  showDoc(m.route.split("/").pop());
+});
+// 入力欄の文。複数行（貼った依頼文）は行ごとに 1 行に縮めて見せる
+function setInput(text) {
+  const el = document.querySelector(".term-input .text");
+  el.dataset.text = text;
+  el.replaceChildren();
+  const lines = text.split("\\n");
+  if (lines.length === 1) el.textContent = text;
+  else for (const line of lines) el.append(Object.assign(document.createElement("div"), { textContent: line }));
+}
+// 入力欄の文を送る：出力の欄に「> 文」として移し、入力欄を空にする
+function sendInput() {
+  const el = document.querySelector(".term-input .text");
+  const line = document.createElement("div");
+  line.className = "you";
+  line.append(...el.childNodes);
+  document.querySelector(".term-lines").append(line);
+  el.replaceChildren();
+}
+function showDoc(name) {
+  const tab = document.querySelector(".tab-doc");
+  tab.textContent = name;
+  tab.hidden = false;
+  document.querySelector(".tab-code").classList.add("off");
+  document.querySelector(".src").hidden = true;
+}
+`;
 
 /** 台本どおりに操作し、1 コマずつ撮る。shot の delay がそのコマの表示時間 */
 class Recorder {
@@ -361,7 +596,298 @@ async function askAgent(rec, app, frame) {
   await rec.hold(1800);
 }
 
-async function record(browser, server, icon, hash, script) {
+/** agent の外枠を整える：左パネルを開き、エディタにファイル名とコード、ターミナルの高さを入れる */
+async function setupAgent(rec, { file, code, term }) {
+  await rec.page.evaluate(
+    ([side, file, code, term]) => {
+      document.querySelector(".bar .dg").classList.add("on");
+      document.querySelector(".side").style.width = `${side}px`;
+      document.querySelector(".tab-code").textContent = file;
+      document.querySelector(".src").innerHTML = code;
+      document.querySelector(".term").style.setProperty("--term", term);
+    },
+    [SIDE, file, code, term],
+  );
+  await rec.setCursor();
+}
+
+/** ターミナルの入力欄に text を打つ（2 文字ずつ 1 コマ）。paste なら一度に入れる（貼り付け） */
+async function termType(rec, text, paste = false) {
+  await rec.page.evaluate(() => document.querySelector(".term-input").classList.add("focus"));
+  for (let i = paste ? text.length : 2; i < text.length + 2; i += 2) {
+    await rec.page.evaluate((t) => window.setInput(t), text.slice(0, i));
+    await rec.shot(70);
+  }
+}
+
+/** 入力欄の文を送る（Enter） */
+async function termEnter(rec) {
+  await rec.page.evaluate(() => window.sendInput());
+  await rec.shot(200);
+}
+
+/** 出力の欄に 1 行足して ms ミリ秒止める。kind は色（dot はエージェントの発言の ⏺、tool は道具の呼び出し） */
+async function termSay(rec, kind, html, ms = 600) {
+  await rec.page.evaluate(
+    ([kind, html]) => {
+      const line = document.createElement("div");
+      line.className = kind;
+      line.innerHTML = html;
+      document.querySelector(".term-lines").append(line);
+    },
+    [kind, html],
+  );
+  await rec.hold(ms);
+}
+
+/** 出力の欄の最後の行を書き換える（「進めています」を「マージしました」に替えるなど） */
+async function termReplace(rec, html, ms = 400) {
+  await rec.page.evaluate(
+    (html) => (document.querySelector(".term-lines").lastElementChild.innerHTML = html),
+    html,
+  );
+  await rec.hold(ms);
+}
+
+/**
+ * 一時リポジトリで dg のコマンドを順に流し、左パネル（と開いていれば詳細のパネル）に読み直しを知らせる。
+ * 拡張ホストがファイルの変化で送る reload と同じ通知。読み直しが描き終わるまで少し待つ
+ */
+async function dgSteps(rec, work, steps) {
+  for (const args of steps) await dg(work, args);
+  await rec.page.evaluate(() => {
+    for (const f of document.querySelectorAll(".side iframe, .detail:not([hidden])"))
+      f.contentWindow.postMessage({ kind: "event", name: "reload" }, "*");
+  });
+  await rec.page.waitForTimeout(700);
+}
+
+const IMPORT_CODE = [
+  "<em>export async function</em> login(id, password) {",
+  "  <em>const</em> user = <em>await</em> fetchUser(id);",
+  "  <em>const</em> perms = <em>await</em> fetchPerms(id);",
+  '  <em>if</em> (!user) <em>throw new</em> Error("ログインできません");',
+  "  <em>return</em> { user, perms };",
+  "}",
+].join("\n");
+
+/** 雑な一言に /dgimport を付けて頼み、起票の案を承認し、バックログに並んだチケットの詳細を開く */
+async function importFlow(rec, app, _frame, { work, tmp }) {
+  await setupAgent(rec, { file: "login.ts", code: IMPORT_CODE, term: "52%" });
+  await rec.hold(500);
+  await rec.moveTo(rec.page.locator(".term-input"), 500, 0.3);
+  await rec.click();
+  await termType(rec, "/dgimport ログインが遅いし、エラーも分かりにくい。なんとかして");
+  await rec.hold(300);
+  await termEnter(rec);
+  await termSay(rec, "dot", "⏺ src/auth/ とログインの画面を調べています…", 900);
+  await termSay(rec, "dot", "⏺ 起票の案（3 件）", 300);
+  await termSay(rec, "dim", "  1. ログインの API 呼び出しを 1 回にまとめる ・ high", 300);
+  await termSay(rec, "dim", "  2. 失敗の理由ごとにエラーの文言を分ける", 300);
+  await termSay(rec, "dim", "  3. ログインの所要時間を計るテストを足す ・ 1 を待つ", 300);
+  await termSay(rec, "ask", "? この内容で起票しますか  ❯ 起票する   直す", 900);
+  const drafts = [
+    {
+      key: "api",
+      title: "ログインの API 呼び出しを 1 回にまとめる",
+      priority: "high",
+      summary:
+        "ログインでユーザーと権限を別々に取りに行き、往復が 2 回になっている。1 回の呼び出しで両方を返す。",
+      acceptance: ["ログインの API 呼び出しが 1 回になる", "画面の表示と権限の判定が変わらない"],
+    },
+    {
+      key: "message",
+      title: "失敗の理由ごとにエラーの文言を分ける",
+      summary: "パスワードの誤り・ロック・通信の失敗が、どれも「ログインできません」になっている。",
+      acceptance: ["理由ごとに次にすることが分かる文言になる", "今のテストが通る"],
+    },
+    {
+      key: "perf",
+      title: "ログインの所要時間を計るテストを足す",
+      depends_on: ["api"],
+      summary: "API 呼び出しをまとめた効果を数字で確かめ、遅くなったら気づけるようにする。",
+      acceptance: ["ログインの所要時間を計るテストがある", "1 秒を超えたらテストが落ちる"],
+    },
+  ];
+  const file = path.join(tmp, "import.json");
+  await writeFile(file, JSON.stringify(drafts));
+  await dgSteps(rec, work, [["ticket", "import", file]]);
+  await termSay(rec, "ok", "✓ t4 t5 t6 をバックログに起票しました", 1000);
+  const row = app.locator("a.ticket-row", { hasText: "所要時間を計る" }).first();
+  await rec.moveTo(row, 700, 0.4);
+  await rec.click();
+  await rec.page.frameLocator(".detail").locator("main.page h1").waitFor();
+  // 詳細を読めるように、ターミナルを下に縮める
+  await rec.page.evaluate(() => document.querySelector(".term").style.setProperty("--term", "26%"));
+  await rec.hold(3600);
+}
+
+/** /dgall --auto を付けて頼み、起票・計画のあと、計画の帯から依存のグラフを開き、チケットが Todo から In Progress を経てすべて Done になる */
+async function runAllFlow(rec, app, _frame, { work, tmp }) {
+  await setupAgent(rec, { file: "claude", code: "", term: "100%" });
+  await rec.hold(500);
+  await rec.moveTo(rec.page.locator(".term-input"), 500, 0.3);
+  await rec.click();
+  await termType(rec, "/dgall --auto CSV で書き出す機能を足して");
+  await rec.hold(200);
+  await termEnter(rec);
+  await termSay(rec, "dot", "⏺ 一覧の画面と書き出しの処理を調べています…", 600);
+  const drafts = [
+    { key: "format", title: "書き出す項目と形式を決める" },
+    { key: "csv", title: "一覧から CSV を作る", depends_on: ["format"] },
+    { key: "button", title: "画面に書き出しボタンを置く", depends_on: ["format"] },
+    { key: "docs", title: "使い方の説明を直す", depends_on: ["csv", "button"] },
+  ].map((d) => ({ ...d, iteration: "s1", acceptance: ["画面で確かめられる"] }));
+  const file = path.join(tmp, "import.json");
+  await writeFile(file, JSON.stringify(drafts));
+  await dgSteps(rec, work, [["ticket", "import", file]]);
+  await termSay(rec, "dot", "⏺ 4 件を起票しました: t1 t2 t3 t4", 700);
+  await dgSteps(rec, work, [
+    ["plan", "create", "t1", "t2", "t3", "t4"],
+    ["plan", "approve", "p1"],
+  ]);
+  await termSay(rec, "dot", "⏺ 計画 p1: t1 → t2 ∥ t3 → t4", 300);
+  await termSay(rec, "dim", "  --auto なので、勧める選択肢（承認する）を選びました", 500);
+  await rec.moveTo(app.locator(".plan-line").first(), 600, 0.3);
+  await rec.click();
+  await app.locator(".plan-graph").waitFor();
+  await rec.hold(1500);
+  // 左パネルの高さではグラフとカンバンの節が並ばないので、閉じて進む様子を見せ、終わったらまた開く
+  await rec.click();
+  await rec.hold(300);
+  await rec.moveTo(rec.page.locator(".term-lines"), 500, 0.5, 0.6);
+  const step = async (moves) =>
+    dgSteps(
+      rec,
+      work,
+      moves.map(([id, to]) => ["ticket", "move", id, to]),
+    );
+  await step([["t1", "in_progress"]]);
+  await termSay(rec, "dot", "⏺ t1 を進めています…", 1100);
+  await step([
+    ["t1", "review"],
+    ["t1", "done"],
+  ]);
+  await termReplace(rec, "⏺ t1 を進めました（PR #1 をマージ）", 700);
+  await step([
+    ["t2", "in_progress"],
+    ["t3", "in_progress"],
+  ]);
+  await termSay(rec, "dot", "⏺ t2・t3 を並べて進めています…", 1100);
+  await step([
+    ["t3", "review"],
+    ["t3", "done"],
+  ]);
+  await rec.hold(500);
+  await step([
+    ["t2", "review"],
+    ["t2", "done"],
+  ]);
+  await termReplace(rec, "⏺ t2・t3 を進めました（PR #2 #3 をマージ）", 700);
+  await step([["t4", "in_progress"]]);
+  await termSay(rec, "dot", "⏺ t4 を進めています…", 1000);
+  await step([
+    ["t4", "review"],
+    ["t4", "done"],
+  ]);
+  await termReplace(rec, "⏺ t4 を進めました（PR #4 をマージ）", 500);
+  await termSay(rec, "ok", "✓ p1 を終えました（4/4 done）", 700);
+  await rec.moveTo(app.locator(".plan-line").first(), 500, 0.3);
+  await rec.click();
+  await app.locator(".plan-graph").waitFor();
+  await rec.hold(1800);
+}
+
+/** retro.gif の分析レポート（模したもの。工程ごとの所要時間とトークン、ボトルネック、次に直すこと） */
+const RETRO_REPORT = `<h3>s2 の振り返り（優先度の見せ方）</h3>
+<p class="sub">チケット 5 件 ・ Run 19 回 ・ 計 2 時間 11 分 ・ 2.4M トークン</p>
+${[
+  ["plan", 6, "6 分 ・ 80k"],
+  ["implement", 52, "52 分 ・ 1.1M"],
+  ["review", 38, "38 分 ・ 610k"],
+  ["fix", 31, "31 分 ・ 540k"],
+  ["merge", 4, "4 分 ・ 20k"],
+]
+  .map(
+    ([step, min, text]) =>
+      `<div class="rbar${step === "review" || step === "fix" ? " hot" : ""}"><code>${step}</code><i data-w="${(min / 52) * 100}"></i><span>${text}</span></div>`,
+  )
+  .join("")}
+<p class="call" hidden><b>ボトルネック</b>：review → fix の往復が 9 回で、所要の 5 割。t5・t7 に集中している（受け入れ条件があいまい）</p>
+<ul hidden><li>起票のときに受け入れ条件を具体的に書く</li><li>画面を変えるチケットは段階を heavy にする</li></ul>`;
+
+const RETRO_CODE = [
+  '<em>import</em> { listTickets } <em>from</em> "./core";',
+  "",
+  "<em>export function</em> render(board) {",
+  "  <em>return</em> board.columns.map((col) =&gt; row(col));",
+  "}",
+].join("\n");
+
+/** 履歴で終わった Iteration の「振り返る」に指示を足して頼み、Run の集計から書いた分析レポートが開く */
+async function retroFlow(rec, app) {
+  const page = rec.page;
+  await setupAgent(rec, { file: "app.ts", code: RETRO_CODE, term: "40%" });
+  await rec.hold(500);
+  const row = app.locator("summary.history-row", { hasText: "優先度の見せ方" });
+  await rec.moveTo(row, 600, 0.4);
+  await rec.hold(300);
+  await rec.moveTo(row.locator(".ask-bubble").first(), 300);
+  await rec.click();
+  await app.locator(".ask-menu").waitFor();
+  await rec.hold(700);
+  await rec.moveTo(app.locator(".ask-menu [role=menuitem]", { hasText: "振り返る" }), 350);
+  await rec.click();
+  const composer = app.locator(".ask-composer");
+  await composer.waitFor();
+  await rec.hold(500);
+  await rec.moveTo(composer.locator("textarea"), 350);
+  await rec.click();
+  const note = "ボトルネックを調べてレポートにして";
+  for (let i = 0; i < note.length; i += 2) {
+    await page.keyboard.type(note.slice(i, i + 2));
+    await rec.shot(90);
+  }
+  await rec.hold(300);
+  await rec.moveTo(composer.locator(".ask-copy"), 400);
+  await rec.click();
+  await rec.hold(600);
+  const copied = await page.evaluate(() => window.copied);
+  await rec.moveTo(page.locator(".term-input"), 600, 0.3);
+  await rec.click();
+  await termType(rec, copied, true);
+  await rec.hold(900);
+  await termEnter(rec);
+  await termSay(rec, "tool", "⏺ Bash(<i>dg metrics show --iteration s2 --by step</i>)", 500);
+  await termSay(rec, "tool", "⏺ Bash(<i>dg metrics show --iteration s2 --by ticket</i>)", 500);
+  await termSay(rec, "dot", "⏺ review と fix の往復が多いチケットを調べています…", 800);
+  await termSay(rec, "ok", "✓ レポートを書きました: reports/s2-retro.md", 500);
+  await page.evaluate((html) => {
+    const report = document.querySelector(".report");
+    report.innerHTML = html;
+    report.hidden = false;
+    window.showDoc("s2-retro.md");
+    document.querySelector(".term").style.setProperty("--term", "24%");
+  }, RETRO_REPORT);
+  await rec.shot(200);
+  for (const t of [0.35, 0.7, 1]) {
+    await page.evaluate((t) => {
+      for (const i of document.querySelectorAll(".rbar i")) i.style.width = `${i.dataset.w * t}%`;
+    }, t);
+    await rec.shot(90);
+  }
+  await rec.hold(900);
+  await page.evaluate(() => (document.querySelector(".report .call").hidden = false));
+  await rec.hold(1300);
+  await page.evaluate(() => (document.querySelector(".report ul").hidden = false));
+  await rec.hold(2400);
+}
+
+/**
+ * 1 本を録る。job.agent なら左パネルを拡張ホストの代わりの仲立ちで Webview として動かし、外枠にターミナルを置く。
+ * 台本は (rec, app, frame, ctx) で、app は左パネルの FrameLocator、frame はその Frame、ctx は一時リポジトリ（work・tmp）
+ */
+async function record(browser, server, icon, job, ctx) {
   const context = await browser.newContext({
     viewport: { width: WIDTH, height: HEIGHT },
     colorScheme: "dark",
@@ -369,30 +895,37 @@ async function record(browser, server, icon, hash, script) {
   await context.grantPermissions(["clipboard-read", "clipboard-write"], {
     origin: new URL(server.url).origin,
   });
+  if (job.agent) await context.addInitScript(vscodeShim);
   const page = await context.newPage();
   // 外枠も dg serve と同じオリジンから出す（iframe の画面のクリップボードを読むため）
   const frameUrl = `${server.url}__gif-frame.html`;
-  const appUrl = `${server.url}?surface=sidebar${hash}`;
+  const appUrl = `${server.url}?${job.agent ? "gif-host" : "surface"}=sidebar${job.hash}`;
   await page.route(frameUrl, (route) =>
-    route.fulfill({ contentType: "text/html", body: frameHtml(appUrl, icon) }),
+    route.fulfill({ contentType: "text/html", body: frameHtml(appUrl, icon, job.agent) }),
   );
   await page.goto(frameUrl, { waitUntil: "networkidle" });
   const frame = page.frames().find((f) => f.url().startsWith(appUrl));
   const app = page.frameLocator(".side iframe");
   await app.locator(".topbar").waitFor();
   const rec = new Recorder(page);
-  await script(rec, app, frame);
+  await job.script(rec, app, frame, ctx);
   await context.close();
   return rec.frames;
 }
 
 async function main() {
+  const only = process.argv.slice(2);
+  const jobs = [
+    { name: "open-board.gif", hash: "#/board", script: openBoard, seconds: [6, 10] },
+    { name: "ask-agent.gif", hash: "#/board", script: askAgent, seconds: [6, 10] },
+    { name: "import.gif", hash: "#/backlog", script: importFlow, repo: importRepo, agent: true },
+    { name: "run-all.gif", hash: "#/board", script: runAllFlow, repo: runAllRepo, agent: true },
+    { name: "retro.gif", hash: "#/history", script: retroFlow, repo: retroRepo, agent: true },
+  ].filter((job) => only.length === 0 || only.includes(job.name));
   const tmp = await realpath(await mkdtemp(path.join(os.tmpdir(), "deguboard-gifs-")));
-  let server;
+  const servers = [];
   let browser;
   try {
-    const work = await createRepo(tmp);
-    server = await startServer({ cwd: work, port: 0, user: "見本", staticDir: webDist });
     browser = await chromium.launch().catch((error) => {
       throw new Error(
         `Chromium を起動できない。mise run playwright:install を実行する（${error}）`,
@@ -403,25 +936,35 @@ async function main() {
       "utf8",
     );
     await mkdir(outDir, { recursive: true });
-    const jobs = [
-      ["open-board.gif", "#/board", openBoard],
-      ["ask-agent.gif", "#/board", askAgent],
-    ];
-    for (const [name, hash, script] of jobs) {
-      const frames = await record(browser, server, icon, hash, script);
+    // 見本のリポジトリは、台本がデータを書き換える 3 本はそれぞれに作り、見るだけの 2 本は 1 つを使い回す
+    const shared = new Map();
+    for (const job of jobs) {
+      const build = job.repo ?? createRepo;
+      let ctx = shared.get(build);
+      if (!ctx) {
+        const dir = path.join(tmp, job.name.replace(/\.gif$/, ""));
+        await mkdir(dir);
+        const work = await build(dir);
+        const server = await startServer({ cwd: work, port: 0, user: "見本", staticDir: webDist });
+        servers.push(server);
+        ctx = { work, tmp: dir, server };
+        if (!job.repo) shared.set(build, ctx);
+      }
+      const frames = await record(browser, ctx.server, icon, job, ctx);
       const bytes = encodeGif(frames);
-      await writeFile(path.join(outDir, name), bytes);
+      await writeFile(path.join(outDir, job.name), bytes);
       const seconds = frames.reduce((sum, f) => sum + f.delay, 0) / 1000;
       const kb = Math.round(bytes.length / 1024);
-      const ok = seconds >= 6 && seconds <= 10 && bytes.length <= 1024 * 1024;
+      const [min, max] = job.seconds ?? [0, 20];
+      const ok = seconds >= min && seconds <= max && bytes.length <= 1024 * 1024;
       console.log(
-        `${name}: ${WIDTH}x${HEIGHT}、${seconds.toFixed(1)} 秒、${kb} KB、${frames.length} コマ${ok ? "" : "（6〜10 秒・1MB 以下に収まらない）"}`,
+        `${job.name}: ${WIDTH}x${HEIGHT}、${seconds.toFixed(1)} 秒、${kb} KB、${frames.length} コマ${ok ? "" : `（${min ? `${min}〜` : ""}${max} 秒${min ? "" : "以下"}・1MB 以下に収まらない）`}`,
       );
       if (!ok) process.exitCode = 1;
     }
   } finally {
     await browser?.close();
-    await server?.close();
+    for (const server of servers) await server.close();
     await rm(tmp, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
   }
 }
