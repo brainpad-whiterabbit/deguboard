@@ -154,7 +154,7 @@ closed_at: 2026-11-20T09:00:00Z # closed のときだけ
 
 - PL-1 `id`、`project`、`tickets`、`after`（計画内だけの待ち。チケットの依存とは別）、`pending_approval`、`approved_by`、`approved_at`、`details.<ticket>.{scope, approach, tier}`（`tier` は難しさの段階 `light` / `standard` / `heavy`。モデル名は書かない）、`closed_at` を持つ
 - PL-2 進捗は Plan に書かない。チケットの状態から都度求める。Plan を書くのは作成・承認・終了のときだけ
-- PL-3 1 つのチケットは同時に 1 つの開いた（`closed_at` のない）Plan にしか入らない。done・abandoned のチケット、存在しないチケット、Plan と別の Project のチケットは入れられない。`after` と `details` は Plan に入れたチケットだけを指し、`after` は循環できない
+- PL-3 1 つのチケットは同時に 1 つの開いた（`closed_at` のない）Plan にしか入らない。done・abandoned のチケット、存在しないチケット、Plan と別の Project のチケットは入れられない。`after` と `details` は Plan に入れたチケットだけを指し、`after` は循環できない。`after` と `depends_on`（Plan の外の終わっていないチケットも含めてたどる）をまたぐ循環も拒否し、経路をメッセージに出す
 - PL-4 `plan create` は承認待ち（`pending_approval: true`）で作る。`plan approve` は承認待ちの Plan に `approved_by`（操作した主体）と `approved_at` を書いて `pending_approval` を外す。`plan close` は `closed_at` を書き、終わっていないチケットが残れば警告する。閉じた Plan は承認も閉じ直しもできない。承認と終了は既定で誰でも行える（人に限るなら `actor.human_only`、5.10）
 - PL-5 Plan の状態は保存せず、`pending_approval` と `closed_at` から求める（pending・approved・closed）。`plan list` は状態と進捗を出し、`ticket show` はチケットが入っている開いた Plan を出す
 - PL-6 `plan list` と `plan show` は着手できるかを求める。`waiting`（`plan show` は `items[].waiting`）はチケットごとの待ちの相手（終わっていない `after` が先、`depends_on` が後。消したチケットへの `after` は待たない）、`ready` は todo で待ちのないもの、`next` は次（Plan の順で先の `ready`、なければ先頭の todo と待ちの相手）。閉じた Plan の `ready`・`next` は空。画面と手順はこれを読み、求め直さない
