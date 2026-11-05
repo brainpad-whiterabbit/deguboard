@@ -377,14 +377,10 @@ describe("dg guide", () => {
     for (const text of [work, all]) expect(text).not.toContain("--json mergeable");
   });
 
-  it("plan・work・parallel は plan の Run を 1 枚ずつ記録すると案内する", async () => {
-    const plan = await readGuide("plan");
-    expect(plan).toContain("run start <id> plan");
-    expect(plan).toContain("1 枚ずつ");
-    expect(plan).toContain("順だけを示すとき");
-    expect(await readGuide("all")).toContain("`plan` の Run");
-    expect(await readGuide("work")).toContain("`plan` の Run");
-    expect(await readGuide("parallel")).toContain("`plan` の Run");
+  it("plan・work・parallel・all・run・review は plan の Run を案内しない", async () => {
+    expect(await readGuide("plan")).not.toContain("run start <id> plan");
+    for (const topic of ["plan", "work", "parallel", "all", "run", "review"])
+      expect(await readGuide(topic)).not.toMatch(/`plan` の Run|step.*`plan`|\| `plan`/);
   });
 
   it("plan の手順 4 は参考節のファイルが重なるチケットを並行させず after でつなぎ、参考節のないチケットは依存と優先度で順を決めると案内する", async () => {

@@ -12,8 +12,6 @@ export const general: WorkflowDefinitionInput = {
   fields: [],
   // Run の step の語彙。順や分岐は書かない（手順は dg guide が持つ。WF-5）
   steps: [
-    // 計画を立てる親が、チケットを 1 枚ずつ調べて Plan の範囲・方針を書くまで、依頼文の前の調べ直しも（ADR-005）
-    { id: "plan", label: "Plan" },
     { id: "investigate", label: "Investigate" },
     { id: "implement", label: "Implement", actions: ["create_worktree", "create_branch"] },
     { id: "review", label: "Review" },
