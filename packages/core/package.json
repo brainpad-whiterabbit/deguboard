@@ -1,6 +1,6 @@
 {
   "name": "@deguboard/core",
-  "version": "0.14.0",
+  "version": "0.15.0",
   "description": "deguboard のドメインモデル・ストレージ・Git 操作・ワークフロー・コマンド定義",
   "homepage": "https://github.com/brainpad-whiterabbit/deguboard#readme",
   "bugs": "https://github.com/brainpad-whiterabbit/deguboard/issues",

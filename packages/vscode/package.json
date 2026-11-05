@@ -1,7 +1,7 @@
 {
   "name": "deguboard-vscode",
   "displayName": "deguboard",
-  "version": "0.14.0",
+  "version": "0.15.0",
   "private": true,
   "description": "AI エージェントに仕事を任せるためのカンバン。小さなチケットに分けて並列に進め、その働きを測れます。",
   "categories": [
