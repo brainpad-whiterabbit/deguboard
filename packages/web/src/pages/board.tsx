@@ -25,6 +25,7 @@ import {
   StatusBand,
   StatusDot,
   Tags,
+  DetailLink,
   TicketLink,
 } from "../components/parts.js";
 import { FilterToggle } from "../components/filter-toggle.js";
@@ -342,12 +343,13 @@ export function hideClosedFinished<T extends Ticket>(
   );
 }
 
-/** 選んだ Iteration の見出し：番号・名前（詳細へのリンク）・状態・期間・目標と詳細へのリンク */
+/** 選んだ Iteration の見出し：番号・名前・状態・期間・目標。名前と右端の「詳細」はともに詳細へのリンク */
 function IterationHead({ iteration: it }: { iteration: Iteration }) {
   return (
     <header className="board-head">
       <h1>
-        <code>{it.id}</code> <a href={hrefOf({ page: "iterations", id: it.id })}>{it.name}</a>
+        <code>{it.id}</code>{" "}
+        <DetailLink route={{ page: "iterations", id: it.id }}>{it.name}</DetailLink>
       </h1>
       <span className={`badge iteration-${it.status}`}>{ITERATION_LABELS[it.status]}</span>
       {it.start || it.end ? (
@@ -418,7 +420,7 @@ function SidebarBoardHead({
       </div>
       <div className="head-line sub muted" {...(it ? { ...spot.props, tabIndex: 0 } : {})}>
         <span className="name">
-          {it ? <a href={hrefOf({ page: "iterations", id: it.id })}>{name}</a> : name}
+          {it ? <DetailLink route={{ page: "iterations", id: it.id }}>{name}</DetailLink> : name}
         </span>
         {period ? <span className="period">{period}</span> : null}
         {it?.goal ? (
