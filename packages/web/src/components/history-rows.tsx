@@ -60,6 +60,7 @@ export function HistoryTicketRow({
     targets: [t.id],
     label: `行 ${t.id}`,
     section: ASK_SECTIONS.historyRow,
+    select: true,
   });
   const q = query?.trim().toLowerCase() ?? "";
   const abandoned = t.status === "abandoned";
