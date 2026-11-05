@@ -1,0 +1,18 @@
+id: p43
+project: default
+tickets: [t363, t364, t365]
+after: {}
+pending_approval: true
+details:
+  t363:
+    scope: Skill を持つ頼むことの --format text に、その段階の dg guide <topic> を読む一文を入れ、ADR-010 を合わせる
+    approach: core の ask の文章の形式の組み立てに一文を足し、頼むことごとのトピックを dg ask のテストで確かめる
+    tier: standard
+  t364:
+    scope: dg の Skill が repo と home のどちらにもなければ頼む小窓の形式の既定を文章にする。人の切り替えは保つ
+    approach: Skill の有無の判定を core のコマンド定義に置き、CLI・HTTP・Webview はそれを写して小窓の既定に使う
+    tier: heavy
+  t365:
+    scope: README に Skill は任意で中身は dg guide を呼ぶ決まった文面と書き、dg skill install --dry-run を足し AG-2 を合わせる
+    approach: core の skill install に dry-run を足して書く先と中身を返し、CLI に写して README と requirements を直す
+    tier: standard
