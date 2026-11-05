@@ -45,6 +45,8 @@ deguboard は、Git で管理するチケットとユーザー定義のワーク
 
 ## 5. データ要件
 
+項目の全体と型は Zod のスキーマ（`packages/core/src/model/`）が正本。ここには配置、必須の項目、振る舞いに効く項目の意味と項目どうしの決まりだけを書く。
+
 ### 5.1 配置
 
 - データは orphan ブランチ `deguboard` に置き、`<git-common-dir>/deguboard/` に専用 worktree として checkout する。読み書きはすべてここで行い、作業ブランチにはデータを置かない（[ADR-002](adr/ADR-002-storage-and-id.md)）
@@ -85,17 +87,7 @@ id: t12
 project: webapp
 title: ログイン画面のバリデーション
 status: in_progress
-priority: medium
-labels: [frontend]
-iteration: s3
-epic: e3
 depends_on: [t9]
-workflow: software-development
-created_by: eiki
-assignee: eiki/agent
-branch: feature/t12-login-validation
-branch_at: 2026-10-31T04:30:00Z # branch を記録した時刻
-pr: 42 # 任意
 created_at: 2026-10-31T04:00:00Z
 updated_at: 2026-10-31T05:10:00Z
 ---
@@ -120,24 +112,7 @@ updated_at: 2026-10-31T05:10:00Z
 
 ### 5.5 Epic（`epics/e3.md`）
 
-目的ごとにチケットを束ねる単位。Iteration（期間）・Plan（実行順）とは別の軸で、Iteration をまたぐ。
-
-```markdown
----
-id: e3
-project: webapp
-title: ログイン機能の刷新
-status: open # open | closed
-labels: [frontend]
-created_at: 2026-10-31T04:00:00Z
-updated_at: 2026-10-31T05:10:00Z
-closed_at: 2026-11-20T09:00:00Z # closed のときだけ
----
-
-## 概要
-
-…
-```
+目的ごとにチケットを束ねる単位。Iteration（期間）・Plan（実行順）とは別の軸で、Iteration をまたぐ。Ticket と同じく frontmatter と Markdown の本文を持ち、`status` は `open` / `closed`。
 
 - EP-1 必須は `id`・`project`・`title`・`status`・`created_at`・`updated_at`。閉じたときに `closed_at` を書く。本文は Markdown で、`## 概要` を推奨する
 - EP-2 所属はチケットの `epic` で表し、Epic 側にチケットの一覧は持たない。入れるのは同じ Project のチケットだけ。Epic は入れ子にしない
@@ -147,12 +122,12 @@ closed_at: 2026-11-20T09:00:00Z # closed のときだけ
 
 ### 5.6 Iteration（`iterations/s3.yaml`）
 
-- IT-1 `id`、`project`、`name`、`goal`、`start`、`end`、`status`（`planned` / `active` / `closed`）を持つ。開始・終了で `start`・`end` を実際の日にし、閉じたときに `closed_at` と完了・持ち越しの件数（`completed`・`carried_over`）を書く（細部は `iteration close / reopen --help`）。閉じる・再開するのは既定で誰でも行える（EP-4 と同じ）。active は Project に 1 つに保つ
+- IT-1 `status` は `planned` / `active` / `closed` で、期間を `start`・`end` に持つ。開始・終了で `start`・`end` を実際の日にし、閉じたときに `closed_at` と完了・持ち越しの件数（`completed`・`carried_over`）を書く（細部は `iteration close / reopen --help`）。閉じる・再開するのは既定で誰でも行える（EP-4 と同じ）。active は Project に 1 つに保つ
 - IT-2 所属はチケットの `iteration` で表し、Iteration 側にチケットの一覧は持たない。入れるのは同じ Project のチケットだけで、閉じた Iteration には入れられない。並びは優先度と番号の順で、閉じるときに done・abandoned 以外のチケットの `iteration` を外す。進捗は都度求める（EP-3）。`iteration show` は次の操作 `next` と中のチケットを含む Plan `plans` を返し、画面はこれを読む（形は `packages/core/src/commands/iteration.ts`）
 
 ### 5.7 Plan（`plans/p7.yaml`）
 
-- PL-1 `id`、`project`、`tickets`、`after`（計画内だけの待ち。チケットの依存とは別）、`pending_approval`、`approved_by`、`approved_at`、`details.<ticket>.{scope, approach, tier}`（`tier` は難しさの段階 `light` / `standard` / `heavy`。モデル名は書かない）、`closed_at` を持つ
+- PL-1 入れるチケット `tickets`、計画内だけの待ち `after`（チケットの依存とは別）、チケットごとの範囲・方針・難しさの段階 `details.<ticket>.{scope, approach, tier}` を持つ。`tier` は `light` / `standard` / `heavy` で、モデル名は書かない（対応は 5.10 の `models.*`）。承認と終了の項目は PL-4
 - PL-2 進捗は Plan に書かない。チケットの状態から都度求める。Plan を書くのは作成・承認・終了のときだけ
 - PL-3 1 つのチケットは同時に 1 つの開いた（`closed_at` のない）Plan にしか入らない。done・abandoned のチケット、存在しないチケット、Plan と別の Project のチケットは入れられない。`after` と `details` は Plan に入れたチケットだけを指し、`after` は循環できない。`after` と `depends_on`（Plan の外の終わっていないチケットも含めてたどる）をまたぐ循環も拒否し、経路をメッセージに出す
 - PL-4 `plan create` は承認待ち（`pending_approval: true`）で作る。`plan approve` は `approved_by`・`approved_at` を書いて `pending_approval` を外す。`plan close` は `closed_at` を書き、終わっていないチケットが残れば警告する。閉じた Plan は承認も閉じ直しもできない。承認と終了は既定で誰でも行える（EP-4 と同じ）
@@ -189,14 +164,14 @@ steps: # 任意。Run の step の語彙（WF-5）
 
 ### 5.9 Run（`runs/`）
 
-- RN-1 1 Run 1 ファイル。`id`、`ticket`、`step`、`agent`、`model`、`started_at`、`finished_at`、`result`（`success` / `failure` / `interrupted`）、`error`、`retries`、`retry_reasons`（やり直しの理由の配列）、`usage`（トークン数）、`tools`（ツールの回数）。形は `packages/core/src/model/run.ts`
+- RN-1 1 Run 1 ファイル。チケット・step・エージェント・モデル・開始と終了の時刻・結果（`success` / `failure` / `interrupted`）・エラー・やり直しの回数と理由・トークン数・ツールの回数を持つ
 - RN-2 取れなかった値は `null`。推定した値は `estimated: true` を付ける。費用は持たない（[ADR-005](adr/ADR-005-work-metrics.md)）
 - RN-3 Git に入れるのは完了時の集計だけ。実行中の記録は `deguboard-local/runs/` に置く。チケットには書き足さない
 - RN-4 閉じた Run で書き換えるのは、`run refresh`（MT-5）が取り直すモデル名と使用量だけ
 
 ### 5.10 設定（`config.yaml`）
 
-項目は `default_project`、`git.*`、`worktree.root`、`commit.mode`、`push.mode`、`metrics.read_transcripts`、`actions.*`、`actor.human_only`、`auto.merge`、`lint.require_iteration`、`models.*`、`priority.*`（TK-8）。意味・値・既定値はスキーマ（`packages/core/src/model/config.ts`）、`config.set` の値の扱いは `dg config set --help` が正本。エージェントや記録に関わるもの（`metrics.read_transcripts`・`actions.shell`・`auto.merge`）は既定で `false`。利用者ごとの上書きは設けない。
+項目と意味・値・既定値はスキーマ（`packages/core/src/model/config.ts`）、`config.set` の値の扱いは `dg config set --help` が正本。エージェントや記録に関わるもの（`metrics.read_transcripts`・`actions.shell`・`auto.merge`）は既定で `false`。利用者ごとの上書きは設けない。
 
 - `actor.human_only`：agent が呼ぶと `TRANSITION_REJECTED` で拒否するコマンド名の一覧。既定は空。チケットの遷移を人に限るのは Workflow の `by`（WF-1）
 - `models.*`：Plan の段階（PL-1）に対応するモデル名。手順（`dg guide run`）がサブエージェントに渡す
