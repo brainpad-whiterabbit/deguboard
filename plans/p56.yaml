@@ -4,7 +4,7 @@ tickets: [t425, t418]
 after:
   t418:
     - t425
-pending_approval: true
+pending_approval: false
 details:
   t425:
     scope: Run を、ID を見ただけの別の session の会話記録に結び付けないようにする
@@ -14,3 +14,5 @@ details:
     scope: 5 パッケージの version を 0.15.0 に揃える版上げの PR を作り、リリースの手順の確かめを回す
     approach: リリースは人の指示を待つ。指示が出たら mise run release:version -- 0.15.0 の後に check・pack・audit・test:layout
     tier: light
+approved_by: eiki.kitajima/agent
+approved_at: 2026-11-05T11:30:24Z
