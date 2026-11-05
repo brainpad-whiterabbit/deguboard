@@ -30,6 +30,9 @@
     },
     "access": "public"
   },
+  "scripts": {
+    "prepack": "cp ../../LICENSE LICENSE"
+  },
   "dependencies": {
     "@deguboard/core": "workspace:*",
     "zod": "4.6.7"

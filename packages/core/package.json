@@ -30,6 +30,9 @@
     },
     "access": "public"
   },
+  "scripts": {
+    "prepack": "cp ../../LICENSE LICENSE"
+  },
   "dependencies": {
     "yaml": "2.9.1",
     "zod": "4.6.7"
