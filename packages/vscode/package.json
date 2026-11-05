@@ -62,6 +62,11 @@
     },
     "commands": [
       {
+        "command": "deguboard.gotoTicket",
+        "title": "チケットへ移動",
+        "category": "deguboard"
+      },
+      {
         "command": "deguboard.openCurrentTicket",
         "title": "今のブランチのチケットを開く",
         "category": "deguboard"
@@ -99,6 +104,13 @@
         "command": "deguboard.backlog.copyId",
         "title": "ID をコピー",
         "category": "deguboard"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "deguboard.gotoTicket",
+        "key": "ctrl+k ctrl+alt+t",
+        "mac": "cmd+k cmd+alt+t"
       }
     ],
     "menus": {

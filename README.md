@@ -53,6 +53,10 @@ Activity Bar の deguboard のアイコンを押すと、サイドバーにカ�
 
 <img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/open-board.gif" alt="ボードを開く" width="560">
 
+### ID かタイトルから詳細へ移動する
+
+コマンドパレットの「deguboard: チケットへ移動」か、キー `Ctrl+K Ctrl+Alt+T`（macOS は `⌘K ⌘⌥T`）で、チケット・Iteration・Epic・Plan を ID かタイトルの一部で絞り込み、選ぶと詳細がエディタのパネルに開きます。abandoned や closed のものも、Status を見て選べます。複数のフォルダを開いているときは、今のエディタのファイルがあるフォルダ（なければ最初のフォルダ）のデータを出します。キーは `Ctrl+K` に続く 2 打で、VS Code の既定の割り当てや OS のショートカットと重ならないものを選びました。変えたいときは「キーボード ショートカット」で `deguboard.gotoTicket` を探します。
+
 ### 雑な指示からチケットを起票する
 
 思いついたままの一言で頼むと、エージェントがコードを調べて、小さなチケットに分けた起票の案を出します。案には概要・受け入れ条件・優先度・依存が入り、承認するとバックログに並びます。Claude Code では `/dgimport` を付けて頼みます。
