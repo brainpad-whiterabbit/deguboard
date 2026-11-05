@@ -2,6 +2,7 @@
 // エディタ領域のパネルはサイドバーから開いた詳細（チケット・Iteration・Epic）だけを出し、一覧の画面（カンバンなど）はサイドバーに出す。
 // パネルの題は詳細の番号と名前にする（パネルにはヘッダーを出さないので、題で見分ける）。
 // 今のブランチに紐づくチケットをステータスバーに出す（statusbar.ts）。
+// コード中の ID（t12・s3・e2・p7）にホバーとリンクを付ける（ids.ts）。存在する ID だけで、索引は見張りで更新する。
 // データ worktree と実行中の Run の記録を見張り、CLI やエージェントの書き込みを画面に映す。
 // Webview からの要求は core のプロセス内 CommandClient に通す（ADR-006・ADR-007）。サーバーは起動しない。
 // dg は同梱せず、PATH の dg を案内する（UI-11）。VS Code の API に触れるのはこのファイルだけ
@@ -27,6 +28,17 @@ import {
   type MenuTicket,
 } from "./context-menu.js";
 import { dgAdvice, resolveDg } from "./dg.js";
+import {
+  buildIdIndex,
+  findIds,
+  hoverMarkdown,
+  ID_DOCUMENT_SELECTOR,
+  OPEN_ID_COMMAND,
+  openIdCommandUri,
+  routeOfId,
+  type IdIndex,
+  type IdSources,
+} from "./ids.js";
 import {
   currentBranch,
   headFile,
@@ -86,6 +98,11 @@ let statusGeneration = 0;
 /** ブランチの変わり（worktree の HEAD）の見張り。作業フォルダごと */
 const headWatchers = new Map<string, vscode.Disposable>();
 
+/** フォルダごとの存在する ID の索引。データの見張り（watchData）で作り直し、毎回 dg を呼ばない */
+const idIndexes = new Map<string, IdIndex>();
+/** 読み込み中の索引（同じフォルダで重ねて読まない） */
+const idIndexLoading = new Map<string, Promise<IdIndex | undefined>>();
+
 export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     // ビューのタイトル行の同期ボタン（UI-12）。拡張ホストで実行してから、サイドバーとパネルの両方に読み直しを頼む
@@ -126,6 +143,50 @@ export function activate(context: vscode.ExtensionContext): void {
       });
     }),
     vscode.workspace.onDidChangeWorkspaceFolders(() => void refreshStatusBar()),
+    // コード中の ID のホバーとリンク（エディタとコミットメッセージの入力欄）。リンクはその ID の詳細のパネルを開く
+    vscode.commands.registerCommand(OPEN_ID_COMMAND, (arg: unknown) => {
+      const id = Array.isArray(arg) ? arg[0] : arg;
+      const folder = (vscode.workspace.workspaceFolders ?? [])[0];
+      if (typeof id !== "string" || !folder) return;
+      const route = routeOfId(id);
+      if (!route) return;
+      return openPanel(context, folder, { column: vscode.ViewColumn.Beside, route });
+    }),
+    vscode.languages.registerHoverProvider([...ID_DOCUMENT_SELECTOR], {
+      async provideHover(document, position) {
+        const index = await idIndexFor(document.uri);
+        if (!index) return undefined;
+        const line = document.lineAt(position.line).text;
+        const hit = findIds(line).find(
+          (f) => f.start <= position.character && position.character <= f.end,
+        );
+        const entry = hit && index.get(hit.id);
+        if (!hit || !entry) return undefined;
+        const range = new vscode.Range(position.line, hit.start, position.line, hit.end);
+        return new vscode.Hover(new vscode.MarkdownString(hoverMarkdown(entry)), range);
+      },
+    }),
+    vscode.languages.registerDocumentLinkProvider([...ID_DOCUMENT_SELECTOR], {
+      async provideDocumentLinks(document) {
+        const index = await idIndexFor(document.uri);
+        if (!index) return [];
+        const links: vscode.DocumentLink[] = [];
+        for (let line = 0; line < document.lineCount; line++) {
+          for (const f of findIds(document.lineAt(line).text)) {
+            const entry = index.get(f.id);
+            // 詳細のパネルがある ID（Plan 以外）だけにリンクを付ける
+            if (!entry || !routeOfId(f.id)) continue;
+            const link = new vscode.DocumentLink(
+              new vscode.Range(line, f.start, line, f.end),
+              vscode.Uri.parse(openIdCommandUri(f.id)),
+            );
+            link.tooltip = `${f.id} の詳細を開く`;
+            links.push(link);
+          }
+        }
+        return links;
+      },
+    }),
     vscode.window.registerWebviewViewProvider(
       VIEW_ID,
       { resolveWebviewView: (view) => resolveSidebar(context, view) },
@@ -146,6 +207,7 @@ export function deactivate(): void {
   statusItem?.dispose();
   statusItem = undefined;
   clients.clear();
+  idIndexes.clear();
 }
 
 /** サイドバーのビュー。最初の作業フォルダを対象にし、詳細を押すとエディタ領域のパネルに開く */
@@ -472,6 +534,7 @@ async function watchData(folder: vscode.WorkspaceFolder, client: CommandClient):
   const pending = coalesce(() => {
     broadcast(folder, { kind: "event", name: "reload" });
     void refreshStatusBar();
+    void loadIdIndex(folder);
   }, 200);
   const fsWatchers = watchTargets(dataDir).map((target) => {
     const watcher = vscode.workspace.createFileSystemWatcher(
@@ -527,6 +590,47 @@ async function refreshStatusBar(): Promise<void> {
   } catch {
     if (generation === statusGeneration) hideStatusBar();
   }
+}
+
+/** 文書のあるフォルダ（なければ最初の作業フォルダ）の ID の索引。まだなければ 1 回だけ読む。読めなければ undefined */
+async function idIndexFor(uri: vscode.Uri): Promise<IdIndex | undefined> {
+  const folder =
+    vscode.workspace.getWorkspaceFolder(uri) ?? (vscode.workspace.workspaceFolders ?? [])[0];
+  if (!folder) return undefined;
+  return idIndexes.get(folder.uri.toString()) ?? loadIdIndex(folder);
+}
+
+/** チケット・Iteration・Epic・Plan の一覧を読んで索引を作り直す。読めないとき（データのないリポジトリなど）は通知を出さず、索引を捨てる */
+function loadIdIndex(folder: vscode.WorkspaceFolder): Promise<IdIndex | undefined> {
+  const key = folder.uri.toString();
+  const running = idIndexLoading.get(key);
+  if (running) return running;
+  const load = (async () => {
+    try {
+      const client = clientFor(folder);
+      const [tickets, iterations, epics, plans] = await Promise.all([
+        client.run<IdSources["tickets"]>("ticket.list", {}),
+        client.run<IdSources["iterations"]>("iteration.list", {}),
+        client.run<IdSources["epics"]>("epic.list", {}),
+        client.run<IdSources["plans"]>("plan.list", {}),
+      ]);
+      const index = buildIdIndex({
+        tickets: tickets.data,
+        iterations: iterations.data,
+        epics: epics.data,
+        plans: plans.data,
+      });
+      idIndexes.set(key, index);
+      return index;
+    } catch {
+      idIndexes.delete(key);
+      return undefined;
+    } finally {
+      idIndexLoading.delete(key);
+    }
+  })();
+  idIndexLoading.set(key, load);
+  return load;
 }
 
 function hideStatusBar(): void {
