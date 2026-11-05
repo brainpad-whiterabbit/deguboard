@@ -181,9 +181,13 @@ export function buildProgram(options: ProgramOptions = {}): Command {
       "リポジトリではなく ~/.claude/skills に書く（Claude Code の個人の Skill。どのリポジトリでも使う）",
     )
     .option("--force", "手を加えた SKILL.md も上書きする")
+    .option(
+      "--dry-run",
+      "何も書かず消さず、書く先と SKILL.md の中身を出す（入れる前に確かめる）。--json は data.files に name・path・content を返す",
+    )
     .exitOverride()
     .configureOutput(program.configureOutput())
-    .action(async (opts: { personal?: boolean; force?: boolean }) => {
+    .action(async (opts: { personal?: boolean; force?: boolean; dryRun?: boolean }) => {
       const global = program.opts<{ json?: boolean; C?: string }>();
       try {
         const result = await installSkill({
@@ -191,20 +195,23 @@ export function buildProgram(options: ProgramOptions = {}): Command {
           scope: opts.personal ? "personal" : "project",
           home: env["HOME"] ?? homedir(),
           force: opts.force ?? false,
+          dryRun: opts.dryRun ?? false,
         });
         const warnings = skillInstallWarnings(result);
         if (global.json)
           streams.out(JSON.stringify({ ok: true, data: result, warnings, write: null }, null, 2));
         else {
           const lines = [
-            ["書いた", result.written],
-            ["更新した", result.updated],
+            [result.dryRun ? "書く" : "書いた", result.written],
+            [result.dryRun ? "更新する" : "更新した", result.updated],
             ["最新だった", result.unchanged],
-            ["廃止して消した", result.retired],
+            [result.dryRun ? "廃止して消す" : "廃止して消した", result.retired],
           ] as const;
+          if (result.dryRun) streams.out("--dry-run：何も書いていない");
           streams.out(`Skill の置き場所：${result.dir}`);
           for (const [label, names] of lines)
             if (names.length > 0) streams.out(`${label}：${names.join(", ")}`);
+          for (const f of result.files) streams.out(`\n--- ${f.path}\n${f.content}`);
           for (const w of warnings) streams.err(`警告: ${w}`);
         }
         process.exitCode = 0;
