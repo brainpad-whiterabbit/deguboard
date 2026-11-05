@@ -324,6 +324,25 @@ describe("Claude Code の Adapter", () => {
       expect(got.usage.output).toBe(11);
     });
 
+    it("session のファイルで Run が見つかっても、別の session で始まった Run の ID を見ただけでは譲らない", async () => {
+      // A は session sa、B は別の session sb で始めた。sa は 10:10:30 に B の ID を見ただけ
+      const { projectDir, query } = await setup({ CLAUDE_CODE_SESSION_ID: "sa" });
+      await writeTranscript(path.join(projectDir, "sa.jsonl"), [
+        mention(0),
+        assistant("m1", 5, [1, 1, 1, 1]),
+        mentionOf(B, 10.5),
+        assistant("m2", 12, [10, 10, 10, 10]),
+      ]);
+      await writeTranscript(path.join(projectDir, "sb.jsonl"), [
+        mentionOf(B, 10),
+        assistant("n1", 12, [1000, 1000, 1000, 1000]),
+      ]);
+      const got = await claudeCodeAdapter.readTranscriptUsage(
+        query({ finishedAt: at(20), others: spans([[B, B_STARTED, null]]) }),
+      );
+      expect(got.usage.output).toBe(11);
+    });
+
     it("同じファイルで始めた 2 本は片方だけに数え、別のファイルで始まった Run の ID を見ても両方を 0 にしない", async () => {
       const { projectDir, query } = await setup();
       // 1 つの見直し役が s1 で A（10:10:00）と C（10:10:01）を始め（出力に ID は出ない）、10:10:09 の一覧で

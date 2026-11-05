@@ -171,15 +171,18 @@ export class OverlapClaims {
 }
 
 /**
- * 選んだファイル（chosen）で譲る相手にした Run のうち、読んだほかのファイル（all）で ID がそれより先に出たもの。
- * その Run は Adapter がそちらのファイルに結び付けるので、chosen の応答を数えない。譲ると二重計上を防ぐどころか、どちらも数えなくなる
+ * 選んだファイル（chosen）で譲る相手にした Run のうち、読んだほかのファイル（all）で ID が同じか先の時刻に出たもの。
+ * その Run は Adapter がそちらのファイルに結び付けうるので、chosen の応答を数えない。譲ると二重計上を防ぐどころか、どちらも数えなくなる。
+ * all は Adapter が Run を探す範囲のすべて（Claude Code は session と作業ツリーの両方）にする。狭いと別の記録の Run に譲ってしまう。
+ * 同じ時刻なら、どちらに結び付くかは列挙の順で決まり分からないので、量を落とさない側（譲らない）に倒す
  */
 export function claimedElsewhere(chosen: OverlapClaims, all: Iterable<OverlapClaims>): Set<string> {
   const out = new Set<string>();
   for (const id of chosen.claimants) {
     const here = chosen.seen.get(id) ?? Infinity;
     for (const other of all) {
-      if (other !== chosen && (other.seen.get(id) ?? Infinity) < here) out.add(id);
+      const there = other.seen.get(id);
+      if (other !== chosen && there !== undefined && there <= here) out.add(id);
     }
   }
   return out;
