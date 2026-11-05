@@ -1,0 +1,24 @@
+{
+  "id": "r20261105-011031-5a2e",
+  "ticket": "t386",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "haiku",
+  "started_at": "2026-11-05T01:10:31Z",
+  "finished_at": "2026-11-05T01:13:28Z",
+  "result": "success",
+  "error": null,
+  "retries": 4,
+  "retry_reasons": [
+    "重い指摘：guide-all の再開の行で dg guide all に対象を付けさせていた箇所を、読み直して同じ対象と指定で続ける書き方にした（guide-review の --auto の書き方も同様に直した）",
+    "軽い指摘：ADR-004 の主体を guide 側に直し、更新日と一覧を合わせた",
+    "軽い指摘：guide-choices の次の手順の文を 1 文にした",
+    "軽い指摘：guide.test.ts のテスト名を短くした"
+  ],
+  "usage": {
+    "input": 14,
+    "output": 5721,
+    "cache_read": 783121,
+    "cache_write": 14476
+  }
+}
