@@ -169,7 +169,10 @@ export function activate(context: vscode.ExtensionContext): void {
         route: ticketRoute({ ticket: statusTicket }),
       });
     }),
-    vscode.workspace.onDidChangeWorkspaceFolders(() => void refreshStatusBar()),
+    vscode.workspace.onDidChangeWorkspaceFolders((e) => {
+      for (const folder of e.removed) forgetFolder(folder);
+      void refreshStatusBar();
+    }),
     // コード中の ID のホバーとリンク（エディタとコミットメッセージの入力欄）。リンクはその ID の詳細のパネルを開く
     vscode.commands.registerCommand(OPEN_ID_COMMAND, (a0: unknown, a1?: unknown) => {
       const args = openIdArgs(a0, a1);
@@ -533,6 +536,19 @@ async function attach(
     route: options.route,
     ask: options.ask,
   });
+}
+
+/** 外したフォルダの見張り・client・索引を捨てる（残すと外したフォルダの変化で読み直し続ける） */
+function forgetFolder(folder: vscode.WorkspaceFolder): void {
+  const key = folder.uri.toString();
+  for (const map of [watchers, headWatchers, initWatchers]) {
+    map.get(key)?.dispose();
+    map.delete(key);
+  }
+  clients.delete(key);
+  idIndexes.delete(key);
+  idIndexFailedAt.delete(key);
+  approvalSeen.delete(key);
 }
 
 function clientFor(folder: vscode.WorkspaceFolder): CommandClient {

@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, realpathSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
@@ -52,14 +52,18 @@ describe("watchTargets", () => {
 describe("initWatchTarget（dg init 前に待つ対象）", () => {
   const init = [initWatchTarget(common)];
 
-  it("データ worktree ができる（.git などが書かれる）のを拾う", () => {
-    for (const rel of ["deguboard/.git", "deguboard/config.yaml", "deguboard/tickets/t1.md"]) {
-      expect(isWatched(init, path.join(common, rel)), rel).toBe(true);
-    }
+  it("データ worktree の .git ができるのを拾う（isInitialized と同じ）", () => {
+    expect(isWatched(init, path.join(common, "deguboard/.git"))).toBe(true);
   });
 
   it("deguboard-local やほかの .git の中身には反応しない", () => {
-    for (const rel of ["deguboard-local/runs/r1.json", "HEAD", "index", "objects/ab/cdef"]) {
+    for (const rel of [
+      "deguboard/config.yaml",
+      "deguboard/tickets/t1.md",
+      "deguboard-local/runs/r1.json",
+      "HEAD",
+      "objects/ab/cdef",
+    ]) {
       expect(isWatched(init, path.join(common, rel)), rel).toBe(false);
     }
   });
@@ -75,6 +79,9 @@ describe("gitCommonDir", () => {
       git("worktree", "add", "-q", path.join(dir, "wt"), "-b", "x");
       expect(await gitCommonDir(dir)).toBe(path.join(dir, ".git"));
       expect(await gitCommonDir(path.join(dir, "wt"))).toBe(path.join(dir, ".git"));
+      // 作業フォルダがリポジトリの下のディレクトリでも、相対で返る出力を絶対にする
+      mkdirSync(path.join(dir, "sub"));
+      expect(await gitCommonDir(path.join(dir, "sub"))).toBe(path.join(dir, ".git"));
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

@@ -195,7 +195,7 @@
           {
             "id": "deguboard.start.agent",
             "title": "エージェントに頼む",
-            "description": "Skill を入れ、依頼文を作ってコピーします。\n[エージェントに頼む](command:deguboard.askInSidebar)",
+            "description": "Skill を入れ、依頼文を作ってコピーします。",
             "media": {
               "markdown": "media/walkthrough/agent.md"
             }

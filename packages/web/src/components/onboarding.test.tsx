@@ -47,4 +47,20 @@ describe("始め方の案内", () => {
     await waitFor(() => expect(copy).toHaveBeenCalledWith("dg init"));
     expect(copy).toHaveBeenCalledTimes(1);
   });
+
+  it("ブラウザでは見張りがないので、読み直しを案内する", () => {
+    const host: Host = {
+      surface: "browser",
+      open: () => {},
+      show: () => {},
+      copy: async () => {},
+      state: createUiState(memoryBackend()),
+    };
+    render(
+      <HostProvider host={host}>
+        <Onboarding />
+      </HostProvider>,
+    );
+    expect(screen.getByText("1 を済ませたら、ページを読み直してください。")).toBeTruthy();
+  });
 });

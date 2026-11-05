@@ -31,27 +31,25 @@ export function watchTargets(dataDir: string): WatchTarget[] {
 }
 
 /**
- * dg init 前に見張る対象：git common dir の下にデータ worktree（<common>/deguboard/）ができること。
- * 初期化済みかは core が <common>/deguboard/.git の有無で決める（isInitialized）。init はその下に .git などを書くので、
- * 配下の作成・変更のどれでも「確かめ直す」合図にする（確かめ直しは watchData が status を呼ぶ）。
- * データの見張り（watchTargets）は data_dir が取れてからしか張れないので、初期化前はこちらで待つ
+ * dg init 前に見張る対象：データ worktree の .git（<common>/deguboard/.git）ができること。
+ * 初期化済みかは core が同じファイルの有無で決める（isInitialized）。確かめ直しは watchData が status を呼ぶ。
+ * データの見張り（watchTargets）は data_dir が取れてからしか張れないので、初期化前はこちらで待つ。
+ * 単純なパターン（非再帰）にして、.git 全体を再帰で見ない。base がまだなくても VS Code はできるまで待つ
  */
 export function initWatchTarget(commonDir: string): WatchTarget {
-  return { base: commonDir, pattern: "deguboard/{.git,**}" };
+  return { base: path.join(commonDir, "deguboard"), pattern: ".git" };
 }
 
-/** git common dir の絶対パス。リポジトリでないフォルダや git が動かないときは undefined（見張らない） */
+/**
+ * git common dir の絶対パス。リポジトリでないフォルダや git が動かないときは undefined（見張らない）。
+ * --path-format は Git 2.31 から（約束は 2.30 以上）なので使わず、core の resolveRepoPaths と同じく cwd から解く
+ */
 export function gitCommonDir(cwd: string): Promise<string | undefined> {
   return new Promise((resolve) => {
-    execFile(
-      "git",
-      ["rev-parse", "--path-format=absolute", "--git-common-dir"],
-      { cwd, timeout: 5_000 },
-      (error, stdout) => {
-        const dir = error ? "" : stdout.trim();
-        resolve(dir === "" ? undefined : dir);
-      },
-    );
+    execFile("git", ["rev-parse", "--git-common-dir"], { cwd, timeout: 5_000 }, (error, stdout) => {
+      const raw = error ? "" : stdout.trim();
+      resolve(raw === "" ? undefined : path.resolve(cwd, raw));
+    });
   });
 }
 
