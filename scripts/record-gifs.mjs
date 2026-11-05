@@ -4,7 +4,7 @@
 // VS Code 本体は録れないので、Activity Bar とエディタの部分は画面の外枠として自前で描く（FRAME_HTML）。左パネルの中身は実際の画面。
 // マウスのカーソルはスクリーンショットに映らないので、外枠の上に矢印を描いて動かす。コマの表示時間は撮った時刻ではなく台本（各 shot の delay）で決めるので、
 // 機械の速さによらず同じ長さになる。ask-agent.gif の貼り付け先は、コピーした依頼文が分かるように外枠に描いた入力欄で、VS Code やエージェントの画面ではない。
-// 先に mise run build（タスクが依存する）と mise run playwright:install が要る。各 GIF は 6〜10 秒・1MB 以下（t347）に収まるかを最後に出す。
+// 先に mise run build（タスクが依存する）と mise run playwright:install が要る。各 GIF は 6〜10 秒・1MB 以下（t347）に収まらなければ失敗する。
 import { execFile } from "node:child_process";
 import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
@@ -55,10 +55,12 @@ async function createRepo(dir) {
   await dg(work, ["iteration", "create", "スプリント 1", "--goal", "ログインまわりを固める"]);
   await dg(work, ["iteration", "start", "s1"]);
   const done = ["in_progress", "review", "done"];
-  const tickets = [
+  const closed = [
     ["ログイン画面の入力チェックを足す", "s1", "high", done],
     ["パスワードの再設定のメールを送る", "s1", "medium", done],
     ["ログインの失敗を記録する", "s1", "low", done],
+  ];
+  const open = [
     ["一覧の並び順を保存する", "s2", "medium", ["in_progress", "review"]],
     ["CSV の書き出しを速くする", "s2", "medium", ["in_progress"]],
     ["設定画面にダークモードを足す", "s2", "high", []],
@@ -67,19 +69,21 @@ async function createRepo(dir) {
     ["通知のメールを日本語にする", null, "medium", []],
     ["古い API の呼び出しを消す", null, "low", []],
   ];
-  for (const [i, [title, iteration, priority, moves]] of tickets.entries()) {
-    if (iteration === "s2" && i === 3) {
-      await dg(work, ["iteration", "close", "s1"]);
-      await dg(work, ["iteration", "create", "スプリント 2", "--goal", "一覧を使いやすくする"]);
-      await dg(work, ["iteration", "start", "s2"]);
-      await dg(work, ["iteration", "create", "スプリント 3"]);
-    }
+  let id = 0;
+  const create = async ([title, iteration, priority, moves]) => {
     const args = ["ticket", "create", title, "--priority", priority];
     if (iteration) args.push("--iteration", iteration);
     args.push("--acceptance", "画面で確かめられる");
     await dg(work, args);
-    for (const status of moves) await dg(work, ["ticket", "move", `t${i + 1}`, status]);
-  }
+    id += 1;
+    for (const status of moves) await dg(work, ["ticket", "move", `t${id}`, status]);
+  };
+  for (const ticket of closed) await create(ticket);
+  await dg(work, ["iteration", "close", "s1"]);
+  await dg(work, ["iteration", "create", "スプリント 2", "--goal", "一覧を使いやすくする"]);
+  await dg(work, ["iteration", "start", "s2"]);
+  await dg(work, ["iteration", "create", "スプリント 3"]);
+  for (const ticket of open) await create(ticket);
   return work;
 }
 
@@ -254,9 +258,10 @@ function encodeGif(frames) {
   const samples = images.filter((_, i) => i % sampleStep === 0 || i === images.length - 1);
   const pool = new Uint8Array(samples.length * width * height * 4);
   samples.forEach((img, i) => pool.set(img.rgba, i * width * height * 4));
-  const palette = quantize(pool, 255);
-  while (palette.length < 255) palette.push([0, 0, 0]);
-  palette.push([0, 0, 0]);
+  // 色の割り当ては 255 色だけで行い、透明の番号（255）に画素が割り当たらないようにする（真っ黒が透明にならない）
+  const colors = quantize(pool, 255).slice(0, 255);
+  while (colors.length < 255) colors.push([0, 0, 0]);
+  const palette = [...colors, [0, 0, 0]];
   const TRANSPARENT = 255;
   const gif = GIFEncoder();
   let previous = null;
@@ -274,7 +279,7 @@ function encodeGif(frames) {
     previous = pending.index;
   };
   for (const [i, img] of images.entries()) {
-    const index = applyPalette(img.rgba, palette);
+    const index = applyPalette(img.rgba, colors);
     const base = pending ? pending.index : previous;
     if (base && index.every((v, k) => v === base[k])) {
       // 前のコマと同じなら、前のコマを長く出す
