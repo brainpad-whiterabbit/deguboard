@@ -1292,7 +1292,7 @@ describe("Plan", () => {
     expect(ctx.store.plans.size).toBe(0);
   });
 
-  it("create は after と Plan の中の depends_on をまたぐ循環を拒否し、経路をメッセージに出す", async () => {
+  it("create は after と depends_on（Plan の外の終わっていないチケットを含む）をまたぐ循環を拒否し、経路をメッセージに出す", async () => {
     const f = await fixture();
     const ctx = await initialized(f.cloneA);
     await runCommand(ticketCreate, ctx, { title: "A" });

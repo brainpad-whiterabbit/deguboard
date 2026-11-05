@@ -139,17 +139,24 @@ export const planCreate = defineCommand({
         if (cycle)
           throw new OperationError("REJECTED", `after が循環している: ${cyclePath(cycle, false)}`);
         // after と depends_on を合わせても循環しない（互いを待って着手できなくなる）。
-        // depends_on は Plan の外の終わっていないチケットもたどる（外を回って戻る待ちも止まる）
-        const crossing = findCycle(tickets, (id) => [
-          ...afterEdges(id),
-          ...(ctx.store.resolve("ticket", id)?.data.depends_on ?? [])
-            .filter((to) => {
-              const dep = ctx.store.resolve("ticket", to);
-              return to !== id && dep !== undefined && !isTerminal(dep.data.status);
-            })
-            .map((to): WaitEdge => ({ to, via: "depends_on" })),
-        ]);
-        if (crossing)
+        // depends_on は Plan の外の終わっていないチケットもたどる（外を回って戻る待ちも止まる）。
+        // after の辺を含まない循環（depends_on だけ。壊れたデータ）は TK-2 と validate に任せる
+        const crossing =
+          Object.keys(after).length === 0
+            ? undefined
+            : findCycle(tickets, (id) => {
+                const t = ctx.store.resolve("ticket", id)?.data;
+                const deps = t
+                  ? pendingDeps(t, (dep) => ctx.store.resolve("ticket", dep)?.data.status)
+                  : [];
+                return [
+                  ...afterEdges(id),
+                  ...deps
+                    .filter((to) => to !== id && ctx.store.resolve("ticket", to) !== undefined)
+                    .map((to): WaitEdge => ({ to, via: "depends_on" })),
+                ];
+              });
+        if (crossing?.edges.some((e) => e.via === "after"))
           throw new OperationError(
             "REJECTED",
             `after と depends_on が循環している: ${cyclePath(crossing, true)}`,
