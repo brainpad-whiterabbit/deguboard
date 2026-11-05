@@ -47,6 +47,17 @@ export function ShortDay({
   );
 }
 
+/** 履歴の「<日付> に閉じた」。closed_at がなければ「閉じた日は不明」 */
+export function ClosedOn({ iso }: { iso: string | null | undefined }) {
+  return iso ? (
+    <>
+      <ShortDay iso={iso} /> に閉じた
+    </>
+  ) : (
+    <>閉じた日は不明</>
+  );
+}
+
 /** 日時。local なら手元時刻で今年なら年を省いて出し、ISO の値はツールチップに。そうでなければ ISO のまま */
 export function DateTime({ iso, local }: { iso: string; local: boolean }) {
   if (!local) return <>{iso}</>;

@@ -78,8 +78,8 @@ describe("履歴用の行", () => {
     expect(row.classList.contains("abandoned")).toBe(true);
     expect(metaOf("t3")).toBe("Abandoned ・ s2 ・ PR なし ・ 今は s3");
     expect(row.querySelector(".history-abandoned")).toBeTruthy();
+    // 輪とタイトルの薄さの見た目は CSS なので、test/layout/sidebar.layout.ts の computed style で確かめる
     expect(row.querySelector(".status-dot.status-abandoned")).toBeTruthy();
-    expect(row.querySelector(".history-ticket-main .row-title")).toBeTruthy();
   });
 });
 

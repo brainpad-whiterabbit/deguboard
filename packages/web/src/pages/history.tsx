@@ -35,7 +35,7 @@ import { DetailLink, ProgressBar, StatusDot, Tags, TicketLink } from "../compone
 import { HistoryTicketList, HistoryTicketRow } from "../components/history-rows.js";
 import { useAskCurrent, useHost, useUiState } from "../host.js";
 import { NO_VALUE } from "../components/run-parts.js";
-import { ShortDay } from "../components/date-time.js";
+import { ClosedOn, ShortDay } from "../components/date-time.js";
 import { hrefOf, navigate, replaceRoute, type HistoryQuery, type HistoryView } from "../router.js";
 import { useStore } from "../store.js";
 import {
@@ -492,13 +492,6 @@ function IterationItem({
   // 1 段目は目標（なければ薄く「目標なし」。名前は出さず、ツールチップにだけ置く）。2 段目は閉じた日と Epic ごとの内訳。
   // 予定の期間（start〜end）は実際に閉じた日と食い違うので出さない
   const goal = i.goal?.trim();
-  const closedOn = i.closed_at ? (
-    <>
-      <ShortDay iso={i.closed_at} /> に閉じた
-    </>
-  ) : (
-    "閉じた日は不明"
-  );
   // 終わったチケットがすべて Epic なしなら内訳は出さない（Epic なしだけの内訳は情報にならない）
   const showEpics = epics.some((e) => e.epic !== null);
   // 左パネルでは閉じた Iteration の行から頼む（UI-15）
@@ -526,7 +519,7 @@ function IterationItem({
             title="完了と持ち越しは閉じたときに記録した件数"
           />
           <small>
-            {closedOn}
+            <ClosedOn iso={i.closed_at} />
             {showEpics ? (
               <span className="epics">
                 {" ・ "}
@@ -757,13 +750,7 @@ function SidebarEpicItem({
         {finished.length === 0
           ? `${e.progress.total > 0 ? "終わったチケットなし" : "チケットなし"} ・ `
           : ""}
-        {e.closed_at ? (
-          <>
-            <ShortDay iso={e.closed_at} /> に閉じた
-          </>
-        ) : (
-          "閉じた日は不明"
-        )}
+        <ClosedOn iso={e.closed_at} />
         {iterations.map((id) => (
           <span key={id}>
             {" ・ "}
@@ -834,13 +821,7 @@ function EpicItem({ epic: e }: { epic: EpicRow }) {
       </span>
       <ProgressBar progress={e.progress} />
       <small>
-        {e.closed_at ? (
-          <>
-            <ShortDay iso={e.closed_at} /> に閉じた
-          </>
-        ) : (
-          "閉じた日は不明"
-        )}
+        <ClosedOn iso={e.closed_at} />
         {iterations.map((id) => (
           <span key={id}>
             {" ・ "}
