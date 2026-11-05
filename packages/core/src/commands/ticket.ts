@@ -506,6 +506,12 @@ export const ticketCheck = defineCommand({
       .describe("項目の番号（1 始まり）。ticket show の acceptance の index"),
     all: z.boolean().optional().describe("すべての項目を対象にする"),
     undo: z.boolean().optional().describe("印を外して未済に戻す"),
+    base: z
+      .string()
+      .optional()
+      .describe(
+        "読んだときの本文。今の本文と違えば（読んだ後に別の書き込みがあれば）書かずに REJECTED。画面が付け外しに使う",
+      ),
   }),
   write: true,
   needs: "store",
@@ -519,6 +525,12 @@ export const ticketCheck = defineCommand({
       ctx,
       async () => {
         const doc = ctx.store.require("ticket", input.ticket);
+        if (input.base !== undefined && input.base !== doc.body) {
+          throw new OperationError(
+            "REJECTED",
+            `${doc.id} の本文は読んだ後に変わっている。読み直してから付け直す`,
+          );
+        }
         const items = parseAcceptance(doc.body);
         if (items === undefined)
           throw new OperationError("NOT_FOUND", `${doc.id} の本文に ## 受け入れ条件 がない`);

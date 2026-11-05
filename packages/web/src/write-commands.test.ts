@@ -36,7 +36,7 @@ function runCalls(file: string): string[] {
  * ほかに同期（UI-6。Git の事実に合わせるだけ）をタイトル行から呼ぶ
  */
 const ALLOWED_WRITES: Readonly<Record<string, readonly string[]>> = {
-  "pages/ticket.tsx": ["ticket.update"],
+  "pages/ticket.tsx": ["ticket.check", "ticket.update"],
   "components/ticket-props.tsx": ["ticket.move"],
   "components/ticket-props-panel.tsx": ["ticket.update"],
   "pages/config.tsx": ["config.set"],

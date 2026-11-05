@@ -1,6 +1,8 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+// web の番号付けが core の ticket.check の番号と一致するかを照らすためだけに、core の実行時のコードを取り込む
+import { parseAcceptance } from "@deguboard/core";
 import { Markdown, parseBlocks, sectionTasks } from "./markdown.js";
 
 describe("本文の Markdown", () => {
@@ -15,11 +17,78 @@ describe("本文の Markdown", () => {
       {
         kind: "list",
         items: [
-          { checked: false, text: "a" },
-          { checked: true, text: "b" },
+          { checked: false, text: "a", acceptance: 1 },
+          { checked: true, text: "b", acceptance: 2 },
           { checked: null, text: "c" },
         ],
       },
+    ]);
+  });
+
+  describe("受け入れ条件の番号は core の parseAcceptance と一致する", () => {
+    /** web が番号を振った項目を、番号・文・印で core の形にそろえる */
+    const webAcceptance = (body: string) =>
+      parseBlocks(body).flatMap((b) =>
+        b.kind === "list"
+          ? b.items.flatMap((x) =>
+              x.acceptance === undefined
+                ? []
+                : [{ index: x.acceptance, text: x.text.trim(), checked: x.checked === true }],
+            )
+          : [],
+      );
+    const cases: Record<string, string> = {
+      入れ子: "## 受け入れ条件\n\n- [ ] a\n  - [ ] 入れ子は数えない\n- [ ] b\n",
+      コードブロックの中: "## 受け入れ条件\n\n- [ ] a\n\n```\n- [ ] b\n```\n",
+      大文字の印: "## 受け入れ条件\n\n- [X] a\n- [x] b\n- [ ] c\n",
+      空の文: "## 受け入れ条件\n\n- [ ] \n- [ ]   \n- [ ] a\n",
+      見出しが2つ:
+        "## 受け入れ条件\n\n- [ ] a\n\n## メモ\n\n- [ ] x\n\n## 受け入れ条件\n\n- [ ] b\n",
+      CRLF: "## 概要\r\n\r\n本文\r\n\r\n## 受け入れ条件\r\n\r\n- [ ] a\r\n- [x] b\r\n",
+    };
+    for (const [name, body] of Object.entries(cases)) {
+      it(name, () => {
+        expect(webAcceptance(body)).toEqual(parseAcceptance(body) ?? []);
+      });
+    }
+  });
+
+  it("見出しが 2 つあると、core と同じく最初の節の項目にだけ番号を振る", () => {
+    const blocks = parseBlocks("## 受け入れ条件\n\n- [ ] a\n\n## 受け入れ条件\n\n- [ ] b\n");
+    const numbered = blocks.flatMap((b) =>
+      b.kind === "list" ? b.items.map((x) => [x.text, x.acceptance ?? null]) : [],
+    );
+    expect(numbered).toEqual([
+      ["a", 1],
+      ["b", null],
+    ]);
+  });
+
+  it("受け入れ条件の番号は ## 受け入れ条件 の節の `- [ ]` の行で、文のない行を飛ばし、次の ## で終わる（core の ticket.check の番号）", () => {
+    const blocks = parseBlocks(
+      [
+        "## 概要",
+        "- [ ] 節の外",
+        "## 受け入れ条件",
+        "- [ ] a",
+        "- [ ] ",
+        "* [ ] 星の行は数えない",
+        "### 小見出し",
+        "- [X] b",
+        "## メモ",
+        "- [ ] 節の外",
+      ].join("\n"),
+    );
+    const numbered = blocks.flatMap((b) =>
+      b.kind === "list" ? b.items.map((x) => [x.text, x.acceptance ?? null]) : [],
+    );
+    expect(numbered).toEqual([
+      ["節の外", null],
+      ["a", 1],
+      ["", null],
+      ["星の行は数えない", null],
+      ["b", 2],
+      ["節の外", null],
     ]);
   });
 

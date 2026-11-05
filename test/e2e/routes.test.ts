@@ -42,6 +42,9 @@ interface Step {
   rejected?: string;
 }
 
+/** 最初の手順で起票する t1 の本文（ticket.check の base に渡す） */
+const T1_BODY = "## 概要\n\n\n\n## 受け入れ条件\n\n- [ ] a\n- [ ] b\n";
+
 const STEPS: Step[] = [
   {
     name: "ticket.create",
@@ -86,6 +89,19 @@ const STEPS: Step[] = [
     name: "ticket.update",
     input: { ticket: "t2", priority: "low", depends_on: ["t1"] },
     argv: ["ticket", "update", "t2", "--priority", "low", "--depends-on", "t1"],
+  },
+  // 受け入れ条件の印：画面が読んだ本文（base）と今の本文が違えば 3 経路とも拒否し、書かない
+  {
+    name: "ticket.check",
+    input: { ticket: "t1", items: [2], base: "古い本文" },
+    argv: ["ticket", "check", "t1", "2", "--base", "古い本文"],
+    rejected: "REJECTED",
+  },
+  // base が今の本文（起票の雛形のまま）と一致すれば書ける
+  {
+    name: "ticket.check",
+    input: { ticket: "t1", items: [2], base: T1_BODY },
+    argv: ["ticket", "check", "t1", "2", "--base", T1_BODY],
   },
   {
     name: "ticket.create",

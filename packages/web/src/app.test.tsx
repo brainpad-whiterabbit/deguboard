@@ -745,6 +745,100 @@ describe("画面", () => {
     });
   });
 
+  describe("詳細の本文の受け入れ条件のチェックボックスを押して付け外しする", () => {
+    const BODY = [
+      "## 概要",
+      "",
+      "- [ ] 概要の印",
+      "",
+      "## 受け入れ条件",
+      "",
+      "- [ ] a",
+      "- [ ] ",
+      "- [x] b",
+      "",
+      "## メモ",
+      "",
+      "- [ ] メモの印",
+      "",
+    ].join("\n");
+    const checks = (client: ReturnType<typeof mockClient>) =>
+      client.calls.filter((c) => c.name === "ticket.check").map((c) => c.input);
+    const box = (n: number) =>
+      screen.getByRole("checkbox", { name: `受け入れ条件 ${n}` }) as HTMLInputElement;
+
+    for (const surface of ["browser", "panel"] as const) {
+      it(`${surface === "panel" ? "エディタのパネル" : "ブラウザ"}では、押した項目だけを ticket.check に読んだ本文と渡し、その行だけが変わる`, async () => {
+        window.location.hash = "#/tickets/t3";
+        const client = mockClient();
+        const show = client.handlers["ticket.show"]!;
+        client.handlers["ticket.show"] = (input) => ({ ...(show(input) as object), body: BODY });
+        client.handlers["ticket.check"] = (input) => {
+          const { items, undo } = input as { items: number[]; undo: boolean };
+          const body = BODY.replace(
+            items[0] === 1 ? "- [ ] a" : "- [x] b",
+            items[0] === 1 ? `- [${undo ? " " : "x"}] a` : `- [${undo ? " " : "x"}] b`,
+          );
+          return { ...client.data.tickets.find((t) => t.id === "t3")!, body };
+        };
+        client.calls.length = 0;
+        mount(client, hostOf(surface));
+        await screen.findByRole("heading", { level: 1, name: "画面" });
+        // 番号は文のある項目だけに振る（雛形の空の行は数えない）
+        expect(box(1).checked).toBe(false);
+        expect(box(2).checked).toBe(true);
+        expect(screen.queryByRole("checkbox", { name: "受け入れ条件 3" })).toBeNull();
+        fireEvent.click(box(2));
+        await waitFor(() => expect(checks(client)).toHaveLength(1));
+        expect(checks(client)[0]).toEqual({ ticket: "t3", items: [2], undo: true, base: BODY });
+        await waitFor(() => expect(box(2).checked).toBe(false));
+        expect(box(1).checked).toBe(false);
+        expect(screen.getByText("概要の印")).toBeTruthy();
+      });
+    }
+
+    it("受け入れ条件の節の外のチェックボックスは押せない", async () => {
+      window.location.hash = "#/tickets/t3";
+      const client = mockClient();
+      const show = client.handlers["ticket.show"]!;
+      client.handlers["ticket.show"] = (input) => ({ ...(show(input) as object), body: BODY });
+      mount(client);
+      await screen.findByRole("heading", { level: 1, name: "画面" });
+      const all = [...document.querySelectorAll<HTMLInputElement>(".markdown input")];
+      expect(all).toHaveLength(5);
+      // 概要とメモの印と、受け入れ条件の文のない行
+      const outside = all.filter((c) => !c.getAttribute("aria-label"));
+      expect(outside).toHaveLength(3);
+      for (const c of outside) expect(c.readOnly).toBe(true);
+    });
+
+    it("保存の間に別の書き込みがあって拒否されたら、理由を出して印を元に戻す", async () => {
+      window.location.hash = "#/tickets/t3";
+      const client = mockClient();
+      mount(client, hostOf("panel"));
+      await screen.findByRole("heading", { level: 1, name: "画面" });
+      // 画面が読んだ後に、別の書き込み（CLI やエージェント）が本文を変えた
+      await client.run("ticket.check", { ticket: "t3", items: [1] });
+      client.calls.length = 0;
+      fireEvent.click(box(1));
+      // 待つ間は押した印を先に出し、どの項目も押せない
+      expect(box(1).checked).toBe(true);
+      expect(box(1).disabled).toBe(true);
+      expect((await screen.findByRole("alert")).textContent).toContain("読んだ後に変わっている");
+      expect(checks(client)).toEqual([
+        {
+          ticket: "t3",
+          items: [1],
+          undo: false,
+          base: "## 概要\n\n本文\n\n## 受け入れ条件\n\n- [ ] a\n",
+        },
+      ]);
+      // 拒否の後は押す前の印に戻し、また押せる
+      await waitFor(() => expect(box(1).disabled).toBe(false));
+      expect(box(1).checked).toBe(false);
+    });
+  });
+
   it("ブラウザの編集では優先度の選択肢を記号と値にし、選んでいる値の判断基準を下に出す（TK-8）", async () => {
     window.location.hash = "#/tickets/t3";
     mount(mockClient());

@@ -137,8 +137,8 @@ export interface AcceptanceItem {
   checked: boolean;
 }
 
-/** 節の中のチェックリストの 1 行。[1] が印、[2] が文（空のこともある） */
-const CHECK_LINE = /^- \[([ xX])\] (.*)$/;
+/** 節の中のチェックリストの 1 行。[1] が印、[2] が文（空のこともある）。CRLF の本文は行末の \r を文に入れない */
+const CHECK_LINE = /^- \[([ xX])\] (.*?)\r?$/;
 
 /** 節を行に割り、文のある項目に番号を振る。節がなければ undefined */
 function scanAcceptance(body: string) {

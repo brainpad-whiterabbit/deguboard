@@ -904,6 +904,29 @@ describe("チケットの流れ", () => {
       runCommand(ticketCheck, ctx, { ticket: "t1", items: [2, 4] }),
     ).rejects.toMatchObject({ code: "NOT_FOUND", message: expect.stringContaining("4") });
   });
+
+  it("check は base が今の本文と同じなら書き、読んだ後に本文が変わっていれば REJECTED で書かない", async () => {
+    const f = await fixture();
+    const ctx = await initialized(f.cloneA);
+    await runCommand(ticketCreate, ctx, { title: "A", summary: "s", acceptance: ["a", "b"] });
+    const read = (await runCommand(ticketShow, ctx, { ticket: "t1" })).data.body;
+    const checked = await runCommand(ticketCheck, ctx, { ticket: "t1", items: [2], base: read });
+    expect(checked.data.body).toBe("## 概要\n\ns\n\n## 受け入れ条件\n\n- [ ] a\n- [x] b\n");
+    // 画面が古い本文（read）のまま 1 を押した：間に 2 の書き込みがあったので拒否し、本文は変えない
+    await expect(
+      runCommand(ticketCheck, ctx, { ticket: "t1", items: [1], base: read }),
+    ).rejects.toMatchObject({ code: "REJECTED", message: expect.stringContaining("読み直して") });
+    const shown = await runCommand(ticketShow, ctx, { ticket: "t1" });
+    expect(shown.data.body).toBe(checked.data.body);
+    // 読み直した本文なら外せる
+    const undone = await runCommand(ticketCheck, ctx, {
+      ticket: "t1",
+      items: [2],
+      undo: true,
+      base: shown.data.body,
+    });
+    expect(undone.data.body).toBe(read);
+  });
 });
 
 describe("Epic と Iteration", () => {
