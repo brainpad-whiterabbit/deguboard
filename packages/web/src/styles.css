@@ -2930,6 +2930,21 @@ button.ask-ghost {
   margin-right: 0.3em;
   font-size: 0.8em;
 }
+.ask-send-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85em;
+}
+select.ask-terminal {
+  flex: 1;
+  min-width: 0;
+  padding: 0.15em 0.3em;
+}
+button.ask-send {
+  padding: 0.2em 0.8em;
+  border-radius: 4px;
+}
 button.ask-copy {
   display: inline-flex;
   align-items: center;

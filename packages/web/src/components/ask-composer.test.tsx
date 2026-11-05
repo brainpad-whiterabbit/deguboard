@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import type { WebviewEvent } from "@deguboard/core";
+import type { TerminalChoice, WebviewEvent } from "@deguboard/core";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { App } from "../app.js";
 import type { WebviewClient } from "../client/webview.js";
@@ -51,19 +51,28 @@ function mountWebview(
   {
     surface = "sidebar",
     state = createUiState(memoryBackend()),
-  }: { surface?: Host["surface"]; state?: UiState } = {},
+    terminals,
+  }: { surface?: Host["surface"]; state?: UiState; terminals?: TerminalChoice[] } = {},
 ) {
-  let send: ((event: WebviewEvent) => void) | undefined;
+  const listeners = new Set<(event: WebviewEvent) => void>();
+  const send = (event: WebviewEvent) => listeners.forEach((l) => l(event));
   const copied: string[] = [];
+  const sent: [number, string][] = [];
   const bridge: WebviewClient = {
     run: (name, input) => client.run(name, input),
     status: () => client.status(),
     open: async () => {},
     show: async () => {},
     copy: async (text) => void copied.push(text),
+    terminals: async () => terminals ?? [],
+    sendToTerminal: async (terminal, text) => {
+      if (!(terminals ?? []).some((t) => t.id === terminal)) throw new Error("閉じている");
+      void sent.push([terminal, text]);
+      return null;
+    },
     onEvent: (listener) => {
-      send = listener;
-      return () => (send = undefined);
+      listeners.add(listener);
+      return () => void listeners.delete(listener);
     },
   };
   // Webview の host と同じく、コピーは拡張ホスト（bridge.copy）に頼む
@@ -73,6 +82,18 @@ function mountWebview(
     show: () => {},
     copy: (text) => bridge.copy(text),
     state,
+    // ブラウザの配置ではターミナルの口がない（コピーだけ）
+    terminals:
+      surface === "browser"
+        ? undefined
+        : {
+            list: () => bridge.terminals(),
+            send: (terminal, text) => bridge.sendToTerminal(terminal, text),
+            onChange: (listener) =>
+              bridge.onEvent((e) => {
+                if (e.name === "terminals") listener(e.terminals);
+              }),
+          },
   };
   render(
     <StoreProvider client={client}>
@@ -84,10 +105,14 @@ function mountWebview(
   );
   return {
     copied,
+    sent,
     state,
-    ask: (targets: string[]) => act(() => send!({ kind: "event", name: "ask", targets })),
+    /** 拡張ホストからの、開いているターミナルが変わった通知 */
+    terminalsChanged: (next: TerminalChoice[]) =>
+      act(() => send({ kind: "event", name: "terminals", terminals: next })),
+    ask: (targets: string[]) => act(() => send({ kind: "event", name: "ask", targets })),
     /** タイトル行の吹き出し：画面の今の対象で開く */
-    askCurrent: () => act(() => send!({ kind: "event", name: "ask", targets: [], current: true })),
+    askCurrent: () => act(() => send({ kind: "event", name: "ask", targets: [], current: true })),
   };
 }
 
@@ -318,6 +343,8 @@ describe("エージェントに頼む入力欄（UI-15）", () => {
               open: async () => {},
               show: async () => {},
               copy: async () => {},
+              terminals: async () => [],
+              sendToTerminal: async () => null,
               onEvent: (l) => ((send = l), () => {}),
             }}
           />
@@ -579,5 +606,84 @@ describe("エージェントに頼む入力欄（UI-15）", () => {
       ),
     );
     expect(composer()).toBeTruthy();
+  });
+});
+
+describe("開いているターミナルへ送る（UI-15）", () => {
+  const TERMINALS = [
+    { id: 4, label: "zsh" },
+    { id: 7, label: "claude" },
+  ];
+
+  it("開いているターミナルがあれば送り先を選んで「送る」を押せ、依頼文がそのターミナルへ渡り、コピーはされない", async () => {
+    const view = mountWebview(askClient(), { terminals: TERMINALS });
+    await screen.findByText("見直す");
+    view.ask(["t5"]);
+    const box = within(composer());
+    const select = await box.findByRole("combobox", { name: "送り先のターミナル" });
+    fireEvent.change(select, { target: { value: "7" } });
+    fireEvent.click(box.getByRole("button", { name: "送る" }));
+    await waitFor(() => expect(view.sent).toEqual([[7, "/dgdone t5"]]));
+    await waitFor(() => expect(box.getByRole("status").textContent).toContain("claude"));
+    expect(box.getByRole("status").textContent).toContain("Enter を押して");
+    expect(view.copied).toEqual([]);
+  });
+
+  it("開いているターミナルがなければ「送る」も送り先も出さず、コピーだけ", async () => {
+    const view = mountWebview(askClient(), { terminals: [] });
+    await screen.findByText("見直す");
+    view.ask(["t5"]);
+    const box = within(composer());
+    await waitFor(() => expect(box.getByRole("button", { name: "コピー" })).toBeTruthy());
+    expect(box.queryByRole("button", { name: "送る" })).toBeNull();
+    expect(box.queryByRole("combobox", { name: "送り先のターミナル" })).toBeNull();
+  });
+
+  it("ブラウザ（dg serve）にはターミナルがないので「送る」を出さない", async () => {
+    const view = mountWebview(askClient(), { surface: "browser", terminals: TERMINALS });
+    await screen.findByText("見直す");
+    view.ask(["t5"]);
+    const box = within(composer());
+    await waitFor(() => expect(box.getByRole("button", { name: "コピー" })).toBeTruthy());
+    expect(box.queryByRole("button", { name: "送る" })).toBeNull();
+  });
+
+  it("ターミナルが開く・閉じる通知で送り先が増減し、全部閉じたら「送る」が消える", async () => {
+    const view = mountWebview(askClient(), { terminals: [] });
+    await screen.findByText("見直す");
+    view.ask(["t5"]);
+    const box = within(composer());
+    await waitFor(() => expect(box.getByRole("button", { name: "コピー" })).toBeTruthy());
+    await view.terminalsChanged(TERMINALS);
+    expect(await box.findByRole("button", { name: "送る" })).toBeTruthy();
+    expect(box.getAllByRole("option").map((o) => o.textContent)).toEqual(["zsh", "claude"]);
+    await view.terminalsChanged([]);
+    await waitFor(() => expect(box.queryByRole("button", { name: "送る" })).toBeNull());
+  });
+
+  it("選んだターミナルが閉じたら、アクティブなターミナルに切り替えて知らせる", async () => {
+    const view = mountWebview(askClient(), { terminals: TERMINALS });
+    await screen.findByText("見直す");
+    view.ask(["t5"]);
+    const box = within(composer());
+    const select = await box.findByRole("combobox", { name: "送り先のターミナル" });
+    fireEvent.change(select, { target: { value: "7" } });
+    await view.terminalsChanged([{ id: 4, label: "zsh", active: true }]);
+    await waitFor(() => expect(box.getByRole("status").textContent).toContain("zsh に切り替え"));
+  });
+
+  it("複数行の依頼文を送ったときは、貼り付けの確認が出うることを知らせに添える", async () => {
+    const view = mountWebview(askClient(), { terminals: TERMINALS });
+    await screen.findByText("見直す");
+    view.ask(["t5"]);
+    const box = within(composer());
+    fireEvent.change(await box.findByRole("textbox", { name: "指示" }), {
+      target: { value: "1 行目\n2 行目" },
+    });
+    fireEvent.click(box.getByRole("button", { name: "送る" }));
+    await waitFor(() => expect(view.sent).toHaveLength(1));
+    await waitFor(() =>
+      expect(box.getByRole("status").textContent).toContain("貼り付けの確認が出たら"),
+    );
   });
 });
