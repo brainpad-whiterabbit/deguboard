@@ -183,6 +183,15 @@ describe("画面", () => {
     expect(screen.getByText("3 件")).toBeTruthy();
   });
 
+  it("広い画面のカンバンの見出しは、Iteration の名前を Iteration 詳細へのリンクにする", async () => {
+    const client = boardClient();
+    mount(client);
+    await screen.findByText("ログイン");
+    const link = document.querySelector<HTMLAnchorElement>(".board-head h1 a")!;
+    expect(link.getAttribute("href")).toMatch(/^#\/iterations\/s\d+$/);
+    expect(link.textContent).toBe(client.data.iterations.find((i) => i.status === "active")!.name);
+  });
+
   it("Iteration の選択肢は「すべて」と planned と active で、既定は active。選ぶとその Iteration のチケットだけになり、ハッシュに残る。「すべて」は開いた Iteration のチケットだけを出す", async () => {
     const client = mockClient();
     client.data.iterations = [
@@ -2888,7 +2897,11 @@ describe("画面", () => {
     client.data.tickets[0]!.iteration = "s1";
     client.data.tickets[1]!.iteration = "s1";
     client.data.tickets[2]!.iteration = "s2";
-    mount(client, hostOf("sidebar"));
+    const opened: Route[] = [];
+    mount(
+      client,
+      hostOf("sidebar", (route) => opened.push(route)),
+    );
     await screen.findByText("ログイン");
     const group = screen.getByRole("group", { name: "Iteration" });
     const chips = [...group.querySelectorAll<HTMLButtonElement>(".iteration-chip")];
@@ -2921,6 +2934,10 @@ describe("画面", () => {
       [...document.querySelectorAll(".iteration-chip")].map((c) => c.getAttribute("aria-pressed")),
     ).toEqual(["false", "false", "true", "false"]);
     expect(document.querySelector(".sidebar-head .head-line.sub .name")!.textContent).toBe("次");
+    // 名前を押すと、ハッシュを変えずにホストにエディタのパネルで Iteration 詳細を開いてもらう
+    fireEvent.click(document.querySelector(".sidebar-head .head-line.sub .name a")!);
+    expect(opened).toEqual([{ page: "iterations", id: "s2" }]);
+    expect(window.location.hash).toContain("iteration=s2");
   });
 
   it("サイドバーのカンバンの「すべて」は planned と active の Iteration のチケットを数えて出し、Iteration に入っていないチケットと閉じた Iteration のチケットは出さない。「なし」の札はない", async () => {
@@ -2950,6 +2967,7 @@ describe("画面", () => {
     expect(document.querySelector(".sidebar-head .head-line.sub .name")!.textContent).toBe(
       "planned・active のすべて",
     );
+    expect(document.querySelector(".sidebar-head .head-line.sub .name a")).toBeNull();
     await screen.findByText("画面");
     expect(kanbanRowOf("API")).toBeTruthy();
     expect(kanbanRowOf("画面")).toBeTruthy();
