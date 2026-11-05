@@ -1,0 +1,35 @@
+{
+  "id": "r20261105-162802-c3f6",
+  "ticket": "t379",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-sonnet-5-5",
+  "started_at": "2026-11-05T16:28:02Z",
+  "finished_at": "2026-11-05T16:31:11Z",
+  "result": "success",
+  "error": null,
+  "retries": 6,
+  "retry_reasons": [
+    "Git 2.30 で init の見張りが張られない",
+    "ブラウザで開き直さなくてもと案内していた",
+    "init の見張りが .git 全体を再帰で見ていた",
+    "外したフォルダの見張りを捨てていない",
+    "Walkthrough のコマンドのリンクが重複",
+    "PR 本文の非 git フォルダの記述が不正確"
+  ],
+  "usage": {
+    "input": 10,
+    "output": 4097,
+    "cache_read": 541802,
+    "cache_write": 4573
+  },
+  "tools": {
+    "read": 0,
+    "search": 0,
+    "write": 0,
+    "bash": 5,
+    "other": 0,
+    "read_before_write": 0,
+    "search_before_write": 0
+  }
+}
