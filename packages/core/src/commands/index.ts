@@ -22,6 +22,7 @@ export type {
   StatusView,
   WebviewEvent,
   WebviewRequest,
+  TerminalChoice,
   WebviewResponse,
 } from "./client.js";
 export { WEBVIEW_CONTRACT } from "./client.js";

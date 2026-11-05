@@ -5,6 +5,7 @@ import type {
   CommandClient,
   CommandResult,
   StatusView,
+  TerminalChoice,
   WebviewEvent,
   WebviewRequest,
   WebviewResponse,
@@ -24,6 +25,10 @@ export interface WebviewClient extends CommandClient {
   show(route: string): Promise<void>;
   /** text をクリップボードに入れてもらう（拡張ホストが vscode.env.clipboard で書く。Webview の画面のコピーはすべてこれ） */
   copy(text: string): Promise<void>;
+  /** 開いているターミナルの一覧を拡張ホストに尋ねる（UI-15） */
+  terminals(): Promise<TerminalChoice[]>;
+  /** 開いているターミナル terminal の入力に text を入れてもらう。Enter は押さず、ターミナルは起動しない（EX-1） */
+  sendToTerminal(terminal: number, text: string): Promise<void>;
   /** 拡張ホストからの通知を受ける。戻り値で購読を外す */
   onEvent(listener: (event: WebviewEvent) => void): () => void;
 }
@@ -77,6 +82,12 @@ export function createWebviewClient(
     async copy(text: string): Promise<void> {
       await send({ kind: "action", name: "copy", text });
     },
+    async terminals(): Promise<TerminalChoice[]> {
+      return (await send({ kind: "action", name: "terminals" })).data as TerminalChoice[];
+    },
+    async sendToTerminal(terminal: number, text: string): Promise<void> {
+      await send({ kind: "action", name: "sendToTerminal", terminal, text });
+    },
     onEvent(listener) {
       listeners.add(listener);
       return () => listeners.delete(listener);
@@ -104,10 +115,13 @@ export const WEBVIEW_CONTRACT_COPY = {
     detailTicket: "detailTicket",
   },
   /** 拡張ホスト → Webview の通知の名前。Record なので core の WebviewEvent の name が増えると型の検査で漏れが分かる */
-  eventNames: { reload: true, navigate: true, toggle: true, ask: true } satisfies Record<
-    WebviewEvent["name"],
-    true
-  >,
+  eventNames: {
+    reload: true,
+    navigate: true,
+    toggle: true,
+    ask: true,
+    terminals: true,
+  } satisfies Record<WebviewEvent["name"], true>,
 } as const;
 
 function isWebviewEvent(value: unknown): value is WebviewEvent {

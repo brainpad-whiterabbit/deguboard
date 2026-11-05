@@ -143,7 +143,13 @@ describe("Webview の要求", () => {
     const ok = await handleRequest(
       fakeClient(),
       { id: 4, kind: "action", name: "open", route: "#/tickets/t12" },
-      { open: (route) => void opened.push(route), show: () => {}, copy: () => {} },
+      {
+        open: (route) => void opened.push(route),
+        show: () => {},
+        copy: () => {},
+        terminals: () => [],
+        sendToTerminal: () => {},
+      },
     );
     expect(ok).toEqual({ id: 4, ok: true, data: null, warnings: [], write: null });
     expect(opened).toEqual(["#/tickets/t12"]);
@@ -166,6 +172,8 @@ describe("Webview の要求", () => {
         open: (route) => void opened.push(route),
         show: (route) => void shown.push(route),
         copy: () => {},
+        terminals: () => [],
+        sendToTerminal: () => {},
       },
     );
     expect(ok).toEqual({ id: 6, ok: true, data: null, warnings: [], write: null });
@@ -183,6 +191,8 @@ describe("Webview の要求", () => {
         open: (route) => void opened.push(route),
         show: (route) => void shown.push(route),
         copy: () => {},
+        terminals: () => [],
+        sendToTerminal: () => {},
       },
     );
     expect(shown).toEqual(["#/board?iteration=s3"]);
@@ -194,13 +204,76 @@ describe("Webview の要求", () => {
     const ok = await handleRequest(
       fakeClient(),
       { id: 7, kind: "action", name: "copy", text: "feat/branch-copy-button" },
-      { open: () => {}, show: () => {}, copy: (text) => void copied.push(text) },
+      {
+        open: () => {},
+        show: () => {},
+        copy: (text) => void copied.push(text),
+        terminals: () => [],
+        sendToTerminal: () => {},
+      },
     );
     expect(ok).toEqual({ id: 7, ok: true, data: null, warnings: [], write: null });
     expect(copied).toEqual(["feat/branch-copy-button"]);
   });
 
+  it("action の terminals は開いているターミナルの一覧を data で返し、sendToTerminal は送り先と text を actions に渡す（Enter も起動もここでは扱わない）", async () => {
+    const sent: [number, string][] = [];
+    const actions = {
+      open: () => {},
+      show: () => {},
+      copy: () => {},
+      terminals: () => [{ id: 3, label: "zsh" }],
+      sendToTerminal: (id: number, text: string) => void sent.push([id, text]),
+    };
+    const list = await handleRequest(
+      fakeClient(),
+      { id: 9, kind: "action", name: "terminals" },
+      actions,
+    );
+    expect(list).toEqual({
+      id: 9,
+      ok: true,
+      data: [{ id: 3, label: "zsh" }],
+      warnings: [],
+      write: null,
+    });
+    const ok = await handleRequest(
+      fakeClient(),
+      { id: 10, kind: "action", name: "sendToTerminal", terminal: 3, text: "/dgwork t1" },
+      actions,
+    );
+    expect(ok).toEqual({ id: 10, ok: true, data: null, warnings: [], write: null });
+    expect(sent).toEqual([[3, "/dgwork t1"]]);
+  });
+
+  it("送り先が閉じていて actions が投げたときは ok: false で返す", async () => {
+    const res = await handleRequest(
+      fakeClient(),
+      { id: 11, kind: "action", name: "sendToTerminal", terminal: 9, text: "x" },
+      {
+        open: () => {},
+        show: () => {},
+        copy: () => {},
+        terminals: () => [],
+        sendToTerminal: () => {
+          throw new Error("送り先のターミナルが閉じている");
+        },
+      },
+    );
+    expect(res).toMatchObject({ id: 11, ok: false });
+  });
+
   it("要求の形を確かめる", () => {
+    expect(isWebviewRequest({ id: 1, kind: "action", name: "terminals" })).toBe(true);
+    expect(
+      isWebviewRequest({ id: 1, kind: "action", name: "sendToTerminal", terminal: 2, text: "x" }),
+    ).toBe(true);
+    expect(isWebviewRequest({ id: 1, kind: "action", name: "sendToTerminal", text: "x" })).toBe(
+      false,
+    );
+    expect(
+      isWebviewRequest({ id: 1, kind: "action", name: "sendToTerminal", terminal: "2", text: "x" }),
+    ).toBe(false);
     expect(isWebviewRequest({ id: 1, kind: "status" })).toBe(true);
     expect(isWebviewRequest({ id: 1, kind: "run", name: "x", input: {} })).toBe(true);
     expect(isWebviewRequest({ id: 1, kind: "action", name: "open", route: "#/tickets/t12" })).toBe(

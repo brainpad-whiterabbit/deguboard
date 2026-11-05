@@ -71,7 +71,7 @@ Activity Bar の deguboard のアイコンでカンバンが開きます。上�
 
 ### エージェントに頼む
 
-行の吹き出しを押して頼むことを選び、コピーした依頼文をエージェントに貼ります。Claude Code 以外には形式を「文章」にします。
+行の吹き出しを押して頼むことを選び、コピーした依頼文をエージェントに貼ります。Claude Code 以外には形式を「文章」にします。 VS Code では、開いているターミナルを選んで「送る」こともできます（Enter は押しません）。
 
 <img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/ask-agent.gif" alt="エージェントに頼む" width="560">
 

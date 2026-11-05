@@ -24,18 +24,28 @@ export interface StatusView extends SyncStatus {
  * Webview → 拡張ホストの要求。id で応答と対応づける。action は Webview の外（エディタ・サイドバー・クリップボード）に働きかける操作で、応答の data は null。
  * open は詳細のルート（#/tickets/t12、#/iterations/s3、#/epics/e2）をエディタ領域のパネルに開く。
  * show は一覧の画面のルート（#/board?epic=e2 など）をサイドバーのビューに出す（パネルは詳細だけを出すので。UI-12）。
- * copy は text をクリップボードに入れる（Webview の画面はコピーをすべて拡張ホストに頼み、vscode.env.clipboard で書く）
+ * copy は text をクリップボードに入れる（Webview の画面はコピーをすべて拡張ホストに頼み、vscode.env.clipboard で書く）。
+ * terminals は開いているターミナルの一覧を返す（応答の data は TerminalChoice[]）。sendToTerminal は text を terminal の入力に入れる（Enter は押さない。UI-15）
  */
 export type WebviewRequest =
   | { id: number; kind: "run"; name: string; input: unknown }
   | { id: number; kind: "status" }
   | { id: number; kind: "action"; name: "open" | "show"; route: string }
-  | { id: number; kind: "action"; name: "copy"; text: string };
+  | { id: number; kind: "action"; name: "copy"; text: string }
+  | { id: number; kind: "action"; name: "terminals" }
+  | { id: number; kind: "action"; name: "sendToTerminal"; terminal: number; text: string };
+
+/** 開いているターミナル 1 つ。id は拡張ホストが振る（閉じるまで変わらない）。label は同じ名前が並んでも見分けられる表示名 */
+export interface TerminalChoice {
+  id: number;
+  label: string;
+}
 
 /**
  * 拡張ホスト → Webview の通知。要求と対応づかないので id を持たない（UI-12）。reload は store を読み直す（同期・再読み込み・ファイルの変化の後）。
  * toggle はその画面と来る前の画面を切り替える（ビューのタイトル行の歯車で設定画面を開け閉めする）。
  * ask はエージェントへの依頼文を作る入力欄を、targets（ID。空なら対象なし）を対象にして開く（UI-15。タイトル行の吹き出しとコマンドパレット）。
+ * terminals は開いているターミナルの一覧が変わった（開いた・閉じた）ことを知らせる（UI-15）。
  * current を付ければ、targets の代わりに画面の今の対象（カンバンで選んでいる Iteration、履歴で開いている行）にする。なければ対象なし（タイトル行の吹き出し）
  */
 export type WebviewEvent =
@@ -47,7 +57,8 @@ export type WebviewEvent =
       name: "ask";
       targets: string[];
       current?: boolean | undefined;
-    };
+    }
+  | { kind: "event"; name: "terminals"; terminals: TerminalChoice[] };
 
 /**
  * 拡張と画面で合わせる値（UI-12）。拡張（vscode）はここを読み、web は実行時のコードを取り込まないので写しを持ち、
@@ -71,7 +82,7 @@ export const WEBVIEW_CONTRACT = {
   /** 拡張が開く画面のルート（web の router のハッシュ） */
   routes: { board: "#/board", config: "#/config" },
   /** 拡張ホスト → Webview の通知の名前（WebviewEvent の name の全件） */
-  eventNames: ["reload", "navigate", "toggle", "ask"],
+  eventNames: ["reload", "navigate", "toggle", "ask", "terminals"],
 } as const satisfies {
   backlogRowSection: string;
   askSections: readonly string[];

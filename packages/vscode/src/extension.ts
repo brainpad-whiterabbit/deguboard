@@ -19,6 +19,7 @@ import {
   WEBVIEW_CONTRACT,
   type CommandClient,
   type StatusView,
+  type TerminalChoice,
   type WebviewEvent,
 } from "@deguboard/core";
 import * as vscode from "vscode";
@@ -60,6 +61,7 @@ import {
   ticketOfBranch,
   type BranchTicket,
 } from "./statusbar.js";
+import { describeTerminals, terminalPayload } from "./terminals.js";
 import { gitCommonDir, initWatchTarget, watchTargets } from "./watch.js";
 import {
   askDelivery,
@@ -132,6 +134,9 @@ const idIndexDirty = new Set<string>();
 
 export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
+    // ターミナルが開いた・閉じたら、頼む小窓の送り先を更新させる（UI-15）。ターミナルを開くのは人で、拡張は開かない
+    vscode.window.onDidOpenTerminal(() => broadcastTerminals()),
+    vscode.window.onDidCloseTerminal((closed) => broadcastTerminals(closed)),
     // ビューのタイトル行の同期ボタン（UI-12）。拡張ホストで実行してから、サイドバーとパネルの両方に読み直しを頼む
     // （サイドバーが描かれていなくても動く）。リモートがなくても読み直しだけはするので、手の再読み込みも兼ねる
     vscode.commands.registerCommand("deguboard.sync", () => void syncFolder()),
@@ -292,6 +297,8 @@ async function resolveSidebar(
           : showInSidebar(route),
       show: showInSidebar,
       copy: copyToClipboard,
+      terminals: listTerminals,
+      sendToTerminal,
     },
   });
 }
@@ -302,6 +309,34 @@ async function resolveSidebar(
  */
 async function showInSidebar(route: string): Promise<void> {
   await deliverToSidebar(sidebarDelivery(sidebar !== undefined, "navigate", route), rememberRoute);
+}
+
+// ターミナルに振る ID。vscode.Terminal には安定した ID がないので、見たものから振る（閉じるまで変わらない）
+const terminalIds = new WeakMap<vscode.Terminal, number>();
+let nextTerminalId = 1;
+function terminalId(terminal: vscode.Terminal): number {
+  let id = terminalIds.get(terminal);
+  if (id === undefined) terminalIds.set(terminal, (id = nextTerminalId++));
+  return id;
+}
+
+/** 開いているターミナルの一覧（頼む小窓の送り先。UI-15）。閉じたばかりのもの（closing）は除く */
+function listTerminals(closing?: vscode.Terminal): TerminalChoice[] {
+  return describeTerminals(
+    vscode.window.terminals
+      .filter((t) => t !== closing)
+      .map((t) => ({ id: terminalId(t), name: t.name })),
+  );
+}
+
+/**
+ * 開いているターミナルの入力に text を入れる。Enter は押さない（第 2 引数 false）。
+ * ターミナルは起動しない（createTerminal を呼ばない。EX-1）。選んだターミナルが閉じていたら断る
+ */
+async function sendToTerminal(id: number, text: string): Promise<void> {
+  const terminal = vscode.window.terminals.find((t) => terminalIds.get(t) === id);
+  if (!terminal) throw new Error("送り先のターミナルが閉じている");
+  terminal.sendText(terminalPayload(text), false);
 }
 
 /** 文字をクリップボードに入れる。Webview の画面のコピー（依頼文・ブランチ名）と、バックログの「ID をコピー」で使う */
@@ -360,6 +395,17 @@ async function askFromPalette(): Promise<void> {
     [...panels.values()].find((p) => p.active),
     [],
   );
+}
+
+/** 開いているターミナルの一覧を、描かれているサイドバーとすべてのパネルに知らせる。closing は閉じたばかりのターミナル */
+function broadcastTerminals(closing?: vscode.Terminal): void {
+  const event: WebviewEvent = {
+    kind: "event",
+    name: "terminals",
+    terminals: listTerminals(closing),
+  };
+  void sidebar?.webview.postMessage(event);
+  for (const panel of panels.values()) void panel.webview.postMessage(event);
 }
 
 /** フォルダのサイドバーとパネルの両方に通知を送る */
@@ -460,6 +506,8 @@ async function openPanel(
           : showInSidebar(route),
       show: showInSidebar,
       copy: copyToClipboard,
+      terminals: listTerminals,
+      sendToTerminal,
     },
   });
 }

@@ -1,11 +1,14 @@
 // エージェントに頼む入力欄（UI-15・ADR-010）。左パネルとエディタのパネル（ブラウザでも）の下に出し、欄に書いたものがそのまま貼る文になる。
 // 頼むことの候補・おすすめ・依頼文は core の ask コマンド（読み取りだけ）が決め、ここでは組み立て直さない。データには書き込まない。
 // 上の 1 行が頼むことの候補（★ がおすすめ）、欄の頭が Skill と対象の札、本体が指示、下が全文・形式・コピー。
+// 開いているターミナルがあれば（Webview だけ）、送り先を選んで「送る」でその入力に入れられる。Enter は押さず、ターミナルは起動しない。なければコピーだけ。
 // 指示の下書きと形式は見た目の状態に残し、閉じて開き直しても消えない。形式は人が切り替えるまで残さず、既定は ask が dg の Skill の有無から決める
 
+import type { TerminalChoice } from "@deguboard/core";
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { askKey, parseAskKey } from "../ask-key.js";
 import { useHost, useUiState } from "../host.js";
+import { canSend, resolveSendTarget, sentMessage } from "../send-target.js";
 import { useStore } from "../store.js";
 import type { AskAction, AskFormat, AskView } from "../types.js";
 
@@ -71,6 +74,9 @@ export function AskComposer({
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{ ok: boolean; text: string } | null>(null);
   const noteRef = useRef<HTMLTextAreaElement>(null);
+  const terminals = useTerminals();
+  const [terminalId, setTerminalId] = useState<number | null>(null);
+  const sendTo = resolveSendTarget(terminals, terminalId);
   const settledNote = useSettled(note, ASK_NOTE_SETTLE_MS);
 
   useEffect(() => {
@@ -139,7 +145,38 @@ export function AskComposer({
 
   /** 今の指示で引き直してからコピーする（待っている間に打った分も入れる）。pick は選んだ直後の頼むこと（まだ state に入っていない） */
   async function copy(pick: AskAction | null = action) {
-    // 並んで走ったときは最後に押した 1 回だけ書き込む（古い方が後でクリップボードを上書きしない）
+    // 注意：ブラウザ（Safari など）は await の後のクリップボード書き込みを、操作の直後でないとして拒むことがある。拒まれたら下の理由を出す
+    await deliver(
+      pick,
+      async (text) => {
+        await host.copy(text);
+        return COPIED;
+      },
+      "コピーできない",
+    );
+  }
+
+  /** 今の指示で引き直してから、選んだターミナルの入力に送る。Enter は押さない */
+  async function send() {
+    const target = sendTo;
+    if (!target || !host.terminals) return;
+    const terminalsHost = host.terminals;
+    await deliver(
+      action,
+      async (text) => {
+        await terminalsHost.send(target.id, text);
+        return sentMessage(target);
+      },
+      "送れない",
+    );
+  }
+
+  /** 依頼文を引き直し、sink に渡して、知らせを出す。並んで走ったときは最後に押した 1 回だけ渡す（古い方が後で上書きしない） */
+  async function deliver(
+    pick: AskAction | null,
+    sink: (text: string) => Promise<string>,
+    failure: string,
+  ) {
     const mine = ++copySeq.current;
     setResult(null);
     try {
@@ -153,13 +190,12 @@ export function AskComposer({
       if (mine !== copySeq.current) return;
       setView(r.data);
       setError(null);
-      // 注意：ブラウザ（Safari など）は await の後のクリップボード書き込みを、操作の直後でないとして拒むことがある。拒まれたら下の理由を出す
-      await host.copy(r.data.text);
+      const message = await sink(r.data.text);
       if (mine !== copySeq.current) return;
-      setResult({ ok: true, text: COPIED });
+      setResult({ ok: true, text: message });
     } catch (e) {
       if (mine !== copySeq.current) return;
-      setResult({ ok: false, text: `コピーできない: ${messageOf(e)}` });
+      setResult({ ok: false, text: `${failure}: ${messageOf(e)}` });
     }
   }
 
@@ -277,6 +313,35 @@ export function AskComposer({
             {format === "text" ? "形式：文章" : "形式：Skill"}
           </button>
           <span className="spacer" />
+          {canSend(terminals) && sendTo ? (
+            <>
+              <select
+                className="ask-terminal"
+                aria-label="送り先のターミナル"
+                title="依頼文を入れるターミナル（開いているものから選ぶ。起動はしない）"
+                value={sendTo.id}
+                onChange={(e) => {
+                  setTerminalId(Number(e.target.value));
+                  setResult(null);
+                }}
+              >
+                {terminals.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.label}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                className="ask-send"
+                title="選んだターミナルの入力に依頼文を入れる（Enter は押さない）"
+                onClick={() => void send()}
+                disabled={!base}
+              >
+                送る
+              </button>
+            </>
+          ) : null}
           <span className="ask-keys muted">{COPY_KEYS}</span>
           <button
             type="button"
@@ -310,6 +375,31 @@ export function AskComposer({
       </p>
     </section>
   );
+}
+
+/** 開いているターミナル。ブラウザ（host.terminals がない）では常に空。開いた・閉じたの通知で更新する */
+function useTerminals(): TerminalChoice[] {
+  const { terminals } = useHost();
+  const [list, setList] = useState<TerminalChoice[]>([]);
+  useEffect(() => {
+    if (!terminals) return;
+    let alive = true;
+    // 通知が先に届いたら、遅れて返った最初の一覧で上書きしない
+    let notified = false;
+    const off = terminals.onChange((next) => {
+      notified = true;
+      if (alive) setList(next);
+    });
+    terminals
+      .list()
+      .then((next) => alive && !notified && setList(next))
+      .catch(() => {});
+    return () => {
+      alive = false;
+      off();
+    };
+  }, [terminals]);
+  return list;
 }
 
 /** value が wait ミリ秒変わらなくなってからの値。最初の値はすぐ返す */

@@ -15,6 +15,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import type { TerminalChoice } from "@deguboard/core";
 import { askKey, parseAskKey } from "./ask-key.js";
 import type { WebviewClient } from "./client/webview.js";
 import { hrefOf, navigate, toggleRoute, type Route } from "./router.js";
@@ -34,6 +35,17 @@ export interface Host {
   copy(text: string): Promise<void>;
   /** 見た目の状態（開閉・最後に選んだもの）の置き場 */
   state: UiState;
+  /** 開いているターミナルへ依頼文を送る口（UI-15）。Webview だけにあり、ブラウザ（dg serve）にはない（コピーだけになる） */
+  terminals?: TerminalsHost | undefined;
+}
+
+export interface TerminalsHost {
+  /** 今開いているターミナル */
+  list(): Promise<TerminalChoice[]>;
+  /** text を terminal の入力に入れる。Enter は押さない。ターミナルが閉じていたら reject */
+  send(terminal: number, text: string): Promise<void>;
+  /** 開いた・閉じたで一覧が変わるたびに呼ぶ。戻り値で購読を外す */
+  onChange(listener: (terminals: TerminalChoice[]) => void): () => void;
 }
 
 const browserHost: Host = {
@@ -56,6 +68,14 @@ export function createHost(surface: Surface, client: WebviewClient | null, state
       // Webview の navigator.clipboard は VS Code の版や設定で使えないことがあるので、試さずに拡張ホストに頼む
       copy: (text) => client.copy(text),
       state: state ?? browserHost.state,
+      terminals: {
+        list: () => client.terminals(),
+        send: (terminal, text) => client.sendToTerminal(terminal, text),
+        onChange: (listener) =>
+          client.onEvent((event) => {
+            if (event.name === "terminals") listener(event.terminals);
+          }),
+      },
     };
   }
   return { ...browserHost, surface };
