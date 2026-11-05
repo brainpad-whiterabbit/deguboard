@@ -126,7 +126,7 @@ export class OverlapClaims {
       // 終わりは秒までなので、その秒の終わりまで含める。実行中なら開いたまま
       const end = span.finished_at === null ? Infinity : Date.parse(span.finished_at) + 999;
       if (Number.isNaN(start) || Number.isNaN(end) || start > to || end < from) continue;
-      // 同じ秒に始めたら ID の順で後のものを新しいとみなす（Run の ID の辞書順は開始の順）
+      // 同じ秒なら ID の順で決める（決まればよく、開始の順とは限らない）
       const later =
         start > Date.parse(self.started_at) ||
         (span.started_at === self.started_at && id.localeCompare(self.id) > 0);

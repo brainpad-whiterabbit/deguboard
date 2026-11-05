@@ -79,7 +79,7 @@ export const runStart = defineCommand({
     const open = (await readRunningRuns(ctx.repo)).runs.filter((r) => r.data.agent === input.agent);
     if (open.length > 0) {
       warnings.push(
-        `このマシンで ${input.agent} の Run ${open.map((r) => `${r.id}（${r.data.ticket} ${r.data.step}）`).join("・")}が開いたまま。同じ会話記録なら、この後の応答は新しい Run にだけ数える。終わった Run は dg run finish で閉じる（並行する別のエージェントの Run ならそのままでよい）`,
+        `このマシンで ${input.agent} の Run ${open.map((r) => `${r.id}（${r.data.ticket} ${r.data.step}）`).join("・")}が開いたまま。同じ会話記録なら、この後の応答は新しい Run にだけ数える。終わった Run は dg run finish で閉じる（並行する別のエージェントの Run や、自分が始めた覚えのない ID なら無視してよい）`,
       );
     }
     const run = await startRun(ctx.repo, {
