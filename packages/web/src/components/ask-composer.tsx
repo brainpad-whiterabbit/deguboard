@@ -291,6 +291,36 @@ export function AskComposer({
             }
           }}
         />
+        {canSend(terminals) && sendTo ? (
+          <div className="ask-send-row">
+            <span className="muted">送り先</span>
+            <select
+              className="ask-terminal"
+              aria-label="送り先のターミナル"
+              title="依頼文を入れるターミナル（開いているものから選ぶ。起動はしない）"
+              value={sendTo.id}
+              onChange={(e) => {
+                setTerminalId(Number(e.target.value));
+                setResult(null);
+              }}
+            >
+              {terminals.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.label}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              className="ask-send"
+              title="選んだターミナルの入力に依頼文を入れる（Enter は押さない）"
+              onClick={() => void send()}
+              disabled={!base}
+            >
+              送る
+            </button>
+          </div>
+        ) : null}
         <div className="ask-foot">
           <button
             type="button"
@@ -313,35 +343,6 @@ export function AskComposer({
             {format === "text" ? "形式：文章" : "形式：Skill"}
           </button>
           <span className="spacer" />
-          {canSend(terminals) && sendTo ? (
-            <>
-              <select
-                className="ask-terminal"
-                aria-label="送り先のターミナル"
-                title="依頼文を入れるターミナル（開いているものから選ぶ。起動はしない）"
-                value={sendTo.id}
-                onChange={(e) => {
-                  setTerminalId(Number(e.target.value));
-                  setResult(null);
-                }}
-              >
-                {terminals.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.label}
-                  </option>
-                ))}
-              </select>
-              <button
-                type="button"
-                className="ask-send"
-                title="選んだターミナルの入力に依頼文を入れる（Enter は押さない）"
-                onClick={() => void send()}
-                disabled={!base}
-              >
-                送る
-              </button>
-            </>
-          ) : null}
           <span className="ask-keys muted">{COPY_KEYS}</span>
           <button
             type="button"
