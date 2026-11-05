@@ -1,0 +1,34 @@
+{
+  "id": "r20261105-151551-51b5",
+  "ticket": "t426",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-05T15:15:51Z",
+  "finished_at": "2026-11-05T15:18:02Z",
+  "result": "success",
+  "error": null,
+  "retries": 5,
+  "retry_reasons": [
+    "claimedElsewhere の JSDoc に古い一文が残る",
+    "codex・copilot に同じ時刻のパス順のテストがない",
+    "同じ時刻のテストが readdir の順に依る（bindFile の直接テストを足し、コメントを直す）",
+    "環境変数の名前を付けたテスト名とコメントが振る舞いと合わない",
+    "codex.ts のヘッダに同じ時刻の決め方がない"
+  ],
+  "usage": {
+    "input": 22,
+    "output": 10549,
+    "cache_read": 1171373,
+    "cache_write": 17268
+  },
+  "tools": {
+    "read": 0,
+    "search": 0,
+    "write": 0,
+    "bash": 11,
+    "other": 0,
+    "read_before_write": 0,
+    "search_before_write": 0
+  }
+}
