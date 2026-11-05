@@ -1,0 +1,30 @@
+{
+  "id": "r20261105-152544-241b",
+  "ticket": "t374",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-sonnet-5-5",
+  "started_at": "2026-11-05T15:25:44Z",
+  "finished_at": "2026-11-05T15:27:14Z",
+  "result": "success",
+  "error": null,
+  "retries": 1,
+  "retry_reasons": [
+    "Plan の ID にリンクが付かず受け入れ条件 3 を満たさない"
+  ],
+  "usage": {
+    "input": 8,
+    "output": 2093,
+    "cache_read": 310103,
+    "cache_write": 4039
+  },
+  "tools": {
+    "read": 0,
+    "search": 0,
+    "write": 0,
+    "bash": 4,
+    "other": 0,
+    "read_before_write": 0,
+    "search_before_write": 0
+  }
+}
