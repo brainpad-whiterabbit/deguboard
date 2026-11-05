@@ -2,6 +2,8 @@
 
 AI エージェントに仕事を任せるための、Git リポジトリの中で動くカンバンです。仕事を小さなチケットに分けてエージェントに渡し、依存に沿って並列に進め、その働きを測って改善できます。Claude Code・Codex・GitHub Copilot など、コマンドを実行できるエージェントならどれでも使えます。
 
+> **開発中です**。npm と Marketplace にはまだ公開していません。今は clone してビルドした `dg` と VSIX を使います（「[公開前に使い始める](https://github.com/brainpad-whiterabbit/deguboard#公開前に使い始める)」）。実装済みの範囲とこれからの機能は、このリポジトリの Epic（`dg epic list`）が正本です。
+
 ## 特長
 
 - **任せる仕事を小さくそろえる**：仕事をチケットに分けるので、エージェントに渡す 1 回の作業が小さく、同じくらいの大きさにそろいます。チケットごとに受け入れ条件を確かめるので、品質を保てます。
@@ -13,7 +15,7 @@ AI エージェントに仕事を任せるための、Git リポジトリの中�
 
 ## 導入
 
-必要なもの：Git、Node.js 24 以上。PR の状態をチケットに映すときは GitHub CLI（`gh`）も使います。
+必要なもの：Linux か macOS、Git 2.30 以上、Node.js 24 以上。PR の状態をチケットに映すときは GitHub CLI（`gh`）も使います。
 
 1. **拡張を入れる**：公開後は拡張機能ビューで「deguboard」を検索してインストールします。公開前は [GitHub Release](https://github.com/brainpad-whiterabbit/deguboard/releases) の `deguboard-vscode.vsix` を取得し、`code --install-extension deguboard-vscode.vsix` で入れます。
 2. **コマンドラインツール `dg` を入れる**：エージェントは `dg` でチケットを読み書きします。公開後は npm で入れます。
@@ -22,7 +24,7 @@ AI エージェントに仕事を任せるための、Git リポジトリの中�
    npm i -g deguboard
    ```
 
-   公開前は、[README の「使い始める」](https://github.com/brainpad-whiterabbit/deguboard#使い始める)のとおり clone してビルドし、`dg` を PATH に通します。
+   公開前は、「[公開前に使い始める](https://github.com/brainpad-whiterabbit/deguboard#公開前に使い始める)」のとおり clone してビルドし、`dg` を PATH に通します。
 
 3. **リポジトリで準備する**：管理したいリポジトリで一度だけ実行します。チケットを置くブランチができ、リモートがあれば push されます。
 
@@ -81,10 +83,13 @@ Activity Bar の deguboard のアイコンを押すと、サイドバーにカ�
 dg config set metrics.read_transcripts true
 ```
 
+この設定はチームで共有されます。自分のマシンでは会話記録を読ませないときは、環境変数 `DEGUBOARD_NO_TRANSCRIPTS=1` を設定します。
+
 ## セキュリティとプライバシー
 
-- 拡張は外部のサーバーと通信せず、テレメトリ（利用状況の送信）もしない。画面のために HTTP サーバーも起動しない
-- データはリポジトリの `.git/deguboard/` に置く。書くのは `.git` の中だけ
-- 拡張が外部のコマンドとして呼ぶのは `git` と、入っていれば PR の状態の照合に使う `gh`（GitHub CLI）。`dg` は同梱せず、PATH にあれば版を確かめるために `dg --version` だけを呼ぶ。エージェントや CLI から使う `dg` は利用者が呼ぶ。拡張はどれも引数配列で直接実行し、シェルを通さない（同期の rebase で git が登録済みのマージドライバ（中身は `dg merge-driver`）を `sh -c` で動かすのは git の仕様）。通信が起きるのは、`git` がリモートに接続するとき（fetch・push・ls-remote）と、`gh` が GitHub に接続するときだけ
-- 制限モード（信頼していないフォルダー）と仮想ワークスペースでは動かない。リポジトリの git の設定（`core.fsmonitor` など）が任意のコマンドを実行させ得るため。フォルダーを信頼したときだけ使える
-- 脆弱性の報告先と修正の対象の版は [SECURITY.md](https://github.com/brainpad-whiterabbit/deguboard/blob/main/SECURITY.md)
+- 拡張は外部のサーバーと通信せず、テレメトリ（利用状況の送信）もしません。画面のために HTTP サーバーも起動しません。
+- データはリポジトリの `.git/deguboard/` に置きます。書くのは `.git` の中だけです。
+- 拡張が外部のコマンドとして呼ぶのは `git` と、入っていれば PR の状態の照合に使う `gh`（GitHub CLI）です。`dg` は同梱せず、PATH にあれば版を確かめるために `dg --version` だけを呼びます。エージェントや CLI から使う `dg` は利用者が呼びます。拡張はどれも引数配列で直接実行し、シェルを通しません（同期の rebase で git が登録済みのマージドライバ（中身は `dg merge-driver`）を `sh -c` で動かすのは git の仕様です）。通信が起きるのは、`git` がリモートに接続するとき（fetch・push・ls-remote）と、`gh` が GitHub に接続するときだけです。
+- 制限モード（信頼していないフォルダー）と仮想ワークスペースでは動きません。リポジトリの git の設定（`core.fsmonitor` など）が任意のコマンドを実行させ得るためです。フォルダーを信頼したときだけ使えます。
+- `dg skill install` が書く Skill は `dg guide` を読ませる決まった文面だけで、スクリプトもツールの許可（`allowed-tools`）も持ちません。`--dry-run` で、書く前に書く先と中身を見られます。
+- 脆弱性の報告先と修正の対象の版は [SECURITY.md](https://github.com/brainpad-whiterabbit/deguboard/blob/main/SECURITY.md) にあります。

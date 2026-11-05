@@ -1,94 +1,129 @@
 # deguboard
 
-deguboard は、Git で管理するチケットとユーザー定義のワークフローを組み合わせた、Local-first で AI エージェント対応のタスク管理ツール。CLI は `dg`。
+AI エージェントに仕事を任せるための、Git リポジトリの中で動くカンバンです。仕事を小さなチケットに分けてエージェントに渡し、依存に沿って並列に進め、その働きを測って改善できます。Claude Code・Codex・GitHub Copilot など、コマンドを実行できるエージェントならどれでも使えます。
 
-チケット・イテレーション・ワークフローの定義は、リポジトリの orphan ブランチ `deguboard` に Markdown と YAML で置く。コードと同じく Git で共有するので、別のサービスを用意しなくてもチームで同じカンバンを見られ、変更の履歴も残る。Claude Code や Codex などの AI エージェントは `dg` を呼んでチケットを起票・計画・実行し、人は何を作るか・どの順で進めるか・成果物を承認するかを決める。
+> **開発中です**。npm と Marketplace にはまだ公開していません。今は clone してビルドした `dg` と VSIX を使います（「[公開前に使い始める](https://github.com/brainpad-whiterabbit/deguboard#公開前に使い始める)」）。実装済みの範囲とこれからの機能は、このリポジトリの Epic（`dg epic list`）が正本です。
 
-> **開発中**。実装済みの範囲とこれから足す機能の進みは、このリポジトリの Epic（`dg epic list`、`dg epic show <ID>`）が正本。npm と Marketplace には**まだ公開していない**（準備中）。それまでは clone してビルドした `dg` と VSIX を使う（「[使い始める](#使い始める)」）。
+## 特長
 
-## 何ができるか
+- **任せる仕事を小さくそろえる**：仕事をチケットに分けるので、エージェントに渡す 1 回の作業が小さく、同じくらいの大きさにそろいます。チケットごとに受け入れ条件を確かめるので、品質を保てます。
+- **依存に沿って並列に進める**：チケットの依存から進める順を計画し、待ちのないチケットは同時に進めます。品質を落とさずに、速く仕上がります。
+- **エージェントの働きを測る**：作業のたびに所要時間・トークン・結果を記録し、チケット・工程・モデルごとに集計します。どこで時間やトークンを使っているか、ボトルネックを調べられます。
+- **エージェントを選ばない**：エージェントはコマンドラインツール `dg` でチケットを読み書きし、進め方の手順も `dg guide` から受け取ります。Claude Code・Codex・Copilot CLI など、シェルを使えるエージェントならどれでも使えます。チケットごとにエージェントを使い分けて、実績を比べることもできます。
+- **サービスがいらない**：チケットも記録も同じリポジトリの専用ブランチに保存されます。push するだけで、チームで同じボードを見られます。
+- **VS Code の中で完結**：カンバン・バックログ・履歴をサイドバーで見て、吹き出しから依頼文をコピーしてエージェントに頼めます。エージェントが書いた変更はすぐ画面に映ります。
 
-- `dg` でチケット・エピック・プロジェクト・イテレーション・ワークフローを管理し、変更を `deguboard` ブランチにコミットする
-- ブラウザ（`dg serve`）と VS Code 拡張の画面で、カンバン・バックログ・履歴・Run（ブラウザだけ）のタブと、チケット・エピック・イテレーションの詳細を見る。画面から書き込むのは、チケット詳細（タイトル・本文・Status・属性）と設定画面（ブラウザは上のバー、VS Code はタイトル行の歯車）と同期だけ
-- ほかの変更はエージェントに頼む。画面の行・見出しと上のバー（VS Code はタイトル行）の吹き出し（Shift+F10 でも開く）で対象と頼むことを選び、指示を添えた依頼文をコピーしてエージェントに貼る。同じ依頼文は `dg ask` でも作れる。依頼文を作るだけで、データには書き込まない
-- ワークフロー（遷移の条件・照合規則・追加フィールド・表示名）を業務ごとに YAML で定義し、`dg workflow show` で見て `dg workflow set` で書き換える
-- Claude Code との会話からチケットを起票し、分解・依存・進める順（Plan）の承認・イテレーション計画を進める（Skill と MCP）。段階ごとにモデルを変えられる（「[Plan の段階とモデル](#plan-の段階とモデル)」）
-- AI の実行を Run として記録し、トークン使用量と結果を Run・チケット・エピック・イテレーション・プロジェクト・エージェント・モデル・工程の単位で集計する（使用量の取り込みは Claude Code・Codex・Copilot CLI）
-- `dg guide all` の手順に `--auto` を付けて（Claude Code では `/dgall --auto`）、戻せる判断を自動で選び、`auto.merge` が true なら検査・受け入れ条件・別エージェントの見直し・衝突なしを確かめて PR を自動でマージする
-- `dg guide parallel` の手順（`all` と `work` から引く）で、Plan の待ちのない複数のチケットをサブエージェントで同時に進める
-- `dg guide work` の手順で、PR を出す前に別のサブエージェントが見直し、指摘を上限付きの修正ループで直す。品質ゲートは `dg guide review` にまとめ、自動マージの前にも使う
+## 導入
 
-deguboard はエージェントを起動も監視もしない。チケットの状態は、作業ブランチの Git 上の事実（ある・push 済み・マージ済み）から前に進む。
+必要なもの：Linux か macOS、Git 2.30 以上、Node.js 24 以上。PR の状態をチケットに映すときは GitHub CLI（`gh`）も使います。
 
-## ドキュメント
+1. **拡張を入れる**：公開後は拡張機能ビューで「deguboard」を検索してインストールします。公開前は [GitHub Release](https://github.com/brainpad-whiterabbit/deguboard/releases) の `deguboard-vscode.vsix` を取得し、`code --install-extension deguboard-vscode.vsix` で入れます。
+2. **コマンドラインツール `dg` を入れる**：エージェントは `dg` でチケットを読み書きします。公開後は npm で入れます。
 
-- [要件定義書](docs/requirements.md)：今の仕様の正本
-- [ADR](docs/adr/README.md)：設計判断の背景と理由
-- [開発ガイド](docs/development.md)：このリポジトリで開発する人向け
-- [SECURITY.md](SECURITY.md)：脆弱性の報告先と修正の対象の版
-- [セキュリティとプライバシー](packages/vscode/README.md#セキュリティとプライバシー)：通信・データの場所・呼ぶコマンド・制限モード
-- `dg guide <topic>`：エージェント向けの手順の正本（CLI に同梱）
+   ```sh
+   npm i -g deguboard
+   ```
 
-## 使い始める
+   公開前は、「[公開前に使い始める](https://github.com/brainpad-whiterabbit/deguboard#公開前に使い始める)」のとおり clone してビルドし、`dg` を PATH に通します。
 
-前提は Linux / macOS、git 2.30 以上、Node.js 24 以上。GitHub CLI（`gh`）は PR の状態をチケットに反映したいときだけ要る。
+3. **リポジトリで準備する**：管理したいリポジトリで一度だけ実行します。チケットを置くブランチができ、リモートがあれば push されます。
 
-npm に公開するまでは、[mise](https://mise.jdx.dev/) を入れて deguboard を clone し、ビルドした `dg` を PATH に通す。`dg` は `#!/usr/bin/env node` で動くので、リポジトリの外で `dg` を使うには node 24 がリポジトリの外でも PATH にあること（mise なら `mise use -g node@24`）。
+   ```sh
+   cd <管理したいリポジトリ>
+   dg init
+   ```
+
+4. **エージェントに手順を渡す**：Claude Code では、`/dgall` などのコマンドを使えるようにします。
+
+   ```sh
+   dg skill install
+   ```
+
+   Codex・Copilot CLI などほかのエージェントでは準備は要りません。「`dg guide` を読んでから `dg` で進めて」と頼みます。
+
+5. **ボードを開く**：Activity Bar の deguboard のアイコンを押します。
+
+チームの 2 人目からは、リポジトリを clone して `dg init` を実行すると同じボードが見えます。画面を見るだけなら `dg` がなくても動きます。
+
+## 使い方
+
+### ボードを開く
+
+Activity Bar の deguboard のアイコンを押すと、サイドバーにカンバンが開きます。上のタブでバックログと履歴に切り替えます。
+
+<img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/open-board.gif" alt="ボードを開く" width="560">
+
+### 雑な指示からチケットを起票する
+
+思いついたままの一言で頼むと、エージェントがコードを調べて、小さなチケットに分けた起票の案を出します。案には概要・受け入れ条件・優先度・依存が入り、承認するとバックログに並びます。Claude Code では `/dgimport` を付けて頼みます。
+
+<img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/import.gif" alt="雑な指示からチケットを起票する" width="560">
+
+### エージェントに頼む
+
+行にマウスを載せて吹き出しを押し、頼むことを選びます。指示を書いてコピーし、エージェントの入力欄に貼ります。Claude Code 以外のエージェントには、形式を「文章」にしてコピーします。
+
+<img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/ask-agent.gif" alt="エージェントに頼む" width="560">
+
+### 最後まで任せる
+
+作りたいものを書いて `/dgall --auto`（Claude Code の場合）を付けて頼むと、エージェントがチケットを起票し、進める順を計画して、1 件ずつ仕上げます。ボードでは、チケットが Todo から In Progress へ進み、すべて Done になるまでを見守れます。計画の帯を押すと、どのチケットがどれを待っているかをグラフで見られます。ほかのエージェントでは「`dg guide all` を読んで、`--auto` で最後まで進めて」と頼みます。
+
+<img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/run-all.gif" alt="最後まで任せる" width="560">
+
+### ボトルネックを調べる
+
+履歴で終わった Iteration の吹き出しから「振り返る」を選び、調べたいことを書いて頼みます。エージェントは記録した実績（工程ごとの所要時間・トークン・差し戻し）を集計し、どこが詰まっていたかと次に直すことを分析レポートにまとめます。
+
+<img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/retro.gif" alt="ボトルネックを調べる" width="560">
+
+トークンも集計するには、エージェントの会話記録から使用量を取り込む設定を有効にします（Claude Code・Codex・Copilot CLI に対応）。
+
+```sh
+dg config set metrics.read_transcripts true
+```
+
+この設定はチームで共有されます。自分のマシンでは会話記録を読ませないときは、環境変数 `DEGUBOARD_NO_TRANSCRIPTS=1` を設定します。
+
+## セキュリティとプライバシー
+
+- 拡張は外部のサーバーと通信せず、テレメトリ（利用状況の送信）もしません。画面のために HTTP サーバーも起動しません。
+- データはリポジトリの `.git/deguboard/` に置きます。書くのは `.git` の中だけです。
+- 拡張が外部のコマンドとして呼ぶのは `git` と、入っていれば PR の状態の照合に使う `gh`（GitHub CLI）です。`dg` は同梱せず、PATH にあれば版を確かめるために `dg --version` だけを呼びます。エージェントや CLI から使う `dg` は利用者が呼びます。拡張はどれも引数配列で直接実行し、シェルを通しません（同期の rebase で git が登録済みのマージドライバ（中身は `dg merge-driver`）を `sh -c` で動かすのは git の仕様です）。通信が起きるのは、`git` がリモートに接続するとき（fetch・push・ls-remote）と、`gh` が GitHub に接続するときだけです。
+- 制限モード（信頼していないフォルダー）と仮想ワークスペースでは動きません。リポジトリの git の設定（`core.fsmonitor` など）が任意のコマンドを実行させ得るためです。フォルダーを信頼したときだけ使えます。
+- `dg skill install` が書く Skill は `dg guide` を読ませる決まった文面だけで、スクリプトもツールの許可（`allowed-tools`）も持ちません。`--dry-run` で、書く前に書く先と中身を見られます。
+- 脆弱性の報告先と修正の対象の版は [SECURITY.md](https://github.com/brainpad-whiterabbit/deguboard/blob/main/SECURITY.md) にあります。
+
+## ほかの使い方
+
+### 公開前に使い始める
+
+[mise](https://mise.jdx.dev/) を入れて clone し、ビルドした `dg` を PATH に通します。リポジトリの外でも `dg` を使うには、node 24 がリポジトリの外でも PATH にある必要があります（mise なら `mise use -g node@24`）。
 
 ```sh
 git clone https://github.com/brainpad-whiterabbit/deguboard.git && cd deguboard
 mise trust && mise install    # node・pnpm を mise.toml の版で入れる
-mise run install              # 依存を入れ、dg と VS Code 拡張をビルドし、VSIX を VS Code に入れる（code CLI がないか答えなければ導入は飛ばす）
-mkdir -p ~/.local/bin && ln -sf "$PWD/packages/cli/bin/dg.js" ~/.local/bin/dg   # ~/.local/bin が PATH になければ足す。更新は git pull のあと mise run install
+mise run install              # 依存を入れ、dg と拡張をビルドし、VSIX を VS Code に入れる
+mkdir -p ~/.local/bin && ln -sf "$PWD/packages/cli/bin/dg.js" ~/.local/bin/dg   # 更新は git pull のあと mise run install
 ```
 
-公開後は `npm i -g deguboard`（mise なら `mise use -g npm:deguboard`）で入れる。入れたら、管理したいリポジトリで始める。
+VSIX を手で入れるときは、`mise run vsix` の後に `code --install-extension packages/vscode/deguboard-vscode.vsix` を実行します。
+
+### ブラウザと CLI で使う
+
+VS Code がなくても、ブラウザで同じボードを見られます。ブラウザでは Run のタブで実行中・完了の Run と実績の集計も見られます。
 
 ```sh
-cd <管理したいリポジトリ>
-dg init                       # orphan ブランチ deguboard と worktree .git/deguboard/ を作り、リモートがあれば push する
+dg serve --open               # 127.0.0.1:7474 でボードを開く
 dg ticket create "ログインの検証" --summary "入力の検査" --acceptance "空のとき拒否する"
-dg ticket list                # 表で出る。--json で機械向け
-dg serve --open               # 127.0.0.1:7474 でカンバンを開く
-dg guide overview             # エージェント向けの手順。Claude Code には「dg guide を読んでから dg で進めて」と頼む
-dg skill install              # Claude Code の Skill（/dgimport・/dgplan・/dgwork など）を .claude/skills/ に書く（--personal で ~/.claude/skills）
+dg ticket list                # --json で機械向け
 ```
 
-Skill は任意。入れなくても、`dg ask --format text` や画面の頼む小窓の文章をエージェントに貼れば同じことを頼める。Skill の中身は `dg guide <topic>` を読ませる決まった文面で、スクリプトもツールの許可（`allowed-tools`）も持たない。`dg skill install --dry-run` で、何も書かずに書く先と中身を見られる。
+Skill を入れずに、`dg ask --format text` か画面の頼む小窓で作った文章をエージェントに貼っても同じことを頼めます。
 
-チームの 2 人目からは、リポジトリを clone して `dg init` を実行する。リモートにある `deguboard` ブランチを取り込むので、同じチケットが見える。
+### Claude Desktop から使う（MCP）
 
-VS Code の拡張は、今は VSIX から入れる。上の `mise run install` が入れ、手で入れるなら `mise run vsix`（build も先に走る）の後に `code --install-extension packages/vscode/deguboard-vscode.vsix` を実行する。拡張を入れて Activity Bar の deguboard のアイコンを押すと、サイドバーにカンバンが開く。拡張の紹介と使い方は[拡張の README](packages/vscode/README.md)、仕様は[要件定義書](docs/requirements.md)の UI-2・UI-7・UI-12〜15。拡張は `dg` なしで動き、`dg` が PATH にないときは案内を出す。
-
-### Run の記録と集計
-
-Run は 1 回の AI の作業の記録で、エージェントがチケットの工程（step）の始めと終わりに `dg run start` / `dg run finish` を呼んで残す。Skill と `dg guide work` の手順がこれを呼ぶので、人がするのは使用量を取り込む許可と、結果を見ることだけ。
-
-```sh
-dg config set metrics.read_transcripts true   # finish が会話記録から使用量を取り込む（既定は false。config はチームで共有し、既定の batch では dg sync で送る）
-export DEGUBOARD_NO_TRANSCRIPTS=1             # このマシンでは会話記録を読ませないとき
-dg run list --running                         # 実行中の Run。閉じ損ねたものは dg run finish <ID> --result interrupted
-dg run list --iteration s1                    # その Iteration のチケットの Run
-dg run refresh <ID> --dry-run                 # 閉じた Run のモデル名と使用量を会話記録から取り直す差分（--dry-run を外すと書き換える）
-dg metrics show --iteration s1 --by ticket    # 絞り込み（--ticket・--epic・--step など）と単位ごとの集計
-```
-
-使用量を取り込めるのは今は Claude Code（`--agent claude-code`）・Codex（`--agent codex`）・Copilot CLI（`--agent copilot`）の Run だけ（ツールの回数は Claude Code だけ）で、取れなかった値は 0 と数えず欠けた数として出る。画面では、Run のタブで実行中・完了の Run と単位ごとの実績を、チケット詳細の Run の節と履歴の Iteration の行の「Run の集計」でそのチケット・Iteration の Run を見る（Run のタブと「Run の集計」はブラウザだけ）。記録の形・Git に入れる範囲・集計の約束は[要件定義書](docs/requirements.md)の「5.9 Run」と「6.6 作業の実績」。
-
-### Plan の段階とモデル
-
-Plan はチケットごとに段階 `--tier`（`light` / `standard` / `heavy`。省けば standard）を持つ。段階は設定の `models.light` / `models.standard` / `models.heavy` でモデルに対応し、`dg guide work` の手順がそのモデルのサブエージェントに実装を渡す（空なら親のモデルのまま）。段階の目安は `dg guide plan`、正本は[要件定義書](docs/requirements.md)の PL-1 と 5.10。
-
-```sh
-dg plan create t12 t13 --tier t12=light --tier t13=heavy   # チケットごとの段階。目安は dg guide plan
-dg config set models.heavy <モデル名>                       # 段階ごとのモデル（light・standard も）。既定は空
-```
-
-### MCP で使う
-
-`dg mcp` は stdio の MCP サーバーで、`dg` のコマンドを `ticket_create` のような名前のツールとして出す。主体は常に `<ユーザ>/agent`。主体名は `git config deguboard.user <名前>` で変えられ、`dg whoami` で確かめられる（優先順は `dg --help` の `--user`）。Bash のない Claude Desktop などから、会話でチケットを起票・閲覧し、状態を進めるための入口。
-
-Claude Desktop では `claude_desktop_config.json` に登録する。Desktop はリポジトリの外で、シェルの PATH を引き継がずに起動する。`-C` で対象のリポジトリを指し、`command` は node の絶対パスにして、`dg` の実体（`bin/dg.js`）を引数に渡す。mise の shim はプロジェクトの外では node の版を決められず、`dg` も `#!/usr/bin/env node` なので、どちらも PATH 頼みでは動かない。node のパスはリポジトリで `mise which node`（か `which node`）で、`dg.js` は `realpath "$(which dg)"` で調べる。
+`dg mcp` は stdio の MCP サーバーで、`dg` のコマンドを `ticket_create` のような名前のツールとして出します。Claude Desktop は PATH を引き継がずにリポジトリの外で起動するので、`claude_desktop_config.json` では `command` に node の絶対パス（`mise which node`）、引数に `dg.js` の実体（`realpath "$(which dg)"`）と `-C <対象のリポジトリ>` を渡します。Claude Code は Bash で `dg` を呼べるので登録は要りません。
 
 ```json
 {
@@ -101,10 +136,14 @@ Claude Desktop では `claude_desktop_config.json` に登録する。Desktop は
 }
 ```
 
-Claude Code では Bash で `dg … --json` を呼べ、Skill と `dg guide` もそれを前提にするので、登録しなくてよい（ツールのスキーマは会話の文脈を使う）。
+## ドキュメント
 
-チケットの流れ（起票 → claim → 作業 → PR → 照合で done）とコマンドの一覧は `dg --help` と `dg guide work`、仕様は[要件定義書](docs/requirements.md)。
+- [要件定義書](docs/requirements.md)：今の仕様の正本。Run の記録と集計は「5.9 Run」と「6.6 作業の実績」、Plan の段階とモデルは PL-1 と 5.10
+- [ADR](docs/adr/README.md)：設計判断の背景と理由
+- [開発ガイド](docs/development.md)：このリポジトリで開発する人向け
+- [SECURITY.md](SECURITY.md)：脆弱性の報告先と修正の対象の版
+- `dg --help` と `dg guide <topic>`：コマンドの一覧と、エージェント向けの手順の正本（CLI に同梱）
 
 ## ライセンス
 
-[MIT](LICENSE)。配布物に束ねた依存のライセンスは、ビルドで出る `THIRD_PARTY_LICENSES.md`（npm の `deguboard` の `web/` と VSIX の `dist/`）にまとめる。
+[MIT](LICENSE)。配布物に束ねた依存のライセンスは、ビルドで出る `THIRD_PARTY_LICENSES.md`（npm の `deguboard` の `web/` と VSIX の `dist/`）にまとめています。
