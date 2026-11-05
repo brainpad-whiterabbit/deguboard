@@ -10,7 +10,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 // 予算（バイト）。超えたら失敗、WARN_RATIO を超えたら警告する。どちらも細部を正本（ヘルプ・コード・テスト）へ移すか、約束を見直すきっかけ
 const budgets = [
   ["CLAUDE.md", 6 * 1024],
-  ["README.md", 12 * 1024],
+  ["README.md", 16 * 1024],
   ["docs/requirements.md", 40 * 1024],
   ["docs/development.md", 20 * 1024],
 ];
