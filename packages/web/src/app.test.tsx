@@ -183,6 +183,15 @@ describe("画面", () => {
     expect(screen.getByText("3 件")).toBeTruthy();
   });
 
+  it("広い画面のカンバンの見出しは、Iteration の名前を Iteration 詳細へのリンクにする", async () => {
+    const client = boardClient();
+    mount(client);
+    await screen.findByText("ログイン");
+    const link = document.querySelector<HTMLAnchorElement>(".board-head h1 a")!;
+    expect(link.getAttribute("href")).toMatch(/^#\/iterations\/s\d+$/);
+    expect(link.textContent).toBe(client.data.iterations.find((i) => i.status === "active")!.name);
+  });
+
   it("Iteration の選択肢は「すべて」と planned と active で、既定は active。選ぶとその Iteration のチケットだけになり、ハッシュに残る。「すべて」は開いた Iteration のチケットだけを出す", async () => {
     const client = mockClient();
     client.data.iterations = [
@@ -2921,6 +2930,9 @@ describe("画面", () => {
       [...document.querySelectorAll(".iteration-chip")].map((c) => c.getAttribute("aria-pressed")),
     ).toEqual(["false", "false", "true", "false"]);
     expect(document.querySelector(".sidebar-head .head-line.sub .name")!.textContent).toBe("次");
+    expect(
+      document.querySelector(".sidebar-head .head-line.sub .name a")!.getAttribute("href"),
+    ).toBe("#/iterations/s2");
   });
 
   it("サイドバーのカンバンの「すべて」は planned と active の Iteration のチケットを数えて出し、Iteration に入っていないチケットと閉じた Iteration のチケットは出さない。「なし」の札はない", async () => {
@@ -2950,6 +2962,7 @@ describe("画面", () => {
     expect(document.querySelector(".sidebar-head .head-line.sub .name")!.textContent).toBe(
       "planned・active のすべて",
     );
+    expect(document.querySelector(".sidebar-head .head-line.sub .name a")).toBeNull();
     await screen.findByText("画面");
     expect(kanbanRowOf("API")).toBeTruthy();
     expect(kanbanRowOf("画面")).toBeTruthy();

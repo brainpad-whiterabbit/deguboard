@@ -213,7 +213,7 @@ steps: # 任意。Run の step の語彙（WF-5）
 Web UI は `dg serve` が配信し、VS Code 拡張は同じアプリを Webview に載せる（[ADR-006](adr/ADR-006-ui-and-writes.md)）。
 
 - UI-1 プロジェクトの切り替え
-- UI-2 カンバン：planned か active の Iteration 1 つ（既定は active）か「すべて」（その全部）のチケットを Status ごとの列に出す。Iteration のないチケットはバックログで見る。Epic と担当者で絞れる。左パネルの行は、開いた Plan に入っていない未完了の行に破線の「—」を出す
+- UI-2 カンバン：planned か active の Iteration 1 つ（既定は active）か「すべて」のチケットを Status ごとの列に出す。Iteration なしのチケットはバックログで見る。Epic・担当者で絞れる。見出しの Iteration 名は詳細へのリンク（「すべて」以外）。左パネルの行は、開いた Plan にない未完了の行に破線の「—」を出す
 - UI-3 バックログ：done・abandoned 以外のチケットを Iteration ごとの区画に出し、検索と絞り込みができる
 - UI-4 チケット詳細：本文・属性・依存・作業ブランチ・PR・Run・経過（CL-7）を出し、属性と本文を編集できる
 - UI-5 Iteration：詳細の画面で期間・目標・進捗（EP-3）と中のチケット、状態に応じた次の操作（IT-2 の `next`）、中のチケットを含む Plan を出す。閉じた Iteration・Epic と終わったチケットは履歴の画面で見る

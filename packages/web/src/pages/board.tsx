@@ -342,12 +342,12 @@ export function hideClosedFinished<T extends Ticket>(
   );
 }
 
-/** 選んだ Iteration の見出し：番号・名前・状態・期間・目標と詳細へのリンク */
+/** 選んだ Iteration の見出し：番号・名前（詳細へのリンク）・状態・期間・目標と詳細へのリンク */
 function IterationHead({ iteration: it }: { iteration: Iteration }) {
   return (
     <header className="board-head">
       <h1>
-        <code>{it.id}</code> {it.name}
+        <code>{it.id}</code> <a href={hrefOf({ page: "iterations", id: it.id })}>{it.name}</a>
       </h1>
       <span className={`badge iteration-${it.status}`}>{ITERATION_LABELS[it.status]}</span>
       {it.start || it.end ? (
@@ -366,7 +366,7 @@ function IterationHead({ iteration: it }: { iteration: Iteration }) {
 /**
  * 左パネルのカンバンの見出し（UI-2）。1 段目に Iteration の札の列（IterationChips）と右端の絞り込みボタン（漏斗）、
  * 2 段目に選んでいるものの名前・期間・目標（1 行で省略）、3 段目に状態ごとの色の帯と「n/m done」（件数はここだけ）。
- * 詳細は出さない。
+ * 詳細は出さないが、選んでいる Iteration の名前は Iteration 詳細へのリンクにする（「すべて」の名前はリンクにしない）。
  * filter は絞り込める Epic か担当があるときだけ渡す（漏斗を出す）。絞っている間は漏斗を色付きにする
  */
 function SidebarBoardHead({
@@ -417,7 +417,9 @@ function SidebarBoardHead({
         ) : null}
       </div>
       <div className="head-line sub muted" {...(it ? { ...spot.props, tabIndex: 0 } : {})}>
-        <span className="name">{name}</span>
+        <span className="name">
+          {it ? <a href={hrefOf({ page: "iterations", id: it.id })}>{name}</a> : name}
+        </span>
         {period ? <span className="period">{period}</span> : null}
         {it?.goal ? (
           <span className="goal" title={it.goal}>
