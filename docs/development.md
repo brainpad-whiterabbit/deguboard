@@ -139,7 +139,7 @@ git tag v<版> && git push origin v<版>
 mise run vsix                        # GitHub の Release に deguboard-vscode.vsix を添付する
 ```
 
-3 つの tarball には、`prepack`（各パッケージの package.json）がルートの LICENSE を写して入れる（VSIX の `package` と同じ。写した `packages/*/LICENSE` は `.gitignore` で Git に入れない）。tarball を試すときは `tar tzf release/*.tgz | grep package/LICENSE` で 3 つとも入っていることを確かめる。
+3 つの tarball には、`prepack`（各パッケージの package.json）がルートの LICENSE を写して入れる（VSIX の `package` と同じ。写した `packages/*/LICENSE` は `.gitignore` で Git に入れない）。tarball を試すときは `for f in release/*.tgz; do tar tzf "$f" | grep -q '^package/LICENSE$' && echo "ok $f"; done` を 1 つずつ回し、3 行の ok が出ることを確かめる（`tar tzf` は複数の tgz を一度に渡せない）。
 
 `release/` は `mise run pack` が置く生成物で、`.gitignore` により Git には入れない。`pack` は毎回 `release/` を消してから作るので、手元に残った古い版の tarball は消してよい。
 
