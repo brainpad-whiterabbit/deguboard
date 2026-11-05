@@ -29,6 +29,7 @@ import { checkReferences } from "../storage/integrity.js";
 import type { Issue } from "../storage/issue.js";
 import { CONFIG_FILE, workflowPath } from "../storage/paths.js";
 import type { WorkflowEntry } from "../storage/store.js";
+import { cyclePath, findCrossingCycle } from "../storage/wait-cycle.js";
 import { reconcileStatus, regressionWarnings } from "../workflow/reconcile.js";
 import { WORKFLOW_TEMPLATES } from "../workflow/templates/index.js";
 import { defineCommand, ok, type CommandContext } from "./define.js";
@@ -360,7 +361,7 @@ export const lint = defineCommand({
   name: "lint",
   group: "setup",
   summary:
-    "本文の推奨の節（## 概要・## 受け入れ条件）の欠けと空、Workflow の fields に合わない値、閉じた Epic に残る終わっていないチケット、lint.require_iteration が true なら Iteration に入らずに todo・abandoned 以外に進んだチケット（閉じた Epic の done は除く）、チケットがすべて終わったのに開いている Epic・Plan、同じ Project に 2 つ以上ある active の Iteration を指摘する。done のチケットの未チェックの受け入れ条件は指摘しない",
+    "本文の推奨の節（## 概要・## 受け入れ条件）の欠けと空、Workflow の fields に合わない値、閉じた Epic に残る終わっていないチケット、lint.require_iteration が true なら Iteration に入らずに todo・abandoned 以外に進んだチケット（閉じた Epic の done は除く）、チケットがすべて終わったのに開いている Epic・Plan、開いた Plan の after と depends_on をまたぐ循環、同じ Project に 2 つ以上ある active の Iteration を指摘する。done のチケットの未チェックの受け入れ条件は指摘しない",
   input: z.object({
     project: z.string().optional().describe("Project で絞る。省略時はすべて"),
   }),
@@ -459,6 +460,19 @@ export const lint = defineCommand({
           doc.id,
           "lint_plan_finished_open",
           "チケットがすべて終わったが Plan が開いている",
+        );
+    }
+    // 開いた Plan の after と depends_on をまたぐ循環（PL-3）。Plan を作った後の depends_on の変更でできたものを拾う
+    for (const doc of ctx.store.plans.values()) {
+      if (input.project && doc.data.project !== input.project) continue;
+      if (doc.data.closed_at !== undefined) continue;
+      const crossing = findCrossingCycle(ctx.store, doc.data.tickets, doc.data.after);
+      if (crossing)
+        warn(
+          doc.path,
+          doc.id,
+          "lint_plan_wait_cycle",
+          `after と depends_on が循環している: ${cyclePath(crossing, true)}`,
         );
     }
     // active の Iteration は Project に 1 つ（IT-1）。同時の start や直接の編集・マージで 2 つになったものを拾う
