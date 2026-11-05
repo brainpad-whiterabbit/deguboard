@@ -1,18 +1,13 @@
 // 「チケットへ移動」の QuickPick の項目（UI-12）。VS Code の API に触れない部分で、extension.ts から呼ぶ。
 // 項目は ids.ts の ID の索引から作る（毎回 dg を呼ばない）。文言と並びを決める。絞り込みは VS Code の QuickPick が、label（ID とタイトル）・description（種類と Status）・detail に対して行う
 
-import type { IdEntry, IdIndex, IdKind } from "./ids.js";
+import { type IdEntry, type IdIndex, type IdKind, kindLabel } from "./ids.js";
+import { t } from "./l10n.js";
 
 /** コマンド ID（package.json の commands と keybindings に同じ名前を書く） */
 export const GOTO_COMMAND = "deguboard.gotoTicket";
 
-/** 種類の表示名と、並びの順（チケットを先頭に） */
-const KIND_LABEL: Record<IdKind, string> = {
-  ticket: "チケット",
-  iteration: "Iteration",
-  epic: "Epic",
-  plan: "Plan",
-};
+/** 種類の並びの順（チケットを先頭に） */
 const KIND_ORDER: IdKind[] = ["ticket", "iteration", "epic", "plan"];
 
 /** QuickPick の 1 項目 */
@@ -45,7 +40,7 @@ function toItem(e: IdEntry): GotoItem {
   return {
     id: e.id,
     label: e.title ? `${e.id}  ${e.title}` : e.id,
-    description: `${KIND_LABEL[e.kind]}・${e.status}`,
+    description: t("{0} · {1}", kindLabel(e.kind), e.status),
     detail: e.details.join(" "),
   };
 }

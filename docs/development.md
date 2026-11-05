@@ -120,7 +120,7 @@ core の `commands` を HTTP に写す。Node 標準の `node:http` で、フレ
 
 ### `packages/vscode`（`deguboard-vscode`）
 
-VS Code 拡張。拡張ホストから core の `createLocalClient` を呼び、Webview に web のビルド結果を載せる。サーバーは起動せず、`dg` は同梱しない（[ADR-006](adr/ADR-006-ui-and-writes.md)）。VS Code の API に触れるのは入口の `extension.ts` だけで、Webview に載せる純粋な処理は `webview.ts`、PATH の `dg` を引くのは `dg.ts`。
+VS Code 拡張。拡張ホストから core の `createLocalClient` を呼び、Webview に web のビルド結果を載せる。サーバーは起動せず、`dg` は同梱しない（[ADR-006](adr/ADR-006-ui-and-writes.md)）。VS Code の API に触れるのは入口の `extension.ts` だけで、Webview に載せる純粋な処理は `webview.ts`、PATH の `dg` を引くのは `dg.ts`。文言は言語ごとのファイルに置く：manifest は `package.nls.json`（英語・既定）と `package.nls.ja.json`、拡張ホストは `l10n.ts` の `t`（鍵は英語の文）と `l10n/bundle.l10n.ja.json`、Walkthrough は `media/walkthrough/*.md` と `*.ja.md`。揃っているかは `l10n.test.ts` が確かめる。
 
 ビルドは Vite で `dist/extension.cjs` に束ね、web の `dist` を `dist/web` に写す（[ADR-008](adr/ADR-008-tech-stack.md)）。同梱する core の版は `vite.config.ts` の `define` で埋める。手元で動かすには `mise run build` のあと VS Code で `packages/vscode` を開いて F5（拡張開発ホスト）、Activity Bar の deguboard のアイコン。
 

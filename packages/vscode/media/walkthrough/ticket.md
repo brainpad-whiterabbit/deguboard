@@ -1,9 +1,9 @@
-# 2. チケットを起こす
+# 2. Create a ticket
 
-やりたいことを小さなチケットに分けます。ターミナルから 1 件起こしてみます。
+Split what you want done into small tickets. Try creating one from a terminal.
 
 ```sh
-dg ticket create "最初のチケット"
+dg ticket create "My first ticket"
 ```
 
-起こしたチケットは、サイドバーのバックログとカンバンに出ます。行を押すと詳細がエディタに開きます。
+The ticket shows up in the sidebar's backlog and kanban. Click a row to open its details in the editor.
