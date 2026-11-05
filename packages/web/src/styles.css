@@ -1585,7 +1585,7 @@ textarea.body {
   color: var(--dg-status-in_progress);
 }
 /*
- * カンバンとバックログの行の右端：縦に 2 段で右に揃える。上の段は優先度の印（high・low）・担当の印・Plan の番号を Plan の色で、
+ * カンバンとバックログの行の右端：縦に 2 段で右に揃える。上の段は優先度の印（high・low）・担当の印・Plan の番号を Plan の色で（Plan の外の未完了の行は破線の空き枠）、
  * 下の段は着手可（緑系）・待ちの相手と承認待ち（黄系）だけ。段の高さは行の 1 行分（右端が 2 段なので行は 2 行の高さになる）
  */
 .row-end {
@@ -1649,7 +1649,8 @@ textarea.body {
   border-radius: 3px;
   color: color-mix(in srgb, var(--vscode-foreground) 70%, transparent);
   font-family: ui-monospace, Menlo, Consolas, monospace;
-  line-height: 1.3;
+  /* 上下の枠線 2px を含めて上の段の 18px に収める */
+  line-height: 16px;
 }
 .row-ready {
   color: var(--dg-status-done);

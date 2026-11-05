@@ -12,6 +12,7 @@ import {
   type Ticket,
   type TicketRow,
   type WhoamiView,
+  isFinished,
 } from "../types.js";
 
 /** 左パネルのカンバンとバックログの行に出す、チケットが入っている開いた Plan と、残っている待ちの相手 */
@@ -70,14 +71,11 @@ export function isWaitingReadiness(readiness: KanbanReadiness | null): boolean {
 
 /** 開いた Plan に入っていない、終わっていない（todo・in_progress・review）行か。カンバンの行に破線の空き枠を出す判定（UI-2） */
 export function needsPlanSlot(ticket: Pick<Ticket, "status">, mark: PlanMark | undefined): boolean {
-  return (
-    !mark &&
-    (ticket.status === "todo" || ticket.status === "in_progress" || ticket.status === "review")
-  );
+  return !mark && !isFinished(ticket.status);
 }
 
 /**
- * 左パネルのカンバンの行の右端（開いた Plan に入っているか、実行中の Run があるか、担当のあるチケット）。縦に 2 段で、
+ * 左パネルのカンバンの行の右端（開いた Plan に入っているか、開いた Plan に入っていない未完了の行か、実行中の Run があるか、担当のあるチケット）。縦に 2 段で、
  * 上の段の左端に優先度の印（high・low。medium は出さない）を置き、続けて担当の印と Plan の番号を Plan の色で出す（開いた Plan に入っていない終わっていない行は番号の代わりに破線の空き枠「—」）。
  * 下の段は実行中の Run があれば「実行中」（Plan の外の行でも）、なければ todo なら承認待ち（Plan が承認待ち）・
  * 待ちの相手（after と depends_on の終わっていないもの）・着手可を出す（着手可・待ちだけ）。どれもなければ下の段は出さない

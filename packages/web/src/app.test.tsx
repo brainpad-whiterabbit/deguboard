@@ -1432,7 +1432,7 @@ describe("画面", () => {
     expect(rowOf("画面").querySelector(".priority-low")).toBeTruthy();
   });
 
-  it("サイドバーのカンバンの行は、開いた Plan に入っていれば右端に Plan の番号を Plan の色で出し、todo なら着手可・待ちの相手・承認待ちを出す", async () => {
+  it("サイドバーのカンバンの行は、開いた Plan に入っていれば右端に Plan の番号を Plan の色で出し、todo なら着手可・待ちの相手・承認待ちを出す。入っていない未完了の行には破線の空き枠を出す", async () => {
     const client = boardClient();
     client.data.tickets.push(
       ticket({ id: "t4", title: "待つ", priority: "high", iteration: "s0" }),
