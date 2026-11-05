@@ -119,6 +119,47 @@ describe("dg skill install", () => {
     expect(await readFile(retired, "utf8")).toBe(RETIRED_TEMPLATE);
   });
 
+  it("--dry-run で手を加えた Skill を --force なしにすると、files に入らず conflicts に入り、警告は「しない」と書く", async () => {
+    const local = await createLocalOnlyRepo();
+    cleanups.push(local.cleanup);
+    expect((await dg(local.dir, ["skill", "install"])).code).toBe(0);
+    const edited = skillPath(local.dir, "dgwork");
+    await writeFile(edited, "手で書いた\n");
+    const retired = skillPath(local.dir, "deguboard");
+    await mkdir(path.dirname(retired), { recursive: true });
+    await writeFile(retired, `${RETIRED_TEMPLATE}手を加えた\n`);
+    const result = await dg(local.dir, ["--json", "skill", "install", "--dry-run"]);
+    const parsed = JSON.parse(result.out);
+    expect(parsed.data.conflicts).toEqual(["dgwork"]);
+    expect(parsed.data.retiredKept).toEqual(["deguboard"]);
+    expect(parsed.data.files.map((f: { name: string }) => f.name)).not.toContain("dgwork");
+    expect(parsed.warnings.join("\n")).toContain("上書きしない。");
+    expect(parsed.warnings.join("\n")).toContain("消さない。");
+    expect(parsed.warnings.join("\n")).not.toContain("しなかった");
+    expect(await readFile(edited, "utf8")).toBe("手で書いた\n");
+    // 実際に入れるときは過去形のまま
+    const real = JSON.parse((await dg(local.dir, ["--json", "skill", "install"])).out);
+    expect(real.warnings.join("\n")).toContain("上書きしなかった");
+    expect(real.warnings.join("\n")).toContain("消さなかった");
+  });
+
+  it("--personal --dry-run は書く先が HOME の下になり、何も書かない", async () => {
+    const home = await tempHome();
+    const result = await dg(home, ["--json", "skill", "install", "--personal", "--dry-run"], {
+      HOME: home,
+    });
+    expect(result.code).toBe(0);
+    const data = JSON.parse(result.out).data;
+    expect(data).toMatchObject({
+      scope: "personal",
+      dryRun: true,
+      dir: path.join(home, ".claude", "skills"),
+    });
+    expect(data.files.length).toBeGreaterThan(0);
+    expect(data.files[0].path.startsWith(path.join(home, ".claude", "skills"))).toBe(true);
+    expect(await exists(path.join(home, ".claude"))).toBe(false);
+  });
+
   it("-C で指したリポジトリに書く", async () => {
     const local = await createLocalOnlyRepo();
     cleanups.push(local.cleanup);
