@@ -2,9 +2,11 @@ id: p60
 project: default
 tickets: [t434]
 after: {}
-pending_approval: true
+pending_approval: false
 details:
   t434:
     scope: "t379（PR #417）で入った init の見張りで受け入れ条件が満たされたかを main のコードとテストで確かめる。ファイルは変えない"
     approach: watch.ts の initWatchTarget と extension.ts の watchInit・watchData の張り直しを読み、main で mise run check を回す。満たしていなければ起票し直す
     tier: light
+approved_by: maji/agent
+approved_at: 2026-11-05T17:16:24Z
