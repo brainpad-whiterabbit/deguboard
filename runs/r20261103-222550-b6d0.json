@@ -3,7 +3,7 @@
   "ticket": "t319",
   "step": "implement",
   "agent": "copilot",
-  "model": null,
+  "model": "claude-fable-5.1",
   "started_at": "2026-11-03T22:25:50Z",
   "finished_at": "2026-11-03T22:27:16Z",
   "result": "success",
@@ -11,9 +11,9 @@
   "retries": 0,
   "retry_reasons": [],
   "usage": {
-    "input": null,
-    "output": null,
-    "cache_read": null,
-    "cache_write": null
+    "input": 36,
+    "output": 8768,
+    "cache_read": 649421,
+    "cache_write": 53365
   }
 }

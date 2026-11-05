@@ -3,7 +3,7 @@
   "ticket": "t311",
   "step": "fix",
   "agent": "copilot",
-  "model": null,
+  "model": "claude-fable-5.1",
   "started_at": "2026-11-03T22:33:17Z",
   "finished_at": "2026-11-03T22:34:39Z",
   "result": "success",
@@ -16,9 +16,9 @@
     "時期を「実装を終えて PR を作る前に」とはっきりさせた"
   ],
   "usage": {
-    "input": null,
-    "output": null,
-    "cache_read": null,
-    "cache_write": null
+    "input": 28,
+    "output": 8860,
+    "cache_read": 795713,
+    "cache_write": 15074
   }
 }

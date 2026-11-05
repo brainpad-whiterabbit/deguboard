@@ -3,7 +3,7 @@
   "ticket": "t312",
   "step": "fix",
   "agent": "copilot",
-  "model": null,
+  "model": "claude-fable-5.1",
   "started_at": "2026-11-03T22:38:07Z",
   "finished_at": "2026-11-03T22:39:37Z",
   "result": "success",
@@ -15,9 +15,9 @@
     "テストで条件の文言が release にないことを確かめるようにした"
   ],
   "usage": {
-    "input": null,
-    "output": null,
-    "cache_read": null,
-    "cache_write": null
+    "input": 20,
+    "output": 3685,
+    "cache_read": 845127,
+    "cache_write": 6579
   }
 }

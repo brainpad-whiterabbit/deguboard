@@ -3,7 +3,7 @@
   "ticket": "t351",
   "step": "fix",
   "agent": "claude-code",
-  "model": "sonnet",
+  "model": "claude-sonnet-5-5",
   "started_at": "2026-11-04T12:45:04Z",
   "finished_at": "2026-11-04T12:46:09Z",
   "result": "success",

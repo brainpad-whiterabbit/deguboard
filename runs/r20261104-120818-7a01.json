@@ -3,7 +3,7 @@
   "ticket": "t336",
   "step": "implement",
   "agent": "claude-code",
-  "model": "sonnet",
+  "model": "claude-sonnet-5-5",
   "started_at": "2026-11-04T12:08:18Z",
   "finished_at": "2026-11-04T12:12:01Z",
   "result": "success",

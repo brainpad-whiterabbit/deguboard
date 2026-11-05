@@ -3,7 +3,7 @@
   "ticket": "t322",
   "step": "fix",
   "agent": "copilot",
-  "model": null,
+  "model": "claude-fable-5.1",
   "started_at": "2026-11-03T23:08:22Z",
   "finished_at": "2026-11-03T23:09:58Z",
   "result": "success",
@@ -15,9 +15,9 @@
     "PR 本文の受け入れ条件 1 を終了コード 2 で満たしたに更新した"
   ],
   "usage": {
-    "input": null,
-    "output": null,
-    "cache_read": null,
-    "cache_write": null
+    "input": 50,
+    "output": 10501,
+    "cache_read": 2073000,
+    "cache_write": 26318
   }
 }

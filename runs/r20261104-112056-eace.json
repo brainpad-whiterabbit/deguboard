@@ -3,7 +3,7 @@
   "ticket": "t339",
   "step": "implement",
   "agent": "claude-code",
-  "model": "opus",
+  "model": "claude-opus-5-5",
   "started_at": "2026-11-04T11:20:56Z",
   "finished_at": "2026-11-04T11:27:36Z",
   "result": "success",

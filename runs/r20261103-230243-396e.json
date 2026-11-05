@@ -3,7 +3,7 @@
   "ticket": "t323",
   "step": "fix",
   "agent": "copilot",
-  "model": null,
+  "model": "claude-fable-5.1",
   "started_at": "2026-11-03T23:02:43Z",
   "finished_at": "2026-11-03T23:04:13Z",
   "result": "success",
@@ -14,9 +14,9 @@
     "ADR-004 の採らなかった案の補足を「太字：理由」の形に揃える"
   ],
   "usage": {
-    "input": null,
-    "output": null,
-    "cache_read": null,
-    "cache_write": null
+    "input": 40,
+    "output": 12215,
+    "cache_read": 1267211,
+    "cache_write": 33106
   }
 }

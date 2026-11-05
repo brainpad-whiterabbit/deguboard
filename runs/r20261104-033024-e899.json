@@ -3,7 +3,7 @@
   "ticket": "t301",
   "step": "review",
   "agent": "copilot",
-  "model": null,
+  "model": "claude-opus-4.8-fast",
   "started_at": "2026-11-04T03:30:24Z",
   "finished_at": "2026-11-04T03:31:53Z",
   "result": "success",
@@ -11,9 +11,9 @@
   "retries": 0,
   "retry_reasons": [],
   "usage": {
-    "input": null,
-    "output": null,
-    "cache_read": null,
-    "cache_write": null
+    "input": 74,
+    "output": 20023,
+    "cache_read": 2878761,
+    "cache_write": 34179
   }
 }

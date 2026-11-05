@@ -3,7 +3,7 @@
   "ticket": "t321",
   "step": "fix",
   "agent": "copilot",
-  "model": null,
+  "model": "claude-fable-5.1",
   "started_at": "2026-11-03T23:04:25Z",
   "finished_at": "2026-11-03T23:06:19Z",
   "result": "success",
@@ -14,9 +14,9 @@
     "1 文に詰め込んだ説明を 2 文に分けた"
   ],
   "usage": {
-    "input": null,
-    "output": null,
-    "cache_read": null,
-    "cache_write": null
+    "input": 46,
+    "output": 18190,
+    "cache_read": 1477737,
+    "cache_write": 34420
   }
 }

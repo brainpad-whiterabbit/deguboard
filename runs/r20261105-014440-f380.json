@@ -3,7 +3,7 @@
   "ticket": "t393",
   "step": "fix",
   "agent": "claude-code",
-  "model": "haiku",
+  "model": "claude-haiku-5-5",
   "started_at": "2026-11-05T01:44:40Z",
   "finished_at": "2026-11-05T01:47:38Z",
   "result": "success",

@@ -3,7 +3,7 @@
   "ticket": "t325",
   "step": "fix",
   "agent": "copilot",
-  "model": null,
+  "model": "claude-fable-5.1",
   "started_at": "2026-11-03T23:11:46Z",
   "finished_at": "2026-11-03T23:13:03Z",
   "result": "success",
@@ -13,9 +13,9 @@
     "PR 本文の受け入れ条件を直した条件に合わせ、ADR-008 に DefinitelyTyped の運用だと補足"
   ],
   "usage": {
-    "input": null,
-    "output": null,
-    "cache_read": null,
-    "cache_write": null
+    "input": 16,
+    "output": 6177,
+    "cache_read": 409612,
+    "cache_write": 9333
   }
 }

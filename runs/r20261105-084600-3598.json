@@ -1,0 +1,34 @@
+{
+  "id": "r20261105-084600-3598",
+  "ticket": "t348",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-05T08:46:00Z",
+  "finished_at": "2026-11-05T08:49:37Z",
+  "result": "success",
+  "error": null,
+  "retries": 5,
+  "retry_reasons": [
+    "run-all のターミナルの入力欄の下が切れる",
+    "import で起票の承認の操作が映らない",
+    "retro で貼った依頼文の行が欠ける",
+    "知らない GIF の名前で 0 本録って成功する",
+    "PR 本文の GIF へのリンクがマージ後に切れる"
+  ],
+  "usage": {
+    "input": 16,
+    "output": 5697,
+    "cache_read": 1719504,
+    "cache_write": 8982
+  },
+  "tools": {
+    "read": 3,
+    "search": 0,
+    "write": 0,
+    "bash": 7,
+    "other": 0,
+    "read_before_write": 3,
+    "search_before_write": 0
+  }
+}

@@ -3,7 +3,7 @@
   "ticket": "t324",
   "step": "fix",
   "agent": "copilot",
-  "model": null,
+  "model": "claude-fable-5.1",
   "started_at": "2026-11-03T23:14:19Z",
   "finished_at": "2026-11-03T23:16:29Z",
   "result": "success",
@@ -18,9 +18,9 @@
     "fillPlaceholders の空文字を明示し既定との重複を外す"
   ],
   "usage": {
-    "input": null,
-    "output": null,
-    "cache_read": null,
-    "cache_write": null
+    "input": 34,
+    "output": 5622,
+    "cache_read": 1974577,
+    "cache_write": 9123
   }
 }

@@ -3,7 +3,7 @@
   "ticket": "t359",
   "step": "review",
   "agent": "claude-code",
-  "model": "opus",
+  "model": "claude-opus-5-5",
   "started_at": "2026-11-04T12:38:53Z",
   "finished_at": "2026-11-04T12:40:28Z",
   "result": "success",

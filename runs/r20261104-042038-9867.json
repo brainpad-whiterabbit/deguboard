@@ -3,7 +3,7 @@
   "ticket": "t329",
   "step": "implement",
   "agent": "copilot",
-  "model": null,
+  "model": "claude-opus-4.8-fast",
   "started_at": "2026-11-04T04:20:38Z",
   "finished_at": "2026-11-04T04:22:10Z",
   "result": "success",
@@ -11,9 +11,9 @@
   "retries": 0,
   "retry_reasons": [],
   "usage": {
-    "input": null,
-    "output": null,
-    "cache_read": null,
-    "cache_write": null
+    "input": 24,
+    "output": 6408,
+    "cache_read": 474098,
+    "cache_write": 15985
   }
 }

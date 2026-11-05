@@ -3,7 +3,7 @@
   "ticket": "t324",
   "step": "review",
   "agent": "copilot",
-  "model": null,
+  "model": "claude-fable-5.1",
   "started_at": "2026-11-03T23:16:52Z",
   "finished_at": "2026-11-03T23:18:11Z",
   "result": "success",
@@ -11,9 +11,9 @@
   "retries": 0,
   "retry_reasons": [],
   "usage": {
-    "input": null,
-    "output": null,
-    "cache_read": null,
-    "cache_write": null
+    "input": 6,
+    "output": 903,
+    "cache_read": 335735,
+    "cache_write": 3145
   }
 }

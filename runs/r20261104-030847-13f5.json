@@ -13,9 +13,9 @@
     "ADR-005 の Adapter の記述を Copilot を含む 3 製品に更新"
   ],
   "usage": {
-    "input": null,
-    "output": null,
-    "cache_read": null,
-    "cache_write": null
+    "input": 16,
+    "output": 1914,
+    "cache_read": 1318266,
+    "cache_write": 3475
   }
 }
