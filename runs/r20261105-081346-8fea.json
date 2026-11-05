@@ -1,0 +1,32 @@
+{
+  "id": "r20261105-081346-8fea",
+  "ticket": "t368",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-sonnet-5-5",
+  "started_at": "2026-11-05T08:13:46Z",
+  "finished_at": "2026-11-05T08:14:44Z",
+  "result": "success",
+  "error": null,
+  "retries": 3,
+  "retry_reasons": [
+    "dg --version を呼ぶ事実の訂正",
+    "書き込み先を .git の中だけに",
+    "シェルを通さないの主語を拡張にしマージドライバを注記"
+  ],
+  "usage": {
+    "input": 2,
+    "output": 202,
+    "cache_read": 53705,
+    "cache_write": 900
+  },
+  "tools": {
+    "read": 0,
+    "search": 0,
+    "write": 0,
+    "bash": 1,
+    "other": 0,
+    "read_before_write": 0,
+    "search_before_write": 0
+  }
+}
