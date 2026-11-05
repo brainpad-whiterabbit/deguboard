@@ -1,0 +1,33 @@
+{
+  "id": "r20261105-154611-1bde",
+  "ticket": "t376",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-sonnet-5-5",
+  "started_at": "2026-11-05T15:46:11Z",
+  "finished_at": "2026-11-05T15:47:11Z",
+  "result": "success",
+  "error": null,
+  "retries": 4,
+  "retry_reasons": [
+    "既定のキーの 2 打目を Linux の OS が使っている",
+    "README のキーを選んだ理由の文が誤りで、規約にも反する",
+    "移動の起動時に30 秒以内の失敗の記録で読み直さない",
+    "通知の文面が原因を決めつけていた"
+  ],
+  "usage": {
+    "input": 4,
+    "output": 1632,
+    "cache_read": 106587,
+    "cache_write": 1848
+  },
+  "tools": {
+    "read": 0,
+    "search": 0,
+    "write": 0,
+    "bash": 2,
+    "other": 0,
+    "read_before_write": 0,
+    "search_before_write": 0
+  }
+}

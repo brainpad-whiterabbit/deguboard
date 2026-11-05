@@ -1,0 +1,32 @@
+{
+  "id": "r20261105-154937-51d0",
+  "ticket": "t376",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-sonnet-5-5",
+  "started_at": "2026-11-05T15:49:37Z",
+  "finished_at": "2026-11-05T15:50:41Z",
+  "result": "success",
+  "error": null,
+  "retries": 3,
+  "retry_reasons": [
+    "forgetIdIndexFailure のコメントの呼ぶ所が古い",
+    "フォルダの決め方が gotoTicket と idIndexFor の 2 か所にあった",
+    "ターミナルにフォーカスがあるときの案内が README にない"
+  ],
+  "usage": {
+    "input": 4,
+    "output": 1197,
+    "cache_read": 116446,
+    "cache_write": 1795
+  },
+  "tools": {
+    "read": 0,
+    "search": 0,
+    "write": 0,
+    "bash": 2,
+    "other": 0,
+    "read_before_write": 0,
+    "search_before_write": 0
+  }
+}
