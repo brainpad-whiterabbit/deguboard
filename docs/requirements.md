@@ -185,7 +185,7 @@ steps: # 任意。Run の step の語彙（WF-5）
 - WF-3 存在しない Status を指す項目、未知の条件・Action、同じ遷移・step の重複は読み込み時と `dg workflow validate` で指摘する
 - WF-4 `software-development`・`consulting`・`general` のテンプレートを同梱し、`dg init` が 3 つとも置く（既にある Workflow は書き換えない）。`default` プロジェクトの Workflow はそのどれかを選べ、既定は `general`
 - WF-5 `steps` は Run の step の語彙で、項目は `id`・`label`・`actions`（Action の名前）・`approval`（承認の要否）。`run start` は語彙にない step を拒否する（`steps` がなければ縛らない）。手続きは `dg guide` が持つ
-- WF-6 `dg workflow set` は Workflow を 1 つ作るか置き換える。読み込み時の検証（WF-3）に通らなければ何も書かず、1 回の書き込み（SY-2）で書いて前と後を出す。引数は `dg workflow set --help`
+- WF-6 `dg workflow set` は Workflow を 1 つ作るか置き換える。読み込み時の検証（WF-3）の誤りがあれば何も書かず（未知の Action は警告だけ）、1 回の書き込み（SY-2）で書いて前と後を出す。引数は `dg workflow set --help`
 
 ### 5.9 Run（`runs/`）
 

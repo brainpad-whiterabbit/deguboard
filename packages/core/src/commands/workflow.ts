@@ -97,7 +97,7 @@ export const workflowSet = defineCommand({
   positionals: ["workflow"],
   group: "workflow",
   summary:
-    "Workflow の定義を書く（なければ作り、あれば置き換える）。定義か同梱のテンプレートのどちらか一方を渡す。読み込み時と同じ検証（WF-3）に通らなければ何も書かない",
+    "Workflow の定義を書く（なければ作り、あれば置き換える）。定義か同梱のテンプレートのどちらか一方を渡す。読み込み時と同じ検証（WF-3）の誤りがあれば何も書かない（未知の Action は警告だけ）",
   input: z.object({
     workflow: slugSchema.describe("書く Workflow の ID（workflows/<id>.yaml）"),
     definition: z
