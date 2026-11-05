@@ -11,7 +11,7 @@ export type DgLookup =
 /** テスト用に差し替えられる `dg --version` の実行 */
 export type RunVersion = () => Promise<string>;
 
-// 手順そのものは書かず README を指す（packages/vscode/README.md と同じ）
+// 手順そのものは書かず、ルートの README の「使い始める」を指す
 const INSTALL_HINT =
   "npm には未公開なので、今は README の「使い始める」（https://github.com/brainpad-whiterabbit/deguboard#使い始める）のとおり clone してビルドし、dg を PATH に通す。" +
   "公開後は npm i -g deguboard（mise なら mise use -g npm:deguboard）で入れる";
