@@ -28,7 +28,7 @@ after:
   t458:
     - t457
     - t463
-pending_approval: true
+pending_approval: false
 details:
   t437:
     scope: 上書きできる項目を deguboard-local/config.yaml に置き、config set/unset --local と config show --fields の scope、validate の警告、個人 > チーム > 既定の読み方を core に足す
@@ -90,3 +90,5 @@ details:
     scope: 設定の保存の拒否の理由と Plan・Run の警告を表示言語が英語なら英語で出し、訳のない文は core の文のまま出す
     approach: core の errors.ts の code を鍵に l10n-en.ts に訳を置き、http.ts・config.tsx・plans.tsx・ticket-runs.tsx が表示言語で選び、訳がなければ元の文を出すテストを書き、UI-11 を直す
     tier: standard
+approved_by: maji/agent
+approved_at: 2026-11-05T23:14:08Z
