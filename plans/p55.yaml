@@ -4,7 +4,7 @@ tickets: [t422, t418]
 after:
   t418:
     - t422
-pending_approval: true
+pending_approval: false
 details:
   t422:
     scope: 探す範囲の外の会話記録で始まった Run に応答を譲って量を落とさないようにする
@@ -14,3 +14,5 @@ details:
     scope: 5 パッケージの version を 0.15.0 に揃える版上げの PR を作り、リリースの手順の確かめを回す
     approach: リリースは人の指示を待つ。指示が出たら mise run release:version -- 0.15.0 の後に check・pack・audit・test:layout
     tier: light
+approved_by: eiki.kitajima/agent
+approved_at: 2026-11-05T11:09:22Z
