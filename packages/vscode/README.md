@@ -15,12 +15,14 @@ AI エージェントに仕事を任せるための、Git リポジトリの中�
 
 必要なもの：Git、Node.js 24 以上。PR の状態をチケットに映すときは GitHub CLI（`gh`）も使います。
 
-1. **拡張を入れる**：拡張機能ビューで「deguboard」を検索してインストールします。
-2. **コマンドラインツール `dg` を入れる**：エージェントは `dg` でチケットを読み書きします。
+1. **拡張を入れる**：公開後は拡張機能ビューで「deguboard」を検索してインストールします。公開前は [GitHub Release](https://github.com/brainpad-whiterabbit/deguboard/releases) の `deguboard-vscode.vsix` を取得し、`code --install-extension deguboard-vscode.vsix` で入れます。
+2. **コマンドラインツール `dg` を入れる**：エージェントは `dg` でチケットを読み書きします。公開後は npm で入れます。
 
    ```sh
    npm i -g deguboard
    ```
+
+   公開前は、[README の「使い始める」](https://github.com/brainpad-whiterabbit/deguboard#使い始める)のとおり clone してビルドし、`dg` を PATH に通します。
 
 3. **リポジトリで準備する**：管理したいリポジトリで一度だけ実行します。チケットを置くブランチができ、リモートがあれば push されます。
 
