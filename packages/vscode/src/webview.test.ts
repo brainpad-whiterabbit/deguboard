@@ -9,6 +9,9 @@ import {
   isWebviewRequest,
   coalesce,
   currentAskDelivery,
+  diffContent,
+  diffDocuments,
+  parseDiffQuery,
   renderMessageHtml,
   renderWebviewHtml,
   sidebarDelivery,
@@ -149,6 +152,7 @@ describe("Webview の要求", () => {
         copy: () => {},
         terminals: () => [],
         openFolder: () => {},
+        openDiff: () => {},
         sendToTerminal: () => {},
       },
     );
@@ -175,6 +179,7 @@ describe("Webview の要求", () => {
         copy: () => {},
         terminals: () => [],
         openFolder: () => {},
+        openDiff: () => {},
         sendToTerminal: () => {},
       },
     );
@@ -195,6 +200,7 @@ describe("Webview の要求", () => {
         copy: () => {},
         terminals: () => [],
         openFolder: () => {},
+        openDiff: () => {},
         sendToTerminal: () => {},
       },
     );
@@ -213,6 +219,7 @@ describe("Webview の要求", () => {
         copy: (text) => void copied.push(text),
         terminals: () => [],
         openFolder: () => {},
+        openDiff: () => {},
         sendToTerminal: () => {},
       },
     );
@@ -228,6 +235,7 @@ describe("Webview の要求", () => {
       copy: () => {},
       terminals: () => [{ id: 3, label: "zsh" }],
       openFolder: () => {},
+      openDiff: () => {},
       sendToTerminal: (id: number, text: string) => void sent.push([id, text]),
     };
     const list = await handleRequest(
@@ -260,6 +268,7 @@ describe("Webview の要求", () => {
       terminals: () => [],
       sendToTerminal: () => {},
       openFolder: (folder: string) => void opened.push(folder),
+      openDiff: () => {},
     };
     const client = fakeClient();
     const base = client.run.bind(client);
@@ -305,6 +314,7 @@ describe("Webview の要求", () => {
         copy: () => {},
         terminals: () => [],
         openFolder: () => {},
+        openDiff: () => {},
         sendToTerminal: () => {
           throw new Error("送り先のターミナルが閉じている");
         },
@@ -473,5 +483,76 @@ describe("サイドバーのバッジ", () => {
       tooltip: "未 push 1 / 未コミットの変更 / 読めないファイル 2",
     });
     expect(badgeOf({ ...base, ahead: 0, behind: 0, dirty: true, issues: 2 })).toBeUndefined();
+  });
+});
+
+describe("変更の差分エディタ（t375）", () => {
+  const request = {
+    ticket: "t1",
+    path: "src/新しい 名前.ts",
+    old_path: "src/元.ts",
+    base_commit: "aaa",
+    head_commit: "bbb",
+  };
+
+  it("左は元のパスの merge-base、右は作業ブランチのパスにし、query から同じものを読み戻せる", () => {
+    const docs = diffDocuments("file:///w", request);
+    expect(docs.left.path).toBe("/src/元.ts");
+    expect(docs.right.path).toBe("/src/新しい 名前.ts");
+    expect(docs.title).toBe("src/元.ts → src/新しい 名前.ts（t1 の変更）");
+    expect(parseDiffQuery(docs.left.query)).toEqual({
+      folder: "file:///w",
+      ticket: "t1",
+      side: "base",
+      path: "src/元.ts",
+      commit: "aaa",
+    });
+    expect(parseDiffQuery(docs.right.query)).toMatchObject({ side: "head", commit: "bbb" });
+    // 名前を変えていなければ左右とも同じパス
+    const same = diffDocuments("file:///w", { ...request, old_path: null });
+    expect(same.left.path).toBe(same.right.path);
+    expect(same.title).toBe("src/新しい 名前.ts（t1 の変更）");
+    expect(parseDiffQuery("ticket=t1&side=left&path=a&commit=x&folder=f")).toBeUndefined();
+  });
+
+  it("ない側は空、バイナリとサブモジュールは一言を中身にする", () => {
+    const file = {
+      path: "a",
+      commit: "c",
+      exists: false,
+      binary: false,
+      submodule: false,
+      text: "",
+    };
+    expect(diffContent(file)).toBe("");
+    expect(diffContent({ ...file, exists: true, text: "x\n" })).toBe("x\n");
+    expect(diffContent({ ...file, exists: true, binary: true })).toContain("バイナリ");
+    expect(diffContent({ ...file, exists: true, submodule: true, text: "abc123" })).toBe(
+      "（サブモジュールの変更は中身を出さない。コミット abc123）\n",
+    );
+  });
+
+  it("openDiff の要求を actions に渡し、形の違う要求は受けない", async () => {
+    const opened: unknown[] = [];
+    const res = await handleRequest(
+      fakeClient(),
+      { id: 3, kind: "action", name: "openDiff", ...request },
+      {
+        open: () => {},
+        show: () => {},
+        copy: () => {},
+        terminals: () => [],
+        openFolder: () => {},
+        openDiff: (r) => void opened.push(r),
+        sendToTerminal: () => {},
+      },
+    );
+    expect(res).toEqual({ id: 3, ok: true, data: null, warnings: [], write: null });
+    expect(opened).toEqual([request]);
+    expect(isWebviewRequest({ id: 1, kind: "action", name: "openDiff", ...request })).toBe(true);
+    expect(
+      isWebviewRequest({ id: 1, kind: "action", name: "openDiff", ...request, old_path: 1 }),
+    ).toBe(false);
+    expect(isWebviewRequest({ id: 1, kind: "action", name: "openDiff", ticket: "t1" })).toBe(false);
   });
 });

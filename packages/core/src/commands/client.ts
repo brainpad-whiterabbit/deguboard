@@ -26,6 +26,7 @@ export interface StatusView extends SyncStatus {
  * show は一覧の画面のルート（#/board?epic=e2 など）をサイドバーのビューに出す（パネルは詳細だけを出すので。UI-12）。
  * copy は text をクリップボードに入れる（Webview の画面はコピーをすべて拡張ホストに頼み、vscode.env.clipboard で書く）。
  * openWorktree はチケットの作業ブランチの worktree を新しいウィンドウで開く（パスは Webview から受けず、拡張ホストが ticket.show で引く。UI-4）。
+ * openDiff は ticket.changes の 1 ファイルを差分エディタで開く（左右の中身は拡張ホストが ticket.changed-file で読む。UI-4）。
  * terminals は開いているターミナルの一覧を返す（応答の data は TerminalChoice[]）。sendToTerminal は text を terminal の入力に入れる（Enter は押さない。UI-15）
  */
 export type WebviewRequest =
@@ -34,8 +35,19 @@ export type WebviewRequest =
   | { id: number; kind: "action"; name: "open" | "show"; route: string }
   | { id: number; kind: "action"; name: "copy"; text: string }
   | { id: number; kind: "action"; name: "openWorktree"; ticket: string }
+  | ({ id: number; kind: "action"; name: "openDiff" } & DiffRequest)
   | { id: number; kind: "action"; name: "terminals" }
   | { id: number; kind: "action"; name: "sendToTerminal"; terminal: number; text: string };
+
+/** 差分エディタで開く 1 ファイル（ticket.changes の files の 1 件と、一覧で読んだ両側のコミット） */
+export interface DiffRequest {
+  ticket: string;
+  path: string;
+  /** 名前を変えたときの元のパス（左側に使う）。ほかは null */
+  old_path: string | null;
+  base_commit: string;
+  head_commit: string;
+}
 
 /** sendToTerminal の応答の data。clipboardKept は、貼り付けのために書いたクリップボードを元に戻せず、依頼文が残っていること */
 export interface TerminalSendResult {
