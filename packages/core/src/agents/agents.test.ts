@@ -222,6 +222,90 @@ describe("Claude Code の Adapter", () => {
     expect(got.usage).toEqual({ input: 1, output: 2, cache_read: 3, cache_write: 4 });
   });
 
+  describe("同じ会話記録で期間が重なる Run", () => {
+    // A（RUN_ID、10:00 開始）を開いたまま、同じ会話で B（10:10 開始）を始めた記録
+    const B = "r20260101-101000-beef";
+    const B_STARTED = at(10).replace(".000", "");
+    const mentionOf = (id: string, minutes: number) => ({
+      type: "user",
+      timestamp: at(minutes),
+      message: { role: "user", content: [{ type: "tool_result", content: `{"id":"${id}"}` }] },
+    });
+    const lines = [
+      mention(0),
+      assistant("m1", 5, [1, 1, 1, 1]),
+      mentionOf(B, 10),
+      assistant("m2", 12, [10, 10, 10, 10]),
+      assistant("m3", 25, [100, 100, 100, 100]),
+    ];
+    const runB = (finished: string | null) =>
+      run({ id: B, started_at: B_STARTED, finished_at: finished });
+    const spans = (entries: Array<[string, string, string | null]>) =>
+      new Map(entries.map(([id, started_at, finished_at]) => [id, { started_at, finished_at }]));
+
+    it("先に閉じた側（A）は B の ID の後の応答を数えず、後に閉じた側（B）は A と重ならずに数える", async () => {
+      const { projectDir, query } = await setup();
+      await writeTranscript(path.join(projectDir, "s1.jsonl"), lines);
+      // A を 10:20 に閉じる。B は実行中
+      const a = await claudeCodeAdapter.readTranscriptUsage(
+        query({ finishedAt: at(20), others: spans([[B, B_STARTED, null]]) }),
+      );
+      // B を 10:30 に閉じる。A は 10:20 に閉じている
+      const b = await claudeCodeAdapter.readTranscriptUsage(
+        query({
+          run: runB(null),
+          finishedAt: FINISHED,
+          others: spans([[RUN_ID, STARTED, at(20)]]),
+        }),
+      );
+      expect(a.usage.output).toBe(1);
+      expect(b.usage.output).toBe(110);
+    });
+
+    it("後に始めた B を先に閉じても、A は B の期間の応答だけを数えず、B が閉じた後の応答は数える", async () => {
+      const { projectDir, query } = await setup();
+      await writeTranscript(path.join(projectDir, "s1.jsonl"), lines);
+      // B を 10:15 に閉じる。A は実行中
+      const b = await claudeCodeAdapter.readTranscriptUsage(
+        query({ run: runB(null), finishedAt: at(15), others: spans([[RUN_ID, STARTED, null]]) }),
+      );
+      // A を 10:30 に閉じる。B は 10:15 に閉じている
+      const a = await claudeCodeAdapter.readTranscriptUsage(
+        query({ others: spans([[B, B_STARTED, at(15)]]) }),
+      );
+      expect(b.usage.output).toBe(10);
+      expect(a.usage.output).toBe(101);
+    });
+
+    it("ほかの Run の期間を渡さなければ分けず、開始から 1 分より後に ID を見ただけの Run には譲らない", async () => {
+      const { projectDir, query } = await setup();
+      await writeTranscript(path.join(projectDir, "s1.jsonl"), lines);
+      const alone = await claudeCodeAdapter.readTranscriptUsage(query());
+      expect(alone.usage.output).toBe(111);
+      // B を 10:08 に始めた（ほかの会話で）。この記録は 10:10 に一覧などで ID を見ただけ
+      const seen = await claudeCodeAdapter.readTranscriptUsage(
+        query({ others: spans([[B, at(8).replace(".000", ""), null]]) }),
+      );
+      expect(seen.usage.output).toBe(111);
+    });
+
+    it("期間の応答をすべて後に始めた Run に譲ったら、使用量は null でなく 0 にする", async () => {
+      const { projectDir, query } = await setup();
+      // 1 つの見直し役が A と B をほぼ同時に始めた
+      await writeTranscript(path.join(projectDir, "s1.jsonl"), [
+        mention(0),
+        mentionOf(B, 0),
+        assistant("m1", 12, [10, 10, 10, 10]),
+      ]);
+      const got = await claudeCodeAdapter.readTranscriptUsage(
+        query({ finishedAt: at(20), others: spans([[B, at(0).replace(".000", ""), at(20)]]) }),
+      );
+      expect(got.usage).toEqual({ input: 0, output: 0, cache_read: 0, cache_write: 0 });
+      expect(got.model).toBeNull();
+      expect(got.warnings).toEqual([]);
+    });
+  });
+
   it("主の作業ツリーで始めたセッションの記録も、worktree の作業ツリーから探す", async () => {
     const { home, query } = await setup();
     const main = path.join(home, "main");

@@ -17,6 +17,17 @@ export interface UsageQuery {
   topLevel: string;
   /** 絶対パスの git common dir（主の作業ツリーを求めるのに使う） */
   commonDir: string;
+  /**
+   * ほかの Run の期間（閉じた Run と、このマシンで実行中の Run。実行中なら finished_at は null）。
+   * 同じ会話記録で期間が重なる Run と応答を分けるのに使う。なければ分けない
+   */
+  others?: ReadonlyMap<string, RunSpan>;
+}
+
+/** Run の期間。時刻は ISO 8601 */
+export interface RunSpan {
+  started_at: string;
+  finished_at: string | null;
 }
 
 /** Adapter が取り込んだ値。取れなかったキーは null（RN-2）。数とモデル名だけで、会話の中身・パスは返さない（MT-4） */

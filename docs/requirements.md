@@ -275,7 +275,7 @@ Web UI は `dg serve` が配信し、VS Code 拡張は同じ React アプリを 
 ### 6.6 作業の実績
 
 - MT-1 Run の使用量とツールの回数は Adapter が取り込む。エージェントの自己申告の数字は書かない
-- MT-2 `metrics.read_transcripts`（チームで共有する設定）が true なら、`run finish` が Adapter でエージェントの会話記録から使用量とツールの回数を補う。`DEGUBOARD_NO_TRANSCRIPTS` が空でも `0` でもないマシンでは true でも読まない。Adapter のない agent 名は `run start` が警告する（記録はする）
+- MT-2 `metrics.read_transcripts`（チームで共有する設定）が true なら、`run finish` が Adapter でエージェントの会話記録から使用量とツールの回数を補う。`DEGUBOARD_NO_TRANSCRIPTS` が空でも `0` でもないマシンでは true でも読まない。Adapter のない agent 名と、このマシンで同じ agent の Run が開いたままのときは `run start` が警告する（記録はする）
 - MT-3 `metrics show` は Run・Ticket・Epic・Iteration・Project・Agent/Model・Step で絞り集計する。null は足さず欠けた数を出す。集計値は保存しない
 - MT-4 Adapter が会話記録から Run に写すのは数とモデル名だけで、会話の中身・コマンドの文字列・パスは写さない。`error`（`run finish --error`）と `retry_reasons`（`--retry-reason`）は渡した文をそのまま記録するので、`error` には秘密を、`retry_reasons` には秘密・コマンドの文字列・パスを書かない
 - MT-5 `run refresh` は指定した閉じた Run のモデル名と使用量を、finish と同じ Adapter・同じ範囲・MT-2 の許可で会話記録から取り直す。取れた値だけを書き換え（使用量の 4 つが揃えば `estimated` を外す）、取れなかった値は今の値を消さずに残して警告する。`--dry-run` は書かずに差分を返す。実行中の Run は拒否する

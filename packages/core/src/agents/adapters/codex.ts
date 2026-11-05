@@ -7,6 +7,8 @@
 //     Codex は応答のツールを実行し終えてからその応答の token_count を書くので、dg run start を呼んだ応答は Run に入り、
 //     dg run finish を呼んだ応答は入らない（Claude Code の Adapter と 1 応答ずれる。ADR-005）。書く順は openai/codex の
 //     codex-rs/core/src/session/turn.rs で確かめた（2026-10-31 の main。本物の記録では未確認）
+//   - 期間が重なる Run：同じファイルで、後に始まった開いている Run の ID が先に出ていれば（OverlapClaims）、その間の token_count の
+//     累計の増え（直前の累計との差）を除く。turn_context のモデル名も数えない
 //   - 写し方：input は input_tokens から cached_input_tokens を引いた値（キャッシュを読まなかった入力。Claude Code と同じ意味）、
 //     cache_read は cached_input_tokens、output は output_tokens、cache_write は cache_write_input_tokens。
 //     cache_write_input_tokens を書かない版の記録では cache_write を null にして警告する
@@ -24,6 +26,7 @@ import {
   homeDir,
   list,
   none,
+  OverlapClaims,
   parse,
   seenAfterRun,
   TAIL_MS,
@@ -62,6 +65,8 @@ interface Scan {
   before: Total | undefined;
   /** finished_at までの最後の累計 */
   last: Total | undefined;
+  /** 後に始まった開いている Run に譲った累計の増え。キーが undefined なら増えを求められない */
+  ceded: Total;
   /** Run の ID が出る前の最後のモデル名 */
   modelBefore: string | undefined;
   /** Run の ID が出た後の、モデル名ごとの turn の数 */
@@ -106,19 +111,36 @@ function latest<T>(
   return undefined;
 }
 
+/** 譲った増え（cur と prev の差）を足す。片方でも数がなければ、または減っていれば求められない */
+function cede(ceded: Total, cur: Total, prev: Total | undefined): void {
+  for (const key of Object.keys(ceded) as Array<keyof Total>) {
+    const end = cur[key];
+    const start = prev === undefined ? 0 : prev[key];
+    const acc = ceded[key];
+    ceded[key] =
+      end === undefined || start === undefined || acc === undefined || end < start
+        ? undefined
+        : acc + end - start;
+  }
+}
+
 async function scan(file: string, query: UsageQuery, to: number): Promise<Scan> {
   const result: Scan = {
     firstSeen: undefined,
     before: undefined,
     last: undefined,
+    ceded: { input: 0, cached: 0, cacheWrite: 0, output: 0 },
     modelBefore: undefined,
     models: new Map(),
   };
   // Run の ID が出るまでは候補の生の行を持つだけで JSON を読まない。ID が出たら後ろから遡り、最初に使える行だけを読む
   const usageLines: string[] = [];
   const contextLines: string[] = [];
+  const claims = new OverlapClaims(query, Date.parse(query.run.started_at), to);
   const lines = createInterface({ input: createReadStream(file), crlfDelay: Infinity });
   for await (const line of lines) {
+    // ほかの Run の ID はその行の後の累計から効く。数える token_count・turn_context の行は Run の ID を含まないので、先に記録してよい
+    claims.see(line);
     // Codex は JSON を空白なしで書く。文字列の中の "type":"token_count" は引用符がエスケープされるので当たらない
     const usageLine = line.includes('"type":"token_count"');
     const contextLine = line.includes('"type":"turn_context"');
@@ -148,8 +170,13 @@ async function scan(file: string, query: UsageQuery, to: number): Promise<Scan> 
       if (at > to + TAIL_MS) break;
       continue;
     }
-    if (isTokenCount(entry)) result.last = totalOf(entry) ?? result.last;
-    if (entry["type"] === "turn_context") {
+    const owned = claims.owns(at);
+    if (isTokenCount(entry)) {
+      const total = totalOf(entry);
+      if (total && !owned) cede(result.ceded, total, result.last ?? result.before);
+      result.last = total ?? result.last;
+    }
+    if (entry["type"] === "turn_context" && owned) {
       const model = modelOf(entry);
       if (model) result.models.set(model, (result.models.get(model) ?? 0) + 1);
     }
@@ -157,24 +184,26 @@ async function scan(file: string, query: UsageQuery, to: number): Promise<Scan> 
   return result;
 }
 
-/** 累計の差。片方でも数がなければ、または減っていれば null */
-function diff(last: Total, before: Total | undefined, key: keyof Total): number | null {
+/** 累計の差から譲った増えを除いた値。片方でも数がなければ、減っていれば、譲った増えを求められなければ null */
+function diff(s: Scan, last: Total, key: keyof Total): number | null {
   const end = last[key];
-  const start = before === undefined ? 0 : before[key];
-  if (end === undefined || start === undefined || end < start) return null;
-  return end - start;
+  const start = s.before === undefined ? 0 : s.before[key];
+  const ceded = s.ceded[key];
+  if (end === undefined || start === undefined || ceded === undefined || end - start < ceded)
+    return null;
+  return end - start - ceded;
 }
 
 /** last は finished_at までの最後の累計 */
 function usageOf(s: Scan, last: Total): Counts {
-  const input = diff(last, s.before, "input");
-  const cached = diff(last, s.before, "cached");
+  const input = diff(s, last, "input");
+  const cached = diff(s, last, "cached");
   return {
     // input_tokens はキャッシュから読んだ分を含む
     input: input !== null && cached !== null && input >= cached ? input - cached : null,
-    output: diff(last, s.before, "output"),
+    output: diff(s, last, "output"),
     cache_read: cached,
-    cache_write: diff(last, s.before, "cacheWrite"),
+    cache_write: diff(s, last, "cacheWrite"),
   };
 }
 
