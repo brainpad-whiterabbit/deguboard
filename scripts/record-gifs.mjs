@@ -659,7 +659,8 @@ async function runAllFlow(rec, app, _frame, { work, tmp }) {
   ]);
   await termSay(rec, "dot", "⏺ 計画 p1: t1 → t2 ∥ t3 → t4", 300);
   await termSay(rec, "dim", "  --auto なので、勧める選択肢（承認する）を選びました", 500);
-  await rec.moveTo(app.locator(".plan-line").first(), 600, 0.3);
+  // 番号は Plan 詳細へのリンクなので、状態の文字を押してグラフを開閉する
+  await rec.moveTo(app.locator(".plan-line .plan-state").first(), 600, 0.5);
   await rec.click();
   await app.locator(".plan-graph").waitFor();
   await rec.hold(1500);
@@ -703,7 +704,7 @@ async function runAllFlow(rec, app, _frame, { work, tmp }) {
   ]);
   await termReplace(rec, "⏺ t4 を進めました（PR #4 をマージ）", 500);
   await termSay(rec, "ok", "✓ p1 を終えました（4/4 done）", 700);
-  await rec.moveTo(app.locator(".plan-line").first(), 500, 0.3);
+  await rec.moveTo(app.locator(".plan-line .plan-state").first(), 500, 0.5);
   await rec.click();
   await app.locator(".plan-graph").waitFor();
   await rec.hold(1800);
