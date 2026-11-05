@@ -26,9 +26,9 @@ export interface WebviewClient extends CommandClient {
   show(route: string): Promise<void>;
   /** text をクリップボードに入れてもらう（拡張ホストが vscode.env.clipboard で書く。Webview の画面のコピーはすべてこれ） */
   copy(text: string): Promise<void>;
-  /** 開いているターミナルの一覧を拡張ホストに尋ねる（UI-15） */
   /** チケットの作業ブランチの worktree を新しいウィンドウで開く */
   openWorktree(ticket: string): Promise<void>;
+  /** 開いているターミナルの一覧を拡張ホストに尋ねる（UI-15） */
   terminals(): Promise<TerminalChoice[]>;
   /** 開いているターミナル terminal の入力に text を入れてもらう。Enter は押さず、ターミナルは起動しない（EX-1） */
   sendToTerminal(terminal: number, text: string): Promise<TerminalSendResult | null>;

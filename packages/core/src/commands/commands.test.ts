@@ -1,4 +1,4 @@
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
@@ -174,15 +174,22 @@ describe("チケットの流れ", () => {
     expect((await runCommand(ticketShow, ctx, { ticket: "t2" })).data.worktree).toBeNull();
     // config の worktree.root とは別の場所に作っても、git の一覧から見つかる
     const dir = path.join(f.root, "elsewhere", "wt");
+    await mkdir(path.dirname(dir), { recursive: true });
     await git(f.cloneA, ["worktree", "add", "-q", "-b", branch, dir]);
-    expect(await worktreeOf()).toBe(dir);
+    expect(await worktreeOf()).toBe(await realpath(dir));
     // その worktree から開いても common dir の deguboard を共有し、同じチケットが見える
     const inner = await openContext({ cwd: dir, actor: { kind: "human", user: "eiki" } });
     expect(inner.repo.dataDir).toBe(ctx.repo.dataDir);
-    expect((await runCommand(ticketShow, inner, { ticket: "t1" })).data.worktree).toBe(dir);
+    expect((await runCommand(ticketShow, inner, { ticket: "t1" })).data.worktree).toBe(
+      await realpath(dir),
+    );
     // ディレクトリが消えた登録は出さない
     await rm(dir, { recursive: true });
     expect(await worktreeOf()).toBeNull();
+    // git の一覧を読めなくても null で、ticket show は落ちない
+    const broken = { ...ctx, repo: { ...ctx.repo, topLevel: path.join(f.root, "not-a-repo") } };
+    await mkdir(broken.repo.topLevel);
+    expect((await runCommand(ticketShow, broken, { ticket: "t1" })).data.worktree).toBeNull();
   });
 
   it("起票 → claim → review → マージの照合で done になる", async () => {

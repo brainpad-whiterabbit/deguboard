@@ -26,7 +26,12 @@ async function hasWorktree(paths: RepoPaths): Promise<boolean> {
  * ディレクトリが消えた登録（prunable）と、deguboard の専用 worktree は対象にしない。読むだけで、何も書かない
  */
 export async function findBranchWorktree(paths: RepoPaths, branch: string): Promise<string | null> {
-  const out = (await runGit(paths.topLevel, ["worktree", "list", "--porcelain"])).stdout;
+  const listed = await runGit(paths.topLevel, ["worktree", "list", "--porcelain"], {
+    allowFailure: true,
+  });
+  // 一覧を読めなければ「なし」とする（ticket.show ごと落とさない）
+  if (listed.code !== 0) return null;
+  const out = listed.stdout;
   for (const block of out.split("\n\n")) {
     let dir: string | null = null;
     let checkedOut: string | null = null;
