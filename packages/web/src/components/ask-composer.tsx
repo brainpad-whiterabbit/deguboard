@@ -1,7 +1,7 @@
 // エージェントに頼む入力欄（UI-15・ADR-010）。左パネルとエディタのパネル（ブラウザでも）の下に出し、欄に書いたものがそのまま貼る文になる。
 // 頼むことの候補・おすすめ・依頼文は core の ask コマンド（読み取りだけ）が決め、ここでは組み立て直さない。データには書き込まない。
 // 上の 1 行が頼むことの候補（★ がおすすめ）、欄の頭が Skill と対象の札、本体が指示、下が全文・形式・コピー。
-// 指示の下書きと形式は見た目の状態に残し、閉じて開き直しても消えない
+// 指示の下書きと形式は見た目の状態に残し、閉じて開き直しても消えない。形式は人が切り替えるまで残さず、既定は ask が dg の Skill の有無から決める
 
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { askKey, parseAskKey } from "../ask-key.js";
@@ -55,7 +55,8 @@ export function AskComposer({
   const [targets, setTargets] = useState<string[]>(() => [...initialTargets]);
   // null はおすすめ（候補の先頭）
   const [picked, setPicked] = useState<AskAction | null>(initialAction ?? null);
-  const [format, setFormat] = useUiState<AskFormat>(ASK_FORMAT_KEY, "skill");
+  // null は人が選んでいない。ask に形式を渡さず、Skill が入っていなければ文章の形になる既定に任せる
+  const [chosenFormat, setFormat] = useUiState<AskFormat | null>(ASK_FORMAT_KEY, null);
   const [note, setNote] = useUiState<string>(ASK_NOTE_KEY, "");
   const [full, setFull] = useState(false);
   // 対象だけで引いた結果（候補と札）。頼むことを選び直しても変わらない
@@ -95,7 +96,7 @@ export function AskComposer({
       within,
       action: action ?? undefined,
       note: settledNote,
-      format,
+      format: chosenFormat ?? undefined,
     };
     client
       .run<AskView>("ask", input)
@@ -104,9 +105,11 @@ export function AskComposer({
     return () => {
       alive = false;
     };
-  }, [client, base, targetsKey, within, action, settledNote, format]);
+  }, [client, base, targetsKey, within, action, settledNote, chosenFormat]);
 
   const chosen = action ?? base?.candidates[0]?.action ?? null;
+  // 出している形式。人が選んでいなければ、形式を渡さずに引いた結果の既定
+  const format = chosenFormat ?? base?.format ?? null;
   const candidate = base?.candidates.find((c) => c.action === chosen) ?? null;
   const shown = view && view.action === chosen ? view : null;
 
@@ -140,7 +143,7 @@ export function AskComposer({
         within,
         action: pick ?? undefined,
         note,
-        format,
+        format: chosenFormat ?? undefined,
       } satisfies AskInput);
       if (mine !== copySeq.current) return;
       setView(r.data);
@@ -259,13 +262,14 @@ export function AskComposer({
           <button
             type="button"
             className="ask-ghost"
-            title="Skill の呼び出しか、Skill を使わない文章だけか"
+            title="Skill の呼び出しか、Skill を使わない文章だけか。既定は dg の Skill がリポジトリか ~/.claude/skills にあれば Skill、なければ文章"
+            disabled={!format}
             onClick={() => {
               copySeq.current++;
               setFormat(format === "skill" ? "text" : "skill");
             }}
           >
-            {format === "skill" ? "形式：Skill" : "形式：文章"}
+            {format === "text" ? "形式：文章" : "形式：Skill"}
           </button>
           <span className="spacer" />
           <span className="ask-keys muted">{COPY_KEYS}</span>

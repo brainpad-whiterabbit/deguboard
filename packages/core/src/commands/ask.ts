@@ -2,7 +2,10 @@
 // 候補と文の組み立ては純粋な関数（askCandidates・buildAsk）に置き、ask コマンドは store から対象を引いて渡すだけ。
 // web は core を実行時に取り込めないので、画面も CLI・HTTP・Webview と同じくこのコマンドを呼ぶ
 
+import { access } from "node:fs/promises";
+import { join } from "node:path";
 import { z } from "zod";
+import { agentSkillDirs } from "../agents/index.js";
 import { UsageError } from "../errors.js";
 import { isTerminal, STATUSES, type Status } from "../model/common.js";
 import { idKindOf, parseId } from "../model/id.js";
@@ -496,6 +499,23 @@ export const ASK_SKILLS: readonly string[] = [
   ...new Set(Object.values(ACTIONS).flatMap((a) => (a.skill ? [a.skill] : []))),
 ];
 
+/**
+ * dg の Skill（ASK_SKILLS のどれかの <名前>/SKILL.md）が、Skill のディレクトリ（Adapter の skillDirs）のどれかにあるか。
+ * 中身の印は見ない（手を加えた Skill も呼べば動く）
+ */
+export async function askSkillInstalled(dirs: readonly string[]): Promise<boolean> {
+  const paths = dirs.flatMap((dir) => ASK_SKILLS.map((name) => join(dir, name, "SKILL.md")));
+  const found = await Promise.all(
+    paths.map((path) =>
+      access(path).then(
+        () => true,
+        () => false,
+      ),
+    ),
+  );
+  return found.includes(true);
+}
+
 /** 頼むことで人が打つ手。buildAsk が人に回すかを決めるのと askHumanChecks は、ここから同じ手を得る */
 function humanSteps(action: AskAction, s: Subjects, w: Within | undefined): HumanStep[] {
   return ACTIONS[action].human?.(s, w) ?? [];
@@ -620,6 +640,7 @@ export interface BuildAskInput {
   /** 省けばおすすめ */
   action?: AskAction | undefined;
   note?: string | undefined;
+  /** 省けば skill。ask コマンドは省かれたら Skill の有無（askSkillInstalled）から決めて渡す */
   format?: AskFormat | undefined;
   /** config の actor.human_only */
   humanOnly?: readonly string[] | undefined;
@@ -786,9 +807,9 @@ export const ask = defineCommand({
     note: z.string().optional().describe("依頼文に添える指示"),
     format: z
       .enum(ASK_FORMATS)
-      .default("skill")
+      .optional()
       .describe(
-        "skill は Skill の呼び出しと指示だけ、text は頼む 1 文と dg の呼び方と（Skill を持つ頼むことは）読む guide の 1 文と指示。Skill のない頼むことは skill でも text の形",
+        "skill は Skill の呼び出しと指示だけ、text は頼む 1 文と dg の呼び方と（Skill を持つ頼むことは）読む guide の 1 文と指示。Skill のない頼むことは skill でも text の形。省けば、dg skill install の置き場所（リポジトリかホームディレクトリの下）に dg の Skill があれば skill、なければ text",
       ),
     within: z
       .string()
@@ -803,12 +824,15 @@ export const ask = defineCommand({
   async run(ctx, input) {
     const refs = input.targets.map((r) => r.trim());
     const running = await runningTickets(ctx.repo, refs);
+    // 形式を省けば、Skill を入れていない人には貼っても動く文章の形にする（人が選んだ形式はそのまま）
+    const dirs = agentSkillDirs({ env: ctx.env ?? process.env, topLevel: ctx.repo.topLevel });
+    const format = input.format ?? ((await askSkillInstalled(dirs)) ? "skill" : "text");
     return ok(
       buildAsk({
         subjects: subjectsOf(ctx.store, refs, running, localDate(ctx.now())),
         action: input.action,
         note: input.note,
-        format: input.format,
+        format,
         humanOnly: ctx.config.actor.human_only,
         within: withinRef(ctx.store, input.within),
       }),

@@ -27,9 +27,18 @@ export interface CollectedUsage {
   warnings: string[];
 }
 
+/** Skill の置き場所を求める手がかり */
+export interface SkillQuery {
+  env: AgentEnv;
+  /** dg を呼んだ作業ツリーの最上位 */
+  topLevel: string;
+}
+
 export interface AgentAdapter {
   /** Run の agent の値。この名前の Run の使用量を取り込む */
   name: string;
   /** 会話記録から使用量を読む。読む許可（metrics.read_transcripts・DEGUBOARD_NO_TRANSCRIPTS）は呼び出し側が確かめる */
   readTranscriptUsage(query: UsageQuery): Promise<CollectedUsage>;
+  /** dg skill install が Skill（<名前>/SKILL.md）を置く、この製品が Skill を読むディレクトリ。Skill のない製品は持たない */
+  skillDirs?(query: SkillQuery): string[];
 }

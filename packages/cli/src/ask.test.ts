@@ -1,6 +1,9 @@
 // dg ask（依頼文）を CLI から確かめる。Skill の名前は guide のトピックを持つ cli 側で照合する
 
-import { afterEach, describe, expect, it } from "vitest";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   ASK_ACTIONS,
   ASK_SKILLS,
@@ -110,11 +113,39 @@ describe("dg ask", () => {
       ].join("\n"),
     );
 
-    const human = await dg(f.cloneA, ["ask", "t1", "--action", "fix"]);
+    const human = await dg(f.cloneA, ["ask", "t1", "--action", "fix", "--format", "skill"]);
     expect(human.out).toBe("/dgimport t1");
     expect(human.err).toContain("★割り当てる（assign）");
     // 候補にない頼むことは使い方の誤り（終了コード 2）
     expect((await dg(f.cloneA, ["ask", "t1", "--action", "release"])).code).toBe(2);
+  });
+
+  it("--format を省けば、CLI・HTTP とも dg の Skill の有無から形式を決める（Skill がなければ文章）", async () => {
+    const f = await createFixture();
+    cleanups.push(f.cleanup);
+    const home = await mkdtemp(join(tmpdir(), "dg-home-"));
+    cleanups.push(() => rm(home, { recursive: true, force: true }));
+    vi.stubEnv("HOME", home);
+    cleanups.push(async () => void vi.unstubAllEnvs());
+    await runCommand(init, await openContext({ cwd: f.cloneA, initialize: {} }), {});
+    expect((await dg(f.cloneA, ["ticket", "create", "画面の直し"])).code).toBe(0);
+    const server = await startServer({ cwd: f.cloneA, port: 0, user: "ui" });
+    cleanups.push(server.close);
+    const both = async () => {
+      const cli = await dg(f.cloneA, ["--json", "ask", "t1", "--action", "fix"]);
+      const res = await fetch(`${server.url}api/commands/ask`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ input: { targets: ["t1"], action: "fix" } }),
+      });
+      const fromCli = (JSON.parse(cli.out) as { data: AskView }).data;
+      expect(((await res.json()) as { data: AskView }).data).toEqual(fromCli);
+      return fromCli;
+    };
+    expect((await both()).format).toBe("text");
+    // dg skill install で置いた Skill があれば Skill の形
+    expect((await dg(f.cloneA, ["skill", "install"])).code).toBe(0);
+    expect(await both()).toMatchObject({ format: "skill", text: "/dgimport t1" });
   });
 
   it("ask-menu は組ごとに ask と同じ候補を返し、引けない組は error に理由を入れる（画面の吹き出しと右クリック）", async () => {

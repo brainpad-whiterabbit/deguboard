@@ -1,3 +1,6 @@
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { createFixture } from "../../test/helpers/git-fixture.js";
 import {
@@ -535,7 +538,7 @@ describe("ask", () => {
     await runCommand(epicCreate, ctx, { title: "E" });
 
     const run = async (input: Record<string, unknown>) => (await runCommand(ask, ctx, input)).data;
-    const t1 = await run({ targets: ["t1"] });
+    const t1 = await run({ targets: ["t1"], format: "skill" });
     expect(t1.action).toBe("work");
     expect(t1.text).toBe("/dgwork t1");
     expect(t1.text).not.toContain("本文の秘密");
@@ -575,6 +578,38 @@ describe("ask", () => {
     await expect(runCommand(ask, ctx, { targets: ["t9"] })).rejects.toMatchObject({
       code: "NOT_FOUND",
     });
+  });
+
+  it("形式を省けば、dg の Skill がリポジトリか HOME の .claude/skills にあるときだけ Skill、なければ文章の形にし、渡した形式はそのまま使う", async () => {
+    const { cwd } = await initialized();
+    const home = await mkdtemp(join(tmpdir(), "dg-home-"));
+    cleanups.push(() => rm(home, { recursive: true, force: true }));
+    const ctx = await openContext({ cwd, actor, env: { HOME: home } });
+    await runCommand(ticketCreate, ctx, { title: "A" });
+    const run = async (input: Record<string, unknown>) =>
+      (await runCommand(ask, ctx, { targets: ["t1"], action: "fix", ...input })).data;
+    const skill = async (base: string, name: string) => {
+      await mkdir(join(base, ".claude", "skills", name), { recursive: true });
+      await writeFile(join(base, ".claude", "skills", name, "SKILL.md"), "---\nname: x\n---\n");
+    };
+    const textForm = (await run({ format: "text" })).text;
+
+    // どちらにもなければ文章の形。dg の Skill でない名前の Skill は数えない
+    await skill(home, "kfplan");
+    expect(await run({})).toMatchObject({ format: "text", text: textForm });
+    // 人が選んだ形式は、Skill がなくてもそのまま
+    expect((await run({ format: "skill" })).text).toBe("/dgimport t1");
+
+    // HOME（~/.claude/skills）にあれば Skill の形。頼むことの Skill と別の dg の Skill でもよい
+    await skill(home, "dgplan");
+    expect(await run({})).toMatchObject({ format: "skill", text: "/dgimport t1" });
+    expect((await run({ format: "text" })).text).toBe(textForm);
+
+    // リポジトリ（<リポジトリ>/.claude/skills）にあっても Skill の形
+    await rm(join(home, ".claude"), { recursive: true });
+    expect((await run({})).format).toBe("text");
+    await skill(cwd, "dgwork");
+    expect(await run({})).toMatchObject({ format: "skill", text: "/dgimport t1" });
   });
 
   it("within は Iteration・Epic を引いて確かめ、ask-menu の組は @ を付けた場所を受ける", async () => {
