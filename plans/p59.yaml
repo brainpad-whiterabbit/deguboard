@@ -2,9 +2,11 @@ id: p59
 project: default
 tickets: [t431]
 after: {}
-pending_approval: true
+pending_approval: false
 details:
   t431:
     scope: requirements.md の細部のうち help・コード・テストが正本のものを削るか参照に置き換え、予算を変えずに 32KB 前後にする
     approach: 6 章の機能要件と 5 章の大きい節から、引数・メッセージ・内部の決め方などの細部を正本へ寄せ、約束と ID・アンカーは残す。参照の切れは check:docs と grep で確かめる
     tier: heavy
+approved_by: maji/agent
+approved_at: 2026-11-05T14:29:50Z
