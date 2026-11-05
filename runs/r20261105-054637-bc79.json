@@ -1,0 +1,30 @@
+{
+  "id": "r20261105-054637-bc79",
+  "ticket": "t404",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-sonnet-5-5",
+  "started_at": "2026-11-05T05:46:37Z",
+  "finished_at": "2026-11-05T05:48:45Z",
+  "result": "success",
+  "error": null,
+  "retries": 1,
+  "retry_reasons": [
+    "KanbanRowEnd の JSDoc の右端を出す条件に空き枠の行が抜けていた"
+  ],
+  "usage": {
+    "input": 6,
+    "output": 1569,
+    "cache_read": 243308,
+    "cache_write": 2998
+  },
+  "tools": {
+    "read": 0,
+    "search": 0,
+    "write": 0,
+    "bash": 3,
+    "other": 0,
+    "read_before_write": 0,
+    "search_before_write": 0
+  }
+}
