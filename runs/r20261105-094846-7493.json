@@ -1,0 +1,34 @@
+{
+  "id": "r20261105-094846-7493",
+  "ticket": "t412",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-sonnet-5-5",
+  "started_at": "2026-11-05T09:48:46Z",
+  "finished_at": "2026-11-05T09:50:05Z",
+  "result": "success",
+  "error": null,
+  "retries": 5,
+  "retry_reasons": [
+    "RGBA の透明度を 128 で書いて 255 にそろうことを見る",
+    "readGif が GCE の dispose を読み 2 コマ目以降が 1 であることを見る",
+    "13 コマ以上で最後のコマを入れる間引きの枝のテストを足した",
+    "buildPalette で palette[255] が透明用の色であることを見る",
+    "record-gifs.mjs のコメントを git-fixture との違いに合わせて正確にした"
+  ],
+  "usage": {
+    "input": 8,
+    "output": 3200,
+    "cache_read": 277351,
+    "cache_write": 5180
+  },
+  "tools": {
+    "read": 0,
+    "search": 0,
+    "write": 0,
+    "bash": 4,
+    "other": 0,
+    "read_before_write": 0,
+    "search_before_write": 0
+  }
+}
