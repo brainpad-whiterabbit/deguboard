@@ -19,6 +19,7 @@ export * from "./local.js";
 export type {
   CommandClient,
   CommandFailure,
+  DiffRequest,
   StatusView,
   WebviewEvent,
   WebviewRequest,
