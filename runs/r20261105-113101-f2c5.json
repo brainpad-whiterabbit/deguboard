@@ -1,0 +1,28 @@
+{
+  "id": "r20261105-113101-f2c5",
+  "ticket": "t425",
+  "step": "implement",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-05T11:31:01Z",
+  "finished_at": "2026-11-05T11:56:40Z",
+  "result": "success",
+  "error": null,
+  "retries": 0,
+  "retry_reasons": [],
+  "usage": {
+    "input": 116,
+    "output": 38131,
+    "cache_read": 6170713,
+    "cache_write": 245907
+  },
+  "tools": {
+    "read": 0,
+    "search": 0,
+    "write": 0,
+    "bash": 53,
+    "other": 2,
+    "read_before_write": 0,
+    "search_before_write": 0
+  }
+}
