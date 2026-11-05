@@ -1,0 +1,30 @@
+{
+  "id": "r20261105-223116-32e3",
+  "ticket": "t447",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-05T22:31:16Z",
+  "finished_at": "2026-11-05T22:33:59Z",
+  "result": "success",
+  "error": null,
+  "retries": 1,
+  "retry_reasons": [
+    "条件の節と結論が噛み合わない文"
+  ],
+  "usage": {
+    "input": 6,
+    "output": 1395,
+    "cache_read": 126969,
+    "cache_write": 2187
+  },
+  "tools": {
+    "read": 0,
+    "search": 0,
+    "write": 0,
+    "bash": 3,
+    "other": 0,
+    "read_before_write": 0,
+    "search_before_write": 0
+  }
+}
