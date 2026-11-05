@@ -4,7 +4,7 @@ import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Run } from "../model/run.js";
 import { claudeCodeAdapter, projectDirName } from "./adapters/claude-code.js";
-import { searchRoots } from "./adapters/transcript.js";
+import { sightings } from "./adapters/transcript.js";
 import { agentNames, collectRunUsage, type UsageQuery } from "./index.js";
 
 const cleanups: Array<() => Promise<void>> = [];
@@ -431,7 +431,7 @@ describe("Claude Code の Adapter", () => {
     });
   });
 
-  it("主の作業ツリーで始めたセッションの記録も、worktree の作業ツリーから探す", async () => {
+  it("主の作業ツリーで始めたセッションの記録も探す", async () => {
     const { home, query } = await setup();
     const main = path.join(home, "main");
     const dir = path.join(home, ".claude", "projects", projectDirName(main));
@@ -448,7 +448,7 @@ describe("Claude Code の Adapter", () => {
     expect(got.usage.input).toBe(1);
   });
 
-  it("CLAUDE_CODE_SESSION_ID があればその session の記録だけを、CLAUDE_CONFIG_DIR があればそこを探す", async () => {
+  it("CLAUDE_CONFIG_DIR があればそこを探し、session の環境によらず Run の ID が最も早く出たファイルを選ぶ", async () => {
     const { home, query } = await setup();
     const config = path.join(home, "other-config");
     const dir = path.join(config, "projects", "-anywhere");
@@ -460,31 +460,99 @@ describe("Claude Code の Adapter", () => {
       mention(-1),
       assistant("m2", 1, [9, 9, 9, 9]),
     ]);
-    const env = { HOME: home, CLAUDE_CONFIG_DIR: config, CLAUDE_CODE_SESSION_ID: "s1" };
-    const got = await claudeCodeAdapter.readTranscriptUsage(query({ env }));
-    expect(got.usage.input).toBe(5);
+    for (const session of [
+      { CLAUDE_CODE_SESSION_ID: "s1" },
+      { CLAUDE_CODE_SESSION_ID: "s2" },
+      {},
+    ]) {
+      const env = { HOME: home, CLAUDE_CONFIG_DIR: config, ...session };
+      const got = await claudeCodeAdapter.readTranscriptUsage(query({ env }));
+      expect(got.usage.input).toBe(9);
+    }
   });
 
-  it("探す作業ディレクトリは主の作業ツリーの親までで、HOME とその上は探さない", async () => {
-    const { home, query } = await setup();
-    expect(searchRoots("/h/u/repo.worktrees/feat/x", "/h/u/repo/.git", "/h/u").sort()).toEqual([
-      "/h/u/repo",
-      "/h/u/repo.worktrees",
-      "/h/u/repo.worktrees/feat",
-      "/h/u/repo.worktrees/feat/x",
+  it("ID が出た時刻が同じなら、CLAUDE_CODE_SESSION_ID の session のファイルを選ぶ", async () => {
+    const { projectDir, query, home } = await setup();
+    await writeTranscript(path.join(projectDir, "s1.jsonl"), [
+      mention(0),
+      assistant("m1", 1, [5, 5, 5, 5]),
     ]);
-    expect(searchRoots("/w/repo", "/w/repo/.git", "/h/u").sort()).toEqual(["/w", "/w/repo"]);
-    // HOME の会話記録に Run があっても読まない
+    await writeTranscript(path.join(projectDir, "s2", "subagents", "agent-a.jsonl"), [
+      mention(0),
+      assistant("m2", 1, [9, 9, 9, 9]),
+    ]);
+    for (const [session, input] of [
+      ["s1", 5],
+      ["s2", 9],
+    ] as const) {
+      const got = await claudeCodeAdapter.readTranscriptUsage(
+        query({ env: { HOME: home, CLAUDE_CODE_SESSION_ID: session } }),
+      );
+      expect(got.usage.input).toBe(input);
+    }
+  });
+
+  it("HOME など作業ツリーに当たらないディレクトリのセッションでも、Run の ID が最も早く出た記録に結び付ける", async () => {
+    const { home, query } = await setup();
     const dir = path.join(home, ".claude", "projects", projectDirName(home));
     await writeTranscript(path.join(dir, "s1.jsonl"), [
       mention(0),
       assistant("m1", 1, [1, 1, 1, 1]),
     ]);
     const got = await claudeCodeAdapter.readTranscriptUsage(query());
-    expect(got.usage.input).toBeNull();
+    expect(got.usage.input).toBe(1);
   });
 
-  it("CLAUDE_CODE_SESSION_ID が不正な形か、その session に Run がなければ作業ツリーから探す", async () => {
+  it("run start の警告で ID を見ただけの別の session のファイルには、その session の環境から呼んでも結び付けない", async () => {
+    const { home, projectDir, query } = await setup();
+    // A（RUN_ID）は session sa の親で 10:00 に始めた
+    await writeTranscript(path.join(projectDir, "sa.jsonl"), [
+      mention(0),
+      assistant("m1", 2, [3, 3, 3, 3]),
+    ]);
+    // 別の session sb のサブエージェントが 10:00:50 に X を run start し、その警告に開いたままの A の ID が載った
+    const X = "r20260101-100050-feed";
+    const X_STARTED = "2026-01-01T10:00:50Z";
+    await writeTranscript(
+      path.join(home, ".claude", "projects", "-elsewhere", "sb", "subagents", "agent-x.jsonl"),
+      [
+        {
+          type: "user",
+          timestamp: at(50 / 60),
+          message: {
+            role: "user",
+            content: [{ type: "tool_result", content: `{"id":"${X}","warnings":["${RUN_ID}"]}` }],
+          },
+        },
+        assistant("x1", 2, [700, 700, 700, 700]),
+      ],
+    );
+    const others = new Map([[X, { started_at: X_STARTED, finished_at: null }]]);
+    for (const env of [{ CLAUDE_CODE_SESSION_ID: "sb" }, { CLAUDE_CODE_SESSION_ID: "sa" }, {}]) {
+      const q = query({ finishedAt: at(20), others });
+      const got = await claudeCodeAdapter.readTranscriptUsage({ ...q, env: { ...q.env, ...env } });
+      expect(got.usage).toEqual({ input: 3, output: 3, cache_read: 3, cache_write: 3 });
+    }
+  });
+
+  it("ID を探す読み取りは、行の timestamp がすべて上限を過ぎたところでやめ、timestamp のない行ではやめない", async () => {
+    const { projectDir } = await setup();
+    const file = path.join(projectDir, "s1.jsonl");
+    const B = "r20260101-101000-beef";
+    await writeTranscript(file, [
+      { type: "summary", text: RUN_ID },
+      mention(5),
+      { type: "user", timestamp: at(40), message: { content: "上限を過ぎた行" } },
+      { type: "user", timestamp: at(41), message: { content: B } },
+    ]);
+    const seen = await sightings(file, [RUN_ID, B], Date.parse(at(30)));
+    // timestamp のない行の ID は時刻が分からないので Infinity
+    expect(seen).toEqual(new Map([[RUN_ID, Infinity]]));
+    const all = await sightings(file, [B], Date.parse(at(50)));
+    expect(all).toEqual(new Map([[B, Date.parse(at(41))]]));
+  });
+
+  it("CLAUDE_CODE_SESSION_ID が不正な形か、その session に Run がなければ、ほかの記録から探す", async () => {
     const { projectDir, query, home } = await setup();
     await writeTranscript(path.join(projectDir, "s1.jsonl"), [
       mention(0),
@@ -501,7 +569,7 @@ describe("Claude Code の Adapter", () => {
     }
   });
 
-  it("CLAUDE_CODE_SESSION_ID の session に Run の ID が期間の後に出るだけなら（閉じた後の run refresh）、作業ツリーから探す", async () => {
+  it("CLAUDE_CODE_SESSION_ID の session に Run の ID が期間の後に出るだけなら（閉じた後の run refresh）、ほかの記録に結び付ける", async () => {
     const { projectDir, query, home } = await setup();
     await writeTranscript(path.join(projectDir, "s1.jsonl"), [
       mention(0),
