@@ -18,7 +18,7 @@ AI エージェントに仕事を任せるための、Git リポジトリの中�
 必要なもの：Linux か macOS、Git 2.30 以上、Node.js 24 以上。PR の状態をチケットに映すときは GitHub CLI（`gh`）も使います。
 
 1. **拡張を入れる**：公開後は拡張機能ビューで「deguboard」を検索してインストールします。公開前は [GitHub Release](https://github.com/brainpad-whiterabbit/deguboard/releases) の `deguboard-vscode.vsix` を取得し、`code --install-extension deguboard-vscode.vsix` で入れます。
-2. **コマンドラインツール `dg` を入れる**：エージェントは `dg` でチケットを読み書きします。公開後は npm で入れます。
+2. **コマンドラインツール `dg` を入れる**：エージェントは `dg` でチケットを読み書きします。公開後は npm で入れます（mise なら `mise use -g npm:deguboard`）。
 
    ```sh
    npm i -g deguboard
@@ -104,7 +104,7 @@ dg config set metrics.read_transcripts true
 git clone https://github.com/brainpad-whiterabbit/deguboard.git && cd deguboard
 mise trust && mise install    # node・pnpm を mise.toml の版で入れる
 mise run install              # 依存を入れ、dg と拡張をビルドし、VSIX を VS Code に入れる
-mkdir -p ~/.local/bin && ln -sf "$PWD/packages/cli/bin/dg.js" ~/.local/bin/dg   # 更新は git pull のあと mise run install
+mkdir -p ~/.local/bin && ln -sf "$PWD/packages/cli/bin/dg.js" ~/.local/bin/dg   # ~/.local/bin が PATH になければ足す。更新は git pull のあと mise run install
 ```
 
 VSIX を手で入れるときは、`mise run vsix` の後に `code --install-extension packages/vscode/deguboard-vscode.vsix` を実行します。
