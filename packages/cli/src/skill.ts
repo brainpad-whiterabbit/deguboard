@@ -74,6 +74,10 @@ export interface SkillInstallResult {
   retired: string[];
   /** 手を加えてあるので残した廃止済みの Skill */
   retiredKept: string[];
+  /** --dry-run のとき true。書かず消さずに、書く（書いた・更新した）ことになる Skill の置き先と中身を files に返す */
+  dryRun: boolean;
+  /** --dry-run のときだけ入る。書くことになる SKILL.md の絶対パスと中身 */
+  files: Array<{ name: string; path: string; content: string }>;
 }
 
 async function readIfExists(path: string): Promise<string | undefined> {
@@ -89,10 +93,13 @@ export async function installSkill(options: {
   scope: "project" | "personal";
   home: string;
   force: boolean;
+  /** true なら何も書かず消さず、書く先と中身だけを返す */
+  dryRun?: boolean;
 }): Promise<SkillInstallResult> {
   const base =
     options.scope === "personal" ? options.home : (await resolveRepoPaths(options.cwd)).topLevel;
   const dir = join(base, ".claude", "skills");
+  const dryRun = options.dryRun ?? false;
   const result: SkillInstallResult = {
     scope: options.scope,
     dir,
@@ -102,6 +109,8 @@ export async function installSkill(options: {
     conflicts: [],
     retired: [],
     retiredKept: [],
+    dryRun,
+    files: [],
   };
   for (const skill of await buildSkills()) {
     const path = join(dir, skill.name, "SKILL.md");
@@ -114,8 +123,11 @@ export async function installSkill(options: {
       result.conflicts.push(skill.name);
       continue;
     }
-    await mkdir(dirname(path), { recursive: true });
-    await writeFile(path, skill.content, "utf8");
+    if (dryRun) result.files.push({ name: skill.name, path, content: skill.content });
+    else {
+      await mkdir(dirname(path), { recursive: true });
+      await writeFile(path, skill.content, "utf8");
+    }
     (current === undefined ? result.written : result.updated).push(skill.name);
   }
   for (const [name, hashes] of Object.entries(RETIRED_SKILLS)) {
@@ -126,9 +138,11 @@ export async function installSkill(options: {
       result.retiredKept.push(name);
       continue;
     }
-    await rm(path);
-    // ほかのファイルを置いていればフォルダは残す
-    await rmdir(dirname(path)).catch(() => undefined);
+    if (!dryRun) {
+      await rm(path);
+      // ほかのファイルを置いていればフォルダは残す
+      await rmdir(dirname(path)).catch(() => undefined);
+    }
     result.retired.push(name);
   }
   return result;

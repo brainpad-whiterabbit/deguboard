@@ -52,6 +52,8 @@ dg guide overview             # エージェント向けの手順。Claude Code 
 dg skill install              # Claude Code の Skill（/dgimport・/dgplan・/dgwork など）を .claude/skills/ に書く（--personal で ~/.claude/skills）
 ```
 
+Skill は任意。入れなくても、`dg ask --format text` や画面の頼む小窓の文章をエージェントに貼れば同じことを頼める。Skill の中身は `dg guide <topic>` を読ませる決まった文面で、スクリプトもツールの許可（`allowed-tools`）も持たない。`dg skill install --dry-run` で、何も書かずに書く先と中身を見られる。
+
 チームの 2 人目からは、リポジトリを clone して `dg init` を実行する。リモートにある `deguboard` ブランチを取り込むので、同じチケットが見える。
 
 VS Code の拡張は、今は VSIX から入れる。上の `mise run install` が入れ、手で入れるなら `mise run vsix`（build も先に走る）の後に `code --install-extension packages/vscode/deguboard-vscode.vsix` を実行する。拡張を入れて Activity Bar の deguboard のアイコンを押すと、サイドバーにカンバンが開く。画面の見た目は[拡張の README](packages/vscode/README.md)、仕様は[要件定義書](docs/requirements.md)の UI-2・UI-7・UI-12〜15。拡張は `dg` なしで動き、`dg` が PATH にないときは案内を出す。

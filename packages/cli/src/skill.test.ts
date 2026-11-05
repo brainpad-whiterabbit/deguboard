@@ -76,6 +76,48 @@ describe("dg skill install", () => {
       expect(await readFile(skillPath(local.dir, s.name), "utf8")).toBe(s.content);
   });
 
+  it("--dry-run は書く先と中身を返し、ファイルを書かず消さない", async () => {
+    const local = await createLocalOnlyRepo();
+    cleanups.push(local.cleanup);
+    const skills = await buildSkills();
+    const result = await dg(local.dir, ["--json", "skill", "install", "--dry-run"]);
+    expect(result.code).toBe(0);
+    const data = JSON.parse(result.out).data;
+    expect(data.dryRun).toBe(true);
+    expect(data.written).toEqual(skills.map((s) => s.name));
+    expect(data.files).toEqual(
+      skills.map((s) => ({
+        name: s.name,
+        path: skillPath(local.dir, s.name),
+        content: s.content,
+      })),
+    );
+    expect(await exists(path.join(local.dir, ".claude"))).toBe(false);
+    // 人向けの出力にも書く先と中身が出る
+    const text = await dg(local.dir, ["skill", "install", "--dry-run"]);
+    expect(text.out).toContain(skillPath(local.dir, "dgwork"));
+    expect(text.out).toContain("dg guide work");
+    expect(await exists(path.join(local.dir, ".claude"))).toBe(false);
+  });
+
+  it("--dry-run は更新・廃止の消去もしない", async () => {
+    const local = await createLocalOnlyRepo();
+    cleanups.push(local.cleanup);
+    expect((await dg(local.dir, ["skill", "install"])).code).toBe(0);
+    const old = skillPath(local.dir, "dgwork");
+    await writeFile(old, "手で書いた\n");
+    const retired = skillPath(local.dir, "deguboard");
+    await mkdir(path.dirname(retired), { recursive: true });
+    await writeFile(retired, RETIRED_TEMPLATE);
+    const data = JSON.parse(
+      (await dg(local.dir, ["--json", "skill", "install", "--dry-run", "--force"])).out,
+    ).data;
+    expect(data.updated).toContain("dgwork");
+    expect(data.retired).toEqual(["deguboard"]);
+    expect(await readFile(old, "utf8")).toBe("手で書いた\n");
+    expect(await readFile(retired, "utf8")).toBe(RETIRED_TEMPLATE);
+  });
+
   it("-C で指したリポジトリに書く", async () => {
     const local = await createLocalOnlyRepo();
     cleanups.push(local.cleanup);

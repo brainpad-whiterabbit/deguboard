@@ -262,7 +262,7 @@ Web UI は `dg serve` が配信し、VS Code 拡張は同じ React アプリを 
 ### 6.5 エージェント連携
 
 - AG-1 エージェントは PATH の `dg` を Bash から `dg … --json --actor agent` で呼び、データのファイルを直接編集しない。human と agent の区別は申告（`--actor` か環境変数 `DEGUBOARD_ACTOR`。既定は human）に基づき、Skill と `dg guide` の手順は必ず agent を名乗る。主体の ID はユーザ名（`--user`。既定の決め方は `dg --help`）と種別から `<ユーザ>`（human）か `<ユーザ>/agent`（agent）になり、`created_by` と `assignee` に記録される（TK-7）。権限管理ではない（対象外）
-- AG-2 Claude Code 向けに、段階ごとに `dg guide <topic>` を読む薄い Skill（`dg<トピック>`。例 `/dgimport`）を `dg skill install` で配る。名前と説明は guide の frontmatter が正本。手を加えていない Skill は再実行で更新し、手を加えたものは強制の指定がなければ残す
+- AG-2 Claude Code 向けに、段階ごとに `dg guide <topic>` を読む薄い Skill（`dg<トピック>`。例 `/dgimport`）を `dg skill install` で配る。Skill は任意で（`dg ask` の文章の形でも同じことを頼める）、中身はスクリプトもツールの許可も持たない決まった文面。`--dry-run` は書かず消さずに書く先と中身を返す。名前と説明は guide の frontmatter が正本。手を加えていない Skill は再実行で更新し、手を加えたものは強制の指定がなければ残す
 - AG-3 エージェントは要件の整理が終わったら、必要に応じてチケット化を提案し、承認を得て `ticket import` で起票する。分解・Epic への束ね・依存の整理・Iteration への割り当ても提案して承認を得る
 - AG-4 MCP サーバー（`dg mcp`。stdio）は、Bash のないクライアント（Claude Desktop など）から起票・閲覧・状態の更新をする入口として、Core のコマンド定義から生成する薄い層で提供する。CLI と同じ操作ができ（`init` と CLI だけの `guide`・`skill`・`serve`・`open` を除く）、ツールの結果は `--json` と同じ形（CL-1）で、主体は常に agent（`<ユーザ>/agent`）。対象のリポジトリは `-C` で指せる（クライアントがリポジトリの外で起動するため）
 - AG-5 Agent Adapter が使用量の取得と作業ディレクトリの差を吸収し、製品ごとの実装は Core の `agents/adapters/` に閉じる。今は `claude-code`・`codex`・`copilot`。起動方法と権限は扱わない（EX-1、[ADR-007](adr/ADR-007-architecture.md)）
