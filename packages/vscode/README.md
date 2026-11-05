@@ -32,3 +32,11 @@ Git-native な AI ワークフロー・チケット管理ツール [deguboard](h
 - リポジトリで `dg init` を済ませていることが前提
 - 画面の主体名は `git config deguboard.user <名前>` で変えられ（環境変数の届かない VS Code でも効く）、`dg whoami` で確かめられる。優先順は `dg --help` の `--user`
 - Run の記録と集計の始め方は [deguboard の README](https://github.com/brainpad-whiterabbit/deguboard#readme)
+
+## セキュリティとプライバシー
+
+- 拡張は外部のサーバーと通信せず、テレメトリ（利用状況の送信）もしない。画面のために HTTP サーバーも起動しない
+- データはリポジトリの `.git/deguboard/`（Git の中）に置く。ほかの場所へは書かない
+- 外部のコマンドは `git` を呼ぶ。`gh`（GitHub CLI）は入っていれば PR の状態の照合に呼ぶ。`dg` は同梱せず、エージェントや CLI から使うときに利用者が呼ぶ。どれも引数配列で直接実行し、シェルを通さない。通信が起きるのは、`git` の fetch・push（`dg sync` など）と `gh` が、リポジトリの remote と GitHub に接続するときだけ
+- 制限モード（信頼していないフォルダー）と仮想ワークスペースでは動かない。リポジトリの git の設定（`core.fsmonitor` など）が任意のコマンドを実行させ得るため。フォルダーを信頼したときだけ使える
+- 脆弱性の報告先と修正の対象の版は [SECURITY.md](https://github.com/brainpad-whiterabbit/deguboard/blob/main/SECURITY.md)
