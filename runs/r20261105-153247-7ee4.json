@@ -1,0 +1,34 @@
+{
+  "id": "r20261105-153247-7ee4",
+  "ticket": "t374",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-sonnet-5-5",
+  "started_at": "2026-11-05T15:32:47Z",
+  "finished_at": "2026-11-05T15:33:52Z",
+  "result": "success",
+  "error": null,
+  "retries": 5,
+  "retry_reasons": [
+    "読み込みを待つだけの要求でも dirty が立ち読み直しが重なる",
+    "覚えた失敗が dg init の後も消えない",
+    "openId のフォルダ URI の比較がずれる",
+    "OPEN_ID_COMMAND の doc が古い",
+    "見張りの更新で開いている文書のリンクが付け直されない仕様をコメントにない"
+  ],
+  "usage": {
+    "input": 4,
+    "output": 2809,
+    "cache_read": 166211,
+    "cache_write": 3405
+  },
+  "tools": {
+    "read": 0,
+    "search": 0,
+    "write": 0,
+    "bash": 2,
+    "other": 0,
+    "read_before_write": 0,
+    "search_before_write": 0
+  }
+}

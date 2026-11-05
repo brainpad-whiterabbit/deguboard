@@ -1,0 +1,32 @@
+{
+  "id": "r20261105-153700-2961",
+  "ticket": "t374",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-sonnet-5-5",
+  "started_at": "2026-11-05T15:37:00Z",
+  "finished_at": "2026-11-05T15:37:54Z",
+  "result": "success",
+  "error": null,
+  "retries": 3,
+  "retry_reasons": [
+    "コマンドがばらされた引数を受け取れずフォルダが常に 1 つ目になる",
+    "読み直しの一時的な失敗でそれまでの正しい索引を捨てる",
+    "vscode-scm がどのフォルダかの制約が書かれていない"
+  ],
+  "usage": {
+    "input": 4,
+    "output": 2220,
+    "cache_read": 177214,
+    "cache_write": 2889
+  },
+  "tools": {
+    "read": 0,
+    "search": 0,
+    "write": 0,
+    "bash": 2,
+    "other": 0,
+    "read_before_write": 0,
+    "search_before_write": 0
+  }
+}
