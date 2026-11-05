@@ -382,6 +382,24 @@ describe("dg guide", () => {
     expect(await readGuide("parallel")).toContain("`plan` の Run");
   });
 
+  it("plan の手順 4 は参考節のファイルが重なるチケットを並行させず after でつなぎ、参考節のないチケットは依存と優先度で順を決めると案内する", async () => {
+    const order = step(await readGuide("plan"), 4);
+    for (const word of [
+      "## 参考",
+      "重なる",
+      "並行させず",
+      "`after`",
+      "参考節のないチケット",
+      "依存と優先度",
+    ])
+      expect(order, word).toContain(word);
+    // つなぐ判断 → 参考節のないチケットは対象外 → 従来どおり依存と優先度、の順
+    expect(order).toMatch(
+      /並行させず `after` でつなぐ[\s\S]*?参考節のないチケット[\s\S]*?依存と優先度/,
+    );
+    expect(await readGuide("import")).toContain("並行させず `after` でつなぐ");
+  });
+
   it("review は版上げの PR で見直しを省ける条件を品質ゲートに書き、release はそこへ案内する", async () => {
     const gate = section(await readGuide("review"), "## 品質ゲート");
     for (const word of [
