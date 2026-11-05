@@ -1,0 +1,92 @@
+id: p62
+project: default
+tickets: [t437, t442, t457, t462, t438, t443, t459, t439, t460, t444, t461, t445, t463, t446, t458]
+after:
+  t438:
+    - t437
+  t443:
+    - t442
+  t459:
+    - t457
+  t439:
+    - t457
+  t460:
+    - t438
+    - t462
+  t444:
+    - t443
+  t461:
+    - t460
+  t445:
+    - t444
+  t463:
+    - t461
+  t446:
+    - t444
+    - t445
+    - t437
+  t458:
+    - t457
+    - t463
+pending_approval: true
+details:
+  t437:
+    scope: 上書きできる項目を deguboard-local/config.yaml に置き、config set/unset --local と config show --fields の scope、validate の警告、個人 > チーム > 既定の読み方を core に足す
+    approach: model/config.ts に項目ごとの scope を持たせ、store.ts の loadConfig で個人の値を重ね、setup.ts の config.set/unset に --local を足して CLI・HTTP に写し、requirements 5.10 と ADR-006 を直す
+    tier: heavy
+  t438:
+    scope: 設定画面を「チーム」「自分」のタブに分け、上書きの印と「自分の値を使う」の付け外しと CONFIRM_KEYS を両タブで出す
+    approach: web の config.tsx を t437 の config show --fields の scope と個人の値で描き分け、store.tsx・types.ts を合わせ、タブと付け外しのテストとライト・ダークのスクリーンショットを PR に載せる
+    tier: standard
+  t439:
+    scope: mise run test:vscode が Xvfb 上の拡張開発ホストを Playwright の _electron で操作し、Webview の行の表示・CSP 違反と例外の検出・テーマごとのスクリーンショットを出す（check には入れない）
+    approach: test/vscode/ に @vscode/test-electron と Playwright の起動を置き、bare リモート付きの一時リポジトリの fixture を使い、.vscode-test を git と VSIX から外し、development.md の人が見る記述とスクリーンショットの手順を書き換える
+    tier: heavy
+  t442:
+    scope: Claude Code・Codex・Copilot の Adapter が環境変数から自分の agent 名を判定し、run start の --agent を省けるようにする
+    approach: agents/define.ts に判定の口を足して各 Adapter に実装し、commands/run.ts の run start で判定値を使い、テストと requirements AG-5・RN-1、--help を直す
+    tier: standard
+  t443:
+    scope: "agent の ticket claim で opens_on: claim の step の Run を開き、--no-run で止め、テンプレートと validate と guide work/run/parallel・requirements・ADR-005 を合わせる"
+    approach: ticket.ts の claim から run/record.ts を呼んで Run を開き、workflow の step に opens_on を足して validate し、出力と JSON に run を出し、guide の普段の経路から run start を外して委譲では --no-run と書く
+    tier: heavy
+  t444:
+    scope: ticket update --pr・sync の PR 発見・unclaim・--without-branch の done/review で実装の Run を閉じ、finished_at を PR の作成時刻にし、閉じた Run への run finish を無害にする
+    approach: ticket.ts と reconcile.ts から record.ts の閉じる処理を呼び、PR の作成時刻を gh から取り、bare リモート付きのテストで閉じ方を確かめ、guide work/run・requirements・ADR-005 を直す
+    tier: heavy
+  t445:
+    scope: "自分が claim 済みで PR のあるチケットの再 claim で opens_on: reclaim の step の Run を開き、--retry-reason を記録し、開いたままの手直しの Run を sync が次の区切りで最後の push の時刻で閉じる"
+    approach: "ticket.ts の claim の拒否判定を自分の再 claim だけ通し、テンプレートに opens_on: reclaim を足し、reconcile.ts で区切りを見て閉じ、guide review/run・requirements・ADR-005 を直してテストする"
+    tier: heavy
+  t446:
+    scope: agent が PR まで進めたのに実装の Run がないチケットと、どの Run の期間にも入らない push 済みコミットがあるチケットを dg lint で指摘する
+    approach: setup.ts の lint に 2 つの検査を足し、record.ts の Run の期間とブランチのコミット時刻を比べ、テストと requirements の lint の一覧・--help を直す
+    tier: standard
+  t457:
+    scope: README.md と packages/cli/README.md を節の構成を変えずに英語にし、vsix が切り出す拡張の README も英語になるようにし、CLAUDE.md と ADR-001 に README の例外を書く
+    approach: README.md を全文英訳して予算 16KB に収め、scripts/lib/vscode-readme.mjs の CUT_HEADING を英語の見出しに合わせ、CLAUDE.md・ADR-001・development.md・mise.toml の README の記述を今の作りに直す
+    tier: standard
+  t458:
+    scope: README の GIF 5 本を英語の画面・英語のチケット名と台詞で録り直し、録る仕組みが言語を渡せるようにする
+    approach: scripts/record-gifs.mjs の台本を英語にして data-language を渡せるようにし、mise run gifs で 5 本を撮り直して秒数と 1MB に収め、check を通す
+    tier: standard
+  t459:
+    scope: README.ja.md を英語版と同じ節の構成で置き、両方の先頭から相互に辿れるようにし、check:docs の対象に入れ、拡張の README と npm の files から外す
+    approach: 今の日本語 README を README.ja.md に移して先頭にリンクを足し、check-docs.mjs の budgets・docFiles と .vscodeignore・vsix-files.test.ts・cli の files を直す
+    tier: light
+  t460:
+    scope: 表示言語が英語のとき設定画面の全項目の説明を英語で出し、検索も英語の説明に当たるようにし、訳の抜けをテストで指摘し、UI-11 を直す
+    approach: l10n-en.ts に項目キーごとの英語の説明を置いて config.tsx が表示言語で選び、l10n.test.ts で configFields との対応を確かめ、requirements UI-11 を直す
+    tier: standard
+  t461:
+    scope: priority.high/medium/low が既定のままなら表示言語が英語のとき設定画面・印のツールチップ・詳細の選択で英語の基準を出し、書き換えた値はそのまま出す
+    approach: core が既定値かを判定できる形（config show --fields の既定との一致など）を使い、store.tsx で表示言語に合わせて parts.tsx・inline-edit.tsx・config.tsx に渡し、guide import の表と意味を揃える
+    tier: standard
+  t462:
+    scope: dg ask が組む依頼文の定型の文を表示言語が英語なら英語にし、言語を渡す口を CLI と HTTP に足し、コピーとターミナル送信の両方で使い、UI-11 を直す
+    approach: core の ask.ts に language を足して定型文を英日で持ち、CLI の --language と HTTP の引数に写し、ask-composer.tsx が表示言語を渡し、ask.test.ts と requirements UI-11 を直す
+    tier: standard
+  t463:
+    scope: 設定の保存の拒否の理由と Plan・Run の警告を表示言語が英語なら英語で出し、訳のない文は core の文のまま出す
+    approach: core の errors.ts の code を鍵に l10n-en.ts に訳を置き、http.ts・config.tsx・plans.tsx・ticket-runs.tsx が表示言語で選び、訳がなければ元の文を出すテストを書き、UI-11 を直す
+    tier: standard
