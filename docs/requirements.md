@@ -192,6 +192,7 @@ steps: # 任意。Run の step の語彙（WF-5）
 - RN-1 1 Run 1 ファイル。`id`、`ticket`、`step`、`agent`、`model`、`started_at`、`finished_at`、`result`（`success` / `failure` / `interrupted`）、`error`、`retries`、`retry_reasons`（やり直しの理由の配列）、`usage`（input / output / cache_read / cache_write のトークン）
 - RN-2 取れなかった値は `null`。推定した値は `estimated: true` を付ける。費用は持たない（[ADR-005](adr/ADR-005-work-metrics.md)）
 - RN-3 Git に入れるのは完了時の集計だけ。実行中の記録は `deguboard-local/runs/` に置く。チケットには書き足さない
+- RN-4 閉じた Run で書き換えるのは、`run refresh`（MT-5）が会話記録から取り直すモデル名と使用量だけ
 
 ### 5.10 設定（`config.yaml`）
 
@@ -276,6 +277,7 @@ Web UI は `dg serve` が配信し、VS Code 拡張は同じ React アプリを 
 - MT-2 `metrics.read_transcripts`（チームで共有する設定）が true なら、`run finish` が Adapter でエージェントの会話記録から使用量を補う。`DEGUBOARD_NO_TRANSCRIPTS` が空でも `0` でもないマシンでは true でも読まない。Adapter のない agent 名は `run start` が警告する（記録はする）
 - MT-3 `metrics show` は Run・Ticket・Epic・Iteration・Project・Agent/Model・Step で絞り集計する。null は足さず欠けた数を出す。集計値は保存しない
 - MT-4 Adapter が会話記録から Run に写すのは数とモデル名だけで、会話の中身・コマンドの文字列・パスは写さない。`error`（`run finish --error`）と `retry_reasons`（`--retry-reason`）は渡した文をそのまま記録するので、`error` には秘密を、`retry_reasons` には秘密・コマンドの文字列・パスを書かない
+- MT-5 `run refresh` は指定した閉じた Run のモデル名と使用量を、finish と同じ Adapter・同じ範囲・MT-2 の許可で会話記録から取り直す。取れた値だけを書き換え、取れなかった値は今の値を消さずに残して警告する。`--dry-run` は書かずに差分を返す。実行中の Run は拒否する
 
 ### 6.7 ワークフロー実行
 
