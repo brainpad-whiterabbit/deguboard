@@ -36,6 +36,7 @@ import {
   KanbanRowEnd,
   kanbanPlanMarks,
   kanbanReadiness,
+  needsPlanSlot,
   type PlanMark,
 } from "../components/row-end.js";
 import { useChangeFlash } from "../components/change-flash.js";
@@ -685,7 +686,7 @@ function Column({
                   ask={ASK_SECTIONS.boardTicket}
                   head={activity ? <ActivityMark activity={activity} /> : undefined}
                   end={
-                    mark || running || t.assignee ? (
+                    mark || running || t.assignee || needsPlanSlot(t, mark) ? (
                       <KanbanRowEnd ticket={t} mark={mark} running={running} />
                     ) : undefined
                   }

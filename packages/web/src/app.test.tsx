@@ -1337,9 +1337,9 @@ describe("画面", () => {
       "assignee-mark",
       "row-plan",
     ]);
-    // 担当なし：印を出さず、右端は今までどおり優先度の印だけ
+    // 担当なし：担当の印を出さない（開いた Plan に入っていない行なので右端は優先度の印と空き枠）
     expect(markOf("画面")).toBeNull();
-    expect(kanbanRowOf("画面").querySelector(".row-end")).toBeNull();
+    expect(kanbanRowOf("画面").querySelector(".row-end .assignee-mark")).toBeNull();
   });
 
   it("サイドバーのカンバンは、前回の描画から Status が変わった行を点滅させ（開き直しても host.state で比べる）、ブラウザでは点滅させない", async () => {
@@ -1416,9 +1416,9 @@ describe("画面", () => {
     const rowOf = (title: string) => screen.getByText(title).closest(".row")!;
     expect(document.querySelectorAll(".board .row .status-dot")).toHaveLength(0);
     expect(rowOf("API").classList.contains("kanban-row")).toBe(true);
-    expect(rowOf("API").lastElementChild!.textContent).toBe("high");
+    expect(rowOf("API").lastElementChild!.textContent).toBe("high—");
     expect(rowOf("API").querySelector(".priority-high")).toBeTruthy();
-    expect(rowOf("画面").lastElementChild!.textContent).toBe("low");
+    expect(rowOf("画面").lastElementChild!.textContent).toBe("low—");
     expect(rowOf("画面").querySelector(".priority-low")).toBeTruthy();
     // medium の行は優先度の印を出さない（ログインは medium）
     expect(rowOf("ログイン").querySelector(".priority-mark")).toBeNull();
@@ -1432,13 +1432,15 @@ describe("画面", () => {
     expect(rowOf("画面").querySelector(".priority-low")).toBeTruthy();
   });
 
-  it("サイドバーのカンバンの行は、開いた Plan に入っていれば右端に Plan の番号を Plan の色で出し、todo なら着手可・待ちの相手・承認待ちを出す", async () => {
+  it("サイドバーのカンバンの行は、開いた Plan に入っていれば右端に Plan の番号を Plan の色で出し、todo なら着手可・待ちの相手・承認待ちを出す。入っていない未完了の行には破線の空き枠を出す", async () => {
     const client = boardClient();
     client.data.tickets.push(
       ticket({ id: "t4", title: "待つ", priority: "high", iteration: "s0" }),
       ticket({ id: "t5", title: "外", priority: "low", iteration: "s0" }),
       ticket({ id: "t6", title: "閉じた計画", iteration: "s0" }),
       ticket({ id: "t7", title: "承認前", iteration: "s0" }),
+      ticket({ id: "t8", title: "終わり外", status: "done", iteration: "s0" }),
+      ticket({ id: "t9", title: "やめた外", status: "abandoned", iteration: "s0" }),
     );
     client.data.plans.push(
       plan({
@@ -1469,10 +1471,18 @@ describe("画面", () => {
     // 承認待ちの Plan の todo は、待ちがなくても「承認待ち」
     expect(endOf("承認前")!.querySelector(".row-wait")!.textContent).toBe("承認待ち");
     expect(endOf("承認前")!.querySelector(".row-ready")).toBeNull();
-    // Plan に入っていない・閉じた Plan のチケットは今までどおり優先度の印だけ
-    expect(endOf("外")).toBeNull();
-    expect(kanbanRowOf("外").lastElementChild!.textContent).toBe("low");
-    expect(endOf("閉じた計画")).toBeNull();
+    // 開いた Plan に入っていない・閉じた Plan だけのチケットは、優先度の印の右に Plan の番号の代わりの破線の空き枠
+    const slot = endOf("外")!.querySelector(".row-plan-slot")!;
+    expect(slot.textContent).toBe("—");
+    expect(slot.getAttribute("title")).toBe("開いた Plan に入っていない");
+    expect(endOf("外")!.querySelector(".row-plan")).toBeNull();
+    expect(endOf("外")!.querySelector(".row-end-top")!.textContent).toBe("low—");
+    expect(endOf("閉じた計画")!.querySelector(".row-plan-slot")).toBeTruthy();
+    // 開いた Plan に入っている行・done と中止の行には出ない
+    expect(endOf("API")!.querySelector(".row-plan-slot")).toBeNull();
+    expect(endOf("待つ")!.querySelector(".row-plan-slot")).toBeNull();
+    expect(kanbanRowOf("終わり外").querySelector(".row-plan-slot")).toBeNull();
+    expect(kanbanRowOf("やめた外").querySelector(".row-plan-slot")).toBeNull();
   });
 
   it("サイドバーのバックログの行は、開いた Plan に入っていればカンバンと同じ Plan の番号と着手可・待ちの相手・承認待ちを出し、入っていない行には優先度の札だけを出す", async () => {
@@ -1606,7 +1616,7 @@ describe("画面", () => {
     expect(kanbanRowOf("API").querySelector(".row-end-top")!.textContent).toBe("highp7");
     expect(kanbanRowOf("API").querySelector(".row-end-sub")!.textContent).toBe("実行中");
     expect(kanbanRowOf("画面").querySelector(".activity-mark")).toBeNull();
-    expect(kanbanRowOf("画面").querySelector(".row-end")).toBeNull();
+    expect(kanbanRowOf("画面").querySelector(".row-end-sub")).toBeNull();
   });
 
   it("サイドバーのカンバンでは、待ちと承認待ちの todo の行だけタイトルを薄くし、実行中の Run がある行は待ちでも薄くしない", async () => {
