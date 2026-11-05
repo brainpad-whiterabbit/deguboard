@@ -1,0 +1,31 @@
+{
+  "id": "r20261105-234301-6cfa",
+  "ticket": "t437",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-fable-5-1",
+  "started_at": "2026-11-05T23:43:01Z",
+  "finished_at": "2026-11-05T23:48:30Z",
+  "result": "success",
+  "error": null,
+  "retries": 2,
+  "retry_reasons": [
+    "チームの config set/unset の戻りと設定画面の表示をチームの値にそろえた",
+    "利用者ごとの上書きはないという画面の文言とコメントを直した"
+  ],
+  "usage": {
+    "input": 288,
+    "output": 9036,
+    "cache_read": 1766675,
+    "cache_write": 16933
+  },
+  "tools": {
+    "read": 0,
+    "search": 0,
+    "write": 0,
+    "bash": 13,
+    "other": 0,
+    "read_before_write": 0,
+    "search_before_write": 0
+  }
+}
