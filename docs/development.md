@@ -138,6 +138,15 @@ mise run test:layout                 # build のあと画面の配置と吹き�
 mise run release:publish             # pnpm publish -r --access public（npm login 済みで）
 git tag v<版> && git push origin v<版>
 mise run vsix                        # GitHub の Release に deguboard-vscode.vsix を添付する
+sha256sum packages/vscode/deguboard-vscode.vsix   # 出た値を Release の本文に書く（下の雛形）
+```
+
+Release の本文には、添付する vsix の SHA256 を次の雛形で書く。値は上の `sha256sum` の出力のもの（添付と同じ vsix で求める）。
+
+```text
+deguboard-vscode.vsix の SHA256：<sha256sum の 64 桁の値>
+
+確かめ方：vsix と同じフォルダで `sha256sum deguboard-vscode.vsix` を実行し、出た値が上の値と一致すれば改ざんされていない。
 ```
 
 3 つの tarball には、`prepack`（各パッケージの package.json）がルートの LICENSE を写して入れる（VSIX の `package` と同じ。写した `packages/*/LICENSE` は `.gitignore` で Git に入れない）。tarball を試すときは `for f in release/*.tgz; do tar tzf "$f" | grep -q '^package/LICENSE$' && echo "ok $f"; done` を 1 つずつ回し、3 行の ok が出ることを確かめる（`tar tzf` は複数の tgz を一度に渡せない）。
