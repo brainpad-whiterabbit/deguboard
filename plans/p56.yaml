@@ -1,0 +1,16 @@
+id: p56
+project: default
+tickets: [t425, t418]
+after:
+  t418:
+    - t425
+pending_approval: true
+details:
+  t425:
+    scope: Run を、ID を見ただけの別の session の会話記録に結び付けないようにする
+    approach: 結び付ける候補を、ID が Run の開始から 1 分以内に出たファイルに限るなどの判定をテストで決め、どの session から finish・refresh しても同じ値になることを確かめる。#393 の残りの軽い指摘（Copilot の destroy・sightings のテスト）も合わせる
+    tier: heavy
+  t418:
+    scope: 5 パッケージの version を 0.15.0 に揃える版上げの PR を作り、リリースの手順の確かめを回す
+    approach: リリースは人の指示を待つ。指示が出たら mise run release:version -- 0.15.0 の後に check・pack・audit・test:layout
+    tier: light
