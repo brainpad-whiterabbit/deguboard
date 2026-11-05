@@ -462,7 +462,7 @@ async function watchData(folder: vscode.WorkspaceFolder, client: CommandClient):
   try {
     dataDir = (await client.status()).data_dir;
   } catch {
-    // 初期化前のリポジトリなど。入れずに戻り、refreshStatusBar が次に呼ばれたとき張り直す
+    // 初期化前のリポジトリなど。入れずに戻り、次の refreshStatusBar か画面を開いたとき（attach）に張り直す
     return;
   } finally {
     watchStarting.delete(key);
