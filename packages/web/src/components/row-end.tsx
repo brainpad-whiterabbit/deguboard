@@ -68,9 +68,17 @@ export function isWaitingReadiness(readiness: KanbanReadiness | null): boolean {
   return readiness === "pending" || readiness === "waiting";
 }
 
+/** 開いた Plan に入っていない、終わっていない（todo・in_progress・review）行か。カンバンの行に破線の空き枠を出す判定（UI-2） */
+export function needsPlanSlot(ticket: Pick<Ticket, "status">, mark: PlanMark | undefined): boolean {
+  return (
+    !mark &&
+    (ticket.status === "todo" || ticket.status === "in_progress" || ticket.status === "review")
+  );
+}
+
 /**
  * 左パネルのカンバンの行の右端（開いた Plan に入っているか、実行中の Run があるか、担当のあるチケット）。縦に 2 段で、
- * 上の段の左端に優先度の印（high・low。medium は出さない）を置き、続けて担当の印と Plan の番号を Plan の色で出す。
+ * 上の段の左端に優先度の印（high・low。medium は出さない）を置き、続けて担当の印と Plan の番号を Plan の色で出す（開いた Plan に入っていない終わっていない行は番号の代わりに破線の空き枠「—」）。
  * 下の段は実行中の Run があれば「実行中」（Plan の外の行でも）、なければ todo なら承認待ち（Plan が承認待ち）・
  * 待ちの相手（after と depends_on の終わっていないもの）・着手可を出す（着手可・待ちだけ）。どれもなければ下の段は出さない
  */
@@ -97,7 +105,7 @@ export function KanbanRowEnd({
       <span className="row-end-top">
         <RowPriority priority={ticket.priority} />
         <AssigneeMark assignee={ticket.assignee} runAgent={ticket.run_agent} />
-        {mark ? <RowPlan plan={mark.plan} /> : null}
+        {mark ? <RowPlan plan={mark.plan} /> : needsPlanSlot(ticket, mark) ? <RowPlanSlot /> : null}
       </span>
       {sub ? <span className="row-end-sub">{sub}</span> : null}
     </span>
@@ -109,6 +117,15 @@ function RowPlan({ plan }: { plan: string }) {
   return (
     <span className={`row-plan plan-color-${planColor(plan)}`} title={`Plan ${plan}`}>
       {plan}
+    </span>
+  );
+}
+
+/** 開いた Plan に入っていない行の、Plan の番号の位置に出す破線の空き枠（警告に見せない専用の色。バックログの行には出さない） */
+function RowPlanSlot() {
+  return (
+    <span className="row-plan-slot" title="開いた Plan に入っていない">
+      —
     </span>
   );
 }

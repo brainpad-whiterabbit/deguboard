@@ -1642,6 +1642,15 @@ textarea.body {
   font-weight: 600;
   color: var(--dg-plan);
 }
+/* 開いた Plan に入っていない行の空き枠。待ち（黄）・high（赤）・Plan の 5 色と紛れないよう、前景色を薄めた中立色にする */
+.row-plan-slot {
+  padding: 0 5px;
+  border: 1px dashed color-mix(in srgb, var(--vscode-foreground) 55%, transparent);
+  border-radius: 3px;
+  color: color-mix(in srgb, var(--vscode-foreground) 70%, transparent);
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  line-height: 1.3;
+}
 .row-ready {
   color: var(--dg-status-done);
 }

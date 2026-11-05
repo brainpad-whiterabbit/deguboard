@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { plan, ticket } from "../test-helpers.js";
-import { isWaitingReadiness, kanbanPlanMarks, kanbanReadiness, waitLabel } from "./row-end.js";
+import {
+  isWaitingReadiness,
+  kanbanPlanMarks,
+  kanbanReadiness,
+  needsPlanSlot,
+  waitLabel,
+} from "./row-end.js";
 
 describe("左パネルのカンバンの行の Plan の番号と待ち", () => {
   it("開いた Plan に入っているチケットだけに、Plan の番号・承認待ちか・core の waiting の待ちの相手を持たせる", () => {
@@ -83,5 +89,20 @@ describe("左パネルのカンバンの待ち・承認待ちの行を薄くす�
     expect(
       dimmedIds([plan({ id: "p1", tickets: ["t1"], status: "approved", waiting })], tickets),
     ).toEqual([]);
+  });
+});
+
+describe("開いた Plan に入っていない行の空き枠の判定", () => {
+  const mark = { plan: "p1", pending: false, waitingOn: [] };
+  it("開いた Plan に入っていない todo・in_progress・review だけ出す", () => {
+    expect(needsPlanSlot({ status: "todo" }, undefined)).toBe(true);
+    expect(needsPlanSlot({ status: "in_progress" }, undefined)).toBe(true);
+    expect(needsPlanSlot({ status: "review" }, undefined)).toBe(true);
+    expect(needsPlanSlot({ status: "done" }, undefined)).toBe(false);
+    expect(needsPlanSlot({ status: "abandoned" }, undefined)).toBe(false);
+  });
+  it("開いた Plan に入っている行には出さない", () => {
+    expect(needsPlanSlot({ status: "todo" }, mark)).toBe(false);
+    expect(needsPlanSlot({ status: "in_progress" }, mark)).toBe(false);
   });
 });
