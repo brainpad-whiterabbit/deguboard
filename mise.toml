@@ -55,7 +55,7 @@ description = "Playwright MCP（.mcp.json）と test:layout が使う Chromium �
 run = "pnpm run playwright:install"
 
 [tasks.gifs]
-description = "拡張の README の使い方の GIF（packages/vscode/images/open-board.gif・ask-agent.gif）を録り直す。一時リポジトリの dg serve の左パネルを Chromium で操作して撮る（台本と外枠は scripts/record-gifs.mjs）。各 6〜10 秒・1MB 以下に収まらなければ失敗する。先に mise run playwright:install"
+description = "拡張の README の使い方の GIF（packages/vscode/images/ の open-board・ask-agent・import・run-all・retro）を録り直す。一時リポジトリの dg serve の左パネルを Chromium で操作して撮り、エージェントの流れの 3 本はターミナルを模した外枠で dg のコマンドを流して撮る（台本と外枠は scripts/record-gifs.mjs）。決めた秒数（6〜10 秒か 20 秒以下）・1MB 以下に収まらなければ失敗する。mise run gifs -- run-all.gif のように名前を渡せばその分だけ録る（知らない名前は失敗）。先に mise run playwright:install"
 depends = ["build"]
 run = "pnpm run gifs"
 
