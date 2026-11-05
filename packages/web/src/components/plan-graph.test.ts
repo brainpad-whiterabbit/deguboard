@@ -86,7 +86,7 @@ describe("Plan の状態", () => {
 });
 
 describe("依存グラフ", () => {
-  it("after から段を求め、段の中は Plan の順に並べる。待ち中かは core の waiting を読む", () => {
+  it("after だけのとき、段の中は Plan の順に並べる。待ち中かは core の waiting を読む", () => {
     const byId = byIdOf([
       ticket({ id: "t1", status: "done" }),
       ticket({ id: "t2", status: "in_progress" }),
@@ -145,6 +145,16 @@ describe("依存グラフ", () => {
       { from: "t1", to: "t2", done: true, kind: "depends_on" },
       { from: "t2", to: "t3", done: false, kind: "after" },
       { from: "t1", to: "t3", done: true, kind: "depends_on" },
+    ]);
+  });
+
+  it("after と depends_on をまたぐ循環でも段の計算は止まる", () => {
+    const byId = byIdOf([ticket({ id: "t1" }), ticket({ id: "t2", depends_on: ["t1"] })]);
+    const g = planGraph(plan({ id: "p1", tickets: ["t1", "t2"], after: { t1: ["t2"] } }), byId);
+    expect(g.nodes.map((n) => n.id)).toEqual(["t1", "t2"]);
+    expect(g.edges.map((e) => `${e.from}>${e.to}:${e.kind}`)).toEqual([
+      "t2>t1:after",
+      "t1>t2:depends_on",
     ]);
   });
 

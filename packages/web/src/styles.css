@@ -1059,13 +1059,14 @@ button.link:hover {
 .plan-graph-edge-pending {
   stroke-dasharray: 3 3;
 }
-/* depends_on の辺は点線。after の実線・破線と見分け、待ち中は太くして待ち終わりと見分ける */
+/* depends_on の辺は点線。after の実線・破線と見分け、待ち中は点の間を広げて太くし、待ち終わりと見分ける */
 .plan-graph-edge-depends {
   stroke-dasharray: 1 3;
   stroke-linecap: round;
 }
 .plan-graph-edge-depends.plan-graph-edge-pending {
-  stroke-width: 2;
+  stroke-dasharray: 0.1 5;
+  stroke-width: 2.4;
 }
 .plan-graph-arrow {
   fill: var(--vscode-descriptionForeground);

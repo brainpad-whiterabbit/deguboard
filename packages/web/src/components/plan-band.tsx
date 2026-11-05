@@ -284,20 +284,25 @@ function PlanGraphView({ plan, byId }: { plan: PlanRow; byId: ReadonlyMap<string
             </svg>
             待ち中
           </span>
-          {graph.edges.some((e) => e.kind === "depends_on") ? (
-            <span>
-              <svg width="20" height="6" aria-hidden="true">
-                <line
-                  x1="0"
-                  y1="3"
-                  x2="20"
-                  y2="3"
-                  className="plan-graph-edge plan-graph-edge-depends"
-                />
-              </svg>
-              depends_on
-            </span>
-          ) : null}
+          {graph.edges.some((e) => e.kind === "depends_on")
+            ? [
+                { label: "depends_on 待ち終わり", cls: "" },
+                { label: "depends_on 待ち中", cls: " plan-graph-edge-pending" },
+              ].map(({ label, cls }) => (
+                <span key={label}>
+                  <svg width="20" height="6" aria-hidden="true">
+                    <line
+                      x1="0"
+                      y1="3"
+                      x2="20"
+                      y2="3"
+                      className={`plan-graph-edge plan-graph-edge-depends${cls}`}
+                    />
+                  </svg>
+                  {label}
+                </span>
+              ))
+            : null}
         </div>
       ) : null}
     </div>
