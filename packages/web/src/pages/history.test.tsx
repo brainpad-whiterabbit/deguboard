@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "../app.js";
 import { HostProvider, type Host } from "../host.js";
 import { StoreProvider } from "../store.js";
@@ -10,7 +10,13 @@ import { createUiState, memoryBackend } from "../ui-state.js";
 import { carriedOverFrom as coreCarriedOverFrom } from "@deguboard/core";
 import { carriedOverFrom, epicCountsOf, groupByEpic, historyAskTarget } from "./history.js";
 
+// 日付の書き方（今日・昨日・月/日）は今に依るので、今を固定する（Date だけ。待ち合わせの timer は本物のまま）
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"], now: new Date("2026-11-04T12:00:00Z") });
+});
+
 afterEach(() => {
+  vi.useRealTimers();
   cleanup();
   window.location.hash = "";
 });
@@ -170,9 +176,7 @@ describe("Iteration の行", () => {
       </StoreProvider>,
     );
     const row = (await screen.findByText("左パネルを主画面にする")).closest(".history-row")!;
-    expect(row.querySelector("small")!.textContent).toBe(
-      "2026-11-01 に閉じた ・ e1 2, Epic なし 2",
-    );
+    expect(row.querySelector("small")!.textContent).toBe("11/01 に閉じた ・ e1 2, Epic なし 2");
     expect([...row.querySelectorAll(".counts > span")].map((b) => b.textContent)).toEqual([
       "3",
       "中止 1",
@@ -213,13 +217,46 @@ describe("Iteration の行の 1 段目と 2 段目", () => {
     );
     const none = (await screen.findByText("目標なし")).closest(".history-row")!;
     expect(screen.getByText("目標なし").classList.contains("history-none")).toBe(true);
-    expect(none.querySelector("small")!.textContent).toBe("2026-11-01 に閉じた");
+    expect(none.querySelector("small")!.textContent).toBe("11/01 に閉じた");
     expect(none.querySelector(".epics")).toBeNull();
     const goal = screen.getByText("目標あり").closest(".history-row")!;
-    expect(goal.querySelector("small")!.textContent).toBe("2026-11-02 に閉じた");
+    expect(goal.querySelector("small")!.textContent).toBe("11/02 に閉じた");
     expect(document.body.textContent).not.toContain("sprint4");
     expect(document.body.textContent).not.toContain("sprint5");
     expect(document.body.textContent).not.toContain("内訳");
+  });
+
+  it("閉じた日は今日・昨日を言葉で出し、正確な日時をツールチップに置く", async () => {
+    window.location.hash = "#/history";
+    const client = mockClient();
+    client.data.iterations = [
+      iteration({
+        id: "s4",
+        name: "n4",
+        status: "closed",
+        goal: "きのう",
+        closed_at: "2026-11-03T08:30:00Z",
+      }),
+      iteration({
+        id: "s5",
+        name: "n5",
+        status: "closed",
+        goal: "きょう",
+        closed_at: "2026-11-04T01:00:00Z",
+      }),
+    ];
+    render(
+      <StoreProvider client={client}>
+        <HostProvider host={sidebarHost()}>
+          <App />
+        </HostProvider>
+      </StoreProvider>,
+    );
+    const yesterday = (await screen.findByText("きのう")).closest(".history-row")!;
+    expect(yesterday.querySelector("small")!.textContent).toBe("昨日 に閉じた");
+    expect(yesterday.querySelector("time")!.getAttribute("title")).toBe("2026-11-03 08:30");
+    const today = screen.getByText("きょう").closest(".history-row")!;
+    expect(today.querySelector("small")!.textContent).toBe("今日 に閉じた");
   });
 });
 
@@ -354,7 +391,7 @@ describe("サイドバーの履歴", () => {
     expect(row.closest(".history-item")!.classList.contains("history-empty")).toBe(true);
     expect([...row.querySelectorAll(".counts > span")].map((b) => b.textContent)).toEqual(["0"]);
     expect(row.querySelector("small")!.textContent).toBe(
-      "終わったチケットなし ・ 2026-10-31 に閉じた ・ s1",
+      "終わったチケットなし ・ 10/31 に閉じた ・ s1",
     );
     expect(screen.getByRole("searchbox").getAttribute("placeholder")).toBe(
       "番号・タイトル・ラベルで検索",
@@ -390,7 +427,7 @@ describe("サイドバーの履歴", () => {
       "2",
       "中止 1",
     ]);
-    expect(row.querySelector("small")!.textContent).toBe("2026-10-31 に閉じた ・ s1");
+    expect(row.querySelector("small")!.textContent).toBe("10/31 に閉じた ・ s1");
     const item = row.closest<HTMLDetailsElement>("details.history-item")!;
     item.open = true;
     fireEvent(item, new Event("toggle"));
@@ -461,9 +498,9 @@ describe("サイドバーの履歴", () => {
         m.textContent!.replace(/\d\d$/, "dd"),
       ),
     ).toEqual([
-      "Iteration なし ・ PR なし ・ 2026-10-dd",
-      "s1 ・ #12 ・ 2026-10-dd",
-      "Abandoned ・ Iteration なし ・ PR なし ・ ~2026-01-dd",
+      "Iteration なし ・ PR なし ・ 10/dd",
+      "s1 ・ #12 ・ 10/dd",
+      "Abandoned ・ Iteration なし ・ PR なし ・ ~01/dd",
     ]);
     const abandoned = document.querySelectorAll(".history-ticket")[2]!;
     expect(abandoned.classList.contains("abandoned")).toBe(true);
@@ -528,11 +565,11 @@ describe("サイドバーの履歴", () => {
     });
     await waitFor(() => expect(ids()).toEqual(["t2", "t1"]));
     expect(screen.getByRole("status").textContent).toContain("終えた時刻を読み込み中");
-    expect(dates()).toEqual(["~2026-10-20", "~2026-10-01"]);
+    expect(dates()).toEqual(["~10/20", "~10/01"]);
     // 届いたら終えた時刻の順に並べ直し、日付も置き換わり、読み中の表示は消える
     release();
     await waitFor(() => expect(ids()).toEqual(["t1", "t2"]));
-    expect(dates()).toEqual(["2026-10-25", "2026-10-10"]);
+    expect(dates()).toEqual(["10/25", "10/10"]);
     expect(screen.queryByRole("status")).toBeNull();
     cleanup();
 
