@@ -1,0 +1,32 @@
+{
+  "id": "r20261105-150002-27ad",
+  "ticket": "t411",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-sonnet-5-5",
+  "started_at": "2026-11-05T15:00:02Z",
+  "finished_at": "2026-11-05T15:02:09Z",
+  "result": "success",
+  "error": null,
+  "retries": 3,
+  "retry_reasons": [
+    "PL-3 の末尾を動詞で終え、開いた Plan について lint が指摘すると明記する",
+    "Plan の外の終わったチケットから辺を出さない場面のテストを足す",
+    "guide-check の直し方の案に待っているチケットを abandoned にする案を足す"
+  ],
+  "usage": {
+    "input": 14,
+    "output": 2316,
+    "cache_read": 466175,
+    "cache_write": 4879
+  },
+  "tools": {
+    "read": 0,
+    "search": 0,
+    "write": 0,
+    "bash": 7,
+    "other": 0,
+    "read_before_write": 0,
+    "search_before_write": 0
+  }
+}

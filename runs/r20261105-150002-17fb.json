@@ -1,0 +1,30 @@
+{
+  "id": "r20261105-150002-17fb",
+  "ticket": "t373",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-sonnet-5-5",
+  "started_at": "2026-11-05T15:00:02Z",
+  "finished_at": "2026-11-05T15:01:53Z",
+  "result": "success",
+  "error": null,
+  "retries": 1,
+  "retry_reasons": [
+    "init 前のリポジトリで init 後も見張りが張られない"
+  ],
+  "usage": {
+    "input": 12,
+    "output": 1545,
+    "cache_read": 460783,
+    "cache_write": 4089
+  },
+  "tools": {
+    "read": 0,
+    "search": 0,
+    "write": 0,
+    "bash": 6,
+    "other": 0,
+    "read_before_write": 0,
+    "search_before_write": 0
+  }
+}
