@@ -1,5 +1,5 @@
 id: s15
 project: default
 name: sprint15
-goal: 左パネルの履歴タブを短く正確に読めるようにする
+goal: 履歴タブを短く正確に読めるようにし、Skill なしでも頼めるようにし、Run の記録と実行計画の見え方を正確にする
 status: active
