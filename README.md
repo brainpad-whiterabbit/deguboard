@@ -9,13 +9,13 @@ A kanban board that lives inside your Git repository, built for handing work to 
 - **Keep delegated work small and uniform**: Each piece of work you hand over is a small ticket, verified against its acceptance criteria.
 - **Run in parallel along dependencies**: Plan the order from dependencies, and work on tickets that are not blocked at the same time.
 - **Measure how agents perform**: Aggregate duration, tokens, and results per ticket, step, and model to find bottlenecks.
-- **Works with any agent**: Claude Code, Codex, Copilot CLI, or any agent that can use a shell drives it through the `dg` command.
+- **Works with any agent**: Any agent that can use a shell (Claude Code, Codex, Copilot CLI, and others) can drive it through the `dg` command.
 - **No service required**: Data lives on a dedicated branch of your repository. Push it, and your team sees the same board.
 - **Everything inside VS Code**: View the board, backlog, and history in the sidebar, and ask agents for work from there.
 
 ## Installation
 
-Requirements: Linux or macOS, Git 2.30 or later, and Node.js 24 or later. To reflect pull request status on tickets, you also need the GitHub CLI (`gh`).
+Prerequisites: Linux or macOS, Git 2.30 or later, and Node.js 24 or later. To reflect pull request status on tickets, you also need the GitHub CLI (`gh`).
 
 1. **Install the extension**: Search for "deguboard" in the Extensions view and install it. Before release, download `deguboard-vscode.vsix` from [GitHub Releases](https://github.com/brainpad-whiterabbit/deguboard/releases) and run `code --install-extension deguboard-vscode.vsix`.
 2. **Install `dg`**: Run `npm i -g deguboard`. Before release, build it as described in [Getting started before release](https://github.com/brainpad-whiterabbit/deguboard#getting-started-before-release).
@@ -112,7 +112,7 @@ dg config set notify.approvals false
 - The extension runs only `git`, `gh`, and `dg --version`, none of them through a shell (git running a merge driver with `sh -c` during a sync rebase is how git works).
 - Because git configuration can run arbitrary commands, the extension works only in trusted folders (not in Restricted Mode or virtual workspaces).
 - The Skills written by `dg skill install` contain only text telling the agent to read `dg guide`, with no scripts and no tool permissions. Use `--dry-run` to see their contents.
-- See [SECURITY.md](https://github.com/brainpad-whiterabbit/deguboard/blob/main/SECURITY.md) for how to report vulnerabilities.
+- See [SECURITY.md](https://github.com/brainpad-whiterabbit/deguboard/blob/main/SECURITY.md) (in Japanese) for how to report vulnerabilities.
 
 ## Other ways to use it
 
