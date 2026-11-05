@@ -63,6 +63,13 @@ const pressed = () =>
   within(within(composer()).getByRole("group", { name: "頼むこと" }))
     .getAllByRole("button")
     .find((b) => b.getAttribute("aria-pressed") === "true")?.textContent;
+/** 吹き出しを押し、候補が届くのを待ってから名前の項目を選ぶ（候補は非同期に届くので、待たずに引くと読み込み中で落ちる） */
+async function pick(place: string, name: string | RegExp, recommended?: string) {
+  fireEvent.click(bubble(place));
+  const item = await within(menu()).findByRole("menuitem", { name });
+  if (recommended !== undefined) expect(items()[0]).toBe(recommended);
+  fireEvent.click(item);
+}
 
 function boardClient(): MockClient {
   const client = mockClient(boardFixture());
@@ -150,9 +157,7 @@ describe("左パネルのカンバンから頼む（UI-15）", () => {
     mount(boardClient(), { copied });
     await screen.findByText("画面");
     // 吹き出し
-    fireEvent.click(bubble("行 t3"));
-    await waitFor(() => expect(items()[0]).toBe("進めるおすすめ"));
-    fireEvent.click(within(menu()).getByRole("menuitem", { name: "分ける" }));
+    await pick("行 t3", "分ける", "進めるおすすめ");
     await waitFor(() => expect(copied).toHaveLength(1));
     expect(copied[0]).toBe("/dgimport t3\nt3 を分けて");
     await waitFor(() =>
@@ -330,8 +335,7 @@ describe("入力欄を頼むことを選んで開く", () => {
     );
     await screen.findByText("画面");
     // 行の吹き出しの一覧から「分ける」を選んで開く
-    fireEvent.click(bubble("行 t3"));
-    fireEvent.click(within(menu()).getByRole("menuitem", { name: /分ける/ }));
+    await pick("行 t3", /分ける/);
     await waitFor(() => expect(pressed()).toBe("分ける"));
     // review に変わると「分ける」は候補にないので、おすすめ（確かめて片付ける）に戻る
     client.data.tickets = client.data.tickets.map((t) =>
@@ -403,9 +407,7 @@ describe("パネルの詳細から頼む（UI-15）", () => {
     await screen.findByRole("heading", { level: 1 });
     // 吹き出しはマウスを載せなくても出ている（右端に重ねず、タイトルの横に置く）
     expect(bubble("タイトル s1").className).toBe("ask-bubble pinned");
-    fireEvent.click(bubble("タイトル s1"));
-    await waitFor(() => expect(items()[0]).toBe("計画を立てるおすすめ"));
-    fireEvent.click(within(menu()).getByRole("menuitem", { name: "最後まで進める" }));
+    await pick("タイトル s1", "最後まで進める", "計画を立てるおすすめ");
     await waitFor(() => expect(pressed()).toBe("最後まで進める"));
     // 対象はその詳細
     expect(within(composer()).getByText("s1")).toBeTruthy();
@@ -435,9 +437,7 @@ describe("パネルの詳細から頼む（UI-15）", () => {
     await waitFor(() => expect(items().length).toBeGreaterThan(0));
     expect(items()).not.toContain("s1 から外す");
     fireEvent.keyDown(document.activeElement!, { key: "Escape" });
-    fireEvent.click(bubble("行 t3"));
-    await waitFor(() => expect(items()).toContain("s1 から外す"));
-    fireEvent.click(within(menu()).getByRole("menuitem", { name: "s1 から外す" }));
+    await pick("行 t3", "s1 から外す");
     await waitFor(() => expect(pressed()).toBe("s1 から外す"));
     await waitFor(() =>
       expect(askInputs(client).at(-1)).toMatchObject({
@@ -470,9 +470,7 @@ describe("パネルの詳細から頼む（UI-15）", () => {
     await screen.findByRole("heading", { level: 1, name: "画面" });
     const title = document.querySelector("header[data-ask-spot]")!;
     expect(contextOf(title)).toEqual({ preventDefaultContextMenuItems: true });
-    fireEvent.click(bubble("タイトル t3"));
-    await waitFor(() => expect(items()[0]).toBe("進めるおすすめ"));
-    fireEvent.click(within(menu()).getByRole("menuitem", { name: "分ける" }));
+    await pick("タイトル t3", "分ける", "進めるおすすめ");
     await waitFor(() => expect(pressed()).toBe("分ける"));
     await waitFor(() =>
       expect(askInputs(client).at(-1)).toMatchObject({ targets: ["t3"], action: "split" }),
