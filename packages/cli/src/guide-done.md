@@ -47,6 +47,6 @@ PR がマージされたあとの後始末（PR の要らない作業は `dg gui
 
 片付けたら、結果を伝えて次の選択肢で聞く。
 
-- **Plan を進める**（勧める。Plan に残りがあれば）：`dg guide work` の手順で続ける（Claude Code では `/dgwork p3`）
-- **計画を立てる**：Plan が終わり、着手できるチケット（`ticket list --ready`）があれば `dg guide plan` の手順で次の Plan を作る（`/dgplan next <N>`）
+- **Plan を進める**（勧める。Plan に残りがあれば）：`dg guide work` の手順で続ける（Skill があれば `/dgwork p3`）
+- **計画を立てる**：Plan が終わり、着手できるチケット（`ticket list --ready`）があれば `dg guide plan` の手順で次の Plan を作る（Skill があれば `/dgplan next <N>`）
 - **ここで止める**

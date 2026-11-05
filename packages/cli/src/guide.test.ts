@@ -72,6 +72,20 @@ describe("dg guide", () => {
     }
   });
 
+  it("次の手順は Skill がなければ dg guide を読んで続けると案内する", async () => {
+    const choices = lineWith(await readGuide("import"), "次の手順が選ばれたら");
+    for (const word of ["Skill", "使えなければ", "`dg guide <topic>`", "その手順で続ける"])
+      expect(choices).toContain(word);
+    expect(lineWith(await readGuide("overview"), "Skill は任意")).toContain("dg guide <topic>");
+    for (const topic of GUIDE_TOPICS) {
+      const next = section(await readGuide(topic), "## 次の手順を選ぶ");
+      for (const line of next.split("\n").filter((l) => l.includes("`/dg"))) {
+        expect(line, topic).toContain("Skill があれば");
+        expect(line, topic).toContain("dg guide");
+      }
+    }
+  });
+
   it("import は受け入れ条件が 7 項目以上のチケットを分けることを、根拠とともに勧める", async () => {
     const tips = section(await readGuide("import"), "## よいチケットの書き方");
     expect(tips).toMatch(

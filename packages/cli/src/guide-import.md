@@ -88,6 +88,6 @@ argument-hint: "[対象（案の名前・文書のパス・チケットの ID）
 
 結果を伝えたら（やめたときも）、次の選択肢で聞く。
 
-- **割り当てる**（勧める）：起票したチケットを `dg guide assign` の手順で Iteration と Epic に入れる（Claude Code では `/dgassign <ID...>`）
-- **計画を立てる**：割り当てが要らなければ、`dg guide plan` の手順で進める順を決める（`/dgplan <ID...>`）
+- **割り当てる**（勧める）：起票したチケットを `dg guide assign` の手順で Iteration と Epic に入れる（Skill があれば `/dgassign <ID...>`）
+- **計画を立てる**：割り当てが要らなければ、`dg guide plan` の手順で進める順を決める（Skill があれば `/dgplan <ID...>`）
 - **ここで止める**
