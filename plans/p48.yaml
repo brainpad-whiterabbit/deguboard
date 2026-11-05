@@ -2,9 +2,11 @@ id: p48
 project: default
 tickets: [t405]
 after: {}
-pending_approval: true
+pending_approval: false
 details:
   t405:
     scope: 5 パッケージの version を 0.14.0 に揃える版上げの PR を作り、check・pack・test:layout で確かめる。タグ・Release・npm の公開は人の承認の後
     approach: 一時 worktree で mise run release:version -- 0.14.0 を回し、development.md のリリースの手順で確かめて PR を出す
     tier: light
+approved_by: eiki.kitajima/agent
+approved_at: 2026-11-05T05:53:31Z
