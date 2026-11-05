@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Run } from "../model/run.js";
 import { claudeCodeAdapter, projectDirName } from "./adapters/claude-code.js";
 import { bindFile, sightings } from "./adapters/transcript.js";
-import { agentNames, collectRunUsage, type UsageQuery } from "./index.js";
+import { agentNames, collectRunUsage, detectAgent, type UsageQuery } from "./index.js";
 
 const cleanups: Array<() => Promise<void>> = [];
 afterEach(async () => {
@@ -684,6 +684,46 @@ describe("使用量の取り込み（MT-2）", () => {
     expect(got.usage).toEqual(nulls);
     expect(got.warnings).toEqual([expect.stringContaining("someone")]);
     expect(agentNames()).toContain(claudeCodeAdapter.name);
+  });
+});
+
+describe("環境変数からの agent の判定（AG-5）", () => {
+  it("Claude Code は CLAUDECODE=1 か、AI_AGENT が claude-code の形なら判定する", () => {
+    for (const env of [
+      { CLAUDECODE: "1" },
+      { AI_AGENT: "claude-code_2-1-310_agent" },
+      { AI_AGENT: "claude-code" },
+    ]) {
+      expect(detectAgent(env)).toEqual({ agent: "claude-code", matched: ["claude-code"] });
+    }
+  });
+
+  it("Codex は CODEX_THREAD_ID が空でなければ判定する", () => {
+    expect(detectAgent({ CODEX_THREAD_ID: "0199a213-81c0-7800-8aa1-bbab2a035a53" })).toEqual({
+      agent: "codex",
+      matched: ["codex"],
+    });
+    expect(detectAgent({ CODEX_THREAD_ID: "" })).toEqual({ agent: null, matched: [] });
+  });
+
+  it("似た名前の変数や、判定しない Adapter（Copilot）の製品の変数だけでは判定しない", () => {
+    for (const env of [
+      {},
+      { CLAUDECODE: "0" },
+      { AI_AGENT: "claude-codex" },
+      { AI_AGENT: "github_copilot_vscode_agent" },
+      { CODEX_HOME: "/tmp/codex", CODEX_SANDBOX: "seatbelt" },
+      { COPILOT_MODEL: "gpt-5", COPILOT_HOME: "/tmp/copilot", COPILOT_DEBUG_NONCE: "x" },
+    ]) {
+      expect(detectAgent(env)).toEqual({ agent: null, matched: [] });
+    }
+  });
+
+  it("2 つ以上の Adapter が自分と判定したら（エージェントの中から別のエージェントを呼んだなど）どれとも決めない", () => {
+    expect(detectAgent({ CLAUDECODE: "1", CODEX_THREAD_ID: "t" })).toEqual({
+      agent: null,
+      matched: ["claude-code", "codex"],
+    });
   });
 });
 
