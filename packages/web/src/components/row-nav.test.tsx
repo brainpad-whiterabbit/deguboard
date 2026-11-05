@@ -5,7 +5,7 @@ import { App } from "../app.js";
 import { HostProvider, type Host } from "../host.js";
 import type { Route } from "../router.js";
 import { StoreProvider } from "../store.js";
-import { type MockClient, fixture, mockClient, ticket } from "../test-helpers.js";
+import { type MockClient, boardFixture, fixture, mockClient, ticket } from "../test-helpers.js";
 import { createUiState, memoryBackend } from "../ui-state.js";
 import { ASK_HINT_KEY } from "./ask-menu.js";
 
@@ -149,5 +149,37 @@ describe("サイドバーの行のキー操作", () => {
     expect(link.closest("[data-select-id]")!.hasAttribute("data-selected")).toBe(true);
     fireEvent.keyDown(link, { key: "Enter" });
     expect(opened.at(-1)).toEqual({ page: "ticket", id: "t9" });
+  });
+
+  it("吹き出しのボタンは Tab で止まらず、移れる行は今の 1 行だけ", async () => {
+    window.location.hash = "#/backlog";
+    mount(backlogClient());
+    await screen.findByText("API");
+    await waitFor(() =>
+      expect(
+        [...document.querySelectorAll<HTMLElement>(".ask-bubble")].map((b) => b.tabIndex),
+      ).toEqual([-1, -1, -1]),
+    );
+    const tabbable = [
+      ...document.querySelectorAll<HTMLElement>("a.ticket-row, .ask-bubble"),
+    ].filter((el) => el.tabIndex >= 0);
+    expect(tabbable).toHaveLength(1);
+    expect(tabbable[0]).toBe(rowLinks()[0]);
+  });
+
+  it("節を畳むと、見えている先頭の行が tabIndex=0 になる", async () => {
+    window.location.hash = "#/board";
+    mount(mockClient(boardFixture()));
+    await screen.findByText("ログイン");
+    // 畳んだ節の中の行は見えないので数えない
+    const visibleRows = () => rowLinks().filter((a) => !a.closest("details:not([open])"));
+    const first = () => visibleRows()[0]!;
+    await waitFor(() => expect(visibleRows().filter((a) => a.tabIndex === 0)).toHaveLength(1));
+    const zeroRow = visibleRows().find((a) => a.tabIndex === 0)!;
+    // 今 0 の行がある節を畳む
+    const details = zeroRow.closest("details")!;
+    details.open = false;
+    expect(visibleRows()).not.toContain(zeroRow);
+    await waitFor(() => expect(visibleRows().filter((a) => a.tabIndex === 0)).toEqual([first()]));
   });
 });

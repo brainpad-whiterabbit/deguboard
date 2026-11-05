@@ -271,8 +271,17 @@ export function useAskSpot(options: AskSpotOptions | null): AskSpot {
           return;
         }
         // 選べる行（リンクにフォーカスがあるとき）：Space で選び、a で頼む。修飾キーなしで、VS Code の既定のキー割り当てとぶつからない
-        // （Webview の中の文字キーは Webview に届く。a は「ask」で、Shift+F10 と同じ一覧を片手で出す）
-        if (rowId === undefined || !selection || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey)
+        // （Webview の中の文字キーは Webview に届く。a は「ask」で、Space で選んだあと片手で Shift+F10 と同じ一覧を出す）。
+        // 変換中（IME）は受けない。CapsLock でも効くよう大文字小文字を区別しない
+        if (
+          rowId === undefined ||
+          !selection ||
+          e.nativeEvent.isComposing ||
+          e.altKey ||
+          e.ctrlKey ||
+          e.metaKey ||
+          e.shiftKey
+        )
           return;
         const t = e.target as HTMLElement;
         if (!t.matches?.("a.ticket-row")) return;
@@ -283,7 +292,7 @@ export function useAskSpot(options: AskSpotOptions | null): AskSpot {
             section: options.section,
             within: options.within,
           });
-        } else if (e.key === "a") {
+        } else if (e.key.toLowerCase() === "a") {
           e.preventDefault();
           returnTo.current = t;
           show(bubbleRef.current ?? e.currentTarget);

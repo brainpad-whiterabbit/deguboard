@@ -1,6 +1,7 @@
 // サイドバーの行のキー操作（roving tabindex）。カンバン・バックログ・履歴の行（a.ticket-row）を、↑↓・Home・End で移り、Enter で詳細を開く。
 // Tab で入れる行は今の 1 行だけ（tabindex=0。ほかは -1）で、Tab 1 回で一覧を抜けられる。今の行は最後にフォーカスした行
 // （なければ先頭）。フォーカスの枠は styles.css の :focus-visible（VS Code の focusBorder）が出す。
+// 選んだ状態（data-selected）は、見た目（左端の線）と「n 件を選択」の aria-live の件数で伝え、行そのものの aria（aria-selected は role の要る属性）は付けない。
 // Space（選ぶ）と a（頼む）は行ごとの useAskSpot（ask-menu.tsx）が受ける。
 // 行は React が描き直すので、tabindex は MutationObserver で整え直す（React は tabindex を持たない）。畳んだ節の中の行は移る先に含めない
 
@@ -26,6 +27,10 @@ function syncRoving(root: HTMLElement, current?: HTMLElement) {
     const want = el === cur ? "0" : "-1";
     if (el.getAttribute("tabindex") !== want) el.setAttribute("tabindex", want);
   }
+  // 選べる行の吹き出しのボタンは Tab で止めない（opacity:0 でも tabindex を持ち、全部の行で止まるため）。a と Shift+F10 で開ける
+  for (const b of root.querySelectorAll<HTMLElement>("[data-select-id] .ask-bubble")) {
+    if (b.getAttribute("tabindex") !== "-1") b.setAttribute("tabindex", "-1");
+  }
 }
 
 /** 行の主リンクにフォーカスがあるときだけ受ける。修飾キーつきは VS Code や行の選択に任せる */
@@ -47,7 +52,13 @@ export function useRowNav(enabled: boolean) {
     if (!enabled || !root) return;
     syncRoving(root);
     const observer = new MutationObserver(() => syncRoving(root));
-    observer.observe(root, { childList: true, subtree: true });
+    // 節を畳む・開く（details の open）でも、見えている先頭の行へ tabindex=0 を移す
+    observer.observe(root, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ["open"],
+    });
     return () => observer.disconnect();
   }, [enabled]);
 
