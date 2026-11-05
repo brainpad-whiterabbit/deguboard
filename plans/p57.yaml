@@ -1,0 +1,16 @@
+id: p57
+project: default
+tickets: [t428, t429]
+after:
+  t429:
+    - t428
+pending_approval: true
+details:
+  t428:
+    scope: ルートの README.md の構成と文面、Run・tier の細部の正本への移し
+    approach: 拡張の README を先頭に移し、ルートだけの情報は「ほかの使い方」と requirements へ
+    tier: light
+  t429:
+    scope: mise run vsix での拡張の README の生成とテスト、gitignore
+    approach: package の script から scripts の生成スクリプトを呼び、見出し「ほかの使い方」で切る
+    tier: standard
