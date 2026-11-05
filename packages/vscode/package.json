@@ -157,5 +157,15 @@
   },
   "engines": {
     "vscode": "^1.123.0"
+  },
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": false,
+      "description": "deguboard はワークスペースのリポジトリで git を実行します。リポジトリの git の設定（core.fsmonitor など）は任意のコマンドを実行させ得るため、信頼していないフォルダー（制限モード）では動きません。"
+    },
+    "virtualWorkspaces": {
+      "supported": false,
+      "description": "deguboard はローカルのファイルシステムと git のコマンドを使うため、仮想ワークスペースでは動きません。"
+    }
   }
 }
