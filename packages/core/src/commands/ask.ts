@@ -597,6 +597,10 @@ function targetSub(t: AskSubject): string {
   return t.kind === "plan" ? PLAN_STATE_LABEL[t.status] : t.status;
 }
 
+/** Skill を持つ頼むことの文章だけの形に添える、その段階の手順を読む 1 文。トピックは Skill の呼び出し（`/dgplan`）から `/dg` を除いたもの */
+export const askGuideLine = (skill: string) =>
+  `手順は \`dg guide ${skill.replace(/^\/dg/, "")}\` を読み、そのとおりに進めてください。`;
+
 /** AskTarget の line。ID とタイトル（と Status・Iteration）だけで、本文は入れない */
 function targetLine(t: AskSubject): string {
   switch (t.kind) {
@@ -674,10 +678,12 @@ export function buildAsk(input: BuildAskInput): AskView {
     const intent = def.intent?.(s, w);
     if (intent) lines.push(intent);
   } else {
-    // 文章だけの形と Skill を使わない頼むことは、頼む 1 文と dg の呼び方を添える
+    // 文章だけの形と Skill を使わない頼むことは、頼む 1 文と dg の呼び方を添える。Skill を持つ頼むことには、その段階の guide を読む 1 文も添える
     const text = def.text(s, w);
     if (text) lines.push(text);
     lines.push(ASK_DG_USAGE);
+    // Skill を持つ頼むことは、Skill と同じ手順（承認や品質ゲート）で進むよう、その段階の guide を読ませる
+    if (candidate.skill) lines.push(askGuideLine(candidate.skill));
   }
   if (note) lines.push(note);
   return { ...view, kind: "prompt", human_only: [], workflow_by: [], text: lines.join("\n") };
@@ -782,7 +788,7 @@ export const ask = defineCommand({
       .enum(ASK_FORMATS)
       .default("skill")
       .describe(
-        "skill は Skill の呼び出しと指示だけ、text は頼む 1 文と dg の呼び方と指示。Skill のない頼むことは skill でも text の形",
+        "skill は Skill の呼び出しと指示だけ、text は頼む 1 文と dg の呼び方と（Skill を持つ頼むことは）読む guide の 1 文と指示。Skill のない頼むことは skill でも text の形",
       ),
     within: z
       .string()

@@ -268,7 +268,7 @@ Web UI は `dg serve` が配信し、VS Code 拡張は同じ React アプリを 
 - AG-5 Agent Adapter が使用量の取得と作業ディレクトリの差を吸収し、製品ごとの実装は Core の `agents/adapters/` に閉じる。今は `claude-code`・`codex`・`copilot`。起動方法と権限は扱わない（EX-1、[ADR-007](adr/ADR-007-architecture.md)）
 - AG-6 ソフトウェア開発向けの Action（worktree・ブランチ・テスト・PR 作成・マージ）は Core の `actions` に置き、汎用部分は依存しない。`dg` のコマンドにせず Core 内のライブラリに留め、公開するのは名前の一覧（`ACTION_NAMES`）だけ（[ADR-007](adr/ADR-007-architecture.md)）
 - AG-7 任意のシェルの Action は `actions.shell: true` のときだけ使え、毎回確認を経る
-- AG-8 `ask` は対象（チケット・Iteration・Epic・Plan。複数可）・頼むこと・指示・形式から、エージェントに貼る依頼文を返す読み取りだけのコマンド。操作が 1 つに決まる頼むことが人に限られた操作（`actor.human_only`・WF-1 の `by`）なら人が打つ `dg` のコマンドを返す。依頼文に入れる対象は ID だけで、Skill の形は呼び出しと指示、文章だけの形は頼む 1 文と `dg` の呼び方と指示にする。候補・おすすめ・文面は `dg ask --help` とコード、文の形は [ADR-010](adr/ADR-010-ui-writes-and-agent-requests.md) が正本。`ask-menu` は画面の場所ごとの候補をまとめて返す
+- AG-8 `ask` は対象（チケット・Iteration・Epic・Plan。複数可）・頼むこと・指示・形式から、エージェントに貼る依頼文を返す読み取りだけのコマンド。操作が 1 つに決まる頼むことが人に限られた操作（`actor.human_only`・WF-1 の `by`）なら人が打つ `dg` のコマンドを返す。依頼文に入れる対象は ID だけで、Skill の形は呼び出しと指示、文章だけの形は頼む 1 文と `dg` の呼び方と（Skill を持つ頼むことは）その段階の `dg guide <topic>` を読む 1 文と指示にする。候補・おすすめ・文面は `dg ask --help` とコード、文の形は [ADR-010](adr/ADR-010-ui-writes-and-agent-requests.md) が正本。`ask-menu` は画面の場所ごとの候補をまとめて返す
 
 ### 6.6 作業の実績
 

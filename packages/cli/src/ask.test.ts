@@ -105,6 +105,7 @@ describe("dg ask", () => {
       [
         "t1 を指示のとおりに直してください。",
         "dg は `dg … --json --actor agent` で呼び、.git/deguboard/ のファイルは直接編集しないでください。",
+        "手順は `dg guide import` を読み、そのとおりに進めてください。",
         "文言だけ",
       ].join("\n"),
     );

@@ -2,7 +2,9 @@ import { afterEach, describe, expect, it } from "vitest";
 import { createFixture } from "../../test/helpers/git-fixture.js";
 import {
   ASK_ACTIONS,
+  type AskAction,
   ASK_DG_USAGE,
+  askGuideLine,
   ask,
   askCandidates,
   askHumanChecks,
@@ -91,6 +93,7 @@ describe("依頼文の組み立て", () => {
       [
         "t265 の PR のマージを照合し、残った受け入れ条件を確かめて片付けてください。",
         ASK_DG_USAGE,
+        askGuideLine("/dgdone"),
         "急がない",
       ].join("\n"),
     );
@@ -105,6 +108,37 @@ describe("依頼文の組み立て", () => {
         format: "text",
       }).text.split("\n")[0],
     ).toBe("t265・t266 を進める Plan を立て、承認を待ってください。");
+  });
+
+  it("文章だけの形式は、Skill を持つ頼むことごとにその段階の guide を読む一文を最後の指示の前に添え、Skill を持たないものには添えない", () => {
+    const topics: [AskAction, string][] = [
+      ["create", "import"],
+      ["create_iteration", "assign"],
+      ["plan", "plan"],
+      ["work", "work"],
+      ["done", "done"],
+      ["all", "all"],
+      ["release", "release"],
+      ["check", "check"],
+    ];
+    for (const [action, topic] of topics) {
+      const subjects = action.startsWith("create")
+        ? []
+        : action === "release" || action === "all"
+          ? [iteration("active")]
+          : [ticket({ status: action === "done" ? "review" : "todo" })];
+      const view = buildAsk({ subjects, action, format: "text", note: "指示" });
+      const lines = view.text.split("\n");
+      expect(view.skill).not.toBeNull();
+      expect(lines.at(-2)).toBe(
+        `手順は \`dg guide ${topic}\` を読み、そのとおりに進めてください。`,
+      );
+      expect(lines.at(-1)).toBe("指示");
+    }
+    // Skill を持たない頼むことは変わらない（guide の一文なし）
+    const none = buildAsk({ subjects: [iteration("active")], action: "close", format: "text" });
+    expect(none.skill).toBeNull();
+    expect(none.text).not.toContain("dg guide");
   });
 
   it("起票・作成は 1 行目に ID を並べず、行き先は次の行の短い頼みごとに書き、文章だけの形には --created-by human を添える", () => {
