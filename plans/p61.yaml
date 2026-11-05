@@ -1,0 +1,22 @@
+id: p61
+project: default
+tickets: [t447, t448, t449, t454]
+after: {}
+pending_approval: true
+details:
+  t447:
+    scope: Walkthrough の init.md と init.ja.md の導入の案内を、README と拡張の通知と同じ公開前の入れ方に直す
+    approach: npm の 1 行を README の「公開前に使い始める」への案内に変え、英日を揃える。リンクは絶対 URL
+    tier: light
+  t448:
+    scope: ask-menu.test.tsx の候補を待たずに選ぶテストを直し、押す・待つ・選ぶをヘルパーにまとめる
+    approach: 333 行の前に候補の到着の待ちを足し、同じ操作のテストを pick のようなヘルパーで書き直す
+    tier: light
+  t449:
+    scope: ADR-006 のパネルに出す詳細に Plan を足し、画面の外への働きかけを今の実装に合わせる
+    approach: ADR-006 の 5 番目の項目を直接書き換え、更新日と ADR 一覧の日付を直す。細部は写さない
+    tier: light
+  t454:
+    scope: UI-15・README・ADR-010 の Enter を押さない記述とキーの割り当ての正本の指し先を ADR-010 と ADR-001 に合わせる
+    approach: UI-15 と README の言い切りを 1 行と複数行の扱いに合わせ、正本の指し先をコード（row-nav.tsx・ask-menu.tsx）にする
+    tier: light
