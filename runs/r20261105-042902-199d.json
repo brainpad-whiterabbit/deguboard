@@ -1,0 +1,24 @@
+{
+  "id": "r20261105-042902-199d",
+  "ticket": "t402",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-sonnet-5-5",
+  "started_at": "2026-11-05T04:29:02Z",
+  "finished_at": "2026-11-05T04:32:15Z",
+  "result": "success",
+  "error": null,
+  "retries": 4,
+  "retry_reasons": [
+    "スクリーンショットのリンクが切れていた",
+    "待ち中の depends_on が実線に見えた",
+    "凡例に待ち中の depends_on がなかった",
+    "循環のコメントが挙動と合わなかった"
+  ],
+  "usage": {
+    "input": 14,
+    "output": 4835,
+    "cache_read": 593740,
+    "cache_write": 7413
+  }
+}

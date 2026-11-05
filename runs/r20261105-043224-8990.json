@@ -1,0 +1,22 @@
+{
+  "id": "r20261105-043224-8990",
+  "ticket": "t403",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-sonnet-5-5",
+  "started_at": "2026-11-05T04:32:24Z",
+  "finished_at": "2026-11-05T04:37:15Z",
+  "result": "success",
+  "error": null,
+  "retries": 2,
+  "retry_reasons": [
+    "選択の帯の右クリックに動かない詳細を開く・ID をコピーが出る",
+    "見た目の変更にスクリーンショットがない"
+  ],
+  "usage": {
+    "input": 44,
+    "output": 6988,
+    "cache_read": 3990788,
+    "cache_write": 13854
+  }
+}
