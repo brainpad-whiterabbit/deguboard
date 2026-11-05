@@ -15,12 +15,9 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
-import { inflateSync } from "node:zlib";
-import gifenc from "gifenc";
 import { chromium } from "playwright-core";
 import { startServer } from "../packages/server/dist/index.js";
-
-const { GIFEncoder, applyPalette, quantize } = gifenc;
+import { checkGif, encodeGif } from "./lib/gif.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const outDir = path.join(root, "packages", "vscode", "images");
@@ -36,7 +33,13 @@ const SIDE = 300;
 /** カーソルを動かすときの 1 コマの長さ（ミリ秒） */
 const STEP = 50;
 
-// 開発者のグローバル設定（hooksPath・gpgsign など）に影響されないようにする（git-fixture と同じ）
+// 一時リポジトリの組み立て（initRepo など）は packages/core/test/helpers/git-fixture.ts と共有しない。理由：
+// git-fixture は TypeScript で core の src（Store・ensureDeguboardWorktree）を import し、vitest の中で動く前提で
+// process.env を書き換える。この録画スクリプトは素の node で動き、ビルド済みの dg（dist）だけを呼ぶ。
+// また作るものも違い、こちらは clone 1 つに dg init と Skill の取り込みまで済ませた見本、あちらは clone 2 つの競合の検証用。
+// bare リモートの作成・clone・ユーザーの設定という数行は重なるが、共有のための層（ビルド・型・環境変数の扱い）の方が重いので別に持つ。
+// グローバル設定を避ける環境変数は git-fixture と同じにそろえてある。
+// 開発者のグローバル設定（hooksPath・gpgsign など）に影響されないようにする
 const gitEnv = { ...process.env, GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1" };
 const git = (cwd, args) => run("git", args, { cwd, env: gitEnv });
 const dg = (cwd, args) =>
@@ -425,110 +428,6 @@ class Recorder {
     await this.page.waitForTimeout(250);
     await this.shot(ms);
   }
-}
-
-/** Playwright の PNG（8 bit の RGB か RGBA、インターレースなし）を RGBA の画素に戻す */
-function decodePng(buf) {
-  let pos = 8;
-  let width = 0;
-  let height = 0;
-  let channels = 4;
-  const idat = [];
-  while (pos < buf.length) {
-    const len = buf.readUInt32BE(pos);
-    const type = buf.toString("latin1", pos + 4, pos + 8);
-    const data = buf.subarray(pos + 8, pos + 8 + len);
-    if (type === "IHDR") {
-      width = data.readUInt32BE(0);
-      height = data.readUInt32BE(4);
-      if (data[8] !== 8 || data[12] !== 0)
-        throw new Error("8 bit・インターレースなしの PNG だけ読める");
-      channels = { 2: 3, 6: 4 }[data[9]];
-      if (!channels) throw new Error(`読めない PNG の色の型: ${data[9]}`);
-    } else if (type === "IDAT") idat.push(data);
-    pos += 12 + len;
-  }
-  const raw = inflateSync(Buffer.concat(idat));
-  const stride = width * channels;
-  const cur = Buffer.alloc(stride);
-  const prev = Buffer.alloc(stride);
-  const rgba = new Uint8Array(width * height * 4);
-  for (let y = 0; y < height; y++) {
-    const filter = raw[y * (stride + 1)];
-    const line = raw.subarray(y * (stride + 1) + 1, (y + 1) * (stride + 1));
-    for (let i = 0; i < stride; i++) {
-      const a = i >= channels ? cur[i - channels] : 0;
-      const b = prev[i];
-      const c = i >= channels ? prev[i - channels] : 0;
-      let v = line[i];
-      if (filter === 1) v += a;
-      else if (filter === 2) v += b;
-      else if (filter === 3) v += (a + b) >> 1;
-      else if (filter === 4) {
-        const p = a + b - c;
-        const [pa, pb, pc] = [Math.abs(p - a), Math.abs(p - b), Math.abs(p - c)];
-        v += pa <= pb && pa <= pc ? a : pb <= pc ? b : c;
-      }
-      cur[i] = v & 0xff;
-    }
-    for (let x = 0; x < width; x++) {
-      const o = (y * width + x) * 4;
-      rgba[o] = cur[x * channels];
-      rgba[o + 1] = cur[x * channels + 1];
-      rgba[o + 2] = cur[x * channels + 2];
-      rgba[o + 3] = 255;
-    }
-    cur.copy(prev);
-  }
-  return { width, height, rgba };
-}
-
-/**
- * コマを GIF にまとめる。色は全コマから間引いて集めた 255 色の共通のパレットにし、
- * 2 コマ目からは前のコマと同じ画素を透明（256 色目）にして、変わったところだけを書く（大きさを抑える）
- */
-function encodeGif(frames) {
-  const images = frames.map((f) => decodePng(f.png));
-  const { width, height } = images[0];
-  const sampleStep = Math.max(1, Math.floor(images.length / 12));
-  const samples = images.filter((_, i) => i % sampleStep === 0 || i === images.length - 1);
-  const pool = new Uint8Array(samples.length * width * height * 4);
-  samples.forEach((img, i) => pool.set(img.rgba, i * width * height * 4));
-  // 色の割り当ては 255 色だけで行い、透明の番号（255）に画素が割り当たらないようにする（真っ黒が透明にならない）
-  const colors = quantize(pool, 255).slice(0, 255);
-  while (colors.length < 255) colors.push([0, 0, 0]);
-  const palette = [...colors, [0, 0, 0]];
-  const TRANSPARENT = 255;
-  const gif = GIFEncoder();
-  let previous = null;
-  let pending = null;
-  const flush = () => {
-    if (!pending) return;
-    const first = previous === null;
-    gif.writeFrame(pending.out, width, height, {
-      palette: first ? palette : undefined,
-      delay: pending.delay,
-      transparent: !first,
-      transparentIndex: TRANSPARENT,
-      dispose: 1,
-    });
-    previous = pending.index;
-  };
-  for (const [i, img] of images.entries()) {
-    const index = applyPalette(img.rgba, colors);
-    const base = pending ? pending.index : previous;
-    if (base && index.every((v, k) => v === base[k])) {
-      // 前のコマと同じなら、前のコマを長く出す
-      pending.delay += frames[i].delay;
-      continue;
-    }
-    flush();
-    const out = base ? index.map((v, k) => (v === previous[k] ? TRANSPARENT : v)) : index;
-    pending = { index, out, delay: frames[i].delay };
-  }
-  flush();
-  gif.finish();
-  return gif.bytes();
 }
 
 /** Activity Bar のアイコンで左パネルを開き、カンバン・バックログ・履歴のタブを切り替える */
@@ -974,7 +873,7 @@ async function main() {
       const seconds = frames.reduce((sum, f) => sum + f.delay, 0) / 1000;
       const kb = Math.round(bytes.length / 1024);
       const [min, max] = job.seconds ?? [0, 20];
-      const ok = seconds >= min && seconds <= max && bytes.length <= 1024 * 1024;
+      const ok = checkGif({ seconds, bytes: bytes.length, range: [min, max] });
       console.log(
         `${job.name}: ${WIDTH}x${HEIGHT}、${seconds.toFixed(1)} 秒、${kb} KB、${frames.length} コマ${ok ? "" : `（${min ? `${min}〜` : ""}${max} 秒${min ? "" : "以下"}・1MB 以下に収まらない）`}`,
       );
