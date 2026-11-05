@@ -17,6 +17,7 @@ import {
 } from "./run.js";
 import { commit, configSet, init } from "./setup.js";
 import { workflowValidate } from "./workflow.js";
+import { metricsShow } from "./metrics.js";
 import { iterationAdd, iterationCreate } from "./iteration.js";
 import { projectCreate } from "./project.js";
 import { ticketCreate, ticketList, type TicketRow } from "./ticket.js";
@@ -420,10 +421,10 @@ describe("run", () => {
 
   it("start は step がチケットの Workflow の steps になければ拒否し、steps のない Workflow ならどの step も受ける（WF-5）", async () => {
     const ctx = await prepared();
-    // 既定の general の steps は plan・investigate・implement・review・fix
+    // 既定の general の steps は investigate・implement・review・fix
     await expect(start(ctx, "t1", "deploy")).rejects.toMatchObject({
       code: "VALIDATION_FAILED",
-      message: expect.stringContaining("plan・investigate・implement・review・fix"),
+      message: expect.stringContaining("investigate・implement・review・fix"),
     });
     await expect(start(ctx, "t1", "investigate")).resolves.toMatchObject({ step: "investigate" });
     // 利用者の既存の YAML（steps なし）は今までどおり任意の step を受ける
@@ -439,6 +440,33 @@ describe("run", () => {
     expect(r.warnings).toEqual([
       "t2 の Workflow が見つからないか読めないので、step anything を確かめていない",
     ]);
+  });
+
+  it("Workflow の steps にない step（記録済みの plan の Run）があっても、workflow.validate・run list・metrics show は警告も失敗も出さない", async () => {
+    const ctx = await prepared();
+    // plan を持つ旧い定義で plan の Run を記録してから、plan のない定義に直す
+    await ctx.store.writeWorkflow({
+      id: "general",
+      name: "General",
+      steps: [
+        { id: "plan", label: "Plan" },
+        { id: "implement", label: "Implement" },
+      ],
+    });
+    const old = await start(ctx, "t1", "plan");
+    await runCommand(runFinish, ctx, { run: old.id, result: "success" });
+    await ctx.store.writeWorkflow({
+      id: "general",
+      name: "General",
+      steps: [{ id: "implement", label: "Implement" }],
+    });
+    const validated = await runCommand(workflowValidate, ctx, { workflow: "general" });
+    expect(validated.warnings).toEqual([]);
+    const listed = await runCommand(runList, ctx, {});
+    expect(listed.warnings).toEqual([]);
+    expect((listed.data as RunView[]).map((r) => r.step)).toEqual(["plan"]);
+    const metrics = await runCommand(metricsShow, ctx, { ticket: "t1" });
+    expect(metrics.warnings).toEqual([]);
   });
 
   it("読み込み時と workflow.validate が、渡した Action の一覧にない Action（警告）と同じ step の重複（エラー）を指摘する（WF-3）", async () => {
