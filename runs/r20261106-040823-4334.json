@@ -1,0 +1,28 @@
+{
+  "id": "r20261106-040823-4334",
+  "ticket": "t437",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "fable",
+  "started_at": "2026-11-06T04:08:23Z",
+  "finished_at": "2026-11-06T04:11:09Z",
+  "result": "success",
+  "error": null,
+  "retries": 0,
+  "retry_reasons": [],
+  "usage": {
+    "input": 0,
+    "output": 0,
+    "cache_read": 0,
+    "cache_write": 0
+  },
+  "tools": {
+    "read": 0,
+    "search": 0,
+    "write": 0,
+    "bash": 0,
+    "other": 0,
+    "read_before_write": 0,
+    "search_before_write": 0
+  }
+}
