@@ -1,0 +1,32 @@
+{
+  "id": "r20261106-124829-9796",
+  "ticket": "t477",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-06T12:48:29Z",
+  "finished_at": "2026-11-06T12:51:27Z",
+  "result": "success",
+  "error": null,
+  "retries": 3,
+  "retry_reasons": [
+    "dgdone の SKILL_SUMMARY の文を guide の description（照合して done を確かめ）に合わせる。SKILL_SUMMARY に description を変えたら見直す一文を足す",
+    "小窓の Skill の札と候補のボタンの title の組み立てを web の関数 1 つにまとめて共用する（ask-composer と ask-menu）",
+    "requirements の UI-15 に足した Skill の札の一文を削り、予算を戻す（ADR-010 と AG-2・AG-8 は残す）"
+  ],
+  "usage": {
+    "input": 14,
+    "output": 5385,
+    "cache_read": 1088671,
+    "cache_write": 9191
+  },
+  "tools": {
+    "read": 0,
+    "search": 0,
+    "write": 0,
+    "bash": 7,
+    "other": 0,
+    "read_before_write": 0,
+    "search_before_write": 0
+  }
+}
