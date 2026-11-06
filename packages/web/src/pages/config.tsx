@@ -1,4 +1,4 @@
-// 設定画面（#/config）。config.show の fields で全項目を既定値・説明（スキーマの describe）・範囲（scope）つきで読み、
+// 設定画面（#/config）。config.show の fields で全項目を既定値・説明（スキーマの describe。英語の表示では configDescription の訳）・範囲（scope）つきで読み、
 // 「チーム」と「自分」のタブで書き分ける。値を変えるたびに 1 項目ずつ保存する。
 // - チーム：全項目を出し、チームで共有する config.yaml の値（view.team）を config.set で書く。欄に個人の上書きを重ねない
 //   （重ねた値を出すと保存が効かなかったように見える）。自分で上書きしている項目には「自分：値」の印を出し、押すと自分のタブのその項目に移る
@@ -7,7 +7,7 @@
 // VS Code の settings.json は使わない（requirements.md 5.10）。左パネルではビューのタイトル行の歯車、ブラウザでは上のバーの歯車で開け閉めし、画面の中の「前の画面に戻る」も歯車と同じく来る前の画面に戻る。
 // 選択欄とチェックは変えたらすぐ、テキストは Enter か欄を離れたとき、リストは足す・外すたびに保存する。
 // 同期先とブランチの判定・worktree の置き場所・実行するコマンドとエージェントに許す操作を変える項目（CONFIRM_KEYS）は、どちらのタブでも保存の前に欄の下で確かめる
-// （自分の値を外して効く値が変わるときも確かめる）。拒否されたら理由を項目の下にだけ出し（上の通知の帯には出さない）、値を保存されている値に戻す。
+// （自分の値を外して効く値が変わるときも確かめる。空にすると既定に戻る項目を空にするときは、戻る既定の値を出す）。拒否されたら理由を項目の下にだけ出し（上の通知の帯には出さない）、値を保存されている値に戻す。
 // 保存は通って読み直しだけが失敗したら、保存できたことと読み直せないことを分けて出し、欄は保存した値で出す
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
@@ -15,7 +15,7 @@ import { failureOf } from "../client/http.js";
 import { hrefOf, toggleRoute } from "../router.js";
 import { useStore } from "../store.js";
 import type { ConfigField, ConfigScope, ConfigShowView } from "../types.js";
-import { tr, msg } from "../l10n.js";
+import { configDescription, tr, msg } from "../l10n.js";
 import { trNode } from "../l10n-node.js";
 
 /** 画面のまとまり。キーの最上位（commit.mode なら commit）で振り分ける */
@@ -109,24 +109,24 @@ export function nameOf(key: string): string {
   return name === undefined ? key : tr(name);
 }
 
-/** 検索語が表示名・キー・説明のどれかに含まれるか（大文字小文字は区別しない） */
+/** 検索語が表示名・キー・説明（今の言語で出している文）のどれかに含まれるか（大文字小文字は区別しない） */
 export function fieldMatchesQuery(field: ConfigField, query: string): boolean {
   const q = query.trim().toLowerCase();
   if (!q) return true;
-  return [nameOf(field.key), field.key, field.description].some((s) => s.toLowerCase().includes(q));
+  return [nameOf(field.key), field.key, configDescription(field.key, field.description)].some((s) =>
+    s.toLowerCase().includes(q),
+  );
 }
 
 /** 書き分ける先：チームの config.yaml か、個人の deguboard-local/config.yaml */
 type Tab = ConfigScope;
 
-/** 空にすると既定に戻る（core の config.set が値を消す）項目と値か。既定が空でない文字列の項目の空文字 */
+/**
+ * 空にすると既定に戻る（core の config.set が値を消す）項目と値か。
+ * どの項目がそうかは core の項目の定義（config.show の fields の clears_to_default）が決め、画面では型や既定値から判断しない
+ */
 export function clearsToDefault(field: ConfigField, value: unknown): boolean {
-  return (
-    field.type === "string" &&
-    typeof field.default === "string" &&
-    field.default !== "" &&
-    (value === "" || value === undefined || value === null)
-  );
+  return field.clears_to_default && (value === "" || value === undefined || value === null);
 }
 
 interface Pending {
@@ -328,7 +328,7 @@ export function ConfigPage() {
         setPending((p) => (p?.key === key ? null : p));
         return;
       }
-      // 自分のタブで既定が空でない文字列の項目を空にすると、core は上書きを消す（config set --help）。外すのと同じに扱う
+      // 自分のタブで空にすると既定に戻る項目（clears_to_default）を空にすると、core は上書きを消す（config set --help）。外すのと同じに扱う
       const field = view.fields.find((f) => f.key === key);
       if (tab === "local" && field && clearsToDefault(field, value)) {
         unsetOwn(key);
@@ -608,7 +608,7 @@ function FieldRow({
         {badges}
         {busy ? <span className="muted">{tr("保存中…")}</span> : null}
       </div>
-      <p className="config-desc muted">{field.description}</p>
+      <p className="config-desc muted">{configDescription(field.key, field.description)}</p>
       {lead}
       <div className="config-control">
         {children}
@@ -808,7 +808,15 @@ function ConfirmBox({
     >
       <p>
         {pending.tab === "team"
-          ? trNode("{0} を {1} にする。{2}。チーム全員に効く。保存する？", key, value, effect)
+          ? clearsToDefault(field, pending.value)
+            ? // 空にすると core が値を消して既定に戻す（config.set の clears_to_default）。空の値でなく戻る既定の値を出す
+              trNode(
+                "{0} を空にし、既定の {1} に戻す。{2}。チーム全員に効く。保存する？",
+                key,
+                <code>{formatValue(field.default)}</code>,
+                effect,
+              )
+            : trNode("{0} を {1} にする。{2}。チーム全員に効く。保存する？", key, value, effect)
           : pending.unset
             ? trNode(
                 "{0} の自分の値を外し、チームの {1} に戻す。{2}。自分だけに効く。保存する？",

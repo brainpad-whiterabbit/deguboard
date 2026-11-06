@@ -31,7 +31,7 @@ argument-hint: "<Plan の ID|チケットの ID>"
 5. 受け入れ条件を 1 項目ずつ確かめる。`dg --json --actor agent ticket show <id>` の `acceptance`（`index`・`text`・`checked`）を読み、成果物やテストで満たしたと確認できた項目だけ `dg --json --actor agent ticket check <id> <番号...>` で付ける。確認できない項目は付けず、PR の本文と人への報告に理由を書く
 6. コミットして push し、PR を draft で作る（`gh pr create --draft`）。PR の本文にチケットの ID（`t12`）と、付けられなかった受け入れ条件、読み直した正本と直した箇所を書く（見直しの後に親が書き足すものは `dg guide review` の「指摘を直す」）。PR の番号をチケットに記録する：`dg --json --actor agent ticket update <id> --pr <番号>`（照合はブランチ名でも PR を引くが、使い回したブランチでは別の PR を拾いうる）。これが実装の Run を `success` で閉じる（finished_at は PR の作成時刻。`run finish` は呼ばなくてよく、呼んでも記録は変わらない）。続けて `dg guide review` のとおり、別のサブエージェントの見直しと上限付きの修正ループで品質ゲートを通し、`gh pr ready <PR>` で出す（上限を超えたときもそこに従う）
 7. `dg --json --actor agent sync` を回す。Workflow が PR の事実を見るなら（software-development）、draft でない PR が開いていれば review に進む（`gh` が要る）。見ないなら（general など）、PR を出したら自分で `dg --json --actor agent ticket move <id> review` に進める
-8. 人のレビューの指摘は、同じチケットをもう一度 `dg --json --actor agent ticket claim <id> --retry-reason <指摘の要約>` で claim して手直しの Run を開き（自分が claim 済みで PR のあるチケットの claim は手直しの開始。チケットは変わらない。指摘 1 件に 1 つ繰り返す）、同じブランチで直して push する。その Run は次の `sync` が区切り（次の Run の開始・マージなど）を見たときに閉じる（`dg guide review` の「Run の分け方」）。マージは人が行う。マージ後は `dg guide done`
+8. 人のレビューの指摘は、同じチケットをもう一度 `dg --json --actor agent ticket claim <id> --retry-reason <指摘の要約>` で claim して手直しの Run を開き（自分が claim 済みで PR のあるチケットの claim は手直しの開始。チケットは変わらない。指摘 1 件に 1 つ繰り返す）、同じブランチで直して push する。その Run は次の `sync` が区切り（次の Run の開始・PR の ready・マージ・チケットの終了）を見たときに閉じる（`dg guide review` の「Run の分け方」）。マージは人が行う。マージ後は `dg guide done`
 
 ## Plan に従って進める
 

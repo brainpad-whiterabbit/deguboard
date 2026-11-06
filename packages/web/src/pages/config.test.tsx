@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
+import { setLanguage } from "../l10n.js";
 import { App } from "../app.js";
 import { ClientError } from "../client/http.js";
 import { StoreProvider } from "../store.js";
@@ -9,6 +10,7 @@ import type { ConfigField } from "../types.js";
 import { configFields } from "@deguboard/core";
 import {
   CONFIRM_KEYS,
+  clearsToDefault,
   formatValue,
   groupOf,
   isModified,
@@ -23,7 +25,10 @@ afterEach(() => {
   window.localStorage.clear();
 });
 
-/** core の configFields と同じ形の項目（説明は短くしたもの）。scope は core と同じ：local は個人で上書きできる項目 */
+/**
+ * core の configFields と同じ形の項目（説明は短くしたもの）。scope は core と同じ：local は個人で上書きできる項目。
+ * clears_to_default（空にすると既定に戻る）も core と同じで、既定が空でない文字列の項目だけ true
+ */
 const FIELDS: ConfigField[] = [
   {
     key: "default_project",
@@ -31,6 +36,7 @@ const FIELDS: ConfigField[] = [
     description: "省略時の Project",
     default: "default",
     scope: "local",
+    clears_to_default: true,
   },
   {
     key: "git.remote",
@@ -38,14 +44,23 @@ const FIELDS: ConfigField[] = [
     description: "同期先のリモート",
     default: "origin",
     scope: "local",
+    clears_to_default: true,
   },
-  { key: "git.base_branch", type: "string", description: "基準", default: "main", scope: "team" },
+  {
+    key: "git.base_branch",
+    type: "string",
+    description: "基準",
+    default: "main",
+    scope: "team",
+    clears_to_default: true,
+  },
   {
     key: "worktree.root",
     type: "string",
     description: "置き場所",
     default: "../<repo>.worktrees",
     scope: "local",
+    clears_to_default: true,
   },
   {
     key: "commit.mode",
@@ -54,6 +69,7 @@ const FIELDS: ConfigField[] = [
     description: "each: 書き込みのたびにコミット",
     default: "batch",
     scope: "local",
+    clears_to_default: false,
   },
   {
     key: "push.mode",
@@ -62,6 +78,7 @@ const FIELDS: ConfigField[] = [
     description: "auto: コミットのたびに push",
     default: "auto",
     scope: "local",
+    clears_to_default: false,
   },
   {
     key: "metrics.read_transcripts",
@@ -69,6 +86,7 @@ const FIELDS: ConfigField[] = [
     description: "会話記録を読む",
     default: false,
     scope: "team",
+    clears_to_default: false,
   },
   {
     key: "actions.shell",
@@ -76,6 +94,7 @@ const FIELDS: ConfigField[] = [
     description: "シェルを許す",
     default: false,
     scope: "local",
+    clears_to_default: false,
   },
   {
     key: "actions.test",
@@ -83,6 +102,7 @@ const FIELDS: ConfigField[] = [
     description: "テストのコマンド",
     default: [],
     scope: "team",
+    clears_to_default: false,
   },
   {
     key: "auto.merge",
@@ -90,8 +110,24 @@ const FIELDS: ConfigField[] = [
     description: "自動でマージ",
     default: false,
     scope: "team",
+    clears_to_default: false,
   },
-  { key: "actor.human_only", type: "list", description: "人だけ", default: [], scope: "team" },
+  {
+    key: "models.light",
+    type: "string",
+    description: "light のモデル",
+    default: "",
+    scope: "local",
+    clears_to_default: false,
+  },
+  {
+    key: "actor.human_only",
+    type: "list",
+    description: "人だけ",
+    default: [],
+    scope: "team",
+    clears_to_default: false,
+  },
 ];
 
 function configClient(initialLocal: Record<string, unknown> = {}) {
@@ -105,6 +141,7 @@ function configClient(initialLocal: Record<string, unknown> = {}) {
     metrics: { read_transcripts: false },
     actions: { shell: false, test: ["mise", "run", "check"] },
     auto: { merge: false },
+    models: { light: "" },
     actor: { human_only: [] as string[] },
   };
   /** 個人の上書き（ドット区切りの項目名 → 値）。core と同じく config.show は local で返し、重ねた値は config で返す */
@@ -123,11 +160,8 @@ function configClient(initialLocal: Record<string, unknown> = {}) {
       ? { config: merged(), team: config, local: { ...local }, fields: FIELDS }
       : merged();
   client.handlers["config.set"] = (input) => {
-    const {
-      key,
-      value,
-      local: toLocal,
-    } = input as { key: string; value: unknown; local?: boolean };
+    const { key, local: toLocal } = input as { key: string; value: unknown; local?: boolean };
+    let { value } = input as { value: unknown };
     if (value === "bad")
       throw new ClientError({
         code: "VALIDATION_FAILED",
@@ -136,14 +170,17 @@ function configClient(initialLocal: Record<string, unknown> = {}) {
       });
     // --local は個人の設定に書き、重ねた値を返す。なしはチームの値に書き、チームの値を返す
     if (toLocal) {
-      // core と同じく、既定が空でない文字列の項目に空文字を渡すと上書きを消す（resolveLeaf）
+      // core と同じく、空にすると既定に戻る項目（clears_to_default）に空文字を渡すと上書きを消す（resolveLeaf）
       const field = FIELDS.find((f) => f.key === key);
-      const clears = field?.type === "string" && field.default !== "" && value === "";
+      const clears = field?.clears_to_default === true && value === "";
       if (clears) delete local[key];
       else local[key] = value;
       return merged();
     }
     const [top, leaf] = key.split(".") as [keyof typeof config, string | undefined];
+    // core と同じく、空にすると既定に戻る項目に空文字を渡すと値を消し、返す値では既定で補われる
+    const field = FIELDS.find((f) => f.key === key);
+    if (field?.clears_to_default === true && value === "") value = field.default;
     if (leaf) (config[top] as Record<string, unknown>)[leaf] = value;
     else (config as Record<string, unknown>)[top] = value;
     return config;
@@ -473,6 +510,58 @@ describe("設定画面", () => {
     expect(setCalls(client)).toEqual([{ key: "git.remote", value: "upstream" }]);
   });
 
+  it("チームのタブで既定が空でない文字列の項目を空にすると、確かめの文は既定の値に戻すことを示し、空でない値に変えるときの文は今のまま", async () => {
+    const { client } = configClient();
+    mount(client);
+    await screen.findByText("コミットの仕方");
+    const remote = within(fieldOf("git.remote")).getByRole<HTMLInputElement>("textbox");
+    // 空でない値に変える：今までどおり「を … にする」
+    fireEvent.change(remote, { target: { value: "upstream" } });
+    fireEvent.blur(remote);
+    expect(
+      within(fieldOf("git.remote")).getByRole("alertdialog").querySelector("p")?.textContent,
+    ).toBe("git.remote を upstream にする。同期先が変わる。チーム全員に効く。保存する？");
+    fireEvent.click(within(fieldOf("git.remote")).getByText("やめる"));
+
+    // 空にする：空の値（「`` にする」）でなく、戻る既定の値を出す
+    fireEvent.change(remote, { target: { value: "" } });
+    fireEvent.blur(remote);
+    const confirm = within(fieldOf("git.remote")).getByRole("alertdialog");
+    expect(confirm.querySelector("p")?.textContent).toBe(
+      "git.remote を空にし、既定の origin に戻す。同期先が変わる。チーム全員に効く。保存する？",
+    );
+    fireEvent.click(within(confirm).getByText("保存する"));
+    expect(await screen.findByText("保存した: git.remote を origin にした")).toBeTruthy();
+    expect(setCalls(client)).toEqual([{ key: "git.remote", value: "" }]);
+  });
+
+  it("英語の表示でも、チームのタブで既定に戻る項目を空にしたときの確かめの文が崩れない", async () => {
+    setLanguage("en");
+    try {
+      const { client } = configClient();
+      mount(client);
+      await screen.findByText("Commit mode");
+      const remote = within(fieldOf("worktree.root")).getByRole<HTMLInputElement>("textbox");
+      fireEvent.change(remote, { target: { value: "" } });
+      fireEvent.blur(remote);
+      expect(
+        within(fieldOf("worktree.root")).getByRole("alertdialog").querySelector("p")?.textContent,
+      ).toBe(
+        "Clear worktree.root and go back to the default ../<repo>.worktrees. This changes where work happens. It applies to the whole team. Save?",
+      );
+      fireEvent.click(within(fieldOf("worktree.root")).getByText("Cancel"));
+      fireEvent.change(remote, { target: { value: "../wt" } });
+      fireEvent.blur(remote);
+      expect(
+        within(fieldOf("worktree.root")).getByRole("alertdialog").querySelector("p")?.textContent,
+      ).toBe(
+        "Set worktree.root to ../wt. This changes where work happens. It applies to the whole team. Save?",
+      );
+    } finally {
+      setLanguage("ja");
+    }
+  });
+
   it("worktree.root も保存の前に確かめ、「保存する」を押すまで config.set を呼ばない", async () => {
     const { client } = configClient();
     mount(client);
@@ -540,6 +629,7 @@ describe("設定画面", () => {
       "commit.mode",
       "push.mode",
       "actions.shell",
+      "models.light",
       "default_project",
       "git.remote",
       "worktree.root",
@@ -680,6 +770,23 @@ describe("設定画面", () => {
     expect(document.querySelectorAll(".config-override")).toHaveLength(0);
   });
 
+  it("自分のタブで空にしても既定に戻らない項目（clears_to_default が false）を空にすると、外さずに空の値を保存する", async () => {
+    const { client } = configClient({ "models.light": "sonnet" });
+    mount(client);
+    await screen.findByText("コミットの仕方");
+    fireEvent.click(tabOf("自分"));
+    const light = within(fieldOf("models.light")).getByRole<HTMLInputElement>("textbox");
+    fireEvent.change(light, { target: { value: "" } });
+    fireEvent.blur(light);
+    // 空の値は空のまま出す（文の中の空白は 2 つ並ぶ）
+    expect(await screen.findByText(/^保存した: models\.light を自分だけ\s+にした$/)).toBeTruthy();
+    expect(setCalls(client)).toEqual([{ key: "models.light", value: "", local: true }]);
+    expect(unsetCalls(client)).toEqual([]);
+    // 自分の値（空）は残る
+    expect(ownOf("models.light").checked).toBe(true);
+    expect(tabOf("自分").textContent).toBe("自分1");
+  });
+
   it("set --local で空文字を渡しても、core が上書きを消したなら画面も上書きなしで出す（config.show で読み直す）", async () => {
     const { client } = configClient({ "worktree.root": "/w" });
     mount(client);
@@ -806,6 +913,22 @@ describe("設定画面の部品", () => {
     expect(formatValue(false)).toBe("false");
   });
 
+  it("空にすると既定に戻るかは core の項目の定義（clears_to_default）で決め、型や既定値から判断しない", () => {
+    const base = { type: "string", description: "", scope: "local" } as const;
+    // 既定が空でない文字列の項目：core は true を出し、空の値（空文字・undefined・null）が外すのと同じになる
+    const clears: ConfigField = { ...base, key: "a", default: "x", clears_to_default: true };
+    expect(clearsToDefault(clears, "")).toBe(true);
+    expect(clearsToDefault(clears, undefined)).toBe(true);
+    expect(clearsToDefault(clears, null)).toBe(true);
+    expect(clearsToDefault(clears, "y")).toBe(false);
+    // 既定が空の文字列の項目：core は false を出し、空文字は値として保存する
+    const keeps: ConfigField = { ...base, key: "b", default: "", clears_to_default: false };
+    expect(clearsToDefault(keeps, "")).toBe(false);
+    // 画面は型や既定値を見ない。core が条件を変えても値に従う
+    expect(clearsToDefault({ ...clears, clears_to_default: false }, "")).toBe(false);
+    expect(clearsToDefault({ ...keeps, clears_to_default: true }, "")).toBe(true);
+  });
+
   it("キーの最上位でまとまりを決め、知らない項目は「その他」", () => {
     expect(groupOf("push.mode")).toBe("commit");
     expect(groupOf("actor.human_only")).toBe("agent");
@@ -814,5 +937,17 @@ describe("設定画面の部品", () => {
     expect(fieldMatchesQuery(FIELDS[1]!, "リモート")).toBe(true);
     expect(fieldMatchesQuery(FIELDS[1]!, "GIT.REMOTE")).toBe(true);
     expect(fieldMatchesQuery(FIELDS[1]!, "push")).toBe(false);
+  });
+
+  it("英語の表示では、検索が英語の説明にも当たる", () => {
+    setLanguage("en");
+    try {
+      // 表示名（Remote to sync with）には含まれず、英語の説明にだけある語
+      expect(fieldMatchesQuery(FIELDS[1]!, "FETCHES FROM")).toBe(true);
+      expect(fieldMatchesQuery(FIELDS[1]!, "pushes to")).toBe(true);
+      expect(fieldMatchesQuery(FIELDS[1]!, "worktree")).toBe(false);
+    } finally {
+      setLanguage("ja");
+    }
   });
 });

@@ -672,7 +672,7 @@ export const configShow = defineCommand({
   },
 });
 
-/** config.show --fields の出力。設定画面が値・既定値・説明・範囲を一度に読む */
+/** config.show --fields の出力。設定画面が値・既定値・説明・範囲・空にすると既定に戻るか（clears_to_default）を一度に読む */
 export interface ConfigShowView {
   /** 個人 > チーム > 既定 を重ねた、各コマンドが使う値 */
   config: Config;
@@ -751,7 +751,8 @@ function splitKey(
 
 /**
  * 入力の値を、スキーマに合う葉の値に直す。base（チームの値か、個人を重ねた値）に当てて確かめる。
- * 既定が空でない文字列の項目（priority.* など）を空にしたら undefined（キーを消して既定か、チームの値に戻す）
+ * 空にすると既定に戻る項目（ConfigField の clears_to_default。既定が空でない文字列の項目）を空にしたら undefined（キーを消して既定か、チームの値に戻す）。
+ * どの項目がそうかは項目の定義だけが決め、ここでは型や既定値を見ない（設定画面も同じ値を読む）
  */
 function resolveLeaf(
   key: string,
@@ -770,9 +771,7 @@ function resolveLeaf(
       `値を省けない。選択肢：${(field.options ?? []).join("・")}`,
     );
   const clearsToDefault =
-    field?.type === "string" &&
-    typeof field.default === "string" &&
-    field.default !== "" &&
+    field?.clears_to_default === true &&
     (rawValue === "" || rawValue === undefined || rawValue === null);
   // CLI の文字列は値に直したもの・元の文字列・カンマ区切りの配列の順に試す。元の文字列も試すので、文字列の項目に "2026"・"true" を入れられる
   const candidates: unknown[] = clearsToDefault ? [undefined] : [coerce(rawValue)];
@@ -798,7 +797,7 @@ export const configSet = defineCommand({
   positionals: ["key", "value"],
   group: "setup",
   summary:
-    "config.yaml の 1 項目を変える（commit.mode のようにドットで指す）。配列の項目はカンマ区切りで、空文字で空にする。既定が空でない文字列の項目（priority.* など）は空文字で既定に戻す。選択肢の項目（commit.mode など）は空・null・省略を弾く。--local で個人の設定に書く。返すのは書いた側の値（チームの値か、個人を重ねた値）",
+    "config.yaml の 1 項目を変える（commit.mode のようにドットで指す）。配列の項目はカンマ区切りで、空文字で空にする。既定が空でない文字列の項目（priority.* など。config show --fields の clears_to_default が true）は空文字で既定に戻す。選択肢の項目（commit.mode など）は空・null・省略を弾く。--local で個人の設定に書く。返すのは書いた側の値（チームの値か、個人を重ねた値）",
   input: z.object({
     key: z.string().min(1).describe("項目。例: commit.mode"),
     value: z.unknown().describe("値"),

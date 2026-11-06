@@ -10,7 +10,7 @@ import {
   lastPushedAt,
 } from "../git/facts.js";
 import { findBranchWorktree } from "../git/worktree.js";
-import { withWrite } from "../git/write.js";
+import { AbortWrite, withWrite } from "../git/write.js";
 import { resolveActorRef, sameUser } from "../model/actor.js";
 import { STATUSES, isTerminal, slugSchema, statusSchema, type Status } from "../model/common.js";
 import { parseId, type TicketId } from "../model/id.js";
@@ -869,7 +869,7 @@ function isReclaim(ctx: CommandContext, ticket: Ticket): boolean {
  * claim の書き込みの中（取り込みと索引の読み直しの後）で、もう一度の claim と分かったときに抜けるための印。
  * 書くものがないので書き込みを捨て、外で reclaim に回す（古い索引で判定すると、別のマシンで済んだ claim と PR の記録を見落とす）
  */
-class ReclaimRequested extends Error {
+class ReclaimRequested extends AbortWrite {
   constructor(readonly doc: Doc<Ticket>) {
     super(`${doc.id} はもう一度の claim`);
   }
@@ -986,7 +986,7 @@ export const ticketClaim = defineCommand({
   summary:
     "チケットに着手する。担当者（assignee）を自分にしてブランチを記録し、in_progress にする。push の成功で排他を得る。todo → in_progress の制約（requires: [deps_done] など）があれば従う。" +
     "agent なら続けて実装の Run（Workflow の steps のうち opens_on: claim のもの、なければ implement）を開き、ID を run（人向けの出力では標準出力の最後の行）に出す。開けなければ警告だけして claim は成功にする。" +
-    "自分（同じユーザの人と AI）が claim 済みで PR のあるチケット（in_progress か review）をもう一度 claim すると、人のレビューの後の手直しの開始とみなす。チケットは変えず、agent なら手直しの Run（opens_on: reclaim のもの、なければ fix）を開く。開いたままの前の手直しの Run は、作業ブランチに最後に push したコミットの時刻で success にしてから開く。ほかの主体の claim は拒否する",
+    "自分（同じユーザの人と AI）が claim 済みで PR のあるチケット（in_progress か review）をもう一度 claim すると、人のレビューの後の手直しの開始とみなす。チケットは変えず、agent なら手直しの Run（opens_on: reclaim のもの、なければ fix）を開く。開いたままの前の手直しの Run は、この claim を区切りとして、その Run の開始より後の最後の push の時刻（なければこの claim の時刻）で success にしてから開く。ほかの主体の claim は拒否する",
   input: z.object({
     ticket: ticketRef,
     branch: z
@@ -1099,6 +1099,7 @@ export const ticketClaim = defineCommand({
       },
     ).catch((e: unknown) => (e instanceof ReclaimRequested ? e : Promise.reject(e)));
     if (result instanceof ReclaimRequested) {
+      warnings.push(...result.warnings);
       const run = await reclaim(
         ctx,
         result.doc,

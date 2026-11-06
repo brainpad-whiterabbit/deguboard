@@ -10,7 +10,7 @@ import {
 } from "../../test/helpers/git-fixture.js";
 import { UsageError } from "../errors.js";
 import { pickUser } from "../model/actor.js";
-import { defaultConfig } from "../model/config.js";
+import { configFields, defaultConfig } from "../model/config.js";
 import { resetGhCache } from "../git/facts.js";
 import { osUserName } from "../git/repo.js";
 import { peekRunningRuns } from "../run/record.js";
@@ -2586,10 +2586,16 @@ describe("用意", () => {
     expect(shown.commit.mode).toBe("each");
   });
 
-  it("config.set は既定が空でない文字列の項目を空にすると既定に戻し、既定が空の項目は空のまま、配列の項目は空の配列にする", async () => {
+  it("config.set は空にすると既定に戻る項目（clears_to_default）を空にすると既定に戻し、既定が空の項目は空のまま、配列の項目は空の配列にする", async () => {
     const f = await fixture();
     const ctx = await initialized(f.cloneA);
     const defaults = defaultConfig();
+    // 空の扱いは項目の定義の clears_to_default で決まる（既定が空でない文字列の項目だけ true）
+    const byKey = new Map(configFields().map((x) => [x.key, x]));
+    expect(byKey.get("priority.high")?.clears_to_default).toBe(true);
+    expect(byKey.get("default_project")?.clears_to_default).toBe(true);
+    expect(byKey.get("models.light")?.clears_to_default).toBe(false);
+    expect(byKey.get("actor.human_only")?.clears_to_default).toBe(false);
     // priority.* を書き換えてから空にすると、Core の既定の文に戻る
     await runCommand(configSet, ctx, { key: "priority.high", value: "独自の基準" });
     const cleared = await runCommand(configSet, ctx, { key: "priority.high", value: "" });
@@ -2799,6 +2805,10 @@ describe("用意", () => {
     const byKey = new Map(shown.fields.map((x) => [x.key, x]));
     expect(byKey.get("models.light")?.scope).toBe("local");
     expect(byKey.get("auto.merge")?.scope).toBe("team");
+    // 空にすると既定に戻るか（設定画面が読む）。既定が空でない文字列の項目だけ true
+    expect(byKey.get("git.remote")?.clears_to_default).toBe(true);
+    expect(byKey.get("models.light")?.clears_to_default).toBe(false);
+    expect(byKey.get("auto.merge")?.clears_to_default).toBe(false);
     // --fields なしは重ねた値だけ
     expect((await runCommand(configShow, ctx, {})).data).toMatchObject({
       models: { light: "my-light" },

@@ -52,6 +52,14 @@ export interface WriteOutcome {
   warnings: string[];
 }
 
+/**
+ * 書き込みを捨てて抜けるための例外の基底。mutate が投げると、writeLocked は何も書かずに取り込みの警告を載せて投げ直す
+ * （ticket claim がもう一度の claim と分かったときなど。書くものがないが、取り込みの警告は呼び出し側が返す）
+ */
+export class AbortWrite extends Error {
+  readonly warnings: string[] = [];
+}
+
 export interface WriteResult<T> {
   value: T;
   write: WriteOutcome;
@@ -127,7 +135,10 @@ async function writeLocked<T>(
     }
 
     const before = await headSha(repo);
-    const value = await mutate();
+    const value = await mutate().catch((e: unknown) => {
+      if (e instanceof AbortWrite) e.warnings.push(...warnings);
+      throw e;
+    });
     const message = typeof opts.message === "function" ? opts.message(value) : opts.message;
     const committed = await commitAll(repo, message);
     if (!committed)
