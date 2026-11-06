@@ -6,7 +6,7 @@ after:
     - t478
   t482:
     - t481
-pending_approval: true
+pending_approval: false
 details:
   t478:
     scope: 保存中の印を項目ごとに持つ。重なった保存で先に消さない
@@ -40,3 +40,5 @@ details:
     scope: README の GIF を英語の画面で撮り直す
     approach: 英語の表示で、文字が読める解像度で撮り直して差し替える
     tier: light
+approved_by: eiki.kitajima/agent
+approved_at: 2026-11-06T11:23:19Z
