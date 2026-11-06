@@ -1,0 +1,31 @@
+{
+  "id": "r20261106-053725-f9b9",
+  "ticket": "t444",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-fable-5-1",
+  "started_at": "2026-11-06T05:37:25Z",
+  "finished_at": "2026-11-06T05:42:38Z",
+  "result": "success",
+  "error": null,
+  "retries": 2,
+  "retry_reasons": [
+    "MT-2 と ADR-005 の使用量の取り込みの記述が古い",
+    "閉じる操作が重なると run finish が REJECTED で落ちる"
+  ],
+  "usage": {
+    "input": 267,
+    "output": 20002,
+    "cache_read": 2550913,
+    "cache_write": 30695
+  },
+  "tools": {
+    "read": 13,
+    "search": 0,
+    "write": 20,
+    "bash": 6,
+    "other": 0,
+    "read_before_write": 0,
+    "search_before_write": 0
+  }
+}
