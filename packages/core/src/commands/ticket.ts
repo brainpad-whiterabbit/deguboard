@@ -954,7 +954,7 @@ async function openClaimRun(
 }
 
 /**
- * もう一度の claim（自分が claim 済みで PR のあるチケット）。人のレビューの後の手直しの開始とみなし、チケットは変えない（ST-3）。
+ * もう一度の claim（自分が claim 済みで PR のあるチケット）。手直し（見直しの修正ループ・人のレビューの後）の開始とみなし、チケットは変えない（ST-3）。
  * agent なら手直しの Run（opens_on: reclaim の step、なければ fix）を開く（RN-5）。開いたままの前の手直しの Run は、
  * 次の Run の開始を区切りとして最後の push の時刻で閉じてから開く（RN-6）
  */
@@ -1015,7 +1015,7 @@ export const ticketClaim = defineCommand({
   summary:
     "チケットに着手する。担当者（assignee）を自分にしてブランチを記録し、in_progress にする。push の成功で排他を得る。todo → in_progress の制約（requires: [deps_done] など）があれば従う。" +
     "agent なら続けて実装の Run（Workflow の steps のうち opens_on: claim のもの、なければ implement）を開き、ID を run（人向けの出力では標準出力の最後の行）に出す。開けなければ警告だけして claim は成功にする。" +
-    "自分（同じユーザの人と AI）が claim 済みで PR のあるチケット（in_progress か review）をもう一度 claim すると、人のレビューの後の手直しの開始とみなす。チケットは変えず、agent なら手直しの Run（opens_on: reclaim のもの、なければ fix）を開く。開いたままの前の手直しの Run は、この claim を区切りとして、その Run の開始より後の最後の push の時刻（なければこの claim の時刻）で success にしてから開く。ほかの主体の claim は拒否する",
+    "自分（同じユーザの人と AI）が claim 済みで PR のあるチケット（in_progress か review）をもう一度 claim すると、手直し（見直しの修正ループ・人のレビューの後）の開始とみなす。チケットは変えず、agent なら手直しの Run（opens_on: reclaim のもの、なければ fix）を開く。開いたままの前の手直しの Run は、この claim を区切りとして、その Run の開始より後の最後の push の時刻（なければこの claim の時刻）で success にしてから開く。ほかの主体の claim は拒否する",
   input: z.object({
     ticket: ticketRef,
     branch: z
@@ -1038,7 +1038,7 @@ export const ticketClaim = defineCommand({
       .boolean()
       .optional()
       .describe(
-        "Run を開かない。実装・手直しをサブエージェントに渡すとき（サブエージェントが自分で run start する）",
+        "Run を開かない。実装をサブエージェントに渡すとき（サブエージェントが自分で run start する。手直しはサブエージェントがもう一度 claim する）",
       ),
     retry_reasons: retryReasons
       .optional()
