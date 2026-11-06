@@ -1,0 +1,71 @@
+id: p63
+project: default
+tickets: [t466, t465, t467, t460, t461, t463, t458, t444, t445, t446, t439, t464]
+after:
+  t465:
+    - t466
+  t467:
+    - t465
+  t460:
+    - t467
+  t461:
+    - t460
+  t463:
+    - t461
+  t458:
+    - t463
+  t445:
+    - t444
+  t446:
+    - t444
+    - t445
+pending_approval: true
+details:
+  t466:
+    scope: 保存が通って読み直しだけが失敗したときに保存の成功と読み直しの失敗を分けて出し、後に始めた保存の結果を画面に残す
+    approach: config.tsx の save で保存と読み直しの catch を分け、読み直しに連番を持たせて古い応答を捨て、config.test.tsx で 3 つの場合を確かめる
+    tier: standard
+  t465:
+    scope: config show --fields の項目に空にすると既定に戻るかの値を出し、core の resolveLeaf と設定画面の両方がそれを使う
+    approach: model/config.ts の ConfigField に値を足して setup.ts の resolveLeaf がそれで空文字を扱い、web の types.ts と config.tsx の clearsToDefault をその値の読みに置き換えてテストする
+    tier: heavy
+  t467:
+    scope: チームのタブで既定が空でない文字列の項目を空にしたとき、確認の文を既定の値に戻すことがわかる文にする（日本語・英語）
+    approach: config.tsx の CONFIRM_KEYS の確認の文を t465 の値と既定値で組み分け、l10n-en.ts に英語の文を足し、両言語の文をテストする
+    tier: standard
+  t460:
+    scope: 表示言語が英語のとき設定画面の全項目の説明を英語で出し、検索も英語の説明に当たるようにし、訳の抜けをテストで指摘し、UI-11 を直す
+    approach: l10n-en.ts に項目キーごとの英語の説明を置いて config.tsx が表示言語で選び、l10n.test.ts で configFields との対応を確かめ、requirements UI-11 を直す
+    tier: standard
+  t461:
+    scope: priority.high/medium/low が既定のままなら表示言語が英語のとき設定画面・印のツールチップ・詳細の選択で英語の基準を出し、書き換えた値はそのまま出す
+    approach: core が既定値かを判定できる形（config show --fields の既定との一致など）を使い、store.tsx で表示言語に合わせて parts.tsx・inline-edit.tsx・config.tsx に渡し、guide import の表と意味を揃える
+    tier: standard
+  t463:
+    scope: 設定の保存の拒否の理由と Plan・Run の警告を表示言語が英語なら英語で出し、訳のない文は core の文のまま出す
+    approach: core の errors.ts の code を鍵に l10n-en.ts に訳を置き、http.ts・config.tsx・plans.tsx・ticket-runs.tsx が表示言語で選び、訳がなければ元の文を出すテストを書き、UI-11 を直す
+    tier: standard
+  t458:
+    scope: README の GIF 5 本を英語の画面・台詞で、幅 1120px 以上の文字がにじまない解像度で作り直し、録る仕組みが言語を渡せるようにする
+    approach: scripts/record-gifs.mjs の台本を英語にして data-language と倍率を渡し、mise run gifs で 5 本を作り直して秒数と大きさの上限に収め、上限を変えたら gif.mjs のコメントと development.md も直す
+    tier: standard
+  t444:
+    scope: ticket update --pr・sync の PR 発見・unclaim・--without-branch の done/review で実装の Run を閉じ、finished_at を PR の作成時刻にし、閉じた Run への run finish を無害にする
+    approach: ticket.ts と reconcile.ts から record.ts の閉じる処理を呼び、PR の作成時刻を gh から取り、bare リモート付きのテストで閉じ方を確かめ、guide work/run・requirements・ADR-005 を直す
+    tier: heavy
+  t445:
+    scope: "自分が claim 済みで PR のあるチケットの再 claim で opens_on: reclaim の step の Run を開き、--retry-reason を記録し、開いたままの手直しの Run を sync が次の区切りで最後の push の時刻で閉じる"
+    approach: "ticket.ts の claim の拒否判定を自分の再 claim だけ通し、テンプレートに opens_on: reclaim を足し、reconcile.ts で区切りを見て閉じ、guide review/run・requirements・ADR-005 を直してテストする"
+    tier: heavy
+  t446:
+    scope: agent が PR まで進めたのに実装の Run がないチケットと、どの Run の期間にも入らない push 済みコミットがあるチケットを dg lint で指摘する
+    approach: setup.ts の lint に 2 つの検査を足し、record.ts の Run の期間とブランチのコミット時刻を比べ、テストと requirements の lint の一覧・--help を直す
+    tier: standard
+  t439:
+    scope: mise run test:vscode が Xvfb 上の拡張開発ホストを Playwright の _electron で操作し、Webview の行の表示・CSP 違反と例外の検出・テーマごとのスクリーンショットを出す（check には入れない）
+    approach: test/vscode/ に @vscode/test-electron と Playwright の起動を置き、bare リモート付きの一時リポジトリの fixture を使い、.vscode-test を git と VSIX から外し、development.md の人が見る記述とスクリーンショットの手順を書き換える
+    tier: heavy
+  t464:
+    scope: "check:docs が README.md と README.ja.md の # から ### の見出しの数と階層の並びを比べ、ずれたら位置と両方の見出しを出して失敗にする"
+    approach: scripts/check-docs.mjs に見出しの構成を比べる検査を足し、test/scripts/check-docs.test.ts でずれたら落ち揃えば通ることを確かめる
+    tier: standard
