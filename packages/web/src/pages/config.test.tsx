@@ -9,6 +9,7 @@ import type { ConfigField } from "../types.js";
 import { configFields } from "@deguboard/core";
 import {
   CONFIRM_KEYS,
+  clearsToDefault,
   formatValue,
   groupOf,
   isModified,
@@ -23,7 +24,10 @@ afterEach(() => {
   window.localStorage.clear();
 });
 
-/** core の configFields と同じ形の項目（説明は短くしたもの）。scope は core と同じ：local は個人で上書きできる項目 */
+/**
+ * core の configFields と同じ形の項目（説明は短くしたもの）。scope は core と同じ：local は個人で上書きできる項目。
+ * clears_to_default（空にすると既定に戻る）も core と同じで、既定が空でない文字列の項目だけ true
+ */
 const FIELDS: ConfigField[] = [
   {
     key: "default_project",
@@ -31,6 +35,7 @@ const FIELDS: ConfigField[] = [
     description: "省略時の Project",
     default: "default",
     scope: "local",
+    clears_to_default: true,
   },
   {
     key: "git.remote",
@@ -38,14 +43,23 @@ const FIELDS: ConfigField[] = [
     description: "同期先のリモート",
     default: "origin",
     scope: "local",
+    clears_to_default: true,
   },
-  { key: "git.base_branch", type: "string", description: "基準", default: "main", scope: "team" },
+  {
+    key: "git.base_branch",
+    type: "string",
+    description: "基準",
+    default: "main",
+    scope: "team",
+    clears_to_default: true,
+  },
   {
     key: "worktree.root",
     type: "string",
     description: "置き場所",
     default: "../<repo>.worktrees",
     scope: "local",
+    clears_to_default: true,
   },
   {
     key: "commit.mode",
@@ -54,6 +68,7 @@ const FIELDS: ConfigField[] = [
     description: "each: 書き込みのたびにコミット",
     default: "batch",
     scope: "local",
+    clears_to_default: false,
   },
   {
     key: "push.mode",
@@ -62,6 +77,7 @@ const FIELDS: ConfigField[] = [
     description: "auto: コミットのたびに push",
     default: "auto",
     scope: "local",
+    clears_to_default: false,
   },
   {
     key: "metrics.read_transcripts",
@@ -69,6 +85,7 @@ const FIELDS: ConfigField[] = [
     description: "会話記録を読む",
     default: false,
     scope: "team",
+    clears_to_default: false,
   },
   {
     key: "actions.shell",
@@ -76,6 +93,7 @@ const FIELDS: ConfigField[] = [
     description: "シェルを許す",
     default: false,
     scope: "local",
+    clears_to_default: false,
   },
   {
     key: "actions.test",
@@ -83,6 +101,7 @@ const FIELDS: ConfigField[] = [
     description: "テストのコマンド",
     default: [],
     scope: "team",
+    clears_to_default: false,
   },
   {
     key: "auto.merge",
@@ -90,8 +109,24 @@ const FIELDS: ConfigField[] = [
     description: "自動でマージ",
     default: false,
     scope: "team",
+    clears_to_default: false,
   },
-  { key: "actor.human_only", type: "list", description: "人だけ", default: [], scope: "team" },
+  {
+    key: "models.light",
+    type: "string",
+    description: "light のモデル",
+    default: "",
+    scope: "local",
+    clears_to_default: false,
+  },
+  {
+    key: "actor.human_only",
+    type: "list",
+    description: "人だけ",
+    default: [],
+    scope: "team",
+    clears_to_default: false,
+  },
 ];
 
 function configClient(initialLocal: Record<string, unknown> = {}) {
@@ -105,6 +140,7 @@ function configClient(initialLocal: Record<string, unknown> = {}) {
     metrics: { read_transcripts: false },
     actions: { shell: false, test: ["mise", "run", "check"] },
     auto: { merge: false },
+    models: { light: "" },
     actor: { human_only: [] as string[] },
   };
   /** 個人の上書き（ドット区切りの項目名 → 値）。core と同じく config.show は local で返し、重ねた値は config で返す */
@@ -136,9 +172,9 @@ function configClient(initialLocal: Record<string, unknown> = {}) {
       });
     // --local は個人の設定に書き、重ねた値を返す。なしはチームの値に書き、チームの値を返す
     if (toLocal) {
-      // core と同じく、既定が空でない文字列の項目に空文字を渡すと上書きを消す（resolveLeaf）
+      // core と同じく、空にすると既定に戻る項目（clears_to_default）に空文字を渡すと上書きを消す（resolveLeaf）
       const field = FIELDS.find((f) => f.key === key);
-      const clears = field?.type === "string" && field.default !== "" && value === "";
+      const clears = field?.clears_to_default === true && value === "";
       if (clears) delete local[key];
       else local[key] = value;
       return merged();
@@ -540,6 +576,7 @@ describe("設定画面", () => {
       "commit.mode",
       "push.mode",
       "actions.shell",
+      "models.light",
       "default_project",
       "git.remote",
       "worktree.root",
@@ -680,6 +717,23 @@ describe("設定画面", () => {
     expect(document.querySelectorAll(".config-override")).toHaveLength(0);
   });
 
+  it("自分のタブで空にしても既定に戻らない項目（clears_to_default が false）を空にすると、外さずに空の値を保存する", async () => {
+    const { client } = configClient({ "models.light": "sonnet" });
+    mount(client);
+    await screen.findByText("コミットの仕方");
+    fireEvent.click(tabOf("自分"));
+    const light = within(fieldOf("models.light")).getByRole<HTMLInputElement>("textbox");
+    fireEvent.change(light, { target: { value: "" } });
+    fireEvent.blur(light);
+    // 空の値は空のまま出す（文の中の空白は 2 つ並ぶ）
+    expect(await screen.findByText(/^保存した: models\.light を自分だけ\s+にした$/)).toBeTruthy();
+    expect(setCalls(client)).toEqual([{ key: "models.light", value: "", local: true }]);
+    expect(unsetCalls(client)).toEqual([]);
+    // 自分の値（空）は残る
+    expect(ownOf("models.light").checked).toBe(true);
+    expect(tabOf("自分").textContent).toBe("自分1");
+  });
+
   it("set --local で空文字を渡しても、core が上書きを消したなら画面も上書きなしで出す（config.show で読み直す）", async () => {
     const { client } = configClient({ "worktree.root": "/w" });
     mount(client);
@@ -804,6 +858,22 @@ describe("設定画面の部品", () => {
     expect(formatValue([])).toBe("空");
     expect(formatValue(["a", "b"])).toBe("[a, b]");
     expect(formatValue(false)).toBe("false");
+  });
+
+  it("空にすると既定に戻るかは core の項目の定義（clears_to_default）で決め、型や既定値から判断しない", () => {
+    const base = { type: "string", description: "", scope: "local" } as const;
+    // 既定が空でない文字列の項目：core は true を出し、空の値（空文字・undefined・null）が外すのと同じになる
+    const clears: ConfigField = { ...base, key: "a", default: "x", clears_to_default: true };
+    expect(clearsToDefault(clears, "")).toBe(true);
+    expect(clearsToDefault(clears, undefined)).toBe(true);
+    expect(clearsToDefault(clears, null)).toBe(true);
+    expect(clearsToDefault(clears, "y")).toBe(false);
+    // 既定が空の文字列の項目：core は false を出し、空文字は値として保存する
+    const keeps: ConfigField = { ...base, key: "b", default: "", clears_to_default: false };
+    expect(clearsToDefault(keeps, "")).toBe(false);
+    // 画面は型や既定値を見ない。core が条件を変えても値に従う
+    expect(clearsToDefault({ ...clears, clears_to_default: false }, "")).toBe(false);
+    expect(clearsToDefault({ ...keeps, clears_to_default: true }, "")).toBe(true);
   });
 
   it("キーの最上位でまとまりを決め、知らない項目は「その他」", () => {

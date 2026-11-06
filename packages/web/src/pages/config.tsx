@@ -119,14 +119,12 @@ export function fieldMatchesQuery(field: ConfigField, query: string): boolean {
 /** 書き分ける先：チームの config.yaml か、個人の deguboard-local/config.yaml */
 type Tab = ConfigScope;
 
-/** 空にすると既定に戻る（core の config.set が値を消す）項目と値か。既定が空でない文字列の項目の空文字 */
+/**
+ * 空にすると既定に戻る（core の config.set が値を消す）項目と値か。
+ * どの項目がそうかは core の項目の定義（config.show の fields の clears_to_default）が決め、画面では型や既定値から判断しない
+ */
 export function clearsToDefault(field: ConfigField, value: unknown): boolean {
-  return (
-    field.type === "string" &&
-    typeof field.default === "string" &&
-    field.default !== "" &&
-    (value === "" || value === undefined || value === null)
-  );
+  return field.clears_to_default && (value === "" || value === undefined || value === null);
 }
 
 interface Pending {
@@ -328,7 +326,7 @@ export function ConfigPage() {
         setPending((p) => (p?.key === key ? null : p));
         return;
       }
-      // 自分のタブで既定が空でない文字列の項目を空にすると、core は上書きを消す（config set --help）。外すのと同じに扱う
+      // 自分のタブで空にすると既定に戻る項目（clears_to_default）を空にすると、core は上書きを消す（config set --help）。外すのと同じに扱う
       const field = view.fields.find((f) => f.key === key);
       if (tab === "local" && field && clearsToDefault(field, value)) {
         unsetOwn(key);
