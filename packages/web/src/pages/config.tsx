@@ -9,7 +9,7 @@
 // 同期先とブランチの判定・worktree の置き場所・実行するコマンドとエージェントに許す操作を変える項目（CONFIRM_KEYS）は、どちらのタブでも保存の前に欄の下で確かめる
 // （自分の値を外して効く値が変わるときも確かめる）。拒否されたら理由を項目の下にだけ出し（上の通知の帯には出さない）、値を保存されている値に戻す
 
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { failureOf } from "../client/http.js";
 import { hrefOf, toggleRoute } from "../router.js";
 import { useStore } from "../store.js";
@@ -157,15 +157,30 @@ export function ConfigPage() {
   /** チームのタブの「自分：値」から移ったとき、自分のタブで前に出す項目 */
   const [focusKey, setFocusKey] = useState<string | null>(null);
 
+  /**
+   * config.show の読み始めの連番。読み直しは逆の順に返りうるので、最後に始めた読み直しの応答だけを画面に出す
+   * （開いたときの読み込みと保存の後の読み直しで共有する）
+   */
+  const showSeq = useRef(0);
+  /** 保存の始めの連番。2 つの保存が重なったら、後に始めた保存の「保存した」だけを出す */
+  const saveSeq = useRef(0);
+
+  /** 設定を読む。後に始めた読み直しがあれば、古い応答は画面に出さない（読んだ値は返す） */
+  const show = useCallback(async (): Promise<ConfigShowView> => {
+    const seq = ++showSeq.current;
+    const res = await store.client.run<ConfigShowView>("config.show", { fields: true });
+    if (seq === showSeq.current) setView(res.data);
+    return res.data;
+  }, [store.client]);
+
   const load = useCallback(async () => {
     try {
-      const res = await store.client.run<ConfigShowView>("config.show", { fields: true });
-      setView(res.data);
+      await show();
       setLoadError(null);
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : String(error));
     }
-  }, [store.client]);
+  }, [show]);
 
   // 開いたときと、読み直し（同期・ファイルの変化・ほかの書き込み）が終わるたびに読み直す。
   // useCommandData は使わない：一覧が変わったとき（store.tickets）でなく、読み直しが終わったとき（store.loading）を合図にし、読み直しの間も読まないため
@@ -198,12 +213,15 @@ export function ConfigPage() {
   const save = useCallback(
     async (p: Pending) => {
       const { key } = p;
+      const seq = ++saveSeq.current;
+      const latest = () => seq === saveSeq.current;
       setPending(null);
       setSaving(key);
       setSaved(null);
-      // store.run は失敗を上の通知の帯にも出すので使わない（拒否の理由は項目の下にだけ出す）
+      // store.run は失敗を上の通知の帯にも出すので使わない（拒否の理由は項目の下にだけ出す）。
+      // 保存の失敗と、保存は通って読み直しだけが失敗したときは分けて出す
+      let warnings: string[];
       try {
-        let warnings: string[];
         if (p.tab === "team") {
           // --local なしの config.set はチームの値を返す
           const res = await store.client.run<ConfigShowView["team"]>("config.set", {
@@ -212,7 +230,7 @@ export function ConfigPage() {
           });
           warnings = res.warnings;
           setView((v) => (v ? { ...v, team: res.data } : v));
-          setSaved(tr("{0} を {1} にした", key, formatValue(valueAt(res.data, key))));
+          if (latest()) setSaved(tr("{0} を {1} にした", key, formatValue(valueAt(res.data, key))));
         } else {
           // --local の config.set・unset は個人を重ねた値しか返さない。上書きが残ったか（空文字で既定に戻す項目は
           // set でも上書きを消す）は core が決めるので、画面で推し量らずに config.show で個人の上書きを読み直す
@@ -224,33 +242,47 @@ export function ConfigPage() {
                 local: true,
               });
           warnings = res.warnings;
-          const next = (await store.client.run<ConfigShowView>("config.show", { fields: true }))
-            .data;
-          setView(next);
-          const merged = formatValue(valueAt(next.config, key));
-          setSaved(
-            key in next.local
-              ? tr("{0} を自分だけ {1} にした", key, merged)
-              : tr("{0} の自分の値を外した（チームの {1} を使う）", key, merged),
-          );
         }
-        setMessages((d) => without(d, key));
-        if (warnings.length) store.notify({ kind: "info", text: warnings.join(" / ") });
-        void store.reload();
       } catch (error) {
         // 値は保存されている値に戻す（下書きを消すと欄は view の値を出す）
-        const f = failureOf(error);
-        const detail = f.detail ? tr("（{0}）", f.detail) : "";
+        const [message, detail] = failureText(error);
         setMessages((m) => ({
           ...m,
-          [key]: { kind: "error", text: tr("保存できない: {0}{1}", f.message, detail) },
+          [key]: { kind: "error", text: tr("保存できない: {0}{1}", message, detail) },
+        }));
+        setSaving(null);
+        setDrafts((d) => without(d, key));
+        return;
+      }
+      setMessages((d) => without(d, key));
+      if (warnings.length) store.notify({ kind: "info", text: warnings.join(" / ") });
+      try {
+        if (p.tab === "local") {
+          const next = await show();
+          if (latest()) {
+            const merged = formatValue(valueAt(next.config, key));
+            setSaved(
+              key in next.local
+                ? tr("{0} を自分だけ {1} にした", key, merged)
+                : tr("{0} の自分の値を外した（チームの {1} を使う）", key, merged),
+            );
+          }
+        }
+      } catch (error) {
+        // 保存は通っている。保存できたことを出し、読み直せなかったことは項目の下に分けて出す
+        if (latest()) setSaved(key);
+        const [message, detail] = failureText(error);
+        setMessages((m) => ({
+          ...m,
+          [key]: { kind: "error", text: tr("保存したが、読み直せない: {0}{1}", message, detail) },
         }));
       } finally {
         setSaving(null);
         setDrafts((d) => without(d, key));
       }
+      void store.reload();
     },
-    [store],
+    [store, show],
   );
 
   /** 自分の値を外す。確かめる項目で効く値が変わるときは確かめ、確かめの文は外すときのものにする */
@@ -570,6 +602,12 @@ function FieldRow({
       ) : null}
     </div>
   );
+}
+
+/** 項目の下に出す失敗の理由と、括弧で包んだ詳細（なければ空） */
+function failureText(error: unknown): [string, string] {
+  const f = failureOf(error);
+  return [f.message, f.detail ? tr("（{0}）", f.detail) : ""];
 }
 
 function inputId(key: string): string {
