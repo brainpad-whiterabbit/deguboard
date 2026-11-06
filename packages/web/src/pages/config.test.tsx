@@ -7,7 +7,7 @@ import { App } from "../app.js";
 import { ClientError } from "../client/http.js";
 import { StoreProvider } from "../store.js";
 import { mockClient } from "../test-helpers.js";
-import type { ConfigField } from "../types.js";
+import type { ConfigField, ConfigShowView } from "../types.js";
 import { configFields } from "@deguboard/core";
 import {
   CONFIRM_KEYS,
@@ -487,6 +487,64 @@ describe("設定画面", () => {
     expect(ownOf("commit.mode").checked).toBe(true);
     expect(screen.getByText("保存した: commit.mode を自分だけ each にした")).toBeTruthy();
     expect(screen.queryByText("保存した: push.mode を自分だけ auto にした")).toBeNull();
+  });
+
+  it("チームのタブで保存した後に、保存の前に始まった読み込みの古い応答が返っても、画面は保存した値のまま", async () => {
+    const { client } = configClient();
+    mount(client);
+    await screen.findByText("コミットの仕方");
+    const box = () =>
+      within(fieldOf("metrics.read_transcripts")).getByRole<HTMLInputElement>("checkbox");
+    // 読み込み（config.show）を止め、返すのを決める。止めた時点の値で応答を作る（呼ばれた順に held に並ぶ）
+    const show = client.handlers["config.show"]!;
+    const held: (() => void)[] = [];
+    client.handlers["config.show"] = (input) => {
+      // 呼ばれた時点の値を写す（モックの応答は config を参照するので、後の保存で変わらないように）
+      const data = structuredClone(show(input));
+      return new Promise((resolve) => held.push(() => resolve(data)));
+    };
+    // 1 回目の保存（true）。その後の読み直しの応答を返すと、画面の読み込み（held[1]）が始まる
+    fireEvent.click(box());
+    await waitFor(() => expect(held).toHaveLength(1));
+    held[0]!();
+    await waitFor(() => expect(held).toHaveLength(2));
+    // held[1] は 1 回目の保存の後・2 回目の保存の前に始まった読み込み（true を読んだ）。返す前に 2 回目の保存（false）をする
+    fireEvent.click(box());
+    await waitFor(() => expect(box().checked).toBe(false));
+    await waitFor(() => expect(held).toHaveLength(3));
+    // 古い応答（true）が後から返っても、保存した値（false）のまま
+    held[1]!();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(box().checked).toBe(false);
+    expect(screen.getByText("保存した: metrics.read_transcripts を false にした")).toBeTruthy();
+    held[2]!();
+    await waitFor(() => expect(held).toHaveLength(4));
+    held[3]!();
+    client.handlers["config.show"] = show;
+  });
+
+  it("保存の後に始まった読み込みの応答は、今までどおり画面に反映される", async () => {
+    const { client } = configClient();
+    mount(client);
+    await screen.findByText("コミットの仕方");
+    const box = () =>
+      within(fieldOf("metrics.read_transcripts")).getByRole<HTMLInputElement>("checkbox");
+    // 読み込みの応答は、チームの値が外から false に変わった形で返す
+    const show = client.handlers["config.show"]!;
+    const held: (() => void)[] = [];
+    client.handlers["config.show"] = (input) => {
+      const data = structuredClone(show(input) as ConfigShowView);
+      data.team.metrics = { read_transcripts: false };
+      return new Promise((resolve) => held.push(() => resolve(data)));
+    };
+    fireEvent.click(box());
+    await waitFor(() => expect(held).toHaveLength(1));
+    held[0]!();
+    // 1 回目の保存の後に始まった画面の読み込み（held[1]）は、保存の後なので反映される
+    await waitFor(() => expect(held).toHaveLength(2));
+    held[1]!();
+    await waitFor(() => expect(box().checked).toBe(false));
+    client.handlers["config.show"] = show;
   });
 
   it("2 つの項目の保存が重なり、後の保存が先に終わっても、先の保存が終わったときは後の項目の「保存中」の印と錠を消さず、自分の保存が終わったときだけ外す", async () => {

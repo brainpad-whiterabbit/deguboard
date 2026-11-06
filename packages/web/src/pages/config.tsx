@@ -175,7 +175,8 @@ export function ConfigPage() {
 
   /**
    * config.show の読み始めの連番。読み直しは逆の順に返りうるので、最後に始めた読み直しの応答だけを画面に出す
-   * （開いたときの読み込みと保存の後の読み直しで共有する）
+   * （開いたときの読み込みと保存の後の読み直しで共有する）。保存の応答を画面に入れるときも進め、
+   * 保存より前に始まった読み込みの古い応答を後から出さない
    */
   const showSeq = useRef(0);
   /** 保存の始めの連番。2 つの保存が重なったら、後に始めた保存の「保存した」だけを出す */
@@ -268,6 +269,8 @@ export function ConfigPage() {
             value: p.value,
           });
           warnings = res.warnings;
+          // 保存より前に始まった読み込みの応答は、この保存の値を古い値に戻すので画面に出さない（showSeq を進める）
+          showSeq.current++;
           setView((v) => (v ? { ...v, team: res.data } : v));
           if (latest())
             setSaved(
@@ -310,6 +313,7 @@ export function ConfigPage() {
         const kept = !p.unset;
         if (merged) {
           const config = merged;
+          showSeq.current++;
           setView((v) =>
             v
               ? {
