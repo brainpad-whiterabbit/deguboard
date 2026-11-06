@@ -1,0 +1,20 @@
+id: p67
+project: default
+tickets: [t508, t477, t509]
+after:
+  t509:
+    - t508
+pending_approval: true
+details:
+  t508:
+    scope: 見直しの指摘を直す fix の Run を親の claim --retry-reason で開き sync が push の時刻で閉じる。guide の review・parallel・work と ADR-005 を合わせる
+    approach: 人のレビューの手直し（reclaim）の仕組みを修正ループにも使い、サブエージェントの run start を手順から外す
+    tier: heavy
+  t477:
+    scope: 頼む小窓の Skill の札と候補のツールチップに Skill の説明（skill_summary）を出す。説明は 1 か所の正本から SKILL.md と小窓に出す
+    approach: core の ask の候補に skill_summary を足し、Skill の雛形と同じ正本から日英の文を引く。t476 のマージ後に着手
+    tier: standard
+  t509:
+    scope: 見直しの Run の後にコミットが増え fix の Run がないチケットを lint_run_fix_missing で指摘する
+    approach: lint_run_implement_missing（t446）と同じ作りで足す。t508 の仕組みの後に、その Run の開き方に合わせる
+    tier: standard
