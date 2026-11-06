@@ -140,7 +140,7 @@ updated_at: 2026-10-31T05:10:00Z
 id: software-development
 name: Software Development
 labels: # 任意。表示名だけを変える
-  review: コードレビュー
+  review: レビュー
 transitions: # 任意。制約を足す遷移だけ書く（WF-1）
   - { from: todo, to: in_progress, requires: [deps_done] } # AND
   - { from: review, to: done, by: [human] } # [] で禁止
