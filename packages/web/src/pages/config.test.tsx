@@ -380,12 +380,30 @@ describe("設定画面", () => {
       throw new ClientError({ code: "IO_ERROR", message: "読めない" });
     };
     fireEvent.click(ownOf("push.mode"));
-    expect(await screen.findByText("保存した: push.mode")).toBeTruthy();
+    expect(await screen.findByText("保存した: push.mode を自分だけ auto にした")).toBeTruthy();
     const alert = await within(fieldOf("push.mode")).findByRole("alert");
     expect(alert.textContent).toBe("保存したが、読み直せない: 読めない");
     expect(alert.textContent).not.toContain("保存できない");
     expect(local["push.mode"]).toBe("auto");
+    // 欄は保存前の値に戻さず、保存した値（自分の値を使う）で出す
+    expect(ownOf("push.mode").checked).toBe(true);
+    expect(within(fieldOf("push.mode")).getByRole<HTMLSelectElement>("combobox").disabled).toBe(
+      false,
+    );
+
+    // 外すほうも、読み直せなくても上書きなしで出す
+    fireEvent.click(ownOf("push.mode"));
+    expect(
+      await screen.findByText("保存した: push.mode の自分の値を外した（チームの auto を使う）"),
+    ).toBeTruthy();
+    expect(local["push.mode"]).toBeUndefined();
+    expect(ownOf("push.mode").checked).toBe(false);
+
+    // 後で読み直せたら「読み直せない」を消す
     client.handlers["config.show"] = show;
+    fireEvent.click(ownOf("commit.mode"));
+    expect(await screen.findByText("保存した: commit.mode を自分だけ each にした")).toBeTruthy();
+    await waitFor(() => expect(within(fieldOf("push.mode")).queryByRole("alert")).toBeNull());
   });
 
   it("自分のタブで保存そのものが失敗したら、今までどおり保存できない旨を出し、読み直さない", async () => {

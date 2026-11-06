@@ -7,7 +7,8 @@
 // VS Code の settings.json は使わない（requirements.md 5.10）。左パネルではビューのタイトル行の歯車、ブラウザでは上のバーの歯車で開け閉めし、画面の中の「前の画面に戻る」も歯車と同じく来る前の画面に戻る。
 // 選択欄とチェックは変えたらすぐ、テキストは Enter か欄を離れたとき、リストは足す・外すたびに保存する。
 // 同期先とブランチの判定・worktree の置き場所・実行するコマンドとエージェントに許す操作を変える項目（CONFIRM_KEYS）は、どちらのタブでも保存の前に欄の下で確かめる
-// （自分の値を外して効く値が変わるときも確かめる）。拒否されたら理由を項目の下にだけ出し（上の通知の帯には出さない）、値を保存されている値に戻す
+// （自分の値を外して効く値が変わるときも確かめる）。拒否されたら理由を項目の下にだけ出し（上の通知の帯には出さない）、値を保存されている値に戻す。
+// 保存は通って読み直しだけが失敗したら、保存できたことと読み直せないことを分けて出し、欄は保存した値で出す
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { failureOf } from "../client/http.js";
@@ -137,7 +138,8 @@ interface Pending {
 }
 
 interface FieldMessage {
-  kind: "error";
+  /** error は保存できない。reload は保存は通ったが読み直せない（後で読み直せたら消す） */
+  kind: "error" | "reload";
   text: string;
 }
 
@@ -169,7 +171,14 @@ export function ConfigPage() {
   const show = useCallback(async (): Promise<ConfigShowView> => {
     const seq = ++showSeq.current;
     const res = await store.client.run<ConfigShowView>("config.show", { fields: true });
-    if (seq === showSeq.current) setView(res.data);
+    if (seq === showSeq.current) {
+      setView(res.data);
+      // 読み直せたので、前の保存の「読み直せない」は古い
+      setMessages((m) => {
+        const stale = Object.keys(m).filter((k) => m[k]!.kind === "reload");
+        return stale.length ? stale.reduce((d, k) => without(d, k), m) : m;
+      });
+    }
     return res.data;
   }, [store.client]);
 
@@ -221,6 +230,8 @@ export function ConfigPage() {
       // store.run は失敗を上の通知の帯にも出すので使わない（拒否の理由は項目の下にだけ出す）。
       // 保存の失敗と、保存は通って読み直しだけが失敗したときは分けて出す
       let warnings: string[];
+      /** 自分のタブの保存が返した、個人を重ねた値 */
+      let merged: ConfigShowView["config"] | null = null;
       try {
         if (p.tab === "team") {
           // --local なしの config.set はチームの値を返す
@@ -242,6 +253,7 @@ export function ConfigPage() {
                 local: true,
               });
           warnings = res.warnings;
+          merged = res.data;
         }
       } catch (error) {
         // 値は保存されている値に戻す（下書きを消すと欄は view の値を出す）
@@ -259,22 +271,30 @@ export function ConfigPage() {
       try {
         if (p.tab === "local") {
           const next = await show();
-          if (latest()) {
-            const merged = formatValue(valueAt(next.config, key));
-            setSaved(
-              key in next.local
-                ? tr("{0} を自分だけ {1} にした", key, merged)
-                : tr("{0} の自分の値を外した（チームの {1} を使う）", key, merged),
-            );
-          }
+          if (latest()) setSaved(localSaved(key, next.config, key in next.local));
         }
       } catch (error) {
-        // 保存は通っている。保存できたことを出し、読み直せなかったことは項目の下に分けて出す
-        if (latest()) setSaved(key);
+        // 保存は通っている。下書きを消すと欄は view の値を出すので、保存した値を view に入れて保存前の値に戻さない
+        // （上書きが残ったかは推し量る。空文字で上書きを消す項目は clearsToDefault で外すほうに回っている）
+        const kept = !p.unset;
+        if (merged) {
+          const config = merged;
+          setView((v) =>
+            v
+              ? {
+                  ...v,
+                  config,
+                  local: kept ? { ...v.local, [key]: p.value } : without(v.local, key),
+                }
+              : v,
+          );
+          if (latest()) setSaved(localSaved(key, config, kept));
+        }
+        // 読み直せなかったことは項目の下に分けて出す
         const [message, detail] = failureText(error);
         setMessages((m) => ({
           ...m,
-          [key]: { kind: "error", text: tr("保存したが、読み直せない: {0}{1}", message, detail) },
+          [key]: { kind: "reload", text: tr("保存したが、読み直せない: {0}{1}", message, detail) },
         }));
       } finally {
         setSaving(null);
@@ -602,6 +622,14 @@ function FieldRow({
       ) : null}
     </div>
   );
+}
+
+/** 自分のタブで保存した後の「保存した」の文。kept は上書きが残ったか */
+function localSaved(key: string, config: ConfigShowView["config"], kept: boolean): string {
+  const value = formatValue(valueAt(config, key));
+  return kept
+    ? tr("{0} を自分だけ {1} にした", key, value)
+    : tr("{0} の自分の値を外した（チームの {1} を使う）", key, value);
 }
 
 /** 項目の下に出す失敗の理由と、括弧で包んだ詳細（なければ空） */
