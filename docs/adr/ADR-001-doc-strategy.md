@@ -13,10 +13,10 @@ deguboard は AI エージェント（Claude Code など）が主に実装する
 
 最初に読む文書を読み手ごとに 1 つに決める。ほかの文書は、入口から作業に応じて要る節だけを引く。
 
-読み手は Claude（毎回）・利用者・開発者（人）・仕様を知りたい人・作業中のエージェントで、入口はそれぞれ `CLAUDE.md`・`README.md`・`docs/development.md`・`docs/requirements.md`・`dg guide <topic>`。Claude は CLAUDE.md から、development.md・requirements.md は要る節だけ、ADR は一覧から番号で引く。作業中のエージェントは手順を `dg guide` が出すので docs を読まない。
+読み手は Claude（毎回）・利用者・開発者（人）・仕様を知りたい人・作業中のエージェントで、入口はそれぞれ `CLAUDE.md`・`README.md`・`docs/development.md`・`docs/requirements.md`・`dg guide <topic>`。Claude は CLAUDE.md から、development.md・requirements.md は要る節だけ、ADR は一覧から番号で引く。仕様を知りたい人が引くものは requirements.md の冒頭に書く。
 
 - リポジトリの規約（毎回守る決まり）は CLAUDE.md にだけ書く。README と development.md には書き写さず、参照する
-- エージェント向けの作業手順は docs に置かず、`dg guide` として CLI に同梱する
+- 特定の作業のときだけ要る手順は CLAUDE.md に書かない。人向けは development.md に置いて CLAUDE.md から参照し、エージェント向けは docs に置かず、`dg guide` として CLI に同梱する（作業中のエージェントは docs を読まない）
 
 ### 要件定義書に書くもの
 
