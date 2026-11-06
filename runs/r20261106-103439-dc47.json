@@ -1,0 +1,20 @@
+{
+  "id": "r20261106-103439-dc47",
+  "ticket": "t484",
+  "step": "implement",
+  "agent": "claude-code",
+  "model": null,
+  "started_at": "2026-11-06T10:34:39Z",
+  "finished_at": "2026-11-06T10:34:46Z",
+  "result": "failure",
+  "error": "ticket unclaim で todo に戻した",
+  "retries": 0,
+  "retry_reasons": [],
+  "usage": {
+    "input": null,
+    "output": null,
+    "cache_read": null,
+    "cache_write": null
+  },
+  "tools": null
+}
