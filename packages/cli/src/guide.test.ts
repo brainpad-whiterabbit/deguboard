@@ -396,9 +396,13 @@ describe("dg guide", () => {
     for (const word of ["interrupted", "見直し役を起動し直す", "見直し役を起動できない"])
       expect(reviewerLost).toContain(word);
     expect(bullet(ending, "見直し役を起動できない")).toBeTruthy();
-    const parallelFix = lineWith(await readGuide("parallel"), "手直し・見直しの Run");
+    const parallelFix = lineWith(
+      await readGuide("parallel"),
+      "手直し・見直しが失敗で返ったか返らない",
+    );
     for (const word of ["unclaim せず", "`dg guide review`", "終わり方"])
       expect(parallelFix).toContain(word);
+    expect(parallelFix).toContain("成功して返った手直しの Run は `sync` が閉じる");
     const allFailed = lineWith(all, "todo に戻さず");
     for (const word of ["手直し", "見直し", "返らない"]) expect(allFailed).toContain(word);
     // done の「終わらなかったとき」は実装の Run と手直し・見直しの Run を分け、review へ案内する
