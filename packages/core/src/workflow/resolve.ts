@@ -7,6 +7,7 @@ import type {
   Condition,
   FieldDefinition,
   StepDefinition,
+  StepOpener,
   WorkflowDefinition,
 } from "../model/workflow.js";
 import { evaluateAll, type Facts } from "./conditions.js";
@@ -134,4 +135,15 @@ export function findStep(
   if (!wf.steps) return { ok: true };
   const found = wf.steps.find((s) => s.id === step);
   return found ? { ok: true, step: found } : { ok: false, known: wf.steps.map((s) => s.id) };
+}
+
+/** opens_on が無いときに開く step。同梱のテンプレートの実装の step の名前（RN-5） */
+const DEFAULT_OPENED_STEP = "implement";
+
+/**
+ * チケットの操作（claim）が開く Run の step（RN-5）。`opens_on` にその操作を書いた step、なければ `implement`。
+ * steps のない Workflow も `implement`（縛らないので開ける）。語彙にあるかは呼ぶ側が findStep で確かめる
+ */
+export function stepOpenedOn(wf: ResolvedWorkflow, opener: StepOpener): string {
+  return wf.steps?.find((s) => s.opens_on === opener)?.id ?? DEFAULT_OPENED_STEP;
 }

@@ -43,7 +43,7 @@ export interface AgentDetection {
 }
 
 /**
- * dg を呼んだプロセスの環境変数から agent を判定する（AG-5・RN-1）。run start が --agent を省いたときに使い、
+ * dg を呼んだプロセスの環境変数から agent を判定する（AG-5・RN-1）。run start と ticket claim が --agent を省いたときに使い、
  * 判定できなければ（判定する Adapter がないか、2 つ以上が自分と判定した）agent は null
  */
 export function detectAgent(env: AgentEnv): AgentDetection {

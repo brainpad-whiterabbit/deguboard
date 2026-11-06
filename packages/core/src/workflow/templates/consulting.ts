@@ -21,7 +21,13 @@ export const consulting: WorkflowDefinitionInput = {
   steps: [
     { id: "research", label: "Research" },
     { id: "analyze", label: "Analyze" },
-    { id: "draft", label: "Draft", actions: ["create_worktree", "create_branch"] },
+    // 成果物を書く step。agent の ticket claim がこの Run を開く（RN-5。implement はないので付けないと開けない）
+    {
+      id: "draft",
+      label: "Draft",
+      actions: ["create_worktree", "create_branch"],
+      opens_on: "claim",
+    },
     { id: "review", label: "Review" },
   ],
 };

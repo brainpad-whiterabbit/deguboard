@@ -199,7 +199,7 @@ export interface Bound {
 
 /**
  * Run を結び付けるファイルを選ぶ（ADR-005）。files（会話記録の置き場所のすべて）のそれぞれで Run の ID と rivals が最初に出た時刻を読み、
- * Run の ID が最も早く出たファイルを返す。ID は dg run start が作るので、最も早く出たファイルがその Run を始めた記録で、
+ * Run の ID が最も早く出たファイルを返す。ID は dg run start か ticket claim が作るので、最も早く出たファイルがその Run を始めた記録で、
  * run start の警告などで後から ID を見ただけのファイルは選ばない。同じ時刻（ミリ秒）のときは、ファイルのパスの順で決める。
  * 呼ぶ session（CLAUDE_CODE_SESSION_ID など）の環境は選びに使わないので、finish と refresh で同じファイルになる。
  * ID が最初に出たのが to より後のファイルは除く（seenAfterRun）。rivals は to + START_MS までに出なければ譲る相手にならないので、
