@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   createFixture,
   createLocalOnlyRepo,
@@ -13,7 +13,7 @@ import { pickUser } from "../model/actor.js";
 import { configFields, defaultConfig } from "../model/config.js";
 import { resetGhCache } from "../git/facts.js";
 import { osUserName } from "../git/repo.js";
-import { peekRunningRuns } from "../run/record.js";
+import { closeRun, peekRunningRuns } from "../run/record.js";
 import { openContext, type ContextOptions } from "./context.js";
 import { runCommand, type CommandContext } from "./define.js";
 import { epicAdd, epicClose, epicCreate, epicReopen, epicShow, epicUpdate } from "./epic.js";
@@ -66,6 +66,21 @@ import {
 } from "./ticket.js";
 
 const cleanups: Array<() => Promise<void>> = [];
+// 照合の書き込みが閉じる直前に、別の文脈が先に閉じる形を作るための差し込み（通常は素通し）
+const race = vi.hoisted(() => ({ beforeClose: undefined as undefined | (() => Promise<void>) }));
+vi.mock("../run/record.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../run/record.js")>();
+  return {
+    ...actual,
+    closeRun: async (...args: Parameters<typeof actual.closeRun>) => {
+      const hook = race.beforeClose;
+      race.beforeClose = undefined;
+      if (hook) await hook();
+      return actual.closeRun(...args);
+    },
+  };
+});
+
 afterEach(async () => {
   await Promise.all(cleanups.splice(0).map((c) => c()));
 });
@@ -890,6 +905,57 @@ describe("チケットの流れ", () => {
     await expect(
       runCommand(runFinish, stale, { run: "r20261031-000000-0000", result: "success" }),
     ).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+
+  it("照合が閉じようとした実装の Run が別の文脈で先に閉じていても、sync は止まらずに警告し、ほかのチケットの照合と Run の閉じ方は変わらない（RN-6）", async () => {
+    const f = await fixture();
+    const clock = new Date("2026-11-06T00:00:00Z");
+    const human = await initialized(
+      f.cloneA,
+      { now: () => clock },
+      { template: "software-development" },
+    );
+    for (const title of ["Raced", "Other"]) await runCommand(ticketCreate, human, { title });
+    const agent = await agentWithRuns(f.cloneA, () => clock);
+    const raced = (await runCommand(ticketClaim, agent, { ticket: "t1", branch: "feat/t1" })).data
+      .run!;
+    const other = (await runCommand(ticketClaim, agent, { ticket: "t2", branch: "feat/t2" })).data
+      .run!;
+    for (const b of ["feat/t1", "feat/t2"]) await git(f.cloneA, ["branch", b]);
+    const restore = await fakeGh(f.root, {
+      "feat/t1|41":
+        '{"number":41,"state":"OPEN","isDraft":false,"mergedAt":null,"createdAt":"2026-11-06T01:00:00Z"}',
+      "feat/t2|42":
+        '{"number":42,"state":"OPEN","isDraft":false,"mergedAt":null,"createdAt":"2026-11-06T02:00:00Z"}',
+    });
+    try {
+      // 別の文脈（別のプロセスや別のマシンの sync に相当）が、照合が t1 の Run を閉じる直前に先に閉じる。
+      // 閉じた後も実行中の記録が残っていた形にして、照合の閉じる操作が REJECTED を受ける
+      const otherCtx = await agentWithRuns(f.cloneA, () => new Date("2026-11-06T00:30:00Z"));
+      race.beforeClose = async () => {
+        // 書き込みのロックは照合が持っているので、記録の書き出しだけを行う（finishRun の代わり）
+        await closeRun(otherCtx.store, otherCtx.repo, raced, {
+          result: "success",
+          finishedAt: "2026-11-06T00:30:00Z",
+          now: new Date("2026-11-06T00:30:00Z"),
+        });
+      };
+
+      const synced = await runCommand(sync, agent, {});
+      expect(race.beforeClose).toBeUndefined();
+      expect(synced.warnings).toContain(
+        `t1: 実装の Run ${raced} は既に閉じていた（別の操作や別のマシンが先に閉じた）ので、照合では閉じない`,
+      );
+      expect(synced.data.runs_closed).toEqual([{ id: "t2", run: other, opener: "claim" }]);
+      expect(agent.store.runs.get(other)!.data).toMatchObject({
+        result: "success",
+        finished_at: "2026-11-06T02:00:00Z",
+      });
+      expect(await peekRunningRuns(agent.repo)).toEqual([]);
+    } finally {
+      race.beforeClose = undefined;
+      restore();
+    }
   });
 
   it("unclaim は実行中の実装の Run を failure で閉じ、branch のないチケットの move の review・done は success で閉じる。branch のあるチケットの move では閉じない（RN-6）", async () => {

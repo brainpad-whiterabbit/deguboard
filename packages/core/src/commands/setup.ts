@@ -46,6 +46,7 @@ import { nowIso, sortedDocs } from "./helpers.js";
 import {
   closeOpenedRun,
   describeClosedRuns,
+  type ClosedOpenedRun,
   findOpenedRun,
   fixRunFinishedAt,
   openedStepOf,
@@ -213,16 +214,43 @@ async function closeFixRun(
       : fallback !== undefined
         ? "push がないので PR のマージ時刻"
         : "push がないので今の時刻";
-  const closed = await closeOpenedRun(ctx, run, {
-    opener: "reclaim",
-    result: "success",
-    finishedAt,
-  });
+  const closed = await closeReconciledRun(
+    ctx,
+    doc,
+    run,
+    { opener: "reclaim", finishedAt },
+    out.warnings,
+  );
+  if (!closed) return;
   out.runsClosed.push({ id: doc.id, run: closed.run.id, opener: "reclaim" });
   out.warnings.push(
     `${doc.id}: ${boundary.why}を区切りとして閉じた（${basis}）`,
     ...closed.warnings,
   );
+}
+
+/**
+ * 照合が Run を閉じる（RN-6）。閉じる直前に別の文脈（別のプロセス・別のマシンの sync）が先に閉じていた（REJECTED）なら、
+ * sync は止めずに索引を読み直して警告だけ返し、閉じなかったことを呼び出し側に知らせる（undefined）
+ */
+async function closeReconciledRun(
+  ctx: CommandContext,
+  doc: Doc<Ticket>,
+  run: Doc<Run>,
+  input: { opener: StepOpener; finishedAt?: string | undefined },
+  warnings: string[],
+): Promise<ClosedOpenedRun | undefined> {
+  try {
+    return await closeOpenedRun(ctx, run, { ...input, result: "success" });
+  } catch (e) {
+    if (!(e instanceof OperationError) || e.code !== "REJECTED") throw e;
+    await ctx.store.rescan();
+    const label = input.opener === "claim" ? "実装" : "手直し";
+    warnings.push(
+      `${doc.id}: ${label}の Run ${run.id} は既に閉じていた（別の操作や別のマシンが先に閉じた）ので、照合では閉じない`,
+    );
+    return undefined;
+  }
 }
 
 /** 照合（ST-4〜ST-6）。状態を進めたチケットと、PR 番号を記録したチケット、閉じた実装・手直しの Run を返す */
@@ -262,13 +290,17 @@ async function reconcileAll(ctx: CommandContext, warnings: string[]): Promise<Re
           `${doc.id}: 実装の Run ${implementing.id} は PR #${pr} の作成（${prCreatedAt}）より後に始まったので照合では閉じない。終えたら run finish で閉じる（PR の後の作業は、もう一度 claim して手直しの Run にする）`,
         );
       } else if (implementing) {
-        const closed = await closeOpenedRun(ctx, implementing, {
-          opener: "claim",
-          result: "success",
-          finishedAt: prCreatedAt,
-        });
-        runsClosed.push({ id: doc.id, run: closed.run.id, opener: "claim" });
-        warnings.push(...closed.warnings);
+        const closed = await closeReconciledRun(
+          ctx,
+          doc,
+          implementing,
+          { opener: "claim", finishedAt: prCreatedAt },
+          warnings,
+        );
+        if (closed) {
+          runsClosed.push({ id: doc.id, run: closed.run.id, opener: "claim" });
+          warnings.push(...closed.warnings);
+        }
       }
     }
     if (ignoredPr) {
