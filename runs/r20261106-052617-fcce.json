@@ -1,0 +1,30 @@
+{
+  "id": "r20261106-052617-fcce",
+  "ticket": "t469",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-sonnet-5-5",
+  "started_at": "2026-11-06T05:26:17Z",
+  "finished_at": "2026-11-06T05:29:10Z",
+  "result": "success",
+  "error": null,
+  "retries": 1,
+  "retry_reasons": [
+    "ADR-010 の言い回しを直した（無条件に読める送り方の約束・宙に浮く目的語・案と理由の対応・形式の既定の理由）"
+  ],
+  "usage": {
+    "input": 34,
+    "output": 3207,
+    "cache_read": 1021446,
+    "cache_write": 10623
+  },
+  "tools": {
+    "read": 0,
+    "search": 0,
+    "write": 0,
+    "bash": 8,
+    "other": 9,
+    "read_before_write": 0,
+    "search_before_write": 0
+  }
+}
