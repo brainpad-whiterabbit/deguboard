@@ -250,7 +250,7 @@ Commit mode
 commit.mode
 [title] Default: batch
 Modified
-commit.mode
+each: commit on every write / batch: leave changes in the working tree; dg commit, dg sync, and immediate operations commit them together / manual: only dg commit and immediate operations
 each
 batch
 (default)
@@ -261,7 +261,7 @@ Push mode
 push.mode
 [title] Default: auto
 Modified
-push.mode
+auto: push on every commit / manual: dg sync pushes (immediate operations push even in manual)
 auto
 (default)
 manual
@@ -272,7 +272,7 @@ Allow shell Actions
 actions.shell
 [title] Default: false
 Modified
-actions.shell
+Whether to allow the arbitrary shell Action (shell). Even when allowed, each run asks for confirmation (AG-7)
 Off
 [title] Reset to default false
 Reset to Default
@@ -280,7 +280,7 @@ Test command
 actions.test
 [title] Default: Empty
 Modified
-actions.test
+Argument array of the command the test Action (run_tests) runs (e.g. [mise, run, check]). When empty, run_tests is rejected
 Empty
 [aria-label] Items
 [placeholder] Add item
@@ -291,7 +291,7 @@ Merge PRs automatically
 auto.merge
 [title] Default: false
 Modified
-auto.merge
+Whether dg guide all --auto merges PRs that meet the pre-merge conditions automatically. By default a person merges
 Off
 [title] Reset to default false
 Reset to Default
@@ -299,7 +299,7 @@ Require an Iteration before starting
 lint.require_iteration
 [title] Default: false
 Modified
-lint.require_iteration
+Whether dg lint flags tickets that moved past todo or abandoned without being in an Iteration (except done tickets in closed Epics). dg guide work asks to add the ticket to an Iteration before claim
 Off
 [title] Reset to default false
 Reset to Default
@@ -307,28 +307,28 @@ Model for tier light
 models.light
 [title] Default: 
 Modified
-models.light
+Model for Plan tier light (docs, settings, and wording only) and for research within implementation. When empty, the parent's model
 [title] Reset to default 
 Reset to Default
 Model for tier standard
 models.standard
 [title] Default: 
 Modified
-models.standard
+Model for Plan tier standard (anything that is not light or heavy). When empty, the parent's model
 [title] Reset to default 
 Reset to Default
 Model for tier heavy
 models.heavy
 [title] Default: 
 Modified
-models.heavy
+Model for Plan tier heavy (design decisions, data shapes, multiple packages, bugs of unknown cause). When empty, the parent's model
 [title] Reset to default 
 Reset to Default
 Commands limited to people
 actor.human_only
 [title] Default: Empty
 Modified
-actor.human_only
+Command names rejected for agents (such as epic.close). Empty by default, allowing everything. Ticket transitions are restricted with the Workflow's by
 Empty
 [aria-label] Items
 [placeholder] Add item
@@ -340,7 +340,7 @@ Read usage from transcripts
 metrics.read_transcripts
 [title] Default: false
 Modified
-metrics.read_transcripts
+Whether run finish and run refresh read conversation transcripts through the Adapter to fill in usage. Machines with DEGUBOARD_NO_TRANSCRIPTS never read them, even when true (MT-2)
 Off
 [title] Reset to default false
 Reset to Default
@@ -349,28 +349,28 @@ Notify when approvals are waiting
 notify.approvals
 [title] Default: true
 Modified
-notify.approvals
+Whether the VS Code extension shows a notification when Plans awaiting approval or tickets in review increase (the count is always shown)
 Off
 [title] Reset to default true
 Reset to Default
 Git
 Default Project
 default_project
-default_project
+Project used when none is given
 [value] default
 Remote to sync with
 git.remote
-git.remote
+Git remote that deguboard fetches from and pushes to
 [value] origin
 Base branch
 git.base_branch
-git.base_branch
+Base for work branches and for deciding what is merged
 [value] main
 Worktree location
 worktree.root
 [title] Default: ../<repo>.worktrees
 Modified
-worktree.root
+Where work worktrees go. A path relative to the repository
 [title] Reset to default ../<repo>.worktrees
 Reset to Default
 Tickets
@@ -378,21 +378,21 @@ Criteria for priority high
 priority.high
 [title] Default: 利用者に見える不具合・利用者を誤らせる文書・悪用できる脆弱性・ライセンスの漏れ・検査が通らない・ほかのチケットを止めている
 Modified
-priority.high
+Criteria for priority high. Used when creating and reviewing tickets, and by the priority marks and selection hints on screen
 [title] Reset to default 利用者に見える不具合・利用者を誤らせる文書・悪用できる脆弱性・ライセンスの漏れ・検査が通らない・ほかのチケットを止めている
 Reset to Default
 Criteria for priority medium
 priority.medium
 [title] Default: 機能の追加と改善・テストの抜けと不安定なテスト・内部の文書の食い違い・今は害のない規約違反・大きく古い依存
 Modified
-priority.medium
+Criteria for priority medium (the default). Used when creating and reviewing tickets, and by the priority marks and selection hints on screen
 [title] Reset to default 機能の追加と改善・テストの抜けと不安定なテスト・内部の文書の食い違い・今は害のない規約違反・大きく古い依存
 Reset to Default
 Criteria for priority low
 priority.low
 [title] Default: 使われていないコードと依存・設定の重複・言い回しの揺れ・急がない調査と検討
 Modified
-priority.low
+Criteria for priority low. Used when creating and reviewing tickets, and by the priority marks and selection hints on screen
 [title] Reset to default 使われていないコードと依存・設定の重複・言い回しの揺れ・急がない調査と検討
 Reset to Default
 

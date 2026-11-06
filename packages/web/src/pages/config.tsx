@@ -1,4 +1,4 @@
-// 設定画面（#/config）。config.show の fields で全項目を既定値・説明（スキーマの describe）・範囲（scope）つきで読み、
+// 設定画面（#/config）。config.show の fields で全項目を既定値・説明（スキーマの describe。英語の表示では configDescription の訳）・範囲（scope）つきで読み、
 // 「チーム」と「自分」のタブで書き分ける。値を変えるたびに 1 項目ずつ保存する。
 // - チーム：全項目を出し、チームで共有する config.yaml の値（view.team）を config.set で書く。欄に個人の上書きを重ねない
 //   （重ねた値を出すと保存が効かなかったように見える）。自分で上書きしている項目には「自分：値」の印を出し、押すと自分のタブのその項目に移る
@@ -15,7 +15,7 @@ import { failureOf } from "../client/http.js";
 import { hrefOf, toggleRoute } from "../router.js";
 import { useStore } from "../store.js";
 import type { ConfigField, ConfigScope, ConfigShowView } from "../types.js";
-import { tr, msg } from "../l10n.js";
+import { configDescription, tr, msg } from "../l10n.js";
 import { trNode } from "../l10n-node.js";
 
 /** 画面のまとまり。キーの最上位（commit.mode なら commit）で振り分ける */
@@ -109,11 +109,13 @@ export function nameOf(key: string): string {
   return name === undefined ? key : tr(name);
 }
 
-/** 検索語が表示名・キー・説明のどれかに含まれるか（大文字小文字は区別しない） */
+/** 検索語が表示名・キー・説明（今の言語で出している文）のどれかに含まれるか（大文字小文字は区別しない） */
 export function fieldMatchesQuery(field: ConfigField, query: string): boolean {
   const q = query.trim().toLowerCase();
   if (!q) return true;
-  return [nameOf(field.key), field.key, field.description].some((s) => s.toLowerCase().includes(q));
+  return [nameOf(field.key), field.key, configDescription(field.key, field.description)].some((s) =>
+    s.toLowerCase().includes(q),
+  );
 }
 
 /** 書き分ける先：チームの config.yaml か、個人の deguboard-local/config.yaml */
@@ -606,7 +608,7 @@ function FieldRow({
         {badges}
         {busy ? <span className="muted">{tr("保存中…")}</span> : null}
       </div>
-      <p className="config-desc muted">{field.description}</p>
+      <p className="config-desc muted">{configDescription(field.key, field.description)}</p>
       {lead}
       <div className="config-control">
         {children}

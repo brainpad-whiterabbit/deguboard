@@ -1,5 +1,5 @@
 // 画面の文言の英語の訳（l10n.ts）。鍵は日本語の文で、日本語ではこの表を使わない。
-// ソースの鍵と EN が過不足なく揃うことと、CORE_EN が core の候補の名前をすべて訳すことは l10n.test.ts が確かめる
+// ソースの鍵と EN が過不足なく揃うことと、CORE_EN が core の候補の名前を、CONFIG_DESCRIPTIONS_EN が設定の全項目の説明を訳すことは l10n.test.ts が確かめる
 
 /** 画面のコードの tr・trNode・msg の鍵の訳。鍵を置いたファイルの順 */
 export const EN: Readonly<Record<string, string>> = {
@@ -584,4 +584,45 @@ export const EN_ONE: Readonly<Record<string, { arg: number; text: string }>> = {
     arg: 0,
     text: "Past the end date with {0} unfinished. You can discuss carrying it over",
   },
+};
+
+/**
+ * 設定画面の項目の説明（core の configSchema の describe）の訳。鍵は項目のキー（config.show の fields の key）。
+ * core の項目と過不足なく揃うことと、core の説明が変わったら訳を見直すよう知らせることは l10n.test.ts が確かめる
+ */
+export const CONFIG_DESCRIPTIONS_EN: Readonly<Record<string, string>> = {
+  default_project: "Project used when none is given",
+  "git.remote": "Git remote that deguboard fetches from and pushes to",
+  "git.base_branch": "Base for work branches and for deciding what is merged",
+  "worktree.root": "Where work worktrees go. A path relative to the repository",
+  "commit.mode":
+    "each: commit on every write / batch: leave changes in the working tree; dg commit, dg sync, and immediate operations commit them together / manual: only dg commit and immediate operations",
+  "push.mode":
+    "auto: push on every commit / manual: dg sync pushes (immediate operations push even in manual)",
+  "metrics.read_transcripts":
+    "Whether run finish and run refresh read conversation transcripts through the Adapter to fill in usage. Machines with DEGUBOARD_NO_TRANSCRIPTS never read them, even when true (MT-2)",
+  "notify.approvals":
+    "Whether the VS Code extension shows a notification when Plans awaiting approval or tickets in review increase (the count is always shown)",
+  "actions.shell":
+    "Whether to allow the arbitrary shell Action (shell). Even when allowed, each run asks for confirmation (AG-7)",
+  "actions.test":
+    "Argument array of the command the test Action (run_tests) runs (e.g. [mise, run, check]). When empty, run_tests is rejected",
+  "auto.merge":
+    "Whether dg guide all --auto merges PRs that meet the pre-merge conditions automatically. By default a person merges",
+  "lint.require_iteration":
+    "Whether dg lint flags tickets that moved past todo or abandoned without being in an Iteration (except done tickets in closed Epics). dg guide work asks to add the ticket to an Iteration before claim",
+  "models.light":
+    "Model for Plan tier light (docs, settings, and wording only) and for research within implementation. When empty, the parent's model",
+  "models.standard":
+    "Model for Plan tier standard (anything that is not light or heavy). When empty, the parent's model",
+  "models.heavy":
+    "Model for Plan tier heavy (design decisions, data shapes, multiple packages, bugs of unknown cause). When empty, the parent's model",
+  "actor.human_only":
+    "Command names rejected for agents (such as epic.close). Empty by default, allowing everything. Ticket transitions are restricted with the Workflow's by",
+  "priority.high":
+    "Criteria for priority high. Used when creating and reviewing tickets, and by the priority marks and selection hints on screen",
+  "priority.medium":
+    "Criteria for priority medium (the default). Used when creating and reviewing tickets, and by the priority marks and selection hints on screen",
+  "priority.low":
+    "Criteria for priority low. Used when creating and reviewing tickets, and by the priority marks and selection hints on screen",
 };

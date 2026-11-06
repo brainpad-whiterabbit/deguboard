@@ -198,8 +198,8 @@ function richClient(): MockClient {
     git: { remote: "origin", base_branch: "main" },
     commit: { mode: "each" },
   };
-  // 項目の説明は core の configFields の文で、英語の画面でも core の言語のまま出す（UI-11）。
-  // 英語の画面に日本語が残らないことを確かめるときに、訳すべき画面の文言と紛れないよう、説明をキーに差し替える
+  // 項目の説明は、日本語では core の configFields の文のまま、英語では項目のキーで引いた訳で出す（UI-11）。
+  // 日本語のスナップショットが core の説明の書き換えで動かないよう、説明をキーに差し替える（英語の訳はキーで引くので変わらない）
   const fields = configFields().map((f) => ({ ...f, description: f.key }));
   client.handlers["config.show"] = (input) =>
     (input as { fields?: boolean }).fields ? { config, team: config, local: {}, fields } : config;
