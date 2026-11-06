@@ -1,0 +1,31 @@
+{
+  "id": "r20261106-123633-828f",
+  "ticket": "t508",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-06T12:36:33Z",
+  "finished_at": "2026-11-06T12:40:43Z",
+  "result": "success",
+  "error": null,
+  "retries": 2,
+  "retry_reasons": [
+    "parallel の手直しの Run を親が閉じる条件を失敗か返らないときに限る",
+    "run の開いたまま警告で sync を待つ手直しの Run は閉じないと書く"
+  ],
+  "usage": {
+    "input": 14,
+    "output": 2727,
+    "cache_read": 959920,
+    "cache_write": 5220
+  },
+  "tools": {
+    "read": 0,
+    "search": 0,
+    "write": 0,
+    "bash": 7,
+    "other": 0,
+    "read_before_write": 0,
+    "search_before_write": 0
+  }
+}
