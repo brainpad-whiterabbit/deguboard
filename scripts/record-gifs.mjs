@@ -8,6 +8,7 @@
 // 外枠に描いた模した画面で、エージェントが dg を動かした結果（起票・計画・状態の遷移）は、台本が一時リポジトリで実際に dg のコマンドを流して左パネルに反映させる。
 // この 3 本の左パネルとエディタのパネル（チケットの詳細）は、拡張ホストの代わりの小さな仲立ち（vscodeShim）で Webview として動かし、
 // 詳細を開く・コピー・読み直しを拡張と同じ通り道で受ける。retro.gif の分析レポートは模したもの（数字は見本）。
+// 画面は英語の表示（<html data-language="en"> を入れる）で、CSS の 760x460 を 1.5 倍の解像度で撮る（GIF は 1140x690。README の表示幅 560px の 2 倍で文字がにじまない。t458）。
 // 先に mise run build（タスクが依存する）と mise run playwright:install が要る。各 GIF が決めた秒数（open-board・ask-agent は 6〜10 秒、ほかは 20 秒以下）と 1MB 以下に収まらなければ失敗する。
 import { execFile } from "node:child_process";
 import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
@@ -25,9 +26,13 @@ const webDist = path.join(root, "packages", "web", "dist");
 const dgBin = path.join(root, "packages", "cli", "bin", "dg.js");
 const run = promisify(execFile);
 
-/** 画面の大きさ（GIF の寸法）。左パネルは VS Code の既定に近い 300px */
+/**
+ * 画面の大きさ（CSS の px）。左パネルは VS Code の既定に近い 300px。GIF の寸法は SCALE 倍になる。
+ * README の表示幅（560px）の 2 倍（1120px）以上で文字がにじまないように、1.5 倍の解像度で撮る（t458）
+ */
 const WIDTH = 760;
 const HEIGHT = 460;
+const SCALE = 1.5;
 const BAR = 48;
 const SIDE = 300;
 /** カーソルを動かすときの 1 コマの長さ（ミリ秒） */
@@ -43,7 +48,7 @@ const STEP = 50;
 const gitEnv = { ...process.env, GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1" };
 const git = (cwd, args) => run("git", args, { cwd, env: gitEnv });
 const dg = (cwd, args) =>
-  run("node", [dgBin, "-C", cwd, "--json", "--user", "見本", ...args], { env: gitEnv });
+  run("node", [dgBin, "-C", cwd, "--json", "--user", "Sample", ...args], { env: gitEnv });
 
 /** bare リモート付きのリポジトリを作り、dg の初期化と Skill の取り込みまで済ませる。作業ディレクトリを返す */
 async function initRepo(dir) {
@@ -51,9 +56,9 @@ async function initRepo(dir) {
   const work = path.join(dir, "work");
   await git(dir, ["init", "--quiet", "--bare", "-b", "main", remote]);
   await git(dir, ["clone", "--quiet", remote, work]);
-  await git(work, ["config", "user.name", "見本"]);
+  await git(work, ["config", "user.name", "Sample"]);
   await git(work, ["config", "user.email", "sample@example.com"]);
-  await git(work, ["commit", "--quiet", "--allow-empty", "-m", "最初のコミット"]);
+  await git(work, ["commit", "--quiet", "--allow-empty", "-m", "Initial commit"]);
   await git(work, ["push", "--quiet", "origin", "main"]);
   await dg(work, ["init", "--template", "software-development"]);
   // リポジトリに dg の Skill があると、依頼文の形式の既定が Skill になる（開発者の ~/.claude/skills に左右されない）
@@ -65,37 +70,37 @@ async function initRepo(dir) {
 async function createRepo(dir) {
   const work = await initRepo(dir);
   // 閉じた Iteration（履歴に出る）・進行中・予定の 3 つ
-  await dg(work, ["iteration", "create", "スプリント 1", "--goal", "ログインまわりを固める"]);
+  await dg(work, ["iteration", "create", "Iteration 1", "--goal", "Harden the login flow"]);
   await dg(work, ["iteration", "start", "s1"]);
   const done = ["in_progress", "review", "done"];
   const closed = [
-    ["ログイン画面の入力チェックを足す", "s1", "high", done],
-    ["パスワードの再設定のメールを送る", "s1", "medium", done],
-    ["ログインの失敗を記録する", "s1", "low", done],
+    ["Add input checks to the login form", "s1", "high", done],
+    ["Send password reset emails", "s1", "medium", done],
+    ["Log failed logins", "s1", "low", done],
   ];
   const open = [
-    ["一覧の並び順を保存する", "s2", "medium", ["in_progress", "review"]],
-    ["CSV の書き出しを速くする", "s2", "medium", ["in_progress"]],
-    ["設定画面にダークモードを足す", "s2", "high", []],
-    ["エラーの文言をそろえる", "s2", "low", []],
-    ["検索の結果を件数で絞る", "s3", "medium", []],
-    ["通知のメールを日本語にする", null, "medium", []],
-    ["古い API の呼び出しを消す", null, "low", []],
+    ["Remember the list order", "s2", "medium", ["in_progress", "review"]],
+    ["Speed up the CSV export", "s2", "medium", ["in_progress"]],
+    ["Add dark mode to settings", "s2", "high", []],
+    ["Unify error messages", "s2", "low", []],
+    ["Filter search results by count", "s3", "medium", []],
+    ["Localize notification emails", null, "medium", []],
+    ["Remove calls to the old API", null, "low", []],
   ];
   let id = 0;
   const create = async ([title, iteration, priority, moves]) => {
     const args = ["ticket", "create", title, "--priority", priority];
     if (iteration) args.push("--iteration", iteration);
-    args.push("--acceptance", "画面で確かめられる");
+    args.push("--acceptance", "Checked on screen");
     await dg(work, args);
     id += 1;
     for (const status of moves) await dg(work, ["ticket", "move", `t${id}`, status]);
   };
   for (const ticket of closed) await create(ticket);
   await dg(work, ["iteration", "close", "s1"]);
-  await dg(work, ["iteration", "create", "スプリント 2", "--goal", "一覧を使いやすくする"]);
+  await dg(work, ["iteration", "create", "Iteration 2", "--goal", "Make the list easier to use"]);
   await dg(work, ["iteration", "start", "s2"]);
-  await dg(work, ["iteration", "create", "スプリント 3"]);
+  await dg(work, ["iteration", "create", "Iteration 3"]);
   for (const ticket of open) await create(ticket);
   return work;
 }
@@ -109,7 +114,7 @@ async function createTicket(work, title, { iteration, priority = "medium", moves
     "--priority",
     priority,
     "--acceptance",
-    "画面で確かめられる",
+    "Checked on screen",
   ];
   if (iteration) args.push("--iteration", iteration);
   const { stdout } = await dg(work, args);
@@ -121,18 +126,18 @@ async function createTicket(work, title, { iteration, priority = "medium", moves
 /** import.gif の見本：バックログに 3 件だけある。起票は台本が dg ticket import で行う */
 async function importRepo(dir) {
   const work = await initRepo(dir);
-  await dg(work, ["iteration", "create", "スプリント 1", "--goal", "書き出しを足す"]);
+  await dg(work, ["iteration", "create", "Iteration 1", "--goal", "Add export"]);
   await dg(work, ["iteration", "start", "s1"]);
-  await createTicket(work, "CSV で書き出せるようにする", { iteration: "s1" });
-  await createTicket(work, "ダークテーマの色を見直す", { priority: "low" });
-  await createTicket(work, "ラベルの色を選べるようにする");
+  await createTicket(work, "Export to CSV", { iteration: "s1" });
+  await createTicket(work, "Review the dark theme colors", { priority: "low" });
+  await createTicket(work, "Let labels have their own colors");
   return work;
 }
 
 /** run-all.gif の見本：始めたばかりの空の Iteration。起票・計画・遷移は台本が dg で行う */
 async function runAllRepo(dir) {
   const work = await initRepo(dir);
-  await dg(work, ["iteration", "create", "スプリント 1", "--goal", "CSV で書き出せるようにする"]);
+  await dg(work, ["iteration", "create", "Iteration 1", "--goal", "Export to CSV"]);
   await dg(work, ["iteration", "start", "s1"]);
   return work;
 }
@@ -143,32 +148,51 @@ async function retroRepo(dir) {
   const done = ["in_progress", "review", "done"];
   const sprints = [
     [
-      "エージェントに頼む",
-      ["吹き出しから頼むことを選ぶ", "依頼文をコピーする", "指示を足せるようにする"],
+      "Ask an agent",
+      ["Pick a request from the speech bubble", "Copy the request", "Allow adding instructions"],
     ],
     [
-      "優先度の見せ方",
+      "Show priority clearly",
       [
-        "優先度を矢印と文字で出す",
-        "行の 1 段目に high と low を出す",
-        "ツールチップに判断基準を出す",
-        "詳細で優先度を選べるようにする",
-        "優先度の基準を設定で書き換える",
+        "Show priority with arrows and words",
+        "Show high and low on the first line of rows",
+        "Show the criteria in the tooltip",
+        "Let the detail view set priority",
+        "Let settings change the priority criteria",
       ],
     ],
   ];
   for (const [n, [goal, titles]] of sprints.entries()) {
     const id = `s${n + 1}`;
-    await dg(work, ["iteration", "create", `スプリント ${n + 1}`, "--goal", goal]);
+    await dg(work, ["iteration", "create", `Iteration ${n + 1}`, "--goal", goal]);
     await dg(work, ["iteration", "start", id]);
     for (const title of titles) await createTicket(work, title, { iteration: id, moves: done });
     await dg(work, ["iteration", "close", id]);
   }
-  await dg(work, ["iteration", "create", "スプリント 3", "--goal", "履歴を見やすくする"]);
+  await dg(work, ["iteration", "create", "Iteration 3", "--goal", "Make history easier to read"]);
   await dg(work, ["iteration", "start", "s3"]);
-  await createTicket(work, "履歴の行に期間を出す", { iteration: "s3", moves: ["in_progress"] });
-  await createTicket(work, "検索の語を残す", { iteration: "s3" });
+  await createTicket(work, "Show the period on history rows", {
+    iteration: "s3",
+    moves: ["in_progress"],
+  });
+  await createTicket(work, "Keep search terms", { iteration: "s3" });
   return work;
+}
+
+/**
+ * 画面の言語を英語にする。main.tsx は <html data-language> を読んで起動するので、その前に付ける（拡張ホストが vscode.env.language で渡すのと同じ印）。
+ * dg serve は既定で日本語のままなので、録るときだけ英語にする（t458）
+ */
+function englishScreen() {
+  const mark = () => {
+    if (!document.documentElement) return false;
+    document.documentElement.dataset.language = "en";
+    return true;
+  };
+  if (!mark())
+    new MutationObserver((_, observer) => {
+      if (mark()) observer.disconnect();
+    }).observe(document, { childList: true });
 }
 
 /**
@@ -188,7 +212,9 @@ function vscodeShim() {
       if (msg.kind === "action") {
         if (msg.name === "show") location.hash = msg.route;
         else window.parent.postMessage({ gif: msg.name, route: msg.route, text: msg.text }, "*");
-        return reply({ id: msg.id, ok: true, data: null, warnings: [], write: null });
+        // 開いているターミナルの一覧は仲立ちにない（外枠のターミナルは模したもの）ので、空の一覧を返す。null だと送り先の選びが落ちる
+        const data = msg.name === "terminals" ? [] : null;
+        return reply({ id: msg.id, ok: true, data, warnings: [], write: null });
       }
       const res =
         msg.kind === "run"
@@ -231,7 +257,7 @@ function vscodeShim() {
 function frameHtml(appUrl, icon, agent = false) {
   return `<!doctype html><html><head><meta charset="utf-8"><style>
   *{box-sizing:border-box}
-  html,body{margin:0;height:100%;background:#1f1f1f;font-family:"IPAPGothic",sans-serif;overflow:hidden}
+  html,body{margin:0;height:100%;background:#1f1f1f;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;overflow:hidden}
   .win{display:flex;height:100%}
   .bar{width:${BAR}px;background:#181818;border-right:1px solid #2b2b2b;display:flex;flex-direction:column;align-items:center;padding-top:10px;gap:18px;flex:none}
   .bar span{width:24px;height:24px;color:#868686;position:relative;display:block}
@@ -249,18 +275,18 @@ function frameHtml(appUrl, icon, agent = false) {
   .agent.on{display:flex}
   .agent.focus{border-color:#0078d4}
   .agent small{color:#8b8b8b;font-size:11px}
-  .agent pre{margin:0;min-height:18px;color:#d4d4d4;font:12px/1.5 "IPAGothic",monospace;white-space:pre-wrap;word-break:break-all}
-  .agent pre:empty::before{content:"ここに貼る";color:#6b6b6b}
+  .agent pre{margin:0;min-height:18px;color:#d4d4d4;font:12px/1.5 ui-monospace,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all}
+  .agent pre:empty::before{content:"Paste here";color:#6b6b6b}
   .cursor{position:fixed;left:0;top:0;width:16px;height:22px;z-index:10;pointer-events:none}
   .ring{position:fixed;width:22px;height:22px;margin:-11px 0 0 -11px;border-radius:50%;border:2px solid #4daafc;z-index:9;pointer-events:none;display:none}
   .tabs b[hidden],.editor [hidden]{display:none}
   .tabs b.off{background:#181818;color:#8b8b8b}
   .editor{flex:1;min-height:0;position:relative;overflow:hidden}
-  .editor pre{margin:0;padding:12px 18px;color:#9cdcfe;font:12px/1.7 "IPAGothic",monospace;white-space:pre}
+  .editor pre{margin:0;padding:12px 18px;color:#9cdcfe;font:12px/1.7 ui-monospace,Menlo,Consolas,monospace;white-space:pre}
   .editor pre em{font-style:normal;color:#c586c0}
   .editor iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:#1f1f1f}
-  .term{height:var(--term,46%);flex:none;border-top:1px solid #2b2b2b;background:#181818;display:flex;flex-direction:column;padding:6px 12px 10px;gap:3px;color:#d4d4d4;font:11.5px/1.55 "IPAGothic",monospace;overflow:hidden}
-  .term-head{color:#8b8b8b;font:11px "IPAPGothic",sans-serif;flex:none;margin-bottom:2px}
+  .term{height:var(--term,46%);flex:none;border-top:1px solid #2b2b2b;background:#181818;display:flex;flex-direction:column;padding:6px 12px 10px;gap:3px;color:#d4d4d4;font:11.5px/1.55 ui-monospace,Menlo,Consolas,monospace;overflow:hidden}
+  .term-head{color:#8b8b8b;font:11px system-ui,-apple-system,"Segoe UI",sans-serif;flex:none;margin-bottom:2px}
   .term-head b{font-weight:400;color:#d4d4d4;border-bottom:1px solid #d4d4d4;padding-bottom:1px}
   .term-lines{flex:1;min-height:0;display:flex;flex-direction:column;justify-content:flex-end;overflow:hidden}
   .term-lines div{white-space:pre-wrap;word-break:break-all;flex:none}
@@ -283,10 +309,10 @@ function frameHtml(appUrl, icon, agent = false) {
   .report p{margin:0}
   .report .sub{color:#8b8b8b;font-size:10.5px;margin-bottom:4px}
   .rbar{display:grid;grid-template-columns:76px 1fr 96px;gap:8px;align-items:center;font-size:11px}
-  .rbar code{font:11px "IPAGothic",monospace}
+  .rbar code{font:11px ui-monospace,Menlo,Consolas,monospace}
   .rbar i{display:block;height:9px;border-radius:2px;background:#4daafc;width:0}
   .rbar.hot i{background:#e5534b}
-  .rbar span{color:#8b8b8b;font:10.5px "IPAGothic",monospace;text-align:right}
+  .rbar span{color:#8b8b8b;font:10.5px ui-monospace,Menlo,Consolas,monospace;text-align:right}
   .report .call{margin-top:6px;border-left:3px solid #e5534b;background:#2a2d2e;padding:5px 8px;line-height:1.55}
   .report .call b{color:#f47067}
   .report ul{margin:2px 0 0;padding-left:1.3em;line-height:1.6}
@@ -307,7 +333,7 @@ function frameHtml(appUrl, icon, agent = false) {
     <div class="code">${[62, 48, 0, 70, 55, 40, 0, 66, 30]
       .map((w) => `<i style="width:${w}%;${w ? "" : "background:none"}"></i>`)
       .join("")}</div>
-    <div class="agent"><small>エージェントの入力欄（例）</small><pre></pre></div>
+    <div class="agent"><small>Agent input (example)</small><pre></pre></div>
   </div>`
   }
 </div>
@@ -322,7 +348,7 @@ const AGENT_MAIN = `<div class="main">
     <div class="tabs"><b class="tab-code">README.md</b><b class="tab-doc" hidden></b></div>
     <div class="editor"><pre class="src"></pre><iframe class="detail" hidden></iframe><div class="report" hidden></div></div>
     <div class="term">
-      <div class="term-head"><b>ターミナル</b>　claude</div>
+      <div class="term-head"><b>Terminal</b>　claude</div>
       <div class="term-lines"></div>
       <div class="term-input"><span>&gt;</span><span class="text"></span></div>
     </div>
@@ -448,10 +474,10 @@ async function openBoard(rec, app) {
   await rec.hold(1200);
   await rec.moveTo(app.locator('.column[data-status="in_progress"] .row-item').first(), 500, 0.4);
   await rec.hold(700);
-  for (const label of ["バックログ", "履歴", "カンバン"]) {
+  for (const label of ["Backlog", "History", "Board"]) {
     await rec.moveTo(app.locator(".topbar nav a", { hasText: label }), 450);
     await rec.click();
-    await rec.hold(label === "カンバン" ? 1200 : 1300);
+    await rec.hold(label === "Board" ? 1200 : 1300);
   }
 }
 
@@ -479,21 +505,21 @@ async function askAgent(rec, app, frame) {
   await rec.hold(700);
   await rec.moveTo(composer.locator("textarea"), 350);
   await rec.click();
-  for (const ch of "テストも足して") {
+  for (const ch of "also add tests") {
     await page.keyboard.type(ch);
-    await rec.shot(110);
+    await rec.shot(90);
   }
   await rec.hold(400);
   await rec.moveTo(composer.locator(".ask-copy"), 400);
   await rec.click();
-  await rec.hold(800);
+  await rec.hold(600);
   const copied = await frame.evaluate(() => navigator.clipboard.readText());
   await rec.moveTo(page.locator(".agent"), 600, 0.4);
   await rec.click();
   await page.evaluate(() => document.querySelector(".agent").classList.add("focus"));
   await rec.shot(250);
   await page.evaluate((text) => (document.querySelector(".agent pre").textContent = text), copied);
-  await rec.hold(1800);
+  await rec.hold(1400);
 }
 
 /** agent の外枠を整える：左パネルを開き、エディタにファイル名とコード、ターミナルの高さを入れる（コードが空ならターミナルだけ） */
@@ -571,7 +597,7 @@ const IMPORT_CODE = [
   "<em>export async function</em> login(id, password) {",
   "  <em>const</em> user = <em>await</em> fetchUser(id);",
   "  <em>const</em> perms = <em>await</em> fetchPerms(id);",
-  '  <em>if</em> (!user) <em>throw new</em> Error("ログインできません");',
+  '  <em>if</em> (!user) <em>throw new</em> Error("Login failed");',
   "  <em>return</em> { user, perms };",
   "}",
 ].join("\n");
@@ -582,17 +608,17 @@ async function importFlow(rec, app, _frame, { work, tmp }) {
   await rec.hold(500);
   await rec.moveTo(rec.page.locator(".term-input"), 500, 0.3);
   await rec.click();
-  await termType(rec, "/dgimport ログインが遅いし、エラーも分かりにくい。なんとかして");
+  await termType(rec, "/dgimport Login is slow and the errors are hard to follow. Fix it somehow");
   await rec.hold(300);
   await termEnter(rec);
-  await termSay(rec, "dot", "⏺ src/auth/ とログインの画面を調べています…", 900);
-  await termSay(rec, "dot", "⏺ 起票の案（3 件）", 300);
-  await termSay(rec, "dim", "  1. ログインの API 呼び出しを 1 回にまとめる ・ high", 300);
-  await termSay(rec, "dim", "  2. 失敗の理由ごとにエラーの文言を分ける", 300);
-  await termSay(rec, "dim", "  3. ログインの所要時間を計るテストを足す ・ 1 を待つ", 300);
-  await termSay(rec, "ask", "? この内容で起票しますか", 200);
-  await termSay(rec, "sel", "  ❯ 1. 起票する", 100);
-  await termSay(rec, "dim", "    2. 直す", 700);
+  await termSay(rec, "dot", "⏺ Looking at src/auth/ and the login screen…", 900);
+  await termSay(rec, "dot", "⏺ Draft tickets (3)", 300);
+  await termSay(rec, "dim", "  1. Make login call the API once · high", 300);
+  await termSay(rec, "dim", "  2. Split error messages by cause", 300);
+  await termSay(rec, "dim", "  3. Add a test that measures login time · after 1", 300);
+  await termSay(rec, "ask", "? Create these tickets?", 200);
+  await termSay(rec, "sel", "  ❯ 1. Create tickets", 100);
+  await termSay(rec, "dim", "    2. Revise", 700);
   // 選択肢を 1 で選んで Enter で送る
   await termType(rec, "1");
   await rec.hold(400);
@@ -600,31 +626,34 @@ async function importFlow(rec, app, _frame, { work, tmp }) {
   const drafts = [
     {
       key: "api",
-      title: "ログインの API 呼び出しを 1 回にまとめる",
+      title: "Make login call the API once",
       priority: "high",
       summary:
-        "ログインでユーザーと権限を別々に取りに行き、往復が 2 回になっている。1 回の呼び出しで両方を返す。",
-      acceptance: ["ログインの API 呼び出しが 1 回になる", "画面の表示と権限の判定が変わらない"],
+        "Login fetches the user and permissions separately, which takes two round trips. Return both in one call.",
+      acceptance: ["Login calls the API once", "The screen and permission checks stay the same"],
     },
     {
       key: "message",
-      title: "失敗の理由ごとにエラーの文言を分ける",
-      summary: "パスワードの誤り・ロック・通信の失敗が、どれも「ログインできません」になっている。",
-      acceptance: ["理由ごとに次にすることが分かる文言になる", "今のテストが通る"],
+      title: "Split error messages by cause",
+      summary: "A wrong password, a lock, and a network failure all show 'Login failed'.",
+      acceptance: [
+        "Each cause shows a message that says what to do next",
+        "The existing tests still pass",
+      ],
     },
     {
       key: "perf",
-      title: "ログインの所要時間を計るテストを足す",
+      title: "Add a test that measures login time",
       depends_on: ["api"],
-      summary: "API 呼び出しをまとめた効果を数字で確かめ、遅くなったら気づけるようにする。",
-      acceptance: ["ログインの所要時間を計るテストがある", "1 秒を超えたらテストが落ちる"],
+      summary: "Check the effect of the single call with numbers, and catch slowdowns.",
+      acceptance: ["A test measures login time", "The test fails when login takes over 1 second"],
     },
   ];
   const file = path.join(tmp, "import.json");
   await writeFile(file, JSON.stringify(drafts));
   await dgSteps(rec, work, [["ticket", "import", file]]);
-  await termSay(rec, "ok", "✓ t4 t5 t6 をバックログに起票しました", 1000);
-  const row = app.locator("a.ticket-row", { hasText: "所要時間を計る" }).first();
+  await termSay(rec, "ok", "✓ Created t4 t5 t6 in the backlog", 1000);
+  const row = app.locator("a.ticket-row", { hasText: "measures login" }).first();
   await rec.moveTo(row, 700, 0.4);
   await rec.click();
   await rec.page.frameLocator(".detail").locator("main.page h1").waitFor();
@@ -639,26 +668,26 @@ async function runAllFlow(rec, app, _frame, { work, tmp }) {
   await rec.hold(500);
   await rec.moveTo(rec.page.locator(".term-input"), 500, 0.3);
   await rec.click();
-  await termType(rec, "/dgall --auto CSV で書き出す機能を足して");
+  await termType(rec, "/dgall --auto add CSV export");
   await rec.hold(200);
   await termEnter(rec);
-  await termSay(rec, "dot", "⏺ 一覧の画面と書き出しの処理を調べています…", 600);
+  await termSay(rec, "dot", "⏺ Looking at the list screen and the export code…", 600);
   const drafts = [
-    { key: "format", title: "書き出す項目と形式を決める" },
-    { key: "csv", title: "一覧から CSV を作る", depends_on: ["format"] },
-    { key: "button", title: "画面に書き出しボタンを置く", depends_on: ["format"] },
-    { key: "docs", title: "使い方の説明を直す", depends_on: ["csv", "button"] },
-  ].map((d) => ({ ...d, iteration: "s1", acceptance: ["画面で確かめられる"] }));
+    { key: "format", title: "Decide the export columns and format" },
+    { key: "csv", title: "Build the CSV from the list", depends_on: ["format"] },
+    { key: "button", title: "Add an export button to the screen", depends_on: ["format"] },
+    { key: "docs", title: "Update the usage docs", depends_on: ["csv", "button"] },
+  ].map((d) => ({ ...d, iteration: "s1", acceptance: ["Checked on screen"] }));
   const file = path.join(tmp, "import.json");
   await writeFile(file, JSON.stringify(drafts));
   await dgSteps(rec, work, [["ticket", "import", file]]);
-  await termSay(rec, "dot", "⏺ 4 件を起票しました: t1 t2 t3 t4", 700);
+  await termSay(rec, "dot", "⏺ Created 4 tickets: t1 t2 t3 t4", 700);
   await dgSteps(rec, work, [
     ["plan", "create", "t1", "t2", "t3", "t4"],
     ["plan", "approve", "p1"],
   ]);
-  await termSay(rec, "dot", "⏺ 計画 p1: t1 → t2 ∥ t3 → t4", 300);
-  await termSay(rec, "dim", "  --auto なので、勧める選択肢（承認する）を選びました", 500);
+  await termSay(rec, "dot", "⏺ Plan p1: t1 → t2 ∥ t3 → t4", 300);
+  await termSay(rec, "dim", "  --auto, so it picked the suggested option (approve)", 500);
   // 番号は Plan 詳細へのリンクなので、状態の文字を押してグラフを開閉する
   await rec.moveTo(app.locator(".plan-line .plan-state").first(), 600, 0.5);
   await rec.click();
@@ -675,17 +704,17 @@ async function runAllFlow(rec, app, _frame, { work, tmp }) {
       moves.map(([id, to]) => ["ticket", "move", id, to]),
     );
   await step([["t1", "in_progress"]]);
-  await termSay(rec, "dot", "⏺ t1 を進めています…", 1100);
+  await termSay(rec, "dot", "⏺ Working on t1…", 1100);
   await step([
     ["t1", "review"],
     ["t1", "done"],
   ]);
-  await termReplace(rec, "⏺ t1 を進めました（PR #1 をマージ）", 700);
+  await termReplace(rec, "⏺ t1 done (merged PR #1)", 700);
   await step([
     ["t2", "in_progress"],
     ["t3", "in_progress"],
   ]);
-  await termSay(rec, "dot", "⏺ t2・t3 を並べて進めています…", 1100);
+  await termSay(rec, "dot", "⏺ Working on t2 and t3 in parallel…", 1100);
   await step([
     ["t3", "review"],
     ["t3", "done"],
@@ -695,15 +724,15 @@ async function runAllFlow(rec, app, _frame, { work, tmp }) {
     ["t2", "review"],
     ["t2", "done"],
   ]);
-  await termReplace(rec, "⏺ t2・t3 を進めました（PR #2 #3 をマージ）", 700);
+  await termReplace(rec, "⏺ t2 and t3 done (merged PR #2 #3)", 700);
   await step([["t4", "in_progress"]]);
-  await termSay(rec, "dot", "⏺ t4 を進めています…", 1000);
+  await termSay(rec, "dot", "⏺ Working on t4…", 1000);
   await step([
     ["t4", "review"],
     ["t4", "done"],
   ]);
-  await termReplace(rec, "⏺ t4 を進めました（PR #4 をマージ）", 500);
-  await termSay(rec, "ok", "✓ p1 を終えました（4/4 done）", 700);
+  await termReplace(rec, "⏺ t4 done (merged PR #4)", 500);
+  await termSay(rec, "ok", "✓ Plan p1 finished (4/4 done)", 700);
   await rec.moveTo(app.locator(".plan-line .plan-state").first(), 500, 0.5);
   await rec.click();
   await app.locator(".plan-graph").waitFor();
@@ -711,22 +740,22 @@ async function runAllFlow(rec, app, _frame, { work, tmp }) {
 }
 
 /** retro.gif の分析レポート（模したもの。工程ごとの所要時間とトークン、ボトルネック、次に直すこと） */
-const RETRO_REPORT = `<h3>s2 の振り返り（優先度の見せ方）</h3>
-<p class="sub">チケット 5 件 ・ Run 19 回 ・ 計 2 時間 11 分 ・ 2.4M トークン</p>
+const RETRO_REPORT = `<h3>Retrospect on s2 (Show priority clearly)</h3>
+<p class="sub">5 tickets · 19 runs · 2 h 11 min total · 2.4M tokens</p>
 ${[
-  ["plan", 6, "6 分 ・ 80k"],
-  ["implement", 52, "52 分 ・ 1.1M"],
-  ["review", 38, "38 分 ・ 610k"],
-  ["fix", 31, "31 分 ・ 540k"],
-  ["merge", 4, "4 分 ・ 20k"],
+  ["plan", 6, "6 min · 80k"],
+  ["implement", 52, "52 min · 1.1M"],
+  ["review", 38, "38 min · 610k"],
+  ["fix", 31, "31 min · 540k"],
+  ["merge", 4, "4 min · 20k"],
 ]
   .map(
     ([step, min, text]) =>
       `<div class="rbar${step === "review" || step === "fix" ? " hot" : ""}"><code>${step}</code><i data-w="${(min / 52) * 100}"></i><span>${text}</span></div>`,
   )
   .join("")}
-<p class="call" hidden><b>ボトルネック</b>：review → fix の往復が 9 回で、所要の 5 割。t5・t7 に集中している（受け入れ条件があいまい）</p>
-<ul hidden><li>起票のときに受け入れ条件を具体的に書く</li><li>画面を変えるチケットは段階を heavy にする</li></ul>`;
+<p class="call" hidden><b>Bottleneck</b>: review → fix looped 9 times, about half of the time. Concentrated on t5 and t7 (vague acceptance criteria)</p>
+<ul hidden><li>Write concrete acceptance criteria when creating tickets</li><li>Use the heavy tier for tickets that change the screen</li></ul>`;
 
 const RETRO_CODE = [
   '<em>import</em> { listTickets } <em>from</em> "./core";',
@@ -741,21 +770,21 @@ async function retroFlow(rec, app) {
   const page = rec.page;
   await setupAgent(rec, { file: "app.ts", code: RETRO_CODE, term: "40%" });
   await rec.hold(500);
-  const row = app.locator("summary.history-row", { hasText: "優先度の見せ方" });
+  const row = app.locator("summary.history-row", { hasText: "Show priority clearly" });
   await rec.moveTo(row, 600, 0.4);
   await rec.hold(300);
   await rec.moveTo(row.locator(".ask-bubble").first(), 300);
   await rec.click();
   await app.locator(".ask-menu").waitFor();
   await rec.hold(700);
-  await rec.moveTo(app.locator(".ask-menu [role=menuitem]", { hasText: "振り返る" }), 350);
+  await rec.moveTo(app.locator(".ask-menu [role=menuitem]", { hasText: "Retrospect" }), 350);
   await rec.click();
   const composer = app.locator(".ask-composer");
   await composer.waitFor();
   await rec.hold(500);
   await rec.moveTo(composer.locator("textarea"), 350);
   await rec.click();
-  const note = "ボトルネックを調べてレポートにして";
+  const note = "find the bottleneck and write a report";
   for (let i = 0; i < note.length; i += 2) {
     await page.keyboard.type(note.slice(i, i + 2));
     await rec.shot(90);
@@ -772,8 +801,8 @@ async function retroFlow(rec, app) {
   await termEnter(rec);
   await termSay(rec, "tool", "⏺ Bash(<i>dg metrics show --iteration s2 --by step</i>)", 500);
   await termSay(rec, "tool", "⏺ Bash(<i>dg metrics show --iteration s2 --by ticket</i>)", 500);
-  await termSay(rec, "dot", "⏺ review と fix の往復が多いチケットを調べています…", 800);
-  await termSay(rec, "ok", "✓ レポートを書きました: reports/s2-retro.md", 500);
+  await termSay(rec, "dot", "⏺ Looking at tickets with many review and fix loops…", 800);
+  await termSay(rec, "ok", "✓ Wrote the report: reports/s2-retro.md", 500);
   await page.evaluate((html) => {
     const report = document.querySelector(".report");
     report.innerHTML = html;
@@ -802,11 +831,13 @@ async function retroFlow(rec, app) {
 async function record(browser, server, icon, job, ctx) {
   const context = await browser.newContext({
     viewport: { width: WIDTH, height: HEIGHT },
+    deviceScaleFactor: SCALE,
     colorScheme: "dark",
   });
   await context.grantPermissions(["clipboard-read", "clipboard-write"], {
     origin: new URL(server.url).origin,
   });
+  await context.addInitScript(englishScreen);
   if (job.agent) await context.addInitScript(vscodeShim);
   const page = await context.newPage();
   // 外枠も dg serve と同じオリジンから出す（iframe の画面のクリップボードを読むため）
@@ -863,7 +894,12 @@ async function main() {
         const dir = path.join(tmp, job.name.replace(/\.gif$/, ""));
         await mkdir(dir);
         const work = await build(dir);
-        const server = await startServer({ cwd: work, port: 0, user: "見本", staticDir: webDist });
+        const server = await startServer({
+          cwd: work,
+          port: 0,
+          user: "Sample",
+          staticDir: webDist,
+        });
         servers.push(server);
         ctx = { work, tmp: dir, server };
         if (!job.repo) shared.set(build, ctx);
@@ -876,7 +912,7 @@ async function main() {
       const [min, max] = job.seconds ?? [0, 20];
       const ok = checkGif({ seconds, bytes: bytes.length, range: [min, max] });
       console.log(
-        `${job.name}: ${WIDTH}x${HEIGHT}、${seconds.toFixed(1)} 秒、${kb} KB、${frames.length} コマ${ok ? "" : `（${min ? `${min}〜` : ""}${max} 秒${min ? "" : "以下"}・1MB 以下に収まらない）`}`,
+        `${job.name}: ${WIDTH * SCALE}x${HEIGHT * SCALE}、${seconds.toFixed(1)} 秒、${kb} KB、${frames.length} コマ${ok ? "" : `（${min ? `${min}〜` : ""}${max} 秒${min ? "" : "以下"}・1MB 以下に収まらない）`}`,
       );
       if (!ok) process.exitCode = 1;
     }
