@@ -1,0 +1,30 @@
+{
+  "id": "r20261106-090741-8f3c",
+  "ticket": "t445",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-fable-5-1",
+  "started_at": "2026-11-06T09:07:41Z",
+  "finished_at": "2026-11-06T09:11:18Z",
+  "result": "success",
+  "error": null,
+  "retries": 1,
+  "retry_reasons": [
+    "main の文書の圧縮と衝突し、追記を畳み込む"
+  ],
+  "usage": {
+    "input": 288,
+    "output": 12594,
+    "cache_read": 2614963,
+    "cache_write": 22156
+  },
+  "tools": {
+    "read": 0,
+    "search": 0,
+    "write": 0,
+    "bash": 9,
+    "other": 0,
+    "read_before_write": 0,
+    "search_before_write": 0
+  }
+}
