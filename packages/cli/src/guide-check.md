@@ -5,7 +5,7 @@ argument-hint: "[Iteration|Epic|チケットの ID...]"
 
 # 点検（check）
 
-チケット・Epic・Iteration・Plan の食い違いを見つけ、承認を得てから直す。何を食い違いとみなすかは `dg validate`（読めないファイル・参照の不整合）と `dg lint`（本文の節・任意フィールド・Epic と Plan の状態・開いた Plan の待ちの循環・`lint.require_iteration` が true のときの Iteration の欠け。今の設定：`{{lint.require_iteration}}`）が判定する。この手順は判定を持たず、指摘を読んで直し方を決める。
+チケット・Epic・Iteration・Plan の食い違いを見つけ、承認を得てから直す。何を食い違いとみなすかは `dg validate`（読めないファイル・参照の不整合）と `dg lint`（本文の節・任意フィールド・Epic と Plan の状態・開いた Plan の待ちの循環・`lint.require_iteration` が true のときの Iteration の欠け（今の設定：`{{lint.require_iteration}}`）、実装の Run の抜け）が判定する。この手順は判定を持たず、指摘を読んで直し方を決める。
 
 ## 対象を決める
 
@@ -23,6 +23,8 @@ argument-hint: "[Iteration|Epic|チケットの ID...]"
    - Iteration に入っていない（`lint_iteration_missing`）：`dg guide work` の手順 1 のとおり Iteration を選んで `iteration add <S> <id>` で入れるを案にする。入れ先がない（閉じた Iteration には入れられない。done のチケットなど）なら、Iteration を作るか設定を変えるかを人に聞く
    - 開いた Plan の after と depends_on が循環している（`lint_plan_wait_cycle`）：`ticket update --depends-on` で辺を外す・Plan を閉じて after を変えて作り直す・待っているチケットを abandoned にする、のどれかを案にする（Plan を閉じるか・abandoned にするかは人に聞く）
    - 同じ Project に active の Iteration が 2 つ以上（`lint_iteration_multiple_active`）：どれを閉じるかを人に聞く（閉じるのは人の指示で行う）
+   - PR まで進んだのに実装の Run がない（`lint_run_implement_missing`）：Run の記録の抜けなので、チケットは直さず人に報告する。Run を後から作り直す手段はない。対象は終わっていないチケットと、閉じていない Iteration に入った done のチケット
+   - 閉じた実装の Run の後のコミットが、どの Run の期間にも入らない（`lint_commit_outside_run`）：そのコミットが手直しか別の作業かを、コミットの内容で確かめて人に伝える。Run の記録は書き換えない。人の push・rebase・別のマシンで開いたままの手直しの Run でも出る
    - `sync` の警告（照合できない、未チェックの受け入れ条件が残ったまま done になった）：`dg guide done` の手順で確かめる案にする
 3. **表で示して承認を得る**：次の表を示し、反映する行を `#` の複数選択で聞く（「反映しない」も入れる）。直し方が 1 つに決まらない行は案を並べ、選択肢の外の入力で受ける
 
