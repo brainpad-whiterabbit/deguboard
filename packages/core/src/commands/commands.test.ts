@@ -716,17 +716,20 @@ describe("チケットの流れ", () => {
       { now: () => clock },
       { template: "software-development" },
     );
-    for (const title of ["With --pr", "Found by sync", "Recorded before"])
+    for (const title of ["With --pr", "Found by sync", "Recorded before", "Reopened after PR"])
       await runCommand(ticketCreate, human, { title });
     const agent = await agentWithRuns(f.cloneA, () => clock);
     const runs = {
       t1: (await runCommand(ticketClaim, agent, { ticket: "t1", branch: "feat/t1" })).data.run!,
       t2: (await runCommand(ticketClaim, agent, { ticket: "t2", branch: "feat/t2" })).data.run!,
       t3: (await runCommand(ticketClaim, agent, { ticket: "t3", branch: "feat/t3" })).data.run!,
+      t4: (await runCommand(ticketClaim, agent, { ticket: "t4", branch: "feat/t4" })).data.run!,
     };
-    for (const b of ["feat/t1", "feat/t2", "feat/t3"]) await git(f.cloneA, ["branch", b]);
+    for (const b of ["feat/t1", "feat/t2", "feat/t3", "feat/t4"])
+      await git(f.cloneA, ["branch", b]);
     // t3 は PR 番号を記録済み（この機能より前に記録した形）で、Run は開いたまま
     await agent.store.update("ticket", "t3", { pr: 43 });
+    // t4 の PR は Run の開始（00:00）より前に作られている（PR の後に implement を開き直した形）
     const restore = await fakeGh(f.root, {
       "feat/t1|41":
         '{"number":41,"state":"OPEN","isDraft":true,"mergedAt":null,"createdAt":"2026-11-06T01:00:00Z"}',
@@ -734,6 +737,8 @@ describe("チケットの流れ", () => {
         '{"number":42,"state":"OPEN","isDraft":false,"mergedAt":null,"createdAt":"2026-11-06T02:00:00Z"}',
       "feat/t3|43":
         '{"number":43,"state":"OPEN","isDraft":true,"mergedAt":null,"createdAt":"2026-11-06T02:30:00Z"}',
+      "feat/t4|44":
+        '{"number":44,"state":"OPEN","isDraft":true,"mergedAt":null,"createdAt":"2026-11-05T23:00:00Z"}',
     });
     try {
       clock = new Date("2026-11-06T03:00:00Z");
@@ -749,7 +754,11 @@ describe("チケットの流れ", () => {
         finished_at: "2026-11-06T01:00:00Z",
         error: null,
       });
-      expect((await peekRunningRuns(agent.repo)).map((r) => r.ticket).sort()).toEqual(["t2", "t3"]);
+      expect((await peekRunningRuns(agent.repo)).map((r) => r.ticket).sort()).toEqual([
+        "t2",
+        "t3",
+        "t4",
+      ]);
       await runCommand(commit, agent, {});
       expect(
         (await git(agent.repo.dataDir, ["show", "--name-only", "--format=", "HEAD"])).stdout,
@@ -765,16 +774,25 @@ describe("チケットの流れ", () => {
       expect((await git(agent.repo.dataDir, ["rev-parse", "HEAD"])).stdout.trim()).toBe(head);
       expect(agent.store.runs.get(runs.t1)!.data).toEqual(closed);
 
-      // 照合：ブランチ名で見つけた PR（t2）と記録済みの番号で引いた PR（t3）の両方で閉じる
+      // 照合：ブランチ名で見つけた PR（t2）と記録済みの番号で引いた PR（t3）の両方で閉じる。
+      // Run の開始より前に作られた PR（t4）では閉じずに警告する
       const synced = await runCommand(sync, agent, {});
       expect(synced.data.reconciled).toEqual([
         { id: "t2", from: "in_progress", to: "review", when: ["pr_open", "!pr_draft"] },
       ]);
-      expect(synced.data.pr_recorded).toEqual([{ id: "t2", pr: 42 }]);
+      expect(synced.data.pr_recorded).toEqual([
+        { id: "t2", pr: 42 },
+        { id: "t4", pr: 44 },
+      ]);
       expect(synced.data.runs_closed).toEqual([
         { id: "t2", run: runs.t2 },
         { id: "t3", run: runs.t3 },
       ]);
+      expect(synced.warnings).toContainEqual(
+        expect.stringMatching(
+          /^t4: 実装の Run r\S+ は PR #44 の作成（2026-11-05T23:00:00Z）より後に始まったので照合では閉じない/,
+        ),
+      );
       expect(agent.store.runs.get(runs.t2)!.data).toMatchObject({
         result: "success",
         finished_at: "2026-11-06T02:00:00Z",
@@ -783,12 +801,13 @@ describe("チケットの流れ", () => {
         result: "success",
         finished_at: "2026-11-06T02:30:00Z",
       });
-      expect(await peekRunningRuns(agent.repo)).toEqual([]);
+      expect((await peekRunningRuns(agent.repo)).map((r) => r.id)).toEqual([runs.t4]);
       expect((await git(agent.repo.dataDir, ["log", "-1", "--format=%s"])).stdout.trim()).toBe(
-        `照合で t2: in_progress → review（pr_open, !pr_draft）。PR 番号を記録: t2: #42。実装の Run を記録: t2 ${runs.t2}, t3 ${runs.t3}`,
+        `照合で t2: in_progress → review（pr_open, !pr_draft）。PR 番号を記録: t2: #42, t4: #44。実装の Run を記録: t2 ${runs.t2} success, t3 ${runs.t3} success`,
       );
-      // 2 回目は閉じるものがない
+      // 2 回目は閉じるものがない（t4 は開いたまま）
       expect((await runCommand(sync, agent, {})).data.runs_closed).toEqual([]);
+      expect((await peekRunningRuns(agent.repo)).map((r) => r.id)).toEqual([runs.t4]);
     } finally {
       restore();
     }
@@ -800,12 +819,17 @@ describe("チケットの流れ", () => {
     const human = await initialized(f.cloneA, { now: () => clock });
     await runCommand(ticketCreate, human, { title: "No gh" });
     await runCommand(ticketCreate, human, { title: "No run" });
+    await runCommand(ticketCreate, human, { title: "PR before run" });
     const agent = await agentWithRuns(f.cloneA, () => clock);
     const run = (await runCommand(ticketClaim, agent, { ticket: "t1", branch: "feat/t1" })).data
       .run!;
     await runCommand(ticketClaim, human, { ticket: "t2", branch: "feat/t2" });
-    // gh が PR を見つけられない
-    const restore = await fakeGh(f.root, {});
+    const reopened = (await runCommand(ticketClaim, agent, { ticket: "t3", branch: "feat/t3" }))
+      .data.run!;
+    // gh は PR #9（Run の開始より前に作られた）だけを知っている
+    const restore = await fakeGh(f.root, {
+      "9": '{"number":9,"state":"OPEN","isDraft":true,"mergedAt":null,"createdAt":"2026-11-05T23:00:00Z"}',
+    });
     try {
       clock = new Date("2026-11-06T04:00:00Z");
       const updated = await runCommand(ticketUpdate, agent, { ticket: "t1", pr: 7 });
@@ -820,9 +844,52 @@ describe("チケットの流れ", () => {
       const plain = await runCommand(ticketUpdate, human, { ticket: "t2", pr: 8 });
       expect(plain.warnings).toEqual([]);
       expect(plain.data.pr).toBe(8);
+      // PR が Run の開始より前なら、PR の作成時刻ではなく今の時刻で閉じる
+      const late = await runCommand(ticketUpdate, agent, { ticket: "t3", pr: 9 });
+      expect(late.warnings[0]).toBe(
+        `PR #9 は Run ${reopened} の開始より前に作られたので、実装の Run の finished_at は今の時刻にする`,
+      );
+      expect(agent.store.runs.get(reopened)!.data).toMatchObject({
+        result: "success",
+        finished_at: "2026-11-06T04:00:00Z",
+      });
     } finally {
       restore();
     }
+  });
+
+  it("run finish は、見た後に別の文脈が閉じた Run や索引が古い Run でも、記録を変えずに警告して返す（RN-6）", async () => {
+    const f = await fixture();
+    const human = await initialized(f.cloneA);
+    await runCommand(ticketCreate, human, { title: "Raced" });
+    const stale = await agentWithRuns(f.cloneA, () => new Date("2026-11-06T00:00:00Z"));
+    const run = (await runCommand(ticketClaim, stale, { ticket: "t1", branch: "feat/t1" })).data
+      .run!;
+    // 別の文脈（別のプロセスの dg に相当）が先に閉じる。stale の索引には集計がまだない
+    const other = await agentWithRuns(f.cloneA, () => new Date("2026-11-06T01:00:00Z"));
+    const first = await runCommand(runFinish, other, { run, result: "success" });
+    expect(first.data).toMatchObject({ result: "success", finished_at: "2026-11-06T01:00:00Z" });
+    expect(stale.store.runs.has(run)).toBe(false);
+
+    const second = await runCommand(runFinish, stale, {
+      run,
+      result: "failure",
+      error: "負けた方",
+    });
+    expect(second.data).toMatchObject({
+      id: run,
+      result: "success",
+      error: null,
+      finished_at: "2026-11-06T01:00:00Z",
+    });
+    expect(second.warnings).toEqual([
+      `Run ${run} は既に success で閉じている（finished_at 2026-11-06T01:00:00Z）。記録は変えない`,
+    ]);
+    expect(await peekRunningRuns(stale.repo)).toEqual([]);
+    // 知らない Run は変わらず見つからない
+    await expect(
+      runCommand(runFinish, stale, { run: "r20261031-000000-0000", result: "success" }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
   });
 
   it("unclaim は実行中の実装の Run を failure で閉じ、branch のないチケットの move の review・done は success で閉じる。branch のあるチケットの move では閉じない（RN-6）", async () => {

@@ -17,7 +17,7 @@ import {
 import { withWrite } from "../git/write.js";
 import { closeRun, finishRun, readRunningRuns, startRun } from "../run/record.js";
 import type { Doc } from "../storage/documents.js";
-import { findStep, stepOpenedOn } from "../workflow/resolve.js";
+import { DEFAULT_OPENED_STEP, findStep, stepOpenedOn } from "../workflow/resolve.js";
 import type { Ticket } from "../model/ticket.js";
 import { defineCommand, ok, type CommandContext } from "./define.js";
 import { idShapeOf, iterationRef, ticketRef } from "./helpers.js";
@@ -114,7 +114,7 @@ export async function findImplementRun(
   ticket: Ticket,
 ): Promise<Doc<Run> | undefined> {
   const wf = ctx.store.workflowFor(ticket);
-  const step = wf ? stepOpenedOn(wf.resolved, "claim") : "implement";
+  const step = wf ? stepOpenedOn(wf.resolved, "claim") : DEFAULT_OPENED_STEP;
   const { runs } = await readRunningRuns(ctx.repo);
   return runs.find((r) => r.data.ticket === ticket.id && r.data.step === step);
 }
@@ -255,15 +255,16 @@ export const runFinish = defineCommand({
       );
     }
     const now = ctx.now();
-    const local = (await readRunningRuns(ctx.repo)).runs;
-    const running = local.find((r) => r.id === input.run);
+    const id = input.run as RunId;
     // 閉じた Run（ticket update --pr・sync・unclaim・move が閉じた実装の Run など。RN-6）は書き換えず（RN-4）、記録をそのまま返す
-    const closed = running ? undefined : ctx.store.runs.get(input.run as RunId);
-    if (closed) {
-      return ok(closed.data, undefined, [
-        `Run ${closed.id} は既に ${closed.data.result} で閉じている（finished_at ${closed.data.finished_at}）。記録は変えない`,
+    const alreadyClosed = (doc: Doc<Run>) =>
+      ok(doc.data, undefined, [
+        `Run ${doc.id} は既に ${doc.data.result} で閉じている（finished_at ${doc.data.finished_at}）。記録は変えない`,
       ]);
-    }
+    const local = (await readRunningRuns(ctx.repo)).runs;
+    const running = local.find((r) => r.id === id);
+    const closed = running ? undefined : ctx.store.runs.get(id);
+    if (closed) return alreadyClosed(closed);
     // 実行中の記録がなければ取り込まず、finishRun が見つからない・終わっていると拒否する
     const collected = running
       ? await collectRunUsage(ctx.config, {
@@ -274,18 +275,28 @@ export const runFinish = defineCommand({
           others: runSpans(ctx.store.runs.values(), local),
         })
       : undefined;
-    const { run, write } = await finishRun(ctx, input.run, {
-      result: input.result,
-      error: input.error,
-      retries: input.retries ?? reasons?.length,
-      retryReasons: reasons,
-      // 会話記録のモデル名 > 明示したモデル名 > 実行中の記録のモデル名（別名でなく正式な ID を残す）
-      model: collected?.model ?? input.model,
-      usage: collected?.usage,
-      tools: collected?.tools,
-      now,
-    });
-    return ok(run, write, collected?.warnings ?? []);
+    try {
+      const { run, write } = await finishRun(ctx, id, {
+        result: input.result,
+        error: input.error,
+        retries: input.retries ?? reasons?.length,
+        retryReasons: reasons,
+        // 会話記録のモデル名 > 明示したモデル名 > 実行中の記録のモデル名（別名でなく正式な ID を残す）
+        model: collected?.model ?? input.model,
+        usage: collected?.usage,
+        tools: collected?.tools,
+        now,
+      });
+      return ok(run, write, collected?.warnings ?? []);
+    } catch (e) {
+      // 上で見た後に別の操作（ticket update --pr・sync、別のプロセスの finish）が閉じたか、索引が古い（長く動く serve・mcp）。
+      // 集計を読み直し、閉じていれば同じく記録を変えずに返す
+      if (!(e instanceof OperationError) || e.code !== "REJECTED") throw e;
+      await ctx.store.rescan();
+      const summary = ctx.store.runs.get(id);
+      if (!summary) throw e;
+      return alreadyClosed(summary);
+    }
   },
 });
 

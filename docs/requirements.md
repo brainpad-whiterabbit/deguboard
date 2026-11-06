@@ -170,7 +170,7 @@ steps: # 任意。Run の step の語彙（WF-5）
 - RN-3 Git に入れるのは完了時の集計だけ。実行中の記録は `deguboard-local/runs/` に置く。チケットには書き足さない
 - RN-4 閉じた Run で書き換えるのは、`run refresh`（MT-5）が取り直すモデル名と使用量だけ
 - RN-5 agent の `ticket claim` は、Workflow の `steps` のうち `opens_on: claim` の step（なければ `implement`）の Run を開き、ID を `run` に出す。エージェント名は `--agent`、省けば環境変数の判定（RN-1）。決まらないか step が語彙になければ開かずに警告し、claim は成功にする。`--no-run`（委譲するとき）と人の claim では開かない
-- RN-6 実装の Run（RN-5 の step）がこのマシンで実行中なら、チケットの操作が閉じる。`ticket update --pr` と照合が作業ブランチの PR を見つけたときは `success` にし、`finished_at` を PR の作成時刻（取れなければ今）にする。`unclaim` は `failure`、`branch` のないチケットの `ticket move` の review・done は `success` にする。閉じた Run への `run finish` は記録を変えずに警告する
+- RN-6 実装の Run（RN-5 の step）がこのマシンで実行中なら、チケットの操作が閉じる。`ticket update --pr` と照合が作業ブランチの PR を見つけたときは `success` にし、`finished_at` を PR の作成時刻（取れなければ今）にする。PR が Run の開始より前に作られていれば、照合は閉じずに警告し、`--pr` は今の時刻で閉じる。`unclaim` は `failure`、`branch` のないチケットの `ticket move` の review・done は `success` にする。閉じた Run への `run finish` は記録を変えずに警告する
 
 ### 5.10 設定（`config.yaml`）
 
@@ -250,7 +250,7 @@ Web UI は `dg serve` が配信し、VS Code 拡張は同じアプリを Webview
 ### 6.6 作業の実績
 
 - MT-1 Run の使用量とツールの回数は Adapter が取り込む。エージェントの自己申告の数字は書かない
-- MT-2 `metrics.read_transcripts` が true なら、`run finish` が Adapter でエージェントの会話記録から使用量とツールの回数を補う。`DEGUBOARD_NO_TRANSCRIPTS` が空でも `0` でもないマシンでは読まない
+- MT-2 `metrics.read_transcripts` が true なら、`run finish` とチケットの操作に付随する閉じ方（RN-6）が Adapter でエージェントの会話記録から使用量とツールの回数を補う。`DEGUBOARD_NO_TRANSCRIPTS` が空でも `0` でもないマシンでは読まない
 - MT-3 `metrics show` は Run を絞り込んで集計する（軸は `dg metrics show --help`）。null は足さず欠けた数を出す。集計値は保存しない
 - MT-4 Adapter が会話記録から Run に写すのは数とモデル名だけ（会話の中身・コマンドの文字列・パスは写さない）。`error` と `retry_reasons` は渡した文をそのまま記録するので、`error` には秘密を、`retry_reasons` には秘密・コマンドの文字列・パスを書かない
 - MT-5 `run refresh` は閉じた Run のモデル名と使用量を、finish と同じ方法と MT-2 の許可で会話記録から取り直す。取れた値だけを書き換え、取れなかった値は残して警告する。実行中の Run は拒否する（オプションは `dg run refresh --help`）

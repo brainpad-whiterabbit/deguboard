@@ -178,7 +178,12 @@ async function reconcileAll(ctx: CommandContext, warnings: string[]): Promise<Re
     // 記録済みの番号で引いた PR でも閉じる（番号を記録したときに閉じられなかった Run の拾い直し）
     if (pr !== undefined) {
       const running = await findImplementRun(ctx, doc.data);
-      if (running) {
+      if (running && prCreatedAt !== undefined && prCreatedAt < running.data.started_at) {
+        // PR より後に開き直した Run は PR では終わらない。閉じずに知らせる（PR の後の作業は fix の Run にする）
+        warnings.push(
+          `${doc.id}: 実装の Run ${running.id} は PR #${pr} の作成（${prCreatedAt}）より後に始まったので照合では閉じない。終えたら run finish で閉じる（PR の後の作業は fix の Run）`,
+        );
+      } else if (running) {
         const closed = await closeImplementRun(ctx, running, {
           result: "success",
           finishedAt: prCreatedAt,
@@ -325,7 +330,7 @@ export const sync = defineCommand({
             ? [`PR 番号を記録: ${prRecorded.map((r) => `${r.id}: #${r.pr}`).join(", ")}`]
             : []),
           ...(runsClosed.length > 0
-            ? [`実装の Run を記録: ${runsClosed.map((r) => `${r.id} ${r.run}`).join(", ")}`]
+            ? [`実装の Run を記録: ${runsClosed.map((r) => `${r.id} ${r.run} success`).join(", ")}`]
             : []),
           ...(confirmed.length > 0 ? [`仮番号を確定: ${confirmed.join(", ")}`] : []),
         ];

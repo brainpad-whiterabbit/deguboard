@@ -27,4 +27,4 @@ Plan の `details.<id>.tier`（省けば standard）を `config.yaml` の `model
 
 ## 閉じ損ねた Run を閉じる
 
-finish を呼べずに残った Run は、`dg --json --actor agent run list --running --ticket <id>` で `step`・`agent` が合うものを探し、`run finish <Run の ID> --result interrupted --error <理由>` で閉じる。続けるなら同じ step の Run を始め直す。やめるなら、実装の Run は `ticket unclaim <id>`（開いたままなら unclaim が `failure` で閉じる）、手直し・見直しの Run は `dg guide review` の「終わり方」
+finish を呼べずに残った Run は、`dg --json --actor agent run list --running --ticket <id>` で `step`・`agent` が合うものを探し、`run finish <Run の ID> --result interrupted --error <理由>` で閉じる。続けるなら同じ step の Run を始め直す（draft の PR を作った後の作業は `implement` を開き直さず `fix` の Run にする。PR より後に開いた実装の Run は照合が閉じない）。やめるなら、実装の Run は `ticket unclaim <id>`（開いたままなら unclaim が `failure` で閉じる）、手直し・見直しの Run は `dg guide review` の「終わり方」

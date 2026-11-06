@@ -74,7 +74,9 @@ async function dropClosed(ctx: CommandContext, closed: ClosedImplementRun | null
 
 /** 書き込みのコミットメッセージに、付随して閉じた Run を足す */
 const withClosedRun = (message: string, closed: ClosedImplementRun | null) =>
-  closed ? `${message}。実装の Run ${closed.run.id} を記録: ${closed.run.result}` : message;
+  closed
+    ? `${message}。実装の Run を記録: ${closed.run.ticket} ${closed.run.id} ${closed.run.result}`
+    : message;
 
 /** 主体の参照。`human` / `agent` は自分（のユーザ）に解く（model/actor.ts） */
 const actorRef = z.string().min(1);
@@ -597,12 +599,17 @@ export const ticketUpdate = defineCommand({
         const running = typeof input.pr === "number" ? await findImplementRun(ctx, t) : undefined;
         if (running && typeof input.pr === "number") {
           const created = await fetchPrCreatedAt(ctx.repo, input.pr);
-          if (created.createdAt === undefined) {
-            warnings.push(`${created.reason}ので、実装の Run の finished_at は今の時刻にする`);
-          }
+          // PR より後に開き直した Run（PR の後の作業は fix の Run にする）は、PR の作成時刻では終わっていない
+          const reason =
+            created.createdAt === undefined
+              ? created.reason
+              : created.createdAt < running.data.started_at
+                ? `PR #${input.pr} は Run ${running.id} の開始より前に作られた`
+                : undefined;
+          if (reason) warnings.push(`${reason}ので、実装の Run の finished_at は今の時刻にする`);
           closed = await closeImplementRun(ctx, running, {
             result: "success",
-            finishedAt: created.createdAt,
+            finishedAt: reason ? undefined : created.createdAt,
           });
           warnings.push(...closed.warnings);
         }

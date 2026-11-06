@@ -26,7 +26,7 @@
 
 ### 実装・見直し・手直しを別の Run にする
 
-- 実装の Run は、作業するエージェント自身の `ticket claim` が開き（Workflow の `opens_on: claim` の step。RN-5）、PR の記録（`ticket update --pr`）か照合が作業ブランチの PR を見つけたときに閉じる（RN-6。`finished_at` は PR の作成時刻。やめるときは `unclaim` が `failure` で、PR の要らない作業は `ticket move` の review・done が閉じる）。手順書を通らずにその場で実装すると `run start`・`run finish` が呼ばれず、Run が残らないか開いたままになったので、開始と終了をチケットの操作に付随させた。使用量は ID が会話記録に出てから `finished_at` までの応答で数えるので、後から閉じても `finished_at` を PR の作成時刻にすれば数え方は変わらない。閉じた Run への `run finish` は記録を変えない（古い手順のまま呼んでも壊れない）。実装をサブエージェントに渡す親は `--no-run` で claim し、サブエージェントが自分で `run start` する（親が開いた Run では作業した分を数えられない。下の「会話記録を Run に結び付ける」）
+- 実装の Run は、作業するエージェント自身の `ticket claim` が開き（Workflow の `opens_on: claim` の step。RN-5）、PR の記録（`ticket update --pr`）か照合が作業ブランチの PR を見つけたときに閉じる（RN-6。`finished_at` は PR の作成時刻。やめるときは `unclaim` が `failure` で、PR の要らない作業は `ticket move` の review・done が閉じる）。手順書を通らずにその場で実装すると `run start`・`run finish` が呼ばれず、Run が残らないか開いたままになったので、開始と終了をチケットの操作に付随させた。使用量は ID が会話記録に出てから `finished_at` までの応答で数えるので、後から閉じても `finished_at` を PR の作成時刻にすれば数え方は変わらない。閉じた Run への `run finish` は記録を変えない（古い手順のまま呼んでも壊れない）。実装は PR を作るまでなので、PR がマージされずに閉じていても `success` で閉じる。PR より後に開き直した実装の Run は PR の作成時刻では終わっていないので照合では閉じない（PR の後の作業は `fix` の Run）。実装をサブエージェントに渡す親は `--no-run` で claim し、サブエージェントが自分で `run start` する（親が開いた Run では作業した分を数えられない。下の「会話記録を Run に結び付ける」）
 - 見直し役の見直しは `review`、修正ループの 1 回と人のレビューの後の手直しは `fix` の Run にし、それぞれ作業したエージェント自身が `run start` で記録する。同梱の software-development と general の `steps` に `review`・`fix` がある
 - 手直しの Run には、直した指摘を `retry_reasons` に 1 件 1 行で残す。修正ループの手直しも人のレビューの後の手直しも `fix` なので、`fix` の Run の数は手直しの回数の目安にとどまる。修正ループの上限は手順の側で数える
 - 手順は `dg guide work`・`dg guide review` が持つ
@@ -45,7 +45,7 @@
 
 - 会話記録（`~/.claude/projects/**`・`~/.codex/sessions/**`・`~/.copilot/session-state/**` など）を読むかどうかは `config.yaml` の `metrics.read_transcripts`（true / false）で決める。チームの方針として Git で共有する
 - 個人が拒むときは環境変数 `DEGUBOARD_NO_TRANSCRIPTS` で、そのマシンでは読まない（MT-2）
-- 許可がなければ、使用量は `null` のまま、日時・結果などの Run の記録だけを残す。読まなかったとき・取れなかったときは `run finish` が警告を返す。Adapter のない agent 名の Run は `run start` が警告する（記録はする）
+- 許可がなければ、使用量は `null` のまま、日時・結果などの Run の記録だけを残す。読まなかったとき・取れなかったときは `run finish` とチケットの操作に付随する閉じ方（RN-6）が警告を返す。Adapter のない agent 名の Run は `run start` が警告する（記録はする）
 
 ### 会話記録を Run に結び付ける
 
