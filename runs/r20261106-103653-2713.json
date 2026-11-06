@@ -1,0 +1,33 @@
+{
+  "id": "r20261106-103653-2713",
+  "ticket": "t461",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-06T10:36:53Z",
+  "finished_at": "2026-11-06T10:40:54Z",
+  "result": "success",
+  "error": null,
+  "retries": 4,
+  "retry_reasons": [
+    "欄を離れるだけで config.yaml が書き換わる不具合を直した",
+    "設定画面の保存・外した・チームの値の表示に日本語の既定が残る漏れを直した",
+    "優先度の既定の訳と core の既定の対応をテストで固定した",
+    "訳と日本語の既定の扱いを UI-11 とコメントに書いた"
+  ],
+  "usage": {
+    "input": 40,
+    "output": 23040,
+    "cache_read": 3108588,
+    "cache_write": 30426
+  },
+  "tools": {
+    "read": 0,
+    "search": 0,
+    "write": 0,
+    "bash": 20,
+    "other": 0,
+    "read_before_write": 0,
+    "search_before_write": 0
+  }
+}

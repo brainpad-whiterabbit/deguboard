@@ -1,0 +1,37 @@
+{
+  "id": "r20261106-103459-1e4e",
+  "ticket": "t446",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-06T10:34:59Z",
+  "finished_at": "2026-11-06T10:39:53Z",
+  "result": "success",
+  "error": null,
+  "retries": 8,
+  "retry_reasons": [
+    "終わったチケットを検査の対象から外し、閉じていない Iteration の done だけを残す",
+    "コミットの検査で main のマージ（マージコミット）を除く",
+    "branchCommitTimes のコメントをコミッタの時刻（push の近似）に直す",
+    "guide-check に人の push・rebase・別マシンの手直しでも出る旨を足す",
+    "指摘の文言を push からコミットに揃える（メッセージ・summary・ADR）",
+    "guide-check の設定の括弧の位置を直す",
+    "TK-3 の RN 参照を ADR-005 も指す文に直す",
+    "userOf で isAgentActorId を使う"
+  ],
+  "usage": {
+    "input": 44,
+    "output": 23269,
+    "cache_read": 3216749,
+    "cache_write": 28985
+  },
+  "tools": {
+    "read": 0,
+    "search": 0,
+    "write": 0,
+    "bash": 22,
+    "other": 0,
+    "read_before_write": 0,
+    "search_before_write": 0
+  }
+}
