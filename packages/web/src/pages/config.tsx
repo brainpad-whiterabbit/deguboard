@@ -166,7 +166,8 @@ export function ConfigPage() {
   const [drafts, setDrafts] = useState<Values>({});
   /** 確かめを待っている保存 */
   const [pending, setPending] = useState<Pending | null>(null);
-  const [saving, setSaving] = useState<string | null>(null);
+  /** 保存中の項目。項目ごとに持ち、自分の保存が終わったときだけその項目を外す（重なった保存で先の終わりが後の印を消さない） */
+  const [saving, setSaving] = useState<ReadonlySet<string>>(() => new Set());
   const [saved, setSaved] = useState<string | null>(null);
   const [messages, setMessages] = useState<Record<string, FieldMessage>>({});
   /** チームのタブの「自分：値」から移ったとき、自分のタブで前に出す項目 */
@@ -235,13 +236,24 @@ export function ConfigPage() {
   /** 項目の定義（既定の表示と値の表示に使う）。読み終えるまでは undefined */
   const fieldFor = useCallback((key: string) => view?.fields.find((f) => f.key === key), [view]);
 
+  /** 項目の保存中の印を付ける（on）か外す（!on）。ほかの項目の印には触れない */
+  const markSaving = useCallback((key: string, on: boolean) => {
+    setSaving((s) => {
+      if (s.has(key) === on) return s;
+      const next = new Set(s);
+      if (on) next.add(key);
+      else next.delete(key);
+      return next;
+    });
+  }, []);
+
   const save = useCallback(
     async (p: Pending) => {
       const { key } = p;
       const seq = ++saveSeq.current;
       const latest = () => seq === saveSeq.current;
       setPending(null);
-      setSaving(key);
+      markSaving(key, true);
       setSaved(null);
       // store.run は失敗を上の通知の帯にも出すので使わない（拒否の理由は項目の下にだけ出す）。
       // 保存の失敗と、保存は通って読み直しだけが失敗したときは分けて出す
@@ -281,7 +293,7 @@ export function ConfigPage() {
           ...m,
           [key]: { kind: "error", text: tr("保存できない: {0}{1}", message, detail) },
         }));
-        setSaving(null);
+        markSaving(key, false);
         setDrafts((d) => without(d, key));
         return;
       }
@@ -316,12 +328,12 @@ export function ConfigPage() {
           [key]: { kind: "reload", text: tr("保存したが、読み直せない: {0}{1}", message, detail) },
         }));
       } finally {
-        setSaving(null);
+        markSaving(key, false);
         setDrafts((d) => without(d, key));
       }
       void store.reload();
     },
-    [store, show, fieldFor],
+    [store, show, fieldFor, markSaving],
   );
 
   /** 自分の値を外す。確かめる項目で効く値が変わるときは確かめ、確かめの文は外すときのものにする */
@@ -477,7 +489,7 @@ export function ConfigPage() {
               const value = tab === "local" && own ? view!.local[f.key] : team;
               // 確かめを待つ間は、待っている項目のほかは入力欄も「既定に戻す」も触れない
               // （触れると待ちが移り、元の項目の下書きが確かめの枠なしで残る）
-              const locked = saving === f.key || (pending !== null && pending.key !== f.key);
+              const locked = saving.has(f.key) || (pending !== null && pending.key !== f.key);
               const confirm =
                 pending?.key === f.key ? (
                   <ConfirmBox
@@ -516,7 +528,7 @@ export function ConfigPage() {
                         ) : null}
                       </>
                     }
-                    busy={saving === f.key}
+                    busy={saving.has(f.key)}
                     message={messages[f.key]}
                     confirm={confirm}
                     actions={
@@ -556,7 +568,7 @@ export function ConfigPage() {
                       </span>
                     ) : null
                   }
-                  busy={saving === f.key}
+                  busy={saving.has(f.key)}
                   message={messages[f.key]}
                   confirm={confirm}
                   lead={
