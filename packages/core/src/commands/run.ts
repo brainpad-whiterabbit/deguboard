@@ -187,6 +187,27 @@ export async function closeOpenedRun(
   };
 }
 
+/**
+ * 手直しの Run を区切りで閉じるときの finished_at（RN-6）。この Run の開始より後で区切りまでの push があればその時刻、
+ * なければ区切りの時刻、fallback（PR のマージ時刻）、今（undefined）の順。pushed はその Run の push の時刻を使ったか
+ */
+export function fixRunFinishedAt(input: {
+  pushedAt?: string | undefined;
+  startedAt: string;
+  boundaryAt?: string | undefined;
+  fallback?: string | undefined;
+}): { finishedAt: string | undefined; pushed: boolean } {
+  const { pushedAt, startedAt, boundaryAt, fallback } = input;
+  if (
+    pushedAt !== undefined &&
+    pushedAt >= startedAt &&
+    (boundaryAt === undefined || pushedAt <= boundaryAt)
+  ) {
+    return { finishedAt: pushedAt, pushed: true };
+  }
+  return { finishedAt: boundaryAt ?? fallback, pushed: false };
+}
+
 /** チケットの操作と照合のコミットメッセージに書く、付随して閉じた Run の一覧。開いた操作ごとに呼び名を分ける */
 export function describeClosedRuns(
   closed: ReadonlyArray<{

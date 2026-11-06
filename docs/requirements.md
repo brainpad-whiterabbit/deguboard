@@ -171,7 +171,7 @@ steps: # 任意。Run の step の語彙（WF-5）
 - RN-3 Git に入れるのは完了時の集計だけ。実行中の記録は `deguboard-local/runs/` に置く。チケットには書き足さない
 - RN-4 閉じた Run で書き換えるのは、`run refresh`（MT-5）が取り直すモデル名と使用量だけ
 - RN-5 agent の `ticket claim` は、Workflow の `steps` のうち `opens_on: claim` の step（なければ `implement`）の Run を開き、ID を `run` に出す。エージェント名は `--agent`、省けば環境変数の判定（RN-1）。決まらないか step が語彙になければ開かずに警告し、claim は成功にする。`--no-run`（委譲するとき）と人の claim では開かない。自分が claim 済みで `pr` のあるチケットのもう一度の claim（ST-3）は手直しの開始で、`opens_on: reclaim` の step（なければ `fix`）の Run を開き、`--retry-reason` を `retry_reasons` に入れる。開いたままの前の手直しの Run は、作業ブランチに最後に push したコミットの時刻で `success` にしてから開く
-- RN-6 実装の Run（RN-5 の step）がこのマシンで実行中なら、チケットの操作が閉じる。`ticket update --pr` と照合が作業ブランチの PR を見つけたときは `success` にし、`finished_at` を PR の作成時刻（取れなければ今）にする。PR が Run の開始より前に作られていれば、照合は閉じずに警告し、`--pr` は今の時刻で閉じる。`unclaim` は `failure`、`branch` のないチケットの `ticket move` の review・done は `success` にする。手直しの Run（`reclaim` の step）は、照合が次の区切り（同じチケットの次の Run の開始・review か done への前進・チケットの終了）を見たときに `success` にし、`finished_at` はそれまでに作業ブランチへ最後に push したコミットの時刻（取れなければ区切りの時刻・PR のマージ時刻・今の順）。`unclaim` は手直しの Run も `failure` にする。閉じた Run への `run finish` は記録を変えずに警告する
+- RN-6 実装の Run（RN-5 の step）がこのマシンで実行中なら、チケットの操作が閉じる。`ticket update --pr` と照合が作業ブランチの PR を見つけたときは `success` にし、`finished_at` を PR の作成時刻（取れなければ今）にする。PR が Run の開始より前に作られていれば、照合は閉じずに警告し、`--pr` は今の時刻で閉じる。`unclaim` は `failure`、`branch` のないチケットの `ticket move` の review・done は `success` にする。手直しの Run（`reclaim` の step）は、照合が次の区切り（同じチケットの次の Run の開始・review か done への前進・チケットの終了）を見たときに `success` にし、`finished_at` はその Run の開始より後で区切りまでに作業ブランチへ最後に push したコミットの時刻（なければ区切りの時刻、マージの区切りでは PR のマージ時刻、それもなければ今）。`unclaim` は手直しの Run も `failure` にする。閉じた Run への `run finish` は記録を変えずに警告する
 
 ### 5.10 設定（`config.yaml`）
 

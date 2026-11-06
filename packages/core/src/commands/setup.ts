@@ -43,7 +43,13 @@ import { reconcileStatus, regressionWarnings } from "../workflow/reconcile.js";
 import { WORKFLOW_TEMPLATES } from "../workflow/templates/index.js";
 import { defineCommand, ok, type CommandContext } from "./define.js";
 import { nowIso, sortedDocs } from "./helpers.js";
-import { closeOpenedRun, describeClosedRuns, findOpenedRun, openedStepOf } from "./run.js";
+import {
+  closeOpenedRun,
+  describeClosedRuns,
+  findOpenedRun,
+  fixRunFinishedAt,
+  openedStepOf,
+} from "./run.js";
 
 const TEMPLATE_IDS = WORKFLOW_TEMPLATES.map((t) => t.id) as [string, ...string[]];
 
@@ -164,13 +170,13 @@ export interface Reconciled {
  *   - チケットが終わっている（別のマシンの照合や ticket move で done・abandoned になっていた）
  * 区切りがなければ undefined
  */
-async function fixRunBoundary(
+function fixRunBoundary(
   ctx: CommandContext,
   ticket: Ticket,
   run: Doc<Run>,
   running: readonly Doc<Run>[],
   advanced: boolean,
-): Promise<{ at?: string | undefined; why: string } | undefined> {
+): { at?: string | undefined; why: string } | undefined {
   const later = [...running, ...ctx.store.runs.values()]
     .filter((r) => r.id !== run.id && r.data.ticket === ticket.id)
     .filter((r) => r.data.started_at > run.data.started_at)
@@ -182,8 +188,8 @@ async function fixRunBoundary(
 }
 
 /**
- * 手直しの Run を区切りで閉じる（RN-6）。finished_at は区切りまでの最後の push の時刻（作業ブランチのリモートの先端のコミット）。
- * 取れなければ（push していない・ブランチを消した）、区切りの時刻、PR のマージ時刻、今の順
+ * 手直しの Run を区切りで閉じる（RN-6）。finished_at はこの Run の開始より後で区切りまでの最後の push の時刻（作業ブランチのリモートの先端のコミット）。
+ * その push がなければ区切りの時刻、マージの区切りでは PR のマージ時刻（fallback）、それもなければ今
  */
 async function closeFixRun(
   ctx: CommandContext,
@@ -194,10 +200,19 @@ async function closeFixRun(
   out: { runsClosed: ReconciledRun[]; warnings: string[] },
 ): Promise<void> {
   const pushedAt = doc.data.branch ? await lastPushedAt(ctx.repo, doc.data.branch) : undefined;
-  const finishedAt =
-    pushedAt !== undefined && (boundary.at === undefined || pushedAt <= boundary.at)
-      ? pushedAt
-      : (boundary.at ?? fallback);
+  const { finishedAt, pushed } = fixRunFinishedAt({
+    pushedAt,
+    startedAt: run.data.started_at,
+    boundaryAt: boundary.at,
+    fallback,
+  });
+  const basis = pushed
+    ? "最後の push の時刻"
+    : boundary.at !== undefined
+      ? "区切りまでの push がないので区切りの時刻"
+      : fallback !== undefined
+        ? "push がないので PR のマージ時刻"
+        : "push がないので今の時刻";
   const closed = await closeOpenedRun(ctx, run, {
     opener: "reclaim",
     result: "success",
@@ -205,7 +220,7 @@ async function closeFixRun(
   });
   out.runsClosed.push({ id: doc.id, run: closed.run.id, opener: "reclaim" });
   out.warnings.push(
-    `${doc.id}: ${boundary.why}を区切りとして閉じた（${pushedAt === undefined ? "push の時刻を取れないので" : "最後の push の時刻で"}）`,
+    `${doc.id}: ${boundary.why}を区切りとして閉じた（${basis}）`,
     ...closed.warnings,
   );
 }
@@ -289,13 +304,7 @@ async function reconcileAll(ctx: CommandContext, warnings: string[]): Promise<Re
     const fixing = await findOpenedRun(ctx, doc.data, "reclaim", running);
     if (fixing) {
       const after = outcome.kind === "advance" ? { ...doc.data, status: outcome.to } : doc.data;
-      const boundary = await fixRunBoundary(
-        ctx,
-        after,
-        fixing,
-        running,
-        outcome.kind === "advance",
-      );
+      const boundary = fixRunBoundary(ctx, after, fixing, running, outcome.kind === "advance");
       if (boundary)
         await closeFixRun(ctx, doc, fixing, boundary, prMergedAt, { runsClosed, warnings });
     }
@@ -319,7 +328,7 @@ async function reconcileAll(ctx: CommandContext, warnings: string[]): Promise<Re
     const doc = ctx.store.tickets.get(run.data.ticket);
     if (!doc || !isTerminal(doc.data.status)) continue;
     if (run.data.step !== openedStepOf(ctx, doc.data, "reclaim")) continue;
-    const boundary = await fixRunBoundary(ctx, doc.data, run, running, false);
+    const boundary = fixRunBoundary(ctx, doc.data, run, running, false);
     if (boundary) await closeFixRun(ctx, doc, run, boundary, undefined, { runsClosed, warnings });
   }
   return { changed, prRecorded, runsClosed };

@@ -48,6 +48,7 @@ import {
   closeOpenedRunAlone,
   describeClosedRuns,
   findOpenedRun,
+  fixRunFinishedAt,
   openedStepOf,
   openRun,
   token,
@@ -864,8 +865,15 @@ function isReclaim(ctx: CommandContext, ticket: Ticket): boolean {
   );
 }
 
-const describeClaimState = (ticket: Ticket) =>
-  `${ticket.status}${ticket.assignee ? `、担当 ${ticket.assignee}` : ""}${ticket.pr === undefined ? "、PR なし" : `、PR #${ticket.pr}`}`;
+/**
+ * claim の書き込みの中（取り込みと索引の読み直しの後）で、もう一度の claim と分かったときに抜けるための印。
+ * 書くものがないので書き込みを捨て、外で reclaim に回す（古い索引で判定すると、別のマシンで済んだ claim と PR の記録を見落とす）
+ */
+class ReclaimRequested extends Error {
+  constructor(readonly doc: Doc<Ticket>) {
+    super(`${doc.id} はもう一度の claim`);
+  }
+}
 
 /** やり直しの理由の形（run finish の retry_reasons と同じ）。1 件 1 行 */
 const retryReasons = z
@@ -947,10 +955,18 @@ async function reclaim(
     const pushedAt = doc.data.branch
       ? await lastPushedAt(ctx.repo, doc.data.branch, { fetch: true })
       : undefined;
+    // この claim が次の Run の開始の区切り。前の Run の開始より後の push がなければ今（この claim）の時刻
+    const { finishedAt, pushed } = fixRunFinishedAt({
+      pushedAt,
+      startedAt: stale.data.started_at,
+    });
+    warnings.push(
+      `${doc.id}: 前の手直しの Run ${stale.id} を、この claim を区切りとして${pushed ? "最後の push の時刻" : "、push がないのでこの claim の時刻"}で閉じる`,
+    );
     const closed = await closeOpenedRunAlone(ctx, stale, {
       opener: "reclaim",
       result: "success",
-      finishedAt: pushedAt,
+      finishedAt,
     });
     warnings.push(...closed.warnings);
   }
@@ -1021,40 +1037,34 @@ export const ticketClaim = defineCommand({
     if (retryReasonsGiven && (input.no_run || ctx.actor.kind !== "agent")) {
       throw new UsageError("retry_reason は手直しの Run を開く agent の claim でだけ使える");
     }
-    // 自分が claim 済みで PR のあるチケットのもう一度の claim は、手直しの開始（ST-3・RN-5）。書くものがないので書き込みの外で扱う
-    const current = ctx.store.require("ticket", input.ticket);
-    if (isReclaim(ctx, current.data)) {
-      const run = await reclaim(
-        ctx,
-        current,
-        { ...input, retry_reasons: retryReasonsGiven },
-        warnings,
-      );
-      return ok<ClaimView>({ ...withBody(current), run }, undefined, warnings);
-    }
-    if (retryReasonsGiven) {
-      throw new UsageError(
-        `retry_reason は自分が claim 済みで PR のあるチケットのもう一度の claim でだけ使える（${current.id} は ${describeClaimState(current.data)}）`,
-      );
-    }
+    // もう一度の claim（自分が claim 済みで PR のあるチケット。ST-3・RN-5）かは、書き込みの中で取り込んだ後の索引で決める。
+    // 書くものがないので ReclaimRequested で書き込みを抜け、外で reclaim に回す
     const result = await withWrite(
       ctx,
       async () => {
         const doc = ctx.store.require("ticket", input.ticket);
+        if (isReclaim(ctx, doc.data)) throw new ReclaimRequested(doc);
         if (doc.data.status !== "todo") {
-          if (doc.data.assignee) {
-            // 自分の claim でも PR がなければ手直しにはならない（実装の途中。続けるなら run start、やめるなら unclaim）
-            const own = sameUser(doc.data.assignee, ctx.actor.id);
+          const owner = doc.data.assignee;
+          const own = owner !== undefined && sameUser(owner, ctx.actor.id);
+          if (owner && !own) {
+            throw new OperationError("CLAIM_LOST", `${doc.id} は ${owner} が claim 済み`);
+          }
+          // 自分の claim でも PR がなければ手直しにはならない（実装の途中。続けるなら run start、やめるなら unclaim）
+          if (own && (doc.data.status === "in_progress" || doc.data.status === "review")) {
             throw new OperationError(
               "CLAIM_LOST",
-              own
-                ? `${doc.id} は自分（${doc.data.assignee}）が claim 済みで PR がまだない。実装を続けるなら run start、やめるなら ticket unclaim`
-                : `${doc.id} は ${doc.data.assignee} が claim 済み`,
+              `${doc.id} は自分（${owner}）が claim 済みで PR がまだない。実装を続けるなら run start、やめるなら ticket unclaim`,
             );
           }
           throw new OperationError(
             "TRANSITION_REJECTED",
             `${doc.id} は ${doc.data.status} なので claim できない`,
+          );
+        }
+        if (retryReasonsGiven) {
+          throw new UsageError(
+            `retry_reason は自分が claim 済みで PR のあるチケットのもう一度の claim でだけ使える（${doc.id} は todo）`,
           );
         }
         const wf = ctx.store.requireWorkflowFor(doc.data);
@@ -1087,7 +1097,16 @@ export const ticketClaim = defineCommand({
         immediate: true,
         cas: true,
       },
-    );
+    ).catch((e: unknown) => (e instanceof ReclaimRequested ? e : Promise.reject(e)));
+    if (result instanceof ReclaimRequested) {
+      const run = await reclaim(
+        ctx,
+        result.doc,
+        { ...input, retry_reasons: retryReasonsGiven },
+        warnings,
+      );
+      return ok<ClaimView>({ ...withBody(result.doc), run }, undefined, warnings);
+    }
     // Run を開くのは claim が push で取れた後。人の claim と no_run では開かない（RN-5）
     const run =
       ctx.actor.kind === "agent" && !input.no_run

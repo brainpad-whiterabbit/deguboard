@@ -1057,11 +1057,84 @@ describe("チケットの流れ", () => {
         retries: 2,
         retry_reasons: ["指摘 B", "指摘 C"],
       });
-      // 閉じた集計は commit.mode（既定は batch）に従ってコミットに入る
+      // 前の Run の開始（02:00）より後の push がなければ、最後の push（01:30）ではなくこの claim の時刻で閉じる
+      clock = new Date("2026-11-06T02:30:00Z");
+      const third = await runCommand(ticketClaim, agent, { ticket: "t1" });
+      expect(third.warnings).toContainEqual(
+        `t1: 前の手直しの Run ${fix2} を、この claim を区切りとして、push がないのでこの claim の時刻で閉じる`,
+      );
+      expect(agent.store.runs.get(fix2)!.data).toMatchObject({
+        result: "success",
+        finished_at: "2026-11-06T02:30:00Z",
+      });
+      expect((await peekRunningRuns(agent.repo)).map((r) => r.id)).toEqual([third.data.run]);
+      // 閉じた集計は commit.mode（既定は batch）に従ってコミットに入る（fix1 の集計は 3 回目の claim の書き込みが先にまとめてコミットした）
       await runCommand(commit, agent, {});
       expect(
         (await git(agent.repo.dataDir, ["show", "--name-only", "--format=", "HEAD"])).stdout,
-      ).toContain(`runs/${fix1}.json`);
+      ).toContain(`runs/${fix2}.json`);
+      expect(agent.store.runs.has(fix1)).toBe(true);
+    } finally {
+      restore();
+    }
+  });
+
+  it("もう一度の claim かは取り込んだ後の索引で決め、別のマシンで済んだ claim と PR の記録や unclaim を古い索引で見誤らない（ST-3）", async () => {
+    const f = await fixture();
+    let clock = new Date("2026-11-06T00:00:00Z");
+    const a = await initialized(
+      f.cloneA,
+      { now: () => clock },
+      { template: "software-development" },
+    );
+    await runCommand(ticketCreate, a, { title: "Elsewhere" });
+    // 同じユーザの別のマシン（clone B）で claim し、PR 番号を記録して push する
+    const b = await openContext({
+      cwd: f.cloneB,
+      initialize: {},
+      actor: { kind: "agent", user: "eiki" },
+      now: () => clock,
+    });
+    const restore = await fakeGh(f.root, {});
+    try {
+      await runCommand(ticketClaim, b, { ticket: "t1", branch: "feat/t1", no_run: true });
+      await runCommand(ticketUpdate, b, { ticket: "t1", pr: 41 });
+      await runCommand(sync, b, {});
+      // clone A の agent の索引は t1 を todo のまま知っているが、claim は取り込んでから判定するので手直しになる
+      const agent = await agentWithRuns(f.cloneA, () => clock);
+      expect(agent.store.tickets.get("t1")!.data.status).toBe("todo");
+      clock = new Date("2026-11-06T01:00:00Z");
+      const reclaimed = await runCommand(ticketClaim, agent, {
+        ticket: "t1",
+        retry_reasons: ["A"],
+      });
+      expect(reclaimed.data).toMatchObject({
+        status: "in_progress",
+        assignee: "eiki/agent",
+        pr: 41,
+      });
+      expect(reclaimed.warnings).toContainEqual(
+        "t1 は自分（eiki/agent）が claim 済みで PR #41 があるので、手直しの開始とみなしてチケットは変えない",
+      );
+      expect(
+        (await peekRunningRuns(agent.repo)).find((r) => r.id === reclaimed.data.run),
+      ).toMatchObject({
+        step: "fix",
+        retry_reasons: ["A"],
+      });
+      // 逆に、clone B で unclaim されていれば、古い索引では手直しに見えても取り込んでから新しい claim になる
+      await runCommand(ticketUnclaim, b, { ticket: "t1" });
+      await runCommand(sync, b, {});
+      expect(agent.store.tickets.get("t1")!.data.pr).toBe(41);
+      const fresh = await runCommand(ticketClaim, agent, { ticket: "t1", branch: "feat/t1-again" });
+      expect(fresh.data).toMatchObject({ status: "in_progress", branch: "feat/t1-again" });
+      // unclaim は pr を消さないので前の PR 番号が残る（既存の作り）
+      expect(fresh.data.pr).toBe(41);
+      expect(
+        (await peekRunningRuns(agent.repo)).find((r) => r.id === fresh.data.run),
+      ).toMatchObject({
+        step: "implement",
+      });
     } finally {
       restore();
     }
@@ -1115,7 +1188,7 @@ describe("チケットの流れ", () => {
       expect(synced.data.reconciled).toEqual([]);
       expect(synced.data.runs_closed).toEqual([{ id: "t1", run: fix1, opener: "reclaim" }]);
       expect(synced.warnings).toContainEqual(
-        `t1: 次の Run ${review} の開始を区切りとして閉じた（最後の push の時刻で）`,
+        `t1: 次の Run ${review} の開始を区切りとして閉じた（最後の push の時刻）`,
       );
       expect(agent.store.runs.get(fix1)!.data).toMatchObject({
         step: "fix",
@@ -1137,6 +1210,15 @@ describe("チケットの流れ", () => {
       const fix5 = (await runCommand(ticketClaim, agent, { ticket: "t4", retry_reasons: ["D"] }))
         .data.run!;
       await pushCommitAt(f.cloneA, "feat/t4", "2026-11-06T03:40:00Z");
+      // 区切り 5：最後の push（04:00）が手直しの Run の開始（04:30）より前なら、その Run の push はないので区切りの時刻
+      await pushCommitAt(f.cloneA, "feat/t3", "2026-11-06T04:00:00Z");
+      clock = new Date("2026-11-06T04:30:00Z");
+      const fix4 = (await runCommand(ticketClaim, agent, { ticket: "t3", retry_reasons: ["E"] }))
+        .data.run!;
+      clock = new Date("2026-11-06T04:40:00Z");
+      const review3 = (
+        await runCommand(runStart, agent, { ticket: "t3", step: "review", agent: "claude-code" })
+      ).data.id;
       restore();
       restore = await fakeGh(f.root, {
         "feat/t1|41":
@@ -1161,22 +1243,32 @@ describe("チケットの流れ", () => {
       ]);
       expect(merged.data.runs_closed).toEqual([
         { id: "t1", run: fix2, opener: "reclaim" },
+        { id: "t3", run: fix4, opener: "reclaim" },
         { id: "t4", run: fix5, opener: "reclaim" },
         { id: "t2", run: fix3, opener: "reclaim" },
       ]);
       expect(merged.warnings).toContainEqual(
-        "t1: done への前進を区切りとして閉じた（最後の push の時刻で）",
+        "t1: done への前進を区切りとして閉じた（最後の push の時刻）",
       );
       expect(merged.warnings).toContainEqual(
-        "t4: review への前進を区切りとして閉じた（最後の push の時刻で）",
+        "t4: review への前進を区切りとして閉じた（最後の push の時刻）",
       );
+      expect(merged.warnings).toContainEqual(
+        `t3: 次の Run ${review3} の開始を区切りとして閉じた（区切りまでの push がないので区切りの時刻）`,
+      );
+      expect(agent.store.runs.get(fix4)!.data).toMatchObject({
+        result: "success",
+        finished_at: "2026-11-06T04:40:00Z",
+        retry_reasons: ["E"],
+      });
+      await runCommand(runFinish, agent, { run: review3, result: "success" });
       expect(agent.store.runs.get(fix5)!.data).toMatchObject({
         result: "success",
         finished_at: "2026-11-06T03:40:00Z",
         retry_reasons: ["D"],
       });
       expect(merged.warnings).toContainEqual(
-        "t2: チケットの終了（done）を区切りとして閉じた（push の時刻を取れないので）",
+        "t2: チケットの終了（done）を区切りとして閉じた（push がないので今の時刻）",
       );
       expect(agent.store.runs.get(fix2)!.data).toMatchObject({
         result: "success",
@@ -1189,13 +1281,13 @@ describe("チケットの流れ", () => {
       });
 
       // unclaim は実装の Run と手直しの Run の両方を failure で閉じる
-      const fix4 = (await runCommand(ticketClaim, agent, { ticket: "t3" })).data.run!;
+      const fix6 = (await runCommand(ticketClaim, agent, { ticket: "t3" })).data.run!;
       const unclaimed = await runCommand(ticketUnclaim, agent, { ticket: "t3" });
       expect(unclaimed.warnings.filter((w) => /を failure で閉じた/.test(w))).toEqual([
         expect.stringMatching(/^t3 の実装の Run r\S+ を failure で閉じた/),
-        `t3 の手直しの Run ${fix4} を failure で閉じた（finished_at 2026-11-06T05:00:00Z）`,
+        `t3 の手直しの Run ${fix6} を failure で閉じた（finished_at 2026-11-06T05:00:00Z）`,
       ]);
-      expect(agent.store.runs.get(fix4)!.data).toMatchObject({
+      expect(agent.store.runs.get(fix6)!.data).toMatchObject({
         step: "fix",
         result: "failure",
         error: "ticket unclaim で todo に戻した",
