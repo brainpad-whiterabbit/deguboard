@@ -376,24 +376,24 @@ Reset to Default
 Tickets
 Criteria for priority high
 priority.high
-[title] Default: 利用者に見える不具合・利用者を誤らせる文書・悪用できる脆弱性・ライセンスの漏れ・検査が通らない・ほかのチケットを止めている
+[title] Default: User-visible bugs, documents that mislead users, exploitable vulnerabilities, license omissions, failing checks, and anything blocking other tickets
 Modified
 Criteria for priority high. Used when creating and reviewing tickets, and by the priority marks and selection hints on screen
-[title] Reset to default 利用者に見える不具合・利用者を誤らせる文書・悪用できる脆弱性・ライセンスの漏れ・検査が通らない・ほかのチケットを止めている
+[title] Reset to default User-visible bugs, documents that mislead users, exploitable vulnerabilities, license omissions, failing checks, and anything blocking other tickets
 Reset to Default
 Criteria for priority medium
 priority.medium
-[title] Default: 機能の追加と改善・テストの抜けと不安定なテスト・内部の文書の食い違い・今は害のない規約違反・大きく古い依存
+[title] Default: New features and improvements, missing or unstable tests, inconsistencies in internal docs, convention violations that do no harm yet, and dependencies that are far out of date
 Modified
 Criteria for priority medium (the default). Used when creating and reviewing tickets, and by the priority marks and selection hints on screen
-[title] Reset to default 機能の追加と改善・テストの抜けと不安定なテスト・内部の文書の食い違い・今は害のない規約違反・大きく古い依存
+[title] Reset to default New features and improvements, missing or unstable tests, inconsistencies in internal docs, convention violations that do no harm yet, and dependencies that are far out of date
 Reset to Default
 Criteria for priority low
 priority.low
-[title] Default: 使われていないコードと依存・設定の重複・言い回しの揺れ・急がない調査と検討
+[title] Default: Unused code and dependencies, duplicated settings, inconsistent wording, and investigation and study that are not urgent
 Modified
 Criteria for priority low. Used when creating and reviewing tickets, and by the priority marks and selection hints on screen
-[title] Reset to default 使われていないコードと依存・設定の重複・言い回しの揺れ・急がない調査と検討
+[title] Reset to default Unused code and dependencies, duplicated settings, inconsistent wording, and investigation and study that are not urgent
 Reset to Default
 
 ## パネルのチケット詳細

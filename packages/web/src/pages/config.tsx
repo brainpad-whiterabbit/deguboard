@@ -15,7 +15,7 @@ import { failureOf } from "../client/http.js";
 import { hrefOf, toggleRoute } from "../router.js";
 import { useStore } from "../store.js";
 import type { ConfigField, ConfigScope, ConfigShowView } from "../types.js";
-import { configDescription, tr, msg } from "../l10n.js";
+import { configDescription, shownConfigValue, storedConfigValue, tr, msg } from "../l10n.js";
 import { trNode } from "../l10n-node.js";
 
 /** 画面のまとまり。キーの最上位（commit.mode なら commit）で振り分ける */
@@ -86,6 +86,11 @@ export function valueAt(config: unknown, key: string): unknown {
     cursor = (cursor as Record<string, unknown>)[k];
   }
   return cursor;
+}
+
+/** 既定の値の表示。優先度の判断基準の既定は表示言語の訳で出す（UI-11） */
+function defaultText(field: ConfigField): string {
+  return formatValue(shownConfigValue(field.key, field.default, field.default));
 }
 
 /** 既定から変えたか。リストは中身で比べる */
@@ -480,7 +485,7 @@ export function ConfigPage() {
                         {modified ? (
                           <span
                             className="badge config-modified"
-                            title={tr("既定は {0}", formatValue(f.default))}
+                            title={tr("既定は {0}", defaultText(f))}
                           >
                             {tr("変更あり")}
                           </span>
@@ -507,7 +512,7 @@ export function ConfigPage() {
                           className="config-reset"
                           onClick={() => change(f.key, f.default)}
                           disabled={locked}
-                          title={tr("既定の {0} に戻す", formatValue(f.default))}
+                          title={tr("既定の {0} に戻す", defaultText(f))}
                         >
                           {tr("既定に戻す")}
                         </button>
@@ -714,10 +719,11 @@ function FieldInput({
           id={id}
           type="text"
           className="config-text"
-          value={String(draft ?? value ?? "")}
+          value={String(draft ?? shownConfigValue(field.key, value, field.default) ?? "")}
           disabled={disabled}
           onChange={(e) => onDraft(e.target.value)}
-          onBlur={(e) => onChange(e.target.value)}
+          // 訳の文のまま離れたら既定の値に戻して保存する（訳の文を書き込まない。storedConfigValue）
+          onBlur={(e) => onChange(storedConfigValue(field.key, e.target.value, field.default))}
           onKeyDown={(e) => {
             // 欄を離れたときに保存する（Enter と blur で 2 回保存しない）
             if (e.key === "Enter") (e.target as HTMLInputElement).blur();
@@ -813,7 +819,7 @@ function ConfirmBox({
               trNode(
                 "{0} を空にし、既定の {1} に戻す。{2}。チーム全員に効く。保存する？",
                 key,
-                <code>{formatValue(field.default)}</code>,
+                <code>{defaultText(field)}</code>,
                 effect,
               )
             : trNode("{0} を {1} にする。{2}。チーム全員に効く。保存する？", key, value, effect)

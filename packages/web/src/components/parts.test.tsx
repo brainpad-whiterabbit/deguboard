@@ -1,9 +1,12 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { HostProvider } from "../host.js";
 import { createUiState, memoryBackend } from "../ui-state.js";
 import { afterEach, describe, expect, it } from "vitest";
 import { StoreProvider } from "../store.js";
+import { setLanguage } from "../l10n.js";
+import { PRIORITY_CRITERIA_EN } from "../l10n-en.js";
+import { configFields } from "@deguboard/core";
 import {
   ActivityMark,
   PriorityMark,
@@ -139,6 +142,45 @@ describe("優先度の印", () => {
     expect(head).toBe("優先度 high（上に並ぶ）");
     // 2 行目からは mockClient の config.show の priority.high（判断基準）
     expect(rest.join("\n")).toBe("利用者に見える不具合・ほかのチケットを止めている");
+  });
+
+  it("英語の表示で既定のままの判断基準は英語の訳で出し、書き換えた値は書いた言葉のまま出す（UI-11）", async () => {
+    const defaults = configFields().filter((f) => f.key.startsWith("priority."));
+    const client = mockClient();
+    const config = {
+      default_project: "default",
+      priority: { high: "独自の基準", medium: "", low: "" },
+    };
+    const shown = {
+      config: { ...config, priority: { ...config.priority, medium: defaults[1]!.default } },
+    };
+    client.handlers["config.show"] = (input) =>
+      (input as { fields?: boolean } | undefined)?.fields
+        ? { ...shown, team: shown.config, local: {}, fields: defaults }
+        : shown.config;
+    setLanguage("en");
+    try {
+      render(
+        <StoreProvider client={client}>
+          <PriorityMark priority="high" />
+          <PriorityMark priority="medium" />
+        </StoreProvider>,
+      );
+      await screen.findByText("high");
+      await waitFor(() =>
+        expect(
+          document.querySelector(".priority-mark.priority-medium")!.getAttribute("title"),
+        ).toContain(PRIORITY_CRITERIA_EN.medium),
+      );
+      const titles = [...document.querySelectorAll(".priority-mark")].map((el) =>
+        el.getAttribute("title"),
+      );
+      // 書き換えた high は書いた言葉のまま、既定のままの medium は英語の訳
+      expect(titles[0]).toContain("独自の基準");
+      expect(titles[1]).toContain(PRIORITY_CRITERIA_EN.medium);
+    } finally {
+      setLanguage("ja");
+    }
   });
 
   it("priorityTitle は判断基準が空（未ロード）なら 1 行目だけを返し、改行も基準も付けない", () => {
