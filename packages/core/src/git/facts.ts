@@ -269,7 +269,7 @@ async function collectPrFacts(
 }
 
 /**
- * 作業ブランチの追跡ブランチにあって base にないコミットの、sha と作成者の時刻（ISO）。
+ * 作業ブランチの追跡ブランチにあって base にないコミット（マージを除く）の、sha とコミッタの時刻（push の近似、ISO）。
  * lint が実装の Run の期間に入らない push を探すのに使う。fetch はしない（照合と同じく手元の ref を読む）。
  * リモートがない・追跡ブランチがない（push していない・マージ後に消した）・base がないときは undefined
  */
@@ -282,9 +282,13 @@ export async function branchCommitTimes(
   if (!(await refExists(repo, ref))) return undefined;
   const base = await baseRef(repo);
   if (!base) return undefined;
-  const r = await runGit(repo.dataDir, ["log", "--format=%H %cI", `${base}..${ref}`], {
-    allowFailure: true,
-  });
+  const r = await runGit(
+    repo.dataDir,
+    ["log", "--no-merges", "--format=%H %cI", `${base}..${ref}`],
+    {
+      allowFailure: true,
+    },
+  );
   if (r.code !== 0) return undefined;
   const commits: { sha: string; at: string }[] = [];
   for (const line of r.stdout.split("\n")) {

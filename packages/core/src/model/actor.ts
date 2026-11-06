@@ -33,7 +33,7 @@ export function isAgentActorId(id: string): boolean {
 
 /** ID からユーザ名を取り出す（`eiki/agent` → `eiki`） */
 function userOf(id: string): string {
-  return id.endsWith(AGENT_SUFFIX) ? id.slice(0, -AGENT_SUFFIX.length) : id;
+  return isAgentActorId(id) ? id.slice(0, -AGENT_SUFFIX.length) : id;
 }
 
 /** 同じユーザか（人とその AI は同じユーザ） */

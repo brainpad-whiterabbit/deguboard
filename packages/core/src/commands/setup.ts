@@ -503,7 +503,7 @@ export const lint = defineCommand({
   name: "lint",
   group: "setup",
   summary:
-    "本文の推奨の節（## 概要・## 受け入れ条件）の欠けと空、Workflow の fields に合わない値、閉じた Epic に残る終わっていないチケット、lint.require_iteration が true なら Iteration に入らずに todo・abandoned 以外に進んだチケット（閉じた Epic の done は除く）、チケットがすべて終わったのに開いている Epic・Plan、開いた Plan の after と depends_on をまたぐ循環、同じ Project に 2 つ以上ある active の Iteration、agent が PR まで進めたのに実装の Run がないチケット、閉じた実装の Run の後の push で、どの Run の期間にも入らないものがあるチケットを指摘する。done のチケットの未チェックの受け入れ条件は指摘しない",
+    "本文の推奨の節（## 概要・## 受け入れ条件）の欠けと空、Workflow の fields に合わない値、閉じた Epic に残る終わっていないチケット、lint.require_iteration が true なら Iteration に入らずに todo・abandoned 以外に進んだチケット（閉じた Epic の done は除く）、チケットがすべて終わったのに開いている Epic・Plan、開いた Plan の after と depends_on をまたぐ循環、同じ Project に 2 つ以上ある active の Iteration を指摘する。実装の Run の抜け（agent が PR まで進めたのに実装の Run がない、閉じた実装の Run の後のコミットがどの Run の期間にも入らない）は、終わっていないチケットと、閉じていない Iteration に入った done のチケットだけを見る。done のチケットの未チェックの受け入れ条件は指摘しない",
   input: z.object({
     project: z.string().optional().describe("Project で絞る。省略時はすべて"),
   }),
@@ -650,7 +650,13 @@ export const lint = defineCommand({
       seen.add(run.id);
       runsByTicket.set(run.ticket, [...(runsByTicket.get(run.ticket) ?? []), run]);
     }
-    for (const doc of tickets) {
+    // 終わったチケットは Run を後から作り直せないので対象にしない。閉じていない Iteration の done は直せるので残す
+    const inRunScope = (t: Doc<Ticket>) =>
+      !isTerminal(t.data.status) ||
+      (t.data.status === "done" &&
+        t.data.iteration !== undefined &&
+        ctx.store.iterations.get(t.data.iteration)?.data.status !== "closed");
+    for (const doc of tickets.filter(inRunScope)) {
       const own = runsByTicket.get(doc.id) ?? [];
       const implStep = openedStepOf(ctx, doc.data, "claim");
       const implRuns = own.filter((r) => r.step === implStep);
@@ -683,7 +689,7 @@ export const lint = defineCommand({
           doc.path,
           doc.id,
           "lint_commit_outside_run",
-          `実装の Run を閉じた後の push ${outside.length} 件（${outside[0]?.sha.slice(0, 7)} など）がどの Run の期間にも入らない`,
+          `実装の Run を閉じた後のコミット ${outside.length} 件（${outside[0]?.sha.slice(0, 7)} など）がどの Run の期間にも入らない`,
         );
     }
     return ok({ ok: issues.length === 0, issues });

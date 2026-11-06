@@ -1196,12 +1196,93 @@ describe("チケットの流れ", () => {
     await pushCommitAt(f.cloneA, "feat/t1", "2026-11-06T02:00:00Z");
     const tip = (await git(f.cloneA, ["rev-parse", "--short=7", "origin/feat/t1"])).stdout.trim();
     expect(await outside()).toEqual([
-      ["t1", `実装の Run を閉じた後の push 1 件（${tip} など）がどの Run の期間にも入らない`],
+      ["t1", `実装の Run を閉じた後のコミット 1 件（${tip} など）がどの Run の期間にも入らない`],
     ]);
     // 手直しの Run（開いたまま）の期間に入れば指摘しない。もう一度の claim は PR のある自分の claim なので fix を開く
     clock = new Date("2026-11-06T01:30:00Z");
     await runCommand(ticketClaim, agent, { ticket: "t1" });
     expect(await outside()).toEqual([]);
+  });
+
+  it("lint の実装の Run の抜けは、終わっていないチケットと閉じていない Iteration の done だけを見て、閉じた Iteration の done と Iteration のない done は指摘しない", async () => {
+    const f = await fixture();
+    let clock = new Date("2026-11-06T00:00:00Z");
+    const human = await initialized(
+      f.cloneA,
+      { now: () => clock },
+      { template: "software-development" },
+    );
+    for (const title of ["Unfinished", "Done"])
+      await runCommand(ticketCreate, human, { title, summary: "s", acceptance: ["a"] });
+    const agent = await agentWithRuns(f.cloneA, () => clock);
+    for (const t of ["t1", "t2"]) {
+      await runCommand(ticketClaim, agent, { ticket: t, branch: `feat/${t}`, no_run: true });
+      await git(f.cloneA, ["branch", `feat/${t}`]);
+      await runCommand(ticketUpdate, agent, { ticket: t, pr: t === "t1" ? 41 : 42 });
+    }
+    // done への move は pr と assignee を消すので、PR を残した done の形は索引の書き換えで作る
+    await agent.store.update("ticket", "t2", { status: "done" });
+    const missing = async () =>
+      (await runCommand(lint, agent, {})).data.issues
+        .filter((i) => i.code === "lint_run_implement_missing")
+        .map((i) => i.id);
+    // t1 は終わっていない。t2 は done だが Iteration がない
+    expect(await missing()).toEqual(["t1"]);
+    // 人の索引は agent の書き込みを知らないので、読み直してから Iteration を変える（古い索引で書くと pr を戻す）
+    await human.store.rescan();
+    await runCommand(iterationCreate, human, { name: "Sprint 1" });
+    await runCommand(iterationAdd, human, { iteration: "s1", tickets: ["t2"] });
+    await agent.store.rescan();
+    // 閉じていない Iteration に入った done は対象
+    expect(await missing()).toEqual(["t1", "t2"]);
+    // 閉じた Iteration の done は直せないので指摘しない
+    await human.store.rescan();
+    await runCommand(iterationClose, human, { iteration: "s1" });
+    await agent.store.rescan();
+    expect(await missing()).toEqual(["t1"]);
+  });
+
+  it("lint は作業ブランチに main をマージしたマージコミットを、実装の Run の後のコミットとして指摘しない", async () => {
+    const f = await fixture();
+    let clock = new Date("2026-11-06T00:00:00Z");
+    const human = await initialized(
+      f.cloneA,
+      { now: () => clock },
+      { template: "software-development" },
+    );
+    await runCommand(ticketCreate, human, {
+      title: "Merged main",
+      summary: "s",
+      acceptance: ["a"],
+    });
+    const agent = await agentWithRuns(f.cloneA, () => clock);
+    await runCommand(ticketClaim, agent, { ticket: "t1", branch: "feat/t1" });
+    await git(f.cloneA, ["branch", "feat/t1"]);
+    await pushCommitAt(f.cloneA, "feat/t1", "2026-11-06T00:30:00Z");
+    clock = new Date("2026-11-06T01:00:00Z");
+    await runCommand(ticketUpdate, agent, { ticket: "t1", pr: 41 });
+    // main に進みを作り、作業ブランチに取り込んで push する（マージコミットは 02:00）
+    const saved = { ...process.env };
+    try {
+      await git(f.cloneA, ["checkout", "--quiet", "main"]);
+      process.env["GIT_AUTHOR_DATE"] = process.env["GIT_COMMITTER_DATE"] = "2026-11-06T01:10:00Z";
+      await git(f.cloneA, ["commit", "--quiet", "--allow-empty", "-m", "main が進む"]);
+      await git(f.cloneA, ["push", "--quiet", "origin", "main"]);
+      await git(f.cloneA, ["checkout", "--quiet", "feat/t1"]);
+      process.env["GIT_AUTHOR_DATE"] = process.env["GIT_COMMITTER_DATE"] = "2026-11-06T02:00:00Z";
+      await git(f.cloneA, ["merge", "--quiet", "--no-ff", "--no-edit", "main"]);
+      await git(f.cloneA, ["push", "--quiet", "origin", "feat/t1"]);
+      await git(f.cloneA, ["checkout", "--quiet", "main"]);
+    } finally {
+      delete process.env["GIT_AUTHOR_DATE"];
+      delete process.env["GIT_COMMITTER_DATE"];
+      Object.assign(process.env, saved);
+    }
+    expect(
+      (await runCommand(lint, agent, {})).data.issues.filter(
+        (i) => i.code === "lint_commit_outside_run",
+      ),
+    ).toEqual([]);
   });
 
   it("照合は開いたままの手直しの Run を、次の Run の開始・マージ（done への前進）・終わったチケットの区切りで、それまでの最後の push の時刻で閉じる。unclaim は手直しの Run も failure で閉じる（RN-6）", async () => {
