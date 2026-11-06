@@ -173,6 +173,23 @@ describe("スキーマ", () => {
     for (const f of fields) expect(f.description, f.key).not.toBe("");
   });
 
+  it("configFields の clears_to_default は、既定が空でない文字列の項目だけ true（config.set と設定画面が空の値の扱いをこれで決める）", () => {
+    const fields = configFields();
+    expect(fields.filter((f) => f.clears_to_default).map((f) => f.key)).toEqual([
+      "default_project",
+      "git.remote",
+      "git.base_branch",
+      "worktree.root",
+      "priority.high",
+      "priority.medium",
+      "priority.low",
+    ]);
+    const byKey = new Map(fields.map((f) => [f.key, f]));
+    // 既定が空の文字列・選択肢・真偽値・配列は false
+    for (const key of ["models.light", "commit.mode", "auto.merge", "actions.test"])
+      expect(byKey.get(key)?.clears_to_default, key).toBe(false);
+  });
+
   it("Plan の details.<ticket>.tier は light / standard / heavy だけを受け、それ以外は読む側でも拒否する（PL-1）", () => {
     const base = { id: "p1", project: "default", tickets: ["t1"] };
     for (const tier of ["light", "standard", "heavy"]) {

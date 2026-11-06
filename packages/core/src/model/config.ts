@@ -206,6 +206,12 @@ export interface ConfigField {
   description: string;
   default: unknown;
   scope: ConfigScope;
+  /**
+   * 空の値（空文字・null・省略）を渡すと、値を消して既定（--local ならチームの値）に戻す項目か。
+   * 既定が空でない文字列の項目（priority.* など）だけ true。config.set の空の値の扱いと、設定画面の確認の文は、この値で決める
+   * （既定が空の文字列は空のまま、配列は空の配列にし、選択肢は空を弾く）
+   */
+  clears_to_default: boolean;
 }
 
 /** default・prefault の包みを外した中身 */
@@ -223,12 +229,14 @@ function fieldOf(key: string, schema: z.ZodType, fallback: unknown): ConfigField
     description: schema.description ?? "",
     default: fallback,
     scope: configScopeOf(key),
+    clears_to_default: false,
   };
   if (inner instanceof z.ZodEnum) {
     field.type = "enum";
     field.options = inner.options.map(String);
   } else if (inner instanceof z.ZodBoolean) field.type = "boolean";
   else if (inner instanceof z.ZodArray) field.type = "list";
+  else field.clears_to_default = typeof fallback === "string" && fallback !== "";
   return field;
 }
 

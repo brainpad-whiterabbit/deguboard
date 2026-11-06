@@ -176,7 +176,7 @@ steps: # 任意。Run の step の語彙（WF-5）
 
 項目と意味・値・既定値・範囲（scope）はスキーマ（`packages/core/src/model/config.ts`）、`config.set` の値の扱いは `dg config set --help` が正本。エージェントや記録に関わるもの（`metrics.read_transcripts`・`actions.shell`・`auto.merge`）は既定で `false`。
 
-- チームの `config.yaml` は deguboard ブランチで全員が共有する。人ごとに違ってよい項目（scope が `local`。マシンの配置・作業の好み・使えるモデル・自分のマシンで許すこと）だけは、Git に入らない `<git-common-dir>/deguboard-local/config.yaml` で上書きできる（`dg config set --local`・`config unset --local`。コミットも push もしない）。値は「個人 > チーム > 既定」の順に読み、CLI・`dg serve`・VS Code 拡張は Core 経由で同じ値を使う（VS Code の settings.json は使わない）。個人のファイルにあるチーム専用・未知の項目と不正な値は無視して `dg validate` が警告する。`config show --fields` は項目ごとの scope と、チームの値・個人の上書きを返す（理由は [ADR-006](adr/ADR-006-ui-and-writes.md)）
+- チームの `config.yaml` は deguboard ブランチで全員が共有する。人ごとに違ってよい項目（scope が `local`。マシンの配置・作業の好み・使えるモデル・自分のマシンで許すこと）だけは、Git に入らない `<git-common-dir>/deguboard-local/config.yaml` で上書きできる（`dg config set --local`・`config unset --local`。コミットも push もしない）。値は「個人 > チーム > 既定」の順に読み、CLI・`dg serve`・VS Code 拡張は Core 経由で同じ値を使う（VS Code の settings.json は使わない）。個人のファイルにあるチーム専用・未知の項目と不正な値は無視して `dg validate` が警告する。`config show --fields` は項目ごとの scope・空にすると既定に戻るか（`clears_to_default`。`config set` と設定画面が同じ値で空の扱いを決める）と、チームの値・個人の上書きを返す（理由は [ADR-006](adr/ADR-006-ui-and-writes.md)）
 
 - `actor.human_only`：agent が呼ぶと `TRANSITION_REJECTED` で拒否するコマンド名の一覧。既定は空。チケットの遷移を人に限るのは Workflow の `by`（WF-1）
 - `models.*`：Plan の段階（PL-1）に対応するモデル名。手順（`dg guide run`）がサブエージェントに渡す
