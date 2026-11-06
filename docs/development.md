@@ -146,4 +146,4 @@ mise run vsix                        # vsix を Release に添付し、出た SH
 
 公開は必ず `pnpm publish`（`release:publish`）で行う。`npm publish` では `workspace:*` と `publishConfig.exports` が書き換わらない。
 
-tarball は一時ディレクトリに `file:` で入れ、`dg --version` と `dg init` を試す。`@deguboard/core`・`server` は pnpm-workspace.yaml の `overrides` で tarball に向ける（pnpm 12 は package.json の `overrides` を読まない）。
+tarball は一時ディレクトリで、cli は package.json の依存、core・server は pnpm-workspace.yaml の `overrides` で `file:` に向けて入れ、`dg --version` と `dg init` を試す（pnpm 12 は package.json の `overrides` を読まない）。

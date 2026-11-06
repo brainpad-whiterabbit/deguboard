@@ -32,4 +32,11 @@ describe("vsix-sha256", () => {
     expect(stdout).toContain(`deguboard-vscode.vsix の SHA256：${sha256}`);
     expect(stdout).toContain("`sha256sum deguboard-vscode.vsix` を実行し");
   });
+
+  it("VSIX がなければ vsix を先に走らせるよう案内して失敗する", async () => {
+    await expect(run(process.execPath, [SCRIPT, join(dir, "none.vsix")])).rejects.toMatchObject({
+      code: 1,
+      stderr: expect.stringContaining("先に mise run vsix を実行する"),
+    });
+  });
 });

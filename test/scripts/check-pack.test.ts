@@ -65,6 +65,13 @@ describe("check-pack", () => {
     await tarball("a", ["LICENSE"]);
     const outcome = await check();
     expect(outcome.code).toBe(1);
-    expect(outcome.stderr).toContain("1 個");
+    expect(outcome.stderr).toContain("check-pack: tarball が 1 個");
+  });
+
+  it("ディレクトリがなければ pack を先に走らせるよう案内して失敗する", async () => {
+    await rm(release, { recursive: true });
+    const outcome = await check();
+    expect(outcome.code).toBe(1);
+    expect(outcome.stderr).toContain("先に mise run pack を実行する");
   });
 });
