@@ -203,10 +203,14 @@ describe("run", () => {
     expect((await listed({ ticket: "t1" })).map((r) => [r.id, r.running, r.result])).toEqual([
       [a.id, false, "interrupted"],
     ]);
-    // 閉じた Run はもう閉じられない。知らない Run は見つからない
-    await expect(
-      runCommand(runFinish, ctx, { run: a.id, result: "success" }),
-    ).rejects.toMatchObject({ code: "REJECTED" });
+    // 閉じた Run への finish は記録を変えずに警告して返す（RN-4・RN-6）。知らない Run は見つからない
+    const head = (await git(ctx.repo.dataDir, ["rev-parse", "HEAD"])).stdout.trim();
+    const again = await runCommand(runFinish, ctx, { run: a.id, result: "success" });
+    expect(again.data).toMatchObject({ result: "interrupted", error: "セッションが切れた" });
+    expect(again.warnings).toEqual([
+      expect.stringMatching(/^Run .* は既に interrupted で閉じている/),
+    ]);
+    expect((await git(ctx.repo.dataDir, ["rev-parse", "HEAD"])).stdout.trim()).toBe(head);
     await expect(
       runCommand(runFinish, ctx, { run: "r20261031-000000-0000", result: "success" }),
     ).rejects.toMatchObject({ code: "NOT_FOUND" });
@@ -353,11 +357,11 @@ describe("run", () => {
     expect(await exists(a.file)).toBe(false);
     await runCommand(runFinish, ctx, { run: next.id, result: "success" });
 
-    // finish：終わっていると拒否し、残りは消す
+    // finish：終わっていると警告して集計をそのまま返し、残りは消す
     const b = await leftover();
-    await expect(
-      runCommand(runFinish, ctx, { run: b.run.id, result: "interrupted" }),
-    ).rejects.toMatchObject({ code: "REJECTED" });
+    const finished = await runCommand(runFinish, ctx, { run: b.run.id, result: "interrupted" });
+    expect(finished.data).toMatchObject({ id: b.run.id, result: "success" });
+    expect(finished.warnings).toEqual([expect.stringContaining("は既に success で閉じている")]);
     expect(await exists(b.file)).toBe(false);
 
     // 一覧の表示（ticket.list の run_agent）：readRunningRuns と同じくファイルで確かめて実行中に数えず、ロックを取らないので残りは消さない

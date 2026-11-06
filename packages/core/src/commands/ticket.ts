@@ -3,7 +3,7 @@
 import { z } from "zod";
 import { OperationError, UsageError } from "../errors.js";
 import { listBranchChanges, readChangedFile } from "../git/changes.js";
-import { collectBranchFacts, findMergedLeftover } from "../git/facts.js";
+import { collectBranchFacts, fetchPrCreatedAt, findMergedLeftover } from "../git/facts.js";
 import { findBranchWorktree } from "../git/worktree.js";
 import { withWrite } from "../git/write.js";
 import { resolveActorRef, sameUser } from "../model/actor.js";
@@ -20,7 +20,7 @@ import {
   type Ticket,
 } from "../model/ticket.js";
 import type { FactName } from "../model/workflow.js";
-import { peekRunningRuns, runAgentByTicket } from "../run/record.js";
+import { dropRunning, peekRunningRuns, runAgentByTicket } from "../run/record.js";
 import type { Doc } from "../storage/documents.js";
 import { wouldCreateCycle } from "../storage/integrity.js";
 import type { Store, WorkflowEntry } from "../storage/store.js";
@@ -42,7 +42,41 @@ import {
   ticketRef,
   withBody,
 } from "./helpers.js";
-import { agentFromEnv, openRun, token } from "./run.js";
+import {
+  agentFromEnv,
+  closeImplementRun,
+  findImplementRun,
+  openRun,
+  token,
+  type ClosedImplementRun,
+} from "./run.js";
+
+/**
+ * チケットの操作に付随して実装の Run を閉じる（RN-6）。書き込みの中で呼び、実行中の Run がなければ null。
+ * 閉じたことと取り込みの警告は warnings に入れる。実行中の記録はコミットの後に dropClosed で消す
+ */
+async function closeRunWith(
+  ctx: CommandContext,
+  ticket: Ticket,
+  input: Parameters<typeof closeImplementRun>[2],
+  warnings: string[],
+): Promise<ClosedImplementRun | null> {
+  const running = await findImplementRun(ctx, ticket);
+  if (!running) return null;
+  const closed = await closeImplementRun(ctx, running, input);
+  warnings.push(...closed.warnings);
+  return closed;
+}
+
+async function dropClosed(ctx: CommandContext, closed: ClosedImplementRun | null): Promise<void> {
+  if (closed) await dropRunning(ctx.repo, closed.run.id);
+}
+
+/** 書き込みのコミットメッセージに、付随して閉じた Run を足す */
+const withClosedRun = (message: string, closed: ClosedImplementRun | null) =>
+  closed
+    ? `${message}。実装の Run を記録: ${closed.run.ticket} ${closed.run.id} ${closed.run.result}`
+    : message;
 
 /** 主体の参照。`human` / `agent` は自分（のユーザ）に解く（model/actor.ts） */
 const actorRef = z.string().min(1);
@@ -452,7 +486,8 @@ export const ticketUpdate = defineCommand({
   name: "ticket.update",
   positionals: ["ticket"],
   group: "ticket",
-  summary: "チケットの属性と本文を直す。status は ticket.move で変える",
+  summary:
+    "チケットの属性と本文を直す。status は ticket.move で変える。pr を記録すると、このマシンで実行中の実装の Run を success で閉じ、finished_at を PR の作成時刻（gh から取れなければ今）にする",
   input: z.object({
     ticket: ticketRef,
     title: z.string().min(1).optional().describe("タイトル"),
@@ -474,7 +509,15 @@ export const ticketUpdate = defineCommand({
     iteration: z.string().nullable().optional().describe("Iteration の ID"),
     epic: z.string().nullable().optional().describe("Epic の ID"),
     workflow: slugSchema.nullable().optional().describe("Workflow。外すと Project の既定に戻る"),
-    pr: z.number().int().positive().nullable().optional().describe("PR 番号"),
+    pr: z
+      .number()
+      .int()
+      .positive()
+      .nullable()
+      .optional()
+      .describe(
+        "PR 番号。記録すると実行中の実装の Run を success で閉じる（finished_at は PR の作成時刻）",
+      ),
     branch: z
       .string()
       .min(1)
@@ -491,6 +534,7 @@ export const ticketUpdate = defineCommand({
   write: true,
   needs: "store",
   async run(ctx, input) {
+    const warnings: string[] = [];
     const result = await withWrite(
       ctx,
       async () => {
@@ -549,11 +593,34 @@ export const ticketUpdate = defineCommand({
           if (!wf) throw new OperationError("NOT_FOUND", `Workflow ${wfId} が見つからない`);
           Object.assign(patch, validateFields(wf, input.fields));
         }
-        return store.update("ticket", t.id, patch, body);
+        // PR を記録したら実装は終わっている。実行中の実装の Run を PR の作成時刻で閉じる（RN-6）。
+        // 検査がすべて通った後に閉じる（拒否される更新で Run だけ閉じない）
+        let closed: ClosedImplementRun | null = null;
+        const running = typeof input.pr === "number" ? await findImplementRun(ctx, t) : undefined;
+        if (running && typeof input.pr === "number") {
+          const created = await fetchPrCreatedAt(ctx.repo, input.pr);
+          // PR より後に開き直した Run（PR の後の作業は fix の Run にする）は、PR の作成時刻では終わっていない
+          const reason =
+            created.createdAt === undefined
+              ? created.reason
+              : created.createdAt < running.data.started_at
+                ? `PR #${input.pr} は Run ${running.id} の開始より前に作られた`
+                : undefined;
+          if (reason) warnings.push(`${reason}ので、実装の Run の finished_at は今の時刻にする`);
+          closed = await closeImplementRun(ctx, running, {
+            result: "success",
+            finishedAt: reason ? undefined : created.createdAt,
+          });
+          warnings.push(...closed.warnings);
+        }
+        return { doc: await store.update("ticket", t.id, patch, body), closed };
       },
-      { message: (doc) => `${doc.id} を更新: ${doc.data.title}` },
+      {
+        message: ({ doc, closed }) => withClosedRun(`${doc.id} を更新: ${doc.data.title}`, closed),
+      },
     );
-    return ok(withBody(result.value), result.write);
+    await dropClosed(ctx, result.value.closed);
+    return ok(withBody(result.value.doc), result.write, warnings);
   },
 });
 
@@ -692,7 +759,7 @@ export const ticketMove = defineCommand({
   positionals: ["ticket", "status"],
   group: "ticket",
   summary:
-    "Status を変える。Workflow の transitions の制約（by・requires）に反する遷移と、同じ Status への move は拒否する",
+    "Status を変える。Workflow の transitions の制約（by・requires）に反する遷移と、同じ Status への move は拒否する。branch のないチケット（PR の要らない作業）を review・done にすると、このマシンで実行中の実装の Run を success で閉じる",
   input: z.object({
     ticket: ticketRef,
     status: statusSchema.describe(`次の Status（${STATUSES.join(" / ")}）`),
@@ -700,6 +767,7 @@ export const ticketMove = defineCommand({
   write: true,
   needs: "store",
   async run(ctx, input) {
+    const warnings: string[] = [];
     const result = await withWrite(
       ctx,
       async () => {
@@ -714,16 +782,26 @@ export const ticketMove = defineCommand({
             "TRANSITION_REJECTED",
             describeRejection(check, from, input.status),
           );
+        // PR の要らない作業（branch なし）は照合が進めないので、review・done にしたときが実装の終わり（RN-6）。
+        // branch のあるチケットの Run は PR の記録・発見が PR の作成時刻で閉じる
+        const closed =
+          !doc.data.branch && (input.status === "review" || input.status === "done")
+            ? await closeRunWith(ctx, doc.data, { result: "success" }, warnings)
+            : null;
         const updated = await ctx.store.update("ticket", doc.id, {
           status: input.status,
           ...transitionSideEffects(input.status),
           updated_at: nowIso(ctx),
         });
-        return { doc: updated, from };
+        return { doc: updated, from, closed };
       },
-      { message: ({ doc, from }) => `${doc.id} を ${from} から ${doc.data.status} へ` },
+      {
+        message: ({ doc, from, closed }) =>
+          withClosedRun(`${doc.id} を ${from} から ${doc.data.status} へ`, closed),
+      },
     );
-    return ok({ ...withBody(result.value.doc), from: result.value.from }, result.write);
+    await dropClosed(ctx, result.value.closed);
+    return ok({ ...withBody(result.value.doc), from: result.value.from }, result.write, warnings);
   },
 });
 
@@ -907,7 +985,7 @@ export const ticketUnclaim = defineCommand({
   positionals: ["ticket"],
   group: "ticket",
   summary:
-    "claim を外して todo に戻す。自分（同じユーザの人と AI）の claim か記録のない claim だけ。他人のものは force",
+    "claim を外して todo に戻す。自分（同じユーザの人と AI）の claim か記録のない claim だけ。他人のものは force。このマシンで実行中の実装の Run は failure で閉じる（理由を残すなら先に run finish --result failure --error で閉じる）",
   input: z.object({
     ticket: ticketRef,
     force: z.boolean().optional().describe("他人の claim も外す"),
@@ -915,6 +993,7 @@ export const ticketUnclaim = defineCommand({
   write: true,
   needs: "store",
   async run(ctx, input) {
+    const warnings: string[] = [];
     const result = await withWrite(
       ctx,
       async () => {
@@ -932,7 +1011,14 @@ export const ticketUnclaim = defineCommand({
             `${doc.id} は ${owner} の claim。外すなら force を付ける`,
           );
         }
-        return ctx.store.update("ticket", doc.id, {
+        // 実装を途中でやめたので、開いたままの実装の Run は失敗で閉じる（RN-6）
+        const closed = await closeRunWith(
+          ctx,
+          doc.data,
+          { result: "failure", error: "ticket unclaim で todo に戻した" },
+          warnings,
+        );
+        const updated = await ctx.store.update("ticket", doc.id, {
           status: "todo",
           assignee: undefined,
           claimed_by: undefined,
@@ -940,10 +1026,12 @@ export const ticketUnclaim = defineCommand({
           branch_at: undefined,
           updated_at: nowIso(ctx),
         });
+        return { doc: updated, closed };
       },
-      { message: (doc) => `${doc.id} の claim を外す` },
+      { message: ({ doc, closed }) => withClosedRun(`${doc.id} の claim を外す`, closed) },
     );
-    return ok(withBody(result.value), result.write);
+    await dropClosed(ctx, result.value.closed);
+    return ok(withBody(result.value.doc), result.write, warnings);
   },
 });
 

@@ -137,8 +137,8 @@ export function findStep(
   return found ? { ok: true, step: found } : { ok: false, known: wf.steps.map((s) => s.id) };
 }
 
-/** opens_on が無いときに開く step。同梱のテンプレートの実装の step の名前（RN-5） */
-const DEFAULT_OPENED_STEP = "implement";
+/** opens_on が無いときに開く step。同梱のテンプレートの実装の step の名前（RN-5）。閉じる側（findImplementRun）も同じ step を探す */
+export const DEFAULT_OPENED_STEP = "implement";
 
 /**
  * チケットの操作（claim）が開く Run の step（RN-5）。`opens_on` にその操作を書いた step、なければ `implement`。

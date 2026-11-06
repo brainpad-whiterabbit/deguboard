@@ -23,6 +23,8 @@ export interface BranchFacts {
   facts: Facts;
   /** gh が見つけた PR の番号。チケットに記録がなければ照合がこれを `pr` に記録する（ST-6）。取れなければ undefined */
   pr?: number;
+  /** 見つけた PR の作成時刻（ISO）。照合が実装の Run を閉じるときの finished_at（RN-6）。取れなければ undefined */
+  prCreatedAt?: string;
   /** gh が「PR がない」と答えた。pr_* はすべて偽になるが、閉じた PR とは区別する（ST-5） */
   prMissing?: boolean;
   /** ブランチ名で見つけたが、`since` より前にマージされていたので外した PR（照合が警告する） */
@@ -157,9 +159,63 @@ export async function collectBranchFacts(
   return {
     facts,
     ...(pr.number === undefined ? {} : { pr: pr.number }),
+    ...(pr.createdAt === undefined ? {} : { prCreatedAt: pr.createdAt }),
     ...(pr.missing ? { prMissing: true } : {}),
     ...(pr.ignored ? { ignoredPr: pr.ignored } : {}),
   };
+}
+
+/** gh pr view の JSON の形（取る項目は PR_FIELDS） */
+interface PrView {
+  number?: number;
+  state: string;
+  isDraft: boolean;
+  mergedAt?: string | null;
+  createdAt?: string | null;
+}
+
+const PR_FIELDS = "number,state,isDraft,mergedAt,createdAt";
+
+/** gh pr view を番号かブランチ名で呼ぶ。PR がなければ missing、gh がない・読めないときは undefined */
+async function viewPr(
+  repo: GitRepo,
+  selector: string,
+): Promise<{ data: PrView } | { missing: true } | undefined> {
+  if (!(await hasGh(repo.topLevel))) return undefined;
+  try {
+    const result = await runGh(repo.topLevel, ["pr", "view", selector, "--json", PR_FIELDS], {
+      allowFailure: true,
+      timeoutMs: 30_000,
+    });
+    if (result.code !== 0) {
+      return /no pull requests found|could not find|not found/i.test(result.stderr)
+        ? { missing: true }
+        : undefined;
+    }
+    return { data: JSON.parse(result.stdout) as PrView };
+  } catch (error) {
+    if (error instanceof GitError) return undefined;
+    throw error;
+  }
+}
+
+/** 時刻の文字列だけを採る（gh は null を返しうる） */
+const isoOrUndefined = (value: unknown): string | undefined =>
+  typeof value === "string" && !Number.isNaN(Date.parse(value)) ? value : undefined;
+
+/**
+ * PR の作成時刻（ISO）。`ticket update --pr` が実装の Run を閉じるときの finished_at（RN-6）。
+ * gh がない・PR が見つからない・読めないときは理由を返し、呼び出し側が今の時刻を使う
+ */
+export async function fetchPrCreatedAt(
+  repo: GitRepo,
+  pr: number,
+): Promise<{ createdAt: string; reason?: undefined } | { createdAt?: undefined; reason: string }> {
+  const viewed = await viewPr(repo, String(pr));
+  if (!viewed) return { reason: "gh で PR を読めない" };
+  if ("missing" in viewed) return { reason: `PR #${pr} が見つからない` };
+  const createdAt = isoOrUndefined(viewed.data.createdAt);
+  return createdAt ? { createdAt } : { reason: `PR #${pr} の作成時刻を読めない` };
 }
 
 async function collectPrFacts(
@@ -170,51 +226,34 @@ async function collectPrFacts(
 ): Promise<{
   facts: Facts;
   number?: number;
+  createdAt?: string;
   missing?: boolean;
   ignored?: { number: number; mergedAt: string };
 }> {
   const missing = { facts: { pr_open: false, pr_draft: false, pr_merged: false }, missing: true };
-  if (!(await hasGh(repo.topLevel))) return { facts: {} };
-  try {
-    const result = await runGh(
-      repo.topLevel,
-      ["pr", "view", pr ? String(pr) : branch, "--json", "number,state,isDraft,mergedAt"],
-      { allowFailure: true, timeoutMs: 30_000 },
-    );
-    if (result.code !== 0) {
-      if (/no pull requests found|could not find|not found/i.test(result.stderr)) {
-        return missing;
-      }
-      return { facts: {} };
-    }
-    const data = JSON.parse(result.stdout) as {
-      number?: number;
-      state: string;
-      isDraft: boolean;
-      mergedAt?: string | null;
-    };
-    // ブランチを記録する前にマージされた PR は、同じブランチ名で出した前の作業のもの（t206）
-    if (
-      pr === undefined &&
-      since !== undefined &&
-      data.state === "MERGED" &&
-      typeof data.mergedAt === "string" &&
-      Date.parse(data.mergedAt) < Date.parse(since)
-    ) {
-      return Number.isInteger(data.number) && (data.number as number) > 0
-        ? { ...missing, ignored: { number: data.number as number, mergedAt: data.mergedAt } }
-        : missing;
-    }
-    const facts: Facts = {
-      pr_open: data.state === "OPEN",
-      pr_draft: data.isDraft,
-      pr_merged: data.state === "MERGED",
-    };
+  const viewed = await viewPr(repo, pr ? String(pr) : branch);
+  if (!viewed) return { facts: {} };
+  if ("missing" in viewed) return missing;
+  const data = viewed.data;
+  // ブランチを記録する前にマージされた PR は、同じブランチ名で出した前の作業のもの（t206）
+  if (
+    pr === undefined &&
+    since !== undefined &&
+    data.state === "MERGED" &&
+    typeof data.mergedAt === "string" &&
+    Date.parse(data.mergedAt) < Date.parse(since)
+  ) {
     return Number.isInteger(data.number) && (data.number as number) > 0
-      ? { facts, number: data.number as number }
-      : { facts };
-  } catch (error) {
-    if (error instanceof GitError) return { facts: {} };
-    throw error;
+      ? { ...missing, ignored: { number: data.number as number, mergedAt: data.mergedAt } }
+      : missing;
   }
+  const facts: Facts = {
+    pr_open: data.state === "OPEN",
+    pr_draft: data.isDraft,
+    pr_merged: data.state === "MERGED",
+  };
+  const createdAt = isoOrUndefined(data.createdAt);
+  return Number.isInteger(data.number) && (data.number as number) > 0
+    ? { facts, number: data.number as number, ...(createdAt ? { createdAt } : {}) }
+    : { facts };
 }

@@ -28,7 +28,9 @@ import {
   type ConfigField,
 } from "../model/config.js";
 import type { Iteration } from "../model/iteration.js";
+import type { RunId } from "../model/run.js";
 import { parseAcceptance, type Ticket } from "../model/ticket.js";
+import { dropRunning } from "../run/record.js";
 import type { Doc } from "../storage/documents.js";
 import { pathExists } from "../storage/exists.js";
 import { checkReferences } from "../storage/integrity.js";
@@ -40,6 +42,7 @@ import { reconcileStatus, regressionWarnings } from "../workflow/reconcile.js";
 import { WORKFLOW_TEMPLATES } from "../workflow/templates/index.js";
 import { defineCommand, ok, type CommandContext } from "./define.js";
 import { nowIso, sortedDocs } from "./helpers.js";
+import { closeImplementRun, findImplementRun } from "./run.js";
 
 const TEMPLATE_IDS = WORKFLOW_TEMPLATES.map((t) => t.id) as [string, ...string[]];
 
@@ -141,12 +144,15 @@ export interface Reconciled {
   changed: ReconciledTicket[];
   /** PR 番号を記録したチケット（ST-6） */
   prRecorded: Array<{ id: string; pr: number }>;
+  /** 作業ブランチの PR を見つけて閉じた実装の Run（RN-6）。コミットの後に dropRunning で実行中の記録を消す */
+  runsClosed: Array<{ id: string; run: RunId }>;
 }
 
-/** 照合（ST-4〜ST-6）。状態を進めたチケットと、PR 番号を記録したチケットを返す */
+/** 照合（ST-4〜ST-6）。状態を進めたチケットと、PR 番号を記録したチケット、PR を見つけて閉じた実装の Run を返す */
 async function reconcileAll(ctx: CommandContext, warnings: string[]): Promise<Reconciled> {
   const changed: ReconciledTicket[] = [];
   const prRecorded: Array<{ id: string; pr: number }> = [];
+  const runsClosed: Array<{ id: string; run: RunId }> = [];
   const targets = [...ctx.store.tickets.values()].filter(
     (t): t is Doc<Ticket> & { data: Ticket & { branch: string } } =>
       t.data.branch !== undefined && !isTerminal(t.data.status),
@@ -157,7 +163,7 @@ async function reconcileAll(ctx: CommandContext, warnings: string[]): Promise<Re
       warnings.push(`${doc.id}: Workflow が読めないので照合しない`);
       continue;
     }
-    const { facts, pr, prMissing, ignoredPr } = await collectBranchFacts(
+    const { facts, pr, prCreatedAt, prMissing, ignoredPr } = await collectBranchFacts(
       ctx.repo,
       doc.data.branch,
       {
@@ -168,6 +174,24 @@ async function reconcileAll(ctx: CommandContext, warnings: string[]): Promise<Re
       },
     );
     facts.deps_done = ctx.store.depsDone(doc.data);
+    // 作業ブランチの PR があれば実装は終わっている。実行中の実装の Run を PR の作成時刻で閉じる（RN-6）。
+    // 記録済みの番号で引いた PR でも閉じる（番号を記録したときに閉じられなかった Run の拾い直し）
+    if (pr !== undefined) {
+      const running = await findImplementRun(ctx, doc.data);
+      if (running && prCreatedAt !== undefined && prCreatedAt < running.data.started_at) {
+        // PR より後に開き直した Run は PR では終わらない。閉じずに知らせる（PR の後の作業は fix の Run にする）
+        warnings.push(
+          `${doc.id}: 実装の Run ${running.id} は PR #${pr} の作成（${prCreatedAt}）より後に始まったので照合では閉じない。終えたら run finish で閉じる（PR の後の作業は fix の Run）`,
+        );
+      } else if (running) {
+        const closed = await closeImplementRun(ctx, running, {
+          result: "success",
+          finishedAt: prCreatedAt,
+        });
+        runsClosed.push({ id: doc.id, run: closed.run.id });
+        warnings.push(...closed.warnings);
+      }
+    }
     if (ignoredPr) {
       warnings.push(
         `${doc.id}: ブランチ名で見つけた PR #${ignoredPr.number} は branch を記録する前（${ignoredPr.mergedAt}）にマージされたので、同じ名前の前の作業の PR とみなして照合に使わない。このチケットの PR なら ticket update --pr ${ignoredPr.number} で記録すれば照合する`,
@@ -211,7 +235,7 @@ async function reconcileAll(ctx: CommandContext, warnings: string[]): Promise<Re
       );
     }
   }
-  return { changed, prRecorded };
+  return { changed, prRecorded, runsClosed };
 }
 
 /** 未チェックの受け入れ条件の番号 */
@@ -223,7 +247,7 @@ export const sync = defineCommand({
   name: "sync",
   group: "setup",
   summary:
-    "リモートの deguboard を取り込み、未 push のコミットを送り、作業ブランチの事実でチケットの状態を進める",
+    "リモートの deguboard を取り込み、未 push のコミットを送り、作業ブランチの事実でチケットの状態を進める。作業ブランチの PR を見つけたら、このマシンで実行中の実装の Run を success で閉じる（finished_at は PR の作成時刻）",
   input: z.object({}),
   write: true,
   needs: "store",
@@ -281,11 +305,19 @@ export const sync = defineCommand({
           }
         }
       }
-      const { changed: reconciled, prRecorded } =
-        conflicts.length === 0
-          ? await reconcileAll(ctx, warnings)
-          : { changed: [], prRecorded: [] };
-      if (reconciled.length > 0 || prRecorded.length > 0 || confirmed.length > 0) {
+      const {
+        changed: reconciled,
+        prRecorded,
+        runsClosed,
+      }: Reconciled = conflicts.length === 0
+        ? await reconcileAll(ctx, warnings)
+        : { changed: [], prRecorded: [], runsClosed: [] };
+      if (
+        reconciled.length > 0 ||
+        prRecorded.length > 0 ||
+        runsClosed.length > 0 ||
+        confirmed.length > 0
+      ) {
         const parts = [
           ...(reconciled.length > 0
             ? [
@@ -297,9 +329,13 @@ export const sync = defineCommand({
           ...(prRecorded.length > 0
             ? [`PR 番号を記録: ${prRecorded.map((r) => `${r.id}: #${r.pr}`).join(", ")}`]
             : []),
+          ...(runsClosed.length > 0
+            ? [`実装の Run を記録: ${runsClosed.map((r) => `${r.id} ${r.run} success`).join(", ")}`]
+            : []),
           ...(confirmed.length > 0 ? [`仮番号を確定: ${confirmed.join(", ")}`] : []),
         ];
         await commitAll(repo, parts.join("。"));
+        for (const r of runsClosed) await dropRunning(repo, r.run);
         if (repo.remote) {
           const r = await push(repo);
           if (r.ok) pushed = true;
@@ -316,6 +352,7 @@ export const sync = defineCommand({
           renumbered,
           reconciled,
           pr_recorded: prRecorded,
+          runs_closed: runsClosed,
           confirmed,
           status,
         },
