@@ -214,14 +214,20 @@ export function mockClient(data = fixture()): MockClient {
   const bodies: Record<string, string> = {};
   const handlers: MockClient["handlers"] = {
     "project.list": () => data.projects,
-    "config.show": () => ({
-      default_project: "default",
-      priority: {
-        high: "利用者に見える不具合・ほかのチケットを止めている",
-        medium: "機能の追加と改善・テストの抜け",
-        low: "使われていないコードと依存・急がない調査",
-      },
-    }),
+    "config.show": (input) => {
+      const config = {
+        default_project: "default",
+        priority: {
+          high: "利用者に見える不具合・ほかのチケットを止めている",
+          medium: "機能の追加と改善・テストの抜け",
+          low: "使われていないコードと依存・急がない調査",
+        },
+      };
+      // fields を付けると core と同じく { config, team, local, fields } の形（設定画面が読む）
+      return (input as { fields?: boolean } | undefined)?.fields
+        ? { config, team: config, local: {}, fields: [] }
+        : config;
+    },
     whoami: () => ({
       id: "eiki",
       user: "eiki",

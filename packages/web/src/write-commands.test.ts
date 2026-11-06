@@ -39,7 +39,7 @@ const ALLOWED_WRITES: Readonly<Record<string, readonly string[]>> = {
   "pages/ticket.tsx": ["ticket.check", "ticket.update"],
   "components/ticket-props.tsx": ["ticket.move"],
   "components/ticket-props-panel.tsx": ["ticket.update"],
-  "pages/config.tsx": ["config.set"],
+  "pages/config.tsx": ["config.set", "config.unset"],
   "app.tsx": ["sync"],
 };
 

@@ -94,7 +94,7 @@ const FIELDS: ConfigField[] = [
   { key: "actor.human_only", type: "list", description: "人だけ", default: [], scope: "team" },
 ];
 
-function configClient() {
+function configClient(initialLocal: Record<string, unknown> = {}) {
   const client = mockClient();
   const config = {
     default_project: "default",
@@ -107,24 +107,49 @@ function configClient() {
     auto: { merge: false },
     actor: { human_only: [] as string[] },
   };
+  /** 個人の上書き（ドット区切りの項目名 → 値）。core と同じく config.show は local で返し、重ねた値は config で返す */
+  const local: Record<string, unknown> = { ...initialLocal };
+  const merged = () => {
+    const out = structuredClone(config) as Record<string, unknown>;
+    for (const [key, value] of Object.entries(local)) {
+      const [top, leaf] = key.split(".") as [string, string | undefined];
+      if (leaf) (out[top] as Record<string, unknown>)[leaf] = value;
+      else out[top] = value;
+    }
+    return out;
+  };
   client.handlers["config.show"] = (input) =>
     (input as { fields?: boolean }).fields
-      ? { config, team: config, local: {}, fields: FIELDS }
-      : config;
+      ? { config: merged(), team: config, local: { ...local }, fields: FIELDS }
+      : merged();
   client.handlers["config.set"] = (input) => {
-    const { key, value } = input as { key: string; value: unknown };
+    const {
+      key,
+      value,
+      local: toLocal,
+    } = input as { key: string; value: unknown; local?: boolean };
     if (value === "bad")
       throw new ClientError({
         code: "VALIDATION_FAILED",
         message: `${key} の値が正しくない`,
         detail: "選択肢にない",
       });
+    // --local は個人の設定に書き、重ねた値を返す。なしはチームの値に書き、チームの値を返す
+    if (toLocal) {
+      local[key] = value;
+      return merged();
+    }
     const [top, leaf] = key.split(".") as [keyof typeof config, string | undefined];
     if (leaf) (config[top] as Record<string, unknown>)[leaf] = value;
     else (config as Record<string, unknown>)[top] = value;
     return config;
   };
-  return { client, config };
+  client.handlers["config.unset"] = (input) => {
+    const { key } = input as { key: string; local?: boolean };
+    delete local[key];
+    return merged();
+  };
+  return { client, config, local };
 }
 
 function mount(client: ReturnType<typeof mockClient>) {
@@ -139,6 +164,12 @@ function mount(client: ReturnType<typeof mockClient>) {
 const fieldOf = (key: string) => document.querySelector<HTMLElement>(`[data-key="${key}"]`)!;
 const setCalls = (client: ReturnType<typeof mockClient>) =>
   client.calls.filter((c) => c.name === "config.set").map((c) => c.input);
+const unsetCalls = (client: ReturnType<typeof mockClient>) =>
+  client.calls.filter((c) => c.name === "config.unset").map((c) => c.input);
+const tabOf = (name: "チーム" | "自分") =>
+  screen.getByRole("tab", { name: new RegExp(`^${name}`) });
+const ownOf = (key: string) =>
+  within(fieldOf(key)).getByRole<HTMLInputElement>("checkbox", { name: "自分の値を使う" });
 
 describe("設定画面", () => {
   it("4 つのまとまりで全項目を名前・キー・説明・型に合う入力欄と一緒に出し、チーム全員に効く帯を出す", async () => {
@@ -163,19 +194,15 @@ describe("設定画面", () => {
     expect(client.calls).toContainEqual({ name: "config.show", input: { fields: true } });
   });
 
-  it("個人の上書きがあっても欄にはチームの値を出し、保存の後もチームの値（config.set の戻り）を出す", async () => {
-    const { client, config: team } = configClient();
+  it("個人の上書きがあってもチームのタブの欄にはチームの値を出し、保存の後もチームの値（config.set の戻り）を出す", async () => {
     // 個人は commit.mode を manual で上書きしている。config.show は重ねた値と、チームの値・個人の上書きを別に返す
-    const merged = { ...team, commit: { mode: "manual" } };
-    client.handlers["config.show"] = (input) =>
-      (input as { fields?: boolean }).fields
-        ? { config: merged, team, local: { "commit.mode": "manual" }, fields: FIELDS }
-        : merged;
+    const { client } = configClient({ "commit.mode": "manual" });
     mount(client);
     await screen.findByText("コミットの仕方");
+    expect(tabOf("チーム").getAttribute("aria-selected")).toBe("true");
     const select = within(fieldOf("commit.mode")).getByRole<HTMLSelectElement>("combobox");
     expect(select.value).toBe("each");
-    expect(screen.getByRole("note").textContent).toContain("dg config set --local");
+    expect(screen.getByRole("note").textContent).toContain("「自分」のタブ");
     // チームの値（each）を選び直しても変わっていないので保存しない
     fireEvent.change(select, { target: { value: "each" } });
     expect(setCalls(client)).toEqual([]);
@@ -382,6 +409,172 @@ describe("設定画面", () => {
     ).toBeTruthy();
     expect(setCalls(client)).toEqual([{ key: "worktree.root", value: "/tmp/worktrees" }]);
     expect(within(fieldOf("worktree.root")).queryByRole("alertdialog")).toBeNull();
+  });
+
+  it("チームのタブは自分で上書きしている項目に「自分：値」の印を出し、押すと自分のタブのその項目に移る", async () => {
+    const { client } = configClient({ "commit.mode": "manual", "actions.shell": true });
+    mount(client);
+    await screen.findByText("コミットの仕方");
+    // チームのタブは全項目を出し、上書きしている 2 項目にだけ印を出す
+    expect(document.querySelectorAll(".config-field")).toHaveLength(FIELDS.length);
+    expect([...document.querySelectorAll(".config-override")].map((e) => e.textContent)).toEqual([
+      "自分：manual",
+      "自分：true",
+    ]);
+    expect(within(fieldOf("push.mode")).queryByText(/^自分：/)).toBeNull();
+    // 自分のタブには上書きしている件数を添える
+    expect(tabOf("自分").textContent).toBe("自分2");
+
+    fireEvent.click(within(fieldOf("commit.mode")).getByRole("button", { name: "自分：manual" }));
+    expect(tabOf("自分").getAttribute("aria-selected")).toBe("true");
+    expect(tabOf("チーム").getAttribute("aria-selected")).toBe("false");
+    expect(screen.getByRole("note").textContent).toContain("deguboard-local/config.yaml");
+    // 移った項目の「自分の値を使う」に焦点が移る
+    await waitFor(() => expect(document.activeElement).toBe(ownOf("commit.mode")));
+    expect(ownOf("commit.mode").checked).toBe(true);
+    expect(within(fieldOf("commit.mode")).getByRole<HTMLSelectElement>("combobox").value).toBe(
+      "manual",
+    );
+
+    // タブで戻れる
+    fireEvent.click(tabOf("チーム"));
+    expect(within(fieldOf("commit.mode")).getByRole<HTMLSelectElement>("combobox").value).toBe(
+      "each",
+    );
+  });
+
+  it("自分のタブは上書きできる項目（scope が local）だけを出し、使わない項目はチームの値を触れない欄で出す", async () => {
+    const { client } = configClient({ "commit.mode": "manual" });
+    mount(client);
+    await screen.findByText("コミットの仕方");
+    fireEvent.click(tabOf("自分"));
+    expect(
+      [...document.querySelectorAll(".config-field")].map((e) => e.getAttribute("data-key")),
+    ).toEqual([
+      // まとまりの順（コミットと push・エージェント・Git）
+      "commit.mode",
+      "push.mode",
+      "actions.shell",
+      "default_project",
+      "git.remote",
+      "worktree.root",
+    ]);
+    expect(document.querySelectorAll(".config-field")).toHaveLength(
+      FIELDS.filter((f) => f.scope === "local").length,
+    );
+    // チーム専用の項目は出さない
+    expect(document.querySelector('[data-key="auto.merge"]')).toBeNull();
+    // 上書きしている項目は自分の値で触れ、チームの値を添える
+    const commit = fieldOf("commit.mode");
+    expect(commit.classList.contains("modified")).toBe(true);
+    expect(within(commit).getByText("チーム：each")).toBeTruthy();
+    expect(within(commit).getByRole<HTMLSelectElement>("combobox").disabled).toBe(false);
+    // 使わない項目はチームの値を出し、欄は触れない
+    const push = fieldOf("push.mode");
+    expect(ownOf("push.mode").checked).toBe(false);
+    expect(within(push).getByRole<HTMLSelectElement>("combobox").value).toBe("auto");
+    expect(within(push).getByRole<HTMLSelectElement>("combobox").disabled).toBe(true);
+    expect(within(push).getByText("チームの値を使っている")).toBeTruthy();
+  });
+
+  it("「自分の値を使う」を入れるとチームの値を config.set --local で写し、外すと config.unset --local でチームの値に戻す", async () => {
+    const { client } = configClient();
+    mount(client);
+    await screen.findByText("コミットの仕方");
+    fireEvent.click(tabOf("自分"));
+    // 入れる：チームの値（auto）を自分の値として写し、欄を触れるようにする
+    fireEvent.click(ownOf("push.mode"));
+    await waitFor(() =>
+      expect(setCalls(client)).toEqual([{ key: "push.mode", value: "auto", local: true }]),
+    );
+    expect(await screen.findByText("保存した: push.mode を自分だけ auto にした")).toBeTruthy();
+    await waitFor(() => expect(ownOf("push.mode").checked).toBe(true));
+    const select = within(fieldOf("push.mode")).getByRole<HTMLSelectElement>("combobox");
+    expect(select.disabled).toBe(false);
+
+    // 自分の値を変える：--local で保存し、チームの値は変えない
+    fireEvent.change(select, { target: { value: "manual" } });
+    await waitFor(() =>
+      expect(setCalls(client)).toContainEqual({ key: "push.mode", value: "manual", local: true }),
+    );
+    expect(await within(fieldOf("push.mode")).findByText("チーム：auto")).toBeTruthy();
+    fireEvent.click(tabOf("チーム"));
+    expect(within(fieldOf("push.mode")).getByRole<HTMLSelectElement>("combobox").value).toBe(
+      "auto",
+    );
+    expect(within(fieldOf("push.mode")).getByRole("button", { name: "自分：manual" })).toBeTruthy();
+
+    // 外す：上書きを外し、チームの値を出す
+    fireEvent.click(tabOf("自分"));
+    fireEvent.click(ownOf("push.mode"));
+    await waitFor(() => expect(unsetCalls(client)).toEqual([{ key: "push.mode", local: true }]));
+    expect(
+      await screen.findByText("保存した: push.mode の自分の値を外した（チームの auto を使う）"),
+    ).toBeTruthy();
+    await waitFor(() => expect(ownOf("push.mode").checked).toBe(false));
+    expect(within(fieldOf("push.mode")).getByRole<HTMLSelectElement>("combobox").value).toBe(
+      "auto",
+    );
+    fireEvent.click(tabOf("チーム"));
+    expect(within(fieldOf("push.mode")).queryByText(/^自分：/)).toBeNull();
+  });
+
+  it("自分のタブでも確かめる項目（CONFIRM_KEYS）は保存の前に確かめ、効く値が変わる外し方も確かめる", async () => {
+    const { client } = configClient({ "git.remote": "upstream" });
+    mount(client);
+    await screen.findByText("コミットの仕方");
+    fireEvent.click(tabOf("自分"));
+    // 自分の値を変える：確かめるまで書かず、文は自分だけに効くと伝える
+    const remote = within(fieldOf("git.remote")).getByRole<HTMLInputElement>("textbox");
+    expect(remote.value).toBe("upstream");
+    fireEvent.change(remote, { target: { value: "fork" } });
+    fireEvent.blur(remote);
+    const confirm = within(fieldOf("git.remote")).getByRole("alertdialog");
+    expect(confirm.textContent).toContain("同期先が変わる");
+    expect(confirm.textContent).toContain("自分だけに効く");
+    expect(confirm.textContent).not.toContain("チーム全員");
+    await new Promise((r) => setTimeout(r, 0));
+    expect(setCalls(client)).toEqual([]);
+    fireEvent.click(within(confirm).getByText("保存する"));
+    expect(await screen.findByText("保存した: git.remote を自分だけ fork にした")).toBeTruthy();
+    expect(setCalls(client)).toEqual([{ key: "git.remote", value: "fork", local: true }]);
+
+    // 外す：チームの origin に戻ると同期先が変わるので確かめ、やめると上書きを残す
+    fireEvent.click(ownOf("git.remote"));
+    const unset = within(fieldOf("git.remote")).getByRole("alertdialog");
+    expect(unset.textContent).toContain("チームの origin に戻す");
+    fireEvent.click(within(unset).getByText("やめる"));
+    expect(ownOf("git.remote").checked).toBe(true);
+    expect(unsetCalls(client)).toEqual([]);
+    fireEvent.click(ownOf("git.remote"));
+    fireEvent.click(within(fieldOf("git.remote")).getByText("保存する"));
+    await waitFor(() => expect(unsetCalls(client)).toEqual([{ key: "git.remote", local: true }]));
+
+    // 入れるのは効く値が変わらないので確かめない
+    fireEvent.click(ownOf("worktree.root"));
+    await waitFor(() =>
+      expect(setCalls(client)).toContainEqual({
+        key: "worktree.root",
+        value: "../<repo>.worktrees",
+        local: true,
+      }),
+    );
+  });
+
+  it("タブを切り替えると、確かめの待ちと入力中の値を捨てる", async () => {
+    const { client } = configClient();
+    mount(client);
+    await screen.findByText("コミットの仕方");
+    fireEvent.click(within(fieldOf("actions.shell")).getByRole("checkbox"));
+    expect(within(fieldOf("actions.shell")).getByRole("alertdialog")).toBeTruthy();
+    fireEvent.click(tabOf("自分"));
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    fireEvent.click(tabOf("チーム"));
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(within(fieldOf("actions.shell")).getByRole<HTMLInputElement>("checkbox").checked).toBe(
+      false,
+    );
+    expect(setCalls(client)).toEqual([]);
   });
 
   it("検索欄で名前・キー・説明から項目を絞り、空のまとまりは出さない", async () => {

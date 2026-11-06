@@ -2652,7 +2652,36 @@ table.list td.nowrap {
 .config-back {
   margin-left: auto;
 }
-.config-team {
+/* 「チーム」「自分」のタブ。選んだタブは下線と濃い文字で示し、自分のタブには上書きしている件数を添える */
+.config-tabs {
+  display: flex;
+  gap: 0.25rem;
+  margin-top: 0.75rem;
+  border-bottom: 1px solid var(--dg-border);
+}
+.config-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+  margin-bottom: -1px;
+  padding: 0.3em 0.9em;
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: var(--vscode-descriptionForeground);
+}
+.config-tab:hover {
+  color: var(--vscode-foreground);
+  background: transparent;
+}
+.config-tab.active {
+  border-bottom-color: var(--vscode-focusBorder);
+  color: var(--vscode-foreground);
+  font-weight: 600;
+}
+/* 書き先の帯。チームは全員に効くので注意の色、自分は自分だけに効くので情報の色 */
+.config-scope {
   position: sticky;
   top: -1rem;
   z-index: 1;
@@ -2663,6 +2692,10 @@ table.list td.nowrap {
   padding: 0.5rem 0.75rem;
   border-left: 3px solid var(--dg-warning);
   background: color-mix(in srgb, var(--dg-warning) 10%, var(--vscode-editor-background));
+}
+.config-scope.config-local {
+  border-left-color: var(--dg-info);
+  background: color-mix(in srgb, var(--dg-info) 10%, var(--vscode-editor-background));
 }
 .config-tools input[type="search"] {
   width: 100%;
@@ -2703,6 +2736,26 @@ table.list td.nowrap {
 .config-modified {
   background: color-mix(in srgb, var(--vscode-focusBorder) 18%, transparent);
   color: inherit;
+}
+/* チームのタブで自分が上書きしている項目の印。押すと自分のタブのその項目に移る */
+.config-override {
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.85em;
+  background: color-mix(in srgb, var(--dg-info) 18%, transparent);
+  border-color: var(--dg-info);
+  color: inherit;
+}
+.config-override:hover {
+  background: color-mix(in srgb, var(--dg-info) 30%, transparent);
+}
+.config-team-value {
+  background: transparent;
+  border-color: var(--dg-border);
+  color: var(--vscode-descriptionForeground);
+}
+.config-own {
+  margin-bottom: 0.35rem;
 }
 .config-desc {
   margin: 0.2rem 0 0.4rem;

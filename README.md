@@ -99,7 +99,7 @@ This setting is shared with your team. To turn it off on your own machine only, 
 
 When Plans await approval or tickets are in review, the sidebar title shows the count, like "DEGUBOARD: Awaiting Approval/Review 3" (otherwise just "DEGUBOARD"). When the count grows, a notification appears, and "Open" opens the details. The number on the Activity Bar icon is something else: the total of unpushed commits and remote updates not yet pulled.
 
-You can turn notifications off under "Notifications" in Settings (the gear icon); the count stays visible. To turn them off only for yourself while keeping the team setting, add `--local` (a personal setting that is not committed to Git; see `dg config set --help`).
+You can turn notifications off under "Notifications" in Settings (the gear icon); the count stays visible. To turn them off only for yourself while keeping the team setting, use the "Mine" tab in Settings or add `--local` (a personal setting that is not committed to Git; see `dg config set --help`).
 
 ```sh
 dg config set notify.approvals false --local

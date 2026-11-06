@@ -367,11 +367,20 @@ export const EN: Readonly<Record<string, string>> = {
   空: "Empty",
   "{0} を {1} にした": "Set {0} to {1}",
   "（{0}）": " ({0})",
+  "{0} の自分の値を外した（チームの {1} を使う）":
+    "Removed your value for {0} (using the team's {1})",
+  "{0} を自分だけ {1} にした": "Set {0} to {1} for yourself only",
   "保存できない: {0}{1}": "Could not save: {0}{1}",
   前の画面に戻る: "Back to the previous view",
+  設定の書き先: "Where settings are saved",
+  チーム: "Team",
+  "自分で上書きしている項目 {0} 件": "{0} settings overridden by you",
   チーム全員に効く設定: "Settings shared by the whole team",
-  "deguboard ブランチの {0} に保存し、push すると同じリポジトリを使う全員に効く。自分だけの上書きは {1} で（この画面には出ない）":
-    "Saved to {0} on the deguboard branch. Once pushed, it applies to everyone using this repository. Override values for yourself with {1} (not shown here)",
+  "deguboard ブランチの {0} に保存し、push すると同じリポジトリを使う全員に効く。自分だけ変えたい項目は「自分」のタブで上書きする":
+    'Saved to {0} on the deguboard branch. Once pushed, it applies to everyone using this repository. To change a setting only for yourself, override it on the "Mine" tab',
+  自分だけに効く設定: "Settings that apply only to you",
+  "Git に入らない {0} に保存し、コミットも push もしない。上書きできる項目だけを出し、使わない項目はチームの値が効く":
+    "Saved to {0}, which is not in Git, and never committed or pushed. Only settings you can override are shown; the rest use the team's values",
   "設定を検索（名前・キー・説明）": "Search settings (name, key, description)",
   設定を検索: "Search settings",
   "保存した: {0}": "Saved: {0}",
@@ -379,6 +388,9 @@ export const EN: Readonly<Record<string, string>> = {
   該当する設定がない: "No matching settings",
   "既定は {0}": "Default: {0}",
   変更あり: "Modified",
+  "自分の値で上書きしている。押すと「自分」のタブで開く":
+    'You override this with your own value. Click to open it on the "Mine" tab',
+  "自分：{0}": "Mine: {0}",
   "保存中…": "Saving…",
   "既定の {0} に戻す": "Reset to default {0}",
   既定に戻す: "Reset to Default",
@@ -388,9 +400,16 @@ export const EN: Readonly<Record<string, string>> = {
   項目: "Items",
   項目を足す: "Add item",
   足す: "Add",
+  "チーム：{0}": "Team: {0}",
+  自分の値を使う: "Use my own value",
+  チームの値を使っている: "Using the team's value",
   "{0} の保存の確認": "Confirm saving {0}",
   "{0} を {1} にする。{2}。チーム全員に効く。保存する？":
     "Set {0} to {1}. This {2}. It applies to the whole team. Save?",
+  "{0} の自分の値を外し、チームの {1} に戻す。{2}。自分だけに効く。保存する？":
+    "Remove your value for {0} and go back to the team's {1}. This {2}. It applies only to you. Save?",
+  "{0} を {1} にする。{2}。自分だけに効く。保存する？":
+    "Set {0} to {1}. This {2}. It applies only to you. Save?",
   保存する: "Save",
   やめる: "Cancel",
   // pages/epics.tsx
@@ -542,6 +561,7 @@ export const CORE_EN: Readonly<Record<string, string>> = {
  */
 export const EN_ONE: Readonly<Record<string, { arg: number; text: string }>> = {
   "{0} 件": { arg: 0, text: "{0} item" },
+  "自分で上書きしている項目 {0} 件": { arg: 0, text: "{0} setting overridden by you" },
   "{0} / {1} 件": { arg: 1, text: "{0} / {1} item" },
   "全 {0} 件のうち {1} 件": { arg: 0, text: "{1} of {0} item" },
   "すべて {0} 件": { arg: 0, text: "All {0} item" },
