@@ -53,6 +53,8 @@ import {
 } from "./run.js";
 
 const TEMPLATE_IDS = WORKFLOW_TEMPLATES.map((t) => t.id) as [string, ...string[]];
+/** 見直し役の Run の step（ADR-005。同梱の software-development と general の steps の id） */
+const REVIEW_STEP = "review";
 
 export const init = defineCommand({
   name: "init",
@@ -535,7 +537,7 @@ export const lint = defineCommand({
   name: "lint",
   group: "setup",
   summary:
-    "本文の推奨の節（## 概要・## 受け入れ条件）の欠けと空、Workflow の fields に合わない値、閉じた Epic に残る終わっていないチケット、lint.require_iteration が true なら Iteration に入らずに todo・abandoned 以外に進んだチケット（閉じた Epic の done は除く）、チケットがすべて終わったのに開いている Epic・Plan、開いた Plan の after と depends_on をまたぐ循環、同じ Project に 2 つ以上ある active の Iteration を指摘する。実装の Run の抜け（agent が PR まで進めたのに実装の Run がない、閉じた実装の Run の後のコミットがどの Run の期間にも入らない）は、終わっていないチケットと、閉じていない Iteration に入った done のチケットだけを見る。done のチケットの未チェックの受け入れ条件は指摘しない",
+    "本文の推奨の節（## 概要・## 受け入れ条件）の欠けと空、Workflow の fields に合わない値、閉じた Epic に残る終わっていないチケット、lint.require_iteration が true なら Iteration に入らずに todo・abandoned 以外に進んだチケット（閉じた Epic の done は除く）、チケットがすべて終わったのに開いている Epic・Plan、開いた Plan の after と depends_on をまたぐ循環、同じ Project に 2 つ以上ある active の Iteration を指摘する。実装の Run の抜け（agent が PR まで進めたのに実装の Run がない、閉じた実装の Run の後のコミットがどの Run の期間にも入らない、見直しの後のコミットに手直しの Run がない）は、終わっていないチケットと、閉じていない Iteration に入った done のチケットだけを見る。done のチケットの未チェックの受け入れ条件は指摘しない",
   input: z.object({
     project: z.string().optional().describe("Project で絞る。省略時はすべて"),
   }),
@@ -703,26 +705,48 @@ export const lint = defineCommand({
       const closedAt = implRuns.flatMap((r) =>
         r.finished_at === null ? [] : [Date.parse(r.finished_at)],
       );
-      if (closedAt.length === 0 || !doc.data.branch) continue;
+      // 見直しの Run（review）が終わった時刻。その後のコミットには手直しの Run（fix）があるはず（t509）
+      const reviewedAt = own.flatMap((r) =>
+        r.step === REVIEW_STEP && r.finished_at !== null ? [Date.parse(r.finished_at)] : [],
+      );
+      if ((closedAt.length === 0 && reviewedAt.length === 0) || !doc.data.branch) continue;
       const commits = await branchCommitTimes(ctx.repo, doc.data.branch);
-      const outside = (commits ?? []).filter((c) => {
-        const at = Date.parse(c.at);
-        return (
-          at > Math.max(...closedAt) &&
-          !own.some(
-            (r) =>
-              Date.parse(r.started_at) <= at &&
-              (r.finished_at === null || at <= Date.parse(r.finished_at)),
-          )
+      if (closedAt.length > 0) {
+        const outside = (commits ?? []).filter((c) => {
+          const at = Date.parse(c.at);
+          return (
+            at > Math.max(...closedAt) &&
+            !own.some(
+              (r) =>
+                Date.parse(r.started_at) <= at &&
+                (r.finished_at === null || at <= Date.parse(r.finished_at)),
+            )
+          );
+        });
+        if (outside.length > 0)
+          warn(
+            doc.path,
+            doc.id,
+            "lint_commit_outside_run",
+            `実装の Run を閉じた後のコミット ${outside.length} 件（${outside[0]?.sha.slice(0, 7)} など）がどの Run の期間にも入らない`,
+          );
+      }
+      // 見直しの後のコミットがあるのに、見直しの後に開いた手直しの Run（reclaim の step）がない。コミットが修正かは分からないので安全網として出す
+      if (reviewedAt.length > 0) {
+        const fixStep = openedStepOf(ctx, doc.data, "reclaim");
+        const lastReview = Math.max(...reviewedAt);
+        const afterReview = (commits ?? []).filter((c) => Date.parse(c.at) > lastReview);
+        const fixedAfter = own.some(
+          (r) => r.step === fixStep && Date.parse(r.started_at) > lastReview,
         );
-      });
-      if (outside.length > 0)
-        warn(
-          doc.path,
-          doc.id,
-          "lint_commit_outside_run",
-          `実装の Run を閉じた後のコミット ${outside.length} 件（${outside[0]?.sha.slice(0, 7)} など）がどの Run の期間にも入らない`,
-        );
+        if (afterReview.length > 0 && !fixedAfter)
+          warn(
+            doc.path,
+            doc.id,
+            "lint_run_fix_missing",
+            `見直しの後のコミット ${afterReview.length} 件（${afterReview[0]?.sha.slice(0, 7)} など）があるが、その後に手直しの Run（${fixStep}）がない`,
+          );
+      }
     }
     return ok({ ok: issues.length === 0, issues });
   },
