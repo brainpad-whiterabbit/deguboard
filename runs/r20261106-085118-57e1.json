@@ -1,0 +1,31 @@
+{
+  "id": "r20261106-085118-57e1",
+  "ticket": "t445",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-fable-5-1",
+  "started_at": "2026-11-06T08:51:18Z",
+  "finished_at": "2026-11-06T08:59:53Z",
+  "result": "success",
+  "error": null,
+  "retries": 2,
+  "retry_reasons": [
+    "再 claim の判定をロックの中で再判定しない",
+    "push が Run の開始より前のとき警告と finished_at が食い違う"
+  ],
+  "usage": {
+    "input": 288,
+    "output": 24018,
+    "cache_read": 2357859,
+    "cache_write": 30737
+  },
+  "tools": {
+    "read": 0,
+    "search": 0,
+    "write": 0,
+    "bash": 9,
+    "other": 0,
+    "read_before_write": 0,
+    "search_before_write": 0
+  }
+}
