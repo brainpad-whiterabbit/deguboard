@@ -26,6 +26,11 @@ export function actorIdOf(user: string, kind: ActorKind): string {
   return kind === "agent" ? `${user}${AGENT_SUFFIX}` : user;
 }
 
+/** 主体の ID が agent（AI）のものか（`eiki/agent`）。ID の形だけで決める */
+export function isAgentActorId(id: string): boolean {
+  return id.endsWith(AGENT_SUFFIX);
+}
+
 /** ID からユーザ名を取り出す（`eiki/agent` → `eiki`） */
 function userOf(id: string): string {
   return id.endsWith(AGENT_SUFFIX) ? id.slice(0, -AGENT_SUFFIX.length) : id;

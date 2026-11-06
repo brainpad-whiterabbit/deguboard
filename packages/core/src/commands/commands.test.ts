@@ -1140,6 +1140,70 @@ describe("チケットの流れ", () => {
     }
   });
 
+  it("lint は agent が PR まで進めたのに実装の Run がないチケットを指摘し、Run がある・人の claim は指摘しない（RN-5・RN-6）", async () => {
+    const f = await fixture();
+    let clock = new Date("2026-11-06T00:00:00Z");
+    const human = await initialized(
+      f.cloneA,
+      { now: () => clock },
+      { template: "software-development" },
+    );
+    for (const title of ["No run", "With run", "By human"])
+      await runCommand(ticketCreate, human, { title, summary: "s", acceptance: ["a"] });
+    const agent = await agentWithRuns(f.cloneA, () => clock);
+    // t1 は Run を開かずに claim した agent の PR（Run の抜け）。t2 は Run を開いて PR を記録した agent
+    await runCommand(ticketClaim, agent, { ticket: "t1", branch: "feat/t1", no_run: true });
+    await runCommand(ticketClaim, agent, { ticket: "t2", branch: "feat/t2" });
+    await runCommand(ticketClaim, human, { ticket: "t3", branch: "feat/t3" });
+    for (const t of ["t1", "t2", "t3"]) await git(f.cloneA, ["branch", `feat/${t}`]);
+    await runCommand(ticketUpdate, agent, { ticket: "t1", pr: 41 });
+    await runCommand(ticketUpdate, agent, { ticket: "t2", pr: 42 });
+    await runCommand(ticketUpdate, human, { ticket: "t3", pr: 43 });
+    const missing = async () =>
+      (await runCommand(lint, agent, {})).data.issues
+        .filter((i) => i.code === "lint_run_implement_missing")
+        .map((i) => [i.id, i.message]);
+    expect(await missing()).toEqual([["t1", "PR 41 まで進んだが実装の Run（implement）がない"]]);
+  });
+
+  it("lint は閉じた実装の Run の後の push で、どの Run の期間にも入らないものを指摘し、手直しの Run の期間に入れば指摘しない（RN-6）", async () => {
+    const f = await fixture();
+    let clock = new Date("2026-11-06T00:00:00Z");
+    const human = await initialized(
+      f.cloneA,
+      { now: () => clock },
+      { template: "software-development" },
+    );
+    await runCommand(ticketCreate, human, {
+      title: "Pushed after",
+      summary: "s",
+      acceptance: ["a"],
+    });
+    const agent = await agentWithRuns(f.cloneA, () => clock);
+    await runCommand(ticketClaim, agent, { ticket: "t1", branch: "feat/t1" });
+    await git(f.cloneA, ["branch", "feat/t1"]);
+    await pushCommitAt(f.cloneA, "feat/t1", "2026-11-06T00:30:00Z");
+    // PR の作成（gh がないので今の時刻）で実装の Run を閉じる
+    clock = new Date("2026-11-06T01:00:00Z");
+    await runCommand(ticketUpdate, agent, { ticket: "t1", pr: 41 });
+    const outside = async () =>
+      (await runCommand(lint, agent, {})).data.issues
+        .filter((i) => i.code === "lint_commit_outside_run")
+        .map((i) => [i.id, i.message]);
+    // 実装の Run の期間（00:00〜01:00）の中の push は指摘しない
+    expect(await outside()).toEqual([]);
+    // 閉じた後に push されたコミットは、どの Run の期間にも入らない
+    await pushCommitAt(f.cloneA, "feat/t1", "2026-11-06T02:00:00Z");
+    const tip = (await git(f.cloneA, ["rev-parse", "--short=7", "origin/feat/t1"])).stdout.trim();
+    expect(await outside()).toEqual([
+      ["t1", `実装の Run を閉じた後の push 1 件（${tip} など）がどの Run の期間にも入らない`],
+    ]);
+    // 手直しの Run（開いたまま）の期間に入れば指摘しない。もう一度の claim は PR のある自分の claim なので fix を開く
+    clock = new Date("2026-11-06T01:30:00Z");
+    await runCommand(ticketClaim, agent, { ticket: "t1" });
+    expect(await outside()).toEqual([]);
+  });
+
   it("照合は開いたままの手直しの Run を、次の Run の開始・マージ（done への前進）・終わったチケットの区切りで、それまでの最後の push の時刻で閉じる。unclaim は手直しの Run も failure で閉じる（RN-6）", async () => {
     const f = await fixture();
     let clock = new Date("2026-11-06T00:00:00Z");
