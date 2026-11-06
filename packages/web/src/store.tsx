@@ -20,6 +20,7 @@ import {
 } from "react";
 import { failureOf } from "./client/http.js";
 import type {
+  ConfigShowView,
   EpicRow,
   Iteration,
   PlanRow,
@@ -31,12 +32,27 @@ import type {
   WhoamiView,
   WorkflowView,
 } from "./types.js";
-import type { Config } from "@deguboard/core";
 import type { UiState } from "./ui-state.js";
-import { tr } from "./l10n.js";
+import { shownConfigValue, tr } from "./l10n.js";
 
 /** 優先度の判断基準（config.yaml の priority。config.show が core の既定を混ぜて返す）。読み終えるまでは空 */
 const EMPTY_PRIORITY_CRITERIA: Record<Priority, string> = { high: "", medium: "", low: "" };
+
+/**
+ * config.show --fields の値から優先度の判断基準の表示を作る。既定のままの値は表示言語の訳にし、書き換えた値は書いた言葉のまま（UI-11）。
+ * 既定は fields の default（core が決める）で比べ、web では core の既定の文を持たない
+ */
+function priorityCriteriaOf(view: ConfigShowView): Record<Priority, string> {
+  const shown = (level: Priority) =>
+    String(
+      shownConfigValue(
+        `priority.${level}`,
+        view.config.priority[level],
+        view.fields.find((f) => f.key === `priority.${level}`)?.default,
+      ),
+    );
+  return { high: shown("high"), medium: shown("medium"), low: shown("low") };
+}
 
 /** cache に残す一覧。読み直しが終わるたびに書き換える */
 interface Snapshot {
@@ -154,16 +170,16 @@ export function StoreProvider({
     try {
       const [projectList, config, whoami] = await Promise.all([
         client.run<Project[]>("project.list"),
-        client.run<{ default_project: string; priority?: Config["priority"] }>("config.show"),
+        client.run<ConfigShowView>("config.show", { fields: true }),
         client.run<WhoamiView>("whoami"),
       ]);
       setNotInitialized(false);
       setProjects(projectList.data);
       setMe(whoami.data);
-      if (config.data.priority) setPriorityCriteria(config.data.priority);
+      if (config.data.config?.priority) setPriorityCriteria(priorityCriteriaOf(config.data));
       const current =
         projectList.data.find((p) => p.id === projectRef.current) ??
-        projectList.data.find((p) => p.id === config.data.default_project) ??
+        projectList.data.find((p) => p.id === config.data.config?.default_project) ??
         projectList.data[0] ??
         null;
       if (!current) {

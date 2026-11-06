@@ -3,8 +3,18 @@ import { dirname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { askCandidates, buildAsk, configFields, type AskSubject } from "@deguboard/core";
 import { afterEach, describe, expect, it } from "vitest";
-import { configDescription, format, languageOf, msg, setLanguage, tr, trCore } from "./l10n.js";
-import { CONFIG_DESCRIPTIONS_EN, CORE_EN, EN, EN_ONE } from "./l10n-en.js";
+import {
+  configDescription,
+  format,
+  languageOf,
+  msg,
+  setLanguage,
+  shownConfigValue,
+  storedConfigValue,
+  tr,
+  trCore,
+} from "./l10n.js";
+import { CONFIG_DESCRIPTIONS_EN, CORE_EN, EN, EN_ONE, PRIORITY_CRITERIA_EN } from "./l10n-en.js";
 
 const srcDir = dirname(fileURLToPath(import.meta.url));
 
@@ -258,5 +268,49 @@ describe("設定の項目の説明の訳", () => {
       "Git remote that deguboard fetches from and pushes to",
     );
     expect(configDescription("new.item", "新しい項目")).toBe("新しい項目");
+  });
+});
+
+describe("優先度の判断基準の既定の訳（UI-11）", () => {
+  const defaults = Object.fromEntries(
+    configFields()
+      .filter((f) => f.key.startsWith("priority."))
+      .map((f) => [f.key, f.default as string]),
+  );
+  const KEY = "priority.high";
+
+  it("core の既定の判断基準は、訳を書いたときの文のまま（既定を書き換えたら PRIORITY_CRITERIA_EN の訳も直す）", () => {
+    expect(defaults).toEqual({
+      "priority.high":
+        "利用者に見える不具合・利用者を誤らせる文書・悪用できる脆弱性・ライセンスの漏れ・検査が通らない・ほかのチケットを止めている",
+      "priority.medium":
+        "機能の追加と改善・テストの抜けと不安定なテスト・内部の文書の食い違い・今は害のない規約違反・大きく古い依存",
+      "priority.low": "使われていないコードと依存・設定の重複・言い回しの揺れ・急がない調査と検討",
+    });
+  });
+  it("英語の訳は 3 つの値を持ち、日本語を含まない", () => {
+    expect(Object.keys(PRIORITY_CRITERIA_EN).sort()).toEqual(["high", "low", "medium"]);
+    for (const [level, text] of Object.entries(PRIORITY_CRITERIA_EN)) {
+      expect(text, level).not.toMatch(JAPANESE);
+    }
+  });
+  it("日本語の表示では既定の値をそのまま出す", () => {
+    expect(shownConfigValue(KEY, defaults[KEY], defaults[KEY])).toBe(defaults[KEY]);
+  });
+  it("英語の表示で既定のままなら英語の訳を出し、書き換えた値は書いた言葉のまま出す", () => {
+    setLanguage("en");
+    expect(shownConfigValue(KEY, defaults[KEY], defaults[KEY])).toBe(PRIORITY_CRITERIA_EN.high);
+    expect(shownConfigValue(KEY, "独自の基準", defaults[KEY])).toBe("独自の基準");
+    // 優先度以外の項目は、既定と同じでも訳さない
+    expect(shownConfigValue("git.remote", "origin", "origin")).toBe("origin");
+  });
+  it("入力欄の訳の文は保存するとき既定の値に戻し、ほかの文はそのまま保存する", () => {
+    setLanguage("en");
+    expect(storedConfigValue(KEY, PRIORITY_CRITERIA_EN.high, defaults[KEY])).toBe(defaults[KEY]);
+    expect(storedConfigValue(KEY, "独自の基準", defaults[KEY])).toBe("独自の基準");
+    setLanguage("ja");
+    expect(storedConfigValue(KEY, PRIORITY_CRITERIA_EN.high, defaults[KEY])).toBe(
+      PRIORITY_CRITERIA_EN.high,
+    );
   });
 });

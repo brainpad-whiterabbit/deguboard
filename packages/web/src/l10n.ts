@@ -7,7 +7,7 @@
 // t でなく tr と呼ぶのは、画面のコードでチケットを t と書くことが多く、名前がぶつかるため。
 // 表のように描く前に決める文言は msg で鍵として印を付け、描くときに tr(値) で訳す。{0}・{1} の位置に引数を埋める
 
-import { CONFIG_DESCRIPTIONS_EN, CORE_EN, EN, EN_ONE } from "./l10n-en.js";
+import { CONFIG_DESCRIPTIONS_EN, CORE_EN, EN, EN_ONE, PRIORITY_CRITERIA_EN } from "./l10n-en.js";
 
 export type Language = "ja" | "en";
 
@@ -64,6 +64,30 @@ export function msg(key: string): string {
 export function configDescription(key: string, description: string): string {
   if (current === "ja") return description;
   return CONFIG_DESCRIPTIONS_EN[key] ?? description;
+}
+
+/** 優先度の判断基準の項目（priority.high など）の鍵。PRIORITY_CRITERIA_EN の鍵と同じ */
+const PRIORITY_KEY = /^priority\.(high|medium|low)$/;
+
+/**
+ * 設定の値を今の言語で出す。優先度の判断基準の既定のままの値（core の既定と同じ文）は、英語の表示で英語の訳にする（UI-11）。
+ * 書き換えた値・日本語の表示・優先度以外の項目は値のまま。読むのは store（判断基準）と設定画面（入力欄・既定の表示）
+ */
+export function shownConfigValue(key: string, value: unknown, defaultValue: unknown): unknown {
+  const level = PRIORITY_KEY.exec(key)?.[1] as keyof typeof PRIORITY_CRITERIA_EN | undefined;
+  if (current === "ja" || level === undefined || value !== defaultValue) return value;
+  return PRIORITY_CRITERIA_EN[level];
+}
+
+/**
+ * 入力欄の文を保存する値に戻す。shownConfigValue が出した訳の文なら、既定の値に戻す（逆の写し）。
+ * 英語の表示で訳と同じ文を欄に打って離れると、既定の値（日本語）として保存される。
+ * 欄を書き換えず離れたときは呼ばない（config の画面の onBlur が値をそのまま渡す）
+ */
+export function storedConfigValue(key: string, text: unknown, defaultValue: unknown): unknown {
+  const level = PRIORITY_KEY.exec(key)?.[1] as keyof typeof PRIORITY_CRITERIA_EN | undefined;
+  if (current === "ja" || level === undefined) return text;
+  return text === PRIORITY_CRITERIA_EN[level] ? defaultValue : text;
 }
 
 /** core が返す決まった文の中の ID（t12・s3・e2・p7）と、外す場所の既定の「Iteration・Epic」 */
