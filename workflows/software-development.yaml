@@ -1,7 +1,7 @@
 id: software-development
 name: Software Development
 labels:
-  review: Code Review
+  review: Review
 transitions:
   - from: todo
     to: in_progress

@@ -1,0 +1,28 @@
+{
+  "id": "r20261106-103656-0258",
+  "ticket": "t486",
+  "step": "review",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-06T10:36:56Z",
+  "finished_at": "2026-11-06T10:37:17Z",
+  "result": "success",
+  "error": null,
+  "retries": 0,
+  "retry_reasons": [],
+  "usage": {
+    "input": 8,
+    "output": 2758,
+    "cache_read": 161096,
+    "cache_write": 14542
+  },
+  "tools": {
+    "read": 0,
+    "search": 0,
+    "write": 0,
+    "bash": 4,
+    "other": 0,
+    "read_before_write": 0,
+    "search_before_write": 0
+  }
+}
