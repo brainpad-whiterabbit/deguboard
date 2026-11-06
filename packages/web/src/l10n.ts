@@ -7,7 +7,7 @@
 // t でなく tr と呼ぶのは、画面のコードでチケットを t と書くことが多く、名前がぶつかるため。
 // 表のように描く前に決める文言は msg で鍵として印を付け、描くときに tr(値) で訳す。{0}・{1} の位置に引数を埋める
 
-import { CORE_EN, EN, EN_ONE } from "./l10n-en.js";
+import { CONFIG_DESCRIPTIONS_EN, CORE_EN, EN, EN_ONE } from "./l10n-en.js";
 
 export type Language = "ja" | "en";
 
@@ -55,6 +55,15 @@ export function tr(key: string, ...args: unknown[]): string {
 /** 描く前に決める文言（表など）の鍵に印を付ける。訳さずに鍵を返すので、描くときに tr(値) で訳す */
 export function msg(key: string): string {
   return key;
+}
+
+/**
+ * 設定画面の項目の説明を今の言語の文にする。日本語では core の説明（スキーマの describe）のまま、
+ * 英語では項目のキーで CONFIG_DESCRIPTIONS_EN を引き、訳がなければ core の説明のまま出す
+ */
+export function configDescription(key: string, description: string): string {
+  if (current === "ja") return description;
+  return CONFIG_DESCRIPTIONS_EN[key] ?? description;
 }
 
 /** core が返す決まった文の中の ID（t12・s3・e2・p7）と、外す場所の既定の「Iteration・Epic」 */

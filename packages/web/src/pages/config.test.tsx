@@ -938,4 +938,16 @@ describe("設定画面の部品", () => {
     expect(fieldMatchesQuery(FIELDS[1]!, "GIT.REMOTE")).toBe(true);
     expect(fieldMatchesQuery(FIELDS[1]!, "push")).toBe(false);
   });
+
+  it("英語の表示では、検索が英語の説明にも当たる", () => {
+    setLanguage("en");
+    try {
+      // 表示名（Remote to sync with）には含まれず、英語の説明にだけある語
+      expect(fieldMatchesQuery(FIELDS[1]!, "FETCHES FROM")).toBe(true);
+      expect(fieldMatchesQuery(FIELDS[1]!, "pushes to")).toBe(true);
+      expect(fieldMatchesQuery(FIELDS[1]!, "worktree")).toBe(false);
+    } finally {
+      setLanguage("ja");
+    }
+  });
 });

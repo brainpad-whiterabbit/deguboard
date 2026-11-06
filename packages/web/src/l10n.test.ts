@@ -1,10 +1,10 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { askCandidates, buildAsk, type AskSubject } from "@deguboard/core";
+import { askCandidates, buildAsk, configFields, type AskSubject } from "@deguboard/core";
 import { afterEach, describe, expect, it } from "vitest";
-import { format, languageOf, msg, setLanguage, tr, trCore } from "./l10n.js";
-import { CORE_EN, EN, EN_ONE } from "./l10n-en.js";
+import { configDescription, format, languageOf, msg, setLanguage, tr, trCore } from "./l10n.js";
+import { CONFIG_DESCRIPTIONS_EN, CORE_EN, EN, EN_ONE } from "./l10n-en.js";
 
 const srcDir = dirname(fileURLToPath(import.meta.url));
 
@@ -234,5 +234,29 @@ describe("core が返す決まった文の訳", () => {
     expect(subs.every((sub) => JAPANESE.test(sub))).toBe(true);
     setLanguage("en");
     for (const sub of subs) expect(trCore(sub), sub).not.toMatch(JAPANESE);
+  });
+});
+
+describe("設定の項目の説明の訳", () => {
+  it("core の項目と CONFIG_DESCRIPTIONS_EN の鍵が過不足なく揃い、訳は日本語を含まない", () => {
+    const keys = configFields()
+      .map((f) => f.key)
+      .sort();
+    expect(Object.keys(CONFIG_DESCRIPTIONS_EN).sort()).toEqual(keys);
+    for (const [key, value] of Object.entries(CONFIG_DESCRIPTIONS_EN)) {
+      expect(value, key).not.toMatch(JAPANESE);
+    }
+  });
+  it("core の説明が変わったら訳を見直す（説明を書き換えたらスナップショットと CONFIG_DESCRIPTIONS_EN を一緒に直す）", () => {
+    const descriptions = Object.fromEntries(configFields().map((f) => [f.key, f.description]));
+    expect(descriptions).toMatchSnapshot();
+  });
+  it("日本語では core の説明のまま、英語では訳を出し、訳のない項目は core の説明のまま出す", () => {
+    expect(configDescription("git.remote", "同期先のリモート")).toBe("同期先のリモート");
+    setLanguage("en");
+    expect(configDescription("git.remote", "同期先のリモート")).toBe(
+      "Git remote that deguboard fetches from and pushes to",
+    );
+    expect(configDescription("new.item", "新しい項目")).toBe("新しい項目");
   });
 });
