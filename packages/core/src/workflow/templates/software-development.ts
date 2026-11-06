@@ -23,6 +23,8 @@ export const softwareDevelopment: WorkflowDefinitionInput = {
       id: "implement",
       label: "Implement",
       actions: ["create_worktree", "create_branch", "run_tests", "create_pr"],
+      // agent の ticket claim がこの step の Run を開く（RN-5）
+      opens_on: "claim",
     },
     // 見直し役の見直しと、指摘を受けた手直しは実装と分けて数える（ADR-005）
     { id: "review", label: "Review", actions: ["run_tests"] },

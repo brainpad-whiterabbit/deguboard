@@ -1,7 +1,7 @@
 // Zod の入力スキーマから commander の位置引数とオプションを作り、受け取った引数を入力オブジェクトに戻す。
 // 型ごとの対応（ここが正本）：
 //   string / number / unknown   --key <value>（snake_case は --kebab-case）
-//   boolean                     --key（フラグ）
+//   boolean                     --key（フラグ。no_ で始まる key は --no-key。commander は否定として key を false にするので、それを読む）
 //   enum                        --key <value> に choices
 //   array（string / enum）      単数形で繰り返す（--label a --label b）。カンマ区切りも受ける
 //   array（meta freeText）      単数形で繰り返すだけ。要素が自由文なのでカンマで割らない（--acceptance）
@@ -271,6 +271,11 @@ export function collectInput(
   for (const shape of bound.options) {
     // commander はフラグ名を camelCase にする
     const camel = shape.flag.replace(/-([a-z])/g, (_, c: string) => c.toUpperCase());
+    // --no-run のような否定の形は、commander が run: false（省けば true）にする
+    if (shape.kind === "boolean" && shape.flag.startsWith("no-")) {
+      if (opts[camel.charAt(2).toLowerCase() + camel.slice(3)] === false) input[shape.key] = true;
+      continue;
+    }
     const name = shape.kind === "array" || shape.kind === "record" ? singular(camel) : camel;
     const value = opts[name];
     if (value === undefined) continue;

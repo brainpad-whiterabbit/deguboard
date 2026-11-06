@@ -50,6 +50,11 @@ export function printHuman(
     streams.err(
       `候補: ${data.candidates.map((c) => `${c.recommended ? "★" : ""}${c.label}（${c.action}）`).join("、")}`,
     );
+  } else if (commandName === "ticket.claim" && isClaimView(data)) {
+    // 開いた Run の ID は控えるものなので、本文の後の最後の行に出す
+    const { run, ...rest } = data;
+    streams.out(record(rest));
+    if (run) streams.out(`run: ${run}`);
   } else if (isIssueReport(data)) {
     if (data.issues.length === 0) streams.out("指摘はない");
     for (const issue of data.issues) streams.out(formatIssue(issue));
@@ -67,6 +72,10 @@ export function printHuman(
 
 function isAskView(data: unknown): data is Pick<AskView, "text" | "candidates"> {
   return typeof data === "object" && data !== null && "text" in data && "candidates" in data;
+}
+
+function isClaimView(data: unknown): data is Row & { run: string | null } {
+  return typeof data === "object" && data !== null && "run" in data;
 }
 
 function isIssueReport(data: unknown): data is { ok: boolean; issues: Issue[] } {

@@ -3,7 +3,7 @@ import { ACTORS } from "../model/workflow.js";
 import { STATUSES } from "../model/common.js";
 import { evaluateCondition, parseCondition } from "./conditions.js";
 import { reconcileStatus, regressionWarnings } from "./reconcile.js";
-import { canTransition, findStep, resolveWorkflow } from "./resolve.js";
+import { canTransition, findStep, resolveWorkflow, stepOpenedOn } from "./resolve.js";
 import { WORKFLOW_TEMPLATES } from "./templates/index.js";
 import { validateWorkflow } from "./validate.js";
 
@@ -180,6 +180,40 @@ describe("定義の検証（WF-3）", () => {
     expect(findStep(wf, "deploy")).toEqual({ ok: false, known: ["implement", "review"] });
   });
 
+  it("opens_on は claim だけを受け、同じ操作を 2 つの step に付ければエラーになる。claim が開く step は opens_on の step、なければ implement（RN-5）", () => {
+    const dup = validateWorkflow(
+      {
+        ...base,
+        steps: [
+          { id: "implement", opens_on: "claim" },
+          { id: "draft", opens_on: "claim" },
+        ],
+      },
+      "x.yaml",
+    );
+    expect(dup.issues.map((i) => [i.code, i.severity, i.message])).toEqual([
+      [
+        "workflow_opens_on_duplicate",
+        "error",
+        "steps[1]: opens_on: claim は implement にも付いている。1 つの step にだけ付ける",
+      ],
+    ]);
+    expect(
+      validateWorkflow(
+        { ...base, steps: [{ id: "implement", opens_on: "merge" }] },
+        "x.yaml",
+      ).issues.map((i) => i.code),
+    ).toEqual(["workflow_schema"]);
+    const opened = (steps?: object[]) =>
+      stepOpenedOn(
+        validateWorkflow({ ...base, ...(steps ? { steps } : {}) }, "x.yaml").workflow!,
+        "claim",
+      );
+    expect(opened([{ id: "build", opens_on: "claim" }, { id: "implement" }])).toBe("build");
+    expect(opened([{ id: "review" }])).toBe("implement");
+    expect(opened()).toBe("implement");
+  });
+
   it("同梱テンプレート 3 つは検証を通る", () => {
     for (const t of WORKFLOW_TEMPLATES) {
       const { issues, workflow } = validateWorkflow(t, `${t.id}.yaml`);
@@ -187,8 +221,12 @@ describe("定義の検証（WF-3）", () => {
       expect(workflow?.labels.todo).toBe("Todo");
       // 同梱テンプレートは遷移を縛らない
       expect(workflow?.transitions, t.id).toEqual([]);
-      // 同梱テンプレートはどれも Run の step の語彙を持つ（WF-5）
+      // 同梱テンプレートはどれも Run の step の語彙を持ち、claim が開く実装の step を 1 つ持つ（WF-5・RN-5）
       expect(workflow?.steps?.length, t.id).toBeGreaterThan(0);
+      expect(
+        workflow?.steps?.filter((s) => s.opens_on === "claim").map((s) => s.id),
+        t.id,
+      ).toEqual([t.id === "consulting" ? "draft" : "implement"]);
     }
   });
 

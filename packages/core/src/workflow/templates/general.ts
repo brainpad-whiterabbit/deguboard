@@ -13,7 +13,13 @@ export const general: WorkflowDefinitionInput = {
   // Run の step の語彙。順や分岐は書かない（手順は dg guide が持つ。WF-5）
   steps: [
     { id: "investigate", label: "Investigate" },
-    { id: "implement", label: "Implement", actions: ["create_worktree", "create_branch"] },
+    // agent の ticket claim が implement の Run を開く（RN-5）
+    {
+      id: "implement",
+      label: "Implement",
+      actions: ["create_worktree", "create_branch"],
+      opens_on: "claim",
+    },
     { id: "review", label: "Review" },
     // 見直しの指摘を受けた手直しは実装と分けて数える（ADR-005）
     { id: "fix", label: "Fix" },

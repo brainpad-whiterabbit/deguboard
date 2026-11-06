@@ -159,6 +159,42 @@ describe("dg", () => {
     expect(detached.json().data.branch).toBeUndefined();
   });
 
+  it("agent の claim は開いた Run の ID を人向けの出力の最後の行と --json の data.run に出し、--no-run では開かない（RN-5）", async () => {
+    const f = await fixture();
+    await dg(f.cloneA, ["init"]);
+    await dg(f.cloneA, ["ticket", "create", "A"]);
+    await dg(f.cloneA, ["ticket", "create", "B"]);
+    const opened = await dg(f.cloneA, [
+      "--actor",
+      "agent",
+      "ticket",
+      "claim",
+      "1",
+      "--agent",
+      "claude-code",
+    ]);
+    expect(opened.code).toBe(0);
+    expect(opened.out).toContain("## 受け入れ条件");
+    expect(opened.out.trimEnd().split("\n").at(-1)).toMatch(/^run: r\d{8}-\d{6}-[0-9a-f]{4}$/);
+    // commander は --no-run を run: false にするが、入力では no_run: true になる
+    const skipped = await dg(f.cloneA, [
+      "--json",
+      "--actor",
+      "agent",
+      "ticket",
+      "claim",
+      "2",
+      "--no-run",
+    ]);
+    expect(skipped.code).toBe(0);
+    expect(skipped.json().data.run).toBeNull();
+    expect(skipped.json().warnings).toEqual([]);
+    const runs = await dg(f.cloneA, ["--json", "run", "list", "--running"]);
+    expect(runs.json().data.map((r: any) => [r.ticket, r.step, r.agent])).toEqual([
+      ["t1", "implement", "claude-code"],
+    ]);
+  });
+
   it("拒否された遷移は終了コード 1 と error.code、入力の誤りと未知のコマンドは 2", async () => {
     const f = await fixture();
     await dg(f.cloneA, ["init"]);
