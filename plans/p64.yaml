@@ -1,0 +1,26 @@
+id: p64
+project: default
+tickets: [t469, t470, t471, t472]
+after:
+  t470:
+    - t469
+  t472:
+    - t471
+pending_approval: true
+details:
+  t469:
+    scope: ADR-010 の決定の節の振る舞いの細部と、採らなかった案の複数行の 3 案
+    approach: 細部は terminals.ts・ask-composer.tsx のコメントに移し、ADR は決定と理由の 1 文と正本の指し先にする
+    tier: light
+  t470:
+    scope: requirements.md の 6.4（UI-4・UI-11・UI-12・UI-15）を中心に、5.8・6.2 の help と重なる括弧書き
+    approach: 要件の ID と約束は残し、細部は help・コード・ADR-010 を指す。t469 の後で ADR-010 との重なりを消す
+    tier: standard
+  t471:
+    scope: development.md のリリースの節。LICENSE の確かめと SHA256 の雛形と tarball を試す手順
+    approach: pack に LICENSE の検査を、vsix に SHA256 と本文の文の出力を足し、文書から手順を消す
+    tier: standard
+  t472:
+    scope: CLAUDE.md のドキュメントの節の入口の行と、重なった言い回し
+    approach: 入口の行は ADR-001 か development.md に任せ、規約は消さずに詰める。t471 と development.md が重なるので後にする
+    tier: light
