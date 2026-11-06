@@ -132,7 +132,7 @@ export const DG_PATH_NOTE =
 
 /**
  * Skill（dg<トピック>）が何をするかの 1 文。SKILL.md の冒頭（dg skill install は ja）と、頼む小窓の札・候補のツールチップ（候補の skill_summary）が、この 1 か所から出る（UI-15・AG-2）。
- * 文を別の場所に写さない。9 本すべてに文があることは cli のテストが確かめる
+ * 文を別の場所に写さない。9 本すべてに文があることは cli のテストが確かめる。Skill の guide の frontmatter の description を変えたら、この文も見直す
  */
 export const SKILL_SUMMARY: Readonly<Record<string, Readonly<Record<AskLanguage, string>>>> = {
   dgimport: {
@@ -164,7 +164,7 @@ export const SKILL_SUMMARY: Readonly<Record<string, Readonly<Record<AskLanguage,
     en: "After an Iteration or Epic is done, reviews the whole repository by aspect and turns the findings approved by a human into tickets.",
   },
   dgdone: {
-    ja: "マージ済みのチケットを照合して done にし、受け入れ条件を確かめて後片付けをします。",
+    ja: "マージ済みのチケットを照合して done を確かめ、受け入れ条件を確かめて後片付けをします。",
     en: "Reconciles merged tickets to done, checks the remaining acceptance criteria, and cleans up.",
   },
   dgrelease: {

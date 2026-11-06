@@ -7,6 +7,7 @@
 import type { TerminalChoice } from "@deguboard/core";
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { askKey, parseAskKey } from "../ask-key.js";
+import { candidateTitle } from "../ask-candidate.js";
 import { useHost, useUiState } from "../host.js";
 import { canSend, resolveSendTarget, sentMessage, switchedMessage } from "../send-target.js";
 import { useStore } from "../store.js";
@@ -244,11 +245,7 @@ export function AskComposer({
               type="button"
               className="ask-suggestion"
               aria-pressed={c.action === chosen}
-              title={
-                c.skill_summary
-                  ? `${c.skill}: ${c.skill_summary}`
-                  : (c.skill ?? tr("Skill を使わない"))
-              }
+              title={candidateTitle(c, tr("Skill を使わない"))}
               onClick={() => {
                 setPicked(c.action);
                 setResult(null);

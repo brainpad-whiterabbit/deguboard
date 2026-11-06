@@ -25,6 +25,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { askKey } from "../ask-key.js";
+import { candidateTitle } from "../ask-candidate.js";
 import { WEBVIEW_CONTRACT_COPY } from "../client/webview.js";
 import { useCommandData } from "../command-data.js";
 import { useAsk, useUiState } from "../host.js";
@@ -506,11 +507,7 @@ function AskMenuList({
             type="button"
             role="menuitem"
             className="ask-menu-item"
-            title={
-              c.skill_summary
-                ? `${c.skill}: ${c.skill_summary}`
-                : (c.skill ?? tr("Skill を使わない"))
-            }
+            title={candidateTitle(c, tr("Skill を使わない"))}
             onClick={() => onPick(c)}
           >
             <span>{trCore(c.label, c.action)}</span>
