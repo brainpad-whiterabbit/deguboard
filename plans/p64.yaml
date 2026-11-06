@@ -6,7 +6,7 @@ after:
     - t469
   t472:
     - t471
-pending_approval: true
+pending_approval: false
 details:
   t469:
     scope: ADR-010 の決定の節の振る舞いの細部と、採らなかった案の複数行の 3 案
@@ -24,3 +24,5 @@ details:
     scope: CLAUDE.md のドキュメントの節の入口の行と、重なった言い回し
     approach: 入口の行は ADR-001 か development.md に任せ、規約は消さずに詰める。t471 と development.md が重なるので後にする
     tier: light
+approved_by: eiki.kitajima/agent
+approved_at: 2026-11-06T05:13:40Z
