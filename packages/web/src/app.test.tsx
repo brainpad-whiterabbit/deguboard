@@ -1278,7 +1278,10 @@ describe("画面", () => {
 
   it("拡張ホストから toggle の event が来ると、設定画面と来る前の画面を切り替える（ビューのタイトル行の歯車）", async () => {
     const client = mockClient();
-    client.handlers["config.show"] = () => ({ config: { default_project: "default" }, fields: [] });
+    client.handlers["config.show"] = () => {
+      const config = { default_project: "default" };
+      return { config, team: config, local: {}, fields: [] };
+    };
     window.location.hash = "#/backlog";
     const send = mountWithBridge(client, { readRunning: false });
     await waitFor(() => expect(client.calls.some((c) => c.name === "ticket.list")).toBe(true));

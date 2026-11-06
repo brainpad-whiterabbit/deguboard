@@ -1,16 +1,19 @@
-// 設定画面（#/config）。config.show の fields で config.yaml の全項目を既定値・説明（スキーマの describe）つきで読み、
-// 値を変えるたびに config.set で 1 項目ずつ保存する。読み書きするのはチームで共有する config.yaml の値（view.team）で、
-// 個人の上書き（deguboard-local/config.yaml。CLI の config set --local）は欄に出さない（重ねた値を出すと保存が効かなかったように見える）。
+// 設定画面（#/config）。config.show の fields で全項目を既定値・説明（スキーマの describe）・範囲（scope）つきで読み、
+// 「チーム」と「自分」のタブで書き分ける。値を変えるたびに 1 項目ずつ保存する。
+// - チーム：全項目を出し、チームで共有する config.yaml の値（view.team）を config.set で書く。欄に個人の上書きを重ねない
+//   （重ねた値を出すと保存が効かなかったように見える）。自分で上書きしている項目には「自分：値」の印を出し、押すと自分のタブのその項目に移る
+// - 自分：個人で上書きできる項目（scope が local）だけを出し、deguboard-local/config.yaml（view.local）を config.set --local で書く。
+//   「自分の値を使う」を入れるとチームの値を自分の値として写し、外すと config.unset --local で上書きを外してチームの値を出す
 // VS Code の settings.json は使わない（requirements.md 5.10）。左パネルではビューのタイトル行の歯車、ブラウザでは上のバーの歯車で開け閉めし、画面の中の「前の画面に戻る」も歯車と同じく来る前の画面に戻る。
 // 選択欄とチェックは変えたらすぐ、テキストは Enter か欄を離れたとき、リストは足す・外すたびに保存する。
-// 同期先とブランチの判定・worktree の置き場所・実行するコマンドとエージェントに許す操作を変える項目（CONFIRM_KEYS）は、保存の前に欄の下で確かめる。
-// 拒否されたら理由を項目の下にだけ出し（上の通知の帯には出さない）、値を保存されている値に戻す
+// 同期先とブランチの判定・worktree の置き場所・実行するコマンドとエージェントに許す操作を変える項目（CONFIRM_KEYS）は、どちらのタブでも保存の前に欄の下で確かめる
+// （自分の値を外して効く値が変わるときも確かめる）。拒否されたら理由を項目の下にだけ出し（上の通知の帯には出さない）、値を保存されている値に戻す
 
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { failureOf } from "../client/http.js";
 import { hrefOf, toggleRoute } from "../router.js";
 import { useStore } from "../store.js";
-import type { ConfigField, ConfigShowView } from "../types.js";
+import type { ConfigField, ConfigScope, ConfigShowView } from "../types.js";
 import { tr, msg } from "../l10n.js";
 import { trNode } from "../l10n-node.js";
 
@@ -50,7 +53,8 @@ const NAMES: Record<string, string> = {
 };
 
 /**
- * 保存の前に確かめる項目と、確かめの文に出す変わること。誤るとチーム全員に効き、戻すまで気づきにくい。
+ * 保存の前に確かめる項目と、確かめの文に出す変わること。誤ると同期・照合・worktree・実行するコマンド・エージェントに許す操作を壊し、
+ * 戻すまで気づきにくい（チームのタブでは全員に効く）。どちらのタブでも確かめる。
  * actions.test は確認なしで実行するコマンドなので、シェルの許可（actions.shell）と同じ重さで扱う。
  * auto.merge はエージェントに PR のマージを許すので、エージェントに許す操作として扱う（ADR-006・ADR-007）
  */
@@ -111,9 +115,25 @@ export function fieldMatchesQuery(field: ConfigField, query: string): boolean {
   return [nameOf(field.key), field.key, field.description].some((s) => s.toLowerCase().includes(q));
 }
 
+/** 書き分ける先：チームの config.yaml か、個人の deguboard-local/config.yaml */
+type Tab = ConfigScope;
+
+/** 空にすると既定に戻る（core の config.set が値を消す）項目と値か。既定が空でない文字列の項目の空文字 */
+export function clearsToDefault(field: ConfigField, value: unknown): boolean {
+  return (
+    field.type === "string" &&
+    typeof field.default === "string" &&
+    field.default !== "" &&
+    (value === "" || value === undefined || value === null)
+  );
+}
+
 interface Pending {
+  tab: Tab;
   key: string;
   value: unknown;
+  /** 自分の値を外す（config.unset --local）。value は外した後に効くチームの値 */
+  unset?: boolean;
 }
 
 interface FieldMessage {
@@ -125,14 +145,17 @@ export function ConfigPage() {
   const store = useStore();
   const [view, setView] = useState<ConfigShowView | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [tab, setTab] = useState<Tab>("team");
   const [query, setQuery] = useState("");
-  /** 入力中の値（テキスト）。保存か取り消しで消す */
+  /** 入力中の値（テキスト）。保存か取り消しかタブの切り替えで消す */
   const [drafts, setDrafts] = useState<Values>({});
   /** 確かめを待っている保存 */
   const [pending, setPending] = useState<Pending | null>(null);
   const [saving, setSaving] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
   const [messages, setMessages] = useState<Record<string, FieldMessage>>({});
+  /** チームのタブの「自分：値」から移ったとき、自分のタブで前に出す項目 */
+  const [focusKey, setFocusKey] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -152,19 +175,67 @@ export function ConfigPage() {
     if (!store.loading) void load();
   }, [store.loading, load]);
 
+  // 「自分：値」から移ったら、その項目を見える所に出し、「自分の値を使う」に焦点を移す
+  useEffect(() => {
+    if (tab !== "local" || focusKey === null) return;
+    const row = document.querySelector<HTMLElement>(`.config-page [data-key="${focusKey}"]`);
+    row?.scrollIntoView?.({ block: "center" });
+    row?.querySelector<HTMLElement>(".config-own input")?.focus();
+    // oxlint-disable-next-line react/set-state-in-effect
+    setFocusKey(null);
+  }, [tab, focusKey]);
+
+  /** タブを切り替える。入力中の値と確かめの待ちはタブごとの値に対するものなので捨てる */
+  const switchTab = useCallback((next: Tab, key: string | null = null) => {
+    setTab(next);
+    setDrafts({});
+    setPending(null);
+    setMessages({});
+    setSaved(null);
+    setFocusKey(key);
+  }, []);
+
   const save = useCallback(
-    async (key: string, value: unknown) => {
+    async (p: Pending) => {
+      const { key } = p;
       setPending(null);
       setSaving(key);
       setSaved(null);
       // store.run は失敗を上の通知の帯にも出すので使わない（拒否の理由は項目の下にだけ出す）
       try {
-        // --local なしの config.set はチームの値を返す
-        const res = await store.client.run<ConfigShowView["team"]>("config.set", { key, value });
-        setView((v) => (v ? { ...v, team: res.data } : v));
+        let warnings: string[];
+        if (p.tab === "team") {
+          // --local なしの config.set はチームの値を返す
+          const res = await store.client.run<ConfigShowView["team"]>("config.set", {
+            key,
+            value: p.value,
+          });
+          warnings = res.warnings;
+          setView((v) => (v ? { ...v, team: res.data } : v));
+          setSaved(tr("{0} を {1} にした", key, formatValue(valueAt(res.data, key))));
+        } else {
+          // --local の config.set・unset は個人を重ねた値しか返さない。上書きが残ったか（空文字で既定に戻す項目は
+          // set でも上書きを消す）は core が決めるので、画面で推し量らずに config.show で個人の上書きを読み直す
+          const res = p.unset
+            ? await store.client.run<ConfigShowView["config"]>("config.unset", { key, local: true })
+            : await store.client.run<ConfigShowView["config"]>("config.set", {
+                key,
+                value: p.value,
+                local: true,
+              });
+          warnings = res.warnings;
+          const next = (await store.client.run<ConfigShowView>("config.show", { fields: true }))
+            .data;
+          setView(next);
+          const merged = formatValue(valueAt(next.config, key));
+          setSaved(
+            key in next.local
+              ? tr("{0} を自分だけ {1} にした", key, merged)
+              : tr("{0} の自分の値を外した（チームの {1} を使う）", key, merged),
+          );
+        }
         setMessages((d) => without(d, key));
-        setSaved(tr("{0} を {1} にした", key, formatValue(valueAt(res.data, key))));
-        if (res.warnings.length) store.notify({ kind: "info", text: res.warnings.join(" / ") });
+        if (warnings.length) store.notify({ kind: "info", text: warnings.join(" / ") });
         void store.reload();
       } catch (error) {
         // 値は保存されている値に戻す（下書きを消すと欄は view の値を出す）
@@ -182,20 +253,53 @@ export function ConfigPage() {
     [store],
   );
 
+  /** 自分の値を外す。確かめる項目で効く値が変わるときは確かめ、確かめの文は外すときのものにする */
+  const unsetOwn = useCallback(
+    (key: string) => {
+      if (!view) return;
+      const team = valueAt(view.team, key);
+      const p: Pending = { tab: "local", key, value: team, unset: true };
+      if (CONFIRM_KEYS.has(key) && isModified(view.local[key], team)) setPending(p);
+      else void save(p);
+    },
+    [view, save],
+  );
+
   /** 値を変えたとき。確かめる項目は待たせ、それ以外はすぐ保存する。変わっていなければ待ちを解くだけ */
   const change = useCallback(
     (key: string, value: unknown) => {
       if (!view) return;
-      if (!isModified(value, valueAt(view.team, key))) {
+      const current = tab === "team" ? valueAt(view.team, key) : view.local[key];
+      if (!isModified(value, current)) {
         setDrafts((d) => without(d, key));
         // 確かめを待つ間に保存されている値へ戻したら、待っている古い値を保存させない
         setPending((p) => (p?.key === key ? null : p));
         return;
       }
-      if (CONFIRM_KEYS.has(key)) setPending({ key, value });
-      else void save(key, value);
+      // 自分のタブで既定が空でない文字列の項目を空にすると、core は上書きを消す（config set --help）。外すのと同じに扱う
+      const field = view.fields.find((f) => f.key === key);
+      if (tab === "local" && field && clearsToDefault(field, value)) {
+        unsetOwn(key);
+        return;
+      }
+      const p: Pending = { tab, key, value };
+      if (CONFIRM_KEYS.has(key)) setPending(p);
+      else void save(p);
     },
-    [view, save],
+    [view, tab, save, unsetOwn],
+  );
+
+  /**
+   * 「自分の値を使う」の付け外し。入れるとチームの値を自分の値として写す（効く値は変わらないので確かめない）。
+   * 外すと上書きを外してチームの値に戻す。確かめる項目で効く値が変わるときは確かめる
+   */
+  const toggleOwn = useCallback(
+    (key: string, on: boolean) => {
+      if (!view) return;
+      if (on) void save({ tab: "local", key, value: valueAt(view.team, key) });
+      else unsetOwn(key);
+    },
+    [view, save, unsetOwn],
   );
 
   const cancel = useCallback(() => {
@@ -204,11 +308,15 @@ export function ConfigPage() {
   }, [pending]);
 
   const groups = useMemo(() => {
-    const fields = (view?.fields ?? []).filter((f) => fieldMatchesQuery(f, query));
+    const fields = (view?.fields ?? []).filter(
+      (f) => (tab === "team" || f.scope === "local") && fieldMatchesQuery(f, query),
+    );
     return [...GROUPS, OTHER_GROUP]
       .map((g) => ({ ...g, fields: fields.filter((f) => groupOf(f.key) === g.id) }))
       .filter((g) => g.fields.length > 0);
-  }, [view, query]);
+  }, [view, tab, query]);
+
+  const overrides = view ? Object.keys(view.local).length : 0;
 
   return (
     <div className="config-page">
@@ -223,129 +331,236 @@ export function ConfigPage() {
           {tr("前の画面に戻る")}
         </button>
       </div>
-      <p className="config-team" role="note">
-        <strong>{tr("チーム全員に効く設定")}</strong>
-        <span>
-          {trNode(
-            "deguboard ブランチの {0} に保存し、push すると同じリポジトリを使う全員に効く。自分だけの上書きは {1} で（この画面には出ない）",
-            <code>config.yaml</code>,
-            <code>dg config set --local</code>,
-          )}
-        </span>
-      </p>
-      <div className="config-tools">
-        <input
-          type="search"
-          placeholder={tr("設定を検索（名前・キー・説明）")}
-          aria-label={tr("設定を検索")}
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-        />
+      <div className="config-tabs" role="tablist" aria-label={tr("設定の書き先")}>
+        <button
+          type="button"
+          role="tab"
+          id="config-tab-team"
+          aria-selected={tab === "team"}
+          aria-controls="config-panel"
+          className={`config-tab${tab === "team" ? " active" : ""}`}
+          onClick={() => switchTab("team")}
+        >
+          {tr("チーム")}
+        </button>
+        <button
+          type="button"
+          role="tab"
+          id="config-tab-local"
+          aria-selected={tab === "local"}
+          aria-controls="config-panel"
+          className={`config-tab${tab === "local" ? " active" : ""}`}
+          onClick={() => switchTab("local")}
+        >
+          {tr("自分")}
+          {overrides > 0 ? (
+            <span className="badge" title={tr("自分で上書きしている項目 {0} 件", overrides)}>
+              {overrides}
+            </span>
+          ) : null}
+        </button>
       </div>
-      <p className="config-saved muted" role="status" aria-live="polite">
-        {saved ? tr("保存した: {0}", saved) : null}
-      </p>
-      {loadError ? <p className="error">{trNode("設定を読めない: {0}", loadError)}</p> : null}
-      {!view && !loadError ? <p className="muted">{tr("読み込み中…")}</p> : null}
-      {view && groups.length === 0 ? <p className="empty">{tr("該当する設定がない")}</p> : null}
-      {groups.map((g) => (
-        <section key={g.id} className="config-group" aria-labelledby={`config-group-${g.id}`}>
-          <h3 id={`config-group-${g.id}`}>{tr(g.label)}</h3>
-          {g.fields.map((f) => {
-            const value = valueAt(view!.team, f.key);
-            const modified = isModified(value, f.default);
-            // 確かめを待つ間は、待っている項目のほかは入力欄も「既定に戻す」も触れない
-            // （触れると待ちが移り、元の項目の下書きが確かめの枠なしで残る）
-            const locked = saving === f.key || (pending !== null && pending.key !== f.key);
-            return (
-              <FieldRow
-                key={f.key}
-                field={f}
-                modified={modified}
-                busy={saving === f.key}
-                locked={locked}
-                message={messages[f.key]}
-                confirm={
-                  pending?.key === f.key ? (
-                    <ConfirmBox
+      <div id="config-panel" role="tabpanel" aria-labelledby={`config-tab-${tab}`}>
+        {tab === "team" ? (
+          <p className="config-scope config-team" role="note">
+            <strong>{tr("チーム全員に効く設定")}</strong>
+            <span>
+              {trNode(
+                "deguboard ブランチの {0} に保存し、push すると同じリポジトリを使う全員に効く。自分だけ変えたい項目は「自分」のタブで上書きする",
+                <code>config.yaml</code>,
+              )}
+            </span>
+          </p>
+        ) : (
+          <p className="config-scope config-local" role="note">
+            <strong>{tr("自分だけに効く設定")}</strong>
+            <span>
+              {trNode(
+                "Git に入らない {0} に保存し、コミットも push もしない。上書きできる項目だけを出し、使わない項目はチームの値が効く",
+                <code>deguboard-local/config.yaml</code>,
+              )}
+            </span>
+          </p>
+        )}
+        <div className="config-tools">
+          <input
+            type="search"
+            placeholder={tr("設定を検索（名前・キー・説明）")}
+            aria-label={tr("設定を検索")}
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+        </div>
+        <p className="config-saved muted" role="status" aria-live="polite">
+          {saved ? tr("保存した: {0}", saved) : null}
+        </p>
+        {loadError ? <p className="error">{trNode("設定を読めない: {0}", loadError)}</p> : null}
+        {!view && !loadError ? <p className="muted">{tr("読み込み中…")}</p> : null}
+        {view && groups.length === 0 ? <p className="empty">{tr("該当する設定がない")}</p> : null}
+        {groups.map((g) => (
+          <section key={g.id} className="config-group" aria-labelledby={`config-group-${g.id}`}>
+            <h3 id={`config-group-${g.id}`}>{tr(g.label)}</h3>
+            {g.fields.map((f) => {
+              const team = valueAt(view!.team, f.key);
+              const own = f.key in view!.local;
+              const value = tab === "local" && own ? view!.local[f.key] : team;
+              // 確かめを待つ間は、待っている項目のほかは入力欄も「既定に戻す」も触れない
+              // （触れると待ちが移り、元の項目の下書きが確かめの枠なしで残る）
+              const locked = saving === f.key || (pending !== null && pending.key !== f.key);
+              const confirm =
+                pending?.key === f.key ? (
+                  <ConfirmBox
+                    field={f}
+                    pending={pending}
+                    onSave={() => void save(pending)}
+                    onCancel={cancel}
+                  />
+                ) : null;
+              if (tab === "team") {
+                const modified = isModified(team, f.default);
+                return (
+                  <FieldRow
+                    key={f.key}
+                    field={f}
+                    marked={modified}
+                    badges={
+                      <>
+                        {modified ? (
+                          <span
+                            className="badge config-modified"
+                            title={tr("既定は {0}", formatValue(f.default))}
+                          >
+                            {tr("変更あり")}
+                          </span>
+                        ) : null}
+                        {own ? (
+                          <button
+                            type="button"
+                            className="badge config-override"
+                            title={tr("自分の値で上書きしている。押すと「自分」のタブで開く")}
+                            onClick={() => switchTab("local", f.key)}
+                          >
+                            {tr("自分：{0}", formatValue(view!.local[f.key]))}
+                          </button>
+                        ) : null}
+                      </>
+                    }
+                    busy={saving === f.key}
+                    message={messages[f.key]}
+                    confirm={confirm}
+                    actions={
+                      modified ? (
+                        <button
+                          type="button"
+                          className="config-reset"
+                          onClick={() => change(f.key, f.default)}
+                          disabled={locked}
+                          title={tr("既定の {0} に戻す", formatValue(f.default))}
+                        >
+                          {tr("既定に戻す")}
+                        </button>
+                      ) : null
+                    }
+                  >
+                    <FieldInput
                       field={f}
-                      value={pending.value}
-                      onSave={() => void save(f.key, pending.value)}
-                      onCancel={cancel}
+                      value={value}
+                      draft={drafts[f.key]}
+                      disabled={locked}
+                      onDraft={(v) => setDrafts((d) => ({ ...d, [f.key]: v }))}
+                      onChange={(v) => change(f.key, v)}
                     />
-                  ) : null
-                }
-                onReset={() => change(f.key, f.default)}
-              >
-                <FieldInput
+                  </FieldRow>
+                );
+              }
+              return (
+                <FieldRow
+                  key={f.key}
                   field={f}
-                  value={value}
-                  draft={drafts[f.key]}
-                  disabled={locked}
-                  onDraft={(v) => setDrafts((d) => ({ ...d, [f.key]: v }))}
-                  onChange={(v) => change(f.key, v)}
-                />
-              </FieldRow>
-            );
-          })}
-        </section>
-      ))}
+                  marked={own}
+                  badges={
+                    own && isModified(value, team) ? (
+                      <span className="badge config-team-value">
+                        {tr("チーム：{0}", formatValue(team))}
+                      </span>
+                    ) : null
+                  }
+                  busy={saving === f.key}
+                  message={messages[f.key]}
+                  confirm={confirm}
+                  lead={
+                    <label className="config-check config-own">
+                      <input
+                        type="checkbox"
+                        checked={own}
+                        disabled={locked}
+                        onChange={(e) => toggleOwn(f.key, e.target.checked)}
+                      />
+                      {tr("自分の値を使う")}
+                    </label>
+                  }
+                  actions={
+                    own ? null : <span className="muted">{tr("チームの値を使っている")}</span>
+                  }
+                >
+                  <FieldInput
+                    field={f}
+                    value={value}
+                    draft={drafts[f.key]}
+                    disabled={locked || !own}
+                    onDraft={(v) => setDrafts((d) => ({ ...d, [f.key]: v }))}
+                    onChange={(v) => change(f.key, v)}
+                  />
+                </FieldRow>
+              );
+            })}
+          </section>
+        ))}
+      </div>
     </div>
   );
 }
 
 function FieldRow({
   field,
-  modified,
+  marked,
+  badges,
   busy,
-  locked,
   message,
   confirm,
-  onReset,
+  lead,
+  actions,
   children,
 }: {
   field: ConfigField;
-  modified: boolean;
+  /** 左の線で示す（チームは既定から変えた項目、自分は上書きしている項目） */
+  marked: boolean;
+  badges: ReactNode;
   busy: boolean;
-  /** 入力欄と「既定に戻す」を押せなくする（保存中か、ほかの項目が確かめを待っている） */
-  locked: boolean;
   message: FieldMessage | undefined;
   confirm: ReactNode;
-  onReset(): void;
+  /** 入力欄の前に置くもの（自分のタブの「自分の値を使う」） */
+  lead?: ReactNode;
+  /** 入力欄の後に置くもの（「既定に戻す」など） */
+  actions: ReactNode;
   children: ReactNode;
 }) {
   const id = inputId(field.key);
   return (
-    <div className={`config-field${modified ? " modified" : ""}`} data-key={field.key}>
+    <div className={`config-field${marked ? " modified" : ""}`} data-key={field.key}>
       <div className="config-field-head">
         <label htmlFor={id} className="config-name">
           {nameOf(field.key)}
         </label>
         <code className="config-key">{field.key}</code>
-        {modified ? (
-          <span
-            className="badge config-modified"
-            title={tr("既定は {0}", formatValue(field.default))}
-          >
-            {tr("変更あり")}
-          </span>
-        ) : null}
+        {badges}
         {busy ? <span className="muted">{tr("保存中…")}</span> : null}
       </div>
       <p className="config-desc muted">{field.description}</p>
+      {lead}
       <div className="config-control">
         {children}
-        {modified ? (
-          <button
-            type="button"
-            className="config-reset"
-            onClick={onReset}
-            disabled={locked}
-            title={tr("既定の {0} に戻す", formatValue(field.default))}
-          >
-            {tr("既定に戻す")}
-          </button>
-        ) : null}
+        {actions}
       </div>
       {confirm}
       {message ? (
@@ -504,18 +719,21 @@ function ListInput({
   );
 }
 
-/** 確かめる項目の保存の前に出す枠。保存するまで値は config.yaml に書かない */
+/** 確かめる項目の保存の前に出す枠。保存するまで値は config.yaml（自分のタブでは deguboard-local/config.yaml）に書かない */
 function ConfirmBox({
   field,
-  value,
+  pending,
   onSave,
   onCancel,
 }: {
   field: ConfigField;
-  value: unknown;
+  pending: Pending;
   onSave(): void;
   onCancel(): void;
 }) {
+  const key = <code>{field.key}</code>;
+  const value = <code>{formatValue(pending.value)}</code>;
+  const effect = tr(CONFIRM_KEYS.get(field.key) ?? "");
   return (
     <div
       className="config-confirm"
@@ -523,12 +741,16 @@ function ConfirmBox({
       aria-label={tr("{0} の保存の確認", field.key)}
     >
       <p>
-        {trNode(
-          "{0} を {1} にする。{2}。チーム全員に効く。保存する？",
-          <code>{field.key}</code>,
-          <code>{formatValue(value)}</code>,
-          tr(CONFIRM_KEYS.get(field.key) ?? ""),
-        )}
+        {pending.tab === "team"
+          ? trNode("{0} を {1} にする。{2}。チーム全員に効く。保存する？", key, value, effect)
+          : pending.unset
+            ? trNode(
+                "{0} の自分の値を外し、チームの {1} に戻す。{2}。自分だけに効く。保存する？",
+                key,
+                value,
+                effect,
+              )
+            : trNode("{0} を {1} にする。{2}。自分だけに効く。保存する？", key, value, effect)}
       </p>
       <div className="config-confirm-actions">
         <button type="button" className="primary" onClick={onSave}>

@@ -101,7 +101,7 @@ dg config set metrics.read_transcripts true
 
 承認待ちの Plan と review のチケットがあると、サイドバーのタイトルが「DEGUBOARD: 承認待ち 3」のように件数つきになり（なければ「DEGUBOARD」）、増えたときは通知が出て「開く」でその詳細が開きます。Activity Bar のアイコンの数字は別物で、未 push のコミットと未取り込みのリモートの更新の合計です。
 
-通知は設定画面（歯車）の「通知」で切れます（件数の表示は残ります）。チームの設定のまま自分だけ切るときは `--local` を付けます（Git に入らない個人の設定。`dg config set --help`）。
+通知は設定画面（歯車）の「通知」で切れます（件数の表示は残ります）。チームの設定のまま自分だけ切るときは、設定画面の「自分」のタブか `--local` を使います（Git に入らない個人の設定。`dg config set --help`）。
 
 ```sh
 dg config set notify.approvals false --local
