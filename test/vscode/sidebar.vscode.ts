@@ -2,7 +2,7 @@
 // 拡張開発ホストを Xvfb 上に起動して（host.ts）、Activity Bar の deguboard からサイドバーのビューを開き：
 // - カンバンにチケットの行が出て、タブ（バックログ）に切り替えても戻しても行が出ること
 // - 行を押すとエディタ領域のパネルに詳細が開くこと（Webview → 拡張ホストのやり取り）
-// - Webview の CSP 違反と捕まえていない例外が 1 つもないこと（検出が効くことは、わざと違反と例外を起こして確かめる）
+// - ウィンドウ全体（ワークベンチと Webview）に CSP 違反と捕まえていない例外が 1 つもないこと（検出が効くことは、Webview の中でわざと違反と例外を起こして確かめる）
 // - ライトとダークのテーマでスクリーンショットを test/vscode/screenshots/ に出すこと
 // VS Code 本体のダウンロードと画面が要るので mise run test には入れず、mise run test:vscode で回す（先に mise run build）
 
@@ -101,12 +101,12 @@ describe("VS Code の実機の左パネル", () => {
     console.log(`スクリーンショット: ${SCREENSHOT_DIR}`);
   });
 
-  it("Webview に CSP 違反と捕まえていない例外がない", () => {
+  it("ワークベンチと Webview に CSP 違反と捕まえていない例外がない", () => {
     expect(host.watch.cspViolations).toEqual([]);
     expect(host.watch.errors).toEqual([]);
   });
 
-  it("わざと起こした CSP 違反と例外を検出する", async () => {
+  it("Webview の中でわざと起こした CSP 違反と例外を検出する", async () => {
     const before = { csp: host.watch.cspViolations.length, errors: host.watch.errors.length };
     // style-src に 'unsafe-inline' がないので <style> は拒否される。例外は setTimeout の中で投げて pageerror にする
     await sidebar.locator("body").evaluate((body) => {

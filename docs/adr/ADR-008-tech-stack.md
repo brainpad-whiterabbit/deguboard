@@ -52,7 +52,7 @@
 - 拡張の `engines.vscode` は `^1.123.0` にする。拡張ホストが Node 24 になった最初の版（Electron 42.3、Node 24.15）で、束ねる core の `engines.node`（>=24）と Vite の `target: "node24"` に揃う。1.122 までは Node 22（1.104 は Electron 37.3、Node 22.18）。`@types/vscode` は API が変わった版しか公開されない（DefinitelyTyped の運用。1.120.0 の次は 1.125.0）ので、engines を超えない最新の公開版（1.120.0）に固定する。engines と番号が揃わなくても上げない（vsce が engines を超えていないか検査する）
 - ルートの `playwright-core` は安定版にせず、`@playwright/mcp` が依存に完全一致で固定する playwright-core の版（alpha）に揃える。別の版にすると playwright-core が二重に入り、`playwright:install` が入れるブラウザと MCP が使う版がずれる。@playwright/mcp が安定版を要求するようになったら一緒に移す
 - VSIX は `@vscode/vsce` で作る（`mise run vsix`）。依存は束ねてあるので `--no-dependencies` で、pnpm の node_modules の形に影響されない。要らない postinstall の拒否は pnpm-workspace.yaml
-- 実機の確認（`mise run test:vscode`）は `@vscode/test-electron` で VS Code 本体を `.vscode-test/` に落とすだけに使い、起動と操作は Playwright の `_electron` で行う（`@vscode/test-electron` の `runTests` は拡張ホストの中で Mocha を走らせる作りで、Webview の中は触れない）。画面のない環境では Xvfb を起動する。`check` には入れない（ダウンロードと画面が要る）
+- 実機の確認（`mise run test:vscode`）は `@vscode/test-electron` で VS Code 本体を `.vscode-test/` に落とすだけに使い、起動と操作は Playwright の `_electron` で行う（`@vscode/test-electron` の `runTests` は拡張ホストの中で Mocha を走らせる作りで、Webview の中は触れない）。VS Code の版は `stable`（起動のたびに最新を引く）にせず、`test/vscode/host.ts` の `VSCODE_VERSION` で完全な版に固定する。画面のない環境では Xvfb を起動する。`check` には入れない（ダウンロードと画面が要る）
 
 ### 文書の検査
 

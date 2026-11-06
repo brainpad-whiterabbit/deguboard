@@ -3,11 +3,13 @@
 // - 画面がない環境（SSH 先・Claude Code の中）では Xvfb を起動して DISPLAY にする。DISPLAY が既にあればそれを使う
 // - 起動は Playwright の _electron。Claude Code（VS Code の拡張ホストの子）の環境変数 ELECTRON_RUN_AS_NODE が残っていると
 //   Electron が Node として起動して画面が出ないので、ELECTRON_*・VSCODE_*・NODE_OPTIONS を外して渡す（cleanEnv）
-// - Webview の CSP 違反（Chromium が Console の error に出す）と捕まえていない例外（pageerror）を集め、あれば検査を落とす（WebviewWatch）
+// - ウィンドウ全体（ワークベンチと Webview）の CSP 違反（Chromium が Console の error に出す）と捕まえていない例外（pageerror）を集め、
+//   あれば検査を落とす（WebviewWatch。Playwright の console・pageerror は OOPIF の Webview の分も page に届く）
+// - 起動の PATH にビルド済みの dg（packages/cli/bin）を足し、「dg が PATH にない」の通知がスクリーンショットに写らないようにする
 // VS Code の API に触れない純粋な部分（cleanEnv・isCspViolation・pickDisplay）は host.test.ts が確かめる
 
 import { spawn, type ChildProcess } from "node:child_process";
-import { access, mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
+import { access, mkdir, mkdtemp, readdir, rm, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { downloadAndUnzipVSCode, SilentReporter } from "@vscode/test-electron";
@@ -20,8 +22,12 @@ export const VSCODE_CACHE = path.join(ROOT, ".vscode-test");
 export const SCREENSHOT_DIR = path.join(ROOT, "test/vscode/screenshots");
 const EXTENSION_DIR = path.join(ROOT, "packages/vscode");
 
-/** VS Code 本体の版。stable は最新の安定版（.vscode-test/ に落ちていれば使い回す） */
-const VSCODE_VERSION = "stable";
+/**
+ * VS Code 本体の版。結果が再現するよう完全な版で固定する（"stable" にすると @vscode/test-electron が起動のたびに最新版を引き、
+ * 新しい安定版が出るたびに落とし直す。ADR-008）。packages/vscode の engines.vscode を満たす版にし、上げるときはここを書き換える。
+ * 落とした版は .vscode-test/vscode-<platform>-<版>/ に残り、あれば落とさない
+ */
+const VSCODE_VERSION = "1.145.1";
 
 /**
  * 起動する Electron に渡す環境変数。Claude Code や VS Code の統合ターミナルから引き継ぐ、起動の仕方を変える変数を外す：
@@ -145,7 +151,7 @@ const THEME_NAMES: Record<Theme, string> = {
   dark: "Default Dark Modern",
 };
 
-/** 集めた Webview（とワークベンチ）の問題。検査の最後に空であることを確かめる */
+/** ウィンドウ全体（ワークベンチと Webview）から集めた問題。検査の最後に空であることを確かめる */
 export interface WebviewWatch {
   /** CSP 違反の文（Console の error） */
   cspViolations: string[];
@@ -179,10 +185,31 @@ export interface Host {
 export async function launchHost(folder: string, display: Display): Promise<Host> {
   const executablePath = await ensureVSCode();
   const tmp = await mkdtemp(path.join(os.tmpdir(), "deguboard-vscode-"));
+  const removeTmp = () => rm(tmp, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+  try {
+    return await launchIn(tmp, folder, display, executablePath, removeTmp);
+  } catch (error) {
+    // 起動に失敗したら一時ディレクトリを残さない
+    await removeTmp();
+    throw error;
+  }
+}
+
+async function launchIn(
+  tmp: string,
+  folder: string,
+  display: Display,
+  executablePath: string,
+  removeTmp: () => Promise<void>,
+): Promise<Host> {
   const userDataDir = path.join(tmp, "user-data");
   const extensionsDir = path.join(tmp, "extensions");
+  const binDir = path.join(tmp, "bin");
   await mkdir(path.join(userDataDir, "User"), { recursive: true });
   await mkdir(extensionsDir, { recursive: true });
+  await mkdir(binDir);
+  // 拡張は PATH の dg を execFile("dg") で引く（dg.ts）。ビルド済みの bin/dg.js を dg の名前で PATH の先頭に置く
+  await symlink(path.join(ROOT, "packages/cli/bin/dg.js"), path.join(binDir, "dg"));
   await writeSettings(userDataDir, "dark");
   const watch: WebviewWatch = { cspViolations: [], errors: [], consoleErrors: [] };
   const app = await _electron.launch({
@@ -203,7 +230,10 @@ export async function launchHost(folder: string, display: Display): Promise<Host
       "--disable-dev-shm-usage",
       folder,
     ],
-    env: cleanEnv(process.env, display.name, { DEGUBOARD_USER: "vscode-test" }),
+    env: cleanEnv(process.env, display.name, {
+      DEGUBOARD_USER: "vscode-test",
+      PATH: `${binDir}${path.delimiter}${process.env["PATH"] ?? ""}`,
+    }),
     timeout: 120_000,
   });
   const page = await app.firstWindow();
@@ -258,7 +288,7 @@ export async function launchHost(folder: string, display: Display): Promise<Host
     },
     async close() {
       await app.close().catch(() => {});
-      await rm(tmp, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+      await removeTmp();
     },
   };
   return host;
