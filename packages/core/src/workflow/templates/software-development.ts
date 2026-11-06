@@ -4,7 +4,7 @@ import type { WorkflowDefinitionInput } from "../../model/workflow.js";
 export const softwareDevelopment: WorkflowDefinitionInput = {
   id: "software-development",
   name: "Software Development",
-  labels: { review: "Code Review" },
+  labels: { review: "Review" },
   // review → done に requires を足さない。requires は AND なので branch_merged を書くと
   // squash マージ（pr_merged だけが真）で done に進めなくなる
   transitions: [],

@@ -251,7 +251,7 @@ function StackedProgress({
 
 /**
  * Epic の進捗（done の件数 / abandoned を除く件数。EP-3）。Status ごとに積み上げ、色は --dg-status-*。
- * Webview では完了だけを塗りつぶし、進行中（In Progress・Code Review）は斜線にして、数字に「完了 n / m ・ 進行中 k」と何の比かを書く
+ * Webview では完了だけを塗りつぶし、進行中（In Progress・Review）は斜線にして、数字に「完了 n / m ・ 進行中 k」と何の比かを書く
  * （全件が進行中だと、塗りつぶしの満タンが「終わった」に見えるので）。ブラウザでは今のまま。short なら数字は done/全体 だけ（実行計画の帯の行が 1 行に収まるよう）
  */
 export function ProgressBar({ progress, short }: { progress: Progress; short?: boolean }) {
