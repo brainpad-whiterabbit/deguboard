@@ -741,7 +741,6 @@ function FieldInput({
           value={String(draft ?? shownConfigValue(field.key, value, field.default) ?? "")}
           disabled={disabled}
           onChange={(e) => onDraft(e.target.value)}
-          // 訳の文のまま離れたら既定の値に戻して保存する（訳の文を書き込まない。storedConfigValue）
           onBlur={(e) => {
             // 表示した文のまま離れたら値を変えない（何もしないで離れて、訳の文を config.yaml に書き込まないため）。
             // 文を書き換えたときだけ、訳の文なら既定の値に戻す（storedConfigValue）
