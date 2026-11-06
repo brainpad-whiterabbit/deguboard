@@ -1,4 +1,4 @@
-// 文書と dg guide の大きさの予算・ADR 一覧の整合と更新日の一致・リンクと見出しアンカーの切れを検査する（docs/adr/ADR-001-doc-strategy.md）。
+// 文書と dg guide の大きさの予算・ADR 一覧の整合と更新日の一致・リンクと見出しアンカーの切れ・README.md と README.ja.md の節の構成のずれを検査する（docs/adr/ADR-001-doc-strategy.md）。
 // 依存なしで動かす。mise run check:docs から呼ぶ。
 import { existsSync } from "node:fs";
 import { readdir, readFile, stat } from "node:fs/promises";
@@ -122,6 +122,20 @@ for (const rel of docFiles) {
   }
 }
 
+// 節の構成の検査：README.ja.md は README.md と同じ節の構成で置く（CLAUDE.md）。# から ### の見出しの数と階層の並びを比べる。見出しの文言は訳すので比べない
+const readmeHeadings = await outlineOf("README.md");
+const readmeJaHeadings = await outlineOf("README.ja.md");
+for (let i = 0; i < Math.max(readmeHeadings.length, readmeJaHeadings.length); i++) {
+  const en = readmeHeadings[i];
+  const ja = readmeJaHeadings[i];
+  if (en?.level === ja?.level) continue;
+  const show = (h) => (h ? `${"#".repeat(h.level)} ${h.text}（${h.line} 行目）` : "（なし）");
+  errors.push(
+    `README.ja.md: ${i + 1} 番目の見出しの階層が README.md とずれている: README.md は ${show(en)}、README.ja.md は ${show(ja)}（見出しは README.md が ${readmeHeadings.length} 個、README.ja.md が ${readmeJaHeadings.length} 個）`,
+  );
+  break; // 1 つずれると後ろはすべてずれるので、最初の 1 か所だけ出す
+}
+
 if (warnings.length > 0) {
   console.warn(`check:docs の警告（予算の ${WARN_RATIO * 100}% を超えた。失敗にはしない）`);
   for (const w of warnings) console.warn(`  - ${w}`);
@@ -132,7 +146,7 @@ if (errors.length > 0) {
   process.exit(1);
 }
 console.log(
-  `check:docs: 予算内（文書 ${budgets.length} 件、ADR ${adrFiles.length} 件（更新日の一致 ${datedCount} 件）、guide ${guideFiles.length} 件）、リンク ${linkCount} 件に切れなし`,
+  `check:docs: 予算内（文書 ${budgets.length} 件、ADR ${adrFiles.length} 件（更新日の一致 ${datedCount} 件）、guide ${guideFiles.length} 件）、リンク ${linkCount} 件に切れなし、README.ja.md の見出し ${readmeJaHeadings.length} 個が README.md と同じ構成`,
 );
 
 function checkBudget(rel, size, limit) {
@@ -174,6 +188,22 @@ function withoutCode(text) {
     }
     return inFence ? "" : line.replace(/`[^`]*`/g, "");
   });
+}
+
+/** # から ### の見出しを、階層・文言・行番号の配列で返す。```のコードブロックの中の # は見出しにしない */
+async function outlineOf(rel) {
+  const text = await readFile(path.join(root, rel), "utf8");
+  let inFence = false;
+  const headings = [];
+  for (const [i, line] of text.split("\n").entries()) {
+    if (/^\s*(```|~~~)/.test(line)) {
+      inFence = !inFence;
+      continue;
+    }
+    const m = inFence ? null : /^(#{1,3})\s+(.+?)\s*#*\s*$/.exec(line);
+    if (m) headings.push({ level: m[1].length, text: m[2], line: i + 1 });
+  }
+  return headings;
 }
 
 /** 見出しを GitHub 流のアンカーにする：小文字化、記号を除く（文字・数字・空白・ハイフンだけ残す）、空白を - に。同名は -1、-2 を付ける */
