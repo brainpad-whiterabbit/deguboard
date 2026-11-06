@@ -231,6 +231,12 @@ describe("エージェントに頼む入力欄（UI-15）", () => {
     const box = within(composer());
     const meaning = () => composer().querySelector(".ask-meaning")?.textContent;
     expect(meaning()).toBe("t5・s1 を点検し、直す案を表で示します。");
+    // 札の下・指示欄の上に出る（DOM の順）
+    const cards = within(composer()).getByRole("group", { name: "頼むこと" });
+    const line = composer().querySelector(".ask-meaning")!;
+    const note = box.getByRole("textbox", { name: "指示" });
+    expect(cards.compareDocumentPosition(line) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(line.compareDocumentPosition(note) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 
     fireEvent.click(box.getByRole("button", { name: "s1 を外す" }));
     await waitFor(() =>

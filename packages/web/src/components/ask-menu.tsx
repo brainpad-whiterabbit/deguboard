@@ -31,7 +31,7 @@ import { useAsk, useUiState } from "../host.js";
 import { useStore } from "../store.js";
 import type { AskCandidate, AskMenu } from "../types.js";
 import { SELECT_ATTR, selectKind, useSelection } from "./selection.js";
-import { tr, trCore, msg } from "../l10n.js";
+import { language, tr, trCore, msg } from "../l10n.js";
 import { trNode } from "../l10n-node.js";
 
 /**
@@ -83,7 +83,7 @@ export function AskMenuProvider({ children }: { children: ReactNode }) {
     for (const k of keys) asked.current.add(k);
     const mine = asked.current;
     client
-      .run<AskMenu[]>("ask-menu", { sets: keys })
+      .run<AskMenu[]>("ask-menu", { sets: keys, language: language() })
       .then((r) => {
         if (asked.current !== mine) return;
         setMenus((prev) => {

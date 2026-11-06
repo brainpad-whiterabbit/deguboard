@@ -731,6 +731,21 @@ describe("ask", () => {
     expect(parseAskMenuKey("")).toEqual({ refs: [], within: undefined });
   });
 
+  it("ask-menu は language を渡すと候補の 1 文も英語にし、省けば日本語にする", async () => {
+    const { ctx } = await initialized();
+    await runCommand(ticketCreate, ctx, { title: "A" });
+    const menu = async (input: Record<string, unknown>) =>
+      (await runCommand(askMenu, ctx, { sets: ["t1"], ...input })).data[0]!.candidates;
+    const en = await menu({ language: "en" });
+    expect(
+      en.every((c: { meaning: string }) => !/[\u3040-\u30ff\u4e00-\u9fff]/.test(c.meaning)),
+    ).toBe(true);
+    const ja = await menu({});
+    expect(
+      ja.some((c: { meaning: string }) => /[\u3040-\u30ff\u4e00-\u9fff]/.test(c.meaning)),
+    ).toBe(true);
+  });
+
   it("language を渡せば定型の文をその言語で組み、省けば日本語にする", async () => {
     const { ctx } = await initialized();
     await runCommand(ticketCreate, ctx, { title: "A" });

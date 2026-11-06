@@ -1377,6 +1377,10 @@ export const askMenu = defineCommand({
       .describe(
         '対象の組（ID を空白で区切る。t12・"t1 t2"・s3）。空の文字列は対象なし。@ を付けた Iteration・Epic（"t12 @s3"）は、チケットが入っている場所（ask の within）',
       ),
+    language: z
+      .enum(ASK_LANGUAGES)
+      .optional()
+      .describe("候補の 1 文（meaning）の言語。省けば ja。画面の表示言語を渡す"),
   }),
   write: false,
   needs: "store",
@@ -1394,6 +1398,7 @@ export const askMenu = defineCommand({
           const candidates = askCandidates(
             subjectsOf(ctx.store, refs, running, localDate(ctx.now())),
             withinRef(ctx.store, within),
+            input.language,
           );
           return { key, candidates, error: null };
         } catch (e) {
