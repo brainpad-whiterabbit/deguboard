@@ -1,7 +1,7 @@
 // ルートの README.md から VSIX に入れる拡張の README を作る。scripts/vscode-readme.mjs が書き出し、test/scripts/vscode-readme.test.ts が確かめる（t429）。
-// 紹介の正本はルートの README で、「ほかの使い方」の見出しより前だけを Marketplace に出す
+// 紹介の正本はルートの README（英語）で、「Other ways to use it」の見出しより前だけを Marketplace に出す
 
-export const CUT_HEADING = "## ほかの使い方";
+export const CUT_HEADING = "## Other ways to use it";
 
 /** Markdown のリンク・画像と HTML の src・href のうち、http(s) の絶対 URL でないものの先を返す */
 export function relativeLinks(markdown) {
