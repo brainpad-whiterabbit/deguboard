@@ -1125,11 +1125,11 @@ describe("チケットの流れ", () => {
       // 逆に、clone B で unclaim されていれば、古い索引では手直しに見えても取り込んでから新しい claim になる
       await runCommand(ticketUnclaim, b, { ticket: "t1" });
       await runCommand(sync, b, {});
-      expect(agent.store.tickets.get("t1")!.data.pr).toBe(41);
+      // unclaim で前の PR の記録も外すので、新しい claim は手直しではなく実装の Run になる（ST-3・ST-7）
       const fresh = await runCommand(ticketClaim, agent, { ticket: "t1", branch: "feat/t1-again" });
       expect(fresh.data).toMatchObject({ status: "in_progress", branch: "feat/t1-again" });
-      // unclaim は pr を消さないので前の PR 番号が残る（既存の作り）
-      expect(fresh.data.pr).toBe(41);
+      expect(fresh.data.pr).toBeUndefined();
+      expect(fresh.warnings).not.toContainEqual(expect.stringContaining("手直しの開始"));
       expect(
         (await peekRunningRuns(agent.repo)).find((r) => r.id === fresh.data.run),
       ).toMatchObject({
@@ -1558,6 +1558,7 @@ describe("チケットの流れ", () => {
     expect(r.data).toMatchObject({ status: "todo" });
     expect(r.data.assignee).toBeUndefined();
     expect(r.data.branch).toBeUndefined();
+    expect(r.data.pr).toBeUndefined();
 
     // eiki の AI が claim したものは eiki 本人が force なしで外せる
     const eikiAgent = await openContext({ cwd: f.cloneA, actor: { kind: "agent", user: "eiki" } });
@@ -1566,6 +1567,18 @@ describe("チケットの流れ", () => {
     await eiki.store.rescan();
     const released = await runCommand(ticketUnclaim, eiki, { ticket: "t1" });
     expect(released.data.status).toBe("todo");
+  });
+
+  it("todo に残った前の作業の PR（unclaim 前の記録）は、新しい claim で外れ、もう一度の claim の判定にならない（ST-3・ST-7）", async () => {
+    const f = await fixture();
+    const eiki = await initialized(f.cloneA);
+    await runCommand(ticketCreate, eiki, { title: "A" });
+    // 前の作業の PR を記録したまま todo に残ったチケット（pr を外す前の unclaim で残ったもの）
+    await runCommand(ticketUpdate, eiki, { ticket: "t1", pr: 7 });
+    const claimed = await runCommand(ticketClaim, eiki, { ticket: "t1", branch: "feature/a" });
+    expect(claimed.data).toMatchObject({ status: "in_progress", assignee: "eiki" });
+    expect(claimed.data.pr).toBeUndefined();
+    expect(claimed.warnings.some((w) => w.includes("手直しの開始"))).toBe(false);
   });
 
   it("whoami は操作している主体の ID・ユーザ名・種別と、本人とみなす ID（人とその AI）を返す", async () => {
