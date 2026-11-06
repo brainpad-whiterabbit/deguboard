@@ -1,5 +1,5 @@
 {
-  // パッケージをまたぐテスト（test/e2e・test/layout）と、設定を確かめるテスト（test/lint）、scripts を確かめるテスト（test/scripts）。web の postMessage クライアントと、ブラウザの中で測るコードに DOM の型が要る
+  // パッケージをまたぐテスト（test/e2e・test/layout・test/vscode）と、設定を確かめるテスト（test/lint）、scripts を確かめるテスト（test/scripts）。web の postMessage クライアントと、ブラウザの中で測るコードに DOM の型が要る
   "extends": "../tsconfig.base.json",
   "compilerOptions": {
     "noEmit": true,

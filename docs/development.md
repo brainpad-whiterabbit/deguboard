@@ -41,7 +41,7 @@ mise run dg -- guide done      # マージ後の後始末
   ```
 
 - PR は `gh pr create --base main` で出し、本文にチケットの ID（`t12`）を書く。このリポジトリの Workflow は software-development なので、PR が開けば `dg sync` が review に、squash マージされれば done に進める（`gh` が要る）
-- 画面の見た目を変える PR は、変えた画面のスクリーンショットを本文に載せる。Playwright MCP で一時リポジトリの `dg serve` を開き（「`packages/web`」の節）、ライトとダークで撮る（`browser_emulate_media` の `colorScheme`）。サイドバーに効く変更は `?surface=sidebar` と幅 300px でも撮る。画像は orphan ブランチ `pr-screenshots` の `<チケット ID>/` に置く（作業ブランチに入れると squash で `main` に入る）
+- 画面の見た目を変える PR は、変えた画面のスクリーンショットを本文に載せる。左パネルとパネルの変更は `mise run test:vscode` が VS Code の実機でライトとダークを `test/vscode/screenshots/` に出す（「`packages/vscode`」の節。ほかの画面を撮るときは `test/vscode/sidebar.vscode.ts` に操作を足す）。ブラウザだけの画面は Playwright MCP で一時リポジトリの `dg serve` を開き（「`packages/web`」の節）、ライトとダーク（`browser_emulate_media` の `colorScheme`）で撮る。画像は orphan ブランチ `pr-screenshots` の `<チケット ID>/` に置く（作業ブランチに入れると squash で `main` に入る）
 
   ```sh
   git fetch origin pr-screenshots
@@ -73,7 +73,7 @@ mise run dg -- guide done      # マージ後の後始末
 - `mise run build` が `tsconfig.build.json`（プロジェクト参照）で `core`・`server`・`cli` を、Vite で `web` と `vscode` を `dist/` に出す。`dg` をリポジトリの外のディレクトリに対して動かすときは `-C <dir>` を付ける
 - `@deguboard/core` と `@deguboard/server` の `exports` は条件つきで、テストと型検査・vscode のビルド（`development` 条件）は `src/` を、ビルド済みの `dg` は `dist/` を見る。公開する tarball では `publishConfig.exports` が `development` 条件を外し、`dist/` だけを指す（`mise run pack` で確かめる）。テストの前にビルドは要らない
 - テストはソースの隣の `*.test.ts`（画面は `*.test.tsx`）に置き、ルートの `vitest.config.ts` が `packages/*/src/**/*.test.{ts,tsx}` と `test/**/*.test.ts` をまとめて走らせる。パッケージごとの設定ファイルは作らない
-- パッケージをまたぐテストは `test/` に置く。`e2e/routes.test.ts` は CLI・HTTP・Webview の 3 経路の結果とコミットの一致（NF-2）を、`layout/` は画面の配置と吹き出しの一覧を確かめる（`mise run test:layout`。ブラウザが要るので check に入れない）
+- パッケージをまたぐテストは `test/` に置く。`e2e/routes.test.ts` は CLI・HTTP・Webview の 3 経路の結果とコミットの一致（NF-2）を、`layout/` は画面の配置と吹き出しの一覧を（`mise run test:layout`）、`vscode/` は VS Code の実機の左パネルを（`mise run test:vscode`）確かめる（ブラウザと VS Code が要るので check に入れない）
 - Git を使うテストは `packages/core/test/helpers/git-fixture.ts` で、一時ディレクトリに bare リモートと 2 つの clone を作って行う。fixture が開発者のグローバル設定と裏の git maintenance からテストを切り離す（方法は fixture のコメント）
 - 依存を足すときは `mise exec -- pnpm add <名前>@<版> --filter <パッケージ>` で足し（版は `1.2.3` の完全な形で書く。`pnpm-workspace.yaml` の `savePrefix` で固定の版で書かれるが、`7`・`^7` のような範囲を渡すと範囲のまま書かれる。版を上げるのも `add <名前>@<新しい版>`、削除は `remove`、開発用は `-D` を付ける、ルートに足すときは `--filter` を外す。overrides を変えたときは `mise exec -- pnpm install`）、更新した lockfile もコミットする（`mise run install` は `--frozen-lockfile`）
 
@@ -118,13 +118,13 @@ core の `commands` を HTTP に写す。Node 標準の `node:http` で、フレ
 
 画面の文言は `l10n.ts` の `tr`（鍵は日本語の文。要素を挟む文は `l10n-node.tsx` の `trNode`）で書き、英語の訳は `l10n-en.ts` に置く。言語は Webview の `<html data-language>` で決まり、ない（`dg serve`）と日本語。揃っているかは `l10n.test.ts`、日本語の文言が変わっていないかは `l10n-screens.test.tsx` のスナップショットが確かめる。
 
-見た目は Playwright MCP（`.mcp.json`。Chromium は `mise run playwright:install`）で一時リポジトリの `dg serve` を見る。`?surface=sidebar`・`panel` で配置が変わる。Webview に固有の色や CSP は人が見る。
+見た目は Playwright MCP（`.mcp.json`。Chromium は `mise run playwright:install`）で一時リポジトリの `dg serve` を見る。`?surface=sidebar`・`panel` で配置が変わる。Webview に固有の色・CSP・拡張ホストとのやり取りは `mise run test:vscode` で見る（「`packages/vscode`」の節）。
 
 ### `packages/vscode`（`deguboard-vscode`）
 
 VS Code 拡張。拡張ホストから core の `createLocalClient` を呼び、Webview に web のビルド結果を載せる。サーバーは起動せず、`dg` は同梱しない（[ADR-006](adr/ADR-006-ui-and-writes.md)）。VS Code の API に触れるのは入口の `extension.ts` だけで、Webview に載せる純粋な処理は `webview.ts`、PATH の `dg` を引くのは `dg.ts`。文言は言語ごとのファイルに置く：manifest は `package.nls.json`（英語・既定）と `package.nls.ja.json`、拡張ホストは `l10n.ts` の `t`（鍵は英語の文）と `l10n/bundle.l10n.ja.json`、Walkthrough は `media/walkthrough/*.md` と `*.ja.md`。揃っているかは `l10n.test.ts` が確かめる。Webview の画面の文言は web に置き（「`packages/web`」の節）、拡張ホストは表示言語を `<html data-language>` で渡すだけ。
 
-ビルドは Vite で `dist/extension.cjs` に束ね、web の `dist` を `dist/web` に写す（[ADR-008](adr/ADR-008-tech-stack.md)）。同梱する core の版は `vite.config.ts` の `define` で埋める。手元で動かすには `mise run build` のあと VS Code で `packages/vscode` を開いて F5（拡張開発ホスト）、Activity Bar の deguboard のアイコン。
+ビルドは Vite で `dist/extension.cjs` に束ね、web の `dist` を `dist/web` に写す（[ADR-008](adr/ADR-008-tech-stack.md)）。同梱する core の版は `vite.config.ts` の `define` で埋める。手元で動かすには `mise run build` のあと VS Code で `packages/vscode` を開いて F5（拡張開発ホスト）、Activity Bar の deguboard のアイコン。実機の確認は `mise run test:vscode`：`.vscode-test/` に落とした VS Code（版は `test/vscode/host.ts` で固定）を Xvfb 上に拡張開発ホストとして起動し、一時リポジトリの左パネルで行の表示・詳細のパネル・CSP 違反と例外（あれば落ちる）・ライトとダークのスクリーンショット（`test/vscode/screenshots/`）を確かめる。Claude Code の中からでも動く。細部は `test/vscode/host.ts` の冒頭。
 
 VSIX は `mise run vsix`（`@vscode/vsce`。判断は [ADR-008](adr/ADR-008-tech-stack.md)）で `packages/vscode/deguboard-vscode.vsix` にでき、`mise run vsix:install`（`mise run install` の最後にも走る）で VS Code に入る（入れられないときは手で入れるコマンドを出す。条件は `scripts/install-vsix.mjs` の冒頭。リモート開発なら統合ターミナルから）。入れたらウィンドウを再読み込みする。入るものは `.vscodeignore` が決め、入ってよいファイルの一覧は `packages/vscode/src/vsix-files.test.ts` が `vsce ls` と照らす（一覧にないものが入ると `mise run check` が落ちる。入れるファイルを増やす PR は一覧も直す）。拡張の README（Marketplace の紹介）はルートの README.md の「Other ways to use it」より前を `scripts/vscode-readme.mjs` が写して作り、git には入れない。紹介はルートの README で直し（README.ja.md は拡張の README と npm に入らない）、その部分のリンクは絶対 URL にする（相対リンクがあると作れない）。
 
@@ -132,31 +132,18 @@ README の使い方の GIF（`packages/vscode/images/`）は、画面を変え�
 
 ## リリース
 
-npm に出すのは `@deguboard/core`・`@deguboard/server`・`deguboard`（cli）の 3 つで、版は全パッケージで揃える（[ADR-006](adr/ADR-006-ui-and-writes.md)）。`web` は cli に同梱し、`vscode` は VSIX で配る。手順は mise のタスクで、`main` の clean な状態で行う：
+npm に出すのは `@deguboard/core`・`@deguboard/server`・`deguboard`（cli）の 3 つで、版は全パッケージで揃える（[ADR-006](adr/ADR-006-ui-and-writes.md)）。`vscode` は VSIX で配る。`main` の clean な状態で行う：
 
 ```sh
-mise run release:version -- <版>    # 5 パッケージの version を揃える（例: 0.10.0）→ PR で main に入れる
-mise run check && mise run pack      # build のあと release/ に 3 つの tarball。別ディレクトリで入れて dg --version と dg init を試す
-mise run audit                       # 本番の依存の既知の脆弱性を検査する（ネットワークが要る。あれば失敗するので、直すか人が判断してから進める）
-mise run test:layout                 # build のあと画面の配置と吹き出しの一覧（check に入らない。ブラウザがなければ先に mise run playwright:install）
-mise run release:publish             # pnpm publish -r --access public（npm login 済みで）
+mise run release:version -- <版>    # 版を揃え、PR で main に入れる
+mise run check && mise run pack      # release/ に 3 つの tarball（LICENSE が欠ければ失敗）
+mise run audit                       # 本番の依存の脆弱性（あれば直すか人が判断する）
+mise run test:layout && mise run test:vscode   # 画面の配置と VS Code の実機（check に入らない）
+mise run release:publish             # npm login 済みで
 git tag v<版> && git push origin v<版>
-mise run vsix                        # GitHub の Release に deguboard-vscode.vsix を添付する
-sha256sum packages/vscode/deguboard-vscode.vsix   # 出た値を Release の本文に書く（下の雛形）
+mise run vsix                        # vsix を Release に添付し、出た SHA256 の文を本文に貼る
 ```
 
-Release の本文には、添付する vsix の SHA256 を次の雛形で書く。値は上の `sha256sum` の出力のもの（添付と同じ vsix で求める）。
+公開は必ず `pnpm publish`（`release:publish`）で行う。`npm publish` では `workspace:*` と `publishConfig.exports` が書き換わらない。
 
-```text
-deguboard-vscode.vsix の SHA256：<sha256sum の 64 桁の値>
-
-確かめ方：vsix と同じフォルダで `sha256sum deguboard-vscode.vsix` を実行し、出た値が上の値と一致すれば改ざんされていない。
-```
-
-3 つの tarball には、`prepack`（各パッケージの package.json）がルートの LICENSE を写して入れる（VSIX の `package` と同じ。写した `packages/*/LICENSE` は `.gitignore` で Git に入れない）。tarball を試すときは `for f in release/*.tgz; do tar tzf "$f" | grep -q '^package/LICENSE$' && echo "ok $f"; done` を 1 つずつ回し、3 行の ok が出ることを確かめる（`tar tzf` は複数の tgz を一度に渡せない）。
-
-`release/` は `mise run pack` が置く生成物で、`.gitignore` により Git には入れない。`pack` は毎回 `release/` を消してから作るので、手元に残った古い版の tarball は消してよい。
-
-公開は必ず `pnpm publish`（`release:publish`）で行う。`workspace:*` の版への書き換えと `publishConfig.exports` の差し替えは pnpm だけが行い、`npm publish` では `src/` を指す `development` 条件が残る。
-
-tarball を試すときは、一時ディレクトリの package.json の `deguboard` と、そこに置いた pnpm-workspace.yaml の `overrides` の `@deguboard/core`・`@deguboard/server` を `file:` の tarball に向ける（pnpm 12 は package.json の `overrides`・`pnpm.overrides` を読まない）。
+tarball は一時ディレクトリで、cli は package.json の依存、core・server は pnpm-workspace.yaml の `overrides` で `file:` に向けて入れ、`dg --version` と `dg init` を試す（pnpm 12 は package.json の `overrides` を読まない）。
