@@ -94,7 +94,7 @@ export async function openRepo(
   const remote = opts.remote === undefined ? await resolveRemote(paths, "origin") : opts.remote;
   await ensureDeguboardWorktree(paths, remote);
   const repo: GitRepo = { ...paths, remote, baseBranch: opts.baseBranch ?? "main" };
-  const store = await Store.open(repo.dataDir);
+  const store = await Store.open(repo.dataDir, { localDir: repo.localDir });
   return { repo, store };
 }
 

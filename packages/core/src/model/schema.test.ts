@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { configFields, configSchema, defaultConfig } from "./config.js";
+import {
+  configFields,
+  configSchema,
+  defaultConfig,
+  flattenConfig,
+  nestedConfigValue,
+  overlayLocalConfig,
+} from "./config.js";
 import { planSchema } from "./plan.js";
 import { emptyUsage, isRunId, newRunId, runSchema } from "./run.js";
 import { ticketSchema } from "./ticket.js";
@@ -52,6 +59,80 @@ describe("スキーマ", () => {
     const partial = configSchema.parse({ git: { base_branch: "develop" } });
     expect(partial.git.remote).toBe("origin");
     expect(partial.git.base_branch).toBe("develop");
+  });
+
+  it("configFields は項目ごとの範囲（scope）を持ち、個人で上書きできるのは人ごとに違ってよい項目だけ", () => {
+    const local = configFields()
+      .filter((f) => f.scope === "local")
+      .map((f) => f.key);
+    expect(local).toEqual([
+      "default_project",
+      "git.remote",
+      "worktree.root",
+      "commit.mode",
+      "push.mode",
+      "notify.approvals",
+      "actions.shell",
+      "models.light",
+      "models.standard",
+      "models.heavy",
+    ]);
+    for (const key of [
+      "git.base_branch",
+      "metrics.read_transcripts",
+      "auto.merge",
+      "actor.human_only",
+    ])
+      expect(configFields().find((f) => f.key === key)?.scope).toBe("team");
+  });
+
+  it("flattenConfig と nestedConfigValue は入れ子とドット区切りを行き来し、空になった入れ子は消す", () => {
+    expect(
+      flattenConfig({ commit: { mode: "each" }, actions: { test: ["a", "b"] }, x: 1 }),
+    ).toEqual({
+      "commit.mode": "each",
+      "actions.test": ["a", "b"],
+      x: 1,
+    });
+    expect(nestedConfigValue({ mode: "batch", extra: 1 }, ["mode"], "each")).toEqual({
+      mode: "each",
+      extra: 1,
+    });
+    expect(nestedConfigValue(undefined, ["light"], "sonnet")).toEqual({ light: "sonnet" });
+    expect(nestedConfigValue({ mode: "each" }, ["mode"], undefined)).toBeUndefined();
+    expect(nestedConfigValue({ mode: "each", extra: 1 }, ["mode"], undefined)).toEqual({
+      extra: 1,
+    });
+    expect(nestedConfigValue("x", [], "y")).toBe("y");
+  });
+
+  it("overlayLocalConfig は上書きできる項目でスキーマに合う値だけを重ね、チーム専用・未知・不正な値は理由つきで無視する", () => {
+    const team = configSchema.parse({ commit: { mode: "batch" }, models: { light: "haiku" } });
+    const { config, local, ignored } = overlayLocalConfig(team, {
+      commit: { mode: "each" },
+      models: { heavy: "opus" },
+      push: { mode: "なし" },
+      auto: { merge: true },
+      metrics: { read_transcripts: true },
+      nope: { x: 1 },
+    });
+    expect(config.commit.mode).toBe("each");
+    expect(config.models).toEqual({ light: "haiku", standard: "", heavy: "opus" });
+    expect(config.push.mode).toBe("auto");
+    expect(config.auto.merge).toBe(false);
+    expect(config.metrics.read_transcripts).toBe(false);
+    expect(local).toEqual({ "commit.mode": "each", "models.heavy": "opus" });
+    expect(ignored.map((i) => i.key)).toEqual([
+      "push.mode",
+      "auto.merge",
+      "metrics.read_transcripts",
+      "nope.x",
+    ]);
+    expect(ignored.find((i) => i.key === "auto.merge")?.reason).toContain("チーム専用");
+    expect(ignored.find((i) => i.key === "nope.x")?.reason).toContain("スキーマにない");
+    expect(ignored.find((i) => i.key === "push.mode")?.reason).toContain("値が正しくない");
+    // 個人のファイルがなければ（undefined）チームの値のまま
+    expect(overlayLocalConfig(team, undefined)).toEqual({ config: team, local: {}, ignored: [] });
   });
 
   it("configFields は config の全項目を既定値・型・説明つきで出す", () => {

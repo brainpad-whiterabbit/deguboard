@@ -239,7 +239,9 @@ Back to the previous view
 Settings shared by the whole team
 Saved to
 config.yaml
-on the deguboard branch. Once pushed, it applies to everyone using this repository. There are no per-user overrides
+on the deguboard branch. Once pushed, it applies to everyone using this repository. Override values for yourself with
+dg config set --local
+(not shown here)
 [aria-label] Search settings
 [placeholder] Search settings (name, key, description)
 Commit and Push

@@ -239,7 +239,9 @@ e1
 チーム全員に効く設定
 deguboard ブランチの
 config.yaml
-に保存し、push すると同じリポジトリを使う全員に効く。利用者ごとの上書きはない
+に保存し、push すると同じリポジトリを使う全員に効く。自分だけの上書きは
+dg config set --local
+で（この画面には出ない）
 [aria-label] 設定を検索
 [placeholder] 設定を検索（名前・キー・説明）
 コミットと push
