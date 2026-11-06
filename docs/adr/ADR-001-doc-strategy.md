@@ -47,7 +47,7 @@ deguboard は AI エージェント（Claude Code など）が主に実装する
 
 ### 大きさの予算
 
-CLAUDE.md・README・requirements・development.md と、ADR 1 本・`dg guide` のトピック 1 本ずつに大きさの予算を決める。値の正本の `scripts/check-docs.mjs`（`mise run check:docs`）が予算と ADR 一覧の整合（載り方と更新日）を検査し、超えたら失敗にする。予算の 90% を超えたら、失敗にはせず警告を出す。README・CLAUDE.md・docs の相対リンクと見出しアンカー（GitHub 流）の切れも検査する。README.ja.md が README.md と同じ節の構成か（`#` から `###` の見出しの数と階層の並び）も比べる。超えそうなら、細部を正本へ移すか、約束を見直す。
+CLAUDE.md・README・requirements・development.md と、ADR 1 本・`dg guide` のトピック 1 本ずつに大きさの予算を決める。値の正本の `scripts/check-docs.mjs`（`mise run check:docs`）が予算と ADR 一覧の整合（載り方と更新日）を検査し、超えたら失敗にする。予算の 90% を超えたら、失敗にはせず警告を出す。README・CLAUDE.md・docs の相対リンクと見出しアンカー（GitHub 流）の切れも検査する。README.ja.md が README.md と同じ節の構成か（`#` から `###` の見出しの数と階層の並び）も比べる。超えそうなら、細部を正本へ移すか、約束を見直す。`dg guide` の表は oxfmt の整形の対象から外す（列をそろえる空白が予算を食うため）。セルは短く、表は手で書く。
 
 ### 書き方
 
