@@ -47,13 +47,14 @@ deguboard は AI エージェント（Claude Code など）が主に実装する
 
 ### 大きさの予算
 
-CLAUDE.md・README・requirements・development.md と、ADR 1 本・`dg guide` のトピック 1 本ずつに大きさの予算を決める。値の正本の `scripts/check-docs.mjs`（`mise run check:docs`）が予算と ADR 一覧の整合（載り方と更新日）を検査し、超えたら失敗にする。予算の 90% を超えたら、失敗にはせず警告を出す。README・CLAUDE.md・docs の相対リンクと見出しアンカー（GitHub 流）の切れも検査する。README.ja.md が README.md と同じ節の構成か（`#` から `###` の見出しの数と階層の並び）も比べる。超えそうなら、細部を正本へ移すか、約束を見直す。`dg guide` の表は oxfmt の整形の対象から外す（列をそろえる空白が予算を食うため）。セルは短く、表は手で書く。
+CLAUDE.md・README・requirements・development.md と、ADR 1 本・`dg guide` のトピック 1 本ずつに大きさの予算を決める。値の正本の `scripts/check-docs.mjs`（`mise run check:docs`）が予算と ADR 一覧の整合（載り方と更新日）を検査し、超えたら失敗にする。予算の 90% を超えたら、失敗にはせず警告を出す。README・CLAUDE.md・docs の相対リンクと見出しアンカー（GitHub 流）の切れも検査する。README.ja.md が README.md と同じ節の構成か（`#` から `###` の見出しの数と階層の並び）も比べる。超えそうなら、細部を正本へ移すか、約束を見直す。
 
 ### 書き方
 
 - 書き足さず書き換える。docs・README・CLAUDE.md・コードのコメントのどれでも、古い記述を残して新しい記述を足さない
 - 古くなった記述は消す。変更に直接関係がなくても、作業中に実装や仕様とずれた記述を見つけたら、その変更で消す。残すのは、消すと約束や理由がわからなくなるものだけ
 - 参照はファイルのパスと見出しのアンカーで書く
+- `dg guide` の表は oxfmt の整形の対象から外す（列をそろえる空白が予算を食うため）。セルは短く、表は手で書く
 - 文書・コメント・テスト名は日本語で書く。例外は README.md と packages/cli/README.md で、GitHub・Marketplace・npm で最初に読まれる入口なので英語で書く。日本語の利用者向けに、README.md と同じ節の構成の README.ja.md を置き、先頭から互いに辿れるようにする（予算とリンクの検査は両方にかける）。README から指す docs は日本語のままにする
 
 ## 理由

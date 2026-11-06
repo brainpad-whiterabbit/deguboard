@@ -39,9 +39,9 @@ PR を人に出す前（`dg guide work`）と、自動でマージする前（`d
 | 作業                  | step        | 始める                                                | 閉じる                                                      |
 | --------------------- | ----------- | ----------------------------------------------------- | ----------------------------------------------------------- |
 | 実装して PR を作る    | `implement` | claim（`--no-run` なら run start）                    | `ticket update --pr`（PR の作成時刻）                       |
-| 見直し役の見直し      | `review`    | 見直しの前（run start）                               | 指摘の一覧を返す前（`success`）                             |
+| 見直し役の見直し      | `review`    | 見直しの前（run start）                               | 指摘の一覧を返す前（指摘の有無によらず `success`）          |
 | 修正ループの 1 回     | `fix`       | 直し始める前（run start）                             | 直して push したとき（`run finish --retry-reason`）         |
-| 人のレビューの手直し  | `fix`       | `ticket claim <id> --retry-reason <指摘の要約>`       | `sync` が次の区切りで閉じる（その後の最後の push の時刻）   |
+| 人のレビューの手直し  | `fix`       | 自分の PR のあるチケットを `ticket claim <id> --retry-reason <指摘の要約>` | `sync` が次の区切り（`guide run` の「Run を記録する」）で閉じる（その後の最後の push の時刻。なければ区切りの時刻） |
 
 - **やり直しの理由**：修正ループの手直しの Run（`fix`、または代わりの step で記録した手直し）は `run finish <Run の ID> --result success --retry-reason <直した指摘の要約>` で閉じる。人のレビューの手直しは、もう一度の claim の `--retry-reason` に直す指摘を書いて開く（自分で `run finish` で閉じるなら `--retry-reason` は省く。渡すと claim で入れた理由が置き換わる）。書くのは直した指摘（見直し役・人のレビュー）だけで、指摘 1 件に 1 つ繰り返す。検査の失敗を直したことは書かない。回数は理由の数になる（`--retries` は省く）。要約は 1 行で、秘密・コマンドの文字列・パスは書かない。実装と見直しの Run には付けない
 - **合う step がない**：Workflow に `fix`・`review` がなければ、`dg guide run` の「Run を記録する」の代わりの step で記録する
