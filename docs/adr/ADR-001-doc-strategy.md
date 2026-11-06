@@ -1,7 +1,7 @@
 # ADR-001 文書の方針
 
 - ステータス：承認
-- 更新日：2026-11-05
+- 更新日：2026-11-06
 
 ## 背景
 
@@ -54,7 +54,7 @@ CLAUDE.md・README・requirements・development.md と、ADR 1 本・`dg guide` 
 - 書き足さず書き換える。docs・README・CLAUDE.md・コードのコメントのどれでも、古い記述を残して新しい記述を足さない
 - 古くなった記述は消す。変更に直接関係がなくても、作業中に実装や仕様とずれた記述を見つけたら、その変更で消す。残すのは、消すと約束や理由がわからなくなるものだけ
 - 参照はファイルのパスと見出しのアンカーで書く
-- 文書・コメント・テスト名は日本語で書く。例外は README.md と packages/cli/README.md で、GitHub・Marketplace・npm で最初に読まれる入口なので英語で書く。README から指す docs は日本語のままにする
+- 文書・コメント・テスト名は日本語で書く。例外は README.md と packages/cli/README.md で、GitHub・Marketplace・npm で最初に読まれる入口なので英語で書く。日本語の利用者向けに、README.md と同じ節の構成の README.ja.md を置き、先頭から互いに辿れるようにする（予算とリンクの検査は両方にかける）。README から指す docs は日本語のままにする
 
 ## 理由
 

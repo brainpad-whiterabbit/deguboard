@@ -10,7 +10,14 @@ import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
-const COPIED = ["scripts/check-docs.mjs", "CLAUDE.md", "README.md", "docs", "packages/cli/src"];
+const COPIED = [
+  "scripts/check-docs.mjs",
+  "CLAUDE.md",
+  "README.md",
+  "README.ja.md",
+  "docs",
+  "packages/cli/src",
+];
 const ADR = "docs/adr/ADR-008-tech-stack.md";
 
 let dir: string;
