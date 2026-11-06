@@ -19,7 +19,7 @@ after:
   t446:
     - t444
     - t445
-pending_approval: true
+pending_approval: false
 details:
   t466:
     scope: 保存が通って読み直しだけが失敗したときに保存の成功と読み直しの失敗を分けて出し、後に始めた保存の結果を画面に残す
@@ -69,3 +69,5 @@ details:
     scope: "check:docs が README.md と README.ja.md の # から ### の見出しの数と階層の並びを比べ、ずれたら位置と両方の見出しを出して失敗にする"
     approach: scripts/check-docs.mjs に見出しの構成を比べる検査を足し、test/scripts/check-docs.test.ts でずれたら落ち揃えば通ることを確かめる
     tier: standard
+approved_by: eiki.kitajima/agent
+approved_at: 2026-11-06T05:05:10Z
