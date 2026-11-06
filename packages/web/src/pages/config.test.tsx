@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
+import { setLanguage } from "../l10n.js";
 import { App } from "../app.js";
 import { ClientError } from "../client/http.js";
 import { StoreProvider } from "../store.js";
@@ -159,11 +160,8 @@ function configClient(initialLocal: Record<string, unknown> = {}) {
       ? { config: merged(), team: config, local: { ...local }, fields: FIELDS }
       : merged();
   client.handlers["config.set"] = (input) => {
-    const {
-      key,
-      value,
-      local: toLocal,
-    } = input as { key: string; value: unknown; local?: boolean };
+    const { key, local: toLocal } = input as { key: string; value: unknown; local?: boolean };
+    let { value } = input as { value: unknown };
     if (value === "bad")
       throw new ClientError({
         code: "VALIDATION_FAILED",
@@ -180,6 +178,9 @@ function configClient(initialLocal: Record<string, unknown> = {}) {
       return merged();
     }
     const [top, leaf] = key.split(".") as [keyof typeof config, string | undefined];
+    // core と同じく、空にすると既定に戻る項目に空文字を渡すと値を消し、返す値では既定で補われる
+    const field = FIELDS.find((f) => f.key === key);
+    if (field?.clears_to_default === true && value === "") value = field.default;
     if (leaf) (config[top] as Record<string, unknown>)[leaf] = value;
     else (config as Record<string, unknown>)[top] = value;
     return config;
@@ -507,6 +508,58 @@ describe("設定画面", () => {
     fireEvent.click(within(fieldOf("git.remote")).getByText("保存する"));
     expect(await screen.findByText("保存した: git.remote を upstream にした")).toBeTruthy();
     expect(setCalls(client)).toEqual([{ key: "git.remote", value: "upstream" }]);
+  });
+
+  it("チームのタブで既定が空でない文字列の項目を空にすると、確かめの文は既定の値に戻すことを示し、空でない値に変えるときの文は今のまま", async () => {
+    const { client } = configClient();
+    mount(client);
+    await screen.findByText("コミットの仕方");
+    const remote = within(fieldOf("git.remote")).getByRole<HTMLInputElement>("textbox");
+    // 空でない値に変える：今までどおり「を … にする」
+    fireEvent.change(remote, { target: { value: "upstream" } });
+    fireEvent.blur(remote);
+    expect(
+      within(fieldOf("git.remote")).getByRole("alertdialog").querySelector("p")?.textContent,
+    ).toBe("git.remote を upstream にする。同期先が変わる。チーム全員に効く。保存する？");
+    fireEvent.click(within(fieldOf("git.remote")).getByText("やめる"));
+
+    // 空にする：空の値（「`` にする」）でなく、戻る既定の値を出す
+    fireEvent.change(remote, { target: { value: "" } });
+    fireEvent.blur(remote);
+    const confirm = within(fieldOf("git.remote")).getByRole("alertdialog");
+    expect(confirm.querySelector("p")?.textContent).toBe(
+      "git.remote を空にし、既定の origin に戻す。同期先が変わる。チーム全員に効く。保存する？",
+    );
+    fireEvent.click(within(confirm).getByText("保存する"));
+    expect(await screen.findByText("保存した: git.remote を origin にした")).toBeTruthy();
+    expect(setCalls(client)).toEqual([{ key: "git.remote", value: "" }]);
+  });
+
+  it("英語の表示でも、チームのタブで既定に戻る項目を空にしたときの確かめの文が崩れない", async () => {
+    setLanguage("en");
+    try {
+      const { client } = configClient();
+      mount(client);
+      await screen.findByText("Commit mode");
+      const remote = within(fieldOf("worktree.root")).getByRole<HTMLInputElement>("textbox");
+      fireEvent.change(remote, { target: { value: "" } });
+      fireEvent.blur(remote);
+      expect(
+        within(fieldOf("worktree.root")).getByRole("alertdialog").querySelector("p")?.textContent,
+      ).toBe(
+        "Clear worktree.root and go back to the default ../<repo>.worktrees. This changes where work happens. It applies to the whole team. Save?",
+      );
+      fireEvent.click(within(fieldOf("worktree.root")).getByText("Cancel"));
+      fireEvent.change(remote, { target: { value: "../wt" } });
+      fireEvent.blur(remote);
+      expect(
+        within(fieldOf("worktree.root")).getByRole("alertdialog").querySelector("p")?.textContent,
+      ).toBe(
+        "Set worktree.root to ../wt. This changes where work happens. It applies to the whole team. Save?",
+      );
+    } finally {
+      setLanguage("ja");
+    }
   });
 
   it("worktree.root も保存の前に確かめ、「保存する」を押すまで config.set を呼ばない", async () => {
