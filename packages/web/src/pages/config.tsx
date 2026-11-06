@@ -53,7 +53,8 @@ const NAMES: Record<string, string> = {
 };
 
 /**
- * 保存の前に確かめる項目と、確かめの文に出す変わること。誤るとチーム全員に効き、戻すまで気づきにくい。
+ * 保存の前に確かめる項目と、確かめの文に出す変わること。誤ると同期・照合・worktree・実行するコマンド・エージェントに許す操作を壊し、
+ * 戻すまで気づきにくい（チームのタブでは全員に効く）。どちらのタブでも確かめる。
  * actions.test は確認なしで実行するコマンドなので、シェルの許可（actions.shell）と同じ重さで扱う。
  * auto.merge はエージェントに PR のマージを許すので、エージェントに許す操作として扱う（ADR-006・ADR-007）
  */
@@ -116,6 +117,16 @@ export function fieldMatchesQuery(field: ConfigField, query: string): boolean {
 
 /** 書き分ける先：チームの config.yaml か、個人の deguboard-local/config.yaml */
 type Tab = ConfigScope;
+
+/** 空にすると既定に戻る（core の config.set が値を消す）項目と値か。既定が空でない文字列の項目の空文字 */
+export function clearsToDefault(field: ConfigField, value: unknown): boolean {
+  return (
+    field.type === "string" &&
+    typeof field.default === "string" &&
+    field.default !== "" &&
+    (value === "" || value === undefined || value === null)
+  );
+}
 
 interface Pending {
   tab: Tab;
@@ -180,6 +191,7 @@ export function ConfigPage() {
     setDrafts({});
     setPending(null);
     setMessages({});
+    setSaved(null);
     setFocusKey(key);
   }, []);
 
@@ -202,7 +214,8 @@ export function ConfigPage() {
           setView((v) => (v ? { ...v, team: res.data } : v));
           setSaved(tr("{0} を {1} にした", key, formatValue(valueAt(res.data, key))));
         } else {
-          // --local の config.set・unset は個人を重ねた値を返す。上書きの有無は書いた操作で決まる
+          // --local の config.set・unset は個人を重ねた値しか返さない。上書きが残ったか（空文字で既定に戻す項目は
+          // set でも上書きを消す）は core が決めるので、画面で推し量らずに config.show で個人の上書きを読み直す
           const res = p.unset
             ? await store.client.run<ConfigShowView["config"]>("config.unset", { key, local: true })
             : await store.client.run<ConfigShowView["config"]>("config.set", {
@@ -211,20 +224,14 @@ export function ConfigPage() {
                 local: true,
               });
           warnings = res.warnings;
-          const merged = valueAt(res.data, key);
-          setView((v) =>
-            v
-              ? {
-                  ...v,
-                  config: res.data,
-                  local: p.unset ? without(v.local, key) : { ...v.local, [key]: merged },
-                }
-              : v,
-          );
+          const next = (await store.client.run<ConfigShowView>("config.show", { fields: true }))
+            .data;
+          setView(next);
+          const merged = formatValue(valueAt(next.config, key));
           setSaved(
-            p.unset
-              ? tr("{0} の自分の値を外した（チームの {1} を使う）", key, formatValue(merged))
-              : tr("{0} を自分だけ {1} にした", key, formatValue(merged)),
+            key in next.local
+              ? tr("{0} を自分だけ {1} にした", key, merged)
+              : tr("{0} の自分の値を外した（チームの {1} を使う）", key, merged),
           );
         }
         setMessages((d) => without(d, key));
@@ -246,6 +253,18 @@ export function ConfigPage() {
     [store],
   );
 
+  /** 自分の値を外す。確かめる項目で効く値が変わるときは確かめ、確かめの文は外すときのものにする */
+  const unsetOwn = useCallback(
+    (key: string) => {
+      if (!view) return;
+      const team = valueAt(view.team, key);
+      const p: Pending = { tab: "local", key, value: team, unset: true };
+      if (CONFIRM_KEYS.has(key) && isModified(view.local[key], team)) setPending(p);
+      else void save(p);
+    },
+    [view, save],
+  );
+
   /** 値を変えたとき。確かめる項目は待たせ、それ以外はすぐ保存する。変わっていなければ待ちを解くだけ */
   const change = useCallback(
     (key: string, value: unknown) => {
@@ -257,11 +276,17 @@ export function ConfigPage() {
         setPending((p) => (p?.key === key ? null : p));
         return;
       }
+      // 自分のタブで既定が空でない文字列の項目を空にすると、core は上書きを消す（config set --help）。外すのと同じに扱う
+      const field = view.fields.find((f) => f.key === key);
+      if (tab === "local" && field && clearsToDefault(field, value)) {
+        unsetOwn(key);
+        return;
+      }
       const p: Pending = { tab, key, value };
       if (CONFIRM_KEYS.has(key)) setPending(p);
       else void save(p);
     },
-    [view, tab, save],
+    [view, tab, save, unsetOwn],
   );
 
   /**
@@ -271,16 +296,10 @@ export function ConfigPage() {
   const toggleOwn = useCallback(
     (key: string, on: boolean) => {
       if (!view) return;
-      const team = valueAt(view.team, key);
-      if (on) {
-        void save({ tab: "local", key, value: team });
-        return;
-      }
-      const p: Pending = { tab: "local", key, value: team, unset: true };
-      if (CONFIRM_KEYS.has(key) && isModified(view.local[key], team)) setPending(p);
-      else void save(p);
+      if (on) void save({ tab: "local", key, value: valueAt(view.team, key) });
+      else unsetOwn(key);
     },
-    [view, save],
+    [view, save, unsetOwn],
   );
 
   const cancel = useCallback(() => {

@@ -136,7 +136,11 @@ function configClient(initialLocal: Record<string, unknown> = {}) {
       });
     // --local は個人の設定に書き、重ねた値を返す。なしはチームの値に書き、チームの値を返す
     if (toLocal) {
-      local[key] = value;
+      // core と同じく、既定が空でない文字列の項目に空文字を渡すと上書きを消す（resolveLeaf）
+      const field = FIELDS.find((f) => f.key === key);
+      const clears = field?.type === "string" && field.default !== "" && value === "";
+      if (clears) delete local[key];
+      else local[key] = value;
       return merged();
     }
     const [top, leaf] = key.split(".") as [keyof typeof config, string | undefined];
@@ -561,6 +565,52 @@ describe("設定画面", () => {
     );
   });
 
+  it("自分のタブで既定が空でない文字列の項目を空にすると、外すのと同じに扱い、印と件数を core の値で読み直す", async () => {
+    const { client } = configClient({ "git.remote": "upstream", default_project: "mine" });
+    mount(client);
+    await screen.findByText("コミットの仕方");
+    expect(tabOf("自分").textContent).toBe("自分2");
+    fireEvent.click(tabOf("自分"));
+
+    // 確かめない項目：空にすると上書きが外れ、チームの値を出す
+    const project = within(fieldOf("default_project")).getByRole<HTMLInputElement>("textbox");
+    fireEvent.change(project, { target: { value: "" } });
+    fireEvent.blur(project);
+    expect(
+      await screen.findByText(
+        "保存した: default_project の自分の値を外した（チームの default を使う）",
+      ),
+    ).toBeTruthy();
+    expect(unsetCalls(client)).toEqual([{ key: "default_project", local: true }]);
+    await waitFor(() => expect(ownOf("default_project").checked).toBe(false));
+    expect(project.value).toBe("default");
+    expect(tabOf("自分").textContent).toBe("自分1");
+
+    // 確かめる項目：確かめの文は外すときのもの（空の値を出さない）
+    const remote = within(fieldOf("git.remote")).getByRole<HTMLInputElement>("textbox");
+    fireEvent.change(remote, { target: { value: "" } });
+    fireEvent.blur(remote);
+    const confirm = within(fieldOf("git.remote")).getByRole("alertdialog");
+    expect(confirm.textContent).toContain("自分の値を外し、チームの origin に戻す");
+    fireEvent.click(within(confirm).getByText("保存する"));
+    await waitFor(() => expect(ownOf("git.remote").checked).toBe(false));
+    expect(tabOf("自分").textContent).toBe("自分");
+    fireEvent.click(tabOf("チーム"));
+    expect(document.querySelectorAll(".config-override")).toHaveLength(0);
+  });
+
+  it("set --local で空文字を渡しても、core が上書きを消したなら画面も上書きなしで出す（config.show で読み直す）", async () => {
+    const { client } = configClient({ "worktree.root": "/w" });
+    mount(client);
+    await screen.findByText("コミットの仕方");
+    fireEvent.click(tabOf("自分"));
+    // 画面の判断を通らない経路（core が上書きを消す）でも、読み直した値に従う
+    client.handlers["config.set"]!({ key: "worktree.root", value: "", local: true });
+    fireEvent.click(ownOf("push.mode"));
+    await waitFor(() => expect(ownOf("push.mode").checked).toBe(true));
+    expect(ownOf("worktree.root").checked).toBe(false);
+  });
+
   it("タブを切り替えると、確かめの待ちと入力中の値を捨てる", async () => {
     const { client } = configClient();
     mount(client);
@@ -571,10 +621,16 @@ describe("設定画面", () => {
     expect(screen.queryByRole("alertdialog")).toBeNull();
     fireEvent.click(tabOf("チーム"));
     expect(screen.queryByRole("alertdialog")).toBeNull();
+    // 「保存した」も前のタブのものなので消す
+    fireEvent.click(within(fieldOf("metrics.read_transcripts")).getByRole("checkbox"));
+    expect(await screen.findByText(/^保存した: /)).toBeTruthy();
+    fireEvent.click(tabOf("自分"));
+    expect(screen.queryByText(/^保存した: /)).toBeNull();
+    fireEvent.click(tabOf("チーム"));
     expect(within(fieldOf("actions.shell")).getByRole<HTMLInputElement>("checkbox").checked).toBe(
       false,
     );
-    expect(setCalls(client)).toEqual([]);
+    expect(setCalls(client)).toEqual([{ key: "metrics.read_transcripts", value: true }]);
   });
 
   it("検索欄で名前・キー・説明から項目を絞り、空のまとまりは出さない", async () => {
