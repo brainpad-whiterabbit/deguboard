@@ -1,0 +1,30 @@
+{
+  "id": "r20261106-062444-7bc1",
+  "ticket": "t470",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-06T06:24:44Z",
+  "finished_at": "2026-11-06T06:27:08Z",
+  "result": "success",
+  "error": null,
+  "retries": 1,
+  "retry_reasons": [
+    "main の 5.10 の clears_to_default との衝突を縮めた段落に足して解消した"
+  ],
+  "usage": {
+    "input": 12,
+    "output": 2314,
+    "cache_read": 1034168,
+    "cache_write": 3638
+  },
+  "tools": {
+    "read": 0,
+    "search": 0,
+    "write": 0,
+    "bash": 6,
+    "other": 0,
+    "read_before_write": 0,
+    "search_before_write": 0
+  }
+}
