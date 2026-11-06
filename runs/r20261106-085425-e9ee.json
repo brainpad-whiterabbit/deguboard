@@ -1,0 +1,34 @@
+{
+  "id": "r20261106-085425-e9ee",
+  "ticket": "t475",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-06T08:54:25Z",
+  "finished_at": "2026-11-06T08:56:11Z",
+  "result": "success",
+  "error": null,
+  "retries": 5,
+  "retry_reasons": [
+    "実装の Run の理由に PR の作成時刻を戻し決定との対応を読めるようにした",
+    "親の使用量の実測を決定から理由の節へ移した",
+    "Run を閉じる操作を最初に出る箇所で定義した",
+    "重なる Run の判定のコメントにどの警告かを足した",
+    "正本の列挙に探す範囲を足した"
+  ],
+  "usage": {
+    "input": 10,
+    "output": 3124,
+    "cache_read": 453973,
+    "cache_write": 3899
+  },
+  "tools": {
+    "read": 0,
+    "search": 0,
+    "write": 0,
+    "bash": 6,
+    "other": 0,
+    "read_before_write": 0,
+    "search_before_write": 0
+  }
+}
