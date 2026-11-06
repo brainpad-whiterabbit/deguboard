@@ -3,7 +3,12 @@
 import { z } from "zod";
 import { OperationError, UsageError } from "../errors.js";
 import { listBranchChanges, readChangedFile } from "../git/changes.js";
-import { collectBranchFacts, fetchPrCreatedAt, findMergedLeftover } from "../git/facts.js";
+import {
+  collectBranchFacts,
+  fetchPrCreatedAt,
+  findMergedLeftover,
+  lastPushedAt,
+} from "../git/facts.js";
 import { findBranchWorktree } from "../git/worktree.js";
 import { withWrite } from "../git/write.js";
 import { resolveActorRef, sameUser } from "../model/actor.js";
@@ -19,18 +24,13 @@ import {
   type AcceptanceItem,
   type Ticket,
 } from "../model/ticket.js";
-import type { FactName } from "../model/workflow.js";
+import type { FactName, StepOpener } from "../model/workflow.js";
 import { dropRunning, peekRunningRuns, runAgentByTicket } from "../run/record.js";
 import type { Doc } from "../storage/documents.js";
 import { wouldCreateCycle } from "../storage/integrity.js";
 import type { Store, WorkflowEntry } from "../storage/store.js";
 import type { Facts } from "../workflow/conditions.js";
-import {
-  canTransition,
-  describeRejection,
-  findConstraint,
-  stepOpenedOn,
-} from "../workflow/resolve.js";
+import { canTransition, describeRejection, findConstraint } from "../workflow/resolve.js";
 import { defineCommand, ok, type CommandContext } from "./define.js";
 import { matchesFilter, ticketFilterSchema } from "./filters.js";
 import {
@@ -44,39 +44,48 @@ import {
 } from "./helpers.js";
 import {
   agentFromEnv,
-  closeImplementRun,
-  findImplementRun,
+  closeOpenedRun,
+  closeOpenedRunAlone,
+  describeClosedRuns,
+  findOpenedRun,
+  openedStepOf,
   openRun,
   token,
-  type ClosedImplementRun,
+  type ClosedOpenedRun,
 } from "./run.js";
 
 /**
- * チケットの操作に付随して実装の Run を閉じる（RN-6）。書き込みの中で呼び、実行中の Run がなければ null。
- * 閉じたことと取り込みの警告は warnings に入れる。実行中の記録はコミットの後に dropClosed で消す
+ * チケットの操作に付随して、操作が開いた Run（claim は実装、reclaim は手直し）を閉じる（RN-6）。書き込みの中で呼び、
+ * 実行中の Run があるものだけ閉じる。閉じたことと取り込みの警告は warnings に入れる。実行中の記録はコミットの後に dropClosed で消す
  */
-async function closeRunWith(
+async function closeRunsWith(
   ctx: CommandContext,
   ticket: Ticket,
-  input: Parameters<typeof closeImplementRun>[2],
+  openers: readonly StepOpener[],
+  input: { result: "success" | "failure"; error?: string | undefined },
   warnings: string[],
-): Promise<ClosedImplementRun | null> {
-  const running = await findImplementRun(ctx, ticket);
-  if (!running) return null;
-  const closed = await closeImplementRun(ctx, running, input);
-  warnings.push(...closed.warnings);
+): Promise<ClosedRun[]> {
+  const closed: ClosedRun[] = [];
+  for (const opener of openers) {
+    const running = await findOpenedRun(ctx, ticket, opener);
+    if (!running) continue;
+    const result = await closeOpenedRun(ctx, running, { opener, ...input });
+    warnings.push(...result.warnings);
+    closed.push({ ...result, opener });
+  }
   return closed;
 }
 
-async function dropClosed(ctx: CommandContext, closed: ClosedImplementRun | null): Promise<void> {
-  if (closed) await dropRunning(ctx.repo, closed.run.id);
+/** 操作に付随して閉じた Run と、それを開いた操作（コミットメッセージの呼び名に使う） */
+type ClosedRun = ClosedOpenedRun & { opener: StepOpener };
+
+async function dropClosed(ctx: CommandContext, closed: readonly ClosedRun[]): Promise<void> {
+  for (const c of closed) await dropRunning(ctx.repo, c.run.id);
 }
 
-/** 書き込みのコミットメッセージに、付随して閉じた Run を足す */
-const withClosedRun = (message: string, closed: ClosedImplementRun | null) =>
-  closed
-    ? `${message}。実装の Run を記録: ${closed.run.ticket} ${closed.run.id} ${closed.run.result}`
-    : message;
+/** 書き込みのコミットメッセージに、付随して閉じた Run を足す（照合のメッセージと同じ形） */
+const withClosedRun = (message: string, closed: readonly ClosedRun[]) =>
+  [message, ...describeClosedRuns(closed)].join("。");
 
 /** 主体の参照。`human` / `agent` は自分（のユーザ）に解く（model/actor.ts） */
 const actorRef = z.string().min(1);
@@ -595,8 +604,9 @@ export const ticketUpdate = defineCommand({
         }
         // PR を記録したら実装は終わっている。実行中の実装の Run を PR の作成時刻で閉じる（RN-6）。
         // 検査がすべて通った後に閉じる（拒否される更新で Run だけ閉じない）
-        let closed: ClosedImplementRun | null = null;
-        const running = typeof input.pr === "number" ? await findImplementRun(ctx, t) : undefined;
+        const closed: ClosedRun[] = [];
+        const running =
+          typeof input.pr === "number" ? await findOpenedRun(ctx, t, "claim") : undefined;
         if (running && typeof input.pr === "number") {
           const created = await fetchPrCreatedAt(ctx.repo, input.pr);
           // PR より後に開き直した Run（PR の後の作業は fix の Run にする）は、PR の作成時刻では終わっていない
@@ -607,11 +617,13 @@ export const ticketUpdate = defineCommand({
                 ? `PR #${input.pr} は Run ${running.id} の開始より前に作られた`
                 : undefined;
           if (reason) warnings.push(`${reason}ので、実装の Run の finished_at は今の時刻にする`);
-          closed = await closeImplementRun(ctx, running, {
+          const result = await closeOpenedRun(ctx, running, {
+            opener: "claim",
             result: "success",
             finishedAt: reason ? undefined : created.createdAt,
           });
-          warnings.push(...closed.warnings);
+          warnings.push(...result.warnings);
+          closed.push({ ...result, opener: "claim" });
         }
         return { doc: await store.update("ticket", t.id, patch, body), closed };
       },
@@ -786,8 +798,8 @@ export const ticketMove = defineCommand({
         // branch のあるチケットの Run は PR の記録・発見が PR の作成時刻で閉じる
         const closed =
           !doc.data.branch && (input.status === "review" || input.status === "done")
-            ? await closeRunWith(ctx, doc.data, { result: "success" }, warnings)
-            : null;
+            ? await closeRunsWith(ctx, doc.data, ["claim"], { result: "success" }, warnings)
+            : [];
         const updated = await ctx.store.update("ticket", doc.id, {
           status: input.status,
           ...transitionSideEffects(input.status),
@@ -842,23 +854,46 @@ function defaultBranchName(ticket: Ticket): string {
   return slug ? `feature/${ticket.id}-${slug}` : `feature/${ticket.id}`;
 }
 
+/** もう一度の claim になる条件：自分（同じユーザの人と AI）が claim 済みで PR のある in_progress・review のチケット（ST-3） */
+function isReclaim(ctx: CommandContext, ticket: Ticket): boolean {
+  return (
+    (ticket.status === "in_progress" || ticket.status === "review") &&
+    ticket.assignee !== undefined &&
+    sameUser(ticket.assignee, ctx.actor.id) &&
+    ticket.pr !== undefined
+  );
+}
+
+const describeClaimState = (ticket: Ticket) =>
+  `${ticket.status}${ticket.assignee ? `、担当 ${ticket.assignee}` : ""}${ticket.pr === undefined ? "、PR なし" : `、PR #${ticket.pr}`}`;
+
+/** やり直しの理由の形（run finish の retry_reasons と同じ）。1 件 1 行 */
+const retryReasons = z
+  .array(
+    z
+      .string()
+      .regex(/^[^\r\n]+$/, "理由は 1 件 1 行で書く")
+      .regex(/\S/, "理由が空白だけ"),
+  )
+  .meta({ freeText: true });
+
 /** ticket.claim の出力。run は claim が開いた実行中の Run の ID（開かなかったときは null。RN-5） */
 export type ClaimView = Ticket & { body: string; run: RunId | null };
 
 /**
- * agent の claim が開く Run の step と agent（RN-5）。開けない理由は warnings に入れて null を返す
- * （claim は成功している（コミット済み）ので、Run の都合では失敗させない）
+ * agent の claim が開く Run の step と agent（RN-5。claim は実装、reclaim は手直し）。開けない理由は warnings に入れて null を返す
+ * （claim は成功している（コミット済み、もう一度の claim では書くものがない）ので、Run の都合では失敗させない）
  */
 async function openClaimRun(
   ctx: CommandContext,
   doc: Doc<Ticket>,
-  agentOption: string | undefined,
+  opener: StepOpener,
+  input: { agent: string | undefined; retryReasons: readonly string[] | undefined },
   warnings: string[],
 ): Promise<RunId | null> {
-  const wf = ctx.store.workflowFor(doc.data);
-  const step = wf ? stepOpenedOn(wf.resolved, "claim") : "implement";
-  const detected = agentOption
-    ? { agent: agentOption, reason: undefined }
+  const step = openedStepOf(ctx, doc.data, opener);
+  const detected = input.agent
+    ? { agent: input.agent, reason: undefined }
     : agentFromEnv(ctx.env ?? process.env);
   const skipped = (reason: string) =>
     `${step} の Run を開いていない: ${reason}（開くなら dg run start ${doc.id} ${step} --agent <エージェント>）`;
@@ -867,7 +902,11 @@ async function openClaimRun(
     return null;
   }
   try {
-    const opened = await openRun(ctx, doc.data, { step, agent: detected.agent });
+    const opened = await openRun(ctx, doc.data, {
+      step,
+      agent: detected.agent,
+      retryReasons: input.retryReasons,
+    });
     warnings.push(...opened.warnings);
     return opened.run.id;
   } catch (e) {
@@ -877,13 +916,61 @@ async function openClaimRun(
   }
 }
 
+/**
+ * もう一度の claim（自分が claim 済みで PR のあるチケット）。人のレビューの後の手直しの開始とみなし、チケットは変えない（ST-3）。
+ * agent なら手直しの Run（opens_on: reclaim の step、なければ fix）を開く（RN-5）。開いたままの前の手直しの Run は、
+ * 次の Run の開始を区切りとして最後の push の時刻で閉じてから開く（RN-6）
+ */
+async function reclaim(
+  ctx: CommandContext,
+  doc: Doc<Ticket>,
+  input: {
+    branch?: string | undefined;
+    without_branch?: boolean | undefined;
+    agent?: string | undefined;
+    no_run?: boolean | undefined;
+    retry_reasons?: string[] | undefined;
+  },
+  warnings: string[],
+): Promise<RunId | null> {
+  if (input.without_branch || (input.branch !== undefined && input.branch !== doc.data.branch)) {
+    throw new UsageError(
+      `${doc.id} は claim 済み（branch ${doc.data.branch ?? "なし"}、PR #${doc.data.pr}）。もう一度の claim ではブランチを変えられない`,
+    );
+  }
+  warnings.push(
+    `${doc.id} は自分（${doc.data.assignee}）が claim 済みで PR #${doc.data.pr} があるので、手直しの開始とみなしてチケットは変えない`,
+  );
+  if (ctx.actor.kind !== "agent" || input.no_run) return null;
+  const stale = await findOpenedRun(ctx, doc.data, "reclaim");
+  if (stale) {
+    const pushedAt = doc.data.branch
+      ? await lastPushedAt(ctx.repo, doc.data.branch, { fetch: true })
+      : undefined;
+    const closed = await closeOpenedRunAlone(ctx, stale, {
+      opener: "reclaim",
+      result: "success",
+      finishedAt: pushedAt,
+    });
+    warnings.push(...closed.warnings);
+  }
+  return openClaimRun(
+    ctx,
+    doc,
+    "reclaim",
+    { agent: input.agent, retryReasons: input.retry_reasons },
+    warnings,
+  );
+}
+
 export const ticketClaim = defineCommand({
   name: "ticket.claim",
   positionals: ["ticket"],
   group: "ticket",
   summary:
     "チケットに着手する。担当者（assignee）を自分にしてブランチを記録し、in_progress にする。push の成功で排他を得る。todo → in_progress の制約（requires: [deps_done] など）があれば従う。" +
-    "agent なら続けて実装の Run（Workflow の steps のうち opens_on: claim のもの、なければ implement）を開き、ID を run（人向けの出力では標準出力の最後の行）に出す。開けなければ警告だけして claim は成功にする",
+    "agent なら続けて実装の Run（Workflow の steps のうち opens_on: claim のもの、なければ implement）を開き、ID を run（人向けの出力では標準出力の最後の行）に出す。開けなければ警告だけして claim は成功にする。" +
+    "自分（同じユーザの人と AI）が claim 済みで PR のあるチケット（in_progress か review）をもう一度 claim すると、人のレビューの後の手直しの開始とみなす。チケットは変えず、agent なら手直しの Run（opens_on: reclaim のもの、なければ fix）を開く。開いたままの前の手直しの Run は、作業ブランチに最後に push したコミットの時刻で success にしてから開く。ほかの主体の claim は拒否する",
   input: z.object({
     ticket: ticketRef,
     branch: z
@@ -906,7 +993,12 @@ export const ticketClaim = defineCommand({
       .boolean()
       .optional()
       .describe(
-        "Run を開かない。実装をサブエージェントに渡すとき（サブエージェントが自分で run start する）",
+        "Run を開かない。実装・手直しをサブエージェントに渡すとき（サブエージェントが自分で run start する）",
+      ),
+    retry_reasons: retryReasons
+      .optional()
+      .describe(
+        "もう一度の claim（手直し）でだけ使う。直す指摘の 1 行の要約で、手直しの Run の retry_reasons に入る（書き方は run finish --help）",
       ),
   }),
   write: true,
@@ -924,15 +1016,40 @@ export const ticketClaim = defineCommand({
         "agent は Run を開く agent の claim でだけ使える（人の claim は Run を開かない）",
       );
     }
+    // 空の配列は省いたのと同じに扱う
+    const retryReasonsGiven = input.retry_reasons?.length ? input.retry_reasons : undefined;
+    if (retryReasonsGiven && (input.no_run || ctx.actor.kind !== "agent")) {
+      throw new UsageError("retry_reason は手直しの Run を開く agent の claim でだけ使える");
+    }
+    // 自分が claim 済みで PR のあるチケットのもう一度の claim は、手直しの開始（ST-3・RN-5）。書くものがないので書き込みの外で扱う
+    const current = ctx.store.require("ticket", input.ticket);
+    if (isReclaim(ctx, current.data)) {
+      const run = await reclaim(
+        ctx,
+        current,
+        { ...input, retry_reasons: retryReasonsGiven },
+        warnings,
+      );
+      return ok<ClaimView>({ ...withBody(current), run }, undefined, warnings);
+    }
+    if (retryReasonsGiven) {
+      throw new UsageError(
+        `retry_reason は自分が claim 済みで PR のあるチケットのもう一度の claim でだけ使える（${current.id} は ${describeClaimState(current.data)}）`,
+      );
+    }
     const result = await withWrite(
       ctx,
       async () => {
         const doc = ctx.store.require("ticket", input.ticket);
         if (doc.data.status !== "todo") {
           if (doc.data.assignee) {
+            // 自分の claim でも PR がなければ手直しにはならない（実装の途中。続けるなら run start、やめるなら unclaim）
+            const own = sameUser(doc.data.assignee, ctx.actor.id);
             throw new OperationError(
               "CLAIM_LOST",
-              `${doc.id} は ${doc.data.assignee} が claim 済み`,
+              own
+                ? `${doc.id} は自分（${doc.data.assignee}）が claim 済みで PR がまだない。実装を続けるなら run start、やめるなら ticket unclaim`
+                : `${doc.id} は ${doc.data.assignee} が claim 済み`,
             );
           }
           throw new OperationError(
@@ -974,7 +1091,13 @@ export const ticketClaim = defineCommand({
     // Run を開くのは claim が push で取れた後。人の claim と no_run では開かない（RN-5）
     const run =
       ctx.actor.kind === "agent" && !input.no_run
-        ? await openClaimRun(ctx, result.value, input.agent, warnings)
+        ? await openClaimRun(
+            ctx,
+            result.value,
+            "claim",
+            { agent: input.agent, retryReasons: undefined },
+            warnings,
+          )
         : null;
     return ok<ClaimView>({ ...withBody(result.value), run }, result.write, warnings);
   },
@@ -985,7 +1108,7 @@ export const ticketUnclaim = defineCommand({
   positionals: ["ticket"],
   group: "ticket",
   summary:
-    "claim を外して todo に戻す。自分（同じユーザの人と AI）の claim か記録のない claim だけ。他人のものは force。このマシンで実行中の実装の Run は failure で閉じる（理由を残すなら先に run finish --result failure --error で閉じる）",
+    "claim を外して todo に戻す。自分（同じユーザの人と AI）の claim か記録のない claim だけ。他人のものは force。このマシンで実行中の実装・手直しの Run は failure で閉じる（理由を残すなら先に run finish --result failure --error で閉じる）",
   input: z.object({
     ticket: ticketRef,
     force: z.boolean().optional().describe("他人の claim も外す"),
@@ -1011,10 +1134,11 @@ export const ticketUnclaim = defineCommand({
             `${doc.id} は ${owner} の claim。外すなら force を付ける`,
           );
         }
-        // 実装を途中でやめたので、開いたままの実装の Run は失敗で閉じる（RN-6）
-        const closed = await closeRunWith(
+        // 実装（か手直し）を途中でやめたので、開いたままの実装・手直しの Run は失敗で閉じる（RN-6）
+        const closed = await closeRunsWith(
           ctx,
           doc.data,
+          ["claim", "reclaim"],
           { result: "failure", error: "ticket unclaim で todo に戻した" },
           warnings,
         );

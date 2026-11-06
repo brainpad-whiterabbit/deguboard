@@ -1,6 +1,6 @@
 // 照合に使う事実の収集（ST-4〜ST-6、ADR-004）。取れない事実は undefined（不明）
 
-import type { Status } from "../model/common.js";
+import { toIsoDateTime, type Status } from "../model/common.js";
 import type { Facts } from "../workflow/conditions.js";
 import type { GitRepo } from "./repo.js";
 import { GitError, runGh, runGit } from "./run.js";
@@ -25,6 +25,8 @@ export interface BranchFacts {
   pr?: number;
   /** 見つけた PR の作成時刻（ISO）。照合が実装の Run を閉じるときの finished_at（RN-6）。取れなければ undefined */
   prCreatedAt?: string;
+  /** 見つけた PR のマージ時刻（ISO）。ブランチが消えて push の時刻を取れないとき、照合が手直しの Run を閉じる finished_at（RN-6） */
+  prMergedAt?: string;
   /** gh が「PR がない」と答えた。pr_* はすべて偽になるが、閉じた PR とは区別する（ST-5） */
   prMissing?: boolean;
   /** ブランチ名で見つけたが、`since` より前にマージされていたので外した PR（照合が警告する） */
@@ -160,6 +162,7 @@ export async function collectBranchFacts(
     facts,
     ...(pr.number === undefined ? {} : { pr: pr.number }),
     ...(pr.createdAt === undefined ? {} : { prCreatedAt: pr.createdAt }),
+    ...(pr.mergedAt === undefined ? {} : { prMergedAt: pr.mergedAt }),
     ...(pr.missing ? { prMissing: true } : {}),
     ...(pr.ignored ? { ignoredPr: pr.ignored } : {}),
   };
@@ -227,6 +230,7 @@ async function collectPrFacts(
   facts: Facts;
   number?: number;
   createdAt?: string;
+  mergedAt?: string;
   missing?: boolean;
   ignored?: { number: number; mergedAt: string };
 }> {
@@ -253,7 +257,41 @@ async function collectPrFacts(
     pr_merged: data.state === "MERGED",
   };
   const createdAt = isoOrUndefined(data.createdAt);
+  const mergedAt = isoOrUndefined(data.mergedAt);
   return Number.isInteger(data.number) && (data.number as number) > 0
-    ? { facts, number: data.number as number, ...(createdAt ? { createdAt } : {}) }
+    ? {
+        facts,
+        number: data.number as number,
+        ...(createdAt ? { createdAt } : {}),
+        ...(mergedAt ? { mergedAt } : {}),
+      }
     : { facts };
+}
+
+/**
+ * 作業ブランチに最後に push したコミットの時刻（ISO、UTC）。リモートの追跡ブランチの先端のコミットの時刻で、
+ * 照合ともう一度の claim が、開いたままの手直しの Run を閉じる finished_at にする（RN-6）。
+ * fetch を渡せばそのブランチだけ取り込んでから読む（照合は fetchAll の後に呼ぶので渡さない）。
+ * リモートがない・追跡ブランチがない（push していない・マージ後に消した）・読めないときは undefined
+ */
+export async function lastPushedAt(
+  repo: GitRepo,
+  branch: string,
+  opts: { fetch?: boolean } = {},
+): Promise<string | undefined> {
+  if (!repo.remote) return undefined;
+  const ref = `refs/remotes/${repo.remote}/${branch}`;
+  if (opts.fetch) {
+    const fetched = await runGit(
+      repo.dataDir,
+      ["fetch", repo.remote, `+refs/heads/${branch}:${ref}`],
+      { allowFailure: true, timeoutMs: 60_000 },
+    );
+    // リモートで消えたブランチの追跡 ref は古い名残なので見ない
+    if (fetched.code !== 0 && /couldn't find remote ref/i.test(fetched.stderr)) return undefined;
+  }
+  if (!(await refExists(repo, ref))) return undefined;
+  const r = await runGit(repo.dataDir, ["log", "-1", "--format=%cI", ref], { allowFailure: true });
+  const at = isoOrUndefined(r.stdout.trim());
+  return at === undefined ? undefined : toIsoDateTime(new Date(at));
 }

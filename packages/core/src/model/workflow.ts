@@ -29,8 +29,11 @@ const conditionShape = z.string().regex(/^!?[a-z_]+$/, "条件は事実の名前
 /** step の名前。Run の step（空白・改行を含まない 1 語）に書ける小文字の語 */
 const stepIdSchema = z.string().regex(/^[a-z][a-z0-9_-]*$/, "step は小文字の英数字と _ と -");
 
-/** step の Run を開くチケットの操作（RN-5）。今は claim だけ */
-export const STEP_OPENERS = ["claim"] as const;
+/**
+ * step の Run を開くチケットの操作（RN-5）。claim は todo のチケットの claim（実装）、
+ * reclaim は自分が claim 済みで PR のあるチケットのもう一度の claim（人のレビューの後の手直し）
+ */
+export const STEP_OPENERS = ["claim", "reclaim"] as const;
 export type StepOpener = (typeof STEP_OPENERS)[number];
 
 // Action は名前（文字列）だけで持つ。登録済みかは actions の一覧を外から渡して validate.ts が見る（ADR-007）
@@ -74,7 +77,7 @@ export const workflowDefinitionSchema = z.looseObject({
         actions: z.array(actionNameShape).default([]),
         /** 人の承認が要る step か。Action を実行する主体が runAction の前に確認を取る。今は記録だけで強制しない（ADR-003） */
         approval: z.boolean().default(false),
-        /** この step の Run を開くチケットの操作（RN-5）。claim なら agent の ticket claim が開く。同じ操作は 1 つの step にだけ付ける（validate.ts） */
+        /** この step の Run を開くチケットの操作（RN-5）。claim なら agent の ticket claim、reclaim ならもう一度の claim が開く。同じ操作は 1 つの step にだけ付ける（validate.ts） */
         opens_on: z.enum(STEP_OPENERS).optional(),
       }),
     )

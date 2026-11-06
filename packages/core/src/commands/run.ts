@@ -15,10 +15,11 @@ import {
   type RunUsage,
 } from "../model/run.js";
 import { withWrite } from "../git/write.js";
-import { closeRun, finishRun, readRunningRuns, startRun } from "../run/record.js";
+import { closeRun, dropRunning, finishRun, readRunningRuns, startRun } from "../run/record.js";
 import type { Doc } from "../storage/documents.js";
-import { DEFAULT_OPENED_STEP, findStep, stepOpenedOn } from "../workflow/resolve.js";
+import { DEFAULT_OPENED_STEPS, findStep, stepOpenedOn } from "../workflow/resolve.js";
 import type { Ticket } from "../model/ticket.js";
+import type { StepOpener } from "../model/workflow.js";
 import { defineCommand, ok, type CommandContext } from "./define.js";
 import { idShapeOf, iterationRef, ticketRef } from "./helpers.js";
 
@@ -60,12 +61,18 @@ export function agentFromEnv(
 /**
  * Run を開く（run start と、agent の ticket claim が共有する。RN-5）。step がチケットの Workflow の steps になければ
  * VALIDATION_FAILED、同じチケットと step の Run が実行中なら startRun が ALREADY_EXISTS。
- * Workflow が読めない・Adapter のない agent・このマシンで同じ agent の Run が開いたままは警告して開く
+ * Workflow が読めない・Adapter のない agent・このマシンで同じ agent の Run が開いたままは警告して開く。
+ * retryReasons はもう一度の claim が開く手直しの Run に、直す指摘を最初から残すためのもの
  */
 export async function openRun(
   ctx: CommandContext,
   ticket: Ticket,
-  input: { step: string; agent: string; model?: string | undefined },
+  input: {
+    step: string;
+    agent: string;
+    model?: string | undefined;
+    retryReasons?: readonly string[] | undefined;
+  },
 ): Promise<{ run: Run; warnings: string[] }> {
   const { step, agent } = input;
   const warnings: string[] = [];
@@ -100,41 +107,58 @@ export async function openRun(
     step,
     agent,
     model: input.model,
+    retryReasons: input.retryReasons,
     now: ctx.now(),
   });
   return { run, warnings };
 }
 
+/** チケットの操作が開く Run の step（RN-5）。Workflow が読めなければ既定の名前（claim が開く step も同じ） */
+export function openedStepOf(ctx: CommandContext, ticket: Ticket, opener: StepOpener): string {
+  const wf = ctx.store.workflowFor(ticket);
+  return wf ? stepOpenedOn(wf.resolved, opener) : DEFAULT_OPENED_STEPS[opener];
+}
+
+/** 操作が開く Run の呼び名（警告とコミットメッセージ）。claim は実装、reclaim は手直し */
+export const openedRunLabel = (opener: StepOpener): string =>
+  opener === "claim" ? "実装" : "手直し";
+
 /**
- * チケットの実装の Run（claim が開く step。RN-5）のうち、このマシンで実行中のもの。同じチケットと step の Run は 1 つしか実行中にならない。
- * Workflow が読めなければ implement を探す（claim が開く step も同じ）
+ * チケットの操作（claim は実装、reclaim は手直し。RN-5）が開く step の Run のうち、このマシンで実行中のもの。
+ * 同じチケットと step の Run は 1 つしか実行中にならない。running を渡せば読み直さない
  */
-export async function findImplementRun(
+export async function findOpenedRun(
   ctx: CommandContext,
   ticket: Ticket,
+  opener: StepOpener,
+  running?: readonly Doc<Run>[],
 ): Promise<Doc<Run> | undefined> {
-  const wf = ctx.store.workflowFor(ticket);
-  const step = wf ? stepOpenedOn(wf.resolved, "claim") : DEFAULT_OPENED_STEP;
-  const { runs } = await readRunningRuns(ctx.repo);
+  const step = openedStepOf(ctx, ticket, opener);
+  const runs = running ?? (await readRunningRuns(ctx.repo)).runs;
   return runs.find((r) => r.data.ticket === ticket.id && r.data.step === step);
 }
 
-/** チケットの操作に付随して閉じた実装の Run（RN-6） */
-export interface ClosedImplementRun {
+/** チケットの操作か照合に付随して閉じた Run（RN-6） */
+export interface ClosedOpenedRun {
   run: Run;
   /** 閉じたことの知らせと、使用量を取り込めなかった理由（finish と同じ） */
   warnings: string[];
 }
 
 /**
- * 実装の Run をチケットの操作に付随して閉じる（RN-6）。呼び出し側の書き込みの中で呼び、コミットの後に dropRunning で実行中の記録を消す。
- * 使用量は finish と同じく Adapter が会話記録から取り込む。finishedAt（PR の作成時刻など）を渡せばその時刻までの応答を数える
+ * 操作が開いた Run をチケットの操作か照合に付随して閉じる（RN-6）。呼び出し側の書き込みの中で呼び、コミットの後に dropRunning で実行中の記録を消す。
+ * 使用量は finish と同じく Adapter が会話記録から取り込む。finishedAt（PR の作成時刻・最後の push の時刻など）を渡せばその時刻までの応答を数える
  */
-export async function closeImplementRun(
+export async function closeOpenedRun(
   ctx: CommandContext,
   running: Doc<Run>,
-  input: { result: RunResult; error?: string | undefined; finishedAt?: string | undefined },
-): Promise<ClosedImplementRun> {
+  input: {
+    opener: StepOpener;
+    result: RunResult;
+    error?: string | undefined;
+    finishedAt?: string | undefined;
+  },
+): Promise<ClosedOpenedRun> {
   const now = ctx.now();
   const finishedAt = input.finishedAt ?? toIsoDateTime(now);
   const local = (await readRunningRuns(ctx.repo)).runs;
@@ -157,9 +181,47 @@ export async function closeImplementRun(
   return {
     run,
     warnings: [
-      `${run.ticket} の実装の Run ${run.id} を ${run.result} で閉じた（finished_at ${run.finished_at}）`,
+      `${run.ticket} の${openedRunLabel(input.opener)}の Run ${run.id} を ${run.result} で閉じた（finished_at ${run.finished_at}）`,
       ...collected.warnings.map((w) => `Run ${run.id}: ${w}`),
     ],
+  };
+}
+
+/** チケットの操作と照合のコミットメッセージに書く、付随して閉じた Run の一覧。開いた操作ごとに呼び名を分ける */
+export function describeClosedRuns(
+  closed: ReadonlyArray<{
+    run: { ticket: string; id: string; result: RunResult | null };
+    opener: StepOpener;
+  }>,
+): string[] {
+  const parts: string[] = [];
+  for (const opener of ["claim", "reclaim"] as const) {
+    const runs = closed.filter((c) => c.opener === opener);
+    if (runs.length === 0) continue;
+    parts.push(
+      `${openedRunLabel(opener)}の Run を記録: ${runs.map((c) => `${c.run.ticket} ${c.run.id} ${c.run.result}`).join(", ")}`,
+    );
+  }
+  return parts;
+}
+
+/**
+ * 操作が開いた Run を、それだけの書き込み（commit.mode に従ってコミット）で閉じる。
+ * もう一度の claim が、開いたままの前の手直しの Run を次の Run の開始の区切りとして閉じるのに使う（RN-6）
+ */
+export async function closeOpenedRunAlone(
+  ctx: CommandContext,
+  running: Doc<Run>,
+  input: Parameters<typeof closeOpenedRun>[2],
+): Promise<ClosedOpenedRun> {
+  const written = await withWrite(ctx, () => closeOpenedRun(ctx, running, input), {
+    message: ({ run }) =>
+      `${openedRunLabel(input.opener)}の Run を記録: ${run.ticket} ${run.id} ${run.result ?? ""}`,
+  });
+  await dropRunning(ctx.repo, running.data.id);
+  return {
+    run: written.value.run,
+    warnings: [...written.write.warnings, ...written.value.warnings],
   };
 }
 
