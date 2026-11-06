@@ -1455,6 +1455,48 @@ describe("チケットの流れ", () => {
     expect((await missing()).map(([id]) => id)).toEqual(["t1"]);
   });
 
+  it("lint は見直しが 2 回あり、手直しの Run が 1 回目の見直しの後にしかない場合は、2 回目の見直しの後のコミットを指摘する（t509）", async () => {
+    const f = await fixture();
+    let clock = new Date("2026-11-06T00:00:00Z");
+    const human = await initialized(
+      f.cloneA,
+      { now: () => clock },
+      { template: "software-development" },
+    );
+    await runCommand(ticketCreate, human, { title: "Twice", summary: "s", acceptance: ["a"] });
+    const agent = await agentWithRuns(f.cloneA, () => clock);
+    await runCommand(ticketClaim, agent, { ticket: "t1", branch: "feat/t1" });
+    await git(f.cloneA, ["branch", "feat/t1"]);
+    clock = new Date("2026-11-06T01:00:00Z");
+    await runCommand(ticketUpdate, agent, { ticket: "t1", pr: 41 });
+    // 1 回目の見直し（01:10〜01:20）のあとに手直しの claim（01:25）をして push（01:30）
+    clock = new Date("2026-11-06T01:10:00Z");
+    const review1 = (
+      await runCommand(runStart, agent, { ticket: "t1", step: "review", agent: "claude-code" })
+    ).data.id;
+    clock = new Date("2026-11-06T01:20:00Z");
+    await runCommand(runFinish, agent, { run: review1, result: "success" });
+    clock = new Date("2026-11-06T01:25:00Z");
+    await runCommand(ticketClaim, agent, { ticket: "t1", retry_reasons: ["指摘 A"] });
+    await pushCommitAt(f.cloneA, "feat/t1", "2026-11-06T01:30:00Z");
+    // 2 回目の見直し（01:40〜01:45）のあとは手直しをせず、push だけする（01:50）
+    clock = new Date("2026-11-06T01:40:00Z");
+    const review2 = (
+      await runCommand(runStart, agent, { ticket: "t1", step: "review", agent: "claude-code" })
+    ).data.id;
+    clock = new Date("2026-11-06T01:45:00Z");
+    await runCommand(runFinish, agent, { run: review2, result: "success" });
+    await pushCommitAt(f.cloneA, "feat/t1", "2026-11-06T01:50:00Z");
+    const tip = (await git(f.cloneA, ["rev-parse", "--short=7", "origin/feat/t1"])).stdout.trim();
+    expect(
+      (await runCommand(lint, agent, {})).data.issues
+        .filter((i) => i.code === "lint_run_fix_missing")
+        .map((i) => [i.id, i.message]),
+    ).toEqual([
+      ["t1", `見直しの後のコミット 1 件（${tip} など）があるが、その後に手直しの Run（fix）がない`],
+    ]);
+  });
+
   it("照合は開いたままの手直しの Run を、次の Run の開始・マージ（done への前進）・終わったチケットの区切りで、それまでの最後の push の時刻で閉じる。unclaim は手直しの Run も failure で閉じる（RN-6）", async () => {
     const f = await fixture();
     let clock = new Date("2026-11-06T00:00:00Z");

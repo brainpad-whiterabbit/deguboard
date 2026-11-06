@@ -537,7 +537,7 @@ export const lint = defineCommand({
   name: "lint",
   group: "setup",
   summary:
-    "本文の推奨の節（## 概要・## 受け入れ条件）の欠けと空、Workflow の fields に合わない値、閉じた Epic に残る終わっていないチケット、lint.require_iteration が true なら Iteration に入らずに todo・abandoned 以外に進んだチケット（閉じた Epic の done は除く）、チケットがすべて終わったのに開いている Epic・Plan、開いた Plan の after と depends_on をまたぐ循環、同じ Project に 2 つ以上ある active の Iteration を指摘する。実装の Run の抜け（agent が PR まで進めたのに実装の Run がない、閉じた実装の Run の後のコミットがどの Run の期間にも入らない、見直しの後のコミットに手直しの Run がない）は、終わっていないチケットと、閉じていない Iteration に入った done のチケットだけを見る。done のチケットの未チェックの受け入れ条件は指摘しない",
+    "本文の推奨の節（## 概要・## 受け入れ条件）の欠けと空、Workflow の fields に合わない値、閉じた Epic に残る終わっていないチケット、lint.require_iteration が true なら Iteration に入らずに todo・abandoned 以外に進んだチケット（閉じた Epic の done は除く）、チケットがすべて終わったのに開いている Epic・Plan、開いた Plan の after と depends_on をまたぐ循環、同じ Project に 2 つ以上ある active の Iteration を指摘する。実装・手直しの Run の抜け（agent が PR まで進めたのに実装の Run がない、閉じた実装の Run の後のコミットがどの Run の期間にも入らない、見直しの後のコミットに手直しの Run がない）は、終わっていないチケットと、閉じていない Iteration に入った done のチケットだけを見る。done のチケットの未チェックの受け入れ条件は指摘しない",
   input: z.object({
     project: z.string().optional().describe("Project で絞る。省略時はすべて"),
   }),
@@ -673,7 +673,8 @@ export const lint = defineCommand({
         );
     }
     // 実装の Run の抜け（RN-5・RN-6）。Run を開けなかった環境や手順の抜けで、agent の PR があるのに実装の Run がないもの、
-    // 閉じた実装の Run の後のコミットが、どの Run の期間（開始から終わりまで。実行中は今まで）にも入らないものを拾う
+    // 閉じた実装の Run の後のコミットが、どの Run の期間（開始から終わりまで。実行中は今まで）にも入らないもの、
+    // 見直しの後のコミットに手直しの Run がないもの（t509）を拾う
     const runsByTicket = new Map<string, Run[]>();
     const seen = new Set<string>();
     for (const run of [
@@ -737,7 +738,7 @@ export const lint = defineCommand({
         const lastReview = Math.max(...reviewedAt);
         const afterReview = (commits ?? []).filter((c) => Date.parse(c.at) > lastReview);
         const fixedAfter = own.some(
-          (r) => r.step === fixStep && Date.parse(r.started_at) > lastReview,
+          (r) => r.step === fixStep && Date.parse(r.started_at) >= lastReview,
         );
         if (afterReview.length > 0 && !fixedAfter)
           warn(
