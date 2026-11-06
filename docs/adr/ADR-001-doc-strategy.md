@@ -54,7 +54,7 @@ CLAUDE.md・README・requirements・development.md と、ADR 1 本・`dg guide` 
 - 書き足さず書き換える。docs・README・CLAUDE.md・コードのコメントのどれでも、古い記述を残して新しい記述を足さない
 - 古くなった記述は消す。変更に直接関係がなくても、作業中に実装や仕様とずれた記述を見つけたら、その変更で消す。残すのは、消すと約束や理由がわからなくなるものだけ
 - 参照はファイルのパスと見出しのアンカーで書く
-- 文書・コメント・テスト名は日本語で書く
+- 文書・コメント・テスト名は日本語で書く。例外は README.md と packages/cli/README.md で、GitHub・Marketplace・npm で最初に読まれる入口なので英語で書く。README から指す docs は日本語のままにする
 
 ## 理由
 

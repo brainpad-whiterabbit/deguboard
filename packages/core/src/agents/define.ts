@@ -62,4 +62,9 @@ export interface AgentAdapter {
   readTranscriptUsage(query: UsageQuery): Promise<CollectedUsage>;
   /** この製品が Skill を読むディレクトリ。Skill のない製品は持たない */
   skillDirs?: SkillDirs;
+  /**
+   * dg を呼んだプロセスの環境変数から、この製品のエージェントが呼んだかを判定する（run start が --agent を省いたときに使う）。
+   * 製品が公に付ける変数が確かめられない Adapter は持たない（判定しない）。推測した変数名で判定しない
+   */
+  detect?(env: AgentEnv): boolean;
 }

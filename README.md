@@ -1,149 +1,149 @@
 # deguboard
 
-AI エージェントに仕事を任せるための、Git リポジトリの中で動くカンバンです。仕事を小さなチケットに分けてエージェントに渡し、依存に沿って並列に進め、その働きを測って改善できます。
+A kanban board that lives inside your Git repository, built for handing work to AI agents. Split work into small tickets, hand them to agents, run them in parallel along their dependencies, and measure how the agents perform so you can improve.
 
-> **開発中です**。npm と Marketplace にはまだ公開していません。今は clone してビルドした `dg` と VSIX を使います（「[公開前に使い始める](https://github.com/brainpad-whiterabbit/deguboard#公開前に使い始める)」）。
+> **Under development.** deguboard is not yet published to npm or the Marketplace. For now, clone and build `dg` and the VSIX yourself (see [Getting started before release](https://github.com/brainpad-whiterabbit/deguboard#getting-started-before-release)).
 
-## 特長
+## Features
 
-- **任せる仕事を小さくそろえる**：1 回に渡す作業を小さなチケットにそろえ、受け入れ条件で確かめます。
-- **依存に沿って並列に進める**：依存から進める順を計画し、待ちのないチケットは同時に進めます。
-- **エージェントの働きを測る**：所要時間・トークン・結果をチケット・工程・モデルごとに集計し、ボトルネックを探せます。
-- **エージェントを選ばない**：Claude Code・Codex・Copilot CLI など、シェルを使えるエージェントなら `dg` コマンドで使えます。
-- **サービスがいらない**：データはリポジトリの専用ブランチに置き、push すればチームで同じボードを見られます。
-- **VS Code の中で完結**：カンバン・バックログ・履歴をサイドバーで見て、そこからエージェントに頼めます。
+- **Keep delegated work small and uniform**: Each piece of work you hand over is a small ticket, verified against its acceptance criteria.
+- **Run in parallel along dependencies**: Plan the order from dependencies, and work on tickets that are not blocked at the same time.
+- **Measure how agents perform**: Aggregate duration, tokens, and results per ticket, step, and model to find bottlenecks.
+- **Works with any agent**: Any agent that can use a shell (Claude Code, Codex, Copilot CLI, and others) can drive it through the `dg` command.
+- **No service required**: Data lives on a dedicated branch of your repository. Push it, and your team sees the same board.
+- **Everything inside VS Code**: View the board, backlog, and history in the sidebar, and ask agents for work from there.
 
-## 導入
+## Installation
 
-必要なもの：Linux か macOS、Git 2.30 以上、Node.js 24 以上。PR の状態をチケットに映すときは GitHub CLI（`gh`）も使います。
+Prerequisites: Linux or macOS, Git 2.30 or later, and Node.js 24 or later. To reflect pull request status on tickets, you also need the GitHub CLI (`gh`).
 
-1. **拡張を入れる**：拡張機能ビューで「deguboard」を検索してインストールします。公開前は [GitHub Release](https://github.com/brainpad-whiterabbit/deguboard/releases) の `deguboard-vscode.vsix` を `code --install-extension deguboard-vscode.vsix` で入れます。
-2. **`dg` を入れる**：`npm i -g deguboard` で入れます。公開前は「[公開前に使い始める](https://github.com/brainpad-whiterabbit/deguboard#公開前に使い始める)」のとおりビルドします。
-3. **リポジトリで準備する**：管理したいリポジトリで一度だけ実行します。
+1. **Install the extension**: Search for "deguboard" in the Extensions view and install it. Before release, download `deguboard-vscode.vsix` from [GitHub Releases](https://github.com/brainpad-whiterabbit/deguboard/releases) and run `code --install-extension deguboard-vscode.vsix`.
+2. **Install `dg`**: Run `npm i -g deguboard`. Before release, build it as described in [Getting started before release](https://github.com/brainpad-whiterabbit/deguboard#getting-started-before-release).
+3. **Set up your repository**: Run this once in the repository you want to manage.
 
    ```sh
-   cd <管理したいリポジトリ>
+   cd <repository-to-manage>
    dg init
    ```
 
-4. **エージェントに手順を渡す**：Claude Code では `/dgall` などのコマンドを入れます。
+4. **Give your agent the workflows**: For Claude Code, install commands such as `/dgall`.
 
    ```sh
    dg skill install
    ```
 
-   ほかのエージェントでは準備は要らず、「`dg guide` を読んでから `dg` で進めて」と頼みます。
+   Other agents need no setup. Just ask them to "read `dg guide` and proceed with `dg`".
 
-5. **ボードを開く**：Activity Bar の deguboard のアイコンを押します。
+5. **Open the board**: Click the deguboard icon in the Activity Bar.
 
-チームの 2 人目からは、clone して `dg init` を実行すれば同じボードが見えます。
+Other team members only need to clone the repository and run `dg init` to see the same board.
 
-## 使い方
+## Usage
 
-### ボードを開く
+### Open the board
 
-Activity Bar の deguboard のアイコンでカンバンが開きます。上のタブでバックログと履歴に切り替えます。
+Click the deguboard icon in the Activity Bar to open the board. Use the tabs at the top to switch to the backlog and history.
 
-<img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/open-board.gif" alt="ボードを開く" width="560">
+<img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/open-board.gif" alt="Opening the board" width="560">
 
-### ID かタイトルから詳細へ移動する
+### Jump to details by ID or title
 
-コマンドパレットの「deguboard: チケットへ移動」か `Ctrl+K Ctrl+Alt+G`（macOS は `⌘K ⌘⌥G`）で、チケット・Iteration・Epic・Plan を ID かタイトルで絞り込んで詳細を開きます。
+Run "deguboard: Go to Ticket" from the Command Palette, or press `Ctrl+K Ctrl+Alt+G` (`⌘K ⌘⌥G` on macOS), to filter tickets, Iterations, Epics, and Plans by ID or title and open their details.
 
-### キーボードで操作する
+### Use the keyboard
 
-サイドバーの行（カンバン・バックログ・履歴）はマウスなしで操作できます。Tab で一覧に入ると、移れる行は今の 1 行だけで、Tab を 1 回押すと一覧を抜けます。Space と a は、ブラウザの画面では履歴の行でも使えます。
+Rows in the sidebar (board, backlog, and history) work without a mouse. When you Tab into a list, only the current row is focusable, and a single Tab leaves the list. In the browser, Space and a also work on history rows.
 
-| キー               | 動き                                                                                           |
-| ------------------ | ---------------------------------------------------------------------------------------------- |
-| ↑ ↓ ・ Home ・ End | 行を移る（今の行にフォーカスの枠が出ます）                                                     |
-| Enter              | 今の行の詳細をエディタのパネルに開く                                                           |
-| Space              | 今の行を選ぶ・外す（続けて足すと複数選べます）                                                 |
-| a                  | 選んだ行（選んでいなければ今の行）に「エージェントに頼む」の一覧を開く。Shift+F10 でも開きます |
+| Key              | Action                                                                                                |
+| ---------------- | ----------------------------------------------------------------------------------------------------- |
+| ↑ ↓ / Home / End | Move between rows (the current row shows a focus outline)                                             |
+| Enter            | Open details of the current row in an editor panel                                                    |
+| Space            | Select or deselect the current row (keep adding to select several)                                    |
+| a                | Open the "Ask Agent" menu for the selected rows (or the current row if none). Shift+F10 also opens it |
 
-どれも VS Code の既定のキー割り当てとぶつかりません。
+None of these conflict with VS Code's default keybindings.
 
-### 雑な指示からチケットを起票する
+### Turn a rough idea into tickets
 
-思いついたままの一言を `/dgimport`（Claude Code の場合）を付けて頼むと、エージェントがコードを調べ、受け入れ条件と依存の付いたチケットの案を出します。承認するとバックログに並びます。
+Ask for something in your own words with `/dgimport` (in Claude Code). The agent investigates the code and proposes tickets with acceptance criteria and dependencies. Approve them, and they appear in the backlog.
 
-<img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/import.gif" alt="雑な指示からチケットを起票する" width="560">
+<img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/import.gif" alt="Turning a rough idea into tickets" width="560">
 
-### エージェントに頼む
+### Ask an agent
 
-行の吹き出しを押して頼むことを選び、コピーした依頼文をエージェントに貼ります。Claude Code 以外には形式を「文章」にします。VS Code では、開いているターミナルを選んで「送る」こともできます。1 行は Enter を押さずに入力へ入ります。複数行は VS Code の貼り付けで入れ、確認が出たら貼り付けるかを選んでください。入力が貼り付けに対応しないと、行ごとに実行されることがあります。
+Click a row's speech bubble, choose what to ask for, and paste the copied request into your agent. For agents other than Claude Code, set the format to "Text". In VS Code, you can also pick an open terminal and "Send" the request. A single line is typed into the input without pressing Enter. Multiple lines are pasted with VS Code's paste, so choose whether to paste when asked. If the input does not support pasting, each line may be run separately.
 
-<img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/ask-agent.gif" alt="エージェントに頼む" width="560">
+<img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/ask-agent.gif" alt="Asking an agent" width="560">
 
-### 最後まで任せる
+### Hand off everything
 
-作りたいものを `/dgall --auto`（Claude Code の場合）を付けて頼むと、エージェントが起票・計画・実装を続けて進めます。ボードでは進み具合を見守れ、計画の帯を押すと依存をグラフで見られます。ほかのエージェントには「`dg guide all` を読んで、`--auto` で最後まで進めて」と頼みます。
+Describe what you want to build with `/dgall --auto` (in Claude Code), and the agent creates tickets, plans, and implements them in one go. Watch the progress on the board, and click a plan's band to see its dependencies as a graph. For other agents, ask them to "read `dg guide all` and proceed to the end with `--auto`".
 
-<img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/run-all.gif" alt="最後まで任せる" width="560">
+<img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/run-all.gif" alt="Handing off everything" width="560">
 
-### ボトルネックを調べる
+### Find bottlenecks
 
-履歴で終わった Iteration の吹き出しから「振り返る」を頼むと、エージェントが実績（工程ごとの所要時間・トークン・差し戻し）を集計し、詰まった所と次に直すことをまとめます。
+In the history, ask for "Retrospect" from a finished Iteration's speech bubble. The agent aggregates the actuals (duration, tokens, and rework per step) and summarizes where work got stuck and what to fix next.
 
-<img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/retro.gif" alt="ボトルネックを調べる" width="560">
+<img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/retro.gif" alt="Finding bottlenecks" width="560">
 
-トークンも集計するには、会話記録から使用量を取り込む設定を有効にします（Claude Code・Codex・Copilot CLI に対応）。
+To aggregate tokens as well, enable reading usage from conversation transcripts (supported for Claude Code, Codex, and Copilot CLI).
 
 ```sh
 dg config set metrics.read_transcripts true
 ```
 
-設定はチームで共有されます。自分のマシンだけ止めるときは `DEGUBOARD_NO_TRANSCRIPTS=1` を設定します。
+This setting is shared with your team. To turn it off on your own machine only, set `DEGUBOARD_NO_TRANSCRIPTS=1`.
 
-### 承認待ちに気づく
+### Notice what awaits approval
 
-承認待ちの Plan と review のチケットがあると、サイドバーのタイトルが「DEGUBOARD: 承認待ち 3」のように件数つきになり（なければ「DEGUBOARD」）、増えたときは通知が出て「開く」でその詳細が開きます。Activity Bar のアイコンの数字は別物で、未 push のコミットと未取り込みのリモートの更新の合計です。
+When Plans await approval or tickets are in review, the sidebar title shows the count, like "DEGUBOARD: Awaiting Approval/Review 3" (otherwise just "DEGUBOARD"). When the count grows, a notification appears, and "Open" opens the details. The number on the Activity Bar icon is something else: the total of unpushed commits and remote updates not yet pulled.
 
-通知は設定画面（歯車）の「通知」で切れます（件数の表示は残ります）。チームの設定のまま自分だけ切るときは `--local` を付けます（Git に入らない個人の設定。`dg config set --help`）。
+You can turn notifications off under "Notifications" in Settings (the gear icon); the count stays visible. To turn them off only for yourself while keeping the team setting, add `--local` (a personal setting that is not committed to Git; see `dg config set --help`).
 
 ```sh
 dg config set notify.approvals false --local
 ```
 
-## セキュリティとプライバシー
+## Security and privacy
 
-- 拡張はテレメトリを送らず、HTTP サーバーも起動しません。通信は `git` のリモートへの接続と、`gh` の GitHub への接続だけです。
-- データは `.git/deguboard/` に置き、`.git` の外には書きません。
-- 拡張が呼ぶコマンドは `git`・`gh`・`dg --version` だけで、どれもシェルを通しません（同期の rebase で git がマージドライバを `sh -c` で動かすのは git の仕様です）。
-- git の設定が任意のコマンドを実行させ得るため、信頼したフォルダーでだけ動きます（制限モードと仮想ワークスペースでは動きません）。
-- `dg skill install` が書く Skill は `dg guide` を読ませる文面だけで、スクリプトもツールの許可も持ちません。`--dry-run` で中身を見られます。
-- 脆弱性の報告先は [SECURITY.md](https://github.com/brainpad-whiterabbit/deguboard/blob/main/SECURITY.md) にあります。
+- The extension sends no telemetry and starts no HTTP server. Its only network access is `git` connecting to your remotes and `gh` connecting to GitHub.
+- Data is stored in `.git/deguboard/`, and nothing is written outside `.git`.
+- The extension runs only `git`, `gh`, and `dg --version`, none of them through a shell (git running a merge driver with `sh -c` during a sync rebase is how git works).
+- Because git configuration can run arbitrary commands, the extension works only in trusted folders (not in Restricted Mode or virtual workspaces).
+- The Skills written by `dg skill install` contain only text telling the agent to read `dg guide`, with no scripts and no tool permissions. Use `--dry-run` to see their contents.
+- See [SECURITY.md](https://github.com/brainpad-whiterabbit/deguboard/blob/main/SECURITY.md) (in Japanese) for how to report vulnerabilities.
 
-## ほかの使い方
+## Other ways to use it
 
-### 公開前に使い始める
+### Getting started before release
 
-[mise](https://mise.jdx.dev/) を入れて clone し、ビルドした `dg` を PATH に通します。リポジトリの外では node 24 も PATH に要ります（mise なら `mise use -g node@24`）。
+Install [mise](https://mise.jdx.dev/), clone the repository, and put the built `dg` on your PATH. Outside the repository, Node.js 24 must also be on your PATH (with mise, `mise use -g node@24`).
 
 ```sh
 git clone https://github.com/brainpad-whiterabbit/deguboard.git && cd deguboard
-mise trust && mise install    # node・pnpm を mise.toml の版で入れる
-mise run install              # 依存を入れ、dg と拡張をビルドし、VSIX を VS Code に入れる
-mkdir -p ~/.local/bin && ln -sf "$PWD/packages/cli/bin/dg.js" ~/.local/bin/dg   # ~/.local/bin が PATH になければ足す。更新は git pull のあと mise run install
+mise trust && mise install    # install node and pnpm at the versions in mise.toml
+mise run install              # install dependencies, build dg and the extension, and install the VSIX into VS Code
+mkdir -p ~/.local/bin && ln -sf "$PWD/packages/cli/bin/dg.js" ~/.local/bin/dg   # add ~/.local/bin to PATH if needed. To update, git pull and then mise run install
 ```
 
-VSIX を手で入れるときは、`mise run vsix` の後に `code --install-extension packages/vscode/deguboard-vscode.vsix` を実行します。
+To install the VSIX by hand, run `code --install-extension packages/vscode/deguboard-vscode.vsix` after `mise run vsix`.
 
-### ブラウザと CLI で使う
+### Use it from the browser and CLI
 
-VS Code がなくても、ブラウザで同じボードを見られます（Run のタブで実績の集計も見られます）。
+Without VS Code, you can view the same board in a browser (the Run tab also shows aggregated actuals).
 
 ```sh
-dg serve --open               # 127.0.0.1:7474 でボードを開く
-dg ticket create "ログインの検証" --summary "入力の検査" --acceptance "空のとき拒否する"
-dg ticket list                # --json で機械向け
+dg serve --open               # open the board at 127.0.0.1:7474
+dg ticket create "Validate login" --summary "Check the input" --acceptance "Reject empty input"
+dg ticket list                # --json for machine-readable output
 ```
 
-Skill を入れずに、`dg ask --format text` か画面の頼む小窓で作った文章をエージェントに貼っても同じことを頼めます。
+Without installing Skills, you can make the same requests by pasting text made with `dg ask --format text`, or with the ask popup in the UI, into your agent.
 
-### Claude Desktop から使う（MCP）
+### Use it from Claude Desktop (MCP)
 
-`dg mcp` は stdio の MCP サーバーで、`dg` のコマンドを `ticket_create` のような名前のツールとして出します。Claude Desktop は PATH を引き継がずにリポジトリの外で起動するので、`claude_desktop_config.json` では `command` に node の絶対パス（`mise which node`）、引数に `dg.js` の実体（`realpath "$(which dg)"`）と `-C <対象のリポジトリ>` を渡します。Claude Code は Bash で `dg` を呼べるので登録は要りません。
+`dg mcp` is a stdio MCP server that exposes `dg` commands as tools with names like `ticket_create`. Claude Desktop starts outside your repository without inheriting your PATH, so in `claude_desktop_config.json`, set `command` to the absolute path of node (`mise which node`), and pass the real path of `dg.js` (`realpath "$(which dg)"`) and `-C <target-repository>` as arguments. Claude Code can call `dg` through Bash, so it needs no registration.
 
 ```json
 {
@@ -156,14 +156,16 @@ Skill を入れずに、`dg ask --format text` か画面の頼む小窓で作っ
 }
 ```
 
-## ドキュメント
+## Documentation
 
-- [要件定義書](docs/requirements.md)：今の仕様の正本
-- [ADR](docs/adr/README.md)：設計判断の背景と理由
-- [開発ガイド](docs/development.md)：このリポジトリで開発する人向け
-- [SECURITY.md](SECURITY.md)：脆弱性の報告先と修正の対象の版
-- `dg --help` と `dg guide <topic>`：コマンドの一覧と、エージェント向けの手順の正本（CLI に同梱）
+The documents below are written in Japanese.
 
-## ライセンス
+- [Requirements](docs/requirements.md): the source of truth for the current specification
+- [ADRs](docs/adr/README.md): background and reasons for design decisions
+- [Development guide](docs/development.md): for people developing in this repository
+- [SECURITY.md](SECURITY.md): where to report vulnerabilities and which versions receive fixes
+- `dg --help` and `dg guide <topic>`: the list of commands and the source of truth for agent workflows (bundled with the CLI)
 
-[MIT](LICENSE)。配布物に束ねた依存のライセンスは、ビルドで出る `THIRD_PARTY_LICENSES.md`（npm の `deguboard` の `web/` と VSIX の `dist/`）にまとめています。
+## License
+
+[MIT](LICENSE). Licenses of the dependencies bundled in the distributions are collected in `THIRD_PARTY_LICENSES.md`, generated by the build (in `web/` of the npm package `deguboard` and in `dist/` of the VSIX).

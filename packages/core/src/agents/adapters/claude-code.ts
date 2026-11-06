@@ -12,6 +12,8 @@
 //   - ツールの回数：数える行の message.content の tool_use を、tool_use の id で重ねずに名前で種類に分けて数える（TOOL_KINDS）。
 //     最初に書く（write）までの読む・探すも数える。Bash はコマンドで分けない
 //   - 返すのは数とモデル名だけ。会話の中身・コマンド・パスは返さない（MT-4）。ツールは名前を種類に変えて数だけを返す
+//   - 判定（detect）：Claude Code は実行するコマンドの環境に CLAUDECODE=1 と AI_AGENT（claude-code_<版>_<種類> の形）を付ける。
+//     どちらかがあれば Claude Code が呼んだとみなす（2026-11 に Claude Code 2.1 の Bash の環境で確かめた）
 
 import { createReadStream } from "node:fs";
 import path from "node:path";
@@ -208,8 +210,17 @@ function mainModel(messages: Scan["messages"]): string | null {
   return [...counts].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
 }
 
+/** Claude Code が呼んだか。CLAUDECODE=1 か、AI_AGENT が claude-code か claude-code_ で始まる */
+function detect(env: AgentEnv): boolean {
+  const aiAgent = env["AI_AGENT"] ?? "";
+  return (
+    env["CLAUDECODE"] === "1" || aiAgent === "claude-code" || aiAgent.startsWith("claude-code_")
+  );
+}
+
 export const claudeCodeAdapter: AgentAdapter = {
   name: "claude-code",
+  detect,
   skillDirs: {
     project: (topLevel) => path.join(topLevel, ".claude", "skills"),
     personal: (env) => path.join(homeDir(env), ".claude", "skills"),

@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   ASK_DG_USAGE,
+  ASK_DG_USAGE_EN,
   ASK_ACTIONS,
   ASK_SKILLS,
   askCandidates,
@@ -110,6 +111,37 @@ describe("dg ask", () => {
         "t1 を指示のとおりに直してください。",
         ASK_DG_USAGE,
         "手順は `dg guide import` を読み、そのとおりに進めてください。",
+        "文言だけ",
+      ].join("\n"),
+    );
+
+    // 言語は CLI の --language と HTTP の input の language で渡し、定型の文だけを英語にする（指示は書いた言葉のまま）
+    const cliEn = await dg(f.cloneA, [
+      "--json",
+      "ask",
+      "t1",
+      "--action",
+      "fix",
+      "--note",
+      "文言だけ",
+      "--format",
+      "text",
+      "--language",
+      "en",
+    ]);
+    expect(cliEn.code).toBe(0);
+    const fromCliEn = JSON.parse(cliEn.out) as { ok: boolean; data: AskView };
+    const resEn = await fetch(`${server.url}api/commands/ask`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ input: { ...input, language: "en" } }),
+    });
+    expect(await resEn.json()).toEqual(fromCliEn);
+    expect(fromCliEn.data.text).toBe(
+      [
+        "Fix t1 as instructed.",
+        ASK_DG_USAGE_EN,
+        "Read `dg guide import` for the steps and follow them.",
         "文言だけ",
       ].join("\n"),
     );

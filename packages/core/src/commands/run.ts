@@ -2,7 +2,7 @@
 // 使用量の取り込みは agents（Run の agent の値で Adapter を選ぶ。特定の AI 製品をここに書かない。AG-5）
 
 import { z } from "zod";
-import { agentNames, collectRunUsage, type RunSpan } from "../agents/index.js";
+import { agentNames, collectRunUsage, detectAgent, type RunSpan } from "../agents/index.js";
 import { slugSchema, toIsoDateTime } from "../model/common.js";
 import { filterRuns, placeRun, runDurationSeconds, type MetricFilter } from "../model/metrics.js";
 import { OperationError, UsageError } from "../errors.js";
@@ -32,6 +32,17 @@ function runSpans(closed: Iterable<{ data: Run }>, running: Iterable<{ data: Run
   return spans;
 }
 
+/** --agent を省いた run start の agent。Adapter が環境変数から判定する（AG-5）。判定できなければ使い方の誤り */
+function agentFromEnv(env: Readonly<Record<string, string | undefined>>): string {
+  const { agent, matched } = detectAgent(env);
+  if (agent) return agent;
+  const reason =
+    matched.length > 1
+      ? `環境変数から ${matched.join("・")} のどれとも判定できる`
+      : `環境変数から agent を判定できない（判定できるのは環境変数を付ける Adapter だけ）`;
+  throw new UsageError(`${reason}。--agent でエージェント名を渡す`);
+}
+
 /** 空白・改行を含まない 1 語。step の語彙は run.start がチケットの Workflow の steps（WF-5）で確かめる */
 const token = z.string().regex(/^\S+$/, "空白・改行を含まない 1 語");
 
@@ -40,13 +51,15 @@ export const runStart = defineCommand({
   positionals: ["ticket", "step"],
   group: "run",
   summary:
-    "Run を始める。実行中の記録は deguboard-local/runs/ にだけ置き、Git には入れない。同じチケットと step の Run が実行中か、step がチケットの Workflow の steps にないなら拒否する。このマシンで同じ agent の Run が実行中なら警告して始める。Adapter のない agent 名でも拒まずに記録し、警告する",
+    "Run を始める。実行中の記録は deguboard-local/runs/ にだけ置き、Git には入れない。同じチケットと step の Run が実行中か、step がチケットの Workflow の steps にないなら拒否する。このマシンで同じ agent の Run が実行中なら警告して始める。Adapter のない agent 名でも拒まずに記録し、警告する。--agent を省けば、dg を呼んだエージェントを Adapter が環境変数から判定する（判定できなければ使い方の誤り）",
   input: z.object({
     ticket: ticketRef,
     step: token.describe("工程。チケットの Workflow の steps の id（dg workflow show で見る）"),
-    agent: token.describe(
-      `エージェント名。${agentNames().join("・")} なら finish が会話記録から使用量を取り込む（metrics.read_transcripts）`,
-    ),
+    agent: token
+      .optional()
+      .describe(
+        `エージェント名。${agentNames().join("・")} なら finish が会話記録から使用量を取り込む（metrics.read_transcripts）。省けば dg を呼んだエージェントを環境変数から判定し、判定できなければ使い方の誤り`,
+      ),
     model: z
       .string()
       .min(1)
@@ -58,6 +71,7 @@ export const runStart = defineCommand({
   write: true,
   needs: "store",
   async run(ctx, input) {
+    const agent = input.agent ?? agentFromEnv(ctx.env ?? process.env);
     const ticket = ctx.store.require("ticket", input.ticket);
     const warnings: string[] = [];
     const workflow = ctx.store.workflowFor(ticket.data);
@@ -74,22 +88,22 @@ export const runStart = defineCommand({
         `${ticket.data.id} の Workflow が見つからないか読めないので、step ${input.step} を確かめていない`,
       );
     }
-    if (!agentNames().includes(input.agent)) {
+    if (!agentNames().includes(agent)) {
       warnings.push(
-        `agent ${input.agent} には Adapter がないので、finish は使用量とモデル名を取り込めない（Adapter のある名前: ${agentNames().join("・")}。サブエージェントも自分の Adapter の名前で始める）`,
+        `agent ${agent} には Adapter がないので、finish は使用量とモデル名を取り込めない（Adapter のある名前: ${agentNames().join("・")}。サブエージェントも自分の Adapter の名前で始める）`,
       );
     }
     // 同じ会話記録で期間が重なると、応答は後に始めた Run にだけ数える（ADR-005）。閉じ忘れに気づけるように知らせる
-    const open = (await readRunningRuns(ctx.repo)).runs.filter((r) => r.data.agent === input.agent);
+    const open = (await readRunningRuns(ctx.repo)).runs.filter((r) => r.data.agent === agent);
     if (open.length > 0) {
       warnings.push(
-        `このマシンで ${input.agent} の Run ${open.map((r) => `${r.id}（${r.data.ticket} ${r.data.step}）`).join("・")}が開いたまま。同じ会話記録なら、この後の応答は新しい Run にだけ数える。終わった Run は dg run finish で閉じる（並行する別のエージェントの Run や、自分が始めた覚えのない ID なら無視してよい）`,
+        `このマシンで ${agent} の Run ${open.map((r) => `${r.id}（${r.data.ticket} ${r.data.step}）`).join("・")}が開いたまま。同じ会話記録なら、この後の応答は新しい Run にだけ数える。終わった Run は dg run finish で閉じる（並行する別のエージェントの Run や、自分が始めた覚えのない ID なら無視してよい）`,
       );
     }
     const run = await startRun(ctx.repo, {
       ticket: ticket.data.id,
       step: input.step,
-      agent: input.agent,
+      agent,
       model: input.model,
       now: ctx.now(),
     });

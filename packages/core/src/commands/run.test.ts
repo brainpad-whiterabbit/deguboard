@@ -419,6 +419,30 @@ describe("run", () => {
     }
   });
 
+  it("start は --agent を省くと環境変数から判定した agent で始め、判定できなければ使い方の誤りにする（AG-5）", async () => {
+    const ctx = await prepared();
+    ctx.env = { CLAUDECODE: "1" };
+    const detected = await runCommand(runStart, ctx, { ticket: "t1", step: "implement" });
+    expect(detected.data).toMatchObject({ ticket: "t1", agent: "claude-code" });
+    // --agent を渡せば判定より先に使う
+    const given = await runCommand(runStart, ctx, {
+      ticket: "t2",
+      step: "implement",
+      agent: "my-bot",
+    });
+    expect(given.data).toMatchObject({ agent: "my-bot" });
+    for (const env of [{}, { CLAUDECODE: "1", CODEX_THREAD_ID: "t" }]) {
+      ctx.env = env;
+      await expect(
+        runCommand(runStart, ctx, { ticket: "t1", step: "review" }),
+      ).rejects.toMatchObject({
+        code: "INVALID_INPUT",
+        message: expect.stringContaining("--agent"),
+      });
+    }
+    expect(await peekRunningRuns(ctx.repo)).toHaveLength(2);
+  });
+
   it("start は step がチケットの Workflow の steps になければ拒否し、steps のない Workflow ならどの step も受ける（WF-5）", async () => {
     const ctx = await prepared();
     // 既定の general の steps は investigate・implement・review・fix

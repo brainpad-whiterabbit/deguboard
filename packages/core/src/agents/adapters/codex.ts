@@ -17,6 +17,9 @@
 //   - 探す範囲：環境変数 CODEX_HOME（なければ ~/.codex）の sessions/ の下で、started_at より後に書かれた .jsonl。
 //     圧縮した記録（.jsonl.zst）は読まない
 //   - ツールの回数は数えない（null）。返すのは数とモデル名だけ。会話の中身・コマンド・パスは返さない（MT-4）
+//   - 判定（detect）：Codex は実行するコマンドの環境に CODEX_THREAD_ID（会話のスレッドの ID）を付ける。空でなければ Codex が
+//     呼んだとみなす。openai/codex の codex-rs/protocol/src/shell_environment.rs（create_env が include_only の設定でも付ける）で
+//     確かめた（2026-11 の main。本物の Codex の環境では未確認）。CODEX_SANDBOX などはサンドボックスの設定でしか付かないので使わない
 
 import { createReadStream } from "node:fs";
 import path from "node:path";
@@ -230,6 +233,7 @@ function mainModel(s: Scan): string | null {
 
 export const codexAdapter: AgentAdapter = {
   name: "codex",
+  detect: (env) => Boolean(env["CODEX_THREAD_ID"]),
   async readTranscriptUsage(query) {
     // 時刻は秒までなので、終わりはその秒の終わりまで含める
     const to = Date.parse(query.finishedAt) + 999;

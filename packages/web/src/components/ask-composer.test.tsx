@@ -7,12 +7,14 @@ import type { WebviewClient } from "../client/webview.js";
 import { ASK_OPEN_KEY, HostBridge, HostProvider, type Host } from "../host.js";
 import { StoreProvider } from "../store.js";
 import { fixture, iteration, mockClient, ticket, type MockClient } from "../test-helpers.js";
+import { setLanguage } from "../l10n.js";
 import { createUiState, memoryBackend, type UiState } from "../ui-state.js";
 import { ASK_FORMAT_KEY, ASK_NOTE_KEY } from "./ask-composer.js";
 
 afterEach(() => {
   cleanup();
   window.location.hash = "";
+  setLanguage("ja");
 });
 
 /** 読むだけのコマンド。入力欄はこれ以外を呼ばない（データに書き込まない） */
@@ -689,5 +691,57 @@ describe("開いているターミナルへ送る（UI-15）", () => {
     await waitFor(() =>
       expect(box.getByRole("status").textContent).toContain("貼り付けの確認が出たら"),
     );
+  });
+});
+
+describe("依頼文の定型の文は表示言語で組む（UI-11）", () => {
+  it("表示言語が英語なら ask に language: en を渡し、コピーとターミナルへの送りの両方に英語の依頼文が渡る", async () => {
+    setLanguage("en");
+    const client = askClient();
+    const state = createUiState(memoryBackend());
+    // 定型の文が出る文章の形で確かめる
+    state.set(ASK_FORMAT_KEY, "text");
+    const view = mountWebview(client, { state, terminals: [{ id: 7, label: "claude" }] });
+    await screen.findByText("見直す");
+    view.ask(["t5"]);
+    const box = within(document.querySelector<HTMLElement>(".ask-composer")!);
+    const note = await box.findByRole("textbox", { name: "Instructions" });
+    fireEvent.change(note, { target: { value: "題を短く" } });
+    fireEvent.keyDown(note, { key: "Enter", metaKey: true });
+    await waitFor(() => expect(view.copied).toHaveLength(1));
+    const lines = view.copied[0]!.split("\n");
+    expect(lines[0]).toBe(
+      "Reconcile the PR merges of t5, verify the remaining acceptance criteria, and clean up.",
+    );
+    // 指示は書いた言葉のまま
+    expect(lines.at(-1)).toBe("題を短く");
+
+    fireEvent.click(box.getByRole("button", { name: "Send" }));
+    await waitFor(() => expect(view.sent).toEqual([[7, view.copied[0]!]]));
+    const languages = client.calls
+      .filter((c) => c.name === "ask")
+      .map((c) => (c.input as { language?: string }).language);
+    expect(languages.length).toBeGreaterThan(0);
+    expect(languages.every((l) => l === "en")).toBe(true);
+  });
+
+  it("表示言語が日本語なら ask に language: ja を渡し、今までどおり日本語の依頼文になる", async () => {
+    const client = askClient();
+    const state = createUiState(memoryBackend());
+    state.set(ASK_FORMAT_KEY, "text");
+    const view = mountWebview(client, { state });
+    await screen.findByText("見直す");
+    view.ask(["t5"]);
+    const note = await within(composer()).findByRole("textbox", { name: "指示" });
+    fireEvent.keyDown(note, { key: "Enter", metaKey: true });
+    await waitFor(() => expect(view.copied).toHaveLength(1));
+    expect(view.copied[0]!.split("\n")[0]).toBe(
+      "t5 の PR のマージを照合し、残った受け入れ条件を確かめて片付けてください。",
+    );
+    expect(
+      client.calls
+        .filter((c) => c.name === "ask")
+        .every((c) => (c.input as { language?: string }).language === "ja"),
+    ).toBe(true);
   });
 });

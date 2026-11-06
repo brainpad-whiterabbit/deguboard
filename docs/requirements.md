@@ -164,7 +164,7 @@ steps: # 任意。Run の step の語彙（WF-5）
 
 ### 5.9 Run（`runs/`）
 
-- RN-1 1 Run 1 ファイル。チケット・step・エージェント・モデル・開始と終了の時刻・結果（`success` / `failure` / `interrupted`）・エラー・やり直しの回数と理由・トークン数・ツールの回数を持つ
+- RN-1 1 Run 1 ファイル。チケット・step・エージェント・モデル・開始と終了の時刻・結果（`success` / `failure` / `interrupted`）・エラー・やり直しの回数と理由・トークン数・ツールの回数を持つ。エージェントは `run start` の `--agent` で、省けば Adapter が環境変数から判定し（AG-5）、判定できなければ `--agent` を求める
 - RN-2 取れなかった値は `null`。推定した値は `estimated: true` を付ける。費用は持たない（[ADR-005](adr/ADR-005-work-metrics.md)）
 - RN-3 Git に入れるのは完了時の集計だけ。実行中の記録は `deguboard-local/runs/` に置く。チケットには書き足さない
 - RN-4 閉じた Run で書き換えるのは、`run refresh`（MT-5）が取り直すモデル名と使用量だけ
@@ -224,7 +224,7 @@ Web UI は `dg serve` が配信し、VS Code 拡張は同じアプリを Webview
 - UI-8 `dg serve` は既定で `127.0.0.1` にバインドする。認証は持たない
 - UI-9 Run の画面：実行中・完了の Run と MT-3 の集計。ブラウザだけに置く
 - UI-10 Epic：open の Epic の進捗（EP-3）を出し、Epic で絞れる。詳細の画面で中のチケットを出す
-- UI-11 VS Code 拡張は `core` を同梱して `dg` なしで動き、`dg` が PATH にないときと、`dg` と `core` の版のメジャーが違うときは知らせる。拡張のコマンド・ビュー・Walkthrough・拡張ホストの通知と、サイドバー・パネルの画面の文言は、VS Code の表示言語が日本語なら日本語で、ほかは英語で出す（チケットの中身と依頼文は書いた言葉のまま、core が出すエラー・警告の文と設定の項目の説明は core の言語のまま。ブラウザの画面は日本語）
+- UI-11 VS Code 拡張は `core` を同梱して `dg` なしで動き、`dg` が PATH にないときと、`dg` と `core` の版のメジャーが違うときは知らせる。拡張のコマンド・ビュー・Walkthrough・拡張ホストの通知と、サイドバー・パネルの画面の文言は、VS Code の表示言語が日本語なら日本語で、ほかは英語で出す（チケットの中身と依頼文に添える指示は書いた言葉のまま、依頼文の定型の文は表示言語に合わせ、core が出すエラー・警告の文と設定の項目の説明は core の言語のまま。ブラウザの画面は日本語）
 - UI-12 VS Code 拡張はサイドバーを主画面にし、エディタのパネルには詳細（チケット・Epic・Iteration・Plan）だけを出す。今のブランチのチケットをステータスバーに出す。コード中とコミットメッセージの入力欄の ID（t12・s3・e2・p7）のうち存在するものに、ホバーで要約を出し、Ctrl/⌘+クリックで詳細を開く。コマンド「チケットへ移動」（既定のキーあり）で、ID かタイトルからチケット・Iteration・Epic・Plan を選んで詳細を開く。データと Run の記録の変化を見張り、CLI やエージェントの書き込みを自動で映す。承認待ちの Plan と review のチケットの件数をサイドバーのタイトルに出し（Activity Bar のバッジは UI-6 の未 push・未取り込み）、増えたら通知して詳細を開ける。通知は `notify.approvals`（5.10）で切る。`dg init` 前のリポジトリでは、サイドバーに始め方（init・起票・Skill の入れ方。コマンドはコピーするだけ）を出し、init を済ませれば開き直さずに普段の画面に変わる。VS Code の Walkthrough（「deguboard を始める」）にも同じ手順を置く
 - UI-13 実行計画：カンバンの上に、選んだ範囲のチケットを含む Plan の進捗、作業中と次（PL-6）のチケット、依存グラフを出す。Plan の番号（帯と Iteration 詳細）から Plan 詳細を開き、承認と閉じた日時、Plan の順のチケットごとの範囲・進め方・tier も出す。表示だけで書き込まない
 - UI-14 設定画面：`config.yaml` の全項目（5.10）を出し、`config.set` で保存する。影響の大きい項目は保存前に確かめる。VS Code の settings.json は使わない（個人の上書きも 5.10 のファイルに置く）
@@ -239,7 +239,7 @@ Web UI は `dg serve` が配信し、VS Code 拡張は同じアプリを Webview
 - AG-2 Claude Code 向けに、段階ごとに `dg guide <topic>` を読む薄い Skill（`dg<トピック>`）を `dg skill install` で配る。Skill は任意で、スクリプトもツールの許可も持たない決まった文面。名前と説明は guide の frontmatter、オプションは `dg skill install --help` が正本
 - AG-3 エージェントは要件の整理が終わったら、必要に応じてチケット化を提案し、承認を得て `ticket import` で起票する。分解・Epic への束ね・依存の整理・Iteration への割り当ても提案して承認を得る
 - AG-4 MCP サーバー（`dg mcp`。stdio）は、Bash のないクライアントの入口として、Core のコマンド定義から生成する薄い層で提供する。CLI と同じ操作ができ（`init` と CLI だけの `guide`・`skill`・`serve`・`open` を除く）、ツールの結果は `--json` と同じ形（CL-1）で、主体は常に agent。対象のリポジトリは `-C` で指せる
-- AG-5 Agent Adapter が製品ごとの差（使用量の取得など）を吸収し、実装は Core の `agents/adapters/` に閉じる。今は `claude-code`・`codex`・`copilot`。起動方法と権限は扱わない（EX-1、[ADR-007](adr/ADR-007-architecture.md)）
+- AG-5 Agent Adapter が製品ごとの差（使用量の取得など）を吸収し、実装は Core の `agents/adapters/` に閉じる。今は `claude-code`・`codex`・`copilot`。dg を呼んだエージェントを環境変数から判定するのも Adapter で、製品が付ける変数を確かめられない Adapter は判定しない（今は `copilot`）。起動方法と権限は扱わない（EX-1、[ADR-007](adr/ADR-007-architecture.md)）
 - AG-6 ソフトウェア開発向けの Action（worktree・PR 作成・マージなど）は Core の `actions` に置き、汎用部分は依存しない。`dg` のコマンドにせず、公開するのは名前の一覧（`ACTION_NAMES`）だけ（[ADR-007](adr/ADR-007-architecture.md)）
 - AG-7 任意のシェルの Action は `actions.shell: true` のときだけ使え、毎回確認を経る
 - AG-8 `ask` は対象（複数可）・頼むこと・指示・形式から、エージェントに貼る依頼文を返す読み取りだけのコマンド。人に限られた操作なら人が打つ `dg` のコマンドを返す。依頼文に入れる対象は ID だけ。候補とおすすめは `dg ask --help` とコード、文の形は [ADR-010](adr/ADR-010-ui-writes-and-agent-requests.md) が正本。`ask-menu` は画面の場所ごとの候補を返す
