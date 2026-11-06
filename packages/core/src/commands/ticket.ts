@@ -762,7 +762,16 @@ async function requireBranchAvailable(
 
 /** 遷移に伴う担当者とブランチの扱い（ST-8）。旧名の claimed_by も消す */
 function transitionSideEffects(to: Status): Record<string, unknown> {
-  if (to === "abandoned" || to === "todo")
+  // todo に戻すと前の作業の PR も外す（次の claim を手直しに見せない。ST-7）。abandoned は PR の記録を残す
+  if (to === "todo")
+    return {
+      assignee: undefined,
+      claimed_by: undefined,
+      branch: undefined,
+      branch_at: undefined,
+      pr: undefined,
+    };
+  if (to === "abandoned")
     return { assignee: undefined, claimed_by: undefined, branch: undefined, branch_at: undefined };
   return {};
 }
@@ -1087,6 +1096,8 @@ export const ticketClaim = defineCommand({
           status: "in_progress",
           assignee: ctx.actor.id,
           claimed_by: undefined,
+          // 新しい claim は新しい作業の周期。todo にあった前の作業の PR（unclaim 前の記録）は残さない（ST-3・ST-7）
+          pr: undefined,
           branch,
           branch_at: branch ? now : undefined,
           updated_at: now,
@@ -1128,7 +1139,7 @@ export const ticketUnclaim = defineCommand({
   positionals: ["ticket"],
   group: "ticket",
   summary:
-    "claim を外して todo に戻す。自分（同じユーザの人と AI）の claim か記録のない claim だけ。他人のものは force。このマシンで実行中の実装・手直しの Run は failure で閉じる（理由を残すなら先に run finish --result failure --error で閉じる）",
+    "claim を外して todo に戻す。branch・branch_at と pr（前の作業の PR の記録）も外す。自分（同じユーザの人と AI）の claim か記録のない claim だけ。他人のものは force。このマシンで実行中の実装・手直しの Run は failure で閉じる（理由を残すなら先に run finish --result failure --error で閉じる）",
   input: z.object({
     ticket: ticketRef,
     force: z.boolean().optional().describe("他人の claim も外す"),
@@ -1166,6 +1177,8 @@ export const ticketUnclaim = defineCommand({
           status: "todo",
           assignee: undefined,
           claimed_by: undefined,
+          // 前の作業の PR も外す。次の claim は手直しではなく新しい作業になる（ST-7）
+          pr: undefined,
           branch: undefined,
           branch_at: undefined,
           updated_at: nowIso(ctx),
