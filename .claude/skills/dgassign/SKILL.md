@@ -4,9 +4,11 @@ description: deguboard のチケットを Iteration（スプリント）と Epic
 argument-hint: "[Iteration|Epic|チケットの ID...]"
 ---
 
-<!-- dg skill sha256:2b5ac0b701018b270e6bd8c9706dd291fd51cb64e45e8e489a965df5ebceb908 -->
+<!-- dg skill sha256:bd8f3b70126dc7880c96350ef93bbffa65bf426ca2b0ffba9dcc645312e105f0 -->
 
 # 割り当て（assign）
+
+チケットを Iteration（スプリント）と Epic に割り当てます。
 
 最初に `dg guide assign` を実行し、出力された手順のとおりに、次の指定の対象を進める。この Skill は手順を持たない。手順の正本は dg に同梱されていて、dg の版に合う。
 

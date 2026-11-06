@@ -238,8 +238,12 @@ describe("core が返す決まった文の訳", () => {
         if (JAPANESE.test(text)) untranslated.add(`${c.action}: ${c.label}`);
       }
       // 札の下の 1 文（meaning）は core が言語ごとに組むので、英語の画面では英語の文になる
-      for (const c of askCandidates(subjects, within, "en"))
+      for (const c of askCandidates(subjects, within, "en")) {
         if (JAPANESE.test(c.meaning)) untranslated.add(`${c.action}: ${c.meaning}`);
+        // Skill の 1 文（skill_summary）も英語の画面では英語（札とボタンのツールチップに出る）
+        if (c.skill_summary && JAPANESE.test(c.skill_summary))
+          untranslated.add(`${c.action}: ${c.skill_summary}`);
+      }
     }
     expect(count).toBeGreaterThan(0);
     expect([...untranslated]).toEqual([]);

@@ -4,9 +4,11 @@ description: deguboard の Iteration かチケットを、割り当て → 点�
 argument-hint: <Iteration|チケットの ID...> [--no-assign] [--auto]
 ---
 
-<!-- dg skill sha256:27df31fe85cbd3190ba275427e53de9bc738ba7337570b34eca1e431385ecc26 -->
+<!-- dg skill sha256:c840779dc2ab6b68b79fb30c3d8d43aa42fc53c6d5049bc1aa4a9d2e8da4a8f0 -->
 
 # 一気通し（all）
+
+Iteration かチケットを、割り当てからリリース（か片付け）まで段階ごとに続けて進めます。
 
 最初に `dg guide all` を実行し、出力された手順のとおりに、次の指定の対象を進める。この Skill は手順を持たない。手順の正本は dg に同梱されていて、dg の版に合う。
 

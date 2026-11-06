@@ -19,6 +19,8 @@ import {
   askMenuKey,
   parseAskMenuKey,
   buildAsk,
+  skillSummary,
+  SKILL_SUMMARY,
   type AskSubject,
   type AskView,
   type PlanState,
@@ -824,6 +826,36 @@ describe("ask", () => {
       workflow_by: [],
     });
     expect((await run({ targets: ["t2"], action: "undo_done" })).kind).toBe("prompt");
+  });
+});
+
+describe("Skill の 1 文（skill_summary・UI-15）", () => {
+  it("Skill を使わない候補は null、Skill の候補は空でない文を持ち、言語に合う", () => {
+    for (const language of ["ja", "en"] as const)
+      for (const [s, within] of SAMPLES)
+        for (const c of askCandidates(s, within, language)) {
+          if (c.skill === null) {
+            expect(c.skill_summary, c.action).toBeNull();
+            continue;
+          }
+          expect(c.skill_summary, `${language} ${c.action}`).not.toBe("");
+          if (language === "en")
+            expect(c.skill_summary, c.action).not.toMatch(/[぀-ヿ一-鿿　-〿＀-￯]/);
+          else expect(c.skill_summary, c.action).toMatch(/[぀-ヿ一-鿿]/);
+        }
+  });
+
+  it("候補の skill_summary は、Skill の正本（skillSummary）から引いた文と同じ", () => {
+    const c = askCandidates([ticket({ status: "review" })], undefined, "en").find(
+      (x) => x.action === "done",
+    )!;
+    expect(c.skill).toBe("/dgdone");
+    expect(c.skill_summary).toBe(skillSummary("dgdone", "en"));
+  });
+
+  it("Skill の名前に文がなければ例外", () => {
+    expect(() => skillSummary("dgnone")).toThrow();
+    expect(Object.keys(SKILL_SUMMARY)).toHaveLength(9);
   });
 });
 

@@ -4,9 +4,11 @@ description: deguboard の承認済みの Plan のチケットを、着手でき
 argument-hint: <Plan の ID|チケットの ID>
 ---
 
-<!-- dg skill sha256:86fd9285d5b3187fe7d5164089055d796e949b05b97f00a19d136a053ba4a484 -->
+<!-- dg skill sha256:bb067ee834b410f3bccbec64b9c8a2b1ccc42e22c5031866a594b8785719f8e7 -->
 
 # 作業（work）
+
+承認済みの Plan かチケットを、着手できるものから実装して PR まで進めます。
 
 最初に `dg guide work` を実行し、出力された手順のとおりに、次の指定の対象を進める。この Skill は手順を持たない。手順の正本は dg に同梱されていて、dg の版に合う。
 

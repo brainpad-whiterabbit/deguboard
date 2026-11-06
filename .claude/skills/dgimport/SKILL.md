@@ -4,9 +4,11 @@ description: 会話で検討した結果（設計の相談・不具合の調査�
 argument-hint: "[対象（案の名前・文書のパス・チケットの ID）]"
 ---
 
-<!-- dg skill sha256:2badd6bd503fddeaf2499eadb4be7674ce498d6e567130ae80bcdaefc6abb655 -->
+<!-- dg skill sha256:d8508f1961091e39e51d04771124d1c997cbb1a9c9af034441a4dfe446ee630a -->
 
 # 起票（import）
+
+会話で検討した内容や計画・設計書を、承認を得てからチケットに分けて起票します。
 
 最初に `dg guide import` を実行し、出力された手順のとおりに、次の指定の対象を進める。この Skill は手順を持たない。手順の正本は dg に同梱されていて、dg の版に合う。
 

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import type { TerminalChoice, WebviewEvent } from "@deguboard/core";
+import { skillSummary, type TerminalChoice, type WebviewEvent } from "@deguboard/core";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { App } from "../app.js";
 import type { WebviewClient } from "../client/webview.js";
@@ -220,6 +220,33 @@ describe("エージェントに頼む入力欄（UI-15）", () => {
       expect(box.getByLabelText("全文").textContent).toMatch(/\n1 行目\n2 行目$/),
     );
     expect(box.getByRole("button", { name: "コピー" })).toBeTruthy();
+  });
+
+  it("Skill の札と候補のボタンのツールチップに、Skill の 1 文が出る（UI-15・表示言語で変わる）", async () => {
+    const client = askClient();
+    const view = mountWebview(client);
+    await screen.findByText("見直す");
+    view.ask(["t5", "s1"]);
+    await waitFor(() => expect(suggestions()[0]!.textContent).toContain("★点検する"));
+    const summary = skillSummary("dgcheck", "ja");
+    expect(suggestions()[0]!.getAttribute("title")).toBe(`/dgcheck: ${summary}`);
+    expect(composer().querySelector(".ask-pill-skill")?.getAttribute("title")).toBe(summary);
+  });
+
+  it("英語の画面では、Skill の札とボタンのツールチップが英語の 1 文になる", async () => {
+    setLanguage("en");
+    const client = askClient();
+    const view = mountWebview(client);
+    await screen.findByText("見直す");
+    view.ask(["t5", "s1"]);
+    const first = await waitFor(() => {
+      const button = document.querySelector<HTMLElement>(".ask-suggestion");
+      expect(button?.textContent).toContain("Check");
+      return button!;
+    });
+    const summary = skillSummary("dgcheck", "en");
+    expect(first.getAttribute("title")).toBe(`/dgcheck: ${summary}`);
+    expect(document.querySelector(".ask-pill-skill")?.getAttribute("title")).toBe(summary);
   });
 
   it("札の下に選んだ候補の 1 文を出し、候補を選び直すと文が変わる（依頼文には入らない・UI-15）", async () => {
