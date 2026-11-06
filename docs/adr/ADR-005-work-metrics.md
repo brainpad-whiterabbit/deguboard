@@ -26,7 +26,7 @@
 
 ### 実装・見直し・手直しを別の Run にする
 
-- 実装の Run は、作業するエージェント自身の `ticket claim` が開き（Workflow の `opens_on: claim` の step。RN-5）、draft の PR を作った時点で閉じる。手順書を通らずにその場で実装すると `run start` が呼ばれず Run が残らなかったので、Run の開始をチケットの操作に付随させた。実装をサブエージェントに渡す親は `--no-run` で claim し、サブエージェントが自分で `run start` する（親が開いた Run では作業した分を数えられない。下の「会話記録を Run に結び付ける」）
+- 実装の Run は、作業するエージェント自身の `ticket claim` が開き（Workflow の `opens_on: claim` の step。RN-5）、PR の記録（`ticket update --pr`）か照合が作業ブランチの PR を見つけたときに閉じる（RN-6。`finished_at` は PR の作成時刻。やめるときは `unclaim` が `failure` で、PR の要らない作業は `ticket move` の review・done が閉じる）。手順書を通らずにその場で実装すると `run start`・`run finish` が呼ばれず、Run が残らないか開いたままになったので、開始と終了をチケットの操作に付随させた。使用量は ID が会話記録に出てから `finished_at` までの応答で数えるので、後から閉じても `finished_at` を PR の作成時刻にすれば数え方は変わらない。閉じた Run への `run finish` は記録を変えない（古い手順のまま呼んでも壊れない）。実装をサブエージェントに渡す親は `--no-run` で claim し、サブエージェントが自分で `run start` する（親が開いた Run では作業した分を数えられない。下の「会話記録を Run に結び付ける」）
 - 見直し役の見直しは `review`、修正ループの 1 回と人のレビューの後の手直しは `fix` の Run にし、それぞれ作業したエージェント自身が `run start` で記録する。同梱の software-development と general の `steps` に `review`・`fix` がある
 - 手直しの Run には、直した指摘を `retry_reasons` に 1 件 1 行で残す。修正ループの手直しも人のレビューの後の手直しも `fix` なので、`fix` の Run の数は手直しの回数の目安にとどまる。修正ループの上限は手順の側で数える
 - 手順は `dg guide work`・`dg guide review` が持つ
@@ -49,7 +49,7 @@
 
 ### 会話記録を Run に結び付ける
 
-- `run finish` が Run の `agent` の値で Adapter を選び、会話記録から使用量を取る。閉じた後に記録が見つかったときや Adapter を直したときは、`run refresh` が同じ探し方で取り直し、取れた値だけを書き換える（MT-5）。ツールの回数は取り直さない（閉じた Run で書き換える値を広げない。RN-4）。記録の置き場所・数える行・写し方・探す範囲の正本は Adapter のコード（`core/agents/adapters/`）
+- `run finish` とチケットの操作に付随する閉じ方（RN-6）が Run の `agent` の値で Adapter を選び、会話記録から使用量を取る。閉じた後に記録が見つかったときや Adapter を直したときは、`run refresh` が同じ探し方で取り直し、取れた値だけを書き換える（MT-5）。ツールの回数は取り直さない（閉じた Run で書き換える値を広げない。RN-4）。記録の置き場所・数える行・写し方・探す範囲の正本は Adapter のコード（`core/agents/adapters/`）
 - 結び付けるのは、記録の置き場所のすべてで Run の ID を最も早く含むファイル（`dg run start` か `ticket claim` の出力を受け取ったエージェントの記録）。ID を見ただけのファイルは選ばず、呼ぶ session によらない。その中の ID が出た後から `finished_at` までの応答を数える
 - 同じファイルで期間が重なる Run があっても、1 つの応答は 1 つの Run にだけ数える。ID と Run の期間で決まり、閉じる順によらない（警告では値が直らないため）
 - 作業ディレクトリと時刻で絞らないのは、サブエージェントが親と同じ session・作業ディレクトリで並行して動き、区別できないため。Run の ID は開始の時刻と乱数からなるので、同じ時間帯のほかの記録に偶然現れることはまずない。親が始めた Run の作業をサブエージェントがした分は数えない

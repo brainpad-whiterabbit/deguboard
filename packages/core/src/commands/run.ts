@@ -1,4 +1,4 @@
-// Run の操作（requirements.md 5.9 RN-4、6.6 MT-1・MT-2・MT-5、6.7 EX-2、ADR-005）。記録の置き場所とロックは run/record.ts、
+// Run の操作（requirements.md 5.9 RN-4〜RN-6、6.6 MT-1・MT-2・MT-5、6.7 EX-2、ADR-005）。記録の置き場所とロックは run/record.ts、
 // 使用量の取り込みは agents（Run の agent の値で Adapter を選ぶ。特定の AI 製品をここに書かない。AG-5）
 
 import { z } from "zod";
@@ -6,10 +6,18 @@ import { agentNames, collectRunUsage, detectAgent, type RunSpan } from "../agent
 import { slugSchema, toIsoDateTime } from "../model/common.js";
 import { filterRuns, placeRun, runDurationSeconds, type MetricFilter } from "../model/metrics.js";
 import { OperationError, UsageError } from "../errors.js";
-import { isRunId, RUN_RESULTS, type Run, type RunId, type RunUsage } from "../model/run.js";
+import {
+  isRunId,
+  RUN_RESULTS,
+  type Run,
+  type RunId,
+  type RunResult,
+  type RunUsage,
+} from "../model/run.js";
 import { withWrite } from "../git/write.js";
-import { finishRun, readRunningRuns, startRun } from "../run/record.js";
-import { findStep } from "../workflow/resolve.js";
+import { closeRun, finishRun, readRunningRuns, startRun } from "../run/record.js";
+import type { Doc } from "../storage/documents.js";
+import { findStep, stepOpenedOn } from "../workflow/resolve.js";
 import type { Ticket } from "../model/ticket.js";
 import { defineCommand, ok, type CommandContext } from "./define.js";
 import { idShapeOf, iterationRef, ticketRef } from "./helpers.js";
@@ -97,6 +105,64 @@ export async function openRun(
   return { run, warnings };
 }
 
+/**
+ * チケットの実装の Run（claim が開く step。RN-5）のうち、このマシンで実行中のもの。同じチケットと step の Run は 1 つしか実行中にならない。
+ * Workflow が読めなければ implement を探す（claim が開く step も同じ）
+ */
+export async function findImplementRun(
+  ctx: CommandContext,
+  ticket: Ticket,
+): Promise<Doc<Run> | undefined> {
+  const wf = ctx.store.workflowFor(ticket);
+  const step = wf ? stepOpenedOn(wf.resolved, "claim") : "implement";
+  const { runs } = await readRunningRuns(ctx.repo);
+  return runs.find((r) => r.data.ticket === ticket.id && r.data.step === step);
+}
+
+/** チケットの操作に付随して閉じた実装の Run（RN-6） */
+export interface ClosedImplementRun {
+  run: Run;
+  /** 閉じたことの知らせと、使用量を取り込めなかった理由（finish と同じ） */
+  warnings: string[];
+}
+
+/**
+ * 実装の Run をチケットの操作に付随して閉じる（RN-6）。呼び出し側の書き込みの中で呼び、コミットの後に dropRunning で実行中の記録を消す。
+ * 使用量は finish と同じく Adapter が会話記録から取り込む。finishedAt（PR の作成時刻など）を渡せばその時刻までの応答を数える
+ */
+export async function closeImplementRun(
+  ctx: CommandContext,
+  running: Doc<Run>,
+  input: { result: RunResult; error?: string | undefined; finishedAt?: string | undefined },
+): Promise<ClosedImplementRun> {
+  const now = ctx.now();
+  const finishedAt = input.finishedAt ?? toIsoDateTime(now);
+  const local = (await readRunningRuns(ctx.repo)).runs;
+  const collected = await collectRunUsage(ctx.config, {
+    run: running.data,
+    finishedAt,
+    env: ctx.env ?? process.env,
+    topLevel: ctx.repo.topLevel,
+    others: runSpans(ctx.store.runs.values(), local),
+  });
+  const run = await closeRun(ctx.store, ctx.repo, running.data.id, {
+    result: input.result,
+    error: input.error,
+    model: collected.model ?? undefined,
+    usage: collected.usage,
+    tools: collected.tools,
+    finishedAt,
+    now,
+  });
+  return {
+    run,
+    warnings: [
+      `${run.ticket} の実装の Run ${run.id} を ${run.result} で閉じた（finished_at ${run.finished_at}）`,
+      ...collected.warnings.map((w) => `Run ${run.id}: ${w}`),
+    ],
+  };
+}
+
 /** 空白・改行を含まない 1 語。step の語彙は openRun がチケットの Workflow の steps（WF-5）で確かめる。ticket claim の --agent も同じ形 */
 export const token = z.string().regex(/^\S+$/, "空白・改行を含まない 1 語");
 
@@ -146,7 +212,8 @@ export const runFinish = defineCommand({
   positionals: ["run"],
   group: "run",
   summary:
-    "実行中の Run を閉じ、完了時の集計を runs/ に書く（commit.mode に従ってコミット）。止まった Run は --result interrupted で閉じる。使用量とツールの回数（tools）は自己申告を受けず、agent の Adapter が会話記録から取り込む。使用量が取れなければ null のまま警告する。ツールを数えない Adapter では tools は null",
+    "実行中の Run を閉じ、完了時の集計を runs/ に書く（commit.mode に従ってコミット）。止まった Run は --result interrupted で閉じる。使用量とツールの回数（tools）は自己申告を受けず、agent の Adapter が会話記録から取り込む。使用量が取れなければ null のまま警告する。ツールを数えない Adapter では tools は null。" +
+    "既に閉じた Run（チケットの操作が閉じた実装の Run など）なら記録を変えずに警告して返す",
   input: z.object({
     run: z.string().min(1).describe("Run の ID（r20261031-041500-3fa2）"),
     result: z.enum(RUN_RESULTS).describe("success・failure・interrupted"),
@@ -188,9 +255,16 @@ export const runFinish = defineCommand({
       );
     }
     const now = ctx.now();
-    // 実行中の記録がなければ取り込まず、finishRun が見つからない・終わっていると拒否する
     const local = (await readRunningRuns(ctx.repo)).runs;
     const running = local.find((r) => r.id === input.run);
+    // 閉じた Run（ticket update --pr・sync・unclaim・move が閉じた実装の Run など。RN-6）は書き換えず（RN-4）、記録をそのまま返す
+    const closed = running ? undefined : ctx.store.runs.get(input.run as RunId);
+    if (closed) {
+      return ok(closed.data, undefined, [
+        `Run ${closed.id} は既に ${closed.data.result} で閉じている（finished_at ${closed.data.finished_at}）。記録は変えない`,
+      ]);
+    }
+    // 実行中の記録がなければ取り込まず、finishRun が見つからない・終わっていると拒否する
     const collected = running
       ? await collectRunUsage(ctx.config, {
           run: running.data,

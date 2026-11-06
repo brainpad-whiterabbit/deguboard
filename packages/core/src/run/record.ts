@@ -1,6 +1,7 @@
-// Run の記録（requirements.md 5.9・RN-3・SY-5・EX-2、ADR-005）。
+// Run の記録（requirements.md 5.9・RN-3・RN-6・SY-5・EX-2、ADR-005）。
 //   - 実行中の Run は deguboard-local/runs/<id>.json に、runs/ と同じスキーマ（finished_at・result は null）で置く。Git には入れない
-//   - finish で runs/<id>.json（完了時の集計）を書き、実行中の記録を消す
+//   - finish で runs/<id>.json（完了時の集計）を書き、実行中の記録を消す。チケットの操作に付随して閉じるとき（RN-6）は
+//     closeRun をその操作の書き込みの中で呼び、同じコミットに入れる
 //   - 同じチケットと step の二重の start は、deguboard-local/locks/ のロックの中で実行中の記録を見て拒否する
 //   - チケットの frontmatter には書き足さない。チケットの Run は Run の ticket から引く（書き足すと Run のたびにチケットが衝突する）
 
@@ -27,6 +28,7 @@ import { createDoc, readDoc, type Doc } from "../storage/documents.js";
 import { pathExists } from "../storage/exists.js";
 import type { Issue } from "../storage/issue.js";
 import { DIRS, runPath } from "../storage/paths.js";
+import type { Store } from "../storage/store.js";
 
 /** start と finish の確かめと書き込みを直列にするロックの名前（deguboard-local/locks/runs） */
 const RUN_LOCK = "runs";
@@ -179,22 +181,22 @@ export interface FinishRunInput {
   usage?: { [K in keyof RunUsage]?: RunUsage[K] | undefined } | undefined;
   /** 会話記録から数えたツールの回数。渡さなければ実行中の記録の値（start は null を書く） */
   tools?: RunTools | null | undefined;
+  /**
+   * 終了時刻（ISO）。渡さなければ now。チケットの操作に付随して閉じるとき、PR の作成時刻など実際に終わった時刻にする（RN-6）。
+   * 開始より前なら開始の時刻に揃える
+   */
+  finishedAt?: string | undefined;
   now: Date;
 }
 
-/** 実行中の Run を閉じ、完了時の集計を runs/ に書いて commit.mode に従ってコミットする */
-export async function finishRun(
-  ctx: WriteContext,
-  id: RunId,
-  input: FinishRunInput,
-): Promise<{ run: Run; write: WriteOutcome }> {
-  const local = await withRunLock(ctx.repo, async () => {
-    // 前の finish が集計をコミットした後、実行中の記録を消す前に止まっていたら、記録を消してから拒否する
-    if (await hasSummary(ctx.repo, id)) {
-      await removeRunning(ctx.repo, id);
+/** 実行中の記録を読む。前の finish が集計を書いた後、実行中の記録を消す前に止まっていたら、記録を消してから拒否する */
+async function readRunning(repo: RunDirs, id: RunId): Promise<Doc<Run>> {
+  return withRunLock(repo, async () => {
+    if (await hasSummary(repo, id)) {
+      await removeRunning(repo, id);
       throw new OperationError("REJECTED", `Run ${id} は終わっている`);
     }
-    const result = await readDoc(ctx.repo.localDir, runPath(id), "json", runSchema, id);
+    const result = await readDoc(repo.localDir, runPath(id), "json", runSchema, id);
     if (result.ok) return result.doc;
     if (result.issue.code !== "read_error") {
       throw new OperationError(
@@ -205,8 +207,21 @@ export async function finishRun(
     }
     throw new OperationError("NOT_FOUND", `実行中の Run ${id} が見つからない`);
   });
-  const finishedAt = toIsoDateTime(input.now);
-  // 実行中の記録に重ねる。中の未知のキーは残す（DT-2）。実行中の記録はコミットできるまで書き換えない
+}
+
+/**
+ * 実行中の Run を閉じ、完了時の集計を runs/ に書く。呼び出し側の書き込み（withWrite の変更か sync の照合）の中で呼び、
+ * コミットの後に dropRunning で実行中の記録を消す。finishRun と、チケットの操作に付随して閉じる closeImplementRun が使う
+ */
+export async function closeRun(
+  store: Pick<Store, "runs" | "create">,
+  repo: RunDirs,
+  id: RunId,
+  input: FinishRunInput,
+): Promise<Run> {
+  const local = await readRunning(repo, id);
+  const finishedAt = input.finishedAt ?? toIsoDateTime(input.now);
+  // 実行中の記録に重ねる。中の未知のキーは残す（DT-2）。実行中の記録は集計を書くまで書き換えない
   const base = local.yaml.toJS() as Record<string, unknown>;
   const closed: Record<string, unknown> = {
     ...base,
@@ -223,22 +238,28 @@ export async function finishRun(
     },
     tools: input.tools === undefined ? local.data.tools : input.tools,
   };
-  const written = await withWrite(
-    ctx,
-    async () => {
-      // 別のプロセスが先に閉じていないか、ファイルで確かめる（索引は古いことがある）
-      if ((await hasSummary(ctx.repo, id)) || ctx.store.runs.has(id)) {
-        await removeRunning(ctx.repo, id);
-        throw new OperationError("REJECTED", `Run ${id} は終わっている`);
-      }
-      const doc = await ctx.store.create("run", closed);
-      return doc.data;
-    },
-    {
-      message: (run) => `Run ${run.id} を記録: ${run.ticket} ${run.step} ${run.result ?? ""}`,
-    },
-  );
-  // ここで止まっても、次の start・finish・list が runs/ の集計を見て記録を消す
-  await withRunLock(ctx.repo, () => removeRunning(ctx.repo, id));
+  // 別のプロセスが先に閉じていないか、ファイルで確かめる（索引は古いことがある）
+  if ((await hasSummary(repo, id)) || store.runs.has(id)) {
+    await removeRunning(repo, id);
+    throw new OperationError("REJECTED", `Run ${id} は終わっている`);
+  }
+  return (await store.create("run", closed)).data;
+}
+
+/** 集計を書いた Run の実行中の記録を消す。ここで止まっても、次の start・finish・list が runs/ の集計を見て記録を消す */
+export async function dropRunning(repo: RunDirs, id: RunId): Promise<void> {
+  await withRunLock(repo, () => removeRunning(repo, id));
+}
+
+/** 実行中の Run を閉じ、完了時の集計を runs/ に書いて commit.mode に従ってコミットする */
+export async function finishRun(
+  ctx: WriteContext,
+  id: RunId,
+  input: FinishRunInput,
+): Promise<{ run: Run; write: WriteOutcome }> {
+  const written = await withWrite(ctx, () => closeRun(ctx.store, ctx.repo, id, input), {
+    message: (run) => `Run ${run.id} を記録: ${run.ticket} ${run.step} ${run.result ?? ""}`,
+  });
+  await dropRunning(ctx.repo, id);
   return { run: written.value, write: written.write };
 }

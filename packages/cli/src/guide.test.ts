@@ -337,12 +337,17 @@ describe("dg guide", () => {
     // 条件の中身は review にだけ書き、work と all は参照する
     expect(work).toContain("`dg guide review`");
     expect(work).toContain("上限付きの修正ループ");
-    // 実装の Run は draft の PR で閉じ、見直しと手直しは別の step の Run にする
+    // 実装の Run は PR 番号の記録（ticket update --pr）が閉じ、見直しと手直しは別の step の Run にする（RN-6）
     const flow = section(work, "## 流れ");
     expect(flow).toContain("run start <id> <step>");
     expect(lineWith(flow, "run start <id> <step>")).toContain("`implement`");
     expect(lineWith(flow, "run start <id> <step>")).toContain("software-development");
-    expect(lineWith(flow, "gh pr create --draft")).toContain("実装の Run を閉じる");
+    expect(lineWith(flow, "gh pr create --draft")).toContain("実装の Run を `success` で閉じる");
+    expect(lineWith(flow, "gh pr create --draft")).toContain("PR の作成時刻");
+    expect(section(work, "## PR の要らない作業")).toContain(
+      "`ticket move`（done か review）が `success` で閉じる",
+    );
+    expect(lineWith(run, "**結果**")).toContain("`ticket unclaim` が `failure` で閉じる");
     expect(run).toContain("--retry-reason");
     for (const step of ["`review`", "`fix`"]) {
       expect(review).toContain(step);
@@ -385,7 +390,7 @@ describe("dg guide", () => {
     for (const word of ["手直し", "見直し", "返らない"]) expect(allFailed).toContain(word);
     // done の「終わらなかったとき」は実装の Run と手直し・見直しの Run を分け、review へ案内する
     const unfinished = section(await readGuide("done"), "## 終わらなかったとき");
-    expect(unfinished).toContain("実装の Run は閉じてから");
+    expect(unfinished).toContain("実装の Run は unclaim が `failure` で閉じる");
     for (const word of ["手直し・見直しの Run", "unclaim せず", "`dg guide review`", "終わり方"])
       expect(unfinished).toContain(word);
     expect(work).not.toContain("開けたまま");

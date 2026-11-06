@@ -170,6 +170,7 @@ steps: # 任意。Run の step の語彙（WF-5）
 - RN-3 Git に入れるのは完了時の集計だけ。実行中の記録は `deguboard-local/runs/` に置く。チケットには書き足さない
 - RN-4 閉じた Run で書き換えるのは、`run refresh`（MT-5）が取り直すモデル名と使用量だけ
 - RN-5 agent の `ticket claim` は、Workflow の `steps` のうち `opens_on: claim` の step（なければ `implement`）の Run を開き、ID を `run` に出す。エージェント名は `--agent`、省けば環境変数の判定（RN-1）。決まらないか step が語彙になければ開かずに警告し、claim は成功にする。`--no-run`（委譲するとき）と人の claim では開かない
+- RN-6 実装の Run（RN-5 の step）がこのマシンで実行中なら、チケットの操作が閉じる。`ticket update --pr` と照合が作業ブランチの PR を見つけたときは `success` にし、`finished_at` を PR の作成時刻（取れなければ今）にする。`unclaim` は `failure`、`branch` のないチケットの `ticket move` の review・done は `success` にする。閉じた Run への `run finish` は記録を変えずに警告する
 
 ### 5.10 設定（`config.yaml`）
 
@@ -199,8 +200,8 @@ steps: # 任意。Run の step の語彙（WF-5）
 - ST-3 `claim` は todo のチケットの `assignee` を claim した主体にし、`branch` を記録して in_progress に進め、agent なら実装の Run を開く（RN-5）。ブランチの要らない作業は `branch` を記録しない。todo 以外と、使えないブランチ名（`BRANCH_IN_USE`。条件は `ticket claim --help`）は拒否する。別のユーザの `assignee` は上書きして警告する
 - ST-4 照合は `dg sync` と、画面の同期（UI-6）で行う。`branch` のあるチケットについて Git から事実を集め、`reconcile` 規則を上から評価し、今より前進の順が先のときだけ書き換える。`branch` のないチケットと `done`・`abandoned` のチケットには触れない
 - ST-5 後退を指す事実（消えたブランチ・マージされずに閉じた PR）は書き換えず警告する。取れなかった事実は不明とし、前進の判定では偽と読む。照合の結果（`reconciled`）には根拠の規則の条件（`when`）を含める。細部は `packages/core/src/git/facts.ts`・`workflow/reconcile.ts`、理由は [ADR-004](adr/ADR-004-agents-and-state.md)
-- ST-6 PR の事実は `gh` が使えるときだけ取り、`gh` がなくても照合は Git の事実だけで成り立つ。`pr` のないチケットの PR をブランチ名で見つけたら番号を `pr` に記録し、記録済みの `pr` は書き換えない。ブランチ名で見つけた PR が `branch_at` より前にマージされていたら前の作業のものとみなして使わず、警告する
-- ST-7 `unclaim` は in_progress のチケットの、自分（同じユーザの人と AI）の claim か記録のない claim だけを外して todo に戻し、`assignee`・`branch`・`branch_at` を消す。ほかの claim は強制の指定で外す。生存監視はしない
+- ST-6 PR の事実は `gh` が使えるときだけ取り、`gh` がなくても照合は Git の事実だけで成り立つ。`pr` のないチケットの PR をブランチ名で見つけたら番号を `pr` に記録し、記録済みの `pr` は書き換えない。ブランチ名で見つけた PR が `branch_at` より前にマージされていたら前の作業のものとみなして使わず、警告する。見つけた PR で実装の Run を閉じる（RN-6）
+- ST-7 `unclaim` は in_progress のチケットの、自分（同じユーザの人と AI）の claim か記録のない claim だけを外して todo に戻し、`assignee`・`branch`・`branch_at` を消し、実行中の実装の Run を `failure` で閉じる（RN-6）。ほかの claim は強制の指定で外す。生存監視はしない
 - ST-8 `abandoned` にすると claim を外し、Iteration の完了件数と Epic の進捗には数えない。todo に戻すときも claim を外す。これらを人だけに限るなら Workflow の `by: [human]` で書く
 
 ### 6.3 Git 同期と排他

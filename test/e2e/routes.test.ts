@@ -234,11 +234,11 @@ const STEPS: Step[] = [
       "型の検査が落ちた",
     ],
   },
+  // 閉じた Run への finish は記録を変えずに警告して返す（RN-6）
   {
     name: "run.finish",
     input: (v) => ({ run: v.run, result: "success" }),
     argv: (v) => ["run", "finish", v.run, "--result", "success"],
-    rejected: "REJECTED",
   },
   { name: "commit", input: {}, argv: ["commit"] },
   { name: "run.list", input: { ticket: "t2" }, argv: ["run", "list", "--ticket", "t2"] },

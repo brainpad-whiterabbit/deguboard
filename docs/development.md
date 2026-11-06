@@ -91,7 +91,7 @@ mise run dg -- guide done      # マージ後の後始末
 | `storage/`  | frontmatter と YAML の読み書き（コメントとキー順を保つ）、原子的書き込み、`Store`（起動時に走査してメモリ上に索引を作る）、参照の整合                                                           |
 | `workflow/` | 遷移の制約の合成と検査、条件の評価、`reconcile` の評価、定義の検証、同梱テンプレート                                                                                                            |
 | `git/`      | deguboard worktree の用意、取り込みと push、書き込みの 1 単位 `withWrite`、仮番号の振り直し、事実の収集、frontmatter のマージドライバ（`merge.ts`。SY-4）、経過の読み取り（`history.ts`。CL-7） |
-| `run/`      | Run の start・finish。実行中の記録は `deguboard-local/runs/`、二重の start は `locks/runs` のロックで拒む                                                                                       |
+| `run/`      | Run の start・finish と、チケットの操作の書き込みの中で閉じる closeRun。実行中の記録は `deguboard-local/runs/`、二重の start は `locks/runs` のロックで拒む                                     |
 | `agents/`   | Agent Adapter（`adapters/` に製品ごと）。会話記録からの使用量の取り込みと、Skill の置き場所（`skillDirs`）。汎用部分は `index.ts` だけを import する                                            |
 | `actions/`  | 登録済みの Action（ライブラリ。コマンドにはしない）。core の公開は `ACTION_NAMES` だけ                                                                                                          |
 | `commands/` | 3 つの入口の正本。`defineCommand` で「名前・Zod の入力・実装」を組にし、`openContext` と `runCommand` で呼ぶ                                                                                    |

@@ -1,4 +1,5 @@
-import { mkdir, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
@@ -36,7 +37,9 @@ import {
   type ReadinessTicket,
 } from "./plan.js";
 import { projectCreate } from "./project.js";
+import { runFinish } from "./run.js";
 import {
+  commit,
   configSet,
   configShow,
   configUnset,
@@ -665,6 +668,205 @@ describe("チケットの流れ", () => {
       ["t1", "build"],
       ["t2", "implement"],
     ]);
+  });
+
+  /**
+   * 実装の Run をチケットの操作で閉じるテストの agent の文脈。環境変数から claude-code と判定させる。
+   * read_transcripts の既定は false で会話記録を読まない（使用量は null のまま警告になる）が、HOME も一時ディレクトリにして本物の ~/.claude に触れない
+   */
+  async function agentWithRuns(cwd: string, now: () => Date): Promise<CommandContext> {
+    const agent = await openContext({ cwd, actor: { kind: "agent", user: "eiki" }, now });
+    const home = await mkdtemp(path.join(os.tmpdir(), "dg-home-"));
+    cleanups.push(() => rm(home, { recursive: true, force: true }));
+    agent.env = { CLAUDECODE: "1", HOME: home };
+    return agent;
+  }
+
+  /** 偽の gh を PATH の先頭に置く。pr view の番号かブランチ名ごとに返す JSON を渡す。戻り値で PATH を戻す */
+  async function fakeGh(root: string, cases: Record<string, string>): Promise<() => void> {
+    const bin = path.join(root, "fake-bin");
+    await mkdir(bin, { recursive: true });
+    await writeFile(
+      path.join(bin, "gh"),
+      [
+        "#!/bin/sh",
+        'case "$1" in --version) echo "gh version 0 (fake)"; exit 0;; esac',
+        'case "$3" in',
+        ...Object.entries(cases).map(([key, json]) => `  ${key}) echo '${json}';;`),
+        '  *) echo "no pull requests found for branch $3" >&2; exit 1;;',
+        "esac",
+        "",
+      ].join("\n"),
+      { mode: 0o755 },
+    );
+    const savedPath = process.env["PATH"];
+    process.env["PATH"] = bin + path.delimiter + (savedPath ?? "");
+    resetGhCache();
+    return () => {
+      process.env["PATH"] = savedPath;
+      resetGhCache();
+    };
+  }
+
+  it("ticket update --pr と照合の PR の発見は、実行中の実装の Run を success で閉じて finished_at を PR の作成時刻にし、閉じた Run への run finish は記録を変えない（RN-6）", async () => {
+    const f = await fixture();
+    let clock = new Date("2026-11-06T00:00:00Z");
+    const human = await initialized(
+      f.cloneA,
+      { now: () => clock },
+      { template: "software-development" },
+    );
+    for (const title of ["With --pr", "Found by sync", "Recorded before"])
+      await runCommand(ticketCreate, human, { title });
+    const agent = await agentWithRuns(f.cloneA, () => clock);
+    const runs = {
+      t1: (await runCommand(ticketClaim, agent, { ticket: "t1", branch: "feat/t1" })).data.run!,
+      t2: (await runCommand(ticketClaim, agent, { ticket: "t2", branch: "feat/t2" })).data.run!,
+      t3: (await runCommand(ticketClaim, agent, { ticket: "t3", branch: "feat/t3" })).data.run!,
+    };
+    for (const b of ["feat/t1", "feat/t2", "feat/t3"]) await git(f.cloneA, ["branch", b]);
+    // t3 は PR 番号を記録済み（この機能より前に記録した形）で、Run は開いたまま
+    await agent.store.update("ticket", "t3", { pr: 43 });
+    const restore = await fakeGh(f.root, {
+      "feat/t1|41":
+        '{"number":41,"state":"OPEN","isDraft":true,"mergedAt":null,"createdAt":"2026-11-06T01:00:00Z"}',
+      "feat/t2|42":
+        '{"number":42,"state":"OPEN","isDraft":false,"mergedAt":null,"createdAt":"2026-11-06T02:00:00Z"}',
+      "feat/t3|43":
+        '{"number":43,"state":"OPEN","isDraft":true,"mergedAt":null,"createdAt":"2026-11-06T02:30:00Z"}',
+    });
+    try {
+      clock = new Date("2026-11-06T03:00:00Z");
+      // --pr：PR の作成時刻で success に閉じ、チケットの更新と同じ書き込みに入る
+      const updated = await runCommand(ticketUpdate, agent, { ticket: "t1", pr: 41 });
+      expect(updated.data.pr).toBe(41);
+      expect(updated.warnings[0]).toMatch(/^t1 の実装の Run r\S+ を success で閉じた/);
+      const closed = agent.store.runs.get(runs.t1)!.data;
+      expect(closed).toMatchObject({
+        ticket: "t1",
+        step: "implement",
+        result: "success",
+        finished_at: "2026-11-06T01:00:00Z",
+        error: null,
+      });
+      expect((await peekRunningRuns(agent.repo)).map((r) => r.ticket).sort()).toEqual(["t2", "t3"]);
+      await runCommand(commit, agent, {});
+      expect(
+        (await git(agent.repo.dataDir, ["show", "--name-only", "--format=", "HEAD"])).stdout,
+      ).toContain(`runs/${runs.t1}.json`);
+
+      // 閉じた Run への run finish は記録を変えず、警告して返す
+      const head = (await git(agent.repo.dataDir, ["rev-parse", "HEAD"])).stdout.trim();
+      const again = await runCommand(runFinish, agent, { run: runs.t1, result: "failure" });
+      expect(again.data).toMatchObject({ result: "success", finished_at: "2026-11-06T01:00:00Z" });
+      expect(again.warnings).toEqual([
+        `Run ${runs.t1} は既に success で閉じている（finished_at 2026-11-06T01:00:00Z）。記録は変えない`,
+      ]);
+      expect((await git(agent.repo.dataDir, ["rev-parse", "HEAD"])).stdout.trim()).toBe(head);
+      expect(agent.store.runs.get(runs.t1)!.data).toEqual(closed);
+
+      // 照合：ブランチ名で見つけた PR（t2）と記録済みの番号で引いた PR（t3）の両方で閉じる
+      const synced = await runCommand(sync, agent, {});
+      expect(synced.data.reconciled).toEqual([
+        { id: "t2", from: "in_progress", to: "review", when: ["pr_open", "!pr_draft"] },
+      ]);
+      expect(synced.data.pr_recorded).toEqual([{ id: "t2", pr: 42 }]);
+      expect(synced.data.runs_closed).toEqual([
+        { id: "t2", run: runs.t2 },
+        { id: "t3", run: runs.t3 },
+      ]);
+      expect(agent.store.runs.get(runs.t2)!.data).toMatchObject({
+        result: "success",
+        finished_at: "2026-11-06T02:00:00Z",
+      });
+      expect(agent.store.runs.get(runs.t3)!.data).toMatchObject({
+        result: "success",
+        finished_at: "2026-11-06T02:30:00Z",
+      });
+      expect(await peekRunningRuns(agent.repo)).toEqual([]);
+      expect((await git(agent.repo.dataDir, ["log", "-1", "--format=%s"])).stdout.trim()).toBe(
+        `照合で t2: in_progress → review（pr_open, !pr_draft）。PR 番号を記録: t2: #42。実装の Run を記録: t2 ${runs.t2}, t3 ${runs.t3}`,
+      );
+      // 2 回目は閉じるものがない
+      expect((await runCommand(sync, agent, {})).data.runs_closed).toEqual([]);
+    } finally {
+      restore();
+    }
+  });
+
+  it("ticket update --pr は PR の作成時刻を取れなければ今の時刻で閉じて警告し、開いた Run がなければ閉じない（RN-6）", async () => {
+    const f = await fixture();
+    let clock = new Date("2026-11-06T00:00:00Z");
+    const human = await initialized(f.cloneA, { now: () => clock });
+    await runCommand(ticketCreate, human, { title: "No gh" });
+    await runCommand(ticketCreate, human, { title: "No run" });
+    const agent = await agentWithRuns(f.cloneA, () => clock);
+    const run = (await runCommand(ticketClaim, agent, { ticket: "t1", branch: "feat/t1" })).data
+      .run!;
+    await runCommand(ticketClaim, human, { ticket: "t2", branch: "feat/t2" });
+    // gh が PR を見つけられない
+    const restore = await fakeGh(f.root, {});
+    try {
+      clock = new Date("2026-11-06T04:00:00Z");
+      const updated = await runCommand(ticketUpdate, agent, { ticket: "t1", pr: 7 });
+      expect(updated.warnings[0]).toBe(
+        "PR #7 が見つからないので、実装の Run の finished_at は今の時刻にする",
+      );
+      expect(agent.store.runs.get(run)!.data).toMatchObject({
+        result: "success",
+        finished_at: "2026-11-06T04:00:00Z",
+      });
+      // 開いた Run のないチケットでは何も閉じず、警告もない
+      const plain = await runCommand(ticketUpdate, human, { ticket: "t2", pr: 8 });
+      expect(plain.warnings).toEqual([]);
+      expect(plain.data.pr).toBe(8);
+    } finally {
+      restore();
+    }
+  });
+
+  it("unclaim は実行中の実装の Run を failure で閉じ、branch のないチケットの move の review・done は success で閉じる。branch のあるチケットの move では閉じない（RN-6）", async () => {
+    const f = await fixture();
+    let clock = new Date("2026-11-06T00:00:00Z");
+    const human = await initialized(f.cloneA, { now: () => clock });
+    for (const title of ["Unclaim", "Review", "Done", "With branch"])
+      await runCommand(ticketCreate, human, { title });
+    const agent = await agentWithRuns(f.cloneA, () => clock);
+    const runs = {
+      t1: (await runCommand(ticketClaim, agent, { ticket: "t1", branch: "feat/t1" })).data.run!,
+      t2: (await runCommand(ticketClaim, agent, { ticket: "t2", without_branch: true })).data.run!,
+      t3: (await runCommand(ticketClaim, agent, { ticket: "t3", without_branch: true })).data.run!,
+      t4: (await runCommand(ticketClaim, agent, { ticket: "t4", branch: "feat/t4" })).data.run!,
+    };
+    clock = new Date("2026-11-06T05:00:00Z");
+
+    const unclaimed = await runCommand(ticketUnclaim, agent, { ticket: "t1" });
+    expect(unclaimed.data.status).toBe("todo");
+    expect(unclaimed.warnings[0]).toMatch(/^t1 の実装の Run r\S+ を failure で閉じた/);
+    expect(agent.store.runs.get(runs.t1)!.data).toMatchObject({
+      result: "failure",
+      error: "ticket unclaim で todo に戻した",
+      finished_at: "2026-11-06T05:00:00Z",
+    });
+
+    const reviewed = await runCommand(ticketMove, agent, { ticket: "t2", status: "review" });
+    expect(reviewed.warnings[0]).toMatch(/^t2 の実装の Run r\S+ を success で閉じた/);
+    expect(agent.store.runs.get(runs.t2)!.data).toMatchObject({
+      result: "success",
+      finished_at: "2026-11-06T05:00:00Z",
+    });
+    const done = await runCommand(ticketMove, agent, { ticket: "t3", status: "done" });
+    expect(done.warnings[0]).toMatch(/^t3 の実装の Run r\S+ を success で閉じた/);
+    expect(agent.store.runs.get(runs.t3)!.data).toMatchObject({ result: "success" });
+
+    // branch のあるチケットは PR の記録・発見が閉じるので、move では開いたまま。閉じた Run は実行中の記録から消えている
+    const moved = await runCommand(ticketMove, agent, { ticket: "t4", status: "review" });
+    expect(moved.warnings).toEqual([]);
+    expect(agent.store.runs.has(runs.t4)).toBe(false);
+    expect((await peekRunningRuns(agent.repo)).map((r) => r.id)).toEqual([runs.t4]);
+    // 閉じる Run のない unclaim は警告を出さない
+    await runCommand(ticketClaim, human, { ticket: "t1", branch: "feat/t1-again" });
+    expect((await runCommand(ticketUnclaim, human, { ticket: "t1" })).warnings).toEqual([]);
   });
 
   it("既定ではどの遷移も通り、制約を書いた Workflow では by: []・by: [human]・requires: [deps_done] で拒否される", async () => {
