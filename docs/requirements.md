@@ -232,7 +232,7 @@ Web UI は `dg serve` が配信し、VS Code 拡張は同じアプリを Webview
 - UI-12 VS Code 拡張はサイドバーを主画面にし、エディタのパネルには詳細（チケット・Epic・Iteration・Plan）だけを出す。ステータスバーに今のブランチのチケットを出し、ID から要約と詳細を開け、コマンドで ID か題からも探せる。CLI やエージェントの書き込みを自動で映し、承認待ちの Plan と review のチケットを知らせ（通知は `notify.approvals` で切る）、`dg init` 前は始め方を出す。細部は `packages/vscode/package.json`・`src/extension.ts`
 - UI-13 実行計画：カンバンの上に、選んだ範囲のチケットを含む Plan の進捗と次（PL-6）・依存グラフを出し、Plan の番号から Plan 詳細を開く。表示だけで書き込まない（出す項目は `plan show` と `packages/web/src/pages/plans.tsx`）
 - UI-14 設定画面：「チーム」のタブは `config.yaml` の全項目（5.10）を、「自分」のタブは個人で上書きできる項目だけを出して付け外しし（外すのは `config unset --local`）、影響の大きい項目は保存前に確かめる。VS Code の settings.json は使わない（細部と理由は [ADR-006](adr/ADR-006-ui-and-writes.md)）
-- UI-15 エージェントに頼む：行・見出しなどから `dg ask` の依頼文を作ってコピーし、データには書き込まない。複数の行をまとめても、キーボードでも頼める。VS Code では開いているターミナルにも送れる。入口・送り方・キーの細部は [ADR-010](adr/ADR-010-ui-writes-and-agent-requests.md)
+- UI-15 エージェントに頼む：行・見出しなどから `dg ask` の依頼文を作ってコピーし、データには書き込まない。小窓は選んだ頼むことが何をするかの 1 文を札の下に出す（依頼文には入れない）。複数の行をまとめても、キーボードでも頼める。VS Code では開いているターミナルにも送れる。入口・送り方・キーの細部は [ADR-010](adr/ADR-010-ui-writes-and-agent-requests.md)
 - UI-16 VS Code 拡張は、制限モードと仮想ワークスペースでは動かない（理由は `packages/vscode/package.json` の `capabilities`）
 
 画面の並び・文言・印などの細部は `packages/web/src/`・`packages/vscode/src/` のコードとテストが正本。
@@ -246,7 +246,7 @@ Web UI は `dg serve` が配信し、VS Code 拡張は同じアプリを Webview
 - AG-5 Agent Adapter が製品ごとの差（使用量の取得、dg を呼んだエージェントの環境変数からの判定）を吸収し、実装は Core の `agents/adapters/` に閉じる。今は `claude-code`・`codex`・`copilot`（環境変数で判定できる製品は Adapter のコード）。起動方法と権限は扱わない（EX-1、[ADR-007](adr/ADR-007-architecture.md)）
 - AG-6 ソフトウェア開発向けの Action（worktree・PR 作成・マージなど）は Core の `actions` に置き、汎用部分は依存しない。`dg` のコマンドにせず、公開するのは名前の一覧（`ACTION_NAMES`）だけ（[ADR-007](adr/ADR-007-architecture.md)）
 - AG-7 任意のシェルの Action は `actions.shell: true` のときだけ使え、毎回確認を経る
-- AG-8 `ask` は対象（複数可）・頼むこと・指示・形式から、エージェントに貼る依頼文（人に限られた操作なら人が打つ `dg` のコマンド）を返す読み取りだけのコマンド。`ask-menu` は画面の場所ごとの候補を返す。候補とおすすめは `dg ask --help` とコード、文の形は [ADR-010](adr/ADR-010-ui-writes-and-agent-requests.md) が正本
+- AG-8 `ask` は対象（複数可）・頼むこと・指示・形式から、エージェントに貼る依頼文を返す読み取りだけのコマンド。候補ごとに画面用の 1 文 `meaning` も返す。人に限られた操作なら、人が打つ `dg` のコマンドを返す。`ask-menu` は画面の場所ごとの候補を返す。候補とおすすめは `dg ask --help` とコード、文の形は [ADR-010](adr/ADR-010-ui-writes-and-agent-requests.md) が正本
 
 ### 6.6 作業の実績
 

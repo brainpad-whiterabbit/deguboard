@@ -2,6 +2,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { App } from "../app.js";
+import { setLanguage } from "../l10n.js";
 import type { WebviewEvent } from "@deguboard/core";
 import type { WebviewClient } from "../client/webview.js";
 import { HostBridge, HostProvider, type Host } from "../host.js";
@@ -475,5 +476,63 @@ describe("パネルの詳細から頼む（UI-15）", () => {
     await waitFor(() =>
       expect(askInputs(client).at(-1)).toMatchObject({ targets: ["t3"], action: "split" }),
     );
+  });
+});
+
+describe("言語を切り替えたあとに遅れて届いた候補（見直しの指摘）", () => {
+  afterEach(() => setLanguage("ja"));
+
+  it("前の言語の ask-menu の応答が後から届いても、今の言語の一覧には出さない", async () => {
+    const client = mockClient(boardFixture());
+    let release = (): void => {};
+    let held = false;
+    client.handlers["ask-menu"] = async (input) => {
+      const { sets, language } = input as { sets: string[]; language: string };
+      // 最初の ja の応答だけ、言語を切り替えた後まで止める
+      if (language === "ja" && !held) {
+        held = true;
+        await new Promise<void>((resolve) => (release = resolve));
+      }
+      return sets.map((key) => ({
+        key,
+        candidates: [
+          {
+            action: "check",
+            label: `${language}-check`,
+            skill: "/dgcheck",
+            recommended: true,
+            meaning: "",
+          },
+        ],
+      }));
+    };
+    mount(client);
+    await screen.findByText("画面");
+    await waitFor(() => expect(held).toBe(true));
+    // 言語を en に変え、行をいったん外して戻す（一覧は読み直さず、場所の組を en で引き直させる）
+    act(() => setLanguage("en"));
+    act(() => {
+      window.location.hash = "#/config";
+    });
+    await waitFor(() => expect(screen.queryByText("画面")).toBeNull());
+    act(() => {
+      window.location.hash = "#/board";
+    });
+    await screen.findByText("画面");
+    await waitFor(() =>
+      expect(
+        client.calls.some(
+          (c) => c.name === "ask-menu" && (c.input as { language: string }).language === "en",
+        ),
+      ).toBe(true),
+    );
+    // en の一覧を出しておき、そのあとに前の言語の応答を届ける
+    const link = screen.getByText("画面").closest("a")!;
+    link.focus();
+    fireEvent.keyDown(link, { key: "F10", shiftKey: true });
+    await waitFor(() => expect(items().some((t) => t?.includes("en-check"))).toBe(true));
+    await act(async () => release());
+    expect(items().some((t) => t?.includes("ja-check"))).toBe(false);
+    expect(items().some((t) => t?.includes("en-check"))).toBe(true);
   });
 });

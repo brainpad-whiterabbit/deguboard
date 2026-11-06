@@ -31,7 +31,7 @@ import { useAsk, useUiState } from "../host.js";
 import { useStore } from "../store.js";
 import type { AskCandidate, AskMenu } from "../types.js";
 import { SELECT_ATTR, selectKind, useSelection } from "./selection.js";
-import { tr, trCore, msg } from "../l10n.js";
+import { language, tr, trCore, msg } from "../l10n.js";
 import { trNode } from "../l10n-node.js";
 
 /**
@@ -55,6 +55,9 @@ interface MenuCache {
 
 const AskMenuContext = createContext<MenuCache | null>(null);
 
+/** 引いた組の印と、候補の持ち方の鍵。言語を含めて、言語を変えたら同じ組でも引き直す（遅れた前の言語の応答を別の鍵に置く） */
+const askedKey = (lang: string, key: string) => `${lang}\n${key}`;
+
 /**
  * 画面に出ている頼める場所の候補を、まとめて ask-menu で引いて持つ。同じ描画で増えた場所は 1 回の呼び出しにまとめる。
  * 一覧（チケット・Iteration・Epic・Plan・実行中の Run）が読み直されたら、出ている場所の分をすべて引き直す（引き直すまでは前の候補を出す）。
@@ -71,6 +74,7 @@ export function AskMenuProvider({ children }: { children: ReactNode }) {
   // 前に引いたときの一覧。変わっていたら（読み直した）引いた組を忘れて、出ている場所の分をすべて引き直す
   const seen = useRef<readonly unknown[]>([]);
   const { tickets, iterations, epics, plans, runningTickets } = store;
+  const lang = language();
 
   useEffect(() => {
     const data = [tickets, iterations, epics, plans, runningTickets];
@@ -78,17 +82,19 @@ export function AskMenuProvider({ children }: { children: ReactNode }) {
       seen.current = data;
       asked.current = new Set();
     }
-    const keys = [...wanted.current.keys()].filter((k) => !asked.current.has(k));
+    // 引いた組は言語ごとに覚える（言語を変えたら、前の言語の候補を引き直す）
+    const keys = [...wanted.current.keys()].filter((k) => !asked.current.has(askedKey(lang, k)));
     if (keys.length === 0) return;
-    for (const k of keys) asked.current.add(k);
+    for (const k of keys) asked.current.add(askedKey(lang, k));
     const mine = asked.current;
     client
-      .run<AskMenu[]>("ask-menu", { sets: keys })
+      .run<AskMenu[]>("ask-menu", { sets: keys, language: lang })
       .then((r) => {
         if (asked.current !== mine) return;
         setMenus((prev) => {
           const next = new Map(prev);
-          for (const m of r.data) next.set(m.key, m);
+          // 応答は届いた時点の言語の鍵に置く（言語を変えた後に遅れて届いた前の言語の候補は、今の言語の画面に出ない）
+          for (const m of r.data) next.set(askedKey(lang, m.key), m);
           return next;
         });
       })
@@ -98,15 +104,15 @@ export function AskMenuProvider({ children }: { children: ReactNode }) {
         const error = e instanceof Error ? e.message : String(e);
         setMenus((prev) => {
           const next = new Map(prev);
-          for (const key of keys) next.set(key, { key, candidates: [], error });
+          for (const key of keys) next.set(askedKey(lang, key), { key, candidates: [], error });
           return next;
         });
       });
-  }, [client, round, tickets, iterations, epics, plans, runningTickets]);
+  }, [client, round, lang, tickets, iterations, epics, plans, runningTickets]);
 
   const want = useCallback((key: string) => {
     wanted.current.set(key, (wanted.current.get(key) ?? 0) + 1);
-    if (!asked.current.has(key)) setRound((n) => n + 1);
+    if (!asked.current.has(askedKey(language(), key))) setRound((n) => n + 1);
     return () => {
       const n = (wanted.current.get(key) ?? 1) - 1;
       if (n > 0) wanted.current.set(key, n);
@@ -127,7 +133,7 @@ function useAskMenu(key: string | null, open: boolean): AskMenu | undefined {
     cache || !open || key === null ? null : { sets: [key] },
   );
   if (key === null) return undefined;
-  if (cache) return cache.menus.get(key);
+  if (cache) return cache.menus.get(askedKey(language(), key));
   return own.error ? { key, candidates: [], error: own.error } : own.data?.[0];
 }
 

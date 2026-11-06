@@ -222,6 +222,32 @@ describe("エージェントに頼む入力欄（UI-15）", () => {
     expect(box.getByRole("button", { name: "コピー" })).toBeTruthy();
   });
 
+  it("札の下に選んだ候補の 1 文を出し、候補を選び直すと文が変わる（依頼文には入らない・UI-15）", async () => {
+    const client = askClient();
+    const view = mountWebview(client);
+    await screen.findByText("見直す");
+    view.ask(["t5", "s1"]);
+    await waitFor(() => expect(suggestions()[0]!.textContent).toContain("★点検する"));
+    const box = within(composer());
+    const meaning = () => composer().querySelector(".ask-meaning")?.textContent;
+    expect(meaning()).toBe("t5・s1 を点検し、直す案を表で示します。");
+    // 札の下・指示欄の上に出る（DOM の順）
+    const cards = within(composer()).getByRole("group", { name: "頼むこと" });
+    const line = composer().querySelector(".ask-meaning")!;
+    const note = box.getByRole("textbox", { name: "指示" });
+    expect(cards.compareDocumentPosition(line) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(line.compareDocumentPosition(note) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    fireEvent.click(box.getByRole("button", { name: "s1 を外す" }));
+    await waitFor(() =>
+      expect(meaning()).toBe(
+        "t5 の PR のマージを照合し、残った受け入れ条件を確かめて、Status を done にします。",
+      ),
+    );
+    fireEvent.click(box.getByRole("button", { name: "自由に" }));
+    await waitFor(() => expect(meaning()).toContain("Skill は使わず"));
+  });
+
   it("形式の既定は core の ask が Skill の有無から決め（ask に形式を渡さない）、人が切り替えた形式は残してそのまま渡す", async () => {
     const client = askClient();
     // dg の Skill が入っていないリポジトリの代わり：形式を省けば文章の形（core の ask と同じ）

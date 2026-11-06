@@ -2973,6 +2973,12 @@ button.ask-ghost {
   opacity: 1;
   background: transparent;
 }
+/* 札の下の 1 文（UI-15）。依頼文には入らない見た目だけの説明 */
+.ask-meaning {
+  margin: 0;
+  font-size: 0.9em;
+  color: var(--vscode-descriptionForeground);
+}
 .ask-box textarea {
   width: 100%;
   min-height: 2.8em;

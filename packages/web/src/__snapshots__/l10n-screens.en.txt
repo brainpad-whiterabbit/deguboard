@@ -1312,6 +1312,7 @@ s1
 active
 [aria-label] Remove s1
 ×
+Make a Plan to proceed with s1, and wait for approval.
 [aria-label] Instructions
 [placeholder] Add instructions (optional)
 Full text

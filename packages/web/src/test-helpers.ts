@@ -274,6 +274,7 @@ export function mockClient(data = fixture()): MockClient {
           const candidates = askCandidates(
             refs.map((id) => askSubjectOf(data, id)),
             within,
+            (input as { language?: "ja" | "en" }).language,
           );
           return { key, candidates, error: null };
         } catch (e) {

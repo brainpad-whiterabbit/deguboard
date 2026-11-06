@@ -1313,6 +1313,7 @@ s1
 active
 [aria-label] s1 を外す
 ×
+s1 を進める Plan を立て、承認を待ちます。
 [aria-label] 指示
 [placeholder] 指示を足す（なくてもよい）
 全文
