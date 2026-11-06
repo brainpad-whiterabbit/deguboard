@@ -619,6 +619,9 @@ describe("チケットの流れ", () => {
     ).toBeNull();
     expect((await runCommand(ticketClaim, human, { ticket: "t4" })).data.run).toBeNull();
     await expect(
+      runCommand(ticketClaim, human, { ticket: "t5", agent: "codex" }),
+    ).rejects.toBeInstanceOf(UsageError);
+    await expect(
       runCommand(ticketClaim, agent, { ticket: "t5", no_run: true, agent: "codex" }),
     ).rejects.toBeInstanceOf(UsageError);
     // agent を判定できなければ開かずに警告し、claim 自体は成功する
@@ -656,7 +659,8 @@ describe("チケットの流れ", () => {
         /^implement の Run を開いていない: step implement は Workflow noimpl の steps にない/,
       ),
     ]);
-    expect((await peekRunningRuns(agent.repo)).map((r) => [r.ticket, r.step])).toEqual([
+    // 同じ秒に始めた Run の並びは ID の末尾の乱数で決まるので、並べ替えてから比べる
+    expect((await peekRunningRuns(agent.repo)).map((r) => [r.ticket, r.step]).sort()).toEqual([
       ["t1", "build"],
       ["t2", "implement"],
     ]);

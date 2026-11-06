@@ -24,7 +24,7 @@ export interface CommandContext extends WriteContext {
   worktree?: WorktreeOrigin | undefined;
   /** マージドライバとして git に登録する、dg を呼ぶ argv の前置（init と sync が登録する。git/merge.ts） */
   mergeDriver?: readonly string[] | undefined;
-  /** 環境変数。Adapter が会話記録の場所と DEGUBOARD_NO_TRANSCRIPTS と run start の agent の判定を、ask が HOME（Skill の置き場所）を見る。省けば process.env */
+  /** 環境変数。Adapter が会話記録の場所と DEGUBOARD_NO_TRANSCRIPTS と run start・ticket claim の agent の判定を、ask が HOME（Skill の置き場所）を見る。省けば process.env */
   env?: Readonly<Record<string, string | undefined>> | undefined;
 }
 

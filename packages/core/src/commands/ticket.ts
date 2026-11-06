@@ -769,7 +769,7 @@ export type ClaimView = Ticket & { body: string; run: RunId | null };
 
 /**
  * agent の claim が開く Run の step と agent（RN-5）。開けない理由は warnings に入れて null を返す
- * （claim は push 済みなので、Run の都合では失敗させない）
+ * （claim は成功している（コミット済み）ので、Run の都合では失敗させない）
  */
 async function openClaimRun(
   ctx: CommandContext,
@@ -805,7 +805,7 @@ export const ticketClaim = defineCommand({
   group: "ticket",
   summary:
     "チケットに着手する。担当者（assignee）を自分にしてブランチを記録し、in_progress にする。push の成功で排他を得る。todo → in_progress の制約（requires: [deps_done] など）があれば従う。" +
-    "agent なら続けて実装の Run（Workflow の steps のうち opens_on: claim のもの、なければ implement）を開き、ID を run に出す。開けなければ警告だけして claim は成功にする",
+    "agent なら続けて実装の Run（Workflow の steps のうち opens_on: claim のもの、なければ implement）を開き、ID を run（人向けの出力では標準出力の最後の行）に出す。開けなければ警告だけして claim は成功にする",
   input: z.object({
     ticket: ticketRef,
     branch: z
@@ -822,7 +822,7 @@ export const ticketClaim = defineCommand({
     agent: token
       .optional()
       .describe(
-        "開く Run のエージェント名（dg run start --help）。省けば dg を呼んだエージェントを環境変数から判定し、判定できなければ Run を開かずに警告する。人の claim では使わない",
+        "開く Run のエージェント名（dg run start --help）。省けば dg を呼んだエージェントを環境変数から判定し、判定できなければ Run を開かずに警告する。人の claim では使えない（使い方の誤り）",
       ),
     no_run: z
       .boolean()
@@ -840,6 +840,11 @@ export const ticketClaim = defineCommand({
     }
     if (input.no_run && input.agent !== undefined) {
       throw new UsageError("agent と no_run は同時に指定できない");
+    }
+    if (input.agent !== undefined && ctx.actor.kind !== "agent") {
+      throw new UsageError(
+        "agent は Run を開く agent の claim でだけ使える（人の claim は Run を開かない）",
+      );
     }
     const result = await withWrite(
       ctx,

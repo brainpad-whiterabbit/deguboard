@@ -11,7 +11,7 @@ Run は 1 回の作業の記録で、使用量（トークン）が残る。実�
 - **agent**：自分の Adapter の名前（`dg run start --help`。Claude Code なら `claude-code`）。`--agent` を省くと環境変数から判定する。判定できなければ `run start` は拒否され、`claim` は Run を開かずに警告するので、そのときは `--agent` を渡す（claim が開かなかった Run は `run start` で開く）
 - **自分で呼ぶ**：Run は作業するエージェント自身が開いて（claim か run start）閉じる。親が claim で開いた Run の作業をサブエージェントに渡さない（理由は `dg guide review` の「Run の分け方」）
 - 使用量は書かない。取れずに finish が警告しても止めない
-- run start は単独で呼び、ほかのコマンドとつながない（ID が会話記録に出るのが遅れると、同じ会話で重ねた Run の応答を正しく分けられない）
+- Run を開く claim と run start は単独で呼び、ほかのコマンドとつながない（ID が会話記録に出るのが遅れると、同じ会話で重ねた Run の応答を正しく分けられない）
 - start が同じ agent の Run が開いたままと警告したら、自分の終わった Run なら閉じる（同じ会話で重ねた Run は、応答を後に始めた方にだけ数える）。並行するほかのエージェントの Run や、始めた覚えのない ID なら無視してよい
 - 同じ step の Run が実行中で start が拒否されたら、下の「閉じ損ねた Run を閉じる」で閉じて始め直す。サブエージェントなら閉じずに親に返す（親が `interrupted` で閉じる）
 - **結果**：実装の Run は draft の PR を作ったら `success`。自分の判断でやめる（検査が通らない、範囲がはっきりしない）なら `--result failure --error <理由>` で閉じる。`interrupted` は閉じ損ねた Run だけに使う
