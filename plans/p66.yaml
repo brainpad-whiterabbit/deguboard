@@ -1,0 +1,42 @@
+id: p66
+project: default
+tickets: [t478, t479, t480, t481, t482, t476, t477, t458]
+after:
+  t479:
+    - t478
+  t482:
+    - t481
+pending_approval: true
+details:
+  t478:
+    scope: 保存中の印を項目ごとに持つ。重なった保存で先に消さない
+    approach: 設定画面の保存中の状態を項目単位に変え、後の保存が完了するまで印を残す
+    tier: standard
+  t479:
+    scope: チームのタブの保存で、保存より前に始まった読み込みの古い応答を反映しない
+    approach: 読み込みの世代を持ち、保存の後の応答だけを反映する
+    tier: standard
+  t480:
+    scope: unclaim の PR の記録を外し、もう一度の claim の判定から前の作業の PR を外す
+    approach: unclaim で前の PR を外し、再 claim の判定を今の作業の PR だけに絞る
+    tier: heavy
+  t481:
+    scope: abandoned への move と人の done でも開いた実装の Run を閉じる
+    approach: チケットの状態の移動で、開いたままの実装の Run を同じ規則で閉じる
+    tier: standard
+  t482:
+    scope: 照合が Run を閉じるときに別の文脈が先に閉じていても止めず警告にする
+    approach: 閉じるときの失敗を警告に変え、sync を続ける
+    tier: standard
+  t476:
+    scope: 頼む小窓の札の下に、エージェントが何をするかの 1 文を表示言語で出す
+    approach: meaning の文を表示言語で引いて札の下に出す（t477 の前に入れる）
+    tier: standard
+  t477:
+    scope: 頼む小窓の Skill の札と候補のツールチップに Skill の説明を出す
+    approach: Skill の説明を候補のツールチップに足す
+    tier: light
+  t458:
+    scope: README の GIF を英語の画面で撮り直す
+    approach: 英語の表示で、文字が読める解像度で撮り直して差し替える
+    tier: light
