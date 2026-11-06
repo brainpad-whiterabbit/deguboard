@@ -23,18 +23,37 @@ afterEach(() => {
   window.localStorage.clear();
 });
 
-/** core の configFields と同じ形の項目（説明は短くしたもの） */
+/** core の configFields と同じ形の項目（説明は短くしたもの）。scope は core と同じ：local は個人で上書きできる項目 */
 const FIELDS: ConfigField[] = [
-  { key: "default_project", type: "string", description: "省略時の Project", default: "default" },
-  { key: "git.remote", type: "string", description: "同期先のリモート", default: "origin" },
-  { key: "git.base_branch", type: "string", description: "基準", default: "main" },
-  { key: "worktree.root", type: "string", description: "置き場所", default: "../<repo>.worktrees" },
+  {
+    key: "default_project",
+    type: "string",
+    description: "省略時の Project",
+    default: "default",
+    scope: "local",
+  },
+  {
+    key: "git.remote",
+    type: "string",
+    description: "同期先のリモート",
+    default: "origin",
+    scope: "local",
+  },
+  { key: "git.base_branch", type: "string", description: "基準", default: "main", scope: "team" },
+  {
+    key: "worktree.root",
+    type: "string",
+    description: "置き場所",
+    default: "../<repo>.worktrees",
+    scope: "local",
+  },
   {
     key: "commit.mode",
     type: "enum",
     options: ["each", "batch", "manual"],
     description: "each: 書き込みのたびにコミット",
     default: "batch",
+    scope: "local",
   },
   {
     key: "push.mode",
@@ -42,17 +61,37 @@ const FIELDS: ConfigField[] = [
     options: ["auto", "manual"],
     description: "auto: コミットのたびに push",
     default: "auto",
+    scope: "local",
   },
   {
     key: "metrics.read_transcripts",
     type: "boolean",
     description: "会話記録を読む",
     default: false,
+    scope: "team",
   },
-  { key: "actions.shell", type: "boolean", description: "シェルを許す", default: false },
-  { key: "actions.test", type: "list", description: "テストのコマンド", default: [] },
-  { key: "auto.merge", type: "boolean", description: "自動でマージ", default: false },
-  { key: "actor.human_only", type: "list", description: "人だけ", default: [] },
+  {
+    key: "actions.shell",
+    type: "boolean",
+    description: "シェルを許す",
+    default: false,
+    scope: "local",
+  },
+  {
+    key: "actions.test",
+    type: "list",
+    description: "テストのコマンド",
+    default: [],
+    scope: "team",
+  },
+  {
+    key: "auto.merge",
+    type: "boolean",
+    description: "自動でマージ",
+    default: false,
+    scope: "team",
+  },
+  { key: "actor.human_only", type: "list", description: "人だけ", default: [], scope: "team" },
 ];
 
 function configClient() {
@@ -69,7 +108,9 @@ function configClient() {
     actor: { human_only: [] as string[] },
   };
   client.handlers["config.show"] = (input) =>
-    (input as { fields?: boolean }).fields ? { config, fields: FIELDS } : config;
+    (input as { fields?: boolean }).fields
+      ? { config, team: config, local: {}, fields: FIELDS }
+      : config;
   client.handlers["config.set"] = (input) => {
     const { key, value } = input as { key: string; value: unknown };
     if (value === "bad")
@@ -120,6 +161,33 @@ describe("設定画面", () => {
     expect(within(fieldOf("actions.test")).getAllByRole("listitem")).toHaveLength(3);
     expect(screen.getByRole("note").textContent).toContain("全員に効く");
     expect(client.calls).toContainEqual({ name: "config.show", input: { fields: true } });
+  });
+
+  it("個人の上書きがあっても欄にはチームの値を出し、保存の後もチームの値（config.set の戻り）を出す", async () => {
+    const { client, config: team } = configClient();
+    // 個人は commit.mode を manual で上書きしている。config.show は重ねた値と、チームの値・個人の上書きを別に返す
+    const merged = { ...team, commit: { mode: "manual" } };
+    client.handlers["config.show"] = (input) =>
+      (input as { fields?: boolean }).fields
+        ? { config: merged, team, local: { "commit.mode": "manual" }, fields: FIELDS }
+        : merged;
+    mount(client);
+    await screen.findByText("コミットの仕方");
+    const select = within(fieldOf("commit.mode")).getByRole<HTMLSelectElement>("combobox");
+    expect(select.value).toBe("each");
+    expect(screen.getByRole("note").textContent).toContain("dg config set --local");
+    // チームの値（each）を選び直しても変わっていないので保存しない
+    fireEvent.change(select, { target: { value: "each" } });
+    expect(setCalls(client)).toEqual([]);
+    // batch に変えるとチームに保存し、欄と「保存した」はチームの値になる（個人の manual は出ない）
+    fireEvent.change(select, { target: { value: "batch" } });
+    await waitFor(() => expect(setCalls(client)).toEqual([{ key: "commit.mode", value: "batch" }]));
+    expect(await screen.findByText("保存した: commit.mode を batch にした")).toBeTruthy();
+    await waitFor(() =>
+      expect(within(fieldOf("commit.mode")).getByRole<HTMLSelectElement>("combobox").value).toBe(
+        "batch",
+      ),
+    );
   });
 
   it("既定から変えた項目に印と「既定に戻す」を出し、押すと既定値を config.set で保存する", async () => {

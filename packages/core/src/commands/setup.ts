@@ -1,4 +1,4 @@
-// 用意と同期：init・sync・commit・validate・lint・config・whoami
+// 用意と同期：init・sync・commit・validate・lint・config（show・set・unset）・whoami
 
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -20,7 +20,13 @@ import {
 import { CONFLICT_REMEDY, flushPending, withWrite } from "../git/write.js";
 import { ownActorIds, type ActorKind, type UserSource } from "../model/actor.js";
 import { isTerminal } from "../model/common.js";
-import { configFields, configSchema, type Config, type ConfigField } from "../model/config.js";
+import {
+  configFields,
+  configSchema,
+  nestedConfigValue,
+  type Config,
+  type ConfigField,
+} from "../model/config.js";
 import type { Iteration } from "../model/iteration.js";
 import { parseAcceptance, type Ticket } from "../model/ticket.js";
 import type { Doc } from "../storage/documents.js";
@@ -503,13 +509,14 @@ export const lint = defineCommand({
 export const configShow = defineCommand({
   name: "config.show",
   group: "setup",
-  summary: "config.yaml を既定値で補って出す",
+  summary:
+    "設定を既定値で補って出す。個人の上書き（deguboard-local/config.yaml）> チームの config.yaml > 既定 の順に重ねた、各コマンドが使う値",
   input: z.object({
     fields: z
       .boolean()
       .optional()
       .describe(
-        "値と一緒に全項目のキー・型・既定値・説明も出す（{ config, fields } の形。設定画面が使う）",
+        "値と一緒に全項目のキー・型・既定値・説明・範囲（scope：team はチーム専用、local は個人で上書きできる）と、チームの値・個人の上書きも出す（{ config, team, local, fields } の形。設定画面が使う）",
       ),
   }),
   write: false,
@@ -517,14 +524,26 @@ export const configShow = defineCommand({
   async run(ctx, input) {
     // 同じ文脈で config.set した後も今の値を出すよう、ctx.config（開いたときの写し）でなく store から読む
     const config = ctx.store.config;
-    if (input.fields) return ok<ConfigShowView | Config>({ config, fields: configFields() });
+    if (input.fields) {
+      return ok<ConfigShowView | Config>({
+        config,
+        team: ctx.store.teamConfig,
+        local: ctx.store.localConfig,
+        fields: configFields(),
+      });
+    }
     return ok<ConfigShowView | Config>(config);
   },
 });
 
-/** config.show --fields の出力。設定画面が値・既定値・説明を一度に読む */
+/** config.show --fields の出力。設定画面が値・既定値・説明・範囲を一度に読む */
 export interface ConfigShowView {
+  /** 個人 > チーム > 既定 を重ねた、各コマンドが使う値 */
   config: Config;
+  /** チームの config.yaml を既定で補った値（個人の上書きを含まない） */
+  team: Config;
+  /** 個人の上書き（ドット区切りの項目名 → 値）。上書きできる項目でスキーマに合うものだけ */
+  local: Record<string, unknown>;
   fields: ConfigField[];
 }
 
@@ -571,98 +590,117 @@ function splitList(value: string): string[] {
     .filter((v) => v.length > 0);
 }
 
-/** 最上位の項目の新しい値を組み立てる。`commit.mode` のように入れ子なら、今の値を写して葉だけ置き換える */
-function nestedValue(current: unknown, keys: string[], leaf: unknown): unknown {
-  if (keys.length === 0) return leaf;
-  const base =
-    typeof current === "object" && current !== null
-      ? { ...(current as Record<string, unknown>) }
-      : {};
-  let cursor = base;
-  for (const [i, k] of keys.entries()) {
-    if (i === keys.length - 1) cursor[k] = leaf;
-    else {
-      const next =
-        typeof cursor[k] === "object" && cursor[k] !== null
-          ? { ...(cursor[k] as Record<string, unknown>) }
-          : {};
-      cursor[k] = next;
-      cursor = next;
-    }
+/** 項目の名前を最上位と残りに分け、--local なら個人で上書きできる項目かも確かめる */
+function splitKey(
+  key: string,
+  local: boolean,
+): { top: string; rest: string[]; field?: ConfigField } {
+  const [top, ...rest] = key.split(".");
+  if (!top) throw new OperationError("VALIDATION_FAILED", "key が空");
+  const field = configFields().find((f) => f.key === key);
+  if (local && field?.scope !== "local") {
+    throw new OperationError(
+      "VALIDATION_FAILED",
+      `${key} は個人の設定に書けない`,
+      field
+        ? "チーム専用の項目。--local を外してチームの config.yaml を変える"
+        : `スキーマにない項目。上書きできる項目：${configFields()
+            .filter((f) => f.scope === "local")
+            .map((f) => f.key)
+            .join("・")}`,
+    );
   }
-  return base;
+  return { top, rest, ...(field ? { field } : {}) };
 }
+
+/**
+ * 入力の値を、スキーマに合う葉の値に直す。base（チームの値か、個人を重ねた値）に当てて確かめる。
+ * 既定が空でない文字列の項目（priority.* など）を空にしたら undefined（キーを消して既定か、チームの値に戻す）
+ */
+function resolveLeaf(
+  key: string,
+  rawValue: unknown,
+  field: ConfigField | undefined,
+  rest: string[],
+  base: Config,
+): unknown {
+  const top = key.split(".")[0]!;
+  // enum の項目は空文字・null と同じく、値を省いた（undefined）呼び出しも誤りとして弾く。
+  // 通すと葉が undefined になり、スキーマの既定で補われて黙って既定に戻ってしまう（戻すのは config.unset）
+  if (field?.type === "enum" && rawValue === undefined)
+    throw new OperationError(
+      "VALIDATION_FAILED",
+      `${key} の値が正しくない`,
+      `値を省けない。選択肢：${(field.options ?? []).join("・")}`,
+    );
+  const clearsToDefault =
+    field?.type === "string" &&
+    typeof field.default === "string" &&
+    field.default !== "" &&
+    (rawValue === "" || rawValue === undefined || rawValue === null);
+  // CLI の文字列は値に直したもの・元の文字列・カンマ区切りの配列の順に試す。元の文字列も試すので、文字列の項目に "2026"・"true" を入れられる
+  const candidates: unknown[] = clearsToDefault ? [undefined] : [coerce(rawValue)];
+  if (!clearsToDefault && typeof rawValue === "string")
+    candidates.push(rawValue, splitList(rawValue));
+  let error: z.ZodError | undefined;
+  for (const leaf of candidates) {
+    const next = nestedConfigValue((base as Record<string, unknown>)[top], rest, leaf);
+    const probe = configSchema.safeParse({ ...base, [top]: next });
+    if (probe.success) return leaf;
+    error ??= probe.error;
+  }
+  throw new OperationError("VALIDATION_FAILED", `${key} の値が正しくない`, z.prettifyError(error!));
+}
+
+const LOCAL_FILE_NOTE =
+  "個人の設定は <git-common-dir>/deguboard-local/config.yaml（Git に入らず、コミットも push もしない）。個人で上書きできる項目（config show --fields の scope が local）だけで、値は個人 > チーム > 既定 の順に読まれる";
+const LOCAL_SET_DESCRIPTION = `チームの config.yaml でなく個人の設定に書く。${LOCAL_FILE_NOTE}`;
+const LOCAL_UNSET_DESCRIPTION = `個人の上書きを外してチームの値に戻す。${LOCAL_FILE_NOTE}`;
 
 export const configSet = defineCommand({
   name: "config.set",
   positionals: ["key", "value"],
   group: "setup",
   summary:
-    "config.yaml の 1 項目を変える（commit.mode のようにドットで指す）。配列の項目はカンマ区切りで、空文字で空にする。既定が空でない文字列の項目（priority.* など）は空文字で既定に戻す。選択肢の項目（commit.mode など）は空・null・省略を弾く",
+    "config.yaml の 1 項目を変える（commit.mode のようにドットで指す）。配列の項目はカンマ区切りで、空文字で空にする。既定が空でない文字列の項目（priority.* など）は空文字で既定に戻す。選択肢の項目（commit.mode など）は空・null・省略を弾く。--local で個人の設定に書く。返すのは書いた側の値（チームの値か、個人を重ねた値）",
   input: z.object({
     key: z.string().min(1).describe("項目。例: commit.mode"),
     value: z.unknown().describe("値"),
+    local: z.boolean().optional().describe(LOCAL_SET_DESCRIPTION),
   }),
   write: true,
   needs: "store",
   async run(ctx, input) {
+    if (input.local) {
+      // 個人の設定は Git 管理外なので withWrite（取り込み・コミット・push）を通さず、同じマシンの書き込みの排他だけ取る
+      const config = await withLock(ctx.repo.localDir, "write", async () => {
+        const { rest, field } = splitKey(input.key, true);
+        const leaf = resolveLeaf(input.key, input.value, field, rest, ctx.store.config);
+        return ctx.store.writeLocalConfig(input.key, leaf);
+      });
+      return ok(config);
+    }
     const result = await withWrite(
       ctx,
       async () => {
-        const [top, ...rest] = input.key.split(".");
-        if (!top) throw new OperationError("VALIDATION_FAILED", "key が空");
-        const current = (ctx.store.config as Record<string, unknown>)[top];
-        // 既定が空でない文字列の項目（priority.* など）を空にしたら、キーを消して既定に戻す。
-        // 葉を undefined にすると writeConfig がそのキーを書かず、読み込みのスキーマが既定で補う。
-        // 配列の項目（actor.human_only）は candidates のカンマ区切りで空の配列になるので、ここでは触らない
-        const field = configFields().find((f) => f.key === input.key);
-        // enum の項目は空文字・null と同じく、値を省いた（undefined）呼び出しも誤りとして弾く。
-        // 通すと葉が undefined になり、スキーマの既定で補われて黙って既定に戻ってしまう
-        if (field?.type === "enum" && input.value === undefined)
-          throw new OperationError(
-            "VALIDATION_FAILED",
-            `${input.key} の値が正しくない`,
-            `値を省けない。選択肢：${(field.options ?? []).join("・")}`,
-          );
-        const clearsToDefault =
-          field?.type === "string" &&
-          typeof field.default === "string" &&
-          field.default !== "" &&
-          (input.value === "" || input.value === undefined || input.value === null);
-        // CLI の文字列は値に直したもの・元の文字列・カンマ区切りの配列の順に試す。元の文字列も試すので、文字列の項目に "2026"・"true" を入れられる
-        const candidates: unknown[] = clearsToDefault ? [undefined] : [coerce(input.value)];
-        if (!clearsToDefault && typeof input.value === "string")
-          candidates.push(input.value, splitList(input.value));
-        let value: unknown;
-        let error: z.ZodError | undefined;
-        for (const leaf of candidates) {
-          const next = nestedValue(current, rest, leaf);
-          const probe = configSchema.safeParse({ ...ctx.store.config, [top]: next });
-          if (probe.success) {
-            value = next;
-            error = undefined;
-            break;
-          }
-          error ??= probe.error;
-        }
-        if (error)
-          throw new OperationError(
-            "VALIDATION_FAILED",
-            `${input.key} の値が正しくない`,
-            z.prettifyError(error),
-          );
+        const { top, rest, field } = splitKey(input.key, false);
+        // チームの値を元にする（個人の上書きを重ねた値を元にすると、上書きがチームのファイルに写ってしまう）。
+        // 戻りも書いたチームの値（writeConfig）。重ねた値を返すと、個人の上書きがある項目で保存が効かなかったように見える
+        const team = ctx.store.teamConfig;
+        let leaf = resolveLeaf(input.key, input.value, field, rest, team);
         if (input.key === "actor.human_only") {
           // コマンド名の存在を確かめ、エイリアス（sprint.close）は正式名に直す。registry と循環するので動的 import
           const { findCommand } = await import("./registry.js");
-          const names = (value as { human_only: string[] }).human_only;
+          const names = leaf as string[];
           const unknown = names.filter((n) => !findCommand(n));
           if (unknown.length > 0)
             throw new OperationError(
               "VALIDATION_FAILED",
               `actor.human_only にないコマンドがある: ${unknown.join(", ")}`,
             );
-          value = { ...(value as object), human_only: names.map((n) => findCommand(n)!.name) };
+          leaf = names.map((n) => findCommand(n)!.name);
         }
+        const value = nestedConfigValue((team as Record<string, unknown>)[top], rest, leaf);
         return ctx.store.writeConfig({ [top]: value });
       },
       { message: `config の ${input.key} を変更` },
@@ -671,4 +709,47 @@ export const configSet = defineCommand({
   },
 });
 
-export const setupCommands = [init, sync, commit, validate, lint, configShow, configSet, whoami];
+export const configUnset = defineCommand({
+  name: "config.unset",
+  positionals: ["key"],
+  group: "setup",
+  summary:
+    "config.yaml の 1 項目を消して既定に戻す（commit.mode のようにドットで指す）。--local なら個人の上書きを外してチームの値に戻す。返すのは書いた側の値（チームの値か、個人を重ねた値）",
+  input: z.object({
+    key: z.string().min(1).describe("項目。例: commit.mode"),
+    local: z.boolean().optional().describe(LOCAL_UNSET_DESCRIPTION),
+  }),
+  write: true,
+  needs: "store",
+  async run(ctx, input) {
+    if (input.local) {
+      const config = await withLock(ctx.repo.localDir, "write", async () => {
+        splitKey(input.key, true);
+        return ctx.store.writeLocalConfig(input.key, undefined);
+      });
+      return ok(config);
+    }
+    const result = await withWrite(
+      ctx,
+      async () => {
+        const { top, rest } = splitKey(input.key, false);
+        const team = ctx.store.teamConfig as Record<string, unknown>;
+        return ctx.store.writeConfig({ [top]: nestedConfigValue(team[top], rest, undefined) });
+      },
+      { message: `config の ${input.key} を既定に戻す` },
+    );
+    return ok(result.value, result.write);
+  },
+});
+
+export const setupCommands = [
+  init,
+  sync,
+  commit,
+  validate,
+  lint,
+  configShow,
+  configSet,
+  configUnset,
+  whoami,
+];

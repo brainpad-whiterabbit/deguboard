@@ -3,11 +3,16 @@
 // rescan() はファイルごとの inode・大きさ・更新時刻（ns）・変更時刻（ns）を覚え、変わっていないファイルは読み直さずに前の結果を使う。
 // ファイルシステムの時刻の刻みは粗く inode も使い回されるので、更新が新しい（RACY_WINDOW_NS の内の）ファイルは覚えずに毎回読む（git の racy-clean と同じ考え方）
 
-import { readdir, readFile, rename, stat } from "node:fs/promises";
+import { readdir, readFile, rename, rm, stat } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
 import { OperationError } from "../errors.js";
-import { configSchema, type Config } from "../model/config.js";
+import {
+  configSchema,
+  nestedConfigValue,
+  overlayLocalConfig,
+  type Config,
+} from "../model/config.js";
 import { epicSchema, type Epic } from "../model/epic.js";
 import {
   idFromFileName,
@@ -35,6 +40,8 @@ import { formatIssue, type Issue } from "./issue.js";
 import {
   CONFIG_FILE,
   DIRS,
+  LOCAL_CONFIG_FILE,
+  LOCAL_CONFIG_LABEL,
   deletedTicketPath,
   epicPath,
   iterationPath,
@@ -135,8 +142,24 @@ export interface ScanStats {
 }
 type EntityOf<K extends EntityKind> = z.output<(typeof collections)[K]["schema"]>;
 
+/** Store.open の選択 */
+export interface StoreOptions extends WorkflowValidationOptions {
+  /**
+   * 個人の設定（config.yaml）を置く deguboard-local/ の絶対パス。省くと個人の設定は読まない。
+   * 上書きできる項目（model/config.ts の scope が local）だけをチームの値に重ねる
+   */
+  localDir?: string | undefined;
+}
+
 export class Store {
+  /** 各コマンドが使う値。個人 > チーム > 既定 の順に重ねたもの */
   config: Config = configSchema.parse({});
+  /** チームの config.yaml を既定で補った値（個人の上書きを含まない）。チームの値を書くときの元 */
+  teamConfig: Config = configSchema.parse({});
+  /** 重ねた個人の上書き（ドット区切りの項目名 → 値）。無視した項目は入らない */
+  localConfig: Record<string, unknown> = {};
+  /** 個人の config.yaml の中身（読めたとおり）。チームの値を書き直したときに重ね直すために持つ */
+  private localRaw: unknown = undefined;
   /** 走査で見つかった、読めないファイルや定義の誤り */
   issues: Issue[] = [];
   readonly projects = new Map<string, Doc<Project>>();
@@ -156,10 +179,17 @@ export class Store {
     readonly root: string,
     /** Workflow の検証に渡す。Action の一覧は入口が渡す（ADR-007） */
     private readonly workflowOptions: WorkflowValidationOptions,
+    /** 個人の config.yaml の絶対パス。localDir を渡されなければ undefined */
+    private readonly localConfigPath: string | undefined,
   ) {}
 
-  static async open(root: string, options: WorkflowValidationOptions = {}): Promise<Store> {
-    const store = new Store(root, options);
+  static async open(root: string, options: StoreOptions = {}): Promise<Store> {
+    const { localDir, ...workflowOptions } = options;
+    const store = new Store(
+      root,
+      workflowOptions,
+      localDir ? path.join(localDir, LOCAL_CONFIG_FILE) : undefined,
+    );
     await store.rescan();
     return store;
   }
@@ -207,11 +237,11 @@ export class Store {
 
   /**
    * ファイルの印と、更新時刻・変更時刻の新しい方。読めなければ undefined（覚えずに毎回読み、読めない理由を Issue にする）。
-   * 印は読む前に取るので、読んでいる間に書き換わっても次の rescan で読み直す
+   * 印は読む前に取るので、読んでいる間に書き換わっても次の rescan で読み直す。絶対パス（個人の config.yaml）もそのまま受ける
    */
   private async stampOf(relPath: string): Promise<{ key: string; changedNs: bigint } | undefined> {
     try {
-      const s = await stat(path.join(this.root, relPath), { bigint: true });
+      const s = await stat(path.resolve(this.root, relPath), { bigint: true });
       return {
         key: `${s.ino}:${s.size}:${s.mtimeNs}:${s.ctimeNs}`,
         changedNs: s.mtimeNs > s.ctimeNs ? s.mtimeNs : s.ctimeNs,
@@ -318,6 +348,7 @@ export class Store {
     this.deletedTicketNumbers.add(idNumber(id));
   }
 
+  /** チームの config.yaml を書き換える（最上位の項目ごと。undefined は消す）。返すのは書いたチームの値（個人の上書きを重ねない。画面と CLI が書いた値をそのまま見せるため） */
   async writeConfig(patch: Record<string, unknown>): Promise<Config> {
     const { doc } = await this.readConfigDocument();
     patchYamlDocument(doc, patch);
@@ -330,8 +361,57 @@ export class Store {
       );
     }
     await writeFileAtomic(path.join(this.root, CONFIG_FILE), stringifyYaml(doc));
-    this.config = parsed.data;
-    return parsed.data;
+    this.teamConfig = parsed.data;
+    this.overlay();
+    return this.teamConfig;
+  }
+
+  /**
+   * 個人の config.yaml（deguboard-local/）の 1 項目（ドット区切り）を書き換える。葉を undefined にすると消し、上書きが残らなければファイルも消す。
+   * Git 管理外なのでコミットも push もしない。上書きできる項目かどうかは呼び出し側（config.set）が確かめ、ここでは
+   * この書き込みで無視される項目が増えないことだけを確かめる。返すのは重ねた値
+   */
+  async writeLocalConfig(key: string, leaf: unknown): Promise<Config> {
+    if (!this.localConfigPath)
+      throw new OperationError("VALIDATION_FAILED", "個人の設定の置き場所が分からない");
+    const { doc } = await this.readLocalConfigDocument(this.localConfigPath);
+    const current = (doc.toJS() ?? {}) as Record<string, unknown>;
+    // 書く前から無視されていた項目はそのまま残し、この書き込みで増える無視だけを拒む
+    const before = new Set(overlayLocalConfig(this.teamConfig, current).ignored.map((i) => i.key));
+    const [top, ...rest] = key.split(".") as [string, ...string[]];
+    patchYamlDocument(doc, { [top]: nestedConfigValue(current[top], rest, leaf) });
+    const raw = (doc.toJS() ?? {}) as Record<string, unknown>;
+    const rejected = overlayLocalConfig(this.teamConfig, raw).ignored.filter(
+      (i) => !before.has(i.key),
+    );
+    if (rejected.length > 0) {
+      throw new OperationError(
+        "VALIDATION_FAILED",
+        "個人の設定に書けない項目",
+        rejected.map((i) => `${i.key}: ${i.reason}`).join("\n"),
+      );
+    }
+    if (Object.keys(raw).length === 0) {
+      // 上書きが残らなければファイルを消す（空のファイルを残さない）
+      await rm(this.localConfigPath, { force: true });
+    } else await writeFileAtomic(this.localConfigPath, stringifyYaml(doc));
+    this.localRaw = raw;
+    this.overlay();
+    return this.config;
+  }
+
+  /** チームの値に個人の上書きを重ね、config と localConfig を作り直す。無視した項目の警告は返す */
+  private overlay(): Issue[] {
+    const { config, local, ignored } = overlayLocalConfig(this.teamConfig, this.localRaw);
+    this.config = config;
+    this.localConfig = local;
+    return ignored.map((i) => ({
+      severity: "warning",
+      code: "local_config_ignored",
+      path: LOCAL_CONFIG_LABEL,
+      message: `個人の設定の ${i.key} を無視した`,
+      detail: i.reason,
+    }));
   }
 
   /**
@@ -379,10 +459,66 @@ export class Store {
     return parseYamlDocument(text);
   }
 
+  private async readLocalConfigDocument(file: string) {
+    let text = "";
+    try {
+      text = await readFile(file, "utf8");
+    } catch {
+      // なければ上書きなし
+    }
+    return parseYamlDocument(text);
+  }
+
+  /**
+   * チームの config.yaml と個人の config.yaml を読み、個人 > チーム > 既定 の順に重ねる。
+   * 個人のファイルはたいてい無いので、無ければ読まない（読み直した数にも数えない）
+   */
   private async readConfig(cached: CachedLoader): Promise<Issue[]> {
-    const { config, issues } = await cached(CONFIG_FILE, () => this.loadConfig());
-    this.config = config;
-    return issues;
+    const localPath = this.localConfigPath;
+    const none = { raw: undefined, issues: [] as Issue[] };
+    const [team, local] = await Promise.all([
+      cached(CONFIG_FILE, () => this.loadConfig()),
+      localPath && (await this.stampOf(localPath))
+        ? cached(localPath, () => this.loadLocalConfig(localPath))
+        : none,
+    ]);
+    this.teamConfig = team.config;
+    this.localRaw = local.raw;
+    return [...team.issues, ...local.issues, ...this.overlay()];
+  }
+
+  /** 個人の config.yaml を読む。YAML として読めなければ警告にして上書きなしで続ける（チームの値で動く） */
+  private async loadLocalConfig(file: string): Promise<{ raw: unknown; issues: Issue[] }> {
+    const { doc, errors } = await this.readLocalConfigDocument(file);
+    if (errors.length > 0) {
+      return {
+        raw: undefined,
+        issues: [
+          {
+            severity: "warning",
+            code: "yaml_error",
+            path: LOCAL_CONFIG_LABEL,
+            message: "YAML を読めないので個人の設定を無視した",
+            detail: errors.join("\n"),
+          },
+        ],
+      };
+    }
+    const raw: unknown = doc.toJS() ?? {};
+    if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
+      return {
+        raw: undefined,
+        issues: [
+          {
+            severity: "warning",
+            code: "schema_error",
+            path: LOCAL_CONFIG_LABEL,
+            message: "項目の対応（マップ）でないので個人の設定を無視した",
+          },
+        ],
+      };
+    }
+    return { raw, issues: [] };
   }
 
   private async loadConfig(): Promise<{ config: Config; issues: Issue[] }> {

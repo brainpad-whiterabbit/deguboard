@@ -1,6 +1,7 @@
 // config.yaml のスキーマ。項目の全体はここが正本（requirements.md 5.10）。
 // 入れ子の既定は prefault で与える（Zod 4 の default は検証を短絡するため）。
-// 各項目の説明は describe に書き、configFields が設定画面（config.show の fields）に渡す
+// 各項目の説明は describe に書き、configFields が設定画面（config.show の fields）に渡す。
+// 項目ごとの範囲（scope）もここで決める：local の項目だけが、Git に入らない個人の設定（deguboard-local/config.yaml）で上書きできる
 
 import { z } from "zod";
 import { slugSchema } from "./common.js";
@@ -67,7 +68,7 @@ export const configSchema = z.looseObject({
         .boolean()
         .default(true)
         .describe(
-          "承認待ちの Plan や review のチケットが増えたとき、VS Code 拡張が通知を出すか。チームの全員に効く（件数の表示は常に出る）",
+          "承認待ちの Plan や review のチケットが増えたとき、VS Code 拡張が通知を出すか（件数の表示は常に出る）",
         ),
     })
     .prefault({}),
@@ -170,6 +171,31 @@ export function defaultConfig(): Config {
 /** 設定の 1 項目の型。画面はこれで入力欄（選択欄・チェック・テキスト・リスト）を選ぶ */
 export type ConfigFieldType = "enum" | "boolean" | "string" | "list";
 
+/**
+ * 項目の範囲。team はチームの config.yaml だけで決まり、local は個人の設定（deguboard-local/config.yaml）で上書きできる。
+ * 値は「個人 > チーム > 既定」の順に読む
+ */
+export type ConfigScope = "team" | "local";
+
+/** 個人で上書きできる項目。マシンの配置・作業の好み・使えるモデル・自分のマシンで許すことのように、人ごとに違ってよいもの */
+const LOCAL_KEYS: ReadonlySet<string> = new Set([
+  "default_project",
+  "git.remote",
+  "worktree.root",
+  "commit.mode",
+  "push.mode",
+  "models.light",
+  "models.standard",
+  "models.heavy",
+  "actions.shell",
+  "notify.approvals",
+]);
+
+/** 項目（ドット区切りの名前）の範囲。スキーマにない名前は team（個人のファイルでは無視する） */
+export function configScopeOf(key: string): ConfigScope {
+  return LOCAL_KEYS.has(key) ? "local" : "team";
+}
+
 /** 設定の 1 項目（葉）。key は config.set に渡すドット区切りの名前 */
 export interface ConfigField {
   key: string;
@@ -179,6 +205,7 @@ export interface ConfigField {
   /** スキーマの describe */
   description: string;
   default: unknown;
+  scope: ConfigScope;
 }
 
 /** default・prefault の包みを外した中身 */
@@ -195,6 +222,7 @@ function fieldOf(key: string, schema: z.ZodType, fallback: unknown): ConfigField
     type: "string",
     description: schema.description ?? "",
     default: fallback,
+    scope: configScopeOf(key),
   };
   if (inner instanceof z.ZodEnum) {
     field.type = "enum";
@@ -204,7 +232,7 @@ function fieldOf(key: string, schema: z.ZodType, fallback: unknown): ConfigField
   return field;
 }
 
-/** config.yaml の全項目（葉）を、スキーマの並びのまま既定値と説明つきで出す */
+/** config.yaml の全項目（葉）を、スキーマの並びのまま既定値・説明・範囲つきで出す */
 export function configFields(): ConfigField[] {
   const defaults = defaultConfig() as Record<string, unknown>;
   const fields: ConfigField[] = [];
@@ -217,4 +245,69 @@ export function configFields(): ConfigField[] {
     } else fields.push(fieldOf(top, schema as z.ZodType, defaults[top]));
   }
   return fields;
+}
+
+/** 入れ子の値を `commit.mode` のようなドット区切りの葉に開く。入れ子でない値（配列も）は葉 */
+export function flattenConfig(value: unknown, prefix = ""): Record<string, unknown> {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return prefix ? { [prefix]: value } : {};
+  }
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+    Object.assign(out, flattenConfig(v, prefix ? `${prefix}.${k}` : k));
+  }
+  return out;
+}
+
+/** 最上位の項目の新しい値を組み立てる。`commit.mode` のように入れ子なら、今の値を写して葉だけ置き換える。葉を undefined にすると、その葉と空になった入れ子を消す */
+export function nestedConfigValue(current: unknown, keys: string[], leaf: unknown): unknown {
+  if (keys.length === 0) return leaf;
+  const [head, ...rest] = keys as [string, ...string[]];
+  const base =
+    typeof current === "object" && current !== null && !Array.isArray(current)
+      ? { ...(current as Record<string, unknown>) }
+      : {};
+  const child = nestedConfigValue(base[head], rest, leaf);
+  if (child === undefined) delete base[head];
+  else base[head] = child;
+  return Object.keys(base).length === 0 ? undefined : base;
+}
+
+/** スキーマの全項目の名前（最初に使うときに作る） */
+let knownKeys: Set<string> | undefined;
+
+/**
+ * 個人の設定（deguboard-local/config.yaml の中身）をチームの値に重ねる。
+ * 上書きできる項目（scope が local）で、スキーマに合う値だけを重ね、ほかは理由を集めて無視する
+ */
+export function overlayLocalConfig(
+  team: Config,
+  local: unknown,
+): { config: Config; local: Record<string, unknown>; ignored: { key: string; reason: string }[] } {
+  const ignored: { key: string; reason: string }[] = [];
+  const applied: Record<string, unknown> = {};
+  let config: Record<string, unknown> = { ...team };
+  knownKeys ??= new Set(configFields().map((f) => f.key));
+  for (const [key, value] of Object.entries(flattenConfig(local))) {
+    if (!knownKeys.has(key)) {
+      ignored.push({ key, reason: "スキーマにない項目" });
+      continue;
+    }
+    if (configScopeOf(key) !== "local") {
+      ignored.push({ key, reason: "チーム専用の項目（チームの config.yaml で変える）" });
+      continue;
+    }
+    const [top, ...rest] = key.split(".") as [string, ...string[]];
+    const probe = configSchema.safeParse({
+      ...config,
+      [top]: nestedConfigValue(config[top], rest, value),
+    });
+    if (!probe.success) {
+      ignored.push({ key, reason: `値が正しくない: ${z.prettifyError(probe.error)}` });
+      continue;
+    }
+    config = probe.data;
+    applied[key] = value;
+  }
+  return { config: config as Config, local: applied, ignored };
 }

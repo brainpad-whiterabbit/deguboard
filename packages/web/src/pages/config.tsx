@@ -1,6 +1,7 @@
-// 設定画面（#/config）。config.show の fields で config.yaml の全項目を値・既定値・説明（スキーマの describe）つきで読み、
-// 値を変えるたびに config.set で 1 項目ずつ保存する。設定はチームで共有する config.yaml だけで、VS Code の settings.json は使わない
-// （requirements.md 5.10「利用者ごとの上書きは設けない」）。左パネルではビューのタイトル行の歯車、ブラウザでは上のバーの歯車で開け閉めし、画面の中の「前の画面に戻る」も歯車と同じく来る前の画面に戻る。
+// 設定画面（#/config）。config.show の fields で config.yaml の全項目を既定値・説明（スキーマの describe）つきで読み、
+// 値を変えるたびに config.set で 1 項目ずつ保存する。読み書きするのはチームで共有する config.yaml の値（view.team）で、
+// 個人の上書き（deguboard-local/config.yaml。CLI の config set --local）は欄に出さない（重ねた値を出すと保存が効かなかったように見える）。
+// VS Code の settings.json は使わない（requirements.md 5.10）。左パネルではビューのタイトル行の歯車、ブラウザでは上のバーの歯車で開け閉めし、画面の中の「前の画面に戻る」も歯車と同じく来る前の画面に戻る。
 // 選択欄とチェックは変えたらすぐ、テキストは Enter か欄を離れたとき、リストは足す・外すたびに保存する。
 // 同期先とブランチの判定・worktree の置き場所・実行するコマンドとエージェントに許す操作を変える項目（CONFIRM_KEYS）は、保存の前に欄の下で確かめる。
 // 拒否されたら理由を項目の下にだけ出し（上の通知の帯には出さない）、値を保存されている値に戻す
@@ -158,8 +159,9 @@ export function ConfigPage() {
       setSaved(null);
       // store.run は失敗を上の通知の帯にも出すので使わない（拒否の理由は項目の下にだけ出す）
       try {
-        const res = await store.client.run<ConfigShowView["config"]>("config.set", { key, value });
-        setView((v) => (v ? { ...v, config: res.data } : v));
+        // --local なしの config.set はチームの値を返す
+        const res = await store.client.run<ConfigShowView["team"]>("config.set", { key, value });
+        setView((v) => (v ? { ...v, team: res.data } : v));
         setMessages((d) => without(d, key));
         setSaved(tr("{0} を {1} にした", key, formatValue(valueAt(res.data, key))));
         if (res.warnings.length) store.notify({ kind: "info", text: res.warnings.join(" / ") });
@@ -184,7 +186,7 @@ export function ConfigPage() {
   const change = useCallback(
     (key: string, value: unknown) => {
       if (!view) return;
-      if (!isModified(value, valueAt(view.config, key))) {
+      if (!isModified(value, valueAt(view.team, key))) {
         setDrafts((d) => without(d, key));
         // 確かめを待つ間に保存されている値へ戻したら、待っている古い値を保存させない
         setPending((p) => (p?.key === key ? null : p));
@@ -225,8 +227,9 @@ export function ConfigPage() {
         <strong>{tr("チーム全員に効く設定")}</strong>
         <span>
           {trNode(
-            "deguboard ブランチの {0} に保存し、push すると同じリポジトリを使う全員に効く。利用者ごとの上書きはない",
+            "deguboard ブランチの {0} に保存し、push すると同じリポジトリを使う全員に効く。自分だけの上書きは {1} で（この画面には出ない）",
             <code>config.yaml</code>,
+            <code>dg config set --local</code>,
           )}
         </span>
       </p>
@@ -249,7 +252,7 @@ export function ConfigPage() {
         <section key={g.id} className="config-group" aria-labelledby={`config-group-${g.id}`}>
           <h3 id={`config-group-${g.id}`}>{tr(g.label)}</h3>
           {g.fields.map((f) => {
-            const value = valueAt(view!.config, f.key);
+            const value = valueAt(view!.team, f.key);
             const modified = isModified(value, f.default);
             // 確かめを待つ間は、待っている項目のほかは入力欄も「既定に戻す」も触れない
             // （触れると待ちが移り、元の項目の下書きが確かめの枠なしで残る）

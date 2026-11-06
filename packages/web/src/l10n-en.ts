@@ -370,8 +370,8 @@ export const EN: Readonly<Record<string, string>> = {
   "保存できない: {0}{1}": "Could not save: {0}{1}",
   前の画面に戻る: "Back to the previous view",
   チーム全員に効く設定: "Settings shared by the whole team",
-  "deguboard ブランチの {0} に保存し、push すると同じリポジトリを使う全員に効く。利用者ごとの上書きはない":
-    "Saved to {0} on the deguboard branch. Once pushed, it applies to everyone using this repository. There are no per-user overrides",
+  "deguboard ブランチの {0} に保存し、push すると同じリポジトリを使う全員に効く。自分だけの上書きは {1} で（この画面には出ない）":
+    "Saved to {0} on the deguboard branch. Once pushed, it applies to everyone using this repository. Override values for yourself with {1} (not shown here)",
   "設定を検索（名前・キー・説明）": "Search settings (name, key, description)",
   設定を検索: "Search settings",
   "保存した: {0}": "Saved: {0}",
