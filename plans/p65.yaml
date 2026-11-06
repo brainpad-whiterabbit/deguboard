@@ -1,0 +1,10 @@
+id: p65
+project: default
+tickets: [t475]
+after: {}
+pending_approval: true
+details:
+  t475:
+    scope: ADR-005 の決定の節の実装の細部と、採らなかった案の Plan の Run の 3 案。RN-6 が頼る細部は残すか指し先を直す
+    approach: 細部は Adapter・ticket.ts・setup.ts・run/ のコメントと help に任せ、理由は理由の節へ 1 行ずつ移す。requirements.md は足さずに指し先だけ直す
+    tier: standard
