@@ -55,14 +55,14 @@ interface MenuCache {
 
 const AskMenuContext = createContext<MenuCache | null>(null);
 
+/** 引いた組の印と、候補の持ち方の鍵。言語を含めて、言語を変えたら同じ組でも引き直す（遅れた前の言語の応答を別の鍵に置く） */
+const askedKey = (lang: string, key: string) => `${lang}\n${key}`;
+
 /**
  * 画面に出ている頼める場所の候補を、まとめて ask-menu で引いて持つ。同じ描画で増えた場所は 1 回の呼び出しにまとめる。
  * 一覧（チケット・Iteration・Epic・Plan・実行中の Run）が読み直されたら、出ている場所の分をすべて引き直す（引き直すまでは前の候補を出す）。
  * useCommandData は使わない：場所ごとの組をまとめて 1 回で引き、まだ引いていない組だけを足していくため
  */
-/** 引いた組の印。言語を含めて、言語を変えたら同じ組でも引き直す */
-const askedKey = (lang: string, key: string) => `${lang}\n${key}`;
-
 export function AskMenuProvider({ children }: { children: ReactNode }) {
   const store = useStore();
   const { client } = store;
@@ -93,7 +93,8 @@ export function AskMenuProvider({ children }: { children: ReactNode }) {
         if (asked.current !== mine) return;
         setMenus((prev) => {
           const next = new Map(prev);
-          for (const m of r.data) next.set(m.key, m);
+          // 応答は届いた時点の言語の鍵に置く（言語を変えた後に遅れて届いた前の言語の候補は、今の言語の画面に出ない）
+          for (const m of r.data) next.set(askedKey(lang, m.key), m);
           return next;
         });
       })
@@ -103,7 +104,7 @@ export function AskMenuProvider({ children }: { children: ReactNode }) {
         const error = e instanceof Error ? e.message : String(e);
         setMenus((prev) => {
           const next = new Map(prev);
-          for (const key of keys) next.set(key, { key, candidates: [], error });
+          for (const key of keys) next.set(askedKey(lang, key), { key, candidates: [], error });
           return next;
         });
       });
@@ -132,7 +133,7 @@ function useAskMenu(key: string | null, open: boolean): AskMenu | undefined {
     cache || !open || key === null ? null : { sets: [key] },
   );
   if (key === null) return undefined;
-  if (cache) return cache.menus.get(key);
+  if (cache) return cache.menus.get(askedKey(language(), key));
   return own.error ? { key, candidates: [], error: own.error } : own.data?.[0];
 }
 

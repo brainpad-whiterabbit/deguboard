@@ -1102,7 +1102,7 @@ const NO_TARGET: Partial<Record<AskAction, { ja: string; en: string }>> = {
     en: "Split the tickets, and propose whether to keep the original tickets or make them abandoned.",
   },
   remove: {
-    ja: "チケットを入っている Iteration・Epic から外します。",
+    ja: "チケットを、入っている Iteration・Epic から外します。",
     en: "Remove the tickets from the Iteration or Epic they belong to.",
   },
   edit: {

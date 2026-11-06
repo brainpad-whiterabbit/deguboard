@@ -855,7 +855,8 @@ describe("説明の 1 文（meaning・UI-15）", () => {
         const meaning = askMeaning(action, [], undefined, language);
         expect(meaning, `${language} ${action}`).not.toBe("");
         expect(meaning, `${language} ${action}`).not.toMatch(/^\s|\s\s/);
-        if (language === "en") expect(meaning, action).not.toMatch(/[぀-ヿ一-鿿]/);
+        // ひらがな・カタカナ・漢字に加え、全角の記号（、。「」（）など U+3000-303F と U+FF00-FFEF）も日本語とみなす
+        if (language === "en") expect(meaning, action).not.toMatch(/[぀-ヿ一-鿿　-〿＀-￯]/);
       }
   });
 
