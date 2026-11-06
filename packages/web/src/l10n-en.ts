@@ -654,16 +654,14 @@ export const CORE_MESSAGES_EN: Readonly<Record<string, string>> = {
   "{0} の値が正しくない": "Invalid value for {0}",
   "値を省けない。選択肢：{0}": "A value is required. Options: {0}",
   "actor.human_only にないコマンドがある: {0}": "actor.human_only has unknown commands: {0}",
-  // Plan の警告（plan.show・plan.close）
+  "config の更新がスキーマに合わない": "The config update does not match the schema",
+  個人の設定に書けない項目: "Items that cannot be set in personal settings",
+  // Plan の警告（plan.show）
   "{0} が見つからない（削除された）": "{0} not found (deleted)",
-  "{0} を残したまま閉じた": "Closed with {0} left unfinished",
-  // Run の警告（run.list・run.start・metrics.show）
+  // Run の警告（run.list・metrics.show）
   "deguboard-local/{0}: {1}": "deguboard-local/{0}: {1}",
-  "Run {0}: {1}": "Run {0}: {1}",
-  "{0} の Workflow が見つからないか読めないので、step {1} を確かめていない":
-    "The Workflow of {0} is missing or unreadable, so step {1} was not checked",
   "チケット {0} が見つからないので、その Run の Epic・Iteration・Project は分からない":
-    "Tickets {0} not found, so the Epic, Iteration, and Project of their Runs are unknown",
+    "Ticket(s) {0} not found, so the Epic, Iteration, and Project of their Runs are unknown",
   // 読めないファイルの理由（readDoc）
   ファイルを読めない: "Cannot read the file",
   "JSON を読めない": "Cannot parse JSON",
@@ -672,4 +670,6 @@ export const CORE_MESSAGES_EN: Readonly<Record<string, string>> = {
   "frontmatter を閉じる --- がない": "No closing --- for the frontmatter",
   "YAML を読めない": "Cannot parse YAML",
   スキーマに合わない: "Does not match the schema",
+  "ファイル名の ID {0} と中の id {1} が違う":
+    "The ID {0} in the file name differs from the id {1} inside",
 };

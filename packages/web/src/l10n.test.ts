@@ -288,7 +288,7 @@ describe("core が返すエラー・警告の文の訳（UI-11）", () => {
     expect(trCoreMessage("priority.high は個人の設定に書けない")).toBe(
       "priority.high cannot be set in personal settings",
     );
-    expect(trCoreMessage("t3, t4 を残したまま閉じた")).toBe("Closed with t3, t4 left unfinished");
+    expect(trCoreMessage("t3 が見つからない（削除された）")).toBe("t3 not found (deleted)");
     expect(trCoreMessage("deguboard-local/runs/r1.json: JSON を読めない")).toBe(
       "deguboard-local/runs/r1.json: Cannot parse JSON",
     );
