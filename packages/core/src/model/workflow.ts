@@ -31,7 +31,7 @@ const stepIdSchema = z.string().regex(/^[a-z][a-z0-9_-]*$/, "step は小文字�
 
 /**
  * step の Run を開くチケットの操作（RN-5）。claim は todo のチケットの claim（実装）、
- * reclaim は自分が claim 済みで PR のあるチケットのもう一度の claim（人のレビューの後の手直し）
+ * reclaim は自分が claim 済みで PR のあるチケットのもう一度の claim（見直しの修正ループと人のレビューの後の手直し）
  */
 export const STEP_OPENERS = ["claim", "reclaim"] as const;
 export type StepOpener = (typeof STEP_OPENERS)[number];

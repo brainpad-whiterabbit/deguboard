@@ -1561,6 +1561,107 @@ describe("チケットの流れ", () => {
     }
   });
 
+  it("見直しの修正ループの手直しは、draft の PR を記録した in_progress のチケットのもう一度の claim（--retry-reason）が fix の Run を開き、照合が次の見直しの開始と PR の ready を区切りとして push の時刻で閉じる（RN-5・RN-6）", async () => {
+    const f = await fixture();
+    let clock = new Date("2026-11-06T00:00:00Z");
+    const human = await initialized(
+      f.cloneA,
+      { now: () => clock },
+      { template: "software-development" },
+    );
+    await runCommand(ticketCreate, human, { title: "Review loop" });
+    const agent = await agentWithRuns(f.cloneA, () => clock);
+    const implement = (await runCommand(ticketClaim, agent, { ticket: "t1", branch: "feat/t1" }))
+      .data.run!;
+    await git(f.cloneA, ["branch", "feat/t1"]);
+    let restore = await fakeGh(f.root, {
+      "feat/t1|41":
+        '{"number":41,"state":"OPEN","isDraft":true,"mergedAt":null,"createdAt":"2026-11-06T00:20:00Z"}',
+    });
+    try {
+      // 実装者が draft の PR を作り、親が PR 番号を記録して実装の Run を閉じる。draft なので in_progress のまま
+      clock = new Date("2026-11-06T00:30:00Z");
+      await runCommand(ticketUpdate, agent, { ticket: "t1", pr: 41 });
+      expect(agent.store.runs.get(implement)!.data.result).toBe("success");
+      expect((await runCommand(sync, agent, {})).data.reconciled).toEqual([]);
+      clock = new Date("2026-11-06T00:40:00Z");
+      const review1 = (
+        await runCommand(runStart, agent, { ticket: "t1", step: "review", agent: "claude-code" })
+      ).data.id;
+      clock = new Date("2026-11-06T00:50:00Z");
+      await runCommand(runFinish, agent, { run: review1, result: "success" });
+
+      // 1 回目の手直し：もう一度の claim が理由付きで fix の Run を開く。チケットは in_progress のまま変わらない
+      clock = new Date("2026-11-06T01:00:00Z");
+      const reclaimed = await runCommand(ticketClaim, agent, {
+        ticket: "t1",
+        retry_reasons: ["指摘 A"],
+      });
+      expect(reclaimed.data).toMatchObject({ status: "in_progress", pr: 41 });
+      expect(reclaimed.write).toBeUndefined();
+      const fix1 = reclaimed.data.run!;
+      expect((await peekRunningRuns(agent.repo)).find((r) => r.id === fix1)).toMatchObject({
+        step: "fix",
+        retry_reasons: ["指摘 A"],
+        started_at: "2026-11-06T01:00:00Z",
+      });
+      await pushCommitAt(f.cloneA, "feat/t1", "2026-11-06T01:20:00Z");
+      // 区切り（次の見直し・ready）がなければ閉じない
+      clock = new Date("2026-11-06T01:25:00Z");
+      expect((await runCommand(sync, agent, {})).data.runs_closed).toEqual([]);
+
+      // 見直し直しの review の Run の開始が区切り。finished_at は手直しの最後の push の時刻
+      clock = new Date("2026-11-06T01:30:00Z");
+      const review2 = (
+        await runCommand(runStart, agent, { ticket: "t1", step: "review", agent: "claude-code" })
+      ).data.id;
+      clock = new Date("2026-11-06T01:35:00Z");
+      const afterReview = await runCommand(sync, agent, {});
+      expect(afterReview.data.runs_closed).toEqual([{ id: "t1", run: fix1, opener: "reclaim" }]);
+      expect(afterReview.warnings).toContainEqual(
+        `t1: 次の Run ${review2} の開始を区切りとして閉じた（最後の push の時刻）`,
+      );
+      expect(agent.store.runs.get(fix1)!.data).toMatchObject({
+        step: "fix",
+        result: "success",
+        finished_at: "2026-11-06T01:20:00Z",
+        retry_reasons: ["指摘 A"],
+      });
+      clock = new Date("2026-11-06T01:40:00Z");
+      await runCommand(runFinish, agent, { run: review2, result: "success" });
+
+      // 2 回目の手直し：直して push した後に親が PR を ready にすると、照合が review に進めて push の時刻で閉じる
+      clock = new Date("2026-11-06T02:00:00Z");
+      const fix2 = (
+        await runCommand(ticketClaim, agent, { ticket: "t1", retry_reasons: ["指摘 B"] })
+      ).data.run!;
+      await pushCommitAt(f.cloneA, "feat/t1", "2026-11-06T02:20:00Z");
+      restore();
+      restore = await fakeGh(f.root, {
+        "feat/t1|41":
+          '{"number":41,"state":"OPEN","isDraft":false,"mergedAt":null,"createdAt":"2026-11-06T00:20:00Z"}',
+      });
+      clock = new Date("2026-11-06T02:30:00Z");
+      const ready = await runCommand(sync, agent, {});
+      expect(ready.data.reconciled).toEqual([
+        { id: "t1", from: "in_progress", to: "review", when: ["pr_open", "!pr_draft"] },
+      ]);
+      expect(ready.data.runs_closed).toEqual([{ id: "t1", run: fix2, opener: "reclaim" }]);
+      expect(ready.warnings).toContainEqual(
+        "t1: review への前進を区切りとして閉じた（最後の push の時刻）",
+      );
+      expect(agent.store.runs.get(fix2)!.data).toMatchObject({
+        step: "fix",
+        result: "success",
+        finished_at: "2026-11-06T02:20:00Z",
+        retry_reasons: ["指摘 B"],
+      });
+      expect(await peekRunningRuns(agent.repo)).toEqual([]);
+    } finally {
+      restore();
+    }
+  });
+
   it("既定ではどの遷移も通り、制約を書いた Workflow では by: []・by: [human]・requires: [deps_done] で拒否される", async () => {
     const f = await fixture();
     const human = await initialized(f.cloneA);

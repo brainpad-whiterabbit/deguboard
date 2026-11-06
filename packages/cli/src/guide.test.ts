@@ -329,6 +329,19 @@ describe("dg guide", () => {
     expect(bullet(fixLoop, "上限")).toContain("重い指摘を直すのは 2 回まで");
     const runs = section(review, "## Run の分け方");
     expect(runs).toContain("--retry-reason <直した指摘の要約>");
+    // 修正ループの手直しも人のレビューの手直しと同じく、直すエージェントのもう一度の claim が開いて sync が閉じる（ADR-005）
+    expect(fixLoop).toContain("ticket claim <id> --retry-reason <指摘の要約>");
+    expect(lineWith(runs, "修正ループの 1 回")).toContain("ticket claim <id> --retry-reason");
+    expect(lineWith(runs, "修正ループの 1 回")).toContain("`sync` が次の区切り");
+    expect(review).not.toContain("run finish --retry-reason");
+    const parallel = await readGuide("parallel");
+    expect(bullet(parallel, "サブエージェントがしない")).toContain(
+      "手直しのもう一度の claim は除く",
+    );
+    expect(bullet(parallel, "親")).toContain("--retry-reason <指摘の要約>");
+    expect(lineWith(section(work, "## 流れ"), "gh pr create --draft")).toContain(
+      "手順 8 と同じもう一度の claim",
+    );
     const ending = section(review, "## 終わり方");
     for (const word of ["チケットは in_progress のまま", "人に報告", "`gh pr ready <PR>`"])
       expect(ending).toContain(word);
@@ -383,9 +396,13 @@ describe("dg guide", () => {
     for (const word of ["interrupted", "見直し役を起動し直す", "見直し役を起動できない"])
       expect(reviewerLost).toContain(word);
     expect(bullet(ending, "見直し役を起動できない")).toBeTruthy();
-    const parallelFix = lineWith(await readGuide("parallel"), "手直し・見直しの Run");
+    const parallelFix = lineWith(
+      await readGuide("parallel"),
+      "手直し・見直しが失敗で返ったか返らない",
+    );
     for (const word of ["unclaim せず", "`dg guide review`", "終わり方"])
       expect(parallelFix).toContain(word);
+    expect(parallelFix).toContain("成功して返った手直しの Run は `sync` が閉じる");
     const allFailed = lineWith(all, "todo に戻さず");
     for (const word of ["手直し", "見直し", "返らない"]) expect(allFailed).toContain(word);
     // done の「終わらなかったとき」は実装の Run と手直し・見直しの Run を分け、review へ案内する
