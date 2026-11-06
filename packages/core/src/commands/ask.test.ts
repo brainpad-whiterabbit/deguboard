@@ -810,3 +810,47 @@ describe("ask", () => {
     expect((await run({ targets: ["t2"], action: "undo_done" })).kind).toBe("prompt");
   });
 });
+
+describe("説明の 1 文（meaning・UI-15）", () => {
+  const meaningOf = (s: AskSubject[], action: AskAction, within?: string, language?: "ja" | "en") =>
+    askCandidates(s, within, language).find((c) => c.action === action)?.meaning;
+
+  it("候補の各項目に meaning が入り、依頼文の text には入らない", () => {
+    const s = [ticket({ status: "review" })];
+    const view = buildAsk({ subjects: s, format: "text" });
+    expect(view.candidates.length).toBeGreaterThan(0);
+    for (const c of view.candidates) {
+      expect(c.meaning).not.toBe("");
+      expect(view.text).not.toContain(c.meaning);
+    }
+  });
+
+  it("すべての頼むことで meaning が空でなく、対象があれば最初の ID から始まる", () => {
+    for (const [s, within] of SAMPLES)
+      for (const c of askCandidates(s, within)) {
+        expect(c.meaning, c.action).not.toBe("");
+        if (s.length > 0) expect(c.meaning.startsWith(s[0]!.id), c.action).toBe(true);
+      }
+  });
+
+  it("Status を変える頼むことは行き先の Status を含む", () => {
+    expect(meaningOf([ticket({ status: "review" })], "done")).toContain("done");
+    expect(meaningOf([ticket({ status: "todo" })], "abandon")).toContain("abandoned");
+    expect(meaningOf([ticket({ status: "in_progress" })], "resume")).toContain("in_progress");
+    expect(meaningOf([ticket({ status: "done" })], "undo_done")).toContain(
+      "todo・in_progress・review",
+    );
+    expect(meaningOf([iteration("active")], "close")).toContain("closed");
+    expect(meaningOf([iteration("closed")], "reopen")).toContain("active");
+    const epic: AskSubject = { kind: "epic", id: "e2", title: "束", status: "closed" };
+    expect(meaningOf([epic], "reopen")).toContain("open");
+  });
+
+  it("language が en のときは英語の 1 文になり、自由に頼むことは Skill を使わないと示す", () => {
+    for (const [s, within] of SAMPLES)
+      for (const c of askCandidates(s, within, "en"))
+        expect(c.meaning, c.action).not.toMatch(/[぀-ヿ一-鿿]/);
+    expect(meaningOf([ticket()], "free", undefined, "en")).toContain("without using a Skill");
+    expect(meaningOf([ticket()], "free")).toContain("Skill は使わず");
+  });
+});

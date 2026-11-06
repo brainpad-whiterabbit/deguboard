@@ -229,6 +229,9 @@ describe("core が返す決まった文の訳", () => {
         const text = trCore(c.label, c.action);
         if (JAPANESE.test(text)) untranslated.add(`${c.action}: ${c.label}`);
       }
+      // 札の下の 1 文（meaning）は core が言語ごとに組むので、英語の画面では英語の文になる
+      for (const c of askCandidates(subjects, within, "en"))
+        if (JAPANESE.test(c.meaning)) untranslated.add(`${c.action}: ${c.meaning}`);
     }
     expect(count).toBeGreaterThan(0);
     expect([...untranslated]).toEqual([]);

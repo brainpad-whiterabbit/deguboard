@@ -102,6 +102,8 @@ export interface AskCandidate {
   skill: string | null;
   /** 先頭の候補だけ true */
   recommended: boolean;
+  /** 札の下に出す、この頼むことで何が起きるかの 1 文。対象があれば ID から始まり、Status を変えるものは行き先を含む。依頼文（text）には入れない（ADR-010） */
+  meaning: string;
 }
 
 export interface AskView {
@@ -731,6 +733,262 @@ const ACTIONS: Record<AskAction, ActionDef> = {
   },
 };
 
+/**
+ * 候補の下に出す 1 文（UI-15）。頼むことで何が起きるかを、対象の ID から始めて書く。Status を変える頼むことは行き先の Status を含める。
+ * 依頼文（text）とは別に返し、依頼文には入れない。対象のない頼むこと（起票・点検・自由に）は ID から始めない
+ */
+const MEANING: Record<
+  AskAction,
+  (s: Subjects, w: Within | undefined, lang: AskLanguage) => string
+> = {
+  create: (s, _w, lang) => {
+    const it = single(s, "iteration");
+    if (it)
+      return say(
+        lang,
+        `${it.id} に入れるチケットを起票します。`,
+        `Create tickets to add to ${it.id}.`,
+      );
+    const ep = single(s, "epic");
+    if (ep?.status === "open")
+      return say(
+        lang,
+        `${ep.id} に足すチケットを起票します。`,
+        `Create tickets to add to ${ep.id}.`,
+      );
+    if (ep)
+      return say(
+        lang,
+        `${ep.id} の続きのチケットを起票します。`,
+        `Create follow-up tickets for ${ep.id}.`,
+      );
+    if (s.length > 0)
+      return say(
+        lang,
+        `${idList(s, lang)} の続きや不具合のチケットを起票します。`,
+        `Create follow-up or bug tickets for ${idList(s, lang)}.`,
+      );
+    return say(
+      lang,
+      "指示の内容をチケットとして起票します。",
+      "Turn the instructions into tickets.",
+    );
+  },
+  create_iteration: (s, _w, lang) =>
+    s.length > 0
+      ? say(
+          lang,
+          `${idList(s, lang)} を入れる Iteration を作ります。`,
+          `Create an Iteration to hold ${idList(s, lang)}.`,
+        )
+      : say(lang, "Iteration を作ります。", "Create an Iteration."),
+  create_epic: (s, _w, lang) =>
+    s.length > 0
+      ? say(
+          lang,
+          `${idList(s, lang)} を束ねる Epic を作ります。`,
+          `Create an Epic to group ${idList(s, lang)}.`,
+        )
+      : say(lang, "Epic を作ります。", "Create an Epic."),
+  fix: (s, _w, lang) =>
+    say(
+      lang,
+      `${idList(s, lang)} を指示のとおりに直します。`,
+      `Fix ${idList(s, lang)} as instructed.`,
+    ),
+  split: (s, _w, lang) =>
+    say(
+      lang,
+      `${idList(s, lang)} を分けます。元のチケットを残すか abandoned にするかの案を示します。`,
+      `Split ${idList(s, lang)}, and propose whether to keep the original tickets or make them abandoned.`,
+    ),
+  remove: (s, w, lang) =>
+    say(
+      lang,
+      `${idList(s, lang)} を ${w?.id ?? "入っている Iteration・Epic"} から外します。`,
+      `Remove ${idList(s, lang)} from ${w?.id ?? "the Iteration or Epic they belong to"}.`,
+    ),
+  edit: (s, _w, lang) =>
+    single(s, "iteration")
+      ? say(
+          lang,
+          `${idList(s, lang)} の名前・目標・期間を指示のとおりに直します。`,
+          `Update the name, goal, and dates of ${idList(s, lang)} as instructed.`,
+        )
+      : say(
+          lang,
+          `${idList(s, lang)} の題と概要を指示のとおりに直します。`,
+          `Update the title and summary of ${idList(s, lang)} as instructed.`,
+        ),
+  assign: (s, _w, lang) => {
+    const it = single(s, "iteration");
+    if (it?.status === "closed")
+      return say(
+        lang,
+        `${it.id} の持ち越しのチケットを、今の Iteration か新しい Iteration に割り当てます。`,
+        `Assign the carried-over tickets of ${it.id} to the current Iteration or a new one.`,
+      );
+    if (it)
+      return say(
+        lang,
+        `${it.id} に入れる未割り当ての todo を選びます。`,
+        `Choose the unassigned todo tickets to add to ${it.id}.`,
+      );
+    const ep = single(s, "epic");
+    if (ep)
+      return say(
+        lang,
+        `${ep.id} に入れるチケットを選びます。`,
+        `Choose the tickets to add to ${ep.id}.`,
+      );
+    return say(
+      lang,
+      `${idList(s, lang)} を合う Iteration・Epic に割り当てます。`,
+      `Assign ${idList(s, lang)} to a fitting Iteration or Epic.`,
+    );
+  },
+  plan: (s, _w, lang) =>
+    single(s, "plan")
+      ? say(
+          lang,
+          `${idList(s, lang)} を組み直し、承認を待ちます。`,
+          `Rework ${idList(s, lang)} and wait for approval.`,
+        )
+      : say(
+          lang,
+          `${idList(s, lang)} を進める Plan を立て、承認を待ちます。`,
+          `Make a Plan to proceed with ${idList(s, lang)}, and wait for approval.`,
+        ),
+  approve: (s, _w, lang) =>
+    say(
+      lang,
+      `${idList(s, lang)} の内容を示し、承認を求めます。`,
+      `Show the content of ${idList(s, lang)} and ask for approval.`,
+    ),
+  work: (s, _w, lang) =>
+    single(s, "plan")
+      ? say(
+          lang,
+          `${idList(s, lang)} を着手できるものから進めます。`,
+          `Proceed with ${idList(s, lang)}, starting with the tickets that can be started.`,
+        )
+      : say(lang, `${idList(s, lang)} を進めます。`, `Proceed with ${idList(s, lang)}.`),
+  resume: (s, _w, lang) => {
+    const tickets = only(s, "ticket") ?? [];
+    const running = tickets.filter((t) => t.running);
+    return say(
+      lang,
+      `${idList(tickets, lang)} の止まっている作業を再開し、Status を in_progress にします` +
+        (running.length > 0 ? `（${idList(running, lang)} は Run が実行中なので触りません）` : "") +
+        "。",
+      `Resume the stalled work on ${idList(tickets, lang)} and set their Status to in_progress` +
+        (running.length > 0
+          ? ` (leave ${idList(running, lang)} alone, since a Run is running on them)`
+          : "") +
+        ".",
+    );
+  },
+  all: (s, _w, lang) =>
+    say(
+      lang,
+      `${idList(s, lang)} を最後まで進めます（承認の場所は手順どおり）。`,
+      `Take ${idList(s, lang)} all the way through, pausing for approval where the steps say to.`,
+    ),
+  done: (s, _w, lang) =>
+    single(s, "plan")
+      ? say(
+          lang,
+          `${idList(s, lang)} のマージ済みのチケットを照合して片付け、終わっていれば Plan を閉じます。`,
+          `Reconcile and clean up the merged tickets of ${idList(s, lang)}, and close the Plan if it is finished.`,
+        )
+      : say(
+          lang,
+          `${idList(s, lang)} の PR のマージを照合し、残った受け入れ条件を確かめて、Status を done にします。`,
+          `Reconcile the PR merges of ${idList(s, lang)}, verify the remaining acceptance criteria, and set the Status to done.`,
+        ),
+  check: (s, _w, lang) => {
+    if (s.length === 0)
+      return say(
+        lang,
+        "全体を点検し、直す案を表で示します。",
+        "Check everything and show the proposed fixes in a table.",
+      );
+    if (only(s, "ticket")?.every(isWaiting))
+      return say(
+        lang,
+        `${idList(s, lang)} の依存先の進みと進める順を確かめます。`,
+        `Check the progress of the dependencies of ${idList(s, lang)} and the order to proceed.`,
+      );
+    return say(
+      lang,
+      `${idList(s, lang)} を点検し、直す案を表で示します。`,
+      `Check ${idList(s, lang)} and show the proposed fixes in a table.`,
+    );
+  },
+  release: (s, _w, lang) =>
+    say(
+      lang,
+      `${idList(s, lang)} をリリースします。リリースの PR のマージと公開の前に承認を求めます。`,
+      `Release ${idList(s, lang)}, and ask for approval before merging the release PR and publishing.`,
+    ),
+  carry: (s, _w, lang) =>
+    say(
+      lang,
+      `${idList(s, lang)} の未完了のチケットを示し、持ち越すか続けるかを相談します（データは書き換えません）。`,
+      `List the unfinished tickets of ${idList(s, lang)} and consult on whether to carry them over or continue (no data changes).`,
+    ),
+  close: (s, _w, lang) =>
+    say(
+      lang,
+      `${idList(s, lang)} を閉じ、Status を closed にします（人の指示）。`,
+      `Close ${idList(s, lang)} and set its Status to closed (a human's instruction).`,
+    ),
+  reopen: (s, _w, lang) => {
+    const to = s[0]?.kind === "iteration" ? "active" : "open";
+    return say(
+      lang,
+      `${idList(s, lang)} を再開し、Status を ${to} にします（人の指示）。`,
+      `Reopen ${idList(s, lang)} and set its Status to ${to} (a human's instruction).`,
+    );
+  },
+  abandon: (s, _w, lang) =>
+    say(
+      lang,
+      `${idList(s, lang)} をやめ、Status を abandoned にします（人の指示）。`,
+      `Abandon ${idList(s, lang)} and set its Status to abandoned (a human's instruction).`,
+    ),
+  undo_done: (s, _w, lang) =>
+    say(
+      lang,
+      `${idList(s, lang)} の done を取り消し、Status を todo・in_progress・review のどれかに戻します（人の指示）。`,
+      `Undo done for ${idList(s, lang)} and return the Status to todo, in_progress, or review (a human's instruction).`,
+    ),
+  status: (s, _w, lang) =>
+    say(
+      lang,
+      `${idList(s, lang)} の作業の様子を教えます（データは書き換えません）。`,
+      `Tell how the work on ${idList(s, lang)} is going (no data changes).`,
+    ),
+  retro: (s, _w, lang) =>
+    say(
+      lang,
+      `${idList(s, lang)} の振り返りをまとめます（データは書き換えません）。`,
+      `Write a retrospective of ${idList(s, lang)} (no data changes).`,
+    ),
+  free: (s, _w, lang) =>
+    s.length > 0
+      ? say(
+          lang,
+          `${idList(s, lang)} について、Skill は使わず指示のとおりに進めます。`,
+          `Regarding ${idList(s, lang)}, proceed as instructed without using a Skill.`,
+        )
+      : say(
+          lang,
+          "Skill は使わず、指示のとおりに進めます。",
+          "Proceed as instructed without using a Skill.",
+        ),
+};
+
 /** 依頼文に使う Skill の名前（dg<トピック>）。dg skill install で配る名前と一致することを cli のテストで確かめる */
 export const ASK_SKILLS: readonly string[] = [
   ...new Set(Object.values(ACTIONS).flatMap((a) => (a.skill ? [a.skill] : []))),
@@ -833,13 +1091,18 @@ function baseActions(s: Subjects): AskAction[] {
   return ["check", "plan", "free"];
 }
 
-export function askCandidates(s: Subjects, within?: string): AskCandidate[] {
+export function askCandidates(
+  s: Subjects,
+  within?: string,
+  lang: AskLanguage = "ja",
+): AskCandidate[] {
   const w = withinOf(s, within);
   return askActions(s, within).map((action, n) => ({
     action,
     label: ACTIONS[action].label(s, w),
     skill: ACTIONS[action].skill && `/${ACTIONS[action].skill}`,
     recommended: n === 0,
+    meaning: MEANING[action](s, w, lang),
   }));
 }
 
@@ -898,7 +1161,7 @@ export function buildAsk(input: BuildAskInput): AskView {
   const s = input.subjects;
   const format = input.format ?? "skill";
   const lang = input.language ?? "ja";
-  const candidates = askCandidates(s, input.within);
+  const candidates = askCandidates(s, input.within, lang);
   const w = withinOf(s, input.within);
   const chosen = input.action ?? candidates[0]!.action;
   const candidate = candidates.find((c) => c.action === chosen);
