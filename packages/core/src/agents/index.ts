@@ -5,7 +5,14 @@ import type { Config } from "../model/config.js";
 import { claudeCodeAdapter } from "./adapters/claude-code.js";
 import { codexAdapter } from "./adapters/codex.js";
 import { copilotAdapter } from "./adapters/copilot.js";
-import type { AgentAdapter, CollectedUsage, SkillDirs, SkillQuery, UsageQuery } from "./define.js";
+import type {
+  AgentAdapter,
+  AgentEnv,
+  CollectedUsage,
+  SkillDirs,
+  SkillQuery,
+  UsageQuery,
+} from "./define.js";
 
 export type * from "./define.js";
 
@@ -26,6 +33,22 @@ export function agentSkillDirs(query: SkillQuery): string[] {
 /** agent の Skill の置き場所。dg skill install が書く先を決めるのに使う。Skill のない agent は undefined */
 export function skillDirsOf(agent: string): SkillDirs | undefined {
   return findAdapter(agent)?.skillDirs;
+}
+
+/** 環境変数から判定した agent。agent は 1 つの Adapter だけが自分と判定したときの名前で、それ以外は null */
+export interface AgentDetection {
+  agent: string | null;
+  /** 自分と判定した Adapter の名前。2 つ以上なら（エージェントの中から別のエージェントを呼んだなど）どれとも決めない */
+  matched: string[];
+}
+
+/**
+ * dg を呼んだプロセスの環境変数から agent を判定する（AG-5・RN-1）。run start が --agent を省いたときに使い、
+ * 判定できなければ（判定する Adapter がないか、2 つ以上が自分と判定した）agent は null
+ */
+export function detectAgent(env: AgentEnv): AgentDetection {
+  const matched = ADAPTERS.filter((a) => a.detect?.(env) === true).map((a) => a.name);
+  return { agent: matched.length === 1 ? matched[0]! : null, matched };
 }
 
 function findAdapter(agent: string): AgentAdapter | undefined {

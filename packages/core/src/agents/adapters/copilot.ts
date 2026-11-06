@@ -12,6 +12,8 @@
 //   - 探す範囲：session-state の下のすべての session の記録のうち、started_at より後に書かれたもの。同じ時刻なら、パスの順で選ぶ
 //     （呼ぶ session の環境によらない）
 //   - ツールの回数は数えない（null）。返すのは数とモデル名だけ。会話の中身・コマンド・パスは返さない（MT-4）
+//   - 判定（detect）はしない。Copilot CLI が実行するコマンドの環境に付ける変数を公の文書でも配布物でも確かめられなかった
+//     （COPILOT_MODEL などは利用者が付ける設定で、VS Code は Copilot を使っていない端末にも COPILOT_* を付ける）。run start には --agent copilot を渡す
 
 import { createReadStream } from "node:fs";
 import path from "node:path";
