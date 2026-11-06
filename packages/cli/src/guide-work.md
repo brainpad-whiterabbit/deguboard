@@ -17,7 +17,7 @@ argument-hint: "<Plan の ID|チケットの ID>"
 
 1. 着手できるか確かめる：`dg --json --actor agent ticket show <id>`。`status` が todo で `deps_done` が true。todo でも `assignee` が別のユーザなら、その人の予定なので避ける（自分か自分のユーザのものなら着手してよい）
    - Iteration に入れる（`lint.require_iteration` が true のときだけ。今の設定：`{{lint.require_iteration}}`）：claim の前に、`ticket show` の `iteration` が空なら、チケットの Project の active の Iteration（なければ planned のうち `start` が最も早いもの。`start` のないものは後に回し、並べば ID の小さいもの）を `iteration list` で選び、`dg --json --actor agent iteration add <S> <id>` で入れる。どちらもなければ人に頼む。入れずに進んだチケットは `dg lint` が `lint_iteration_missing` で指摘する
-2. claim する：`dg --json --actor agent ticket claim <id> --branch <種類>/<内容>`（何が起きるかは `--help`）。`CLAIM_LOST`（誰かが先に claim した）なら別のチケットへ。`TRANSITION_REJECTED` なら Workflow の制約。`BRANCH_IN_USE`（同じ名前のブランチが使われている・残っている）なら別の名前で claim し直す。`error.message` を読む
+2. claim する：`dg --json --actor agent ticket claim <id> --branch <種類>/<内容>`（何が起きるかは `--help`）。claim は実装の Run も開くので、返った `data.run` の ID を控える（開けなければ `warnings` に理由が出る。`dg guide run` の「Run を記録する」）。実装をサブエージェントに渡すとき（Plan の段階のモデルが親と違う、`dg guide parallel`）は `--no-run` を付け、サブエージェントに `run start` させる。`CLAIM_LOST`（誰かが先に claim した）なら別のチケットへ。`TRANSITION_REJECTED` なら Workflow の制約。`BRANCH_IN_USE`（同じ名前のブランチが使われている・残っている）なら別の名前で claim し直す。`error.message` を読む
    - Iteration を始める：claim できたら、`ticket show` の `iteration` があり、`iteration show <S>` の `status` が planned のときだけ、人に聞かずに `dg --json --actor agent iteration start <S>` で active にする。active・closed や Iteration のないチケットでは何もしない。拒否されたら `iteration show` を読み直し、active なら何もせず、planned のまま（ほかの Iteration が active のままなど。active は Project に 1 つ）なら人に頼む。どちらでも作業は続ける
 3. 作業ブランチと worktree を作る（リポジトリの規約に従う。既定の置き場所は `{{worktree.root}}`）
 
@@ -26,7 +26,7 @@ argument-hint: "<Plan の ID|チケットの ID>"
    git worktree add --no-track -b <ブランチ名> <worktree の場所> {{git.remote}}/{{git.base_branch}}
    ```
 
-4. 実装の Run を始めて実装する（`dg guide run` の「Run を記録する」）：`dg --json --actor agent run start <id> <step> --agent <エージェント>`（software-development・general では `implement`）。返った Run の ID を控える。Plan の段階（`details.<id>.tier`）のモデルが親と違えば、この手順の run start から手順 6 の Run を閉じるまでをそのモデルのサブエージェントに渡す（`dg guide run` の「段階のモデル」）。実装は本文の `## 受け入れ条件` を満たすことを目標にし、リポジトリの検査（lint・テスト）を通す
+4. 実装する。Run は手順 2 の claim が開いている（`--no-run` で claim したサブエージェントへの委譲では、サブエージェントが `dg --json --actor agent run start <id> <step> --agent <エージェント>` で開く。software-development・general では `implement`）。Plan の段階（`details.<id>.tier`）のモデルが親と違えば、この手順から手順 6 の Run を閉じるまでをそのモデルのサブエージェントに渡す（`dg guide run` の「段階のモデル」）。実装は本文の `## 受け入れ条件` を満たすことを目標にし、リポジトリの検査（lint・テスト）を通す
    - 正本とコメントを読み直す：実装を終えて PR を作る前に、触れた節の正本（リポジトリの規約が正本とする文書。仕様書（requirements）・ADR・README など）とコードのコメントを読み直し、実装とずれた記述を同じ PR で直す（文書・コメントと実装のずれは、手直しの理由で最も多い）
 5. 受け入れ条件を 1 項目ずつ確かめる。`dg --json --actor agent ticket show <id>` の `acceptance`（`index`・`text`・`checked`）を読み、成果物やテストで満たしたと確認できた項目だけ `dg --json --actor agent ticket check <id> <番号...>` で付ける。確認できない項目は付けず、PR の本文と人への報告に理由を書く
 6. コミットして push し、PR を draft で作る（`gh pr create --draft`）。PR の本文にチケットの ID（`t12`）と、付けられなかった受け入れ条件、読み直した正本と直した箇所を書く（見直しの後に親が書き足すものは `dg guide review` の「指摘を直す」）。PR の番号をチケットに記録する：`dg --json --actor agent ticket update <id> --pr <番号>`（照合はブランチ名でも PR を引くが、使い回したブランチでは別の PR を拾いうる）。draft の PR を作ったら実装の Run を閉じる。続けて `dg guide review` のとおり、別のサブエージェントの見直しと上限付きの修正ループで品質ゲートを通し、`gh pr ready <PR>` で出す（上限を超えたときもそこに従う）
@@ -47,7 +47,7 @@ argument-hint: "<Plan の ID|チケットの ID>"
 チケットのデータの整備・確認・調査など、リポジトリのファイルを変えない作業は、ブランチも PR も作らない。照合には頼らず、自分で done まで進める。
 
 1. claim する：上の手順 1（着手できるか確かめ、`lint.require_iteration` が true なら Iteration に入れる。今の設定：`{{lint.require_iteration}}`）を済ませてから、`dg --json --actor agent ticket claim <id> --without-branch`。planned の Iteration は上の手順 2 のとおり始める
-2. Run を始めて作業し、終えたら閉じる（`dg guide run` の「Run を記録する」）。worktree は作らない。何をしたかと結果は、最後に人への報告に書く
+2. 作業し、終えたら claim が開いた Run（`data.run`）を閉じる（`dg guide run` の「Run を記録する」）。worktree は作らない。何をしたかと結果は、最後に人への報告に書く
 3. 受け入れ条件を 1 項目ずつ確かめ、満たした項目だけ `ticket check` で付ける（上の手順 5 と同じ）
 4. すべて付いたら `dg --json --actor agent ticket move <id> done`。付けられない項目が残ったら `ticket move <id> review` にして、残った項目と理由を人に報告する（done にするのは人）
 5. 途中でリポジトリのファイルを変える必要が出たら、`ticket update <id> --branch <種類>/<内容>` で記録して上の流れに移る。逆にブランチが要らなくなったら `--branch none`

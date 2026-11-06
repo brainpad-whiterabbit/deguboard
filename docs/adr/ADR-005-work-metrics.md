@@ -1,7 +1,7 @@
 # ADR-005 作業の実績
 
 - ステータス：承認
-- 更新日：2026-11-05
+- 更新日：2026-11-06
 
 ## 背景
 
@@ -26,7 +26,8 @@
 
 ### 実装・見直し・手直しを別の Run にする
 
-- 実装の Run は draft の PR を作った時点で閉じる。見直し役の見直しは `review`、修正ループの 1 回と人のレビューの後の手直しは `fix` の Run にし、それぞれ作業したエージェント自身が記録する。同梱の software-development と general の `steps` に `review`・`fix` がある
+- 実装の Run は、作業するエージェント自身の `ticket claim` が開き（Workflow の `opens_on: claim` の step。RN-5）、draft の PR を作った時点で閉じる。手順書を通らずにその場で実装すると `run start` が呼ばれず Run が残らなかったので、Run の開始をチケットの操作に付随させた。実装をサブエージェントに渡す親は `--no-run` で claim し、サブエージェントが自分で `run start` する（親が開いた Run では作業した分を数えられない。下の「会話記録を Run に結び付ける」）
+- 見直し役の見直しは `review`、修正ループの 1 回と人のレビューの後の手直しは `fix` の Run にし、それぞれ作業したエージェント自身が `run start` で記録する。同梱の software-development と general の `steps` に `review`・`fix` がある
 - 手直しの Run には、直した指摘を `retry_reasons` に 1 件 1 行で残す。修正ループの手直しも人のレビューの後の手直しも `fix` なので、`fix` の Run の数は手直しの回数の目安にとどまる。修正ループの上限は手順の側で数える
 - 手順は `dg guide work`・`dg guide review` が持つ
 

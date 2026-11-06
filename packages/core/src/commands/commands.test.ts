@@ -12,6 +12,7 @@ import { pickUser } from "../model/actor.js";
 import { defaultConfig } from "../model/config.js";
 import { resetGhCache } from "../git/facts.js";
 import { osUserName } from "../git/repo.js";
+import { peekRunningRuns } from "../run/record.js";
 import { openContext, type ContextOptions } from "./context.js";
 import { runCommand, type CommandContext } from "./define.js";
 import { epicAdd, epicClose, epicCreate, epicReopen, epicShow, epicUpdate } from "./epic.js";
@@ -578,6 +579,87 @@ describe("チケットの流れ", () => {
       process.env["PATH"] = savedPath;
       resetGhCache();
     }
+  });
+
+  it("agent の claim は実装の Run を開いて run に ID を出し、no_run と人の claim では開かず、agent を判定できなければ警告だけして claim は成功する（RN-5）", async () => {
+    const f = await fixture();
+    const human = await initialized(f.cloneA, {}, { template: "software-development" });
+    for (const title of ["A", "B", "C", "D", "E"]) await runCommand(ticketCreate, human, { title });
+    const agent = await openContext({ cwd: f.cloneA, actor: { kind: "agent", user: "eiki" } });
+    agent.env = { CLAUDECODE: "1" };
+    // 環境変数から判定した agent で、opens_on: claim の implement の Run が開く
+    const claimed = await runCommand(ticketClaim, agent, { ticket: "t1" });
+    expect(claimed.data).toMatchObject({ status: "in_progress", assignee: "eiki/agent" });
+    expect(claimed.data.run).toMatch(/^r\d{8}-\d{6}-[0-9a-f]{4}$/);
+    expect(claimed.warnings).toEqual([]);
+    expect(await peekRunningRuns(agent.repo)).toEqual([
+      expect.objectContaining({
+        id: claimed.data.run,
+        ticket: "t1",
+        step: "implement",
+        agent: "claude-code",
+        model: null,
+      }),
+    ]);
+    // without_branch でも開き、agent を渡せば判定より先に使う
+    const noBranch = await runCommand(ticketClaim, agent, {
+      ticket: "t2",
+      without_branch: true,
+      agent: "codex",
+    });
+    expect(noBranch.data.branch).toBeUndefined();
+    expect((await peekRunningRuns(agent.repo)).find((r) => r.ticket === "t2")).toMatchObject({
+      id: noBranch.data.run,
+      step: "implement",
+      agent: "codex",
+    });
+    // no_run と人の claim では開かない。no_run と agent は同時に指定できない
+    expect(
+      (await runCommand(ticketClaim, agent, { ticket: "t3", no_run: true })).data.run,
+    ).toBeNull();
+    expect((await runCommand(ticketClaim, human, { ticket: "t4" })).data.run).toBeNull();
+    await expect(
+      runCommand(ticketClaim, agent, { ticket: "t5", no_run: true, agent: "codex" }),
+    ).rejects.toBeInstanceOf(UsageError);
+    // agent を判定できなければ開かずに警告し、claim 自体は成功する
+    agent.env = {};
+    const undetected = await runCommand(ticketClaim, agent, { ticket: "t5" });
+    expect(undetected.data).toMatchObject({ status: "in_progress", run: null });
+    expect(undetected.warnings).toEqual([
+      expect.stringMatching(/^implement の Run を開いていない: .*--agent/),
+    ]);
+    expect((await peekRunningRuns(agent.repo)).map((r) => r.ticket).sort()).toEqual(["t1", "t2"]);
+  });
+
+  it("claim が開く step は Workflow の opens_on: claim の step、なければ implement。語彙になければ開かずに警告する（RN-5）", async () => {
+    const f = await fixture();
+    const human = await initialized(f.cloneA);
+    const workflow = (id: string, steps: string) =>
+      writeFile(
+        path.join(human.repo.dataDir, `workflows/${id}.yaml`),
+        `id: ${id}\nname: ${id}\nsteps:\n${steps}`,
+      );
+    await workflow("build", "  - { id: build, opens_on: claim }\n  - { id: review }\n");
+    await workflow("plain", "  - { id: implement }\n  - { id: review }\n");
+    await workflow("noimpl", "  - { id: research }\n");
+    await human.store.rescan();
+    for (const wf of ["build", "plain", "noimpl"])
+      await runCommand(ticketCreate, human, { title: wf, workflow: wf });
+    const agent = await openContext({ cwd: f.cloneA, actor: { kind: "agent", user: "eiki" } });
+    agent.env = { CLAUDECODE: "1" };
+    expect((await runCommand(ticketClaim, agent, { ticket: "t1" })).data.run).not.toBeNull();
+    expect((await runCommand(ticketClaim, agent, { ticket: "t2" })).data.run).not.toBeNull();
+    const missing = await runCommand(ticketClaim, agent, { ticket: "t3" });
+    expect(missing.data).toMatchObject({ status: "in_progress", run: null });
+    expect(missing.warnings).toEqual([
+      expect.stringMatching(
+        /^implement の Run を開いていない: step implement は Workflow noimpl の steps にない/,
+      ),
+    ]);
+    expect((await peekRunningRuns(agent.repo)).map((r) => [r.ticket, r.step])).toEqual([
+      ["t1", "build"],
+      ["t2", "implement"],
+    ]);
   });
 
   it("既定ではどの遷移も通り、制約を書いた Workflow では by: []・by: [human]・requires: [deps_done] で拒否される", async () => {

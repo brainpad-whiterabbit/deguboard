@@ -90,10 +90,21 @@ export function validateWorkflow(
     }
   });
   const stepIds = new Set<string>();
+  /** opens_on の操作ごとに、先に付けた step の名前。同じ操作が 2 つ以上の step を開くとどちらを開くか決まらない（RN-5） */
+  const openers = new Map<string, string>();
   def.steps?.forEach((step, i) => {
     if (stepIds.has(step.id))
       issue("workflow_step_duplicate", `steps[${i}]: ${step.id} が重複している`);
     stepIds.add(step.id);
+    if (step.opens_on) {
+      const first = openers.get(step.opens_on);
+      if (first) {
+        issue(
+          "workflow_opens_on_duplicate",
+          `steps[${i}]: opens_on: ${step.opens_on} は ${first} にも付いている。1 つの step にだけ付ける`,
+        );
+      } else openers.set(step.opens_on, step.id);
+    }
     // 未知の Action は警告にとどめ、Workflow を索引に残す。新しい版の dg で足した Action を書いた YAML を
     // 古い版で読んでも、遷移と照合を止めない
     for (const action of step.actions) {

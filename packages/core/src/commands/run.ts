@@ -10,7 +10,8 @@ import { isRunId, RUN_RESULTS, type Run, type RunId, type RunUsage } from "../mo
 import { withWrite } from "../git/write.js";
 import { finishRun, readRunningRuns, startRun } from "../run/record.js";
 import { findStep } from "../workflow/resolve.js";
-import { defineCommand, ok } from "./define.js";
+import type { Ticket } from "../model/ticket.js";
+import { defineCommand, ok, type CommandContext } from "./define.js";
 import { idShapeOf, iterationRef, ticketRef } from "./helpers.js";
 
 /**
@@ -32,19 +33,72 @@ function runSpans(closed: Iterable<{ data: Run }>, running: Iterable<{ data: Run
   return spans;
 }
 
-/** --agent を省いた run start の agent。Adapter が環境変数から判定する（AG-5）。判定できなければ使い方の誤り */
-function agentFromEnv(env: Readonly<Record<string, string | undefined>>): string {
+/**
+ * --agent を省いたときの agent。Adapter が環境変数から判定する（AG-5）。判定できなければ理由を返す
+ * （run start は使い方の誤りに、ticket claim は Run を開かない警告にする。RN-5）
+ */
+export function agentFromEnv(
+  env: Readonly<Record<string, string | undefined>>,
+): { agent: string; reason?: undefined } | { agent: null; reason: string } {
   const { agent, matched } = detectAgent(env);
-  if (agent) return agent;
+  if (agent) return { agent };
   const reason =
     matched.length > 1
       ? `環境変数から ${matched.join("・")} のどれとも判定できる`
       : `環境変数から agent を判定できない（判定できるのは環境変数を付ける Adapter だけ）`;
-  throw new UsageError(`${reason}。--agent でエージェント名を渡す`);
+  return { agent: null, reason: `${reason}。--agent でエージェント名を渡す` };
 }
 
-/** 空白・改行を含まない 1 語。step の語彙は run.start がチケットの Workflow の steps（WF-5）で確かめる */
-const token = z.string().regex(/^\S+$/, "空白・改行を含まない 1 語");
+/**
+ * Run を開く（run start と、agent の ticket claim が共有する。RN-5）。step がチケットの Workflow の steps になければ
+ * VALIDATION_FAILED、同じチケットと step の Run が実行中なら startRun が ALREADY_EXISTS。
+ * Workflow が読めない・Adapter のない agent・このマシンで同じ agent の Run が開いたままは警告して開く
+ */
+export async function openRun(
+  ctx: CommandContext,
+  ticket: Ticket,
+  input: { step: string; agent: string; model?: string | undefined },
+): Promise<{ run: Run; warnings: string[] }> {
+  const { step, agent } = input;
+  const warnings: string[] = [];
+  const workflow = ctx.store.workflowFor(ticket);
+  if (workflow) {
+    const found = findStep(workflow.resolved, step);
+    if (!found.ok) {
+      throw new OperationError(
+        "VALIDATION_FAILED",
+        `step ${step} は Workflow ${workflow.resolved.id} の steps にない（${found.known.join("・")}）`,
+      );
+    }
+  } else {
+    warnings.push(
+      `${ticket.id} の Workflow が見つからないか読めないので、step ${step} を確かめていない`,
+    );
+  }
+  if (!agentNames().includes(agent)) {
+    warnings.push(
+      `agent ${agent} には Adapter がないので、finish は使用量とモデル名を取り込めない（Adapter のある名前: ${agentNames().join("・")}。サブエージェントも自分の Adapter の名前で始める）`,
+    );
+  }
+  // 同じ会話記録で期間が重なると、応答は後に始めた Run にだけ数える（ADR-005）。閉じ忘れに気づけるように知らせる
+  const open = (await readRunningRuns(ctx.repo)).runs.filter((r) => r.data.agent === agent);
+  if (open.length > 0) {
+    warnings.push(
+      `このマシンで ${agent} の Run ${open.map((r) => `${r.id}（${r.data.ticket} ${r.data.step}）`).join("・")}が開いたまま。同じ会話記録なら、この後の応答は新しい Run にだけ数える。終わった Run は dg run finish で閉じる（並行する別のエージェントの Run や、自分が始めた覚えのない ID なら無視してよい）`,
+    );
+  }
+  const run = await startRun(ctx.repo, {
+    ticket: ticket.id,
+    step,
+    agent,
+    model: input.model,
+    now: ctx.now(),
+  });
+  return { run, warnings };
+}
+
+/** 空白・改行を含まない 1 語。step の語彙は openRun がチケットの Workflow の steps（WF-5）で確かめる。ticket claim の --agent も同じ形 */
+export const token = z.string().regex(/^\S+$/, "空白・改行を含まない 1 語");
 
 export const runStart = defineCommand({
   name: "run.start",
@@ -71,41 +125,17 @@ export const runStart = defineCommand({
   write: true,
   needs: "store",
   async run(ctx, input) {
-    const agent = input.agent ?? agentFromEnv(ctx.env ?? process.env);
+    let agent = input.agent;
+    if (!agent) {
+      const detected = agentFromEnv(ctx.env ?? process.env);
+      if (detected.agent === null) throw new UsageError(detected.reason);
+      agent = detected.agent;
+    }
     const ticket = ctx.store.require("ticket", input.ticket);
-    const warnings: string[] = [];
-    const workflow = ctx.store.workflowFor(ticket.data);
-    if (workflow) {
-      const found = findStep(workflow.resolved, input.step);
-      if (!found.ok) {
-        throw new OperationError(
-          "VALIDATION_FAILED",
-          `step ${input.step} は Workflow ${workflow.resolved.id} の steps にない（${found.known.join("・")}）`,
-        );
-      }
-    } else {
-      warnings.push(
-        `${ticket.data.id} の Workflow が見つからないか読めないので、step ${input.step} を確かめていない`,
-      );
-    }
-    if (!agentNames().includes(agent)) {
-      warnings.push(
-        `agent ${agent} には Adapter がないので、finish は使用量とモデル名を取り込めない（Adapter のある名前: ${agentNames().join("・")}。サブエージェントも自分の Adapter の名前で始める）`,
-      );
-    }
-    // 同じ会話記録で期間が重なると、応答は後に始めた Run にだけ数える（ADR-005）。閉じ忘れに気づけるように知らせる
-    const open = (await readRunningRuns(ctx.repo)).runs.filter((r) => r.data.agent === agent);
-    if (open.length > 0) {
-      warnings.push(
-        `このマシンで ${agent} の Run ${open.map((r) => `${r.id}（${r.data.ticket} ${r.data.step}）`).join("・")}が開いたまま。同じ会話記録なら、この後の応答は新しい Run にだけ数える。終わった Run は dg run finish で閉じる（並行する別のエージェントの Run や、自分が始めた覚えのない ID なら無視してよい）`,
-      );
-    }
-    const run = await startRun(ctx.repo, {
-      ticket: ticket.data.id,
+    const { run, warnings } = await openRun(ctx, ticket.data, {
       step: input.step,
       agent,
       model: input.model,
-      now: ctx.now(),
     });
     return ok(run, undefined, warnings);
   },

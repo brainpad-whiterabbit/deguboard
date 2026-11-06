@@ -118,6 +118,21 @@ describe("dg guide", () => {
       );
   });
 
+  it("work の普段の経路では claim が実装の Run を開き run start を呼ばず、委譲（段階のモデル・parallel）では --no-run で claim すると案内する（RN-5）", async () => {
+    const work = await readGuide("work");
+    const flow = section(work, "## 流れ");
+    expect(step(flow, 2)).toContain("data.run");
+    expect(step(flow, 2)).toContain("--no-run");
+    expect(step(flow, 4)).toMatch(/^実装する。Run は手順 2 の claim が開いている/);
+    expect(section(work, "## PR の要らない作業")).toContain("claim が開いた Run");
+    const run = await readGuide("run");
+    expect(section(run, "## Run を記録する")).toContain("`ticket claim` が開く");
+    expect(bullet(section(run, "## 段階のモデル"), "実装")).toContain("--no-run");
+    expect(bullet(await readGuide("parallel"), "親")).toContain("--no-run");
+    expect(section(await readGuide("review"), "## Run の分け方")).toContain("--no-run");
+    expect(await readGuide("overview")).toContain("`ticket claim` が開く");
+  });
+
   it("review は参考節との食い違いを軽い指摘として返し、参考節がなければ見比べないと案内し、直さなかった軽い指摘は親が PR の本文に書き足すと決め、親とサブエージェントの一覧にも入れる", async () => {
     const review = await readGuide("review");
     const look = bullet(section(review, "## 見直す"), "見る");

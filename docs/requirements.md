@@ -152,14 +152,15 @@ reconcile: # 上から評価し、前進するときだけ書き換える
 fields:
   - { id: estimate, type: number, label: 見積 }
 steps: # 任意。Run の step の語彙（WF-5）
+  - { id: implement, label: Implement, opens_on: claim } # agent の claim が開く（RN-5）
   - { id: merge, label: Merge, actions: [merge_pr], approval: true }
 ```
 
 - WF-1 Status は全ワークフロー共通の 5 つ（3. 用語）。前進の順は todo → in_progress → review → done で、`abandoned` は前進の軸の外の終端。既定ではどの遷移も human / agent / reconcile の誰でも条件なしで行え、ワークフローは `transitions` で `by`（行える主体）と `requires`（条件）の制約を足すだけで、Status は増やせない（[ADR-003](adr/ADR-003-status-and-workflow.md)）
 - WF-2 `requires` と `reconcile.when` に書けるのは組み込みの事実（`deps_done`、`branch_exists`、`branch_pushed`、`branch_merged`、`pr_open`、`pr_draft`、`pr_merged`）とその否定（`!pr_draft`）だけ。`deps_done` は `depends_on` のすべてが done か abandoned のとき真（別の Project の依存先も見る）。利用者のスクリプトは実行しない
-- WF-3 存在しない Status を指す項目、未知の条件・Action、同じ遷移・step の重複は読み込み時と `dg workflow validate` で指摘する
+- WF-3 存在しない Status を指す項目、未知の条件・Action、同じ遷移・step の重複、同じ操作の `opens_on` を付けた複数の step は読み込み時と `dg workflow validate` で指摘する
 - WF-4 `software-development`・`consulting`・`general` のテンプレートを同梱し、`dg init` が 3 つとも置く（既にある Workflow は書き換えない）。`default` プロジェクトの Workflow はそのどれかを選べ、既定は `general`
-- WF-5 `steps` は Run の step の語彙で、項目は `id`・`label`・`actions`（Action の名前）・`approval`（承認の要否）。`run start` は語彙にない step を拒否する（`steps` がなければ縛らない）。手続きは `dg guide` が持つ
+- WF-5 `steps` は Run の step の語彙で、項目は `id`・`label`・`actions`（Action の名前）・`approval`（承認の要否）・`opens_on`（その Run を開くチケットの操作。今は `claim`。RN-5）。`run start` は語彙にない step を拒否する（`steps` がなければ縛らない）。手続きは `dg guide` が持つ
 - WF-6 `dg workflow set` は Workflow を 1 つ作るか置き換える。読み込み時の検証（WF-3）の誤りがあれば何も書かず（未知の Action は警告だけ）、1 回の書き込み（SY-2）で書いて前と後を出す。引数は `dg workflow set --help`
 
 ### 5.9 Run（`runs/`）
@@ -168,6 +169,7 @@ steps: # 任意。Run の step の語彙（WF-5）
 - RN-2 取れなかった値は `null`。推定した値は `estimated: true` を付ける。費用は持たない（[ADR-005](adr/ADR-005-work-metrics.md)）
 - RN-3 Git に入れるのは完了時の集計だけ。実行中の記録は `deguboard-local/runs/` に置く。チケットには書き足さない
 - RN-4 閉じた Run で書き換えるのは、`run refresh`（MT-5）が取り直すモデル名と使用量だけ
+- RN-5 agent の `ticket claim` は、Workflow の `steps` のうち `opens_on: claim` の step（なければ `implement`）の Run を開き、ID を `run` に出す。エージェント名は `--agent`、省けば環境変数の判定（RN-1）。決まらないか step が語彙になければ開かずに警告し、claim は成功にする。`--no-run`（委譲するとき）と人の claim では開かない
 
 ### 5.10 設定（`config.yaml`）
 
@@ -192,7 +194,7 @@ steps: # 任意。Run の step の語彙（WF-5）
 
 - ST-1 `status` はチケットに保存する。変えるのは `ticket move`・`claim`・`unclaim`、UI の操作、照合だけ
 - ST-2 遷移は Workflow の `transitions` の制約で検査する。`by` に含まれない主体の遷移と `requires` を満たさない遷移は拒否し、制約のない遷移は誰でも行える。同じ Status への move は拒否する
-- ST-3 `claim` は todo のチケットの `assignee` を claim した主体にし、`branch` を記録して in_progress に進める。ブランチの要らない作業は `branch` を記録しない。todo 以外と、使えないブランチ名（`BRANCH_IN_USE`。条件は `ticket claim --help`）は拒否する。別のユーザの `assignee` は上書きして警告する
+- ST-3 `claim` は todo のチケットの `assignee` を claim した主体にし、`branch` を記録して in_progress に進め、agent なら実装の Run を開く（RN-5）。ブランチの要らない作業は `branch` を記録しない。todo 以外と、使えないブランチ名（`BRANCH_IN_USE`。条件は `ticket claim --help`）は拒否する。別のユーザの `assignee` は上書きして警告する
 - ST-4 照合は `dg sync` と、画面の同期（UI-6）で行う。`branch` のあるチケットについて Git から事実を集め、`reconcile` 規則を上から評価し、今より前進の順が先のときだけ書き換える。`branch` のないチケットと `done`・`abandoned` のチケットには触れない
 - ST-5 後退を指す事実（消えたブランチ・マージされずに閉じた PR）は書き換えず警告する。取れなかった事実は不明とし、前進の判定では偽と読む。照合の結果（`reconciled`）には根拠の規則の条件（`when`）を含める。細部は `packages/core/src/git/facts.ts`・`workflow/reconcile.ts`、理由は [ADR-004](adr/ADR-004-agents-and-state.md)
 - ST-6 PR の事実は `gh` が使えるときだけ取り、`gh` がなくても照合は Git の事実だけで成り立つ。`pr` のないチケットの PR をブランチ名で見つけたら番号を `pr` に記録し、記録済みの `pr` は書き換えない。ブランチ名で見つけた PR が `branch_at` より前にマージされていたら前の作業のものとみなして使わず、警告する

@@ -1,4 +1,4 @@
-// Ticket の操作（CL-2、ST-1〜ST-3、ST-7〜ST-8）
+// Ticket の操作（CL-2、ST-1〜ST-3、ST-7〜ST-8、RN-5）
 
 import { z } from "zod";
 import { OperationError, UsageError } from "../errors.js";
@@ -9,6 +9,7 @@ import { withWrite } from "../git/write.js";
 import { resolveActorRef, sameUser } from "../model/actor.js";
 import { STATUSES, isTerminal, slugSchema, statusSchema, type Status } from "../model/common.js";
 import { parseId, type TicketId } from "../model/id.js";
+import type { RunId } from "../model/run.js";
 import {
   PRIORITIES,
   parseAcceptance,
@@ -24,7 +25,12 @@ import type { Doc } from "../storage/documents.js";
 import { wouldCreateCycle } from "../storage/integrity.js";
 import type { Store, WorkflowEntry } from "../storage/store.js";
 import type { Facts } from "../workflow/conditions.js";
-import { canTransition, describeRejection, findConstraint } from "../workflow/resolve.js";
+import {
+  canTransition,
+  describeRejection,
+  findConstraint,
+  stepOpenedOn,
+} from "../workflow/resolve.js";
 import { defineCommand, ok, type CommandContext } from "./define.js";
 import { matchesFilter, ticketFilterSchema } from "./filters.js";
 import {
@@ -36,6 +42,7 @@ import {
   ticketRef,
   withBody,
 } from "./helpers.js";
+import { agentFromEnv, openRun, token } from "./run.js";
 
 /** 主体の参照。`human` / `agent` は自分（のユーザ）に解く（model/actor.ts） */
 const actorRef = z.string().min(1);
@@ -757,12 +764,48 @@ function defaultBranchName(ticket: Ticket): string {
   return slug ? `feature/${ticket.id}-${slug}` : `feature/${ticket.id}`;
 }
 
+/** ticket.claim の出力。run は claim が開いた実行中の Run の ID（開かなかったときは null。RN-5） */
+export type ClaimView = Ticket & { body: string; run: RunId | null };
+
+/**
+ * agent の claim が開く Run の step と agent（RN-5）。開けない理由は warnings に入れて null を返す
+ * （claim は push 済みなので、Run の都合では失敗させない）
+ */
+async function openClaimRun(
+  ctx: CommandContext,
+  doc: Doc<Ticket>,
+  agentOption: string | undefined,
+  warnings: string[],
+): Promise<RunId | null> {
+  const wf = ctx.store.workflowFor(doc.data);
+  const step = wf ? stepOpenedOn(wf.resolved, "claim") : "implement";
+  const detected = agentOption
+    ? { agent: agentOption, reason: undefined }
+    : agentFromEnv(ctx.env ?? process.env);
+  const skipped = (reason: string) =>
+    `${step} の Run を開いていない: ${reason}（開くなら dg run start ${doc.id} ${step} --agent <エージェント>）`;
+  if (detected.agent === null) {
+    warnings.push(skipped(detected.reason));
+    return null;
+  }
+  try {
+    const opened = await openRun(ctx, doc.data, { step, agent: detected.agent });
+    warnings.push(...opened.warnings);
+    return opened.run.id;
+  } catch (e) {
+    if (!(e instanceof OperationError)) throw e;
+    warnings.push(skipped(e.message));
+    return null;
+  }
+}
+
 export const ticketClaim = defineCommand({
   name: "ticket.claim",
   positionals: ["ticket"],
   group: "ticket",
   summary:
-    "チケットに着手する。担当者（assignee）を自分にしてブランチを記録し、in_progress にする。push の成功で排他を得る。todo → in_progress の制約（requires: [deps_done] など）があれば従う",
+    "チケットに着手する。担当者（assignee）を自分にしてブランチを記録し、in_progress にする。push の成功で排他を得る。todo → in_progress の制約（requires: [deps_done] など）があれば従う。" +
+    "agent なら続けて実装の Run（Workflow の steps のうち opens_on: claim のもの、なければ implement）を開き、ID を run に出す。開けなければ警告だけして claim は成功にする",
   input: z.object({
     ticket: ticketRef,
     branch: z
@@ -776,6 +819,17 @@ export const ticketClaim = defineCommand({
       .boolean()
       .optional()
       .describe("PR も作業ブランチも要らない作業。branch を記録せず、照合の対象にしない"),
+    agent: token
+      .optional()
+      .describe(
+        "開く Run のエージェント名（dg run start --help）。省けば dg を呼んだエージェントを環境変数から判定し、判定できなければ Run を開かずに警告する。人の claim では使わない",
+      ),
+    no_run: z
+      .boolean()
+      .optional()
+      .describe(
+        "Run を開かない。実装をサブエージェントに渡すとき（サブエージェントが自分で run start する）",
+      ),
   }),
   write: true,
   needs: "store",
@@ -783,6 +837,9 @@ export const ticketClaim = defineCommand({
     const warnings: string[] = [];
     if (input.without_branch && input.branch !== undefined) {
       throw new UsageError("branch と without_branch は同時に指定できない");
+    }
+    if (input.no_run && input.agent !== undefined) {
+      throw new UsageError("agent と no_run は同時に指定できない");
     }
     const result = await withWrite(
       ctx,
@@ -831,7 +888,12 @@ export const ticketClaim = defineCommand({
         cas: true,
       },
     );
-    return ok(withBody(result.value), result.write, warnings);
+    // Run を開くのは claim が push で取れた後。人の claim と no_run では開かない（RN-5）
+    const run =
+      ctx.actor.kind === "agent" && !input.no_run
+        ? await openClaimRun(ctx, result.value, input.agent, warnings)
+        : null;
+    return ok<ClaimView>({ ...withBody(result.value), run }, result.write, warnings);
   },
 });
 
