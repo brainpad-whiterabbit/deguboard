@@ -760,6 +760,20 @@ async function requireBranchAvailable(
   }
 }
 
+/**
+ * move に付随して閉じる Run の開き手と結果（RN-6）。abandoned は実装と手直しを failure で閉じる。
+ * PR の要らない作業（branch なし）の review、と PR のない done は実装を success で閉じる。branch のあるチケットの review は PR の記録・発見が閉じる
+ */
+function runsClosedByMove(
+  ticket: Ticket,
+  to: Status,
+): { openers: readonly StepOpener[]; result: "success" | "failure" } | undefined {
+  if (to === "abandoned") return { openers: ["claim", "reclaim"], result: "failure" };
+  if ((to === "review" && !ticket.branch) || (to === "done" && !ticket.pr))
+    return { openers: ["claim"], result: "success" };
+  return undefined;
+}
+
 /** 遷移に伴う担当者とブランチの扱い（ST-8）。旧名の claimed_by も消す */
 function transitionSideEffects(to: Status): Record<string, unknown> {
   // todo に戻すと前の作業の PR も外す（次の claim を手直しに見せない。ST-7）。abandoned は PR の記録を残す
@@ -781,7 +795,7 @@ export const ticketMove = defineCommand({
   positionals: ["ticket", "status"],
   group: "ticket",
   summary:
-    "Status を変える。Workflow の transitions の制約（by・requires）に反する遷移と、同じ Status への move は拒否する。branch のないチケット（PR の要らない作業）を review・done にすると、このマシンで実行中の実装の Run を success で閉じる",
+    "Status を変える。Workflow の transitions の制約（by・requires）に反する遷移と、同じ Status への move は拒否する。このマシンで実行中の Run を閉じる（RN-6）：abandoned は実装と手直しの Run を failure で、branch のないチケットの review・done と PR のない done は実装の Run を success で閉じる",
   input: z.object({
     ticket: ticketRef,
     status: statusSchema.describe(`次の Status（${STATUSES.join(" / ")}）`),
@@ -805,11 +819,17 @@ export const ticketMove = defineCommand({
             describeRejection(check, from, input.status),
           );
         // PR の要らない作業（branch なし）は照合が進めないので、review・done にしたときが実装の終わり（RN-6）。
-        // branch のあるチケットの Run は PR の記録・発見が PR の作成時刻で閉じる
-        const closed =
-          !doc.data.branch && (input.status === "review" || input.status === "done")
-            ? await closeRunsWith(ctx, doc.data, ["claim"], { result: "success" }, warnings)
-            : [];
+        // branch のあるチケットの実装の Run は PR の記録・発見が PR の作成時刻で閉じる
+        const endRuns = runsClosedByMove(doc.data, input.status);
+        const closed = endRuns
+          ? await closeRunsWith(
+              ctx,
+              doc.data,
+              endRuns.openers,
+              { result: endRuns.result },
+              warnings,
+            )
+          : [];
         const updated = await ctx.store.update("ticket", doc.id, {
           status: input.status,
           ...transitionSideEffects(input.status),

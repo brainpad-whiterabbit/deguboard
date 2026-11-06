@@ -26,7 +26,7 @@
 
 ### 実装・見直し・手直しを別の Run にする
 
-- 実装の Run は、作業するエージェント自身の `ticket claim` が開き（RN-5）、PR の記録（`ticket update --pr`）か照合が作業ブランチの PR を見つけたときに `success` で閉じる（RN-6）。`finished_at` は PR の作成時刻で、実装は PR を作るまでなので PR がマージされずに閉じていても `success`。PR より後に開き直した Run は照合では閉じない（PR の後の作業は手直しの Run）。やめるときは `unclaim` が `failure` で、PR の要らない作業は `ticket move` の review・done が閉じる。閉じた Run への `run finish` は記録を変えない
+- 実装の Run は、作業するエージェント自身の `ticket claim` が開き（RN-5）、PR の記録（`ticket update --pr`）か照合が作業ブランチの PR を見つけたときに `success` で閉じる（RN-6）。`finished_at` は PR の作成時刻で、実装は PR を作るまでなので PR がマージされずに閉じていても `success`。PR より後に開き直した Run は照合では閉じない（PR の後の作業は手直しの Run）。やめるときは `unclaim` と `ticket move` の abandoned が `failure` で閉じる（abandoned は手直しの Run も）。PR の要らない作業は `ticket move` の review・done が、PR のない done は `success` で閉じる。閉じた Run への `run finish` は記録を変えない
 - 実装をサブエージェントに渡す親は `--no-run` で claim し、サブエージェントが自分で `run start` する（親が開いた Run では作業した分を数えられない）
 - 見直し役の見直しは `review`、修正ループの 1 回と人のレビューの後の手直しは `fix` の Run にする。見直しと修正ループの手直しは、作業したエージェント自身が `run start`・`run finish` で記録する。同梱の software-development と general の `steps` に `review`・`fix` がある
 - 人のレビューの後の手直しにはチケットの操作がなく、手順書の `run start` に頼ると Run が残らなかった。自分が claim 済みで PR のあるチケットのもう一度の claim を手直しの開始とみなして `opens_on: reclaim` の step（なければ `fix`）の Run を開き（RN-5）、終わりの操作もないので、照合が次の区切り（同じチケットの次の Run の開始・PR の ready・マージ・チケットの終了）を見たときに、それまでの最後の push の時刻で閉じる（RN-6）

@@ -936,6 +936,59 @@ describe("チケットの流れ", () => {
     expect((await runCommand(ticketUnclaim, human, { ticket: "t1" })).warnings).toEqual([]);
   });
 
+  it("ticket move の abandoned は開いたままの実装・手直しの Run を failure で閉じ、branch のあるチケットを PR なしで done にすると実装の Run を success で閉じる（RN-6）", async () => {
+    const f = await fixture();
+    let clock = new Date("2026-11-06T00:00:00Z");
+    const human = await initialized(f.cloneA, { now: () => clock });
+    /** 閉じた Run の知らせだけを取り出す（読み取りの警告は除く） */
+    const closedWarnings = (warnings: string[]) =>
+      warnings.filter((w) => /を (failure|success) で閉じた/.test(w));
+    for (const title of ["Abandoned", "Abandoned after fix", "Done without PR"])
+      await runCommand(ticketCreate, human, { title });
+    const agent = await agentWithRuns(f.cloneA, () => clock);
+    const implement = (await runCommand(ticketClaim, agent, { ticket: "t1", branch: "feat/t1" }))
+      .data.run!;
+    const implement2 = (await runCommand(ticketClaim, agent, { ticket: "t2", branch: "feat/t2" }))
+      .data.run!;
+    // PR の記録を直接書いてから claim し直し、手直しの Run を開く（PR の発見の代わり）
+    await agent.store.update("ticket", "t2", { pr: 42 });
+    const fix = (await runCommand(ticketClaim, agent, { ticket: "t2", retry_reasons: ["指摘 A"] }))
+      .data.run!;
+    const done = (await runCommand(ticketClaim, agent, { ticket: "t3", branch: "feat/t3" })).data
+      .run!;
+    clock = new Date("2026-11-06T05:00:00Z");
+
+    const abandoned = await runCommand(ticketMove, agent, { ticket: "t1", status: "abandoned" });
+    expect(closedWarnings(abandoned.warnings)).toEqual([
+      expect.stringMatching(/^t1 の実装の Run r\S+ を failure で閉じた/),
+    ]);
+    expect(agent.store.runs.get(implement)!.data).toMatchObject({
+      result: "failure",
+      finished_at: "2026-11-06T05:00:00Z",
+    });
+
+    // 手直しの Run も、実装の Run と同じく開いたままなら failure で閉じる
+    const abandonedFix = await runCommand(ticketMove, agent, { ticket: "t2", status: "abandoned" });
+    expect(closedWarnings(abandonedFix.warnings)).toEqual([
+      expect.stringMatching(/^t2 の実装の Run r\S+ を failure で閉じた/),
+      expect.stringMatching(/^t2 の手直しの Run r\S+ を failure で閉じた/),
+    ]);
+    expect(agent.store.runs.get(implement2)!.data).toMatchObject({ result: "failure" });
+    expect(agent.store.runs.get(fix)!.data).toMatchObject({ result: "failure" });
+
+    // branch のあるチケットを PR なしで done にすると、実装の Run を success で閉じる
+    const finished = await runCommand(ticketMove, agent, { ticket: "t3", status: "done" });
+    expect(closedWarnings(finished.warnings)).toEqual([
+      expect.stringMatching(/^t3 の実装の Run r\S+ を success で閉じた/),
+    ]);
+    expect(agent.store.runs.get(done)!.data).toMatchObject({
+      result: "success",
+      finished_at: "2026-11-06T05:00:00Z",
+    });
+    // 閉じた Run は実行中の記録から消えている
+    expect((await peekRunningRuns(agent.repo)).map((r) => r.id)).toEqual([]);
+  });
+
   /** 作業ブランチに、指定した時刻のコミットを積んで push する（手直しの Run を閉じる「最後の push の時刻」を決める） */
   async function pushCommitAt(cwd: string, branch: string, at: string): Promise<void> {
     const saved = { ...process.env };
