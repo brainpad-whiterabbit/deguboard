@@ -8,6 +8,8 @@ mise.local.toml
 packages/cli/web/
 release/
 .playwright-mcp/
+.vscode-test/
+test/vscode/screenshots/
 packages/vscode/LICENSE
 packages/vscode/README.md
 packages/cli/LICENSE
