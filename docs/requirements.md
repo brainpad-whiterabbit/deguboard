@@ -2,7 +2,7 @@
 
 今の仕様の正本。利用者（人・エージェント）に約束する振る舞いとデータの形だけを書く。細部（CLI オプション、集計の規則、画面の並びや文言）はヘルプ・コード・テストが正本で、各節から案内する。判断の理由は [ADR 一覧](adr/README.md)から引く。書く範囲は [ADR-001](adr/ADR-001-doc-strategy.md)。
 
-要件の ID（`TK-1` など）はコードとテストから参照する。文を縮めても ID と見出しのアンカーは変えず、消した ID は再利用しない。まだ実装していない節・項目には「予定（`<Epic の ID>`）」と実装する Epic の ID を添える（`dg epic show <ID>`）。予定は時期の約束ではない。
+要件の ID（`TK-1` など）はコードとテストから参照する。ID とアンカーの扱いは ADR-001。まだ実装していない項目には「予定（`<Epic の ID>`）」を添える。予定は時期の約束ではない。
 
 ## 1. 目的
 
@@ -108,7 +108,7 @@ updated_at: 2026-10-31T05:10:00Z
 - TK-5 受け入れ条件のチェックは、作業した人かエージェントが確認できたときに付ける。deguboard は自動で付けず、照合で done にしたチケットに未チェックが残れば `sync` が警告する（遷移は止めない。[ADR-003](adr/ADR-003-status-and-workflow.md)）
 - TK-6 `epic` は同じ Project の Epic の ID。閉じた Epic には付けられない
 - TK-7 `created_by`（起票者）と `assignee`（担当者）は主体の ID。`created_by` の既定は操作した主体で、エージェントが人の指示・承認で起票するときはユーザ本人を指定する。`assignee` は `claim` と `update` で付ける。旧名 `claimed_by` は `assignee` と読む
-- TK-8 `priority` は `low`・`medium`（既定）・`high`。値ごとの判断基準は Core が既定を持ち、`config.yaml`（5.10）で書き換えられる。起票・見直しと画面が使う
+- TK-8 `priority` は `low`・`medium`（既定）・`high`。値ごとの判断基準は Core が既定を持ち、`config.yaml`（5.10）で書き換えられる
 
 ### 5.5 Epic（`epics/e3.md`）
 
@@ -122,16 +122,16 @@ updated_at: 2026-10-31T05:10:00Z
 
 ### 5.6 Iteration（`iterations/s3.yaml`）
 
-- IT-1 `status` は `planned` / `active` / `closed` で、期間を `start`・`end` に持つ。開始・終了で `start`・`end` を実際の日にし、閉じたときに `closed_at` と完了・持ち越しの件数（`completed`・`carried_over`）を書く（細部は `iteration close / reopen --help`）。閉じる・再開するのは既定で誰でも行える（EP-4 と同じ）。active は Project に 1 つに保つ
+- IT-1 `status` は `planned` / `active` / `closed` で、期間を `start`・`end` に持つ。閉じたときに `closed_at` と完了・持ち越しの件数（`completed`・`carried_over`）を書く（日付の書き換えは `iteration start / close --help`）。閉じる・再開するのは既定で誰でも行える（EP-4 と同じ）。active は Project に 1 つに保つ
 - IT-2 所属はチケットの `iteration` で表し、Iteration 側にチケットの一覧は持たない。入れるのは同じ Project のチケットだけで、閉じた Iteration には入れられない。並びは優先度と番号の順で、閉じるときに done・abandoned 以外のチケットの `iteration` を外す。進捗は都度求める（EP-3）。`iteration show` は次の操作 `next` と中のチケットを含む Plan `plans` を返し、画面はこれを読む（形は `packages/core/src/commands/iteration.ts`）
 
 ### 5.7 Plan（`plans/p7.yaml`）
 
-- PL-1 入れるチケット `tickets`、計画内だけの待ち `after`（チケットの依存とは別）、チケットごとの範囲・方針・難しさの段階 `details.<ticket>.{scope, approach, tier}` を持つ。`tier` は `light` / `standard` / `heavy` で、モデル名は書かない（対応は 5.10 の `models.*`）。承認と終了の項目は PL-4
+- PL-1 入れるチケット `tickets`、計画内だけの待ち `after`（チケットの依存とは別）、チケットごとの範囲・方針・難しさの段階 `details.<ticket>.{scope, approach, tier}` を持つ。`tier` は `light` / `standard` / `heavy` で、モデル名は書かない（対応は 5.10 の `models.*`）
 - PL-2 進捗は Plan に書かない。チケットの状態から都度求める。Plan を書くのは作成・承認・終了のときだけ
-- PL-3 1 つのチケットは同時に 1 つの開いた（`closed_at` のない）Plan にしか入らない。done・abandoned のチケット、存在しないチケット、Plan と別の Project のチケットは入れられない。`after` と `details` は Plan に入れたチケットだけを指し、`after` は循環できない。`after` と `depends_on`（Plan の外の終わっていないチケットも含めてたどる）をまたぐ循環は Plan を作るときに拒否し、経路をメッセージに出す。後からできたものは開いた Plan について lint が指摘する
+- PL-3 1 つのチケットは同時に 1 つの開いた（`closed_at` のない）Plan にしか入らない。done・abandoned のチケット、存在しないチケット、Plan と別の Project のチケットは入れられない。`after` と `details` は Plan に入れたチケットだけを指す。`after` の循環と、`after` と `depends_on` をまたぐ循環は Plan を作るときに拒否し、後からできたものは lint が指摘する（たどり方は `packages/core/src/storage/wait-cycle.ts`）
 - PL-4 `plan create` は承認待ち（`pending_approval: true`）で作る。`plan approve` は `approved_by`・`approved_at` を書いて `pending_approval` を外す。`plan close` は `closed_at` を書き、終わっていないチケットが残れば警告する。閉じた Plan は承認も閉じ直しもできない。承認と終了は既定で誰でも行える（EP-4 と同じ）
-- PL-5 Plan の状態は保存せず、`pending_approval` と `closed_at` から求める（pending・approved・closed）。`ticket show` はチケットが入っている開いた Plan を出す
+- PL-5 Plan の状態は保存せず、`pending_approval` と `closed_at` から求める（pending・approved・closed）
 - PL-6 `plan list` と `plan show` は着手できるかを求めて返す。`waiting` はチケットごとの待ちの相手（終わっていない `after` と `depends_on`）、`ready` は todo で待ちのないもの、`next` は次に進めるもの。画面と手順はこれを読み、求め直さない（求め方は `packages/core/src/commands/plan.ts`）
 
 ### 5.8 Workflow（`workflows/<id>.yaml`）
@@ -139,44 +139,44 @@ updated_at: 2026-10-31T05:10:00Z
 ```yaml
 id: software-development
 name: Software Development
-labels: # 任意。Status の表示名だけを変える
+labels: # 任意。表示名だけを変える
   review: コードレビュー
 transitions: # 任意。制約を足す遷移だけ書く（WF-1）
   - { from: todo, to: in_progress, requires: [deps_done] } # AND
   - { from: review, to: done, by: [human] } # [] で禁止
-reconcile: # 上から評価し、前進するときだけ書き換える
+reconcile: # 上から評価する（ST-4）
   - { when: [pr_merged], status: done }
   - { when: [branch_merged], status: done }
   - { when: [pr_open, "!pr_draft"], status: review }
   - { when: [branch_exists], status: in_progress }
 fields:
   - { id: estimate, type: number, label: 見積 }
-steps: # 任意。Run の step の語彙（WF-5）
-  - { id: implement, label: Implement, opens_on: claim } # agent の claim が開く（RN-5）
+steps: # 任意（WF-5）
+  - { id: implement, label: Implement, opens_on: claim } # RN-5
   - { id: merge, label: Merge, actions: [merge_pr], approval: true }
 ```
 
-- WF-1 Status は全ワークフロー共通の 5 つ（3. 用語）。前進の順は todo → in_progress → review → done で、`abandoned` は前進の軸の外の終端。既定ではどの遷移も human / agent / reconcile の誰でも条件なしで行え、ワークフローは `transitions` で `by`（行える主体）と `requires`（条件）の制約を足すだけで、Status は増やせない（[ADR-003](adr/ADR-003-status-and-workflow.md)）
+- WF-1 Status は全ワークフロー共通の 5 つ（3. 用語）で、増やせない。前進の順は todo → in_progress → review → done で、`abandoned` は前進の軸の外の終端。既定ではどの遷移も誰でも条件なしで行え、ワークフローは `transitions` で `by`（行える主体）と `requires`（条件）の制約を足すだけ（[ADR-003](adr/ADR-003-status-and-workflow.md)）
 - WF-2 `requires` と `reconcile.when` に書けるのは組み込みの事実（`deps_done`、`branch_exists`、`branch_pushed`、`branch_merged`、`pr_open`、`pr_draft`、`pr_merged`）とその否定（`!pr_draft`）だけ。`deps_done` は `depends_on` のすべてが done か abandoned のとき真（別の Project の依存先も見る）。利用者のスクリプトは実行しない
-- WF-3 存在しない Status を指す項目、未知の条件・Action、同じ遷移・step の重複、同じ操作の `opens_on` を付けた複数の step は読み込み時と `dg workflow validate` で指摘する
+- WF-3 存在しない Status・未知の条件と Action・重複などの誤りは、読み込み時と `dg workflow validate` で指摘する（検査の項目は `packages/core/src/workflow/validate.ts`）
 - WF-4 `software-development`・`consulting`・`general` のテンプレートを同梱し、`dg init` が 3 つとも置く（既にある Workflow は書き換えない）。`default` プロジェクトの Workflow はそのどれかを選べ、既定は `general`
-- WF-5 `steps` は Run の step の語彙で、項目は `id`・`label`・`actions`（Action の名前）・`approval`（承認の要否）・`opens_on`（その Run を開くチケットの操作。今は `claim`。RN-5）。`run start` は語彙にない step を拒否する（`steps` がなければ縛らない）。手続きは `dg guide` が持つ
-- WF-6 `dg workflow set` は Workflow を 1 つ作るか置き換える。読み込み時の検証（WF-3）の誤りがあれば何も書かず（未知の Action は警告だけ）、1 回の書き込み（SY-2）で書いて前と後を出す。引数は `dg workflow set --help`
+- WF-5 `steps` は Run の step の語彙（項目は上の例。`opens_on` は RN-5）で、`run start` は語彙にない step を拒否する（`steps` がなければ縛らない）。手続きは `dg guide` が持つ
+- WF-6 `dg workflow set` は Workflow を 1 つ作るか置き換え、WF-3 の誤りがあれば何も書かず、前と後を返す（細部は `dg workflow set --help`）
 
 ### 5.9 Run（`runs/`）
 
-- RN-1 1 Run 1 ファイル。チケット・step・エージェント・モデル・開始と終了の時刻・結果（`success` / `failure` / `interrupted`）・エラー・やり直しの回数と理由・トークン数・ツールの回数を持つ。エージェントは `run start` の `--agent` で、省けば Adapter が環境変数から判定し（AG-5）、判定できなければ `--agent` を求める
+- RN-1 1 Run 1 ファイル。チケット・step・エージェント・モデル・開始と終了の時刻・結果（`success` / `failure` / `interrupted`）・エラー・やり直しの回数と理由・トークン数・ツールの回数を持つ。エージェント名は `run start --agent` で渡し、省けば環境変数から判定する（AG-5。細部は `dg run start --help`）
 - RN-2 取れなかった値は `null`。推定した値は `estimated: true` を付ける。費用は持たない（[ADR-005](adr/ADR-005-work-metrics.md)）
 - RN-3 Git に入れるのは完了時の集計だけ。実行中の記録は `deguboard-local/runs/` に置く。チケットには書き足さない
 - RN-4 閉じた Run で書き換えるのは、`run refresh`（MT-5）が取り直すモデル名と使用量だけ
-- RN-5 agent の `ticket claim` は、Workflow の `steps` のうち `opens_on: claim` の step（なければ `implement`）の Run を開き、ID を `run` に出す。エージェント名は `--agent`、省けば環境変数の判定（RN-1）。決まらないか step が語彙になければ開かずに警告し、claim は成功にする。`--no-run`（委譲するとき）と人の claim では開かない
-- RN-6 実装の Run（RN-5 の step）がこのマシンで実行中なら、チケットの操作が閉じる。`ticket update --pr` と照合が作業ブランチの PR を見つけたときは `success` にし、`finished_at` を PR の作成時刻（取れなければ今）にする。PR が Run の開始より前に作られていれば、照合は閉じずに警告し、`--pr` は今の時刻で閉じる。`unclaim` は `failure`、`branch` のないチケットの `ticket move` の review・done は `success` にする。閉じた Run への `run finish` は記録を変えずに警告する
+- RN-5 agent の `ticket claim` は、Workflow の `steps` のうち `opens_on: claim` の step（なければ `implement`）の Run を開き、ID を `run` に出す。開けなければ警告し、claim は成功にする。人の claim と `--no-run` では開かない（細部は `ticket claim --help`）
+- RN-6 実装の Run（RN-5 の step）がこのマシンで実行中なら、チケットの操作が閉じる。PR の記録（`ticket update --pr`・照合）と、`branch` のないチケットの review・done への move は `success`、`unclaim` は `failure`。細部と理由は [ADR-005](adr/ADR-005-work-metrics.md)
 
 ### 5.10 設定（`config.yaml`）
 
 項目と意味・値・既定値・範囲（scope）はスキーマ（`packages/core/src/model/config.ts`）、`config.set` の値の扱いは `dg config set --help` が正本。エージェントや記録に関わるもの（`metrics.read_transcripts`・`actions.shell`・`auto.merge`）は既定で `false`。
 
-- チームの `config.yaml` は deguboard ブランチで全員が共有する。人ごとに違ってよい項目（scope が `local`。マシンの配置・作業の好み・使えるモデル・自分のマシンで許すこと）だけは、Git に入らない `<git-common-dir>/deguboard-local/config.yaml` で上書きできる（`dg config set --local`・`config unset --local`。コミットも push もしない）。値は「個人 > チーム > 既定」の順に読み、CLI・`dg serve`・VS Code 拡張は Core 経由で同じ値を使う（VS Code の settings.json は使わない）。個人のファイルにあるチーム専用・未知の項目と不正な値は無視して `dg validate` が警告する。`config show --fields` は項目ごとの scope・空にすると既定に戻るか（`clears_to_default`。`config set` と設定画面が同じ値で空の扱いを決める）と、チームの値・個人の上書きを返す（理由は [ADR-006](adr/ADR-006-ui-and-writes.md)）
+- チームの `config.yaml` は deguboard ブランチで全員が共有し、人ごとに違ってよい項目（scope が `local`）だけは Git に入らない `deguboard-local/config.yaml`（5.1）で上書きできる（`dg config set --local`。コミットも push もしない）。値は「個人 > チーム > 既定」の順に読み、CLI・`dg serve`・VS Code 拡張は Core 経由で同じ値を使う。個人のファイルの無効な項目と値は無視して `dg validate` が警告する。`config show --fields` は空にすると既定に戻るか（`clears_to_default`）も返し、`config set` と設定画面はこれで空の扱いを決める（細部は `dg config show --help`、理由は [ADR-006](adr/ADR-006-ui-and-writes.md)）
 
 - `actor.human_only`：agent が呼ぶと `TRANSITION_REJECTED` で拒否するコマンド名の一覧。既定は空。チケットの遷移を人に限るのは Workflow の `by`（WF-1）
 - `models.*`：Plan の段階（PL-1）に対応するモデル名。手順（`dg guide run`）がサブエージェントに渡す
@@ -190,18 +190,18 @@ steps: # 任意。Run の step の語彙（WF-5）
 - CL-3 書き込みを伴うコマンドは `commit.mode` に従ってコミットする。作成・`ticket claim`・`iteration start / reopen` は採番と排他のため即座にコミットして push する
 - CL-4 `ticket import` は下書きの配列を 1 コミットで取り込み、取り込めない下書きがあれば起票せずに拒む（形と条件は `guide import`）
 - CL-5 `dg guide <topic>` は、エージェント向けの手順を `config.yaml` の値を埋めて出す。トピックの一覧は `dg guide overview`（省略時）。手順の正本は CLI に同梱した Markdown（`packages/cli/src/guide-*.md`）
-- CL-6 CLI はビジネスロジックを持たず、Core のコマンド定義（`packages/core/src/commands/`）を写す
+- CL-6 CLI はロジックを持たず、Core のコマンド定義（`packages/core/src/commands/`）を写す
 - CL-7 `history` は deguboard ブランチの git の履歴から、チケット・Epic・Iteration の起票と属性（Status・所属・担当者・PR）の変化を古い順に返す。データの形は変えず、差分から読む。浅い clone では欠けたことを返して失敗しない（返す項目は `packages/core/src/commands/history.ts`）
 
 ### 6.2 状態遷移と照合
 
 - ST-1 `status` はチケットに保存する。変えるのは `ticket move`・`claim`・`unclaim`、UI の操作、照合だけ
 - ST-2 遷移は Workflow の `transitions` の制約で検査する。`by` に含まれない主体の遷移と `requires` を満たさない遷移は拒否し、制約のない遷移は誰でも行える。同じ Status への move は拒否する
-- ST-3 `claim` は todo のチケットの `assignee` を claim した主体にし、`branch` を記録して in_progress に進め、agent なら実装の Run を開く（RN-5）。ブランチの要らない作業は `branch` を記録しない。todo 以外と、使えないブランチ名（`BRANCH_IN_USE`。条件は `ticket claim --help`）は拒否する。別のユーザの `assignee` は上書きして警告する
+- ST-3 `claim` は todo のチケットの `assignee` を claim した主体にし、`branch` を記録して in_progress に進め、agent なら実装の Run を開く（RN-5）。todo 以外と使えないブランチ名（`BRANCH_IN_USE`）は拒否し、別のユーザの `assignee` は上書きして警告する。ブランチの要らない作業とブランチ名の条件は `ticket claim --help`
 - ST-4 照合は `dg sync` と、画面の同期（UI-6）で行う。`branch` のあるチケットについて Git から事実を集め、`reconcile` 規則を上から評価し、今より前進の順が先のときだけ書き換える。`branch` のないチケットと `done`・`abandoned` のチケットには触れない
-- ST-5 後退を指す事実（消えたブランチ・マージされずに閉じた PR）は書き換えず警告する。取れなかった事実は不明とし、前進の判定では偽と読む。照合の結果（`reconciled`）には根拠の規則の条件（`when`）を含める。細部は `packages/core/src/git/facts.ts`・`workflow/reconcile.ts`、理由は [ADR-004](adr/ADR-004-agents-and-state.md)
-- ST-6 PR の事実は `gh` が使えるときだけ取り、`gh` がなくても照合は Git の事実だけで成り立つ。`pr` のないチケットの PR をブランチ名で見つけたら番号を `pr` に記録し、記録済みの `pr` は書き換えない。ブランチ名で見つけた PR が `branch_at` より前にマージされていたら前の作業のものとみなして使わず、警告する。見つけた PR で実装の Run を閉じる（RN-6）
-- ST-7 `unclaim` は in_progress のチケットの、自分（同じユーザの人と AI）の claim か記録のない claim だけを外して todo に戻し、`assignee`・`branch`・`branch_at` を消し、実行中の実装の Run を `failure` で閉じる（RN-6）。ほかの claim は強制の指定で外す。生存監視はしない
+- ST-5 後退を指す事実（消えたブランチ・マージされずに閉じた PR）は書き換えず警告する。取れなかった事実は不明とし、前進の判定では偽と読む。結果（`reconciled`）には根拠の条件（`when`）を含める。細部は `packages/core/src/git/facts.ts`・`workflow/reconcile.ts`、理由は [ADR-004](adr/ADR-004-agents-and-state.md)
+- ST-6 PR の事実は `gh` が使えるときだけ取る（なくても照合は Git の事実で成り立つ）。ブランチ名で見つけた PR の番号を `pr` に記録し（記録済みは書き換えない）、実装の Run を閉じる（RN-6）。`branch_at` より前にマージされた PR は前の作業のものとして使わず警告する（細部は `packages/core/src/git/facts.ts`）
+- ST-7 `unclaim` は in_progress のチケットの、自分（同じユーザの人と AI）の claim か記録のない claim だけを外して todo に戻し、`assignee`・`branch`・`branch_at` を消す（実装の Run は RN-6）。ほかの claim は強制の指定で外す。生存監視はしない
 - ST-8 `abandoned` にすると claim を外し、Iteration の完了件数と Epic の進捗には数えない。todo に戻すときも claim を外す。これらを人だけに限るなら Workflow の `by: [human]` で書く
 
 ### 6.3 Git 同期と排他
@@ -218,46 +218,46 @@ steps: # 任意。Run の step の語彙（WF-5）
 Web UI は `dg serve` が配信し、VS Code 拡張は同じアプリを Webview に載せる（[ADR-006](adr/ADR-006-ui-and-writes.md)）。
 
 - UI-1 プロジェクトの切り替え
-- UI-2 カンバン：planned か active の Iteration 1 つ（既定は active）か「すべて」（planned・active の全部）のチケットを Status ごとの列に出す。Iteration のないチケットはバックログで見る。Epic と担当者で絞れる。見出しの Iteration 名は詳細へのリンク（「すべて」以外）。左パネルの行は、開いた Plan に入っていない未完了の行に破線の「—」を出す
+- UI-2 カンバン：planned か active の Iteration 1 つ（既定は active）か「すべて」（planned・active の全部）のチケットを Status ごとの列に出し、Epic と担当者で絞れる
 - UI-3 バックログ：done・abandoned 以外のチケットを Iteration ごとの区画に出し、検索と絞り込みができる
-- UI-4 チケット詳細：本文・属性・依存・作業ブランチ・PR・Run・経過（CL-7）を出し、作業ブランチの worktree があればそのパスも出す（`ticket.show` の `worktree`。git の一覧で引く）。VS Code ではそこから worktree を新しいウィンドウで開ける（ブラウザはパスだけ）。作業ブランチがあれば「変更を見る」で、`git.base_branch` との merge-base からの変わったファイルを種類と行数つきで出し（`ticket.changes`。手元の ref だけで比べ、fetch しない）、VS Code ではファイルから差分エディタを開ける（ブラウザは一覧だけ）。属性と本文を編集できる。受け入れ条件の印は本文のチェックボックスで付け外しできる
+- UI-4 チケット詳細：本文・属性・依存・作業ブランチと worktree・PR・Run・経過（CL-7）と、作業ブランチの変わったファイルを出す。属性と本文を編集でき、受け入れ条件の印を本文のチェックボックスで付け外しできる。VS Code では worktree と差分を開ける。細部は `dg ticket show --help`・`dg ticket changes --help`
 - UI-5 Iteration：詳細の画面で期間・目標・進捗（EP-3）と中のチケット、状態に応じた次の操作（IT-2 の `next`）、中のチケットを含む Plan を出す。閉じた Iteration・Epic と終わったチケットは履歴の画面で見る
 - UI-6 未 push のコミットと未取り込みのリモートの更新を印で知らせ、同期のボタンで `dg sync` と同じ同期をして読み直す
-- UI-7 画面から書き込むのはチケット詳細と設定画面と同期だけで、ほかの変更は UI-15 で頼む。書き込みは Core の同じコマンドと検査を通り、拒否されたら理由を出して戻す。`commit.mode` に従ってコミットする
+- UI-7 画面から書き込むのはチケット詳細と設定画面と同期だけで、ほかの変更は UI-15 で頼む。書き込みは Core の同じコマンドと検査を通り、拒否されたら理由を出して戻す（コミットは CL-3）
 - UI-8 `dg serve` は既定で `127.0.0.1` にバインドする。認証は持たない
 - UI-9 Run の画面：実行中・完了の Run と MT-3 の集計。ブラウザだけに置く
 - UI-10 Epic：open の Epic の進捗（EP-3）を出し、Epic で絞れる。詳細の画面で中のチケットを出す
-- UI-11 VS Code 拡張は `core` を同梱して `dg` なしで動き、`dg` が PATH にないときと、`dg` と `core` の版のメジャーが違うときは知らせる。拡張のコマンド・ビュー・Walkthrough・拡張ホストの通知と、サイドバー・パネルの画面の文言は、VS Code の表示言語が日本語なら日本語で、ほかは英語で出す（チケットの中身と依頼文に添える指示は書いた言葉のまま、依頼文の定型の文は表示言語に合わせ、core が出すエラー・警告の文と設定の項目の説明は core の言語のまま。ブラウザの画面は日本語）
-- UI-12 VS Code 拡張はサイドバーを主画面にし、エディタのパネルには詳細（チケット・Epic・Iteration・Plan）だけを出す。今のブランチのチケットをステータスバーに出す。コード中とコミットメッセージの入力欄の ID（t12・s3・e2・p7）のうち存在するものに、ホバーで要約を出し、Ctrl/⌘+クリックで詳細を開く。コマンド「チケットへ移動」（既定のキーあり）で、ID かタイトルからチケット・Iteration・Epic・Plan を選んで詳細を開く。データと Run の記録の変化を見張り、CLI やエージェントの書き込みを自動で映す。承認待ちの Plan と review のチケットの件数をサイドバーのタイトルに出し（Activity Bar のバッジは UI-6 の未 push・未取り込み）、増えたら通知して詳細を開ける。通知は `notify.approvals`（5.10）で切る。`dg init` 前のリポジトリでは、サイドバーに始め方（init・起票・Skill の入れ方。コマンドはコピーするだけ）を出し、init を済ませれば開き直さずに普段の画面に変わる。VS Code の Walkthrough（「deguboard を始める」）にも同じ手順を置く
-- UI-13 実行計画：カンバンの上に、選んだ範囲のチケットを含む Plan の進捗、作業中と次（PL-6）のチケット、依存グラフを出す。Plan の番号（帯と Iteration 詳細）から Plan 詳細を開き、承認と閉じた日時、Plan の順のチケットごとの範囲・進め方・tier も出す。表示だけで書き込まない
-- UI-14 設定画面：「チーム」のタブは `config.yaml` の全項目（5.10）を出して `config.set` で保存し、自分で上書きしている項目に印を出す。「自分」のタブは上書きできる項目だけを出し、「自分の値を使う」の付け外しで `config.set --local`・`config.unset --local` を呼ぶ。影響の大きい項目はどちらのタブでも保存前に確かめる。VS Code の settings.json は使わない
-- UI-15 エージェントに頼む：行・見出しなどから `dg ask` の依頼文を作ってコピーする。VS Code では、開いているターミナルを選んでその入力へ送ることもできる（1 行のときは Enter を押さず、複数行は VS Code の貼り付けに任せる。bracketed paste に対応しない入力では VS Code の警告に頼る。ターミナルは起動しない。なければコピーだけ）。データには書き込まない。複数の行はまとめて頼める。サイドバーの行はキーボードでも移って開き、選んで頼める（ブラウザでは履歴の行が選んで頼める）（キーの割り当ての正本は `packages/web/src/components/row-nav.tsx`・`ask-menu.tsx`。README は利用者への案内）（入口は [ADR-010](adr/ADR-010-ui-writes-and-agent-requests.md)）
+- UI-11 VS Code 拡張は `core` を同梱して `dg` なしで動き、`dg` が PATH にないときと版のメジャーが `core` と違うときは知らせる。拡張と画面の文言は VS Code の表示言語が日本語なら日本語、ほかは英語で出し（ブラウザは日本語）、チケットの中身と指示は書いた言葉のまま出す。何を訳すかの細部は `packages/vscode/src/l10n.ts`・`packages/web/src/l10n.ts` とそのテスト
+- UI-12 VS Code 拡張はサイドバーを主画面にし、エディタのパネルには詳細（チケット・Epic・Iteration・Plan）だけを出す。ステータスバーに今のブランチのチケットを出し、ID から要約と詳細を開け、コマンドで ID か題からも探せる。CLI やエージェントの書き込みを自動で映し、承認待ちの Plan と review のチケットを知らせ（通知は `notify.approvals` で切る）、`dg init` 前は始め方を出す。細部は `packages/vscode/package.json`・`src/extension.ts`
+- UI-13 実行計画：カンバンの上に、選んだ範囲のチケットを含む Plan の進捗と次（PL-6）・依存グラフを出し、Plan の番号から Plan 詳細を開く。表示だけで書き込まない（出す項目は `plan show` と `packages/web/src/pages/plans.tsx`）
+- UI-14 設定画面：「チーム」のタブは `config.yaml` の全項目（5.10）を、「自分」のタブは個人で上書きできる項目だけを出して付け外しし（外すのは `config unset --local`）、影響の大きい項目は保存前に確かめる。VS Code の settings.json は使わない（細部と理由は [ADR-006](adr/ADR-006-ui-and-writes.md)）
+- UI-15 エージェントに頼む：行・見出しなどから `dg ask` の依頼文を作ってコピーし、データには書き込まない。複数の行をまとめても、キーボードでも頼める。VS Code では開いているターミナルにも送れる。入口・送り方・キーの細部は [ADR-010](adr/ADR-010-ui-writes-and-agent-requests.md)
 - UI-16 VS Code 拡張は、制限モードと仮想ワークスペースでは動かない（理由は `packages/vscode/package.json` の `capabilities`）
 
-画面の並び・色・文言・印などの細部は `packages/web/src/` と `packages/vscode/src/` のコードとテストが正本。
+画面の並び・文言・印などの細部は `packages/web/src/`・`packages/vscode/src/` のコードとテストが正本。
 
 ### 6.5 エージェント連携
 
-- AG-1 エージェントは PATH の `dg` を Bash から `dg … --json --actor agent` で呼び、データのファイルを直接編集しない。human と agent の区別は申告（`--actor` か環境変数 `DEGUBOARD_ACTOR`。既定は human）に基づき、Skill と `dg guide` の手順は必ず agent を名乗る。主体の ID はユーザ名（決め方は `dg --help`）と種別から決まる（TK-7）
-- AG-2 Claude Code 向けに、段階ごとに `dg guide <topic>` を読む薄い Skill（`dg<トピック>`）を `dg skill install` で配る。Skill は任意で、スクリプトもツールの許可も持たない決まった文面。名前と説明は guide の frontmatter、オプションは `dg skill install --help` が正本
-- AG-3 エージェントは要件の整理が終わったら、必要に応じてチケット化を提案し、承認を得て `ticket import` で起票する。分解・Epic への束ね・依存の整理・Iteration への割り当ても提案して承認を得る
-- AG-4 MCP サーバー（`dg mcp`。stdio）は、Bash のないクライアントの入口として、Core のコマンド定義から生成する薄い層で提供する。CLI と同じ操作ができ（`init` と CLI だけの `guide`・`skill`・`serve`・`open` を除く）、ツールの結果は `--json` と同じ形（CL-1）で、主体は常に agent。対象のリポジトリは `-C` で指せる
-- AG-5 Agent Adapter が製品ごとの差（使用量の取得など）を吸収し、実装は Core の `agents/adapters/` に閉じる。今は `claude-code`・`codex`・`copilot`。dg を呼んだエージェントを環境変数から判定するのも Adapter で、製品が付ける変数を確かめられない Adapter は判定しない（今は `copilot`）。起動方法と権限は扱わない（EX-1、[ADR-007](adr/ADR-007-architecture.md)）
+- AG-1 エージェントは PATH の `dg` を Bash から `dg … --json --actor agent` で呼び、データのファイルを直接編集しない。human と agent の区別は申告（`--actor` か `DEGUBOARD_ACTOR`。既定は human）に基づき、Skill と `dg guide` の手順は必ず agent を名乗る。主体の ID は TK-7（ユーザ名の決め方は `dg --help`）
+- AG-2 Claude Code 向けに、段階ごとに `dg guide <topic>` を読む薄い Skill（`dg<トピック>`）を `dg skill install` で配る。Skill は任意で、スクリプトもツールの許可も持たない決まった文面。名前と説明は guide の frontmatter が正本
+- AG-3 チケット化（`ticket import`）と、分解・Epic への束ね・依存・Iteration への割り当ては、エージェントが提案して人の承認を得てから行う（手順は `dg guide import`）
+- AG-4 MCP サーバー（`dg mcp`。stdio）は、Bash のないクライアントの入口で、Core のコマンド定義から生成する。CLI と同じ操作ができ（`init` と CLI だけの `guide`・`skill`・`serve`・`open` を除く）、ツールの結果は `--json` と同じ形（CL-1）で、主体は常に agent。対象のリポジトリは `-C` で指せる
+- AG-5 Agent Adapter が製品ごとの差（使用量の取得、dg を呼んだエージェントの環境変数からの判定）を吸収し、実装は Core の `agents/adapters/` に閉じる。今は `claude-code`・`codex`・`copilot`（環境変数で判定できる製品は Adapter のコード）。起動方法と権限は扱わない（EX-1、[ADR-007](adr/ADR-007-architecture.md)）
 - AG-6 ソフトウェア開発向けの Action（worktree・PR 作成・マージなど）は Core の `actions` に置き、汎用部分は依存しない。`dg` のコマンドにせず、公開するのは名前の一覧（`ACTION_NAMES`）だけ（[ADR-007](adr/ADR-007-architecture.md)）
 - AG-7 任意のシェルの Action は `actions.shell: true` のときだけ使え、毎回確認を経る
-- AG-8 `ask` は対象（複数可）・頼むこと・指示・形式から、エージェントに貼る依頼文を返す読み取りだけのコマンド。人に限られた操作なら人が打つ `dg` のコマンドを返す。依頼文に入れる対象は ID だけ。候補とおすすめは `dg ask --help` とコード、文の形は [ADR-010](adr/ADR-010-ui-writes-and-agent-requests.md) が正本。`ask-menu` は画面の場所ごとの候補を返す
+- AG-8 `ask` は対象（複数可）・頼むこと・指示・形式から、エージェントに貼る依頼文（人に限られた操作なら人が打つ `dg` のコマンド）を返す読み取りだけのコマンド。`ask-menu` は画面の場所ごとの候補を返す。候補とおすすめは `dg ask --help` とコード、文の形は [ADR-010](adr/ADR-010-ui-writes-and-agent-requests.md) が正本
 
 ### 6.6 作業の実績
 
 - MT-1 Run の使用量とツールの回数は Adapter が取り込む。エージェントの自己申告の数字は書かない
-- MT-2 `metrics.read_transcripts` が true なら、`run finish` とチケットの操作に付随する閉じ方（RN-6）が Adapter でエージェントの会話記録から使用量とツールの回数を補う。`DEGUBOARD_NO_TRANSCRIPTS` が空でも `0` でもないマシンでは読まない
+- MT-2 `metrics.read_transcripts` が true なら、`run finish` と RN-6 の閉じ方が Adapter でエージェントの会話記録から使用量とツールの回数を補う。`DEGUBOARD_NO_TRANSCRIPTS` が空でも `0` でもないマシンでは読まない
 - MT-3 `metrics show` は Run を絞り込んで集計する（軸は `dg metrics show --help`）。null は足さず欠けた数を出す。集計値は保存しない
 - MT-4 Adapter が会話記録から Run に写すのは数とモデル名だけ（会話の中身・コマンドの文字列・パスは写さない）。`error` と `retry_reasons` は渡した文をそのまま記録するので、`error` には秘密を、`retry_reasons` には秘密・コマンドの文字列・パスを書かない
-- MT-5 `run refresh` は閉じた Run のモデル名と使用量を、finish と同じ方法と MT-2 の許可で会話記録から取り直す。取れた値だけを書き換え、取れなかった値は残して警告する。実行中の Run は拒否する（オプションは `dg run refresh --help`）
+- MT-5 `run refresh` は閉じた Run のモデル名と使用量を、finish と同じ方法と MT-2 の許可で会話記録から取り直す。取れた値だけを書き換え、取れなかった値は残して警告する。実行中の Run は拒否する
 
 ### 6.7 ワークフロー実行
 
-- EX-1 deguboard はエージェントを起動しない。チケットの処理はエージェント側の Skill が `dg` を呼んで進める
+- EX-1 deguboard はエージェントを起動しない。エージェントが `dg` を呼んで進める
 - EX-2 終了していない Run は一覧で見え、`interrupted` として閉じられる
 - EX-3 段階を続けて進める手順は `dg guide all` に置き、着手できるチケット（PL-6 か `ticket list --ready`）に従う。`--auto` は戻せる判断を自動で選び、`auto.merge` が true なら品質ゲートを通った PR をマージする。品質ゲートの中身と進め方の細部は guide（`all`・`parallel`・`review`）が正本
 - EX-4 Workflow が `by: [human]` で人に限った遷移は、エージェントからは行えない
