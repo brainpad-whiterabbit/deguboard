@@ -1161,22 +1161,22 @@ opus
 ## サイドバーのエージェントに頼む入力欄
 [aria-label] エージェントに頼む（Iteration の見出し s1）
 Iteration の見出し s1
-[title] /dgplan
+[title] /dgplan: チケットを進める順を決めて Plan に記録し、人の承認を得ます。
 計画を立てる
 おすすめ
-[title] /dgall
+[title] /dgall: Iteration かチケットを、割り当てからリリース（か片付け）まで段階ごとに続けて進めます。
 最後まで進める
-[title] /dgrelease
+[title] /dgrelease: Iteration のチケットがすべて done かを確かめ、リリースの手順で進めて Iteration を閉じます。
 リリースする
-[title] /dgimport
+[title] /dgimport: 会話で検討した内容や計画・設計書を、承認を得てからチケットに分けて起票します。
 起票して s1 に入れる
-[title] /dgassign
+[title] /dgassign: チケットを Iteration（スプリント）と Epic に割り当てます。
 チケットを足す・外す
 [title] Skill を使わない
 名前・目標・期間を直す
 [title] Skill を使わない
 閉じる
-[title] /dgcheck
+[title] /dgcheck: チケット・Epic・Iteration・Plan を点検し、直す案を示して承認を得てから直します。
 点検する
 [title] Skill を使わない
 自由に
@@ -1284,29 +1284,30 @@ t1
 [aria-label] エージェントに頼む（行 t1）
 [aria-label] エージェントに頼む
 [aria-label] 頼むこと
-[title] /dgplan
+[title] /dgplan: チケットを進める順を決めて Plan に記録し、人の承認を得ます。
 [aria-label] おすすめ
 ★
 計画を立てる
-[title] /dgall
+[title] /dgall: Iteration かチケットを、割り当てからリリース（か片付け）まで段階ごとに続けて進めます。
 最後まで進める
-[title] /dgrelease
+[title] /dgrelease: Iteration のチケットがすべて done かを確かめ、リリースの手順で進めて Iteration を閉じます。
 リリースする
-[title] /dgimport
+[title] /dgimport: 会話で検討した内容や計画・設計書を、承認を得てからチケットに分けて起票します。
 起票して s1 に入れる
-[title] /dgassign
+[title] /dgassign: チケットを Iteration（スプリント）と Epic に割り当てます。
 チケットを足す・外す
 [title] Skill を使わない
 名前・目標・期間を直す
 [title] Skill を使わない
 閉じる
-[title] /dgcheck
+[title] /dgcheck: チケット・Epic・Iteration・Plan を点検し、直す案を示して承認を得てから直します。
 点検する
 [title] Skill を使わない
 自由に
 [title] 閉じる（Esc）
 [aria-label] 閉じる
 ×
+[title] チケットを進める順を決めて Plan に記録し、人の承認を得ます。
 /dgplan
 [title] Iteration s1「最初の Iteration」（active）
 s1

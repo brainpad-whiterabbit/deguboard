@@ -13,7 +13,13 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
-import { DG_PATH_NOTE, agentSkillDirs, askSkillInstalled } from "@deguboard/core";
+import {
+  DG_PATH_NOTE,
+  SKILL_SUMMARY,
+  agentSkillDirs,
+  askSkillInstalled,
+  skillSummary,
+} from "@deguboard/core";
 import { createLocalOnlyRepo } from "../../core/test/helpers/git-fixture.js";
 import { readGuide } from "./guide.js";
 import { run } from "./program.js";
@@ -60,6 +66,16 @@ describe("dg skill install", () => {
     for (const s of await buildSkills()) {
       expect(s.content).toContain(DG_PATH_NOTE);
       expect(s.content).not.toContain("{{");
+    }
+  });
+
+  it("9 本の Skill の冒頭に、core の SKILL_SUMMARY の日本語の 1 文が入る（英語の文は小窓が引く）", async () => {
+    const skills = await buildSkills();
+    expect(skills).toHaveLength(9);
+    expect(Object.keys(SKILL_SUMMARY).sort()).toEqual(skills.map((s) => s.name).sort());
+    for (const s of skills) {
+      expect(s.content).toContain(`\n${skillSummary(s.name, "ja")}\n`);
+      expect(skillSummary(s.name, "en"), s.name).not.toMatch(/[぀-ヿ一-鿿]/);
     }
   });
 

@@ -100,6 +100,8 @@ export interface AskCandidate {
   label: string;
   /** 1 行目の Skill（`/dgdone`）。Skill を使わない頼むことは null */
   skill: string | null;
+  /** その Skill が何をするかの 1 文（SKILL_SUMMARY）。Skill を使わない頼むことは null。札とボタンのツールチップに出す。依頼文（text）には入れない（UI-15） */
+  skill_summary: string | null;
   /** 先頭の候補だけ true */
   recommended: boolean;
   /** 札の下に出す、この頼むことで何が起きるかの 1 文。対象があれば ID から始まり、Status を変えるものは行き先を含む。依頼文（text）には入れない（ADR-010） */
@@ -127,6 +129,56 @@ export interface AskView {
 /** PATH に dg がないときの置き換えの案内。Skill（cli の skill.md の {{dgPathNote}}）と文章だけの形式が同じ文を写す正本（AG-2・AG-8） */
 export const DG_PATH_NOTE =
   "PATH に `dg` がなければ、リポジトリの案内が書く呼び方（`npx deguboard`、`mise run dg --` など）で `dg` を置き換える。手順の中の `dg` も同じ。";
+
+/**
+ * Skill（dg<トピック>）が何をするかの 1 文。SKILL.md の冒頭（dg skill install は ja）と、頼む小窓の札・候補のツールチップ（候補の skill_summary）が、この 1 か所から出る（UI-15・AG-2）。
+ * 文を別の場所に写さない。9 本すべてに文があることは cli のテストが確かめる
+ */
+export const SKILL_SUMMARY: Readonly<Record<string, Readonly<Record<AskLanguage, string>>>> = {
+  dgimport: {
+    ja: "会話で検討した内容や計画・設計書を、承認を得てからチケットに分けて起票します。",
+    en: "Splits the discussed content, plan, or design into tickets and creates them after approval.",
+  },
+  dgassign: {
+    ja: "チケットを Iteration（スプリント）と Epic に割り当てます。",
+    en: "Assigns tickets to an Iteration (sprint) and an Epic.",
+  },
+  dgcheck: {
+    ja: "チケット・Epic・Iteration・Plan を点検し、直す案を示して承認を得てから直します。",
+    en: "Checks tickets, Epics, Iterations, and Plans, then fixes them after showing the proposed changes and getting approval.",
+  },
+  dgplan: {
+    ja: "チケットを進める順を決めて Plan に記録し、人の承認を得ます。",
+    en: "Decides the order to advance tickets, records it as a Plan, and gets human approval.",
+  },
+  dgwork: {
+    ja: "承認済みの Plan かチケットを、着手できるものから実装して PR まで進めます。",
+    en: "Implements the approved Plan or tickets, starting with the ones ready to start, up to a PR.",
+  },
+  dgall: {
+    ja: "Iteration かチケットを、割り当てからリリース（か片付け）まで段階ごとに続けて進めます。",
+    en: "Advances an Iteration or tickets stage by stage, from assignment through release (or cleanup).",
+  },
+  dgaudit: {
+    ja: "Iteration か Epic の完了後、リポジトリ全体を観点ごとに見直し、承認を得た指摘をチケットにします。",
+    en: "After an Iteration or Epic is done, reviews the whole repository by aspect and turns the findings approved by a human into tickets.",
+  },
+  dgdone: {
+    ja: "マージ済みのチケットを照合して done にし、受け入れ条件を確かめて後片付けをします。",
+    en: "Reconciles merged tickets to done, checks the remaining acceptance criteria, and cleans up.",
+  },
+  dgrelease: {
+    ja: "Iteration のチケットがすべて done かを確かめ、リリースの手順で進めて Iteration を閉じます。",
+    en: "Checks that all tickets in an Iteration are done, follows the release steps, and closes the Iteration.",
+  },
+};
+
+/** Skill（dg<トピック>）の 1 文。SKILL_SUMMARY に文がなければ例外 */
+export function skillSummary(skill: string, lang: AskLanguage = "ja"): string {
+  const text = SKILL_SUMMARY[skill]?.[lang];
+  if (text === undefined) throw new Error(`Skill の説明の文がない：${skill}`);
+  return text;
+}
 
 /** DG_PATH_NOTE の英語。英語の依頼文（language が en）の文章だけの形式に使う */
 export const DG_PATH_NOTE_EN =
@@ -1186,13 +1238,17 @@ export function askCandidates(
   lang: AskLanguage = "ja",
 ): AskCandidate[] {
   const w = withinOf(s, within);
-  return askActions(s, within).map((action, n) => ({
-    action,
-    label: ACTIONS[action].label(s, w),
-    skill: ACTIONS[action].skill && `/${ACTIONS[action].skill}`,
-    recommended: n === 0,
-    meaning: askMeaning(action, s, within, lang),
-  }));
+  return askActions(s, within).map((action, n) => {
+    const skill = ACTIONS[action].skill;
+    return {
+      action,
+      label: ACTIONS[action].label(s, w),
+      skill: skill && `/${skill}`,
+      skill_summary: skill ? skillSummary(skill, lang) : null,
+      recommended: n === 0,
+      meaning: askMeaning(action, s, within, lang),
+    };
+  });
 }
 
 const PLAN_STATE_LABEL: Record<PlanState, string> = {

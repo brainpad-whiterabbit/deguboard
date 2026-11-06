@@ -4,9 +4,11 @@ description: deguboard の Iteration のチケットがすべて done かを確�
 argument-hint: "[Iteration]"
 ---
 
-<!-- dg skill sha256:6f6332482aafb49e25130bca609fabcb276177663b3f8b783e264263c9f7d9a5 -->
+<!-- dg skill sha256:4c3ac435962c0b0550cad918c1c2745448df69ee2e0ef778a3abfed9900ee15b -->
 
 # リリース（release）
+
+Iteration のチケットがすべて done かを確かめ、リリースの手順で進めて Iteration を閉じます。
 
 最初に `dg guide release` を実行し、出力された手順のとおりに、次の指定の対象を進める。この Skill は手順を持たない。手順の正本は dg に同梱されていて、dg の版に合う。
 

@@ -4,9 +4,11 @@ description: deguboard のチケットを進める順を決めて Plan に記録
 argument-hint: <チケットの ID...|Iteration|Epic|next [N]> | <Plan の ID>
 ---
 
-<!-- dg skill sha256:37c9928f706601c3162405663ce2944636a27440ab58eca252dd01298cb47168 -->
+<!-- dg skill sha256:2e6470ca4f51486832288816525ba2f4abda1e2782382d489ca71abe45bbe2f2 -->
 
 # 計画（plan）
+
+チケットを進める順を決めて Plan に記録し、人の承認を得ます。
 
 最初に `dg guide plan` を実行し、出力された手順のとおりに、次の指定の対象を進める。この Skill は手順を持たない。手順の正本は dg に同梱されていて、dg の版に合う。
 

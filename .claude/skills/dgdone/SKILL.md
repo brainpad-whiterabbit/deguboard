@@ -4,9 +4,11 @@ description: deguboard のマージ済みのチケットを照合して done を
 argument-hint: "[チケットの ID...|Plan の ID|Iteration]"
 ---
 
-<!-- dg skill sha256:7347fc0a7d5438b318632907a6fdea040dbf85a63f16d678f199152b5f917a3a -->
+<!-- dg skill sha256:8304ae586e3a927dff0ea5bbbd24777b92921b9b886cece1ef82bf9364f8a77d -->
 
 # 完了（done）
+
+マージ済みのチケットを照合して done にし、受け入れ条件を確かめて後片付けをします。
 
 最初に `dg guide done` を実行し、出力された手順のとおりに、次の指定の対象を進める。この Skill は手順を持たない。手順の正本は dg に同梱されていて、dg の版に合う。
 

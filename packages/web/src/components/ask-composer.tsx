@@ -1,6 +1,6 @@
 // エージェントに頼む入力欄（UI-15・ADR-010）。左パネルとエディタのパネル（ブラウザでも）の下に出し、欄に書いたものがそのまま貼る文になる。
 // 頼むことの候補・おすすめ・依頼文は core の ask コマンド（読み取りだけ）が決め、ここでは組み立て直さない。定型の文の言語は画面の表示言語を ask に渡して決める。データには書き込まない。
-// 上の 1 行が頼むことの候補（★ がおすすめ）、欄の頭が Skill と対象の札、札の下が頼むことの 1 文（依頼文には入らない）、本体が指示、下が全文・形式・コピー。
+// 上の 1 行が頼むことの候補（★ がおすすめ）、欄の頭が Skill と対象の札（札とボタンのツールチップが Skill の 1 文）、札の下が頼むことの 1 文（依頼文には入らない）、本体が指示、下が全文・形式・コピー。
 // 開いているターミナルがあれば（Webview だけ）、送り先を選んで「送る」でその入力に入れられる。Enter は押さず、ターミナルは起動しない。なければコピーだけ。
 // 指示の下書きと形式は見た目の状態に残し、閉じて開き直しても消えない。形式は人が切り替えるまで残さず、既定は ask が dg の Skill の有無から決める
 
@@ -244,7 +244,11 @@ export function AskComposer({
               type="button"
               className="ask-suggestion"
               aria-pressed={c.action === chosen}
-              title={c.skill ?? tr("Skill を使わない")}
+              title={
+                c.skill_summary
+                  ? `${c.skill}: ${c.skill_summary}`
+                  : (c.skill ?? tr("Skill を使わない"))
+              }
               onClick={() => {
                 setPicked(c.action);
                 setResult(null);
@@ -275,7 +279,14 @@ export function AskComposer({
       <div className="ask-box">
         {skillPill || (base?.targets.length ?? 0) > 0 ? (
           <div className="ask-pills">
-            {skillPill ? <span className="ask-pill ask-pill-skill">{skillPill}</span> : null}
+            {skillPill ? (
+              <span
+                className="ask-pill ask-pill-skill"
+                title={candidate?.skill_summary ?? undefined}
+              >
+                {skillPill}
+              </span>
+            ) : null}
             {(base?.targets ?? []).map((t) => (
               <span key={t.id} className="ask-pill ask-pill-target" title={targetLine(t)}>
                 {t.id} <small>{trCore(t.sub)}</small>

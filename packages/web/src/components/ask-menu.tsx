@@ -506,7 +506,11 @@ function AskMenuList({
             type="button"
             role="menuitem"
             className="ask-menu-item"
-            title={c.skill ?? tr("Skill を使わない")}
+            title={
+              c.skill_summary
+                ? `${c.skill}: ${c.skill_summary}`
+                : (c.skill ?? tr("Skill を使わない"))
+            }
             onClick={() => onPick(c)}
           >
             <span>{trCore(c.label, c.action)}</span>

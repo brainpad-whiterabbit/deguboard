@@ -4,9 +4,11 @@ description: deguboard の Iteration（か Epic）のチケットがすべて do
 argument-hint: "[Iteration|Epic]"
 ---
 
-<!-- dg skill sha256:edd8ecfffe6671825429ebdffa6a28d8dea8e09b66f618adcd17b9dd7b38d775 -->
+<!-- dg skill sha256:f1bfd4460cc63ae8f6969e8db98c05b7db5a9e9e1a0e67f57f3edab745652440 -->
 
 # 見直し（audit）
+
+Iteration か Epic の完了後、リポジトリ全体を観点ごとに見直し、承認を得た指摘をチケットにします。
 
 最初に `dg guide audit` を実行し、出力された手順のとおりに、次の指定の対象を進める。この Skill は手順を持たない。手順の正本は dg に同梱されていて、dg の版に合う。
 

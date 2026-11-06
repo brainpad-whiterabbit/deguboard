@@ -1,10 +1,16 @@
 // dg skill install：dg guide を読む薄い Claude Code の Skill を段階ごとに置く（AG-2）。Skill は手順を持たず、正本は guide-*.md（CL-5）。
-// 名前・説明・引数の案内は guide の frontmatter から、本文は隣の skill.md から作る。ビルドでは dist/ にコピーする（package.json の build）
+// 名前・説明・引数の案内は guide の frontmatter から、冒頭の 1 文は core の SKILL_SUMMARY から、本文は隣の skill.md から作る。ビルドでは dist/ にコピーする（package.json の build）
 
 import { createHash } from "node:crypto";
 import { mkdir, readFile, rm, rmdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { DG_PATH_NOTE, resolveRepoPaths, skillDirsOf, type AgentEnv } from "@deguboard/core";
+import {
+  DG_PATH_NOTE,
+  resolveRepoPaths,
+  skillDirsOf,
+  skillSummary,
+  type AgentEnv,
+} from "@deguboard/core";
 import { stringify as stringifyYaml } from "yaml";
 import { GUIDE_TOPICS, readGuide, readGuideMeta, type GuideTopic } from "./guide.js";
 
@@ -42,6 +48,7 @@ export async function buildSkills(): Promise<SkillFile[]> {
     const body = template
       .replaceAll("{{title}}", title)
       .replaceAll("{{topic}}", topic)
+      .replaceAll("{{summary}}", skillSummary(name))
       .replaceAll("{{dgPathNote}}", DG_PATH_NOTE);
     // 整形（mise run format）で変わらない形にする。ハッシュは印の行を除いた中身から求める
     const unmarked = `---\n${frontmatter}---\n\n\n${body}`;

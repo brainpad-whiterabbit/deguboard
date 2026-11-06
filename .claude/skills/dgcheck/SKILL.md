@@ -4,9 +4,11 @@ description: deguboard のチケット・Epic・Iteration・Plan を点検し、
 argument-hint: "[Iteration|Epic|チケットの ID...]"
 ---
 
-<!-- dg skill sha256:874f7257ea1cd5c9e0b71658d0a0582a61db703688785da56159f6d3e9f3baef -->
+<!-- dg skill sha256:f3aac7292fdd90494b0730bc84c466f5fce4da8fdc50ec578b4cc2682d4cdbb3 -->
 
 # 点検（check）
+
+チケット・Epic・Iteration・Plan を点検し、直す案を示して承認を得てから直します。
 
 最初に `dg guide check` を実行し、出力された手順のとおりに、次の指定の対象を進める。この Skill は手順を持たない。手順の正本は dg に同梱されていて、dg の版に合う。
 

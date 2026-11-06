@@ -1160,22 +1160,22 @@ Retries
 ## サイドバーのエージェントに頼む入力欄
 [aria-label] Ask Agent (Iteration heading s1)
 Iteration heading s1
-[title] /dgplan
+[title] /dgplan: Decides the order to advance tickets, records it as a Plan, and gets human approval.
 Plan
 Recommended
-[title] /dgall
+[title] /dgall: Advances an Iteration or tickets stage by stage, from assignment through release (or cleanup).
 Run to completion
-[title] /dgrelease
+[title] /dgrelease: Checks that all tickets in an Iteration are done, follows the release steps, and closes the Iteration.
 Release
-[title] /dgimport
+[title] /dgimport: Splits the discussed content, plan, or design into tickets and creates them after approval.
 Create tickets in s1
-[title] /dgassign
+[title] /dgassign: Assigns tickets to an Iteration (sprint) and an Epic.
 Add or remove tickets
 [title] No Skill
 Edit name, goal, and period
 [title] No Skill
 Close
-[title] /dgcheck
+[title] /dgcheck: Checks tickets, Epics, Iterations, and Plans, then fixes them after showing the proposed changes and getting approval.
 Check
 [title] No Skill
 Free-form
@@ -1283,29 +1283,30 @@ t1
 [aria-label] Ask Agent (Row t1)
 [aria-label] Ask Agent
 [aria-label] Request
-[title] /dgplan
+[title] /dgplan: Decides the order to advance tickets, records it as a Plan, and gets human approval.
 [aria-label] Recommended
 ★
 Plan
-[title] /dgall
+[title] /dgall: Advances an Iteration or tickets stage by stage, from assignment through release (or cleanup).
 Run to completion
-[title] /dgrelease
+[title] /dgrelease: Checks that all tickets in an Iteration are done, follows the release steps, and closes the Iteration.
 Release
-[title] /dgimport
+[title] /dgimport: Splits the discussed content, plan, or design into tickets and creates them after approval.
 Create tickets in s1
-[title] /dgassign
+[title] /dgassign: Assigns tickets to an Iteration (sprint) and an Epic.
 Add or remove tickets
 [title] No Skill
 Edit name, goal, and period
 [title] No Skill
 Close
-[title] /dgcheck
+[title] /dgcheck: Checks tickets, Epics, Iterations, and Plans, then fixes them after showing the proposed changes and getting approval.
 Check
 [title] No Skill
 Free-form
 [title] Close (Esc)
 [aria-label] Close
 ×
+[title] Decides the order to advance tickets, records it as a Plan, and gets human approval.
 /dgplan
 [title] Iteration s1 "最初の Iteration" (active)
 s1
