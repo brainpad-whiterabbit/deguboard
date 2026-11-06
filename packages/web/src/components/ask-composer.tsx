@@ -1,5 +1,5 @@
 // エージェントに頼む入力欄（UI-15・ADR-010）。左パネルとエディタのパネル（ブラウザでも）の下に出し、欄に書いたものがそのまま貼る文になる。
-// 頼むことの候補・おすすめ・依頼文は core の ask コマンド（読み取りだけ）が決め、ここでは組み立て直さない。データには書き込まない。
+// 頼むことの候補・おすすめ・依頼文は core の ask コマンド（読み取りだけ）が決め、ここでは組み立て直さない。定型の文の言語は画面の表示言語を ask に渡して決める。データには書き込まない。
 // 上の 1 行が頼むことの候補（★ がおすすめ）、欄の頭が Skill と対象の札、本体が指示、下が全文・形式・コピー。
 // 開いているターミナルがあれば（Webview だけ）、送り先を選んで「送る」でその入力に入れられる。Enter は押さず、ターミナルは起動しない。なければコピーだけ。
 // 指示の下書きと形式は見た目の状態に残し、閉じて開き直しても消えない。形式は人が切り替えるまで残さず、既定は ask が dg の Skill の有無から決める
@@ -11,7 +11,7 @@ import { useHost, useUiState } from "../host.js";
 import { canSend, resolveSendTarget, sentMessage, switchedMessage } from "../send-target.js";
 import { useStore } from "../store.js";
 import type { AskAction, AskFormat, AskView } from "../types.js";
-import { language, tr, trCore, msg } from "../l10n.js";
+import { language, tr, trCore, msg, type Language } from "../l10n.js";
 import { trNode } from "../l10n-node.js";
 
 /** 指示を打つ間、依頼文の取り直しを待つ時間（ミリ秒）。打つたびに ask を呼ばない */
@@ -41,6 +41,8 @@ interface AskInput {
   action?: AskAction | undefined;
   note?: string | undefined;
   format?: AskFormat | undefined;
+  /** 依頼文の定型の文の言語。画面の表示言語を渡す（指示とチケットの中身は書いた言葉のまま） */
+  language?: Language | undefined;
 }
 
 export function AskComposer({
@@ -97,7 +99,11 @@ export function AskComposer({
   useEffect(() => {
     let alive = true;
     client
-      .run<AskView>("ask", { targets: parseAskKey(targetsKey).targets, within } satisfies AskInput)
+      .run<AskView>("ask", {
+        targets: parseAskKey(targetsKey).targets,
+        within,
+        language: language(),
+      } satisfies AskInput)
       .then((r) => alive && (setBase(r.data), setError(null)))
       .catch((e: unknown) => alive && (setBase(null), setError(messageOf(e))));
     return () => {
@@ -116,6 +122,7 @@ export function AskComposer({
       action: action ?? undefined,
       note: settledNote,
       format: chosenFormat ?? undefined,
+      language: language(),
     };
     client
       .run<AskView>("ask", input)
@@ -197,6 +204,7 @@ export function AskComposer({
         action: pick ?? undefined,
         note,
         format: chosenFormat ?? undefined,
+        language: language(),
       } satisfies AskInput);
       if (mine !== copySeq.current) return;
       setView(r.data);

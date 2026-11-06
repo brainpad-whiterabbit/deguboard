@@ -73,6 +73,7 @@ describe("Iteration 詳細の案内の表示（core の next を出すだけ）"
     expect(run).toHaveBeenCalledWith("ask", {
       targets: ["s1"],
       action: "release",
+      language: "ja",
     });
     expect(run.mock.calls.map((c) => c[0]).filter((n) => WRITES.test(n))).toEqual([]);
     await screen.findByText("コピーした");
@@ -88,6 +89,7 @@ describe("Iteration 詳細の案内の表示（core の next を出すだけ）"
         targets: ["s1"],
         action: "release",
         format: "text",
+        language: "ja",
       }),
     );
   });
@@ -101,7 +103,11 @@ describe("Iteration 詳細の案内の表示（core の next を出すだけ）"
     );
     fireEvent.click(screen.getByRole("button", { name: "依頼文をコピー" }));
     await waitFor(() => expect(copy).toHaveBeenCalled());
-    expect(run).toHaveBeenCalledWith("ask", { targets: ["s1"], action: "release" });
+    expect(run).toHaveBeenCalledWith("ask", {
+      targets: ["s1"],
+      action: "release",
+      language: "ja",
+    });
     const text = (copy.mock.calls[0] as unknown as [string])[0];
     expect(text.startsWith("/dgrelease")).toBe(false);
     expect(text).toContain("dg guide release");
@@ -115,6 +121,7 @@ describe("Iteration 詳細の案内の表示（core の next を出すだけ）"
       expect(run).toHaveBeenCalledWith("ask", {
         targets: ["s1"],
         action: "carry",
+        language: "ja",
       }),
     );
   });
@@ -147,6 +154,7 @@ describe("Iteration 詳細の案内の表示（core の next を出すだけ）"
       expect(run).toHaveBeenCalledWith("ask", {
         targets: ["s1"],
         action: "assign",
+        language: "ja",
       }),
     );
   });

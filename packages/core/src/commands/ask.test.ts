@@ -7,7 +7,9 @@ import {
   ASK_ACTIONS,
   type AskAction,
   ASK_DG_USAGE,
+  ASK_DG_USAGE_EN,
   DG_PATH_NOTE,
+  DG_PATH_NOTE_EN,
   askGuideLine,
   ask,
   askCandidates,
@@ -66,6 +68,41 @@ const epic = (status: string): AskSubject => ({
   title: "溜まりを閉じる",
   status,
 });
+
+const planOf = (status: PlanState, complete = false): AskSubject => ({
+  kind: "plan",
+  id: "p33",
+  status,
+  tickets: ["t307"],
+  complete,
+});
+/** 頼むことがどれも候補に出るよう、対象の種類と状態（と外すのための within）を並べる */
+const SAMPLES: Array<[AskSubject[], string?]> = [
+  [[]],
+  [[ticket({ status: "review" })]],
+  [[ticket({ status: "done" })]],
+  [[ticket({ status: "abandoned" })]],
+  [[ticket({ status: "in_progress" })]],
+  [[ticket({ iteration: null, iteration_status: null })]],
+  [[ticket({ iteration_status: "closed" })]],
+  [[ticket(), ticket({ id: "t266" })]],
+  [[ticket({ iteration_status: "active" })]],
+  [[ticket({ deps_done: false })]],
+  [[iteration("closed")]],
+  [[iteration("active", true)]],
+  [[iteration("active")]],
+  [[iteration("active", false, true)]],
+  [[iteration("planned")]],
+  [[epic("closed")]],
+  [[epic("open")]],
+  [[planOf("closed")]],
+  [[planOf("pending_approval")]],
+  [[planOf("approved", true)]],
+  [[planOf("approved")]],
+  [[ticket(), epic("open")]],
+  [[ticket()], "s10"],
+  [[ticket({ epic: "e9" })], "e9"],
+];
 
 describe("依頼文の組み立て", () => {
   it("Skill 形式は Skill の呼び出しと指示だけで、題・説明の文・対象の一覧を入れない", () => {
@@ -346,47 +383,97 @@ describe("依頼文の組み立て", () => {
   });
 });
 
+describe("依頼文の定型の文の言語（UI-11）", () => {
+  /** 日本語の文字（ひらがな・カタカナ・漢字・全角の記号） */
+  const JAPANESE = /[\u3000-\u30ff\u4e00-\u9fff\uff00-\uffef]/;
+  const NOTE = "指示は書いた言葉のまま";
+
+  it("英語では、Skill の形・文章だけの形のどちらでも、どの頼むことでも定型の文がすべて英語になり、指示は書いた言葉のまま入る", () => {
+    const japanese: string[] = [];
+    for (const [s, within] of SAMPLES)
+      for (const action of askActions(s, within))
+        for (const format of ["skill", "text"] as const) {
+          const view = buildAsk({
+            subjects: s,
+            action,
+            within,
+            format,
+            note: NOTE,
+            language: "en",
+          });
+          expect(view.kind).toBe("prompt");
+          const lines = view.text.split("\n");
+          expect(lines.at(-1)).toBe(NOTE);
+          for (const line of lines.slice(0, -1))
+            if (JAPANESE.test(line)) japanese.push(`${action}（${format}）: ${line}`);
+        }
+    expect(japanese).toEqual([]);
+  });
+
+  it("英語の文章だけの形は、英語の頼む 1 文・dg の呼び方・guide を読む 1 文・指示の順になる", () => {
+    const view = buildAsk({
+      subjects: [ticket({ status: "review" })],
+      format: "text",
+      note: "急がない",
+      language: "en",
+    });
+    expect(view.text).toBe(
+      [
+        "Reconcile the PR merges of t265, verify the remaining acceptance criteria, and clean up.",
+        ASK_DG_USAGE_EN,
+        askGuideLine("/dgdone", "en"),
+        "急がない",
+      ].join("\n"),
+    );
+    expect(ASK_DG_USAGE_EN).toContain("--json --actor agent");
+    expect(ASK_DG_USAGE_EN).toContain(DG_PATH_NOTE_EN);
+    expect(askGuideLine("/dgdone", "en")).toBe(
+      "Read `dg guide done` for the steps and follow them.",
+    );
+    // 複数の対象は英語の区切りで並べ、Skill の次の行の頼みごとも英語にする
+    expect(
+      buildAsk({
+        subjects: [ticket(), ticket({ id: "t266" })],
+        action: "plan",
+        format: "text",
+        language: "en",
+      }).text.split("\n")[0],
+    ).toBe("Make a Plan to proceed with t265, t266, then wait for approval.");
+    const firstEn = (subjects: AskSubject[], action: AskAction) =>
+      buildAsk({ subjects, action, format: "text", language: "en" }).text.split("\n")[0];
+    // 添え書きは括弧を重ねず別の文にし、複数の対象にも合う形にする
+    expect(firstEn([], "create_iteration")).toBe(
+      "Create an Iteration, with the name, goal, and dates as instructed (propose them if not given). If you create tickets, pass --created-by human, since this is a human's instruction.",
+    );
+    expect(firstEn([ticket(), ticket({ id: "t266" })], "abandon")).toBe(
+      "Abandon t265, t266 by moving them to abandoned (a human's instruction; write the reason in the body as instructed).",
+    );
+    expect(firstEn([ticket()], "abandon")).toMatch(/^Abandon t265 by moving it to abandoned/);
+    expect(
+      buildAsk({ subjects: [iteration("active")], action: "create", language: "en" }).text,
+    ).toBe("/dgimport\nCreate tickets and add them to s10");
+  });
+
+  it("言語を省けば、日本語を渡したときと同じ依頼文になる", () => {
+    for (const [s, within] of SAMPLES)
+      for (const action of askActions(s, within))
+        for (const format of ["skill", "text"] as const) {
+          const input = { subjects: s, action, within, format, note: NOTE };
+          expect(buildAsk(input).text).toBe(buildAsk({ ...input, language: "ja" }).text);
+        }
+    expect(buildAsk({ subjects: [ticket({ status: "review" })], format: "text" }).text).toContain(
+      ASK_DG_USAGE,
+    );
+  });
+});
+
 describe("人に回すかを決める操作の名前", () => {
   it("すべての頼むことを候補に出して human の check を残らず集め、どれも registry にあるコマンドの名前か確かめる（打ち間違えると人に回らないまま依頼文を返す）", () => {
-    const plan = (status: PlanState, complete = false): AskSubject => ({
-      kind: "plan",
-      id: "p33",
-      status,
-      tickets: ["t307"],
-      complete,
-    });
-    // 頼むことがどれも候補に出るよう、対象の種類と状態（と外すのための within）を並べる
-    const samples: Array<[AskSubject[], string?]> = [
-      [[]],
-      [[ticket({ status: "review" })]],
-      [[ticket({ status: "done" })]],
-      [[ticket({ status: "abandoned" })]],
-      [[ticket({ status: "in_progress" })]],
-      [[ticket({ iteration: null, iteration_status: null })]],
-      [[ticket({ iteration_status: "closed" })]],
-      [[ticket(), ticket({ id: "t266" })]],
-      [[ticket({ iteration_status: "active" })]],
-      [[ticket({ deps_done: false })]],
-      [[iteration("closed")]],
-      [[iteration("active", true)]],
-      [[iteration("active")]],
-      [[iteration("active", false, true)]],
-      [[iteration("planned")]],
-      [[epic("closed")]],
-      [[epic("open")]],
-      [[plan("closed")]],
-      [[plan("pending_approval")]],
-      [[plan("approved", true)]],
-      [[plan("approved")]],
-      [[ticket(), epic("open")]],
-      [[ticket()], "s10"],
-      [[ticket({ epic: "e9" })], "e9"],
-    ];
     const names = new Set(commands.map((c) => c.name));
     const seen = new Set<string>();
     const checked = new Set<string>();
     const unknown: string[] = [];
-    for (const [s, within] of samples)
+    for (const [s, within] of SAMPLES)
       for (const action of askActions(s, within)) {
         seen.add(action);
         for (const name of askHumanChecks(action, s, within)) {
@@ -642,6 +729,17 @@ describe("ask", () => {
     // 場所を重ねたら後のもの、空白が重なっても分ける
     expect(parseAskMenuKey(" @e1  t1 @s3 ")).toEqual({ refs: ["t1"], within: "s3" });
     expect(parseAskMenuKey("")).toEqual({ refs: [], within: undefined });
+  });
+
+  it("language を渡せば定型の文をその言語で組み、省けば日本語にする", async () => {
+    const { ctx } = await initialized();
+    await runCommand(ticketCreate, ctx, { title: "A" });
+    const run = async (input: Record<string, unknown>) =>
+      (await runCommand(ask, ctx, { targets: ["t1"], action: "fix", format: "text", ...input }))
+        .data.text;
+    expect((await run({ language: "en" })).split("\n")[0]).toBe("Fix t1 as instructed.");
+    expect((await run({})).split("\n")[0]).toBe("t1 を指示のとおりに直してください。");
+    await expect(run({ language: "fr" })).rejects.toThrow();
   });
 
   it("config の actor.human_only を見て、人が打つコマンドを返す", async () => {

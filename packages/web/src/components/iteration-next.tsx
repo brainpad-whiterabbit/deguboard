@@ -7,7 +7,7 @@ import { DetailLink } from "./parts.js";
 import { useHost } from "../host.js";
 import { useStore } from "../store.js";
 import type { AskAction, AskView, IterationDetail } from "../types.js";
-import { tr } from "../l10n.js";
+import { language, tr } from "../l10n.js";
 import { trNode } from "../l10n-node.js";
 
 type Next = NonNullable<IterationDetail["next"]>;
@@ -75,7 +75,7 @@ function NextText({ next }: { next: Next }) {
 }
 
 /** 依頼文をコピーするボタン。押したときに ask で依頼文を引いてコピーする（組み立ては core）。
- *  形式は頼む小窓で人が切り替えたもの（ASK_FORMAT_KEY）に従い、選んでいなければ渡さず ask の既定（Skill の有無）に任せる */
+ *  形式は頼む小窓で人が切り替えたもの（ASK_FORMAT_KEY）に従い、選んでいなければ渡さず ask の既定（Skill の有無）に任せる。定型の文は表示言語で組ませる */
 function AskCopy({ id, action }: { id: string; action: AskAction | null }) {
   const host = useHost();
   const { client } = useStore();
@@ -90,7 +90,12 @@ function AskCopy({ id, action }: { id: string; action: AskAction | null }) {
           const format = chosenAskFormat(host.state.get<unknown>(ASK_FORMAT_KEY));
           track(
             client
-              .run<AskView>("ask", { targets: [id], action, ...(format ? { format } : {}) })
+              .run<AskView>("ask", {
+                targets: [id],
+                action,
+                ...(format ? { format } : {}),
+                language: language(),
+              })
               .then((r) => host.copy(r.data.text)),
           );
         }}
