@@ -79,7 +79,11 @@ export function shownConfigValue(key: string, value: unknown, defaultValue: unkn
   return PRIORITY_CRITERIA_EN[level];
 }
 
-/** 入力欄の文を保存する値に戻す。shownConfigValue が出した訳の文なら、既定の値に戻す（逆の写し） */
+/**
+ * 入力欄の文を保存する値に戻す。shownConfigValue が出した訳の文なら、既定の値に戻す（逆の写し）。
+ * 英語の表示で訳と同じ文を欄に打って離れると、既定の値（日本語）として保存される。
+ * 欄を書き換えず離れたときは呼ばない（config の画面の onBlur が値をそのまま渡す）
+ */
 export function storedConfigValue(key: string, text: unknown, defaultValue: unknown): unknown {
   const level = PRIORITY_KEY.exec(key)?.[1] as keyof typeof PRIORITY_CRITERIA_EN | undefined;
   if (current === "ja" || level === undefined) return text;

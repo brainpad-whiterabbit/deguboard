@@ -88,9 +88,17 @@ export function valueAt(config: unknown, key: string): unknown {
   return cursor;
 }
 
-/** 既定の値の表示。優先度の判断基準の既定は表示言語の訳で出す（UI-11） */
+/**
+ * 項目の値の表示。優先度の判断基準の既定のままの値は表示言語の訳で出す（UI-11）。field がなければ値のまま
+ * （保存した・外した・チームの値・確かめの文・既定の表示が使う）
+ */
+function valueText(field: ConfigField | undefined, value: unknown): string {
+  return formatValue(field ? shownConfigValue(field.key, value, field.default) : value);
+}
+
+/** 既定の値の表示（valueText の既定の版） */
 function defaultText(field: ConfigField): string {
-  return formatValue(shownConfigValue(field.key, field.default, field.default));
+  return valueText(field, field.default);
 }
 
 /** 既定から変えたか。リストは中身で比べる */
@@ -224,6 +232,9 @@ export function ConfigPage() {
     setFocusKey(key);
   }, []);
 
+  /** 項目の定義（既定の表示と値の表示に使う）。読み終えるまでは undefined */
+  const fieldFor = useCallback((key: string) => view?.fields.find((f) => f.key === key), [view]);
+
   const save = useCallback(
     async (p: Pending) => {
       const { key } = p;
@@ -246,7 +257,10 @@ export function ConfigPage() {
           });
           warnings = res.warnings;
           setView((v) => (v ? { ...v, team: res.data } : v));
-          if (latest()) setSaved(tr("{0} を {1} にした", key, formatValue(valueAt(res.data, key))));
+          if (latest())
+            setSaved(
+              tr("{0} を {1} にした", key, valueText(fieldFor(key), valueAt(res.data, key))),
+            );
         } else {
           // --local の config.set・unset は個人を重ねた値しか返さない。上書きが残ったか（空文字で既定に戻す項目は
           // set でも上書きを消す）は core が決めるので、画面で推し量らずに config.show で個人の上書きを読み直す
@@ -276,7 +290,7 @@ export function ConfigPage() {
       try {
         if (p.tab === "local") {
           const next = await show();
-          if (latest()) setSaved(localSaved(key, next.config, key in next.local));
+          if (latest()) setSaved(localSaved(key, next.config, key in next.local, fieldFor(key)));
         }
       } catch (error) {
         // 保存は通っている。下書きを消すと欄は view の値を出すので、保存した値を view に入れて保存前の値に戻さない
@@ -293,7 +307,7 @@ export function ConfigPage() {
                 }
               : v,
           );
-          if (latest()) setSaved(localSaved(key, config, kept));
+          if (latest()) setSaved(localSaved(key, config, kept, fieldFor(key)));
         }
         // 読み直せなかったことは項目の下に分けて出す
         const [message, detail] = failureText(error);
@@ -307,7 +321,7 @@ export function ConfigPage() {
       }
       void store.reload();
     },
-    [store, show],
+    [store, show, fieldFor],
   );
 
   /** 自分の値を外す。確かめる項目で効く値が変わるときは確かめ、確かめの文は外すときのものにする */
@@ -497,7 +511,7 @@ export function ConfigPage() {
                             title={tr("自分の値で上書きしている。押すと「自分」のタブで開く")}
                             onClick={() => switchTab("local", f.key)}
                           >
-                            {tr("自分：{0}", formatValue(view!.local[f.key]))}
+                            {tr("自分：{0}", valueText(f, view!.local[f.key]))}
                           </button>
                         ) : null}
                       </>
@@ -538,7 +552,7 @@ export function ConfigPage() {
                   badges={
                     own && isModified(value, team) ? (
                       <span className="badge config-team-value">
-                        {tr("チーム：{0}", formatValue(team))}
+                        {tr("チーム：{0}", valueText(f, team))}
                       </span>
                     ) : null
                   }
@@ -630,8 +644,13 @@ function FieldRow({
 }
 
 /** 自分のタブで保存した後の「保存した」の文。kept は上書きが残ったか */
-function localSaved(key: string, config: ConfigShowView["config"], kept: boolean): string {
-  const value = formatValue(valueAt(config, key));
+function localSaved(
+  key: string,
+  config: ConfigShowView["config"],
+  kept: boolean,
+  field: ConfigField | undefined,
+): string {
+  const value = valueText(field, valueAt(config, key));
   return kept
     ? tr("{0} を自分だけ {1} にした", key, value)
     : tr("{0} の自分の値を外した（チームの {1} を使う）", key, value);
@@ -723,7 +742,13 @@ function FieldInput({
           disabled={disabled}
           onChange={(e) => onDraft(e.target.value)}
           // 訳の文のまま離れたら既定の値に戻して保存する（訳の文を書き込まない。storedConfigValue）
-          onBlur={(e) => onChange(storedConfigValue(field.key, e.target.value, field.default))}
+          onBlur={(e) => {
+            // 表示した文のまま離れたら値を変えない（何もしないで離れて、訳の文を config.yaml に書き込まないため）。
+            // 文を書き換えたときだけ、訳の文なら既定の値に戻す（storedConfigValue）
+            const text = e.target.value;
+            const shown = String(shownConfigValue(field.key, value, field.default) ?? "");
+            onChange(text === shown ? value : storedConfigValue(field.key, text, field.default));
+          }}
           onKeyDown={(e) => {
             // 欄を離れたときに保存する（Enter と blur で 2 回保存しない）
             if (e.key === "Enter") (e.target as HTMLInputElement).blur();
@@ -804,7 +829,7 @@ function ConfirmBox({
   onCancel(): void;
 }) {
   const key = <code>{field.key}</code>;
-  const value = <code>{formatValue(pending.value)}</code>;
+  const value = <code>{valueText(field, pending.value)}</code>;
   const effect = tr(CONFIRM_KEYS.get(field.key) ?? "");
   return (
     <div

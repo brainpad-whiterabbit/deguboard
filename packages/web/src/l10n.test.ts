@@ -279,6 +279,15 @@ describe("優先度の判断基準の既定の訳（UI-11）", () => {
   );
   const KEY = "priority.high";
 
+  it("core の既定の判断基準は、訳を書いたときの文のまま（既定を書き換えたら PRIORITY_CRITERIA_EN の訳も直す）", () => {
+    expect(defaults).toEqual({
+      "priority.high":
+        "利用者に見える不具合・利用者を誤らせる文書・悪用できる脆弱性・ライセンスの漏れ・検査が通らない・ほかのチケットを止めている",
+      "priority.medium":
+        "機能の追加と改善・テストの抜けと不安定なテスト・内部の文書の食い違い・今は害のない規約違反・大きく古い依存",
+      "priority.low": "使われていないコードと依存・設定の重複・言い回しの揺れ・急がない調査と検討",
+    });
+  });
   it("英語の訳は 3 つの値を持ち、日本語を含まない", () => {
     expect(Object.keys(PRIORITY_CRITERIA_EN).sort()).toEqual(["high", "low", "medium"]);
     for (const [level, text] of Object.entries(PRIORITY_CRITERIA_EN)) {
