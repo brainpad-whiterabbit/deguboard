@@ -21,7 +21,7 @@ export const general: WorkflowDefinitionInput = {
       opens_on: "claim",
     },
     { id: "review", label: "Review" },
-    // 見直しの指摘を受けた手直しは実装と分けて数える（ADR-005）
-    { id: "fix", label: "Fix" },
+    // 見直しの指摘を受けた手直しは実装と分けて数える（ADR-005）。人のレビューの後の手直しはもう一度の claim が開く（RN-5）
+    { id: "fix", label: "Fix", opens_on: "reclaim" },
   ],
 };

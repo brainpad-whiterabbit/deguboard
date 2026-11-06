@@ -130,6 +130,8 @@ export interface StartRunInput {
   step: string;
   agent: string;
   model?: string | null | undefined;
+  /** やり直しの理由（もう一度の claim が開く手直しの Run。RN-5）。回数は理由の数にする */
+  retryReasons?: readonly string[] | undefined;
   now: Date;
 }
 
@@ -157,8 +159,8 @@ export async function startRun(repo: RunDirs, input: StartRunInput): Promise<Run
       finished_at: null,
       result: null,
       error: null,
-      retries: 0,
-      retry_reasons: [],
+      retries: input.retryReasons?.length ?? 0,
+      retry_reasons: [...(input.retryReasons ?? [])],
       usage: emptyUsage(),
       tools: null,
     };
@@ -211,7 +213,7 @@ async function readRunning(repo: RunDirs, id: RunId): Promise<Doc<Run>> {
 
 /**
  * 実行中の Run を閉じ、完了時の集計を runs/ に書く。呼び出し側の書き込み（withWrite の変更か sync の照合）の中で呼び、
- * コミットの後に dropRunning で実行中の記録を消す。finishRun と、チケットの操作に付随して閉じる closeImplementRun が使う
+ * コミットの後に dropRunning で実行中の記録を消す。finishRun と、チケットの操作と照合に付随して閉じる closeOpenedRun が使う
  */
 export async function closeRun(
   store: Pick<Store, "runs" | "create">,

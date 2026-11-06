@@ -180,7 +180,7 @@ describe("定義の検証（WF-3）", () => {
     expect(findStep(wf, "deploy")).toEqual({ ok: false, known: ["implement", "review"] });
   });
 
-  it("opens_on は claim だけを受け、同じ操作を 2 つの step に付ければエラーになる。claim が開く step は opens_on の step、なければ implement（RN-5）", () => {
+  it("opens_on は claim と reclaim を受け、同じ操作を 2 つの step に付ければエラーになる。claim が開く step は opens_on の step、なければ implement。reclaim は opens_on の step、なければ fix（RN-5）", () => {
     const dup = validateWorkflow(
       {
         ...base,
@@ -204,14 +204,26 @@ describe("定義の検証（WF-3）", () => {
         "x.yaml",
       ).issues.map((i) => i.code),
     ).toEqual(["workflow_schema"]);
-    const opened = (steps?: object[]) =>
+    const opened = (steps?: object[], opener: "claim" | "reclaim" = "claim") =>
       stepOpenedOn(
         validateWorkflow({ ...base, ...(steps ? { steps } : {}) }, "x.yaml").workflow!,
-        "claim",
+        opener,
       );
     expect(opened([{ id: "build", opens_on: "claim" }, { id: "implement" }])).toBe("build");
     expect(opened([{ id: "review" }])).toBe("implement");
     expect(opened()).toBe("implement");
+    // 同じ step に claim と reclaim の両方は付けられない（1 つの step は 1 つの操作）が、別の step なら両方を持てる
+    expect(
+      opened(
+        [
+          { id: "implement", opens_on: "claim" },
+          { id: "rework", opens_on: "reclaim" },
+        ],
+        "reclaim",
+      ),
+    ).toBe("rework");
+    expect(opened([{ id: "implement", opens_on: "claim" }], "reclaim")).toBe("fix");
+    expect(opened(undefined, "reclaim")).toBe("fix");
   });
 
   it("同梱テンプレート 3 つは検証を通る", () => {
@@ -227,6 +239,11 @@ describe("定義の検証（WF-3）", () => {
         workflow?.steps?.filter((s) => s.opens_on === "claim").map((s) => s.id),
         t.id,
       ).toEqual([t.id === "consulting" ? "draft" : "implement"]);
+      // 手直しの step を持つテンプレートでは、もう一度の claim がそれを開く。consulting には手直しの step がない
+      expect(
+        workflow?.steps?.filter((s) => s.opens_on === "reclaim").map((s) => s.id),
+        t.id,
+      ).toEqual(t.id === "consulting" ? [] : ["fix"]);
     }
   });
 

@@ -390,7 +390,7 @@ describe("dg guide", () => {
     for (const word of ["手直し", "見直し", "返らない"]) expect(allFailed).toContain(word);
     // done の「終わらなかったとき」は実装の Run と手直し・見直しの Run を分け、review へ案内する
     const unfinished = section(await readGuide("done"), "## 終わらなかったとき");
-    expect(unfinished).toContain("実装の Run は unclaim が `failure` で閉じる");
+    expect(unfinished).toContain("実装・手直しの Run は unclaim が `failure` で閉じる");
     for (const word of ["手直し・見直しの Run", "unclaim せず", "`dg guide review`", "終わり方"])
       expect(unfinished).toContain(word);
     expect(work).not.toContain("開けたまま");

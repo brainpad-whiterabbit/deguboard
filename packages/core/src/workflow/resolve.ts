@@ -137,13 +137,19 @@ export function findStep(
   return found ? { ok: true, step: found } : { ok: false, known: wf.steps.map((s) => s.id) };
 }
 
-/** opens_on が無いときに開く step。同梱のテンプレートの実装の step の名前（RN-5）。閉じる側（findImplementRun）も同じ step を探す */
-export const DEFAULT_OPENED_STEP = "implement";
+/**
+ * opens_on が無いときに開く step。同梱のテンプレートの実装（claim）と手直し（reclaim）の step の名前（RN-5）。
+ * 閉じる側（findOpenedRun）も同じ step を探す
+ */
+export const DEFAULT_OPENED_STEPS: Readonly<Record<StepOpener, string>> = {
+  claim: "implement",
+  reclaim: "fix",
+};
 
 /**
- * チケットの操作（claim）が開く Run の step（RN-5）。`opens_on` にその操作を書いた step、なければ `implement`。
- * steps のない Workflow も `implement`（縛らないので開ける）。語彙にあるかは呼ぶ側が findStep で確かめる
+ * チケットの操作（claim・reclaim）が開く Run の step（RN-5）。`opens_on` にその操作を書いた step、なければ既定の名前。
+ * steps のない Workflow も既定の名前（縛らないので開ける）。語彙にあるかは呼ぶ側が findStep で確かめる
  */
 export function stepOpenedOn(wf: ResolvedWorkflow, opener: StepOpener): string {
-  return wf.steps?.find((s) => s.opens_on === opener)?.id ?? DEFAULT_OPENED_STEP;
+  return wf.steps?.find((s) => s.opens_on === opener)?.id ?? DEFAULT_OPENED_STEPS[opener];
 }
