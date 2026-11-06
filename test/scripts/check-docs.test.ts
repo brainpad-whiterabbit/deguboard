@@ -1,6 +1,6 @@
-// scripts/check-docs.mjs が ADR の更新日と一覧（docs/adr/README.md）の更新日の食い違いで落ちることを確かめる（t210）。
+// scripts/check-docs.mjs が ADR の更新日と一覧（docs/adr/README.md）の更新日の食い違い（t210）と、README.md と README.ja.md の節の構成のずれ（t464）で落ちることを確かめる。
 // スクリプトは自分の置き場所の親をルートとして読むので、検査に要るファイルを一時ディレクトリに写して動かす。
-// 写さないファイルへのリンクの切れも出るので、更新日の指摘だけを見る
+// 写さないファイルへのリンクの切れも出るので、確かめる指摘だけを見る
 
 import { execFile } from "node:child_process";
 import { cp, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
@@ -106,5 +106,37 @@ describe("check-docs の ADR の更新日", () => {
     const { code, stderr } = await run();
     expect(code).toBe(1);
     expect(stderr).toContain("docs/adr/README.md: ADR-008-tech-stack.md の行に更新日がない");
+  });
+});
+
+describe("check-docs の README.md と README.ja.md の節の構成", () => {
+  it("写したままなら構成のずれは指摘しない", async () => {
+    const { stderr } = await run();
+    expect(stderr).not.toContain("階層が README.md とずれている");
+  });
+
+  it("README.ja.md の見出しの階層を変えると、位置と両方の見出しを出して落ちる", async () => {
+    await rewrite("README.ja.md", /^## (.+)$/m, "### $1");
+    const { code, stderr } = await run();
+    expect(code).toBe(1);
+    expect(stderr).toMatch(
+      /README\.ja\.md: \d+ 番目の見出しの階層が README\.md とずれている: README\.md は ## .+（\d+ 行目）、README\.ja\.md は ### .+（\d+ 行目）/,
+    );
+  });
+
+  it("README.md に節を足すと、数のずれで落ちる", async () => {
+    const file = join(dir, "README.md");
+    await writeFile(file, `${await readFile(file, "utf8")}\n## Extra\n`);
+    const { code, stderr } = await run();
+    expect(code).toBe(1);
+    expect(stderr).toMatch(/README\.md は ## Extra（\d+ 行目）、README\.ja\.md は （なし）/);
+    expect(stderr).toMatch(/見出しは README\.md が (\d+) 個、README\.ja\.md が \d+ 個/);
+  });
+
+  it("コードのブロックの中の # は見出しとして数えない", async () => {
+    const file = join(dir, "README.ja.md");
+    await writeFile(file, `${await readFile(file, "utf8")}\n\`\`\`sh\n# コメント\n\`\`\`\n`);
+    const { stderr } = await run();
+    expect(stderr).not.toContain("階層が README.md とずれている");
   });
 });

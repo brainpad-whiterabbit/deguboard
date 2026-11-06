@@ -370,6 +370,87 @@ describe("設定画面", () => {
     expect(screen.getAllByRole("alert")).toHaveLength(1);
   });
 
+  it("自分のタブで保存が通って読み直しだけが失敗したら、保存できたことと読み直せないことを分けて出す", async () => {
+    const { client, local } = configClient();
+    mount(client);
+    await screen.findByText("コミットの仕方");
+    fireEvent.click(tabOf("自分"));
+    const show = client.handlers["config.show"]!;
+    client.handlers["config.show"] = () => {
+      throw new ClientError({ code: "IO_ERROR", message: "読めない" });
+    };
+    fireEvent.click(ownOf("push.mode"));
+    expect(await screen.findByText("保存した: push.mode を自分だけ auto にした")).toBeTruthy();
+    const alert = await within(fieldOf("push.mode")).findByRole("alert");
+    expect(alert.textContent).toBe("保存したが、読み直せない: 読めない");
+    expect(alert.textContent).not.toContain("保存できない");
+    expect(local["push.mode"]).toBe("auto");
+    // 欄は保存前の値に戻さず、保存した値（自分の値を使う）で出す
+    expect(ownOf("push.mode").checked).toBe(true);
+    expect(within(fieldOf("push.mode")).getByRole<HTMLSelectElement>("combobox").disabled).toBe(
+      false,
+    );
+
+    // 外すほうも、読み直せなくても上書きなしで出す
+    fireEvent.click(ownOf("push.mode"));
+    expect(
+      await screen.findByText("保存した: push.mode の自分の値を外した（チームの auto を使う）"),
+    ).toBeTruthy();
+    expect(local["push.mode"]).toBeUndefined();
+    expect(ownOf("push.mode").checked).toBe(false);
+
+    // 後で読み直せたら「読み直せない」を消す
+    client.handlers["config.show"] = show;
+    fireEvent.click(ownOf("commit.mode"));
+    expect(await screen.findByText("保存した: commit.mode を自分だけ each にした")).toBeTruthy();
+    await waitFor(() => expect(within(fieldOf("push.mode")).queryByRole("alert")).toBeNull());
+  });
+
+  it("自分のタブで保存そのものが失敗したら、今までどおり保存できない旨を出し、読み直さない", async () => {
+    const { client } = configClient();
+    mount(client);
+    await screen.findByText("コミットの仕方");
+    fireEvent.click(tabOf("自分"));
+    client.handlers["config.set"] = () => {
+      throw new ClientError({ code: "VALIDATION_FAILED", message: "push.mode の値が正しくない" });
+    };
+    const before = client.calls.filter((c) => c.name === "config.show").length;
+    fireEvent.click(ownOf("push.mode"));
+    expect((await within(fieldOf("push.mode")).findByRole("alert")).textContent).toBe(
+      "保存できない: push.mode の値が正しくない",
+    );
+    expect(screen.queryByText(/^保存した:/)).toBeNull();
+    expect(client.calls.filter((c) => c.name === "config.show")).toHaveLength(before);
+  });
+
+  it("2 つの保存の読み直しが逆の順に返っても、後に始めた保存の結果を画面に残す", async () => {
+    const { client } = configClient();
+    mount(client);
+    await screen.findByText("コミットの仕方");
+    fireEvent.click(tabOf("自分"));
+    // 保存の後の読み直しを止め、返す順を決める
+    const show = client.handlers["config.show"]!;
+    const held: (() => void)[] = [];
+    client.handlers["config.show"] = (input) => {
+      const data = show(input);
+      return new Promise((resolve) => held.push(() => resolve(data)));
+    };
+    fireEvent.click(ownOf("push.mode"));
+    await waitFor(() => expect(held).toHaveLength(1));
+    fireEvent.click(ownOf("commit.mode"));
+    await waitFor(() => expect(held).toHaveLength(2));
+    // 後に始めた保存（commit.mode）の読み直しが先に返り、先に始めた保存（push.mode）の古い応答が後で返る
+    held[1]!();
+    expect(await screen.findByText("保存した: commit.mode を自分だけ each にした")).toBeTruthy();
+    held[0]!();
+    client.handlers["config.show"] = show;
+    // 古い応答（commit.mode の上書きがない）で置き換えない
+    await waitFor(() => expect(ownOf("push.mode").checked).toBe(true));
+    expect(ownOf("commit.mode").checked).toBe(true);
+    expect(screen.getByText("保存した: commit.mode を自分だけ each にした")).toBeTruthy();
+    expect(screen.queryByText("保存した: push.mode を自分だけ auto にした")).toBeNull();
+  });
+
   it("git.remote・git.base_branch・worktree.root は保存の前に確かめ、やめると戻す", async () => {
     const { client } = configClient();
     mount(client);

@@ -139,7 +139,7 @@ export function AskComposer({
   const candidate = base?.candidates.find((c) => c.action === chosen) ?? null;
   const shown = view && view.action === chosen ? view : null;
 
-  // 選んで開いたときは、開くと同時にコピーする（指示を足さないことが多い）。開いた 1 回だけ
+  // 選んで開いたときは、開くと同時にコピーする（指示を足さないことが多い）。開いた 1 回だけで、復元（copyOnOpen が false）では勝手にコピーしない。選び直したときのコピーは下の選択の処理にある
   const copiedOnOpen = useRef(false);
   const copySeq = useRef(0);
   // 最新の copy を ref で持つ。effect は引き直しのたびに再実行されても、copiedOnOpen で 1 回だけ呼ぶ

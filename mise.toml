@@ -47,7 +47,7 @@ description = "core・server・cli を tsc で、web と vscode を Vite で dis
 run = "pnpm run build"
 
 [tasks.vsix]
-description = "VS Code 拡張を packages/vscode/deguboard-vscode.vsix に固める（build を先に走らせる。拡張の README はルートの README.md の「Other ways to use it」より前から作る）"
+description = "VS Code 拡張を packages/vscode/deguboard-vscode.vsix に固め、その SHA256 と Release の本文に貼る文を出す（build を先に走らせる。拡張の README はルートの README.md の「Other ways to use it」より前から作る）"
 depends = ["build"]
 run = "pnpm run vsix"
 
@@ -65,7 +65,7 @@ depends = ["build"]
 run = "pnpm run gifs"
 
 [tasks.pack]
-description = "公開する 3 パッケージ（core・server・cli）の tarball を release/ に作る（build を先に走らせる）"
+description = "公開する 3 パッケージ（core・server・cli）の tarball を release/ に作り、どれにも LICENSE が入っていることを確かめる（build を先に走らせる）"
 depends = ["build"]
 run = "pnpm run pack"
 
@@ -86,7 +86,7 @@ description = "ビルド済みの dg を動かす。例: mise run dg -- ticket l
 run = "pnpm run dg"
 
 [tasks."check:docs"]
-description = "文書と guide の大きさの予算（90% 超えは警告）・ADR 一覧の整合・リンクとアンカーの切れを検査する"
+description = "文書と guide の大きさの予算（90% 超えは警告）・ADR 一覧の整合・リンクとアンカーの切れ・README.ja.md の節の構成のずれを検査する"
 run = "pnpm run check:docs"
 
 [tasks.check]

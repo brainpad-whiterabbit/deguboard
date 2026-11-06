@@ -132,31 +132,18 @@ README の使い方の GIF（`packages/vscode/images/`）は、画面を変え�
 
 ## リリース
 
-npm に出すのは `@deguboard/core`・`@deguboard/server`・`deguboard`（cli）の 3 つで、版は全パッケージで揃える（[ADR-006](adr/ADR-006-ui-and-writes.md)）。`web` は cli に同梱し、`vscode` は VSIX で配る。手順は mise のタスクで、`main` の clean な状態で行う：
+npm に出すのは `@deguboard/core`・`@deguboard/server`・`deguboard`（cli）の 3 つで、版は全パッケージで揃える（[ADR-006](adr/ADR-006-ui-and-writes.md)）。`vscode` は VSIX で配る。`main` の clean な状態で行う：
 
 ```sh
-mise run release:version -- <版>    # 5 パッケージの version を揃える（例: 0.10.0）→ PR で main に入れる
-mise run check && mise run pack      # build のあと release/ に 3 つの tarball。別ディレクトリで入れて dg --version と dg init を試す
-mise run audit                       # 本番の依存の既知の脆弱性を検査する（ネットワークが要る。あれば失敗するので、直すか人が判断してから進める）
-mise run test:layout && mise run test:vscode   # build のあと画面の配置と吹き出しの一覧、VS Code の実機の左パネル（check に入らない。ブラウザがなければ先に mise run playwright:install）
-mise run release:publish             # pnpm publish -r --access public（npm login 済みで）
+mise run release:version -- <版>    # 版を揃え、PR で main に入れる
+mise run check && mise run pack      # release/ に 3 つの tarball（LICENSE が欠ければ失敗）
+mise run audit                       # 本番の依存の脆弱性（あれば直すか人が判断する）
+mise run test:layout && mise run test:vscode   # 画面の配置と VS Code の実機（check に入らない）
+mise run release:publish             # npm login 済みで
 git tag v<版> && git push origin v<版>
-mise run vsix                        # GitHub の Release に deguboard-vscode.vsix を添付する
-sha256sum packages/vscode/deguboard-vscode.vsix   # 出た値を Release の本文に書く（下の雛形）
+mise run vsix                        # vsix を Release に添付し、出た SHA256 の文を本文に貼る
 ```
 
-Release の本文には、添付する vsix の SHA256 を次の雛形で書く。値は上の `sha256sum` の出力のもの（添付と同じ vsix で求める）。
+公開は必ず `pnpm publish`（`release:publish`）で行う。`npm publish` では `workspace:*` と `publishConfig.exports` が書き換わらない。
 
-```text
-deguboard-vscode.vsix の SHA256：<sha256sum の 64 桁の値>
-
-確かめ方：vsix と同じフォルダで `sha256sum deguboard-vscode.vsix` を実行し、出た値が上の値と一致すれば改ざんされていない。
-```
-
-3 つの tarball には、`prepack`（各パッケージの package.json）がルートの LICENSE を写して入れる（VSIX の `package` と同じ。写した `packages/*/LICENSE` は `.gitignore` で Git に入れない）。tarball を試すときは `for f in release/*.tgz; do tar tzf "$f" | grep -q '^package/LICENSE$' && echo "ok $f"; done` を 1 つずつ回し、3 行の ok が出ることを確かめる（`tar tzf` は複数の tgz を一度に渡せない）。
-
-`release/` は `mise run pack` が置く生成物で、`.gitignore` により Git には入れない。`pack` は毎回 `release/` を消してから作るので、手元に残った古い版の tarball は消してよい。
-
-公開は必ず `pnpm publish`（`release:publish`）で行う。`workspace:*` の版への書き換えと `publishConfig.exports` の差し替えは pnpm だけが行い、`npm publish` では `src/` を指す `development` 条件が残る。
-
-tarball を試すときは、一時ディレクトリの package.json の `deguboard` と、そこに置いた pnpm-workspace.yaml の `overrides` の `@deguboard/core`・`@deguboard/server` を `file:` の tarball に向ける（pnpm 12 は package.json の `overrides`・`pnpm.overrides` を読まない）。
+tarball は一時ディレクトリで、cli は package.json の依存、core・server は pnpm-workspace.yaml の `overrides` で `file:` に向けて入れ、`dg --version` と `dg init` を試す（pnpm 12 は package.json の `overrides` を読まない）。
