@@ -1,0 +1,30 @@
+{
+  "id": "r20261106-104346-8828",
+  "ticket": "t461",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-06T10:43:46Z",
+  "finished_at": "2026-11-06T10:45:20Z",
+  "result": "success",
+  "error": null,
+  "retries": 1,
+  "retry_reasons": [
+    "設定画面の入力欄の古いコメントを消した"
+  ],
+  "usage": {
+    "input": 6,
+    "output": 990,
+    "cache_read": 512727,
+    "cache_write": 1499
+  },
+  "tools": {
+    "read": 0,
+    "search": 0,
+    "write": 0,
+    "bash": 3,
+    "other": 0,
+    "read_before_write": 0,
+    "search_before_write": 0
+  }
+}

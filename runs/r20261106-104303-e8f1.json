@@ -1,0 +1,31 @@
+{
+  "id": "r20261106-104303-e8f1",
+  "ticket": "t446",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-06T10:43:03Z",
+  "finished_at": "2026-11-06T10:45:04Z",
+  "result": "success",
+  "error": null,
+  "retries": 2,
+  "retry_reasons": [
+    "テストの done を agent の ticket move で作り、索引の直接の書き換えをやめる",
+    "setup.ts と facts.ts のコメントの push の語をコミットに揃える"
+  ],
+  "usage": {
+    "input": 6,
+    "output": 1801,
+    "cache_read": 485920,
+    "cache_write": 2131
+  },
+  "tools": {
+    "read": 0,
+    "search": 0,
+    "write": 0,
+    "bash": 3,
+    "other": 0,
+    "read_before_write": 0,
+    "search_before_write": 0
+  }
+}
