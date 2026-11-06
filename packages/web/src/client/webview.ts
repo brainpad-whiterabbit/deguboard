@@ -12,6 +12,7 @@ import type {
   WebviewRequest,
   WebviewResponse,
 } from "@deguboard/core";
+import { trCoreMessage } from "../l10n.js";
 import { ClientError } from "./http.js";
 
 /** acquireVsCodeApi() が返すもののうち使う部分 */
@@ -74,7 +75,11 @@ export function createWebviewClient(
   return {
     async run<O>(name: string, input: unknown = {}): Promise<CommandResult<O>> {
       const r = await send({ kind: "run", name, input });
-      return { data: r.data as O, warnings: r.warnings, write: r.write ?? undefined };
+      return {
+        data: r.data as O,
+        warnings: r.warnings.map(trCoreMessage),
+        write: r.write ?? undefined,
+      };
     },
     async status(): Promise<StatusView> {
       return (await send({ kind: "status" })).data as StatusView;

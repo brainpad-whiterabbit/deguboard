@@ -6,7 +6,8 @@ import {
   type WebviewRequest,
   type WebviewResponse,
 } from "@deguboard/core";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
+import { setLanguage } from "../l10n.js";
 import { hrefOf, parseRoute } from "../router.js";
 import { ClientError } from "./http.js";
 import { createWebviewClient, WEBVIEW_CONTRACT_COPY } from "./webview.js";
@@ -24,6 +25,8 @@ function host() {
     },
   };
 }
+
+afterEach(() => setLanguage("ja"));
 
 describe("postMessage の CommandClient", () => {
   it("run は kind: run の要求を送り、同じ id の応答を結果にする。順番が入れ替わっても対応づく", async () => {
@@ -68,6 +71,36 @@ describe("postMessage の CommandClient", () => {
     const error = await p.catch((e: unknown) => e);
     expect(error).toBeInstanceOf(ClientError);
     expect(error).toMatchObject({ code: "TRANSITION_REJECTED", message: "遷移できない" });
+  });
+
+  it("英語の表示では core の決まった警告とエラーの文を訳し、表にない文は core の文のまま渡す（UI-11）", async () => {
+    setLanguage("en");
+    const h = host();
+    const client = createWebviewClient(h);
+    const warned = client.run("plan.show", { plan: "p1" });
+    h.reply({
+      id: 1,
+      ok: true,
+      data: null,
+      warnings: ["t9 が見つからない（削除された）", "訳のない警告"],
+      write: null,
+    });
+    expect((await warned).warnings).toEqual(["t9 not found (deleted)", "訳のない警告"]);
+    const rejected = client.run("config.set", { key: "commit.mode", value: "x" });
+    h.reply({
+      id: 2,
+      ok: false,
+      error: {
+        code: "VALIDATION_FAILED",
+        message: "commit.mode の値が正しくない",
+        detail: "値を省けない。選択肢：immediate・batch・manual",
+      },
+    });
+    expect(await rejected.catch((e: unknown) => e)).toMatchObject({
+      code: "VALIDATION_FAILED",
+      message: "Invalid value for commit.mode",
+      detail: "A value is required. Options: immediate・batch・manual",
+    });
   });
 
   it("open は kind: action の要求を送り、応答で解決する", async () => {
