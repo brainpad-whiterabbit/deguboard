@@ -1,0 +1,30 @@
+{
+  "id": "r20261106-122352-5692",
+  "ticket": "t476",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-06T12:23:52Z",
+  "finished_at": "2026-11-06T12:28:32Z",
+  "result": "success",
+  "error": null,
+  "retries": 1,
+  "retry_reasons": [
+    "英語の判定の範囲を全角の記号まで広げ、NO_TARGET の文と ask-menu の JSDoc の位置を直し、遅れた応答の言語を捨てる"
+  ],
+  "usage": {
+    "input": 40,
+    "output": 16763,
+    "cache_read": 1330833,
+    "cache_write": 44831
+  },
+  "tools": {
+    "read": 4,
+    "search": 0,
+    "write": 8,
+    "bash": 16,
+    "other": 0,
+    "read_before_write": 0,
+    "search_before_write": 0
+  }
+}
