@@ -61,7 +61,13 @@ describe("VSIX に入るファイル", () => {
 
   it("許可リストにないファイルは見つける", () => {
     expect(
-      unexpectedFiles(["package.json", "src/extension.ts", ".env", "dist/extension.cjs.map"]),
-    ).toEqual(["src/extension.ts", ".env", "dist/extension.cjs.map"]);
+      unexpectedFiles([
+        "package.json",
+        "src/extension.ts",
+        ".env",
+        "dist/extension.cjs.map",
+        "README.ja.md",
+      ]),
+    ).toEqual(["src/extension.ts", ".env", "dist/extension.cjs.map", "README.ja.md"]);
   });
 });

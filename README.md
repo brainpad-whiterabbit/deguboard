@@ -1,5 +1,7 @@
 # deguboard
 
+English | [日本語](https://github.com/brainpad-whiterabbit/deguboard/blob/main/README.ja.md)
+
 A kanban board that lives inside your Git repository, built for handing work to AI agents. Split work into small tickets, hand them to agents, run them in parallel along their dependencies, and measure how the agents perform so you can improve.
 
 > **Under development.** deguboard is not yet published to npm or the Marketplace. For now, clone and build `dg` and the VSIX yourself (see [Getting started before release](https://github.com/brainpad-whiterabbit/deguboard#getting-started-before-release)).

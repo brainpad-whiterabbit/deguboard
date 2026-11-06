@@ -11,6 +11,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const budgets = [
   ["CLAUDE.md", 6 * 1024],
   ["README.md", 16 * 1024],
+  ["README.ja.md", 16 * 1024],
   ["docs/requirements.md", 40 * 1024],
   ["docs/development.md", 20 * 1024],
 ];
@@ -90,8 +91,8 @@ for (const file of adrFiles) {
   }
 }
 
-// リンクの検査：README.md・CLAUDE.md・docs/**/*.md の相対リンクの先があり、#アンカーが対象の見出しに合うこと。外部 URL は見ない
-const docFiles = ["README.md", "CLAUDE.md", ...(await markdownFilesUnder("docs"))];
+// リンクの検査：README.md・README.ja.md・CLAUDE.md・docs/**/*.md の相対リンクの先があり、#アンカーが対象の見出しに合うこと。外部 URL は見ない
+const docFiles = ["README.md", "README.ja.md", "CLAUDE.md", ...(await markdownFilesUnder("docs"))];
 const headingsCache = new Map();
 let linkCount = 0;
 for (const rel of docFiles) {
