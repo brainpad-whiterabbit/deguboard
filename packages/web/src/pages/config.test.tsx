@@ -489,6 +489,43 @@ describe("設定画面", () => {
     expect(screen.queryByText("保存した: push.mode を自分だけ auto にした")).toBeNull();
   });
 
+  it("2 つの項目の保存が重なり、後の保存が先に終わっても、先の保存が終わったときは後の項目の「保存中」の印と錠を消さず、自分の保存が終わったときだけ外す", async () => {
+    const { client } = configClient();
+    mount(client);
+    await screen.findByText("コミットの仕方");
+    // 先に始めた保存（commit.mode）を止めておき、後に始めた保存（metrics.read_transcripts）が先に終わるようにする
+    const set = client.handlers["config.set"]!;
+    const held: (() => void)[] = [];
+    client.handlers["config.set"] = (input) => {
+      if ((input as { key: string }).key !== "commit.mode") return set(input);
+      const data = set(input);
+      return new Promise((resolve) => held.push(() => resolve(data)));
+    };
+    fireEvent.change(within(fieldOf("commit.mode")).getByRole("combobox"), {
+      target: { value: "manual" },
+    });
+    await waitFor(() => expect(held).toHaveLength(1));
+    fireEvent.click(within(fieldOf("metrics.read_transcripts")).getByRole("checkbox"));
+    expect(
+      await screen.findByText("保存した: metrics.read_transcripts を true にした"),
+    ).toBeTruthy();
+
+    // 後の保存が終わっても、止めたままの commit.mode の「保存中」の印と錠は残る
+    expect(within(fieldOf("commit.mode")).getByText("保存中…")).toBeTruthy();
+    expect(within(fieldOf("commit.mode")).getByRole<HTMLSelectElement>("combobox").disabled).toBe(
+      true,
+    );
+    expect(within(fieldOf("metrics.read_transcripts")).queryByText("保存中…")).toBeNull();
+
+    // 自分の保存が終わると、その項目の印と錠だけが消える
+    held[0]!();
+    await waitFor(() => expect(within(fieldOf("commit.mode")).queryByText("保存中…")).toBeNull());
+    expect(within(fieldOf("commit.mode")).getByRole<HTMLSelectElement>("combobox").disabled).toBe(
+      false,
+    );
+    client.handlers["config.set"] = set;
+  });
+
   it("git.remote・git.base_branch・worktree.root は保存の前に確かめ、やめると戻す", async () => {
     const { client } = configClient();
     mount(client);
