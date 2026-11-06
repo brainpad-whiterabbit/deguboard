@@ -60,6 +60,9 @@ const AskMenuContext = createContext<MenuCache | null>(null);
  * 一覧（チケット・Iteration・Epic・Plan・実行中の Run）が読み直されたら、出ている場所の分をすべて引き直す（引き直すまでは前の候補を出す）。
  * useCommandData は使わない：場所ごとの組をまとめて 1 回で引き、まだ引いていない組だけを足していくため
  */
+/** 引いた組の印。言語を含めて、言語を変えたら同じ組でも引き直す */
+const askedKey = (lang: string, key: string) => `${lang}\n${key}`;
+
 export function AskMenuProvider({ children }: { children: ReactNode }) {
   const store = useStore();
   const { client } = store;
@@ -71,6 +74,7 @@ export function AskMenuProvider({ children }: { children: ReactNode }) {
   // 前に引いたときの一覧。変わっていたら（読み直した）引いた組を忘れて、出ている場所の分をすべて引き直す
   const seen = useRef<readonly unknown[]>([]);
   const { tickets, iterations, epics, plans, runningTickets } = store;
+  const lang = language();
 
   useEffect(() => {
     const data = [tickets, iterations, epics, plans, runningTickets];
@@ -78,12 +82,13 @@ export function AskMenuProvider({ children }: { children: ReactNode }) {
       seen.current = data;
       asked.current = new Set();
     }
-    const keys = [...wanted.current.keys()].filter((k) => !asked.current.has(k));
+    // 引いた組は言語ごとに覚える（言語を変えたら、前の言語の候補を引き直す）
+    const keys = [...wanted.current.keys()].filter((k) => !asked.current.has(askedKey(lang, k)));
     if (keys.length === 0) return;
-    for (const k of keys) asked.current.add(k);
+    for (const k of keys) asked.current.add(askedKey(lang, k));
     const mine = asked.current;
     client
-      .run<AskMenu[]>("ask-menu", { sets: keys, language: language() })
+      .run<AskMenu[]>("ask-menu", { sets: keys, language: lang })
       .then((r) => {
         if (asked.current !== mine) return;
         setMenus((prev) => {
@@ -102,11 +107,11 @@ export function AskMenuProvider({ children }: { children: ReactNode }) {
           return next;
         });
       });
-  }, [client, round, tickets, iterations, epics, plans, runningTickets]);
+  }, [client, round, lang, tickets, iterations, epics, plans, runningTickets]);
 
   const want = useCallback((key: string) => {
     wanted.current.set(key, (wanted.current.get(key) ?? 0) + 1);
-    if (!asked.current.has(key)) setRound((n) => n + 1);
+    if (!asked.current.has(askedKey(language(), key))) setRound((n) => n + 1);
     return () => {
       const n = (wanted.current.get(key) ?? 1) - 1;
       if (n > 0) wanted.current.set(key, n);

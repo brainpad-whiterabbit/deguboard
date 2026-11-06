@@ -735,7 +735,7 @@ const ACTIONS: Record<AskAction, ActionDef> = {
 
 /**
  * 候補の下に出す 1 文（UI-15）。頼むことで何が起きるかを、対象の ID から始めて書く。Status を変える頼むことは行き先の Status を含める。
- * 依頼文（text）とは別に返し、依頼文には入れない。対象のない頼むこと（起票・点検・自由に）は ID から始めない
+ * 依頼文（text）とは別に返し、依頼文には入れない。対象のない頼むこと（起票・Iteration・Epic・点検・自由に）は ID から始めず、ほかは NO_TARGET の文を使う
  */
 const MEANING: Record<
   AskAction,
@@ -1091,6 +1091,95 @@ function baseActions(s: Subjects): AskAction[] {
   return ["check", "plan", "free"];
 }
 
+/**
+ * 対象のない頼むことの 1 文（UI-15）。ID の代わりに対象を指す言葉で書き、空白で始めない。
+ * ここにない頼むことは、対象がなくても MEANING の文を使う（起票・Iteration・Epic・点検・自由に）
+ */
+const NO_TARGET: Partial<Record<AskAction, { ja: string; en: string }>> = {
+  fix: { ja: "指示のとおりにチケットを直します。", en: "Fix the tickets as instructed." },
+  split: {
+    ja: "指示のチケットを分けます。元のチケットを残すか abandoned にするかの案を示します。",
+    en: "Split the tickets, and propose whether to keep the original tickets or make them abandoned.",
+  },
+  remove: {
+    ja: "チケットを入っている Iteration・Epic から外します。",
+    en: "Remove the tickets from the Iteration or Epic they belong to.",
+  },
+  edit: {
+    ja: "指示のとおりに題と概要を直します。",
+    en: "Update the title and summary as instructed.",
+  },
+  assign: {
+    ja: "指示のチケットを合う Iteration・Epic に割り当てます。",
+    en: "Assign the tickets to a fitting Iteration or Epic.",
+  },
+  plan: {
+    ja: "指示の内容を進める Plan を立て、承認を待ちます。",
+    en: "Make a Plan for the instructions and wait for approval.",
+  },
+  approve: {
+    ja: "指示の内容を示し、承認を求めます。",
+    en: "Show the content of the instructions and ask for approval.",
+  },
+  work: { ja: "指示の内容を進めます。", en: "Proceed with the instructions." },
+  resume: {
+    ja: "止まっている作業を再開し、Status を in_progress にします。",
+    en: "Resume the stalled work and set their Status to in_progress.",
+  },
+  all: {
+    ja: "指示の内容を最後まで進めます（承認の場所は手順どおり）。",
+    en: "Take the instructions all the way through, pausing for approval where the steps say to.",
+  },
+  done: {
+    ja: "PR のマージを照合し、残った受け入れ条件を確かめて、Status を done にします。",
+    en: "Reconcile the PR merges, verify the remaining acceptance criteria, and set the Status to done.",
+  },
+  release: {
+    ja: "リリースします。リリースの PR のマージと公開の前に承認を求めます。",
+    en: "Release, and ask for approval before merging the release PR and publishing.",
+  },
+  carry: {
+    ja: "未完了のチケットを示し、持ち越すか続けるかを相談します（データは書き換えません）。",
+    en: "List the unfinished tickets and consult on whether to carry them over or continue (no data changes).",
+  },
+  close: {
+    ja: "Iteration・Epic を閉じ、Status を closed にします（人の指示）。",
+    en: "Close the Iteration or Epic and set its Status to closed (a human's instruction).",
+  },
+  reopen: {
+    ja: "閉じた Iteration・Epic を再開します（人の指示）。",
+    en: "Reopen the closed Iteration or Epic (a human's instruction).",
+  },
+  abandon: {
+    ja: "指示のチケットをやめ、Status を abandoned にします（人の指示）。",
+    en: "Abandon the tickets and set their Status to abandoned (a human's instruction).",
+  },
+  undo_done: {
+    ja: "done のチケットを戻し、Status を todo・in_progress・review のどれかにします（人の指示）。",
+    en: "Undo done on the done tickets and return their Status to todo, in_progress, or review (a human's instruction).",
+  },
+  status: {
+    ja: "作業の様子を教えます（データは書き換えません）。",
+    en: "Tell how the work is going (no data changes).",
+  },
+  retro: {
+    ja: "振り返りをまとめます（データは書き換えません）。",
+    en: "Write a retrospective (no data changes).",
+  },
+};
+
+/** 頼むことの説明の 1 文（UI-15） */
+export function askMeaning(
+  action: AskAction,
+  s: Subjects,
+  within?: string,
+  lang: AskLanguage = "ja",
+): string {
+  const none = s.length === 0 ? NO_TARGET[action] : undefined;
+  if (none) return say(lang, none.ja, none.en);
+  return MEANING[action](s, withinOf(s, within), lang);
+}
+
 export function askCandidates(
   s: Subjects,
   within?: string,
@@ -1102,7 +1191,7 @@ export function askCandidates(
     label: ACTIONS[action].label(s, w),
     skill: ACTIONS[action].skill && `/${ACTIONS[action].skill}`,
     recommended: n === 0,
-    meaning: MEANING[action](s, w, lang),
+    meaning: askMeaning(action, s, within, lang),
   }));
 }
 

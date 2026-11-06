@@ -14,6 +14,7 @@ import {
   ask,
   askCandidates,
   askHumanChecks,
+  askMeaning,
   askMenu,
   askMenuKey,
   parseAskMenuKey,
@@ -845,6 +846,16 @@ describe("説明の 1 文（meaning・UI-15）", () => {
       for (const c of askCandidates(s, within)) {
         expect(c.meaning, c.action).not.toBe("");
         if (s.length > 0) expect(c.meaning.startsWith(s[0]!.id), c.action).toBe(true);
+      }
+  });
+
+  it("対象のない頼むことの meaning は、空白で始まらず二重の空白もなく、en では日本語を含まない", () => {
+    for (const language of ["ja", "en"] as const)
+      for (const action of ASK_ACTIONS) {
+        const meaning = askMeaning(action, [], undefined, language);
+        expect(meaning, `${language} ${action}`).not.toBe("");
+        expect(meaning, `${language} ${action}`).not.toMatch(/^\s|\s\s/);
+        if (language === "en") expect(meaning, action).not.toMatch(/[぀-ヿ一-鿿]/);
       }
   });
 
