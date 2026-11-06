@@ -1220,8 +1220,7 @@ describe("チケットの流れ", () => {
       await git(f.cloneA, ["branch", `feat/${t}`]);
       await runCommand(ticketUpdate, agent, { ticket: t, pr: t === "t1" ? 41 : 42 });
     }
-    // done への move は pr と assignee を消すので、PR を残した done の形は索引の書き換えで作る
-    await agent.store.update("ticket", "t2", { status: "done" });
+    await runCommand(ticketMove, agent, { ticket: "t2", status: "done" });
     const missing = async () =>
       (await runCommand(lint, agent, {})).data.issues
         .filter((i) => i.code === "lint_run_implement_missing")

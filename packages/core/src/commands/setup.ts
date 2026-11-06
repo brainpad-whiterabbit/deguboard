@@ -639,7 +639,7 @@ export const lint = defineCommand({
         );
     }
     // 実装の Run の抜け（RN-5・RN-6）。Run を開けなかった環境や手順の抜けで、agent の PR があるのに実装の Run がないもの、
-    // 閉じた実装の Run の後の push が、どの Run の期間（開始から終わりまで。実行中は今まで）にも入らないものを拾う
+    // 閉じた実装の Run の後のコミットが、どの Run の期間（開始から終わりまで。実行中は今まで）にも入らないものを拾う
     const runsByTicket = new Map<string, Run[]>();
     const seen = new Set<string>();
     for (const run of [

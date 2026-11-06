@@ -270,7 +270,7 @@ async function collectPrFacts(
 
 /**
  * 作業ブランチの追跡ブランチにあって base にないコミット（マージを除く）の、sha とコミッタの時刻（push の近似、ISO）。
- * lint が実装の Run の期間に入らない push を探すのに使う。fetch はしない（照合と同じく手元の ref を読む）。
+ * lint が実装の Run の期間に入らないコミットを探すのに使う。fetch はしない（照合と同じく手元の ref を読む）。
  * リモートがない・追跡ブランチがない（push していない・マージ後に消した）・base がないときは undefined
  */
 export async function branchCommitTimes(
