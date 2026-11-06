@@ -48,6 +48,15 @@ async function rewrite(rel: string, from: RegExp, to: string): Promise<void> {
   await writeFile(file, text.replace(from, to));
 }
 
+describe("check-docs の README.ja.md", () => {
+  it("相対リンクを壊すと落ちる", async () => {
+    await rewrite("README.ja.md", /\]\(README\.md\)/, "](NOPE.md)");
+    const { code, stderr } = await run();
+    expect(code).toBe(1);
+    expect(stderr).toMatch(/README\.ja\.md.*NOPE\.md/);
+  });
+});
+
 describe("check-docs の ADR の更新日", () => {
   it("写したままなら更新日の指摘は出ない", async () => {
     const { stderr } = await run();

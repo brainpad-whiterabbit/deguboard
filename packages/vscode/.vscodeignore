@@ -1,4 +1,4 @@
-# VSIX に入れるのは dist（extension.cjs・web・束ねた依存のライセンス表示）と media（Activity Bar のアイコンと Marketplace のアイコン、Walkthrough の本文）と、表示言語ごとの文言（manifest の package.nls*.json と拡張ホストの l10n）と README と LICENSE（日本語の README.ja.md は入れない。package の script が、README はルートの README.md の「Other ways to use it」より前から作り、LICENSE はルートから写す）だけ。package.json は常に入る
+# VSIX に入れるのは dist（extension.cjs・web・束ねた依存のライセンス表示）と media（Activity Bar のアイコンと Marketplace のアイコン、Walkthrough の本文）と、表示言語ごとの文言（manifest の package.nls*.json と拡張ホストの l10n）と README と LICENSE（package の script が、README はルートの README.md の「Other ways to use it」より前から作り、LICENSE はルートから写す）だけ。日本語の README.ja.md は入れない。package.json は常に入る
 **
 !dist/**
 !media/**

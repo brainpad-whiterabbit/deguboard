@@ -29,7 +29,7 @@ Git-native な AI ワークフロー・チケット管理ツール。CLI は `dg
 - すべての操作は `packages/core/src/commands/` のコマンド定義に置き、CLI・HTTP・Webview はそれを写す。入口にロジックを書かない
 - git・gh は `child_process.execFile` で引数配列として呼ぶ。シェルを経由しない
 - Git 操作のテストは、一時ディレクトリに作った bare リモート付きのリポジトリで行う
-- コメント・ドキュメント・テスト名は日本語で書く。README.md と packages/cli/README.md は GitHub・Marketplace・npm の入口なので英語で書く（日本語版は README.ja.md に置く）
+- コメント・ドキュメント・テスト名は日本語で書く。README.md と packages/cli/README.md は GitHub・Marketplace・npm の入口なので英語で書く（日本語版の README.ja.md も同じ PR で同じ節の構成に合わせる）
 
 ## チケット
 
