@@ -407,6 +407,8 @@ export const EN: Readonly<Record<string, string>> = {
   "{0} の保存の確認": "Confirm saving {0}",
   "{0} を {1} にする。{2}。チーム全員に効く。保存する？":
     "Set {0} to {1}. This {2}. It applies to the whole team. Save?",
+  "{0} を空にし、既定の {1} に戻す。{2}。チーム全員に効く。保存する？":
+    "Clear {0} and go back to the default {1}. This {2}. It applies to the whole team. Save?",
   "{0} の自分の値を外し、チームの {1} に戻す。{2}。自分だけに効く。保存する？":
     "Remove your value for {0} and go back to the team's {1}. This {2}. It applies only to you. Save?",
   "{0} を {1} にする。{2}。自分だけに効く。保存する？":

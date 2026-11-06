@@ -7,7 +7,7 @@
 // VS Code の settings.json は使わない（requirements.md 5.10）。左パネルではビューのタイトル行の歯車、ブラウザでは上のバーの歯車で開け閉めし、画面の中の「前の画面に戻る」も歯車と同じく来る前の画面に戻る。
 // 選択欄とチェックは変えたらすぐ、テキストは Enter か欄を離れたとき、リストは足す・外すたびに保存する。
 // 同期先とブランチの判定・worktree の置き場所・実行するコマンドとエージェントに許す操作を変える項目（CONFIRM_KEYS）は、どちらのタブでも保存の前に欄の下で確かめる
-// （自分の値を外して効く値が変わるときも確かめる）。拒否されたら理由を項目の下にだけ出し（上の通知の帯には出さない）、値を保存されている値に戻す。
+// （自分の値を外して効く値が変わるときも確かめる。空にすると既定に戻る項目を空にするときは、戻る既定の値を出す）。拒否されたら理由を項目の下にだけ出し（上の通知の帯には出さない）、値を保存されている値に戻す。
 // 保存は通って読み直しだけが失敗したら、保存できたことと読み直せないことを分けて出し、欄は保存した値で出す
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
@@ -806,7 +806,15 @@ function ConfirmBox({
     >
       <p>
         {pending.tab === "team"
-          ? trNode("{0} を {1} にする。{2}。チーム全員に効く。保存する？", key, value, effect)
+          ? clearsToDefault(field, pending.value)
+            ? // 空にすると core が値を消して既定に戻す（config.set の clears_to_default）。空の値でなく戻る既定の値を出す
+              trNode(
+                "{0} を空にし、既定の {1} に戻す。{2}。チーム全員に効く。保存する？",
+                key,
+                <code>{formatValue(field.default)}</code>,
+                effect,
+              )
+            : trNode("{0} を {1} にする。{2}。チーム全員に効く。保存する？", key, value, effect)
           : pending.unset
             ? trNode(
                 "{0} の自分の値を外し、チームの {1} に戻す。{2}。自分だけに効く。保存する？",
