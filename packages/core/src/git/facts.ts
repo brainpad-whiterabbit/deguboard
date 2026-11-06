@@ -269,6 +269,36 @@ async function collectPrFacts(
 }
 
 /**
+ * 作業ブランチの追跡ブランチにあって base にないコミット（マージを除く）の、sha とコミッタの時刻（push の近似、ISO）。
+ * lint が実装の Run の期間に入らないコミットを探すのに使う。fetch はしない（照合と同じく手元の ref を読む）。
+ * リモートがない・追跡ブランチがない（push していない・マージ後に消した）・base がないときは undefined
+ */
+export async function branchCommitTimes(
+  repo: GitRepo,
+  branch: string,
+): Promise<{ sha: string; at: string }[] | undefined> {
+  if (!repo.remote) return undefined;
+  const ref = `refs/remotes/${repo.remote}/${branch}`;
+  if (!(await refExists(repo, ref))) return undefined;
+  const base = await baseRef(repo);
+  if (!base) return undefined;
+  const r = await runGit(
+    repo.dataDir,
+    ["log", "--no-merges", "--format=%H %cI", `${base}..${ref}`],
+    {
+      allowFailure: true,
+    },
+  );
+  if (r.code !== 0) return undefined;
+  const commits: { sha: string; at: string }[] = [];
+  for (const line of r.stdout.split("\n")) {
+    const [sha, at] = line.trim().split(" ");
+    if (sha && isoOrUndefined(at) !== undefined) commits.push({ sha, at: at as string });
+  }
+  return commits;
+}
+
+/**
  * 作業ブランチに最後に push したコミットの時刻（ISO、UTC）。リモートの追跡ブランチの先端のコミットの時刻で、
  * 照合ともう一度の claim が、開いたままの手直しの Run を閉じる finished_at にする（RN-6）。
  * fetch を渡せばそのブランチだけ取り込んでから読む（照合は fetchAll の後に呼ぶので渡さない）。

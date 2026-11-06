@@ -4,7 +4,7 @@ import { writeFile } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
 import { OperationError } from "../errors.js";
-import { collectBranchFacts, lastPushedAt } from "../git/facts.js";
+import { branchCommitTimes, collectBranchFacts, lastPushedAt } from "../git/facts.js";
 import { withLock } from "../git/lock.js";
 import { renumberProvisional, type Renumbered } from "../git/renumber.js";
 import { ensureGitattributes, ensureMergeDriver } from "../git/merge.js";
@@ -18,7 +18,7 @@ import {
   syncStatus,
 } from "../git/sync.js";
 import { CONFLICT_REMEDY, flushPending, withWrite } from "../git/write.js";
-import { ownActorIds, type ActorKind, type UserSource } from "../model/actor.js";
+import { isAgentActorId, ownActorIds, type ActorKind, type UserSource } from "../model/actor.js";
 import { isTerminal } from "../model/common.js";
 import {
   configFields,
@@ -31,7 +31,7 @@ import type { Iteration } from "../model/iteration.js";
 import type { Run, RunId } from "../model/run.js";
 import type { StepOpener } from "../model/workflow.js";
 import { parseAcceptance, type Ticket } from "../model/ticket.js";
-import { dropRunning, readRunningRuns } from "../run/record.js";
+import { dropRunning, peekRunningRuns, readRunningRuns } from "../run/record.js";
 import type { Doc } from "../storage/documents.js";
 import { pathExists } from "../storage/exists.js";
 import { checkReferences } from "../storage/integrity.js";
@@ -503,7 +503,7 @@ export const lint = defineCommand({
   name: "lint",
   group: "setup",
   summary:
-    "本文の推奨の節（## 概要・## 受け入れ条件）の欠けと空、Workflow の fields に合わない値、閉じた Epic に残る終わっていないチケット、lint.require_iteration が true なら Iteration に入らずに todo・abandoned 以外に進んだチケット（閉じた Epic の done は除く）、チケットがすべて終わったのに開いている Epic・Plan、開いた Plan の after と depends_on をまたぐ循環、同じ Project に 2 つ以上ある active の Iteration を指摘する。done のチケットの未チェックの受け入れ条件は指摘しない",
+    "本文の推奨の節（## 概要・## 受け入れ条件）の欠けと空、Workflow の fields に合わない値、閉じた Epic に残る終わっていないチケット、lint.require_iteration が true なら Iteration に入らずに todo・abandoned 以外に進んだチケット（閉じた Epic の done は除く）、チケットがすべて終わったのに開いている Epic・Plan、開いた Plan の after と depends_on をまたぐ循環、同じ Project に 2 つ以上ある active の Iteration を指摘する。実装の Run の抜け（agent が PR まで進めたのに実装の Run がない、閉じた実装の Run の後のコミットがどの Run の期間にも入らない）は、終わっていないチケットと、閉じていない Iteration に入った done のチケットだけを見る。done のチケットの未チェックの受け入れ条件は指摘しない",
   input: z.object({
     project: z.string().optional().describe("Project で絞る。省略時はすべて"),
   }),
@@ -636,6 +636,60 @@ export const lint = defineCommand({
           doc.id,
           "lint_iteration_multiple_active",
           `同じ Project に active の Iteration が ${docs.length} つある（${ids}）`,
+        );
+    }
+    // 実装の Run の抜け（RN-5・RN-6）。Run を開けなかった環境や手順の抜けで、agent の PR があるのに実装の Run がないもの、
+    // 閉じた実装の Run の後のコミットが、どの Run の期間（開始から終わりまで。実行中は今まで）にも入らないものを拾う
+    const runsByTicket = new Map<string, Run[]>();
+    const seen = new Set<string>();
+    for (const run of [
+      ...[...ctx.store.runs.values()].map((r) => r.data),
+      ...(await peekRunningRuns(ctx.repo)),
+    ]) {
+      if (seen.has(run.id)) continue;
+      seen.add(run.id);
+      runsByTicket.set(run.ticket, [...(runsByTicket.get(run.ticket) ?? []), run]);
+    }
+    // 終わったチケットは Run を後から作り直せないので対象にしない。閉じていない Iteration の done は直せるので残す
+    const inRunScope = (t: Doc<Ticket>) =>
+      !isTerminal(t.data.status) ||
+      (t.data.status === "done" &&
+        t.data.iteration !== undefined &&
+        ctx.store.iterations.get(t.data.iteration)?.data.status !== "closed");
+    for (const doc of tickets.filter(inRunScope)) {
+      const own = runsByTicket.get(doc.id) ?? [];
+      const implStep = openedStepOf(ctx, doc.data, "claim");
+      const implRuns = own.filter((r) => r.step === implStep);
+      const agentClaimed = doc.data.assignee !== undefined && isAgentActorId(doc.data.assignee);
+      if (doc.data.pr !== undefined && agentClaimed && implRuns.length === 0)
+        warn(
+          doc.path,
+          doc.id,
+          "lint_run_implement_missing",
+          `PR ${doc.data.pr} まで進んだが実装の Run（${implStep}）がない`,
+        );
+      const closedAt = implRuns.flatMap((r) =>
+        r.finished_at === null ? [] : [Date.parse(r.finished_at)],
+      );
+      if (closedAt.length === 0 || !doc.data.branch) continue;
+      const commits = await branchCommitTimes(ctx.repo, doc.data.branch);
+      const outside = (commits ?? []).filter((c) => {
+        const at = Date.parse(c.at);
+        return (
+          at > Math.max(...closedAt) &&
+          !own.some(
+            (r) =>
+              Date.parse(r.started_at) <= at &&
+              (r.finished_at === null || at <= Date.parse(r.finished_at)),
+          )
+        );
+      });
+      if (outside.length > 0)
+        warn(
+          doc.path,
+          doc.id,
+          "lint_commit_outside_run",
+          `実装の Run を閉じた後のコミット ${outside.length} 件（${outside[0]?.sha.slice(0, 7)} など）がどの Run の期間にも入らない`,
         );
     }
     return ok({ ok: issues.length === 0, issues });

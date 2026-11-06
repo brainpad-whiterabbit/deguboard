@@ -30,6 +30,7 @@
 - 実装をサブエージェントに渡す親は `--no-run` で claim し、サブエージェントが自分で `run start` する（親が開いた Run では作業した分を数えられない）
 - 見直し役の見直しは `review`、修正ループの 1 回と人のレビューの後の手直しは `fix` の Run にする。見直しと修正ループの手直しは、作業したエージェント自身が `run start`・`run finish` で記録する。同梱の software-development と general の `steps` に `review`・`fix` がある
 - 人のレビューの後の手直しにはチケットの操作がなく、手順書の `run start` に頼ると Run が残らなかった。自分が claim 済みで PR のあるチケットのもう一度の claim を手直しの開始とみなして `opens_on: reclaim` の step（なければ `fix`）の Run を開き（RN-5）、終わりの操作もないので、照合が次の区切り（同じチケットの次の Run の開始・PR の ready・マージ・チケットの終了）を見たときに、それまでの最後の push の時刻で閉じる（RN-6）
+- 実装の Run の抜けは `dg lint` が指摘する（対象は終わっていないチケットと閉じていない Iteration の done）。PR（`pr`）があるのに実装の Run がないもの、閉じた実装の Run の後のコミットがどの Run の期間にも入らないもの
 - 手直しの Run には、直した指摘を `retry_reasons` に 1 件 1 行で残す（修正ループは `run finish`、人のレビューの後は claim の `--retry-reason`）。どちらも `fix` なので、`fix` の Run の数は手直しの回数の目安にとどまる。修正ループの上限は手順の側で数える
 - 手順は `dg guide work`・`dg guide review` が持つ
 
