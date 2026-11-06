@@ -13,8 +13,16 @@ import {
   storedConfigValue,
   tr,
   trCore,
+  trCoreMessage,
 } from "./l10n.js";
-import { CONFIG_DESCRIPTIONS_EN, CORE_EN, EN, EN_ONE, PRIORITY_CRITERIA_EN } from "./l10n-en.js";
+import {
+  CONFIG_DESCRIPTIONS_EN,
+  CORE_EN,
+  CORE_MESSAGES_EN,
+  EN,
+  EN_ONE,
+  PRIORITY_CRITERIA_EN,
+} from "./l10n-en.js";
 
 const srcDir = dirname(fileURLToPath(import.meta.url));
 
@@ -119,7 +127,7 @@ describe("画面の文言の置き場所", () => {
     expect(Object.keys(EN).sort()).toEqual(keys);
   });
   it("英語の訳は日本語を含まず、{0} の並びを保つ", () => {
-    for (const table of [EN, CORE_EN]) {
+    for (const table of [EN, CORE_EN, CORE_MESSAGES_EN]) {
       for (const [key, value] of Object.entries(table)) {
         expect(value, key).not.toMatch(JAPANESE);
         expect(placeholders(value), key).toEqual(placeholders(key.replace(/^\w+:/, "")));
@@ -244,6 +252,51 @@ describe("core が返す決まった文の訳", () => {
     expect(subs.every((sub) => JAPANESE.test(sub))).toBe(true);
     setLanguage("en");
     for (const sub of subs) expect(trCore(sub), sub).not.toMatch(JAPANESE);
+  });
+});
+
+/** core のソース（テストを除く）。CORE_MESSAGES_EN の鍵が core の文に合うかを確かめる */
+function coreSource(): string {
+  const coreDir = resolve(srcDir, "../../core/src");
+  const walk = (dir: string): string[] =>
+    readdirSync(dir).flatMap((name) => {
+      const path = resolve(dir, name);
+      return statSync(path).isDirectory() ? walk(path) : [path];
+    });
+  return walk(coreDir)
+    .filter((p) => p.endsWith(".ts") && !p.endsWith(".test.ts"))
+    .map((p) => readFileSync(p, "utf8"))
+    .join("\n");
+}
+
+describe("core が返すエラー・警告の文の訳（UI-11）", () => {
+  it("鍵の {0} 以外の部分はどれも core のソースにあり、{0}・{1} は現れる順に書く", () => {
+    // core の文言を書き換えたら、ここで訳の鍵が合わなくなって気づく
+    const source = coreSource();
+    for (const key of Object.keys(CORE_MESSAGES_EN)) {
+      const numbers = [...key.matchAll(/\{(\d+)\}/g)].map((m) => Number(m[1]));
+      expect(numbers, key).toEqual(numbers.map((_, i) => i));
+      for (const part of key.split(/\{\d+\}/).filter((p) => p.trim() !== ""))
+        expect(source.includes(part), `${key}: ${part}`).toBe(true);
+    }
+  });
+  it("日本語の表示では core の文のまま出す", () => {
+    expect(trCoreMessage("commit.mode の値が正しくない")).toBe("commit.mode の値が正しくない");
+  });
+  it("英語の表示では可変の部分を埋めた訳を出し、入れ子の文も訳す", () => {
+    setLanguage("en");
+    expect(trCoreMessage("priority.high は個人の設定に書けない")).toBe(
+      "priority.high cannot be set in personal settings",
+    );
+    expect(trCoreMessage("t3, t4 を残したまま閉じた")).toBe("Closed with t3, t4 left unfinished");
+    expect(trCoreMessage("deguboard-local/runs/r1.json: JSON を読めない")).toBe(
+      "deguboard-local/runs/r1.json: Cannot parse JSON",
+    );
+  });
+  it("英語の表示でも、表にない文は core の文のまま出す", () => {
+    setLanguage("en");
+    expect(trCoreMessage("訳のない文")).toBe("訳のない文");
+    expect(trCoreMessage("")).toBe("");
   });
 });
 

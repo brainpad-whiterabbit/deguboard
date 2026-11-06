@@ -7,7 +7,14 @@
 // t でなく tr と呼ぶのは、画面のコードでチケットを t と書くことが多く、名前がぶつかるため。
 // 表のように描く前に決める文言は msg で鍵として印を付け、描くときに tr(値) で訳す。{0}・{1} の位置に引数を埋める
 
-import { CONFIG_DESCRIPTIONS_EN, CORE_EN, EN, EN_ONE, PRIORITY_CRITERIA_EN } from "./l10n-en.js";
+import {
+  CONFIG_DESCRIPTIONS_EN,
+  CORE_EN,
+  CORE_MESSAGES_EN,
+  EN,
+  EN_ONE,
+  PRIORITY_CRITERIA_EN,
+} from "./l10n-en.js";
 
 export type Language = "ja" | "en";
 
@@ -97,7 +104,7 @@ const CORE_ARG = /\b[tsep]\d+\b|Iteration・Epic/g;
  * core が返す決まった短い文（エージェントに頼むの候補の名前、札の添え字の Plan の承認の状態）を今の言語の文にする。
  * 文の中の ID を {0}・{1} に置き換えた形を鍵にして CORE_EN を引き、訳がなければ core の文のまま出す。
  * scope（候補の頼むこと）を渡すと「scope:鍵」を先に引く（同じ文でも頼むことによって訳が違うもの）。
- * 依頼文とエラーの文は訳さない（依頼文はエージェントに渡す core の出力、エラーは core の言語のまま。UI-11）
+ * 依頼文は訳さない（エージェントに渡す core の出力）。エラー・警告の文は trCoreMessage が訳す
  */
 export function trCore(text: string, scope?: string): string {
   if (current === "ja") return text;
@@ -109,4 +116,35 @@ export function trCore(text: string, scope?: string): string {
     found,
     args.map((a) => CORE_EN[a] ?? a),
   );
+}
+
+/** CORE_MESSAGES_EN の鍵を、{0}・{1} を可変の部分（1 文字以上）として拾う正規表現にしたもの。初めて使うときに作る */
+let coreMessagePatterns: { pattern: RegExp; text: string }[] | undefined;
+
+function patternsOfCoreMessages(): { pattern: RegExp; text: string }[] {
+  coreMessagePatterns ??= Object.entries(CORE_MESSAGES_EN).map(([key, text]) => ({
+    pattern: new RegExp(
+      `^${key
+        .split(/\{\d+\}/)
+        .map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+        .join("([\\s\\S]+?)")}$`,
+    ),
+    text,
+  }));
+  return coreMessagePatterns;
+}
+
+/**
+ * core が返すエラー・警告の文（設定の保存の拒否・Plan と Run の警告など）を今の言語の文にする（UI-11）。
+ * 可変の部分を {0}・{1} にした形で CORE_MESSAGES_EN を引き、可変の部分も同じように訳す（「Run r1: 〜」の中の文）。
+ * 日本語の表示と、表にない文（git の出力・スキーマの検査の詳細など）は core の文のまま出す。画面のクライアントが受けたところで呼ぶ
+ */
+export function trCoreMessage(text: string): string {
+  if (current === "ja") return text;
+  for (const { pattern, text: found } of patternsOfCoreMessages()) {
+    const m = pattern.exec(text);
+    // 鍵は {0}・{1} を現れる順に書く約束なので、拾った順がそのまま番号になる（l10n.test.ts が確かめる）
+    if (m) return format(found, m.slice(1).map(trCoreMessage));
+  }
+  return text;
 }

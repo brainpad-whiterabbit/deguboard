@@ -1,5 +1,6 @@
 // 画面の文言の英語の訳（l10n.ts）。鍵は日本語の文で、日本語ではこの表を使わない。
-// ソースの鍵と EN が過不足なく揃うことと、CORE_EN が core の候補の名前を、CONFIG_DESCRIPTIONS_EN が設定の全項目の説明を訳すことは l10n.test.ts が確かめる
+// ソースの鍵と EN が過不足なく揃うことと、CORE_EN が core の候補の名前を、CONFIG_DESCRIPTIONS_EN が設定の全項目の説明を訳すこと、
+// CORE_MESSAGES_EN の鍵が core のソースの文に合うことは l10n.test.ts が確かめる
 
 /** 画面のコードの tr・trNode・msg の鍵の訳。鍵を置いたファイルの順 */
 export const EN: Readonly<Record<string, string>> = {
@@ -636,4 +637,39 @@ export const CONFIG_DESCRIPTIONS_EN: Readonly<Record<string, string>> = {
     "Criteria for priority medium (the default). Used when creating and reviewing tickets, and by the priority marks and selection hints on screen",
   "priority.low":
     "Criteria for priority low. Used when creating and reviewing tickets, and by the priority marks and selection hints on screen",
+};
+
+/**
+ * core が返すエラー・警告の決まった文の訳（trCoreMessage）。鍵は core の文の可変の部分（ID・項目名・値）を {0}・{1} にした形。
+ * 設定の保存の拒否・Plan と Run の警告・読めないファイルの理由を置く。表にない文は core の文のまま出す。
+ * 鍵の {0} 以外の部分が core のソースにあることは l10n.test.ts が確かめる（core の文言が変われば気づく）
+ */
+export const CORE_MESSAGES_EN: Readonly<Record<string, string>> = {
+  // 設定の保存の拒否（config.set・config.unset）
+  "key が空": "key is empty",
+  "{0} は個人の設定に書けない": "{0} cannot be set in personal settings",
+  "チーム専用の項目。--local を外してチームの config.yaml を変える":
+    "This item is team-only. Drop --local and change the team's config.yaml",
+  "スキーマにない項目。上書きできる項目：{0}": "Not in the schema. Items you can override: {0}",
+  "{0} の値が正しくない": "Invalid value for {0}",
+  "値を省けない。選択肢：{0}": "A value is required. Options: {0}",
+  "actor.human_only にないコマンドがある: {0}": "actor.human_only has unknown commands: {0}",
+  // Plan の警告（plan.show・plan.close）
+  "{0} が見つからない（削除された）": "{0} not found (deleted)",
+  "{0} を残したまま閉じた": "Closed with {0} left unfinished",
+  // Run の警告（run.list・run.start・metrics.show）
+  "deguboard-local/{0}: {1}": "deguboard-local/{0}: {1}",
+  "Run {0}: {1}": "Run {0}: {1}",
+  "{0} の Workflow が見つからないか読めないので、step {1} を確かめていない":
+    "The Workflow of {0} is missing or unreadable, so step {1} was not checked",
+  "チケット {0} が見つからないので、その Run の Epic・Iteration・Project は分からない":
+    "Tickets {0} not found, so the Epic, Iteration, and Project of their Runs are unknown",
+  // 読めないファイルの理由（readDoc）
+  ファイルを読めない: "Cannot read the file",
+  "JSON を読めない": "Cannot parse JSON",
+  "JSON のオブジェクトでない": "Not a JSON object",
+  "先頭に frontmatter（---）がない": "No frontmatter (---) at the top",
+  "frontmatter を閉じる --- がない": "No closing --- for the frontmatter",
+  "YAML を読めない": "Cannot parse YAML",
+  スキーマに合わない: "Does not match the schema",
 };

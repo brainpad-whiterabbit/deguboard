@@ -1,17 +1,20 @@
 // CommandClient の HTTP 実装。dg serve の /api/commands/<name> と /api/status を呼ぶ（ADR-006）
 
 import type { CommandClient, CommandFailure, CommandResult, StatusView } from "@deguboard/core";
-import { tr } from "../l10n.js";
+import { tr, trCoreMessage } from "../l10n.js";
 
-/** 入口が返した失敗。code は core のエラーコードか入口のコード（UNKNOWN_COMMAND など） */
+/**
+ * 入口が返した失敗。code は core のエラーコードか入口のコード（UNKNOWN_COMMAND など）。
+ * message と detail は core の決まった文なら今の言語に訳す（trCoreMessage。表にない文は core の文のまま）
+ */
 export class ClientError extends Error implements CommandFailure {
   readonly code: string;
   readonly detail: string | undefined;
   constructor(failure: CommandFailure) {
-    super(failure.message);
+    super(trCoreMessage(failure.message));
     this.name = "ClientError";
     this.code = failure.code;
-    this.detail = failure.detail;
+    this.detail = failure.detail === undefined ? undefined : trCoreMessage(failure.detail);
   }
 }
 
@@ -51,7 +54,11 @@ export function createHttpClient(baseUrl = "", fetchImpl: typeof fetch = fetch):
         body: JSON.stringify({ input }),
       });
       if (!body.ok) throw new ClientError(body.error);
-      return { data: body.data, warnings: body.warnings ?? [], write: body.write ?? undefined };
+      return {
+        data: body.data,
+        warnings: (body.warnings ?? []).map(trCoreMessage),
+        write: body.write ?? undefined,
+      };
     },
     async status(): Promise<StatusView> {
       const body = await call<StatusView>("/api/status");
