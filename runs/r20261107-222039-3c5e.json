@@ -1,0 +1,32 @@
+{
+  "id": "r20261107-222039-3c5e",
+  "ticket": "t541",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-07T22:20:39Z",
+  "finished_at": "2026-11-07T22:24:06Z",
+  "result": "success",
+  "error": null,
+  "retries": 2,
+  "retry_reasons": [
+    "ADR-012・ADR-013 のなければ failure の項に失効の印を付ける",
+    "書き終わり待ちと質問待ちの印を分け、掃除は書き終わり待ちだけを閉じる"
+  ],
+  "usage": {
+    "input": 20,
+    "output": 12753,
+    "cache_read": 3109824,
+    "cache_write": 13962
+  },
+  "tools": {
+    "read": 0,
+    "search": 0,
+    "write": 0,
+    "bash": 10,
+    "other": 0,
+    "read_before_write": 0,
+    "search_before_write": 0
+  },
+  "session": null
+}
