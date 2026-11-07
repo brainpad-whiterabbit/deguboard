@@ -1,0 +1,30 @@
+{
+  "id": "r20261107-141757-93fd",
+  "ticket": "t511",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-07T14:17:57Z",
+  "finished_at": "2026-11-07T14:18:21Z",
+  "result": "interrupted",
+  "error": "人の指示で流れを止めた",
+  "retries": 1,
+  "retry_reasons": [
+    "修正ループの言い直しとコメントに区切りの古い言い回しが残る"
+  ],
+  "usage": {
+    "input": 2,
+    "output": 561,
+    "cache_read": 106973,
+    "cache_write": 1513
+  },
+  "tools": {
+    "read": 0,
+    "search": 0,
+    "write": 0,
+    "bash": 1,
+    "other": 0,
+    "read_before_write": 0,
+    "search_before_write": 0
+  }
+}
