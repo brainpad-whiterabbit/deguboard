@@ -202,6 +202,55 @@ async function viewPr(
   }
 }
 
+/** 品質ゲート（dg gate）が見る PR の事実 */
+export interface PrGateFacts {
+  number: number;
+  state: string;
+  isDraft: boolean;
+  /** gh の mergeable（MERGEABLE・CONFLICTING・UNKNOWN） */
+  mergeable: string;
+}
+
+/**
+ * 品質ゲートの PR の事実を、番号かブランチ名で読む。PR がなければ missing、gh がない・読めないときは理由を返す
+ */
+export async function fetchPrGateFacts(
+  repo: GitRepo,
+  selector: string,
+): Promise<{ pr: PrGateFacts } | { missing: true } | { reason: string }> {
+  if (!(await hasGh(repo.topLevel))) return { reason: "gh がない" };
+  try {
+    const result = await runGh(
+      repo.topLevel,
+      ["pr", "view", selector, "--json", "number,state,isDraft,mergeable"],
+      { allowFailure: true, timeoutMs: 30_000 },
+    );
+    if (result.code !== 0) {
+      return /no pull requests found|could not find|not found/i.test(result.stderr)
+        ? { missing: true }
+        : { reason: `gh で PR を読めない（${result.stderr.trim().split("\n")[0] ?? ""}）` };
+    }
+    let data: Partial<PrGateFacts>;
+    try {
+      data = JSON.parse(result.stdout) as Partial<PrGateFacts>;
+    } catch {
+      return { reason: "gh の出力を読めない" };
+    }
+    if (!Number.isInteger(data.number)) return { reason: "gh の PR の番号を読めない" };
+    return {
+      pr: {
+        number: data.number!,
+        state: String(data.state ?? ""),
+        isDraft: data.isDraft === true,
+        mergeable: String(data.mergeable ?? "UNKNOWN"),
+      },
+    };
+  } catch (error) {
+    if (error instanceof GitError) return { reason: `gh を呼べない（${error.message}）` };
+    throw error;
+  }
+}
+
 /** 時刻の文字列だけを採る（gh は null を返しうる） */
 const isoOrUndefined = (value: unknown): string | undefined =>
   typeof value === "string" && !Number.isNaN(Date.parse(value)) ? value : undefined;

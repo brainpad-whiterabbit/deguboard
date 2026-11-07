@@ -15,6 +15,8 @@ import { z } from "zod";
 import { collectRunUsage, hookAgentNames, hooksOf, type HookEvent } from "../agents/index.js";
 import { OperationError } from "../errors.js";
 import { collectBranchFacts, lastPushedAt } from "../git/facts.js";
+import { runGit } from "../git/run.js";
+import { judgeGate } from "./gate.js";
 import { toIsoDateTime } from "../model/common.js";
 import { ticketIdSchema, type TicketId } from "../model/id.js";
 import { REVIEW_STEP, type Run, type RunId, type RunResult } from "../model/run.js";
@@ -53,6 +55,8 @@ export interface HookView {
   event: string;
   /** 行ったこと（1 件 1 行） */
   done: string[];
+  /** フックが標準出力に書く文（ツールの使用を拒むときの製品の形。Adapter の denyOutput が作る） */
+  output?: string;
 }
 
 export const hook = defineCommand({
@@ -127,6 +131,9 @@ async function handle(
       break;
     case "session_end":
       return sessionEnd(ctx, event, view, warnings);
+    case "tool_requested":
+      // ツールのたびに呼ばれるので、止まった Run の掃除はしない
+      return toolRequested(ctx, agent, event, view, warnings);
   }
   // 記録の書き終わりを待ちきれずに残した Run を、次のフックの機会に閉じる（ADR-014）
   await closeStoppedRuns(ctx, warnings, view, event.session, calledAt);
@@ -558,6 +565,136 @@ async function sessionEnd(
         `Run ${run.id} をセッションの終わりに閉じられなかった（${e instanceof Error ? e.message : String(e)}）`,
       );
     }
+  }
+}
+
+/** .git/deguboard/ の下のパスを指す語（相対・絶対） */
+const DATA_PATH = String.raw`\S*\.git/deguboard(?:/\S*)?`;
+
+/** Bash のコマンドのうち、.git/deguboard/ の下に書くもの（リダイレクト・ファイルを変えるコマンド・sed -i・データのリポジトリへの git の書き込み） */
+const DATA_WRITES = [
+  new RegExp(String.raw`(?:>>?|\btee\b(?:\s+-a)?)\s*["']?${DATA_PATH}`),
+  new RegExp(
+    String.raw`\b(?:rm|rmdir|mv|cp|touch|mkdir|ln|chmod|chown|truncate|install|rsync|unlink)\b[^|;&]*${DATA_PATH}`,
+  ),
+  new RegExp(String.raw`\bsed\b[^|;&]*\s-i\S*[^|;&]*${DATA_PATH}`),
+  new RegExp(
+    String.raw`\bgit\s+(?:-C\s+)?["']?${DATA_PATH}["']?\s+(?:add|commit|rm|mv|reset|checkout|restore|stash|merge|rebase|cherry-pick|apply|am|push|update-ref|branch|tag)\b`,
+  ),
+];
+
+/** Bash のコマンドが .git/deguboard/ の下に書くか（t532）。読むだけ（cat・ls・git log など）は通す */
+export function writesDataDir(command: string): boolean {
+  return DATA_WRITES.some((re) => re.test(command));
+}
+
+/** gh pr merge・gh pr ready の呼び出し。selector は PR の番号・URL・ブランチ名（省けば今のブランチ） */
+export function parseGhPr(
+  command: string,
+): { action: "merge" | "ready"; selector?: string | undefined; undo: boolean } | undefined {
+  const m = /\bgh\s+pr\s+(merge|ready)\b([^|;&]*)/.exec(command);
+  if (!m) return undefined;
+  const tokens = (m[2] ?? "").trim().split(/\s+/).filter(Boolean);
+  // 値を取るフラグ（値を selector と取り違えない）
+  const withValue = new Set([
+    "-R",
+    "--repo",
+    "-b",
+    "--body",
+    "-F",
+    "--body-file",
+    "-t",
+    "--subject",
+    "-A",
+    "--author-email",
+    "--match-head-commit",
+  ]);
+  let selector: string | undefined;
+  for (let i = 0; i < tokens.length; i++) {
+    const t = tokens[i]!;
+    if (withValue.has(t)) i++;
+    else if (!t.startsWith("-") && selector === undefined) selector = t.replace(/^["']|["']$/g, "");
+  }
+  return { action: m[1] as "merge" | "ready", selector, undo: tokens.includes("--undo") };
+}
+
+/** gh の PR の指定からチケットを引く。番号（#12・URL を含む）は pr、ほかはブランチ名。省けば cwd の今のブランチ */
+async function ticketOfPr(
+  ctx: CommandContext,
+  selector: string | undefined,
+  cwd: string | null,
+): Promise<Ticket | undefined> {
+  const tickets = [...ctx.store.tickets.values()].map((d) => d.data);
+  const number = selector ? /^(?:#)?(\d+)$|\/pull\/(\d+)/.exec(selector) : null;
+  if (number) {
+    const n = Number(number[1] ?? number[2]);
+    return tickets.find((t) => t.pr === n);
+  }
+  let branch = selector;
+  if (!branch) {
+    const head = await runGit(cwd ?? ctx.repo.topLevel, ["rev-parse", "--abbrev-ref", "HEAD"], {
+      allowFailure: true,
+    }).catch(() => undefined);
+    branch = head?.code === 0 ? head.stdout.trim() : undefined;
+  }
+  return branch ? tickets.find((t) => t.branch === branch) : undefined;
+}
+
+/**
+ * ツールを使う前（PreToolUse。t532）。.git/deguboard/ の下への書き込み（書くツールと Bash）を拒み、gh pr merge・gh pr ready を
+ * 品質ゲート（dg gate）で止める。チケットを引けない PR は判定できないので止めない。判定の途中で失敗したら、通さずに止める
+ */
+async function toolRequested(
+  ctx: CommandContext,
+  agent: string,
+  event: Extract<HookEvent, { kind: "tool_requested" }>,
+  view: HookView,
+  warnings: string[],
+): Promise<void> {
+  const deny = (reason: string) => {
+    view.output = hooksOf(agent)!.denyOutput("PreToolUse", reason);
+    view.done.push(`拒んだ: ${reason}`);
+  };
+  const dataWrite =
+    "deguboard のデータ（.git/deguboard/）はファイルを直接書かず、dg のコマンドで読み書きする";
+  if (event.tool === "write") {
+    if (!event.path) return;
+    const target = path.resolve(event.cwd ?? ctx.repo.topLevel, event.path);
+    const inside = (dir: string) => {
+      const rel = path.relative(dir, target);
+      return rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel));
+    };
+    if (inside(ctx.repo.dataDir) || /(^|[\\/])\.git[\\/]deguboard([\\/]|$)/.test(target))
+      deny(dataWrite);
+    return;
+  }
+  const command = event.command ?? "";
+  if (writesDataDir(command)) {
+    deny(dataWrite);
+    return;
+  }
+  const gh = parseGhPr(command);
+  if (!gh || gh.undo) return;
+  const stage = gh.action === "merge" ? "merge" : "ready";
+  try {
+    const ticket = await ticketOfPr(ctx, gh.selector, event.cwd);
+    if (!ticket) {
+      view.done.push(`gh pr ${gh.action} の PR に当たるチケットがないので、品質ゲートを判定しない`);
+      return;
+    }
+    const judged = await judgeGate(ctx, ticket, stage);
+    if (judged.passed) {
+      view.done.push(`${ticket.id} の品質ゲート（${stage}）を満たす`);
+      return;
+    }
+    const failed = judged.conditions.filter((c) => !c.ok).map((c) => `${c.id}: ${c.detail}`);
+    deny(
+      `${ticket.id} の品質ゲート（dg gate ${ticket.id} --for ${stage}）を満たさない。${failed.join("。")}`,
+    );
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    warnings.push(`品質ゲートを判定できなかった（${message}）`);
+    deny(`品質ゲートを判定できなかったので止めた（${message}）。dg gate で確かめる`);
   }
 }
 

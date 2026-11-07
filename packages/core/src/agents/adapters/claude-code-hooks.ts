@@ -10,6 +10,8 @@
 //     おらず（最後は api-request の行）、0.5 秒以内に書かれる（ADR-014）
 //   - SubagentStart：agent_id と親の transcript_path。Run は開かない（並べて起動すると、その時点では親の記録にも、サブエージェントの
 //     記録にも呼び出しがない）。再開を続きとして扱い、止まって待っている印を消すのにだけ使う
+//   - PreToolUse（matcher は Bash と書くツール）：tool_name・tool_input（command・file_path）・cwd。拒むときは標準出力に
+//     hookSpecificOutput.permissionDecision: deny を書き、permissionDecisionReason がエージェントに返る
 //   - SessionEnd：session_id
 //   （2026-11-07 に Claude Code 2.1.318 で確かめた。環境変数がサブエージェントの Bash に届くことも同じ日に確かめた）
 
@@ -32,6 +34,9 @@ export function claudeConfigDir(env: AgentEnv): string {
 export function subagentTranscript(parent: string, session: string, agentId: string): string {
   return path.join(path.dirname(parent), session, "subagents", `agent-${agentId}.jsonl`);
 }
+
+/** ファイルを書くツール（PreToolUse で .git/deguboard/ への書き込みを拒む。t532） */
+const WRITE_TOOLS = new Set(["Edit", "Write", "MultiEdit", "NotebookEdit"]);
 
 /** フックの入力を出来事に変える。扱わないイベント・必要な項目のない入力は undefined */
 function parseHook(event: string, input: unknown, env: AgentEnv): HookEvent | undefined {
@@ -83,6 +88,30 @@ function parseHook(event: string, input: unknown, env: AgentEnv): HookEvent | un
         agentId,
         transcript: str(d["agent_transcript_path"]),
       };
+    }
+    case "PreToolUse": {
+      const name = d["tool_name"];
+      const toolInput = obj(d["tool_input"]);
+      const cwd = str(d["cwd"]);
+      if (name === "Bash")
+        return {
+          kind: "tool_requested",
+          session,
+          tool: "bash",
+          command: str(toolInput["command"]),
+          path: null,
+          cwd,
+        };
+      if (WRITE_TOOLS.has(String(name)))
+        return {
+          kind: "tool_requested",
+          session,
+          tool: "write",
+          command: null,
+          path: str(toolInput["file_path"]) ?? str(toolInput["notebook_path"]),
+          cwd,
+        };
+      return undefined;
     }
     case "SessionEnd":
       return { kind: "session_end", session };
@@ -225,6 +254,8 @@ export const claudeCodeHooks: HookSupport = {
     { event: "SessionStart" },
     { event: "PostToolUse", matcher: "Agent" },
     { event: "SubagentStart" },
+    // gh pr merge・ready を品質ゲートで止め、.git/deguboard/ への書き込みを拒む（t532）
+    { event: "PreToolUse", matcher: "Bash|Edit|Write|MultiEdit|NotebookEdit" },
     { event: "SubagentStop" },
     { event: "SessionEnd" },
   ],
@@ -236,5 +267,14 @@ export const claudeCodeHooks: HookSupport = {
   firstPrompt,
   selfOpenedRunIds,
   transcriptSettled,
+  // PreToolUse の hookSpecificOutput で拒む。理由はエージェントに返る
+  denyOutput: (event, reason) =>
+    JSON.stringify({
+      hookSpecificOutput: {
+        hookEventName: event,
+        permissionDecision: "deny",
+        permissionDecisionReason: reason,
+      },
+    }),
   transcriptRoot: (env) => path.join(claudeConfigDir(env), "projects"),
 };

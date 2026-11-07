@@ -5,9 +5,10 @@ import { afterEach, describe, expect, it } from "vitest";
 import { createFixture } from "../../test/helpers/git-fixture.js";
 import type { Run } from "../model/run.js";
 import { peekRunningRuns, readTranscriptPaths } from "../run/record.js";
+import { resetGhCache } from "../git/facts.js";
 import { openContext } from "./context.js";
 import { runCommand, type CommandContext } from "./define.js";
-import { hook, hookTiming, parseMarker, type HookView } from "./hook.js";
+import { hook, hookTiming, parseGhPr, parseMarker, writesDataDir, type HookView } from "./hook.js";
 import { runList, runReviewResult, runStart, type RunView } from "./run.js";
 import { commit, configSet, init, sync } from "./setup.js";
 import { ticketCreate, ticketUpdate } from "./ticket.js";
@@ -728,5 +729,110 @@ describe("サブエージェントの止まりと再開（ADR-014）", () => {
     expect(warnings).toContainEqual(expect.stringContaining("まだ閉じない"));
     expect(view.done.some((d) => d.includes("で閉じた"))).toBe(false);
     expect((await peekRunningRuns(ctx.repo))[0]!.settling_since).not.toBeNull();
+  });
+});
+
+describe("PreToolUse（t532）", () => {
+  it("Bash の .git/deguboard/ への書き込みだけを拒み、読むだけのコマンドは通す", () => {
+    for (const c of [
+      "echo x > .git/deguboard/tickets/t1.md",
+      "cat a | tee -a /r/.git/deguboard/config.yaml",
+      "rm -rf .git/deguboard/runs",
+      "sed -i 's/a/b/' .git/deguboard/tickets/t1.md",
+      "git -C .git/deguboard commit -m x",
+      "cp x.md .git/deguboard/tickets/",
+    ])
+      expect(writesDataDir(c), c).toBe(true);
+    for (const c of [
+      "cat .git/deguboard/tickets/t1.md",
+      "ls .git/deguboard",
+      "git -C .git/deguboard log --oneline -1",
+      "mise run dg -- ticket update t1 --pr 3",
+      "grep -rn x .git/deguboard 2>/dev/null",
+    ])
+      expect(writesDataDir(c), c).toBe(false);
+  });
+
+  it("gh pr merge・ready の PR の指定を読み、値を取るフラグの値と取り違えない", () => {
+    expect(parseGhPr("gh pr merge 12 --squash")).toEqual({
+      action: "merge",
+      selector: "12",
+      undo: false,
+    });
+    expect(parseGhPr("gh pr merge --repo o/r --squash feat/x")).toMatchObject({
+      selector: "feat/x",
+    });
+    expect(parseGhPr("cd w && gh pr ready")).toEqual({
+      action: "ready",
+      selector: undefined,
+      undo: false,
+    });
+    expect(parseGhPr("gh pr ready 3 --undo")).toMatchObject({ undo: true });
+    expect(parseGhPr("gh pr view 3")).toBeUndefined();
+  });
+
+  /** 偽の gh（PR はいつも見つからない）。実際の gh がテストで GitHub を読まないように */
+  async function noGh(home: string) {
+    const bin = path.join(home, "fake-bin");
+    await mkdir(bin, { recursive: true });
+    await writeFile(
+      path.join(bin, "gh"),
+      '#!/bin/sh\ncase "$1" in --version) echo fake; exit 0;; esac\necho "no pull requests found" >&2; exit 1\n',
+      { mode: 0o755 },
+    );
+    const saved = process.env["PATH"];
+    process.env["PATH"] = bin + path.delimiter + (saved ?? "");
+    resetGhCache();
+    cleanups.push(async () => {
+      process.env["PATH"] = saved;
+      resetGhCache();
+    });
+  }
+
+  const pre = (ctx: CommandContext, toolInput: Record<string, unknown>, tool = "Bash") =>
+    runCommand(hook, ctx, {
+      event: "PreToolUse",
+      payload: {
+        session_id: SESSION,
+        tool_name: tool,
+        tool_input: toolInput,
+        cwd: ctx.repo.topLevel,
+      },
+    });
+
+  it("書くツールの .git/deguboard/ の下のパスを拒み、拒む文を Adapter の形で返す。外のパスは通す", async () => {
+    const { ctx } = await prepared();
+    const denied = await pre(
+      ctx,
+      { file_path: path.join(ctx.repo.dataDir, "tickets", "t1.md") },
+      "Write",
+    );
+    const out = JSON.parse((denied.data as HookView).output!) as {
+      hookSpecificOutput: { permissionDecision: string; permissionDecisionReason: string };
+    };
+    expect(out.hookSpecificOutput.permissionDecision).toBe("deny");
+    expect(out.hookSpecificOutput.permissionDecisionReason).toContain("dg のコマンド");
+    const allowed = await pre(ctx, { file_path: "src/a.ts" }, "Edit");
+    expect((allowed.data as HookView).output).toBeUndefined();
+  });
+
+  it("gh pr merge は品質ゲートを満たさないチケットの PR を止めて理由を返し、チケットのない PR は止めない", async () => {
+    const { ctx, home } = await prepared();
+    await noGh(home);
+    await runCommand(ticketUpdate, ctx, { ticket: "t1", pr: 5 });
+    const denied = await pre(ctx, { command: "gh pr merge 5 --squash" });
+    const reason = (
+      JSON.parse((denied.data as HookView).output!) as {
+        hookSpecificOutput: { permissionDecisionReason: string };
+      }
+    ).hookSpecificOutput.permissionDecisionReason;
+    expect(reason).toContain("dg gate t1 --for merge");
+    expect(reason).toContain("pr:");
+    const other = await pre(ctx, { command: "gh pr merge 99 --squash" });
+    expect((other.data as HookView).output).toBeUndefined();
+    expect((other.data as HookView).done).toEqual([expect.stringContaining("チケットがない")]);
+    // 取り消し（--undo）と、ほかの gh のコマンドは見ない
+    expect((await pre(ctx, { command: "gh pr ready 5 --undo" })).data).toMatchObject({ done: [] });
+    expect((await pre(ctx, { command: "gh pr view 5" })).data).toMatchObject({ done: [] });
   });
 });

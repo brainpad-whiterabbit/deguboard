@@ -954,6 +954,31 @@ describe("Claude Code のフックの入力（ADR-012）", () => {
       agentId: "a1",
       transcript: "/x.jsonl",
     });
+    // PreToolUse は Bash のコマンドと、書くツールのパスを読む（t532）
+    expect(
+      hooks.parse(
+        "PreToolUse",
+        { session_id: "s1", tool_name: "Bash", tool_input: { command: "ls" }, cwd: "/w" },
+        {},
+      ),
+    ).toEqual({
+      kind: "tool_requested",
+      session: "s1",
+      tool: "bash",
+      command: "ls",
+      path: null,
+      cwd: "/w",
+    });
+    expect(
+      hooks.parse(
+        "PreToolUse",
+        { session_id: "s1", tool_name: "Edit", tool_input: { file_path: "a.md" } },
+        {},
+      ),
+    ).toMatchObject({ tool: "write", path: "a.md" });
+    expect(
+      hooks.parse("PreToolUse", { session_id: "s1", tool_name: "Read", tool_input: {} }, {}),
+    ).toBeUndefined();
     expect(hooks.parse("SessionEnd", { session_id: "s1" }, {})).toEqual({
       kind: "session_end",
       session: "s1",
