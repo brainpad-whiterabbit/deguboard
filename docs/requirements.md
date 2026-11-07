@@ -161,7 +161,7 @@ steps: # 任意（WF-5）
 - WF-2 `requires` と `reconcile.when` に書けるのは組み込みの事実（`deps_done`、`branch_exists`、`branch_pushed`、`branch_merged`、`pr_open`、`pr_draft`、`pr_merged`）とその否定（`!pr_draft`）だけ。`deps_done` は `depends_on` のすべてが done か abandoned のとき真（別の Project の依存先も見る）。利用者のスクリプトは実行しない
 - WF-3 存在しない Status・未知の条件と Action・重複などの誤りは、読み込み時と `dg workflow validate` で指摘する（検査の項目は `packages/core/src/workflow/validate.ts`）
 - WF-4 `software-development`・`consulting`・`general` のテンプレートを同梱し、`dg init` が 3 つとも置く（既にある Workflow は書き換えない）。`default` プロジェクトの Workflow はそのどれかを選べ、既定は `general`
-- WF-5 `steps` は Run の step の語彙（項目は上の例。`opens_on` は RN-5）で、`run start` は語彙にない step を拒否する（`steps` がなければ縛らない）。手続きは `dg guide` が持つ
+- WF-5 `steps` は Run の step の語彙（項目は上の例。`opens_on` は RN-5）で、`run start` は語彙にない step を拒否する（`steps` がなければ縛らない）。手続きは YAML に書かず、既定の手続きは Core が、各手のやり方は `dg guide` が持つ（EX-3）
 - WF-6 `dg workflow set` は Workflow を 1 つ作るか置き換え、WF-3 の誤りがあれば何も書かず、前と後を返す（細部は `dg workflow set --help`）
 
 ### 5.9 Run（`runs/`）
@@ -190,7 +190,7 @@ steps: # 任意（WF-5）
 - CL-2 コマンドの一覧とオプションは `dg --help`（各コマンドは `dg <コマンド> --help`）が正本
 - CL-3 書き込みを伴うコマンドは `commit.mode` に従ってコミットする。作成・`ticket claim`・`iteration start / reopen` は採番と排他のため即座にコミットして push する
 - CL-4 `ticket import` は下書きの配列を 1 コミットで取り込み、取り込めない下書きがあれば起票せずに拒む（形と条件は `guide import`）
-- CL-5 `dg guide <topic>` は、エージェント向けの手順を `config.yaml` の値を埋めて出す。トピックの一覧は `dg guide overview`（省略時）。手順の正本は CLI に同梱した Markdown（`packages/cli/src/guide-*.md`）
+- CL-5 `dg guide <topic>` は、エージェント向けの各手のやり方を `config.yaml` の値を埋めて出す。段階・次の 1 手・修正ループ・品質ゲート・brief は guide に書かず Core が返す（予定 e15。EX-3）。トピックの一覧は `dg guide overview`（省略時）。手順の正本は CLI に同梱した Markdown（`packages/cli/src/guide-*.md`）
 - CL-6 CLI はロジックを持たず、Core のコマンド定義（`packages/core/src/commands/`）を写す
 - CL-7 `history` は deguboard ブランチの git の履歴から、チケット・Epic・Iteration の起票と属性（Status・所属・担当者・PR）の変化を古い順に返す。データの形は変えず、差分から読む。浅い clone では欠けたことを返して失敗しない（返す項目は `packages/core/src/commands/history.ts`）
 
@@ -260,7 +260,7 @@ Web UI は `dg serve` が配信し、VS Code 拡張は同じアプリを Webview
 
 - EX-1 deguboard はエージェントを起動しない。エージェントが `dg` を呼んで進める
 - EX-2 終了していない Run は一覧で見え、`interrupted` として閉じられる
-- EX-3 段階を続けて進める手順は `dg guide all` に置き、着手できるチケット（PL-6 か `ticket list --ready`）に従う。`--auto` は戻せる判断を自動で選び、`auto.merge` が true なら品質ゲートを通った PR をマージする。品質ゲートの中身と進め方の細部は guide（`all`・`parallel`・`review`）が正本
+- EX-3 チケットを段階（claimed → implemented → reviewed(n) → fixed(n) → ready → merged）に続けて進める既定の手続きは Core が持つ（予定 e15。段階と次の 1 手は `dg next`、修正ループの回数と品質ゲートは `dg gate`、サブエージェントに渡す brief は `dg brief`。細部は各 `--help`）。着手できるチケットは PL-6 か `ticket list --ready` に従う。`--auto` は戻せる判断を自動で選び、`auto.merge` が true なら品質ゲートを通った PR をマージする。Plan の承認・マージ・やめるは人が決めるので、Core は人を待つ手を返す。各手のやり方は guide（`dg guide all`・`work`・`review` など）が書く（[ADR-011](adr/ADR-011-procedure-in-code.md)）
 - EX-4 Workflow が `by: [human]` で人に限った遷移は、エージェントからは行えない
 
 ## 7. 非機能要件
