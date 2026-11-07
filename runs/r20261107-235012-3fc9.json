@@ -1,0 +1,24 @@
+{
+  "id": "r20261107-235012-3fc9",
+  "ticket": "t542",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": null,
+  "started_at": "2026-11-07T23:50:12Z",
+  "finished_at": "2026-11-07T23:53:43Z",
+  "result": "success",
+  "error": null,
+  "retries": 1,
+  "retry_reasons": [
+    "要る項目の一覧を parseHook が読む項目に合わせ PreToolUse はツールごとに持つ"
+  ],
+  "usage": {
+    "input": null,
+    "output": null,
+    "cache_read": null,
+    "cache_write": null
+  },
+  "tools": null,
+  "session": null,
+  "review": null
+}
