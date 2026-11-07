@@ -17,7 +17,7 @@
 
 ### 既定の手続きは dg のコードが持つ
 
-チケットの作業の既定の手続きは Core のコマンド（`packages/core/src/commands/`）が持つ。
+チケットの作業の既定の手続きは Core のコマンド（`packages/core/src/commands/`）が持つ。[ADR-003](ADR-003-status-and-workflow.md) の「Workflow YAML は制約と語彙を書く」の「書かないもの」の手続きの項（手順は guide のテキストとして読んで判断する）を、この決定で置き換える。
 
 - 段階：チケットが今どの段階にあるか。状態・Run・ブランチの事実から求める
 - 次の 1 手：段階から次に行うことを 1 つ返す
