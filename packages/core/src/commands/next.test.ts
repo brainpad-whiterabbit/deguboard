@@ -54,6 +54,7 @@ const facts = (
     waiting: [],
     runs: [],
     implementStep: "implement",
+    fixStep: "fix",
     pushedAt: "2026-11-07T10:05:00Z",
     ...over,
     ticket: {
@@ -161,8 +162,7 @@ describe("dg next と ticket show の stage（EX-3）", () => {
 
   it("段階から手を選ぶ：見直しが通れば ready、重い指摘なら fix（印を付けず直す者が reclaim）、上限を超えたら通っても wait_human、出した PR は wait_merge", async () => {
     const ctx = await prepared();
-    const t = ctx.store.tickets.get("t1")!.data;
-    const kind = (f: StageFacts) => nextOf(ctx, t, f);
+    const kind = (f: StageFacts) => nextOf(ctx, f);
     const ready = kind(facts({ runs: [review(6, passed)] }));
     expect(ready).toMatchObject({ kind: "ready", stage: { review_passed: true } });
     expect(ready.commands).toEqual([
@@ -188,6 +188,33 @@ describe("dg next と ticket show の stage（EX-3）", () => {
       "dg --json --actor agent ticket claim t1 --branch <種類>/<内容> --no-run",
     );
     expect(impl.commands[1]).toContain("deguboard: ticket=t1 step=implement");
+    // 実行中の見直し・実装があれば、新しく起動させず終わりを待つ
+    const reviewing = kind(facts({ runs: [review(6, null, { finished_at: null, result: null })] }));
+    expect(reviewing).toMatchObject({ kind: "review", running_run: expect.any(String) });
+    expect(reviewing.commands).toEqual([expect.stringContaining("終わりを待つ")]);
+    const implementing = kind(
+      facts({
+        ticket: { pr: undefined },
+        runs: [run("implement", 1, { finished_at: null, result: null })],
+      }),
+    );
+    expect(implementing.commands).toEqual([expect.stringContaining("終わりを待つ")]);
+    // 手直しが failure・interrupted で閉じたら人を待つ
+    expect(
+      kind(facts({ runs: [review(6, heavy), run("fix", 7, { result: "interrupted" })] })),
+    ).toMatchObject({
+      kind: "wait_human",
+      stage: { reason: expect.stringContaining("interrupted") },
+    });
+    // 上限を超えた後は push があっても人を待つ
+    expect(
+      kind(
+        facts({
+          pushedAt: "2026-11-07T10:30:00Z",
+          runs: [review(1, heavy), review(2, heavy), review(6, heavy)],
+        }),
+      ),
+    ).toMatchObject({ kind: "wait_human" });
     // 止まって待っている Run は、続きを送る先として running_run に出す
     const waiting = run("review", 6, {
       finished_at: null,

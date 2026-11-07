@@ -79,6 +79,8 @@ export interface StageFacts {
   runs: readonly Run[];
   /** 実装の step（Workflow の opens_on: claim） */
   implementStep: string;
+  /** 手直しの step（Workflow の opens_on: reclaim） */
+  fixStep: string;
   /** 作業ブランチのリモートの先端のコミットの時刻。分からなければ undefined */
   pushedAt: string | undefined;
 }
@@ -120,6 +122,32 @@ export function stageOf(facts: StageFacts): Stage {
       : stage("todo", n, fixes, "着手できる");
   if (ticket.pr === undefined) return stage("claimed", n, fixes, "PR がまだない");
   const latest = reviews.at(-1);
+  // 最後の見直しより後に閉じた手直しが failure か interrupted なら、人を待つ（guide-review の「終わり方」）
+  const failedFix = runs
+    .filter(
+      (r) =>
+        r.step === facts.fixStep &&
+        r.started_at >= since &&
+        (latest === undefined || r.started_at >= latest.started_at) &&
+        (r.result === "failure" || r.result === "interrupted"),
+    )
+    .at(-1);
+  if (failedFix)
+    return stage(
+      "waiting_human",
+      n,
+      fixes,
+      `手直しの Run ${failedFix.id} が ${failedFix.result} で閉じた`,
+    );
+  // 上限を超えたら、その後の push や見直しの結果によらず人を待つ（dg gate の fix_rounds が通さない）
+  if (fixes > FIX_ROUNDS_LIMIT)
+    return stage(
+      "waiting_human",
+      n,
+      fixes,
+      `重い指摘が出た見直しが ${fixes} 回で、上限 ${FIX_ROUNDS_LIMIT} を超えた`,
+      latest?.review?.passed === true,
+    );
   if (latest && latest.finished_at === null)
     return stage("reviewing", n, fixes, `見直しの Run ${latest.id} が実行中`);
   // 最後の push を読めない（追跡 ref がない・fetch しない ticket show）ときは、最後の見直しを今の見直しとみなす。
@@ -137,15 +165,6 @@ export function stageOf(facts: StageFacts): Stage {
       n,
       fixes,
       `最後の見直し ${current.id} の結果がない（${current.result ?? "未完了"}）ので、見直し直す`,
-    );
-  // 上限を超えたら、最後の見直しが通っていても人を待つ（dg gate の fix_rounds が通さない）
-  if (fixes > FIX_ROUNDS_LIMIT)
-    return stage(
-      "waiting_human",
-      n,
-      fixes,
-      `重い指摘が出た見直しが ${fixes} 回で、上限 ${FIX_ROUNDS_LIMIT} を超えた`,
-      current.review.passed,
     );
   if (!current.review.passed)
     return stage(
@@ -187,14 +206,15 @@ export async function stageFactsOf(
     waiting: [...new Set([...planWaits, ...ctx.store.pendingDeps(ticket)])],
     runs,
     implementStep: openedStepOf(ctx, ticket, "claim"),
+    fixStep: openedStepOf(ctx, ticket, "reclaim"),
     pushedAt,
   };
 }
 
 /** 段階から次の 1 手を求める */
-export function nextOf(ctx: CommandContext, ticket: Ticket, facts: StageFacts): NextStep {
+export function nextOf(ctx: CommandContext, facts: StageFacts): NextStep {
   const st = stageOf(facts);
-  const id = ticket.id;
+  const id = facts.ticket.id;
   const plan = openPlanOf(ctx.store, id);
   const details = plan?.data.details?.[id];
   const base = {
@@ -212,14 +232,25 @@ export function nextOf(ctx: CommandContext, ticket: Ticket, facts: StageFacts): 
   };
   const runningOf = (step: string) =>
     facts.runs.find((r) => r.step === step && r.finished_at === null)?.id ?? null;
-  const fixStep = openedStepOf(ctx, ticket, "reclaim");
+  const fixStep = facts.fixStep;
   const make = (
     kind: NextKind,
     step: string | null,
     commands: string[],
     ask: string | null = null,
     running: string | null = step ? runningOf(step) : null,
-  ): NextStep => ({ ...base, kind, step, running_run: running, commands, ask_human: ask });
+  ): NextStep => ({
+    ...base,
+    kind,
+    step,
+    running_run: running,
+    // その手の Run が実行中なら、新しく起動せずに終わりを待つ（同じチケットと step の Run を重ねない）
+    commands:
+      running && kind !== "wait_human"
+        ? [`実行中の Run ${running} の終わりを待つ（新しく起動しない）`]
+        : commands,
+    ask_human: ask,
+  });
   const dg = (args: string) => `dg --json --actor agent ${args}`;
   // フックがサブエージェントの Run を開け閉めする印（ADR-012）。委譲する親は claim に --no-run を付け、印で頼む
   const marker = (step: string) =>
@@ -295,9 +326,9 @@ export const next = defineCommand({
     "チケットの次の 1 手を返す（EX-3）。段階（stage。ticket show と同じ）は、todo（着手できる）・blocked（Plan の待ちか依存先がある）・" +
     "claimed（PR がない）・implemented（PR があり見直しがない）・reviewing（見直しが実行中）・reviewed（最後の push より後の見直しが閉じた。review_passed で通ったか）・" +
     "fixed（見直しの後に push があるか、最後の見直しの結果がない）・ready（見直しが通り PR を出した）・merged（done）・closed（abandoned）・" +
-    `waiting_human（止まって待っている Run がある、か、重い指摘が出た見直しが ${FIX_ROUNDS_LIMIT} 回を超えた）。PR が draft かは status で見る（in_progress で PR があれば draft）。` +
+    `waiting_human（止まって待っている Run がある、最後の見直しの後の手直しが failure か interrupted で閉じた、か、重い指摘が出た見直しが ${FIX_ROUNDS_LIMIT} 回を超えた）。PR が draft かは status で見る（in_progress で PR があれば draft）。` +
     "段階を Run（実装・見直し・手直しとその結果、止まって待っている印）・PR・作業ブランチの事実・Plan の待ちから求め、" +
-    "手の種類（kind：implement・review・fix・ready・wait_merge・wait_deps・wait_human・done）と、開く step・実行中の Run・Plan の段階と範囲と方針・呼ぶコマンド（commands）・人に聞くこと（ask_human）を返す。" +
+    "手の種類（kind：implement・review・fix・ready・wait_merge・wait_deps・wait_human・done）と、開く step・実行中の Run・Plan の段階と範囲と方針・呼ぶコマンド（commands。サブエージェントに委譲する形。モデルが親と同じで自分で進めるなら、implement の claim は --no-run を外し印を使わない。その手の Run が実行中なら、起動せずに終わりを待つ）・人に聞くこと（ask_human）を返す。" +
     `重い指摘が出た見直しが ${FIX_ROUNDS_LIMIT} 回を超えたチケットと、止まって待っている Run のあるチケットは wait_human。作業ブランチを取り込んでから読む。何も書かない`,
   input: z.object({ ticket: ticketRef }),
   write: false,
@@ -305,7 +336,7 @@ export const next = defineCommand({
   async run(ctx, input) {
     const ticket = ctx.store.require("ticket", input.ticket).data;
     const facts = await stageFactsOf(ctx, ticket, { fetch: true });
-    return ok(nextOf(ctx, ticket, facts));
+    return ok(nextOf(ctx, facts));
   },
 });
 
