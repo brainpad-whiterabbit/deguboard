@@ -25,7 +25,7 @@ import {
   type Ticket,
 } from "../model/ticket.js";
 import type { FactName, StepOpener } from "../model/workflow.js";
-import { dropRunning, peekRunningRuns, runAgentByTicket } from "../run/record.js";
+import { dropRunning, peekRunningRuns, readRunningRuns, runAgentByTicket } from "../run/record.js";
 import type { Doc } from "../storage/documents.js";
 import { wouldCreateCycle } from "../storage/integrity.js";
 import type { Store, WorkflowEntry } from "../storage/store.js";
@@ -44,8 +44,8 @@ import {
 } from "./helpers.js";
 import {
   agentFromEnv,
-  closeOpenedRun,
   closeOpenedRunAlone,
+  closeOpenedRunUnlessClosed,
   describeClosedRuns,
   findOpenedRun,
   fixRunFinishedAt,
@@ -57,7 +57,8 @@ import {
 
 /**
  * チケットの操作に付随して、操作が開いた Run（claim は実装、reclaim は手直し）を閉じる（RN-6）。書き込みの中で呼び、
- * 実行中の Run があるものだけ閉じる。閉じたことと取り込みの警告は warnings に入れる。実行中の記録はコミットの後に dropClosed で消す
+ * 実行中の Run があるものだけ閉じる。別の文脈が先に閉じていた Run は閉じずに警告し、操作は止めない。
+ * 閉じたことと取り込みの警告は warnings に入れる。実行中の記録はコミットの後に dropClosed で消す
  */
 async function closeRunsWith(
   ctx: CommandContext,
@@ -67,14 +68,33 @@ async function closeRunsWith(
   warnings: string[],
 ): Promise<ClosedRun[]> {
   const closed: ClosedRun[] = [];
+  const running = (await readRunningRuns(ctx.repo)).runs;
   for (const opener of openers) {
-    const running = await findOpenedRun(ctx, ticket, opener);
-    if (!running) continue;
-    const result = await closeOpenedRun(ctx, running, { opener, ...input });
+    const run = await findOpenedRun(ctx, ticket, opener, running);
+    if (!run) continue;
+    const result = await closeOpenedRunUnlessClosed(
+      ctx,
+      run,
+      { opener, ...input },
+      "この操作",
+      warnings,
+    );
+    if (!result) continue;
     warnings.push(...result.warnings);
     closed.push({ ...result, opener });
   }
   return closed;
+}
+
+/** ticket update --pr が実装の Run を閉じるときの PR の作成時刻（RN-6）。チケットに実行中の実装の Run がなければ取らない */
+async function prCreatedAtForRun(
+  ctx: CommandContext,
+  ref: string,
+  pr: number,
+): Promise<Awaited<ReturnType<typeof fetchPrCreatedAt>> | undefined> {
+  const doc = ctx.store.resolve("ticket", ref);
+  if (!doc || !(await findOpenedRun(ctx, doc.data, "claim"))) return undefined;
+  return fetchPrCreatedAt(ctx.repo, pr);
 }
 
 /** 操作に付随して閉じた Run と、それを開いた操作（コミットメッセージの呼び名に使う） */
@@ -545,6 +565,11 @@ export const ticketUpdate = defineCommand({
   needs: "store",
   async run(ctx, input) {
     const warnings: string[] = [];
+    // PR の作成時刻は gh で取る（待ちが長くなりうる）ので、書き込みのロックの外で先に取る。閉じる実装の Run があるときだけ取る
+    const prCreated =
+      typeof input.pr === "number"
+        ? await prCreatedAtForRun(ctx, input.ticket, input.pr)
+        : undefined;
     const result = await withWrite(
       ctx,
       async () => {
@@ -609,7 +634,9 @@ export const ticketUpdate = defineCommand({
         const running =
           typeof input.pr === "number" ? await findOpenedRun(ctx, t, "claim") : undefined;
         if (running && typeof input.pr === "number") {
-          const created = await fetchPrCreatedAt(ctx.repo, input.pr);
+          const created = prCreated ?? {
+            reason: `実装の Run ${running.id} は PR の作成時刻を取った後に始まった`,
+          };
           // PR より後に開き直した Run（PR の後の作業は fix の Run にする）は、PR の作成時刻では終わっていない
           const reason =
             created.createdAt === undefined
@@ -617,14 +644,22 @@ export const ticketUpdate = defineCommand({
               : created.createdAt < running.data.started_at
                 ? `PR #${input.pr} は Run ${running.id} の開始より前に作られた`
                 : undefined;
-          if (reason) warnings.push(`${reason}ので、実装の Run の finished_at は今の時刻にする`);
-          const result = await closeOpenedRun(ctx, running, {
-            opener: "claim",
-            result: "success",
-            finishedAt: reason ? undefined : created.createdAt,
-          });
-          warnings.push(...result.warnings);
-          closed.push({ ...result, opener: "claim" });
+          const result = await closeOpenedRunUnlessClosed(
+            ctx,
+            running,
+            {
+              opener: "claim",
+              result: "success",
+              finishedAt: reason ? undefined : created.createdAt,
+            },
+            "この操作",
+            warnings,
+          );
+          if (result) {
+            if (reason) warnings.push(`${reason}ので、実装の Run の finished_at は今の時刻にする`);
+            warnings.push(...result.warnings);
+            closed.push({ ...result, opener: "claim" });
+          }
         }
         return { doc: await store.update("ticket", t.id, patch, body), closed };
       },

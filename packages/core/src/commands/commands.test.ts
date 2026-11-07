@@ -11,6 +11,7 @@ import {
 import { UsageError } from "../errors.js";
 import { pickUser } from "../model/actor.js";
 import { configFields, defaultConfig } from "../model/config.js";
+import type { RunId } from "../model/run.js";
 import { resetGhCache } from "../git/facts.js";
 import { osUserName } from "../git/repo.js";
 import { closeRun, peekRunningRuns } from "../run/record.js";
@@ -951,6 +952,73 @@ describe("チケットの流れ", () => {
         result: "success",
         finished_at: "2026-11-06T02:00:00Z",
       });
+      expect(await peekRunningRuns(agent.repo)).toEqual([]);
+    } finally {
+      race.beforeClose = undefined;
+      restore();
+    }
+  });
+
+  it("チケットの操作が付随して閉じる Run を別の文脈が先に閉じていても、move・unclaim・update --pr は止まらずに警告する（RN-6）", async () => {
+    const f = await fixture();
+    const clock = new Date("2026-11-06T00:00:00Z");
+    const human = await initialized(f.cloneA, { now: () => clock });
+    for (const title of ["Move", "Unclaim", "PR"]) await runCommand(ticketCreate, human, { title });
+    const agent = await agentWithRuns(f.cloneA, () => clock);
+    const runs = {
+      t1: (await runCommand(ticketClaim, agent, { ticket: "t1", without_branch: true })).data.run!,
+      t2: (await runCommand(ticketClaim, agent, { ticket: "t2", branch: "feat/t2" })).data.run!,
+      t3: (await runCommand(ticketClaim, agent, { ticket: "t3", branch: "feat/t3" })).data.run!,
+    };
+    // 別の文脈（別のプロセスの dg や別のマシンの sync に相当）が、操作が Run を閉じる直前に先に閉じる
+    const otherCtx = await agentWithRuns(f.cloneA, () => new Date("2026-11-06T00:30:00Z"));
+    const closeFirst = (run: RunId) => {
+      race.beforeClose = async () => {
+        // 書き込みのロックは操作が持っているので、記録の書き出しだけを行う（finishRun の代わり）
+        await closeRun(otherCtx.store, otherCtx.repo, run, {
+          result: "success",
+          finishedAt: "2026-11-06T00:30:00Z",
+          now: new Date("2026-11-06T00:30:00Z"),
+        });
+      };
+    };
+    const rejected = (ticket: string, run: RunId) =>
+      `${ticket}: 実装の Run ${run} は既に閉じていた（別の操作や別のマシンが先に閉じた）ので、この操作では閉じない`;
+    /** 別の文脈が閉じたとおりの記録が残り、操作は書き換えていない */
+    const closedByOther = (run: RunId) =>
+      expect(agent.store.runs.get(run)!.data).toMatchObject({
+        result: "success",
+        error: null,
+        finished_at: "2026-11-06T00:30:00Z",
+      });
+    const restore = await fakeGh(f.root, {
+      "43": '{"number":43,"state":"OPEN","isDraft":true,"mergedAt":null,"createdAt":"2026-11-06T01:00:00Z"}',
+    });
+    try {
+      closeFirst(runs.t1);
+      const moved = await runCommand(ticketMove, agent, { ticket: "t1", status: "review" });
+      expect(race.beforeClose).toBeUndefined();
+      expect(moved.data.status).toBe("review");
+      expect(moved.warnings.filter((w) => w.includes(runs.t1))).toEqual([rejected("t1", runs.t1)]);
+      closedByOther(runs.t1);
+
+      closeFirst(runs.t2);
+      const unclaimed = await runCommand(ticketUnclaim, agent, { ticket: "t2" });
+      expect(race.beforeClose).toBeUndefined();
+      expect(unclaimed.data.status).toBe("todo");
+      expect(unclaimed.warnings.filter((w) => w.includes(runs.t2))).toEqual([
+        rejected("t2", runs.t2),
+      ]);
+      closedByOther(runs.t2);
+
+      closeFirst(runs.t3);
+      const updated = await runCommand(ticketUpdate, agent, { ticket: "t3", pr: 43 });
+      expect(race.beforeClose).toBeUndefined();
+      expect(updated.data.pr).toBe(43);
+      expect(updated.warnings.filter((w) => w.includes(runs.t3))).toEqual([
+        rejected("t3", runs.t3),
+      ]);
+      closedByOther(runs.t3);
       expect(await peekRunningRuns(agent.repo)).toEqual([]);
     } finally {
       race.beforeClose = undefined;

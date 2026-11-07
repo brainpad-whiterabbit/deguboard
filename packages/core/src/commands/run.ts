@@ -188,6 +188,30 @@ export async function closeOpenedRun(
 }
 
 /**
+ * チケットの操作か照合に付随して Run を閉じる（RN-6）。閉じる直前に別の文脈（別のプロセス・別のマシンの sync）が先に閉じていた
+ * （REJECTED）なら、止めずに索引を読み直して警告だけ warnings に入れ、閉じなかったことを呼び出し側に知らせる（undefined）。
+ * where は警告に書く呼び出し側の名前（照合・この操作）
+ */
+export async function closeOpenedRunUnlessClosed(
+  ctx: CommandContext,
+  running: Doc<Run>,
+  input: Parameters<typeof closeOpenedRun>[2],
+  where: string,
+  warnings: string[],
+): Promise<ClosedOpenedRun | undefined> {
+  try {
+    return await closeOpenedRun(ctx, running, input);
+  } catch (e) {
+    if (!(e instanceof OperationError) || e.code !== "REJECTED") throw e;
+    await ctx.store.rescan();
+    warnings.push(
+      `${running.data.ticket}: ${openedRunLabel(input.opener)}の Run ${running.id} は既に閉じていた（別の操作や別のマシンが先に閉じた）ので、${where}では閉じない`,
+    );
+    return undefined;
+  }
+}
+
+/**
  * 手直しの Run を区切りで閉じるときの finished_at（RN-6）。この Run の開始より後で区切りまでの push があればその時刻、
  * なければ区切りの時刻、fallback（PR のマージ時刻）、今（undefined）の順。pushed はその Run の push の時刻を使ったか
  */
