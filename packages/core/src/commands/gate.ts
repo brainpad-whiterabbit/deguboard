@@ -90,6 +90,7 @@ export async function judgeGate(
   const pushedAt = ticket.branch
     ? await lastPushedAt(ctx.repo, ticket.branch, { fetch: true }).catch(() => undefined)
     : undefined;
+  // 比べるのはリモートの先端のコミットの時刻（push した時刻ではない。facts.ts の lastPushedAt）
   if (pushedAt === undefined) add("review", false, "作業ブランチの最後の push の時刻を読めない");
   else {
     const after = reviews.filter((r) => r.started_at >= pushedAt);
@@ -97,6 +98,8 @@ export async function judgeGate(
     if (!latest) add("review", false, `最後の push（${pushedAt}）より後の見直しがない`);
     else if (latest.finished_at === null)
       add("review", false, `最後の push より後の見直し ${latest.id} が終わっていない`);
+    else if (latest.result !== "success")
+      add("review", false, `最後の push より後の見直し ${latest.id} が ${latest.result} で閉じた`);
     else if (latest.review === null)
       add("review", false, `見直し ${latest.id} の結果が記録されていない（dg run review-result）`);
     else if (!latest.review.passed)
@@ -117,7 +120,7 @@ export async function judgeGate(
     "fix_rounds",
     rounds <= FIX_ROUNDS_LIMIT,
     rounds <= FIX_ROUNDS_LIMIT
-      ? `重い指摘を直した回数 ${rounds}（上限 ${FIX_ROUNDS_LIMIT}）`
+      ? `重い指摘が出た見直し ${rounds} 回（上限 ${FIX_ROUNDS_LIMIT}）`
       : `重い指摘が出た見直しが ${rounds} 回で、上限 ${FIX_ROUNDS_LIMIT} を超えた。続けるかは人に聞く`,
   );
 
@@ -150,9 +153,10 @@ export const gate = defineCommand({
   summary:
     "品質ゲートを記録と Git・PR の事実で判定し、条件ごとの結果（conditions）と満たさない理由を返す（EX-3）。条件は " +
     "pr（PR が開いている。--for merge なら draft でない）・acceptance（--for merge のとき受け入れ条件すべてに印）・" +
-    "review（作業ブランチの最後の push より後に始めた見直しの Run が閉じていて、run review-result の結果が通っている）・" +
+    "review（作業ブランチのリモートの先端のコミットの時刻より後に始めた見直しの Run が success で閉じていて、run review-result の結果が通っている）・" +
     `fix_rounds（このブランチで重い指摘が出た見直しが ${FIX_ROUNDS_LIMIT} 回以内）・mergeable（--for merge のとき gh の mergeable が MERGEABLE）。` +
-    "gh・Git が読めない条件は満たさないとする。検査（lint・テスト）が通るかは判定しない（リポジトリの規約で確かめる）。何も書かない",
+    "gh・Git が読めない条件は満たさないとする。検査（lint・テスト）が通るかは判定しない（リポジトリの規約で確かめる）。" +
+    "見直しを省く・上限を超えて進めるなどの例外は持たず、人の判断に任せる（フックが止めたら人に gh を打ってもらう）。何も書かない",
   input: z.object({
     ticket: ticketRef,
     for: z

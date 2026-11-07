@@ -741,6 +741,10 @@ describe("PreToolUse（t532）", () => {
       "sed -i 's/a/b/' .git/deguboard/tickets/t1.md",
       "git -C .git/deguboard commit -m x",
       "cp x.md .git/deguboard/tickets/",
+      "cd .git/deguboard && git commit -am x",
+      "git -C .git/deguboard -c a=b commit -m x",
+      "perl -pi -e 's/a/b/' .git/deguboard/x",
+      'echo "a b" >> /r/.git/deguboard/config.yaml',
     ])
       expect(writesDataDir(c), c).toBe(true);
     for (const c of [
@@ -749,6 +753,8 @@ describe("PreToolUse（t532）", () => {
       "git -C .git/deguboard log --oneline -1",
       "mise run dg -- ticket update t1 --pr 3",
       "grep -rn x .git/deguboard 2>/dev/null",
+      "cp .git/deguboard/tickets/t1.md /tmp/x",
+      'grep -rn "install" .git/deguboard',
     ])
       expect(writesDataDir(c), c).toBe(false);
   });
@@ -766,9 +772,14 @@ describe("PreToolUse（t532）", () => {
       action: "ready",
       selector: undefined,
       undo: false,
+      dir: "w",
     });
     expect(parseGhPr("gh pr ready 3 --undo")).toMatchObject({ undo: true });
     expect(parseGhPr("gh pr view 3")).toBeUndefined();
+    // 引用符の中の空白を割らず、全体のフラグを pr より前に置いても読み、前の cd を覚える
+    expect(parseGhPr('gh pr merge --squash --subject "a b" 7')).toMatchObject({ selector: "7" });
+    expect(parseGhPr("gh -R o/r pr merge 5")).toMatchObject({ action: "merge", selector: "5" });
+    expect(parseGhPr("cd ../w && gh pr ready")).toMatchObject({ selector: undefined, dir: "../w" });
   });
 
   /** 偽の gh（PR はいつも見つからない）。実際の gh がテストで GitHub を読まないように */
@@ -828,6 +839,7 @@ describe("PreToolUse（t532）", () => {
     ).hookSpecificOutput.permissionDecisionReason;
     expect(reason).toContain("dg gate t1 --for merge");
     expect(reason).toContain("pr:");
+    expect(reason).toContain("人に gh pr merge を打ってもらう");
     const other = await pre(ctx, { command: "gh pr merge 99 --squash" });
     expect((other.data as HookView).output).toBeUndefined();
     expect((other.data as HookView).done).toEqual([expect.stringContaining("チケットがない")]);
