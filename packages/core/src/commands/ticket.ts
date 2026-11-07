@@ -1,6 +1,5 @@
 // Ticket の操作（CL-2、ST-1〜ST-3、ST-7〜ST-8、RN-5）
 
-import { stageFactsOf, stageOf, type Stage } from "./next.js";
 import { z } from "zod";
 import { OperationError, UsageError } from "../errors.js";
 import { listBranchChanges, readChangedFile } from "../git/changes.js";
@@ -34,6 +33,7 @@ import type { Facts } from "../workflow/conditions.js";
 import { canTransition, describeRejection, findConstraint } from "../workflow/resolve.js";
 import { defineCommand, ok, type CommandContext } from "./define.js";
 import { matchesFilter, ticketFilterSchema } from "./filters.js";
+import { stageFactsOf, stageOf, type Stage } from "./next.js";
 import {
   dependents,
   nowIso,

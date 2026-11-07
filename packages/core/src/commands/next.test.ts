@@ -3,7 +3,7 @@ import { createFixture } from "../../test/helpers/git-fixture.js";
 import type { Run, RunReview } from "../model/run.js";
 import { openContext } from "./context.js";
 import { runCommand } from "./define.js";
-import { next, stageOf, type NextStep, type StageFacts } from "./next.js";
+import { next, nextOf, stageOf, type NextStep, type StageFacts } from "./next.js";
 import { findCommand } from "./registry.js";
 import { init } from "./setup.js";
 import { ticketCreate, ticketShow, ticketUpdate, type TicketDetail } from "./ticket.js";
@@ -152,11 +152,53 @@ describe("dg next と ticket show の stage（EX-3）", () => {
       running_run: null,
       ask_human: null,
     });
-    expect(t1.commands[0]).toContain("dg ticket claim t1");
+    expect(t1.commands[0]).toContain("dg --json --actor agent ticket claim t1");
     const t2 = (await runCommand(next, ctx, { ticket: "t2" })).data as NextStep;
     expect(t2).toMatchObject({ kind: "wait_deps", stage: { name: "blocked" } });
     const shown = (await runCommand(ticketShow, ctx, { ticket: "t2" })).data as TicketDetail;
     expect(shown.stage).toEqual(t2.stage);
+  });
+
+  it("段階から手を選ぶ：見直しが通れば ready、重い指摘なら fix（印を付けず直す者が reclaim）、上限を超えたら通っても wait_human、出した PR は wait_merge", async () => {
+    const ctx = await prepared();
+    const t = ctx.store.tickets.get("t1")!.data;
+    const kind = (f: StageFacts) => nextOf(ctx, t, f);
+    const ready = kind(facts({ runs: [review(6, passed)] }));
+    expect(ready).toMatchObject({ kind: "ready", stage: { review_passed: true } });
+    expect(ready.commands).toEqual([
+      "dg --json --actor agent gate t1 --for ready",
+      "gh pr ready 7",
+      "dg --json --actor agent sync",
+    ]);
+    const fix = kind(facts({ runs: [review(6, heavy)] }));
+    expect(fix).toMatchObject({ kind: "fix", step: "fix" });
+    expect(fix.commands.join(" ")).toContain("ticket claim t1 --retry-reason");
+    expect(fix.commands.join(" ")).not.toContain("deguboard: ticket=");
+    const over = kind(
+      facts({ runs: [review(1, heavy), review(2, heavy), review(3, heavy), review(6, passed)] }),
+    );
+    expect(over).toMatchObject({ kind: "wait_human", stage: { name: "waiting_human", fixes: 3 } });
+    expect(over.ask_human).toContain("gh pr ready");
+    expect(kind(facts({ ticket: { status: "review" }, runs: [review(6, passed)] }))).toMatchObject({
+      kind: "wait_merge",
+    });
+    // 実装を委譲する親は --no-run で claim し、印で頼む
+    const impl = kind(facts({ ticket: { status: "todo", pr: undefined } }));
+    expect(impl.commands[0]).toBe(
+      "dg --json --actor agent ticket claim t1 --branch <種類>/<内容> --no-run",
+    );
+    expect(impl.commands[1]).toContain("deguboard: ticket=t1 step=implement");
+    // 止まって待っている Run は、続きを送る先として running_run に出す
+    const waiting = run("review", 6, {
+      finished_at: null,
+      result: null,
+      waiting_since: "2026-11-07T10:07:00Z",
+    });
+    expect(kind(facts({ runs: [waiting] }))).toMatchObject({
+      kind: "wait_human",
+      step: "review",
+      running_run: waiting.id,
+    });
   });
 
   it("CLI・HTTP・MCP が写す一覧に next があり、読み取りだけ（write: false）", () => {

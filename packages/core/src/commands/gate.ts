@@ -41,6 +41,18 @@ function reviewRuns(ctx: CommandContext, ticket: Ticket, running: readonly Run[]
     .sort((a, b) => a.started_at.localeCompare(b.started_at) || a.id.localeCompare(b.id));
 }
 
+/**
+ * 修正ループの回数：このブランチ（branch_at より後）の見直しのうち、結果に重い指摘が出た回の数。
+ * 実行中でも結果を記録した見直しは数える（dg gate の fix_rounds と dg next の段階が同じ数を使う）
+ */
+export function heavyReviewRounds(runs: readonly Run[], branchAt: string | undefined): number {
+  const since = branchAt ?? "";
+  return runs.filter(
+    (r) =>
+      r.step === REVIEW_STEP && r.started_at >= since && r.review !== null && r.review.heavy > 0,
+  ).length;
+}
+
 /** チケットの品質ゲートを判定する。gh・Git が読めない条件は満たさないとする（判定できないものを通さない） */
 export async function judgeGate(
   ctx: CommandContext,
@@ -111,11 +123,7 @@ export async function judgeGate(
     else add("review", true, `最後の push より後の見直し ${latest.id} が通っている`);
   }
 
-  // 修正ループの回数：このブランチでの見直しのうち、重い指摘が出た回
-  const since = ticket.branch_at ?? "";
-  const rounds = reviews.filter(
-    (r) => r.started_at >= since && r.review !== null && r.review.heavy > 0,
-  ).length;
+  const rounds = heavyReviewRounds(reviews, ticket.branch_at);
   add(
     "fix_rounds",
     rounds <= FIX_ROUNDS_LIMIT,
