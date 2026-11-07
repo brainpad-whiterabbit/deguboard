@@ -56,7 +56,7 @@ description = "ビルド済みの VSIX を VS Code に入れる（ビルドは�
 run = "pnpm run vsix:install"
 
 [tasks."playwright:install"]
-description = "Playwright MCP（.mcp.json）と test:layout が使う Chromium を入れる（版は @playwright/mcp が使う playwright-core に合わせて固定）"
+description = "Playwright MCP（.mcp.json）と test:layout・gifs が使う Chromium を入れる（版は @playwright/mcp が使う playwright-core に合わせて固定）"
 run = "pnpm run playwright:install"
 
 [tasks.gifs]
