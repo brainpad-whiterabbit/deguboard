@@ -1,0 +1,35 @@
+{
+  "id": "r20261107-144910-5cbf",
+  "ticket": "t526",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-07T14:49:10Z",
+  "finished_at": "2026-11-07T14:51:35Z",
+  "result": "success",
+  "error": null,
+  "retries": 6,
+  "retry_reasons": [
+    "未実装の約束に予定が付いていない",
+    "数え始めが started_at で t529 と食い違う",
+    "サブエージェントの記録の場所が親を指す",
+    "ADR-004 のフックは環境を入れるだけが t530 と矛盾",
+    "理由の節に消した決定への言及が残る",
+    "記録のパスを Git に入れる理由が通らない"
+  ],
+  "usage": {
+    "input": 18,
+    "output": 17056,
+    "cache_read": 1300876,
+    "cache_write": 23247
+  },
+  "tools": {
+    "read": 7,
+    "search": 0,
+    "write": 15,
+    "bash": 4,
+    "other": 0,
+    "read_before_write": 4,
+    "search_before_write": 0
+  }
+}
