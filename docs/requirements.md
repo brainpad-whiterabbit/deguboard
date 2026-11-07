@@ -279,7 +279,7 @@ Web UI は `dg serve` が配信し、VS Code 拡張は同じアプリを Webview
 
 ## 8. 対象外
 
-次のものは範囲に含めない。必要になったら ADR を書き換えてから本書に足す。
+次のものは範囲に含めない。必要になったら判断を ADR で決めてから本書に足す。
 
 - deguboard がエージェントを起動・監視すること、ツール側のスケジューラ（[ADR-004](adr/ADR-004-agents-and-state.md)）
 - Milestone（Iteration で表す。[ADR-009](adr/ADR-009-epic-and-iteration.md)）
