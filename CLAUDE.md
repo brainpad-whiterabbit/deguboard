@@ -33,7 +33,7 @@ Git-native な AI ワークフロー・チケット管理ツール。CLI は `dg
 - Skill（`dg*`）の手順の中の `dg` も、PATH に `dg` があっても `mise run dg --` で呼ぶ
 - 作業はチケットに紐づける。`claim` してから着手し、PR の本文に ID（`t12`）を書く。PR の要らない作業（チケットのデータの整備・確認）は `claim --without-branch` で着手し、受け入れ条件をすべて確かめたら agent が done にする。確かめられない項目は review に置いて人に報告する
 - Claude は `DEGUBOARD_ACTOR=agent` を付けて `dg` を呼ぶ。人の指示や承認で起票するときは `--created-by human` を付ける（起票者はユーザ本人）。拒否された操作（`TRANSITION_REJECTED`）は人に頼む。abandoned・done の取り消し・Epic や Iteration を閉じる・再開するのは、人の指示があるときだけ行う
-- 要件を変える変更は、同じ PR で requirements.md を直す。判断を変える変更は新しい ADR を書き、古い ADR を置き換えにする
+- 要件を変える変更は、同じ PR で requirements.md を直す。判断を変える変更は新しい ADR を書き、古い ADR を置き換えにする（一節だけなら失効の 1 行。書き方は ADR-001）
 
 ## ブランチ・PR・マージ
 
