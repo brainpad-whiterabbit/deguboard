@@ -1,0 +1,28 @@
+{
+  "id": "r20261107-144546-dfdd",
+  "ticket": "t526",
+  "step": "review",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-07T14:45:46Z",
+  "finished_at": "2026-11-07T14:47:17Z",
+  "result": "success",
+  "error": null,
+  "retries": 0,
+  "retry_reasons": [],
+  "usage": {
+    "input": 20,
+    "output": 6926,
+    "cache_read": 434727,
+    "cache_write": 29564
+  },
+  "tools": {
+    "read": 0,
+    "search": 0,
+    "write": 0,
+    "bash": 12,
+    "other": 0,
+    "read_before_write": 0,
+    "search_before_write": 0
+  }
+}
