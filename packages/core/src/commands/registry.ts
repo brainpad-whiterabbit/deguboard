@@ -14,6 +14,7 @@ import { ticketCommands } from "./ticket.js";
 import { workflowCommands } from "./workflow.js";
 import { hookCommands } from "./hook.js";
 import { gateCommands } from "./gate.js";
+import { nextCommands } from "./next.js";
 
 export const commands: readonly AnyCommand[] = [
   ...setupCommands,
@@ -29,6 +30,7 @@ export const commands: readonly AnyCommand[] = [
   ...askCommands,
   ...hookCommands,
   ...gateCommands,
+  ...nextCommands,
 ] as AnyCommand[];
 
 /** 群のエイリアス（`sprint` は `iteration`） */

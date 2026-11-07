@@ -1,5 +1,6 @@
 // Ticket の操作（CL-2、ST-1〜ST-3、ST-7〜ST-8、RN-5）
 
+import { stageFactsOf, stageOf, type Stage } from "./next.js";
 import { z } from "zod";
 import { OperationError, UsageError } from "../errors.js";
 import { listBranchChanges, readChangedFile } from "../git/changes.js";
@@ -399,6 +400,8 @@ export type TicketDetail = Ticket & {
   plan: string | null;
   /** 作業ブランチを checkout している worktree の絶対パス。ブランチがない・worktree がないときは null（UI-4） */
   worktree: string | null;
+  /** 作業の段階（EX-3。dg next と同じ求め方。作業ブランチは取り込まずに読む） */
+  stage: Stage;
 };
 
 export const ticketList = defineCommand({
@@ -440,7 +443,7 @@ export const ticketShow = defineCommand({
   positionals: ["ticket"],
   group: "ticket",
   summary:
-    "チケットの属性と本文、受け入れ条件の項目（acceptance）、依存元（dependents）、依存先が終わったか（deps_done）と終わっていない依存先（pending_deps）、入っている開いた Plan（plan）、作業ブランチの worktree のパス（worktree。なければ null）を出す",
+    "チケットの属性と本文、受け入れ条件の項目（acceptance）、依存元（dependents）、依存先が終わったか（deps_done）と終わっていない依存先（pending_deps）、入っている開いた Plan（plan）、作業ブランチの worktree のパス（worktree。なければ null）、作業の段階（stage。dg next と同じ求め方）を出す",
   input: z.object({ ticket: ticketRef }),
   write: false,
   needs: "store",
@@ -457,6 +460,7 @@ export const ticketShow = defineCommand({
       })),
       plan: openPlanOf(ctx.store, doc.data.id)?.id ?? null,
       worktree: doc.data.branch ? await findBranchWorktree(ctx.repo, doc.data.branch) : null,
+      stage: stageOf(await stageFactsOf(ctx, doc.data)),
     });
   },
 });

@@ -5,7 +5,7 @@ argument-hint: "<Plan の ID|チケットの ID>"
 
 # 作業（work）
 
-1 枚のチケットを claim から PR まで進める（PR の要らない作業は下の同名の節）。状態は作業ブランチの Git 上の事実（ある・push 済み・PR・マージ）から `dg sync` が進める。
+1 枚のチケットを claim から PR まで進める（PR の要らない作業は下の同名の節）。状態は作業ブランチの Git 上の事実（ある・push 済み・PR・マージ）から `dg sync` が進める。チケットの今の段階と次の 1 手は `dg --json --actor agent next <id>` が返す（`kind` が次にやること、`commands` が呼ぶコマンド、`ask_human` が人に聞くこと）ので、迷ったら先に呼ぶ。
 
 ## 対象を決める
 
