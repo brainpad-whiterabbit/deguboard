@@ -1,0 +1,33 @@
+{
+  "id": "r20261107-230343-a194",
+  "ticket": "t532",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-07T23:03:43Z",
+  "finished_at": "2026-11-07T23:06:15Z",
+  "result": "success",
+  "error": null,
+  "retries": 2,
+  "retry_reasons": [
+    "シェルの予約語の中の gh pr merge と書き込みを判定する",
+    "ヒアドキュメントの本文をコマンドとして読まない"
+  ],
+  "usage": {
+    "input": 12,
+    "output": 10282,
+    "cache_read": 2608336,
+    "cache_write": 10860
+  },
+  "tools": {
+    "read": 0,
+    "search": 0,
+    "write": 0,
+    "bash": 6,
+    "other": 0,
+    "read_before_write": 0,
+    "search_before_write": 0
+  },
+  "session": null,
+  "review": null
+}
