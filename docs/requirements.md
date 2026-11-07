@@ -171,7 +171,7 @@ steps: # 任意（WF-5）
 - RN-3 Git に入れるのは完了時の集計だけ。実行中の記録は `deguboard-local/runs/` に置く。チケットには書き足さない
 - RN-4 閉じた Run で書き換えるのは、`run refresh`（MT-5）が取り直すモデル名と使用量だけ
 - RN-5 agent の `ticket claim` は、Workflow の `steps` のうち `opens_on: claim` の step（なければ `implement`）の Run を開き、ID を `run` に出す。開けなければ警告し、claim は成功にする。人の claim と `--no-run` では開かない。自分が claim 済みで `pr` のあるチケットのもう一度の claim（ST-3）は、`opens_on: reclaim` の step（なければ `fix`）の手直しの Run を開き、`--retry-reason` を `retry_reasons` に入れる。開いたままの前の手直しの Run は、この claim を区切りとして RN-6 の時刻で `success` にしてから開く（細部は `ticket claim --help`）
-- RN-6 実装の Run（RN-5 の step）がこのマシンで実行中なら、チケットの操作が閉じる。PR の記録（`ticket update --pr`・照合）と、`branch` のないチケットの review・done への move、`branch` があっても PR のないチケットの done への move は実装の Run を `success`、`unclaim` と `abandoned` への move は実装と手直しの Run を `failure` にする。手直しの Run（`reclaim` の step）は、照合が次の区切り（同じチケットの次の Run の開始・review か done への前進・チケットの終了）を見たときに `success` にし、`finished_at` はその Run の開始より後で区切りまでの最後の push の時刻（なければ区切りの時刻、マージでは PR のマージ時刻、それもなければ今）。`unclaim` は手直しの Run も `failure`。閉じる直前に別の文脈が先に閉じていた Run は、照合もチケットの操作も閉じずに警告するだけで、sync と操作は止めない。細部と理由は [ADR-005](adr/ADR-005-work-metrics.md)
+- RN-6 実装の Run（RN-5 の step）がこのマシンで実行中なら、チケットの操作が閉じる。PR の記録（`ticket update --pr`・照合）と、`branch` のないチケットの review・done への move、`branch` があっても PR のないチケットの done への move は実装の Run を `success`、`unclaim` と `abandoned` への move は実装と手直しの Run を `failure` にする。手直しの Run（`reclaim` の step）は、照合が次の区切り（同じチケットの次の Run の開始・今回の照合が review か done へ前進させたとき・チケットの終了）を見たときに `success` にし、`finished_at` はその Run の開始より後で区切りまでの最後の push の時刻（なければ区切りの時刻、マージでは PR のマージ時刻、それもなければ今）。`unclaim` は手直しの Run も `failure`。閉じる直前に別の文脈が先に閉じていた Run は、照合もチケットの操作も閉じずに警告するだけで、sync と操作は止めない。細部と理由は [ADR-005](adr/ADR-005-work-metrics.md)
 
 ### 5.10 設定（`config.yaml`）
 

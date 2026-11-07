@@ -352,7 +352,7 @@ export const sync = defineCommand({
   name: "sync",
   group: "setup",
   summary:
-    "リモートの deguboard を取り込み、未 push のコミットを送り、作業ブランチの事実でチケットの状態を進める。作業ブランチの PR を見つけたら、このマシンで実行中の実装の Run を success で閉じる（finished_at は PR の作成時刻）。開いたままの手直しの Run は、次の区切り（同じチケットの次の Run の開始・PR の ready・マージ・チケットの終了）を見たときに、それまでの最後の push の時刻で success にする",
+    "リモートの deguboard を取り込み、未 push のコミットを送り、作業ブランチの事実でチケットの状態を進める。作業ブランチの PR を見つけたら、このマシンで実行中の実装の Run を success で閉じる（finished_at は PR の作成時刻）。開いたままの手直しの Run は、次の区切り（同じチケットの次の Run の開始・今回の照合が review か done へ前進させたとき・チケットの終了）を見たときに、それまでの最後の push の時刻で success にする",
   input: z.object({}),
   write: true,
   needs: "store",
