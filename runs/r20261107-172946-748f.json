@@ -1,0 +1,33 @@
+{
+  "id": "r20261107-172946-748f",
+  "ticket": "t530",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-07T17:29:46Z",
+  "finished_at": "2026-11-07T17:32:54Z",
+  "result": "success",
+  "error": null,
+  "retries": 4,
+  "retry_reasons": [
+    "移行の経路が関係のない Run を結び付け直す",
+    "前景の起動で印と自分の run start が重なると Run が 2 本になる",
+    "hook の経路で transcript の制限を抜けられる",
+    "形の違う入力でフックが exit 2 で返る"
+  ],
+  "usage": {
+    "input": 18,
+    "output": 11473,
+    "cache_read": 4603579,
+    "cache_write": 16688
+  },
+  "tools": {
+    "read": 1,
+    "search": 0,
+    "write": 0,
+    "bash": 8,
+    "other": 0,
+    "read_before_write": 1,
+    "search_before_write": 0
+  }
+}
