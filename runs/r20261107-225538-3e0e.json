@@ -1,0 +1,33 @@
+{
+  "id": "r20261107-225538-3e0e",
+  "ticket": "t532",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-07T22:55:38Z",
+  "finished_at": "2026-11-07T22:57:50Z",
+  "result": "success",
+  "error": null,
+  "retries": 2,
+  "retry_reasons": [
+    "環境変数の代入と包むコマンドと括弧を読み飛ばしてコマンド名を取る",
+    "コマンドの中のすべての gh pr merge・ready を判定する"
+  ],
+  "usage": {
+    "input": 10,
+    "output": 8148,
+    "cache_read": 2072106,
+    "cache_write": 9500
+  },
+  "tools": {
+    "read": 0,
+    "search": 0,
+    "write": 0,
+    "bash": 5,
+    "other": 0,
+    "read_before_write": 0,
+    "search_before_write": 0
+  },
+  "session": null,
+  "review": null
+}
