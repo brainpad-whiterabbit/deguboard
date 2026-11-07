@@ -597,15 +597,38 @@ export function splitCommands(command: string): string[][] {
     }
     word = "";
     started = false;
+    quotedWord = false;
   };
   const endCommand = () => {
     endWord();
     if (words.length > 0) commands.push(words);
     words = [];
   };
+  /** 演算子の直前に接した fd の数字（2> の 2）を、今の語から取り出す */
+  let quotedWord = false;
+  const takeFd = () => {
+    if (!started || quotedWord || !/^[0-9]+$/.test(word)) return "";
+    const fd = word;
+    word = "";
+    started = false;
+    return fd;
+  };
+  /** $( の置き換えの深さ。中は解かず、閉じ括弧まで 1 つの語として読む */
+  let substitution = 0;
   for (let i = 0; i < command.length; i++) {
     const c = command[i]!;
     const next = command[i + 1];
+    if (substitution > 0) {
+      word += c;
+      if (c === "(") substitution++;
+      else if (c === ")") substitution--;
+      continue;
+    }
+    if (c === "(" && word.endsWith("$") && started && !quote) {
+      word += c;
+      substitution = 1;
+      continue;
+    }
     if (quote) {
       if (c === quote) quote = null;
       else if (c === "\\" && quote === '"' && i + 1 < command.length) word += command[++i];
@@ -615,12 +638,18 @@ export function splitCommands(command: string): string[][] {
     if (c === "'" || c === '"') {
       quote = c;
       started = true;
+      quotedWord = true;
     } else if (c === "\\" && i + 1 < command.length) {
       word += command[++i];
       started = true;
+    } else if (c === "<" && next === "<" && word.includes("$((")) {
+      // 算術の中の << はヒアドキュメントでない
+      word += "<<";
+      i++;
     } else if (c === "<" && next === "<") {
+      const fd = takeFd();
       endWord();
-      let op = "<<";
+      let op = `${fd}<<`;
       i++;
       if (command[i + 1] === "<") op += command[++i];
       else if (command[i + 1] === "-") op += command[++i];
@@ -628,9 +657,10 @@ export function splitCommands(command: string): string[][] {
       // <<< は本文を取らない（次の語がそのまま入力）
       if (op !== "<<<") heredocNext = true;
     } else if (c === ">" || c === "<" || (c === "&" && next === ">")) {
-      // リダイレクトは 1 つの字句にする（前の fd の数字は前の字句に残る）。>& <& の後の fd の数字も同じ字句に入れる
+      // リダイレクトは 1 つの字句にする（前に接した fd の数字と、>& <& の後の fd の数字も同じ字句に入れる）
+      const fd = takeFd();
       endWord();
-      let op = c;
+      let op = fd + c;
       if (c === "&") op += command[++i];
       if (command[i + 1] === ">" || command[i + 1] === "|") op += command[++i];
       if (command[i + 1] === "&") {
@@ -667,7 +697,7 @@ export function splitCommands(command: string): string[][] {
 }
 
 /** 書き込み先を取るリダイレクトの字句 */
-const isWriteRedirect = (w: string) => /^(&>|>>?\|?|&>>)$/.test(w);
+const isWriteRedirect = (w: string) => /^[0-9]*(&>>?|>>?\|?)$/.test(w);
 /** リダイレクトかヒアドキュメントの字句（引数から外す） */
 const isRedirect = (w: string) => /^[0-9]*(<<<|<<-?|[<>]&?[0-9-]*|>>|>\||&>>?)$/.test(w);
 
@@ -742,6 +772,8 @@ const WRAPPERS: ReadonlyMap<string, ReadonlySet<string>> = new Map([
  */
 export function commandOf(words: readonly string[]): { name: string; args: string[] } {
   let k = 0;
+  // function f { ... } の形は、名前の後が本体
+  if (words[0] === "function") k = 2;
   for (;;) {
     while (
       k < words.length &&
@@ -758,7 +790,21 @@ export function commandOf(words: readonly string[]): { name: string; args: strin
     }
     if (w === "timeout" && k < words.length) k++;
   }
-  return { name: words[k] ?? "", args: words.slice(k + 1) };
+  return { name: words[k] ?? "", args: withoutRedirects(words.slice(k + 1)) };
+}
+
+/** 次の字句を行き先（か、ヒアドキュメントの終わりの語）に取るリダイレクト。>&1 のように fd を含むものは取らない */
+const takesTarget = (w: string) => /^[0-9]*(<<<|<<-?|>>|>\||&>>?|[<>])$/.test(w);
+
+/** 引数からリダイレクトとその行き先を外す（2>&1 や > /tmp/out を PR の指定や写す先と取り違えない） */
+function withoutRedirects(args: readonly string[]): string[] {
+  const out: string[] = [];
+  for (let k = 0; k < args.length; k++) {
+    const a = args[k]!;
+    if (!isRedirect(a)) out.push(a);
+    else if (takesTarget(a)) k++;
+  }
+  return out;
 }
 
 /**
@@ -852,7 +898,12 @@ function writesWords(words: readonly string[], inData: boolean): boolean {
         return true;
     }
   }
-  if ((name === "tar" && args.some((a) => /^-?\w*x/.test(a))) || name === "unzip") {
+  const tarExtracts =
+    name === "tar" &&
+    args.some(
+      (a, n) => (n === 0 || a.startsWith("-")) && /^-?[A-Za-z]*x/.test(a) && !a.startsWith("--"),
+    );
+  if (tarExtracts || name === "unzip") {
     const flag = name === "tar" ? "-C" : "-d";
     const dest = args.includes(flag) ? args[args.indexOf(flag) + 1] : undefined;
     if ((dest !== undefined && isDataPath(dest)) || (dest === undefined && inData)) return true;
@@ -889,7 +940,8 @@ export function writesDataDir(command: string): boolean {
       continue;
     }
     if (words[0] === SUBSHELL_CLOSE && words.length === 1) {
-      where = saved.pop();
+      // 開きのない )（case の分かれ目など）は見ない
+      if (saved.length > 0) where = saved.pop();
       continue;
     }
     const { name, args } = commandOf(words);
@@ -943,7 +995,7 @@ export function parseGhPr(command: string): GhPrCall[] {
       continue;
     }
     if (words[0] === SUBSHELL_CLOSE && words.length === 1) {
-      dir = saved.pop();
+      if (saved.length > 0) dir = saved.pop();
       continue;
     }
     const { name, args } = commandOf(words);

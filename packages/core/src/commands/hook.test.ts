@@ -762,6 +762,12 @@ describe("PreToolUse（t532）", () => {
       "git --git-dir=.git/deguboard/.git commit -m x",
       "tar -xf a.tar -C .git/deguboard",
       "find .git/deguboard -exec rm {} +",
+      "cp a .git/deguboard/b 2>/dev/null",
+      "mv x .git/deguboard/y >/dev/null 2>&1",
+      "echo x 2> .git/deguboard/err",
+      "echo $((1<<2))\nrm .git/deguboard/x",
+      "cd .git/deguboard && case $x in a) echo;; esac; rm y",
+      "function f { rm .git/deguboard/x; }",
     ])
       expect(writesDataDir(c), c).toBe(true);
     for (const c of [
@@ -777,6 +783,7 @@ describe("PreToolUse（t532）", () => {
       "cd .git/deguboard && cd ../.. && rm x",
       "find .git/deguboard -name '*.md' -exec grep -l foo {} +",
       "git commit -F - <<'EOF'\nrm .git/deguboard/x と書く\nEOF",
+      "tar -czf box.tar -C .git/deguboard .",
     ])
       expect(writesDataDir(c), c).toBe(false);
   });
@@ -833,6 +840,19 @@ describe("PreToolUse（t532）", () => {
       ).toEqual(["482"]);
     expect(parseGhPr("git commit -F - <<EOF\ngh pr merge 482 を止める\nEOF\n")).toEqual([]);
     expect(parseGhPr("(cd /a && ls); gh pr merge")[0]).toMatchObject({ dir: undefined });
+    // リダイレクトの fd・行き先とヒアドキュメントの終わりの語を PR の指定と取り違えない
+    for (const c of [
+      "gh pr merge --squash --delete-branch 2>&1",
+      "gh pr merge --squash --delete-branch 2>&1 | tail -1",
+      "gh pr ready 2>/dev/null",
+      "gh pr merge --squash > /tmp/out",
+      "gh pr merge --squash --body-file - <<'EOF'\n本文\nEOF",
+    ])
+      expect(
+        parseGhPr(c).map((g) => g.selector),
+        c,
+      ).toEqual([undefined]);
+    expect(parseGhPr("function f { gh pr merge 482; }").map((g) => g.selector)).toEqual(["482"]);
   });
 
   /** 偽の gh（PR はいつも見つからない）。実際の gh がテストで GitHub を読まないように */
