@@ -23,7 +23,7 @@ import { metricsShow } from "./metrics.js";
 import { iterationAdd, iterationCreate } from "./iteration.js";
 import { projectCreate } from "./project.js";
 import { ticketClaim, ticketCreate, ticketList, type TicketRow } from "./ticket.js";
-import { finishRun, peekRunningRuns } from "../run/record.js";
+import { amendRunning, finishRun, peekRunningRuns } from "../run/record.js";
 import type { Run } from "../model/run.js";
 
 vi.mock("node:fs/promises", async (importOriginal) =>
@@ -707,6 +707,35 @@ describe("run review-result（見直しの結果。ADR-013）", () => {
     const written = await record(ctx, "t1", 0, 1, true);
     expect(written.data).toMatchObject({ id: run.id, result: "success", review: { light: 1 } });
     expect(ctx.store.runs.get(run.id)!.data.review).toEqual({ heavy: 0, light: 1, passed: true });
+  });
+
+  it("finish の decide は、ロックの中で読み直した記録から結果を決める（読んだ後に書かれた見直しの結果を落とさない）", async () => {
+    const ctx = await prepared();
+    const run = await start(ctx, "t1", "review");
+    // 閉じる側が古い記録（結果なし）で failure と決めた後に、結果が書かれる
+    await amendRunning(ctx.repo, run.id, { review: { heavy: 0, light: 0, passed: true } });
+    const { run: closed } = await finishRun(ctx, run.id, {
+      result: "failure",
+      error: REVIEW_UNRECORDED,
+      decide: (local) =>
+        local.review !== null
+          ? { result: "success" }
+          : { result: "failure", error: REVIEW_UNRECORDED },
+      now: new Date(),
+    });
+    expect(closed).toMatchObject({ result: "success", error: null, review: { passed: true } });
+  });
+
+  it("amendRunning は集計のある Run（閉じた後に実行中の記録が残ったもの）に書かず REJECTED", async () => {
+    const ctx = await prepared();
+    const run = await start(ctx, "t1", "review");
+    const localFile = path.join(ctx.repo.localDir, "runs", `${run.id}.json`);
+    const kept = await readFile(localFile, "utf8");
+    await runCommand(runFinish, ctx, { run: run.id, result: "success" });
+    await writeFile(localFile, kept);
+    await expect(
+      amendRunning(ctx.repo, run.id, { review: { heavy: 0, light: 0, passed: true } }),
+    ).rejects.toMatchObject({ code: "REJECTED" });
   });
 
   it("閉じた見直しの Run が別の理由で failure なら、結果を書いても failure のまま", async () => {

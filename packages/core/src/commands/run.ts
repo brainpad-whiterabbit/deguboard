@@ -585,8 +585,9 @@ export const runReviewResult = defineCommand({
     }
     // フックが先に閉じたとき。チケットの最新の Run（実行中を含む。開始の順、同じ秒なら ID の順）が閉じた見直しの Run のときだけ書く。
     // 後に別の Run（手直しなど）が始まっていれば、それは前の回の見直しなので書かない
-    const latest = () => {
-      // 集計のある Run は閉じたものとして数える（実行中の記録は消す前に残りうる）
+    const latest = async () => {
+      // 集計のある Run は閉じたものとして数える（実行中の記録は消す前に残りうる）。書き込みの中では読み直す
+      const local = (await readRunningRuns(ctx.repo)).runs;
       const runs = [
         ...local
           .filter((r) => !ctx.store.runs.has(r.data.id))
@@ -603,7 +604,7 @@ export const runReviewResult = defineCommand({
         ? ctx.store.runs.get(last.run.id)
         : undefined;
     };
-    if (!latest())
+    if (!(await latest()))
       throw new OperationError(
         "NOT_FOUND",
         `${ticket.id} の見直し（${REVIEW_STEP}）の Run が、実行中のものも、チケットの最新の Run として閉じたものもない`,
@@ -611,7 +612,7 @@ export const runReviewResult = defineCommand({
     const written = await withWrite(
       ctx,
       async () => {
-        const doc = latest();
+        const doc = await latest();
         if (!doc) throw new OperationError("NOT_FOUND", `${ticket.id} の閉じた見直しの Run がない`);
         if (doc.data.review !== null)
           throw new OperationError(

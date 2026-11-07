@@ -258,6 +258,11 @@ export async function startRun(repo: RunDirs, input: StartRunInput): Promise<Run
 export interface FinishRunInput {
   result: RunResult;
   error?: string | null | undefined;
+  /**
+   * ロックの中で読み直した実行中の記録から結果を決め直す（result・error より先）。フックが見直しの成否を結果の記録で決めるとき、
+   * 読んでから閉じるまでの間に書かれた結果を取りこぼさないため（ADR-013）
+   */
+  decide?: ((local: Run) => { result: RunResult; error?: string | null | undefined }) | undefined;
   retries?: number | undefined;
   /** 渡さなければ実行中の記録の値（古い記録はスキーマが空の配列にそろえる）。回数との突き合わせは run.finish がする */
   retryReasons?: readonly string[] | undefined;
@@ -319,14 +324,15 @@ async function closeRunLocked(
   input: FinishRunInput,
 ): Promise<Run> {
   const local = await readRunningLocked(repo, id);
+  const decided = input.decide?.(local.data) ?? { result: input.result, error: input.error };
   const finishedAt = input.finishedAt ?? toIsoDateTime(input.now);
   // 実行中の記録に重ねる。中の未知のキーは残す（DT-2）。実行中の記録は集計を書くまで書き換えない
   const base = local.yaml.toJS() as Record<string, unknown>;
   const closed: Record<string, unknown> = {
     ...base,
     finished_at: finishedAt < local.data.started_at ? local.data.started_at : finishedAt,
-    result: input.result,
-    error: input.error ?? null,
+    result: decided.result,
+    error: decided.error ?? null,
     retries: input.retries ?? local.data.retries,
     retry_reasons: [...(input.retryReasons ?? local.data.retry_reasons)],
     model: input.model === undefined ? local.data.model : input.model,

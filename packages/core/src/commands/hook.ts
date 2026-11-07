@@ -309,13 +309,15 @@ async function closeSubagentRun(
   const closed = await finishRun(ctx, run.id, {
     result,
     error,
+    // 見直しの成否は、閉じる直前にロックの中で読み直した記録の結果で決める（数えている間に書かれた結果を落とさない）
+    decide: run.step === REVIEW_STEP ? reviewResultOf : undefined,
     model: collected.model ?? undefined,
     usage: collected.usage,
     tools: collected.tools,
     now,
   });
   warnings.push(...collected.warnings.map((w) => `Run ${run.id}: ${w}`), ...closed.write.warnings);
-  view.done.push(`${run.ticket} の ${run.step} の Run ${run.id} を ${result} で閉じた`);
+  view.done.push(`${run.ticket} の ${run.step} の Run ${run.id} を ${closed.run.result} で閉じた`);
 }
 
 /** 移行期の経路：サブエージェントが自分で開いた Run に記録の場所を結び付け、閉じていれば取り直す */
@@ -373,12 +375,15 @@ async function resultOf(
       ? { result: "success" }
       : { result: "failure", error: "サブエージェントが終わったとき手直しの push がない" };
   }
-  if (run.step === REVIEW_STEP) {
-    return run.review !== null
-      ? { result: "success" }
-      : { result: "failure", error: REVIEW_UNRECORDED };
-  }
+  if (run.step === REVIEW_STEP) return reviewResultOf(run);
   return { result: "success" };
+}
+
+/** 見直しの Run の結果。結果（run review-result）が記録されていれば success（ADR-013） */
+function reviewResultOf(run: Run): { result: RunResult; error?: string } {
+  return run.review !== null
+    ? { result: "success" }
+    : { result: "failure", error: REVIEW_UNRECORDED };
 }
 
 async function sessionEnd(
