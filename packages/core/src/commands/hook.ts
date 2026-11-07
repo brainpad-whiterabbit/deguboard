@@ -2,7 +2,7 @@
 // ここは製品によらない出来事（HookEvent）だけを見る（AG-5）。フックはエージェントの作業を止めないよう、失敗は警告にして成功で返す。
 //   - session_start：以後の Bash の環境に DEGUBOARD_ACTOR=agent・DEGUBOARD_SESSION・DEGUBOARD_TRANSCRIPT を export で書く
 //   - subagent_launched：頼んだ文の先頭の印（deguboard: ticket=<id> step=<step>）があれば、その Run を開いて記録の場所をサブエージェントの記録にする
-//   - subagent_started：同じ記録の開いた Run（親への質問で止まっていたもの）を続きとして使い、止まって待っている印を消す
+//   - subagent_started：同じ記録の開いた Run（親への質問で止まっていたもの）を続きとして使い、止まって待っている印と書き終わり待ちの印を消す
 //   - subagent_stopped：記録の場所で Run を引き、記録の最初の文の印で照らしてから、step を終えた事実があれば記録の書き終わりを待って
 //     記録の全体から数えて閉じる。事実がなければ閉じずに止まって待っている印を付ける。
 //     印のある Run がなければ、サブエージェントが自分で開いた Run（記録に ID が出る）に記録の場所を結び付ける（移行期の経路）
@@ -284,7 +284,12 @@ async function subagentStopped(
 }
 
 /** 記録の書き終わりを待つ間隔と上限（ミリ秒）。テストが短くする */
-export const hookTiming = { settleMs: 3000, pollMs: 100 };
+export const hookTiming: {
+  settleMs: number;
+  pollMs: number;
+  /** 待ちきれなかった直後に呼ぶ（テストが、その後の掃除の前に記録を書き足すため） */
+  onGiveUp?: (() => Promise<void>) | undefined;
+} = { settleMs: 3000, pollMs: 100 };
 
 /** 記録のパスがサブエージェントの記録（<session>/subagents/ の下）か。agent_id 付きの Run の見分けに使う */
 const isSubagentTranscript = (p: string | undefined) =>
@@ -327,10 +332,15 @@ async function stopSubagentRun(
   const ticket = ctx.store.tickets.get(run.ticket)?.data;
   const decided = await resultOf(ctx, run, ticket);
   if (decided.result !== "success") {
+    // 書き終わり待ちで呼び直したときに事実が取れなかった（gh・fetch の一時的な失敗など）なら、書き終わり待ちをやめて答え待ちにする。
+    // 両方の印を残すと、掃除がフックのたびに事実を取り直し続ける
+    if (run.settling_since !== null)
+      run = await amendRunning(ctx.repo, run.id, { settling_since: null });
     await markWaiting(ctx, run, view);
     return;
   }
   if (settle && !(await waitSettled(agent, transcript))) {
+    await hookTiming.onGiveUp?.();
     if (run.settling_since === null)
       await amendRunning(ctx.repo, run.id, { settling_since: toIsoDateTime(ctx.now()) });
     warnings.push(

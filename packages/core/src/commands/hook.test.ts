@@ -16,6 +16,7 @@ const cleanups: Array<() => Promise<void>> = [];
 afterEach(async () => {
   hookTiming.settleMs = 3000;
   hookTiming.pollMs = 100;
+  hookTiming.onGiveUp = undefined;
   await Promise.all(cleanups.splice(0).map((c) => c()));
 });
 
@@ -721,10 +722,9 @@ describe("サブエージェントの止まりと再開（ADR-014）", () => {
     const prompt = "deguboard: ticket=t1 step=investigate";
     await call(ctx, "PostToolUse", launched(parent, "a1", prompt));
     await subagentRecord(subagent("a1"), prompt, 1, [], [{ type: "api-request", id: "q1" }]);
-    // 待ちの上限を過ぎた直後に書かれる
-    const late = setTimeout(() => void appendResponses(subagent("a1"), 5, ["m3"]), 70);
+    // 待ちの上限を過ぎた直後、同じフックの掃除の前に書かれる
+    hookTiming.onGiveUp = () => appendResponses(subagent("a1"), 5, ["m3"]);
     const { view, warnings } = await stop(ctx, subagent("a1"));
-    clearTimeout(late);
     expect(warnings).toContainEqual(expect.stringContaining("まだ閉じない"));
     expect(view.done.some((d) => d.includes("で閉じた"))).toBe(false);
     expect((await peekRunningRuns(ctx.repo))[0]!.settling_since).not.toBeNull();
