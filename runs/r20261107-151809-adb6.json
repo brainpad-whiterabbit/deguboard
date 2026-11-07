@@ -1,0 +1,28 @@
+{
+  "id": "r20261107-151809-adb6",
+  "ticket": "t527",
+  "step": "review",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-07T15:18:09Z",
+  "finished_at": "2026-11-07T15:20:18Z",
+  "result": "success",
+  "error": null,
+  "retries": 0,
+  "retry_reasons": [],
+  "usage": {
+    "input": 16,
+    "output": 4871,
+    "cache_read": 350529,
+    "cache_write": 28239
+  },
+  "tools": {
+    "read": 0,
+    "search": 0,
+    "write": 0,
+    "bash": 9,
+    "other": 0,
+    "read_before_write": 0,
+    "search_before_write": 0
+  }
+}
