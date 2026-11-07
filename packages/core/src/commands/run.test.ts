@@ -8,9 +8,11 @@ import { openContext } from "./context.js";
 import { runCommand, type CommandContext } from "./define.js";
 import { findCommand } from "./registry.js";
 import {
+  REVIEW_UNRECORDED,
   runFinish,
   runList,
   runRefresh,
+  runReviewResult,
   runStart,
   type RunRefreshItem,
   type RunView,
@@ -21,7 +23,7 @@ import { metricsShow } from "./metrics.js";
 import { iterationAdd, iterationCreate } from "./iteration.js";
 import { projectCreate } from "./project.js";
 import { ticketClaim, ticketCreate, ticketList, type TicketRow } from "./ticket.js";
-import { finishRun, peekRunningRuns } from "../run/record.js";
+import { amendRunning, finishRun, peekRunningRuns } from "../run/record.js";
 import type { Run } from "../model/run.js";
 
 vi.mock("node:fs/promises", async (importOriginal) =>
@@ -600,10 +602,194 @@ describe("run", () => {
     expect(codes(failed.data)).toEqual([["workflow_step_duplicate", "error"]]);
   });
 
-  it("CLI・MCP・HTTP が写す一覧に run.start・run.finish・run.list・run.refresh がある", () => {
-    for (const name of ["run.start", "run.finish", "run.list", "run.refresh"]) {
+  it("CLI・MCP・HTTP が写す一覧に run.start・run.finish・run.review-result・run.list・run.refresh がある", () => {
+    for (const name of [
+      "run.start",
+      "run.finish",
+      "run.review-result",
+      "run.list",
+      "run.refresh",
+    ]) {
       expect(findCommand(name)?.needs).toBe("store");
     }
+  });
+});
+
+describe("run review-result（見直しの結果。ADR-013）", () => {
+  /** 文脈の今を seconds 秒だけ先にする */
+  const laterBy = (ctx: CommandContext, seconds: number) => {
+    ctx.now = () => new Date(Date.now() + seconds * 1000);
+  };
+
+  const record = (
+    ctx: CommandContext,
+    ticket: string,
+    heavy: number,
+    light: number,
+    passed?: boolean,
+  ) =>
+    runCommand(runReviewResult, ctx, {
+      ticket,
+      heavy,
+      light,
+      ...(passed === undefined ? {} : { passed }),
+    });
+
+  it("実行中の見直しの Run に結果だけを書き、呼び直せば置き換え、finish の集計に残る", async () => {
+    const ctx = await prepared();
+    const run = await start(ctx, "t1", "review");
+    await record(ctx, "t1", 2, 1);
+    const written = await record(ctx, "1", 0, 3, true);
+    expect(written.data).toMatchObject({
+      id: run.id,
+      review: { heavy: 0, light: 3, passed: true },
+    });
+    // 実行中の記録に書くので、コミットはしない
+    expect(written.write).toBeUndefined();
+    const closed = await runCommand(runFinish, ctx, { run: run.id, result: "success" });
+    expect((closed.data as Run).review).toEqual({ heavy: 0, light: 3, passed: true });
+  });
+
+  it("見直し以外の step の Run には書かず、見直しの Run がなければ NOT_FOUND", async () => {
+    const ctx = await prepared();
+    await start(ctx, "t1", "implement");
+    await expect(record(ctx, "t1", 0, 0, true)).rejects.toMatchObject({ code: "NOT_FOUND" });
+    const [run] = await peekRunningRuns(ctx.repo);
+    expect(run!.review).toBeNull();
+  });
+
+  it("実行中のものがなければ閉じた最新の見直しの Run に 1 回だけ書き、結果の記録がなくて failure なら success に直す", async () => {
+    const ctx = await prepared();
+    const older = await start(ctx, "t1", "review");
+    await runCommand(runFinish, ctx, { run: older.id, result: "success" });
+    // ID は開始の秒で並ぶので、次の Run は後の秒に始める
+    laterBy(ctx, 5);
+    const latest = await start(ctx, "t1", "review");
+    await runCommand(runFinish, ctx, {
+      run: latest.id,
+      result: "failure",
+      error: REVIEW_UNRECORDED,
+    });
+    const written = await record(ctx, "t1", 1, 0);
+    expect(written.data).toMatchObject({
+      id: latest.id,
+      result: "success",
+      error: null,
+      review: { heavy: 1, light: 0, passed: false },
+    });
+    expect(ctx.store.runs.get(older.id)!.data.review).toBeNull();
+    // 閉じた Run の結果は書き換えない（RN-4）
+    await expect(record(ctx, "t1", 0, 0, true)).rejects.toMatchObject({ code: "REJECTED" });
+  });
+
+  it("閉じた見直しの Run の後に別の Run（手直しなど）が始まっていれば、前の回の見直しなので書かずに NOT_FOUND", async () => {
+    const ctx = await prepared();
+    const review = await start(ctx, "t1", "review");
+    await runCommand(runFinish, ctx, {
+      run: review.id,
+      result: "failure",
+      error: REVIEW_UNRECORDED,
+    });
+    laterBy(ctx, 5);
+    await start(ctx, "t1", "fix");
+    await expect(record(ctx, "t1", 0, 0, true)).rejects.toMatchObject({ code: "NOT_FOUND" });
+    expect(ctx.store.runs.get(review.id)!.data).toMatchObject({ result: "failure", review: null });
+  });
+
+  it("実行中の記録を読んだ後に閉じられていたら（集計がある）、実行中の記録に書かず閉じた Run に書く", async () => {
+    const ctx = await prepared();
+    const run = await start(ctx, "t1", "review");
+    const localFile = path.join(ctx.repo.localDir, "runs", `${run.id}.json`);
+    const kept = await readFile(localFile, "utf8");
+    await runCommand(runFinish, ctx, { run: run.id, result: "failure", error: REVIEW_UNRECORDED });
+    // 集計を書いた後、実行中の記録を消す前の形にする
+    await writeFile(localFile, kept);
+    const written = await record(ctx, "t1", 0, 1, true);
+    expect(written.data).toMatchObject({ id: run.id, result: "success", review: { light: 1 } });
+    expect(ctx.store.runs.get(run.id)!.data.review).toEqual({ heavy: 0, light: 1, passed: true });
+  });
+
+  it("finish の decide は、ロックの中で読み直した記録から結果を決める（読んだ後に書かれた見直しの結果を落とさない）", async () => {
+    const ctx = await prepared();
+    const run = await start(ctx, "t1", "review");
+    // 閉じる側が古い記録（結果なし）で failure と決めた後に、結果が書かれる
+    await amendRunning(ctx.repo, run.id, { review: { heavy: 0, light: 0, passed: true } });
+    const { run: closed } = await finishRun(ctx, run.id, {
+      result: "failure",
+      error: REVIEW_UNRECORDED,
+      decide: (local) =>
+        local.review !== null
+          ? { result: "success" }
+          : { result: "failure", error: REVIEW_UNRECORDED },
+      now: new Date(),
+    });
+    expect(closed).toMatchObject({ result: "success", error: null, review: { passed: true } });
+  });
+
+  it("amendRunning は集計のある Run（閉じた後に実行中の記録が残ったもの）に書かず REJECTED", async () => {
+    const ctx = await prepared();
+    const run = await start(ctx, "t1", "review");
+    const localFile = path.join(ctx.repo.localDir, "runs", `${run.id}.json`);
+    const kept = await readFile(localFile, "utf8");
+    await runCommand(runFinish, ctx, { run: run.id, result: "success" });
+    await writeFile(localFile, kept);
+    await expect(
+      amendRunning(ctx.repo, run.id, { review: { heavy: 0, light: 0, passed: true } }),
+    ).rejects.toMatchObject({ code: "REJECTED" });
+  });
+
+  it("閉じた見直しの Run が別の理由で failure なら、結果を書いても failure のまま", async () => {
+    const ctx = await prepared();
+    const run = await start(ctx, "t1", "review");
+    await runCommand(runFinish, ctx, { run: run.id, result: "failure", error: "落ちた" });
+    const written = await record(ctx, "t1", 0, 0, true);
+    expect(written.data).toMatchObject({
+      result: "failure",
+      error: "落ちた",
+      review: { passed: true },
+    });
+  });
+
+  it("重い指摘があるのに --passed なら使い方の誤りで、何も書かない", async () => {
+    const ctx = await prepared();
+    await start(ctx, "t1", "review");
+    await expect(record(ctx, "t1", 1, 0, true)).rejects.toMatchObject({ name: "UsageError" });
+    expect((await peekRunningRuns(ctx.repo))[0]!.review).toBeNull();
+  });
+
+  it("run list と metrics show に見直しの結果が出る", async () => {
+    const ctx = await prepared();
+    let n = 0;
+    for (const [heavy, passed] of [
+      [2, false],
+      [0, true],
+    ] as const) {
+      laterBy(ctx, 5 * ++n);
+      const run = await start(ctx, "t1", "review");
+      await record(ctx, "t1", heavy, 1, passed);
+      await runCommand(runFinish, ctx, { run: run.id, result: "success" });
+    }
+    laterBy(ctx, 15);
+    const impl = await start(ctx, "t1", "implement");
+    await runCommand(runFinish, ctx, { run: impl.id, result: "success" });
+    const listed = (await runCommand(runList, ctx, { ticket: "t1" })).data as RunView[];
+    expect(listed.map((r) => r.review)).toEqual([
+      { heavy: 2, light: 1, passed: false },
+      { heavy: 0, light: 1, passed: true },
+      null,
+    ]);
+    const shown = await runCommand(metricsShow, ctx, { ticket: "t1", by: "step" });
+    const view = shown.data as {
+      total: { reviews: unknown };
+      groups: Array<{ key: string; reviews: unknown }>;
+    };
+    expect(view.total.reviews).toEqual({ recorded: 2, passed: 1, heavy: 2, light: 2 });
+    expect(view.groups.find((g) => g.key === "implement")!.reviews).toEqual({
+      recorded: 0,
+      passed: 0,
+      heavy: 0,
+      light: 0,
+    });
   });
 });
 
@@ -831,6 +1017,7 @@ describe("run finish の使用量の取り込み（MT-1・MT-2・MT-4）", () =>
         "usage",
         "tools",
         "session",
+        "review",
       ].sort(),
     );
     expect(saved["usage"]).toEqual({ input: 7, output: 14, cache_read: 700, cache_write: 70 });

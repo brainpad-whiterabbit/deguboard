@@ -40,6 +40,7 @@ const run = (over: Partial<Run> = {}): Run => ({
   usage: { input: null, output: null, cache_read: null, cache_write: null },
   tools: null,
   session: null,
+  review: null,
   ...over,
 });
 
@@ -913,7 +914,6 @@ describe("Claude Code のフックの入力（ADR-012）", () => {
       agentId: "a1",
       transcript: path.join("/h/.claude/projects/d", "s1", "subagents", "agent-a1.jsonl"),
       finished: false,
-      lastMessage: null,
     });
     expect(
       hooks.parse(
@@ -924,15 +924,11 @@ describe("Claude Code のフックの入力（ADR-012）", () => {
             status: "completed",
             agentId: "a1",
             totalDurationMs: 5,
-            content: [
-              { type: "text", text: "<tools-used-before-summary>x</tools-used-before-summary>" },
-              { type: "text", text: "結果" },
-            ],
           },
         },
         {},
       ),
-    ).toMatchObject({ finished: true, lastMessage: "結果", durationMs: 5 });
+    ).toMatchObject({ finished: true, durationMs: 5 });
     // Agent 以外のツールと、agentId のない応答は扱わない
     expect(hooks.parse("PostToolUse", { ...base, tool_name: "Bash" }, {})).toBeUndefined();
     expect(hooks.parse("PostToolUse", { ...base, tool_response: {} }, {})).toBeUndefined();
@@ -955,7 +951,6 @@ describe("Claude Code のフックの入力（ADR-012）", () => {
       session: "s1",
       agentId: "a1",
       transcript: "/x.jsonl",
-      lastMessage: "m",
     });
     expect(hooks.parse("SessionEnd", { session_id: "s1" }, {})).toEqual({
       kind: "session_end",

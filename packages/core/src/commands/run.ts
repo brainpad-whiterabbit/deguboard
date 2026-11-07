@@ -16,14 +16,17 @@ import { filterRuns, placeRun, runDurationSeconds, type MetricFilter } from "../
 import { OperationError, UsageError } from "../errors.js";
 import {
   isRunId,
+  REVIEW_STEP,
   RUN_RESULTS,
   type Run,
+  type RunReview,
   type RunId,
   type RunResult,
   type RunUsage,
 } from "../model/run.js";
 import { AbortWrite, withWrite } from "../git/write.js";
 import {
+  amendRunning,
   closeRun,
   dropRunning,
   finishRun,
@@ -538,6 +541,98 @@ export const runFinish = defineCommand({
   },
 });
 
+/** フックが見直しの Run を結果の記録なしに閉じたときの error（ADR-013）。後から結果を書けば success に直す */
+export const REVIEW_UNRECORDED =
+  "見直し役が結果を記録せずに終わった（dg run review-result で書く）";
+
+const findingCount = z.number().int().nonnegative();
+
+export const runReviewResult = defineCommand({
+  name: "run.review-result",
+  positionals: ["ticket"],
+  group: "run",
+  summary:
+    "見直しの結果（重い・軽い指摘の数と通ったか）を、チケットの見直し（review の step）の Run に書く（ADR-013）。見直し役が指摘の一覧を返す前に 1 回呼ぶ。" +
+    "このマシンで実行中の見直しの Run があればそれに書き（呼び直せば置き換える）、なければチケットの最新の Run が閉じた見直しの Run のときだけ、それに 1 回だけ書く（commit.mode に従ってコミット。後に手直しなどの Run が始まっていれば前の回の見直しなので書かない）。" +
+    "閉じた Run が結果の記録なしに failure で閉じていたら success に直す。どちらもなければ NOT_FOUND。重い指摘があるのに --passed なら使い方の誤り",
+  input: z.object({
+    ticket: ticketRef,
+    heavy: findingCount.describe(
+      "重い指摘の数（受け入れ条件の漏れ・不具合・文書との食い違い・規約の違反）",
+    ),
+    light: findingCount.describe("軽い指摘の数（言い回し・好み。参考節との食い違いを含む）"),
+    passed: z.boolean().optional().describe("通った（重い指摘が残っていない）。省けば通っていない"),
+  }),
+  write: true,
+  needs: "store",
+  async run(ctx, input) {
+    const passed = input.passed ?? false;
+    if (passed && input.heavy > 0)
+      throw new UsageError(`重い指摘が ${input.heavy} 件あるのに --passed を付けた`);
+    const ticket = ctx.store.require("ticket", input.ticket).data;
+    const review: RunReview = { heavy: input.heavy, light: input.light, passed };
+    const local = (await readRunningRuns(ctx.repo)).runs;
+    const running = local.find((r) => r.data.ticket === ticket.id && r.data.step === REVIEW_STEP);
+    if (running) {
+      try {
+        return ok(await amendRunning(ctx.repo, running.data.id, { review }));
+      } catch (e) {
+        // 読んだ後にフックが閉じた。閉じた Run に書く
+        if (!(e instanceof OperationError) || (e.code !== "NOT_FOUND" && e.code !== "REJECTED"))
+          throw e;
+        await ctx.store.rescan();
+      }
+    }
+    // フックが先に閉じたとき。チケットの最新の Run（実行中を含む。開始の順、同じ秒なら ID の順）が閉じた見直しの Run のときだけ書く。
+    // 後に別の Run（手直しなど）が始まっていれば、それは前の回の見直しなので書かない
+    const latest = async () => {
+      // 集計のある Run は閉じたものとして数える（実行中の記録は消す前に残りうる）。書き込みの中では読み直す
+      const local = (await readRunningRuns(ctx.repo)).runs;
+      const runs = [
+        ...local
+          .filter((r) => !ctx.store.runs.has(r.data.id))
+          .map((r) => ({ run: r.data, closed: false })),
+        ...[...ctx.store.runs.values()].map((d) => ({ run: d.data, closed: true })),
+      ].filter(({ run }) => run.ticket === ticket.id);
+      const last = runs
+        .sort(
+          (a, b) =>
+            a.run.started_at.localeCompare(b.run.started_at) || a.run.id.localeCompare(b.run.id),
+        )
+        .at(-1);
+      return last?.closed && last.run.step === REVIEW_STEP
+        ? ctx.store.runs.get(last.run.id)
+        : undefined;
+    };
+    if (!(await latest()))
+      throw new OperationError(
+        "NOT_FOUND",
+        `${ticket.id} の見直し（${REVIEW_STEP}）の Run が、実行中のものも、チケットの最新の Run として閉じたものもない`,
+      );
+    const written = await withWrite(
+      ctx,
+      async () => {
+        const doc = await latest();
+        if (!doc) throw new OperationError("NOT_FOUND", `${ticket.id} の閉じた見直しの Run がない`);
+        if (doc.data.review !== null)
+          throw new OperationError(
+            "REJECTED",
+            `閉じた見直しの Run ${doc.id} には結果が書いてある（閉じた Run の結果は書き換えない。RN-4）`,
+          );
+        const unrecorded = doc.data.result === "failure" && doc.data.error === REVIEW_UNRECORDED;
+        return (
+          await ctx.store.update("run", doc.id, {
+            review,
+            ...(unrecorded ? { result: "success", error: null } : {}),
+          })
+        ).data;
+      },
+      { message: (run) => `見直しの結果を記録: ${run.ticket} ${run.id}` },
+    );
+    return ok(written.value, written.write);
+  },
+});
+
 export const runList = defineCommand({
   name: "run.list",
   group: "run",
@@ -746,4 +841,4 @@ export const runRefresh = defineCommand({
   },
 });
 
-export const runCommands = [runStart, runFinish, runList, runRefresh];
+export const runCommands = [runStart, runFinish, runReviewResult, runList, runRefresh];

@@ -3,8 +3,8 @@
 //   - PostToolUse（matcher は Agent）：tool_input.prompt と tool_response.agentId・resolvedModel。サブエージェントの記録は
 //     <親の記録のディレクトリ>/<session_id>/subagents/agent-<agentId>.jsonl（SubagentStop の agent_transcript_path と同じ形）。
 //     バックグラウンドの起動は起動の直後に返り（status: async_launched）、SubagentStop が後に来る。前景の起動は終わってから返り
-//     （status: completed。content に返った文）、SubagentStop はこれより先に来る
-//   - SubagentStop：agent_id・agent_transcript_path・last_assistant_message
+//     （status: completed）、SubagentStop はこれより先に来る
+//   - SubagentStop：agent_id・agent_transcript_path（last_assistant_message も来るが使わない。見直しの成否は結果の記録で決める。ADR-013）
 //   - SessionEnd：session_id
 //   SubagentStart は使わない。並べて起動すると、その時点では親の記録にも、サブエージェントの記録にも呼び出しがない
 //   （2026-11-07 に Claude Code 2.1.318 で確かめた。環境変数がサブエージェントの Bash に届くことも同じ日に確かめた）
@@ -46,10 +46,6 @@ function parseHook(event: string, input: unknown, env: AgentEnv): HookEvent | un
       if (!agentId || !prompt) return undefined;
       // 前景の起動は終わってから返る（status: completed）。SubagentStop はこれより先に発火している
       const finished = response["status"] === "completed";
-      const content = Array.isArray(response["content"]) ? response["content"] : [];
-      const texts = content
-        .map((b) => str(obj(b)["text"]))
-        .filter((t): t is string => t !== null && !t.startsWith("<"));
       return {
         kind: "subagent_launched",
         session,
@@ -58,7 +54,6 @@ function parseHook(event: string, input: unknown, env: AgentEnv): HookEvent | un
         model: str(response["resolvedModel"]),
         transcript: transcript ? subagentTranscript(transcript, session, agentId) : null,
         finished,
-        lastMessage: finished ? texts.join("\n") || null : null,
         durationMs:
           finished && typeof response["totalDurationMs"] === "number"
             ? response["totalDurationMs"]
@@ -73,7 +68,6 @@ function parseHook(event: string, input: unknown, env: AgentEnv): HookEvent | un
         session,
         agentId,
         transcript: str(d["agent_transcript_path"]),
-        lastMessage: str(d["last_assistant_message"]),
       };
     }
     case "SessionEnd":

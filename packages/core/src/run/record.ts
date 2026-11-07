@@ -23,6 +23,7 @@ import {
   type Run,
   type RunId,
   type RunResult,
+  type RunReview,
   type RunTools,
   type RunUsage,
 } from "../model/run.js";
@@ -179,15 +180,18 @@ export async function bindTranscript(
 }
 
 /**
- * 実行中の Run のチケットと step を直す（フックが開いた Run を、サブエージェントの記録の印で照らして直すとき。ADR-012）。
- * 実行中の記録がなければ NOT_FOUND
+ * 実行中の Run を直す。チケットと step はフックが開いた Run をサブエージェントの記録の印で照らして直すとき（ADR-012）、
+ * review は見直し役が見直しの結果を書くとき（ADR-013）。実行中の記録がなければ NOT_FOUND、集計を書いた後なら REJECTED
  */
 export async function amendRunning(
   repo: RunDirs,
   id: RunId,
-  patch: { ticket: TicketId; step: string },
+  patch: { ticket: TicketId; step: string } | { review: RunReview },
 ): Promise<Run> {
   return withRunLock(repo, async () => {
+    // 集計を書いた後（閉じた後）の実行中の記録には書かない。書いても集計に入らない
+    if (await hasSummary(repo, id))
+      throw new OperationError("REJECTED", `Run ${id} は終わっている`);
     const result = await readDoc(repo.localDir, runPath(id), "json", runSchema, id);
     if (!result.ok) throw new OperationError("NOT_FOUND", `実行中の Run ${id} が見つからない`);
     const next = { ...(result.doc.yaml.toJS() as Record<string, unknown>), ...patch };
@@ -228,6 +232,7 @@ export async function startRun(repo: RunDirs, input: StartRunInput): Promise<Run
       usage: emptyUsage(),
       tools: null,
       session: input.session ?? null,
+      review: null,
     };
     // 場所を先に置く。実行中の記録より後に置くと、その間に閉じた Run が場所なしで数えられうる。
     // 相対パスは呼んだ作業ディレクトリで絶対パスにする（finish・refresh・serve は別の場所から呼ばれうる）
@@ -253,6 +258,11 @@ export async function startRun(repo: RunDirs, input: StartRunInput): Promise<Run
 export interface FinishRunInput {
   result: RunResult;
   error?: string | null | undefined;
+  /**
+   * ロックの中で読み直した実行中の記録から結果を決め直す（result・error より先）。フックが見直しの成否を結果の記録で決めるとき、
+   * 読んでから閉じるまでの間に書かれた結果を取りこぼさないため（ADR-013）
+   */
+  decide?: ((local: Run) => { result: RunResult; error?: string | null | undefined }) | undefined;
   retries?: number | undefined;
   /** 渡さなければ実行中の記録の値（古い記録はスキーマが空の配列にそろえる）。回数との突き合わせは run.finish がする */
   retryReasons?: readonly string[] | undefined;
@@ -272,24 +282,25 @@ export interface FinishRunInput {
   now: Date;
 }
 
-/** 実行中の記録を読む。前の finish が集計を書いた後、実行中の記録を消す前に止まっていたら、記録を消してから拒否する */
-async function readRunning(repo: RunDirs, id: RunId): Promise<Doc<Run>> {
-  return withRunLock(repo, async () => {
-    if (await hasSummary(repo, id)) {
-      await removeRunning(repo, id);
-      throw new OperationError("REJECTED", `Run ${id} は終わっている`);
-    }
-    const result = await readDoc(repo.localDir, runPath(id), "json", runSchema, id);
-    if (result.ok) return result.doc;
-    if (result.issue.code !== "read_error") {
-      throw new OperationError(
-        "VALIDATION_FAILED",
-        `実行中の Run ${id} の記録を読めない（${result.issue.message}）`,
-        result.issue.detail,
-      );
-    }
-    throw new OperationError("NOT_FOUND", `実行中の Run ${id} が見つからない`);
-  });
+/**
+ * 実行中の記録を読む。前の finish が集計を書いた後、実行中の記録を消す前に止まっていたら、記録を消してから拒否する。
+ * 呼び出し側がロックを持つ
+ */
+async function readRunningLocked(repo: RunDirs, id: RunId): Promise<Doc<Run>> {
+  if (await hasSummary(repo, id)) {
+    await removeRunning(repo, id);
+    throw new OperationError("REJECTED", `Run ${id} は終わっている`);
+  }
+  const result = await readDoc(repo.localDir, runPath(id), "json", runSchema, id);
+  if (result.ok) return result.doc;
+  if (result.issue.code !== "read_error") {
+    throw new OperationError(
+      "VALIDATION_FAILED",
+      `実行中の Run ${id} の記録を読めない（${result.issue.message}）`,
+      result.issue.detail,
+    );
+  }
+  throw new OperationError("NOT_FOUND", `実行中の Run ${id} が見つからない`);
 }
 
 /**
@@ -302,20 +313,32 @@ export async function closeRun(
   id: RunId,
   input: FinishRunInput,
 ): Promise<Run> {
-  const local = await readRunning(repo, id);
+  // 読んでから集計を書くまでをロックの中で行う。間に amendRunning（見直しの結果など）が書くと、集計から落ちるため
+  return withRunLock(repo, () => closeRunLocked(store, repo, id, input));
+}
+
+async function closeRunLocked(
+  store: Pick<Store, "runs" | "create">,
+  repo: RunDirs,
+  id: RunId,
+  input: FinishRunInput,
+): Promise<Run> {
+  const local = await readRunningLocked(repo, id);
+  const decided = input.decide?.(local.data) ?? { result: input.result, error: input.error };
   const finishedAt = input.finishedAt ?? toIsoDateTime(input.now);
   // 実行中の記録に重ねる。中の未知のキーは残す（DT-2）。実行中の記録は集計を書くまで書き換えない
   const base = local.yaml.toJS() as Record<string, unknown>;
   const closed: Record<string, unknown> = {
     ...base,
     finished_at: finishedAt < local.data.started_at ? local.data.started_at : finishedAt,
-    result: input.result,
-    error: input.error ?? null,
+    result: decided.result,
+    error: decided.error ?? null,
     retries: input.retries ?? local.data.retries,
     retry_reasons: [...(input.retryReasons ?? local.data.retry_reasons)],
     model: input.model === undefined ? local.data.model : input.model,
     // 項目より前の記録にもキーを省かずに書く（RN-1）
     session: local.data.session,
+    review: local.data.review,
     // 渡されなかったキー（undefined）は重ねない
     usage: {
       ...(base["usage"] as Record<string, unknown>),

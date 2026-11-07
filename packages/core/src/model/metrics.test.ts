@@ -19,6 +19,7 @@ function run(id: string, over: Partial<Run> = {}): Run {
     usage: { input: 100, output: 10, cache_read: 0, cache_write: 5 },
     tools: null,
     session: null,
+    review: null,
     ...over,
   };
 }

@@ -71,8 +71,7 @@ export type HookEvent =
   | { kind: "session_start"; session: string; transcript: string | null; envFile: string | null }
   /**
    * サブエージェントを起動した呼び出しが返った。prompt は頼んだ文の全文、transcript はサブエージェントの記録のパス。
-   * finished は呼び出しが返った時点でサブエージェントが終わっていたか（前景の起動。終わりの出来事はこれより先に来る）で、
-   * そのとき lastMessage は返った文
+   * finished は呼び出しが返った時点でサブエージェントが終わっていたか（前景の起動。終わりの出来事はこれより先に来る）
    */
   | {
       kind: "subagent_launched";
@@ -82,17 +81,15 @@ export type HookEvent =
       model: string | null;
       transcript: string | null;
       finished: boolean;
-      lastMessage: string | null;
       /** 前景の起動でかかった時間（ミリ秒）。分からなければ null */
       durationMs: number | null;
     }
-  /** サブエージェントが終わった。lastMessage は最後の応答の文 */
+  /** サブエージェントが終わった */
   | {
       kind: "subagent_stopped";
       session: string;
       agentId: string;
       transcript: string | null;
-      lastMessage: string | null;
     }
   /** セッションの終わり */
   | { kind: "session_end"; session: string };

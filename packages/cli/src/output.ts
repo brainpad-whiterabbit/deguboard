@@ -126,6 +126,7 @@ const COLUMNS: Record<string, string[]> = {
     "tools",
     "missing",
     "estimated_runs",
+    "reviews",
   ],
   // dg history の events
   events: ["at", "id", "type", "changes", "subject"],
