@@ -1,0 +1,33 @@
+{
+  "id": "r20261107-154039-89c2",
+  "ticket": "t529",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-07T15:40:39Z",
+  "finished_at": "2026-11-07T15:44:59Z",
+  "result": "success",
+  "error": null,
+  "retries": 4,
+  "retry_reasons": [
+    "同じサブエージェントの記録の Run が重なると二重に数える",
+    "サブエージェントの記録の判定が緩い",
+    "相対パスの transcript をそのまま保存する",
+    "場所のファイルを書いた後の失敗で残る"
+  ],
+  "usage": {
+    "input": 36,
+    "output": 11130,
+    "cache_read": 5933051,
+    "cache_write": 20438
+  },
+  "tools": {
+    "read": 8,
+    "search": 0,
+    "write": 11,
+    "bash": 9,
+    "other": 0,
+    "read_before_write": 1,
+    "search_before_write": 0
+  }
+}
