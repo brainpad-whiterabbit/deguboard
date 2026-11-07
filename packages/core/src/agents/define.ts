@@ -20,6 +20,11 @@ export interface UsageQuery {
    * 同じ会話記録で期間が重なる Run と応答を分けるのに使う。なければ分けない
    */
   others?: ReadonlyMap<string, RunSpan>;
+  /**
+   * このマシンに置いた、この Run の会話記録のパス（deguboard-local/transcripts/。ADR-005）。あればそのファイルから数え、
+   * なければ Run の session、それもなければ推測で探す
+   */
+  transcript?: string | undefined;
 }
 
 /** Run の期間。時刻は ISO 8601 */
@@ -28,9 +33,11 @@ export interface RunSpan {
   finished_at: string | null;
   /** Run の agent。なければ自分と同じ agent とみなす */
   agent?: string;
+  /** このマシンに置いたその Run の会話記録のパス。同じファイルを使い回す Run の境目に使う */
+  transcript?: string | undefined;
 }
 
-/** Adapter が取り込んだ値。取れなかったキーは null（RN-2）。数とモデル名だけで、会話の中身・パスは返さない（MT-4） */
+/** Adapter が取り込んだ値。取れなかったキーは null（RN-2）。数とモデル名だけで、会話の中身・パスは返さない（MT-4。警告にもパスを書かない） */
 export interface CollectedUsage {
   usage: Pick<RunUsage, "input" | "output" | "cache_read" | "cache_write">;
   /** 会話記録から分かったモデル名。分からなければ null */

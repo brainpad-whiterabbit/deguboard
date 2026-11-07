@@ -15,7 +15,14 @@ import {
   type RunUsage,
 } from "../model/run.js";
 import { AbortWrite, withWrite } from "../git/write.js";
-import { closeRun, dropRunning, finishRun, readRunningRuns, startRun } from "../run/record.js";
+import {
+  closeRun,
+  dropRunning,
+  finishRun,
+  readRunningRuns,
+  readTranscriptPaths,
+  startRun,
+} from "../run/record.js";
 import type { Doc } from "../storage/documents.js";
 import { DEFAULT_OPENED_STEPS, findStep, stepOpenedOn } from "../workflow/resolve.js";
 import type { Ticket } from "../model/ticket.js";
@@ -29,17 +36,34 @@ import { idShapeOf, iterationRef, ticketRef } from "./helpers.js";
  */
 export type RunView = Run & { running: boolean; duration_seconds: number | null };
 
-/** Adapter が期間の重なる Run と応答を分けるための、閉じた Run とこのマシンで実行中の Run の期間 */
-function runSpans(closed: Iterable<{ data: Run }>, running: Iterable<{ data: Run }>) {
+/**
+ * Adapter が期間の重なる Run と応答を分けるための、閉じた Run とこのマシンで実行中の Run の期間と、
+ * このマシンに置いた会話記録のパス（deguboard-local/transcripts/。ADR-005）
+ */
+function runSpans(
+  closed: Iterable<{ data: Run }>,
+  running: Iterable<{ data: Run }>,
+  transcripts: ReadonlyMap<string, string>,
+) {
   const spans = new Map<string, RunSpan>();
   for (const { data } of [...closed, ...running]) {
     spans.set(data.id, {
       started_at: data.started_at,
       finished_at: data.finished_at,
       agent: data.agent,
+      transcript: transcripts.get(data.id),
     });
   }
   return spans;
+}
+
+/** Adapter に渡す、ほかの Run の期間と、この Run の会話記録のパス */
+async function usageContext(ctx: CommandContext, local: Iterable<{ data: Run }>) {
+  const transcripts = await readTranscriptPaths(ctx.repo);
+  return {
+    others: runSpans(ctx.store.runs.values(), local, transcripts),
+    transcriptOf: (id: string) => transcripts.get(id),
+  };
 }
 
 /**
@@ -62,7 +86,8 @@ export function agentFromEnv(
  * Run を開く（run start と、agent の ticket claim が共有する。RN-5）。step がチケットの Workflow の steps になければ
  * VALIDATION_FAILED、同じチケットと step の Run が実行中なら startRun が ALREADY_EXISTS。
  * Workflow が読めない・Adapter のない agent・このマシンで同じ agent の Run が開いたままは警告して開く。
- * retryReasons はもう一度の claim が開く手直しの Run に、直す指摘を最初から残すためのもの
+ * retryReasons はもう一度の claim が開く手直しの Run に、直す指摘を最初から残すためのもの。
+ * session・transcript は会話記録の場所（ADR-005）。session は Run に、transcript はこのマシンの deguboard-local/transcripts/ に置く
  */
 export async function openRun(
   ctx: CommandContext,
@@ -72,7 +97,7 @@ export async function openRun(
     agent: string;
     model?: string | undefined;
     retryReasons?: readonly string[] | undefined;
-  },
+  } & TranscriptInput,
 ): Promise<{ run: Run; warnings: string[] }> {
   const { step, agent } = input;
   const warnings: string[] = [];
@@ -108,10 +133,36 @@ export async function openRun(
     agent,
     model: input.model,
     retryReasons: input.retryReasons,
+    session: input.session,
+    transcript: input.transcript,
     now: ctx.now(),
   });
   return { run, warnings };
 }
+
+/** Run を開く操作（run start・ticket claim）が受け取る会話記録の場所 */
+export interface TranscriptInput {
+  session?: string | undefined;
+  transcript?: string | undefined;
+}
+
+/** run start と ticket claim の入力の、会話記録の場所の項目（ADR-005） */
+export const transcriptFields = {
+  session: z
+    .string()
+    .regex(/^\S+$/, "空白・改行を含まない 1 語")
+    .optional()
+    .describe(
+      "会話記録のセッション ID。Run に残し、finish と refresh はそのセッションの記録から数える。harness のフックが渡す。省けば null",
+    ),
+  transcript: z
+    .string()
+    .min(1)
+    .optional()
+    .describe(
+      "会話記録のファイルのパス。Git に入る Run には書かず、このマシンの deguboard-local/transcripts/ に置く。あれば finish と refresh はそのファイルから数える。harness のフックが渡す",
+    ),
+};
 
 /** チケットの操作が開く Run の step（RN-5）。Workflow が読めなければ既定の名前（claim が開く step も同じ） */
 export function openedStepOf(ctx: CommandContext, ticket: Ticket, opener: StepOpener): string {
@@ -162,12 +213,14 @@ export async function closeOpenedRun(
   const now = ctx.now();
   const finishedAt = input.finishedAt ?? toIsoDateTime(now);
   const local = (await readRunningRuns(ctx.repo)).runs;
+  const { others, transcriptOf } = await usageContext(ctx, local);
   const collected = await collectRunUsage(ctx.config, {
     run: running.data,
     finishedAt,
     env: ctx.env ?? process.env,
     topLevel: ctx.repo.topLevel,
-    others: runSpans(ctx.store.runs.values(), local),
+    others,
+    transcript: transcriptOf(running.data.id),
   });
   const run = await closeRun(ctx.store, ctx.repo, running.data.id, {
     result: input.result,
@@ -313,6 +366,7 @@ export const runStart = defineCommand({
       .describe(
         "モデル名（別名でもよい）。finish が会話記録から正式な名前を取れればそちらを記録し、取れないときだけこの名前を使う。分からなければ省く（null で残す）",
       ),
+    ...transcriptFields,
   }),
   write: true,
   needs: "store",
@@ -328,6 +382,8 @@ export const runStart = defineCommand({
       step: input.step,
       agent,
       model: input.model,
+      session: input.session,
+      transcript: input.transcript,
     });
     return ok(run, undefined, warnings);
   },
@@ -392,15 +448,18 @@ export const runFinish = defineCommand({
     const closed = running ? undefined : ctx.store.runs.get(id);
     if (closed) return alreadyClosed(closed);
     // 実行中の記録がなければ取り込まず、finishRun が見つからない・終わっていると拒否する
-    const collected = running
-      ? await collectRunUsage(ctx.config, {
-          run: running.data,
-          finishedAt: toIsoDateTime(now),
-          env: ctx.env ?? process.env,
-          topLevel: ctx.repo.topLevel,
-          others: runSpans(ctx.store.runs.values(), local),
-        })
-      : undefined;
+    const usage = running ? await usageContext(ctx, local) : undefined;
+    const collected =
+      running && usage
+        ? await collectRunUsage(ctx.config, {
+            run: running.data,
+            finishedAt: toIsoDateTime(now),
+            env: ctx.env ?? process.env,
+            topLevel: ctx.repo.topLevel,
+            others: usage.others,
+            transcript: usage.transcriptOf(id),
+          })
+        : undefined;
     try {
       const { run, write } = await finishRun(ctx, id, {
         result: input.result,
@@ -569,16 +628,17 @@ export const runRefresh = defineCommand({
     /** Adapter が理由を警告した Run。kept の警告を重ねて出さない */
     const explained = new Set<RunId>();
     const collected = new Map<string, Awaited<ReturnType<typeof collectRunUsage>>>();
-    const others = runSpans(ctx.store.runs.values(), local);
+    const { others, transcriptOf } = await usageContext(ctx, local);
     for (const id of ids) {
       const run = closed(id).data;
       const got = await collectRunUsage(ctx.config, {
         run,
-        // 閉じた Run は終了日時で期間を区切る（finish と同じ範囲を読む）
+        // 閉じた Run は終了日時で期間を区切る（finish と同じ範囲を読む）。会話記録の場所も finish と同じ
         finishedAt: run.finished_at ?? run.started_at,
         env: ctx.env ?? process.env,
         topLevel: ctx.repo.topLevel,
         others,
+        transcript: transcriptOf(id),
       });
       collected.set(id, got);
       if (got.warnings.length > 0) explained.add(id);

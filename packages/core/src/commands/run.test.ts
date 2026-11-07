@@ -20,7 +20,7 @@ import { workflowValidate } from "./workflow.js";
 import { metricsShow } from "./metrics.js";
 import { iterationAdd, iterationCreate } from "./iteration.js";
 import { projectCreate } from "./project.js";
-import { ticketCreate, ticketList, type TicketRow } from "./ticket.js";
+import { ticketClaim, ticketCreate, ticketList, type TicketRow } from "./ticket.js";
 import { finishRun, peekRunningRuns } from "../run/record.js";
 import type { Run } from "../model/run.js";
 
@@ -268,23 +268,42 @@ describe("run", () => {
     expect(r.data).toMatchObject({ retries: 1, retry_reasons: [] });
   });
 
-  it("retry_reasons のない古い実行中の記録も finish で閉じられ、空の配列で記録する", async () => {
+  it("retry_reasons と session のない古い実行中の記録も finish で閉じられ、空の配列と null で記録する", async () => {
     const ctx = await prepared();
     const run = await start(ctx, "t1");
     const localFile = path.join(ctx.repo.localDir, "runs", `${run.id}.json`);
-    const { retry_reasons: _reasons, ...old } = JSON.parse(
-      await readFile(localFile, "utf8"),
-    ) as Record<string, unknown>;
+    const {
+      retry_reasons: _reasons,
+      session: _session,
+      ...old
+    } = JSON.parse(await readFile(localFile, "utf8")) as Record<string, unknown>;
     await writeFile(localFile, `${JSON.stringify(old, null, 2)}\n`);
     const listed = (await runCommand(runList, ctx, { running: true })).data as RunView[];
-    expect(listed[0]).toMatchObject({ id: run.id, retry_reasons: [] });
+    expect(listed[0]).toMatchObject({ id: run.id, retry_reasons: [], session: null });
     const r = await runCommand(runFinish, ctx, { run: run.id, result: "success" });
-    expect(r.data).toMatchObject({ retries: 0, retry_reasons: [] });
+    expect(r.data).toMatchObject({ retries: 0, retry_reasons: [], session: null });
     await runCommand(commit, ctx, {});
     const saved = JSON.parse(
       await readFile(path.join(ctx.repo.dataDir, "runs", `${run.id}.json`), "utf8"),
     ) as Record<string, unknown>;
     expect(saved["retry_reasons"]).toEqual([]);
+    expect(saved["session"]).toBeNull();
+  });
+
+  it("start は相対パスの transcript を呼んだ作業ディレクトリで絶対パスにして置く", async () => {
+    const ctx = await prepared();
+    const run = (
+      await runCommand(runStart, ctx, {
+        ticket: "t1",
+        step: "implement",
+        agent: "claude-code",
+        transcript: "rel/agent-a.jsonl",
+      })
+    ).data as Run;
+    const local = JSON.parse(
+      await readFile(path.join(ctx.repo.localDir, "transcripts", `${run.id}.json`), "utf8"),
+    ) as { path: string };
+    expect(local.path).toBe(path.resolve("rel/agent-a.jsonl"));
   });
 
   it("finish は回数と理由の数が食い違うか、理由が 1 行でなければ拒否し、Run を開けたままにする", async () => {
@@ -767,10 +786,114 @@ describe("run finish の使用量の取り込み（MT-1・MT-2・MT-4）", () =>
         "retry_reasons",
         "usage",
         "tools",
+        "session",
       ].sort(),
     );
     expect(saved["usage"]).toEqual({ input: 7, output: 14, cache_read: 700, cache_write: 70 });
     expect(saved["tools"]).toEqual(TOOLS);
+    expect(saved["session"]).toBeNull();
+  });
+
+  describe("会話記録の場所（ADR-005）", () => {
+    /** Run の ID を含まないサブエージェントの会話記録（見直しを終えた後に run start した見直し役など）。期間の応答 2 つ */
+    async function subagentTranscript(projectDir: string, run: Run, n: number): Promise<string> {
+      const t = (ms: number) => new Date(Date.parse(run.started_at) + ms).toISOString();
+      const file = path.join(projectDir, "s1", "subagents", "agent-a.jsonl");
+      const line = (id: string, ms: number) => ({
+        type: "assistant",
+        timestamp: t(ms),
+        message: {
+          id,
+          model: "model-from-transcript",
+          content: "答え",
+          usage: {
+            input_tokens: n,
+            output_tokens: n,
+            cache_read_input_tokens: n,
+            cache_creation_input_tokens: n,
+          },
+        },
+      });
+      await mkdir(path.dirname(file), { recursive: true });
+      await writeFile(
+        file,
+        [line("m1", -500), line("m2", 100)].map((l) => JSON.stringify(l)).join("\n") + "\n",
+      );
+      return file;
+    }
+
+    it("start は session を Run に、transcript をこのマシンの deguboard-local/transcripts/ に置き、finish はそのファイルの先頭から数えて Git にはパスを入れない", async () => {
+      const { ctx, home, projectDir } = await withTranscripts(true);
+      const file = path.join(projectDir, "s1", "subagents", "agent-a.jsonl");
+      const run = (
+        await runCommand(runStart, ctx, {
+          ticket: "t1",
+          step: "review",
+          agent: "claude-code",
+          session: "s1",
+          transcript: file,
+        })
+      ).data as Run;
+      expect(run.session).toBe("s1");
+      await subagentTranscript(projectDir, run, 5);
+      const local = JSON.parse(
+        await readFile(path.join(ctx.repo.localDir, "transcripts", `${run.id}.json`), "utf8"),
+      ) as unknown;
+      expect(local).toEqual({ path: file });
+      const r = await runCommand(runFinish, ctx, { run: run.id, result: "success" });
+      // ID の出ていない記録でも、場所のファイルの先頭から数える（開始の前の応答も入る）
+      expect(r.data).toMatchObject({ session: "s1", usage: { input: 10, output: 10 } });
+      const committed = (await git(ctx.repo.dataDir, ["show", "--format=", "HEAD"])).stdout;
+      for (const text of [home, ".jsonl", "subagents", "transcripts"]) {
+        expect(committed).not.toContain(text);
+      }
+      // 閉じても場所は残し、refresh も同じファイルから数える
+      await subagentTranscript(projectDir, run, 7);
+      const refreshed = await runCommand(runRefresh, ctx, { runs: [run.id], dry_run: true });
+      expect((refreshed.data as RunRefreshItem[])[0]!.changes).toContainEqual({
+        field: "usage.input",
+        from: 10,
+        to: 14,
+      });
+    });
+
+    it("場所のファイルがこのマシンで読めなければ、推測に落とさず使用量を null にして警告する", async () => {
+      const { ctx, projectDir } = await withTranscripts(true);
+      const run = (
+        await runCommand(runStart, ctx, {
+          ticket: "t1",
+          step: "implement",
+          agent: "claude-code",
+          transcript: path.join(projectDir, "gone", "subagents", "agent-x.jsonl"),
+        })
+      ).data as Run;
+      // 推測なら見つかる記録（ID を含む）があっても使わない
+      await transcript(projectDir, run);
+      const r = await runCommand(runFinish, ctx, { run: run.id, result: "success" });
+      expect(r.data).toMatchObject({ usage: { input: null, output: null } });
+      expect(r.warnings).toEqual([expect.stringContaining("読めない")]);
+    });
+
+    it("agent の claim は session と transcript を開く Run に渡し、人の claim と no_run では使い方の誤りにする", async () => {
+      const { ctx, projectDir } = await withTranscripts(true);
+      const file = path.join(projectDir, "s1.jsonl");
+      const claimed = await runCommand(ticketClaim, ctx, {
+        ticket: "t1",
+        agent: "claude-code",
+        session: "s1",
+        transcript: file,
+      });
+      const id = (claimed.data as { run: string }).run;
+      const running = (await runCommand(runList, ctx, { running: true })).data as RunView[];
+      expect(running.find((r) => r.id === id)?.session).toBe("s1");
+      await expect(
+        runCommand(ticketClaim, ctx, { ticket: "t2", no_run: true, session: "s1" }),
+      ).rejects.toThrow(/session と transcript/);
+      const human = { ...ctx, actor: { ...ctx.actor, kind: "human" as const } };
+      await expect(
+        runCommand(ticketClaim, human, { ticket: "t2", transcript: file }),
+      ).rejects.toThrow(/session と transcript/);
+    });
   });
 });
 

@@ -1177,6 +1177,7 @@ describe("チケットの流れ", () => {
       const reclaimed = await runCommand(ticketClaim, agent, {
         ticket: "t1",
         retry_reasons: ["指摘 A"],
+        session: "s-fix",
       });
       expect(reclaimed.data).toMatchObject({ status: "review", assignee: "eiki/agent", pr: 41 });
       expect(reclaimed.write).toBeUndefined();
@@ -1193,6 +1194,8 @@ describe("チケットの流れ", () => {
         retries: 1,
         retry_reasons: ["指摘 A"],
         started_at: "2026-11-06T01:00:00Z",
+        // もう一度の claim も会話記録の場所を手直しの Run に渡す（ADR-005）
+        session: "s-fix",
       });
 
       // 人の claim は Run を開かず、ほかのユーザは CLAIM_LOST。自分でも PR のないチケットは手直しにならない。todo の claim に理由は渡せない

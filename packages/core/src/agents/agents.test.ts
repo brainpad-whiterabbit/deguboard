@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Run } from "../model/run.js";
-import { claudeCodeAdapter, projectDirName } from "./adapters/claude-code.js";
+import { claudeCodeAdapter, inSession, projectDirName } from "./adapters/claude-code.js";
 import { bindFile, sightings } from "./adapters/transcript.js";
 import { agentNames, collectRunUsage, detectAgent, type UsageQuery } from "./index.js";
 
@@ -39,6 +39,7 @@ const run = (over: Partial<Run> = {}): Run => ({
   retry_reasons: [],
   usage: { input: null, output: null, cache_read: null, cache_write: null },
   tools: null,
+  session: null,
   ...over,
 });
 
@@ -633,6 +634,147 @@ describe("Claude Code の Adapter", () => {
     const got = await claudeCodeAdapter.readTranscriptUsage(query());
     expect(got.usage).toEqual({ input: null, output: null, cache_read: null, cache_write: null });
     expect(got.warnings).toEqual([expect.stringContaining("見つからない")]);
+  });
+
+  describe("会話記録の場所（ADR-005）", () => {
+    const usageOf = async (q: UsageQuery) =>
+      (await claudeCodeAdapter.readTranscriptUsage(q)).usage.input;
+
+    it("場所がサブエージェントの記録なら、Run の ID の出現を待たずにファイルの先頭から finished_at まで数える", async () => {
+      const { projectDir, query } = await setup();
+      const file = path.join(projectDir, "s1", "subagents", "agent-a.jsonl");
+      // 見直しを終えた後に run start した見直し役：ID は最後に出る
+      await writeTranscript(file, [
+        assistant("m1", -10, [100, 1, 1, 1]),
+        assistant("m2", 5, [10, 1, 1, 1]),
+        mention(20),
+        assistant("m3", 40, [1000, 1, 1, 1]), // 期間の後
+      ]);
+      expect(await usageOf(query({ transcript: file }))).toBe(110);
+      // 場所がなければ今の推測（ID が出た後の期間の応答）。ID の後に期間の応答はない
+      const guessed = await claudeCodeAdapter.readTranscriptUsage(query());
+      expect(guessed.usage.input).toBeNull();
+    });
+
+    it("場所が親のセッションの記録なら、ほかの Run と共有するので started_at から数える", async () => {
+      const { projectDir, query } = await setup();
+      const file = path.join(projectDir, "s1.jsonl");
+      await writeTranscript(file, [
+        assistant("m0", -5, [1000, 1, 1, 1]), // 開始の前（前の Run の分）
+        assistant("m1", 1, [10, 1, 1, 1]),
+        assistant("m2", 2, [1, 1, 1, 1]),
+      ]);
+      expect(await usageOf(query({ transcript: file }))).toBe(11);
+    });
+
+    it("同じサブエージェントの記録を先に使って閉じた Run があれば、その finished_at の後から数える", async () => {
+      const { projectDir, query } = await setup();
+      const file = path.join(projectDir, "s1", "subagents", "agent-a.jsonl");
+      await writeTranscript(file, [
+        assistant("m1", -20, [100, 1, 1, 1]), // 実装の Run の分
+        assistant("m2", 1, [10, 1, 1, 1]), // 続けて頼まれた手直し
+      ]);
+      const others = new Map([
+        [
+          "r20260101-093000-0001",
+          {
+            started_at: at(-30),
+            finished_at: at(-10),
+            agent: "claude-code",
+            transcript: file,
+          },
+        ],
+        // 別のファイルの Run は境目にしない
+        [
+          "r20260101-093000-0002",
+          {
+            started_at: at(-30),
+            finished_at: at(-1),
+            agent: "claude-code",
+            transcript: path.join(projectDir, "s2.jsonl"),
+          },
+        ],
+      ]);
+      expect(await usageOf(query({ transcript: file, others }))).toBe(10);
+    });
+
+    it("同じサブエージェントの記録を先に使った Run が開いたままか開始の後に閉じたなら、この Run の started_at から数える", async () => {
+      const { projectDir, query } = await setup();
+      const file = path.join(projectDir, "s1", "subagents", "agent-a.jsonl");
+      await writeTranscript(file, [
+        assistant("m1", -20, [100, 1, 1, 1]), // 前の Run の分
+        assistant("m2", 1, [10, 1, 1, 1]),
+      ]);
+      const earlier = (finished_at: string | null) =>
+        new Map([
+          [
+            "r20260101-093000-0001",
+            { started_at: at(-30), finished_at, agent: "claude-code", transcript: file },
+          ],
+        ]);
+      expect(await usageOf(query({ transcript: file, others: earlier(null) }))).toBe(10);
+      expect(await usageOf(query({ transcript: file, others: earlier(at(5)) }))).toBe(10);
+    });
+
+    it("サブエージェントの記録かは subagents/ の直下かで決め、途中のディレクトリの同じ名前では決めない", async () => {
+      const { home, query } = await setup();
+      // 設定のディレクトリが subagents という名前の下にあっても、親のセッションの記録は started_at から
+      const file = path.join(home, "subagents", ".claude", "projects", "d", "s1.jsonl");
+      await writeTranscript(file, [
+        assistant("m0", -5, [1000, 1, 1, 1]),
+        assistant("m1", 1, [10, 1, 1, 1]),
+      ]);
+      expect(await usageOf(query({ transcript: file }))).toBe(10);
+    });
+
+    it("場所のファイルを読めなければ（別のマシンの記録）、推測に落とさず null にしてパスを書かずに警告する", async () => {
+      const { projectDir, query } = await setup();
+      // 推測なら見つかる記録があっても使わない
+      await writeTranscript(path.join(projectDir, "s1.jsonl"), [
+        mention(0),
+        assistant("m1", 1, [10, 1, 1, 1]),
+      ]);
+      const missing = path.join(projectDir, "gone", "subagents", "agent-x.jsonl");
+      const got = await claudeCodeAdapter.readTranscriptUsage(query({ transcript: missing }));
+      expect(got.usage.input).toBeNull();
+      expect(got.warnings).toEqual([expect.stringContaining("読めない")]);
+      expect(got.warnings[0]).not.toContain(projectDir);
+    });
+
+    it("場所がなくセッション ID があれば、そのセッションの記録だけから推測する", async () => {
+      const { projectDir, query } = await setup();
+      // ほかのセッションの記録には ID が先に出ていても選ばない
+      await writeTranscript(path.join(projectDir, "other.jsonl"), [
+        mention(0),
+        assistant("m0", 1, [1000, 1, 1, 1]),
+      ]);
+      await writeTranscript(path.join(projectDir, "s1", "subagents", "agent-a.jsonl"), [
+        mention(1),
+        assistant("m1", 2, [10, 1, 1, 1]),
+      ]);
+      expect(await usageOf(query({ run: run({ session: "s1" }) }))).toBe(10);
+    });
+
+    it("セッション ID の記録がこのマシンになければ、null にして警告する", async () => {
+      const { projectDir, query } = await setup();
+      await writeTranscript(path.join(projectDir, "other.jsonl"), [
+        mention(0),
+        assistant("m0", 1, [10, 1, 1, 1]),
+      ]);
+      const got = await claudeCodeAdapter.readTranscriptUsage(
+        query({ run: run({ session: "s9" }) }),
+      );
+      expect(got.usage.input).toBeNull();
+      expect(got.warnings).toEqual([expect.stringContaining("別のマシン")]);
+    });
+
+    it("セッションの記録は <session>.jsonl と <session>/subagents/ の下", () => {
+      const p = (...parts: string[]) => path.join("/h", ".claude", "projects", "d", ...parts);
+      expect(inSession(p("s1.jsonl"), "s1")).toBe(true);
+      expect(inSession(p("s1", "subagents", "agent-a.jsonl"), "s1")).toBe(true);
+      expect(inSession(p("s10.jsonl"), "s1")).toBe(false);
+      expect(inSession(p("s2", "subagents", "agent-a.jsonl"), "s1")).toBe(false);
+    });
   });
 });
 
