@@ -65,6 +65,7 @@ function runningRun(ticketId: string): RunView {
     session: null,
     review: null,
     waiting_since: null,
+    settling_since: null,
     running: true,
     duration_seconds: null,
   } as RunView;
@@ -1328,6 +1329,7 @@ describe("画面", () => {
           session: null,
           review: null,
           waiting_since: null,
+          settling_since: null,
           running: true,
           duration_seconds: null,
         } as RunView,

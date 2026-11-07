@@ -10,7 +10,7 @@ import { runCommand, type CommandContext } from "./define.js";
 import { hook, hookTiming, parseMarker, type HookView } from "./hook.js";
 import { runList, runReviewResult, runStart, type RunView } from "./run.js";
 import { commit, configSet, init, sync } from "./setup.js";
-import { ticketCreate } from "./ticket.js";
+import { ticketCreate, ticketUpdate } from "./ticket.js";
 
 const cleanups: Array<() => Promise<void>> = [];
 afterEach(async () => {
@@ -688,5 +688,45 @@ describe("サブエージェントの止まりと再開（ADR-014）", () => {
     expect(view.done).toContainEqual(expect.stringContaining("success で閉じた"));
     const [run] = (await runCommand(runList, ctx, { ticket: "t1" })).data as RunView[];
     expect(run).toMatchObject({ result: "success", review: { heavy: 0, light: 1, passed: true } });
+  });
+
+  it("SessionEnd は PR のある実装のサブエージェントの Run を success で閉じる", async () => {
+    const { ctx, parent, subagent } = await prepared();
+    await runCommand(ticketUpdate, ctx, { ticket: "t1", pr: 12 });
+    await call(ctx, "PostToolUse", launched(parent, "a1", "deguboard: ticket=t1 step=implement"));
+    await subagentRecord(subagent("a1"), "deguboard: ticket=t1 step=implement", 1);
+    await call(ctx, "SessionEnd", { session_id: SESSION });
+    const [run] = (await runCommand(runList, ctx, { ticket: "t1" })).data as RunView[];
+    expect(run).toMatchObject({ step: "implement", result: "success", running: false });
+  });
+
+  it("掃除は質問で止まって待っている Run を、事実がそろっても閉じない（再開を待つ）", async () => {
+    const { ctx, parent, subagent } = await prepared();
+    const prompt = "deguboard: ticket=t1 step=review";
+    await call(ctx, "PostToolUse", launched(parent, "a1", prompt));
+    await subagentRecord(subagent("a1"), prompt, 1);
+    await stop(ctx, subagent("a1"));
+    // 待っている間に結果が書かれても、再開した後の作業を数えるため閉じない
+    await runCommand(runReviewResult, ctx, { ticket: "t1", heavy: 0, light: 0, passed: true });
+    await runCommand(sync, ctx, {});
+    const [run] = await peekRunningRuns(ctx.repo);
+    expect(run).toMatchObject({ step: "review", review: { passed: true } });
+    expect(run!.waiting_since).not.toBeNull();
+  });
+
+  it("書き終わりを待ちきれなかったフックは、同じフックの中ではその Run を閉じない", async () => {
+    const { ctx, parent, subagent } = await prepared();
+    hookTiming.settleMs = 60;
+    hookTiming.pollMs = 20;
+    const prompt = "deguboard: ticket=t1 step=investigate";
+    await call(ctx, "PostToolUse", launched(parent, "a1", prompt));
+    await subagentRecord(subagent("a1"), prompt, 1, [], [{ type: "api-request", id: "q1" }]);
+    // 待ちの上限を過ぎた直後に書かれる
+    const late = setTimeout(() => void appendResponses(subagent("a1"), 5, ["m3"]), 70);
+    const { view, warnings } = await stop(ctx, subagent("a1"));
+    clearTimeout(late);
+    expect(warnings).toContainEqual(expect.stringContaining("まだ閉じない"));
+    expect(view.done.some((d) => d.includes("で閉じた"))).toBe(false);
+    expect((await peekRunningRuns(ctx.repo))[0]!.settling_since).not.toBeNull();
   });
 });

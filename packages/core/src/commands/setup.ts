@@ -354,7 +354,7 @@ export const sync = defineCommand({
   group: "setup",
   summary:
     "リモートの deguboard を取り込み、未 push のコミットを送り、作業ブランチの事実でチケットの状態を進める。作業ブランチの PR を見つけたら、このマシンで実行中の実装の Run を success で閉じる（finished_at は PR の作成時刻）。開いたままの手直しの Run は、次の区切り（同じチケットの次の Run の開始・PR の ready・マージ・チケットの終了）を見たときに、それまでの最後の push の時刻で success にする。" +
-    "記録の書き終わりを待ちきれずに残したサブエージェントの Run（止まって待っている印があり、step を終えた事実のあるもの）も閉じる",
+    "記録の書き終わりを待ちきれずに残したサブエージェントの Run（書き終わり待ちの印 settling_since のあるもの）も、書き終わっていれば閉じる",
   input: z.object({}),
   write: true,
   needs: "store",

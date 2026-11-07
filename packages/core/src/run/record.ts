@@ -61,7 +61,10 @@ export async function putPendingReview(
   await writeFileAtomic(file, `${JSON.stringify(pending)}\n`);
 }
 
-/** 保留の見直しの結果を取り出す。since（Run の開始）より前に置いたものは前の回のものなので使わない。取り出したら消す */
+/**
+ * 保留の見直しの結果を取り出して消す。since（Run の開始）より前に置いたものは前の回のものなので、使わずに消す。
+ * 保留はチケットごとに 1 つで、同じチケットの前景の見直し役を並べて動かすことは扱わない（ADR-014）
+ */
 export async function takePendingReview(
   repo: Pick<GitRepo, "localDir">,
   ticket: TicketId,
@@ -74,8 +77,9 @@ export async function takePendingReview(
   } catch {
     return undefined;
   }
-  if (typeof pending?.at !== "string" || pending.at < since || !pending.review) return undefined;
+  // 前の回の保留（Run の開始より前に置いたもの）は使わないので消す
   await unlink(file).catch(() => undefined);
+  if (typeof pending?.at !== "string" || pending.at < since || !pending.review) return undefined;
   return pending.review;
 }
 
@@ -234,7 +238,8 @@ export async function amendRunning(
   patch:
     | { ticket: TicketId; step: string }
     | { review: RunReview }
-    | { waiting_since: string | null },
+    | { waiting_since: string | null }
+    | { settling_since: string | null },
 ): Promise<Run> {
   return withRunLock(repo, async () => {
     // 集計を書いた後（閉じた後）の実行中の記録には書かない。書いても集計に入らない
@@ -282,6 +287,7 @@ export async function startRun(repo: RunDirs, input: StartRunInput): Promise<Run
       session: input.session ?? null,
       review: null,
       waiting_since: null,
+      settling_since: null,
     };
     // 場所を先に置く。実行中の記録より後に置くと、その間に閉じた Run が場所なしで数えられうる。
     // 相対パスは呼んだ作業ディレクトリで絶対パスにする（finish・refresh・serve は別の場所から呼ばれうる）
@@ -397,6 +403,7 @@ async function closeRunLocked(
   };
   // 止まって待っている印は実行中のものだけで、閉じた Run（Git）には書かない（ADR-014）
   delete closed["waiting_since"];
+  delete closed["settling_since"];
   // 別のプロセスが先に閉じていないか、ファイルで確かめる（索引は古いことがある）
   if ((await hasSummary(repo, id)) || store.runs.has(id)) {
     await removeRunning(repo, id);

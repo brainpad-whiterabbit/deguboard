@@ -562,7 +562,7 @@ export const runReviewResult = defineCommand({
   group: "run",
   summary:
     "見直しの結果（重い・軽い指摘の数と通ったか）を、チケットの見直し（review の step）の Run に書く（ADR-013）。見直し役が指摘の一覧を返す前に 1 回呼ぶ。" +
-    "このマシンで実行中の見直しの Run があればそれに書き（呼び直せば置き換える）、なければチケットの最新の Run が閉じた見直しの Run のときだけ、それに 1 回だけ書く（commit.mode に従ってコミット。後に手直しなどの Run が始まっていれば前の回の見直しなので書かない）。" +
+    "このマシンで実行中の見直しの Run があればそれに書き（呼び直せば置き換える）、なければチケットの最新の Run が閉じた見直しの Run のときだけ、結果がまだなければそれに書く（commit.mode に従ってコミット。後に手直しなどの Run が始まっているか、もう結果があれば前の回の見直しなので書かない）。" +
     "閉じた Run が結果の記録なしに failure で閉じていたら success に直す。どちらもなければ（前景で起動した見直し役）結果を保留にし（pending: true）、フックが見直しの Run を閉じるときに結び付ける（ADR-014）。重い指摘があるのに --passed なら使い方の誤り",
   input: z.object({
     ticket: ticketRef,
@@ -615,15 +615,18 @@ export const runReviewResult = defineCommand({
         ? ctx.store.runs.get(last.run.id)
         : undefined;
     };
-    if (!(await latest())) {
-      // 前景で起動した見直し役は、動いている間に Run がない。保留にして、フックが Run を閉じるときに結び付ける（ADR-014）
+    // 前景で起動した見直し役は、動いている間に Run がない。保留にして、フックが Run を閉じるときに結び付ける（ADR-014）
+    const hold = async () => {
       const at = toIsoDateTime(ctx.now());
       await putPendingReview(ctx.repo, ticket.id, { review, at });
       const view: PendingReviewView = { ticket: ticket.id, review, pending: true, at };
       return ok<Run | PendingReviewView>(view, undefined, [
         `${ticket.id} の見直しの Run がまだないので、結果を保留にした。フックが見直しの Run を閉じるときに結び付ける`,
       ]);
-    }
+    };
+    // 結果のある閉じた Run は前の回の見直し（間に手直しを挟まずに前景の見直しを続けたとき）。書き換えず（RN-4）、保留にする
+    const found = await latest();
+    if (!found || found.data.review !== null) return hold();
     const written = await withWrite(
       ctx,
       async () => {
@@ -636,7 +639,7 @@ export const runReviewResult = defineCommand({
         if (doc.data.review !== null)
           throw new OperationError(
             "REJECTED",
-            `閉じた見直しの Run ${doc.id} には結果が書いてある（閉じた Run の結果は書き換えない。RN-4）`,
+            `閉じた見直しの Run ${doc.id} に、書き込みの間に結果が書かれた（閉じた Run の結果は書き換えない。RN-4）`,
           );
         const unrecorded = doc.data.result === "failure" && doc.data.error === REVIEW_UNRECORDED;
         return (

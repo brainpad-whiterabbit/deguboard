@@ -7,7 +7,7 @@
 //     記録の全体から数えて閉じる。事実がなければ閉じずに止まって待っている印を付ける。
 //     印のある Run がなければ、サブエージェントが自分で開いた Run（記録に ID が出る）に記録の場所を結び付ける（移行期の経路）
 //   - session_end：このセッションのサブエージェントの Run のうち開いたままのものをすべて閉じる。親が自分で開いた Run は残す
-//   どのフックの後も、書き終わりを待ちきれずに残した Run を閉じる（dg sync も同じ）
+//   どのフックの後も、前のフックで書き終わりを待ちきれずに残した Run を閉じる（dg sync も同じ）
 
 import { appendFile, readFile } from "node:fs/promises";
 import path from "node:path";
@@ -112,6 +112,7 @@ async function handle(
   view: HookView,
   warnings: string[],
 ): Promise<void> {
+  const calledAt = toIsoDateTime(ctx.now());
   switch (event.kind) {
     case "session_start":
       return sessionStart(event, view, warnings);
@@ -128,7 +129,7 @@ async function handle(
       return sessionEnd(ctx, event, view, warnings);
   }
   // 記録の書き終わりを待ちきれずに残した Run を、次のフックの機会に閉じる（ADR-014）
-  await closeStoppedRuns(ctx, warnings, view, event.session);
+  await closeStoppedRuns(ctx, warnings, view, event.session, calledAt);
 }
 
 async function sessionStart(
@@ -292,8 +293,8 @@ const isSubagentTranscript = (p: string | undefined) =>
 /**
  * サブエージェントが止まったときの Run の扱い（ADR-014）。記録の最初の文の印で照らしてチケットと step を直し、記録の場所を
  * サブエージェントの記録にする。step を終えた事実（resultOf が success）があり、記録が書き終わっていれば閉じる。
- * 事実がなければ（親への質問で止まったなど）閉じずに止まって待っている印を付ける。記録が書き終わらなければ印を付けて残し、
- * 次のフック・sync・SessionEnd が閉じる（closeStoppedRuns）。settle が false なら書き終わりを待たない
+ * 事実がなければ（親への質問で止まったなど）閉じずに止まって待っている印（waiting_since）を付ける。記録が書き終わらなければ
+ * 書き終わり待ちの印（settling_since）を付けて残し、次のフック・sync・SessionEnd が閉じる（closeStoppedRuns）。settle が false なら書き終わりを待たない
  */
 async function stopSubagentRun(
   ctx: CommandContext,
@@ -330,7 +331,8 @@ async function stopSubagentRun(
     return;
   }
   if (settle && !(await waitSettled(agent, transcript))) {
-    await markWaiting(ctx, run, view);
+    if (run.settling_since === null)
+      await amendRunning(ctx.repo, run.id, { settling_since: toIsoDateTime(ctx.now()) });
     warnings.push(
       `Run ${run.id} の記録の最後の応答が ${hookTiming.settleMs} ミリ秒のうちに書かれなかったので、まだ閉じない（次のフック・dg sync・セッションの終わりで閉じる）`,
     );
@@ -392,28 +394,32 @@ async function closeSubagentRun(
 }
 
 /**
- * 止まって待っている印の付いたサブエージェントの Run のうち、step を終えた事実があり、記録が書き終わったもの（書き終わりを待ちきれなかったもの）を閉じる。
- * フックのたびと dg sync が呼ぶ（ADR-014）。session を渡せばそのセッションの Run だけ
+ * 書き終わり待ちの印（settling_since）の付いたサブエージェントの Run のうち、記録が書き終わったものを閉じる（ADR-014）。
+ * フックのたびと dg sync が呼ぶ。止まって待っている印（質問への答え待ち）の Run は、再開で続くので閉じない。
+ * session を渡せばそのセッションの Run だけ、markedBefore を渡せばその時刻より前に印を付けたものだけ（今のフックで残した Run を、
+ * 同じフックの中で閉じない）
  */
 export async function closeStoppedRuns(
   ctx: CommandContext,
   warnings: string[],
   view: HookView = { event: "", done: [] },
   session?: string,
+  markedBefore?: string,
 ): Promise<void> {
   const paths = await readTranscriptPaths(ctx.repo);
   for (const { data: run } of (await readRunningRuns(ctx.repo)).runs) {
     const transcript = paths.get(run.id);
-    if (run.waiting_since === null || !isSubagentTranscript(transcript) || !hooksOf(run.agent))
+    if (run.settling_since === null || !isSubagentTranscript(transcript) || !hooksOf(run.agent))
       continue;
     if (session !== undefined && run.session !== session) continue;
+    if (markedBefore !== undefined && run.settling_since >= markedBefore) continue;
     // まだ書き終わっていない記録は、待たずに次の機会に回す
     if (!(await hooksOf(run.agent)!.transcriptSettled(transcript!))) continue;
     try {
       await stopSubagentRun(ctx, run.agent, run, transcript!, view, warnings, false);
     } catch (e) {
       warnings.push(
-        `止まった Run ${run.id} を閉じられなかった（${e instanceof Error ? e.message : String(e)}）`,
+        `書き終わりを待っていた Run ${run.id} を閉じられなかった（${e instanceof Error ? e.message : String(e)}）`,
       );
     }
   }
@@ -435,8 +441,10 @@ async function subagentStarted(
       r.data.session === event.session,
   )?.data;
   // 初めての起動（Run は起動の呼び出しが返ってから開く）と、印のない Run は何もしない
-  if (!run || run.waiting_since === null) return;
+  if (!run || (run.waiting_since === null && run.settling_since === null)) return;
   await amendRunning(ctx.repo, run.id, { waiting_since: null });
+  // 続きの作業があるので、書き終わり待ちもやめる（次の Stop がもう一度決める）
+  if (run.settling_since !== null) await amendRunning(ctx.repo, run.id, { settling_since: null });
   view.done.push(`${run.ticket} の ${run.step} の Run ${run.id} を続きとして使う（印を消した）`);
 }
 

@@ -680,8 +680,13 @@ describe("run review-result（見直しの結果。ADR-013）", () => {
       review: { heavy: 1, light: 0, passed: false },
     });
     expect(ctx.store.runs.get(older.id)!.data.review).toBeNull();
-    // 閉じた Run の結果は書き換えない（RN-4）
-    await expect(record(ctx, "t1", 0, 0, true)).rejects.toMatchObject({ code: "REJECTED" });
+    // 閉じた Run の結果は書き換えず（RN-4）、前の回の見直しとして保留にする（ADR-014）
+    expect((await record(ctx, "t1", 0, 0, true)).data).toMatchObject({ pending: true });
+    expect(ctx.store.runs.get(latest.id)!.data.review).toEqual({
+      heavy: 1,
+      light: 0,
+      passed: false,
+    });
   });
 
   it("閉じた見直しの Run の後に別の Run（手直しなど）が始まっていれば、前の回の見直しなので書かずに保留にする", async () => {
@@ -1396,6 +1401,7 @@ describe("run refresh の取り直し（RN-4・MT-5）", () => {
       ...a,
       // 止まって待っている印は閉じた Run に書かない（ADR-014）
       waiting_since: undefined,
+      settling_since: undefined,
       model: "claude-opus-from-transcript",
       usage: { input: 3, output: 4, cache_read: 50, cache_write: 6 },
     });

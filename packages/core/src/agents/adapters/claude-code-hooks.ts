@@ -119,6 +119,8 @@ async function firstPrompt(transcript: string): Promise<string | undefined> {
 
 /**
  * 記録が書き終わっているか：最後の api-request の行の後に、使用量（message.usage）付きの assistant の行がある。
+ * 応答が複数のブロックの行に分かれても、実機（2026-11-07、2.1.318）では最後の応答の行は止まってから 0.5 秒以内にまとめて書かれ、
+ * その後は増えないので、最初の使用量付きの行で書き終わりとみなす（stop_reason は行ごとに付くかを確かめていないので見ない）。
  * api-request の行がなければ待つものがないので true。読めなければ true
  */
 async function transcriptSettled(transcript: string): Promise<boolean> {
