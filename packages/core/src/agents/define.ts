@@ -96,6 +96,18 @@ export type HookEvent =
       agentId: string;
       transcript: string | null;
     }
+  /**
+   * ツールを使う前（PreToolUse）。tool は bash（command がコマンドの文字列）か write（path が書くファイル）。
+   * cwd はフックが呼ばれた作業ディレクトリ（相対パスとブランチの解決に使う）
+   */
+  | {
+      kind: "tool_requested";
+      session: string;
+      tool: "bash" | "write";
+      command: string | null;
+      path: string | null;
+      cwd: string | null;
+    }
   /** セッションの終わり */
   | { kind: "session_end"; session: string };
 
@@ -119,6 +131,8 @@ export interface HookSupport {
    * （待っても変わらない）
    */
   transcriptSettled(transcript: string): Promise<boolean>;
+  /** ツールの使用を拒むときにフックが標準出力に書く文（製品の形）。理由はエージェントに返る */
+  denyOutput(event: string, reason: string): string;
   /** 会話記録の置き場所。run start・ticket claim の --transcript はこの下だけを受け付ける */
   transcriptRoot(env: AgentEnv): string;
 }

@@ -40,7 +40,7 @@ const settingsOf = async (file: string) =>
   >;
 
 describe("dg hooks install / uninstall（ADR-012）", () => {
-  it("install はリポジトリの .claude/settings.json に 5 つのイベントのフックを書き、もう一度実行しても重ねず、手で足したフックとほかの設定を残す", async () => {
+  it("install はリポジトリの .claude/settings.json に 6 つのイベントのフックを書き、もう一度実行しても重ねず、手で足したフックとほかの設定を残す", async () => {
     const cwd = await repo();
     const file = path.join(cwd, ".claude", "settings.json");
     await mkdir(path.dirname(file), { recursive: true });
@@ -68,7 +68,14 @@ describe("dg hooks install / uninstall（ADR-012）", () => {
       },
     ]);
     expect(Object.keys(settings.hooks).sort()).toEqual(
-      ["PostToolUse", "SessionEnd", "SessionStart", "SubagentStart", "SubagentStop"].sort(),
+      [
+        "PostToolUse",
+        "PreToolUse",
+        "SessionEnd",
+        "SessionStart",
+        "SubagentStart",
+        "SubagentStop",
+      ].sort(),
     );
   });
 
@@ -107,7 +114,7 @@ describe("dg hooks install / uninstall（ADR-012）", () => {
     const home = await tempHome();
     expect((await dg(cwd, ["hooks", "install", "--personal"], { HOME: home })).code).toBe(0);
     const settings = await settingsOf(path.join(home, ".claude", "settings.json"));
-    expect(Object.keys(settings.hooks)).toHaveLength(5);
+    expect(Object.keys(settings.hooks)).toHaveLength(6);
   });
 });
 

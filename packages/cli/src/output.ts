@@ -46,8 +46,10 @@ export function printHuman(
   const group = commandName.split(".")[0] ?? "";
   if (commandName === "hook") {
     // フックの標準出力は harness が会話に足しうる（SessionStart など）ので、何も出さず標準エラーにだけ書く
-    for (const line of (data as { done?: string[] } | undefined)?.done ?? [])
-      streams.err(`dg hook: ${line}`);
+    const view = data as { done?: string[]; output?: string } | undefined;
+    for (const line of view?.done ?? []) streams.err(`dg hook: ${line}`);
+    // ツールの使用を拒むときの文（製品の形）だけは標準出力に書き、harness が読む
+    if (view?.output) streams.out(view.output);
   } else if (commandName === "ask" && isAskView(data)) {
     // 依頼文はそのまま貼れるよう標準出力に文だけを出し、候補は標準エラーに出す
     streams.out(data.text);

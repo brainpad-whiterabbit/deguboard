@@ -5,9 +5,10 @@ import { afterEach, describe, expect, it } from "vitest";
 import { createFixture } from "../../test/helpers/git-fixture.js";
 import type { Run } from "../model/run.js";
 import { peekRunningRuns, readTranscriptPaths } from "../run/record.js";
+import { resetGhCache } from "../git/facts.js";
 import { openContext } from "./context.js";
 import { runCommand, type CommandContext } from "./define.js";
-import { hook, hookTiming, parseMarker, type HookView } from "./hook.js";
+import { hook, hookTiming, parseGhPr, parseMarker, writesDataDir, type HookView } from "./hook.js";
 import { runList, runReviewResult, runStart, type RunView } from "./run.js";
 import { commit, configSet, init, sync } from "./setup.js";
 import { ticketCreate, ticketUpdate } from "./ticket.js";
@@ -728,5 +729,195 @@ describe("サブエージェントの止まりと再開（ADR-014）", () => {
     expect(warnings).toContainEqual(expect.stringContaining("まだ閉じない"));
     expect(view.done.some((d) => d.includes("で閉じた"))).toBe(false);
     expect((await peekRunningRuns(ctx.repo))[0]!.settling_since).not.toBeNull();
+  });
+});
+
+describe("PreToolUse（t532）", () => {
+  it("Bash の .git/deguboard/ への書き込みだけを拒み、読むだけのコマンドは通す", () => {
+    for (const c of [
+      "echo x > .git/deguboard/tickets/t1.md",
+      "cat a | tee -a /r/.git/deguboard/config.yaml",
+      "rm -rf .git/deguboard/runs",
+      "sed -i 's/a/b/' .git/deguboard/tickets/t1.md",
+      "git -C .git/deguboard commit -m x",
+      "cp x.md .git/deguboard/tickets/",
+      "cd .git/deguboard && git commit -am x",
+      "git -C .git/deguboard -c a=b commit -m x",
+      "perl -pi -e 's/a/b/' .git/deguboard/x",
+      'echo "a b" >> /r/.git/deguboard/config.yaml',
+      "FOO=1 rm .git/deguboard/x",
+      "sudo rm -rf .git/deguboard",
+      "(rm .git/deguboard/x)",
+      "cd .git/deguboard && echo hi > tickets/t1.md",
+      "echo x >| .git/deguboard/a",
+      "cp -t .git/deguboard a",
+      "sed --in-place s/a/b/ .git/deguboard/x",
+      "find .git/deguboard -name x -delete",
+      "if true; then rm .git/deguboard/x; fi",
+      "for f in a; do rm .git/deguboard/$f; done",
+      "{ rm .git/deguboard/x; }",
+      "sudo -u root rm .git/deguboard/x",
+      "nice -n 5 rm .git/deguboard/x",
+      "pushd .git/deguboard && rm x",
+      "git --git-dir=.git/deguboard/.git commit -m x",
+      "tar -xf a.tar -C .git/deguboard",
+      "find .git/deguboard -exec rm {} +",
+      "cp a .git/deguboard/b 2>/dev/null",
+      "mv x .git/deguboard/y >/dev/null 2>&1",
+      "echo x 2> .git/deguboard/err",
+      "echo $((1<<2))\nrm .git/deguboard/x",
+      "cd .git/deguboard && case $x in a) echo;; esac; rm y",
+      "function f { rm .git/deguboard/x; }",
+    ])
+      expect(writesDataDir(c), c).toBe(true);
+    for (const c of [
+      "cat .git/deguboard/tickets/t1.md",
+      "ls .git/deguboard",
+      "git -C .git/deguboard log --oneline -1",
+      "mise run dg -- ticket update t1 --pr 3",
+      "grep -rn x .git/deguboard 2>/dev/null",
+      "cp .git/deguboard/tickets/t1.md /tmp/x",
+      'grep -rn "install" .git/deguboard',
+      "cat .git/deguboard/a 2>&1 | tee /tmp/out",
+      "(cd .git/deguboard && ls); rm x",
+      "cd .git/deguboard && cd ../.. && rm x",
+      "find .git/deguboard -name '*.md' -exec grep -l foo {} +",
+      "git commit -F - <<'EOF'\nrm .git/deguboard/x と書く\nEOF",
+      "tar -czf box.tar -C .git/deguboard .",
+    ])
+      expect(writesDataDir(c), c).toBe(false);
+  });
+
+  it("gh pr merge・ready の PR の指定をすべて読み、値を取るフラグ・引用符・前の代入と包むコマンド・cd を考える", () => {
+    expect(parseGhPr("gh pr merge 12 --squash")).toEqual([
+      { action: "merge", selector: "12", undo: false, dir: undefined },
+    ]);
+    expect(parseGhPr("gh pr merge --repo o/r --squash feat/x")[0]).toMatchObject({
+      selector: "feat/x",
+    });
+    expect(parseGhPr("gh pr ready 3 --undo")[0]).toMatchObject({ undo: true });
+    expect(parseGhPr("gh pr view 3")).toEqual([]);
+    expect(parseGhPr('gh pr merge --squash --subject "a b" 7')[0]).toMatchObject({ selector: "7" });
+    expect(parseGhPr("gh -R o/r pr merge 5")[0]).toMatchObject({ action: "merge", selector: "5" });
+    expect(parseGhPr("cd a && cd b && gh pr ready")[0]).toMatchObject({
+      selector: undefined,
+      dir: path.join("a", "b"),
+    });
+    // 前の環境変数の代入・包むコマンド・括弧を読み飛ばす
+    for (const c of [
+      "DEGUBOARD_ACTOR=agent gh pr merge 482",
+      "GH_REPO=o/r gh pr merge 482",
+      "env gh pr merge 482",
+      "command gh pr merge 482",
+      "time gh pr merge 482",
+      "(cd /x && gh pr merge 482)",
+      "gh pr merge 482 --squash 2>&1 | tail -1",
+    ])
+      expect(
+        parseGhPr(c).map((g) => g.selector),
+        c,
+      ).toEqual(["482"]);
+    // 後ろの呼び出しも判定する
+    expect(parseGhPr("gh pr ready 482 && gh pr merge 482 --squash").map((g) => g.action)).toEqual([
+      "ready",
+      "merge",
+    ]);
+    expect(parseGhPr("gh pr merge 1; gh pr merge 482").map((g) => g.selector)).toEqual([
+      "1",
+      "482",
+    ]);
+    // 予約語の中の呼び出しも読み、ヒアドキュメントの本文と括弧の外の cd は持ち越さない
+    for (const c of [
+      "for p in 1 2; do gh pr merge 482; done",
+      "if gh pr merge 482; then echo ok; fi",
+      "{ gh pr merge 482; }",
+      "! gh pr merge 482",
+      "sudo -u me gh pr merge 482",
+    ])
+      expect(
+        parseGhPr(c).map((g) => g.selector),
+        c,
+      ).toEqual(["482"]);
+    expect(parseGhPr("git commit -F - <<EOF\ngh pr merge 482 を止める\nEOF\n")).toEqual([]);
+    expect(parseGhPr("(cd /a && ls); gh pr merge")[0]).toMatchObject({ dir: undefined });
+    // リダイレクトの fd・行き先とヒアドキュメントの終わりの語を PR の指定と取り違えない
+    for (const c of [
+      "gh pr merge --squash --delete-branch 2>&1",
+      "gh pr merge --squash --delete-branch 2>&1 | tail -1",
+      "gh pr ready 2>/dev/null",
+      "gh pr merge --squash > /tmp/out",
+      "gh pr merge --squash --body-file - <<'EOF'\n本文\nEOF",
+    ])
+      expect(
+        parseGhPr(c).map((g) => g.selector),
+        c,
+      ).toEqual([undefined]);
+    expect(parseGhPr("function f { gh pr merge 482; }").map((g) => g.selector)).toEqual(["482"]);
+  });
+
+  /** 偽の gh（PR はいつも見つからない）。実際の gh がテストで GitHub を読まないように */
+  async function noGh(home: string) {
+    const bin = path.join(home, "fake-bin");
+    await mkdir(bin, { recursive: true });
+    await writeFile(
+      path.join(bin, "gh"),
+      '#!/bin/sh\ncase "$1" in --version) echo fake; exit 0;; esac\necho "no pull requests found" >&2; exit 1\n',
+      { mode: 0o755 },
+    );
+    const saved = process.env["PATH"];
+    process.env["PATH"] = bin + path.delimiter + (saved ?? "");
+    resetGhCache();
+    cleanups.push(async () => {
+      process.env["PATH"] = saved;
+      resetGhCache();
+    });
+  }
+
+  const pre = (ctx: CommandContext, toolInput: Record<string, unknown>, tool = "Bash") =>
+    runCommand(hook, ctx, {
+      event: "PreToolUse",
+      payload: {
+        session_id: SESSION,
+        tool_name: tool,
+        tool_input: toolInput,
+        cwd: ctx.repo.topLevel,
+      },
+    });
+
+  it("書くツールの .git/deguboard/ の下のパスを拒み、拒む文を Adapter の形で返す。外のパスは通す", async () => {
+    const { ctx } = await prepared();
+    const denied = await pre(
+      ctx,
+      { file_path: path.join(ctx.repo.dataDir, "tickets", "t1.md") },
+      "Write",
+    );
+    const out = JSON.parse((denied.data as HookView).output!) as {
+      hookSpecificOutput: { permissionDecision: string; permissionDecisionReason: string };
+    };
+    expect(out.hookSpecificOutput.permissionDecision).toBe("deny");
+    expect(out.hookSpecificOutput.permissionDecisionReason).toContain("dg のコマンド");
+    const allowed = await pre(ctx, { file_path: "src/a.ts" }, "Edit");
+    expect((allowed.data as HookView).output).toBeUndefined();
+  });
+
+  it("gh pr merge は品質ゲートを満たさないチケットの PR を止めて理由を返し、チケットのない PR は止めない", async () => {
+    const { ctx, home } = await prepared();
+    await noGh(home);
+    await runCommand(ticketUpdate, ctx, { ticket: "t1", pr: 5 });
+    const denied = await pre(ctx, { command: "gh pr merge 5 --squash" });
+    const reason = (
+      JSON.parse((denied.data as HookView).output!) as {
+        hookSpecificOutput: { permissionDecisionReason: string };
+      }
+    ).hookSpecificOutput.permissionDecisionReason;
+    expect(reason).toContain("dg gate t1 --for merge");
+    expect(reason).toContain("pr:");
+    expect(reason).toContain("人に gh pr merge を打ってもらう");
+    const other = await pre(ctx, { command: "gh pr merge 99 --squash" });
+    expect((other.data as HookView).output).toBeUndefined();
+    expect((other.data as HookView).done).toEqual([expect.stringContaining("チケットがない")]);
+    // 取り消し（--undo）と、ほかの gh のコマンドは見ない
+    expect((await pre(ctx, { command: "gh pr ready 5 --undo" })).data).toMatchObject({ done: [] });
+    expect((await pre(ctx, { command: "gh pr view 5" })).data).toMatchObject({ done: [] });
   });
 });
