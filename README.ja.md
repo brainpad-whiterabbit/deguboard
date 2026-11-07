@@ -79,7 +79,7 @@ Activity Bar の deguboard のアイコンでカンバンが開きます。上�
 
 ### 最後まで任せる
 
-作りたいものを `/dgall --auto`（Claude Code の場合）を付けて頼むと、エージェントが起票・計画・実装を続けて進めます。ボードでは進み具合を見守れ、計画の帯を押すと依存をグラフで見られます。ほかのエージェントには「`dg guide all` を読んで、`--auto` で最後まで進めて」と頼みます。
+作りたいものを `/dgall --auto`（Claude Code の場合）を付けて頼むと、エージェントが作りたいものから起票し、割り当て・計画・実装を続けて進めます。マージやリリースなど人が決める所で止まります。ボードでは進み具合を見守れ、計画の帯を押すと依存をグラフで見られます。ほかのエージェントには「`dg guide all` を読んで、`--auto` で最後まで進めて」と頼みます。
 
 <img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/run-all.gif" alt="最後まで任せる" width="560">
 
