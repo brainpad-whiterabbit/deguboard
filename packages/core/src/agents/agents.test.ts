@@ -883,3 +883,93 @@ describe("Core の汎用部分は特定の AI 製品を知らない（AG-5）", 
     expect(offenders).toEqual([]);
   });
 });
+
+describe("Claude Code のフックの入力（ADR-012）", () => {
+  const hooks = claudeCodeAdapter.hooks!;
+  const parent = "/h/.claude/projects/d/s1.jsonl";
+
+  it("SessionStart は CLAUDE_ENV_FILE を、PostToolUse（Agent）はサブエージェントの記録のパスと前景かを読む", () => {
+    expect(
+      hooks.parse(
+        "SessionStart",
+        { session_id: "s1", transcript_path: parent },
+        { CLAUDE_ENV_FILE: "/e" },
+      ),
+    ).toEqual({ kind: "session_start", session: "s1", transcript: parent, envFile: "/e" });
+    const base = {
+      session_id: "s1",
+      transcript_path: parent,
+      tool_name: "Agent",
+      tool_input: { prompt: "deguboard: ticket=t1 step=review" },
+    };
+    expect(
+      hooks.parse(
+        "PostToolUse",
+        { ...base, tool_response: { status: "async_launched", agentId: "a1" } },
+        {},
+      ),
+    ).toMatchObject({
+      kind: "subagent_launched",
+      agentId: "a1",
+      transcript: path.join("/h/.claude/projects/d", "s1", "subagents", "agent-a1.jsonl"),
+      finished: false,
+      lastMessage: null,
+    });
+    expect(
+      hooks.parse(
+        "PostToolUse",
+        {
+          ...base,
+          tool_response: {
+            status: "completed",
+            agentId: "a1",
+            totalDurationMs: 5,
+            content: [
+              { type: "text", text: "<tools-used-before-summary>x</tools-used-before-summary>" },
+              { type: "text", text: "結果" },
+            ],
+          },
+        },
+        {},
+      ),
+    ).toMatchObject({ finished: true, lastMessage: "結果", durationMs: 5 });
+    // Agent 以外のツールと、agentId のない応答は扱わない
+    expect(hooks.parse("PostToolUse", { ...base, tool_name: "Bash" }, {})).toBeUndefined();
+    expect(hooks.parse("PostToolUse", { ...base, tool_response: {} }, {})).toBeUndefined();
+  });
+
+  it("SubagentStop・SessionEnd を読み、扱わないイベントと session_id のない入力は undefined", () => {
+    expect(
+      hooks.parse(
+        "SubagentStop",
+        {
+          session_id: "s1",
+          agent_id: "a1",
+          agent_transcript_path: "/x.jsonl",
+          last_assistant_message: "m",
+        },
+        {},
+      ),
+    ).toEqual({
+      kind: "subagent_stopped",
+      session: "s1",
+      agentId: "a1",
+      transcript: "/x.jsonl",
+      lastMessage: "m",
+    });
+    expect(hooks.parse("SessionEnd", { session_id: "s1" }, {})).toEqual({
+      kind: "session_end",
+      session: "s1",
+    });
+    expect(hooks.parse("SubagentStart", { session_id: "s1", agent_id: "a1" }, {})).toBeUndefined();
+    expect(hooks.parse("SessionEnd", {}, {})).toBeUndefined();
+  });
+
+  it("設定のファイルと会話記録の置き場所は CLAUDE_CONFIG_DIR か ~/.claude の下", () => {
+    expect(hooks.settings.project("/repo")).toBe(path.join("/repo", ".claude", "settings.json"));
+    expect(hooks.settings.personal({ HOME: "/h" })).toBe(
+      path.join("/h", ".claude", "settings.json"),
+    );
+    expect(hooks.transcriptRoot({ CLAUDE_CONFIG_DIR: "/c" })).toBe(path.join("/c", "projects"));
+  });
+});

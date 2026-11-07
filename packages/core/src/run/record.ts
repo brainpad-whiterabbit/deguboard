@@ -166,6 +166,39 @@ export async function readTranscriptPaths(
   return paths;
 }
 
+/** Run の会話記録のパスを置き換える（フックがサブエージェントの記録を結び付けるとき。ADR-012）。パスは絶対パスにする */
+export async function bindTranscript(
+  repo: Pick<GitRepo, "localDir">,
+  id: RunId,
+  transcript: string,
+): Promise<void> {
+  await writeFileAtomic(
+    path.join(repo.localDir, transcriptPath(id)),
+    `${JSON.stringify({ path: path.resolve(transcript) })}\n`,
+  );
+}
+
+/**
+ * 実行中の Run のチケットと step を直す（フックが開いた Run を、サブエージェントの記録の印で照らして直すとき。ADR-012）。
+ * 実行中の記録がなければ NOT_FOUND
+ */
+export async function amendRunning(
+  repo: RunDirs,
+  id: RunId,
+  patch: { ticket: TicketId; step: string },
+): Promise<Run> {
+  return withRunLock(repo, async () => {
+    const result = await readDoc(repo.localDir, runPath(id), "json", runSchema, id);
+    if (!result.ok) throw new OperationError("NOT_FOUND", `実行中の Run ${id} が見つからない`);
+    const next = { ...(result.doc.yaml.toJS() as Record<string, unknown>), ...patch };
+    await writeFileAtomic(
+      path.join(repo.localDir, runPath(id)),
+      `${JSON.stringify(next, null, 2)}\n`,
+    );
+    return runSchema.parse(next);
+  });
+}
+
 /** 実行中の Run を deguboard-local/runs/ に置く。同じチケットと step の Run が実行中なら拒否する */
 export async function startRun(repo: RunDirs, input: StartRunInput): Promise<Run> {
   return withRunLock(repo, async () => {

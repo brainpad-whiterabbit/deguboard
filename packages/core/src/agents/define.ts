@@ -62,6 +62,55 @@ export interface SkillDirs {
   personal(env: AgentEnv): string;
 }
 
+/**
+ * harness のフックの出来事を、製品によらない形にしたもの（ADR-005・ADR-012）。Core の hook のコマンドはこれだけを見る。
+ * transcript は記録のファイルの絶対パス（取れなければ null）
+ */
+export type HookEvent =
+  /** セッションの始まり。envFile は以後の Bash の環境に入れる export を書くファイル */
+  | { kind: "session_start"; session: string; transcript: string | null; envFile: string | null }
+  /**
+   * サブエージェントを起動した呼び出しが返った。prompt は頼んだ文の全文、transcript はサブエージェントの記録のパス。
+   * finished は呼び出しが返った時点でサブエージェントが終わっていたか（前景の起動。終わりの出来事はこれより先に来る）で、
+   * そのとき lastMessage は返った文
+   */
+  | {
+      kind: "subagent_launched";
+      session: string;
+      agentId: string;
+      prompt: string;
+      model: string | null;
+      transcript: string | null;
+      finished: boolean;
+      lastMessage: string | null;
+      /** 前景の起動でかかった時間（ミリ秒）。分からなければ null */
+      durationMs: number | null;
+    }
+  /** サブエージェントが終わった。lastMessage は最後の応答の文 */
+  | {
+      kind: "subagent_stopped";
+      session: string;
+      agentId: string;
+      transcript: string | null;
+      lastMessage: string | null;
+    }
+  /** セッションの終わり */
+  | { kind: "session_end"; session: string };
+
+/** この製品のフック（AG-5）。dg hooks install が設定に書き、dg hook が入力を出来事に変える */
+export interface HookSupport {
+  /** 設定に入れるフック。event は製品のイベント名、matcher はその製品の matcher（省けばすべて） */
+  events: ReadonlyArray<{ event: string; matcher?: string }>;
+  /** フックを書く設定のファイル。project はリポジトリ（topLevel は作業ツリーの最上位）、personal は個人 */
+  settings: { project(topLevel: string): string; personal(env: AgentEnv): string };
+  /** フックの入力（製品の JSON）を出来事に変える。扱わないイベントや形の違う入力は undefined */
+  parse(event: string, input: unknown, env: AgentEnv): HookEvent | undefined;
+  /** サブエージェントの記録の最初の文（頼んだ文）。読めなければ undefined。印を照らすのに使う */
+  firstPrompt(transcript: string): Promise<string | undefined>;
+  /** 会話記録の置き場所。run start・ticket claim の --transcript はこの下だけを受け付ける */
+  transcriptRoot(env: AgentEnv): string;
+}
+
 export interface AgentAdapter {
   /** Run の agent の値。この名前の Run の使用量を取り込む */
   name: string;
@@ -69,6 +118,8 @@ export interface AgentAdapter {
   readTranscriptUsage(query: UsageQuery): Promise<CollectedUsage>;
   /** この製品が Skill を読むディレクトリ。Skill のない製品は持たない */
   skillDirs?: SkillDirs;
+  /** この製品のフック。フックのない製品は持たない（主体は申告、Run は run start と claim で開く） */
+  hooks?: HookSupport;
   /**
    * dg を呼んだプロセスの環境変数から、この製品のエージェントが呼んだかを判定する（run start と ticket claim が --agent を省いたときに使う）。
    * 製品が公に付ける変数が確かめられない Adapter は持たない（判定しない）。推測した変数名で判定しない

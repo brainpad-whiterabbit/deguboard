@@ -32,9 +32,10 @@ AI エージェントに仕事を任せるための、Git リポジトリの中�
 
    ```sh
    dg skill install
+   dg hooks install
    ```
 
-   ほかのエージェントでは準備は要らず、「`dg guide` を読んでから `dg` で進めて」と頼みます。
+   `dg hooks install` は Claude Code のフックを入れ、セッションをエージェントとして扱い、最初の行に `deguboard: ticket=<id> step=<step>` と書いて頼んだサブエージェントを Run として記録します。ほかのエージェントでは準備は要らず、「`dg guide` を読んでから `dg` で進めて」と頼みます。
 
 5. **ボードを開く**：Activity Bar の deguboard のアイコンを押します。
 
@@ -114,6 +115,7 @@ dg config set notify.approvals false --local
 - 拡張が呼ぶコマンドは `git`・`gh`・`dg --version` だけで、どれもシェルを通しません（同期の rebase で git がマージドライバを `sh -c` で動かすのは git の仕様です）。
 - git の設定が任意のコマンドを実行させ得るため、信頼したフォルダーでだけ動きます（制限モードと仮想ワークスペースでは動きません）。
 - `dg skill install` が書く Skill は `dg guide` を読ませる文面だけで、スクリプトもツールの許可も持ちません。`--dry-run` で中身を見られます。
+- `dg hooks install` が書くフックは `dg hook <イベント>` を呼ぶだけで、Run を記録し、`~/.claude/projects/` の下の会話記録を読みます。`--dry-run` で設定を見られ、`dg hooks uninstall` で外せます。
 - 脆弱性の報告先は [SECURITY.md](SECURITY.md) にあります。
 
 ## ほかの使い方

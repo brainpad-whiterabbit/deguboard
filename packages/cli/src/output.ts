@@ -44,7 +44,11 @@ export function printHuman(
 ): void {
   const data = result.data;
   const group = commandName.split(".")[0] ?? "";
-  if (commandName === "ask" && isAskView(data)) {
+  if (commandName === "hook") {
+    // フックの標準出力は harness が会話に足しうる（SessionStart など）ので、何も出さず標準エラーにだけ書く
+    for (const line of (data as { done?: string[] } | undefined)?.done ?? [])
+      streams.err(`dg hook: ${line}`);
+  } else if (commandName === "ask" && isAskView(data)) {
     // 依頼文はそのまま貼れるよう標準出力に文だけを出し、候補は標準エラーに出す
     streams.out(data.text);
     streams.err(

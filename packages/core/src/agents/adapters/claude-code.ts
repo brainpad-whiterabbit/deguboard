@@ -42,13 +42,11 @@ import {
   timeOf,
   TIMESTAMPS,
 } from "./transcript.js";
+import { claudeCodeHooks, claudeConfigDir } from "./claude-code-hooks.js";
 
 type Counts = CollectedUsage["usage"];
 
-/** 会話記録の置き場所。CLAUDE_CONFIG_DIR があればそこ、なければ ~/.claude */
-function configDir(env: AgentEnv): string {
-  return env["CLAUDE_CONFIG_DIR"] || path.join(homeDir(env), ".claude");
-}
+const configDir = claudeConfigDir;
 
 /** 作業ディレクトリから projects/ の下のディレクトリ名を作る（英数字以外を - にする） */
 export function projectDirName(dir: string): string {
@@ -237,6 +235,7 @@ export const claudeCodeAdapter: AgentAdapter = {
     project: (topLevel) => path.join(topLevel, ".claude", "skills"),
     personal: (env) => path.join(homeDir(env), ".claude", "skills"),
   },
+  hooks: claudeCodeHooks,
   async readTranscriptUsage(query) {
     // 時刻は秒までなので、終わりはその秒の終わりまで含める
     const to = Date.parse(query.finishedAt) + 999;

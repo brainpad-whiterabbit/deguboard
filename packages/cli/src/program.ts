@@ -25,6 +25,7 @@ import { toErrorView, type ErrorView } from "./errors.js";
 import { GUIDE_TOPICS, renderGuide } from "./guide.js";
 import { serveMcp } from "./mcp.js";
 import { installSkill, skillInstallWarnings } from "./skill.js";
+import { installHooks, uninstallHooks } from "./hooks.js";
 import { addServeCommands } from "./serve.js";
 import { bindInputs, collectInput, shapesOf } from "./options.js";
 import {
@@ -222,6 +223,66 @@ export function buildProgram(options: ProgramOptions = {}): Command {
       }
     });
 
+  // hooks も CLI の責務。書くイベントと置き場所は Adapter の hooks が決め、フックが呼ぶのは core の hook コマンド（ADR-012）
+  const hooksCmd = program
+    .command("hooks")
+    .description("harness（Claude Code）のフックの操作")
+    .helpCommand("help [command]", "コマンドの使い方を出す")
+    .exitOverride()
+    .configureOutput(program.configureOutput());
+  for (const action of ["install", "uninstall"] as const) {
+    hooksCmd
+      .command(action)
+      .description(
+        action === "install"
+          ? "Claude Code の設定（<リポジトリ>/.claude/settings.json）に dg hook を呼ぶフックを書く。主体を agent にし、頼んだ文の先頭に印 `deguboard: ticket=<id> step=<step>` のあるサブエージェントの Run を起動で開いて終わりで閉じる。もう一度実行しても重ならず、手で足したフックは残す"
+          : "Claude Code の設定から dg のフックだけを外す。手で足したフックは残す",
+      )
+      .option("--personal", "リポジトリではなく個人の設定（~/.claude/settings.json）に書く")
+      .option(
+        "--command <cmd>",
+        "フックが dg を呼ぶコマンド。既定は dg。PATH に dg がなければ npx deguboard など（install だけ）",
+      )
+      .option("--dry-run", "何も書かず、書くことになる設定の全体を出す")
+      .exitOverride()
+      .configureOutput(program.configureOutput())
+      .action(async (opts: { personal?: boolean; command?: string; dryRun?: boolean }) => {
+        const global = program.opts<{ json?: boolean; C?: string }>();
+        try {
+          const base = {
+            cwd: resolve(options.cwd ?? process.cwd(), global.C ?? "."),
+            scope: opts.personal ? ("personal" as const) : ("project" as const),
+            env,
+            dryRun: opts.dryRun ?? false,
+          };
+          const result =
+            action === "install"
+              ? await installHooks({ ...base, command: opts.command })
+              : await uninstallHooks(base);
+          if (global.json)
+            streams.out(
+              JSON.stringify({ ok: true, data: result, warnings: [], write: null }, null, 2),
+            );
+          else {
+            if (result.dryRun) streams.out("--dry-run：何も書いていない");
+            streams.out(`設定のファイル：${result.file}`);
+            streams.out(
+              result.unchanged
+                ? "変わらなかった"
+                : `${action === "install" ? "入れた" : "外した"}：${result.events.join(", ")}`,
+            );
+            if (result.content) streams.out(`\n${result.content}`);
+          }
+          process.exitCode = 0;
+        } catch (error) {
+          const view = toErrorView(error);
+          if (global.json) printJsonError(streams, view);
+          else printError(streams, view);
+          process.exitCode = view.exitCode;
+        }
+      });
+  }
+
   // git が rebase の中から呼ぶマージドライバ（SY-4）。利用者が打つものではないのでヘルプに出さない。
   // 文脈（ロック・Store）を開かない：sync がロックを持ったまま rebase するので、開くと待ち合う
   program
@@ -323,6 +384,8 @@ export function buildProgram(options: ProgramOptions = {}): Command {
           initialize,
           mergeDriver,
           actions: ACTION_NAMES,
+          // テストが渡した環境（HOME・CLAUDE_ENV_FILE など）をコマンドにも渡す。渡さなければ process.env
+          ...(options.env ? { env: options.env } : {}),
         });
         result = await runCommand(def, ctx, input);
       } catch (error) {
