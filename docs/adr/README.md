@@ -18,3 +18,4 @@
 | [ADR-008](ADR-008-tech-stack.md)                   | 技術構成と開発環境                       | 技術構成           | 2026-11-06 |
 | [ADR-009](ADR-009-epic-and-iteration.md)           | Epic と Iteration                        | チケットのまとまり | 2026-11-03 |
 | [ADR-010](ADR-010-ui-writes-and-agent-requests.md) | 画面からの書き込みとエージェントへの依頼 | UI の書き込み      | 2026-11-06 |
+| [ADR-011](ADR-011-procedure-in-code.md)            | 既定の手続きは dg のコードが持つ         | ワークフロー       | 2026-11-07 |
