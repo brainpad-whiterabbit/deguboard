@@ -13,7 +13,7 @@ after:
   t511:
     - t515
     - t516
-pending_approval: true
+pending_approval: false
 details:
   t510:
     scope: /dgall --auto の README・GIF の説明と guide-all の対象の定義を同じ流れにする
@@ -55,3 +55,5 @@ details:
     scope: lint の Run のテストを偽の gh で包み、cliEnv で agent の判定に効く環境変数を外す
     approach: t514 の後に commands.test.ts と env.ts を直す
     tier: standard
+approved_by: maji/agent
+approved_at: 2026-11-07T13:48:43Z
