@@ -47,4 +47,4 @@ deguboard は Git で管理するチケットのツール。あなた（AI エ�
 | done     | dgdone    | マージ後の後始末と残った受け入れ条件の確認、Plan を閉じる                                                                         | PR がマージされたあと                                          |
 | all      | dgall     | 割り当て → 点検 → 計画 → 作業 → 見直し → リリースを、状態から段階を求めて続けて進める（同じ引数で再開できる）                     | 「s3 を最後まで進めて」と言われたとき                          |
 
-`dg guide <topic>` で読む。Claude Code では `dg skill install` が入れる Skill（`/dgimport` など）がそのトピックを読む。Skill は任意で、なければ `dg guide <topic>` を読んで同じ手順で進める。コマンドの一覧は `dg --help`、各コマンドのオプションは `dg <群> <操作> --help`。
+`dg guide <topic>` で読む。Claude Code では `dg skill install` が入れる Skill（`/dgimport` など）がそのトピックを読む。Skill は任意で、なければ `dg guide <topic>` を読んで同じ手順で進める。Claude Code では `dg hooks install` でフックも入れられる。フックはセッションの主体を agent にし、頼んだ文の最初の行が `deguboard: ticket=<id> step=<step>` のサブエージェントの Run を起動で開いて終わりで閉じる（印のあるサブエージェントは自分で `run start` しなくてよい。自分で開いても、終わりのフックがその Run に記録の場所を結び付けて二重にしない）。コマンドの一覧は `dg --help`、各コマンドのオプションは `dg <群> <操作> --help`。

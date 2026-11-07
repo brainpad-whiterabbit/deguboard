@@ -166,11 +166,11 @@ steps: # 任意（WF-5）
 
 ### 5.9 Run（`runs/`）
 
-- RN-1 1 Run 1 ファイル。チケット・step・エージェント・モデル・開始と終了の時刻・結果（`success` / `failure` / `interrupted`）・エラー・やり直しの回数と理由・トークン数・ツールの回数を持つ。会話記録のセッション ID（`run start`・`ticket claim` の `--session`。省けば null）も持ち、Adapter が会話記録を数えるのに使う（MT-2・MT-4）。記録のパス（`--transcript`）は Run に書かず、マシンごとの `deguboard-local/transcripts/` に置いて Git には入れない（Run を閉じても残す）。両方を harness のフックが渡すのは予定（e15）。エージェント名は `run start --agent` で渡し、省けば環境変数から判定する（AG-5。細部は `dg run start --help`）
+- RN-1 1 Run 1 ファイル。チケット・step・エージェント・モデル・開始と終了の時刻・結果（`success` / `failure` / `interrupted`）・エラー・やり直しの回数と理由・トークン数・ツールの回数を持つ。会話記録のセッション ID（`run start`・`ticket claim` の `--session`。省けば null）も持ち、Adapter が会話記録を数えるのに使う（MT-2・MT-4）。記録のパス（`--transcript`）は Run に書かず、マシンごとの `deguboard-local/transcripts/` に置いて Git には入れない（Run を閉じても残す）。明示されなければ、harness のフックが環境に入れた値を使う（AG-9）。記録のパスは、会話記録の置き場所を持つ Adapter（今は `claude-code`）の agent では、その置き場所の下だけを受け付ける（シンボリックリンクは解いて比べる。フックの入力も同じ）。エージェント名は `run start --agent` で渡し、省けば環境変数から判定する（AG-5。細部は `dg run start --help`）
 - RN-2 取れなかった値は `null`。推定した値は `estimated: true` を付ける。費用は持たない（[ADR-005](adr/ADR-005-work-metrics.md)）
 - RN-3 Git に入れるのは完了時の集計だけ。実行中の記録は `deguboard-local/runs/`、会話記録のパスは `deguboard-local/transcripts/` に置く。チケットには書き足さない
 - RN-4 閉じた Run で書き換えるのは、`run refresh`（MT-5）が取り直すモデル名と使用量だけ
-- RN-5 agent の `ticket claim` は、Workflow の `steps` のうち `opens_on: claim` の step（なければ `implement`）の Run を開き、ID を `run` に出す。開けなければ警告し、claim は成功にする。人の claim と `--no-run` では開かない。自分が claim 済みで `pr` のあるチケットのもう一度の claim（ST-3）は、`opens_on: reclaim` の step（なければ `fix`）の手直しの Run を開き、`--retry-reason` を `retry_reasons` に入れる。開いたままの前の手直しの Run は、この claim を区切りとして RN-6 の時刻で `success` にしてから開く（細部は `ticket claim --help`）
+- RN-5 agent の `ticket claim` は、Workflow の `steps` のうち `opens_on: claim` の step（なければ `implement`）の Run を開き、ID を `run` に出す。開けなければ警告し、claim は成功にする。人の claim と `--no-run` では開かない。自分が claim 済みで `pr` のあるチケットのもう一度の claim（ST-3）は、`opens_on: reclaim` の step（なければ `fix`）の手直しの Run を開き、`--retry-reason` を `retry_reasons` に入れる。開いたままの前の手直しの Run は、この claim を区切りとして RN-6 の時刻で `success` にしてから開く（細部は `ticket claim --help`）。頼んだ文の最初の行に印 `deguboard: ticket=<id> step=<step>` のあるサブエージェントの Run は、harness のフックが起動で開いて終わりで閉じる（AG-9）
 - RN-6 実装の Run（RN-5 の step）がこのマシンで実行中なら、チケットの操作が閉じる。PR の記録（`ticket update --pr`・照合）と、`branch` のないチケットの review・done への move、`branch` があっても PR のないチケットの done への move は実装の Run を `success`、`unclaim` と `abandoned` への move は実装と手直しの Run を `failure` にする。手直しの Run（`reclaim` の step）は、照合が次の区切り（同じチケットの次の Run の開始・review か done への前進・チケットの終了）を見たときに `success` にし、`finished_at` はその Run の開始より後で区切りまでの最後の push の時刻（なければ区切りの時刻、マージでは PR のマージ時刻、それもなければ今）。`unclaim` は手直しの Run も `failure`。閉じる直前に別の文脈が先に閉じていた Run は、照合もチケットの操作も閉じずに警告するだけで、sync と操作は止めない。細部と理由は [ADR-005](adr/ADR-005-work-metrics.md)
 
 ### 5.10 設定（`config.yaml`）
@@ -239,21 +239,22 @@ Web UI は `dg serve` が配信し、VS Code 拡張は同じアプリを Webview
 
 ### 6.5 エージェント連携
 
-- AG-1 エージェントは PATH の `dg` を Bash から `dg … --json` で呼び、データのファイルを直接編集しない。主体（human / agent）は Adapter のフックが決める。Claude Code では SessionStart フックが環境 `DEGUBOARD_ACTOR` に agent を入れる（予定 e15）。フックのない製品では、呼ぶときに `--actor agent`（か `DEGUBOARD_ACTOR`）で申告する（既定は human）。その製品では `dg guide` の手順が必ず agent を名乗る（[ADR-004](adr/ADR-004-agents-and-state.md)）。主体の ID は TK-7（ユーザ名の決め方は `dg --help`）
+- AG-1 エージェントは PATH の `dg` を Bash から `dg … --json` で呼び、データのファイルを直接編集しない。主体（human / agent）は Adapter のフックが決める。Claude Code では SessionStart フックが環境 `DEGUBOARD_ACTOR` に agent を入れる（AG-9）。フックのない製品では、呼ぶときに `--actor agent`（か `DEGUBOARD_ACTOR`）で申告する（既定は human）。その製品では `dg guide` の手順が必ず agent を名乗る（[ADR-004](adr/ADR-004-agents-and-state.md)）。主体の ID は TK-7（ユーザ名の決め方は `dg --help`）
 - AG-2 Claude Code 向けに、段階ごとに `dg guide <topic>` を読む薄い Skill（`dg<トピック>`）を `dg skill install` で配る。Skill は任意で、スクリプトもツールの許可も持たない決まった文面。名前と説明は guide の frontmatter が正本。冒頭の 1 文は core の `SKILL_SUMMARY` が正本（[ADR-010](adr/ADR-010-ui-writes-and-agent-requests.md)）
 - AG-3 チケット化（`ticket import`）と、分解・Epic への束ね・依存・Iteration への割り当ては、エージェントが提案して人の承認を得てから行う（手順は `dg guide import`）
 - AG-4 MCP サーバー（`dg mcp`。stdio）は、Bash のないクライアントの入口で、Core のコマンド定義から生成する。CLI と同じ操作ができ（`init` と CLI だけの `guide`・`skill`・`serve`・`open` を除く）、ツールの結果は `--json` と同じ形（CL-1）で、主体は常に agent。対象のリポジトリは `-C` で指せる
-- AG-5 Agent Adapter が製品ごとの差（使用量の取得、dg を呼んだエージェントの環境変数からの判定）を吸収し、実装は Core の `agents/adapters/` に閉じる。今は `claude-code`・`codex`・`copilot`（環境変数で判定できる製品は Adapter のコード）。起動方法と権限は扱わない（EX-1、[ADR-007](adr/ADR-007-architecture.md)）
+- AG-5 Agent Adapter が製品ごとの差（使用量の取得、dg を呼んだエージェントの環境変数からの判定、フックの入力と設定。AG-9）を吸収し、実装は Core の `agents/adapters/` に閉じる。今は `claude-code`・`codex`・`copilot`（環境変数で判定できる製品は Adapter のコード）。起動方法と権限は扱わない（EX-1、[ADR-007](adr/ADR-007-architecture.md)）
 - AG-6 ソフトウェア開発向けの Action（worktree・PR 作成・マージなど）は Core の `actions` に置き、汎用部分は依存しない。`dg` のコマンドにせず、公開するのは名前の一覧（`ACTION_NAMES`）だけ（[ADR-007](adr/ADR-007-architecture.md)）
 - AG-7 任意のシェルの Action は `actions.shell: true` のときだけ使え、毎回確認を経る
 - AG-8 `ask` は対象（複数可）・頼むこと・指示・形式から、エージェントに貼る依頼文を返す読み取りだけのコマンド。候補ごとに画面用の 1 文（`meaning`・`skill_summary`）も返す。人に限られた操作なら、人が打つ `dg` のコマンドを返す。`ask-menu` は画面の場所ごとの候補を返す。候補とおすすめは `dg ask --help` とコード、文の形は [ADR-010](adr/ADR-010-ui-writes-and-agent-requests.md) が正本
+- AG-9 `dg hooks install` が harness（今は Claude Code）の設定に `dg hook <イベント>` を呼ぶフックを書く（もう一度実行しても重ねず、手で足したフックは残す。`uninstall` で外す）。セッションの始まりに主体（agent）とセッション ID・記録のパスを以後の Bash の環境に入れる。印 `deguboard: ticket=<id> step=<step>` を最初の行に書いて頼んだサブエージェントの Run を、起動の呼び出しが返ったときに開き、サブエージェントが終わったとき記録の全体から数えて、step ごとの事実（実装は PR、手直しは開始より後の push、見直しは最後の応答）で `success` か `failure` にして閉じる。セッションの終わりに、そのセッションの見直しと手直しの開いたままの Run を `interrupted` で閉じる。フックのない製品とフックを入れていない環境では、主体は申告、Run は `run start` と claim で開く（[ADR-012](adr/ADR-012-hooks-open-runs.md)。細部は `dg hooks install --help`・`dg hook --help`）
 
 ### 6.6 作業の実績
 
 - MT-1 Run の使用量とツールの回数は Adapter が取り込む。エージェントの自己申告の数字は書かない
 - MT-2 `metrics.read_transcripts` が true なら、`run finish` と RN-6 の閉じ方が Adapter でエージェントの会話記録から使用量とツールの回数を補う。このマシンに記録のパスがあればそのファイルから（サブエージェントの記録は先頭から、親のセッションの記録は開始から）、なくてセッション ID があればそのセッションの記録から、どちらもなければ Run の ID を最初に含む記録から数える。パスのファイルかセッションの記録がこのマシンになければ、推測に落とさず null で残して警告する（[ADR-005](adr/ADR-005-work-metrics.md)）。`DEGUBOARD_NO_TRANSCRIPTS` が空でも `0` でもないマシンでは読まない
 - MT-3 `metrics show` は Run を絞り込んで集計する（軸は `dg metrics show --help`）。null は足さず欠けた数を出す。集計値は保存しない
-- MT-4 Adapter が会話記録から Run に写すのは数とモデル名だけ（会話の中身・コマンドの文字列・ファイルのパス（記録のパスを含む）は写さない。セッション ID は会話記録からでなくフックの入力から取り（予定 e15）、Git に写すのは RN-1 のそれだけ）。`error` と `retry_reasons` は渡した文をそのまま記録するので、`error` には秘密を、`retry_reasons` には秘密・コマンドの文字列・パスを書かない
+- MT-4 Adapter が会話記録から Run に写すのは数とモデル名だけ（会話の中身・コマンドの文字列・ファイルのパス（記録のパスを含む）は写さない。セッション ID は会話記録からでなくフックの入力から取り（AG-9）、Git に写すのは RN-1 のそれだけ）。`error` と `retry_reasons` は渡した文をそのまま記録するので、`error` には秘密を、`retry_reasons` には秘密・コマンドの文字列・パスを書かない
 - MT-5 `run refresh` は閉じた Run のモデル名と使用量を、finish と同じ方法と MT-2 の許可で会話記録から取り直す。取れた値だけを書き換え、取れなかった値は残して警告する。実行中の Run は拒否する
 
 ### 6.7 ワークフロー実行

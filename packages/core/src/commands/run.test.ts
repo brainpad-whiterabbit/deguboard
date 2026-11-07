@@ -290,20 +290,64 @@ describe("run", () => {
     expect(saved["session"]).toBeNull();
   });
 
-  it("start は相対パスの transcript を呼んだ作業ディレクトリで絶対パスにして置く", async () => {
+  it("start は transcript を agent の会話記録の置き場所の下だけ受け付け、外のパス（相対パスを含む）は拒否する", async () => {
     const ctx = await prepared();
+    const home = await mkdtemp(path.join(os.tmpdir(), "dg-home-"));
+    cleanups.push(() => rm(home, { recursive: true, force: true }));
+    ctx.env = { HOME: home };
+    const inside = path.join(home, ".claude", "projects", "d", "s1", "subagents", "agent-a.jsonl");
     const run = (
       await runCommand(runStart, ctx, {
         ticket: "t1",
         step: "implement",
         agent: "claude-code",
-        transcript: "rel/agent-a.jsonl",
+        transcript: inside,
       })
     ).data as Run;
     const local = JSON.parse(
       await readFile(path.join(ctx.repo.localDir, "transcripts", `${run.id}.json`), "utf8"),
     ) as { path: string };
-    expect(local.path).toBe(path.resolve("rel/agent-a.jsonl"));
+    expect(local.path).toBe(inside);
+    for (const outside of [
+      "rel/agent-a.jsonl",
+      path.join(home, ".ssh", "id_rsa"),
+      path.join(home, ".claude", "projects"),
+    ]) {
+      await expect(
+        runCommand(runStart, ctx, {
+          ticket: "t2",
+          step: "implement",
+          agent: "claude-code",
+          transcript: outside,
+        }),
+      ).rejects.toThrow(/会話記録の置き場所の下/);
+    }
+  });
+
+  it("start と claim は、session と transcript を省けばフックが環境に入れた DEGUBOARD_SESSION・DEGUBOARD_TRANSCRIPT を使う", async () => {
+    const ctx = await prepared();
+    const home = await mkdtemp(path.join(os.tmpdir(), "dg-home-"));
+    cleanups.push(() => rm(home, { recursive: true, force: true }));
+    const parent = path.join(home, ".claude", "projects", "d", "s1.jsonl");
+    ctx.env = { HOME: home, DEGUBOARD_SESSION: "s1", DEGUBOARD_TRANSCRIPT: parent };
+    const run = (
+      await runCommand(runStart, ctx, { ticket: "t1", step: "implement", agent: "claude-code" })
+    ).data as Run;
+    expect(run.session).toBe("s1");
+    const local = JSON.parse(
+      await readFile(path.join(ctx.repo.localDir, "transcripts", `${run.id}.json`), "utf8"),
+    ) as { path: string };
+    expect(local.path).toBe(parent);
+    // 明示した値が先
+    const other = (
+      await runCommand(runStart, ctx, {
+        ticket: "t2",
+        step: "implement",
+        agent: "claude-code",
+        session: "s2",
+      })
+    ).data as Run;
+    expect(other.session).toBe("s2");
   });
 
   it("finish は回数と理由の数が食い違うか、理由が 1 行でなければ拒否し、Run を開けたままにする", async () => {

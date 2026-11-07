@@ -9,6 +9,7 @@ import type {
   AgentAdapter,
   AgentEnv,
   CollectedUsage,
+  HookSupport,
   SkillDirs,
   SkillQuery,
   UsageQuery,
@@ -33,6 +34,16 @@ export function agentSkillDirs(query: SkillQuery): string[] {
 /** agent の Skill の置き場所。dg skill install が書く先を決めるのに使う。Skill のない agent は undefined */
 export function skillDirsOf(agent: string): SkillDirs | undefined {
   return findAdapter(agent)?.skillDirs;
+}
+
+/** agent のフック（dg hooks install・dg hook）。フックのない agent は undefined */
+export function hooksOf(agent: string): HookSupport | undefined {
+  return findAdapter(agent)?.hooks;
+}
+
+/** フックを持つ agent の名前 */
+export function hookAgentNames(): string[] {
+  return ADAPTERS.filter((a) => a.hooks).map((a) => a.name);
 }
 
 /** 環境変数から判定した agent。agent は 1 つの Adapter だけが自分と判定したときの名前で、それ以外は null */

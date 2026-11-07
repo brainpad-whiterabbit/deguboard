@@ -2,7 +2,15 @@
 // 使用量の取り込みは agents（Run の agent の値で Adapter を選ぶ。特定の AI 製品をここに書かない。AG-5）
 
 import { z } from "zod";
-import { agentNames, collectRunUsage, detectAgent, type RunSpan } from "../agents/index.js";
+import { realpath } from "node:fs/promises";
+import path from "node:path";
+import {
+  agentNames,
+  collectRunUsage,
+  detectAgent,
+  hooksOf,
+  type RunSpan,
+} from "../agents/index.js";
 import { slugSchema, toIsoDateTime } from "../model/common.js";
 import { filterRuns, placeRun, runDurationSeconds, type MetricFilter } from "../model/metrics.js";
 import { OperationError, UsageError } from "../errors.js";
@@ -58,7 +66,7 @@ function runSpans(
 }
 
 /** Adapter に渡す、ほかの Run の期間と、この Run の会話記録のパス */
-async function usageContext(ctx: CommandContext, local: Iterable<{ data: Run }>) {
+export async function usageContext(ctx: CommandContext, local: Iterable<{ data: Run }>) {
   const transcripts = await readTranscriptPaths(ctx.repo);
   return {
     others: runSpans(ctx.store.runs.values(), local, transcripts),
@@ -87,7 +95,9 @@ export function agentFromEnv(
  * VALIDATION_FAILED、同じチケットと step の Run が実行中なら startRun が ALREADY_EXISTS。
  * Workflow が読めない・Adapter のない agent・このマシンで同じ agent の Run が開いたままは警告して開く。
  * retryReasons はもう一度の claim が開く手直しの Run に、直す指摘を最初から残すためのもの。
- * session・transcript は会話記録の場所（ADR-005）。session は Run に、transcript はこのマシンの deguboard-local/transcripts/ に置く
+ * session・transcript は会話記録の場所（ADR-005）。session は Run に、transcript はこのマシンの deguboard-local/transcripts/ に置く。
+ * 渡されなければ、harness のフックが環境に入れた DEGUBOARD_SESSION・DEGUBOARD_TRANSCRIPT を使う（ADR-012）。
+ * transcript は agent の Adapter の会話記録の置き場所の下だけを受け付ける（ほかのファイルを読ませない）
  */
 export async function openRun(
   ctx: CommandContext,
@@ -97,10 +107,21 @@ export async function openRun(
     agent: string;
     model?: string | undefined;
     retryReasons?: readonly string[] | undefined;
+    /** 開始の時刻。省けば今（フックが、終わってから返った前景のサブエージェントの Run を開くときに前にする） */
+    startedAt?: Date | undefined;
   } & TranscriptInput,
 ): Promise<{ run: Run; warnings: string[] }> {
   const { step, agent } = input;
   const warnings: string[] = [];
+  const env = ctx.env ?? process.env;
+  const session = input.session ?? (env["DEGUBOARD_SESSION"] || undefined);
+  const transcript = input.transcript ?? (env["DEGUBOARD_TRANSCRIPT"] || undefined);
+  if (transcript !== undefined && !(await transcriptUnderRoot(agent, transcript, env))) {
+    throw new OperationError(
+      "VALIDATION_FAILED",
+      `transcript は ${agent} の会話記録の置き場所の下のファイルだけを受け付ける`,
+    );
+  }
   const workflow = ctx.store.workflowFor(ticket);
   if (workflow) {
     const found = findStep(workflow.resolved, step);
@@ -133,11 +154,43 @@ export async function openRun(
     agent,
     model: input.model,
     retryReasons: input.retryReasons,
-    session: input.session,
-    transcript: input.transcript,
-    now: ctx.now(),
+    session,
+    transcript,
+    now: input.startedAt ?? ctx.now(),
   });
   return { run, warnings };
+}
+
+/** シンボリックリンクを解いたパス。まだないファイルは、あるところまでの親を解いて残りをつなぐ */
+async function resolvedPath(p: string): Promise<string> {
+  const abs = path.resolve(p);
+  const rest: string[] = [];
+  let cur = abs;
+  for (;;) {
+    try {
+      return path.join(await realpath(cur), ...rest);
+    } catch {
+      const parent = path.dirname(cur);
+      if (parent === cur) return abs;
+      rest.unshift(path.basename(cur));
+      cur = parent;
+    }
+  }
+}
+
+/**
+ * 会話記録のパスが agent の Adapter の置き場所の下か（HTTP・MCP・フックから任意のファイルを読ませない）。シンボリックリンクは解いて比べる。
+ * 置き場所を持たない Adapter（フックのない製品。今はパスを読まない）の agent では確かめない
+ */
+export async function transcriptUnderRoot(
+  agent: string,
+  transcript: string,
+  env: Readonly<Record<string, string | undefined>>,
+): Promise<boolean> {
+  const root = hooksOf(agent)?.transcriptRoot(env);
+  if (!root) return true;
+  const rel = path.relative(await resolvedPath(root), await resolvedPath(transcript));
+  return !(rel === "" || rel === ".." || rel.startsWith(`..${path.sep}`) || path.isAbsolute(rel));
 }
 
 /** Run を開く操作（run start・ticket claim）が受け取る会話記録の場所 */

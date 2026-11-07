@@ -32,9 +32,10 @@ Prerequisites: Linux or macOS, Git 2.30 or later, and Node.js 24 or later. To re
 
    ```sh
    dg skill install
+   dg hooks install
    ```
 
-   Other agents need no setup. Just ask them to "read `dg guide` and proceed with `dg`".
+   `dg hooks install` adds Claude Code hooks that mark the session as an agent and record the subagents you start with a first line `deguboard: ticket=<id> step=<step>` as Runs. Other agents need no setup. Just ask them to "read `dg guide` and proceed with `dg`".
 
 5. **Open the board**: Click the deguboard icon in the Activity Bar.
 
@@ -114,6 +115,7 @@ dg config set notify.approvals false --local
 - The extension runs only `git`, `gh`, and `dg --version`, none of them through a shell (git running a merge driver with `sh -c` during a sync rebase is how git works).
 - Because git configuration can run arbitrary commands, the extension works only in trusted folders (not in Restricted Mode or virtual workspaces).
 - The Skills written by `dg skill install` contain only text telling the agent to read `dg guide`, with no scripts and no tool permissions. Use `--dry-run` to see their contents.
+- The hooks written by `dg hooks install` only call `dg hook <event>`, which records Runs and reads transcripts under `~/.claude/projects/`. Use `--dry-run` to see the settings, and `dg hooks uninstall` to remove them.
 - See [SECURITY.md](https://github.com/brainpad-whiterabbit/deguboard/blob/main/SECURITY.md) (in Japanese) for how to report vulnerabilities.
 
 ## Other ways to use it
