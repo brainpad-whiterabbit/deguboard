@@ -1,0 +1,31 @@
+{
+  "id": "r20261107-135755-d09c",
+  "ticket": "t510",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-07T13:57:55Z",
+  "finished_at": "2026-11-07T14:00:23Z",
+  "result": "success",
+  "error": null,
+  "retries": 2,
+  "retry_reasons": [
+    "文から起票したチケットが割り当ての段階に入らない",
+    "同じ文で再開したとき起票したチケットを見つけられない"
+  ],
+  "usage": {
+    "input": 14,
+    "output": 9528,
+    "cache_read": 670021,
+    "cache_write": 15186
+  },
+  "tools": {
+    "read": 0,
+    "search": 0,
+    "write": 0,
+    "bash": 7,
+    "other": 0,
+    "read_before_write": 0,
+    "search_before_write": 0
+  }
+}
