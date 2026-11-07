@@ -1,0 +1,34 @@
+{
+  "id": "r20261107-231053-4da8",
+  "ticket": "t532",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-07T23:10:53Z",
+  "finished_at": "2026-11-07T23:12:39Z",
+  "result": "success",
+  "error": null,
+  "retries": 1,
+  "retry_reasons": [
+    "リダイレクトの fd と行き先とヒアドキュメントの終わりの語を引数から外す"
+  ],
+  "usage": {
+    "input": 8,
+    "output": 3924,
+    "cache_read": 1799778,
+    "cache_write": 7513
+  },
+  "tools": {
+    "read": 0,
+    "search": 0,
+    "write": 0,
+    "bash": 4,
+    "other": 0,
+    "read_before_write": 0,
+    "search_before_write": 0
+  },
+  "session": null,
+  "review": null,
+  "waiting_since": null,
+  "settling_since": null
+}
