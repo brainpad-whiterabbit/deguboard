@@ -753,6 +753,15 @@ describe("PreToolUse（t532）", () => {
       "cp -t .git/deguboard a",
       "sed --in-place s/a/b/ .git/deguboard/x",
       "find .git/deguboard -name x -delete",
+      "if true; then rm .git/deguboard/x; fi",
+      "for f in a; do rm .git/deguboard/$f; done",
+      "{ rm .git/deguboard/x; }",
+      "sudo -u root rm .git/deguboard/x",
+      "nice -n 5 rm .git/deguboard/x",
+      "pushd .git/deguboard && rm x",
+      "git --git-dir=.git/deguboard/.git commit -m x",
+      "tar -xf a.tar -C .git/deguboard",
+      "find .git/deguboard -exec rm {} +",
     ])
       expect(writesDataDir(c), c).toBe(true);
     for (const c of [
@@ -764,6 +773,10 @@ describe("PreToolUse（t532）", () => {
       "cp .git/deguboard/tickets/t1.md /tmp/x",
       'grep -rn "install" .git/deguboard',
       "cat .git/deguboard/a 2>&1 | tee /tmp/out",
+      "(cd .git/deguboard && ls); rm x",
+      "cd .git/deguboard && cd ../.. && rm x",
+      "find .git/deguboard -name '*.md' -exec grep -l foo {} +",
+      "git commit -F - <<'EOF'\nrm .git/deguboard/x と書く\nEOF",
     ])
       expect(writesDataDir(c), c).toBe(false);
   });
@@ -806,6 +819,20 @@ describe("PreToolUse（t532）", () => {
       "1",
       "482",
     ]);
+    // 予約語の中の呼び出しも読み、ヒアドキュメントの本文と括弧の外の cd は持ち越さない
+    for (const c of [
+      "for p in 1 2; do gh pr merge 482; done",
+      "if gh pr merge 482; then echo ok; fi",
+      "{ gh pr merge 482; }",
+      "! gh pr merge 482",
+      "sudo -u me gh pr merge 482",
+    ])
+      expect(
+        parseGhPr(c).map((g) => g.selector),
+        c,
+      ).toEqual(["482"]);
+    expect(parseGhPr("git commit -F - <<EOF\ngh pr merge 482 を止める\nEOF\n")).toEqual([]);
+    expect(parseGhPr("(cd /a && ls); gh pr merge")[0]).toMatchObject({ dir: undefined });
   });
 
   /** 偽の gh（PR はいつも見つからない）。実際の gh がテストで GitHub を読まないように */
