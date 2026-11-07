@@ -1,0 +1,57 @@
+id: p68
+project: default
+tickets: [t510, t515, t516, t523, t524, t512, t514, t521, t511, t513]
+after:
+  t512:
+    - t510
+  t514:
+    - t515
+  t513:
+    - t514
+  t521:
+    - t515
+  t511:
+    - t515
+    - t516
+pending_approval: true
+details:
+  t510:
+    scope: /dgall --auto の README・GIF の説明と guide-all の対象の定義を同じ流れにする
+    approach: guide-all に ID でない文を起票（import）から始める入口を足すか README を 2 段に直すかを決め、決めた側に README・README.ja.md・台本を合わせる
+    tier: standard
+  t515:
+    scope: move・unclaim・update --pr が付随して閉じる Run の REJECTED を警告にし、ラベルと読み直しを 1 か所にし、PR 時刻の取得をロックの外に出す
+    approach: sync の closeReconciledRun の扱いを run.ts の共通の包みに移して ticket.ts からも使う。テストと RN-6・ADR-005 を合わせる
+    tier: heavy
+  t516:
+    scope: vitest.vscode.config.ts を typecheck に入れ、playwright:install の説明と ADR-001 の oxfmt の文を設定に合わせる
+    approach: tsconfig.json の include に足し、mise.toml の description と ADR-001（更新日と一覧）を直す
+    tier: light
+  t523:
+    scope: jsdom 31・commander 15.1・vite 8.3.6・oxfmt 0.77 に上げる（oxlint は t450）
+    approach: mise exec -- pnpm add で各パッケージの版を上げ、check が通るまで直す
+    tier: standard
+  t524:
+    scope: 個人の config.yaml がマップでないときの警告、config.test.tsx の否定の確かめ、README のアンカーの検査を足す
+    approach: store のテストを足し、1 tick の待ちを要求の有無で確かめる形にし、check-docs か dg.test で拡張と Walkthrough の README のアンカーを照合する
+    tier: standard
+  t512:
+    scope: README のセキュリティの節の書き込み先・VS Code の版・英語の README の日本語の補足と 2 人目の手順を直す
+    approach: README.md と README.ja.md を同じ節の構成で直す。t510 の後に進めて衝突を避ける
+    tier: light
+  t514:
+    scope: unclaim・move の Run が同じコミットに入ること、reclaim の分岐、拒否された update --pr のテストを足す
+    approach: t515 の後に commands.test.ts へ足し、コードの不具合が見つかれば直す
+    tier: standard
+  t521:
+    scope: 使われない export・config-team のクラス・isClaimView・warnings の訳の写し・config.show --fields の毎回の読み込みを片付ける
+    approach: t515 の後に、外で使わない export を外し、写しを 1 か所にまとめる
+    tier: standard
+  t511:
+    scope: ADR-004・ADR-005・RN-6・guide-run・guide-work・sync の help の Run の閉じ方と区切りの言い回しを揃え、README の英語化の規約の重複を 1 か所にする
+    approach: t515・t516 の後に、実装の判定（fixRunBoundary・agentClaimed）を読んで文書を合わせる
+    tier: standard
+  t513:
+    scope: lint の Run のテストを偽の gh で包み、cliEnv で agent の判定に効く環境変数を外す
+    approach: t514 の後に commands.test.ts と env.ts を直す
+    tier: standard
