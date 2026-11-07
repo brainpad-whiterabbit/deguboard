@@ -12,7 +12,7 @@ after:
   t535:
     - t536
     - t542
-pending_approval: true
+pending_approval: false
 details:
   t539:
     scope: ADR-001 に項だけを置き換える印の書き方を足し、ADR-003・ADR-004 の印をそろえるだけ
@@ -54,3 +54,5 @@ details:
     scope: PR の要らない調査：s19 と同じ 6 つの数の取り直しと EX-1 反転の要否の判断
     approach: t494 のコマンドで表を出し、ADR-004 の書き換え案として報告する。新しい Iteration のデータが揃ってから着手する
     tier: heavy
+approved_by: maji/agent
+approved_at: 2026-11-07T21:36:13Z
