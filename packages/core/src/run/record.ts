@@ -23,6 +23,7 @@ import {
   type Run,
   type RunId,
   type RunResult,
+  type RunReview,
   type RunTools,
   type RunUsage,
 } from "../model/run.js";
@@ -179,13 +180,13 @@ export async function bindTranscript(
 }
 
 /**
- * 実行中の Run のチケットと step を直す（フックが開いた Run を、サブエージェントの記録の印で照らして直すとき。ADR-012）。
- * 実行中の記録がなければ NOT_FOUND
+ * 実行中の Run を直す。チケットと step はフックが開いた Run をサブエージェントの記録の印で照らして直すとき（ADR-012）、
+ * review は見直し役が見直しの結果を書くとき（ADR-013）。実行中の記録がなければ NOT_FOUND
  */
 export async function amendRunning(
   repo: RunDirs,
   id: RunId,
-  patch: { ticket: TicketId; step: string },
+  patch: { ticket: TicketId; step: string } | { review: RunReview },
 ): Promise<Run> {
   return withRunLock(repo, async () => {
     const result = await readDoc(repo.localDir, runPath(id), "json", runSchema, id);
@@ -228,6 +229,7 @@ export async function startRun(repo: RunDirs, input: StartRunInput): Promise<Run
       usage: emptyUsage(),
       tools: null,
       session: input.session ?? null,
+      review: null,
     };
     // 場所を先に置く。実行中の記録より後に置くと、その間に閉じた Run が場所なしで数えられうる。
     // 相対パスは呼んだ作業ディレクトリで絶対パスにする（finish・refresh・serve は別の場所から呼ばれうる）
@@ -316,6 +318,7 @@ export async function closeRun(
     model: input.model === undefined ? local.data.model : input.model,
     // 項目より前の記録にもキーを省かずに書く（RN-1）
     session: local.data.session,
+    review: local.data.review,
     // 渡されなかったキー（undefined）は重ねない
     usage: {
       ...(base["usage"] as Record<string, unknown>),

@@ -32,6 +32,7 @@ const run = (over: Partial<Run> = {}): Run => ({
   usage: { input: null, output: null, cache_read: null, cache_write: null },
   tools: null,
   session: null,
+  review: null,
   ...over,
 });
 

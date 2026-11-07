@@ -31,6 +31,7 @@ const run = (): Run => ({
   usage: { input: null, output: null, cache_read: null, cache_write: null },
   tools: null,
   session: null,
+  review: null,
 });
 
 /** token_count の行。tokens は累計の [input（キャッシュを含む）, cached, output, cache_write]。cache_write がなければ古い版の形 */

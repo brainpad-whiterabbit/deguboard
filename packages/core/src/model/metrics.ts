@@ -40,6 +40,11 @@ export interface RunMetrics {
   missing: Record<MetricValue | "tools", number>;
   /** 推定の値（usage.estimated）を含む Run の数。0 でなければ合計も推定を含む */
   estimated_runs: number;
+  /**
+   * 見直しの結果（review。ADR-013）。recorded は結果のある Run の数、passed はそのうち通った数、heavy・light は指摘の数の合計。
+   * 結果のない Run（見直し以外の step と、結果を記録せずに終わった見直し）は数えない
+   */
+  reviews: { recorded: number; passed: number; heavy: number; light: number };
 }
 
 /** Run の各単位の値。Epic・Iteration・Project はチケットの今の値からたどる。チケットがなければ null */
@@ -85,7 +90,14 @@ export function summarizeRuns(runs: readonly Run[]): RunMetrics {
   const results = { success: 0, failure: 0, interrupted: 0, unfinished: 0 };
   let retries = 0;
   let estimated = 0;
+  const reviews = { recorded: 0, passed: 0, heavy: 0, light: 0 };
   for (const run of runs) {
+    if (run.review !== null) {
+      reviews.recorded += 1;
+      if (run.review.passed) reviews.passed += 1;
+      reviews.heavy += run.review.heavy;
+      reviews.light += run.review.light;
+    }
     results[run.result ?? "unfinished"] += 1;
     retries += run.retries;
     if (run.usage.estimated === true) estimated += 1;
@@ -116,6 +128,7 @@ export function summarizeRuns(runs: readonly Run[]): RunMetrics {
     tools,
     missing,
     estimated_runs: estimated,
+    reviews,
   };
 }
 

@@ -8,7 +8,7 @@ import { peekRunningRuns, readTranscriptPaths } from "../run/record.js";
 import { openContext } from "./context.js";
 import { runCommand, type CommandContext } from "./define.js";
 import { hook, parseMarker, type HookView } from "./hook.js";
-import { runList, runStart, type RunView } from "./run.js";
+import { REVIEW_UNRECORDED, runList, runReviewResult, runStart, type RunView } from "./run.js";
 import { commit, configSet, init } from "./setup.js";
 import { ticketCreate } from "./ticket.js";
 
@@ -186,7 +186,8 @@ describe("dg hook（ADR-012）", () => {
 
   it("前景の起動（終わってから返る。SubagentStop が先に来る）は、PostToolUse が Run を開いてその場で閉じ、開始をかかった時間だけ前にする", async () => {
     const { ctx, parent, subagent } = await prepared();
-    const prompt = "deguboard: ticket=t1 step=review\n\n見直す";
+    // 結果を step の事実で決めない step（investigate）で、開閉と時間だけを見る
+    const prompt = "deguboard: ticket=t1 step=investigate\n\n調べる";
     await subagentRecord(subagent("a1"), prompt, 3);
     // 先に来る SubagentStop は閉じる Run がないので何もしない
     const stop = await call(ctx, "SubagentStop", {
@@ -218,11 +219,12 @@ describe("dg hook（ADR-012）", () => {
     expect(run!.duration_seconds).toBeGreaterThanOrEqual(89);
   });
 
-  it("SubagentStop は印のある Run を記録の全体から数えて閉じ、見直しは最後の応答があれば success", async () => {
+  it("SubagentStop は印のある Run を記録の全体から数えて閉じ、見直しは結果が記録されていれば success（ADR-013）", async () => {
     const { ctx, parent, subagent } = await prepared();
     const prompt = "deguboard: ticket=t1 step=review\n\n見直す";
     await call(ctx, "PostToolUse", launched(parent, "a1", prompt));
     await subagentRecord(subagent("a1"), prompt, 5);
+    await runCommand(runReviewResult, ctx, { ticket: "t1", heavy: 0, light: 2, passed: true });
     const { view } = await call(ctx, "SubagentStop", {
       session_id: SESSION,
       transcript_path: parent,
@@ -233,7 +235,27 @@ describe("dg hook（ADR-012）", () => {
     expect(view.done).toEqual([expect.stringContaining("success で閉じた")]);
     const [run] = (await runCommand(runList, ctx, { ticket: "t1" })).data as RunView[];
     // 開始の前の応答も、サブエージェントの記録の先頭から数える
-    expect(run).toMatchObject({ result: "success", running: false, usage: { input: 10 } });
+    expect(run).toMatchObject({
+      result: "success",
+      running: false,
+      usage: { input: 10 },
+      review: { heavy: 0, light: 2, passed: true },
+    });
+  });
+
+  it("SubagentStop は結果の記録のない見直しの Run を、最後の応答があっても failure で閉じる（ADR-013）", async () => {
+    const { ctx, parent, subagent } = await prepared();
+    const prompt = "deguboard: ticket=t1 step=review\n\n見直す";
+    await call(ctx, "PostToolUse", launched(parent, "a1", prompt));
+    await subagentRecord(subagent("a1"), prompt, 1);
+    await call(ctx, "SubagentStop", {
+      session_id: SESSION,
+      agent_id: "a1",
+      agent_transcript_path: subagent("a1"),
+      last_assistant_message: "指摘はない",
+    });
+    const [run] = (await runCommand(runList, ctx, { ticket: "t1" })).data as RunView[];
+    expect(run).toMatchObject({ result: "failure", error: REVIEW_UNRECORDED, review: null });
   });
 
   it("SubagentStop は記録の最初の文の印で Run のチケットと step を直す（並べて起動して取り違えたとき）", async () => {
@@ -248,7 +270,8 @@ describe("dg hook（ADR-012）", () => {
     });
     expect(warnings).toContainEqual(expect.stringContaining("t2 の review に直した"));
     const runs = (await runCommand(runList, ctx, {})).data as RunView[];
-    expect(runs.map((r) => [r.ticket, r.step, r.result])).toEqual([["t2", "review", "success"]]);
+    // 結果を記録していない見直しなので failure
+    expect(runs.map((r) => [r.ticket, r.step, r.result])).toEqual([["t2", "review", "failure"]]);
   });
 
   it("SubagentStop は手直しの Run を、開始より後の push がなければ failure で閉じる", async () => {

@@ -46,10 +46,6 @@ function parseHook(event: string, input: unknown, env: AgentEnv): HookEvent | un
       if (!agentId || !prompt) return undefined;
       // 前景の起動は終わってから返る（status: completed）。SubagentStop はこれより先に発火している
       const finished = response["status"] === "completed";
-      const content = Array.isArray(response["content"]) ? response["content"] : [];
-      const texts = content
-        .map((b) => str(obj(b)["text"]))
-        .filter((t): t is string => t !== null && !t.startsWith("<"));
       return {
         kind: "subagent_launched",
         session,
@@ -58,7 +54,6 @@ function parseHook(event: string, input: unknown, env: AgentEnv): HookEvent | un
         model: str(response["resolvedModel"]),
         transcript: transcript ? subagentTranscript(transcript, session, agentId) : null,
         finished,
-        lastMessage: finished ? texts.join("\n") || null : null,
         durationMs:
           finished && typeof response["totalDurationMs"] === "number"
             ? response["totalDurationMs"]
@@ -73,7 +68,6 @@ function parseHook(event: string, input: unknown, env: AgentEnv): HookEvent | un
         session,
         agentId,
         transcript: str(d["agent_transcript_path"]),
-        lastMessage: str(d["last_assistant_message"]),
       };
     }
     case "SessionEnd":

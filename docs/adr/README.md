@@ -20,3 +20,4 @@
 | [ADR-010](ADR-010-ui-writes-and-agent-requests.md) | 画面からの書き込みとエージェントへの依頼                            | UI の書き込み      | 2026-11-06 |
 | [ADR-011](ADR-011-procedure-in-code.md)            | 既定の手続きは dg のコードが持つ                                    | ワークフロー       | 2026-11-07 |
 | [ADR-012](ADR-012-hooks-open-runs.md)              | harness のフックが主体を決め、サブエージェントの Run を開け閉めする | エージェント       | 2026-11-07 |
+| [ADR-013](ADR-013-review-result-on-run.md)         | 見直しの結果を Run に記録し、見直しの Run の成否をそれで決める      | 作業の実績         | 2026-11-07 |

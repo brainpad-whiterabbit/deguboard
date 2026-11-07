@@ -65,6 +65,20 @@ const runToolsSchema = z.looseObject({
 });
 export type RunTools = z.output<typeof runToolsSchema>;
 
+/** 見直し役の見直しの step（同梱の Workflow の steps。ADR-013） */
+export const REVIEW_STEP = "review";
+
+/**
+ * 見直しの結果（ADR-013）。重い・軽い指摘の数と、通ったか（重い指摘が残っていない）。
+ * 見直し役が `run review-result` で見直しの Run に書く。見直し以外の Run と、書かれていない Run は null
+ */
+const runReviewSchema = z.looseObject({
+  heavy: toolCount,
+  light: toolCount,
+  passed: z.boolean(),
+});
+export type RunReview = z.output<typeof runReviewSchema>;
+
 /** 1 Run 1 ファイル（RN-1）。取れなかった値は null で、キーは省かない */
 export const runSchema = z.looseObject({
   id: runIdSchema,
@@ -88,6 +102,8 @@ export const runSchema = z.looseObject({
    * Git に入る Run には書かず、deguboard-local/transcripts/ に置く（run/record.ts）。この項目より前に書いた Run にはキーがないので、読むときに null にそろえる
    */
   session: z.string().min(1).nullable().default(null),
+  /** 見直しの結果。この項目より前に書いた Run にはキーがないので、読むときに null にそろえる */
+  review: runReviewSchema.nullable().default(null),
 });
 export type Run = z.output<typeof runSchema>;
 

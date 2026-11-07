@@ -14,7 +14,7 @@ import { OperationError } from "../errors.js";
 import { collectBranchFacts, lastPushedAt } from "../git/facts.js";
 import { toIsoDateTime } from "../model/common.js";
 import { ticketIdSchema, type TicketId } from "../model/id.js";
-import type { Run, RunId, RunResult } from "../model/run.js";
+import { REVIEW_STEP, type Run, type RunId, type RunResult } from "../model/run.js";
 import type { Ticket } from "../model/ticket.js";
 import {
   amendRunning,
@@ -24,7 +24,14 @@ import {
   readTranscriptPaths,
 } from "../run/record.js";
 import { defineCommand, ok, runCommand, type CommandContext } from "./define.js";
-import { openedStepOf, openRun, runRefresh, transcriptUnderRoot, usageContext } from "./run.js";
+import {
+  openedStepOf,
+  openRun,
+  REVIEW_UNRECORDED,
+  runRefresh,
+  transcriptUnderRoot,
+  usageContext,
+} from "./run.js";
 
 /** 頼んだ文の先頭の印。最初の空でない行が `deguboard: ticket=<id> step=<step>` のとき */
 export function parseMarker(prompt: string): { ticket: TicketId; step: string } | undefined {
@@ -185,7 +192,7 @@ async function subagentLaunched(
   }
   // 前景の起動はもう終わっている（終わりの出来事は先に来て、閉じる Run がなかった）ので、ここで閉じる
   if (event.finished && event.transcript)
-    await closeSubagentRun(ctx, agent, run, event.transcript, event.lastMessage, view, warnings);
+    await closeSubagentRun(ctx, agent, run, event.transcript, view, warnings);
 }
 
 /** パスが agent の会話記録の置き場所の下か。外なら警告して false（HTTP・MCP から hook を呼んでも任意のファイルを読ませない） */
@@ -261,7 +268,7 @@ async function subagentStopped(
     await bindSelfOpened(ctx, agent, transcript, event.session, view, warnings);
     return;
   }
-  await closeSubagentRun(ctx, agent, opened.data, transcript, event.lastMessage, view, warnings);
+  await closeSubagentRun(ctx, agent, opened.data, transcript, view, warnings);
 }
 
 /**
@@ -273,7 +280,6 @@ async function closeSubagentRun(
   agent: string,
   opened: Run,
   transcript: string,
-  lastMessage: string | null,
   view: HookView,
   warnings: string[],
 ): Promise<void> {
@@ -289,7 +295,7 @@ async function closeSubagentRun(
   }
   await bindTranscript(ctx.repo, run.id, transcript);
   const ticket = ctx.store.tickets.get(run.ticket)?.data;
-  const { result, error } = await resultOf(ctx, run, ticket, lastMessage);
+  const { result, error } = await resultOf(ctx, run, ticket);
   const { others } = await usageContext(ctx, (await readRunningRuns(ctx.repo)).runs);
   const now = ctx.now();
   const collected = await collectRunUsage(ctx.config, {
@@ -335,14 +341,13 @@ async function bindSelfOpened(
 }
 
 /**
- * フックが閉じる Run の結果（ADR-012）。step ごとの事実で決める。見直しは最後の応答があれば success（結果の記録は t531 で足す）。
+ * フックが閉じる Run の結果（ADR-012）。step ごとの事実で決める。見直しは結果（run review-result）が記録されていれば success（ADR-013）。
  * 実装は PR があれば success。手直しは開始より後の push があれば success。ほかの step は success
  */
 async function resultOf(
   ctx: CommandContext,
   run: Run,
   ticket: Ticket | undefined,
-  lastMessage: string | null,
 ): Promise<{ result: RunResult; error?: string }> {
   if (!ticket) return { result: "success" };
   const claimStep = openedStepOf(ctx, ticket, "claim");
@@ -368,10 +373,10 @@ async function resultOf(
       ? { result: "success" }
       : { result: "failure", error: "サブエージェントが終わったとき手直しの push がない" };
   }
-  if (run.step === "review") {
-    return lastMessage
+  if (run.step === REVIEW_STEP) {
+    return run.review !== null
       ? { result: "success" }
-      : { result: "failure", error: "見直し役が結果を返さずに終わった" };
+      : { result: "failure", error: REVIEW_UNRECORDED };
   }
   return { result: "success" };
 }
@@ -389,7 +394,7 @@ async function sessionEnd(
     // 実装の Run は PR の記録で閉じるので残す
     if (ticket && r.data.step === openedStepOf(ctx, ticket, "claim")) continue;
     if (
-      r.data.step !== "review" &&
+      r.data.step !== REVIEW_STEP &&
       (!ticket || r.data.step !== openedStepOf(ctx, ticket, "reclaim"))
     )
       continue;

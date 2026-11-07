@@ -59,6 +59,7 @@ function metrics(partial: Partial<RunMetrics> = {}): RunMetrics {
       tools: 1,
     },
     estimated_runs: 0,
+    reviews: { recorded: 0, passed: 0, heavy: 0, light: 0 },
     ...partial,
   };
 }
