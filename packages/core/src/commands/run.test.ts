@@ -650,10 +650,12 @@ describe("run review-result（見直しの結果。ADR-013）", () => {
     expect((closed.data as Run).review).toEqual({ heavy: 0, light: 3, passed: true });
   });
 
-  it("見直し以外の step の Run には書かず、見直しの Run がなければ NOT_FOUND", async () => {
+  it("見直し以外の step の Run には書かず、見直しの Run がなければ結果を保留にする（ADR-014）", async () => {
     const ctx = await prepared();
     await start(ctx, "t1", "implement");
-    await expect(record(ctx, "t1", 0, 0, true)).rejects.toMatchObject({ code: "NOT_FOUND" });
+    const held = await record(ctx, "t1", 0, 0, true);
+    expect(held.data).toMatchObject({ ticket: "t1", pending: true, review: { passed: true } });
+    expect(held.warnings).toEqual([expect.stringContaining("保留にした")]);
     const [run] = await peekRunningRuns(ctx.repo);
     expect(run!.review).toBeNull();
   });
@@ -678,11 +680,16 @@ describe("run review-result（見直しの結果。ADR-013）", () => {
       review: { heavy: 1, light: 0, passed: false },
     });
     expect(ctx.store.runs.get(older.id)!.data.review).toBeNull();
-    // 閉じた Run の結果は書き換えない（RN-4）
-    await expect(record(ctx, "t1", 0, 0, true)).rejects.toMatchObject({ code: "REJECTED" });
+    // 閉じた Run の結果は書き換えず（RN-4）、前の回の見直しとして保留にする（ADR-014）
+    expect((await record(ctx, "t1", 0, 0, true)).data).toMatchObject({ pending: true });
+    expect(ctx.store.runs.get(latest.id)!.data.review).toEqual({
+      heavy: 1,
+      light: 0,
+      passed: false,
+    });
   });
 
-  it("閉じた見直しの Run の後に別の Run（手直しなど）が始まっていれば、前の回の見直しなので書かずに NOT_FOUND", async () => {
+  it("閉じた見直しの Run の後に別の Run（手直しなど）が始まっていれば、前の回の見直しなので書かずに保留にする", async () => {
     const ctx = await prepared();
     const review = await start(ctx, "t1", "review");
     await runCommand(runFinish, ctx, {
@@ -692,7 +699,7 @@ describe("run review-result（見直しの結果。ADR-013）", () => {
     });
     laterBy(ctx, 5);
     await start(ctx, "t1", "fix");
-    await expect(record(ctx, "t1", 0, 0, true)).rejects.toMatchObject({ code: "NOT_FOUND" });
+    expect((await record(ctx, "t1", 0, 0, true)).data).toMatchObject({ pending: true });
     expect(ctx.store.runs.get(review.id)!.data).toMatchObject({ result: "failure", review: null });
   });
 
@@ -1392,6 +1399,9 @@ describe("run refresh の取り直し（RN-4・MT-5）", () => {
     // 取り直すのはモデル名と使用量だけで、ほかの値は変えない
     expect(after).toEqual({
       ...a,
+      // 止まって待っている印は閉じた Run に書かない（ADR-014）
+      waiting_since: undefined,
+      settling_since: undefined,
       model: "claude-opus-from-transcript",
       usage: { input: 3, output: 4, cache_read: 50, cache_write: 6 },
     });

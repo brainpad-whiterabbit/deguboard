@@ -34,6 +34,55 @@ import type { Issue } from "../storage/issue.js";
 import { DIRS, runPath, TRANSCRIPTS_DIR, transcriptPath } from "../storage/paths.js";
 import type { Store } from "../storage/store.js";
 
+/**
+ * 書く先の見直しの Run がまだないときに置く、保留の見直しの結果（deguboard-local/reviews/<ticket>.json。ADR-014）。
+ * 前景で起動した見直し役は、動いている間に Run がない（フックが終わった後に開いて閉じる）。フックが見直しの Run を閉じるとき、
+ * その Run の開始より後に置いた結果を結び付けて消す。Git には入れない
+ */
+const REVIEWS_DIR = "reviews";
+
+export interface PendingReview {
+  review: RunReview;
+  /** 置いた時刻（ISO） */
+  at: string;
+}
+
+const pendingReviewPath = (repo: Pick<GitRepo, "localDir">, ticket: TicketId) =>
+  path.join(repo.localDir, REVIEWS_DIR, `${ticket}.json`);
+
+/** 保留の見直しの結果を置く（同じチケットの前の保留は置き換える） */
+export async function putPendingReview(
+  repo: Pick<GitRepo, "localDir">,
+  ticket: TicketId,
+  pending: PendingReview,
+): Promise<void> {
+  const file = pendingReviewPath(repo, ticket);
+  await mkdir(path.dirname(file), { recursive: true });
+  await writeFileAtomic(file, `${JSON.stringify(pending)}\n`);
+}
+
+/**
+ * 保留の見直しの結果を取り出して消す。since（Run の開始）より前に置いたものは前の回のものなので、使わずに消す。
+ * 保留はチケットごとに 1 つで、同じチケットの前景の見直し役を並べて動かすことは扱わない（ADR-014）
+ */
+export async function takePendingReview(
+  repo: Pick<GitRepo, "localDir">,
+  ticket: TicketId,
+  since: string,
+): Promise<RunReview | undefined> {
+  const file = pendingReviewPath(repo, ticket);
+  let pending: PendingReview;
+  try {
+    pending = JSON.parse(await readFile(file, "utf8")) as PendingReview;
+  } catch {
+    return undefined;
+  }
+  // 前の回の保留（Run の開始より前に置いたもの）は使わないので消す
+  await unlink(file).catch(() => undefined);
+  if (typeof pending?.at !== "string" || pending.at < since || !pending.review) return undefined;
+  return pending.review;
+}
+
 /** start と finish の確かめと書き込みを直列にするロックの名前（deguboard-local/locks/runs） */
 const RUN_LOCK = "runs";
 
@@ -181,12 +230,16 @@ export async function bindTranscript(
 
 /**
  * 実行中の Run を直す。チケットと step はフックが開いた Run をサブエージェントの記録の印で照らして直すとき（ADR-012）、
- * review は見直し役が見直しの結果を書くとき（ADR-013）。実行中の記録がなければ NOT_FOUND、集計を書いた後なら REJECTED
+ * review は見直し役が見直しの結果を書くとき（ADR-013）、waiting_since は止まって待っている印を付け外しするとき（ADR-014）。実行中の記録がなければ NOT_FOUND、集計を書いた後なら REJECTED
  */
 export async function amendRunning(
   repo: RunDirs,
   id: RunId,
-  patch: { ticket: TicketId; step: string } | { review: RunReview },
+  patch:
+    | { ticket: TicketId; step: string }
+    | { review: RunReview }
+    | { waiting_since: string | null }
+    | { settling_since: string | null },
 ): Promise<Run> {
   return withRunLock(repo, async () => {
     // 集計を書いた後（閉じた後）の実行中の記録には書かない。書いても集計に入らない
@@ -233,6 +286,8 @@ export async function startRun(repo: RunDirs, input: StartRunInput): Promise<Run
       tools: null,
       session: input.session ?? null,
       review: null,
+      waiting_since: null,
+      settling_since: null,
     };
     // 場所を先に置く。実行中の記録より後に置くと、その間に閉じた Run が場所なしで数えられうる。
     // 相対パスは呼んだ作業ディレクトリで絶対パスにする（finish・refresh・serve は別の場所から呼ばれうる）
@@ -346,6 +401,9 @@ async function closeRunLocked(
     },
     tools: input.tools === undefined ? local.data.tools : input.tools,
   };
+  // 止まって待っている印は実行中のものだけで、閉じた Run（Git）には書かない（ADR-014）
+  delete closed["waiting_since"];
+  delete closed["settling_since"];
   // 別のプロセスが先に閉じていないか、ファイルで確かめる（索引は古いことがある）
   if ((await hasSummary(repo, id)) || store.runs.has(id)) {
     await removeRunning(repo, id);

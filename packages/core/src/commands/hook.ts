@@ -1,10 +1,13 @@
-// harness のフックの出来事を Run の操作に写す（AG-1・RN-5・RN-6、ADR-012）。入力の形は Adapter の hooks.parse が製品ごとに読み、
+// harness のフックの出来事を Run の操作に写す（AG-1・AG-9・RN-5・RN-6、ADR-012・ADR-014）。入力の形は Adapter の hooks.parse が製品ごとに読み、
 // ここは製品によらない出来事（HookEvent）だけを見る（AG-5）。フックはエージェントの作業を止めないよう、失敗は警告にして成功で返す。
 //   - session_start：以後の Bash の環境に DEGUBOARD_ACTOR=agent・DEGUBOARD_SESSION・DEGUBOARD_TRANSCRIPT を export で書く
 //   - subagent_launched：頼んだ文の先頭の印（deguboard: ticket=<id> step=<step>）があれば、その Run を開いて記録の場所をサブエージェントの記録にする
-//   - subagent_stopped：記録の場所で Run を引き、記録の最初の文の印で照らしてから、記録の全体から数えて閉じる。
+//   - subagent_started：同じ記録の開いた Run（親への質問で止まっていたもの）を続きとして使い、止まって待っている印と書き終わり待ちの印を消す
+//   - subagent_stopped：記録の場所で Run を引き、記録の最初の文の印で照らしてから、step を終えた事実があれば記録の書き終わりを待って
+//     記録の全体から数えて閉じる。事実がなければ閉じずに止まって待っている印を付ける。
 //     印のある Run がなければ、サブエージェントが自分で開いた Run（記録に ID が出る）に記録の場所を結び付ける（移行期の経路）
-//   - session_end：このセッションの見直しと手直しの Run のうち開いたままのものを interrupted で閉じる。実装の Run は PR の記録で閉じる
+//   - session_end：このセッションのサブエージェントの Run のうち開いたままのものをすべて閉じる。親が自分で開いた Run は残す
+//   どのフックの後も、前のフックで書き終わりを待ちきれずに残した Run を閉じる（dg sync も同じ）
 
 import { appendFile, readFile } from "node:fs/promises";
 import path from "node:path";
@@ -22,6 +25,7 @@ import {
   finishRun,
   readRunningRuns,
   readTranscriptPaths,
+  takePendingReview,
 } from "../run/record.js";
 import { defineCommand, ok, runCommand, type CommandContext } from "./define.js";
 import {
@@ -57,8 +61,8 @@ export const hook = defineCommand({
   group: "hook",
   summary:
     "harness のフックが呼ぶ（dg hooks install が設定に書く。人が打つものではない）。--payload - で標準入力のフックの入力（JSON）を読み、" +
-    "セッションの始まりに主体とセッション ID・記録のパスを環境に入れ、頼んだ文の先頭に `deguboard: ticket=<id> step=<step>` の印のあるサブエージェントの Run を起動で開いて終わりで閉じ、" +
-    "セッションの終わりに開いたままの見直しと手直しの Run を interrupted で閉じる。失敗しても作業を止めないよう、警告にして成功で返す",
+    "セッションの始まりに主体とセッション ID・記録のパスを環境に入れ、頼んだ文の先頭に `deguboard: ticket=<id> step=<step>` の印のあるサブエージェントの Run を起動で開き、step を終えた事実があれば止まったときに閉じ" +
+    "（なければ止まって待っている印を付け、再開で続ける）、セッションの終わりにそのセッションのサブエージェントの開いたままの Run を閉じる。失敗しても作業を止めないよう、警告にして成功で返す",
   input: z.object({
     event: z
       .string()
@@ -108,16 +112,24 @@ async function handle(
   view: HookView,
   warnings: string[],
 ): Promise<void> {
+  const calledAt = toIsoDateTime(ctx.now());
   switch (event.kind) {
     case "session_start":
       return sessionStart(event, view, warnings);
     case "subagent_launched":
-      return subagentLaunched(ctx, agent, event, view, warnings);
+      await subagentLaunched(ctx, agent, event, view, warnings);
+      break;
+    case "subagent_started":
+      await subagentStarted(ctx, agent, event, view);
+      break;
     case "subagent_stopped":
-      return subagentStopped(ctx, agent, event, view, warnings);
+      await subagentStopped(ctx, agent, event, view, warnings);
+      break;
     case "session_end":
       return sessionEnd(ctx, event, view, warnings);
   }
+  // 記録の書き終わりを待ちきれずに残した Run を、次のフックの機会に閉じる（ADR-014）
+  await closeStoppedRuns(ctx, warnings, view, event.session, calledAt);
 }
 
 async function sessionStart(
@@ -192,7 +204,7 @@ async function subagentLaunched(
   }
   // 前景の起動はもう終わっている（終わりの出来事は先に来て、閉じる Run がなかった）ので、ここで閉じる
   if (event.finished && event.transcript)
-    await closeSubagentRun(ctx, agent, run, event.transcript, view, warnings);
+    await stopSubagentRun(ctx, agent, run, event.transcript, view, warnings);
 }
 
 /** パスが agent の会話記録の置き場所の下か。外なら警告して false（HTTP・MCP から hook を呼んでも任意のファイルを読ませない） */
@@ -268,20 +280,35 @@ async function subagentStopped(
     await bindSelfOpened(ctx, agent, transcript, event.session, view, warnings);
     return;
   }
-  await closeSubagentRun(ctx, agent, opened.data, transcript, view, warnings);
+  await stopSubagentRun(ctx, agent, opened.data, transcript, view, warnings);
 }
 
+/** 記録の書き終わりを待つ間隔と上限（ミリ秒）。テストが短くする */
+export const hookTiming: {
+  settleMs: number;
+  pollMs: number;
+  /** 待ちきれなかった直後に呼ぶ（テストが、その後の掃除の前に記録を書き足すため） */
+  onGiveUp?: (() => Promise<void>) | undefined;
+} = { settleMs: 3000, pollMs: 100 };
+
+/** 記録のパスがサブエージェントの記録（<session>/subagents/ の下）か。agent_id 付きの Run の見分けに使う */
+const isSubagentTranscript = (p: string | undefined) =>
+  p !== undefined && path.basename(path.dirname(p)) === "subagents";
+
 /**
- * 起動のフックが開いた Run を閉じる。記録の最初の文の印で照らしてチケットと step を直し、記録の場所をサブエージェントの記録にして、
- * その記録の全体から数える。結果は step ごとの事実で決める（resultOf）
+ * サブエージェントが止まったときの Run の扱い（ADR-014）。記録の最初の文の印で照らしてチケットと step を直し、記録の場所を
+ * サブエージェントの記録にする。step を終えた事実（resultOf が success）があり、記録が書き終わっていれば閉じる。
+ * 事実がなければ（親への質問で止まったなど）閉じずに止まって待っている印（waiting_since）を付ける。記録が書き終わらなければ
+ * 書き終わり待ちの印（settling_since）を付けて残し、次のフック・sync・SessionEnd が閉じる（closeStoppedRuns）。settle が false なら書き終わりを待たない
  */
-async function closeSubagentRun(
+async function stopSubagentRun(
   ctx: CommandContext,
   agent: string,
   opened: Run,
   transcript: string,
   view: HookView,
   warnings: string[],
+  settle = true,
 ): Promise<void> {
   const prompt = await hooksOf(agent)!.firstPrompt(transcript);
   const marker = prompt ? parseMarker(prompt) : undefined;
@@ -294,8 +321,63 @@ async function closeSubagentRun(
     );
   }
   await bindTranscript(ctx.repo, run.id, transcript);
+  if (run.step === REVIEW_STEP && run.review === null) {
+    // 前景の見直し役が、Run のないうちに保留にした結果を結び付ける
+    const review = await takePendingReview(ctx.repo, run.ticket, run.started_at);
+    if (review) {
+      run = await amendRunning(ctx.repo, run.id, { review });
+      view.done.push(`${run.ticket} の保留の見直しの結果を Run ${run.id} に結び付けた`);
+    }
+  }
   const ticket = ctx.store.tickets.get(run.ticket)?.data;
-  const { result, error } = await resultOf(ctx, run, ticket);
+  const decided = await resultOf(ctx, run, ticket);
+  if (decided.result !== "success") {
+    // 書き終わり待ちで呼び直したときに事実が取れなかった（gh・fetch の一時的な失敗など）なら、書き終わり待ちをやめて答え待ちにする。
+    // 両方の印を残すと、掃除がフックのたびに事実を取り直し続ける
+    if (run.settling_since !== null)
+      run = await amendRunning(ctx.repo, run.id, { settling_since: null });
+    await markWaiting(ctx, run, view);
+    return;
+  }
+  if (settle && !(await waitSettled(agent, transcript))) {
+    await hookTiming.onGiveUp?.();
+    if (run.settling_since === null)
+      await amendRunning(ctx.repo, run.id, { settling_since: toIsoDateTime(ctx.now()) });
+    warnings.push(
+      `Run ${run.id} の記録の最後の応答が ${hookTiming.settleMs} ミリ秒のうちに書かれなかったので、まだ閉じない（次のフック・dg sync・セッションの終わりで閉じる）`,
+    );
+    return;
+  }
+  await closeSubagentRun(ctx, run, transcript, decided, view, warnings);
+}
+
+/** 止まって待っている印を付ける（付いていれば今のまま） */
+async function markWaiting(ctx: CommandContext, run: Run, view: HookView): Promise<void> {
+  if (run.waiting_since !== null) return;
+  await amendRunning(ctx.repo, run.id, { waiting_since: toIsoDateTime(ctx.now()) });
+  view.done.push(`${run.ticket} の ${run.step} の Run ${run.id} は止まって待っている（閉じない）`);
+}
+
+/** 記録の最後の api-request の後に使用量付きの応答が出るまで待つ。上限を過ぎたら false */
+async function waitSettled(agent: string, transcript: string): Promise<boolean> {
+  const hooks = hooksOf(agent)!;
+  const until = Date.now() + hookTiming.settleMs;
+  for (;;) {
+    if (await hooks.transcriptSettled(transcript)) return true;
+    if (Date.now() >= until) return false;
+    await new Promise((r) => setTimeout(r, hookTiming.pollMs));
+  }
+}
+
+/** サブエージェントの Run を、記録の全体から数えて閉じる。見直しの成否はロックの中で読み直した記録で決める */
+async function closeSubagentRun(
+  ctx: CommandContext,
+  run: Run,
+  transcript: string,
+  decided: { result: RunResult; error?: string },
+  view: HookView,
+  warnings: string[],
+): Promise<void> {
   const { others } = await usageContext(ctx, (await readRunningRuns(ctx.repo)).runs);
   const now = ctx.now();
   const collected = await collectRunUsage(ctx.config, {
@@ -307,10 +389,11 @@ async function closeSubagentRun(
     transcript,
   });
   const closed = await finishRun(ctx, run.id, {
-    result,
-    error,
+    result: decided.result,
+    error: decided.error,
     // 見直しの成否は、閉じる直前にロックの中で読み直した記録の結果で決める（数えている間に書かれた結果を落とさない）
-    decide: run.step === REVIEW_STEP ? reviewResultOf : undefined,
+    decide:
+      run.step === REVIEW_STEP && decided.result !== "interrupted" ? reviewResultOf : undefined,
     model: collected.model ?? undefined,
     usage: collected.usage,
     tools: collected.tools,
@@ -318,6 +401,61 @@ async function closeSubagentRun(
   });
   warnings.push(...collected.warnings.map((w) => `Run ${run.id}: ${w}`), ...closed.write.warnings);
   view.done.push(`${run.ticket} の ${run.step} の Run ${run.id} を ${closed.run.result} で閉じた`);
+}
+
+/**
+ * 書き終わり待ちの印（settling_since）の付いたサブエージェントの Run のうち、記録が書き終わったものを閉じる（ADR-014）。
+ * フックのたびと dg sync が呼ぶ。止まって待っている印（質問への答え待ち）の Run は、再開で続くので閉じない。
+ * session を渡せばそのセッションの Run だけ、markedBefore を渡せばその時刻より前に印を付けたものだけ（今のフックで残した Run を、
+ * 同じフックの中で閉じない）
+ */
+export async function closeStoppedRuns(
+  ctx: CommandContext,
+  warnings: string[],
+  view: HookView = { event: "", done: [] },
+  session?: string,
+  markedBefore?: string,
+): Promise<void> {
+  const paths = await readTranscriptPaths(ctx.repo);
+  for (const { data: run } of (await readRunningRuns(ctx.repo)).runs) {
+    const transcript = paths.get(run.id);
+    if (run.settling_since === null || !isSubagentTranscript(transcript) || !hooksOf(run.agent))
+      continue;
+    if (session !== undefined && run.session !== session) continue;
+    if (markedBefore !== undefined && run.settling_since >= markedBefore) continue;
+    // まだ書き終わっていない記録は、待たずに次の機会に回す
+    if (!(await hooksOf(run.agent)!.transcriptSettled(transcript!))) continue;
+    try {
+      await stopSubagentRun(ctx, run.agent, run, transcript!, view, warnings, false);
+    } catch (e) {
+      warnings.push(
+        `書き終わりを待っていた Run ${run.id} を閉じられなかった（${e instanceof Error ? e.message : String(e)}）`,
+      );
+    }
+  }
+}
+
+/** サブエージェントがもう一度始まった（親の SendMessage で続きを頼まれた）。同じ記録の開いた Run を続きとして使い、印を消す */
+async function subagentStarted(
+  ctx: CommandContext,
+  agent: string,
+  event: Extract<HookEvent, { kind: "subagent_started" }>,
+  view: HookView,
+): Promise<void> {
+  if (!event.transcript) return;
+  const paths = await readTranscriptPaths(ctx.repo);
+  const run = (await readRunningRuns(ctx.repo)).runs.find(
+    (r) =>
+      r.data.agent === agent &&
+      paths.get(r.id) === event.transcript &&
+      r.data.session === event.session,
+  )?.data;
+  // 初めての起動（Run は起動の呼び出しが返ってから開く）と、印のない Run は何もしない
+  if (!run || (run.waiting_since === null && run.settling_since === null)) return;
+  await amendRunning(ctx.repo, run.id, { waiting_since: null });
+  // 続きの作業があるので、書き終わり待ちもやめる（次の Stop がもう一度決める）
+  if (run.settling_since !== null) await amendRunning(ctx.repo, run.id, { settling_since: null });
+  view.done.push(`${run.ticket} の ${run.step} の Run ${run.id} を続きとして使う（印を消した）`);
 }
 
 /** 移行期の経路：サブエージェントが自分で開いた Run に記録の場所を結び付け、閉じていれば取り直す */
@@ -386,43 +524,40 @@ function reviewResultOf(run: Run): { result: RunResult; error?: string } {
     : { result: "failure", error: REVIEW_UNRECORDED };
 }
 
+/**
+ * セッションの終わり（ADR-014）。このセッションのサブエージェントの Run（記録の場所がサブエージェントの記録のもの）のうち開いたままのものを閉じる。
+ * step を終えた事実があれば成功で閉じ、なければ見直し・手直しなどは interrupted、実装は PR がないので failure。親が自分で進める Run は残す
+ */
 async function sessionEnd(
   ctx: CommandContext,
   event: Extract<HookEvent, { kind: "session_end" }>,
   view: HookView,
   warnings: string[],
 ): Promise<void> {
-  const running = (await readRunningRuns(ctx.repo)).runs;
-  for (const r of running) {
-    if (r.data.session !== event.session) continue;
-    const ticket = ctx.store.tickets.get(r.data.ticket)?.data;
-    // 実装の Run は PR の記録で閉じるので残す
-    if (ticket && r.data.step === openedStepOf(ctx, ticket, "claim")) continue;
-    if (
-      r.data.step !== REVIEW_STEP &&
-      (!ticket || r.data.step !== openedStepOf(ctx, ticket, "reclaim"))
-    )
+  const paths = await readTranscriptPaths(ctx.repo);
+  for (const { data: run } of (await readRunningRuns(ctx.repo)).runs) {
+    const transcript = paths.get(run.id);
+    if (run.session !== event.session || !isSubagentTranscript(transcript) || !hooksOf(run.agent))
       continue;
-    const now = ctx.now();
-    const { others, transcriptOf } = await usageContext(ctx, running);
-    const collected = await collectRunUsage(ctx.config, {
-      run: r.data,
-      finishedAt: toIsoDateTime(now),
-      env: ctx.env ?? process.env,
-      topLevel: ctx.repo.topLevel,
-      others,
-      transcript: transcriptOf(r.data.id),
-    });
-    const closed = await finishRun(ctx, r.data.id, {
-      result: "interrupted",
-      error: "セッションが終わったとき開いたままだった",
-      model: collected.model ?? undefined,
-      usage: collected.usage,
-      tools: collected.tools,
-      now,
-    });
-    warnings.push(...closed.write.warnings);
-    view.done.push(`${r.data.ticket} の ${r.data.step} の Run ${r.id} を interrupted で閉じた`);
+    try {
+      const ticket = ctx.store.tickets.get(run.ticket)?.data;
+      let current = run;
+      if (current.step === REVIEW_STEP && current.review === null) {
+        const review = await takePendingReview(ctx.repo, current.ticket, current.started_at);
+        if (review) current = await amendRunning(ctx.repo, current.id, { review });
+      }
+      const decided = await resultOf(ctx, current, ticket);
+      const claimStep = ticket ? openedStepOf(ctx, ticket, "claim") : undefined;
+      const closing =
+        decided.result === "success" || run.step === claimStep
+          ? decided
+          : { result: "interrupted" as const, error: "セッションが終わったとき開いたままだった" };
+      await closeSubagentRun(ctx, current, transcript!, closing, view, warnings);
+    } catch (e) {
+      warnings.push(
+        `Run ${run.id} をセッションの終わりに閉じられなかった（${e instanceof Error ? e.message : String(e)}）`,
+      );
+    }
   }
 }
 

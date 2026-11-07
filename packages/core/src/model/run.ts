@@ -104,6 +104,16 @@ export const runSchema = z.looseObject({
   session: z.string().min(1).nullable().default(null),
   /** 見直しの結果。この項目より前に書いた Run にはキーがないので、読むときに null にそろえる */
   review: runReviewSchema.nullable().default(null),
+  /**
+   * 止まって待っている印（ADR-014）。サブエージェントが step を終えた事実のないまま止まった時刻（親への質問など）。
+   * 実行中の記録にだけ置き、閉じた Run（Git）には書かない。再開（同じ agent_id の起動）で消す。この項目より前の記録とは null にそろえる
+   */
+  waiting_since: isoDateTime.nullable().default(null),
+  /**
+   * 記録の書き終わりを待つ印（ADR-014）。step を終えた事実はあるが、止まった時に最後の応答がまだ書かれていなかった時刻。
+   * 次のフック・dg sync・SessionEnd が書き終わりを見て閉じる。止まって待っている印とは別で、実行中の記録にだけ置く
+   */
+  settling_since: isoDateTime.nullable().default(null),
 });
 export type Run = z.output<typeof runSchema>;
 

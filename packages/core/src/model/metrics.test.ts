@@ -20,6 +20,8 @@ function run(id: string, over: Partial<Run> = {}): Run {
     tools: null,
     session: null,
     review: null,
+    waiting_since: null,
+    settling_since: null,
     ...over,
   };
 }

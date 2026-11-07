@@ -84,7 +84,12 @@ export type HookEvent =
       /** 前景の起動でかかった時間（ミリ秒）。分からなければ null */
       durationMs: number | null;
     }
-  /** サブエージェントが終わった */
+  /**
+   * サブエージェントが始まった（初めての起動と、親が続きを頼んだ再開の両方）。transcript はサブエージェントの記録のパス。
+   * 再開なら同じ agentId で、同じ記録に追記される（ADR-014）
+   */
+  | { kind: "subagent_started"; session: string; agentId: string; transcript: string | null }
+  /** サブエージェントが止まった（終わったか、親に質問を返して待っている） */
   | {
       kind: "subagent_stopped";
       session: string;
@@ -109,6 +114,11 @@ export interface HookSupport {
    * （警告の文・一覧・詳細に出るほかの Run の ID は返さない）。読めなければ空
    */
   selfOpenedRunIds(transcript: string): Promise<string[]>;
+  /**
+   * 記録が書き終わっているか。止まった瞬間には最後の応答がまだ書かれていないことがある（ADR-014）。読めなければ true
+   * （待っても変わらない）
+   */
+  transcriptSettled(transcript: string): Promise<boolean>;
   /** 会話記録の置き場所。run start・ticket claim の --transcript はこの下だけを受け付ける */
   transcriptRoot(env: AgentEnv): string;
 }

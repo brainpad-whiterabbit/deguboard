@@ -5,8 +5,12 @@
 //     バックグラウンドの起動は起動の直後に返り（status: async_launched）、SubagentStop が後に来る。前景の起動は終わってから返り
 //     （status: completed）、SubagentStop はこれより先に来る
 //   - SubagentStop：agent_id・agent_transcript_path（last_assistant_message も来るが使わない。見直しの成否は結果の記録で決める。ADR-013）
+//     サブエージェントが親に質問を返して止まったときも発火する。親が SendMessage で続きを頼むと、同じ agent_id で SubagentStart と
+//     SubagentStop がもう一度発火し、記録は同じファイルに追記される。発火の瞬間には最後の応答（assistant の行と使用量）がまだ書かれて
+//     おらず（最後は api-request の行）、0.5 秒以内に書かれる（ADR-014）
+//   - SubagentStart：agent_id と親の transcript_path。Run は開かない（並べて起動すると、その時点では親の記録にも、サブエージェントの
+//     記録にも呼び出しがない）。再開を続きとして扱い、止まって待っている印を消すのにだけ使う
 //   - SessionEnd：session_id
-//   SubagentStart は使わない。並べて起動すると、その時点では親の記録にも、サブエージェントの記録にも呼び出しがない
 //   （2026-11-07 に Claude Code 2.1.318 で確かめた。環境変数がサブエージェントの Bash に届くことも同じ日に確かめた）
 
 import { createReadStream } from "node:fs";
@@ -60,6 +64,16 @@ function parseHook(event: string, input: unknown, env: AgentEnv): HookEvent | un
             : null,
       };
     }
+    case "SubagentStart": {
+      const agentId = str(d["agent_id"]);
+      if (!agentId) return undefined;
+      return {
+        kind: "subagent_started",
+        session,
+        agentId,
+        transcript: transcript ? subagentTranscript(transcript, session, agentId) : null,
+      };
+    }
     case "SubagentStop": {
       const agentId = str(d["agent_id"]);
       if (!agentId) return undefined;
@@ -98,6 +112,39 @@ async function firstPrompt(transcript: string): Promise<string | undefined> {
     return undefined;
   } catch {
     return undefined;
+  } finally {
+    input.destroy();
+  }
+}
+
+/**
+ * 記録が書き終わっているか：最後の api-request の行の後に、使用量（message.usage）付きの assistant の行がある。
+ * 応答が複数のブロックの行に分かれても、実機（2026-11-07、2.1.318）では最後の応答の行は止まってから 0.5 秒以内にまとめて書かれ、
+ * その後は増えないので、最初の使用量付きの行で書き終わりとみなす（stop_reason は行ごとに付くかを確かめていないので見ない）。
+ * api-request の行がなければ待つものがないので true。読めなければ true
+ */
+async function transcriptSettled(transcript: string): Promise<boolean> {
+  const input = createReadStream(transcript);
+  let settled = true;
+  try {
+    const lines = createInterface({ input, crlfDelay: Infinity });
+    for await (const line of lines) {
+      let d: Record<string, unknown>;
+      try {
+        d = obj(JSON.parse(line));
+      } catch {
+        continue;
+      }
+      if (d["type"] === "api-request") settled = false;
+      else if (
+        d["type"] === "assistant" &&
+        obj(obj(d["message"])["usage"])["output_tokens"] !== undefined
+      )
+        settled = true;
+    }
+    return settled;
+  } catch {
+    return true;
   } finally {
     input.destroy();
   }
@@ -177,6 +224,7 @@ export const claudeCodeHooks: HookSupport = {
   events: [
     { event: "SessionStart" },
     { event: "PostToolUse", matcher: "Agent" },
+    { event: "SubagentStart" },
     { event: "SubagentStop" },
     { event: "SessionEnd" },
   ],
@@ -187,5 +235,6 @@ export const claudeCodeHooks: HookSupport = {
   parse: parseHook,
   firstPrompt,
   selfOpenedRunIds,
+  transcriptSettled,
   transcriptRoot: (env) => path.join(claudeConfigDir(env), "projects"),
 };
