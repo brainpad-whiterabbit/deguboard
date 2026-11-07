@@ -1,0 +1,30 @@
+{
+  "id": "r20261107-152131-5b5d",
+  "ticket": "t527",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-07T15:21:31Z",
+  "finished_at": "2026-11-07T15:22:51Z",
+  "result": "success",
+  "error": null,
+  "retries": 1,
+  "retry_reasons": [
+    "Plan の承認を自動化しないが guide-all の --auto と食い違う"
+  ],
+  "usage": {
+    "input": 6,
+    "output": 3635,
+    "cache_read": 347277,
+    "cache_write": 7843
+  },
+  "tools": {
+    "read": 0,
+    "search": 0,
+    "write": 5,
+    "bash": 2,
+    "other": 0,
+    "read_before_write": 0,
+    "search_before_write": 0
+  }
+}
