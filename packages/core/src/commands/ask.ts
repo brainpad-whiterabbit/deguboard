@@ -180,7 +180,10 @@ export function skillSummary(skill: string, lang: AskLanguage = "ja"): string {
   return text;
 }
 
-/** DG_PATH_NOTE の英語。英語の依頼文（language が en）の文章だけの形式に使う */
+/**
+ * DG_PATH_NOTE の英語。英語の依頼文（language が en）の文章だけの形式に使う。
+ * テストのための export（ask.test.ts が ASK_DG_USAGE_EN に含まれることを確かめる。本体は ASK_DG_USAGE_EN の中）
+ */
 export const DG_PATH_NOTE_EN =
   "If `dg` is not on PATH, replace `dg` with the command the repository's guide tells you to use (`npx deguboard`, `mise run dg --`, etc.). The same applies to `dg` in the steps.";
 
@@ -191,8 +194,8 @@ export const ASK_DG_USAGE = `dg は \`dg … --json --actor agent\` で呼び、
 export const ASK_DG_USAGE_EN = `Call dg as \`dg … --json --actor agent\`, and do not edit the files under .git/deguboard/ directly. ${DG_PATH_NOTE_EN}`;
 
 /** 依頼文の定型の文の言語（UI-11）。指示（note）とチケットの中身は書いた言葉のまま入れ、言語では変えない */
-export const ASK_LANGUAGES = ["ja", "en"] as const;
-export type AskLanguage = (typeof ASK_LANGUAGES)[number];
+const ASK_LANGUAGES = ["ja", "en"] as const;
+type AskLanguage = (typeof ASK_LANGUAGES)[number];
 
 /** 言語に合わせて、日本語と英語の定型の文のどちらかを選ぶ */
 const say = (lang: AskLanguage, ja: string, en: string) => (lang === "en" ? en : ja);

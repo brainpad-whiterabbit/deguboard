@@ -36,7 +36,7 @@ export function skillDirsOf(agent: string): SkillDirs | undefined {
 }
 
 /** 環境変数から判定した agent。agent は 1 つの Adapter だけが自分と判定したときの名前で、それ以外は null */
-export interface AgentDetection {
+interface AgentDetection {
   agent: string | null;
   /** 自分と判定した Adapter の名前。2 つ以上なら（エージェントの中から別のエージェントを呼んだなど）どれとも決めない */
   matched: string[];

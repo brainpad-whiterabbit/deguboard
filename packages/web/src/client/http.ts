@@ -22,6 +22,21 @@ type Envelope<T> =
   | { ok: true; data: T; warnings?: string[]; write?: CommandResult<T>["write"] | null }
   | { ok: false; error: CommandFailure };
 
+/**
+ * 成功した応答を CommandResult にする。警告は今の言語の文にする（trCoreMessage）。HTTP と Webview の両方の CommandClient が使う
+ */
+export function commandResultOf<O>(body: {
+  data: O;
+  warnings?: string[] | undefined;
+  write?: CommandResult<O>["write"] | null | undefined;
+}): CommandResult<O> {
+  return {
+    data: body.data,
+    warnings: (body.warnings ?? []).map(trCoreMessage),
+    write: body.write ?? undefined,
+  };
+}
+
 export function createHttpClient(baseUrl = "", fetchImpl: typeof fetch = fetch): CommandClient {
   const call = async <T>(path: string, init?: RequestInit): Promise<Envelope<T>> => {
     let res: Response;
@@ -54,11 +69,7 @@ export function createHttpClient(baseUrl = "", fetchImpl: typeof fetch = fetch):
         body: JSON.stringify({ input }),
       });
       if (!body.ok) throw new ClientError(body.error);
-      return {
-        data: body.data,
-        warnings: (body.warnings ?? []).map(trCoreMessage),
-        write: body.write ?? undefined,
-      };
+      return commandResultOf(body);
     },
     async status(): Promise<StatusView> {
       const body = await call<StatusView>("/api/status");

@@ -3409,6 +3409,21 @@ describe("用意", () => {
     });
   });
 
+  it("config.show --fields と keys は指定した項目だけを fields に出す（画面の読み直しが使う）", async () => {
+    const f = await fixture();
+    const ctx = await initialized(f.cloneA);
+    const shown = (
+      await runCommand(configShow, ctx, {
+        fields: true,
+        keys: ["priority.high", "priority.low"],
+      })
+    ).data as ConfigShowView;
+    expect(shown.fields.map((x) => x.key)).toEqual(["priority.high", "priority.low"]);
+    expect(shown.fields.map((x) => x.default)).toEqual([expect.any(String), expect.any(String)]);
+    // config は keys に関係なく全体を返す（default_project などを同じ読みで取る）
+    expect(shown.config.default_project).toBe("default");
+  });
+
   it("validate は読めない Run のファイルを指摘し、ほかの読み込みは止めない", async () => {
     const f = await fixture();
     const ctx = await initialized(f.cloneA);

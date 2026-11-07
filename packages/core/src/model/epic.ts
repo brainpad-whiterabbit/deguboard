@@ -5,7 +5,6 @@ import { isoDateTime, slugSchema } from "./common.js";
 import { epicIdSchema } from "./id.js";
 
 export const EPIC_STATUSES = ["open", "closed"] as const;
-export type EpicStatus = (typeof EPIC_STATUSES)[number];
 
 export const epicSchema = z.looseObject({
   id: epicIdSchema,

@@ -5,7 +5,6 @@ import { isoDateTime, slugSchema } from "./common.js";
 import { compareIds, iterationIdSchema } from "./id.js";
 
 export const ITERATION_STATUSES = ["planned", "active", "closed"] as const;
-export type IterationStatus = (typeof ITERATION_STATUSES)[number];
 
 const isoDate = z.iso.date();
 

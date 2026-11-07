@@ -120,8 +120,7 @@ export function openedStepOf(ctx: CommandContext, ticket: Ticket, opener: StepOp
 }
 
 /** 操作が開く Run の呼び名（警告とコミットメッセージ）。claim は実装、reclaim は手直し */
-export const openedRunLabel = (opener: StepOpener): string =>
-  opener === "claim" ? "実装" : "手直し";
+const openedRunLabel = (opener: StepOpener): string => (opener === "claim" ? "実装" : "手直し");
 
 /**
  * チケットの操作（claim は実装、reclaim は手直し。RN-5）が開く step の Run のうち、このマシンで実行中のもの。

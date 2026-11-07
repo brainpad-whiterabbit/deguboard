@@ -35,6 +35,9 @@ import type {
 import type { UiState } from "./ui-state.js";
 import { shownConfigValue, tr } from "./l10n.js";
 
+/** 読み直しのたびに config.show で読む項目。画面が要る優先度の既定だけで、設定の全項目の説明は設定画面が読む */
+const PRIORITY_KEYS = ["priority.high", "priority.medium", "priority.low"];
+
 /** 優先度の判断基準（config.yaml の priority。config.show が core の既定を混ぜて返す）。読み終えるまでは空 */
 const EMPTY_PRIORITY_CRITERIA: Record<Priority, string> = { high: "", medium: "", low: "" };
 
@@ -170,7 +173,7 @@ export function StoreProvider({
     try {
       const [projectList, config, whoami] = await Promise.all([
         client.run<Project[]>("project.list"),
-        client.run<ConfigShowView>("config.show", { fields: true }),
+        client.run<ConfigShowView>("config.show", { fields: true, keys: PRIORITY_KEYS }),
         client.run<WhoamiView>("whoami"),
       ]);
       setNotInitialized(false);

@@ -149,7 +149,7 @@ export interface ReconciledTicket {
 }
 
 /** 照合が閉じた Run（RN-6）。opener は開いた操作（claim は実装、reclaim は手直し） */
-export interface ReconciledRun {
+interface ReconciledRun {
   id: string;
   run: RunId;
   opener: StepOpener;
@@ -740,6 +740,12 @@ export const configShow = defineCommand({
       .describe(
         "値と一緒に全項目のキー・型・既定値・説明・範囲（scope：team はチーム専用、local は個人で上書きできる）と、チームの値・個人の上書きも出す（{ config, team, local, fields } の形。設定画面が使う）",
       ),
+    keys: z
+      .array(z.string())
+      .optional()
+      .describe(
+        "fields と一緒に使う。この項目（ドット区切りの名前。例：priority.high）の分だけを fields に出す。省けば全項目（設定画面が使う）。画面の読み直しが要る項目だけを軽く読むのに使う",
+      ),
   }),
   write: false,
   needs: "store",
@@ -747,11 +753,13 @@ export const configShow = defineCommand({
     // 同じ文脈で config.set した後も今の値を出すよう、ctx.config（開いたときの写し）でなく store から読む
     const config = ctx.store.config;
     if (input.fields) {
+      const fields = configFields();
+      const keys = input.keys;
       return ok<ConfigShowView | Config>({
         config,
         team: ctx.store.teamConfig,
         local: ctx.store.localConfig,
-        fields: configFields(),
+        fields: keys ? fields.filter((f) => keys.includes(f.key)) : fields,
       });
     }
     return ok<ConfigShowView | Config>(config);
@@ -766,6 +774,7 @@ export interface ConfigShowView {
   team: Config;
   /** 個人の上書き（ドット区切りの項目名 → 値）。上書きできる項目でスキーマに合うものだけ */
   local: Record<string, unknown>;
+  /** 全項目（keys を渡したときはその項目だけ） */
   fields: ConfigField[];
 }
 

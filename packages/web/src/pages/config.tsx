@@ -449,7 +449,7 @@ export function ConfigPage() {
       </div>
       <div id="config-panel" role="tabpanel" aria-labelledby={`config-tab-${tab}`}>
         {tab === "team" ? (
-          <p className="config-scope config-team" role="note">
+          <p className="config-scope" role="note">
             <strong>{tr("チーム全員に効く設定")}</strong>
             <span>
               {trNode(

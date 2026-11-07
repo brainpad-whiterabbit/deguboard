@@ -7,9 +7,7 @@ import { z } from "zod";
 import { slugSchema } from "./common.js";
 
 const COMMIT_MODES = ["each", "batch", "manual"] as const;
-export type CommitMode = (typeof COMMIT_MODES)[number];
 const PUSH_MODES = ["auto", "manual"] as const;
-export type PushMode = (typeof PUSH_MODES)[number];
 
 export const configSchema = z.looseObject({
   default_project: slugSchema.default("default").describe("省略時の Project"),
@@ -192,7 +190,7 @@ const LOCAL_KEYS: ReadonlySet<string> = new Set([
 ]);
 
 /** 項目（ドット区切りの名前）の範囲。スキーマにない名前は team（個人のファイルでは無視する） */
-export function configScopeOf(key: string): ConfigScope {
+function configScopeOf(key: string): ConfigScope {
   return LOCAL_KEYS.has(key) ? "local" : "team";
 }
 
@@ -255,7 +253,10 @@ export function configFields(): ConfigField[] {
   return fields;
 }
 
-/** 入れ子の値を `commit.mode` のようなドット区切りの葉に開く。入れ子でない値（配列も）は葉 */
+/**
+ * 入れ子の値を `commit.mode` のようなドット区切りの葉に開く。入れ子でない値（配列も）は葉。
+ * テストのための export（schema.test.ts が使う。本体は overlayLocalConfig の中だけ）
+ */
 export function flattenConfig(value: unknown, prefix = ""): Record<string, unknown> {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     return prefix ? { [prefix]: value } : {};
