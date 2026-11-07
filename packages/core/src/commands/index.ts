@@ -16,6 +16,7 @@ export * from "./workflow.js";
 export * from "./run.js";
 export * from "./ask.js";
 export * from "./local.js";
+export { readHookInput, type HookInputRecord } from "./hook.js";
 export type {
   CommandClient,
   CommandFailure,

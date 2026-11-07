@@ -7,9 +7,10 @@
 //     記録の全体から数えて閉じる。事実がなければ閉じずに止まって待っている印を付ける。
 //     印のある Run がなければ、サブエージェントが自分で開いた Run（記録に ID が出る）に記録の場所を結び付ける（移行期の経路）
 //   - session_end：このセッションのサブエージェントの Run のうち開いたままのものをすべて閉じる。親が自分で開いた Run は残す
+//   どのイベントでも、扱うイベントなら受け取った入力の項目の有無と時刻を deguboard-local/hooks/ に残す（t542。dg hooks check が読む）
 //   どのフックの後も、前のフックで書き終わりを待ちきれずに残した Run を閉じる（dg sync も同じ）
 
-import { appendFile, readFile } from "node:fs/promises";
+import { appendFile, mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
 import { collectRunUsage, hookAgentNames, hooksOf, type HookEvent } from "../agents/index.js";
@@ -46,6 +47,70 @@ export function parseMarker(prompt: string): { ticket: TicketId; step: string } 
   if (!m) return undefined;
   const ticket = ticketIdSchema.safeParse(m[1]);
   return ticket.success ? { ticket: ticket.data, step: m[2]! } : undefined;
+}
+
+/**
+ * dg hook が受け取った入力の記録（deguboard-local/hooks/<イベント>.json。イベントごとに最新の 1 件を上書きする。t542）。
+ * 項目の有無と時刻だけを持ち、値は残さない（MT-4）。dg hooks check が読んで、要る項目が欠けていれば警告する
+ */
+export interface HookInputRecord {
+  event: string;
+  /** 受け取った時刻 */
+  received_at: string;
+  /** Adapter が要るとした項目（ドット区切りのパス）ごとに、入力にあったか */
+  fields: Record<string, boolean>;
+}
+
+const HOOK_INPUTS_DIR = "hooks";
+
+/** ドット区切りのパスの値がある（null と未定義でない） */
+function hasField(input: Record<string, unknown>, dotted: string): boolean {
+  let cur: unknown = input;
+  for (const key of dotted.split(".")) {
+    if (typeof cur !== "object" || cur === null) return false;
+    cur = (cur as Record<string, unknown>)[key];
+  }
+  return cur !== undefined && cur !== null;
+}
+
+/** 受け取った入力の項目の有無を記録する。一時ファイルに書いてから置き換え、読む側が途中の内容を見ないようにする */
+async function recordHookInput(
+  localDir: string,
+  event: string,
+  receivedAt: string,
+  fields: readonly string[],
+  payload: Record<string, unknown>,
+): Promise<void> {
+  const dir = path.join(localDir, HOOK_INPUTS_DIR);
+  await mkdir(dir, { recursive: true });
+  const record: HookInputRecord = {
+    event,
+    received_at: receivedAt,
+    fields: Object.fromEntries(fields.map((f) => [f, hasField(payload, f)])),
+  };
+  const file = path.join(dir, `${event}.json`);
+  const tmp = `${file}.${process.pid}.tmp`;
+  await writeFile(tmp, `${JSON.stringify(record)}\n`, "utf8");
+  await rename(tmp, file);
+}
+
+/** イベントの直近の入力の記録。なければ、読めなければ undefined */
+export async function readHookInput(
+  localDir: string,
+  event: string,
+): Promise<HookInputRecord | undefined> {
+  const text = await readFile(path.join(localDir, HOOK_INPUTS_DIR, `${event}.json`), "utf8").catch(
+    () => undefined,
+  );
+  if (text === undefined) return undefined;
+  try {
+    const d = JSON.parse(text) as Partial<HookInputRecord>;
+    if (typeof d.received_at !== "string" || typeof d.fields !== "object" || d.fields === null)
+      return undefined;
+    return { event, received_at: d.received_at, fields: d.fields };
+  } catch {
+    return undefined;
+  }
 }
 
 /** シェルの単一引用符で囲む */
@@ -96,6 +161,22 @@ export const hook = defineCommand({
     const agent = input.agent ?? (names.length === 1 ? names[0]! : "");
     const hooks = hooksOf(agent);
     if (!hooks) return ok(view, undefined, [`agent ${agent} にはフックがない`]);
+    // フックの入力の項目の有無を、イベントごとの最新の 1 件に残す（dg hooks check が読む）。扱うイベントの名前だけを使う
+    if (hooks.events.some((e) => e.event === input.event)) {
+      try {
+        await recordHookInput(
+          ctx.repo.localDir,
+          input.event,
+          toIsoDateTime(ctx.now()),
+          hooks.inputFields[input.event] ?? [],
+          input.payload ?? {},
+        );
+      } catch (e) {
+        warnings.push(
+          `フックの入力の記録を書けなかった（${e instanceof Error ? e.message : String(e)}）`,
+        );
+      }
+    }
     const env = ctx.env ?? process.env;
     const event = hooks.parse(input.event, input.payload ?? {}, env);
     if (!event) return ok(view, undefined, warnings);

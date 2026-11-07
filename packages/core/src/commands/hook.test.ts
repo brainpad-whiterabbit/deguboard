@@ -8,7 +8,15 @@ import { peekRunningRuns, readTranscriptPaths } from "../run/record.js";
 import { resetGhCache } from "../git/facts.js";
 import { openContext } from "./context.js";
 import { runCommand, type CommandContext } from "./define.js";
-import { hook, hookTiming, parseGhPr, parseMarker, writesDataDir, type HookView } from "./hook.js";
+import {
+  hook,
+  hookTiming,
+  parseGhPr,
+  parseMarker,
+  readHookInput,
+  writesDataDir,
+  type HookView,
+} from "./hook.js";
 import { runList, runReviewResult, runStart, type RunView } from "./run.js";
 import { commit, configSet, init, sync } from "./setup.js";
 import { ticketCreate, ticketUpdate } from "./ticket.js";
@@ -729,6 +737,49 @@ describe("サブエージェントの止まりと再開（ADR-014）", () => {
     expect(warnings).toContainEqual(expect.stringContaining("まだ閉じない"));
     expect(view.done.some((d) => d.includes("で閉じた"))).toBe(false);
     expect((await peekRunningRuns(ctx.repo))[0]!.settling_since).not.toBeNull();
+  });
+});
+
+describe("dg hook の入力の記録（t542）", () => {
+  it("扱うイベントは受け取った入力の項目の有無と時刻を deguboard-local/hooks/ に残し、値は残さない", async () => {
+    const { ctx, parent } = await prepared();
+    await call(
+      ctx,
+      "PostToolUse",
+      launched(parent, "a1", "deguboard: ticket=t1 step=implement\n秘密の文"),
+    );
+    const record = await readHookInput(ctx.repo.localDir, "PostToolUse");
+    expect(record).toMatchObject({
+      event: "PostToolUse",
+      fields: { "tool_input.prompt": true, "tool_response.agentId": true },
+    });
+    expect(record!.received_at).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    const text = await readFile(path.join(ctx.repo.localDir, "hooks", "PostToolUse.json"), "utf8");
+    expect(text).not.toContain("秘密の文");
+    expect(text).not.toContain("a1");
+  });
+
+  it("要る項目がない入力は有無に false として残し、直近の 1 件だけを上書きする", async () => {
+    const { ctx, parent } = await prepared();
+    const broken = {
+      ...launched(parent, "a1", "頼んだ文"),
+      tool_response: { status: "async_launched" },
+    };
+    await call(ctx, "PostToolUse", broken);
+    expect((await readHookInput(ctx.repo.localDir, "PostToolUse"))!.fields).toEqual({
+      "tool_input.prompt": true,
+      "tool_response.agentId": false,
+    });
+    await call(ctx, "PostToolUse", launched(parent, "a2", "頼んだ文"));
+    expect(
+      (await readHookInput(ctx.repo.localDir, "PostToolUse"))!.fields["tool_response.agentId"],
+    ).toBe(true);
+  });
+
+  it("扱わないイベントの入力は記録しない", async () => {
+    const { ctx } = await prepared();
+    await call(ctx, "UserPromptSubmit", { session_id: SESSION });
+    expect(await readHookInput(ctx.repo.localDir, "UserPromptSubmit")).toBeUndefined();
   });
 });
 

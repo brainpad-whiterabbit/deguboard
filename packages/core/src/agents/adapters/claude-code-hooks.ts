@@ -263,6 +263,12 @@ export const claudeCodeHooks: HookSupport = {
     project: (topLevel) => path.join(topLevel, ".claude", "settings.json"),
     personal: (env) => path.join(claudeConfigDir(env), "settings.json"),
   },
+  // dg が読む項目。SessionStart は transcript_path、PostToolUse は起動の prompt と agentId、SubagentStop は記録のパス（t542）
+  inputFields: {
+    SessionStart: ["transcript_path"],
+    PostToolUse: ["tool_input.prompt", "tool_response.agentId"],
+    SubagentStop: ["agent_id", "agent_transcript_path"],
+  },
   parse: parseHook,
   firstPrompt,
   selfOpenedRunIds,

@@ -2,6 +2,7 @@ import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promi
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { resolveRepoPaths } from "@deguboard/core";
 import { createLocalOnlyRepo } from "../../core/test/helpers/git-fixture.js";
 import { run } from "./program.js";
 
@@ -162,5 +163,81 @@ describe("dg hook の失敗", () => {
     await writeFile(file, JSON.stringify({ hooks: { SessionEnd: [{ hooks: [theirs] }] } }));
     await dg(cwd, ["hooks", "uninstall"]);
     expect((await settingsOf(file)).hooks["SessionEnd"]).toEqual([{ hooks: [theirs] }]);
+  });
+});
+
+describe("dg hooks check（t542）", () => {
+  const checkOf = async (cwd: string, env: NodeJS.ProcessEnv = {}) => {
+    const r = await dg(cwd, ["--json", "hooks", "check"], env);
+    expect(r.code).toBe(0);
+    return JSON.parse(r.out) as {
+      ok: true;
+      data: {
+        events: Array<{
+          event: string;
+          installed: boolean;
+          handler: boolean | null;
+          received_at: string | null;
+          missing: string[];
+        }>;
+        warnings: string[];
+      };
+      warnings: string[];
+    };
+  };
+
+  it("フックがなければ、設定に dg のフックがないと警告する（終了コードは 0）", async () => {
+    const cwd = await repo();
+    const result = await checkOf(cwd);
+    expect(result.data.events.every((e) => !e.installed && e.handler === null)).toBe(true);
+    expect(result.warnings).toContainEqual(expect.stringContaining("dg のフックがない"));
+  });
+
+  it("入れたフックは入っていると報告し、ハンドラが --version で動くことを確かめる。動かないコマンドは警告する", async () => {
+    const cwd = await repo();
+    await dg(cwd, ["hooks", "install", "--command", process.execPath]);
+    const ok = await checkOf(cwd);
+    expect(ok.data.events.every((e) => e.installed && e.handler === true)).toBe(true);
+    expect(ok.warnings).toEqual([]);
+
+    await dg(cwd, ["hooks", "install", "--command", "/nonexistent/dg-for-test"]);
+    const broken = await checkOf(cwd);
+    expect(broken.data.events.every((e) => e.installed && e.handler === false)).toBe(true);
+    expect(broken.warnings).toContainEqual(expect.stringContaining("--version で動かない"));
+  });
+
+  it("直近の入力に要る項目がなければ、項目の名前を警告する。記録がなければ警告しない", async () => {
+    const cwd = await repo();
+    await dg(cwd, ["hooks", "install", "--command", process.execPath]);
+    const { localDir } = await resolveRepoPaths(cwd);
+    await mkdir(path.join(localDir, "hooks"), { recursive: true });
+    const before = await checkOf(cwd);
+    expect(before.data.events.find((e) => e.event === "PostToolUse")!.received_at).toBeNull();
+    expect(before.warnings.some((w) => w.includes("直近の入力"))).toBe(false);
+
+    await writeFile(
+      path.join(localDir, "hooks", "PostToolUse.json"),
+      JSON.stringify({
+        event: "PostToolUse",
+        received_at: "2026-11-07T00:00:00Z",
+        fields: { "tool_input.prompt": true, "tool_response.agentId": false },
+      }),
+    );
+    const after = await checkOf(cwd);
+    const post = after.data.events.find((e) => e.event === "PostToolUse")!;
+    expect(post.missing).toEqual(["tool_response.agentId"]);
+    expect(after.warnings).toContainEqual(expect.stringContaining("tool_response.agentId がない"));
+  });
+
+  it("設定が一部だけ入っているときは、入っていないイベントを名前で警告する", async () => {
+    const cwd = await repo();
+    await dg(cwd, ["hooks", "install", "--command", process.execPath]);
+    const file = path.join(cwd, ".claude", "settings.json");
+    const settings = await settingsOf(file);
+    delete settings.hooks["SessionEnd"];
+    await writeFile(file, JSON.stringify(settings));
+    const result = await checkOf(cwd);
+    expect(result.data.events.find((e) => e.event === "SessionEnd")!.installed).toBe(false);
+    expect(result.warnings).toContainEqual(expect.stringContaining("SessionEnd"));
   });
 });
