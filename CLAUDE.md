@@ -6,8 +6,9 @@ Git-native な AI ワークフロー・チケット管理ツール。CLI は `dg
 
 - Claude は毎回このファイルを読む。[development.md](docs/development.md)・requirements.md は見出しから要る節だけ、ADR は一覧から番号で引く。作業中の手順は `dg guide <topic>` が出す
 - 仕様の正本は [docs/requirements.md](docs/requirements.md)。約束（振る舞いとデータの形）だけを書き、細部の正本はヘルプ・コード・テスト。理由が要るときだけ ADR を引く。読み手ごとの入口と書く範囲は [ADR-001](docs/adr/ADR-001-doc-strategy.md)
-- 設計判断は [docs/adr/](docs/adr/README.md)。**ADR はテーマごとに 1 本。小さな変更は該当 ADR を直接書き換える**（更新日と一覧も直す）。新しく書くのは方針を反転する大きな変更と、テーマを分けるときだけ。迷ったら書き換える
-- 文書の大きさの予算は `mise run check:docs` が検査する。超えたら細部を正本へ移す
+- 設計判断は [docs/adr/](docs/adr/README.md)。**ADR は判断ごとに 1 本で、決めたら書き換えない。判断を変えるときは新しい ADR を書き、古い ADR を「置き換え」にして一覧を直す**（書き方は ADR-001）
+- 文書の重複と参照の切れは `mise run check:docs` が検査する。大きさの予算は持たない。細部は正本へ移す
+- 文書のずれは PR の見直しで重い指摘にしない。Iteration ごとの文書の見直し（`dg guide audit`）でまとめて直す
 - 文書を重複させない。規約はこのファイルにだけ書き、README と development.md に写さない
 - 記述を足すだけにしない。文書・README・このファイル・コードのコメントの古い記述は、見つけた変更で消す
 
@@ -32,7 +33,7 @@ Git-native な AI ワークフロー・チケット管理ツール。CLI は `dg
 - Skill（`dg*`）の手順の中の `dg` も、PATH に `dg` があっても `mise run dg --` で呼ぶ
 - 作業はチケットに紐づける。`claim` してから着手し、PR の本文に ID（`t12`）を書く。PR の要らない作業（チケットのデータの整備・確認）は `claim --without-branch` で着手し、受け入れ条件をすべて確かめたら agent が done にする。確かめられない項目は review に置いて人に報告する
 - Claude は `DEGUBOARD_ACTOR=agent` を付けて `dg` を呼ぶ。人の指示や承認で起票するときは `--created-by human` を付ける（起票者はユーザ本人）。拒否された操作（`TRANSITION_REJECTED`）は人に頼む。abandoned・done の取り消し・Epic や Iteration を閉じる・再開するのは、人の指示があるときだけ行う
-- 要件を変える変更は、同じ PR で requirements.md を直す。判断を変える変更は該当 ADR を書き換える
+- 要件を変える変更は、同じ PR で requirements.md を直す。判断を変える変更は新しい ADR を書き、古い ADR を置き換えにする
 
 ## ブランチ・PR・マージ
 

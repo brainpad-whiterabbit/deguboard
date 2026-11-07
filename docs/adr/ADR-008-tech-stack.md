@@ -56,7 +56,7 @@
 
 ### 文書の検査
 
-- `scripts/check-docs.mjs` が文書を検査する。検査する範囲は [ADR-001](ADR-001-doc-strategy.md#大きさの予算) のとおり。`mise run check` に含める
+- `scripts/check-docs.mjs` が文書を検査する。検査する範囲は [ADR-001](ADR-001-doc-strategy.md#重複と参照の検査) のとおり。`mise run check` に含める
 
 ## 理由
 
