@@ -1,0 +1,33 @@
+{
+  "id": "r20261107-215047-3320",
+  "ticket": "t531",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-07T21:50:47Z",
+  "finished_at": "2026-11-07T21:53:34Z",
+  "result": "success",
+  "error": null,
+  "retries": 3,
+  "retry_reasons": [
+    "要件 AG-9 の見直しの成否の記述を ADR-013 に合わせる",
+    "実行中の Run への結果の書き込みとフックの閉じる処理の競合を直す",
+    "閉じた見直しの Run に書くのをチケットの最新の Run に限る"
+  ],
+  "usage": {
+    "input": 18,
+    "output": 9291,
+    "cache_read": 1850522,
+    "cache_write": 13742
+  },
+  "tools": {
+    "read": 0,
+    "search": 0,
+    "write": 0,
+    "bash": 9,
+    "other": 0,
+    "read_before_write": 0,
+    "search_before_write": 0
+  },
+  "session": null
+}
