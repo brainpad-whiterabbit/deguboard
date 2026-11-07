@@ -1,0 +1,31 @@
+{
+  "id": "r20261107-140334-21d7",
+  "ticket": "t510",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-07T14:03:34Z",
+  "finished_at": "2026-11-07T14:06:32Z",
+  "result": "success",
+  "error": null,
+  "retries": 2,
+  "retry_reasons": [
+    "文のときの段階 1 の条件と S の決まり方がはっきりしない",
+    "ラベル dgall-要約 が再開のときに揃わない"
+  ],
+  "usage": {
+    "input": 12,
+    "output": 8713,
+    "cache_read": 663202,
+    "cache_write": 11913
+  },
+  "tools": {
+    "read": 0,
+    "search": 0,
+    "write": 0,
+    "bash": 6,
+    "other": 0,
+    "read_before_write": 0,
+    "search_before_write": 0
+  }
+}
