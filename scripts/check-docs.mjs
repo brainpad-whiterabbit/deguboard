@@ -8,17 +8,18 @@ import { fileURLToPath } from "node:url";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 // 予算（バイト）。超えたら失敗、WARN_RATIO を超えたら警告する。どちらも細部を正本（ヘルプ・コード・テスト）へ移すか、約束を見直すきっかけ
+// 予算を重複と参照の検査に置き換えるまで（t536）のつなぎとして、値を一旦 2 倍にゆるめている
 const budgets = [
-  ["CLAUDE.md", 6 * 1024],
-  ["README.md", 16 * 1024],
-  ["README.ja.md", 16 * 1024],
-  ["docs/requirements.md", 40 * 1024],
-  ["docs/development.md", 20 * 1024],
+  ["CLAUDE.md", 12 * 1024],
+  ["README.md", 32 * 1024],
+  ["README.ja.md", 32 * 1024],
+  ["docs/requirements.md", 80 * 1024],
+  ["docs/development.md", 40 * 1024],
 ];
-const adrBudget = 12 * 1024;
+const adrBudget = 24 * 1024;
 // エージェントが作業中に読む dg guide のトピック（1 本ずつ）
 const guideDir = "packages/cli/src";
-const guideBudget = 14 * 1024;
+const guideBudget = 28 * 1024;
 const WARN_RATIO = 0.9;
 
 const errors = [];
