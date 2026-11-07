@@ -1,0 +1,31 @@
+{
+  "id": "r20261107-151535-2bd5",
+  "ticket": "t527",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-07T15:15:35Z",
+  "finished_at": "2026-11-07T15:17:33Z",
+  "result": "success",
+  "error": null,
+  "retries": 2,
+  "retry_reasons": [
+    "人の判断の穴のマージが auto.merge と食い違う",
+    "ADR-003 の失効の 1 行が有効な判断まで失効に見せる"
+  ],
+  "usage": {
+    "input": 24,
+    "output": 8182,
+    "cache_read": 1215787,
+    "cache_write": 15288
+  },
+  "tools": {
+    "read": 5,
+    "search": 0,
+    "write": 9,
+    "bash": 4,
+    "other": 0,
+    "read_before_write": 1,
+    "search_before_write": 0
+  }
+}
