@@ -7,6 +7,7 @@
 //   - session_end：このセッションの見直しと手直しの Run のうち開いたままのものを interrupted で閉じる。実装の Run は PR の記録で閉じる
 
 import { appendFile, readFile } from "node:fs/promises";
+import path from "node:path";
 import { z } from "zod";
 import { collectRunUsage, hookAgentNames, hooksOf, type HookEvent } from "../agents/index.js";
 import { OperationError } from "../errors.js";
@@ -37,8 +38,12 @@ export function parseMarker(prompt: string): { ticket: TicketId; step: string } 
 /** シェルの単一引用符で囲む */
 const quote = (s: string) => `'${s.replaceAll("'", `'\\''`)}'`;
 
-/** Run の ID の形（記録の中から自分で開いた Run を探す） */
-const RUN_IDS = /r\d{8}-\d{6}-[0-9a-f]{4}/g;
+/**
+ * 自分で開いた Run の ID が記録に出る形。run start・ticket claim の --json の結果の "id"・"run"（記録の中では \" に逃がされうる）と、
+ * 人向けの出力の最後の行の run: だけ。警告の文に出るほかの Run の ID（開いたままの兄弟の Run など）は取らない
+ */
+const OWN_RUN_IDS =
+  /\\?"(?:id|run)\\?":\s*\\?"(r\d{8}-\d{6}-[0-9a-f]{4})\\?"|(?:^|\\n|\n)run: (r\d{8}-\d{6}-[0-9a-f]{4})/g;
 
 export interface HookView {
   event: string;
@@ -216,7 +221,13 @@ async function mentionedRuns(
   const firstLine = text.slice(0, text.indexOf("\n") >>> 0);
   const since = Date.parse(/"timestamp":"([^"]+)"/.exec(firstLine)?.[1] ?? "");
   if (Number.isNaN(since)) return [];
-  const ids = new Set(text.match(RUN_IDS) ?? []);
+  const ids = new Set([...text.matchAll(OWN_RUN_IDS)].map((m) => (m[1] ?? m[2])!));
+  // すでにほかのサブエージェントの記録に結び付いた Run（起動のフックが開いた兄弟の Run）は外す
+  const paths = await readTranscriptPaths(ctx.repo);
+  const boundElsewhere = (id: string) => {
+    const p = paths.get(id);
+    return p !== undefined && p !== transcript && path.basename(path.dirname(p)) === "subagents";
+  };
   const running = (await readRunningRuns(ctx.repo)).runs.map((r) => r.data);
   const known = (id: string) =>
     running.find((r) => r.id === id) ?? ctx.store.runs.get(id as RunId)?.data;
@@ -224,7 +235,10 @@ async function mentionedRuns(
     const run = known(id);
     // 開始は秒までなので、その秒の初めまで許す
     return (
-      run?.agent === agent && run.session === session && Date.parse(run.started_at) >= since - 999
+      run?.agent === agent &&
+      run.session === session &&
+      Date.parse(run.started_at) >= since - 999 &&
+      !boundElsewhere(id)
     );
   }) as RunId[];
 }

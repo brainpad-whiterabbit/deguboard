@@ -190,7 +190,7 @@ export async function transcriptUnderRoot(
   const root = hooksOf(agent)?.transcriptRoot(env);
   if (!root) return true;
   const rel = path.relative(await resolvedPath(root), await resolvedPath(transcript));
-  return !(rel === "" || rel.startsWith("..") || path.isAbsolute(rel));
+  return !(rel === "" || rel === ".." || rel.startsWith(`..${path.sep}`) || path.isAbsolute(rel));
 }
 
 /** Run を開く操作（run start・ticket claim）が受け取る会話記録の場所 */
