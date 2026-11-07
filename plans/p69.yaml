@@ -13,7 +13,7 @@ after:
     - t533
   t535:
     - t536
-pending_approval: true
+pending_approval: false
 details:
   t526:
     scope: ADR-004・ADR-005 と requirements の AG-1・RN-1・MT-2 の書き換えだけ。コードは触らない
@@ -63,3 +63,5 @@ details:
     scope: PR の要らない調査：s19 と同じ 6 つの数の取り直しと EX-1 反転の要否の判断
     approach: t494 のコマンドで表を出し、ADR-004 の書き換え案として報告する。新しい Iteration のデータが揃ってから着手する
     tier: heavy
+approved_by: maji/agent
+approved_at: 2026-11-07T14:38:34Z
