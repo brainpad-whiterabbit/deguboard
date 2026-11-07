@@ -1,0 +1,34 @@
+{
+  "id": "r20261107-224756-1be0",
+  "ticket": "t532",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-07T22:47:56Z",
+  "finished_at": "2026-11-07T22:51:28Z",
+  "result": "success",
+  "error": null,
+  "retries": 3,
+  "retry_reasons": [
+    "ゲートを満たさずに進める道では人に gh を打ってもらうと拒む文と guide に書く",
+    "gh pr の指定を引用符と全体のフラグと cd を考えて読む",
+    "dg hook の help に PreToolUse と失敗時に止めることを書く"
+  ],
+  "usage": {
+    "input": 16,
+    "output": 9727,
+    "cache_read": 3194948,
+    "cache_write": 11409
+  },
+  "tools": {
+    "read": 0,
+    "search": 0,
+    "write": 0,
+    "bash": 8,
+    "other": 0,
+    "read_before_write": 0,
+    "search_before_write": 0
+  },
+  "session": null,
+  "review": null
+}
