@@ -52,7 +52,9 @@ import {
   openedStepOf,
   openRun,
   token,
+  transcriptFields,
   type ClosedOpenedRun,
+  type TranscriptInput,
 } from "./run.js";
 
 /**
@@ -960,7 +962,10 @@ async function openClaimRun(
   ctx: CommandContext,
   doc: Doc<Ticket>,
   opener: StepOpener,
-  input: { agent: string | undefined; retryReasons: readonly string[] | undefined },
+  input: {
+    agent: string | undefined;
+    retryReasons: readonly string[] | undefined;
+  } & TranscriptInput,
   warnings: string[],
 ): Promise<RunId | null> {
   const step = openedStepOf(ctx, doc.data, opener);
@@ -978,6 +983,8 @@ async function openClaimRun(
       step,
       agent: detected.agent,
       retryReasons: input.retryReasons,
+      session: input.session,
+      transcript: input.transcript,
     });
     warnings.push(...opened.warnings);
     return opened.run.id;
@@ -1002,7 +1009,7 @@ async function reclaim(
     agent?: string | undefined;
     no_run?: boolean | undefined;
     retry_reasons?: string[] | undefined;
-  },
+  } & TranscriptInput,
   warnings: string[],
 ): Promise<RunId | null> {
   if (input.without_branch || (input.branch !== undefined && input.branch !== doc.data.branch)) {
@@ -1041,7 +1048,12 @@ async function reclaim(
     ctx,
     doc,
     "reclaim",
-    { agent: input.agent, retryReasons: input.retry_reasons },
+    {
+      agent: input.agent,
+      retryReasons: input.retry_reasons,
+      session: input.session,
+      transcript: input.transcript,
+    },
     warnings,
   );
 }
@@ -1083,6 +1095,7 @@ export const ticketClaim = defineCommand({
       .describe(
         "もう一度の claim（手直し）でだけ使う。直す指摘の 1 行の要約で、手直しの Run の retry_reasons に入る（書き方は run finish --help）",
       ),
+    ...transcriptFields,
   }),
   write: true,
   needs: "store",
@@ -1098,6 +1111,12 @@ export const ticketClaim = defineCommand({
       throw new UsageError(
         "agent は Run を開く agent の claim でだけ使える（人の claim は Run を開かない）",
       );
+    }
+    if (
+      (input.session !== undefined || input.transcript !== undefined) &&
+      (input.no_run || ctx.actor.kind !== "agent")
+    ) {
+      throw new UsageError("session と transcript は Run を開く agent の claim でだけ使える");
     }
     // 空の配列は省いたのと同じに扱う
     const retryReasonsGiven = input.retry_reasons?.length ? input.retry_reasons : undefined;
@@ -1184,7 +1203,12 @@ export const ticketClaim = defineCommand({
             ctx,
             result.value,
             "claim",
-            { agent: input.agent, retryReasons: undefined },
+            {
+              agent: input.agent,
+              retryReasons: undefined,
+              session: input.session,
+              transcript: input.transcript,
+            },
             warnings,
           )
         : null;

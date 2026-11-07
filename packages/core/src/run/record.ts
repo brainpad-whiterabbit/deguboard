@@ -4,8 +4,10 @@
 //     closeRun をその操作の書き込みの中で呼び、同じコミットに入れる
 //   - 同じチケットと step の二重の start は、deguboard-local/locks/ のロックの中で実行中の記録を見て拒否する
 //   - チケットの frontmatter には書き足さない。チケットの Run は Run の ticket から引く（書き足すと Run のたびにチケットが衝突する）
+//   - 会話記録のパスは Run に書かず、deguboard-local/transcripts/<id>.json に置く（ADR-005）。ホームのパスとユーザ名を含み、
+//     別のマシンでは読めないので Git に入れない。閉じた後の run refresh も同じファイルから数えるので、Run を閉じても消さない
 
-import { mkdir, readdir, unlink } from "node:fs/promises";
+import { mkdir, readdir, readFile, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { OperationError } from "../errors.js";
 import { withLock } from "../git/lock.js";
@@ -27,7 +29,7 @@ import {
 import { createDoc, readDoc, type Doc } from "../storage/documents.js";
 import { pathExists } from "../storage/exists.js";
 import type { Issue } from "../storage/issue.js";
-import { DIRS, runPath } from "../storage/paths.js";
+import { DIRS, runPath, TRANSCRIPTS_DIR, transcriptPath } from "../storage/paths.js";
 import type { Store } from "../storage/store.js";
 
 /** start と finish の確かめと書き込みを直列にするロックの名前（deguboard-local/locks/runs） */
@@ -132,7 +134,35 @@ export interface StartRunInput {
   model?: string | null | undefined;
   /** やり直しの理由（もう一度の claim が開く手直しの Run。RN-5）。回数は理由の数にする */
   retryReasons?: readonly string[] | undefined;
+  /** 会話記録のセッション ID。Run に書く */
+  session?: string | undefined;
+  /** 会話記録のファイルのパス。Run に書かず deguboard-local/transcripts/ に置く */
+  transcript?: string | undefined;
   now: Date;
+}
+
+/**
+ * このマシンに置いた、Run ごとの会話記録のパス（ID → パス）。読めないファイルは飛ばす
+ * （Adapter は場所がないものとして、セッション ID か今の推測で数える）
+ */
+export async function readTranscriptPaths(
+  repo: Pick<GitRepo, "localDir">,
+): Promise<Map<string, string>> {
+  const dir = path.join(repo.localDir, TRANSCRIPTS_DIR);
+  const files = await readdir(dir).catch(() => [] as string[]);
+  const paths = new Map<string, string>();
+  for (const file of files) {
+    const id = file.endsWith(".json") ? file.slice(0, -5) : "";
+    if (!isRunId(id)) continue;
+    try {
+      const value: unknown = JSON.parse(await readFile(path.join(dir, file), "utf8"));
+      const p = (value as { path?: unknown } | null)?.path;
+      if (typeof p === "string" && p) paths.set(id, p);
+    } catch {
+      // 書きかけか壊れたファイル
+    }
+  }
+  return paths;
 }
 
 /** 実行中の Run を deguboard-local/runs/ に置く。同じチケットと step の Run が実行中なら拒否する */
@@ -163,7 +193,16 @@ export async function startRun(repo: RunDirs, input: StartRunInput): Promise<Run
       retry_reasons: [...(input.retryReasons ?? [])],
       usage: emptyUsage(),
       tools: null,
+      session: input.session ?? null,
     };
+    // 場所を先に置く。実行中の記録より後に置くと、その間に閉じた Run が場所なしで数えられうる
+    if (input.transcript) {
+      await mkdir(path.join(repo.localDir, TRANSCRIPTS_DIR), { recursive: true });
+      await writeFile(
+        path.join(repo.localDir, transcriptPath(id)),
+        `${JSON.stringify({ path: input.transcript })}\n`,
+      );
+    }
     const doc = await createDoc(repo.localDir, runPath(id), "json", runSchema, run);
     return doc.data;
   });

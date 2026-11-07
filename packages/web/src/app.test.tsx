@@ -62,6 +62,7 @@ function runningRun(ticketId: string): RunView {
     retry_reasons: [],
     usage: { input: null, output: null, cache_read: null, cache_write: null },
     tools: null,
+    session: null,
     running: true,
     duration_seconds: null,
   } as RunView;
@@ -1322,6 +1323,7 @@ describe("画面", () => {
           retry_reasons: [],
           usage: { input: null, output: null, cache_read: null, cache_write: null },
           tools: null,
+          session: null,
           running: true,
           duration_seconds: null,
         } as RunView,

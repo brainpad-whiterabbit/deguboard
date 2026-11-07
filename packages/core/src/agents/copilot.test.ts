@@ -31,6 +31,7 @@ const run = (over: Partial<Run> = {}): Run => ({
   retry_reasons: [],
   usage: { input: null, output: null, cache_read: null, cache_write: null },
   tools: null,
+  session: null,
   ...over,
 });
 

@@ -18,6 +18,7 @@ function run(id: string, over: Partial<Run> = {}): Run {
     retry_reasons: [],
     usage: { input: 100, output: 10, cache_read: 0, cache_write: 5 },
     tools: null,
+    session: null,
     ...over,
   };
 }

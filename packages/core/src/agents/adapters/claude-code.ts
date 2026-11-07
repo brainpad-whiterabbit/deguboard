@@ -1,5 +1,11 @@
 // Claude Code の Adapter（AG-5・MT-2、ADR-005）。会話記録（<設定>/projects/<作業ディレクトリ>/<session>.jsonl）から使用量とツールの回数を補う。
-//   - Run に結び付ける記録：探す範囲で Run の ID を最も早く含む会話記録のファイル（bindFile）。dg run start の出力を受け取ったエージェントの
+//   - 記録の場所があるとき（query.transcript。このマシンの deguboard-local/transcripts/）：そのファイルだけを、ID の出現を待たずに数える。
+//     サブエージェントの記録（<session>/subagents/ の下。1 つの依頼で 1 ファイル）はファイルの先頭から、親のセッションのファイルは
+//     ほかの Run と共有するので started_at から。同じファイルを先に使った Run が閉じていれば、その finished_at の後から（続けて頼まれた
+//     サブエージェントの手直しなど）。ファイルを読めなければ（別のマシンの記録・消された）推測に落とさず null で残す
+//   - 場所がなくセッション ID（Run の session）があるとき：探す範囲をそのセッションの記録（<session>.jsonl と <session>/subagents/ の下）に絞り、
+//     下の推測で選ぶ。このマシンにそのセッションの記録がなければ null で残す
+//   - どちらもないときの Run に結び付ける記録（推測）：探す範囲で Run の ID を最も早く含む会話記録のファイル（bindFile）。dg run start の出力を受け取ったエージェントの
 //     記録になり、run start の警告などで後から ID を見ただけのファイルは選ばない。ID が最初に出たのが finished_at より後のファイル
 //     （閉じた後に run refresh を呼んだセッションなど）は除く。同じ時刻なら、ファイルのパスの順で選ぶ（呼ぶ session によらない）。
 //     サブエージェントは親と同じ session の subagents/ に別のファイルを持ち、作業ディレクトリと時刻だけでは並行するエージェントと区別できない
@@ -16,6 +22,7 @@
 //     どちらかがあれば Claude Code が呼んだとみなす（2026-11 に Claude Code 2.1 の Bash の環境で確かめた）
 
 import { createReadStream } from "node:fs";
+import { stat } from "node:fs/promises";
 import path from "node:path";
 import { createInterface } from "node:readline";
 import type { ToolKind } from "../../model/run.js";
@@ -111,16 +118,21 @@ function addTools(tools: Scan["tools"], message: Record<string, unknown>, key: s
   });
 }
 
+/**
+ * file を読み、期間の応答を積む。fromStart なら Run の ID の出現を待たずに積む（記録の場所があるとき）。
+ * fromStart でなければ、Run の ID が出た後の行だけを積む（推測で選んだファイル）
+ */
 async function scan(
   file: string,
   query: UsageQuery,
   from: number,
   to: number,
   elsewhere?: ReadonlySet<string>,
+  fromStart = false,
 ): Promise<Scan> {
   const claims = new OverlapClaims(query, from, to, elsewhere);
   const result: Scan = {
-    firstSeen: undefined,
+    firstSeen: fromStart ? -Infinity : undefined,
     messages: new Map(),
     tools: new Map(),
     ceded: false,
@@ -226,12 +238,23 @@ export const claudeCodeAdapter: AgentAdapter = {
     personal: (env) => path.join(homeDir(env), ".claude", "skills"),
   },
   async readTranscriptUsage(query) {
-    const projects = path.join(configDir(query.env), "projects");
     // 時刻は秒までなので、終わりはその秒の終わりまで含める
-    const from = Date.parse(query.run.started_at);
     const to = Date.parse(query.finishedAt) + 999;
-    // 探す範囲は projects/ の下のすべて。呼ぶ session（finish と refresh で違う）によらずに同じファイルを選ぶ
-    const files = await allCandidates(query, projects);
+    if (query.transcript) return fromLocation(query, query.transcript, to);
+    const projects = path.join(configDir(query.env), "projects");
+    const from = Date.parse(query.run.started_at);
+    // 探す範囲は projects/ の下のすべて。呼ぶ session（finish と refresh で違う）によらずに同じファイルを選ぶ。
+    // Run にセッション ID があれば、そのセッションの記録だけにする
+    let files = await allCandidates(query, projects);
+    const session = query.run.session;
+    if (session) {
+      files = files.filter((f) => inSession(f, session));
+      if (files.length === 0) {
+        return none(
+          `Claude Code の会話記録に Run ${query.run.id} のセッション ${session} がない（別のマシンの記録か、消された）。使用量は null で残す`,
+        );
+      }
+    }
     const rivals = new OverlapClaims(query, from, to).rivals;
     const bound = await bindFile(query, files, to, rivals);
     let best: Scan | undefined;
@@ -248,20 +271,75 @@ export const claudeCodeAdapter: AgentAdapter = {
         `Claude Code の会話記録に Run ${query.run.id} が見つからない。使用量は null で残す`,
       );
     }
-    if (best.messages.size === 0 && !best.ceded) {
-      return none(
-        `Claude Code の会話記録に Run ${query.run.id} の期間の応答がない。使用量は null で残す`,
-      );
-    }
-    return {
-      // 期間の応答をすべて後に始めた Run に譲ったなら、この Run の量は 0
-      usage:
-        best.messages.size === 0
-          ? { input: 0, output: 0, cache_read: 0, cache_write: 0 }
-          : sum(best.messages),
-      model: mainModel(best.messages),
-      tools: tallyTools(best.tools.values()),
-      warnings: [],
-    };
+    return collected(query, best);
   },
 };
+
+/** 積んだ応答から返す値。期間の応答がなければ null、すべて後に始めた Run に譲ったなら 0 */
+function collected(query: UsageQuery, best: Scan): CollectedUsage {
+  if (best.messages.size === 0 && !best.ceded) {
+    return none(
+      `Claude Code の会話記録に Run ${query.run.id} の期間の応答がない。使用量は null で残す`,
+    );
+  }
+  return {
+    usage:
+      best.messages.size === 0
+        ? { input: 0, output: 0, cache_read: 0, cache_write: 0 }
+        : sum(best.messages),
+    model: mainModel(best.messages),
+    tools: tallyTools(best.tools.values()),
+    warnings: [],
+  };
+}
+
+/** サブエージェントの記録（<session>/subagents/ の下）か */
+const isSubagentFile = (file: string): boolean => file.split(path.sep).includes("subagents");
+
+/** そのセッションの記録（<session>.jsonl か、<session>/subagents/ の下）か */
+export function inSession(file: string, session: string): boolean {
+  const parts = file.split(path.sep);
+  if (parts.at(-1) === `${session}.jsonl`) return true;
+  const sub = parts.lastIndexOf("subagents");
+  return sub > 0 && parts[sub - 1] === session;
+}
+
+/**
+ * 記録の場所（このマシンのパス）から数える。サブエージェントの記録はファイルの先頭（同じファイルを先に使って閉じた Run があれば
+ * その finished_at の後）から、親のセッションの記録は started_at から finished_at まで。ファイルを読めなければ null で残す
+ * （警告にパスは書かない。MT-4）
+ */
+async function fromLocation(query: UsageQuery, file: string, to: number): Promise<CollectedUsage> {
+  const readable = await stat(file)
+    .then((s) => s.isFile())
+    .catch(() => false);
+  if (!readable) {
+    return none(
+      `Run ${query.run.id} の会話記録の場所（deguboard-local/transcripts/）のファイルを読めない（別のマシンの記録か、消された）。使用量は null で残す`,
+    );
+  }
+  const from = isSubagentFile(file) ? previousEnd(query, file) : Date.parse(query.run.started_at);
+  const best = await scan(file, query, from, to, undefined, true).catch(() => undefined);
+  if (!best) {
+    return none(
+      `Run ${query.run.id} の会話記録の場所（deguboard-local/transcripts/）のファイルを読めない。使用量は null で残す`,
+    );
+  }
+  return collected(query, best);
+}
+
+/**
+ * 同じファイルを先に使って、この Run の開始までに閉じた Run の終わりの直後（なければ -Infinity。ファイルの先頭から）。
+ * 続けて頼まれたサブエージェントは同じファイルに書き足すので、前の Run の応答を二重に数えない
+ */
+function previousEnd(query: UsageQuery, file: string): number {
+  const started = Date.parse(query.run.started_at);
+  let from = -Infinity;
+  for (const [id, span] of query.others ?? []) {
+    if (id === query.run.id || span.transcript !== file || span.finished_at === null) continue;
+    // 終わりは秒までなので、その秒の終わりまでが前の Run の分
+    const end = Date.parse(span.finished_at) + 1000;
+    if (!Number.isNaN(end) && end <= started + 1000 && end > from) from = end;
+  }
+  return from;
+}

@@ -166,9 +166,9 @@ steps: # 任意（WF-5）
 
 ### 5.9 Run（`runs/`）
 
-- RN-1 1 Run 1 ファイル。チケット・step・エージェント・モデル・開始と終了の時刻・結果（`success` / `failure` / `interrupted`）・エラー・やり直しの回数と理由・トークン数・ツールの回数を持つ。記録の場所（セッション ID。フックのない製品では空）も持ち、Adapter が会話記録を数えるのに使う（予定 e15。MT-2・MT-4）。記録のパスはマシンごとのローカルに置き、Git には入れない。エージェント名は `run start --agent` で渡し、省けば環境変数から判定する（AG-5。細部は `dg run start --help`）
+- RN-1 1 Run 1 ファイル。チケット・step・エージェント・モデル・開始と終了の時刻・結果（`success` / `failure` / `interrupted`）・エラー・やり直しの回数と理由・トークン数・ツールの回数を持つ。会話記録のセッション ID（`run start`・`ticket claim` の `--session`。省けば null）も持ち、Adapter が会話記録を数えるのに使う（MT-2・MT-4）。記録のパス（`--transcript`）は Run に書かず、マシンごとの `deguboard-local/transcripts/` に置いて Git には入れない（Run を閉じても残す）。両方を harness のフックが渡すのは予定（e15）。エージェント名は `run start --agent` で渡し、省けば環境変数から判定する（AG-5。細部は `dg run start --help`）
 - RN-2 取れなかった値は `null`。推定した値は `estimated: true` を付ける。費用は持たない（[ADR-005](adr/ADR-005-work-metrics.md)）
-- RN-3 Git に入れるのは完了時の集計だけ。実行中の記録は `deguboard-local/runs/` に置く。チケットには書き足さない
+- RN-3 Git に入れるのは完了時の集計だけ。実行中の記録は `deguboard-local/runs/`、会話記録のパスは `deguboard-local/transcripts/` に置く。チケットには書き足さない
 - RN-4 閉じた Run で書き換えるのは、`run refresh`（MT-5）が取り直すモデル名と使用量だけ
 - RN-5 agent の `ticket claim` は、Workflow の `steps` のうち `opens_on: claim` の step（なければ `implement`）の Run を開き、ID を `run` に出す。開けなければ警告し、claim は成功にする。人の claim と `--no-run` では開かない。自分が claim 済みで `pr` のあるチケットのもう一度の claim（ST-3）は、`opens_on: reclaim` の step（なければ `fix`）の手直しの Run を開き、`--retry-reason` を `retry_reasons` に入れる。開いたままの前の手直しの Run は、この claim を区切りとして RN-6 の時刻で `success` にしてから開く（細部は `ticket claim --help`）
 - RN-6 実装の Run（RN-5 の step）がこのマシンで実行中なら、チケットの操作が閉じる。PR の記録（`ticket update --pr`・照合）と、`branch` のないチケットの review・done への move、`branch` があっても PR のないチケットの done への move は実装の Run を `success`、`unclaim` と `abandoned` への move は実装と手直しの Run を `failure` にする。手直しの Run（`reclaim` の step）は、照合が次の区切り（同じチケットの次の Run の開始・review か done への前進・チケットの終了）を見たときに `success` にし、`finished_at` はその Run の開始より後で区切りまでの最後の push の時刻（なければ区切りの時刻、マージでは PR のマージ時刻、それもなければ今）。`unclaim` は手直しの Run も `failure`。閉じる直前に別の文脈が先に閉じていた Run は、照合もチケットの操作も閉じずに警告するだけで、sync と操作は止めない。細部と理由は [ADR-005](adr/ADR-005-work-metrics.md)
@@ -251,7 +251,7 @@ Web UI は `dg serve` が配信し、VS Code 拡張は同じアプリを Webview
 ### 6.6 作業の実績
 
 - MT-1 Run の使用量とツールの回数は Adapter が取り込む。エージェントの自己申告の数字は書かない
-- MT-2 `metrics.read_transcripts` が true なら、`run finish` と RN-6 の閉じ方が Adapter でエージェントの会話記録から使用量とツールの回数を補う。Run に記録の場所があればそのファイルから、なければ Run の ID を最初に含む記録から数える（予定 e15。[ADR-005](adr/ADR-005-work-metrics.md)）。`DEGUBOARD_NO_TRANSCRIPTS` が空でも `0` でもないマシンでは読まない
+- MT-2 `metrics.read_transcripts` が true なら、`run finish` と RN-6 の閉じ方が Adapter でエージェントの会話記録から使用量とツールの回数を補う。このマシンに記録のパスがあればそのファイルから（サブエージェントの記録は先頭から、親のセッションの記録は開始から）、なくてセッション ID があればそのセッションの記録から、どちらもなければ Run の ID を最初に含む記録から数える。パスのファイルかセッションの記録がこのマシンになければ、推測に落とさず null で残して警告する（[ADR-005](adr/ADR-005-work-metrics.md)）。`DEGUBOARD_NO_TRANSCRIPTS` が空でも `0` でもないマシンでは読まない
 - MT-3 `metrics show` は Run を絞り込んで集計する（軸は `dg metrics show --help`）。null は足さず欠けた数を出す。集計値は保存しない
 - MT-4 Adapter が会話記録から Run に写すのは数とモデル名だけ（会話の中身・コマンドの文字列・ファイルのパス（記録のパスを含む）は写さない。セッション ID は会話記録からでなくフックの入力から取り（予定 e15）、Git に写すのは RN-1 のそれだけ）。`error` と `retry_reasons` は渡した文をそのまま記録するので、`error` には秘密を、`retry_reasons` には秘密・コマンドの文字列・パスを書かない
 - MT-5 `run refresh` は閉じた Run のモデル名と使用量を、finish と同じ方法と MT-2 の許可で会話記録から取り直す。取れた値だけを書き換え、取れなかった値は残して警告する。実行中の Run は拒否する

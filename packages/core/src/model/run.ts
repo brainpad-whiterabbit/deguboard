@@ -83,6 +83,11 @@ export const runSchema = z.looseObject({
   usage: runUsageSchema,
   /** ツールの回数。取れなければ null。この項目より前に書いた Run にはキーがないので、読むときに null にそろえる */
   tools: runToolsSchema.nullable().default(null),
+  /**
+   * 会話記録のセッション ID（ADR-005）。開くときに渡されなければ null。記録のパスはマシンごとに違い、ホームのパスとユーザ名を含むので
+   * Git に入る Run には書かず、deguboard-local/transcripts/ に置く（run/record.ts）。この項目より前に書いた Run にはキーがないので、読むときに null にそろえる
+   */
+  session: z.string().min(1).nullable().default(null),
 });
 export type Run = z.output<typeof runSchema>;
 
