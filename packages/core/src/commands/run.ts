@@ -2,6 +2,7 @@
 // 使用量の取り込みは agents（Run の agent の値で Adapter を選ぶ。特定の AI 製品をここに書かない。AG-5）
 
 import { z } from "zod";
+import { realpath } from "node:fs/promises";
 import path from "node:path";
 import {
   agentNames,
@@ -115,7 +116,12 @@ export async function openRun(
   const env = ctx.env ?? process.env;
   const session = input.session ?? (env["DEGUBOARD_SESSION"] || undefined);
   const transcript = input.transcript ?? (env["DEGUBOARD_TRANSCRIPT"] || undefined);
-  if (transcript !== undefined) requireTranscriptUnderRoot(agent, transcript, env);
+  if (transcript !== undefined && !(await transcriptUnderRoot(agent, transcript, env))) {
+    throw new OperationError(
+      "VALIDATION_FAILED",
+      `transcript は ${agent} の会話記録の置き場所の下のファイルだけを受け付ける`,
+    );
+  }
   const workflow = ctx.store.workflowFor(ticket);
   if (workflow) {
     const found = findStep(workflow.resolved, step);
@@ -155,24 +161,36 @@ export async function openRun(
   return { run, warnings };
 }
 
+/** シンボリックリンクを解いたパス。まだないファイルは、あるところまでの親を解いて残りをつなぐ */
+async function resolvedPath(p: string): Promise<string> {
+  const abs = path.resolve(p);
+  const rest: string[] = [];
+  let cur = abs;
+  for (;;) {
+    try {
+      return path.join(await realpath(cur), ...rest);
+    } catch {
+      const parent = path.dirname(cur);
+      if (parent === cur) return abs;
+      rest.unshift(path.basename(cur));
+      cur = parent;
+    }
+  }
+}
+
 /**
- * 会話記録のパスが agent の Adapter の置き場所の下か確かめる。外なら VALIDATION_FAILED（HTTP・MCP から任意のファイルを読ませない）。
- * 置き場所を持たない Adapter（フックのない製品）の agent では確かめない
+ * 会話記録のパスが agent の Adapter の置き場所の下か（HTTP・MCP・フックから任意のファイルを読ませない）。シンボリックリンクは解いて比べる。
+ * 置き場所を持たない Adapter（フックのない製品。今はパスを読まない）の agent では確かめない
  */
-function requireTranscriptUnderRoot(
+export async function transcriptUnderRoot(
   agent: string,
   transcript: string,
   env: Readonly<Record<string, string | undefined>>,
-): void {
+): Promise<boolean> {
   const root = hooksOf(agent)?.transcriptRoot(env);
-  if (!root) return;
-  const rel = path.relative(path.resolve(root), path.resolve(transcript));
-  if (rel === "" || rel.startsWith("..") || path.isAbsolute(rel)) {
-    throw new OperationError(
-      "VALIDATION_FAILED",
-      `transcript は ${agent} の会話記録の置き場所の下のファイルだけを受け付ける`,
-    );
-  }
+  if (!root) return true;
+  const rel = path.relative(await resolvedPath(root), await resolvedPath(transcript));
+  return !(rel === "" || rel.startsWith("..") || path.isAbsolute(rel));
 }
 
 /** Run を開く操作（run start・ticket claim）が受け取る会話記録の場所 */

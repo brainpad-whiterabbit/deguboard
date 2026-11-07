@@ -23,7 +23,7 @@ import {
   readTranscriptPaths,
 } from "../run/record.js";
 import { defineCommand, ok, runCommand, type CommandContext } from "./define.js";
-import { openedStepOf, openRun, runRefresh, usageContext } from "./run.js";
+import { openedStepOf, openRun, runRefresh, transcriptUnderRoot, usageContext } from "./run.js";
 
 /** 頼んだ文の先頭の印。最初の空でない行が `deguboard: ticket=<id> step=<step>` のとき */
 export function parseMarker(prompt: string): { ticket: TicketId; step: string } | undefined {
@@ -151,6 +151,17 @@ async function subagentLaunched(
     warnings.push(`印のチケット ${marker.ticket} が見つからないので Run を開いていない`);
     return;
   }
+  if (event.transcript && !(await underRoot(ctx, agent, event.transcript, warnings))) return;
+  // 前景の起動で、先に来た終わりの出来事がサブエージェント自身の開いた Run をこの記録に結び付けていたら、もう 1 本は開かない
+  if (
+    event.transcript &&
+    [...(await readTranscriptPaths(ctx.repo)).values()].includes(event.transcript)
+  ) {
+    view.done.push(
+      `${marker.ticket} の ${marker.step} は、この記録に結び付いた Run があるので開かない`,
+    );
+    return;
+  }
   let run: Run;
   try {
     const now = ctx.now();
@@ -179,18 +190,43 @@ async function subagentLaunched(
     await closeSubagentRun(ctx, agent, run, event.transcript, event.lastMessage, view, warnings);
 }
 
-/** サブエージェントの記録の中に出る、実行中か閉じた Run の ID（自分で run start・claim した Run） */
+/** パスが agent の会話記録の置き場所の下か。外なら警告して false（HTTP・MCP から hook を呼んでも任意のファイルを読ませない） */
+async function underRoot(
+  ctx: CommandContext,
+  agent: string,
+  transcript: string,
+  warnings: string[],
+): Promise<boolean> {
+  if (await transcriptUnderRoot(agent, transcript, ctx.env ?? process.env)) return true;
+  warnings.push(`記録のパスが ${agent} の会話記録の置き場所の下にないので使わない`);
+  return false;
+}
+
+/**
+ * サブエージェントが自分で開いた Run（記録に ID が出る、実行中か閉じた Run）。同じセッションで、記録の最初の行より後に始まった
+ * ものだけにする（一覧を読んだ・頼んだ文が前の Run の ID を含むだけの Run を結び付け直さない）
+ */
 async function mentionedRuns(
   ctx: CommandContext,
   transcript: string,
   agent: string,
+  session: string,
 ): Promise<RunId[]> {
   const text = await readFile(transcript, "utf8").catch(() => "");
+  const firstLine = text.slice(0, text.indexOf("\n") >>> 0);
+  const since = Date.parse(/"timestamp":"([^"]+)"/.exec(firstLine)?.[1] ?? "");
+  if (Number.isNaN(since)) return [];
   const ids = new Set(text.match(RUN_IDS) ?? []);
   const running = (await readRunningRuns(ctx.repo)).runs.map((r) => r.data);
   const known = (id: string) =>
     running.find((r) => r.id === id) ?? ctx.store.runs.get(id as RunId)?.data;
-  return [...ids].filter((id) => known(id)?.agent === agent) as RunId[];
+  return [...ids].filter((id) => {
+    const run = known(id);
+    // 開始は秒までなので、その秒の初めまで許す
+    return (
+      run?.agent === agent && run.session === session && Date.parse(run.started_at) >= since - 999
+    );
+  }) as RunId[];
 }
 
 async function subagentStopped(
@@ -205,6 +241,7 @@ async function subagentStopped(
     warnings.push(`サブエージェント ${event.agentId} の記録のパスが渡されなかった`);
     return;
   }
+  if (!(await underRoot(ctx, agent, transcript, warnings))) return;
   const paths = await readTranscriptPaths(ctx.repo);
   const running = (await readRunningRuns(ctx.repo)).runs;
   // 起動のフックが開いた Run は、記録の場所がこのサブエージェントの記録のもの
@@ -213,7 +250,7 @@ async function subagentStopped(
       r.data.agent === agent && paths.get(r.id) === transcript && r.data.session === event.session,
   );
   if (!opened) {
-    await bindSelfOpened(ctx, agent, transcript, view, warnings);
+    await bindSelfOpened(ctx, agent, transcript, event.session, view, warnings);
     return;
   }
   await closeSubagentRun(ctx, agent, opened.data, transcript, event.lastMessage, view, warnings);
@@ -272,10 +309,11 @@ async function bindSelfOpened(
   ctx: CommandContext,
   agent: string,
   transcript: string,
+  session: string,
   view: HookView,
   warnings: string[],
 ): Promise<void> {
-  const ids = await mentionedRuns(ctx, transcript, agent);
+  const ids = await mentionedRuns(ctx, transcript, agent, session);
   const closed: RunId[] = [];
   for (const id of ids) {
     await bindTranscript(ctx.repo, id, transcript);
@@ -347,10 +385,23 @@ async function sessionEnd(
       (!ticket || r.data.step !== openedStepOf(ctx, ticket, "reclaim"))
     )
       continue;
+    const now = ctx.now();
+    const { others, transcriptOf } = await usageContext(ctx, running);
+    const collected = await collectRunUsage(ctx.config, {
+      run: r.data,
+      finishedAt: toIsoDateTime(now),
+      env: ctx.env ?? process.env,
+      topLevel: ctx.repo.topLevel,
+      others,
+      transcript: transcriptOf(r.data.id),
+    });
     const closed = await finishRun(ctx, r.data.id, {
       result: "interrupted",
       error: "セッションが終わったとき開いたままだった",
-      now: ctx.now(),
+      model: collected.model ?? undefined,
+      usage: collected.usage,
+      tools: collected.tools,
+      now,
     });
     warnings.push(...closed.write.warnings);
     view.done.push(`${r.data.ticket} の ${r.data.step} の Run ${r.id} を interrupted で閉じた`);

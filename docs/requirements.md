@@ -166,7 +166,7 @@ steps: # 任意（WF-5）
 
 ### 5.9 Run（`runs/`）
 
-- RN-1 1 Run 1 ファイル。チケット・step・エージェント・モデル・開始と終了の時刻・結果（`success` / `failure` / `interrupted`）・エラー・やり直しの回数と理由・トークン数・ツールの回数を持つ。会話記録のセッション ID（`run start`・`ticket claim` の `--session`。省けば null）も持ち、Adapter が会話記録を数えるのに使う（MT-2・MT-4）。記録のパス（`--transcript`）は Run に書かず、マシンごとの `deguboard-local/transcripts/` に置いて Git には入れない（Run を閉じても残す）。明示されなければ、harness のフックが環境に入れた値を使う（AG-9）。記録のパスはその agent の Adapter の会話記録の置き場所の下だけを受け付ける。エージェント名は `run start --agent` で渡し、省けば環境変数から判定する（AG-5。細部は `dg run start --help`）
+- RN-1 1 Run 1 ファイル。チケット・step・エージェント・モデル・開始と終了の時刻・結果（`success` / `failure` / `interrupted`）・エラー・やり直しの回数と理由・トークン数・ツールの回数を持つ。会話記録のセッション ID（`run start`・`ticket claim` の `--session`。省けば null）も持ち、Adapter が会話記録を数えるのに使う（MT-2・MT-4）。記録のパス（`--transcript`）は Run に書かず、マシンごとの `deguboard-local/transcripts/` に置いて Git には入れない（Run を閉じても残す）。明示されなければ、harness のフックが環境に入れた値を使う（AG-9）。記録のパスは、会話記録の置き場所を持つ Adapter（今は `claude-code`）の agent では、その置き場所の下だけを受け付ける（シンボリックリンクは解いて比べる。フックの入力も同じ）。エージェント名は `run start --agent` で渡し、省けば環境変数から判定する（AG-5。細部は `dg run start --help`）
 - RN-2 取れなかった値は `null`。推定した値は `estimated: true` を付ける。費用は持たない（[ADR-005](adr/ADR-005-work-metrics.md)）
 - RN-3 Git に入れるのは完了時の集計だけ。実行中の記録は `deguboard-local/runs/`、会話記録のパスは `deguboard-local/transcripts/` に置く。チケットには書き足さない
 - RN-4 閉じた Run で書き換えるのは、`run refresh`（MT-5）が取り直すモデル名と使用量だけ

@@ -390,6 +390,13 @@ export function buildProgram(options: ProgramOptions = {}): Command {
         result = await runCommand(def, ctx, input);
       } catch (error) {
         const view = toErrorView(error);
+        // フック（dg hook）は harness の作業を止めないよう、入力の誤りも文脈を開く失敗も標準エラーに書いて 0 で返す
+        // （Claude Code では 2 がツールの呼び出しやサブエージェントの終わりを止める）
+        if (def.name === "hook") {
+          streams.err(`dg hook: ${view.message}`);
+          process.exitCode = 0;
+          return;
+        }
         if (global.json) printJsonError(streams, view);
         else printError(streams, view);
         process.exitCode = view.exitCode;

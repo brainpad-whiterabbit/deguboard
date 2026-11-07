@@ -232,7 +232,12 @@ describe("dg hook（ADR-012）", () => {
   it("印のある Run がなければ、サブエージェントが自分で開いた Run（記録に ID が出る）に記録の場所を結び付ける", async () => {
     const { ctx, parent, subagent } = await prepared();
     const run = (
-      await runCommand(runStart, ctx, { ticket: "t1", step: "review", agent: "claude-code" })
+      await runCommand(runStart, ctx, {
+        ticket: "t1",
+        step: "review",
+        agent: "claude-code",
+        session: SESSION,
+      })
     ).data as Run;
     await subagentRecord(subagent("a9"), `見直す。Run は ${run.id}`, 1);
     const { view } = await call(ctx, "SubagentStop", {
@@ -270,5 +275,108 @@ describe("dg hook（ADR-012）", () => {
       (await call(ctx, "PostToolUse", { session_id: SESSION, tool_name: "Bash" })).view.done,
     ).toEqual([]);
     expect((await call(ctx, "SubagentStop", {})).view.done).toEqual([]);
+  });
+});
+
+describe("dg hook の見直しで直した場面（ADR-012）", () => {
+  it("移行の経路は、同じセッションで記録の最初の行より後に始まった Run だけを結び付け、記録に ID が出るだけの Run は結び付け直さない", async () => {
+    const { ctx, parent, subagent } = await prepared();
+    // 前からある、ほかのセッションの Run（一覧で ID を見ただけ）
+    const old = (
+      await runCommand(runStart, ctx, {
+        ticket: "t2",
+        step: "review",
+        agent: "claude-code",
+        session: "s-other",
+      })
+    ).data as Run;
+    await new Promise((r) => setTimeout(r, 1100));
+    const mine = (
+      await runCommand(runStart, ctx, {
+        ticket: "t1",
+        step: "review",
+        agent: "claude-code",
+        session: SESSION,
+      })
+    ).data as Run;
+    await subagentRecord(
+      subagent("a9"),
+      `見直す。前の Run は ${old.id}、自分の Run は ${mine.id}`,
+      1,
+    );
+    // 記録の最初の行の時刻を、自分の Run の開始より前に（old の開始より後に）する
+    const text = await readFile(subagent("a9"), "utf8");
+    const first = JSON.parse(text.split("\n")[0]!) as Record<string, unknown>;
+    first["timestamp"] = new Date(Date.parse(mine.started_at) - 500).toISOString();
+    await writeFile(
+      subagent("a9"),
+      [JSON.stringify(first), ...text.split("\n").slice(1)].join("\n"),
+    );
+    await call(ctx, "SubagentStop", {
+      session_id: SESSION,
+      transcript_path: parent,
+      agent_id: "a9",
+      agent_transcript_path: subagent("a9"),
+      last_assistant_message: "ok",
+    });
+    const paths = await readTranscriptPaths(ctx.repo);
+    expect(paths.get(mine.id)).toBe(subagent("a9"));
+    expect(paths.has(old.id)).toBe(false);
+  });
+
+  it("前景の起動で、先に来た終わりの出来事が自分で開いた Run を結び付けていたら、PostToolUse はもう 1 本開かない", async () => {
+    const { ctx, parent, subagent } = await prepared();
+    const prompt = "deguboard: ticket=t1 step=review";
+    const own = (
+      await runCommand(runStart, ctx, {
+        ticket: "t1",
+        step: "review",
+        agent: "claude-code",
+        session: SESSION,
+      })
+    ).data as Run;
+    await subagentRecord(subagent("a1"), `${prompt}\n自分の Run は ${own.id}`, 1);
+    const text = await readFile(subagent("a1"), "utf8");
+    const first = JSON.parse(text.split("\n")[0]!) as Record<string, unknown>;
+    first["timestamp"] = new Date(Date.parse(own.started_at) - 500).toISOString();
+    await writeFile(
+      subagent("a1"),
+      [JSON.stringify(first), ...text.split("\n").slice(1)].join("\n"),
+    );
+    await call(ctx, "SubagentStop", {
+      session_id: SESSION,
+      agent_id: "a1",
+      agent_transcript_path: subagent("a1"),
+      last_assistant_message: "ok",
+    });
+    const { view } = await call(ctx, "PostToolUse", {
+      ...launched(parent, "a1", prompt),
+      tool_response: {
+        status: "completed",
+        agentId: "a1",
+        content: [{ type: "text", text: "ok" }],
+      },
+    });
+    expect(view.done).toEqual([expect.stringContaining("開かない")]);
+    const runs = (await runCommand(runList, ctx, { ticket: "t1" })).data as RunView[];
+    expect(runs.map((r) => r.id)).toEqual([own.id]);
+  });
+
+  it("記録のパスが会話記録の置き場所の外なら、PostToolUse も SubagentStop も使わずに警告する", async () => {
+    const { ctx, home } = await prepared();
+    const outside = path.join(home, "outside", `${SESSION}.jsonl`);
+    const opened = await call(
+      ctx,
+      "PostToolUse",
+      launched(outside, "a1", "deguboard: ticket=t1 step=review"),
+    );
+    expect(opened.warnings).toEqual([expect.stringContaining("置き場所の下にない")]);
+    expect(await peekRunningRuns(ctx.repo)).toEqual([]);
+    const stopped = await call(ctx, "SubagentStop", {
+      session_id: SESSION,
+      agent_id: "a1",
+      agent_transcript_path: path.join(home, ".ssh", "id_rsa"),
+    });
+    expect(stopped.warnings).toEqual([expect.stringContaining("置き場所の下にない")]);
   });
 });

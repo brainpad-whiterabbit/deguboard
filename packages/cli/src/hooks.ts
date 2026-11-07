@@ -3,10 +3,11 @@
 
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
+import { isDeepStrictEqual } from "node:util";
 import { hooksOf, resolveRepoPaths, type AgentEnv, type HookSupport } from "@deguboard/core";
 
-/** dg が書いたフックのコマンドの末尾。これで見分けて入れ替える（基のコマンドが変わっても重ねない） */
-const OURS = /(^|\s)hook \S+ --payload -$/;
+/** dg が書いたフックのコマンドの終わり。これで見分けて入れ替える（基のコマンドが変わっても重ねない） */
+const OURS = /(^|\s)--actor agent hook \S+( --agent \S+)? --payload -$/;
 
 export interface HooksResult {
   agent: string;
@@ -137,7 +138,8 @@ async function write(
   const settings = Object.keys(hooks).length > 0 ? { ...rest, hooks } : rest;
   const content = `${JSON.stringify(settings, null, 2)}\n`;
   const before = `${JSON.stringify(current, null, 2)}\n`;
-  const unchanged = content === before;
+  // 整形だけの違いでは書き直さない
+  const unchanged = isDeepStrictEqual(settings, current) || content === before;
   if (!meta.dryRun && !unchanged) {
     await mkdir(dirname(file), { recursive: true });
     await writeFile(file, content, "utf8");

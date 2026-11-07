@@ -128,3 +128,32 @@ describe("dg hook", () => {
     expect(await readFile(envFile, "utf8")).toContain("export DEGUBOARD_ACTOR=agent");
   });
 });
+
+describe("dg hook の失敗", () => {
+  it("入力が JSON のオブジェクトでなくても、初期化していないリポジトリでも、終了コードは 0 で標準エラーにだけ書く", async () => {
+    const cwd = await repo();
+    const home = await tempHome();
+    const bad = path.join(home, "bad.json");
+    await writeFile(bad, "[1, 2]");
+    const notInit = await dg(cwd, ["--actor", "agent", "hook", "SubagentStop", "--payload", bad], {
+      HOME: home,
+    });
+    expect(notInit).toMatchObject({ code: 0, out: "" });
+    expect(notInit.err).toContain("dg hook:");
+    await dg(cwd, ["init"]);
+    const invalid = await dg(cwd, ["--actor", "agent", "hook", "SubagentStop", "--payload", bad], {
+      HOME: home,
+    });
+    expect(invalid).toMatchObject({ code: 0, out: "" });
+  });
+
+  it("dg のフックの見分け方は --actor agent hook <イベント> --payload - の終わりで、人のフックは消さない", async () => {
+    const cwd = await repo();
+    const file = path.join(cwd, ".claude", "settings.json");
+    await mkdir(path.dirname(file), { recursive: true });
+    const theirs = { type: "command", command: "my-tool hook x --payload -" };
+    await writeFile(file, JSON.stringify({ hooks: { SessionEnd: [{ hooks: [theirs] }] } }));
+    await dg(cwd, ["hooks", "uninstall"]);
+    expect((await settingsOf(file)).hooks["SessionEnd"]).toEqual([{ hooks: [theirs] }]);
+  });
+});
