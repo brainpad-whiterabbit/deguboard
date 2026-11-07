@@ -1,7 +1,7 @@
 # ADR-005 作業の実績
 
 - ステータス：承認
-- 更新日：2026-11-06
+- 更新日：2026-11-07
 
 ## 背景
 
@@ -26,7 +26,7 @@
 
 ### 実装・見直し・手直しを別の Run にする
 
-- 実装の Run は、作業するエージェント自身の `ticket claim` が開き（RN-5）、PR の記録（`ticket update --pr`）か照合が作業ブランチの PR を見つけたときに `success` で閉じる（RN-6）。`finished_at` は PR の作成時刻で、実装は PR を作るまでなので PR がマージされずに閉じていても `success`。PR より後に開き直した Run は照合では閉じない（PR の後の作業は手直しの Run）。やめるときは `unclaim` と `ticket move` の abandoned が `failure` で閉じる（abandoned は手直しの Run も）。PR の要らない作業は `ticket move` の review・done が、PR のない done は `success` で閉じる。閉じた Run への `run finish` は記録を変えない。照合が閉じる直前に別の文脈が先に閉じた Run は、閉じずに警告するだけで sync は止めない
+- 実装の Run は、作業するエージェント自身の `ticket claim` が開き（RN-5）、PR の記録（`ticket update --pr`）か照合が作業ブランチの PR を見つけたときに `success` で閉じる（RN-6）。`finished_at` は PR の作成時刻で、実装は PR を作るまでなので PR がマージされずに閉じていても `success`。PR より後に開き直した Run は照合では閉じない（PR の後の作業は手直しの Run）。やめるときは `unclaim` と `ticket move` の abandoned が `failure` で閉じる（abandoned は手直しの Run も）。PR の要らない作業は `ticket move` の review・done が、PR のない done は `success` で閉じる。閉じた Run への `run finish` は記録を変えない。照合かチケットの操作が閉じる直前に別の文脈が先に閉じた Run は、閉じずに警告するだけで sync と操作は止めない（記録は先に閉じた方のまま）
 - 実装をサブエージェントに渡す親は `--no-run` で claim し、サブエージェントが自分で `run start` する。手直しを渡すなら、サブエージェントがもう一度の claim をする（親が開いた Run では、ID が親の会話記録に先に出て、作業した分とモデル名を数えられない）
 - 見直し役の見直しは `review`、修正ループの 1 回と人のレビューの後の手直しは `fix` の Run にする。見直しは見直し役自身が `run start`・`run finish` で記録する。同梱の software-development と general の `steps` に `review`・`fix` がある
 - 手直し（修正ループと人のレビューの後）にはチケットの操作がなく、手順書の `run start`・`run finish` に頼ると Run が残らなかった（修正ループでも開き忘れた）。自分が claim 済みで PR のあるチケットのもう一度の claim を手直しの開始とみなして `opens_on: reclaim` の step（なければ `fix`）の Run を開き（RN-5）、終わりの操作もないので、照合が次の区切り（同じチケットの次の Run の開始・PR の ready・マージ・チケットの終了）を見たときに、それまでの最後の push の時刻で閉じる（RN-6）。修正ループも、見直しの前に `ticket update --pr` で PR を記録するので同じ claim で開き、次の見直しの開始か PR の ready が区切りになる

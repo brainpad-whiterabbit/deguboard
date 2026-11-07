@@ -14,7 +14,7 @@ Run は 1 回の作業の記録で、使用量（トークン）が残る。実�
 - Run を開く claim と run start は単独で呼び、ほかのコマンドとつながない（ID が会話記録に出るのが遅れると、同じ会話で重ねた Run の応答を正しく分けられない）
 - start が同じ agent の Run が開いたままと警告したら、自分の終わった Run なら閉じる（push 済みで `sync` を待つ手直しの Run は閉じない）（同じ会話で重ねた Run は、応答を後に始めた方にだけ数える）。並行するほかのエージェントの Run や、始めた覚えのない ID なら無視してよい
 - 同じ step の Run が実行中で start が拒否されたら、下の「閉じ損ねた Run を閉じる」で閉じて始め直す。サブエージェントなら閉じずに親に返す（親が `interrupted` で閉じる）
-- **結果**：実装の Run は `ticket update --pr`（か `sync` が作業ブランチの PR を見つけたとき）が `success` で閉じ、finished_at は PR の作成時刻になる。PR の要らない作業は `ticket move` の done・review が `success` で閉じる（PR のない done も同じ）。自分の判断でやめる（検査が通らない、範囲がはっきりしない）なら `ticket unclaim` が `failure` で閉じるので、理由を残したいときだけ先に `run finish <Run の ID> --result failure --error <理由>` で閉じる。閉じた Run に `run finish` を呼んでも記録は変わらない（警告だけ）。照合が閉じる直前に別の文脈（別のマシンの sync など）が先に閉じていたら、sync は止まらず警告だけ出る。見直しの Run は自分で `run finish` で閉じる。手直し（修正ループと人のレビュー）の Run は `sync` が区切りで `success` にする（先に `run finish` で閉じるなら `--retry-reason` は省く。claim で入れた理由が残る）。`interrupted` は閉じ損ねた Run だけに使う
+- **結果**：実装の Run は `ticket update --pr`（か `sync` が作業ブランチの PR を見つけたとき）が `success` で閉じ、finished_at は PR の作成時刻になる。PR の要らない作業は `ticket move` の done・review が `success` で閉じる（PR のない done も同じ）。自分の判断でやめる（検査が通らない、範囲がはっきりしない）なら `ticket unclaim` が `failure` で閉じるので、理由を残したいときだけ先に `run finish <Run の ID> --result failure --error <理由>` で閉じる。閉じた Run に `run finish` を呼んでも記録は変わらない（警告だけ）。照合かチケットの操作が閉じる直前に別の文脈（別のマシンの sync など）が先に閉じていたら、sync と操作は止まらず警告だけ出る。見直しの Run は自分で `run finish` で閉じる。手直し（修正ループと人のレビュー）の Run は `sync` が区切りで `success` にする（先に `run finish` で閉じるなら `--retry-reason` は省く。claim で入れた理由が残る）。`interrupted` は閉じ損ねた Run だけに使う
 - **やり直しの理由**：`--retry-reason` の書き方は `dg guide review` の「Run の分け方」
 
 ## 段階のモデル
