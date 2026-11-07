@@ -1,0 +1,30 @@
+{
+  "id": "r20261107-145731-1a1b",
+  "ticket": "t528",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-07T14:57:31Z",
+  "finished_at": "2026-11-07T14:59:22Z",
+  "result": "success",
+  "error": null,
+  "retries": 1,
+  "retry_reasons": [
+    "古い記述は消す規則が ADR を除いていない、書き換えない規則とぶつかる"
+  ],
+  "usage": {
+    "input": 8,
+    "output": 4297,
+    "cache_read": 614444,
+    "cache_write": 9887
+  },
+  "tools": {
+    "read": 2,
+    "search": 0,
+    "write": 6,
+    "bash": 3,
+    "other": 0,
+    "read_before_write": 0,
+    "search_before_write": 0
+  }
+}
