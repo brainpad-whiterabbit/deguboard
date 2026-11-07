@@ -745,6 +745,14 @@ describe("PreToolUse（t532）", () => {
       "git -C .git/deguboard -c a=b commit -m x",
       "perl -pi -e 's/a/b/' .git/deguboard/x",
       'echo "a b" >> /r/.git/deguboard/config.yaml',
+      "FOO=1 rm .git/deguboard/x",
+      "sudo rm -rf .git/deguboard",
+      "(rm .git/deguboard/x)",
+      "cd .git/deguboard && echo hi > tickets/t1.md",
+      "echo x >| .git/deguboard/a",
+      "cp -t .git/deguboard a",
+      "sed --in-place s/a/b/ .git/deguboard/x",
+      "find .git/deguboard -name x -delete",
     ])
       expect(writesDataDir(c), c).toBe(true);
     for (const c of [
@@ -755,31 +763,49 @@ describe("PreToolUse（t532）", () => {
       "grep -rn x .git/deguboard 2>/dev/null",
       "cp .git/deguboard/tickets/t1.md /tmp/x",
       'grep -rn "install" .git/deguboard',
+      "cat .git/deguboard/a 2>&1 | tee /tmp/out",
     ])
       expect(writesDataDir(c), c).toBe(false);
   });
 
-  it("gh pr merge・ready の PR の指定を読み、値を取るフラグの値と取り違えない", () => {
-    expect(parseGhPr("gh pr merge 12 --squash")).toEqual({
-      action: "merge",
-      selector: "12",
-      undo: false,
-    });
-    expect(parseGhPr("gh pr merge --repo o/r --squash feat/x")).toMatchObject({
+  it("gh pr merge・ready の PR の指定をすべて読み、値を取るフラグ・引用符・前の代入と包むコマンド・cd を考える", () => {
+    expect(parseGhPr("gh pr merge 12 --squash")).toEqual([
+      { action: "merge", selector: "12", undo: false, dir: undefined },
+    ]);
+    expect(parseGhPr("gh pr merge --repo o/r --squash feat/x")[0]).toMatchObject({
       selector: "feat/x",
     });
-    expect(parseGhPr("cd w && gh pr ready")).toEqual({
-      action: "ready",
+    expect(parseGhPr("gh pr ready 3 --undo")[0]).toMatchObject({ undo: true });
+    expect(parseGhPr("gh pr view 3")).toEqual([]);
+    expect(parseGhPr('gh pr merge --squash --subject "a b" 7')[0]).toMatchObject({ selector: "7" });
+    expect(parseGhPr("gh -R o/r pr merge 5")[0]).toMatchObject({ action: "merge", selector: "5" });
+    expect(parseGhPr("cd a && cd b && gh pr ready")[0]).toMatchObject({
       selector: undefined,
-      undo: false,
-      dir: "w",
+      dir: path.join("a", "b"),
     });
-    expect(parseGhPr("gh pr ready 3 --undo")).toMatchObject({ undo: true });
-    expect(parseGhPr("gh pr view 3")).toBeUndefined();
-    // 引用符の中の空白を割らず、全体のフラグを pr より前に置いても読み、前の cd を覚える
-    expect(parseGhPr('gh pr merge --squash --subject "a b" 7')).toMatchObject({ selector: "7" });
-    expect(parseGhPr("gh -R o/r pr merge 5")).toMatchObject({ action: "merge", selector: "5" });
-    expect(parseGhPr("cd ../w && gh pr ready")).toMatchObject({ selector: undefined, dir: "../w" });
+    // 前の環境変数の代入・包むコマンド・括弧を読み飛ばす
+    for (const c of [
+      "DEGUBOARD_ACTOR=agent gh pr merge 482",
+      "GH_REPO=o/r gh pr merge 482",
+      "env gh pr merge 482",
+      "command gh pr merge 482",
+      "time gh pr merge 482",
+      "(cd /x && gh pr merge 482)",
+      "gh pr merge 482 --squash 2>&1 | tail -1",
+    ])
+      expect(
+        parseGhPr(c).map((g) => g.selector),
+        c,
+      ).toEqual(["482"]);
+    // 後ろの呼び出しも判定する
+    expect(parseGhPr("gh pr ready 482 && gh pr merge 482 --squash").map((g) => g.action)).toEqual([
+      "ready",
+      "merge",
+    ]);
+    expect(parseGhPr("gh pr merge 1; gh pr merge 482").map((g) => g.selector)).toEqual([
+      "1",
+      "482",
+    ]);
   });
 
   /** 偽の gh（PR はいつも見つからない）。実際の gh がテストで GitHub を読まないように */

@@ -571,8 +571,8 @@ async function sessionEnd(
 }
 
 /**
- * シェルのコマンドを単純なコマンドの並び（; && || | で区切る）と、その字句に分ける。引用符（' と "）の中の空白と区切りは割らない。
- * 置き換え（$(...)・`...`）や入れ子は解かない。フックの判定の手がかりにだけ使う
+ * シェルのコマンドを単純なコマンドの並び（; && || | & と括弧で区切る）と、その字句に分ける。引用符（' と "）の中の空白と区切りは割らない。
+ * リダイレクト（> >> >| &> >& <& < 2> など）は 1 つの字句にする。置き換え（$(...)・`...`）や入れ子は解かない。フックの判定の手がかりにだけ使う
  */
 export function splitCommands(command: string): string[][] {
   const commands: string[][] = [];
@@ -592,6 +592,7 @@ export function splitCommands(command: string): string[][] {
   };
   for (let i = 0; i < command.length; i++) {
     const c = command[i]!;
+    const next = command[i + 1];
     if (quote) {
       if (c === quote) quote = null;
       else if (c === "\\" && quote === '"' && i + 1 < command.length) word += command[++i];
@@ -604,16 +605,21 @@ export function splitCommands(command: string): string[][] {
     } else if (c === "\\" && i + 1 < command.length) {
       word += command[++i];
       started = true;
-    } else if (c === ";" || c === "|" || c === "&" || c === "\n") {
+    } else if (c === ">" || c === "<" || (c === "&" && next === ">")) {
+      // リダイレクトは 1 つの字句にする（前の fd の数字は前の字句に残る）。>& <& の後の fd の数字も同じ字句に入れる
+      endWord();
+      let op = c;
+      if (c === "&") op += command[++i];
+      if (command[i + 1] === ">" || command[i + 1] === "|") op += command[++i];
+      if (command[i + 1] === "&") {
+        op += command[++i];
+        while (/[0-9-]/.test(command[i + 1] ?? "")) op += command[++i];
+      }
+      words.push(op);
+    } else if (c === ";" || c === "|" || c === "&" || c === "\n" || c === "(" || c === ")") {
       endCommand();
     } else if (c === " " || c === "\t") {
       endWord();
-    } else if (c === ">" || c === "<") {
-      // リダイレクトは 1 つの字句にする（> と >> と 2> など。前の数字は前の字句に残る）
-      endWord();
-      let op = c;
-      if (command[i + 1] === c) op += command[++i];
-      words.push(op);
     } else {
       word += c;
       started = true;
@@ -623,10 +629,49 @@ export function splitCommands(command: string): string[][] {
   return commands;
 }
 
-/** .git/deguboard/ の下を指す字句か（相対・絶対） */
+/** 書き込み先を取るリダイレクトの字句 */
+const isWriteRedirect = (w: string) => /^(&>|>>?\|?|&>>)$/.test(w);
+
+/** コマンドを包むだけのコマンド（その後の字句が本当のコマンド） */
+const WRAPPERS = new Set([
+  "env",
+  "command",
+  "builtin",
+  "exec",
+  "time",
+  "nice",
+  "nohup",
+  "sudo",
+  "doas",
+  "xargs",
+  "timeout",
+  "stdbuf",
+]);
+
+/**
+ * 単純なコマンドの本当のコマンド名と引数。前の環境変数の代入（NAME=value）と、包むコマンド（env・sudo・time など）とそのフラグを読み飛ばす。
+ * timeout の時間のような包むコマンドの値は、フラグでない最初の字句として 1 つ読み飛ばす
+ */
+export function commandOf(words: readonly string[]): { name: string; args: string[] } {
+  let k = 0;
+  for (;;) {
+    while (k < words.length && /^[A-Za-z_][A-Za-z0-9_]*=/.test(words[k]!)) k++;
+    const w = words[k];
+    if (w === undefined || !WRAPPERS.has(w)) break;
+    k++;
+    while (k < words.length && words[k]!.startsWith("-")) k++;
+    if (w === "timeout" && k < words.length) k++;
+  }
+  return { name: words[k] ?? "", args: words.slice(k + 1) };
+}
+
+/**
+ * .git/deguboard/ の下を指す字句か（相対・絶対）。このリポジトリのデータに限らず、どのリポジトリの .git/deguboard/ も指すとみなす
+ * （手がかりで見分けるので、別のリポジトリのデータへの書き込みも拒む。そのときは人に打ってもらう）
+ */
 const isDataPath = (w: string) => /(^|\/)\.git\/deguboard(\/|$)/.test(w);
 
-/** 写す先（最後の引数）だけがデータを指せば書き込みになるコマンド。データから外へ写すだけなら読み取り */
+/** 写す先がデータを指せば書き込みになるコマンド（データから外へ写すだけなら読み取り）。-t <dir> の形も見る */
 const COPY_LIKE = new Set(["cp", "mv", "rsync", "install", "ln"]);
 /** 引数のどれかがデータを指せば書き込みになるコマンド */
 const WRITE_LIKE = new Set([
@@ -640,6 +685,7 @@ const WRITE_LIKE = new Set([
   "unlink",
   "tee",
   "dd",
+  "shred",
 ]);
 /** データのリポジトリを変える git のサブコマンド */
 const GIT_WRITES = new Set([
@@ -668,40 +714,45 @@ const GIT_WRITES = new Set([
 
 /**
  * Bash のコマンドが .git/deguboard/ の下に書くか（t532）。読むだけ（cat・ls・grep・git log・外へ写す cp など）は通す。
- * 見分けは字句の手がかりで、python -c や perl -pi のような任意の書き込みまでは見ない（拒むのは書き間違いを防ぐため）
+ * 見分けは字句の手がかりで、任意の言語のコード（python -c・node -e など）での書き込みや、.git に入ってから deguboard を消す形は見ない
+ * （拒むのは書き間違いを防ぐためで、すり抜けを防ぎきるものではない）
  */
 export function writesDataDir(command: string): boolean {
   let inData = false;
   for (const words of splitCommands(command)) {
-    const name = words[0] ?? "";
-    const args = words.slice(1);
+    const { name, args } = commandOf(words);
     // cd でデータの下に入った後のコマンドは、データに書くものとみなす
     if (name === "cd") {
       inData = args[0] !== undefined && isDataPath(args[0]);
       continue;
     }
     for (let k = 0; k < words.length - 1; k++)
-      if ((words[k] === ">" || words[k] === ">>") && isDataPath(words[k + 1]!)) return true;
-    const plain = args.filter((a) => !a.startsWith("-") && a !== ">" && a !== ">>");
-    if (COPY_LIKE.has(name) && (isDataPath(plain.at(-1) ?? "") || (inData && plain.length > 0)))
-      return true;
-    if (WRITE_LIKE.has(name) && (args.some(isDataPath) || inData)) return true;
+      if (
+        isWriteRedirect(words[k]!) &&
+        (isDataPath(words[k + 1]!) || (inData && !words[k + 1]!.startsWith("/")))
+      )
+        return true;
+    const touchesData = (list: readonly string[]) => list.some(isDataPath) || inData;
+    const plain = args.filter((a) => !a.startsWith("-") && !/^[0-9]*[<>&]/.test(a));
+    const target = args.includes("-t") ? args[args.indexOf("-t") + 1] : plain.at(-1);
+    if (COPY_LIKE.has(name) && target !== undefined && (isDataPath(target) || inData)) return true;
+    if (WRITE_LIKE.has(name) && touchesData(args)) return true;
     if (
       (name === "sed" || name === "perl") &&
-      args.some((a) => /^-\w*i/.test(a)) &&
-      (args.some(isDataPath) || inData)
+      args.some((a) => /^-\w*i/.test(a) || a.startsWith("--in-place")) &&
+      touchesData(args)
     )
+      return true;
+    if (name === "find" && args.some((a) => a === "-delete" || a === "-exec") && touchesData(args))
       return true;
     if (name === "git") {
       // git の全体のオプション（-C <path>・-c <k=v> など）を読み飛ばしてサブコマンドを取る
       let dir: string | undefined;
       let k = 0;
       while (k < args.length && args[k]!.startsWith("-")) {
-        if (args[k] === "-C") dir = args[++k];
-        else if (args[k] === "-c" || args[k] === "--git-dir" || args[k] === "--work-tree") {
-          if (args[k] === "--git-dir" || args[k] === "--work-tree") dir = args[k + 1];
-          k++;
-        }
+        if (args[k] === "-C" || args[k] === "--git-dir" || args[k] === "--work-tree")
+          dir = args[++k];
+        else if (args[k] === "-c") k++;
         k++;
       }
       const sub = args[k];
@@ -729,42 +780,45 @@ const GH_PR_WITH_VALUE = new Set([
   "--match-head-commit",
 ]);
 
-/**
- * gh pr merge・gh pr ready の呼び出し。selector は PR の番号・URL・ブランチ名（省けば今のブランチ）。
- * dir は呼び出しの前の cd の行き先（省いた selector を、そのディレクトリのブランチで引く）
- */
-export function parseGhPr(command: string):
-  | {
-      action: "merge" | "ready";
-      selector?: string | undefined;
-      undo: boolean;
-      dir?: string | undefined;
-    }
-  | undefined {
+export interface GhPrCall {
+  action: "merge" | "ready";
+  /** PR の番号・URL・ブランチ名。省けば今のブランチ */
+  selector?: string | undefined;
+  undo: boolean;
+  /** 呼び出しの前の cd の行き先（重ねたもの）。省いた selector を、そのディレクトリのブランチで引く */
+  dir?: string | undefined;
+}
+
+/** コマンドの中の gh pr merge・gh pr ready の呼び出しを、すべて順に返す（どれか 1 つでもゲートを満たさなければ止める） */
+export function parseGhPr(command: string): GhPrCall[] {
+  const calls: GhPrCall[] = [];
   let dir: string | undefined;
   for (const words of splitCommands(command)) {
-    if (words[0] === "cd") {
-      dir = words[1];
+    const { name, args } = commandOf(words);
+    if (name === "cd") {
+      const to = args[0];
+      dir = to === undefined ? undefined : dir && !path.isAbsolute(to) ? path.join(dir, to) : to;
       continue;
     }
-    if (words[0] !== "gh") continue;
-    let k = 1;
-    while (k < words.length && words[k]!.startsWith("-")) {
-      if (GH_GLOBAL_WITH_VALUE.has(words[k]!)) k++;
+    if (name !== "gh") continue;
+    let k = 0;
+    while (k < args.length && args[k]!.startsWith("-")) {
+      if (GH_GLOBAL_WITH_VALUE.has(args[k]!)) k++;
       k++;
     }
-    if (words[k] !== "pr" || (words[k + 1] !== "merge" && words[k + 1] !== "ready")) continue;
-    const action = words[k + 1] as "merge" | "ready";
-    const rest = words.slice(k + 2);
+    if (args[k] !== "pr" || (args[k + 1] !== "merge" && args[k + 1] !== "ready")) continue;
+    const action = args[k + 1] as "merge" | "ready";
+    const rest = args.slice(k + 2);
     let selector: string | undefined;
     for (let n = 0; n < rest.length; n++) {
       const t = rest[n]!;
       if (GH_PR_WITH_VALUE.has(t)) n++;
-      else if (!t.startsWith("-") && selector === undefined) selector = t;
+      else if (!t.startsWith("-") && !/^[0-9]*[<>&]/.test(t) && selector === undefined)
+        selector = t;
     }
-    return { action, selector, undo: rest.includes("--undo"), dir };
+    calls.push({ action, selector, undo: rest.includes("--undo"), dir });
   }
-  return undefined;
+  return calls;
 }
 
 /** gh の PR の指定からチケットを引く。番号（#12・URL を含む）は pr、ほかはブランチ名。省けば cwd の今のブランチ */
@@ -826,31 +880,36 @@ async function toolRequested(
     deny(dataWrite);
     return;
   }
-  const gh = parseGhPr(command);
-  if (!gh || gh.undo) return;
-  const stage = gh.action === "merge" ? "merge" : "ready";
-  try {
-    const ticket = await ticketOfPr(ctx, gh.selector, event.cwd, gh.dir);
-    if (!ticket) {
-      view.done.push(`gh pr ${gh.action} の PR に当たるチケットがないので、品質ゲートを判定しない`);
-      return;
+  const failures: string[] = [];
+  for (const gh of parseGhPr(command)) {
+    if (gh.undo) continue;
+    const stage = gh.action === "merge" ? "merge" : "ready";
+    try {
+      const ticket = await ticketOfPr(ctx, gh.selector, event.cwd, gh.dir);
+      if (!ticket) {
+        view.done.push(
+          `gh pr ${gh.action}${gh.selector ? ` ${gh.selector}` : ""} の PR に当たるチケットがないので、品質ゲートを判定しない`,
+        );
+        continue;
+      }
+      const judged = await judgeGate(ctx, ticket, stage);
+      if (judged.passed) {
+        view.done.push(`${ticket.id} の品質ゲート（${stage}）を満たす`);
+        continue;
+      }
+      const failed = judged.conditions.filter((c) => !c.ok).map((c) => `${c.id}: ${c.detail}`);
+      failures.push(
+        `${ticket.id} の品質ゲート（dg gate ${ticket.id} --for ${stage}）を満たさない。${failed.join("。")}。` +
+          `満たさないまま進める（見直し役を起動できない・修正ループの上限を超えた・版上げの PR など）のは人の判断なので、` +
+          `人に gh pr ${gh.action} を打ってもらう（dg guide review）`,
+      );
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      warnings.push(`品質ゲートを判定できなかった（${message}）`);
+      failures.push(`品質ゲートを判定できなかったので止めた（${message}）。dg gate で確かめる`);
     }
-    const judged = await judgeGate(ctx, ticket, stage);
-    if (judged.passed) {
-      view.done.push(`${ticket.id} の品質ゲート（${stage}）を満たす`);
-      return;
-    }
-    const failed = judged.conditions.filter((c) => !c.ok).map((c) => `${c.id}: ${c.detail}`);
-    deny(
-      `${ticket.id} の品質ゲート（dg gate ${ticket.id} --for ${stage}）を満たさない。${failed.join("。")}。` +
-        `満たさないまま進める（見直し役を起動できない・修正ループの上限を超えた・版上げの PR など）のは人の判断なので、` +
-        `人に gh pr ${gh.action} を打ってもらう（dg guide review）`,
-    );
-  } catch (e) {
-    const message = e instanceof Error ? e.message : String(e);
-    warnings.push(`品質ゲートを判定できなかった（${message}）`);
-    deny(`品質ゲートを判定できなかったので止めた（${message}）。dg gate で確かめる`);
   }
+  if (failures.length > 0) deny(failures.join(" / "));
 }
 
 export const hookCommands = [hook];
