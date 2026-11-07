@@ -1,0 +1,28 @@
+{
+  "id": "r20261107-172306-dcec",
+  "ticket": "t530",
+  "step": "review",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-07T17:23:06Z",
+  "finished_at": "2026-11-07T17:28:45Z",
+  "result": "success",
+  "error": null,
+  "retries": 0,
+  "retry_reasons": [],
+  "usage": {
+    "input": 74,
+    "output": 25044,
+    "cache_read": 2818966,
+    "cache_write": 84660
+  },
+  "tools": {
+    "read": 0,
+    "search": 0,
+    "write": 0,
+    "bash": 38,
+    "other": 0,
+    "read_before_write": 0,
+    "search_before_write": 0
+  }
+}
