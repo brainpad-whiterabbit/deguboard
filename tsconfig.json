@@ -8,7 +8,8 @@
     "packages/*/test",
     "packages/vscode/vite.config.ts",
     "vitest.config.ts",
-    "vitest.layout.config.ts"
+    "vitest.layout.config.ts",
+    "vitest.vscode.config.ts"
   ],
   "exclude": ["packages/web"]
 }
