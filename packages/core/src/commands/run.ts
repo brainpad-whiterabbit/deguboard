@@ -14,7 +14,7 @@ import {
   type RunResult,
   type RunUsage,
 } from "../model/run.js";
-import { withWrite } from "../git/write.js";
+import { AbortWrite, withWrite } from "../git/write.js";
 import { closeRun, dropRunning, finishRun, readRunningRuns, startRun } from "../run/record.js";
 import type { Doc } from "../storage/documents.js";
 import { DEFAULT_OPENED_STEPS, findStep, stepOpenedOn } from "../workflow/resolve.js";
@@ -250,24 +250,43 @@ export function describeClosedRuns(
   return parts;
 }
 
+/** closeOpenedRunAlone が、別の文脈が先に閉じていた Run を閉じずに書き込みを捨てるための例外 */
+class AlreadyClosed extends AbortWrite {}
+
 /**
  * 操作が開いた Run を、それだけの書き込み（commit.mode に従ってコミット）で閉じる。
- * もう一度の claim が、開いたままの前の手直しの Run を次の Run の開始の区切りとして閉じるのに使う（RN-6）
+ * もう一度の claim が、開いたままの前の手直しの Run を次の Run の開始の区切りとして閉じるのに使う（RN-6）。
+ * 別の文脈が先に閉じていた Run は、何も書かずに警告だけ返す（run は undefined）
  */
 export async function closeOpenedRunAlone(
   ctx: CommandContext,
   running: Doc<Run>,
   input: Parameters<typeof closeOpenedRun>[2],
-): Promise<ClosedOpenedRun> {
-  const written = await withWrite(ctx, () => closeOpenedRun(ctx, running, input), {
-    message: ({ run }) =>
-      `${openedRunLabel(input.opener)}の Run を記録: ${run.ticket} ${run.id} ${run.result ?? ""}`,
-  });
-  await dropRunning(ctx.repo, running.data.id);
-  return {
-    run: written.value.run,
-    warnings: [...written.write.warnings, ...written.value.warnings],
-  };
+): Promise<{ run: Run | undefined; warnings: string[] }> {
+  const rejected: string[] = [];
+  try {
+    const written = await withWrite(
+      ctx,
+      async () => {
+        const closed = await closeOpenedRunUnlessClosed(ctx, running, input, "この操作", rejected);
+        if (!closed) throw new AlreadyClosed();
+        return closed;
+      },
+      {
+        message: ({ run }) =>
+          `${openedRunLabel(input.opener)}の Run を記録: ${run.ticket} ${run.id} ${run.result ?? ""}`,
+      },
+    );
+    await dropRunning(ctx.repo, running.data.id);
+    return {
+      run: written.value.run,
+      warnings: [...written.write.warnings, ...written.value.warnings],
+    };
+  } catch (e) {
+    if (!(e instanceof AlreadyClosed)) throw e;
+    // 実行中の記録は closeRun が REJECTED の前に消している
+    return { run: undefined, warnings: [...e.warnings, ...rejected] };
+  }
 }
 
 /** 空白・改行を含まない 1 語。step の語彙は openRun がチケットの Workflow の steps（WF-5）で確かめる。ticket claim の --agent も同じ形 */

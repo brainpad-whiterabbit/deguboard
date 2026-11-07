@@ -1266,6 +1266,61 @@ describe("チケットの流れ", () => {
     }
   });
 
+  it("もう一度の claim が閉じる前の手直しの Run を別の文脈が先に閉じていても、claim は止まらずに警告し、新しい手直しの Run を開く（RN-6）", async () => {
+    const f = await fixture();
+    let clock = new Date("2026-11-06T00:00:00Z");
+    const human = await initialized(
+      f.cloneA,
+      { now: () => clock },
+      { template: "software-development" },
+    );
+    await runCommand(ticketCreate, human, { title: "Raced fix" });
+    const agent = await agentWithRuns(f.cloneA, () => clock);
+    await runCommand(ticketClaim, agent, { ticket: "t1", branch: "feat/t1" });
+    const restore = await fakeGh(f.root, {
+      "41": '{"number":41,"state":"OPEN","isDraft":true,"mergedAt":null,"createdAt":"2026-11-06T00:20:00Z"}',
+    });
+    try {
+      clock = new Date("2026-11-06T00:30:00Z");
+      await runCommand(ticketUpdate, agent, { ticket: "t1", pr: 41 });
+      clock = new Date("2026-11-06T01:00:00Z");
+      const fix1 = (
+        await runCommand(ticketClaim, agent, { ticket: "t1", retry_reasons: ["指摘 A"] })
+      ).data.run!;
+      // 別の文脈（同じマシンの sync に相当）が、もう一度の claim が fix1 を閉じる直前に先に閉じる
+      const otherCtx = await agentWithRuns(f.cloneA, () => new Date("2026-11-06T01:10:00Z"));
+      race.beforeClose = async () => {
+        await closeRun(otherCtx.store, otherCtx.repo, fix1, {
+          result: "success",
+          finishedAt: "2026-11-06T01:10:00Z",
+          now: new Date("2026-11-06T01:10:00Z"),
+        });
+      };
+      const head = (await git(agent.repo.dataDir, ["rev-parse", "HEAD"])).stdout.trim();
+      clock = new Date("2026-11-06T02:00:00Z");
+      const again = await runCommand(ticketClaim, agent, {
+        ticket: "t1",
+        retry_reasons: ["指摘 B"],
+      });
+      expect(race.beforeClose).toBeUndefined();
+      const fix2 = again.data.run!;
+      expect(fix2).not.toBe(fix1);
+      expect(again.warnings.filter((w) => w.includes(fix1))).toEqual([
+        `t1: 手直しの Run ${fix1} は既に閉じていた（別の操作や別のマシンが先に閉じた）ので、この操作では閉じない`,
+      ]);
+      // 先に閉じた方の記録のまま。この claim は書き込まない
+      expect(agent.store.runs.get(fix1)!.data).toMatchObject({
+        result: "success",
+        finished_at: "2026-11-06T01:10:00Z",
+      });
+      expect((await git(agent.repo.dataDir, ["rev-parse", "HEAD"])).stdout.trim()).toBe(head);
+      expect((await peekRunningRuns(agent.repo)).map((r) => r.id)).toEqual([fix2]);
+    } finally {
+      race.beforeClose = undefined;
+      restore();
+    }
+  });
+
   it("もう一度の claim かは取り込んだ後の索引で決め、別のマシンで済んだ claim と PR の記録や unclaim を古い索引で見誤らない（ST-3）", async () => {
     const f = await fixture();
     let clock = new Date("2026-11-06T00:00:00Z");

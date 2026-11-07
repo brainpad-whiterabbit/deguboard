@@ -1024,14 +1024,17 @@ async function reclaim(
       pushedAt,
       startedAt: stale.data.started_at,
     });
-    warnings.push(
-      `${doc.id}: 前の手直しの Run ${stale.id} を、この claim を区切りとして${pushed ? "最後の push の時刻" : "、push がないのでこの claim の時刻"}で閉じる`,
-    );
     const closed = await closeOpenedRunAlone(ctx, stale, {
       opener: "reclaim",
       result: "success",
       finishedAt,
     });
+    // 別の文脈が先に閉じていたら、閉じずに警告だけ出して新しい Run を開く
+    if (closed.run) {
+      warnings.push(
+        `${doc.id}: 前の手直しの Run ${stale.id} を、この claim を区切りとして${pushed ? "最後の push の時刻" : "、push がないのでこの claim の時刻"}で閉じる`,
+      );
+    }
     warnings.push(...closed.warnings);
   }
   return openClaimRun(
