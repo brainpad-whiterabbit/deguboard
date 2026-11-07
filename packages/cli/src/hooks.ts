@@ -33,15 +33,28 @@ export interface HooksResult {
 /** dg のフックのコマンドの、dg を呼ぶ部分（前の部分が base） */
 const HANDLER_TAIL = /\s--actor agent hook\s/;
 
+/** ハンドラ（dg を呼ぶコマンド）の確かめの結果。ok 以外は警告にする */
+export type HandlerStatus =
+  /** `--version` が終了コード 0 で終わった */
+  | "ok"
+  /** 実行ファイルが見つからない（PATH に dg がない） */
+  | "missing"
+  /** 時間切れ */
+  | "timeout"
+  /** 起動できたが終了コードが 0 でない・起動に失敗した */
+  | "failed"
+  /** シェルの書き方（~・引用符・VAR=x など）を含み、シェルを通さずに確かめられない */
+  | "unverified";
+
 export interface HookCheckEvent {
   event: string;
   /** 設定に dg のフックがあり、matcher も一致する */
   installed: boolean;
-  /** ハンドラ（dg を呼ぶコマンド）が `--version` で動いた。フックがなければ null */
-  handler: boolean | null;
-  /** 直近に受け取った時刻。記録がなければ null（まだ呼ばれていない） */
+  /** ハンドラの確かめ。フックがなければ null */
+  handler: HandlerStatus | null;
+  /** 直近に受け取った時刻。記録がなければ null（まだ呼ばれていない、またはリポジトリの外） */
   received_at: string | null;
-  /** 直近の入力で、Adapter が要るとした項目のうち、ないもの */
+  /** 直近の入力で、受け取らなかった（有無が false の）項目 */
   missing: string[];
 }
 
@@ -51,6 +64,7 @@ export interface HooksCheckResult {
   /** 設定のファイルの絶対パス */
   file: string;
   events: HookCheckEvent[];
+  /** 警告。JSON では最上位の warnings に出す */
   warnings: string[];
 }
 
@@ -92,15 +106,27 @@ async function readSettings(file: string): Promise<Settings> {
 }
 
 const execFileAsync = promisify(execFile);
+/** シェルの書き方（~・引用符・展開・パイプなど）。シェルを通さないと確かめられない */
+const SHELL_ONLY = /[~'"`$\\|&;<>()*?]/;
+/** 先頭の VAR=x（シェルの代入） */
+const ASSIGNMENT = /^[A-Za-z_][A-Za-z0-9_]*=/;
 
-/** dg を呼ぶコマンドが `--version` で動くか。空白で割った先頭を実行する（シェルを通さない） */
-async function handlerRuns(base: string): Promise<boolean> {
-  const [file, ...args] = base.split(/\s+/);
-  if (!file) return false;
-  return execFileAsync(file, [...args, "--version"], { timeout: 15_000 }).then(
-    () => true,
-    () => false,
-  );
+/** dg を呼ぶコマンドが `--version` で動くかを確かめる。空白で割った先頭を execFile で実行し、シェルは通さない */
+async function handlerStatus(base: string): Promise<HandlerStatus> {
+  const parts = base.split(/\s+/).filter((p) => p !== "");
+  // シェルでしか意味を持たない書き方は、シェルを通さずに実行すると別の結果になるので確かめない
+  if (parts.length === 0 || SHELL_ONLY.test(base) || ASSIGNMENT.test(parts[0]!))
+    return "unverified";
+  const [file, ...args] = parts;
+  try {
+    await execFileAsync(file!, [...args, "--version"], { timeout: 15_000 });
+    return "ok";
+  } catch (error) {
+    const e = error as { code?: unknown; killed?: unknown };
+    if (e.code === "ENOENT") return "missing";
+    if (e.killed === true) return "timeout";
+    return "failed";
+  }
 }
 
 function support(agent: string): HookSupport {
@@ -152,7 +178,7 @@ export async function installHooks(options: {
 
 /**
  * フックの状態を確かめる：設定に dg のフックが入っているか（イベントごと・matcher）、ハンドラが動くか、直近の入力に
- * Adapter が要るとした項目があったか（deguboard-local/hooks/ の記録。値は見ない）。欠けていれば警告にする
+ * 受け取らなかった項目があるか（deguboard-local/hook-inputs/ の記録。値は見ない）。欠けていれば警告にする
  */
 export async function checkHooks(options: {
   cwd: string;
@@ -163,7 +189,11 @@ export async function checkHooks(options: {
   const agent = options.agent ?? "claude-code";
   const hooks = support(agent);
   const file = await settingsFile(hooks, options);
-  const { localDir } = await resolveRepoPaths(options.cwd);
+  // 入力の記録はリポジトリの中にある。個人の設定をリポジトリの外で見るときは確かめずに飛ばす
+  const localDir = await resolveRepoPaths(options.cwd).then(
+    (paths) => paths.localDir,
+    () => undefined,
+  );
   const warnings: string[] = [];
   let current: Settings = {};
   try {
@@ -171,7 +201,7 @@ export async function checkHooks(options: {
   } catch (error) {
     warnings.push(`設定を読めない（${error instanceof Error ? error.message : String(error)}）`);
   }
-  const runs = new Map<string, Promise<boolean>>();
+  const statuses = new Map<string, Promise<HandlerStatus>>();
   const events: HookCheckEvent[] = [];
   for (const { event, matcher } of hooks.events) {
     const groups = Array.isArray(current.hooks?.[event]) ? (current.hooks?.[event] as Group[]) : [];
@@ -185,35 +215,28 @@ export async function checkHooks(options: {
       }))
       .find((x) => x.command !== undefined);
     const command = ours?.command;
-    const group = ours?.group;
     const installed =
-      command !== undefined && (matcher === undefined || group?.matcher === matcher);
+      command !== undefined && (matcher === undefined || ours?.group.matcher === matcher);
     if (command !== undefined && !installed)
       warnings.push(
-        `${event} のフックの matcher が「${group?.matcher ?? "（なし）"}」。「${matcher}」であるべき（dg hooks install で入れ直す）`,
+        `${event} のフックの matcher が「${ours?.group.matcher ?? "（なし）"}」。「${matcher}」であるべき（dg hooks install で入れ直す）`,
       );
-    let handler: boolean | null = null;
+    let handler: HandlerStatus | null = null;
     if (command !== undefined) {
       const m = HANDLER_TAIL.exec(command);
       const base = (m ? command.slice(0, m.index) : command).trim();
-      if (!runs.has(base)) runs.set(base, handlerRuns(base));
-      handler = await runs.get(base)!;
+      if (!statuses.has(base)) statuses.set(base, handlerStatus(base));
+      handler = await statuses.get(base)!;
     }
-    const record = await readHookInput(localDir, event);
-    const missing = (hooks.inputFields[event] ?? []).filter(
-      (f) => record !== undefined && record.fields[f] === false,
-    );
-    if (missing.length > 0)
+    const record = localDir === undefined ? undefined : await readHookInput(localDir, event);
+    const missing = Object.entries(record?.fields ?? {})
+      .filter(([, present]) => !present)
+      .map(([field]) => field);
+    if (record !== undefined && missing.length > 0)
       warnings.push(
-        `${event} の直近の入力（${record!.received_at}）に ${missing.join("・")} がない。Claude Code の入力の形が変わった可能性があり、この項目を使う記録（Run など）が取れていないかもしれない`,
+        `${event} の直近の入力（${record.received_at}）に ${missing.join("・")} がない。Claude Code の入力の形が変わった可能性があり、この項目を使う記録（Run など）が取れていないかもしれない`,
       );
-    events.push({
-      event,
-      installed,
-      handler,
-      received_at: record?.received_at ?? null,
-      missing,
-    });
+    events.push({ event, installed, handler, received_at: record?.received_at ?? null, missing });
   }
   const absent = events.filter((e) => !e.installed).map((e) => e.event);
   if (absent.length === hooks.events.length)
@@ -222,19 +245,19 @@ export async function checkHooks(options: {
     warnings.push(
       `設定に dg のフックがないイベント：${absent.join("・")}（dg hooks install で入れ直す）`,
     );
-  for (const [base, run] of runs) {
-    if (!(await run))
-      warnings.push(
-        `ハンドラ「${base}」が --version で動かない（PATH に dg がない。npx なら dg hooks install --command で直す）`,
-      );
+  for (const [base, status] of statuses) {
+    const verdict = await status;
+    if (verdict === "ok") continue;
+    const text: Record<Exclude<HandlerStatus, "ok">, string> = {
+      missing: "見つからない（PATH に dg がない。npx なら dg hooks install --command で直す）",
+      timeout: "--version が時間切れ（15 秒）",
+      failed: "--version が異常終了した（起動に失敗したか終了コードが 0 でない）",
+      unverified:
+        "シェルの書き方（~・引用符・VAR=x など）を含むので確かめられない。単純なコマンドで dg hooks install --command し直すと確かめられる",
+    };
+    warnings.push(`ハンドラ「${base}」：${text[verdict]}`);
   }
-  return {
-    agent,
-    scope: options.scope,
-    file,
-    events,
-    warnings,
-  };
+  return { agent, scope: options.scope, file, events, warnings };
 }
 
 /** dg のフックを外す。手で足したフックは残す */

@@ -118,10 +118,10 @@ export interface HookSupport {
   /** フックを書く設定のファイル。project はリポジトリ（topLevel は作業ツリーの最上位）、personal は個人 */
   settings: { project(topLevel: string): string; personal(env: AgentEnv): string };
   /**
-   * イベントごとに dg が読む入力の項目（JSON のドット区切りのパス）。dg hooks check が直近の入力にあるかを記録と照らす（t542）。
-   * 製品が入力の形を変えたら、ここを直す。書いていないイベントは項目を確かめない
+   * 入力のうち dg が読む項目（JSON のドット区切りのパス）。dg hook が受け取るたびに有無を記録し、dg hooks check が欠けを警告する（t542）。
+   * 項目はイベント（とツール）で決まる。扱わないイベントは空。製品が入力の形を変えたら、ここと parse を直す
    */
-  inputFields: Readonly<Record<string, readonly string[]>>;
+  inputFields(event: string, input: Record<string, unknown>): readonly string[];
   /** フックの入力（製品の JSON）を出来事に変える。扱わないイベントや形の違う入力は undefined */
   parse(event: string, input: unknown, env: AgentEnv): HookEvent | undefined;
   /** サブエージェントの記録の最初の文（頼んだ文）。読めなければ undefined。印を照らすのに使う */

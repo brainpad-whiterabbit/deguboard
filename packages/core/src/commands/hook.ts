@@ -7,7 +7,7 @@
 //     記録の全体から数えて閉じる。事実がなければ閉じずに止まって待っている印を付ける。
 //     印のある Run がなければ、サブエージェントが自分で開いた Run（記録に ID が出る）に記録の場所を結び付ける（移行期の経路）
 //   - session_end：このセッションのサブエージェントの Run のうち開いたままのものをすべて閉じる。親が自分で開いた Run は残す
-//   どのイベントでも、扱うイベントなら受け取った入力の項目の有無と時刻を deguboard-local/hooks/ に残す（t542。dg hooks check が読む）
+//   どのイベントでも、扱うイベントなら読む項目の有無と時刻を deguboard-local/hook-inputs/ に残す（t542。dg hooks check が読む）
 //   どのフックの後も、前のフックで書き終わりを待ちきれずに残した Run を閉じる（dg sync も同じ）
 
 import { appendFile, mkdir, readFile, rename, writeFile } from "node:fs/promises";
@@ -50,18 +50,18 @@ export function parseMarker(prompt: string): { ticket: TicketId; step: string } 
 }
 
 /**
- * dg hook が受け取った入力の記録（deguboard-local/hooks/<イベント>.json。イベントごとに最新の 1 件を上書きする。t542）。
- * 項目の有無と時刻だけを持ち、値は残さない（MT-4）。dg hooks check が読んで、要る項目が欠けていれば警告する
+ * dg hook が受け取った入力の記録（deguboard-local/hook-inputs/<イベント>.json。イベントごとに最新の 1 件を上書きする。t542）。
+ * 項目の有無と時刻だけを持ち、値は残さない（MT-4）。dg hooks check が読み、受け取らなかった項目があれば警告する
  */
 export interface HookInputRecord {
   event: string;
   /** 受け取った時刻 */
   received_at: string;
-  /** Adapter が要るとした項目（ドット区切りのパス）ごとに、入力にあったか */
+  /** Adapter が読むとした項目（ドット区切りのパス）ごとに、入力にあったか */
   fields: Record<string, boolean>;
 }
 
-const HOOK_INPUTS_DIR = "hooks";
+const HOOK_INPUTS_DIR = "hook-inputs";
 
 /** ドット区切りのパスの値がある（null と未定義でない） */
 function hasField(input: Record<string, unknown>, dotted: string): boolean {
@@ -133,7 +133,8 @@ export const hook = defineCommand({
     "セッションの始まりに主体とセッション ID・記録のパスを環境に入れ、頼んだ文の先頭に `deguboard: ticket=<id> step=<step>` の印のあるサブエージェントの Run を起動で開き、step を終えた事実があれば止まったときに閉じ" +
     "（なければ止まって待っている印を付け、再開で続ける）、セッションの終わりにそのセッションのサブエージェントの開いたままの Run を閉じる。" +
     "ツールを使う前（PreToolUse）には、.git/deguboard/ の下への書き込み（書くツールと Bash）を拒み、gh pr merge・gh pr ready をそのチケットの dg gate で判定して満たさなければ止める" +
-    "（PR に当たるチケットがなければ止めない。判定の途中で失敗したら止める。Bash の判定は字句の手がかりで、任意の言語のコードや eval の中は見ない）。ほかの失敗は作業を止めないよう、警告にして成功で返す",
+    "（PR に当たるチケットがなければ止めない。判定の途中で失敗したら止める。Bash の判定は字句の手がかりで、任意の言語のコードや eval の中は見ない）。" +
+    "扱うイベントは、読む入力の項目の有無と時刻を deguboard-local/hook-inputs/ にイベントごとの最新の 1 件で残す（値は残さない。dg hooks check が読む）。ほかの失敗は作業を止めないよう、警告にして成功で返す",
   input: z.object({
     event: z
       .string()
@@ -164,12 +165,13 @@ export const hook = defineCommand({
     // フックの入力の項目の有無を、イベントごとの最新の 1 件に残す（dg hooks check が読む）。扱うイベントの名前だけを使う
     if (hooks.events.some((e) => e.event === input.event)) {
       try {
+        const payload = input.payload ?? {};
         await recordHookInput(
           ctx.repo.localDir,
           input.event,
           toIsoDateTime(ctx.now()),
-          hooks.inputFields[input.event] ?? [],
-          input.payload ?? {},
+          hooks.inputFields(input.event, payload),
+          payload,
         );
       } catch (e) {
         warnings.push(
