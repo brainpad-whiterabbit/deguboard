@@ -1,0 +1,22 @@
+{
+  "id": "r20261107-150348-6730",
+  "ticket": "t528",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": null,
+  "started_at": "2026-11-07T15:03:48Z",
+  "finished_at": "2026-11-07T15:05:06Z",
+  "result": "success",
+  "error": null,
+  "retries": 1,
+  "retry_reasons": [
+    "ADR-001 のずれた記述を消す箇条が ADR を除いていない"
+  ],
+  "usage": {
+    "input": null,
+    "output": null,
+    "cache_read": null,
+    "cache_write": null
+  },
+  "tools": null
+}
