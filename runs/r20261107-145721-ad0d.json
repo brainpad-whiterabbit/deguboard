@@ -1,0 +1,31 @@
+{
+  "id": "r20261107-145721-ad0d",
+  "ticket": "t526",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-07T14:57:21Z",
+  "finished_at": "2026-11-07T14:59:30Z",
+  "result": "success",
+  "error": null,
+  "retries": 2,
+  "retry_reasons": [
+    "MT-4 からパスを写さないが消えている",
+    "ADR-005 の決定の本文が Run が記録のパスを持つのまま"
+  ],
+  "usage": {
+    "input": 8,
+    "output": 8918,
+    "cache_read": 673567,
+    "cache_write": 16233
+  },
+  "tools": {
+    "read": 3,
+    "search": 0,
+    "write": 13,
+    "bash": 2,
+    "other": 0,
+    "read_before_write": 3,
+    "search_before_write": 0
+  }
+}
