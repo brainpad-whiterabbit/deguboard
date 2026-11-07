@@ -260,7 +260,7 @@ Web UI は `dg serve` が配信し、VS Code 拡張は同じアプリを Webview
 
 - EX-1 deguboard はエージェントを起動しない。エージェントが `dg` を呼んで進める
 - EX-2 終了していない Run は一覧で見え、`interrupted` として閉じられる
-- EX-3 チケットを段階（claimed → implemented → reviewed(n) → fixed(n) → ready → merged）に続けて進める既定の手続きは Core が持つ（予定 e15。段階と次の 1 手は `dg next`、修正ループの回数と品質ゲートは `dg gate`、サブエージェントに渡す brief は `dg brief`。細部は各 `--help`）。着手できるチケットは PL-6 か `ticket list --ready` に従う。`--auto` は戻せる判断を自動で選ぶ。マージは、`auto.merge` が true で品質ゲートを通った PR のほかは人を待つ（リリースの PR は `auto.merge` があっても常に人が承認する）。Plan の承認・やめるも人が決めるので、Core は人を待つ手を返す。各手のやり方は guide（`dg guide all`・`work`・`review` など）が書く。e15 が実装されるまでは、段階・品質ゲートの細部も guide（`all`・`parallel`・`review`）が正本（[ADR-011](adr/ADR-011-procedure-in-code.md)）
+- EX-3 チケットを段階（claimed → implemented → reviewed(n) → fixed(n) → ready → merged）に続けて進める既定の手続きは Core が持つ（予定 e15。段階と次の 1 手は `dg next`、修正ループの回数と品質ゲートは `dg gate`、サブエージェントに渡す brief は `dg brief`。細部は各 `--help`）。着手できるチケットは PL-6 か `ticket list --ready` に従う。`--auto` は戻せる判断を自動で選ぶ（Plan の承認を含む。`approved_by` は agent）。マージは、`dg guide all --auto` で `auto.merge` が true のとき、品質ゲートを通った PR だけ自動でマージする。そのほかのマージは人を待つ（リリースの PR は `auto.merge` があっても常に人が承認する）。やめる（abandoned・done の取り消し）は常に人が決めるので、Core は人を待つ手を返す。各手のやり方は guide（`dg guide all`・`work`・`review` など）が書く。e15 が実装されるまでは、段階・品質ゲートの細部も guide（`all`・`parallel`・`review`）が正本（[ADR-011](adr/ADR-011-procedure-in-code.md)）
 - EX-4 Workflow が `by: [human]` で人に限った遷移は、エージェントからは行えない
 
 ## 7. 非機能要件
