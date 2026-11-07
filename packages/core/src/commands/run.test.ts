@@ -268,23 +268,42 @@ describe("run", () => {
     expect(r.data).toMatchObject({ retries: 1, retry_reasons: [] });
   });
 
-  it("retry_reasons のない古い実行中の記録も finish で閉じられ、空の配列で記録する", async () => {
+  it("retry_reasons と session のない古い実行中の記録も finish で閉じられ、空の配列と null で記録する", async () => {
     const ctx = await prepared();
     const run = await start(ctx, "t1");
     const localFile = path.join(ctx.repo.localDir, "runs", `${run.id}.json`);
-    const { retry_reasons: _reasons, ...old } = JSON.parse(
-      await readFile(localFile, "utf8"),
-    ) as Record<string, unknown>;
+    const {
+      retry_reasons: _reasons,
+      session: _session,
+      ...old
+    } = JSON.parse(await readFile(localFile, "utf8")) as Record<string, unknown>;
     await writeFile(localFile, `${JSON.stringify(old, null, 2)}\n`);
     const listed = (await runCommand(runList, ctx, { running: true })).data as RunView[];
-    expect(listed[0]).toMatchObject({ id: run.id, retry_reasons: [] });
+    expect(listed[0]).toMatchObject({ id: run.id, retry_reasons: [], session: null });
     const r = await runCommand(runFinish, ctx, { run: run.id, result: "success" });
-    expect(r.data).toMatchObject({ retries: 0, retry_reasons: [] });
+    expect(r.data).toMatchObject({ retries: 0, retry_reasons: [], session: null });
     await runCommand(commit, ctx, {});
     const saved = JSON.parse(
       await readFile(path.join(ctx.repo.dataDir, "runs", `${run.id}.json`), "utf8"),
     ) as Record<string, unknown>;
     expect(saved["retry_reasons"]).toEqual([]);
+    expect(saved["session"]).toBeNull();
+  });
+
+  it("start は相対パスの transcript を呼んだ作業ディレクトリで絶対パスにして置く", async () => {
+    const ctx = await prepared();
+    const run = (
+      await runCommand(runStart, ctx, {
+        ticket: "t1",
+        step: "implement",
+        agent: "claude-code",
+        transcript: "rel/agent-a.jsonl",
+      })
+    ).data as Run;
+    const local = JSON.parse(
+      await readFile(path.join(ctx.repo.localDir, "transcripts", `${run.id}.json`), "utf8"),
+    ) as { path: string };
+    expect(local.path).toBe(path.resolve("rel/agent-a.jsonl"));
   });
 
   it("finish は回数と理由の数が食い違うか、理由が 1 行でなければ拒否し、Run を開けたままにする", async () => {

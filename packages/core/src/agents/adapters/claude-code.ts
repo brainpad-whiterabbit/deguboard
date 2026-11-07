@@ -139,7 +139,7 @@ async function scan(
     claims,
   };
   // subagents/ の外のファイルでは、サブエージェントの行（isSidechain）は親の使用量でない
-  const sidechainFile = file.split(path.sep).includes("subagents");
+  const sidechainFile = isSubagentFile(file);
   /** 1 行を積む。読むのをやめるときだけ false */
   const take = (line: string): boolean => {
     if (result.firstSeen === undefined) {
@@ -293,8 +293,8 @@ function collected(query: UsageQuery, best: Scan): CollectedUsage {
   };
 }
 
-/** サブエージェントの記録（<session>/subagents/ の下）か */
-const isSubagentFile = (file: string): boolean => file.split(path.sep).includes("subagents");
+/** サブエージェントの記録（<session>/subagents/ の直下）か。設定のディレクトリの途中の同じ名前では判定しない */
+const isSubagentFile = (file: string): boolean => file.split(path.sep).at(-2) === "subagents";
 
 /** そのセッションの記録（<session>.jsonl か、<session>/subagents/ の下）か */
 export function inSession(file: string, session: string): boolean {
@@ -329,17 +329,26 @@ async function fromLocation(query: UsageQuery, file: string, to: number): Promis
 }
 
 /**
- * 同じファイルを先に使って、この Run の開始までに閉じた Run の終わりの直後（なければ -Infinity。ファイルの先頭から）。
- * 続けて頼まれたサブエージェントは同じファイルに書き足すので、前の Run の応答を二重に数えない
+ * 同じファイルを先に使った Run がいれば、その Run の分の後（なければ -Infinity。ファイルの先頭から）。
+ * 続けて頼まれたサブエージェントは同じファイルに書き足すので、前の Run の応答を二重に数えない。
+ * 前の Run が開いたままか、この Run の開始より後に閉じたなら、この Run の started_at から（重なる期間は OverlapClaims が分ける）
  */
 function previousEnd(query: UsageQuery, file: string): number {
-  const started = Date.parse(query.run.started_at);
+  const self = query.run;
+  const started = Date.parse(self.started_at);
   let from = -Infinity;
   for (const [id, span] of query.others ?? []) {
-    if (id === query.run.id || span.transcript !== file || span.finished_at === null) continue;
+    if (id === self.id || span.transcript !== file) continue;
+    // 自分より前に始まった Run だけ。同じ秒なら ID の順で決める（OverlapClaims と同じ）
+    const before =
+      span.started_at < self.started_at ||
+      (span.started_at === self.started_at && id.localeCompare(self.id) < 0);
+    if (!before) continue;
     // 終わりは秒までなので、その秒の終わりまでが前の Run の分
-    const end = Date.parse(span.finished_at) + 1000;
-    if (!Number.isNaN(end) && end <= started + 1000 && end > from) from = end;
+    // この Run の開始の秒までに閉じていればその後から、そうでなければ開始から
+    const end = span.finished_at === null ? Infinity : Date.parse(span.finished_at) + 1000;
+    const boundary = end <= started + 1000 ? end : started;
+    if (!Number.isNaN(boundary) && boundary > from) from = boundary;
   }
   return from;
 }

@@ -7,7 +7,7 @@
 //   - 会話記録のパスは Run に書かず、deguboard-local/transcripts/<id>.json に置く（ADR-005）。ホームのパスとユーザ名を含み、
 //     別のマシンでは読めないので Git に入れない。閉じた後の run refresh も同じファイルから数えるので、Run を閉じても消さない
 
-import { mkdir, readdir, readFile, unlink, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, unlink } from "node:fs/promises";
 import path from "node:path";
 import { OperationError } from "../errors.js";
 import { withLock } from "../git/lock.js";
@@ -27,6 +27,7 @@ import {
   type RunUsage,
 } from "../model/run.js";
 import { createDoc, readDoc, type Doc } from "../storage/documents.js";
+import { writeFileAtomic } from "../storage/atomic.js";
 import { pathExists } from "../storage/exists.js";
 import type { Issue } from "../storage/issue.js";
 import { DIRS, runPath, TRANSCRIPTS_DIR, transcriptPath } from "../storage/paths.js";
@@ -195,16 +196,24 @@ export async function startRun(repo: RunDirs, input: StartRunInput): Promise<Run
       tools: null,
       session: input.session ?? null,
     };
-    // 場所を先に置く。実行中の記録より後に置くと、その間に閉じた Run が場所なしで数えられうる
-    if (input.transcript) {
-      await mkdir(path.join(repo.localDir, TRANSCRIPTS_DIR), { recursive: true });
-      await writeFile(
-        path.join(repo.localDir, transcriptPath(id)),
-        `${JSON.stringify({ path: input.transcript })}\n`,
+    // 場所を先に置く。実行中の記録より後に置くと、その間に閉じた Run が場所なしで数えられうる。
+    // 相対パスは呼んだ作業ディレクトリで絶対パスにする（finish・refresh・serve は別の場所から呼ばれうる）
+    const located = input.transcript ? path.join(repo.localDir, transcriptPath(id)) : undefined;
+    if (located) {
+      await mkdir(path.dirname(located), { recursive: true });
+      await writeFileAtomic(
+        located,
+        `${JSON.stringify({ path: path.resolve(input.transcript!) })}\n`,
       );
     }
-    const doc = await createDoc(repo.localDir, runPath(id), "json", runSchema, run);
-    return doc.data;
+    try {
+      const doc = await createDoc(repo.localDir, runPath(id), "json", runSchema, run);
+      return doc.data;
+    } catch (e) {
+      // 開けなかった Run の場所を残すと、後の同じ ID の Run が引き継ぎうる
+      if (located) await unlink(located).catch(() => undefined);
+      throw e;
+    }
   });
 }
 
@@ -272,6 +281,8 @@ export async function closeRun(
     retries: input.retries ?? local.data.retries,
     retry_reasons: [...(input.retryReasons ?? local.data.retry_reasons)],
     model: input.model === undefined ? local.data.model : input.model,
+    // 項目より前の記録にもキーを省かずに書く（RN-1）
+    session: local.data.session,
     // 渡されなかったキー（undefined）は重ねない
     usage: {
       ...(base["usage"] as Record<string, unknown>),

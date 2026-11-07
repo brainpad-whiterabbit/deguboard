@@ -698,6 +698,35 @@ describe("Claude Code の Adapter", () => {
       expect(await usageOf(query({ transcript: file, others }))).toBe(10);
     });
 
+    it("同じサブエージェントの記録を先に使った Run が開いたままか開始の後に閉じたなら、この Run の started_at から数える", async () => {
+      const { projectDir, query } = await setup();
+      const file = path.join(projectDir, "s1", "subagents", "agent-a.jsonl");
+      await writeTranscript(file, [
+        assistant("m1", -20, [100, 1, 1, 1]), // 前の Run の分
+        assistant("m2", 1, [10, 1, 1, 1]),
+      ]);
+      const earlier = (finished_at: string | null) =>
+        new Map([
+          [
+            "r20260101-093000-0001",
+            { started_at: at(-30), finished_at, agent: "claude-code", transcript: file },
+          ],
+        ]);
+      expect(await usageOf(query({ transcript: file, others: earlier(null) }))).toBe(10);
+      expect(await usageOf(query({ transcript: file, others: earlier(at(5)) }))).toBe(10);
+    });
+
+    it("サブエージェントの記録かは subagents/ の直下かで決め、途中のディレクトリの同じ名前では決めない", async () => {
+      const { home, query } = await setup();
+      // 設定のディレクトリが subagents という名前の下にあっても、親のセッションの記録は started_at から
+      const file = path.join(home, "subagents", ".claude", "projects", "d", "s1.jsonl");
+      await writeTranscript(file, [
+        assistant("m0", -5, [1000, 1, 1, 1]),
+        assistant("m1", 1, [10, 1, 1, 1]),
+      ]);
+      expect(await usageOf(query({ transcript: file }))).toBe(10);
+    });
+
     it("場所のファイルを読めなければ（別のマシンの記録）、推測に落とさず null にしてパスを書かずに警告する", async () => {
       const { projectDir, query } = await setup();
       // 推測なら見つかる記録があっても使わない
