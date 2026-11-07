@@ -54,8 +54,44 @@ const launched = (parent: string, agentId: string, prompt: string) => ({
   tool_response: { status: "async_launched", agentId, resolvedModel: "claude-test-1" },
 });
 
-/** サブエージェントの記録。最初の行が頼んだ文、続けて応答 2 つ（開始の前の時刻も含む） */
-async function subagentRecord(file: string, prompt: string, tokens: number) {
+/**
+ * サブエージェントが Bash で dg を呼んだ記録の 2 行（呼び出しと結果）。output は結果の文（--json の JSON か人向けの出力）。
+ * 本物の記録と同じく、結果は tool_use_id で呼び出しに結び付く
+ */
+let callSeq = 0;
+function bashCall(command: string, output: string): unknown[] {
+  const id = `toolu_${++callSeq}`;
+  return [
+    {
+      type: "assistant",
+      timestamp: new Date().toISOString(),
+      message: {
+        id: `c${callSeq}`,
+        content: [{ type: "tool_use", id, name: "Bash", input: { command } }],
+      },
+    },
+    {
+      type: "user",
+      timestamp: new Date().toISOString(),
+      message: { content: [{ type: "tool_result", tool_use_id: id, content: output }] },
+    },
+  ];
+}
+
+/** dg run start --json の結果。警告には開いたままのほかの Run の ID が出る */
+const startOutput = (run: Run, others: string[] = []) =>
+  JSON.stringify(
+    {
+      ok: true,
+      data: run,
+      warnings: others.map((o) => `このマシンで claude-code の Run ${o}（t2 review）が開いたまま`),
+    },
+    null,
+    2,
+  );
+
+/** サブエージェントの記録。最初の行が頼んだ文、続けて extra の行と応答 2 つ（開始の前の時刻も含む） */
+async function subagentRecord(file: string, prompt: string, tokens: number, extra: unknown[] = []) {
   const line = (id: string, ms: number) => ({
     type: "assistant",
     timestamp: new Date(Date.now() + ms).toISOString(),
@@ -75,7 +111,8 @@ async function subagentRecord(file: string, prompt: string, tokens: number) {
   await mkdir(path.dirname(file), { recursive: true });
   await writeFile(
     file,
-    [first, line("m1", -60_000), line("m2", 0)].map((l) => JSON.stringify(l)).join("\n") + "\n",
+    [first, ...extra, line("m1", -60_000), line("m2", 0)].map((l) => JSON.stringify(l)).join("\n") +
+      "\n",
   );
 }
 
@@ -239,7 +276,12 @@ describe("dg hook（ADR-012）", () => {
         session: SESSION,
       })
     ).data as Run;
-    await subagentRecord(subagent("a9"), `見直す。${JSON.stringify({ data: { id: run.id } })}`, 1);
+    await subagentRecord(
+      subagent("a9"),
+      "見直す",
+      1,
+      bashCall("dg --json --actor agent run start t1 review --agent claude-code", startOutput(run)),
+    );
     const { view } = await call(ctx, "SubagentStop", {
       session_id: SESSION,
       transcript_path: parent,
@@ -299,11 +341,11 @@ describe("dg hook の見直しで直した場面（ADR-012）", () => {
         session: SESSION,
       })
     ).data as Run;
-    await subagentRecord(
-      subagent("a9"),
-      `見直す。${JSON.stringify({ data: { id: old.id } })} ${JSON.stringify({ data: { id: mine.id } })}`,
-      1,
-    );
+    // どちらも run start の結果の形で出るが、old はほかのセッションで記録より前に始まった
+    await subagentRecord(subagent("a9"), "見直す", 1, [
+      ...bashCall("dg --json run start t2 review", startOutput(old)),
+      ...bashCall("dg --json run start t1 review", startOutput(mine)),
+    ]);
     // 記録の最初の行の時刻を、自分の Run の開始より前に（old の開始より後に）する
     const text = await readFile(subagent("a9"), "utf8");
     const first = JSON.parse(text.split("\n")[0]!) as Record<string, unknown>;
@@ -337,8 +379,9 @@ describe("dg hook の見直しで直した場面（ADR-012）", () => {
     ).data as Run;
     await subagentRecord(
       subagent("a1"),
-      `${prompt}\n${JSON.stringify({ data: { id: own.id } })}`,
+      prompt,
       1,
+      bashCall("mise run dg -- --json run start t1 review", startOutput(own)),
     );
     const text = await readFile(subagent("a1"), "utf8");
     const first = JSON.parse(text.split("\n")[0]!) as Record<string, unknown>;
@@ -386,12 +429,8 @@ describe("dg hook の見直しで直した場面（ADR-012）", () => {
 });
 
 describe("dg hook の移行の経路と兄弟の Run（ADR-012）", () => {
-  it("記録の警告に出るだけの兄弟の Run と、ほかのサブエージェントの記録に結び付いた Run は奪わず、自分の run start の結果に出た Run だけを結び付ける", async () => {
-    const { ctx, parent, subagent } = await prepared();
-    // 印のある兄弟 B を起動のフックが開く
-    await call(ctx, "PostToolUse", launched(parent, "b1", "deguboard: ticket=t2 step=review"));
-    const [sibling] = await peekRunningRuns(ctx.repo);
-    // 印のない A が自分で run start する（警告に B の ID が出る）
+  /** 印のない A が自分で run start した記録。最初の行の時刻は A の Run の開始より前 */
+  async function selfStarted(ctx: CommandContext, file: string, extra: (mine: Run) => unknown[]) {
     const mine = (
       await runCommand(runStart, ctx, {
         ticket: "t1",
@@ -400,43 +439,84 @@ describe("dg hook の移行の経路と兄弟の Run（ADR-012）", () => {
         session: SESSION,
       })
     ).data as Run;
-    const record = [
-      {
-        type: "user",
-        timestamp: new Date(Date.now() - 2000).toISOString(),
-        message: { content: "見直す" },
-      },
-      {
-        type: "user",
-        timestamp: new Date().toISOString(),
-        message: {
-          content: [
-            {
-              type: "tool_result",
-              content: JSON.stringify({
-                ok: true,
-                data: { id: mine.id },
-                warnings: [
-                  `このマシンで claude-code の Run ${sibling!.id}（t2 review）が開いたまま`,
-                ],
-              }),
-            },
-          ],
-        },
-      },
-    ];
-    await mkdir(path.dirname(subagent("a1")), { recursive: true });
-    await writeFile(subagent("a1"), record.map((l) => JSON.stringify(l)).join("\n") + "\n");
-    const { view } = await call(ctx, "SubagentStop", {
+    await subagentRecord(file, "見直す", 1, extra(mine));
+    const text = await readFile(file, "utf8");
+    const first = JSON.parse(text.split("\n")[0]!) as Record<string, unknown>;
+    first["timestamp"] = new Date(Date.parse(mine.started_at) - 500).toISOString();
+    await writeFile(file, [JSON.stringify(first), ...text.split("\n").slice(1)].join("\n"));
+    return mine;
+  }
+  const stopA = (ctx: CommandContext, file: string) =>
+    call(ctx, "SubagentStop", {
       session_id: SESSION,
       agent_id: "a1",
-      agent_transcript_path: subagent("a1"),
+      agent_transcript_path: file,
       last_assistant_message: "ok",
     });
+
+  it("run start の警告に出るだけの兄弟の Run と、ほかのサブエージェントの記録に結び付いた Run は奪わない", async () => {
+    const { ctx, parent, subagent } = await prepared();
+    // 印のある兄弟 B を起動のフックが開く
+    await call(ctx, "PostToolUse", launched(parent, "b1", "deguboard: ticket=t2 step=review"));
+    const [sibling] = await peekRunningRuns(ctx.repo);
+    const mine = await selfStarted(ctx, subagent("a1"), (m) =>
+      bashCall("dg --json run start t1 review", startOutput(m, [sibling!.id])),
+    );
+    const { view } = await stopA(ctx, subagent("a1"));
     expect(view.done).toEqual([expect.stringContaining(`Run ${mine.id} の記録の場所`)]);
     const paths = await readTranscriptPaths(ctx.repo);
     expect(paths.get(mine.id)).toBe(subagent("a1"));
-    // 兄弟の Run は自分の記録のまま
     expect(paths.get(sibling!.id)).toBe(subagent("b1"));
+  });
+
+  it("一覧（run list --json）に出た兄弟の Run は奪わない", async () => {
+    const { ctx, subagent } = await prepared();
+    let other: Run | undefined;
+    const mine = await selfStarted(ctx, subagent("a1"), (m) => [
+      ...bashCall("dg --json run start t1 review", startOutput(m)),
+      ...bashCall(
+        "dg --json run list --running",
+        JSON.stringify({ ok: true, data: [m, other] }, null, 2),
+      ),
+    ]);
+    // 印のない兄弟 B も同じセッションで自分で run start した（親の記録の場所のまま）
+    other = (
+      await runCommand(runStart, ctx, {
+        ticket: "t2",
+        step: "review",
+        agent: "claude-code",
+        session: SESSION,
+      })
+    ).data as Run;
+    await subagentRecord(subagent("a1"), "見直す", 1, [
+      ...bashCall("dg --json run start t1 review", startOutput(mine)),
+      ...bashCall(
+        "dg --json run list --running",
+        JSON.stringify({ ok: true, data: [mine, other] }, null, 2),
+      ),
+    ]);
+    const text = await readFile(subagent("a1"), "utf8");
+    const first = JSON.parse(text.split("\n")[0]!) as Record<string, unknown>;
+    first["timestamp"] = new Date(Date.parse(mine.started_at) - 500).toISOString();
+    await writeFile(
+      subagent("a1"),
+      [JSON.stringify(first), ...text.split("\n").slice(1)].join("\n"),
+    );
+    await stopA(ctx, subagent("a1"));
+    const paths = await readTranscriptPaths(ctx.repo);
+    expect(paths.get(mine.id)).toBe(subagent("a1"));
+    expect(paths.has(other.id)).toBe(false);
+  });
+
+  it("人向けの出力の run start（id: の行）と claim（run: の行）の ID も取る", async () => {
+    const { ctx, subagent } = await prepared();
+    const mine = await selfStarted(ctx, subagent("a1"), (m) =>
+      bashCall(
+        "dg run start t1 review",
+        `id: ${m.id}\nticket: t1\nstep: review\n警告: このマシンで claude-code の Run r20260101-000000-0000 が開いたまま`,
+      ),
+    );
+    const { view } = await stopA(ctx, subagent("a1"));
+    expect(view.done).toEqual([expect.stringContaining(`Run ${mine.id} の記録の場所`)]);
   });
 });

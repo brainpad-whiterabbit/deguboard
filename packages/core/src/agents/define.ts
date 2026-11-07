@@ -107,6 +107,11 @@ export interface HookSupport {
   parse(event: string, input: unknown, env: AgentEnv): HookEvent | undefined;
   /** サブエージェントの記録の最初の文（頼んだ文）。読めなければ undefined。印を照らすのに使う */
   firstPrompt(transcript: string): Promise<string | undefined>;
+  /**
+   * サブエージェントが自分で開いた Run の ID。記録の中の dg run start・dg ticket claim の呼び出しの結果に出た、開いた Run の ID だけを返す
+   * （警告の文・一覧・詳細に出るほかの Run の ID は返さない）。読めなければ空
+   */
+  selfOpenedRunIds(transcript: string): Promise<string[]>;
   /** 会話記録の置き場所。run start・ticket claim の --transcript はこの下だけを受け付ける */
   transcriptRoot(env: AgentEnv): string;
 }

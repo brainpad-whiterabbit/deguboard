@@ -38,13 +38,6 @@ export function parseMarker(prompt: string): { ticket: TicketId; step: string } 
 /** シェルの単一引用符で囲む */
 const quote = (s: string) => `'${s.replaceAll("'", `'\\''`)}'`;
 
-/**
- * 自分で開いた Run の ID が記録に出る形。run start・ticket claim の --json の結果の "id"・"run"（記録の中では \" に逃がされうる）と、
- * 人向けの出力の最後の行の run: だけ。警告の文に出るほかの Run の ID（開いたままの兄弟の Run など）は取らない
- */
-const OWN_RUN_IDS =
-  /\\?"(?:id|run)\\?":\s*\\?"(r\d{8}-\d{6}-[0-9a-f]{4})\\?"|(?:^|\\n|\n)run: (r\d{8}-\d{6}-[0-9a-f]{4})/g;
-
 export interface HookView {
   event: string;
   /** 行ったこと（1 件 1 行） */
@@ -221,7 +214,8 @@ async function mentionedRuns(
   const firstLine = text.slice(0, text.indexOf("\n") >>> 0);
   const since = Date.parse(/"timestamp":"([^"]+)"/.exec(firstLine)?.[1] ?? "");
   if (Number.isNaN(since)) return [];
-  const ids = new Set([...text.matchAll(OWN_RUN_IDS)].map((m) => (m[1] ?? m[2])!));
+  // run start・ticket claim の結果に出た、自分で開いた Run だけ（警告・一覧・詳細に出るほかの Run の ID は取らない）
+  const ids = new Set(await hooksOf(agent)!.selfOpenedRunIds(transcript));
   // すでにほかのサブエージェントの記録に結び付いた Run（起動のフックが開いた兄弟の Run）は外す
   const paths = await readTranscriptPaths(ctx.repo);
   const boundElsewhere = (id: string) => {

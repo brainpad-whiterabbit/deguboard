@@ -109,6 +109,76 @@ async function firstPrompt(transcript: string): Promise<string | undefined> {
   }
 }
 
+const RUN_ID = /^r\d{8}-\d{6}-[0-9a-f]{4}$/;
+
+/** dg の run start・ticket claim を呼んだ Bash のコマンドか（mise run dg -- や npx deguboard を前に付けた形も含む） */
+const OPENS_RUN = /(^|[\s/])(dg|deguboard|dg\.js)\b.*\s(run\s+start|ticket\s+claim)(\s|$)/;
+
+/** ツールの結果の中身を 1 つの文にする */
+const resultText = (content: unknown): string =>
+  typeof content === "string"
+    ? content
+    : Array.isArray(content)
+      ? content.map((b) => str(obj(b)["text"]) ?? "").join("\n")
+      : "";
+
+/**
+ * run start・ticket claim の結果から開いた Run の ID を取る。--json なら data.id（run start）か data.run（claim）、
+ * 人向けの出力なら行の頭の id: か run:。警告の文は見ない
+ */
+function openedRunId(text: string): string | undefined {
+  const start = text.indexOf("{");
+  if (start >= 0) {
+    try {
+      const data = obj(obj(JSON.parse(text.slice(start)))["data"]);
+      // claim は data.id がチケットの ID で data.run が Run の ID、run start は data.id が Run の ID
+      const id = [str(data["run"]), str(data["id"])].find((v) => v !== null && RUN_ID.test(v));
+      if (id) return id;
+    } catch {
+      // JSON でない（人向けの出力）
+    }
+  }
+  const m = /^(?:id|run): (r\d{8}-\d{6}-[0-9a-f]{4})\s*$/m.exec(text);
+  return m?.[1];
+}
+
+/** サブエージェントの記録の中で、dg run start・dg ticket claim を呼んだ Bash の結果に出た、開いた Run の ID */
+async function selfOpenedRunIds(transcript: string): Promise<string[]> {
+  const calls = new Set<string>();
+  const ids: string[] = [];
+  const input = createReadStream(transcript);
+  try {
+    const lines = createInterface({ input, crlfDelay: Infinity });
+    for await (const line of lines) {
+      let content: unknown;
+      try {
+        content = obj(obj(JSON.parse(line))["message"])["content"];
+      } catch {
+        continue;
+      }
+      if (!Array.isArray(content)) continue;
+      for (const b of content) {
+        const block = obj(b);
+        if (block["type"] === "tool_use" && block["name"] === "Bash") {
+          const command = str(obj(block["input"])["command"]) ?? "";
+          const id = str(block["id"]);
+          if (id && OPENS_RUN.test(command)) calls.add(id);
+        } else if (block["type"] === "tool_result") {
+          const id = str(block["tool_use_id"]);
+          if (!id || !calls.has(id)) continue;
+          const opened = openedRunId(resultText(block["content"]));
+          if (opened && !ids.includes(opened)) ids.push(opened);
+        }
+      }
+    }
+  } catch {
+    return ids;
+  } finally {
+    input.destroy();
+  }
+  return ids;
+}
+
 export const claudeCodeHooks: HookSupport = {
   events: [
     { event: "SessionStart" },
@@ -122,5 +192,6 @@ export const claudeCodeHooks: HookSupport = {
   },
   parse: parseHook,
   firstPrompt,
+  selfOpenedRunIds,
   transcriptRoot: (env) => path.join(claudeConfigDir(env), "projects"),
 };
