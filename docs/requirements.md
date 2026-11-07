@@ -239,7 +239,7 @@ Web UI は `dg serve` が配信し、VS Code 拡張は同じアプリを Webview
 
 ### 6.5 エージェント連携
 
-- AG-1 エージェントは PATH の `dg` を Bash から `dg … --json --actor agent` で呼び、データのファイルを直接編集しない。主体（human / agent）は Adapter のフックが決める。Claude Code では SessionStart フックが環境 `DEGUBOARD_ACTOR` に agent を入れる（予定 e15）。フックのない製品では申告（`--actor` か `DEGUBOARD_ACTOR`。既定は human）に従い、その製品では `dg guide` の手順が必ず agent を名乗る（[ADR-004](adr/ADR-004-agents-and-state.md)）。主体の ID は TK-7（ユーザ名の決め方は `dg --help`）
+- AG-1 エージェントは PATH の `dg` を Bash から `dg … --json` で呼び、データのファイルを直接編集しない。主体（human / agent）は Adapter のフックが決める。Claude Code では SessionStart フックが環境 `DEGUBOARD_ACTOR` に agent を入れる（予定 e15）。フックのない製品では、呼ぶときに `--actor agent`（か `DEGUBOARD_ACTOR`）で申告する（既定は human）。その製品では `dg guide` の手順が必ず agent を名乗る（[ADR-004](adr/ADR-004-agents-and-state.md)）。主体の ID は TK-7（ユーザ名の決め方は `dg --help`）
 - AG-2 Claude Code 向けに、段階ごとに `dg guide <topic>` を読む薄い Skill（`dg<トピック>`）を `dg skill install` で配る。Skill は任意で、スクリプトもツールの許可も持たない決まった文面。名前と説明は guide の frontmatter が正本。冒頭の 1 文は core の `SKILL_SUMMARY` が正本（[ADR-010](adr/ADR-010-ui-writes-and-agent-requests.md)）
 - AG-3 チケット化（`ticket import`）と、分解・Epic への束ね・依存・Iteration への割り当ては、エージェントが提案して人の承認を得てから行う（手順は `dg guide import`）
 - AG-4 MCP サーバー（`dg mcp`。stdio）は、Bash のないクライアントの入口で、Core のコマンド定義から生成する。CLI と同じ操作ができ（`init` と CLI だけの `guide`・`skill`・`serve`・`open` を除く）、ツールの結果は `--json` と同じ形（CL-1）で、主体は常に agent。対象のリポジトリは `-C` で指せる
@@ -253,7 +253,7 @@ Web UI は `dg serve` が配信し、VS Code 拡張は同じアプリを Webview
 - MT-1 Run の使用量とツールの回数は Adapter が取り込む。エージェントの自己申告の数字は書かない
 - MT-2 `metrics.read_transcripts` が true なら、`run finish` と RN-6 の閉じ方が Adapter でエージェントの会話記録から使用量とツールの回数を補う。Run に記録の場所があればそのファイルから、なければ Run の ID を最初に含む記録から数える（予定 e15。[ADR-005](adr/ADR-005-work-metrics.md)）。`DEGUBOARD_NO_TRANSCRIPTS` が空でも `0` でもないマシンでは読まない
 - MT-3 `metrics show` は Run を絞り込んで集計する（軸は `dg metrics show --help`）。null は足さず欠けた数を出す。集計値は保存しない
-- MT-4 Adapter が会話記録から Run に写すのは数とモデル名だけ（会話の中身・コマンドの文字列は写さない。記録の場所は会話記録からでなくフックの入力から取り、Git に写すのは RN-1 のセッション ID だけ）。`error` と `retry_reasons` は渡した文をそのまま記録するので、`error` には秘密を、`retry_reasons` には秘密・コマンドの文字列・パスを書かない
+- MT-4 Adapter が会話記録から Run に写すのは数とモデル名だけ（会話の中身・コマンドの文字列・ファイルのパス（記録のパスを含む）は写さない。セッション ID は会話記録からでなくフックの入力から取り（予定 e15）、Git に写すのは RN-1 のそれだけ）。`error` と `retry_reasons` は渡した文をそのまま記録するので、`error` には秘密を、`retry_reasons` には秘密・コマンドの文字列・パスを書かない
 - MT-5 `run refresh` は閉じた Run のモデル名と使用量を、finish と同じ方法と MT-2 の許可で会話記録から取り直す。取れた値だけを書き換え、取れなかった値は残して警告する。実行中の Run は拒否する
 
 ### 6.7 ワークフロー実行
