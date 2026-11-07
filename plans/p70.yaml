@@ -1,0 +1,56 @@
+id: p70
+project: default
+tickets: [t539, t531, t541, t542, t532, t533, t534, t536, t535, t537]
+after:
+  t541:
+    - t531
+  t542:
+    - t541
+  t536:
+    - t539
+    - t533
+  t535:
+    - t536
+    - t542
+pending_approval: true
+details:
+  t539:
+    scope: ADR-001 に項だけを置き換える印の書き方を足し、ADR-003・ADR-004 の印をそろえるだけ
+    approach: ADR-001 自身の改訂として直接書き換え、ADR-003:32・ADR-004:47 は印の形だけ直す
+    tier: light
+  t531:
+    scope: Run の見直しの結果の項と run finish の受け取り、run list/show・metrics show への表示
+    approach: review の step だけが受け付ける項目を model/run.ts に足し、metrics の集計に足す
+    tier: heavy
+  t541:
+    scope: SubagentStop・SubagentStart・SessionEnd のハンドラの閉じ方と再開、記録の書き終わりの待ち、止まって待っている印
+    approach: step が終わった事実（t531 の見直しの結果を含む）で閉じるかを決め、同じ agent_id の Start は開いた Run を続きにする。待ちは上限付きで、間に合わなければ sync・SessionEnd で閉じる
+    tier: heavy
+  t542:
+    scope: dg hooks check と、ハンドラが受け取った入力の項目の有無の記録（値は残さない）、guide-overview の案内
+    approach: hook.ts の入口で項目の有無と時刻を deguboard-local に書き、check はそれと設定を読んで警告する。validate から呼ぶかは実装時に決める
+    tier: standard
+  t532:
+    scope: dg gate の判定と PreToolUse フックによる gh pr merge・ready と .git/deguboard 書き込みの拒否
+    approach: 判定は core のコマンド定義に置き、フックは t530 の Adapter の定義に足す。guide-review の表は dg gate を参照する
+    tier: heavy
+  t533:
+    scope: ticket show の stage と dg next の 1 手（CLI・HTTP・MCP）。brief の中身は t534
+    approach: planReadiness と同じく事実から都度求め、保存しない。止まって待っている印（t541）を wait_human に使い、修正ループの上限はここで数える
+    tier: heavy
+  t534:
+    scope: dg brief の役ごとの文と dg next の implement・review・fix の手への同梱
+    approach: ask.ts の文の組み方と言語の渡し方に倣い、文の形はスナップショットで押さえる
+    tier: standard
+  t536:
+    scope: check-docs.mjs の要件 ID・guide の重複・先頭コメントの参照の検査と予算の扱い
+    approach: ADR-001 の新しい決定（t539 の追記を含む）に従って検査を足し、出た指摘は直すか起票する
+    tier: standard
+  t535:
+    scope: guide の work・run・review・parallel・all の書き直しと Skill の入れ直し
+    approach: dg next を呼んで 1 手を行う細いループに縮め、重複を消して合計を半分以下にする。guide-overview の hooks check の案内（t542）は残す
+    tier: standard
+  t537:
+    scope: PR の要らない調査：s19 と同じ 6 つの数の取り直しと EX-1 反転の要否の判断
+    approach: t494 のコマンドで表を出し、ADR-004 の書き換え案として報告する。新しい Iteration のデータが揃ってから着手する
+    tier: heavy
