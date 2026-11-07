@@ -1,0 +1,65 @@
+id: p69
+project: default
+tickets: [t526, t528, t527, t529, t530, t531, t532, t533, t534, t536, t535, t537]
+after:
+  t527:
+    - t526
+    - t528
+  t529:
+    - t527
+  t531:
+    - t530
+  t536:
+    - t533
+  t535:
+    - t536
+pending_approval: true
+details:
+  t526:
+    scope: ADR-004・ADR-005 と requirements の AG-1・RN-1・MT-2 の書き換えだけ。コードは触らない
+    approach: 受け入れ条件の決定を ADR に直接書き、採らなかった案に今の推測を移す
+    tier: standard
+  t528:
+    scope: ADR-001・CLAUDE.md の文書の節・adr/README の書き換えだけ。check-docs の実装は t536
+    approach: 手直しの理由の数字を理由に置き、正本の置き場所と書く範囲を表で決める
+    tier: standard
+  t527:
+    scope: ADR-003（と ADR-004 の guide 側の項）・requirements の EX-3・CL-5 の書き換えだけ。guide 本体は t535
+    approach: 「書かないもの」の手続きの項を反転し、調査の数字と採らなかった案 2 つを書く
+    tier: standard
+  t529:
+    scope: Run の transcript の項・run start/claim の受け取り・claude-code Adapter の数え方と refresh
+    approach: スキーマに null 可の transcript を足し、bindFile は場所があればそれを、なければ今の推測を使う
+    tier: heavy
+  t530:
+    scope: dg hooks install/uninstall と dg hook <event> のハンドラ（SessionStart・サブエージェントの開始終了・Stop）
+    approach: フックの定義は claude-code Adapter に置き、install は skill.ts の置き方に倣う。イベントの項目は Claude Code の版で確かめる
+    tier: heavy
+  t531:
+    scope: Run の見直しの結果の項と run finish の受け取り、run list/show・metrics show への表示
+    approach: review の step だけが受け付ける項目を model/run.ts に足し、metrics の集計に足す
+    tier: heavy
+  t532:
+    scope: dg gate の判定と PreToolUse フックによる gh pr merge・ready と .git/deguboard 書き込みの拒否
+    approach: 判定は core のコマンド定義に置き、フックは t530 の Adapter の定義に足す。guide-review の表は dg gate を参照する
+    tier: heavy
+  t533:
+    scope: ticket show の stage と dg next の 1 手（CLI・HTTP・MCP）。brief の中身は t534
+    approach: planReadiness と同じく事実から都度求め、保存しない。修正ループの上限はここで数える
+    tier: heavy
+  t534:
+    scope: dg brief の役ごとの文と dg next の implement・review・fix の手への同梱
+    approach: ask.ts の文の組み方と言語の渡し方に倣い、文の形はスナップショットで押さえる
+    tier: standard
+  t536:
+    scope: check-docs.mjs の要件 ID・guide の重複・先頭コメントの参照の検査と予算の扱い
+    approach: ADR-001 の新しい決定に従って検査を足し、出た指摘は直すか起票する
+    tier: standard
+  t535:
+    scope: guide の work・run・review・parallel・all の書き直しと Skill の入れ直し
+    approach: dg next を呼んで 1 手を行う細いループに縮め、重複を消して合計を半分以下にする
+    tier: standard
+  t537:
+    scope: PR の要らない調査：s19 と同じ 6 つの数の取り直しと EX-1 反転の要否の判断
+    approach: t494 のコマンドで表を出し、ADR-004 の書き換え案として報告する。新しい Iteration のデータが揃ってから着手する
+    tier: heavy
