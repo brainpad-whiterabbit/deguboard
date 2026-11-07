@@ -28,6 +28,7 @@ import {
   iterationShow,
   iterationStart,
 } from "./iteration.js";
+import { metricsShow } from "./metrics.js";
 import {
   planApprove,
   planClose,
@@ -829,6 +830,59 @@ describe("チケットの流れ", () => {
     }
   });
 
+  it("拒否される ticket update に pr を併せても、実行中の実装の Run は閉じず、runs/ に記録されず集計にも入らない。拒否の後の pr の更新で初めて閉じる（RN-6）", async () => {
+    const f = await fixture();
+    const clock = new Date("2026-11-06T00:00:00Z");
+    const human = await initialized(f.cloneA, { now: () => clock });
+    for (const title of ["Rejected", "Branch taken"])
+      await runCommand(ticketCreate, human, { title });
+    const agent = await agentWithRuns(f.cloneA, () => clock);
+    const runs = {
+      t1: (await runCommand(ticketClaim, agent, { ticket: "t1", branch: "feat/t1" })).data.run!,
+      t2: (await runCommand(ticketClaim, agent, { ticket: "t2", branch: "feat/t2" })).data.run!,
+    };
+    const restore = await fakeGh(f.root, {
+      "feat/t1|41":
+        '{"number":41,"state":"OPEN","isDraft":false,"mergedAt":null,"createdAt":"2026-11-06T00:20:00Z"}',
+    });
+    /** 拒否された更新の後の状態：実装の Run は実行中のまま、記録もチケットも変わらず、集計にも入らない */
+    const expectStillRunning = async () => {
+      expect((await peekRunningRuns(agent.repo)).map((r) => r.id).sort()).toEqual(
+        [runs.t1, runs.t2].sort(),
+      );
+      expect(agent.store.runs.size).toBe(0);
+      expect(agent.store.tickets.get("t1")!.data.pr).toBeUndefined();
+      await expect(
+        readFile(path.join(agent.repo.dataDir, "runs", `${runs.t1}.json`), "utf8"),
+      ).rejects.toMatchObject({ code: "ENOENT" });
+      expect((await runCommand(metricsShow, agent, {})).data.total.runs).toBe(0);
+      expect((await runCommand(metricsShow, agent, { ticket: "t1" })).data.total.runs).toBe(0);
+    };
+    try {
+      // 検査で拒否される：ほかのチケットの作業ブランチ（BRANCH_IN_USE）と、自分への依存（循環）
+      await expect(
+        runCommand(ticketUpdate, agent, { ticket: "t1", pr: 41, branch: "feat/t2" }),
+      ).rejects.toMatchObject({ code: "BRANCH_IN_USE" });
+      await expectStillRunning();
+      await expect(
+        runCommand(ticketUpdate, agent, { ticket: "t1", pr: 41, depends_on: ["t1"] }),
+      ).rejects.toMatchObject({ code: "REJECTED", message: "依存が循環する" });
+      await expectStillRunning();
+
+      // 検査が通れば、同じ pr の更新で実装の Run を PR の作成時刻で閉じる（拒否はそれを妨げない）
+      const updated = await runCommand(ticketUpdate, agent, { ticket: "t1", pr: 41 });
+      expect(updated.data.pr).toBe(41);
+      expect(updated.warnings[0]).toMatch(/^t1 の実装の Run r\S+ を success で閉じた/);
+      expect(agent.store.runs.get(runs.t1)!.data).toMatchObject({
+        result: "success",
+        finished_at: "2026-11-06T00:20:00Z",
+      });
+      expect((await peekRunningRuns(agent.repo)).map((r) => r.id)).toEqual([runs.t2]);
+    } finally {
+      restore();
+    }
+  });
+
   it("ticket update --pr は PR の作成時刻を取れなければ今の時刻で閉じて警告し、開いた Run がなければ閉じない（RN-6）", async () => {
     const f = await fixture();
     let clock = new Date("2026-11-06T00:00:00Z");
@@ -1123,6 +1177,59 @@ describe("チケットの流れ", () => {
     expect((await peekRunningRuns(agent.repo)).map((r) => r.id)).toEqual([]);
   });
 
+  it("unclaim と move（review・done・abandoned）が閉じた Run は、チケットの変更と同じコミットに入り、コミットメッセージに Run の記録が入る（RN-6）", async () => {
+    const f = await fixture();
+    const clock = new Date("2026-11-06T00:00:00Z");
+    const human = await initialized(f.cloneA, { now: () => clock });
+    for (const title of ["Unclaim", "Review", "Done", "Abandoned"])
+      await runCommand(ticketCreate, human, { title });
+    // 既定の batch はまとめてコミットし、メッセージは共通になる。1 操作 1 コミットの形を見るため commit.mode を each にする
+    await runCommand(commit, human, {});
+    await runCommand(configSet, human, { key: "commit.mode", value: "each" });
+    await runCommand(commit, human, {});
+    const agent = await agentWithRuns(f.cloneA, () => clock);
+    const runs = {
+      t1: (await runCommand(ticketClaim, agent, { ticket: "t1", branch: "feat/t1" })).data.run!,
+      t2: (await runCommand(ticketClaim, agent, { ticket: "t2", without_branch: true })).data.run!,
+      t3: (await runCommand(ticketClaim, agent, { ticket: "t3", without_branch: true })).data.run!,
+      t4: (await runCommand(ticketClaim, agent, { ticket: "t4", branch: "feat/t4" })).data.run!,
+    };
+    /** 直前のコミットの題と、そのコミットで変わったファイル（並べ替えて比べる） */
+    const headCommit = async () => ({
+      subject: (await git(agent.repo.dataDir, ["log", "-1", "--format=%s"])).stdout.trim(),
+      files: (await git(agent.repo.dataDir, ["show", "--name-only", "--format=", "HEAD"])).stdout
+        .trim()
+        .split("\n")
+        .sort(),
+    });
+
+    await runCommand(ticketUnclaim, agent, { ticket: "t1" });
+    expect(await headCommit()).toEqual({
+      subject: `t1 の claim を外す。実装の Run を記録: t1 ${runs.t1} failure`,
+      files: [`runs/${runs.t1}.json`, "tickets/t1.md"],
+    });
+
+    await runCommand(ticketMove, agent, { ticket: "t2", status: "review" });
+    expect(await headCommit()).toEqual({
+      subject: `t2 を in_progress から review へ。実装の Run を記録: t2 ${runs.t2} success`,
+      files: [`runs/${runs.t2}.json`, "tickets/t2.md"],
+    });
+
+    await runCommand(ticketMove, agent, { ticket: "t3", status: "done" });
+    expect(await headCommit()).toEqual({
+      subject: `t3 を in_progress から done へ。実装の Run を記録: t3 ${runs.t3} success`,
+      files: [`runs/${runs.t3}.json`, "tickets/t3.md"],
+    });
+
+    // PR のあるチケット（branch あり）の abandoned も、実装の Run を failure で閉じて同じコミットに入る
+    await runCommand(ticketMove, agent, { ticket: "t4", status: "abandoned" });
+    expect(await headCommit()).toEqual({
+      subject: `t4 を in_progress から abandoned へ。実装の Run を記録: t4 ${runs.t4} failure`,
+      files: [`runs/${runs.t4}.json`, "tickets/t4.md"],
+    });
+    expect(await peekRunningRuns(agent.repo)).toEqual([]);
+  });
+
   /** 作業ブランチに、指定した時刻のコミットを積んで push する（手直しの Run を閉じる「最後の push の時刻」を決める） */
   async function pushCommitAt(cwd: string, branch: string, at: string): Promise<void> {
     const saved = { ...process.env };
@@ -1261,6 +1368,91 @@ describe("チケットの流れ", () => {
         (await git(agent.repo.dataDir, ["show", "--name-only", "--format=", "HEAD"])).stdout,
       ).toContain(`runs/${fix2}.json`);
       expect(agent.store.runs.has(fix1)).toBe(true);
+    } finally {
+      restore();
+    }
+  });
+
+  it("reclaim の --no-run は手直しの Run を開かず、前の手直しの Run も閉じない。retry_reasons は no_run・人の claim と併せられず、空の配列は省いたのと同じに扱う（RN-5・RN-6）", async () => {
+    const f = await fixture();
+    let clock = new Date("2026-11-06T00:00:00Z");
+    const human = await initialized(
+      f.cloneA,
+      { now: () => clock },
+      { template: "software-development" },
+    );
+    for (const title of ["Reviewed", "Todo"]) await runCommand(ticketCreate, human, { title });
+    const agent = await agentWithRuns(f.cloneA, () => clock);
+    await runCommand(ticketClaim, agent, { ticket: "t1", branch: "feat/t1" });
+    await git(f.cloneA, ["branch", "feat/t1"]);
+    const restore = await fakeGh(f.root, {
+      "feat/t1|41":
+        '{"number":41,"state":"OPEN","isDraft":false,"mergedAt":null,"createdAt":"2026-11-06T00:20:00Z"}',
+    });
+    try {
+      clock = new Date("2026-11-06T00:30:00Z");
+      await runCommand(ticketUpdate, agent, { ticket: "t1", pr: 41 });
+      clock = new Date("2026-11-06T01:00:00Z");
+      const fix1 = (
+        await runCommand(ticketClaim, agent, { ticket: "t1", retry_reasons: ["指摘 A"] })
+      ).data.run!;
+      expect((await peekRunningRuns(agent.repo)).map((r) => r.id)).toEqual([fix1]);
+
+      // --no-run の reclaim は Run を開かず、前の手直しの Run は閉じない。チケットは変えず、コミットもしない
+      clock = new Date("2026-11-06T02:00:00Z");
+      const head = (await git(agent.repo.dataDir, ["rev-parse", "HEAD"])).stdout.trim();
+      const noRun = await runCommand(ticketClaim, agent, { ticket: "t1", no_run: true });
+      expect(noRun.data).toMatchObject({ status: "in_progress", pr: 41, run: null });
+      expect(noRun.warnings).toEqual([
+        "t1 は自分（eiki/agent）が claim 済みで PR #41 があるので、手直しの開始とみなしてチケットは変えない",
+      ]);
+      expect(noRun.write).toBeUndefined();
+      expect((await peekRunningRuns(agent.repo)).map((r) => r.id)).toEqual([fix1]);
+      expect(agent.store.runs.has(fix1)).toBe(false);
+      expect((await git(agent.repo.dataDir, ["rev-parse", "HEAD"])).stdout.trim()).toBe(head);
+
+      // retry_reasons は no_run と併せられず、人の claim にも渡せない。どちらも入力の誤りで、記録は変えない
+      await expect(
+        runCommand(ticketClaim, agent, { ticket: "t1", no_run: true, retry_reasons: ["指摘 B"] }),
+      ).rejects.toBeInstanceOf(UsageError);
+      await expect(
+        runCommand(ticketClaim, human, { ticket: "t1", retry_reasons: ["指摘 B"] }),
+      ).rejects.toBeInstanceOf(UsageError);
+      await expect(
+        runCommand(ticketClaim, human, { ticket: "t2", retry_reasons: ["指摘 B"] }),
+      ).rejects.toBeInstanceOf(UsageError);
+      expect((await peekRunningRuns(agent.repo)).map((r) => r.id)).toEqual([fix1]);
+      expect(agent.store.runs.has(fix1)).toBe(false);
+
+      // claim の retry_reasons は 1 件 1 行で、空白だけや改行を含む 1 件は入力の誤り（run finish と同じ形）
+      for (const bad of ["指摘\nB", "指摘\r\nB", "  ", ""]) {
+        await expect(
+          runCommand(ticketClaim, agent, { ticket: "t1", retry_reasons: [bad] }),
+        ).rejects.toMatchObject({ message: "ticket.claim の入力が正しくない" });
+      }
+      expect((await peekRunningRuns(agent.repo)).map((r) => r.id)).toEqual([fix1]);
+
+      // 空の配列は省いたのと同じ。agent の todo の claim は通り、実装の Run は理由なしで開く
+      const emptyTodo = await runCommand(ticketClaim, agent, { ticket: "t2", retry_reasons: [] });
+      expect(emptyTodo.data).toMatchObject({ status: "in_progress", assignee: "eiki/agent" });
+      expect(
+        (await peekRunningRuns(agent.repo)).find((r) => r.id === emptyTodo.data.run),
+      ).toMatchObject({ step: "implement", retries: 0, retry_reasons: [] });
+      // 手直しの再開（reclaim）で空の配列を渡すと、前の手直しの Run は閉じて理由なしの手直しの Run を開く
+      clock = new Date("2026-11-06T03:00:00Z");
+      const fix2 = (await runCommand(ticketClaim, agent, { ticket: "t1", retry_reasons: [] })).data
+        .run!;
+      expect(agent.store.runs.get(fix1)!.data).toMatchObject({
+        step: "fix",
+        result: "success",
+        retries: 1,
+        retry_reasons: ["指摘 A"],
+      });
+      expect((await peekRunningRuns(agent.repo)).find((r) => r.id === fix2)).toMatchObject({
+        step: "fix",
+        retries: 0,
+        retry_reasons: [],
+      });
     } finally {
       restore();
     }
