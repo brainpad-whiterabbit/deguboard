@@ -2,5 +2,9 @@ id: s19
 project: default
 name: sprint19
 goal: 設定をチーム共通と個人に分ける
-status: active
+status: closed
 start: 2026-11-05
+end: 2026-11-07
+closed_at: 2026-11-07T14:21:48Z
+completed: 39
+carried_over: 0
