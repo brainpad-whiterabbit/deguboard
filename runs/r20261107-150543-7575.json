@@ -1,0 +1,28 @@
+{
+  "id": "r20261107-150543-7575",
+  "ticket": "t528",
+  "step": "review",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-07T15:05:43Z",
+  "finished_at": "2026-11-07T15:06:25Z",
+  "result": "interrupted",
+  "error": "人がマージを承認したので見直しを止めた",
+  "retries": 0,
+  "retry_reasons": [],
+  "usage": {
+    "input": 10,
+    "output": 2327,
+    "cache_read": 176834,
+    "cache_write": 18523
+  },
+  "tools": {
+    "read": 0,
+    "search": 0,
+    "write": 0,
+    "bash": 5,
+    "other": 0,
+    "read_before_write": 0,
+    "search_before_write": 0
+  }
+}
