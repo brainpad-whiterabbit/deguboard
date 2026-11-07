@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -7,13 +7,15 @@ import type { Run } from "../model/run.js";
 import { peekRunningRuns, readTranscriptPaths } from "../run/record.js";
 import { openContext } from "./context.js";
 import { runCommand, type CommandContext } from "./define.js";
-import { hook, parseMarker, type HookView } from "./hook.js";
-import { REVIEW_UNRECORDED, runList, runReviewResult, runStart, type RunView } from "./run.js";
-import { commit, configSet, init } from "./setup.js";
+import { hook, hookTiming, parseMarker, type HookView } from "./hook.js";
+import { runList, runReviewResult, runStart, type RunView } from "./run.js";
+import { commit, configSet, init, sync } from "./setup.js";
 import { ticketCreate } from "./ticket.js";
 
 const cleanups: Array<() => Promise<void>> = [];
 afterEach(async () => {
+  hookTiming.settleMs = 3000;
+  hookTiming.pollMs = 100;
   await Promise.all(cleanups.splice(0).map((c) => c()));
 });
 
@@ -91,7 +93,13 @@ const startOutput = (run: Run, others: string[] = []) =>
   );
 
 /** サブエージェントの記録。最初の行が頼んだ文、続けて extra の行と応答 2 つ（開始の前の時刻も含む） */
-async function subagentRecord(file: string, prompt: string, tokens: number, extra: unknown[] = []) {
+async function subagentRecord(
+  file: string,
+  prompt: string,
+  tokens: number,
+  extra: unknown[] = [],
+  tail: unknown[] = [],
+) {
   const line = (id: string, ms: number) => ({
     type: "assistant",
     timestamp: new Date(Date.now() + ms).toISOString(),
@@ -111,8 +119,9 @@ async function subagentRecord(file: string, prompt: string, tokens: number, extr
   await mkdir(path.dirname(file), { recursive: true });
   await writeFile(
     file,
-    [first, ...extra, line("m1", -60_000), line("m2", 0)].map((l) => JSON.stringify(l)).join("\n") +
-      "\n",
+    [first, ...extra, line("m1", -60_000), line("m2", 0), ...tail]
+      .map((l) => JSON.stringify(l))
+      .join("\n") + "\n",
   );
 }
 
@@ -243,7 +252,7 @@ describe("dg hook（ADR-012）", () => {
     });
   });
 
-  it("SubagentStop は結果の記録のない見直しの Run を、最後の応答があっても failure で閉じる（ADR-013）", async () => {
+  it("SubagentStop は結果の記録のない見直しの Run を閉じず、止まって待っている印を付けて run list --running に出す（ADR-014）", async () => {
     const { ctx, parent, subagent } = await prepared();
     const prompt = "deguboard: ticket=t1 step=review\n\n見直す";
     await call(ctx, "PostToolUse", launched(parent, "a1", prompt));
@@ -254,8 +263,9 @@ describe("dg hook（ADR-012）", () => {
       agent_transcript_path: subagent("a1"),
       last_assistant_message: "指摘はない",
     });
-    const [run] = (await runCommand(runList, ctx, { ticket: "t1" })).data as RunView[];
-    expect(run).toMatchObject({ result: "failure", error: REVIEW_UNRECORDED, review: null });
+    const [run] = (await runCommand(runList, ctx, { running: true })).data as RunView[];
+    expect(run).toMatchObject({ ticket: "t1", step: "review", running: true, review: null });
+    expect(run!.waiting_since).toEqual(expect.any(String));
   });
 
   it("SubagentStop は記録の最初の文の印で Run のチケットと step を直す（並べて起動して取り違えたとき）", async () => {
@@ -270,11 +280,11 @@ describe("dg hook（ADR-012）", () => {
     });
     expect(warnings).toContainEqual(expect.stringContaining("t2 の review に直した"));
     const runs = (await runCommand(runList, ctx, {})).data as RunView[];
-    // 結果を記録していない見直しなので failure
-    expect(runs.map((r) => [r.ticket, r.step, r.result])).toEqual([["t2", "review", "failure"]]);
+    // 結果を記録していない見直しなので、閉じずに待つ
+    expect(runs.map((r) => [r.ticket, r.step, r.running])).toEqual([["t2", "review", true]]);
   });
 
-  it("SubagentStop は手直しの Run を、開始より後の push がなければ failure で閉じる", async () => {
+  it("SubagentStop は手直しの Run を、開始より後の push がなければ閉じずに待ち、SessionEnd が interrupted で閉じる", async () => {
     const { ctx, parent, subagent } = await prepared();
     await call(ctx, "PostToolUse", launched(parent, "a1", "deguboard: ticket=t1 step=fix"));
     await subagentRecord(subagent("a1"), "deguboard: ticket=t1 step=fix", 1);
@@ -284,9 +294,10 @@ describe("dg hook（ADR-012）", () => {
       agent_transcript_path: subagent("a1"),
       last_assistant_message: "直した",
     });
+    expect((await peekRunningRuns(ctx.repo))[0]!.waiting_since).not.toBeNull();
+    await call(ctx, "SessionEnd", { session_id: SESSION });
     const [run] = (await runCommand(runList, ctx, {})).data as RunView[];
-    expect(run).toMatchObject({ step: "fix", result: "failure" });
-    expect(run!.error).toContain("push がない");
+    expect(run).toMatchObject({ step: "fix", result: "interrupted", running: false });
   });
 
   it("印のある Run がなければ、サブエージェントが自分で開いた Run（記録に ID が出る）に記録の場所を結び付ける", async () => {
@@ -316,19 +327,37 @@ describe("dg hook（ADR-012）", () => {
     expect((await readTranscriptPaths(ctx.repo)).get(run.id)).toBe(subagent("a9"));
   });
 
-  it("SessionEnd はこのセッションの見直しと手直しの Run だけを interrupted で閉じ、実装の Run とほかのセッションの Run は残す", async () => {
-    const { ctx } = await prepared();
-    const start = async (ticket: string, step: string, session: string) =>
-      runCommand(runStart, ctx, { ticket, step, agent: "claude-code", session });
-    await start("t1", "review", SESSION);
-    await start("t1", "implement", SESSION);
-    await start("t2", "fix", SESSION);
-    await start("t2", "review", "s-other");
+  it("SessionEnd はこのセッションのサブエージェントの開いた Run をすべて閉じ（見直しは interrupted、PR のない実装は failure）、親が自分で開いた Run とほかのセッションの Run は残す（ADR-014）", async () => {
+    const { ctx, parent, subagent } = await prepared();
+    await call(ctx, "PostToolUse", launched(parent, "a1", "deguboard: ticket=t1 step=review"));
+    await call(ctx, "PostToolUse", launched(parent, "a2", "deguboard: ticket=t2 step=implement"));
+    await runCommand(runStart, ctx, {
+      ticket: "t1",
+      step: "fix",
+      agent: "claude-code",
+      session: SESSION,
+    });
+    await runCommand(runStart, ctx, {
+      ticket: "t2",
+      step: "review",
+      agent: "claude-code",
+      session: "s-other",
+    });
+    await subagentRecord(subagent("a1"), "deguboard: ticket=t1 step=review", 1);
+    await subagentRecord(subagent("a2"), "deguboard: ticket=t2 step=implement", 1);
     const { view } = await call(ctx, "SessionEnd", { session_id: SESSION, reason: "other" });
     expect(view.done).toHaveLength(2);
+    const closed = ((await runCommand(runList, ctx, {})).data as RunView[])
+      .filter((r) => !r.running)
+      .map((r) => [r.ticket, r.step, r.result])
+      .sort();
+    expect(closed).toEqual([
+      ["t1", "review", "interrupted"],
+      ["t2", "implement", "failure"],
+    ]);
     const running = (await peekRunningRuns(ctx.repo)).map((r) => [r.ticket, r.step]).sort();
     expect(running).toEqual([
-      ["t1", "implement"],
+      ["t1", "fix"],
       ["t2", "review"],
     ]);
   });
@@ -541,5 +570,123 @@ describe("dg hook の移行の経路と兄弟の Run（ADR-012）", () => {
     );
     const { view } = await stopA(ctx, subagent("a1"));
     expect(view.done).toEqual([expect.stringContaining(`Run ${mine.id} の記録の場所`)]);
+  });
+});
+
+/** 記録に応答の行を足す（再開の後の応答や、書き終わりの最後の応答） */
+async function appendResponses(file: string, tokens: number, ids: string[]) {
+  const lines = ids.map((id) => ({
+    type: "assistant",
+    timestamp: new Date().toISOString(),
+    message: {
+      id,
+      model: "claude-test-1",
+      content: "答え",
+      usage: {
+        input_tokens: tokens,
+        output_tokens: tokens,
+        cache_read_input_tokens: 0,
+        cache_creation_input_tokens: 0,
+      },
+    },
+  }));
+  await appendFile(file, lines.map((l) => JSON.stringify(l)).join("\n") + "\n");
+}
+
+describe("サブエージェントの止まりと再開（ADR-014）", () => {
+  const stop = (ctx: CommandContext, file: string, agentId = "a1") =>
+    call(ctx, "SubagentStop", {
+      session_id: SESSION,
+      agent_id: agentId,
+      agent_transcript_path: file,
+    });
+
+  it("質問で止まった Run は同じ agent_id の SubagentStart で続きになり、次の Stop が最初と再開後の応答を両方数えて閉じる", async () => {
+    const { ctx, parent, subagent } = await prepared();
+    const prompt = "deguboard: ticket=t1 step=review\n\n見直す";
+    await call(ctx, "PostToolUse", launched(parent, "a1", prompt));
+    await subagentRecord(subagent("a1"), prompt, 1);
+    await stop(ctx, subagent("a1"));
+    const [waiting] = await peekRunningRuns(ctx.repo);
+    expect(waiting!.waiting_since).not.toBeNull();
+
+    const started = await call(ctx, "SubagentStart", {
+      session_id: SESSION,
+      transcript_path: parent,
+      agent_id: "a1",
+      agent_type: "general-purpose",
+    });
+    expect(started.view.done).toEqual([expect.stringContaining("続きとして使う")]);
+    const resumed = await peekRunningRuns(ctx.repo);
+    // 新しい Run を開かず、印だけを消す
+    expect(resumed.map((r) => [r.id, r.waiting_since])).toEqual([[waiting!.id, null]]);
+
+    await appendResponses(subagent("a1"), 3, ["m3", "m4"]);
+    await runCommand(runReviewResult, ctx, { ticket: "t1", heavy: 0, light: 0, passed: true });
+    const { view } = await stop(ctx, subagent("a1"));
+    expect(view.done).toEqual([expect.stringContaining("success で閉じた")]);
+    const [run] = (await runCommand(runList, ctx, { ticket: "t1" })).data as RunView[];
+    // 最初の Stop までの 2 つ（1 ずつ）と再開後の 2 つ（3 ずつ）
+    expect(run).toMatchObject({ id: waiting!.id, result: "success", usage: { input: 8 } });
+    expect(run).not.toHaveProperty("waiting_since", expect.any(String));
+  });
+
+  it("記録の最後が api-request のままなら待ち、上限までに書かれなければ閉じずに警告し、dg sync が数えて閉じる", async () => {
+    const { ctx, parent, subagent } = await prepared();
+    hookTiming.settleMs = 150;
+    hookTiming.pollMs = 20;
+    const prompt = "deguboard: ticket=t1 step=investigate\n\n調べる";
+    await call(ctx, "PostToolUse", launched(parent, "a1", prompt));
+    await subagentRecord(subagent("a1"), prompt, 1, [], [{ type: "api-request", id: "q1" }]);
+    const first = await stop(ctx, subagent("a1"));
+    expect(first.warnings).toContainEqual(expect.stringContaining("まだ閉じない"));
+    expect(await peekRunningRuns(ctx.repo)).toHaveLength(1);
+
+    await appendResponses(subagent("a1"), 5, ["m3"]);
+    const synced = await runCommand(sync, ctx, {});
+    expect(synced.warnings).toContainEqual(expect.stringContaining("success で閉じた"));
+    const [run] = (await runCommand(runList, ctx, { ticket: "t1" })).data as RunView[];
+    expect(run).toMatchObject({ result: "success", running: false, usage: { input: 7 } });
+  });
+
+  it("記録の最後の api-request の後に応答が出れば、待ってから閉じる", async () => {
+    const { ctx, parent, subagent } = await prepared();
+    hookTiming.pollMs = 20;
+    const prompt = "deguboard: ticket=t1 step=investigate";
+    await call(ctx, "PostToolUse", launched(parent, "a1", prompt));
+    await subagentRecord(subagent("a1"), prompt, 1, [], [{ type: "api-request", id: "q1" }]);
+    const late = setTimeout(() => void appendResponses(subagent("a1"), 5, ["m3"]), 100);
+    const { view } = await stop(ctx, subagent("a1"));
+    clearTimeout(late);
+    expect(view.done).toEqual([expect.stringContaining("success で閉じた")]);
+    const [run] = (await runCommand(runList, ctx, { ticket: "t1" })).data as RunView[];
+    expect(run).toMatchObject({ usage: { input: 7 } });
+  });
+
+  it("前景の見直し役が Run のないうちに書いた結果は保留になり、PostToolUse が開いて閉じるときに結び付いて success になる", async () => {
+    const { ctx, parent, subagent } = await prepared();
+    const prompt = "deguboard: ticket=t1 step=review\n\n見直す";
+    await subagentRecord(subagent("a1"), prompt, 1);
+    const held = await runCommand(runReviewResult, ctx, {
+      ticket: "t1",
+      heavy: 0,
+      light: 1,
+      passed: true,
+    });
+    expect(held.data).toMatchObject({ pending: true });
+    await stop(ctx, subagent("a1"));
+    const { view } = await call(ctx, "PostToolUse", {
+      ...launched(parent, "a1", prompt),
+      tool_response: {
+        status: "completed",
+        agentId: "a1",
+        resolvedModel: "claude-test-1",
+        totalDurationMs: 90_000,
+      },
+    });
+    expect(view.done).toContainEqual(expect.stringContaining("保留の見直しの結果"));
+    expect(view.done).toContainEqual(expect.stringContaining("success で閉じた"));
+    const [run] = (await runCommand(runList, ctx, { ticket: "t1" })).data as RunView[];
+    expect(run).toMatchObject({ result: "success", review: { heavy: 0, light: 1, passed: true } });
   });
 });

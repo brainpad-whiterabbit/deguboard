@@ -28,6 +28,7 @@ import { AbortWrite, withWrite } from "../git/write.js";
 import {
   amendRunning,
   closeRun,
+  putPendingReview,
   dropRunning,
   finishRun,
   readRunningRuns,
@@ -541,6 +542,14 @@ export const runFinish = defineCommand({
   },
 });
 
+/** 書く先の見直しの Run がなく、結果を保留にしたときの返り値（ADR-014） */
+export interface PendingReviewView {
+  ticket: string;
+  review: RunReview;
+  pending: true;
+  at: string;
+}
+
 /** フックが見直しの Run を結果の記録なしに閉じたときの error（ADR-013）。後から結果を書けば success に直す */
 export const REVIEW_UNRECORDED =
   "見直し役が結果を記録せずに終わった（dg run review-result で書く）";
@@ -554,7 +563,7 @@ export const runReviewResult = defineCommand({
   summary:
     "見直しの結果（重い・軽い指摘の数と通ったか）を、チケットの見直し（review の step）の Run に書く（ADR-013）。見直し役が指摘の一覧を返す前に 1 回呼ぶ。" +
     "このマシンで実行中の見直しの Run があればそれに書き（呼び直せば置き換える）、なければチケットの最新の Run が閉じた見直しの Run のときだけ、それに 1 回だけ書く（commit.mode に従ってコミット。後に手直しなどの Run が始まっていれば前の回の見直しなので書かない）。" +
-    "閉じた Run が結果の記録なしに failure で閉じていたら success に直す。どちらもなければ NOT_FOUND。重い指摘があるのに --passed なら使い方の誤り",
+    "閉じた Run が結果の記録なしに failure で閉じていたら success に直す。どちらもなければ（前景で起動した見直し役）結果を保留にし（pending: true）、フックが見直しの Run を閉じるときに結び付ける（ADR-014）。重い指摘があるのに --passed なら使い方の誤り",
   input: z.object({
     ticket: ticketRef,
     heavy: findingCount.describe(
@@ -575,7 +584,9 @@ export const runReviewResult = defineCommand({
     const running = local.find((r) => r.data.ticket === ticket.id && r.data.step === REVIEW_STEP);
     if (running) {
       try {
-        return ok(await amendRunning(ctx.repo, running.data.id, { review }));
+        return ok<Run | PendingReviewView>(
+          await amendRunning(ctx.repo, running.data.id, { review }),
+        );
       } catch (e) {
         // 読んだ後にフックが閉じた。閉じた Run に書く
         if (!(e instanceof OperationError) || (e.code !== "NOT_FOUND" && e.code !== "REJECTED"))
@@ -604,16 +615,24 @@ export const runReviewResult = defineCommand({
         ? ctx.store.runs.get(last.run.id)
         : undefined;
     };
-    if (!(await latest()))
-      throw new OperationError(
-        "NOT_FOUND",
-        `${ticket.id} の見直し（${REVIEW_STEP}）の Run が、実行中のものも、チケットの最新の Run として閉じたものもない`,
-      );
+    if (!(await latest())) {
+      // 前景で起動した見直し役は、動いている間に Run がない。保留にして、フックが Run を閉じるときに結び付ける（ADR-014）
+      const at = toIsoDateTime(ctx.now());
+      await putPendingReview(ctx.repo, ticket.id, { review, at });
+      const view: PendingReviewView = { ticket: ticket.id, review, pending: true, at };
+      return ok<Run | PendingReviewView>(view, undefined, [
+        `${ticket.id} の見直しの Run がまだないので、結果を保留にした。フックが見直しの Run を閉じるときに結び付ける`,
+      ]);
+    }
     const written = await withWrite(
       ctx,
       async () => {
         const doc = await latest();
-        if (!doc) throw new OperationError("NOT_FOUND", `${ticket.id} の閉じた見直しの Run がない`);
+        if (!doc)
+          throw new OperationError(
+            "REJECTED",
+            `${ticket.id} の閉じた見直しの Run が、書き込みの間に最新でなくなった。もう一度呼ぶ`,
+          );
         if (doc.data.review !== null)
           throw new OperationError(
             "REJECTED",
@@ -629,7 +648,7 @@ export const runReviewResult = defineCommand({
       },
       { message: (run) => `見直しの結果を記録: ${run.ticket} ${run.id}` },
     );
-    return ok(written.value, written.write);
+    return ok<Run | PendingReviewView>(written.value, written.write);
   },
 });
 

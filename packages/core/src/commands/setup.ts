@@ -42,6 +42,7 @@ import { cyclePath, findCrossingCycle } from "../storage/wait-cycle.js";
 import { reconcileStatus, regressionWarnings } from "../workflow/reconcile.js";
 import { WORKFLOW_TEMPLATES } from "../workflow/templates/index.js";
 import { defineCommand, ok, type CommandContext } from "./define.js";
+import { closeStoppedRuns, type HookView } from "./hook.js";
 import { nowIso, sortedDocs } from "./helpers.js";
 import {
   closeOpenedRunUnlessClosed,
@@ -352,124 +353,135 @@ export const sync = defineCommand({
   name: "sync",
   group: "setup",
   summary:
-    "リモートの deguboard を取り込み、未 push のコミットを送り、作業ブランチの事実でチケットの状態を進める。作業ブランチの PR を見つけたら、このマシンで実行中の実装の Run を success で閉じる（finished_at は PR の作成時刻）。開いたままの手直しの Run は、次の区切り（同じチケットの次の Run の開始・PR の ready・マージ・チケットの終了）を見たときに、それまでの最後の push の時刻で success にする",
+    "リモートの deguboard を取り込み、未 push のコミットを送り、作業ブランチの事実でチケットの状態を進める。作業ブランチの PR を見つけたら、このマシンで実行中の実装の Run を success で閉じる（finished_at は PR の作成時刻）。開いたままの手直しの Run は、次の区切り（同じチケットの次の Run の開始・PR の ready・マージ・チケットの終了）を見たときに、それまでの最後の push の時刻で success にする。" +
+    "記録の書き終わりを待ちきれずに残したサブエージェントの Run（止まって待っている印があり、step を終えた事実のあるもの）も閉じる",
   input: z.object({}),
   write: true,
   needs: "store",
   async run(ctx) {
-    return withLock(ctx.repo.localDir, "write", async () => {
-      const warnings: string[] = [];
-      const repo = ctx.repo;
-      let flushed = false;
-      // 取り込みの前にマージドライバの登録を揃える（init より前に作ったリポジトリでも効くように。SY-4）
-      await ensureMergeDriver(repo, ctx.mergeDriver);
-      if (await ensureGitattributes(repo.dataDir))
-        await commitPaths(repo, [".gitattributes"], "マージドライバの .gitattributes を置く");
-      const dirty = await isDirty(repo);
-      if (dirty && ctx.config.commit.mode !== "manual") flushed = await flushPending(ctx);
-
-      const fetched = await fetchAll(repo);
-      let conflicts: string[] = [];
-      let integrated = false;
-      let renumbered: Renumbered[] = [];
-      if (!fetched.ok) {
-        warnings.push(`リモートから取り込めない: ${fetched.detail}`);
-      } else if (fetched.remoteBranch) {
-        const r = await integrate(repo, { autostash: dirty && !flushed });
-        if (r.ok) integrated = r.changed;
-        else {
-          // 仮番号の衝突（オフラインで起票した番号がリモートで使われた）なら振り直して積み直す（DT-5）。
-          // 作業ツリーに未コミットが残る manual のときは、巻き戻しで消えるので扱わない
-          const fixed = dirty && !flushed ? null : await renumberProvisional(repo, r.conflicts);
-          if (fixed) {
-            renumbered = fixed;
-            integrated = true;
-          } else conflicts = r.conflicts;
-        }
-      }
-      if (conflicts.length > 0) {
-        warnings.push(`リモートの変更と競合している: ${conflicts.join(", ")}。${CONFLICT_REMEDY}`);
-      }
-      if (integrated) await ctx.store.rescan();
-
-      let pushed = false;
-      const before = await syncStatus(repo);
-      if (repo.remote && conflicts.length === 0 && before.ahead > 0) {
-        const r = await push(repo);
-        if (r.ok) pushed = true;
-        else warnings.push(`push できない: ${r.detail}`);
-      }
-
-      // push が済んだ仮番号は確定する（DT-5）
-      let confirmed: string[] = [];
-      if (repo.remote && (pushed || before.ahead === 0)) {
-        for (const t of ctx.store.tickets.values()) {
-          if (t.data.provisional) {
-            await ctx.store.update("ticket", t.id, { provisional: undefined });
-            confirmed.push(t.id);
-          }
-        }
-      }
-      const {
-        changed: reconciled,
-        prRecorded,
-        runsClosed,
-      }: Reconciled = conflicts.length === 0
-        ? await reconcileAll(ctx, warnings)
-        : { changed: [], prRecorded: [], runsClosed: [] };
-      if (
-        reconciled.length > 0 ||
-        prRecorded.length > 0 ||
-        runsClosed.length > 0 ||
-        confirmed.length > 0
-      ) {
-        const parts = [
-          ...(reconciled.length > 0
-            ? [
-                `照合で ${reconciled
-                  .map((r) => `${r.id}: ${r.from} → ${r.to}（${r.when.join(", ")}）`)
-                  .join(", ")}`,
-              ]
-            : []),
-          ...(prRecorded.length > 0
-            ? [`PR 番号を記録: ${prRecorded.map((r) => `${r.id}: #${r.pr}`).join(", ")}`]
-            : []),
-          ...describeClosedRuns(
-            runsClosed.map((r) => ({
-              run: { ticket: r.id, id: r.run, result: "success" },
-              opener: r.opener,
-            })),
-          ),
-          ...(confirmed.length > 0 ? [`仮番号を確定: ${confirmed.join(", ")}`] : []),
-        ];
-        await commitAll(repo, parts.join("。"));
-        for (const r of runsClosed) await dropRunning(repo, r.run);
-        if (repo.remote) {
-          const r = await push(repo);
-          if (r.ok) pushed = true;
-          else warnings.push(`照合の結果を push できない: ${r.detail}`);
-        }
-      }
-      const status = await syncStatus(repo);
-      return ok(
-        {
-          fetched: fetched.ok,
-          integrated,
-          pushed,
-          conflicts,
-          renumbered,
-          reconciled,
-          pr_recorded: prRecorded,
-          runs_closed: runsClosed,
-          confirmed,
-          status,
-        },
-        undefined,
-        warnings,
-      );
-    });
+    const synced = await syncLocked(ctx);
+    // 記録の書き終わりを待ちきれずに残したサブエージェントの Run を閉じる（ADR-014）。閉じる書き込みは write のロックを取るので、外してから行う
+    const closing: string[] = [];
+    const view: HookView = { event: "sync", done: [] };
+    await closeStoppedRuns(ctx, closing, view);
+    return ok(synced.data, synced.write, [...synced.warnings, ...view.done, ...closing]);
   },
 });
+
+/** sync の本体（write のロックの中） */
+async function syncLocked(ctx: CommandContext) {
+  return withLock(ctx.repo.localDir, "write", async () => {
+    const warnings: string[] = [];
+    const repo = ctx.repo;
+    let flushed = false;
+    // 取り込みの前にマージドライバの登録を揃える（init より前に作ったリポジトリでも効くように。SY-4）
+    await ensureMergeDriver(repo, ctx.mergeDriver);
+    if (await ensureGitattributes(repo.dataDir))
+      await commitPaths(repo, [".gitattributes"], "マージドライバの .gitattributes を置く");
+    const dirty = await isDirty(repo);
+    if (dirty && ctx.config.commit.mode !== "manual") flushed = await flushPending(ctx);
+
+    const fetched = await fetchAll(repo);
+    let conflicts: string[] = [];
+    let integrated = false;
+    let renumbered: Renumbered[] = [];
+    if (!fetched.ok) {
+      warnings.push(`リモートから取り込めない: ${fetched.detail}`);
+    } else if (fetched.remoteBranch) {
+      const r = await integrate(repo, { autostash: dirty && !flushed });
+      if (r.ok) integrated = r.changed;
+      else {
+        // 仮番号の衝突（オフラインで起票した番号がリモートで使われた）なら振り直して積み直す（DT-5）。
+        // 作業ツリーに未コミットが残る manual のときは、巻き戻しで消えるので扱わない
+        const fixed = dirty && !flushed ? null : await renumberProvisional(repo, r.conflicts);
+        if (fixed) {
+          renumbered = fixed;
+          integrated = true;
+        } else conflicts = r.conflicts;
+      }
+    }
+    if (conflicts.length > 0) {
+      warnings.push(`リモートの変更と競合している: ${conflicts.join(", ")}。${CONFLICT_REMEDY}`);
+    }
+    if (integrated) await ctx.store.rescan();
+
+    let pushed = false;
+    const before = await syncStatus(repo);
+    if (repo.remote && conflicts.length === 0 && before.ahead > 0) {
+      const r = await push(repo);
+      if (r.ok) pushed = true;
+      else warnings.push(`push できない: ${r.detail}`);
+    }
+
+    // push が済んだ仮番号は確定する（DT-5）
+    let confirmed: string[] = [];
+    if (repo.remote && (pushed || before.ahead === 0)) {
+      for (const t of ctx.store.tickets.values()) {
+        if (t.data.provisional) {
+          await ctx.store.update("ticket", t.id, { provisional: undefined });
+          confirmed.push(t.id);
+        }
+      }
+    }
+    const {
+      changed: reconciled,
+      prRecorded,
+      runsClosed,
+    }: Reconciled = conflicts.length === 0
+      ? await reconcileAll(ctx, warnings)
+      : { changed: [], prRecorded: [], runsClosed: [] };
+    if (
+      reconciled.length > 0 ||
+      prRecorded.length > 0 ||
+      runsClosed.length > 0 ||
+      confirmed.length > 0
+    ) {
+      const parts = [
+        ...(reconciled.length > 0
+          ? [
+              `照合で ${reconciled
+                .map((r) => `${r.id}: ${r.from} → ${r.to}（${r.when.join(", ")}）`)
+                .join(", ")}`,
+            ]
+          : []),
+        ...(prRecorded.length > 0
+          ? [`PR 番号を記録: ${prRecorded.map((r) => `${r.id}: #${r.pr}`).join(", ")}`]
+          : []),
+        ...describeClosedRuns(
+          runsClosed.map((r) => ({
+            run: { ticket: r.id, id: r.run, result: "success" },
+            opener: r.opener,
+          })),
+        ),
+        ...(confirmed.length > 0 ? [`仮番号を確定: ${confirmed.join(", ")}`] : []),
+      ];
+      await commitAll(repo, parts.join("。"));
+      for (const r of runsClosed) await dropRunning(repo, r.run);
+      if (repo.remote) {
+        const r = await push(repo);
+        if (r.ok) pushed = true;
+        else warnings.push(`照合の結果を push できない: ${r.detail}`);
+      }
+    }
+    const status = await syncStatus(repo);
+    return ok(
+      {
+        fetched: fetched.ok,
+        integrated,
+        pushed,
+        conflicts,
+        renumbered,
+        reconciled,
+        pr_recorded: prRecorded,
+        runs_closed: runsClosed,
+        confirmed,
+        status,
+      },
+      undefined,
+      warnings,
+    );
+  });
+}
 
 export const commit = defineCommand({
   name: "commit",

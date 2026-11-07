@@ -64,6 +64,7 @@ function runningRun(ticketId: string): RunView {
     tools: null,
     session: null,
     review: null,
+    waiting_since: null,
     running: true,
     duration_seconds: null,
   } as RunView;
@@ -1326,6 +1327,7 @@ describe("画面", () => {
           tools: null,
           session: null,
           review: null,
+          waiting_since: null,
           running: true,
           duration_seconds: null,
         } as RunView,

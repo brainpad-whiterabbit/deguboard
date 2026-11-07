@@ -41,6 +41,7 @@ const run = (over: Partial<Run> = {}): Run => ({
   tools: null,
   session: null,
   review: null,
+  waiting_since: null,
   ...over,
 });
 
@@ -956,7 +957,19 @@ describe("Claude Code のフックの入力（ADR-012）", () => {
       kind: "session_end",
       session: "s1",
     });
-    expect(hooks.parse("SubagentStart", { session_id: "s1", agent_id: "a1" }, {})).toBeUndefined();
+    // SubagentStart は再開を続きとして扱うのに読む（ADR-014）。記録のパスは親の記録の隣
+    expect(
+      hooks.parse(
+        "SubagentStart",
+        { session_id: "s1", agent_id: "a1", transcript_path: "/h/.claude/projects/d/s1.jsonl" },
+        {},
+      ),
+    ).toEqual({
+      kind: "subagent_started",
+      session: "s1",
+      agentId: "a1",
+      transcript: path.join("/h/.claude/projects/d", "s1", "subagents", "agent-a1.jsonl"),
+    });
     expect(hooks.parse("SessionEnd", {}, {})).toBeUndefined();
   });
 
