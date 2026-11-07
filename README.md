@@ -79,7 +79,7 @@ Click a row's speech bubble, choose what to ask for, and paste the copied reques
 
 ### Hand off everything
 
-Describe what you want to build with `/dgall --auto` (in Claude Code), and the agent creates tickets from the description, then assigns, plans, and implements them in one go, stopping only where a person has to decide, such as merging or releasing. Watch the progress on the board, and click a plan's band to see its dependencies as a graph. For other agents, ask them to "read `dg guide all` and proceed to the end with `--auto`".
+Describe what you want to build with `/dgall --auto` (in Claude Code), and the agent creates tickets from the description, then assigns, plans, and implements them in one go, stopping only where a person has to decide, such as releasing, or merging (unless `auto.merge` is enabled). Watch the progress on the board, and click a plan's band to see its dependencies as a graph. For other agents, ask them to "read `dg guide all` and proceed to the end with `--auto`".
 
 <img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/run-all.gif" alt="Handing off everything" width="560">
 
