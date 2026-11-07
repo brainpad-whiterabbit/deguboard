@@ -1,4 +1,4 @@
-// 文書と dg guide の大きさの予算・ADR 一覧の整合と更新日の一致・リンクと見出しアンカーの切れ・README.md と README.ja.md の節の構成のずれを検査する（docs/adr/ADR-001-doc-strategy.md）。
+// 文書と dg guide の大きさの予算・ADR 一覧の整合と更新日の一致・リンクと見出しアンカーの切れ・拡張と Walkthrough が指す README の見出しアンカー・README.md と README.ja.md の節の構成のずれを検査する（docs/adr/ADR-001-doc-strategy.md）。
 // 依存なしで動かす。mise run check:docs から呼ぶ。
 import { existsSync } from "node:fs";
 import { readdir, readFile, stat } from "node:fs/promises";
@@ -122,6 +122,29 @@ for (const rel of docFiles) {
   }
 }
 
+// 拡張と Walkthrough が指す README の見出し：dg.ts と media/walkthrough は README の見出しを「このリポジトリの GitHub の URL の #アンカー」で指す（手順を二重に書かないため）。
+// 上のリンクの検査は外部 URL を見ないので、ここで見る。見出しを変えると黙って切れるので、README.md の見出しのアンカーに照らす
+const readmeUrl =
+  /https:\/\/github\.com\/brainpad-whiterabbit\/deguboard(?:\/blob\/[^/\s"'`)]+\/README\.md)?#([^\s"'`)]+)/g;
+let readmeAnchorCount = 0;
+let readmeSlugs = null;
+for (const rel of await filesUnder(
+  ["packages/vscode/src", "packages/vscode/media"],
+  [".ts", ".md"],
+)) {
+  const lines = (await readFile(path.join(root, rel), "utf8")).split("\n");
+  for (const [i, line] of lines.entries()) {
+    for (const m of line.matchAll(readmeUrl)) {
+      readmeAnchorCount++;
+      readmeSlugs ??= await headingSlugs("README.md");
+      const anchor = decodeURIComponent(m[1]).toLowerCase();
+      if (!readmeSlugs.has(anchor)) {
+        errors.push(`${rel}:${i + 1}: README.md に見出しがない: #${m[1]}`);
+      }
+    }
+  }
+}
+
 // 節の構成の検査：README.ja.md は README.md と同じ節の構成で置く（CLAUDE.md）。# から ### の見出しの数と階層の並びを比べる。見出しの文言は訳すので比べない
 const readmeHeadings = await outlineOf("README.md");
 const readmeJaHeadings = await outlineOf("README.ja.md");
@@ -146,7 +169,7 @@ if (errors.length > 0) {
   process.exit(1);
 }
 console.log(
-  `check:docs: 予算内（文書 ${budgets.length} 件、ADR ${adrFiles.length} 件（更新日の一致 ${datedCount} 件）、guide ${guideFiles.length} 件）、リンク ${linkCount} 件に切れなし、README.ja.md の見出し ${readmeJaHeadings.length} 個が README.md と同じ構成`,
+  `check:docs: 予算内（文書 ${budgets.length} 件、ADR ${adrFiles.length} 件（更新日の一致 ${datedCount} 件）、guide ${guideFiles.length} 件）、リンク ${linkCount} 件に切れなし、README.ja.md の見出し ${readmeJaHeadings.length} 個が README.md と同じ構成、拡張と Walkthrough の README の見出しアンカー ${readmeAnchorCount} 件に切れなし`,
 );
 
 function checkBudget(rel, size, limit) {
@@ -176,6 +199,20 @@ async function markdownFilesUnder(dir) {
     .filter((e) => e.isFile() && e.name.endsWith(".md"))
     .map((e) => path.relative(root, path.join(e.parentPath, e.name)))
     .sort();
+}
+
+/** 指定したフォルダの下のファイルのうち、拡張子が exts のものを返す */
+async function filesUnder(dirs, exts) {
+  const files = [];
+  for (const dir of dirs) {
+    const entries = await readdir(path.join(root, dir), { withFileTypes: true, recursive: true });
+    for (const e of entries) {
+      if (e.isFile() && exts.some((x) => e.name.endsWith(x))) {
+        files.push(path.relative(root, path.join(e.parentPath, e.name)));
+      }
+    }
+  }
+  return files.sort();
 }
 
 /** 行ごとの配列にし、```のコードブロックの中とインラインコードは空にする（行番号は保つ） */

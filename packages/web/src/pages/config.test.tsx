@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { setLanguage } from "../l10n.js";
 import { PRIORITY_CRITERIA_EN } from "../l10n-en.js";
@@ -194,6 +194,14 @@ function configClient(initialLocal: Record<string, unknown> = {}) {
   return { client, config, local };
 }
 
+/**
+ * 描き直しと、その後に続く非同期の処理（読み直し・応答の反映・書き込みの要求）が終わるまで act で流す。
+ * 1 tick の待ち（setTimeout 0）では、描き直しや後から始まる要求を取りこぼすので、流しきってから確かめる
+ */
+async function settle() {
+  for (let i = 0; i < 10; i++) await act(async () => {});
+}
+
 function mount(client: ReturnType<typeof mockClient>) {
   window.location.hash = "#/config";
   render(
@@ -298,7 +306,7 @@ describe("設定画面", () => {
     expect(within(fieldOf("git.remote")).getByRole<HTMLInputElement>("textbox").disabled).toBe(
       false,
     );
-    await new Promise((r) => setTimeout(r, 0));
+    await settle();
     expect(setCalls(client)).toEqual([]);
   });
 
@@ -326,7 +334,7 @@ describe("設定画面", () => {
     fireEvent.click(within(fieldOf("actions.test")).getByRole("button", { name: "やめる" }));
     expect(within(fieldOf("actions.test")).queryByRole("alertdialog")).toBeNull();
     expect(reset("commit.mode").disabled).toBe(false);
-    await new Promise((r) => setTimeout(r, 0));
+    await settle();
     expect(setCalls(client)).toEqual([]);
   });
 
@@ -514,7 +522,7 @@ describe("設定画面", () => {
     await waitFor(() => expect(held).toHaveLength(3));
     // 古い応答（true）が後から返っても、保存した値（false）のまま
     held[1]!();
-    await new Promise((r) => setTimeout(r, 0));
+    await settle();
     expect(box().checked).toBe(false);
     expect(screen.getByText("保存した: metrics.read_transcripts を false にした")).toBeTruthy();
     held[2]!();
@@ -671,7 +679,7 @@ describe("設定画面", () => {
     expect(within(fieldOf("git.remote")).getByRole<HTMLInputElement>("textbox").disabled).toBe(
       true,
     );
-    await new Promise((r) => setTimeout(r, 0));
+    await settle();
     expect(setCalls(client)).toEqual([]);
     fireEvent.click(within(confirm).getByText("保存する"));
     expect(
@@ -804,7 +812,7 @@ describe("設定画面", () => {
     expect(confirm.textContent).toContain("同期先が変わる");
     expect(confirm.textContent).toContain("自分だけに効く");
     expect(confirm.textContent).not.toContain("チーム全員");
-    await new Promise((r) => setTimeout(r, 0));
+    await settle();
     expect(setCalls(client)).toEqual([]);
     fireEvent.click(within(confirm).getByText("保存する"));
     expect(await screen.findByText("保存した: git.remote を自分だけ fork にした")).toBeTruthy();

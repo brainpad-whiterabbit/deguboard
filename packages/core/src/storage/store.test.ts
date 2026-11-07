@@ -378,6 +378,22 @@ describe("Store", () => {
     });
   });
 
+  it("個人の config.yaml がマップでない（`- a` や `42`）ときは schema_error の警告を出し、個人の設定を無視してチームの値で動く", async () => {
+    for (const text of ["- a\n- b\n", "42\n"]) {
+      const root = await fixture({});
+      const localDir = await mkdtemp(path.join(os.tmpdir(), "deguboard-store-local-"));
+      dirs.push(localDir);
+      await writeFile(path.join(localDir, "config.yaml"), text);
+      const store = await Store.open(root, { localDir });
+      expect(store.localConfig).toEqual({});
+      expect(store.config.commit.mode).toBe("batch");
+      expect(store.issues.map((i) => [i.severity, i.code, i.path])).toEqual([
+        ["warning", "schema_error", "deguboard-local/config.yaml"],
+      ]);
+      expect(store.issues[0]?.message).toContain("マップ");
+    }
+  });
+
   it("更新が新しいファイルは印が同じでも覚えずに毎回読み、時刻が過ぎてから覚える", async () => {
     const root = await fixture({ "tickets/t1.md": ticketText("t1") });
     const now = vi.spyOn(Date, "now");
