@@ -553,7 +553,7 @@ export const runReviewResult = defineCommand({
   group: "run",
   summary:
     "見直しの結果（重い・軽い指摘の数と通ったか）を、チケットの見直し（review の step）の Run に書く（ADR-013）。見直し役が指摘の一覧を返す前に 1 回呼ぶ。" +
-    "このマシンで実行中の見直しの Run があればそれに書き（呼び直せば置き換える）、なければ閉じた最新の見直しの Run に 1 回だけ書く（commit.mode に従ってコミット）。" +
+    "このマシンで実行中の見直しの Run があればそれに書き（呼び直せば置き換える）、なければチケットの最新の Run が閉じた見直しの Run のときだけ、それに 1 回だけ書く（commit.mode に従ってコミット。後に手直しなどの Run が始まっていれば前の回の見直しなので書かない）。" +
     "閉じた Run が結果の記録なしに failure で閉じていたら success に直す。どちらもなければ NOT_FOUND。重い指摘があるのに --passed なら使い方の誤り",
   input: z.object({
     ticket: ticketRef,
@@ -571,25 +571,48 @@ export const runReviewResult = defineCommand({
       throw new UsageError(`重い指摘が ${input.heavy} 件あるのに --passed を付けた`);
     const ticket = ctx.store.require("ticket", input.ticket).data;
     const review: RunReview = { heavy: input.heavy, light: input.light, passed };
-    const running = (await readRunningRuns(ctx.repo)).runs.find(
-      (r) => r.data.ticket === ticket.id && r.data.step === REVIEW_STEP,
-    );
-    if (running) return ok(await amendRunning(ctx.repo, running.data.id, { review }));
-    // フックが先に閉じたとき。閉じた最新の見直しの Run（ID は開始の順）
-    const latest = () =>
-      [...ctx.store.runs.values()]
-        .filter((d) => d.data.ticket === ticket.id && d.data.step === REVIEW_STEP)
-        .sort((a, b) => a.id.localeCompare(b.id))
+    const local = (await readRunningRuns(ctx.repo)).runs;
+    const running = local.find((r) => r.data.ticket === ticket.id && r.data.step === REVIEW_STEP);
+    if (running) {
+      try {
+        return ok(await amendRunning(ctx.repo, running.data.id, { review }));
+      } catch (e) {
+        // 読んだ後にフックが閉じた。閉じた Run に書く
+        if (!(e instanceof OperationError) || (e.code !== "NOT_FOUND" && e.code !== "REJECTED"))
+          throw e;
+        await ctx.store.rescan();
+      }
+    }
+    // フックが先に閉じたとき。チケットの最新の Run（実行中を含む。開始の順、同じ秒なら ID の順）が閉じた見直しの Run のときだけ書く。
+    // 後に別の Run（手直しなど）が始まっていれば、それは前の回の見直しなので書かない
+    const latest = () => {
+      // 集計のある Run は閉じたものとして数える（実行中の記録は消す前に残りうる）
+      const runs = [
+        ...local
+          .filter((r) => !ctx.store.runs.has(r.data.id))
+          .map((r) => ({ run: r.data, closed: false })),
+        ...[...ctx.store.runs.values()].map((d) => ({ run: d.data, closed: true })),
+      ].filter(({ run }) => run.ticket === ticket.id);
+      const last = runs
+        .sort(
+          (a, b) =>
+            a.run.started_at.localeCompare(b.run.started_at) || a.run.id.localeCompare(b.run.id),
+        )
         .at(-1);
+      return last?.closed && last.run.step === REVIEW_STEP
+        ? ctx.store.runs.get(last.run.id)
+        : undefined;
+    };
     if (!latest())
       throw new OperationError(
         "NOT_FOUND",
-        `${ticket.id} の見直し（${REVIEW_STEP}）の Run が、実行中のものも閉じたものもない`,
+        `${ticket.id} の見直し（${REVIEW_STEP}）の Run が、実行中のものも、チケットの最新の Run として閉じたものもない`,
       );
     const written = await withWrite(
       ctx,
       async () => {
-        const doc = latest()!;
+        const doc = latest();
+        if (!doc) throw new OperationError("NOT_FOUND", `${ticket.id} の閉じた見直しの Run がない`);
         if (doc.data.review !== null)
           throw new OperationError(
             "REJECTED",

@@ -682,6 +682,33 @@ describe("run review-result（見直しの結果。ADR-013）", () => {
     await expect(record(ctx, "t1", 0, 0, true)).rejects.toMatchObject({ code: "REJECTED" });
   });
 
+  it("閉じた見直しの Run の後に別の Run（手直しなど）が始まっていれば、前の回の見直しなので書かずに NOT_FOUND", async () => {
+    const ctx = await prepared();
+    const review = await start(ctx, "t1", "review");
+    await runCommand(runFinish, ctx, {
+      run: review.id,
+      result: "failure",
+      error: REVIEW_UNRECORDED,
+    });
+    laterBy(ctx, 5);
+    await start(ctx, "t1", "fix");
+    await expect(record(ctx, "t1", 0, 0, true)).rejects.toMatchObject({ code: "NOT_FOUND" });
+    expect(ctx.store.runs.get(review.id)!.data).toMatchObject({ result: "failure", review: null });
+  });
+
+  it("実行中の記録を読んだ後に閉じられていたら（集計がある）、実行中の記録に書かず閉じた Run に書く", async () => {
+    const ctx = await prepared();
+    const run = await start(ctx, "t1", "review");
+    const localFile = path.join(ctx.repo.localDir, "runs", `${run.id}.json`);
+    const kept = await readFile(localFile, "utf8");
+    await runCommand(runFinish, ctx, { run: run.id, result: "failure", error: REVIEW_UNRECORDED });
+    // 集計を書いた後、実行中の記録を消す前の形にする
+    await writeFile(localFile, kept);
+    const written = await record(ctx, "t1", 0, 1, true);
+    expect(written.data).toMatchObject({ id: run.id, result: "success", review: { light: 1 } });
+    expect(ctx.store.runs.get(run.id)!.data.review).toEqual({ heavy: 0, light: 1, passed: true });
+  });
+
   it("閉じた見直しの Run が別の理由で failure なら、結果を書いても failure のまま", async () => {
     const ctx = await prepared();
     const run = await start(ctx, "t1", "review");
