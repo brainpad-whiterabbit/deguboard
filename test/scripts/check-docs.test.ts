@@ -1,4 +1,5 @@
 // scripts/check-docs.mjs が ADR の更新日と一覧（docs/adr/README.md）の更新日の食い違い（t210）と、README.md と README.ja.md の節の構成のずれ（t464）で落ちることを確かめる。
+// 拡張と Walkthrough が指す README の見出しアンカーが切れたときも落ちる（t524）。
 // スクリプトは自分の置き場所の親をルートとして読むので、検査に要るファイルを一時ディレクトリに写して動かす。
 // 写さないファイルへのリンクの切れも出るので、確かめる指摘だけを見る
 
@@ -17,8 +18,11 @@ const COPIED = [
   "README.ja.md",
   "docs",
   "packages/cli/src",
+  "packages/vscode/src/dg.ts",
+  "packages/vscode/media/walkthrough",
 ];
 const ADR = "docs/adr/ADR-008-tech-stack.md";
+const ANCHOR = "#getting-started-before-release";
 
 let dir: string;
 
@@ -138,5 +142,43 @@ describe("check-docs の README.md と README.ja.md の節の構成", () => {
     await writeFile(file, `${await readFile(file, "utf8")}\n\`\`\`sh\n# コメント\n\`\`\`\n`);
     const { stderr } = await run();
     expect(stderr).not.toContain("階層が README.md とずれている");
+  });
+});
+
+describe("check-docs の拡張と Walkthrough が指す README の見出しアンカー（t524）", () => {
+  it("写したままならアンカーの指摘は出ない", async () => {
+    const { stderr } = await run();
+    expect(stderr).not.toContain("README.md に見出しがない");
+  });
+
+  it("dg.ts が指す見出しのアンカーを壊すと、場所と見出しを出して落ちる", async () => {
+    await rewrite(
+      "packages/vscode/src/dg.ts",
+      new RegExp(ANCHOR),
+      "#getting-started-before-relese",
+    );
+    const { code, stderr } = await run();
+    expect(code).toBe(1);
+    expect(stderr).toMatch(
+      /packages\/vscode\/src\/dg\.ts:\d+: README\.md に見出しがない: #getting-started-before-relese/,
+    );
+  });
+
+  it("Walkthrough（英語と日本語）が指す見出しのアンカーを壊すと落ちる", async () => {
+    await rewrite("packages/vscode/media/walkthrough/init.md", new RegExp(ANCHOR), "#nope");
+    await rewrite("packages/vscode/media/walkthrough/init.ja.md", new RegExp(ANCHOR), "#nope");
+    const { code, stderr } = await run();
+    expect(code).toBe(1);
+    expect(stderr).toMatch(/init\.md:\d+: README\.md に見出しがない: #nope/);
+    expect(stderr).toMatch(/init\.ja\.md:\d+: README\.md に見出しがない: #nope/);
+  });
+
+  it("README の見出しを変えると、そこを指す拡張の URL が切れて落ちる", async () => {
+    await rewrite("README.md", /^### Getting started before release$/m, "### Setup");
+    const { code, stderr } = await run();
+    expect(code).toBe(1);
+    expect(stderr).toMatch(
+      /dg\.ts:\d+: README\.md に見出しがない: #getting-started-before-release/,
+    );
   });
 });
