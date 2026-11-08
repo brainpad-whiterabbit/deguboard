@@ -1,4 +1,5 @@
 import { readFile, rm, writeFile } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { createFixture, git } from "../../test/helpers/git-fixture.js";
@@ -145,6 +146,17 @@ describe("dg の外の変更（t546・ADR-021）", () => {
     await Promise.all([writes(ctx, "t1"), writes(other, "t2"), reads]);
     expect(warnings.filter((w) => w.includes("dg の外"))).toEqual([]);
     expect(await checkOutside(ctx.repo)).toEqual({ kind: "clean", initial: false });
+  });
+
+  it("落ちた dg が残した古いロックがあっても、作業ツリーの dg の外の変更を見つける", async () => {
+    const { ctx } = await prepared();
+    await editOutside(ctx);
+    // 持ち主の pid がいないロック（落ちた dg の残り）
+    await writeFile(path.join(ctx.repo.localDir, "locks", "write"), `999999999 ${os.hostname()}`);
+    const found = await checkOutside(ctx.repo);
+    expect(found.kind === "found" && found.changes.files).toEqual([
+      { path: "tickets/t1.md", change: "changed" },
+    ]);
   });
 
   it("書き込みのロックの中で外の変更を見つけたら書かず、外の変更を dg のコミットに入れない（検査を自分で扱う hook の書き込みも）", async () => {

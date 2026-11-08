@@ -8,10 +8,11 @@
 //   書き込みのロックの中で見つけたら書かない（見つけた変更を dg のコミットに入れて隠さない）。dg adopt が今の状態を基準にして取り込む
 
 import { createHash } from "node:crypto";
-import { readFile, stat } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { OperationError } from "../errors.js";
 import { writeFileAtomic } from "../storage/atomic.js";
+import { lockHeld } from "./lock.js";
 import type { GitRepo } from "./repo.js";
 import { runGit } from "./run.js";
 import { DATA_BRANCH } from "./worktree.js";
@@ -138,15 +139,10 @@ async function outsideCommits(repo: GitRepo, base: string): Promise<OutsideCommi
 }
 
 /**
- * 書き込みのロックを持っている dg がいるか。持っている間は作業ツリーが書きかけなので、未コミットの変更は見ない
- * （その dg がロックを放す前に基準を記録する）
+ * 生きた dg が書き込みのロックを持っているか。持っている間は作業ツリーが書きかけなので、未コミットの変更は見ない
+ * （その dg がロックを放す前に基準を記録する）。落ちた dg が残した古いロックは持たないとみなす（検査を黙って弱めない）
  */
-async function writeLocked(repo: GitRepo): Promise<boolean> {
-  return stat(path.join(repo.localDir, "locks", "write")).then(
-    () => true,
-    () => false,
-  );
-}
+const writeLocked = (repo: GitRepo) => lockHeld(repo.localDir, "write");
 
 /** 基準のコミットが今の HEAD の祖先か（dg の外で履歴を捨てた・書き換えたなら偽） */
 async function isAncestor(repo: GitRepo, base: string): Promise<boolean> {
@@ -246,7 +242,8 @@ export function describeOutside(changes: OutsideChanges): string {
 export function outsideRemedy(changes: OutsideChanges): string {
   return (
     "データ（.git/deguboard/）は dg のコマンドでだけ書く。dg の外の変更を正しいと確かめたら dg adopt で取り込む" +
-    `（検査を通してから今の状態を基準にする）。捨てるなら、人が deguboard worktree で未コミットの変更を git restore で戻し、` +
-    `dg の外のコミットを git reset --keep ${changes.baseline.slice(0, 12)} で外してから、dg adopt で今の状態を基準にする（dg guide overview の「dg の外の変更」）`
+    "（検査を通してから今の状態を基準にする）。この版より前の dg（版の古い VS Code 拡張や CLI）が書いた変更も外の変更に見えるので、そのときは版を揃えてから dg adopt で取り込む。" +
+    `捨てるなら、人が deguboard worktree で未コミットの変更を git restore で戻し（足したファイルは消す。まとめ待ちの dg の変更も戻る）、` +
+    `dg の外のコミットを git reset --keep ${changes.baseline.slice(0, 12)} で外してから、dg adopt で今の状態を基準にする（手順は dg guide overview の「dg の外の変更」）`
   );
 }
