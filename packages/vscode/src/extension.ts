@@ -54,7 +54,7 @@ import {
 } from "./ids.js";
 import { setTranslator, t } from "./l10n.js";
 import { describeTerminals, terminalInput } from "./terminals.js";
-import { gitCommonDir, initWatchTarget, watchTargets } from "./watch.js";
+import { commonDirOf, initWatchTarget, watchTargets } from "./watch.js";
 import {
   askDelivery,
   askEvent,
@@ -708,7 +708,7 @@ async function watchInit(folder: vscode.WorkspaceFolder, client: CommandClient):
   const key = folder.uri.toString();
   if (initWatchers.has(key)) return;
   initWatchers.set(key, { dispose() {} }); // 張っている間に重ねて張らない
-  const commonDir = await gitCommonDir(folder.uri.fsPath);
+  const commonDir = await commonDirOf(folder.uri.fsPath);
   if (!commonDir || !isOpenFolder(folder)) {
     initWatchers.delete(key);
     return;

@@ -2,9 +2,8 @@
 // dg init 前はデータ worktree がなく見張れないので、できるのを待つ対象（initWatchTarget）も持つ。
 // CLI やエージェントの書き込みはどれも、データ worktree（<common>/deguboard/）か実行中の Run の記録（<common>/deguboard-local/runs/）のファイルを変える
 
-import { execFile } from "node:child_process";
 import path from "node:path";
-import { DIRS, repoDirsOf } from "@deguboard/core";
+import { DIRS, repoDirsOf, resolveRepoPaths } from "@deguboard/core";
 
 /** 見張る 1 件。base のディレクトリからの相対の glob で対象を表す（vscode.RelativePattern に渡す） */
 export interface WatchTarget {
@@ -44,16 +43,15 @@ export function initWatchTarget(commonDir: string): WatchTarget {
 }
 
 /**
- * git common dir の絶対パス。リポジトリでないフォルダや git が動かないときは undefined（見張らない）。
- * --path-format は Git 2.31 から（約束は 2.30 以上）なので使わず、core の resolveRepoPaths と同じく cwd から解く
+ * git common dir の絶対パス（core の resolveRepoPaths が解く）。リポジトリでないフォルダや git が動かないときは undefined（見張らない）。
+ * git は拡張では呼ばず、core に任せる
  */
-export function gitCommonDir(cwd: string): Promise<string | undefined> {
-  return new Promise((resolve) => {
-    execFile("git", ["rev-parse", "--git-common-dir"], { cwd, timeout: 5_000 }, (error, stdout) => {
-      const raw = error ? "" : stdout.trim();
-      resolve(raw === "" ? undefined : path.resolve(cwd, raw));
-    });
-  });
+export async function commonDirOf(cwd: string): Promise<string | undefined> {
+  try {
+    return (await resolveRepoPaths(cwd)).commonDir;
+  } catch {
+    return undefined;
+  }
 }
 
 /** 絶対パスのファイルがどれかの対象に入るか。テストで対象を確かめるために使う */
