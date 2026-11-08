@@ -1,0 +1,36 @@
+{
+  "id": "r20261108-145947-f52b",
+  "ticket": "t576",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-08T14:59:47Z",
+  "finished_at": "2026-11-08T15:03:18Z",
+  "result": "success",
+  "error": null,
+  "retries": 5,
+  "retry_reasons": [
+    "RN-4 で結果の記録がなく failure だった Run を success に直す範囲が抜けた",
+    "RN-6 で別の文脈が先に閉じていた Run は警告だけで止めない約束が抜けた",
+    "RN-3 の細部の案内を具体的なヘルプにする",
+    "RN-6 の照合の扱いを具体にする",
+    "RN-7 と AG-9 でサブエージェントの Run の開け閉めが重複する"
+  ],
+  "usage": {
+    "input": 34,
+    "output": 10343,
+    "cache_read": 717685,
+    "cache_write": 43113
+  },
+  "tools": {
+    "read": 4,
+    "search": 0,
+    "write": 9,
+    "bash": 12,
+    "other": 1,
+    "read_before_write": 0,
+    "search_before_write": 0
+  },
+  "session": "63c10282-cee5-4e4c-93a6-ae7836a9c5b1",
+  "review": null
+}
