@@ -101,7 +101,7 @@ describe("サブエージェントに渡す文の形（brief）", () => {
         2. 狭い画面で折り返さない
       - Tools: read files with Read and edit them with Edit. Do not read or write source with Bash cat, heredoc, or sed -i.
       - Run: the marker on the first line makes the hook open and close the implementation Run. Do not open or close a Run. The parent has already claimed the ticket.
-      - Do not: claim, unclaim, iteration add, Plan operations, launching a reviewer, making the PR ready (\`dg pr ready\`), merge,\`ticket check\`, \`ticket update --pr\`, or work on other tickets. Do not fix things outside the scope; report them in what you return.
+      - Do not: claim, unclaim, iteration add, Plan operations, launching a reviewer, making the PR ready (\`dg pr ready\`), merge, \`ticket check\`, \`ticket update --pr\`, or work on other tickets. Do not fix things outside the scope; report them in what you return.
       - Return: the draft PR's URL and number; the acceptance criteria you checked (by number) and those you could not (with reasons); the sources you reread and what you changed there; the results of the checks (format, lint, tests); and anything the human should know."
     `);
     expect(composeBrief("review", facts({ step: "review" }), "en")).toMatchInlineSnapshot(`
@@ -131,7 +131,7 @@ describe("サブエージェントに渡す文の形（brief）", () => {
         2. 狭い画面で折り返さない
       - Tools: read files with Read and edit them with Edit. Do not read or write source with Bash cat, heredoc, or sed -i.
       - Run: the marker on the first line makes the hook open and close the fix Run. Do not open or close a Run (do not use claim, \`run start\`, or \`run finish\`).
-      - Do not: claim, unclaim, making the PR ready (\`dg pr ready\`), merge,\`ticket update --pr\`, \`ticket check\`, or work on other tickets.
+      - Do not: claim, unclaim, making the PR ready (\`dg pr ready\`), merge, \`ticket update --pr\`, \`ticket check\`, or work on other tickets.
       - Return: the commits you made (hash and summary) and whether you pushed; the light findings you did not fix, with reasons; the acceptance criteria you checked (by number) and those you could not (with reasons); the results of the checks; and anything the human should know."
     `);
   });

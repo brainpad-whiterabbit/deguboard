@@ -1163,7 +1163,10 @@ export function writesDataDir(command: string): boolean {
   return false;
 }
 
-/** 引数をコードとして走らせないコマンド。どのコマンドもこれらだけなら、引用符とヒアドキュメントの中を文字として伏せてよい */
+/**
+ * 引数をコードとして走らせないコマンド。どのコマンドもこれらだけなら、引用符とヒアドキュメントの中を文字として伏せてよい。
+ * 引数でプログラムを渡せるもの（rg --pre・sort --compress-program など）は入れない
+ */
 const TEXT_COMMANDS = new Set([
   "echo",
   "printf",
@@ -1171,13 +1174,11 @@ const TEXT_COMMANDS = new Set([
   "grep",
   "egrep",
   "fgrep",
-  "rg",
   "dg",
   "jq",
   "head",
   "tail",
   "wc",
-  "sort",
   "uniq",
   "cut",
   "tr",
@@ -1216,19 +1217,18 @@ const GH_TEXT_SUBCOMMANDS = new Set([
   "browse",
   "status",
 ]);
-/** 引用符の中を伏せてよい git のサブコマンド（エイリアスは名前で見分けられないので、知っているものだけ） */
+/**
+ * 引用符の中を伏せてよい git のサブコマンド（エイリアスは名前で見分けられないので、知っているものだけ）。
+ * 引数でプログラムを渡せるもの（fetch・pull・push の --upload-pack・--receive-pack・--exec、grep -O）は入れない
+ */
 const GIT_TEXT_SUBCOMMANDS = new Set([
   "commit",
   "tag",
   "log",
   "show",
-  "grep",
   "notes",
   "status",
   "diff",
-  "fetch",
-  "push",
-  "pull",
   "worktree",
   "add",
   "checkout",
@@ -1263,7 +1263,8 @@ function takesText(words: readonly string[]): boolean {
   if (k === -1) return false;
   const [name, ...args] = words.slice(k);
   if (TEXT_COMMANDS.has(name!)) return true;
-  if (name === "mise") return args[0] === "run";
+  // ほかのタスクは定義が引数をシェルに渡しうるので、dg を呼ぶタスクだけ
+  if (name === "mise") return args[0] === "run" && args[1] === "dg";
   if (name === "gh") {
     const [sub, op] = plainWords(args, GH_GLOBAL_WITH_VALUE);
     return (
@@ -1295,7 +1296,8 @@ function onlyTextCommands(command: string): boolean {
 /** 置き換え（$(...)・`...`）を含むか */
 const expands = (text: string) => text.includes("$(") || text.includes("`");
 /** git commit -m "$(cat <<'EOF' … EOF)" の形（引用した終わりの語のヒアドキュメントを cat で出すだけ。中は文字） */
-const CAT_HEREDOC = /\$\(cat <<-? ?(['"])(\w+)\1\n(?:[\s\S]*?\n)?\2\n\s*\)/y;
+// 本文の行は終わりの語だけの行を含まない（シェルは最初のその行で閉じる。越えて読むと、その後の置き換えの中のコマンドまで伏せてしまう）
+const CAT_HEREDOC = /\$\(cat <<-? ?(['"])(\w+)\1\n(?:(?!\2\n)[^\n]*\n)*?\2\n\s*\)/y;
 
 /** command[open] の " を閉じる " の位置（なければ長さ）。中の $(cat <<'EOF' … EOF) は読み飛ばす */
 function closingDoubleQuote(command: string, open: number): number {
@@ -1357,6 +1359,15 @@ export function maskTextArguments(command: string): string {
         started = true;
       }
       i++;
+    } else if (c === "#" && !started) {
+      // 語の頭の # から行の終わりまではコメントで走らない。中の引用符を引用と読まずに伏せる
+      const eol = command.indexOf("\n", i);
+      const end = eol === -1 ? command.length : eol;
+      blank(i, end);
+      i = end - 1;
+    } else if (c === "'" && started && word.endsWith("$")) {
+      // $'…'（ANSI-C の引用）は \' で閉じないので、読み切れないとみなして何も伏せない
+      return command;
     } else if (c === "'" || c === '"') {
       const end = c === "'" ? command.indexOf("'", i + 1) : closingDoubleQuote(command, i);
       const close = end === -1 ? command.length : end;
@@ -1426,28 +1437,67 @@ export function maskTextArguments(command: string): string {
 const GH_API_ADVANCE =
   /pulls\/[^/\s]+\/merge\b|mergePullRequest|markPullRequestReadyForReview|enablePullRequestAutoMerge/;
 
+/** 展開で何にでもなりうる語（$GH・$(…)・`…`） */
+const expandsWord = (t: string) => t.startsWith("$") || t.startsWith("`");
+/** 字句に分ける区切り（空白と括弧・`・中括弧・リダイレクトと、任意の言語の配列の [ ] ,） */
+const TOKEN_SPLIT = /[\s()`{}<>[\],]+/;
+
+/** pr の後の操作の語（値を取る全体のフラグとその値を飛ばした最初の語） */
+function prOperation(tokens: readonly string[], pr: number): string | undefined {
+  for (let k = pr + 1; k < tokens.length; k++) {
+    if (GH_GLOBAL_WITH_VALUE.has(tokens[k]!)) k++;
+    else if (!tokens[k]!.startsWith("-") || expandsWord(tokens[k]!)) return tokens[k];
+  }
+  return undefined;
+}
+
 /**
- * Bash のコマンドが、dg を経由せずに PR を ready にするかマージするか（gh pr ready・gh pr merge・gh api の同じ操作。t545）。
- * 字句で文字と言い切れる部分（maskTextArguments）を伏せた残りを区切り（; & | 改行 括弧 `）ごとに見て、gh の後に pr と merge・ready の語があれば
- * 走るとみなす。PR の指定は読まない（2>&1・$PR・python -c の中も止める）。gh pr ready --undo と --help は通す
+ * Bash のコマンドが、dg を経由せずに PR を ready にするかマージするか（gh pr ready・gh pr merge・gh api の同じ操作。t545、ADR-019）。
+ * 字句で文字と言い切れる部分（maskTextArguments）を伏せ、残りの引用符と \ を取り除いて語をつなげてから（gh pr "mer""ge"・g\h）見る。
+ * 残りのどこかに gh か展開の語（$GH・$(which gh)）があり、区切り（; & | 改行）の中で pr の次の操作の語が merge・ready・展開の語
+ * （gh pr $OP）なら走るとみなす。gh の次が展開の語（gh $SUB）も止める。xargs があれば区切りを越えて pr と merge・ready を探す。
+ * PR の指定は読まない（2>&1・$PR・python -c の中も止める）。通すのは gh pr ready --undo だけ
  */
 export function advancesPrOutsideDg(command: string): boolean {
-  const residual = maskTextArguments(command).replace(/\\\n/g, " ");
-  const isGh = (t: string) => /(^|\/)gh$/.test(t);
+  const joined = maskTextArguments(command)
+    .replace(/\\\n/g, " ")
+    .replace(/["'\\]/g, "");
+  const all = joined.split(/[\s;&|()`{}<>[\],]+/).filter((t) => t !== "");
+  // フラグや代入に接した gh（git grep -Ogh・--upload-pack=gh）も gh とみなす
+  const isGh = (t: string) => /(^|[/=]|^-[A-Za-z]*)gh$/.test(t);
+  const isDg = (t: string) => /(^|\/)dg(\.js)?$/.test(t);
+  if (!all.some((t) => isGh(t) || expandsWord(t)) && !joined.includes("$")) return false;
   // GraphQL の mutation は括弧を含むので、区切らずに全体で見る
-  if (residual.split(/[\s"'\\;&|()`]+/).some(isGh) && GH_API_ADVANCE.test(residual)) return true;
-  for (const segment of residual.split(/[;&|\n()`{}]/)) {
-    const tokens = segment.split(/[\s"'\\]+/).filter((t) => t !== "");
-    const gh = tokens.findIndex(isGh);
-    if (gh === -1) continue;
-    const rest = tokens.slice(gh + 1);
-    const pr = rest.indexOf("pr");
-    if (pr === -1) continue;
-    const after = rest.slice(pr + 1);
-    const merge = after.includes("merge");
-    if (!merge && !after.includes("ready")) continue;
-    if (after.includes("--help") || (!merge && after.includes("--undo"))) continue;
+  if (GH_API_ADVANCE.test(joined)) return true;
+  const advancing = (op: string | undefined) =>
+    op === "merge" || op === "ready" || (op !== undefined && expandsWord(op));
+  // xargs は前のコマンドの出力を引数にするので、区切りを越えて見る
+  if (
+    all.includes("xargs") &&
+    all.includes("pr") &&
+    all.some((t) => t === "merge" || t === "ready")
+  )
     return true;
+  for (const segment of joined.split(/[;&|\n]/)) {
+    const tokens = segment.split(TOKEN_SPLIT).filter((t) => t !== "");
+    for (let k = 0; k < tokens.length; k++) {
+      if (isGh(tokens[k]!)) {
+        const sub = prOperation(tokens, k);
+        if (sub !== undefined && expandsWord(sub)) return true;
+      }
+      if (tokens[k] !== "pr") continue;
+      // dg pr ready・dg pr merge（mise run dg -- pr merge も）は正しい道。dg の後に gh か展開の語が来れば見る
+      const before = tokens.slice(0, k);
+      if (before.findLastIndex(isDg) > before.findLastIndex((t) => isGh(t) || expandsWord(t)))
+        continue;
+      const op = prOperation(tokens, k);
+      if (!advancing(op)) continue;
+      // -- の後の --undo はフラグでなく引数
+      const undo = tokens.indexOf("--undo");
+      const rest = tokens.indexOf("--");
+      if (op === "ready" && undo !== -1 && (rest === -1 || undo < rest)) continue;
+      return true;
+    }
   }
   return false;
 }

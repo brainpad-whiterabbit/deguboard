@@ -70,7 +70,9 @@ export const prMerge = defineCommand({
     delete_branch: z
       .boolean()
       .default(false)
-      .describe("リモートとローカルの作業ブランチも消すか（gh pr merge --delete-branch）"),
+      .describe(
+        "リモートとローカルの作業ブランチも消すか（gh pr merge --delete-branch）。ブランチを checkout した worktree が残っていると gh がローカルのブランチを消せないので、先に worktree を消して main の worktree から呼ぶ",
+      ),
   }),
   write: false,
   needs: "store",

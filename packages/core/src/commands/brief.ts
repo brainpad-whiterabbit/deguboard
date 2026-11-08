@@ -124,7 +124,7 @@ export function composeBrief(
       ),
       never(
         "claim・unclaim・iteration add・Plan の操作・見直し役の起動・PR の ready（`dg pr ready`）・マージ・`ticket check`・`ticket update --pr`・ほかのチケットの作業。範囲の外で見つけたことは直さず、返すものに書く。",
-        "claim, unclaim, iteration add, Plan operations, launching a reviewer, making the PR ready (`dg pr ready`), merge,`ticket check`, `ticket update --pr`, or work on other tickets. Do not fix things outside the scope; report them in what you return.",
+        "claim, unclaim, iteration add, Plan operations, launching a reviewer, making the PR ready (`dg pr ready`), merge, `ticket check`, `ticket update --pr`, or work on other tickets. Do not fix things outside the scope; report them in what you return.",
       ),
       returns(
         "draft の PR の URL と番号・確かめた受け入れ条件（番号ごと）と付けられなかった項目（理由）・読み直した正本と直した箇所・検査（書式・lint・テスト）の結果・人に伝えること。",
@@ -234,7 +234,7 @@ export function composeBrief(
     ),
     never(
       "claim・unclaim・PR の ready（`dg pr ready`）・マージ・`ticket update --pr`・`ticket check`・ほかのチケットの作業。",
-      "claim, unclaim, making the PR ready (`dg pr ready`), merge,`ticket update --pr`, `ticket check`, or work on other tickets.",
+      "claim, unclaim, making the PR ready (`dg pr ready`), merge, `ticket update --pr`, `ticket check`, or work on other tickets.",
     ),
     returns(
       "直したコミット（ハッシュと要約）と push の有無・直さなかった軽い指摘と理由・確かめた受け入れ条件（番号ごと）と付けられなかった項目（理由）・検査の結果・人に伝えること。",
