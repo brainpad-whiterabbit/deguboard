@@ -1,0 +1,33 @@
+{
+  "id": "r20261108-014132-192a",
+  "ticket": "t534",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-08T01:41:32Z",
+  "finished_at": "2026-11-08T01:46:43Z",
+  "result": "success",
+  "error": null,
+  "retries": 2,
+  "retry_reasons": [
+    "fix の文が retry-reason を指摘ごとに繰り返す決まりを書いていない",
+    "review の文に参考節との食い違いの扱いがない"
+  ],
+  "usage": {
+    "input": 68,
+    "output": 26231,
+    "cache_read": 7059330,
+    "cache_write": 42935
+  },
+  "tools": {
+    "read": 6,
+    "search": 0,
+    "write": 22,
+    "bash": 21,
+    "other": 0,
+    "read_before_write": 1,
+    "search_before_write": 0
+  },
+  "session": null,
+  "review": null
+}
