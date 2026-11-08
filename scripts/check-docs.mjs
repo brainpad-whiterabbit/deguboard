@@ -148,10 +148,20 @@ if (listed === undefined) {
   errors.push("docs/requirements.md: 「要件の ID の接頭辞：」の一覧の行がない");
 }
 const listedPrefixes = [...(listed ?? "").matchAll(/`([A-Z]{2,3})`/g)].map((m) => m[1]);
-const requirementPrefixes = new Set([
-  ...[...requirementIds].map((id) => id.split("-")[0]),
-  ...listedPrefixes,
-]);
+if (listed !== undefined && listedPrefixes.length === 0) {
+  errors.push(
+    "docs/requirements.md: 「要件の ID の接頭辞：」の一覧に接頭辞がない（バッククォートで囲む）",
+  );
+}
+const definedPrefixes = new Set([...requirementIds].map((id) => id.split("-")[0]));
+// 定義にある接頭辞は一覧にもなければ、節を消したあと残る参照を拾えないので指摘する
+for (const prefix of definedPrefixes) {
+  if (!listedPrefixes.includes(prefix)) {
+    errors.push(`docs/requirements.md: 接頭辞 ${prefix} が「要件の ID の接頭辞：」の一覧にない`);
+  }
+}
+// 定義がなくても一覧にある接頭辞は、節を消した後の参照を拾うので残す
+const requirementPrefixes = new Set([...definedPrefixes, ...listedPrefixes]);
 const sources = filesUnder(["packages", "scripts", "test"], SOURCE_EXTS);
 let requirementRefCount = 0;
 for (const rel of sources) {

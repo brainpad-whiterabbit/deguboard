@@ -232,10 +232,27 @@ describe("check-docs の要件 ID・先頭コメント・guide の重複（t536�
   it("接頭辞の一覧にない語（ADR-001・UTC-5・SP-10）は、定義がなくても指摘しない", async () => {
     await writeFile(
       join(dir, "packages/cli/src/zz-probe.ts"),
-      "// ADR-001 と UTC-5 と SP-10 の話\nexport {};\n",
+      "// ADR-001 と UTF-8 と SHA-256 と UTC-5 と SP-10 の話\nexport {};\n",
     );
     const { stderr } = await run();
     expect(stderr).not.toContain("要件 ID");
+  });
+
+  it("定義された接頭辞が一覧にないと、接頭辞の名前を出して落ちる", async () => {
+    const req = join(dir, "docs/requirements.md");
+    await writeFile(req, `${await readFile(req, "utf8")}\n- QZ-1 一覧に入れ忘れた確かめ\n`);
+    const { code, stderr } = await run();
+    expect(code).toBe(1);
+    expect(stderr).toContain(
+      "docs/requirements.md: 接頭辞 QZ が「要件の ID の接頭辞：」の一覧にない",
+    );
+  });
+
+  it("一覧の行に接頭辞がバッククォートで囲まれていないと、落ちる", async () => {
+    await rewrite("docs/requirements.md", /^要件の ID の接頭辞：.*$/m, "要件の ID の接頭辞：AG CL");
+    const { code, stderr } = await run();
+    expect(code).toBe(1);
+    expect(stderr).toContain("「要件の ID の接頭辞：」の一覧に接頭辞がない");
   });
 
   it("節を消して定義がなくなっても、接頭辞の一覧に残る接頭辞の参照は場所を出して落ちる", async () => {
