@@ -371,47 +371,64 @@ describe("エージェントに頼む入力欄（UI-15）", () => {
     await waitFor(() => expect(box.getByRole("status").textContent).toContain("コピーしました"));
   });
 
-  it("コピーできなければ、欄の下にそう出す", async () => {
-    const client = askClient();
-    const state = createUiState(memoryBackend());
-    let send: ((event: WebviewEvent) => void) | undefined;
-    render(
-      <StoreProvider client={client}>
-        <HostProvider
-          host={{
-            surface: "sidebar",
-            open: () => {},
-            show: () => {},
-            copy: () => Promise.reject(new Error("拒まれた")),
-            state,
-          }}
-        >
-          <HostBridge
-            client={{
-              run: (n, i) => client.run(n, i),
-              status: () => client.status(),
-              open: async () => {},
-              show: async () => {},
-              copy: async () => {},
-              terminals: async () => [],
-              sendToTerminal: async () => null,
-              onEvent: (l) => ((send = l), () => {}),
+  it.each([
+    [
+      "行の吹き出しから頼むことを選んで開いたとき（開くと同時にコピーする）",
+      async () => {
+        await pickFromBubble("行 t5", "直す");
+      },
+    ],
+    [
+      "欄のコピーのボタンを押したとき",
+      async (send: (event: WebviewEvent) => void) => {
+        act(() => send({ kind: "event", name: "ask", targets: [] }));
+        await waitFor(() => expect(suggestions().length).toBeGreaterThan(0));
+        fireEvent.click(within(composer()).getByRole("button", { name: "コピー" }));
+      },
+    ],
+  ])(
+    "コピーできなければ、小窓は開いたまま欄の下に理由を出す（t340・%s）",
+    async (_name, trigger) => {
+      const client = askClient();
+      const state = createUiState(memoryBackend());
+      let send: ((event: WebviewEvent) => void) | undefined;
+      render(
+        <StoreProvider client={client}>
+          <HostProvider
+            host={{
+              surface: "sidebar",
+              open: () => {},
+              show: () => {},
+              copy: () => Promise.reject(new Error("拒まれた")),
+              state,
             }}
-          />
-          <App />
-        </HostProvider>
-      </StoreProvider>,
-    );
-    await screen.findByText("見直す");
-    act(() => send!({ kind: "event", name: "ask", targets: [] }));
-    await waitFor(() => expect(suggestions().length).toBeGreaterThan(0));
-    fireEvent.click(within(composer()).getByRole("button", { name: "コピー" }));
-    await waitFor(() =>
-      expect(within(composer()).getByRole("status").textContent).toContain(
-        "コピーできない: 拒まれた",
-      ),
-    );
-  });
+          >
+            <HostBridge
+              client={{
+                run: (n, i) => client.run(n, i),
+                status: () => client.status(),
+                open: async () => {},
+                show: async () => {},
+                copy: async () => {},
+                terminals: async () => [],
+                sendToTerminal: async () => null,
+                onEvent: (l) => ((send = l), () => {}),
+              }}
+            />
+            <App />
+          </HostProvider>
+        </StoreProvider>,
+      );
+      await screen.findByText("見直す");
+      await trigger(send!);
+      await waitFor(() =>
+        expect(within(composer()).getByRole("status").textContent).toContain(
+          "コピーできない: 拒まれた",
+        ),
+      );
+      expect(composer()).toBeTruthy();
+    },
+  );
 
   it("Esc と × で閉じ、指示の下書きは見た目の状態に残って、開き直すと戻る", async () => {
     const view = mountWebview(askClient());
@@ -597,33 +614,6 @@ describe("エージェントに頼む入力欄（UI-15）", () => {
     await restoredGate.release();
     expect(suggestions().length).toBeGreaterThan(0);
     expect(restored.copied).toHaveLength(0);
-  });
-
-  it("選んで開いたときのコピーに失敗したら、小窓は開いたまま理由を出す（t340）", async () => {
-    const client = askClient();
-    render(
-      <StoreProvider client={client}>
-        <HostProvider
-          host={{
-            surface: "sidebar",
-            open: () => {},
-            show: () => {},
-            copy: () => Promise.reject(new Error("拒まれた")),
-            state: createUiState(memoryBackend()),
-          }}
-        >
-          <App />
-        </HostProvider>
-      </StoreProvider>,
-    );
-    await screen.findByText("見直す");
-    await pickFromBubble("行 t5", "直す");
-    await waitFor(() =>
-      expect(within(composer()).getByRole("status").textContent).toContain(
-        "コピーできない: 拒まれた",
-      ),
-    );
-    expect(composer()).toBeTruthy();
   });
 });
 
