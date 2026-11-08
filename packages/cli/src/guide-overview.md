@@ -17,7 +17,7 @@ deguboard は Git で管理するチケットのツール。あなた（AI エ�
 
 書き込みと `sync` は、リモートの deguboard ブランチを取り込んでから push する。止まったら次のとおりにする。どの場合もデータのファイルは直さない。
 
-- **競合**：`sync` の `data.conflicts` が空でない（`ok` は true のまま）か、起票・claim・Iteration の start と reopen が `SYNC_CONFLICT` で失敗した。両側が同じフィールドを違う値に変えたか、本文の同じ行を変えている。ローカルのコミットは残り、解消するまで push・照合・起票・claim・Iteration の start と reopen が止まる。自分では解かず、`conflicts` のファイルと `data.status` の `ahead`・`behind` を人に伝え、どちらの値を残すかを決めて解消してもらう（人の戻し方：deguboard worktree で `git rebase <remote>/deguboard` から解いて `git rebase --continue` するか、`git reset --hard <remote>/deguboard` でローカルのコミットを捨てて操作をやり直す）。解消されたら `sync` を回し、`conflicts` が空になったことを確かめてから続ける
+- **競合**：`sync` の `data.conflicts` が空でない（`ok` は true のまま）か、起票・claim・Iteration の start と reopen が `SYNC_CONFLICT` で失敗した。両側が同じフィールドを違う値に変えたか、本文の同じ行を変えている。ローカルのコミットは残り、解消するまで push・照合・起票・claim・Iteration の start と reopen が止まる。自分では解かず、`conflicts` のファイルと `data.status` の `ahead`・`behind` を人に伝え、どちらの値を残すかを決めて解消してもらう。解消されたら `sync` を回し、`conflicts` が空になったことを確かめてから続ける
 - **push の拒否が続く**：起票・claim・Iteration の start と reopen が `PUSH_FAILED` で失敗したら、何も取得できておらず、コミットも残っていない。少し置いて同じ操作をやり直す（claim なら先に `ticket show` で誰かが着手していないか確かめる）。それ以外の書き込みで push できなかった警告が出たら、コミットはローカルに残り、次の `sync` が再送する
 - **リモートに届かない**：コミットはローカルに残り、起票した番号は仮番号（`provisional: true`）になる。届くようになったら `sync` を回す。仮番号がリモートの番号と重なっていれば `sync` が振り直し、`data.renumbered` に `{ from, to }` を出す。振り直されたら、人に伝えた番号を直して伝え直す。仮番号のほかに競合があるときと、`manual` で未コミットの変更が残るときは振り直せず、上の競合として出る
 
@@ -26,9 +26,8 @@ deguboard は Git で管理するチケットのツール。あなた（AI エ�
 dg は、データのリポジトリ（deguboard worktree）に dg のコマンドを通さない変更（未コミットの変更と、dg の印のないコミット）がないかを、コマンドのたびに確かめる。見つけたら、書くコマンドは `OUTSIDE_CHANGES` で止まり、読むだけのコマンドは警告を返す。`error.detail`（警告では括弧の中）に、どのファイルか（コミットなら短い SHA・件名・ファイル）が出る。Stop のフックを入れていれば、応答を終えたときにも同じことが返る。
 
 - 自分で書いた覚えがあってもなくても、勝手に戻したり取り込んだりしない。出たファイルとコミットを人に伝え、取り込むか捨てるかを決めてもらう
-- 同じマシンで版の古い dg（この機能より前の CLI や VS Code 拡張）を使うと、その dg が書いた変更も外の変更に見える。人に版を揃えてもらってから、取り込む
 - **取り込む**：人が正しいと確かめたら `dg --json --actor agent adopt` を実行する。`dg validate` と同じ検査でエラーがなければ、今の状態を以後の検査の基準にする（未コミットの変更は、まとめ待ちの変更として次の `commit`・`sync` でコミットされる）。エラーがあれば `VALIDATION_FAILED` で取り込まないので、人に直すか捨てるかを決めてもらう
-- **捨てる**：人が deguboard worktree で戻す（未コミットの変更は `git restore --staged --worktree -- <ファイル>`、足したファイルは消す、dg の外のコミットは `git reset --keep <基準の HEAD>`。基準の HEAD は検査の文に出る）。戻し終えても、dg のまとめ待ちの変更まで戻したときなどは基準と違うので、`dg --json --actor agent adopt` で今の状態を基準にしてから続ける
+- **捨てる**：人が deguboard worktree で戻す。戻し終えても、dg のまとめ待ちの変更まで戻したときなどは基準と違うので、`dg --json --actor agent adopt` で今の状態を基準にしてから続ける
 
 ## 人だけに限られうる操作
 
