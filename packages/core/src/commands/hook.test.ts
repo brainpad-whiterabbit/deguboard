@@ -1194,7 +1194,7 @@ describe("入力の項目と parseHook の読み方（t542）", () => {
   });
 });
 
-describe("PreToolUse（AG-9・t532）", () => {
+describe("PreToolUse（AG-10・t532）", () => {
   it("Bash は .git/deguboard の語があれば、書くものも読むだけのものも、引用符・コメントの中でも止め、語のないものは通す（t546）", () => {
     for (const c of [
       // 書くもの（t532 で見分けていた形）

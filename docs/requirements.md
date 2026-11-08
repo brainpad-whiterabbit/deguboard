@@ -181,7 +181,7 @@ steps: # 任意（WF-5）
 
 - チームの `config.yaml` は deguboard ブランチで全員が共有し、人ごとに違ってよい項目（scope が `local`）だけは Git に入らない `deguboard-local/config.yaml`（5.1）で上書きできる（`dg config set --local`。コミットも push もしない）。値は「個人 > チーム > 既定」の順に読み、CLI・`dg serve`・VS Code 拡張は Core 経由で同じ値を使う。個人のファイルの無効な項目と値は無視して `dg validate` が警告する。`config show --fields` は空にすると既定に戻るか（`clears_to_default`）も返し、`config set` と設定画面はこれで空の扱いを決める（細部は `dg config show --help`、理由は [ADR-027](adr/ADR-027-screen-vscode-writes-and-asks.md)）
 
-- `actor.human_only`：agent が呼ぶと `TRANSITION_REJECTED` で拒否するコマンド名の一覧。既定は空。config を読まない呼び出し（`dg hook` の PreToolUse。AG-9）は検査しない。チケットの遷移を人に限るのは Workflow の `by`（WF-1）
+- `actor.human_only`：agent が呼ぶと `TRANSITION_REJECTED` で拒否するコマンド名の一覧。既定は空。config を読まない呼び出し（`dg hook` の PreToolUse。AG-10）は検査しない。チケットの遷移を人に限るのは Workflow の `by`（WF-1）
 - `models.*`：Plan の段階（PL-1）に対応するモデル名。手順（`dg guide work`）がサブエージェントに渡す
 
 ## 6. 機能要件
@@ -241,15 +241,16 @@ steps: # 任意（WF-5）
 
 ### 6.5 エージェント連携
 
-- AG-1 エージェントは PATH の `dg` を Bash から `--json` 付きで呼び、データのファイルを直接編集しない。主体はフック（AG-9）が agent にし、フックのない環境では `--actor agent` か `DEGUBOARD_ACTOR` で申告する（既定は human。ID は TK-7、ユーザ名は `dg --help`、理由は [ADR-028](adr/ADR-028-agents-and-state.md)）
-- AG-2 `dg skill install` は、段階ごとに `dg guide <topic>` を読む薄い Claude Code の Skill（`dg<トピック>`）を配る。Skill は任意で、スクリプトもツールの許可も持たない。名前・説明・冒頭の 1 文は guide の frontmatter と core の `SKILL_SUMMARY` が正本（`packages/cli/src/skill.ts` とそのテスト）
+- AG-1 エージェントは `dg` を Bash から `--json` で呼び、データを直接編集しない。主体はフック（AG-9）が agent にし、フックがなければ `--actor agent` か `DEGUBOARD_ACTOR` で申告する（既定は human）。guide の手順は agent を名乗る（`skill.test.ts`。ID は TK-7 と `dg --help`、理由は [ADR-028](adr/ADR-028-agents-and-state.md)）
+- AG-2 `dg skill install` は、段階ごとに `dg guide <topic>` を読む薄い Claude Code の Skill（`dg<トピック>`）を配る。Skill は任意で、スクリプトもツールの許可も持たない。名前・説明は guide の frontmatter、冒頭の 1 文は `SKILL_SUMMARY`（`packages/core/src/commands/ask.ts`）が正本（`packages/cli/src/skill.ts` とそのテスト）
 - AG-3 チケット化（`ticket import`）と、分解・Epic への束ね・依存・Iteration への割り当ては、エージェントが提案して人の承認を得てから行う（手順は `dg guide import`）
 - AG-4 MCP サーバー（`dg mcp`。stdio）は Bash のないクライアントの入口で、ツールを Core のコマンド定義から生成する。CLI と同じ操作ができ（`init` と CLI だけの `guide`・`skill`・`serve`・`open` を除く）、結果は `--json` と同じ形（CL-1）で、主体は常に agent。細部は `packages/cli/src/mcp.ts` とそのテスト
 - AG-5 AI 製品ごとの差（使用量の取得・dg を呼んだエージェントの判定・フックの入力と設定）は Agent Adapter が吸収し、実装は Core の `agents/adapters/` に閉じる（対応する製品はそこのコード）。エージェントの起動と権限は扱わない（EX-1、[ADR-007](adr/ADR-007-architecture.md)）
 - AG-6 ソフトウェア開発向けの Action（worktree・PR 作成・マージなど）は Core の `actions` に置き、汎用部分は依存しない。`dg` のコマンドにせず、公開するのは名前の一覧（`ACTION_NAMES`）だけ（[ADR-007](adr/ADR-007-architecture.md)）
 - AG-7 任意のシェルの Action は `actions.shell: true` のときだけ使え、毎回確認を経る
 - AG-8 `ask` は対象（複数可）・頼むこと・指示・形式から、エージェントに貼る依頼文を返す読み取りだけのコマンドで、人に限られた操作なら人が打つ `dg` のコマンドを返す。`ask-menu` は画面の場所ごとの候補を返す。候補・おすすめ・文の形は `dg ask --help` と `packages/core/src/commands/ask.ts`・そのテストが正本
-- AG-9 `dg hooks install` は harness（今は Claude Code）の設定に `dg hook` を呼ぶフックを重ねずに書き（手で足したフックは残す）、`dg hooks check` が確かめる。フックは主体を agent にし、印を付けて頼んだサブエージェントの Run を開け閉めし、データの直接の書き換えと dg を経由しない PR の ready・マージを拒む。細部は `dg hook --help` とそのテスト、理由は ADR-025・ADR-026
+- AG-9 `dg hooks install` は harness（今は Claude Code）の設定に `dg hook` を呼ぶフックを重ねずに書き、`uninstall` は dg のフックだけを外し（手で足したフックは残す）、`check` が確かめる。フックは主体を agent にし、印で頼んだサブエージェントの Run を開け閉めする。細部は `dg hook --help` とそのテスト、理由は [ADR-025](adr/ADR-025-runs-by-hooks.md)
+- AG-10 フック（AG-9）は、データの直接の書き換えと dg を経由しない PR の ready・マージを、字句を読まずに語の有無で粗く拒み、dg の読み書きのコマンドと `dg pr ready`・`dg pr merge`（EX-3）へ案内する。応答の終わりに dg の外の変更（SY-7）があれば、止まらずに続けさせて伝える。細部は `dg hook --help` とそのテスト、理由は [ADR-026](adr/ADR-026-guard-pr-and-data.md)
 
 ### 6.6 作業の実績
 
@@ -263,7 +264,7 @@ steps: # 任意（WF-5）
 
 - EX-1 deguboard はエージェントを起動しない。エージェントが `dg` を呼んで進める
 - EX-2 終了していない Run は一覧で見え、`interrupted` として閉じられる
-- EX-3 チケットを段階（claimed → implemented → reviewed(n) → fixed(n) → ready → merged）に続けて進める既定の手続きは Core が持つ（段階と次の 1 手は `dg next`、修正ループの回数と品質ゲートは `dg gate`、サブエージェントに渡す文（brief）は `dg brief`。細部は各 `--help`）。段階は Run（実装・見直し・手直しとその結果、止まって待っている印）・PR・作業ブランチの事実・Plan の待ちから都度求めて保存せず、`ticket show` の `stage` と `dg next <ticket>` が同じ求め方で返す。`dg next` は次の 1 手（implement・review・fix・ready・wait_merge・wait_deps・wait_human・done）と、開く step・呼ぶコマンド・人に聞くことを、implement・review・fix の手ではサブエージェントに渡す文（brief）と合わせてデータで返す読み取りだけのコマンドで、修正ループの上限を超えたチケット、一番新しい手直しが failure か interrupted で閉じたチケット、止まって待っている Run のあるチケットは wait_human になる（段階の名前と手の種類の正本は `dg next --help`）。着手できるチケットは PL-6 か `ticket list --ready` に従う。エージェントが PR を ready にする・マージする正しい道は `dg pr ready <ticket>`・`dg pr merge <ticket>` で、`dg gate` を満たすときだけ gh を呼び、満たさなければ gh を呼ばずに満たさない条件と理由を `GATE_FAILED` で返す。満たさないまま進める例外（見直し役を起動できない・上限を超える・版上げの PR・人が回数を指示した）は人が gh を打つ（AG-9、[ADR-026](adr/ADR-026-guard-pr-and-data.md)。細部は `dg pr --help`）。`--auto` は戻せる判断を自動で選ぶ（Plan の承認を含む。`approved_by` は agent）。マージは、`dg guide all --auto` で `auto.merge` が true のとき、品質ゲートを通った PR だけ自動でマージする。そのほかのマージは人を待つ（リリースの PR は `auto.merge` があっても常に人が承認する）。やめる（abandoned・done の取り消し）は常に人が決めるので、Core は人を待つ手を返す。各手のやり方は guide（`dg guide all`・`work`・`review` など）が書く。`dg gate` が判定する品質ゲートの条件は `dg gate --help` が正本。e15 が実装されるまでは、各手のやり方と `dg gate` が判定しない条件（検査など）は guide（`all`・`parallel`・`review`）が正本（[ADR-011](adr/ADR-011-procedure-in-code.md)）
+- EX-3 チケットを段階（claimed → implemented → reviewed(n) → fixed(n) → ready → merged）に続けて進める既定の手続きは Core が持つ（段階と次の 1 手は `dg next`、修正ループの回数と品質ゲートは `dg gate`、サブエージェントに渡す文（brief）は `dg brief`。細部は各 `--help`）。段階は Run（実装・見直し・手直しとその結果、止まって待っている印）・PR・作業ブランチの事実・Plan の待ちから都度求めて保存せず、`ticket show` の `stage` と `dg next <ticket>` が同じ求め方で返す。`dg next` は次の 1 手（implement・review・fix・ready・wait_merge・wait_deps・wait_human・done）と、開く step・呼ぶコマンド・人に聞くことを、implement・review・fix の手ではサブエージェントに渡す文（brief）と合わせてデータで返す読み取りだけのコマンドで、修正ループの上限を超えたチケット、一番新しい手直しが failure か interrupted で閉じたチケット、止まって待っている Run のあるチケットは wait_human になる（段階の名前と手の種類の正本は `dg next --help`）。着手できるチケットは PL-6 か `ticket list --ready` に従う。エージェントが PR を ready にする・マージする正しい道は `dg pr ready <ticket>`・`dg pr merge <ticket>` で、`dg gate` を満たすときだけ gh を呼び、満たさなければ gh を呼ばずに満たさない条件と理由を `GATE_FAILED` で返す。満たさないまま進める例外（見直し役を起動できない・上限を超える・版上げの PR・人が回数を指示した）は人が gh を打つ（AG-10、[ADR-026](adr/ADR-026-guard-pr-and-data.md)。細部は `dg pr --help`）。`--auto` は戻せる判断を自動で選ぶ（Plan の承認を含む。`approved_by` は agent）。マージは、`dg guide all --auto` で `auto.merge` が true のとき、品質ゲートを通った PR だけ自動でマージする。そのほかのマージは人を待つ（リリースの PR は `auto.merge` があっても常に人が承認する）。やめる（abandoned・done の取り消し）は常に人が決めるので、Core は人を待つ手を返す。各手のやり方は guide（`dg guide all`・`work`・`review` など）が書く。`dg gate` が判定する品質ゲートの条件は `dg gate --help` が正本。e15 が実装されるまでは、各手のやり方と `dg gate` が判定しない条件（検査など）は guide（`all`・`parallel`・`review`）が正本（[ADR-011](adr/ADR-011-procedure-in-code.md)）
 - EX-4 Workflow が `by: [human]` で人に限った遷移は、エージェントからは行えない
 
 ## 7. 非機能要件
