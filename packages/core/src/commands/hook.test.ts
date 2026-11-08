@@ -1262,15 +1262,25 @@ describe("PreToolUse（t532）", () => {
       'echo "gh pr merge 482" | sh',
       "xargs gh pr merge < prs.txt",
       "echo merge 1 | xargs gh pr",
-      // 前の代入・包むコマンド・括弧・予約語・置き換え・絶対パス・行の継ぎ
+      "echo 'pr merge 1' | xargs gh",
+      "echo 482 | xargs -I{} gh pr merge {}",
+      // 前の代入・包むコマンド・括弧・予約語・関数・置き換え・絶対パス・行の継ぎ
       "DEGUBOARD_ACTOR=agent gh pr merge 482",
+      "env gh pr merge 482",
       "sudo -u me gh pr merge 482",
       "(cd /x && gh pr merge 482)",
       "for p in 1 2; do gh pr merge $p; done",
       "if gh pr ready 482; then echo ok; fi",
+      "{ gh pr merge 482; }",
+      "function f { gh pr merge 482; }",
       "echo $(gh pr merge 482)",
+      "echo `gh pr merge 482`",
+      '$(echo "gh pr merge 482")',
       "$(which gh) pr merge 1",
+      "`which gh` pr merge 1",
       "GH=gh; $GH pr merge 1",
+      "SUB=pr; gh $SUB merge 1",
+      "mise run deploy -- 'gh pr merge 1'",
       "/usr/bin/gh pr merge 482",
       "gh pr \\\n  merge 482",
       'gh pr "merge" 482',
@@ -1278,8 +1288,11 @@ describe("PreToolUse（t532）", () => {
       // 取り消しの後に続けた呼び出しと、-- の後の --undo
       "gh pr ready 482 --undo && gh pr merge 482",
       "gh pr ready 1 -- --undo",
-      // dg pr の後に続けた gh
+      "gh pr ready 1 --undo=false",
+      // dg pr の後に続けた gh と、gh の引数の中の dg（名前が dg で終わるリポジトリ）
       "mise run dg -- pr merge t1; gh pr merge 1",
+      "gh -R o/dg pr merge 1",
+      "gh --repo me/foo-dg pr ready 1",
       // gh api の同じ操作
       "gh api -X PUT repos/o/r/pulls/482/merge",
       "gh api graphql -f query='mutation { mergePullRequest(input: {}) { clientMutationId } }'",

@@ -144,7 +144,8 @@ export const hook = defineCommand({
     "（なければ止まって待っている印を付け、再開で続ける。自分で開いた Run も同じ）、セッションの終わりにそのセッションのサブエージェントの開いたままの Run を閉じる。" +
     "ツールを使う前（PreToolUse）には、.git/deguboard/ の下への書き込み（書くツールと Bash）を拒み（Bash の判定は字句の手がかりで、任意の言語のコードや eval の中は見ない）、" +
     "dg を経由しない gh pr ready・gh pr merge（gh api の同じ操作も）を拒んで dg pr ready・dg pr merge へ案内する" +
-    "（PR の指定は読まない。文字を扱うコマンド（echo・grep・git commit・gh pr create など）の引用符とヒアドキュメントの中だけを文字として通し、任意の言語のコード・eval・パイプで sh に渡すなど読み切れないものは止める）。" +
+    "（PR の指定は読まない。字句を読まずに、dg pr ready・dg pr merge と gh pr ready --undo を除いた残りに gh・pr・merge か ready の語があれば止める。" +
+    "引用符・ヒアドキュメント・コメントの中も伏せず、本文の語はファイルに書いて --body-file・git commit -F で渡すよう案内する）。" +
     "扱うイベントは、読む入力の項目の有無と時刻を deguboard-local/hook-inputs/ にイベントごとの最新の 1 件で残す（値は残さない。dg hooks check が読む）。ほかの失敗は作業を止めないよう、警告にして成功で返す",
   input: z.object({
     event: z
@@ -1170,10 +1171,13 @@ export function writesDataDir(command: string): boolean {
 /** gh api で PR をマージ・ready にする手がかり（REST の pulls/<n>/merge と GraphQL の mutation 名） */
 const GH_API_ADVANCE =
   /pulls\/[^/\s]+\/merge\b|mergePullRequest|markPullRequestReadyForReview|enablePullRequestAutoMerge/;
-/** 正しい道の dg pr ready・dg pr merge（mise run dg -- pr merge・dg.js も）。区切り（; & | 改行）と gh の語を越えない */
+/**
+ * 正しい道の dg pr ready・dg pr merge（mise run dg -- pr merge・dg.js も）。区切り（; & | 改行）と gh の語を越えない。
+ * 同じ区切りの中で前に gh の語があるもの（gh -R o/dg pr merge）は、gh の引数の dg なので除かない（advancesPrOutsideDg）
+ */
 const DG_PR = /\bdg(?:\.js)?\b(?:(?!\bgh\b)[^;&|\n])*?\bpr\s+(?:ready|merge)\b/g;
-/** 取り消しの gh pr ready --undo（-- の後の --undo はフラグでなく引数なので、-- を越えない） */
-const GH_READY_UNDO = /\bgh\s+pr\s+ready\b(?:(?!\s--(?:\s|$))[^;&|\n])*\s--undo\b/g;
+/** 取り消しの gh pr ready --undo（-- の後の --undo はフラグでなく引数なので、-- を越えない。--undo=false も除かない） */
+const GH_READY_UNDO = /\bgh\s+pr\s+ready\b(?:(?!\s--(?:\s|$))[^;&|\n])*\s--undo(?=\s|$)/g;
 /** 語に分ける区切り（英数字・_・.・/・- のほかすべて。引用符・\・=・括弧・任意の言語の配列の記号も区切る） */
 const WORD_SPLIT = /[^\w./-]+/;
 /** gh の語（/usr/bin/gh・フラグに接した -Ogh も） */
@@ -1185,17 +1189,30 @@ const isGh = (w: string) => /(^|\/|^-[A-Za-z]*)gh$/.test(w);
  * gh の語があり、pr の語と merge・ready の語がどこかにあれば（語は隣り合わなくてよい。2>&1・$PR・python -c の中・1 要素ずつ改行した配列も）、
  * gh api の同じ操作（GH_API_ADVANCE）があれば止める。引用符・ヒアドキュメント・コメントの中も伏せない（本文の語も止める。
  * そのときは拒む文が、ファイルに書いて --body-file・git commit -F で渡す道を案内する）。
- * わざと隠した形（g\h・"mer""ge"・$(which gh)・$GH・gh pr $OP・gh のエイリアス・ファイルに書いたスクリプトなど）は個々に見ない
- * （語として gh・pr・merge・ready が現れれば止まるだけ）。見分けは書き間違いを防ぐ手がかりで、すり抜けは事後の検査（t546）で補う
+ * わざと隠した形は個々に見ない。$(which gh)・GH=gh; $GH pr merge のように語が現れれば止まるが、
+ * 語として現れない形（g\h・"mer""ge"・gh pr $OP・gh のエイリアス・ファイルに書いたスクリプトなど）は通る。
+ * 見分けは書き間違いを防ぐ手がかりで、すり抜けは事後の検査（t546）で補う
  */
 export function advancesPrOutsideDg(command: string): boolean {
   const text = command.replace(/\\\n/g, " ");
-  const rest = text.replace(DG_PR, " ").replace(GH_READY_UNDO, " ");
-  const words = rest.split(WORD_SPLIT).filter((w) => w !== "");
-  if (!words.some(isGh)) return false;
+  const words = (t: string) => t.split(WORD_SPLIT).filter((w) => w !== "");
+  const rest = text
+    .replace(DG_PR, (m: string, at: number) =>
+      words(
+        text
+          .slice(0, at)
+          .split(/[;&|\n]/)
+          .pop()!,
+      ).some(isGh)
+        ? m
+        : " ",
+    )
+    .replace(GH_READY_UNDO, " ");
+  const all = words(rest);
+  if (!all.some(isGh)) return false;
   // GraphQL の mutation は括弧を含むので、語に分けずに全体で見る
   if (GH_API_ADVANCE.test(rest)) return true;
-  return words.includes("pr") && words.some((w) => w === "merge" || w === "ready");
+  return all.includes("pr") && all.some((w) => w === "merge" || w === "ready");
 }
 
 /** dg を経由しない gh pr ready・merge を拒む文（t545・t555） */
