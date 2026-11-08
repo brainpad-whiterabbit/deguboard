@@ -1,0 +1,68 @@
+id: p84
+project: default
+tickets: [t591, t594, t599, t595, t592, t593, t596, t601, t597, t598, t600, t602]
+after:
+  t595:
+    - t594
+  t593:
+    - t595
+  t601:
+    - t599
+    - t594
+    - t595
+  t597:
+    - t601
+  t600:
+    - t601
+  t602:
+    - t597
+pending_approval: true
+details:
+  t591:
+    scope: 流れの判定・resume・guide の読み込みの置き場所・カスタマイズの枠を 1 本の ADR に決め、CL-5・EX-3 を直す。実装は含めない
+    approach: ADR-011 を置き換えず、範囲を広げる新しい ADR にする。採らない案（E・F・Run の印・セッション記録）も書く
+    tier: heavy
+  t594:
+    scope: claim の中で Iteration の入れ先と start、worktree の作成を行い、guide-work・parallel の該当の手を消す
+    approach: core のコマンド定義（ticket.ts の claim）に置き、worktree は actions の worktree を使う。テストは bare リモート付きの一時リポジトリ
+    tier: heavy
+  t599:
+    scope: review-result が指摘の一覧を JSON で受けて検証し、heavy・passed を求める。brief と PR の本文への利用は t600
+    approach: 置き場所は ADR-025・029 に照らして決めてコメントに書き、数だけを渡す今の呼び方の扱いを --help に書く
+    tier: heavy
+  t595:
+    scope: dg next の implement・fix の手に model を返し、guide-work のモデルの規則を消す
+    approach: plan.tier と models.* の対応を next.ts に置き、review は null を返す
+    tier: standard
+  t592:
+    scope: dg guide --section で節の本文だけを出す。置き場所は t591 の決定に従う
+    approach: 見出しの名前の決め方は check-docs の guideSectionNames に合わせる
+    tier: standard
+  t593:
+    scope: implement・review・fix の brief に節の本文を入れ、dg guide を読ませる文を消す
+    approach: core から節の本文を読めるようにする（t591 の決定）。HTTP・MCP は写すだけ
+    tier: standard
+  t596:
+    scope: dg flow next と --resume を足し、guide-all の 8 規則と止まる判定をコードにする。guide-all の書き直しは t598
+    approach: next.ts の形（stage・reason・commands）に合わせ、resume は前の段階と事実のハッシュを持つ不透明な文字列にする
+    tier: heavy
+  t601:
+    scope: dg gate に actions.test の検査の条件を足し、merge.method・merge.delete_branch を config に足す
+    approach: 検査は actions.test を execFile で最新のコミットに対して回し、空なら判定しないと detail に出す
+    tier: heavy
+  t597:
+    scope: auto.decisions・flow.skip を config に足し、dg flow next の auto_ok と段階の判定に効かせる
+    approach: 既定値で今の guide-all と同じ振る舞いにし、人が決める判断は config によらず auto_ok を false にする
+    tier: standard
+  t598:
+    scope: guide-all を dg flow next と resume の写し方に沿って書き直し、Skill を入れ直す
+    approach: 変える前と後の guide をサブエージェントに渡し、2 つの場面で次の手が同じことを確かめる
+    tier: standard
+  t600:
+    scope: fix の brief と dg pr ready の PR の本文を見直しの記録から作り、guide-review の写す手を消す
+    approach: brief.ts と pr.ts が Run の記録から指摘を読み、もとの PR の本文を残して書き足す
+    tier: standard
+  t602:
+    scope: guide.notes.<topic> を guide と節の本文に差し込み、skill install の警告で案内する
+    approach: guide.ts の choices の差し込みと同じ仕組みで、決まった位置に入れる
+    tier: standard
