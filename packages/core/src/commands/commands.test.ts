@@ -801,8 +801,8 @@ describe("チケットの流れ", () => {
         { id: "t4", pr: 44 },
       ]);
       expect(synced.data.runs_closed).toEqual([
-        { id: "t2", run: runs.t2, opener: "claim" },
-        { id: "t3", run: runs.t3, opener: "claim" },
+        { id: "t2", run: runs.t2, opener: "claim", result: "success" },
+        { id: "t3", run: runs.t3, opener: "claim", result: "success" },
       ]);
       expect(synced.warnings).toContainEqual(
         expect.stringMatching(
@@ -947,7 +947,9 @@ describe("チケットの流れ", () => {
       expect(synced.warnings).toContain(
         `t1: 実装の Run ${raced} は既に閉じていた（別の操作や別のマシンが先に閉じた）ので、照合では閉じない`,
       );
-      expect(synced.data.runs_closed).toEqual([{ id: "t2", run: other, opener: "claim" }]);
+      expect(synced.data.runs_closed).toEqual([
+        { id: "t2", run: other, opener: "claim", result: "success" },
+      ]);
       expect(agent.store.runs.get(other)!.data).toMatchObject({
         result: "success",
         finished_at: "2026-11-06T02:00:00Z",
@@ -1723,7 +1725,9 @@ describe("チケットの流れ", () => {
       clock = new Date("2026-11-06T02:10:00Z");
       const synced = await runCommand(sync, agent, {});
       expect(synced.data.reconciled).toEqual([]);
-      expect(synced.data.runs_closed).toEqual([{ id: "t1", run: fix1, opener: "reclaim" }]);
+      expect(synced.data.runs_closed).toEqual([
+        { id: "t1", run: fix1, opener: "reclaim", result: "success" },
+      ]);
       expect(synced.warnings).toContainEqual(
         `t1: 次の Run ${review} の開始を区切りとして閉じた（最後の push の時刻）`,
       );
@@ -1779,10 +1783,10 @@ describe("チケットの流れ", () => {
         { id: "t4", from: "in_progress", to: "review", when: ["pr_open", "!pr_draft"] },
       ]);
       expect(merged.data.runs_closed).toEqual([
-        { id: "t1", run: fix2, opener: "reclaim" },
-        { id: "t3", run: fix4, opener: "reclaim" },
-        { id: "t4", run: fix5, opener: "reclaim" },
-        { id: "t2", run: fix3, opener: "reclaim" },
+        { id: "t1", run: fix2, opener: "reclaim", result: "success" },
+        { id: "t3", run: fix4, opener: "reclaim", result: "success" },
+        { id: "t4", run: fix5, opener: "reclaim", result: "success" },
+        { id: "t2", run: fix3, opener: "reclaim", result: "success" },
       ]);
       expect(merged.warnings).toContainEqual(
         "t1: done への前進を区切りとして閉じた（最後の push の時刻）",
@@ -1833,6 +1837,70 @@ describe("チケットの流れ", () => {
     } finally {
       restore();
     }
+  });
+
+  it("照合は、別のマシンで終わったチケットの開いたままの実装の Run を ticket move と同じ結果で閉じ、戻った・別の主体の claim になったチケットの実装の Run を failure で閉じる。自分の claim は閉じない（RN-6）", async () => {
+    const f = await fixture();
+    let clock = new Date("2026-11-06T00:00:00Z");
+    const human = await initialized(f.cloneA, { now: () => clock });
+    for (const title of ["Abandoned elsewhere", "Done elsewhere", "Unclaimed", "Taken", "Mine"])
+      await runCommand(ticketCreate, human, { title });
+    const agent = await agentWithRuns(f.cloneA, () => clock);
+    for (const t of ["t1", "t2", "t3", "t4", "t5"])
+      await runCommand(ticketClaim, agent, { ticket: t });
+    const opened = new Map(
+      (await peekRunningRuns(agent.repo)).map((r) => [r.ticket, r.id] as const),
+    );
+    await runCommand(sync, agent, {});
+    // 別のマシン（cloneB）の人が操作してリモートに送る。cloneA の実装の Run は開いたまま残る
+    const other = await initialized(f.cloneB, { now: () => clock });
+    await runCommand(sync, other, {});
+    clock = new Date("2026-11-06T01:00:00Z");
+    await runCommand(ticketMove, other, { ticket: "t1", status: "abandoned" });
+    await runCommand(ticketMove, other, { ticket: "t2", status: "done" });
+    await runCommand(ticketUnclaim, other, { ticket: "t3" });
+    await runCommand(ticketUnclaim, other, { ticket: "t4" });
+    const hanako = await openContext({
+      cwd: f.cloneB,
+      actor: { kind: "human", user: "hanako" },
+      now: () => clock,
+    });
+    await runCommand(ticketClaim, hanako, { ticket: "t4" });
+    await runCommand(sync, other, {});
+
+    clock = new Date("2026-11-06T02:00:00Z");
+    const synced = await runCommand(sync, agent, {});
+    expect(synced.data.runs_closed).toHaveLength(4);
+    expect(synced.data.runs_closed).toEqual(
+      expect.arrayContaining([
+        { id: "t1", run: opened.get("t1"), opener: "claim", result: "failure" },
+        { id: "t2", run: opened.get("t2"), opener: "claim", result: "success" },
+        { id: "t3", run: opened.get("t3"), opener: "claim", result: "failure" },
+        { id: "t4", run: opened.get("t4"), opener: "claim", result: "failure" },
+      ]),
+    );
+    expect(synced.warnings).toEqual(
+      expect.arrayContaining([
+        expect.stringMatching(/^t1 の実装の Run r\S+ を failure で閉じた/),
+        expect.stringMatching(/^t2 の実装の Run r\S+ を success で閉じた/),
+        expect.stringMatching(/^t3 の実装の Run r\S+ を failure で閉じた/),
+        expect.stringMatching(/^t4 の実装の Run r\S+ を failure で閉じた/),
+      ]),
+    );
+    expect(agent.store.runs.get(opened.get("t3")!)!.data).toMatchObject({
+      result: "failure",
+      error: "照合で todo に戻っていた",
+    });
+    expect(agent.store.runs.get(opened.get("t4")!)!.data).toMatchObject({
+      result: "failure",
+      error: "照合で別の主体の claim になっていた",
+    });
+    expect((await git(agent.repo.dataDir, ["log", "-1", "--format=%s"])).stdout.trim()).toContain(
+      `t1 ${opened.get("t1")} failure`,
+    );
+    // 自分の claim（in_progress）の実装の Run は開いたまま
+    expect((await peekRunningRuns(agent.repo)).map((r) => r.ticket)).toEqual(["t5"]);
+    expect(agent.store.tickets.get("t5")!.data.status).toBe("in_progress");
   });
 
   it("見直しの修正ループの手直しは、draft の PR を記録した in_progress のチケットのもう一度の claim（--retry-reason）が fix の Run を開き、照合が次の見直しの開始と PR の ready を区切りとして push の時刻で閉じる（RN-5・RN-6）", async () => {
@@ -1891,7 +1959,9 @@ describe("チケットの流れ", () => {
       ).data.id;
       clock = new Date("2026-11-06T01:35:00Z");
       const afterReview = await runCommand(sync, agent, {});
-      expect(afterReview.data.runs_closed).toEqual([{ id: "t1", run: fix1, opener: "reclaim" }]);
+      expect(afterReview.data.runs_closed).toEqual([
+        { id: "t1", run: fix1, opener: "reclaim", result: "success" },
+      ]);
       expect(afterReview.warnings).toContainEqual(
         `t1: 次の Run ${review2} の開始を区切りとして閉じた（最後の push の時刻）`,
       );
@@ -1920,7 +1990,9 @@ describe("チケットの流れ", () => {
       expect(ready.data.reconciled).toEqual([
         { id: "t1", from: "in_progress", to: "review", when: ["pr_open", "!pr_draft"] },
       ]);
-      expect(ready.data.runs_closed).toEqual([{ id: "t1", run: fix2, opener: "reclaim" }]);
+      expect(ready.data.runs_closed).toEqual([
+        { id: "t1", run: fix2, opener: "reclaim", result: "success" },
+      ]);
       expect(ready.warnings).toContainEqual(
         "t1: review への前進を区切りとして閉じた（最後の push の時刻）",
       );

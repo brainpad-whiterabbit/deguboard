@@ -11,7 +11,7 @@ import {
   hooksOf,
   type RunSpan,
 } from "../agents/index.js";
-import { slugSchema, toIsoDateTime } from "../model/common.js";
+import { slugSchema, toIsoDateTime, type Status } from "../model/common.js";
 import { filterRuns, placeRun, runDurationSeconds, type MetricFilter } from "../model/metrics.js";
 import { OperationError, UsageError } from "../errors.js";
 import {
@@ -261,6 +261,21 @@ export async function findOpenedRun(
   const step = openedStepOf(ctx, ticket, opener);
   const runs = running ?? (await readRunningRuns(ctx.repo)).runs;
   return runs.find((r) => r.data.ticket === ticket.id && r.data.step === step);
+}
+
+/**
+ * move に付随して閉じる Run の開き手と結果（RN-6）。abandoned は実装と手直しを failure で閉じる。
+ * PR の要らない作業（branch なし）の review、と PR のない done は実装を success で閉じる。branch のあるチケットの review は PR の記録・発見が閉じる。
+ * 照合も終わったチケットの実装の Run をこの結果で閉じる（ticket move と同じ結果）
+ */
+export function runsClosedByMove(
+  ticket: Ticket,
+  to: Status,
+): { openers: readonly StepOpener[]; result: "success" | "failure" } | undefined {
+  if (to === "abandoned") return { openers: ["claim", "reclaim"], result: "failure" };
+  if ((to === "review" && !ticket.branch) || (to === "done" && !ticket.pr))
+    return { openers: ["claim"], result: "success" };
+  return undefined;
 }
 
 /** チケットの操作か照合に付随して閉じた Run（RN-6） */
