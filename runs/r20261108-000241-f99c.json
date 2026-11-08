@@ -1,0 +1,32 @@
+{
+  "id": "r20261108-000241-f99c",
+  "ticket": "t533",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-08T00:02:41Z",
+  "finished_at": "2026-11-08T00:04:07Z",
+  "result": "success",
+  "error": null,
+  "retries": 1,
+  "retry_reasons": [
+    "一番新しい手直しの Run だけで人を待つかを決める"
+  ],
+  "usage": {
+    "input": 4,
+    "output": 2739,
+    "cache_read": 1107506,
+    "cache_write": 2819
+  },
+  "tools": {
+    "read": 0,
+    "search": 0,
+    "write": 0,
+    "bash": 2,
+    "other": 0,
+    "read_before_write": 0,
+    "search_before_write": 0
+  },
+  "session": null,
+  "review": null
+}
