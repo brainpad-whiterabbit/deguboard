@@ -1,0 +1,33 @@
+{
+  "id": "r20261108-071223-1a4d",
+  "ticket": "t556",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-08T07:12:23Z",
+  "finished_at": "2026-11-08T07:14:00Z",
+  "result": "success",
+  "error": null,
+  "retries": 2,
+  "retry_reasons": [
+    "run start で同じセッションの手直しを閉じるテストがない",
+    "前景の手直しの開始が前の手直しより前なら開かないことが制限にない"
+  ],
+  "usage": {
+    "input": 4,
+    "output": 1310,
+    "cache_read": 411304,
+    "cache_write": 2456
+  },
+  "tools": {
+    "read": 0,
+    "search": 0,
+    "write": 0,
+    "bash": 2,
+    "other": 0,
+    "read_before_write": 0,
+    "search_before_write": 0
+  },
+  "session": "7446ea0c-4bdb-4153-9814-37a134605251",
+  "review": null
+}
