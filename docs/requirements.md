@@ -126,7 +126,7 @@ updated_at: 2026-10-31T05:10:00Z
 
 - IT-1 `status` は `planned` / `active` / `closed` で、期間を `start`・`end` に持つ。閉じたときに `closed_at` と完了・持ち越しの件数を書く（日付の書き換えは `iteration start / close --help`）。閉じる・再開するのは既定で誰でも行える（EP-4 と同じ）。active は Project に 1 つに保つ
 - IT-2 所属はチケットの `iteration` で表し、Iteration 側にチケットの一覧は持たない。入れるのは同じ Project のチケットだけで、閉じた Iteration には入れられない。閉じるときに done・abandoned 以外のチケットの `iteration` を外す。進捗は都度求める（EP-3）
-- IT-3 `iteration show` は次の操作 `next` と中のチケットを含む Plan `plans` を返し、画面はこれを読む（形と並びは `packages/core/src/commands/iteration.ts`）
+- IT-3 `iteration show` は次の操作 `next` と中のチケットを含む Plan `plans` を返し、画面はこれを読む（形は `packages/core/src/commands/iteration.ts`、並びは `commands/helpers.ts` の `ticketsInIteration`）
 
 ### 5.7 Plan（`plans/p7.yaml`）
 
@@ -139,7 +139,7 @@ updated_at: 2026-10-31T05:10:00Z
 
 ### 5.8 Workflow（`workflows/<id>.yaml`）
 
-表示名 `labels`・遷移の制約 `transitions`・照合の規則 `reconcile`（ST-4）・任意フィールド `fields`（TK-4）・step の語彙 `steps` を持つ。書き方の例は同梱のテンプレート（`packages/core/src/workflow/templates/`。`dg init` の後は `dg workflow show <id>`）、項目と形は `packages/core/src/model/workflow.ts` が正本。
+表示名 `labels`・遷移の制約 `transitions`・照合の規則 `reconcile`（ST-4）・任意フィールド `fields`（TK-4）・step の語彙 `steps` を持つ。書き方の例は同梱のテンプレート（`packages/core/src/workflow/templates/`。`dg init` の後は `dg workflow show <id>`）、項目と形は `packages/core/src/model/workflow.ts` が正本。テンプレートの `transitions` は空なので、その書き方は `model/workflow.ts` と `workflow/workflow.test.ts`。
 
 - WF-1 Status は全ワークフロー共通の 5 つ（3. 用語）で、増やせず、変えられるのは表示名だけ。前進の順は todo → in_progress → review → done で、`abandoned` は前進の軸の外の終端。`transitions` は遷移に主体 `by`（`[]` で禁止）と条件 `requires`（AND）の制約を足すだけ（検査は ST-2、理由は [ADR-003](adr/ADR-003-status-and-workflow.md)）
 - WF-2 `requires` と `reconcile.when` に書けるのは組み込みの事実（`deps_done`・`branch_exists`・`branch_pushed`・`branch_merged`・`pr_open`・`pr_draft`・`pr_merged`）とその否定（`!pr_draft`）だけで、利用者のスクリプトは実行しない。`deps_done` は `depends_on` がすべて done か abandoned のとき真
@@ -164,7 +164,7 @@ updated_at: 2026-10-31T05:10:00Z
 項目と意味・値・既定値・範囲（scope）はスキーマ（`packages/core/src/model/config.ts`）、`config.set` の値の扱いは `dg config set --help` が正本。エージェントや記録に関わるもの（`metrics.read_transcripts`・`actions.shell`・`auto.merge`）は既定で `false`。
 
 - チームの `config.yaml` は deguboard ブランチで全員が共有し、人ごとに違ってよい項目（scope が `local`）だけは Git に入らない `deguboard-local/config.yaml`（5.1）で上書きできる（`dg config set --local`。コミットも push もしない）
-- 値は「個人 > チーム > 既定」の順に読み、どの入口も Core 経由で同じ値を使う。個人のファイルの無効な項目と値は無視して `dg validate` が警告する（細部は `dg config show --help`、理由は [ADR-027](adr/ADR-027-screen-vscode-writes-and-asks.md)）
+- 値は「個人 > チーム > 既定」の順に読み、どの入口も Core 経由で同じ値を使う。個人のファイルの無効な項目と値は無視して `dg validate` が警告する（細部は `dg config set --help`、理由は [ADR-027](adr/ADR-027-screen-vscode-writes-and-asks.md)）
 
 - `actor.human_only`：agent が呼ぶと `TRANSITION_REJECTED` で拒否するコマンド名の一覧（検査しない呼び出しは `packages/core/src/commands/define.ts`）。チケットの遷移を人に限るのは Workflow の `by`（WF-1）
 - `models.*`：Plan の段階（PL-1）に対応するモデル名。手順（`dg guide work`）がサブエージェントに渡す
@@ -217,7 +217,7 @@ updated_at: 2026-10-31T05:10:00Z
 - UI-7 画面から書き込むのはチケット詳細と設定画面と同期だけで、ほかの変更は UI-15 で頼む。書き込みは Core の同じコマンドと検査を通り、拒否されたら理由を出して戻す（コミットは CL-3）
 - UI-8 `dg serve` は既定で `127.0.0.1` にバインドする。認証は持たない
 - UI-10 Epic：open の Epic の進捗（EP-3）を出し、Epic で絞れる。詳細の画面で中のチケットを出す
-- UI-11 VS Code 拡張は `core` を同梱して `dg` なしで動き、`dg` が PATH にないときと版のメジャーが `core` と違うときは知らせる。拡張と画面の文言と core が返す決まった文は、VS Code の表示言語が日本語なら日本語、ほかは英語で出し、チケットの中身と指示は書いた言葉のまま出す。何を訳すかは `packages/vscode/src/l10n.ts`・`packages/web/src/l10n.ts` とそのテスト
+- UI-11 VS Code 拡張は `core` を同梱して `dg` なしで動き、`dg` が PATH にないか版のメジャーが `core` と違えば知らせる。表示言語が日本語でなければ、拡張と画面の文言と core の決まった文のうち訳のあるものを英語で出す（チケットの中身と指示は書いたまま）。細部は `vscode/src/l10n.ts`・`web/src/l10n.ts` とテスト、`client/webview.test.ts`・`pages/config.test.tsx`
 - UI-12 VS Code 拡張はサイドバーを主画面にし、エディタのパネルには詳細だけを出す。コード中の ID から要約と詳細を開け、コマンドで ID か題からも探せる。CLI やエージェントの書き込みを自動で映し、承認待ちの Plan と review のチケットを知らせ（設定で切れる）、`dg init` 前は始め方を出す。細部は `packages/vscode/package.json`・`src/extension.ts`
 - UI-13 実行計画：カンバンの上に、選んだ範囲のチケットを含む Plan の進捗と次（PL-6）・依存グラフを出し、Plan の番号から Plan 詳細を開く。表示だけで書き込まない（出す項目は `plan show` と `packages/web/src/pages/plans.tsx`）
 - UI-14 設定画面：チームの `config.yaml` の全項目（5.10）と、個人で上書きできる項目を分けて出して直せ、個人の上書きは外せる。影響の大きい項目は保存前に確かめる。VS Code の settings.json は使わない（細部は `packages/web/src/pages/config.tsx` とそのテスト、理由は [ADR-027](adr/ADR-027-screen-vscode-writes-and-asks.md)）
