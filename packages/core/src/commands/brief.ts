@@ -158,8 +158,8 @@ export function composeBrief(
       item(
         L("規約", "Conventions"),
         L(
-          "リポジトリのルートにあるエージェント向けの指示ファイルと `dg guide review` の「見直す」に従う。見る観点は受け入れ条件の漏れ・不具合・文書との食い違い（この PR が変えた文書のずれは重い。前からのずれは軽い）・規約の違反・範囲の外の変更。チケット本文に `## 参考` 節があれば、そこに書いたファイルと差分で変えたファイルを見比べ、参考節にない大きな広がりと、参考節のファイルに触れていない変更を「参考節との食い違い」として返す。",
-          'Follow the agent instruction file at the repository root and the "見直す" (Review) section of `dg guide review`. Look for missed acceptance criteria, bugs, mismatches with the docs (a drift this PR changed is heavy; an older drift is light), rule violations, and changes outside the scope. If the ticket body has a `## 参考` section, compare the files it names with the files the diff changes, and report as "参考節との食い違い" any large spread outside the section and any change that does not touch the files the section names.',
+          "リポジトリのルートにあるエージェント向けの指示ファイルと `dg guide review` の「見直す」に従う。見る観点は受け入れ条件の漏れ・不具合・文書との食い違い（この PR が変えた約束・手順・規約で、文書を同じ PR で直していないものは重い。前からのずれは軽い）・規約の違反・範囲の外の変更。チケット本文に `## 参考` 節があれば、そこに書いたファイルと差分で変えたファイルを見比べ、参考節にない大きな広がりと、参考節のファイルに触れていない変更を「参考節との食い違い」として返す。",
+          'Follow the agent instruction file at the repository root and the "見直す" (Review) section of `dg guide review`. Look for missed acceptance criteria, bugs, mismatches with the docs (docs left stale by a behavior or rule this PR changed are heavy; older drift is light), rule violations, and changes outside the scope. If the ticket body has a `## 参考` section, compare the files it names with the files the diff changes, and report as "参考節との食い違い" any large spread outside the section and any change that does not touch the files the section names.',
         ),
       ),
       tools,
@@ -179,8 +179,8 @@ export function composeBrief(
         "change files, commit, push, write anything to dg other than the Run, or look at other tickets.",
       ),
       returns(
-        "指摘を重い（受け入れ条件の漏れ・不具合・この PR が変えた文書との食い違い・規約の違反）と軽い（言い回し・好み・前からのずれ）に分けた一覧（ファイルと行・理由・直し方）と、最新のコミットで回した検査の結果。参考節との食い違いは軽い指摘の欄に分けて書き、重い指摘に数えない。",
-        "a list of findings split into heavy (missed acceptance criteria, bugs, mismatches with the docs this PR changed, rule violations) and light (wording, preference, older drift from the docs), each with file and line, reason, and how to fix it; and the results of the checks run on the latest commit. Report 参考節との食い違い (mismatches with the 参考 section) under the light findings, and do not count them as heavy.",
+        "指摘を重い（受け入れ条件の漏れ・不具合・この PR が変えた約束・手順・規約で文書を直していないもの・規約の違反）と軽い（言い回し・好み・前からのずれ）に分けた一覧（ファイルと行・理由・直し方）と、最新のコミットで回した検査の結果。参考節との食い違いは軽い指摘の欄に分けて書き、重い指摘に数えない。",
+        "a list of findings split into heavy (missed acceptance criteria, bugs, docs left stale by a behavior or rule this PR changed, rule violations) and light (wording, preference, older drift from the docs), each with file and line, reason, and how to fix it; and the results of the checks run on the latest commit. Report 参考節との食い違い (mismatches with the 参考 section) under the light findings, and do not count them as heavy.",
       ),
     ].join("\n");
   }

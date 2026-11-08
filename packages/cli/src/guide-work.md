@@ -5,7 +5,7 @@ argument-hint: "<Plan の ID|チケットの ID>"
 
 # 作業（work）
 
-1 枚のチケットを `dg next` の次の 1 手ずつ、PR を draft で出すまで進める。段階と手は dg が求め、ここには各手のやり方だけを書く。
+1 枚のチケットを PR を draft で出すまで進める。段階と手は `dg next` が求め、ここには各手のやり方だけを書く。
 
 ## 対象を決める
 
@@ -21,7 +21,7 @@ argument-hint: "<Plan の ID|チケットの ID>"
    - `review`：見直し役を起動する（`dg guide review` の「見直す」）
    - `fix`：見直し役の指摘を、`dg guide review` の「指摘を直す」の手順で渡す
    - `ready`：`dg guide review` の「終わり方」で PR を出す。PR を見ない Workflow（general など。`sync` が review に進めない）では、PR を出したら続けて自分で `dg --json --actor agent ticket move <id> review` に進める
-   - `wait_merge`・`wait_human`：`ask_human` を人に伝えて聞く。マージされたら `dg guide done`
+   - `wait_merge`・`wait_human`：`ask_human` を人に伝えて聞く（`wait_human` は `dg guide review` の「終わり方」）。人のレビューの指摘は `dg guide review` の「指摘を直す」。マージされたら `dg guide done`
    - `wait_deps`：待つ。Plan の `next` から、ほかのチケットを選ぶ
    - `done`：`dg guide done` の手順で片付ける
 3. `implement` のモデル：Plan の `plan.tier` のモデルが親と違えばサブエージェントに渡す（`config.yaml` の `models.*`。今の設定：light `{{models.light}}`・standard `{{models.standard}}`・heavy `{{models.heavy}}`。なし（空）なら親のモデル）。実装の中で調べものをするサブエージェントは、段階によらず `models.light`
@@ -78,4 +78,4 @@ PR を出したら（PR の要らない作業を終えたときも）、結果�
 
 - **次のチケットに進む**（勧める。Plan に着手できるチケットが残っていれば）：`plan show` を読み直し、この手順で次の 1 枚を進める
 - **完了にする**：PR がマージされていれば、`dg guide done` の手順で片付ける（Skill があれば `/dgdone <ID>`）
-- **ここで止める**：マージを待つ。マージ後に `dg guide done` の手順で片付ける（Skill があれば `/dgdone`）
+- **ここで止める**：マージを待つ（マージ後は `dg guide done`）

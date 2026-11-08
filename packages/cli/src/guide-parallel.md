@@ -3,8 +3,8 @@
 `next` が `implement`・`review`・`fix`・`ready` を返すチケットが複数あり、サブエージェントを起動できるなら、チケットごとに起動して同時に進めてよい。`dg` は順を示すだけで、起動と待ち合わせはこの手順で行う。進めるセッション（親）は進行・承認・`dg` の読み書きだけを行う。
 
 - **上限**：同時に 3 件まで。人が数を指示したらそれに従う。検査が負荷で落ちるなら減らす
-- **始める前**：開いた Plan と PR を見て、同じファイルを直すものがないか確かめる。互いに同じファイルを変えるチケットは並べず、`after` で順にすることを人に提案する
-- **親**：チケットごとに `dg guide work` の「claim の前後」と「流れ」の `implement` の手（claim は `--no-run`、worktree の作成）を 1 件ずつ行い、済んだらサブエージェントを起動する。返ったら `dg guide work` の「実装の結果を受け取る」を行い、見直しと修正ループ（`dg guide review`）を回し、直さなかった軽い指摘を PR の本文に書き足し、PR を ready にする。`plan show` を読み直して、空いた枠で次を起動する。PR を出したチケット（マージ待ち）と、人を待つ draft・in_progress のチケットは同時に進める枠に数えない
-- **モデル**：サブエージェントは Plan の段階のモデル（`dg guide work` の `models.*`。空なら親のモデル）で起動する
-- **渡す文**：`next` の `brief` を書き換えずに渡す（`dg guide work` の「流れ」）。手直しは `dg guide review` の「指摘を直す」の文
-- **1 件でほかを止めない**：`CLAIM_LOST` ならそのチケットを飛ばす。実装が失敗したら `ticket unclaim` で todo に戻し（実装の Run は unclaim が閉じる）、worktree は残して、同じ流れでは claim し直さない。見直し・手直しが返らないときは、`dg guide review` の「終わり方」に従い、unclaim しない。待つのは `after` でつながるチケットだけ
+- **始める前**：開いた Plan と PR を見て、同じファイルを直すものがないか確かめる。同じファイルを変えるチケットは並べず、`after` で順にすることを人に提案する
+- **親**：チケットごとに `dg guide work` の「claim の前後」と「流れ」の `implement` の手（claim は `--no-run`、worktree の作成）を 1 件ずつ行い、サブエージェントを起動する。返ったら `dg guide work` の「実装の結果を受け取る」と `dg guide review` の見直し・修正ループを回し、直さなかった軽い指摘を PR の本文に書き足し、空いた枠で `dg next` を読み直して次を起動する。マージ待ちのチケットと、人を待つチケットは枠に数えない
+- **渡す文**：`dg next` の `brief` を書き換えずに渡す（手直しは `--role fix` の文）。モデルは `dg guide run` の「段階のモデル」
+- **サブエージェントがしない**：claim・unclaim・`iteration add`・Plan の操作・見直し役の起動・`dg pr ready`・マージ・`ticket check`・`ticket update --pr`・ほかのチケットの作業
+- **1 件でほかを止めない**：`CLAIM_LOST` ならそのチケットを飛ばす。実装が失敗したら `ticket unclaim` で todo に戻し、worktree は残して、同じ流れでは claim し直さない。見直し・手直しが failure で返った・返らないときは、`dg guide review` の「終わり方」に従う。待つのは `after` でつながるチケットだけ

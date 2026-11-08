@@ -10,7 +10,7 @@ deguboard は Git で管理するチケットのツール。あなた（AI エ�
 - データのファイル（`.git/deguboard/` の下）を直接編集しない。読むのも `dg … show --json`。dg の外で書いた変更は、dg が次に動くときに見つけて書き込みを止める（下の「dg の外の変更」）
 - チケットの ID は `t12` でも `12` でもよい。Epic は `e3`、Iteration は `s3`。リポジトリの外から呼ぶときは `-C <dir>`
 - 書き込みは `commit.mode`（今は `{{commit.mode}}`）に従ってコミットされる。起票・claim・Iteration の start と reopen は即座にコミットして push される。`batch` ではそれ以外の変更が作業ツリーに残るので、区切りで `dg --json --actor agent sync` を回す。`manual` では `sync` もコミットしないので、人に `dg commit` を頼む
-- 作業の実績は Run で残す。親が自分で進めるときは、実装の Run を `ticket claim` が開くので `data.run` の ID を控え、PR の記録（`ticket update --pr`）で閉じる。サブエージェントの Run は文の印でフックが扱う。手順は `dg guide run` の「親が自分で進めるとき」。使用量（トークン数）は閉じるときに会話記録から取り込むので、数を自分で書かない
+- 作業の実績は Run で残す。親が自分で進めるときは、実装の Run を `ticket claim` が開くので `data.run` の ID を控え、PR の記録（`ticket update --pr`）で閉じる。手順は `dg guide run` の「親が自分で進めるとき」。使用量（トークン数）は閉じるときに会話記録から取り込むので、数を自分で書かない
 - 起票の結果に `provisional: true` があれば push できていない仮番号で、ID が変わりうる。人に伝え、`sync` を回す
 
 ## 同期が止まったとき
@@ -56,4 +56,4 @@ dg は、データのリポジトリ（deguboard worktree）に dg のコマン�
 | done     | dgdone    | マージ後の後始末と残った受け入れ条件の確認、Plan を閉じる                                                                         | PR がマージされたあと                                          |
 | all      | dgall     | 割り当て → 点検 → 計画 → 作業 → 見直し → リリースを、状態から段階を求めて続けて進める（同じ引数で再開できる）                     | 「s3 を最後まで進めて」と言われたとき                          |
 
-`dg guide <topic>` で読む。Claude Code では `dg skill install` が入れる Skill（`/dgimport` など）がそのトピックを読む。Skill は任意で、なければ `dg guide <topic>` を読んで同じ手順で進める。Claude Code では `dg hooks install` でフックも入れられ、`dg hooks check` で入っているか・動くか・入力の形が合っているかを確かめられる（欠けていれば警告が出る）。フックはセッションの主体を agent にし、頼んだ文の最初の行が `deguboard: ticket=<id> step=<step>` のサブエージェントの Run を起動で開いて終わりで閉じる（印のあるサブエージェントは自分で `run start` しなくてよい。自分で開いても、終わりのフックがその Run に記録の場所を結び付けて二重にしない）。コマンドの一覧は `dg --help`、各コマンドのオプションは `dg <群> <操作> --help`。
+`dg guide <topic>` で読む。Claude Code では `dg skill install` が入れる Skill（`/dgimport` など）がそのトピックを読む。Skill は任意で、なければ `dg guide <topic>` を読んで同じ手順で進める。Claude Code では `dg hooks install` でフックも入れられ、`dg hooks check` で入っているか・動くか・入力の形が合っているかを確かめられる（欠けていれば警告が出る）。コマンドの一覧は `dg --help`、各コマンドのオプションは `dg <群> <操作> --help`。
