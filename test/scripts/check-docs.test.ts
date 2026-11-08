@@ -3,7 +3,8 @@
 // 要件 ID・先頭コメント・guide の重複の検査が落ちることも確かめる（t536）。
 // 節を消して定義がなくなった接頭辞の参照は、接頭辞の一覧から拾って落ちることも確かめる（t552）。
 // 段落の重複は guide だけでなく README・CLAUDE.md・docs の正本の外の文書も見る（t551）。
-// 「dg guide <topic> の「<節>」」の節が guide-<topic>.md の見出しに無いと落ちる（t561）。
+// 「dg guide <topic> の「<節>」」の節が guide-<topic>.md の見出し・太字の項目・一覧の先頭のコードに無いと落ちる（t561）。
+// その参照が packages の .ts・.tsx の文字列とコメントにあっても落ちる（t562）。
 // スクリプトは自分の置き場所の親をルートとして読むので、検査に要るファイルを一時ディレクトリに写して動かす。
 // 調べるファイルは git の追跡と無視の規則で決まるので、一時ディレクトリは git init して .gitignore も写す。
 // 写さないファイルへのリンクの切れも出るので、確かめる指摘だけを見る
@@ -335,19 +336,17 @@ describe("check-docs の dg guide の節の参照（t561）", () => {
 
   it("写したままなら節の参照の指摘は出ない", async () => {
     const { stderr } = await run();
-    expect(stderr).not.toMatch(/dg guide [a-z-]+ に「.+」の見出しがない/);
+    expect(stderr).not.toMatch(/dg guide [a-z-]+ に節「.+」がない/);
   });
 
-  it("文書の「dg guide <topic> の「<節>」」が guide の見出しに無いと、場所を出して落ちる", async () => {
+  it("文書の「dg guide <topic> の「<節>」」が guide の節に無いと、場所を出して落ちる", async () => {
     await append(
       "docs/development.md",
       "切れた参照の確かめ：`dg guide work` の「存在しない節」を見る。",
     );
     const { code, stderr } = await run();
     expect(code).toBe(1);
-    expect(stderr).toMatch(
-      /docs\/development\.md:\d+: dg guide work に「存在しない節」の見出しがない/,
-    );
+    expect(stderr).toMatch(/docs\/development\.md:\d+: dg guide work に節「存在しない節」がない/);
   });
 
   it("切れた参照を直すと、その指摘は出ない", async () => {
@@ -357,7 +356,7 @@ describe("check-docs の dg guide の節の参照（t561）", () => {
     );
     await rewrite("docs/development.md", /存在しない節/, "流れ");
     const { stderr } = await run();
-    expect(stderr).not.toMatch(/dg guide [a-z-]+ に「.+」の見出しがない/);
+    expect(stderr).not.toMatch(/dg guide [a-z-]+ に節「.+」がない/);
   });
 
   it("「と「…」」で続く 2 つ目の節が切れていても落ちる", async () => {
@@ -367,14 +366,14 @@ describe("check-docs の dg guide の節の参照（t561）", () => {
     );
     const { code, stderr } = await run();
     expect(code).toBe(1);
-    expect(stderr).toMatch(/guide-plan\.md:\d+: dg guide work に「存在しない節」の見出しがない/);
+    expect(stderr).toMatch(/guide-plan\.md:\d+: dg guide work に節「存在しない節」がない/);
   });
 
   it("見出しの一部だけの名前（「流」）は一致しないので落ちる", async () => {
     await append("docs/development.md", "参照の確かめ：`dg guide work` の「流」を見る。");
     const { code, stderr } = await run();
     expect(code).toBe(1);
-    expect(stderr).toContain("dg guide work に「流」の見出しがない");
+    expect(stderr).toContain("dg guide work に節「流」がない");
   });
 
   it("guide の無いトピックへの参照は、guide のファイルがないと落ちる", async () => {
@@ -392,7 +391,7 @@ describe("check-docs の dg guide の節の参照（t561）", () => {
       "参照の確かめ：`dg guide work` の「実装する」と、`dg guide review` の「見る」を見る。`dg guide work` の「ready」の手も同じ。",
     );
     const { stderr } = await run();
-    expect(stderr).not.toMatch(/dg guide [a-z-]+ に「.+」の見出しがない/);
+    expect(stderr).not.toMatch(/dg guide [a-z-]+ に節「.+」がない/);
   });
 
   it("コードブロックの中の参照は見ない", async () => {
@@ -462,5 +461,40 @@ describe("check-docs の正本の外の文書の段落の重複（t551）", () =
     await append("docs/development.md", short);
     const { stderr } = await run();
     expect(stderr).not.toContain("同じ段落");
+  });
+});
+
+describe("check-docs の .ts の文字列とコメントの dg guide の節の参照（t562）", () => {
+  const PROBE = "packages/cli/src/zz-probe.ts";
+
+  it("バッククォートのない .ts の文字列の切れた参照は、場所を出して落ちる", async () => {
+    await writeFile(join(dir, PROBE), 'export const s = "dg guide work の「存在しない節」";\n');
+    const { code, stderr } = await run();
+    expect(code).toBe(1);
+    expect(stderr).toContain(`${PROBE}:1: dg guide work に節「存在しない節」がない`);
+  });
+
+  it("バッククォートで囲んだ .ts のテンプレート文字列の切れた参照（\\` のエスケープ）も落ちる", async () => {
+    await writeFile(
+      join(dir, PROBE),
+      "export const s = `\\`dg guide work\\` の「存在しない節」`;\n",
+    );
+    const { code, stderr } = await run();
+    expect(code).toBe(1);
+    expect(stderr).toContain(`${PROBE}:1: dg guide work に節「存在しない節」がない`);
+  });
+
+  it(".ts のコメントの切れた参照は、場所を出して落ちる", async () => {
+    await writeFile(join(dir, PROBE), "// 手順は dg guide nope の「流れ」を読む\nexport {};\n");
+    const { code, stderr } = await run();
+    expect(code).toBe(1);
+    expect(stderr).toMatch(/zz-probe\.ts:1: dg guide nope の guide-nope\.md がない/);
+  });
+
+  it(".ts の切れた参照を直すと、落ちない", async () => {
+    await writeFile(join(dir, PROBE), 'export const s = "dg guide work の「流れ」";\n');
+    // 写さないファイルへのリンクの切れも出るので、確かめる指摘だけを見る
+    const { stderr } = await run();
+    expect(stderr).not.toMatch(/dg guide [a-z-]+ に節/);
   });
 });
