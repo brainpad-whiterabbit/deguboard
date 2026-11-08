@@ -1,10 +1,10 @@
-// harness のフックの出来事を Run の操作に写す（AG-1・AG-9・RN-5・RN-6、ADR-012・ADR-014）。入力の形は Adapter の hooks.parse が製品ごとに読み、
+// harness のフックの出来事を Run の操作に写す（AG-1・AG-9・RN-5・RN-6、ADR-025）。入力の形は Adapter の hooks.parse が製品ごとに読み、
 // ここは製品によらない出来事（HookEvent）だけを見る（AG-5）。フックはエージェントの作業を止めないよう、失敗は警告にして成功で返す。
 //   - session_start：以後の Bash の環境に DEGUBOARD_ACTOR=agent・DEGUBOARD_SESSION・DEGUBOARD_TRANSCRIPT を export で書く
-//     （届くのは親の Bash だけ。サブエージェントの claim・run start のセッションは Adapter の sessionFromEnv が補う。ADR-016）
+//     （届くのは親の Bash だけ。サブエージェントの claim・run start のセッションは Adapter の sessionFromEnv が補う。ADR-025）
 //   - subagent_launched：頼んだ文の先頭の印（deguboard: ticket=<id> step=<step>）があれば、その Run を開いて記録の場所をサブエージェントの記録にする。
-//     見直しは、別のセッションで開いたままの同じチケットの見直しの Run を先に interrupted で閉じる（ADR-015）。
-//     開いたままの前の手直しの Run は、ほかの Run を開くときと同じく openRun が区切りとして閉じる（ADR-022）
+//     見直しは、別のセッションで開いたままの同じチケットの見直しの Run を先に interrupted で閉じる（ADR-025）。
+//     開いたままの前の手直しの Run は、ほかの Run を開くときと同じく openRun が区切りとして閉じる（ADR-025）
 //   - subagent_started：同じ記録の開いた Run（親への質問で止まっていたもの）を続きとして使い、止まって待っている印と書き終わり待ちの印を消す
 //   - subagent_stopped：記録の場所で Run を引き、記録の最初の文の印で照らしてから、step を終えた事実があれば記録の書き終わりを待って
 //     記録の全体から数えて閉じる。事実がなければ閉じずに止まって待っている印を付ける。
@@ -255,7 +255,7 @@ async function handle(
       // 応答のたびに呼ばれるので、止まった Run の掃除はしない
       return turnStopped(ctx, agent, event, view);
   }
-  // 記録の書き終わりを待ちきれずに残した Run を、次のフックの機会に閉じる（ADR-014）
+  // 記録の書き終わりを待ちきれずに残した Run を、次のフックの機会に閉じる（ADR-025）
   await closeStoppedRuns(ctx, warnings, view, { session: event.session, markedBefore: calledAt });
 }
 
@@ -308,7 +308,7 @@ async function subagentLaunched(
   }
   const now = ctx.now();
   // 前景の起動は終わってから返るので、かかった時間だけ開始を前にする。かかった時間が渡されなければ、サブエージェントの記録の
-  // 最初の行（頼んだ文）の時刻を起動の時刻にする（今の時刻にすると、見直し役が古い Run に書いた結果を起動より前のものと見誤る。ADR-017）
+  // 最初の行（頼んだ文）の時刻を起動の時刻にする（今の時刻にすると、見直し役が古い Run に書いた結果を起動より前のものと見誤る。ADR-025）
   const startedAt = !event.finished
     ? undefined
     : event.durationMs !== null
@@ -316,11 +316,11 @@ async function subagentLaunched(
       : event.transcript
         ? await firstLineTime(event.transcript)
         : undefined;
-  // 別のセッションで開いたままの見直しの Run は、そのセッションが落ちた残り。閉じてから開く（ADR-015）。
+  // 別のセッションで開いたままの見直しの Run は、そのセッションが落ちた残り。閉じてから開く（ADR-025）。
   // 同じセッションの見直しを重ねて開くのは二重の起動なので、閉じずに下の openRun が拒否する
   if (marker.step === REVIEW_STEP)
     await closeStaleReviewRuns(ctx, marker.ticket, event.session, startedAt ?? now, view, warnings);
-  // 開いたままの前の手直しの Run は、openRun がこの起動の開始を区切りとして閉じてから開く（ADR-022）
+  // 開いたままの前の手直しの Run は、openRun がこの起動の開始を区切りとして閉じてから開く（ADR-025）
   let run: Run;
   try {
     const opened = await openRun(ctx, ticket.data, {
@@ -346,7 +346,7 @@ async function subagentLaunched(
 }
 
 /**
- * 見直しの起動の前に、このマシンで開いたままの同じチケットの見直しの Run のうち別のセッションのものを interrupted で閉じる（ADR-015）。
+ * 見直しの起動の前に、このマシンで開いたままの同じチケットの見直しの Run のうち別のセッションのものを interrupted で閉じる（ADR-025）。
  * 使用量はその Run の記録の場所から数える。前景の起動では見直し役が終わってからここに来るので、その間の run review-result は
  * 古い Run に書かれている。起動（launchedAt）より後に書かれた結果は古い Run から外して保留に移し、新しい Run を閉じるときに結び付ける。
  * 閉じられなければ警告して続ける（下の openRun が拒否して警告する）
@@ -482,7 +482,7 @@ const isSubagentTranscript = (p: string | undefined) =>
   p !== undefined && path.basename(path.dirname(p)) === "subagents";
 
 /**
- * サブエージェントが止まったときの Run の扱い（ADR-014）。記録の最初の文の印で照らしてチケットと step を直し、記録の場所を
+ * サブエージェントが止まったときの Run の扱い（ADR-025）。記録の最初の文の印で照らしてチケットと step を直し、記録の場所を
  * サブエージェントの記録にする。step を終えた事実（resultOf が success）があり、記録が書き終わっていれば閉じる。
  * 事実がなければ（親への質問で止まったなど）閉じずに止まって待っている印（waiting_since）を付ける。記録が書き終わらなければ
  * 書き終わり待ちの印（settling_since）を付けて残し、次のフック・sync・SessionEnd が閉じる（closeStoppedRuns）。settle が false なら書き終わりを待たない
@@ -534,8 +534,8 @@ async function stopSubagentRun(
 }
 
 /**
- * 前景のサブエージェントが Run のないうちに保留にしたものを、閉じる前の Run に結び付ける。見直しは結果（ADR-014）、
- * 手直しはやり直しの理由（ADR-018）。どちらもその Run の開始より後に置いたものだけ
+ * 前景のサブエージェントが Run のないうちに保留にしたものを、閉じる前の Run に結び付ける。見直しは結果（ADR-025）、
+ * 手直しはやり直しの理由（ADR-025）。どちらもその Run の開始より後に置いたものだけ
  */
 async function bindPending(
   ctx: CommandContext,
@@ -565,7 +565,10 @@ async function markWaiting(ctx: CommandContext, run: Run, view: HookView): Promi
   view.done.push(`${run.ticket} の ${run.step} の Run ${run.id} は止まって待っている（閉じない）`);
 }
 
-/** 記録の最後の api-request の後に使用量付きの応答が出るまで待つ。上限を過ぎたら false */
+/**
+ * 記録の最後の api-request の後に使用量付きの応答が出るまで待つ。上限を過ぎたら false。
+ * 待つのは最後の応答の使用量（多くは最も大きい）を欠かさないため。上限を置くのは、フックでエージェントの作業を止めないため
+ */
 async function waitSettled(agent: string, transcript: string): Promise<boolean> {
   const hooks = hooksOf(agent)!;
   const until = Date.now() + hookTiming.settleMs;
@@ -611,11 +614,11 @@ async function closeSubagentRun(
 }
 
 /**
- * 書き終わり待ちの印（settling_since）の付いたサブエージェントの Run のうち、記録が書き終わったものを閉じる（ADR-014）。
+ * 書き終わり待ちの印（settling_since）の付いたサブエージェントの Run のうち、記録が書き終わったものを閉じる（ADR-025）。
  * フックのたびと dg sync が呼ぶ。止まって待っている印（質問への答え待ち）の Run は、再開で続くので閉じない。
  * session を渡せばそのセッションの Run だけ、markedBefore を渡せばその時刻より前に印を付けたものだけ（今のフックで残した Run を、
  * 同じフックの中で閉じない）。reviewSession を渡せば、見直しの Run のうちそのセッションと別のセッションのものを閉じない（dg sync。
- * 落ちたセッションの見直しの Run には、前景で動いている今回の見直し役が結果を書いているかもしれない。次の見直しの起動が振り分けて閉じる。ADR-017）
+ * 落ちたセッションの見直しの Run には、前景で動いている今回の見直し役が結果を書いているかもしれない。次の見直しの起動が振り分けて閉じる。ADR-025）
  */
 export async function closeStoppedRuns(
   ctx: CommandContext,
@@ -674,7 +677,7 @@ async function subagentStarted(
 /**
  * 移行期の経路：サブエージェントが自分で開いた Run（run start や、印なしで頼んだ手直しの claim）に記録の場所を結び付け、閉じていれば
  * 取り直す。開いたままで、step を終えた事実がなければ（手直しで push がないなど）止まって待っている印を付ける。印のない返った Run をここで見分ける。
- * 手直しも印で開く（ADR-018）ので、ほかの手順がサブエージェントに Run を開かせなくなれば要らない
+ * 手直しも印で開く（ADR-025）ので、ほかの手順がサブエージェントに Run を開かせなくなれば要らない
  */
 async function bindSelfOpened(
   ctx: CommandContext,
@@ -694,7 +697,7 @@ async function bindSelfOpened(
       closed.push(id);
       continue;
     }
-    // 開いたままで返った Run にも、印のある Run と同じく、step を終えた事実がなければ止まって待っている印を付ける（ADR-014）。
+    // 開いたままで返った Run にも、印のある Run と同じく、step を終えた事実がなければ止まって待っている印を付ける（ADR-025）。
     // 事実があれば印は付けず、閉じない（手直しは sync の区切り、ほかはセッションの終わりが閉じる）
     const run = running.find((r) => r.id === id);
     if (!run) continue;
@@ -708,7 +711,7 @@ async function bindSelfOpened(
 }
 
 /**
- * フックが閉じる Run の結果（ADR-012）。step ごとの事実で決める。見直しは結果（run review-result）が記録されていれば success（ADR-013）。
+ * フックが閉じる Run の結果（ADR-025）。step ごとの事実で決める。見直しは結果（run review-result）が記録されていれば success（ADR-025）。
  * 実装は PR があれば success。手直しは開始より後の push があれば success。ほかの step は success
  */
 async function resultOf(
@@ -744,7 +747,7 @@ async function resultOf(
   return { result: "success" };
 }
 
-/** 見直しの Run の結果。結果（run review-result）が記録されていれば success（ADR-013） */
+/** 見直しの Run の結果。結果（run review-result）が記録されていれば success（ADR-025） */
 function reviewResultOf(run: Run): { result: RunResult; error?: string } {
   return run.review !== null
     ? { result: "success" }
@@ -752,7 +755,7 @@ function reviewResultOf(run: Run): { result: RunResult; error?: string } {
 }
 
 /**
- * セッションの終わり（ADR-014）。このセッションのサブエージェントの Run（記録の場所がサブエージェントの記録のもの）のうち開いたままのものを閉じる。
+ * セッションの終わり（ADR-025）。このセッションのサブエージェントの Run（記録の場所がサブエージェントの記録のもの）のうち開いたままのものを閉じる。
  * step を終えた事実があれば成功で閉じ、なければ見直し・手直しなどは interrupted、実装は PR がないので failure。親が自分で進める Run は残す
  */
 async function sessionEnd(

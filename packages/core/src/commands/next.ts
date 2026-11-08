@@ -288,7 +288,7 @@ export function nextOf(ctx: CommandContext, facts: StageFacts): NextStep {
     };
   };
   const dg = (args: string) => `dg --json --actor agent ${args}`;
-  // フックがサブエージェントの Run を開け閉めする印（ADR-012）。委譲する親は claim に --no-run を付け、印で頼む
+  // フックがサブエージェントの Run を開け閉めする印（ADR-025）。委譲する親は claim に --no-run を付け、印で頼む
   const marker = (step: string) =>
     `サブエージェントに頼む文の最初の行に deguboard: ticket=${id} step=${step}`;
   switch (st.name) {
@@ -338,7 +338,7 @@ export function nextOf(ctx: CommandContext, facts: StageFacts): NextStep {
       return facts.ticket.status === "in_progress" && st.review_passed
         ? // dg pr ready が品質ゲートを判定してから gh pr ready を呼ぶ（t545）
           make("ready", null, [dg(`pr ready ${id}`), dg("sync")])
-        : // 手直しの Run も印でフックが開く。理由は直すエージェントが run retry-reason で書き足す（ADR-018）
+        : // 手直しの Run も印でフックが開く。理由は直すエージェントが run retry-reason で書き足す（ADR-025）
           make("fix", fixStep, [
             marker(fixStep),
             `直すエージェント（実装と同じモデル）が最初に ${dg(`run retry-reason ${id} --reason <直す指摘の要約>`)}`,

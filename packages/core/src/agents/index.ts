@@ -63,7 +63,7 @@ export function detectAgent(env: AgentEnv): AgentDetection {
 }
 
 /**
- * 環境変数から判定した agent の Adapter が読む会話記録のセッション ID（ADR-016）。agent を判定できないか、
+ * 環境変数から判定した agent の Adapter が読む会話記録のセッション ID（ADR-025）。agent を判定できないか、
  * その Adapter がセッションを読まなければ undefined
  */
 export function sessionFromEnv(env: AgentEnv): string | undefined {

@@ -63,7 +63,7 @@ export interface SkillDirs {
 }
 
 /**
- * harness のフックの出来事を、製品によらない形にしたもの（ADR-005・ADR-012）。Core の hook のコマンドはこれだけを見る。
+ * harness のフックの出来事を、製品によらない形にしたもの（ADR-005・ADR-025）。Core の hook のコマンドはこれだけを見る。
  * transcript は記録のファイルの絶対パス（取れなければ null）
  */
 export type HookEvent =
@@ -86,7 +86,7 @@ export type HookEvent =
     }
   /**
    * サブエージェントが始まった（初めての起動と、親が続きを頼んだ再開の両方）。transcript はサブエージェントの記録のパス。
-   * 再開なら同じ agentId で、同じ記録に追記される（ADR-014）
+   * 再開なら同じ agentId で、同じ記録に追記される（ADR-025）
    */
   | { kind: "subagent_started"; session: string; agentId: string; transcript: string | null }
   /** サブエージェントが止まった（終わったか、親に質問を返して待っている） */
@@ -137,7 +137,7 @@ export interface HookSupport {
    */
   selfOpenedRunIds(transcript: string): Promise<string[]>;
   /**
-   * 記録が書き終わっているか。止まった瞬間には最後の応答がまだ書かれていないことがある（ADR-014）。読めなければ true
+   * 記録が書き終わっているか。止まった瞬間には最後の応答がまだ書かれていないことがある（ADR-025）。読めなければ true
    * （待っても変わらない）
    */
   transcriptSettled(transcript: string): Promise<boolean>;
@@ -165,7 +165,7 @@ export interface AgentAdapter {
   detect?(env: AgentEnv): boolean;
   /**
    * dg を呼んだプロセスの環境変数から、この製品が付ける会話記録のセッション ID を読む（Run を開く操作が --session も
-   * DEGUBOARD_SESSION もないときに使う。ADR-016）。サブエージェントの Bash にも親のセッションの ID で付く変数だけを読む。
+   * DEGUBOARD_SESSION もないときに使う。ADR-025）。サブエージェントの Bash にも親のセッションの ID で付く変数だけを読む。
    * 製品が付ける変数が確かめられない Adapter は持たない
    */
   sessionFromEnv?(env: AgentEnv): string | undefined;

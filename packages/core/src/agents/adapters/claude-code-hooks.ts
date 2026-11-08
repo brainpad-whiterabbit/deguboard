@@ -1,13 +1,13 @@
-// Claude Code のフック（AG-5、ADR-012）。入力の JSON を製品によらない出来事（HookEvent）に変え、dg hooks install が書くイベントを決める。
+// Claude Code のフック（AG-5、ADR-025）。入力の JSON を製品によらない出来事（HookEvent）に変え、dg hooks install が書くイベントを決める。
 //   - SessionStart：session_id・transcript_path と、以後の Bash の環境に export を書くファイル（環境変数 CLAUDE_ENV_FILE）
 //   - PostToolUse（matcher は Agent）：tool_input.prompt と tool_response.agentId・resolvedModel。サブエージェントの記録は
 //     <親の記録のディレクトリ>/<session_id>/subagents/agent-<agentId>.jsonl（SubagentStop の agent_transcript_path と同じ形）。
 //     バックグラウンドの起動は起動の直後に返り（status: async_launched）、SubagentStop が後に来る。前景の起動は終わってから返り
 //     （status: completed）、SubagentStop はこれより先に来る
-//   - SubagentStop：agent_id・agent_transcript_path（last_assistant_message も来るが使わない。見直しの成否は結果の記録で決める。ADR-013）
+//   - SubagentStop：agent_id・agent_transcript_path（last_assistant_message も来るが使わない。見直しの成否は結果の記録で決める。ADR-025）
 //     サブエージェントが親に質問を返して止まったときも発火する。親が SendMessage で続きを頼むと、同じ agent_id で SubagentStart と
 //     SubagentStop がもう一度発火し、記録は同じファイルに追記される。発火の瞬間には最後の応答（assistant の行と使用量）がまだ書かれて
-//     おらず（最後は api-request の行）、0.5 秒以内に書かれる（ADR-014）
+//     おらず（最後は api-request の行）、0.5 秒以内に書かれる（ADR-025）
 //   - SubagentStart：agent_id と親の transcript_path。Run は開かない（並べて起動すると、その時点では親の記録にも、サブエージェントの
 //     記録にも呼び出しがない）。再開を続きとして扱い、止まって待っている印を消すのにだけ使う
 //   - PreToolUse（matcher は Bash と書くツール）：tool_name・tool_input（command・file_path）・cwd。拒むときは標準出力に
@@ -16,7 +16,7 @@
 //     decision: block と reason を書き、reason がエージェントに返る
 //   - SessionEnd：session_id
 //   （2026-11-07 に Claude Code 2.1.318 で確かめた。SessionStart で入れた環境変数は親の Bash にだけ届き、サブエージェントの Bash には
-//   届かない（2026-11-08 に 2.1.319 で確かめた）。サブエージェントのセッションは Adapter の sessionFromEnv が補う。ADR-016）
+//   届かない（2026-11-08 に 2.1.319 で確かめた）。サブエージェントのセッションは Adapter の sessionFromEnv が補う。ADR-025）
 
 import { createReadStream } from "node:fs";
 import path from "node:path";
