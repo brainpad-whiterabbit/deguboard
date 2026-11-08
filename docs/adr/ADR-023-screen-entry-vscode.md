@@ -21,8 +21,8 @@
 
 ### ADR-006 と ADR-010 の一部を置き換える
 
-- [ADR-006](ADR-006-ui-and-writes.md) の節「Web UI と VS Code 拡張を最初の版から両方提供する」のうち、ブラウザを入口とする項（`dg serve` が配信する、ブラウザの値の層、ブラウザの書き込みの範囲）と、画面のタブの Run（UI-9）を置き換える。VS Code の `surface`・`CommandClient`・書き込みを Core に通す項は残る
-- [ADR-010](ADR-010-ui-writes-and-agent-requests.md) の「ブラウザ（`dg serve`）も同じ画面の部品で、吹き出しから頼む」の項を置き換える
+- [ADR-006](ADR-006-ui-and-writes.md) の節「Web UI と VS Code 拡張を最初の版から両方提供する」のうち、ブラウザを入口とする部分（「Web ではローカル HTTP サーバー（`dg serve`）が配信し、」・「Web ではそれに値を与える層を 1 枚置く」・「ブラウザは前のまま（…）」）を置き換える。節「画面の書き込みは Core を通す」のうち、画面のタブの Run（UI-9）の項も置き換える。VS Code の `surface`・`CommandClient`・書き込みを Core に通す項は残る
+- [ADR-010](ADR-010-ui-writes-and-agent-requests.md) の次の 3 か所を置き換える。頼む小窓の項の「ブラウザと同じくコピーだけ」の部分、入力欄の項の「（ブラウザでは画面）」の部分、「ブラウザ（`dg serve`）も同じ画面の部品で、吹き出しから頼む」の項
 
 ## 理由
 
