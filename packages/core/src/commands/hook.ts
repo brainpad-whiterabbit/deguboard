@@ -782,7 +782,7 @@ export const SUBSHELL_CLOSE = ")";
 /**
  * シェルのコマンドを単純なコマンドの並び（; && || | & と改行で区切る）と、その字句に分ける。引用符（' と "）の中の空白と区切りは割らない。
  * 括弧は [SUBSHELL_OPEN]・[SUBSHELL_CLOSE] の 1 字句のコマンドとして並びに入れる。リダイレクト（> >> >| &> >& <& < 2> など）と
- * ヒアドキュメント（<< <<- <<<）は 1 つの字句にし、ヒアドキュメントの本文は読み飛ばす。置き換え（$(...)・`...`）や入れ子は解かない。
+ * ヒアドキュメント（<< <<- <<<）は 1 つの字句にし、ヒアドキュメントの本文と、語の頭の # からのコメントは読み飛ばす。置き換え（$(...)・`...`）や入れ子は解かない。
  * フックの判定の手がかりにだけ使う
  */
 export function splitCommands(command: string): string[][] {
@@ -840,7 +840,11 @@ export function splitCommands(command: string): string[][] {
       else word += c;
       continue;
     }
-    if (c === "'" || c === '"') {
+    if (c === "#" && !started) {
+      // 語の頭の # から行の終わりまではコメント（中の引用符を引用と読まない。改行は次で読む）
+      const eol = command.indexOf("\n", i);
+      i = (eol === -1 ? command.length : eol) - 1;
+    } else if (c === "'" || c === '"') {
       quote = c;
       started = true;
       quotedWord = true;
@@ -1289,6 +1293,11 @@ function onlyTextCommands(command: string): boolean {
       return true;
     const { name, args } = commandOf(words);
     if (name === "") return words.every(isAssignment);
+    // gh pr merge・ready の直の呼び出しも引数をコードとして走らせない（その引用符は takesText が伏せない）
+    if (name === "gh") {
+      const [sub] = plainWords(args, GH_GLOBAL_WITH_VALUE);
+      return sub !== undefined && GH_TEXT_SUBCOMMANDS.has(sub);
+    }
     return takesText([name, ...args]);
   });
 }
@@ -1324,10 +1333,11 @@ function closingDoubleQuote(command: string, open: number): number {
 
 /**
  * 字句で文字と言い切れる部分（引数をコードとして走らせないコマンドの、置き換えのない引用符の中とヒアドキュメントの本文）を空白で伏せる。
- * どれかのコマンドが文字を走らせうる（sh・python・eval・xargs sh・知らないコマンドなど）か、置き換えがコマンドの位置にあれば何も伏せない
+ * どれかのコマンドが文字を走らせうる（sh・python・eval・xargs sh・知らないコマンドなど）か、置き換えがコマンドの位置にあるか、
+ * ANSI-C の引用があれば、読み切れないとして null を返す（何も伏せない）
  */
-export function maskTextArguments(command: string): string {
-  if (!onlyTextCommands(command)) return command;
+export function maskTextArguments(command: string): string | null {
+  if (!onlyTextCommands(command)) return null;
   const out = command.split("");
   const blank = (from: number, to: number) => {
     for (let k = from; k < to; k++) out[k] = " ";
@@ -1367,7 +1377,7 @@ export function maskTextArguments(command: string): string {
       i = end - 1;
     } else if (c === "'" && started && word.endsWith("$")) {
       // $'…'（ANSI-C の引用）は \' で閉じないので、読み切れないとみなして何も伏せない
-      return command;
+      return null;
     } else if (c === "'" || c === '"') {
       const end = c === "'" ? command.indexOf("'", i + 1) : closingDoubleQuote(command, i);
       const close = end === -1 ? command.length : end;
@@ -1417,7 +1427,7 @@ export function maskTextArguments(command: string): string {
       started = true;
     } else if (c === "(" || c === "`") {
       // 置き換えがコマンドの位置にあれば、その出力がコマンドとして走るので何も伏せない
-      if (words.every(isAssignment) && (c === "`" ? !started : word === "$")) return command;
+      if (words.every(isAssignment) && (c === "`" ? !started : word === "$")) return null;
       endWord();
       words = [];
     } else if (c === ";" || c === "|" || c === "&" || c === ")") {
@@ -1456,12 +1466,24 @@ function prOperation(tokens: readonly string[], pr: number): string | undefined 
  * 字句で文字と言い切れる部分（maskTextArguments）を伏せ、残りの引用符と \ を取り除いて語をつなげてから（gh pr "mer""ge"・g\h）見る。
  * 残りのどこかに gh か展開の語（$GH・$(which gh)）があり、区切り（; & | 改行）の中で pr の次の操作の語が merge・ready・展開の語
  * （gh pr $OP）なら走るとみなす。gh の次が展開の語（gh $SUB）も止める。xargs があれば区切りを越えて pr と merge・ready を探す。
+ * 読み切れないコマンド（maskTextArguments が null。python などの任意の言語のコードを含む）では語が隣り合うとは限らない
+ * （1 要素ずつ改行した配列・'gh pr ' + 'merge'）ので、全体に gh の語があり、pr と merge・ready の語がどこかにあれば止める。
  * PR の指定は読まない（2>&1・$PR・python -c の中も止める）。通すのは gh pr ready --undo だけ
  */
 export function advancesPrOutsideDg(command: string): boolean {
-  const joined = maskTextArguments(command)
-    .replace(/\\\n/g, " ")
-    .replace(/["'\\]/g, "");
+  const masked = maskTextArguments(command);
+  if (masked === null) {
+    const text = command.replace(/\\\n/g, " ");
+    if (
+      // $ を数えると cd $WT && mise run check && mise run dg -- pr merge まで止めるので、書いた gh だけを見る（$GH は下で見る）
+      /(^|[^\w-])gh\b/.test(text) &&
+      /\bpr\b/.test(text) &&
+      /\b(merge|ready)\b/.test(text)
+    )
+      return true;
+  }
+  // 読み切れないときも、下の語の見方（g\h・gh api など）を何も伏せずに掛ける
+  const joined = (masked ?? command).replace(/\\\n/g, " ").replace(/["'\\]/g, "");
   const all = joined.split(/[\s;&|()`{}<>[\],]+/).filter((t) => t !== "");
   // フラグや代入に接した gh（git grep -Ogh・--upload-pack=gh）も gh とみなす
   const isGh = (t: string) => /(^|[/=]|^-[A-Za-z]*)gh$/.test(t);

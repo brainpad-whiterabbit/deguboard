@@ -1304,6 +1304,12 @@ describe("PreToolUse（t532）", () => {
       "gh pr merge 1 --squash --subject --help",
       "gh pr merge --help",
       "gh pr ready 1 -- --undo",
+      // 任意の言語のコードでは pr と merge が隣り合わない
+      "python3 - <<'EOF'\nimport subprocess\nsubprocess.run([\n  'gh',\n  'pr',\n  'merge',\n  '1',\n])\nEOF",
+      "python3 -c \"import os; os.system('gh pr ' + 'merge 1')\"",
+      // コメントの中の引用符を、前段のコマンドの分解でも引用と読まない
+      "echo start # it's\necho 'gh pr merge 1' | xargs -I{} sh -c '{}'\necho 'x'",
+      "echo # '\necho 'gh pr merge 1' | sh\n'",
       // 引数でプログラムを渡せるコマンドの引用符は伏せない
       "git fetch --upload-pack=\"sh -c 'gh pr merge 1'\" /tmp/x",
       'git grep -O"gh pr merge 1" foo',
@@ -1325,6 +1331,8 @@ describe("PreToolUse（t532）", () => {
       'mise run dg -- pr merge t545 --delete-branch && echo "$HOME" && gh pr view 1',
       "node packages/cli/bin/dg.js pr ready t1",
       "echo ok # gh pr merge はまだ打たない",
+      "cd $WT && mise run check && mise run dg -- pr merge t545",
+      "python3 scripts/x.py && gh pr view 5 --json mergeable",
       'grep -rn "gh pr merge" packages',
       "grep -rn 'gh pr ready' docs",
       'echo "gh pr merge 482 を打つ"',
