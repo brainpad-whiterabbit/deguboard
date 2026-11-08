@@ -1693,6 +1693,7 @@ describe("チケットの流れ", () => {
     for (const t of ["t1", "t2", "t3", "t4"])
       await runCommand(ticketClaim, agent, { ticket: t, branch: `feat/${t}` });
     for (const t of ["t1", "t2", "t3", "t4"]) await git(f.cloneA, ["branch", `feat/${t}`]);
+    const claimT2 = (await peekRunningRuns(agent.repo)).find((r) => r.ticket === "t2")!.id;
     // t2・t3 は PR 番号だけ記録する（gh は知らない）
     await agent.store.update("ticket", "t2", { pr: 42 });
     await agent.store.update("ticket", "t3", { pr: 43 });
@@ -1786,6 +1787,8 @@ describe("チケットの流れ", () => {
         { id: "t1", run: fix2, opener: "reclaim", result: "success" },
         { id: "t3", run: fix4, opener: "reclaim", result: "success" },
         { id: "t4", run: fix5, opener: "reclaim", result: "success" },
+        // t2 は PR の番号だけあり PR を gh で引けない done なので、実装の Run は今の時刻で success（PR のある done）
+        { id: "t2", run: claimT2, opener: "claim", result: "success" },
         { id: "t2", run: fix3, opener: "reclaim", result: "success" },
       ]);
       expect(merged.warnings).toContainEqual(
@@ -1833,7 +1836,7 @@ describe("チケットの流れ", () => {
         result: "failure",
         error: "ticket unclaim で todo に戻した",
       });
-      expect((await peekRunningRuns(agent.repo)).map((r) => r.ticket)).toEqual(["t2"]);
+      expect(await peekRunningRuns(agent.repo)).toEqual([]);
     } finally {
       restore();
     }
@@ -1843,10 +1846,17 @@ describe("チケットの流れ", () => {
     const f = await fixture();
     let clock = new Date("2026-11-06T00:00:00Z");
     const human = await initialized(f.cloneA, { now: () => clock });
-    for (const title of ["Abandoned elsewhere", "Done elsewhere", "Unclaimed", "Taken", "Mine"])
+    for (const title of [
+      "Abandoned elsewhere",
+      "Done elsewhere",
+      "Unclaimed",
+      "Taken",
+      "Mine",
+      "Done with PR elsewhere",
+    ])
       await runCommand(ticketCreate, human, { title });
     const agent = await agentWithRuns(f.cloneA, () => clock);
-    for (const t of ["t1", "t2", "t3", "t4", "t5"])
+    for (const t of ["t1", "t2", "t3", "t4", "t5", "t6"])
       await runCommand(ticketClaim, agent, { ticket: t });
     const opened = new Map(
       (await peekRunningRuns(agent.repo)).map((r) => [r.ticket, r.id] as const),
@@ -1860,6 +1870,9 @@ describe("チケットの流れ", () => {
     await runCommand(ticketMove, other, { ticket: "t2", status: "done" });
     await runCommand(ticketUnclaim, other, { ticket: "t3" });
     await runCommand(ticketUnclaim, other, { ticket: "t4" });
+    // PR のある done：別のマシンが PR を記録して done にした。実装の Run は PR の作成時刻で success になる
+    await runCommand(ticketUpdate, other, { ticket: "t6", pr: 46 });
+    await runCommand(ticketMove, other, { ticket: "t6", status: "done" });
     const hanako = await openContext({
       cwd: f.cloneB,
       actor: { kind: "human", user: "hanako" },
@@ -1869,14 +1882,23 @@ describe("チケットの流れ", () => {
     await runCommand(sync, other, {});
 
     clock = new Date("2026-11-06T02:00:00Z");
-    const synced = await runCommand(sync, agent, {});
-    expect(synced.data.runs_closed).toHaveLength(4);
+    const restoreGh = await fakeGh(f.root, {
+      "46": '{"number":46,"state":"MERGED","isDraft":false,"mergedAt":"2026-11-06T01:30:00Z","createdAt":"2026-11-06T00:45:00Z"}',
+    });
+    let synced;
+    try {
+      synced = await runCommand(sync, agent, {});
+    } finally {
+      restoreGh();
+    }
+    expect(synced.data.runs_closed).toHaveLength(5);
     expect(synced.data.runs_closed).toEqual(
       expect.arrayContaining([
         { id: "t1", run: opened.get("t1"), opener: "claim", result: "failure" },
         { id: "t2", run: opened.get("t2"), opener: "claim", result: "success" },
         { id: "t3", run: opened.get("t3"), opener: "claim", result: "failure" },
         { id: "t4", run: opened.get("t4"), opener: "claim", result: "failure" },
+        { id: "t6", run: opened.get("t6"), opener: "claim", result: "success" },
       ]),
     );
     expect(synced.warnings).toEqual(
@@ -1885,8 +1907,13 @@ describe("チケットの流れ", () => {
         expect.stringMatching(/^t2 の実装の Run r\S+ を success で閉じた/),
         expect.stringMatching(/^t3 の実装の Run r\S+ を failure で閉じた/),
         expect.stringMatching(/^t4 の実装の Run r\S+ を failure で閉じた/),
+        expect.stringMatching(/^t6 の実装の Run r\S+ を success で閉じた/),
       ]),
     );
+    expect(agent.store.runs.get(opened.get("t6")!)!.data).toMatchObject({
+      result: "success",
+      finished_at: "2026-11-06T00:45:00Z",
+    });
     expect(agent.store.runs.get(opened.get("t3")!)!.data).toMatchObject({
       result: "failure",
       error: "照合で todo に戻っていた",

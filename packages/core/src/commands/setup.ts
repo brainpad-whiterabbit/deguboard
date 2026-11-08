@@ -4,7 +4,12 @@ import { writeFile } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
 import { OperationError } from "../errors.js";
-import { branchCommitTimes, collectBranchFacts, lastPushedAt } from "../git/facts.js";
+import {
+  branchCommitTimes,
+  collectBranchFacts,
+  fetchPrCreatedAt,
+  lastPushedAt,
+} from "../git/facts.js";
 import { withLock } from "../git/lock.js";
 import { renumberProvisional, type Renumbered } from "../git/renumber.js";
 import { ensureGitattributes, ensureMergeDriver } from "../git/merge.js";
@@ -240,14 +245,14 @@ async function closeFixRun(
 }
 
 /**
- * 実装の Run を照合の事実で閉じる（RN-6）。終わったチケットは ticket move と同じ結果、戻った・取られたチケットは failure。
+ * 実装の Run を照合の事実で閉じる（RN-6）。終わったチケットは ticket move と同じ結果（PR のある done は PR の発見と同じ success）、戻った・取られたチケットは failure。
  * 閉じた取り込みの警告（結果と finished_at）は closeOpenedRunUnlessClosed が返す
  */
 async function closeImplRun(
   ctx: CommandContext,
   doc: Doc<Ticket>,
   run: Doc<Run>,
-  input: { result: RunResult; error?: string | undefined },
+  input: { result: RunResult; error?: string | undefined; finishedAt?: string | undefined },
   out: { runsClosed: ReconciledRun[]; warnings: string[] },
 ): Promise<void> {
   const closed = await closeOpenedRunUnlessClosed(
@@ -375,10 +380,24 @@ async function reconcileAll(ctx: CommandContext, warnings: string[]): Promise<Re
         const boundary = fixRunBoundary(ctx, doc.data, run, running, false);
         if (boundary) await closeFixRun(ctx, doc, run, boundary, undefined, out);
       } else if (run.data.step === openedStepOf(ctx, doc.data, "claim")) {
-        // 終わったチケットの実装の Run は ticket move と同じ結果で閉じる（PR のある done は PR の発見が閉じるので、ここでは閉じない）
+        // 終わったチケットの実装の Run は ticket move と同じ結果で閉じる
         const ends = runsClosedByMove(doc.data, doc.data.status);
-        if (ends?.openers.includes("claim"))
+        if (ends?.openers.includes("claim")) {
           await closeImplRun(ctx, doc, run, { result: ends.result }, out);
+        } else if (doc.data.status === "done" && doc.data.pr !== undefined) {
+          // PR のある done は、PR を見つけた別のマシンの照合が done にした後の残り。PR の発見と同じく success で、
+          // finished_at は PR の作成時刻（実行中の Run の開始より前なら使わず、取れなければ今の時刻）
+          const created = await fetchPrCreatedAt(ctx.repo, doc.data.pr);
+          if (created.createdAt === undefined)
+            warnings.push(
+              `${doc.id}: PR #${doc.data.pr} の作成時刻を取れないので、実装の Run は今の時刻で閉じる（${created.reason}）`,
+            );
+          const finishedAt =
+            created.createdAt !== undefined && created.createdAt >= run.data.started_at
+              ? created.createdAt
+              : undefined;
+          await closeImplRun(ctx, doc, run, { result: "success", finishedAt }, out);
+        }
       }
       continue;
     }
@@ -414,7 +433,7 @@ export const sync = defineCommand({
   name: "sync",
   group: "setup",
   summary:
-    "リモートの deguboard を取り込み、未 push のコミットを送り、作業ブランチの事実でチケットの状態を進める。作業ブランチの PR を見つけたら、このマシンで実行中の実装の Run を success で閉じる（finished_at は PR の作成時刻）。開いたままの手直しの Run は、次の区切り（同じチケットの次の Run の開始・PR の ready・マージ・チケットの終了）を見たときに、それまでの最後の push の時刻で success にする。終わったチケットに開いたままの実装の Run は ticket move と同じ結果で閉じる（abandoned は failure、PR のない done は success。PR のある done では閉じない）。todo に戻ったチケットか別の主体の claim になったチケットの実装の Run は failure で閉じる。" +
+    "リモートの deguboard を取り込み、未 push のコミットを送り、作業ブランチの事実でチケットの状態を進める。作業ブランチの PR を見つけたら、このマシンで実行中の実装の Run を success で閉じる（finished_at は PR の作成時刻）。開いたままの手直しの Run は、次の区切り（同じチケットの次の Run の開始・PR の ready・マージ・チケットの終了）を見たときに、それまでの最後の push の時刻で success にする。終わったチケットに開いたままの実装の Run は ticket move と同じ結果で閉じる（abandoned は failure、PR のない done は success。PR のある done は PR の作成時刻で success）。todo に戻ったチケットか別の主体の claim になったチケットの実装の Run は failure で閉じる。" +
     "記録の書き終わりを待ちきれずに残したサブエージェントの Run（書き終わり待ちの印 settling_since のあるもの）も、書き終わっていれば閉じる",
   input: z.object({}),
   write: true,
