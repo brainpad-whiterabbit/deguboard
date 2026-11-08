@@ -1,4 +1,4 @@
-// Adapter が会話記録を読むときに共通で使う小さな部品（AG-5、ADR-005）。特定の AI 製品の形はここに書かない
+// Adapter が会話記録を読むときに共通で使う小さな部品（AG-5、ADR-029）。特定の AI 製品の形はここに書かない
 
 import { createReadStream } from "node:fs";
 import { readdir, stat } from "node:fs/promises";
@@ -87,7 +87,7 @@ export const none = (warning: string): CollectedUsage => ({
 export const START_MS = 60_000;
 
 /**
- * 同じ会話記録で期間が重なる Run に、1 つの応答を二重に数えないための判定（ADR-005）。
+ * 同じ会話記録で期間が重なる Run に、1 つの応答を二重に数えないための判定（ADR-029）。
  * 応答は、その応答より前に ID が出ていて、その時刻に開いている Run のうち、いちばん新しく始まったものだけに数える。
  * ID の出た時刻と Run の期間で決まり、閉じる順によらない（run start の開いたままの Run の警告は知らせるだけで、数え方を直せないため）。
  * 比べるのは自分より後に始まって期間が重なる同じ agent の Run だけで、その ID がこのファイルで最初に出たのが開始から START_MS 以内のもの
@@ -199,7 +199,7 @@ export interface Bound {
 }
 
 /**
- * Run を結び付けるファイルを選ぶ（ADR-005）。files（会話記録の置き場所のすべて）のそれぞれで Run の ID と rivals が最初に出た時刻を読み、
+ * Run を結び付けるファイルを選ぶ（ADR-029）。files（会話記録の置き場所のすべて）のそれぞれで Run の ID と rivals が最初に出た時刻を読み、
  * Run の ID が最も早く出たファイルを返す。ID は dg run start か ticket claim が作るので、最も早く出たファイルがその Run を始めた記録で、
  * run start の警告などで後から ID を見ただけのファイルは選ばない。同じ時刻（ミリ秒）のときは、ファイルのパスの順で決める。
  * 呼ぶ session（CLAUDE_CODE_SESSION_ID など）の環境は選びに使わないので、finish と refresh で同じファイルになる。

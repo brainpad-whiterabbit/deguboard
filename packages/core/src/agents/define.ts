@@ -1,4 +1,4 @@
-// Agent Adapter の形（AG-5・MT-1、ADR-005・ADR-007）。
+// Agent Adapter の形（AG-5・MT-1、ADR-029・ADR-007）。
 // 特定の AI 製品に依存する処理は adapters/ に閉じ、Core の汎用部分はこの形と agents/index.ts の一覧だけを見る
 
 import type { Run, RunTools, RunUsage } from "../model/run.js";
@@ -21,7 +21,7 @@ export interface UsageQuery {
    */
   others?: ReadonlyMap<string, RunSpan>;
   /**
-   * このマシンに置いた、この Run の会話記録のパス（deguboard-local/transcripts/。ADR-005）。あればそのファイルから数え、
+   * このマシンに置いた、この Run の会話記録のパス（deguboard-local/transcripts/。ADR-029）。あればそのファイルから数え、
    * なければ Run の session、それもなければ推測で探す
    */
   transcript?: string | undefined;
@@ -63,7 +63,7 @@ export interface SkillDirs {
 }
 
 /**
- * harness のフックの出来事を、製品によらない形にしたもの（ADR-005・ADR-025）。Core の hook のコマンドはこれだけを見る。
+ * harness のフックの出来事を、製品によらない形にしたもの（ADR-025）。Core の hook のコマンドはこれだけを見る。
  * transcript は記録のファイルの絶対パス（取れなければ null）
  */
 export type HookEvent =

@@ -1058,7 +1058,7 @@ describe("run finish の使用量の取り込み（MT-1・MT-2・MT-4）", () =>
     expect(saved["session"]).toBeNull();
   });
 
-  describe("会話記録の場所（ADR-005）", () => {
+  describe("会話記録の場所（ADR-029）", () => {
     /** Run の ID を含まないサブエージェントの会話記録（見直しを終えた後に run start した見直し役など）。期間の応答 2 つ */
     async function subagentTranscript(projectDir: string, run: Run, n: number): Promise<string> {
       const t = (ms: number) => new Date(Date.parse(run.started_at) + ms).toISOString();

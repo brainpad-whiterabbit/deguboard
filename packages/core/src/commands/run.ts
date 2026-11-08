@@ -1,4 +1,4 @@
-// Run の操作（requirements.md 5.9 RN-4〜RN-6、6.6 MT-1・MT-2・MT-5、6.7 EX-2、ADR-005）。記録の置き場所とロックは run/record.ts、
+// Run の操作（requirements.md 5.9 RN-4〜RN-6、6.6 MT-1・MT-2・MT-5、6.7 EX-2、ADR-029）。記録の置き場所とロックは run/record.ts、
 // 使用量の取り込みは agents（Run の agent の値で Adapter を選ぶ。特定の AI 製品をここに書かない。AG-5）
 
 import { z } from "zod";
@@ -58,7 +58,7 @@ export type RunView = Run & { running: boolean; duration_seconds: number | null 
 
 /**
  * Adapter が期間の重なる Run と応答を分けるための、閉じた Run とこのマシンで実行中の Run の期間と、
- * このマシンに置いた会話記録のパス（deguboard-local/transcripts/。ADR-005）
+ * このマシンに置いた会話記録のパス（deguboard-local/transcripts/。ADR-029）
  */
 function runSpans(
   closed: Iterable<{ data: Run }>,
@@ -108,7 +108,7 @@ export function agentFromEnv(
  * Workflow が読めない・Adapter のない agent・このマシンで同じ agent の Run が開いたままは警告して開く。
  * 同じチケットの開いたままの手直しの Run は、この Run の開始を区切りとして閉じてから開く（closePreviousFixRun。reopensFix のない同じ step の二重起動では閉じずに拒む）。
  * retryReasons はもう一度の claim が開く手直しの Run に、直す指摘を最初から残すためのもの。
- * session・transcript は会話記録の場所（ADR-005）。session は Run に、transcript はこのマシンの deguboard-local/transcripts/ に置く。
+ * session・transcript は会話記録の場所（ADR-029）。session は Run に、transcript はこのマシンの deguboard-local/transcripts/ に置く。
  * 渡されなければ、harness のフックが環境に入れた DEGUBOARD_SESSION・DEGUBOARD_TRANSCRIPT を使う（ADR-025。セッションは sessionOf）。
  * transcript は agent の Adapter の会話記録の置き場所の下だけを受け付ける（ほかのファイルを読ませない）
  */
@@ -172,7 +172,7 @@ export async function openRun(
   if (!duplicate || (input.reopensFix === true && step === openedStepOf(ctx, ticket, "reclaim"))) {
     await closePreviousFixRunOrWarn(ctx, ticket, { step, session, startedAt }, warnings);
   }
-  // 同じ会話記録で期間が重なると、応答は後に始めた Run にだけ数える（ADR-005）。閉じ忘れに気づけるように知らせる
+  // 同じ会話記録で期間が重なると、応答は後に始めた Run にだけ数える（ADR-029）。閉じ忘れに気づけるように知らせる
   const open = (await readRunningRuns(ctx.repo)).runs.filter((r) => r.data.agent === agent);
   if (open.length > 0) {
     warnings.push(
@@ -275,7 +275,7 @@ export interface TranscriptInput {
   transcript?: string | undefined;
 }
 
-/** run start と ticket claim の入力の、会話記録の場所の項目（ADR-005） */
+/** run start と ticket claim の入力の、会話記録の場所の項目（ADR-029） */
 export const transcriptFields = {
   session: z
     .string()

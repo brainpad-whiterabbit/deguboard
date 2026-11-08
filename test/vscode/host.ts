@@ -1,7 +1,8 @@
 // VS Code の実機（拡張開発ホスト）を起動して操作する部品（t439）。sidebar.vscode.ts から使う。
 // - VS Code 本体は @vscode/test-electron がリポジトリ直下の .vscode-test/ に落とす（git と VSIX には入れない）
 // - 画面がない環境（SSH 先・Claude Code の中）では Xvfb を起動して DISPLAY にする。DISPLAY が既にあればそれを使う
-// - 起動は Playwright の _electron。Claude Code（VS Code の拡張ホストの子）の環境変数 ELECTRON_RUN_AS_NODE が残っていると
+// - 起動は Playwright の _electron（@vscode/test-electron の runTests は拡張ホストの中で Mocha を走らせる作りで、Webview の中に触れない）。
+//   Claude Code（VS Code の拡張ホストの子）の環境変数 ELECTRON_RUN_AS_NODE が残っていると
 //   Electron が Node として起動して画面が出ないので、ELECTRON_*・VSCODE_*・NODE_OPTIONS を外して渡す（cleanEnv）
 // - ウィンドウ全体（ワークベンチと Webview）の CSP 違反（Chromium が Console の error に出す）と捕まえていない例外（pageerror）を集め、
 //   あれば検査を落とす（WebviewWatch。Playwright の console・pageerror は OOPIF の Webview の分も page に届く）

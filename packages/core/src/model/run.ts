@@ -1,4 +1,4 @@
-// Run（runs/r20261031-041500-3fa2.json。requirements.md 5.9、ADR-002・ADR-005）。
+// Run（runs/r20261031-041500-3fa2.json。requirements.md 5.9、ADR-002・ADR-029）。
 // Git に入れるのは完了時の集計だけ。実行中の記録（deguboard-local/runs/。RN-3）も同じスキーマで置く（run/record.ts）
 
 import { z } from "zod";
@@ -52,7 +52,8 @@ const toolCount = z.number().int().nonnegative();
 
 /**
  * 種類ごとのツールの呼び出しの回数と、最初に書く（write）までの読む・探すの回数。
- * 書かずに終わった Run では、最初に書くまでの回数は全体の回数と同じ
+ * 書かずに終わった Run では、最初に書くまでの回数は全体の回数と同じ。手引き（dg guide）を変えたときに調べる量が減ったかを
+ * Run で比べるために持つ（チケット本文の参考節の効果は親の側に出るので Run では比べない）。種類の分け方は Adapter のコード
  */
 const runToolsSchema = z.looseObject({
   read: toolCount,
@@ -98,7 +99,7 @@ export const runSchema = z.looseObject({
   /** ツールの回数。取れなければ null。この項目より前に書いた Run にはキーがないので、読むときに null にそろえる */
   tools: runToolsSchema.nullable().default(null),
   /**
-   * 会話記録のセッション ID（ADR-005）。開くときに渡されなければ null。記録のパスはマシンごとに違い、ホームのパスとユーザ名を含むので
+   * 会話記録のセッション ID（ADR-029）。開くときに渡されなければ null。記録のパスはマシンごとに違い、ホームのパスとユーザ名を含むので
    * Git に入る Run には書かず、deguboard-local/transcripts/ に置く（run/record.ts）。この項目より前に書いた Run にはキーがないので、読むときに null にそろえる
    */
   session: z.string().min(1).nullable().default(null),

@@ -1,4 +1,4 @@
-// Run の集計（requirements.md 6.6 MT-3、ADR-005）。集計値は保存せず、表示のたびに Run から求める純粋関数
+// Run の集計（requirements.md 6.6 MT-3、ADR-029）。集計値は保存せず、表示のたびに Run から求める純粋関数
 
 import { idNumber } from "./id.js";
 import { TOOL_KINDS, type Run, type RunTools } from "./run.js";

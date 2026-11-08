@@ -639,7 +639,7 @@ describe("Claude Code の Adapter", () => {
     expect(got.warnings).toEqual([expect.stringContaining("見つからない")]);
   });
 
-  describe("会話記録の場所（ADR-005）", () => {
+  describe("会話記録の場所（ADR-029）", () => {
     const usageOf = async (q: UsageQuery) =>
       (await claudeCodeAdapter.readTranscriptUsage(q)).usage.input;
 

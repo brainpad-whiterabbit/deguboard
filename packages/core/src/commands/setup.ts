@@ -67,7 +67,7 @@ import {
 } from "./run.js";
 
 const TEMPLATE_IDS = WORKFLOW_TEMPLATES.map((t) => t.id) as [string, ...string[]];
-/** 見直し役の Run の step（ADR-005。同梱の software-development と general の steps の id） */
+/** 見直し役の Run の step（ADR-029。同梱の software-development と general の steps の id） */
 const REVIEW_STEP = "review";
 
 export const init = defineCommand({
@@ -297,6 +297,7 @@ async function reconcileAll(ctx: CommandContext, warnings: string[]): Promise<Re
     );
     facts.deps_done = ctx.store.depsDone(doc.data);
     // 作業ブランチの PR があれば実装は終わっている。実行中の実装の Run を PR の作成時刻で閉じる（RN-6）。
+    // 実装は PR を作るまでなので、PR がマージされずに閉じていても success にする。
     // 記録済みの番号で引いた PR でも閉じる（番号を記録したときに閉じられなかった Run の拾い直し）
     if (pr !== undefined) {
       const implementing = await findOpenedRun(ctx, doc.data, "claim", running);

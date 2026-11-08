@@ -91,7 +91,7 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
         retries: 1,
         retry_reasons: ["指摘 A"],
         started_at: "2026-11-06T01:00:00Z",
-        // もう一度の claim も会話記録の場所を手直しの Run に渡す（ADR-005）
+        // もう一度の claim も会話記録の場所を手直しの Run に渡す（ADR-025）
         session: "s-fix",
       });
 
