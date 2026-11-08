@@ -19,9 +19,9 @@ CLI・MCP・HTTP・VS Code 拡張という複数の入口から同じ機能を�
 
 ### 依存の向き
 
-- `core` は何にも依存しない（VS Code API・HTTP・React を知らない。HTTP の node モジュール `http`・`https`・`net`・`tls`・`http2` も読まない）
+- `core` は何にも依存しない（VS Code API・HTTP・React を知らない。HTTP の node モジュールも読まない）
 - `server`・`vscode` は `core` だけに依存する。`cli` は `dg serve` と `dg mcp` のために `server` にも依存する
-- `web` は `core` の型と `CommandClient` のインターフェースだけに依存する（`import type` だけ。Vite が node のモジュールを束ねないため）。例外は Vitest が node で動かすテストとテスト用の `CommandClient`（`test-helpers.ts`）で、core の実行時のコードを取り込んでよい
+- `web` は `core` の型と `CommandClient` のインターフェースだけに依存する（`import type` だけ。Vite が node のモジュールを束ねないため）。テストの例外は `web/src/test-helpers.ts` と各テストのコメントが正本
 - 逆向きの依存は作らない。検出は `.oxlintrc.json` の `no-restricted-imports`（禁じる import の正本）
 
 ### `core/commands` が 3 つの入口の正本
@@ -29,32 +29,31 @@ CLI・MCP・HTTP・VS Code 拡張という複数の入口から同じ機能を�
 - すべての操作を「名前・Zod の入力スキーマ・実装関数」の組として `core/commands` に定義する
 - CLI のサブコマンドとヘルプ、HTTP のエンドポイント、Webview のメッセージ、MCP のツール定義は、この定義から生成する。入口にロジックを書かない
 - MCP（`dg mcp`）は `cli` に置き、同じコマンド定義を主体 agent で写す（範囲は AG-4）
-- 例外は AG-4 の CLI だけの操作（`guide`・`skill`・`serve`・`open` など）で、`core/commands` に置かず `cli` に置く
+- 例外は AG-4 の CLI だけの操作で、`core/commands` に置かず `cli` に置く
 - UI は `CommandClient`（コマンド名と入力を渡して結果を受け取る 1 つのインターフェース）を通じて呼ぶ
-- 文脈の管理（開く・再走査・直列化・名前でコマンドを引く）はプロセス内の `CommandClient` として core に 1 つ置き、`server` は HTTP に、`vscode` は Webview の postMessage に写す
+- 文脈の管理はプロセス内の `CommandClient` として core に 1 つ置き、`server` は HTTP に、`vscode` は Webview の postMessage に写す
 
 ### Core の中の境界
 
-Core の中は責務ごとのモジュール（`model`・`storage`・`git`・`workflow`・`run`・`agents`・`actions`・`commands`）に分け、最初からパッケージには分けない。各モジュールの役割は [development.md の「パッケージ」](../development.md#パッケージ)。
+Core の中は責務ごとのモジュールに分け、最初からパッケージには分けない。各モジュールの役割は [development.md の「パッケージ」](../development.md#パッケージ)。
 
 - Run の集計は独立のモジュールにせず、純粋関数を表示のたびに呼ぶ（ADR-005）
-- `agents` は Agent Adapter のインターフェースと製品ごとの実装で、使用量の取得と作業ディレクトリと Skill の置き場所の差を吸収する。起動方法・権限は置かない（deguboard は起動しない。EX-1）。汎用部分は `agents/index.ts` だけを通す
+- `agents` は Agent Adapter のインターフェースと製品ごとの実装で、製品ごとの差を吸収する。起動方法・権限は置かない（deguboard は起動しない。EX-1）。汎用部分は `agents/index.ts` だけを通す
 - モジュールが肥大化したら、そのときにパッケージへ切り出す
 
 ### Action の呼び方
 
-- Action は「名前・Zod の入力スキーマ・設定による可否・確認の要否・実行関数」の組で、`core/actions` に置く。1 つの実行関数が入力の検証 → 設定の検査 → 確認 → 実行の順を 1 か所で守る
+- Action は `core/actions` に置き、検証・設定の検査・確認・実行の順を 1 か所で守る（組の形は `actions/define.ts`）
 - Core の汎用部分は actions に依存しない（AG-6。検出は `.oxlintrc.json`）
 - Workflow の `steps` は Action を名前（文字列）で持ち、名前の検証は入口が名前の一覧を渡して行う（ADR-003）
 - `dg` のコマンド・MCP のツール・画面には出さず、core の公開も `ACTION_NAMES` だけにする。エージェントは `dg guide` の手順に従って git・gh・テストを自分で呼ぶ（EX-1）
-- git に渡すブランチ名は先頭の `-` を拒み、位置引数の前に `--` を置く。オプションの注入で `actions.shell` を回り込ませないため
 - `run_tests` は `actions.test` に書いた引数配列だけを確認なしで実行する。config.yaml は Git で共有されるので、deguboard ブランチに push できる人はここに任意のコマンドを書ける。その権限をシェルの許可と同等とみなす前提に立つ。`shell` は `actions.shell` が true で、呼び出し側の確認が通ったときだけ実行する（AG-7）
-- worktree・ブランチの操作は guide の手順と同じ形にする。claim は `branch` を記録し、名前の使い回しの検査（ST-3）で ref を取り込んで読むが、ブランチも worktree も作らないので、共有する実装はない
+- worktree・ブランチの操作は guide の手順と同じ形にし、core は worktree もブランチも作らない（claim は `branch` を記録する。ST-3）
 
 ### 索引はメモリ上に持つ
 
-- DB は使わない。起動時にファイルを走査してメモリ上に索引を作り、取り込み（sync）の後とリクエストごとに再走査して更新する。core はファイルを監視しない（VS Code 拡張はデータのファイルの変化を見張って画面を読み直す。UI-12）
-- 再走査はファイルごとの印を前回と比べ、変わったファイルだけを読み直す。更新の直後のファイルは印が同じでも読み直す（git の racy-clean と同じ考え方。細部は `core/storage/store.ts`）
+- DB は使わない。起動時にファイルを走査してメモリ上に索引を作り、再走査して更新する。core はファイルを監視しない（VS Code 拡張はデータのファイルの変化を見張って画面を読み直す。UI-12）
+- 再走査はファイルごとの印を前回と比べ、変わったファイルだけを読み直す（細部は `core/storage/store.ts`）
 
 ## 理由
 

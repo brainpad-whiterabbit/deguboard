@@ -11,21 +11,21 @@ deguboard はソフトウェア開発だけでなく、コンサルティング�
 
 ### Status は 5 つに固定する
 
-チケットの進捗は `status` の 1 軸で表し、値は全ワークフロー共通の 5 つ（`todo` / `in_progress` / `review` / `done` / `abandoned`）に固定する。前進の順は todo → in_progress → review → done で、`abandoned` は前進の軸の外の終端（WF-1）。
+チケットの進捗は `status` の 1 軸で表し、値は全ワークフロー共通の 5 つに固定する。前進の順は todo → in_progress → review → done で、`abandoned` は前進の軸の外の終端（WF-1）。
 
 - ワークフローは Status を増やせない。表示名（label）だけを変えられる
 - 工程（調査・実装・テストなど）はチケットの属性にしない。Run が `step` を持ち、「チケットがどこまで進んだか」と「Run が何をしたか」を分ける。工程をチケットに表示したいだけなら Workflow の `fields` で任意フィールドを足す
 
 ### 遷移は既定で自由にし、Workflow が制約を足す
 
-- 既定ではどの遷移も human / agent / reconcile の誰でも条件なしで行える。Core が固定するのは Status の集合と前進の順、同じ Status への move の拒否、`abandoned` と todo に入るときの副作用だけ（ST-2・ST-8）
+- 既定ではどの遷移も human / agent / reconcile の誰でも条件なしで行える。Core が固定するのは Status の集合と前進の順、遷移の副作用だけ（ST-2・ST-8）
 - Workflow の `transitions` は遷移ごとに主体（`by`）と条件（`requires`）の制約を足す（WF-1。例は requirements の 5.8）
 - 照合（reconcile）は遷移の制約とは別の仕様で、前進の順に進めるだけ（ST-4）。`by` に `reconcile` を含まない遷移は照合でも止まる
 - Workflow が縛るのはチケットの遷移だけ。Epic と Iteration の操作は ADR-009
 
 ### Workflow YAML は制約と語彙を書く
 
-ワークフロー定義（`workflows/<id>.yaml`）に書くのは、Status の表示名（`labels`）・遷移の制約（`transitions`）・Git の事実から状態を導く規則（`reconcile`）・任意フィールド（`fields`）・Run の step の語彙（`steps`）だけ。形と検証は requirements の 5.8（WF-1〜WF-6）。
+ワークフロー定義（`workflows/<id>.yaml`）に書くのは制約と語彙だけ。項目の一覧と形は requirements の 5.8（WF-1〜WF-6）と Zod のスキーマ（`core/model/workflow.ts`）が正本。
 
 書かないもの：
 
@@ -35,12 +35,11 @@ deguboard はソフトウェア開発だけでなく、コンサルティング�
 ### steps は語彙で、手続きではない
 
 - `steps` があれば `dg run start` は語彙にない step を拒否する。順や次の step は書かない
-- Action は名前で持ち、一覧は入口が渡す（ADR-007）。未知の Action は警告で、Workflow は索引に残す（古い版の dg が止まらない）
-- `approval` は承認の要否の記録だけで、今は強制しない
+- Action は名前で持ち、一覧は入口が渡す（ADR-007）。未知の Action で古い版の dg を止めない
 
 ### テンプレート
 
-業務ごとのテンプレートを CLI に同梱し、`dg init` がすべて置く（WF-4）。違いは `reconcile`・`fields`・`labels`・`steps` で、Status は共通。既にある Workflow の変更は `dg workflow set`（WF-6）で入れる。
+業務ごとのテンプレートを CLI に同梱し、`dg init` がすべて置く（WF-4）。Status は共通で、違いは定義の制約と語彙だけ。既にある Workflow の変更は `dg workflow set`（WF-6）で入れる。
 
 ## 理由
 
