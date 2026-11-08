@@ -31,7 +31,7 @@
 
 - チケット詳細ではタイトル・本文・Status・属性と受け入れ条件の印を直せる。設定画面はチームの `config.yaml` と個人の上書きを書く。同期（UI-6）は Git の事実に合わせるだけなので残す
 - ほかの書き込み（ドラッグでの移動、Iteration・Epic の作成・開始・閉じる・再開とチケットの足し外し、Plan の承認と閉じる）は画面に置かず、エージェントに頼む
-- 書き込みは CLI と同じ Core のコマンド（`core/commands`）と検査を通り、画面だけの近道を作らない。画面からの操作の主体は常に human（[ADR-004](ADR-004-agents-and-state.md)）
+- 書き込みは CLI と同じ Core のコマンド（`core/commands`）と検査を通り、画面だけの近道を作らない。画面からの操作の主体は常に human（[ADR-028](ADR-028-agents-and-state.md)）
 
 ### 設定はチームのファイルと個人の上書きで持ち、VS Code の settings.json を使わない
 
@@ -41,7 +41,7 @@
 ### 画面の操作のコミットはまとめる
 
 - `commit.mode` でコミットの単位を、`push.mode` で push の時期を選び、既定はまとめてコミットする `batch` にする
-- claim・作成・Iteration の開始と再開は、mode によらず即座にコミットして push する（排他と採番。[ADR-002](ADR-002-storage-and-id.md)・[ADR-004](ADR-004-agents-and-state.md)）
+- claim・作成・Iteration の開始と再開は、mode によらず即座にコミットして push する（排他と採番。[ADR-002](ADR-002-storage-and-id.md)・[ADR-028](ADR-028-agents-and-state.md)）
 
 ### ほかの変更はエージェントへの依頼文を作り、コピーか開いているターミナルへの送り込みで渡す
 

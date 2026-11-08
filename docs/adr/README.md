@@ -19,15 +19,15 @@
 | [ADR-025](ADR-025-runs-by-hooks.md)                 | Run は harness のフックが印で開け閉めし、step を終えた事実で閉じる                                  | エージェント       | 2026-11-08 |
 | [ADR-026](ADR-026-guard-pr-and-data.md)             | PR とデータを守る正しい道は dg のコマンドにし、フックは語の有無で粗く止め、すり抜けは事後に見つける | エージェント       | 2026-11-08 |
 | [ADR-027](ADR-027-screen-vscode-writes-and-asks.md) | 人の画面は VS Code 拡張にし、画面から書くのはチケット詳細と設定だけで、ほかはエージェントに頼む     | UI                 | 2026-11-08 |
-| [ADR-028](ADR-028-agents-and-state.md)             | ツールはエージェントを動かさず、状態はブランチの事実で進め、排他は claim の push で決める           | エージェントと照合 | 2026-11-08 |
-| [ADR-029](ADR-029-work-metrics.md)                 | 作業の使用量は Run ごとに公式の記録から実測し、数だけを Git に写す                                  | 作業の実績         | 2026-11-08 |
+| [ADR-028](ADR-028-agents-and-state.md)              | ツールはエージェントを動かさず、状態はブランチの事実で進め、排他は claim の push で決める           | エージェントと照合 | 2026-11-08 |
+| [ADR-029](ADR-029-work-metrics.md)                  | 作業の使用量は Run ごとに公式の記録から実測し、数だけを Git に写す                                  | 作業の実績         | 2026-11-08 |
 
 ## 置き換え済み
 
 | 番号                                                   | 置き換えた先                                        |
 | ------------------------------------------------------ | --------------------------------------------------- |
-| [ADR-004](ADR-004-agents-and-state.md)                 | [ADR-028](ADR-028-agents-and-state.md)  |
-| [ADR-005](ADR-005-work-metrics.md)                     | [ADR-029](ADR-029-work-metrics.md)      |
+| [ADR-004](ADR-004-agents-and-state.md)                 | [ADR-028](ADR-028-agents-and-state.md)              |
+| [ADR-005](ADR-005-work-metrics.md)                     | [ADR-029](ADR-029-work-metrics.md)                  |
 | [ADR-006](ADR-006-ui-and-writes.md)                    | [ADR-027](ADR-027-screen-vscode-writes-and-asks.md) |
 | [ADR-010](ADR-010-ui-writes-and-agent-requests.md)     | [ADR-027](ADR-027-screen-vscode-writes-and-asks.md) |
 | [ADR-012](ADR-012-hooks-open-runs.md)                  | [ADR-025](ADR-025-runs-by-hooks.md)                 |
