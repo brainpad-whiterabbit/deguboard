@@ -17,6 +17,7 @@ Git-native な AI ワークフロー・チケット管理ツール。CLI は `dg
 ツールとコマンドは mise に統一する（[mise.toml](mise.toml)、[ADR-008](docs/adr/ADR-008-tech-stack.md)）。始め方は [development.md の「開発の始め方」](docs/development.md#開発の始め方)。
 
 - コードや文書を変更したら、コミットの前に `mise run format` で整え、`mise run check` が通ることを確かめる
+- 作業の途中は `mise run test:related` で変えたファイルに関わるテストだけを回す。全体は、コミットの前の `mise run check` でだけ回す
 - 新しいタスクは mise.toml に足し、pnpm scripts を呼ぶだけにする。`pnpm run`・`npx` を直接案内しない
 
 ## コードの規約
