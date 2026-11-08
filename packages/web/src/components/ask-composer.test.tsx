@@ -519,18 +519,31 @@ describe("エージェントに頼む入力欄（UI-15）", () => {
         .queryAllByRole("button", { name: / を外す$/ })
         .map((b) => b.getAttribute("aria-label")!.replace(/ を外す$/, ""));
 
+    /** カンバンの Iteration の札（id）。描き直されると差し替わるので、使うたびに探す */
+    const iterationChip = (id: string) =>
+      within(screen.getByRole("group", { name: "Iteration" }))
+        .getAllByRole("button")
+        .find((b) => b.querySelector("code")?.textContent === id)!;
+
+    /**
+     * カンバンが対象（選んでいる Iteration）を知らせたのを待つ。札が押された状態は描いた後に出て、
+     * 知らせる効果（useAskCurrent）はその描画のあとに流れるので、札を見たうえで効果が流れきるまで待つ
+     */
+    const boardAnnounces = async (id: string) => {
+      await waitFor(() => expect(iterationChip(id).getAttribute("aria-pressed")).toBe("true"));
+      await act(async () => {});
+    };
+
     it("カンバンで選んでいる Iteration を対象にする（既定の active も、札で選んだ planned も）", async () => {
       const view = mountWebview(targetClient());
       await screen.findByText("見直す");
+      await boardAnnounces("s1");
       view.askCurrent();
       await waitFor(() => expect(chips()).toEqual(["s1"]));
 
-      // 開いていれば対象を入れ替える。ハッシュは代入した時点で変わるので、カンバンが描き直されて s2 の札が選ばれるのを待ってから頼む
+      // 開いていれば対象を入れ替える。ハッシュは代入した時点で変わるので、カンバンが描き直されて s2 の札が選ばれ、対象を知らせるのを待ってから頼む
       act(() => void (window.location.hash = "#/board?iteration=s2"));
-      const s2 = within(screen.getByRole("group", { name: "Iteration" }))
-        .getAllByRole("button")
-        .find((b) => b.querySelector("code")?.textContent === "s2")!;
-      await waitFor(() => expect(s2.getAttribute("aria-pressed")).toBe("true"));
+      await boardAnnounces("s2");
       view.askCurrent();
       await waitFor(() => expect(chips()).toEqual(["s2"]));
     });
