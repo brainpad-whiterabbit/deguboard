@@ -55,7 +55,7 @@ Run "deguboard: Go to Ticket" from the Command Palette, or press `Ctrl+K Ctrl+Al
 
 ### Use the keyboard
 
-Rows in the sidebar (board, backlog, and history) work without a mouse. When you Tab into a list, only the current row is focusable, and a single Tab leaves the list. In the browser, Space and a also work on history rows.
+Rows in the sidebar (board, backlog, and history) work without a mouse. When you Tab into a list, only the current row is focusable, and a single Tab leaves the list.
 
 | Key              | Action                                                                                                |
 | ---------------- | ----------------------------------------------------------------------------------------------------- |
@@ -133,17 +133,16 @@ mkdir -p ~/.local/bin && ln -sf "$PWD/packages/cli/bin/dg.js" ~/.local/bin/dg   
 
 To install the VSIX by hand, run `code --install-extension packages/vscode/deguboard-vscode.vsix` after `mise run vsix`.
 
-### Use it from the browser and CLI
+### Use the CLI
 
-Without VS Code, you can view the same board in a browser (the Run tab also shows aggregated actuals).
+Without VS Code, you can run the same operations from the `dg` command.
 
 ```sh
-dg serve --open               # open the board at 127.0.0.1:7474
 dg ticket create "Validate login" --summary "Check the input" --acceptance "Reject empty input"
 dg ticket list                # --json for machine-readable output
 ```
 
-Without installing Skills, you can make the same requests by pasting text made with `dg ask --format text`, or with the ask popup in the UI, into your agent.
+Without installing Skills, you can make the same requests by pasting text made with `dg ask --format text` into your agent.
 
 ### Use it from Claude Desktop (MCP)
 

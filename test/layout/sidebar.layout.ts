@@ -25,7 +25,7 @@ const WIDTHS = [300, 260];
 const SCHEMES = ["light", "dark"] as const;
 /**
  * サイドバーで出す画面。履歴は閉じた Iteration の行（目標の長いものを含む）を出す。
- * Run の画面はブラウザだけに置き、左パネルには出さない（UI-9・UI-12。#/runs はカンバンとして開く）ので含めない
+ * Run の画面はブラウザだけに置き、左パネルには出さない（UI-12。#/runs はカンバンとして開く）ので含めない
  */
 const PAGES = ["#/board", "#/backlog", "#/epics/e1", "#/history"];
 /** 左パネルのタブの数（カンバン・バックログ・履歴。Run のタブは出さない。UI-12） */
