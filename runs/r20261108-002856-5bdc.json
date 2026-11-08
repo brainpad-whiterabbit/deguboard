@@ -1,0 +1,32 @@
+{
+  "id": "r20261108-002856-5bdc",
+  "ticket": "t536",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-08T00:28:56Z",
+  "finished_at": "2026-11-08T00:31:39Z",
+  "result": "success",
+  "error": null,
+  "retries": 1,
+  "retry_reasons": [
+    "Git が無視するビルドの成果物まで要件 ID を検査して誤検出する"
+  ],
+  "usage": {
+    "input": 28,
+    "output": 16085,
+    "cache_read": 2404190,
+    "cache_write": 29952
+  },
+  "tools": {
+    "read": 4,
+    "search": 0,
+    "write": 11,
+    "bash": 5,
+    "other": 0,
+    "read_before_write": 1,
+    "search_before_write": 0
+  },
+  "session": null,
+  "review": null
+}

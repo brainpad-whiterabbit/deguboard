@@ -1,0 +1,33 @@
+{
+  "id": "r20261108-002858-d7bb",
+  "ticket": "t543",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-08T00:28:58Z",
+  "finished_at": "2026-11-08T00:33:46Z",
+  "result": "success",
+  "error": null,
+  "retries": 2,
+  "retry_reasons": [
+    "前景の見直しで review-result が古い Run に書かれて失われる",
+    "サブエージェントの claim ではセッションが分からず fix の側が働かない"
+  ],
+  "usage": {
+    "input": 42,
+    "output": 17395,
+    "cache_read": 3152555,
+    "cache_write": 28130
+  },
+  "tools": {
+    "read": 8,
+    "search": 0,
+    "write": 22,
+    "bash": 9,
+    "other": 0,
+    "read_before_write": 0,
+    "search_before_write": 0
+  },
+  "session": null,
+  "review": null
+}
