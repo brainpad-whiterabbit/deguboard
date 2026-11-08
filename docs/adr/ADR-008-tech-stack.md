@@ -35,7 +35,7 @@
 - 整形は oxfmt（`.oxfmtrc.json`）。既定の設定から始める
 - ESLint・Prettier・Biome は入れない
 - 版は package.json に固定する
-- oxlint は、新しい版で増えた React Compiler 系の規則（`react(immutability)`）が web の既存コードで失敗するので上げずに留める。直す作業を起こしてから上げる
+- ※ ADR-024 で置き換え（この項は失効）。oxlint は、新しい版で増えた React Compiler 系の規則（`react(immutability)`）が web の既存コードで失敗するので上げずに留める。直す作業を起こしてから上げる
 
 ### 画面（web）は依存を少なく
 
