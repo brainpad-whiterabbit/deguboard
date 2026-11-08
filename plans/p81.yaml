@@ -1,0 +1,75 @@
+id: p81
+project: default
+tickets: [t568, t569, t570, t571, t572, t573, t574, t575, t576, t577, t578, t579, t580]
+after:
+  t571:
+    - t570
+  t572:
+    - t571
+  t574:
+    - t571
+  t575:
+    - t571
+  t576:
+    - t575
+  t577:
+    - t576
+    - t573
+  t578:
+    - t577
+  t579:
+    - t578
+pending_approval: true
+details:
+  t568:
+    scope: ADR-001 を直接改訂し、ADR を書く場面・細部を消す道・まとめ直し・置き換え済みの本文の削り方・要件の 1 項の上限を決め、CLAUDE.md と adr/README.md を合わせる
+    approach: 受け入れ条件の 5 つの決定を ADR-001 の節に書き、上限の値は今の requirements.md の項の字数を測って決める
+    tier: heavy
+  t569:
+    scope: guide-import・work・review・audit と brief.ts の implement・review の文に ADR-001 の基準を写す
+    approach: 各 guide の該当の段落を直し、brief.ts の文を変えたら brief.test.ts の期待を合わせる
+    tier: standard
+  t570:
+    scope: ADR-012〜018・022 を 1 本の置き換えの ADR にまとめ、ADR-004・005 の Run の項に失効の印を付け、コードとテストの参照を張り替える
+    approach: hook.ts・run.ts・record.ts の今の振る舞いから残す判断を抜き出して新しい ADR に書き、grep で ADR-012〜018・022 の参照を洗って張り替える
+    tier: heavy
+  t571:
+    scope: ADR-019〜021 を 1 本にまとめ、ADR-004 の項の印とコードとテストの参照を合わせる
+    approach: pr.ts・gate.ts・outside.ts の今の振る舞いから判断と退けた案を書き、grep で参照を張り替える
+    tier: standard
+  t572:
+    scope: ADR-006・010・023 を VS Code を入口とする 1 本にまとめ、参照を張り替える
+    approach: ask.ts と web の画面の今の振る舞いから構成・書き込み・依頼・入口の判断を書き、grep で参照を張り替える
+    tier: standard
+  t573:
+    scope: ADR-002・003・007 の決定の節から正本のある細部を削る。判断・理由・更新日は変えない
+    approach: 削る細部ごとにコード・テスト・ヘルプの正本を grep で確かめ、見つからないものは残して PR に挙げる
+    tier: light
+  t574:
+    scope: ADR-004・005・008 の細部と「予定。実装は tNNN」を削り、版の理由は設定のコメントか development.md に移す
+    approach: t573 と同じく正本を確かめて削り、版の理由は mise.toml・package.json のコメントか development.md へ移す
+    tier: standard
+  t575:
+    scope: requirements.md 6.5 の AG-1〜AG-9 を約束と正本への案内にし、hook のテストから AG-9 を指す
+    approach: 各項の細部がテストかヘルプにあるかを確かめてから削り、無ければテストを足すか残す
+    tier: standard
+  t576:
+    scope: requirements.md 5.9 と 6.6 を約束と案内にし、手直しの Run を閉じる規則と 30 日の規則を 1 か所以下にする
+    approach: t575 と同じ進め方で、重なる規則は約束を 1 か所に残して他は ID の参照にする
+    tier: standard
+  t577:
+    scope: requirements.md 6.1〜6.3・6.7 を約束と案内にし、e15 の注記を消し、outside から SY-7 を指す
+    approach: t575 と同じ進め方で、ID と見出しのアンカーを保つ
+    tier: standard
+  t578:
+    scope: requirements.md 5.1〜5.8・5.10・6.4 を約束と案内にし、ADR と重なる文を消す
+    approach: t575 と同じ進め方で、5.8 の steps の例は Workflow のテンプレートの案内に置き換える
+    tier: standard
+  t579:
+    scope: requirements.md の 7 章から機能要件と重なる NF を消し、4・8 章を 1 行ずつにする
+    approach: 消す NF の ID を grep で洗い、参照を機能要件の ID に替えてから消す。番号は再利用しない
+    tier: standard
+  t580:
+    scope: check:docs に要件の 1 項の上限の検査と、置き換え済みの ADR への参照の検査を足す
+    approach: scripts/check-docs.mjs に 2 つの検査を足し、test/scripts/check-docs.test.ts に通る例と落ちる例を書く
+    tier: standard
