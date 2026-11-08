@@ -183,7 +183,7 @@ export interface Reconciled {
 /**
  * 開いたままの手直しの Run（もう一度の claim が開いた step。RN-5）を閉じる区切り（RN-6）。手直しにはチケットの操作がないので、
  * 照合が区切りを見たときに、それまでの最後の push の時刻で閉じる。
- *   - 同じチケットの次の Run の開始（実行中・終わったものを問わず、手直しの Run より後に始まったもの）
+ *   - 同じチケットの次の Run の開始（実行中・終わったものを問わず、手直しの Run と同じ秒か後に始まったもの。普段は開いた openRun が先に閉じている）
  *   - PR の ready（review への前進）・マージ（done への前進）。照合が今回進めるときに見る
  *   - チケットが終わっている（別のマシンの照合や ticket move で done・abandoned になっていた）
  * 区切りがなければ undefined
@@ -197,7 +197,7 @@ function fixRunBoundary(
 ): { at?: string | undefined; why: string } | undefined {
   const later = [...running, ...ctx.store.runs.values()]
     .filter((r) => r.id !== run.id && r.data.ticket === ticket.id)
-    .filter((r) => r.data.started_at > run.data.started_at)
+    .filter((r) => r.data.started_at >= run.data.started_at)
     .sort((a, b) => a.data.started_at.localeCompare(b.data.started_at))[0];
   if (later) return { at: later.data.started_at, why: `次の Run ${later.id} の開始` };
   if (advanced) return { why: `${ticket.status} への前進` };
@@ -435,7 +435,7 @@ export const sync = defineCommand({
   name: "sync",
   group: "setup",
   summary:
-    "リモートの deguboard を取り込み、未 push のコミットを送り、作業ブランチの事実でチケットの状態を進める。作業ブランチの PR を見つけたら、このマシンで実行中の実装の Run を success で閉じる（finished_at は PR の作成時刻）。開いたままの手直しの Run は、次の区切り（同じチケットの次の Run の開始・PR の ready・マージ・チケットの終了）を見たときに、それまでの最後の push の時刻で success にする。終わったチケットに開いたままの実装の Run は ticket move と同じ結果で閉じる（abandoned は failure、PR のない done は success。PR のある done は PR の作成時刻で success）。todo に戻ったチケットか別の主体の claim になったチケットの実装の Run は failure で閉じる。" +
+    "リモートの deguboard を取り込み、未 push のコミットを送り、作業ブランチの事実でチケットの状態を進める。作業ブランチの PR を見つけたら、このマシンで実行中の実装の Run を success で閉じる（finished_at は PR の作成時刻）。開いたままの手直しの Run は、次の区切り（同じチケットの次の Run の開始（手直しの Run と同じ秒を含む）・PR の ready・マージ・チケットの終了）を見たときに、それまでの最後の push の時刻で success にする（次の Run の開始は、その Run を開いた claim・run start・フックが先に閉じている。照合は閉じ損ねたものを拾う）。終わったチケットに開いたままの実装の Run は ticket move と同じ結果で閉じる（abandoned は failure、PR のない done は success。PR のある done は PR の作成時刻で success）。todo に戻ったチケットか別の主体の claim になったチケットの実装の Run は failure で閉じる。" +
     "記録の書き終わりを待ちきれずに残したサブエージェントの Run（書き終わり待ちの印 settling_since のあるもの）も、書き終わっていれば閉じる（見直しの Run のうち、sync のセッションと別のセッションのものは閉じない。次の見直しの起動が閉じる）",
   input: z.object({}),
   write: true,

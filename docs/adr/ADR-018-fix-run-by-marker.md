@@ -18,7 +18,7 @@
 ### 手直しの Run も印で開く
 
 - 手直しを頼む文（`dg brief --role fix`）の最初の行に、印 `deguboard: ticket=<id> step=<手直しの step>` を置く。手直しの step は Workflow の `opens_on: reclaim` の step（なければ `fix`）
-- 起動のフックは、印の step が手直しの step なら、開いたままの前の手直しの Run を区切りとして閉じてから新しい Run を開く。閉じ方はもう一度の claim と同じ規則で、前の Run の開始より後で区切りまでの最後の push の時刻で `success`（push がなければ区切りの時刻）、前の Run が別のセッションのものなら `interrupted`（[ADR-015](ADR-015-interrupt-stale-session-runs.md)）。区切りは起動の時刻で、前景の起動では終わった時刻からかかった時間を引いた時刻（[ADR-017](ADR-017-review-result-binding-edge-cases.md) の補いを含む）。開いている手直しの Run は、いつも 1 本になる
+- ※ ADR-022 で置き換え（この項の「起動のフックは、印の step が手直しの step なら、」の部分は失効）。起動のフックは、印の step が手直しの step なら、開いたままの前の手直しの Run を区切りとして閉じてから新しい Run を開く。閉じ方はもう一度の claim と同じ規則で、前の Run の開始より後で区切りまでの最後の push の時刻で `success`（push がなければ区切りの時刻）、前の Run が別のセッションのものなら `interrupted`（[ADR-015](ADR-015-interrupt-stale-session-runs.md)）。区切りは起動の時刻で、前景の起動では終わった時刻からかかった時間を引いた時刻（[ADR-017](ADR-017-review-result-binding-edge-cases.md) の補いを含む）。開いている手直しの Run は、いつも 1 本になる
 - 手直しのサブエージェントは claim しない。人や親が自分で直すときのもう一度の claim（`ticket claim <id> --retry-reason …`）は今のまま残す
 - 手直しは、いつも新しいサブエージェントを印付きの文で起動して頼む。同じ会話の続き（Claude Code の SendMessage）では起動のフック（PostToolUse、matcher は Agent）が来ず、印が読まれないので、手直しの Run が開かない
 

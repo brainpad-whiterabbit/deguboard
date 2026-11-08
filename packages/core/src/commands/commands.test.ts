@@ -11,11 +11,12 @@ import {
 import { UsageError } from "../errors.js";
 import { pickUser } from "../model/actor.js";
 import { configFields, defaultConfig } from "../model/config.js";
+import type { TicketId } from "../model/id.js";
 import type { RunId } from "../model/run.js";
 import { resetGhCache } from "../git/facts.js";
 import { recordBaseline } from "../git/outside.js";
 import { osUserName } from "../git/repo.js";
-import { closeRun, peekRunningRuns } from "../run/record.js";
+import { closeRun, peekRunningRuns, startRun } from "../run/record.js";
 import { openContext, type ContextOptions } from "./context.js";
 import { runCommand, type CommandContext } from "./define.js";
 import { epicAdd, epicClose, epicCreate, epicReopen, epicShow, epicUpdate } from "./epic.js";
@@ -1261,7 +1262,7 @@ describe("チケットの流れ", () => {
       clock = new Date("2026-11-06T02:30:00Z");
       const third = await runCommand(ticketClaim, agent, { ticket: "t1" });
       expect(third.warnings).toContainEqual(
-        `t1: 前の手直しの Run ${fix2} を、この claim を区切りとして、push がないのでこの claim の時刻で閉じる`,
+        `t1: 前の手直しの Run ${fix2} を、次の fix の Run の開始を区切りとして、push がないので開始の時刻で閉じる`,
       );
       expect(agent.store.runs.get(fix2)!.data).toMatchObject({
         result: "success",
@@ -1317,7 +1318,7 @@ describe("チケットの流れ", () => {
       clock = new Date("2026-11-06T03:00:00Z");
       const third = await runCommand(ticketClaim, agent, { ticket: "t1", session: "s-new" });
       expect(third.warnings).toContainEqual(
-        `t1: 前の手直しの Run ${fix2} を、この claim を区切りとして、push がないのでこの claim の時刻で閉じる`,
+        `t1: 前の手直しの Run ${fix2} を、次の fix の Run の開始を区切りとして、push がないので開始の時刻で閉じる`,
       );
       expect(agent.store.runs.get(fix2)!.data).toMatchObject({ result: "success", error: null });
       // --session を省けば、フックが環境に入れた DEGUBOARD_SESSION と比べる
@@ -1782,7 +1783,10 @@ describe("チケットの流れ", () => {
       // t4 の PR は draft のまま（上限を超えて人を待つ形）なので in_progress のまま
       expect(agent.store.tickets.get("t4")!.data.status).toBe("in_progress");
 
-      // 区切り 1：同じチケットの次の Run（review）の開始。finished_at はそれまでの最後の push
+      // 区切り 1：同じチケットの次の Run（review）の開始。finished_at はそれまでの最後の push。
+      // 次の Run は普段は開いた openRun が前の手直しを閉じるので、ここでは閉じずに開いた形（別のマシン・前の版の dg）を startRun で作る
+      const openWithoutClosing = async (ticket: TicketId, step: string) =>
+        (await startRun(agent.repo, { ticket, step, agent: "claude-code", now: clock })).id;
       clock = new Date("2026-11-06T01:00:00Z");
       const fix1 = (await runCommand(ticketClaim, agent, { ticket: "t1", retry_reasons: ["A"] }))
         .data.run!;
@@ -1790,9 +1794,7 @@ describe("チケットの流れ", () => {
       // 区切りがなければ閉じない
       expect((await runCommand(sync, agent, {})).data.runs_closed).toEqual([]);
       clock = new Date("2026-11-06T02:00:00Z");
-      const review = (
-        await runCommand(runStart, agent, { ticket: "t1", step: "review", agent: "claude-code" })
-      ).data.id;
+      const review = await openWithoutClosing("t1", "review");
       clock = new Date("2026-11-06T02:10:00Z");
       const synced = await runCommand(sync, agent, {});
       expect(synced.data.reconciled).toEqual([]);
@@ -1828,9 +1830,7 @@ describe("チケットの流れ", () => {
       const fix4 = (await runCommand(ticketClaim, agent, { ticket: "t3", retry_reasons: ["E"] }))
         .data.run!;
       clock = new Date("2026-11-06T04:40:00Z");
-      const review3 = (
-        await runCommand(runStart, agent, { ticket: "t3", step: "review", agent: "claude-code" })
-      ).data.id;
+      const review3 = await openWithoutClosing("t3", "review");
       restore();
       restore = await fakeGh(f.root, {
         "feat/t1|41":
@@ -2000,7 +2000,86 @@ describe("チケットの流れ", () => {
     expect(agent.store.tickets.get("t5")!.data.status).toBe("in_progress");
   });
 
-  it("見直しの修正ループの手直しは、draft の PR を記録した in_progress のチケットのもう一度の claim（--retry-reason）が fix の Run を開き、照合が次の見直しの開始と PR の ready を区切りとして push の時刻で閉じる（RN-5・RN-6）", async () => {
+  it("run start は、同じチケットの開いたままの手直しの Run を、手直しと同じ秒の開始も区切りとして閉じてから始める。手直しでない step では別のセッションの手直しも success。照合も同じ秒の次の Run を区切りに数える（RN-6・ADR-022）", async () => {
+    const f = await fixture();
+    let clock = new Date("2026-11-06T00:00:00Z");
+    const human = await initialized(
+      f.cloneA,
+      { now: () => clock },
+      { template: "software-development" },
+    );
+    await runCommand(ticketCreate, human, { title: "Run start closes fix" });
+    const agent = await agentWithRuns(f.cloneA, () => clock);
+    await runCommand(ticketClaim, agent, { ticket: "t1", branch: "feat/t1", no_run: true });
+    await git(f.cloneA, ["branch", "feat/t1"]);
+    const restore = await fakeGh(f.root, {
+      "feat/t1|41":
+        '{"number":41,"state":"OPEN","isDraft":true,"mergedAt":null,"createdAt":"2026-11-06T00:20:00Z"}',
+    });
+    const start = (step: string, session: string) =>
+      runCommand(runStart, agent, { ticket: "t1", step, agent: "claude-code", session });
+    try {
+      clock = new Date("2026-11-06T00:30:00Z");
+      await runCommand(ticketUpdate, agent, { ticket: "t1", pr: 41 });
+      // 別のセッションで開いた手直しの Run も、見直しの run start は success で閉じる。開始が手直しと同じ秒でも区切り
+      clock = new Date("2026-11-06T01:00:00Z");
+      const fix1 = (await start("fix", "s-old")).data.id;
+      const review1 = await start("review", "s-new");
+      expect(review1.warnings).toContainEqual(
+        `t1: 前の手直しの Run ${fix1} を、次の review の Run の開始を区切りとして、push がないので開始の時刻で閉じる`,
+      );
+      expect(agent.store.runs.get(fix1)!.data).toMatchObject({
+        result: "success",
+        error: null,
+        finished_at: "2026-11-06T01:00:00Z",
+      });
+      expect((await peekRunningRuns(agent.repo)).map((r) => r.id)).toEqual([review1.data.id]);
+      await runCommand(runFinish, agent, { run: review1.data.id, result: "success" });
+      // 同じセッションの手直しも、見直しの run start は success で閉じる
+      clock = new Date("2026-11-06T01:30:00Z");
+      const fixSame = (await start("fix", "s-new")).data.id;
+      clock = new Date("2026-11-06T01:40:00Z");
+      const reviewSame = (await start("review", "s-new")).data.id;
+      expect(agent.store.runs.get(fixSame)!.data).toMatchObject({
+        result: "success",
+        error: null,
+        finished_at: "2026-11-06T01:40:00Z",
+      });
+      await runCommand(runFinish, agent, { run: reviewSame, result: "success" });
+
+      // 照合も、手直しと同じ秒に始まった次の Run を区切りに数える（閉じずに開いた形（別のマシン・前の版の dg）を startRun で作る）
+      clock = new Date("2026-11-06T02:00:00Z");
+      const fix2 = (await start("fix", "s-new")).data.id;
+      const review2 = (
+        await startRun(agent.repo, {
+          ticket: "t1",
+          step: "review",
+          agent: "claude-code",
+          now: clock,
+        })
+      ).id;
+      clock = new Date("2026-11-06T02:10:00Z");
+      const synced = await runCommand(sync, agent, {});
+      expect(synced.data.runs_closed).toEqual([
+        { id: "t1", run: fix2, opener: "reclaim", result: "success" },
+      ]);
+      expect(synced.warnings).toContainEqual(
+        `t1: 次の Run ${review2} の開始を区切りとして閉じた（区切りまでの push がないので区切りの時刻）`,
+      );
+      expect(agent.store.runs.get(fix2)!.data.finished_at).toBe("2026-11-06T02:00:00Z");
+
+      // 手直しの step の run start を重ねると、前の手直しを閉じずに拒む（二重起動の拒否。SY-5）
+      clock = new Date("2026-11-06T03:00:00Z");
+      const fix3 = (await start("fix", "s-new")).data.id;
+      clock = new Date("2026-11-06T03:10:00Z");
+      await expect(start("fix", "s-new")).rejects.toThrow(`Run ${fix3} が実行中`);
+      expect((await peekRunningRuns(agent.repo)).map((r) => r.id)).toContain(fix3);
+    } finally {
+      restore();
+    }
+  });
+
+  it("見直しの修正ループの手直しは、draft の PR を記録した in_progress のチケットのもう一度の claim（--retry-reason）が fix の Run を開き、次の見直しの run start と照合の PR の ready が区切りとして push の時刻で閉じる（RN-5・RN-6・ADR-022）", async () => {
     const f = await fixture();
     let clock = new Date("2026-11-06T00:00:00Z");
     const human = await initialized(
@@ -2049,19 +2128,21 @@ describe("チケットの流れ", () => {
       clock = new Date("2026-11-06T01:25:00Z");
       expect((await runCommand(sync, agent, {})).data.runs_closed).toEqual([]);
 
-      // 見直し直しの review の Run の開始が区切り。finished_at は手直しの最後の push の時刻
+      // 見直し直しの review の Run の開始が区切り。run start がその場で閉じ、finished_at は手直しの最後の push の時刻（ADR-022）
       clock = new Date("2026-11-06T01:30:00Z");
-      const review2 = (
-        await runCommand(runStart, agent, { ticket: "t1", step: "review", agent: "claude-code" })
-      ).data.id;
-      clock = new Date("2026-11-06T01:35:00Z");
-      const afterReview = await runCommand(sync, agent, {});
-      expect(afterReview.data.runs_closed).toEqual([
-        { id: "t1", run: fix1, opener: "reclaim", result: "success" },
-      ]);
-      expect(afterReview.warnings).toContainEqual(
-        `t1: 次の Run ${review2} の開始を区切りとして閉じた（最後の push の時刻）`,
+      const started = await runCommand(runStart, agent, {
+        ticket: "t1",
+        step: "review",
+        agent: "claude-code",
+      });
+      const review2 = started.data.id;
+      expect(started.warnings).toContainEqual(
+        `t1: 前の手直しの Run ${fix1} を、次の review の Run の開始を区切りとして最後の push の時刻で閉じる`,
       );
+      expect((await peekRunningRuns(agent.repo)).map((r) => r.id)).toEqual([review2]);
+      // 閉じた後の照合は何も閉じない
+      clock = new Date("2026-11-06T01:35:00Z");
+      expect((await runCommand(sync, agent, {})).data.runs_closed).toEqual([]);
       expect(agent.store.runs.get(fix1)!.data).toMatchObject({
         step: "fix",
         result: "success",
