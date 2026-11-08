@@ -166,7 +166,7 @@ describe("フックの印", () => {
   });
 });
 
-describe("dg hook（ADR-025）", () => {
+describe("dg hook（AG-9・ADR-025）", () => {
   it("SessionStart は以後の Bash の環境に export 付きで主体・セッション ID・記録のパスを書く", async () => {
     const { ctx, home, parent } = await prepared();
     const envFile = path.join(home, "env.sh");
@@ -1194,7 +1194,7 @@ describe("入力の項目と parseHook の読み方（t542）", () => {
   });
 });
 
-describe("PreToolUse（t532）", () => {
+describe("PreToolUse（AG-9・t532）", () => {
   it("Bash は .git/deguboard の語があれば、書くものも読むだけのものも、引用符・コメントの中でも止め、語のないものは通す（t546）", () => {
     for (const c of [
       // 書くもの（t532 で見分けていた形）
