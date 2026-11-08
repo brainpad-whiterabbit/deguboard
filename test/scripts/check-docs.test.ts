@@ -3,6 +3,7 @@
 // 要件 ID・先頭コメント・guide の重複の検査が落ちることも確かめる（t536）。
 // 節を消して定義がなくなった接頭辞の参照は、接頭辞の一覧から拾って落ちることも確かめる（t552）。
 // 段落の重複は guide だけでなく README・CLAUDE.md・docs の正本の外の文書も見る（t551）。
+// 「dg guide <topic> の「<節>」」の節が guide-<topic>.md の見出しに無いと落ちる（t561）。
 // スクリプトは自分の置き場所の親をルートとして読むので、検査に要るファイルを一時ディレクトリに写して動かす。
 // 調べるファイルは git の追跡と無視の規則で決まるので、一時ディレクトリは git init して .gitignore も写す。
 // 写さないファイルへのリンクの切れも出るので、確かめる指摘だけを見る
@@ -324,6 +325,80 @@ describe("check-docs の要件 ID・先頭コメント・guide の重複（t536�
     expect(stderr).toMatch(
       /packages\/cli\/src\/guide-plan\.md, packages\/cli\/src\/guide-work\.md: 見出し「長い節」の節の本文が同じ/,
     );
+  });
+});
+
+describe("check-docs の dg guide の節の参照（t561）", () => {
+  async function append(rel: string, text: string): Promise<void> {
+    await writeFile(join(dir, rel), `${await readFile(join(dir, rel), "utf8")}\n${text}\n`);
+  }
+
+  it("写したままなら節の参照の指摘は出ない", async () => {
+    const { stderr } = await run();
+    expect(stderr).not.toMatch(/dg guide [a-z-]+ に「.+」の見出しがない/);
+  });
+
+  it("文書の「dg guide <topic> の「<節>」」が guide の見出しに無いと、場所を出して落ちる", async () => {
+    await append(
+      "docs/development.md",
+      "切れた参照の確かめ：`dg guide work` の「存在しない節」を見る。",
+    );
+    const { code, stderr } = await run();
+    expect(code).toBe(1);
+    expect(stderr).toMatch(
+      /docs\/development\.md:\d+: dg guide work に「存在しない節」の見出しがない/,
+    );
+  });
+
+  it("切れた参照を直すと、その指摘は出ない", async () => {
+    await append(
+      "docs/development.md",
+      "切れた参照の確かめ：`dg guide work` の「存在しない節」を見る。",
+    );
+    await rewrite("docs/development.md", /存在しない節/, "流れ");
+    const { stderr } = await run();
+    expect(stderr).not.toMatch(/dg guide [a-z-]+ に「.+」の見出しがない/);
+  });
+
+  it("「と「…」」で続く 2 つ目の節が切れていても落ちる", async () => {
+    await append(
+      "packages/cli/src/guide-plan.md",
+      "参照の確かめ：`dg guide work` の「流れ」と「存在しない節」を見る。",
+    );
+    const { code, stderr } = await run();
+    expect(code).toBe(1);
+    expect(stderr).toMatch(/guide-plan\.md:\d+: dg guide work に「存在しない節」の見出しがない/);
+  });
+
+  it("見出しの一部だけの名前（「流」）は一致しないので落ちる", async () => {
+    await append("docs/development.md", "参照の確かめ：`dg guide work` の「流」を見る。");
+    const { code, stderr } = await run();
+    expect(code).toBe(1);
+    expect(stderr).toContain("dg guide work に「流」の見出しがない");
+  });
+
+  it("guide の無いトピックへの参照は、guide のファイルがないと落ちる", async () => {
+    await append("docs/development.md", "参照の確かめ：`dg guide nope` の「流れ」を見る。");
+    const { code, stderr } = await run();
+    expect(code).toBe(1);
+    expect(stderr).toMatch(
+      /docs\/development\.md:\d+: dg guide nope の guide-nope\.md がない（「流れ」を指す）/,
+    );
+  });
+
+  it("「（…）」の補足を除いた名前と、節の中の太字の項目・手の名前は節と見なし、落とさない", async () => {
+    await append(
+      "docs/development.md",
+      "参照の確かめ：`dg guide work` の「実装する」と、`dg guide review` の「見る」を見る。`dg guide work` の「ready」の手も同じ。",
+    );
+    const { stderr } = await run();
+    expect(stderr).not.toMatch(/dg guide [a-z-]+ に「.+」の見出しがない/);
+  });
+
+  it("コードブロックの中の参照は見ない", async () => {
+    await append("docs/development.md", "```\n`dg guide work` の「存在しない節」\n```");
+    const { stderr } = await run();
+    expect(stderr).not.toContain("存在しない節");
   });
 });
 
