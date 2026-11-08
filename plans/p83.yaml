@@ -7,7 +7,7 @@ after:
   t589:
     - t587
     - t588
-pending_approval: true
+pending_approval: false
 details:
   t587:
     scope: SYNC_CONFLICT と競合の警告・記録前にマージされた PR の警告・Run の lint 2 種の文に手を書き足す。guide は消さない
@@ -21,3 +21,5 @@ details:
     scope: check・assign・plan・done・import・review だけ。work・all・audit・release・run・parallel は触らない
     approach: t588 と同じ対応表と場面の比べ方。check:docs の節の参照が切れないよう見出しは変えない
     tier: standard
+approved_by: maji/agent
+approved_at: 2026-11-08T21:40:22Z
