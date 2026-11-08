@@ -90,7 +90,7 @@ description = "ビルド済みの dg を動かす。例: mise run dg -- ticket l
 run = "pnpm run dg"
 
 [tasks."check:docs"]
-description = "文書の重複と参照の切れを検査する。guide の節の重複・文書どうしの同じ段落・ADR 一覧の整合・リンクとアンカーの切れ・拡張と Walkthrough が指す README の見出し・README.ja.md の節の構成のずれ・コードの要件 ID と先頭コメントの参照・文書と packages の .ts・.tsx の文字列とコメントの「dg guide <topic> の「節」」と英語の「the \"節\" section of dg guide <topic>」の参照（guide の見出し（括弧の補足を除いた名前を含む）と、節の中の太字の項目・一覧の先頭のコードと照らす）"
+description = "文書の重複と参照の切れを検査する。guide の節の重複・文書どうしの同じ段落・ADR 一覧の整合・リンクとアンカーの切れ・拡張と Walkthrough が指す README の見出し・README.ja.md の節の構成のずれ・コードの要件 ID と先頭コメントの参照・要件の 1 項の上限（250 字）・コードとテストが指す置き換え済みの ADR・文書と packages の .ts・.tsx の文字列とコメントの「dg guide <topic> の「節」」と英語の「the \"節\" section of dg guide <topic>」の参照（guide の見出し（括弧の補足を除いた名前を含む）と、節の中の太字の項目・一覧の先頭のコードと照らす）"
 run = "pnpm run check:docs"
 
 [tasks.check]
