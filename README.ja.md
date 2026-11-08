@@ -55,7 +55,7 @@ Activity Bar の deguboard のアイコンでカンバンが開きます。上�
 
 ### キーボードで操作する
 
-サイドバーの行（カンバン・バックログ・履歴）はマウスなしで操作できます。Tab で一覧に入ると、移れる行は今の 1 行だけで、Tab を 1 回押すと一覧を抜けます。Space と a は、ブラウザの画面では履歴の行でも使えます。
+サイドバーの行（カンバン・バックログ・履歴）はマウスなしで操作できます。Tab で一覧に入ると、移れる行は今の 1 行だけで、Tab を 1 回押すと一覧を抜けます。
 
 | キー               | 動き                                                                                           |
 | ------------------ | ---------------------------------------------------------------------------------------------- |
@@ -74,7 +74,7 @@ Activity Bar の deguboard のアイコンでカンバンが開きます。上�
 
 ### エージェントに頼む
 
-行の吹き出しを押して頼むことを選び、コピーした依頼文をエージェントに貼ります。Claude Code 以外には形式を「文章」にします。VS Code では、開いているターミナルを選んで「送る」こともできます。1 行は Enter を押さずに入力へ入ります。複数行は VS Code の貼り付けで入れ、確認が出たら貼り付けるかを選んでください。入力が貼り付けに対応しないと、行ごとに実行されることがあります。
+行の吹き出しを押して頼むことを選び、コピーした依頼文をエージェントに貼ります。Claude Code 以外には形式を「文章」にします。開いているターミナルを選んで「送る」こともできます。1 行は Enter を押さずに入力へ入ります。複数行は VS Code の貼り付けで入れ、確認が出たら貼り付けるかを選んでください。入力が貼り付けに対応しないと、行ごとに実行されることがあります。
 
 <img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/ask-agent.gif" alt="エージェントに頼む" width="560">
 
@@ -133,17 +133,16 @@ mkdir -p ~/.local/bin && ln -sf "$PWD/packages/cli/bin/dg.js" ~/.local/bin/dg   
 
 VSIX を手で入れるときは、`mise run vsix` の後に `code --install-extension packages/vscode/deguboard-vscode.vsix` を実行します。
 
-### ブラウザと CLI で使う
+### CLI で使う
 
-VS Code がなくても、ブラウザで同じボードを見られます（Run のタブで実績の集計も見られます）。
+VS Code がなくても、同じ操作を `dg` コマンドで行えます。
 
 ```sh
-dg serve --open               # 127.0.0.1:7474 でボードを開く
 dg ticket create "ログインの検証" --summary "入力の検査" --acceptance "空のとき拒否する"
 dg ticket list                # --json で機械向け
 ```
 
-Skill を入れずに、`dg ask --format text` か画面の頼む小窓で作った文章をエージェントに貼っても同じことを頼めます。
+Skill を入れずに、`dg ask --format text` で作った文章をエージェントに貼っても同じことを頼めます。
 
 ### Claude Desktop から使う（MCP）
 
