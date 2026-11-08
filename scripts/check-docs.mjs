@@ -1,5 +1,5 @@
 // 文書とコードの参照を検査する（docs/adr/ADR-001-doc-strategy.md）。大きさの予算は持たない。検査するのは、ADR 一覧の整合と更新日の一致・リンクと見出しアンカーの切れ・拡張と Walkthrough が指す README の見出しアンカー・README.md と README.ja.md の節の構成のずれ・コードとテストの要件 ID・コードの先頭コメントの参照・文書の重複。
-// 要件 ID は docs/requirements.md の箇条書き「- XX-N」で定義されたものに限る。接頭辞は定義から取り、定義にない番号を参照していたら指摘する。先頭コメントは最初の // の行で、requirements.md の節番号・ADR・docs のパス（#アンカー）・guide-*.md を照らす。
+// 要件 ID は docs/requirements.md の箇条書き「- XX-N」で定義されたものに限る。接頭辞は定義と「要件の ID の接頭辞：」の一覧から取り、定義にない番号を参照していたら指摘する（一覧にない接頭辞は要件 ID と見なさない）。先頭コメントは最初の // の行で、requirements.md の節番号・ADR・docs のパス（#アンカー）・guide-*.md を照らす。
 // 文書の重複は、同じ見出しの節の本文が同じ guide どうし（正本を 1 本にする）、または同じ段落が 2 本以上の文書にあるときに指摘する。段落は 40 字以上で、空行・見出し・表・コードで切り、箇条書きの 1 項目も 1 段落にする。比べるのは guide・docs/requirements.md・docs の下のほかの文書（ADR を除く）・CLAUDE.md・README.md・README.ja.md・packages/*/README.md。ADR は判断の記録で、決めたら書き換えないので比べない。README.md と README.ja.md は訳どうしなので、この 2 つだけの組は指摘しない。frontmatter と ``` の中は除く。短い選択肢や定型句は同じ語でよいので対象にしない。指摘には段落の場所（ファイルと行）を出す。
 // 調べるファイルは git が追跡しているか無視されていないもの（.gitignore のビルドの成果物は読まない）。git のリポジトリの中で動かす。
 // 依存なしで動かす（git だけは execFile で呼ぶ）。mise run check:docs から呼ぶ。
@@ -137,12 +137,31 @@ for (let i = 0; i < Math.max(readmeHeadings.length, readmeJaHeadings.length); i+
   break; // 1 つずれると後ろはすべてずれるので、最初の 1 か所だけ出す
 }
 
-// 要件 ID：コードとテストが参照する ID は、requirements.md の箇条書き（「- TK-1 …」）で定義されたものに限る。接頭辞は定義から取り、定義にない番号の参照を指摘する
+// 要件 ID：コードとテストが参照する ID は、requirements.md の箇条書き（「- TK-1 …」）で定義されたものに限る。定義にない番号の参照を指摘する。
+// 接頭辞は定義と、requirements.md の「要件の ID の接頭辞：」の一覧から取る。一覧は節を消して定義がなくなっても残るので、その接頭辞の参照も指摘できる。一覧にも定義にもない接頭辞は要件 ID と見なさない（ADR・UTF-8・SHA-256・ISO-8601・UTC・ほかのプロジェクトの ID など）
 const requirementsText = await readFile(path.join(root, "docs", "requirements.md"), "utf8");
 const requirementIds = new Set(
   [...requirementsText.matchAll(/^- ([A-Z]{2,3})-(\d+)(?![0-9])/gm)].map((m) => `${m[1]}-${m[2]}`),
 );
-const requirementPrefixes = new Set([...requirementIds].map((id) => id.split("-")[0]));
+const listed = /^要件の ID の接頭辞：(.*)$/m.exec(requirementsText)?.[1];
+if (listed === undefined) {
+  errors.push("docs/requirements.md: 「要件の ID の接頭辞：」の一覧の行がない");
+}
+const listedPrefixes = [...(listed ?? "").matchAll(/`([A-Z]{2,3})`/g)].map((m) => m[1]);
+if (listed !== undefined && listedPrefixes.length === 0) {
+  errors.push(
+    "docs/requirements.md: 「要件の ID の接頭辞：」の一覧に接頭辞がない（バッククォートで囲む）",
+  );
+}
+const definedPrefixes = new Set([...requirementIds].map((id) => id.split("-")[0]));
+// 定義にある接頭辞は一覧にもなければ、節を消したあと残る参照を拾えないので指摘する
+for (const prefix of definedPrefixes) {
+  if (!listedPrefixes.includes(prefix)) {
+    errors.push(`docs/requirements.md: 接頭辞 ${prefix} が「要件の ID の接頭辞：」の一覧にない`);
+  }
+}
+// 定義がなくても一覧にある接頭辞は、節を消した後の参照を拾うので残す
+const requirementPrefixes = new Set([...definedPrefixes, ...listedPrefixes]);
 const sources = filesUnder(["packages", "scripts", "test"], SOURCE_EXTS);
 let requirementRefCount = 0;
 for (const rel of sources) {

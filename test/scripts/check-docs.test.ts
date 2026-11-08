@@ -1,6 +1,7 @@
 // scripts/check-docs.mjs が ADR の更新日と一覧（docs/adr/README.md）の更新日の食い違い（t210）と、README.md と README.ja.md の節の構成のずれ（t464）で落ちることを確かめる。
 // 拡張と Walkthrough が指す README の見出しアンカーが切れたときも落ちる（t524）。
 // 要件 ID・先頭コメント・guide の重複の検査が落ちることも確かめる（t536）。
+// 節を消して定義がなくなった接頭辞の参照は、接頭辞の一覧から拾って落ちることも確かめる（t552）。
 // 段落の重複は guide だけでなく README・CLAUDE.md・docs の正本の外の文書も見る（t551）。
 // スクリプトは自分の置き場所の親をルートとして読むので、検査に要るファイルを一時ディレクトリに写して動かす。
 // 調べるファイルは git の追跡と無視の規則で決まるので、一時ディレクトリは git init して .gitignore も写す。
@@ -31,6 +32,8 @@ const ADR = "docs/adr/ADR-008-tech-stack.md";
 const ANCHOR = "#getting-started-before-release";
 // 検査が本リポジトリのテストの文字列を要件 ID と読まないよう、存在しない ID は組み立てて書く
 const UNKNOWN_ID = ["TK", "999"].join("-");
+// 定義をすべて消す接頭辞（一覧には残す）の ID。組み立てて書くのは UNKNOWN_ID と同じ理由
+const GONE_ID = ["SY", "1"].join("-");
 
 let dir: string;
 
@@ -224,6 +227,51 @@ describe("check-docs の要件 ID・先頭コメント・guide の重複（t536�
     );
     const { stderr } = await run();
     expect(stderr).not.toContain("要件 ID");
+  });
+
+  it("接頭辞の一覧にない語（ADR-001・UTC-5・SP-10）は、定義がなくても指摘しない", async () => {
+    await writeFile(
+      join(dir, "packages/cli/src/zz-probe.ts"),
+      "// ADR-001 と UTF-8 と SHA-256 と UTC-5 と SP-10 の話\nexport {};\n",
+    );
+    const { stderr } = await run();
+    expect(stderr).not.toContain("要件 ID");
+  });
+
+  it("定義された接頭辞が一覧にないと、接頭辞の名前を出して落ちる", async () => {
+    const req = join(dir, "docs/requirements.md");
+    await writeFile(req, `${await readFile(req, "utf8")}\n- QZ-1 一覧に入れ忘れた確かめ\n`);
+    const { code, stderr } = await run();
+    expect(code).toBe(1);
+    expect(stderr).toContain(
+      "docs/requirements.md: 接頭辞 QZ が「要件の ID の接頭辞：」の一覧にない",
+    );
+  });
+
+  it("一覧の行に接頭辞がバッククォートで囲まれていないと、落ちる", async () => {
+    await rewrite("docs/requirements.md", /^要件の ID の接頭辞：.*$/m, "要件の ID の接頭辞：AG CL");
+    const { code, stderr } = await run();
+    expect(code).toBe(1);
+    expect(stderr).toContain("「要件の ID の接頭辞：」の一覧に接頭辞がない");
+  });
+
+  it("節を消して定義がなくなっても、接頭辞の一覧に残る接頭辞の参照は場所を出して落ちる", async () => {
+    const req = join(dir, "docs/requirements.md");
+    const lines = (await readFile(req, "utf8")).split("\n");
+    await writeFile(req, lines.filter((l) => !/^- SY-\d+/.test(l)).join("\n"));
+    await writeFile(join(dir, "packages/cli/src/zz-probe.ts"), `// 要件 ${GONE_ID} の確かめ\n`);
+    const { code, stderr } = await run();
+    expect(code).toBe(1);
+    expect(stderr).toContain(
+      `packages/cli/src/zz-probe.ts:1: 要件 ID ${GONE_ID} が docs/requirements.md にない`,
+    );
+  });
+
+  it("要件の ID の接頭辞の一覧の行を消すと、場所を出して落ちる", async () => {
+    await rewrite("docs/requirements.md", /^要件の ID の接頭辞：.*\n/m, "");
+    const { code, stderr } = await run();
+    expect(code).toBe(1);
+    expect(stderr).toContain("docs/requirements.md: 「要件の ID の接頭辞：」の一覧の行がない");
   });
 
   it("先頭コメントが指す節・ADR・docs のパスと見出し・guide が存在しないと落ちる", async () => {
