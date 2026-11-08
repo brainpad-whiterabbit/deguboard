@@ -7,7 +7,7 @@
 //   array（meta freeText）      単数形で繰り返すだけ。要素が自由文なのでカンマで割らない（--acceptance）
 //   nullable                    none で外す（--epic none）
 //   record（fields）            --field key=value の繰り返し。true / false / 数値は変換する
-//   array of object（drafts）   位置引数 <file>（YAML / JSON。- で標準入力）から読む（ticket import。program.ts）
+//   string（meta cliSource）    位置引数 <file> の中身（YAML / JSON。- で標準入力）を読んだ文字列。オプションにはしない（ticket import。program.ts）
 //   record（meta cliFile）      --<cliFile> <path> の YAML / JSON（- で標準入力）を読んだ値（workflow set の --file。program.ts）
 //   positionals                 CommandDef.positionals のキーは位置引数。最後が配列なら可変長
 
@@ -35,6 +35,7 @@ export interface FieldShape {
     | "record"
     | "unknown"
     | "objects"
+    | "source"
     | "file";
   /** 配列のときの要素の型 */
   element?: "string" | "number" | "enum";
@@ -76,6 +77,8 @@ export function describeShape(key: string, schema: z.ZodType): FieldShape {
   const base = { key, flag: toFlag(key), optional, nullable, description };
   switch (def.type) {
     case "string":
+      // CLI では位置引数のファイルの中身を入れる（zod の meta cliSource）
+      if (inner.meta()?.["cliSource"] === true) return { ...base, kind: "source" };
       return { ...base, kind: "string" };
     case "number":
       return { ...base, kind: "number" };
@@ -228,6 +231,7 @@ export function bindInputs(cmd: Command, command: AnyCommand, shapes = shapesOf(
         break;
       }
       case "objects":
+      case "source":
         // CLI では位置引数のファイルから読む（ticket import）。オプションにはしない
         break;
       case "file":

@@ -443,92 +443,18 @@ describe("dg", () => {
     expect(log).toBe("2 件のチケットを取り込み: t1, t2");
   });
 
-  it("ticket import は本文の項目の引用しない値に行末コメントがあると、ファイルでも標準入力でも INVALID_INPUT で起票しない", async () => {
+  it("ticket import は本文の項目の引用しない値に行末コメントがあると、INVALID_INPUT の JSON と終了コード 2 で起票しない", async () => {
     const f = await fixture();
     await dg(f.cloneA, ["init"]);
     const dataDir = path.join(f.cloneA, ".git", "deguboard");
-    const head = async () => (await git(dataDir, ["rev-parse", "HEAD"])).stdout.trim();
-    const before = await head();
-    const cases: Array<[string, string]> = [
-      ["- title: 設定 #/config の画面\n", "1 件目の title"],
-      ["- title: A\n- title: B\n  summary: 戻る #/board へ\n", "2 件目の summary"],
-      [
-        "- title: A\n  acceptance:\n    - 条件 1\n    - 歯車で #/config # 開く\n",
-        "1 件目の acceptance",
-      ],
-      ["drafts:\n  - title: A\n    body: 本文 #/config\n", "1 件目の body"],
-      ["- title: A\n  body: 複数行の\n    最後の行 #/config\n", "1 件目の body"],
-    ];
-    for (const [yaml, field] of cases) {
-      const file = path.join(f.root, "drafts.yaml");
-      await writeFile(file, yaml);
-      const rejected = await dg(f.cloneA, ["--json", "ticket", "import", file]);
-      expect(rejected.code).toBe(2);
-      expect(rejected.json()).toMatchObject({ ok: false, error: { code: "INVALID_INPUT" } });
-      expect(rejected.json().error!.message).toContain(field);
-    }
-
-    const original = Object.getOwnPropertyDescriptor(process, "stdin")!;
-    Object.defineProperty(process, "stdin", {
-      value: Readable.from([Buffer.from("- title: 設定 #/config の画面\n")]),
-      configurable: true,
-    });
-    try {
-      const fromStdin = await dg(f.cloneA, ["--json", "ticket", "import", "-"]);
-      expect(fromStdin.code).toBe(2);
-      expect(fromStdin.json().error).toMatchObject({ code: "INVALID_INPUT" });
-      expect(fromStdin.json().error!.message).toContain("1 件目の title");
-    } finally {
-      Object.defineProperty(process, "stdin", original);
-    }
-    expect(await head()).toBe(before);
-  });
-
-  it("ticket import はほかの項目の行末コメント・行だけのコメント・引用した値・body の | の中の # を本文として残す", async () => {
-    const f = await fixture();
-    await dg(f.cloneA, ["init"]);
+    const before = (await git(dataDir, ["rev-parse", "HEAD"])).stdout.trim();
     const file = path.join(f.root, "drafts.yaml");
-    await writeFile(
-      file,
-      [
-        "# 行だけのコメント",
-        "- key: a # 仮キー",
-        '  title: "設定 #/config の画面" # 引用の後ろ',
-        "  priority: high # 優先度",
-        "  # 項目の間のコメント",
-        "  acceptance: ['歯車で #/config を開く', \"戻る #/board\"] # 条件",
-        "- key: b",
-        "  title: 本文を書く",
-        "  depends_on: [a] # 依存",
-        "  body: | # 見出しの後ろ",
-        "    ## 概要",
-        "",
-        "    #/config を開く # 中の #",
-        "",
-      ].join("\n"),
-    );
-    const imported = await dg(f.cloneA, ["--json", "ticket", "import", file]);
-    expect(imported.code).toBe(0);
-    const show = async (id: string) =>
-      (await dg(f.cloneA, ["--json", "ticket", "show", id])).json().data;
-    const [a, b] = await Promise.all(imported.json().data.map((t: { id: string }) => show(t.id)));
-    expect(a).toMatchObject({ title: "設定 #/config の画面", priority: "high" });
-    expect(a.body).toContain("- [ ] 歯車で #/config を開く");
-    expect(a.body).toContain("- [ ] 戻る #/board");
-    expect(b).toMatchObject({ title: "本文を書く", depends_on: [a.id] });
-    expect(b.body).toContain("#/config を開く # 中の #");
-  });
-
-  it("ticket import は引用しない値の次の行の、深く字下げした行だけのコメントを拒否しない", async () => {
-    const f = await fixture();
-    await dg(f.cloneA, ["init"]);
-    const file = path.join(f.root, "drafts.yaml");
-    for (const yaml of ["- title: A\n  body: x\n    # c\n", "- title: A\n      # c\n  body: y\n"]) {
-      await writeFile(file, yaml);
-      const imported = await dg(f.cloneA, ["--json", "ticket", "import", file]);
-      expect(imported.code).toBe(0);
-      expect(imported.json().data).toMatchObject([{ title: "A" }]);
-    }
+    await writeFile(file, "- title: 設定 #/config の画面\n");
+    const rejected = await dg(f.cloneA, ["--json", "ticket", "import", file]);
+    expect(rejected.code).toBe(2);
+    expect(rejected.json()).toMatchObject({ ok: false, error: { code: "INVALID_INPUT" } });
+    expect(rejected.json().error!.message).toContain("1 件目の title");
+    expect((await git(dataDir, ["rev-parse", "HEAD"])).stdout.trim()).toBe(before);
   });
 
   it("ticket import は下書きの YAML の構文エラーを INVALID_INPUT にする", async () => {

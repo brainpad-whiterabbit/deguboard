@@ -1,6 +1,6 @@
 // Ticket の操作（CL-2、ST-1〜ST-3、ST-7〜ST-8、RN-5）
 
-import { z } from "zod";
+import { prettifyError, z } from "zod";
 import { OperationError, UsageError } from "../errors.js";
 import { collectBranchFacts, fetchPrCreatedAt, findMergedLeftover } from "../git/facts.js";
 import { findBranchWorktree } from "../git/worktree.js";
@@ -26,6 +26,7 @@ import type { Store, WorkflowEntry } from "../storage/store.js";
 import type { Facts } from "../workflow/conditions.js";
 import { canTransition, describeRejection, findConstraint } from "../workflow/resolve.js";
 import { defineCommand, ok, type CommandContext } from "./define.js";
+import { parseDraftSource } from "./draft-source.js";
 import { matchesFilter, ticketFilterSchema } from "./filters.js";
 import { stageFactsOf, stageOf, type Stage } from "./next.js";
 import {
@@ -286,24 +287,39 @@ export const ticketCreate = defineCommand({
   },
 });
 
+const draftsSchema = z
+  .array(createInput.extend({ key: z.string().optional().describe("下書きの中だけで使う仮キー") }))
+  .min(1);
+
+/** source（YAML か JSON の本文）から下書きを読み、形を検査する。行末コメントの判定は draft-source.ts */
+function draftsFromSource(source: string) {
+  const parsed = draftsSchema.safeParse(parseDraftSource(source));
+  if (!parsed.success) throw new UsageError("下書きの形が正しくない", prettifyError(parsed.error));
+  return parsed.data;
+}
+
 export const ticketImport = defineCommand({
   name: "ticket.import",
   positionals: ["file"],
   group: "ticket",
   summary: "下書きの配列を 1 コミットで取り込む。下書きの key を depends_on から参照できる",
   input: z.object({
-    drafts: z
-      .array(
-        createInput.extend({ key: z.string().optional().describe("下書きの中だけで使う仮キー") }),
-      )
-      .min(1)
-      .describe("チケットの下書きの配列"),
+    drafts: draftsSchema.optional().describe("チケットの下書きの配列（source と一緒には渡せない）"),
+    source: z
+      .string()
+      .meta({ cliSource: true })
+      .optional()
+      .describe("下書きの本文（YAML か JSON。drafts の代わり）"),
   }),
   write: true,
   needs: "store",
   async run(ctx, input) {
+    if (input.drafts && input.source !== undefined)
+      throw new UsageError("drafts と source は一緒に渡せない");
+    const drafts = input.source !== undefined ? draftsFromSource(input.source) : input.drafts;
+    if (!drafts) throw new UsageError("drafts か source のどちらかで下書きを渡す");
     const keys = new Set<string>();
-    for (const d of input.drafts) {
+    for (const d of drafts) {
       if (d.key && keys.has(d.key))
         throw new OperationError("VALIDATION_FAILED", `仮キー ${d.key} が重複している`);
       if (d.key) keys.add(d.key);
@@ -314,7 +330,7 @@ export const ticketImport = defineCommand({
         const store = ctx.store;
         const first = Number(store.nextId("ticket").slice(1));
         const idByKey = new Map<string, TicketId>();
-        input.drafts.forEach((d, i) => {
+        drafts.forEach((d, i) => {
           if (d.key) idByKey.set(d.key, `t${first + i}`);
         });
         const resolveDep = (ref: string): TicketId => {
@@ -326,7 +342,7 @@ export const ticketImport = defineCommand({
             `依存先 ${ref} はチケットの ID でも下書きの key でもない`,
           );
         };
-        const built = input.drafts.map((d) => ({
+        const built = drafts.map((d) => ({
           draft: d,
           data: buildTicket(ctx, d, resolveDep),
         }));

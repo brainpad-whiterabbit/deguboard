@@ -20,7 +20,7 @@ import {
   type CommandResult,
 } from "@deguboard/core";
 import { Argument, Command } from "commander";
-import { isMap, isScalar, isSeq, parse as parseYaml, parseDocument } from "yaml";
+import { parse as parseYaml } from "yaml";
 import { toErrorView, type ErrorView } from "./errors.js";
 import { GUIDE_TOPICS, renderGuide } from "./guide.js";
 import { installSkill, skillInstallWarnings } from "./skill.js";
@@ -388,7 +388,7 @@ export function buildProgram(options: ProgramOptions = {}): Command {
     cmd.exitOverride().configureOutput(program.configureOutput());
     const shapes = shapesOf(def);
     const bound = bindInputs(cmd, def, shapes);
-    const fileField = shapes.find((s) => s.kind === "objects");
+    const fileField = shapes.find((s) => s.kind === "source");
     if (fileField)
       cmd.addArgument(
         new Argument("<file>", `${fileField.description}（YAML か JSON のファイル。- で標準入力）`),
@@ -419,7 +419,7 @@ export function buildProgram(options: ProgramOptions = {}): Command {
       try {
         if (fileField) {
           const file = positionals[bound.positionals.length] as string;
-          input[fileField.key] = await readDrafts(file, cwd);
+          input[fileField.key] = await readText(file, cwd);
         }
         // ファイルから読む値（workflow set の --file）。パスを中身に置き換える
         for (const shape of bound.options) {
@@ -460,60 +460,13 @@ export function buildProgram(options: ProgramOptions = {}): Command {
   return program;
 }
 
-/** 本文になる下書きの項目。引用しない値の「空白＋#」以降はコメントになり、本文が切れる */
-const DRAFT_TEXT_KEYS = ["title", "summary", "acceptance", "body"];
-
-/**
- * ticket import の下書き（- で標準入力）を読む。読めない・YAML の誤り・本文の項目の引用しない値の
- * 行末コメントは使い方の誤り
- */
-async function readDrafts(file: string, cwd: string): Promise<unknown> {
-  let text: string;
+/** ファイル（- で標準入力）の中身を文字列で読む。読めなければ使い方の誤り。中身の検査は core の命令が行う */
+async function readText(file: string, cwd: string): Promise<string> {
   try {
-    text = file === "-" ? await readStdin() : await readFile(resolve(cwd, file), "utf8");
+    return file === "-" ? await readStdin() : await readFile(resolve(cwd, file), "utf8");
   } catch (error) {
     throw new UsageError(`${file} を読めない`, String(error));
   }
-  const doc = parseDocument(text);
-  if (doc.errors.length > 0)
-    throw new UsageError(`${file} を YAML として読めない`, doc.errors.map(String).join("\n"));
-  // 配列でも { drafts: [...] } でも受ける
-  const root = isMap(doc.contents) ? doc.contents.get("drafts", true) : doc.contents;
-  if (isSeq(root)) {
-    const cut = root.items.flatMap((draft, i) =>
-      cutFields(draft, text).map((key) => `${i + 1} 件目の ${key}`),
-    );
-    if (cut.length > 0)
-      throw new UsageError(
-        `${file} の下書きで、本文の項目の引用しない値の # 以降がコメントになっている（${cut.join("・")}）`,
-        "空白＋# 以降はコメントとして捨てられ、本文が切れる。# を含む値は引用符で囲むか body の | で書く",
-      );
-  }
-  const parsed: unknown = doc.toJS();
-  if (parsed && typeof parsed === "object" && !Array.isArray(parsed) && "drafts" in parsed) {
-    return (parsed as { drafts: unknown }).drafts;
-  }
-  return parsed;
-}
-
-/**
- * 下書き 1 件のうち、引用しない値の行末にコメントがある本文の項目の名前。yaml は値の次の行の
- * 深く字下げした行だけのコメントも値の comment に付けるので、値の終わりと同じ行に # があるかをソースで見る
- */
-function cutFields(draft: unknown, text: string): string[] {
-  if (!isMap(draft)) return [];
-  return DRAFT_TEXT_KEYS.filter((key) => {
-    const value = draft.get(key, true);
-    const nodes = isSeq(value) ? value.items : [value];
-    return nodes.some(
-      (n) =>
-        isScalar(n) &&
-        n.type === "PLAIN" &&
-        n.range !== undefined &&
-        n.range !== null &&
-        /^[ \t]*#/.test(text.slice(n.range[1])),
-    );
-  });
 }
 
 /** YAML か JSON のファイル（- で標準入力）を読む。読めなければ使い方の誤り */
