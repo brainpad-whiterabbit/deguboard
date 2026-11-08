@@ -1,0 +1,58 @@
+id: p71
+project: default
+tickets: [t547, t543, t536, t544, t545, t534, t546, t535, t537]
+after:
+  t544:
+    - t543
+  t545:
+    - t543
+    - t547
+  t534:
+    - t547
+  t546:
+    - t545
+  t535:
+    - t534
+    - t536
+    - t546
+  t537:
+    - t535
+    - t544
+pending_approval: true
+details:
+  t547:
+    scope: dg next の待つ対象を push 前の手直しの Run に絞り、help・コメント・限界の 1 行を直す
+    approach: next.ts の working の判定に pushedAt と started_at・branch_at の比較を足し、next.test.ts で両方の場面を押さえる
+    tier: standard
+  t543:
+    scope: 別のセッションで開いたままの review・fix の Run を interrupted で閉じてから開き直す。同じセッションの重ねた review は今のまま拒否
+    approach: hook.ts の subagentLaunched と ticket.ts の reclaim で Run の session を比べ、ADR-012 の項の置き換えと RN-5・RN-6・AG-9 を同じ PR で直す
+    tier: heavy
+  t536:
+    scope: check-docs.mjs の要件 ID・guide の重複・先頭コメントの参照の検査と予算の扱い
+    approach: ADR-001 の新しい決定に従って検査を足し、出た指摘は直すか起票する
+    tier: standard
+  t544:
+    scope: 照合が、終わった・todo に戻った・別の主体の claim になったチケットの implement の Run を閉じる
+    approach: setup.ts の照合の終わりの処理に fix と同じ形で足し、結果は ticket.ts の runsClosedByMove と揃える。sync --help と RN-6 を直す
+    tier: standard
+  t545:
+    scope: dg pr ready・merge の Core のコマンドと、dg を経由しない gh pr ready・merge を粗く止めるフック、ADR と guide・requirements
+    approach: gate.ts の judgeGate を通してから gh を execFile で呼ぶコマンドを足し、hook.ts は読み切れないものを止める側に倒す。PR 482 の読み違えの例をテストにする
+    tier: heavy
+  t534:
+    scope: dg brief の役ごとの文と dg next の implement・review・fix の手への同梱
+    approach: ask.ts の文の組み方と言語の渡し方に倣い、文の形はスナップショットで押さえる。next.ts は t547 の後に触る
+    tier: standard
+  t546:
+    scope: store を開くときと Stop のフックで dg の外の変更を見つける検査と、writesDataDir の粗い形への置き換え
+    approach: dg が書いたコミットを見分ける印を決め、書くコマンドは止め読むコマンドは警告する。判断は t545 の ADR に従う
+    tier: heavy
+  t535:
+    scope: guide の work・run・review・parallel・all の書き直しと Skill の入れ直し
+    approach: dg next を呼んで 1 手を行う細いループに縮め、重複を消して合計を半分以下にする。t545・t546・t547 が guide に足した案内は残す
+    tier: standard
+  t537:
+    scope: PR の要らない調査：s19 と同じ 6 つの数の取り直しと EX-1 反転の要否の判断
+    approach: t494 のコマンドで表を出し、ADR-004 の書き換え案として報告する。新しい Iteration のデータが揃ってから着手する
+    tier: heavy
