@@ -194,7 +194,7 @@ function ticketNumber(id: string): number {
   return Number(id.slice(1));
 }
 
-/** 優先度（high → low）、同じなら番号の順（UI-3、IT-2） */
+/** 優先度（high → low）、同じなら番号の順（UI-3、IT-3） */
 export function byPriorityThenNumber(a: Ticket, b: Ticket): number {
   return (
     PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority] || ticketNumber(a.id) - ticketNumber(b.id)

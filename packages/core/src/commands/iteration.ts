@@ -191,7 +191,7 @@ export async function iterationNextOf(
   return null;
 }
 
-/** iteration.show の出力。items は優先度と番号の順（IT-2）。progress は Epic と同じ形で、中のチケットから都度求める（EP-3）。next は次の操作の案内、plans は中のチケットを含む Plan */
+/** iteration.show の出力。items は優先度と番号の順（IT-3）。progress は Epic と同じ形で、中のチケットから都度求める（EP-3）。next は次の操作の案内、plans は中のチケットを含む Plan */
 export type IterationDetail = Iteration & {
   progress: Progress;
   items: Ticket[];
