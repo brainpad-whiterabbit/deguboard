@@ -70,7 +70,7 @@ deguboard は AI エージェント（Claude Code など）が主に実装する
 大きさの予算は持たない。`mise run check:docs` は次を検査する：
 
 - 同じ約束・手順が正本の外の文書に重複していないか
-- 参照の切れ：相対リンクと見出しアンカー、コードの要件 ID、コードの先頭コメントが指す ADR・requirements.md の節・docs のパスとアンカー・guide、ADR 一覧（有効・置き換え済み・更新日）、README.ja.md の節の構成、拡張の README のアンカー
+- 参照の切れ：相対リンクと見出しアンカー、コードの要件 ID、コードの先頭コメントが指す ADR・requirements.md の節・docs のパスとアンカー・guide、文書の `dg guide <topic>` の「節」（guide-<topic>.md の見出しと照らす）、ADR 一覧（有効・置き換え済み・更新日）、README.ja.md の節の構成、拡張の README のアンカー
 
 重複の判定の細部は `scripts/check-docs.mjs` の冒頭に書く。
 

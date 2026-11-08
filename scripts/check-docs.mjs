@@ -1,4 +1,4 @@
-// 文書とコードの参照を検査する（docs/adr/ADR-001-doc-strategy.md）。大きさの予算は持たない。検査するのは、ADR 一覧の整合と更新日の一致・リンクと見出しアンカーの切れ・拡張と Walkthrough が指す README の見出しアンカー・README.md と README.ja.md の節の構成のずれ・コードとテストの要件 ID・コードの先頭コメントの参照・文書の重複。
+// 文書とコードの参照を検査する（docs/adr/ADR-001-doc-strategy.md）。大きさの予算は持たない。検査するのは、ADR 一覧の整合と更新日の一致・リンクと見出しアンカーの切れ・拡張と Walkthrough が指す README の見出しアンカー・README.md と README.ja.md の節の構成のずれ・コードとテストの要件 ID・コードの先頭コメントの参照・`dg guide <topic>` の「節」の参照・文書の重複。
 // 要件 ID は docs/requirements.md の箇条書き「- XX-N」で定義されたものに限る。接頭辞は定義と「要件の ID の接頭辞：」の一覧から取り、定義にない番号を参照していたら指摘する（一覧にない接頭辞は要件 ID と見なさない）。先頭コメントは最初の // の行で、requirements.md の節番号・ADR・docs のパス（#アンカー）・guide-*.md を照らす。
 // 文書の重複は、同じ見出しの節の本文が同じ guide どうし（正本を 1 本にする）、または同じ段落が 2 本以上の文書にあるときに指摘する。段落は 40 字以上で、空行・見出し・表・コードで切り、箇条書きの 1 項目も 1 段落にする。比べるのは guide・docs/requirements.md・docs の下のほかの文書（ADR を除く）・CLAUDE.md・README.md・README.ja.md・packages/*/README.md。ADR は判断の記録で、決めたら書き換えないので比べない。README.md と README.ja.md は訳どうしなので、この 2 つだけの組は指摘しない。frontmatter と ``` の中は除く。短い選択肢や定型句は同じ語でよいので対象にしない。指摘には段落の場所（ファイルと行）を出す。
 // 調べるファイルは git が追跡しているか無視されていないもの（.gitignore のビルドの成果物は読まない）。git のリポジトリの中で動かす。
@@ -270,13 +270,41 @@ for (const [text, places] of sameParagraphs) {
   errors.push(`${where}: 同じ段落がある（「${text.slice(0, 30)}…」）`);
 }
 
+// dg guide の節の参照：「`dg guide <topic>` の「<節>」」を、guide-<topic>.md の見出しと照らす。「と「…」」で続く節も見る。
+// 見る名前は「」の中だけ（後ろの「の `implement` のモデル」などは見ない）。コードブロックの中は除く
+const guideNameSets = new Map();
+for (const rel of guideFiles) {
+  const topic = path.basename(rel).slice("guide-".length, -".md".length);
+  guideNameSets.set(topic, guideSectionNames(await readFile(path.join(root, rel), "utf8")));
+}
+let guideRefCount = 0;
+for (const rel of tracked.filter((f) => f.endsWith(".md"))) {
+  const lines = linesOutsideFences(await readFile(path.join(root, rel), "utf8"));
+  for (const [i, line] of lines.entries()) {
+    for (const m of line.matchAll(/`dg guide ([a-z][a-z-]*)`\s*の(「[^」]+」(?:と「[^」]+」)*)/g)) {
+      const [, topic, quoted] = m;
+      const names = guideNameSets.get(topic);
+      for (const [, name] of quoted.matchAll(/「([^」]+)」/g)) {
+        guideRefCount++;
+        if (names === undefined) {
+          errors.push(
+            `${rel}:${i + 1}: dg guide ${topic} の guide-${topic}.md がない（「${name}」を指す）`,
+          );
+        } else if (!names.has(name)) {
+          errors.push(`${rel}:${i + 1}: dg guide ${topic} に「${name}」の見出しがない`);
+        }
+      }
+    }
+  }
+}
+
 if (errors.length > 0) {
   console.error("check:docs の指摘");
   for (const e of errors) console.error(`  - ${e}`);
   process.exit(1);
 }
 console.log(
-  `check:docs: ADR ${adrFiles.length} 件（更新日の一致 ${datedCount} 件）、文書 ${new Set(paragraphDocs).size} 件（guide ${guideFiles.length} 件を含む）に重複なし、リンク ${linkCount} 件に切れなし、README.ja.md の見出し ${readmeJaHeadings.length} 個が README.md と同じ構成、拡張と Walkthrough の README の見出しアンカー ${readmeAnchorCount} 件に切れなし、要件 ID ${requirementRefCount} 件が定義どおり、先頭コメントの参照 ${topRefCount} 件に切れなし`,
+  `check:docs: ADR ${adrFiles.length} 件（更新日の一致 ${datedCount} 件）、文書 ${new Set(paragraphDocs).size} 件（guide ${guideFiles.length} 件を含む）に重複なし、リンク ${linkCount} 件に切れなし、README.ja.md の見出し ${readmeJaHeadings.length} 個が README.md と同じ構成、拡張と Walkthrough の README の見出しアンカー ${readmeAnchorCount} 件に切れなし、要件 ID ${requirementRefCount} 件が定義どおり、先頭コメントの参照 ${topRefCount} 件に切れなし、dg guide の節の参照 ${guideRefCount} 件に切れなし`,
 );
 
 /** ファイルの先頭の // の行（shebang を除く）。最初の // 以外の行で止める */
@@ -371,14 +399,35 @@ function filesUnder(dirs, exts) {
 
 /** 行ごとの配列にし、```のコードブロックの中とインラインコードは空にする（行番号は保つ） */
 function withoutCode(text) {
+  return linesOutsideFences(text).map((line) => line.replace(/`[^`]*`/g, ""));
+}
+
+/** 行ごとの配列にし、```・~~~ のコードブロックの中は空にする（行番号は保つ。インラインコードは残す） */
+function linesOutsideFences(text) {
   let inFence = false;
   return text.split("\n").map((line) => {
     if (/^\s*(```|~~~)/.test(line)) {
       inFence = !inFence;
       return "";
     }
-    return inFence ? "" : line.replace(/`[^`]*`/g, "");
+    return inFence ? "" : line;
   });
+}
+
+/** guide の節の名前の集合：見出しの文言と、その「（…）」の補足を除いた名前、節の中の太字の項目（- **見る**）と一覧の先頭のコード（- `ready`） */
+function guideSectionNames(text) {
+  const names = new Set();
+  for (const line of linesOutsideFences(text)) {
+    const heading = /^#{1,6}\s+(.+?)\s*$/.exec(line)?.[1];
+    if (heading !== undefined) {
+      names.add(heading);
+      names.add(heading.replace(/（[^（）]*）$/, ""));
+      continue;
+    }
+    const item = /^\s*(?:[-*]|\d+\.)\s+(?:\*\*([^*]+)\*\*|`([^`]+)`)/.exec(line);
+    if (item) names.add(item[1] ?? item[2]);
+  }
+  return names;
 }
 
 /** # から ### の見出しを、階層・文言・行番号の配列で返す。```のコードブロックの中の # は見出しにしない */
