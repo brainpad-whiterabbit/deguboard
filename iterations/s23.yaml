@@ -1,0 +1,5 @@
+id: s23
+project: default
+name: sprint23
+goal: guide の規則を dg のコマンドと config に移し、guide は判断のやり方だけを節で渡す
+status: planned
