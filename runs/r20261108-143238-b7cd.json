@@ -1,0 +1,36 @@
+{
+  "id": "r20261108-143238-b7cd",
+  "ticket": "t575",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-08T14:32:38Z",
+  "finished_at": "2026-11-08T14:37:44Z",
+  "result": "success",
+  "error": null,
+  "retries": 5,
+  "retry_reasons": [
+    "AG-9 から Stop の約束（dg の外の変更があれば続けさせて伝える）が消えた",
+    "AG-9 から dg hooks uninstall の約束が消えた",
+    "AG-9 にフックの限界（語の有無で粗く拒む）を一語で戻す",
+    "AG-2 の案内に SKILL_SUMMARY のある ask.ts を足す",
+    "AG-1 にフックのない製品では guide の手順が agent を名乗る約束を戻す"
+  ],
+  "usage": {
+    "input": 62,
+    "output": 17194,
+    "cache_read": 1616468,
+    "cache_write": 59821
+  },
+  "tools": {
+    "read": 10,
+    "search": 0,
+    "write": 23,
+    "bash": 19,
+    "other": 1,
+    "read_before_write": 1,
+    "search_before_write": 0
+  },
+  "session": "63c10282-cee5-4e4c-93a6-ae7836a9c5b1",
+  "review": null
+}
