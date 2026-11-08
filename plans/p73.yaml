@@ -1,0 +1,41 @@
+id: p73
+project: default
+tickets: [t549, t553, t545, t546, t535, t537]
+after:
+  t553:
+    - t549
+  t545:
+    - t553
+  t546:
+    - t545
+  t535:
+    - t546
+    - t553
+  t537:
+    - t535
+pending_approval: true
+details:
+  t549:
+    scope: 前景で durationMs がないときと、sync が書き終わり待ちの古い Run を閉じるときにも、見直しの結果を新しい Run に結び付ける
+    approach: hook.ts の closeStaleReviewRuns の起動の時刻を記録の最初の行で補い、setup.ts の closeStoppedRuns で別のセッションの古い見直しの Run を飛ばす。ADR-015 を合わせる
+    tier: heavy
+  t553:
+    scope: fix の文に印を置き、フックが前の手直しの Run を区切ってから開く。理由は run retry-reason で開いている Run に書き足す
+    approach: hook.ts の subagentLaunched を reclaim と同じ閉じ方の規則で広げ、run.ts に runReviewResult と同じ形の retry-reason を足す。RN-5・RN-6・AG-9 を直し ADR-012・ADR-014 の項を置き換える。hook.ts・record.ts は t549 の後に触る
+    tier: heavy
+  t545:
+    scope: dg pr ready・merge の Core のコマンドと、dg を経由しない gh pr ready・merge を粗く止めるフック、ADR と guide・requirements
+    approach: gate.ts の judgeGate を通してから gh を execFile で呼ぶコマンドを足し、hook.ts は読み切れないものを止める側に倒す。PR 482 の読み違えの例をテストにする。hook.ts は t553 の後に触る
+    tier: heavy
+  t546:
+    scope: store を開くときと Stop のフックで dg の外の変更を見つける検査と、writesDataDir の粗い形への置き換え
+    approach: dg が書いたコミットを見分ける印を決め、書くコマンドは止め読むコマンドは警告する。判断は t545 の ADR に従う
+    tier: heavy
+  t535:
+    scope: guide の work・run・review・parallel・all の書き直しと Skill の入れ直し
+    approach: dg next を呼んで 1 手を行う細いループに縮め、重複を消して合計を半分以下にする。t545・t546・t547・t550・t553 が guide に足した案内は残す
+    tier: standard
+  t537:
+    scope: PR の要らない調査：s19 と同じ 6 つの数の取り直しと EX-1 反転の要否の判断
+    approach: t494 のコマンドで表を出し、ADR-004 の書き換え案として報告する。新しい Iteration のデータが揃ってから着手する
+    tier: heavy
