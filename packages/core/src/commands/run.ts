@@ -969,7 +969,7 @@ export const runRefresh = defineCommand({
   name: "run.refresh",
   positionals: ["runs"],
   group: "run",
-  summary: `閉じた Run のモデル名と使用量を、agent の Adapter で会話記録から取り直す（finish と同じ探し方。metrics.read_transcripts と DEGUBOARD_NO_TRANSCRIPTS に従う）。取れた値だけを書き換え、取れなかった値は今の値を残して警告する。閉じてから ${TRANSCRIPT_RETENTION_DAYS} 日を過ぎた Run は会話記録の場所を片付ける（run prune-transcripts）ので取り直さず、今の値を残して警告する。--dry-run では書かずに差分（changes）だけを返す`,
+  summary: `閉じた Run のモデル名と使用量を、agent の Adapter で会話記録から取り直す（finish と同じ探し方。metrics.read_transcripts と DEGUBOARD_NO_TRANSCRIPTS に従う）。取れた値だけを書き換え、取れなかった値は今の値を残して警告する。終了の時刻（finished_at）から ${TRANSCRIPT_RETENTION_DAYS} 日を過ぎた Run は会話記録の場所を片付ける（run prune-transcripts）ので取り直さず、今の値を残して警告する。--dry-run では書かずに差分（changes）だけを返す`,
   input: z.object({
     runs: z
       .array(z.string().min(1))
@@ -1013,7 +1013,7 @@ export const runRefresh = defineCommand({
             model: null,
             tools: null,
             warnings: [
-              `閉じてから ${TRANSCRIPT_RETENTION_DAYS} 日を過ぎた Run は、会話記録の場所を片付けるので取り直さない`,
+              `終了の時刻（finished_at）から ${TRANSCRIPT_RETENTION_DAYS} 日を過ぎた Run は、会話記録の場所を片付けるので取り直さない`,
             ],
           }
         : await collectRunUsage(ctx.config, {
@@ -1088,11 +1088,12 @@ export interface RunPruneTranscriptsResult {
 export const runPruneTranscripts = defineCommand({
   name: "run.prune-transcripts",
   group: "run",
-  summary: `このマシンの deguboard-local/transcripts/ から、閉じてから ${TRANSCRIPT_RETENTION_DAYS} 日を過ぎた Run（expired）と、実行中の記録も runs/ の集計もない ID（orphan）の会話記録のパスを消す。期間の中の Run と同じファイルを指すものは残す。消した Run は run refresh が取り直さない。Git には書かない。--dry-run では消さずに消すものだけを返す`,
+  summary: `このマシンの deguboard-local/transcripts/ から、終了の時刻（finished_at）から ${TRANSCRIPT_RETENTION_DAYS} 日を過ぎた Run（expired）と、実行中の記録も runs/ の集計もない ID（orphan）の会話記録のパスを消す。期間の中の Run と同じファイルを指すものは残す。消した Run は run refresh が取り直さない。Git には書かない。--dry-run では消さずに消すものだけを返す`,
   input: z.object({
     dry_run: z.boolean().optional().describe("消さずに、消すことになるものだけを返す"),
   }),
-  write: false,
+  // Git には書かないが、このマシンのファイルを消すので書くコマンドにする（MCP で読むだけのツールに見せない。retry-reason と同じ）
+  write: true,
   needs: "store",
   async run(ctx, input) {
     const result: RunPruneTranscriptsResult = await pruneTranscripts(

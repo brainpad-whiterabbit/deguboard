@@ -6,7 +6,7 @@
 //   - チケットの frontmatter には書き足さない。チケットの Run は Run の ticket から引く（書き足すと Run のたびにチケットが衝突する）
 //   - 会話記録のパスは Run に書かず、deguboard-local/transcripts/<id>.json に置く（ADR-005）。ホームのパスとユーザ名を含み、
 //     別のマシンでは読めないので Git に入れない。閉じた後の run refresh も同じファイルから数えるので、Run を閉じても消さず、
-//     閉じてから TRANSCRIPT_RETENTION_DAYS を過ぎたものと Run のない ID のものを run prune-transcripts が消す
+//     終了の時刻（finished_at）から TRANSCRIPT_RETENTION_DAYS を過ぎたものと Run のない ID のものを run prune-transcripts が消す
 
 import { mkdir, readdir, readFile, stat, unlink } from "node:fs/promises";
 import path from "node:path";
@@ -330,7 +330,7 @@ export async function bindTranscript(
 }
 
 /**
- * 閉じてから会話記録のパスを残す日数（RN-3・MT-5）。run refresh はこの期間の中の Run だけを取り直す。
+ * 終了の時刻（finished_at）から会話記録のパスを残す日数（RN-3・MT-5）。RN-6 の閉じ方では閉じた時刻でなく最後の push などの時刻になる。run refresh はこの期間の中の Run だけを取り直す。
  * エージェントが古い会話記録を消す既定の期間（30 日）に合わせる。過ぎた記録は読めないことが多い
  */
 export const TRANSCRIPT_RETENTION_DAYS = 30;
@@ -344,14 +344,14 @@ export function transcriptExpired(run: Pick<Run, "finished_at">, now: Date): boo
   );
 }
 
-/** 片付けた会話記録のパス。expired は閉じてから期間を過ぎた Run、orphan は実行中の記録も runs/ の集計もない ID */
+/** 片付けた会話記録のパス。expired は終了の時刻から期間を過ぎた Run、orphan は実行中の記録も runs/ の集計もない ID */
 export interface PrunedTranscript {
   id: string;
   reason: "expired" | "orphan";
 }
 
 /**
- * deguboard-local/transcripts/ から、要らなくなった会話記録のパスを消す（RN-3）。消すのは、閉じてから期間を過ぎた Run と、
+ * deguboard-local/transcripts/ から、要らなくなった会話記録のパスを消す（RN-3）。消すのは、終了の時刻から期間を過ぎた Run と、
  * 実行中の記録も runs/ の集計もない ID のもの。期間の中の Run・実行中の Run と同じファイルを指すものは、その Run の数え始め
  * （同じファイルを先に使った Run の終わり。Adapter が others で見る）に要るので残す。start・finish と同じロックの中で、実行中の記録を見てから集計のファイルを見る
  * （finish は集計を書いてから実行中の記録を消すので、間に閉じた Run を集計のないものと取り違えない）。
@@ -369,7 +369,12 @@ export async function pruneTranscripts(
       .map((file) => (file.endsWith(".json") ? file.slice(0, -5) : ""))
       .filter(isRunId)
       .sort();
-    const running = new Set((await readLocalRuns(repo)).runs.map((r) => r.id));
+    // 壊れて読めない実行中の記録（issues）も実行中とみなす。直せば閉じられる Run の数え始めのパスを消さない
+    const local = await readLocalRuns(repo);
+    const running = new Set([
+      ...local.runs.map((r) => r.id),
+      ...local.issues.map((issue) => path.basename(issue.path, ".json")),
+    ]);
     const paths = await readTranscriptPaths(repo);
     const candidates: PrunedTranscript[] = [];
     const keptPaths = new Set<string>();

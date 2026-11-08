@@ -1587,7 +1587,7 @@ describe("run refresh の取り直し（RN-4・MT-5）", () => {
     expect(await saved(a.id)).toBe(before);
   });
 
-  it("閉じてから 30 日を過ぎた Run は、会話記録があっても読まずに今の値を残して警告する（MT-5）", async () => {
+  it("終了の時刻から 30 日を過ぎた Run は、会話記録があっても読まずに今の値を残して警告する（MT-5）", async () => {
     const { ctx, transcriptFor, closedRun, saved } = await closedRuns();
     const a = await closedRun("t1");
     await transcriptFor(a, full);
@@ -1600,7 +1600,7 @@ describe("run refresh の取り直し（RN-4・MT-5）", () => {
     ctx.now = () => new Date(finished + TRANSCRIPT_RETENTION_DAYS * 86400_000);
     const r = await runCommand(runRefresh, ctx, { runs: [a.id] });
     expect(r.warnings).toEqual([
-      `Run ${a.id}: 閉じてから 30 日を過ぎた Run は、会話記録の場所を片付けるので取り直さない。今の値を残す`,
+      `Run ${a.id}: 終了の時刻（finished_at）から 30 日を過ぎた Run は、会話記録の場所を片付けるので取り直さない。今の値を残す`,
     ]);
     expect(r.data).toMatchObject([{ id: a.id, changes: [], updated: false }]);
     expect(await saved(a.id)).toBe(before);
@@ -1655,7 +1655,7 @@ describe("run prune-transcripts（会話記録の場所の片付け。RN-3・MT-
     return { ctx, dir, startAt, finish, entries };
   }
 
-  it("閉じてから 30 日を過ぎた Run と Run のない ID の場所を消し、実行中の Run と同じファイルを指すものとほかのファイルは残す", async () => {
+  it("終了の時刻から 30 日を過ぎた Run と Run のない ID の場所を消し、実行中の Run と同じファイルを指すものとほかのファイルは残す", async () => {
     const { ctx, dir, startAt, finish, entries } = await located();
     const old = await finish(await startAt("t1", "implement", "s1/subagents/agent-a.jsonl"));
     const shared = await finish(await startAt("t1", "review", "s1/subagents/agent-b.jsonl"));
@@ -1697,6 +1697,15 @@ describe("run prune-transcripts（会話記録の場所の片付け。RN-3・MT-
       kept: 0,
     });
     expect(await entries()).toEqual(["notes.txt"]);
+  });
+
+  it("実行中の記録が壊れて読めない Run の場所は、Run のない ID とみなさずに残す", async () => {
+    const { ctx, startAt, entries } = await located();
+    const broken = await startAt("t1", "implement", "s1/subagents/agent-a.jsonl");
+    await writeFile(path.join(ctx.repo.localDir, "runs", `${broken.id}.json`), "{ 壊れた記録\n");
+    const r = await runCommand(runPruneTranscripts, ctx, {});
+    expect(r.data).toEqual({ removed: [], kept: 1 });
+    expect(await entries()).toEqual([`${broken.id}.json`]);
   });
 
   it("場所のディレクトリがなければ何もしない", async () => {
