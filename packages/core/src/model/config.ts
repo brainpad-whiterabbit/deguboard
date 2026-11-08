@@ -92,7 +92,7 @@ export const configSchema = z.looseObject({
         .boolean()
         .default(false)
         .describe(
-          "dg guide all --auto で、マージの前の条件を満たした PR を自動でマージするか。既定は人がマージする",
+          "dg guide all --auto で、品質ゲート（dg gate --for merge）を満たした PR を自動でマージするか。既定は人がマージする",
         ),
     })
     .prefault({}),

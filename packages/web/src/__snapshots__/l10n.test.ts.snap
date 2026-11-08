@@ -5,7 +5,7 @@ exports[`設定の項目の説明の訳 > core の説明が変わったら訳を
   "actions.shell": "任意のシェルの Action（shell）を許すか。許しても実行のたびに確認する（AG-7）",
   "actions.test": "テスト実行の Action（run_tests）が呼ぶコマンドの引数配列（例 [mise, run, check]）。空なら run_tests は拒否する",
   "actor.human_only": "agent からは拒否するコマンド名（epic.close など）。既定は空で、すべて許す。チケットの遷移は Workflow の by で縛る",
-  "auto.merge": "dg guide all --auto で、マージの前の条件を満たした PR を自動でマージするか。既定は人がマージする",
+  "auto.merge": "dg guide all --auto で、品質ゲート（dg gate --for merge）を満たした PR を自動でマージするか。既定は人がマージする",
   "commit.mode": "each: 書き込みのたびにコミット / batch: 作業ツリーに残し、dg commit・dg sync・即時の操作がまとめてコミット / manual: dg commit と即時の操作だけ",
   "default_project": "省略時の Project",
   "git.base_branch": "作業ブランチの元と「マージ済み」の判定の基準",
