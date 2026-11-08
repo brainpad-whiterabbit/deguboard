@@ -1,0 +1,32 @@
+{
+  "id": "r20261108-083258-1c0a",
+  "ticket": "t561",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-08T08:32:58Z",
+  "finished_at": "2026-11-08T08:35:25Z",
+  "result": "success",
+  "error": null,
+  "retries": 1,
+  "retry_reasons": [
+    "節名の照合の説明が実装より狭く、見出しと太字・一覧の先頭のコードまで照合する範囲に合わせて文書とコメントを直す"
+  ],
+  "usage": {
+    "input": 20,
+    "output": 9240,
+    "cache_read": 453846,
+    "cache_write": 46254
+  },
+  "tools": {
+    "read": 3,
+    "search": 0,
+    "write": 4,
+    "bash": 7,
+    "other": 1,
+    "read_before_write": 3,
+    "search_before_write": 0
+  },
+  "session": "640477df-f7bd-4c38-9b0e-6ac20a984f20",
+  "review": null
+}
