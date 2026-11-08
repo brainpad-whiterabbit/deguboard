@@ -340,6 +340,30 @@ describe("dg next と ticket show の stage（EX-3）", () => {
     expect(stale.commands[0]).toContain("deguboard: ticket=t1 step=implement");
   });
 
+  it("自分で開いた手直しの Run が push なしで返った（止まって待っている印がある）ら、待たずに wait_human で続きを送るか人に聞く", async () => {
+    const ctx = await prepared();
+    const returned = run("fix", 7, {
+      finished_at: null,
+      result: null,
+      waiting_since: "2026-11-07T10:08:00Z",
+    });
+    const step = nextOf(
+      ctx,
+      facts({
+        pushedAt: "2026-11-07T10:05:00Z",
+        runs: [review(6, heavy), returned],
+      }),
+    );
+    expect(step).toMatchObject({
+      kind: "wait_human",
+      step: "fix",
+      running_run: returned.id,
+      stage: { name: "waiting_human" },
+    });
+    expect(step.commands).toEqual([]);
+    expect(step.ask_human).toContain("push なしで返った");
+  });
+
   it("CLI・HTTP・MCP が写す一覧に next があり、読み取りだけ（write: false）", () => {
     expect(findCommand("next")).toMatchObject({ write: false, needs: "store" });
   });

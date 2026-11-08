@@ -292,7 +292,7 @@ export function nextOf(ctx: CommandContext, facts: StageFacts): NextStep {
             "wait_human",
             waiting.step,
             [],
-            `止まって待っているサブエージェントの質問を人に伝え、答えを続きとして送る（${st.reason}）`,
+            `止まって待っているサブエージェントに続きを送る。質問で止まったなら人に伝えて答えを送り、push なしで返ったなら続けて直させるか、人に聞く（${st.reason}）`,
             waiting.id,
           )
         : make(
