@@ -18,7 +18,7 @@ import {
   writesDataDir,
   type HookView,
 } from "./hook.js";
-import { runList, runReviewResult, runStart, type RunView } from "./run.js";
+import { runList, runReviewResult, runStart, STALE_SESSION_ERROR, type RunView } from "./run.js";
 import { commit, configSet, init, sync } from "./setup.js";
 import { ticketCreate, ticketUpdate } from "./ticket.js";
 
@@ -202,6 +202,77 @@ describe("dg hook（ADR-012）", () => {
       launched(parent, "a3", "deguboard: ticket=t99 step=review"),
     );
     expect(missing.warnings).toEqual([expect.stringContaining("t99 が見つからない")]);
+  });
+
+  it("別のセッションで開いたままの見直しの Run は、印 step=review の起動が interrupted で閉じてから新しい Run を開き、run review-result は新しい Run に書く（ADR-015）", async () => {
+    const { ctx, parent, subagent } = await prepared();
+    // 落ちたセッション s-old の見直しの Run が開いたまま残っている
+    const stale = (
+      await runCommand(runStart, ctx, {
+        ticket: "t1",
+        step: "review",
+        agent: "claude-code",
+        session: "s-old",
+      })
+    ).data as Run;
+    const { view, warnings } = await call(
+      ctx,
+      "PostToolUse",
+      launched(parent, "a1", "deguboard: ticket=t1 step=review\n\n見直す"),
+    );
+    expect(warnings).not.toContainEqual(expect.stringContaining("Run を開いていない"));
+    expect(view.done).toEqual([
+      `t1 の review の Run ${stale.id} を interrupted で閉じた`,
+      expect.stringMatching(/^t1 の review の Run r\S+ を開いた$/),
+    ]);
+    const [fresh] = await peekRunningRuns(ctx.repo);
+    expect(fresh).toMatchObject({ ticket: "t1", step: "review", session: SESSION });
+    expect((await readTranscriptPaths(ctx.repo)).get(fresh!.id)).toBe(subagent("a1"));
+    const closed = ((await runCommand(runList, ctx, {})).data as RunView[]).find(
+      (r) => r.id === stale.id,
+    );
+    expect(closed).toMatchObject({
+      result: "interrupted",
+      error: STALE_SESSION_ERROR,
+      running: false,
+      review: null,
+    });
+    // 見直し役の結果は新しい Run に書く
+    const written = (await runCommand(runReviewResult, ctx, { ticket: "t1", heavy: 1, light: 0 }))
+      .data as Run;
+    expect(written).toMatchObject({
+      id: fresh!.id,
+      review: { heavy: 1, light: 0, passed: false },
+    });
+    // セッションの分からない Run（フックのない環境で開いたもの）は、落ちた残りと決められないので閉じない
+    await runCommand(runStart, ctx, { ticket: "t2", step: "review", agent: "claude-code" });
+    const unknown = await call(
+      ctx,
+      "PostToolUse",
+      launched(parent, "a2", "deguboard: ticket=t2 step=review"),
+    );
+    expect(unknown.warnings).toContainEqual(expect.stringContaining("Run を開いていない"));
+  });
+
+  it("同じセッションで同じチケットの見直しの Run を重ねて開くと、前の Run を閉じずに拒否して警告する（ADR-015）", async () => {
+    const { ctx, parent } = await prepared();
+    await call(ctx, "PostToolUse", launched(parent, "a1", "deguboard: ticket=t1 step=review"));
+    const [first] = await peekRunningRuns(ctx.repo);
+    const again = await call(
+      ctx,
+      "PostToolUse",
+      launched(parent, "a2", "deguboard: ticket=t1 step=review"),
+    );
+    expect(again.view.done).toEqual([]);
+    expect(again.warnings).toEqual([
+      expect.stringContaining(
+        `t1 の review の Run を開いていない: t1 の review の Run ${first!.id} が実行中`,
+      ),
+    ]);
+    expect((await peekRunningRuns(ctx.repo)).map((r) => r.id)).toEqual([first!.id]);
+    // 前の Run は閉じていない
+    const runs = (await runCommand(runList, ctx, {})).data as RunView[];
+    expect(runs.filter((r) => !r.running)).toEqual([]);
   });
 
   it("前景の起動（終わってから返る。SubagentStop が先に来る）は、PostToolUse が Run を開いてその場で閉じ、開始をかかった時間だけ前にする", async () => {

@@ -50,8 +50,11 @@ import {
   describeClosedRuns,
   findOpenedRun,
   fixRunFinishedAt,
+  openedInOtherSession,
   openedStepOf,
   openRun,
+  sessionOf,
+  STALE_SESSION_ERROR,
   token,
   transcriptFields,
   type ClosedOpenedRun,
@@ -1002,7 +1005,8 @@ async function openClaimRun(
 /**
  * もう一度の claim（自分が claim 済みで PR のあるチケット）。手直し（見直しの修正ループ・人のレビューの後）の開始とみなし、チケットは変えない（ST-3）。
  * agent なら手直しの Run（opens_on: reclaim の step、なければ fix）を開く（RN-5）。開いたままの前の手直しの Run は、
- * 次の Run の開始を区切りとして最後の push の時刻で閉じてから開く（RN-6）
+ * 次の Run の開始を区切りとして最後の push の時刻で閉じてから開く（RN-6）。前の Run が別のセッションで開いたものなら、
+ * そのセッションが落ちた残りとみなして interrupted で閉じる（ADR-015）
  */
 async function reclaim(
   ctx: CommandContext,
@@ -1035,15 +1039,21 @@ async function reclaim(
       pushedAt,
       startedAt: stale.data.started_at,
     });
+    // 別のセッションで開いたままの前の手直しは、そのセッションが落ちた残りなので interrupted にする（ADR-015）
+    const interrupted = openedInOtherSession(stale.data, sessionOf(ctx, input.session));
     const closed = await closeOpenedRunAlone(ctx, stale, {
       opener: "reclaim",
-      result: "success",
+      ...(interrupted
+        ? { result: "interrupted" as const, error: STALE_SESSION_ERROR }
+        : { result: "success" as const }),
       finishedAt,
     });
     // 別の文脈が先に閉じていたら、閉じずに警告だけ出して新しい Run を開く
     if (closed.run) {
       warnings.push(
-        `${doc.id}: 前の手直しの Run ${stale.id} を、この claim を区切りとして${pushed ? "最後の push の時刻" : "、push がないのでこの claim の時刻"}で閉じる`,
+        interrupted
+          ? `${doc.id}: 前の手直しの Run ${stale.id} は別のセッション（${stale.data.session}）で開いたままだったので、落ちたセッションの残りとみなして interrupted で閉じる`
+          : `${doc.id}: 前の手直しの Run ${stale.id} を、この claim を区切りとして${pushed ? "最後の push の時刻" : "、push がないのでこの claim の時刻"}で閉じる`,
       );
     }
     warnings.push(...closed.warnings);
@@ -1069,7 +1079,7 @@ export const ticketClaim = defineCommand({
   summary:
     "チケットに着手する。担当者（assignee）を自分にしてブランチを記録し、in_progress にする。push の成功で排他を得る。todo → in_progress の制約（requires: [deps_done] など）があれば従う。" +
     "agent なら続けて実装の Run（Workflow の steps のうち opens_on: claim のもの、なければ implement）を開き、ID を run（人向けの出力では標準出力の最後の行）に出す。開けなければ警告だけして claim は成功にする。" +
-    "自分（同じユーザの人と AI）が claim 済みで PR のあるチケット（in_progress か review）をもう一度 claim すると、手直し（見直しの修正ループ・人のレビューの後）の開始とみなす。チケットは変えず、agent なら手直しの Run（opens_on: reclaim のもの、なければ fix）を開く。開いたままの前の手直しの Run は、この claim を区切りとして、その Run の開始より後の最後の push の時刻（なければこの claim の時刻）で success にしてから開く。ほかの主体の claim は拒否する",
+    "自分（同じユーザの人と AI）が claim 済みで PR のあるチケット（in_progress か review）をもう一度 claim すると、手直し（見直しの修正ループ・人のレビューの後）の開始とみなす。チケットは変えず、agent なら手直しの Run（opens_on: reclaim のもの、なければ fix）を開く。開いたままの前の手直しの Run は、この claim を区切りとして、その Run の開始より後の最後の push の時刻（なければこの claim の時刻）で success にしてから開く（別のセッションで開いたままの前の手直しの Run は、落ちたセッションの残りとみなして interrupted にする）。ほかの主体の claim は拒否する",
   input: z.object({
     ticket: ticketRef,
     branch: z
