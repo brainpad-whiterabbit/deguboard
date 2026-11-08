@@ -86,7 +86,7 @@ description = "ビルド済みの dg を動かす。例: mise run dg -- ticket l
 run = "pnpm run dg"
 
 [tasks."check:docs"]
-description = "文書と guide の大きさの予算（90% 超えは警告）・ADR 一覧の整合・リンクとアンカーの切れ・拡張と Walkthrough が指す README の見出し・README.ja.md の節の構成のずれを検査する"
+description = "文書の重複と参照の切れを検査する。guide どうしの重複・ADR 一覧の整合・リンクとアンカーの切れ・拡張と Walkthrough が指す README の見出し・README.ja.md の節の構成のずれ・コードの要件 ID と先頭コメントの参照"
 run = "pnpm run check:docs"
 
 [tasks.check]

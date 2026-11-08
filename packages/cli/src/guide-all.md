@@ -11,7 +11,7 @@ Iteration かチケットを、割り当てからリリースまでの段階で�
 
 - Iteration（`s3`）：その Iteration のチケットと、そこに入れる候補（Iteration に入っていない todo）を扱う。候補を扱うのは割り当ての段階だけで、後の段階の「対象のチケット」はその Iteration に入っているもの
 - チケットの ID（1 つ以上）：そのチケットを扱う。見直しとリリースは、チケットの Iteration のチケットがすべて done になったときだけ、その Iteration を対象に行う。Iteration に入っていなければ見直しとリリースはしない
-- 指定が空：active の Iteration を勧めて確かめる。なければどれかを聞く
+- 指定が空：`dg guide release` の「対象を決める」と同じ
 - `--no-assign`：割り当ての段階を飛ばす。点検で Iteration に入れる案が出ても反映せず、終わりの報告に残す
 - `--auto`：下の「`--auto` で自動で選ぶ」に従う。`--no-assign` と一緒に指定できる
 

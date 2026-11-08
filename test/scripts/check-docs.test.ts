@@ -182,3 +182,46 @@ describe("check-docs の拡張と Walkthrough が指す README の見出しア�
     );
   });
 });
+
+describe("check-docs の要件 ID・先頭コメント・guide の重複（t536）", () => {
+  it("写したままなら要件 ID・先頭コメント・guide の重複は指摘しない", async () => {
+    const { stderr } = await run();
+    expect(stderr).not.toContain("要件 ID");
+    expect(stderr).not.toContain("先頭コメント");
+    expect(stderr).not.toContain("同じ段落");
+  });
+
+  it("requirements.md にない要件 ID を参照すると、場所を出して落ちる", async () => {
+    // 検査が本リポジトリのテストの文字列を要件 ID と読まないよう、ID は組み立てて書く
+    const missing = ["TK", "999"].join("-");
+    await writeFile(join(dir, "packages/cli/src/zz-probe.ts"), `// 要件 ${missing} の確かめ\n`);
+    const { code, stderr } = await run();
+    expect(code).toBe(1);
+    expect(stderr).toContain(
+      `packages/cli/src/zz-probe.ts:1: 要件 ID ${missing} が docs/requirements.md にない`,
+    );
+  });
+
+  it("先頭コメントが指す節・ADR・docs のパスと見出し・guide が存在しないと落ちる", async () => {
+    await writeFile(
+      join(dir, "packages/cli/src/zz-probe.ts"),
+      "// requirements.md 9.9、ADR-999、docs/requirements.md#存在しない、guide-nope\nexport {};\n",
+    );
+    const { code, stderr } = await run();
+    expect(code).toBe(1);
+    expect(stderr).toContain("先頭コメントが指す docs/requirements.md の節 9.9 がない");
+    expect(stderr).toContain("先頭コメントが指す ADR-999 がない");
+    expect(stderr).toContain("先頭コメントが指す見出しがない: docs/requirements.md#存在しない");
+    expect(stderr).toContain("先頭コメントが指す guide-nope.md がない");
+  });
+
+  it("同じ段落が 2 本の guide にあると、両方の名前を出して落ちる", async () => {
+    const text = "この段落は二つの guide に同じ文として置かれている（重複の検査の確かめ）。";
+    for (const rel of ["packages/cli/src/guide-plan.md", "packages/cli/src/guide-work.md"]) {
+      await writeFile(join(dir, rel), `${await readFile(join(dir, rel), "utf8")}\n${text}\n`);
+    }
+    const { code, stderr } = await run();
+    expect(code).toBe(1);
+    expect(stderr).toMatch(/guide-plan\.md, guide-work\.md: 同じ段落がある/);
+  });
+});
