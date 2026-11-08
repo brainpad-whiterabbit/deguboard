@@ -1,0 +1,33 @@
+{
+  "id": "r20261108-220630-2eb6",
+  "ticket": "t588",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-08T22:06:30Z",
+  "finished_at": "2026-11-08T22:11:27Z",
+  "result": "success",
+  "error": null,
+  "retries": 2,
+  "retry_reasons": [
+    "guide から消した dg の外の変更の戻し方を、要件 SY-8 と outsideRemedy・adopt の案内が guide の細部のまま指していた。案内先を OUTSIDE_CHANGES の文と adopt のヘルプに替える",
+    "outsideRemedy の戻し方で、ステージした変更を戻す手のフラグが抜けていた（guide から消した細部と同じ手が届かない）"
+  ],
+  "usage": {
+    "input": 50,
+    "output": 29442,
+    "cache_read": 1773026,
+    "cache_write": 85435
+  },
+  "tools": {
+    "read": 4,
+    "search": 0,
+    "write": 9,
+    "bash": 22,
+    "other": 1,
+    "read_before_write": 4,
+    "search_before_write": 0
+  },
+  "session": "4adcee53-1eb7-498c-972b-f70cb2e8a55d",
+  "review": null
+}
