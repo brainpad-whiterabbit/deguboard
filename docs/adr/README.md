@@ -31,3 +31,4 @@
 | [ADR-021](ADR-021-detect-outside-dg-changes.md)        | データの dg の外の変更は事後に見つけて書き込みを止め、フックは .git/deguboard の語を含む Bash を粗く止める | エージェント       | 2026-11-08 |
 | [ADR-022](ADR-022-close-fix-run-on-open.md)            | 同じチケットの次の Run を開く処理が、開いたままの手直しの Run をその場で閉じる                             | 作業の実績         | 2026-11-08 |
 | [ADR-023](ADR-023-screen-entry-vscode.md)              | 画面の入口は VS Code 拡張にし、ブラウザは開発用にする                                                      | UI                 | 2026-11-08 |
+| [ADR-024](ADR-024-oxlint-latest.md)                    | react(immutability) の指摘を直したので oxlint を最新に上げ、版を留めない                                   | 技術構成           | 2026-11-08 |

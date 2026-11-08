@@ -143,54 +143,8 @@ export function AskComposer({
   // 選んで開いたときは、開くと同時にコピーする（指示を足さないことが多い）。開いた 1 回だけで、復元（copyOnOpen が false）では勝手にコピーしない。選び直したときのコピーは下の選択の処理にある
   const copiedOnOpen = useRef(false);
   const copySeq = useRef(0);
-  // 最新の copy を ref で持つ。effect は引き直しのたびに再実行されても、copiedOnOpen で 1 回だけ呼ぶ
-  const copyRef = useRef<(pick: AskAction | null) => Promise<void>>(async () => {});
-  useEffect(() => {
-    copyRef.current = copy;
-  });
-  useEffect(() => {
-    // 候補が引けてから、選んだ頼むこと（候補にあれば）でコピーする。候補になければおすすめ
-    if (!copyOnOpen || !initialAction || !base || copiedOnOpen.current) return;
-    copiedOnOpen.current = true;
-    void copyRef.current(
-      initialAction && base.candidates.some((c) => c.action === initialAction)
-        ? initialAction
-        : null,
-    );
-  }, [base, copyOnOpen, initialAction]);
 
-  /** 今の指示で引き直してからコピーする（待っている間に打った分も入れる）。pick は選んだ直後の頼むこと（まだ state に入っていない） */
-  async function copy(pick: AskAction | null = action) {
-    // 注意：ブラウザ（Safari など）は await の後のクリップボード書き込みを、操作の直後でないとして拒むことがある。拒まれたら下の理由を出す
-    await deliver(
-      pick,
-      async (text) => {
-        await host.copy(text);
-        return tr(COPIED);
-      },
-      tr("コピーできない"),
-    );
-  }
-
-  /** 今の指示で引き直してから、選んだターミナルの入力に送る。Enter は押さない */
-  async function send() {
-    const target = sendTo;
-    if (!target || !host.terminals) return;
-    const terminalsHost = host.terminals;
-    await deliver(
-      action,
-      async (text) => {
-        const sent = await terminalsHost.send(target.id, text);
-        return sentMessage(target, {
-          multiline: text.includes("\n"),
-          clipboardKept: sent?.clipboardKept ?? false,
-        });
-      },
-      tr("送れない"),
-    );
-  }
-
-  /** 依頼文を引き直し、sink に渡して、知らせを出す。並んで走ったときは最後に押した 1 回だけ渡す（古い方が後で上書きしない） */
+  /** 依頼文を引き直し、sink に渡して、知らせを出す。並んで走ったときは最後に押した 1 回だけ渡す（古い方が後で上書きしない）。copy と send より前に置き、宣言の前に読まない（react(immutability)） */
   async function deliver(
     pick: AskAction | null,
     sink: (text: string) => Promise<string>,
@@ -217,6 +171,53 @@ export function AskComposer({
       if (mine !== copySeq.current) return;
       setResult({ ok: false, text: `${failure}: ${messageOf(e)}` });
     }
+  }
+
+  /** 今の指示で引き直してからコピーする（待っている間に打った分も入れる）。pick は選んだ直後の頼むこと（まだ state に入っていない） */
+  async function copy(pick: AskAction | null = action) {
+    // 注意：ブラウザ（Safari など）は await の後のクリップボード書き込みを、操作の直後でないとして拒むことがある。拒まれたら下の理由を出す
+    await deliver(
+      pick,
+      async (text) => {
+        await host.copy(text);
+        return tr(COPIED);
+      },
+      tr("コピーできない"),
+    );
+  }
+
+  // 最新の copy を ref で持つ。effect は引き直しのたびに再実行されても、copiedOnOpen で 1 回だけ呼ぶ。copy の宣言の後に置き、宣言の初期化の中で読まない（react(immutability)）
+  const copyRef = useRef<(pick: AskAction | null) => Promise<void>>(async () => {});
+  useEffect(() => {
+    copyRef.current = copy;
+  });
+  useEffect(() => {
+    // 候補が引けてから、選んだ頼むこと（候補にあれば）でコピーする。候補になければおすすめ
+    if (!copyOnOpen || !initialAction || !base || copiedOnOpen.current) return;
+    copiedOnOpen.current = true;
+    void copyRef.current(
+      initialAction && base.candidates.some((c) => c.action === initialAction)
+        ? initialAction
+        : null,
+    );
+  }, [base, copyOnOpen, initialAction]);
+
+  /** 今の指示で引き直してから、選んだターミナルの入力に送る。Enter は押さない */
+  async function send() {
+    const target = sendTo;
+    if (!target || !host.terminals) return;
+    const terminalsHost = host.terminals;
+    await deliver(
+      action,
+      async (text) => {
+        const sent = await terminalsHost.send(target.id, text);
+        return sentMessage(target, {
+          multiline: text.includes("\n"),
+          clipboardKept: sent?.clipboardKept ?? false,
+        });
+      },
+      tr("送れない"),
+    );
   }
 
   function removeTarget(id: string) {
