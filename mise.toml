@@ -32,6 +32,10 @@ run = "pnpm run typecheck"
 description = "vitest でテストする"
 run = "pnpm run test"
 
+[tasks."test:related"]
+description = "作業の途中に、変えたファイルに関わるテストだけを vitest で回す。変えたファイルは origin/main からの差分（コミット済み・ステージ・未ステージ・未追跡）で、関わるテストは import でたどれるテストと変えたテストファイル。関わるテストがなければ何も回さずに成功する。全体は mise run test、コミットの前は mise run check"
+run = "pnpm run test:related"
+
 [tasks."test:layout"]
 description = "画面の配置と吹き出しの一覧を Chromium で確かめる（サイドバーとパネルの幅、ライトとダーク、カンバン・バックログ・Iteration の詳細の吹き出しの一覧。中身は test/layout/）。ブラウザが要るので check には入れない（先に mise run playwright:install）"
 depends = ["build"]
