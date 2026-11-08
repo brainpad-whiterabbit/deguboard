@@ -61,7 +61,7 @@ export function composeBrief(
       : L("ファイルはこの worktree の中だけで編集する。", "Edit files only inside this worktree.");
   const where = item(
     L("場所", "Location"),
-    `worktree ${f.worktree ?? L("（claim で決まる。dg --json --actor agent ticket show で確かめる）", "(set by the claim; check it with dg --json --actor agent ticket show)")}、${L("ブランチ", "branch")} ${f.branch ?? L("（claim で決まる。ticket show の branch で確かめる）", "(set by the claim; check the branch in ticket show)")}。${scope}`,
+    `worktree ${f.worktree ?? L("（claim で決まる。dg --json --actor agent ticket show で確かめる）", "(set by the claim; check it with dg --json --actor agent ticket show)")}${L("、", ", ")}${L("ブランチ", "branch")} ${f.branch ?? L("（claim で決まる。ticket show の branch で確かめる）", "(set by the claim; check the branch in ticket show)")}${L("。", ". ")}${scope}`,
   );
   const plan = f.plan
     ? [

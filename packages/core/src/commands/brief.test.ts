@@ -91,7 +91,7 @@ describe("サブエージェントに渡す文の形（brief）", () => {
     expect(composeBrief("implement", facts(), "en")).toMatchInlineSnapshot(`
       "deguboard: ticket=t12 step=implement
       Implement ticket t12 "右の列を細くする" and create the PR as a draft.
-      - Location: worktree /work/deguboard.worktrees/feat/t12、branch feat/t12。Edit files only inside this worktree.
+      - Location: worktree /work/deguboard.worktrees/feat/t12, branch feat/t12. Edit files only inside this worktree.
       - Plan p3 scope: 右の列の CSS だけ
       - Approach: 幅の変数を 1 つ足す
       - Conventions: Follow the agent instruction file at the repository root and the steps in \`dg guide work\` (up to creating a draft PR). Create the PR with \`gh pr create --draft\` and write the ticket ID (t12) in its body.
@@ -106,7 +106,7 @@ describe("サブエージェントに渡す文の形（brief）", () => {
     expect(composeBrief("review", facts({ step: "review" }), "en")).toMatchInlineSnapshot(`
       "deguboard: ticket=t12 step=review
       Review the PR for ticket t12 "右の列を細くする" as a reviewer separate from the implementer.
-      - Location: worktree /work/deguboard.worktrees/feat/t12、branch feat/t12。Read the files only; do not change them.
+      - Location: worktree /work/deguboard.worktrees/feat/t12, branch feat/t12. Read the files only; do not change them.
       - Diff: After \`git fetch origin\`, look at \`git diff origin/main...feat/t12\`.
       - Ticket body: Read the body and acceptance criteria in \`dg --json --actor agent ticket show t12\`.
       - Conventions: Follow the agent instruction file at the repository root and the "見直す" (Review) section of \`dg guide review\`. Look for missed acceptance criteria, bugs, mismatches with the docs, rule violations, and changes outside the scope. If the ticket body has a \`## 参考\` section, compare the files it names with the files the diff changes, and report as "参考節との食い違い" any large spread outside the section and any change that does not touch the files the section names.
@@ -119,7 +119,7 @@ describe("サブエージェントに渡す文の形（brief）", () => {
     expect(composeBrief("fix", facts({ step: "fix" }), "en")).toMatchInlineSnapshot(`
       "Fix the findings on the PR for ticket t12 "右の列を細くする". Fix them on the same branch and push.
       - PR: #7 (keep it as a draft; do not mark it ready)
-      - Location: worktree /work/deguboard.worktrees/feat/t12、branch feat/t12。Edit files only inside this worktree.
+      - Location: worktree /work/deguboard.worktrees/feat/t12, branch feat/t12. Edit files only inside this worktree.
       - Findings to fix: (paste the list of findings here: the heavy findings and the light ones you decided to fix, returned by the reviewer or the human reviewer, each with file and line, reason, and how to fix it)
       - Before you start fixing: Run \`dg --json --actor agent ticket claim t12 --retry-reason <summary of finding 1> --retry-reason <summary of finding 2> …\` once, as a standalone command, to open the fix Run. Repeat --retry-reason once per finding you fixed (the number of reasons is the retry count). Write only the findings from the reviewer or the human reviewer, not fixes for failed checks. Each summary is one line and must not contain secrets, command strings, or paths. Do not use \`run start\` or \`run finish\`.
       - Scope of the fix: The heavy findings listed, and the light ones you decide to fix. For the other light findings, decide whether to fix them, and return the reasons for those you leave.
