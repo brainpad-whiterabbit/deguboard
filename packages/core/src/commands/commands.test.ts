@@ -2035,6 +2035,17 @@ describe("チケットの流れ", () => {
       });
       expect((await peekRunningRuns(agent.repo)).map((r) => r.id)).toEqual([review1.data.id]);
       await runCommand(runFinish, agent, { run: review1.data.id, result: "success" });
+      // 同じセッションの手直しも、見直しの run start は success で閉じる
+      clock = new Date("2026-11-06T01:30:00Z");
+      const fixSame = (await start("fix", "s-new")).data.id;
+      clock = new Date("2026-11-06T01:40:00Z");
+      const reviewSame = (await start("review", "s-new")).data.id;
+      expect(agent.store.runs.get(fixSame)!.data).toMatchObject({
+        result: "success",
+        error: null,
+        finished_at: "2026-11-06T01:40:00Z",
+      });
+      await runCommand(runFinish, agent, { run: reviewSame, result: "success" });
 
       // 照合も、手直しと同じ秒に始まった次の Run を区切りに数える（閉じずに開いた形（別のマシン・前の版の dg）を startRun で作る）
       clock = new Date("2026-11-06T02:00:00Z");
