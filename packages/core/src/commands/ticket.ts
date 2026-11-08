@@ -1,4 +1,4 @@
-// Ticket の操作（CL-2、ST-1〜ST-3、ST-7〜ST-8、RN-5）
+// Ticket の操作（CL-2、ST-1〜ST-3、ST-7〜ST-9、RN-5）
 
 import { z } from "zod";
 import { OperationError, UsageError } from "../errors.js";
@@ -851,7 +851,7 @@ function defaultBranchName(ticket: Ticket): string {
   return slug ? `feature/${ticket.id}-${slug}` : `feature/${ticket.id}`;
 }
 
-/** もう一度の claim になる条件：自分（同じユーザの人と AI）が claim 済みで PR のある in_progress・review のチケット（ST-3） */
+/** もう一度の claim になる条件：自分（同じユーザの人と AI）が claim 済みで PR のある in_progress・review のチケット（ST-9） */
 function isReclaim(ctx: CommandContext, ticket: Ticket): boolean {
   return (
     (ticket.status === "in_progress" || ticket.status === "review") &&
@@ -927,7 +927,7 @@ async function openClaimRun(
 }
 
 /**
- * もう一度の claim（自分が claim 済みで PR のあるチケット）。手直し（見直しの修正ループ・人のレビューの後）の開始とみなし、チケットは変えない（ST-3）。
+ * もう一度の claim（自分が claim 済みで PR のあるチケット）。手直し（見直しの修正ループ・人のレビューの後）の開始とみなし、チケットは変えない（ST-9）。
  * agent なら手直しの Run（opens_on: reclaim の step、なければ fix）を開く（RN-5）。開いたままの前の手直しの Run は、
  * openRun が次の Run の開始を区切りとして閉じてから開く（RN-6・ADR-025）。前の Run が別のセッションで開いたものなら、
  * そのセッションが落ちた残りとみなして interrupted で閉じる（ADR-025）。この claim のセッションは sessionOf で決め、
@@ -1034,7 +1034,7 @@ export const ticketClaim = defineCommand({
     if (retryReasonsGiven && (input.no_run || ctx.actor.kind !== "agent")) {
       throw new UsageError("retry_reason は手直しの Run を開く agent の claim でだけ使える");
     }
-    // もう一度の claim（自分が claim 済みで PR のあるチケット。ST-3・RN-5）かは、書き込みの中で取り込んだ後の索引で決める。
+    // もう一度の claim（自分が claim 済みで PR のあるチケット。ST-9・RN-5）かは、書き込みの中で取り込んだ後の索引で決める。
     // 書くものがないので ReclaimRequested で書き込みを抜け、外で reclaim に回す
     const result = await withWrite(
       ctx,
@@ -1084,7 +1084,7 @@ export const ticketClaim = defineCommand({
           status: "in_progress",
           assignee: ctx.actor.id,
           claimed_by: undefined,
-          // 新しい claim は新しい作業の周期。todo にあった前の作業の PR（unclaim 前の記録）は残さない（ST-3・ST-7）
+          // 新しい claim は新しい作業の周期。todo にあった前の作業の PR（unclaim 前の記録）は残さない（ST-3・ST-7・ST-9）
           pr: undefined,
           branch,
           branch_at: branch ? now : undefined,

@@ -172,7 +172,7 @@ steps: # 任意（WF-5）
 - RN-2 取れなかった値は `null`。推定した値は `estimated: true` を付ける。費用は持たない（[ADR-029](adr/ADR-029-work-metrics.md)）
 - RN-3 Git に入れるのは完了時の集計だけで、チケットには書き足さない。実行中の記録・会話記録のパス・保留の見直しの結果とやり直しの理由・フックの入力の有無は、このマシンの `deguboard-local/` に置く（`packages/core/src/run/record.ts`）。会話記録のパスは終了の時刻から 30 日残し、`dg run prune-transcripts` が消す（細部は `dg run prune-transcripts --help`）
 - RN-4 閉じた Run で書き換えるのは、`run refresh`（MT-5）が取り直すモデル名と使用量と、結果のない閉じた見直しの Run（チケットの最新の Run のとき）に 1 回だけ書く見直しの結果だけ（結果の記録がないことで `failure` だった Run は `success` に直す。細部は `dg run review-result --help`）
-- RN-5 agent の `ticket claim` は実装の Run（`opens_on: claim` の step、なければ `implement`）を開いて ID を返し、開けなくても claim は成功にする。もう一度の claim（ST-3）は手直しの Run（`opens_on: reclaim`、なければ `fix`）を開く。人の claim と `--no-run` では開かない（二重の起動は SY-5）。細部は `dg ticket claim --help`
+- RN-5 agent の `ticket claim` は実装の Run（`opens_on: claim` の step、なければ `implement`）を開いて ID を返し、開けなくても claim は成功にする。もう一度の claim（ST-9）は手直しの Run（`opens_on: reclaim`、なければ `fix`）を開く。人の claim と `--no-run` では開かない（二重の起動は SY-5）。細部は `dg ticket claim --help`
 - RN-6 実装の Run は PR の記録（照合を含む）と PR なしで終えた作業の前進で `success`。手直しの Run は次の Run の開始・前進・チケットの終了で `success`、別セッションの残りは `interrupted`。`unclaim`・`abandoned` の Run と、照合で戻った・取られたチケットの実装の Run は `failure`。照合は残りも閉じる。先に閉じられた Run は警告だけで、操作と照合を止めない。細部は各 `--help` とテスト
 - RN-7 印 `deguboard: ticket=<id> step=<step>` で頼んだサブエージェントの Run は、フック（AG-9）が起動で開き、step を終えた事実で閉じ、事実がなければ止まって待っている印を付け、セッションの終わりに残りを閉じる。細部は `dg hook --help` とそのテスト、理由は [ADR-025](adr/ADR-025-runs-by-hooks.md)
 - RN-8 `dg run retry-reason` は、実行中の手直しの Run の `retry_reasons` に直した指摘を書き足し、回数を理由の数にする。書く先がなければ保留し、フックが手直しの Run を閉じるときに結び付ける（細部は `dg run retry-reason --help`）
@@ -202,12 +202,13 @@ steps: # 任意（WF-5）
 
 - ST-1 `status` はチケットに保存する。変えるのは `ticket move`・`claim`・`unclaim`、UI の操作、照合だけ
 - ST-2 遷移は Workflow の `transitions` の制約で検査する。`by` に含まれない主体の遷移と `requires` を満たさない遷移は拒否し、制約のない遷移は誰でも行える。同じ Status への move は拒否する
-- ST-3 `claim` は todo のチケットの `assignee` を自分にし、`branch` を記録して in_progress に進め、agent なら実装の Run を開く（RN-5）。todo 以外と使えないブランチ名は拒否し、別のユーザの `assignee` は上書きして警告する。自分が claim 済みで `pr` のあるチケットのもう一度の claim は手直しの開始とみなし、チケットを変えずに Run だけ開く（細部は `ticket claim --help`）
+- ST-3 `claim` は todo のチケットの `assignee` を自分にし、`branch` を記録して in_progress に進め、agent なら実装の Run を開く（RN-5）。todo 以外と使えないブランチ名は拒否し、別のユーザの `assignee` は上書きして警告する（細部は `ticket claim --help`）
 - ST-4 照合は `dg sync` と、画面の同期（UI-6）で行う。`branch` のあるチケットについて Git から事実を集め、`reconcile` 規則を上から評価し、今より前進の順が先のときだけ書き換える。`branch` のないチケットと `done`・`abandoned` のチケットには触れない
 - ST-5 後退を指す事実（消えたブランチ・マージされずに閉じた PR）は書き換えず警告する。取れなかった事実は不明とし、前進の判定では偽と読む。結果（`reconciled`）には根拠の条件（`when`）を含める。細部は `packages/core/src/git/facts.ts`・`workflow/reconcile.ts`、理由は [ADR-028](adr/ADR-028-agents-and-state.md)
 - ST-6 PR の事実は `gh` が使えるときだけ取る（なくても照合は Git の事実で成り立つ）。ブランチ名で見つけた PR の番号を `pr` に記録し（記録済みは書き換えない）、実装の Run を閉じる（RN-6）。`branch_at` より前にマージされた PR は前の作業のものとして使わず警告する（細部は `packages/core/src/git/facts.ts`）
 - ST-7 `unclaim` は in_progress のチケットの、自分（同じユーザの人と AI）の claim か記録のない claim だけを外して todo に戻し、`assignee`・`branch`・`branch_at`・`pr` を消す（前の作業の PR を次の claim に残さない。実装・手直しの Run は RN-6）。ほかの claim は強制の指定で外す。生存監視はしない
 - ST-8 `abandoned` にすると claim を外し、Iteration の完了件数と Epic の進捗には数えない。todo に戻すときも claim と `pr` を外す（`abandoned` は `pr` を残す）。これらを人だけに限るなら Workflow の `by: [human]` で書く
+- ST-9 自分（同じユーザの人と AI）が claim 済みで `pr` のある in_progress・review のチケットのもう一度の claim は手直しの開始とみなし、チケットを変えずに手直しの Run だけ開く（RN-5、細部は `ticket claim --help`）
 
 ### 6.3 Git 同期と排他
 

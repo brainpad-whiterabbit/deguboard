@@ -39,7 +39,7 @@ vi.mock("../run/record.js", async (importOriginal) => {
 afterEach(runCleanups);
 
 describe("チケットの流れ（もう一度の claim と手直し）", () => {
-  it("自分が claim 済みで PR のあるチケットのもう一度の claim は、チケットを変えずに opens_on: reclaim の step（fix）の Run を --retry-reason 付きで開き、前の手直しの Run は最後の push の時刻で閉じる。ほかの主体と PR のない自分の claim は拒否する（RN-5）", async () => {
+  it("自分が claim 済みで PR のあるチケットのもう一度の claim は、チケットを変えずに opens_on: reclaim の step（fix）の Run を --retry-reason 付きで開き、前の手直しの Run は最後の push の時刻で閉じる。ほかの主体と PR のない自分の claim は拒否する（RN-5・ST-9）", async () => {
     const f = await fixture();
     let clock = new Date("2026-11-06T00:00:00Z");
     const human = await initialized(
@@ -336,7 +336,7 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
     }
   });
 
-  it("もう一度の claim かは取り込んだ後の索引で決め、別のマシンで済んだ claim と PR の記録や unclaim を古い索引で見誤らない（ST-3）", async () => {
+  it("もう一度の claim かは取り込んだ後の索引で決め、別のマシンで済んだ claim と PR の記録や unclaim を古い索引で見誤らない（ST-9）", async () => {
     const f = await fixture();
     let clock = new Date("2026-11-06T00:00:00Z");
     const a = await initialized(
@@ -382,7 +382,7 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
       // 逆に、clone B で unclaim されていれば、古い索引では手直しに見えても取り込んでから新しい claim になる
       await runCommand(ticketUnclaim, b, { ticket: "t1" });
       await runCommand(sync, b, {});
-      // unclaim で前の PR の記録も外すので、新しい claim は手直しではなく実装の Run になる（ST-3・ST-7）
+      // unclaim で前の PR の記録も外すので、新しい claim は手直しではなく実装の Run になる（ST-7・ST-9）
       const fresh = await runCommand(ticketClaim, agent, { ticket: "t1", branch: "feat/t1-again" });
       expect(fresh.data).toMatchObject({ status: "in_progress", branch: "feat/t1-again" });
       expect(fresh.data.pr).toBeUndefined();

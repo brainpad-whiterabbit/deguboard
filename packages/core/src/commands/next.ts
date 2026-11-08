@@ -345,6 +345,7 @@ export function nextOf(ctx: CommandContext, facts: StageFacts): NextStep {
             "同じブランチで直して push する",
           ]);
     case "ready":
+      // マージは人を待つ手にする。自動でマージするのは auto.merge が true で品質ゲートを通った PR だけ（EX-7）
       return make(
         "wait_merge",
         null,
@@ -359,7 +360,7 @@ export const next = defineCommand({
   positionals: ["ticket"],
   group: "next",
   summary:
-    "チケットの次の 1 手を返す（EX-3）。段階（stage。ticket show と同じ）は、todo（着手できる）・blocked（Plan の待ちか依存先がある）・" +
+    "チケットの次の 1 手を返す（EX-3・EX-5）。段階（stage。ticket show と同じ）は、todo（着手できる）・blocked（Plan の待ちか依存先がある）・" +
     "claimed（PR がない）・implemented（PR があり見直しがない）・reviewing（見直しが実行中）・reviewed（最後の push より後の見直しが閉じた。review_passed で通ったか）・" +
     "fixed（見直しの後に push があるか、最後の見直しの結果がない）・ready（見直しが通り PR を出した）・merged（done）・closed（abandoned）・" +
     `waiting_human（止まって待っている Run がある、最後の見直しの後の手直しが failure か interrupted で閉じた、か、重い指摘が出た見直しが ${FIX_ROUNDS_LIMIT} 回を超えた）。PR が draft かは status で見る（in_progress で PR があれば draft）。` +
