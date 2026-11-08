@@ -1,7 +1,6 @@
-// 文書とコードの参照を検査する（docs/adr/ADR-001-doc-strategy.md）。大きさの予算は持たない。検査するのは、ADR 一覧の整合と更新日の一致・リンクと見出しアンカーの切れ・拡張と Walkthrough が指す README の見出しアンカー・README.md と README.ja.md の節の構成のずれ・コードとテストの要件 ID・コードの先頭コメントの参照・guide どうしの重複。
-// 文書の重複は今は guide どうしだけを見る（guide 以外の文書の重複は検査しない）。
+// 文書とコードの参照を検査する（docs/adr/ADR-001-doc-strategy.md）。大きさの予算は持たない。検査するのは、ADR 一覧の整合と更新日の一致・リンクと見出しアンカーの切れ・拡張と Walkthrough が指す README の見出しアンカー・README.md と README.ja.md の節の構成のずれ・コードとテストの要件 ID・コードの先頭コメントの参照・文書の重複。
 // 要件 ID は docs/requirements.md の箇条書き「- XX-N」で定義されたものに限る。接頭辞は定義から取り、定義にない番号を参照していたら指摘する。先頭コメントは最初の // の行で、requirements.md の節番号・ADR・docs のパス（#アンカー）・guide-*.md を照らす。
-// guide の重複は、同じ見出しの節の本文が同じとき、または同じ段落（40 字以上。空行・見出し・表・コードで切り、箇条書きの 1 項目も 1 段落）が 2 本以上の guide にあるときに指摘する。frontmatter と ``` の中は除く。短い選択肢や定型句は同じ語でよいので対象にしない。
+// 文書の重複は、同じ見出しの節の本文が同じ guide どうし（正本を 1 本にする）、または同じ段落が 2 本以上の文書にあるときに指摘する。段落は 40 字以上で、空行・見出し・表・コードで切り、箇条書きの 1 項目も 1 段落にする。比べるのは guide・docs/requirements.md・docs の下のほかの文書（ADR を除く）・CLAUDE.md・README.md・README.ja.md・packages/*/README.md。ADR は判断の記録で、決めたら書き換えないので比べない。README.md と README.ja.md は訳どうしなので、この 2 つだけの組は指摘しない。frontmatter と ``` の中は除く。短い選択肢や定型句は同じ語でよいので対象にしない。指摘には段落の場所（ファイルと行）を出す。
 // 調べるファイルは git が追跡しているか無視されていないもの（.gitignore のビルドの成果物は読まない）。git のリポジトリの中で動かす。
 // 依存なしで動かす（git だけは execFile で呼ぶ）。mise run check:docs から呼ぶ。
 import { execFile } from "node:child_process";
@@ -20,7 +19,7 @@ const tracked = await gitFiles();
 const guideDir = "packages/cli/src";
 // 要件 ID と先頭コメントを照らす対象の拡張子（packages・scripts・test の下）
 const SOURCE_EXTS = [".ts", ".tsx", ".mjs", ".js", ".cjs"];
-// guide の重複と見なす段落・節の本文の長さ（字）。これより短い選択肢や定型句は対象にしない
+// 重複と見なす段落・節の本文の長さ（字）。これより短い選択肢や定型句は対象にしない
 const DUP_MIN_CHARS = 40;
 
 const errors = [];
@@ -200,28 +199,41 @@ for (const rel of sources) {
   }
 }
 
-// guide どうしの重複：同じ見出しの節の本文が同じ、または同じ段落が 2 本以上の guide にある
+// 文書の重複：節の本文は guide どうしだけ、段落は下の対象すべてを比べる
 const guideFiles = (await readdir(path.join(root, guideDir)))
   .filter((f) => /^guide-.+\.md$/.test(f))
-  .sort();
+  .sort()
+  .map((f) => path.join(guideDir, f));
+const paragraphDocs = [
+  ...guideFiles,
+  "docs/requirements.md",
+  ...tracked.filter(
+    (f) =>
+      (f.startsWith("docs/") && f.endsWith(".md") && !f.startsWith("docs/adr/")) ||
+      f === "CLAUDE.md" ||
+      f === "README.md" ||
+      f === "README.ja.md" ||
+      /^packages\/[^/]+\/README\.md$/.test(f),
+  ),
+];
 const sameSections = new Map();
-const sameParagraphs = new Map();
-for (const file of guideFiles) {
-  const { sections, paragraphs } = guideBlocks(
-    await readFile(path.join(root, guideDir, file), "utf8"),
-  );
-  for (const s of sections) {
-    if (s.body.length < DUP_MIN_CHARS) continue;
-    const key = `${s.heading}\n${s.body}`;
-    const entry = sameSections.get(key) ?? { heading: s.heading, files: new Set() };
-    entry.files.add(file);
-    sameSections.set(key, entry);
+const sameParagraphs = new Map(); // 段落 → (ファイル → 行)
+for (const rel of new Set(paragraphDocs)) {
+  const { sections, paragraphs } = guideBlocks(await readFile(path.join(root, rel), "utf8"));
+  if (guideFiles.includes(rel)) {
+    for (const s of sections) {
+      if (s.body.length < DUP_MIN_CHARS) continue;
+      const key = `${s.heading}\n${s.body}`;
+      const entry = sameSections.get(key) ?? { heading: s.heading, files: new Set() };
+      entry.files.add(rel);
+      sameSections.set(key, entry);
+    }
   }
-  for (const p of new Set(paragraphs)) {
-    if (p.length < DUP_MIN_CHARS) continue;
-    const files = sameParagraphs.get(p) ?? new Set();
-    files.add(file);
-    sameParagraphs.set(p, files);
+  for (const { text, line } of paragraphs) {
+    if (text.length < DUP_MIN_CHARS) continue;
+    const places = sameParagraphs.get(text) ?? new Map();
+    if (!places.has(rel)) places.set(rel, line);
+    sameParagraphs.set(text, places);
   }
 }
 for (const { heading, files } of sameSections.values()) {
@@ -231,10 +243,12 @@ for (const { heading, files } of sameSections.values()) {
     );
   }
 }
-for (const [text, files] of sameParagraphs) {
-  if (files.size > 1) {
-    errors.push(`${[...files].join(", ")}: 同じ段落がある（「${text.slice(0, 30)}…」）`);
-  }
+for (const [text, places] of sameParagraphs) {
+  // README.md と README.ja.md だけの組は訳どうしなので除く
+  const translations = places.size === 2 && places.has("README.md") && places.has("README.ja.md");
+  if (places.size < 2 || translations) continue;
+  const where = [...places].map(([rel, line]) => `${rel}:${line}`).join(", ");
+  errors.push(`${where}: 同じ段落がある（「${text.slice(0, 30)}…」）`);
 }
 
 if (errors.length > 0) {
@@ -243,7 +257,7 @@ if (errors.length > 0) {
   process.exit(1);
 }
 console.log(
-  `check:docs: ADR ${adrFiles.length} 件（更新日の一致 ${datedCount} 件）、guide ${guideFiles.length} 件に重複なし、リンク ${linkCount} 件に切れなし、README.ja.md の見出し ${readmeJaHeadings.length} 個が README.md と同じ構成、拡張と Walkthrough の README の見出しアンカー ${readmeAnchorCount} 件に切れなし、要件 ID ${requirementRefCount} 件が定義どおり、先頭コメントの参照 ${topRefCount} 件に切れなし`,
+  `check:docs: ADR ${adrFiles.length} 件（更新日の一致 ${datedCount} 件）、文書 ${new Set(paragraphDocs).size} 件（guide ${guideFiles.length} 件を含む）に重複なし、リンク ${linkCount} 件に切れなし、README.ja.md の見出し ${readmeJaHeadings.length} 個が README.md と同じ構成、拡張と Walkthrough の README の見出しアンカー ${readmeAnchorCount} 件に切れなし、要件 ID ${requirementRefCount} 件が定義どおり、先頭コメントの参照 ${topRefCount} 件に切れなし`,
 );
 
 /** ファイルの先頭の // の行（shebang を除く）。最初の // 以外の行で止める */
@@ -257,20 +271,22 @@ function topComment(text) {
   return out;
 }
 
-/** guide の本文を節と段落に分ける。frontmatter と ``` の中は除く。段落は空行・見出し・表・コードで切り、箇条書きの 1 項目ごとに切る */
+/** 文書の本文を節と段落に分ける。frontmatter と ``` の中は除く。段落は空行・見出し・表・コードで切り、箇条書きの 1 項目ごとに切る。段落は最初の行の行番号をつける */
 function guideBlocks(text) {
   const lines = text.split("\n");
-  const body = lines[0] === "---" ? lines.slice(lines.indexOf("---", 1) + 1) : lines;
+  const start = lines[0] === "---" ? lines.indexOf("---", 1) + 1 : 0;
   const sections = [];
   const paragraphs = [];
   let section = null;
   let para = [];
+  let paraLine = 0;
   let inFence = false;
   const endPara = () => {
-    if (para.length > 0) paragraphs.push(normalize(para.join(" ")));
+    if (para.length > 0) paragraphs.push({ text: normalize(para.join(" ")), line: paraLine });
     para = [];
   };
-  for (const line of body) {
+  for (const [i, line] of lines.entries()) {
+    if (i < start) continue;
     if (/^\s*(```|~~~)/.test(line)) {
       endPara();
       inFence = !inFence;
@@ -290,6 +306,7 @@ function guideBlocks(text) {
       continue;
     }
     if (/^\s*([-*]|\d+\.)\s/.test(line)) endPara();
+    if (para.length === 0) paraLine = i + 1;
     para.push(line.trim());
   }
   endPara();
