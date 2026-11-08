@@ -20,7 +20,6 @@ export { readHookInput, type HookInputRecord } from "./hook.js";
 export type {
   CommandClient,
   CommandFailure,
-  DiffRequest,
   StatusView,
   WebviewEvent,
   WebviewRequest,

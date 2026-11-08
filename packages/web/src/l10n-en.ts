@@ -200,20 +200,6 @@ export const EN: Readonly<Record<string, string>> = {
   "{0}時間 {1}分": "{0}h {1}m",
   "{0}分 {1}秒": "{0}m {1}s",
   "{0}秒": "{0}s",
-  // components/ticket-changes.tsx
-  追加: "Added",
-  変更: "Modified",
-  削除: "Deleted",
-  名前の変更: "Renamed",
-  写し: "Copied",
-  "変更{0}": "Changes{0}",
-  変更を見る: "Show changes",
-  "{0}{1}{2} ファイル {3}{4}{5}{6}": "{0}{1}{2} files {3}{4}{5}{6}",
-  "（差分は VS Code で開ける）": " (open diffs in VS Code)",
-  "{0} との間に変更はない": "No changes from {0}",
-  "{0} の差分を開く": "Open diff of {0}",
-  差分を開けない: "Could not open the diff",
-  バイナリ: "binary",
   // components/ticket-fields.tsx
   未設定: "Not set",
   // components/ticket-props-browser.tsx
@@ -570,7 +556,6 @@ export const EN_ONE: Readonly<Record<string, { arg: number; text: string }>> = {
   "全 {0} 件のうち {1} 件": { arg: 0, text: "{1} of {0} item" },
   "すべて {0} 件": { arg: 0, text: "All {0} item" },
   "当たった {0} / {1} 件": { arg: 1, text: "Matched {0} / {1} item" },
-  "{0}{1}{2} ファイル {3}{4}{5}{6}": { arg: 2, text: "{0}{1}{2} file {3}{4}{5}{6}" },
   "。値が取れなかった Run が {0} 件あり、合計に入れていない": {
     arg: 0,
     text: ". {0} run had no value and is not in the total",

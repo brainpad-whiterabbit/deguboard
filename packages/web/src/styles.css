@@ -36,10 +36,6 @@
   --vscode-inputValidation-warningBorder: #d9b100;
   --vscode-inputValidation-errorBackground: #fde7e9;
   --vscode-inputValidation-errorBorder: #b3261e;
-  --vscode-gitDecoration-addedResourceForeground: #587c0c;
-  --vscode-gitDecoration-modifiedResourceForeground: #895503;
-  --vscode-gitDecoration-deletedResourceForeground: #ad0707;
-  --vscode-gitDecoration-renamedResourceForeground: #007100;
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -65,10 +61,6 @@
     --vscode-testing-iconPassed: #73c991;
     --vscode-inputValidation-warningBackground: #352a05;
     --vscode-inputValidation-errorBackground: #5a1d1d;
-    --vscode-gitDecoration-addedResourceForeground: #81b88b;
-    --vscode-gitDecoration-modifiedResourceForeground: #e2c08d;
-    --vscode-gitDecoration-deletedResourceForeground: #c74e39;
-    --vscode-gitDecoration-renamedResourceForeground: #73c991;
   }
 }
 
@@ -584,8 +576,7 @@ button.link:hover {
   background: transparent;
   padding: 0;
 }
-/* チケット詳細の節（変更・経過・Run）の見出し */
-.changes h2,
+/* チケット詳細の節（経過・Run）の見出し */
 .timeline h2,
 .runs h2 {
   font-size: 1em;
@@ -1340,7 +1331,6 @@ table.list th {
   flex: none;
 }
 [data-surface="panel"] .detail .markdown :is(h3, h4, h5, h6),
-[data-surface="panel"] .changes h2,
 [data-surface="panel"] .timeline h2,
 [data-surface="panel"] .runs h2 {
   font-size: 1em;
@@ -3296,70 +3286,4 @@ td.ask-cell {
   align-items: flex-start;
   gap: 0.25em;
   margin-top: 0.3em;
-}
-
-/* チケット詳細の変更（ticket-changes.tsx）。見出しの横に「変更を見る」、1 行に種類の印・パス・行数。色は VS Code の SCM の飾りと同じ */
-.changes h2 {
-  display: flex;
-  align-items: center;
-  gap: 0.6em;
-}
-.changes-toggle {
-  font-size: 12px;
-  font-weight: normal;
-}
-.changes-summary {
-  margin: 0 0 0.3rem;
-}
-.changes-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-.changes-file {
-  display: grid;
-  grid-template-columns: 1.4em minmax(0, 1fr) auto;
-  gap: 0.5em;
-  align-items: baseline;
-  width: 100%;
-  padding: 1px 4px;
-  border: 0;
-  border-radius: 3px;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  text-align: left;
-}
-button.changes-file {
-  cursor: pointer;
-}
-button.changes-file:hover {
-  background: var(--vscode-list-hoverBackground);
-}
-.changes-path {
-  overflow-wrap: anywhere;
-}
-.changes-stat {
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-.change-kind {
-  font-weight: 600;
-  text-decoration: none;
-  text-align: center;
-}
-.change-added,
-.changes-add {
-  color: var(--vscode-gitDecoration-addedResourceForeground);
-}
-.change-modified {
-  color: var(--vscode-gitDecoration-modifiedResourceForeground);
-}
-.change-deleted,
-.changes-del {
-  color: var(--vscode-gitDecoration-deletedResourceForeground);
-}
-.change-renamed,
-.change-copied {
-  color: var(--vscode-gitDecoration-renamedResourceForeground);
 }

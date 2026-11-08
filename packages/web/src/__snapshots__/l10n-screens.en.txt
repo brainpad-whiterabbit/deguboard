@@ -419,8 +419,6 @@ Edit
 [title] Mark as done
 [aria-label] Acceptance criterion 1
 条件データの一
-Changes
-Show changes
 Run
 3
 items

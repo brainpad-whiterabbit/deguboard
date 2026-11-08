@@ -4,7 +4,6 @@
 import type {
   CommandClient,
   CommandResult,
-  DiffRequest,
   StatusView,
   TerminalChoice,
   TerminalSendResult,
@@ -30,8 +29,6 @@ export interface WebviewClient extends CommandClient {
   copy(text: string): Promise<void>;
   /** チケットの作業ブランチの worktree を新しいウィンドウで開く */
   openWorktree(ticket: string): Promise<void>;
-  /** ticket.changes の 1 ファイルを差分エディタで開いてもらう（UI-4） */
-  openDiff(request: DiffRequest): Promise<void>;
   /** 開いているターミナルの一覧を拡張ホストに尋ねる（UI-15） */
   terminals(): Promise<TerminalChoice[]>;
   /** 開いているターミナル terminal の入力に text を入れてもらう。Enter は押さず、ターミナルは起動しない（EX-1） */
@@ -95,9 +92,6 @@ export function createWebviewClient(
     },
     async openWorktree(ticket: string): Promise<void> {
       await send({ kind: "action", name: "openWorktree", ticket });
-    },
-    async openDiff(request: DiffRequest): Promise<void> {
-      await send({ kind: "action", name: "openDiff", ...request });
     },
     async terminals(): Promise<TerminalChoice[]> {
       return (await send({ kind: "action", name: "terminals" })).data as TerminalChoice[];

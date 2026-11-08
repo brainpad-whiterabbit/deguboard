@@ -61,8 +61,6 @@ import {
   ticketImport,
   ticketList,
   ticketMove,
-  ticketChangedFile,
-  ticketChanges,
   ticketShow,
   ticketUnclaim,
   ticketUpdate,
@@ -188,40 +186,6 @@ describe("init", () => {
 });
 
 describe("チケットの流れ", () => {
-  it("ticket changes と changed-file は作業ブランチの変更を読むだけで、ブランチのないチケットは NOT_FOUND（t375）", async () => {
-    const f = await fixture();
-    const ctx = await initialized(f.cloneA);
-    await runCommand(ticketCreate, ctx, { title: "差分を見る" });
-    await runCommand(ticketCreate, ctx, { title: "ブランチなし" });
-    const branch = (await runCommand(ticketClaim, ctx, { ticket: "t1" })).data.branch!;
-    await expect(runCommand(ticketChanges, ctx, { ticket: "t2" })).rejects.toMatchObject({
-      code: "NOT_FOUND",
-    });
-    // claim はブランチ名を記録するだけで、ブランチはまだない
-    await expect(runCommand(ticketChanges, ctx, { ticket: "t1" })).rejects.toMatchObject({
-      code: "NOT_FOUND",
-    });
-    await git(f.cloneA, ["switch", "-qc", branch]);
-    await writeFile(path.join(f.cloneA, "a.txt"), "足した\n");
-    await git(f.cloneA, ["add", "a.txt"]);
-    await git(f.cloneA, ["commit", "-qm", "作業"]);
-    const head = (await git(ctx.repo.dataDir, ["rev-parse", "HEAD"])).stdout;
-    const r = await runCommand(ticketChanges, ctx, { ticket: "t1" });
-    expect(r.write).toBeUndefined();
-    expect(r.data.files).toEqual([
-      { kind: "added", path: "a.txt", old_path: null, additions: 1, deletions: 0, binary: false },
-    ]);
-    const side = await runCommand(ticketChangedFile, ctx, {
-      ticket: "1",
-      side: "head",
-      path: "a.txt",
-    });
-    expect(side.data).toMatchObject({ exists: true, text: "足した\n" });
-    expect(side.write).toBeUndefined();
-    // データのブランチにコミットしない
-    expect((await git(ctx.repo.dataDir, ["rev-parse", "HEAD"])).stdout).toBe(head);
-  });
-
   it("ticket show は作業ブランチの worktree のパスを git の一覧から引き、その worktree でも同じデータを読める（t381）", async () => {
     const f = await fixture();
     const ctx = await initialized(f.cloneA);

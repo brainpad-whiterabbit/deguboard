@@ -15,7 +15,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import type { DiffRequest, TerminalChoice, TerminalSendResult } from "@deguboard/core";
+import type { TerminalChoice, TerminalSendResult } from "@deguboard/core";
 import { askKey, parseAskKey } from "./ask-key.js";
 import type { WebviewClient } from "./client/webview.js";
 import { hrefOf, navigate, toggleRoute, type Route } from "./router.js";
@@ -38,8 +38,6 @@ export interface Host {
   state: UiState;
   /** チケットの作業ブランチの worktree を新しいウィンドウで開く。Webview だけにあり、ブラウザ（dg serve）にはない（パスを出すだけになる。ブラウザからは別のウィンドウでフォルダを開けない） */
   openWorktree?: ((ticket: string) => Promise<void>) | undefined;
-  /** 変わったファイルを VS Code の差分エディタで開く（UI-4）。Webview だけにあり、ブラウザ（dg serve）にはない（一覧だけになる） */
-  openDiff?: ((request: DiffRequest) => Promise<void>) | undefined;
   /** 開いているターミナルへ依頼文を送る口（UI-15）。Webview だけにあり、ブラウザ（dg serve）にはない（コピーだけになる） */
   terminals?: TerminalsHost | undefined;
 }
@@ -74,7 +72,6 @@ export function createHost(surface: Surface, client: WebviewClient | null, state
       copy: (text) => client.copy(text),
       state: state ?? browserHost.state,
       openWorktree: (ticket) => client.openWorktree(ticket),
-      openDiff: (request) => client.openDiff(request),
       terminals: {
         list: () => client.terminals(),
         send: (terminal, text) => client.sendToTerminal(terminal, text),

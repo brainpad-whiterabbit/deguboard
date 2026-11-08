@@ -1,4 +1,4 @@
-// チケット詳細（UI-4）。本文（概要・受け入れ条件）、属性、Epic、依存先と依存元、作業ブランチ、作業ブランチの変更（ticket-changes.tsx）、Run の一覧と、経過（deguboard ブランチの履歴）。
+// チケット詳細（UI-4）。本文（概要・受け入れ条件）、属性、Epic、依存先と依存元、作業ブランチ、Run の一覧と、経過（deguboard ブランチの履歴）。
 // 属性と本文を編集でき、Status は ticket.move と同じ検査を通る。
 // Status の選択・表示名と任意フィールドは、チケット自身の Workflow（なければ Project の既定）で決める。
 // VS Code のパネルでは、タイトルの下に Status・優先度・Iteration・担当・PR の 1 行と編集のボタンを置いてスクロールしても上に残す。
@@ -14,7 +14,6 @@ import { StatusDot, PriorityMark, TicketLink } from "../components/parts.js";
 import { attrPatchOf, BrowserProps } from "../components/ticket-props-browser.js";
 import { PanelProps } from "../components/ticket-props-panel.js";
 import { draftOf, PrLink, type Draft } from "../components/ticket-props.js";
-import { TicketChanges } from "../components/ticket-changes.js";
 import { TicketRuns } from "../components/ticket-runs.js";
 import { TicketTimeline } from "../components/timeline.js";
 import { useHost } from "../host.js";
@@ -213,7 +212,6 @@ export function TicketPage({ id }: { id: string }) {
           />
         )}
         {panel ? null : <div className="actions">{editButtons}</div>}
-        {ticket.branch ? <TicketChanges key={ticket.id} ticket={ticket.id} /> : null}
         <TicketRuns id={ticket.id} />
         <TicketTimeline id={ticket.id} />
       </div>
