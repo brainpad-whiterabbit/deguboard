@@ -1,0 +1,32 @@
+id: p77
+project: default
+tickets: [t473, t557, t558, t559, t453]
+after:
+  t558:
+    - t557
+  t559:
+    - t557
+  t453:
+    - t473
+pending_approval: true
+details:
+  t473:
+    scope: チケット詳細の「変更を見る」と ticket.changes・ticket.changed-file・openDiff・DiffRequest を core・vscode・web から外し、UI-4 を直す
+    approach: 使われ方を grep で洗ってから消し、facts.ts の refExists・baseRef は他で使わなければ戻す
+    tier: heavy
+  t557:
+    scope: mise.toml に test:related を足し、CLAUDE.md の「開発環境とコマンド」に規約を書く
+    approach: vitest の --changed（related）で変えたファイルに関わるテストだけを回すタスクにし、guide と development.md には写さない
+    tier: standard
+  t558:
+    scope: CLAUDE.md の「ブランチ・PR・マージ」に、見直しで動かす確認は 1 回までとし確率的な不具合はコードの根拠で指摘する規約を書く
+    approach: 本文の文の案をそのまま基に書き、秒数の上限は書かない
+    tier: light
+  t559:
+    scope: commands.test.ts・run.test.ts・hook.test.ts を分け、どのファイルも単独で 30 秒以内にする
+    approach: テストの件数を前後で数えて揃え、mise run test の前後の時間を PR に書く
+    tier: standard
+  t453:
+    scope: 拡張と web の core の写し（idKindOf・planStatus・targetLine・localDir）と散らばったルートの形・2 通りの循環の検出をまとめる
+    approach: plan.show に status を足し、ルートの形は WEBVIEW_CONTRACT から組んで突き合わせるテストを置く
+    tier: heavy
