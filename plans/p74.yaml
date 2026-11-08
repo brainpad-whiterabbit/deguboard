@@ -6,7 +6,7 @@ after:
     - t556
   t537:
     - t535
-pending_approval: true
+pending_approval: false
 details:
   t556:
     scope: Run を開く処理（openRun）で、同じチケットの開いている手直しの Run をその場で閉じ、sync の区切りの同じ秒の扱いを合わせる
@@ -20,3 +20,5 @@ details:
     scope: PR の要らない調査：s19 と同じ 6 つの数の取り直しと EX-1 反転の要否の判断
     approach: t494 のコマンドで表を出し、ADR-004 の書き換え案として報告する。新しい Iteration のデータが揃ってから着手する
     tier: heavy
+approved_by: maji/agent
+approved_at: 2026-11-08T06:48:11Z
