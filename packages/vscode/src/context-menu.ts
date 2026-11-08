@@ -1,5 +1,5 @@
 // 左パネルのバックログの行の右クリックのメニュー（UI-12）。VS Code の API に触れない部分で、extension.ts から呼ぶ。
-// 「詳細を開く」「ID をコピー」だけで、データには書き込まない。エージェントに頼む入口は右クリックに置かない（ADR-010）。
+// 「詳細を開く」「ID をコピー」だけで、データには書き込まない。エージェントに頼む入口は右クリックに置かない（文言が package.json の定義に固定されて対象に合わせられない。ADR-027）。
 // 行は web が data-vscode-context に webviewSection・ticket を載せ（parts.tsx の BacklogItem）、
 // package.json の webview/context が webviewSection を見てメニューを出す。コマンドはその文脈を引数で受け取る
 

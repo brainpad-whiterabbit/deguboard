@@ -18,7 +18,7 @@ deguboard は、Git で管理するチケットとユーザー定義のワーク
 ## 2. 想定利用者と前提
 
 - **利用者**：個人、および同じ Git リポジトリを共有する小規模チーム
-- **実行環境**：Linux / macOS。Node.js 24 以上。`dg` は npm で入れる（公開までは README の手順でビルドする）。画面は VS Code 1.123 以上（デスクトップ）の拡張だけ。`dg serve` は開発用（配置の確認とスクリーンショット）で、利用者の入口ではない（[ADR-023](adr/ADR-023-screen-entry-vscode.md)）
+- **実行環境**：Linux / macOS。Node.js 24 以上。`dg` は npm で入れる（公開までは README の手順でビルドする）。画面は VS Code 1.123 以上（デスクトップ）の拡張だけ。`dg serve` は開発用（配置の確認とスクリーンショット）で、利用者の入口ではない（[ADR-027](adr/ADR-027-screen-vscode-writes-and-asks.md)）
 - **必須ツール**：git 2.30 以上。GitHub CLI（`gh`）は PR の事実を照合に使うときだけ
 - **リポジトリ**：Git リポジトリ。リモートは任意（なければ同期なしで動く）。`git.base_branch` を作業ブランチの元と「マージ済み」の判定に使う
 - **エージェント**：`dg` を Bash から呼べるものなら何でも。Skill は Claude Code 向けに配る
@@ -179,7 +179,7 @@ steps: # 任意（WF-5）
 
 項目と意味・値・既定値・範囲（scope）はスキーマ（`packages/core/src/model/config.ts`）、`config.set` の値の扱いは `dg config set --help` が正本。エージェントや記録に関わるもの（`metrics.read_transcripts`・`actions.shell`・`auto.merge`）は既定で `false`。
 
-- チームの `config.yaml` は deguboard ブランチで全員が共有し、人ごとに違ってよい項目（scope が `local`）だけは Git に入らない `deguboard-local/config.yaml`（5.1）で上書きできる（`dg config set --local`。コミットも push もしない）。値は「個人 > チーム > 既定」の順に読み、CLI・`dg serve`・VS Code 拡張は Core 経由で同じ値を使う。個人のファイルの無効な項目と値は無視して `dg validate` が警告する。`config show --fields` は空にすると既定に戻るか（`clears_to_default`）も返し、`config set` と設定画面はこれで空の扱いを決める（細部は `dg config show --help`、理由は [ADR-006](adr/ADR-006-ui-and-writes.md)）
+- チームの `config.yaml` は deguboard ブランチで全員が共有し、人ごとに違ってよい項目（scope が `local`）だけは Git に入らない `deguboard-local/config.yaml`（5.1）で上書きできる（`dg config set --local`。コミットも push もしない）。値は「個人 > チーム > 既定」の順に読み、CLI・`dg serve`・VS Code 拡張は Core 経由で同じ値を使う。個人のファイルの無効な項目と値は無視して `dg validate` が警告する。`config show --fields` は空にすると既定に戻るか（`clears_to_default`）も返し、`config set` と設定画面はこれで空の扱いを決める（細部は `dg config show --help`、理由は [ADR-027](adr/ADR-027-screen-vscode-writes-and-asks.md)）
 
 - `actor.human_only`：agent が呼ぶと `TRANSITION_REJECTED` で拒否するコマンド名の一覧。既定は空。config を読まない呼び出し（`dg hook` の PreToolUse。AG-9）は検査しない。チケットの遷移を人に限るのは Workflow の `by`（WF-1）
 - `models.*`：Plan の段階（PL-1）に対応するモデル名。手順（`dg guide work`）がサブエージェントに渡す
@@ -219,7 +219,7 @@ steps: # 任意（WF-5）
 
 ### 6.4 画面（VS Code 拡張）
 
-画面は VS Code 拡張だけで、拡張は React の画面を Webview に載せる（入口は [ADR-023](adr/ADR-023-screen-entry-vscode.md)、Webview の作りは [ADR-006](adr/ADR-006-ui-and-writes.md)）。`dg serve` は同じ画面を配信する開発用で、利用者は使わない。
+画面は VS Code 拡張だけで、拡張は React の画面を Webview に載せる（入口と Webview の作りは [ADR-027](adr/ADR-027-screen-vscode-writes-and-asks.md)）。`dg serve` は同じ画面を配信する開発用で、利用者は使わない。
 
 - UI-1 プロジェクトの切り替え
 - UI-2 カンバン：planned か active の Iteration 1 つ（既定は active）か「すべて」（planned・active の全部）のチケットを Status ごとの列に出し、Epic と担当者で絞れる
@@ -233,8 +233,8 @@ steps: # 任意（WF-5）
 - UI-11 VS Code 拡張は `core` を同梱して `dg` なしで動き、`dg` が PATH にないときと版のメジャーが `core` と違うときは知らせる。拡張と画面の文言（設定の項目の説明と、既定のままの優先度の判断基準を含む）は VS Code の表示言語が日本語なら日本語、ほかは英語で出し、チケットの中身と指示は書いた言葉のまま出す。既定と同じ判断基準は英語の表示で訳を出し、訳の文を欄に打って離れたら既定の値（日本語）で保存する。core が返すエラー・警告の決まった文（設定の保存の拒否・Plan と Run の警告など）も表示言語で出し、訳のない文は core の文のまま出す。何を訳すかの細部は `packages/vscode/src/l10n.ts`・`packages/web/src/l10n.ts` とそのテスト
 - UI-12 VS Code 拡張はサイドバーを主画面にし、エディタのパネルには詳細（チケット・Epic・Iteration・Plan）だけを出す。コード中の ID から要約と詳細を開け、コマンドで ID か題からも探せる。CLI やエージェントの書き込みを自動で映し、承認待ちの Plan と review のチケットを知らせ（通知は `notify.approvals` で切る）、`dg init` 前は始め方を出す。細部は `packages/vscode/package.json`・`src/extension.ts`
 - UI-13 実行計画：カンバンの上に、選んだ範囲のチケットを含む Plan の進捗と次（PL-6）・依存グラフを出し、Plan の番号から Plan 詳細を開く。表示だけで書き込まない（出す項目は `plan show` と `packages/web/src/pages/plans.tsx`）
-- UI-14 設定画面：「チーム」のタブは `config.yaml` の全項目（5.10）を、「自分」のタブは個人で上書きできる項目だけを出して付け外しし（外すのは `config unset --local`）、影響の大きい項目は保存前に確かめる。VS Code の settings.json は使わない（細部と理由は [ADR-006](adr/ADR-006-ui-and-writes.md)）
-- UI-15 エージェントに頼む：行・見出しなどから `dg ask` の依頼文を作ってコピーし、データには書き込まない。小窓は選んだ頼むことが何をするかの 1 文を札の下に出す（依頼文には入れない）。複数の行をまとめても、キーボードでも頼める。VS Code では開いているターミナルにも送れる。入口・送り方・キーの細部は [ADR-010](adr/ADR-010-ui-writes-and-agent-requests.md)
+- UI-14 設定画面：「チーム」のタブは `config.yaml` の全項目（5.10）を、「自分」のタブは個人で上書きできる項目だけを出して付け外しし（外すのは `config unset --local`）、影響の大きい項目は保存前に確かめる。VS Code の settings.json は使わない（細部と理由は [ADR-027](adr/ADR-027-screen-vscode-writes-and-asks.md)）
+- UI-15 エージェントに頼む：行・見出しなどから `dg ask` の依頼文を作ってコピーし、データには書き込まない。小窓は選んだ頼むことが何をするかの 1 文を札の下に出す（依頼文には入れない）。複数の行をまとめても、キーボードでも頼める。VS Code では開いているターミナルにも送れる。入口・送り方・キーの細部は [ADR-027](adr/ADR-027-screen-vscode-writes-and-asks.md)
 - UI-16 VS Code 拡張は、制限モードと仮想ワークスペースでは動かない（理由は `packages/vscode/package.json` の `capabilities`）
 
 画面の並び・文言・印などの細部は `packages/web/src/`・`packages/vscode/src/` のコードとテストが正本。
@@ -242,13 +242,13 @@ steps: # 任意（WF-5）
 ### 6.5 エージェント連携
 
 - AG-1 エージェントは PATH の `dg` を Bash から `dg … --json` で呼び、データのファイルを直接編集しない。主体（human / agent）は Adapter のフックが決める。Claude Code では SessionStart フックが環境 `DEGUBOARD_ACTOR` に agent を入れる（AG-9）。フックのない製品では、呼ぶときに `--actor agent`（か `DEGUBOARD_ACTOR`）で申告する（既定は human）。その製品では `dg guide` の手順が必ず agent を名乗る（[ADR-004](adr/ADR-004-agents-and-state.md)）。主体の ID は TK-7（ユーザ名の決め方は `dg --help`）
-- AG-2 Claude Code 向けに、段階ごとに `dg guide <topic>` を読む薄い Skill（`dg<トピック>`）を `dg skill install` で配る。Skill は任意で、スクリプトもツールの許可も持たない決まった文面。名前と説明は guide の frontmatter が正本。冒頭の 1 文は core の `SKILL_SUMMARY` が正本（[ADR-010](adr/ADR-010-ui-writes-and-agent-requests.md)）
+- AG-2 Claude Code 向けに、段階ごとに `dg guide <topic>` を読む薄い Skill（`dg<トピック>`）を `dg skill install` で配る。Skill は任意で、スクリプトもツールの許可も持たない決まった文面。名前と説明は guide の frontmatter が正本。冒頭の 1 文は core の `SKILL_SUMMARY` が正本（[ADR-027](adr/ADR-027-screen-vscode-writes-and-asks.md)）
 - AG-3 チケット化（`ticket import`）と、分解・Epic への束ね・依存・Iteration への割り当ては、エージェントが提案して人の承認を得てから行う（手順は `dg guide import`）
 - AG-4 MCP サーバー（`dg mcp`。stdio）は、Bash のないクライアントの入口で、Core のコマンド定義から生成する。CLI と同じ操作ができ（`init` と CLI だけの `guide`・`skill`・`serve`・`open` を除く）、ツールの結果は `--json` と同じ形（CL-1）で、主体は常に agent。対象のリポジトリは `-C` で指せる
 - AG-5 Agent Adapter が製品ごとの差（使用量の取得、dg を呼んだエージェントの環境変数からの判定、フックの入力と設定。AG-9）を吸収し、実装は Core の `agents/adapters/` に閉じる。今は `claude-code`・`codex`・`copilot`（環境変数で判定できる製品は Adapter のコード）。起動方法と権限は扱わない（EX-1、[ADR-007](adr/ADR-007-architecture.md)）
 - AG-6 ソフトウェア開発向けの Action（worktree・PR 作成・マージなど）は Core の `actions` に置き、汎用部分は依存しない。`dg` のコマンドにせず、公開するのは名前の一覧（`ACTION_NAMES`）だけ（[ADR-007](adr/ADR-007-architecture.md)）
 - AG-7 任意のシェルの Action は `actions.shell: true` のときだけ使え、毎回確認を経る
-- AG-8 `ask` は対象（複数可）・頼むこと・指示・形式から、エージェントに貼る依頼文を返す読み取りだけのコマンド。候補ごとに画面用の 1 文（`meaning`・`skill_summary`）も返す。人に限られた操作なら、人が打つ `dg` のコマンドを返す。`ask-menu` は画面の場所ごとの候補を返す。候補とおすすめは `dg ask --help` とコード、文の形は [ADR-010](adr/ADR-010-ui-writes-and-agent-requests.md) が正本
+- AG-8 `ask` は対象（複数可）・頼むこと・指示・形式から、エージェントに貼る依頼文を返す読み取りだけのコマンド。候補ごとに画面用の 1 文（`meaning`・`skill_summary`）も返す。人に限られた操作なら、人が打つ `dg` のコマンドを返す。`ask-menu` は画面の場所ごとの候補を返す。候補とおすすめは `dg ask --help` とコード、文の形は [ADR-027](adr/ADR-027-screen-vscode-writes-and-asks.md) が正本
 - AG-9 `dg hooks install` が harness（今は Claude Code）の設定に `dg hook <イベント>` を呼ぶフックを書く（もう一度実行しても重ねず、手で足したフックは残す。`uninstall` で外す）。セッションの始まりに主体（agent）とセッション ID・記録のパスを以後の Bash の環境に入れる（届くのは親のセッションの Bash だけ。サブエージェントの Run のセッションは RN-1）。印 `deguboard: ticket=<id> step=<step>` を最初の行に書いて頼んだサブエージェントの Run を、起動の呼び出しが返ったときに開く。開いたままの同じチケットの手直しの Run は、どの step でも RN-5 の規則で区切りとして閉じてから開く。同じチケットと step の Run がこのマシンで開いたままなら開かずに警告するが、見直しでは、その Run が別のセッションのもの（`session` が null でなく、起動のセッションと違う）なら、落ちたセッションの残りとみなして `interrupted` で閉じてから開く。前景の起動で、起動（終わった時刻からかかった時間を引いた時刻。かかった時間がなければサブエージェントの記録の最初の行の時刻）より後にその Run に書かれた `run review-result` の結果は、閉じる前に保留に移して新しい Run に結び付ける（同じセッションの重ねた見直しは今までどおり拒否。[ADR-025](adr/ADR-025-runs-by-hooks.md)）。サブエージェントが止まったとき、step を終えた事実（実装は PR、手直しは開始より後の push、見直しは `run review-result` の結果の記録。[ADR-025](adr/ADR-025-runs-by-hooks.md)）があれば、記録の書き終わり（最後の api-request の後の応答）を数秒まで待ってから記録の全体から数えて `success` で閉じる。事実がなければ（親への質問で止まったなど）閉じず、実行中の記録に止まって待っている印（`waiting_since`。時刻だけ）を付け、同じ `agent_id` の再開で印を消して同じ Run を続ける。印のない Run（サブエージェントが自分で `run start`・`ticket claim` で開いた Run）も、返ったときに事実がなければ同じ印を付ける。書き終わりを待ちきれなかった Run は、書き終わり待ちの印（`settling_since`）を付けて、次のフック・`sync`・セッションの終わりが閉じる（`sync` は、見直しの Run のうち sync のセッションと別のセッションのものを閉じない）。セッションの終わりに、そのセッションのサブエージェントの開いたままの Run をすべて閉じる（事実があれば `success`、なければ実装は `failure`、ほかは `interrupted`。親が自分で開いた Run は残す）。書く先の見直しの Run がない（前景の起動）ときの `run review-result` の結果は保留にして、フックが見直しの Run を閉じるときに結び付ける（[ADR-025](adr/ADR-025-runs-by-hooks.md)。手直しの `run retry-reason` の理由も同じく。RN-5）。ツールを使う前（PreToolUse）に、書くツールの `.git/deguboard/` の下への書き込みと、`.git/deguboard` の語を含む Bash（読むだけのものも、引用符・コメントの中も）を拒んで dg の読み書きのコマンドへ案内し（語として現れない書き込みの取りこぼしは SY-7 が見つける。[ADR-026](adr/ADR-026-guard-pr-and-data.md)）、dg を経由しない `gh pr merge`・`gh pr ready`（`gh api` の同じ操作も）を、チケットやゲートによらず拒んで、PR を進める正しい道の `dg pr ready`・`dg pr merge`（EX-3）と、満たさないまま進めるときは人が gh を打つことを理由に返す。判定は字句を読まずに粗く行い、引用符・ヒアドキュメント・コメントの中の語も止めて、本文の語はファイルに書いて `--body-file`・`git commit -F` で渡すよう案内する（[ADR-026](adr/ADR-026-guard-pr-and-data.md)）。PreToolUse はツールのたびに呼ばれるので、ストア（チケット・Plan・Epic・Iteration・config）を開かずに、書く先のパスとコマンドの文字列だけで判定する。エージェントが応答を終えたとき（Stop）は SY-7 の dg の外の変更を確かめ、見つけたら止まらずに続けさせて、ファイルと戻し方・取り込み方をエージェントに返す（続けさせた後の Stop では返さない。ほかのイベントのフックは dg の外の変更があっても止めない）。`dg hooks check` が、設定に dg のフックが入っているか（イベントごと）、ハンドラが動くか、直近に受け取ったフックの入力に読まなかった項目（値ではなく有無と時刻を `deguboard-local/hook-inputs/` にイベントごとの最新の 1 件で残す）がなかったかを確かめ、欠けていれば警告する。フックのない製品とフックを入れていない環境では、主体は申告、Run は `run start` と claim で開く（[ADR-025](adr/ADR-025-runs-by-hooks.md)。細部は `dg hooks install --help`・`dg hook --help`）
 
 ### 6.6 作業の実績

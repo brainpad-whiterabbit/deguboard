@@ -156,7 +156,7 @@ describe("画面", () => {
     expect(screen.queryByText("ログイン")).toBeNull();
     const guide = document.querySelector(".board-empty")!;
     expect(guide.querySelector("a")!.getAttribute("href")).toBe("#/backlog");
-    // Iteration を作るのはエージェントに頼む（ADR-010）ので、作るボタンは出さない
+    // Iteration を作るのはエージェントに頼む（ADR-027）ので、作るボタンは出さない
     expect(screen.queryByRole("button", { name: "+ Iteration を作る" })).toBeNull();
     expect(guide.querySelector("button")).toBeNull();
     const chips = [...document.querySelectorAll(".iteration-chip")].map((c) => c.textContent);
@@ -1104,7 +1104,7 @@ describe("画面", () => {
     expect(window.location.hash).toBe("#/backlog");
   });
 
-  // Run の画面はない（ADR-023）ので、Run を出すのはパネルのチケット詳細だけ
+  // Run の画面はない（ADR-027）ので、Run を出すのはパネルのチケット詳細だけ
   it.each(["#/tickets/t3"])(
     "拡張ホストから reload の event が来ると、%s の Run を取り直す（ターミナルの dg run start はチケットを変えない）",
     async (hash) => {
@@ -2094,7 +2094,7 @@ describe("画面", () => {
     expect(none!.querySelector("summary .name")!.textContent).toBe("Iteration なし");
     expect(none!.querySelector("summary .name")!.children).toHaveLength(0);
     expect(none!.textContent).toBe("Iteration なし0 件");
-    // Iteration を作るのはエージェントに頼む（ADR-010）
+    // Iteration を作るのはエージェントに頼む（ADR-027）
     expect(screen.queryByRole("button", { name: "Iteration を作る" })).toBeNull();
   });
 
@@ -2382,7 +2382,7 @@ describe("画面", () => {
     });
     mount(client, hostOf("panel"));
     await screen.findByText("設計");
-    // チケットの足し外しはエージェントに頼む（ADR-010）ので、外すボタンと足す欄は出さない
+    // チケットの足し外しはエージェントに頼む（ADR-027）ので、外すボタンと足す欄は出さない
     expect(screen.queryByRole("button", { name: "外す" })).toBeNull();
     expect(screen.queryByLabelText("足すチケット")).toBeNull();
     expect(document.querySelectorAll(".card")).toHaveLength(0);
@@ -2670,7 +2670,7 @@ describe("画面", () => {
     await screen.findByText("ログイン");
     const group = screen.getByRole("group", { name: "Iteration" });
     const chips = [...group.querySelectorAll<HTMLButtonElement>(".iteration-chip")];
-    // 先頭に すべて、閉じた Iteration は出さず番号順に並べる（作る「+」は置かない。ADR-010）
+    // 先頭に すべて、閉じた Iteration は出さず番号順に並べる（作る「+」は置かない。ADR-027）
     expect(chips.map((c) => c.textContent)).toEqual(["すべて1/3", "s11/2", "s20/1", "s30/0"]);
     expect(chips.map((c) => c.className)).toEqual([
       "iteration-chip all",
@@ -2843,7 +2843,7 @@ describe("画面", () => {
   });
 
   it.each(["panel", "sidebar"] as const)(
-    "Iteration の詳細（%s）は表示だけで、開始・閉じる・再開とチケットを足す・外すの欄を出さない（ADR-010）",
+    "Iteration の詳細（%s）は表示だけで、開始・閉じる・再開とチケットを足す・外すの欄を出さない（ADR-027）",
     async (surface) => {
       const client = mockClient();
       client.data.iterations = [
@@ -2883,7 +2883,7 @@ describe("画面", () => {
   );
 
   it.each(["panel", "sidebar"] as const)(
-    "Epic の詳細（%s）は表示だけで、閉じる・再開とチケットを足す・外すの欄を出さない（ADR-010）",
+    "Epic の詳細（%s）は表示だけで、閉じる・再開とチケットを足す・外すの欄を出さない（ADR-027）",
     async (surface) => {
       const client = mockClient();
       client.data.epics.push({
@@ -2930,7 +2930,7 @@ describe("画面", () => {
     expect(host.state.get("backlog.section.s1")).toBe(false);
   });
 
-  it("バックログの Epic の欄に Epic を作るボタンを出さない（ADR-010）", async () => {
+  it("バックログの Epic の欄に Epic を作るボタンを出さない（ADR-027）", async () => {
     window.location.hash = "#/backlog";
     mount(mockClient());
     await screen.findByText("API");

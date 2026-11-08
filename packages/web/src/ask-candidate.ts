@@ -1,4 +1,4 @@
-// 頼むことの候補の表示（UI-15）。Skill の札と候補のボタンの title に出す文を組む。文は core の SKILL_SUMMARY が正本で、ここでは組むだけ（ADR-010）
+// 頼むことの候補の表示（UI-15）。Skill の札と候補のボタンの title に出す文を組む。文は core の SKILL_SUMMARY が正本で、ここでは組むだけ（ADR-027）
 
 import type { AskCandidate } from "./types.js";
 

@@ -1,4 +1,4 @@
-// 頼む小窓の依頼文を、すでに開いているターミナルの入力へ送る部分のうち、VS Code の API に触れない純粋な処理（UI-15・ADR-010）。
+// 頼む小窓の依頼文を、すでに開いているターミナルの入力へ送る部分のうち、VS Code の API に触れない純粋な処理（UI-15・ADR-027）。
 // 拡張はターミナルを起動しない（EX-1）。送り先は vscode.window.terminals の中から人が選ぶ
 
 import type { TerminalChoice } from "@deguboard/core";
