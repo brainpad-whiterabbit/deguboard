@@ -171,7 +171,7 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
     expect(released.data.status).toBe("todo");
   });
 
-  it("todo に残った前の作業の PR（unclaim 前の記録）は、新しい claim で外れ、もう一度の claim の判定にならない（ST-3・ST-7）", async () => {
+  it("todo に残った前の作業の PR（unclaim 前の記録）は、新しい claim で外れ、もう一度の claim の判定にならない（ST-3・ST-7・ST-9）", async () => {
     const f = await fixture();
     const eiki = await initialized(f.cloneA);
     await runCommand(ticketCreate, eiki, { title: "A" });
