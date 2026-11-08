@@ -27,6 +27,7 @@ import {
   amendRunning,
   bindTranscript,
   finishRun,
+  moveReviewToPending,
   readRunningRuns,
   readTranscriptPaths,
   takePendingReview,
@@ -134,7 +135,7 @@ export const hook = defineCommand({
   summary:
     "harness のフックが呼ぶ（dg hooks install が設定に書く。人が打つものではない）。--payload - で標準入力のフックの入力（JSON）を読み、" +
     "セッションの始まりに主体とセッション ID・記録のパスを環境に入れ、頼んだ文の先頭に `deguboard: ticket=<id> step=<step>` の印のあるサブエージェントの Run を起動で開き" +
-    "（同じチケットと step の Run が開いたままなら開かずに警告する。見直しは、その Run が別のセッションのものなら落ちたセッションの残りとみなして interrupted で閉じてから開く）、step を終えた事実があれば止まったときに閉じ" +
+    "（同じチケットと step の Run が開いたままなら開かずに警告する。見直しは、その Run が別のセッションのものなら落ちたセッションの残りとみなして interrupted で閉じてから開く。前景の起動で起動より後にその Run に書かれた見直しの結果は、保留に移して新しい Run に結び付ける）、step を終えた事実があれば止まったときに閉じ" +
     "（なければ止まって待っている印を付け、再開で続ける）、セッションの終わりにそのセッションのサブエージェントの開いたままの Run を閉じる。" +
     "ツールを使う前（PreToolUse）には、.git/deguboard/ の下への書き込み（書くツールと Bash）を拒み、gh pr merge・gh pr ready をそのチケットの dg gate で判定して満たさなければ止める" +
     "（PR に当たるチケットがなければ止めない。判定の途中で失敗したら止める。Bash の判定は字句の手がかりで、任意の言語のコードや eval の中は見ない）。" +
@@ -275,24 +276,25 @@ async function subagentLaunched(
     );
     return;
   }
+  const now = ctx.now();
+  // 前景の起動は終わってから返るので、かかった時間だけ開始を前にする
+  const startedAt =
+    event.finished && event.durationMs !== null
+      ? new Date(now.getTime() - event.durationMs)
+      : undefined;
   // 別のセッションで開いたままの見直しの Run は、そのセッションが落ちた残り。閉じてから開く（ADR-015）。
   // 同じセッションの見直しを重ねて開くのは二重の起動なので、閉じずに下の openRun が拒否する
   if (marker.step === REVIEW_STEP)
-    await closeStaleRuns(ctx, marker.ticket, marker.step, event.session, view, warnings);
+    await closeStaleReviewRuns(ctx, marker.ticket, event.session, startedAt ?? now, view, warnings);
   let run: Run;
   try {
-    const now = ctx.now();
     const opened = await openRun(ctx, ticket.data, {
       step: marker.step,
       agent,
       model: event.model ?? undefined,
       session: event.session,
       transcript: event.transcript ?? undefined,
-      // 前景の起動は終わってから返るので、かかった時間だけ開始を前にする
-      startedAt:
-        event.finished && event.durationMs !== null
-          ? new Date(now.getTime() - event.durationMs)
-          : undefined,
+      startedAt,
     });
     run = opened.run;
     warnings.push(...opened.warnings);
@@ -308,21 +310,31 @@ async function subagentLaunched(
 }
 
 /**
- * このマシンで開いたままの、チケットと step が同じで別のセッションの Run を interrupted で閉じる（ADR-015）。
- * 使用量はその Run の記録の場所から数える。閉じられなければ警告して続ける（下の openRun が拒否して警告する）
+ * 見直しの起動の前に、このマシンで開いたままの同じチケットの見直しの Run のうち別のセッションのものを interrupted で閉じる（ADR-015）。
+ * 使用量はその Run の記録の場所から数える。前景の起動では見直し役が終わってからここに来るので、その間の run review-result は
+ * 古い Run に書かれている。起動（launchedAt）より後に書かれた結果は古い Run から外して保留に移し、新しい Run を閉じるときに結び付ける。
+ * 閉じられなければ警告して続ける（下の openRun が拒否して警告する）
  */
-async function closeStaleRuns(
+async function closeStaleReviewRuns(
   ctx: CommandContext,
   ticket: TicketId,
-  step: string,
   session: string,
+  launchedAt: Date,
   view: HookView,
   warnings: string[],
 ): Promise<void> {
   const paths = await readTranscriptPaths(ctx.repo);
-  for (const { data: run } of (await readRunningRuns(ctx.repo)).runs) {
-    if (run.ticket !== ticket || run.step !== step || !openedInOtherSession(run, session)) continue;
+  for (const { data: stale } of (await readRunningRuns(ctx.repo)).runs) {
+    if (stale.ticket !== ticket || stale.step !== REVIEW_STEP) continue;
+    if (!openedInOtherSession(stale, session)) continue;
     try {
+      let run = stale;
+      if (await moveReviewToPending(ctx.repo, run.id, launchedAt)) {
+        run = { ...run, review: null };
+        view.done.push(
+          `${ticket} の見直しの結果は今回の見直し役が書いたものなので、Run ${run.id} から外して保留に移した`,
+        );
+      }
       await closeSubagentRun(
         ctx,
         run,
@@ -333,7 +345,7 @@ async function closeStaleRuns(
       );
     } catch (e) {
       warnings.push(
-        `別のセッション（${run.session}）で開いたままの Run ${run.id} を閉じられなかった（${e instanceof Error ? e.message : String(e)}）`,
+        `別のセッション（${stale.session}）で開いたままの Run ${stale.id} を閉じられなかった（${e instanceof Error ? e.message : String(e)}）`,
       );
     }
   }

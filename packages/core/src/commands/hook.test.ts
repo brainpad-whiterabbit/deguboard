@@ -1,4 +1,4 @@
-import { appendFile, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, mkdtemp, readFile, rm, utimes, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -6,6 +6,7 @@ import { createFixture } from "../../test/helpers/git-fixture.js";
 import type { Run } from "../model/run.js";
 import { peekRunningRuns, readTranscriptPaths } from "../run/record.js";
 import { resetGhCache } from "../git/facts.js";
+import { runPath } from "../storage/paths.js";
 import { hooksOf } from "../agents/index.js";
 import { openContext } from "./context.js";
 import { runCommand, type CommandContext } from "./define.js";
@@ -252,6 +253,70 @@ describe("dg hook（ADR-012）", () => {
       launched(parent, "a2", "deguboard: ticket=t2 step=review"),
     );
     expect(unknown.warnings).toContainEqual(expect.stringContaining("Run を開いていない"));
+  });
+
+  it("前景の起動で、見直し役が別のセッションの古い見直しの Run に書いた結果は、古い Run から外して新しい Run に結び付ける。起動より前に書かれた結果は古い Run に残す（ADR-015）", async () => {
+    const { ctx, parent, subagent } = await prepared();
+    const stale = (
+      await runCommand(runStart, ctx, {
+        ticket: "t1",
+        step: "review",
+        agent: "claude-code",
+        session: "s-old",
+      })
+    ).data as Run;
+    // 前景の見直し役は終わってから PostToolUse が来るので、動いている間の review-result は古い Run に書かれる
+    const prompt = "deguboard: ticket=t1 step=review\n\n見直す";
+    await subagentRecord(subagent("a1"), prompt, 2);
+    const written = (
+      await runCommand(runReviewResult, ctx, { ticket: "t1", heavy: 0, light: 1, passed: true })
+    ).data as Run;
+    expect(written.id).toBe(stale.id);
+    const completed = (agentId: string, p: string) => ({
+      ...launched(parent, agentId, p),
+      tool_response: {
+        status: "completed",
+        agentId,
+        resolvedModel: "claude-test-1",
+        totalDurationMs: 90_000,
+        content: [{ type: "text", text: "指摘はない" }],
+      },
+    });
+    const { view } = await call(ctx, "PostToolUse", completed("a1", prompt));
+    expect(view.done).toContainEqual(expect.stringContaining("保留に移した"));
+    const runs = (await runCommand(runList, ctx, { ticket: "t1" })).data as RunView[];
+    expect(runs.find((r) => r.id === stale.id)).toMatchObject({
+      result: "interrupted",
+      review: null,
+    });
+    expect(runs.find((r) => r.id !== stale.id)).toMatchObject({
+      result: "success",
+      running: false,
+      review: { heavy: 0, light: 1, passed: true },
+    });
+
+    // 落ちたセッションの見直し役が起動より前に書いた結果は、その Run のものとして残す
+    const old = (
+      await runCommand(runStart, ctx, {
+        ticket: "t2",
+        step: "review",
+        agent: "claude-code",
+        session: "s-old",
+      })
+    ).data as Run;
+    await runCommand(runReviewResult, ctx, { ticket: "t2", heavy: 2, light: 0 });
+    const past = new Date(Date.now() - 3600_000);
+    await utimes(path.join(ctx.repo.localDir, runPath(old.id)), past, past);
+    const prompt2 = "deguboard: ticket=t2 step=review";
+    await subagentRecord(subagent("a2"), prompt2, 1);
+    await call(ctx, "PostToolUse", completed("a2", prompt2));
+    const runs2 = (await runCommand(runList, ctx, { ticket: "t2" })).data as RunView[];
+    expect(runs2.find((r) => r.id === old.id)).toMatchObject({
+      result: "interrupted",
+      review: { heavy: 2, light: 0, passed: false },
+    });
+    // 新しい Run には結果がないので、閉じずに待つ
+    expect(runs2.find((r) => r.id !== old.id)).toMatchObject({ running: true, review: null });
   });
 
   it("同じセッションで同じチケットの見直しの Run を重ねて開くと、前の Run を閉じずに拒否して警告する（ADR-015）", async () => {
