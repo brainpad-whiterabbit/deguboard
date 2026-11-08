@@ -11,30 +11,29 @@
 
 ### 置き場所：orphan ブランチ `deguboard`
 
-- データは orphan ブランチ `deguboard` に置き、`<git-common-dir>/deguboard/` に専用の worktree として checkout し、読み書きはすべてここで行う
-- 作業ブランチや作業 worktree にはデータを置かない
+- データは orphan ブランチ `deguboard` に置き、専用の worktree で読み書きする。作業ブランチや作業 worktree にはデータを置かない
 - ブランチは保護せず、`dg` が直接 commit・push する
-- Git 管理外のもの（ローカルロックなど）は `<git-common-dir>/deguboard-local/` に置く。索引はファイルにせずメモリ上に持つ（[ADR-007](ADR-007-architecture.md)）
+- Git 管理外のもの（ローカルロックなど）は、データ worktree の外の専用の場所に置く。索引はファイルにせずメモリ上に持つ（[ADR-007](ADR-007-architecture.md)）
 
 ### 形式：1 件 1 ファイル
 
 - 本文を持つチケットと Epic は Markdown で属性を frontmatter に、ほかは人が読む YAML、機械だけが書く Run の集計は JSON にする。置き場所は requirements の 5.1
-- 削除したチケットは `tickets/deleted/` に墓標として残し、番号を再利用しない
+- 削除したチケットは墓標として残し、番号を再利用しない
 - 書き込みは原子的にし、読めないファイルは止めずに報告する（DT-1）
 
 ### ID：連番をそのまま ID とファイル名にする
 
 - ID は `t12` のような接頭辞＋連番で、ファイル名は ID そのまま。ゼロ埋めせず、title の slug も入れない。番号はプロジェクトをまたいでリポジトリ全体で一意（DT-3）
-- **作成は fetch → 採番 → commit → push を 1 単位**にし、push が拒否されたら採番し直す（DT-4。複数件の import も同じ 1 単位）。同じパスの add/add で衝突を検出できる
+- **作成は採番から push までを 1 単位**にし、push が拒否されたら採番し直す（DT-4）。同じパスの add/add で衝突を検出できる
 - オフラインで push できないときは仮番号でローカルに commit し、次の `dg sync` が衝突した番号と参照を振り直してから push する（DT-5）
 - 作業ブランチ名と PR は claim（[ADR-004](ADR-004-agents-and-state.md)）の後に作るので、仮番号がブランチ名に入ることはない
-- Run の ID は採番せず `r`＋開始日時＋乱数にする。辞書順が開始の順になる
+- Run の ID は採番せず、開始日時から作る。辞書順が開始の順になる
 
 ### 同期の競合：frontmatter をフィールド単位でマージする
 
-- 取り込みは rebase で行い、チケット・墓標・Epic の Markdown に git のマージドライバ `deguboard`（`dg merge-driver`）を当てる。規則の正本は core の `git/merge.ts`
-- frontmatter はフィールドごとに 3-way で決め、片側だけ変えた値を採る。両側が違う値に変えたフィールドと本文の同じ行のぶつかりだけを競合にし、rebase を中止して `dg sync` が報告する（SY-4）
-- 登録：`dg init` と `dg sync` が、いま動いている node と `bin/dg.js` の絶対パスでドライバを git config に書き、`.gitattributes` をコミットする
+- 取り込みは rebase で行い、Markdown に git のマージドライバを当てる。規則の正本は core の `git/merge.ts`
+- frontmatter はフィールドごとに 3-way で決め、片側だけ変えた値を採る。両側が違う値に変えたフィールドと本文の同じ行のぶつかりだけを競合にする（SY-4）
+- 登録は `dg init` と `dg sync` が行い、ドライバは絶対パスで指す。`.gitattributes` はデータのブランチにコミットする
 - VS Code 拡張は自分の `dg` を持たないので登録せず、CLI が登録した config を使う。ドライバが動かなければ競合として報告され、次の CLI の `dg sync` で登録し直す
 
 ### 複数 Project
@@ -44,8 +43,8 @@
 
 ### 呼称
 
-- 製品名は deguboard、CLI は `dg`、ブランチ名は `deguboard`、環境変数の接頭辞は `DEGUBOARD_`
-- 作業の最小単位は ticket、期間の単位は iteration（`sprint` はエイリアス）、目的で束ねる単位は epic と呼び、CLI のサブコマンド名にする
+- 製品名・ブランチ名・環境変数の接頭辞は deguboard に揃え、CLI は `dg`
+- 作業の最小単位は ticket、期間の単位は iteration、目的で束ねる単位は epic と呼び、CLI のサブコマンド名にする
 
 ## 理由
 
