@@ -1,7 +1,7 @@
 // Plan の詳細（UI-13）。plan.show の出力を出すだけで、着手できるか・待ち・次（PL-6）は求め直さない。
 // 見出しの下に状態・進み・Iteration・承認（閉じた Plan は閉じた日時）・作業中と次を、その下に依存グラフ（帯と共用の PlanGraphView）と、
 // Plan の順のチケットごとの範囲・進め方・tier を出す（details のないチケットは題と状態だけ）。
-// 表示だけで書き込まない。承認・組み直し・閉じるは、タイトルの吹き出しからエージェントに頼む（ADR-010・UI-15）。一覧の画面はなく、開いた Plan はカンバンの帯で見る
+// 表示だけで書き込まない。承認・組み直し・閉じるは、タイトルの吹き出しからエージェントに頼む（ADR-027・UI-15）。一覧の画面はなく、開いた Plan はカンバンの帯で見る
 
 import { useMemo } from "react";
 import { ASK_SECTIONS, AskSpotBox } from "../components/ask-menu.js";

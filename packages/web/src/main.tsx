@@ -10,7 +10,7 @@ import { createUiState } from "./ui-state.js";
 import { languageOf, setLanguage } from "./l10n.js";
 import "./styles.css";
 
-// VS Code の Webview に載っているときは postMessage で拡張ホストと話し、Webview の外（開発用の dg serve）では HTTP を呼ぶ（ADR-006・ADR-023）。
+// VS Code の Webview に載っているときは postMessage で拡張ホストと話し、Webview の外（開発用の dg serve）では HTTP を呼ぶ（ADR-027）。
 // 拡張ホストは <html> の data 属性で、どこに載っているか（surface）と最初に出す画面（route）を渡す（UI-12）
 const dataset = document.documentElement.dataset;
 // 文言の言語は拡張ホストが data-language（vscode.env.language）で渡す。dg serve では付かないので日本語（t383。test:layout は付けて英語を確かめる）

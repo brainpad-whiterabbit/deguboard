@@ -1,4 +1,4 @@
-// CommandClient の HTTP 実装。dg serve の /api/commands/<name> と /api/status を呼ぶ（ADR-006）
+// CommandClient の HTTP 実装。dg serve の /api/commands/<name> と /api/status を呼ぶ（ADR-027）
 
 import type { CommandClient, CommandFailure, CommandResult, StatusView } from "@deguboard/core";
 import { tr, trCoreMessage } from "../l10n.js";

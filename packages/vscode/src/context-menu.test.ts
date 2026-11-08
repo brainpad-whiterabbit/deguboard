@@ -35,7 +35,7 @@ describe("package.json の右クリックのメニュー", () => {
   const { commands, menus } = pkg.contributes;
   const ids = Object.values(BACKLOG_ROW_COMMANDS);
 
-  it("「詳細を開く」「ID をコピー」をこの順で、バックログの行の webview/context に出す（「Iteration を移す」は置かない。ADR-010）", () => {
+  it("「詳細を開く」「ID をコピー」をこの順で、バックログの行の webview/context に出す（「Iteration を移す」は置かない。ADR-027）", () => {
     const items = menus["webview/context"]!.filter((m) => m.command);
     expect(items.map((m) => m.command)).toEqual([
       BACKLOG_ROW_COMMANDS.open,
@@ -53,7 +53,7 @@ describe("package.json の右クリックのメニュー", () => {
     expect(commands.some((c) => c.command === "deguboard.backlog.moveIteration")).toBe(false);
   });
 
-  it("エージェントに頼むサブメニューと deguboard.ask.<頼むこと> のコマンドは置かない（頼む入口は画面の吹き出し・Shift+F10・選択の帯。ADR-010）", () => {
+  it("エージェントに頼むサブメニューと deguboard.ask.<頼むこと> のコマンドは置かない（頼む入口は画面の吹き出し・Shift+F10・選択の帯。ADR-027）", () => {
     expect(commands.filter((c) => c.command.startsWith("deguboard.ask."))).toEqual([]);
     expect(pkg.contributes.submenus).toBeUndefined();
     expect(menus["webview/context"]!.some((m) => m.submenu)).toBe(false);

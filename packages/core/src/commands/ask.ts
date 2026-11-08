@@ -1,4 +1,4 @@
-// エージェントへの依頼文（ADR-010）。対象・頼むこと・指示・形式から、エージェントに貼る文を返す。読み取りだけで、データは書き換えない。
+// エージェントへの依頼文（ADR-027）。対象・頼むこと・指示・形式から、エージェントに貼る文を返す。読み取りだけで、データは書き換えない。
 // 候補と文の組み立ては純粋な関数（askCandidates・buildAsk）に置き、ask コマンドは store から対象を引いて渡すだけ。
 // web は core を実行時に取り込めないので、画面も CLI・HTTP・Webview と同じくこのコマンドを呼ぶ
 
@@ -104,7 +104,8 @@ export interface AskCandidate {
   skill_summary: string | null;
   /** 先頭の候補だけ true */
   recommended: boolean;
-  /** 札の下に出す、この頼むことで何が起きるかの 1 文。対象があれば ID から始まり、Status を変えるものは行き先を含む。依頼文（text）には入れない（ADR-010） */
+  /** 札の下に出す、この頼むことで何が起きるかの 1 文。対象があれば ID から始まり、Status を変えるものは行き先を含む。依頼文（text）には入れない（ADR-027）。
+   *  依頼文は agent が読む指示、この文は人が札の下で読む説明で言い回しが違うので、依頼文から組まずに別々に組む */
   meaning: string;
 }
 
@@ -190,7 +191,7 @@ export const ASK_DG_USAGE = `dg は \`dg … --json --actor agent\` で呼び、
 /** ASK_DG_USAGE の英語 */
 export const ASK_DG_USAGE_EN = `Call dg as \`dg … --json --actor agent\`, and do not edit the files under .git/deguboard/ directly. ${DG_PATH_NOTE_EN}`;
 
-/** 依頼文の定型の文の言語（UI-11）。指示（note）とチケットの中身は書いた言葉のまま入れ、言語では変えない */
+/** 依頼文の定型の文の言語（UI-11）。英語の画面から日本語の定型の文が渡らないよう、画面の表示言語で組む。指示（note）とチケットの中身は書いた言葉のまま入れ、言語では変えない */
 export const ASK_LANGUAGES = ["ja", "en"] as const;
 export type AskLanguage = (typeof ASK_LANGUAGES)[number];
 
@@ -259,7 +260,7 @@ interface HumanStep {
 }
 
 interface ActionDef {
-  /** Skill の名前（dg skill install で配る dg<トピック>）。null なら Skill の形でも文章だけの形で返す（ADR-010） */
+  /** Skill の名前（dg skill install で配る dg<トピック>）。null なら Skill の形でも文章だけの形で返す（ADR-027） */
   skill: string | null;
   /** 1 行目に対象の ID を並べない（起票・作成） */
   bare?: boolean;
@@ -1359,7 +1360,7 @@ export function buildAsk(input: BuildAskInput): AskView {
   const note = input.note?.trim();
   if (chosen === "free" && s.length === 0 && !note)
     throw new UsageError("自由に頼むときは、対象か指示（note）が要る");
-  // 題・本文・Status はエージェントが dg で読むので、依頼文には ID だけを入れる（ADR-010）
+  // 題・本文・Status はエージェントが dg で読むので、依頼文には ID だけを入れる（ADR-027）
   const lines: string[] = [];
   if (format === "skill" && candidate.skill) {
     // Skill の形は呼び出しと指示だけ。呼び出しで頼むことが決まらないもの（起票・作成・外す・分ける・組み直す・持ち越し）だけ短い頼みごとを挟む

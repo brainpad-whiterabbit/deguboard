@@ -24,7 +24,7 @@ export function agentNames(): string[] {
   return ADAPTERS.map((a) => a.name);
 }
 
-/** Adapter が Skill を読むディレクトリをまとめたもの。ask が形式の既定を決めるのに使う（ADR-010） */
+/** Adapter が Skill を読むディレクトリをまとめたもの。ask が形式の既定を決めるのに使う（ADR-027） */
 export function agentSkillDirs(query: SkillQuery): string[] {
   return ADAPTERS.flatMap((a) =>
     a.skillDirs ? [a.skillDirs.project(query.topLevel), a.skillDirs.personal(query.env)] : [],

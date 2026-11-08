@@ -1,4 +1,4 @@
-// CommandClient の postMessage 実装。VS Code の Webview から拡張ホストに要求を送り、id で応答を対応づける（ADR-006）。
+// CommandClient の postMessage 実装。VS Code の Webview から拡張ホストに要求を送り、id で応答を対応づける（ADR-027）。
 // 要求と応答の形は core の WebviewRequest / WebviewResponse。拡張ホストからの通知（WebviewEvent）は id を持たず、購読者に配る
 
 import type {

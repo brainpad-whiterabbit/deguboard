@@ -1,4 +1,4 @@
-/* テーマは VS Code の CSS 変数を基準にする（ADR-006）。Webview では VS Code が <html> に値を入れるので、
+/* テーマは VS Code の CSS 変数を基準にする（ADR-027）。Webview では VS Code が <html> に値を入れるので、
    ここでの :root の値は Webview の外（開発用の dg serve）で開いたときの既定になる。色は --vscode-* から取り、独自の変数（--dg-*）は
    それを組み合わせて body に置く */
 :root {

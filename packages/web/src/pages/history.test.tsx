@@ -261,7 +261,7 @@ describe("Iteration の行の 1 段目と 2 段目", () => {
 });
 
 describe("Iteration の行の Run の集計", () => {
-  it("閉じた Iteration の行に Run の集計のリンクを出さず、Run の記録も読まない（Run の画面はない。ADR-023）", async () => {
+  it("閉じた Iteration の行に Run の集計のリンクを出さず、Run の記録も読まない（Run の画面はない。ADR-027）", async () => {
     window.location.hash = "#/history";
     const client = mockClient();
     client.data.iterations = [

@@ -1,4 +1,4 @@
-// dg serve / dg open：開発用の HTTP サーバーの起動と、ブラウザで画面を開く（UI-8・ADR-023）。中身は @deguboard/server
+// dg serve / dg open：開発用の HTTP サーバーの起動と、ブラウザで画面を開く（UI-8・ADR-027）。中身は @deguboard/server
 
 import { execFile } from "node:child_process";
 import { pickUser } from "@deguboard/core";

@@ -32,7 +32,7 @@ function runCalls(file: string): string[] {
 }
 
 /**
- * 書き込みのコマンドを呼んでよい場所（ADR-010）。チケット詳細（pages/ticket.tsx と右の列の部品）と設定画面だけ。
+ * 書き込みのコマンドを呼んでよい場所（ADR-027）。チケット詳細（pages/ticket.tsx と右の列の部品）と設定画面だけ。
  * 同期（UI-6）はビューのタイトル行のボタンから拡張ホストが呼び、画面のコードは呼ばない
  */
 const ALLOWED_WRITES: Readonly<Record<string, readonly string[]>> = {
@@ -42,7 +42,7 @@ const ALLOWED_WRITES: Readonly<Record<string, readonly string[]>> = {
   "pages/config.tsx": ["config.set", "config.unset"],
 };
 
-describe("画面から呼ぶ書き込みのコマンド（ADR-010）", () => {
+describe("画面から呼ぶ書き込みのコマンド（ADR-027）", () => {
   const files = sourceFiles();
 
   it("コマンドの名前は文字列で直に書く（名前を変数で渡すのは store.run と useCommandData の中だけ）", () => {

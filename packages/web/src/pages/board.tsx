@@ -1,8 +1,9 @@
 // カンバン（UI-2）。絞り込みの欄（Iteration・Epic・担当者）、選んだ Iteration の見出し、
 // 選んだ範囲のチケットを含む Plan の帯（実行計画）と、その範囲のチケットを状態ごとの節（todo / in_progress / review / done。中止は畳んだ節）で出す。
-// 範囲は planned か active の Iteration 1 つか「すべて」（planned と active の Iteration すべて）で、Iteration に入っていないチケットはバックログで見る。
+// 範囲は planned か active の Iteration 1 つか「すべて」（planned と active の Iteration すべて）で、Iteration に入っていないチケットはバックログで見る
+// （全チケットを出すと、帯に閉じた Plan がすべて並ぶ）。Iteration の一覧の画面は置かず、Epic・担当者と同じ絞り込みで選ぶ（一覧の表は縦に場所を取り、絞り込みが 2 か所に分かれる）。
 // Epic の選択肢は open だけ。開いた Iteration がなければ、列も帯も出さずにバックログへ案内する。絞り込みの値はハッシュに持つ。
-// VS Code の左パネルに出し、Iteration を札の列（すべてを含む）で切り替え、見出しを 2 段と進みの帯に詰め、
+// VS Code の左パネルに出し、Iteration を札の列（すべてを含む。開かずに進みを見渡せる）で切り替え、見出しを 2 段と進みの帯に詰め、
 // 詳細・件数は出さない（件数は帯の done/全体）。Epic・担当の絞り込みは見出しの右端の漏斗で開き（開閉は host.state）、
 // 絞っている間は見出しの下に値の札（× で外す）を出す。状態の節はペイン風の見出しにする。
 // 左パネルの行は担当の名前の列を出さず、右端の上の段（Plan の番号の左）に担当の印（AssigneeMark。人は頭文字の丸、agent は持ち主の丸と汎用のアイコン）を出す。
@@ -13,7 +14,7 @@
 // 左パネルの行・状態の節の見出し・Iteration の見出し・Plan の帯は、エージェントに頼める場所にする（吹き出し・Shift+F10。UI-15）。
 // 節の開閉・最後に選んだ Iteration は host.state に覚える。
 // 表示だけで書き込まない。チケットを進める・片付ける・やめる・done を取り消すと、Iteration の作成・閉じるは、吹き出しから
-// エージェントに頼む（ADR-010）。Status を直に選んで変える頼むことはなく、Iteration の開始は着手（claim）の手順が行う（ADR-006）
+// エージェントに頼む（ADR-027）。Status を直に選んで変える頼むことはなく、Iteration の開始は着手（claim）の手順が行う
 
 import { useLayoutEffect, useMemo, useRef } from "react";
 import { ASK_SECTIONS, useAskSpot } from "../components/ask-menu.js";
