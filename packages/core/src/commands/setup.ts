@@ -322,7 +322,7 @@ async function reconcileAll(ctx: CommandContext, warnings: string[]): Promise<Re
     }
     if (ignoredPr) {
       warnings.push(
-        `${doc.id}: ブランチ名で見つけた PR #${ignoredPr.number} は branch を記録する前（${ignoredPr.mergedAt}）にマージされたので、同じ名前の前の作業の PR とみなして照合に使わない。このチケットの PR なら ticket update --pr ${ignoredPr.number} で記録すれば照合する`,
+        `${doc.id}: ブランチ名で見つけた PR #${ignoredPr.number} は branch を記録する前（${ignoredPr.mergedAt}）にマージされたので、同じ名前の前の作業の PR とみなして照合に使わない。この PR がこのチケットのものなら ticket update ${doc.id} --pr ${ignoredPr.number} で記録してから sync を回し直すと照合する（前の作業のものなら何もしない）`,
       );
     }
     const outcome = reconcileStatus(wf.resolved, doc.data.status, facts);
@@ -831,7 +831,7 @@ export const lint = defineCommand({
             doc.path,
             doc.id,
             "lint_commit_outside_run",
-            `実装の Run を閉じた後のコミット ${outside.length} 件（${outside[0]?.sha.slice(0, 7)} など）がどの Run の期間にも入らない`,
+            `実装の Run を閉じた後のコミット ${outside.length} 件（${outside[0]?.sha.slice(0, 7)} など）がどの Run の期間にも入らない。Run の記録は書き換えず、コミットの内容（git show <sha>）を確かめて人に伝える（人の push・rebase などや、別のマシンで開いた Run でも出る）`,
           );
       }
       // 見直しの後のコミットがあるのに、見直しの後に開いた手直しの Run（reclaim の step）がない。コミットが修正かは分からないので安全網として出す
@@ -847,7 +847,7 @@ export const lint = defineCommand({
             doc.path,
             doc.id,
             "lint_run_fix_missing",
-            `見直しの後のコミット ${afterReview.length} 件（${afterReview[0]?.sha.slice(0, 7)} など）があるが、その後に手直しの Run（${fixStep}）がない`,
+            `見直しの後のコミット ${afterReview.length} 件（${afterReview[0]?.sha.slice(0, 7)} など）があるが、その後に手直しの Run（${fixStep}）がない。Run の記録は書き換えず、コミットの内容（git show <sha>）を確かめて、手直しかどうかを人に伝える（人の push・見直しの後の rebase などや、別のマシンで開いた Run でも出る）`,
           );
       }
     }

@@ -23,7 +23,7 @@ import {
  * dg sync は競合を解かないので、書き込みの失敗・警告と sync の警告はどれもこの文言で人の解消を案内する
  */
 export const CONFLICT_REMEDY =
-  "人が deguboard worktree で解消してから dg sync を回す（dg guide overview の「同期が止まったとき」）";
+  "自分では解かず人に伝える。人が deguboard worktree で解消してから dg sync を回す（解いて続けるなら git rebase <remote>/deguboard で解いて git rebase --continue、ローカルのコミットを捨てるなら git reset --hard <remote>/deguboard で捨てて操作をやり直す。dg guide overview の「同期が止まったとき」）";
 
 export interface WriteContext {
   repo: GitRepo;
