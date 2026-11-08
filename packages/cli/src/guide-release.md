@@ -39,5 +39,5 @@ Iteration のチケットがすべて done かを確かめ、リポジトリの�
 結果を伝えたら、次の選択肢で聞く。
 
 - **次の計画を立てる**：todo のチケットが残っていれば `dg guide plan` の手順で計画する（Skill があれば `/dgplan next`）
-- **割り当てる**：Iteration に入っていない todo があれば `dg guide assign` の手順で割り当てる（Skill があれば `/dgassign`）
+- **割り当てる**：未割り当ての todo を `dg guide assign` の手順で Iteration に入れる（Skill があれば `/dgassign`）
 - **ここで止める**

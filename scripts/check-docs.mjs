@@ -1,58 +1,39 @@
-// 文書と dg guide の大きさの予算・ADR 一覧の整合と更新日の一致・リンクと見出しアンカーの切れ・拡張と Walkthrough が指す README の見出しアンカー・README.md と README.ja.md の節の構成のずれを検査する（docs/adr/ADR-001-doc-strategy.md）。
-// 依存なしで動かす。mise run check:docs から呼ぶ。
+// 文書とコードの参照を検査する（docs/adr/ADR-001-doc-strategy.md）。大きさの予算は持たない。検査するのは、ADR 一覧の整合と更新日の一致・リンクと見出しアンカーの切れ・拡張と Walkthrough が指す README の見出しアンカー・README.md と README.ja.md の節の構成のずれ・コードとテストの要件 ID・コードの先頭コメントの参照・guide どうしの重複。
+// 文書の重複は今は guide どうしだけを見る（guide 以外の文書の重複は検査しない）。
+// 要件 ID は docs/requirements.md の箇条書き「- XX-N」で定義されたものに限る。接頭辞は定義から取り、定義にない番号を参照していたら指摘する。先頭コメントは最初の // の行で、requirements.md の節番号・ADR・docs のパス（#アンカー）・guide-*.md を照らす。
+// guide の重複は、同じ見出しの節の本文が同じとき、または同じ段落（40 字以上。空行・見出し・表・コードで切り、箇条書きの 1 項目も 1 段落）が 2 本以上の guide にあるときに指摘する。frontmatter と ``` の中は除く。短い選択肢や定型句は同じ語でよいので対象にしない。
+// 調べるファイルは git が追跡しているか無視されていないもの（.gitignore のビルドの成果物は読まない）。git のリポジトリの中で動かす。
+// 依存なしで動かす（git だけは execFile で呼ぶ）。mise run check:docs から呼ぶ。
+import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
-import { readdir, readFile, stat } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { promisify } from "node:util";
 
+const execFileAsync = promisify(execFile);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+// 調べるファイルの一覧（root からの相対パス）。ビルドの成果物などの無視されたファイルは含まない
+const tracked = await gitFiles();
 
-// 予算（バイト）。超えたら失敗、WARN_RATIO を超えたら警告する。どちらも細部を正本（ヘルプ・コード・テスト）へ移すか、約束を見直すきっかけ
-// 予算を重複と参照の検査に置き換えるまで（t536）のつなぎとして、値を一旦 2 倍にゆるめている
-const budgets = [
-  ["CLAUDE.md", 12 * 1024],
-  ["README.md", 32 * 1024],
-  ["README.ja.md", 32 * 1024],
-  ["docs/requirements.md", 80 * 1024],
-  ["docs/development.md", 40 * 1024],
-];
-const adrBudget = 24 * 1024;
-// エージェントが作業中に読む dg guide のトピック（1 本ずつ）
+// dg guide のトピック（guide-*.md）の置き場所。CLI に同梱する手順の本文
 const guideDir = "packages/cli/src";
-const guideBudget = 28 * 1024;
-const WARN_RATIO = 0.9;
+// 要件 ID と先頭コメントを照らす対象の拡張子（packages・scripts・test の下）
+const SOURCE_EXTS = [".ts", ".tsx", ".mjs", ".js", ".cjs"];
+// guide の重複と見なす段落・節の本文の長さ（字）。これより短い選択肢や定型句は対象にしない
+const DUP_MIN_CHARS = 40;
 
 const errors = [];
-const warnings = [];
-
-for (const [file, limit] of budgets) {
-  const size = await sizeOf(file);
-  if (size === null) {
-    errors.push(`${file}: ファイルがない`);
-  } else {
-    checkBudget(file, size, limit);
-  }
-}
 
 const adrDir = path.join(root, "docs", "adr");
 const adrFiles = (await readdir(adrDir)).filter((f) => /^ADR-\d{3}-.+\.md$/.test(f)).sort();
 const numbers = new Map();
 for (const file of adrFiles) {
-  const rel = `docs/adr/${file}`;
-  checkBudget(rel, await sizeOf(rel), adrBudget);
   const number = file.slice(0, 7);
   if (numbers.has(number)) {
     errors.push(`${number} が重複している: ${numbers.get(number)} と ${file}`);
   }
   numbers.set(number, file);
-}
-
-const guideFiles = (await readdir(path.join(root, guideDir)))
-  .filter((f) => /^guide-.+\.md$/.test(f))
-  .sort();
-for (const file of guideFiles) {
-  const rel = `${guideDir}/${file}`;
-  checkBudget(rel, await sizeOf(rel), guideBudget);
 }
 
 const index = await readFile(path.join(adrDir, "README.md"), "utf8");
@@ -129,10 +110,7 @@ const readmeUrl =
   /https:\/\/github\.com\/brainpad-whiterabbit\/deguboard(?:\/blob\/[^/\s"'`)]+\/README\.md)?#([^\s"'`)]+)/g;
 let readmeAnchorCount = 0;
 let readmeSlugs = null;
-for (const rel of await filesUnder(
-  ["packages/vscode/src", "packages/vscode/media"],
-  [".ts", ".md"],
-)) {
+for (const rel of filesUnder(["packages/vscode/src", "packages/vscode/media"], [".ts", ".md"])) {
   const lines = (await readFile(path.join(root, rel), "utf8")).split("\n");
   for (const [i, line] of lines.entries()) {
     for (const m of line.matchAll(readmeUrl)) {
@@ -160,38 +138,171 @@ for (let i = 0; i < Math.max(readmeHeadings.length, readmeJaHeadings.length); i+
   break; // 1 つずれると後ろはすべてずれるので、最初の 1 か所だけ出す
 }
 
-if (warnings.length > 0) {
-  console.warn(`check:docs の警告（予算の ${WARN_RATIO * 100}% を超えた。失敗にはしない）`);
-  for (const w of warnings) console.warn(`  - ${w}`);
+// 要件 ID：コードとテストが参照する ID は、requirements.md の箇条書き（「- TK-1 …」）で定義されたものに限る。接頭辞は定義から取り、定義にない番号の参照を指摘する
+const requirementsText = await readFile(path.join(root, "docs", "requirements.md"), "utf8");
+const requirementIds = new Set(
+  [...requirementsText.matchAll(/^- ([A-Z]{2,3})-(\d+)(?![0-9])/gm)].map((m) => `${m[1]}-${m[2]}`),
+);
+const requirementPrefixes = new Set([...requirementIds].map((id) => id.split("-")[0]));
+const sources = filesUnder(["packages", "scripts", "test"], SOURCE_EXTS);
+let requirementRefCount = 0;
+for (const rel of sources) {
+  const lines = (await readFile(path.join(root, rel), "utf8")).split("\n");
+  for (const [i, line] of lines.entries()) {
+    for (const m of line.matchAll(/(?<![A-Za-z0-9])([A-Z]{2,3})-(\d+)(?![0-9A-Za-z])/g)) {
+      if (!requirementPrefixes.has(m[1])) continue;
+      requirementRefCount++;
+      const id = `${m[1]}-${m[2]}`;
+      if (!requirementIds.has(id)) {
+        errors.push(`${rel}:${i + 1}: 要件 ID ${id} が docs/requirements.md にない`);
+      }
+    }
+  }
 }
+
+// 先頭コメント：最初の // の行が指す requirements.md の節・ADR・docs のパス（#アンカー）・guide のトピックが存在すること
+const requirementSections = new Set(
+  [...requirementsText.matchAll(/^#{2,3} (\d+(?:\.\d+)*)(?=[.\s])/gm)].map((m) => m[1]),
+);
+const adrNumbers = new Set(adrFiles.map((f) => f.slice(4, 7)));
+let topRefCount = 0;
+for (const rel of sources) {
+  for (const { line, text } of topComment(await readFile(path.join(root, rel), "utf8"))) {
+    const where = `${rel}:${line}`;
+    for (const m of text.matchAll(/requirements\.md\s*(\d+(?:\.\d+)*)/g)) {
+      topRefCount++;
+      if (!requirementSections.has(m[1])) {
+        errors.push(`${where}: 先頭コメントが指す docs/requirements.md の節 ${m[1]} がない`);
+      }
+    }
+    for (const m of text.matchAll(/\bADR-(\d{3})\b/g)) {
+      topRefCount++;
+      if (!adrNumbers.has(m[1])) errors.push(`${where}: 先頭コメントが指す ADR-${m[1]} がない`);
+    }
+    for (const m of text.matchAll(/docs\/[\w./-]+\.md(?:#[^\s)）、。`]+)?/g)) {
+      topRefCount++;
+      const [file, anchor] = m[0].split("#");
+      if (!existsSync(path.join(root, file))) {
+        errors.push(`${where}: 先頭コメントが指す ${file} がない`);
+      } else if (
+        anchor !== undefined &&
+        !(await headingSlugs(file)).has(decodeURIComponent(anchor).toLowerCase())
+      ) {
+        errors.push(`${where}: 先頭コメントが指す見出しがない: ${m[0]}`);
+      }
+    }
+    for (const m of text.matchAll(/\bguide-([a-z]+)\b/g)) {
+      topRefCount++;
+      if (!existsSync(path.join(root, guideDir, `guide-${m[1]}.md`))) {
+        errors.push(`${where}: 先頭コメントが指す guide-${m[1]}.md がない`);
+      }
+    }
+  }
+}
+
+// guide どうしの重複：同じ見出しの節の本文が同じ、または同じ段落が 2 本以上の guide にある
+const guideFiles = (await readdir(path.join(root, guideDir)))
+  .filter((f) => /^guide-.+\.md$/.test(f))
+  .sort();
+const sameSections = new Map();
+const sameParagraphs = new Map();
+for (const file of guideFiles) {
+  const { sections, paragraphs } = guideBlocks(
+    await readFile(path.join(root, guideDir, file), "utf8"),
+  );
+  for (const s of sections) {
+    if (s.body.length < DUP_MIN_CHARS) continue;
+    const key = `${s.heading}\n${s.body}`;
+    const entry = sameSections.get(key) ?? { heading: s.heading, files: new Set() };
+    entry.files.add(file);
+    sameSections.set(key, entry);
+  }
+  for (const p of new Set(paragraphs)) {
+    if (p.length < DUP_MIN_CHARS) continue;
+    const files = sameParagraphs.get(p) ?? new Set();
+    files.add(file);
+    sameParagraphs.set(p, files);
+  }
+}
+for (const { heading, files } of sameSections.values()) {
+  if (files.size > 1) {
+    errors.push(
+      `${[...files].join(", ")}: 見出し「${heading}」の節の本文が同じ（正本を 1 本にする）`,
+    );
+  }
+}
+for (const [text, files] of sameParagraphs) {
+  if (files.size > 1) {
+    errors.push(`${[...files].join(", ")}: 同じ段落がある（「${text.slice(0, 30)}…」）`);
+  }
+}
+
 if (errors.length > 0) {
   console.error("check:docs の指摘");
   for (const e of errors) console.error(`  - ${e}`);
   process.exit(1);
 }
 console.log(
-  `check:docs: 予算内（文書 ${budgets.length} 件、ADR ${adrFiles.length} 件（更新日の一致 ${datedCount} 件）、guide ${guideFiles.length} 件）、リンク ${linkCount} 件に切れなし、README.ja.md の見出し ${readmeJaHeadings.length} 個が README.md と同じ構成、拡張と Walkthrough の README の見出しアンカー ${readmeAnchorCount} 件に切れなし`,
+  `check:docs: ADR ${adrFiles.length} 件（更新日の一致 ${datedCount} 件）、guide ${guideFiles.length} 件に重複なし、リンク ${linkCount} 件に切れなし、README.ja.md の見出し ${readmeJaHeadings.length} 個が README.md と同じ構成、拡張と Walkthrough の README の見出しアンカー ${readmeAnchorCount} 件に切れなし、要件 ID ${requirementRefCount} 件が定義どおり、先頭コメントの参照 ${topRefCount} 件に切れなし`,
 );
 
-function checkBudget(rel, size, limit) {
-  const usage = `${kb(size)} / 予算 ${kb(limit)}（${Math.round((size / limit) * 100)}%）`;
-  if (size > limit) {
-    errors.push(`${rel}: ${usage}。予算を超えている`);
-  } else if (size > limit * WARN_RATIO) {
-    warnings.push(`${rel}: ${usage}`);
+/** ファイルの先頭の // の行（shebang を除く）。最初の // 以外の行で止める */
+function topComment(text) {
+  const out = [];
+  for (const [i, line] of text.split("\n").entries()) {
+    if (i === 0 && line.startsWith("#!")) continue;
+    if (!line.startsWith("//")) break;
+    out.push({ line: i + 1, text: line });
   }
+  return out;
 }
 
-async function sizeOf(rel) {
-  try {
-    return (await stat(path.join(root, rel))).size;
-  } catch {
-    return null;
+/** guide の本文を節と段落に分ける。frontmatter と ``` の中は除く。段落は空行・見出し・表・コードで切り、箇条書きの 1 項目ごとに切る */
+function guideBlocks(text) {
+  const lines = text.split("\n");
+  const body = lines[0] === "---" ? lines.slice(lines.indexOf("---", 1) + 1) : lines;
+  const sections = [];
+  const paragraphs = [];
+  let section = null;
+  let para = [];
+  let inFence = false;
+  const endPara = () => {
+    if (para.length > 0) paragraphs.push(normalize(para.join(" ")));
+    para = [];
+  };
+  for (const line of body) {
+    if (/^\s*(```|~~~)/.test(line)) {
+      endPara();
+      inFence = !inFence;
+      continue;
+    }
+    if (inFence) continue;
+    const h = /^(#{1,3})\s+(.+?)\s*$/.exec(line);
+    if (h) {
+      endPara();
+      if (section) sections.push(section);
+      section = h[1].length >= 2 ? { heading: h[2], lines: [] } : null;
+      continue;
+    }
+    if (section) section.lines.push(line);
+    if (line.trim() === "" || /^\s*\|/.test(line)) {
+      endPara();
+      continue;
+    }
+    if (/^\s*([-*]|\d+\.)\s/.test(line)) endPara();
+    para.push(line.trim());
   }
+  endPara();
+  if (section) sections.push(section);
+  return {
+    sections: sections.map((s) => ({ heading: s.heading, body: normalize(s.lines.join(" ")) })),
+    paragraphs,
+  };
 }
 
-function kb(bytes) {
-  return `${(bytes / 1024).toFixed(1)}KB`;
+/** 空白をつめて比べる形にする */
+function normalize(text) {
+  return text.replace(/\s+/g, " ").trim();
 }
 
 async function markdownFilesUnder(dir) {
@@ -202,18 +313,24 @@ async function markdownFilesUnder(dir) {
     .sort();
 }
 
-/** 指定したフォルダの下のファイルのうち、拡張子が exts のものを返す */
-async function filesUnder(dirs, exts) {
-  const files = [];
-  for (const dir of dirs) {
-    const entries = await readdir(path.join(root, dir), { withFileTypes: true, recursive: true });
-    for (const e of entries) {
-      if (e.isFile() && exts.some((x) => e.name.endsWith(x))) {
-        files.push(path.relative(root, path.join(e.parentPath, e.name)));
-      }
-    }
-  }
-  return files.sort();
+/** git が追跡しているか無視されていないファイルのうち、いま存在するものを root からの相対パスで返す */
+async function gitFiles() {
+  const { stdout } = await execFileAsync(
+    "git",
+    ["ls-files", "--cached", "--others", "--exclude-standard", "-z"],
+    { cwd: root, maxBuffer: 64 * 1024 * 1024 },
+  );
+  return stdout
+    .split("\0")
+    .filter((f) => f !== "" && existsSync(path.join(root, f)))
+    .sort();
+}
+
+/** tracked のうち、dirs の下にあって拡張子が exts のものを返す */
+function filesUnder(dirs, exts) {
+  return tracked.filter(
+    (f) => dirs.some((d) => f.startsWith(`${d}/`)) && exts.some((x) => f.endsWith(x)),
+  );
 }
 
 /** 行ごとの配列にし、```のコードブロックの中とインラインコードは空にする（行番号は保つ） */
