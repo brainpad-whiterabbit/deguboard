@@ -70,7 +70,7 @@ export interface NextStep {
   commands: string[];
   /** 人に伝えて答えを待つこと（wait_human・wait_merge）。なければ null */
   ask_human: string | null;
-  /** この手をサブエージェントに頼む文（implement・review・fix の手。dg brief と同じ。ほかの手は null）。待つ手でも文は出す（commands が待つと言う） */
+  /** この手をサブエージェントに頼む文（implement・review・fix の手。dg brief と同じ）。実行中の Run を待つ手と、ほかの手は null */
   brief: string | null;
 }
 
@@ -318,6 +318,8 @@ export function nextOf(ctx: CommandContext, facts: StageFacts): NextStep {
       return make("implement", facts.implementStep, [
         dg(`ticket claim ${id} --branch <種類>/<内容> --no-run`),
         marker(facts.implementStep),
+        // 文は claim の前に組むので、ブランチと worktree が空欄。claim の後に組み直して渡す
+        `claim の後に ${dg(`brief ${id} --role implement`)} で文を組み直し、その文を渡す（ブランチと worktree が入る）`,
         dg(`ticket update ${id} --pr <番号>`),
       ]);
     case "claimed":
@@ -381,7 +383,8 @@ export const next = defineCommand({
     const facts = await stageFactsOf(ctx, ticket, { fetch: true });
     const step = nextOf(ctx, facts);
     const role = BRIEF_ROLE_OF[step.kind];
-    if (!role) return ok(step);
+    // 実行中の Run を待つ手には文を出さない（貼ると Run が重なる）。running_run が入るのは待つ手だけ
+    if (!role || step.running_run !== null) return ok(step);
     const brief = await briefOf(ctx, ticket, role, { language: input.language });
     return ok({ ...step, brief: brief.text });
   },

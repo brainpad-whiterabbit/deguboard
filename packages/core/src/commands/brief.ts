@@ -54,9 +54,14 @@ export function composeBrief(
   /** 箇条書きの 1 行（見出しと本文を続ける） */
   const item = (label: string, body: string) => `- ${label}${colon}${body}`;
   const id = f.id;
+  // 見直しの役は読むだけ（しない：ファイルを変える）なので、場所の文言を分ける
+  const scope =
+    role === "review"
+      ? L("ファイルは読むだけで、変えない。", "Read the files only; do not change them.")
+      : L("ファイルはこの worktree の中だけで編集する。", "Edit files only inside this worktree.");
   const where = item(
     L("場所", "Location"),
-    `worktree ${f.worktree ?? L("（claim で決まる。dg --json --actor agent ticket show で確かめる）", "(set by the claim; check it with dg --json --actor agent ticket show)")}、${L("ブランチ", "branch")} ${f.branch ?? L("（claim で決まる。ticket show の branch で確かめる）", "(set by the claim; check the branch in ticket show)")}。${L("ファイルはこの worktree の中だけで編集する。", "Edit files only inside this worktree.")}`,
+    `worktree ${f.worktree ?? L("（claim で決まる。dg --json --actor agent ticket show で確かめる）", "(set by the claim; check it with dg --json --actor agent ticket show)")}、${L("ブランチ", "branch")} ${f.branch ?? L("（claim で決まる。ticket show の branch で確かめる）", "(set by the claim; check the branch in ticket show)")}。${scope}`,
   );
   const plan = f.plan
     ? [
@@ -74,13 +79,22 @@ export function composeBrief(
           `  ${L("（本文に受け入れ条件がない。確かめる項目を親に聞く）", "(none in the body; ask the parent which items to check)")}`,
         ]),
   ];
-  const tools = item(
-    L("道具", "Tools"),
-    L(
-      "ファイルは Read で読み、Edit で直す。Bash の cat・heredoc・sed -i でソースを読み書きしない。",
-      "read files with Read and edit them with Edit. Do not read or write source with Bash cat, heredoc, or sed -i.",
-    ),
-  );
+  const tools =
+    role === "review"
+      ? item(
+          L("道具", "Tools"),
+          L(
+            "ファイルは Read で読む。Bash の cat・heredoc・sed -i でソースを書き換えない。",
+            "read files with Read. Do not write source with Bash cat, heredoc, or sed -i.",
+          ),
+        )
+      : item(
+          L("道具", "Tools"),
+          L(
+            "ファイルは Read で読み、Edit で直す。Bash の cat・heredoc・sed -i でソースを読み書きしない。",
+            "read files with Read and edit them with Edit. Do not read or write source with Bash cat, heredoc, or sed -i.",
+          ),
+        );
   const never = (ja: string, en: string) => item(L("しない", "Do not"), L(ja, en));
   const returns = (ja: string, en: string) => item(L("返すもの", "Return"), L(ja, en));
   const runLine = (ja: string, en: string) => item("Run", L(ja, en));
@@ -144,8 +158,8 @@ export function composeBrief(
       item(
         L("規約", "Conventions"),
         L(
-          "リポジトリのルートにあるエージェント向けの指示ファイルと `dg guide review` の「見直す」に従う。見る観点は受け入れ条件の漏れ・不具合・文書との食い違い・規約の違反・範囲の外の変更。",
-          "Follow the agent instruction file at the repository root and the 見直す section of `dg guide review`. Look for missed acceptance criteria, bugs, mismatches with the docs, rule violations, and changes outside the scope.",
+          "リポジトリのルートにあるエージェント向けの指示ファイルと `dg guide review` の「見直す」に従う。見る観点は受け入れ条件の漏れ・不具合・文書との食い違い・規約の違反・範囲の外の変更。チケット本文に `## 参考` 節があれば、そこに書いたファイルと差分で変えたファイルを見比べ、参考節にない大きな広がりと、参考節のファイルに触れていない変更を「参考節との食い違い」として返す。",
+          'Follow the agent instruction file at the repository root and the "見直す" (Review) section of `dg guide review`. Look for missed acceptance criteria, bugs, mismatches with the docs, rule violations, and changes outside the scope. If the ticket body has a `## 参考` section, compare the files it names with the files the diff changes, and report as "参考節との食い違い" any large spread outside the section and any change that does not touch the files the section names.',
         ),
       ),
       tools,
@@ -165,8 +179,8 @@ export function composeBrief(
         "change files, commit, push, write anything to dg other than the Run, or look at other tickets.",
       ),
       returns(
-        "指摘を重い（受け入れ条件の漏れ・不具合・文書との食い違い・規約の違反）と軽い（言い回し・好み）に分けた一覧（ファイルと行・理由・直し方）と、最新のコミットで回した検査の結果。",
-        "a list of findings split into heavy (missed acceptance criteria, bugs, mismatches with the docs, rule violations) and light (wording, preference), each with file and line, reason, and how to fix it; and the results of the checks run on the latest commit.",
+        "指摘を重い（受け入れ条件の漏れ・不具合・文書との食い違い・規約の違反）と軽い（言い回し・好み）に分けた一覧（ファイルと行・理由・直し方）と、最新のコミットで回した検査の結果。参考節との食い違いは軽い指摘の欄に分けて書き、重い指摘に数えない。",
+        "a list of findings split into heavy (missed acceptance criteria, bugs, mismatches with the docs, rule violations) and light (wording, preference), each with file and line, reason, and how to fix it; and the results of the checks run on the latest commit. Report 参考節との食い違い (mismatches with the 参考 section) under the light findings, and do not count them as heavy.",
       ),
     ].join("\n");
   }
@@ -193,8 +207,8 @@ export function composeBrief(
     item(
       L("直し始める前に", "Before you start fixing"),
       L(
-        `\`dg --json --actor agent ticket claim ${id} --retry-reason <直す指摘の要約>\` を単独のコマンドで 1 回呼んで fix の Run を開く。要約は 1 行で、秘密・コマンドの文字列・パスは書かない。\`run start\`・\`run finish\` は使わない。`,
-        `Run \`dg --json --actor agent ticket claim ${id} --retry-reason <summary of the findings to fix>\` once, as a standalone command, to open the fix Run. The summary is one line and must not contain secrets, command strings, or paths. Do not use \`run start\` or \`run finish\`.`,
+        `\`dg --json --actor agent ticket claim ${id} --retry-reason <直した指摘 1 件の要約> --retry-reason <2 件目の要約> …\` を単独のコマンドで 1 回呼んで fix の Run を開く。直した指摘 1 件に 1 つ --retry-reason を繰り返す（回数は理由の数になる）。書くのは見直し役・人のレビューの指摘だけで、検査の失敗を直したことは書かない。要約は 1 行で、秘密・コマンドの文字列・パスは書かない。\`run start\`・\`run finish\` は使わない。`,
+        `Run \`dg --json --actor agent ticket claim ${id} --retry-reason <summary of finding 1> --retry-reason <summary of finding 2> …\` once, as a standalone command, to open the fix Run. Repeat --retry-reason once per finding you fixed (the number of reasons is the retry count). Write only the findings from the reviewer or the human reviewer, not fixes for failed checks. Each summary is one line and must not contain secrets, command strings, or paths. Do not use \`run start\` or \`run finish\`.`,
       ),
     ),
     item(
@@ -208,7 +222,7 @@ export function composeBrief(
       L("規約", "Conventions"),
       L(
         "リポジトリのルートにあるエージェント向けの指示ファイルと `dg guide review` の「指摘を直す」に従う。検査（書式・lint・テスト）を最新のコミットで通してから push する。",
-        "Follow the agent instruction file at the repository root and the 指摘を直す section of `dg guide review`. Run the checks (format, lint, tests) on the latest commit before you push.",
+        'Follow the agent instruction file at the repository root and the "指摘を直す" (Fixing findings) section of `dg guide review`. Run the checks (format, lint, tests) on the latest commit before you push.',
       ),
     ),
     ...acceptance,

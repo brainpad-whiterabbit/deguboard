@@ -19,7 +19,7 @@ PR を人に出す前（`dg guide work`）と、自動でマージする前（`d
 
 実装者は PR を draft で作って返す（`gh pr create --draft`。実装の Run は親の `ticket update --pr` が閉じる）。draft のうちは照合が review に進めない。親は、実装したのとは別のサブエージェントを見直し役として起動する。見直し役は Plan の段階によらず親のモデルで起動する（品質ゲートを弱めない）。
 
-- **渡す**：文は `dg --json --actor agent brief <id> --role review` が組む（`dg next` の brief と同じ）。チケットの本文（`dg --json --actor agent ticket show <id>`）・ブランチと worktree のパス・差分の取り方（`git fetch {{git.remote}}` の後 `git diff {{git.remote}}/{{git.base_branch}}...<ブランチ>`）・規約の場所を入れる。文の先頭の印で、フックが `review` の Run を開き閉じる（`--agent` は見直し役も自分の Adapter の名前。Claude Code なら `claude-code`。`claude-code-reviewer` のような役割名にすると使用量とモデル名を取り込めない）
+- **渡す**：文は `dg --json --actor agent brief <id> --role review` が組む（`dg next` の brief と同じ）。チケットの本文（`dg --json --actor agent ticket show <id>`）・ブランチと worktree のパス・差分の取り方（`git fetch {{git.remote}}` の後 `git diff {{git.remote}}/{{git.base_branch}}...<ブランチ>`）・規約の場所を入れる。一時ファイルの置き場所は親が文に添える。文の先頭の印で、フックが `review` の Run を開き閉じる。見直し役が `--agent` を渡すときは、自分の Adapter の名前。Claude Code なら `claude-code`。`claude-code-reviewer` のような役割名にすると使用量とモデル名を取り込めない
 - **見る**：受け入れ条件の漏れ・不具合・文書との食い違い・規約の違反・範囲の外の変更。チケット本文に `## 参考` 節があれば、そこに書いたファイルと差分で変えたファイルを見比べ、参考節にないところへの大きな広がりと、参考節のファイルに触れていない変更を「参考節との食い違い」として返す（節がなければ見比べない。範囲の外の変更でもあるものは「範囲の外の指摘」で扱う）
 - **Run**：`review` の Run は文の印でフックが開き閉じる。見直し役は一覧を返す前に `dg --json --actor agent run review-result <id> --heavy <重い指摘の数> --light <軽い指摘の数>`（重い指摘がなければ `--passed` も付ける）で結果を書く（下の「Run の分け方」）。見直し役は 1 つの Run で 1 枚のチケットを見る。複数のチケットはチケットごとに見直し役を起動する（同じ会話で Run を重ねると、応答は後に始めた Run にだけ数える）
 - **しない**：ファイルを変える・コミットする・push する・Run のほかに `dg` に書き込む
