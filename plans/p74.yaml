@@ -1,0 +1,22 @@
+id: p74
+project: default
+tickets: [t556, t535, t537]
+after:
+  t535:
+    - t556
+  t537:
+    - t535
+pending_approval: true
+details:
+  t556:
+    scope: Run を開く処理（openRun）で、同じチケットの開いている手直しの Run をその場で閉じ、sync の区切りの同じ秒の扱いを合わせる
+    approach: run.ts の openRun に closePreviousFixRun を寄せて ticket.ts・hook.ts の呼び出しを消し、setup.ts の fixRunBoundary を同じ秒で区切るよう直す。ADR-018 の項を置き換える ADR を書き、RN-5・RN-6 とヘルプを合わせる
+    tier: heavy
+  t535:
+    scope: guide の work・run・review・parallel・all の書き直しと Skill の入れ直し
+    approach: dg next を呼んで 1 手を行う細いループに縮め、重複を消して合計を半分以下にする。t545・t546・t547・t550・t553・t556 が足した案内と振る舞いに合わせる
+    tier: standard
+  t537:
+    scope: PR の要らない調査：s19 と同じ 6 つの数の取り直しと EX-1 反転の要否の判断
+    approach: t494 のコマンドで表を出し、ADR-004 の書き換え案として報告する。新しい Iteration のデータが揃ってから着手する
+    tier: heavy
