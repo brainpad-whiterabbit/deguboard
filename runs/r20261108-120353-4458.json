@@ -1,0 +1,32 @@
+{
+  "id": "r20261108-120353-4458",
+  "ticket": "t567",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-08T12:03:53Z",
+  "finished_at": "2026-11-08T12:19:42Z",
+  "result": "success",
+  "error": null,
+  "retries": 1,
+  "retry_reasons": [
+    "boardAnnounces が効果の順序に頼っていて、askCurrent の前にカンバンの知らせを確かめられていない（コメントも実際の仕組みと合わない）"
+  ],
+  "usage": {
+    "input": 138,
+    "output": 38284,
+    "cache_read": 4341821,
+    "cache_write": 87784
+  },
+  "tools": {
+    "read": 2,
+    "search": 0,
+    "write": 5,
+    "bash": 46,
+    "other": 19,
+    "read_before_write": 1,
+    "search_before_write": 0
+  },
+  "session": "dbb290f0-286a-48d3-9ebb-6ec3766734c9",
+  "review": null
+}
