@@ -270,7 +270,7 @@ for (const [text, places] of sameParagraphs) {
   errors.push(`${where}: 同じ段落がある（「${text.slice(0, 30)}…」）`);
 }
 
-// dg guide の節の参照：「`dg guide <topic>` の「<節>」」を、guide-<topic>.md の見出しと照らす。「と「…」」で続く節も見る。
+// dg guide の節の参照：「`dg guide <topic>` の「<節>」」を、guide-<topic>.md の見出し（「（…）」の補足を除いた名前を含む）と、節の中の太字の項目・一覧の先頭のコードと照らす。「と「…」」で続く節も見る。
 // 見る名前は「」の中だけ（後ろの「の `implement` のモデル」などは見ない）。コードブロックの中は除く
 const guideNameSets = new Map();
 for (const rel of guideFiles) {
