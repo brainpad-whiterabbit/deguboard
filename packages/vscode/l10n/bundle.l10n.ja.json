@@ -12,7 +12,6 @@
   "New plans awaiting approval ({0})": "承認待ちが増えた（{0}）",
   "New tickets awaiting review ({0})": "レビュー待ちが増えた（{0}）",
   "No remote, so there is nothing to sync. Reloaded.": "リモートがないので同期は要らない。読み直した",
-  "No worktree found for {0}": "{0} の worktree が見つからない",
   "Open": "開く",
   "Open a folder (the target repository) to use deguboard": "フォルダを開いてから使う（対象のリポジトリ）",
   "Open details of {0}": "{0} の詳細を開く",

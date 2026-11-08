@@ -275,7 +275,6 @@ async function resolveSidebar(
           : showInSidebar(route),
       show: showInSidebar,
       copy: copyToClipboard,
-      openFolder,
       terminals: listTerminals,
       sendToTerminal,
     },
@@ -345,13 +344,6 @@ async function sendToTerminal(id: number, text: string): Promise<TerminalSendRes
   } catch {
     return { clipboardKept: true };
   }
-}
-
-/** worktree のフォルダを新しいウィンドウで開く（チケット詳細の「新しいウィンドウで開く」。UI-4） */
-async function openFolder(folder: string): Promise<void> {
-  await vscode.commands.executeCommand("vscode.openFolder", vscode.Uri.file(folder), {
-    forceNewWindow: true,
-  });
 }
 
 /** 文字をクリップボードに入れる。Webview の画面のコピー（依頼文・ブランチ名）と、バックログの「ID をコピー」で使う */
@@ -526,7 +518,6 @@ async function openPanel(
           : showInSidebar(route),
       show: showInSidebar,
       copy: copyToClipboard,
-      openFolder,
       terminals: listTerminals,
       sendToTerminal,
     },
