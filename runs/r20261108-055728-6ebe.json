@@ -1,0 +1,32 @@
+{
+  "id": "r20261108-055728-6ebe",
+  "ticket": "t546",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-08T05:57:28Z",
+  "finished_at": "2026-11-08T06:07:40Z",
+  "result": "success",
+  "error": null,
+  "retries": 1,
+  "retry_reasons": [
+    "並べて動く dg の書きかけを外の変更と取り違える・外の変更があるまま dg が書くと印のコミットに紛れる。判定をロックの中に移し、外の変更があれば書かない"
+  ],
+  "usage": {
+    "input": 36,
+    "output": 18018,
+    "cache_read": 7102937,
+    "cache_write": 29277
+  },
+  "tools": {
+    "read": 6,
+    "search": 0,
+    "write": 23,
+    "bash": 11,
+    "other": 0,
+    "read_before_write": 0,
+    "search_before_write": 0
+  },
+  "session": "61b49499-41ea-4856-afc0-f00ba8d6dd50",
+  "review": null
+}
