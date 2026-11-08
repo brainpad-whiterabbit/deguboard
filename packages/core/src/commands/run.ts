@@ -1,4 +1,4 @@
-// Run の操作（requirements.md 5.9 RN-4〜RN-6、6.6 MT-1・MT-2・MT-5、6.7 EX-2、ADR-029）。記録の置き場所とロックは run/record.ts、
+// Run の操作（requirements.md 5.9 RN-4〜RN-6・RN-8、6.6 MT-1・MT-2・MT-5、6.7 EX-2、ADR-029）。記録の置き場所とロックは run/record.ts、
 // 使用量の取り込みは agents（Run の agent の値で Adapter を選ぶ。特定の AI 製品をここに書かない。AG-5）
 
 import { z } from "zod";
@@ -790,7 +790,7 @@ export const runReviewResult = defineCommand({
   },
 });
 
-/** 書き足す先の手直しの Run がなく、理由を保留にしたときの返り値（ADR-025） */
+/** 書き足す先の手直しの Run がなく、理由を保留にしたときの返り値（RN-8・ADR-025） */
 export interface PendingRetryReasonsView {
   ticket: string;
   reasons: string[];

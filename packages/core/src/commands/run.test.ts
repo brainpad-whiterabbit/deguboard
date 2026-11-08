@@ -1,4 +1,13 @@
-import { access, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import {
+  access,
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  rm,
+  symlink,
+  writeFile,
+} from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -7,6 +16,7 @@ import { slowLock } from "../../test/helpers/slow-lock.js";
 import { openContext } from "./context.js";
 import { runCommand, type CommandContext } from "./define.js";
 import {
+  fixRunFinishedAt,
   REVIEW_UNRECORDED,
   runFinish,
   runList,
@@ -330,6 +340,50 @@ describe("run", () => {
         }),
       ).rejects.toThrow(/会話記録の置き場所の下/);
     }
+  });
+
+  it("start は transcript のシンボリックリンクを解いて比べ、置き場所の下から外を指すリンクを拒否する（RN-1）", async () => {
+    const ctx = await prepared();
+    const home = await mkdtemp(path.join(os.tmpdir(), "dg-home-"));
+    cleanups.push(() => rm(home, { recursive: true, force: true }));
+    ctx.env = { HOME: home };
+    const projects = path.join(home, ".claude", "projects", "d");
+    await mkdir(projects, { recursive: true });
+    await mkdir(path.join(home, ".ssh"), { recursive: true });
+    await symlink(path.join(home, ".ssh"), path.join(projects, "link"));
+    await expect(
+      runCommand(runStart, ctx, {
+        ticket: "t1",
+        step: "implement",
+        agent: "claude-code",
+        transcript: path.join(projects, "link", "id_rsa"),
+      }),
+    ).rejects.toThrow(/会話記録の置き場所の下/);
+  });
+
+  it("手直しの Run を区切りで閉じる時刻は、開始より後で区切りまでの最後の push、なければ区切りの時刻、マージの時刻、今の順（RN-6）", () => {
+    const startedAt = "2026-11-06T01:00:00Z";
+    // 期間の中の push が先
+    expect(
+      fixRunFinishedAt({
+        pushedAt: "2026-11-06T01:30:00Z",
+        startedAt,
+        boundaryAt: "2026-11-06T02:00:00Z",
+        fallback: "2026-11-06T03:00:00Z",
+      }),
+    ).toEqual({ finishedAt: "2026-11-06T01:30:00Z", pushed: true });
+    // 開始より前か区切りより後の push は使わず、区切りの時刻
+    for (const pushedAt of ["2026-11-06T00:30:00Z", "2026-11-06T02:30:00Z"]) {
+      expect(fixRunFinishedAt({ pushedAt, startedAt, boundaryAt: "2026-11-06T02:00:00Z" })).toEqual(
+        { finishedAt: "2026-11-06T02:00:00Z", pushed: false },
+      );
+    }
+    // 区切りの時刻がなければ PR のマージ時刻、それもなければ今（undefined）
+    expect(fixRunFinishedAt({ startedAt, fallback: "2026-11-06T03:00:00Z" })).toEqual({
+      finishedAt: "2026-11-06T03:00:00Z",
+      pushed: false,
+    });
+    expect(fixRunFinishedAt({ startedAt })).toEqual({ finishedAt: undefined, pushed: false });
   });
 
   it("start と claim は、session と transcript を省けばフックが環境に入れた DEGUBOARD_SESSION・DEGUBOARD_TRANSCRIPT を使う", async () => {

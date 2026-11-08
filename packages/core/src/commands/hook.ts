@@ -1,4 +1,4 @@
-// harness のフックの出来事を Run の操作に写す（AG-1・AG-9・AG-10・RN-5・RN-6、ADR-025・ADR-026）。入力の形は Adapter の hooks.parse が製品ごとに読み、
+// harness のフックの出来事を Run の操作に写す（AG-1・AG-9・AG-10・RN-6〜RN-8、ADR-025・ADR-026）。入力の形は Adapter の hooks.parse が製品ごとに読み、
 // ここは製品によらない出来事（HookEvent）だけを見る（AG-5）。フックはエージェントの作業を止めないよう、失敗は警告にして成功で返す。
 //   - session_start：以後の Bash の環境に DEGUBOARD_ACTOR=agent・DEGUBOARD_SESSION・DEGUBOARD_TRANSCRIPT を export で書く
 //     （届くのは親の Bash だけ。サブエージェントの claim・run start のセッションは Adapter の sessionFromEnv が補う。ADR-025）

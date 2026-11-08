@@ -166,7 +166,7 @@ describe("フックの印", () => {
   });
 });
 
-describe("dg hook（AG-9・ADR-025）", () => {
+describe("dg hook（AG-9・RN-7・ADR-025）", () => {
   it("SessionStart は以後の Bash の環境に export 付きで主体・セッション ID・記録のパスを書く", async () => {
     const { ctx, home, parent } = await prepared();
     const envFile = path.join(home, "env.sh");
@@ -930,7 +930,7 @@ async function appendResponses(file: string, tokens: number, ids: string[]) {
   await appendFile(file, lines.map((l) => JSON.stringify(l)).join("\n") + "\n");
 }
 
-describe("サブエージェントの止まりと再開（ADR-025）", () => {
+describe("サブエージェントの止まりと再開（RN-7・ADR-025）", () => {
   const stop = (ctx: CommandContext, file: string, agentId = "a1") =>
     call(ctx, "SubagentStop", {
       session_id: SESSION,
@@ -1449,7 +1449,7 @@ describe("PreToolUse（AG-10・t532）", () => {
   });
 });
 
-describe("手直しの Run の印と run retry-reason（ADR-025）", () => {
+describe("手直しの Run の印と run retry-reason（RN-7・RN-8・ADR-025）", () => {
   const fixRuns = async (ctx: CommandContext, ticket: string) =>
     ((await runCommand(runList, ctx, { ticket })).data as RunView[]).filter(
       (r) => r.step === "fix",
