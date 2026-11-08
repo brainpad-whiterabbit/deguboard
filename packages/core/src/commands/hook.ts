@@ -1,7 +1,8 @@
 // harness のフックの出来事を Run の操作に写す（AG-1・AG-9・RN-5・RN-6、ADR-012・ADR-014）。入力の形は Adapter の hooks.parse が製品ごとに読み、
 // ここは製品によらない出来事（HookEvent）だけを見る（AG-5）。フックはエージェントの作業を止めないよう、失敗は警告にして成功で返す。
 //   - session_start：以後の Bash の環境に DEGUBOARD_ACTOR=agent・DEGUBOARD_SESSION・DEGUBOARD_TRANSCRIPT を export で書く
-//   - subagent_launched：頼んだ文の先頭の印（deguboard: ticket=<id> step=<step>）があれば、その Run を開いて記録の場所をサブエージェントの記録にする
+//   - subagent_launched：頼んだ文の先頭の印（deguboard: ticket=<id> step=<step>）があれば、その Run を開いて記録の場所をサブエージェントの記録にする。
+//     見直しは、別のセッションで開いたままの同じチケットの見直しの Run を先に interrupted で閉じる（ADR-015）
 //   - subagent_started：同じ記録の開いた Run（親への質問で止まっていたもの）を続きとして使い、止まって待っている印と書き終わり待ちの印を消す
 //   - subagent_stopped：記録の場所で Run を引き、記録の最初の文の印で照らしてから、step を終えた事実があれば記録の書き終わりを待って
 //     記録の全体から数えて閉じる。事実がなければ閉じずに止まって待っている印を付ける。
@@ -26,16 +27,19 @@ import {
   amendRunning,
   bindTranscript,
   finishRun,
+  moveReviewToPending,
   readRunningRuns,
   readTranscriptPaths,
   takePendingReview,
 } from "../run/record.js";
 import { defineCommand, ok, runCommand, type CommandContext } from "./define.js";
 import {
+  openedInOtherSession,
   openedStepOf,
   openRun,
   REVIEW_UNRECORDED,
   runRefresh,
+  STALE_SESSION_ERROR,
   transcriptUnderRoot,
   usageContext,
 } from "./run.js";
@@ -130,7 +134,8 @@ export const hook = defineCommand({
   group: "hook",
   summary:
     "harness のフックが呼ぶ（dg hooks install が設定に書く。人が打つものではない）。--payload - で標準入力のフックの入力（JSON）を読み、" +
-    "セッションの始まりに主体とセッション ID・記録のパスを環境に入れ、頼んだ文の先頭に `deguboard: ticket=<id> step=<step>` の印のあるサブエージェントの Run を起動で開き、step を終えた事実があれば止まったときに閉じ" +
+    "セッションの始まりに主体とセッション ID・記録のパスを環境に入れ、頼んだ文の先頭に `deguboard: ticket=<id> step=<step>` の印のあるサブエージェントの Run を起動で開き" +
+    "（同じチケットと step の Run が開いたままなら開かずに警告する。見直しは、その Run が別のセッションのものなら落ちたセッションの残りとみなして interrupted で閉じてから開く。前景の起動で起動より後にその Run に書かれた見直しの結果は、保留に移して新しい Run に結び付ける）、step を終えた事実があれば止まったときに閉じ" +
     "（なければ止まって待っている印を付け、再開で続ける）、セッションの終わりにそのセッションのサブエージェントの開いたままの Run を閉じる。" +
     "ツールを使う前（PreToolUse）には、.git/deguboard/ の下への書き込み（書くツールと Bash）を拒み、gh pr merge・gh pr ready をそのチケットの dg gate で判定して満たさなければ止める" +
     "（PR に当たるチケットがなければ止めない。判定の途中で失敗したら止める。Bash の判定は字句の手がかりで、任意の言語のコードや eval の中は見ない）。" +
@@ -271,20 +276,25 @@ async function subagentLaunched(
     );
     return;
   }
+  const now = ctx.now();
+  // 前景の起動は終わってから返るので、かかった時間だけ開始を前にする
+  const startedAt =
+    event.finished && event.durationMs !== null
+      ? new Date(now.getTime() - event.durationMs)
+      : undefined;
+  // 別のセッションで開いたままの見直しの Run は、そのセッションが落ちた残り。閉じてから開く（ADR-015）。
+  // 同じセッションの見直しを重ねて開くのは二重の起動なので、閉じずに下の openRun が拒否する
+  if (marker.step === REVIEW_STEP)
+    await closeStaleReviewRuns(ctx, marker.ticket, event.session, startedAt ?? now, view, warnings);
   let run: Run;
   try {
-    const now = ctx.now();
     const opened = await openRun(ctx, ticket.data, {
       step: marker.step,
       agent,
       model: event.model ?? undefined,
       session: event.session,
       transcript: event.transcript ?? undefined,
-      // 前景の起動は終わってから返るので、かかった時間だけ開始を前にする
-      startedAt:
-        event.finished && event.durationMs !== null
-          ? new Date(now.getTime() - event.durationMs)
-          : undefined,
+      startedAt,
     });
     run = opened.run;
     warnings.push(...opened.warnings);
@@ -297,6 +307,48 @@ async function subagentLaunched(
   // 前景の起動はもう終わっている（終わりの出来事は先に来て、閉じる Run がなかった）ので、ここで閉じる
   if (event.finished && event.transcript)
     await stopSubagentRun(ctx, agent, run, event.transcript, view, warnings);
+}
+
+/**
+ * 見直しの起動の前に、このマシンで開いたままの同じチケットの見直しの Run のうち別のセッションのものを interrupted で閉じる（ADR-015）。
+ * 使用量はその Run の記録の場所から数える。前景の起動では見直し役が終わってからここに来るので、その間の run review-result は
+ * 古い Run に書かれている。起動（launchedAt）より後に書かれた結果は古い Run から外して保留に移し、新しい Run を閉じるときに結び付ける。
+ * 閉じられなければ警告して続ける（下の openRun が拒否して警告する）
+ */
+async function closeStaleReviewRuns(
+  ctx: CommandContext,
+  ticket: TicketId,
+  session: string,
+  launchedAt: Date,
+  view: HookView,
+  warnings: string[],
+): Promise<void> {
+  const paths = await readTranscriptPaths(ctx.repo);
+  for (const { data: stale } of (await readRunningRuns(ctx.repo)).runs) {
+    if (stale.ticket !== ticket || stale.step !== REVIEW_STEP) continue;
+    if (!openedInOtherSession(stale, session)) continue;
+    try {
+      let run = stale;
+      if (await moveReviewToPending(ctx.repo, run.id, launchedAt)) {
+        run = { ...run, review: null };
+        view.done.push(
+          `${ticket} の見直しの結果は今回の見直し役が書いたものなので、Run ${run.id} から外して保留に移した`,
+        );
+      }
+      await closeSubagentRun(
+        ctx,
+        run,
+        paths.get(run.id),
+        { result: "interrupted", error: STALE_SESSION_ERROR },
+        view,
+        warnings,
+      );
+    } catch (e) {
+      warnings.push(
+        `別のセッション（${stale.session}）で開いたままの Run ${stale.id} を閉じられなかった（${e instanceof Error ? e.message : String(e)}）`,
+      );
+    }
+  }
 }
 
 /** パスが agent の会話記録の置き場所の下か。外なら警告して false（HTTP・MCP から hook を呼んでも任意のファイルを読ませない） */
@@ -465,7 +517,7 @@ async function waitSettled(agent: string, transcript: string): Promise<boolean> 
 async function closeSubagentRun(
   ctx: CommandContext,
   run: Run,
-  transcript: string,
+  transcript: string | undefined,
   decided: { result: RunResult; error?: string },
   view: HookView,
   warnings: string[],

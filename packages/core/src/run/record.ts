@@ -7,7 +7,7 @@
 //   - 会話記録のパスは Run に書かず、deguboard-local/transcripts/<id>.json に置く（ADR-005）。ホームのパスとユーザ名を含み、
 //     別のマシンでは読めないので Git に入れない。閉じた後の run refresh も同じファイルから数えるので、Run を閉じても消さない
 
-import { mkdir, readdir, readFile, unlink } from "node:fs/promises";
+import { mkdir, readdir, readFile, stat, unlink } from "node:fs/promises";
 import path from "node:path";
 import { OperationError } from "../errors.js";
 import { withLock } from "../git/lock.js";
@@ -253,6 +253,35 @@ export async function amendRunning(
       `${JSON.stringify(next, null, 2)}\n`,
     );
     return runSchema.parse(next);
+  });
+}
+
+/**
+ * 実行中の Run に since より後に書かれた見直しの結果を、その Run から外して保留に移す（ADR-015）。
+ * 別のセッションの見直しの Run を閉じる前に、前景の見直し役がその Run に書いてしまった今回の結果を、新しい Run に回すため。
+ * 書かれた時刻は実行中の記録のファイルの更新時刻で見る（落ちたセッションの Run は、その後に結果を書くほかに更新されない）。
+ * 移したら保留の結果を、移さなければ undefined を返す
+ */
+export async function moveReviewToPending(
+  repo: RunDirs,
+  id: RunId,
+  since: Date,
+): Promise<RunReview | undefined> {
+  return withRunLock(repo, async () => {
+    if (await hasSummary(repo, id)) return undefined;
+    const file = path.join(repo.localDir, runPath(id));
+    const result = await readDoc(repo.localDir, runPath(id), "json", runSchema, id);
+    if (!result.ok || result.doc.data.review === null) return undefined;
+    const written = (await stat(file).catch(() => undefined))?.mtime;
+    if (written === undefined || written < since) return undefined;
+    const review = result.doc.data.review;
+    await putPendingReview(repo, result.doc.data.ticket, {
+      review,
+      at: toIsoDateTime(written),
+    });
+    const next = { ...(result.doc.yaml.toJS() as Record<string, unknown>), review: null };
+    await writeFileAtomic(file, `${JSON.stringify(next, null, 2)}\n`);
+    return review;
   });
 }
 

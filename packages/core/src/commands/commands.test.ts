@@ -38,7 +38,7 @@ import {
   type ReadinessTicket,
 } from "./plan.js";
 import { projectCreate } from "./project.js";
-import { runFinish, runStart } from "./run.js";
+import { runFinish, runStart, STALE_SESSION_ERROR } from "./run.js";
 import {
   commit,
   configSet,
@@ -1264,6 +1264,60 @@ describe("チケットの流れ", () => {
         (await git(agent.repo.dataDir, ["show", "--name-only", "--format=", "HEAD"])).stdout,
       ).toContain(`runs/${fix2}.json`);
       expect(agent.store.runs.has(fix1)).toBe(true);
+    } finally {
+      restore();
+    }
+  });
+
+  it("もう一度の claim は、別のセッションで開いたままの前の手直しの Run を落ちたセッションの残りとみなして interrupted で閉じ、同じセッションの前の手直しは今までどおり区切りとして success で閉じる（ADR-015）", async () => {
+    const f = await fixture();
+    let clock = new Date("2026-11-06T00:00:00Z");
+    const human = await initialized(
+      f.cloneA,
+      { now: () => clock },
+      { template: "software-development" },
+    );
+    await runCommand(ticketCreate, human, { title: "Crashed fix" });
+    const agent = await agentWithRuns(f.cloneA, () => clock);
+    await runCommand(ticketClaim, agent, { ticket: "t1", branch: "feat/t1" });
+    const restore = await fakeGh(f.root, {
+      "41": '{"number":41,"state":"OPEN","isDraft":true,"mergedAt":null,"createdAt":"2026-11-06T00:20:00Z"}',
+    });
+    try {
+      clock = new Date("2026-11-06T00:30:00Z");
+      await runCommand(ticketUpdate, agent, { ticket: "t1", pr: 41 });
+      clock = new Date("2026-11-06T01:00:00Z");
+      const fix1 = (await runCommand(ticketClaim, agent, { ticket: "t1", session: "s-old" })).data
+        .run!;
+      // s-old が落ちて fix1 が開いたまま残り、別のセッションが手直しを始める
+      clock = new Date("2026-11-06T02:00:00Z");
+      const again = await runCommand(ticketClaim, agent, { ticket: "t1", session: "s-new" });
+      const fix2 = again.data.run!;
+      expect(fix2).not.toBe(fix1);
+      expect(again.warnings).toContainEqual(
+        `t1: 前の手直しの Run ${fix1} は別のセッション（s-old）で開いたままだったので、落ちたセッションの残りとみなして interrupted で閉じる`,
+      );
+      expect(agent.store.runs.get(fix1)!.data).toMatchObject({
+        step: "fix",
+        result: "interrupted",
+        error: STALE_SESSION_ERROR,
+        finished_at: "2026-11-06T02:00:00Z",
+      });
+      // 同じセッションの前の手直しは、今までどおりこの claim を区切りとして success
+      clock = new Date("2026-11-06T03:00:00Z");
+      const third = await runCommand(ticketClaim, agent, { ticket: "t1", session: "s-new" });
+      expect(third.warnings).toContainEqual(
+        `t1: 前の手直しの Run ${fix2} を、この claim を区切りとして、push がないのでこの claim の時刻で閉じる`,
+      );
+      expect(agent.store.runs.get(fix2)!.data).toMatchObject({ result: "success", error: null });
+      // --session を省けば、フックが環境に入れた DEGUBOARD_SESSION と比べる
+      agent.env = { ...agent.env, DEGUBOARD_SESSION: "s-env" };
+      clock = new Date("2026-11-06T04:00:00Z");
+      const fourth = await runCommand(ticketClaim, agent, { ticket: "t1" });
+      expect(agent.store.runs.get(third.data.run!)!.data.result).toBe("interrupted");
+      expect((await peekRunningRuns(agent.repo)).map((r) => [r.id, r.session])).toEqual([
+        [fourth.data.run, "s-env"],
+      ]);
     } finally {
       restore();
     }

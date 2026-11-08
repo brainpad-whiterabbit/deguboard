@@ -118,7 +118,7 @@ export async function openRun(
   const { step, agent } = input;
   const warnings: string[] = [];
   const env = ctx.env ?? process.env;
-  const session = input.session ?? (env["DEGUBOARD_SESSION"] || undefined);
+  const session = sessionOf(ctx, input.session);
   const transcript = input.transcript ?? (env["DEGUBOARD_TRANSCRIPT"] || undefined);
   if (transcript !== undefined && !(await transcriptUnderRoot(agent, transcript, env))) {
     throw new OperationError(
@@ -164,6 +164,23 @@ export async function openRun(
   });
   return { run, warnings };
 }
+
+/** Run を開く操作のセッション ID。渡されなければ、harness のフックが環境に入れた DEGUBOARD_SESSION（ADR-012） */
+export function sessionOf(ctx: CommandContext, session: string | undefined): string | undefined {
+  return session ?? ((ctx.env ?? process.env)["DEGUBOARD_SESSION"] || undefined);
+}
+
+/**
+ * 開いたままの Run が、今の操作とは別のセッションで開いたものか（ADR-015）。別のセッションの Run は、そのセッションが落ちて
+ * 閉じ損ねた残りとみなす。どちらかのセッションが分からなければ（フックのない製品・環境）false
+ */
+export function openedInOtherSession(run: Run, session: string | undefined): boolean {
+  return run.session !== null && session !== undefined && run.session !== session;
+}
+
+/** 別のセッションで開いたままだった Run を interrupted で閉じるときのエラー（ADR-015） */
+export const STALE_SESSION_ERROR =
+  "別のセッションで開いたままだった（落ちたセッションの残りとみなして閉じた）";
 
 /** シンボリックリンクを解いたパス。まだないファイルは、あるところまでの親を解いて残りをつなぐ */
 async function resolvedPath(p: string): Promise<string> {
