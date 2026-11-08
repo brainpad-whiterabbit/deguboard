@@ -1,6 +1,7 @@
 // harness のフックの出来事を Run の操作に写す（AG-1・AG-9・RN-5・RN-6、ADR-012・ADR-014）。入力の形は Adapter の hooks.parse が製品ごとに読み、
 // ここは製品によらない出来事（HookEvent）だけを見る（AG-5）。フックはエージェントの作業を止めないよう、失敗は警告にして成功で返す。
 //   - session_start：以後の Bash の環境に DEGUBOARD_ACTOR=agent・DEGUBOARD_SESSION・DEGUBOARD_TRANSCRIPT を export で書く
+//     （届くのは親の Bash だけ。サブエージェントの claim・run start のセッションは Adapter の sessionFromEnv が補う。ADR-016）
 //   - subagent_launched：頼んだ文の先頭の印（deguboard: ticket=<id> step=<step>）があれば、その Run を開いて記録の場所をサブエージェントの記録にする。
 //     見直しは、別のセッションで開いたままの同じチケットの見直しの Run を先に interrupted で閉じる（ADR-015）
 //   - subagent_started：同じ記録の開いた Run（親への質問で止まっていたもの）を続きとして使い、止まって待っている印と書き終わり待ちの印を消す

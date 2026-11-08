@@ -13,7 +13,8 @@
 //   - PreToolUse（matcher は Bash と書くツール）：tool_name・tool_input（command・file_path）・cwd。拒むときは標準出力に
 //     hookSpecificOutput.permissionDecision: deny を書き、permissionDecisionReason がエージェントに返る
 //   - SessionEnd：session_id
-//   （2026-11-07 に Claude Code 2.1.318 で確かめた。環境変数がサブエージェントの Bash に届くことも同じ日に確かめた）
+//   （2026-11-07 に Claude Code 2.1.318 で確かめた。SessionStart で入れた環境変数は親の Bash にだけ届き、サブエージェントの Bash には
+//   届かない（2026-11-08 に 2.1.319 で確かめた）。サブエージェントのセッションは Adapter の sessionFromEnv が補う。ADR-016）
 
 import { createReadStream } from "node:fs";
 import path from "node:path";

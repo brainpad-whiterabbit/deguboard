@@ -62,6 +62,15 @@ export function detectAgent(env: AgentEnv): AgentDetection {
   return { agent: matched.length === 1 ? matched[0]! : null, matched };
 }
 
+/**
+ * 環境変数から判定した agent の Adapter が読む会話記録のセッション ID（ADR-016）。agent を判定できないか、
+ * その Adapter がセッションを読まなければ undefined
+ */
+export function sessionFromEnv(env: AgentEnv): string | undefined {
+  const { agent } = detectAgent(env);
+  return agent ? findAdapter(agent)?.sessionFromEnv?.(env) : undefined;
+}
+
 function findAdapter(agent: string): AgentAdapter | undefined {
   return ADAPTERS.find((a) => a.name === agent);
 }

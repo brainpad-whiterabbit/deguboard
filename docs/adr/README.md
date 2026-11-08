@@ -23,3 +23,4 @@
 | [ADR-013](ADR-013-review-result-on-run.md)         | 見直しの結果を Run に記録し、見直しの Run の成否をそれで決める                              | 作業の実績         | 2026-11-07 |
 | [ADR-014](ADR-014-subagent-stop-and-resume.md)     | 止まったサブエージェントの Run は step を終えた事実があるときだけ閉じ、再開を続きとして扱う | エージェント       | 2026-11-07 |
 | [ADR-015](ADR-015-interrupt-stale-session-runs.md) | 別のセッションで開いたままの見直し・手直しの Run は、次の開始が interrupted で閉じる        | エージェント       | 2026-11-08 |
+| [ADR-016](ADR-016-session-from-agent-env.md)       | Run を開く操作のセッションは、フックの環境がなければエージェントが付ける環境から取る        | エージェント       | 2026-11-08 |
