@@ -1,0 +1,32 @@
+{
+  "id": "r20261108-021200-87de",
+  "ticket": "t534",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-08T02:12:00Z",
+  "finished_at": "2026-11-08T02:13:59Z",
+  "result": "success",
+  "error": null,
+  "retries": 1,
+  "retry_reasons": [
+    "guide-parallel の 2 つの箇条が 1 行につながり規約が重複した"
+  ],
+  "usage": {
+    "input": 30,
+    "output": 5330,
+    "cache_read": 3507208,
+    "cache_write": 8864
+  },
+  "tools": {
+    "read": 2,
+    "search": 0,
+    "write": 6,
+    "bash": 9,
+    "other": 0,
+    "read_before_write": 0,
+    "search_before_write": 0
+  },
+  "session": null,
+  "review": null
+}
