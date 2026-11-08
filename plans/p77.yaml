@@ -8,7 +8,7 @@ after:
     - t557
   t453:
     - t473
-pending_approval: true
+pending_approval: false
 details:
   t473:
     scope: チケット詳細の「変更を見る」と ticket.changes・ticket.changed-file・openDiff・DiffRequest を core・vscode・web から外し、UI-4 を直す
@@ -30,3 +30,5 @@ details:
     scope: 拡張と web の core の写し（idKindOf・planStatus・targetLine・localDir）と散らばったルートの形・2 通りの循環の検出をまとめる
     approach: plan.show に status を足し、ルートの形は WEBVIEW_CONTRACT から組んで突き合わせるテストを置く
     tier: heavy
+approved_by: maji/agent
+approved_at: 2026-11-08T09:24:37Z
