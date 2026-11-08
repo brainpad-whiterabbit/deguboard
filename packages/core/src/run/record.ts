@@ -88,6 +88,106 @@ const RUN_LOCK = "runs";
 
 type RunDirs = Pick<GitRepo, "localDir" | "dataDir">;
 
+/**
+ * 書き足す先の手直しの Run がまだないときに置く、保留のやり直しの理由（deguboard-local/retry-reasons/<ticket>.json。ADR-018）。
+ * 前景で起動した手直しのサブエージェントは、動いている間に Run がない（フックが終わった後に開いて閉じる）。フックが手直しの Run を
+ * 閉じるとき、その Run の開始より後に置いた理由を結び付けて消す。呼ぶたびに書き足す。Git には入れない
+ */
+const RETRY_REASONS_DIR = "retry-reasons";
+/** 保留のやり直しの理由の読み書きを直列にするロックの名前（Run のロックの中からも呼ぶので分ける） */
+const RETRY_REASONS_LOCK = "retry-reasons";
+
+async function withRetryReasonsLock<T>(repo: Pick<GitRepo, "localDir">, fn: () => Promise<T>) {
+  await mkdir(path.join(repo.localDir, "locks"), { recursive: true });
+  return withLock(repo.localDir, RETRY_REASONS_LOCK, fn);
+}
+
+interface PendingRetryReason {
+  reason: string;
+  /** 置いた時刻（ISO） */
+  at: string;
+}
+
+const pendingRetryReasonsPath = (repo: Pick<GitRepo, "localDir">, ticket: TicketId) =>
+  path.join(repo.localDir, RETRY_REASONS_DIR, `${ticket}.json`);
+
+async function readPendingRetryReasons(file: string): Promise<PendingRetryReason[]> {
+  try {
+    const parsed = JSON.parse(await readFile(file, "utf8")) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (p): p is PendingRetryReason =>
+        typeof (p as PendingRetryReason | null)?.reason === "string" &&
+        typeof (p as PendingRetryReason | null)?.at === "string",
+    );
+  } catch {
+    return [];
+  }
+}
+
+/** 保留のやり直しの理由を書き足す */
+export async function putPendingRetryReasons(
+  repo: Pick<GitRepo, "localDir">,
+  ticket: TicketId,
+  reasons: readonly string[],
+  at: string,
+): Promise<void> {
+  await withRetryReasonsLock(repo, async () => {
+    const file = pendingRetryReasonsPath(repo, ticket);
+    const held = await readPendingRetryReasons(file);
+    await mkdir(path.dirname(file), { recursive: true });
+    await writeFileAtomic(
+      file,
+      `${JSON.stringify([...held, ...reasons.map((reason) => ({ reason, at }))])}\n`,
+    );
+  });
+}
+
+/**
+ * 保留のやり直しの理由を取り出して消す。since（Run の開始）より前に置いたものは前の回のものなので、使わずに消す。
+ * 保留はチケットごとで、同じチケットの前景の手直しを並べて動かすことは扱わない（ADR-018）
+ */
+export async function takePendingRetryReasons(
+  repo: Pick<GitRepo, "localDir">,
+  ticket: TicketId,
+  since: string,
+): Promise<string[]> {
+  return withRetryReasonsLock(repo, async () => {
+    const file = pendingRetryReasonsPath(repo, ticket);
+    const held = await readPendingRetryReasons(file);
+    await unlink(file).catch(() => undefined);
+    return held.filter((p) => p.at >= since).map((p) => p.reason);
+  });
+}
+
+/**
+ * 実行中の Run のやり直しの理由に書き足し、回数を理由の数にする（ADR-018。run retry-reason と、フックの保留の結び付け）。
+ * 実行中の記録がなければ NOT_FOUND、集計を書いた後なら REJECTED
+ */
+export async function appendRetryReasons(
+  repo: RunDirs,
+  id: RunId,
+  reasons: readonly string[],
+): Promise<Run> {
+  return withRunLock(repo, async () => {
+    if (await hasSummary(repo, id))
+      throw new OperationError("REJECTED", `Run ${id} は終わっている`);
+    const result = await readDoc(repo.localDir, runPath(id), "json", runSchema, id);
+    if (!result.ok) throw new OperationError("NOT_FOUND", `実行中の Run ${id} が見つからない`);
+    const retryReasons = [...result.doc.data.retry_reasons, ...reasons];
+    const next = {
+      ...(result.doc.yaml.toJS() as Record<string, unknown>),
+      retry_reasons: retryReasons,
+      retries: retryReasons.length,
+    };
+    await writeFileAtomic(
+      path.join(repo.localDir, runPath(id)),
+      `${JSON.stringify(next, null, 2)}\n`,
+    );
+    return runSchema.parse(next);
+  });
+}
+
 /** runs/ に集計があるか。索引は古いことがあるのでファイルで確かめる（batch でまだコミットしていない集計も含む） */
 async function hasSummary(repo: RunDirs, id: string): Promise<boolean> {
   return pathExists(path.join(repo.dataDir, runPath(id)));

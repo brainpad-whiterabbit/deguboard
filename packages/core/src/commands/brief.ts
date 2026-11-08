@@ -1,6 +1,6 @@
 // サブエージェントに渡す文（brief・EX-3、ADR-011）。役（実装・見直し・手直し）とチケットの事実から、貼る文を組む。読み取りだけで、データは書き換えない。
 // 文の組み立ては純粋な関数（composeBrief）に置き、brief コマンドと dg next が事実を渡して使う。定型の文の言語は ask と同じく表示言語で選ぶ（ADR-010）。
-// 手直しの文には印を付けない。claim が fix の Run を開くので、印で開くと Run が二重になる（guide-review の「Run の分け方」）
+// どの役の文も先頭に印を置き、フックが Run を開け閉めする。手直しのやり直しの理由は、サブエージェントが run retry-reason で開いている Run に書き足す（ADR-018）
 
 import { z } from "zod";
 import { findBranchWorktree } from "../git/worktree.js";
@@ -32,10 +32,10 @@ export interface BriefFacts {
 export interface Brief {
   ticket: string;
   role: BriefRole;
-  /** 役が開く Run の step（fix は claim が開く step。文の印は実装と見直しだけ） */
+  /** 役が開く Run の step（文の先頭の印の step。fix はもう一度の claim が開くのと同じ step） */
   step: string;
   language: AskLanguage;
-  /** サブエージェントに貼る文。implement と review は先頭の行が印 */
+  /** サブエージェントに貼る文。先頭の行が印 */
   text: string;
 }
 
@@ -185,8 +185,9 @@ export function composeBrief(
     ].join("\n");
   }
 
-  // fix（手直し）。印は付けず、下の claim が fix の Run を開く
+  // fix（手直し）。印でフックが fix の Run を開き、理由はサブエージェントが run retry-reason で書き足す（ADR-018）
   return [
+    marker,
     L(
       `チケット ${id}「${f.title}」の PR の指摘を直してください。同じブランチで直して push します。`,
       `Fix the findings on the PR for ticket ${id} "${f.title}". Fix them on the same branch and push.`,
@@ -207,8 +208,8 @@ export function composeBrief(
     item(
       L("直し始める前に", "Before you start fixing"),
       L(
-        `\`dg --json --actor agent ticket claim ${id} --retry-reason <直した指摘 1 件の要約> --retry-reason <2 件目の要約> …\` を単独のコマンドで 1 回呼んで fix の Run を開く。直した指摘 1 件に 1 つ --retry-reason を繰り返す（回数は理由の数になる）。書くのは見直し役・人のレビューの指摘だけで、検査の失敗を直したことは書かない。要約は 1 行で、秘密・コマンドの文字列・パスは書かない。\`run start\`・\`run finish\` は使わない。`,
-        `Run \`dg --json --actor agent ticket claim ${id} --retry-reason <summary of finding 1> --retry-reason <summary of finding 2> …\` once, as a standalone command, to open the fix Run. Repeat --retry-reason once per finding you fixed (the number of reasons is the retry count). Write only the findings from the reviewer or the human reviewer, not fixes for failed checks. Each summary is one line and must not contain secrets, command strings, or paths. Do not use \`run start\` or \`run finish\`.`,
+        `\`dg --json --actor agent run retry-reason ${id} --reason <直す指摘 1 件の要約> --reason <2 件目の要約> …\` を単独のコマンドで 1 回呼んで、fix の Run にやり直しの理由を書く。直す指摘 1 件に 1 つ --reason を繰り返す（回数は理由の数になる）。書くのは見直し役・人のレビューの指摘だけで、検査の失敗を直したことは書かない。要約は 1 行で、秘密・コマンドの文字列・パスは書かない。`,
+        `Run \`dg --json --actor agent run retry-reason ${id} --reason <summary of finding 1> --reason <summary of finding 2> …\` once, as a standalone command, to write the retry reasons on the fix Run. Repeat --reason once per finding you fix (the number of reasons is the retry count). Write only the findings from the reviewer or the human reviewer, not fixes for failed checks. Each summary is one line and must not contain secrets, command strings, or paths.`,
       ),
     ),
     item(
@@ -228,12 +229,12 @@ export function composeBrief(
     ...acceptance,
     tools,
     runLine(
-      "fix の Run は上の claim が開く。この文には印を付けない（印で開くと Run が二重になる）。",
-      "the fix Run is opened by the claim above. This text has no marker, since a marker would open a second Run.",
+      "この文の先頭の印で、フックが手直しの Run（fix）を開き閉じる。Run は開かず閉じない（claim・`run start`・`run finish` は使わない）。",
+      "the marker on the first line makes the hook open and close the fix Run. Do not open or close a Run (do not use claim, `run start`, or `run finish`).",
     ),
     never(
-      "claim（上の claim だけ）・unclaim・`gh pr ready`・マージ・`ticket update --pr`・`ticket check`・ほかのチケットの作業。",
-      "claim (only the one above), unclaim, `gh pr ready`, merge, `ticket update --pr`, `ticket check`, or work on other tickets.",
+      "claim・unclaim・`gh pr ready`・マージ・`ticket update --pr`・`ticket check`・ほかのチケットの作業。",
+      "claim, unclaim, `gh pr ready`, merge, `ticket update --pr`, `ticket check`, or work on other tickets.",
     ),
     returns(
       "直したコミット（ハッシュと要約）と push の有無・直さなかった軽い指摘と理由・確かめた受け入れ条件（番号ごと）と付けられなかった項目（理由）・検査の結果・人に伝えること。",
@@ -287,8 +288,8 @@ export const brief = defineCommand({
   positionals: ["ticket"],
   group: "brief",
   summary:
-    "サブエージェントに渡す文を組む（EX-3。読み取りだけ）。役（implement・review・fix）ごとに、先頭に印 `deguboard: ticket=<id> step=<step>` を置いた文（implement と review）か、手直しの文（claim が fix の Run を開くので印なし）を返す。" +
-    "文には場所（worktree・ブランチ）・Plan の範囲と方針・規約の場所・受け入れ条件・道具（Read・Edit）・Run の扱い・しないこと・返すものを入れる。review には結果を記録する呼び出し、fix には直す指摘の一覧（findings）を入れる。" +
+    "サブエージェントに渡す文を組む（EX-3。読み取りだけ）。役（implement・review・fix）ごとに、先頭に印 `deguboard: ticket=<id> step=<step>` を置いた文を返す（フックが印で Run を開け閉めする）。" +
+    "文には場所（worktree・ブランチ）・Plan の範囲と方針・規約の場所・受け入れ条件・道具（Read・Edit）・Run の扱い・しないこと・返すものを入れる。review には結果を記録する呼び出し、fix には直す指摘の一覧（findings）とやり直しの理由を書く呼び出し（run retry-reason）を入れる。" +
     "定型の文の言語は language（ask と同じく省けば ja）。チケットの中身は書いた言葉のまま。dg next の implement・review・fix の手の brief と同じ文",
   input: z.object({
     ticket: ticketRef,

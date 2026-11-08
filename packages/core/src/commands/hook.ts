@@ -3,11 +3,14 @@
 //   - session_start：以後の Bash の環境に DEGUBOARD_ACTOR=agent・DEGUBOARD_SESSION・DEGUBOARD_TRANSCRIPT を export で書く
 //     （届くのは親の Bash だけ。サブエージェントの claim・run start のセッションは Adapter の sessionFromEnv が補う。ADR-016）
 //   - subagent_launched：頼んだ文の先頭の印（deguboard: ticket=<id> step=<step>）があれば、その Run を開いて記録の場所をサブエージェントの記録にする。
-//     見直しは、別のセッションで開いたままの同じチケットの見直しの Run を先に interrupted で閉じる（ADR-015）
+//     見直しは、別のセッションで開いたままの同じチケットの見直しの Run を先に interrupted で閉じる（ADR-015）。
+//     手直しは、開いたままの前の手直しの Run をもう一度の claim と同じ規則で区切りとして閉じる（ADR-018）
 //   - subagent_started：同じ記録の開いた Run（親への質問で止まっていたもの）を続きとして使い、止まって待っている印と書き終わり待ちの印を消す
 //   - subagent_stopped：記録の場所で Run を引き、記録の最初の文の印で照らしてから、step を終えた事実があれば記録の書き終わりを待って
 //     記録の全体から数えて閉じる。事実がなければ閉じずに止まって待っている印を付ける。
-//     印のある Run がなければ、サブエージェントが自分で開いた Run（記録に ID が出る）に記録の場所を結び付け、事実がなければ止まって待っている印を付ける（移行期の経路）
+//     前景のサブエージェントが Run のないうちに保留にした見直しの結果とやり直しの理由は、閉じる前の Run に結び付ける。
+//     印のある Run がなければ、サブエージェントが自分で開いた Run（記録に ID が出る。run start で開いたものなど）に記録の場所を結び付け、
+//     事実がなければ止まって待っている印を付ける（移行期の経路）
 //   - session_end：このセッションのサブエージェントの Run のうち開いたままのものをすべて閉じる。親が自分で開いた Run は残す
 //   どのイベントでも、扱うイベントなら読む項目の有無と時刻を deguboard-local/hook-inputs/ に残す（t542。dg hooks check が読む）
 //   どのフックの後も、前のフックで書き終わりを待ちきれずに残した Run を閉じる（dg sync も同じ）
@@ -26,15 +29,18 @@ import { REVIEW_STEP, type Run, type RunId, type RunResult } from "../model/run.
 import type { Ticket } from "../model/ticket.js";
 import {
   amendRunning,
+  appendRetryReasons,
   bindTranscript,
   finishRun,
   moveReviewToPending,
   readRunningRuns,
   readTranscriptPaths,
   takePendingReview,
+  takePendingRetryReasons,
 } from "../run/record.js";
 import { defineCommand, ok, runCommand, type CommandContext } from "./define.js";
 import {
+  closePreviousFixRun,
   openedInOtherSession,
   openedStepOf,
   openRun,
@@ -291,6 +297,22 @@ async function subagentLaunched(
   // 同じセッションの見直しを重ねて開くのは二重の起動なので、閉じずに下の openRun が拒否する
   if (marker.step === REVIEW_STEP)
     await closeStaleReviewRuns(ctx, marker.ticket, event.session, startedAt ?? now, view, warnings);
+  // 手直しの起動は、開いたままの前の手直しの Run の区切り。もう一度の claim と同じ規則で閉じてから開く（開いている手直しの Run はいつも 1 本。ADR-018）。
+  // 区切りは起動の時刻（前景では、それより後の push は今回の手直しのもの）
+  if (marker.step === openedStepOf(ctx, ticket.data, "reclaim")) {
+    try {
+      await closePreviousFixRun(
+        ctx,
+        ticket.data,
+        { session: event.session, boundaryAt: toIsoDateTime(startedAt ?? now) },
+        warnings,
+      );
+    } catch (e) {
+      warnings.push(
+        `${marker.ticket} の前の手直しの Run を閉じられなかった（${e instanceof Error ? e.message : String(e)}）`,
+      );
+    }
+  }
   let run: Run;
   try {
     const opened = await openRun(ctx, ticket.data, {
@@ -479,15 +501,8 @@ async function stopSubagentRun(
     );
   }
   await bindTranscript(ctx.repo, run.id, transcript);
-  if (run.step === REVIEW_STEP && run.review === null) {
-    // 前景の見直し役が、Run のないうちに保留にした結果を結び付ける
-    const review = await takePendingReview(ctx.repo, run.ticket, run.started_at);
-    if (review) {
-      run = await amendRunning(ctx.repo, run.id, { review });
-      view.done.push(`${run.ticket} の保留の見直しの結果を Run ${run.id} に結び付けた`);
-    }
-  }
   const ticket = ctx.store.tickets.get(run.ticket)?.data;
+  run = await bindPending(ctx, run, ticket, view);
   const decided = await resultOf(ctx, run, ticket);
   if (decided.result !== "success") {
     // 書き終わり待ちで呼び直したときに事実が取れなかった（gh・fetch の一時的な失敗など）なら、書き終わり待ちをやめて答え待ちにする。
@@ -507,6 +522,31 @@ async function stopSubagentRun(
     return;
   }
   await closeSubagentRun(ctx, run, transcript, decided, view, warnings);
+}
+
+/**
+ * 前景のサブエージェントが Run のないうちに保留にしたものを、閉じる前の Run に結び付ける。見直しは結果（ADR-014）、
+ * 手直しはやり直しの理由（ADR-018）。どちらもその Run の開始より後に置いたものだけ
+ */
+async function bindPending(
+  ctx: CommandContext,
+  run: Run,
+  ticket: Ticket | undefined,
+  view: HookView,
+): Promise<Run> {
+  if (run.step === REVIEW_STEP && run.review === null) {
+    const review = await takePendingReview(ctx.repo, run.ticket, run.started_at);
+    if (!review) return run;
+    view.done.push(`${run.ticket} の保留の見直しの結果を Run ${run.id} に結び付けた`);
+    return amendRunning(ctx.repo, run.id, { review });
+  }
+  if (ticket && run.step === openedStepOf(ctx, ticket, "reclaim")) {
+    const reasons = await takePendingRetryReasons(ctx.repo, run.ticket, run.started_at);
+    if (reasons.length === 0) return run;
+    view.done.push(`${run.ticket} の保留のやり直しの理由を Run ${run.id} に結び付けた`);
+    return appendRetryReasons(ctx.repo, run.id, reasons);
+  }
+  return run;
 }
 
 /** 止まって待っている印を付ける（付いていれば今のまま） */
@@ -623,8 +663,9 @@ async function subagentStarted(
 }
 
 /**
- * 移行期の経路：サブエージェントが自分で開いた Run に記録の場所を結び付け、閉じていれば取り直す。開いたままで、step を終えた事実が
- * なければ（手直しで push がないなど）止まって待っている印を付ける。手直しは claim で自分で開くので、印のない返った Run をここで見分ける
+ * 移行期の経路：サブエージェントが自分で開いた Run（run start や、印なしで頼んだ手直しの claim）に記録の場所を結び付け、閉じていれば
+ * 取り直す。開いたままで、step を終えた事実がなければ（手直しで push がないなど）止まって待っている印を付ける。印のない返った Run をここで見分ける。
+ * 手直しも印で開く（ADR-018）ので、ほかの手順がサブエージェントに Run を開かせなくなれば要らない
  */
 async function bindSelfOpened(
   ctx: CommandContext,
@@ -718,11 +759,7 @@ async function sessionEnd(
       continue;
     try {
       const ticket = ctx.store.tickets.get(run.ticket)?.data;
-      let current = run;
-      if (current.step === REVIEW_STEP && current.review === null) {
-        const review = await takePendingReview(ctx.repo, current.ticket, current.started_at);
-        if (review) current = await amendRunning(ctx.repo, current.id, { review });
-      }
+      const current = await bindPending(ctx, run, ticket, view);
       const decided = await resultOf(ctx, current, ticket);
       const claimStep = ticket ? openedStepOf(ctx, ticket, "claim") : undefined;
       const closing =

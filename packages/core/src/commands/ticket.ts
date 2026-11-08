@@ -3,12 +3,7 @@
 import { z } from "zod";
 import { OperationError, UsageError } from "../errors.js";
 import { listBranchChanges, readChangedFile } from "../git/changes.js";
-import {
-  collectBranchFacts,
-  fetchPrCreatedAt,
-  findMergedLeftover,
-  lastPushedAt,
-} from "../git/facts.js";
+import { collectBranchFacts, fetchPrCreatedAt, findMergedLeftover } from "../git/facts.js";
 import { findBranchWorktree } from "../git/worktree.js";
 import { AbortWrite, withWrite } from "../git/write.js";
 import { resolveActorRef, sameUser } from "../model/actor.js";
@@ -45,17 +40,14 @@ import {
 } from "./helpers.js";
 import {
   agentFromEnv,
-  closeOpenedRunAlone,
   closeOpenedRunUnlessClosed,
+  closePreviousFixRun,
   describeClosedRuns,
   findOpenedRun,
-  fixRunFinishedAt,
-  openedInOtherSession,
   openedStepOf,
   openRun,
   runsClosedByMove,
   sessionOf,
-  STALE_SESSION_ERROR,
   token,
   transcriptFields,
   type ClosedOpenedRun,
@@ -1017,35 +1009,7 @@ async function reclaim(
     `${doc.id} は自分（${doc.data.assignee}）が claim 済みで PR #${doc.data.pr} があるので、手直しの開始とみなしてチケットは変えない`,
   );
   if (ctx.actor.kind !== "agent" || input.no_run) return null;
-  const stale = await findOpenedRun(ctx, doc.data, "reclaim");
-  if (stale) {
-    const pushedAt = doc.data.branch
-      ? await lastPushedAt(ctx.repo, doc.data.branch, { fetch: true })
-      : undefined;
-    // この claim が次の Run の開始の区切り。前の Run の開始より後の push がなければ今（この claim）の時刻
-    const { finishedAt, pushed } = fixRunFinishedAt({
-      pushedAt,
-      startedAt: stale.data.started_at,
-    });
-    // 別のセッションで開いたままの前の手直しは、そのセッションが落ちた残りなので interrupted にする（ADR-015）
-    const interrupted = openedInOtherSession(stale.data, sessionOf(ctx, input.session));
-    const closed = await closeOpenedRunAlone(ctx, stale, {
-      opener: "reclaim",
-      ...(interrupted
-        ? { result: "interrupted" as const, error: STALE_SESSION_ERROR }
-        : { result: "success" as const }),
-      finishedAt,
-    });
-    // 別の文脈が先に閉じていたら、閉じずに警告だけ出して新しい Run を開く
-    if (closed.run) {
-      warnings.push(
-        interrupted
-          ? `${doc.id}: 前の手直しの Run ${stale.id} は別のセッション（${stale.data.session}）で開いたままだったので、落ちたセッションの残りとみなして interrupted で閉じる`
-          : `${doc.id}: 前の手直しの Run ${stale.id} を、この claim を区切りとして${pushed ? "最後の push の時刻" : "、push がないのでこの claim の時刻"}で閉じる`,
-      );
-    }
-    warnings.push(...closed.warnings);
-  }
+  await closePreviousFixRun(ctx, doc.data, { session: sessionOf(ctx, input.session) }, warnings);
   return openClaimRun(
     ctx,
     doc,
@@ -1090,12 +1054,12 @@ export const ticketClaim = defineCommand({
       .boolean()
       .optional()
       .describe(
-        "Run を開かない。実装をサブエージェントに渡すとき（サブエージェントが自分で run start する。手直しはサブエージェントがもう一度 claim する）",
+        "Run を開かない。実装をサブエージェントに渡すとき（印 deguboard: ticket=<id> step=<step> で頼み、フックが Run を開く）",
       ),
     retry_reasons: retryReasons
       .optional()
       .describe(
-        "もう一度の claim（手直し）でだけ使う。直す指摘の 1 行の要約で、手直しの Run の retry_reasons に入る（書き方は run finish --help）",
+        "もう一度の claim（人や親が自分で直す手直し）でだけ使う。直す指摘の 1 行の要約で、手直しの Run の retry_reasons に入る（書き方は run finish --help）。印で頼んだ手直しのサブエージェントは claim せず run retry-reason で書く",
       ),
     ...transcriptFields,
   }),

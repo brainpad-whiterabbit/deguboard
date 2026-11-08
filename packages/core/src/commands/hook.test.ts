@@ -19,7 +19,14 @@ import {
   writesDataDir,
   type HookView,
 } from "./hook.js";
-import { runList, runReviewResult, runStart, STALE_SESSION_ERROR, type RunView } from "./run.js";
+import {
+  runList,
+  runRetryReason,
+  runReviewResult,
+  runStart,
+  STALE_SESSION_ERROR,
+  type RunView,
+} from "./run.js";
 import { commit, configSet, init, sync } from "./setup.js";
 import { ticketClaim, ticketCreate, ticketUpdate } from "./ticket.js";
 import { runGit } from "../git/run.js";
@@ -1365,5 +1372,155 @@ describe("PreToolUse（t532）", () => {
     // 取り消し（--undo）と、ほかの gh のコマンドは見ない
     expect((await pre(ctx, { command: "gh pr ready 5 --undo" })).data).toMatchObject({ done: [] });
     expect((await pre(ctx, { command: "gh pr view 5" })).data).toMatchObject({ done: [] });
+  });
+});
+
+describe("手直しの Run の印と run retry-reason（ADR-018）", () => {
+  const fixRuns = async (ctx: CommandContext, ticket: string) =>
+    ((await runCommand(runList, ctx, { ticket })).data as RunView[]).filter(
+      (r) => r.step === "fix",
+    );
+
+  it("印 step=fix の起動は、開いたままの前の手直しの Run を区切りとして閉じてから開く。別のセッションの前の手直しは interrupted で閉じる", async () => {
+    const { ctx, parent } = await prepared();
+    const previous = (
+      await runCommand(runStart, ctx, {
+        ticket: "t1",
+        step: "fix",
+        agent: "claude-code",
+        session: SESSION,
+      })
+    ).data as Run;
+    const { warnings } = await call(
+      ctx,
+      "PostToolUse",
+      launched(parent, "a1", "deguboard: ticket=t1 step=fix\n\n直す"),
+    );
+    expect(warnings).toContainEqual(
+      `t1: 前の手直しの Run ${previous.id} を、次の手直しの起動を区切りとして、push がないので起動の時刻で閉じる`,
+    );
+    const runs = await fixRuns(ctx, "t1");
+    expect(runs.find((r) => r.id === previous.id)).toMatchObject({
+      result: "success",
+      running: false,
+    });
+    // 開いている手直しの Run はいつも 1 本
+    expect(runs.filter((r) => r.running)).toHaveLength(1);
+
+    const stale = (
+      await runCommand(runStart, ctx, {
+        ticket: "t2",
+        step: "fix",
+        agent: "claude-code",
+        session: "s-old",
+      })
+    ).data as Run;
+    await call(ctx, "PostToolUse", launched(parent, "a2", "deguboard: ticket=t2 step=fix"));
+    const runs2 = await fixRuns(ctx, "t2");
+    expect(runs2.find((r) => r.id === stale.id)).toMatchObject({
+      result: "interrupted",
+      error: STALE_SESSION_ERROR,
+    });
+    expect(runs2.filter((r) => r.running)).toHaveLength(1);
+  });
+
+  it("背景で起動した手直しは、run retry-reason がフックの開いた Run に理由を書き足し、回数を理由の数にする", async () => {
+    const { ctx, parent } = await prepared();
+    await call(ctx, "PostToolUse", launched(parent, "a1", "deguboard: ticket=t1 step=fix"));
+    const first = (await runCommand(runRetryReason, ctx, { ticket: "t1", reasons: ["型の誤り"] }))
+      .data as Run;
+    expect(first).toMatchObject({ step: "fix", retries: 1, retry_reasons: ["型の誤り"] });
+    const second = (
+      await runCommand(runRetryReason, ctx, { ticket: "t1", reasons: ["文書のずれ", "名前"] })
+    ).data as Run;
+    expect(second).toMatchObject({
+      id: first.id,
+      retries: 3,
+      retry_reasons: ["型の誤り", "文書のずれ", "名前"],
+    });
+    expect(await fixRuns(ctx, "t1")).toHaveLength(1);
+  });
+
+  it("前景で起動した手直しの理由は保留になり、フックが開いた Run に結び付く。手直し 1 回につき Run は 1 本", async () => {
+    const { ctx, parent, subagent } = await prepared();
+    const prompt = "deguboard: ticket=t1 step=fix\n\n直す";
+    await subagentRecord(subagent("a1"), prompt, 1);
+    const held = await runCommand(runRetryReason, ctx, { ticket: "t1", reasons: ["型の誤り"] });
+    expect(held.data).toMatchObject({ pending: true, reasons: ["型の誤り"] });
+    const { view } = await call(ctx, "PostToolUse", {
+      ...launched(parent, "a1", prompt),
+      tool_response: {
+        status: "completed",
+        agentId: "a1",
+        resolvedModel: "claude-test-1",
+        totalDurationMs: 90_000,
+      },
+    });
+    expect(view.done).toContainEqual(expect.stringContaining("保留のやり直しの理由"));
+    const runs = await fixRuns(ctx, "t1");
+    expect(runs).toHaveLength(1);
+    expect(runs[0]).toMatchObject({ retries: 1, retry_reasons: ["型の誤り"] });
+  });
+
+  it("最後の見直しより前に始まった手直しの Run（前の回の残り）には書き足さず、保留にして次の手直しの Run に結び付ける", async () => {
+    const { ctx, parent, subagent } = await prepared();
+    let clock = new Date("2026-11-08T01:00:00Z");
+    ctx.now = () => clock;
+    const old = (
+      await runCommand(runStart, ctx, {
+        ticket: "t1",
+        step: "fix",
+        agent: "claude-code",
+        session: SESSION,
+      })
+    ).data as Run;
+    clock = new Date("2026-11-08T01:10:00Z");
+    await runCommand(runStart, ctx, {
+      ticket: "t1",
+      step: "review",
+      agent: "claude-code",
+      session: SESSION,
+    });
+    clock = new Date("2026-11-08T01:20:00Z");
+    const held = await runCommand(runRetryReason, ctx, { ticket: "t1", reasons: ["次の指摘"] });
+    expect(held.data).toMatchObject({ pending: true });
+    expect((await peekRunningRuns(ctx.repo)).find((r) => r.id === old.id)).toMatchObject({
+      retry_reasons: [],
+    });
+    // 手直しの起動（背景）が前の回を閉じて開き、止まるときに保留の理由を結び付ける
+    const prompt = "deguboard: ticket=t1 step=fix";
+    await call(ctx, "PostToolUse", launched(parent, "a1", prompt));
+    const fresh = (await peekRunningRuns(ctx.repo)).find((r) => r.step === "fix")!;
+    expect(fresh.id).not.toBe(old.id);
+    await subagentRecord(subagent("a1"), prompt, 1);
+    await call(ctx, "SubagentStop", {
+      session_id: SESSION,
+      agent_id: "a1",
+      agent_transcript_path: subagent("a1"),
+    });
+    const runs = await fixRuns(ctx, "t1");
+    expect(runs.find((r) => r.id === old.id)).toMatchObject({ running: false, retry_reasons: [] });
+    expect(runs.find((r) => r.id === fresh.id)).toMatchObject({ retry_reasons: ["次の指摘"] });
+  });
+
+  it("人や親が自分で直すときの ticket claim --retry-reason は今のとおり手直しの Run を開き、run retry-reason はその Run に書き足す", async () => {
+    const { ctx } = await prepared();
+    // PR のある自分の claim（もう一度の claim になる）を作る
+    await runCommand(ticketClaim, ctx, { ticket: "t2", branch: "feat/t2", no_run: true });
+    await runCommand(ticketUpdate, ctx, { ticket: "t2", pr: 9 });
+    const claimed = await runCommand(ticketClaim, ctx, {
+      ticket: "t2",
+      agent: "claude-code",
+      retry_reasons: ["親が直す"],
+    });
+    const runId = (claimed.data as { run: string | null }).run;
+    expect(runId).not.toBeNull();
+    const added = (await runCommand(runRetryReason, ctx, { ticket: "t2", reasons: ["もう 1 件"] }))
+      .data as Run;
+    expect(added).toMatchObject({
+      id: runId,
+      retry_reasons: ["親が直す", "もう 1 件"],
+      retries: 2,
+    });
   });
 });

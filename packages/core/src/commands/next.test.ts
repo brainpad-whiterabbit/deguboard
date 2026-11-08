@@ -160,7 +160,7 @@ describe("dg next と ticket show の stage（EX-3）", () => {
     expect(shown.stage).toEqual(t2.stage);
   });
 
-  it("段階から手を選ぶ：見直しが通れば ready、重い指摘なら fix（印を付けず直す者が reclaim）、上限を超えたら通っても wait_human、出した PR は wait_merge", async () => {
+  it("段階から手を選ぶ：見直しが通れば ready、重い指摘なら fix（印で頼み、直す者が run retry-reason で理由を書く）、上限を超えたら通っても wait_human、出した PR は wait_merge", async () => {
     const ctx = await prepared();
     const kind = (f: StageFacts) => nextOf(ctx, f);
     const ready = kind(facts({ runs: [review(6, passed)] }));
@@ -172,8 +172,9 @@ describe("dg next と ticket show の stage（EX-3）", () => {
     ]);
     const fix = kind(facts({ runs: [review(6, heavy)] }));
     expect(fix).toMatchObject({ kind: "fix", step: "fix" });
-    expect(fix.commands.join(" ")).toContain("ticket claim t1 --retry-reason");
-    expect(fix.commands.join(" ")).not.toContain("deguboard: ticket=");
+    expect(fix.commands.join(" ")).toContain("run retry-reason t1 --reason");
+    expect(fix.commands.join(" ")).toContain("deguboard: ticket=t1 step=fix");
+    expect(fix.commands.join(" ")).not.toContain("ticket claim");
     const over = kind(
       facts({ runs: [review(1, heavy), review(2, heavy), review(3, heavy), review(6, passed)] }),
     );
@@ -275,7 +276,7 @@ describe("dg next と ticket show の stage（EX-3）", () => {
       }),
     );
     expect(stale).toMatchObject({ kind: "fix", running_run: null });
-    expect(stale.commands.join(" ")).toContain("ticket claim t1 --retry-reason");
+    expect(stale.commands.join(" ")).toContain("run retry-reason t1 --reason");
     // 上限を超えた後は push があっても人を待つ
     expect(
       kind(

@@ -26,10 +26,13 @@ import {
   type RunUsage,
 } from "../model/run.js";
 import { AbortWrite, withWrite } from "../git/write.js";
+import { lastPushedAt } from "../git/facts.js";
 import {
   amendRunning,
+  appendRetryReasons,
   closeRun,
   putPendingReview,
+  putPendingRetryReasons,
   dropRunning,
   finishRun,
   readRunningRuns,
@@ -437,6 +440,53 @@ export async function closeOpenedRunAlone(
   }
 }
 
+/**
+ * 開いたままの前の手直しの Run を、次の手直しの開始を区切りとして閉じる（RN-6）。もう一度の claim と、印 step=fix の起動のフック（ADR-018）が呼ぶ。
+ * 前の Run の開始より後で区切り（boundaryAt。省けば今）までの最後の push の時刻で success にし、push がなければ区切りの時刻にする。
+ * 前の Run が別のセッションで開いたものなら、そのセッションが落ちた残りとみなして interrupted で閉じる（ADR-015）。
+ * session は今の操作のセッション（どちらかが分からなければ success）。閉じた・閉じなかったことは warnings に入れる
+ */
+export async function closePreviousFixRun(
+  ctx: CommandContext,
+  ticket: Ticket,
+  input: { session: string | undefined; boundaryAt?: string | undefined },
+  warnings: string[],
+): Promise<Run | undefined> {
+  const stale = await findOpenedRun(ctx, ticket, "reclaim");
+  if (!stale) return undefined;
+  const pushedAt = ticket.branch
+    ? await lastPushedAt(ctx.repo, ticket.branch, { fetch: true })
+    : undefined;
+  const { finishedAt, pushed } = fixRunFinishedAt({
+    pushedAt,
+    startedAt: stale.data.started_at,
+    boundaryAt: input.boundaryAt,
+  });
+  const interrupted = openedInOtherSession(stale.data, input.session);
+  const closed = await closeOpenedRunAlone(ctx, stale, {
+    opener: "reclaim",
+    ...(interrupted
+      ? { result: "interrupted" as const, error: STALE_SESSION_ERROR }
+      : { result: "success" as const }),
+    finishedAt,
+  });
+  // 別の文脈が先に閉じていたら、閉じずに警告だけ出す
+  if (closed.run) {
+    const when = pushed
+      ? "最後の push の時刻"
+      : input.boundaryAt === undefined
+        ? "、push がないのでこの claim の時刻"
+        : "、push がないので起動の時刻";
+    warnings.push(
+      interrupted
+        ? `${ticket.id}: 前の手直しの Run ${stale.id} は別のセッション（${stale.data.session}）で開いたままだったので、落ちたセッションの残りとみなして interrupted で閉じる`
+        : `${ticket.id}: 前の手直しの Run ${stale.id} を、${input.boundaryAt === undefined ? "この claim " : "次の手直しの起動"}を区切りとして${when}で閉じる`,
+    );
+  }
+  warnings.push(...closed.warnings);
+  return closed.run;
+}
+
 /** 空白・改行を含まない 1 語。step の語彙は openRun がチケットの Workflow の steps（WF-5）で確かめる。ticket claim の --agent も同じ形 */
 export const token = z.string().regex(/^\S+$/, "空白・改行を含まない 1 語");
 
@@ -693,6 +743,78 @@ export const runReviewResult = defineCommand({
   },
 });
 
+/** 書き足す先の手直しの Run がなく、理由を保留にしたときの返り値（ADR-018） */
+export interface PendingRetryReasonsView {
+  ticket: string;
+  reasons: string[];
+  pending: true;
+  at: string;
+}
+
+export const runRetryReason = defineCommand({
+  name: "run.retry-reason",
+  positionals: ["ticket"],
+  group: "run",
+  summary:
+    "手直しのやり直しの理由（直した指摘の 1 行の要約）を、チケットの開いている手直しの Run（opens_on: reclaim の step、なければ fix）の retry_reasons に書き足す（ADR-018）。回数は理由の数になる。印 step=fix で起動した手直しのサブエージェントが、直し始める前に呼ぶ。" +
+    "このマシンで実行中の手直しの Run が、そのチケットの最後の見直しの Run より後に始まっていれば、それに書き足す。なければ（前景で起動した手直し、前の回の手直しの Run だけが開いている）理由を保留にし（pending: true）、フックが手直しの Run を閉じるときに、その Run の開始より後に置いた理由を結び付ける",
+  input: z.object({
+    ticket: ticketRef,
+    reasons: z
+      .array(
+        z
+          .string()
+          .regex(/^[^\r\n]+$/, "理由は 1 件 1 行で書く")
+          .regex(/\S/, "理由が空白だけ"),
+      )
+      .min(1)
+      .meta({ freeText: true })
+      .describe(
+        "直した指摘（見直し役・人のレビュー）の 1 行の要約。1 件に 1 つ繰り返す。検査の失敗を直したことは書かない。秘密・コマンドの文字列・パスは書かない",
+      ),
+  }),
+  write: true,
+  needs: "store",
+  async run(ctx, input) {
+    const ticket = ctx.store.require("ticket", input.ticket).data;
+    const step = openedStepOf(ctx, ticket, "reclaim");
+    const local = (await readRunningRuns(ctx.repo)).runs;
+    // 最後の見直しより前に始まった手直しの Run は、その見直しの前の回のもの（sync がまだ閉じていない）。書き足さない（dg next の待つ手直しと同じ見方）
+    const lastReviewAt = [
+      ...local.map((r) => r.data),
+      ...[...ctx.store.runs.values()].map((d) => d.data),
+    ]
+      .filter((r) => r.ticket === ticket.id && r.step === REVIEW_STEP)
+      .reduce((max, r) => (r.started_at > max ? r.started_at : max), "");
+    const running = local.find(
+      (r) =>
+        r.data.ticket === ticket.id && r.data.step === step && r.data.started_at >= lastReviewAt,
+    );
+    if (running) {
+      try {
+        return ok<Run | PendingRetryReasonsView>(
+          await appendRetryReasons(ctx.repo, running.data.id, input.reasons),
+        );
+      } catch (e) {
+        // 読んだ後に閉じた。保留にして、次に開く手直しの Run に回す
+        if (!(e instanceof OperationError) || (e.code !== "NOT_FOUND" && e.code !== "REJECTED"))
+          throw e;
+      }
+    }
+    const at = toIsoDateTime(ctx.now());
+    await putPendingRetryReasons(ctx.repo, ticket.id, input.reasons, at);
+    const view: PendingRetryReasonsView = {
+      ticket: ticket.id,
+      reasons: input.reasons,
+      pending: true,
+      at,
+    };
+    return ok<Run | PendingRetryReasonsView>(view, undefined, [
+      `${ticket.id} の今回の手直しの Run がまだないので、理由を保留にした。フックが手直しの Run を閉じるときに結び付ける`,
+    ]);
+  },
+});
+
 export const runList = defineCommand({
   name: "run.list",
   group: "run",
@@ -901,4 +1023,11 @@ export const runRefresh = defineCommand({
   },
 });
 
-export const runCommands = [runStart, runFinish, runReviewResult, runList, runRefresh];
+export const runCommands = [
+  runStart,
+  runFinish,
+  runReviewResult,
+  runRetryReason,
+  runList,
+  runRefresh,
+];
