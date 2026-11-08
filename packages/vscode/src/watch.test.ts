@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { gitCommonDir, initWatchTarget, isWatched, watchTargets } from "./watch.js";
+import { commonDirOf, initWatchTarget, isWatched, watchTargets } from "./watch.js";
 
 const common = path.join("/repo", ".git");
 const dataDir = path.join(common, "deguboard");
@@ -65,7 +65,7 @@ describe("initWatchTarget（dg init 前に待つ対象）", () => {
   });
 });
 
-describe("gitCommonDir", () => {
+describe("commonDirOf（core の resolveRepoPaths から得る）", () => {
   it("リポジトリでは .git の絶対パス、worktree からでも同じ場所を返す", async () => {
     const dir = realpathSync(mkdtempSync(path.join(tmpdir(), "dg-wi-")));
     try {
@@ -73,11 +73,11 @@ describe("gitCommonDir", () => {
       git("init", "-q", "-b", "main");
       git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--allow-empty", "-m", "i");
       git("worktree", "add", "-q", path.join(dir, "wt"), "-b", "x");
-      expect(await gitCommonDir(dir)).toBe(path.join(dir, ".git"));
-      expect(await gitCommonDir(path.join(dir, "wt"))).toBe(path.join(dir, ".git"));
+      expect(await commonDirOf(dir)).toBe(path.join(dir, ".git"));
+      expect(await commonDirOf(path.join(dir, "wt"))).toBe(path.join(dir, ".git"));
       // 作業フォルダがリポジトリの下のディレクトリでも、相対で返る出力を絶対にする
       mkdirSync(path.join(dir, "sub"));
-      expect(await gitCommonDir(path.join(dir, "sub"))).toBe(path.join(dir, ".git"));
+      expect(await commonDirOf(path.join(dir, "sub"))).toBe(path.join(dir, ".git"));
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -86,9 +86,25 @@ describe("gitCommonDir", () => {
   it("git のリポジトリでないフォルダでは undefined（見張らない）", async () => {
     const dir = realpathSync(mkdtempSync(path.join(tmpdir(), "dg-wi-")));
     try {
-      expect(await gitCommonDir(dir)).toBeUndefined();
+      expect(await commonDirOf(dir)).toBeUndefined();
     } finally {
       rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("リポジトリでも git が動かないとき（PATH に git がない）は undefined（見張らない）", async () => {
+    const dir = realpathSync(mkdtempSync(path.join(tmpdir(), "dg-wi-")));
+    const noGit = realpathSync(mkdtempSync(path.join(tmpdir(), "dg-wi-nogit-")));
+    const savedPath = process.env["PATH"];
+    try {
+      execFileSync("git", ["init", "-q", "-b", "main"], { cwd: dir, stdio: "pipe" });
+      process.env["PATH"] = noGit;
+      expect(await commonDirOf(dir)).toBeUndefined();
+    } finally {
+      if (savedPath === undefined) delete process.env["PATH"];
+      else process.env["PATH"] = savedPath;
+      rmSync(dir, { recursive: true, force: true });
+      rmSync(noGit, { recursive: true, force: true });
     }
   });
 });
