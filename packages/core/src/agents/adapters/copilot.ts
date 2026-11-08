@@ -1,11 +1,11 @@
-// Copilot CLI の Adapter（AG-5・MT-2、ADR-005）。session の記録（<COPILOT_HOME>/session-state/<session>/events.jsonl）から使用量を補う。
+// Copilot CLI の Adapter（AG-5・MT-2、ADR-029）。session の記録（<COPILOT_HOME>/session-state/<session>/events.jsonl）から使用量を補う。
 //   - 記録の行は {"type", "data", "id", "timestamp", "parentId"}。使用量は type が session.usage_record の行の data.usage
 //     （応答 1 回ごとの値で、累計ではない）、モデル名は同じ data.usage.model
 //   - Run に結び付ける記録：Claude Code・Codex の Adapter と同じく、Run の ID を最も早く含む session の記録（bindFile）。dg run start の
 //     出力は tool.execution_complete の結果に入り、その応答の session.usage_record は応答の終わりに書かれるので Run に入る。
 //     ID が最初に出たのが finished_at より後の記録（閉じた後に run refresh を呼んだ session など）は Run の記録とみなさない
 //   - 数える行：Run の ID が出た後の、started_at〜finished_at の session.usage_record。サブエージェント（task ツール）は別の
-//     session-state のディレクトリに自分の記録を持ち、自分で run start した分だけその記録から数える（親の Run には混ぜない。ADR-005）
+//     session-state のディレクトリに自分の記録を持ち、自分で run start した分だけその記録から数える（親の Run には混ぜない。ADR-029）
 //   - 写し方：Copilot の inputTokens はキャッシュの読み書きを含む総量なので、input は inputTokens から cacheReadTokens と
 //     cacheWriteTokens を引いた新規の入力にする（Copilot 自身の課金内訳 copilotUsage.tokenDetails の input と一致する）。
 //     cache_read は cacheReadTokens、cache_write は cacheWriteTokens、output は outputTokens

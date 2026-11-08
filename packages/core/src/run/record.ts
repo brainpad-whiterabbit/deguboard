@@ -1,10 +1,10 @@
-// Run の記録（requirements.md 5.9・RN-3・RN-6・SY-5・EX-2、ADR-005）。
+// Run の記録（requirements.md 5.9・RN-3・RN-6・SY-5・EX-2、ADR-029）。
 //   - 実行中の Run は deguboard-local/runs/<id>.json に、runs/ と同じスキーマ（finished_at・result は null）で置く。Git には入れない
 //   - finish で runs/<id>.json（完了時の集計）を書き、実行中の記録を消す。チケットの操作に付随して閉じるとき（RN-6）は
 //     closeRun をその操作の書き込みの中で呼び、同じコミットに入れる
 //   - 同じチケットと step の二重の start は、deguboard-local/locks/ のロックの中で実行中の記録を見て拒否する
 //   - チケットの frontmatter には書き足さない。チケットの Run は Run の ticket から引く（書き足すと Run のたびにチケットが衝突する）
-//   - 会話記録のパスは Run に書かず、deguboard-local/transcripts/<id>.json に置く（ADR-005）。ホームのパスとユーザ名を含み、
+//   - 会話記録のパスは Run に書かず、deguboard-local/transcripts/<id>.json に置く（ADR-029）。ホームのパスとユーザ名を含み、
 //     別のマシンでは読めないので Git に入れない。閉じた後の run refresh も同じファイルから数えるので、Run を閉じても消さず、
 //     終了の時刻（finished_at）から TRANSCRIPT_RETENTION_DAYS を過ぎたものと Run のない ID のものを run prune-transcripts が消す
 

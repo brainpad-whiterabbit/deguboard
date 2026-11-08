@@ -76,6 +76,11 @@ mise run dg -- guide done      # マージ後の後始末
 - パッケージをまたぐテストは `test/` に置く。`e2e/routes.test.ts` は CLI・HTTP・Webview の 3 経路の結果とコミットの一致（NF-2）を、`layout/` は画面の配置と吹き出しの一覧を（`mise run test:layout`）、`vscode/` は VS Code の実機の左パネルを（`mise run test:vscode`）確かめる（ブラウザと VS Code が要るので check に入れない）
 - Git を使うテストは `packages/core/test/helpers/git-fixture.ts` で、一時ディレクトリに bare リモートと 2 つの clone を作って行う。fixture が開発者のグローバル設定と裏の git maintenance からテストを切り離す（方法は fixture のコメント）
 - 依存を足すときは `mise exec -- pnpm add <名前>@<版> --filter <パッケージ>` で足し（版は `1.2.3` の完全な形で書く。`pnpm-workspace.yaml` の `savePrefix` で固定の版で書かれるが、`7`・`^7` のような範囲を渡すと範囲のまま書かれる。版を上げるのも `add <名前>@<新しい版>`、削除は `remove`、開発用は `-D` を付ける、ルートに足すときは `--filter` を外す。overrides を変えたときは `mise exec -- pnpm install`）、更新した lockfile もコミットする（`mise run install` は `--frozen-lockfile`）
+- package.json にはコメントを置けないので、ほかの依存と揃えずに留めている版の理由はここに書く
+  - `packages/vscode` の `engines.vscode` は、拡張ホストが Node 24 になった最初の版（1.123。Electron 42.3、Node 24.15）にする。束ねる core の `engines.node`（>=24）と Vite の `target: "node24"` に揃う。1.122 までは Node 22（1.104 は Electron 37.3、Node 22.18）
+  - `@types/vscode` は API が変わった版しか公開されない（DefinitelyTyped の運用。1.120.0 の次は 1.125.0）ので、`engines.vscode` を超えない最新の公開版に固定する。engines と番号が揃わなくても上げない（vsce が engines を超えていないか検査する）
+  - ルートの `playwright-core` は安定版にせず、`@playwright/mcp` が依存に完全一致で固定する版（alpha）に揃える。別の版にすると playwright-core が二重に入り、`mise run playwright:install` が入れるブラウザと MCP が使う版がずれる。@playwright/mcp が安定版を要求するようになったら一緒に移す
+- oxlint（`.oxlintrc.json`）の `plugins` は既定の組を置き換えるので、使う言語とライブラリの plugin（web の React には `react`）を明示する。指摘は直し、直すと振る舞いが変わるものと誤検知だけを行ごとに理由を書いて外す
 
 ## パッケージ
 
@@ -126,7 +131,7 @@ VS Code 拡張。拡張ホストから core の `createLocalClient` を呼び、
 
 ビルドは Vite で `dist/extension.cjs` に束ね、web の `dist` を `dist/web` に写す（[ADR-008](adr/ADR-008-tech-stack.md)）。同梱する core の版は `vite.config.ts` の `define` で埋める。手元で動かすには `mise run build` のあと VS Code で `packages/vscode` を開いて F5（拡張開発ホスト）、Activity Bar の deguboard のアイコン。実機の確認は `mise run test:vscode`：`.vscode-test/` に落とした VS Code（版は `test/vscode/host.ts` で固定）を Xvfb 上に拡張開発ホストとして起動し、一時リポジトリの左パネルで行の表示・詳細のパネル・CSP 違反と例外（あれば落ちる）・ライトとダークのスクリーンショット（`test/vscode/screenshots/`）を確かめる。Claude Code の中からでも動く。細部は `test/vscode/host.ts` の冒頭。
 
-VSIX は `mise run vsix`（`@vscode/vsce`。判断は [ADR-008](adr/ADR-008-tech-stack.md)）で `packages/vscode/deguboard-vscode.vsix` にでき、`mise run vsix:install`（`mise run install` の最後にも走る）で VS Code に入る（入れられないときは手で入れるコマンドを出す。条件は `scripts/install-vsix.mjs` の冒頭。リモート開発なら統合ターミナルから）。入れたらウィンドウを再読み込みする。入るものは `.vscodeignore` が決め、入ってよいファイルの一覧は `packages/vscode/src/vsix-files.test.ts` が `vsce ls` と照らす（一覧にないものが入ると `mise run check` が落ちる。入れるファイルを増やす PR は一覧も直す）。拡張の README（Marketplace の紹介）はルートの README.md の「Other ways to use it」より前を `scripts/vscode-readme.mjs` が写して作り、git には入れない。紹介はルートの README で直し（README.ja.md は拡張の README と npm に入らない）、その部分のリンクは絶対 URL にする（相対リンクがあると作れない）。
+VSIX は `mise run vsix`（`@vscode/vsce`。判断は [ADR-008](adr/ADR-008-tech-stack.md)）で `packages/vscode/deguboard-vscode.vsix` にでき（依存は束ねてあるので `vsce` は `--no-dependencies` で、pnpm の node_modules の形に影響されない）、`mise run vsix:install`（`mise run install` の最後にも走る）で VS Code に入る（入れられないときは手で入れるコマンドを出す。条件は `scripts/install-vsix.mjs` の冒頭。リモート開発なら統合ターミナルから）。入れたらウィンドウを再読み込みする。入るものは `.vscodeignore` が決め、入ってよいファイルの一覧は `packages/vscode/src/vsix-files.test.ts` が `vsce ls` と照らす（一覧にないものが入ると `mise run check` が落ちる。入れるファイルを増やす PR は一覧も直す）。拡張の README（Marketplace の紹介）はルートの README.md の「Other ways to use it」より前を `scripts/vscode-readme.mjs` が写して作り、git には入れない。紹介はルートの README で直し（README.ja.md は拡張の README と npm に入らない）、その部分のリンクは絶対 URL にする（相対リンクがあると作れない）。
 
 README の使い方の GIF（`packages/vscode/images/`）は、画面を変えたら `mise run gifs` で録り直す（台本は `scripts/record-gifs.mjs`）。画面は英語の表示で、1.5 倍の解像度（1140px 幅）で撮る。
 

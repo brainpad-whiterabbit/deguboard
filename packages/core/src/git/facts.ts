@@ -1,4 +1,4 @@
-// 照合に使う事実の収集（ST-4〜ST-6、ADR-004）。取れない事実は undefined（不明）
+// 照合に使う事実の収集（ST-4〜ST-6、ADR-028）。取れない事実は undefined（不明）
 
 import { toIsoDateTime, type Status } from "../model/common.js";
 import type { Facts } from "../workflow/conditions.js";
@@ -74,7 +74,7 @@ async function baseRef(repo: GitRepo): Promise<string | undefined> {
 }
 
 /**
- * 記録しようとするブランチ名に、前の作業でマージ済みのブランチが残っているか（ADR-004）。
+ * 記録しようとするブランチ名に、前の作業でマージ済みのブランチが残っているか（ADR-028）。
  * 残ったブランチの先端は base の真の祖先なので、同じ名前で claim すると照合が branch_merged で done にする。
  * 残っていればその ref を返す。先端が base と同じ（切ったばかり）・base にない作業がある・ref がないときは undefined。
  * claim の取り込みは deguboard ブランチだけなので、ここで base と対象のブランチを取り込む。取り込めなければ手元の ref で判定する
@@ -139,7 +139,9 @@ export async function collectBranchFacts(
     // 先端が base と同じなら、切ったばかりで作業のないブランチとみなして merged にしない。
     // ff マージの直後も同じ形になるが、base が進めば真の祖先になり、PR があれば pr_merged で先に拾える。
     // 先端が base の真の祖先でも、commit のないブランチは base が進めば同じ形になる（グラフだけでは
-    // ff マージと区別できない）。in_progress で push していないブランチはまだ作業がないとみなして merged にしない
+    // ff マージと区別できない）。in_progress で push していないブランチはまだ作業がないとみなして merged にしない。
+    // claim の時刻や base の SHA より先端が進んだかで分けると、claim の後に base が進んでから切ったブランチで同じ誤りが残り、
+    // 先端のコミット日時と branch_at を比べると PC ごとの時計のずれで判定が変わるので採らない。push せずローカルで ff マージした形は拾えない
     const same = (await sha(repo, tip)) === (await sha(repo, base));
     const fresh = opts.status === "in_progress" && facts.branch_pushed === false;
     const r =

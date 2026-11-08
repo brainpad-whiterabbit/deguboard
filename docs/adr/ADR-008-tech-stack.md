@@ -14,9 +14,9 @@
 - TypeScript、Node.js 24、pnpm workspace
 - 型検査と core・server・cli のビルドは TypeScript 7（Go で書かれたネイティブ版の tsc）で行う。tsc の JS API には依存しない（lint は oxlint、変換は Vite と Vitest の oxc なので、typescript を import するツールは無い）
 - スキーマと検証は Zod。CLI は commander。UI は React（Vite でビルド）。テストは Vitest
-- HTTP サーバーは Node 標準の `node:http` で書き、フレームワークを入れない。要るのは「`POST /api/commands/<名前>` に JSON を渡して結果を返す」「静的ファイルの配信」だけなので、小さなルータで足りる
+- HTTP サーバーは Node 標準の `node:http` で書き、フレームワークを入れない。要るのはコマンドの呼び出しと静的ファイルの配信だけなので、小さなルータで足りる（エンドポイントは `packages/server/src/app.ts`）
 - git と gh は `child_process.execFile` で引数配列として呼ぶ。シェルを経由しない
-- MCP は公式の `@modelcontextprotocol/sdk`（1.x、版は固定）の低水準の `Server` と stdio の transport を使う。ツールの一覧と入力スキーマはコマンド定義から作った JSON Schema をそのまま渡し、検証は core の `runCommand` に任せる（高水準の `McpServer` は Zod のスキーマを自分で変換・検証するので、二重になる）
+- MCP は公式の `@modelcontextprotocol/sdk` の低水準の `Server` と stdio の transport を使い、検証は core の `runCommand` に任せる（高水準の `McpServer` は Zod のスキーマを自分で変換・検証するので、二重になる）。ツールの一覧の作り方は `packages/cli/src/mcp.ts` の冒頭
 - DB は使わない（ADR-007）
 
 ### ツールと作業コマンドは mise に統一する
@@ -24,14 +24,13 @@
 - `mise.toml` で node と pnpm の版を固定する。開発者は `mise install` でツールを揃える
 - 作業のコマンドは `mise run <task>` を唯一の入口にする。タスクの一覧は mise.toml が正本（`mise tasks`）
 - タスクは pnpm scripts を呼ぶだけにし、同じ内容を 2 か所に書かない。pnpm scripts は mise から呼ばれる前提で、人は `mise run` だけ覚える
-- 依存の追加・更新・削除は、pnpm の選択肢（`--filter`・`-D` など）をそのまま使えるようタスクにせず、mise の固定した pnpm（`mise exec -- pnpm`）で行い、lockfile をコミットする。版は固定し、`pnpm-workspace.yaml` の `savePrefix: ""` で `-E` なしの `add` も `^` を付けずに書かせる。範囲を渡す `add`・`update <名前>@<範囲>` は範囲で書かれるので使わない（コマンドは [development.md](../development.md)）
-- `check` はコミット前の確認で、書式・lint・型・テスト・文書を順に検査する（順は mise.toml）
+- 依存の追加・更新・削除は、pnpm の選択肢をそのまま使えるようタスクにせず、mise の固定した pnpm で行い、lockfile をコミットする。版は固定する（コマンドと `savePrefix` は [development.md の「ビルドとテスト」](../development.md#ビルドとテスト)）
+- `check` はコミット前の確認で、書式・lint・型・テスト・文書を検査する（順は mise.toml）
 - CI は使わない。検査は作業者がローカルで `mise run check` を通すことにとどめ、マージの条件にする
 
 ### lint は oxlint、整形は oxfmt
 
-- lint は oxlint（`.oxlintrc.json`）。既定の `correctness` から始め、規則は必要になったときに足す
-- `plugins` は既定の組を置き換えるので、使う言語とライブラリの plugin（web の React には `react`）を明示する。指摘は直し、直すと振る舞いが変わるものと誤検知だけを行ごとに理由を書いて外す
+- lint は oxlint（`.oxlintrc.json`）。既定の `correctness` から始め、規則は必要になったときに足す（plugin の選び方と規則の外し方は [development.md の「ビルドとテスト」](../development.md#ビルドとテスト)）
 - 整形は oxfmt（`.oxfmtrc.json`）。既定の設定から始める
 - ESLint・Prettier・Biome は入れない
 - 版は package.json に固定する
@@ -39,20 +38,18 @@
 
 ### 画面（web）は依存を少なく
 
-- React 19 を Vite でビルドし、`base: "./"` で相対パスにして `dg serve` でも VS Code の Webview でも読めるようにする
-- CSS は自前で、VS Code の `--vscode-*` 変数を基準にする。ブラウザ向けの既定値は `styles.css` の `:root` に置く
-- ドラッグ＆ドロップは置かない（画面からの書き込みはチケット詳細と設定画面だけ。[ADR-027](ADR-027-screen-vscode-writes-and-asks.md)）ので、使っていた `@dnd-kit/core` は依存から外した。画面の切り替えは URL のハッシュで自前。状態管理のライブラリは入れず、React の context だけで持つ
-- 更新は書き込み後の読み直しと `GET /api/status` のポーリング。VS Code では拡張ホストがデータのファイルを見張って読み直しを通知する。WebSocket と SSE は入れない
+- React 19 を Vite でビルドし、相対パスで出して `dg serve` でも VS Code の Webview でも読めるようにする（`packages/web/vite.config.ts`）
+- CSS は自前で、VS Code の `--vscode-*` 変数を基準にする（Webview の外での既定値は `styles.css` の冒頭）
+- ドラッグ＆ドロップは置かない（[ADR-027](ADR-027-screen-vscode-writes-and-asks.md)）。画面の切り替えは URL のハッシュで自前。状態管理のライブラリは入れず、React の context だけで持つ
+- 更新は書き込み後の読み直しとポーリング（VS Code では拡張ホストのファイルの見張り。`packages/vscode/src/watch.ts`）。WebSocket と SSE は入れない
 - テストは Vitest + Testing Library + jsdom で、`CommandClient` を差し替えて画面を結合して確かめる
 
 ### VS Code 拡張は Vite で 1 つの CommonJS に束ねる
 
-- 拡張ホストは CommonJS を読むので、`packages/vscode` は Vite の SSR ビルドで `dist/extension.cjs` の 1 ファイルに束ねる。core は `development` 条件で `src` から取り込み、`vscode` だけ外部にする
-- web のビルド結果は `dist/web` に写して Webview から読む。拡張のためのバンドラは増やさない（esbuild や webpack は入れない）
-- 拡張の `engines.vscode` は `^1.123.0` にする。拡張ホストが Node 24 になった最初の版（Electron 42.3、Node 24.15）で、束ねる core の `engines.node`（>=24）と Vite の `target: "node24"` に揃う。1.122 までは Node 22（1.104 は Electron 37.3、Node 22.18）。`@types/vscode` は API が変わった版しか公開されない（DefinitelyTyped の運用。1.120.0 の次は 1.125.0）ので、engines を超えない最新の公開版（1.120.0）に固定する。engines と番号が揃わなくても上げない（vsce が engines を超えていないか検査する）
-- ルートの `playwright-core` は安定版にせず、`@playwright/mcp` が依存に完全一致で固定する playwright-core の版（alpha）に揃える。別の版にすると playwright-core が二重に入り、`playwright:install` が入れるブラウザと MCP が使う版がずれる。@playwright/mcp が安定版を要求するようになったら一緒に移す
-- VSIX は `@vscode/vsce` で作る（`mise run vsix`）。依存は束ねてあるので `--no-dependencies` で、pnpm の node_modules の形に影響されない。要らない postinstall の拒否は pnpm-workspace.yaml
-- 実機の確認（`mise run test:vscode`）は `@vscode/test-electron` で VS Code 本体を `.vscode-test/` に落とすだけに使い、起動と操作は Playwright の `_electron` で行う（`@vscode/test-electron` の `runTests` は拡張ホストの中で Mocha を走らせる作りで、Webview の中は触れない）。VS Code の版は `stable`（起動のたびに最新を引く）にせず、`test/vscode/host.ts` の `VSCODE_VERSION` で完全な版に固定する。画面のない環境では Xvfb を起動する。`check` には入れない（ダウンロードと画面が要る）
+- 拡張ホストは CommonJS を読むので、`packages/vscode` は Vite の SSR ビルドで 1 ファイルに束ねる（`packages/vscode/vite.config.ts`）。拡張のためのバンドラは増やさない（esbuild や webpack は入れない）
+- 拡張の `engines.vscode` は拡張ホストが Node 24 になった版からにし、束ねる core の Node 24 に揃える（版の理由は [development.md の「ビルドとテスト」](../development.md#ビルドとテスト)）
+- VSIX は `@vscode/vsce` で作る（`mise run vsix`）
+- 実機の確認（`mise run test:vscode`）は `@vscode/test-electron` で VS Code 本体を落とすだけに使い、起動と操作は Playwright の `_electron` で行う。VS Code の版は固定する。`check` には入れない（ダウンロードと画面が要る。細部は `test/vscode/host.ts` の冒頭）
 
 ### 文書の検査
 

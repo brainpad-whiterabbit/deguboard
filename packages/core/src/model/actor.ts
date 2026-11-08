@@ -1,4 +1,4 @@
-// 主体の ID（requirements.md TK-7、AG-1、ADR-004）。
+// 主体の ID（requirements.md TK-7、AG-1、ADR-028）。
 // ユーザ名と種別を 1 文字列で表す：`eiki`（人）、`eiki/agent`（eiki の AI）。ホスト名は含めない
 
 export type ActorKind = "human" | "agent";

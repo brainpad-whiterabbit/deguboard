@@ -1,4 +1,4 @@
-// Claude Code の Adapter（AG-5・MT-2、ADR-005）。会話記録（<設定>/projects/<作業ディレクトリ>/<session>.jsonl）から使用量とツールの回数を補う。
+// Claude Code の Adapter（AG-5・MT-2、ADR-029）。会話記録（<設定>/projects/<作業ディレクトリ>/<session>.jsonl）から使用量とツールの回数を補う。
 //   - 記録の場所があるとき（query.transcript。このマシンの deguboard-local/transcripts/）：そのファイルだけを、ID の出現を待たずに数える。
 //     サブエージェントの記録（<session>/subagents/ の下。1 つの依頼で 1 ファイル）はファイルの先頭から、親のセッションのファイルは
 //     ほかの Run と共有するので started_at から。同じファイルを先に使った Run が閉じていれば、その finished_at の後から（続けて頼まれた

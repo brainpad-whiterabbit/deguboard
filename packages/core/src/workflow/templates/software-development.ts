@@ -26,7 +26,7 @@ export const softwareDevelopment: WorkflowDefinitionInput = {
       // agent の ticket claim がこの step の Run を開く（RN-5）
       opens_on: "claim",
     },
-    // 見直し役の見直しと、指摘を受けた手直しは実装と分けて数える（ADR-005）
+    // 見直し役の見直しと、指摘を受けた手直しは実装と分けて数える（ADR-029）
     { id: "review", label: "Review", actions: ["run_tests"] },
     // 手直し（見直しの修正ループと人のレビューの後）は、自分の PR のあるチケットのもう一度の claim がこの step の Run を開く（RN-5）
     { id: "fix", label: "Fix", actions: ["run_tests"], opens_on: "reclaim" },

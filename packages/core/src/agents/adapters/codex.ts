@@ -1,4 +1,4 @@
-// Codex の Adapter（AG-5・MT-2、ADR-005）。会話記録（<CODEX_HOME>/sessions/YYYY/MM/DD/rollout-*.jsonl）から使用量を補う。
+// Codex の Adapter（AG-5・MT-2、ADR-029）。会話記録（<CODEX_HOME>/sessions/YYYY/MM/DD/rollout-*.jsonl）から使用量を補う。
 //   - 記録の行は {"timestamp", "type", "payload"}。使用量は type が event_msg で payload.type が token_count の行の
 //     payload.info.total_token_usage（session の累計）、モデル名は type が turn_context の行の payload.model
 //   - Run に結び付ける記録：Claude Code の Adapter と同じく、Run の ID を最初に含む会話記録のファイル（ID が最初に出たのが

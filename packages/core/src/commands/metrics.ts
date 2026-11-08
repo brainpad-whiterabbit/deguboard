@@ -1,4 +1,4 @@
-// 作業の実績の集計（requirements.md 6.6 MT-3、ADR-005）。runs/ の Run を読み、表示のたびに求める。何も書かない
+// 作業の実績の集計（requirements.md 6.6 MT-3、ADR-029）。runs/ の Run を読み、表示のたびに求める。何も書かない
 
 import { z } from "zod";
 import { slugSchema } from "../model/common.js";

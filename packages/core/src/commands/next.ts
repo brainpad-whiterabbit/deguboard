@@ -1,5 +1,5 @@
 // チケットの作業の段階と次の 1 手（EX-3、ADR-011）。Run・PR・ブランチの事実と Plan の待ちから都度求め、保存しない（Plan の進捗と同じ考え）。
-// 段階を返すだけで、エージェントを起動も監視もしない（ADR-004）。親は dg next の 1 手を行い、終えたらもう一度 dg next を呼ぶ
+// 段階を返すだけで、エージェントを起動も監視もしない（ADR-028）。親は dg next の 1 手を行い、終えたらもう一度 dg next を呼ぶ
 
 import { z } from "zod";
 import { lastPushedAt } from "../git/facts.js";

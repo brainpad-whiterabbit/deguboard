@@ -1,4 +1,4 @@
-// Plan の操作（requirements.md 5.7、ADR-004）。Plan を書くのは作成・承認・終了のときだけで、進捗は都度求める
+// Plan の操作（requirements.md 5.7、ADR-028）。Plan を書くのは作成・承認・終了のときだけで、進捗は都度求める
 
 import { z } from "zod";
 import { OperationError } from "../errors.js";
