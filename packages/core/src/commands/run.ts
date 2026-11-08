@@ -756,7 +756,7 @@ export const runRetryReason = defineCommand({
   positionals: ["ticket"],
   group: "run",
   summary:
-    "手直しのやり直しの理由（直した指摘の 1 行の要約）を、チケットの開いている手直しの Run（opens_on: reclaim の step、なければ fix）の retry_reasons に書き足す（ADR-018）。回数は理由の数になる。印 step=fix で起動した手直しのサブエージェントが、直し始める前に呼ぶ。" +
+    "手直しのやり直しの理由（直した指摘の 1 行の要約）を、チケットの開いている手直しの Run（opens_on: reclaim の step、なければ fix）の retry_reasons に書き足す（ADR-018）。PR のないチケットでは使い方の誤り。回数は理由の数になる。印 step=fix で起動した手直しのサブエージェントが、直し始める前に呼ぶ。" +
     "このマシンで実行中の手直しの Run が、そのチケットの最後の見直しの Run より後に始まっていれば、それに書き足す。なければ（前景で起動した手直し、前の回の手直しの Run だけが開いている）理由を保留にし（pending: true）、フックが手直しの Run を閉じるときに、その Run の開始より後に置いた理由を結び付ける",
   input: z.object({
     ticket: ticketRef,
@@ -777,6 +777,9 @@ export const runRetryReason = defineCommand({
   needs: "store",
   async run(ctx, input) {
     const ticket = ctx.store.require("ticket", input.ticket).data;
+    // 手直しは PR のあるチケットの作業（RN-5 のもう一度の claim と同じ）。打ち間違いで要らない保留を残さない
+    if (ticket.pr === undefined)
+      throw new UsageError(`${ticket.id} には PR がないので、手直しの理由は書けない`);
     const step = openedStepOf(ctx, ticket, "reclaim");
     const local = (await readRunningRuns(ctx.repo)).runs;
     // 最後の見直しより前に始まった手直しの Run は、その見直しの前の回のもの（sync がまだ閉じていない）。書き足さない（dg next の待つ手直しと同じ見方）

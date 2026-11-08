@@ -20,6 +20,7 @@
 - 手直しを頼む文（`dg brief --role fix`）の最初の行に、印 `deguboard: ticket=<id> step=<手直しの step>` を置く。手直しの step は Workflow の `opens_on: reclaim` の step（なければ `fix`）
 - 起動のフックは、印の step が手直しの step なら、開いたままの前の手直しの Run を区切りとして閉じてから新しい Run を開く。閉じ方はもう一度の claim と同じ規則で、前の Run の開始より後で区切りまでの最後の push の時刻で `success`（push がなければ区切りの時刻）、前の Run が別のセッションのものなら `interrupted`（[ADR-015](ADR-015-interrupt-stale-session-runs.md)）。区切りは起動の時刻で、前景の起動では終わった時刻からかかった時間を引いた時刻（[ADR-017](ADR-017-review-result-binding-edge-cases.md) の補いを含む）。開いている手直しの Run は、いつも 1 本になる
 - 手直しのサブエージェントは claim しない。人や親が自分で直すときのもう一度の claim（`ticket claim <id> --retry-reason …`）は今のまま残す
+- 手直しは、いつも新しいサブエージェントを印付きの文で起動して頼む。同じ会話の続き（Claude Code の SendMessage）では起動のフック（PostToolUse、matcher は Agent）が来ず、印が読まれないので、手直しの Run が開かない
 
 ### 理由は run retry-reason で書き足す
 
@@ -30,6 +31,7 @@
 ### 置き換えるもの
 
 - [ADR-012](ADR-012-hooks-open-runs.md) の「サブエージェントの Run はフックが開け閉めする」の節の最後の段落のうち「、もう一度の claim が開く手直しの Run」の部分を、この決定で置き換える
+- [ADR-015](ADR-015-interrupt-stale-session-runs.md) の決定の最後の段落のうち「ほかの step と、」の部分（二重起動を拒否して警告する step から、手直しの step を外す）を、この決定で置き換える。[ADR-012](ADR-012-hooks-open-runs.md) の二重起動の拒否も、手直しの step では前の Run を区切って閉じる形に変わる
 - [ADR-005](ADR-005-work-metrics.md) の「実装・見直し・手直しを別の Run にする」の、手直しの開き方の項のうち「修正ループも、見直しの前に `ticket update --pr` で PR を記録するので同じ claim で開き、」の部分と、理由の項のうち「（どちらも claim の `--retry-reason`）」の部分を、この決定で置き換える
 - ADR-014 の決定は変えない。印のない Run（サブエージェントが自分で `run start` で開いた Run）を終わりのフックが引き当てる移行期の経路（ADR-012）は、ほかの手順がサブエージェントに Run を開かせなくなるまで残す
 
@@ -49,3 +51,5 @@
 
 - 人のレビューの後の手直しを、見直しを挟まずに前景で続けて頼み、その間に照合も走らないと、2 回目の理由が前の回の Run に入る（前の回は 2 回目の起動のフックが閉じる）
 - 同じチケットの手直しを前景で並べて動かすことは扱わない（保留はチケットごと）
+- 前景の手直しの起動では、フックが来る時点で今回の push が済んでいることがある。最後の push の時刻だけを見るので、前の回の手直しの Run は、その回の push の時刻ではなく区切り（起動の時刻）で閉じる
+- 実装したサブエージェントの会話の続きで直させると、その会話の文脈は使えるが Run が開かない。文脈より Run の記録を取る

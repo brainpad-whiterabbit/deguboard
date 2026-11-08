@@ -1426,6 +1426,7 @@ describe("手直しの Run の印と run retry-reason（ADR-018）", () => {
 
   it("背景で起動した手直しは、run retry-reason がフックの開いた Run に理由を書き足し、回数を理由の数にする", async () => {
     const { ctx, parent } = await prepared();
+    await runCommand(ticketUpdate, ctx, { ticket: "t1", pr: 12 });
     await call(ctx, "PostToolUse", launched(parent, "a1", "deguboard: ticket=t1 step=fix"));
     const first = (await runCommand(runRetryReason, ctx, { ticket: "t1", reasons: ["型の誤り"] }))
       .data as Run;
@@ -1439,10 +1440,15 @@ describe("手直しの Run の印と run retry-reason（ADR-018）", () => {
       retry_reasons: ["型の誤り", "文書のずれ", "名前"],
     });
     expect(await fixRuns(ctx, "t1")).toHaveLength(1);
+    // PR のないチケットでは使い方の誤り（要らない保留を残さない）
+    await expect(
+      runCommand(runRetryReason, ctx, { ticket: "t2", reasons: ["打ち間違い"] }),
+    ).rejects.toThrow("PR がない");
   });
 
   it("前景で起動した手直しの理由は保留になり、フックが開いた Run に結び付く。手直し 1 回につき Run は 1 本", async () => {
     const { ctx, parent, subagent } = await prepared();
+    await runCommand(ticketUpdate, ctx, { ticket: "t1", pr: 12 });
     const prompt = "deguboard: ticket=t1 step=fix\n\n直す";
     await subagentRecord(subagent("a1"), prompt, 1);
     const held = await runCommand(runRetryReason, ctx, { ticket: "t1", reasons: ["型の誤り"] });
@@ -1464,6 +1470,7 @@ describe("手直しの Run の印と run retry-reason（ADR-018）", () => {
 
   it("最後の見直しより前に始まった手直しの Run（前の回の残り）には書き足さず、保留にして次の手直しの Run に結び付ける", async () => {
     const { ctx, parent, subagent } = await prepared();
+    await runCommand(ticketUpdate, ctx, { ticket: "t1", pr: 12 });
     let clock = new Date("2026-11-08T01:00:00Z");
     ctx.now = () => clock;
     const old = (
