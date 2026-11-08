@@ -1,0 +1,35 @@
+{
+  "id": "r20261108-034209-0101",
+  "ticket": "t553",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-08T03:42:09Z",
+  "finished_at": "2026-11-08T03:44:06Z",
+  "result": "success",
+  "error": null,
+  "retries": 4,
+  "retry_reasons": [
+    "続きで頼む手直しで fix の Run が開かない",
+    "AG-9 と ADR-015 の重ねた起動の扱いが古い",
+    "guide-review の直せなかった・続けられないの項が古い",
+    "guide-run の自分で呼ぶ・結果の項が古い"
+  ],
+  "usage": {
+    "input": 10,
+    "output": 5241,
+    "cache_read": 1434846,
+    "cache_write": 9404
+  },
+  "tools": {
+    "read": 0,
+    "search": 0,
+    "write": 0,
+    "bash": 5,
+    "other": 0,
+    "read_before_write": 0,
+    "search_before_write": 0
+  },
+  "session": "1078b404-3fd5-46cd-9c24-df81dd6aabe6",
+  "review": null
+}
