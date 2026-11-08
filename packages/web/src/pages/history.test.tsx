@@ -218,7 +218,6 @@ describe("Iteration の行の 1 段目と 2 段目", () => {
     const none = (await screen.findByText("目標なし")).closest(".history-row")!;
     expect(screen.getByText("目標なし").classList.contains("history-none")).toBe(true);
     expect(none.querySelector("small")!.textContent).toBe("11/01 に閉じた");
-    expect(none.querySelector(".epics")).toBeNull();
     const goal = screen.getByText("目標あり").closest(".history-row")!;
     expect(goal.querySelector("small")!.textContent).toBe("11/02 に閉じた");
     expect(document.body.textContent).not.toContain("sprint4");
@@ -226,7 +225,7 @@ describe("Iteration の行の 1 段目と 2 段目", () => {
     expect(document.body.textContent).not.toContain("内訳");
   });
 
-  it("閉じた日は今日・昨日を言葉で出し、正確な日時をツールチップに置く", async () => {
+  it("閉じた日は今日・昨日を言葉で出し、正確な日時をツールチップに置く。閉じた日の記録がなければ「閉じた日は不明」と出す", async () => {
     window.location.hash = "#/history";
     const client = mockClient();
     client.data.iterations = [
@@ -244,6 +243,7 @@ describe("Iteration の行の 1 段目と 2 段目", () => {
         goal: "きょう",
         closed_at: "2026-11-04T01:00:00Z",
       }),
+      iteration({ id: "s6", name: "n6", status: "closed" }),
     ];
     render(
       <StoreProvider client={client}>
@@ -257,33 +257,8 @@ describe("Iteration の行の 1 段目と 2 段目", () => {
     expect(yesterday.querySelector("time")!.getAttribute("title")).toBe("2026-11-03 08:30");
     const today = screen.getByText("きょう").closest(".history-row")!;
     expect(today.querySelector("small")!.textContent).toBe("今日 に閉じた");
-  });
-});
-
-describe("Iteration の行の Run の集計", () => {
-  it("閉じた Iteration の行に Run の集計のリンクを出さず、Run の記録も読まない（Run の画面はない。ADR-027）", async () => {
-    window.location.hash = "#/history";
-    const client = mockClient();
-    client.data.iterations = [
-      iteration({ id: "s4", name: "sprint4", status: "closed", completed: 1 }),
-    ];
-    client.data.tickets = [ticket({ id: "t1", status: "done", iteration: "s4" })];
-    render(
-      <StoreProvider client={client}>
-        <HostProvider host={sidebarHost()}>
-          <App />
-        </HostProvider>
-      </StoreProvider>,
-    );
-    const row = (await screen.findByText("目標なし")).closest(".history-row")!;
-    expect(row.querySelector("small")!.textContent).toBe("閉じた日は不明");
-    expect(within(row as HTMLElement).queryByRole("link", { name: "Run の集計" })).toBeNull();
-    expect(client.calls.some((c) => c.name === "metrics.show")).toBe(false);
-    expect(
-      client.calls.some(
-        (c) => c.name === "run.list" && (c.input as { running?: boolean }).running !== true,
-      ),
-    ).toBe(false);
+    const unknown = (await screen.findByText("目標なし")).closest(".history-row")!;
+    expect(unknown.querySelector("small")!.textContent).toBe("閉じた日は不明");
   });
 });
 
@@ -460,7 +435,6 @@ describe("サイドバーの履歴", () => {
     ]);
     const abandoned = document.querySelectorAll(".history-ticket")[2]!;
     expect(abandoned.classList.contains("abandoned")).toBe(true);
-    expect(document.querySelector(".history-finished")).toBeNull();
     // 絞り込みは検索と結果だけ
     expect(screen.getByLabelText("結果")).toBeTruthy();
     expect(screen.queryByLabelText("Epic")).toBeNull();

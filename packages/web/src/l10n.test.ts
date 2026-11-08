@@ -91,7 +91,7 @@ describe("表示言語の決め方と訳し方", () => {
   });
   it("日本語では鍵の {0} を埋めただけのもの（テンプレートリテラルと同じ文字）を出す", () => {
     expect(tr("{0} 件", 3)).toBe("3 件");
-    expect(tr("未 push {0}", 0)).toBe(`未 push ${0}`);
+    expect(tr("ほか {0} 件", 0)).toBe(`ほか ${0} 件`);
     expect(tr("{0}（{1}）", null, undefined)).toBe(`${null}（${undefined}）`);
     expect(format("{0} と {1}", ["a"])).toBe("a と {1}");
     expect(msg("カンバン")).toBe("カンバン");

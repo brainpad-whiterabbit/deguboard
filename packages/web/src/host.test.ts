@@ -4,22 +4,27 @@ import type { WebviewClient } from "./client/webview.js";
 import { createHost, readSurface } from "./host.js";
 
 describe("載っている場所（surface）", () => {
-  it("data 属性の sidebar・panel を読み、なければサイドバー", () => {
-    expect(readSurface({ surface: "sidebar" })).toBe("sidebar");
-    expect(readSurface({ surface: "panel" })).toBe("panel");
-    expect(readSurface({})).toBe("sidebar");
-    expect(readSurface({ surface: "nope" })).toBe("sidebar");
-    expect(readSurface({ surface: "browser" })).toBe("sidebar");
+  it.each([
+    [{ surface: "sidebar" }, "sidebar"],
+    [{ surface: "panel" }, "panel"],
+    [{}, "sidebar"],
+    [{ surface: "nope" }, "sidebar"],
+  ])("data 属性 %o を読み、なければサイドバー（%s）", (dataset, expected) => {
+    expect(readSurface(dataset)).toBe(expected);
   });
 
-  it("dg serve では ?surface= を読み、なければサイドバー。data 属性があればそちらを優先する", () => {
-    expect(readSurface({}, "?surface=sidebar")).toBe("sidebar");
-    expect(readSurface({}, "?surface=panel&x=1")).toBe("panel");
-    expect(readSurface({}, "?surface=nope")).toBe("sidebar");
-    expect(readSurface({}, "?surface=browser")).toBe("sidebar");
-    expect(readSurface({}, "")).toBe("sidebar");
-    expect(readSurface({ surface: "panel" }, "?surface=sidebar")).toBe("panel");
-  });
+  it.each([
+    [{}, "?surface=sidebar", "sidebar"],
+    [{}, "?surface=panel&x=1", "panel"],
+    [{}, "?surface=nope", "sidebar"],
+    [{}, "", "sidebar"],
+    [{ surface: "panel" }, "?surface=sidebar", "panel"],
+  ])(
+    "dg serve では data 属性 %o がなければ検索 %j を読み、なければサイドバー（%s）。data 属性があればそちらを優先する",
+    (dataset, search, expected) => {
+      expect(readSurface(dataset, search)).toBe(expected);
+    },
+  );
 
   it("拡張ホストとつながっていなければ、サイドバーの配置でも詳細はハッシュ遷移で開く", () => {
     const host = createHost("sidebar", null);

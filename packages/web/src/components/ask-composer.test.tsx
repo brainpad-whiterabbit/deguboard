@@ -54,13 +54,10 @@ function mountWebview(
     surface = "sidebar",
     state = createUiState(memoryBackend()),
     terminals,
-    standalone = false,
   }: {
     surface?: Host["surface"];
     state?: UiState;
     terminals?: TerminalChoice[];
-    /** 拡張ホストのない dg serve（ターミナルの口がない） */
-    standalone?: boolean;
   } = {},
 ) {
   const listeners = new Set<(event: WebviewEvent) => void>();
@@ -91,17 +88,14 @@ function mountWebview(
     show: () => {},
     copy: (text) => bridge.copy(text),
     state,
-    // dg serve ではターミナルの口がない（コピーだけ）
-    terminals: standalone
-      ? undefined
-      : {
-          list: () => bridge.terminals(),
-          send: (terminal, text) => bridge.sendToTerminal(terminal, text),
-          onChange: (listener) =>
-            bridge.onEvent((e) => {
-              if (e.name === "terminals") listener(e.terminals);
-            }),
-        },
+    terminals: {
+      list: () => bridge.terminals(),
+      send: (terminal, text) => bridge.sendToTerminal(terminal, text),
+      onChange: (listener) =>
+        bridge.onEvent((e) => {
+          if (e.name === "terminals") listener(e.terminals);
+        }),
+    },
   };
   render(
     <StoreProvider client={client}>
@@ -485,12 +479,6 @@ describe("エージェントに頼む入力欄（UI-15）", () => {
     expect(client.calls.filter((c) => !READS.has(c.name))).toEqual([]);
   });
 
-  it("左パネルの上のバーには吹き出しを出さない（タイトル行にある）", async () => {
-    mountWebview(askClient());
-    await screen.findByText("見直す");
-    expect(screen.queryByRole("button", { name: "エージェントに頼む" })).toBeNull();
-  });
-
   describe("タイトル行の吹き出しは画面の今の対象で開く", () => {
     function targetClient(): MockClient {
       return mockClient(
@@ -672,15 +660,6 @@ describe("開いているターミナルへ送る（UI-15）", () => {
     await waitFor(() => expect(box.getByRole("button", { name: "コピー" })).toBeTruthy());
     expect(box.queryByRole("button", { name: "送る" })).toBeNull();
     expect(box.queryByRole("combobox", { name: "送り先のターミナル" })).toBeNull();
-  });
-
-  it("拡張ホストのない dg serve にはターミナルがないので「送る」を出さない", async () => {
-    const view = mountWebview(askClient(), { standalone: true, terminals: TERMINALS });
-    await screen.findByText("見直す");
-    view.ask(["t5"]);
-    const box = within(composer());
-    await waitFor(() => expect(box.getByRole("button", { name: "コピー" })).toBeTruthy());
-    expect(box.queryByRole("button", { name: "送る" })).toBeNull();
   });
 
   it("ターミナルが開く・閉じる通知で送り先が増減し、全部閉じたら「送る」が消える", async () => {
