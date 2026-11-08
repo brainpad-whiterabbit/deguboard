@@ -1,0 +1,39 @@
+{
+  "id": "r20261108-125830-541a",
+  "ticket": "t573",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-08T12:58:30Z",
+  "finished_at": "2026-11-08T13:01:48Z",
+  "result": "success",
+  "error": null,
+  "retries": 8,
+  "retry_reasons": [
+    "ADR-007 の core の worktree・ブランチの記述が実装と違う",
+    "ADR-007 のテスト例外の正本の指し先が違い、PR 本文の対応表も直す",
+    "ADR-002 の理由とドライバ不調時の扱いの文言が消えている",
+    "ADR-007 の更新直後の読み直しの判断が消えている",
+    "ADR-003 の Core が固定する同一 Status への move の拒否が消えている",
+    "ADR-002 の製品名・接頭辞・CLI 名の食い違いを直す",
+    "ADR-002 の .gitattributes の記述が消えている",
+    "ADR-002・007 の残った細部（merge.ts・sprint エイリアス・ACTION_NAMES）を正本を確かめて削る"
+  ],
+  "usage": {
+    "input": 36,
+    "output": 25591,
+    "cache_read": 977120,
+    "cache_write": 66215
+  },
+  "tools": {
+    "read": 4,
+    "search": 0,
+    "write": 9,
+    "bash": 15,
+    "other": 1,
+    "read_before_write": 4,
+    "search_before_write": 0
+  },
+  "session": "63c10282-cee5-4e4c-93a6-ae7836a9c5b1",
+  "review": null
+}
