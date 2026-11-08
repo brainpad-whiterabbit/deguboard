@@ -1,0 +1,34 @@
+{
+  "id": "r20261108-131204-66ac",
+  "ticket": "t570",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-08T13:12:04Z",
+  "finished_at": "2026-11-08T13:14:14Z",
+  "result": "success",
+  "error": null,
+  "retries": 3,
+  "retry_reasons": [
+    "置き換えるものの文を ADR-004 の失効の印の範囲に合わせる",
+    "主体とセッションの見出しがサブエージェントの主体まで harness が決めるように読める",
+    "理由と採らなかった案から落ちた 3 つを足す"
+  ],
+  "usage": {
+    "input": 18,
+    "output": 4271,
+    "cache_read": 345045,
+    "cache_write": 35773
+  },
+  "tools": {
+    "read": 1,
+    "search": 0,
+    "write": 5,
+    "bash": 6,
+    "other": 1,
+    "read_before_write": 1,
+    "search_before_write": 0
+  },
+  "session": "63c10282-cee5-4e4c-93a6-ae7836a9c5b1",
+  "review": null
+}
