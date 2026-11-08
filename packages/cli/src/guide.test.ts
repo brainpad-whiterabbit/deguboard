@@ -168,6 +168,16 @@ describe("dg guide", () => {
     for (const word of ["ADR-001", "テストとコメント"]) expect(criteria, word).toContain(word);
   });
 
+  it("import は本文の項目の引用しない値の行末コメントが拒まれると書き、直し方はエラーの文に任せる", async () => {
+    const comment = lineWith(await readGuide("import"), "行末コメントは拒まれる");
+    for (const word of [
+      "title・summary・acceptance・body",
+      "直し方はエラーの文",
+      "行だけのコメントは使える",
+    ])
+      expect(comment, word).toContain(word);
+  });
+
   it("audit は ADR の細部と実装のずれを「ADR の細部を消す」として起票し、意図した設計はテストかコメントで押さえる起票を勧める", async () => {
     const audit = await readGuide("audit");
     expect(audit).toContain("「ADR の細部を消す」");
