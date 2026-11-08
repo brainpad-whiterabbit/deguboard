@@ -69,9 +69,8 @@ describe("dg skill install", () => {
     }
   });
 
-  it("9 本の Skill の冒頭に、core の SKILL_SUMMARY の日本語の 1 文が入る（英語の文は小窓が引く）", async () => {
+  it("すべての Skill の冒頭に、core の SKILL_SUMMARY の日本語の 1 文が入る（英語の文は小窓が引く）", async () => {
     const skills = await buildSkills();
-    expect(skills).toHaveLength(9);
     expect(Object.keys(SKILL_SUMMARY).sort()).toEqual(skills.map((s) => s.name).sort());
     for (const s of skills) {
       expect(s.content).toContain(`\n${skillSummary(s.name, "ja")}\n`);

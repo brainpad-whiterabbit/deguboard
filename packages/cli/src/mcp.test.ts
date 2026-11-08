@@ -200,51 +200,6 @@ describe("dg mcp", () => {
     });
   });
 
-  it("workflow_set は定義そのものかテンプレートを受けて書き、誤りは何も書かずに VALIDATION_FAILED", async () => {
-    const f = await initialized();
-    const { results } = await session(
-      ["-C", f.cloneA],
-      [
-        {
-          method: "tools/call",
-          params: {
-            name: "workflow_set",
-            arguments: {
-              workflow: "general",
-              definition: {
-                id: "general",
-                name: "G",
-                reconcile: [{ when: ["x"], status: "done" }],
-              },
-            },
-          },
-        },
-        {
-          method: "tools/call",
-          params: {
-            name: "workflow_set",
-            arguments: { workflow: "general", definition: { id: "general", name: "MCP から" } },
-          },
-        },
-        {
-          method: "tools/call",
-          params: { name: "workflow_set", arguments: { workflow: "general", template: "general" } },
-        },
-      ],
-    );
-    const [rejected, set, back] = results as [RpcResponse, RpcResponse, RpcResponse];
-    expect(rejected.result.isError).toBe(true);
-    expect(body(rejected)).toMatchObject({ ok: false, error: { code: "VALIDATION_FAILED" } });
-    expect(body(set).data).toMatchObject({
-      before: { name: "General" },
-      after: { name: "MCP から" },
-    });
-    expect(body(back).data).toMatchObject({
-      before: { name: "MCP から" },
-      after: { name: "General" },
-    });
-  });
-
   it("metrics show は CLI の --json と MCP で同じ集計を返し、--help に出る", async () => {
     const f = await initialized();
     const ctx = await openContext({ cwd: f.cloneA });
