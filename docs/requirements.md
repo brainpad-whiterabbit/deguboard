@@ -42,8 +42,8 @@ deguboard は、Git で管理するチケットとユーザー定義のワーク
 
 ## 4. ユースケース
 
-- **ソフトウェア開発**：エージェントが要件をチケットに分解し、Epic に束ね、依存を付けて Iteration に入れる。チケットごとに claim して作業ブランチで実装し、PR を作る。別のエージェントか人がレビューし、マージされると照合で done になる。Run に使用量が残る
-- **コンサルティング**：調査・分析・資料作成・レビューの工程を Workflow の step として定義し、同じ仕組みでチケットを進める。PR はなく、成果物のブランチがマージされると done になる
+- **ソフトウェア開発**：チケットを claim して作業ブランチと PR で進め、マージされると照合で done になる
+- **コンサルティング**：工程を Workflow の step で表して同じ仕組みで進め、PR のない成果物のブランチのマージで done になる
 
 ## 5. データ要件
 
@@ -271,15 +271,9 @@ steps: # 任意（WF-5）
 
 ## 7. 非機能要件
 
-- NF-1 外部の専用サーバーなしで動く。リモートがなければオフラインでもタスク管理ができる（SY-6）
-- NF-2 CLI・HTTP・VS Code 拡張は同じ Core のコマンド定義を使い、ビジネスロジックを重複実装しない（CL-6）
+機能要件と重なる項は 6 章に置く（オフライン SY-6、Core の共有 CL-6、原子的な書き込み DT-1、競合 SY-4、遷移の制約 ST-2、Run の復旧 EX-2、バインド UI-8、コマンドの実行 WF-2・AG-7）。消した番号は再利用しない。
+
 - NF-3 データ形式は人と AI の両方が読める（Markdown・YAML・JSON）
-- NF-4 更新は検証と原子的な書き込みを行い、ファイルを壊さない
-- NF-5 同時更新の競合を検出して報告する
-- NF-6 Workflow の `transitions` の制約に反する状態遷移を作れない
-- NF-7 Run の停止・失敗から、状態を壊さずに復旧できる
-- NF-8 サーバーは既定で localhost にバインドする（UI-8）
-- NF-9 Workflow に書かれた任意のコマンドを無条件に実行しない
 - NF-10 Git 管理するログと実績に秘密情報を含めない
 - NF-11 `core` は VS Code API・HTTP・React に依存しない。依存の向きは [ADR-007](adr/ADR-007-architecture.md)
 
@@ -287,10 +281,10 @@ steps: # 任意（WF-5）
 
 次のものは範囲に含めない。必要になったら判断を ADR で決めてから本書に足す。
 
-- deguboard がエージェントを起動・監視すること、ツール側のスケジューラ（[ADR-028](adr/ADR-028-agents-and-state.md)・[ADR-011](adr/ADR-011-procedure-in-code.md)）
-- Milestone（Iteration で表す。[ADR-009](adr/ADR-009-epic-and-iteration.md)）
-- Epic の入れ子と、チケットの親子関係（サブタスク）。束ねるのは Epic の 1 段だけ（[ADR-009](adr/ADR-009-epic-and-iteration.md)）
-- 推定費用の記録（[ADR-029](adr/ADR-029-work-metrics.md)）
+- deguboard がエージェントを起動・監視すること、ツール側のスケジューラ
+- Milestone（Iteration で表す）
+- Epic の入れ子と、チケットの親子関係（サブタスク）
+- 推定費用の記録
 - Workflow の条件に利用者のスクリプトを使うこと
 - 複数 PC 間の排他（claim の push で足りる）
 - Webhook によるリアルタイム同期、外部への通知
