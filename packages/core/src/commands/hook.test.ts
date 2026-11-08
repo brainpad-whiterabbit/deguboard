@@ -11,6 +11,7 @@ import { openContext } from "./context.js";
 import { runCommand, type CommandContext } from "./define.js";
 import {
   advancesPrOutsideDg,
+  GH_PR_DENIED,
   hook,
   hookTiming,
   parseMarker,
@@ -1240,7 +1241,7 @@ describe("PreToolUse（t532）", () => {
       expect(writesDataDir(c), c).toBe(false);
   });
 
-  it("dg を経由しない gh pr merge・ready を、PR の指定・包むコマンド・置き換え・任意の言語のコードの中でも見つける（PR 482 で読み違えた例を含む）", () => {
+  it("dg を経由しない gh pr merge・ready を、PR の指定・包むコマンド・置き換え・任意の言語のコードの中でも、字句を読まずに見つける（PR 482 で読み違えた例を含む）", () => {
     for (const c of [
       "gh pr merge 12 --squash",
       "gh pr ready",
@@ -1259,67 +1260,60 @@ describe("PreToolUse（t532）", () => {
       "sh <<'EOF'\ngh pr merge 482\nEOF",
       "eval 'gh pr merge 482'",
       'echo "gh pr merge 482" | sh',
-      "echo gh pr merge 482 | bash",
       "xargs gh pr merge < prs.txt",
-      "echo 482 | xargs -I{} gh pr merge {}",
-      // 前の代入・包むコマンド・括弧・予約語・関数・置き換え
+      "echo merge 1 | xargs gh pr",
+      // 前の代入・包むコマンド・括弧・予約語・置き換え・絶対パス・行の継ぎ
       "DEGUBOARD_ACTOR=agent gh pr merge 482",
-      "env gh pr merge 482",
       "sudo -u me gh pr merge 482",
       "(cd /x && gh pr merge 482)",
       "for p in 1 2; do gh pr merge $p; done",
       "if gh pr ready 482; then echo ok; fi",
-      "{ gh pr merge 482; }",
-      "function f { gh pr merge 482; }",
       "echo $(gh pr merge 482)",
-      'echo "$(gh pr merge 482)"',
-      "echo `gh pr merge 482`",
-      '$(echo "gh pr merge 482")',
+      "$(which gh) pr merge 1",
+      "GH=gh; $GH pr merge 1",
       "/usr/bin/gh pr merge 482",
       "gh pr \\\n  merge 482",
       'gh pr "merge" 482',
+      "gh pr merge --help",
+      // 取り消しの後に続けた呼び出しと、-- の後の --undo
       "gh pr ready 482 --undo && gh pr merge 482",
-      // gh api の同じ操作と、引用符で囲んだ置き換えのヒアドキュメントの外
+      "gh pr ready 1 -- --undo",
+      // dg pr の後に続けた gh
+      "mise run dg -- pr merge t1; gh pr merge 1",
+      // gh api の同じ操作
       "gh api -X PUT repos/o/r/pulls/482/merge",
       "gh api graphql -f query='mutation { mergePullRequest(input: {}) { clientMutationId } }'",
-      "git commit -m \"$(cat <<'EOF'\n本文\nEOF\n)\" && gh pr merge 482",
-      "cat <<EOF\n$(gh pr merge 482)\nEOF",
-      "./merge.sh 'gh pr merge 482'",
-      // シェルと違う読み方で伏せない：コメントの中の引用符・ANSI-C の引用・終わりの語の行を越えるヒアドキュメント
-      "echo a # it's done\ngh pr merge 1\necho 'b'",
-      "echo $'\\'' ; gh pr merge 1 ; echo ''",
-      "git commit -m \"$(cat <<'EOF'\nfoo\nEOF\ngh pr merge 1\nEOF\n)\"",
-      // 変数・置き換えで書いた gh と操作、引用符と \ で分けた語、xargs に渡す引数
-      "GH=gh; $GH pr merge 1",
-      "$(which gh) pr merge 1",
-      "`which gh` pr merge 1",
-      "OP=merge; gh pr $OP 1",
-      "SUB=pr; gh $SUB merge 1",
-      'gh pr "mer""ge" 1',
-      "gh pr mer''ge 1",
-      "gh pr m\\erge 1",
-      "g\\h pr merge 1",
-      "echo merge 1 | xargs gh pr",
-      "echo 'pr merge 1' | xargs gh",
-      "gh pr merge 1 --squash --subject --help",
-      "gh pr merge --help",
-      "gh pr ready 1 -- --undo",
       // 任意の言語のコードでは pr と merge が隣り合わない
       "python3 - <<'EOF'\nimport subprocess\nsubprocess.run([\n  'gh',\n  'pr',\n  'merge',\n  '1',\n])\nEOF",
       "python3 -c \"import os; os.system('gh pr ' + 'merge 1')\"",
-      // コメントの中の引用符を、前段のコマンドの分解でも引用と読まない
-      "echo start # it's\necho 'gh pr merge 1' | xargs -I{} sh -c '{}'\necho 'x'",
-      "echo # '\necho 'gh pr merge 1' | sh\n'",
-      // 引数でプログラムを渡せるコマンドの引用符は伏せない
       "git fetch --upload-pack=\"sh -c 'gh pr merge 1'\" /tmp/x",
-      'git grep -O"gh pr merge 1" foo',
-      "sort --compress-program='sh -c \"gh pr merge 1\"' x",
-      "mise run deploy -- 'gh pr merge 1'",
     ])
       expect(advancesPrOutsideDg(c), c).toBe(true);
   });
 
-  it("字句で文字と言い切れるもの（文字を扱うコマンドの引用符・ヒアドキュメントの中）と、ほかの gh・dg pr は通す", () => {
+  it("本文の引用符・ヒアドキュメント・コメントの中の gh pr merge・ready の語も伏せずに止め、拒む文がファイル渡しの道を案内する", () => {
+    for (const c of [
+      'echo "gh pr merge 482 を打つ"',
+      "echo ok # gh pr merge はまだ打たない",
+      "git commit -m 'gh pr merge を止める'",
+      "git commit -F - <<'EOF'\ngh pr merge 482 を止める\nEOF",
+      "git commit -m \"$(cat <<'EOF'\ngh pr merge 482 を止める\nEOF\n)\"",
+      'gh pr create --draft --title "t545" --body "gh pr ready は dg のコマンドで"',
+      "gh pr comment 482 --body 'gh pr merge はまだ'",
+      "cat > /tmp/note.md <<'EOF'\ngh pr merge 482\nEOF",
+    ])
+      expect(advancesPrOutsideDg(c), c).toBe(true);
+    expect(GH_PR_DENIED).toContain("--body-file");
+    expect(GH_PR_DENIED).toContain("git commit -F");
+    // ファイルで渡せば通る
+    for (const c of [
+      "gh pr create --draft --title t555 --body-file /tmp/body.md",
+      "git commit -F /tmp/msg.txt",
+    ])
+      expect(advancesPrOutsideDg(c), c).toBe(false);
+  });
+
+  it("dg pr ready・dg pr merge（mise run dg -- pr … も）と gh pr ready --undo、PR を進めない gh は通す", () => {
     for (const c of [
       "gh pr view 482",
       "gh pr list --state merged",
@@ -1328,23 +1322,14 @@ describe("PreToolUse（t532）", () => {
       "gh pr checks 482 && git merge-base main HEAD",
       "mise run dg -- --json --actor agent pr merge t545",
       "DEGUBOARD_ACTOR=agent mise run dg -- pr ready t545",
+      "dg pr ready t1",
       'mise run dg -- pr merge t545 --delete-branch && echo "$HOME" && gh pr view 1',
       "node packages/cli/bin/dg.js pr ready t1",
-      "echo ok # gh pr merge はまだ打たない",
       "cd $WT && mise run check && mise run dg -- pr merge t545",
       "python3 scripts/x.py && gh pr view 5 --json mergeable",
-      'grep -rn "gh pr merge" packages',
-      "grep -rn 'gh pr ready' docs",
-      'echo "gh pr merge 482 を打つ"',
-      "git commit -m 'gh pr merge を止める'",
-      "git commit -F - <<'EOF'\ngh pr merge 482 を止める\nEOF",
-      "git commit -m \"$(cat <<'EOF'\ngh pr merge 482 を止める\nEOF\n)\"",
-      'gh pr create --draft --title "t545" --body "gh pr ready は dg pr ready で"',
-      "gh pr create --body \"$(cat <<'EOF'\n- gh pr merge を dg pr merge にする\nEOF\n)\"",
-      "gh pr comment 482 --body 'gh pr merge はまだ'",
-      'mise run dg -- ticket update t1 --body "gh pr ready の前に"',
-      "cat > /tmp/note.md <<'EOF'\ngh pr merge 482\nEOF",
-      "echo 'gh pr merge 482' 2>&1 | tee /tmp/x",
+      // gh の語がなければ、pr・merge の語があっても通す
+      'git commit -m "dg pr merge で PR を進める"',
+      "git merge origin/main && echo pr",
     ])
       expect(advancesPrOutsideDg(c), c).toBe(false);
   });
