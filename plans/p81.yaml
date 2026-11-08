@@ -19,7 +19,7 @@ after:
     - t577
   t579:
     - t578
-pending_approval: true
+pending_approval: false
 details:
   t568:
     scope: ADR-001 を直接改訂し、ADR を書く場面・細部を消す道・まとめ直し・置き換え済みの本文の削り方・要件の 1 項の上限を決め、CLAUDE.md と adr/README.md を合わせる
@@ -73,3 +73,5 @@ details:
     scope: check:docs に要件の 1 項の上限の検査と、置き換え済みの ADR への参照の検査を足す
     approach: scripts/check-docs.mjs に 2 つの検査を足し、test/scripts/check-docs.test.ts に通る例と落ちる例を書く
     tier: standard
+approved_by: maji/agent
+approved_at: 2026-11-08T12:27:04Z
