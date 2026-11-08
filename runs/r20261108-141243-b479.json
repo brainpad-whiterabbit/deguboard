@@ -1,0 +1,36 @@
+{
+  "id": "r20261108-141243-b479",
+  "ticket": "t574",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-08T14:12:43Z",
+  "finished_at": "2026-11-08T14:14:24Z",
+  "result": "success",
+  "error": null,
+  "retries": 5,
+  "retry_reasons": [
+    "requirements のスケジューラの参照先を ADR-011 にも向ける",
+    "ADR-028 の状態前進の節に ADR-004 の理由 2 つを戻す",
+    "ADR-029 の理由に finished_at で区切る理由を戻す",
+    "ADR-008 の lint の方針を ADR-008 に戻し development.md は細部だけにする",
+    "reclaim テストのコメントの参照を ADR-025 にする"
+  ],
+  "usage": {
+    "input": 12,
+    "output": 3441,
+    "cache_read": 187511,
+    "cache_write": 26697
+  },
+  "tools": {
+    "read": 0,
+    "search": 0,
+    "write": 0,
+    "bash": 6,
+    "other": 1,
+    "read_before_write": 0,
+    "search_before_write": 0
+  },
+  "session": "63c10282-cee5-4e4c-93a6-ae7836a9c5b1",
+  "review": null
+}
