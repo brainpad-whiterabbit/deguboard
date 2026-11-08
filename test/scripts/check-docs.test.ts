@@ -1,18 +1,23 @@
 // scripts/check-docs.mjs が ADR の更新日と一覧（docs/adr/README.md）の更新日の食い違い（t210）と、README.md と README.ja.md の節の構成のずれ（t464）で落ちることを確かめる。
 // 拡張と Walkthrough が指す README の見出しアンカーが切れたときも落ちる（t524）。
+// 要件 ID・先頭コメント・guide の重複の検査が落ちることも確かめる（t536）。
 // スクリプトは自分の置き場所の親をルートとして読むので、検査に要るファイルを一時ディレクトリに写して動かす。
+// 調べるファイルは git の追跡と無視の規則で決まるので、一時ディレクトリは git init して .gitignore も写す。
 // 写さないファイルへのリンクの切れも出るので、確かめる指摘だけを見る
 
 import { execFile } from "node:child_process";
-import { cp, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { promisify } from "node:util";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+const execFileAsync = promisify(execFile);
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const COPIED = [
   "scripts/check-docs.mjs",
+  ".gitignore",
   "CLAUDE.md",
   "README.md",
   "README.ja.md",
@@ -23,6 +28,8 @@ const COPIED = [
 ];
 const ADR = "docs/adr/ADR-008-tech-stack.md";
 const ANCHOR = "#getting-started-before-release";
+// 検査が本リポジトリのテストの文字列を要件 ID と読まないよう、存在しない ID は組み立てて書く
+const UNKNOWN_ID = ["TK", "999"].join("-");
 
 let dir: string;
 
@@ -31,6 +38,7 @@ beforeEach(async () => {
   for (const rel of COPIED) {
     await cp(join(ROOT, rel), join(dir, rel), { recursive: true });
   }
+  await execFileAsync("git", ["init", "-q"], { cwd: dir });
 });
 
 afterEach(async () => {
@@ -192,14 +200,29 @@ describe("check-docs の要件 ID・先頭コメント・guide の重複（t536�
   });
 
   it("requirements.md にない要件 ID を参照すると、場所を出して落ちる", async () => {
-    // 検査が本リポジトリのテストの文字列を要件 ID と読まないよう、ID は組み立てて書く
-    const missing = ["TK", "999"].join("-");
-    await writeFile(join(dir, "packages/cli/src/zz-probe.ts"), `// 要件 ${missing} の確かめ\n`);
+    await writeFile(join(dir, "packages/cli/src/zz-probe.ts"), `// 要件 ${UNKNOWN_ID} の確かめ\n`);
     const { code, stderr } = await run();
     expect(code).toBe(1);
     expect(stderr).toContain(
-      `packages/cli/src/zz-probe.ts:1: 要件 ID ${missing} が docs/requirements.md にない`,
+      `packages/cli/src/zz-probe.ts:1: 要件 ID ${UNKNOWN_ID} が docs/requirements.md にない`,
     );
+  });
+
+  it("git が無視するビルドの成果物の中の ID は読まない", async () => {
+    const built = join(dir, "packages/cli/web/assets/index-x.js");
+    await mkdir(dirname(built), { recursive: true });
+    await writeFile(built, `var a = "${UNKNOWN_ID}";\n`);
+    const { stderr } = await run();
+    expect(stderr).not.toContain(UNKNOWN_ID);
+  });
+
+  it("接頭辞が要件 ID でない語（UTF-8・SHA-256・ISO-8601）は指摘しない", async () => {
+    await writeFile(
+      join(dir, "packages/cli/src/zz-probe.ts"),
+      '// UTF-8 と SHA-256 と ISO-8601 の話\nexport const enc = "UTF-8";\n',
+    );
+    const { stderr } = await run();
+    expect(stderr).not.toContain("要件 ID");
   });
 
   it("先頭コメントが指す節・ADR・docs のパスと見出し・guide が存在しないと落ちる", async () => {
@@ -223,5 +246,30 @@ describe("check-docs の要件 ID・先頭コメント・guide の重複（t536�
     const { code, stderr } = await run();
     expect(code).toBe(1);
     expect(stderr).toMatch(/guide-plan\.md, guide-work\.md: 同じ段落がある/);
+  });
+
+  it("40 字未満の短い箇条書きだけの同じ節は指摘しない", async () => {
+    for (const rel of ["packages/cli/src/guide-plan.md", "packages/cli/src/guide-work.md"]) {
+      await writeFile(
+        join(dir, rel),
+        `${await readFile(join(dir, rel), "utf8")}\n## 短い節\n\n- 一行目\n- 二行目\n`,
+      );
+    }
+    const { stderr } = await run();
+    expect(stderr).not.toContain("短い節");
+  });
+
+  it("40 字以上の同じ節の本文は、見出しと両方の guide の名前を出して落ちる", async () => {
+    const body =
+      "この節の本文は二つの guide に同じ文として置かれていて、正本を 1 本にする必要がある。";
+    for (const rel of ["packages/cli/src/guide-plan.md", "packages/cli/src/guide-work.md"]) {
+      await writeFile(
+        join(dir, rel),
+        `${await readFile(join(dir, rel), "utf8")}\n## 長い節\n\n${body}\n`,
+      );
+    }
+    const { code, stderr } = await run();
+    expect(code).toBe(1);
+    expect(stderr).toMatch(/guide-plan\.md, guide-work\.md: 見出し「長い節」の節の本文が同じ/);
   });
 });

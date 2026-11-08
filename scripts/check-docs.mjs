@@ -1,13 +1,20 @@
 // 文書とコードの参照を検査する（docs/adr/ADR-001-doc-strategy.md）。大きさの予算は持たない。検査するのは、ADR 一覧の整合と更新日の一致・リンクと見出しアンカーの切れ・拡張と Walkthrough が指す README の見出しアンカー・README.md と README.ja.md の節の構成のずれ・コードとテストの要件 ID・コードの先頭コメントの参照・guide どうしの重複。
+// 文書の重複は今は guide どうしだけを見る（guide 以外の文書の重複は検査しない）。
 // 要件 ID は docs/requirements.md の箇条書き「- XX-N」で定義されたものに限る。接頭辞は定義から取り、定義にない番号を参照していたら指摘する。先頭コメントは最初の // の行で、requirements.md の節番号・ADR・docs のパス（#アンカー）・guide-*.md を照らす。
 // guide の重複は、同じ見出しの節の本文が同じとき、または同じ段落（40 字以上。空行・見出し・表・コードで切り、箇条書きの 1 項目も 1 段落）が 2 本以上の guide にあるときに指摘する。frontmatter と ``` の中は除く。短い選択肢や定型句は同じ語でよいので対象にしない。
-// 依存なしで動かす。mise run check:docs から呼ぶ。
+// 調べるファイルは git が追跡しているか無視されていないもの（.gitignore のビルドの成果物は読まない）。git のリポジトリの中で動かす。
+// 依存なしで動かす（git だけは execFile で呼ぶ）。mise run check:docs から呼ぶ。
+import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { promisify } from "node:util";
 
+const execFileAsync = promisify(execFile);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+// 調べるファイルの一覧（root からの相対パス）。ビルドの成果物などの無視されたファイルは含まない
+const tracked = await gitFiles();
 
 // dg guide のトピック（guide-*.md）の置き場所。CLI に同梱する手順の本文
 const guideDir = "packages/cli/src";
@@ -103,10 +110,7 @@ const readmeUrl =
   /https:\/\/github\.com\/brainpad-whiterabbit\/deguboard(?:\/blob\/[^/\s"'`)]+\/README\.md)?#([^\s"'`)]+)/g;
 let readmeAnchorCount = 0;
 let readmeSlugs = null;
-for (const rel of await filesUnder(
-  ["packages/vscode/src", "packages/vscode/media"],
-  [".ts", ".md"],
-)) {
+for (const rel of filesUnder(["packages/vscode/src", "packages/vscode/media"], [".ts", ".md"])) {
   const lines = (await readFile(path.join(root, rel), "utf8")).split("\n");
   for (const [i, line] of lines.entries()) {
     for (const m of line.matchAll(readmeUrl)) {
@@ -140,11 +144,7 @@ const requirementIds = new Set(
   [...requirementsText.matchAll(/^- ([A-Z]{2,3})-(\d+)(?![0-9])/gm)].map((m) => `${m[1]}-${m[2]}`),
 );
 const requirementPrefixes = new Set([...requirementIds].map((id) => id.split("-")[0]));
-const sources = [
-  ...(await walk("packages", SOURCE_EXTS)),
-  ...(await walk("scripts", SOURCE_EXTS)),
-  ...(await walk("test", SOURCE_EXTS)),
-].sort();
+const sources = filesUnder(["packages", "scripts", "test"], SOURCE_EXTS);
 let requirementRefCount = 0;
 for (const rel of sources) {
   const lines = (await readFile(path.join(root, rel), "utf8")).split("\n");
@@ -313,25 +313,24 @@ async function markdownFilesUnder(dir) {
     .sort();
 }
 
-/** 指定したフォルダの下のファイルのうち、拡張子が exts のものを返す */
-async function filesUnder(dirs, exts) {
-  return (await Promise.all(dirs.map((dir) => walk(dir, exts)))).flat().sort();
+/** git が追跡しているか無視されていないファイルのうち、いま存在するものを root からの相対パスで返す */
+async function gitFiles() {
+  const { stdout } = await execFileAsync(
+    "git",
+    ["ls-files", "--cached", "--others", "--exclude-standard", "-z"],
+    { cwd: root, maxBuffer: 64 * 1024 * 1024 },
+  );
+  return stdout
+    .split("\0")
+    .filter((f) => f !== "" && existsSync(path.join(root, f)))
+    .sort();
 }
 
-/** 指定したフォルダの下のファイルのうち、拡張子が exts のものを root からの相対パスで返す。node_modules・dist・. で始まるフォルダは見ない */
-async function walk(dir, exts) {
-  const abs = path.join(root, dir);
-  if (!existsSync(abs)) return [];
-  const found = [];
-  for (const e of await readdir(abs, { withFileTypes: true })) {
-    if (e.isDirectory()) {
-      if (e.name === "node_modules" || e.name === "dist" || e.name.startsWith(".")) continue;
-      found.push(...(await walk(path.join(dir, e.name), exts)));
-    } else if (e.isFile() && exts.some((x) => e.name.endsWith(x))) {
-      found.push(path.join(dir, e.name));
-    }
-  }
-  return found;
+/** tracked のうち、dirs の下にあって拡張子が exts のものを返す */
+function filesUnder(dirs, exts) {
+  return tracked.filter(
+    (f) => dirs.some((d) => f.startsWith(`${d}/`)) && exts.some((x) => f.endsWith(x)),
+  );
 }
 
 /** 行ごとの配列にし、```のコードブロックの中とインラインコードは空にする（行番号は保つ） */
