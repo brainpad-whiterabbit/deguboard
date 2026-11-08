@@ -1,6 +1,7 @@
 // scripts/check-docs.mjs が ADR の更新日と一覧（docs/adr/README.md）の更新日の食い違い（t210）と、README.md と README.ja.md の節の構成のずれ（t464）で落ちることを確かめる。
 // 拡張と Walkthrough が指す README の見出しアンカーが切れたときも落ちる（t524）。
 // 要件 ID・先頭コメント・guide の重複の検査が落ちることも確かめる（t536）。
+// 段落の重複は guide だけでなく README・CLAUDE.md・docs の正本の外の文書も見る（t551）。
 // スクリプトは自分の置き場所の親をルートとして読むので、検査に要るファイルを一時ディレクトリに写して動かす。
 // 調べるファイルは git の追跡と無視の規則で決まるので、一時ディレクトリは git init して .gitignore も写す。
 // 写さないファイルへのリンクの切れも出るので、確かめる指摘だけを見る
@@ -245,7 +246,9 @@ describe("check-docs の要件 ID・先頭コメント・guide の重複（t536�
     }
     const { code, stderr } = await run();
     expect(code).toBe(1);
-    expect(stderr).toMatch(/guide-plan\.md, guide-work\.md: 同じ段落がある/);
+    expect(stderr).toMatch(
+      /packages\/cli\/src\/guide-plan\.md:\d+, packages\/cli\/src\/guide-work\.md:\d+: 同じ段落がある/,
+    );
   });
 
   it("40 字未満の短い箇条書きだけの同じ節は指摘しない", async () => {
@@ -270,6 +273,71 @@ describe("check-docs の要件 ID・先頭コメント・guide の重複（t536�
     }
     const { code, stderr } = await run();
     expect(code).toBe(1);
-    expect(stderr).toMatch(/guide-plan\.md, guide-work\.md: 見出し「長い節」の節の本文が同じ/);
+    expect(stderr).toMatch(
+      /packages\/cli\/src\/guide-plan\.md, packages\/cli\/src\/guide-work\.md: 見出し「長い節」の節の本文が同じ/,
+    );
+  });
+});
+
+describe("check-docs の正本の外の文書の段落の重複（t551）", () => {
+  const SHARED = "この段落は二つの文書に同じ文として置かれていて、正本を 1 本にする必要がある。";
+
+  async function append(rel: string, text: string): Promise<void> {
+    await writeFile(join(dir, rel), `${await readFile(join(dir, rel), "utf8")}\n${text}\n`);
+  }
+
+  it("README.md の段落を docs/development.md に写すと、両方の場所を出して落ちる", async () => {
+    await append("README.md", SHARED);
+    await append("docs/development.md", SHARED);
+    const { code, stderr } = await run();
+    expect(code).toBe(1);
+    expect(stderr).toMatch(/README\.md:\d+/);
+    expect(stderr).toMatch(/docs\/development\.md:\d+/);
+    expect(stderr).toContain("同じ段落がある");
+  });
+
+  it("CLAUDE.md の段落を README.md と docs/requirements.md に写すと、3 か所を出して落ちる", async () => {
+    await append("CLAUDE.md", SHARED);
+    await append("README.md", SHARED);
+    await append("docs/requirements.md", SHARED);
+    const { code, stderr } = await run();
+    expect(code).toBe(1);
+    expect(stderr).toMatch(/同じ段落がある/);
+    expect(stderr).toMatch(/CLAUDE\.md:\d+/);
+    expect(stderr).toMatch(/README\.md:\d+/);
+    expect(stderr).toMatch(/docs\/requirements\.md:\d+/);
+  });
+
+  it("guide と docs/requirements.md の段落の重複も落ちる", async () => {
+    await append("packages/cli/src/guide-plan.md", SHARED);
+    await append("docs/requirements.md", SHARED);
+    const { code, stderr } = await run();
+    expect(code).toBe(1);
+    expect(stderr).toMatch(
+      /packages\/cli\/src\/guide-plan\.md:\d+, docs\/requirements\.md:\d+: 同じ段落がある/,
+    );
+  });
+
+  it("README.md と README.ja.md の同じ段落（訳どうし）は指摘しない", async () => {
+    await append("README.md", SHARED);
+    await append("README.ja.md", SHARED);
+    const { stderr } = await run();
+    expect(stderr).not.toContain("同じ段落");
+  });
+
+  it("ADR の段落は、ほかの文書と同じでも指摘しない（決めたら書き換えないので）", async () => {
+    await append("docs/adr/ADR-008-tech-stack.md", SHARED);
+    await append("CLAUDE.md", SHARED);
+    const { stderr } = await run();
+    expect(stderr).not.toContain("同じ段落");
+  });
+
+  it("39 字以下の段落の重複は指摘しない", async () => {
+    const short = "短い段落は同じ語でも対象にしない（三十九字以下の確かめ）。";
+    expect([...short].length).toBeLessThan(40);
+    await append("README.md", short);
+    await append("docs/development.md", short);
+    const { stderr } = await run();
+    expect(stderr).not.toContain("同じ段落");
   });
 });
