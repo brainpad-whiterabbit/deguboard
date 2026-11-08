@@ -1,0 +1,14 @@
+id: p80
+project: default
+tickets: [t566, t567]
+after: {}
+pending_approval: true
+details:
+  t566:
+    scope: チケット詳細の worktree 行の「新しいウィンドウで開く」と、openWorktree・openFolder・英訳・UI-4 の記述を消す。パスとコピーは残す
+    approach: worktree-row からボタンを外し、core の client.ts・web の host と client・拡張の webview.ts と extension.ts の openWorktree を順に消して、テストと requirements.md を直す
+    tier: heavy
+  t567:
+    scope: ask-composer.test.tsx の「カンバンで選んでいる Iteration を対象にする」の確率の失敗だけを直す。テスト名と確かめる中身は変えない
+    approach: 札の aria-pressed など、カンバンが対象を知らせたことを待ってから askCurrent() を送る
+    tier: standard
