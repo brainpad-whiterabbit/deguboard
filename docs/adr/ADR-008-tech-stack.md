@@ -30,7 +30,7 @@
 
 ### lint は oxlint、整形は oxfmt
 
-- lint は oxlint（`.oxlintrc.json`）。既定の `correctness` から始め、規則は必要になったときに足す（plugin の選び方と規則の外し方は [development.md の「ビルドとテスト」](../development.md#ビルドとテスト)）
+- lint は oxlint（`.oxlintrc.json`）。既定の `correctness` から始め、規則は必要になったときに足す。指摘は直し、直すと振る舞いが変わるものと誤検知だけを行ごとに理由を書いて外す（plugin の選び方は [development.md の「ビルドとテスト」](../development.md#ビルドとテスト)）
 - 整形は oxfmt（`.oxfmtrc.json`）。既定の設定から始める
 - ESLint・Prettier・Biome は入れない
 - 版は package.json に固定する

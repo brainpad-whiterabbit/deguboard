@@ -284,7 +284,7 @@ steps: # 任意（WF-5）
 
 次のものは範囲に含めない。必要になったら判断を ADR で決めてから本書に足す。
 
-- deguboard がエージェントを起動・監視すること、ツール側のスケジューラ（[ADR-028](adr/ADR-028-agents-and-state.md)）
+- deguboard がエージェントを起動・監視すること、ツール側のスケジューラ（[ADR-028](adr/ADR-028-agents-and-state.md)・[ADR-011](adr/ADR-011-procedure-in-code.md)）
 - Milestone（Iteration で表す。[ADR-009](adr/ADR-009-epic-and-iteration.md)）
 - Epic の入れ子と、チケットの親子関係（サブタスク）。束ねるのは Epic の 1 段だけ（[ADR-009](adr/ADR-009-epic-and-iteration.md)）
 - 推定費用の記録（[ADR-029](adr/ADR-029-work-metrics.md)）
