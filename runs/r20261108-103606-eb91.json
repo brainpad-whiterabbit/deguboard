@@ -1,0 +1,35 @@
+{
+  "id": "r20261108-103606-eb91",
+  "ticket": "t496",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-08T10:36:06Z",
+  "finished_at": "2026-11-08T10:38:52Z",
+  "result": "success",
+  "error": null,
+  "retries": 4,
+  "retry_reasons": [
+    "ADR-006 の画面のタブの文言が失効の印に入らず、Run の画面をなくす ADR-023 と食い違う",
+    "ADR-010 のブラウザの項に置き換えの印がなく、コピーだけと画面の書き方が有効のまま残る",
+    "README の VS Code 向けの書き出しが、VS Code のほかの画面を思わせる",
+    "packages/web の runs.tsx のコメントで MT-3 が 2 回出ている"
+  ],
+  "usage": {
+    "input": 20,
+    "output": 14852,
+    "cache_read": 568395,
+    "cache_write": 68282
+  },
+  "tools": {
+    "read": 6,
+    "search": 0,
+    "write": 6,
+    "bash": 8,
+    "other": 1,
+    "read_before_write": 3,
+    "search_before_write": 0
+  },
+  "session": "9dfcafec-d8b9-4deb-8115-01ef1e339e7b",
+  "review": null
+}

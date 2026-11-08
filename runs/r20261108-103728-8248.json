@@ -1,0 +1,32 @@
+{
+  "id": "r20261108-103728-8248",
+  "ticket": "t450",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-08T10:37:28Z",
+  "finished_at": "2026-11-08T10:40:47Z",
+  "result": "success",
+  "error": null,
+  "retries": 1,
+  "retry_reasons": [
+    "ADR-008 の oxlint を留める項を ADR-024 で置き換え、版を留めない判断を記録する"
+  ],
+  "usage": {
+    "input": 34,
+    "output": 13312,
+    "cache_read": 889827,
+    "cache_write": 57232
+  },
+  "tools": {
+    "read": 3,
+    "search": 0,
+    "write": 3,
+    "bash": 14,
+    "other": 1,
+    "read_before_write": 0,
+    "search_before_write": 0
+  },
+  "session": "9dfcafec-d8b9-4deb-8115-01ef1e339e7b",
+  "review": null
+}
