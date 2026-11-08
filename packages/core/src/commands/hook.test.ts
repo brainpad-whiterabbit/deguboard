@@ -470,7 +470,9 @@ describe("dg hook（ADR-012）", () => {
       agent_transcript_path: subagent("a9"),
       last_assistant_message: "ok",
     });
-    expect(view.done).toEqual([expect.stringContaining(`Run ${run.id} の記録の場所`)]);
+    expect(view.done).toEqual(
+      expect.arrayContaining([expect.stringContaining(`Run ${run.id} の記録の場所`)]),
+    );
     expect((await readTranscriptPaths(ctx.repo)).get(run.id)).toBe(subagent("a9"));
   });
 
@@ -629,11 +631,16 @@ describe("dg hook の見直しで直した場面（ADR-012）", () => {
 
 describe("dg hook の移行の経路と兄弟の Run（ADR-012）", () => {
   /** 印のない A が自分で run start した記録。最初の行の時刻は A の Run の開始より前 */
-  async function selfStarted(ctx: CommandContext, file: string, extra: (mine: Run) => unknown[]) {
+  async function selfStarted(
+    ctx: CommandContext,
+    file: string,
+    extra: (mine: Run) => unknown[],
+    step = "review",
+  ) {
     const mine = (
       await runCommand(runStart, ctx, {
         ticket: "t1",
-        step: "review",
+        step,
         agent: "claude-code",
         session: SESSION,
       })
@@ -662,7 +669,9 @@ describe("dg hook の移行の経路と兄弟の Run（ADR-012）", () => {
       bashCall("dg --json run start t1 review", startOutput(m, [sibling!.id])),
     );
     const { view } = await stopA(ctx, subagent("a1"));
-    expect(view.done).toEqual([expect.stringContaining(`Run ${mine.id} の記録の場所`)]);
+    expect(view.done).toEqual(
+      expect.arrayContaining([expect.stringContaining(`Run ${mine.id} の記録の場所`)]),
+    );
     const paths = await readTranscriptPaths(ctx.repo);
     expect(paths.get(mine.id)).toBe(subagent("a1"));
     expect(paths.get(sibling!.id)).toBe(subagent("b1"));
@@ -716,7 +725,39 @@ describe("dg hook の移行の経路と兄弟の Run（ADR-012）", () => {
       ),
     );
     const { view } = await stopA(ctx, subagent("a1"));
-    expect(view.done).toEqual([expect.stringContaining(`Run ${mine.id} の記録の場所`)]);
+    expect(view.done).toEqual(
+      expect.arrayContaining([expect.stringContaining(`Run ${mine.id} の記録の場所`)]),
+    );
+  });
+
+  it("自分で開いた手直しの Run が push なしで返ったら、止まって待っている印を付けて開いたままにする（ADR-014）", async () => {
+    const { ctx, subagent } = await prepared();
+    const mine = await selfStarted(
+      ctx,
+      subagent("a1"),
+      (m) => bashCall("dg --json run start t1 fix", startOutput(m)),
+      "fix",
+    );
+    const { view } = await stopA(ctx, subagent("a1"));
+    expect(view.done).toEqual([
+      expect.stringContaining(`Run ${mine.id} の記録の場所`),
+      expect.stringContaining("止まって待っている"),
+    ]);
+    const [open] = await peekRunningRuns(ctx.repo);
+    expect(open).toMatchObject({ id: mine.id, step: "fix" });
+    expect(open!.waiting_since).not.toBeNull();
+  });
+
+  it("自分で開いた見直しの Run でも、step を終えた事実（見直しの結果）があれば印を付けない", async () => {
+    const { ctx, subagent } = await prepared();
+    const mine = await selfStarted(ctx, subagent("a1"), (m) =>
+      bashCall("dg --json run start t1 review", startOutput(m)),
+    );
+    await runCommand(runReviewResult, ctx, { ticket: "t1", heavy: 0, light: 1 });
+    await stopA(ctx, subagent("a1"));
+    const [open] = await peekRunningRuns(ctx.repo);
+    expect(open).toMatchObject({ id: mine.id, review: { heavy: 0, light: 1 } });
+    expect(open!.waiting_since).toBeNull();
   });
 });
 

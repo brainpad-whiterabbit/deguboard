@@ -6,7 +6,7 @@
 //   - subagent_started：同じ記録の開いた Run（親への質問で止まっていたもの）を続きとして使い、止まって待っている印と書き終わり待ちの印を消す
 //   - subagent_stopped：記録の場所で Run を引き、記録の最初の文の印で照らしてから、step を終えた事実があれば記録の書き終わりを待って
 //     記録の全体から数えて閉じる。事実がなければ閉じずに止まって待っている印を付ける。
-//     印のある Run がなければ、サブエージェントが自分で開いた Run（記録に ID が出る）に記録の場所を結び付ける（移行期の経路）
+//     印のある Run がなければ、サブエージェントが自分で開いた Run（記録に ID が出る）に記録の場所を結び付け、事実がなければ止まって待っている印を付ける（移行期の経路）
 //   - session_end：このセッションのサブエージェントの Run のうち開いたままのものをすべて閉じる。親が自分で開いた Run は残す
 //   どのイベントでも、扱うイベントなら読む項目の有無と時刻を deguboard-local/hook-inputs/ に残す（t542。dg hooks check が読む）
 //   どのフックの後も、前のフックで書き終わりを待ちきれずに残した Run を閉じる（dg sync も同じ）
@@ -136,7 +136,7 @@ export const hook = defineCommand({
     "harness のフックが呼ぶ（dg hooks install が設定に書く。人が打つものではない）。--payload - で標準入力のフックの入力（JSON）を読み、" +
     "セッションの始まりに主体とセッション ID・記録のパスを環境に入れ、頼んだ文の先頭に `deguboard: ticket=<id> step=<step>` の印のあるサブエージェントの Run を起動で開き" +
     "（同じチケットと step の Run が開いたままなら開かずに警告する。見直しは、その Run が別のセッションのものなら落ちたセッションの残りとみなして interrupted で閉じてから開く。前景の起動で起動より後にその Run に書かれた見直しの結果は、保留に移して新しい Run に結び付ける）、step を終えた事実があれば止まったときに閉じ" +
-    "（なければ止まって待っている印を付け、再開で続ける）、セッションの終わりにそのセッションのサブエージェントの開いたままの Run を閉じる。" +
+    "（なければ止まって待っている印を付け、再開で続ける。自分で開いた Run も同じ）、セッションの終わりにそのセッションのサブエージェントの開いたままの Run を閉じる。" +
     "ツールを使う前（PreToolUse）には、.git/deguboard/ の下への書き込み（書くツールと Bash）を拒み、gh pr merge・gh pr ready をそのチケットの dg gate で判定して満たさなければ止める" +
     "（PR に当たるチケットがなければ止めない。判定の途中で失敗したら止める。Bash の判定は字句の手がかりで、任意の言語のコードや eval の中は見ない）。" +
     "扱うイベントは、読む入力の項目の有無と時刻を deguboard-local/hook-inputs/ にイベントごとの最新の 1 件で残す（値は残さない。dg hooks check が読む）。ほかの失敗は作業を止めないよう、警告にして成功で返す",
@@ -602,7 +602,10 @@ async function subagentStarted(
   view.done.push(`${run.ticket} の ${run.step} の Run ${run.id} を続きとして使う（印を消した）`);
 }
 
-/** 移行期の経路：サブエージェントが自分で開いた Run に記録の場所を結び付け、閉じていれば取り直す */
+/**
+ * 移行期の経路：サブエージェントが自分で開いた Run に記録の場所を結び付け、閉じていれば取り直す。開いたままで、step を終えた事実が
+ * なければ（手直しで push がないなど）止まって待っている印を付ける。手直しは claim で自分で開くので、印のない返った Run をここで見分ける
+ */
 async function bindSelfOpened(
   ctx: CommandContext,
   agent: string,
@@ -612,11 +615,21 @@ async function bindSelfOpened(
   warnings: string[],
 ): Promise<void> {
   const ids = await mentionedRuns(ctx, transcript, agent, session);
+  const running = (await readRunningRuns(ctx.repo)).runs.map((r) => r.data);
   const closed: RunId[] = [];
   for (const id of ids) {
     await bindTranscript(ctx.repo, id, transcript);
     view.done.push(`Run ${id} の記録の場所をサブエージェントの記録にした`);
-    if (ctx.store.runs.has(id)) closed.push(id);
+    if (ctx.store.runs.has(id)) {
+      closed.push(id);
+      continue;
+    }
+    // 開いたままで返った Run にも、印のある Run と同じく、step を終えた事実がなければ止まって待っている印を付ける（ADR-014）。
+    // 事実があれば印は付けず、フックの終わりか次の機会に閉じる
+    const run = running.find((r) => r.id === id);
+    if (!run) continue;
+    const decided = await resultOf(ctx, run, ctx.store.tickets.get(run.ticket)?.data);
+    if (decided.result !== "success") await markWaiting(ctx, run, view);
   }
   if (closed.length === 0) return;
   const refreshed = await runCommand(runRefresh, ctx, { runs: closed });
