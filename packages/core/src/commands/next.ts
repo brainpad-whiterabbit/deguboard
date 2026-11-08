@@ -59,7 +59,7 @@ export interface NextStep {
   kind: NextKind;
   /** この手で開く Run の step（implement・review・fix。開かない手は null） */
   step: string | null;
-  /** 今実行中のこの手の Run（続ける）。なければ null */
+  /** 今実行中の Run。この手の Run（続ける）か、待つべき実装・手直しの Run（待つ手だけ）。なければ null */
   running_run: string | null;
   pr: number | null;
   /** Plan の段階・範囲・方針（開いた Plan に入っていれば） */
@@ -69,6 +69,9 @@ export interface NextStep {
   /** 人に伝えて答えを待つこと（wait_human・wait_merge）。なければ null */
   ask_human: string | null;
 }
+
+/** 実行中の Run を待つ（新しく起動しない）手。ほかの手（done・wait_deps・wait_merge など）は待たない */
+const WAITABLE: readonly NextKind[] = ["implement", "review", "fix", "ready"];
 
 /** 段階を求める材料（事実）。テストは事実を直に渡して求め方を確かめる */
 export interface StageFacts {
@@ -235,32 +238,43 @@ export function nextOf(ctx: CommandContext, facts: StageFacts): NextStep {
         }
       : null,
   };
-  const runningOf = (step: string) =>
-    facts.runs.find((r) => r.step === step && r.finished_at === null)?.id ?? null;
   const fixStep = facts.fixStep;
-  // 実装か手直しの Run が実行中（作業の途中で push が出ても、見直しを起動しない）
-  const working =
-    facts.runs.find(
-      (r) => r.finished_at === null && (r.step === facts.implementStep || r.step === fixStep),
-    )?.id ?? null;
+  // このブランチで始まって実行中の Run（branch_at より前は使い回したブランチの前の作業）
+  const since = facts.ticket.branch_at ?? "";
+  const openRuns = facts.runs.filter((r) => r.finished_at === null && r.started_at >= since);
+  // 手直しは、開始より後に push があれば直し終えたとみなす（見直しの開始がその Run を閉じる）
+  const pushedAfterStart = (r: Run) =>
+    facts.pushedAt !== undefined && facts.pushedAt >= r.started_at;
+  // 最後の見直しより前に始まった手直しは、その見直しの前の作業（見直しが今の状態を見ている）
+  const lastReviewAt = facts.runs
+    .filter((r) => r.step === REVIEW_STEP && r.started_at >= since)
+    .reduce((max, r) => (r.started_at > max ? r.started_at : max), "");
+  // 待つべき手直しの Run：開始より後に push がなく、最後の見直しより後に始まったもの
+  const liveFix = (r: Run) =>
+    r.step === fixStep && !pushedAfterStart(r) && r.started_at >= lastReviewAt;
+  const runningOf = (step: string) =>
+    openRuns.find((r) => r.step === step && (step !== fixStep || liveFix(r)))?.id ?? null;
+  // 待つべき実行中の Run：実装（ticket update --pr が閉じる）と、待つべき手直し。
+  // 作業の途中で push が出ても、直し終えたか区別できないので、ここでは見直しを起動しない（guide-review）
+  const working = openRuns.find((r) => r.step === facts.implementStep || liveFix(r))?.id ?? null;
   const make = (
     kind: NextKind,
     step: string | null,
     commands: string[],
     ask: string | null = null,
     running: string | null = step ? runningOf(step) : null,
-  ): NextStep => ({
-    ...base,
-    kind,
-    step,
-    running_run: running ?? (kind === "wait_human" ? null : working),
-    // その手か、実装・手直しの Run が実行中なら、新しく起動せずに終わりを待つ（Run を重ねない）
-    commands:
-      kind !== "wait_human" && (running ?? working)
-        ? [`実行中の Run ${running ?? working} の終わりを待つ（新しく起動しない）`]
-        : commands,
-    ask_human: ask,
-  });
+  ): NextStep => {
+    // その手の Run か待つべき Run が実行中なら、新しく起動せずに終わりを待つ（Run を重ねない）
+    const awaited = WAITABLE.includes(kind) ? (running ?? working) : null;
+    return {
+      ...base,
+      kind,
+      step,
+      running_run: running ?? awaited,
+      commands: awaited ? [`実行中の Run ${awaited} の終わりを待つ（新しく起動しない）`] : commands,
+      ask_human: ask,
+    };
+  };
   const dg = (args: string) => `dg --json --actor agent ${args}`;
   // フックがサブエージェントの Run を開け閉めする印（ADR-012）。委譲する親は claim に --no-run を付け、印で頼む
   const marker = (step: string) =>
@@ -338,8 +352,8 @@ export const next = defineCommand({
     "fixed（見直しの後に push があるか、最後の見直しの結果がない）・ready（見直しが通り PR を出した）・merged（done）・closed（abandoned）・" +
     `waiting_human（止まって待っている Run がある、最後の見直しの後の手直しが failure か interrupted で閉じた、か、重い指摘が出た見直しが ${FIX_ROUNDS_LIMIT} 回を超えた）。PR が draft かは status で見る（in_progress で PR があれば draft）。` +
     "段階を Run（実装・見直し・手直しとその結果、止まって待っている印）・PR・作業ブランチの事実・Plan の待ちから求め、" +
-    "手の種類（kind：implement・review・fix・ready・wait_merge・wait_deps・wait_human・done）と、開く step・実行中の Run・Plan の段階と範囲と方針・呼ぶコマンド（commands。サブエージェントに委譲する形。モデルが親と同じで自分で進めるなら、implement の claim は --no-run を外し印を使わない。その手の Run が実行中なら、起動せずに終わりを待つ）・人に聞くこと（ask_human）を返す。" +
-    `重い指摘が出た見直しが ${FIX_ROUNDS_LIMIT} 回を超えたチケットと、止まって待っている Run のあるチケットは wait_human。作業ブランチを取り込んでから読む。何も書かない`,
+    "手の種類（kind：implement・review・fix・ready・wait_merge・wait_deps・wait_human・done）と、開く step・実行中の Run・Plan の段階と範囲と方針・呼ぶコマンド（commands。サブエージェントに委譲する形。モデルが親と同じで自分で進めるなら、implement の claim は --no-run を外し印を使わない。implement・review・fix・ready の手は、その手の Run か、このブランチで実行中の実装の Run・開始より後に push がない手直しの Run が実行中なら、起動せずに終わりを待つ）・人に聞くこと（ask_human）を返す。" +
+    "waiting_human の段階のチケットは wait_human。作業ブランチを取り込んでから読む。何も書かない",
   input: z.object({ ticket: ticketRef }),
   write: false,
   needs: "store",
