@@ -74,7 +74,7 @@ Ask for something in your own words with `/dgimport` (in Claude Code). The agent
 
 ### Ask an agent
 
-Click a row's speech bubble, choose what to ask for, and paste the copied request into your agent. For agents other than Claude Code, set the format to "Text". In VS Code, you can also pick an open terminal and "Send" the request. A single line is typed into the input without pressing Enter. Multiple lines are pasted with VS Code's paste, so choose whether to paste when asked. If the input does not support pasting, each line may be run separately.
+Click a row's speech bubble, choose what to ask for, and paste the copied request into your agent. For agents other than Claude Code, set the format to "Text". You can also pick an open terminal and "Send" the request to it. A single line is typed into the input without pressing Enter. Multiple lines are pasted with VS Code's paste, so choose whether to paste when asked. If the input does not support pasting, each line may be run separately.
 
 <img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/ask-agent.gif" alt="Asking an agent" width="560">
 
