@@ -1,0 +1,32 @@
+{
+  "id": "r20261108-011325-8f07",
+  "ticket": "t550",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-08T01:13:25Z",
+  "finished_at": "2026-11-08T01:17:46Z",
+  "result": "success",
+  "error": null,
+  "retries": 1,
+  "retry_reasons": [
+    "待ちの手から続きを送ると手直しの Run の step が implement に書き換わる"
+  ],
+  "usage": {
+    "input": 46,
+    "output": 20325,
+    "cache_read": 3376937,
+    "cache_write": 30024
+  },
+  "tools": {
+    "read": 9,
+    "search": 0,
+    "write": 14,
+    "bash": 8,
+    "other": 0,
+    "read_before_write": 3,
+    "search_before_write": 0
+  },
+  "session": null,
+  "review": null
+}

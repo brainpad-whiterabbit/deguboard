@@ -1,0 +1,32 @@
+{
+  "id": "r20261108-011741-f2f9",
+  "ticket": "t552",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-08T01:17:41Z",
+  "finished_at": "2026-11-08T01:20:15Z",
+  "result": "success",
+  "error": null,
+  "retries": 1,
+  "retry_reasons": [
+    "定義の接頭辞が一覧にないことを検査しない"
+  ],
+  "usage": {
+    "input": 10,
+    "output": 3694,
+    "cache_read": 420330,
+    "cache_write": 7045
+  },
+  "tools": {
+    "read": 1,
+    "search": 0,
+    "write": 3,
+    "bash": 2,
+    "other": 0,
+    "read_before_write": 0,
+    "search_before_write": 0
+  },
+  "session": null,
+  "review": null
+}

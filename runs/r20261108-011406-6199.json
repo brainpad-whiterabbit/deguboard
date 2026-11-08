@@ -1,0 +1,32 @@
+{
+  "id": "r20261108-011406-6199",
+  "ticket": "t544",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-08T01:14:06Z",
+  "finished_at": "2026-11-08T01:20:20Z",
+  "result": "success",
+  "error": null,
+  "retries": 1,
+  "retry_reasons": [
+    "別のマシンで PR のある done になったチケットの実装の Run が閉じられずに残る"
+  ],
+  "usage": {
+    "input": 52,
+    "output": 18433,
+    "cache_read": 3880867,
+    "cache_write": 30858
+  },
+  "tools": {
+    "read": 10,
+    "search": 0,
+    "write": 15,
+    "bash": 12,
+    "other": 0,
+    "read_before_write": 0,
+    "search_before_write": 0
+  },
+  "session": null,
+  "review": null
+}
