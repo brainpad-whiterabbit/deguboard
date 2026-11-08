@@ -189,7 +189,7 @@ describe("dg の外の変更（t546・ADR-026）", () => {
     });
   });
 
-  it("Stop のフックは dg の外の変更を、止まらずに続けさせる形でエージェントに返し、続けさせた後の Stop では返さない", async () => {
+  it("Stop のフックは dg の外の変更を、止まらずに続けさせる形でエージェントに返し、続けさせた後の Stop では返さない（AG-10）", async () => {
     const { ctx } = await prepared();
     const stop = async (active: boolean) =>
       (

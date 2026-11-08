@@ -40,7 +40,7 @@ const settingsOf = async (file: string) =>
     unknown
   >;
 
-describe("dg hooks install / uninstall（ADR-025）", () => {
+describe("dg hooks install / uninstall（AG-9・ADR-025）", () => {
   it("install はリポジトリの .claude/settings.json に 7 つのイベントのフックを書き、もう一度実行しても重ねず、手で足したフックとほかの設定を残す", async () => {
     const cwd = await repo();
     const file = path.join(cwd, ".claude", "settings.json");
@@ -167,7 +167,7 @@ describe("dg hook の失敗", () => {
   });
 });
 
-describe("dg hooks check（t542）", () => {
+describe("dg hooks check（AG-9・t542）", () => {
   type Check = {
     ok: true;
     data: {

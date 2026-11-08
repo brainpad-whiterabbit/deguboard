@@ -1,4 +1,4 @@
-// PR を進めるコマンド（EX-3・AG-9、ADR-026）。品質ゲート（gate.ts の judgeGate）を満たすときだけ gh を呼ぶ。
+// PR を進めるコマンド（EX-3・AG-10、ADR-026）。品質ゲート（gate.ts の judgeGate）を満たすときだけ gh を呼ぶ。
 // エージェントが PR を ready にする・マージする正しい道で、フックは dg を経由しない gh pr ready・merge を拒む（hook.ts）
 
 import { z } from "zod";
