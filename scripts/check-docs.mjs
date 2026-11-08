@@ -1,6 +1,6 @@
 // 文書とコードの参照を検査する（docs/adr/ADR-001-doc-strategy.md）。大きさの予算は持たない。検査するのは、ADR 一覧の整合と更新日の一致・リンクと見出しアンカーの切れ・拡張と Walkthrough が指す README の見出しアンカー・README.md と README.ja.md の節の構成のずれ・コードとテストの要件 ID・要件の 1 項の上限（250 字）・コードとテストが指す置き換え済みの ADR・コードの先頭コメントの参照・`dg guide <topic>` の「節」と英語の "節" section of `dg guide <topic>` の参照（文書と packages の .ts・.tsx の文字列とコメント）・文書の重複。
 // 要件 ID は docs/requirements.md の箇条書き「- XX-N」で定義されたものに限る。接頭辞は定義と「要件の ID の接頭辞：」の一覧から取り、定義にない番号を参照していたら指摘する（一覧にない接頭辞は要件 ID と見なさない）。先頭コメントは最初の // の行で、requirements.md の節番号・ADR・docs のパス（#アンカー）・guide-*.md を照らす。
-// 要件の 1 項は「- XX-N」の項目とその下の字下げした行の合計を、記号「- 」と字下げを除いて数える（ID とリンクの記法を含む。節の前文は数えない）。置き換え済みかは各 ADR のステータスの「置き換え（ADR-0xx）」から読み、packages・scripts・test のコードの ADR-0xx の参照すべて（コメント・テスト名・文字列）を照らす。
+// 要件の 1 項は「- XX-N」の項目とその下の字下げした行を、行のまま（記号「- 」と字下げ・ID とリンクの記法を含み、改行は 1 字）数える（節の前文は数えない）。置き換え済みかは各 ADR のステータスの「置き換え（ADR-0xx）」から読み、packages・scripts・test のコードの ADR-0xx の参照すべて（コメント・テスト名・文字列）を照らし、置き換えの先を置き換え済みでなくなるまでたどって今の判断を出す。
 // 文書の重複は、同じ見出しの節の本文が同じ guide どうし（正本を 1 本にする）、または同じ段落が 2 本以上の文書にあるときに指摘する。段落は 40 字以上で、空行・見出し・表・コードで切り、箇条書きの 1 項目も 1 段落にする。比べるのは guide・docs/requirements.md・docs の下のほかの文書（ADR を除く）・CLAUDE.md・README.md・README.ja.md・packages/*/README.md。ADR は判断の記録で、判断と理由を書き換えないので比べない。README.md と README.ja.md は訳どうしなので、この 2 つだけの組は指摘しない。frontmatter と ``` の中は除く。短い選択肢や定型句は同じ語でよいので対象にしない。指摘には段落の場所（ファイルと行）を出す。
 // 調べるファイルは git が追跡しているか無視されていないもの（.gitignore のビルドの成果物は読まない）。git のリポジトリの中で動かす。
 // 依存なしで動かす（git だけは execFile で呼ぶ）。mise run check:docs から呼ぶ。
@@ -192,7 +192,7 @@ for (const rel of sources) {
 }
 
 // 要件の 1 項の上限（ADR-001 の「要件定義書に書くもの」）：「- XX-N」の箇条書きの 1 項目と、その下の字下げした行の合計の字数。
-// 数えるのは箇条書きの記号「- 」と字下げを除いた本文（ID とリンクの記法を含む）で、行は空白 1 つでつなぐ。ID のない行（節の前文・ID のない箇条書き）は数えない
+// 行のまま（箇条書きの記号「- 」と字下げ・ID とリンクの記法を含み、改行は 1 字）数える。ADR-001 が上限を決めたときの値（105 項・中央値 120 字・超えていたのは 20 項）がこの数え方で出るため。ID のない行（節の前文・ID のない箇条書き）は数えない
 let requirementItemCount = 0;
 let item = null;
 const checkItem = () => {
@@ -210,9 +210,9 @@ for (const [i, line] of linesOutsideFences(requirementsText).entries()) {
   const m = /^- ([A-Z]{2,3}-\d+)(?![0-9])/.exec(line);
   if (m) {
     checkItem();
-    item = { id: m[1], line: i + 1, text: line.slice(2).trim() };
+    item = { id: m[1], line: i + 1, text: line };
   } else if (item !== null && /^\s+\S/.test(line)) {
-    item.text += ` ${line.trim()}`;
+    item.text += `\n${line}`;
   } else {
     checkItem();
   }
@@ -220,7 +220,17 @@ for (const [i, line] of linesOutsideFences(requirementsText).entries()) {
 checkItem();
 
 // 置き換え済みの ADR への参照：コードとテスト（コメント・テスト名・文字列）が置き換え済みの ADR を指していたら指摘する。置き換え済みの本文は削ってよく、指した先に判断が残らないため。
-// 文書（docs・ADR の本文の置き換えの履歴）は見ない
+// 文書（docs・ADR の本文の置き換えの履歴）は見ない。今の判断は、置き換えた先がさらに置き換え済みなら置き換え済みでなくなるまでたどった番号（先が書いていないか輪になったら出さない）
+const currentAdr = (number) => {
+  const seen = new Set([number]);
+  let current = number;
+  while (supersededBy.has(current)) {
+    current = supersededBy.get(current);
+    if (current === undefined || seen.has(current)) return undefined;
+    seen.add(current);
+  }
+  return current;
+};
 let adrRefCount = 0;
 for (const rel of sources) {
   const lines = (await readFile(path.join(root, rel), "utf8")).split("\n");
@@ -228,7 +238,7 @@ for (const rel of sources) {
     for (const m of line.matchAll(/\bADR-(\d{3})\b/g)) {
       adrRefCount++;
       if (!supersededBy.has(m[1])) continue;
-      const to = supersededBy.get(m[1]);
+      const to = currentAdr(m[1]);
       errors.push(
         `${rel}:${i + 1}: 置き換え済みの ADR-${m[1]} を指している（${to ? `今の判断は ADR-${to}` : "今の判断の ADR を指す"}）`,
       );

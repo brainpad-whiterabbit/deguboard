@@ -563,14 +563,10 @@ describe("check-docs の英語の形の dg guide の節の参照（t563）", () 
 
 describe("check-docs の要件の 1 項の上限（t580）", () => {
   const REQ = "docs/requirements.md";
-  // TK-1 の項を、記号「- 」を除いた本文がちょうど chars 字になるように置き換える
+  // TK-1 の項の 1 行目を、記号「- 」を含めてちょうど chars 字になるように置き換え、continuation を後ろにつける
   async function setTk1(chars: number, continuation = ""): Promise<void> {
-    const head = "TK-1 ";
-    await rewrite(
-      REQ,
-      /^- TK-1 .*$/m,
-      `- ${head}${"あ".repeat(chars - head.length)}${continuation}`,
-    );
+    const head = "- TK-1 ";
+    await rewrite(REQ, /^- TK-1 .*$/m, `${head}${"あ".repeat(chars - head.length)}${continuation}`);
   }
 
   it("写したままなら上限の指摘は出ない", async () => {
@@ -593,20 +589,27 @@ describe("check-docs の要件の 1 項の上限（t580）", () => {
     expect(stderr).not.toContain("上限の 250 字を超えている");
   });
 
-  it("項の下の字下げした行も合計して数える（つなぎは空白 1 つ）", async () => {
-    // 本文 200 字＋空白 1＋字下げした行 50 字＝251 字
-    await setTk1(200, `\n  ${"い".repeat(50)}`);
+  it("項の下の字下げした行も、字下げと改行を含めて合計して数える", async () => {
+    // 1 行目 200 字＋改行 1 字＋字下げ 2 字＋本文 48 字＝251 字（字下げと改行を除けば 248 字で上限の内）
+    await setTk1(200, `\n  ${"い".repeat(48)}`);
     const { code, stderr } = await run();
     expect(code).toBe(1);
     expect(stderr).toContain("要件 TK-1 の 1 項が 251 字で");
   });
 
+  it("字下げと改行を含めてちょうど 250 字の項は指摘しない", async () => {
+    // 1 行目 200 字＋改行 1 字＋字下げ 2 字＋本文 47 字＝250 字
+    await setTk1(200, `\n  ${"い".repeat(47)}`);
+    const { stderr } = await run();
+    expect(stderr).not.toContain("上限の 250 字を超えている");
+  });
+
   it("リンクの記法も字数に含める", async () => {
-    // 本文 240 字＋空白 1 字＋リンクの記法 20 字＝261 字（リンクの文字「ADR」だけなら 244 字で上限の内）
-    await setTk1(240, " [ADR](adr/README.md)");
+    // 1 行目 230 字＋空白 1 字＋リンクの記法 20 字＝251 字（リンクの文字「ADR」だけなら 234 字で上限の内）
+    await setTk1(230, " [ADR](adr/README.md)");
     const { code, stderr } = await run();
     expect(code).toBe(1);
-    expect(stderr).toContain("要件 TK-1 の 1 項が 261 字で");
+    expect(stderr).toContain("要件 TK-1 の 1 項が 251 字で");
   });
 
   it("ID のない前文と箇条書きは、長くても数えない", async () => {
@@ -673,9 +676,41 @@ describe("check-docs の置き換え済みの ADR への参照（t580）", () =>
     );
   });
 
+  it("置き換えた先もさらに置き換え済みなら、置き換え済みでなくなるまでたどった番号を出す", async () => {
+    // 004 → 028 → 024 とたどる
+    await rewrite(
+      "docs/adr/ADR-028-agents-and-state.md",
+      /^- ステータス：.*$/m,
+      "- ステータス：置き換え（ADR-024）",
+    );
+    await writeFile(join(dir, PROBE), `// 理由は ${OLD_ADR}\nexport {};\n`);
+    const { code, stderr } = await run();
+    expect(code).toBe(1);
+    expect(stderr).toContain(
+      `${PROBE}:1: 置き換え済みの ${OLD_ADR} を指している（今の判断は ADR-024）`,
+    );
+  });
+
+  it("置き換えが輪になったら止まり、今の判断の番号を出さない", async () => {
+    // 004 → 028 → 004 と輪になる
+    await rewrite(
+      "docs/adr/ADR-028-agents-and-state.md",
+      /^- ステータス：.*$/m,
+      `- ステータス：置き換え（${OLD_ADR}）`,
+    );
+    await writeFile(join(dir, PROBE), `// 理由は ${OLD_ADR}\nexport {};\n`);
+    const { code, stderr } = await run();
+    expect(code).toBe(1);
+    expect(stderr).toContain(
+      `${PROBE}:1: 置き換え済みの ${OLD_ADR} を指している（今の判断の ADR を指す）`,
+    );
+  });
+
   it("docs の文書と ADR の本文の置き換え済みの ADR は指摘しない", async () => {
     const dev = join(dir, "docs/development.md");
     await writeFile(dev, `${await readFile(dev, "utf8")}\n経緯は ${OLD_ADR} にある。\n`);
+    const adr = join(dir, ADR);
+    await writeFile(adr, `${await readFile(adr, "utf8")}\n前の判断は ${OLD_ADR} にある。\n`);
     const { stderr } = await run();
     expect(stderr).not.toContain("置き換え済みの ADR");
   });
