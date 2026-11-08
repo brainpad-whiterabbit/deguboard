@@ -589,7 +589,7 @@ describe("run", () => {
 
   it("読み込み時と workflow.validate が、渡した Action の一覧にない Action（警告）と同じ step の重複（エラー）を指摘する（WF-3）", async () => {
     const ctx = await prepared();
-    // 利用者が Workflow を直に書いて dg adopt で取り込んだ状態にする（ADR-021）
+    // 利用者が Workflow を直に書いて dg adopt で取り込んだ状態にする（ADR-026）
     const writeGeneral = async (steps: string[]) => {
       await writeFile(
         path.join(ctx.repo.dataDir, "workflows/general.yaml"),

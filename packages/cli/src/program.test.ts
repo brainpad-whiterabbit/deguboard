@@ -36,7 +36,7 @@ interface Ran {
   };
 }
 
-/** 制約を書いた Workflow（strict）を clone のデータディレクトリに直に置き、dg adopt で取り込む（ADR-021） */
+/** 制約を書いた Workflow（strict）を clone のデータディレクトリに直に置き、dg adopt で取り込む（ADR-026） */
 async function writeStrictWorkflow(clone: string): Promise<void> {
   await writeFile(
     path.join(clone, ".git/deguboard/workflows/strict.yaml"),
