@@ -361,6 +361,80 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
     expect(ready.data.map((t) => t.id)).toEqual(["t1"]);
   });
 
+  it("import の本文は、本文の項目の引用しない値に行末コメントがあると INVALID_INPUT で起票しない（drafts と一緒の指定も拒む）", async () => {
+    const f = await fixture();
+    const ctx = await initialized(f.cloneA);
+    const head = async () => (await git(ctx.repo.dataDir, ["rev-parse", "HEAD"])).stdout.trim();
+    const before = await head();
+    const cases: Array<[string, string]> = [
+      ["- title: 設定 #/config の画面\n", "1 件目の title"],
+      ["- title: A\n- title: B\n  summary: 戻る #/board へ\n", "2 件目の summary"],
+      [
+        "- title: A\n  acceptance:\n    - 条件 1\n    - 歯車で #/config # 開く\n",
+        "1 件目の acceptance",
+      ],
+      ["drafts:\n  - title: A\n    body: 本文 #/config\n", "1 件目の body"],
+      ["- title: A\n  body: 複数行の\n    最後の行 #/config\n", "1 件目の body"],
+    ];
+    for (const [source, field] of cases) {
+      await expect(runCommand(ticketImport, ctx, { source })).rejects.toMatchObject({
+        code: "INVALID_INPUT",
+      });
+      await expect(runCommand(ticketImport, ctx, { source })).rejects.toThrow(field);
+    }
+    await expect(
+      runCommand(ticketImport, ctx, {
+        drafts: [{ title: "A" }],
+        source: "- title: B\n",
+      }),
+    ).rejects.toThrow("一緒に");
+    expect(await head()).toBe(before);
+  });
+
+  it("import の本文は、ほかの項目の行末コメント・行だけのコメント・引用した値・body の | の中の # を本文として残す", async () => {
+    const f = await fixture();
+    const ctx = await initialized(f.cloneA);
+    const source = [
+      "# 行だけのコメント",
+      "- key: a # 仮キー",
+      '  title: "設定 #/config の画面" # 引用の後ろ',
+      "  priority: high # 優先度",
+      "  # 項目の間のコメント",
+      "  acceptance: ['歯車で #/config を開く', \"戻る #/board\"] # 条件",
+      "- key: b",
+      "  title: 本文を書く",
+      "  depends_on: [a] # 依存",
+      "  body: | # 見出しの後ろ",
+      "    ## 概要",
+      "",
+      "    #/config を開く # 中の #",
+      "",
+    ].join("\n");
+    const imported = await runCommand(ticketImport, ctx, { source });
+    const shown = await Promise.all(
+      imported.data.map(async (t) => (await runCommand(ticketShow, ctx, { ticket: t.id })).data),
+    );
+    const a = shown[0]!;
+    const b = shown[1]!;
+    expect(a).toMatchObject({ title: "設定 #/config の画面", priority: "high" });
+    expect(a.body).toContain("- [ ] 歯車で #/config を開く");
+    expect(a.body).toContain("- [ ] 戻る #/board");
+    expect(b).toMatchObject({ title: "本文を書く", depends_on: [a.id] });
+    expect(b.body).toContain("#/config を開く # 中の #");
+  });
+
+  it("import の本文は、引用しない値の次の行の深く字下げした行だけのコメントを拒まない", async () => {
+    const f = await fixture();
+    const ctx = await initialized(f.cloneA);
+    for (const source of [
+      "- title: A\n  body: x\n    # c\n",
+      "- title: A\n      # c\n  body: y\n",
+    ]) {
+      const imported = await runCommand(ticketImport, ctx, { source });
+      expect(imported.data).toMatchObject([{ title: "A" }]);
+    }
+  });
+
   it("update は属性と本文を直し、循環する依存と未定義のフィールドを拒否する", async () => {
     const f = await fixture();
     const ctx = await initialized(f.cloneA);
