@@ -1,0 +1,30 @@
+id: p82
+project: default
+tickets: [t584, t585, t581, t582, t583]
+after:
+  t582:
+    - t581
+  t583:
+    - t582
+pending_approval: true
+details:
+  t584:
+    scope: server・cli・mcp・vscode の入口のテストのうち core を確かめ直すものを消し、引数の解釈と終了コードに絞る。bare リモートの結合テストは触らない
+    approach: 受け入れ条件の行を 1 つずつ開き、消す・まとめる・絞るを当て、同じ守りが core のテストにあることを確かめてから消す
+    tier: standard
+  t585:
+    scope: ticket import の行末コメントの拒否を core のコマンドへ移し、テストも core に移す
+    approach: 判定を packages/core/src/commands/ の import の処理に置いて CLI は呼ぶだけにし、program.test.ts はエラーと終了コードの 1 件に絞る
+    tier: standard
+  t581:
+    scope: t497・t566 で消した機能がないことだけを確かめるテストと、拡張から通らない経路のテストを web から消す
+    approach: 受け入れ条件の行番号を今の main で引き直し、消す前に残すテストへ移す確認（閉じた日は不明など）を先に移す
+    tier: standard
+  t582:
+    scope: app.test.tsx の重複を約 20 件減らし、history・chips などの部品とページのテストへ移す。守る範囲は減らさない
+    approach: t581 の後の app.test.tsx で行番号を引き直し、移す・まとめる・消す・位置や className の assert を外すの順に進める
+    tier: standard
+  t583:
+    scope: app.test.tsx 以外の web のテストで、core と照合済みの手書きの例・まとめられる組・見た目を固定する assert を片付ける
+    approach: core と照合するテストは残し、board の progressOf の例は core のテストへ移す。行番号は t581・t582 の後の main で引き直す
+    tier: standard
