@@ -1,0 +1,33 @@
+{
+  "id": "r20261108-042545-810c",
+  "ticket": "t545",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-08T04:25:45Z",
+  "finished_at": "2026-11-08T04:29:30Z",
+  "result": "success",
+  "error": null,
+  "retries": 2,
+  "retry_reasons": [
+    "任意の言語のコードで pr と merge が隣り合わない形を見落とす",
+    "前段のコマンドの分解がコメントの中の引用符を引用と読む"
+  ],
+  "usage": {
+    "input": 26,
+    "output": 9678,
+    "cache_read": 3496575,
+    "cache_write": 14020
+  },
+  "tools": {
+    "read": 4,
+    "search": 0,
+    "write": 14,
+    "bash": 6,
+    "other": 1,
+    "read_before_write": 1,
+    "search_before_write": 0
+  },
+  "session": "3a089f6d-148c-472e-b79a-46582557f8d9",
+  "review": null
+}
