@@ -51,10 +51,16 @@ export async function openContextFor(
 
 /**
  * ストアを開かない文脈（CommandContext の storeless）。git で場所だけを解決し、チケット・Plan・Epic・Iteration・config の
- * ファイルを読まない。初期化の有無も確かめない。読めない項目は読んだときに例外を投げる（使う側の誤りを隠さない）
+ * ファイルを読まない。初期化の有無は openContext と同じく確かめ（データのリポジトリの .git の有無だけを見る）、初期化していなければ
+ * NOT_INITIALIZED（deguboard を使っていないリポジトリでフックが何かを拒まないように）。読めない項目は読んだときに例外を投げる（使う側の誤りを隠さない）
  */
 async function storelessContext(opts: ContextOptions): Promise<CommandContext> {
   const paths = await resolveRepoPaths(opts.cwd);
+  if (!(await isInitialized(paths)))
+    throw new OperationError(
+      "NOT_INITIALIZED",
+      "deguboard が初期化されていない。dg init を実行する",
+    );
   const unread = (name: string) => ({
     get(): never {
       throw new Error(`ストアを開いていない文脈（storeless）で ${name} を読んだ`);

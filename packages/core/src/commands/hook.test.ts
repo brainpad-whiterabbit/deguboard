@@ -1,4 +1,13 @@
-import { appendFile, mkdir, mkdtemp, readFile, rm, utimes, writeFile } from "node:fs/promises";
+import {
+  appendFile,
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  rm,
+  utimes,
+  writeFile,
+} from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -1399,10 +1408,12 @@ describe("PreToolUse（t532）", () => {
     }
   });
 
-  it("PreToolUse はストアを開かずに判定する。データのディレクトリがなくても拒み、ほかのイベントはストアを開く（t554）", async () => {
+  it("PreToolUse はストアを開かずに判定する。ストアのファイルがなくても拒み、ほかのイベントはストアを開く（t554）", async () => {
     const { ctx } = await prepared();
-    // ストア（チケット・Plan・Epic・Iteration・config）のファイルを消す。ストアを開けば NOT_INITIALIZED で失敗する
-    await rm(ctx.repo.dataDir, { recursive: true, force: true });
+    // ストア（チケット・Plan・Epic・Iteration・config）のファイルを消す。初期化の印のデータのリポジトリの .git だけを残す
+    for (const entry of await readdir(ctx.repo.dataDir))
+      if (entry !== ".git")
+        await rm(path.join(ctx.repo.dataDir, entry), { recursive: true, force: true });
     const opts = { cwd: ctx.repo.topLevel, actor: { kind: "agent" as const, user: "eiki" } };
     const input = (tool: string, toolInput: Record<string, unknown>) => ({
       event: "PreToolUse",
@@ -1432,10 +1443,31 @@ describe("PreToolUse（t532）", () => {
     const allowed = input("Bash", { command: "ls" });
     const r = await runCommand(hook, await openContextFor(hook, allowed, opts), allowed);
     expect((r.data as HookView).output).toBeUndefined();
-    // PreToolUse 以外（ここでは SessionStart）はストアを開くので、データがなければ失敗する
-    await expect(
-      openContextFor(hook, { event: "SessionStart", payload: { session_id: SESSION } }, opts),
-    ).rejects.toThrow("初期化されていない");
+    // PreToolUse 以外（ここでは SessionStart）はストアを開く
+    const full = await openContextFor(
+      hook,
+      { event: "SessionStart", payload: { session_id: SESSION } },
+      opts,
+    );
+    expect(full.storeless).toBeUndefined();
+    expect(full.store).toBeDefined();
+  });
+
+  it("初期化していないリポジトリでは、PreToolUse も今までどおり NOT_INITIALIZED で何も拒まない（t554）", async () => {
+    const { ctx } = await prepared();
+    await rm(ctx.repo.dataDir, { recursive: true, force: true });
+    const opts = { cwd: ctx.repo.topLevel, actor: { kind: "agent" as const, user: "eiki" } };
+    const input = {
+      event: "PreToolUse",
+      payload: {
+        session_id: SESSION,
+        tool_name: "Bash",
+        tool_input: { command: "gh pr merge 5 --squash" },
+        cwd: ctx.repo.topLevel,
+      },
+    };
+    // CLI はこの失敗を標準エラーに書いて 0 で返すので、フックはツールを止めない
+    await expect(openContextFor(hook, input, opts)).rejects.toThrow("初期化されていない");
   });
 });
 
