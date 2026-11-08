@@ -123,7 +123,7 @@ describe("dg guide", () => {
     expect(await readGuide("overview")).toContain("`ticket claim` が開く");
   });
 
-  it("review は文書との食い違いを、この PR が変えた文書に限って重い指摘にし、前からのずれは audit と ADR-001 に送る", async () => {
+  it("review は文書との食い違いを、この PR が変えた約束・手順・規約で文書を直していないものに限って重い指摘にし、前からのずれは audit と ADR-001 に送る", async () => {
     const review = await readGuide("review");
     const look = bullet(section(review, "## 見直す"), "見る");
     for (const word of ["この PR が変えた", "dg guide audit", "ADR-001", "範囲の外の指摘"])
