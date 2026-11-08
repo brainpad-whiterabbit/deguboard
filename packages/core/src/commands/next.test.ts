@@ -361,7 +361,7 @@ describe("dg next と ticket show の stage（EX-3）", () => {
       stage: { name: "waiting_human" },
     });
     expect(step.commands).toEqual([]);
-    expect(step.ask_human).toContain("続きとして送る");
+    expect(step.ask_human).toContain("push なしで返った");
   });
 
   it("CLI・HTTP・MCP が写す一覧に next があり、読み取りだけ（write: false）", () => {

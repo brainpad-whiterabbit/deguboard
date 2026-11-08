@@ -457,7 +457,10 @@ async function stopSubagentRun(
   const prompt = await hooksOf(agent)!.firstPrompt(transcript);
   const marker = prompt ? parseMarker(prompt) : undefined;
   let run = opened;
-  if (marker && (marker.ticket !== run.ticket || marker.step !== run.step)) {
+  // 印は起動のフックが開いた Run を照らす。サブエージェントが自分で開いた Run（手直しを続きで頼んだあとの claim など）は、
+  // 記録の最初の文の印（実装の step）で直さない。直すと手直しが実装に書き換わる
+  const selfOpened = (await hooksOf(agent)!.selfOpenedRunIds(transcript)).includes(run.id);
+  if (marker && !selfOpened && (marker.ticket !== run.ticket || marker.step !== run.step)) {
     // 並べて起動して取り違えた。記録の最初の文が正しい
     run = await amendRunning(ctx.repo, run.id, marker);
     warnings.push(
@@ -625,7 +628,7 @@ async function bindSelfOpened(
       continue;
     }
     // 開いたままで返った Run にも、印のある Run と同じく、step を終えた事実がなければ止まって待っている印を付ける（ADR-014）。
-    // 事実があれば印は付けず、フックの終わりか次の機会に閉じる
+    // 事実があれば印は付けず、閉じない（手直しは sync の区切り、ほかはセッションの終わりが閉じる）
     const run = running.find((r) => r.id === id);
     if (!run) continue;
     const decided = await resultOf(ctx, run, ctx.store.tickets.get(run.ticket)?.data);

@@ -21,7 +21,8 @@ import {
 } from "./hook.js";
 import { runList, runReviewResult, runStart, STALE_SESSION_ERROR, type RunView } from "./run.js";
 import { commit, configSet, init, sync } from "./setup.js";
-import { ticketCreate, ticketUpdate } from "./ticket.js";
+import { ticketClaim, ticketCreate, ticketUpdate } from "./ticket.js";
+import { runGit } from "../git/run.js";
 
 const cleanups: Array<() => Promise<void>> = [];
 afterEach(async () => {
@@ -470,9 +471,11 @@ describe("dg hook（ADR-012）", () => {
       agent_transcript_path: subagent("a9"),
       last_assistant_message: "ok",
     });
-    expect(view.done).toEqual(
-      expect.arrayContaining([expect.stringContaining(`Run ${run.id} の記録の場所`)]),
-    );
+    // 見直しの結果がないまま返ったので、記録の場所の結び付けのあとに止まって待っている印を付ける
+    expect(view.done).toEqual([
+      expect.stringContaining(`Run ${run.id} の記録の場所`),
+      expect.stringContaining(`Run ${run.id} は止まって待っている`),
+    ]);
     expect((await readTranscriptPaths(ctx.repo)).get(run.id)).toBe(subagent("a9"));
   });
 
@@ -669,9 +672,10 @@ describe("dg hook の移行の経路と兄弟の Run（ADR-012）", () => {
       bashCall("dg --json run start t1 review", startOutput(m, [sibling!.id])),
     );
     const { view } = await stopA(ctx, subagent("a1"));
-    expect(view.done).toEqual(
-      expect.arrayContaining([expect.stringContaining(`Run ${mine.id} の記録の場所`)]),
-    );
+    expect(view.done).toEqual([
+      expect.stringContaining(`Run ${mine.id} の記録の場所`),
+      expect.stringContaining(`Run ${mine.id} は止まって待っている`),
+    ]);
     const paths = await readTranscriptPaths(ctx.repo);
     expect(paths.get(mine.id)).toBe(subagent("a1"));
     expect(paths.get(sibling!.id)).toBe(subagent("b1"));
@@ -725,9 +729,10 @@ describe("dg hook の移行の経路と兄弟の Run（ADR-012）", () => {
       ),
     );
     const { view } = await stopA(ctx, subagent("a1"));
-    expect(view.done).toEqual(
-      expect.arrayContaining([expect.stringContaining(`Run ${mine.id} の記録の場所`)]),
-    );
+    expect(view.done).toEqual([
+      expect.stringContaining(`Run ${mine.id} の記録の場所`),
+      expect.stringContaining(`Run ${mine.id} は止まって待っている`),
+    ]);
   });
 
   it("自分で開いた手直しの Run が push なしで返ったら、止まって待っている印を付けて開いたままにする（ADR-014）", async () => {
@@ -758,6 +763,55 @@ describe("dg hook の移行の経路と兄弟の Run（ADR-012）", () => {
     const [open] = await peekRunningRuns(ctx.repo);
     expect(open).toMatchObject({ id: mine.id, review: { heavy: 0, light: 1 } });
     expect(open!.waiting_since).toBeNull();
+  });
+
+  it("手直しを続きで頼んだ会話で claim が開いた手直しの Run は、待ちの印から続けて止まっても印の step（実装）に直さず、push があれば fix のまま success で閉じる", async () => {
+    const { ctx, parent, subagent } = await prepared();
+    await runCommand(ticketClaim, ctx, { ticket: "t1", branch: "feat/t1", no_run: true });
+    await runGit(ctx.repo.topLevel, ["checkout", "-qb", "feat/t1"]);
+    const mine = (
+      await runCommand(runStart, ctx, {
+        ticket: "t1",
+        step: "fix",
+        agent: "claude-code",
+        session: SESSION,
+      })
+    ).data as Run;
+    // 続きで頼まれた実装の会話の最初の文は印（step=implement）。claim の結果に、開いた手直しの Run の ID が出る
+    await subagentRecord(
+      subagent("a1"),
+      "deguboard: ticket=t1 step=implement",
+      1,
+      bashCall("dg --json ticket claim t1 --retry-reason 指摘", startOutput(mine)),
+    );
+    const text = await readFile(subagent("a1"), "utf8");
+    const first = JSON.parse(text.split("\n")[0]!) as Record<string, unknown>;
+    first["timestamp"] = new Date(Date.parse(mine.started_at) - 500).toISOString();
+    await writeFile(
+      subagent("a1"),
+      [JSON.stringify(first), ...text.split("\n").slice(1)].join("\n"),
+    );
+    // 1 回目の止まり：push がないので、結び付けて待ちの印を付ける
+    await stopA(ctx, subagent("a1"));
+    expect((await peekRunningRuns(ctx.repo))[0]!.waiting_since).not.toBeNull();
+    // 親が続きを送る（同じ agent_id の再開で印が消える）
+    await call(ctx, "SubagentStart", {
+      session_id: SESSION,
+      transcript_path: parent,
+      agent_id: "a1",
+      agent_type: "general-purpose",
+    });
+    expect((await peekRunningRuns(ctx.repo))[0]!.waiting_since).toBeNull();
+    // 続きで直して push してから、2 回目の止まり
+    await runGit(ctx.repo.topLevel, ["commit", "-q", "--allow-empty", "-m", "直した"]);
+    await runGit(ctx.repo.topLevel, ["push", "-q", "origin", "feat/t1"]);
+    await stopA(ctx, subagent("a1"));
+    const runs = (await runCommand(runList, ctx, { ticket: "t1" })).data as RunView[];
+    expect(runs.find((r) => r.id === mine.id)).toMatchObject({
+      step: "fix",
+      result: "success",
+      running: false,
+    });
   });
 });
 
