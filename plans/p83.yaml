@@ -1,0 +1,23 @@
+id: p83
+project: default
+tickets: [t587, t588, t589]
+after:
+  t588:
+    - t587
+  t589:
+    - t587
+    - t588
+pending_approval: true
+details:
+  t587:
+    scope: SYNC_CONFLICT と競合の警告・記録前にマージされた PR の警告・Run の lint 2 種の文に手を書き足す。guide は消さない
+    approach: core の文（CONFLICT_REMEDY・facts の警告・lint の message）を直し、既存のテストの断言を合わせる
+    tier: standard
+  t588:
+    scope: guide-overview.md だけ。4 つの基準を満たす文だけ消し、残す決まりは残す
+    approach: 消す文ごとに届く先を確かめた対応表を作ってから消し、前後の guide で場面ごとにサブエージェントに 1 回答えさせて比べる
+    tier: standard
+  t589:
+    scope: check・assign・plan・done・import・review だけ。work・all・audit・release・run・parallel は触らない
+    approach: t588 と同じ対応表と場面の比べ方。check:docs の節の参照が切れないよう見出しは変えない
+    tier: standard
