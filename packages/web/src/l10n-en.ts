@@ -234,8 +234,6 @@ export const EN: Readonly<Record<string, string>> = {
   "経過はない（まだコミットされていない）": "No timeline yet (not committed)",
   // components/worktree-row.tsx
   "worktree のパスをコピー": "Copy worktree path",
-  新しいウィンドウで開く: "Open in New Window",
-  開けない: "Could not open",
   // host.tsx
   "navigator.clipboard が使えない": "navigator.clipboard is not available",
   // markdown.tsx

@@ -174,7 +174,6 @@ describe("Webview の要求", () => {
         show: () => {},
         copy: () => {},
         terminals: () => [],
-        openFolder: () => {},
         sendToTerminal: () => {},
       },
     );
@@ -200,7 +199,6 @@ describe("Webview の要求", () => {
         show: (route) => void shown.push(route),
         copy: () => {},
         terminals: () => [],
-        openFolder: () => {},
         sendToTerminal: () => {},
       },
     );
@@ -220,7 +218,6 @@ describe("Webview の要求", () => {
         show: (route) => void shown.push(route),
         copy: () => {},
         terminals: () => [],
-        openFolder: () => {},
         sendToTerminal: () => {},
       },
     );
@@ -238,7 +235,6 @@ describe("Webview の要求", () => {
         show: () => {},
         copy: (text) => void copied.push(text),
         terminals: () => [],
-        openFolder: () => {},
         sendToTerminal: () => {},
       },
     );
@@ -253,7 +249,6 @@ describe("Webview の要求", () => {
       show: () => {},
       copy: () => {},
       terminals: () => [{ id: 3, label: "zsh" }],
-      openFolder: () => {},
       sendToTerminal: (id: number, text: string) => void sent.push([id, text]),
     };
     const list = await handleRequest(
@@ -277,50 +272,6 @@ describe("Webview の要求", () => {
     expect(sent).toEqual([[3, "/dgwork t1"]]);
   });
 
-  it("action の openWorktree は ticket.show で引いた worktree のパスだけを actions に渡し、なければ NOT_FOUND で返す（t381）", async () => {
-    const opened: string[] = [];
-    const actions = {
-      open: () => {},
-      show: () => {},
-      copy: () => {},
-      terminals: () => [],
-      sendToTerminal: () => {},
-      openFolder: (folder: string) => void opened.push(folder),
-    };
-    const client = fakeClient();
-    const base = client.run.bind(client);
-    client.run = async <O>(name: string, input?: unknown) =>
-      name === "ticket.show"
-        ? ({
-            data: { worktree: "/w/t1" },
-            warnings: [],
-            write: undefined,
-          } as unknown as CommandResult<O>)
-        : base<O>(name, input);
-    const ok = await handleRequest(
-      client,
-      { id: 1, kind: "action", name: "openWorktree", ticket: "t1" },
-      actions,
-    );
-    expect(ok).toEqual({ id: 1, ok: true, data: null, warnings: [], write: null });
-    expect(opened).toEqual(["/w/t1"]);
-    client.run = async <O>() =>
-      ({ data: { worktree: null }, warnings: [], write: undefined }) as unknown as CommandResult<O>;
-    const none = await handleRequest(
-      client,
-      { id: 2, kind: "action", name: "openWorktree", ticket: "t1" },
-      actions,
-    );
-    expect(none).toMatchObject({ id: 2, ok: false, error: { code: "NOT_FOUND" } });
-    expect(opened).toHaveLength(1);
-    expect(isWebviewRequest({ id: 1, kind: "action", name: "openWorktree", ticket: "t1" })).toBe(
-      true,
-    );
-    expect(isWebviewRequest({ id: 1, kind: "action", name: "openWorktree", path: "/x" })).toBe(
-      false,
-    );
-  });
-
   it("送り先が閉じていて actions が投げたときは ok: false で返す", async () => {
     const res = await handleRequest(
       fakeClient(),
@@ -330,7 +281,6 @@ describe("Webview の要求", () => {
         show: () => {},
         copy: () => {},
         terminals: () => [],
-        openFolder: () => {},
         sendToTerminal: () => {
           throw new Error("送り先のターミナルが閉じている");
         },
@@ -365,6 +315,10 @@ describe("Webview の要求", () => {
     );
     expect(isWebviewRequest({ id: 1, kind: "action", name: "copy", text: "feat/x" })).toBe(true);
     expect(isWebviewRequest({ id: 1, kind: "action", name: "copy" })).toBe(false);
+    // worktree を新しいウィンドウで開く要求は受けない（t566 で消した）
+    expect(isWebviewRequest({ id: 1, kind: "action", name: "openWorktree", ticket: "t1" })).toBe(
+      false,
+    );
     expect(isWebviewRequest({ id: "1", kind: "status" })).toBe(false);
     expect(isWebviewRequest({ id: 1, kind: "run" })).toBe(false);
     expect(isWebviewRequest({ id: 1, kind: "action", name: "other", ticket: "t1" })).toBe(false);

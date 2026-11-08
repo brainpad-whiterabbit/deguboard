@@ -168,7 +168,7 @@ export function ticketAttrs(store: Store, ticket: TicketDetail) {
     branchView: ticket.branch ? (
       <>
         <CopyableCode text={ticket.branch} label={tr("ブランチ名をコピー")} />
-        {ticket.worktree ? <WorktreeRow ticket={ticket.id} path={ticket.worktree} /> : null}
+        {ticket.worktree ? <WorktreeRow path={ticket.worktree} /> : null}
       </>
     ) : (
       none

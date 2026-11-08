@@ -110,7 +110,6 @@ function mountWithBridge(
     copy: async () => {},
     terminals: async () => [],
     sendToTerminal: async () => null,
-    openWorktree: async () => {},
     onEvent: (listener) => {
       send = listener;
       return () => (send = undefined);
