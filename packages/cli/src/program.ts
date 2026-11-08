@@ -79,6 +79,7 @@ const GROUP_SUMMARY: Record<string, string> = {
   workflow: "Workflow 定義の参照・検証・書き換え",
   metrics: "Run（作業の実績）の集計",
   run: "Run（1 回の AI 実行）の記録",
+  pr: "PR を品質ゲート（dg gate）を満たすときだけ進める",
   config: "設定（チームの config.yaml と個人の上書き）の参照と変更",
 };
 
@@ -235,7 +236,7 @@ export function buildProgram(options: ProgramOptions = {}): Command {
       .command(action)
       .description(
         action === "install"
-          ? "Claude Code の設定（<リポジトリ>/.claude/settings.json）に dg hook を呼ぶフックを書く。入ったかと動くかは dg hooks check で確かめる。主体を agent にし、頼んだ文の先頭に印 `deguboard: ticket=<id> step=<step>` のあるサブエージェントの Run を起動で開き、step を終えたら閉じる。gh pr merge・gh pr ready を dg gate で止め、.git/deguboard/ への書き込みを拒む。もう一度実行しても重ならず、手で足したフックは残す"
+          ? "Claude Code の設定（<リポジトリ>/.claude/settings.json）に dg hook を呼ぶフックを書く。入ったかと動くかは dg hooks check で確かめる。主体を agent にし、頼んだ文の先頭に印 `deguboard: ticket=<id> step=<step>` のあるサブエージェントの Run を起動で開き、step を終えたら閉じる。dg を経由しない gh pr merge・gh pr ready（dg pr merge・dg pr ready が dg gate を通してから呼ぶ）と .git/deguboard/ への書き込みを拒む。もう一度実行しても重ならず、手で足したフックは残す"
           : "Claude Code の設定から dg のフックだけを外す。手で足したフックは残す",
       )
       .option("--personal", "リポジトリではなく個人の設定（~/.claude/settings.json）に書く")

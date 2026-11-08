@@ -5,15 +5,14 @@ import { afterEach, describe, expect, it } from "vitest";
 import { createFixture } from "../../test/helpers/git-fixture.js";
 import type { Run } from "../model/run.js";
 import { peekRunningRuns, readTranscriptPaths } from "../run/record.js";
-import { resetGhCache } from "../git/facts.js";
 import { runPath } from "../storage/paths.js";
 import { hooksOf } from "../agents/index.js";
 import { openContext } from "./context.js";
 import { runCommand, type CommandContext } from "./define.js";
 import {
+  advancesPrOutsideDg,
   hook,
   hookTiming,
-  parseGhPr,
   parseMarker,
   readHookInput,
   writesDataDir,
@@ -1241,90 +1240,114 @@ describe("PreToolUse（t532）", () => {
       expect(writesDataDir(c), c).toBe(false);
   });
 
-  it("gh pr merge・ready の PR の指定をすべて読み、値を取るフラグ・引用符・前の代入と包むコマンド・cd を考える", () => {
-    expect(parseGhPr("gh pr merge 12 --squash")).toEqual([
-      { action: "merge", selector: "12", undo: false, dir: undefined },
-    ]);
-    expect(parseGhPr("gh pr merge --repo o/r --squash feat/x")[0]).toMatchObject({
-      selector: "feat/x",
-    });
-    expect(parseGhPr("gh pr ready 3 --undo")[0]).toMatchObject({ undo: true });
-    expect(parseGhPr("gh pr view 3")).toEqual([]);
-    expect(parseGhPr('gh pr merge --squash --subject "a b" 7')[0]).toMatchObject({ selector: "7" });
-    expect(parseGhPr("gh -R o/r pr merge 5")[0]).toMatchObject({ action: "merge", selector: "5" });
-    expect(parseGhPr("cd a && cd b && gh pr ready")[0]).toMatchObject({
-      selector: undefined,
-      dir: path.join("a", "b"),
-    });
-    // 前の環境変数の代入・包むコマンド・括弧を読み飛ばす
+  it("dg を経由しない gh pr merge・ready を、PR の指定・包むコマンド・置き換え・任意の言語のコードの中でも見つける（PR 482 で読み違えた例を含む）", () => {
     for (const c of [
-      "DEGUBOARD_ACTOR=agent gh pr merge 482",
-      "GH_REPO=o/r gh pr merge 482",
-      "env gh pr merge 482",
-      "command gh pr merge 482",
-      "time gh pr merge 482",
-      "(cd /x && gh pr merge 482)",
-      "gh pr merge 482 --squash 2>&1 | tail -1",
-    ])
-      expect(
-        parseGhPr(c).map((g) => g.selector),
-        c,
-      ).toEqual(["482"]);
-    // 後ろの呼び出しも判定する
-    expect(parseGhPr("gh pr ready 482 && gh pr merge 482 --squash").map((g) => g.action)).toEqual([
-      "ready",
-      "merge",
-    ]);
-    expect(parseGhPr("gh pr merge 1; gh pr merge 482").map((g) => g.selector)).toEqual([
-      "1",
-      "482",
-    ]);
-    // 予約語の中の呼び出しも読み、ヒアドキュメントの本文と括弧の外の cd は持ち越さない
-    for (const c of [
-      "for p in 1 2; do gh pr merge 482; done",
-      "if gh pr merge 482; then echo ok; fi",
-      "{ gh pr merge 482; }",
-      "! gh pr merge 482",
-      "sudo -u me gh pr merge 482",
-    ])
-      expect(
-        parseGhPr(c).map((g) => g.selector),
-        c,
-      ).toEqual(["482"]);
-    expect(parseGhPr("git commit -F - <<EOF\ngh pr merge 482 を止める\nEOF\n")).toEqual([]);
-    expect(parseGhPr("(cd /a && ls); gh pr merge")[0]).toMatchObject({ dir: undefined });
-    // リダイレクトの fd・行き先とヒアドキュメントの終わりの語を PR の指定と取り違えない
-    for (const c of [
+      "gh pr merge 12 --squash",
+      "gh pr ready",
+      "gh -R o/r pr merge 5",
+      "gh pr merge --squash --subject 'a b' 7",
+      // PR 482 で読み違えた・読めなかった例
       "gh pr merge --squash --delete-branch 2>&1",
       "gh pr merge --squash --delete-branch 2>&1 | tail -1",
-      "gh pr ready 2>/dev/null",
-      "gh pr merge --squash > /tmp/out",
-      "gh pr merge --squash --body-file - <<'EOF'\n本文\nEOF",
+      "gh pr merge $PR --squash",
+      'gh pr merge "$PR" --squash',
+      "gh pr merge ${PR} --squash",
+      `python3 -c "import subprocess; subprocess.run(['gh', 'pr', 'merge', '482'])"`,
+      "python -c 'import os; os.system(\"gh pr merge 482\")'",
+      "node -e \"require('child_process').execSync('gh pr ready 482')\"",
+      'bash -c "gh pr merge 482"',
+      "sh <<'EOF'\ngh pr merge 482\nEOF",
+      "eval 'gh pr merge 482'",
+      'echo "gh pr merge 482" | sh',
+      "echo gh pr merge 482 | bash",
+      "xargs gh pr merge < prs.txt",
+      "echo 482 | xargs -I{} gh pr merge {}",
+      // 前の代入・包むコマンド・括弧・予約語・関数・置き換え
+      "DEGUBOARD_ACTOR=agent gh pr merge 482",
+      "env gh pr merge 482",
+      "sudo -u me gh pr merge 482",
+      "(cd /x && gh pr merge 482)",
+      "for p in 1 2; do gh pr merge $p; done",
+      "if gh pr ready 482; then echo ok; fi",
+      "{ gh pr merge 482; }",
+      "function f { gh pr merge 482; }",
+      "echo $(gh pr merge 482)",
+      'echo "$(gh pr merge 482)"',
+      "echo `gh pr merge 482`",
+      '$(echo "gh pr merge 482")',
+      "/usr/bin/gh pr merge 482",
+      "gh pr \\\n  merge 482",
+      'gh pr "merge" 482',
+      "gh pr ready 482 --undo && gh pr merge 482",
+      // gh api の同じ操作と、引用符で囲んだ置き換えのヒアドキュメントの外
+      "gh api -X PUT repos/o/r/pulls/482/merge",
+      "gh api graphql -f query='mutation { mergePullRequest(input: {}) { clientMutationId } }'",
+      "git commit -m \"$(cat <<'EOF'\n本文\nEOF\n)\" && gh pr merge 482",
+      "cat <<EOF\n$(gh pr merge 482)\nEOF",
+      "./merge.sh 'gh pr merge 482'",
+      // シェルと違う読み方で伏せない：コメントの中の引用符・ANSI-C の引用・終わりの語の行を越えるヒアドキュメント
+      "echo a # it's done\ngh pr merge 1\necho 'b'",
+      "echo $'\\'' ; gh pr merge 1 ; echo ''",
+      "git commit -m \"$(cat <<'EOF'\nfoo\nEOF\ngh pr merge 1\nEOF\n)\"",
+      // 変数・置き換えで書いた gh と操作、引用符と \ で分けた語、xargs に渡す引数
+      "GH=gh; $GH pr merge 1",
+      "$(which gh) pr merge 1",
+      "`which gh` pr merge 1",
+      "OP=merge; gh pr $OP 1",
+      "SUB=pr; gh $SUB merge 1",
+      'gh pr "mer""ge" 1',
+      "gh pr mer''ge 1",
+      "gh pr m\\erge 1",
+      "g\\h pr merge 1",
+      "echo merge 1 | xargs gh pr",
+      "echo 'pr merge 1' | xargs gh",
+      "gh pr merge 1 --squash --subject --help",
+      "gh pr merge --help",
+      "gh pr ready 1 -- --undo",
+      // 任意の言語のコードでは pr と merge が隣り合わない
+      "python3 - <<'EOF'\nimport subprocess\nsubprocess.run([\n  'gh',\n  'pr',\n  'merge',\n  '1',\n])\nEOF",
+      "python3 -c \"import os; os.system('gh pr ' + 'merge 1')\"",
+      // コメントの中の引用符を、前段のコマンドの分解でも引用と読まない
+      "echo start # it's\necho 'gh pr merge 1' | xargs -I{} sh -c '{}'\necho 'x'",
+      "echo # '\necho 'gh pr merge 1' | sh\n'",
+      // 引数でプログラムを渡せるコマンドの引用符は伏せない
+      "git fetch --upload-pack=\"sh -c 'gh pr merge 1'\" /tmp/x",
+      'git grep -O"gh pr merge 1" foo',
+      "sort --compress-program='sh -c \"gh pr merge 1\"' x",
+      "mise run deploy -- 'gh pr merge 1'",
     ])
-      expect(
-        parseGhPr(c).map((g) => g.selector),
-        c,
-      ).toEqual([undefined]);
-    expect(parseGhPr("function f { gh pr merge 482; }").map((g) => g.selector)).toEqual(["482"]);
+      expect(advancesPrOutsideDg(c), c).toBe(true);
   });
 
-  /** 偽の gh（PR はいつも見つからない）。実際の gh がテストで GitHub を読まないように */
-  async function noGh(home: string) {
-    const bin = path.join(home, "fake-bin");
-    await mkdir(bin, { recursive: true });
-    await writeFile(
-      path.join(bin, "gh"),
-      '#!/bin/sh\ncase "$1" in --version) echo fake; exit 0;; esac\necho "no pull requests found" >&2; exit 1\n',
-      { mode: 0o755 },
-    );
-    const saved = process.env["PATH"];
-    process.env["PATH"] = bin + path.delimiter + (saved ?? "");
-    resetGhCache();
-    cleanups.push(async () => {
-      process.env["PATH"] = saved;
-      resetGhCache();
-    });
-  }
+  it("字句で文字と言い切れるもの（文字を扱うコマンドの引用符・ヒアドキュメントの中）と、ほかの gh・dg pr は通す", () => {
+    for (const c of [
+      "gh pr view 482",
+      "gh pr list --state merged",
+      "gh pr ready 482 --undo",
+      "gh pr view $PR --json state",
+      "gh pr checks 482 && git merge-base main HEAD",
+      "mise run dg -- --json --actor agent pr merge t545",
+      "DEGUBOARD_ACTOR=agent mise run dg -- pr ready t545",
+      'mise run dg -- pr merge t545 --delete-branch && echo "$HOME" && gh pr view 1',
+      "node packages/cli/bin/dg.js pr ready t1",
+      "echo ok # gh pr merge はまだ打たない",
+      "cd $WT && mise run check && mise run dg -- pr merge t545",
+      "python3 scripts/x.py && gh pr view 5 --json mergeable",
+      'grep -rn "gh pr merge" packages',
+      "grep -rn 'gh pr ready' docs",
+      'echo "gh pr merge 482 を打つ"',
+      "git commit -m 'gh pr merge を止める'",
+      "git commit -F - <<'EOF'\ngh pr merge 482 を止める\nEOF",
+      "git commit -m \"$(cat <<'EOF'\ngh pr merge 482 を止める\nEOF\n)\"",
+      'gh pr create --draft --title "t545" --body "gh pr ready は dg pr ready で"',
+      "gh pr create --body \"$(cat <<'EOF'\n- gh pr merge を dg pr merge にする\nEOF\n)\"",
+      "gh pr comment 482 --body 'gh pr merge はまだ'",
+      'mise run dg -- ticket update t1 --body "gh pr ready の前に"',
+      "cat > /tmp/note.md <<'EOF'\ngh pr merge 482\nEOF",
+      "echo 'gh pr merge 482' 2>&1 | tee /tmp/x",
+    ])
+      expect(advancesPrOutsideDg(c), c).toBe(false);
+  });
 
   const pre = (ctx: CommandContext, toolInput: Record<string, unknown>, tool = "Bash") =>
     runCommand(hook, ctx, {
@@ -1353,25 +1376,29 @@ describe("PreToolUse（t532）", () => {
     expect((allowed.data as HookView).output).toBeUndefined();
   });
 
-  it("gh pr merge は品質ゲートを満たさないチケットの PR を止めて理由を返し、チケットのない PR は止めない", async () => {
-    const { ctx, home } = await prepared();
-    await noGh(home);
+  it("dg を経由しない gh pr merge・ready は、チケットの有無やゲートによらず拒み、dg pr のコマンドと人に頼む例外を案内する", async () => {
+    const { ctx } = await prepared();
     await runCommand(ticketUpdate, ctx, { ticket: "t1", pr: 5 });
-    const denied = await pre(ctx, { command: "gh pr merge 5 --squash" });
-    const reason = (
-      JSON.parse((denied.data as HookView).output!) as {
-        hookSpecificOutput: { permissionDecisionReason: string };
-      }
-    ).hookSpecificOutput.permissionDecisionReason;
-    expect(reason).toContain("dg gate t1 --for merge");
-    expect(reason).toContain("pr:");
-    expect(reason).toContain("人に gh pr merge を打ってもらう");
-    const other = await pre(ctx, { command: "gh pr merge 99 --squash" });
-    expect((other.data as HookView).output).toBeUndefined();
-    expect((other.data as HookView).done).toEqual([expect.stringContaining("チケットがない")]);
-    // 取り消し（--undo）と、ほかの gh のコマンドは見ない
-    expect((await pre(ctx, { command: "gh pr ready 5 --undo" })).data).toMatchObject({ done: [] });
-    expect((await pre(ctx, { command: "gh pr view 5" })).data).toMatchObject({ done: [] });
+    for (const command of ["gh pr merge 5 --squash", "gh pr merge 99 --squash", "gh pr ready"]) {
+      const denied = await pre(ctx, { command });
+      const reason = (
+        JSON.parse((denied.data as HookView).output!) as {
+          hookSpecificOutput: { permissionDecisionReason: string };
+        }
+      ).hookSpecificOutput.permissionDecisionReason;
+      expect(reason, command).toContain("dg pr merge <ticket>");
+      expect(reason, command).toContain("人に gh pr ready・gh pr merge を打ってもらう");
+    }
+    // 取り消し（--undo）と、ほかの gh のコマンドと dg pr は通す
+    for (const command of [
+      "gh pr ready 5 --undo",
+      "gh pr view 5",
+      "mise run dg -- --json --actor agent pr merge t1",
+    ]) {
+      const view = (await pre(ctx, { command })).data as HookView;
+      expect(view.output, command).toBeUndefined();
+      expect(view.done, command).toEqual([]);
+    }
   });
 });
 

@@ -21,8 +21,6 @@ import { z } from "zod";
 import { collectRunUsage, hookAgentNames, hooksOf, type HookEvent } from "../agents/index.js";
 import { OperationError } from "../errors.js";
 import { collectBranchFacts, lastPushedAt } from "../git/facts.js";
-import { runGit } from "../git/run.js";
-import { judgeGate } from "./gate.js";
 import { toIsoDateTime } from "../model/common.js";
 import { ticketIdSchema, type TicketId } from "../model/id.js";
 import { REVIEW_STEP, type Run, type RunId, type RunResult } from "../model/run.js";
@@ -144,8 +142,9 @@ export const hook = defineCommand({
     "セッションの始まりに主体とセッション ID・記録のパスを環境に入れ、頼んだ文の先頭に `deguboard: ticket=<id> step=<step>` の印のあるサブエージェントの Run を起動で開き" +
     "（同じチケットと step の Run が開いたままなら開かずに警告する。見直しは、その Run が別のセッションのものなら落ちたセッションの残りとみなして interrupted で閉じてから開く。前景の起動で起動より後にその Run に書かれた見直しの結果は、保留に移して新しい Run に結び付ける）、step を終えた事実があれば止まったときに閉じ" +
     "（なければ止まって待っている印を付け、再開で続ける。自分で開いた Run も同じ）、セッションの終わりにそのセッションのサブエージェントの開いたままの Run を閉じる。" +
-    "ツールを使う前（PreToolUse）には、.git/deguboard/ の下への書き込み（書くツールと Bash）を拒み、gh pr merge・gh pr ready をそのチケットの dg gate で判定して満たさなければ止める" +
-    "（PR に当たるチケットがなければ止めない。判定の途中で失敗したら止める。Bash の判定は字句の手がかりで、任意の言語のコードや eval の中は見ない）。" +
+    "ツールを使う前（PreToolUse）には、.git/deguboard/ の下への書き込み（書くツールと Bash）を拒み（Bash の判定は字句の手がかりで、任意の言語のコードや eval の中は見ない）、" +
+    "dg を経由しない gh pr ready・gh pr merge（gh api の同じ操作も）を拒んで dg pr ready・dg pr merge へ案内する" +
+    "（PR の指定は読まない。文字を扱うコマンド（echo・grep・git commit・gh pr create など）の引用符とヒアドキュメントの中だけを文字として通し、任意の言語のコード・eval・パイプで sh に渡すなど読み切れないものは止める）。" +
     "扱うイベントは、読む入力の項目の有無と時刻を deguboard-local/hook-inputs/ にイベントごとの最新の 1 件で残す（値は残さない。dg hooks check が読む）。ほかの失敗は作業を止めないよう、警告にして成功で返す",
   input: z.object({
     event: z
@@ -230,7 +229,8 @@ async function handle(
       return sessionEnd(ctx, event, view, warnings);
     case "tool_requested":
       // ツールのたびに呼ばれるので、止まった Run の掃除はしない
-      return toolRequested(ctx, agent, event, view, warnings);
+      toolRequested(ctx, agent, event, view);
+      return;
   }
   // 記録の書き終わりを待ちきれずに残した Run を、次のフックの機会に閉じる（ADR-014）
   await closeStoppedRuns(ctx, warnings, view, { session: event.session, markedBefore: calledAt });
@@ -782,7 +782,7 @@ export const SUBSHELL_CLOSE = ")";
 /**
  * シェルのコマンドを単純なコマンドの並び（; && || | & と改行で区切る）と、その字句に分ける。引用符（' と "）の中の空白と区切りは割らない。
  * 括弧は [SUBSHELL_OPEN]・[SUBSHELL_CLOSE] の 1 字句のコマンドとして並びに入れる。リダイレクト（> >> >| &> >& <& < 2> など）と
- * ヒアドキュメント（<< <<- <<<）は 1 つの字句にし、ヒアドキュメントの本文は読み飛ばす。置き換え（$(...)・`...`）や入れ子は解かない。
+ * ヒアドキュメント（<< <<- <<<）は 1 つの字句にし、ヒアドキュメントの本文と、語の頭の # からのコメントは読み飛ばす。置き換え（$(...)・`...`）や入れ子は解かない。
  * フックの判定の手がかりにだけ使う
  */
 export function splitCommands(command: string): string[][] {
@@ -840,7 +840,11 @@ export function splitCommands(command: string): string[][] {
       else word += c;
       continue;
     }
-    if (c === "'" || c === '"') {
+    if (c === "#" && !started) {
+      // 語の頭の # から行の終わりまではコメント（中の引用符を引用と読まない。改行は次で読む）
+      const eol = command.indexOf("\n", i);
+      i = (eol === -1 ? command.length : eol) - 1;
+    } else if (c === "'" || c === '"') {
       quote = c;
       started = true;
       quotedWord = true;
@@ -1163,111 +1167,379 @@ export function writesDataDir(command: string): boolean {
   return false;
 }
 
-/** gh の全体のフラグのうち値を取るもの（gh -R o/r pr merge の形） */
-const GH_GLOBAL_WITH_VALUE = new Set(["-R", "--repo", "--hostname"]);
-/** gh pr merge・ready のフラグのうち値を取るもの（値を PR の指定と取り違えない） */
-const GH_PR_WITH_VALUE = new Set([
-  "-R",
-  "--repo",
-  "-b",
-  "--body",
-  "-F",
-  "--body-file",
-  "-t",
-  "--subject",
-  "-A",
-  "--author-email",
-  "--match-head-commit",
+/**
+ * 引数をコードとして走らせないコマンド。どのコマンドもこれらだけなら、引用符とヒアドキュメントの中を文字として伏せてよい。
+ * 引数でプログラムを渡せるもの（rg --pre・sort --compress-program など）は入れない
+ */
+const TEXT_COMMANDS = new Set([
+  "echo",
+  "printf",
+  "cat",
+  "grep",
+  "egrep",
+  "fgrep",
+  "dg",
+  "jq",
+  "head",
+  "tail",
+  "wc",
+  "uniq",
+  "cut",
+  "tr",
+  "test",
+  "[",
+  "true",
+  "false",
+  ":",
+  "ls",
+  "cd",
+  "pushd",
+  "popd",
+  "pwd",
+  "mkdir",
+  "cp",
+  "mv",
+  "rm",
+  "touch",
+  "diff",
+  "basename",
+  "dirname",
+  "sleep",
+  "date",
+  "tee",
 ]);
+/** 引用符の中を伏せてよい gh のサブコマンド。alias・extension・api は文字を後で走らせうるので入れない */
+const GH_TEXT_SUBCOMMANDS = new Set([
+  "pr",
+  "issue",
+  "repo",
+  "release",
+  "run",
+  "workflow",
+  "label",
+  "search",
+  "browse",
+  "status",
+]);
+/**
+ * 引用符の中を伏せてよい git のサブコマンド（エイリアスは名前で見分けられないので、知っているものだけ）。
+ * 引数でプログラムを渡せるもの（fetch・pull・push の --upload-pack・--receive-pack・--exec、grep -O）は入れない
+ */
+const GIT_TEXT_SUBCOMMANDS = new Set([
+  "commit",
+  "tag",
+  "log",
+  "show",
+  "notes",
+  "status",
+  "diff",
+  "worktree",
+  "add",
+  "checkout",
+  "switch",
+  "branch",
+  "rev-parse",
+  "merge-base",
+]);
+/** gh・git の全体のフラグのうち値を取るもの */
+const GH_GLOBAL_WITH_VALUE = new Set(["-R", "--repo", "--hostname"]);
+const GIT_GLOBAL_WITH_VALUE = new Set(["-C", "--git-dir", "--work-tree"]);
 
-export interface GhPrCall {
-  action: "merge" | "ready";
-  /** PR の番号・URL・ブランチ名。省けば今のブランチ */
-  selector?: string | undefined;
-  undo: boolean;
-  /** 呼び出しの前の cd の行き先（重ねたもの）。省いた selector を、そのディレクトリのブランチで引く */
-  dir?: string | undefined;
-}
+/** 前の環境変数の代入（NAME=value） */
+const isAssignment = (w: string) => /^[A-Za-z_][A-Za-z0-9_]*=/.test(w);
 
-/** コマンドの中の gh pr merge・gh pr ready の呼び出しを、すべて順に返す（どれか 1 つでもゲートを満たさなければ止める） */
-export function parseGhPr(command: string): GhPrCall[] {
-  const calls: GhPrCall[] = [];
-  let dir: string | undefined;
-  const saved: Array<string | undefined> = [];
-  for (const words of splitCommands(command)) {
-    if (words[0] === SUBSHELL_OPEN && words.length === 1) {
-      saved.push(dir);
-      continue;
-    }
-    if (words[0] === SUBSHELL_CLOSE && words.length === 1) {
-      if (saved.length > 0) dir = saved.pop();
-      continue;
-    }
-    const { name, args } = commandOf(words);
-    if (name === "cd" || name === "pushd") {
-      dir = changeDir(
-        dir,
-        args.find((a) => !a.startsWith("-")),
-      );
-      continue;
-    }
-    if (name !== "gh") continue;
-    let k = 0;
-    while (k < args.length && args[k]!.startsWith("-")) {
-      if (GH_GLOBAL_WITH_VALUE.has(args[k]!)) k++;
-      k++;
-    }
-    if (args[k] !== "pr" || (args[k + 1] !== "merge" && args[k + 1] !== "ready")) continue;
-    const action = args[k + 1] as "merge" | "ready";
-    const rest = args.slice(k + 2);
-    let selector: string | undefined;
-    for (let n = 0; n < rest.length; n++) {
-      const t = rest[n]!;
-      if (GH_PR_WITH_VALUE.has(t)) n++;
-      else if (!t.startsWith("-") && !/^[0-9]*[<>&]/.test(t) && selector === undefined)
-        selector = t;
-    }
-    calls.push({ action, selector, undo: rest.includes("--undo"), dir });
+/** フラグ（値を取るものは値も）を除いた語 */
+function plainWords(args: readonly string[], withValue: ReadonlySet<string>): string[] {
+  const out: string[] = [];
+  for (let k = 0; k < args.length; k++) {
+    if (withValue.has(args[k]!)) k++;
+    else if (!args[k]!.startsWith("-")) out.push(args[k]!);
   }
-  return calls;
-}
-
-/** gh の PR の指定からチケットを引く。番号（#12・URL を含む）は pr、ほかはブランチ名。省けば cwd の今のブランチ */
-async function ticketOfPr(
-  ctx: CommandContext,
-  selector: string | undefined,
-  cwd: string | null,
-  dir: string | undefined,
-): Promise<Ticket | undefined> {
-  const tickets = [...ctx.store.tickets.values()].map((d) => d.data);
-  const number = selector ? /^(?:#)?(\d+)$|\/pull\/(\d+)/.exec(selector) : null;
-  if (number) {
-    const n = Number(number[1] ?? number[2]);
-    return tickets.find((t) => t.pr === n);
-  }
-  let branch = selector;
-  if (!branch) {
-    const base = cwd ?? ctx.repo.topLevel;
-    const where = dir ? path.resolve(base, dir) : base;
-    const head = await runGit(where, ["rev-parse", "--abbrev-ref", "HEAD"], {
-      allowFailure: true,
-    }).catch(() => undefined);
-    branch = head?.code === 0 ? head.stdout.trim() : undefined;
-  }
-  return branch ? tickets.find((t) => t.branch === branch) : undefined;
+  return out;
 }
 
 /**
- * ツールを使う前（PreToolUse。t532）。.git/deguboard/ の下への書き込み（書くツールと Bash）を拒み、gh pr merge・gh pr ready を
- * 品質ゲート（dg gate）で止める。チケットを引けない PR は判定できないので止めない。判定の途中で失敗したら、通さずに止める
+ * ここまでの語（前の代入を含む）のコマンドが、引用符・ヒアドキュメントの中を文字として扱うか。
+ * gh・git はサブコマンドまで読めたときだけ（gh pr "merge" の "merge" は伏せない）。包むコマンド（env・sudo・xargs など）の後は伏せない
  */
-async function toolRequested(
+function takesText(words: readonly string[]): boolean {
+  const k = words.findIndex((w) => !isAssignment(w));
+  if (k === -1) return false;
+  const [name, ...args] = words.slice(k);
+  if (TEXT_COMMANDS.has(name!)) return true;
+  // ほかのタスクは定義が引数をシェルに渡しうるので、dg を呼ぶタスクだけ
+  if (name === "mise") return args[0] === "run" && args[1] === "dg";
+  if (name === "gh") {
+    const [sub, op] = plainWords(args, GH_GLOBAL_WITH_VALUE);
+    return (
+      sub !== undefined &&
+      op !== undefined &&
+      GH_TEXT_SUBCOMMANDS.has(sub) &&
+      !(sub === "pr" && (op === "merge" || op === "ready"))
+    );
+  }
+  if (name === "git") {
+    if (args.some((a) => a === "-c" || a.startsWith("--config-env"))) return false;
+    const [sub] = plainWords(args, GIT_GLOBAL_WITH_VALUE);
+    return sub !== undefined && GIT_TEXT_SUBCOMMANDS.has(sub);
+  }
+  return false;
+}
+
+/** コマンドがすべて TEXT_COMMANDS か、文字を扱う gh・git・mise run か（commandOf の後の名前で見る。包むコマンドの後の sh なども見つける） */
+function onlyTextCommands(command: string): boolean {
+  return splitCommands(command).every((words) => {
+    if (words.length === 1 && (words[0] === SUBSHELL_OPEN || words[0] === SUBSHELL_CLOSE))
+      return true;
+    const { name, args } = commandOf(words);
+    if (name === "") return words.every(isAssignment);
+    // gh pr merge・ready の直の呼び出しも引数をコードとして走らせない（その引用符は takesText が伏せない）
+    if (name === "gh") {
+      const [sub] = plainWords(args, GH_GLOBAL_WITH_VALUE);
+      return sub !== undefined && GH_TEXT_SUBCOMMANDS.has(sub);
+    }
+    return takesText([name, ...args]);
+  });
+}
+
+/** 置き換え（$(...)・`...`）を含むか */
+const expands = (text: string) => text.includes("$(") || text.includes("`");
+/** git commit -m "$(cat <<'EOF' … EOF)" の形（引用した終わりの語のヒアドキュメントを cat で出すだけ。中は文字） */
+// 本文の行は終わりの語だけの行を含まない（シェルは最初のその行で閉じる。越えて読むと、その後の置き換えの中のコマンドまで伏せてしまう）
+const CAT_HEREDOC = /\$\(cat <<-? ?(['"])(\w+)\1\n(?:(?!\2\n)[^\n]*\n)*?\2\n\s*\)/y;
+
+/** command[open] の " を閉じる " の位置（なければ長さ）。中の $(cat <<'EOF' … EOF) は読み飛ばす */
+function closingDoubleQuote(command: string, open: number): number {
+  for (let k = open + 1; k < command.length; k++) {
+    const c = command[k];
+    if (c === "\\") k++;
+    else if (c === '"') return k;
+    else if (c === "$" && command[k + 1] === "(") {
+      CAT_HEREDOC.lastIndex = k;
+      const m = CAT_HEREDOC.exec(command);
+      if (m) k += m[0].length - 1;
+      else {
+        // ほかの置き換えは括弧の深さだけで読み飛ばす（中が読み切れなくても、置き換えを含む引用は伏せないので止める側に倒れる）
+        let depth = 0;
+        for (; k < command.length; k++) {
+          if (command[k] === "(") depth++;
+          else if (command[k] === ")" && --depth === 0) break;
+        }
+      }
+    }
+  }
+  return command.length;
+}
+
+/**
+ * 字句で文字と言い切れる部分（引数をコードとして走らせないコマンドの、置き換えのない引用符の中とヒアドキュメントの本文）を空白で伏せる。
+ * どれかのコマンドが文字を走らせうる（sh・python・eval・xargs sh・知らないコマンドなど）か、置き換えがコマンドの位置にあるか、
+ * ANSI-C の引用があれば、読み切れないとして null を返す（何も伏せない）
+ */
+export function maskTextArguments(command: string): string | null {
+  if (!onlyTextCommands(command)) return null;
+  const out = command.split("");
+  const blank = (from: number, to: number) => {
+    for (let k = from; k < to; k++) out[k] = " ";
+  };
+  let words: string[] = [];
+  let word = "";
+  let started = false;
+  /** << の後で終わりの語を待っている。値は << の前のコマンドが文字を扱うか */
+  let heredocOp: boolean | null = null;
+  let delimiterQuoted = false;
+  const heredocs: Array<{ end: string; quoted: boolean; text: boolean }> = [];
+  const endWord = () => {
+    if (started) {
+      if (heredocOp !== null) {
+        heredocs.push({ end: word, quoted: delimiterQuoted, text: heredocOp });
+        heredocOp = null;
+      } else words.push(word);
+    }
+    word = "";
+    started = false;
+    delimiterQuoted = false;
+  };
+  for (let i = 0; i < command.length; i++) {
+    const c = command[i]!;
+    const next = command[i + 1];
+    if (c === "\\") {
+      if (next !== "\n") {
+        word += next ?? "";
+        started = true;
+      }
+      i++;
+    } else if (c === "#" && !started) {
+      // 語の頭の # から行の終わりまではコメントで走らない。中の引用符を引用と読まずに伏せる
+      const eol = command.indexOf("\n", i);
+      const end = eol === -1 ? command.length : eol;
+      blank(i, end);
+      i = end - 1;
+    } else if (c === "'" && started && word.endsWith("$")) {
+      // $'…'（ANSI-C の引用）は \' で閉じないので、読み切れないとみなして何も伏せない
+      return null;
+    } else if (c === "'" || c === '"') {
+      const end = c === "'" ? command.indexOf("'", i + 1) : closingDoubleQuote(command, i);
+      const close = end === -1 ? command.length : end;
+      const body = command.slice(i + 1, close);
+      if (heredocOp !== null) delimiterQuoted = true;
+      else if (
+        close < command.length &&
+        takesText(words) &&
+        (c === "'" || !expands(body.replace(new RegExp(CAT_HEREDOC.source, "g"), "")))
+      )
+        blank(i, close + 1);
+      word += body;
+      started = true;
+      i = close;
+    } else if (c === "<" && next === "<" && command[i + 2] === "<") {
+      endWord();
+      i += 2;
+    } else if (c === "<" && next === "<") {
+      endWord();
+      i++;
+      if (command[i + 1] === "-") i++;
+      heredocOp = takesText(words);
+    } else if (c === "\n") {
+      endWord();
+      words = [];
+      while (heredocs.length > 0) {
+        const h = heredocs.shift()!;
+        const start = i + 1;
+        let bodyEnd = command.length;
+        for (;;) {
+          const eol = command.indexOf("\n", i + 1);
+          const lineStart = i + 1;
+          const line = command.slice(lineStart, eol === -1 ? command.length : eol);
+          i = eol === -1 ? command.length : eol;
+          if (line.replace(/^\t+/, "") === h.end) {
+            bodyEnd = lineStart;
+            break;
+          }
+          if (eol === -1) break;
+        }
+        const body = command.slice(start, bodyEnd);
+        if (h.text && (h.quoted || !expands(body))) blank(start, bodyEnd);
+      }
+    } else if (c === "&" && (next === ">" || command[i - 1] === ">")) {
+      // >&1・&> はリダイレクトで、コマンドの区切りではない
+      word += c;
+      started = true;
+    } else if (c === "(" || c === "`") {
+      // 置き換えがコマンドの位置にあれば、その出力がコマンドとして走るので何も伏せない
+      if (words.every(isAssignment) && (c === "`" ? !started : word === "$")) return null;
+      endWord();
+      words = [];
+    } else if (c === ";" || c === "|" || c === "&" || c === ")") {
+      endWord();
+      words = [];
+    } else if (c === " " || c === "\t") {
+      endWord();
+    } else {
+      word += c;
+      started = true;
+    }
+  }
+  return out.join("");
+}
+
+/** gh api で PR をマージ・ready にする手がかり（REST の pulls/<n>/merge と GraphQL の mutation 名） */
+const GH_API_ADVANCE =
+  /pulls\/[^/\s]+\/merge\b|mergePullRequest|markPullRequestReadyForReview|enablePullRequestAutoMerge/;
+
+/** 展開で何にでもなりうる語（$GH・$(…)・`…`） */
+const expandsWord = (t: string) => t.startsWith("$") || t.startsWith("`");
+/** 字句に分ける区切り（空白と括弧・`・中括弧・リダイレクトと、任意の言語の配列の [ ] ,） */
+const TOKEN_SPLIT = /[\s()`{}<>[\],]+/;
+
+/** pr の後の操作の語（値を取る全体のフラグとその値を飛ばした最初の語） */
+function prOperation(tokens: readonly string[], pr: number): string | undefined {
+  for (let k = pr + 1; k < tokens.length; k++) {
+    if (GH_GLOBAL_WITH_VALUE.has(tokens[k]!)) k++;
+    else if (!tokens[k]!.startsWith("-") || expandsWord(tokens[k]!)) return tokens[k];
+  }
+  return undefined;
+}
+
+/**
+ * Bash のコマンドが、dg を経由せずに PR を ready にするかマージするか（gh pr ready・gh pr merge・gh api の同じ操作。t545、ADR-019）。
+ * 字句で文字と言い切れる部分（maskTextArguments）を伏せ、残りの引用符と \ を取り除いて語をつなげてから（gh pr "mer""ge"・g\h）見る。
+ * 残りのどこかに gh か展開の語（$GH・$(which gh)）があり、区切り（; & | 改行）の中で pr の次の操作の語が merge・ready・展開の語
+ * （gh pr $OP）なら走るとみなす。gh の次が展開の語（gh $SUB）も止める。xargs があれば区切りを越えて pr と merge・ready を探す。
+ * 読み切れないコマンド（maskTextArguments が null。python などの任意の言語のコードを含む）では語が隣り合うとは限らない
+ * （1 要素ずつ改行した配列・'gh pr ' + 'merge'）ので、全体に gh の語があり、pr と merge・ready の語がどこかにあれば止める。
+ * PR の指定は読まない（2>&1・$PR・python -c の中も止める）。通すのは gh pr ready --undo だけ
+ */
+export function advancesPrOutsideDg(command: string): boolean {
+  const masked = maskTextArguments(command);
+  if (masked === null) {
+    const text = command.replace(/\\\n/g, " ");
+    if (
+      // $ を数えると cd $WT && mise run check && mise run dg -- pr merge まで止めるので、書いた gh だけを見る（$GH は下で見る）
+      /(^|[^\w-])gh\b/.test(text) &&
+      /\bpr\b/.test(text) &&
+      /\b(merge|ready)\b/.test(text)
+    )
+      return true;
+  }
+  // 読み切れないときも、下の語の見方（g\h・gh api など）を何も伏せずに掛ける
+  const joined = (masked ?? command).replace(/\\\n/g, " ").replace(/["'\\]/g, "");
+  const all = joined.split(/[\s;&|()`{}<>[\],]+/).filter((t) => t !== "");
+  // フラグや代入に接した gh（git grep -Ogh・--upload-pack=gh）も gh とみなす
+  const isGh = (t: string) => /(^|[/=]|^-[A-Za-z]*)gh$/.test(t);
+  const isDg = (t: string) => /(^|\/)dg(\.js)?$/.test(t);
+  if (!all.some((t) => isGh(t) || expandsWord(t)) && !joined.includes("$")) return false;
+  // GraphQL の mutation は括弧を含むので、区切らずに全体で見る
+  if (GH_API_ADVANCE.test(joined)) return true;
+  const advancing = (op: string | undefined) =>
+    op === "merge" || op === "ready" || (op !== undefined && expandsWord(op));
+  // xargs は前のコマンドの出力を引数にするので、区切りを越えて見る
+  if (
+    all.includes("xargs") &&
+    all.includes("pr") &&
+    all.some((t) => t === "merge" || t === "ready")
+  )
+    return true;
+  for (const segment of joined.split(/[;&|\n]/)) {
+    const tokens = segment.split(TOKEN_SPLIT).filter((t) => t !== "");
+    for (let k = 0; k < tokens.length; k++) {
+      if (isGh(tokens[k]!)) {
+        const sub = prOperation(tokens, k);
+        if (sub !== undefined && expandsWord(sub)) return true;
+      }
+      if (tokens[k] !== "pr") continue;
+      // dg pr ready・dg pr merge（mise run dg -- pr merge も）は正しい道。dg の後に gh か展開の語が来れば見る
+      const before = tokens.slice(0, k);
+      if (before.findLastIndex(isDg) > before.findLastIndex((t) => isGh(t) || expandsWord(t)))
+        continue;
+      const op = prOperation(tokens, k);
+      if (!advancing(op)) continue;
+      // -- の後の --undo はフラグでなく引数
+      const undo = tokens.indexOf("--undo");
+      const rest = tokens.indexOf("--");
+      if (op === "ready" && undo !== -1 && (rest === -1 || undo < rest)) continue;
+      return true;
+    }
+  }
+  return false;
+}
+
+/** dg を経由しない gh pr ready・merge を拒む文（t545） */
+export const GH_PR_DENIED =
+  "PR を ready にする・マージするのは dg のコマンドで行う：dg pr ready <ticket>・dg pr merge <ticket>（品質ゲート dg gate を満たすときだけ gh を呼び、満たさなければ条件と理由を返す）。" +
+  "ゲートを満たさないまま進める（見直し役を起動できない・修正ループの上限を超えた・版上げの PR・人が回数を指示した）のは人の判断なので、人に gh pr ready・gh pr merge を打ってもらう（dg guide review）。" +
+  "このフックは字句で文字と言い切れないものも止める。文字として書くだけなら、echo・git commit -m・gh pr create --body などの引用符かヒアドキュメントに入れる";
+
+/**
+ * ツールを使う前（PreToolUse。t532・t545）。.git/deguboard/ の下への書き込み（書くツールと Bash）を拒み、dg を経由しない gh pr ready・gh pr merge を
+ * 拒んで dg pr ready・dg pr merge へ案内する（advancesPrOutsideDg。読み切れないものは止める側に倒す）
+ */
+function toolRequested(
   ctx: CommandContext,
   agent: string,
   event: Extract<HookEvent, { kind: "tool_requested" }>,
   view: HookView,
-  warnings: string[],
-): Promise<void> {
+): void {
   const deny = (reason: string) => {
     // イベント名は製品のもの（入力のまま返す。AG-5）
     view.output = hooksOf(agent)!.denyOutput(view.event, reason);
@@ -1291,36 +1563,7 @@ async function toolRequested(
     deny(dataWrite);
     return;
   }
-  const failures: string[] = [];
-  for (const gh of parseGhPr(command)) {
-    if (gh.undo) continue;
-    const stage = gh.action === "merge" ? "merge" : "ready";
-    try {
-      const ticket = await ticketOfPr(ctx, gh.selector, event.cwd, gh.dir);
-      if (!ticket) {
-        view.done.push(
-          `gh pr ${gh.action}${gh.selector ? ` ${gh.selector}` : ""} の PR に当たるチケットがないので、品質ゲートを判定しない`,
-        );
-        continue;
-      }
-      const judged = await judgeGate(ctx, ticket, stage);
-      if (judged.passed) {
-        view.done.push(`${ticket.id} の品質ゲート（${stage}）を満たす`);
-        continue;
-      }
-      const failed = judged.conditions.filter((c) => !c.ok).map((c) => `${c.id}: ${c.detail}`);
-      failures.push(
-        `${ticket.id} の品質ゲート（dg gate ${ticket.id} --for ${stage}）を満たさない。${failed.join("。")}。` +
-          `満たさないまま進める（見直し役を起動できない・修正ループの上限を超えた・版上げの PR など）のは人の判断なので、` +
-          `人に gh pr ${gh.action} を打ってもらう（dg guide review）`,
-      );
-    } catch (e) {
-      const message = e instanceof Error ? e.message : String(e);
-      warnings.push(`品質ゲートを判定できなかった（${message}）`);
-      failures.push(`品質ゲートを判定できなかったので止めた（${message}）。dg gate で確かめる`);
-    }
-  }
-  if (failures.length > 0) deny(failures.join(" / "));
+  if (advancesPrOutsideDg(command)) deny(GH_PR_DENIED);
 }
 
 export const hookCommands = [hook];

@@ -26,3 +26,4 @@
 | [ADR-016](ADR-016-session-from-agent-env.md)           | Run を開く操作のセッションは、フックの環境がなければエージェントが付ける環境から取る           | エージェント       | 2026-11-08 |
 | [ADR-017](ADR-017-review-result-binding-edge-cases.md) | 前景の見直しの起動の時刻は記録の最初の行で補い、sync は別のセッションの見直しの Run を閉じない | エージェント       | 2026-11-08 |
 | [ADR-018](ADR-018-fix-run-by-marker.md)                | 手直しの Run も起動のフックが印で開き、理由は run retry-reason で開いている Run に書き足す     | エージェント       | 2026-11-08 |
+| [ADR-019](ADR-019-pr-advance-through-dg.md)            | PR を進める正しい道を dg のコマンドにし、フックは dg を経由しない gh を粗く拒む                | エージェント       | 2026-11-08 |

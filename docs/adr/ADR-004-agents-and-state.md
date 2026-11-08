@@ -13,7 +13,7 @@ AI エージェント（Claude Code・Codex など）がチケットを処理す
 
 - `dg`・サーバー・VS Code 拡張は、チケットの作業のためにエージェントを起動しない。実行中のプロセスも監視しない（EX-1）
 - エージェントは Bash から `dg` を呼んでチケットを読み書きし、手順は `dg guide <topic>` が出す（AG-1）
-- 主体（human / agent）は Adapter のフックが決める。Claude Code では SessionStart フックが、そのセッションの環境に `DEGUBOARD_ACTOR=agent` を入れ、dg はそれを読んで agent とする（予定。フックは `dg hooks install` で入れ、実装は t530）。フックのない製品では申告（`--actor` か `DEGUBOARD_ACTOR`）に従い、申告がなければ human になる。その製品では guide の手順が必ず agent を名乗る。こうして Workflow が `by: [human]` で人に限った遷移をエージェントから遠ざける。フックは harness が呼ぶ dg のコマンドで、エージェントを起動も監視もしない。権限管理や偽装の防止はしない（同じリポジトリに書ける人を信頼する）
+- ※ ADR-019 で置き換え（この項の「フックは harness が呼ぶ dg のコマンドで、エージェントを起動も監視もしない」の部分は失効）。主体（human / agent）は Adapter のフックが決める。Claude Code では SessionStart フックが、そのセッションの環境に `DEGUBOARD_ACTOR=agent` を入れ、dg はそれを読んで agent とする（予定。フックは `dg hooks install` で入れ、実装は t530）。フックのない製品では申告（`--actor` か `DEGUBOARD_ACTOR`）に従い、申告がなければ human になる。その製品では guide の手順が必ず agent を名乗る。こうして Workflow が `by: [human]` で人に限った遷移をエージェントから遠ざける。フックは harness が呼ぶ dg のコマンドで、エージェントを起動も監視もしない。権限管理や偽装の防止はしない（同じリポジトリに書ける人を信頼する）
 - Claude Code 向けには guide を読む薄い Skill を配り（AG-2）、ほかのエージェントは同じ手順に従う。特定の AI 製品に依存する処理は Adapter（[ADR-007](ADR-007-architecture.md)）に閉じる
 
 ### 状態はチケットのブランチの事実で前進させる

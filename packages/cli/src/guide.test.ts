@@ -347,7 +347,13 @@ describe("dg guide", () => {
       "手順 8 と同じもう一度の claim",
     );
     const ending = section(review, "## 終わり方");
-    for (const word of ["チケットは in_progress のまま", "人に報告", "`gh pr ready <PR>`"])
+    // PR を出すのは dg pr ready（ゲートを満たすときだけ gh を呼ぶ。t545）。満たさないまま出すときだけ人が gh を打つ
+    for (const word of [
+      "チケットは in_progress のまま",
+      "人に報告",
+      "`dg --json --actor agent pr ready <id>`",
+      "人に `gh pr ready` を打ってもらう",
+    ])
       expect(ending).toContain(word);
     expect(section(review, "## 見直す")).toContain("`gh pr create --draft`");
     expect(section(review, "## 品質ゲート")).toContain("MERGEABLE");
