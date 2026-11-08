@@ -1,0 +1,24 @@
+{
+  "id": "r20261108-044445-166b",
+  "ticket": "t555",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": null,
+  "started_at": "2026-11-08T04:44:45Z",
+  "finished_at": "2026-11-08T04:44:47Z",
+  "result": "success",
+  "error": null,
+  "retries": 1,
+  "retry_reasons": [
+    "dg hook のヘルプが古い判定のまま"
+  ],
+  "usage": {
+    "input": null,
+    "output": null,
+    "cache_read": null,
+    "cache_write": null
+  },
+  "tools": null,
+  "session": "796c0e0c-054b-4a51-9b04-c4ee05d5dce2",
+  "review": null
+}
