@@ -67,22 +67,23 @@ describe("サブエージェントに渡す文の形（brief）", () => {
     `);
   });
 
-  it("手直しの文は印を付けず、claim で fix の Run を開かせ、指摘の一覧を入れる（日本語）", () => {
+  it("手直しの文は先頭の行に fix の印を置き、run retry-reason で理由を書かせ、指摘の一覧を入れる（日本語）（ADR-018）", () => {
     expect(composeBrief("fix", facts({ step: "fix" }), "ja", "1. src/a.ts:3 の型が違う（重い）"))
       .toMatchInlineSnapshot(`
-        "チケット t12「右の列を細くする」の PR の指摘を直してください。同じブランチで直して push します。
+        "deguboard: ticket=t12 step=fix
+        チケット t12「右の列を細くする」の PR の指摘を直してください。同じブランチで直して push します。
         - PR：#7（draft のまま。ready にしない）
         - 場所：worktree /work/deguboard.worktrees/feat/t12、ブランチ feat/t12。ファイルはこの worktree の中だけで編集する。
         - 直す指摘：1. src/a.ts:3 の型が違う（重い）
-        - 直し始める前に：\`dg --json --actor agent ticket claim t12 --retry-reason <直した指摘 1 件の要約> --retry-reason <2 件目の要約> …\` を単独のコマンドで 1 回呼んで fix の Run を開く。直した指摘 1 件に 1 つ --retry-reason を繰り返す（回数は理由の数になる）。書くのは見直し役・人のレビューの指摘だけで、検査の失敗を直したことは書かない。要約は 1 行で、秘密・コマンドの文字列・パスは書かない。\`run start\`・\`run finish\` は使わない。
+        - 直し始める前に：\`dg --json --actor agent run retry-reason t12 --reason <直す指摘 1 件の要約> --reason <2 件目の要約> …\` を単独のコマンドで 1 回呼んで、fix の Run にやり直しの理由を書く。直す指摘 1 件に 1 つ --reason を繰り返す（回数は理由の数になる）。書くのは見直し役・人のレビューの指摘だけで、検査の失敗を直したことは書かない。要約は 1 行で、秘密・コマンドの文字列・パスは書かない。
         - 直す範囲：挙げられた重い指摘と、直すと決めた軽い指摘。ほかの軽い指摘は直すかを決め、直さないものは理由を返す。
         - 規約：リポジトリのルートにあるエージェント向けの指示ファイルと \`dg guide review\` の「指摘を直す」に従う。検査（書式・lint・テスト）を最新のコミットで通してから push する。
         - 受け入れ条件：
           1. 列の幅が 240px になる
           2. 狭い画面で折り返さない
         - 道具：ファイルは Read で読み、Edit で直す。Bash の cat・heredoc・sed -i でソースを読み書きしない。
-        - Run：fix の Run は上の claim が開く。この文には印を付けない（印で開くと Run が二重になる）。
-        - しない：claim（上の claim だけ）・unclaim・\`gh pr ready\`・マージ・\`ticket update --pr\`・\`ticket check\`・ほかのチケットの作業。
+        - Run：この文の先頭の印で、フックが手直しの Run（fix）を開き閉じる。Run は開かず閉じない（claim・\`run start\`・\`run finish\` は使わない）。
+        - しない：claim・unclaim・\`gh pr ready\`・マージ・\`ticket update --pr\`・\`ticket check\`・ほかのチケットの作業。
         - 返すもの：直したコミット（ハッシュと要約）と push の有無・直さなかった軽い指摘と理由・確かめた受け入れ条件（番号ごと）と付けられなかった項目（理由）・検査の結果・人に伝えること。"
       `);
   });
@@ -117,29 +118,31 @@ describe("サブエージェントに渡す文の形（brief）", () => {
       - Return: a list of findings split into heavy (missed acceptance criteria, bugs, mismatches with the docs, rule violations) and light (wording, preference), each with file and line, reason, and how to fix it; and the results of the checks run on the latest commit. Report 参考節との食い違い (mismatches with the 参考 section) under the light findings, and do not count them as heavy."
     `);
     expect(composeBrief("fix", facts({ step: "fix" }), "en")).toMatchInlineSnapshot(`
-      "Fix the findings on the PR for ticket t12 "右の列を細くする". Fix them on the same branch and push.
+      "deguboard: ticket=t12 step=fix
+      Fix the findings on the PR for ticket t12 "右の列を細くする". Fix them on the same branch and push.
       - PR: #7 (keep it as a draft; do not mark it ready)
       - Location: worktree /work/deguboard.worktrees/feat/t12, branch feat/t12. Edit files only inside this worktree.
       - Findings to fix: (paste the list of findings here: the heavy findings and the light ones you decided to fix, returned by the reviewer or the human reviewer, each with file and line, reason, and how to fix it)
-      - Before you start fixing: Run \`dg --json --actor agent ticket claim t12 --retry-reason <summary of finding 1> --retry-reason <summary of finding 2> …\` once, as a standalone command, to open the fix Run. Repeat --retry-reason once per finding you fixed (the number of reasons is the retry count). Write only the findings from the reviewer or the human reviewer, not fixes for failed checks. Each summary is one line and must not contain secrets, command strings, or paths. Do not use \`run start\` or \`run finish\`.
+      - Before you start fixing: Run \`dg --json --actor agent run retry-reason t12 --reason <summary of finding 1> --reason <summary of finding 2> …\` once, as a standalone command, to write the retry reasons on the fix Run. Repeat --reason once per finding you fix (the number of reasons is the retry count). Write only the findings from the reviewer or the human reviewer, not fixes for failed checks. Each summary is one line and must not contain secrets, command strings, or paths.
       - Scope of the fix: The heavy findings listed, and the light ones you decide to fix. For the other light findings, decide whether to fix them, and return the reasons for those you leave.
       - Conventions: Follow the agent instruction file at the repository root and the "指摘を直す" (Fixing findings) section of \`dg guide review\`. Run the checks (format, lint, tests) on the latest commit before you push.
       - Acceptance criteria: 
         1. 列の幅が 240px になる
         2. 狭い画面で折り返さない
       - Tools: read files with Read and edit them with Edit. Do not read or write source with Bash cat, heredoc, or sed -i.
-      - Run: the fix Run is opened by the claim above. This text has no marker, since a marker would open a second Run.
-      - Do not: claim (only the one above), unclaim, \`gh pr ready\`, merge, \`ticket update --pr\`, \`ticket check\`, or work on other tickets.
+      - Run: the marker on the first line makes the hook open and close the fix Run. Do not open or close a Run (do not use claim, \`run start\`, or \`run finish\`).
+      - Do not: claim, unclaim, \`gh pr ready\`, merge, \`ticket update --pr\`, \`ticket check\`, or work on other tickets.
       - Return: the commits you made (hash and summary) and whether you pushed; the light findings you did not fix, with reasons; the acceptance criteria you checked (by number) and those you could not (with reasons); the results of the checks; and anything the human should know."
     `);
   });
 
-  it("印は実装と見直しの先頭の行だけにあり、手直しの文には付かない（claim が Run を開くので二重にしない）", () => {
+  it("どの役の文も先頭の行に印があり、手直しの文は claim で Run を開かせない（印と claim で二重にしない。ADR-018）", () => {
     const marked = (role: "implement" | "review" | "fix") =>
-      composeBrief(role, facts({ step: role === "fix" ? "fix" : role }), "ja").split("\n")[0];
+      composeBrief(role, facts({ step: role }), "ja").split("\n")[0];
     expect(marked("implement")).toBe("deguboard: ticket=t12 step=implement");
     expect(marked("review")).toBe("deguboard: ticket=t12 step=review");
-    expect(composeBrief("fix", facts({ step: "fix" }), "ja")).not.toContain("deguboard: ticket=");
+    expect(marked("fix")).toBe("deguboard: ticket=t12 step=fix");
+    expect(composeBrief("fix", facts({ step: "fix" }), "ja")).not.toContain("ticket claim");
   });
 
   it("Plan の範囲と方針がなければ、その行は出さない。受け入れ条件がなければ親に聞く旨を出す", () => {
@@ -188,7 +191,7 @@ describe("dg brief と dg next の文（EX-3）", () => {
       await runCommand(brief, ctx, { ticket: "t1", role: "fix", findings: "1. 直す指摘" })
     ).data;
     expect(fix).toMatchObject({ step: "fix" });
-    expect(fix.text).not.toContain("deguboard: ticket=");
+    expect(fix.text.split("\n")[0]).toBe("deguboard: ticket=t1 step=fix");
     expect(fix.text).toContain("1. 直す指摘");
   });
 
@@ -247,6 +250,6 @@ describe("dg brief と dg next の文（EX-3）", () => {
     expect(implement.text.split("\n")[0]).toBe("deguboard: ticket=t1 step=build");
     const fix = (await runCommand(brief, ctx, { ticket: "t1", role: "fix" })).data;
     expect(fix.step).toBe("rework");
-    expect(fix.text).not.toContain("deguboard: ticket=");
+    expect(fix.text.split("\n")[0]).toBe("deguboard: ticket=t1 step=rework");
   });
 });

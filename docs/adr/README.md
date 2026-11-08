@@ -25,3 +25,4 @@
 | [ADR-015](ADR-015-interrupt-stale-session-runs.md)     | 別のセッションで開いたままの見直し・手直しの Run は、次の開始が interrupted で閉じる           | エージェント       | 2026-11-08 |
 | [ADR-016](ADR-016-session-from-agent-env.md)           | Run を開く操作のセッションは、フックの環境がなければエージェントが付ける環境から取る           | エージェント       | 2026-11-08 |
 | [ADR-017](ADR-017-review-result-binding-edge-cases.md) | 前景の見直しの起動の時刻は記録の最初の行で補い、sync は別のセッションの見直しの Run を閉じない | エージェント       | 2026-11-08 |
+| [ADR-018](ADR-018-fix-run-by-marker.md)                | 手直しの Run も起動のフックが印で開き、理由は run retry-reason で開いている Run に書き足す     | エージェント       | 2026-11-08 |

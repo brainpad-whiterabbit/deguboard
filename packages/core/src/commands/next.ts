@@ -341,9 +341,10 @@ export function nextOf(ctx: CommandContext, facts: StageFacts): NextStep {
             `gh pr ready ${facts.ticket.pr}`,
             dg("sync"),
           ])
-        : // 手直しの Run は直すエージェント自身のもう一度の claim が開く（guide-review）。親が印で頼むと Run が重なるので、印は付けない
+        : // 手直しの Run も印でフックが開く。理由は直すエージェントが run retry-reason で書き足す（ADR-018）
           make("fix", fixStep, [
-            `直すエージェント（実装と同じモデル）が最初に ${dg(`ticket claim ${id} --retry-reason <直す指摘の要約>`)}`,
+            marker(fixStep),
+            `直すエージェント（実装と同じモデル）が最初に ${dg(`run retry-reason ${id} --reason <直す指摘の要約>`)}`,
             "同じブランチで直して push する",
           ]);
     case "ready":

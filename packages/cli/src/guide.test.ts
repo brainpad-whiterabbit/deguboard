@@ -111,8 +111,9 @@ describe("dg guide", () => {
       /正本とコメントを読み直す[\s\S]*?同じ PR で直す[\s\S]*?gh pr create --draft[\s\S]*?読み直した正本と直した箇所/,
     );
     expect(await readGuide("parallel")).toContain("読み直した正本と直した箇所");
-    // サブエージェントも自分の Adapter の名前で run start する（役割名だと使用量とモデル名が取れない）
-    for (const topic of ["parallel", "review"])
+    // 見直し役が --agent を渡すときも自分の Adapter の名前（役割名だと使用量とモデル名が取れない）。
+    // 並べて進める実装と手直しのサブエージェントは印で頼むので Run を開かない（ADR-018）
+    for (const topic of ["review"])
       expect(await readGuide(topic), topic).toMatch(
         /自分の Adapter の名前。Claude Code なら `claude-code`/,
       );
@@ -329,15 +330,18 @@ describe("dg guide", () => {
     expect(bullet(fixLoop, "上限")).toContain("重い指摘を直すのは 2 回まで");
     const runs = section(review, "## Run の分け方");
     expect(runs).toContain("--retry-reason <直した指摘の要約>");
-    // 修正ループの手直しも人のレビューの手直しと同じく、直すエージェントのもう一度の claim が開いて sync が閉じる（ADR-005）
+    // サブエージェントの手直しは印でフックが開き、理由は run retry-reason で書く。自分で直すならもう一度の claim が開いて sync が閉じる（ADR-018）
+    expect(fixLoop).toContain("run retry-reason <id> --reason <指摘の要約>");
     expect(fixLoop).toContain("ticket claim <id> --retry-reason <指摘の要約>");
+    expect(lineWith(runs, "修正ループの 1 回")).toContain("文の印でフックが開く");
     expect(lineWith(runs, "修正ループの 1 回")).toContain("ticket claim <id> --retry-reason");
     expect(lineWith(runs, "修正ループの 1 回")).toContain("`sync` が次の区切り");
     expect(review).not.toContain("run finish --retry-reason");
     const parallel = await readGuide("parallel");
-    expect(bullet(parallel, "サブエージェントがしない")).toContain(
-      "手直しのもう一度の claim は除く",
+    expect(bullet(parallel, "サブエージェントがしない")).toMatch(
+      /^- \*\*サブエージェントがしない\*\*：claim・/,
     );
+    expect(bullet(parallel, "親")).toContain("run retry-reason");
     expect(bullet(parallel, "親")).toContain("--retry-reason <指摘の要約>");
     expect(lineWith(section(work, "## 流れ"), "gh pr create --draft")).toContain(
       "手順 8 と同じもう一度の claim",
@@ -402,7 +406,7 @@ describe("dg guide", () => {
     );
     for (const word of ["unclaim せず", "`dg guide review`", "終わり方"])
       expect(parallelFix).toContain(word);
-    expect(parallelFix).toContain("成功して返った手直しの Run は `sync` が閉じる");
+    expect(parallelFix).toContain("印で頼んだ手直しの Run は push して返ったときにフックが閉じる");
     const allFailed = lineWith(all, "todo に戻さず");
     for (const word of ["手直し", "見直し", "返らない"]) expect(allFailed).toContain(word);
     // done の「終わらなかったとき」は実装の Run と手直し・見直しの Run を分け、review へ案内する
