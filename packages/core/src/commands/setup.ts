@@ -62,6 +62,7 @@ import {
   fixRunFinishedAt,
   openedStepOf,
   runsClosedByMove,
+  sessionOf,
 } from "./run.js";
 
 const TEMPLATE_IDS = WORKFLOW_TEMPLATES.map((t) => t.id) as [string, ...string[]];
@@ -434,16 +435,17 @@ export const sync = defineCommand({
   group: "setup",
   summary:
     "リモートの deguboard を取り込み、未 push のコミットを送り、作業ブランチの事実でチケットの状態を進める。作業ブランチの PR を見つけたら、このマシンで実行中の実装の Run を success で閉じる（finished_at は PR の作成時刻）。開いたままの手直しの Run は、次の区切り（同じチケットの次の Run の開始・PR の ready・マージ・チケットの終了）を見たときに、それまでの最後の push の時刻で success にする。終わったチケットに開いたままの実装の Run は ticket move と同じ結果で閉じる（abandoned は failure、PR のない done は success。PR のある done は PR の作成時刻で success）。todo に戻ったチケットか別の主体の claim になったチケットの実装の Run は failure で閉じる。" +
-    "記録の書き終わりを待ちきれずに残したサブエージェントの Run（書き終わり待ちの印 settling_since のあるもの）も、書き終わっていれば閉じる",
+    "記録の書き終わりを待ちきれずに残したサブエージェントの Run（書き終わり待ちの印 settling_since のあるもの）も、書き終わっていれば閉じる（見直しの Run のうち、sync のセッションと別のセッションのものは閉じない。次の見直しの起動が閉じる）",
   input: z.object({}),
   write: true,
   needs: "store",
   async run(ctx) {
     const synced = await syncLocked(ctx);
-    // 記録の書き終わりを待ちきれずに残したサブエージェントの Run を閉じる（ADR-014）。閉じる書き込みは write のロックを取るので、外してから行う
+    // 記録の書き終わりを待ちきれずに残したサブエージェントの Run を閉じる（ADR-014）。閉じる書き込みは write のロックを取るので、外してから行う。
+    // 別のセッションの見直しの Run は閉じない（前景の見直し役が今回の結果を書いているかもしれない。ADR-017）
     const closing: string[] = [];
     const view: HookView = { event: "sync", done: [] };
-    await closeStoppedRuns(ctx, closing, view);
+    await closeStoppedRuns(ctx, closing, view, { reviewSession: sessionOf(ctx, undefined) });
     return ok(synced.data, synced.write, [...synced.warnings, ...view.done, ...closing]);
   },
 });

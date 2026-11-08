@@ -227,7 +227,7 @@ async function handle(
       return toolRequested(ctx, agent, event, view, warnings);
   }
   // 記録の書き終わりを待ちきれずに残した Run を、次のフックの機会に閉じる（ADR-014）
-  await closeStoppedRuns(ctx, warnings, view, event.session, calledAt);
+  await closeStoppedRuns(ctx, warnings, view, { session: event.session, markedBefore: calledAt });
 }
 
 async function sessionStart(
@@ -278,11 +278,15 @@ async function subagentLaunched(
     return;
   }
   const now = ctx.now();
-  // 前景の起動は終わってから返るので、かかった時間だけ開始を前にする
-  const startedAt =
-    event.finished && event.durationMs !== null
+  // 前景の起動は終わってから返るので、かかった時間だけ開始を前にする。かかった時間が渡されなければ、サブエージェントの記録の
+  // 最初の行（頼んだ文）の時刻を起動の時刻にする（今の時刻にすると、見直し役が古い Run に書いた結果を起動より前のものと見誤る。ADR-017）
+  const startedAt = !event.finished
+    ? undefined
+    : event.durationMs !== null
       ? new Date(now.getTime() - event.durationMs)
-      : undefined;
+      : event.transcript
+        ? await firstLineTime(event.transcript)
+        : undefined;
   // 別のセッションで開いたままの見直しの Run は、そのセッションが落ちた残り。閉じてから開く（ADR-015）。
   // 同じセッションの見直しを重ねて開くのは二重の起動なので、閉じずに下の openRun が拒否する
   if (marker.step === REVIEW_STEP)
@@ -364,6 +368,14 @@ async function underRoot(
   return false;
 }
 
+/** 記録の最初の行の時刻（サブエージェントの記録では、頼んだ文を受け取った時刻）。読めなければ undefined */
+async function firstLineTime(transcript: string): Promise<Date | undefined> {
+  const text = await readFile(transcript, "utf8").catch(() => "");
+  const firstLine = text.slice(0, text.indexOf("\n") >>> 0);
+  const at = Date.parse(/"timestamp":"([^"]+)"/.exec(firstLine)?.[1] ?? "");
+  return Number.isNaN(at) ? undefined : new Date(at);
+}
+
 /**
  * サブエージェントが自分で開いた Run（記録に ID が出る、実行中か閉じた Run）。同じセッションで、記録の最初の行より後に始まった
  * ものだけにする（一覧を読んだ・頼んだ文が前の Run の ID を含むだけの Run を結び付け直さない）
@@ -374,10 +386,8 @@ async function mentionedRuns(
   agent: string,
   session: string,
 ): Promise<RunId[]> {
-  const text = await readFile(transcript, "utf8").catch(() => "");
-  const firstLine = text.slice(0, text.indexOf("\n") >>> 0);
-  const since = Date.parse(/"timestamp":"([^"]+)"/.exec(firstLine)?.[1] ?? "");
-  if (Number.isNaN(since)) return [];
+  const since = (await firstLineTime(transcript))?.getTime();
+  if (since === undefined) return [];
   // run start・ticket claim の結果に出た、自分で開いた Run だけ（警告・一覧・詳細に出るほかの Run の ID は取らない）
   const ids = new Set(await hooksOf(agent)!.selfOpenedRunIds(transcript));
   // すでにほかのサブエージェントの記録に結び付いた Run（起動のフックが開いた兄弟の Run）は外す
@@ -555,15 +565,20 @@ async function closeSubagentRun(
  * 書き終わり待ちの印（settling_since）の付いたサブエージェントの Run のうち、記録が書き終わったものを閉じる（ADR-014）。
  * フックのたびと dg sync が呼ぶ。止まって待っている印（質問への答え待ち）の Run は、再開で続くので閉じない。
  * session を渡せばそのセッションの Run だけ、markedBefore を渡せばその時刻より前に印を付けたものだけ（今のフックで残した Run を、
- * 同じフックの中で閉じない）
+ * 同じフックの中で閉じない）。reviewSession を渡せば、見直しの Run のうちそのセッションと別のセッションのものを閉じない（dg sync。
+ * 落ちたセッションの見直しの Run には、前景で動いている今回の見直し役が結果を書いているかもしれない。次の見直しの起動が振り分けて閉じる。ADR-017）
  */
 export async function closeStoppedRuns(
   ctx: CommandContext,
   warnings: string[],
   view: HookView = { event: "", done: [] },
-  session?: string,
-  markedBefore?: string,
+  only: {
+    session?: string | undefined;
+    markedBefore?: string | undefined;
+    reviewSession?: string | undefined;
+  } = {},
 ): Promise<void> {
+  const { session, markedBefore, reviewSession } = only;
   const paths = await readTranscriptPaths(ctx.repo);
   for (const { data: run } of (await readRunningRuns(ctx.repo)).runs) {
     const transcript = paths.get(run.id);
@@ -571,6 +586,7 @@ export async function closeStoppedRuns(
       continue;
     if (session !== undefined && run.session !== session) continue;
     if (markedBefore !== undefined && run.settling_since >= markedBefore) continue;
+    if (run.step === REVIEW_STEP && openedInOtherSession(run, reviewSession)) continue;
     // まだ書き終わっていない記録は、待たずに次の機会に回す
     if (!(await hooksOf(run.agent)!.transcriptSettled(transcript!))) continue;
     try {
