@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { skillSummary, type TerminalChoice, type WebviewEvent } from "@deguboard/core";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { App } from "../app.js";
 import type { WebviewClient } from "../client/webview.js";
 import { ASK_OPEN_KEY, HostBridge, HostProvider, type Host } from "../host.js";
@@ -526,26 +526,32 @@ describe("エージェントに頼む入力欄（UI-15）", () => {
         .find((b) => b.querySelector("code")?.textContent === id)!;
 
     /**
-     * カンバンが対象（選んでいる Iteration）を知らせたのを待つ。札が押された状態は描いた後に出て、
-     * 知らせる効果（useAskCurrent）はその描画のあとに流れるので、札を見たうえで効果が流れきるまで待つ
+     * カンバンが対象（選んでいる Iteration）を知らせてから吹き出しで頼む。札が押された状態は描いた後に出るが、
+     * 知らせる効果（useAskCurrent）はその描画のあとに流れるので、早く頼むと対象が空のまま開く。
+     * そこで対象が合うまで頼み直す。開き直すと入力欄は作り直して候補を読み込みからやり直すので、
+     * 頼むのは合っていないときだけにし、確かめは読み込みが済むのを待てる間隔で回す（RTL の waitFor は
+     * 描き直しのたびに確かめ直して止まらなくなるので使わない）
      */
-    const boardAnnounces = async (id: string) => {
+    const askAnnounced = async (view: ReturnType<typeof mountWebview>, id: string) => {
       await waitFor(() => expect(iterationChip(id).getAttribute("aria-pressed")).toBe("true"));
-      await act(async () => {});
+      await vi.waitFor(
+        () => {
+          const open = screen.queryByRole("region", { name: "エージェントに頼む" }) !== null;
+          if (!open || JSON.stringify(chips()) !== JSON.stringify([id])) view.askCurrent();
+          expect(chips()).toEqual([id]);
+        },
+        { interval: 100, timeout: 3000 },
+      );
     };
 
     it("カンバンで選んでいる Iteration を対象にする（既定の active も、札で選んだ planned も）", async () => {
       const view = mountWebview(targetClient());
       await screen.findByText("見直す");
-      await boardAnnounces("s1");
-      view.askCurrent();
-      await waitFor(() => expect(chips()).toEqual(["s1"]));
+      await askAnnounced(view, "s1");
 
       // 開いていれば対象を入れ替える。ハッシュは代入した時点で変わるので、カンバンが描き直されて s2 の札が選ばれ、対象を知らせるのを待ってから頼む
       act(() => void (window.location.hash = "#/board?iteration=s2"));
-      await boardAnnounces("s2");
-      view.askCurrent();
-      await waitFor(() => expect(chips()).toEqual(["s2"]));
+      await askAnnounced(view, "s2");
     });
 
     it("履歴で開いている行を対象にし、開いている行がなければ対象なしにする", async () => {
