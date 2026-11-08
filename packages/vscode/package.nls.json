@@ -1,7 +1,6 @@
 {
   "description": "A kanban for handing work to AI agents. Split work into small tickets, run them in parallel, and measure how the agents perform.",
   "command.gotoTicket.title": "Go to Ticket",
-  "command.openCurrentTicket.title": "Open Ticket for Current Branch",
   "command.sync.title": "Sync",
   "command.config.title": "Settings",
   "command.ask.title": "Ask Agent",

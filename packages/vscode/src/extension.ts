@@ -1,7 +1,6 @@
 // 拡張ホストの入口。Activity Bar のアイコンからサイドバーのビューに web を載せ、それを主画面にする（UI-12）。
 // エディタ領域のパネルはサイドバーから開いた詳細（チケット・Iteration・Epic）だけを出し、一覧の画面（カンバンなど）はサイドバーに出す。
 // パネルの題は詳細の番号と名前にする（パネルにはヘッダーを出さないので、題で見分ける）。
-// 今のブランチに紐づくチケットをステータスバーに出す（statusbar.ts）。
 // コード中の ID（t12・s3・e2・p7）にホバーとリンクを付ける（ids.ts）。存在する ID だけで、索引は見張りで更新する。
 // データ worktree と実行中の Run の記録を見張り、CLI やエージェントの書き込みを画面に映す。
 // dg init 前は .git/deguboard/ ができるのを見張り（watchInit）、できたら見張りを張り直して画面を普段の画面に変える。
@@ -10,7 +9,6 @@
 
 import { randomBytes } from "node:crypto";
 import { readFile } from "node:fs/promises";
-import path from "node:path";
 import {
   ACTION_NAMES,
   createLocalClient,
@@ -53,15 +51,6 @@ import {
   type IdIndex,
   type IdSources,
 } from "./ids.js";
-import {
-  currentBranch,
-  headFile,
-  statusBarText,
-  statusBarTooltip,
-  STATUSBAR_COMMAND,
-  ticketOfBranch,
-  type BranchTicket,
-} from "./statusbar.js";
 import { setTranslator, t } from "./l10n.js";
 import { describeTerminals, terminalInput } from "./terminals.js";
 import { gitCommonDir, initWatchTarget, watchTargets } from "./watch.js";
@@ -107,12 +96,6 @@ let pendingSidebarAsk: string[] | undefined;
 let syncing = false;
 /** dg の案内を出したか */
 let advised = false;
-/** 今のブランチのチケットを出すステータスバーの項目（最初の作業フォルダが対象）。紐づくチケットがなければ隠す */
-let statusItem: vscode.StatusBarItem | undefined;
-/** 今のチケットの ID。項目を押したときに開く */
-let statusTicket: string | undefined;
-/** refreshStatusBar の世代番号。最新の呼び出しの結果だけを反映する */
-let statusGeneration = 0;
 /** 通知から詳細を開くために覚える、拡張のコンテキスト */
 let extensionContext: vscode.ExtensionContext | undefined;
 /** フォルダごとの、前に見た承認待ち（承認待ちの Plan と review のチケット）の ID。ないうちは基準がなく、通知しない */
@@ -121,8 +104,6 @@ const approvalSeen = new Map<string, Set<string>>();
 let approvalGeneration = 0;
 /** 今の承認待ちの件数（最初の作業フォルダ）。サイドバーのタイトルに出す */
 let approvalCount = 0;
-/** ブランチの変わり（worktree の HEAD）の見張り。作業フォルダごと */
-const headWatchers = new Map<string, vscode.Disposable>();
 
 /** フォルダごとの存在する ID の索引。データの見張り（watchData）で作り直し、毎回 dg を呼ばない */
 const idIndexes = new Map<string, IdIndex>();
@@ -173,17 +154,9 @@ export function activate(context: vscode.ExtensionContext): void {
         void vscode.window.setStatusBarMessage(`deguboard: ${t("Copied {0}", row.ticket)}`, 3000);
       }),
     ),
-    vscode.commands.registerCommand(STATUSBAR_COMMAND, () => {
-      const folder = (vscode.workspace.workspaceFolders ?? [])[0];
-      if (!folder || !statusTicket) return;
-      return openPanel(context, folder, {
-        column: vscode.ViewColumn.Beside,
-        route: ticketRoute({ ticket: statusTicket }),
-      });
-    }),
     vscode.workspace.onDidChangeWorkspaceFolders((e) => {
       for (const folder of e.removed) forgetFolder(folder);
-      void refreshStatusBar();
+      void refreshApprovals();
     }),
     // コード中の ID のホバーとリンク（エディタとコミットメッセージの入力欄）。リンクはその ID の詳細のパネルを開く
     vscode.commands.registerCommand(OPEN_ID_COMMAND, (a0: unknown, a1?: unknown) => {
@@ -241,7 +214,6 @@ export function activate(context: vscode.ExtensionContext): void {
       { webviewOptions: { retainContextWhenHidden: true } },
     ),
   );
-  void refreshStatusBar();
   extensionContext = context;
   void refreshApprovals();
 }
@@ -251,12 +223,8 @@ export function deactivate(): void {
   panels.clear();
   for (const watcher of watchers.values()) watcher.dispose();
   watchers.clear();
-  for (const watcher of headWatchers.values()) watcher.dispose();
-  headWatchers.clear();
   for (const watcher of initWatchers.values()) watcher.dispose();
   initWatchers.clear();
-  statusItem?.dispose();
-  statusItem = undefined;
   clients.clear();
   idIndexes.clear();
   idIndexFailedAt.clear();
@@ -649,7 +617,7 @@ function isOpenFolder(folder: vscode.WorkspaceFolder): boolean {
 /** 外したフォルダの見張り・client・索引を捨てる（残すと外したフォルダの変化で読み直し続ける） */
 function forgetFolder(folder: vscode.WorkspaceFolder): void {
   const key = folder.uri.toString();
-  for (const map of [watchers, headWatchers, initWatchers]) {
+  for (const map of [watchers, initWatchers]) {
     map.get(key)?.dispose();
     map.delete(key);
   }
@@ -704,7 +672,6 @@ async function watchData(folder: vscode.WorkspaceFolder, client: CommandClient):
   if (!isOpenFolder(folder)) return;
   const pending = coalesce(() => {
     broadcast(folder, { kind: "event", name: "reload" });
-    void refreshStatusBar();
     void refreshApprovals();
     // 変化があったので、読み込み中なら終わった後にもう 1 回読み直させる
     void loadIdIndex(folder, { changed: true });
@@ -764,46 +731,6 @@ async function watchInit(folder: vscode.WorkspaceFolder, client: CommandClient):
       watcher.dispose();
     },
   });
-}
-
-/**
- * 最初の作業フォルダの今のブランチに紐づくチケット（ticket.list の branch が一致するもの）の ID・Status と、Run が実行中かを
- * ステータスバーに出す。紐づくチケットがなければ隠す。データの変化（watchData）とブランチの変わり（HEAD の見張り）で呼び直す。
- * 読めないとき（deguboard のデータがないリポジトリなど）も隠すだけで、通知は出さない
- */
-async function refreshStatusBar(): Promise<void> {
-  // 並んで走ったとき、最新でない結果で新しい表示を上書きしないよう世代で捨てる
-  const generation = ++statusGeneration;
-  const folder = (vscode.workspace.workspaceFolders ?? [])[0];
-  if (!folder) {
-    hideStatusBar();
-    return;
-  }
-  forgetIdIndexFailure(folder);
-  try {
-    const client = clientFor(folder);
-    void watchHead(folder);
-    void watchData(folder, client);
-    const branch = await currentBranch(folder.uri.fsPath);
-    const ticket = ticketOfBranch(
-      (await client.run<BranchTicket[]>("ticket.list", {})).data,
-      branch,
-    );
-    if (generation !== statusGeneration) return;
-    if (!ticket) return hideStatusBar();
-    const running = (
-      await client.run<{ ticket: string }[]>("run.list", { ticket: ticket.id, running: true })
-    ).data.some((r) => r.ticket === ticket.id);
-    if (generation !== statusGeneration) return;
-    statusItem ??= vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 0);
-    statusItem.command = STATUSBAR_COMMAND;
-    statusItem.text = statusBarText(ticket, running);
-    statusItem.tooltip = statusBarTooltip(ticket, running);
-    statusTicket = ticket.id;
-    statusItem.show();
-  } catch {
-    if (generation === statusGeneration) hideStatusBar();
-  }
 }
 
 /**
@@ -924,7 +851,7 @@ async function gotoTicket(context: vscode.ExtensionContext): Promise<void> {
   await openPanel(context, folder, { column: vscode.ViewColumn.Beside, route });
 }
 
-/** 覚えた「読めなかった」を忘れる。データの見張り・ステータスバーの更新・同期・利用者が「チケットへ移動」を起動したとき、次の要求で読み直させる */
+/** 覚えた「読めなかった」を忘れる。データの見張り・同期・利用者が「チケットへ移動」を起動したとき、次の要求で読み直させる */
 function forgetIdIndexFailure(folder: vscode.WorkspaceFolder): void {
   idIndexFailedAt.delete(folder.uri.toString());
 }
@@ -986,35 +913,6 @@ async function readIdIndex(folder: vscode.WorkspaceFolder): Promise<IdIndex | un
   } catch {
     return undefined;
   }
-}
-
-function hideStatusBar(): void {
-  statusTicket = undefined;
-  statusItem?.hide();
-}
-
-/** worktree の HEAD を見張り、ブランチが変わったらステータスバーを更新する（フォルダごとに 1 回だけ張る） */
-async function watchHead(folder: vscode.WorkspaceFolder): Promise<void> {
-  const key = folder.uri.toString();
-  if (headWatchers.has(key)) return;
-  headWatchers.set(key, { dispose() {} }); // 張っている間に重ねて張らない
-  const file = await headFile(folder.uri.fsPath);
-  if (!file || !isOpenFolder(folder)) {
-    headWatchers.delete(key);
-    return;
-  }
-  const watcher = vscode.workspace.createFileSystemWatcher(
-    new vscode.RelativePattern(vscode.Uri.file(path.dirname(file)), "HEAD"),
-  );
-  const pending = coalesce(() => void refreshStatusBar(), 200);
-  watcher.onDidCreate(pending.fire);
-  watcher.onDidChange(pending.fire);
-  headWatchers.set(key, {
-    dispose() {
-      pending.cancel();
-      watcher.dispose();
-    },
-  });
 }
 
 function panelTitle(folder: vscode.WorkspaceFolder): string {

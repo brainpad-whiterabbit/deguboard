@@ -5,7 +5,6 @@ import { afterEach, describe, expect, it } from "vitest";
 import { approvalMessage, viewTitle } from "./approvals.js";
 import { dgAdvice } from "./dg.js";
 import { type Bundle, bundleTranslator, format, setTranslator, t } from "./l10n.js";
-import { statusBarTooltip } from "./statusbar.js";
 
 const packageDir = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const readJson = <T>(relative: string): T =>
@@ -75,9 +74,6 @@ describe("t と訳の表", () => {
         { kind: "ticket", id: "t2" },
       ]),
     ).toBe("deguboard: New items awaiting approval or review (Plan p58, t1 and 1 more)");
-    expect(statusBarTooltip({ id: "t1", status: "review", branch: "b" }, true)).toBe(
-      "deguboard: t1 (review). A run is in progress. Click to open details.",
-    );
     expect(dgAdvice({ kind: "missing" }, "1.0.0")?.text).toMatch(/^dg is not on your PATH\./);
   });
 });
@@ -119,7 +115,6 @@ const MANIFEST_JA_BEFORE: Record<string, string> = {
   description:
     "AI エージェントに仕事を任せるためのカンバン。小さなチケットに分けて並列に進め、その働きを測れます。",
   "command.gotoTicket.title": "チケットへ移動",
-  "command.openCurrentTicket.title": "今のブランチのチケットを開く",
   "command.sync.title": "同期",
   "command.config.title": "設定",
   "command.ask.title": "エージェントに頼む",

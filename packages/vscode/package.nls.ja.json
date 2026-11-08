@@ -1,7 +1,6 @@
 {
   "description": "AI エージェントに仕事を任せるためのカンバン。小さなチケットに分けて並列に進め、その働きを測れます。",
   "command.gotoTicket.title": "チケットへ移動",
-  "command.openCurrentTicket.title": "今のブランチのチケットを開く",
   "command.sync.title": "同期",
   "command.config.title": "設定",
   "command.ask.title": "エージェントに頼む",
