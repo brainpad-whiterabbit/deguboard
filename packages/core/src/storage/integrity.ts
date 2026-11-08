@@ -3,6 +3,7 @@
 import { idNumber } from "../model/id.js";
 import type { Issue } from "./issue.js";
 import type { Store } from "./store.js";
+import { cyclePath, eachCycle, type WaitEdge } from "./wait-cycle.js";
 
 export function checkReferences(store: Store): Issue[] {
   const issues: Issue[] = [];
@@ -61,33 +62,23 @@ export function checkReferences(store: Store): Issue[] {
   return issues;
 }
 
-/** depends_on の循環（TK-2）。見つかった循環ごとに 1 件 */
+/** depends_on の循環（TK-2）。たどり方は Plan の待ちの循環と同じ（wait-cycle.ts）で、見つかった循環ごとに 1 件 */
 function findDependencyCycles(store: Store): Issue[] {
   const issues: Issue[] = [];
-  const state = new Map<string, "visiting" | "done">();
-  const stack: string[] = [];
-  const visit = (id: string) => {
-    const s = state.get(id);
-    if (s === "done") return;
-    if (s === "visiting") {
-      const cycle = [...stack.slice(stack.indexOf(id)), id];
-      const doc = store.tickets.get(id as `t${number}`);
-      issues.push({
-        severity: "error",
-        code: "depends_on_cycle",
-        path: doc?.path ?? "",
-        id,
-        message: `依存が循環している: ${cycle.join(" → ")}`,
-      });
-      return;
-    }
-    state.set(id, "visiting");
-    stack.push(id);
-    for (const dep of store.tickets.get(id as `t${number}`)?.data.depends_on ?? []) visit(dep);
-    stack.pop();
-    state.set(id, "done");
-  };
-  for (const id of store.tickets.keys()) visit(id);
+  const edgesOf = (id: string) =>
+    (store.tickets.get(id as `t${number}`)?.data.depends_on ?? []).map((to): WaitEdge => ({
+      to,
+      via: "depends_on",
+    }));
+  eachCycle(store.tickets.keys(), edgesOf, (cycle) => {
+    issues.push({
+      severity: "error",
+      code: "depends_on_cycle",
+      path: store.tickets.get(cycle.start as `t${number}`)?.path ?? "",
+      id: cycle.start,
+      message: `依存が循環している: ${cyclePath(cycle, false)}`,
+    });
+  });
   return issues;
 }
 

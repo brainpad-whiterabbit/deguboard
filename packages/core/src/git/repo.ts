@@ -38,8 +38,15 @@ export async function resolveRepoPaths(cwd: string): Promise<RepoPaths> {
     }
     throw new OperationError("GIT_ERROR", `${cwd} は Git リポジトリの中ではない`, String(error));
   }
-  const localDir = path.join(commonDir, "deguboard-local");
-  return { topLevel, commonDir, dataDir: path.join(commonDir, "deguboard"), localDir };
+  return { topLevel, commonDir, ...repoDirsOf(commonDir) };
+}
+
+/** git common dir の下の置き場所：データ worktree（deguboard/）と Git 管理外の deguboard-local/。拡張の見張り（watch.ts）も同じ場所をここで求める */
+export function repoDirsOf(commonDir: string): Pick<GitRepo, "dataDir" | "localDir"> {
+  return {
+    dataDir: path.join(commonDir, "deguboard"),
+    localDir: path.join(commonDir, "deguboard-local"),
+  };
 }
 
 /** deguboard-local/ と hooks を無効にする空ディレクトリを用意する */

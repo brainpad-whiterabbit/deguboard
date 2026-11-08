@@ -3159,6 +3159,27 @@ describe("Plan", () => {
     expect(await readFile(yaml, "utf8")).not.toContain("progress");
   });
 
+  it("show は状態を Plan に書かず、list と同じく pending_approval と closed_at から求める（PL-5）", async () => {
+    const f = await fixture();
+    const ctx = await initialized(f.cloneA);
+    await runCommand(ticketCreate, ctx, { title: "A" });
+    await runCommand(planCreate, ctx, { tickets: ["t1"] });
+    const statuses = async () => {
+      const shown = await runCommand(planShow, ctx, { plan: "p1" });
+      const listed = await runCommand(planList, ctx, {});
+      expect(shown.data.status).toBe(listed.data[0]!.status);
+      return shown.data.status;
+    };
+    expect(await statuses()).toBe("pending");
+    await runCommand(planApprove, ctx, { plan: "p1" });
+    expect(await statuses()).toBe("approved");
+    await runCommand(planClose, ctx, { plan: "p1" });
+    expect(await statuses()).toBe("closed");
+    expect(await readFile(path.join(ctx.repo.dataDir, "plans/p1.yaml"), "utf8")).not.toContain(
+      "status",
+    );
+  });
+
   it("show と list は、待ちの相手を after が先・depends_on が後で出し、着手できるものと次を Plan の順で決める（PL-6）", async () => {
     const f = await fixture();
     const ctx = await initialized(f.cloneA);

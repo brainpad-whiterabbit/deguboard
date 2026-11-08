@@ -2,6 +2,7 @@
 // HTTP と postMessage の実装は web が持ち、入口の側はプロセス内の実装（local.ts）を HTTP・postMessage に写す。core はここで形を決める
 
 import type { SyncStatus } from "../git/sync.js";
+import { idKindOf, parseId, type IdKind } from "../model/id.js";
 import type { CommandResult } from "./define.js";
 
 /** 入口の失敗。CLI の --json のエラーと同じ形 */
@@ -70,7 +71,7 @@ export type WebviewEvent =
   | { kind: "event"; name: "terminals"; terminals: TerminalChoice[] };
 
 /**
- * 拡張と画面で合わせる値（UI-12）。拡張（vscode）はここを読み、web は実行時のコードを取り込まないので写しを持ち、
+ * 拡張と画面で合わせる値（UI-12）。拡張（vscode）はここを読み、web は実行時のコードを取り込まないので写し（ルートは router の hrefOf・parseRoute）を持ち、
  * 同じ値であることを web のテスト（packages/web/src/client/webview.test.ts）で確かめる
  */
 export const WEBVIEW_CONTRACT = {
@@ -90,14 +91,39 @@ export const WEBVIEW_CONTRACT = {
   ],
   /** 拡張が開く画面のルート（web の router のハッシュ） */
   routes: { board: "#/board", config: "#/config" },
+  /** 詳細の画面のルートの頭。後ろに ID を付ける（#/tickets/t12）。組み立てと読み取りは detailRouteOf・detailOfRoute */
+  detailRoutes: {
+    ticket: "#/tickets/",
+    iteration: "#/iterations/",
+    epic: "#/epics/",
+    plan: "#/plans/",
+  },
   /** 拡張ホスト → Webview の通知の名前（WebviewEvent の name の全件） */
   eventNames: ["reload", "navigate", "toggle", "ask", "terminals"],
 } as const satisfies {
   backlogRowSection: string;
   askSections: readonly string[];
   routes: Record<string, `#/${string}`>;
+  detailRoutes: Record<IdKind, `#/${string}/`>;
   eventNames: readonly WebviewEvent["name"][];
 };
+
+/** ID の詳細の画面のルート（t12 → #/tickets/t12、s3 → #/iterations/s3）。ID の形が違えば（x1・t01）undefined */
+export function detailRouteOf(id: string): string | undefined {
+  const kind = idKindOf(id);
+  if (!kind || parseId(id, kind) !== id) return undefined;
+  return `${WEBVIEW_CONTRACT.detailRoutes[kind]}${id}`;
+}
+
+/** ルートが指す詳細の対象（#/tickets/t12?x=1 → ticket t12）。詳細の画面でない・ID がなければ undefined。ID の形は確かめない */
+export function detailOfRoute(route: string): { kind: IdKind; id: string } | undefined {
+  for (const [kind, head] of Object.entries(WEBVIEW_CONTRACT.detailRoutes)) {
+    if (!route.startsWith(head)) continue;
+    const id = /^[^/?#]+/.exec(route.slice(head.length))?.[0];
+    return id ? { kind: kind as IdKind, id } : undefined;
+  }
+  return undefined;
+}
 
 /** 拡張ホスト → Webview の応答。HTTP の本文と同じ形に id を足したもの */
 export type WebviewResponse =

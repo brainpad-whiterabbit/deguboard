@@ -1,7 +1,7 @@
 // 承認待ちの件数と通知（UI-12）。承認待ちの Plan（pending）と review のチケットを数え、前に見た集合と比べて増えた分を知らせる。
 // VS Code の API に触れない部分で、extension.ts から呼ぶ
 
-import { routeOfId } from "./ids.js";
+import { detailRouteOf } from "@deguboard/core";
 import { t } from "./l10n.js";
 
 /** 承認待ちの 1 件。Plan は承認待ち、チケットは review */
@@ -64,5 +64,5 @@ export function approvalMessage(items: ApprovalItem[]): string {
 
 /** 通知から開く詳細のルート。形の違う ID は undefined */
 export function approvalRoute(item: ApprovalItem): string | undefined {
-  return routeOfId(item.id);
+  return detailRouteOf(item.id);
 }

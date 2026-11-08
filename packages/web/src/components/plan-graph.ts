@@ -16,19 +16,14 @@ export const PLAN_STATE_LABELS: Record<PlanState, string> = {
 };
 
 /**
- * plan.show の出力（Plan 詳細）を plan.list の 1 行の形にする。状態は core と同じく closed_at と pending_approval から、
+ * plan.show の出力（Plan 詳細）を plan.list の 1 行の形にする。状態は core の status をそのまま使い、
  * Plan 全体の待ちは items[].waiting から組む（求め直さず並べ替えるだけ）。帯と同じ部品（planState・planGraph・planProgressLine）に渡すため
  */
 export function planRowOf(detail: PlanDetail): PlanRow {
   const waiting: Record<string, string[]> = {};
   for (const t of detail.items) if (t.waiting.length > 0) waiting[t.id] = t.waiting;
   const { items: _items, ...plan } = detail;
-  return {
-    ...plan,
-    status:
-      detail.closed_at !== undefined ? "closed" : detail.pending_approval ? "pending" : "approved",
-    waiting: waiting as PlanRow["waiting"],
-  };
+  return { ...plan, waiting: waiting as PlanRow["waiting"] };
 }
 
 /** 帯の並び。手が動いているものを上に、終わったものを下に置く */

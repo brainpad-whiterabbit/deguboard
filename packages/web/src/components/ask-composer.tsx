@@ -285,7 +285,7 @@ export function AskComposer({
               </span>
             ) : null}
             {(base?.targets ?? []).map((t) => (
-              <span key={t.id} className="ask-pill ask-pill-target" title={targetLine(t)}>
+              <span key={t.id} className="ask-pill ask-pill-target" title={t.line}>
                 {t.id} <small>{trCore(t.sub)}</small>
                 <button
                   type="button"
@@ -459,23 +459,4 @@ function humanReason(view: AskView): string {
   if (view.workflow_by.length > 0)
     reasons.push(tr("{0} は Workflow が人に限った遷移（by）", view.workflow_by.join(tr("・"))));
   return reasons.join(tr("、"));
-}
-
-/**
- * 対象の札のツールチップ。日本語では core の line をそのまま出し、英語では同じ中身（ID・タイトル・Status・Iteration）を
- * 英語の区切りで組む（core の line は日本語の括弧と「Iteration なし」を含むため）。タイトルは訳さない。
- * 中身と種類ごとの並びは core の targetLine（packages/core/src/commands/ask.ts）の写しで、core の line を変えたらここも合わせる
- */
-function targetLine(t: AskView["targets"][number]): string {
-  if (language() === "ja") return t.line;
-  switch (t.kind) {
-    case "ticket":
-      return `${t.id} "${t.title}" (${t.status}, ${t.iteration ?? tr("Iteration なし")})`;
-    case "iteration":
-      return `Iteration ${t.id} "${t.title}" (${t.status})`;
-    case "epic":
-      return `Epic ${t.id} "${t.title}" (${t.status})`;
-    case "plan":
-      return `Plan ${t.id} (${[trCore(t.sub), t.tickets.join(" ")].filter(Boolean).join(", ")})`;
-  }
 }

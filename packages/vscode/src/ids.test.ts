@@ -6,11 +6,9 @@ import {
   findIds,
   hoverMarkdown,
   ID_DOCUMENT_SELECTOR,
-  kindOfId,
   linksOf,
   openIdArgs,
   openIdCommandUri,
-  routeOfId,
 } from "./ids.js";
 
 // 文言は日本語の訳で確かめる（表示言語が日本語のときに今までと同じ文言が出ること）。英語は l10n.test.ts で確かめる
@@ -67,17 +65,6 @@ describe("findIds", () => {
   });
 });
 
-describe("kindOfId", () => {
-  it("接頭辞から種類を決め、形が違えば undefined", () => {
-    expect(kindOfId("t1")).toBe("ticket");
-    expect(kindOfId("s1")).toBe("iteration");
-    expect(kindOfId("e1")).toBe("epic");
-    expect(kindOfId("p1")).toBe("plan");
-    expect(kindOfId("x1")).toBeUndefined();
-    expect(kindOfId("t01")).toBeUndefined();
-  });
-});
-
 const index = buildIdIndex({
   tickets: [{ id: "t1", title: "ホバー *強調*", status: "in_progress", assignee: "maji/agent" }],
   iterations: [{ id: "s1", name: "sprint1", status: "active", goal: "最初の版" }],
@@ -113,14 +100,7 @@ describe("buildIdIndex・hoverMarkdown", () => {
   });
 });
 
-describe("routeOfId・openIdCommandUri", () => {
-  it("チケット・Iteration・Epic・Plan は詳細のルートを返し、形の違う ID は返さない", () => {
-    expect(routeOfId("t1")).toBe("#/tickets/t1");
-    expect(routeOfId("s1")).toBe("#/iterations/s1");
-    expect(routeOfId("e1")).toBe("#/epics/e1");
-    expect(routeOfId("p1")).toBe("#/plans/p1");
-    expect(routeOfId("x1")).toBeUndefined();
-  });
+describe("openIdCommandUri", () => {
   it("コマンド URI の引数に ID が入る", () => {
     const uri = openIdCommandUri("t12", "file:///w");
     expect(uri.startsWith("command:deguboard.openId?")).toBe(true);

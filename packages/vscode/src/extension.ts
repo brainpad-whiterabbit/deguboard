@@ -14,6 +14,8 @@ import path from "node:path";
 import {
   ACTION_NAMES,
   createLocalClient,
+  detailOfRoute,
+  detailRouteOf,
   pickUser,
   toCommandFailure,
   WEBVIEW_CONTRACT,
@@ -49,7 +51,6 @@ import {
   ID_DOCUMENT_SELECTOR,
   OPEN_ID_COMMAND,
   openIdCommandUri,
-  routeOfId,
   type IdIndex,
   type IdSources,
 } from "./ids.js";
@@ -76,7 +77,6 @@ import {
   renderMessageHtml,
   renderWebviewHtml,
   sidebarDelivery,
-  subjectOfRoute,
   type Surface,
   type WebviewActions,
 } from "./webview.js";
@@ -196,7 +196,7 @@ export function activate(context: vscode.ExtensionContext): void {
         args.folder === undefined ? undefined : vscode.Uri.parse(args.folder).toString();
       const folder = folders.find((f) => f.uri.toString() === wanted) ?? folders[0];
       if (!folder) return;
-      const route = routeOfId(id);
+      const route = detailRouteOf(id);
       if (!route) return;
       return openPanel(context, folder, { column: vscode.ViewColumn.Beside, route });
     }),
@@ -298,7 +298,7 @@ async function resolveSidebar(
     },
     actions: {
       open: (route) =>
-        subjectOfRoute(route)
+        detailOfRoute(route)
           ? openPanel(context, folder, {
               column: vscode.ViewColumn.Beside,
               route,
@@ -553,7 +553,7 @@ async function openPanel(
     route,
     actions: {
       open: (route) =>
-        subjectOfRoute(route)
+        detailOfRoute(route)
           ? openPanel(context, folder, { column: options.column, route })
           : showInSidebar(route),
       show: showInSidebar,
@@ -571,7 +571,7 @@ async function retitle(
   folder: vscode.WorkspaceFolder,
   route: string,
 ): Promise<void> {
-  const subject = subjectOfRoute(route);
+  const subject = detailOfRoute(route);
   if (!subject) {
     panel.title = panelTitle(folder);
     return;
@@ -919,7 +919,7 @@ async function gotoTicket(context: vscode.ExtensionContext): Promise<void> {
   const folder = (vscode.workspace.workspaceFolders ?? []).find(
     (f) => f.uri.toString() === found.folder,
   );
-  const route = routeOfId(picked.id);
+  const route = detailRouteOf(picked.id);
   if (!folder || !route) return;
   await openPanel(context, folder, { column: vscode.ViewColumn.Beside, route });
 }

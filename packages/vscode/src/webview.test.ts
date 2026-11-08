@@ -14,7 +14,6 @@ import {
   renderMessageHtml,
   renderWebviewHtml,
   sidebarDelivery,
-  subjectOfRoute,
 } from "./webview.js";
 
 // 文言は日本語の訳で確かめる（表示言語が日本語のときに今までと同じ文言が出ること）。英語は l10n.test.ts で確かめる
@@ -393,21 +392,6 @@ describe("ファイルの変化のまとめ", () => {
     c.cancel();
     vi.advanceTimersByTime(500);
     expect(count).toBe(1);
-  });
-});
-
-describe("パネルの題", () => {
-  it("チケットと Iteration の詳細のルートから対象を取り、それ以外は undefined", () => {
-    expect(subjectOfRoute("#/tickets/t12")).toEqual({ kind: "ticket", id: "t12" });
-    expect(subjectOfRoute("#/tickets/t12?x=1")).toEqual({ kind: "ticket", id: "t12" });
-    expect(subjectOfRoute("#/iterations/s3")).toEqual({ kind: "iteration", id: "s3" });
-    expect(subjectOfRoute("#/epics/e2")).toEqual({ kind: "epic", id: "e2" });
-    expect(subjectOfRoute("#/plans/p5")).toEqual({ kind: "plan", id: "p5" });
-    // Plan の一覧の画面はないので、ID のないルートは詳細でない
-    expect(subjectOfRoute("#/plans")).toBeUndefined();
-    expect(subjectOfRoute("#/board")).toBeUndefined();
-    expect(subjectOfRoute("#/tickets")).toBeUndefined();
-    expect(subjectOfRoute("#/tickets/")).toBeUndefined();
   });
 });
 

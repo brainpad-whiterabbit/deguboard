@@ -89,7 +89,7 @@ export type AskSubject =
     };
 
 export type AskTarget = AskSubject & {
-  /** 対象の ID とタイトル（と Status・Iteration）の 1 行。画面の札のツールチップに出す。依頼文には入れない */
+  /** 対象の ID とタイトル（と Status・Iteration）の 1 行。定型の文の言語で組み、画面の札のツールチップにそのまま出す。依頼文には入れない */
   line: string;
   /** 画面の札の小さな添え字。チケット・Iteration・Epic は Status、Plan は承認の状態の表示名（承認待ち・承認済み・閉じた） */
   sub: string;
@@ -1272,17 +1272,33 @@ export const askGuideLine = (skill: string, lang: AskLanguage = "ja") => {
   );
 };
 
-/** AskTarget の line。ID とタイトル（と Status・Iteration）だけで、本文は入れない */
-function targetLine(t: AskSubject): string {
+/** Plan の承認の状態の英語の表示名（line の英語の形に使う。sub は日本語のまま返し、画面が訳す） */
+const PLAN_STATE_LABEL_EN: Record<PlanState, string> = {
+  pending_approval: "Awaiting approval",
+  approved: "Approved",
+  closed: "Closed",
+};
+
+/**
+ * AskTarget の line。ID とタイトル（と Status・Iteration）だけで、本文は入れない。
+ * 区切りと「Iteration なし」・Plan の状態は定型の文の言語（lang）で組み、タイトルは訳さない
+ */
+function targetLine(t: AskSubject, lang: AskLanguage): string {
+  const quote = (title: string) => say(lang, `「${title}」`, ` "${title}"`);
+  const paren = (parts: readonly string[]) =>
+    say(lang, `（${parts.join(", ")}）`, ` (${parts.join(", ")})`);
   switch (t.kind) {
     case "ticket":
-      return `${t.id}「${t.title}」（${t.status}, ${t.iteration ?? "Iteration なし"}）`;
+      return `${t.id}${quote(t.title)}${paren([t.status, t.iteration ?? say(lang, "Iteration なし", "No Iteration")])}`;
     case "iteration":
-      return `Iteration ${t.id}「${t.title}」（${t.status}）`;
+      return `Iteration ${t.id}${quote(t.title)}${paren([t.status])}`;
     case "epic":
-      return `Epic ${t.id}「${t.title}」（${t.status}）`;
-    case "plan":
-      return `Plan ${t.id}（${[PLAN_STATE_LABEL[t.status], t.tickets.join(" ")].filter(Boolean).join("、")}）`;
+      return `Epic ${t.id}${quote(t.title)}${paren([t.status])}`;
+    case "plan": {
+      const state = say(lang, PLAN_STATE_LABEL[t.status], PLAN_STATE_LABEL_EN[t.status]);
+      const parts = [state, t.tickets.join(" ")].filter(Boolean);
+      return `Plan ${t.id}${say(lang, `（${parts.join("、")}）`, ` (${parts.join(", ")})`)}`;
+    }
   }
 }
 
@@ -1316,7 +1332,7 @@ export function buildAsk(input: BuildAskInput): AskView {
       `候補：${candidates.map((c) => `${c.action}（${c.label}）`).join("、")}`,
     );
   const def = ACTIONS[chosen];
-  const targets = s.map((t) => ({ ...t, line: targetLine(t), sub: targetSub(t) }));
+  const targets = s.map((t) => ({ ...t, line: targetLine(t, lang), sub: targetSub(t) }));
   const view = {
     targets,
     candidates,

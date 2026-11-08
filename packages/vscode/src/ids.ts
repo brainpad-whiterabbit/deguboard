@@ -1,12 +1,9 @@
 // コード中の ID（t12・s3・e2・p7）へのホバーとリンク（UI-12）。VS Code の API に触れない部分で、extension.ts から呼ぶ。
 // 文章から ID を拾う正規表現と、存在する ID の索引（ticket.list などの行から作る）、ホバーの文言、開くルートを決める。
-// ID の形は core の用語（接頭辞＋ゼロ埋めなしの連番。t12・s3・e2・p7）に合わせる
+// ID の形は core の用語（接頭辞＋ゼロ埋めなしの連番。t12・s3・e2・p7）に合わせ、種類と開くルートは core の idKindOf・detailRouteOf で決める
 
-import { ticketRoute } from "./context-menu.js";
+import { detailRouteOf, type IdKind } from "@deguboard/core";
 import { t } from "./l10n.js";
-
-/** ID の種類 */
-export type IdKind = "ticket" | "iteration" | "epic" | "plan";
 
 /** 種類の表示名（ホバーと「チケットへ移動」で使う）。Iteration・Epic・Plan は用語なので訳さない */
 export function kindLabel(kind: IdKind): string {
@@ -36,12 +33,6 @@ export function findIds(text: string): FoundId[] {
     start: m.index,
     end: m.index + m[0].length,
   }));
-}
-
-/** ID の頭の文字から種類を決める。形が違えば undefined */
-export function kindOfId(id: string): IdKind | undefined {
-  if (!/^[tsep][1-9]\d*$/.test(id)) return undefined;
-  return { t: "ticket", s: "iteration", e: "epic", p: "plan" }[id.charAt(0)] as IdKind;
 }
 
 /** 索引に載せる項目。ホバーに出す文言の材料だけを持つ */
@@ -125,25 +116,6 @@ function escapeMarkdown(text: string): string {
 }
 
 /**
- * Ctrl/⌘+クリックで開く詳細のルート。チケット・Iteration・Epic・Plan の詳細がパネルを持つ。
- * チケットは context-menu.ts の ticketRoute と同じ。形の違う ID は undefined
- */
-export function routeOfId(id: string): string | undefined {
-  switch (kindOfId(id)) {
-    case "ticket":
-      return ticketRoute({ ticket: id });
-    case "iteration":
-      return `#/iterations/${id}`;
-    case "epic":
-      return `#/epics/${id}`;
-    case "plan":
-      return `#/plans/${id}`;
-    default:
-      return undefined;
-  }
-}
-
-/**
  * リンクを押したときのコマンド（extension.ts が登録する）。command: の query の JSON が配列だと、VS Code は要素をばらして
  * executeCommand(id, ...args) で渡す。ハンドラの引数は (ID, フォルダの URI) の 2 つになる（openIdArgs が配列のままの呼び出しも受ける）
  */
@@ -161,9 +133,12 @@ export function openIdArgs(a0: unknown, a1?: unknown): { id: string; folder?: st
   return typeof folder === "string" ? { id, folder } : { id };
 }
 
-/** 1 行の中でリンクを付ける ID。索引にある（存在する）もので、詳細のパネルがある種類に絞る */
+/**
+ * 1 行の中でリンクを付ける ID。索引にある（存在する）もので、詳細のパネルがある種類に絞る。
+ * Ctrl/⌘+クリックで開くのは core の detailRouteOf のルート（チケット・Iteration・Epic・Plan の詳細）
+ */
 export function linksOf(line: string, index: IdIndex): FoundId[] {
-  return findIds(line).filter((f) => index.has(f.id) && routeOfId(f.id) !== undefined);
+  return findIds(line).filter((f) => index.has(f.id) && detailRouteOf(f.id) !== undefined);
 }
 
 /**
