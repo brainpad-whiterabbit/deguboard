@@ -215,7 +215,7 @@ steps: # 任意（WF-5）
 - SY-4 同期は rebase で取り込み、チケットと Epic の frontmatter はマージドライバがフィールド単位で 3-way マージする（規則は `packages/core/src/git/merge.ts`）。解けない競合は rebase を中止してコミットを残し、`dg sync` が報告する。その間は push・照合・作成・claim・`iteration start / reopen` が止まり、人が解消してから `dg sync` を回す（戻し方は `dg guide overview`）
 - SY-5 同一マシンの書き込みは `deguboard-local/locks/` のロックで直列にし、同じチケットと step の Run の二重起動も防ぐ。チーム間の排他には使わない
 - SY-6 リモートがなくても、同期を除くすべての操作が動く
-- SY-7 データのリポジトリの dg の外の変更（dg のコマンドを通さない未コミットの変更と、dg の印のないコミット）を、dg がコマンドを実行するたびに見つける。書くコマンドは `OUTSIDE_CHANGES` で止め、読むだけのコマンドは警告し、どちらもどのファイル（とコミット）かと戻し方・取り込み方を示す。dg が作るコミットは印を持ち、dg 自身のまとめ待ちの変更は外の変更とみなさない。リモートから取り込んだコミットは見ない。`dg adopt` が `dg validate` と同じ検査を通してから今の状態を取り込み、捨てるのは人が deguboard worktree で行う。この版で初めて確かめるときは今の状態を基準にする（[ADR-021](adr/ADR-021-detect-outside-dg-changes.md)。戻し方は `dg guide overview`）
+- SY-7 データのリポジトリの dg の外の変更（dg のコマンドを通さない未コミットの変更、dg の印のないコミット、dg のコミットを捨てた・書き換えた履歴）を、dg がコマンドを実行するたびに見つける。書くコマンドは `OUTSIDE_CHANGES` で止め（データに書く前に、書き込みのロックの中でも確かめる。止めないフックもそのときは書かない）、読むだけのコマンドは警告し、どちらもどのファイル（とコミット）かと戻し方・取り込み方を示す。dg が作るコミットは印を持ち、dg 自身のまとめ待ちの変更と、同じマシンで並べて動く dg の書きかけは外の変更とみなさない。リモートから取り込んだコミットは見ない。`dg adopt` が `dg validate` と同じ検査を通してから今の状態を取り込み、捨てるのは人が deguboard worktree で行う。この版で初めて確かめるときは今の状態を基準にする（[ADR-021](adr/ADR-021-detect-outside-dg-changes.md)。戻し方は `dg guide overview`）
 
 ### 6.4 画面（Web UI・VS Code 拡張）
 

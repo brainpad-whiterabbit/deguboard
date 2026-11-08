@@ -301,7 +301,7 @@ export const claudeCodeHooks: HookSupport = {
     { event: "SessionStart" },
     { event: "PostToolUse", matcher: "Agent" },
     { event: "SubagentStart" },
-    // dg を経由しない gh pr merge・ready と、.git/deguboard/ への書き込みを拒む（t532・t545）
+    // dg を経由しない gh pr merge・ready と、書くツールの .git/deguboard/ への書き込み・.git/deguboard の語を含む Bash を拒む（t532・t545・t546）
     { event: "PreToolUse", matcher: "Bash|Edit|Write|MultiEdit|NotebookEdit" },
     { event: "SubagentStop" },
     // 応答を終えるたびに dg の外の変更を確かめ、見つけたら止まらずに続けさせて伝える（t546・ADR-021）

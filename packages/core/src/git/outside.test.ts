@@ -8,6 +8,7 @@ import { hook, type HookView } from "../commands/hook.js";
 import { adopt, commit, init, sync } from "../commands/setup.js";
 import { ticketCreate, ticketList, ticketShow, ticketUpdate } from "../commands/ticket.js";
 import { checkOutside, DG_COMMIT_TRAILER } from "./outside.js";
+import { withWriteLock } from "./write.js";
 
 const cleanups: Array<() => Promise<void>> = [];
 afterEach(async () => {
@@ -123,6 +124,57 @@ describe("dg の外の変更（t546・ADR-021）", () => {
     expect(await checkOutside(ctx.repo)).toEqual({ kind: "clean", initial: true });
     expect((await runCommand(ticketList, ctx, {})).warnings).toEqual([]);
     await runCommand(ticketUpdate, ctx, { ticket: "t1", priority: "high" });
+  });
+
+  it("同じマシンで並べて動く dg の書きかけを、dg の外の変更と取り違えない", async () => {
+    const { f, ctx } = await prepared();
+    await runCommand(ticketCreate, ctx, { title: "B" });
+    const other = await openContext({ cwd: f.cloneA, actor });
+    const reader = await openContext({ cwd: f.cloneA, actor });
+    const priorities = ["high", "low", "medium"] as const;
+    const writes = (c: CommandContext, ticket: string) =>
+      (async () => {
+        for (let i = 0; i < 15; i++)
+          await runCommand(ticketUpdate, c, { ticket, priority: priorities[i % 3]! });
+      })();
+    const warnings: string[] = [];
+    const reads = (async () => {
+      for (let i = 0; i < 15; i++)
+        warnings.push(...(await runCommand(ticketList, reader, {})).warnings);
+    })();
+    await Promise.all([writes(ctx, "t1"), writes(other, "t2"), reads]);
+    expect(warnings.filter((w) => w.includes("dg の外"))).toEqual([]);
+    expect(await checkOutside(ctx.repo)).toEqual({ kind: "clean", initial: false });
+  });
+
+  it("書き込みのロックの中で外の変更を見つけたら書かず、外の変更を dg のコミットに入れない（検査を自分で扱う hook の書き込みも）", async () => {
+    const { ctx } = await prepared();
+    await editOutside(ctx);
+    const head = (await git(ctx.repo.dataDir, ["rev-parse", "HEAD"])).stdout;
+    let ran = false;
+    await expect(
+      withWriteLock(ctx.repo, async () => {
+        ran = true;
+      }),
+    ).rejects.toMatchObject({ code: "OUTSIDE_CHANGES", detail: "未コミットの変更: tickets/t1.md" });
+    expect(ran).toBe(false);
+    expect((await git(ctx.repo.dataDir, ["rev-parse", "HEAD"])).stdout).toBe(head);
+    expect((await checkOutside(ctx.repo)).kind).toBe("found");
+  });
+
+  it("dg のコミットを dg の外で捨てた・書き換えたら、基準のコミットが HEAD の祖先でないことを示す", async () => {
+    const { ctx } = await prepared();
+    await runCommand(ticketUpdate, ctx, { ticket: "t1", priority: "high" });
+    await runCommand(commit, ctx, {});
+    await git(ctx.repo.dataDir, ["reset", "-q", "--hard", "HEAD~1"]);
+    const found = await checkOutside(ctx.repo);
+    expect(found.kind === "found" && found.changes.rewritten).toBe(true);
+    await expect(
+      runCommand(ticketUpdate, ctx, { ticket: "t1", priority: "low" }),
+    ).rejects.toMatchObject({
+      code: "OUTSIDE_CHANGES",
+      detail: expect.stringContaining("今の HEAD の祖先でない"),
+    });
   });
 
   it("Stop のフックは dg の外の変更を、止まらずに続けさせる形でエージェントに返し、続けさせた後の Stop では返さない", async () => {

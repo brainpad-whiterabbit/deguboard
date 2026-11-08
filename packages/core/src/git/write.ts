@@ -5,7 +5,7 @@ import { OperationError } from "../errors.js";
 import type { Config } from "../model/config.js";
 import type { Store } from "../storage/store.js";
 import { withLock } from "./lock.js";
-import { checkOutside, recordBaseline } from "./outside.js";
+import { checkOutside, outsideError, recordBaseline } from "./outside.js";
 import { requireIdentity, type GitRepo } from "./repo.js";
 import {
   amendAll,
@@ -84,16 +84,18 @@ export async function withWrite<T>(
 }
 
 /**
- * データのリポジトリに書く処理を、同じマシンの書き込みのロックの中で行う。ロックを放す前に、書いた後の状態を dg の外の変更を
- * 見つける基準に記録する（ADR-021）。書く前に dg の外の変更があったときは記録しない（見つけた変更を dg の書き込みで隠さない）
+ * データのリポジトリに書く処理を、同じマシンの書き込みのロックの中で行う（ADR-021）。書く前にロックの中で dg の外の変更を確かめ、
+ * あれば書かずに OUTSIDE_CHANGES を投げる（外の変更を dg のコミットに入れて隠さない。止めない dg hook も、この失敗を警告にする）。
+ * ロックを放す前に、書いた後の状態を基準に記録する
  */
 export async function withWriteLock<T>(repo: GitRepo, fn: () => Promise<T>): Promise<T> {
   return withLock(repo.localDir, "write", async () => {
     const before = await checkOutside(repo, { underLock: true });
+    if (before.kind === "found") throw outsideError(before.changes);
     try {
       return await fn();
     } finally {
-      if (before.kind === "clean") await recordBaseline(repo).catch(() => undefined);
+      await recordBaseline(repo).catch(() => undefined);
     }
   });
 }

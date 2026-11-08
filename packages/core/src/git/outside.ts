@@ -5,11 +5,12 @@
 //   - 未コミットの変更：commit.mode が batch・manual なら dg 自身も作業ツリーに変更を残す。dg は書き込みのロックを放す前に、
 //     作業ツリーの変更のあるファイルとその中身のハッシュを基準に記録する。今の作業ツリーが基準と違えば、違うファイルを dg の外の変更とする
 //   基準は deguboard-local/outside-baseline.json（マシンごと）。初めて確かめるとき（基準がない）は今の状態を基準にする。
-//   見つけたまま書き込んだときは基準を進めない（見つけた変更を dg の書き込みで隠さない）。dg adopt が今の状態を基準にして取り込む
+//   書き込みのロックの中で見つけたら書かない（見つけた変更を dg のコミットに入れて隠さない）。dg adopt が今の状態を基準にして取り込む
 
 import { createHash } from "node:crypto";
 import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
+import { OperationError } from "../errors.js";
 import { writeFileAtomic } from "../storage/atomic.js";
 import type { GitRepo } from "./repo.js";
 import { runGit } from "./run.js";
@@ -43,6 +44,8 @@ export interface OutsideChanges {
   baseline: string;
   commits: OutsideCommit[];
   files: OutsideFile[];
+  /** 基準の HEAD が今の HEAD の祖先でない（dg の外で dg のコミットを捨てたか書き換えた） */
+  rewritten: boolean;
 }
 
 export type OutsideCheck =
@@ -145,35 +148,78 @@ async function writeLocked(repo: GitRepo): Promise<boolean> {
   );
 }
 
+/** 基準のコミットが今の HEAD の祖先か（dg の外で履歴を捨てた・書き換えたなら偽） */
+async function isAncestor(repo: GitRepo, base: string): Promise<boolean> {
+  return (await git(repo, ["merge-base", "--is-ancestor", base, "HEAD"])).code === 0;
+}
+
+/** 基準のファイルの中身（比べるために文字のまま読む） */
+const baselineText = (repo: GitRepo) => readFile(baselinePath(repo), "utf8").catch(() => "");
+
 /**
- * dg の外の変更を確かめる。基準がなければ clean（initial）。opts.underLock は、呼び出し側が書き込みのロックを持っていること
- * （持っていなければ、ほかの dg が書き込み中のときは未コミットの変更を見ない）
+ * 基準と今の状態を比べる。印のないコミットは基準によらず見つかる（dg のコミットは印を持つ）。作業ツリーと履歴の書き換えは、
+ * 比べている間に基準が変わらず、ほかの dg が書き込みのロックを持たなかったときだけ見る（stable が偽なら捨てる）
+ */
+async function compare(
+  repo: GitRepo,
+  baseline: OutsideBaseline,
+): Promise<{ commits: OutsideCommit[]; files: OutsideFile[]; rewritten: boolean }> {
+  const head = await headOf(repo);
+  if (head === undefined) return { commits: [], files: [], rewritten: false };
+  const commits = head === baseline.head ? [] : await outsideCommits(repo, baseline.head);
+  const rewritten = head !== baseline.head && !(await isAncestor(repo, baseline.head));
+  const files: OutsideFile[] = [];
+  const now = await dirtyFiles(repo);
+  for (const [p, hash] of Object.entries(now))
+    if (baseline.dirty[p] !== hash) files.push({ path: p, change: "changed" });
+  // dg が残した変更が消えた：HEAD が進んでいれば dg のコミットに入ったとみなす（印のないコミットは上で見つかる）
+  if (head === baseline.head)
+    for (const p of Object.keys(baseline.dirty))
+      if (!(p in now)) files.push({ path: p, change: "reverted" });
+  return { commits, files, rewritten };
+}
+
+/**
+ * dg の外の変更を確かめる。基準がなければ clean（initial）。opts.underLock は、呼び出し側が書き込みのロックを持っていること。
+ * 持っていなければ、ほかの dg の書き込み（ロックを取ってから基準を記録して放すまで）と重なりうるので、比べる前後で基準とロックを確かめ、
+ * 重なったら比べ直す。重なり続けたら、作業ツリーと履歴の書き換えは見ずに、印のないコミットだけを返す（並べて動く dg の書きかけを取り違えない）
  */
 export async function checkOutside(
   repo: GitRepo,
   opts: { underLock?: boolean } = {},
 ): Promise<OutsideCheck> {
-  const baseline = await readBaseline(repo);
-  if (!baseline) {
-    // 初めて確かめる：今の状態を基準にする（ロックの中なら、持ち主が放す前に記録する。ほかの dg が書き込み中なら任せる）
-    if (!opts.underLock && !(await writeLocked(repo))) await recordBaseline(repo);
-    return { kind: "clean", initial: true };
+  for (let attempt = 0; ; attempt++) {
+    const before = await baselineText(repo);
+    const baseline = await readBaseline(repo);
+    if (!baseline) {
+      // 初めて確かめる：今の状態を基準にする（ロックの中なら、持ち主が放す前に記録する。ほかの dg が書き込み中なら任せる）
+      if (!opts.underLock && !(await writeLocked(repo))) await recordBaseline(repo);
+      return { kind: "clean", initial: true };
+    }
+    const lockedBefore = !opts.underLock && (await writeLocked(repo));
+    const found = await compare(repo, baseline);
+    const stable =
+      opts.underLock ||
+      (!lockedBefore && !(await writeLocked(repo)) && (await baselineText(repo)) === before);
+    if (!stable && attempt < 2) continue;
+    const files = stable ? found.files : [];
+    const rewritten = stable && found.rewritten;
+    if (found.commits.length === 0 && files.length === 0 && !rewritten)
+      return { kind: "clean", initial: false };
+    return {
+      kind: "found",
+      changes: { baseline: baseline.head, commits: found.commits, files, rewritten },
+    };
   }
-  const head = await headOf(repo);
-  if (head === undefined) return { kind: "clean", initial: false };
-  const commits = head === baseline.head ? [] : await outsideCommits(repo, baseline.head);
-  const files: OutsideFile[] = [];
-  if (opts.underLock || !(await writeLocked(repo))) {
-    const now = await dirtyFiles(repo);
-    for (const [p, hash] of Object.entries(now))
-      if (baseline.dirty[p] !== hash) files.push({ path: p, change: "changed" });
-    // dg が残した変更が消えた：HEAD が進んでいれば dg のコミットに入ったとみなす（印のないコミットは上で見つかる）
-    if (head === baseline.head)
-      for (const p of Object.keys(baseline.dirty))
-        if (!(p in now)) files.push({ path: p, change: "reverted" });
-  }
-  if (commits.length === 0 && files.length === 0) return { kind: "clean", initial: false };
-  return { kind: "found", changes: { baseline: baseline.head, commits, files } };
+}
+
+/** 書き込みのロックの中で dg の外の変更を見つけたときの例外（書く前に止め、外の変更を dg のコミットに入れない） */
+export function outsideError(changes: OutsideChanges, command = "dg"): OperationError {
+  return new OperationError(
+    "OUTSIDE_CHANGES",
+    `データのリポジトリに dg の外の変更があるので、${command} は書かない。${outsideRemedy(changes)}`,
+    describeOutside(changes),
+  );
 }
 
 /** 見つけた変更の一覧の文（警告・エラー・フックの理由に使う） */
@@ -188,6 +234,10 @@ export function describeOutside(changes: OutsideChanges): string {
   for (const c of changes.commits)
     parts.push(
       `コミット ${c.sha.slice(0, 7)}「${c.subject}」: ${c.files.join("、") || "（ファイルの変更なし）"}`,
+    );
+  if (changes.rewritten)
+    parts.push(
+      `基準のコミット ${changes.baseline.slice(0, 7)} が今の HEAD の祖先でない（dg の外で履歴を捨てたか書き換えた）`,
     );
   return parts.join("。");
 }

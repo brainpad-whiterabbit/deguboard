@@ -2,7 +2,7 @@
 
 import type { z } from "zod";
 import { OperationError, UsageError } from "../errors.js";
-import { checkOutside, describeOutside, outsideRemedy } from "../git/outside.js";
+import { checkOutside, describeOutside, outsideError, outsideRemedy } from "../git/outside.js";
 import type { ActorKind, UserSource } from "../model/actor.js";
 import type { WriteContext, WriteOutcome } from "../git/write.js";
 import type { WorktreeOrigin } from "../git/worktree.js";
@@ -81,7 +81,8 @@ export function ok<O>(data: O, write?: WriteOutcome, warnings: string[] = []): C
  * config の actor.human_only に入ったコマンドは agent から拒否する（全入口がここを通るので検査は 1 か所）。
  * ストアを開いていない文脈（storeless）では config がないので検査しない。
  * データのリポジトリに dg の外の変更（ADR-021）があれば、書くコマンドは OUTSIDE_CHANGES で止め、読むだけのコマンドは警告を足す
- * （ストアを開かない文脈・初期化の前に動く needs: repo・検査を自分で扱うコマンドでは見ない）
+ * （ストアを開かない文脈・初期化の前に動く needs: repo・検査を自分で扱うコマンドでは見ない）。
+ * ここはロックの外なので、書く前の決め手はデータに書くときの書き込みのロックの中の検査（withWriteLock）で、ここは早く知らせるだけ
  */
 export async function runCommand<I extends z.ZodType, O>(
   def: CommandDef<I, O>,
@@ -107,12 +108,7 @@ export async function runCommand<I extends z.ZodType, O>(
     ctx.storeless || def.needs === "repo" || def.ownsOutsideCheck
       ? undefined
       : await checkOutside(ctx.repo);
-  if (check?.kind === "found" && def.write)
-    throw new OperationError(
-      "OUTSIDE_CHANGES",
-      `データのリポジトリに dg の外の変更があるので、${def.name} は書かない。${outsideRemedy(check.changes)}`,
-      describeOutside(check.changes),
-    );
+  if (check?.kind === "found" && def.write) throw outsideError(check.changes, def.name);
   const result = await def.run(ctx, parsed.data);
   if (check?.kind === "found")
     return {
