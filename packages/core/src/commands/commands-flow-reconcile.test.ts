@@ -250,7 +250,10 @@ describe("チケットの流れ（照合と claim）", () => {
       expect(t1Warnings).toHaveLength(1);
       expect(t1Warnings[0]).toContain("PR #105");
       expect(t1Warnings[0]).toContain("2026-11-01T10:00:00Z");
-      expect(t1Warnings[0]).toContain("--pr 105");
+      // このチケットの PR なら、ticket update で記録して sync を回し直す手を書く（前の作業の PR なら何もしない）
+      expect(t1Warnings[0]).toContain("ticket update t1 --pr 105");
+      expect(t1Warnings[0]).toContain("sync を回し直す");
+      expect(t1Warnings[0]).toContain("前の作業のものなら何もしない");
       expect(ctx.store.tickets.get("t2")?.data).toMatchObject({ status: "done", pr: 200 });
       // branch_at のない古いチケットは created_at より前にマージされた PR を外す
       expect(ctx.store.tickets.get("t3")?.data).toMatchObject({ status: "in_progress" });

@@ -453,7 +453,10 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
     await pushCommitAt(f.cloneA, "feat/t1", "2026-11-06T02:00:00Z");
     const tip = (await git(f.cloneA, ["rev-parse", "--short=7", "origin/feat/t1"])).stdout.trim();
     expect(await outside()).toEqual([
-      ["t1", `実装の Run を閉じた後のコミット 1 件（${tip} など）がどの Run の期間にも入らない`],
+      [
+        "t1",
+        `実装の Run を閉じた後のコミット 1 件（${tip} など）がどの Run の期間にも入らない。Run の記録は書き換えず、コミットの内容（git show <sha>）を確かめて人に伝える（人の push・rebase などや、別のマシンで開いた Run でも出る）`,
+      ],
     ]);
     // 手直しの Run（開いたまま）の期間に入れば指摘しない。もう一度の claim は PR のある自分の claim なので fix を開く
     clock = new Date("2026-11-06T01:30:00Z");
@@ -582,7 +585,7 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
     const tipOf = async (t: string) =>
       (await git(f.cloneA, ["rev-parse", "--short=7", `origin/feat/${t}`])).stdout.trim();
     const message = (tip: string) =>
-      `見直しの後のコミット 1 件（${tip} など）があるが、その後に手直しの Run（fix）がない`;
+      `見直しの後のコミット 1 件（${tip} など）があるが、その後に手直しの Run（fix）がない。Run の記録は書き換えず、コミットの内容（git show <sha>）を確かめて、手直しかどうかを人に伝える（人の push・見直しの後の rebase などや、別のマシンで開いた Run でも出る）`;
     expect(await missing()).toEqual([
       ["t1", message(await tipOf("t1"))],
       ["t2", message(await tipOf("t2"))],
@@ -631,7 +634,10 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
         .filter((i) => i.code === "lint_run_fix_missing")
         .map((i) => [i.id, i.message]),
     ).toEqual([
-      ["t1", `見直しの後のコミット 1 件（${tip} など）があるが、その後に手直しの Run（fix）がない`],
+      [
+        "t1",
+        `見直しの後のコミット 1 件（${tip} など）があるが、その後に手直しの Run（fix）がない。Run の記録は書き換えず、コミットの内容（git show <sha>）を確かめて、手直しかどうかを人に伝える（人の push・見直しの後の rebase などや、別のマシンで開いた Run でも出る）`,
+      ],
     ]);
   });
 

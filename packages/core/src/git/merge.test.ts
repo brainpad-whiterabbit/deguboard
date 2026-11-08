@@ -215,6 +215,10 @@ describe("同期のマージドライバ", () => {
     await runCommand(ticketUpdate, b, { ticket: "t1", title: "B の題" });
     const synced = await runCommand(sync, b, {});
     expect(synced.warnings.join("\n")).toContain(CONFLICT_REMEDY);
+    // 戻し方は、自分では解かずに人に伝えること、解いて続ける手と捨てる手を含む
+    expect(CONFLICT_REMEDY).toContain("自分では解かず人に伝える");
+    expect(CONFLICT_REMEDY).toContain("git rebase --continue");
+    expect(CONFLICT_REMEDY).toContain("git reset --hard <remote>/deguboard");
     await expect(runCommand(ticketCreate, b, { title: "新しい題" })).rejects.toMatchObject({
       code: "SYNC_CONFLICT",
       message: expect.stringContaining(CONFLICT_REMEDY),
