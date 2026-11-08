@@ -1,0 +1,33 @@
+{
+  "id": "r20261108-223505-f79d",
+  "ticket": "t589",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-08T22:35:05Z",
+  "finished_at": "2026-11-08T22:38:23Z",
+  "result": "success",
+  "error": null,
+  "retries": 2,
+  "retry_reasons": [
+    "guide import に、本文の項目の引用しない行末コメントが拒まれることを書く",
+    "plan の after と depends_on の循環の拒否の断言に、after を外すか向きを変える語尾を加える"
+  ],
+  "usage": {
+    "input": 40,
+    "output": 13284,
+    "cache_read": 1072677,
+    "cache_write": 73858
+  },
+  "tools": {
+    "read": 5,
+    "search": 0,
+    "write": 4,
+    "bash": 17,
+    "other": 1,
+    "read_before_write": 4,
+    "search_before_write": 0
+  },
+  "session": "4adcee53-1eb7-498c-972b-f70cb2e8a55d",
+  "review": null
+}
