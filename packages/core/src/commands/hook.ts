@@ -12,6 +12,9 @@
 //     印のある Run がなければ、サブエージェントが自分で開いた Run（記録に ID が出る。run start で開いたものなど）に記録の場所を結び付け、
 //     事実がなければ止まって待っている印を付ける（移行期の経路）
 //   - session_end：このセッションのサブエージェントの Run のうち開いたままのものをすべて閉じる。親が自分で開いた Run は残す
+//   - tool_requested：.git/deguboard/ への書き込みと、dg を経由しない gh pr ready・merge を粗く拒む（ストアを開かない。t554）
+//   - turn_stopped：データのリポジトリの dg の外の変更（ADR-021）を確かめ、見つけたら止まらずに続けさせて伝える（続けさせた後の Stop では伝えない）。
+//     dg の外の変更の検査は、ほかのイベントでは runCommand でも行わない（フックで作業を止めない。ownsOutsideCheck）
 //   どのイベントでも、扱うイベントなら読む項目の有無と時刻を deguboard-local/hook-inputs/ に残す（t542。dg hooks check が読む）
 //   どのフックの後も、前のフックで書き終わりを待ちきれずに残した Run を閉じる（dg sync も同じ）
 
@@ -20,6 +23,7 @@ import path from "node:path";
 import { z } from "zod";
 import { collectRunUsage, hookAgentNames, hooksOf, type HookEvent } from "../agents/index.js";
 import { OperationError } from "../errors.js";
+import { checkOutside, describeOutside, outsideRemedy } from "../git/outside.js";
 import { collectBranchFacts, lastPushedAt } from "../git/facts.js";
 import { toIsoDateTime } from "../model/common.js";
 import { ticketIdSchema, type TicketId } from "../model/id.js";
@@ -148,11 +152,14 @@ export const hook = defineCommand({
     "セッションの始まりに主体とセッション ID・記録のパスを環境に入れ、頼んだ文の先頭に `deguboard: ticket=<id> step=<step>` の印のあるサブエージェントの Run を起動で開き" +
     "（同じチケットと step の Run が開いたままなら開かずに警告する。見直しは、その Run が別のセッションのものなら落ちたセッションの残りとみなして interrupted で閉じてから開く。前景の起動で起動より後にその Run に書かれた見直しの結果は、保留に移して新しい Run に結び付ける）、step を終えた事実があれば止まったときに閉じ" +
     "（なければ止まって待っている印を付け、再開で続ける。自分で開いた Run も同じ）、セッションの終わりにそのセッションのサブエージェントの開いたままの Run を閉じる。" +
-    "ツールを使う前（PreToolUse）には、.git/deguboard/ の下への書き込み（書くツールと Bash）を拒み（Bash の判定は字句の手がかりで、任意の言語のコードや eval の中は見ない）、" +
+    "ツールを使う前（PreToolUse）には、書くツールの .git/deguboard/ の下への書き込みと、.git/deguboard の語を含む Bash（読むだけのものも、引用符・コメントの中も）を拒んで dg の読み書きのコマンドへ案内し" +
+    "（語として現れない書き込みは見ない。取りこぼしは dg の外の変更として、dg が次に動くときと Stop で見つける）、" +
     "dg を経由しない gh pr ready・gh pr merge（gh api の同じ操作も）を拒んで dg pr ready・dg pr merge へ案内する" +
     "（PR の指定は読まない。字句を読まずに、dg pr ready・dg pr merge と gh pr ready --undo を除いた残りに gh・pr・merge か ready の語があれば止める。" +
     "引用符・ヒアドキュメント・コメントの中も伏せず、本文の語はファイルに書いて --body-file・git commit -F で渡すよう案内する）。" +
     "PreToolUse はツールのたびに呼ばれるので、ストア（チケット・Plan・Epic・Iteration・config）を開かずにパスとコマンドの文字列だけで判定し、dg の外の変更の検査もしない。" +
+    "エージェントが応答を終えたとき（Stop）は、データのリポジトリの dg の外の変更（未コミットの変更と、dg の印のないコミット）を確かめ、見つけたら止まらずに続けさせて、どのファイルかと戻し方・取り込み方（dg adopt）を伝える" +
+    "（続けさせた後の Stop では伝えない）。ほかのイベントでは dg の外の変更があっても作業を止めない。" +
     "扱うイベントは、読む入力の項目の有無と時刻を deguboard-local/hook-inputs/ にイベントごとの最新の 1 件で残す（値は残さない。dg hooks check が読む）。ほかの失敗は作業を止めないよう、警告にして成功で返す",
   input: z.object({
     event: z
@@ -174,8 +181,10 @@ export const hook = defineCommand({
   }),
   write: true,
   needs: "store",
+  // dg の外の変更は Stop でだけ確かめて伝える。ほかのイベントでフックが止まらないよう、runCommand では確かめない
+  ownsOutsideCheck: true,
   // PreToolUse（tool_requested）はツールのたびに呼ばれるので、ストアを開かない文脈で動く（t554）。ストアを開かないので、
-  // store を開くときに行う検査（dg の外の変更の検査。t546）もここでは走らない。判定に使うのは repo の場所と入力だけ
+  // dg の外の変更の検査（t546）もここでは走らない。判定に使うのは repo の場所と入力だけ
   storeless: (input, env) =>
     hooksOf(hookAgentOf(input.agent))?.parse(input.event, input.payload ?? {}, env)?.kind ===
     "tool_requested",
@@ -243,6 +252,9 @@ async function handle(
       // ツールのたびに呼ばれるので、止まった Run の掃除はしない
       toolRequested(ctx, agent, event, view);
       return;
+    case "turn_stopped":
+      // 応答のたびに呼ばれるので、止まった Run の掃除はしない
+      return turnStopped(ctx, agent, event, view);
   }
   // 記録の書き終わりを待ちきれずに残した Run を、次のフックの機会に閉じる（ADR-014）
   await closeStoppedRuns(ctx, warnings, view, { session: event.session, markedBefore: calledAt });
@@ -787,396 +799,17 @@ async function sessionEnd(
   }
 }
 
-/** 括弧の始まりと終わりの印（splitCommands が単純なコマンドの並びに入れる。cd の行き先を括弧の中に閉じる） */
-export const SUBSHELL_OPEN = "(";
-export const SUBSHELL_CLOSE = ")";
+/** .git/deguboard の語（区切りは / と \。.git/deguboard-local も含む） */
+const DATA_DIR_WORD = /\.git[\\/]+deguboard/;
 
 /**
- * シェルのコマンドを単純なコマンドの並び（; && || | & と改行で区切る）と、その字句に分ける。引用符（' と "）の中の空白と区切りは割らない。
- * 括弧は [SUBSHELL_OPEN]・[SUBSHELL_CLOSE] の 1 字句のコマンドとして並びに入れる。リダイレクト（> >> >| &> >& <& < 2> など）と
- * ヒアドキュメント（<< <<- <<<）は 1 つの字句にし、ヒアドキュメントの本文と、語の頭の # からのコメントは読み飛ばす。置き換え（$(...)・`...`）や入れ子は解かない。
- * フックの判定の手がかりにだけ使う
+ * Bash のコマンドがデータ（.git/deguboard/）に触れるか（t546、ADR-021）。字句を読まず、生のコマンドに .git/deguboard の語が
+ * どこかにあれば（読むだけのものも、引用符・コメントの中も）触れるとみなし、dg の読み書きのコマンドへ案内する。
+ * 語として現れない形（cd .git && rm deguboard/x・変数・ファイルに書いたスクリプト・任意の言語のコード）は通る。
+ * 取りこぼした書き込みは、dg が次にコマンドを実行するときと Stop のフックで、dg の外の変更として見つける（git/outside.ts）
  */
-export function splitCommands(command: string): string[][] {
-  const commands: string[][] = [];
-  let words: string[] = [];
-  let word = "";
-  let quote: "'" | '"' | null = null;
-  let started = false;
-  /** 次の改行の後に読み飛ばすヒアドキュメントの終わりの語 */
-  const heredocs: string[] = [];
-  let heredocNext = false;
-  const endWord = () => {
-    if (started) {
-      words.push(word);
-      if (heredocNext) heredocs.push(word);
-      heredocNext = false;
-    }
-    word = "";
-    started = false;
-    quotedWord = false;
-  };
-  const endCommand = () => {
-    endWord();
-    if (words.length > 0) commands.push(words);
-    words = [];
-  };
-  /** 演算子の直前に接した fd の数字（2> の 2）を、今の語から取り出す */
-  let quotedWord = false;
-  const takeFd = () => {
-    if (!started || quotedWord || !/^[0-9]+$/.test(word)) return "";
-    const fd = word;
-    word = "";
-    started = false;
-    return fd;
-  };
-  /** $( の置き換えの深さ。中は解かず、閉じ括弧まで 1 つの語として読む */
-  let substitution = 0;
-  for (let i = 0; i < command.length; i++) {
-    const c = command[i]!;
-    const next = command[i + 1];
-    if (substitution > 0) {
-      word += c;
-      if (c === "(") substitution++;
-      else if (c === ")") substitution--;
-      continue;
-    }
-    if (c === "(" && word.endsWith("$") && started && !quote) {
-      word += c;
-      substitution = 1;
-      continue;
-    }
-    if (quote) {
-      if (c === quote) quote = null;
-      else if (c === "\\" && quote === '"' && i + 1 < command.length) word += command[++i];
-      else word += c;
-      continue;
-    }
-    if (c === "#" && !started) {
-      // 語の頭の # から行の終わりまではコメント（中の引用符を引用と読まない。改行は次で読む）
-      const eol = command.indexOf("\n", i);
-      i = (eol === -1 ? command.length : eol) - 1;
-    } else if (c === "'" || c === '"') {
-      quote = c;
-      started = true;
-      quotedWord = true;
-    } else if (c === "\\" && i + 1 < command.length) {
-      word += command[++i];
-      started = true;
-    } else if (c === "<" && next === "<" && word.includes("$((")) {
-      // 算術の中の << はヒアドキュメントでない
-      word += "<<";
-      i++;
-    } else if (c === "<" && next === "<") {
-      const fd = takeFd();
-      endWord();
-      let op = `${fd}<<`;
-      i++;
-      if (command[i + 1] === "<") op += command[++i];
-      else if (command[i + 1] === "-") op += command[++i];
-      words.push(op);
-      // <<< は本文を取らない（次の語がそのまま入力）
-      if (op !== "<<<") heredocNext = true;
-    } else if (c === ">" || c === "<" || (c === "&" && next === ">")) {
-      // リダイレクトは 1 つの字句にする（前に接した fd の数字と、>& <& の後の fd の数字も同じ字句に入れる）
-      const fd = takeFd();
-      endWord();
-      let op = fd + c;
-      if (c === "&") op += command[++i];
-      if (command[i + 1] === ">" || command[i + 1] === "|") op += command[++i];
-      if (command[i + 1] === "&") {
-        op += command[++i];
-        while (/[0-9-]/.test(command[i + 1] ?? "")) op += command[++i];
-      }
-      words.push(op);
-    } else if (c === "\n") {
-      endCommand();
-      // ヒアドキュメントの本文を、終わりの語だけの行まで読み飛ばす
-      while (heredocs.length > 0) {
-        const end = heredocs.shift()!;
-        for (;;) {
-          const eol = command.indexOf("\n", i + 1);
-          const line = command.slice(i + 1, eol === -1 ? command.length : eol);
-          i = eol === -1 ? command.length : eol;
-          if (line.replace(/^\t+/, "") === end || eol === -1) break;
-        }
-      }
-    } else if (c === "(" || c === ")") {
-      endCommand();
-      commands.push([c === "(" ? SUBSHELL_OPEN : SUBSHELL_CLOSE]);
-    } else if (c === ";" || c === "|" || c === "&") {
-      endCommand();
-    } else if (c === " " || c === "\t") {
-      endWord();
-    } else {
-      word += c;
-      started = true;
-    }
-  }
-  endCommand();
-  return commands;
-}
-
-/** 書き込み先を取るリダイレクトの字句 */
-const isWriteRedirect = (w: string) => /^[0-9]*(&>>?|>>?\|?)$/.test(w);
-/** リダイレクトかヒアドキュメントの字句（引数から外す） */
-const isRedirect = (w: string) => /^[0-9]*(<<<|<<-?|[<>]&?[0-9-]*|>>|>\||&>>?)$/.test(w);
-
-/** シェルの予約語（コマンドの前に来て、その後の字句が本当のコマンド） */
-const RESERVED = new Set([
-  "if",
-  "then",
-  "elif",
-  "else",
-  "fi",
-  "do",
-  "done",
-  "while",
-  "until",
-  "!",
-  "{",
-  "}",
-]);
-/** コマンドを包むだけのコマンドと、その値を取るフラグ（値をコマンド名と取り違えない） */
-const WRAPPERS: ReadonlyMap<string, ReadonlySet<string>> = new Map([
-  ["env", new Set(["-u", "--unset", "-C", "--chdir", "-S", "--split-string"])],
-  ["command", new Set<string>()],
-  ["builtin", new Set<string>()],
-  ["exec", new Set(["-a"])],
-  ["time", new Set(["-f", "--format", "-o", "--output"])],
-  ["nice", new Set(["-n", "--adjustment"])],
-  ["nohup", new Set<string>()],
-  [
-    "sudo",
-    new Set([
-      "-u",
-      "--user",
-      "-g",
-      "--group",
-      "-h",
-      "--host",
-      "-C",
-      "-D",
-      "--chdir",
-      "-p",
-      "--prompt",
-      "-r",
-      "-t",
-      "-U",
-    ]),
-  ],
-  ["doas", new Set(["-u", "-C"])],
-  [
-    "xargs",
-    new Set([
-      "-n",
-      "--max-args",
-      "-I",
-      "-i",
-      "-P",
-      "--max-procs",
-      "-L",
-      "-s",
-      "-d",
-      "-E",
-      "-a",
-      "--arg-file",
-    ]),
-  ],
-  ["timeout", new Set(["-s", "--signal", "-k", "--kill-after"])],
-  ["stdbuf", new Set(["-i", "-o", "-e"])],
-]);
-
-/**
- * 単純なコマンドの本当のコマンド名と引数。予約語（if・then・do・{・! など）、前の環境変数の代入（NAME=value）、
- * 包むコマンド（env・sudo・time など）とそのフラグ（値を取るものは値も）を読み飛ばす。timeout の時間も 1 つ読み飛ばす
- */
-export function commandOf(words: readonly string[]): { name: string; args: string[] } {
-  let k = 0;
-  // function f { ... } の形は、名前の後が本体
-  if (words[0] === "function") k = 2;
-  for (;;) {
-    while (
-      k < words.length &&
-      (RESERVED.has(words[k]!) || /^[A-Za-z_][A-Za-z0-9_]*=/.test(words[k]!))
-    )
-      k++;
-    const w = words[k];
-    const flags = w === undefined ? undefined : WRAPPERS.get(w);
-    if (!flags) break;
-    k++;
-    while (k < words.length && words[k]!.startsWith("-")) {
-      if (flags.has(words[k]!)) k++;
-      k++;
-    }
-    if (w === "timeout" && k < words.length) k++;
-  }
-  return { name: words[k] ?? "", args: withoutRedirects(words.slice(k + 1)) };
-}
-
-/** 次の字句を行き先（か、ヒアドキュメントの終わりの語）に取るリダイレクト。>&1 のように fd を含むものは取らない */
-const takesTarget = (w: string) => /^[0-9]*(<<<|<<-?|>>|>\||&>>?|[<>])$/.test(w);
-
-/** 引数からリダイレクトとその行き先を外す（2>&1 や > /tmp/out を PR の指定や写す先と取り違えない） */
-function withoutRedirects(args: readonly string[]): string[] {
-  const out: string[] = [];
-  for (let k = 0; k < args.length; k++) {
-    const a = args[k]!;
-    if (!isRedirect(a)) out.push(a);
-    else if (takesTarget(a)) k++;
-  }
-  return out;
-}
-
-/**
- * .git/deguboard/ の下を指す字句か（相対・絶対）。このリポジトリのデータに限らず、どのリポジトリの .git/deguboard/ も指すとみなす
- * （手がかりで見分けるので、別のリポジトリのデータへの書き込みも拒む。そのときは人に打ってもらう）
- */
-const isDataPath = (w: string) => /(^|\/)\.git\/deguboard(\/|$)/.test(w);
-
-/** cd・pushd の行き先を、今の場所（相対）に重ねる。今の場所が分からなければ undefined */
-function changeDir(current: string | undefined, to: string | undefined): string | undefined {
-  if (to === undefined || to === "-" || to.startsWith("~")) return undefined;
-  if (path.posix.isAbsolute(to)) return path.posix.normalize(to);
-  return path.posix.normalize(path.posix.join(current ?? ".", to));
-}
-
-/** 写す先がデータを指せば書き込みになるコマンド（データから外へ写すだけなら読み取り）。-t <dir> の形も見る */
-const COPY_LIKE = new Set(["cp", "mv", "rsync", "install", "ln"]);
-/** 引数のどれかがデータを指せば書き込みになるコマンド */
-const WRITE_LIKE = new Set([
-  "rm",
-  "rmdir",
-  "touch",
-  "mkdir",
-  "chmod",
-  "chown",
-  "truncate",
-  "unlink",
-  "tee",
-  "dd",
-  "shred",
-  "patch",
-]);
-/** データのリポジトリを変える git のサブコマンド */
-const GIT_WRITES = new Set([
-  "add",
-  "commit",
-  "rm",
-  "mv",
-  "reset",
-  "checkout",
-  "switch",
-  "restore",
-  "stash",
-  "merge",
-  "rebase",
-  "cherry-pick",
-  "apply",
-  "am",
-  "push",
-  "pull",
-  "update-ref",
-  "branch",
-  "tag",
-  "revert",
-  "clean",
-]);
-
-/** 1 つの単純なコマンドがデータに書くか。inData は今の場所がデータの下か */
-function writesWords(words: readonly string[], inData: boolean): boolean {
-  const { name, args } = commandOf(words);
-  for (let k = 0; k < words.length - 1; k++)
-    if (
-      isWriteRedirect(words[k]!) &&
-      (isDataPath(words[k + 1]!) || (inData && !words[k + 1]!.startsWith("/")))
-    )
-      return true;
-  const touchesData = (list: readonly string[]) => list.some(isDataPath) || inData;
-  const plain = args.filter((a) => !a.startsWith("-") && !isRedirect(a));
-  const target = args.includes("-t") ? args[args.indexOf("-t") + 1] : plain.at(-1);
-  if (COPY_LIKE.has(name) && target !== undefined && (isDataPath(target) || inData)) return true;
-  if (WRITE_LIKE.has(name) && touchesData(args)) return true;
-  if (
-    (name === "sed" || name === "perl") &&
-    args.some((a) => /^-\w*i/.test(a) || a.startsWith("--in-place")) &&
-    touchesData(args)
-  )
-    return true;
-  if (name === "find") {
-    if (args.includes("-delete") && touchesData(args)) return true;
-    // -exec・-execdir の後のコマンドを掛け直す（{} は find が見つけたデータのファイル）
-    for (let k = 0; k < args.length; k++) {
-      if (args[k] !== "-exec" && args[k] !== "-execdir") continue;
-      const end = args.findIndex((a, n) => n > k && (a === ";" || a === "+"));
-      const sub = args.slice(k + 1, end === -1 ? undefined : end);
-      if (
-        writesWords(
-          sub.map((a) => (a === "{}" && touchesData(args) ? ".git/deguboard/x" : a)),
-          inData,
-        )
-      )
-        return true;
-    }
-  }
-  const tarExtracts =
-    name === "tar" &&
-    args.some(
-      (a, n) => (n === 0 || a.startsWith("-")) && /^-?[A-Za-z]*x/.test(a) && !a.startsWith("--"),
-    );
-  if (tarExtracts || name === "unzip") {
-    const flag = name === "tar" ? "-C" : "-d";
-    const dest = args.includes(flag) ? args[args.indexOf(flag) + 1] : undefined;
-    if ((dest !== undefined && isDataPath(dest)) || (dest === undefined && inData)) return true;
-  }
-  if (name === "git") {
-    // git の全体のオプション（-C <path>・-c <k=v>・--git-dir=<path> など）を読み飛ばしてサブコマンドを取る
-    let dir: string | undefined;
-    let k = 0;
-    while (k < args.length && args[k]!.startsWith("-")) {
-      const a = args[k]!;
-      if (a === "-C" || a === "--git-dir" || a === "--work-tree") dir = args[++k];
-      else if (a.startsWith("--git-dir=") || a.startsWith("--work-tree="))
-        dir = a.slice(a.indexOf("=") + 1);
-      else if (a === "-c") k++;
-      k++;
-    }
-    const sub = args[k];
-    if (sub && GIT_WRITES.has(sub) && ((dir !== undefined && isDataPath(dir)) || inData))
-      return true;
-  }
-  return false;
-}
-
-/**
- * Bash のコマンドが .git/deguboard/ の下に書くか（t532）。読むだけ（cat・ls・grep・git log・外へ写す cp など）は通す。
- * 見分けは字句の手がかりで、書き間違いを防ぐためのもの。任意の言語のコード（python -c・node -e など）・eval・置き換えの中での書き込みは見ない
- */
-export function writesDataDir(command: string): boolean {
-  let where: string | undefined;
-  const saved: Array<string | undefined> = [];
-  for (const words of splitCommands(command)) {
-    if (words[0] === SUBSHELL_OPEN && words.length === 1) {
-      saved.push(where);
-      continue;
-    }
-    if (words[0] === SUBSHELL_CLOSE && words.length === 1) {
-      // 開きのない )（case の分かれ目など）は見ない
-      if (saved.length > 0) where = saved.pop();
-      continue;
-    }
-    const { name, args } = commandOf(words);
-    // cd・pushd でデータの下に入った後のコマンドは、データに書くものとみなす
-    if (name === "cd" || name === "pushd") {
-      where = changeDir(
-        where,
-        args.find((a) => !a.startsWith("-")),
-      );
-      continue;
-    }
-    if (writesWords(words, where !== undefined && isDataPath(where))) return true;
-  }
-  return false;
+export function touchesDataDir(command: string): boolean {
+  return DATA_DIR_WORD.test(command);
 }
 
 /** gh api で PR をマージ・ready にする手がかり（REST の pulls/<n>/merge と GraphQL の mutation 名） */
@@ -1233,10 +866,21 @@ export const GH_PR_DENIED =
   "このフックは引用符・ヒアドキュメント・コメントの中も伏せずに、gh・pr・merge か ready の語がどこかにあれば止める。" +
   "本文にその語を書くなら、Write でファイルに書いて gh pr create --body-file <ファイル>・git commit -F <ファイル> で渡す。ほかのコマンドと一緒に打って止まったなら、分けて打つ";
 
+/** 書くツールが .git/deguboard/ の下に書くのを拒む文 */
+export const DATA_WRITE_DENIED =
+  "deguboard のデータ（.git/deguboard/）はファイルを直接書かず、dg のコマンドで読み書きする";
+
+/** .git/deguboard の語を含む Bash を拒む文（t546） */
+export const DATA_BASH_DENIED =
+  "deguboard のデータ（.git/deguboard/）は Bash で触れず、dg のコマンドで読み書きする（読むのは dg ticket show・dg ticket list・dg plan show など、書くのは dg ticket update など）。" +
+  "このフックは、読むだけのものも、引用符・コメントの中も、.git/deguboard の語があれば止める。文書やコードの中の語を探すなら Grep ツールを使い、" +
+  "本文にその語を書くなら Write でファイルに書いて --body-file・git commit -F で渡す。止めきれずに書いた変更は、dg が次に動くときに dg の外の変更として見つけて書き込みを止める（dg adopt --help）";
+
 /**
- * ツールを使う前（PreToolUse。t532・t545・t555）。.git/deguboard/ の下への書き込み（書くツールと Bash）を拒み、dg を経由しない gh pr ready・gh pr merge を
- * 拒んで dg pr ready・dg pr merge へ案内する（advancesPrOutsideDg。字句を読まずに粗く止める）。
- * ストアを開かない文脈（hook の storeless。t554）で呼ばれるので、ctx は repo の場所（topLevel・dataDir）だけを使う
+ * ツールを使う前（PreToolUse。t532・t545・t555・t546）。書くツールの .git/deguboard/ の下への書き込みと、.git/deguboard の語を含む Bash
+ * （touchesDataDir。読むだけのものも粗く止める）を拒み、dg を経由しない gh pr ready・gh pr merge を拒んで dg pr ready・dg pr merge へ案内する
+ * （advancesPrOutsideDg。字句を読まずに粗く止める）。取りこぼしは事後の検査（dg の外の変更。ADR-021）が見つける。
+ * ストアを開かない文脈（hook の storeless。t554）で呼ばれるので、ctx は repo の場所（topLevel・dataDir）だけを使い、事後の検査もここでは走らない
  */
 function toolRequested(
   ctx: CommandContext,
@@ -1249,8 +893,6 @@ function toolRequested(
     view.output = hooksOf(agent)!.denyOutput(view.event, reason);
     view.done.push(`拒んだ: ${reason}`);
   };
-  const dataWrite =
-    "deguboard のデータ（.git/deguboard/）はファイルを直接書かず、dg のコマンドで読み書きする";
   if (event.tool === "write") {
     if (!event.path) return;
     const target = path.resolve(event.cwd ?? ctx.repo.topLevel, event.path);
@@ -1259,15 +901,35 @@ function toolRequested(
       return rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel));
     };
     if (inside(ctx.repo.dataDir) || /(^|[\\/])\.git[\\/]deguboard([\\/]|$)/.test(target))
-      deny(dataWrite);
+      deny(DATA_WRITE_DENIED);
     return;
   }
   const command = event.command ?? "";
-  if (writesDataDir(command)) {
-    deny(dataWrite);
+  if (touchesDataDir(command)) {
+    deny(DATA_BASH_DENIED);
     return;
   }
   if (advancesPrOutsideDg(command)) deny(GH_PR_DENIED);
+}
+
+/**
+ * エージェントが応答を終えたとき（Stop。t546）。データのリポジトリに dg の外の変更があれば、止まらずに続けさせてファイルと戻し方を伝える。
+ * 続けさせた後の Stop（continued）では伝えない（直せないときに続けさせ続けない。次の dg のコマンドが書き込みを止めて同じことを伝える）
+ */
+async function turnStopped(
+  ctx: CommandContext,
+  agent: string,
+  event: Extract<HookEvent, { kind: "turn_stopped" }>,
+  view: HookView,
+): Promise<void> {
+  if (event.continued) return;
+  const check = await checkOutside(ctx.repo);
+  if (check.kind !== "found") return;
+  const reason =
+    `deguboard のデータのリポジトリに dg の外の変更がある（${describeOutside(check.changes)}）。` +
+    `${outsideRemedy(check.changes)}。自分で書いたものなら人に伝えて、取り込むか捨てるかを確かめる`;
+  view.output = hooksOf(agent)!.continueOutput(view.event, reason);
+  view.done.push(`dg の外の変更を伝えた: ${describeOutside(check.changes)}`);
 }
 
 export const hookCommands = [hook];

@@ -13,6 +13,7 @@ import { pickUser } from "../model/actor.js";
 import { configFields, defaultConfig } from "../model/config.js";
 import type { RunId } from "../model/run.js";
 import { resetGhCache } from "../git/facts.js";
+import { recordBaseline } from "../git/outside.js";
 import { osUserName } from "../git/repo.js";
 import { closeRun, peekRunningRuns } from "../run/record.js";
 import { openContext, type ContextOptions } from "./context.js";
@@ -109,6 +110,8 @@ async function writeStrictWorkflow(ctx: CommandContext): Promise<void> {
       "",
     ].join("\n"),
   );
+  // 利用者が直に置いて dg adopt で取り込んだ状態にする（dg の外の変更の検査の基準。ADR-021）
+  await recordBaseline(ctx.repo);
   await ctx.store.rescan();
 }
 
@@ -117,6 +120,7 @@ async function setDependsOn(ctx: CommandContext, id: string, value: string): Pro
   const file = path.join(ctx.repo.dataDir, `tickets/${id}.md`);
   const text = await readFile(file, "utf8");
   await writeFile(file, text.replace(/^depends_on: .*$/m, `depends_on: ${value}`));
+  await recordBaseline(ctx.repo);
 }
 
 /** init まで済ませた文脈を開く */
@@ -378,6 +382,7 @@ describe("チケットの流れ", () => {
     await runCommand(ticketClaim, ctx, { ticket: "t3", branch: "chore/legacy" });
     // branch_at のない古いチケットの形（created_at と比べる）
     await ctx.store.update("ticket", "t3", { branch_at: undefined });
+    await recordBaseline(ctx.repo);
     // claim 直後に main から切った、commit のないブランチ（push はまだ）
     for (const b of ["chore/reused", "chore/fresh", "chore/legacy"]) {
       await git(f.cloneA, ["branch", b]);
@@ -665,6 +670,7 @@ describe("チケットの流れ", () => {
     await workflow("build", "  - { id: build, opens_on: claim }\n  - { id: review }\n");
     await workflow("plain", "  - { id: implement }\n  - { id: review }\n");
     await workflow("noimpl", "  - { id: research }\n");
+    await recordBaseline(human.repo);
     await human.store.rescan();
     for (const wf of ["build", "plain", "noimpl"])
       await runCommand(ticketCreate, human, { title: wf, workflow: wf });
@@ -745,6 +751,7 @@ describe("チケットの流れ", () => {
       await git(f.cloneA, ["branch", b]);
     // t3 は PR 番号を記録済み（この機能より前に記録した形）で、Run は開いたまま
     await agent.store.update("ticket", "t3", { pr: 43 });
+    await recordBaseline(agent.repo);
     // t4 の PR は Run の開始（00:00）より前に作られている（PR の後に implement を開き直した形）
     const restore = await fakeGh(f.root, {
       "feat/t1|41":
@@ -1088,6 +1095,7 @@ describe("チケットの流れ", () => {
       .data.run!;
     // PR の記録を直接書いてから claim し直し、手直しの Run を開く（PR の発見の代わり）
     await agent.store.update("ticket", "t2", { pr: 42 });
+    await recordBaseline(agent.repo);
     const fix = (await runCommand(ticketClaim, agent, { ticket: "t2", retry_reasons: ["指摘 A"] }))
       .data.run!;
     const done = (await runCommand(ticketClaim, agent, { ticket: "t3", branch: "feat/t3" })).data
@@ -1758,6 +1766,7 @@ describe("チケットの流れ", () => {
     // t2・t3 は PR 番号だけ記録する（gh は知らない）
     await agent.store.update("ticket", "t2", { pr: 42 });
     await agent.store.update("ticket", "t3", { pr: 43 });
+    await recordBaseline(agent.repo);
     let restore = await fakeGh(f.root, {
       "feat/t1|41":
         '{"number":41,"state":"OPEN","isDraft":false,"mergedAt":null,"createdAt":"2026-11-06T00:20:00Z"}',
@@ -2328,6 +2337,8 @@ describe("チケットの流れ", () => {
       file,
       text.replace("status: todo", "status: in_progress\nclaimed_by: eiki@laptop"),
     );
+    // 古い版の dg が書いた形を模すので、検査の基準をここに置く（ADR-021）
+    await recordBaseline(ctx.repo);
     await ctx.store.rescan();
     const shown = await runCommand(ticketShow, ctx, { ticket: "t1" });
     expect(shown.data.assignee).toBe("eiki@laptop");

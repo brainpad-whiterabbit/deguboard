@@ -12,6 +12,8 @@
 //     記録にも呼び出しがない）。再開を続きとして扱い、止まって待っている印を消すのにだけ使う
 //   - PreToolUse（matcher は Bash と書くツール）：tool_name・tool_input（command・file_path）・cwd。拒むときは標準出力に
 //     hookSpecificOutput.permissionDecision: deny を書き、permissionDecisionReason がエージェントに返る
+//   - Stop：session_id・stop_hook_active（前の Stop のフックが続けさせた後なら true）。続けさせるときは標準出力に
+//     decision: block と reason を書き、reason がエージェントに返る
 //   - SessionEnd：session_id
 //   （2026-11-07 に Claude Code 2.1.318 で確かめた。SessionStart で入れた環境変数は親の Bash にだけ届き、サブエージェントの Bash には
 //   届かない（2026-11-08 に 2.1.319 で確かめた）。サブエージェントのセッションは Adapter の sessionFromEnv が補う。ADR-016）
@@ -114,6 +116,8 @@ function parseHook(event: string, input: unknown, env: AgentEnv): HookEvent | un
         };
       return undefined;
     }
+    case "Stop":
+      return { kind: "turn_stopped", session, continued: d["stop_hook_active"] === true };
     case "SessionEnd":
       return { kind: "session_end", session };
     default:
@@ -283,6 +287,8 @@ function inputFieldsOf(event: string, input: Record<string, unknown>): readonly 
               : [];
       return [...base, "tool_name", "cwd", ...tool];
     }
+    case "Stop":
+      return [...base, "stop_hook_active"];
     case "SessionEnd":
       return base;
     default:
@@ -295,9 +301,11 @@ export const claudeCodeHooks: HookSupport = {
     { event: "SessionStart" },
     { event: "PostToolUse", matcher: "Agent" },
     { event: "SubagentStart" },
-    // dg を経由しない gh pr merge・ready と、.git/deguboard/ への書き込みを拒む（t532・t545）
+    // dg を経由しない gh pr merge・ready と、書くツールの .git/deguboard/ への書き込み・.git/deguboard の語を含む Bash を拒む（t532・t545・t546）
     { event: "PreToolUse", matcher: "Bash|Edit|Write|MultiEdit|NotebookEdit" },
     { event: "SubagentStop" },
+    // 応答を終えるたびに dg の外の変更を確かめ、見つけたら止まらずに続けさせて伝える（t546・ADR-021）
+    { event: "Stop" },
     { event: "SessionEnd" },
   ],
   settings: {
@@ -318,5 +326,7 @@ export const claudeCodeHooks: HookSupport = {
         permissionDecisionReason: reason,
       },
     }),
+  // Stop の decision: block で止まらずに続けさせる。reason がエージェントに返る（event は使わない）
+  continueOutput: (_event, reason) => JSON.stringify({ decision: "block", reason }),
   transcriptRoot: (env) => path.join(claudeConfigDir(env), "projects"),
 };

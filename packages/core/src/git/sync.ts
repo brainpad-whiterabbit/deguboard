@@ -1,6 +1,7 @@
 // 取り込み・push・同期状態（SY-2、SY-4、UI-6）
 
 import { attributesFile } from "./merge.js";
+import { DG_COMMIT_TRAILER } from "./outside.js";
 import type { GitRepo } from "./repo.js";
 import { runGit } from "./run.js";
 import { DATA_BRANCH } from "./worktree.js";
@@ -129,15 +130,26 @@ export async function commitPaths(
     allowFailure: true,
   });
   if (staged.code === 0) return false;
-  await git(repo, ["commit", "--quiet", "--no-verify", "-m", message, "--", ...paths]);
+  await git(repo, [
+    "commit",
+    "--quiet",
+    "--no-verify",
+    "-m",
+    message,
+    "-m",
+    DG_COMMIT_TRAILER,
+    "--",
+    ...paths,
+  ]);
   return true;
 }
 
+/** まとめてコミットする。dg のコミットの印（DG_COMMIT_TRAILER）を末尾に付ける（dg の外のコミットと見分ける。ADR-021） */
 export async function commitAll(repo: GitRepo, message: string): Promise<boolean> {
   await git(repo, ["add", "-A"]);
   const staged = await git(repo, ["diff", "--cached", "--quiet"], { allowFailure: true });
   if (staged.code === 0) return false;
-  await git(repo, ["commit", "--quiet", "--no-verify", "-m", message]);
+  await git(repo, ["commit", "--quiet", "--no-verify", "-m", message, "-m", DG_COMMIT_TRAILER]);
   return true;
 }
 

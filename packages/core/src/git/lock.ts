@@ -94,6 +94,15 @@ type LockState =
   | { kind: "error"; error: unknown };
 
 /**
+ * 生きた持ち主がロックを持っているか（取らずに見る。dg の外の変更の検査が、ほかの dg の書きかけを避けるのに使う）。
+ * 古いロック（mtime が古い・同じホストの持ち主の pid が死んだ）は持たないとみなす。確かめられなければ持っているとみなす
+ */
+export async function lockHeld(localDir: string, name: string): Promise<boolean> {
+  const state = await lockState(path.join(localDir, "locks", name), STALE_MS);
+  return state.kind === "held" || state.kind === "error";
+}
+
+/**
  * ロックの状態。持ち主が使っていれば held、古ければ stale、解放されてもう無ければ gone、確かめられなければ error。
  * mtime が staleMs より古ければ stale（持ち主はハートビートで更新し続けるので、生きていれば古くならない）。
  * 同じホストの持ち主は pid の生死も見る。ホスト名の無い中身は以前の dg が書いたもので、同じホストとみなす

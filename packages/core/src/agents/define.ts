@@ -108,6 +108,11 @@ export type HookEvent =
       path: string | null;
       cwd: string | null;
     }
+  /**
+   * エージェント（親）が応答を終えて止まろうとしている（Stop）。continued は、前の Stop のフックが続けさせた後の Stop か
+   * （同じ理由で続けさせ続けないために見る）
+   */
+  | { kind: "turn_stopped"; session: string; continued: boolean }
   /** セッションの終わり */
   | { kind: "session_end"; session: string };
 
@@ -138,6 +143,8 @@ export interface HookSupport {
   transcriptSettled(transcript: string): Promise<boolean>;
   /** ツールの使用を拒むときにフックが標準出力に書く文（製品の形）。理由はエージェントに返る */
   denyOutput(event: string, reason: string): string;
+  /** 止まろうとしたエージェントを続けさせるときにフックが標準出力に書く文（製品の形）。理由はエージェントに返る */
+  continueOutput(event: string, reason: string): string;
   /** 会話記録の置き場所。run start・ticket claim の --transcript はこの下だけを受け付ける */
   transcriptRoot(env: AgentEnv): string;
 }

@@ -2,6 +2,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { createFixture, git, type Fixture } from "../../test/helpers/git-fixture.js";
+import { recordBaseline } from "../git/outside.js";
 import { openContext } from "./context.js";
 import { runCommand, type CommandContext } from "./define.js";
 import { commit, configSet, init } from "./setup.js";
@@ -191,6 +192,8 @@ describe("workflow set", () => {
     const ctx = await initialized(f.cloneA);
     const broken = "id: general\nname: G\nreconcile:\n  - { when: [nope], status: done }\n";
     await writeFile(path.join(ctx.repo.dataDir, "workflows/general.yaml"), broken);
+    // 古い版の dg のときに壊れた Workflow を模すので、検査の基準をここに置く（ADR-021）
+    await recordBaseline(ctx.repo);
     await ctx.store.rescan();
     expect(ctx.store.workflows.has("general")).toBe(false);
     const again = await openContext({ cwd: f.cloneA, initialize: {} });

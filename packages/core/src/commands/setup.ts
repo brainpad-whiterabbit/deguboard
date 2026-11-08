@@ -11,6 +11,7 @@ import {
   lastPushedAt,
 } from "../git/facts.js";
 import { withLock } from "../git/lock.js";
+import { checkOutside, describeOutside, recordBaseline } from "../git/outside.js";
 import { renumberProvisional, type Renumbered } from "../git/renumber.js";
 import { ensureGitattributes, ensureMergeDriver } from "../git/merge.js";
 import {
@@ -22,7 +23,7 @@ import {
   push,
   syncStatus,
 } from "../git/sync.js";
-import { CONFLICT_REMEDY, flushPending, withWrite } from "../git/write.js";
+import { CONFLICT_REMEDY, flushPending, withWrite, withWriteLock } from "../git/write.js";
 import {
   isAgentActorId,
   ownActorIds,
@@ -452,7 +453,7 @@ export const sync = defineCommand({
 
 /** sync の本体（write のロックの中） */
 async function syncLocked(ctx: CommandContext) {
-  return withLock(ctx.repo.localDir, "write", async () => {
+  return withWriteLock(ctx.repo, async () => {
     const warnings: string[] = [];
     const repo = ctx.repo;
     let flushed = false;
@@ -574,7 +575,7 @@ export const commit = defineCommand({
   write: true,
   needs: "store",
   async run(ctx, input) {
-    return withLock(ctx.repo.localDir, "write", async () => {
+    return withWriteLock(ctx.repo, async () => {
       const warnings: string[] = [];
       const committed = await flushPending(ctx, input.message);
       let pushed = false;
@@ -599,6 +600,36 @@ export const validate = defineCommand({
     await ctx.store.rescan();
     const issues = [...ctx.store.issues, ...checkReferences(ctx.store)];
     return ok({ ok: issues.every((i) => i.severity !== "error"), issues });
+  },
+});
+
+export const adopt = defineCommand({
+  name: "adopt",
+  group: "setup",
+  summary:
+    "データのリポジトリの dg の外の変更（未コミットの変更と、印のないコミット。ADR-021）を取り込む。dg validate と同じ検査でエラーがなければ、" +
+    "今の状態を以後の検査の基準にする（未コミットの変更は、まとめ待ちの変更として次の dg commit・dg sync でコミットされる）。エラーがあれば VALIDATION_FAILED で取り込まない。" +
+    "捨てるなら、人が deguboard worktree（.git/deguboard）で git restore と git reset --keep <基準の HEAD> で戻し（基準の HEAD は検査の文に出る）、そのあと dg adopt で今の状態を基準にする（dg guide overview の「dg の外の変更」）",
+  input: z.object({}),
+  write: true,
+  needs: "store",
+  ownsOutsideCheck: true,
+  async run(ctx) {
+    return withLock(ctx.repo.localDir, "write", async () => {
+      const check = await checkOutside(ctx.repo, { underLock: true });
+      if (check.kind === "clean") return ok({ adopted: false, commits: [], files: [] });
+      await ctx.store.rescan();
+      const issues = [...ctx.store.issues, ...checkReferences(ctx.store)];
+      const errors = issues.filter((i) => i.severity === "error");
+      if (errors.length > 0)
+        throw new OperationError(
+          "VALIDATION_FAILED",
+          `dg の外の変更に検査のエラーがあるので取り込まない（${describeOutside(check.changes)}）。直すか捨ててから dg adopt をもう一度実行する`,
+          errors.map((i) => `${i.path}: ${i.message}`).join("\n"),
+        );
+      await recordBaseline(ctx.repo);
+      return ok({ adopted: true, commits: check.changes.commits, files: check.changes.files });
+    });
   },
 });
 
@@ -1062,6 +1093,7 @@ export const setupCommands = [
   sync,
   commit,
   validate,
+  adopt,
   lint,
   configShow,
   configSet,

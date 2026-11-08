@@ -25,7 +25,7 @@ import {
   hookTiming,
   parseMarker,
   readHookInput,
-  writesDataDir,
+  touchesDataDir,
   type HookView,
 } from "./hook.js";
 import {
@@ -1195,59 +1195,37 @@ describe("入力の項目と parseHook の読み方（t542）", () => {
 });
 
 describe("PreToolUse（t532）", () => {
-  it("Bash の .git/deguboard/ への書き込みだけを拒み、読むだけのコマンドは通す", () => {
+  it("Bash は .git/deguboard の語があれば、書くものも読むだけのものも、引用符・コメントの中でも止め、語のないものは通す（t546）", () => {
     for (const c of [
+      // 書くもの（t532 で見分けていた形）
       "echo x > .git/deguboard/tickets/t1.md",
       "cat a | tee -a /r/.git/deguboard/config.yaml",
-      "rm -rf .git/deguboard/runs",
-      "sed -i 's/a/b/' .git/deguboard/tickets/t1.md",
       "git -C .git/deguboard commit -m x",
-      "cp x.md .git/deguboard/tickets/",
-      "cd .git/deguboard && git commit -am x",
-      "git -C .git/deguboard -c a=b commit -m x",
-      "perl -pi -e 's/a/b/' .git/deguboard/x",
-      'echo "a b" >> /r/.git/deguboard/config.yaml',
-      "FOO=1 rm .git/deguboard/x",
-      "sudo rm -rf .git/deguboard",
-      "(rm .git/deguboard/x)",
       "cd .git/deguboard && echo hi > tickets/t1.md",
-      "echo x >| .git/deguboard/a",
-      "cp -t .git/deguboard a",
-      "sed --in-place s/a/b/ .git/deguboard/x",
-      "find .git/deguboard -name x -delete",
-      "if true; then rm .git/deguboard/x; fi",
-      "for f in a; do rm .git/deguboard/$f; done",
-      "{ rm .git/deguboard/x; }",
-      "sudo -u root rm .git/deguboard/x",
-      "nice -n 5 rm .git/deguboard/x",
-      "pushd .git/deguboard && rm x",
-      "git --git-dir=.git/deguboard/.git commit -m x",
-      "tar -xf a.tar -C .git/deguboard",
       "find .git/deguboard -exec rm {} +",
-      "cp a .git/deguboard/b 2>/dev/null",
-      "mv x .git/deguboard/y >/dev/null 2>&1",
-      "echo x 2> .git/deguboard/err",
-      "echo $((1<<2))\nrm .git/deguboard/x",
-      "cd .git/deguboard && case $x in a) echo;; esac; rm y",
-      "function f { rm .git/deguboard/x; }",
-    ])
-      expect(writesDataDir(c), c).toBe(true);
-    for (const c of [
+      // 読むだけのもの（t532 では通していた）
       "cat .git/deguboard/tickets/t1.md",
       "ls .git/deguboard",
       "git -C .git/deguboard log --oneline -1",
-      "mise run dg -- ticket update t1 --pr 3",
-      "grep -rn x .git/deguboard 2>/dev/null",
       "cp .git/deguboard/tickets/t1.md /tmp/x",
-      'grep -rn "install" .git/deguboard',
-      "cat .git/deguboard/a 2>&1 | tee /tmp/out",
-      "(cd .git/deguboard && ls); rm x",
-      "cd .git/deguboard && cd ../.. && rm x",
-      "find .git/deguboard -name '*.md' -exec grep -l foo {} +",
+      // 字句で読み切れなかった形
+      `python3 -c "open('.git/deguboard/tickets/t1.md', 'w').write('x')"`,
+      "D=.git/deguboard; rm $D/x",
+      "ls .git\\deguboard",
+      "cat /r/.git/deguboard-local/config.yaml",
+      // 引用符・ヒアドキュメント・コメントの中も伏せない
       "git commit -F - <<'EOF'\nrm .git/deguboard/x と書く\nEOF",
-      "tar -czf box.tar -C .git/deguboard .",
+      'echo ".git/deguboard"',
+      "ls # .git/deguboard",
     ])
-      expect(writesDataDir(c), c).toBe(false);
+      expect(touchesDataDir(c), c).toBe(true);
+    // 語として現れない書き込みは通る（dg の外の変更として事後に見つける）
+    for (const c of [
+      "mise run dg -- ticket update t1 --pr 3",
+      "cd .git && rm deguboard/tickets/t1.md",
+      "grep -rn deguboard docs",
+    ])
+      expect(touchesDataDir(c), c).toBe(false);
   });
 
   it("dg を経由しない gh pr merge・ready を、PR の指定・包むコマンド・置き換え・任意の言語のコードの中でも、字句を読まずに見つける（PR 482 で読み違えた例を含む）", () => {
