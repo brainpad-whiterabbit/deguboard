@@ -1,0 +1,33 @@
+{
+  "id": "r20261108-150652-1b6b",
+  "ticket": "t576",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-08T15:06:52Z",
+  "finished_at": "2026-11-08T15:08:47Z",
+  "result": "success",
+  "error": null,
+  "retries": 2,
+  "retry_reasons": [
+    "RN-4 の見直しの結果を書く Run の条件がコードと違った",
+    "RN-6 の照合が failure にする Run を手直しまで広げていた"
+  ],
+  "usage": {
+    "input": 16,
+    "output": 4308,
+    "cache_read": 3193784,
+    "cache_write": 5939
+  },
+  "tools": {
+    "read": 1,
+    "search": 0,
+    "write": 5,
+    "bash": 5,
+    "other": 0,
+    "read_before_write": 1,
+    "search_before_write": 0
+  },
+  "session": "63c10282-cee5-4e4c-93a6-ae7836a9c5b1",
+  "review": null
+}
