@@ -785,22 +785,20 @@ describe("使用量の取り込み（MT-2）", () => {
   const config = (read: boolean) => ({ metrics: { read_transcripts: read } });
   const nulls = { input: null, output: null, cache_read: null, cache_write: null };
 
-  it("read_transcripts が false なら会話記録を読まず、null にして警告する", async () => {
-    const { query } = await setup();
-    const spy = vi.spyOn(claudeCodeAdapter, "readTranscriptUsage");
-    const got = await collectRunUsage(config(false), query());
-    expect(spy).not.toHaveBeenCalled();
-    expect(got.usage).toEqual(nulls);
-    expect(got.warnings).toEqual([expect.stringContaining("metrics.read_transcripts")]);
-  });
+  it("read_transcripts が false か DEGUBOARD_NO_TRANSCRIPTS=1 なら（設定が true でも）会話記録を読まず、null にして警告する", async () => {
+    const off = await setup();
+    const offSpy = vi.spyOn(claudeCodeAdapter, "readTranscriptUsage");
+    const byConfig = await collectRunUsage(config(false), off.query());
+    expect(offSpy).not.toHaveBeenCalled();
+    expect(byConfig.usage).toEqual(nulls);
+    expect(byConfig.warnings).toEqual([expect.stringContaining("metrics.read_transcripts")]);
 
-  it("DEGUBOARD_NO_TRANSCRIPTS=1 のマシンでは read_transcripts が true でも読まない", async () => {
-    const { query } = await setup({ DEGUBOARD_NO_TRANSCRIPTS: "1" });
-    const spy = vi.spyOn(claudeCodeAdapter, "readTranscriptUsage");
-    const got = await collectRunUsage(config(true), query());
-    expect(spy).not.toHaveBeenCalled();
-    expect(got.usage).toEqual(nulls);
-    expect(got.warnings).toEqual([expect.stringContaining("DEGUBOARD_NO_TRANSCRIPTS")]);
+    const env = await setup({ DEGUBOARD_NO_TRANSCRIPTS: "1" });
+    const envSpy = vi.spyOn(claudeCodeAdapter, "readTranscriptUsage");
+    const byEnv = await collectRunUsage(config(true), env.query());
+    expect(envSpy).not.toHaveBeenCalled();
+    expect(byEnv.usage).toEqual(nulls);
+    expect(byEnv.warnings).toEqual([expect.stringContaining("DEGUBOARD_NO_TRANSCRIPTS")]);
   });
 
   it("DEGUBOARD_NO_TRANSCRIPTS が 0 か空なら拒否にならず読む", async () => {

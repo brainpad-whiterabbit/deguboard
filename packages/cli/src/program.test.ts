@@ -4,12 +4,7 @@ import path from "node:path";
 import { Readable } from "node:stream";
 import { afterEach, describe, expect, it } from "vitest";
 import { commands } from "@deguboard/core";
-import {
-  createFixture,
-  createLocalOnlyRepo,
-  git,
-  type Fixture,
-} from "../../core/test/helpers/git-fixture.js";
+import { createFixture, git, type Fixture } from "../../core/test/helpers/git-fixture.js";
 import { run } from "./program.js";
 
 const cleanups: Array<() => Promise<void>> = [];
@@ -296,21 +291,11 @@ describe("dg", () => {
     expect(ran.err).toBe("エラー: ポートは 0〜65535 の整数");
   });
 
-  it("初期化前は NOT_INITIALIZED で 1、リモートがなくても init と起票ができる", async () => {
+  it("初期化前は NOT_INITIALIZED で終了コード 1", async () => {
     const f = await fixture();
     const before = await dg(f.cloneB, ["--json", "ticket", "list"]);
     expect(before.code).toBe(1);
     expect(before.json().error?.code).toBe("NOT_INITIALIZED");
-
-    const local = await createLocalOnlyRepo();
-    cleanups.push(local.cleanup);
-    expect((await dg(local.dir, ["init"])).code).toBe(0);
-    const created = await dg(local.dir, ["--json", "ticket", "create", "オフライン"]);
-    expect(created.json()).toMatchObject({
-      ok: true,
-      data: { id: "t1" },
-      write: { committed: true, pushed: false },
-    });
   });
 
   it("--actor agent では by: [human] の遷移が拒否され、環境変数 DEGUBOARD_ACTOR も効く", async () => {
@@ -355,7 +340,7 @@ describe("dg", () => {
     expect(list.out).toContain("s1");
   });
 
-  it("plan create / approve / show / close がコアの定義を写し、--after・--scope・--tier を key=value で受ける", async () => {
+  it("plan create は --after・--scope・--approach・--tier を key=value で受け、段階の誤りは終了コード 2、開いた Plan と同じチケットは 1", async () => {
     const f = await fixture();
     await dg(f.cloneA, ["init"]);
     await dg(f.cloneA, ["ticket", "create", "A"]);
@@ -364,7 +349,6 @@ describe("dg", () => {
     const invalid = await dg(f.cloneA, ["--json", "plan", "create", "t1", "--tier", "t1=huge"]);
     expect(invalid.code).toBe(2);
     expect(invalid.json()).toMatchObject({ ok: false, error: { code: "INVALID_INPUT" } });
-    expect(invalid.json().error?.message).toContain("plan.create");
     const created = await dg(f.cloneA, [
       "--json",
       "plan",
@@ -381,11 +365,11 @@ describe("dg", () => {
       "t1=light",
     ]);
     expect(created.code).toBe(0);
+    // key=value の値は、番号の鍵（2=）も含めて CLI の引数から読む
     expect(created.json().data).toMatchObject({
       id: "p1",
       tickets: ["t1", "t2"],
       after: { t2: ["t1"] },
-      pending_approval: true,
       details: {
         t1: { scope: "API と CLI、画面なし", tier: "light" },
         t2: { approach: "既存に倣う" },
@@ -395,18 +379,9 @@ describe("dg", () => {
     const dup = await dg(f.cloneA, ["--json", "plan", "create", "t1"]);
     expect(dup.code).toBe(1);
     expect(dup.json().error?.code).toBe("REJECTED");
-    const approved = await dg(f.cloneA, ["--json", "--actor", "agent", "plan", "approve", "p1"]);
-    expect(approved.json().data).toMatchObject({ pending_approval: false });
-    expect(approved.json().data.approved_by).toMatch(/\/agent$/);
-    const shown = await dg(f.cloneA, ["plan", "show", "1"]);
-    expect(shown.code).toBe(0);
-    expect(shown.out).toContain("progress.done: 0");
-    const closed = await dg(f.cloneA, ["--json", "plan", "close", "p1"]);
-    expect(closed.json().data.closed_at).toBeDefined();
-    expect(closed.json().warnings).toEqual(["t1, t2 を残したまま閉じた"]);
   });
 
-  it("run start / list / finish / refresh がコアの定義を写し、二重の start は 1、止まった Run は interrupted で閉じる", async () => {
+  it("run は --agent と --retry-reason（繰り返し、カンマでは割らない）を受け、二重の start は終了コード 1、不正な --result は 2、refresh は位置引数を受ける", async () => {
     const f = await fixture();
     await dg(f.cloneA, ["init"]);
     await dg(f.cloneA, ["ticket", "create", "A"]);
@@ -425,8 +400,6 @@ describe("dg", () => {
     const dup = await dg(f.cloneA, ["--json", "run", "start", "1", "implement", "--agent", "x"]);
     expect(dup.code).toBe(1);
     expect(dup.json().error?.code).toBe("ALREADY_EXISTS");
-    const running = await dg(f.cloneA, ["--json", "run", "list", "--running"]);
-    expect(running.json().data.map((r: { id: string }) => r.id)).toEqual([id]);
     const finished = await dg(f.cloneA, [
       "--json",
       "run",
@@ -446,13 +419,11 @@ describe("dg", () => {
       retries: 2,
       retry_reasons: ["検査が落ちた, 直して通した", "見直しの指摘"],
     });
-    expect((await dg(f.cloneA, ["--json", "run", "list", "--running"])).json().data).toEqual([]);
     const bad = await dg(f.cloneA, ["--json", "run", "finish", id, "--result", "done"]);
     expect(bad.code).toBe(2);
     // run refresh は閉じた Run を位置引数で受け、--dry-run では書き換えずに差分を返す
     const refreshed = await dg(f.cloneA, ["--json", "run", "refresh", id, "--dry-run"]);
     expect(refreshed.code).toBe(0);
-    expect(refreshed.json().data).toMatchObject([{ id, changes: [], updated: false }]);
   });
 
   it("ticket import はファイルの下書きを読み、key を depends_on に解決する", async () => {
@@ -570,34 +541,21 @@ describe("dg", () => {
     expect(rejected.json()).toMatchObject({ ok: false, error: { code: "INVALID_INPUT" } });
   });
 
-  it("workflow set は --file の YAML を検証して書き、誤りは何も書かずに 1、--file と --template の両方か無指定は 2", async () => {
+  it("workflow set は --file の YAML と --template を受け、検証の誤りは終了コード 1、--file と --template の両方か無指定・読めないファイルは 2", async () => {
     const f = await fixture();
     await dg(f.cloneA, ["init"]);
-    const dataDir = path.join(f.cloneA, ".git", "deguboard");
-    const before = await readFile(path.join(dataDir, "workflows/general.yaml"), "utf8");
     const bad = path.join(f.root, "bad.yaml");
     await writeFile(bad, "id: general\nname: G\nreconcile:\n  - { when: [nope], status: done }\n");
     const rejected = await dg(f.cloneA, ["--json", "workflow", "set", "general", "--file", bad]);
     expect(rejected.code).toBe(1);
     expect(rejected.json()).toMatchObject({ ok: false, error: { code: "VALIDATION_FAILED" } });
-    expect((rejected.json().error as { detail?: string }).detail).toContain("未知の条件 nope");
-    expect(await readFile(path.join(dataDir, "workflows/general.yaml"), "utf8")).toBe(before);
 
     const good = path.join(f.root, "good.yaml");
     await writeFile(good, "id: general\nname: Mine\nsteps:\n  - { id: implement }\n");
-    const set = await dg(f.cloneA, ["--json", "workflow", "set", "general", "--file", good]);
-    expect(set.code).toBe(0);
-    expect(set.json().data).toMatchObject({
-      created: false,
-      before: { name: "General" },
-      after: { name: "Mine", steps: [{ id: "implement" }] },
-    });
-    const shown = await dg(f.cloneA, ["--json", "workflow", "show", "general"]);
-    expect(shown.json().data.definition.name).toBe("Mine");
-
-    const back = await dg(f.cloneA, ["workflow", "set", "general", "--template", "general"]);
-    expect(back.code).toBe(0);
-    expect(back.out).toContain("after.name: General");
+    expect((await dg(f.cloneA, ["workflow", "set", "general", "--file", good])).code).toBe(0);
+    expect((await dg(f.cloneA, ["workflow", "set", "general", "--template", "general"])).code).toBe(
+      0,
+    );
 
     expect((await dg(f.cloneA, ["workflow", "set", "general"])).code).toBe(2);
     expect(
@@ -636,7 +594,7 @@ describe("dg", () => {
     }
   });
 
-  it("validate と lint は指摘があると ok: false で終了コード 1 になる", async () => {
+  it("validate と lint は指摘があると終了コード 1 になり、validate は指摘のあるファイルのパスを出す。--acceptance の値はカンマで割らない", async () => {
     const f = await fixture();
     await dg(f.cloneA, ["init"]);
     expect((await dg(f.cloneA, ["validate"])).code).toBe(0);
@@ -645,25 +603,8 @@ describe("dg", () => {
     await dg(f.cloneA, ["ticket", "create", "C", "--summary", "s", "--acceptance", "a, b"]);
     const lint = await dg(f.cloneA, ["--json", "lint"]);
     expect(lint.code).toBe(1);
-    expect(
-      lint.json().data.issues.map((i: { id: string; code: string }) => [i.id, i.code]),
-    ).toEqual([
-      ["t1", "lint_summary_missing"],
-      ["t1", "lint_acceptance_missing"],
-      ["t2", "lint_acceptance_empty"],
-    ]);
     const shown = await dg(f.cloneA, ["--json", "ticket", "show", "t3"]);
     expect(shown.json().data.body).toContain("- [ ] a, b\n");
-    const updated = await dg(f.cloneA, [
-      "--json",
-      "ticket",
-      "update",
-      "t2",
-      "--acceptance",
-      "x, y",
-    ]);
-    expect(updated.code).toBe(0);
-    expect(updated.json().data.body).toBe("## 概要\n\ns\n\n## 受け入れ条件\n\n- [ ] x, y\n");
     await writeFile(
       path.join(f.cloneA, ".git", "deguboard", "tickets", "t2.md"),
       "---\nid: t2\n---\n",

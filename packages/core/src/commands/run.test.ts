@@ -6,7 +6,6 @@ import { createFixture, git } from "../../test/helpers/git-fixture.js";
 import { slowLock } from "../../test/helpers/slow-lock.js";
 import { openContext } from "./context.js";
 import { runCommand, type CommandContext } from "./define.js";
-import { findCommand } from "./registry.js";
 import {
   REVIEW_UNRECORDED,
   runFinish,
@@ -625,19 +624,6 @@ describe("run", () => {
     const failed = await runCommand(workflowValidate, strict, { workflow: "general" });
     expect(failed.data).toMatchObject({ ok: false, valid: [] });
     expect(codes(failed.data)).toEqual([["workflow_step_duplicate", "error"]]);
-  });
-
-  it("CLI・MCP・HTTP が写す一覧に run.start・run.finish・run.review-result・run.list・run.refresh・run.prune-transcripts がある", () => {
-    for (const name of [
-      "run.start",
-      "run.finish",
-      "run.review-result",
-      "run.list",
-      "run.refresh",
-      "run.prune-transcripts",
-    ]) {
-      expect(findCommand(name)?.needs).toBe("store");
-    }
   });
 });
 

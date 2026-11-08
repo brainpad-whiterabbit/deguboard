@@ -188,42 +188,34 @@ describe("Webview の要求", () => {
     expect(refused).toMatchObject({ id: 5, ok: false, error: { code: "UNSUPPORTED_ACTION" } });
   });
 
-  it("action の show は actions.show に渡す（一覧の画面をサイドバーに出す）", async () => {
-    const opened: string[] = [];
-    const shown: string[] = [];
-    const ok = await handleRequest(
-      fakeClient(),
-      { id: 6, kind: "action", name: "show", route: "#/board?epic=e2" },
-      {
-        open: (route) => void opened.push(route),
-        show: (route) => void shown.push(route),
-        copy: () => {},
-        terminals: () => [],
-        sendToTerminal: () => {},
-      },
-    );
-    expect(ok).toEqual({ id: 6, ok: true, data: null, warnings: [], write: null });
-    expect(shown).toEqual(["#/board?epic=e2"]);
-    expect(opened).toEqual([]);
-  });
-
-  it("パネルの Iteration 詳細の「この Iteration でカンバンを見る」の show は、絞り込みのハッシュをそのまま actions.show に渡す", async () => {
-    const opened: string[] = [];
-    const shown: string[] = [];
-    await handleRequest(
-      fakeClient(),
-      { id: 8, kind: "action", name: "show", route: "#/board?iteration=s3" },
-      {
-        open: (route) => void opened.push(route),
-        show: (route) => void shown.push(route),
-        copy: () => {},
-        terminals: () => [],
-        sendToTerminal: () => {},
-      },
-    );
-    expect(shown).toEqual(["#/board?iteration=s3"]);
-    expect(opened).toEqual([]);
-  });
+  it.each<[string, number, string]>([
+    ["一覧の画面（サイドバーに出す）", 6, "#/board?epic=e2"],
+    [
+      "パネルの Iteration 詳細の「この Iteration でカンバンを見る」（絞り込みのハッシュ）",
+      8,
+      "#/board?iteration=s3",
+    ],
+  ])(
+    "action の show は %s の route を actions.show にそのまま渡し、open には渡さない",
+    async (_label, id, route) => {
+      const opened: string[] = [];
+      const shown: string[] = [];
+      const ok = await handleRequest(
+        fakeClient(),
+        { id, kind: "action", name: "show", route },
+        {
+          open: (r) => void opened.push(r),
+          show: (r) => void shown.push(r),
+          copy: () => {},
+          terminals: () => [],
+          sendToTerminal: () => {},
+        },
+      );
+      expect(ok).toEqual({ id, ok: true, data: null, warnings: [], write: null });
+      expect(shown).toEqual([route]);
+      expect(opened).toEqual([]);
+    },
+  );
 
   it("action の copy は actions.copy に text を渡す（Webview の画面のコピーはすべてこの道で vscode.env.clipboard に書く）", async () => {
     const copied: string[] = [];
