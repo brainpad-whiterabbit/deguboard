@@ -1,0 +1,35 @@
+{
+  "id": "r20261108-214509-db05",
+  "ticket": "t578",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-08T21:45:09Z",
+  "finished_at": "2026-11-08T21:50:01Z",
+  "result": "success",
+  "error": null,
+  "retries": 4,
+  "retry_reasons": [
+    "UI-11 が訳のない文も英語で出すと言い切っていた",
+    "5.8 の transitions の書き方の案内先が同梱のテンプレートだった",
+    "IT-3 の並びの案内先が正本と違っていた",
+    "5.10 の clears_to_default の案内先のヘルプが違っていた"
+  ],
+  "usage": {
+    "input": 44,
+    "output": 11115,
+    "cache_read": 1015653,
+    "cache_write": 42656
+  },
+  "tools": {
+    "read": 2,
+    "search": 0,
+    "write": 11,
+    "bash": 13,
+    "other": 1,
+    "read_before_write": 1,
+    "search_before_write": 0
+  },
+  "session": "63c10282-cee5-4e4c-93a6-ae7836a9c5b1",
+  "review": null
+}
