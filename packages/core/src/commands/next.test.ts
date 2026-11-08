@@ -166,8 +166,7 @@ describe("dg next と ticket show の stage（EX-3）", () => {
     const ready = kind(facts({ runs: [review(6, passed)] }));
     expect(ready).toMatchObject({ kind: "ready", stage: { review_passed: true } });
     expect(ready.commands).toEqual([
-      "dg --json --actor agent gate t1 --for ready",
-      "gh pr ready 7",
+      "dg --json --actor agent pr ready t1",
       "dg --json --actor agent sync",
     ]);
     const fix = kind(facts({ runs: [review(6, heavy)] }));

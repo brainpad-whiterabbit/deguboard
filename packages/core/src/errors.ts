@@ -13,6 +13,7 @@ export type OperationErrorCode =
   | "IDENTITY_MISSING"
   | "NOT_INITIALIZED"
   | "UNKNOWN_COMMAND"
+  | "GATE_FAILED"
   | "REJECTED";
 
 export class DeguboardError extends Error {

@@ -72,7 +72,7 @@ Iteration かチケットを、割り当てからリリースまでの段階で�
 
 ### マージの前の条件
 
-`dg guide review` の「品質ゲート」の「マージの前」の条件をすべて確かめる（検査・受け入れ条件・別のサブエージェントの見直し・衝突なし）。検査のほかは `dg --json --actor agent gate <id> --for merge` の `passed` で確かめる。マージはリポジトリの規約のマージの手順（squash か、ブランチと worktree を消すか）に従う。
+`dg guide review` の「品質ゲート」の「マージの前」の条件をすべて確かめる（検査・受け入れ条件・別のサブエージェントの見直し・衝突なし）。検査のほかは `dg --json --actor agent gate <id> --for merge` の `passed` で確かめる。マージは `dg --json --actor agent pr merge <id>` で行い（同じ判定をしてから gh を呼ぶ。`gh pr merge` を自分で打たない）、方法とブランチを消すかはリポジトリの規約のマージの手順に合わせて `--method`・`--delete-branch` で渡す。worktree の片付けは `dg guide done`。
 
 ## 文脈の扱い
 

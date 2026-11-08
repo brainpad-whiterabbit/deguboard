@@ -1,5 +1,5 @@
 // 品質ゲート（EX-3、ADR-011）。guide-review の品質ゲートのうち、記録と Git・PR の事実で判定できるものをコードで判定する。
-// 判定は保存せず、呼ぶたびに事実から求める。PreToolUse のフックが gh pr merge・gh pr ready の前に呼ぶ（hook.ts）
+// 判定は保存せず、呼ぶたびに事実から求める。dg pr ready・dg pr merge が gh を呼ぶ前に呼ぶ（pr.ts。ADR-019）
 
 import { z } from "zod";
 import { fetchPrGateFacts, lastPushedAt } from "../git/facts.js";
@@ -164,7 +164,7 @@ export const gate = defineCommand({
     "review（作業ブランチのリモートの先端のコミットの時刻より後に始めた見直しの Run が success で閉じていて、run review-result の結果が通っている）・" +
     `fix_rounds（このブランチで重い指摘が出た見直しが ${FIX_ROUNDS_LIMIT} 回以内）・mergeable（--for merge のとき gh の mergeable が MERGEABLE）。` +
     "gh・Git が読めない条件は満たさないとする。検査（lint・テスト）が通るかは判定しない（リポジトリの規約で確かめる）。" +
-    "見直しを省く・上限を超えて進めるなどの例外は持たず、人の判断に任せる（フックが止めたら人に gh を打ってもらう）。何も書かない",
+    "dg pr ready・dg pr merge が gh を呼ぶ前に同じ判定をする。見直しを省く・上限を超えて進めるなどの例外は持たず、人の判断に任せる（人に gh を打ってもらう）。何も書かない",
   input: z.object({
     ticket: ticketRef,
     for: z

@@ -336,11 +336,8 @@ export function nextOf(ctx: CommandContext, facts: StageFacts): NextStep {
       ]);
     case "reviewed":
       return facts.ticket.status === "in_progress" && st.review_passed
-        ? make("ready", null, [
-            dg(`gate ${id} --for ready`),
-            `gh pr ready ${facts.ticket.pr}`,
-            dg("sync"),
-          ])
+        ? // dg pr ready が品質ゲートを判定してから gh pr ready を呼ぶ（t545）
+          make("ready", null, [dg(`pr ready ${id}`), dg("sync")])
         : // 手直しの Run も印でフックが開く。理由は直すエージェントが run retry-reason で書き足す（ADR-018）
           make("fix", fixStep, [
             marker(fixStep),
@@ -352,7 +349,7 @@ export function nextOf(ctx: CommandContext, facts: StageFacts): NextStep {
         "wait_merge",
         null,
         [dg(`gate ${id} --for merge`)],
-        `PR #${facts.ticket.pr} のレビューとマージを人に頼む（auto.merge が true なら dg gate --for merge を満たした PR をマージする）`,
+        `PR #${facts.ticket.pr} のレビューとマージを人に頼む（auto.merge が true なら dg pr merge ${id} が dg gate --for merge を満たした PR をマージする）`,
       );
   }
 }
