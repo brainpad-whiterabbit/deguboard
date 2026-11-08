@@ -10,7 +10,7 @@ deguboard は Git で管理するチケットのツール。あなた（AI エ�
 - データのファイル（`.git/deguboard/` の下）を直接編集しない。読むのも `dg … show --json`。dg の外で書いた変更は、dg が次に動くときに見つけて書き込みを止める（下の「dg の外の変更」）
 - チケットの ID は `t12` でも `12` でもよい。Epic は `e3`、Iteration は `s3`。リポジトリの外から呼ぶときは `-C <dir>`
 - 書き込みは `commit.mode`（今は `{{commit.mode}}`）に従ってコミットされる。起票・claim・Iteration の start と reopen は即座にコミットして push される。`batch` ではそれ以外の変更が作業ツリーに残るので、区切りで `dg --json --actor agent sync` を回す。`manual` では `sync` もコミットしないので、人に `dg commit` を頼む
-- 作業の実績は Run で残す。実装の Run は自分の `ticket claim` が開くので `data.run` の ID を控える（実装をサブエージェントに渡すなら `--no-run` で claim し、サブエージェントが開く）。見直しなどほかの Run は `dg --json --actor agent run start <id> <step> --agent <エージェント>` で自分で開く（手直しは、見直しの修正ループでも人のレビューの後でも、自分で直すなら PR のあるチケットをもう一度 `ticket claim` すると開き、サブエージェントに頼むなら文の先頭の印でフックが開く）。実装の Run は `ticket update --pr`（PR の要らない作業は `ticket move`、やめるときは `unclaim`）が、手直しの Run は次の区切り（次の Run の開始・`sync`）で（印で開いたものはサブエージェントが push して返ったときにフックが）閉じ、ほかの Run は終えたら `run finish <Run の ID> --result <結果>` で閉じる。使用量（トークン数）は閉じるときに会話記録から取り込むので、数を自分で書かない。手順は `dg guide run` の「Run を記録する」
+- 作業の実績は Run で残す。親が自分で進めるときは、実装の Run を `ticket claim` が開くので `data.run` の ID を控え、PR の記録（`ticket update --pr`）で閉じる。手順は `dg guide run` の「親が自分で進めるとき」。使用量（トークン数）は閉じるときに会話記録から取り込むので、数を自分で書かない
 - 起票の結果に `provisional: true` があれば push できていない仮番号で、ID が変わりうる。人に伝え、`sync` を回す
 
 ## 同期が止まったとき
@@ -48,7 +48,7 @@ dg は、データのリポジトリ（deguboard worktree）に dg のコマン�
 | check    | dgcheck   | `sync`・`validate`・`lint` の指摘と直す案を表で示し、承認を得て直す                                                               | 計画を立てる前・「点検して」と言われたとき                     |
 | plan     | dgplan    | どの順で進めるかを決め、Plan に記録して人の承認を得る（依存、`--ready`、`plan create`・`plan approve`）                           | 複数のチケットを進める前                                       |
 | work     | dgwork    | 1 枚のチケットを進める（Plan の順と範囲、claim、worktree、受け入れ条件の確認、PR、照合。PR の要らない作業も）                     | チケットに着手するとき                                         |
-| run      | なし      | Run の記録と Plan の段階ごとのモデル、閉じ損ねた Run の始末（work・parallel・review から読む補助）                                | Run を記録・モデルを選ぶ・閉じ損ねた Run を始末するとき        |
+| run      | なし      | 親が自分で進めるときの Run（claim と PR の記録）と、止まった Run の始末（work から読む補助）                                      | Run の記録・止まった Run を始末するとき                         |
 | parallel | なし      | Plan の着手できるチケットをチケットごとのサブエージェントで同時に進める（上限、親とサブエージェントの役割、1 件でほかを止めない） | 着手できるチケットが複数あり、サブエージェントを起動できるとき |
 | review   | なし      | PR を出す前とマージの前の品質ゲート（検査・受け入れ条件・見直し・衝突なし）と、別のサブエージェントの見直し・上限付きの修正ループ | PR を draft で出したあと・自動でマージする前                   |
 | audit    | dgaudit   | リリースの前にリポジトリ全体を観点ごとに見直し、指摘を承認を得て起票する（サブエージェント。ファイルは直さない）                  | Iteration か Epic のチケットがすべて done になったとき         |
@@ -56,4 +56,4 @@ dg は、データのリポジトリ（deguboard worktree）に dg のコマン�
 | done     | dgdone    | マージ後の後始末と残った受け入れ条件の確認、Plan を閉じる                                                                         | PR がマージされたあと                                          |
 | all      | dgall     | 割り当て → 点検 → 計画 → 作業 → 見直し → リリースを、状態から段階を求めて続けて進める（同じ引数で再開できる）                     | 「s3 を最後まで進めて」と言われたとき                          |
 
-`dg guide <topic>` で読む。Claude Code では `dg skill install` が入れる Skill（`/dgimport` など）がそのトピックを読む。Skill は任意で、なければ `dg guide <topic>` を読んで同じ手順で進める。Claude Code では `dg hooks install` でフックも入れられ、`dg hooks check` で入っているか・動くか・入力の形が合っているかを確かめられる（欠けていれば警告が出る）。フックはセッションの主体を agent にし、頼んだ文の最初の行が `deguboard: ticket=<id> step=<step>` のサブエージェントの Run を起動で開いて終わりで閉じる（印のあるサブエージェントは自分で `run start` しなくてよい。自分で開いても、終わりのフックがその Run に記録の場所を結び付けて二重にしない）。コマンドの一覧は `dg --help`、各コマンドのオプションは `dg <群> <操作> --help`。
+`dg guide <topic>` で読む。Claude Code では `dg skill install` が入れる Skill（`/dgimport` など）がそのトピックを読む。Skill は任意で、なければ `dg guide <topic>` を読んで同じ手順で進める。Claude Code では `dg hooks install` でフックも入れられ、`dg hooks check` で入っているか・動くか・入力の形が合っているかを確かめられる（欠けていれば警告が出る）。コマンドの一覧は `dg --help`、各コマンドのオプションは `dg <群> <操作> --help`。

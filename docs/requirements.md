@@ -182,7 +182,7 @@ steps: # 任意（WF-5）
 - チームの `config.yaml` は deguboard ブランチで全員が共有し、人ごとに違ってよい項目（scope が `local`）だけは Git に入らない `deguboard-local/config.yaml`（5.1）で上書きできる（`dg config set --local`。コミットも push もしない）。値は「個人 > チーム > 既定」の順に読み、CLI・`dg serve`・VS Code 拡張は Core 経由で同じ値を使う。個人のファイルの無効な項目と値は無視して `dg validate` が警告する。`config show --fields` は空にすると既定に戻るか（`clears_to_default`）も返し、`config set` と設定画面はこれで空の扱いを決める（細部は `dg config show --help`、理由は [ADR-006](adr/ADR-006-ui-and-writes.md)）
 
 - `actor.human_only`：agent が呼ぶと `TRANSITION_REJECTED` で拒否するコマンド名の一覧。既定は空。config を読まない呼び出し（`dg hook` の PreToolUse。AG-9）は検査しない。チケットの遷移を人に限るのは Workflow の `by`（WF-1）
-- `models.*`：Plan の段階（PL-1）に対応するモデル名。手順（`dg guide run`）がサブエージェントに渡す
+- `models.*`：Plan の段階（PL-1）に対応するモデル名。手順（`dg guide work`）がサブエージェントに渡す
 
 ## 6. 機能要件
 
@@ -192,7 +192,7 @@ steps: # 任意（WF-5）
 - CL-2 コマンドの一覧とオプションは `dg --help`（各コマンドは `dg <コマンド> --help`）が正本
 - CL-3 書き込みを伴うコマンドは `commit.mode` に従ってコミットする。作成・`ticket claim`・`iteration start / reopen` は採番と排他のため即座にコミットして push する
 - CL-4 `ticket import` は下書きの配列を 1 コミットで取り込み、取り込めない下書きがあれば起票せずに拒む（形と条件は `guide import`）
-- CL-5 `dg guide <topic>` は、エージェント向けの各手のやり方を `config.yaml` の値を埋めて出す。段階・次の 1 手・修正ループ・品質ゲート・brief は guide に書かず Core が返す（予定 e15。EX-3）。トピックの一覧は `dg guide overview`（省略時）。やり方の正本は CLI に同梱した Markdown（`packages/cli/src/guide-*.md`）
+- CL-5 `dg guide <topic>` は、エージェント向けの各手のやり方を `config.yaml` の値を埋めて出す。段階・次の 1 手・修正ループの回数・品質ゲートの判定・brief は guide に書かず Core（`dg next`・`dg gate`・`dg brief`）が返す（予定 e15。EX-3）。トピックの一覧は `dg guide overview`（省略時）。やり方の正本は CLI に同梱した Markdown（`packages/cli/src/guide-*.md`）
 - CL-6 CLI はロジックを持たず、Core のコマンド定義（`packages/core/src/commands/`）を写す
 - CL-7 `history` は deguboard ブランチの git の履歴から、チケット・Epic・Iteration の起票と属性（Status・所属・担当者・PR）の変化を古い順に返す。データの形は変えず、差分から読む。浅い clone では欠けたことを返して失敗しない（返す項目は `packages/core/src/commands/history.ts`）
 

@@ -620,7 +620,7 @@ export const CONFIG_DESCRIPTIONS_EN: Readonly<Record<string, string>> = {
   "actions.test":
     "Argument array of the command the test Action (run_tests) runs (e.g. [mise, run, check]). When empty, run_tests is rejected",
   "auto.merge":
-    "Whether dg guide all --auto merges PRs that meet the pre-merge conditions automatically. By default a person merges",
+    "Whether dg guide all --auto merges PRs that pass the quality gate (dg gate --for merge) automatically. By default a person merges",
   "lint.require_iteration":
     "Whether dg lint flags tickets that moved past todo or abandoned without being in an Iteration (except done tickets in closed Epics). dg guide work asks to add the ticket to an Iteration before claim",
   "models.light":
