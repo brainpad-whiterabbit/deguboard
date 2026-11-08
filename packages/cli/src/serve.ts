@@ -2,7 +2,8 @@
 
 import { execFile } from "node:child_process";
 import { pickUser } from "@deguboard/core";
-import { DEFAULT_HOST, DEFAULT_PORT, startServer } from "@deguboard/server";
+// サーバーの本体は dg serve を実行するときだけ読む（ほかのコマンド、とくにツールのたびに呼ばれる dg hook の起動を遅くしない。t554）
+import { DEFAULT_HOST, DEFAULT_PORT } from "@deguboard/server/defaults";
 import type { Command } from "commander";
 import { toErrorView } from "./errors.js";
 import { printError, printJsonError, type Streams } from "./output.js";
@@ -50,6 +51,7 @@ export function addServeCommands(program: Command, deps: ServeDeps): void {
     .action(async (opts: { host: string; port: number; open?: boolean }) => {
       const global = program.opts<{ json?: boolean; C?: string; user?: string }>();
       try {
+        const { startServer } = await import("@deguboard/server");
         const running = await startServer({
           cwd: deps.resolveCwd(global.C),
           ...pickUser(global.user, (deps.env ?? process.env)["DEGUBOARD_USER"]),

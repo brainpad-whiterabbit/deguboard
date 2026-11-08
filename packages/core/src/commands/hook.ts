@@ -133,6 +133,12 @@ export interface HookView {
   output?: string;
 }
 
+/** フックを持つエージェント名。省けば、フックを持つ Adapter が 1 つならそれ、なければ空 */
+function hookAgentOf(agent: string | undefined): string {
+  const names = hookAgentNames();
+  return agent ?? (names.length === 1 ? names[0]! : "");
+}
+
 export const hook = defineCommand({
   name: "hook",
   positionals: ["event"],
@@ -146,6 +152,7 @@ export const hook = defineCommand({
     "dg を経由しない gh pr ready・gh pr merge（gh api の同じ操作も）を拒んで dg pr ready・dg pr merge へ案内する" +
     "（PR の指定は読まない。字句を読まずに、dg pr ready・dg pr merge と gh pr ready --undo を除いた残りに gh・pr・merge か ready の語があれば止める。" +
     "引用符・ヒアドキュメント・コメントの中も伏せず、本文の語はファイルに書いて --body-file・git commit -F で渡すよう案内する）。" +
+    "PreToolUse はツールのたびに呼ばれるので、ストア（チケット・Plan・Epic・Iteration・config）を開かずにパスとコマンドの文字列だけで判定し、dg の外の変更の検査もしない。" +
     "扱うイベントは、読む入力の項目の有無と時刻を deguboard-local/hook-inputs/ にイベントごとの最新の 1 件で残す（値は残さない。dg hooks check が読む）。ほかの失敗は作業を止めないよう、警告にして成功で返す",
   input: z.object({
     event: z
@@ -167,11 +174,15 @@ export const hook = defineCommand({
   }),
   write: true,
   needs: "store",
+  // PreToolUse（tool_requested）はツールのたびに呼ばれるので、ストアを開かない文脈で動く（t554）。ストアを開かないので、
+  // store を開くときに行う検査（dg の外の変更の検査。t546）もここでは走らない。判定に使うのは repo の場所と入力だけ
+  storeless: (input, env) =>
+    hooksOf(hookAgentOf(input.agent))?.parse(input.event, input.payload ?? {}, env)?.kind ===
+    "tool_requested",
   async run(ctx, input) {
     const view: HookView = { event: input.event, done: [] };
     const warnings: string[] = [];
-    const names = hookAgentNames();
-    const agent = input.agent ?? (names.length === 1 ? names[0]! : "");
+    const agent = hookAgentOf(input.agent);
     const hooks = hooksOf(agent);
     if (!hooks) return ok(view, undefined, [`agent ${agent} にはフックがない`]);
     // フックの入力の項目の有無を、イベントごとの最新の 1 件に残す（dg hooks check が読む）。扱うイベントの名前だけを使う
@@ -1224,7 +1235,8 @@ export const GH_PR_DENIED =
 
 /**
  * ツールを使う前（PreToolUse。t532・t545・t555）。.git/deguboard/ の下への書き込み（書くツールと Bash）を拒み、dg を経由しない gh pr ready・gh pr merge を
- * 拒んで dg pr ready・dg pr merge へ案内する（advancesPrOutsideDg。字句を読まずに粗く止める）
+ * 拒んで dg pr ready・dg pr merge へ案内する（advancesPrOutsideDg。字句を読まずに粗く止める）。
+ * ストアを開かない文脈（hook の storeless。t554）で呼ばれるので、ctx は repo の場所（topLevel・dataDir）だけを使う
  */
 function toolRequested(
   ctx: CommandContext,

@@ -26,6 +26,11 @@ export interface CommandContext extends WriteContext {
   mergeDriver?: readonly string[] | undefined;
   /** 環境変数。Adapter が会話記録の場所と DEGUBOARD_NO_TRANSCRIPTS と run start・ticket claim の agent の判定を、ask が HOME（Skill の置き場所）を見る。省けば process.env */
   env?: Readonly<Record<string, string | undefined>> | undefined;
+  /**
+   * ストアを開いていない文脈（コマンドの storeless が真のとき openContextFor が作る）。repo の場所（topLevel・commonDir・dataDir・localDir）と
+   * now・env だけを持ち、store・config・actor・repo.remote・repo.baseBranch を読むと例外になる
+   */
+  storeless?: boolean | undefined;
 }
 
 export interface CommandResult<O> {
@@ -46,6 +51,11 @@ export interface CommandDef<I extends z.ZodType, O> {
   needs: "repo" | "store";
   /** CLI で位置引数にする入力のキー（順に）。最後が配列なら可変長 */
   positionals?: readonly string[] | undefined;
+  /**
+   * 入力がこれを満たすとき、入口（openContextFor）はストアを開かずに場所だけの文脈で呼ぶ（CommandContext の storeless）。
+   * 何度も呼ばれて待ちが効く操作のためにある（dg hook の PreToolUse。t554）。config を読まないので actor.human_only も検査しない
+   */
+  storeless?(input: z.output<I>, env: Readonly<Record<string, string | undefined>>): boolean;
   run(ctx: CommandContext, input: z.output<I>): Promise<CommandResult<O>>;
 }
 
@@ -62,7 +72,8 @@ export function ok<O>(data: O, write?: WriteOutcome, warnings: string[] = []): C
 
 /**
  * 入力を検証してから実行する。形の誤りは UsageError（終了コード 2）。
- * config の actor.human_only に入ったコマンドは agent から拒否する（全入口がここを通るので検査は 1 か所）
+ * config の actor.human_only に入ったコマンドは agent から拒否する（全入口がここを通るので検査は 1 か所）。
+ * ストアを開いていない文脈（storeless）では config がないので検査しない
  */
 export async function runCommand<I extends z.ZodType, O>(
   def: CommandDef<I, O>,
@@ -74,7 +85,11 @@ export async function runCommand<I extends z.ZodType, O>(
     const { prettifyError } = await import("zod");
     throw new UsageError(`${def.name} の入力が正しくない`, prettifyError(parsed.error));
   }
-  if (ctx.actor.kind !== "human" && ctx.config.actor.human_only.includes(def.name)) {
+  if (
+    !ctx.storeless &&
+    ctx.actor.kind !== "human" &&
+    ctx.config.actor.human_only.includes(def.name)
+  ) {
     throw new OperationError(
       "TRANSITION_REJECTED",
       `${def.name} は設定（actor.human_only）で人だけに限られている（--actor human で実行する）`,

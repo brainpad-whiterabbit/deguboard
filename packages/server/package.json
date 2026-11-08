@@ -19,6 +19,11 @@
       "development": "./src/index.ts",
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./defaults": {
+      "development": "./src/defaults.ts",
+      "types": "./dist/defaults.d.ts",
+      "default": "./dist/defaults.js"
     }
   },
   "publishConfig": {
@@ -26,6 +31,10 @@
       ".": {
         "types": "./dist/index.d.ts",
         "default": "./dist/index.js"
+      },
+      "./defaults": {
+        "types": "./dist/defaults.d.ts",
+        "default": "./dist/defaults.js"
       }
     },
     "access": "public"

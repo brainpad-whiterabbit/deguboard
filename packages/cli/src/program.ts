@@ -9,7 +9,7 @@ import { fileURLToPath } from "node:url";
 import {
   GROUP_ALIASES,
   commands as allCommands,
-  openContext,
+  openContextFor,
   pickUser,
   ACTION_NAMES,
   runCommand,
@@ -23,7 +23,6 @@ import { Argument, Command } from "commander";
 import { isMap, isScalar, isSeq, parse as parseYaml, parseDocument } from "yaml";
 import { toErrorView, type ErrorView } from "./errors.js";
 import { GUIDE_TOPICS, renderGuide } from "./guide.js";
-import { serveMcp } from "./mcp.js";
 import { installSkill, skillInstallWarnings } from "./skill.js";
 import { checkHooks, installHooks, uninstallHooks, type HandlerStatus } from "./hooks.js";
 import { addServeCommands } from "./serve.js";
@@ -364,6 +363,8 @@ export function buildProgram(options: ProgramOptions = {}): Command {
     .action(async () => {
       const global = program.opts<{ C?: string; user?: string }>();
       try {
+        // MCP の SDK とサーバーは dg mcp のときだけ読む（ほかのコマンドの起動を遅くしない。t554）
+        const { serveMcp } = await import("./mcp.js");
         await serveMcp({
           cwd: resolve(options.cwd ?? process.cwd(), global.C ?? "."),
           ...pickUser(global.user, env["DEGUBOARD_USER"]),
@@ -426,7 +427,8 @@ export function buildProgram(options: ProgramOptions = {}): Command {
           if (shape.kind === "file" && typeof file === "string")
             input[shape.key] = await readYamlFile(file, cwd);
         }
-        const ctx = await openContext({
+        // 入力がコマンドの storeless を満たせば（dg hook の PreToolUse）、ストアを開かない
+        const ctx = await openContextFor(def, input, {
           cwd,
           actor,
           initialize,

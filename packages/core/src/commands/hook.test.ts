@@ -1,4 +1,13 @@
-import { appendFile, mkdir, mkdtemp, readFile, rm, utimes, writeFile } from "node:fs/promises";
+import {
+  appendFile,
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  rm,
+  utimes,
+  writeFile,
+} from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -7,7 +16,7 @@ import type { Run } from "../model/run.js";
 import { peekRunningRuns, readTranscriptPaths } from "../run/record.js";
 import { runPath } from "../storage/paths.js";
 import { hooksOf } from "../agents/index.js";
-import { openContext } from "./context.js";
+import { openContext, openContextFor } from "./context.js";
 import { runCommand, type CommandContext } from "./define.js";
 import {
   advancesPrOutsideDg,
@@ -1397,6 +1406,68 @@ describe("PreToolUse（t532）", () => {
       expect(view.output, command).toBeUndefined();
       expect(view.done, command).toEqual([]);
     }
+  });
+
+  it("PreToolUse はストアを開かずに判定する。ストアのファイルがなくても拒み、ほかのイベントはストアを開く（t554）", async () => {
+    const { ctx } = await prepared();
+    // ストア（チケット・Plan・Epic・Iteration・config）のファイルを消す。初期化の印のデータのリポジトリの .git だけを残す
+    for (const entry of await readdir(ctx.repo.dataDir))
+      if (entry !== ".git")
+        await rm(path.join(ctx.repo.dataDir, entry), { recursive: true, force: true });
+    const opts = { cwd: ctx.repo.topLevel, actor: { kind: "agent" as const, user: "eiki" } };
+    const input = (tool: string, toolInput: Record<string, unknown>) => ({
+      event: "PreToolUse",
+      payload: {
+        session_id: SESSION,
+        tool_name: tool,
+        tool_input: toolInput,
+        cwd: ctx.repo.topLevel,
+      },
+    });
+    const writeInput = input("Write", {
+      file_path: path.join(ctx.repo.dataDir, "tickets", "t1.md"),
+    });
+    const light = await openContextFor(hook, writeInput, opts);
+    expect(light.storeless).toBe(true);
+    expect(() => light.store).toThrow("storeless");
+    expect(() => light.config).toThrow("storeless");
+    for (const [i, reason] of [
+      [writeInput, "dg のコマンド"],
+      [input("Bash", { command: "rm .git/deguboard/tickets/t1.md" }), "dg のコマンド"],
+      [input("Bash", { command: "gh pr merge 5 --squash" }), "dg pr merge <ticket>"],
+    ] as const) {
+      const r = await runCommand(hook, await openContextFor(hook, i, opts), i);
+      expect((r.data as HookView).output).toContain(reason);
+      expect(r.warnings).toEqual([]);
+    }
+    const allowed = input("Bash", { command: "ls" });
+    const r = await runCommand(hook, await openContextFor(hook, allowed, opts), allowed);
+    expect((r.data as HookView).output).toBeUndefined();
+    // PreToolUse 以外（ここでは SessionStart）はストアを開く
+    const full = await openContextFor(
+      hook,
+      { event: "SessionStart", payload: { session_id: SESSION } },
+      opts,
+    );
+    expect(full.storeless).toBeUndefined();
+    expect(full.store).toBeDefined();
+  });
+
+  it("初期化していないリポジトリでは、PreToolUse も今までどおり NOT_INITIALIZED で何も拒まない（t554）", async () => {
+    const { ctx } = await prepared();
+    await rm(ctx.repo.dataDir, { recursive: true, force: true });
+    const opts = { cwd: ctx.repo.topLevel, actor: { kind: "agent" as const, user: "eiki" } };
+    const input = {
+      event: "PreToolUse",
+      payload: {
+        session_id: SESSION,
+        tool_name: "Bash",
+        tool_input: { command: "gh pr merge 5 --squash" },
+        cwd: ctx.repo.topLevel,
+      },
+    };
+    // CLI はこの失敗を標準エラーに書いて 0 で返すので、フックはツールを止めない
+    await expect(openContextFor(hook, input, opts)).rejects.toThrow("初期化されていない");
   });
 });
 
