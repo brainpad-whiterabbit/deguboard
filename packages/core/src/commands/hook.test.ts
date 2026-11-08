@@ -7,7 +7,7 @@ import type { Run } from "../model/run.js";
 import { peekRunningRuns, readTranscriptPaths } from "../run/record.js";
 import { runPath } from "../storage/paths.js";
 import { hooksOf } from "../agents/index.js";
-import { openContext } from "./context.js";
+import { openContext, openContextFor } from "./context.js";
 import { runCommand, type CommandContext } from "./define.js";
 import {
   advancesPrOutsideDg,
@@ -1397,6 +1397,45 @@ describe("PreToolUse（t532）", () => {
       expect(view.output, command).toBeUndefined();
       expect(view.done, command).toEqual([]);
     }
+  });
+
+  it("PreToolUse はストアを開かずに判定する。データのディレクトリがなくても拒み、ほかのイベントはストアを開く（t554）", async () => {
+    const { ctx } = await prepared();
+    // ストア（チケット・Plan・Epic・Iteration・config）のファイルを消す。ストアを開けば NOT_INITIALIZED で失敗する
+    await rm(ctx.repo.dataDir, { recursive: true, force: true });
+    const opts = { cwd: ctx.repo.topLevel, actor: { kind: "agent" as const, user: "eiki" } };
+    const input = (tool: string, toolInput: Record<string, unknown>) => ({
+      event: "PreToolUse",
+      payload: {
+        session_id: SESSION,
+        tool_name: tool,
+        tool_input: toolInput,
+        cwd: ctx.repo.topLevel,
+      },
+    });
+    const writeInput = input("Write", {
+      file_path: path.join(ctx.repo.dataDir, "tickets", "t1.md"),
+    });
+    const light = await openContextFor(hook, writeInput, opts);
+    expect(light.storeless).toBe(true);
+    expect(() => light.store).toThrow("storeless");
+    expect(() => light.config).toThrow("storeless");
+    for (const [i, reason] of [
+      [writeInput, "dg のコマンド"],
+      [input("Bash", { command: "rm .git/deguboard/tickets/t1.md" }), "dg のコマンド"],
+      [input("Bash", { command: "gh pr merge 5 --squash" }), "dg pr merge <ticket>"],
+    ] as const) {
+      const r = await runCommand(hook, await openContextFor(hook, i, opts), i);
+      expect((r.data as HookView).output).toContain(reason);
+      expect(r.warnings).toEqual([]);
+    }
+    const allowed = input("Bash", { command: "ls" });
+    const r = await runCommand(hook, await openContextFor(hook, allowed, opts), allowed);
+    expect((r.data as HookView).output).toBeUndefined();
+    // PreToolUse 以外（ここでは SessionStart）はストアを開くので、データがなければ失敗する
+    await expect(
+      openContextFor(hook, { event: "SessionStart", payload: { session_id: SESSION } }, opts),
+    ).rejects.toThrow("初期化されていない");
   });
 });
 

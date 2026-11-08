@@ -11,7 +11,7 @@ import {
 import { ensureDeguboardWorktree, type WorktreeOrigin } from "../git/worktree.js";
 import { actorIdOf } from "../model/actor.js";
 import { Store } from "../storage/store.js";
-import type { ActorInfo, CommandContext } from "./define.js";
+import type { ActorInfo, AnyCommand, CommandContext } from "./define.js";
 
 export interface ContextOptions {
   cwd: string;
@@ -30,6 +30,53 @@ export interface ContextOptions {
    * core/actions の ACTION_NAMES を渡す（ADR-007）。省略すると未知の Action を指摘しない
    */
   actions?: readonly string[] | undefined;
+}
+
+/**
+ * コマンドを呼ぶための文脈。入力がコマンドの storeless を満たせば、ストアを開かずに場所だけの文脈を作り（storelessContext）、
+ * そうでなければ openContext。入力の形の誤りは runCommand が報告するので、ここでは誤った入力を storeless にしない
+ */
+export async function openContextFor(
+  def: AnyCommand,
+  rawInput: unknown,
+  opts: ContextOptions,
+): Promise<CommandContext> {
+  if (def.storeless) {
+    const parsed = def.input.safeParse(rawInput);
+    if (parsed.success && def.storeless(parsed.data, opts.env ?? process.env))
+      return storelessContext(opts);
+  }
+  return openContext(opts);
+}
+
+/**
+ * ストアを開かない文脈（CommandContext の storeless）。git で場所だけを解決し、チケット・Plan・Epic・Iteration・config の
+ * ファイルを読まない。初期化の有無も確かめない。読めない項目は読んだときに例外を投げる（使う側の誤りを隠さない）
+ */
+async function storelessContext(opts: ContextOptions): Promise<CommandContext> {
+  const paths = await resolveRepoPaths(opts.cwd);
+  const unread = (name: string) => ({
+    get(): never {
+      throw new Error(`ストアを開いていない文脈（storeless）で ${name} を読んだ`);
+    },
+  });
+  const repo = Object.defineProperties(
+    { ...paths },
+    { remote: unread("repo.remote"), baseBranch: unread("repo.baseBranch") },
+  ) as GitRepo;
+  const ctx = {
+    repo,
+    now: opts.now ?? (() => new Date()),
+    hooks: opts.hooks,
+    mergeDriver: opts.mergeDriver,
+    env: opts.env,
+    storeless: true,
+  };
+  return Object.defineProperties(ctx, {
+    store: unread("store"),
+    config: unread("config"),
+    actor: unread("actor"),
+  }) as unknown as CommandContext;
 }
 
 export async function openContext(opts: ContextOptions): Promise<CommandContext> {

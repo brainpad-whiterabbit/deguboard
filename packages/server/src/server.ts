@@ -3,6 +3,7 @@
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { createApp, type AppOptions } from "./app.js";
+import { DEFAULT_HOST, DEFAULT_PORT } from "./defaults.js";
 
 export interface ServeOptions extends AppOptions {
   host?: string | undefined;
@@ -18,8 +19,7 @@ export interface RunningServer {
   close(): Promise<void>;
 }
 
-export const DEFAULT_HOST = "127.0.0.1";
-export const DEFAULT_PORT = 7474;
+export { DEFAULT_HOST, DEFAULT_PORT };
 
 export async function startServer(options: ServeOptions): Promise<RunningServer> {
   const host = options.host ?? DEFAULT_HOST;
