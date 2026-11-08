@@ -13,7 +13,7 @@ after:
     - t553
   t537:
     - t535
-pending_approval: true
+pending_approval: false
 details:
   t549:
     scope: 前景で durationMs がないときと、sync が書き終わり待ちの古い Run を閉じるときにも、見直しの結果を新しい Run に結び付ける
@@ -39,3 +39,5 @@ details:
     scope: PR の要らない調査：s19 と同じ 6 つの数の取り直しと EX-1 反転の要否の判断
     approach: t494 のコマンドで表を出し、ADR-004 の書き換え案として報告する。新しい Iteration のデータが揃ってから着手する
     tier: heavy
+approved_by: maji/agent
+approved_at: 2026-11-08T02:21:38Z
