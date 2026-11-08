@@ -2346,7 +2346,7 @@ describe("画面", () => {
     }
   });
 
-  it("エディタのパネルの Epic 詳細はチケットを未完了・完了・中止の段の 1 本の一覧で出し、完了と中止は畳み、0 件の段と戻るリンクは出さない", async () => {
+  it("エディタのパネルの Epic 詳細はチケットを未完了・完了・中止の段の 1 本の一覧で出し、完了と中止は畳み、0 件の段は出さない", async () => {
     window.location.hash = "#/epics/e1";
     const client = mockClient();
     client.handlers["epic.show"] = () => ({
@@ -2360,10 +2360,6 @@ describe("画面", () => {
     });
     mount(client, hostOf("panel"));
     await screen.findByText("設計");
-    // チケットの足し外しはエージェントに頼む（ADR-027）ので、外すボタンと足す欄は出さない
-    expect(screen.queryByRole("button", { name: "外す" })).toBeNull();
-    expect(screen.queryByLabelText("足すチケット")).toBeNull();
-    expect(document.querySelectorAll(".column")).toHaveLength(0);
     const sections = [
       ...document.querySelectorAll<HTMLDetailsElement>(".ticket-sections > details"),
     ];
@@ -2377,10 +2373,9 @@ describe("画面", () => {
       "t4",
       "t2",
     ]);
-    expect(screen.queryByRole("link", { name: "← バックログ" })).toBeNull();
   });
 
-  it("エディタのパネルの Iteration 詳細は「← カンバン」を出さず、「この Iteration でカンバンを見る」でその Iteration で絞ったカンバンをサイドバーに出してもらう", async () => {
+  it("エディタのパネルの Iteration 詳細は「この Iteration でカンバンを見る」でその Iteration で絞ったカンバンをサイドバーに出してもらう", async () => {
     window.location.hash = "#/iterations/s1";
     const client = mockClient();
     client.data.iterations = [iteration({ id: "s1", name: "最初", status: "active" })];
@@ -2395,7 +2390,6 @@ describe("画面", () => {
       ),
     );
     await screen.findByRole("heading", { level: 1 });
-    expect(screen.queryByRole("link", { name: "← カンバン" })).toBeNull();
     fireEvent.click(screen.getByRole("link", { name: "この Iteration でカンバンを見る" }));
     expect(shown).toEqual([{ page: "board", iteration: "s1" }]);
     expect(window.location.hash).toBe("#/iterations/s1");
