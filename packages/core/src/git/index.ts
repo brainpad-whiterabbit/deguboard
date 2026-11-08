@@ -8,4 +8,3 @@ export * from "./write.js";
 export * from "./renumber.js";
 export * from "./merge.js";
 export * from "./history.js";
-export * from "./changes.js";

@@ -16,8 +16,6 @@ import {
   toCommandFailure,
   WEBVIEW_CONTRACT,
   type CommandClient,
-  type DiffRequest,
-  type FileAtSide,
   type StatusView,
   type TerminalChoice,
   type TerminalSendResult,
@@ -62,12 +60,8 @@ import {
   badgeOf,
   coalesce,
   currentAskDelivery,
-  DIFF_SCHEME,
-  diffContent,
-  diffDocuments,
   handleRequest,
   isWebviewRequest,
-  parseDiffQuery,
   renderMessageHtml,
   renderWebviewHtml,
   sidebarDelivery,
@@ -213,10 +207,6 @@ export function activate(context: vscode.ExtensionContext): void {
         return links;
       },
     }),
-    // チケット詳細の変更の一覧から開く差分エディタの左右（UI-4）。中身は core の ticket.changed-file で読む
-    vscode.workspace.registerTextDocumentContentProvider(DIFF_SCHEME, {
-      provideTextDocumentContent: (uri) => diffSideContent(uri),
-    }),
     vscode.window.registerWebviewViewProvider(
       VIEW_ID,
       { resolveWebviewView: (view) => resolveSidebar(context, view) },
@@ -286,7 +276,6 @@ async function resolveSidebar(
       show: showInSidebar,
       copy: copyToClipboard,
       openFolder,
-      openDiff: (request) => openDiff(folder, request),
       terminals: listTerminals,
       sendToTerminal,
     },
@@ -363,41 +352,6 @@ async function openFolder(folder: string): Promise<void> {
   await vscode.commands.executeCommand("vscode.openFolder", vscode.Uri.file(folder), {
     forceNewWindow: true,
   });
-}
-
-/**
- * ticket.changes の 1 ファイルを差分エディタで開く（チケット詳細の変更の一覧。UI-4）。
- * 左右は git の中身を読む deguboard-diff: の文書で、VS Code の git 拡張（git: の URI）には頼らない
- * （git 拡張が切られている・リポジトリを開いていないときも動き、ない側を空にでき、core の同じ比べ方で読めるため）
- */
-async function openDiff(folder: vscode.WorkspaceFolder, request: DiffRequest): Promise<void> {
-  const docs = diffDocuments(folder.uri.toString(), request);
-  const uri = (d: { path: string; query: string }) =>
-    vscode.Uri.from({ scheme: DIFF_SCHEME, path: d.path, query: d.query });
-  await vscode.commands.executeCommand("vscode.diff", uri(docs.left), uri(docs.right), docs.title, {
-    preview: true,
-  });
-}
-
-/** 差分エディタの片側の中身。読めなければ理由を中身として出す（差分エディタにはエラーを出す場所がないため） */
-async function diffSideContent(uri: vscode.Uri): Promise<string> {
-  const ref = parseDiffQuery(uri.query);
-  if (!ref) return `${t("(Unreadable URI)")}\n`;
-  const folder = (vscode.workspace.workspaceFolders ?? []).find(
-    (f) => f.uri.toString() === ref.folder,
-  );
-  if (!folder) return `${t("(The workspace folder was closed)")}\n`;
-  try {
-    const result = await clientFor(folder).run<FileAtSide>("ticket.changed-file", {
-      ticket: ref.ticket,
-      side: ref.side,
-      path: ref.path,
-      commit: ref.commit,
-    });
-    return diffContent(result.data);
-  } catch (error) {
-    return `${t("(Cannot read: {0})", toCommandFailure(error).message)}\n`;
-  }
 }
 
 /** 文字をクリップボードに入れる。Webview の画面のコピー（依頼文・ブランチ名）と、バックログの「ID をコピー」で使う */
@@ -573,7 +527,6 @@ async function openPanel(
       show: showInSidebar,
       copy: copyToClipboard,
       openFolder,
-      openDiff: (request) => openDiff(folder, request),
       terminals: listTerminals,
       sendToTerminal,
     },

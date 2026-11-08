@@ -4,8 +4,6 @@ import {
   askMenuKey,
   toCommandFailure,
   type CommandClient,
-  type DiffRequest,
-  type FileAtSide,
   type TerminalChoice,
   type TerminalSendResult,
   type StatusView,
@@ -178,8 +176,6 @@ export interface WebviewActions {
   copy(text: string): void | Promise<void>;
   /** フォルダ folder（worktree の絶対パス）を新しいウィンドウで開く（vscode.openFolder）。持たない画面は拒否する */
   openFolder(folder: string): void | Promise<void>;
-  /** ticket.changes の 1 ファイルを差分エディタで開く（vscode.diff。UI-4） */
-  openDiff(request: DiffRequest): void | Promise<void>;
   /** 開いているターミナルの一覧（UI-15）。持たない画面は空 */
   terminals(): TerminalChoice[];
   /** 開いているターミナル terminal の入力に text を入れる。Enter は押さず、ターミナルは起動しない。なければ reject */
@@ -224,16 +220,6 @@ export async function handleRequest(
         await actions.openFolder(detail.data.worktree);
         return { id: request.id, ok: true, data: null, warnings: [], write: null };
       }
-      if (request.name === "openDiff") {
-        await actions.openDiff({
-          ticket: request.ticket,
-          path: request.path,
-          old_path: request.old_path,
-          base_commit: request.base_commit,
-          head_commit: request.head_commit,
-        });
-        return { id: request.id, ok: true, data: null, warnings: [], write: null };
-      }
       if (request.name === "terminals") {
         return { id: request.id, ok: true, data: actions.terminals(), warnings: [], write: null };
       }
@@ -271,16 +257,6 @@ export function isWebviewRequest(value: unknown): value is WebviewRequest {
       if (v.name === "copy") return typeof (v as { text?: unknown }).text === "string";
       if (v.name === "terminals") return true;
       if (v.name === "openWorktree") return typeof (v as { ticket?: unknown }).ticket === "string";
-      if (v.name === "openDiff") {
-        const m = v as Partial<DiffRequest>;
-        return (
-          typeof m.ticket === "string" &&
-          typeof m.path === "string" &&
-          (m.old_path === null || typeof m.old_path === "string") &&
-          typeof m.base_commit === "string" &&
-          typeof m.head_commit === "string"
-        );
-      }
       if (v.name === "sendToTerminal") {
         const m = v as { terminal?: unknown; text?: unknown };
         return typeof m.terminal === "number" && typeof m.text === "string";
@@ -308,75 +284,4 @@ export function badgeOf(status: StatusView): { value: number; tooltip: string } 
   if (status.dirty) parts.push(t("Uncommitted changes"));
   if (status.issues > 0) parts.push(t("{0} unreadable files", status.issues));
   return { value, tooltip: parts.join(" / ") };
-}
-
-/** 差分エディタの左右の文書の scheme。中身は拡張の TextDocumentContentProvider が core の ticket.changed-file で読む（UI-4） */
-export const DIFF_SCHEME = "deguboard-diff";
-
-/** 差分エディタの片側の文書が指すもの。URI の query に入れ、TextDocumentContentProvider が読む */
-export interface DiffSideRef {
-  /** 作業フォルダの URI（複数のフォルダを開いていても、そのフォルダの client で読む） */
-  folder: string;
-  ticket: string;
-  side: "base" | "head";
-  path: string;
-  /** 一覧で読んだその側のコミット。URI ごとに中身を覚える VS Code が、ブランチが進んだ後に古い中身を出さないよう URI にも入れる */
-  commit: string;
-}
-
-/**
- * 差分エディタの左右の文書（URI の path と query）と題。左は merge-base の元のパス（名前の変更なら old_path）、右は作業ブランチのパス。
- * URI の path は言語の判定（拡張子）と題に使い、読むのは query だけ。追加・削除の片側は、core がないと答えて空になる
- */
-export function diffDocuments(
-  folder: string,
-  request: DiffRequest,
-): {
-  left: { path: string; query: string };
-  right: { path: string; query: string };
-  title: string;
-} {
-  const side = (s: "base" | "head", p: string, commit: string) => ({
-    path: `/${p}`,
-    query: diffQuery({ folder, ticket: request.ticket, side: s, path: p, commit }),
-  });
-  const leftPath = request.old_path ?? request.path;
-  const name = request.old_path ? `${request.old_path} → ${request.path}` : request.path;
-  return {
-    left: side("base", leftPath, request.base_commit),
-    right: side("head", request.path, request.head_commit),
-    title: t("{0} (changes in {1})", name, request.ticket),
-  };
-}
-
-export function diffQuery(ref: DiffSideRef): string {
-  return new URLSearchParams({
-    folder: ref.folder,
-    ticket: ref.ticket,
-    side: ref.side,
-    path: ref.path,
-    commit: ref.commit,
-  }).toString();
-}
-
-/** diffQuery の逆。形が違えば undefined */
-export function parseDiffQuery(query: string): DiffSideRef | undefined {
-  const q = new URLSearchParams(query);
-  const folder = q.get("folder");
-  const ticket = q.get("ticket");
-  const side = q.get("side");
-  const path = q.get("path");
-  const commit = q.get("commit");
-  if (!folder || !ticket || !path || !commit || (side !== "base" && side !== "head")) {
-    return undefined;
-  }
-  return { folder, ticket, side, path, commit };
-}
-
-/** 片側の文書の中身。ないファイルは空、バイナリとサブモジュールは中身の代わりに一言を出す（差分エディタは文字しか比べない） */
-export function diffContent(file: FileAtSide): string {
-  if (file.submodule)
-    return `${t("(Submodule change: contents not shown. Commit {0})", file.text)}\n`;
-  if (file.binary) return `${t("(Binary file: contents not shown)")}\n`;
-  return file.text;
 }

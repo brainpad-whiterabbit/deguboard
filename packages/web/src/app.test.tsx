@@ -104,7 +104,6 @@ function mountWithBridge(
     terminals: async () => [],
     sendToTerminal: async () => null,
     openWorktree: async () => {},
-    openDiff: async () => {},
     onEvent: (listener) => {
       send = listener;
       return () => (send = undefined);

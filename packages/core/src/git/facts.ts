@@ -52,7 +52,7 @@ export function resetGhCache(): void {
   ghAvailable = undefined;
 }
 
-export async function refExists(repo: GitRepo, ref: string): Promise<boolean> {
+async function refExists(repo: GitRepo, ref: string): Promise<boolean> {
   return (
     (await runGit(repo.dataDir, ["show-ref", "--verify", "--quiet", ref], { allowFailure: true }))
       .code === 0
@@ -64,8 +64,8 @@ async function sha(repo: GitRepo, ref: string): Promise<string> {
   return (await runGit(repo.dataDir, ["rev-parse", ref])).stdout.trim();
 }
 
-/** 照合と変更の一覧（changes.ts）の base。リモートの追跡ブランチがあればそれ、なければローカルのもの。fetch はしない */
-export async function baseRef(repo: GitRepo): Promise<string | undefined> {
+/** 照合の base。リモートの追跡ブランチがあればそれ、なければローカルのもの */
+async function baseRef(repo: GitRepo): Promise<string | undefined> {
   if (repo.remote && (await refExists(repo, `refs/remotes/${repo.remote}/${repo.baseBranch}`)))
     return `refs/remotes/${repo.remote}/${repo.baseBranch}`;
   if (await refExists(repo, `refs/heads/${repo.baseBranch}`))
