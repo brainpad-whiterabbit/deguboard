@@ -198,11 +198,11 @@ updated_at: 2026-10-31T05:10:00Z
 - SY-1 `dg init` は deguboard ブランチを作るか取り込み、専用 worktree を用意し、`default` プロジェクトとテンプレートのワークフローを置く
 - SY-2 書き込みの単位は「取り込み → 変更 → 検証 → コミット →（`push.mode: auto` か即時の操作なら）push」。push が拒否されたら取り込み直して再送する。送れなければコミットを残し、次の同期で再送する
 - SY-3 claim・作成・`iteration start / reopen` は push の成功をもって取得とする。拒否されたらローカルのコミットを捨てて取り込み直し、判定し直す
-- SY-4 同期は rebase で取り込み、チケットと Epic の frontmatter はマージドライバがフィールド単位で 3-way マージする（規則は `packages/core/src/git/merge.ts`）。解けない競合は rebase を中止してコミットを残し、`dg sync` が報告する。人が解消するまで push・照合と即時の操作（CL-3）が止まる（止まる操作と戻し方は `dg guide overview`）
+- SY-4 同期は rebase で取り込み、チケットと Epic の frontmatter はマージドライバがフィールド単位で 3-way マージする（規則は `packages/core/src/git/merge.ts`）。解けない競合は rebase を中止してコミットを残し、`dg sync` が報告する。人が解消するまで push・照合と即時の操作（CL-3）が止まる（止まる操作は `dg guide overview`、人の戻し方は `SYNC_CONFLICT` の文と `dg sync` の警告）
 - SY-5 同一マシンの書き込みは `deguboard-local/locks/` のロックで直列にし、同じチケットと step の Run の二重起動も防ぐ。チーム間の排他には使わない
 - SY-6 リモートがなくても、同期を除くすべての操作が動く
 - SY-7 データのリポジトリの dg の外の変更（dg を通さない未コミットの変更・dg の印のないコミット・dg のコミットを捨てた・書き換えた履歴）を、dg がコマンドのたびに見つける。書くコマンドはデータに書かずに `OUTSIDE_CHANGES` で止め、読むだけのコマンドは警告し、どのファイル（とコミット）かと戻し方・取り込み方を示す（理由は [ADR-026](adr/ADR-026-guard-pr-and-data.md)）
-- SY-8 dg が作るコミットは印を持ち、dg 自身のまとめ待ちの変更、同じマシンで並べて動く dg の書きかけ、リモートから取り込んだコミットは外の変更（SY-7）とみなさない。外の変更は `dg adopt` が `dg validate` と同じ検査を通して取り込み、捨てるのは人が行う（細部は `packages/core/src/git/outside.test.ts`、戻し方は `dg guide overview`）
+- SY-8 dg が作るコミットは印を持ち、dg 自身のまとめ待ちの変更、同じマシンで並べて動く dg の書きかけ、リモートから取り込んだコミットは外の変更（SY-7）とみなさない。外の変更は `dg adopt` が `dg validate` と同じ検査を通して取り込み、捨てるのは人が行う（細部は `packages/core/src/git/outside.test.ts`、戻し方は `OUTSIDE_CHANGES` の文と `dg adopt --help`）
 
 ### 6.4 画面（VS Code 拡張）
 

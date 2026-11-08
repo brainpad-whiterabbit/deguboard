@@ -58,12 +58,17 @@ describe("dg の外の変更（SY-7・SY-8、ADR-026）", () => {
       expect.stringContaining("dg の外の変更がある（未コミットの変更: tickets/t1.md）"),
     ]);
     expect(shown.warnings[0]).toContain("dg adopt");
-    await expect(
-      runCommand(ticketUpdate, ctx, { ticket: "t1", priority: "high" }),
-    ).rejects.toMatchObject({
+    const refused = await runCommand(ticketUpdate, ctx, { ticket: "t1", priority: "high" }).then(
+      () => null,
+      (e: unknown) => e,
+    );
+    expect(refused).toMatchObject({
       code: "OUTSIDE_CHANGES",
       detail: "未コミットの変更: tickets/t1.md",
     });
+    // 戻し方の文は、ステージした変更も戻す git restore のフラグを示す（guide から細部を消したので、ここで文言を確かめる）
+    expect((refused as Error).message).toContain("git restore --staged --worktree");
+    expect((refused as Error).message).toContain("git reset --keep");
     // dg のまとめ待ちの変更を外で戻したときも見つける
     await runCommand(adopt, ctx, {});
     await runCommand(ticketUpdate, ctx, { ticket: "t1", priority: "high" });
@@ -125,6 +130,11 @@ describe("dg の外の変更（SY-7・SY-8、ADR-026）", () => {
     expect(await checkOutside(ctx.repo)).toEqual({ kind: "clean", initial: true });
     expect((await runCommand(ticketList, ctx, {})).warnings).toEqual([]);
     await runCommand(ticketUpdate, ctx, { ticket: "t1", priority: "high" });
+  });
+
+  it("dg adopt の説明は、捨てる手順にステージした変更を戻す git restore のフラグを示し、エージェントの扱いは guide に送る", () => {
+    expect(adopt.summary).toContain("git restore --staged --worktree");
+    expect(adopt.summary).toContain("dg guide overview");
   });
 
   it("同じマシンで並べて動く dg の書きかけを、dg の外の変更と取り違えない", async () => {
