@@ -68,11 +68,6 @@
         "category": "deguboard"
       },
       {
-        "command": "deguboard.openCurrentTicket",
-        "title": "%command.openCurrentTicket.title%",
-        "category": "deguboard"
-      },
-      {
         "command": "deguboard.sync",
         "title": "%command.sync.title%",
         "category": "deguboard",
@@ -133,10 +128,6 @@
         }
       ],
       "commandPalette": [
-        {
-          "command": "deguboard.openCurrentTicket",
-          "when": "false"
-        },
         {
           "command": "deguboard.sync",
           "when": "false"
