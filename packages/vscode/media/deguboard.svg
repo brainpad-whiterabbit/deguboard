@@ -8,11 +8,13 @@
     <path id="tail" d="M16.2 20.1C19.6 20.6 21.3 18.4 20.7 15.2C20.3 13.3 21 11.6 22.3 10.8"/>
     <path id="tuft" d="M22.4 11.4c-1.3-.6-1.8-2.7-1.1-4.7c.3-.8.7-1.3 1-1.6c.6.6 1.1 1.6 1.2 2.7c.2 1.6-.2 2.9-1.1 3.6z"/>
     <circle id="paw" cx="7.2" cy="14.2" r="1.1"/>
+    <!-- バイザー：顔の前にかぶせ、鼻先より前へはみ出させる。24px でもゴーグルと読める大きさにする -->
+    <rect id="visor" x="1.9" y="6.3" width="8.9" height="3.5" rx="1.4"/>
 
-    <!-- 体からバイザーと後ろ足の線を抜く -->
+    <!-- 体から、バイザーの形を少し太らせたもの（バイザーと顔の間の隙間）と後ろ足の線を抜く -->
     <mask id="body-cut">
       <rect width="24" height="24" fill="#fff"/>
-      <path d="M4.6 7.6H9.6L9 8.9H4.2Z" fill="#000"/>
+      <use href="#visor" fill="#000" stroke="#000" stroke-width="2" stroke-linejoin="round"/>
       <path d="M10.25 20.6C9.75 18 11 16 13.75 15.75" fill="none" stroke="#000" stroke-width=".8" stroke-linecap="round"/>
     </mask>
     <!-- 手前の耳：体との間に隙間を空け、耳の内側を抜く -->
@@ -38,7 +40,14 @@
         <use href="#paw"/>
         <use href="#tuft"/>
         <use href="#tail" fill="none" stroke-width="4.3"/>
+        <use href="#visor"/>
       </g>
+    </mask>
+    <!-- バイザーに四角い目を 2 つ抜く -->
+    <mask id="visor-eyes">
+      <rect width="24" height="24" fill="#fff"/>
+      <rect x="3.3" y="7.25" width="2.1" height="1.6" rx=".45" fill="#000"/>
+      <rect x="6.5" y="7.25" width="2.1" height="1.6" rx=".45" fill="#000"/>
     </mask>
   </defs>
 
@@ -63,6 +72,7 @@
       <use href="#paw"/>
       <use href="#tail" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
       <use href="#tuft"/>
+      <use href="#visor" mask="url(#visor-eyes)"/>
     </g>
   </g>
 </svg>
