@@ -121,6 +121,10 @@ describe("dg mcp", () => {
       annotations: { readOnlyHint: true },
     });
     expect(tools.find((t) => t.name === "ticket_create")?.annotations?.readOnlyHint).toBe(false);
+    // Git に書かなくても、このマシンのファイルを消すコマンドは読むだけのツールに見せない
+    expect(tools.find((t) => t.name === "run_prune-transcripts")?.annotations?.readOnlyHint).toBe(
+      false,
+    );
   });
 
   it("stdio で起動してツールを呼び、結果は CLI の --json と同じ形で、書き込みの主体は <ユーザ>/agent", async () => {

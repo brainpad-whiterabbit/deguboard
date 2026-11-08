@@ -11,6 +11,7 @@ import {
   REVIEW_UNRECORDED,
   runFinish,
   runList,
+  runPruneTranscripts,
   runRefresh,
   runReviewResult,
   runStart,
@@ -23,7 +24,12 @@ import { metricsShow } from "./metrics.js";
 import { iterationAdd, iterationCreate } from "./iteration.js";
 import { projectCreate } from "./project.js";
 import { ticketClaim, ticketCreate, ticketList, type TicketRow } from "./ticket.js";
-import { amendRunning, finishRun, peekRunningRuns } from "../run/record.js";
+import {
+  amendRunning,
+  finishRun,
+  peekRunningRuns,
+  TRANSCRIPT_RETENTION_DAYS,
+} from "../run/record.js";
 import { recordBaseline } from "../git/outside.js";
 import type { Run } from "../model/run.js";
 
@@ -621,13 +627,14 @@ describe("run", () => {
     expect(codes(failed.data)).toEqual([["workflow_step_duplicate", "error"]]);
   });
 
-  it("CLI・MCP・HTTP が写す一覧に run.start・run.finish・run.review-result・run.list・run.refresh がある", () => {
+  it("CLI・MCP・HTTP が写す一覧に run.start・run.finish・run.review-result・run.list・run.refresh・run.prune-transcripts がある", () => {
     for (const name of [
       "run.start",
       "run.finish",
       "run.review-result",
       "run.list",
       "run.refresh",
+      "run.prune-transcripts",
     ]) {
       expect(findCommand(name)?.needs).toBe("store");
     }
@@ -1580,6 +1587,25 @@ describe("run refresh の取り直し（RN-4・MT-5）", () => {
     expect(await saved(a.id)).toBe(before);
   });
 
+  it("終了の時刻から 30 日を過ぎた Run は、会話記録があっても読まずに今の値を残して警告する（MT-5）", async () => {
+    const { ctx, transcriptFor, closedRun, saved } = await closedRuns();
+    const a = await closedRun("t1");
+    await transcriptFor(a, full);
+    const before = await saved(a.id);
+    const finished = Date.parse(a.finished_at!);
+    // 期間の中（30 日の直前）なら取り直す
+    ctx.now = () => new Date(finished + TRANSCRIPT_RETENTION_DAYS * 86400_000 - 1000);
+    const inside = await runCommand(runRefresh, ctx, { runs: [a.id], dry_run: true });
+    expect((inside.data as RunRefreshItem[])[0]!.changes).not.toEqual([]);
+    ctx.now = () => new Date(finished + TRANSCRIPT_RETENTION_DAYS * 86400_000);
+    const r = await runCommand(runRefresh, ctx, { runs: [a.id] });
+    expect(r.warnings).toEqual([
+      `Run ${a.id}: 終了の時刻（finished_at）から 30 日を過ぎた Run は、会話記録の場所を片付けるので取り直さない。今の値を残す`,
+    ]);
+    expect(r.data).toMatchObject([{ id: a.id, changes: [], updated: false }]);
+    expect(await saved(a.id)).toBe(before);
+  });
+
   it("実行中・見つからない・ID の形でない Run は、ほかの Run も書き換えずに拒否する", async () => {
     const { ctx, transcriptFor, closedRun, saved } = await closedRuns();
     const a = await closedRun("t1");
@@ -1597,5 +1623,94 @@ describe("run refresh の取り直し（RN-4・MT-5）", () => {
       code: "INVALID_INPUT",
     });
     expect(await saved(a.id)).toBe(before);
+  });
+});
+
+describe("run prune-transcripts（会話記録の場所の片付け。RN-3・MT-5）", () => {
+  /** HOME を一時ディレクトリにした文脈と、会話記録の置き場所の下のパス */
+  async function located() {
+    const ctx = await prepared();
+    const home = await mkdtemp(path.join(os.tmpdir(), "dg-home-"));
+    cleanups.push(() => rm(home, { recursive: true, force: true }));
+    ctx.env = { HOME: home };
+    const projectDir = path.join(
+      home,
+      ".claude",
+      "projects",
+      ctx.repo.topLevel.replace(/[^A-Za-z0-9]/g, "-"),
+    );
+    const dir = path.join(ctx.repo.localDir, "transcripts");
+    const startAt = async (ticket: string, step: string, file: string) =>
+      (
+        await runCommand(runStart, ctx, {
+          ticket,
+          step,
+          agent: "claude-code",
+          transcript: path.join(projectDir, file),
+        })
+      ).data as Run;
+    const finish = async (run: Run) =>
+      (await runCommand(runFinish, ctx, { run: run.id, result: "success" })).data as Run;
+    const entries = async () => (await readdir(dir)).sort();
+    return { ctx, dir, startAt, finish, entries };
+  }
+
+  it("終了の時刻から 30 日を過ぎた Run と Run のない ID の場所を消し、実行中の Run と同じファイルを指すものとほかのファイルは残す", async () => {
+    const { ctx, dir, startAt, finish, entries } = await located();
+    const old = await finish(await startAt("t1", "implement", "s1/subagents/agent-a.jsonl"));
+    const shared = await finish(await startAt("t1", "review", "s1/subagents/agent-b.jsonl"));
+    // 続けて頼んだサブエージェントは同じファイルに書き足す。前の Run の場所は数え始めに要る
+    const running = await startAt("t2", "implement", "s1/subagents/agent-b.jsonl");
+    const orphan = "r20200101-000000-abcd";
+    await writeFile(path.join(dir, `${orphan}.json`), `${JSON.stringify({ path: "/x" })}\n`);
+    await writeFile(path.join(dir, "notes.txt"), "手で置いたファイル\n");
+    const all = await entries();
+
+    // 期間の中なら、消すのは Run のない ID だけ。--dry-run は消さない
+    const dry = await runCommand(runPruneTranscripts, ctx, { dry_run: true });
+    expect(dry.data).toEqual({ removed: [{ id: orphan, reason: "orphan" }], kept: 3 });
+    expect(await entries()).toEqual(all);
+
+    const finished = Math.max(Date.parse(old.finished_at!), Date.parse(shared.finished_at!));
+    ctx.now = () => new Date(finished + TRANSCRIPT_RETENTION_DAYS * 86400_000);
+    const r = await runCommand(runPruneTranscripts, ctx, {});
+    expect(r.data).toEqual({
+      removed: [
+        { id: orphan, reason: "orphan" },
+        { id: old.id, reason: "expired" },
+      ],
+      kept: 2,
+    });
+    expect(r.write).toBeUndefined();
+    expect(await entries()).toEqual(
+      ["notes.txt", `${running.id}.json`, `${shared.id}.json`].sort(),
+    );
+
+    // 同じファイルを指す Run が閉じても、期間の中なら残す。どちらも期間を過ぎたら消す
+    const later = await finish(running);
+    expect((await runCommand(runPruneTranscripts, ctx, {})).data).toEqual({ removed: [], kept: 2 });
+    ctx.now = () =>
+      new Date(Date.parse(later.finished_at!) + TRANSCRIPT_RETENTION_DAYS * 86400_000);
+    const again = await runCommand(runPruneTranscripts, ctx, {});
+    expect(again.data).toEqual({
+      removed: [shared.id, running.id].sort().map((id) => ({ id, reason: "expired" })),
+      kept: 0,
+    });
+    expect(await entries()).toEqual(["notes.txt"]);
+  });
+
+  it("実行中の記録が壊れて読めない Run の場所は、Run のない ID とみなさずに残す", async () => {
+    const { ctx, startAt, entries } = await located();
+    const broken = await startAt("t1", "implement", "s1/subagents/agent-a.jsonl");
+    await writeFile(path.join(ctx.repo.localDir, "runs", `${broken.id}.json`), "{ 壊れた記録\n");
+    const r = await runCommand(runPruneTranscripts, ctx, {});
+    expect(r.data).toEqual({ removed: [], kept: 1 });
+    expect(await entries()).toEqual([`${broken.id}.json`]);
+  });
+
+  it("場所のディレクトリがなければ何もしない", async () => {
+    const { ctx } = await located();
+    const r = await runCommand(runPruneTranscripts, ctx, {});
+    expect(r.data).toEqual({ removed: [], kept: 0 });
   });
 });
