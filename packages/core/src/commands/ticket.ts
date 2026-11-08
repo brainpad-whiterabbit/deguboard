@@ -2,7 +2,6 @@
 
 import { z } from "zod";
 import { OperationError, UsageError } from "../errors.js";
-import { listBranchChanges, readChangedFile } from "../git/changes.js";
 import { collectBranchFacts, fetchPrCreatedAt, findMergedLeftover } from "../git/facts.js";
 import { findBranchWorktree } from "../git/worktree.js";
 import { AbortWrite, withWrite } from "../git/write.js";
@@ -456,59 +455,6 @@ export const ticketShow = defineCommand({
       worktree: doc.data.branch ? await findBranchWorktree(ctx.repo, doc.data.branch) : null,
       stage: stageOf(await stageFactsOf(ctx, doc.data)),
     });
-  },
-});
-
-/** 作業ブランチの名前。ブランチのないチケットは NOT_FOUND */
-function workBranchOf(ctx: CommandContext, ticket: string): string {
-  const doc = ctx.store.require("ticket", ticket);
-  if (!doc.data.branch) {
-    throw new OperationError("NOT_FOUND", `${doc.data.id} には作業ブランチがない`);
-  }
-  return doc.data.branch;
-}
-
-export const ticketChanges = defineCommand({
-  name: "ticket.changes",
-  positionals: ["ticket"],
-  group: "ticket",
-  summary:
-    "チケットの作業ブランチで変わったファイルを、種類（added・modified・deleted・renamed）と行数（バイナリは null）つきで出す。" +
-    "比べるのは git.base_branch との merge-base から作業ブランチの先端まで（base...branch。PR と同じ）。" +
-    "base と作業ブランチは手元の ref から選び（base はリモートの追跡ブランチ、なければローカル。作業ブランチは新しい方）、fetch はしない。" +
-    "ブランチがローカルにもリモートの追跡ブランチにもなければ NOT_FOUND",
-  input: z.object({ ticket: ticketRef }),
-  write: false,
-  needs: "store",
-  async run(ctx, input) {
-    return ok(await listBranchChanges(ctx.repo, workBranchOf(ctx, input.ticket)));
-  },
-});
-
-export const ticketChangedFile = defineCommand({
-  name: "ticket.changed-file",
-  positionals: ["ticket"],
-  group: "ticket",
-  summary:
-    "ticket.changes と同じ比べ方で、変わったファイルの片側の中身を出す（base は merge-base、head は作業ブランチの先端）。" +
-    "読めるのは変更の一覧にあるファイルだけ（base の側は名前の変更の元のパス）で、ほかは NOT_FOUND。サブモジュールは submodule: true で、中身の代わりにコミットの ID。" +
-    "その側にないファイルは exists: false で空、バイナリは binary: true で空。commit を渡すと、一覧の後にブランチが進んでいれば REJECTED",
-  input: z.object({
-    ticket: ticketRef,
-    side: z.enum(["base", "head"]).describe("base（merge-base の側）か head（作業ブランチの側）"),
-    path: z.string().min(1).describe("リポジトリの最上位からのパス"),
-    commit: z
-      .string()
-      .optional()
-      .describe(
-        "ticket.changes で読んだその側のコミット（base_commit か head_commit）。違えば REJECTED",
-      ),
-  }),
-  write: false,
-  needs: "store",
-  async run(ctx, input) {
-    const branch = workBranchOf(ctx, input.ticket);
-    return ok(await readChangedFile(ctx.repo, branch, input.side, input.path, input.commit));
   },
 });
 
@@ -1243,8 +1189,6 @@ export const ticketCommands = [
   ticketCreate,
   ticketList,
   ticketShow,
-  ticketChanges,
-  ticketChangedFile,
   ticketUpdate,
   ticketCheck,
   ticketMove,

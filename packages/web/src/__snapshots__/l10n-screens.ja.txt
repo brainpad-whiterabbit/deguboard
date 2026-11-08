@@ -419,8 +419,6 @@ eiki/agent
 [title] 済みにする
 [aria-label] 受け入れ条件 1
 条件データの一
-変更
-変更を見る
 Run
 3
 件
