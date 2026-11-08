@@ -83,6 +83,7 @@ describe("前回の一覧の cache", () => {
     release();
     await screen.findByText("ログイン");
     expect(document.querySelector(".skeleton")).toBeNull();
+    expect(screen.queryByText("読み込み中…")).toBeNull();
   });
 
   it("cache に操作している人（me）がなければ、バックログの「自分」のチップは whoami を読み終えるまで出さない", async () => {
