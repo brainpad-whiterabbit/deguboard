@@ -123,15 +123,20 @@ export function stageOf(facts: StageFacts): Stage {
   if (ticket.pr === undefined) return stage("claimed", n, fixes, "PR がまだない");
   const latest = reviews.at(-1);
   // 最後の見直しより後に閉じた手直しが failure か interrupted なら、人を待つ（guide-review の「終わり方」）
-  const failedFix = runs
+  // 一番新しい手直しの Run だけを見る（人が続けると決めて開き直した手直しが成功していれば、前の失敗は見ない）
+  const lastFix = runs
     .filter(
       (r) =>
         r.step === facts.fixStep &&
         r.started_at >= since &&
-        (latest === undefined || r.started_at >= latest.started_at) &&
-        (r.result === "failure" || r.result === "interrupted"),
+        (latest === undefined || r.started_at >= latest.started_at),
     )
+    .sort((a, b) => a.started_at.localeCompare(b.started_at) || a.id.localeCompare(b.id))
     .at(-1);
+  const failedFix =
+    lastFix && (lastFix.result === "failure" || lastFix.result === "interrupted")
+      ? lastFix
+      : undefined;
   if (failedFix)
     return stage(
       "waiting_human",
@@ -233,6 +238,11 @@ export function nextOf(ctx: CommandContext, facts: StageFacts): NextStep {
   const runningOf = (step: string) =>
     facts.runs.find((r) => r.step === step && r.finished_at === null)?.id ?? null;
   const fixStep = facts.fixStep;
+  // 実装か手直しの Run が実行中（作業の途中で push が出ても、見直しを起動しない）
+  const working =
+    facts.runs.find(
+      (r) => r.finished_at === null && (r.step === facts.implementStep || r.step === fixStep),
+    )?.id ?? null;
   const make = (
     kind: NextKind,
     step: string | null,
@@ -243,11 +253,11 @@ export function nextOf(ctx: CommandContext, facts: StageFacts): NextStep {
     ...base,
     kind,
     step,
-    running_run: running,
-    // その手の Run が実行中なら、新しく起動せずに終わりを待つ（同じチケットと step の Run を重ねない）
+    running_run: running ?? (kind === "wait_human" ? null : working),
+    // その手か、実装・手直しの Run が実行中なら、新しく起動せずに終わりを待つ（Run を重ねない）
     commands:
-      running && kind !== "wait_human"
-        ? [`実行中の Run ${running} の終わりを待つ（新しく起動しない）`]
+      kind !== "wait_human" && (running ?? working)
+        ? [`実行中の Run ${running ?? working} の終わりを待つ（新しく起動しない）`]
         : commands,
     ask_human: ask,
   });

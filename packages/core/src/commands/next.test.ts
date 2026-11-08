@@ -206,6 +206,28 @@ describe("dg next と ticket show の stage（EX-3）", () => {
       kind: "wait_human",
       stage: { reason: expect.stringContaining("interrupted") },
     });
+    expect(
+      kind(facts({ runs: [review(6, heavy), run("fix", 7, { result: "failure" })] })),
+    ).toMatchObject({
+      kind: "wait_human",
+    });
+    // 失敗の後に人が続けると決めて開き直した手直しが成功し push したら、見直しに戻る
+    expect(
+      kind(
+        facts({
+          pushedAt: "2026-11-07T10:20:00Z",
+          runs: [review(6, heavy), run("fix", 7, { result: "failure" }), run("fix", 10)],
+        }),
+      ),
+    ).toMatchObject({ kind: "review", stage: { name: "fixed" } });
+    // 手直しが実行中のまま push が出ても、見直しを起動させない
+    const fixing = kind(
+      facts({
+        pushedAt: "2026-11-07T10:20:00Z",
+        runs: [review(6, heavy), run("fix", 7, { finished_at: null, result: null })],
+      }),
+    );
+    expect(fixing.commands).toEqual([expect.stringContaining("終わりを待つ")]);
     // 上限を超えた後は push があっても人を待つ
     expect(
       kind(
