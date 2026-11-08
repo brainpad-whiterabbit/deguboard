@@ -133,9 +133,6 @@ describe("dg guide", () => {
     const review = await readGuide("review");
     const look = bullet(section(review, "## 見直す"), "見る");
     for (const word of [
-      "この PR が変えた",
-      "dg guide audit",
-      "ADR-001",
       "範囲の外の指摘",
       "文書との食い違い",
       "## 参考",
@@ -143,7 +140,10 @@ describe("dg guide", () => {
       "節がなければ見比べない",
     ])
       expect(look, word).toContain(word);
-    expect(bullet(section(review, "## 見直す"), "返す")).toContain("参考節との食い違い");
+    // 重い・軽いの分けは「返す」だけに書く（見る と返す で二度並べない）
+    const back = bullet(section(review, "## 見直す"), "返す");
+    for (const word of ["この PR が変えた", "dg guide audit", "ADR-001", "参考節との食い違い"])
+      expect(back, word).toContain(word);
     const fix = section(review, "## 指摘を直す（修正ループ）");
     for (const word of ["参考節との食い違い", "親が PR の本文に書き足す", "直さなかった軽い指摘"])
       expect(fix, word).toContain(word);
@@ -152,15 +152,15 @@ describe("dg guide", () => {
 
   it("review は ADR や要件に足した細部を重い指摘にし、文書を直していない重い指摘は約束・手順・規約の変更に限る", async () => {
     const review = await readGuide("review");
-    const look = bullet(section(review, "## 見直す"), "見る");
+    const back = bullet(section(review, "## 見直す"), "返す");
     for (const word of [
-      "ADR や要件に細部を足した",
-      "重い指摘",
+      "ADR や要件に足した細部",
+      "細部をコード・テスト・ヘルプへ移す",
+      "重い",
       "約束・手順・規約",
       "文書を直していない",
     ])
-      expect(look, word).toContain(word);
-    expect(bullet(section(review, "## 見直す"), "返す")).toContain("ADR や要件に足した細部");
+      expect(back, word).toContain(word);
   });
 
   it("import は受け入れ条件に ADR や要件の書き足しを入れるのを ADR-001 の基準に当たるときだけにし、それ以外はテストとコメントで約束を示すと案内する", async () => {
@@ -201,11 +201,6 @@ describe("dg guide", () => {
       expect(plan).toContain(command);
     expect(plan).toContain("人の承認を得ないまま approve しない");
     expect(plan).toContain("plan.approve");
-    // 循環は plan create で拒否され経路が出る（after だけと、after・depends_on をまたぐもの）。外すか向きを変える
-    const cycle = lineWith(plan, "after` だけの循環");
-    expect(cycle).toContain("`after`・`depends_on` をまたぐ循環");
-    expect(cycle).toContain("経路が出る");
-    expect(cycle).toContain("向きを変える");
     for (const word of ["plan show", "`next`", "`ready`", "waiting", "scope", "approach"])
       expect(work).toContain(word);
     expect(done).toContain("plan close");

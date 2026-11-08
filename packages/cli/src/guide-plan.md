@@ -37,7 +37,7 @@ dg --json --actor agent plan create t12 t13 t14 t15 \
   --tier t12=light --tier t13=standard --tier t15=heavy
 ```
 
-- 並べた順が実行順の目安。`--after t15=t13,t14` は「t15 を t13・t14 の後に進める」で、計画の中だけの待ち（チケットの `depends_on` とは別）。並行できるものは互いに after を書かない。`after` だけの循環と、`after`・`depends_on` をまたぐ循環は拒否され、経路が出る。その after を外すか向きを変える
+- 並べた順が実行順の目安。`--after t15=t13,t14` は「t15 を t13・t14 の後に進める」で、計画の中だけの待ち（チケットの `depends_on` とは別）。並行できるものは互いに after を書かない
 - `--scope`・`--approach` はチケットごとに 1 文で書く。着手するときに `plan show` の `details` で読み返す
 - `--tier` はチケットの難しさの段階で、どのモデルで実装するか（`config.yaml` の `models.*`。`dg guide work`）を決める。light：文書・設定・文言だけ。heavy：設計の判断・データの形・複数パッケージにまたがる・原因の分からない不具合。standard：それ以外。迷ったら重い方にする。省くと standard と同じに扱う
 - done・abandoned のチケットと、別の開いた Plan に入っているチケット（`ticket show` の `plan` が空でないもの）は入れられない（`REJECTED`）。別の Plan に入っていれば、その Plan を閉じてよいか人に確かめる
@@ -46,7 +46,7 @@ dg --json --actor agent plan create t12 t13 t14 t15 \
 
 ## 承認について
 
-既定ではエージェントも `plan approve` を実行できる（人に限るなら `config.yaml` の `actor.human_only` に `plan.approve` を入れる。`dg guide overview`）。実行できても承認は人の判断なので、人が会話で承認したときだけ行う。拒否されたら（`TRANSITION_REJECTED`）人に `dg plan approve <p>` を頼む。
+既定ではエージェントも `plan approve` を実行できる（人に限るなら `config.yaml` の `actor.human_only` に `plan.approve` を入れる。`dg guide overview`）。拒否されたら（`TRANSITION_REJECTED`）人に `dg plan approve <p>` を頼む。
 
 ## 進め方の原則
 

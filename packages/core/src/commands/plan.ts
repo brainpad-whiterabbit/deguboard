@@ -95,13 +95,16 @@ export const planCreate = defineCommand({
           (after[id] ?? []).map((to) => ({ to, via: "after" }));
         const cycle = findCycle(Object.keys(after), afterEdges);
         if (cycle)
-          throw new OperationError("REJECTED", `after が循環している: ${cyclePath(cycle, false)}`);
+          throw new OperationError(
+            "REJECTED",
+            `after が循環している: ${cyclePath(cycle, false)}。その after を外すか向きを変える`,
+          );
         // after と depends_on を合わせても循環しない（互いを待って着手できなくなる）
         const crossing = findCrossingCycle(ctx.store, tickets, after);
         if (crossing)
           throw new OperationError(
             "REJECTED",
-            `after と depends_on が循環している: ${cyclePath(crossing, true)}`,
+            `after と depends_on が循環している: ${cyclePath(crossing, true)}。その after を外すか向きを変える`,
           );
         const details: Record<string, { scope?: string; approach?: string; tier?: PlanTier }> = {};
         for (const [field, map] of [

@@ -118,12 +118,14 @@ describe("Plan", () => {
       code: "REJECTED",
       message: expect.stringContaining("t1 →(after) t3 →(depends_on) t2 →(depends_on) t1"),
     });
-    // after だけの循環は今までどおりの言い方で拒否する
+    // after だけの循環は経路と、外すか向きを変える手を拒否の文に出す（guide の plan は手を書かない）
     await expect(
       runCommand(planCreate, ctx, { tickets: ["t1", "t2"], after: { t1: "t2", t2: "t1" } }),
     ).rejects.toMatchObject({
       code: "REJECTED",
-      message: expect.stringContaining("after が循環している: t1 → t2 → t1"),
+      message: expect.stringContaining(
+        "after が循環している: t1 → t2 → t1。その after を外すか向きを変える",
+      ),
     });
     expect(ctx.store.plans.size).toBe(0);
     // depends_on と同じ向きの after は循環しない
