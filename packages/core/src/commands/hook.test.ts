@@ -166,7 +166,7 @@ describe("フックの印", () => {
   });
 });
 
-describe("dg hook（AG-9・ADR-025）", () => {
+describe("dg hook（AG-9・RN-7・ADR-025）", () => {
   it("SessionStart は以後の Bash の環境に export 付きで主体・セッション ID・記録のパスを書く", async () => {
     const { ctx, home, parent } = await prepared();
     const envFile = path.join(home, "env.sh");

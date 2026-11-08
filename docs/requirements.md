@@ -170,10 +170,10 @@ steps: # 任意（WF-5）
 
 - RN-1 1 Run 1 ファイル。チケット・step・エージェント・モデル・時刻・結果（`success` / `failure` / `interrupted`）・使用量・ツールの回数・やり直しの理由・セッション ID と、見直しの Run なら見直しの結果を持つ。会話記録のパスは Adapter の置き場所の下だけ受け付け、Git に入れない（RN-3）。項目は `packages/core/src/model/run.ts`、値の決め方は `dg run start --help`
 - RN-2 取れなかった値は `null`。推定した値は `estimated: true` を付ける。費用は持たない（[ADR-029](adr/ADR-029-work-metrics.md)）
-- RN-3 Git に入れるのは完了時の集計だけで、チケットには書き足さない。実行中の記録・会話記録のパス・保留の見直しの結果とやり直しの理由・フックの入力の有無は、このマシンの `deguboard-local/` に置く（`packages/core/src/run/record.ts`）。会話記録のパスは終了の時刻から 30 日残し、`dg run prune-transcripts` が消す（細部は `--help`）
-- RN-4 閉じた Run で書き換えるのは、`run refresh`（MT-5）が取り直すモデル名と使用量と、結果のない、チケットの最新の見直しの Run に 1 回だけ書く見直しの結果だけ（細部は `dg run review-result --help`）
+- RN-3 Git に入れるのは完了時の集計だけで、チケットには書き足さない。実行中の記録・会話記録のパス・保留の見直しの結果とやり直しの理由・フックの入力の有無は、このマシンの `deguboard-local/` に置く（`packages/core/src/run/record.ts`）。会話記録のパスは終了の時刻から 30 日残し、`dg run prune-transcripts` が消す（細部は `dg run prune-transcripts --help`）
+- RN-4 閉じた Run で書き換えるのは、`run refresh`（MT-5）が取り直すモデル名と使用量と、結果のない、チケットの最新の見直しの Run に 1 回だけ書く見直しの結果だけ（結果の記録がないことで `failure` だった Run は `success` に直す。細部は `dg run review-result --help`）
 - RN-5 agent の `ticket claim` は実装の Run（`opens_on: claim` の step、なければ `implement`）を開いて ID を返し、開けなくても claim は成功にする。もう一度の claim（ST-3）は手直しの Run（`opens_on: reclaim`、なければ `fix`）を開く。人の claim と `--no-run` では開かない（二重の起動は SY-5）。細部は `dg ticket claim --help`
-- RN-6 実装の Run は PR の記録（照合を含む）と PR のないまま終えた作業の前進で `success` に閉じる。手直しの Run は次の Run の開始・前進・チケットの終了を区切りに `success`、別のセッションの残りは `interrupted` で閉じる。`unclaim`・`abandoned` はどちらも `failure`。照合は残りも閉じる。細部は `ticket move`・`unclaim`・`sync` の `--help`
+- RN-6 実装の Run は PR の記録（照合を含む）と PR なしで終えた作業の前進で `success`。手直しの Run は次の Run の開始・前進・チケットの終了を区切りに `success`、別のセッションの残りは `interrupted`。`unclaim`・`abandoned` と、照合が見た戻った・取られたチケットの Run は `failure`。照合は残りも閉じる。別の文脈が先に閉じた Run は警告だけで、操作と照合を止めない。細部は各操作の `--help`
 - RN-7 印 `deguboard: ticket=<id> step=<step>` で頼んだサブエージェントの Run は、フック（AG-9）が起動で開き、step を終えた事実で閉じ、事実がなければ止まって待っている印を付け、セッションの終わりに残りを閉じる。細部は `dg hook --help` とそのテスト、理由は [ADR-025](adr/ADR-025-runs-by-hooks.md)
 - RN-8 `dg run retry-reason` は、実行中の手直しの Run の `retry_reasons` に直した指摘を書き足し、回数を理由の数にする。書く先がなければ保留し、フックが手直しの Run を閉じるときに結び付ける（細部は `dg run retry-reason --help`）
 
@@ -251,7 +251,7 @@ steps: # 任意（WF-5）
 - AG-6 ソフトウェア開発向けの Action（worktree・PR 作成・マージなど）は Core の `actions` に置き、汎用部分は依存しない。`dg` のコマンドにせず、公開するのは名前の一覧（`ACTION_NAMES`）だけ（[ADR-007](adr/ADR-007-architecture.md)）
 - AG-7 任意のシェルの Action は `actions.shell: true` のときだけ使え、毎回確認を経る
 - AG-8 `ask` は対象（複数可）・頼むこと・指示・形式から、エージェントに貼る依頼文を返す読み取りだけのコマンドで、人に限られた操作なら人が打つ `dg` のコマンドを返す。`ask-menu` は画面の場所ごとの候補を返す。候補・おすすめ・文の形は `dg ask --help` と `packages/core/src/commands/ask.ts`・そのテストが正本
-- AG-9 `dg hooks install` は harness（今は Claude Code）の設定に `dg hook` を呼ぶフックを重ねずに書き、`uninstall` は dg のフックだけを外し（手で足したフックは残す）、`check` が確かめる。フックは主体を agent にし、印で頼んだサブエージェントの Run を開け閉めする。細部は `dg hook --help` とそのテスト、理由は [ADR-025](adr/ADR-025-runs-by-hooks.md)
+- AG-9 `dg hooks install` は harness（今は Claude Code）の設定に `dg hook` を呼ぶフックを重ねずに書き、`uninstall` は dg のフックだけを外し（手で足したフックは残す）、`check` が確かめる。フックは主体を agent にする（Run の開け閉めは RN-7）。細部は `dg hook --help` とそのテスト、理由は [ADR-025](adr/ADR-025-runs-by-hooks.md)
 - AG-10 フック（AG-9）は、データの直接の書き換えと dg を経由しない PR の ready・マージを、字句を読まずに語の有無で粗く拒み、dg の読み書きのコマンドと `dg pr ready`・`dg pr merge`（EX-3）へ案内する。応答の終わりに dg の外の変更（SY-7）があれば、止まらずに続けさせて伝える。細部は `dg hook --help` とそのテスト、理由は [ADR-026](adr/ADR-026-guard-pr-and-data.md)
 
 ### 6.6 作業の実績
