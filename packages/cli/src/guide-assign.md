@@ -19,15 +19,15 @@ argument-hint: "[Iteration|Epic|チケットの ID...]"
 - 一覧：`dg --json --actor agent iteration list`（`status` は planned / active / closed）
 - 作る：`dg --json --actor agent iteration create "<名前>" --goal "<目標>" --start 2026-11-01 --end 2026-11-14`
 - 直す：`dg --json --actor agent iteration update <s3> --goal "<目標>"`。`--name`・`--start`・`--end` も、指定したものだけ変わる。閉じた Iteration も直せる
-- 入れる：`dg --json --actor agent iteration add <s3> <t12> <t13>`。別の Iteration に入っていたチケットは移る。所属はチケットの `iteration` に記録され、並びは優先度と番号
+- 入れる：`dg --json --actor agent iteration add <s3> <t12> <t13>`。別の Iteration に入っていたチケットは移る
 - 外す：`dg --json --actor agent iteration remove <s3> <t12>`
-- 開始：`dg --json --actor agent iteration start <s3>`（planned → active）。開始日は始めた日になる。active は Project に 1 つで、ほかに active があれば開始も再開も拒否される。前のものを閉じるかは人に聞く
-- 閉じる：`dg --json --actor agent iteration close <s3>`。done の件数と持ち越しの件数が記録され、終了日は閉じた日になり、持ち越したチケットは Iteration から外れる。人の指示で閉じる（制限は `dg guide overview`）
-- 再開：`dg --json --actor agent iteration reopen <s3>`。active に戻り、件数は消える。持ち越したチケットは戻らないので `iteration add` で入れ直す。人の指示で行う
+- 開始：`dg --json --actor agent iteration start <s3>`（planned → active）。active は Project に 1 つで、ほかに active があれば開始も再開も拒否される。前のものを閉じるかは人に聞く
+- 閉じる：`dg --json --actor agent iteration close <s3>`。持ち越したチケットは Iteration から外れる。人の指示で閉じる（制限は `dg guide overview`）
+- 再開：`dg --json --actor agent iteration reopen <s3>`。active に戻る。持ち越したチケットは戻らないので `iteration add` で入れ直す。人の指示で行う
 
 ## Epic
 
-- 一覧と進捗：`dg --json --actor agent epic list`（`progress.done / progress.total`。abandoned は数えない）
+- 一覧と進捗：`dg --json --actor agent epic list`（`progress.done / progress.total`）
 - 入れる：`dg --json --actor agent epic add <e3> <t12> <t13>`。同じ Project のチケットだけ。閉じた Epic には入れられない
 - 外す：`dg --json --actor agent epic remove <e3> <t12>`
 - 閉じる・再開する：`dg --json --actor agent epic close <e3>` / `epic reopen <e3>`。done・abandoned 以外が残っていれば拒否され、`--force` で閉じられる。人の指示で閉じる（制限は `dg guide overview`）
