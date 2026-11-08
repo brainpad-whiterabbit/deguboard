@@ -1542,7 +1542,7 @@ describe("手直しの Run の印と run retry-reason（ADR-018）", () => {
     ]);
   });
 
-  it("前景の起動でかかった時間だけ前にした開始が、手直しの Run の開始より前なら閉じず、同じ秒か後なら閉じる（ADR-022）", async () => {
+  it("前景の起動でかかった時間だけ前にした開始が、手直しの Run の開始より前なら閉じず、同じ秒と後なら閉じる（ADR-022）", async () => {
     const { ctx, parent, subagent } = await prepared();
     let clock = new Date("2026-11-08T01:10:00Z");
     ctx.now = () => clock;
@@ -1580,6 +1580,14 @@ describe("手直しの Run の印と run retry-reason（ADR-018）", () => {
       id: sameSecond.id,
       result: "success",
       finished_at: "2026-11-08T01:20:00Z",
+      running: false,
+    });
+    // t1：01:40 に返った前景の手直しは 5 分かかった（開始は 01:35 で手直しより後）。前の手直しを閉じて開き直す
+    clock = new Date("2026-11-08T01:40:00Z");
+    await foreground("a3", "deguboard: ticket=t1 step=fix", 5 * 60_000);
+    expect((await fixRuns(ctx, "t1")).find((r) => r.id === before.id)).toMatchObject({
+      result: "success",
+      finished_at: "2026-11-08T01:35:00Z",
       running: false,
     });
   });

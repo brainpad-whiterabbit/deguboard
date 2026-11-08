@@ -2056,6 +2056,13 @@ describe("チケットの流れ", () => {
         `t1: 次の Run ${review2} の開始を区切りとして閉じた（区切りまでの push がないので区切りの時刻）`,
       );
       expect(agent.store.runs.get(fix2)!.data.finished_at).toBe("2026-11-06T02:00:00Z");
+
+      // 手直しの step の run start を重ねると、前の手直しを閉じずに拒む（二重起動の拒否。SY-5）
+      clock = new Date("2026-11-06T03:00:00Z");
+      const fix3 = (await start("fix", "s-new")).data.id;
+      clock = new Date("2026-11-06T03:10:00Z");
+      await expect(start("fix", "s-new")).rejects.toThrow(`Run ${fix3} が実行中`);
+      expect((await peekRunningRuns(agent.repo)).map((r) => r.id)).toContain(fix3);
     } finally {
       restore();
     }

@@ -102,7 +102,7 @@ export function agentFromEnv(
  * Run を開く（run start と、agent の ticket claim が共有する。RN-5）。step がチケットの Workflow の steps になければ
  * VALIDATION_FAILED、同じチケットと step の Run が実行中なら startRun が ALREADY_EXISTS。
  * Workflow が読めない・Adapter のない agent・このマシンで同じ agent の Run が開いたままは警告して開く。
- * 同じチケットの開いたままの手直しの Run は、この Run の開始を区切りとして閉じてから開く（closePreviousFixRun）。
+ * 同じチケットの開いたままの手直しの Run は、この Run の開始を区切りとして閉じてから開く（closePreviousFixRun。reopensFix のない同じ step の二重起動では閉じずに拒む）。
  * retryReasons はもう一度の claim が開く手直しの Run に、直す指摘を最初から残すためのもの。
  * session・transcript は会話記録の場所（ADR-005）。session は Run に、transcript はこのマシンの deguboard-local/transcripts/ に置く。
  * 渡されなければ、harness のフックが環境に入れた DEGUBOARD_SESSION・DEGUBOARD_TRANSCRIPT を使う（ADR-012。セッションは sessionOf）。
@@ -118,6 +118,11 @@ export async function openRun(
     retryReasons?: readonly string[] | undefined;
     /** 開始の時刻。省けば今（フックが、終わってから返った前景のサブエージェントの Run を開くときに前にする） */
     startedAt?: Date | undefined;
+    /**
+     * 手直しを新しく始める操作（もう一度の claim と、印の起動のフック）。手直しの step を開くとき、開いたままの前の手直しを
+     * 閉じて開き直す。省けば（run start）同じチケットと step の Run が開いたままなら拒む
+     */
+    reopensFix?: boolean | undefined;
   } & TranscriptInput,
 ): Promise<{ run: Run; warnings: string[] }> {
   const { step, agent } = input;
@@ -152,18 +157,14 @@ export async function openRun(
   }
   const startedAt = input.startedAt ?? ctx.now();
   // 同じチケットの次の Run の開始は、開いたままの手直しの Run の区切り。sync を待たずにその場で閉じてから開く（RN-6・ADR-022）。
-  // 閉じられなくても開くのは止めない（後の sync が同じ区切りで閉じる）
-  try {
-    await closePreviousFixRun(
-      ctx,
-      ticket,
-      { step, session, boundaryAt: toIsoDateTime(startedAt) },
-      warnings,
-    );
-  } catch (e) {
-    warnings.push(
-      `${ticket.id} の前の手直しの Run を閉じられなかった（${e instanceof Error ? e.message : String(e)}）`,
-    );
+  // 閉じられなくても開くのは止めない（後の sync が同じ区切りで閉じる）。
+  // 同じチケットと step の Run が開いたままなら、下の startRun が拒むので閉じない（二重起動の拒否。SY-5）。
+  // ただし手直しを開き直す操作（reopensFix）が開く手直しの step では、前の手直しを閉じて開き直す（ADR-018）
+  const duplicate = (await readRunningRuns(ctx.repo)).runs.some(
+    (r) => r.data.ticket === ticket.id && r.data.step === step,
+  );
+  if (!duplicate || (input.reopensFix === true && step === openedStepOf(ctx, ticket, "reclaim"))) {
+    await closePreviousFixRunOrWarn(ctx, ticket, { step, session, startedAt }, warnings);
   }
   // 同じ会話記録で期間が重なると、応答は後に始めた Run にだけ数える（ADR-005）。閉じ忘れに気づけるように知らせる
   const open = (await readRunningRuns(ctx.repo)).runs.filter((r) => r.data.agent === agent);
@@ -183,6 +184,28 @@ export async function openRun(
     now: startedAt,
   });
   return { run, warnings };
+}
+
+/** closePreviousFixRun を呼び、失敗しても Run を開くのは止めずに警告にする */
+async function closePreviousFixRunOrWarn(
+  ctx: CommandContext,
+  ticket: Ticket,
+  input: { step: string; session: string | undefined; startedAt: Date },
+  warnings: string[],
+): Promise<void> {
+  const { step, session, startedAt } = input;
+  try {
+    await closePreviousFixRun(
+      ctx,
+      ticket,
+      { step, session, boundaryAt: toIsoDateTime(startedAt) },
+      warnings,
+    );
+  } catch (e) {
+    warnings.push(
+      `${ticket.id} の前の手直しの Run を閉じられなかった（${e instanceof Error ? e.message : String(e)}）`,
+    );
+  }
 }
 
 /**
@@ -510,7 +533,7 @@ export const runStart = defineCommand({
   positionals: ["ticket", "step"],
   group: "run",
   summary:
-    "Run を始める。実行中の記録は deguboard-local/runs/ にだけ置き、Git には入れない。同じチケットと step の Run が実行中か、step がチケットの Workflow の steps にないなら拒否する。このマシンで同じ agent の Run が実行中なら警告して始める。Adapter のない agent 名でも拒まずに記録し、警告する。同じチケットの開いたままの手直しの Run は、この開始を区切りとして、その Run の開始より後の最後の push の時刻（なければこの開始の時刻）で success にしてから始める（手直しの step を始めるとき、前の手直しの Run が別のセッションのものなら interrupted）。--agent を省けば、dg を呼んだエージェントを Adapter が環境変数から判定する（判定できなければ使い方の誤り）",
+    "Run を始める。実行中の記録は deguboard-local/runs/ にだけ置き、Git には入れない。同じチケットと step の Run が実行中か、step がチケットの Workflow の steps にないなら拒否する。このマシンで同じ agent の Run が実行中なら警告して始める。Adapter のない agent 名でも拒まずに記録し、警告する。同じチケットの開いたままの手直しの Run は、この開始を区切りとして、その Run の開始より後の最後の push の時刻（なければこの開始の時刻）で success にしてから始める（手直しの step を始めるとき、前の手直しの Run が別のセッションのものなら interrupted）。同じチケットと step の Run が実行中で拒むときは、手直しの Run も閉じない。--agent を省けば、dg を呼んだエージェントを Adapter が環境変数から判定する（判定できなければ使い方の誤り）",
   input: z.object({
     ticket: ticketRef,
     step: token.describe("工程。チケットの Workflow の steps の id（dg workflow show で見る）"),

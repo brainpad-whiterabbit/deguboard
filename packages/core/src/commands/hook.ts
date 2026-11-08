@@ -330,6 +330,7 @@ async function subagentLaunched(
       session: event.session,
       transcript: event.transcript ?? undefined,
       startedAt,
+      reopensFix: true,
     });
     run = opened.run;
     warnings.push(...opened.warnings);

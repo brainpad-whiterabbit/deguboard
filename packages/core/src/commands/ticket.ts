@@ -967,6 +967,7 @@ async function openClaimRun(
       step,
       agent: detected.agent,
       retryReasons: input.retryReasons,
+      reopensFix: opener === "reclaim",
       session: input.session,
       transcript: input.transcript,
     });
