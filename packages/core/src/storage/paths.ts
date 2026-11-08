@@ -25,6 +25,6 @@ export const planPath = (id: string): string => `${DIRS.plans}/${id}.yaml`;
 export const workflowPath = (id: string): string => `${DIRS.workflows}/${id}.yaml`;
 /** Run の完了時の集計 */
 export const runPath = (id: string): string => `${DIRS.runs}/${id}.json`;
-/** Run の会話記録のパス。deguboard-local/（Git 管理外）からの相対パス。Run を閉じた後も run refresh のために残す */
+/** Run の会話記録のパス。deguboard-local/（Git 管理外）からの相対パス。Run を閉じた後も run refresh の期間は残す（run/record.ts） */
 export const TRANSCRIPTS_DIR = "transcripts";
 export const transcriptPath = (id: string): string => `${TRANSCRIPTS_DIR}/${id}.json`;

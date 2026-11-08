@@ -5,7 +5,8 @@
 //   - 同じチケットと step の二重の start は、deguboard-local/locks/ のロックの中で実行中の記録を見て拒否する
 //   - チケットの frontmatter には書き足さない。チケットの Run は Run の ticket から引く（書き足すと Run のたびにチケットが衝突する）
 //   - 会話記録のパスは Run に書かず、deguboard-local/transcripts/<id>.json に置く（ADR-005）。ホームのパスとユーザ名を含み、
-//     別のマシンでは読めないので Git に入れない。閉じた後の run refresh も同じファイルから数えるので、Run を閉じても消さない
+//     別のマシンでは読めないので Git に入れない。閉じた後の run refresh も同じファイルから数えるので、Run を閉じても消さず、
+//     閉じてから TRANSCRIPT_RETENTION_DAYS を過ぎたものと Run のない ID のものを run prune-transcripts が消す
 
 import { mkdir, readdir, readFile, stat, unlink } from "node:fs/promises";
 import path from "node:path";
@@ -326,6 +327,73 @@ export async function bindTranscript(
     path.join(repo.localDir, transcriptPath(id)),
     `${JSON.stringify({ path: path.resolve(transcript) })}\n`,
   );
+}
+
+/**
+ * 閉じてから会話記録のパスを残す日数（RN-3・MT-5）。run refresh はこの期間の中の Run だけを取り直す。
+ * エージェントが古い会話記録を消す既定の期間（30 日）に合わせる。過ぎた記録は読めないことが多い
+ */
+export const TRANSCRIPT_RETENTION_DAYS = 30;
+
+/** 閉じた Run が、会話記録のパスを残す期間を過ぎたか。実行中の Run（finished_at が null）は過ぎない */
+export function transcriptExpired(run: Pick<Run, "finished_at">, now: Date): boolean {
+  if (run.finished_at === null) return false;
+  const finished = Date.parse(run.finished_at);
+  return (
+    !Number.isNaN(finished) && now.getTime() - finished >= TRANSCRIPT_RETENTION_DAYS * 86400_000
+  );
+}
+
+/** 片付けた会話記録のパス。expired は閉じてから期間を過ぎた Run、orphan は実行中の記録も runs/ の集計もない ID */
+export interface PrunedTranscript {
+  id: string;
+  reason: "expired" | "orphan";
+}
+
+/**
+ * deguboard-local/transcripts/ から、要らなくなった会話記録のパスを消す（RN-3）。消すのは、閉じてから期間を過ぎた Run と、
+ * 実行中の記録も runs/ の集計もない ID のもの。期間の中の Run・実行中の Run と同じファイルを指すものは、その Run の数え始め
+ * （同じファイルを先に使った Run の終わり。Adapter が others で見る）に要るので残す。start・finish と同じロックの中で、実行中の記録を見てから集計のファイルを見る
+ * （finish は集計を書いてから実行中の記録を消すので、間に閉じた Run を集計のないものと取り違えない）。
+ * closed は索引の閉じた Run。集計のファイルがあって索引にない Run（読んだ後に閉じたもの）は期間の中として残す
+ */
+export async function pruneTranscripts(
+  repo: RunDirs,
+  closed: (id: string) => Pick<Run, "finished_at"> | undefined,
+  now: Date,
+  dryRun = false,
+): Promise<{ removed: PrunedTranscript[]; kept: number }> {
+  const dir = path.join(repo.localDir, TRANSCRIPTS_DIR);
+  return withRunLock(repo, async () => {
+    const ids = (await readdir(dir).catch(() => [] as string[]))
+      .map((file) => (file.endsWith(".json") ? file.slice(0, -5) : ""))
+      .filter(isRunId)
+      .sort();
+    const running = new Set((await readLocalRuns(repo)).runs.map((r) => r.id));
+    const paths = await readTranscriptPaths(repo);
+    const candidates: PrunedTranscript[] = [];
+    const keptPaths = new Set<string>();
+    for (const id of ids) {
+      let reason: PrunedTranscript["reason"] | undefined;
+      if (running.has(id)) reason = undefined;
+      else if (!(await hasSummary(repo, id))) reason = "orphan";
+      else {
+        const run = closed(id);
+        if (run && transcriptExpired(run, now)) reason = "expired";
+      }
+      if (reason) candidates.push({ id, reason });
+      else if (paths.has(id)) keptPaths.add(paths.get(id)!);
+    }
+    const removed = candidates.filter(
+      (c) => c.reason === "orphan" || !keptPaths.has(paths.get(c.id) ?? ""),
+    );
+    if (!dryRun) {
+      for (const { id } of removed) {
+        await unlink(path.join(repo.localDir, transcriptPath(id))).catch(() => undefined);
+      }
+    }
+    return { removed, kept: ids.length - removed.length };
+  });
 }
 
 /**

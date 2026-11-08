@@ -35,9 +35,13 @@ import {
   putPendingRetryReasons,
   dropRunning,
   finishRun,
+  pruneTranscripts,
   readRunningRuns,
   readTranscriptPaths,
   startRun,
+  TRANSCRIPT_RETENTION_DAYS,
+  transcriptExpired,
+  type PrunedTranscript,
 } from "../run/record.js";
 import type { Doc } from "../storage/documents.js";
 import { DEFAULT_OPENED_STEPS, findStep, stepOpenedOn } from "../workflow/resolve.js";
@@ -965,8 +969,7 @@ export const runRefresh = defineCommand({
   name: "run.refresh",
   positionals: ["runs"],
   group: "run",
-  summary:
-    "閉じた Run のモデル名と使用量を、agent の Adapter で会話記録から取り直す（finish と同じ探し方。metrics.read_transcripts と DEGUBOARD_NO_TRANSCRIPTS に従う）。取れた値だけを書き換え、取れなかった値は今の値を残して警告する。--dry-run では書かずに差分（changes）だけを返す",
+  summary: `閉じた Run のモデル名と使用量を、agent の Adapter で会話記録から取り直す（finish と同じ探し方。metrics.read_transcripts と DEGUBOARD_NO_TRANSCRIPTS に従う）。取れた値だけを書き換え、取れなかった値は今の値を残して警告する。閉じてから ${TRANSCRIPT_RETENTION_DAYS} 日を過ぎた Run は会話記録の場所を片付ける（run prune-transcripts）ので取り直さず、今の値を残して警告する。--dry-run では書かずに差分（changes）だけを返す`,
   input: z.object({
     runs: z
       .array(z.string().min(1))
@@ -1000,17 +1003,28 @@ export const runRefresh = defineCommand({
     const explained = new Set<RunId>();
     const collected = new Map<string, Awaited<ReturnType<typeof collectRunUsage>>>();
     const { others, transcriptOf } = await usageContext(ctx, local);
+    const now = ctx.now();
     for (const id of ids) {
       const run = closed(id).data;
-      const got = await collectRunUsage(ctx.config, {
-        run,
-        // 閉じた Run は終了日時で期間を区切る（finish と同じ範囲を読む）。会話記録の場所も finish と同じ
-        finishedAt: run.finished_at ?? run.started_at,
-        env: ctx.env ?? process.env,
-        topLevel: ctx.repo.topLevel,
-        others,
-        transcript: transcriptOf(id),
-      });
+      // 期間を過ぎた Run は場所を片付けうる。場所なしの探し方（セッション・推測）で別の記録を数えないよう、読まずに残す
+      const got = transcriptExpired(run, now)
+        ? {
+            usage: { input: null, output: null, cache_read: null, cache_write: null },
+            model: null,
+            tools: null,
+            warnings: [
+              `閉じてから ${TRANSCRIPT_RETENTION_DAYS} 日を過ぎた Run は、会話記録の場所を片付けるので取り直さない`,
+            ],
+          }
+        : await collectRunUsage(ctx.config, {
+            run,
+            // 閉じた Run は終了日時で期間を区切る（finish と同じ範囲を読む）。会話記録の場所も finish と同じ
+            finishedAt: run.finished_at ?? run.started_at,
+            env: ctx.env ?? process.env,
+            topLevel: ctx.repo.topLevel,
+            others,
+            transcript: transcriptOf(id),
+          });
       collected.set(id, got);
       if (got.warnings.length > 0) explained.add(id);
       warnings.push(...got.warnings.map((w) => `Run ${id}: ${keepWording(w)}`));
@@ -1064,6 +1078,33 @@ export const runRefresh = defineCommand({
   },
 });
 
+export interface RunPruneTranscriptsResult {
+  /** 消した（--dry-run では消すことになる）会話記録のパスの Run の ID と理由 */
+  removed: PrunedTranscript[];
+  /** 残した数 */
+  kept: number;
+}
+
+export const runPruneTranscripts = defineCommand({
+  name: "run.prune-transcripts",
+  group: "run",
+  summary: `このマシンの deguboard-local/transcripts/ から、閉じてから ${TRANSCRIPT_RETENTION_DAYS} 日を過ぎた Run（expired）と、実行中の記録も runs/ の集計もない ID（orphan）の会話記録のパスを消す。期間の中の Run と同じファイルを指すものは残す。消した Run は run refresh が取り直さない。Git には書かない。--dry-run では消さずに消すものだけを返す`,
+  input: z.object({
+    dry_run: z.boolean().optional().describe("消さずに、消すことになるものだけを返す"),
+  }),
+  write: false,
+  needs: "store",
+  async run(ctx, input) {
+    const result: RunPruneTranscriptsResult = await pruneTranscripts(
+      ctx.repo,
+      (id) => ctx.store.runs.get(id as RunId)?.data,
+      ctx.now(),
+      input.dry_run ?? false,
+    );
+    return ok(result);
+  },
+});
+
 export const runCommands = [
   runStart,
   runFinish,
@@ -1071,4 +1112,5 @@ export const runCommands = [
   runRetryReason,
   runList,
   runRefresh,
+  runPruneTranscripts,
 ];
