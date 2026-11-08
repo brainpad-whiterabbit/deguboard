@@ -320,6 +320,85 @@ describe("dg hook（ADR-012）", () => {
     expect(runs2.find((r) => r.id !== old.id)).toMatchObject({ running: true, review: null });
   });
 
+  it("前景の起動でかかった時間が入力にないときは、記録の最初の行の時刻を起動の時刻にし、その後に古い Run に書かれた結果を新しい Run に結び付ける（ADR-017）", async () => {
+    const { ctx, parent, subagent } = await prepared();
+    const stale = (
+      await runCommand(runStart, ctx, {
+        ticket: "t1",
+        step: "review",
+        agent: "claude-code",
+        session: "s-old",
+      })
+    ).data as Run;
+    const prompt = "deguboard: ticket=t1 step=review\n\n見直す";
+    await subagentRecord(subagent("a1"), prompt, 2);
+    // 見直し役は頼んだ文を受け取ってから数秒かけて結果を書く（ファイルの更新時刻は粗い時計なので、同じ瞬間では比べない）
+    const firstAt = new Date(Date.now() - 5000).toISOString();
+    const [head, ...rest] = (await readFile(subagent("a1"), "utf8")).split("\n");
+    await writeFile(
+      subagent("a1"),
+      [JSON.stringify({ ...JSON.parse(head!), timestamp: firstAt }), ...rest].join("\n"),
+    );
+    await runCommand(runReviewResult, ctx, { ticket: "t1", heavy: 0, light: 1, passed: true });
+    const { view } = await call(ctx, "PostToolUse", {
+      ...launched(parent, "a1", prompt),
+      // totalDurationMs のない入力
+      tool_response: {
+        status: "completed",
+        agentId: "a1",
+        resolvedModel: "claude-test-1",
+        content: [{ type: "text", text: "指摘はない" }],
+      },
+    });
+    expect(view.done).toContainEqual(expect.stringContaining("保留に移した"));
+    const runs = (await runCommand(runList, ctx, { ticket: "t1" })).data as RunView[];
+    expect(runs.find((r) => r.id === stale.id)).toMatchObject({
+      result: "interrupted",
+      review: null,
+    });
+    const fresh = runs.find((r) => r.id !== stale.id)!;
+    expect(fresh).toMatchObject({
+      result: "success",
+      review: { heavy: 0, light: 1, passed: true },
+    });
+    // 新しい Run の開始も記録の最初の行の時刻（秒まで）
+    expect(Date.parse(fresh.started_at)).toBeLessThanOrEqual(Date.parse(firstAt));
+    expect(Date.parse(fresh.started_at)).toBeGreaterThan(Date.parse(firstAt) - 1000);
+  });
+
+  it("dg sync は、書き終わり待ちで残った別のセッションの見直しの Run を閉じず、同じセッションのものは閉じる（ADR-017）", async () => {
+    const { ctx, parent } = await prepared();
+    hookTiming.settleMs = 60;
+    hookTiming.pollMs = 20;
+    // 落ちたセッション s-old の見直し役が結果を書いて止まり、書き終わり待ちのまま残った
+    const prompt = "deguboard: ticket=t1 step=review\n\n見直す";
+    const oldParent = path.join(path.dirname(parent), "s-old.jsonl");
+    const oldSub = path.join(path.dirname(parent), "s-old", "subagents", "agent-o1.jsonl");
+    await call(ctx, "PostToolUse", { ...launched(oldParent, "o1", prompt), session_id: "s-old" });
+    await subagentRecord(oldSub, prompt, 1, [], [{ type: "api-request", id: "q1" }]);
+    await runCommand(runReviewResult, ctx, { ticket: "t1", heavy: 2, light: 0 });
+    await call(ctx, "SubagentStop", {
+      session_id: "s-old",
+      agent_id: "o1",
+      agent_transcript_path: oldSub,
+    });
+    const [stale] = await peekRunningRuns(ctx.repo);
+    expect(stale!.settling_since).not.toBeNull();
+    await appendResponses(oldSub, 1, ["m3"]);
+
+    // 今のセッションの前景の見直し役が、古い Run に今回の結果を書いてから sync を呼ぶ
+    await runCommand(runReviewResult, ctx, { ticket: "t1", heavy: 0, light: 0, passed: true });
+    ctx.env = { ...ctx.env, DEGUBOARD_SESSION: SESSION };
+    await runCommand(sync, ctx, {});
+    expect((await peekRunningRuns(ctx.repo)).map((r) => r.id)).toEqual([stale!.id]);
+
+    // 同じセッションの sync なら閉じる
+    ctx.env = { ...ctx.env, DEGUBOARD_SESSION: "s-old" };
+    const synced = await runCommand(sync, ctx, {});
+    expect(synced.warnings).toContainEqual(expect.stringContaining("success で閉じた"));
+    expect(await peekRunningRuns(ctx.repo)).toEqual([]);
+  });
+
   it("同じセッションで同じチケットの見直しの Run を重ねて開くと、前の Run を閉じずに拒否して警告する（ADR-015）", async () => {
     const { ctx, parent } = await prepared();
     await call(ctx, "PostToolUse", launched(parent, "a1", "deguboard: ticket=t1 step=review"));
