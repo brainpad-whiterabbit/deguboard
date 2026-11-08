@@ -448,7 +448,7 @@ describe("check-docs の正本の外の文書の段落の重複（t551）", () =
     expect(stderr).not.toContain("同じ段落");
   });
 
-  it("ADR の段落は、ほかの文書と同じでも指摘しない（決めたら書き換えないので）", async () => {
+  it("ADR の段落は、ほかの文書と同じでも指摘しない（判断と理由を書き換えないので）", async () => {
     await append("docs/adr/ADR-008-tech-stack.md", SHARED);
     await append("CLAUDE.md", SHARED);
     const { stderr } = await run();
