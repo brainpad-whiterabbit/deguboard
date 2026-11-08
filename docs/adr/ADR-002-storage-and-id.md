@@ -31,10 +31,10 @@
 
 ### 同期の競合：frontmatter をフィールド単位でマージする
 
-- 取り込みは rebase で行い、チケット・墓標・Epic の Markdown に git のマージドライバを当てる。規則の正本は core の `git/merge.ts`
+- 取り込みは rebase で行い、Markdown に git のマージドライバを当てる。規則の正本は core の `git/merge.ts`
 - frontmatter はフィールドごとに 3-way で決め、片側だけ変えた値を採る。両側が違う値に変えたフィールドと本文の同じ行のぶつかりだけを競合にする（SY-4）
-- 登録は `dg init` と `dg sync` が行い、ドライバは絶対パスで指す
-- VS Code 拡張は登録せず、CLI が登録した config を使う
+- 登録は `dg init` と `dg sync` が行い、ドライバは絶対パスで指す。`.gitattributes` はデータのブランチにコミットする
+- VS Code 拡張は自分の `dg` を持たないので登録せず、CLI が登録した config を使う。ドライバが動かなければ競合として報告され、次の CLI の `dg sync` で登録し直す
 
 ### 複数 Project
 
@@ -43,8 +43,8 @@
 
 ### 呼称
 
-- 製品名・CLI のコマンド名・ブランチ名は deguboard に揃える（CLI は `dg`）
-- 作業の最小単位は ticket、期間の単位は iteration（`sprint` はエイリアス）、目的で束ねる単位は epic と呼び、CLI のサブコマンド名にする
+- 製品名・ブランチ名・環境変数の接頭辞は deguboard に揃え、CLI は `dg`
+- 作業の最小単位は ticket、期間の単位は iteration、目的で束ねる単位は epic と呼び、CLI のサブコマンド名にする
 
 ## 理由
 

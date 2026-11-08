@@ -18,7 +18,7 @@ deguboard はソフトウェア開発だけでなく、コンサルティング�
 
 ### 遷移は既定で自由にし、Workflow が制約を足す
 
-- 既定ではどの遷移も human / agent / reconcile の誰でも条件なしで行える。Core が固定するのは Status の集合と前進の順、遷移の副作用だけ（ST-2・ST-8）
+- 既定ではどの遷移も human / agent / reconcile の誰でも条件なしで行える。Core が固定するのは Status の集合と前進の順、同じ Status への move の拒否、遷移の副作用だけ（ST-2・ST-8）
 - Workflow の `transitions` は遷移ごとに主体（`by`）と条件（`requires`）の制約を足す（WF-1。例は requirements の 5.8）
 - 照合（reconcile）は遷移の制約とは別の仕様で、前進の順に進めるだけ（ST-4）。`by` に `reconcile` を含まない遷移は照合でも止まる
 - Workflow が縛るのはチケットの遷移だけ。Epic と Iteration の操作は ADR-009
