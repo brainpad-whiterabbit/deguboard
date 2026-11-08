@@ -5,6 +5,7 @@
 // 段落の重複は guide だけでなく README・CLAUDE.md・docs の正本の外の文書も見る（t551）。
 // 「dg guide <topic> の「<節>」」の節が guide-<topic>.md の見出し・太字の項目・一覧の先頭のコードに無いと落ちる（t561）。
 // その参照が packages の .ts・.tsx の文字列とコメントにあっても落ちる（t562）。
+// 英語の形「the "<節>" section of `dg guide <topic>`」の参照も同じ照らし方で落ちる（t563）。
 // スクリプトは自分の置き場所の親をルートとして読むので、検査に要るファイルを一時ディレクトリに写して動かす。
 // 調べるファイルは git の追跡と無視の規則で決まるので、一時ディレクトリは git init して .gitignore も写す。
 // 写さないファイルへのリンクの切れも出るので、確かめる指摘だけを見る
@@ -496,5 +497,63 @@ describe("check-docs の .ts の文字列とコメントの dg guide の節の�
     // 写さないファイルへのリンクの切れも出るので、確かめる指摘だけを見る
     const { stderr } = await run();
     expect(stderr).not.toMatch(/dg guide [a-z-]+ に節/);
+  });
+});
+
+describe("check-docs の英語の形の dg guide の節の参照（t563）", () => {
+  const PROBE = "packages/cli/src/zz-probe.ts";
+
+  async function append(rel: string, text: string): Promise<void> {
+    await writeFile(join(dir, rel), `${await readFile(join(dir, rel), "utf8")}\n${text}\n`);
+  }
+
+  it('文書の「the "<節>" section of `dg guide <topic>`」が guide の節に無いと、場所を出して落ちる', async () => {
+    await append(
+      "docs/development.md",
+      '切れた参照の確かめ：the "存在しない節" section of `dg guide work` を見る。',
+    );
+    const { code, stderr } = await run();
+    expect(code).toBe(1);
+    expect(stderr).toMatch(/docs\/development\.md:\d+: dg guide work に節「存在しない節」がない/);
+  });
+
+  it("切れた英語の参照を直すと、その指摘は出ない", async () => {
+    await append(
+      "docs/development.md",
+      '切れた参照の確かめ：the "存在しない節" section of `dg guide work` を見る。',
+    );
+    await rewrite("docs/development.md", /存在しない節/, "流れ");
+    const { stderr } = await run();
+    expect(stderr).not.toMatch(/dg guide [a-z-]+ に節「.+」がない/);
+  });
+
+  it("英語の参照は「(…)」の補足を除いた名前で照らし、バッククォートのない形も拾う", async () => {
+    await append(
+      "docs/development.md",
+      '英語の確かめ：the "見る" (Review) section of dg guide review と、the "存在しない節" section of dg guide work を見る。',
+    );
+    const { code, stderr } = await run();
+    expect(code).toBe(1);
+    expect(stderr).toContain("dg guide work に節「存在しない節」がない");
+    expect(stderr).not.toContain("dg guide review に節「見る」がない");
+  });
+
+  it(".ts のテンプレート文字列（\\` のエスケープ）の英語の切れた参照は、場所を出して落ちる", async () => {
+    await writeFile(
+      join(dir, PROBE),
+      'export const s = `Follow the "存在しない節" section of \\`dg guide work\\`.`;\n',
+    );
+    const { code, stderr } = await run();
+    expect(code).toBe(1);
+    expect(stderr).toContain(`${PROBE}:1: dg guide work に節「存在しない節」がない`);
+  });
+
+  it("英語の参照の guide の無いトピックは、guide のファイルがないと落ちる", async () => {
+    await writeFile(join(dir, PROBE), 'export const s = `the "流れ" section of dg guide nope`;\n');
+    const { code, stderr } = await run();
+    expect(code).toBe(1);
+    expect(stderr).toMatch(
+      /zz-probe\.ts:1: dg guide nope の guide-nope\.md がない（「流れ」を指す）/,
+    );
   });
 });

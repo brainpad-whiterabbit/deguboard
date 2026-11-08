@@ -1,4 +1,4 @@
-// 文書とコードの参照を検査する（docs/adr/ADR-001-doc-strategy.md）。大きさの予算は持たない。検査するのは、ADR 一覧の整合と更新日の一致・リンクと見出しアンカーの切れ・拡張と Walkthrough が指す README の見出しアンカー・README.md と README.ja.md の節の構成のずれ・コードとテストの要件 ID・コードの先頭コメントの参照・`dg guide <topic>` の「節」の参照（文書と packages の .ts・.tsx の文字列とコメント）・文書の重複。
+// 文書とコードの参照を検査する（docs/adr/ADR-001-doc-strategy.md）。大きさの予算は持たない。検査するのは、ADR 一覧の整合と更新日の一致・リンクと見出しアンカーの切れ・拡張と Walkthrough が指す README の見出しアンカー・README.md と README.ja.md の節の構成のずれ・コードとテストの要件 ID・コードの先頭コメントの参照・`dg guide <topic>` の「節」と英語の "節" section of `dg guide <topic>` の参照（文書と packages の .ts・.tsx の文字列とコメント）・文書の重複。
 // 要件 ID は docs/requirements.md の箇条書き「- XX-N」で定義されたものに限る。接頭辞は定義と「要件の ID の接頭辞：」の一覧から取り、定義にない番号を参照していたら指摘する（一覧にない接頭辞は要件 ID と見なさない）。先頭コメントは最初の // の行で、requirements.md の節番号・ADR・docs のパス（#アンカー）・guide-*.md を照らす。
 // 文書の重複は、同じ見出しの節の本文が同じ guide どうし（正本を 1 本にする）、または同じ段落が 2 本以上の文書にあるときに指摘する。段落は 40 字以上で、空行・見出し・表・コードで切り、箇条書きの 1 項目も 1 段落にする。比べるのは guide・docs/requirements.md・docs の下のほかの文書（ADR を除く）・CLAUDE.md・README.md・README.ja.md・packages/*/README.md。ADR は判断の記録で、決めたら書き換えないので比べない。README.md と README.ja.md は訳どうしなので、この 2 つだけの組は指摘しない。frontmatter と ``` の中は除く。短い選択肢や定型句は同じ語でよいので対象にしない。指摘には段落の場所（ファイルと行）を出す。
 // 調べるファイルは git が追跡しているか無視されていないもの（.gitignore のビルドの成果物は読まない）。git のリポジトリの中で動かす。
@@ -270,12 +270,27 @@ for (const [text, places] of sameParagraphs) {
   errors.push(`${where}: 同じ段落がある（「${text.slice(0, 30)}…」）`);
 }
 
-// dg guide の節の参照：「`dg guide <topic>` の「<節>」」（バッククォートの有無によらない）を、文書（.md）と packages の .ts・.tsx の文字列とコメントから集め、guide-<topic>.md の見出し（「（…）」の補足を除いた名前を含む）と、節の中の太字の項目・一覧の先頭のコードと照らす。「と「…」」で続く節も見る。
-// 見る名前は「」の中だけ（後ろの「の `implement` のモデル」などは見ない）。.md のコードブロックの中は除く。.ts の中の \`（テンプレート文字列のエスケープ）も読む
+// dg guide の節の参照：日本語の「`dg guide <topic>` の「<節>」」と、英語の「the "<節>" section of `dg guide <topic>`」（"<節>" の後ろの「(…)」の補足を許す）を、文書（.md）と packages の .ts・.tsx の文字列とコメントから集め、guide-<topic>.md の見出し（「（…）」の補足を除いた名前を含む）と、節の中の太字の項目・一覧の先頭のコードと照らす。日本語は「と「…」」で続く節も見る。バッククォートの有無によらない。
+// 見る名前は「」と "" の中だけ（後ろの「の `implement` のモデル」などは見ない）。.md のコードブロックの中は除く。.ts の中の \`（テンプレート文字列のエスケープ）も読む
 const guideNameSets = new Map();
 for (const rel of guideFiles) {
   const topic = path.basename(rel).slice("guide-".length, -".md".length);
   guideNameSets.set(topic, guideSectionNames(await readFile(path.join(root, rel), "utf8")));
+}
+/** 1 行にある dg guide の節の参照を、トピックと節の名前の配列で返す */
+function guideRefsIn(line) {
+  const refs = [];
+  for (const m of line.matchAll(
+    /(?:\\?`)?dg guide ([a-z][a-z-]*)(?:\\?`)?\s*の(「[^」]+」(?:と「[^」]+」)*)/g,
+  )) {
+    refs.push({ topic: m[1], names: [...m[2].matchAll(/「([^」]+)」/g)].map((n) => n[1]) });
+  }
+  for (const m of line.matchAll(
+    /"([^"]+)"(?: \([^)]*\))? section of (?:\\?`)?dg guide ([a-z][a-z-]*)(?:\\?`)?/g,
+  )) {
+    refs.push({ topic: m[2], names: [m[1]] });
+  }
+  return refs;
 }
 let guideRefCount = 0;
 const guideRefFiles = [
@@ -286,12 +301,9 @@ for (const rel of guideRefFiles) {
   const text = await readFile(path.join(root, rel), "utf8");
   const lines = rel.endsWith(".md") ? linesOutsideFences(text) : text.split("\n");
   for (const [i, line] of lines.entries()) {
-    for (const m of line.matchAll(
-      /(?:\\?`)?dg guide ([a-z][a-z-]*)(?:\\?`)?\s*の(「[^」]+」(?:と「[^」]+」)*)/g,
-    )) {
-      const [, topic, quoted] = m;
+    for (const { topic, names: refNames } of guideRefsIn(line)) {
       const names = guideNameSets.get(topic);
-      for (const [, name] of quoted.matchAll(/「([^」]+)」/g)) {
+      for (const name of refNames) {
         guideRefCount++;
         if (names === undefined) {
           errors.push(
