@@ -105,20 +105,22 @@ describe("postMessage の CommandClient", () => {
     });
   });
 
-  it("open は kind: action の要求を送り、応答で解決する", async () => {
+  it.each([
+    [
+      "open は kind: action の name: open で route を送り、応答で解決する",
+      (client: ReturnType<typeof createWebviewClient>) => client.open("#/tickets/t12"),
+      { id: 1, kind: "action", name: "open", route: "#/tickets/t12" },
+    ],
+    [
+      "copy は kind: action の name: copy で text を送り、応答で解決する",
+      (client: ReturnType<typeof createWebviewClient>) => client.copy("feat/x"),
+      { id: 1, kind: "action", name: "copy", text: "feat/x" },
+    ],
+  ])("%s", async (_name, send, request) => {
     const h = host();
     const client = createWebviewClient(h);
-    const p = client.open("#/tickets/t12");
-    expect(h.requests).toEqual([{ id: 1, kind: "action", name: "open", route: "#/tickets/t12" }]);
-    h.reply({ id: 1, ok: true, data: null, warnings: [], write: null });
-    await expect(p).resolves.toBeUndefined();
-  });
-
-  it("copy は kind: action の name: copy で text を送り、応答で解決する", async () => {
-    const h = host();
-    const client = createWebviewClient(h);
-    const p = client.copy("feat/x");
-    expect(h.requests).toEqual([{ id: 1, kind: "action", name: "copy", text: "feat/x" }]);
+    const p = send(client);
+    expect(h.requests).toEqual([request]);
     h.reply({ id: 1, ok: true, data: null, warnings: [], write: null });
     await expect(p).resolves.toBeUndefined();
   });

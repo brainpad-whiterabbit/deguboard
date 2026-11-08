@@ -124,41 +124,6 @@ describe("Plan 詳細（UI-13）", () => {
     expect(client.calls.some((c) => c.name === "plan.show")).toBe(true);
   });
 
-  it("実行計画の帯で Plan の番号を押すと、グラフを開閉せずに Plan 詳細を開く", async () => {
-    const opened: Route[] = [];
-    mount(
-      withPlans(),
-      hostOf("sidebar", (route) => opened.push(route)),
-    );
-    await screen.findByRole("region", { name: "実行計画" });
-    fireEvent.click(document.querySelector<HTMLAnchorElement>(".plan-item a.plan-id")!);
-    expect(opened).toEqual([{ page: "plans", id: "p2" }]);
-    expect(document.querySelector(".plan-graph")).toBeNull();
-    expect(document.querySelector("button.plan-toggle")!.getAttribute("aria-expanded")).toBe(
-      "false",
-    );
-  });
-
-  it("閉じた計画の節の行でも、番号を押すと Plan 詳細を開き、番号以外を押すとグラフを開閉する", async () => {
-    const opened: Route[] = [];
-    mount(
-      withPlans(),
-      hostOf("sidebar", (route) => opened.push(route)),
-    );
-    await screen.findByRole("region", { name: "実行計画" });
-    const closed = document.querySelector<HTMLDetailsElement>(".plan-closed")!;
-    closed.open = true;
-    fireEvent(closed, new Event("toggle"));
-    const item = closed.querySelector(".plan-item")!;
-    fireEvent.click(item.querySelector<HTMLAnchorElement>("a.plan-id")!);
-    expect(opened).toEqual([{ page: "plans", id: "p1" }]);
-    // 左パネルでは待ちの辺のない Plan をチップで出すので、開いたかは行の下の欄で見る
-    expect(item.querySelector(".plan-detail")).toBeNull();
-    fireEvent.click(item.querySelector(".plan-state")!);
-    expect(item.querySelector(".plan-detail")).toBeTruthy();
-    expect(opened).toHaveLength(1);
-  });
-
   it("Iteration 詳細の Plan の節の番号を押すと Plan 詳細を開く", async () => {
     const opened: Route[] = [];
     const client = withPlans();

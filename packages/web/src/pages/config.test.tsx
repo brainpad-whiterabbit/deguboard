@@ -593,7 +593,7 @@ describe("設定画面", () => {
     client.handlers["config.set"] = set;
   });
 
-  it("git.remote・git.base_branch・worktree.root は保存の前に確かめ、やめると戻す", async () => {
+  it("git.remote・git.base_branch・worktree.root は保存の前に確かめ、やめると戻す。worktree.root は「保存する」を押すまで config.set を呼ばず、確かめの間はほかの項目を触れない", async () => {
     const { client } = configClient();
     mount(client);
     await screen.findByText("コミットの仕方");
@@ -613,6 +613,27 @@ describe("設定画面", () => {
     fireEvent.click(within(fieldOf("git.remote")).getByText("保存する"));
     expect(await screen.findByText("保存した: git.remote を upstream にした")).toBeTruthy();
     expect(setCalls(client)).toEqual([{ key: "git.remote", value: "upstream" }]);
+
+    const root = within(fieldOf("worktree.root")).getByRole<HTMLInputElement>("textbox");
+    fireEvent.change(root, { target: { value: "/tmp/worktrees" } });
+    fireEvent.blur(root);
+    const rootConfirm = within(fieldOf("worktree.root")).getByRole("alertdialog");
+    expect(rootConfirm.textContent).toContain("/tmp/worktrees");
+    // 確かめを待つ間はほかの項目を触れず、config.set もまだ呼ばない
+    expect(within(fieldOf("git.remote")).getByRole<HTMLInputElement>("textbox").disabled).toBe(
+      true,
+    );
+    await settle();
+    expect(setCalls(client)).toEqual([{ key: "git.remote", value: "upstream" }]);
+    fireEvent.click(within(rootConfirm).getByText("保存する"));
+    expect(
+      await screen.findByText("保存した: worktree.root を /tmp/worktrees にした"),
+    ).toBeTruthy();
+    expect(setCalls(client)).toEqual([
+      { key: "git.remote", value: "upstream" },
+      { key: "worktree.root", value: "/tmp/worktrees" },
+    ]);
+    expect(within(fieldOf("worktree.root")).queryByRole("alertdialog")).toBeNull();
   });
 
   it("チームのタブで既定が空でない文字列の項目を空にすると、確かめの文は既定の値に戻すことを示し、空でない値に変えるときの文は今のまま", async () => {
@@ -665,29 +686,6 @@ describe("設定画面", () => {
     } finally {
       setLanguage("ja");
     }
-  });
-
-  it("worktree.root も保存の前に確かめ、「保存する」を押すまで config.set を呼ばない", async () => {
-    const { client } = configClient();
-    mount(client);
-    await screen.findByText("コミットの仕方");
-    const root = within(fieldOf("worktree.root")).getByRole<HTMLInputElement>("textbox");
-    fireEvent.change(root, { target: { value: "/tmp/worktrees" } });
-    fireEvent.blur(root);
-    const confirm = within(fieldOf("worktree.root")).getByRole("alertdialog");
-    expect(confirm.textContent).toContain("/tmp/worktrees");
-    // 確かめを待つ間はほかの項目を触れず、config.set もまだ呼ばない
-    expect(within(fieldOf("git.remote")).getByRole<HTMLInputElement>("textbox").disabled).toBe(
-      true,
-    );
-    await settle();
-    expect(setCalls(client)).toEqual([]);
-    fireEvent.click(within(confirm).getByText("保存する"));
-    expect(
-      await screen.findByText("保存した: worktree.root を /tmp/worktrees にした"),
-    ).toBeTruthy();
-    expect(setCalls(client)).toEqual([{ key: "worktree.root", value: "/tmp/worktrees" }]);
-    expect(within(fieldOf("worktree.root")).queryByRole("alertdialog")).toBeNull();
   });
 
   it("チームのタブは自分で上書きしている項目に「自分：値」の印を出し、押すと自分のタブのその項目に移る", async () => {
@@ -941,8 +939,17 @@ describe("設定画面", () => {
     expect(screen.getByText("該当する設定がない")).toBeTruthy();
   });
 
-  // 歯車はビューのタイトル行にあり、拡張ホストの toggle の event が toggleRoute を呼ぶ（host.tsx の HostBridge）
-  it("歯車（toggleRoute）で設定画面とその前の画面を切り替える", async () => {
+  // 歯車はビューのタイトル行にあり、拡張ホストの toggle の event が toggleRoute を呼ぶ（host.tsx の HostBridge）。どちらの手も設定画面から戻す
+  /** 設定画面から戻る手。歯車（toggleRoute）か、画面の「前の画面に戻る」 */
+  async function backFrom(how: "gear" | "button") {
+    if (how === "gear") act(() => toggleRoute("#/config"));
+    else fireEvent.click(await screen.findByRole("button", { name: "前の画面に戻る" }));
+  }
+
+  it.each([
+    ["歯車", "gear"],
+    ["前の画面に戻る", "button"],
+  ] as const)("%s で設定画面を開き、戻すと来る前の画面に戻る", async (_, how) => {
     const { client } = configClient();
     window.location.hash = "#/backlog";
     render(
@@ -954,39 +961,23 @@ describe("設定画面", () => {
     act(() => toggleRoute("#/config"));
     expect(window.location.hash).toBe("#/config");
     expect(await screen.findByText("コミットの仕方")).toBeTruthy();
-    act(() => toggleRoute("#/config"));
+    await backFrom(how);
     expect(window.location.hash).toBe("#/backlog");
   });
 
-  it("画面の中の「前の画面に戻る」は歯車と同じく、来る前の画面に戻る", async () => {
-    const { client } = configClient();
-    window.location.hash = "#/backlog";
-    render(
-      <StoreProvider client={client}>
-        <App />
-      </StoreProvider>,
-    );
-    await screen.findByRole("heading", { level: 1, name: "バックログ" });
-    act(() => toggleRoute("#/config"));
-    expect(window.location.hash).toBe("#/config");
-    fireEvent.click(await screen.findByRole("button", { name: "前の画面に戻る" }));
-    expect(window.location.hash).toBe("#/backlog");
-  });
-
-  it("来る前の画面がない（#/config を直接開いた）ときは、「前の画面に戻る」でカンバンに戻る", async () => {
-    const { client } = configClient();
-    mount(client);
-    fireEvent.click(await screen.findByRole("button", { name: "前の画面に戻る" }));
-    expect(window.location.hash).toBe("#/board");
-  });
-
-  it("来る前の画面がないときは、歯車でもカンバンに戻る", async () => {
-    const { client } = configClient();
-    mount(client);
-    await screen.findByText("コミットの仕方");
-    act(() => toggleRoute("#/config"));
-    expect(window.location.hash).toBe("#/board");
-  });
+  it.each([
+    ["歯車", "gear"],
+    ["前の画面に戻る", "button"],
+  ] as const)(
+    "来る前の画面がない（#/config を直接開いた）ときは、%s でカンバンに戻る",
+    async (_, how) => {
+      const { client } = configClient();
+      mount(client);
+      await screen.findByText("コミットの仕方");
+      await backFrom(how);
+      expect(window.location.hash).toBe("#/board");
+    },
+  );
 });
 
 describe("設定画面の部品", () => {

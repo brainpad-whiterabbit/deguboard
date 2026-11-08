@@ -38,18 +38,7 @@ describe("カンバンで閉じた Iteration か Epic の終わったチケッ�
   const ids = (epic?: string) =>
     hideClosedFinished(tickets, iterations, epics, epic).map((t) => t.id);
 
-  it("Epic か Iteration が closed の done・abandoned を除く", () => {
-    expect(ids()).not.toContain("t1");
-    expect(ids()).not.toContain("t2");
-    expect(ids()).not.toContain("t9");
-    expect(ids()).not.toContain("t10");
-  });
-
-  it("Epic が closed でも終わっていないチケットは残す", () => {
-    expect(ids()).toEqual(expect.arrayContaining(["t3", "t4", "t5"]));
-  });
-
-  it("Epic が open か Epic なしで、閉じた Iteration に入っていない終わったチケットは残す", () => {
+  it("Epic が closed でも終わっていないチケットは残し、Epic が open か Epic なしで閉じた Iteration に入っていない終わったチケットも残す（閉じた Epic・Iteration の done・abandoned は除く）", () => {
     expect(ids()).toEqual(["t3", "t4", "t5", "t6", "t7", "t8", "t11"]);
   });
 
@@ -60,18 +49,6 @@ describe("カンバンで閉じた Iteration か Epic の終わったチケッ�
 });
 
 describe("左パネルのカンバンの見出し", () => {
-  it("進みは done の件数と abandoned を除く件数、Status ごとの件数を数える", () => {
-    const p = ticketProgress([
-      { status: "done" },
-      { status: "todo" },
-      { status: "in_progress" },
-      { status: "abandoned" },
-    ]);
-    expect(p.done).toBe(1);
-    expect(p.total).toBe(3);
-    expect(p.by_status).toMatchObject({ todo: 1, in_progress: 1, review: 0, done: 1 });
-  });
-
   it("進みの数え方は core の progressOf（EP-3）の写しで、同じ結果になる", () => {
     const cases: Pick<Ticket, "status">[][] = [
       [],

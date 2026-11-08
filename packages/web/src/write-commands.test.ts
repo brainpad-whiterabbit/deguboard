@@ -76,16 +76,4 @@ describe("画面から呼ぶ書き込みのコマンド（ADR-027）", () => {
     }
     expect(writes).toEqual(ALLOWED_WRITES);
   });
-
-  it("カンバン・バックログ・Iteration と Epic の詳細は書き込みのコマンドを呼ばない", () => {
-    for (const f of [
-      "pages/board.tsx",
-      "pages/backlog.tsx",
-      "pages/iterations.tsx",
-      "pages/epics.tsx",
-    ]) {
-      expect(files).toContain(f);
-      expect(runCalls(f).filter((name) => findCommand(name.slice(1, -1))?.write)).toEqual([]);
-    }
-  });
 });

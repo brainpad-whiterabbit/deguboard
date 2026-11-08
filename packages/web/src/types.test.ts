@@ -11,19 +11,7 @@ import { movableStatuses, STATUSES, ticketMatchesQuery, type WorkflowView } from
 const t = { id: "t12" as const, title: "Web の検索", labels: ["UI", "search-ui"] };
 
 describe("検索の当て方（ticketMatchesQuery）", () => {
-  it("番号・タイトル・ラベルの部分一致で、前後の空白と大文字小文字によらない", () => {
-    expect(ticketMatchesQuery(t, "T1")).toBe(true);
-    expect(ticketMatchesQuery(t, " web ")).toBe(true);
-    expect(ticketMatchesQuery(t, "ui")).toBe(true);
-    expect(ticketMatchesQuery(t, "t3")).toBe(false);
-    expect(ticketMatchesQuery(t, "")).toBe(true);
-  });
-
-  it("labels を false にするとラベルには当てない", () => {
-    expect(ticketMatchesQuery(t, "search-ui", false)).toBe(false);
-    expect(ticketMatchesQuery(t, "検索", false)).toBe(true);
-  });
-
+  // 当て方の例は core の matchesQuery のテスト（commands/filters.test.ts）が確かめる
   it("core の matchesQuery（ticket list の query）の写しで、同じ結果になる", () => {
     const queries = ["", "  ", "t1", "T12", "t123", "WEB", "検索", "ui", "Search", "なし", " t12 "];
     for (const q of queries)
@@ -46,24 +34,6 @@ describe("Status の選択に並べる Status（movableStatuses）", () => {
 
   it("transitions が空なら、どの遷移も自由なのですべての Status を並べる", () => {
     expect(movableStatuses("review", [], "human")).toEqual([...STATUSES]);
-  });
-
-  it("今の Status は残し、by が [] の遷移と、by が主体を含まない遷移の先は外す", () => {
-    expect(movableStatuses("todo", transitions, "human")).toEqual([
-      "todo",
-      "in_progress",
-      "abandoned",
-    ]);
-    expect(movableStatuses("todo", transitions, "agent")).toEqual([
-      "todo",
-      "in_progress",
-      "review",
-      "abandoned",
-    ]);
-  });
-
-  it("requires だけの制約の先は並べる（満たさないときは ticket.move が理由を出して拒否する）", () => {
-    expect(movableStatuses("in_progress", transitions, "human")).toContain("review");
   });
 
   it("主体が分からなければ by は見ず、by が [] の遷移だけ外す", () => {

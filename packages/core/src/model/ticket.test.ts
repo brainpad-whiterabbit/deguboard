@@ -5,6 +5,7 @@ import {
   acceptanceSection,
   parseAcceptance,
   pendingDeps,
+  progressOf,
   replaceAcceptance,
   setAcceptance,
   ticketBodyTemplate,
@@ -88,6 +89,28 @@ describe("チケットの本文", () => {
       { index: 2, text: "b", checked: true },
     ]);
     expect(setAcceptance(crlf, [1, 2], true)).toBe("## 受け入れ条件\r\n\r\n- [x] a\r\n- [x] b\r\n");
+  });
+
+  it("受け入れ条件の節が 2 つあれば最初の節の項目だけを読む（web の番号付けも同じ）", () => {
+    expect(
+      parseAcceptance(
+        "## 受け入れ条件\n\n- [ ] a\n\n## メモ\n\n- [ ] x\n\n## 受け入れ条件\n\n- [ ] b\n",
+      ),
+    ).toEqual([{ index: 1, text: "a", checked: false }]);
+  });
+});
+
+describe("進み（progressOf）", () => {
+  it("進みは done の件数と abandoned を除く件数、Status ごとの件数を数える", () => {
+    const p = progressOf([
+      { status: "done" },
+      { status: "todo" },
+      { status: "in_progress" },
+      { status: "abandoned" },
+    ]);
+    expect(p.done).toBe(1);
+    expect(p.total).toBe(3);
+    expect(p.by_status).toMatchObject({ todo: 1, in_progress: 1, review: 0, done: 1 });
   });
 });
 

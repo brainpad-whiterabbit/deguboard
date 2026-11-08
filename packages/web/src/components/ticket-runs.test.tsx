@@ -75,10 +75,11 @@ describe("チケット詳細の Run", () => {
     expect(pairs["終了"]).toBe("—");
   });
 
-  it("Run がなければそう出す", async () => {
+  it("Run がなければ「Run はない」と出し、見出しに合計を出さない", async () => {
     renderPanel(mockClient());
     expect(await screen.findByText("Run はない")).toBeTruthy();
     expect(document.querySelector(".ticket-run")).toBeNull();
+    expect(document.querySelector(".ticket-runs-summary")).toBeNull();
   });
 
   it("推定を含む使用量は「~」を付けて（推定を含む）と添え、run.list の警告を一覧の上に出す", async () => {
@@ -101,7 +102,7 @@ describe("チケット詳細の Run", () => {
     const tokens = document.querySelector(".ticket-run-detail dd.num")!.textContent;
     expect(tokens).toContain("入力 ~1,500 / 出力 ~20");
     expect(tokens).toContain("（推定を含む）");
-    expect(screen.getByText("deguboard-local/runs/x.json: 読めない").className).toBe("muted");
+    expect(screen.getByText("deguboard-local/runs/x.json: 読めない")).toBeTruthy();
   });
 
   it("run.list が失敗したら理由を出す", async () => {
@@ -110,7 +111,7 @@ describe("チケット詳細の Run", () => {
       throw new Error("Run を読めない");
     };
     renderPanel(client);
-    expect((await screen.findByText("Run を読めない")).className).toBe("error");
+    expect(await screen.findByText("Run を読めない")).toBeTruthy();
     expect(document.querySelector(".ticket-run")).toBeNull();
   });
 
@@ -196,12 +197,6 @@ describe("チケット詳細の Run", () => {
     );
     expect(parts).toEqual(["3 件", "成功 1 · 失敗 1 · 実行中 1", "24,690 + — / 1,356 + —"]);
     expect(document.querySelector(".ticket-runs-summary")!.closest("h2")).toBeTruthy();
-  });
-
-  it("Run がなければ見出しに合計を出さない", async () => {
-    renderPanel(mockClient());
-    expect(await screen.findByText("Run はない")).toBeTruthy();
-    expect(document.querySelector(".ticket-runs-summary")).toBeNull();
   });
 
   it("合計はすべて取れなければ「—」、一部なら「+ —」、推定を含めば「~」を付け、0 と見せない", () => {

@@ -220,32 +220,27 @@ describe("エージェントに頼む入力欄（UI-15）", () => {
     expect(box.getByRole("button", { name: "コピー" })).toBeTruthy();
   });
 
-  it("Skill の札と候補のボタンのツールチップに、Skill の 1 文が出る（UI-15・表示言語で変わる）", async () => {
-    const client = askClient();
-    const view = mountWebview(client);
-    await screen.findByText("見直す");
-    view.ask(["t5", "s1"]);
-    await waitFor(() => expect(suggestions()[0]!.textContent).toContain("★点検する"));
-    const summary = skillSummary("dgcheck", "ja");
-    expect(suggestions()[0]!.getAttribute("title")).toBe(`/dgcheck: ${summary}`);
-    expect(composer().querySelector(".ask-pill-skill")?.getAttribute("title")).toBe(summary);
-  });
-
-  it("英語の画面では、Skill の札とボタンのツールチップが英語の 1 文になる", async () => {
-    setLanguage("en");
-    const client = askClient();
-    const view = mountWebview(client);
-    await screen.findByText("見直す");
-    view.ask(["t5", "s1"]);
-    const first = await waitFor(() => {
-      const button = document.querySelector<HTMLElement>(".ask-suggestion");
-      expect(button?.textContent).toContain("Check");
-      return button!;
-    });
-    const summary = skillSummary("dgcheck", "en");
-    expect(first.getAttribute("title")).toBe(`/dgcheck: ${summary}`);
-    expect(document.querySelector(".ask-pill-skill")?.getAttribute("title")).toBe(summary);
-  });
+  it.each([
+    ["ja", "★点検する"],
+    ["en", "Check"],
+  ] as const)(
+    "Skill の札と候補のボタンのツールチップに、Skill の 1 文が出る（表示言語 %s で変わる）",
+    async (language, label) => {
+      setLanguage(language);
+      const client = askClient();
+      const view = mountWebview(client);
+      await screen.findByText("見直す");
+      view.ask(["t5", "s1"]);
+      const first = await waitFor(() => {
+        const button = document.querySelector<HTMLElement>(".ask-suggestion");
+        expect(button?.textContent).toContain(label);
+        return button!;
+      });
+      const summary = skillSummary("dgcheck", language);
+      expect(first.getAttribute("title")).toBe(`/dgcheck: ${summary}`);
+      expect(document.querySelector(".ask-pill-skill")?.getAttribute("title")).toBe(summary);
+    },
+  );
 
   it("札の下に選んだ候補の 1 文を出し、候補を選び直すと文が変わる（依頼文には入らない・UI-15）", async () => {
     const client = askClient();

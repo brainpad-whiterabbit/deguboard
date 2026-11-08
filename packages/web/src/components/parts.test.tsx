@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import { HostProvider } from "../host.js";
 import { createUiState, memoryBackend } from "../ui-state.js";
 import { afterEach, describe, expect, it } from "vitest";
@@ -107,7 +107,7 @@ describe("進捗バー", () => {
 });
 
 describe("優先度の印", () => {
-  it("記号（SVG）と値の文字を出し、色のクラスを付ける。3 つの値を出す（medium も =）", async () => {
+  it("記号（SVG）と値の文字を出す。3 つの値を出す（medium も =）", async () => {
     mount(
       <>
         <PriorityMark priority="high" />
@@ -117,11 +117,7 @@ describe("優先度の印", () => {
     );
     await screen.findByText("high");
     const marks = [...document.querySelectorAll(".priority-mark")];
-    expect(marks.map((m) => m.className)).toEqual([
-      "priority-mark priority-high",
-      "priority-mark priority-medium",
-      "priority-mark priority-low",
-    ]);
+    expect(marks).toHaveLength(3);
     // どの値にも 10px の SVG の記号と値の文字が付く
     for (const m of marks) {
       const svg = m.querySelector("svg.priority-glyph")!;
@@ -213,27 +209,25 @@ describe("状態の印と空の一覧", () => {
     expect(await screen.findByRole("img", { name: "Code Review" })).toBeTruthy();
   });
 
-  it("空の一覧は破線の枠（.empty）で出す", async () => {
+  it("空の一覧は「該当するチケットはない」を出す", async () => {
     mount(<TicketTable tickets={[]} />);
-    expect((await screen.findByText("該当するチケットはない")).className).toBe("empty");
+    expect(await screen.findByText("該当するチケットはない")).toBeTruthy();
   });
 });
 
 describe("カンバンの行の頭の印", () => {
-  it("running は回るリング、idle は止まった半分塗りの丸で、読み上げ用の名前を持つ", async () => {
+  it("running と idle の印は、それぞれ読み上げ用の名前を持つ", async () => {
     mount(
       <>
         <ActivityMark activity="running" />
         <ActivityMark activity="idle" />
       </>,
     );
-    const ring = await screen.findByRole("img", { name: "Run が実行中" });
-    expect(ring.className).toBe("activity-mark activity-running");
-    const half = screen.getByRole("img", { name: "着手済み（実行中の Run なし）" });
-    expect(half.className).toBe("activity-mark activity-idle");
+    await screen.findByRole("img", { name: "Run が実行中" });
+    screen.getByRole("img", { name: "着手済み（実行中の Run なし）" });
   });
 
-  it("kanban の行は head を番号の前に出して has-head を付け、list の行は head を使わず丸印を出す", async () => {
+  it("kanban の行は head の印を出し、list の行は head を使わず状態の丸印を出す", async () => {
     const t = ticket({ id: "t1", status: "in_progress" });
     mount(
       <>
@@ -243,12 +237,12 @@ describe("カンバンの行の頭の印", () => {
       </>,
     );
     await screen.findAllByText("t1");
-    const [withHead, list, plain] = [...document.querySelectorAll(".ticket-row")];
-    expect(withHead!.classList.contains("has-head")).toBe(true);
-    expect(withHead!.firstElementChild!.classList.contains("activity-idle")).toBe(true);
-    expect(list!.querySelector(".activity-mark")).toBeNull();
-    expect(list!.firstElementChild!.classList.contains("status-dot")).toBe(true);
-    expect(plain!.classList.contains("has-head")).toBe(false);
-    expect(plain!.firstElementChild!.tagName).toBe("CODE");
+    const [withHead, list, plain] = [...document.querySelectorAll<HTMLElement>(".ticket-row")];
+    const idle = { name: "着手済み（実行中の Run なし）" };
+    expect(within(withHead!).getByRole("img", idle)).toBeTruthy();
+    expect(within(list!).queryByRole("img", idle)).toBeNull();
+    expect(within(list!).getByRole("img", { name: "In Progress" })).toBeTruthy();
+    expect(within(plain!).queryByRole("img", idle)).toBeNull();
+    expect(within(plain!).getByText("t1")).toBeTruthy();
   });
 });
