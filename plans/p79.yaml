@@ -1,0 +1,28 @@
+id: p79
+project: default
+tickets: [t496, t450, t451, t497, t540]
+after:
+  t497:
+    - t496
+pending_approval: true
+details:
+  t496:
+    scope: requirements・ADR-006/010・README（英日）・cli README の文書だけ。コードは消さない
+    approach: 受け入れ条件の各文書を順に直し、check:docs で参照の切れを確かめる
+    tier: light
+  t450:
+    scope: web の react(immutability) の指摘 3 か所を直し、oxlint を最新に上げ、ADR-008 の留める記述を消す
+    approach: oxlint を上げて落ちる箇所を lint で特定し、web のコードを直してから ADR-008 を直す
+    tier: standard
+  t451:
+    scope: 拡張の watch.ts の gitCommonDir を core の関数に置き換え、core の currentBranch を 1 つにする。t565 で消えたステータスバーの条件は本文から外す
+    approach: core の resolveRepoPaths を拡張から使い、拡張は git を呼ばない。受け入れ条件を今のコードに合わせて直してから着手する
+    tier: standard
+  t497:
+    scope: Run の画面・surface の browser・ブラウザだけの作りを消し、dg serve/open の help に開発用と書く。server は残す
+    approach: ルート・ナビ・surface の分岐を消し、test:layout で sidebar とパネルの配置を確かめる
+    tier: heavy
+  t540:
+    scope: transcripts の片付けの手段を決めて足し、RN-3・MT-5 に書く
+    approach: run refresh の要る期間を調べ、片付ける操作（か決まり）を core のコマンドに足してテストする
+    tier: heavy
