@@ -1,0 +1,16 @@
+id: p75
+project: default
+tickets: [t560, t561]
+after:
+  t561:
+    - t560
+pending_approval: true
+details:
+  t560:
+    scope: guide-parallel・guide-overview・guide-review・guide.test.ts の参照と言い回し、ADR-021 のリンクの直し
+    approach: 切れた節の参照を実在する見出しに向け、ADR-021 は ADR-001 のリンク直しの例外として参照だけ直す
+    tier: light
+  t561:
+    scope: scripts/check-docs.mjs に「dg guide <topic> の『節』」形の参照の検査とテストを足す
+    approach: 文書と guide-*.md から参照を集め、guide-<topic>.md の見出しと照らして無ければ失敗させる。t560 の後の状態で通ることを確かめる
+    tier: standard
