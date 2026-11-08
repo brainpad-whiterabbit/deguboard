@@ -1,4 +1,4 @@
-// 待ちの循環の検出。Plan の作成（plan.create）と dg lint が共有する
+// 待ちの循環の検出。depends_on の循環（dg validate の integrity.ts）と、Plan の after の循環（plan.create と dg lint）が共有する
 
 import { isTerminal } from "../model/common.js";
 import { pendingDeps } from "../model/ticket.js";
@@ -15,35 +15,50 @@ export interface WaitCycle {
   edges: WaitEdge[];
 }
 
-/** 待ちが循環していれば、その一例（始まりのチケットと、たどった辺）を返す */
-export function findCycle(
-  ids: readonly string[],
+/**
+ * ids から深さ優先でたどり、戻りの辺（たどっている途中のチケットへの辺）を見つけるたびに、その循環を onCycle に渡す。
+ * onCycle が true を返せばそこでやめる。たどり終えたチケットは二度たどらないので、渡すのは戻りの辺ごとに 1 回で、すべての循環ではない
+ */
+export function eachCycle(
+  ids: Iterable<string>,
   edgesOf: (id: string) => readonly WaitEdge[],
-): WaitCycle | undefined {
+  onCycle: (cycle: WaitCycle) => boolean | void,
+): void {
   const state = new Map<string, "visiting" | "done">();
   // たどっている途中のチケットと、そこから出た辺（path[i] は onPath[i] から出た辺）
   const onPath: string[] = [];
   const path: WaitEdge[] = [];
-  const visit = (id: string): WaitCycle | undefined => {
-    if (state.get(id) === "done") return undefined;
-    if (state.get(id) === "visiting") return { start: id, edges: path.slice(onPath.indexOf(id)) };
+  const visit = (id: string): boolean => {
+    const s = state.get(id);
+    if (s === "done") return false;
+    if (s === "visiting")
+      return onCycle({ start: id, edges: path.slice(onPath.indexOf(id)) }) === true;
     state.set(id, "visiting");
     onPath.push(id);
     for (const next of edgesOf(id)) {
       path.push(next);
-      const found = visit(next.to);
-      if (found) return found;
+      const stop = visit(next.to);
       path.pop();
+      if (stop) return true;
     }
     onPath.pop();
     state.set(id, "done");
-    return undefined;
+    return false;
   };
-  for (const id of ids) {
-    const found = visit(id);
-    if (found) return found;
-  }
-  return undefined;
+  for (const id of ids) if (visit(id)) return;
+}
+
+/** 待ちが循環していれば、その一例（始まりのチケットと、たどった辺）を返す */
+export function findCycle(
+  ids: Iterable<string>,
+  edgesOf: (id: string) => readonly WaitEdge[],
+): WaitCycle | undefined {
+  let found: WaitCycle | undefined;
+  eachCycle(ids, edgesOf, (cycle) => {
+    found = cycle;
+    return true;
+  });
+  return found;
 }
 
 /** after の循環は ID だけを並べ、after と depends_on をまたぐ循環は辺ごとに出どころを添える */

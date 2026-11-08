@@ -1,7 +1,8 @@
 // 「チケットへ移動」の QuickPick の項目（UI-12）。VS Code の API に触れない部分で、extension.ts から呼ぶ。
 // 項目は ids.ts の ID の索引から作る（毎回 dg を呼ばない）。文言と並びを決める。絞り込みは VS Code の QuickPick が、label（ID とタイトル）・description（種類と Status）・detail に対して行う
 
-import { type IdEntry, type IdIndex, type IdKind, kindLabel } from "./ids.js";
+import type { IdKind } from "@deguboard/core";
+import { type IdEntry, type IdIndex, kindLabel } from "./ids.js";
 import { t } from "./l10n.js";
 
 /** コマンド ID（package.json の commands と keybindings に同じ名前を書く） */

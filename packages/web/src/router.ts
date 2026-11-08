@@ -115,6 +115,7 @@ export function hrefOf(route: Route): string {
     }
     case "backlog":
       return "#/backlog";
+    // 詳細のルートは拡張が core の WEBVIEW_CONTRACT.detailRoutes から組むものと同じ形（client/webview.test.ts で突き合わせる）
     case "ticket":
       return `#/tickets/${route.id}`;
     case "epics":

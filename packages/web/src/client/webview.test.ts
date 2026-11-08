@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
-// 拡張と合わせる値の写しを照らすためだけに core の実行時のコード（WEBVIEW_CONTRACT）を取り込む（画面のコードは型だけを取る。ADR-007）
+// 拡張と合わせる値の写しを照らすためだけに core の実行時のコード（WEBVIEW_CONTRACT と詳細のルート）を取り込む（画面のコードは型だけを取る。ADR-007）
 import {
+  detailOfRoute,
+  detailRouteOf,
   WEBVIEW_CONTRACT,
   type WebviewEvent,
   type WebviewRequest,
@@ -8,7 +10,7 @@ import {
 } from "@deguboard/core";
 import { afterEach, describe, expect, it } from "vitest";
 import { setLanguage } from "../l10n.js";
-import { hrefOf, parseRoute } from "../router.js";
+import { hrefOf, isDetailRoute, parseRoute, type Route } from "../router.js";
 import { ClientError } from "./http.js";
 import { createWebviewClient, WEBVIEW_CONTRACT_COPY } from "./webview.js";
 
@@ -159,6 +161,29 @@ describe("拡張と合わせる値（core の WEBVIEW_CONTRACT の写し）", ()
     expect(hrefOf({ page: "config" })).toBe(WEBVIEW_CONTRACT.routes.config);
     expect(parseRoute(WEBVIEW_CONTRACT.routes.board).page).toBe("board");
     expect(parseRoute(WEBVIEW_CONTRACT.routes.config).page).toBe("config");
+  });
+
+  it("拡張が開く詳細のルート（core の detailRouteOf）は router の hrefOf と同じで、その詳細の画面に戻る", () => {
+    const pages = {
+      ticket: "ticket",
+      iteration: "iterations",
+      epic: "epics",
+      plan: "plans",
+    } as const satisfies Record<keyof typeof WEBVIEW_CONTRACT.detailRoutes, Route["page"]>;
+    for (const [id, kind] of [
+      ["t12", "ticket"],
+      ["s3", "iteration"],
+      ["e2", "epic"],
+      ["p5", "plan"],
+    ] as const) {
+      const route = detailRouteOf(id)!;
+      expect(route).toBe(`${WEBVIEW_CONTRACT.detailRoutes[kind]}${id}`);
+      expect(hrefOf({ page: pages[kind], id })).toBe(route);
+      const parsed = parseRoute(route);
+      expect(parsed).toEqual({ page: pages[kind], id });
+      expect(isDetailRoute(parsed)).toBe(true);
+      expect(detailOfRoute(hrefOf(parsed))).toEqual({ kind, id });
+    }
   });
 
   it("core の通知の名前はどれも通知として受け取り、知らない名前は応答として扱う", () => {

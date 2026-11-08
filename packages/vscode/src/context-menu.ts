@@ -28,7 +28,7 @@ export function menuTicketOf(arg: unknown): MenuTicket | undefined {
   return { ticket: v["ticket"] };
 }
 
-/** 「詳細を開く」でパネルに出すルート */
+/** 「詳細を開く」でパネルに出すルート（core の WEBVIEW_CONTRACT の詳細のルート） */
 export function ticketRoute(row: MenuTicket): string {
-  return `#/tickets/${row.ticket}`;
+  return `${WEBVIEW_CONTRACT.detailRoutes.ticket}${row.ticket}`;
 }

@@ -86,22 +86,6 @@ export function coalesce(fn: () => void, waitMs: number): { fire(): void; cancel
   };
 }
 
-const SUBJECT_KINDS = {
-  tickets: "ticket",
-  iterations: "iteration",
-  epics: "epic",
-  plans: "plan",
-} as const;
-
-/** ルートが指す詳細の対象（#/tickets/t12 → ticket t12、#/iterations/s3 → iteration s3、#/epics/e2 → epic e2、#/plans/p5 → plan p5）。詳細でなければ undefined。パネルの題に使う（UI-12） */
-export function subjectOfRoute(
-  route: string,
-): { kind: (typeof SUBJECT_KINDS)[keyof typeof SUBJECT_KINDS]; id: string } | undefined {
-  const m = /^#\/(tickets|iterations|epics|plans)\/([^/?#]+)/.exec(route);
-  if (!m) return undefined;
-  return { kind: SUBJECT_KINDS[m[1] as keyof typeof SUBJECT_KINDS], id: m[2]! };
-}
-
 /**
  * サイドバーに画面を出す頼み（navigate：その画面に移す、toggle：その画面と来る前の画面で切り替える）の届け方。
  * サイドバーが描かれていれば Webview に event を送り（切り替えは今の画面を知っている web に任せる）、

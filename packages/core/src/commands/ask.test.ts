@@ -127,6 +127,28 @@ describe("依頼文の組み立て", () => {
     );
   });
 
+  it("札のツールチップ（line）は定型の文の言語の区切りで組み、タイトルは訳さない", () => {
+    const lineOf = (subject: AskSubject, language: "ja" | "en") =>
+      buildAsk({ subjects: [subject], language }).targets[0]!.line;
+    const lines = (language: "ja" | "en") =>
+      [ticket({ iteration: null }), iteration("active"), epic("open")].map((s) =>
+        lineOf(s, language),
+      );
+    const planLine = (language: "ja" | "en") => lineOf(planOf("pending_approval"), language);
+    expect(lines("ja")).toEqual([
+      "t265「右の列を細くする」（todo, Iteration なし）",
+      "Iteration s10「チケット詳細の改善」（active）",
+      "Epic e9「溜まりを閉じる」（open）",
+    ]);
+    expect(planLine("ja")).toBe("Plan p33（承認待ち、t307）");
+    expect(lines("en")).toEqual([
+      't265 "右の列を細くする" (todo, No Iteration)',
+      'Iteration s10 "チケット詳細の改善" (active)',
+      'Epic e9 "溜まりを閉じる" (open)',
+    ]);
+    expect(planLine("en")).toBe("Plan p33 (Awaiting approval, t307)");
+  });
+
   it("文章だけの形式は、対象の ID を含む頼む 1 文・dg の呼び方（--json --actor agent）・指示の 3 行になる", () => {
     const view = buildAsk({
       subjects: [ticket({ status: "review" })],

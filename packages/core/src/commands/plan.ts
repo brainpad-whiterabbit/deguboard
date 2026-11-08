@@ -262,7 +262,7 @@ export const planShow = defineCommand({
   positionals: ["plan"],
   group: "plan",
   summary:
-    "Plan と、入っているチケットを Plan の順で出す。進捗・待ちの相手（items[].waiting）・着手できるか（items[].ready）・次（next）は Plan に書かず、チケットの状態から求める",
+    "Plan と、入っているチケットを Plan の順で出す。状態（status。pending・approved・closed）・進捗・待ちの相手（items[].waiting）・着手できるか（items[].ready）・次（next）は Plan に書かず、チケットの状態から求める",
   input: z.object({ plan: planRef }),
   write: false,
   needs: "store",
@@ -283,7 +283,14 @@ export const planShow = defineCommand({
       ready: ready.includes(t.data.id),
     }));
     return ok(
-      { ...doc.data, progress: progressOf(found.map((t) => t.data)), ready, next, items },
+      {
+        ...doc.data,
+        status: planStatus(doc.data),
+        progress: progressOf(found.map((t) => t.data)),
+        ready,
+        next,
+        items,
+      },
       undefined,
       warnings,
     );
