@@ -105,6 +105,12 @@ describe("dg guide", () => {
   it("work の実装の手順は draft の PR まで、正本を読み直して ADR-001 の範囲で直し、PR の本文に読み直したことと付けられなかった項目を書く", async () => {
     const impl = section(await readGuide("work"), "## 実装する（draft の PR まで）");
     for (const word of ["requirements", "ADR-001", "README"]) expect(impl).toContain(word);
+    // ADR は判断を変えるときの置き換えの一覧と、この PR で古くなった細部の報告まで書く（直さない）
+    for (const word of [
+      "古い ADR を置き換えにして一覧を直す",
+      "この PR で古くなった ADR の細部は直さず、報告に書く",
+    ])
+      expect(impl, word).toContain(word);
     // 読み直し → PR を作る → 本文に読み直した正本と直した箇所を書く、の順
     expect(impl).toMatch(/読み直し[\s\S]*?gh pr create --draft[\s\S]*?読み直した正本と直した箇所/);
     expect(impl).toContain("付けられなかった受け入れ条件");
@@ -132,10 +138,17 @@ describe("dg guide", () => {
     expect(bullet(section(review, "## 見直す"), "返す")).toContain("参考節との食い違い");
   });
 
-  it("review は ADR や要件に足した細部を指摘にして軽く扱い、重い指摘は約束・手順・規約の変更に限る", async () => {
-    const look = bullet(section(await readGuide("review"), "## 見直す"), "見る");
-    for (const word of ["ADR や要件に細部を足した", "軽い指摘", "約束・手順・規約"])
+  it("review は ADR や要件に足した細部を重い指摘にし、文書を直していない重い指摘は約束・手順・規約の変更に限る", async () => {
+    const review = await readGuide("review");
+    const look = bullet(section(review, "## 見直す"), "見る");
+    for (const word of [
+      "ADR や要件に細部を足した",
+      "重い指摘",
+      "約束・手順・規約",
+      "文書を直していない",
+    ])
       expect(look, word).toContain(word);
+    expect(bullet(section(review, "## 見直す"), "返す")).toContain("ADR や要件に足した細部");
   });
 
   it("import は受け入れ条件に ADR や要件の書き足しを入れるのを ADR-001 の基準に当たるときだけにし、それ以外はテストとコメントで約束を示すと案内する", async () => {

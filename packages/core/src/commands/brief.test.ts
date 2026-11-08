@@ -40,7 +40,7 @@ describe("サブエージェントに渡す文の形（brief）", () => {
       - 場所：worktree /work/deguboard.worktrees/feat/t12、ブランチ feat/t12。ファイルはこの worktree の中だけで編集する。
       - Plan p3 の範囲：右の列の CSS だけ
       - 方針：幅の変数を 1 つ足す
-      - 規約：リポジトリのルートにあるエージェント向けの指示ファイルと \`dg guide work\` の「実装する」（draft の PR まで）に従う。読み直して直す正本は requirements（約束だけを直し、細部は足さない）と README・コードのコメントで、ADR は判断と理由を書き換えないので入れない。PR は \`gh pr create --draft\` で作り、本文にチケット ID（t12）を書く。
+      - 規約：リポジトリのルートにあるエージェント向けの指示ファイルと \`dg guide work\` の「実装する」（draft の PR まで）に従う。読み直して直す正本は requirements（約束だけを直し、細部は足さない）と README・コードのコメントで、ADR は判断と理由を書き換えないので入れない。この PR で古くなった ADR の細部は直さず、報告に書く（\`dg guide audit\` が起票する「ADR の細部を消す」の材料）。PR は \`gh pr create --draft\` で作り、本文にチケット ID（t12）を書く。
       - 受け入れ条件：
         1. 列の幅が 240px になる
         2. 狭い画面で折り返さない
@@ -58,12 +58,12 @@ describe("サブエージェントに渡す文の形（brief）", () => {
       - 場所：worktree /work/deguboard.worktrees/feat/t12、ブランチ feat/t12。ファイルは読むだけで、変えない。
       - 差分：\`git fetch origin\` のあと \`git diff origin/main...feat/t12\` で見る。
       - チケット本文：\`dg --json --actor agent ticket show t12\` の本文と受け入れ条件を読む。
-      - 規約：リポジトリのルートにあるエージェント向けの指示ファイルと \`dg guide review\` の「見直す」に従う。見る観点は受け入れ条件の漏れ・不具合・文書との食い違い（この PR が変えた約束・手順・規約で、文書を同じ PR で直していないものだけが重い。前からのずれと、ADR や要件に足した細部は軽い。細部の直し方はコード・テスト・ヘルプへ移すこと）・規約の違反・範囲の外の変更。チケット本文に \`## 参考\` 節があれば、そこに書いたファイルと差分で変えたファイルを見比べ、参考節にない大きな広がりと、参考節のファイルに触れていない変更を「参考節との食い違い」として返す。
+      - 規約：リポジトリのルートにあるエージェント向けの指示ファイルと \`dg guide review\` の「見直す」に従う。見る観点は受け入れ条件の漏れ・不具合・文書との食い違い（この PR が変えた約束・手順・規約で、文書を同じ PR で直していないものは重い。ADR や要件に細部を足した変更も重い。文書を直していない重い指摘は約束・手順・規約の変更に限る。細部の直し方はコード・テスト・ヘルプへ移すこと。前からのずれは軽い）・規約の違反・範囲の外の変更。チケット本文に \`## 参考\` 節があれば、そこに書いたファイルと差分で変えたファイルを見比べ、参考節にない大きな広がりと、参考節のファイルに触れていない変更を「参考節との食い違い」として返す。
       - 道具：ファイルは Read で読む。Bash の cat・heredoc・sed -i でソースを書き換えない。
       - Run：この文の先頭の印で、フックが見直しの Run（review）を開き閉じる。Run は開かず閉じない。
       - 記録：一覧を返す前に、\`dg --json --actor agent run review-result t12 --heavy <重い指摘の数> --light <軽い指摘の数>\` を 1 回記録する（重い指摘がなければ \`--passed\` も付ける）。
       - しない：ファイルを変える・コミットする・push する・Run のほかに dg へ書き込む・ほかのチケットを見る。
-      - 返すもの：指摘を重い（受け入れ条件の漏れ・不具合・この PR が変えた約束・手順・規約で文書を直していないもの・規約の違反）と軽い（言い回し・好み・前からのずれ・ADR や要件に足した細部）に分けた一覧（ファイルと行・理由・直し方）と、最新のコミットで回した検査の結果。参考節との食い違いは軽い指摘の欄に分けて書き、重い指摘に数えない。"
+      - 返すもの：指摘を重い（受け入れ条件の漏れ・不具合・この PR が変えた約束・手順・規約で文書を直していないもの・ADR や要件に足した細部・規約の違反）と軽い（言い回し・好み・前からのずれ）に分けた一覧（ファイルと行・理由・直し方）と、最新のコミットで回した検査の結果。参考節との食い違いは軽い指摘の欄に分けて書き、重い指摘に数えない。"
     `);
   });
 
@@ -95,7 +95,7 @@ describe("サブエージェントに渡す文の形（brief）", () => {
       - Location: worktree /work/deguboard.worktrees/feat/t12, branch feat/t12. Edit files only inside this worktree.
       - Plan p3 scope: 右の列の CSS だけ
       - Approach: 幅の変数を 1 つ足す
-      - Conventions: Follow the agent instruction file at the repository root and the "実装する" section of \`dg guide work\` (up to creating a draft PR). The sources to reread and fix are requirements (change only the promises; do not add details), the README, and code comments; do not include ADRs, since they record decisions and reasons and are not rewritten. Create the PR with \`gh pr create --draft\` and write the ticket ID (t12) in its body.
+      - Conventions: Follow the agent instruction file at the repository root and the "実装する" section of \`dg guide work\` (up to creating a draft PR). The sources to reread and fix are requirements (change only the promises; do not add details), the README, and code comments; do not include ADRs, since they record decisions and reasons and are not rewritten. Do not fix ADR details that this PR leaves stale; report them as material for the "ADR の細部を消す" ticket from \`dg guide audit\`. Create the PR with \`gh pr create --draft\` and write the ticket ID (t12) in its body.
       - Acceptance criteria: 
         1. 列の幅が 240px になる
         2. 狭い画面で折り返さない
@@ -110,12 +110,12 @@ describe("サブエージェントに渡す文の形（brief）", () => {
       - Location: worktree /work/deguboard.worktrees/feat/t12, branch feat/t12. Read the files only; do not change them.
       - Diff: After \`git fetch origin\`, look at \`git diff origin/main...feat/t12\`.
       - Ticket body: Read the body and acceptance criteria in \`dg --json --actor agent ticket show t12\`.
-      - Conventions: Follow the agent instruction file at the repository root and the "見直す" (Review) section of \`dg guide review\`. Look for missed acceptance criteria, bugs, mismatches with the docs (only docs left stale by a behavior or rule this PR changed are heavy; older drift and details added to an ADR or requirements are light, with the fix moving the details into code, tests, or help), rule violations, and changes outside the scope. If the ticket body has a \`## 参考\` section, compare the files it names with the files the diff changes, and report as "参考節との食い違い" any large spread outside the section and any change that does not touch the files the section names.
+      - Conventions: Follow the agent instruction file at the repository root and the "見直す" (Review) section of \`dg guide review\`. Look for missed acceptance criteria, bugs, mismatches with the docs (docs left stale by a promise, procedure, or rule this PR changed are heavy, and so are details added to an ADR or requirements, whose fix moves the details into code, tests, or help; heavy findings about docs are limited to promises, procedures, and rules; older drift is light), rule violations, and changes outside the scope. If the ticket body has a \`## 参考\` section, compare the files it names with the files the diff changes, and report as "参考節との食い違い" any large spread outside the section and any change that does not touch the files the section names.
       - Tools: read files with Read. Do not write source with Bash cat, heredoc, or sed -i.
       - Run: the marker on the first line makes the hook open and close the review Run. Do not open or close a Run.
       - Record: Before returning the list, record the result once with \`dg --json --actor agent run review-result t12 --heavy <number of heavy findings> --light <number of light findings>\` (add \`--passed\` if there are no heavy findings).
       - Do not: change files, commit, push, write anything to dg other than the Run, or look at other tickets.
-      - Return: a list of findings split into heavy (missed acceptance criteria, bugs, docs left stale by a behavior or rule this PR changed, rule violations) and light (wording, preference, older drift from the docs, details added to an ADR or requirements), each with file and line, reason, and how to fix it; and the results of the checks run on the latest commit. Report 参考節との食い違い (mismatches with the 参考 section) under the light findings, and do not count them as heavy."
+      - Return: a list of findings split into heavy (missed acceptance criteria, bugs, docs left stale by a promise, procedure, or rule this PR changed, details added to an ADR or requirements, rule violations) and light (wording, preference, older drift from the docs), each with file and line, reason, and how to fix it; and the results of the checks run on the latest commit. Report 参考節との食い違い (mismatches with the 参考 section) under the light findings, and do not count them as heavy."
     `);
     expect(composeBrief("fix", facts({ step: "fix" }), "en")).toMatchInlineSnapshot(`
       "deguboard: ticket=t12 step=fix
