@@ -6,9 +6,18 @@ import { createFixture } from "../../test/helpers/git-fixture.js";
 import type { Run } from "../model/run.js";
 import { peekRunningRuns, readTranscriptPaths } from "../run/record.js";
 import { resetGhCache } from "../git/facts.js";
+import { hooksOf } from "../agents/index.js";
 import { openContext } from "./context.js";
 import { runCommand, type CommandContext } from "./define.js";
-import { hook, hookTiming, parseGhPr, parseMarker, writesDataDir, type HookView } from "./hook.js";
+import {
+  hook,
+  hookTiming,
+  parseGhPr,
+  parseMarker,
+  readHookInput,
+  writesDataDir,
+  type HookView,
+} from "./hook.js";
 import { runList, runReviewResult, runStart, type RunView } from "./run.js";
 import { commit, configSet, init, sync } from "./setup.js";
 import { ticketCreate, ticketUpdate } from "./ticket.js";
@@ -729,6 +738,133 @@ describe("サブエージェントの止まりと再開（ADR-014）", () => {
     expect(warnings).toContainEqual(expect.stringContaining("まだ閉じない"));
     expect(view.done.some((d) => d.includes("で閉じた"))).toBe(false);
     expect((await peekRunningRuns(ctx.repo))[0]!.settling_since).not.toBeNull();
+  });
+});
+
+describe("dg hook の入力の記録（t542）", () => {
+  it("扱うイベントは受け取った入力の項目の有無と時刻を deguboard-local/hook-inputs/ に残し、値は残さない", async () => {
+    const { ctx, parent } = await prepared();
+    await call(
+      ctx,
+      "PostToolUse",
+      launched(parent, "a1", "deguboard: ticket=t1 step=implement\n秘密の文"),
+    );
+    const record = await readHookInput(ctx.repo.localDir, "PostToolUse");
+    expect(record).toMatchObject({
+      event: "PostToolUse",
+      fields: { "tool_input.prompt": true, "tool_response.agentId": true },
+    });
+    expect(record!.received_at).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    const text = await readFile(
+      path.join(ctx.repo.localDir, "hook-inputs", "PostToolUse.json"),
+      "utf8",
+    );
+    expect(text).not.toContain("秘密の文");
+    expect(text).not.toContain("a1");
+  });
+
+  it("要る項目がない入力は有無に false として残し、直近の 1 件だけを上書きする", async () => {
+    const { ctx, parent } = await prepared();
+    const broken = {
+      ...launched(parent, "a1", "頼んだ文"),
+      tool_response: { status: "async_launched" },
+    };
+    await call(ctx, "PostToolUse", broken);
+    const fields = (await readHookInput(ctx.repo.localDir, "PostToolUse"))!.fields;
+    expect(fields["tool_input.prompt"]).toBe(true);
+    expect(fields["tool_response.agentId"]).toBe(false);
+    await call(ctx, "PostToolUse", launched(parent, "a2", "頼んだ文"));
+    expect(
+      (await readHookInput(ctx.repo.localDir, "PostToolUse"))!.fields["tool_response.agentId"],
+    ).toBe(true);
+  });
+
+  it("PreToolUse はツールごとに読む項目を記録し、Bash で command がなければ欠けたと残す", async () => {
+    const { ctx } = await prepared();
+    await call(ctx, "PreToolUse", {
+      session_id: SESSION,
+      tool_name: "Bash",
+      tool_input: {},
+      cwd: "/w",
+    });
+    expect((await readHookInput(ctx.repo.localDir, "PreToolUse"))!.fields).toEqual({
+      session_id: true,
+      tool_name: true,
+      cwd: true,
+      "tool_input.command": false,
+    });
+  });
+
+  it("扱わないイベントの入力は記録しない", async () => {
+    const { ctx } = await prepared();
+    await call(ctx, "UserPromptSubmit", { session_id: SESSION });
+    expect(await readHookInput(ctx.repo.localDir, "UserPromptSubmit")).toBeUndefined();
+  });
+});
+
+describe("入力の項目と parseHook の読み方（t542）", () => {
+  const full: Record<string, Record<string, unknown>> = {
+    SessionStart: { session_id: "s", transcript_path: "/t.jsonl" },
+    PostToolUse: {
+      session_id: "s",
+      transcript_path: "/t.jsonl",
+      tool_name: "Agent",
+      tool_input: { prompt: "頼んだ文" },
+      tool_response: { agentId: "a1", status: "completed", resolvedModel: "m", totalDurationMs: 5 },
+    },
+    SubagentStart: { session_id: "s", transcript_path: "/t.jsonl", agent_id: "a1" },
+    SubagentStop: { session_id: "s", agent_id: "a1", agent_transcript_path: "/a.jsonl" },
+    SessionEnd: { session_id: "s" },
+  };
+  const pre = (tool: string, toolInput: Record<string, unknown>) => ({
+    session_id: "s",
+    tool_name: tool,
+    tool_input: toolInput,
+    cwd: "/w",
+  });
+  const cases: Array<[string, Record<string, unknown>, string[]]> = [
+    ["SessionStart", full["SessionStart"]!, ["session_id", "transcript_path"]],
+    [
+      "PostToolUse",
+      full["PostToolUse"]!,
+      ["session_id", "transcript_path", "tool_name", "tool_input.prompt", "tool_response.agentId"],
+    ],
+    ["SubagentStart", full["SubagentStart"]!, ["session_id", "transcript_path", "agent_id"]],
+    ["SubagentStop", full["SubagentStop"]!, ["session_id", "agent_id", "agent_transcript_path"]],
+    ["SessionEnd", full["SessionEnd"]!, ["session_id"]],
+    [
+      "PreToolUse",
+      pre("Bash", { command: "ls" }),
+      ["session_id", "tool_name", "cwd", "tool_input.command"],
+    ],
+    [
+      "PreToolUse",
+      pre("Edit", { file_path: "/a" }),
+      ["session_id", "tool_name", "cwd", "tool_input.file_path"],
+    ],
+    [
+      "PreToolUse",
+      pre("NotebookEdit", { notebook_path: "/n" }),
+      ["session_id", "tool_name", "cwd", "tool_input.notebook_path"],
+    ],
+  ];
+
+  it("イベント（とツール）ごとの項目は、parseHook が読む項目と一致し、外すと parse の結果が変わる", () => {
+    const hooks = hooksOf("claude-code")!;
+    const env = { CLAUDE_ENV_FILE: "/env" };
+    for (const [event, input, expected] of cases) {
+      expect([...hooks.inputFields(event, input)]).toEqual(expected);
+      const whole = hooks.parse(event, input, env);
+      expect(whole, event).toBeDefined();
+      for (const field of expected) {
+        const without = structuredClone(input);
+        const keys = field.split(".");
+        let at: Record<string, unknown> = without;
+        for (const k of keys.slice(0, -1)) at = at[k] as Record<string, unknown>;
+        delete at[keys[keys.length - 1]!];
+        expect(hooks.parse(event, without, env), `${event} の ${field}`).not.toEqual(whole);
+      }
+    }
   });
 });
 

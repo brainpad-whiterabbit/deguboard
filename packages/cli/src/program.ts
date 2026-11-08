@@ -25,7 +25,7 @@ import { toErrorView, type ErrorView } from "./errors.js";
 import { GUIDE_TOPICS, renderGuide } from "./guide.js";
 import { serveMcp } from "./mcp.js";
 import { installSkill, skillInstallWarnings } from "./skill.js";
-import { installHooks, uninstallHooks } from "./hooks.js";
+import { checkHooks, installHooks, uninstallHooks, type HandlerStatus } from "./hooks.js";
 import { addServeCommands } from "./serve.js";
 import { bindInputs, collectInput, shapesOf } from "./options.js";
 import {
@@ -235,7 +235,7 @@ export function buildProgram(options: ProgramOptions = {}): Command {
       .command(action)
       .description(
         action === "install"
-          ? "Claude Code の設定（<リポジトリ>/.claude/settings.json）に dg hook を呼ぶフックを書く。主体を agent にし、頼んだ文の先頭に印 `deguboard: ticket=<id> step=<step>` のあるサブエージェントの Run を起動で開き、step を終えたら閉じる。gh pr merge・gh pr ready を dg gate で止め、.git/deguboard/ への書き込みを拒む。もう一度実行しても重ならず、手で足したフックは残す"
+          ? "Claude Code の設定（<リポジトリ>/.claude/settings.json）に dg hook を呼ぶフックを書く。入ったかと動くかは dg hooks check で確かめる。主体を agent にし、頼んだ文の先頭に印 `deguboard: ticket=<id> step=<step>` のあるサブエージェントの Run を起動で開き、step を終えたら閉じる。gh pr merge・gh pr ready を dg gate で止め、.git/deguboard/ への書き込みを拒む。もう一度実行しても重ならず、手で足したフックは残す"
           : "Claude Code の設定から dg のフックだけを外す。手で足したフックは残す",
       )
       .option("--personal", "リポジトリではなく個人の設定（~/.claude/settings.json）に書く")
@@ -282,6 +282,53 @@ export function buildProgram(options: ProgramOptions = {}): Command {
         }
       });
   }
+
+  hooksCmd
+    .command("check")
+    .description(
+      "Claude Code の設定に dg のフックが入っているか（イベントごと・matcher）、ハンドラ（dg を呼ぶコマンド）が --version で動くか、直近のフックの入力で受け取らなかった項目（値は見ず有無だけ）がなかったかを確かめる。欠けていれば警告する。警告があっても終了コードは 0。入力の記録はリポジトリの中でだけ見る",
+    )
+    .option("--personal", "リポジトリではなく個人の設定（~/.claude/settings.json）を見る")
+    .exitOverride()
+    .configureOutput(program.configureOutput())
+    .action(async (opts: { personal?: boolean }) => {
+      const global = program.opts<{ json?: boolean; C?: string }>();
+      try {
+        const { warnings, ...data } = await checkHooks({
+          cwd: resolve(options.cwd ?? process.cwd(), global.C ?? "."),
+          scope: opts.personal ? "personal" : "project",
+          env,
+        });
+        if (global.json)
+          streams.out(JSON.stringify({ ok: true, data, warnings, write: null }, null, 2));
+        else {
+          const label: Record<HandlerStatus, string> = {
+            ok: "ハンドラは動く",
+            missing: "ハンドラが見つからない",
+            timeout: "ハンドラは時間切れ",
+            failed: "ハンドラは異常終了",
+            unverified: "ハンドラは確かめられない",
+          };
+          streams.out(`設定のファイル：${data.file}`);
+          for (const e of data.events) {
+            const handler = e.handler === null ? "" : `・${label[e.handler]}`;
+            const received = e.received_at
+              ? `・直近の入力 ${e.received_at}`
+              : "・まだ受け取っていない";
+            streams.out(
+              `${e.event}：${e.installed ? "入っている" : "入っていない"}${handler}${received}`,
+            );
+          }
+          for (const w of warnings) streams.err(`警告: ${w}`);
+        }
+        process.exitCode = 0;
+      } catch (error) {
+        const view = toErrorView(error);
+        if (global.json) printJsonError(streams, view);
+        else printError(streams, view);
+        process.exitCode = view.exitCode;
+      }
+    });
 
   // git が rebase の中から呼ぶマージドライバ（SY-4）。利用者が打つものではないのでヘルプに出さない。
   // 文脈（ロック・Store）を開かない：sync がロックを持ったまま rebase するので、開くと待ち合う

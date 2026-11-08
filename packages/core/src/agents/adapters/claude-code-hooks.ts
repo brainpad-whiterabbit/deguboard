@@ -249,6 +249,46 @@ async function selfOpenedRunIds(transcript: string): Promise<string[]> {
   return ids;
 }
 
+/**
+ * 入力のうち parseHook が読む項目（t542）。PreToolUse はツールごとに違い、Bash は command、書くツールは file_path（NotebookEdit は notebook_path）。
+ * ここと parseHook の読み方は同じにする（テストで、項目を外すと parseHook の結果が変わることを確かめる）
+ */
+function inputFieldsOf(event: string, input: Record<string, unknown>): readonly string[] {
+  const base = ["session_id"];
+  switch (event) {
+    case "SessionStart":
+      return [...base, "transcript_path"];
+    case "PostToolUse":
+      return [
+        ...base,
+        "transcript_path",
+        "tool_name",
+        "tool_input.prompt",
+        "tool_response.agentId",
+      ];
+    case "SubagentStart":
+      return [...base, "transcript_path", "agent_id"];
+    case "SubagentStop":
+      return [...base, "agent_id", "agent_transcript_path"];
+    case "PreToolUse": {
+      const name = input["tool_name"];
+      const tool =
+        name === "Bash"
+          ? ["tool_input.command"]
+          : name === "NotebookEdit"
+            ? ["tool_input.notebook_path"]
+            : WRITE_TOOLS.has(String(name))
+              ? ["tool_input.file_path"]
+              : [];
+      return [...base, "tool_name", "cwd", ...tool];
+    }
+    case "SessionEnd":
+      return base;
+    default:
+      return [];
+  }
+}
+
 export const claudeCodeHooks: HookSupport = {
   events: [
     { event: "SessionStart" },
@@ -263,6 +303,7 @@ export const claudeCodeHooks: HookSupport = {
     project: (topLevel) => path.join(topLevel, ".claude", "settings.json"),
     personal: (env) => path.join(claudeConfigDir(env), "settings.json"),
   },
+  inputFields: inputFieldsOf,
   parse: parseHook,
   firstPrompt,
   selfOpenedRunIds,
