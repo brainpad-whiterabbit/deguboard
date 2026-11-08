@@ -1,4 +1,4 @@
-// 原子的な書き込み（DT-1、NF-4）。同じディレクトリに一時ファイルを書き、fsync してから rename する
+// 原子的な書き込み（DT-1）。同じディレクトリに一時ファイルを書き、fsync してから rename する
 
 import { randomBytes } from "node:crypto";
 import { mkdir, open, rename, unlink } from "node:fs/promises";
