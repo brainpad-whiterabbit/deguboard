@@ -71,7 +71,7 @@ export function ticketsInEpic(store: Store, epicId: string): Doc<Ticket>[] {
 
 const PRIORITY_RANK: Record<Ticket["priority"], number> = { high: 0, medium: 1, low: 2 };
 
-/** Iteration の中の並び（IT-2）。優先度の高い順、同じなら番号順 */
+/** Iteration の中の並び（IT-3）。優先度の高い順、同じなら番号順 */
 export function ticketsInIteration(store: Store, iterationId: string): Doc<Ticket>[] {
   return sortedDocs(
     [...store.tickets.values()].filter((t) => t.data.iteration === iterationId),

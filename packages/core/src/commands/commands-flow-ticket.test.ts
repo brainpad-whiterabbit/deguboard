@@ -633,7 +633,7 @@ describe("Epic と Iteration", () => {
     await runCommand(iterationStart, ctx, { iteration: "1" });
     await runCommand(ticketMove, ctx, { ticket: "t1", status: "in_progress" });
     await runCommand(ticketMove, ctx, { ticket: "t1", status: "done" });
-    // 所属はチケットの iteration だけで表し、並びは優先度と番号（IT-2）
+    // 所属はチケットの iteration だけで表し、並びは優先度と番号（IT-2・IT-3）
     const shown = await runCommand(iterationShow, ctx, { iteration: "s1" });
     expect(shown.data.items.map((t) => t.id)).toEqual(["t2", "t1"]);
     expect(shown.data).not.toHaveProperty("tickets");
