@@ -13,7 +13,7 @@
 //     事実がなければ止まって待っている印を付ける（移行期の経路）
 //   - session_end：このセッションのサブエージェントの Run のうち開いたままのものをすべて閉じる。親が自分で開いた Run は残す
 //   - tool_requested：.git/deguboard/ への書き込みと、dg を経由しない gh pr ready・merge を粗く拒む（ストアを開かない。t554）
-//   - turn_stopped：データのリポジトリの dg の外の変更（ADR-021）を確かめ、見つけたら止まらずに続けさせて伝える（続けさせた後の Stop では伝えない）。
+//   - turn_stopped：データのリポジトリの dg の外の変更（ADR-026）を確かめ、見つけたら止まらずに続けさせて伝える（続けさせた後の Stop では伝えない）。
 //     dg の外の変更の検査は、ほかのイベントでは runCommand でも行わない（フックで作業を止めない。ownsOutsideCheck）
 //   どのイベントでも、扱うイベントなら読む項目の有無と時刻を deguboard-local/hook-inputs/ に残す（t542。dg hooks check が読む）
 //   どのフックの後も、前のフックで書き終わりを待ちきれずに残した Run を閉じる（dg sync も同じ）
@@ -791,7 +791,7 @@ async function sessionEnd(
 const DATA_DIR_WORD = /\.git[\\/]+deguboard/;
 
 /**
- * Bash のコマンドがデータ（.git/deguboard/）に触れるか（t546、ADR-021）。字句を読まず、生のコマンドに .git/deguboard の語が
+ * Bash のコマンドがデータ（.git/deguboard/）に触れるか（t546、ADR-026）。字句を読まず、生のコマンドに .git/deguboard の語が
  * どこかにあれば（読むだけのものも、引用符・コメントの中も）触れるとみなし、dg の読み書きのコマンドへ案内する。
  * 語として現れない形（cd .git && rm deguboard/x・変数・ファイルに書いたスクリプト・任意の言語のコード）は通る。
  * 取りこぼした書き込みは、dg が次にコマンドを実行するときと Stop のフックで、dg の外の変更として見つける（git/outside.ts）
@@ -816,7 +816,7 @@ const WORD_SPLIT = /[^\w./-]+/;
 const isGh = (w: string) => /(^|\/|^-[A-Za-z]*)gh$/.test(w);
 
 /**
- * Bash のコマンドが、dg を経由せずに PR を ready にするかマージするか（gh pr ready・gh pr merge・gh api の同じ操作。t545・t555、ADR-020）。
+ * Bash のコマンドが、dg を経由せずに PR を ready にするかマージするか（gh pr ready・gh pr merge・gh api の同じ操作。t545・t555、ADR-026）。
  * 字句を読まず、生のコマンドで粗く見る：正しい道の dg pr ready・dg pr merge と gh pr ready --undo を除いた残りに、
  * gh の語があり、pr の語と merge・ready の語がどこかにあれば（語は隣り合わなくてよい。2>&1・$PR・python -c の中・1 要素ずつ改行した配列も）、
  * gh api の同じ操作（GH_API_ADVANCE）があれば止める。引用符・ヒアドキュメント・コメントの中も伏せない（本文の語も止める。
@@ -867,7 +867,7 @@ export const DATA_BASH_DENIED =
 /**
  * ツールを使う前（PreToolUse。t532・t545・t555・t546）。書くツールの .git/deguboard/ の下への書き込みと、.git/deguboard の語を含む Bash
  * （touchesDataDir。読むだけのものも粗く止める）を拒み、dg を経由しない gh pr ready・gh pr merge を拒んで dg pr ready・dg pr merge へ案内する
- * （advancesPrOutsideDg。字句を読まずに粗く止める）。取りこぼしは事後の検査（dg の外の変更。ADR-021）が見つける。
+ * （advancesPrOutsideDg。字句を読まずに粗く止める）。取りこぼしは事後の検査（dg の外の変更。ADR-026）が見つける。
  * ストアを開かない文脈（hook の storeless。t554）で呼ばれるので、ctx は repo の場所（topLevel・dataDir）だけを使い、事後の検査もここでは走らない
  */
 function toolRequested(

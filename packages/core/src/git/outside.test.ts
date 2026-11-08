@@ -37,7 +37,7 @@ async function editOutside(ctx: CommandContext, id = "t1") {
   await writeFile(ticketFile(ctx, id), text.replace("title: A", "title: 書き換えた"));
 }
 
-describe("dg の外の変更（t546・ADR-021）", () => {
+describe("dg の外の変更（t546・ADR-026）", () => {
   it("dg が書いたコミットは印を持ち、まとめ待ちの dg の変更も dg の外の変更とみなさない", async () => {
     const { ctx } = await prepared();
     // batch：t1 の更新は作業ツリーに残る
