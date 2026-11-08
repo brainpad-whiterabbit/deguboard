@@ -240,19 +240,23 @@ export function nextOf(ctx: CommandContext, facts: StageFacts): NextStep {
   };
   const fixStep = facts.fixStep;
   // このブランチで始まって実行中の Run（branch_at より前は使い回したブランチの前の作業）
-  const openRuns = facts.runs.filter(
-    (r) => r.finished_at === null && r.started_at >= (facts.ticket.branch_at ?? ""),
-  );
-  const runningOf = (step: string) => openRuns.find((r) => r.step === step)?.id ?? null;
+  const since = facts.ticket.branch_at ?? "";
+  const openRuns = facts.runs.filter((r) => r.finished_at === null && r.started_at >= since);
   // 手直しは、開始より後に push があれば直し終えたとみなす（見直しの開始がその Run を閉じる）
   const pushedAfterStart = (r: Run) =>
-    facts.pushedAt !== undefined && facts.pushedAt > r.started_at;
-  // 待つべき実行中の Run：実装（ticket update --pr が閉じる）と、開始より後に push がない手直し。
+    facts.pushedAt !== undefined && facts.pushedAt >= r.started_at;
+  // 最後の見直しより前に始まった手直しは、その見直しの前の作業（見直しが今の状態を見ている）
+  const lastReviewAt = facts.runs
+    .filter((r) => r.step === REVIEW_STEP && r.started_at >= since)
+    .reduce((max, r) => (r.started_at > max ? r.started_at : max), "");
+  // 待つべき手直しの Run：開始より後に push がなく、最後の見直しより後に始まったもの
+  const liveFix = (r: Run) =>
+    r.step === fixStep && !pushedAfterStart(r) && r.started_at >= lastReviewAt;
+  const runningOf = (step: string) =>
+    openRuns.find((r) => r.step === step && (step !== fixStep || liveFix(r)))?.id ?? null;
+  // 待つべき実行中の Run：実装（ticket update --pr が閉じる）と、待つべき手直し。
   // 作業の途中で push が出ても、直し終えたか区別できないので、ここでは見直しを起動しない（guide-review）
-  const working =
-    openRuns.find(
-      (r) => r.step === facts.implementStep || (r.step === fixStep && !pushedAfterStart(r)),
-    )?.id ?? null;
+  const working = openRuns.find((r) => r.step === facts.implementStep || liveFix(r))?.id ?? null;
   const make = (
     kind: NextKind,
     step: string | null,

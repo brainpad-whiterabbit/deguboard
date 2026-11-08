@@ -224,13 +224,13 @@ describe("dg next と ticket show の stage（EX-3）", () => {
     );
     expect(reopened).toMatchObject({ kind: "review", stage: { name: "fixed" }, running_run: null });
     expect(reopened.commands[0]).toContain("deguboard: ticket=t1 step=review");
-    // 手直しが実行中で、開始より後に push がまだなければ、見直しを起動させず終わりを待つ
+    // 手直しが実行中で、push がまだ（最後の push が見直しより前）なら、fix の手は終わりを待つ
     const fixing = kind(
       facts({ runs: [review(6, heavy), run("fix", 7, { finished_at: null, result: null })] }),
     );
     expect(fixing).toMatchObject({ kind: "fix", running_run: expect.any(String) });
     expect(fixing.commands).toEqual([expect.stringContaining("終わりを待つ")]);
-    // 開始より前の push（pushedAt が undefined でも）は、直し終えた push とみなさない
+    // 最後の push が読めないときは最後の見直しを今の見直しとみなし、開いたままの手直しを待つ
     const noPush = kind(
       facts({
         pushedAt: undefined,
@@ -238,6 +238,44 @@ describe("dg next と ticket show の stage（EX-3）", () => {
       }),
     );
     expect(noPush.commands).toEqual([expect.stringContaining("終わりを待つ")]);
+    // 見直しの手（fixed）で、開始より後に push がない手直しは待つ。push のあとの手直しは待たず見直しを返す
+    const reviewWaits = kind(
+      facts({
+        pushedAt: "2026-11-07T10:08:00Z",
+        runs: [
+          review(6, heavy),
+          run("fix", 7, { result: "failure" }),
+          run("fix", 10, { finished_at: null, result: null }),
+        ],
+      }),
+    );
+    expect(reviewWaits).toMatchObject({ kind: "review", running_run: expect.any(String) });
+    expect(reviewWaits.commands).toEqual([expect.stringContaining("終わりを待つ")]);
+    const reviewPushed = kind(
+      facts({
+        pushedAt: "2026-11-07T10:08:00Z",
+        runs: [review(6, heavy), run("fix", 7, { finished_at: null, result: null })],
+      }),
+    );
+    expect(reviewPushed).toMatchObject({
+      kind: "review",
+      stage: { name: "fixed" },
+      running_run: null,
+    });
+    expect(reviewPushed.commands[0]).toContain("deguboard: ticket=t1 step=review");
+    // 最後の見直しより前に始まった開いたままの手直しは、待たずに直す claim を返す（その claim が閉じる）
+    const stale = kind(
+      facts({
+        pushedAt: "2026-11-07T10:08:00Z",
+        runs: [
+          review(6, heavy),
+          run("fix", 7, { finished_at: null, result: null }),
+          review(9, heavy),
+        ],
+      }),
+    );
+    expect(stale).toMatchObject({ kind: "fix", running_run: null });
+    expect(stale.commands.join(" ")).toContain("ticket claim t1 --retry-reason");
     // 上限を超えた後は push があっても人を待つ
     expect(
       kind(
