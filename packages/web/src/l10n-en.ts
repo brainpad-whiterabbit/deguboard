@@ -11,23 +11,9 @@ export const EN: Readonly<Record<string, string>> = {
   画面: "Views",
   "（アーカイブ）": " (archived)",
   エージェントに頼む: "Ask Agent",
-  "エージェントに頼む（依頼文を作ってコピーする）": "Ask Agent (create and copy a request)",
   設定: "Settings",
-  "設定（config.yaml）": "Settings (config.yaml)",
   "読み込み中…": "Loading…",
-  未コミットの変更: "Uncommitted changes",
-  "未 push {0}": "{0} unpushed",
-  "未取り込み {0}": "{0} to pull",
-  "読めないファイル {0}": "{0} unreadable files",
-  "リモート: {0}": "Remote: {0}",
   なし: "None",
-  同期の状態は未取得: "Sync status not loaded",
-  同期済み: "Synced",
-  "リモートを取り込み、未 push を送り、ブランチの事実で状態を進める":
-    "Pull from the remote, push unpushed commits, and advance statuses from branch facts",
-  "リモートがないので、ブランチの事実で状態を進めて読み直すだけ":
-    "No remote: only advance statuses from branch facts and reload",
-  同期: "Sync",
   閉じる: "Close",
   // client/http.ts
   "サーバーに届かない。dg serve が動いているか確かめる":
@@ -145,7 +131,6 @@ export const EN: Readonly<Record<string, string>> = {
   "このリポジトリはまだ deguboard を使っていません。{0} が PATH にあれば、次の順で始められます。コピーしてターミナルで実行してください。":
     "This repository does not use deguboard yet. If {0} is on your PATH, start with the steps below. Copy each command and run it in a terminal.",
   "{0} をコピー": "Copy {0}",
-  "1 を済ませたら、ページを読み直してください。": "After step 1, reload the page.",
   "1 を済ませると、開き直さなくてもいつもの画面に変わります。":
     "After step 1, the usual view appears without reopening.",
   // components/parts.tsx
@@ -159,7 +144,6 @@ export const EN: Readonly<Record<string, string>> = {
   "Run が実行中": "A run is in progress",
   "着手済み（実行中の Run なし）": "Claimed (no run in progress)",
   該当するチケットはない: "No matching tickets",
-  番号: "ID",
   タイトル: "Title",
   優先度: "Priority",
   ラベル: "Labels",
@@ -202,10 +186,9 @@ export const EN: Readonly<Record<string, string>> = {
   "{0}秒": "{0}s",
   // components/ticket-fields.tsx
   未設定: "Not set",
-  // components/ticket-props-browser.tsx
+  // components/ticket-props-panel.tsx（属性の名前）
   カンマ区切り: "Comma-separated",
   依存先: "Depends on",
-  依存先が終わっていない: "Dependencies not finished",
   依存元: "Dependents",
   担当: "Assignee",
   "eiki か eiki/agent": "eiki or eiki/agent",
@@ -227,11 +210,8 @@ export const EN: Readonly<Record<string, string>> = {
   // components/ticket-runs.tsx
   "Run はない": "No runs",
   結果: "Result",
-  "入力 / 出力": "Input / Output",
   トークン: "Tokens",
-  開始: "Started",
   終了: "Ended",
-  " 再試行 {0}": " Retries {0}",
   "（推定を含む）": " (includes estimates)",
   "{0} 件": "{0} items",
   "トークン（入力 / 出力）{0}": "Tokens (input / output){0}",
@@ -287,7 +267,6 @@ export const EN: Readonly<Record<string, string>> = {
   "{0} で絞る": "Filter by {0}",
   詳細: "Details",
   "区画の見出し {0}": "Section heading {0}",
-  "{0} 〜 {1}": "{0} – {1}",
   "Epic で絞る": "Filter by Epic",
   "Epic をあと {0} 本出す": "Show {0} more Epics",
   "Epic を畳む": "Collapse Epics",
@@ -295,12 +274,8 @@ export const EN: Readonly<Record<string, string>> = {
   "Epic のないチケットで絞る": "Filter by tickets without an Epic",
   "Epic なし{0}": "No Epic{0}",
   "{0} {1} で絞る": "Filter by {0} {1}",
-  絞り込みを解除する: "Clear the filter",
-  "この Epic で絞る": "Filter by this Epic",
   "Epic なし": "No Epic",
   // pages/board.tsx
-  "すべて（planned と active）": "All (planned and active)",
-  "{0} {1}（{2}）": "{0} {1} ({2})",
   "開いた Iteration（planned・active）はない": "No open Iterations (planned or active)",
   "チケットは {0} で見る": "See tickets in {0}",
   "planned・active のすべて": "All planned and active",
@@ -403,14 +378,12 @@ export const EN: Readonly<Record<string, string>> = {
   保存する: "Save",
   やめる: "Cancel",
   // pages/epics.tsx
-  "← バックログ": "← Backlog",
   "タイトル {0}": "Title {0}",
   "この Epic でカンバンを見る": "View this Epic on the board",
   // pages/history.tsx
   "中止 {0}": "Abandoned {0}",
   "持ち越し {0}": "Carried over {0}",
   見方: "View by",
-  "チケットの番号・タイトルで探す": "Find tickets by ID or title",
   チケットを探す: "Find tickets",
   "閉じた Epic はない": "No closed Epics",
   "閉じた Iteration はない": "No closed Iterations",
@@ -422,7 +395,6 @@ export const EN: Readonly<Record<string, string>> = {
   すべて見る: "Show all",
   目標なし: "No goal",
   完了と持ち越しは閉じたときに記録した件数: "Done and carried-over counts were recorded at closing",
-  "Run の集計": "Run metrics",
   終わったチケットはない: "No finished tickets",
   "今は{0}{1}": "Now in{0}{1}",
   "今は Iteration なし": "Now in no Iteration",
@@ -431,7 +403,6 @@ export const EN: Readonly<Record<string, string>> = {
   "{0} ・ ": "{0} · ",
   終わったチケットなし: "No finished tickets",
   チケットなし: "No tickets",
-  "番号・タイトル・ラベルで探す": "Find by ID, title, or label",
   "履歴が浅いか欠けているので、終えた日の分からないチケットは更新日（updated_at）で並べている（日付に ~ を付けた）":
     "History is shallow or incomplete, so tickets with an unknown finish date are sorted by updated_at (dates marked with ~)",
   "終えた時刻を読み込み中…（それまでは更新日の順）":
@@ -440,7 +411,6 @@ export const EN: Readonly<Record<string, string>> = {
   履歴から分からないので更新日: "Update date (not found in history)",
   終えた日時: "Finished at",
   // pages/iterations.tsx
-  "← カンバン": "← Board",
   "この Iteration でカンバンを見る": "View this Iteration on the board",
   // pages/plans.tsx
   " 実行計画": " Plan",
@@ -451,32 +421,6 @@ export const EN: Readonly<Record<string, string>> = {
   依存グラフ: "Dependency graph",
   範囲: "Scope",
   進め方: "Approach",
-  // pages/runs.tsx
-  時間: "Time",
-  入力: "Input",
-  出力: "Output",
-  キャッシュ読み: "Cache read",
-  キャッシュ書き: "Cache write",
-  "Project がない": "No Project",
-  読み直す: "Reload",
-  "実行中 {0} ・ 完了 {1}": "Running {0} · Finished {1}",
-  " のチケットの Run だけ": " tickets' runs only",
-  解除: "Clear",
-  "実行中の Run はない": "No runs in progress",
-  実績: "Results",
-  "単位{0}": "Group by{0}",
-  "完了した Run": "Finished runs",
-  "完了した Run はない": "No finished runs",
-  "{0} ・ {1}{2}": "{0} · {1}{2}",
-  工程: "Step",
-  "値が取れず、合計に入れなかった Run の数": "Runs without a value, not included in the total",
-  " (欠け {0})": " (missing {0})",
-  "欠け {0}": "Missing {0}",
-  "集計する Run はない": "No runs to aggregate",
-  "推定の値を含む Run が {0} 件ある（「~」を付けた値は推定を含む）":
-    "{0} runs include estimated values (values marked with ~ include estimates)",
-  再試行: "Retries",
-  推定: "Estimated",
   // pages/ticket.tsx
   "Workflow {0} を読めない": "Could not read Workflow {0}",
   保存: "Save",
@@ -560,12 +504,7 @@ export const EN_ONE: Readonly<Record<string, { arg: number; text: string }>> = {
     arg: 0,
     text: ". {0} run had no value and is not in the total",
   },
-  "推定の値を含む Run が {0} 件ある（「~」を付けた値は推定を含む）": {
-    arg: 0,
-    text: "{0} run includes estimated values (values marked with ~ include estimates)",
-  },
   "Epic をあと {0} 本出す": { arg: 0, text: "Show {0} more Epic" },
-  "読めないファイル {0}": { arg: 0, text: "{0} unreadable file" },
   "終了日を過ぎ、未完了が {0} 件あります。持ち越しを相談できます": {
     arg: 0,
     text: "Past the end date with {0} unfinished. You can discuss carrying it over",

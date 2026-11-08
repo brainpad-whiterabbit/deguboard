@@ -1,5 +1,6 @@
-// 画面の骨組み：上のバー（Project の切り替え・画面の切り替え・同期の印）と、ハッシュで選んだページ。
-// サイドバーでは同期の印とボタン・設定の歯車・エージェントに頼む吹き出しを出さない（ビューのタイトル行のボタンとバッジで代える。UI-12）。
+// 画面の骨組み：左パネルの上のバー（画面の切り替えと、Project が 2 つ以上なら Project の切り替え）と、ハッシュで選んだページ。
+// 同期のボタンと印・設定の歯車・エージェントに頼む吹き出しはビューのタイトル行のボタンとバッジにある（拡張の view/title。UI-12）。
+// エディタのパネルは詳細だけを出し、上のバーを出さない。
 // エージェントに頼む入力欄（UI-15）は、開いていればページの下に出す。左パネルでは初めて開いたときに 1 度だけ、行の吹き出しの案内を出す
 
 import { useEffect, useRef, type MouseEvent } from "react";
@@ -10,7 +11,7 @@ import { useRowNav } from "./components/row-nav.js";
 import { SelectionProvider } from "./components/selection.js";
 import { useAsk, useHost, useUiState } from "./host.js";
 import { useStore, type Store } from "./store.js";
-import { hrefOf, isDetailRoute, parseRoute, toggleRoute, useRoute, type Route } from "./router.js";
+import { hrefOf, isDetailRoute, parseRoute, useRoute, type Route } from "./router.js";
 import { BoardPage, boardIterationSelection } from "./pages/board.js";
 import { BacklogPage } from "./pages/backlog.js";
 import { TicketPage } from "./pages/ticket.js";
@@ -18,21 +19,18 @@ import { EpicsPage } from "./pages/epics.js";
 import { IterationsPage } from "./pages/iterations.js";
 import { PlansPage } from "./pages/plans.js";
 import { HistoryPage } from "./pages/history.js";
-import { RunsPage } from "./pages/runs.js";
 import { ConfigPage } from "./pages/config.js";
 import { tr, msg } from "./l10n.js";
 
+/** 左パネルのタブ（UI-12） */
 const NAV: { page: Route["page"]; label: string }[] = [
   { page: "board", label: msg("カンバン") },
   { page: "backlog", label: msg("バックログ") },
   { page: "history", label: msg("履歴") },
-  { page: "runs", label: "Run" },
 ];
-/** 左パネルのタブ。Run の画面はブラウザだけに置く（UI-12） */
-const SIDEBAR_NAV = NAV.filter((n) => n.page !== "runs");
 
 /** タブの行き先を最後に見たハッシュにする画面。バックログは絞り込みをハッシュに持たないので固定 */
-type LastHashPage = "board" | "history" | "runs";
+type LastHashPage = "board" | "history";
 
 /** nav.<page> に残す、最後に見たハッシュとそのときの Project */
 interface LastHash {
@@ -53,8 +51,6 @@ function lastHashUsable(saved: LastHash, store: Store): boolean {
     if (route.epic && !store.epics.some((e) => e.id === route.epic && e.status === "open"))
       return false;
   }
-  if (route.page === "runs" && route.iteration)
-    return store.iterations.some((i) => i.id === route.iteration && i.status !== "closed");
   return true;
 }
 
@@ -95,11 +91,10 @@ export function App() {
   const host = useHost();
   const ask = useAsk();
   const sidebar = host.surface === "sidebar";
-  // カンバン・履歴・Run のタブは最後に見たハッシュ（絞り込み・見方・検索語）を指し、他のタブから戻ったときに残す
+  // カンバン・履歴のタブは最後に見たハッシュ（絞り込み・見方・検索語）を指し、他のタブから戻ったときに残す
   const lastHref: Partial<Record<Route["page"], string>> = {
     board: useLastHref("board", route, store),
     history: useLastHref("history", route, store),
-    runs: useLastHref("runs", route, store),
   };
   const shown = sidebarRoute(route, sidebar);
   // Iteration と Plan の詳細はカンバンのタブ、Epic の詳細はバックログのタブの下にあるものとして扱う（一覧の画面はない）
@@ -109,8 +104,8 @@ export function App() {
       : shown.page === "iterations" || shown.page === "plans"
         ? "board"
         : shown.page;
-  // エディタのパネルは詳細（チケット・Iteration・Epic・Plan）だけを出し、1 枚で完結するので、タブ・Project・同期のヘッダーを出さない（UI-12）
-  const panel = host.surface === "panel";
+  // エディタのパネルは詳細（チケット・Iteration・Epic・Plan）だけを出し、1 枚で完結するので、タブと Project のヘッダーを出さない（UI-12）
+  const panel = !sidebar;
   // サイドバーの行を ↑↓・Enter・Space・a で操作する（roving tabindex。components/row-nav.tsx）
   const { ref: rowNavRef, ...rowNav } = useRowNav(sidebar);
   return (
@@ -121,9 +116,8 @@ export function App() {
     >
       {panel ? null : (
         <header className="topbar">
-          {sidebar ? null : <strong className="brand">deguboard</strong>}
           <nav aria-label={tr("画面")}>
-            {(sidebar ? SIDEBAR_NAV : NAV).map((n) => (
+            {NAV.map((n) => (
               <a
                 key={n.page}
                 href={lastHref[n.page] ?? hrefOf({ page: n.page } as Route)}
@@ -135,8 +129,8 @@ export function App() {
             ))}
           </nav>
           <div className="spacer" />
-          {/* サイドバーでは Project が 1 つなら切り替えの段を出さない（幅を節約する。hidden 属性は .project-select の display に負けるので描かない） */}
-          {sidebar && store.projects.length <= 1 ? null : (
+          {/* Project が 1 つなら切り替えの段を出さない（幅を節約する。hidden 属性は .project-select の display に負けるので描かない） */}
+          {store.projects.length <= 1 ? null : (
             <label className="project-select">
               Project
               <select
@@ -152,36 +146,6 @@ export function App() {
                 ))}
               </select>
             </label>
-          )}
-          {sidebar ? null : <SyncIndicator />}
-          {/* 左パネルの吹き出しはビューのタイトル行にある（拡張の view/title）。ブラウザはここに置き、画面の今の対象（なければ対象なし）で開け閉めする */}
-          {sidebar ? null : (
-            <button
-              type="button"
-              className={`ask-toggle${ask.request ? " active" : ""}`}
-              aria-label={tr("エージェントに頼む")}
-              aria-pressed={ask.request !== null}
-              title={tr("エージェントに頼む（依頼文を作ってコピーする）")}
-              onClick={() => (ask.request ? ask.close() : ask.open(ask.current()))}
-            >
-              <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
-                <path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z" />
-                <path d="M5.5 7h5" />
-              </svg>
-            </button>
-          )}
-          {/* 左パネルの歯車はビューのタイトル行にある（拡張の view/title）。ブラウザはここに置く */}
-          {sidebar ? null : (
-            <button
-              type="button"
-              className={`config-toggle${route.page === "config" ? " active" : ""}`}
-              aria-label={tr("設定")}
-              aria-pressed={route.page === "config"}
-              title={tr("設定（config.yaml）")}
-              onClick={() => toggleRoute(hrefOf({ page: "config" }))}
-            >
-              ⚙
-            </button>
           )}
         </header>
       )}
@@ -201,13 +165,13 @@ export function App() {
               <>
                 <p className="muted">{tr("読み込み中…")}</p>
                 {/* Webview では前回の一覧がないときだけここに来る。文字だけにせず、節と行の骨組みを出す */}
-                {host.surface === "browser" ? null : <LoadingSkeleton />}
+                <LoadingSkeleton />
               </>
             ) : store.notInitialized ? (
               // dg init 前は一覧の代わりに始め方を出す（init の後は見張りの読み直しで普段の画面に変わる）
               <Onboarding />
             ) : (
-              // サイドバーではチケット詳細を出さない（エディタ領域のパネルに開く）。Run の画面もなく、カンバンを出す（UI-12）
+              // サイドバーではチケット詳細を出さない（エディタ領域のパネルに開く。UI-12）
               <>
                 {/* 案内は頼める場所のある画面（カンバン・バックログ・履歴）にだけ出す */}
                 {sidebar && ASK_HINT_PAGES.has(shown.page) ? <AskHint /> : null}
@@ -270,11 +234,10 @@ function followHashLink(e: MouseEvent<HTMLElement>, show?: (route: Route) => voi
   else window.location.hash = href;
 }
 
-/** サイドバーで出す画面。チケット詳細はバックログに、Run の画面（前の版で残ったハッシュから来る）はカンバンに替える */
+/** サイドバーで出す画面。チケット詳細はバックログに替える（前の版の Run の画面のハッシュは parseRoute がカンバンにする） */
 function sidebarRoute(route: Route, sidebar: boolean): Route {
   if (!sidebar) return route;
   if (route.page === "ticket") return { page: "backlog" };
-  if (route.page === "runs") return { page: "board" };
   return route;
 }
 
@@ -298,50 +261,9 @@ function Page({ route }: { route: Route }) {
       return <PlansPage key={route.id} id={route.id} />;
     case "history":
       return <HistoryPage route={route} />;
-    case "runs":
-      return <RunsPage by={route.by} iteration={route.iteration} />;
     case "config":
       return <ConfigPage />;
   }
-}
-
-/** 未 push・未取り込み・未コミットの印と、dg sync と同じ同期のボタン（UI-6）。ブラウザとパネルだけ */
-function SyncIndicator() {
-  const store = useStore();
-  const s = store.status;
-  const marks: string[] = [];
-  if (s?.dirty) marks.push(tr("未コミットの変更"));
-  if (s && s.ahead > 0) marks.push(tr("未 push {0}", s.ahead));
-  if (s && s.behind > 0) marks.push(tr("未取り込み {0}", s.behind));
-  if (s && s.issues > 0) marks.push(tr("読めないファイル {0}", s.issues));
-  return (
-    <div
-      className="sync"
-      title={s ? tr("リモート: {0}", s.remote ?? tr("なし")) : tr("同期の状態は未取得")}
-    >
-      {marks.length > 0 ? (
-        marks.map((m) => (
-          <span key={m} className="badge warn">
-            {m}
-          </span>
-        ))
-      ) : (
-        <span className="badge ok">{tr("同期済み")}</span>
-      )}
-      <button
-        type="button"
-        onClick={() => void store.run("sync")}
-        disabled={store.loading}
-        title={
-          s?.remote
-            ? tr("リモートを取り込み、未 push を送り、ブランチの事実で状態を進める")
-            : tr("リモートがないので、ブランチの事実で状態を進めて読み直すだけ")
-        }
-      >
-        {tr("同期")}
-      </button>
-    </div>
-  );
 }
 
 /** info の通知（警告の列挙）はこの時間で消える。error は閉じるまで残す */

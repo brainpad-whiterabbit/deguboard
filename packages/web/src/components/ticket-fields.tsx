@@ -1,8 +1,8 @@
-// チケットの任意フィールド（Workflow の fields）の部品。値の文字列・型に合わせた変換・選択の項目・入力欄の型と、表示と入力欄。
-// チケット詳細の右の列（パネルはその場で直す、ブラウザは編集のボタンでまとめて直す）で使う
+// チケットの任意フィールド（Workflow の fields）の部品。値の文字列・型に合わせた変換・選択の項目・入力欄の型と、表示。
+// チケット詳細の右の列（値を押してその場で直す。ticket-props-panel.tsx）で使う
 
 import type { FieldDefinition } from "../types.js";
-import { optionsOf, type Choice } from "./inline-edit.js";
+import type { Choice } from "./inline-edit.js";
 import { tr } from "../l10n.js";
 
 /** 任意フィールドの値の文字列（入力欄の値）。未設定は空 */
@@ -34,30 +34,4 @@ export function fieldInputType(def: FieldDefinition): "text" | "number" | "date"
 /** 任意フィールドの値。未設定は「未設定」 */
 export function FieldView({ value }: { value: unknown }) {
   return value === undefined ? <span className="muted">{tr("未設定")}</span> : <>{String(value)}</>;
-}
-
-/** ブラウザの編集中の任意フィールドの入力。value は入力欄の値の文字列 */
-export function FieldInput({
-  def,
-  value,
-  onChange,
-}: {
-  def: FieldDefinition;
-  value: string;
-  onChange: (value: string) => void;
-}) {
-  const label = def.label ?? def.id;
-  const choices = fieldChoices(def);
-  return choices ? (
-    <select value={value} onChange={(e) => onChange(e.target.value)} aria-label={label}>
-      {optionsOf(choices)}
-    </select>
-  ) : (
-    <input
-      type={fieldInputType(def)}
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      aria-label={label}
-    />
-  );
 }

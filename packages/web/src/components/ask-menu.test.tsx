@@ -277,7 +277,7 @@ describe("左パネルのバックログと履歴から頼む（UI-15）", () =>
 });
 
 describe("初めての案内（UI-15）", () => {
-  it("左パネルを初めて開いたときに出し、× で消すと見た目の状態に残してもう出さない。ブラウザでは出さない", async () => {
+  it("左パネルを初めて開いたときに出し、× で消すと見た目の状態に残してもう出さない。エディタのパネルでは出さない", async () => {
     const state = createUiState(memoryBackend());
     const view = mount(mockClient(boardFixture()), { state });
     await screen.findByText("画面");
@@ -292,7 +292,7 @@ describe("初めての案内（UI-15）", () => {
     cleanup();
 
     mount(mockClient(boardFixture()), {
-      surface: "browser",
+      surface: "panel",
       state: createUiState(memoryBackend()),
     });
     await screen.findByText("画面");

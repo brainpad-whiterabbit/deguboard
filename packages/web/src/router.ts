@@ -2,7 +2,6 @@
 // Webview は <a href="#…"> のクリックを横取りしてハッシュを変えないので、リンクのクリックは App が受けてハッシュを書く（app.tsx の followHashLink）
 
 import { useEffect, useState } from "react";
-import { METRIC_UNITS, type MetricUnit } from "./types.js";
 
 /** カンバンの絞り込み。iteration は選んだ Iteration の ID か、planned と active の Iteration すべて（ALL_ITERATIONS）。省けば既定（boardSelection） */
 export interface BoardQuery {
@@ -24,15 +23,6 @@ export interface HistoryQuery {
   result?: HistoryResult | undefined;
 }
 
-/** Run の画面の集計の単位と絞り込み。by は省けばチケットごと、iteration は省けば絞らない（履歴の Iteration の行から絞って開く） */
-interface RunsQuery {
-  by?: MetricUnit | undefined;
-  iteration?: string | undefined;
-}
-
-/** Run の画面の集計の単位。省けばチケットごと */
-export const DEFAULT_UNIT: MetricUnit = "ticket";
-
 /** カンバンで「すべて」（planned と active の Iteration すべて）を選ぶ値 */
 export const ALL_ITERATIONS = "*";
 
@@ -44,7 +34,6 @@ export type Route =
   | { page: "iterations"; id: string }
   | { page: "plans"; id: string }
   | ({ page: "history" } & HistoryQuery)
-  | ({ page: "runs" } & RunsQuery)
   | { page: "config" };
 
 const BOARD_KEYS = [
@@ -81,15 +70,6 @@ export function parseRoute(hash: string): Route {
       if (q) route.q = q;
       const result = params.get("result");
       if (result === "done" || result === "abandoned") route.result = result;
-      return route;
-    }
-    case "runs": {
-      const route: Route = { page: "runs" };
-      const by = params.get("by");
-      if (by && by !== DEFAULT_UNIT && (METRIC_UNITS as readonly string[]).includes(by))
-        route.by = by as MetricUnit;
-      const iteration = params.get("iteration");
-      if (iteration) route.iteration = iteration;
       return route;
     }
     case "config":
@@ -132,13 +112,6 @@ export function hrefOf(route: Route): string {
       const query = params.toString();
       return query ? `#/history?${query}` : "#/history";
     }
-    case "runs": {
-      const params = new URLSearchParams();
-      if (route.by && route.by !== DEFAULT_UNIT) params.set("by", route.by);
-      if (route.iteration) params.set("iteration", route.iteration);
-      const query = params.toString();
-      return query ? `#/runs?${query}` : "#/runs";
-    }
     case "config":
       return "#/config";
   }
@@ -173,7 +146,7 @@ export function replaceRoute(route: Route): void {
 let toggledFrom: string | null = null;
 
 /**
- * 画面を切り替える（左パネルの歯車・ブラウザの歯車）。今その画面なら、来る前の画面（なければカンバン）に戻り、
+ * 画面を切り替える（左パネルの歯車）。今その画面なら、来る前の画面（なければカンバン）に戻り、
  * そうでなければ今の画面を覚えてその画面に移る
  */
 export function toggleRoute(hash: string): void {

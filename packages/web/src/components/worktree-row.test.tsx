@@ -8,9 +8,9 @@ import { WorktreeRow } from "./worktree-row.js";
 afterEach(cleanup);
 
 describe("worktree の行", () => {
-  it("ブラウザではパスだけを出し、新しいウィンドウで開くボタンは出さない", () => {
+  it("拡張ホストとつながっていなければ（dg serve）パスだけを出し、新しいウィンドウで開くボタンは出さない", () => {
     render(
-      <HostProvider host={createHost("browser", null)}>
+      <HostProvider host={createHost("panel", null)}>
         <WorktreeRow ticket="t1" path="/w/t1" />
       </HostProvider>,
     );

@@ -1,48 +1,26 @@
-// チケット詳細の右の列（属性）で、パネル（ticket-props-panel.tsx）とブラウザ（ticket-props-browser.tsx）が共に使うもの。
+// チケット詳細（pages/ticket.tsx）と右の列（属性。ticket-props-panel.tsx）が使う部品。
 // 編集のボタンで直している間の値（Draft）、属性の 1 行、Status の選択、依存先・依存元の行、Epic・Iteration の選択の項目、読むだけの属性の値と、PR のリンク。
 // 依存先が終わったかは ticket.show の pending_deps で決める（別の Project の依存先も見る。パネルの帯と同じ判定）
 
 import { Fragment, type ReactNode } from "react";
 import type { Store } from "../store.js";
-import {
-  PRIORITIES,
-  type FieldDefinition,
-  type Priority,
-  type Status,
-  type TicketDetail,
-} from "../types.js";
+import { PRIORITIES, type Priority, type Status, type TicketDetail } from "../types.js";
 import { hrefOf } from "../router.js";
 import { CopyableCode } from "./copyable-code.js";
 import { DateTime } from "./date-time.js";
 import type { Choice } from "./inline-edit.js";
-import { PriorityMark, StatusBadge, StatusDot, Tags, TicketLink } from "./parts.js";
+import { PriorityMark, StatusDot, Tags, TicketLink } from "./parts.js";
 import { WorktreeRow } from "./worktree-row.js";
-import { fieldText } from "./ticket-fields.js";
 import { tr } from "../l10n.js";
 
-/** 編集のボタンで直している間の値。パネルではタイトルと本文だけを、ブラウザでは属性も使う */
+/** 編集のボタンで直している間の値（タイトルと本文。属性は右の列でその場で直す） */
 export interface Draft {
   title: string;
-  priority: Priority;
-  labels: string;
-  epic: string;
-  iteration: string;
-  assignee: string;
   body: string;
-  fields: Record<string, string>;
 }
 
-export function draftOf(t: TicketDetail, fields: readonly FieldDefinition[]): Draft {
-  return {
-    title: t.title,
-    priority: t.priority,
-    labels: t.labels.join(", "),
-    epic: t.epic ?? "",
-    iteration: t.iteration ?? "",
-    assignee: t.assignee ?? "",
-    body: t.body,
-    fields: Object.fromEntries(fields.map((f) => [f.id, fieldText(t[f.id])])),
-  };
+export function draftOf(t: TicketDetail): Draft {
+  return { title: t.title, body: t.body };
 }
 
 /** 詳細の優先度の選択の記号（option には SVG を置けないので文字で添える。印の矢印・= に合わせる） */
@@ -120,27 +98,21 @@ interface Relation {
   finished: boolean;
 }
 
-/** 依存先・依存元の 1 行。パネルでは頭に Status の丸印を付け、終わった（done・abandoned）依存先は薄くする */
-function RelationRow({ d, dimDone, panel }: { d: Relation; dimDone: boolean; panel: boolean }) {
+/** 依存先・依存元の 1 行。頭に Status の丸印を付け、終わった（done・abandoned）依存先は薄くする */
+function RelationRow({ d, dimDone }: { d: Relation; dimDone: boolean }) {
   return (
-    <div className={panel && dimDone && d.finished ? "dep-finished" : undefined}>
-      {panel && d.status ? <StatusDot status={d.status} /> : null}
+    <div className={dimDone && d.finished ? "dep-finished" : undefined}>
+      {d.status ? <StatusDot status={d.status} /> : null}
       <TicketLink id={d.id} title={d.title} />
-      {!panel && dimDone && d.status ? (
-        <>
-          {" "}
-          <StatusBadge status={d.status} />
-        </>
-      ) : null}
     </div>
   );
 }
 
 /**
- * 属性の値の表示と、Epic・Iteration の選択の項目。パネルとブラウザで同じもの。
+ * 属性の値の表示と、Epic・Iteration の選択の項目。
  * 依存先の丸印の Status は、終わっていない依存先は pending_deps のものを使い、一覧にない終わった依存先には丸印を付けない
  */
-export function ticketAttrs(store: Store, ticket: TicketDetail, panel: boolean) {
+export function ticketAttrs(store: Store, ticket: TicketDetail) {
   const rowOf = (id: string) => store.tickets.find((t) => t.id === id);
   const dependsOn: Relation[] = ticket.depends_on.map((id) => {
     const pending = ticket.pending_deps.find((p) => p.id === id);
@@ -186,12 +158,12 @@ export function ticketAttrs(store: Store, ticket: TicketDetail, panel: boolean) 
     epicView,
     iterationView,
     assigneeView: ticket.assignee ?? none,
-    // ここから下は読むだけの属性（パネルでもその場で直さない）
+    // ここから下は読むだけの属性（その場で直さない）
     dependsOnView: dependsOn.length
-      ? dependsOn.map((d) => <RelationRow key={d.id} d={d} dimDone panel={panel} />)
+      ? dependsOn.map((d) => <RelationRow key={d.id} d={d} dimDone />)
       : none,
     dependentsView: dependents.length
-      ? dependents.map((d) => <RelationRow key={d.id} d={d} dimDone={false} panel={panel} />)
+      ? dependents.map((d) => <RelationRow key={d.id} d={d} dimDone={false} />)
       : none,
     branchView: ticket.branch ? (
       <>
@@ -203,8 +175,8 @@ export function ticketAttrs(store: Store, ticket: TicketDetail, panel: boolean) 
     ),
     prView: ticket.pr ? <PrLink pr={ticket.pr} webUrl={store.status?.web_url} /> : none,
     createdByView: ticket.created_by ?? <span className="muted">{tr("不明")}</span>,
-    createdView: <DateTime iso={ticket.created_at} local={panel} />,
-    updatedView: <DateTime iso={ticket.updated_at} local={panel} />,
+    createdView: <DateTime iso={ticket.created_at} />,
+    updatedView: <DateTime iso={ticket.updated_at} />,
   };
 }
 

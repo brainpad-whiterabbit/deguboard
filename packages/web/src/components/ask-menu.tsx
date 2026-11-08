@@ -314,7 +314,7 @@ export function useAskSpot(options: AskSpotOptions | null): AskSpot {
             ...(selected ? { "data-selected": "" as const } : {}),
             // 捕捉の段階で受け、選んだら行のリンク（TicketLink）と App のハッシュの受け手に渡さない
             // 修飾キーつきのクリックはブラウザの既定（リンクを新しいタブ・窓に開く）を止めて選択に使う。
-            // VS Code の一覧と同じ操作にするためで、詳細は Webview でもブラウザでもふつうのクリックで開ける
+            // VS Code の一覧と同じ操作にするためで、詳細はふつうのクリックで開ける
             onClickCapture(e: MouseEvent<HTMLElement>) {
               const target = e.target as Element;
               if (e.button !== 0 || target.closest?.(NOT_SELECT_CLICK)) return;

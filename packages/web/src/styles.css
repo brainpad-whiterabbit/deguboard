@@ -1,5 +1,5 @@
 /* テーマは VS Code の CSS 変数を基準にする（ADR-006）。Webview では VS Code が <html> に値を入れるので、
-   ここでの :root の値はブラウザで開いたときの既定になる。色は --vscode-* から取り、独自の変数（--dg-*）は
+   ここでの :root の値は Webview の外（開発用の dg serve）で開いたときの既定になる。色は --vscode-* から取り、独自の変数（--dg-*）は
    それを組み合わせて body に置く */
 :root {
   --vscode-font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -199,9 +199,6 @@ h3 {
   background: var(--vscode-sideBar-background);
   border-bottom: 1px solid var(--dg-border);
 }
-.brand {
-  padding: 0.5rem 0;
-}
 /* 画面の切り替えは下線のタブ */
 .topbar nav {
   display: flex;
@@ -231,11 +228,6 @@ h3 {
   align-items: center;
   gap: 0.4em;
 }
-.sync {
-  display: flex;
-  align-items: center;
-  gap: 0.4em;
-}
 .badge {
   display: inline-block;
   padding: 0.05em 0.5em;
@@ -246,15 +238,6 @@ h3 {
   color: var(--vscode-badge-foreground);
   border: 1px solid var(--vscode-contrastBorder, transparent);
   white-space: nowrap;
-}
-.badge.warn {
-  background: var(--vscode-inputValidation-warningBackground);
-  border-color: var(--vscode-inputValidation-warningBorder);
-  color: inherit;
-}
-.badge.ok {
-  background: transparent;
-  color: var(--vscode-descriptionForeground);
 }
 /*
  * 優先度の印（TK-8）：記号（矢印・=）と値の文字をそろえて出す。帯・カード・表の列では 3 つの値を、行では high・low だけ出す。
@@ -409,11 +392,6 @@ h3 {
   transform: rotate(45deg);
   margin-top: -3px;
 }
-.column .cards {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
 /* 中止の列は畳んでいる間は見出しの幅だけにし、ほかの 4 列を狭めない。開けばほかと同じ幅 */
 .board:has(> .column[data-status="abandoned"]:not([open])) {
   grid-template-columns: repeat(4, minmax(220px, 1fr)) max-content;
@@ -533,11 +511,6 @@ button.link:hover {
   color: var(--vscode-descriptionForeground);
 }
 
-/* Iteration の行の 2 段目の Run の画面へのリンク。折り返しても文言は割らない */
-.history-row .history-runs-link {
-  white-space: nowrap;
-}
-
 /* 開ける行（Iteration の見方）：見出しの行は summary。開くと中の終わったチケットを 1 行ずつ出す */
 .history-item > summary {
   list-style: none;
@@ -548,33 +521,6 @@ button.link:hover {
 }
 .history-item[open] > summary {
   background: var(--vscode-list-hoverBackground);
-}
-.rows.history-tickets {
-  padding: 0.25rem 0.5rem 0.5rem 1.5rem;
-  border-bottom: 1px solid var(--dg-border);
-}
-.rows.history-tickets li {
-  display: grid;
-  grid-template-columns: auto auto minmax(0, 1fr) auto;
-  gap: 0.4rem;
-  align-items: center;
-}
-.history-tickets code {
-  background: transparent;
-  padding: 0;
-}
-/* 履歴のチケットの見方：丸印・番号・タイトル・結果・Iteration・Epic・PR・終えた日 */
-.rows.history-finished li {
-  display: grid;
-  grid-template-columns: auto 3em minmax(0, 1fr) 6em 3em 3em 3.5em 6.5em;
-  gap: 0.5rem;
-  align-items: center;
-  padding: 2px 6px;
-  border-bottom: 1px solid var(--dg-border);
-}
-.history-finished code {
-  background: transparent;
-  padding: 0;
 }
 /* チケット詳細の節（経過・Run）の見出し */
 .timeline h2,
@@ -623,18 +569,7 @@ button.link:hover {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-/* Run の表（チケット詳細の Run と Run の画面）。狭い配置では表を横にスクロールする。結果の色は --dg-* から取る */
-.runs-scroll {
-  overflow-x: auto;
-}
-.runs-list td,
-.runs-list th {
-  white-space: nowrap;
-}
-.runs-list td.num,
-.runs-list time {
-  font-variant-numeric: tabular-nums;
-}
+/* チケット詳細の Run の結果。色は --dg-* から取る */
 .run-result {
   font-weight: 500;
 }
@@ -1106,10 +1041,6 @@ button.link:hover {
 .plan-closed > summary {
   color: var(--vscode-descriptionForeground);
 }
-.plan-tag {
-  border-left: 3px solid var(--dg-plan);
-  padding-left: 0.25em;
-}
 /* 依存グラフ：段を左から右に。狭いときは横に送る */
 .plan-graph {
   overflow-x: auto;
@@ -1230,53 +1161,6 @@ button.link:hover {
   font-size: 1em;
   margin: 0;
 }
-.column h2 .muted {
-  margin-left: auto;
-}
-.card {
-  background: var(--vscode-editor-background);
-  border: 1px solid var(--dg-border);
-  border-left: 3px solid var(--dg-status, var(--dg-border));
-  border-radius: 3px;
-  padding: 0.5rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
-}
-.card:hover {
-  background: var(--vscode-list-hoverBackground);
-}
-.card .title {
-  font-weight: 500;
-}
-.card .meta {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.3rem;
-  font-size: 0.85em;
-  color: var(--vscode-descriptionForeground);
-}
-
-/* 一覧 */
-table.list {
-  width: 100%;
-  border-collapse: collapse;
-}
-table.list th,
-table.list td {
-  text-align: left;
-  padding: 0.35rem 0.5rem;
-  border-bottom: 1px solid var(--dg-border);
-  vertical-align: top;
-}
-table.list tr:hover td {
-  background: var(--vscode-list-hoverBackground);
-}
-table.list th {
-  color: var(--vscode-descriptionForeground);
-  font-weight: 500;
-}
 .tags {
   display: inline-flex;
   flex-wrap: wrap;
@@ -1290,7 +1174,7 @@ table.list th {
   gap: 1.5rem;
 }
 @media (max-width: 800px) {
-  /* minmax(0, …) にして、Run の表のような広い中身で列が広がらないようにする（表は .runs-scroll で横にスクロール） */
+  /* minmax(0, …) にして、広い中身で列が広がらないようにする */
   .detail {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -1540,11 +1424,6 @@ textarea.body {
   gap: 0.25rem;
   margin-top: 0.75rem;
 }
-.groups {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 0.75rem;
-}
 
 /* 1 行のチケット・Epic・Iteration（サイドバー。KanbanForge と同じ高さ一定の行） */
 .rows {
@@ -1761,56 +1640,6 @@ textarea.body {
 .backlog-main {
   min-width: 0;
 }
-.epic-panel {
-  border: 1px solid var(--dg-border);
-  border-radius: 3px;
-  padding: 0.25rem;
-}
-.epic-panel > header {
-  display: flex;
-  align-items: center;
-  gap: 0.4em;
-  padding: 0.2rem 0.3rem;
-}
-.epic-panel > header h2 {
-  margin: 0;
-  font-size: 1em;
-}
-.epic-panel > header > button {
-  margin-left: auto;
-}
-.epic-list li {
-  display: grid;
-  grid-template-columns: 2.5em minmax(0, 1fr);
-  align-items: start;
-  gap: 0.3rem;
-  padding: 2px 4px;
-  border-radius: 2px;
-}
-.epic-list li.selected {
-  background: var(--vscode-list-activeSelectionBackground, var(--vscode-list-hoverBackground));
-}
-.epic-list code {
-  background: transparent;
-  padding: 0;
-}
-/* Epic を選ぶボタンは行と同じ見た目：タイトルの下に進捗 */
-.epic-pick {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 2px;
-  min-width: 0;
-  padding: 0;
-  text-align: left;
-  background: transparent;
-  border-color: transparent;
-  color: inherit;
-}
-.epic-pick .progress .bar {
-  width: 80px;
-}
-
 /* 絞り込みのチップ（components/chips.tsx）。選んでいるチップは塗る */
 .chip-row {
   display: flex;
@@ -2038,13 +1867,6 @@ textarea.body {
 [data-surface="sidebar"] .project-select select {
   flex: 1;
   min-width: 0;
-}
-[data-surface="sidebar"] .sync {
-  order: 2;
-  margin-left: auto;
-  padding: 0.3rem 0;
-  flex-wrap: wrap;
-  justify-content: flex-end;
 }
 [data-surface="sidebar"] .page {
   padding: 0.5rem;
@@ -2480,9 +2302,6 @@ textarea.body {
   white-space: normal;
   overflow-wrap: anywhere;
 }
-[data-surface="sidebar"] .groups {
-  grid-template-columns: 1fr;
-}
 [data-surface="sidebar"] .detail {
   grid-template-columns: minmax(0, 1fr);
 }
@@ -2504,85 +2323,7 @@ textarea.body {
   }
 }
 
-/* Run の画面（UI-9）：合計の欄、単位ごとの表、Run の表。表の横スクロール（.runs-scroll）と結果の色（.run-*）はチケット詳細の Run と共通 */
-.runs-page h2 {
-  font-size: 1em;
-  margin: 1rem 0 0.4rem;
-}
-/* Iteration で絞っていることと解除のリンク（履歴の Iteration の行から開いたとき） */
-.runs-page .runs-filter {
-  margin: 0.4rem 0;
-}
-.runs-page .runs-filter a:last-child {
-  margin-left: 0.75rem;
-}
-.runs-page .runs-metrics-head {
-  margin: 1rem 0 0.4rem;
-}
-.runs-page .runs-metrics-head h2 {
-  margin: 0;
-}
-table.list td.num,
-table.list th.num {
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-.metrics-table th,
-table.list td.nowrap {
-  white-space: nowrap;
-}
-.runs-table code,
-.metrics-table code,
-.run-rows code {
-  background: transparent;
-  padding: 0;
-}
-.metric-cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
-  gap: 0.5rem;
-  margin: 0 0 0.75rem;
-}
-.metric-cards > div {
-  padding: 0.4rem 0.6rem;
-  background: var(--vscode-editorWidget-background);
-  border: 1px solid var(--dg-border);
-  border-radius: 3px;
-}
-.metric-cards > div.wide {
-  grid-column: span 2;
-}
-.metric-cards dt {
-  color: var(--vscode-descriptionForeground);
-  font-size: 0.9em;
-}
-.metric-cards dd {
-  margin: 0.1rem 0 0;
-  font-size: 1.2em;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-}
-.metric-cards dd.results {
-  font-size: 1em;
-}
-.metric-cards dd.muted {
-  font-weight: 400;
-}
-/* サイドバーの Run の行：結果・チケット・工程・時間 */
-.rows.run-rows li {
-  display: grid;
-  grid-template-columns: auto auto minmax(0, 1fr) auto;
-  gap: 0.4rem;
-  align-items: center;
-  padding: 2px 4px;
-  border-bottom: 1px solid var(--dg-border);
-}
-[data-surface="sidebar"] .metric-cards {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-/* 最初の読み込みの間の骨組み（app.tsx の LoadingSkeleton。Webview だけ）。動きを減らす設定では明滅させない */
+/* 最初の読み込みの間の骨組み（app.tsx の LoadingSkeleton）。動きを減らす設定では明滅させない */
 .skeleton {
   display: grid;
   gap: 0.75rem;
@@ -2617,17 +2358,6 @@ table.list td.nowrap {
 }
 
 /* 設定画面（#/config）。まとまりごとの節に項目を縦に並べ、既定から変えた項目は左の線で示す */
-.config-toggle {
-  padding: 0.1em 0.5em;
-  font-size: 1.1em;
-  line-height: 1.2;
-  background: transparent;
-  color: var(--vscode-descriptionForeground);
-}
-.config-toggle.active,
-.config-toggle:hover {
-  color: var(--vscode-foreground);
-}
 .config-page {
   max-width: 760px;
 }
@@ -2829,22 +2559,6 @@ table.list td.nowrap {
 }
 
 /* エージェントに頼む入力欄（UI-15）。ページの下に出し、上の 1 行が頼むことの候補、欄の頭が Skill と対象の札、下が全文・形式・コピー */
-.ask-toggle {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.25em 0.4em;
-  background: transparent;
-  color: var(--vscode-descriptionForeground);
-}
-.ask-toggle svg {
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.4;
-}
-.ask-toggle.active,
-.ask-toggle:hover {
-  color: var(--vscode-foreground);
-}
 .ask-composer {
   flex: none;
   display: grid;
@@ -3113,17 +2827,6 @@ button.ask-copy svg {
 .ask-title[data-ask-spot="active"] {
   background: transparent;
 }
-/* 表の行（広い画面の Iteration の詳細）は、吹き出しを行の末尾のセルに置く */
-td.ask-cell {
-  position: relative;
-  width: 28px;
-  padding: 0;
-}
-[data-ask-spot]:hover > .ask-cell > .ask-bubble,
-[data-ask-spot]:focus-within > .ask-cell > .ask-bubble,
-[data-ask-spot="active"] > .ask-cell > .ask-bubble {
-  opacity: 1;
-}
 /* 頼むことの一覧。body に出し、吹き出しの右端に合わせる（位置は ask-menu.tsx が決める）。VS Code のメニューの見た目に合わせる */
 .ask-menu {
   position: fixed;
@@ -3225,8 +2928,7 @@ td.ask-cell {
   background: var(--vscode-list-activeSelectionBackground, var(--vscode-list-hoverBackground));
   box-shadow: inset 2px 0 0 var(--vscode-focusBorder);
 }
-[data-selected] > .ask-bubble,
-[data-selected] > .ask-cell > .ask-bubble {
+[data-selected] > .ask-bubble {
   opacity: 1;
 }
 /* 選んでいる間に画面の下に出す「n 件を選択 ・ 頼む」の帯。入力欄と同じ場所に出し、入力欄を開いている間は出さない */

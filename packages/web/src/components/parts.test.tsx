@@ -37,7 +37,7 @@ describe("行の担当", () => {
 });
 
 describe("進捗バー", () => {
-  it("Webview では完了だけを塗り、進行中は斜線にして、数字に何の比かを書く", async () => {
+  it("完了だけを塗り、進行中は斜線にして、数字に何の比かを書く", async () => {
     render(
       <StoreProvider client={mockClient()}>
         <HostProvider
@@ -68,9 +68,10 @@ describe("進捗バー", () => {
     ]);
   });
 
-  it("Status ごとに件数の割合で積み上げ、0 件の Status は出さない", async () => {
+  it("Status ごとに件数の割合で積み上げ、0 件の Status は出さない。short なら数字は done/全体 だけ", async () => {
     mount(
       <ProgressBar
+        short
         progress={{
           total: 4,
           done: 1,
@@ -85,12 +86,12 @@ describe("進捗バー", () => {
     }));
     expect(segments).toEqual([
       { cls: "status-done", width: "25%" },
-      { cls: "status-in_progress", width: "25%" },
-      { cls: "status-todo", width: "50%" },
+      { cls: "status-in_progress partial", width: "25%" },
+      { cls: "status-todo partial", width: "50%" },
     ]);
   });
 
-  it("チケットがなければ空のバーと 0/0", async () => {
+  it("チケットがなければ空のバーと「完了 0/0」", async () => {
     mount(
       <ProgressBar
         progress={{
@@ -100,7 +101,7 @@ describe("進捗バー", () => {
         }}
       />,
     );
-    const bar = (await screen.findByText("0/0")).previousElementSibling!;
+    const bar = (await screen.findByText("完了 0/0")).previousElementSibling!;
     expect(bar.children).toHaveLength(0);
   });
 });

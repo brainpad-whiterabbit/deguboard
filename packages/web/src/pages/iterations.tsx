@@ -6,13 +6,11 @@ import { ASK_SECTIONS, AskSpotBox } from "../components/ask-menu.js";
 import { IterationNext } from "../components/iteration-next.js";
 import { IterationPlans } from "../components/iteration-plans.js";
 import { IterationSummary } from "../components/iteration-parts.js";
-import { TicketTable } from "../components/parts.js";
 import { TicketSections } from "../components/ticket-sections.js";
 import { useCommandData } from "../command-data.js";
-import { useHost } from "../host.js";
 import { hrefOf } from "../router.js";
 import { useStore } from "../store.js";
-import { byPriorityThenNumber, ITERATION_LABELS, type IterationDetail } from "../types.js";
+import { ITERATION_LABELS, type IterationDetail } from "../types.js";
 import { tr } from "../l10n.js";
 
 export function IterationsPage({ id }: { id: string }) {
@@ -21,7 +19,6 @@ export function IterationsPage({ id }: { id: string }) {
 
 function IterationDetailView({ id }: { id: string }) {
   const store = useStore();
-  const host = useHost();
   // 一覧のチケットか Iteration が読み直されたら Iteration も読み直す
   const { data: it, error } = useCommandData<IterationDetail>(
     "iteration.show",
@@ -32,22 +29,9 @@ function IterationDetailView({ id }: { id: string }) {
   if (error) return <p className="error">{error}</p>;
   if (!it) return <p className="muted">{tr("読み込み中…")}</p>;
 
-  const items = [...it.items].sort(byPriorityThenNumber);
-
+  // パネルは詳細だけを出すので、戻る先の一覧を置かない（一覧はサイドバー。カンバンへは下の「この Iteration でカンバンを見る」。UI-12）
   return (
     <section>
-      {/* パネルは詳細だけを出すので、戻る先の一覧がない（一覧はサイドバー。カンバンへは下の「この Iteration でカンバンを見る」。UI-12） */}
-      {host.surface === "panel" ? null : (
-        <div className="toolbar">
-          <a
-            href={hrefOf(
-              it.status === "closed" ? { page: "board" } : { page: "board", iteration: it.id },
-            )}
-          >
-            {tr("← カンバン")}
-          </a>
-        </div>
-      )}
       {/* タイトルの横の吹き出しで、この Iteration をエージェントに頼む（UI-15） */}
       <AskSpotBox
         as="h1"
@@ -63,9 +47,9 @@ function IterationDetailView({ id }: { id: string }) {
       <IterationSummary it={it} />
       {/* 状態に応じた次の操作の案内と依頼文のコピー（書き込まない） */}
       <IterationNext it={it} />
-      {/* パネルからはこの Iteration で絞った左パネルのカンバンを開く（一覧の画面へのリンクは host.show でサイドバーに出る。UI-12）。
+      {/* この Iteration で絞った左パネルのカンバンを開く（一覧の画面へのリンクは host.show でサイドバーに出る。UI-12）。
           閉じた Iteration はカンバンで選べないので出さない */}
-      {host.surface === "panel" && it.status !== "closed" ? (
+      {it.status !== "closed" ? (
         <div className="actions">
           <a href={hrefOf({ page: "board", iteration: it.id })}>
             {tr("この Iteration でカンバンを見る")}
@@ -74,12 +58,8 @@ function IterationDetailView({ id }: { id: string }) {
       ) : null}
       {/* 中のチケットを含む Plan（なければ節を出さない） */}
       <IterationPlans plans={it.plans} />
-      {/* パネルは未完了・完了・中止の段に分けた 1 行の並び（Epic 詳細と共用。UI-12）。ブラウザは表 */}
-      {host.surface === "panel" ? (
-        <TicketSections tickets={it.items} within={it.id} section={ASK_SECTIONS.detailTicket} />
-      ) : (
-        <TicketTable tickets={items} ask={{ section: ASK_SECTIONS.detailTicket, within: it.id }} />
-      )}
+      {/* 未完了・完了・中止の段に分けた 1 行の並び（Epic 詳細と共用。UI-12） */}
+      <TicketSections tickets={it.items} within={it.id} section={ASK_SECTIONS.detailTicket} />
     </section>
   );
 }

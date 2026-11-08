@@ -29,22 +29,13 @@ describe("ハッシュのルーティング", () => {
       result: "done",
     });
     expect(parseRoute("#/history?q=&result=x")).toEqual({ page: "history" });
-    expect(parseRoute("#/runs")).toEqual({ page: "runs" });
     expect(parseRoute("#/config")).toEqual({ page: "config" });
-    expect(parseRoute("#/runs?by=agent")).toEqual({ page: "runs", by: "agent" });
-    expect(parseRoute("#/runs?by=step")).toEqual({ page: "runs", by: "step" });
-    // 既定の単位（チケット）と知らない単位はハッシュに持たない
-    expect(parseRoute("#/runs?by=ticket")).toEqual({ page: "runs" });
-    expect(parseRoute("#/runs?by=x")).toEqual({ page: "runs" });
-    // 画面は選んだ Project で絞るので、Project の単位は選べない
-    expect(parseRoute("#/runs?by=project")).toEqual({ page: "runs" });
-    // 履歴の Iteration の行からは、その Iteration で絞って開く
+    // Run の画面はない（ADR-023）。前の版の #/runs はカンバンとして読む
+    expect(parseRoute("#/runs")).toEqual({ page: "board" });
     expect(parseRoute("#/runs?by=iteration&iteration=s5")).toEqual({
-      page: "runs",
-      by: "iteration",
+      page: "board",
       iteration: "s5",
     });
-    expect(parseRoute("#/runs?iteration=")).toEqual({ page: "runs" });
     expect(parseRoute("#/board?iteration=s4&epic=e1&assignee=eiki%2Fagent")).toEqual({
       page: "board",
       iteration: "s4",
@@ -70,10 +61,6 @@ describe("ハッシュのルーティング", () => {
         q: "ログ",
         result: "abandoned" as const,
       },
-      { page: "runs" as const },
-      { page: "runs" as const, by: "model" as const },
-      { page: "runs" as const, by: "iteration" as const, iteration: "s5" },
-      { page: "runs" as const, iteration: "s5" },
       { page: "config" as const },
     ]) {
       expect(parseRoute(hrefOf(route))).toEqual(route);

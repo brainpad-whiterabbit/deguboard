@@ -1,5 +1,5 @@
 // チケット詳細のブランチの下に出す、作業ブランチの worktree のパスと「新しいウィンドウで開く」（UI-4）。
-// ボタンは Webview（拡張ホストが新しいウィンドウを開ける）だけに出し、ブラウザ（dg serve）ではパスとコピーだけにする
+// ボタンは Webview（拡張ホストが新しいウィンドウを開ける）だけに出し、開発用の dg serve ではパスとコピーだけにする
 
 import { useState } from "react";
 import { useHost } from "../host.js";

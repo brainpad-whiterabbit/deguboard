@@ -116,7 +116,7 @@ describe("前回の一覧の cache", () => {
     expect(await within(group).findByRole("button", { name: "自分" })).toBeTruthy();
   });
 
-  it("ブラウザでは cache を渡さず、骨組みも出さない（今のまま「読み込み中…」だけ）", async () => {
+  it("cache を渡さなければ（dg serve）前回の一覧はなく、「読み込み中…」と骨組みを出す", async () => {
     const { client, release } = slowClient();
     render(
       <StoreProvider client={client}>
@@ -124,7 +124,7 @@ describe("前回の一覧の cache", () => {
       </StoreProvider>,
     );
     expect(screen.getByText("読み込み中…")).toBeTruthy();
-    expect(document.querySelector(".skeleton")).toBeNull();
+    expect(document.querySelector(".skeleton")).toBeTruthy();
     release();
     await screen.findByText("ログイン");
   });

@@ -41,7 +41,7 @@ mise run dg -- guide done      # マージ後の後始末
   ```
 
 - PR は `gh pr create --base main` で出し、本文にチケットの ID（`t12`）を書く。このリポジトリの Workflow は software-development なので、PR が開けば `dg sync` が review に、squash マージされれば done に進める（`gh` が要る）
-- 画面の見た目を変える PR は、変えた画面のスクリーンショットを本文に載せる。左パネルとパネルの変更は `mise run test:vscode` が VS Code の実機でライトとダークを `test/vscode/screenshots/` に出す（「`packages/vscode`」の節。ほかの画面を撮るときは `test/vscode/sidebar.vscode.ts` に操作を足す）。ブラウザだけの画面は Playwright MCP で一時リポジトリの `dg serve` を開き（「`packages/web`」の節）、ライトとダーク（`browser_emulate_media` の `colorScheme`）で撮る。画像は orphan ブランチ `pr-screenshots` の `<チケット ID>/` に置く（作業ブランチに入れると squash で `main` に入る）
+- 画面の見た目を変える PR は、変えた画面のスクリーンショットを本文に載せる。左パネルとパネルの変更は `mise run test:vscode` が VS Code の実機でライトとダークを `test/vscode/screenshots/` に出す（「`packages/vscode`」の節。ほかの画面を撮るときは `test/vscode/sidebar.vscode.ts` に操作を足す）。VS Code を起動せずに撮るときは Playwright MCP で一時リポジトリの `dg serve` を `?surface=` の配置で開き（「`packages/web`」の節）、ライトとダーク（`browser_emulate_media` の `colorScheme`）で撮る。画像は orphan ブランチ `pr-screenshots` の `<チケット ID>/` に置く（作業ブランチに入れると squash で `main` に入る）
 
   ```sh
   git fetch origin pr-screenshots
@@ -102,7 +102,7 @@ mise run dg -- guide done      # マージ後の後始末
 
 core の `commands` を commander（`program.ts`）と MCP のツール（`mcp.ts`）に写す。ロジックは持たない。各ファイルの役割は冒頭のコメントが正本で、引数の型ごとの対応は `options.ts`、`--json` の形は `output.ts`、終了コードは `errors.ts`。
 
-グローバルオプションは `dg --help` が正本。`dg serve` / `dg open`（`serve.ts`）は `@deguboard/server` を起動する・ブラウザで開くだけ。`guide-*.md` と `skill.md` はビルドで `dist/` に、web の `dist` は `packages/cli/web` に写す（ルートの `build`）。トピックを足すときは `guide.ts` の `GUIDE_TOPICS` と `guide-overview.md` の表も直す。
+グローバルオプションは `dg --help` が正本。`dg serve` / `dg open`（`serve.ts`）は開発用（配置の確認とスクリーンショット。[ADR-023](adr/ADR-023-screen-entry-vscode.md)）で、`@deguboard/server` を起動する・ブラウザで開くだけ。`guide-*.md` と `skill.md` はビルドで `dist/` に、web の `dist` は `packages/cli/web` に写す（ルートの `build`）。トピックを足すときは `guide.ts` の `GUIDE_TOPICS` と `guide-overview.md` の表も直す。
 
 ### `packages/server`（`@deguboard/server`）
 
@@ -118,7 +118,7 @@ core の `commands` を HTTP に写す。Node 標準の `node:http` で、フレ
 
 画面の文言は `l10n.ts` の `tr`（鍵は日本語の文。要素を挟む文は `l10n-node.tsx` の `trNode`）で書き、英語の訳は `l10n-en.ts` に置く。言語は Webview の `<html data-language>` で決まり、ない（`dg serve`）と日本語。揃っているかは `l10n.test.ts`、日本語の文言が変わっていないかは `l10n-screens.test.tsx` のスナップショットが確かめる。
 
-見た目は Playwright MCP（`.mcp.json`。Chromium は `mise run playwright:install`）で一時リポジトリの `dg serve` を見る。`?surface=sidebar`・`panel` で配置が変わる。Webview に固有の色・CSP・拡張ホストとのやり取りは `mise run test:vscode` で見る（「`packages/vscode`」の節）。
+見た目は Playwright MCP（`.mcp.json`。Chromium は `mise run playwright:install`）で一時リポジトリの `dg serve` を見る。配置は `?surface=sidebar`（既定）か `panel` で選ぶ（ブラウザだけの配置はない）。Webview に固有の色・CSP・拡張ホストとのやり取りは `mise run test:vscode` で見る（「`packages/vscode`」の節）。
 
 ### `packages/vscode`（`deguboard-vscode`）
 

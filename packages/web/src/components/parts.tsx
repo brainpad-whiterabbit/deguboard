@@ -11,7 +11,7 @@ import { tr, msg } from "../l10n.js";
 
 /**
  * チケット詳細へのリンク。チケットへのリンクはすべてここを通す。
- * ブラウザではハッシュ遷移（App の followHashLink が受ける）、Webview では拡張ホストに頼んでエディタ領域に開く（UI-12）。
+ * 拡張ホストに頼んでエディタ領域に開く（UI-12。dg serve ではハッシュ遷移。host.open）。
  * children を渡せば番号の代わりにそれを出す
  */
 export function TicketLink({
@@ -42,7 +42,7 @@ export function TicketLink({
       onClick={(e) => {
         // 呼び出し側が preventDefault したら（行の選択など）開かない
         rest.onClick?.(e);
-        if (e.defaultPrevented || host.surface === "browser") return;
+        if (e.defaultPrevented) return;
         e.preventDefault();
         host.open({ page: "ticket", id });
       }}
@@ -57,7 +57,7 @@ export function TicketLink({
   );
 }
 
-/** Epic・Iteration・Plan などの詳細へのリンク。ブラウザではハッシュ遷移、Webview では拡張ホストに頼んでエディタ領域に開く */
+/** Epic・Iteration・Plan などの詳細へのリンク。拡張ホストに頼んでエディタ領域に開く（dg serve ではハッシュ遷移。host.open） */
 export function DetailLink({
   route,
   children,
@@ -149,11 +149,6 @@ export function PriorityMark({ priority }: { priority: Priority }) {
       <span className="priority-text">{priority}</span>
     </span>
   );
-}
-
-export function StatusBadge({ status }: { status: Status }) {
-  const store = useStore();
-  return <span className={`badge status-${status}`}>{store.labelOf(status)}</span>;
 }
 
 export function Tags({ labels }: { labels: readonly string[] }) {
@@ -251,16 +246,14 @@ function StackedProgress({
 
 /**
  * Epic の進捗（done の件数 / abandoned を除く件数。EP-3）。Status ごとに積み上げ、色は --dg-status-*。
- * Webview では完了だけを塗りつぶし、進行中（In Progress・Review）は斜線にして、数字に「完了 n / m ・ 進行中 k」と何の比かを書く
- * （全件が進行中だと、塗りつぶしの満タンが「終わった」に見えるので）。ブラウザでは今のまま。short なら数字は done/全体 だけ（実行計画の帯の行が 1 行に収まるよう）
+ * 完了だけを塗りつぶし、進行中（In Progress・Review）は斜線にして、数字に「完了 n / m ・ 進行中 k」と何の比かを書く
+ * （全件が進行中だと、塗りつぶしの満タンが「終わった」に見えるので）。short なら数字は done/全体 だけ（実行計画の帯の行が 1 行に収まるよう）
  */
 export function ProgressBar({ progress, short }: { progress: Progress; short?: boolean }) {
-  const host = useHost();
-  const webview = host.surface !== "browser";
-  const words = webview && !short;
+  const words = !short;
   const active = (progress.by_status.in_progress ?? 0) + (progress.by_status.review ?? 0);
   return (
-    <StackedProgress progress={progress} className="progress" partial={webview}>
+    <StackedProgress progress={progress} className="progress" partial>
       {words ? tr("完了 ") : ""}
       {progress.done}/{progress.total}
       {words && active > 0 ? tr(" ・ 進行中 {0}", active) : ""}
@@ -452,53 +445,14 @@ function BacklogItem({ ticket: t, children }: { ticket: Ticket; children: ReactN
   );
 }
 
-/** 一覧の行をエージェントに頼む場所にするときの指定。within はチケットが入っている Iteration・Epic（詳細の中の行） */
-export interface RowAsk {
-  section: AskSection;
-  within?: string | undefined;
-}
-
-function rowAskOptions(t: Ticket, ask: RowAsk) {
-  return {
-    targets: [t.id],
-    label: tr("行 {0}", t.id),
-    section: ask.section,
-    within: ask.within,
-    select: true,
-  };
-}
-
-/** 頼める 1 行（サイドバーの並び）。吹き出しは行の右端に重ねる */
-function AskLi({ ticket, ask, children }: { ticket: Ticket; ask: RowAsk; children: ReactNode }) {
-  const spot = useAskSpot(rowAskOptions(ticket, ask));
-  return (
-    <li {...spot.props}>
-      {children}
-      {spot.overlay}
-    </li>
-  );
-}
-
-/** 頼める表の 1 行（広い画面）。吹き出しは末尾のセルに置く（tr の直下にボタンは置けない） */
-function AskTr({ ticket, ask, children }: { ticket: Ticket; ask: RowAsk; children: ReactNode }) {
-  const spot = useAskSpot(rowAskOptions(ticket, ask));
-  return (
-    <tr {...spot.props}>
-      {children}
-      <td className="ask-cell">{spot.overlay}</td>
-    </tr>
-  );
-}
-
 /**
- * チケットの一覧。広い画面では表、サイドバーでは 1 行ずつの並び。行の先頭のリンクで詳細へ
+ * チケットの一覧（サイドバーの 1 行ずつの並び）。行の先頭のリンクで詳細へ
  */
 export function TicketTable({
   tickets,
   assigneeInEnd = false,
   rowMenu = false,
   end,
-  ask,
 }: {
   tickets: readonly Ticket[];
   /**
@@ -508,7 +462,7 @@ export function TicketTable({
   assigneeInEnd?: boolean;
   /**
    * サイドバーの行に VS Code の右クリックのメニュー（詳細を開く・ID をコピー）の文脈（data-vscode-context）を付け、エージェントに頼む吹き出しを出す。左パネルのバックログで使う。
-   * メニューとコマンドは拡張の package.json の webview/context と context-menu.ts。ブラウザでは右クリックのメニューは出ない
+   * メニューとコマンドは拡張の package.json の webview/context と context-menu.ts
    */
   rowMenu?: boolean;
   /**
@@ -516,81 +470,25 @@ export function TicketTable({
    * 渡さなければ優先度の印（RowPriority）
    */
   end?: ((t: Ticket) => ReactNode) | undefined;
-  /** 行をエージェントに頼む場所にする（吹き出し・Shift+F10。Iteration の詳細の中の行）。rowMenu があればそちらを使う */
-  ask?: RowAsk | undefined;
 }) {
-  const store = useStore();
-  const host = useHost();
   if (tickets.length === 0) return <p className="empty">{tr("該当するチケットはない")}</p>;
-  if (host.surface === "sidebar") {
-    const hideAssignee = sameAssignee(tickets);
-    const endOf = (t: Ticket) => (end ? end(t) : <RowPriority priority={t.priority} />);
-    const variant = assigneeInEnd ? "backlog" : "list";
-    return (
-      <ul className={assigneeInEnd ? "rows backlog-rows" : "rows"}>
-        {tickets.map((t) => {
-          const content = (
-            <TicketRow ticket={t} hideAssignee={hideAssignee} variant={variant} end={endOf(t)} />
-          );
-          return rowMenu ? (
-            <BacklogItem key={t.id} ticket={t}>
-              {content}
-            </BacklogItem>
-          ) : ask ? (
-            <AskLi key={t.id} ticket={t} ask={ask}>
-              {content}
-            </AskLi>
-          ) : (
-            <li key={t.id}>{content}</li>
-          );
-        })}
-      </ul>
-    );
-  }
+  const hideAssignee = sameAssignee(tickets);
+  const endOf = (t: Ticket) => (end ? end(t) : <RowPriority priority={t.priority} />);
+  const variant = assigneeInEnd ? "backlog" : "list";
   return (
-    <table className="list">
-      <thead>
-        <tr>
-          <th>{tr("番号")}</th>
-          <th>{tr("タイトル")}</th>
-          <th>Status</th>
-          <th>{tr("優先度")}</th>
-          <th>Iteration</th>
-          <th>Epic</th>
-          <th>{tr("ラベル")}</th>
-          {ask ? <th aria-label={tr("エージェントに頼む")} /> : null}
-        </tr>
-      </thead>
-      <tbody>
-        {tickets.map((t) => {
-          const cells = (
-            <>
-              <td>
-                <TicketLink id={t.id} />
-              </td>
-              <td>
-                <TicketLink id={t.id}>{t.title}</TicketLink>
-              </td>
-              <td>{store.labelOf(t.status)}</td>
-              <td>
-                <PriorityMark priority={t.priority} />
-              </td>
-              <td>{t.iteration ?? ""}</td>
-              <td>{t.epic ? <a href={hrefOf({ page: "epics", id: t.epic })}>{t.epic}</a> : ""}</td>
-              <td>
-                <Tags labels={t.labels} />
-              </td>
-            </>
-          );
-          return ask ? (
-            <AskTr key={t.id} ticket={t} ask={ask}>
-              {cells}
-            </AskTr>
-          ) : (
-            <tr key={t.id}>{cells}</tr>
-          );
-        })}
-      </tbody>
-    </table>
+    <ul className={assigneeInEnd ? "rows backlog-rows" : "rows"}>
+      {tickets.map((t) => {
+        const content = (
+          <TicketRow ticket={t} hideAssignee={hideAssignee} variant={variant} end={endOf(t)} />
+        );
+        return rowMenu ? (
+          <BacklogItem key={t.id} ticket={t}>
+            {content}
+          </BacklogItem>
+        ) : (
+          <li key={t.id}>{content}</li>
+        );
+      })}
+    </ul>
   );
 }

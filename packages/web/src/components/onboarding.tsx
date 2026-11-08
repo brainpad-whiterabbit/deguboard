@@ -1,7 +1,6 @@
 // dg init 前のリポジトリで、一覧の代わりに出す始め方の案内（UI-12）。サイドバーの幅（300px 前後）で読める縦の手順にする。
 // ボタンはコマンドをコピーするだけで、データにもリポジトリにも書き込まない（ADR-010）。init の後は、見張りの読み直しで普段の画面に変わる
 
-import { useHost } from "../host.js";
 import { CopyableCode } from "./copyable-code.js";
 import { tr, msg } from "../l10n.js";
 import { trNode } from "../l10n-node.js";
@@ -26,8 +25,6 @@ export const ONBOARDING_STEPS: { title: string; body: string; command: string }[
 ];
 
 export function Onboarding() {
-  // ブラウザには見張りがないので、init の後は読み直してもらう
-  const browser = useHost().surface === "browser";
   return (
     <section className="onboarding" aria-labelledby="onboarding-title">
       <h2 id="onboarding-title">{tr("deguboard を始める")}</h2>
@@ -46,11 +43,7 @@ export function Onboarding() {
           </li>
         ))}
       </ol>
-      <p className="muted">
-        {browser
-          ? tr("1 を済ませたら、ページを読み直してください。")
-          : tr("1 を済ませると、開き直さなくてもいつもの画面に変わります。")}
-      </p>
+      <p className="muted">{tr("1 を済ませると、開き直さなくてもいつもの画面に変わります。")}</p>
     </section>
   );
 }

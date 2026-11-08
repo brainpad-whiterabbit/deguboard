@@ -23,7 +23,7 @@ describe("値とコピーのボタン", () => {
     const writeText = vi.fn(async () => {});
     setClipboard({ writeText });
     render(
-      <HostProvider host={createHost("browser", null)}>
+      <HostProvider host={createHost("panel", null)}>
         <CopyableCode text="feat/x" label="ブランチ名をコピー" />
       </HostProvider>,
     );
@@ -51,10 +51,10 @@ describe("値とコピーのボタン", () => {
     expect(screen.getByRole("status").textContent).toBe("コピーした");
   });
 
-  it("ブラウザで navigator.clipboard がなければ「コピーできない」を出す", async () => {
+  it("dg serve で navigator.clipboard がなければ「コピーできない」を出す", async () => {
     setClipboard(undefined);
     render(
-      <HostProvider host={createHost("browser", null)}>
+      <HostProvider host={createHost("panel", null)}>
         <CopyableCode text="feat/x" label="ブランチ名をコピー" />
       </HostProvider>,
     );

@@ -1,4 +1,4 @@
-// dg serve / dg open：HTTP サーバーの起動と、ブラウザで画面を開く（UI-8）。中身は @deguboard/server
+// dg serve / dg open：開発用の HTTP サーバーの起動と、ブラウザで画面を開く（UI-8・ADR-023）。中身は @deguboard/server
 
 import { execFile } from "node:child_process";
 import { pickUser } from "@deguboard/core";
@@ -43,7 +43,7 @@ export function addServeCommands(program: Command, deps: ServeDeps): void {
   program
     .command("serve")
     .description(
-      `画面と API を配信する HTTP サーバーを起動する。既定で ${DEFAULT_HOST}:${DEFAULT_PORT} に閉じ、認証は持たない`,
+      `開発用：画面と API を配信する HTTP サーバーを起動する（左パネルとパネルの配置の確認とスクリーンショットに使う。画面は VS Code 拡張で開く）。既定で ${DEFAULT_HOST}:${DEFAULT_PORT} に閉じ、認証は持たない。配置は ?surface=sidebar（既定）か ?surface=panel で選ぶ`,
     )
     .option("--host <host>", "バインドするアドレス", DEFAULT_HOST)
     .option("--port <port>", "ポート。0 なら空いているポート", toPort, DEFAULT_PORT)
@@ -93,7 +93,7 @@ export function addServeCommands(program: Command, deps: ServeDeps): void {
 
   program
     .command("open")
-    .description("起動中の dg serve の画面をブラウザで開く")
+    .description("開発用：起動中の dg serve の画面をブラウザで開く（画面は VS Code 拡張で開く）")
     .option("--host <host>", "サーバーのアドレス", DEFAULT_HOST)
     .option("--port <port>", "サーバーのポート", toPort, DEFAULT_PORT)
     .action(async (opts: { host: string; port: number }) => {
