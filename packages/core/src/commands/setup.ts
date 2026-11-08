@@ -4,7 +4,12 @@ import { writeFile } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
 import { OperationError } from "../errors.js";
-import { branchCommitTimes, collectBranchFacts, lastPushedAt } from "../git/facts.js";
+import {
+  branchCommitTimes,
+  collectBranchFacts,
+  fetchPrCreatedAt,
+  lastPushedAt,
+} from "../git/facts.js";
 import { withLock } from "../git/lock.js";
 import { renumberProvisional, type Renumbered } from "../git/renumber.js";
 import { ensureGitattributes, ensureMergeDriver } from "../git/merge.js";
@@ -18,7 +23,13 @@ import {
   syncStatus,
 } from "../git/sync.js";
 import { CONFLICT_REMEDY, flushPending, withWrite } from "../git/write.js";
-import { isAgentActorId, ownActorIds, type ActorKind, type UserSource } from "../model/actor.js";
+import {
+  isAgentActorId,
+  ownActorIds,
+  sameUser,
+  type ActorKind,
+  type UserSource,
+} from "../model/actor.js";
 import { isTerminal } from "../model/common.js";
 import {
   configFields,
@@ -28,7 +39,7 @@ import {
   type ConfigField,
 } from "../model/config.js";
 import type { Iteration } from "../model/iteration.js";
-import type { Run, RunId } from "../model/run.js";
+import type { Run, RunId, RunResult } from "../model/run.js";
 import type { StepOpener } from "../model/workflow.js";
 import { parseAcceptance, type Ticket } from "../model/ticket.js";
 import { dropRunning, peekRunningRuns, readRunningRuns } from "../run/record.js";
@@ -50,6 +61,7 @@ import {
   findOpenedRun,
   fixRunFinishedAt,
   openedStepOf,
+  runsClosedByMove,
 } from "./run.js";
 
 const TEMPLATE_IDS = WORKFLOW_TEMPLATES.map((t) => t.id) as [string, ...string[]];
@@ -149,11 +161,12 @@ export interface ReconciledTicket {
   when: string[];
 }
 
-/** 照合が閉じた Run（RN-6）。opener は開いた操作（claim は実装、reclaim は手直し） */
+/** 照合が閉じた Run（RN-6）。opener は開いた操作（claim は実装、reclaim は手直し）、result は閉じた結果 */
 export interface ReconciledRun {
   id: string;
   run: RunId;
   opener: StepOpener;
+  result: RunResult;
 }
 
 export interface Reconciled {
@@ -161,7 +174,7 @@ export interface Reconciled {
   changed: ReconciledTicket[];
   /** PR 番号を記録したチケット（ST-6） */
   prRecorded: Array<{ id: string; pr: number }>;
-  /** 作業ブランチの PR を見つけて閉じた実装の Run と、区切りを見て閉じた手直しの Run（RN-6）。コミットの後に dropRunning で実行中の記録を消す */
+  /** 照合が閉じた実装の Run（PR の発見・終わったチケット・戻った・取られたチケット）と手直しの Run（区切り）（RN-6）。コミットの後に dropRunning で実行中の記録を消す */
   runsClosed: ReconciledRun[];
 }
 
@@ -224,11 +237,34 @@ async function closeFixRun(
     out.warnings,
   );
   if (!closed) return;
-  out.runsClosed.push({ id: doc.id, run: closed.run.id, opener: "reclaim" });
+  out.runsClosed.push({ id: doc.id, run: closed.run.id, opener: "reclaim", result: "success" });
   out.warnings.push(
     `${doc.id}: ${boundary.why}を区切りとして閉じた（${basis}）`,
     ...closed.warnings,
   );
+}
+
+/**
+ * 実装の Run を照合の事実で閉じる（RN-6）。終わったチケットは ticket move と同じ結果（PR のある done は PR の発見と同じ success）、戻った・取られたチケットは failure。
+ * 閉じた取り込みの警告（結果と finished_at）は closeOpenedRunUnlessClosed が返す
+ */
+async function closeImplRun(
+  ctx: CommandContext,
+  doc: Doc<Ticket>,
+  run: Doc<Run>,
+  input: { result: RunResult; error?: string | undefined; finishedAt?: string | undefined },
+  out: { runsClosed: ReconciledRun[]; warnings: string[] },
+): Promise<void> {
+  const closed = await closeOpenedRunUnlessClosed(
+    ctx,
+    run,
+    { opener: "claim", ...input },
+    "照合",
+    out.warnings,
+  );
+  if (!closed) return;
+  out.runsClosed.push({ id: doc.id, run: closed.run.id, opener: "claim", result: input.result });
+  out.warnings.push(...closed.warnings);
 }
 
 /** 照合（ST-4〜ST-6）。状態を進めたチケットと、PR 番号を記録したチケット、閉じた実装・手直しの Run を返す */
@@ -276,7 +312,7 @@ async function reconcileAll(ctx: CommandContext, warnings: string[]): Promise<Re
           warnings,
         );
         if (closed) {
-          runsClosed.push({ id: doc.id, run: closed.run.id, opener: "claim" });
+          runsClosed.push({ id: doc.id, run: closed.run.id, opener: "claim", result: "success" });
           warnings.push(...closed.warnings);
         }
       }
@@ -332,14 +368,58 @@ async function reconcileAll(ctx: CommandContext, warnings: string[]): Promise<Re
       );
     }
   }
-  // 終わったチケット（別のマシンの照合や ticket move で done・abandoned になった）に開いたままの手直しの Run も閉じる
+  // このマシンで開いたままの Run のうち、照合の対象にならなかったものを閉じる（RN-6）
   for (const run of running) {
     if (runsClosed.some((c) => c.run === run.data.id)) continue;
     const doc = ctx.store.tickets.get(run.data.ticket);
-    if (!doc || !isTerminal(doc.data.status)) continue;
-    if (run.data.step !== openedStepOf(ctx, doc.data, "reclaim")) continue;
-    const boundary = fixRunBoundary(ctx, doc.data, run, running, false);
-    if (boundary) await closeFixRun(ctx, doc, run, boundary, undefined, { runsClosed, warnings });
+    if (!doc) continue;
+    const out = { runsClosed, warnings };
+    if (isTerminal(doc.data.status)) {
+      // 終わったチケットに開いたままの手直しの Run は、次の区切り（チケットの終了を含む）で success にする
+      if (run.data.step === openedStepOf(ctx, doc.data, "reclaim")) {
+        const boundary = fixRunBoundary(ctx, doc.data, run, running, false);
+        if (boundary) await closeFixRun(ctx, doc, run, boundary, undefined, out);
+      } else if (run.data.step === openedStepOf(ctx, doc.data, "claim")) {
+        // 終わったチケットの実装の Run は ticket move と同じ結果で閉じる
+        const ends = runsClosedByMove(doc.data, doc.data.status);
+        if (ends?.openers.includes("claim")) {
+          await closeImplRun(ctx, doc, run, { result: ends.result }, out);
+        } else if (doc.data.status === "done" && doc.data.pr !== undefined) {
+          // PR のある done は、PR を見つけた別のマシンの照合が done にした後の残り。PR の発見と同じく success で、
+          // finished_at は PR の作成時刻（実行中の Run の開始より前なら使わず、取れなければ今の時刻）
+          const created = await fetchPrCreatedAt(ctx.repo, doc.data.pr);
+          if (created.createdAt === undefined)
+            warnings.push(
+              `${doc.id}: PR #${doc.data.pr} の作成時刻を取れないので、実装の Run は今の時刻で閉じる（${created.reason}）`,
+            );
+          const finishedAt =
+            created.createdAt !== undefined && created.createdAt >= run.data.started_at
+              ? created.createdAt
+              : undefined;
+          await closeImplRun(ctx, doc, run, { result: "success", finishedAt }, out);
+        }
+      }
+      continue;
+    }
+    // 戻った（todo）か、ほかの主体の claim になったチケットの実装の Run は failure で閉じる（unclaim と同じ）。自分のユーザの claim は触らない
+    if (run.data.step !== openedStepOf(ctx, doc.data, "claim")) continue;
+    if (doc.data.status === "todo") {
+      await closeImplRun(
+        ctx,
+        doc,
+        run,
+        { result: "failure", error: "照合で todo に戻っていた" },
+        out,
+      );
+    } else if (doc.data.assignee !== undefined && !sameUser(doc.data.assignee, ctx.actor.id)) {
+      await closeImplRun(
+        ctx,
+        doc,
+        run,
+        { result: "failure", error: "照合で別の主体の claim になっていた" },
+        out,
+      );
+    }
   }
   return { changed, prRecorded, runsClosed };
 }
@@ -353,7 +433,7 @@ export const sync = defineCommand({
   name: "sync",
   group: "setup",
   summary:
-    "リモートの deguboard を取り込み、未 push のコミットを送り、作業ブランチの事実でチケットの状態を進める。作業ブランチの PR を見つけたら、このマシンで実行中の実装の Run を success で閉じる（finished_at は PR の作成時刻）。開いたままの手直しの Run は、次の区切り（同じチケットの次の Run の開始・PR の ready・マージ・チケットの終了）を見たときに、それまでの最後の push の時刻で success にする。" +
+    "リモートの deguboard を取り込み、未 push のコミットを送り、作業ブランチの事実でチケットの状態を進める。作業ブランチの PR を見つけたら、このマシンで実行中の実装の Run を success で閉じる（finished_at は PR の作成時刻）。開いたままの手直しの Run は、次の区切り（同じチケットの次の Run の開始・PR の ready・マージ・チケットの終了）を見たときに、それまでの最後の push の時刻で success にする。終わったチケットに開いたままの実装の Run は ticket move と同じ結果で閉じる（abandoned は failure、PR のない done は success。PR のある done は PR の作成時刻で success）。todo に戻ったチケットか別の主体の claim になったチケットの実装の Run は failure で閉じる。" +
     "記録の書き終わりを待ちきれずに残したサブエージェントの Run（書き終わり待ちの印 settling_since のあるもの）も、書き終わっていれば閉じる",
   input: z.object({}),
   write: true,
@@ -449,7 +529,7 @@ async function syncLocked(ctx: CommandContext) {
           : []),
         ...describeClosedRuns(
           runsClosed.map((r) => ({
-            run: { ticket: r.id, id: r.run, result: "success" },
+            run: { ticket: r.id, id: r.run, result: r.result },
             opener: r.opener,
           })),
         ),

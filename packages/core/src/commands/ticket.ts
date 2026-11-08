@@ -53,6 +53,7 @@ import {
   openedInOtherSession,
   openedStepOf,
   openRun,
+  runsClosedByMove,
   sessionOf,
   STALE_SESSION_ERROR,
   token,
@@ -802,20 +803,6 @@ async function requireBranchAvailable(
       `ブランチ ${leftover} の先端が base の真の祖先（前の作業でマージ済みか、古い base から切ったまま）で、照合が done にしてしまう。別の名前を指定するか、古いブランチを消すか base に揃えてからやり直す`,
     );
   }
-}
-
-/**
- * move に付随して閉じる Run の開き手と結果（RN-6）。abandoned は実装と手直しを failure で閉じる。
- * PR の要らない作業（branch なし）の review、と PR のない done は実装を success で閉じる。branch のあるチケットの review は PR の記録・発見が閉じる
- */
-function runsClosedByMove(
-  ticket: Ticket,
-  to: Status,
-): { openers: readonly StepOpener[]; result: "success" | "failure" } | undefined {
-  if (to === "abandoned") return { openers: ["claim", "reclaim"], result: "failure" };
-  if ((to === "review" && !ticket.branch) || (to === "done" && !ticket.pr))
-    return { openers: ["claim"], result: "success" };
-  return undefined;
 }
 
 /** 遷移に伴う担当者とブランチの扱い（ST-8）。旧名の claimed_by も消す */
