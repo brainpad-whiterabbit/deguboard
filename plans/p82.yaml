@@ -6,7 +6,7 @@ after:
     - t581
   t583:
     - t582
-pending_approval: true
+pending_approval: false
 details:
   t584:
     scope: server・cli・mcp・vscode の入口のテストのうち core を確かめ直すものを消し、引数の解釈と終了コードに絞る。bare リモートの結合テストは触らない
@@ -28,3 +28,5 @@ details:
     scope: app.test.tsx 以外の web のテストで、core と照合済みの手書きの例・まとめられる組・見た目を固定する assert を片付ける
     approach: core と照合するテストは残し、board の progressOf の例は core のテストへ移す。行番号は t581・t582 の後の main で引き直す
     tier: standard
+approved_by: maji/agent
+approved_at: 2026-11-08T14:25:53Z
