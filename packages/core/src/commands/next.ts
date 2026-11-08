@@ -6,6 +6,8 @@ import { lastPushedAt } from "../git/facts.js";
 import { REVIEW_STEP, type Run } from "../model/run.js";
 import type { Ticket } from "../model/ticket.js";
 import { readRunningRuns } from "../run/record.js";
+import { ASK_LANGUAGES } from "./ask.js";
+import { briefOf, type BriefRole } from "./brief.js";
 import { defineCommand, ok, type CommandContext } from "./define.js";
 import { FIX_ROUNDS_LIMIT, heavyReviewRounds } from "./gate.js";
 import { openPlanOf, ticketRef } from "./helpers.js";
@@ -68,7 +70,16 @@ export interface NextStep {
   commands: string[];
   /** 人に伝えて答えを待つこと（wait_human・wait_merge）。なければ null */
   ask_human: string | null;
+  /** この手をサブエージェントに頼む文（implement・review・fix の手。dg brief と同じ。ほかの手は null）。待つ手でも文は出す（commands が待つと言う） */
+  brief: string | null;
 }
+
+/** 手の種類のうち、サブエージェントに頼む文（brief）の役 */
+const BRIEF_ROLE_OF: Partial<Record<NextKind, BriefRole>> = {
+  implement: "implement",
+  review: "review",
+  fix: "fix",
+};
 
 /** 実行中の Run を待つ（新しく起動しない）手。ほかの手（done・wait_deps・wait_merge など）は待たない */
 const WAITABLE: readonly NextKind[] = ["implement", "review", "fix", "ready"];
@@ -273,6 +284,7 @@ export function nextOf(ctx: CommandContext, facts: StageFacts): NextStep {
       running_run: running ?? awaited,
       commands: awaited ? [`実行中の Run ${awaited} の終わりを待つ（新しく起動しない）`] : commands,
       ask_human: ask,
+      brief: null,
     };
   };
   const dg = (args: string) => `dg --json --actor agent ${args}`;
@@ -353,14 +365,25 @@ export const next = defineCommand({
     `waiting_human（止まって待っている Run がある、最後の見直しの後の手直しが failure か interrupted で閉じた、か、重い指摘が出た見直しが ${FIX_ROUNDS_LIMIT} 回を超えた）。PR が draft かは status で見る（in_progress で PR があれば draft）。` +
     "段階を Run（実装・見直し・手直しとその結果、止まって待っている印）・PR・作業ブランチの事実・Plan の待ちから求め、" +
     "手の種類（kind：implement・review・fix・ready・wait_merge・wait_deps・wait_human・done）と、開く step・実行中の Run・Plan の段階と範囲と方針・呼ぶコマンド（commands。サブエージェントに委譲する形。モデルが親と同じで自分で進めるなら、implement の claim は --no-run を外し印を使わない。implement・review・fix・ready の手は、その手の Run か、このブランチで実行中の実装の Run・開始より後に push がない手直しの Run が実行中なら、起動せずに終わりを待つ）・人に聞くこと（ask_human）を返す。" +
+    "implement・review・fix の手には、サブエージェントに貼る文（brief。dg brief と同じ。language で定型の文の言語）を入れる。" +
     "waiting_human の段階のチケットは wait_human。作業ブランチを取り込んでから読む。何も書かない",
-  input: z.object({ ticket: ticketRef }),
+  input: z.object({
+    ticket: ticketRef,
+    language: z
+      .enum(ASK_LANGUAGES)
+      .optional()
+      .describe("brief の定型の文の言語。省けば ja。チケットの中身は変えない"),
+  }),
   write: false,
   needs: "store",
   async run(ctx, input) {
     const ticket = ctx.store.require("ticket", input.ticket).data;
     const facts = await stageFactsOf(ctx, ticket, { fetch: true });
-    return ok(nextOf(ctx, facts));
+    const step = nextOf(ctx, facts);
+    const role = BRIEF_ROLE_OF[step.kind];
+    if (!role) return ok(step);
+    const brief = await briefOf(ctx, ticket, role, { language: input.language });
+    return ok({ ...step, brief: brief.text });
   },
 });
 
