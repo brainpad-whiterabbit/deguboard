@@ -194,7 +194,7 @@ steps: # 任意（WF-5）
 - CL-2 コマンドの一覧とオプションは `dg --help`（各コマンドは `dg <コマンド> --help`）が正本
 - CL-3 書き込みを伴うコマンドは `commit.mode` に従ってコミットする。作成・`ticket claim`・`iteration start / reopen` は採番と排他のため即座にコミットして push する
 - CL-4 `ticket import` は下書きの配列を 1 コミットで取り込み、取り込めない下書きがあれば起票せずに拒む（形と条件は `guide import`）
-- CL-5 `dg guide <topic>` は、エージェント向けの各手のやり方を `config.yaml` の値を埋めて出す。段階・次の 1 手・修正ループの回数・品質ゲートの判定・brief は guide に書かず Core（`dg next`・`dg gate`・`dg brief`）が返す（予定 e15。EX-3）。トピックの一覧は `dg guide overview`（省略時）。やり方の正本は CLI に同梱した Markdown（`packages/cli/src/guide-*.md`）
+- CL-5 `dg guide <topic>` は、エージェント向けの各手のやり方を `config.yaml` の値を埋めて出す。段階・次の 1 手・修正ループの回数・品質ゲートの判定・brief は guide に書かず Core（`dg next`・`dg gate`・`dg brief`）が返す（EX-3）。トピックの一覧は `dg guide overview`（省略時）。やり方の正本は CLI に同梱した `packages/cli/src/guide-*.md`
 - CL-6 CLI はロジックを持たず、Core のコマンド定義（`packages/core/src/commands/`）を写す
 - CL-7 `history` は deguboard ブランチの git の履歴から、チケット・Epic・Iteration の起票と属性（Status・所属・担当者・PR）の変化を古い順に返す。データの形は変えず、差分から読む。浅い clone では欠けたことを返して失敗しない（返す項目は `packages/core/src/commands/history.ts`）
 
@@ -202,7 +202,7 @@ steps: # 任意（WF-5）
 
 - ST-1 `status` はチケットに保存する。変えるのは `ticket move`・`claim`・`unclaim`、UI の操作、照合だけ
 - ST-2 遷移は Workflow の `transitions` の制約で検査する。`by` に含まれない主体の遷移と `requires` を満たさない遷移は拒否し、制約のない遷移は誰でも行える。同じ Status への move は拒否する
-- ST-3 `claim` は todo のチケットの `assignee` を claim した主体にし、`branch` を記録して in_progress に進め、agent なら実装の Run を開く（RN-5）。todo 以外と使えないブランチ名（`BRANCH_IN_USE`）は拒否し、別のユーザの `assignee` は上書きして警告する。自分（同じユーザの人と AI）が claim 済みで `pr` のある in_progress・review のチケットのもう一度の claim は手直しの開始とみなし、チケットを変えずに Run だけ開く（RN-5）。ブランチの要らない作業とブランチ名の条件は `ticket claim --help`
+- ST-3 `claim` は todo のチケットの `assignee` を自分にし、`branch` を記録して in_progress に進め、agent なら実装の Run を開く（RN-5）。todo 以外と使えないブランチ名は拒否し、別のユーザの `assignee` は上書きして警告する。自分が claim 済みで `pr` のあるチケットのもう一度の claim は手直しの開始とみなし、チケットを変えずに Run だけ開く（細部は `ticket claim --help`）
 - ST-4 照合は `dg sync` と、画面の同期（UI-6）で行う。`branch` のあるチケットについて Git から事実を集め、`reconcile` 規則を上から評価し、今より前進の順が先のときだけ書き換える。`branch` のないチケットと `done`・`abandoned` のチケットには触れない
 - ST-5 後退を指す事実（消えたブランチ・マージされずに閉じた PR）は書き換えず警告する。取れなかった事実は不明とし、前進の判定では偽と読む。結果（`reconciled`）には根拠の条件（`when`）を含める。細部は `packages/core/src/git/facts.ts`・`workflow/reconcile.ts`、理由は [ADR-028](adr/ADR-028-agents-and-state.md)
 - ST-6 PR の事実は `gh` が使えるときだけ取る（なくても照合は Git の事実で成り立つ）。ブランチ名で見つけた PR の番号を `pr` に記録し（記録済みは書き換えない）、実装の Run を閉じる（RN-6）。`branch_at` より前にマージされた PR は前の作業のものとして使わず警告する（細部は `packages/core/src/git/facts.ts`）
@@ -214,10 +214,11 @@ steps: # 任意（WF-5）
 - SY-1 `dg init` は deguboard ブランチを作るか取り込み、専用 worktree を用意し、`default` プロジェクトとテンプレートのワークフローを置く
 - SY-2 書き込みの単位は「取り込み → 変更 → 検証 → コミット →（`push.mode: auto` か即時の操作なら）push」。push が拒否されたら取り込み直して再送する。送れなければコミットを残し、次の同期で再送する
 - SY-3 claim・作成・`iteration start / reopen` は push の成功をもって取得とする。拒否されたらローカルのコミットを捨てて取り込み直し、判定し直す
-- SY-4 同期は rebase で取り込み、チケットと Epic の frontmatter はマージドライバがフィールド単位で 3-way マージする（規則は `packages/core/src/git/merge.ts`）。解けない競合は rebase を中止してコミットを残し、`dg sync` が報告する。その間は push・照合・作成・claim・`iteration start / reopen` が止まり、人が解消してから `dg sync` を回す（戻し方は `dg guide overview`）
+- SY-4 同期は rebase で取り込み、チケットと Epic の frontmatter はマージドライバがフィールド単位で 3-way マージする（規則は `packages/core/src/git/merge.ts`）。解けない競合は rebase を中止してコミットを残し、`dg sync` が報告する。人が解消するまで push・照合と即時の操作（CL-3）が止まる（止まる操作と戻し方は `dg guide overview`）
 - SY-5 同一マシンの書き込みは `deguboard-local/locks/` のロックで直列にし、同じチケットと step の Run の二重起動も防ぐ。チーム間の排他には使わない
 - SY-6 リモートがなくても、同期を除くすべての操作が動く
-- SY-7 データのリポジトリの dg の外の変更（dg のコマンドを通さない未コミットの変更、dg の印のないコミット、dg のコミットを捨てた・書き換えた履歴）を、dg がコマンドを実行するたびに見つける。書くコマンドは `OUTSIDE_CHANGES` で止め（データに書く前に、書き込みのロックの中でも確かめる。止めないフックもそのときは書かない）、読むだけのコマンドは警告し、どちらもどのファイル（とコミット）かと戻し方・取り込み方を示す。dg が作るコミットは印を持ち、dg 自身のまとめ待ちの変更と、同じマシンで並べて動く dg の書きかけは外の変更とみなさない。リモートから取り込んだコミットは見ない。`dg adopt` が `dg validate` と同じ検査を通してから今の状態を取り込み、捨てるのは人が deguboard worktree で行う。この版で初めて確かめるときは今の状態を基準にする。この版より前の dg が同じマシンで書いた変更（印のないコミット・基準にないまとめ待ちの変更）は外の変更に見えるので、版を揃えてから取り込む（[ADR-026](adr/ADR-026-guard-pr-and-data.md)。戻し方は `dg guide overview`）
+- SY-7 データのリポジトリの dg の外の変更（dg を通さない未コミットの変更・dg の印のないコミット・dg のコミットを捨てた・書き換えた履歴）を、dg がコマンドのたびに見つける。書くコマンドはデータに書かずに `OUTSIDE_CHANGES` で止め、読むだけのコマンドは警告し、どのファイル（とコミット）かと戻し方・取り込み方を示す（理由は [ADR-026](adr/ADR-026-guard-pr-and-data.md)）
+- SY-8 dg が作るコミットは印を持ち、dg 自身のまとめ待ちの変更、同じマシンで並べて動く dg の書きかけ、リモートから取り込んだコミットは外の変更（SY-7）とみなさない。外の変更は `dg adopt` が `dg validate` と同じ検査を通して取り込み、捨てるのは人が行う（細部は `packages/core/src/git/outside.test.ts`、戻し方は `dg guide overview`）
 
 ### 6.4 画面（VS Code 拡張）
 
@@ -252,7 +253,7 @@ steps: # 任意（WF-5）
 - AG-7 任意のシェルの Action は `actions.shell: true` のときだけ使え、毎回確認を経る
 - AG-8 `ask` は対象（複数可）・頼むこと・指示・形式から、エージェントに貼る依頼文を返す読み取りだけのコマンドで、人に限られた操作なら人が打つ `dg` のコマンドを返す。`ask-menu` は画面の場所ごとの候補を返す。候補・おすすめ・文の形は `dg ask --help` と `packages/core/src/commands/ask.ts`・そのテストが正本
 - AG-9 `dg hooks install` は harness（今は Claude Code）の設定に `dg hook` を呼ぶフックを重ねずに書き、`uninstall` は dg のフックだけを外し（手で足したフックは残す）、`check` が確かめる。フックは主体を agent にする（Run の開け閉めは RN-7）。細部は `dg hook --help` とそのテスト、理由は [ADR-025](adr/ADR-025-runs-by-hooks.md)
-- AG-10 フック（AG-9）は、データの直接の書き換えと dg を経由しない PR の ready・マージを、字句を読まずに語の有無で粗く拒み、dg の読み書きのコマンドと `dg pr ready`・`dg pr merge`（EX-3）へ案内する。応答の終わりに dg の外の変更（SY-7）があれば、止まらずに続けさせて伝える。細部は `dg hook --help` とそのテスト、理由は [ADR-026](adr/ADR-026-guard-pr-and-data.md)
+- AG-10 フック（AG-9）は、データの直接の書き換えと dg を経由しない PR の ready・マージを、字句を読まずに語の有無で粗く拒み、dg の読み書きのコマンドと `dg pr ready`・`dg pr merge`（EX-6）へ案内する。応答の終わりに dg の外の変更（SY-7）があれば、止まらずに続けさせて伝える。細部は `dg hook --help` とそのテスト、理由は [ADR-026](adr/ADR-026-guard-pr-and-data.md)
 
 ### 6.6 作業の実績
 
@@ -266,8 +267,11 @@ steps: # 任意（WF-5）
 
 - EX-1 deguboard はエージェントを起動しない。エージェントが `dg` を呼んで進める
 - EX-2 終了していない Run は一覧で見え、`interrupted` として閉じられる
-- EX-3 チケットを段階（claimed → implemented → reviewed(n) → fixed(n) → ready → merged）に続けて進める既定の手続きは Core が持つ（段階と次の 1 手は `dg next`、修正ループの回数と品質ゲートは `dg gate`、サブエージェントに渡す文（brief）は `dg brief`。細部は各 `--help`）。段階は Run（実装・見直し・手直しとその結果、止まって待っている印）・PR・作業ブランチの事実・Plan の待ちから都度求めて保存せず、`ticket show` の `stage` と `dg next <ticket>` が同じ求め方で返す。`dg next` は次の 1 手（implement・review・fix・ready・wait_merge・wait_deps・wait_human・done）と、開く step・呼ぶコマンド・人に聞くことを、implement・review・fix の手ではサブエージェントに渡す文（brief）と合わせてデータで返す読み取りだけのコマンドで、修正ループの上限を超えたチケット、一番新しい手直しが failure か interrupted で閉じたチケット、止まって待っている Run のあるチケットは wait_human になる（段階の名前と手の種類の正本は `dg next --help`）。着手できるチケットは PL-6 か `ticket list --ready` に従う。エージェントが PR を ready にする・マージする正しい道は `dg pr ready <ticket>`・`dg pr merge <ticket>` で、`dg gate` を満たすときだけ gh を呼び、満たさなければ gh を呼ばずに満たさない条件と理由を `GATE_FAILED` で返す。満たさないまま進める例外（見直し役を起動できない・上限を超える・版上げの PR・人が回数を指示した）は人が gh を打つ（AG-10、[ADR-026](adr/ADR-026-guard-pr-and-data.md)。細部は `dg pr --help`）。`--auto` は戻せる判断を自動で選ぶ（Plan の承認を含む。`approved_by` は agent）。マージは、`dg guide all --auto` で `auto.merge` が true のとき、品質ゲートを通った PR だけ自動でマージする。そのほかのマージは人を待つ（リリースの PR は `auto.merge` があっても常に人が承認する）。やめる（abandoned・done の取り消し）は常に人が決めるので、Core は人を待つ手を返す。各手のやり方は guide（`dg guide all`・`work`・`review` など）が書く。`dg gate` が判定する品質ゲートの条件は `dg gate --help` が正本。e15 が実装されるまでは、各手のやり方と `dg gate` が判定しない条件（検査など）は guide（`all`・`parallel`・`review`）が正本（[ADR-011](adr/ADR-011-procedure-in-code.md)）
+- EX-3 チケットを段階に進める既定の手続きは Core が持ち、`dg next` が段階と次の 1 手を、`dg gate` が品質ゲートと修正ループの回数を、`dg brief` がサブエージェントに渡す文を返す。段階は Run・PR・ブランチと Plan の待ちから都度求めて保存せず、`ticket show` の `stage` も同じ（名前は `dg next --help`、理由は [ADR-011](adr/ADR-011-procedure-in-code.md)）
 - EX-4 Workflow が `by: [human]` で人に限った遷移は、エージェントからは行えない
+- EX-5 `dg next` は読み取りだけで、次の 1 手と開く step・呼ぶコマンド・人に聞くことを、サブエージェントに渡す手では brief と合わせて返す。修正ループの上限を超えたなど人の判断が要るチケットは人を待つ手になる。着手できるチケットは PL-6 か `ticket list --ready` に従う（EX-3）
+- EX-6 エージェントが PR を出す・マージする道は `dg pr ready`・`dg pr merge` で、`dg gate` を満たすときだけ gh を呼び、満たさなければ満たさない条件と理由を `GATE_FAILED` で返す。満たさないまま進めるときは人が gh を打つ（AG-10。条件は `dg gate --help`、判定しない検査は `dg guide review`、理由は [ADR-026](adr/ADR-026-guard-pr-and-data.md)）
+- EX-7 `--auto` は戻せる判断を自動で選ぶ（Plan の承認を含む。`approved_by` は agent）。自動でマージするのは `dg guide all --auto` で `auto.merge` が true のときの品質ゲートを通った PR だけで、ほかのマージとリリースの PR は人を待つ。やめる（abandoned・done の取り消し）は常に人が決め、Core は人を待つ手を返す（各手のやり方は `dg guide all`・`work`・`review`）
 
 ## 7. 非機能要件
 
