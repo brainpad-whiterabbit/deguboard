@@ -887,7 +887,7 @@ describe("Core の汎用部分は特定の AI 製品を知らない（AG-5）", 
   });
 });
 
-describe("Claude Code のフックの入力（ADR-012）", () => {
+describe("Claude Code のフックの入力（ADR-025）", () => {
   const hooks = claudeCodeAdapter.hooks!;
   const parent = "/h/.claude/projects/d/s1.jsonl";
 
@@ -983,7 +983,7 @@ describe("Claude Code のフックの入力（ADR-012）", () => {
       kind: "session_end",
       session: "s1",
     });
-    // SubagentStart は再開を続きとして扱うのに読む（ADR-014）。記録のパスは親の記録の隣
+    // SubagentStart は再開を続きとして扱うのに読む（ADR-025）。記録のパスは親の記録の隣
     expect(
       hooks.parse(
         "SubagentStart",

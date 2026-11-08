@@ -223,7 +223,7 @@ export function buildProgram(options: ProgramOptions = {}): Command {
       }
     });
 
-  // hooks も CLI の責務。書くイベントと置き場所は Adapter の hooks が決め、フックが呼ぶのは core の hook コマンド（ADR-012）
+  // hooks も CLI の責務。書くイベントと置き場所は Adapter の hooks が決め、フックが呼ぶのは core の hook コマンド（ADR-025）
   const hooksCmd = program
     .command("hooks")
     .description("harness（Claude Code）のフックの操作")

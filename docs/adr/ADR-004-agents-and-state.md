@@ -41,9 +41,9 @@ AI エージェント（Claude Code・Codex など）がチケットを処理す
 
 ### Run は受動型で記録する
 
-- Run は agent の `ticket claim`（RN-5）か `dg run start` で開き、エージェント（または Skill）が `dg run finish` で閉じる。Git に入れるのは完了時の集計だけ（RN-3）
+- ※ ADR-025 で置き換え（この項の「Run は agent の `ticket claim`（RN-5）か `dg run start` で開き、エージェント（または Skill）が `dg run finish` で閉じる。」の部分は失効）。Run は agent の `ticket claim`（RN-5）か `dg run start` で開き、エージェント（または Skill）が `dg run finish` で閉じる。Git に入れるのは完了時の集計だけ（RN-3）
 - ツールが Run を見失っても、チケットの状態はブランチの事実で進む
-- 終了していない Run は人かエージェントが `interrupted` で閉じ、自動復旧はしない（EX-2）
+- ※ ADR-025 で置き換え（この項は失効）。終了していない Run は人かエージェントが `interrupted` で閉じ、自動復旧はしない（EX-2）
 - ※ ADR-011 で置き換え（この項は失効）。並列実行・修正ループ・自動マージも guide 側が Plan の待ちを見て進め、スケジューラは置かない。上限は負荷とエージェントの都合で決まるので config でなく手順に書く（EX-3）
 
 ### Plan を第一級のエンティティにする

@@ -109,7 +109,7 @@ export function agentFromEnv(
  * 同じチケットの開いたままの手直しの Run は、この Run の開始を区切りとして閉じてから開く（closePreviousFixRun。reopensFix のない同じ step の二重起動では閉じずに拒む）。
  * retryReasons はもう一度の claim が開く手直しの Run に、直す指摘を最初から残すためのもの。
  * session・transcript は会話記録の場所（ADR-005）。session は Run に、transcript はこのマシンの deguboard-local/transcripts/ に置く。
- * 渡されなければ、harness のフックが環境に入れた DEGUBOARD_SESSION・DEGUBOARD_TRANSCRIPT を使う（ADR-012。セッションは sessionOf）。
+ * 渡されなければ、harness のフックが環境に入れた DEGUBOARD_SESSION・DEGUBOARD_TRANSCRIPT を使う（ADR-025。セッションは sessionOf）。
  * transcript は agent の Adapter の会話記録の置き場所の下だけを受け付ける（ほかのファイルを読ませない）
  */
 export async function openRun(
@@ -160,10 +160,12 @@ export async function openRun(
     );
   }
   const startedAt = input.startedAt ?? ctx.now();
-  // 同じチケットの次の Run の開始は、開いたままの手直しの Run の区切り。sync を待たずにその場で閉じてから開く（RN-6・ADR-022）。
+  // 同じチケットの次の Run の開始は、開いたままの手直しの Run の区切り。sync を待たずにその場で閉じてから開く（RN-6・ADR-025）。
   // 閉じられなくても開くのは止めない（後の sync が同じ区切りで閉じる）。
   // 同じチケットと step の Run が開いたままなら、下の startRun が拒むので閉じない（二重起動の拒否。SY-5）。
-  // ただし手直しを開き直す操作（reopensFix）が開く手直しの step では、前の手直しを閉じて開き直す（ADR-018）
+  // ただし手直しを開き直す操作（reopensFix）が開く手直しの step では、前の手直しを閉じて開き直す（ADR-025）。
+  // 二重起動の判定と前の手直しを閉じる処理は同じロックの中にないので、同じチケットの Run を別のプロセスが同時に開くと、
+  // 拒まれた側が前の手直しを閉じることがある
   const duplicate = (await readRunningRuns(ctx.repo)).runs.some(
     (r) => r.data.ticket === ticket.id && r.data.step === step,
   );
@@ -213,9 +215,9 @@ async function closePreviousFixRunOrWarn(
 }
 
 /**
- * Run を開く操作のセッション ID。渡されなければ、harness のフックが環境に入れた DEGUBOARD_SESSION（ADR-012）。
+ * Run を開く操作のセッション ID。渡されなければ、harness のフックが環境に入れた DEGUBOARD_SESSION（ADR-025）。
  * それもなければ、dg を呼んだエージェントの Adapter が環境から読むセッション ID（Adapter の sessionFromEnv）。
- * フックの環境が届かないサブエージェントの Bash でも、起動した親のセッションの ID になる（ADR-016）
+ * フックの環境が届かないサブエージェントの Bash でも、起動した親のセッションの ID になる（ADR-025）
  */
 export function sessionOf(ctx: CommandContext, session: string | undefined): string | undefined {
   const env = ctx.env ?? process.env;
@@ -223,14 +225,15 @@ export function sessionOf(ctx: CommandContext, session: string | undefined): str
 }
 
 /**
- * 開いたままの Run が、今の操作とは別のセッションで開いたものか（ADR-015）。別のセッションの Run は、そのセッションが落ちて
- * 閉じ損ねた残りとみなす。どちらかのセッションが分からなければ（セッションを渡さない製品・環境）false
+ * 開いたままの Run が、今の操作とは別のセッションで開いたものか（ADR-025）。別のセッションの Run は、そのセッションが落ちて
+ * 閉じ損ねた残りとみなす（同じチケットと step を別のセッションで並行して動かすことは想定しない。並行していれば動いている方を閉じる）。
+ * どちらかのセッションが分からなければ（セッションを渡さない製品・環境）false
  */
 export function openedInOtherSession(run: Run, session: string | undefined): boolean {
   return run.session !== null && session !== undefined && run.session !== session;
 }
 
-/** 別のセッションで開いたままだった Run を interrupted で閉じるときのエラー（ADR-015） */
+/** 別のセッションで開いたままだった Run を interrupted で閉じるときのエラー（ADR-025） */
 export const STALE_SESSION_ERROR =
   "別のセッションで開いたままだった（落ちたセッションの残りとみなして閉じた）";
 
@@ -484,11 +487,13 @@ export async function closeOpenedRunAlone(
 }
 
 /**
- * 開いたままの前の手直しの Run を、同じチケットの次の Run の開始（boundaryAt）を区切りとして閉じる（RN-6・ADR-022）。openRun が開く前に呼ぶので、
+ * 開いたままの前の手直しの Run を、同じチケットの次の Run の開始（boundaryAt）を区切りとして閉じる（RN-6・ADR-025）。openRun が開く前に呼ぶので、
  * claim・もう一度の claim・起動のフック・run start のどこから開いても同じ規則になる。
  * 区切りの判定は sync の fixRunBoundary と同じで、手直しの Run の開始と同じ秒か後の開始だけを区切りに数える（前景の起動で前にした開始が手直しより前なら閉じない）。
- * 前の Run の開始より後で区切りまでの最後の push の時刻で閉じ、push がなければ区切りの時刻にする。
- * 結果は success。ただし手直しの step を開くとき、前の手直しが別のセッションで開いたものなら、そのセッションが落ちた残りとみなして interrupted にする（ADR-015）。
+ * 同じ秒を数えるのは、時刻が秒までの記録では前後を決められず、手直しの後に続けて見直しを開くと同じ秒になりうるため。
+ * 前の Run の開始より後で区切りまでの最後の push の時刻で閉じ、push がなければ区切りの時刻にする（前景の手直しの起動では、
+ * フックが来る時点で今回の push が済んでいることがあり、そのとき前の回の手直しは区切りの時刻で閉じる）。
+ * 結果は success。ただし手直しの step を開くとき、前の手直しが別のセッションで開いたものなら、そのセッションが落ちた残りとみなして interrupted にする（ADR-025）。
  * session は今の操作のセッション（どちらかが分からなければ success）。閉じた・閉じなかったことは warnings に入れる
  */
 async function closePreviousFixRun(
@@ -672,7 +677,7 @@ export const runFinish = defineCommand({
   },
 });
 
-/** 書く先の見直しの Run がなく、結果を保留にしたときの返り値（ADR-014） */
+/** 書く先の見直しの Run がなく、結果を保留にしたときの返り値（ADR-025） */
 export interface PendingReviewView {
   ticket: string;
   review: RunReview;
@@ -680,7 +685,7 @@ export interface PendingReviewView {
   at: string;
 }
 
-/** フックが見直しの Run を結果の記録なしに閉じたときの error（ADR-013）。後から結果を書けば success に直す */
+/** フックが見直しの Run を結果の記録なしに閉じたときの error（ADR-025）。後から結果を書けば success に直す */
 export const REVIEW_UNRECORDED =
   "見直し役が結果を記録せずに終わった（dg run review-result で書く）";
 
@@ -691,9 +696,9 @@ export const runReviewResult = defineCommand({
   positionals: ["ticket"],
   group: "run",
   summary:
-    "見直しの結果（重い・軽い指摘の数と通ったか）を、チケットの見直し（review の step）の Run に書く（ADR-013）。見直し役が指摘の一覧を返す前に 1 回呼ぶ。" +
+    "見直しの結果（重い・軽い指摘の数と通ったか）を、チケットの見直し（review の step）の Run に書く（ADR-025）。見直し役が指摘の一覧を返す前に 1 回呼ぶ。" +
     "このマシンで実行中の見直しの Run があればそれに書き（呼び直せば置き換える）、なければチケットの最新の Run が閉じた見直しの Run のときだけ、結果がまだなければそれに書く（commit.mode に従ってコミット。後に手直しなどの Run が始まっているか、もう結果があれば前の回の見直しなので書かない）。" +
-    "閉じた Run が結果の記録なしに failure で閉じていたら success に直す。どちらもなければ（前景で起動した見直し役）結果を保留にし（pending: true）、フックが見直しの Run を閉じるときに結び付ける（ADR-014）。重い指摘があるのに --passed なら使い方の誤り",
+    "閉じた Run が結果の記録なしに failure で閉じていたら success に直す。どちらもなければ（前景で起動した見直し役）結果を保留にし（pending: true）、フックが見直しの Run を閉じるときに結び付ける（ADR-025）。重い指摘があるのに --passed なら使い方の誤り",
   input: z.object({
     ticket: ticketRef,
     heavy: findingCount.describe(
@@ -745,7 +750,7 @@ export const runReviewResult = defineCommand({
         ? ctx.store.runs.get(last.run.id)
         : undefined;
     };
-    // 前景で起動した見直し役は、動いている間に Run がない。保留にして、フックが Run を閉じるときに結び付ける（ADR-014）
+    // 前景で起動した見直し役は、動いている間に Run がない。保留にして、フックが Run を閉じるときに結び付ける（ADR-025）
     const hold = async () => {
       const at = toIsoDateTime(ctx.now());
       await putPendingReview(ctx.repo, ticket.id, { review, at });
@@ -785,7 +790,7 @@ export const runReviewResult = defineCommand({
   },
 });
 
-/** 書き足す先の手直しの Run がなく、理由を保留にしたときの返り値（ADR-018） */
+/** 書き足す先の手直しの Run がなく、理由を保留にしたときの返り値（ADR-025） */
 export interface PendingRetryReasonsView {
   ticket: string;
   reasons: string[];
@@ -798,7 +803,7 @@ export const runRetryReason = defineCommand({
   positionals: ["ticket"],
   group: "run",
   summary:
-    "手直しのやり直しの理由（直した指摘の 1 行の要約）を、チケットの開いている手直しの Run（opens_on: reclaim の step、なければ fix）の retry_reasons に書き足す（ADR-018）。PR のないチケットでは使い方の誤り。回数は理由の数になる。印 step=fix で起動した手直しのサブエージェントが、直し始める前に呼ぶ。" +
+    "手直しのやり直しの理由（直した指摘の 1 行の要約）を、チケットの開いている手直しの Run（opens_on: reclaim の step、なければ fix）の retry_reasons に書き足す（ADR-025）。PR のないチケットでは使い方の誤り。回数は理由の数になる。印 step=fix で起動した手直しのサブエージェントが、直し始める前に呼ぶ。" +
     "このマシンで実行中の手直しの Run が、そのチケットの最後の見直しの Run より後に始まっていれば、それに書き足す。なければ（前景で起動した手直し、前の回の手直しの Run だけが開いている）理由を保留にし（pending: true）、フックが手直しの Run を閉じるときに、その Run の開始より後に置いた理由を結び付ける",
   input: z.object({
     ticket: ticketRef,
@@ -824,7 +829,9 @@ export const runRetryReason = defineCommand({
       throw new UsageError(`${ticket.id} には PR がないので、手直しの理由は書けない`);
     const step = openedStepOf(ctx, ticket, "reclaim");
     const local = (await readRunningRuns(ctx.repo)).runs;
-    // 最後の見直しより前に始まった手直しの Run は、その見直しの前の回のもの（sync がまだ閉じていない）。書き足さない（dg next の待つ手直しと同じ見方）
+    // 最後の見直しより前に始まった手直しの Run は、その見直しの前の回のもの（sync がまだ閉じていない）。書き足さない（dg next の待つ手直しと同じ見方）。
+    // 修正ループは手直しと見直しを交互に行うので、見直しの開始が回の区切りになる。見直しを挟まずに前景の手直しを続けて頼み、
+    // その間に照合も走らないと、2 回目の理由が前の回の Run に入る
     const lastReviewAt = [
       ...local.map((r) => r.data),
       ...[...ctx.store.runs.values()].map((d) => d.data),

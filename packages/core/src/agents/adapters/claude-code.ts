@@ -22,7 +22,7 @@
 //     どちらかがあれば Claude Code が呼んだとみなす（2026-11 に Claude Code 2.1 の Bash の環境で確かめた）
 //   - セッション（sessionFromEnv）：Claude Code は Bash の環境に CLAUDE_CODE_SESSION_ID を付ける。サブエージェントの Bash にも
 //     親のセッションの ID（フックの session_id、記録の <session>/subagents/ の <session> と同じ）で付く。SessionStart のフックが
-//     入れる DEGUBOARD_SESSION はサブエージェントの Bash に届かないので、こちらで補う（2026-11-08 に Claude Code 2.1.319 で確かめた。ADR-016）
+//     入れる DEGUBOARD_SESSION はサブエージェントの Bash に届かないので、こちらで補う（2026-11-08 に Claude Code 2.1.319 で確かめた。ADR-025）
 
 import { createReadStream } from "node:fs";
 import { stat } from "node:fs/promises";

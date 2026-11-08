@@ -929,9 +929,9 @@ async function openClaimRun(
 /**
  * もう一度の claim（自分が claim 済みで PR のあるチケット）。手直し（見直しの修正ループ・人のレビューの後）の開始とみなし、チケットは変えない（ST-3）。
  * agent なら手直しの Run（opens_on: reclaim の step、なければ fix）を開く（RN-5）。開いたままの前の手直しの Run は、
- * openRun が次の Run の開始を区切りとして閉じてから開く（RN-6・ADR-022）。前の Run が別のセッションで開いたものなら、
- * そのセッションが落ちた残りとみなして interrupted で閉じる（ADR-015）。この claim のセッションは sessionOf で決め、
- * サブエージェントの claim でも起動した親のセッションになる（ADR-016）
+ * openRun が次の Run の開始を区切りとして閉じてから開く（RN-6・ADR-025）。前の Run が別のセッションで開いたものなら、
+ * そのセッションが落ちた残りとみなして interrupted で閉じる（ADR-025）。この claim のセッションは sessionOf で決め、
+ * サブエージェントの claim でも起動した親のセッションになる（ADR-025）
  */
 async function reclaim(
   ctx: CommandContext,

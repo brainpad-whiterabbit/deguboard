@@ -442,8 +442,9 @@ export const sync = defineCommand({
   needs: "store",
   async run(ctx) {
     const synced = await syncLocked(ctx);
-    // 記録の書き終わりを待ちきれずに残したサブエージェントの Run を閉じる（ADR-014）。閉じる書き込みは write のロックを取るので、外してから行う。
-    // 別のセッションの見直しの Run は閉じない（前景の見直し役が今回の結果を書いているかもしれない。ADR-017）
+    // 記録の書き終わりを待ちきれずに残したサブエージェントの Run を閉じる（ADR-025）。閉じる書き込みは write のロックを取るので、外してから行う。
+    // 別のセッションの見直しの Run は閉じない（前景の見直し役が今回の結果を書いているかもしれない。ADR-025）。
+    // セッションの分からない sync（人が端末や画面から呼ぶもの）は閉じるので、人が前景の見直しの最中に呼ぶ場合は防げない
     const closing: string[] = [];
     const view: HookView = { event: "sync", done: [] };
     await closeStoppedRuns(ctx, closing, view, { reviewSession: sessionOf(ctx, undefined) });

@@ -6,29 +6,35 @@
 
 ## 有効な ADR
 
-| 番号                                                   | タイトル                                                                                                   | テーマ             | 更新日     |
-| ------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------- | ------------------ | ---------- |
-| [ADR-001](ADR-001-doc-strategy.md)                     | 文書の方針                                                                                                 | 文書               | 2026-11-08 |
-| [ADR-002](ADR-002-storage-and-id.md)                   | チケットの保存と ID                                                                                        | データ             | 2026-11-02 |
-| [ADR-003](ADR-003-status-and-workflow.md)              | ステータスとワークフロー                                                                                   | ワークフロー       | 2026-11-03 |
-| [ADR-004](ADR-004-agents-and-state.md)                 | エージェントと状態の記録                                                                                   | エージェントと照合 | 2026-11-07 |
-| [ADR-005](ADR-005-work-metrics.md)                     | 作業の実績                                                                                                 | 作業の実績         | 2026-11-07 |
-| [ADR-006](ADR-006-ui-and-writes.md)                    | UI と書き込み                                                                                              | UI                 | 2026-11-06 |
-| [ADR-007](ADR-007-architecture.md)                     | アーキテクチャ                                                                                             | アーキテクチャ     | 2026-11-05 |
-| [ADR-008](ADR-008-tech-stack.md)                       | 技術構成と開発環境                                                                                         | 技術構成           | 2026-11-06 |
-| [ADR-009](ADR-009-epic-and-iteration.md)               | Epic と Iteration                                                                                          | チケットのまとまり | 2026-11-03 |
-| [ADR-010](ADR-010-ui-writes-and-agent-requests.md)     | 画面からの書き込みとエージェントへの依頼                                                                   | UI の書き込み      | 2026-11-06 |
-| [ADR-011](ADR-011-procedure-in-code.md)                | 既定の手続きは dg のコードが持つ                                                                           | ワークフロー       | 2026-11-07 |
-| [ADR-012](ADR-012-hooks-open-runs.md)                  | harness のフックが主体を決め、サブエージェントの Run を開け閉めする                                        | エージェント       | 2026-11-07 |
-| [ADR-013](ADR-013-review-result-on-run.md)             | 見直しの結果を Run に記録し、見直しの Run の成否をそれで決める                                             | 作業の実績         | 2026-11-07 |
-| [ADR-014](ADR-014-subagent-stop-and-resume.md)         | 止まったサブエージェントの Run は step を終えた事実があるときだけ閉じ、再開を続きとして扱う                | エージェント       | 2026-11-07 |
-| [ADR-015](ADR-015-interrupt-stale-session-runs.md)     | 別のセッションで開いたままの見直し・手直しの Run は、次の開始が interrupted で閉じる                       | エージェント       | 2026-11-08 |
-| [ADR-016](ADR-016-session-from-agent-env.md)           | Run を開く操作のセッションは、フックの環境がなければエージェントが付ける環境から取る                       | エージェント       | 2026-11-08 |
-| [ADR-017](ADR-017-review-result-binding-edge-cases.md) | 前景の見直しの起動の時刻は記録の最初の行で補い、sync は別のセッションの見直しの Run を閉じない             | エージェント       | 2026-11-08 |
-| [ADR-018](ADR-018-fix-run-by-marker.md)                | 手直しの Run も起動のフックが印で開き、理由は run retry-reason で開いている Run に書き足す                 | エージェント       | 2026-11-08 |
-| [ADR-019](ADR-019-pr-advance-through-dg.md)            | PR を進める正しい道を dg のコマンドにし、フックは dg を経由しない gh を粗く拒む                            | エージェント       | 2026-11-08 |
-| [ADR-020](ADR-020-hook-coarse-raw-command.md)          | フックは字句を伏せずに生のコマンドで gh pr ready・merge を粗く止め、本文の語はファイル渡しへ案内する       | エージェント       | 2026-11-08 |
-| [ADR-021](ADR-021-detect-outside-dg-changes.md)        | データの dg の外の変更は事後に見つけて書き込みを止め、フックは .git/deguboard の語を含む Bash を粗く止める | エージェント       | 2026-11-08 |
-| [ADR-022](ADR-022-close-fix-run-on-open.md)            | 同じチケットの次の Run を開く処理が、開いたままの手直しの Run をその場で閉じる                             | 作業の実績         | 2026-11-08 |
-| [ADR-023](ADR-023-screen-entry-vscode.md)              | 画面の入口は VS Code 拡張にし、ブラウザは開発用にする                                                      | UI                 | 2026-11-08 |
-| [ADR-024](ADR-024-oxlint-latest.md)                    | react(immutability) の指摘を直したので oxlint を最新に上げ、版を留めない                                   | 技術構成           | 2026-11-08 |
+| 番号                                               | タイトル                                                                                                   | テーマ             | 更新日     |
+| -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- | ------------------ | ---------- |
+| [ADR-001](ADR-001-doc-strategy.md)                 | 文書の方針                                                                                                 | 文書               | 2026-11-08 |
+| [ADR-002](ADR-002-storage-and-id.md)               | チケットの保存と ID                                                                                        | データ             | 2026-11-02 |
+| [ADR-003](ADR-003-status-and-workflow.md)          | ステータスとワークフロー                                                                                   | ワークフロー       | 2026-11-03 |
+| [ADR-004](ADR-004-agents-and-state.md)             | エージェントと状態の記録                                                                                   | エージェントと照合 | 2026-11-07 |
+| [ADR-005](ADR-005-work-metrics.md)                 | 作業の実績                                                                                                 | 作業の実績         | 2026-11-07 |
+| [ADR-006](ADR-006-ui-and-writes.md)                | UI と書き込み                                                                                              | UI                 | 2026-11-06 |
+| [ADR-007](ADR-007-architecture.md)                 | アーキテクチャ                                                                                             | アーキテクチャ     | 2026-11-05 |
+| [ADR-008](ADR-008-tech-stack.md)                   | 技術構成と開発環境                                                                                         | 技術構成           | 2026-11-06 |
+| [ADR-009](ADR-009-epic-and-iteration.md)           | Epic と Iteration                                                                                          | チケットのまとまり | 2026-11-03 |
+| [ADR-010](ADR-010-ui-writes-and-agent-requests.md) | 画面からの書き込みとエージェントへの依頼                                                                   | UI の書き込み      | 2026-11-06 |
+| [ADR-011](ADR-011-procedure-in-code.md)            | 既定の手続きは dg のコードが持つ                                                                           | ワークフロー       | 2026-11-07 |
+| [ADR-019](ADR-019-pr-advance-through-dg.md)        | PR を進める正しい道を dg のコマンドにし、フックは dg を経由しない gh を粗く拒む                            | エージェント       | 2026-11-08 |
+| [ADR-020](ADR-020-hook-coarse-raw-command.md)      | フックは字句を伏せずに生のコマンドで gh pr ready・merge を粗く止め、本文の語はファイル渡しへ案内する       | エージェント       | 2026-11-08 |
+| [ADR-021](ADR-021-detect-outside-dg-changes.md)    | データの dg の外の変更は事後に見つけて書き込みを止め、フックは .git/deguboard の語を含む Bash を粗く止める | エージェント       | 2026-11-08 |
+| [ADR-023](ADR-023-screen-entry-vscode.md)          | 画面の入口は VS Code 拡張にし、ブラウザは開発用にする                                                      | UI                 | 2026-11-08 |
+| [ADR-024](ADR-024-oxlint-latest.md)                | react(immutability) の指摘を直したので oxlint を最新に上げ、版を留めない                                   | 技術構成           | 2026-11-08 |
+| [ADR-025](ADR-025-runs-by-hooks.md)                | Run は harness のフックが印で開け閉めし、step を終えた事実で閉じる                                         | エージェント       | 2026-11-08 |
+
+## 置き換え済み
+
+| 番号                                                   | 置き換えた先                        |
+| ------------------------------------------------------ | ----------------------------------- |
+| [ADR-012](ADR-012-hooks-open-runs.md)                  | [ADR-025](ADR-025-runs-by-hooks.md) |
+| [ADR-013](ADR-013-review-result-on-run.md)             | [ADR-025](ADR-025-runs-by-hooks.md) |
+| [ADR-014](ADR-014-subagent-stop-and-resume.md)         | [ADR-025](ADR-025-runs-by-hooks.md) |
+| [ADR-015](ADR-015-interrupt-stale-session-runs.md)     | [ADR-025](ADR-025-runs-by-hooks.md) |
+| [ADR-016](ADR-016-session-from-agent-env.md)           | [ADR-025](ADR-025-runs-by-hooks.md) |
+| [ADR-017](ADR-017-review-result-binding-edge-cases.md) | [ADR-025](ADR-025-runs-by-hooks.md) |
+| [ADR-018](ADR-018-fix-run-by-marker.md)                | [ADR-025](ADR-025-runs-by-hooks.md) |
+| [ADR-022](ADR-022-close-fix-run-on-open.md)            | [ADR-025](ADR-025-runs-by-hooks.md) |

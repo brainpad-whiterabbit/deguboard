@@ -1,6 +1,6 @@
 // サブエージェントに渡す文（brief・EX-3、ADR-011）。役（実装・見直し・手直し）とチケットの事実から、貼る文を組む。読み取りだけで、データは書き換えない。
 // 文の組み立ては純粋な関数（composeBrief）に置き、brief コマンドと dg next が事実を渡して使う。定型の文の言語は ask と同じく表示言語で選ぶ（ADR-010）。
-// どの役の文も先頭に印を置き、フックが Run を開け閉めする。手直しのやり直しの理由は、サブエージェントが run retry-reason で開いている Run に書き足す（ADR-018）
+// どの役の文も先頭に印を置き、フックが Run を開け閉めする。手直しのやり直しの理由は、サブエージェントが run retry-reason で開いている Run に書き足す（ADR-025）
 
 import { z } from "zod";
 import { findBranchWorktree } from "../git/worktree.js";
@@ -185,7 +185,7 @@ export function composeBrief(
     ].join("\n");
   }
 
-  // fix（手直し）。印でフックが fix の Run を開き、理由はサブエージェントが run retry-reason で書き足す（ADR-018）
+  // fix（手直し）。印でフックが fix の Run を開き、理由はサブエージェントが run retry-reason で書き足す（ADR-025）
   return [
     marker,
     L(

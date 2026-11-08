@@ -359,7 +359,7 @@ describe("run", () => {
     expect(other.session).toBe("s2");
   });
 
-  it("DEGUBOARD_SESSION のないサブエージェントの Bash では、Claude Code が環境に付ける CLAUDE_CODE_SESSION_ID をセッションに使い、Claude Code と判定できない環境では使わない（ADR-016）", async () => {
+  it("DEGUBOARD_SESSION のないサブエージェントの Bash では、Claude Code が環境に付ける CLAUDE_CODE_SESSION_ID をセッションに使い、Claude Code と判定できない環境では使わない（ADR-025）", async () => {
     const ctx = await prepared();
     ctx.env = { CLAUDECODE: "1", CLAUDE_CODE_SESSION_ID: "s-parent" };
     const run = (await runCommand(runStart, ctx, { ticket: "t1", step: "implement" })).data as Run;
@@ -641,7 +641,7 @@ describe("run", () => {
   });
 });
 
-describe("run review-result（見直しの結果。ADR-013）", () => {
+describe("run review-result（見直しの結果。ADR-025）", () => {
   /** 文脈の今を seconds 秒だけ先にする */
   const laterBy = (ctx: CommandContext, seconds: number) => {
     ctx.now = () => new Date(Date.now() + seconds * 1000);
@@ -676,7 +676,7 @@ describe("run review-result（見直しの結果。ADR-013）", () => {
     expect((closed.data as Run).review).toEqual({ heavy: 0, light: 3, passed: true });
   });
 
-  it("見直し以外の step の Run には書かず、見直しの Run がなければ結果を保留にする（ADR-014）", async () => {
+  it("見直し以外の step の Run には書かず、見直しの Run がなければ結果を保留にする（ADR-025）", async () => {
     const ctx = await prepared();
     await start(ctx, "t1", "implement");
     const held = await record(ctx, "t1", 0, 0, true);
@@ -706,7 +706,7 @@ describe("run review-result（見直しの結果。ADR-013）", () => {
       review: { heavy: 1, light: 0, passed: false },
     });
     expect(ctx.store.runs.get(older.id)!.data.review).toBeNull();
-    // 閉じた Run の結果は書き換えず（RN-4）、前の回の見直しとして保留にする（ADR-014）
+    // 閉じた Run の結果は書き換えず（RN-4）、前の回の見直しとして保留にする（ADR-025）
     expect((await record(ctx, "t1", 0, 0, true)).data).toMatchObject({ pending: true });
     expect(ctx.store.runs.get(latest.id)!.data.review).toEqual({
       heavy: 1,
@@ -1425,7 +1425,7 @@ describe("run refresh の取り直し（RN-4・MT-5）", () => {
     // 取り直すのはモデル名と使用量だけで、ほかの値は変えない
     expect(after).toEqual({
       ...a,
-      // 止まって待っている印は閉じた Run に書かない（ADR-014）
+      // 止まって待っている印は閉じた Run に書かない（ADR-025）
       waiting_since: undefined,
       settling_since: undefined,
       model: "claude-opus-from-transcript",
