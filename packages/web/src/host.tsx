@@ -1,7 +1,8 @@
 // 画面がどこに載っているか（surface）と、画面の外への働きかけを 1 つの文脈で持つ（UI-12）。
-// ブラウザではチケットや Iteration の詳細へのリンクはハッシュ遷移、サイドバーとパネルでは拡張ホストに頼む（パネルは自分の中で遷移し、題が変わる）。
+// 載る場所は VS Code の左パネル（sidebar）とエディタのパネル（panel）だけ（ADR-023）。詳細へのリンクは拡張ホストに頼み（パネルは自分の中で遷移し、題が変わる）、
 // パネルは詳細だけを出すので、パネルから一覧の画面へのリンクは拡張ホストに頼んでサイドバーに出す（show）。
-// クリップボードへのコピーは、Webview では拡張ホストに頼み（vscode.env.clipboard）、ブラウザでは navigator.clipboard に書く。
+// クリップボードへのコピーは拡張ホストに頼む（vscode.env.clipboard）。
+// 開発用の dg serve（Webview の外）には拡張ホストがないので、リンクはハッシュ遷移、コピーは navigator.clipboard にする（createHost）。
 // エージェントに頼む入力欄（UI-15）を開いているかと対象は、HostProvider の中の AskContext が見た目の状態として持つ。
 // 拡張ホストからの通知（再読み込み・遷移・入力欄を開く）は HostBridge が store・ハッシュ・入力欄に結ぶ
 
@@ -24,21 +25,21 @@ import type { AskAction } from "./types.js";
 import { createUiState, localStorageBackend, type UiState } from "./ui-state.js";
 import { tr } from "./l10n.js";
 
-export type Surface = "sidebar" | "panel" | "browser";
+export type Surface = "sidebar" | "panel";
 
 export interface Host {
   surface: Surface;
-  /** 詳細（チケット・Iteration）を開く。Webview（sidebar・panel）では拡張ホストに頼んでエディタ領域に、ブラウザではハッシュ遷移 */
+  /** 詳細（チケット・Iteration）を開く。拡張ホストに頼んでエディタ領域に開く（dg serve ではハッシュ遷移） */
   open(route: Route): void;
-  /** 一覧の画面（カンバンなど）を出す。パネルでは拡張ホストに頼んでサイドバーに、サイドバーとブラウザではハッシュ遷移 */
+  /** 一覧の画面（カンバンなど）を出す。パネルでは拡張ホストに頼んでサイドバーに、サイドバー（と dg serve）ではハッシュ遷移 */
   show(route: Route): void;
-  /** text をクリップボードに入れる。Webview では拡張ホストに頼み、ブラウザでは navigator.clipboard に書く。書けなければ reject */
+  /** text をクリップボードに入れる。拡張ホストに頼む（dg serve では navigator.clipboard に書く）。書けなければ reject */
   copy(text: string): Promise<void>;
   /** 見た目の状態（開閉・最後に選んだもの）の置き場 */
   state: UiState;
-  /** チケットの作業ブランチの worktree を新しいウィンドウで開く。Webview だけにあり、ブラウザ（dg serve）にはない（パスを出すだけになる。ブラウザからは別のウィンドウでフォルダを開けない） */
+  /** チケットの作業ブランチの worktree を新しいウィンドウで開く。Webview だけにあり、dg serve にはない（パスを出すだけになる） */
   openWorktree?: ((ticket: string) => Promise<void>) | undefined;
-  /** 開いているターミナルへ依頼文を送る口（UI-15）。Webview だけにあり、ブラウザ（dg serve）にはない（コピーだけになる） */
+  /** 開いているターミナルへ依頼文を送る口（UI-15）。Webview だけにあり、dg serve にはない（コピーだけになる） */
   terminals?: TerminalsHost | undefined;
 }
 
@@ -51,26 +52,26 @@ export interface TerminalsHost {
   onChange(listener: (terminals: TerminalChoice[]) => void): () => void;
 }
 
-const browserHost: Host = {
-  surface: "browser",
+/** 拡張ホストのないとき（開発用の dg serve）の働きかけ。リンクはハッシュ遷移、コピーは navigator.clipboard */
+const standalone: Omit<Host, "surface"> = {
   open: (route) => navigate(route),
   show: (route) => navigate(route),
   copy: (text) => writeClipboard(text),
   state: createUiState(localStorageBackend()),
 };
 
-const HostContext = createContext<Host>(browserHost);
+const HostContext = createContext<Host>({ ...standalone, surface: "sidebar" });
 
-/** <html data-surface> と拡張ホストとの接続から Host を作る。Webview でなければブラウザ */
+/** <html data-surface> と拡張ホストとの接続から Host を作る。接続がなければ（dg serve）拡張ホストに頼まない */
 export function createHost(surface: Surface, client: WebviewClient | null, state?: UiState): Host {
-  if (surface !== "browser" && client) {
+  if (client) {
     return {
       surface,
       open: (route) => void client.open(hrefOf(route)),
       show: (route) => (surface === "panel" ? void client.show(hrefOf(route)) : navigate(route)),
       // Webview の navigator.clipboard は VS Code の版や設定で使えないことがあるので、試さずに拡張ホストに頼む
       copy: (text) => client.copy(text),
-      state: state ?? browserHost.state,
+      state: state ?? standalone.state,
       openWorktree: (ticket) => client.openWorktree(ticket),
       terminals: {
         list: () => client.terminals(),
@@ -82,7 +83,7 @@ export function createHost(surface: Surface, client: WebviewClient | null, state
       },
     };
   }
-  return { ...browserHost, surface };
+  return { ...standalone, surface };
 }
 
 /** navigator.clipboard に書く。ない（安全でない文脈など）か拒まれたら reject */
@@ -92,12 +93,12 @@ async function writeClipboard(text: string): Promise<void> {
 }
 
 /**
- * 載っている場所を読む。Webview では拡張ホストが付けた data 属性、ブラウザでは開発用に `?surface=sidebar` も読む
- * （dg serve の画面をサイドバーやパネルの配置で確かめるため。リンクはブラウザと同じくハッシュ遷移のまま）
+ * 載っている場所を読む。Webview では拡張ホストが付けた data 属性、開発用の dg serve では `?surface=sidebar`・`?surface=panel` を読み、
+ * どちらもなければサイドバー（dg serve の画面を左パネルとパネルの配置で確かめるため。リンクはハッシュ遷移）
  */
 export function readSurface(dataset: DOMStringMap, search = ""): Surface {
   const value = dataset.surface ?? new URLSearchParams(search).get("surface");
-  return value === "sidebar" || value === "panel" ? value : "browser";
+  return value === "panel" ? "panel" : "sidebar";
 }
 
 export function HostProvider({ host, children }: { host: Host; children: ReactNode }) {
@@ -187,7 +188,7 @@ export function useAsk(): Ask {
 }
 
 /**
- * 画面の今の対象を知らせる（UI-15）。タイトル行の吹き出し（ブラウザは上のバーの吹き出し）は、これを対象にして入力欄を開く。
+ * 画面の今の対象を知らせる（UI-15）。タイトル行の吹き出しは、これを対象にして入力欄を開く。
  * 画面を離れる（外す）と取り下げ、対象なしに戻る
  */
 export function useAskCurrent(targets: readonly string[]): void {

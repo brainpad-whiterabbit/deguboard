@@ -32,15 +32,14 @@ function runCalls(file: string): string[] {
 }
 
 /**
- * 書き込みのコマンドを呼んでよい場所（ADR-010）。チケット詳細（pages/ticket.tsx と右の列の部品）と設定画面だけで、
- * ほかに同期（UI-6。Git の事実に合わせるだけ）をタイトル行から呼ぶ
+ * 書き込みのコマンドを呼んでよい場所（ADR-010）。チケット詳細（pages/ticket.tsx と右の列の部品）と設定画面だけ。
+ * 同期（UI-6）はビューのタイトル行のボタンから拡張ホストが呼び、画面のコードは呼ばない
  */
 const ALLOWED_WRITES: Readonly<Record<string, readonly string[]>> = {
   "pages/ticket.tsx": ["ticket.check", "ticket.update"],
   "components/ticket-props.tsx": ["ticket.move"],
   "components/ticket-props-panel.tsx": ["ticket.update"],
   "pages/config.tsx": ["config.set", "config.unset"],
-  "app.tsx": ["sync"],
 };
 
 describe("画面から呼ぶ書き込みのコマンド（ADR-010）", () => {
@@ -66,7 +65,7 @@ describe("画面から呼ぶ書き込みのコマンド（ADR-010）", () => {
     expect(unknown).toEqual([]);
   });
 
-  it("書き込みのコマンドを呼ぶのはチケット詳細と設定画面（と同期）だけ", () => {
+  it("書き込みのコマンドを呼ぶのはチケット詳細と設定画面だけ", () => {
     const writes: Record<string, string[]> = {};
     for (const f of files) {
       const names = runCalls(f)

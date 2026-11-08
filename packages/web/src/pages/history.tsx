@@ -5,20 +5,17 @@
 // 1 段目は番号・目標（目標がなければ薄く「目標なし」。名前は出さない）と件数（完了は数字、中止・持ち越しは 1 件以上のときだけ
 // 色付きの文字）、2 段目は閉じた日と、終わったチケットの Epic ごとの内訳（見出しなし。Epic なしを含み、合計は終わったチケットの件数に合う。
 // すべて Epic なしなら出さない）。期間（start〜end）は出さない（t421 より前に閉じたものは start・end が予定の日のままで、実際の期間と食い違う）。
-// 行を開くと中の done・abandoned のチケットを出す。Run の実績はここに出さず、2 段目の「Run の集計」から
-// その Iteration で絞った Run の画面（#/runs?by=iteration&iteration=s5）を開いて見る（左パネルには Run の画面がなく、リンクも出さない）。
-// Epic の見方：closed の Epic を閉じた新しい順に、進捗・閉じた日と、チケットが入っていた Iteration を出す。
-// チケットの見方：done・abandoned のチケットを終えた新しい順に、結果・Iteration・Epic・PR・終えた日を出す。終えた時刻は
+// Run の実績はここに出さない（チケット詳細の Run の節と dg metrics show で見る）。
+// 左パネルの狭い幅で読めるよう、Iteration の行は開閉の印を付け、開くと中の done・abandoned のチケットを番号の順の 1 本の一覧（履歴用の行。
+// components/history-rows.tsx）で出し、持ち越しを最後に分ける。
+// Epic の見方：closed の Epic を閉じた新しい順に、タイトルを 2 行まで出し、Iteration の行と同じ件数・閉じた日・チケットが入っていた Iteration を付ける。
+// 行を開くと中の終わったチケットを番号の順の 1 本の一覧（2 段目は Iteration・PR）で出し、終わったチケットのない Epic は薄く出して開けない。
+// チケットの見方：done・abandoned のチケットを終えた新しい順の 1 本の一覧（履歴用の行。2 段目は Iteration・PR・終えた日）で出す。終えた時刻は
 // history のコマンド（deguboard ブランチの履歴）から求め、履歴が浅くて分からないものは updated_at で代え、そう出す。
 // 絞り込みは検索と結果（完了・中止）だけ。Iteration・Epic で分けて見るのはそれぞれの見方に任せる。
-// 番号を押すと詳細を開く（サイドバーとパネルでは拡張ホストに頼んでエディタに、ブラウザではハッシュ遷移）。
-// サイドバーでは狭い幅で読めるよう描き方を変える：Iteration の行は開閉の印を付け、開くと番号の順の 1 本の一覧（履歴用の行。
-// components/history-rows.tsx）で出し、持ち越しを最後に分ける。
-// Epic の見方は進捗バーをやめてタイトルを 2 行まで出し、Iteration の行と同じ件数を付ける。行を開くと中の終わったチケットを
-// 番号の順の 1 本の一覧（2 段目は Iteration・PR）で出し、終わったチケットのない Epic は薄く出して開けない。
-// チケットの見方は日付の見出しを付けず、終えた新しい順の 1 本の一覧（履歴用の行。2 段目は Iteration・PR・終えた日）で出す。
+// 番号を押すと詳細を開く（拡張ホストに頼んでエディタに）。
 // 検索欄は 3 つの見方で全幅にし、チケットの見方だけその下に結果の絞り込み（すべて・完了・中止）を件数付きの文字の切り替えで出す。
-// サイドバーの Iteration と Epic の見方では、検索語があるあいだ残った行を開き、当たったチケットだけを印付きで出す。
+// Iteration と Epic の見方では、検索語があるあいだ残った行を開き、当たったチケットだけを印付きで出す。
 // 「すべて見る」でその行の全件の一覧に戻せる。検索中に閉じた行や「すべて見る」は検索語を変えると捨て、検索語を消すと検索前の開閉に戻る
 
 import {
@@ -31,12 +28,12 @@ import {
 } from "react";
 import { useCommandData } from "../command-data.js";
 import { ASK_SECTIONS, useAskSpot } from "../components/ask-menu.js";
-import { DetailLink, ProgressBar, StatusDot, Tags, TicketLink } from "../components/parts.js";
+import { DetailLink } from "../components/parts.js";
 import { HistoryTicketList, HistoryTicketRow } from "../components/history-rows.js";
-import { useAskCurrent, useHost, useUiState } from "../host.js";
+import { useAskCurrent, useUiState } from "../host.js";
 import { NO_VALUE } from "../components/run-parts.js";
 import { ClosedOn, ShortDay } from "../components/date-time.js";
-import { hrefOf, navigate, replaceRoute, type HistoryQuery, type HistoryView } from "../router.js";
+import { navigate, replaceRoute, type HistoryQuery, type HistoryView } from "../router.js";
 import { useStore } from "../store.js";
 import {
   byNumber,
@@ -94,22 +91,18 @@ function CountChips({
 
 /**
  * 検索：当たるチケットを含むものだけ残す。key はチケットの iteration か epic。
- * サイドバーではラベルにも当て、行を開いて当たったチケットを出すので、終わったチケット（行の中に出るもの）だけを見る
+ * ラベルにも当て、行を開いて当たったチケットを出すので、終わったチケット（行の中に出るもの）だけを見る
  */
 function filterHistory<T extends { id: string }>(
   rows: readonly T[],
   tickets: readonly Ticket[],
   query: string,
   key: "iteration" | "epic" = "iteration",
-  sidebar = false,
 ): T[] {
   if (!query.trim()) return [...rows];
   const hit = new Set<string>(
     tickets
-      .filter(
-        (t) =>
-          t[key] && (!sidebar || isFinished(t.status)) && ticketMatchesQuery(t, query, sidebar),
-      )
+      .filter((t) => t[key] && isFinished(t.status) && ticketMatchesQuery(t, query))
       .map((t) => t[key]!),
   );
   return rows.filter((r) => hit.has(r.id));
@@ -339,20 +332,18 @@ export function historyAskTarget(
   return open.length === 1 ? [open[0]!] : [];
 }
 
-/** サイドバーの検索欄の案内（バックログと同じ言い方） */
-const SIDEBAR_SEARCH = msg("番号・タイトル・ラベルで検索");
+/** 検索欄の案内（バックログと同じ言い方） */
+const SEARCH_PLACEHOLDER = msg("番号・タイトル・ラベルで検索");
 
 export function HistoryPage({ route }: { route: HistoryQuery }) {
   const store = useStore();
-  const sidebar = useHost().surface === "sidebar";
   const view = route.view ?? "iteration";
   const query = route.q ?? "";
   // 1 文字ごとに戻る履歴を積まないよう、ハッシュは書き換える
   const setQuery = (q: string) => replaceRoute({ ...route, page: "history", q: q || undefined });
   // 検索前の開いた行（Iteration・Epic の番号）。ハッシュには入れない
   const opened = useUiState<readonly string[]>("history.opened", []);
-  // 検索で行を開くのはサイドバーだけ
-  const foldOf = useRowFolds(sidebar ? query : "", opened);
+  const foldOf = useRowFolds(query, opened);
   const carried = useCarriedOver();
   const iterations = useMemo(
     () => store.iterations.filter((i) => i.status === "closed").sort(byClosedDesc),
@@ -364,14 +355,14 @@ export function HistoryPage({ route }: { route: HistoryQuery }) {
   );
   const all: { id: string }[] = view === "epic" ? epics : iterations;
   const rows = useMemo(
-    () => (view === "ticket" ? [] : filterHistory(all, store.tickets, query, view, sidebar)),
-    [all, store.tickets, query, view, sidebar],
+    () => (view === "ticket" ? [] : filterHistory(all, store.tickets, query, view)),
+    [all, store.tickets, query, view],
   );
   // 見方ごとの件数。チケットの見方ではチケットの件数を TicketView が結果の絞り込みを含めて数え直すので、ここでは数えない
   const counts = useMemo<ViewCounts>(() => {
     const searching = query.trim() !== "";
     const count = <T extends { id: string }>(list: readonly T[], key: "iteration" | "epic") => ({
-      hit: filterHistory(list, store.tickets, query, key, sidebar).length,
+      hit: filterHistory(list, store.tickets, query, key).length,
       total: list.length,
       filtered: searching,
     });
@@ -384,11 +375,10 @@ export function HistoryPage({ route }: { route: HistoryQuery }) {
       epic: count(epics, "epic"),
       ticket: { hit: finished(query), total: finished(""), filtered: searching },
     };
-  }, [iterations, epics, store.tickets, query, sidebar, view]);
-  // タイトル行の吹き出しは開いている行を対象にする（UI-15）。ブラウザの Epic の行は開かない
-  const foldable = view === "iteration" || (view === "epic" && sidebar);
+  }, [iterations, epics, store.tickets, query, view]);
+  // タイトル行の吹き出しは開いている行を対象にする（UI-15）
   useAskCurrent(
-    foldable
+    view !== "ticket"
       ? historyAskTarget(
           rows.map((r) => r.id),
           (id) => foldOf(id).open,
@@ -405,7 +395,7 @@ export function HistoryPage({ route }: { route: HistoryQuery }) {
         <ViewSwitch route={route} view={view} counts={counts} />
         <input
           type="search"
-          placeholder={sidebar ? tr(SIDEBAR_SEARCH) : tr("チケットの番号・タイトルで探す")}
+          placeholder={tr(SEARCH_PLACEHOLDER)}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           aria-label={tr("チケットを探す")}
@@ -422,18 +412,13 @@ export function HistoryPage({ route }: { route: HistoryQuery }) {
       ) : (
         <ul className="history">
           {view === "epic"
-            ? (rows as EpicRow[]).map((e) =>
-                sidebar ? (
-                  <SidebarEpicItem key={e.id} epic={e} fold={foldOf(e.id)} query={query} />
-                ) : (
-                  <EpicItem key={e.id} epic={e} />
-                ),
-              )
+            ? (rows as EpicRow[]).map((e) => (
+                <EpicItem key={e.id} epic={e} fold={foldOf(e.id)} query={query} />
+              ))
             : (rows as Iteration[]).map((i) => (
                 <IterationItem
                   key={i.id}
                   iteration={i}
-                  sidebar={sidebar}
                   fold={foldOf(i.id)}
                   query={query}
                   carried={carried}
@@ -475,16 +460,14 @@ function SearchHitsBar({ hits, total, fold }: { hits: number; total: number; fol
   );
 }
 
-/** Iteration の行。開くと中の done・abandoned のチケットを出す。サイドバーでは開閉の印を付け、中を番号の順の 1 本の一覧（履歴用の行）で出す */
+/** Iteration の行。開閉の印を付け、開くと中の done・abandoned のチケットを番号の順の 1 本の一覧（履歴用の行）で出す */
 function IterationItem({
   iteration: i,
-  sidebar,
   fold,
   query,
   carried,
 }: {
   iteration: Iteration;
-  sidebar: boolean;
   fold: RowFold;
   query: string;
   carried: CarriedOver;
@@ -500,16 +483,16 @@ function IterationItem({
   const goal = i.goal?.trim();
   // 終わったチケットがすべて Epic なしなら内訳は出さない（Epic なしだけの内訳は情報にならない）
   const showEpics = epics.some((e) => e.epic !== null);
-  // 左パネルでは閉じた Iteration の行から頼む（UI-15）
-  const spot = useAskSpot(
-    sidebar
-      ? { targets: [i.id], label: `Iteration ${i.id}`, section: ASK_SECTIONS.historyRow }
-      : null,
-  );
+  // 閉じた Iteration の行から頼む（UI-15）
+  const spot = useAskSpot({
+    targets: [i.id],
+    label: `Iteration ${i.id}`,
+    section: ASK_SECTIONS.historyRow,
+  });
   return (
     <li>
-      <details className={`history-item${sidebar ? " fold" : ""}`} {...foldProps(fold)}>
-        <summary className="history-row" {...(sidebar ? spot.props : {})}>
+      <details className="history-item fold" {...foldProps(fold)}>
+        <summary className="history-row" {...spot.props}>
           <DetailLink route={{ page: "iterations", id: i.id }}>
             <code>{i.id}</code>
           </DetailLink>
@@ -542,59 +525,27 @@ function IterationItem({
                 ))}
               </span>
             ) : null}
-            {/* Run の数字はここに出さず、その Iteration で絞った Run の画面へのリンクだけを置く。
-                左パネルには Run の画面がないので出さない（UI-12） */}
-            {sidebar ? null : (
-              <>
-                {tr(" ・ ")}
-                <a
-                  className="history-runs-link"
-                  href={hrefOf({ page: "runs", by: "iteration", iteration: i.id })}
-                >
-                  {tr("Run の集計")}
-                </a>
-              </>
-            )}
           </small>
           {spot.overlay}
         </summary>
-        {sidebar ? (
-          !fold.open ? null : fold.searching && !fold.all ? (
-            <SearchHits finished={finished} query={query} fold={fold} />
-          ) : (
-            <SidebarIterationTickets
-              iteration={i.id}
-              finished={finished}
-              carried={carried}
-              query={fold.searching ? query : ""}
-              header={
-                fold.searching ? (
-                  <SearchHitsBar
-                    hits={finished.filter((t) => ticketMatchesQuery(t, query)).length}
-                    total={finished.length}
-                    fold={fold}
-                  />
-                ) : null
-              }
-            />
-          )
-        ) : finished.length === 0 ? (
-          <p className="empty">{tr("終わったチケットはない")}</p>
+        {!fold.open ? null : fold.searching && !fold.all ? (
+          <SearchHits finished={finished} query={query} fold={fold} />
         ) : (
-          <ul className="rows history-tickets">
-            {finished.map((t) => (
-              <li key={t.id}>
-                <StatusDot status={t.status} />
-                <TicketLink id={t.id} />
-                <span className="row-title" title={t.title}>
-                  {t.title}
-                </span>
-                {t.epic ? (
-                  <DetailLink route={{ page: "epics", id: t.epic }}>{t.epic}</DetailLink>
-                ) : null}
-              </li>
-            ))}
-          </ul>
+          <IterationTickets
+            iteration={i.id}
+            finished={finished}
+            carried={carried}
+            query={fold.searching ? query : ""}
+            header={
+              fold.searching ? (
+                <SearchHitsBar
+                  hits={finished.filter((t) => ticketMatchesQuery(t, query)).length}
+                  total={finished.length}
+                  fold={fold}
+                />
+              ) : null
+            }
+          />
         )}
       </details>
     </li>
@@ -602,11 +553,11 @@ function IterationItem({
 }
 
 /**
- * サイドバーで開いた Iteration の中：終わったチケットを番号の順の 1 本の一覧で出し（Epic で分けて見るのは Epic のタブ）、
+ * 開いた Iteration の中：終わったチケットを番号の順の 1 本の一覧で出し（Epic で分けて見るのは Epic のタブ）、
  * 最後に持ち越したチケットを 1 件以上あるときだけ出す。多いときは先頭の数件だけ出し、「ほか N 件」で残りを開ける。
  * 持ち越しは履歴から求める（読むのは画面で 1 回。useCarriedOver）
  */
-function SidebarIterationTickets({
+function IterationTickets({
   iteration,
   finished,
   carried: carriedOver,
@@ -721,25 +672,17 @@ function finishedOfEpic(epic: string, tickets: readonly Ticket[]): Ticket[] {
 }
 
 /**
- * サイドバーの閉じた Epic の行：番号・タイトル（2 行まで）、件数（Iteration の行と同じ形。完了・中止は core の
+ * 閉じた Epic の行：番号・タイトル（2 行まで）、件数（Iteration の行と同じ形。完了・中止は core の
  * epic.list が返す進み（progress.by_status）の done・abandoned を読み、web では数え直さない）、2 段目に閉じた日・
  * チケットが入っていた Iteration。進捗バーは出さない。
  * 開くと中の終わったチケットを番号の順の 1 本の一覧（履歴用の行。Epic は省き Iteration を出す）で出す。
  * 終わったチケットのない Epic は薄く出し、開けない
  */
-function SidebarEpicItem({
-  epic: e,
-  fold,
-  query,
-}: {
-  epic: EpicRow;
-  fold: RowFold;
-  query: string;
-}) {
+function EpicItem({ epic: e, fold, query }: { epic: EpicRow; fold: RowFold; query: string }) {
   const store = useStore();
   const iterations = iterationsOfEpic(e.id, store.tickets);
   const finished = finishedOfEpic(e.id, store.tickets);
-  // 閉じた Epic の行から頼む（左パネルだけの部品。UI-15）
+  // 閉じた Epic の行から頼む（UI-15）
   const spot = useAskSpot({
     targets: [e.id],
     label: `Epic ${e.id}`,
@@ -819,32 +762,6 @@ function SidebarEpicItem({
   );
 }
 
-/** 閉じた Epic の行：番号・タイトル・進捗、2 段目に閉じた日とチケットが入っていた Iteration */
-function EpicItem({ epic: e }: { epic: EpicRow }) {
-  const store = useStore();
-  const iterations = iterationsOfEpic(e.id, store.tickets);
-  return (
-    <li className="history-row">
-      <DetailLink route={{ page: "epics", id: e.id }}>
-        <code>{e.id}</code>
-      </DetailLink>
-      <span className="name" title={e.title}>
-        {e.title}
-      </span>
-      <ProgressBar progress={e.progress} />
-      <small>
-        <ClosedOn iso={e.closed_at} />
-        {iterations.map((id) => (
-          <span key={id}>
-            {tr(" ・ ")}
-            <DetailLink route={{ page: "iterations", id }}>{id}</DetailLink>
-          </span>
-        ))}
-      </small>
-    </li>
-  );
-}
-
 /** チケットの見方：終わったチケットの一覧。history の結果を待たず updated_at の順で出し、届いたら終えた時刻で並べ直す */
 function TicketView({
   route,
@@ -858,7 +775,6 @@ function TicketView({
   setQuery: (q: string) => void;
 }) {
   const store = useStore();
-  const sidebar = useHost().surface === "sidebar";
   const { data: log, error } = useCommandData<HistoryLog>("history", {});
   const result = route.result ?? "";
   const setResult = (value: string) =>
@@ -894,7 +810,7 @@ function TicketView({
         />
         <input
           type="search"
-          placeholder={sidebar ? tr(SIDEBAR_SEARCH) : tr("番号・タイトル・ラベルで探す")}
+          placeholder={tr(SEARCH_PLACEHOLDER)}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           aria-label={tr("チケットを探す")}
@@ -943,53 +859,20 @@ function TicketView({
         <p className="empty">{tr("終わったチケットはない")}</p>
       ) : rows.length === 0 ? (
         <p className="empty">{tr("当たるチケットはない")}</p>
-      ) : sidebar ? (
-        // 「ほか N 件」を開いた状態は、検索や結果の絞り込みが変わったら戻す
-        <SidebarFinished key={`${result}\u0000${query}`} rows={rows} />
       ) : (
-        <ul className="rows history-finished">
-          {rows.map(({ ticket: t, at, approximate }) => (
-            <li key={t.id}>
-              <StatusDot status={t.status} />
-              <TicketLink id={t.id} />
-              <span className="row-title" title={t.title}>
-                {t.title} <Tags labels={t.labels} />
-              </span>
-              <span className="muted">{store.labelOf(t.status)}</span>
-              {t.iteration ? (
-                <DetailLink route={{ page: "iterations", id: t.iteration }}>
-                  {t.iteration}
-                </DetailLink>
-              ) : (
-                <span className="muted">—</span>
-              )}
-              {t.epic ? (
-                <DetailLink route={{ page: "epics", id: t.epic }}>{t.epic}</DetailLink>
-              ) : (
-                <span className="muted">—</span>
-              )}
-              <span className="muted">{t.pr ? `#${t.pr}` : "—"}</span>
-              <span className="muted">
-                <ShortDay
-                  iso={at}
-                  approximate={approximate}
-                  note={approximate ? tr("履歴から分からないので更新日") : tr("終えた日時")}
-                />
-              </span>
-            </li>
-          ))}
-        </ul>
+        // 「ほか N 件」を開いた状態は、検索や結果の絞り込みが変わったら戻す
+        <FinishedList key={`${result}\u0000${query}`} rows={rows} />
       )}
     </section>
   );
 }
 
 /**
- * サイドバーのチケットの見方：日付の見出しを付けず、終えた新しい順の 1 本の一覧（履歴用の行）で出す。
+ * チケットの見方：日付の見出しを付けず、終えた新しい順の 1 本の一覧（履歴用の行）で出す。
  * 2 段目は Iteration・PR・終えた日（Epic で分けて見るのは Epic の見方）。終えた日が履歴から分からないものは更新日に ~ を付ける。
  * 多いときは先頭の数件だけ出し、「ほか N 件」で残りを開ける
  */
-function SidebarFinished({ rows }: { rows: readonly FinishedRow[] }) {
+function FinishedList({ rows }: { rows: readonly FinishedRow[] }) {
   const byId = new Map(rows.map((r) => [r.ticket.id, r]));
   return (
     <div className="history-groups">

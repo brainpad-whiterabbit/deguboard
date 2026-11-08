@@ -16,6 +16,16 @@ async function fixture(): Promise<Fixture> {
 }
 
 describe("dg serve / dg open", () => {
+  it("serve と open の --help は開発用と書く（画面は VS Code 拡張で開く。ADR-023）", () => {
+    const program = new Command("dg");
+    addServeCommands(program, { streams: { out: () => {}, err: () => {} }, resolveCwd: () => "." });
+    for (const name of ["serve", "open"]) {
+      const command = program.commands.find((c) => c.name() === name)!;
+      expect(command.helpInformation(), name).toContain("開発用");
+      expect(command.description(), name).toContain("画面は VS Code 拡張で開く");
+    }
+  });
+
   it("serve は 127.0.0.1 で API を配信し、--open でブラウザを開く", async () => {
     const f = await fixture();
     await runCommand(init, await openContext({ cwd: f.cloneA, initialize: {} }), {});

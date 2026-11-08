@@ -5,6 +5,7 @@ import { setLanguage } from "../l10n.js";
 import { PRIORITY_CRITERIA_EN } from "../l10n-en.js";
 import { App } from "../app.js";
 import { ClientError } from "../client/http.js";
+import { toggleRoute } from "../router.js";
 import { StoreProvider } from "../store.js";
 import { mockClient } from "../test-helpers.js";
 import type { ConfigField, ConfigShowView } from "../types.js";
@@ -940,7 +941,8 @@ describe("設定画面", () => {
     expect(screen.getByText("該当する設定がない")).toBeTruthy();
   });
 
-  it("ブラウザでは上のバーの歯車で設定画面とその前の画面を切り替える", async () => {
+  // 歯車はビューのタイトル行にあり、拡張ホストの toggle の event が toggleRoute を呼ぶ（host.tsx の HostBridge）
+  it("歯車（toggleRoute）で設定画面とその前の画面を切り替える", async () => {
     const { client } = configClient();
     window.location.hash = "#/backlog";
     render(
@@ -948,11 +950,11 @@ describe("設定画面", () => {
         <App />
       </StoreProvider>,
     );
-    const gear = await screen.findByRole("button", { name: "設定" });
-    fireEvent.click(gear);
+    await screen.findByRole("heading", { level: 1, name: "バックログ" });
+    act(() => toggleRoute("#/config"));
     expect(window.location.hash).toBe("#/config");
     expect(await screen.findByText("コミットの仕方")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "設定" }));
+    act(() => toggleRoute("#/config"));
     expect(window.location.hash).toBe("#/backlog");
   });
 
@@ -964,7 +966,8 @@ describe("設定画面", () => {
         <App />
       </StoreProvider>,
     );
-    fireEvent.click(await screen.findByRole("button", { name: "設定" }));
+    await screen.findByRole("heading", { level: 1, name: "バックログ" });
+    act(() => toggleRoute("#/config"));
     expect(window.location.hash).toBe("#/config");
     fireEvent.click(await screen.findByRole("button", { name: "前の画面に戻る" }));
     expect(window.location.hash).toBe("#/backlog");
@@ -981,7 +984,7 @@ describe("設定画面", () => {
     const { client } = configClient();
     mount(client);
     await screen.findByText("コミットの仕方");
-    fireEvent.click(screen.getByRole("button", { name: "設定" }));
+    act(() => toggleRoute("#/config"));
     expect(window.location.hash).toBe("#/board");
   });
 });

@@ -4,17 +4,20 @@ import type { WebviewClient } from "./client/webview.js";
 import { createHost, readSurface } from "./host.js";
 
 describe("載っている場所（surface）", () => {
-  it("data 属性の sidebar・panel を読み、なければブラウザ", () => {
+  it("data 属性の sidebar・panel を読み、なければサイドバー", () => {
     expect(readSurface({ surface: "sidebar" })).toBe("sidebar");
     expect(readSurface({ surface: "panel" })).toBe("panel");
-    expect(readSurface({})).toBe("browser");
-    expect(readSurface({ surface: "nope" })).toBe("browser");
+    expect(readSurface({})).toBe("sidebar");
+    expect(readSurface({ surface: "nope" })).toBe("sidebar");
+    expect(readSurface({ surface: "browser" })).toBe("sidebar");
   });
 
-  it("ブラウザでは開発用に ?surface= も読み、data 属性があればそちらを優先する", () => {
+  it("dg serve では ?surface= を読み、なければサイドバー。data 属性があればそちらを優先する", () => {
     expect(readSurface({}, "?surface=sidebar")).toBe("sidebar");
     expect(readSurface({}, "?surface=panel&x=1")).toBe("panel");
-    expect(readSurface({}, "?surface=nope")).toBe("browser");
+    expect(readSurface({}, "?surface=nope")).toBe("sidebar");
+    expect(readSurface({}, "?surface=browser")).toBe("sidebar");
+    expect(readSurface({}, "")).toBe("sidebar");
     expect(readSurface({ surface: "panel" }, "?surface=sidebar")).toBe("panel");
   });
 
@@ -52,15 +55,15 @@ describe("クリップボードへのコピー", () => {
     expect(writeText).not.toHaveBeenCalled();
   });
 
-  it("ブラウザでは navigator.clipboard に書く", async () => {
+  it("拡張ホストとつながっていなければ（dg serve）navigator.clipboard に書く", async () => {
     const writeText = vi.fn(async () => {});
     setClipboard({ writeText });
-    await createHost("browser", null).copy("feat/x");
+    await createHost("sidebar", null).copy("feat/x");
     expect(writeText).toHaveBeenCalledWith("feat/x");
   });
 
-  it("ブラウザで navigator.clipboard がなければ失敗を返す（頼む先がない）", async () => {
+  it("dg serve で navigator.clipboard がなければ失敗を返す（頼む先がない）", async () => {
     setClipboard(undefined);
-    await expect(createHost("browser", null).copy("feat/x")).rejects.toThrow();
+    await expect(createHost("panel", null).copy("feat/x")).rejects.toThrow();
   });
 });

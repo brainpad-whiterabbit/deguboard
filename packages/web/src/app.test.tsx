@@ -71,6 +71,13 @@ function runningRun(ticketId: string): RunView {
   } as RunView;
 }
 
+/** 左パネルのカンバンの Epic・担当の絞り込みの欄（漏斗）を開いた Host */
+function boardFiltersOpen(): Host {
+  const host = hostOf("sidebar");
+  host.state.set("board.filters", true);
+  return host;
+}
+
 function mount(client = mockClient(), host?: Host) {
   const app = host ? (
     <HostProvider host={host}>
@@ -135,39 +142,28 @@ describe("画面", () => {
     expect(headings).toEqual(["Todo1", "In Progress1", "Code Review0", "Done1"]);
     expect(screen.queryByText("Abandoned")).toBeNull();
     expect(screen.queryByLabelText("abandoned を出す")).toBeNull();
-    expect(screen.getByText("3 件")).toBeTruthy();
   });
 
-  it.each(["browser", "sidebar"] as const)(
-    "開いた Iteration がなければ（%s）、列も帯も出さず、開いた Iteration がないこととバックログへの案内を出す。作るボタンは出さない。「すべて」は選べる",
-    async (surface) => {
-      const client = mockClient(
-        fixture({ iterations: [iteration({ id: "s1", name: "昔", status: "closed" })] }),
-      );
-      client.data.tickets[0]!.iteration = "s1";
-      client.data.plans.push(plan({ id: "p1", tickets: ["t1"], status: "closed" }));
-      mount(client, hostOf(surface));
-      await screen.findByText(/開いた Iteration（planned・active）はない/);
-      expect(document.querySelector(".board")).toBeNull();
-      expect(document.querySelector(".plan-band")).toBeNull();
-      expect(screen.queryByText("ログイン")).toBeNull();
-      const guide = document.querySelector(".board-empty")!;
-      expect(guide.querySelector("a")!.getAttribute("href")).toBe("#/backlog");
-      // Iteration を作るのはエージェントに頼む（ADR-010）ので、作るボタンは出さない
-      expect(screen.queryByRole("button", { name: "+ Iteration を作る" })).toBeNull();
-      expect(guide.querySelector("button")).toBeNull();
-      if (surface === "browser") {
-        const select = screen.getByLabelText<HTMLSelectElement>("Iteration");
-        expect([...select.querySelectorAll("option")].map((o) => o.textContent)).toEqual([
-          "すべて（planned と active）",
-        ]);
-      } else {
-        const chips = [...document.querySelectorAll(".iteration-chip")].map((c) => c.textContent);
-        expect(chips).toEqual(["すべて0/0"]);
-        expect(document.querySelector(".status-band")).toBeNull();
-      }
-    },
-  );
+  it("開いた Iteration がなければ、列も帯も出さず、開いた Iteration がないこととバックログへの案内を出す。作るボタンは出さない。「すべて」は選べる", async () => {
+    const client = mockClient(
+      fixture({ iterations: [iteration({ id: "s1", name: "昔", status: "closed" })] }),
+    );
+    client.data.tickets[0]!.iteration = "s1";
+    client.data.plans.push(plan({ id: "p1", tickets: ["t1"], status: "closed" }));
+    mount(client, hostOf("sidebar"));
+    await screen.findByText(/開いた Iteration（planned・active）はない/);
+    expect(document.querySelector(".board")).toBeNull();
+    expect(document.querySelector(".plan-band")).toBeNull();
+    expect(screen.queryByText("ログイン")).toBeNull();
+    const guide = document.querySelector(".board-empty")!;
+    expect(guide.querySelector("a")!.getAttribute("href")).toBe("#/backlog");
+    // Iteration を作るのはエージェントに頼む（ADR-010）ので、作るボタンは出さない
+    expect(screen.queryByRole("button", { name: "+ Iteration を作る" })).toBeNull();
+    expect(guide.querySelector("button")).toBeNull();
+    const chips = [...document.querySelectorAll(".iteration-chip")].map((c) => c.textContent);
+    expect(chips).toEqual(["すべて0/0"]);
+    expect(document.querySelector(".status-band")).toBeNull();
+  });
 
   it("中止のチケットがあるときだけ、畳んだ「中止」の列を完了の右（最後）に出す", async () => {
     const client = boardClient();
@@ -187,53 +183,6 @@ describe("画面", () => {
     const section = columns.at(-1)!;
     expect(section.open).toBe(false);
     expect(section.querySelector("h2")!.textContent).toBe("Abandoned1");
-    expect(screen.getByText("3 件")).toBeTruthy();
-  });
-
-  it("広い画面のカンバンの見出しは、Iteration の名前を Iteration 詳細へのリンクにする", async () => {
-    const client = boardClient();
-    mount(client);
-    await screen.findByText("ログイン");
-    const link = document.querySelector<HTMLAnchorElement>(".board-head h1 a")!;
-    expect(link.getAttribute("href")).toMatch(/^#\/iterations\/s\d+$/);
-    expect(link.textContent).toBe(client.data.iterations.find((i) => i.status === "active")!.name);
-  });
-
-  it("Iteration の選択肢は「すべて」と planned と active で、既定は active。選ぶとその Iteration のチケットだけになり、ハッシュに残る。「すべて」は開いた Iteration のチケットだけを出す", async () => {
-    const client = mockClient();
-    client.data.iterations = [
-      iteration({ id: "s1", name: "最初", status: "active" }),
-      iteration({ id: "s2", name: "次", status: "planned" }),
-      iteration({ id: "s0", name: "昔", status: "closed" }),
-    ];
-    client.data.tickets[0]!.iteration = "s0";
-    client.data.tickets[1]!.iteration = "s1";
-    client.data.tickets[2]!.iteration = "s2";
-    client.data.tickets.push(ticket({ id: "t4", title: "入っていない" }));
-    mount(client);
-    await screen.findByText("API");
-    const select = screen.getByLabelText<HTMLSelectElement>("Iteration");
-    expect([...select.querySelectorAll("option")].map((o) => o.textContent)).toEqual([
-      "すべて（planned と active）",
-      "s1 最初（進行中）",
-      "s2 次（予定）",
-    ]);
-    expect(select.value).toBe("s1");
-    expect(document.querySelector(".iteration-table")).toBeNull();
-    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("s1 最初");
-    expect(screen.queryByText("画面")).toBeNull();
-    fireEvent.change(select, { target: { value: "s2" } });
-    expect(window.location.hash).toBe("#/board?iteration=s2");
-    await screen.findByText("画面");
-    expect(screen.queryByText("API")).toBeNull();
-    fireEvent.change(screen.getByLabelText("Iteration"), { target: { value: "*" } });
-    expect(window.location.hash).toBe("#/board?iteration=*");
-    await screen.findByText("API");
-    expect(screen.getByText("画面")).toBeTruthy();
-    // Iteration に入っていないチケットと、閉じた Iteration のチケットは出さない
-    expect(screen.queryByText("入っていない")).toBeNull();
-    expect(screen.queryByText("ログイン")).toBeNull();
-    expect(screen.queryByRole("heading", { level: 1 })).toBeNull();
   });
 
   it("Epic の選択肢は open だけ。閉じた Epic は選んでいるときだけ残す", async () => {
@@ -242,7 +191,7 @@ describe("画面", () => {
       ...client.data.epics,
       { ...client.data.epics[0]!, id: "e9", title: "済んだ", status: "closed" },
     ];
-    mount(client);
+    mount(client, boardFiltersOpen());
     await screen.findByText("API");
     const options = () =>
       [...screen.getByLabelText("Epic").querySelectorAll("option")].map((o) => o.value);
@@ -257,7 +206,7 @@ describe("画面", () => {
   it("Epic と担当者で絞れる。旧 ID は @ の前だけを出し、担当者のないものは「なし」", async () => {
     const client = boardClient();
     client.data.tickets[1]!.assignee = "eiki@laptop";
-    mount(client);
+    mount(client, boardFiltersOpen());
     await screen.findByText("API");
     fireEvent.change(screen.getByLabelText("Epic"), { target: { value: "e1" } });
     expect(window.location.hash).toBe("#/board?epic=e1");
@@ -277,30 +226,6 @@ describe("画面", () => {
     expect(screen.getByText("ログイン")).toBeTruthy();
   });
 
-  it("同期の印は未 push と未取り込みを出し、同期ボタンが sync を呼ぶ", async () => {
-    const client = mockClient();
-    client.data.status = { ...client.data.status, ahead: 2, behind: 1 };
-    client.handlers["sync"] = () => ({});
-    mount(client);
-    expect(await screen.findByText("未 push 2")).toBeTruthy();
-    expect(screen.getByText("未取り込み 1")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "同期" }));
-    await waitFor(() => expect(client.calls.some((c) => c.name === "sync")).toBe(true));
-  });
-
-  it("リモートがなくても同期ボタンは押せ、sync で照合する", async () => {
-    const client = mockClient();
-    client.data.status = { ...client.data.status, remote: null };
-    client.handlers["sync"] = () => ({});
-    mount(client);
-    await screen.findByText("同期済み");
-    const button = screen.getByRole("button", { name: "同期" });
-    expect(button.getAttribute("title")).toContain("リモートがない");
-    await waitFor(() => expect((button as HTMLButtonElement).disabled).toBe(false));
-    fireEvent.click(button);
-    await waitFor(() => expect(client.calls.some((c) => c.name === "sync")).toBe(true));
-  });
-
   it("バックログは done を除いて出し、検索で絞れる", async () => {
     window.location.hash = "#/backlog";
     mount();
@@ -317,7 +242,7 @@ describe("画面", () => {
     client.handlers["ticket.move"] = () => {
       throw new ClientError({ code: "REJECTED", message: "依存先が終わっていない" });
     };
-    mount(client);
+    mount(client, hostOf("panel"));
     await screen.findByRole("heading", { level: 1, name: "画面" });
     expect(screen.getByText("本文")).toBeTruthy();
     expect(screen.getByText("a")).toBeTruthy();
@@ -419,14 +344,6 @@ describe("画面", () => {
     expect(statusOptions()).toEqual(["todo"]);
   });
 
-  it("ブラウザのチケット詳細の Status の選択は、チケットの Workflow で移れない Status も含めて全件並べる", async () => {
-    window.location.hash = "#/tickets/t9";
-    mount(ownWorkflowClient());
-    await screen.findByRole("heading", { level: 1, name: "別の流れ" });
-    await waitFor(() => expect(screen.getByLabelText("Status").textContent).toContain("完了"));
-    expect(statusOptions()).toEqual(["todo", "in_progress", "review", "done", "abandoned"]);
-  });
-
   it("チケットの Workflow が Project の既定と同じなら、チケット詳細で Workflow を引き直さない", async () => {
     window.location.hash = "#/tickets/t3";
     const client = mockClient();
@@ -439,7 +356,7 @@ describe("画面", () => {
   it("チケット詳細に Run の節を出し、属性の欄に「予定（e3）」を出さない", async () => {
     window.location.hash = "#/tickets/t3";
     const client = mockClient();
-    mount(client);
+    mount(client, hostOf("panel"));
     await screen.findByRole("heading", { level: 1, name: "画面" });
     expect(await screen.findByRole("heading", { level: 2, name: "Run" })).toBeTruthy();
     expect(await screen.findByText("Run はない")).toBeTruthy();
@@ -631,29 +548,6 @@ describe("画面", () => {
     expect(dot("t7")).toContain("status-review");
   });
 
-  it("ブラウザのチケット詳細は、依存先が終わっていなくても本文の上の帯を出さず、右の列の依存先の下に知らせる", async () => {
-    window.location.hash = "#/tickets/t9";
-    const data = fixture({
-      tickets: [
-        ticket({ id: "t2", title: "途中", status: "in_progress" }),
-        ticket({ id: "t9", title: "待ち", depends_on: ["t2"] }),
-      ],
-    });
-    const client = mockClient(data);
-    const show = client.handlers["ticket.show"]!;
-    client.handlers["ticket.show"] = (input) => ({
-      ...(show(input) as object),
-      deps_done: false,
-      pending_deps: [{ id: "t2", status: "in_progress" }],
-    });
-    mount(client);
-    await screen.findByRole("heading", { level: 1, name: "待ち" });
-    expect(document.querySelector(".deps-band")).toBeNull();
-    expect(document.querySelector(".detail > aside")!.textContent).toContain(
-      "依存先が終わっていない",
-    );
-  });
-
   it("エディタのパネルのチケット詳細は、タイトルの直下の帯に Status の丸印・優先度・Iteration・担当・PR を 1 行で出す", async () => {
     window.location.hash = "#/tickets/t9";
     const data = fixture({
@@ -687,69 +581,21 @@ describe("画面", () => {
       tickets: [ticket({ id: "t9", title: "PR あり", pr: 12 })],
       status: { ...fixture().status, web_url: "https://github.com/o/r" },
     });
-    mount(mockClient(data));
-    const link = await screen.findByRole("link", { name: "#12" });
-    expect(link.getAttribute("href")).toBe("https://github.com/o/r/pull/12");
-    expect(link.getAttribute("target")).toBe("_blank");
+    mount(mockClient(data), hostOf("panel"));
+    const links = await screen.findAllByRole("link", { name: "#12" });
+    for (const link of links) {
+      expect(link.getAttribute("href")).toBe("https://github.com/o/r/pull/12");
+      expect(link.getAttribute("target")).toBe("_blank");
+    }
     cleanup();
 
     window.location.hash = "#/tickets/t9";
-    mount(mockClient({ ...data, status: { ...data.status, web_url: null } }));
+    mount(mockClient({ ...data, status: { ...data.status, web_url: null } }), hostOf("panel"));
     await screen.findByRole("heading", { level: 1, name: "PR あり" });
     expect(screen.queryByRole("link", { name: "#12" })).toBeNull();
-    expect(screen.getByText("PR").nextElementSibling!.textContent).toBe("#12");
-  });
-
-  it("ブラウザのチケット詳細は今のまま（編集は本文の下、作成は ISO、値のない属性も 1 行ずつ）", async () => {
-    window.location.hash = "#/tickets/t3";
-    mount(mockClient());
-    const h1 = await screen.findByRole("heading", { level: 1, name: "画面" });
-    expect(screen.getByRole("button", { name: "編集" }).closest("header")).not.toBe(
-      h1.closest("header"),
+    expect(screen.getByText("PR", { selector: "dt" }).nextElementSibling!.textContent).toContain(
+      "#12",
     );
-    expect(screen.getByText("作成").nextElementSibling!.textContent).toBe("2026-01-01T00:00:00Z");
-    expect(screen.getByText("依存先")).toBeTruthy();
-    expect(screen.queryByText("なし", { selector: "dt" })).toBeNull();
-    // 見出しの帯と属性の見出し分けはパネルだけ。属性は 1 つの並びのまま
-    expect(document.querySelector(".detail-head")).toBeNull();
-    expect(document.querySelector(".props-groups")).toBeNull();
-    expect([...document.querySelectorAll(".detail > aside dt")].map((d) => d.textContent)).toEqual([
-      "Status",
-      "優先度",
-      "ラベル",
-      "Epic",
-      "Iteration",
-      "依存先",
-      "依存元",
-      "担当",
-      "ブランチ",
-      "PR",
-      "起票者",
-      "作成",
-      "更新",
-    ]);
-  });
-
-  it("編集して保存すると ticket.update に属性と本文を渡す", async () => {
-    window.location.hash = "#/tickets/t3";
-    const client = mockClient();
-    mount(client);
-    await screen.findByRole("heading", { level: 1, name: "画面" });
-    fireEvent.click(screen.getByRole("button", { name: "編集" }));
-    fireEvent.change(screen.getByLabelText("タイトル"), { target: { value: "新しい題" } });
-    fireEvent.change(screen.getByLabelText("ラベル"), { target: { value: "web, ui" } });
-    fireEvent.change(screen.getByLabelText("Epic"), { target: { value: "e1" } });
-    fireEvent.change(screen.getByLabelText("担当"), { target: { value: "eiki/agent" } });
-    fireEvent.click(screen.getByRole("button", { name: "保存" }));
-    await waitFor(() => expect(client.calls.some((c) => c.name === "ticket.update")).toBe(true));
-    expect(client.calls.find((c) => c.name === "ticket.update")!.input).toMatchObject({
-      ticket: "t3",
-      title: "新しい題",
-      labels: ["web", "ui"],
-      epic: "e1",
-      iteration: null,
-      assignee: "eiki/agent",
-    });
   });
 
   describe("詳細の本文の受け入れ条件のチェックボックスを押して付け外しする", () => {
@@ -774,42 +620,40 @@ describe("画面", () => {
     const box = (n: number) =>
       screen.getByRole("checkbox", { name: `受け入れ条件 ${n}` }) as HTMLInputElement;
 
-    for (const surface of ["browser", "panel"] as const) {
-      it(`${surface === "panel" ? "エディタのパネル" : "ブラウザ"}では、押した項目だけを ticket.check に読んだ本文と渡し、その行だけが変わる`, async () => {
-        window.location.hash = "#/tickets/t3";
-        const client = mockClient();
-        const show = client.handlers["ticket.show"]!;
-        client.handlers["ticket.show"] = (input) => ({ ...(show(input) as object), body: BODY });
-        client.handlers["ticket.check"] = (input) => {
-          const { items, undo } = input as { items: number[]; undo: boolean };
-          const body = BODY.replace(
-            items[0] === 1 ? "- [ ] a" : "- [x] b",
-            items[0] === 1 ? `- [${undo ? " " : "x"}] a` : `- [${undo ? " " : "x"}] b`,
-          );
-          return { ...client.data.tickets.find((t) => t.id === "t3")!, body };
-        };
-        client.calls.length = 0;
-        mount(client, hostOf(surface));
-        await screen.findByRole("heading", { level: 1, name: "画面" });
-        // 番号は文のある項目だけに振る（雛形の空の行は数えない）
-        expect(box(1).checked).toBe(false);
-        expect(box(2).checked).toBe(true);
-        expect(screen.queryByRole("checkbox", { name: "受け入れ条件 3" })).toBeNull();
-        fireEvent.click(box(2));
-        await waitFor(() => expect(checks(client)).toHaveLength(1));
-        expect(checks(client)[0]).toEqual({ ticket: "t3", items: [2], undo: true, base: BODY });
-        await waitFor(() => expect(box(2).checked).toBe(false));
-        expect(box(1).checked).toBe(false);
-        expect(screen.getByText("概要の印")).toBeTruthy();
-      });
-    }
+    it("押した項目だけを ticket.check に読んだ本文と渡し、その行だけが変わる", async () => {
+      window.location.hash = "#/tickets/t3";
+      const client = mockClient();
+      const show = client.handlers["ticket.show"]!;
+      client.handlers["ticket.show"] = (input) => ({ ...(show(input) as object), body: BODY });
+      client.handlers["ticket.check"] = (input) => {
+        const { items, undo } = input as { items: number[]; undo: boolean };
+        const body = BODY.replace(
+          items[0] === 1 ? "- [ ] a" : "- [x] b",
+          items[0] === 1 ? `- [${undo ? " " : "x"}] a` : `- [${undo ? " " : "x"}] b`,
+        );
+        return { ...client.data.tickets.find((t) => t.id === "t3")!, body };
+      };
+      client.calls.length = 0;
+      mount(client, hostOf("panel"));
+      await screen.findByRole("heading", { level: 1, name: "画面" });
+      // 番号は文のある項目だけに振る（雛形の空の行は数えない）
+      expect(box(1).checked).toBe(false);
+      expect(box(2).checked).toBe(true);
+      expect(screen.queryByRole("checkbox", { name: "受け入れ条件 3" })).toBeNull();
+      fireEvent.click(box(2));
+      await waitFor(() => expect(checks(client)).toHaveLength(1));
+      expect(checks(client)[0]).toEqual({ ticket: "t3", items: [2], undo: true, base: BODY });
+      await waitFor(() => expect(box(2).checked).toBe(false));
+      expect(box(1).checked).toBe(false);
+      expect(screen.getByText("概要の印")).toBeTruthy();
+    });
 
     it("受け入れ条件の節の外のチェックボックスは押せない", async () => {
       window.location.hash = "#/tickets/t3";
       const client = mockClient();
       const show = client.handlers["ticket.show"]!;
       client.handlers["ticket.show"] = (input) => ({ ...(show(input) as object), body: BODY });
-      mount(client);
+      mount(client, hostOf("panel"));
       await screen.findByRole("heading", { level: 1, name: "画面" });
       const all = [...document.querySelectorAll<HTMLInputElement>(".markdown input")];
       expect(all).toHaveLength(5);
@@ -844,42 +688,6 @@ describe("画面", () => {
       await waitFor(() => expect(box(1).disabled).toBe(false));
       expect(box(1).checked).toBe(false);
     });
-  });
-
-  it("ブラウザの編集では優先度の選択肢を記号と値にし、選んでいる値の判断基準を下に出す（TK-8）", async () => {
-    window.location.hash = "#/tickets/t3";
-    mount(mockClient());
-    await screen.findByRole("heading", { level: 1, name: "画面" });
-    fireEvent.click(screen.getByRole("button", { name: "編集" }));
-    const select = screen.getByLabelText("優先度") as HTMLSelectElement;
-    expect([...select.options].map((o) => o.textContent)).toEqual(["↓ low", "= medium", "↑ high"]);
-    expect(document.querySelector(".inline-hint")!.textContent).toBe(
-      "機能の追加と改善・テストの抜け",
-    );
-    // 値を変えると下の判断基準も変わる
-    fireEvent.change(select, { target: { value: "high" } });
-    expect(document.querySelector(".inline-hint")!.textContent).toBe(
-      "利用者に見える不具合・ほかのチケットを止めている",
-    );
-  });
-
-  it("優先度の判断基準が読めていない（config.show に priority がない）ときは、選択の説明（hint）が空になる", async () => {
-    window.location.hash = "#/tickets/t3";
-    const client = mockClient();
-    client.handlers["config.show"] = () => ({ default_project: "default" });
-    mount(client);
-    await screen.findByRole("heading", { level: 1, name: "画面" });
-    fireEvent.click(screen.getByRole("button", { name: "編集" }));
-    expect(screen.getByLabelText("優先度")).toBeTruthy();
-    expect(document.querySelector(".inline-hint")!.textContent).toBe("");
-  });
-
-  it("ブラウザのチケット詳細の属性はその場で直せず、値を押しても入力欄にならない", async () => {
-    window.location.hash = "#/tickets/t3";
-    mount(mockClient());
-    await screen.findByRole("heading", { level: 1, name: "画面" });
-    expect(screen.queryByRole("button", { name: "優先度を変える" })).toBeNull();
-    expect(document.querySelector(".inline-edit")).toBeNull();
   });
 
   describe("エディタのパネルのチケット詳細の属性をその場で直す", () => {
@@ -1297,7 +1105,7 @@ describe("画面", () => {
     expect(window.location.hash).toBe("#/backlog");
   });
 
-  // VS Code では Run の画面を出さない（UI-12）ので、Run を出すのはパネルのチケット詳細だけ
+  // Run の画面はない（ADR-023）ので、Run を出すのはパネルのチケット詳細だけ
   it.each(["#/tickets/t3"])(
     "拡張ホストから reload の event が来ると、%s の Run を取り直す（ターミナルの dg run start はチケットを変えない）",
     async (hash) => {
@@ -1340,10 +1148,10 @@ describe("画面", () => {
     },
   );
 
-  it.each(["browser", "panel", "sidebar"] as const)(
+  it.each(["panel", "sidebar"] as const)(
     "%s でも完了の節は既定で畳み、ほかの節は開く",
     async (surface) => {
-      mount(boardClient(), surface === "browser" ? undefined : hostOf(surface));
+      mount(boardClient(), hostOf(surface));
       await screen.findByText("ログイン");
       const columns = [...document.querySelectorAll<HTMLDetailsElement>("details.column")];
       expect(columns.map((c) => [c.dataset.status, c.open])).toEqual([
@@ -1479,7 +1287,7 @@ describe("画面", () => {
     expect(kanbanRowOf("画面").querySelector(".row-end .assignee-mark")).toBeNull();
   });
 
-  it("サイドバーのカンバンは、前回の描画から Status が変わった行を点滅させ（開き直しても host.state で比べる）、ブラウザでは点滅させない", async () => {
+  it("サイドバーのカンバンは、前回の描画から Status が変わった行を点滅させる（開き直しても host.state で比べる）", async () => {
     const host = hostOf("sidebar");
     const client = boardClient();
     mount(client, host);
@@ -1492,10 +1300,6 @@ describe("画面", () => {
       expect(screen.getByText("画面").closest(".row")!.classList.contains("changed")).toBe(true),
     );
     expect(screen.getByText("ログイン").closest(".row")!.classList.contains("changed")).toBe(false);
-    cleanup();
-    mount(boardClient());
-    await screen.findByText("画面");
-    expect(document.querySelector(".row.changed")).toBeNull();
   });
 
   it("節の開閉は host.state に残り、開き直しても保たれる", async () => {
@@ -1857,34 +1661,6 @@ describe("画面", () => {
     expect(document.querySelector(".activity-mark")).toBeNull();
   });
 
-  it("広い画面のカンバンのカードには Run の印を出さない", async () => {
-    const client = boardClient();
-    let answered = false;
-    client.handlers["run.list"] = () => {
-      answered = true;
-      return [runningRun("t2")];
-    };
-    // readRunning で実行中の Run を読ませ、読んだうえで広い画面（ブラウザの host）のカードには出さないことを見る
-    render(
-      <StoreProvider client={client} readRunning>
-        <HostProvider host={hostOf("browser")}>
-          <App />
-        </HostProvider>
-      </StoreProvider>,
-    );
-    await screen.findByText("API");
-    await waitFor(() => expect(answered).toBe(true));
-    expect(client.calls.find((c) => c.name === "run.list")!.input).toEqual({
-      project: "default",
-      running: true,
-    });
-    // run.list の応答を store に入れ終えるまで待つ
-    await act(async () => {});
-    expect(document.querySelector(".cards")).toBeTruthy();
-    expect(document.querySelector(".activity-mark")).toBeNull();
-    expect(screen.queryByText("実行中")).toBeNull();
-  });
-
   it("実行中の Run の読み直しが重なり、後から古い結果が返っても、新しい結果のリングを残す", async () => {
     const client = boardClient();
     /** run.list（running）の応答を、呼ばれた順に後から返す */
@@ -2217,65 +1993,6 @@ describe("画面", () => {
     expect(document.querySelectorAll(".timeline-list .status-dot-empty")).toHaveLength(1);
   });
 
-  it("履歴のチケットの見方は終わったチケットを終えた新しい順に出し、分からないものは更新日で並べてそう出す。結果・検索で絞れ、Epic のセレクトはない", async () => {
-    window.location.hash = "#/history?view=ticket";
-    const client = mockClient();
-    client.data.tickets = [
-      ticket({ id: "t1", title: "古い", status: "done", epic: "e1", pr: 3, iteration: "s1" }),
-      ticket({ id: "t2", title: "新しい", status: "done", labels: ["web"] }),
-      ticket({
-        id: "t3",
-        title: "やめた",
-        status: "abandoned",
-        updated_at: "2026-10-15T00:00:00Z",
-      }),
-      ticket({ id: "t4", title: "途中", status: "todo" }),
-    ];
-    const finished = (id: string, at: string, to = "done") => ({
-      kind: "ticket",
-      id,
-      commit: id,
-      author: "a",
-      subject: "s",
-      type: "changed",
-      at,
-      changes: [{ field: "status", from: "review", to }],
-    });
-    client.handlers["history"] = () => ({
-      events: [finished("t1", "2026-10-01T00:00:00Z"), finished("t2", "2026-10-20T00:00:00Z")],
-      shallow: false,
-      incomplete: [],
-    });
-    mount(client);
-    await screen.findByRole("heading", { level: 1, name: "履歴" });
-    expect(screen.getByRole("button", { name: /^チケット/ }).getAttribute("aria-pressed")).toBe(
-      "true",
-    );
-    // 絞り込みがなければバッジは全体の件数
-    expect(screen.getByRole("button", { name: /^チケット/ }).textContent).toBe("チケット 3");
-    const ids = () =>
-      [...document.querySelectorAll(".history-finished li code")].map((e) => e.textContent);
-    await waitFor(() => expect(ids()).toEqual(["t2", "t3", "t1"]));
-    expect(screen.getByText(/更新日（updated_at）で並べている/)).toBeTruthy();
-    const t1 = document.querySelectorAll(".history-finished li")[2]!;
-    expect(t1.textContent).toContain("#3");
-    expect(t1.querySelector("a[href='#/iterations/s1']")).toBeTruthy();
-    expect(t1.querySelector("a[href='#/epics/e1']")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: /^Abandoned/ }));
-    expect(ids()).toEqual(["t3"]);
-    // 結果の絞り込みもチケットのバッジに映す
-    expect(screen.getByRole("button", { name: /^チケット/ }).textContent).toBe(
-      "チケット 1\u2009/\u20093",
-    );
-    fireEvent.click(screen.getByRole("button", { name: /^すべて/ }));
-    expect(screen.queryByLabelText("Epic")).toBeNull();
-    fireEvent.change(screen.getByLabelText("チケットを探す"), { target: { value: "web" } });
-    expect(ids()).toEqual(["t2"]);
-    expect(screen.getByRole("button", { name: /^チケット/ }).textContent).toBe(
-      "チケット 1\u2009/\u20093",
-    );
-  });
-
   it("エディタのパネルで Iteration の詳細を出すときもヘッダーを出さない", async () => {
     const client = mockClient();
     client.data.iterations = [iteration({ id: "s1", name: "最初", status: "closed" })];
@@ -2284,13 +2001,6 @@ describe("画面", () => {
     mount(client, hostOf("panel"));
     await screen.findByRole("heading", { level: 1, name: /s1 最初/ });
     expect(screen.queryByRole("navigation", { name: "画面" })).toBeNull();
-  });
-
-  it("ブラウザではチケットのリンクが詳細へのハッシュ遷移のまま", async () => {
-    window.location.hash = "#/backlog";
-    mount();
-    const link = (await screen.findByText("API")).closest("a")!;
-    expect(link.getAttribute("href")).toBe("#/tickets/t2");
   });
 
   it("サイドバーのバックログは検索欄の右端の漏斗で絞り込みの欄を開閉し、漏斗は条件が効いている間だけ色付き。件数は絞っているときだけ「n / m 件」でチップの行の右端に出て、消すボタンは条件があるときだけ", async () => {
@@ -2694,22 +2404,6 @@ describe("画面", () => {
     expect(screen.queryByRole("link", { name: "← バックログ" })).toBeNull();
   });
 
-  it("ブラウザの Epic 詳細は今のまま Status ごとの列で出し、戻るリンクも出す", async () => {
-    window.location.hash = "#/epics/e1";
-    const client = mockClient();
-    client.handlers["epic.show"] = () => ({
-      ...client.data.epics[0],
-      body: "",
-      tickets: client.data.tickets.filter((t) => t.epic === "e1"),
-    });
-    mount(client);
-    await screen.findByRole("heading", { level: 1 });
-    expect(screen.queryByRole("button", { name: "外す" })).toBeNull();
-    expect(document.querySelectorAll(".column").length).toBeGreaterThan(1);
-    expect(document.querySelectorAll(".card")).toHaveLength(1);
-    expect(screen.getByRole("link", { name: "← バックログ" })).toBeTruthy();
-  });
-
   it("エディタのパネルの Iteration 詳細は「← カンバン」を出さず、「この Iteration でカンバンを見る」でその Iteration で絞ったカンバンをサイドバーに出してもらう", async () => {
     window.location.hash = "#/iterations/s1";
     const client = mockClient();
@@ -2738,19 +2432,6 @@ describe("画面", () => {
     client.handlers["iteration.show"] = () => iterationDetail(client.data.iterations[0]!);
     mount(client, hostOf("panel"));
     await screen.findByRole("heading", { level: 1 });
-    expect(screen.queryByRole("link", { name: "この Iteration でカンバンを見る" })).toBeNull();
-  });
-
-  it("ブラウザの Iteration 詳細は今のまま「← カンバン」でその Iteration のカンバンへ移り、「この Iteration でカンバンを見る」を出さない", async () => {
-    window.location.hash = "#/iterations/s1";
-    const client = mockClient();
-    client.data.iterations = [iteration({ id: "s1", name: "最初", status: "active" })];
-    client.handlers["iteration.show"] = () => iterationDetail(client.data.iterations[0]!);
-    mount(client);
-    await screen.findByRole("heading", { level: 1 });
-    expect(screen.getByRole("link", { name: "← カンバン" }).getAttribute("href")).toBe(
-      "#/board?iteration=s1",
-    );
     expect(screen.queryByRole("link", { name: "この Iteration でカンバンを見る" })).toBeNull();
   });
 
@@ -2866,17 +2547,17 @@ describe("画面", () => {
 
   it("info の通知（コマンドの警告）は数秒で消える", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
-    const client = boardClient();
-    client.handlers["sync"] = () => ({});
-    mount(client);
-    await screen.findByText("ログイン");
+    window.location.hash = "#/tickets/t3";
+    const client = mockClient();
+    mount(client, hostOf("panel"));
+    await screen.findByRole("heading", { level: 1, name: "画面" });
     // 警告つきの応答。mockClient の handlers は data しか返せないので run を差し替える
     const original = client.run.bind(client);
     client.run = (async (name: string, input?: unknown) =>
-      name === "sync"
+      name === "ticket.move"
         ? { data: {}, warnings: ["push できない: offline"] }
         : original(name, input)) as typeof client.run;
-    fireEvent.click(screen.getByRole("button", { name: "同期" }));
+    fireEvent.change(screen.getByLabelText("Status"), { target: { value: "in_progress" } });
     expect((await screen.findByText(/push できない/)).closest(".notice")!.className).toBe(
       "notice info",
     );
@@ -2895,7 +2576,7 @@ describe("画面", () => {
     expect(screen.queryByText("読み込み中…")).toBeNull();
   });
 
-  it("タブはカンバン・バックログ・履歴・Run の 4 つ。#/epics はバックログとして開き、Epic の詳細ではバックログのタブを選ぶ", async () => {
+  it("#/epics はバックログとして開き、Epic の詳細ではバックログのタブを選ぶ", async () => {
     window.location.hash = "#/epics";
     const client = mockClient();
     client.handlers["epic.show"] = () => ({ ...client.data.epics[0], body: "", tickets: [] });
@@ -2906,30 +2587,13 @@ describe("画面", () => {
       "カンバン",
       "バックログ",
       "履歴",
-      "Run",
     ]);
     window.location.hash = "#/epics/e1";
     await screen.findByRole("heading", { level: 1, name: /e1 最初の版/ });
     expect(tabs().querySelector("[aria-current=page]")!.textContent).toBe("バックログ");
   });
 
-  it("ブラウザのバックログは絞り込みの欄を検索と同じ行に常に出し、漏斗を出さない。件数は「n 件」", async () => {
-    window.location.hash = "#/backlog";
-    mount();
-    await screen.findByText("API");
-    const toolbar = screen.getByLabelText("検索").closest(".toolbar")!;
-    for (const name of ["Status", "優先度", "ラベル"])
-      expect(within(toolbar as HTMLElement).getByLabelText(name)).toBeTruthy();
-    expect(
-      within(toolbar as HTMLElement).getByRole("button", { name: "絞り込みを消す" }),
-    ).toBeTruthy();
-    expect(document.querySelector(".filter-toggle")).toBeNull();
-    expect(document.getElementById("backlog-filters")).toBeNull();
-    expect(document.querySelector(".quick-filters")).toBeNull();
-    expect(document.querySelector(".toolbar > .muted")!.textContent).toBe("2 件");
-  });
-
-  it("左パネルのタブはカンバン・バックログ・履歴の 3 つで、#/runs はカンバンとして開く", async () => {
+  it("左パネルのタブはカンバン・バックログ・履歴の 3 つで、前の版の #/runs はカンバンとして開く", async () => {
     window.location.hash = "#/runs";
     const client = mockClient();
     mount(client, hostOf("sidebar"));
@@ -2942,32 +2606,6 @@ describe("画面", () => {
     ]);
     expect(tabs.querySelector("[aria-current=page]")!.textContent).toBe("カンバン");
     expect(client.calls.some((c) => c.name === "metrics.show")).toBe(false);
-  });
-
-  it("バックログの Epic の欄は open の Epic の進捗と「Epic なし」の件数を出し、押すと絞り、もう一度押すと解除する", async () => {
-    window.location.hash = "#/backlog";
-    const client = mockClient();
-    client.data.epics = [
-      ...client.data.epics,
-      { ...client.data.epics[0]!, id: "e9", title: "済んだ", status: "closed" },
-    ];
-    mount(client);
-    await screen.findByText("API");
-    expect(screen.queryByLabelText("Epic")).toBeNull();
-    expect(screen.queryByText("済んだ")).toBeNull();
-    expect(screen.getByText("0/1")).toBeTruthy();
-    expect(screen.getByRole("button", { name: /Epic なし/ }).textContent).toContain("1 件");
-    const pick = screen.getByRole("button", { name: /最初の版/ });
-    fireEvent.click(pick);
-    expect(pick.getAttribute("aria-pressed")).toBe("true");
-    const count = () => document.querySelector(".toolbar > .muted")!.textContent;
-    expect(count()).toBe("1 件");
-    expect(screen.queryByText("画面")).toBeNull();
-    fireEvent.click(pick);
-    expect(count()).toBe("2 件");
-    fireEvent.click(screen.getByRole("button", { name: /Epic なし/ }));
-    expect(screen.getByText("画面")).toBeTruthy();
-    expect(screen.queryByText("API")).toBeNull();
   });
 
   it("サイドバーのカンバンの見出しは Iteration の札の列・漏斗、名前・期間・目標、状態の帯と「n/m done」の 3 段で、件数・詳細・…・開始・閉じるは出さない", async () => {
@@ -3205,7 +2843,7 @@ describe("画面", () => {
     );
   });
 
-  it.each(["browser", "panel"] as const)(
+  it.each(["panel", "sidebar"] as const)(
     "Iteration の詳細（%s）は表示だけで、開始・閉じる・再開とチケットを足す・外すの欄を出さない（ADR-010）",
     async (surface) => {
       const client = mockClient();
@@ -3245,7 +2883,7 @@ describe("画面", () => {
     },
   );
 
-  it.each(["browser", "panel"] as const)(
+  it.each(["panel", "sidebar"] as const)(
     "Epic の詳細（%s）は表示だけで、閉じる・再開とチケットを足す・外すの欄を出さない（ADR-010）",
     async (surface) => {
       const client = mockClient();
@@ -3278,28 +2916,6 @@ describe("画面", () => {
     },
   );
 
-  it("バックログは Iteration の区画に分かれ、見出しは番号・名前・状態・件数・期間と目標だけで、開始・閉じる・作るは出さない。Iteration のセレクトはない", async () => {
-    window.location.hash = "#/backlog";
-    const client = mockClient();
-    client.data.iterations = [
-      iteration({ id: "s1", name: "今", status: "active", start: "2026-11-01", goal: "画面" }),
-      iteration({ id: "s2", name: "次", status: "planned" }),
-    ];
-    client.data.tickets[1]!.iteration = "s1";
-    mount(client);
-    await screen.findByText("API");
-    expect(screen.queryByLabelText("Iteration")).toBeNull();
-    const sections = [...document.querySelectorAll(".backlog-section")];
-    expect(sections.map((e) => e.querySelector("header")!.textContent)).toEqual([
-      "s1 今進行中1 件2026-11-01 〜 ? ・ 画面",
-      "s2 次予定0 件",
-      "Iteration なし1 件",
-    ]);
-    expect(sections[1]!.querySelector("table")).toBeNull();
-    for (const name of ["開始する", "閉じる", "+ Iteration を作る"])
-      expect(screen.queryByRole("button", { name })).toBeNull();
-  });
-
   it("サイドバーのバックログの区画は折りたたみの節で、開閉が host.state に残る", async () => {
     window.location.hash = "#/backlog";
     const client = mockClient();
@@ -3319,7 +2935,7 @@ describe("画面", () => {
     window.location.hash = "#/backlog";
     mount(mockClient());
     await screen.findByText("API");
-    expect(document.querySelector(".epic-panel")).toBeTruthy();
+    expect(document.querySelector(".epic-chips")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Epic を作る" })).toBeNull();
     expect(screen.queryByLabelText("新しい Epic の題")).toBeNull();
   });
@@ -3357,15 +2973,17 @@ describe("上のタブの行き先", () => {
   }
   /** 見た目の状態に残したハッシュを置いた Host */
   function hostWith(saved: Record<string, unknown>): Host {
-    const host = hostOf("browser");
+    const host = hostOf("sidebar");
     for (const [key, value] of Object.entries(saved)) host.state.set(key, value);
     return host;
   }
 
   it("カンバンで Iteration・Epic・担当者を絞ってから他のタブへ移り、カンバンのタブで戻ると同じ絞り込みで出る", async () => {
-    mount(navClient(), hostOf("browser"));
-    await screen.findByLabelText("Iteration");
-    fireEvent.change(screen.getByLabelText("Iteration"), { target: { value: "s2" } });
+    const host = hostOf("sidebar");
+    host.state.set("board.filters", true);
+    mount(navClient(), host);
+    await screen.findByRole("button", { name: /^s2/ });
+    fireEvent.click(screen.getByRole("button", { name: /^s2/ }));
     await waitFor(() => expect(window.location.hash).toBe("#/board?iteration=s2"));
     fireEvent.change(screen.getByLabelText("Epic"), { target: { value: "e1" } });
     await waitFor(() => expect(window.location.hash).toBe("#/board?iteration=s2&epic=e1"));
@@ -3377,22 +2995,9 @@ describe("上のタブの行き先", () => {
     expect(tab("カンバン").getAttribute("href")).toBe(filtered);
     fireEvent.click(tab("カンバン"));
     await waitFor(() => expect(window.location.hash).toBe(filtered));
-    expect(screen.getByLabelText<HTMLSelectElement>("Iteration").value).toBe("s2");
+    expect(screen.getByRole("button", { name: /^s2/ }).getAttribute("aria-pressed")).toBe("true");
     expect(screen.getByLabelText<HTMLSelectElement>("Epic").value).toBe("e1");
     expect(screen.getByLabelText<HTMLSelectElement>("担当").value).toBe("eiki/agent");
-  });
-
-  it("Run の集計の単位と Iteration の絞り込みは、他のタブから Run のタブで戻ると残る", async () => {
-    window.location.hash = "#/runs?by=iteration&iteration=s2";
-    mount(navClient(), hostOf("browser"));
-    await waitFor(() => expect(tab("Run").getAttribute("aria-current")).toBe("page"));
-    fireEvent.click(tab("カンバン"));
-    await waitFor(() => expect(window.location.hash).toBe("#/board"));
-    await waitFor(() =>
-      expect(tab("Run").getAttribute("href")).toBe("#/runs?by=iteration&iteration=s2"),
-    );
-    // 履歴のタブも同じ形で残す
-    expect(tab("履歴").getAttribute("href")).toBe("#/history");
   });
 
   it.each([
@@ -3410,14 +3015,11 @@ describe("上のタブの行き先", () => {
       "#/board?iteration=s7",
       "#/board",
     ],
-    ["今の Project にない Iteration を指す Run", "nav.runs", "#/runs?iteration=s7", "#/runs"],
-    ["閉じた Iteration を指す Run", "nav.runs", "#/runs?by=iteration&iteration=s4", "#/runs"],
   ])("残したハッシュが%sなら、タブは既定の行き先を指す", async (_, key, href, fallback) => {
     window.location.hash = "#/backlog";
     mount(navClient(), hostWith({ [key]: { project: "default", href } }));
     await screen.findByText("API");
-    const name = key === "nav.board" ? "カンバン" : "Run";
-    expect(tab(name).getAttribute("href")).toBe(fallback);
+    expect(tab("カンバン").getAttribute("href")).toBe(fallback);
   });
 
   it("残したハッシュが別の Project のもの、または前の版の文字列なら、タブは既定の行き先を指す", async () => {
@@ -3434,7 +3036,7 @@ describe("上のタブの行き先", () => {
     expect(tab("履歴").getAttribute("href")).toBe("#/history");
   });
 
-  it("Project を切り替えると、カンバン・履歴・Run のタブは既定の行き先に戻る", async () => {
+  it("Project を切り替えると、カンバン・履歴のタブは既定の行き先に戻る", async () => {
     window.location.hash = "#/backlog";
     const client = navClient();
     client.data.projects.push({ ...client.data.projects[0]!, id: "other", name: "Other" });
@@ -3443,17 +3045,14 @@ describe("上のタブの行き先", () => {
       hostWith({
         "nav.board": { project: "default", href: "#/board?iteration=s2" },
         "nav.history": { project: "default", href: "#/history?view=ticket" },
-        "nav.runs": { project: "default", href: "#/runs?by=iteration" },
       }),
     );
     await screen.findByText("API");
     expect(tab("カンバン").getAttribute("href")).toBe("#/board?iteration=s2");
     expect(tab("履歴").getAttribute("href")).toBe("#/history?view=ticket");
-    expect(tab("Run").getAttribute("href")).toBe("#/runs?by=iteration");
     fireEvent.change(screen.getByLabelText("Project"), { target: { value: "other" } });
     await waitFor(() => expect(tab("カンバン").getAttribute("href")).toBe("#/board"));
     expect(tab("履歴").getAttribute("href")).toBe("#/history");
-    expect(tab("Run").getAttribute("href")).toBe("#/runs");
     // 元の Project に戻っても、切り替えの前のハッシュには戻らない
     fireEvent.change(screen.getByLabelText("Project"), { target: { value: "default" } });
     await waitFor(() =>
@@ -3462,16 +3061,13 @@ describe("上のタブの行き先", () => {
     expect(tab("カンバン").getAttribute("href")).toBe("#/board");
   });
 
-  it.each([
-    ["カンバン", "#/board?iteration=s2&epic=e1", "#/board"],
-    ["Run", "#/runs?by=iteration&iteration=s2", "#/runs"],
-  ])(
+  it.each([["カンバン", "#/board?iteration=s2&epic=e1", "#/board"]])(
     "%sの画面にいるまま Project を切り替えると、前の Project の絞り込みを残さず、タブは既定の行き先を指す。絞り直せばまた残す",
     async (name, href, fallback) => {
       window.location.hash = href;
       const client = navClient();
       client.data.projects.push({ ...client.data.projects[0]!, id: "other", name: "Other" });
-      mount(client, hostOf("browser"));
+      mount(client, hostOf("sidebar"));
       await waitFor(() => expect(tab(name).getAttribute("href")).toBe(href));
       fireEvent.change(screen.getByLabelText("Project"), { target: { value: "other" } });
       await waitFor(() => expect(tab(name).getAttribute("href")).toBe(fallback));
@@ -3480,7 +3076,7 @@ describe("上のタブの行き先", () => {
       await waitFor(() => expect(window.location.hash).toBe("#/backlog"));
       expect(tab(name).getAttribute("href")).toBe(fallback);
       // 新しい Project で絞り直したハッシュはまた残す
-      const again = name === "カンバン" ? "#/board?iteration=s1" : "#/runs?by=iteration";
+      const again = "#/board?iteration=s1";
       act(() => {
         window.location.hash = again;
         window.dispatchEvent(new HashChangeEvent("hashchange"));

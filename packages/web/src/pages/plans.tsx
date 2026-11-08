@@ -16,8 +16,6 @@ import {
   planState,
 } from "../components/plan-graph.js";
 import { useCommandData } from "../command-data.js";
-import { useHost } from "../host.js";
-import { hrefOf } from "../router.js";
 import { useStore } from "../store.js";
 import { actorLabel, type PlanDetail, type Ticket } from "../types.js";
 import { tr } from "../l10n.js";
@@ -37,7 +35,6 @@ export function PlansPage({ id }: { id: string }) {
 }
 
 function PlanDetailView({ detail, warnings }: { detail: PlanDetail; warnings: string[] }) {
-  const host = useHost();
   const store = useStore();
   const row = useMemo(() => planRowOf(detail), [detail]);
   const byId = useMemo(
@@ -46,19 +43,12 @@ function PlanDetailView({ detail, warnings }: { detail: PlanDetail; warnings: st
   );
   const state = planState(row);
   const { working, next } = planProgressLine(row, state, byId);
-  // 日時は Webview では手元時刻で短く、ブラウザでは ISO のまま（チケット詳細の作成日時と同じ）
-  const local = host.surface !== "browser";
   // Plan は Iteration を持たないので、チケットの Iteration を Plan の順で重ねずに並べる
   const iterations = [...new Set(detail.items.flatMap((t) => (t.iteration ? [t.iteration] : [])))];
   const details: Record<string, PlanDetail["details"][`t${number}`] | undefined> = detail.details;
   return (
     <section className="plan-page">
-      {/* パネルは詳細だけを出すので、戻る先の一覧がない（一覧はサイドバー。UI-12） */}
-      {host.surface === "panel" ? null : (
-        <div className="toolbar">
-          <a href={hrefOf({ page: "board" })}>{tr("← カンバン")}</a>
-        </div>
-      )}
+      {/* パネルは詳細だけを出すので、戻る先の一覧を置かない（一覧はサイドバー。UI-12） */}
       {/* タイトルの横の吹き出しで、この Plan をエージェントに頼む（承認・組み直し・閉じる。UI-15） */}
       <AskSpotBox
         as="h1"
@@ -99,7 +89,7 @@ function PlanDetailView({ detail, warnings }: { detail: PlanDetail; warnings: st
               {detail.approved_at ? (
                 <>
                   {" "}
-                  <DateTime iso={detail.approved_at} local={local} />
+                  <DateTime iso={detail.approved_at} />
                 </>
               ) : null}
             </>
@@ -113,7 +103,7 @@ function PlanDetailView({ detail, warnings }: { detail: PlanDetail; warnings: st
           <>
             <dt>{tr("閉じた")}</dt>
             <dd>
-              <DateTime iso={detail.closed_at} local={local} />
+              <DateTime iso={detail.closed_at} />
             </dd>
           </>
         ) : null}

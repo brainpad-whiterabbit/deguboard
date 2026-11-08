@@ -128,7 +128,7 @@ export function StoreProvider({
   children,
 }: {
   client: CommandClient;
-  /** 前回の一覧の置き場。渡さなければ（ブラウザ）残さない */
+  /** 前回の一覧の置き場。渡さなければ（dg serve）残さない */
   cache?: UiState | undefined;
   /** 実行中の Run を読む（左パネル。カンバンの行の印に使う） */
   readRunning?: boolean | undefined;

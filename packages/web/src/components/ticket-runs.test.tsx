@@ -29,6 +29,16 @@ function run(partial: Partial<RunView> & { id: string }): RunView {
   } as RunView;
 }
 
+function renderPanel(client: ReturnType<typeof mockClient>) {
+  return render(
+    <HostProvider host={createHost("panel", null)}>
+      <StoreProvider client={client}>
+        <TicketRuns id="t3" />
+      </StoreProvider>
+    </HostProvider>,
+  );
+}
+
 describe("チケット詳細の Run", () => {
   it("run.list をチケットで絞って呼び、終わった Run と実行中の Run を出す。取れなかった値は「—」", async () => {
     const client = mockClient();
@@ -44,38 +54,34 @@ describe("チケット詳細の Run", () => {
         running: true,
       }),
     ];
-    render(
-      <StoreProvider client={client}>
-        <TicketRuns id="t3" />
-      </StoreProvider>,
-    );
-    await screen.findByText("成功");
+    renderPanel(client);
+    await screen.findByRole("img", { name: "成功" });
     expect(client.calls.find((c) => c.name === "run.list")?.input).toEqual({ ticket: "t3" });
-    const rows = [...document.querySelectorAll(".runs-list tbody tr")].map((tr) =>
-      [...tr.querySelectorAll("td")].map((td) => td.textContent),
-    );
-    expect(rows[0]!.slice(0, 5)).toEqual([
+    const rows = [...document.querySelectorAll(".ticket-run")];
+    expect(rows.map((r) => r.querySelector(".ticket-run-step")!.textContent)).toEqual([
       "implement",
-      "claude-code",
-      "claude-opus",
-      "成功",
-      "12,345 / 678",
+      "review",
     ]);
-    expect(rows[1]!.slice(0, 5)).toEqual(["review", "claude-code", "—", "実行中", "— / —"]);
-    expect(rows[1]![6]).toBe("—");
+    const second = rows[1]!;
+    expect(second.querySelector(".run-dot")!.getAttribute("aria-label")).toBe("実行中");
+    expect(second.querySelector(".ticket-run-model")!.textContent).toBe("—");
+    const pairs = Object.fromEntries(
+      [...second.querySelectorAll("dt")].map((dt) => [
+        dt.textContent,
+        dt.nextElementSibling!.textContent,
+      ]),
+    );
+    expect(pairs["トークン"]).toBe("入力 — / 出力 — / cache read — / cache write —");
+    expect(pairs["終了"]).toBe("—");
   });
 
   it("Run がなければそう出す", async () => {
-    render(
-      <StoreProvider client={mockClient()}>
-        <TicketRuns id="t3" />
-      </StoreProvider>,
-    );
+    renderPanel(mockClient());
     expect(await screen.findByText("Run はない")).toBeTruthy();
-    expect(document.querySelector(".runs-list")).toBeNull();
+    expect(document.querySelector(".ticket-run")).toBeNull();
   });
 
-  it("推定を含む使用量は表のセルに「~」を付け、run.list の警告を表の上に出す", async () => {
+  it("推定を含む使用量は「~」を付けて（推定を含む）と添え、run.list の警告を一覧の上に出す", async () => {
     const client = mockClient();
     client.handlers["run.list"] = () => [
       run({
@@ -90,12 +96,11 @@ describe("チケット詳細の Run", () => {
         ? { ...r, warnings: ["deguboard-local/runs/x.json: 読めない"] }
         : r;
     };
-    render(
-      <StoreProvider client={client}>
-        <TicketRuns id="t3" />
-      </StoreProvider>,
-    );
-    expect((await screen.findByText("~1,500 / ~20")).tagName).toBe("TD");
+    renderPanel(client);
+    await screen.findByRole("img", { name: "成功" });
+    const tokens = document.querySelector(".ticket-run-detail dd.num")!.textContent;
+    expect(tokens).toContain("入力 ~1,500 / 出力 ~20");
+    expect(tokens).toContain("（推定を含む）");
     expect(screen.getByText("deguboard-local/runs/x.json: 読めない").className).toBe("muted");
   });
 
@@ -104,13 +109,9 @@ describe("チケット詳細の Run", () => {
     client.handlers["run.list"] = () => {
       throw new Error("Run を読めない");
     };
-    render(
-      <StoreProvider client={client}>
-        <TicketRuns id="t3" />
-      </StoreProvider>,
-    );
+    renderPanel(client);
     expect((await screen.findByText("Run を読めない")).className).toBe("error");
-    expect(document.querySelector(".runs-list")).toBeNull();
+    expect(document.querySelector(".ticket-run")).toBeNull();
   });
 
   it("トークン数は null を 0 にせず「—」、推定を含めば「~」を付ける", () => {
@@ -118,20 +119,8 @@ describe("チケット詳細の Run", () => {
     expect(formatTokens(0)).toBe("0");
     expect(formatTokens(1500, true)).toBe("~1,500");
   });
-});
 
-describe("パネルのチケット詳細の Run", () => {
-  function renderPanel(client: ReturnType<typeof mockClient>) {
-    return render(
-      <HostProvider host={createHost("panel", null)}>
-        <StoreProvider client={client}>
-          <TicketRuns id="t3" />
-        </StoreProvider>
-      </HostProvider>,
-    );
-  }
-
-  it("1 行に step・結果の丸印・model と再試行・開始と所要を出し、表は出さない", async () => {
+  it("1 行に step・結果の丸印・model と再試行・開始と所要を出す", async () => {
     const client = mockClient();
     client.handlers["run.list"] = () => [
       run({ id: "r20261101-010000-aaaa", retries: 2 }),
@@ -145,7 +134,6 @@ describe("パネルのチケット詳細の Run", () => {
     ];
     renderPanel(client);
     await screen.findAllByRole("img", { name: "成功" });
-    expect(document.querySelector(".runs-list")).toBeNull();
     const rows = [...document.querySelectorAll(".ticket-run > summary")];
     expect(rows).toHaveLength(2);
     const first = rows[0]!;

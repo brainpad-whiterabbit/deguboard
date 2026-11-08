@@ -1,11 +1,9 @@
 // チケット詳細の Run の一覧（UI-4）。run.list をチケットで絞った結果（実行中の Run を含む）を開始の順に出す。
-// VS Code のパネル以外は表、パネルは 1 行に step・結果の丸印・model と再試行・開始と所要を出し、開くと残りを出す。
-// パネルの見出しには件数・結果の内訳・トークンの合計を出す。
+// 1 行に step・結果の丸印・model と再試行・開始と所要を出し、開くと残りを出す。見出しには件数・結果の内訳・トークンの合計を出す。
 // 取れなかったトークン数（null）は 0 と見せず「—」で出し、合計でも取れなかった Run があれば「+ —」を付ける（RN-2）。
-// 結果と数の書き方は run-parts.tsx で Run の画面と共通
+// 結果と数の書き方は run-parts.tsx
 
 import { useCommandData } from "../command-data.js";
-import { useHost } from "../host.js";
 import type { RunView } from "../types.js";
 import {
   formatDuration,
@@ -16,7 +14,6 @@ import {
   RunResult,
   RunResultDot,
   runResultKey,
-  RunsScroll,
 } from "./run-parts.js";
 import { formatTime } from "./timeline.js";
 import { tr } from "../l10n.js";
@@ -24,12 +21,11 @@ import { trNode } from "../l10n-node.js";
 
 /** チケット詳細の「Run」の節 */
 export function TicketRuns({ id }: { id: string }) {
-  const panel = useHost().surface === "panel";
   // 一覧が読み直されたら（書き込みや同期のあと）Run も読み直す
   const { data: runs, warnings, error } = useCommandData<RunView[]>("run.list", { ticket: id });
   return (
     <section className="runs">
-      {panel && runs && runs.length > 0 ? (
+      {runs && runs.length > 0 ? (
         <h2>
           Run <RunsSummary runs={runs} />
         </h2>
@@ -47,62 +43,12 @@ export function TicketRuns({ id }: { id: string }) {
         <p className="muted">{tr("読み込み中…")}</p>
       ) : runs.length === 0 ? (
         <p className="empty">{tr("Run はない")}</p>
-      ) : panel ? (
+      ) : (
         <ul className="ticket-runs">
           {runs.map((r) => (
             <PanelRunRow key={r.id} run={r} />
           ))}
         </ul>
-      ) : (
-        <RunsScroll>
-          <table className="list runs-list">
-            <thead>
-              <tr>
-                <th>step</th>
-                <th>agent</th>
-                <th>model</th>
-                <th>{tr("結果")}</th>
-                <th title={tr("入力 / 出力")}>{tr("トークン")}</th>
-                <th>{tr("開始")}</th>
-                <th>{tr("終了")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {runs.map((r) => {
-                const u = usageTexts(r);
-                return (
-                  <tr key={r.id} title={r.id}>
-                    <td>{r.step}</td>
-                    <td>{r.agent}</td>
-                    <td>{r.model ?? <span className="muted">{NO_VALUE}</span>}</td>
-                    <td>
-                      <RunResult run={r} />
-                      {r.retries > 0 ? (
-                        <span className="muted">{trNode(" 再試行 {0}", r.retries)}</span>
-                      ) : null}
-                    </td>
-                    <td
-                      className="num"
-                      title={`cache read ${u.cache_read} / cache write ${u.cache_write}${u.estimated ? tr("（推定を含む）") : ""}`}
-                    >
-                      {u.input} / {u.output}
-                    </td>
-                    <td>
-                      <time dateTime={r.started_at}>{formatTime(r.started_at)}</time>
-                    </td>
-                    <td>
-                      {r.finished_at ? (
-                        <time dateTime={r.finished_at}>{formatTime(r.finished_at)}</time>
-                      ) : (
-                        <span className="muted">{NO_VALUE}</span>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </RunsScroll>
       )}
     </section>
   );
@@ -110,7 +56,7 @@ export function TicketRuns({ id }: { id: string }) {
 
 type UsageKey = "input" | "output" | "cache_read" | "cache_write";
 
-/** 1 件の Run のトークン数の書き方（表と PanelRunRow で共通）。推定を含めば「~」を前に付ける */
+/** 1 件の Run のトークン数の書き方（PanelRunRow）。推定を含めば「~」を前に付ける */
 function usageTexts(r: RunView): Record<UsageKey, string> & { estimated: boolean } {
   const estimated = r.usage.estimated === true;
   return {

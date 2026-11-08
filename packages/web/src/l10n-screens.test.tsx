@@ -19,7 +19,7 @@ import {
   ticket,
   type MockClient,
 } from "./test-helpers.js";
-import type { MetricsView, RunMetrics, RunView } from "./types.js";
+import type { RunView } from "./types.js";
 import { createUiState, memoryBackend } from "./ui-state.js";
 import { setLanguage, type Language } from "./l10n.js";
 
@@ -65,24 +65,6 @@ function run(partial: Partial<RunView> & { id: string }): RunView {
   } as RunView;
 }
 
-function metrics(partial: Partial<RunMetrics> = {}): RunMetrics {
-  return {
-    runs: 2,
-    results: { success: 1, failure: 1, interrupted: 0, unfinished: 0 },
-    retries: 1,
-    duration_seconds: 90,
-    input: 1200,
-    output: null,
-    cache_read: null,
-    cache_write: null,
-    tools: null,
-    missing: { duration_seconds: 0, input: 0, output: 1, cache_read: 1, cache_write: 1, tools: 1 },
-    estimated_runs: 0,
-    reviews: { recorded: 0, passed: 0, heavy: 0, light: 0 },
-    ...partial,
-  };
-}
-
 /** 画面の多くの部品が出るよう、チケット・Iteration・Epic・Plan・Run・履歴を揃えた client */
 function richClient(): MockClient {
   const s1 = iteration({
@@ -124,7 +106,6 @@ function richClient(): MockClient {
     plan({ id: "p1", tickets: ["t2", "t3"], after: { t3: ["t2"] }, iteration: "s1" } as never),
     plan({ id: "p2", tickets: ["t6"], pending_approval: true }),
   ];
-  data.status = { ...data.status, ahead: 1, behind: 2, dirty: true, issues: 1 };
   const client = mockClient(data);
   client.handlers["iteration.show"] = (input) => {
     const id = (input as { iteration: string }).iteration;
@@ -182,18 +163,6 @@ function richClient(): MockClient {
     }),
   ];
   client.handlers["run.list"] = () => runs;
-  client.handlers["metrics.show"] = (input) => {
-    const by = (input as { by: MetricsView["by"] }).by;
-    return {
-      filter: { project: "default" },
-      by,
-      total: metrics({ estimated_runs: 1 }),
-      groups: [
-        { key: by === "epic" ? "e1" : "t2", ...metrics() },
-        { key: null, ...metrics() },
-      ],
-    } satisfies MetricsView;
-  };
   const config = {
     default_project: "default",
     git: { remote: "origin", base_branch: "main" },
@@ -283,8 +252,6 @@ const SCENES: Scene[] = [
   { name: "パネルの閉じた Iteration 詳細", surface: "panel", hash: "#/iterations/s0" },
   { name: "パネルの Plan 詳細", surface: "panel", hash: "#/plans/p1" },
   { name: "パネルの承認待ちの Plan 詳細", surface: "panel", hash: "#/plans/p2" },
-  { name: "ブラウザのカンバン", surface: "browser", hash: "#/board" },
-  { name: "ブラウザの Run", surface: "browser", hash: "#/runs" },
   {
     name: "サイドバーのエージェントに頼む入力欄",
     surface: "sidebar",

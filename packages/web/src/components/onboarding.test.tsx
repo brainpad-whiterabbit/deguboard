@@ -48,9 +48,9 @@ describe("始め方の案内", () => {
     expect(copy).toHaveBeenCalledTimes(1);
   });
 
-  it("ブラウザでは見張りがないので、読み直しを案内する", () => {
+  it("init の後は見張りの読み直しで普段の画面に変わることを案内する", () => {
     const host: Host = {
-      surface: "browser",
+      surface: "sidebar",
       open: () => {},
       show: () => {},
       copy: async () => {},
@@ -61,6 +61,8 @@ describe("始め方の案内", () => {
         <Onboarding />
       </HostProvider>,
     );
-    expect(screen.getByText("1 を済ませたら、ページを読み直してください。")).toBeTruthy();
+    expect(
+      screen.getByText("1 を済ませると、開き直さなくてもいつもの画面に変わります。"),
+    ).toBeTruthy();
   });
 });

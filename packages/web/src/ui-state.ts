@@ -1,5 +1,5 @@
 // 画面の見た目の状態（表や節の開閉・最後に選んだ Iteration）の置き場。データではないので store には入れない。
-// Webview では vscode の getState / setState（ビューを閉じて開いても、VS Code を再起動しても残る）、ブラウザでは localStorage
+// Webview では vscode の getState / setState（ビューを閉じて開いても、VS Code を再起動しても残る）、開発用の dg serve では localStorage
 
 export interface UiState {
   get<T>(key: string): T | undefined;
@@ -8,7 +8,7 @@ export interface UiState {
   remove(key: string): void;
 }
 
-/** acquireVsCodeApi() の getState / setState の部分。テストとブラウザでは別の実装を渡す */
+/** acquireVsCodeApi() の getState / setState の部分。テストと dg serve では別の実装を渡す */
 export interface StateBackend {
   getState(): unknown;
   setState(value: unknown): void;
@@ -45,7 +45,7 @@ export function memoryBackend(initial: unknown = {}): StateBackend {
   };
 }
 
-/** ブラウザ用。localStorage が使えない（プライベートウィンドウなど）ときはメモリだけ */
+/** dg serve 用。localStorage が使えない（プライベートウィンドウなど）ときはメモリだけ */
 export function localStorageBackend(key = "deguboard.ui"): StateBackend {
   const memory = memoryBackend();
   return {

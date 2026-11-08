@@ -1,22 +1,19 @@
 // チケット詳細（UI-4）。本文（概要・受け入れ条件）、属性、Epic、依存先と依存元、作業ブランチ、Run の一覧と、経過（deguboard ブランチの履歴）。
 // 属性と本文を編集でき、Status は ticket.move と同じ検査を通る。
 // Status の選択・表示名と任意フィールドは、チケット自身の Workflow（なければ Project の既定）で決める。
-// VS Code のパネルでは、タイトルの下に Status・優先度・Iteration・担当・PR の 1 行と編集のボタンを置いてスクロールしても上に残す。
-// パネルでは依存先が終わっていなければ本文の上の帯で知らせる。
-// 右の列（属性）は、パネルが components/ticket-props-panel.tsx（値を押してその場で直す）、ブラウザが components/ticket-props-browser.tsx。
-// パネルの編集のボタンはタイトルと本文だけを入力欄にし、ブラウザでは編集のボタンでタイトル・本文・属性をまとめて直す。
+// VS Code のパネルに出し、タイトルの下に Status・優先度・Iteration・担当・PR の 1 行と編集のボタンを置いてスクロールしても上に残す。
+// 依存先が終わっていなければ本文の上の帯で知らせる。
+// 右の列（属性）は components/ticket-props-panel.tsx（値を押してその場で直す）。編集のボタンはタイトルと本文だけを入力欄にする。
 // 本文の受け入れ条件のチェックボックスは、押すとその項目だけを ticket.check で付け外しする（読んだ本文を base に渡し、間に書き込みがあれば拒否されて戻す）
 
 import { useEffect, useState } from "react";
 import { useCommandData } from "../command-data.js";
 import { ASK_SECTIONS, AskSpotBox } from "../components/ask-menu.js";
 import { StatusDot, PriorityMark, TicketLink } from "../components/parts.js";
-import { attrPatchOf, BrowserProps } from "../components/ticket-props-browser.js";
 import { PanelProps } from "../components/ticket-props-panel.js";
 import { draftOf, PrLink, type Draft } from "../components/ticket-props.js";
 import { TicketRuns } from "../components/ticket-runs.js";
 import { TicketTimeline } from "../components/timeline.js";
-import { useHost } from "../host.js";
 import { Markdown, type AcceptanceToggle } from "../markdown.js";
 import { hrefOf } from "../router.js";
 import { useStore, type Store } from "../store.js";
@@ -62,8 +59,6 @@ function useTicketWorkflow(store: Store, ticket: TicketDetail | null): WorkflowV
 
 export function TicketPage({ id }: { id: string }) {
   const store = useStore();
-  const host = useHost();
-  const panel = host.surface === "panel";
   // 一覧（store.tickets）が読み直されたら本文も読み直す
   const {
     data: ticket,
@@ -80,14 +75,13 @@ export function TicketPage({ id }: { id: string }) {
   if (error) return <p className="error">{error}</p>;
   if (!ticket) return <p className="muted">{tr("読み込み中…")}</p>;
 
-  // パネルの編集はタイトルと本文だけ。ブラウザは属性もまとめて渡す
+  // 編集はタイトルと本文だけ（属性は右の列でその場で直す）
   const save = async () => {
     if (!draft) return;
     const r = await store.run("ticket.update", {
       ticket: ticket.id,
       title: draft.title,
       body: draft.body,
-      ...(panel ? {} : attrPatchOf(draft, fields)),
     });
     if (r.ok) setDraft(null);
   };
@@ -122,8 +116,8 @@ export function TicketPage({ id }: { id: string }) {
   ) : (
     <button
       type="button"
-      title={panel ? tr("タイトルと本文を編集") : undefined}
-      onClick={() => setDraft(draftOf(ticket, fields))}
+      title={tr("タイトルと本文を編集")}
+      onClick={() => setDraft(draftOf(ticket))}
     >
       {tr("編集")}
     </button>
@@ -157,30 +151,24 @@ export function TicketPage({ id }: { id: string }) {
   return (
     <section className="detail">
       <div className="detail-main">
-        {panel ? (
-          // 見出しの帯。表示だけで、Status を変えるのは右の列の選択
-          <div className="detail-head">
-            {header}
-            <div className="detail-meta">
-              <span className="detail-meta-status">
-                <StatusDot status={ticket.status} label={labelOf(ticket.status)} />
-                {labelOf(ticket.status)}
-              </span>
-              <PriorityMark priority={ticket.priority} />
-              {ticket.iteration ? (
-                <a href={hrefOf({ page: "iterations", id: ticket.iteration })}>
-                  {ticket.iteration}
-                </a>
-              ) : null}
-              {ticket.assignee ? <span>{ticket.assignee}</span> : null}
-              {ticket.pr ? <PrLink pr={ticket.pr} webUrl={store.status?.web_url} /> : null}
-              <div className="actions header-actions">{editButtons}</div>
-            </div>
+        {/* 見出しの帯。表示だけで、Status を変えるのは右の列の選択 */}
+        <div className="detail-head">
+          {header}
+          <div className="detail-meta">
+            <span className="detail-meta-status">
+              <StatusDot status={ticket.status} label={labelOf(ticket.status)} />
+              {labelOf(ticket.status)}
+            </span>
+            <PriorityMark priority={ticket.priority} />
+            {ticket.iteration ? (
+              <a href={hrefOf({ page: "iterations", id: ticket.iteration })}>{ticket.iteration}</a>
+            ) : null}
+            {ticket.assignee ? <span>{ticket.assignee}</span> : null}
+            {ticket.pr ? <PrLink pr={ticket.pr} webUrl={store.status?.web_url} /> : null}
+            <div className="actions header-actions">{editButtons}</div>
           </div>
-        ) : (
-          header
-        )}
-        {panel && ticket.pending_deps.length > 0 ? (
+        </div>
+        {ticket.pending_deps.length > 0 ? (
           <p className="notice info deps-band" role="status">
             <span>
               {trNode(
@@ -211,30 +199,18 @@ export function TicketPage({ id }: { id: string }) {
             toggle={{ onToggle: (i, c) => void toggleCheck(i, c), pending: pendingCheck }}
           />
         )}
-        {panel ? null : <div className="actions">{editButtons}</div>}
         <TicketRuns id={ticket.id} />
         <TicketTimeline id={ticket.id} />
       </div>
       <aside>
-        {panel ? (
-          <PanelProps
-            store={store}
-            ticket={ticket}
-            fields={fields}
-            workflow={workflow}
-            labelOf={labelOf}
-            setTicket={setTicket}
-          />
-        ) : (
-          <BrowserProps
-            store={store}
-            ticket={ticket}
-            fields={fields}
-            labelOf={labelOf}
-            draft={draft}
-            setDraft={setDraft}
-          />
-        )}
+        <PanelProps
+          store={store}
+          ticket={ticket}
+          fields={fields}
+          workflow={workflow}
+          labelOf={labelOf}
+          setTicket={setTicket}
+        />
       </aside>
     </section>
   );

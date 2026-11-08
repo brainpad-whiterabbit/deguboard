@@ -25,10 +25,10 @@ const WIDTHS = [300, 260];
 const SCHEMES = ["light", "dark"] as const;
 /**
  * サイドバーで出す画面。履歴は閉じた Iteration の行（目標の長いものを含む）を出す。
- * Run の画面はブラウザだけに置き、左パネルには出さない（UI-12。#/runs はカンバンとして開く）ので含めない
+ * Run の画面はない（ADR-023。前の版の #/runs はカンバンとして開く）
  */
 const PAGES = ["#/board", "#/backlog", "#/epics/e1", "#/history"];
-/** 左パネルのタブの数（カンバン・バックログ・履歴。Run のタブは出さない。UI-12） */
+/** 左パネルのタブの数（カンバン・バックログ・履歴。UI-12） */
 const SIDEBAR_TABS = 3;
 const LONG = "サイドバーの配置を確かめるための、かなり長めのタイトルのチケット";
 
@@ -261,6 +261,29 @@ describe.each(
       }
     },
   );
+});
+
+// dg serve は ?surface= がなければ左パネルの配置で出す（ブラウザだけの配置はない。ADR-023）
+it("?surface= を付けなければサイドバーの配置で開き、前の版の Run の画面のハッシュはカンバンになる", async () => {
+  const context = await browser.newContext({ viewport: { width: 300, height: 900 } });
+  const page = await context.newPage();
+  try {
+    await page.goto(`${server.url}#/runs`, { waitUntil: "networkidle" });
+    await page.locator("nav a").first().waitFor();
+    await page.locator(".row").first().waitFor();
+    const m = await page.evaluate(() => ({
+      surface: document.querySelector<HTMLElement>(".app")?.dataset["surface"],
+      tabs: document.querySelectorAll("nav a").length,
+      active: document.querySelector("nav a[aria-current='page']")?.getAttribute("href"),
+      scroll: [document.documentElement.scrollWidth, document.documentElement.clientWidth],
+    }));
+    expect(m.surface).toBe("sidebar");
+    expect(m.tabs).toBe(SIDEBAR_TABS);
+    expect(m.active).toMatch(/^#\/board/);
+    expect(m.scroll[0], "横スクロール").toBeLessThanOrEqual(m.scroll[1]!);
+  } finally {
+    await context.close();
+  }
 });
 
 // データの件数は 1〜2 桁なので、3 桁の件数を検索中に出したとき（「177 / 208」など）の幅はここでは試していない

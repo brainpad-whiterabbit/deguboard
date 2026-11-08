@@ -172,13 +172,13 @@ describe("吹き出しの一覧（UI-15）", () => {
     await page.close();
   });
 
-  it("広い画面のカンバンのカードを別の列にドラッグしても Status は変わらない", async () => {
-    const page = await browser.newPage({ viewport: { width: 1200, height: 800 } });
-    await page.goto(`${server.url}#/board`, { waitUntil: "networkidle" });
-    const card = page.locator(".card", { has: page.locator('a[href="#/tickets/t1"]') });
-    await card.waitFor();
+  it("左パネルのカンバンの行を別の節にドラッグしても Status は変わらない", async () => {
+    const page = await browser.newPage({ viewport: { width: WIDTH, height: 800 } });
+    await page.goto(`${server.url}?surface=sidebar#/board`, { waitUntil: "networkidle" });
+    const row = page.locator(".column .row-item", { has: page.locator('a[href="#/tickets/t1"]') });
+    await row.waitFor();
     const writes = watchWrites(page);
-    await drag(page, card, page.locator('.column[data-status="in_progress"]'));
+    await drag(page, row, page.locator('.column[data-status="in_progress"]'));
     // 要求は離した直後に出るので、固定の待ちは遅れて出る要求を拾うための補い
     await page.waitForTimeout(300);
     expect(writes, "ドラッグで送った書き込みのコマンド").toEqual([]);

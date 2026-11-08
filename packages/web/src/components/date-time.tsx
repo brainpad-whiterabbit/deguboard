@@ -1,4 +1,4 @@
-// 日時の表示。履歴の日付は今日・昨日を言葉にし、今年は月/日、それより前は年/月/日にする（formatShortDay）。パネルのチケット詳細の作成・更新は経過と同じ手元時刻で、今年なら年を省く（ブラウザは ISO のまま）
+// 日時の表示。履歴の日付は今日・昨日を言葉にし、今年は月/日、それより前は年/月/日にする（formatShortDay）。チケット詳細の作成・更新と Plan 詳細の日時は経過と同じ手元時刻で、今年なら年を省く
 
 import { formatTime } from "./timeline.js";
 import { tr } from "../l10n.js";
@@ -54,9 +54,8 @@ export function ClosedOn({ iso }: { iso: string | null | undefined }) {
   return iso ? <>{trNode("{0} に閉じた", <ShortDay iso={iso} />)}</> : <>{tr("閉じた日は不明")}</>;
 }
 
-/** 日時。local なら手元時刻で今年なら年を省いて出し、ISO の値はツールチップに。そうでなければ ISO のまま */
-export function DateTime({ iso, local }: { iso: string; local: boolean }) {
-  if (!local) return <>{iso}</>;
+/** 日時。手元時刻で今年なら年を省いて出し、ISO の値はツールチップに */
+export function DateTime({ iso }: { iso: string }) {
   return (
     <time dateTime={iso} title={iso}>
       {formatShortTime(iso)}

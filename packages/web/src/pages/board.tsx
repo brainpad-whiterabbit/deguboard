@@ -2,7 +2,7 @@
 // 選んだ範囲のチケットを含む Plan の帯（実行計画）と、その範囲のチケットを状態ごとの節（todo / in_progress / review / done。中止は畳んだ節）で出す。
 // 範囲は planned か active の Iteration 1 つか「すべて」（planned と active の Iteration すべて）で、Iteration に入っていないチケットはバックログで見る。
 // Epic の選択肢は open だけ。開いた Iteration がなければ、列も帯も出さずにバックログへ案内する。絞り込みの値はハッシュに持つ。
-// VS Code の左パネル（surface=sidebar）では、Iteration を選択欄の代わりに札の列（すべてを含む）で切り替え、見出しを 2 段と進みの帯に詰め、
+// VS Code の左パネルに出し、Iteration を札の列（すべてを含む）で切り替え、見出しを 2 段と進みの帯に詰め、
 // 詳細・件数は出さない（件数は帯の done/全体）。Epic・担当の絞り込みは見出しの右端の漏斗で開き（開閉は host.state）、
 // 絞っている間は見出しの下に値の札（× で外す）を出す。状態の節はペイン風の見出しにする。
 // 左パネルの行は担当の名前の列を出さず、右端の上の段（Plan の番号の左）に担当の印（AssigneeMark。人は頭文字の丸、agent は持ち主の丸と汎用のアイコン）を出す。
@@ -20,18 +20,15 @@ import { ASK_SECTIONS, useAskSpot } from "../components/ask-menu.js";
 import {
   ActivityMark,
   AskRow,
-  PriorityMark,
   type RowActivity,
   StatusBand,
   StatusDot,
-  Tags,
   DetailLink,
-  TicketLink,
 } from "../components/parts.js";
 import { FilterToggle } from "../components/filter-toggle.js";
 import { PlanBand } from "../components/plan-band.js";
 import { shortPeriod } from "../components/iteration-parts.js";
-import { openPlanByTicket, planColor } from "../components/plan-graph.js";
+import { openPlanByTicket } from "../components/plan-graph.js";
 import {
   isWaitingReadiness,
   KanbanRowEnd,
@@ -174,9 +171,8 @@ export function BoardPage({ query }: { query: BoardQuery }) {
   const planOf = useMemo(() => openPlanByTicket(store.plans), [store.plans]);
   const planMarks = useMemo(() => kanbanPlanMarks(store.plans, planOf), [store.plans, planOf]);
 
-  // サイドバーでは、前回の描画から Status か Iteration が変わった行を点滅させる（UI-2。CLI やエージェントの書き込みに気づけるように）
-  const sidebar = host.surface === "sidebar";
-  const flash = useChangeFlash(store.tickets, host.state, sidebar);
+  // 前回の描画から Status か Iteration が変わった行を点滅させる（UI-2。CLI やエージェントの書き込みに気づけるように）
+  const flash = useChangeFlash(store.tickets, host.state, true);
 
   const filterSelects = (
     <>
@@ -219,66 +215,36 @@ export function BoardPage({ query }: { query: BoardQuery }) {
 
   return (
     <section>
-      {sidebar ? (
-        <>
-          {/* 左パネルは見出しを 2 段と進みの帯に詰め、詳細は出さない */}
-          <SidebarBoardHead
-            open={open}
-            // 札は閉じた Iteration・Epic の終わったチケットを除いて数え、Epic・担当の絞り込みでは変えない
-            tickets={chipTickets}
-            selection={selection}
-            // 帯は絞り込み（Epic・担当）の後のチケットで数える
-            progress={ticketProgress(tickets)}
-            onSelect={select}
-            filter={
-              epics.length > 0 || claims.length > 0
-                ? {
-                    open: filtersOpen,
-                    active: !!query.epic || !!query.assignee,
-                    onToggle: () => setFiltersOpen(!filtersOpen),
-                  }
-                : undefined
-            }
-          />
-          {filtersOpen && (epics.length > 0 || claims.length > 0) ? (
-            <div className="board-filters compact" id="board-filters">
-              {filterSelects}
-            </div>
-          ) : null}
-          <FilterChips
-            epic={query.epic ? store.epics.find((e) => e.id === query.epic) : undefined}
-            epicId={query.epic}
-            assignee={query.assignee}
-            onClear={setFilter}
-          />
-        </>
-      ) : (
-        <>
-          <div className="board-filters">
-            <label>
-              Iteration
-              <select
-                value={selection.kind === "all" ? ALL_ITERATIONS : selection.iteration.id}
-                onChange={(e) => select(e.target.value)}
-              >
-                <option value={ALL_ITERATIONS}>{tr("すべて（planned と active）")}</option>
-                {open.map((i) => (
-                  <option key={i.id} value={i.id}>
-                    {trNode("{0} {1}（{2}）", i.id, i.name, tr(ITERATION_LABELS[i.status]))}
-                  </option>
-                ))}
-              </select>
-            </label>
-            {filterSelects}
-            <span className="muted count">
-              {trNode("{0} 件", tickets.length - abandoned.length)}
-            </span>
-          </div>
-          {selection.kind === "iteration" ? (
-            <IterationHead iteration={selection.iteration} />
-          ) : null}
-        </>
-      )}
+      {/* 見出しを 2 段と進みの帯に詰め、詳細は出さない */}
+      <BoardHead
+        open={open}
+        // 札は閉じた Iteration・Epic の終わったチケットを除いて数え、Epic・担当の絞り込みでは変えない
+        tickets={chipTickets}
+        selection={selection}
+        // 帯は絞り込み（Epic・担当）の後のチケットで数える
+        progress={ticketProgress(tickets)}
+        onSelect={select}
+        filter={
+          epics.length > 0 || claims.length > 0
+            ? {
+                open: filtersOpen,
+                active: !!query.epic || !!query.assignee,
+                onToggle: () => setFiltersOpen(!filtersOpen),
+              }
+            : undefined
+        }
+      />
+      {filtersOpen && (epics.length > 0 || claims.length > 0) ? (
+        <div className="board-filters compact" id="board-filters">
+          {filterSelects}
+        </div>
+      ) : null}
+      <FilterChips
+        epic={query.epic ? store.epics.find((e) => e.id === query.epic) : undefined}
+        epicId={query.epic}
+        assignee={query.assignee}
+        onClear={setFilter}
+      />
       {open.length === 0 ? (
         <NoOpenIteration />
       ) : (
@@ -290,19 +256,17 @@ export function BoardPage({ query }: { query: BoardQuery }) {
                 key={status}
                 status={status}
                 tickets={tickets.filter((t) => t.status === status)}
-                planOf={planOf}
                 planMarks={planMarks}
                 flashing={flash.flashing}
-                // 完了は既定で畳む（どの surface でも。開いた状態は useUiState が保つ）
+                // 完了は既定で畳む（開いた状態は useUiState が保つ）
                 defaultOpen={status !== "done"}
               />
             ))}
-            {/* 中止は切り替えではなく、あるときだけ最後の列（サイドバーでは最後の節）に畳んで置く */}
+            {/* 中止は切り替えではなく、あるときだけ最後の節に畳んで置く */}
             {abandoned.length > 0 ? (
               <Column
                 status="abandoned"
                 tickets={abandoned}
-                planOf={planOf}
                 planMarks={planMarks}
                 flashing={flash.flashing}
                 defaultOpen={false}
@@ -352,33 +316,13 @@ export function hideClosedFinished<T extends Ticket>(
   );
 }
 
-/** 選んだ Iteration の見出し：番号・名前・状態・期間・目標。名前と右端の「詳細」はともに詳細へのリンク */
-function IterationHead({ iteration: it }: { iteration: Iteration }) {
-  return (
-    <header className="board-head">
-      <h1>
-        <code>{it.id}</code>{" "}
-        <DetailLink route={{ page: "iterations", id: it.id }}>{it.name}</DetailLink>
-      </h1>
-      <span className={`badge iteration-${it.status}`}>{tr(ITERATION_LABELS[it.status])}</span>
-      {it.start || it.end ? (
-        <span className="muted">{trNode("{0} 〜 {1}", it.start ?? "?", it.end ?? "?")}</span>
-      ) : null}
-      {it.goal ? <span className="muted goal">{it.goal}</span> : null}
-      <span className="actions">
-        <a href={hrefOf({ page: "iterations", id: it.id })}>{tr("詳細")}</a>
-      </span>
-    </header>
-  );
-}
-
 /**
- * 左パネルのカンバンの見出し（UI-2）。1 段目に Iteration の札の列（IterationChips）と右端の絞り込みボタン（漏斗）、
+ * カンバンの見出し（UI-2）。1 段目に Iteration の札の列（IterationChips）と右端の絞り込みボタン（漏斗）、
  * 2 段目に選んでいるものの名前・期間・目標（1 行で省略）、3 段目に状態ごとの色の帯と「n/m done」（件数はここだけ）。
  * 詳細は出さないが、選んでいる Iteration の名前は Iteration 詳細へのリンクにする（「すべて」の名前はリンクにしない）。
  * filter は絞り込める Epic か担当があるときだけ渡す（漏斗を出す）。絞っている間は漏斗を色付きにする
  */
-function SidebarBoardHead({
+function BoardHead({
   open,
   tickets,
   selection,
@@ -629,36 +573,31 @@ export function ticketProgress(tickets: readonly Pick<Ticket, "status">[]): Prog
 }
 
 /**
- * 状態ごとの節。広い画面では横に並び、サイドバーでは縦に積む（UI-12）。開閉は host.state に覚える。
- * 見出しに状態の丸印と件数。サイドバーでは枠と背景のないペイン風の見出しで、空の節は見出しの 1 行だけにする。
- * サイドバーの件数は、終わった状態（isFinished）の節では塗らずに数字だけにする
+ * 状態ごとの節。縦に積む（UI-12）。開閉は host.state に覚える。
+ * 見出しに状態の丸印と件数。枠と背景のないペイン風の見出しで、空の節は見出しの 1 行だけにする。
+ * 件数は、終わった状態（isFinished）の節では塗らずに数字だけにする
  */
 function Column({
   status,
   tickets,
-  planOf,
   planMarks,
   flashing,
   defaultOpen,
 }: {
   status: Status;
   tickets: TicketRow[];
-  /** チケットが入っている開いた Plan の ID */
-  planOf: ReadonlyMap<string, string>;
-  /** 左パネルの行の右端に出す Plan の番号と待ち（kanbanPlanMarks） */
+  /** 行の右端に出す Plan の番号と待ち（kanbanPlanMarks） */
   planMarks: ReadonlyMap<string, PlanMark>;
-  /** 点滅させるチケット（サイドバー） */
+  /** 点滅させるチケット */
   flashing: ReadonlySet<string>;
   defaultOpen: boolean;
 }) {
   const store = useStore();
-  const host = useHost();
   const [open, setOpen] = useUiState(`board.section.${status}`, defaultOpen);
-  const sidebar = host.surface === "sidebar";
   const empty = tickets.length === 0;
   // 節の見出しから、節のチケットをまとめて頼む（空の節は頼む対象がないので出さない）
   const spot = useAskSpot(
-    sidebar && !empty
+    !empty
       ? {
           targets: tickets.map((t) => t.id),
           label: tr("状態の節 {0}", store.labelOf(status)),
@@ -677,50 +616,40 @@ function Column({
         <h2>
           <StatusDot status={status} />
           <span>{store.labelOf(status)}</span>
-          <span
-            className={sidebar ? `section-count${isFinished(status) ? " is-plain" : ""}` : "muted"}
-          >
+          <span className={`section-count${isFinished(status) ? " is-plain" : ""}`}>
             {tickets.length}
           </span>
         </h2>
         {spot.overlay}
       </summary>
-      {sidebar ? (
-        empty ? null : (
-          <div className="rows">
-            {tickets.map((t) => {
-              const mark = planMarks.get(t.id);
-              const activity = rowActivity(t, store.runningTickets);
-              const running = activity === "running";
-              return (
-                <AskRow
-                  key={t.id}
-                  ticket={t}
-                  // 実行中の Run を読み終えるまで（null）は薄くしない（読み終えて実行中とわかった行が一瞬薄く出ないように）
-                  dimmed={
-                    store.runningTickets !== null &&
-                    !running &&
-                    isWaitingReadiness(kanbanReadiness(t, mark))
-                  }
-                  flash={flashing.has(t.id)}
-                  variant="kanban"
-                  ask={ASK_SECTIONS.boardTicket}
-                  head={activity ? <ActivityMark activity={activity} /> : undefined}
-                  end={
-                    mark || running || t.assignee || needsPlanSlot(t, mark) ? (
-                      <KanbanRowEnd ticket={t} mark={mark} running={running} />
-                    ) : undefined
-                  }
-                />
-              );
-            })}
-          </div>
-        )
-      ) : (
-        <div className="cards">
-          {tickets.map((t) => (
-            <Card key={t.id} ticket={t} plan={planOf.get(t.id)} />
-          ))}
+      {empty ? null : (
+        <div className="rows">
+          {tickets.map((t) => {
+            const mark = planMarks.get(t.id);
+            const activity = rowActivity(t, store.runningTickets);
+            const running = activity === "running";
+            return (
+              <AskRow
+                key={t.id}
+                ticket={t}
+                // 実行中の Run を読み終えるまで（null）は薄くしない（読み終えて実行中とわかった行が一瞬薄く出ないように）
+                dimmed={
+                  store.runningTickets !== null &&
+                  !running &&
+                  isWaitingReadiness(kanbanReadiness(t, mark))
+                }
+                flash={flashing.has(t.id)}
+                variant="kanban"
+                ask={ASK_SECTIONS.boardTicket}
+                head={activity ? <ActivityMark activity={activity} /> : undefined}
+                end={
+                  mark || running || t.assignee || needsPlanSlot(t, mark) ? (
+                    <KanbanRowEnd ticket={t} mark={mark} running={running} />
+                  ) : undefined
+                }
+              />
+            );
+          })}
         </div>
       )}
     </details>
@@ -738,26 +667,4 @@ export function rowActivity(
   if (!runningTickets) return undefined;
   if (runningTickets.has(ticket.id)) return "running";
   return ticket.status === "in_progress" ? "idle" : undefined;
-}
-
-/** 広い画面のカンバンのカード */
-function Card({ ticket, plan }: { ticket: Ticket; plan: string | undefined }) {
-  return (
-    <article className={`card status-${ticket.status}`}>
-      <div className="meta">
-        <TicketLink id={ticket.id} />
-        <PriorityMark priority={ticket.priority} />
-        {ticket.epic ? <span>{ticket.epic}</span> : null}
-        {ticket.iteration ? <span>{ticket.iteration}</span> : null}
-        {plan ? <span className={`plan-tag plan-color-${planColor(plan)}`}>{plan}</span> : null}
-      </div>
-      <div className="title">{ticket.title}</div>
-      <Tags labels={ticket.labels} />
-      {ticket.assignee ? (
-        <div className="meta" title={ticket.assignee}>
-          {actorLabel(ticket.assignee)}
-        </div>
-      ) : null}
-    </article>
-  );
 }

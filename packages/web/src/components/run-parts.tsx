@@ -1,7 +1,6 @@
-// Run の表示部品（チケット詳細の Run の節と Run の画面で共通）：結果の表示名と印・丸印、トークン数・件数・時間の書き方、横にスクロールする表の枠。
+// Run の表示部品（チケット詳細の Run の節）：結果の表示名と印・丸印、トークン数・件数・時間の書き方。
 // 取れなかった値（null）は 0 と見せず「—」で出し（RN-2）、推定を含む値には「~」を前に付ける
 
-import type { ReactNode } from "react";
 import type { RunView } from "../types.js";
 import { tr, msg } from "../l10n.js";
 
@@ -73,9 +72,4 @@ export function formatDuration(seconds: number | null, estimated = false): strin
   const text =
     h > 0 ? tr("{0}時間 {1}分", h, m) : m > 0 ? tr("{0}分 {1}秒", m, s % 60) : tr("{0}秒", s);
   return `${estimated ? "~" : ""}${text}`;
-}
-
-/** 狭い配置（サイドバー・詳細のパネル）で横にスクロールする表の枠 */
-export function RunsScroll({ children }: { children: ReactNode }) {
-  return <div className="runs-scroll">{children}</div>;
 }

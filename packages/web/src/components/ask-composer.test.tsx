@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { skillSummary, type TerminalChoice, type WebviewEvent } from "@deguboard/core";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { App } from "../app.js";
 import type { WebviewClient } from "../client/webview.js";
 import { ASK_OPEN_KEY, HostBridge, HostProvider, type Host } from "../host.js";
@@ -54,7 +54,14 @@ function mountWebview(
     surface = "sidebar",
     state = createUiState(memoryBackend()),
     terminals,
-  }: { surface?: Host["surface"]; state?: UiState; terminals?: TerminalChoice[] } = {},
+    standalone = false,
+  }: {
+    surface?: Host["surface"];
+    state?: UiState;
+    terminals?: TerminalChoice[];
+    /** 拡張ホストのない dg serve（ターミナルの口がない） */
+    standalone?: boolean;
+  } = {},
 ) {
   const listeners = new Set<(event: WebviewEvent) => void>();
   const send = (event: WebviewEvent) => listeners.forEach((l) => l(event));
@@ -85,18 +92,17 @@ function mountWebview(
     show: () => {},
     copy: (text) => bridge.copy(text),
     state,
-    // ブラウザの配置ではターミナルの口がない（コピーだけ）
-    terminals:
-      surface === "browser"
-        ? undefined
-        : {
-            list: () => bridge.terminals(),
-            send: (terminal, text) => bridge.sendToTerminal(terminal, text),
-            onChange: (listener) =>
-              bridge.onEvent((e) => {
-                if (e.name === "terminals") listener(e.terminals);
-              }),
-          },
+    // dg serve ではターミナルの口がない（コピーだけ）
+    terminals: standalone
+      ? undefined
+      : {
+          list: () => bridge.terminals(),
+          send: (terminal, text) => bridge.sendToTerminal(terminal, text),
+          onChange: (listener) =>
+            bridge.onEvent((e) => {
+              if (e.name === "terminals") listener(e.terminals);
+            }),
+        },
   };
   render(
     <StoreProvider client={client}>
@@ -385,7 +391,7 @@ describe("エージェントに頼む入力欄（UI-15）", () => {
       <StoreProvider client={client}>
         <HostProvider
           host={{
-            surface: "browser",
+            surface: "sidebar",
             open: () => {},
             show: () => {},
             copy: () => Promise.reject(new Error("拒まれた")),
@@ -481,32 +487,7 @@ describe("エージェントに頼む入力欄（UI-15）", () => {
     expect(client.calls.filter((c) => !READS.has(c.name))).toEqual([]);
   });
 
-  it("ブラウザでは上のバーの吹き出しで入力欄を開け閉めし（対象のない画面では対象なし）、左パネルではバーに出さない（タイトル行にある）", async () => {
-    window.location.hash = "#/backlog";
-    const client = askClient();
-    const host: Host = {
-      surface: "browser",
-      open: () => {},
-      show: () => {},
-      copy: vi.fn(async () => {}),
-      state: createUiState(memoryBackend()),
-    };
-    render(
-      <StoreProvider client={client}>
-        <HostProvider host={host}>
-          <App />
-        </HostProvider>
-      </StoreProvider>,
-    );
-    await screen.findByText("見直す");
-    const toggle = screen.getByRole("button", { name: "エージェントに頼む" });
-    fireEvent.click(toggle);
-    await waitFor(() => expect(suggestions()[0]!.textContent).toContain("★起票する"));
-    expect(toggle.getAttribute("aria-pressed")).toBe("true");
-    fireEvent.click(toggle);
-    expect(screen.queryByRole("region", { name: "エージェントに頼む" })).toBeNull();
-    cleanup();
-
+  it("左パネルの上のバーには吹き出しを出さない（タイトル行にある）", async () => {
     mountWebview(askClient());
     await screen.findByText("見直す");
     expect(screen.queryByRole("button", { name: "エージェントに頼む" })).toBeNull();
@@ -585,26 +566,6 @@ describe("エージェントに頼む入力欄（UI-15）", () => {
       view.askCurrent();
       await waitFor(() => expect(suggestions()[0]!.textContent).toContain("★起票する"));
       expect(chips()).toEqual([]);
-    });
-
-    it("ブラウザの上のバーの吹き出しも、カンバンで選んでいる Iteration を対象にする", async () => {
-      const host: Host = {
-        surface: "browser",
-        open: () => {},
-        show: () => {},
-        copy: vi.fn(async () => {}),
-        state: createUiState(memoryBackend()),
-      };
-      render(
-        <StoreProvider client={targetClient()}>
-          <HostProvider host={host}>
-            <App />
-          </HostProvider>
-        </StoreProvider>,
-      );
-      await screen.findByText("見直す");
-      fireEvent.click(screen.getByRole("button", { name: "エージェントに頼む" }));
-      await waitFor(() => expect(chips()).toEqual(["s1"]));
     });
   });
 
@@ -696,8 +657,8 @@ describe("開いているターミナルへ送る（UI-15）", () => {
     expect(box.queryByRole("combobox", { name: "送り先のターミナル" })).toBeNull();
   });
 
-  it("ブラウザ（dg serve）にはターミナルがないので「送る」を出さない", async () => {
-    const view = mountWebview(askClient(), { surface: "browser", terminals: TERMINALS });
+  it("拡張ホストのない dg serve にはターミナルがないので「送る」を出さない", async () => {
+    const view = mountWebview(askClient(), { standalone: true, terminals: TERMINALS });
     await screen.findByText("見直す");
     view.ask(["t5"]);
     const box = within(composer());

@@ -82,7 +82,7 @@ export function PanelProps({
   const [adding, setAdding] = useState(false);
   // その場で直した属性を保存している間は、次の確定を受けない（Enter を素早く 2 回押しても 1 回だけ渡す）
   const saving = useRef(false);
-  const a = ticketAttrs(store, ticket, true);
+  const a = ticketAttrs(store, ticket);
 
   const optional: OptionalAttr[] = [
     { key: "labels", label: tr("ラベル"), empty: ticket.labels.length === 0, addable: true },

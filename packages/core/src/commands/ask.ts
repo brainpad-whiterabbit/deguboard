@@ -1530,7 +1530,7 @@ export const askMenu = defineCommand({
   name: "ask-menu",
   group: "ask",
   summary:
-    "画面の行・見出しごとの頼むことの候補（先頭がおすすめ）をまとめて返す（読み取りだけ）。組ごとに ask の candidates と同じものを返し、引けない組は error に理由を入れる。画面（VS Code の左パネル・エディタのパネルの詳細・ブラウザ）の吹き出しが使う",
+    "画面の行・見出しごとの頼むことの候補（先頭がおすすめ）をまとめて返す（読み取りだけ）。組ごとに ask の candidates と同じものを返し、引けない組は error に理由を入れる。画面（VS Code の左パネル・エディタのパネルの詳細）の吹き出しが使う",
   input: z.object({
     sets: z
       .array(z.string())

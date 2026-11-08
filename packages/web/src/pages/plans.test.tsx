@@ -117,7 +117,7 @@ describe("Plan 詳細（UI-13）", () => {
     const client = mockClient(boardFixture());
     client.data.plans = [plan({ id: "p3", tickets: ["t3"], pending_approval: true })];
     window.location.hash = "#/plans/p3";
-    mount(client, hostOf("browser"));
+    mount(client, hostOf("panel"));
     const title = await screen.findByRole("heading", { level: 1 });
     expect(title.textContent).toContain("承認待ち");
     expect(document.querySelector(".plan-summary")!.textContent).toContain("人の承認を待っている");

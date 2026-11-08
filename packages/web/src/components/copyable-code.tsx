@@ -1,5 +1,5 @@
 // code で出す値と、その右に値をクリップボードに入れる小さなボタン（チケット詳細のブランチ名）。コピーは host に任せ
-// （Webview では拡張ホスト、ブラウザでは navigator.clipboard）、押した後しばらく「コピーした」（だめなら「コピーできない」）を下に出す。
+// （Webview では拡張ホスト、開発用の dg serve では navigator.clipboard）、押した後しばらく「コピーした」（だめなら「コピーできない」）を下に出す。
 // 長い値は折り返し、ボタンは値の右に残す
 
 import { useEffect, useState } from "react";

@@ -1,23 +1,23 @@
 // バックログ（UI-3）。done と abandoned 以外を Iteration ごとの区画（active → planned → Iteration なし）に分け、区画の中は優先度と番号で出す。
 // 番号・タイトル・ラベルで検索、Status・優先度・ラベル・担当者で絞り込む。
-// Iteration が 1 つもない（planned・active がない）Project では区画に分けず 1 つの表で出す。
+// Iteration が 1 つもない（planned・active がない）Project では区画に分けず 1 つの一覧で出す。
 // 表示だけで書き込まない。Iteration の移動・作成・閉じると Epic の作成は、吹き出しからエージェントに頼む（ADR-010）。
 // Iteration の開始は着手（claim）の手順が行う（ADR-006）。
 // open の Epic は進捗つきの欄に並べ（UI-10）、押すとその Epic のチケットに絞る（もう一度押すと解除）。
-// サイドバーでは検索を常に出し、その右端の漏斗（カンバンと同じ FilterToggle）で絞り込みの欄を検索の下に開く（開閉は host.state に残す）。
+// VS Code の左パネルに出す。検索を常に出し、その右端の漏斗（カンバンと同じ FilterToggle）で絞り込みの欄を検索の下に開く（開閉は host.state に残す）。
 // その下によく使う絞り込み（自分・作業中・high）のチップと、欄で効いている条件の札（× で外す）を並べ、
 // 絞り込みか検索が効いているときだけ行の右端に「n / m 件」を出す。漏斗は条件が効いている間だけ色付きにする。
-// サイドバーの Epic の欄は open の Epic があるときだけ、番号・題・進捗のチップと「Epic なし」のチップを並べる（2 行を超える分は「ほか N」）
-// サイドバーの行の右端には、カンバンと同じ優先度の札と、開いた Plan に入っていれば Plan の番号と着手可・待ちを出す（カンバンと同じ部品と判定。components/row-end.tsx の BacklogRowEnd）。
-// サイドバーの行は担当者の列を出さず、別の人の担当だけ右端に頭文字の丸で出す（自分か自分の agent は出さない。store.me）。
-// サイドバーの行・区画の見出しは、エージェントに頼める場所にする（吹き出しと Shift+F10。UI-15）。Epic の札と件数は頼む入口にしない
+// Epic の欄は open の Epic があるときだけ、番号・題・進捗のチップと「Epic なし」のチップを並べる（2 行を超える分は「ほか N」）
+// 行の右端には、カンバンと同じ優先度の札と、開いた Plan に入っていれば Plan の番号と着手可・待ちを出す（カンバンと同じ部品と判定。components/row-end.tsx の BacklogRowEnd）。
+// 行は担当者の列を出さず、別の人の担当だけ右端に頭文字の丸で出す（自分か自分の agent は出さない。store.me）。
+// 行・区画の見出しは、エージェントに頼める場所にする（吹き出しと Shift+F10。UI-15）。Epic の札と件数は頼む入口にしない
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { ASK_SECTIONS, useAskSpot } from "../components/ask-menu.js";
 import { Chip, ChipRow } from "../components/chips.js";
 import { shortPeriod } from "../components/iteration-parts.js";
 import { ProgressBar, TicketTable } from "../components/parts.js";
-import { BacklogRowEnd, kanbanPlanMarks, type PlanMark } from "../components/row-end.js";
+import { BacklogRowEnd, kanbanPlanMarks } from "../components/row-end.js";
 import { FilterToggle } from "../components/filter-toggle.js";
 import { useSelection } from "../components/selection.js";
 import { useHost, useUiState } from "../host.js";
@@ -203,8 +203,6 @@ export function sectionsOf(
 
 export function BacklogPage() {
   const store = useStore();
-  const host = useHost();
-  const sidebar = host.surface === "sidebar";
   const [filtersOpen, setFiltersOpen] = useUiState("backlog.filters", false);
   const [filter, setFilter] = useState<BacklogFilter>(EMPTY_FILTER);
   const set = (patch: Partial<BacklogFilter>) => setFilter((f) => ({ ...f, ...patch }));
@@ -222,11 +220,8 @@ export function BacklogPage() {
   const selection = useSelection();
   const clearSelection = selection?.clear;
   useEffect(() => clearSelection?.(), [filter, clearSelection]);
-  // サイドバーの行の右端に、開いた Plan の番号と着手可・待ちを出す（判定はカンバンと同じ kanbanPlanMarks）
-  const planMarks = useMemo(
-    () => (sidebar ? kanbanPlanMarks(store.plans) : new Map<string, PlanMark>()),
-    [sidebar, store.plans],
-  );
+  // 行の右端に、開いた Plan の番号と着手可・待ちを出す（判定はカンバンと同じ kanbanPlanMarks）
+  const planMarks = useMemo(() => kanbanPlanMarks(store.plans), [store.plans]);
   const rowEnd = (t: Ticket) => (
     <BacklogRowEnd ticket={t} mark={planMarks.get(t.id)} me={store.me} />
   );
@@ -294,8 +289,8 @@ export function BacklogPage() {
           )}
         </label>
       ) : null}
-      {/* サイドバーでは条件があるときだけ出す */}
-      {!sidebar || active.length > 0 ? (
+      {/* 条件があるときだけ出す */}
+      {active.length > 0 ? (
         <button type="button" onClick={() => setFilter(EMPTY_FILTER)}>
           {tr("絞り込みを消す")}
         </button>
@@ -305,7 +300,7 @@ export function BacklogPage() {
 
   return (
     <section>
-      <div className={`toolbar${sidebar ? " backlog-search" : ""}`}>
+      <div className="toolbar backlog-search">
         <h1>{tr("バックログ")}</h1>
         <input
           type="search"
@@ -314,37 +309,29 @@ export function BacklogPage() {
           onChange={(e) => set({ query: e.target.value })}
           aria-label={tr("検索")}
         />
-        {sidebar ? (
-          <FilterToggle
-            open={filtersOpen}
-            active={active.length > 0}
-            title={tr("Status・優先度・ラベル・担当で絞り込む")}
-            controls="backlog-filters"
-            onToggle={() => setFiltersOpen(!filtersOpen)}
-          />
-        ) : (
-          filters
-        )}
-        {/* サイドバーでは件数をチップの行の右端に置き、1 行を使わない */}
-        {sidebar ? null : <span className="muted">{trNode("{0} 件", rows.length)}</span>}
+        <FilterToggle
+          open={filtersOpen}
+          active={active.length > 0}
+          title={tr("Status・優先度・ラベル・担当で絞り込む")}
+          controls="backlog-filters"
+          onToggle={() => setFiltersOpen(!filtersOpen)}
+        />
       </div>
-      {sidebar && filtersOpen ? (
+      {filtersOpen ? (
         <div className="toolbar backlog-filters" id="backlog-filters">
           {filters}
         </div>
       ) : null}
-      {sidebar ? (
-        <QuickFilters
-          filter={filter}
-          folded={foldedFilters(filter, active, { meKnown: store.me !== null, epicShown })}
-          statusLabel={store.labelOf("in_progress")}
-          meKnown={store.me !== null}
-          onChange={set}
-          count={filtering ? <FilteredCount rows={rows} total={total} /> : null}
-        />
-      ) : null}
+      <QuickFilters
+        filter={filter}
+        folded={foldedFilters(filter, active, { meKnown: store.me !== null, epicShown })}
+        statusLabel={store.labelOf("in_progress")}
+        meKnown={store.me !== null}
+        onChange={set}
+        count={filtering ? <FilteredCount rows={rows} total={total} /> : null}
+      />
       <div className="backlog-layout">
-        <EpicPanel
+        <EpicChips
           selected={filter.epic}
           onSelect={(epic) => set({ epic: filter.epic === epic ? "" : epic })}
         />
@@ -362,7 +349,7 @@ export function BacklogPage() {
   );
 }
 
-/** 絞っているときの「n / m 件」（サイドバー） */
+/** 絞っているときの「n / m 件」 */
 function FilteredCount({ rows, total }: { rows: readonly Ticket[]; total: number }) {
   return (
     <span className="muted count" title={tr("全 {0} 件のうち {1} 件", total, rows.length)}>
@@ -372,7 +359,7 @@ function FilteredCount({ rows, total }: { rows: readonly Ticket[]; total: number
 }
 
 /**
- * サイドバーの検索欄の下の 1 行：よく使う絞り込みのチップ（押すと絞り、効いているものは塗る）と、
+ * 検索欄の下の 1 行：よく使う絞り込みのチップ（押すと絞り、効いているものは塗る）と、
  * ほかの場所で見えていない効いている条件の札（× で外す）、右端に件数（count）。札が多ければ折り返す（条件を隠さない）
  */
 function QuickFilters({
@@ -426,27 +413,25 @@ function QuickFilters({
 }
 
 /**
- * 1 つの区画：見出し（番号・名前・状態・期間・目標・件数・詳細へのリンク）とチケットの表。
- * 0 件なら見出しだけ。サイドバーでは折りたたみの節にし、開閉を host.state に残す。サイドバーの見出しは帯と 2 段
+ * 1 つの区画：見出し（番号・名前・状態・期間・目標・件数・詳細へのリンク）とチケットの一覧。
+ * 折りたたみの節にし、開閉を host.state に残す。0 件なら見出しだけ。見出しは帯と 2 段
  */
 function Section({
   section: { iteration: it, tickets },
   rowEnd,
 }: {
   section: BacklogSection;
-  /** サイドバーの行の右端（TicketTable の end） */
+  /** 行の右端（TicketTable の end） */
   rowEnd: (t: Ticket) => ReactNode;
 }) {
   const host = useHost();
-  const sidebar = host.surface === "sidebar";
   const [open, setOpen] = useUiState(`backlog.section.${it?.id ?? "none"}`, true);
   const link = it ? (
     <a
       href={hrefOf({ page: "iterations", id: it.id })}
       title={tr("詳細")}
       onClick={(e) => {
-        // Webview では詳細を拡張ホストに頼んでエディタ領域に開く（履歴の行と同じ）
-        if (host.surface === "browser") return;
+        // 詳細を拡張ホストに頼んでエディタ領域に開く（履歴の行と同じ）
         e.preventDefault();
         host.open({ page: "iterations", id: it.id });
       }}
@@ -456,13 +441,13 @@ function Section({
   ) : (
     tr("Iteration なし")
   );
-  // サイドバーの見出し（カンバンの SidebarBoardHead と同じ部品）：左の帯の色で Iteration の状態を出し、1 段目に番号・名前・件数、
+  // 見出し（カンバンの BoardHead と同じ部品）：左の帯の色で Iteration の状態を出し、1 段目に番号・名前・件数、
   // 2 段目に状態・月日の期間・目標を 1 行で（目標が溢れたら省略してツールチップで全文。カンバンと同じ）。
   // 0 件の区画は帯も 2 段目もない 1 行にする
   const period = it ? shortPeriod(it.start, it.end) : undefined;
-  // 左パネルの区画の見出しから頼む：Iteration の区画はその Iteration、「Iteration なし」は中のチケットをまとめて（0 件なら出さない）
+  // 区画の見出しから頼む：Iteration の区画はその Iteration、「Iteration なし」は中のチケットをまとめて（0 件なら出さない）
   const spot = useAskSpot(
-    sidebar && (it || tickets.length > 0)
+    it || tickets.length > 0
       ? {
           targets: it ? [it.id] : tickets.map((t) => t.id),
           label: tr("区画の見出し {0}", it ? it.id : tr("Iteration なし")),
@@ -470,7 +455,7 @@ function Section({
         }
       : null,
   );
-  const sidebarHead = (
+  const head = (
     <>
       <span className="head-line">
         <span className="name">{link}</span>
@@ -489,74 +474,22 @@ function Section({
       ) : null}
     </>
   );
-  const head = (
-    <>
-      {it ? (
-        <>
-          <a
-            href={hrefOf({ page: "iterations", id: it.id })}
-            title={tr("詳細")}
-            onClick={(e) => {
-              // Webview では詳細を拡張ホストに頼んでエディタ領域に開く（履歴の行と同じ）
-              if (host.surface === "browser") return;
-              e.preventDefault();
-              host.open({ page: "iterations", id: it.id });
-            }}
-          >
-            <code>{it.id}</code> {it.name}
-          </a>
-          <span className={`badge iteration-${it.status}`}>{tr(ITERATION_LABELS[it.status])}</span>
-        </>
-      ) : (
-        <span className="name">{tr("Iteration なし")}</span>
-      )}
-      <span className="muted count">{trNode("{0} 件", tickets.length)}</span>
-      {it && (it.start || it.end || it.goal) ? (
-        <small className="muted meta">
-          {it.start || it.end ? tr("{0} 〜 {1}", it.start ?? "?", it.end ?? "?") : ""}
-          {(it.start || it.end) && it.goal ? tr(" ・ ") : ""}
-          {it.goal}
-        </small>
-      ) : null}
-    </>
-  );
-  const body =
-    tickets.length > 0 ? (
-      <TicketTable tickets={tickets} assigneeInEnd rowMenu end={rowEnd} />
-    ) : null;
-  if (sidebar) {
-    return (
-      <details
-        className={`fold backlog-section sidebar-section iteration-${it?.status ?? "none"}${tickets.length === 0 ? " empty-section" : ""}`}
-        // 0 件の区画は畳んだ 1 行にする
-        open={tickets.length > 0 && open}
-        onToggle={(e) => tickets.length > 0 && setOpen(e.currentTarget.open)}
-      >
-        <summary {...(spot.overlay ? spot.props : {})}>
-          {sidebarHead}
-          {spot.overlay}
-        </summary>
-        {body}
-      </details>
-    );
-  }
   return (
-    <section className="backlog-section">
-      <header>{head}</header>
-      {body}
-    </section>
+    <details
+      className={`fold backlog-section sidebar-section iteration-${it?.status ?? "none"}${tickets.length === 0 ? " empty-section" : ""}`}
+      // 0 件の区画は畳んだ 1 行にする
+      open={tickets.length > 0 && open}
+      onToggle={(e) => tickets.length > 0 && setOpen(e.currentTarget.open)}
+    >
+      <summary {...(spot.overlay ? spot.props : {})}>
+        {head}
+        {spot.overlay}
+      </summary>
+      {tickets.length > 0 ? (
+        <TicketTable tickets={tickets} assigneeInEnd rowMenu end={rowEnd} />
+      ) : null}
+    </details>
   );
-}
-
-/**
- * open の Epic の欄：番号（詳細へ）・タイトル・進捗と、Epic に入っていないチケットの件数。
- * タイトルを押すとその Epic で絞り、もう一度押すと解除する。
- * サイドバーでは EpicChips を出す
- */
-function EpicPanel({ selected, onSelect }: { selected: string; onSelect: (epic: string) => void }) {
-  const host = useHost();
-  if (host.surface === "sidebar") return <EpicChips selected={selected} onSelect={onSelect} />;
-  return <EpicList selected={selected} onSelect={onSelect} />;
 }
 
 function useOpenEpics() {
@@ -570,7 +503,7 @@ function useOpenEpics() {
 }
 
 /**
- * サイドバーの Epic の欄：open の Epic があるときだけ、番号・題・進捗のチップと「Epic なし」のチップを並べる。
+ * Epic の欄：open の Epic があるときだけ、番号・題・進捗のチップと「Epic なし」のチップを並べる。
  * 押すとその Epic で絞り、もう一度押すと外れる。2 行を超える分は「ほか N」にまとめる
  */
 function EpicChips({ selected, onSelect }: { selected: string; onSelect: (epic: string) => void }) {
@@ -605,7 +538,7 @@ function EpicChips({ selected, onSelect }: { selected: string; onSelect: (epic: 
   );
 }
 
-/** サイドバーの Epic の札。押すとその Epic で絞る。札は狭いので頼む入口は置かない（頼むのは Epic の詳細から） */
+/** Epic の札。押すとその Epic で絞る。札は狭いので頼む入口は置かない（頼むのは Epic の詳細から） */
 function EpicChip({
   epic: e,
   pressed,
@@ -626,53 +559,5 @@ function EpicChip({
       <span className="chip-title">{e.title}</span>
       <ProgressBar progress={e.progress} short />
     </Chip>
-  );
-}
-
-/** 広い画面の Epic の欄。番号はハッシュの遷移で詳細へ（エディタのパネルはバックログを出さない） */
-function EpicList({ selected, onSelect }: { selected: string; onSelect: (epic: string) => void }) {
-  const { epics, noEpic } = useOpenEpics();
-  const body = (
-    <ul className="rows epic-list">
-      {epics.map((e) => (
-        <li key={e.id} className={selected === e.id ? "selected" : undefined}>
-          <a href={hrefOf({ page: "epics", id: e.id })}>
-            <code>{e.id}</code>
-          </a>
-          <button
-            type="button"
-            className="epic-pick"
-            aria-pressed={selected === e.id}
-            title={selected === e.id ? tr("絞り込みを解除する") : tr("この Epic で絞る")}
-            onClick={() => onSelect(e.id)}
-          >
-            <span className="row-title">{e.title}</span>
-            <ProgressBar progress={e.progress} />
-          </button>
-        </li>
-      ))}
-      <li className={selected === NO_EPIC ? "selected" : undefined}>
-        <span />
-        <button
-          type="button"
-          className="epic-pick"
-          aria-pressed={selected === NO_EPIC}
-          title={selected === NO_EPIC ? tr("絞り込みを解除する") : tr("Epic のないチケットで絞る")}
-          onClick={() => onSelect(NO_EPIC)}
-        >
-          <span className="row-title muted">{tr("Epic なし")}</span>
-          <span className="muted">{trNode("{0} 件", noEpic)}</span>
-        </button>
-      </li>
-    </ul>
-  );
-
-  return (
-    <aside className="epic-panel">
-      <header>
-        <h2>Epic</h2>
-      </header>
-      {body}
-    </aside>
   );
 }

@@ -1,37 +1,29 @@
-// Epic の詳細（UI-10）。進捗（EP-3）と、Epic のチケットを Status ごとに出す。
+// Epic の詳細（UI-10）。進捗（EP-3）と、Epic のチケットを出す。
 // 表示だけで書き込まない。閉じる・再開とチケットの足し外しは、タイトルと行の吹き出しからエージェントに頼む（ADR-010・UI-15）。
 // 一覧の画面は持たない（open はバックログの欄、closed は履歴）。
-// VS Code（パネル）ではチケットを未完了・完了・中止の小見出しの付いた 1 本の一覧にする（components/ticket-sections.tsx。Iteration 詳細と共用）（カンバンはサイドバーで見る。UI-12）。ブラウザは Status ごとの列
+// チケットは未完了・完了・中止の小見出しの付いた 1 本の一覧にする（components/ticket-sections.tsx。Iteration 詳細と共用）（カンバンはサイドバーで見る。UI-12）
 
 import { ASK_SECTIONS, AskSpotBox } from "../components/ask-menu.js";
-import { PriorityMark, ProgressBar, StatusDot, TicketLink } from "../components/parts.js";
+import { ProgressBar } from "../components/parts.js";
 import { TicketSections } from "../components/ticket-sections.js";
 import { useCommandData } from "../command-data.js";
-import { useHost } from "../host.js";
 import { Markdown } from "../markdown.js";
 import { hrefOf } from "../router.js";
 import { useStore } from "../store.js";
-import { EPIC_LABELS, STATUSES, byPriorityThenNumber, type EpicDetail } from "../types.js";
+import { EPIC_LABELS, type EpicDetail } from "../types.js";
 import { tr } from "../l10n.js";
 
 export function EpicsPage({ id }: { id: string }) {
   const store = useStore();
-  const host = useHost();
-  const webview = host.surface !== "browser";
   // 一覧のチケットか Epic が読み直されたら Epic も読み直す
   const { data: epic, error } = useCommandData<EpicDetail>("epic.show", { epic: id }, store.epics);
 
   if (error) return <p className="error">{error}</p>;
   if (!epic) return <p className="muted">{tr("読み込み中…")}</p>;
 
+  // パネルは詳細だけを出すので、戻る先の一覧を置かない（一覧はサイドバー。UI-12）
   return (
     <section>
-      {/* パネルは詳細だけを出すので、戻る先の一覧がない（一覧はサイドバー。UI-12） */}
-      {webview ? null : (
-        <div className="toolbar">
-          <a href={hrefOf({ page: "backlog" })}>{tr("← バックログ")}</a>
-        </div>
-      )}
       <header className="detail-header">
         {/* タイトルの横の吹き出しで、この Epic をエージェントに頼む（UI-15） */}
         <AskSpotBox
@@ -52,39 +44,7 @@ export function EpicsPage({ id }: { id: string }) {
       </div>
       <Markdown body={epic.body} />
       <h2>{tr("チケット")}</h2>
-      {webview ? (
-        <TicketSections
-          tickets={epic.tickets}
-          within={epic.id}
-          section={ASK_SECTIONS.detailTicket}
-        />
-      ) : (
-        <div className="groups">
-          {STATUSES.map((s) => {
-            const items = epic.tickets.filter((t) => t.status === s).sort(byPriorityThenNumber);
-            if (items.length === 0 && s === "abandoned") return null;
-            return (
-              <div key={s} className="column">
-                <h2>
-                  <StatusDot status={s} />
-                  <span>{store.labelOf(s)}</span>
-                  <span className="muted">{items.length}</span>
-                </h2>
-                {items.length === 0 ? <p className="empty">{tr("なし")}</p> : null}
-                {items.map((t) => (
-                  <div key={t.id} className={`card status-${s}`} style={{ cursor: "default" }}>
-                    <div className="meta">
-                      <TicketLink id={t.id} />
-                      <PriorityMark priority={t.priority} />
-                    </div>
-                    <div className="title">{t.title}</div>
-                  </div>
-                ))}
-              </div>
-            );
-          })}
-        </div>
-      )}
+      <TicketSections tickets={epic.tickets} within={epic.id} section={ASK_SECTIONS.detailTicket} />
     </section>
   );
 }

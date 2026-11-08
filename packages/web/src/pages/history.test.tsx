@@ -261,7 +261,7 @@ describe("Iteration の行の 1 段目と 2 段目", () => {
 });
 
 describe("Iteration の行の Run の集計", () => {
-  it("左パネルでは閉じた Iteration の行に Run の集計のリンクを出さない", async () => {
+  it("閉じた Iteration の行に Run の集計のリンクを出さず、Run の記録も読まない（Run の画面はない。ADR-023）", async () => {
     window.location.hash = "#/history";
     const client = mockClient();
     client.data.iterations = [
@@ -278,56 +278,12 @@ describe("Iteration の行の Run の集計", () => {
     const row = (await screen.findByText("目標なし")).closest(".history-row")!;
     expect(row.querySelector("small")!.textContent).toBe("閉じた日は不明");
     expect(within(row as HTMLElement).queryByRole("link", { name: "Run の集計" })).toBeNull();
-  });
-
-  it("ブラウザでは閉じた Iteration の行に Run の画面へのリンクを置き、押すとその Iteration で絞った集計を開く。履歴に Run の数字は出さない", async () => {
-    window.location.hash = "#/history";
-    const client = mockClient();
-    client.data.iterations = [
-      iteration({ id: "s4", name: "sprint4", status: "closed", completed: 1 }),
-    ];
-    client.data.tickets = [ticket({ id: "t1", status: "done", iteration: "s4" })];
-    client.handlers["metrics.show"] = () => ({
-      filter: { project: "default", iteration: "s4" },
-      by: "iteration",
-      total: { runs: 0 },
-      groups: [],
-    });
-    // ブラウザの画面（左パネルには Run の画面がなく、リンクを出さない）
-    render(
-      <StoreProvider client={client}>
-        <App />
-      </StoreProvider>,
-    );
-    const row = (await screen.findByText("目標なし")).closest(".history-row")!;
-    const link = within(row as HTMLElement).getByRole("link", { name: "Run の集計" });
-    expect(link.getAttribute("href")).toBe("#/runs?by=iteration&iteration=s4");
-    // 履歴の画面は Run の記録を読まない（数字を出さない）
     expect(client.calls.some((c) => c.name === "metrics.show")).toBe(false);
     expect(
       client.calls.some(
         (c) => c.name === "run.list" && (c.input as { running?: boolean }).running !== true,
       ),
     ).toBe(false);
-    fireEvent.click(link);
-    await waitFor(() => expect(window.location.hash).toBe("#/runs?by=iteration&iteration=s4"));
-    await waitFor(() =>
-      expect(client.calls.filter((c) => c.name === "metrics.show").at(-1)?.input).toEqual({
-        project: "default",
-        iteration: "s4",
-        by: "iteration",
-      }),
-    );
-    expect(
-      client.calls.some(
-        (c) =>
-          c.name === "run.list" &&
-          JSON.stringify(c.input) === '{"project":"default","iteration":"s4"}',
-      ),
-    ).toBe(true);
-    expect(document.querySelector(".runs-filter")!.textContent).toBe(
-      "s4 のチケットの Run だけ解除",
-    );
   });
 });
 
@@ -893,7 +849,7 @@ describe("タブを移って戻ったとき", () => {
   });
 });
 
-describe("ブラウザの履歴", () => {
+describe("履歴のハッシュ", () => {
   it("検索語と結果の絞り込みをハッシュから戻す", async () => {
     window.location.hash = "#/history?view=ticket&q=%E3%83%AD%E3%82%B0&result=abandoned";
     const client = mockClient();
@@ -904,14 +860,14 @@ describe("ブラウザの履歴", () => {
     client.handlers["history"] = () => ({ events: [], shallow: false, incomplete: [] });
     render(
       <StoreProvider client={client}>
-        <HostProvider host={{ ...sidebarHost(), surface: "browser" }}>
+        <HostProvider host={sidebarHost()}>
           <App />
         </HostProvider>
       </StoreProvider>,
     );
     await waitFor(() =>
       expect(
-        [...document.querySelectorAll(".history-finished code")].map((c) => c.textContent),
+        [...document.querySelectorAll(".history-list .ticket-row code")].map((c) => c.textContent),
       ).toEqual(["t2"]),
     );
     expect(screen.getByLabelText<HTMLInputElement>("チケットを探す").value).toBe("ログ");
