@@ -4,7 +4,7 @@
 //     （届くのは親の Bash だけ。サブエージェントの claim・run start のセッションは Adapter の sessionFromEnv が補う。ADR-016）
 //   - subagent_launched：頼んだ文の先頭の印（deguboard: ticket=<id> step=<step>）があれば、その Run を開いて記録の場所をサブエージェントの記録にする。
 //     見直しは、別のセッションで開いたままの同じチケットの見直しの Run を先に interrupted で閉じる（ADR-015）。
-//     手直しは、開いたままの前の手直しの Run をもう一度の claim と同じ規則で区切りとして閉じる（ADR-018）
+//     開いたままの前の手直しの Run は、ほかの Run を開くときと同じく openRun が区切りとして閉じる（ADR-022）
 //   - subagent_started：同じ記録の開いた Run（親への質問で止まっていたもの）を続きとして使い、止まって待っている印と書き終わり待ちの印を消す
 //   - subagent_stopped：記録の場所で Run を引き、記録の最初の文の印で照らしてから、step を終えた事実があれば記録の書き終わりを待って
 //     記録の全体から数えて閉じる。事実がなければ閉じずに止まって待っている印を付ける。
@@ -42,7 +42,6 @@ import {
 } from "../run/record.js";
 import { defineCommand, ok, runCommand, type CommandContext } from "./define.js";
 import {
-  closePreviousFixRun,
   openedInOtherSession,
   openedStepOf,
   openRun,
@@ -150,7 +149,7 @@ export const hook = defineCommand({
   summary:
     "harness のフックが呼ぶ（dg hooks install が設定に書く。人が打つものではない）。--payload - で標準入力のフックの入力（JSON）を読み、" +
     "セッションの始まりに主体とセッション ID・記録のパスを環境に入れ、頼んだ文の先頭に `deguboard: ticket=<id> step=<step>` の印のあるサブエージェントの Run を起動で開き" +
-    "（同じチケットと step の Run が開いたままなら開かずに警告する。見直しは、その Run が別のセッションのものなら落ちたセッションの残りとみなして interrupted で閉じてから開く。前景の起動で起動より後にその Run に書かれた見直しの結果は、保留に移して新しい Run に結び付ける）、step を終えた事実があれば止まったときに閉じ" +
+    "（同じチケットと step の Run が開いたままなら開かずに警告する。見直しは、その Run が別のセッションのものなら落ちたセッションの残りとみなして interrupted で閉じてから開く。前景の起動で起動より後にその Run に書かれた見直しの結果は、保留に移して新しい Run に結び付ける。同じチケットの開いたままの前の手直しの Run は、run start と同じく起動を区切りとして閉じてから開く）、step を終えた事実があれば止まったときに閉じ" +
     "（なければ止まって待っている印を付け、再開で続ける。自分で開いた Run も同じ）、セッションの終わりにそのセッションのサブエージェントの開いたままの Run を閉じる。" +
     "ツールを使う前（PreToolUse）には、書くツールの .git/deguboard/ の下への書き込みと、.git/deguboard の語を含む Bash（読むだけのものも、引用符・コメントの中も）を拒んで dg の読み書きのコマンドへ案内し" +
     "（語として現れない書き込みは見ない。取りこぼしは dg の外の変更として、dg が次に動くときと Stop で見つける）、" +
@@ -321,22 +320,7 @@ async function subagentLaunched(
   // 同じセッションの見直しを重ねて開くのは二重の起動なので、閉じずに下の openRun が拒否する
   if (marker.step === REVIEW_STEP)
     await closeStaleReviewRuns(ctx, marker.ticket, event.session, startedAt ?? now, view, warnings);
-  // 手直しの起動は、開いたままの前の手直しの Run の区切り。もう一度の claim と同じ規則で閉じてから開く（開いている手直しの Run はいつも 1 本。ADR-018）。
-  // 区切りは起動の時刻（前景では、それより後の push は今回の手直しのもの）
-  if (marker.step === openedStepOf(ctx, ticket.data, "reclaim")) {
-    try {
-      await closePreviousFixRun(
-        ctx,
-        ticket.data,
-        { session: event.session, boundaryAt: toIsoDateTime(startedAt ?? now) },
-        warnings,
-      );
-    } catch (e) {
-      warnings.push(
-        `${marker.ticket} の前の手直しの Run を閉じられなかった（${e instanceof Error ? e.message : String(e)}）`,
-      );
-    }
-  }
+  // 開いたままの前の手直しの Run は、openRun がこの起動の開始を区切りとして閉じてから開く（ADR-022）
   let run: Run;
   try {
     const opened = await openRun(ctx, ticket.data, {

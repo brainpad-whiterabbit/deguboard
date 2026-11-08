@@ -335,7 +335,7 @@ describe("dg guide", () => {
     expect(fixLoop).toContain("ticket claim <id> --retry-reason <指摘の要約>");
     expect(lineWith(runs, "修正ループの 1 回")).toContain("文の印でフックが開く");
     expect(lineWith(runs, "修正ループの 1 回")).toContain("ticket claim <id> --retry-reason");
-    expect(lineWith(runs, "修正ループの 1 回")).toContain("`sync` が次の区切り");
+    expect(lineWith(runs, "修正ループの 1 回")).toContain("次の見直しの Run の開始はその場で");
     expect(review).not.toContain("run finish --retry-reason");
     const parallel = await readGuide("parallel");
     expect(bullet(parallel, "サブエージェントがしない")).toMatch(

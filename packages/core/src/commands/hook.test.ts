@@ -13,7 +13,7 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { createFixture } from "../../test/helpers/git-fixture.js";
 import type { Run } from "../model/run.js";
-import { peekRunningRuns, readTranscriptPaths } from "../run/record.js";
+import { peekRunningRuns, readTranscriptPaths, startRun } from "../run/record.js";
 import { runPath } from "../storage/paths.js";
 import { hooksOf } from "../agents/index.js";
 import { openContext, openContextFor } from "./context.js";
@@ -1471,7 +1471,7 @@ describe("手直しの Run の印と run retry-reason（ADR-018）", () => {
       launched(parent, "a1", "deguboard: ticket=t1 step=fix\n\n直す"),
     );
     expect(warnings).toContainEqual(
-      `t1: 前の手直しの Run ${previous.id} を、次の手直しの起動を区切りとして、push がないので起動の時刻で閉じる`,
+      `t1: 前の手直しの Run ${previous.id} を、次の fix の Run の開始を区切りとして、push がないので開始の時刻で閉じる`,
     );
     const runs = await fixRuns(ctx, "t1");
     expect(runs.find((r) => r.id === previous.id)).toMatchObject({
@@ -1496,6 +1496,92 @@ describe("手直しの Run の印と run retry-reason（ADR-018）", () => {
       error: STALE_SESSION_ERROR,
     });
     expect(runs2.filter((r) => r.running)).toHaveLength(1);
+  });
+
+  it("印 step=review の起動も、開いたままの手直しの Run を区切りとして閉じてから開く。見直しを開くときは別のセッションの手直しも success で閉じる（ADR-022）", async () => {
+    const { ctx, parent } = await prepared();
+    const same = (
+      await runCommand(runStart, ctx, {
+        ticket: "t1",
+        step: "fix",
+        agent: "claude-code",
+        session: SESSION,
+      })
+    ).data as Run;
+    const other = (
+      await runCommand(runStart, ctx, {
+        ticket: "t2",
+        step: "fix",
+        agent: "claude-code",
+        session: "s-old",
+      })
+    ).data as Run;
+    const { warnings } = await call(
+      ctx,
+      "PostToolUse",
+      launched(parent, "a1", "deguboard: ticket=t1 step=review\n\n見直す"),
+    );
+    expect(warnings).toContainEqual(
+      `t1: 前の手直しの Run ${same.id} を、次の review の Run の開始を区切りとして、push がないので開始の時刻で閉じる`,
+    );
+    await call(ctx, "PostToolUse", launched(parent, "a2", "deguboard: ticket=t2 step=review"));
+    expect((await fixRuns(ctx, "t1"))[0]).toMatchObject({
+      id: same.id,
+      result: "success",
+      running: false,
+    });
+    expect((await fixRuns(ctx, "t2"))[0]).toMatchObject({
+      id: other.id,
+      result: "success",
+      error: null,
+      running: false,
+    });
+    expect((await peekRunningRuns(ctx.repo)).map((r) => [r.ticket, r.step]).sort()).toEqual([
+      ["t1", "review"],
+      ["t2", "review"],
+    ]);
+  });
+
+  it("前景の起動でかかった時間だけ前にした開始が、手直しの Run の開始より前なら閉じず、同じ秒か後なら閉じる（ADR-022）", async () => {
+    const { ctx, parent, subagent } = await prepared();
+    let clock = new Date("2026-11-08T01:10:00Z");
+    ctx.now = () => clock;
+    const fixOf = async (ticket: "t1" | "t2") =>
+      (
+        await runCommand(runStart, ctx, {
+          ticket,
+          step: "fix",
+          agent: "claude-code",
+          session: SESSION,
+        })
+      ).data as Run;
+    const foreground = async (agentId: string, prompt: string, durationMs: number) => {
+      await subagentRecord(subagent(agentId), prompt, 1);
+      return call(ctx, "PostToolUse", {
+        ...launched(parent, agentId, prompt),
+        tool_response: {
+          status: "completed",
+          agentId,
+          resolvedModel: "claude-test-1",
+          totalDurationMs: durationMs,
+        },
+      });
+    };
+    // t1：01:10 に始まった手直しの後、01:20 に返った前景の見直しは 20 分かかった（開始は 01:00 で手直しより前）
+    const before = await fixOf("t1");
+    clock = new Date("2026-11-08T01:20:00Z");
+    await foreground("a1", "deguboard: ticket=t1 step=review", 20 * 60_000);
+    expect((await fixRuns(ctx, "t1"))[0]).toMatchObject({ id: before.id, running: true });
+    // t2：01:20 に始まった手直しの後、01:30 に返った前景の見直しは 10 分かかった（開始は手直しと同じ 01:20）
+    const sameSecond = await fixOf("t2");
+    clock = new Date("2026-11-08T01:30:00Z");
+    await foreground("a2", "deguboard: ticket=t2 step=review", 10 * 60_000);
+    expect((await fixRuns(ctx, "t2"))[0]).toMatchObject({
+      id: sameSecond.id,
+      result: "success",
+      finished_at: "2026-11-08T01:20:00Z",
+      running: false,
+    });
   });
 
   it("背景で起動した手直しは、run retry-reason がフックの開いた Run に理由を書き足し、回数を理由の数にする", async () => {
@@ -1555,12 +1641,14 @@ describe("手直しの Run の印と run retry-reason（ADR-018）", () => {
         session: SESSION,
       })
     ).data as Run;
+    // 見直しの Run は普段は開いた openRun が前の手直しを閉じるので、閉じずに開いた形（別のマシン・前の版の dg）を startRun で作る
     clock = new Date("2026-11-08T01:10:00Z");
-    await runCommand(runStart, ctx, {
+    await startRun(ctx.repo, {
       ticket: "t1",
       step: "review",
       agent: "claude-code",
       session: SESSION,
+      now: clock,
     });
     clock = new Date("2026-11-08T01:20:00Z");
     const held = await runCommand(runRetryReason, ctx, { ticket: "t1", reasons: ["次の指摘"] });

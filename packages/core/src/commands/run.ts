@@ -102,6 +102,7 @@ export function agentFromEnv(
  * Run を開く（run start と、agent の ticket claim が共有する。RN-5）。step がチケットの Workflow の steps になければ
  * VALIDATION_FAILED、同じチケットと step の Run が実行中なら startRun が ALREADY_EXISTS。
  * Workflow が読めない・Adapter のない agent・このマシンで同じ agent の Run が開いたままは警告して開く。
+ * 同じチケットの開いたままの手直しの Run は、この Run の開始を区切りとして閉じてから開く（closePreviousFixRun）。
  * retryReasons はもう一度の claim が開く手直しの Run に、直す指摘を最初から残すためのもの。
  * session・transcript は会話記録の場所（ADR-005）。session は Run に、transcript はこのマシンの deguboard-local/transcripts/ に置く。
  * 渡されなければ、harness のフックが環境に入れた DEGUBOARD_SESSION・DEGUBOARD_TRANSCRIPT を使う（ADR-012。セッションは sessionOf）。
@@ -149,6 +150,21 @@ export async function openRun(
       `agent ${agent} には Adapter がないので、finish は使用量とモデル名を取り込めない（Adapter のある名前: ${agentNames().join("・")}。サブエージェントも自分の Adapter の名前で始める）`,
     );
   }
+  const startedAt = input.startedAt ?? ctx.now();
+  // 同じチケットの次の Run の開始は、開いたままの手直しの Run の区切り。sync を待たずにその場で閉じてから開く（RN-6・ADR-022）。
+  // 閉じられなくても開くのは止めない（後の sync が同じ区切りで閉じる）
+  try {
+    await closePreviousFixRun(
+      ctx,
+      ticket,
+      { step, session, boundaryAt: toIsoDateTime(startedAt) },
+      warnings,
+    );
+  } catch (e) {
+    warnings.push(
+      `${ticket.id} の前の手直しの Run を閉じられなかった（${e instanceof Error ? e.message : String(e)}）`,
+    );
+  }
   // 同じ会話記録で期間が重なると、応答は後に始めた Run にだけ数える（ADR-005）。閉じ忘れに気づけるように知らせる
   const open = (await readRunningRuns(ctx.repo)).runs.filter((r) => r.data.agent === agent);
   if (open.length > 0) {
@@ -164,7 +180,7 @@ export async function openRun(
     retryReasons: input.retryReasons,
     session,
     transcript,
-    now: input.startedAt ?? ctx.now(),
+    now: startedAt,
   });
   return { run, warnings };
 }
@@ -406,7 +422,7 @@ class AlreadyClosed extends AbortWrite {}
 
 /**
  * 操作が開いた Run を、それだけの書き込み（commit.mode に従ってコミット）で閉じる。
- * もう一度の claim が、開いたままの前の手直しの Run を次の Run の開始の区切りとして閉じるのに使う（RN-6）。
+ * Run を開く処理が、開いたままの前の手直しの Run を次の Run の開始の区切りとして閉じるのに使う（RN-6）。
  * 別の文脈が先に閉じていた Run は、何も書かずに警告だけ返す（run は undefined）
  */
 export async function closeOpenedRunAlone(
@@ -441,19 +457,21 @@ export async function closeOpenedRunAlone(
 }
 
 /**
- * 開いたままの前の手直しの Run を、次の手直しの開始を区切りとして閉じる（RN-6）。もう一度の claim と、印 step=fix の起動のフック（ADR-018）が呼ぶ。
- * 前の Run の開始より後で区切り（boundaryAt。省けば今）までの最後の push の時刻で success にし、push がなければ区切りの時刻にする。
- * 前の Run が別のセッションで開いたものなら、そのセッションが落ちた残りとみなして interrupted で閉じる（ADR-015）。
+ * 開いたままの前の手直しの Run を、同じチケットの次の Run の開始（boundaryAt）を区切りとして閉じる（RN-6・ADR-022）。openRun が開く前に呼ぶので、
+ * claim・もう一度の claim・起動のフック・run start のどこから開いても同じ規則になる。
+ * 区切りの判定は sync の fixRunBoundary と同じで、手直しの Run の開始と同じ秒か後の開始だけを区切りに数える（前景の起動で前にした開始が手直しより前なら閉じない）。
+ * 前の Run の開始より後で区切りまでの最後の push の時刻で閉じ、push がなければ区切りの時刻にする。
+ * 結果は success。ただし手直しの step を開くとき、前の手直しが別のセッションで開いたものなら、そのセッションが落ちた残りとみなして interrupted にする（ADR-015）。
  * session は今の操作のセッション（どちらかが分からなければ success）。閉じた・閉じなかったことは warnings に入れる
  */
-export async function closePreviousFixRun(
+async function closePreviousFixRun(
   ctx: CommandContext,
   ticket: Ticket,
-  input: { session: string | undefined; boundaryAt?: string | undefined },
+  input: { step: string; session: string | undefined; boundaryAt: string },
   warnings: string[],
 ): Promise<Run | undefined> {
   const stale = await findOpenedRun(ctx, ticket, "reclaim");
-  if (!stale) return undefined;
+  if (!stale || input.boundaryAt < stale.data.started_at) return undefined;
   const pushedAt = ticket.branch
     ? await lastPushedAt(ctx.repo, ticket.branch, { fetch: true })
     : undefined;
@@ -462,7 +480,8 @@ export async function closePreviousFixRun(
     startedAt: stale.data.started_at,
     boundaryAt: input.boundaryAt,
   });
-  const interrupted = openedInOtherSession(stale.data, input.session);
+  const interrupted =
+    input.step === stale.data.step && openedInOtherSession(stale.data, input.session);
   const closed = await closeOpenedRunAlone(ctx, stale, {
     opener: "reclaim",
     ...(interrupted
@@ -472,15 +491,11 @@ export async function closePreviousFixRun(
   });
   // 別の文脈が先に閉じていたら、閉じずに警告だけ出す
   if (closed.run) {
-    const when = pushed
-      ? "最後の push の時刻"
-      : input.boundaryAt === undefined
-        ? "、push がないのでこの claim の時刻"
-        : "、push がないので起動の時刻";
+    const when = pushed ? "最後の push の時刻" : "、push がないので開始の時刻";
     warnings.push(
       interrupted
         ? `${ticket.id}: 前の手直しの Run ${stale.id} は別のセッション（${stale.data.session}）で開いたままだったので、落ちたセッションの残りとみなして interrupted で閉じる`
-        : `${ticket.id}: 前の手直しの Run ${stale.id} を、${input.boundaryAt === undefined ? "この claim " : "次の手直しの起動"}を区切りとして${when}で閉じる`,
+        : `${ticket.id}: 前の手直しの Run ${stale.id} を、次の ${input.step} の Run の開始を区切りとして${when}で閉じる`,
     );
   }
   warnings.push(...closed.warnings);
@@ -495,7 +510,7 @@ export const runStart = defineCommand({
   positionals: ["ticket", "step"],
   group: "run",
   summary:
-    "Run を始める。実行中の記録は deguboard-local/runs/ にだけ置き、Git には入れない。同じチケットと step の Run が実行中か、step がチケットの Workflow の steps にないなら拒否する。このマシンで同じ agent の Run が実行中なら警告して始める。Adapter のない agent 名でも拒まずに記録し、警告する。--agent を省けば、dg を呼んだエージェントを Adapter が環境変数から判定する（判定できなければ使い方の誤り）",
+    "Run を始める。実行中の記録は deguboard-local/runs/ にだけ置き、Git には入れない。同じチケットと step の Run が実行中か、step がチケットの Workflow の steps にないなら拒否する。このマシンで同じ agent の Run が実行中なら警告して始める。Adapter のない agent 名でも拒まずに記録し、警告する。同じチケットの開いたままの手直しの Run は、この開始を区切りとして、その Run の開始より後の最後の push の時刻（なければこの開始の時刻）で success にしてから始める（手直しの step を始めるとき、前の手直しの Run が別のセッションのものなら interrupted）。--agent を省けば、dg を呼んだエージェントを Adapter が環境変数から判定する（判定できなければ使い方の誤り）",
   input: z.object({
     ticket: ticketRef,
     step: token.describe("工程。チケットの Workflow の steps の id（dg workflow show で見る）"),
