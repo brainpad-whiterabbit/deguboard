@@ -1,0 +1,30 @@
+{
+  "id": "r20261108-042930-a87e",
+  "ticket": "t545",
+  "step": "review",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-08T04:29:30Z",
+  "finished_at": "2026-11-08T04:32:02Z",
+  "result": "interrupted",
+  "error": "人の判断で 3 回目の見直しを途中で止めた",
+  "retries": 0,
+  "retry_reasons": [],
+  "usage": {
+    "input": 16,
+    "output": 8660,
+    "cache_read": 295374,
+    "cache_write": 41685
+  },
+  "tools": {
+    "read": 0,
+    "search": 0,
+    "write": 1,
+    "bash": 9,
+    "other": 0,
+    "read_before_write": 0,
+    "search_before_write": 0
+  },
+  "session": "3a089f6d-148c-472e-b79a-46582557f8d9",
+  "review": null
+}
