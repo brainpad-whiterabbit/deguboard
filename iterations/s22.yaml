@@ -2,4 +2,5 @@ id: s22
 project: default
 name: sprint22
 goal: このリポジトリの開発の待ちを減らす（e16）
-status: planned
+status: active
+start: 2026-11-08
