@@ -352,7 +352,7 @@ describe("画面", () => {
     expect(client.calls.filter((c) => c.name === "workflow.show")).toHaveLength(1);
   });
 
-  it("エディタのパネルのチケット詳細は、編集のボタンをタイトルの下の属性の行の右端に置き、作成・更新を手元時刻で今年なら年を省いて出し、値のない属性を「なし」の 1 行にまとめる", async () => {
+  it("エディタのパネルのチケット詳細は、編集のボタンを出し、作成・更新を手元時刻で今年なら年を省いて出し、値のない属性を「なし」の 1 行にまとめる", async () => {
     // 作成（2026-01-01）が今年になるよう、今を 2026 年にする
     vi.useFakeTimers({ toFake: ["Date"], now: new Date("2026-06-01T00:00:00Z") });
     window.location.hash = "#/tickets/t3";
@@ -360,8 +360,14 @@ describe("画面", () => {
     await screen.findByRole("heading", { level: 1, name: "画面" });
     const edit = screen.getByRole("button", { name: "編集" });
     const meta = edit.closest(".detail-meta")!;
-    // 値のない Iteration・担当・PR は帯に出さない
-    expect(meta.querySelector('a[href^="#/iterations/"]')).toBeNull();
+    // 値のない Iteration・担当・PR は帯に出さない（リンクになる Iteration と PR は、どちらもないのでリンクもない）
+    expect(meta.querySelectorAll("a")).toHaveLength(0);
+    // 「なし」の行には値のない属性の名前を並べ、値のあるラベルは入れない
+    const none = document.querySelector(".props-empty")!.textContent!;
+    for (const label of ["Epic", "Iteration", "依存先", "依存元", "担当", "ブランチ", "PR"]) {
+      expect(none).toContain(label);
+    }
+    expect(none).not.toContain("ラベル");
     const created = screen.getByText("作成").nextElementSibling!.querySelector("time")!;
     expect(created.getAttribute("title")).toBe("2026-01-01T00:00:00Z");
     expect(created.textContent).toBe("01-01 00:00");
@@ -377,7 +383,7 @@ describe("画面", () => {
     expect(screen.getByText("なし", { selector: "dt" })).toBeTruthy();
   });
 
-  it("エディタのパネルのチケット詳細の右の列は、Status の選択を先頭に置き、属性を「計画・つながり・作業・記録」の見出しで分け、「なし」の 1 行を最後に出す", async () => {
+  it("エディタのパネルのチケット詳細の右の列は、Status の選択を出し、属性を「計画・つながり・作業・記録」の見出しで分け、値のない属性を「なし」の 1 行に出す", async () => {
     window.location.hash = "#/tickets/t9";
     const data = fixture({
       tickets: [
@@ -403,13 +409,17 @@ describe("画面", () => {
     expect(groupOf("記録")).toEqual(["起票者", "作成", "更新"]);
     // 値のない属性は「なし」の 1 行にまとめる
     expect(aside.querySelector("dd.props-empty")).toBeTruthy();
+    // 値のある Iteration・担当・ブランチは「なし」に入らず、値のない Epic・PR などは入る
+    const none = aside.querySelector(".props-empty")!.textContent!;
+    for (const label of ["Epic", "依存元", "PR", "ラベル"]) expect(none).toContain(label);
+    for (const label of ["Iteration", "担当", "ブランチ"]) expect(none).not.toContain(label);
     // 「＋足す」で選んだ属性は、値を入れている間だけ見出しの下の行に出る
     fireEvent.click(screen.getByRole("button", { name: "＋足す" }));
     fireEvent.change(screen.getByLabelText("値を入れる属性"), { target: { value: "epic" } });
     expect(groupOf("計画")).toEqual(["Iteration", "Epic", "担当", "優先度"]);
   });
 
-  it("エディタのパネルのチケット詳細は、依存先が終わっていなければ本文の上に依存先の ID と Status の帯を出し、依存先・依存元に Status の丸印を付けて終わった依存先を薄くする", async () => {
+  it("エディタのパネルのチケット詳細は、依存先が終わっていなければ依存先の ID と Status の帯を出し、依存先・依存元に Status の丸印を付けて終わった依存先を薄くする", async () => {
     window.location.hash = "#/tickets/t9";
     const data = fixture({
       tickets: [
@@ -495,10 +505,16 @@ describe("画面", () => {
     // 帯は ticket.show の pending_deps だけを出し、一覧にない別の Project の終わった依存先 t5 は出さない
     const band = document.querySelector(".deps-band")!;
     expect(band.querySelector('a[href="#/tickets/t5"]')).toBeNull();
+    // 帯は pending_deps の順に、終わっていない依存先の ID だけを並べる（t6 は Status がなく丸印なし）
+    expect([...band.querySelectorAll(".deps-band-item code")].map((e) => e.textContent)).toEqual([
+      "t2",
+      "t6",
+      "t7",
+    ]);
     expect(band.querySelectorAll(".status-dot")).toHaveLength(2);
   });
 
-  it("エディタのパネルのチケット詳細は、タイトルの直下の帯に Status の丸印・優先度・Iteration・担当・PR を 1 行で出す", async () => {
+  it("エディタのパネルのチケット詳細は、見出しの帯に Status の丸印・優先度・Iteration・担当・PR を出す", async () => {
     window.location.hash = "#/tickets/t9";
     const data = fixture({
       tickets: [
@@ -521,6 +537,9 @@ describe("画面", () => {
     expect(meta.querySelector(".status-dot.status-in_progress")).toBeTruthy();
     expect(meta.querySelector('a[href="https://github.com/o/r/pull/12"]')).toBeTruthy();
     expect(meta.querySelector('a[href="#/iterations/s1"]')).toBeTruthy();
+    // 優先度と担当は、それぞれの要素の文字として出る
+    expect(within(meta as HTMLElement).getByText("high")).toBeTruthy();
+    expect(within(meta as HTMLElement).getByText("eiki/agent")).toBeTruthy();
   });
 
   it("チケット詳細の PR は、リモートの Web の URL があれば PR のページへのリンクにし、なければ番号だけを出す", async () => {
@@ -1108,7 +1127,7 @@ describe("画面", () => {
     ]);
   });
 
-  it("サイドバーのバックログの行は担当者の列を出さず、自分か自分の agent の担当は出さず、別の人の担当だけ右端に頭文字の丸（agent なら汎用のアイコンを添える）で出す（全名はツールチップ）", async () => {
+  it("サイドバーのバックログの行は担当者の列を出さず、自分か自分の agent の担当は出さず、別の人の担当だけ頭文字の丸（agent なら汎用のアイコンを添える）で出す（全名はツールチップ）", async () => {
     const client = mockClient();
     client.data.tickets.push(
       ticket({ id: "t4", title: "自分", assignee: "eiki" }),
@@ -1170,7 +1189,7 @@ describe("画面", () => {
     expect(markOf("eiki の")!.getAttribute("title")).toBe("eiki");
   });
 
-  it("サイドバーのカンバンの行は担当の名前の列を出さず、右端の上の段（Plan の番号の左）に担当の印を出す。人は頭文字の丸、agent は持ち主の丸と Run の agent によらない汎用のアイコン", async () => {
+  it("サイドバーのカンバンの行は担当の名前の列を出さず、行の右端に担当の印を出す。人は頭文字の丸、agent は持ち主の丸と Run の agent によらない汎用のアイコン", async () => {
     const client = boardClient();
     client.data.tickets.push(
       ticket({ id: "t4", title: "人", assignee: "eiki", iteration: "s0" }),
@@ -1276,7 +1295,7 @@ describe("画面", () => {
     ).toEqual([false, false, false, true]);
   });
 
-  it("サイドバーのカンバンの行は、開いた Plan に入っていれば右端に Plan の番号を Plan の色で出し、todo なら着手可・待ちの相手・承認待ちを出す。入っていない未完了の行には破線の空き枠を出す。カンバンに状態の丸印は出さず、medium の行は優先度の印を出さない", async () => {
+  it("サイドバーのカンバンの行は、開いた Plan に入っていれば Plan の番号を Plan の色で出し、todo なら着手可・待ちの相手・承認待ちを出す。入っていない未完了の行には破線の空き枠を出す。カンバンに状態の丸印は出さず、medium の行は優先度の印を出さない", async () => {
     const client = boardClient();
     client.data.tickets.push(
       ticket({ id: "t4", title: "待つ", priority: "high", iteration: "s0" }),
@@ -1285,6 +1304,7 @@ describe("画面", () => {
       ticket({ id: "t7", title: "承認前", iteration: "s0" }),
       ticket({ id: "t8", title: "終わり外", status: "done", iteration: "s0" }),
       ticket({ id: "t9", title: "やめた外", status: "abandoned", iteration: "s0" }),
+      ticket({ id: "t10", title: "外の high", priority: "high", iteration: "s0" }),
     );
     client.data.plans.push(
       plan({
@@ -1300,6 +1320,7 @@ describe("画面", () => {
     const endOf = (title: string) => kanbanRowOf(title).querySelector(".row-end");
     // カンバンの行に状態の丸印は出さない。medium（ログイン）は優先度の印を出さない
     expect(document.querySelectorAll(".board .row .status-dot")).toHaveLength(0);
+    expect(kanbanRowOf("API").classList.contains("kanban-row")).toBe(true);
     expect(kanbanRowOf("ログイン").querySelector(".priority-mark")).toBeNull();
 
     // in_progress：上の段に優先度の印と Plan の番号（下の段は着手可・待ちの todo の行だけ）
@@ -1325,6 +1346,9 @@ describe("画面", () => {
     expect(slot.getAttribute("title")).toBe("開いた Plan に入っていない");
     expect(endOf("外")!.querySelector(".row-plan")).toBeNull();
     expect(endOf("外")!.querySelector(".priority-low")).toBeTruthy();
+    // Plan の外の high は優先度の札だけを出し、下の段（着手可・待ち・実行中）は出さない
+    expect(endOf("外の high")!.querySelector(".priority-high")).toBeTruthy();
+    expect(endOf("外の high")!.querySelector(".row-end-sub")).toBeNull();
     expect(endOf("閉じた計画")!.querySelector(".row-plan-slot")).toBeTruthy();
     // 開いた Plan に入っている行・done と中止の行には出ない
     expect(endOf("API")!.querySelector(".row-plan-slot")).toBeNull();
@@ -1372,7 +1396,8 @@ describe("画面", () => {
     expect(wait.querySelector(".row-wait")!.textContent).toBe("t1 待ち");
     expect(wait.querySelector(".row-wait")!.getAttribute("title")).toBe("t1 を待っている");
     // 優先度の印（high）は上の段の左端、Plan の番号の左。下の段は待ちだけ
-    expect(wait.querySelector(".row-end-top")!.textContent).toBe("highp7");
+    expect(wait.querySelector(".row-end-top .priority-high")).toBeTruthy();
+    expect(wait.querySelector(".row-end-top .row-plan")!.textContent).toBe("p7");
     expect(wait.querySelector(".priority-high")).toBeTruthy();
     expect(endOf("承認前")!.querySelector(".row-wait")!.textContent).toBe("承認待ち");
     // Plan に入っていない・閉じた Plan の行は medium なので右端に何も出さない
@@ -1432,13 +1457,14 @@ describe("画面", () => {
     // todo で Run が実行中（Plan の外）：頭に回るリング、右端の下の段に「実行中」
     const screenRow = kanbanRowOf("画面");
     expect(screenRow.classList.contains("has-head")).toBe(true);
-    expect(screenRow.firstElementChild!.classList.contains("activity-running")).toBe(true);
+    expect(screenRow.querySelector(".activity-running")).toBeTruthy();
     expect(screenRow.querySelector(".row-end-sub")!.textContent).toBe("実行中");
     // in_progress で Run のない行：止まった半分塗りの丸。優先度の印と Plan の番号は上の段、着手可・待ちのない行は下の段を出さない
     const api = kanbanRowOf("API");
-    expect(api.firstElementChild!.classList.contains("activity-idle")).toBe(true);
+    expect(api.querySelector(".activity-idle")).toBeTruthy();
     expect(api.querySelector(".row-running")).toBeNull();
-    expect(api.querySelector(".row-end-top")!.textContent).toBe("highp7");
+    expect(api.querySelector(".row-end-top .priority-high")).toBeTruthy();
+    expect(api.querySelector(".row-end-top .row-plan")!.textContent).toBe("p7");
     expect(api.querySelector(".row-end-sub")).toBeNull();
     // ほかの状態の行は頭に何も出さない
     expect(kanbanRowOf("ログイン").querySelector(".activity-mark")).toBeNull();
@@ -1447,13 +1473,10 @@ describe("画面", () => {
     // ターミナルで t3 の Run を閉じ、t2 の Run を始めた
     running = [runningRun("t2")];
     act(() => send()({ kind: "event", name: "reload" }));
-    await waitFor(() =>
-      expect(kanbanRowOf("API").firstElementChild!.classList.contains("activity-running")).toBe(
-        true,
-      ),
-    );
-    // Plan に入っている行は、優先度の印を上の段の Plan の番号の左に寄せ、下の段に「実行中」
-    expect(kanbanRowOf("API").querySelector(".row-end-top")!.textContent).toBe("highp7");
+    await waitFor(() => expect(kanbanRowOf("API").querySelector(".activity-running")).toBeTruthy());
+    // Plan に入っている行は、優先度の印を上の段に、下の段に「実行中」
+    expect(kanbanRowOf("API").querySelector(".row-end-top .priority-high")).toBeTruthy();
+    expect(kanbanRowOf("API").querySelector(".row-end-top .row-plan")!.textContent).toBe("p7");
     expect(kanbanRowOf("API").querySelector(".row-end-sub")!.textContent).toBe("実行中");
     expect(kanbanRowOf("画面").querySelector(".activity-mark")).toBeNull();
     expect(kanbanRowOf("画面").querySelector(".row-end-sub")).toBeNull();
@@ -1708,9 +1731,17 @@ describe("画面", () => {
     };
     mount(client, hostOf("panel"));
     await screen.findByRole("heading", { level: 2, name: "経過" });
-    await waitFor(() =>
-      expect(document.querySelectorAll(".timeline-list .timeline-text")).toHaveLength(3),
-    );
+    // 行の文は describeEvent が 1 つの文字列にしたもの（連結ではない）ので、行ごとに読んで並びを確かめる
+    const items = await waitFor(() => {
+      const list = [...document.querySelectorAll(".timeline-list .timeline-text")];
+      expect(list).toHaveLength(3);
+      return list.map((e) => e.textContent);
+    });
+    expect(items).toEqual([
+      "起票 ・ Todo",
+      "Todo → In Progress ・ 担当: eiki/agent",
+      "Iteration s1 から外した ・ PR #5",
+    ]);
     expect(screen.getByText(/これより前の経過は欠けている/)).toBeTruthy();
     // 同じ日付なので日付の行は 1 つ。各行は時刻だけと作者を出し、Status の変わらない行は中の空いた丸
     const days = [...document.querySelectorAll(".timeline-day")].map((e) => e.textContent);
@@ -1722,7 +1753,7 @@ describe("画面", () => {
     expect(document.querySelectorAll(".timeline-list .status-dot-empty")).toHaveLength(1);
   });
 
-  it("サイドバーのバックログは検索欄の右端の漏斗で絞り込みの欄を開閉し、漏斗は条件が効いている間だけ色付き。件数は絞っているときだけ「n / m 件」でチップの行の右端に出て、消すボタンは条件があるときだけ", async () => {
+  it("サイドバーのバックログは検索欄の漏斗で絞り込みの欄を開閉し、漏斗は条件が効いている間だけ色付き。件数は絞っているときだけ「n / m 件」を出し、消すボタンは条件があるときだけ", async () => {
     window.location.hash = "#/backlog";
     const host = hostOf("sidebar");
     mount(mockClient(), host);
@@ -1804,13 +1835,16 @@ describe("画面", () => {
       expect(s.querySelectorAll("summary > .head-line")).toHaveLength(1);
     }
     expect(s2!.querySelector("summary .name")!.textContent).toBe("s2 次");
+    // 0 件の区画は件数の「0 件」を出す
+    expect(s2!.querySelector("summary .count")!.textContent).toBe("0 件");
     expect(none!.querySelector("summary .name")!.textContent).toBe("Iteration なし");
+    expect(none!.querySelector("summary .count")!.textContent).toBe("0 件");
     expect(none!.querySelector("summary .name")!.children).toHaveLength(0);
     // Iteration を作るのはエージェントに頼む（ADR-027）
     expect(screen.queryByRole("button", { name: "Iteration を作る" })).toBeNull();
   });
 
-  it("サイドバーのバックログの行は区画の中も区画なしの一覧も右端に high・low の印（矢印と文字）を出し medium は出さず、low の区切りの行を入れず、状態の丸印は todo だけ白抜きにする", async () => {
+  it("サイドバーのバックログの行は区画の中も区画なしの一覧も high・low の印（矢印と文字）を出し medium は出さず、low の区切りの行を入れず、状態の丸印は todo だけ白抜きにする", async () => {
     window.location.hash = "#/backlog";
     const client = mockClient();
     client.data.iterations = [iteration({ id: "s1", name: "今", status: "active" })];
@@ -1886,7 +1920,7 @@ describe("画面", () => {
     expect(screen.queryByRole("button", { name: /Epic なし/ })).toBeNull();
   });
 
-  it("サイドバーのバックログは検索欄の下に「自分」「作業中」「high」のチップを 1 行で出し、押すと絞り、効いているチップは塗る。もう一度押すと外れる。「自分」は操作している人か、その人の agent が担当のチケットに絞る", async () => {
+  it("サイドバーのバックログは「自分」「作業中」「high」のチップを 1 行で出し、押すと絞り、効いているチップは塗る。もう一度押すと外れる。「自分」は操作している人か、その人の agent が担当のチケットに絞る", async () => {
     window.location.hash = "#/backlog";
     const client = mockClient();
     client.data.tickets.push(
@@ -1970,7 +2004,7 @@ describe("画面", () => {
     expect(screen.getByText("画面")).toBeTruthy();
   });
 
-  it("サイドバーのバックログは漏斗で開いた欄で効いている条件を検索欄の下に札で出し、× で外せる。× の読み上げは何を外すかを言う", async () => {
+  it("サイドバーのバックログは漏斗で開いた欄で効いている条件を札で出し、× で外せる。× の読み上げは何を外すかを言う", async () => {
     window.location.hash = "#/backlog";
     mount(mockClient(), hostOf("sidebar"));
     await screen.findByText("API");
@@ -2019,6 +2053,42 @@ describe("画面", () => {
     expect(chips[1]!.getAttribute("aria-pressed")).toBe("true");
     expect(screen.getByText("画面")).toBeTruthy();
     expect(screen.queryByText("API")).toBeNull();
+  });
+
+  it("サイドバーのバックログの Epic のチップが 2 行を超えるときは「ほか N」にまとめ、読み上げは Epic の言葉で出し、開くと「Epic なし」を残して並ぶ", async () => {
+    window.location.hash = "#/backlog";
+    // jsdom は配置をしないので、1 行に 3 つ並ぶとして位置を返す（chips.test.tsx と同じ）
+    const original = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "offsetTop")!;
+    Object.defineProperty(HTMLElement.prototype, "offsetTop", {
+      configurable: true,
+      get(this: HTMLElement) {
+        const row = this.parentElement;
+        if (!row?.classList.contains("chip-row")) return 0;
+        return Math.floor([...row.children].indexOf(this) / 3) * 20;
+      },
+    });
+    try {
+      const client = mockClient();
+      const base = client.data.epics[0]!;
+      client.data.epics = [1, 2, 3, 4, 5, 6].map((n) => ({ ...base, id: `e${n}`, title: `E${n}` }));
+      mount(client, hostOf("sidebar"));
+      await screen.findByText("API");
+      const group = screen.getByRole("group", { name: "Epic で絞る" });
+      const labels = () =>
+        [...group.querySelectorAll(".chip")].map(
+          (c) => c.querySelector("code")?.textContent ?? c.textContent,
+        );
+      await waitFor(() => expect(labels()).toEqual(["e1", "e2", "e3", "e4", "e5", "ほか 2"]));
+      const more = screen.getByRole("button", { name: "Epic をあと 2 本出す" });
+      expect(more.getAttribute("aria-expanded")).toBe("false");
+      fireEvent.click(more);
+      expect(labels()).toEqual(["e1", "e2", "e3", "e4", "e5", "e6", "Epic なし1", "畳む"]);
+      expect(
+        screen.getByRole("button", { name: "Epic を畳む" }).getAttribute("aria-expanded"),
+      ).toBe("true");
+    } finally {
+      Object.defineProperty(HTMLElement.prototype, "offsetTop", original);
+    }
   });
 
   it("エディタのパネルの Iteration 詳細は「この Iteration でカンバンを見る」でその Iteration で絞ったカンバンをサイドバーに出してもらい、閉じた Iteration では出さない", async () => {
@@ -2082,7 +2152,7 @@ describe("画面", () => {
     ]);
   });
 
-  it("Iteration 詳細の見出しの下は期間（短い形と残り・超過の日数）・目標・進捗を別の行に出す（UI-5）", async () => {
+  it("Iteration 詳細は期間（短い形と残り・超過の日数）・目標・進捗を別の行に出す（UI-5）", async () => {
     vi.useFakeTimers({ toFake: ["Date"], now: new Date(2026, 10, 17, 12) });
     const client = mockClient();
     client.data.iterations = [
@@ -2176,9 +2246,9 @@ describe("画面", () => {
         ? { data: {}, warnings: ["push できない: offline"] }
         : original(name, input)) as typeof client.run;
     fireEvent.change(screen.getByLabelText("Status"), { target: { value: "in_progress" } });
-    expect((await screen.findByText(/push できない/)).closest(".notice")!.className).toBe(
-      "notice info",
-    );
+    const notice = (await screen.findByText(/push できない/)).closest(".notice")!;
+    expect(notice.classList.contains("info")).toBe(true);
+    expect(notice.classList.contains("error")).toBe(false);
     await act(async () => {
       await vi.advanceTimersByTimeAsync(INFO_NOTICE_MS + 100);
     });

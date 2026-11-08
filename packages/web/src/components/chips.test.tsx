@@ -60,9 +60,17 @@ describe("ChipRow", () => {
     render(chipRow("f"));
     // 2 行に収まる数まで減らし、選んだ f は隠さず出す分の最後に回す
     await waitFor(() => expect(shown()).toEqual(["a", "b", "c", "d", "f", "ほか 2"]));
-    fireEvent.click(screen.getByRole("button", { name: /あと 2 個/ }));
+    // 畳んでいる間の「ほか N」は aria-expanded が false
+    const more = screen.getByRole("button", { name: /あと 2 個/ });
+    expect(more.getAttribute("aria-expanded")).toBe("false");
+    fireEvent.click(more);
     expect(shown()).toEqual(["a", "b", "c", "d", "e", "f", "g", "畳む"]);
-    fireEvent.click(screen.getByRole("button", { name: "畳む" }));
+    // 開いている間の「畳む」は aria-expanded が true
+    const less = screen.getByRole("button", { name: "畳む" });
+    expect(less.getAttribute("aria-expanded")).toBe("true");
+    fireEvent.click(less);
     await waitFor(() => expect(shown()).toEqual(["a", "b", "c", "d", "f", "ほか 2"]));
+    // 畳んだ後も、選んだ f は残り、押した状態のまま出る
+    expect(document.querySelector('.chip[aria-pressed="true"]')!.textContent).toBe("f");
   });
 });

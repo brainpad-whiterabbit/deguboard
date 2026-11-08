@@ -80,6 +80,8 @@ describe("前回の一覧の cache", () => {
     mount(client, state, state);
     expect(screen.getByText("読み込み中…")).toBeTruthy();
     expect(document.querySelectorAll(".skeleton-section")).toHaveLength(3);
+    // 読み込み中は、読み終えた後の空状態（開いた Iteration がない）を出さない
+    expect(screen.queryByText(/開いた Iteration（planned・active）はない/)).toBeNull();
     release();
     await screen.findByText("ログイン");
     expect(document.querySelector(".skeleton")).toBeNull();
