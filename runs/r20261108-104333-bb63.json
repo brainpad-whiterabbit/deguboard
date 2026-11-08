@@ -1,0 +1,32 @@
+{
+  "id": "r20261108-104333-bb63",
+  "ticket": "t496",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-08T10:43:33Z",
+  "finished_at": "2026-11-08T10:45:35Z",
+  "result": "success",
+  "error": null,
+  "retries": 1,
+  "retry_reasons": [
+    "ADR-023 の置き換え範囲に ADR-010 の頼む小窓・入力欄の 2 か所が入らず、ADR-010 の印と食い違う"
+  ],
+  "usage": {
+    "input": 18,
+    "output": 10826,
+    "cache_read": 400109,
+    "cache_write": 53749
+  },
+  "tools": {
+    "read": 4,
+    "search": 0,
+    "write": 1,
+    "bash": 6,
+    "other": 1,
+    "read_before_write": 4,
+    "search_before_write": 0
+  },
+  "session": "9dfcafec-d8b9-4deb-8115-01ef1e339e7b",
+  "review": null
+}
