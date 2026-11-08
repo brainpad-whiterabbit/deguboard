@@ -2,6 +2,7 @@ import { readdir } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { createFixture, git } from "../../test/helpers/git-fixture.js";
+import { recordBaseline } from "../git/outside.js";
 import { emptyUsage } from "../model/run.js";
 import { openContext } from "./context.js";
 import { runCommand, type CommandContext } from "./define.js";
@@ -71,6 +72,8 @@ async function scenario(): Promise<CommandContext> {
     result: null,
     usage: emptyUsage(),
   });
+  // ストアに直に置いた Run を dg の書き込みとみなす（dg の外の変更の検査の基準。ADR-021）
+  await recordBaseline(ctx.repo);
   await runCommand(commit, ctx, {});
   return ctx;
 }
@@ -178,6 +181,7 @@ describe("metrics show", () => {
       retries: 0,
       usage: emptyUsage(),
     });
+    await recordBaseline(ctx.repo);
     expect((await runCommand(metricsShow, ctx, {})).warnings).toEqual([]);
     const r = await runCommand(metricsShow, ctx, { by: "project" });
     expect(r.warnings[0]).toContain("t9");

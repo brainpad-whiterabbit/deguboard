@@ -235,7 +235,7 @@ export function buildProgram(options: ProgramOptions = {}): Command {
       .command(action)
       .description(
         action === "install"
-          ? "Claude Code の設定（<リポジトリ>/.claude/settings.json）に dg hook を呼ぶフックを書く。入ったかと動くかは dg hooks check で確かめる。主体を agent にし、頼んだ文の先頭に印 `deguboard: ticket=<id> step=<step>` のあるサブエージェントの Run を起動で開き、step を終えたら閉じる。dg を経由しない gh pr merge・gh pr ready（dg pr merge・dg pr ready が dg gate を通してから呼ぶ）と .git/deguboard/ への書き込みを拒む。もう一度実行しても重ならず、手で足したフックは残す"
+          ? "Claude Code の設定（<リポジトリ>/.claude/settings.json）に dg hook を呼ぶフックを書く。入ったかと動くかは dg hooks check で確かめる。主体を agent にし、頼んだ文の先頭に印 `deguboard: ticket=<id> step=<step>` のあるサブエージェントの Run を起動で開き、step を終えたら閉じる。dg を経由しない gh pr merge・gh pr ready（dg pr merge・dg pr ready が dg gate を通してから呼ぶ）と、.git/deguboard/ への書き込み・.git/deguboard の語を含む Bash を拒む。応答を終えたとき（Stop）にデータの dg の外の変更を見つけたら、止まらずに続けさせて伝える。もう一度実行しても重ならず、手で足したフックは残す"
           : "Claude Code の設定から dg のフックだけを外す。手で足したフックは残す",
       )
       .option("--personal", "リポジトリではなく個人の設定（~/.claude/settings.json）に書く")

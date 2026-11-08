@@ -5,6 +5,7 @@ import { OperationError } from "../errors.js";
 import type { Config } from "../model/config.js";
 import type { Store } from "../storage/store.js";
 import { withLock } from "./lock.js";
+import { checkOutside, recordBaseline } from "./outside.js";
 import { requireIdentity, type GitRepo } from "./repo.js";
 import {
   amendAll,
@@ -79,7 +80,22 @@ export async function withWrite<T>(
   mutate: () => Promise<T>,
   opts: WriteOptions<T>,
 ): Promise<WriteResult<T>> {
-  return withLock(ctx.repo.localDir, "write", () => writeLocked(ctx, mutate, opts));
+  return withWriteLock(ctx.repo, () => writeLocked(ctx, mutate, opts));
+}
+
+/**
+ * データのリポジトリに書く処理を、同じマシンの書き込みのロックの中で行う。ロックを放す前に、書いた後の状態を dg の外の変更を
+ * 見つける基準に記録する（ADR-021）。書く前に dg の外の変更があったときは記録しない（見つけた変更を dg の書き込みで隠さない）
+ */
+export async function withWriteLock<T>(repo: GitRepo, fn: () => Promise<T>): Promise<T> {
+  return withLock(repo.localDir, "write", async () => {
+    const before = await checkOutside(repo, { underLock: true });
+    try {
+      return await fn();
+    } finally {
+      if (before.kind === "clean") await recordBaseline(repo).catch(() => undefined);
+    }
+  });
 }
 
 async function writeLocked<T>(

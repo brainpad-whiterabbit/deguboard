@@ -14,6 +14,7 @@ export type OperationErrorCode =
   | "NOT_INITIALIZED"
   | "UNKNOWN_COMMAND"
   | "GATE_FAILED"
+  | "OUTSIDE_CHANGES"
   | "REJECTED";
 
 export class DeguboardError extends Error {

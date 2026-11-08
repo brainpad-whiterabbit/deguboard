@@ -8,6 +8,7 @@ import { runCommand, type CommandContext } from "../commands/define.js";
 import { init, sync } from "../commands/setup.js";
 import { ticketCreate, ticketUpdate } from "../commands/ticket.js";
 import { mergeDocuments, mergeDriverCommandLine } from "./merge.js";
+import { recordBaseline } from "./outside.js";
 import { CONFLICT_REMEDY, withWrite } from "./write.js";
 
 const cleanups: Array<() => Promise<void>> = [];
@@ -156,6 +157,8 @@ describe("同期のマージドライバ", () => {
     await git(a.repo.dataDir, ["config", "--unset", "merge.deguboard.driver"]);
     await git(a.repo.dataDir, ["rm", "-q", ".gitattributes"]);
     await git(a.repo.dataDir, ["commit", "-qm", "古いリポジトリを模す"]);
+    // 古い版の dg が作った（印のない）コミットを模すので、検査の基準をここに置く（ADR-021）
+    await recordBaseline(a.repo);
     await runCommand(sync, a, {});
     const driver = await git(a.repo.dataDir, ["config", "--get", "merge.deguboard.driver"]);
     expect(driver.stdout.trim()).toBe(mergeDriverCommandLine(DRIVER));

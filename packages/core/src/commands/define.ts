@@ -2,6 +2,7 @@
 
 import type { z } from "zod";
 import { OperationError, UsageError } from "../errors.js";
+import { checkOutside, describeOutside, outsideRemedy } from "../git/outside.js";
 import type { ActorKind, UserSource } from "../model/actor.js";
 import type { WriteContext, WriteOutcome } from "../git/write.js";
 import type { WorktreeOrigin } from "../git/worktree.js";
@@ -56,6 +57,11 @@ export interface CommandDef<I extends z.ZodType, O> {
    * 何度も呼ばれて待ちが効く操作のためにある（dg hook の PreToolUse。t554）。config を読まないので actor.human_only も検査しない
    */
   storeless?(input: z.output<I>, env: Readonly<Record<string, string | undefined>>): boolean;
+  /**
+   * dg の外の変更の検査（ADR-021）を runCommand で行わない。自分で扱うコマンドだけが付ける（取り込む dg adopt と、
+   * Stop で確かめてエージェントに返し、ほかのイベントで作業を止めない dg hook）
+   */
+  ownsOutsideCheck?: boolean;
   run(ctx: CommandContext, input: z.output<I>): Promise<CommandResult<O>>;
 }
 
@@ -73,7 +79,9 @@ export function ok<O>(data: O, write?: WriteOutcome, warnings: string[] = []): C
 /**
  * 入力を検証してから実行する。形の誤りは UsageError（終了コード 2）。
  * config の actor.human_only に入ったコマンドは agent から拒否する（全入口がここを通るので検査は 1 か所）。
- * ストアを開いていない文脈（storeless）では config がないので検査しない
+ * ストアを開いていない文脈（storeless）では config がないので検査しない。
+ * データのリポジトリに dg の外の変更（ADR-021）があれば、書くコマンドは OUTSIDE_CHANGES で止め、読むだけのコマンドは警告を足す
+ * （ストアを開かない文脈・初期化の前に動く needs: repo・検査を自分で扱うコマンドでは見ない）
  */
 export async function runCommand<I extends z.ZodType, O>(
   def: CommandDef<I, O>,
@@ -95,5 +103,24 @@ export async function runCommand<I extends z.ZodType, O>(
       `${def.name} は設定（actor.human_only）で人だけに限られている（--actor human で実行する）`,
     );
   }
-  return def.run(ctx, parsed.data);
+  const check =
+    ctx.storeless || def.needs === "repo" || def.ownsOutsideCheck
+      ? undefined
+      : await checkOutside(ctx.repo);
+  if (check?.kind === "found" && def.write)
+    throw new OperationError(
+      "OUTSIDE_CHANGES",
+      `データのリポジトリに dg の外の変更があるので、${def.name} は書かない。${outsideRemedy(check.changes)}`,
+      describeOutside(check.changes),
+    );
+  const result = await def.run(ctx, parsed.data);
+  if (check?.kind === "found")
+    return {
+      ...result,
+      warnings: [
+        ...result.warnings,
+        `データのリポジトリに dg の外の変更がある（${describeOutside(check.changes)}）。${outsideRemedy(check.changes)}`,
+      ],
+    };
+  return result;
 }

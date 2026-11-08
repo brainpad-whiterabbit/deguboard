@@ -24,6 +24,7 @@ import { iterationAdd, iterationCreate } from "./iteration.js";
 import { projectCreate } from "./project.js";
 import { ticketClaim, ticketCreate, ticketList, type TicketRow } from "./ticket.js";
 import { amendRunning, finishRun, peekRunningRuns } from "../run/record.js";
+import { recordBaseline } from "../git/outside.js";
 import type { Run } from "../model/run.js";
 
 vi.mock("node:fs/promises", async (importOriginal) =>
@@ -534,6 +535,7 @@ describe("run", () => {
     await expect(start(ctx, "t1", "investigate")).resolves.toMatchObject({ step: "investigate" });
     // 利用者の既存の YAML（steps なし）は今までどおり任意の step を受ける
     await ctx.store.writeWorkflow({ id: "general", name: "General" });
+    await recordBaseline(ctx.repo);
     await expect(start(ctx, "t1", "deploy")).resolves.toMatchObject({ step: "deploy" });
     // Workflow が読めなければ確かめずに始め、警告する
     ctx.store.workflows.delete("general");
@@ -558,6 +560,7 @@ describe("run", () => {
         { id: "implement", label: "Implement" },
       ],
     });
+    await recordBaseline(ctx.repo);
     const old = await start(ctx, "t1", "plan");
     await runCommand(runFinish, ctx, { run: old.id, result: "success" });
     await ctx.store.writeWorkflow({
@@ -565,6 +568,7 @@ describe("run", () => {
       name: "General",
       steps: [{ id: "implement", label: "Implement" }],
     });
+    await recordBaseline(ctx.repo);
     const validated = await runCommand(workflowValidate, ctx, { workflow: "general" });
     expect(validated.warnings).toEqual([]);
     const all = await runCommand(validate, ctx, {});
@@ -579,11 +583,14 @@ describe("run", () => {
 
   it("読み込み時と workflow.validate が、渡した Action の一覧にない Action（警告）と同じ step の重複（エラー）を指摘する（WF-3）", async () => {
     const ctx = await prepared();
-    const writeGeneral = (steps: string[]) =>
-      writeFile(
+    // 利用者が Workflow を直に書いて dg adopt で取り込んだ状態にする（ADR-021）
+    const writeGeneral = async (steps: string[]) => {
+      await writeFile(
         path.join(ctx.repo.dataDir, "workflows/general.yaml"),
         ["id: general", "name: General", "steps:", ...steps, ""].join("\n"),
       );
+      await recordBaseline(ctx.repo);
+    };
     const reopen = () =>
       openContext({
         cwd: ctx.repo.topLevel,

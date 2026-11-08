@@ -36,7 +36,7 @@ interface Ran {
   };
 }
 
-/** 制約を書いた Workflow（strict）を clone のデータディレクトリに置く */
+/** 制約を書いた Workflow（strict）を clone のデータディレクトリに直に置き、dg adopt で取り込む（ADR-021） */
 async function writeStrictWorkflow(clone: string): Promise<void> {
   await writeFile(
     path.join(clone, ".git/deguboard/workflows/strict.yaml"),
@@ -49,6 +49,8 @@ async function writeStrictWorkflow(clone: string): Promise<void> {
       "",
     ].join("\n"),
   );
+  const adopted = await dg(clone, ["--json", "adopt"]);
+  expect(adopted.json()).toMatchObject({ ok: true, data: { adopted: true } });
 }
 
 /** dg を in-process で動かす */
