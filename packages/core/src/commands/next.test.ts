@@ -211,23 +211,33 @@ describe("dg next と ticket show の stage（EX-3）", () => {
     ).toMatchObject({
       kind: "wait_human",
     });
-    // 失敗の後に人が続けると決めて開き直した手直しが成功し push したら、見直しに戻る
-    expect(
-      kind(
-        facts({
-          pushedAt: "2026-11-07T10:20:00Z",
-          runs: [review(6, heavy), run("fix", 7, { result: "failure" }), run("fix", 10)],
-        }),
-      ),
-    ).toMatchObject({ kind: "review", stage: { name: "fixed" } });
-    // 手直しが実行中のまま push が出ても、見直しを起動させない
-    const fixing = kind(
+    // 失敗の後に人が続けると決めて開き直した手直しを push したら、開いたままでも見直しに戻る
+    const reopened = kind(
       facts({
         pushedAt: "2026-11-07T10:20:00Z",
+        runs: [
+          review(6, heavy),
+          run("fix", 7, { result: "failure" }),
+          run("fix", 10, { finished_at: null, result: null }),
+        ],
+      }),
+    );
+    expect(reopened).toMatchObject({ kind: "review", stage: { name: "fixed" }, running_run: null });
+    expect(reopened.commands[0]).toContain("deguboard: ticket=t1 step=review");
+    // 手直しが実行中で、開始より後に push がまだなければ、見直しを起動させず終わりを待つ
+    const fixing = kind(
+      facts({ runs: [review(6, heavy), run("fix", 7, { finished_at: null, result: null })] }),
+    );
+    expect(fixing).toMatchObject({ kind: "fix", running_run: expect.any(String) });
+    expect(fixing.commands).toEqual([expect.stringContaining("終わりを待つ")]);
+    // 開始より前の push（pushedAt が undefined でも）は、直し終えた push とみなさない
+    const noPush = kind(
+      facts({
+        pushedAt: undefined,
         runs: [review(6, heavy), run("fix", 7, { finished_at: null, result: null })],
       }),
     );
-    expect(fixing.commands).toEqual([expect.stringContaining("終わりを待つ")]);
+    expect(noPush.commands).toEqual([expect.stringContaining("終わりを待つ")]);
     // 上限を超えた後は push があっても人を待つ
     expect(
       kind(
@@ -248,6 +258,48 @@ describe("dg next と ticket show の stage（EX-3）", () => {
       step: "review",
       running_run: waiting.id,
     });
+  });
+
+  it("実行中の Run で置き換えるのは実装・見直し・手直し・ready の手だけ。使い回したブランチの前に始まった Run は数えない", async () => {
+    const ctx = await prepared();
+    const kind = (f: StageFacts) => nextOf(ctx, f);
+    const openFix = run("fix", 7, { finished_at: null, result: null });
+    // 完了（done）・依存待ち（wait_deps）・マージ待ち（wait_merge）は、実行中の Run があっても待たない
+    expect(
+      kind(
+        facts({
+          ticket: { status: "done" },
+          runs: [run("implement", 1, { finished_at: null, result: null })],
+        }),
+      ),
+    ).toMatchObject({ kind: "done", commands: [] });
+    expect(
+      kind(
+        facts({
+          ticket: { status: "todo", pr: undefined },
+          waiting: ["t2"],
+          runs: [run("implement", 1, { finished_at: null, result: null })],
+        }),
+      ),
+    ).toMatchObject({ kind: "wait_deps", commands: [] });
+    const merge = kind(
+      facts({
+        ticket: { status: "review" },
+        runs: [review(6, passed), openFix],
+        pushedAt: "2026-11-07T10:05:00Z",
+      }),
+    );
+    expect(merge).toMatchObject({ kind: "wait_merge" });
+    expect(merge.commands).toEqual([expect.stringContaining("gate t1 --for merge")]);
+    // branch_at より前に始まった実装の Run は、このブランチの作業ではないので待たない
+    const stale = kind(
+      facts({
+        ticket: { pr: undefined, branch_at: "2026-11-07T10:03:00Z" },
+        runs: [run("implement", 1, { finished_at: null, result: null })],
+      }),
+    );
+    expect(stale).toMatchObject({ kind: "implement", running_run: null });
+    expect(stale.commands[0]).toContain("deguboard: ticket=t1 step=implement");
   });
 
   it("CLI・HTTP・MCP が写す一覧に next があり、読み取りだけ（write: false）", () => {
