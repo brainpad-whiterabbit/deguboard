@@ -1,0 +1,46 @@
+{
+  "id": "r20261108-074253-356d",
+  "ticket": "t535",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-08T07:42:53Z",
+  "finished_at": "2026-11-08T07:51:14Z",
+  "result": "success",
+  "error": null,
+  "retries": 15,
+  "retry_reasons": [
+    "guide-work の ready の手と guide-review の通った: PR を見ない Workflow で review に進める手順を 1 行足す",
+    "guide-overview の Run の説明が消えた節を参照し古い開き方を書いている: 親の claim と PR の記録に縮める",
+    "guide-release の消えた手順番号への参照: 実在する節名に直す",
+    "brief の見直し文が文書との食い違いを無条件に重い指摘にしている: この PR の変更分だけ重い指摘に直す",
+    "models.light の調べものの指示が guide-work から消えている: implement の項に 1 句足す",
+    "guide 間の重複（一時ファイル・brief fix・pr ready）: 1 か所に置き他は参照にする",
+    "上限超え後に人が続けて直すを選んだ時の進め方が書かれていない: brief の fix と review で回す手順を足す",
+    "guide-all の段階の順が元と違う: 作業の後に計画の順へ戻す",
+    "review の閉じ方の 1 句が足りない: run finish の失敗での閉じ方を足す",
+    "parallel の人を待つチケットを枠に数えない記述が消えた: 戻す",
+    "all の plan show で読み直す指示とマージ方法の渡し方が消えた: 戻す",
+    "run の claim は単独で呼ぶ指示が消えた: 戻す",
+    "work の done 条件の照合で進まないときの記述が消えた: 戻す",
+    "フックが Run を開くのは dg hooks install のときだけという 1 句が足りない: 足す",
+    "parallel の next の手の説明が曖昧: next が返すチケットの語に直す"
+  ],
+  "usage": {
+    "input": 74,
+    "output": 76561,
+    "cache_read": 4351397,
+    "cache_write": 175790
+  },
+  "tools": {
+    "read": 19,
+    "search": 0,
+    "write": 55,
+    "bash": 22,
+    "other": 0,
+    "read_before_write": 14,
+    "search_before_write": 0
+  },
+  "session": "08b8fc16-bc4f-4f7b-a4f4-6dd1e4bbe4a9",
+  "review": null
+}
