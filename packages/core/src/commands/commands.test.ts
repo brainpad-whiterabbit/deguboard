@@ -1325,6 +1325,67 @@ describe("チケットの流れ", () => {
     }
   });
 
+  it("サブエージェントのもう一度の claim は、DEGUBOARD_SESSION がなくても Claude Code が環境に付けるセッション ID で手直しの Run を開き、別のセッションの前の手直しを interrupted で閉じる（ADR-016）", async () => {
+    const f = await fixture();
+    let clock = new Date("2026-11-06T00:00:00Z");
+    const human = await initialized(
+      f.cloneA,
+      { now: () => clock },
+      { template: "software-development" },
+    );
+    await runCommand(ticketCreate, human, { title: "Subagent fix" });
+    const agent = await agentWithRuns(f.cloneA, () => clock);
+    await runCommand(ticketClaim, agent, { ticket: "t1", branch: "feat/t1", no_run: true });
+    const restore = await fakeGh(f.root, {
+      "41": '{"number":41,"state":"OPEN","isDraft":true,"mergedAt":null,"createdAt":"2026-11-06T00:20:00Z"}',
+    });
+    // サブエージェントの Bash の環境：SessionStart のフックの DEGUBOARD_SESSION は届かず、Claude Code が親のセッションの ID を付ける
+    const subagentOf = (session: string) => {
+      agent.env = {
+        HOME: agent.env!["HOME"],
+        AI_AGENT: "claude-code_2-1-319_agent",
+        CLAUDE_CODE_SESSION_ID: session,
+      };
+    };
+    try {
+      clock = new Date("2026-11-06T00:30:00Z");
+      await runCommand(ticketUpdate, agent, { ticket: "t1", pr: 41 });
+      clock = new Date("2026-11-06T01:00:00Z");
+      subagentOf("s-old");
+      const fix1 = (await runCommand(ticketClaim, agent, { ticket: "t1" })).data.run!;
+      // 開いた手直しの Run に、起動した親のセッションの ID が入る
+      expect((await peekRunningRuns(agent.repo)).map((r) => [r.id, r.session])).toEqual([
+        [fix1, "s-old"],
+      ]);
+      // s-old が落ちて fix1 が開いたまま残り、別のセッションのサブエージェントが手直しを始める
+      clock = new Date("2026-11-06T02:00:00Z");
+      subagentOf("s-new");
+      const again = await runCommand(ticketClaim, agent, { ticket: "t1" });
+      const fix2 = again.data.run!;
+      expect(again.warnings).toContainEqual(
+        `t1: 前の手直しの Run ${fix1} は別のセッション（s-old）で開いたままだったので、落ちたセッションの残りとみなして interrupted で閉じる`,
+      );
+      expect(agent.store.runs.get(fix1)!.data).toMatchObject({
+        result: "interrupted",
+        error: STALE_SESSION_ERROR,
+      });
+      // 同じセッションのサブエージェントの前の手直しは、今までどおりこの claim を区切りとして success
+      clock = new Date("2026-11-06T03:00:00Z");
+      const third = await runCommand(ticketClaim, agent, { ticket: "t1" });
+      expect(agent.store.runs.get(fix2)!.data).toMatchObject({ result: "success", error: null });
+      // フックが入れた DEGUBOARD_SESSION があれば、そちらを先に使う（親の Bash）
+      agent.env = { ...agent.env, DEGUBOARD_SESSION: "s-env" };
+      clock = new Date("2026-11-06T04:00:00Z");
+      const fourth = await runCommand(ticketClaim, agent, { ticket: "t1" });
+      expect(agent.store.runs.get(third.data.run!)!.data.result).toBe("interrupted");
+      expect((await peekRunningRuns(agent.repo)).map((r) => [r.id, r.session])).toEqual([
+        [fourth.data.run, "s-env"],
+      ]);
+    } finally {
+      restore();
+    }
+  });
+
   it("もう一度の claim が閉じる前の手直しの Run を別の文脈が先に閉じていても、claim は止まらずに警告し、新しい手直しの Run を開く（RN-6）", async () => {
     const f = await fixture();
     let clock = new Date("2026-11-06T00:00:00Z");

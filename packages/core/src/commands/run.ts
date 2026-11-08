@@ -9,6 +9,7 @@ import {
   collectRunUsage,
   detectAgent,
   hooksOf,
+  sessionFromEnv,
   type RunSpan,
 } from "../agents/index.js";
 import { slugSchema, toIsoDateTime, type Status } from "../model/common.js";
@@ -100,7 +101,7 @@ export function agentFromEnv(
  * Workflow が読めない・Adapter のない agent・このマシンで同じ agent の Run が開いたままは警告して開く。
  * retryReasons はもう一度の claim が開く手直しの Run に、直す指摘を最初から残すためのもの。
  * session・transcript は会話記録の場所（ADR-005）。session は Run に、transcript はこのマシンの deguboard-local/transcripts/ に置く。
- * 渡されなければ、harness のフックが環境に入れた DEGUBOARD_SESSION・DEGUBOARD_TRANSCRIPT を使う（ADR-012）。
+ * 渡されなければ、harness のフックが環境に入れた DEGUBOARD_SESSION・DEGUBOARD_TRANSCRIPT を使う（ADR-012。セッションは sessionOf）。
  * transcript は agent の Adapter の会話記録の置き場所の下だけを受け付ける（ほかのファイルを読ませない）
  */
 export async function openRun(
@@ -165,14 +166,19 @@ export async function openRun(
   return { run, warnings };
 }
 
-/** Run を開く操作のセッション ID。渡されなければ、harness のフックが環境に入れた DEGUBOARD_SESSION（ADR-012） */
+/**
+ * Run を開く操作のセッション ID。渡されなければ、harness のフックが環境に入れた DEGUBOARD_SESSION（ADR-012）。
+ * それもなければ、dg を呼んだエージェントの Adapter が環境から読むセッション ID（Adapter の sessionFromEnv）。
+ * フックの環境が届かないサブエージェントの Bash でも、起動した親のセッションの ID になる（ADR-016）
+ */
 export function sessionOf(ctx: CommandContext, session: string | undefined): string | undefined {
-  return session ?? ((ctx.env ?? process.env)["DEGUBOARD_SESSION"] || undefined);
+  const env = ctx.env ?? process.env;
+  return session ?? (env["DEGUBOARD_SESSION"] || sessionFromEnv(env));
 }
 
 /**
  * 開いたままの Run が、今の操作とは別のセッションで開いたものか（ADR-015）。別のセッションの Run は、そのセッションが落ちて
- * 閉じ損ねた残りとみなす。どちらかのセッションが分からなければ（フックのない製品・環境）false
+ * 閉じ損ねた残りとみなす。どちらかのセッションが分からなければ（セッションを渡さない製品・環境）false
  */
 export function openedInOtherSession(run: Run, session: string | undefined): boolean {
   return run.session !== null && session !== undefined && run.session !== session;
@@ -227,7 +233,7 @@ export const transcriptFields = {
     .regex(/^\S+$/, "空白・改行を含まない 1 語")
     .optional()
     .describe(
-      "会話記録のセッション ID。Run に残し、finish と refresh はそのセッションの記録から数える。harness のフックが渡す。省けば null",
+      "会話記録のセッション ID。Run に残し、finish と refresh はそのセッションの記録から数える。省けば環境の DEGUBOARD_SESSION（harness のフックが入れる）、なければ dg を呼んだエージェントが環境に付けるセッション ID（Adapter が読む。サブエージェントでは起動した親のセッション）、どれもなければ null",
     ),
   transcript: z
     .string()

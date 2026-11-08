@@ -352,6 +352,18 @@ describe("run", () => {
     expect(other.session).toBe("s2");
   });
 
+  it("DEGUBOARD_SESSION のないサブエージェントの Bash では、Claude Code が環境に付ける CLAUDE_CODE_SESSION_ID をセッションに使い、Claude Code と判定できない環境では使わない（ADR-016）", async () => {
+    const ctx = await prepared();
+    ctx.env = { CLAUDECODE: "1", CLAUDE_CODE_SESSION_ID: "s-parent" };
+    const run = (await runCommand(runStart, ctx, { ticket: "t1", step: "implement" })).data as Run;
+    expect(run.session).toBe("s-parent");
+    ctx.env = { CLAUDE_CODE_SESSION_ID: "s-parent" };
+    const other = (
+      await runCommand(runStart, ctx, { ticket: "t2", step: "implement", agent: "claude-code" })
+    ).data as Run;
+    expect(other.session).toBeNull();
+  });
+
   it("finish は回数と理由の数が食い違うか、理由が 1 行でなければ拒否し、Run を開けたままにする", async () => {
     const ctx = await prepared();
     const run = await start(ctx, "t1");

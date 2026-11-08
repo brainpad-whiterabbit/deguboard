@@ -20,6 +20,9 @@
 //   - 返すのは数とモデル名だけ。会話の中身・コマンド・パスは返さない（MT-4）。ツールは名前を種類に変えて数だけを返す
 //   - 判定（detect）：Claude Code は実行するコマンドの環境に CLAUDECODE=1 と AI_AGENT（claude-code_<版>_<種類> の形）を付ける。
 //     どちらかがあれば Claude Code が呼んだとみなす（2026-11 に Claude Code 2.1 の Bash の環境で確かめた）
+//   - セッション（sessionFromEnv）：Claude Code は Bash の環境に CLAUDE_CODE_SESSION_ID を付ける。サブエージェントの Bash にも
+//     親のセッションの ID（フックの session_id、記録の <session>/subagents/ の <session> と同じ）で付く。SessionStart のフックが
+//     入れる DEGUBOARD_SESSION はサブエージェントの Bash に届かないので、こちらで補う（2026-11-08 に Claude Code 2.1.319 で確かめた。ADR-016）
 
 import { createReadStream } from "node:fs";
 import { stat } from "node:fs/promises";
@@ -231,6 +234,7 @@ function detect(env: AgentEnv): boolean {
 export const claudeCodeAdapter: AgentAdapter = {
   name: "claude-code",
   detect,
+  sessionFromEnv: (env) => env["CLAUDE_CODE_SESSION_ID"] || undefined,
   skillDirs: {
     project: (topLevel) => path.join(topLevel, ".claude", "skills"),
     personal: (env) => path.join(homeDir(env), ".claude", "skills"),

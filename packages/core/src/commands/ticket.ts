@@ -993,7 +993,8 @@ async function openClaimRun(
  * もう一度の claim（自分が claim 済みで PR のあるチケット）。手直し（見直しの修正ループ・人のレビューの後）の開始とみなし、チケットは変えない（ST-3）。
  * agent なら手直しの Run（opens_on: reclaim の step、なければ fix）を開く（RN-5）。開いたままの前の手直しの Run は、
  * 次の Run の開始を区切りとして最後の push の時刻で閉じてから開く（RN-6）。前の Run が別のセッションで開いたものなら、
- * そのセッションが落ちた残りとみなして interrupted で閉じる（ADR-015）
+ * そのセッションが落ちた残りとみなして interrupted で閉じる（ADR-015）。この claim のセッションは sessionOf で決め、
+ * サブエージェントの claim でも起動した親のセッションになる（ADR-016）
  */
 async function reclaim(
   ctx: CommandContext,
@@ -1066,7 +1067,7 @@ export const ticketClaim = defineCommand({
   summary:
     "チケットに着手する。担当者（assignee）を自分にしてブランチを記録し、in_progress にする。push の成功で排他を得る。todo → in_progress の制約（requires: [deps_done] など）があれば従う。" +
     "agent なら続けて実装の Run（Workflow の steps のうち opens_on: claim のもの、なければ implement）を開き、ID を run（人向けの出力では標準出力の最後の行）に出す。開けなければ警告だけして claim は成功にする。" +
-    "自分（同じユーザの人と AI）が claim 済みで PR のあるチケット（in_progress か review）をもう一度 claim すると、手直し（見直しの修正ループ・人のレビューの後）の開始とみなす。チケットは変えず、agent なら手直しの Run（opens_on: reclaim のもの、なければ fix）を開く。開いたままの前の手直しの Run は、この claim を区切りとして、その Run の開始より後の最後の push の時刻（なければこの claim の時刻）で success にしてから開く（前の手直しの Run の session が --session（なければ環境の DEGUBOARD_SESSION）と違えば、落ちたセッションの残りとみなして interrupted にする。セッションが分からない claim では今までどおり success）。ほかの主体の claim は拒否する",
+    "自分（同じユーザの人と AI）が claim 済みで PR のあるチケット（in_progress か review）をもう一度 claim すると、手直し（見直しの修正ループ・人のレビューの後）の開始とみなす。チケットは変えず、agent なら手直しの Run（opens_on: reclaim のもの、なければ fix）を開く。開いたままの前の手直しの Run は、この claim を区切りとして、その Run の開始より後の最後の push の時刻（なければこの claim の時刻）で success にしてから開く（前の手直しの Run の session がこの claim のセッション（--session、なければ環境の DEGUBOARD_SESSION、なければ dg を呼んだエージェントが環境に付けるセッション ID。サブエージェントの claim では起動した親のセッション）と違えば、落ちたセッションの残りとみなして interrupted にする。どちらかのセッションが分からなければ success）。ほかの主体の claim は拒否する",
   input: z.object({
     ticket: ticketRef,
     branch: z

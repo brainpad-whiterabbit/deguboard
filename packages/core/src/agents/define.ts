@@ -156,4 +156,10 @@ export interface AgentAdapter {
    * 製品が公に付ける変数が確かめられない Adapter は持たない（判定しない）。推測した変数名で判定しない
    */
   detect?(env: AgentEnv): boolean;
+  /**
+   * dg を呼んだプロセスの環境変数から、この製品が付ける会話記録のセッション ID を読む（Run を開く操作が --session も
+   * DEGUBOARD_SESSION もないときに使う。ADR-016）。サブエージェントの Bash にも親のセッションの ID で付く変数だけを読む。
+   * 製品が付ける変数が確かめられない Adapter は持たない
+   */
+  sessionFromEnv?(env: AgentEnv): string | undefined;
 }
