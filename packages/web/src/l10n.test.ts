@@ -89,12 +89,15 @@ describe("表示言語の決め方と訳し方", () => {
     expect(languageOf("en-us")).toBe("en");
     expect(languageOf("zh-cn")).toBe("en");
   });
-  it("日本語では鍵の {0} を埋めただけのもの（テンプレートリテラルと同じ文字）を出す", () => {
+  it("日本語では鍵の {0} を埋めただけのもの（テンプレートリテラルと同じ文字）を出し、core の文と既定の判断基準は訳さずそのまま出す", () => {
     expect(tr("{0} 件", 3)).toBe("3 件");
     expect(tr("ほか {0} 件", 0)).toBe(`ほか ${0} 件`);
     expect(tr("{0}（{1}）", null, undefined)).toBe(`${null}（${undefined}）`);
     expect(format("{0} と {1}", ["a"])).toBe("a と {1}");
     expect(msg("カンバン")).toBe("カンバン");
+    expect(trCoreMessage("commit.mode の値が正しくない")).toBe("commit.mode の値が正しくない");
+    const high = configFields().find((f) => f.key === "priority.high")!.default as string;
+    expect(shownConfigValue("priority.high", high, high)).toBe(high);
   });
   it("英語では訳の表で出し、表にない鍵は鍵のまま出す", () => {
     setLanguage("en");
@@ -287,9 +290,6 @@ describe("core が返すエラー・警告の文の訳（UI-11）", () => {
         expect(source.includes(part), `${key}: ${part}`).toBe(true);
     }
   });
-  it("日本語の表示では core の文のまま出す", () => {
-    expect(trCoreMessage("commit.mode の値が正しくない")).toBe("commit.mode の値が正しくない");
-  });
   it("英語の表示では可変の部分を埋めた訳を出し、入れ子の文も訳す", () => {
     setLanguage("en");
     expect(trCoreMessage("priority.high は個人の設定に書けない")).toBe(
@@ -353,9 +353,6 @@ describe("優先度の判断基準の既定の訳（UI-11）", () => {
     for (const [level, text] of Object.entries(PRIORITY_CRITERIA_EN)) {
       expect(text, level).not.toMatch(JAPANESE);
     }
-  });
-  it("日本語の表示では既定の値をそのまま出す", () => {
-    expect(shownConfigValue(KEY, defaults[KEY], defaults[KEY])).toBe(defaults[KEY]);
   });
   it("英語の表示で既定のままなら英語の訳を出し、書き換えた値は書いた言葉のまま出す", () => {
     setLanguage("en");

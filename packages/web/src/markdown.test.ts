@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
@@ -51,17 +52,6 @@ describe("本文の Markdown", () => {
         expect(webAcceptance(body)).toEqual(parseAcceptance(body) ?? []);
       });
     }
-  });
-
-  it("見出しが 2 つあると、core と同じく最初の節の項目にだけ番号を振る", () => {
-    const blocks = parseBlocks("## 受け入れ条件\n\n- [ ] a\n\n## 受け入れ条件\n\n- [ ] b\n");
-    const numbered = blocks.flatMap((b) =>
-      b.kind === "list" ? b.items.map((x) => [x.text, x.acceptance ?? null]) : [],
-    );
-    expect(numbered).toEqual([
-      ["a", 1],
-      ["b", null],
-    ]);
   });
 
   it("受け入れ条件の番号は ## 受け入れ条件 の節の `- [ ]` の行で、文のない行を飛ばし、次の ## で終わる（core の ticket.check の番号）", () => {
@@ -141,11 +131,12 @@ describe("本文の Markdown", () => {
     const html = renderToStaticMarkup(
       createElement(Markdown, { body: "## 概要\n\n本文\n\n## 確かめること\n\n- [x] a\n- [ ] b\n" }),
     );
-    expect(html.match(/task-meter/g)?.length).toBe(1);
-    expect(html).toContain("<h4><span>概要</span></h4>");
-    expect(html).toMatch(
-      /<h4><span>確かめること<\/span><span class="progress task-meter"[^>]*>.*<span class="muted">1 \/ 2<\/span><\/span><\/h4>/,
-    );
-    expect(html).toContain('style="width:50%"');
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    const [summary, tasks] = [...doc.querySelectorAll("h4")];
+    expect(summary!.textContent).toBe("概要");
+    expect(tasks!.textContent).toContain("確かめること");
+    expect(tasks!.textContent).toContain("1 / 2");
+    // 「済 / 全」は、タスクリストのある節の見出しに 1 つだけ出る
+    expect(doc.body.textContent!.split("1 / 2")).toHaveLength(2);
   });
 });

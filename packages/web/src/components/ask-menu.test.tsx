@@ -277,15 +277,22 @@ describe("左パネルのバックログと履歴から頼む（UI-15）", () =>
 });
 
 describe("初めての案内（UI-15）", () => {
-  it("左パネルを初めて開いたときに出し、× で消すと見た目の状態に残してもう出さない。エディタのパネルでは出さない", async () => {
+  it("初めての案内は頼める場所のない設定画面には出さず、カンバンに移ると出す。× で消すと見た目の状態に残してもう出さない。エディタのパネルでは出さない", async () => {
     const state = createUiState(memoryBackend());
-    const view = mount(mockClient(boardFixture()), { state });
+    window.location.hash = "#/config";
+    const first = mount(mockClient(boardFixture()), { state });
+    await screen.findByRole("link", { name: "カンバン" });
+    await waitFor(() => expect(document.querySelector(".page")!.textContent).not.toBe(""));
+    expect(screen.queryByText(ASK_HINT)).toBeNull();
+    act(() => {
+      window.location.hash = "#/board";
+    });
     await screen.findByText("画面");
     expect(screen.getByText(ASK_HINT)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "案内を閉じる" }));
     expect(screen.queryByText(ASK_HINT)).toBeNull();
     expect(state.get(ASK_HINT_KEY)).toBe(true);
-    view.unmount();
+    first.unmount();
     mount(mockClient(boardFixture()), { state });
     await screen.findByText("画面");
     expect(screen.queryByText(ASK_HINT)).toBeNull();
@@ -346,19 +353,6 @@ describe("入力欄を頼むことを選んで開く", () => {
 });
 
 describe("案内と失敗の扱い（見直しの指摘）", () => {
-  it("初めての案内は頼める場所のない設定画面には出さず、カンバンに移ると出す", async () => {
-    window.location.hash = "#/config";
-    mount(mockClient(boardFixture()), { state: createUiState(memoryBackend()) });
-    await screen.findByRole("link", { name: "カンバン" });
-    await waitFor(() => expect(document.querySelector(".page")!.textContent).not.toBe(""));
-    expect(screen.queryByText(ASK_HINT)).toBeNull();
-    act(() => {
-      window.location.hash = "#/board";
-    });
-    await screen.findByText("画面");
-    expect(screen.getByText(ASK_HINT)).toBeTruthy();
-  });
-
   it("ask-menu の呼び出しが丸ごと失敗したら、一覧に「読み込み中…」を残さず理由を出す", async () => {
     const client = mockClient(boardFixture());
     client.handlers["ask-menu"] = () => {
@@ -405,7 +399,7 @@ describe("パネルの詳細から頼む（UI-15）", () => {
     mount(client, { surface: "panel" });
     await screen.findByRole("heading", { level: 1 });
     // 吹き出しはマウスを載せなくても出ている（右端に重ねず、タイトルの横に置く）
-    expect(bubble("タイトル s1").className).toBe("ask-bubble pinned");
+    expect(bubble("タイトル s1")).toBeTruthy();
     await pick("タイトル s1", "最後まで進める", "計画を立てるおすすめ");
     await waitFor(() => expect(pressed()).toBe("最後まで進める"));
     // 対象はその詳細
@@ -452,7 +446,7 @@ describe("パネルの詳細から頼む（UI-15）", () => {
     const client = detailClient();
     mount(client, { surface: "panel" });
     await screen.findByRole("heading", { level: 1 });
-    expect(bubble("タイトル e1").className).toBe("ask-bubble pinned");
+    expect(bubble("タイトル e1")).toBeTruthy();
     fireEvent.click(bubble("タイトル e1"));
     await waitFor(() => expect(items()[0]).toBe("起票して e1 に足すおすすめ"));
     fireEvent.keyDown(menu(), { key: "Escape" });

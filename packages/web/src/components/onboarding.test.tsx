@@ -8,7 +8,7 @@ import { Onboarding, ONBOARDING_STEPS } from "./onboarding.js";
 afterEach(cleanup);
 
 describe("始め方の案内", () => {
-  it("init・起票・エージェントに頼むの 3 つの手順を、コマンドつきで出す", () => {
+  it("init・起票・エージェントに頼むの 3 つの手順を、コマンドつきで出し、init の後は見張りの読み直しで普段の画面に変わることを案内する", () => {
     const host: Host = {
       surface: "sidebar",
       open: () => {},
@@ -27,6 +27,9 @@ describe("始め方の案内", () => {
       "dg skill install",
     ]);
     for (const step of ONBOARDING_STEPS) expect(screen.getByText(step.command)).toBeTruthy();
+    expect(
+      screen.getByText("1 を済ませると、開き直さなくてもいつもの画面に変わります。"),
+    ).toBeTruthy();
   });
 
   it("ボタンはコマンドをクリップボードにコピーするだけ", async () => {
@@ -46,23 +49,5 @@ describe("始め方の案内", () => {
     fireEvent.click(screen.getByRole("button", { name: "dg init をコピー" }));
     await waitFor(() => expect(copy).toHaveBeenCalledWith("dg init"));
     expect(copy).toHaveBeenCalledTimes(1);
-  });
-
-  it("init の後は見張りの読み直しで普段の画面に変わることを案内する", () => {
-    const host: Host = {
-      surface: "sidebar",
-      open: () => {},
-      show: () => {},
-      copy: async () => {},
-      state: createUiState(memoryBackend()),
-    };
-    render(
-      <HostProvider host={host}>
-        <Onboarding />
-      </HostProvider>,
-    );
-    expect(
-      screen.getByText("1 を済ませると、開き直さなくてもいつもの画面に変わります。"),
-    ).toBeTruthy();
   });
 });

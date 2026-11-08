@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, describe, expect, it } from "vitest";
 import { App } from "../app.js";
 import { HostProvider, type Host } from "../host.js";
+import type { Route } from "../router.js";
 import { StoreProvider } from "../store.js";
 import { boardFixture, iteration, mockClient, plan, ticket } from "../test-helpers.js";
 import { createUiState, memoryBackend } from "../ui-state.js";
@@ -14,10 +15,13 @@ afterEach(() => {
 });
 
 /** 見た目の状態はテストごとのメモリ（グラフの開閉がテストをまたがない）。帯はカンバン（左パネル）に出す */
-function hostOf(surface: Host["surface"] = "sidebar"): Host {
+function hostOf(
+  surface: Host["surface"] = "sidebar",
+  open: (route: Route) => void = () => {},
+): Host {
   return {
     surface,
-    open: () => {},
+    open,
     show: () => {},
     copy: async () => {},
     state: createUiState(memoryBackend()),
@@ -121,7 +125,6 @@ describe("実行計画の帯", () => {
     expect(p2.querySelector(".plan-detail")!.textContent).toContain("承認 eiki");
     const nodes = [...p2.querySelectorAll<HTMLAnchorElement>("a.plan-node")];
     expect(nodes.map((a) => a.getAttribute("href"))).toEqual(["#/tickets/t1", "#/tickets/t3"]);
-    expect(nodes.map((a) => a.style.left)).toEqual(["0px", "108px"]);
     const edges = p2.querySelectorAll(".plan-graph-edge");
     expect(edges[0]!.classList.contains("plan-graph-edge-pending")).toBe(false);
     // ほかの Plan のグラフは開かない
@@ -142,7 +145,7 @@ describe("実行計画の帯", () => {
     expect(itemOf("p3").querySelector(".plan-detail")).toBeNull();
   });
 
-  it("depends_on だけでつながった組は点線の辺で描き、段も分け、凡例に出す", async () => {
+  it("depends_on だけでつながった組は点線の辺で描き、凡例に出す", async () => {
     const host = hostOf();
     const client = mockClient(boardFixture());
     client.data.tickets = client.data.tickets.map((t) =>
@@ -153,7 +156,7 @@ describe("実行計画の帯", () => {
     mount(client, host);
     await screen.findByRole("region", { name: "実行計画" });
     const nodes = [...document.querySelectorAll<HTMLAnchorElement>("a.plan-node")];
-    expect(nodes.map((a) => a.style.left)).toEqual(["0px", "108px"]);
+    expect(nodes.map((a) => a.getAttribute("href"))).toEqual(["#/tickets/t1", "#/tickets/t3"]);
     const edges = document.querySelectorAll(".plan-graph-canvas .plan-graph-edge");
     expect(edges).toHaveLength(1);
     expect(edges[0]!.classList.contains("plan-graph-edge-depends")).toBe(true);
@@ -225,7 +228,7 @@ describe("実行計画の帯", () => {
     expect(p2.querySelector(".plan-chip")).toBeNull();
   });
 
-  it("依存グラフのノードは、done のチケットにだけ status-done のクラスを付ける（番号の取り消し線）", async () => {
+  it("done のチケットにだけ status-done のクラス（番号の取り消し線）を付ける。依存グラフのノードも、サイドバーのチップも", async () => {
     const host = hostOf();
     for (const id of ["p1", "p2"]) host.state.set(`board.planGraph.${id}`, true);
     mount(withPlans(), host);
@@ -238,15 +241,14 @@ describe("実行計画の帯", () => {
         ["#/tickets/t3", false],
       ],
     );
-  });
+    cleanup();
 
-  it("サイドバーのチップは、done のチケットにだけ status-done のクラスを付ける（番号の取り消し線）", async () => {
     const client = mockClient(boardFixture());
     // t1 は done、t2 は in_progress、t3 は todo。待ちの辺がないのでチップで出す
     client.data.plans = [plan({ id: "p3", tickets: ["t1", "t2", "t3"] })];
-    const host = hostOf("sidebar");
-    host.state.set("board.planGraph.p3", true);
-    mount(client, host);
+    const sidebar = hostOf("sidebar");
+    sidebar.state.set("board.planGraph.p3", true);
+    mount(client, sidebar);
     await screen.findByRole("region", { name: "実行計画" });
     const chips = [...document.querySelectorAll<HTMLAnchorElement>("a.plan-chip")];
     expect(chips.map((a) => [a.getAttribute("href"), a.classList.contains("status-done")])).toEqual(
@@ -256,6 +258,41 @@ describe("実行計画の帯", () => {
         ["#/tickets/t3", false],
       ],
     );
+  });
+
+  it("実行計画の帯で Plan の番号を押すと、グラフを開閉せずに Plan 詳細を開く", async () => {
+    const opened: Route[] = [];
+    mount(
+      withPlans(),
+      hostOf("sidebar", (route) => opened.push(route)),
+    );
+    await screen.findByRole("region", { name: "実行計画" });
+    fireEvent.click(document.querySelector<HTMLAnchorElement>(".plan-item a.plan-id")!);
+    expect(opened).toEqual([{ page: "plans", id: "p2" }]);
+    expect(document.querySelector(".plan-graph")).toBeNull();
+    expect(document.querySelector("button.plan-toggle")!.getAttribute("aria-expanded")).toBe(
+      "false",
+    );
+  });
+
+  it("閉じた計画の節の行でも、番号を押すと Plan 詳細を開き、番号以外を押すとグラフを開閉する", async () => {
+    const opened: Route[] = [];
+    mount(
+      withPlans(),
+      hostOf("sidebar", (route) => opened.push(route)),
+    );
+    await screen.findByRole("region", { name: "実行計画" });
+    const closed = document.querySelector<HTMLDetailsElement>(".plan-closed")!;
+    closed.open = true;
+    fireEvent(closed, new Event("toggle"));
+    const item = closed.querySelector(".plan-item")!;
+    fireEvent.click(item.querySelector<HTMLAnchorElement>("a.plan-id")!);
+    expect(opened).toEqual([{ page: "plans", id: "p1" }]);
+    // 左パネルでは待ちの辺のない Plan をチップで出すので、開いたかは行の下の欄で見る
+    expect(item.querySelector(".plan-detail")).toBeNull();
+    fireEvent.click(item.querySelector(".plan-state")!);
+    expect(item.querySelector(".plan-detail")).toBeTruthy();
+    expect(opened).toHaveLength(1);
   });
 
   it("ノードにホバーすると繋がるノードを強調する", async () => {

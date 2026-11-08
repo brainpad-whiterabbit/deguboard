@@ -105,25 +105,27 @@ describe("postMessage の CommandClient", () => {
     });
   });
 
-  it("open は kind: action の要求を送り、応答で解決する", async () => {
+  it.each([
+    [
+      "open は kind: action の name: open で route を送り、応答で解決する",
+      (client: ReturnType<typeof createWebviewClient>) => client.open("#/tickets/t12"),
+      { id: 1, kind: "action", name: "open", route: "#/tickets/t12" },
+    ],
+    [
+      "copy は kind: action の name: copy で text を送り、応答で解決する",
+      (client: ReturnType<typeof createWebviewClient>) => client.copy("feat/x"),
+      { id: 1, kind: "action", name: "copy", text: "feat/x" },
+    ],
+  ])("%s", async (_name, send, request) => {
     const h = host();
     const client = createWebviewClient(h);
-    const p = client.open("#/tickets/t12");
-    expect(h.requests).toEqual([{ id: 1, kind: "action", name: "open", route: "#/tickets/t12" }]);
+    const p = send(client);
+    expect(h.requests).toEqual([request]);
     h.reply({ id: 1, ok: true, data: null, warnings: [], write: null });
     await expect(p).resolves.toBeUndefined();
   });
 
-  it("copy は kind: action の name: copy で text を送り、応答で解決する", async () => {
-    const h = host();
-    const client = createWebviewClient(h);
-    const p = client.copy("feat/x");
-    expect(h.requests).toEqual([{ id: 1, kind: "action", name: "copy", text: "feat/x" }]);
-    h.reply({ id: 1, ok: true, data: null, warnings: [], write: null });
-    await expect(p).resolves.toBeUndefined();
-  });
-
-  it("拡張ホストからの通知（kind: event）は購読者に配り、外した後は届かない。形の違うメッセージは無視する", () => {
+  it("拡張ホストからの通知（kind: event）は購読者に配り、外した後は届かない。core の通知の名前はどれも届き、形の違うメッセージと知らない名前は無視する", () => {
     const h = host();
     const client = createWebviewClient(h);
     const received: WebviewEvent[] = [];
@@ -142,6 +144,14 @@ describe("postMessage の CommandClient", () => {
     off();
     h.reply({ kind: "event", name: "reload" });
     expect(received).toHaveLength(3);
+    // core の通知の名前はどれも届き、知らない名前（prototype の名前を含む）は応答として扱う
+    const names: string[] = [];
+    const offAll = client.onEvent((e) => names.push(e.name));
+    for (const name of WEBVIEW_CONTRACT.eventNames)
+      h.reply({ kind: "event", name, hash: "#/board" });
+    h.reply({ kind: "event", name: "toString" });
+    offAll();
+    expect(names).toEqual([...WEBVIEW_CONTRACT.eventNames]);
   });
 });
 
@@ -184,18 +194,5 @@ describe("拡張と合わせる値（core の WEBVIEW_CONTRACT の写し）", ()
       expect(isDetailRoute(parsed)).toBe(true);
       expect(detailOfRoute(hrefOf(parsed))).toEqual({ kind, id });
     }
-  });
-
-  it("core の通知の名前はどれも通知として受け取り、知らない名前は応答として扱う", () => {
-    const h = host();
-    const client = createWebviewClient(h);
-    const received: string[] = [];
-    const off = client.onEvent((e) => received.push(e.name));
-    for (const name of WEBVIEW_CONTRACT.eventNames)
-      h.reply({ kind: "event", name, hash: "#/board" });
-    h.reply({ kind: "event", name: "unknown" });
-    h.reply({ kind: "event", name: "toString" });
-    off();
-    expect(received).toEqual([...WEBVIEW_CONTRACT.eventNames]);
   });
 });

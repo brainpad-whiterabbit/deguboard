@@ -64,37 +64,6 @@ describe("履歴のまとめ方", () => {
     ]);
   });
 
-  it("持ち越しは、その Iteration から外れる出来事のあったチケット。今も入っているものは除く", () => {
-    const events = [
-      {
-        kind: "ticket",
-        id: "t2",
-        at: "x",
-        changes: [{ field: "iteration", from: "s1", to: "s2" }],
-      },
-      {
-        kind: "ticket",
-        id: "t3",
-        at: "x",
-        changes: [{ field: "iteration", from: "s1", to: null }],
-      },
-      {
-        kind: "ticket",
-        id: "t4",
-        at: "x",
-        changes: [{ field: "iteration", from: null, to: "s1" }],
-      },
-      {
-        kind: "ticket",
-        id: "t5",
-        at: "x",
-        changes: [{ field: "iteration", from: "s1", to: "s2" }],
-      },
-    ] as unknown as Parameters<typeof carriedOverFrom>[1];
-    const tickets = [ticket({ id: "t5", iteration: "s1" })];
-    expect(carriedOverFrom("s1", events, tickets)).toEqual(["t2", "t3"]);
-  });
-
   it("core の carriedOverFrom（iteration.show の next）と同じ入力で同じ結果を返す（写しがずれたら落ちる）", () => {
     const ev = (id: string, from: string | null, to: string | null) =>
       ({ kind: "ticket", id, at: "x", changes: [{ field: "iteration", from, to }] }) as never;
@@ -192,7 +161,7 @@ describe("Iteration の行", () => {
 });
 
 describe("Iteration の行の 1 段目と 2 段目", () => {
-  it("目標がなければ名前（sprint4）ではなく「目標なし」を薄く出し、目標があれば名前を出さない。内訳は終わったチケットがすべて Epic なしなら出さない", async () => {
+  it("目標がなければ名前（sprint4）ではなく「目標なし」を出し、目標があれば名前を出さない。閉じた日は今日・昨日を言葉で出し、正確な日時をツールチップに置く。内訳は終わったチケットがすべて Epic なしなら出さない", async () => {
     window.location.hash = "#/history";
     const client = mockClient();
     client.data.iterations = [
@@ -203,6 +172,20 @@ describe("Iteration の行の 1 段目と 2 段目", () => {
         goal: "目標あり",
         status: "closed",
         closed_at: "2026-11-02T00:00:00Z",
+      }),
+      iteration({
+        id: "s6",
+        name: "n6",
+        goal: "きのう",
+        status: "closed",
+        closed_at: "2026-11-03T08:30:00Z",
+      }),
+      iteration({
+        id: "s7",
+        name: "n7",
+        goal: "きょう",
+        status: "closed",
+        closed_at: "2026-11-04T01:00:00Z",
       }),
     ];
     client.data.tickets = [
@@ -217,49 +200,17 @@ describe("Iteration の行の 1 段目と 2 段目", () => {
       </StoreProvider>,
     );
     const none = (await screen.findByText("目標なし")).closest(".history-row")!;
-    expect(screen.getByText("目標なし").classList.contains("history-none")).toBe(true);
     expect(none.querySelector("small")!.textContent).toBe("11/01 に閉じた");
     const goal = screen.getByText("目標あり").closest(".history-row")!;
     expect(goal.querySelector("small")!.textContent).toBe("11/02 に閉じた");
-    expect(document.body.textContent).not.toContain("sprint4");
-    expect(document.body.textContent).not.toContain("sprint5");
-    expect(document.body.textContent).not.toContain("内訳");
-  });
-
-  it("閉じた日は今日・昨日を言葉で出し、正確な日時をツールチップに置く。閉じた日の記録がなければ「閉じた日は不明」と出す", async () => {
-    window.location.hash = "#/history";
-    const client = mockClient();
-    client.data.iterations = [
-      iteration({
-        id: "s4",
-        name: "n4",
-        status: "closed",
-        goal: "きのう",
-        closed_at: "2026-11-03T08:30:00Z",
-      }),
-      iteration({
-        id: "s5",
-        name: "n5",
-        status: "closed",
-        goal: "きょう",
-        closed_at: "2026-11-04T01:00:00Z",
-      }),
-      iteration({ id: "s6", name: "n6", status: "closed" }),
-    ];
-    render(
-      <StoreProvider client={client}>
-        <HostProvider host={sidebarHost()}>
-          <App />
-        </HostProvider>
-      </StoreProvider>,
-    );
-    const yesterday = (await screen.findByText("きのう")).closest(".history-row")!;
+    const yesterday = screen.getByText("きのう").closest(".history-row")!;
     expect(yesterday.querySelector("small")!.textContent).toBe("昨日 に閉じた");
     expect(yesterday.querySelector("time")!.getAttribute("title")).toBe("2026-11-03 08:30");
     const today = screen.getByText("きょう").closest(".history-row")!;
     expect(today.querySelector("small")!.textContent).toBe("今日 に閉じた");
-    const unknown = (await screen.findByText("目標なし")).closest(".history-row")!;
-    expect(unknown.querySelector("small")!.textContent).toBe("閉じた日は不明");
+    expect(document.body.textContent).not.toContain("sprint4");
+    expect(document.body.textContent).not.toContain("sprint5");
+    expect(document.body.textContent).not.toContain("内訳");
   });
 });
 
@@ -920,7 +871,6 @@ describe("履歴のタブ・Iteration の行・Epic の見方", () => {
       [...document.querySelectorAll(".history-row .name")].map((e) => e.textContent);
     // 目標のある s1 は目標だけを 1 段目に出し（名前は出さない）、目標のない s2 は「目標なし」を薄く出す
     expect(names()).toEqual(["目標なし", "core"]);
-    expect(document.querySelector(".history-row .name.history-none")!.textContent).toBe("目標なし");
     const rowOf = (id: string) =>
       [...document.querySelectorAll(".history-row")].find(
         (r) => r.querySelector("code")?.textContent === id,

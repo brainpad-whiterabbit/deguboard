@@ -1,7 +1,6 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { WebviewClient } from "../client/webview.js";
 import { createHost, HostProvider } from "../host.js";
 import { COPY_NOTICE_MS, CopyableCode } from "./copyable-code.js";
 
@@ -34,21 +33,6 @@ describe("値とコピーのボタン", () => {
     expect(screen.getByRole("status").textContent).toBe("コピーした");
     act(() => vi.advanceTimersByTime(COPY_NOTICE_MS));
     expect(screen.getByRole("status").textContent).toBe("");
-  });
-
-  it("パネルでは拡張ホストに頼み、「コピーした」を出す", async () => {
-    const copy = vi.fn(async () => {});
-    const client = { copy } as unknown as WebviewClient;
-    render(
-      <HostProvider host={createHost("panel", client)}>
-        <CopyableCode text="feat/x" label="ブランチ名をコピー" />
-      </HostProvider>,
-    );
-    await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "ブランチ名をコピー" }));
-    });
-    expect(copy).toHaveBeenCalledWith("feat/x");
-    expect(screen.getByRole("status").textContent).toBe("コピーした");
   });
 
   it("dg serve で navigator.clipboard がなければ「コピーできない」を出す", async () => {

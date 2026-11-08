@@ -43,15 +43,13 @@ describe("経過の日付の区切り", () => {
       ["2026-11-02", [3]],
       ["2026-11-04", [4]],
     ]);
+    // 出来事がなければ区切りもない
+    expect(groupByDay([])).toEqual([]);
   });
 
   it("手元の時差で日付が変われば、UTC で同じ日でも区切る", () => {
     process.env.TZ = "Asia/Tokyo";
     const events = [{ at: "2026-11-01T14:00:00Z" }, { at: "2026-11-01T16:00:00Z" }];
     expect(groupByDay(events).map((g) => g.day)).toEqual(["2026-11-01", "2026-11-02"]);
-  });
-
-  it("出来事がなければ区切りもない", () => {
-    expect(groupByDay([])).toEqual([]);
   });
 });
