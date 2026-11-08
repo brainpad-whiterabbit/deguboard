@@ -19,12 +19,12 @@ argument-hint: "<Plan の ID|チケットの ID>"
 2. `kind` ごとの親の手：
    - `implement`：「claim の前後」を済ませ、`commands` の claim を行う。作業ブランチの worktree は親が作る（`git fetch {{git.remote}}` のあと `git worktree add --no-track -b <ブランチ名> <場所> {{git.remote}}/{{git.base_branch}}`。場所の既定は `{{worktree.root}}`）。文を渡し、返ったら「実装の結果を受け取る」。親が自分で実装するなら、claim の `--no-run` を外して下の「実装する」を行う（claim が実装の Run を開く）
    - `review`：見直し役を起動する（`dg guide review` の「見直す」）
-   - `fix`：`brief` の「直す指摘」に見直し役が返した指摘を入れ、`dg --json --actor agent brief <id> --role fix --findings <一覧>` で組んだ文を渡す（`dg guide review` の「指摘を直す」）
-   - `ready`：`commands` の `pr ready` で PR を出し、`sync` を回す。満たさなければ `dg guide review` の「終わり方」
+   - `fix`：見直し役の指摘を、`dg guide review` の「指摘を直す」の手順で渡す
+   - `ready`：`dg guide review` の「終わり方」で PR を出す。PR を見ない Workflow（general など。`sync` が review に進めない）では、PR を出したら続けて自分で `dg --json --actor agent ticket move <id> review` に進める
    - `wait_merge`・`wait_human`：`ask_human` を人に伝えて聞く。マージされたら `dg guide done`
    - `wait_deps`：待つ。Plan の `next` から、ほかのチケットを選ぶ
    - `done`：`dg guide done` の手順で片付ける
-3. `implement` のモデル：Plan の `plan.tier` のモデルが親と違えばサブエージェントに渡す（`config.yaml` の `models.*`。今の設定：light `{{models.light}}`・standard `{{models.standard}}`・heavy `{{models.heavy}}`。なし（空）なら親のモデル）
+3. `implement` のモデル：Plan の `plan.tier` のモデルが親と違えばサブエージェントに渡す（`config.yaml` の `models.*`。今の設定：light `{{models.light}}`・standard `{{models.standard}}`・heavy `{{models.heavy}}`。なし（空）なら親のモデル）。実装の中で調べものをするサブエージェントは、段階によらず `models.light`
 
 ## claim の前後
 
@@ -35,7 +35,7 @@ argument-hint: "<Plan の ID|チケットの ID>"
 
 ## 実装する（draft の PR まで）
 
-実装する役（親かサブエージェント）は、`next` の `plan` の範囲と方針の中で実装し、次を行う。文が「`dg guide work` の手順（draft の PR を作るまで）」と書くのはこの節。
+実装する役（親かサブエージェント）は、`next` の `plan` の範囲と方針の中で実装し、次を行う。文が `dg guide work` の「実装する」を指すのはこの節。
 
 1. リポジトリの検査（書式・lint・テスト）を通す
 2. 触れた節の正本（requirements・ADR・README など）とコードのコメントを読み直し、この PR で変えた約束・手順・規約の文書を同じ PR で直す（`dg guide review` の「見る」と ADR-001 の「文書の見直し」）。前からあるずれは直さず、報告に書く
@@ -44,7 +44,7 @@ argument-hint: "<Plan の ID|チケットの ID>"
 
 ## 実装の結果を受け取る
 
-返ったら、`ticket show` の `acceptance` と照らし、確かめた項目だけ `dg --json --actor agent ticket check <id> <番号...>` で付ける（付けられない項目は PR の本文と報告に理由）。PR 番号は `dg --json --actor agent ticket update <id> --pr <番号>` で記録する（照合はブランチ名でも引くが、使い回したブランチでは別の PR を拾いうる）。記録したら `next` に戻る。
+返ったら、`ticket show` の `acceptance` と照らし、確かめた項目だけ `dg --json --actor agent ticket check <id> <番号...>` で付ける（付けられない項目は PR の本文と報告に理由）。PR 番号は `dg --json --actor agent ticket update <id> --pr <番号>` で記録する。記録したら `next` に戻る。
 
 ## Plan に従う
 
@@ -57,7 +57,7 @@ argument-hint: "<Plan の ID|チケットの ID>"
 
 ## PR の要らない作業
 
-チケットのデータの整備・確認・調査など、リポジトリのファイルを変えない作業は、ブランチも PR も作らず、照合に頼らず done まで進める。`next` は PR を前提にするので、この流れは使わない。
+リポジトリのファイルを変えない作業（データの整備・確認・調査など）は、ブランチも PR も作らず、照合に頼らず done まで進める（`next` は PR を前提にするので使わない）。
 
 1. 「claim の前後」の Iteration を済ませてから、`dg --json --actor agent ticket claim <id> --without-branch`（claim が Run を開く）
 2. 受け入れ条件を 1 項目ずつ確かめ、満たした項目だけ `ticket check` で付ける
@@ -66,7 +66,7 @@ argument-hint: "<Plan の ID|チケットの ID>"
 
 ## 状態
 
-- `status` を自分で進めるのは in_progress から review まで。done は照合（マージ）で進み、人に指示されたときだけ `ticket move <id> done`（制限は `dg guide overview`）
+- `status` を自分で進めるのは in_progress から review まで。done は照合（マージ）で進み、照合で進まないときや人に指示されたときだけ `ticket move <id> done`（制限は `dg guide overview`）
 - 実装をやめるなら `dg --json --actor agent ticket unclaim <id>`（todo に戻る。Run の扱いは `dg guide run`）
 - 作業中に別の作業が見つかったら、そのチケットに混ぜず `dg guide import` で起票を提案する
 

@@ -10,7 +10,7 @@ deguboard は Git で管理するチケットのツール。あなた（AI エ�
 - データのファイル（`.git/deguboard/` の下）を直接編集しない。読むのも `dg … show --json`。dg の外で書いた変更は、dg が次に動くときに見つけて書き込みを止める（下の「dg の外の変更」）
 - チケットの ID は `t12` でも `12` でもよい。Epic は `e3`、Iteration は `s3`。リポジトリの外から呼ぶときは `-C <dir>`
 - 書き込みは `commit.mode`（今は `{{commit.mode}}`）に従ってコミットされる。起票・claim・Iteration の start と reopen は即座にコミットして push される。`batch` ではそれ以外の変更が作業ツリーに残るので、区切りで `dg --json --actor agent sync` を回す。`manual` では `sync` もコミットしないので、人に `dg commit` を頼む
-- 作業の実績は Run で残す。実装の Run は自分の `ticket claim` が開くので `data.run` の ID を控える（実装をサブエージェントに渡すなら `--no-run` で claim し、サブエージェントが開く）。見直しなどほかの Run は `dg --json --actor agent run start <id> <step> --agent <エージェント>` で自分で開く（手直しは、見直しの修正ループでも人のレビューの後でも、自分で直すなら PR のあるチケットをもう一度 `ticket claim` すると開き、サブエージェントに頼むなら文の先頭の印でフックが開く）。実装の Run は `ticket update --pr`（PR の要らない作業は `ticket move`、やめるときは `unclaim`）が、手直しの Run は次の区切り（次の Run の開始・`sync`）で（印で開いたものはサブエージェントが push して返ったときにフックが）閉じ、ほかの Run は終えたら `run finish <Run の ID> --result <結果>` で閉じる。使用量（トークン数）は閉じるときに会話記録から取り込むので、数を自分で書かない。手順は `dg guide run` の「Run を記録する」
+- 作業の実績は Run で残す。親が自分で進めるときは、実装の Run を `ticket claim` が開くので `data.run` の ID を控え、PR の記録（`ticket update --pr`）で閉じる。サブエージェントの Run は文の印でフックが扱う。手順は `dg guide run` の「親が自分で進めるとき」。使用量（トークン数）は閉じるときに会話記録から取り込むので、数を自分で書かない
 - 起票の結果に `provisional: true` があれば push できていない仮番号で、ID が変わりうる。人に伝え、`sync` を回す
 
 ## 同期が止まったとき

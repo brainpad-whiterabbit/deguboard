@@ -1,9 +1,10 @@
 # Run の記録（run）
 
-Run は 1 回の作業の記録で、使用量（トークン）が残る。親が自分で作業するときの claim と PR の記録、止まった Run の始末だけを書く。サブエージェントの Run は `dg next` と `brief` の文が扱う。`dg guide work` から読む。
+Run は 1 回の作業の記録で、使用量（トークン）が残る。親が自分で作業するときの claim と PR の記録、止まった Run の始末だけを書く。サブエージェントの Run は `dg next` と `brief` の文が扱う。
 
 ## 親が自分で進めるとき
 
+- Run を開く claim は単独で呼び、ほかのコマンドとつながない（ID が会話記録に出るのが遅れると、同じ会話で重ねた Run の応答を正しく分けられない）
 - 実装の Run は `ticket claim` が開く。step は Workflow の `opens_on: claim` のもの（なければ `implement`）。ID は `data.run`
 - 実装の Run は `ticket update --pr <番号>` が `success` で閉じる（finished_at は PR の作成時刻）。`run finish` は要らない。PR の要らない作業は `ticket move` の done・review が閉じる
 - やめるなら `ticket unclaim` が `failure` で閉じる。理由を残すなら先に `run finish <Run の ID> --result failure --error <理由>`
