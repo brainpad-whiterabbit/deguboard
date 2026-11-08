@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { Chip, ChipRow } from "./chips.js";
 
@@ -44,5 +44,33 @@ describe("ChipRow", () => {
     rerender(row(["a", "b", "c", "d", "e", "f", "h"]));
     await waitFor(() => expect(shown()).toEqual(["a", "b", "c", "d", "e", "f", "h"]));
     expect(screen.queryByRole("button", { name: /あと/ })).toBeNull();
+  });
+
+  it("「ほか N」を押すとすべて出し、「畳む」で戻す。選んだチップは隠さず、出す分の最後に回す", async () => {
+    const titles = ["a", "b", "c", "d", "e", "f", "g"];
+    const chipRow = (pressedTitle: string) => (
+      <ChipRow label="絞る" contentKey={titles.join("|")}>
+        {titles.map((t) => (
+          <Chip key={t} pressed={t === pressedTitle} onClick={() => {}}>
+            {t}
+          </Chip>
+        ))}
+      </ChipRow>
+    );
+    render(chipRow("f"));
+    // 2 行に収まる数まで減らし、選んだ f は隠さず出す分の最後に回す
+    await waitFor(() => expect(shown()).toEqual(["a", "b", "c", "d", "f", "ほか 2"]));
+    // 畳んでいる間の「ほか N」は aria-expanded が false
+    const more = screen.getByRole("button", { name: /あと 2 個/ });
+    expect(more.getAttribute("aria-expanded")).toBe("false");
+    fireEvent.click(more);
+    expect(shown()).toEqual(["a", "b", "c", "d", "e", "f", "g", "畳む"]);
+    // 開いている間の「畳む」は aria-expanded が true
+    const less = screen.getByRole("button", { name: "畳む" });
+    expect(less.getAttribute("aria-expanded")).toBe("true");
+    fireEvent.click(less);
+    await waitFor(() => expect(shown()).toEqual(["a", "b", "c", "d", "f", "ほか 2"]));
+    // 畳んだ後も、選んだ f は残り、押した状態のまま出る
+    expect(document.querySelector('.chip[aria-pressed="true"]')!.textContent).toBe("f");
   });
 });
