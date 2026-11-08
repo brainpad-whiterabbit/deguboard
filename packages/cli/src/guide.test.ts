@@ -132,6 +132,23 @@ describe("dg guide", () => {
     expect(bullet(section(review, "## 見直す"), "返す")).toContain("参考節との食い違い");
   });
 
+  it("review は ADR や要件に足した細部を指摘にして軽く扱い、重い指摘は約束・手順・規約の変更に限る", async () => {
+    const look = bullet(section(await readGuide("review"), "## 見直す"), "見る");
+    for (const word of ["ADR や要件に細部を足した", "軽い指摘", "約束・手順・規約"])
+      expect(look, word).toContain(word);
+  });
+
+  it("import は受け入れ条件に ADR や要件の書き足しを入れるのを ADR-001 の基準に当たるときだけにし、それ以外はテストとコメントで約束を示すと案内する", async () => {
+    const criteria = lineWith(await readGuide("import"), "受け入れ条件に ADR や要件定義書");
+    for (const word of ["ADR-001", "テストとコメント"]) expect(criteria, word).toContain(word);
+  });
+
+  it("audit は ADR の細部と実装のずれを「ADR の細部を消す」として起票し、意図した設計はテストかコメントで押さえる起票を勧める", async () => {
+    const audit = await readGuide("audit");
+    expect(audit).toContain("「ADR の細部を消す」");
+    expect(section(audit, "## 同じ指摘を繰り返さない")).toContain("テストかコメント");
+  });
+
   it("review は参考節との食い違いを軽い指摘として返し、参考節がなければ見比べないと案内し、直さなかった軽い指摘は親が PR の本文に書き足すと決める", async () => {
     const review = await readGuide("review");
     const look = bullet(section(review, "## 見直す"), "見る");
