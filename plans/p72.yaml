@@ -1,0 +1,88 @@
+id: p72
+project: default
+tickets: [t547, t543, t536, t544, t550, t551, t548, t534, t552, t549, t545, t546, t535, t537]
+after:
+  t544:
+    - t543
+  t548:
+    - t544
+  t549:
+    - t548
+  t550:
+    - t547
+  t534:
+    - t550
+  t545:
+    - t547
+    - t549
+    - t550
+  t546:
+    - t545
+  t551:
+    - t536
+  t552:
+    - t551
+  t535:
+    - t534
+    - t536
+    - t546
+  t537:
+    - t535
+pending_approval: true
+details:
+  t547:
+    scope: "dg next の待つ対象を push 前の手直しの Run に絞る（PR #485、マージ待ち）"
+    approach: 見直しが通り ready。マージの後に dgdone で片付ける
+    tier: standard
+  t543:
+    scope: "別のセッションで開いたままの review の Run を interrupted で閉じる。fix の側は制限として明記（PR #486、マージ待ち）"
+    approach: 見直しが通り ready。マージの後に dgdone で片付ける
+    tier: heavy
+  t536:
+    scope: "check:docs の要件 ID・guide の重複・先頭コメントの検査と予算の削除（PR #487、マージ待ち）"
+    approach: 見直しが通り ready。マージの後に dgdone で片付ける
+    tier: standard
+  t544:
+    scope: 照合が、終わった・todo に戻った・別の主体の claim になったチケットの implement の Run を閉じる
+    approach: setup.ts の照合の終わりの処理に fix と同じ形で足し、結果は ticket.ts の runsClosedByMove と揃える。sync --help と RN-6 を直す
+    tier: standard
+  t550:
+    scope: push しないまま返った手直しの Run が開いたままでも、dg next が待つ以外の手を返す
+    approach: next.ts の待つ判定に、返ったサブエージェントの Run（止まって待っている印や記録の終わり）を見分ける事実を使う。t547 の後に触る
+    tier: standard
+  t551:
+    scope: check:docs の重複の検査を README・development.md・CLAUDE.md と正本の間に広げる
+    approach: t536 の段落の比べ方を使い、範囲を ADR-001 と check-docs.mjs の冒頭に合わせる。出た指摘は直すか起票する
+    tier: standard
+  t548:
+    scope: サブエージェントのもう一度の claim でもセッションを持たせ、別のセッションの手直しの Run を interrupted で閉じる
+    approach: 印 step=fix の起動のフックか環境でセッションを渡す形を決め、ADR-015 の制限を置き換える。ticket.ts は t544 の後に触る
+    tier: heavy
+  t534:
+    scope: dg brief の役ごとの文と dg next の implement・review・fix の手への同梱
+    approach: ask.ts の文の組み方と言語の渡し方に倣い、文の形はスナップショットで押さえる。next.ts は t550 の後に触る
+    tier: standard
+  t552:
+    scope: check:docs が、定義が 1 つもない接頭辞の要件 ID の参照を誤検出なしで指摘する
+    approach: t536 の要件 ID の検査の接頭辞の集め方を広げ、ADR-001・UTF-8 などを外すテストを足す。t551 の後に触る
+    tier: standard
+  t549:
+    scope: 前景で durationMs がないときと、sync が書き終わり待ちの古い Run を閉じるときにも、見直しの結果を新しい Run に結び付ける
+    approach: hook.ts の closeStaleReviewRuns の起動の時刻を記録の最初の行で補い、setup.ts の closeStoppedRuns で別のセッションの古い見直しの Run を飛ばす。ADR-015 を合わせる
+    tier: heavy
+  t545:
+    scope: dg pr ready・merge の Core のコマンドと、dg を経由しない gh pr ready・merge を粗く止めるフック、ADR と guide・requirements
+    approach: gate.ts の judgeGate を通してから gh を execFile で呼ぶコマンドを足し、hook.ts は読み切れないものを止める側に倒す。PR 482 の読み違えの例をテストにする
+    tier: heavy
+  t546:
+    scope: store を開くときと Stop のフックで dg の外の変更を見つける検査と、writesDataDir の粗い形への置き換え
+    approach: dg が書いたコミットを見分ける印を決め、書くコマンドは止め読むコマンドは警告する。判断は t545 の ADR に従う
+    tier: heavy
+  t535:
+    scope: guide の work・run・review・parallel・all の書き直しと Skill の入れ直し
+    approach: dg next を呼んで 1 手を行う細いループに縮め、重複を消して合計を半分以下にする。t545・t546・t547・t550 が guide に足した案内は残す
+    tier: standard
+  t537:
+    scope: PR の要らない調査：s19 と同じ 6 つの数の取り直しと EX-1 反転の要否の判断
+    approach: t494 のコマンドで表を出し、ADR-004 の書き換え案として報告する。新しい Iteration のデータが揃ってから着手する
+    tier: heavy
