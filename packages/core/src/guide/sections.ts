@@ -1,5 +1,5 @@
 // guide の本文を節（## の見出し）に分け、名前で 1 節を引く。節の名前は check-docs の guideSectionNames と同じ決め方で、
-// 見出しの文言と、その末尾の「（…）」の補足を除いた名前の両方で引ける。読み込み（ファイル・choices・config の埋め込み）は CLI が行う
+// 見出しの文言と、その末尾の「（…）」の補足を除いた名前の両方で引ける。読み込み（ファイル・choices・config の埋め込み）は guide.ts の composeGuide が行う
 
 import { UsageError } from "../errors.js";
 

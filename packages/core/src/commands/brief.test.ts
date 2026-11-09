@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { createFixture } from "../../test/helpers/git-fixture.js";
-import { guideSectionText } from "../guide/guide.js";
+import { composeGuide } from "../guide/guide.js";
 import { openContext } from "./context.js";
 import { brief, composeBrief, type BriefFacts } from "./brief.js";
 import { runCommand } from "./define.js";
@@ -226,7 +226,7 @@ describe("dg brief と dg next の文（EX-3）", () => {
     const ctx = await prepared();
     // 節の見出しを除いた本文。文の中では区切りの行に挟まれる
     const body = async (topic: string, section: string) =>
-      (await guideSectionText(topic, section, ctx.config, ctx.repo.topLevel)).text
+      (await composeGuide(topic, ctx.config, ctx.repo.topLevel, section)).text
         .split("\n")
         .slice(1)
         .join("\n")

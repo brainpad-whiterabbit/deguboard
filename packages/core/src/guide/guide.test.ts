@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { configSchema, NOTE_TOPICS, type Config } from "../model/config.js";
-import { GUIDE_TOPICS, guideSectionText, readGuide, readGuideNotes } from "./guide.js";
+import { composeGuide, GUIDE_TOPICS, readGuide, readGuideNotes } from "./guide.js";
 
 let root: string;
 
@@ -39,7 +39,7 @@ describe("guide.notes の文書の差し込み（CL-5）", () => {
     expect(lines[0]).toBe("# 作業（work）");
     expect(lines[2]).toBe("作業の判断の基準を書く");
 
-    const section = await guideSectionText("work", "claim の前後", config, root);
+    const section = await composeGuide("work", config, root, "claim の前後");
     const sectionLines = section.text.split("\n");
     expect(sectionLines[0]).toBe("## claim の前後");
     expect(sectionLines[2]).toBe("作業の判断の基準を書く");
@@ -54,11 +54,20 @@ describe("guide.notes の文書の差し込み（CL-5）", () => {
     expect(notes.warnings[0]).toContain("guide.notes.work");
 
     expect(await readGuide("work", notes.text)).toBe(await readGuide("work"));
-    const section = await guideSectionText("work", "claim の前後", config, root);
+    const section = await composeGuide("work", config, root, "claim の前後");
     expect(section.text).toBe(
-      (await guideSectionText("work", "claim の前後", configSchema.parse({}), root)).text,
+      (await composeGuide("work", configSchema.parse({}), root, "claim の前後")).text,
     );
     expect(section.warnings).toHaveLength(1);
+  });
+
+  it("トピック全体は題名の直後に差し込み、節を指さないので section は null", async () => {
+    await writeFile(join(root, "work-notes.md"), "作業の判断の基準を書く\n");
+    const whole = await composeGuide("work", configWith({ work: "work-notes.md" }), root);
+    expect(whole.section).toBeNull();
+    expect(whole.topic).toBe("work");
+    expect(whole.text.split("\n")[2]).toBe("作業の判断の基準を書く");
+    expect(whole.warnings).toEqual([]);
   });
 
   it("リポジトリの外を指すパスは読まず、警告を返す", async () => {

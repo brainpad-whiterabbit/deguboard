@@ -168,23 +168,44 @@ export async function readGuideMeta(topic: string): Promise<GuideMeta> {
   return (await readGuideFile(topic)).meta;
 }
 
+/** composeGuide の結果。section は節を指したときだけ見出しの文言、トピック全体のときは null */
+export interface GuideText {
+  topic: GuideTopic;
+  section: string | null;
+  /** 本文。guide.notes の文書と config の値（`{{…}}` の項目）を埋めてある */
+  text: string;
+  /** guide.notes の文書を差し込めなかった理由（guide は差し込まずに出す） */
+  warnings: string[];
+}
+
 /**
- * トピックの 1 節を、config の値（`{{…}}` の項目）を埋めて返す。text は見出しの行から始まり、heading は見出しの文言。
- * guide.notes の文書は節の見出しの直後に差し込む（題名の直後とは別の位置。節だけ出しても判断の基準が付く）。
- * dg guide --section・dg next・dg brief・dg flow next が同じ本文を返すよう、この関数を写す。repoTop は作業ツリーの最上位
+ * guide の本文を組む唯一の処理（dg guide・dg next・dg brief・dg flow next がこれを使い、写すだけにする）。
+ * section を省くとトピック全体。指定すると、その節の本文だけ（見出しの文言か「（…）」を除いた名前）。
+ * guide.notes の文書は、トピック全体では題名の直後、節では節の見出しの直後に差し込む（節だけ出しても判断の基準が付く）。
+ * repoTop は作業ツリーの最上位（guide.notes のパスの基準）。初期化前の dg guide は既定の config と cwd を渡す
  */
-export async function guideSectionText(
+export async function composeGuide(
   topic: string,
-  section: string,
   config: Config,
   repoTop: string,
-): Promise<{ heading: string; text: string; warnings: string[] }> {
+  section?: string,
+): Promise<GuideText> {
   const notes = await readGuideNotes(topic, config, repoTop);
+  if (section === undefined) {
+    const body = await readGuide(topic, notes.text);
+    return {
+      topic: topic as GuideTopic,
+      section: null,
+      text: fillPlaceholders(body, config).trimEnd(),
+      warnings: notes.warnings,
+    };
+  }
   const picked = findGuideSection(topic, await readGuide(topic), section);
   const [heading = "", ...rest] = picked.text.split("\n");
   const withNotes = notes.text === "" ? picked.text : [heading, "", notes.text, ...rest].join("\n");
   return {
-    heading: picked.heading,
+    topic: topic as GuideTopic,
+    section: picked.heading,
     text: fillPlaceholders(withNotes, config).trimEnd(),
     warnings: notes.warnings,
   };

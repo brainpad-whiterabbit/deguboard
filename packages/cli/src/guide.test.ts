@@ -1,15 +1,39 @@
-import { writeFile } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { defaultConfig } from "@deguboard/core";
 import { cliEnv } from "../../core/test/helpers/env.js";
 import { createLocalOnlyRepo } from "../../core/test/helpers/git-fixture.js";
-import { GUIDE_TOPICS, fillPlaceholders, readGuide, readGuideMeta } from "./guide.js";
+import { GUIDE_TOPICS, fillPlaceholders, readGuide, readGuideMeta, renderGuide } from "./guide.js";
 import { buildProgram, run } from "./program.js";
 
 const cleanups: Array<() => Promise<void>> = [];
 afterEach(async () => {
   await Promise.all(cleanups.splice(0).map((c) => c()));
+});
+
+// 本文の組み立て（読み込み・choices・config の埋め込み・節の切り出し）を変えたときに出力が変わっていないかを確かめる。
+// 初期化していない一時ディレクトリで既定の config を使う。意図して本文を変えたときだけ snapshot を更新する
+describe("dg guide の出力（本文の組み立て）", () => {
+  it("トピックごとの本文と、節の本文が変わらない", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "dg-guide-golden-"));
+    cleanups.push(() => rm(dir, { recursive: true, force: true }));
+    for (const topic of GUIDE_TOPICS) {
+      const guide = await renderGuide(topic, dir);
+      expect(guide.warnings, topic).toEqual([]);
+      expect(guide.text, topic).toMatchSnapshot(topic);
+    }
+    expect((await renderGuide("work", dir, "実装する（draft の PR まで）")).text).toMatchSnapshot(
+      "work の節",
+    );
+    expect((await renderGuide("import", dir, "次の手順を選ぶ")).text).toMatchSnapshot(
+      "import の節",
+    );
+    expect((await renderGuide("plan", dir, "Plan の作り方")).text).toMatchSnapshot(
+      "plan の節（見出し）",
+    );
+  });
 });
 
 async function dg(cwd: string, argv: string[]) {

@@ -1,14 +1,11 @@
-// dg guide <topic>：エージェント向けの手順を出す（CL-5）。本文と読み込みは Core が持つ（ADR-030）。ここは config を読んで Core の節を写すだけ
+// dg guide <topic>：エージェント向けの手順を出す（CL-5）。本文を組むのは Core の composeGuide（ADR-030）。ここは config を読んで Core の結果を写すだけ
 
 import {
   ACTION_NAMES,
+  composeGuide,
   DeguboardError,
   defaultConfig,
-  fillPlaceholders,
-  guideSectionText,
   openContext,
-  readGuide,
-  readGuideNotes,
   type Config,
   type GuideTopic,
 } from "@deguboard/core";
@@ -50,23 +47,5 @@ export async function renderGuide(
   warnings: string[];
 }> {
   const { config, repoTop, initialized } = await loadGuideConfig(cwd);
-  if (section === undefined) {
-    const notes = await readGuideNotes(topic, config, repoTop);
-    const body = await readGuide(topic, notes.text);
-    return {
-      topic: topic as GuideTopic,
-      section: null,
-      text: fillPlaceholders(body, config).trimEnd(),
-      initialized,
-      warnings: notes.warnings,
-    };
-  }
-  const picked = await guideSectionText(topic, section, config, repoTop);
-  return {
-    topic: topic as GuideTopic,
-    section: picked.heading,
-    text: picked.text,
-    initialized,
-    warnings: picked.warnings,
-  };
+  return { ...(await composeGuide(topic, config, repoTop, section)), initialized };
 }
