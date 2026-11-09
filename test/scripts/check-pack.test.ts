@@ -1,4 +1,5 @@
 // scripts/check-pack.mjs が、tarball のどれかに package/LICENSE がなければ失敗することを確かめる（t471）。
+// cli の tarball に guide-*.md があれば、core の tarball に dist/guide/guide-*.md がなければ失敗することも確かめる（t610）。
 // 本物の pack の代わりに、一時ディレクトリに tar で作った小さな tgz を使う
 
 import { execFile } from "node:child_process";
@@ -30,7 +31,10 @@ afterEach(async () => {
 async function tarball(name: string, files: string[]): Promise<void> {
   const src = join(dir, `src-${name}`);
   await mkdir(join(src, "package"), { recursive: true });
-  for (const file of files) await writeFile(join(src, "package", file), "x");
+  for (const file of files) {
+    await mkdir(dirname(join(src, "package", file)), { recursive: true });
+    await writeFile(join(src, "package", file), "x");
+  }
   await run("tar", ["czf", join(release, `${name}.tgz`), "-C", src, "package"]);
 }
 
@@ -73,5 +77,33 @@ describe("check-pack", () => {
     const outcome = await check();
     expect(outcome.code).toBe(1);
     expect(outcome.stderr).toContain("先に mise run pack を実行する");
+  });
+
+  it("cli の tarball に guide-*.md があれば失敗し、そのファイルを出す（t610）", async () => {
+    await tarball("deguboard-0.18.0", ["LICENSE", "dist/skill.md", "dist/guide-create.md"]);
+    await tarball("deguboard-core-0.18.0", ["LICENSE", "dist/guide/guide-all.md"]);
+    await tarball("deguboard-server-0.18.0", ["LICENSE"]);
+    const outcome = await check();
+    expect(outcome.code).toBe(1);
+    expect(outcome.stderr).toContain("deguboard-0.18.0.tgz");
+    expect(outcome.stderr).toContain("package/dist/guide-create.md");
+  });
+
+  it("core の tarball に dist/guide/guide-*.md がなければ失敗する（t610）", async () => {
+    await tarball("deguboard-0.18.0", ["LICENSE", "dist/skill.md"]);
+    await tarball("deguboard-core-0.18.0", ["LICENSE", "dist/guide.js"]);
+    await tarball("deguboard-server-0.18.0", ["LICENSE"]);
+    const outcome = await check();
+    expect(outcome.code).toBe(1);
+    expect(outcome.stderr).toContain("deguboard-core-0.18.0.tgz");
+  });
+
+  it("cli に guide-*.md がなく core に dist/guide/guide-*.md があれば通る（t610）", async () => {
+    await tarball("deguboard-0.18.0", ["LICENSE", "dist/skill.md"]);
+    await tarball("deguboard-core-0.18.0", ["LICENSE", "dist/guide/guide-all.md"]);
+    await tarball("deguboard-server-0.18.0", ["LICENSE"]);
+    const outcome = await check();
+    expect(outcome.code).toBe(0);
+    expect(outcome.stdout).toContain("ok deguboard-core-0.18.0.tgz");
   });
 });
