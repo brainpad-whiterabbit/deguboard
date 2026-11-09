@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -209,9 +209,12 @@ describe("dg guide", () => {
     for (const word of ["移行が要る", "テストとコメント"]) expect(criteria, word).toContain(word);
   });
 
-  it("同梱の guide は、このリポジトリの ADR 番号を書かない（基準は中身を 1 文で書く）", async () => {
-    for (const topic of ["work", "review", "audit", "import"])
-      expect(await readGuide(topic), topic).not.toMatch(/ADR-\d{3}/);
+  it("同梱の guide（guide-*.md の全部）は、このリポジトリの ADR 番号を書かない（基準は中身を 1 文で書く）", async () => {
+    const dir = new URL("../../core/src/guide/", import.meta.url);
+    const files = (await readdir(dir)).filter((file) => /^guide-.+\.md$/.test(file));
+    expect(files.length).toBeGreaterThan(0);
+    for (const file of files)
+      expect(await readFile(new URL(file, dir), "utf8"), file).not.toMatch(/ADR-\d{3}/);
   });
 
   it("import は本文の項目の引用しない値の行末コメントが拒まれると書き、直し方はエラーの文に任せる", async () => {
