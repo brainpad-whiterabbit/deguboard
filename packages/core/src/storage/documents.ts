@@ -1,6 +1,6 @@
 // 1 ファイルの読み書き。読みは Zod で検証し、失敗は Issue にする。
-// 読みは YAML の Document を作らず値にする（ストアは開くたびに全件読むため）。書くときにだけ、読んだ文字列から
-// Document を作って部分更新し、コメントとキー順を保つ。JSON（Run）は値に当てて書く
+// 読みは parse で値にし、Doc に YAML の Document を持たせない（parse の中で作られる Document は読みの中で捨てる）。
+// 書くときにだけ、読んだ文字列から Document を作って部分更新し、コメントとキー順を保つ。JSON（Run）は値に当てて書く
 
 import { readFile } from "node:fs/promises";
 import path from "node:path";

@@ -6,7 +6,7 @@ afterEach(() => {
 });
 
 describe("parseYamlValue", () => {
-  it("読めた値は Document を作って取った値と同じになる（Document を作らない）", () => {
+  it("読めた値は parseYamlDocument の toJS と同じになる（parse で読み、Doc は Document を持たない）", () => {
     const text = "id: t1 # 行末\nlabels: [a, b]\nnested:\n  - x: 1\n";
     expect(parseYamlValue(text)).toEqual({
       value: { id: "t1", labels: ["a", "b"], nested: [{ x: 1 }] },
