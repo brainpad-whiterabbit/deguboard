@@ -5,60 +5,37 @@ argument-hint: "<Iteration|チケットの ID...> [--no-assign] [--auto]"
 
 # 一気通し（all）
 
-Iteration かチケットを、割り当てからリリースまでの段階で続けて進める。各段階の手順は、段階に入るときにそのトピックを読んで従う。
+Iteration かチケットを、割り当てからリリースまでの流れで続けて進める。今の段階と次の手は `dg flow next` が求めるので、ここには返った手の行い方だけを書く。
 
 ## 対象を決める
 
 - Iteration（`s3`）：その Iteration のチケットと、そこに入れる候補（Iteration に入っていない todo）。候補を扱うのは割り当ての段階だけ
-- チケットの ID（1 つ以上）：そのチケットを扱う。見直しとリリースは、チケットの Iteration のチケットがすべて done になったときだけ、その Iteration を対象に行う。Iteration に入っていなければ見直しとリリースはしない
+- チケットの ID（1 つ以上）か Plan の ID（`p7`）：その対象を扱う。見直しとリリースは、対象のチケットの Iteration のチケットがすべて終わったときだけ、その Iteration を対象に行う。Iteration に入っていなければ見直しとリリースはしない
 - 指定が空：`dg guide release` の「対象を決める」と同じ
 - `--no-assign`：割り当ての段階を飛ばす。点検で Iteration に入れる案が出ても反映せず、終わりの報告に残す
 - `--auto`：下の「`--auto` で自動で選ぶ」。`--no-assign` と一緒に指定できる
 
 以下の `<S>` は対象の Iteration。聞かずに始め、閉じるのは人の指示で行う。
 
-## 段階
+## 流れの進め方
 
-| 段階     | 読むトピック                                         | 承認を求める場所                     |
-| -------- | ---------------------------------------------------- | ------------------------------------ |
-| 割り当て | `dg guide assign`（`<S>` に入れるか入れないかだけ）  | 入れる行                             |
-| 点検     | `dg guide check`                                     | 直す行、削除・abandoned・閉じる      |
-| 計画     | `dg guide plan`                                      | Plan                                 |
-| 作業     | `dg guide work`・`dg guide parallel`                 | PR ごとのマージ（`dg guide done`）   |
-| 見直し   | `dg guide audit`                                     | 指摘の表                             |
-| リリース | `dg guide release`（手順がなければ `dg guide done`） | リリースの PR のマージ・公開・閉じる |
-
-## 今の段階を求める
-
-始めるときと各段階を終えたときに、`dg --json --actor agent sync` のあと `iteration show <S>`・`ticket list`・`plan list --status open` と `plan show <p>`・`ticket list --label audit-<S>` を読み、次の順で最初に当たるものを今の段階にする。
-
-1. 割り当て：この実行で割り当てを終えておらず、`<S>` が見直し済みでなく、Iteration に入っていない todo（ラベル `audit-<S>` を除く）があり、`--no-assign` がない
-2. 点検：この実行でまだ点検していない（起動のたびに 1 回）
-3. 計画：対象のチケットを含む承認待ちの Plan がある → 計画（その Plan の承認を得る）
-4. 作業：対象のチケットを含む承認済みの Plan に、done でないチケットがある（`dg next` が手を返す対象）→ 作業
-5. 計画：対象に、開いた Plan に入っていない todo がある → 計画
-6. 見直し：対象のチケットがすべて done か abandoned で、`<S>` が見直し済みでない → 見直し
-7. リリース：対象のチケットがすべて done か abandoned で、`<S>` が見直し済み → リリース
-8. どれにも当たらない（PR のない in_progress だけ、マージ待ちの review だけ、など）：状態を示して止まる
-
-- **見直し済み**：ラベル `audit-<S>` のチケットがある（状態と所属は問わない）か、この実行で見直しを終えた。見直しで起票したチケットを進めて done に戻っても、もう一度は見直さずにリリースに進む
-- 同じ段階が続けて求められ、状態が変わらない（承認が得られなかった、マージを待っている）ときは、繰り返さずに状態を示して止まる。同じ引数で起動し直せば、状態から求め直して再開する
+1. 始めるときと、段階の手を終えるたびに `dg --json --actor agent flow next <対象…>` を呼ぶ（`--auto`・`--no-assign` は指定があれば付ける）。返りの `stage.name` が今の段階（`assign`・`check`・`plan`・`work`・`audit`・`release`・`stop`）、`commands` が呼ぶ dg のコマンド（順に）、`guide.text` が段階の手のやり方、`approval` が承認の要否と場所
+2. `stage` の手を行う。`commands` を順に行い、`guide.text` のとおりに進める（読み直すときは `guide.command`）。
+   - `work` は `dg guide parallel` のとおり、件数によらずチケットごとにサブエージェントに任せる。親は進行・承認・`dg` の読み書きだけを行う
+   - `release` で、リポジトリの規約にリリースの手順がなければ `dg guide done` の手順で片付ける
+3. `approval.required` が true の場面は、`approval.what` を人に聞く。選択肢には「ここで止める」を入れる。`--auto` のときの扱いは下の「`--auto` で自動で選ぶ」
+4. 段階の手を終えたら（承認を得た・直した・行い終えた）、その返りの `resume` をそのまま `--resume` に写して、1 に戻る（`dg --json --actor agent flow next <対象…> --resume <resume>`）。値は組み立てない。割り当て・点検・見直しの手の途中で止めたとき（承認が得られなかった、見直しの指摘の表で止めた）は写さず、同じ対象と指定で最初から呼ぶ。写すとその段階を終えたものとして飛ばす
+5. `stage.name` が `stop`、または `repeated` が null でないとき（同じ段階が続き、事実が変わらない）は、`ask_human` と状態を示して止まる
 
 ## 段階の間の進み方
 
-- **段階の間は止まらない**：各段階の「次の手順を選ぶ」は聞かず、上の求め方で次の段階に進む。求め方で決まらない行き先を勧められたときだけ聞く
-- **作業はサブエージェントに任せる**：件数によらず `dg guide parallel` でチケットごとに起動し、親は進行・承認・`dg` の読み書きだけを行う
-- **承認の場所は残す**：上の表と各段階の手順が承認を求める操作は、そのとおりに承認を得る。選択肢には「ここで止める」を入れる
-- **作業は記録した Plan から始める**：計画の段階で承認した Plan を `plan show <p>` で読み直してから作業に入る（会話に頼らない）
-- **マージは人が行う**：PR を出したら、マージは人に頼むか承認を得てから行う。マージを待つ間も、Plan のほかのチケットを進め、なければ止まる
+- **段階の間は止まらない**：`approval.required` の場面以外では聞かず、次の `flow next` へ進む
+- **マージは人が行う**：PR を出したら、マージを待つ間も次の手を進め、手がなければ止まる。マージの承認は `approval` のとおり
+- **失敗の扱い**：実装が失敗したチケットは `dg guide parallel` のとおり todo に戻し、それを待たないチケットを進める。見直し・手直しが failure で返った・返らないチケットは todo に戻さず、`dg guide review` の「終わり方」に従う
 
 ## `--auto` で自動で選ぶ
 
-`--auto` のときは、承認を求める場面で `dg --json --actor agent flow next` の `approval.auto` に書いたものだけを、聞かずに勧める選択肢で進め、`approval.what` に残るものは聞く。どの判断がそれに入るかは config の `auto.decisions`（今の設定：`{{auto.decisions}}`）と `auto.merge` が決める。照合の後の受け入れ条件の確認は、`auto.decisions` に `accept` があるときだけ、`--auto` のとき聞かずに進める。選んだものと判断の材料はその場で短く示す。
-
-- PR のマージは、`auto.merge`（今の設定：`{{auto.merge}}`）が true のときだけ、`dg guide review` の「品質ゲート」を満たす PR を `dg --json --actor agent pr merge <id>` で行う。方法とブランチを消すかは `--method`・`--delete-branch` を省いて config の `merge.method`・`merge.delete_branch`（今の設定：`{{merge.method}}`・`{{merge.delete_branch}}`）に任せる。満たさなければ、満たさなかった条件を示して承認を求めて止まる
-- **人が決める判断は config によらず聞いて止まる**：リリースの PR のマージと公開（タグ・配布先）、チケットの削除・abandoned・done の取り消し、Epic・Iteration・Plan を閉じる・再開する。`auto.merge` が false のときのマージ。Plan の待ち（`after`）と範囲を変えること、`--force` の付く操作。勧めるものがない判断と、選択肢にできない答え
-- 実装が失敗したチケットは `dg guide parallel` のとおり todo に戻し、それを待たないチケットを進める。見直し・手直しが failure で返った・返らないチケットは todo に戻さず、`dg guide review` の「終わり方」に従う
+`--auto` のときは、`approval.auto_ok` が true のものと、`auto.decisions`（今の設定：`{{auto.decisions}}`）に accept があるときの照合の後の受け入れ条件の確認（`dg guide done` の手順 3）だけを、聞かずに `approval.auto` の選択肢で進め、ほか（`approval.what` に残るもの。人が決める判断はここに入る）は聞く。PR のマージは、`auto.merge`（今の設定：`{{auto.merge}}`）が true のときだけ、`approval.auto` のとおり品質ゲート（`dg guide review` の「品質ゲート」）を満たすときだけ `dg --json --actor agent pr merge <id>` で行い、満たさなければ満たさなかった条件を示して承認を求めて止まる。方法とブランチを消すかは config に任せる。選んだものと判断の材料はその場で短く示す。
 
 ## 結果を伝える
 
@@ -68,7 +45,7 @@ Iteration かチケットを、割り当てからリリースまでの段階で�
 
 ## 次の手順を選ぶ
 
-止まったときは、止まった理由に合わせて次の選択肢で聞く。流れを終えたとき（リリースか片付けを終えた）は聞かずに結果を伝える。
+止まったときは、止まった理由に合わせて次の選択肢で聞く。Iteration が閉じて流れを終えたとき（`flow next` の理由がそれ）は聞かずに結果を伝える。
 
-- **再開する**（マージを待って止まったとき勧める）：マージの後に `dg guide all` を読み直し、同じ対象と指定（`--auto` など）で続ける（Skill があれば `/dgall <S>`）
+- **再開する**（マージを待って止まったとき勧める）：マージの後に `dg guide all` を読み直し、同じ対象と指定（`--auto` など）で `flow next` を呼んで続ける（Skill があれば `/dgall <S>`）
 - **ここで止める**
