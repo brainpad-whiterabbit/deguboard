@@ -226,6 +226,60 @@ describe("dg gate の検査（actions.test。t601）", () => {
     expect(await runs()).toBe(2);
   });
 
+  it("通った後に actions.test を変えると、同じコミットでも検査を回し直す（覚えた結果はコマンドごと）", async () => {
+    const { f, ctx: first, runs } = await withCheck();
+    await review(first, later(1), 0);
+    expect(check(await judge(first, "ready")).ok).toBe(true);
+    expect(await runs()).toBe(1);
+    // 検査のコマンドを別のスクリプトに変える。同じコミットでも、覚えた結果は使わずに回す
+    const other = path.join(f.root, "check-other.sh");
+    await writeFile(
+      other,
+      `#!/bin/sh\necho run >> '${path.join(f.root, "check-count")}'\necho 別の検査\nexit 0\n`,
+      { mode: 0o755 },
+    );
+    await runCommand(configSet, first, { key: "actions.test", value: `sh, ${other}` });
+    const changed = await openContext({ cwd: f.cloneA, actor: first.actor });
+    const view = await judge(changed, "ready");
+    expect(check(view)).toMatchObject({
+      ok: true,
+      detail: expect.stringContaining("check-other.sh"),
+    });
+    expect(await runs()).toBe(2);
+    // 変えたあとの同じコマンドの結果は覚えるので、もう一度は回さない
+    await judge(changed, "ready");
+    expect(await runs()).toBe(2);
+  });
+
+  it("存在しないコマンドを指すと検査を回せないで ok が false になり、結果を覚えず、見つかるようになれば回して通る", async () => {
+    const { f, ctx: first } = await withCheck();
+    const name = "dg-t615-no-such-check";
+    await runCommand(configSet, first, { key: "actions.test", value: name });
+    const ctx = await openContext({ cwd: f.cloneA, actor: first.actor });
+    await review(ctx, later(1), 0);
+    const view = await judge(ctx, "ready");
+    expect(view.passed).toBe(false);
+    expect(check(view)).toMatchObject({
+      ok: false,
+      detail: expect.stringContaining(`検査（${name}）を回せない`),
+    });
+    // 回せなかった結果は覚えない（記録のファイルがない）
+    const stored = await readFile(path.join(ctx.repo.localDir, "checks", "t1.json"), "utf8").catch(
+      () => undefined,
+    );
+    expect(stored).toBeUndefined();
+    // コマンドが見つかるようになれば、同じコミットでも回して通る
+    const bin = path.join(f.root, "check-bin");
+    await mkdir(bin, { recursive: true });
+    await writeFile(path.join(bin, name), "#!/bin/sh\necho 通った\nexit 0\n", { mode: 0o755 });
+    const saved = process.env["PATH"];
+    process.env["PATH"] = bin + path.delimiter + (saved ?? "");
+    cleanups.push(() => {
+      process.env["PATH"] = saved;
+    });
+    expect(check(await judge(ctx, "ready")).ok).toBe(true);
+  });
+
   it("worktree が最新のコミットでない・未コミットの変更があるなら回さずに満たさない", async () => {
     const { f, ctx, runs } = await withCheck();
     await review(ctx, later(1), 0);

@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -229,6 +230,32 @@ describe("dg pr ready・dg pr merge（t545）", () => {
     expect(ready!.detail).toContain("exit 1");
     expect(ready!.detail).toContain("落ちたテスト");
     expect(await calls()).toEqual([]);
+  });
+
+  it("検査（actions.test）が通らなければ dg pr merge は GATE_FAILED で止まり、gh を呼ばず、検査に使った作業ブランチの worktree を残す（t615）", async () => {
+    const { ctx: first, calls, undraft } = await prepared();
+    const script = path.join(path.dirname(first.repo.topLevel), "failing-merge-check.sh");
+    await writeFile(script, "#!/bin/sh\necho 落ちたテスト\nexit 1\n", { mode: 0o755 });
+    await runCommand(configSet, first, { key: "actions.test", value: `sh, ${script}` });
+    const ctx = await openContext({ cwd: first.repo.topLevel, actor: first.actor });
+    await passedReview(ctx);
+    await undraft();
+    await runCommand(ticketCheck, ctx, { ticket: "t1", items: [1] });
+    // feat/t1 を main の worktree から外し、別の worktree に checkout する（検査はその worktree で回る）
+    const main = ctx.repo.topLevel;
+    await git(main, ["checkout", "-q", "main"]);
+    const wt = path.join(path.dirname(main), "wt-t1");
+    await git(main, ["worktree", "add", "-q", wt, "feat/t1"]);
+    // --delete-branch でも、品質ゲートを通らなければ worktree は消さない（消すのは通った後だけ）
+    const err = await rejection(runCommand(prMerge, ctx, { ticket: "t1", delete_branch: true }));
+    expect(err).toBeInstanceOf(OperationError);
+    expect(err!.code).toBe("GATE_FAILED");
+    expect(err!.detail).toContain("check: 検査");
+    expect(err!.detail).toContain("exit 1");
+    expect(err!.detail).toContain("落ちたテスト");
+    expect(await calls()).toEqual([]);
+    expect(existsSync(wt)).toBe(true);
+    expect((await git(main, ["worktree", "list"])).stdout).toContain("wt-t1");
   });
 
   it("dg pr ready は直さなかった軽い指摘を PR の本文に書き足し、もとの本文は残す。受け入れ条件の軽い指摘は手直しに回るので書かない（t600）", async () => {
