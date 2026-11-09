@@ -1,0 +1,30 @@
+id: p89
+project: default
+tickets: [t633, t634, t636, t635]
+after:
+  t634:
+    - t633
+  t636:
+    - t633
+    - t634
+  t635:
+    - t634
+    - t636
+pending_approval: true
+details:
+  t633:
+    scope: ADR-001 の ADR の書き方・採らなかった案、docs/adr/README.md の説明、CLAUDE.md の ADR の行、同梱 guide（work・review・audit・import）を新しい方針に合わせる
+    approach: 方針はチケットの本文のとおり。同梱 guide からはこのリポジトリの ADR 番号を消し、基準の中身を 1 文で書く
+    tier: standard
+  t634:
+    scope: check-docs.mjs の ADR の検査：更新日の照合をやめ、実在しない番号の参照・最後に使った番号・8,000 字の警告を足す
+    approach: 地の文とコメントの ADR-0xx を走査して実在と照合し、検査ごとにテストを足す
+    tier: standard
+  t636:
+    scope: packages（dist を除く）と scripts の ADR 番号の参照を、ファイルの先頭のコメントの 1 つまでにし、テスト名と文字列から消す
+    approach: 外す参照には要件 ID か「なぜ」を残す。t635 の前に行い、削除で張り替える参照を減らす
+    tier: heavy
+  t635:
+    scope: 置き換え済みの ADR のファイルを消し、参照を張り替える。有効な ADR の冒頭に要約を置き、更新日とステータスの行を消し、一覧に最後に使った番号を置く
+    approach: t634 の検査で張り替えの漏れを見つけ、check:docs が通るまで直す
+    tier: standard
