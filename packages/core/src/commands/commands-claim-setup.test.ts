@@ -245,6 +245,30 @@ describe("claim の worktree の準備のコマンド（worktree.setup）", () =
     return openContext({ cwd, actor: { kind: "human", user: "eiki" } });
   }
 
+  it("既定の空のままなら何も回さず、印のファイルも準備の警告も出ない", async () => {
+    const f = await fixture();
+    const ctx = await initialized(f.cloneA);
+    await runCommand(ticketCreate, ctx, { title: "A" });
+    const claimed = await runCommand(ticketClaim, ctx, { ticket: "t1", branch: "feat/empty" });
+    const dir = claimed.data.worktree!;
+    expect(claimed.data.status).toBe("in_progress");
+    expect(existsSync(path.join(dir, "setup-ran.txt"))).toBe(false);
+    expect(claimed.warnings.join("\n")).not.toContain("準備のコマンド");
+  });
+
+  it("終了コードで止まったときは、警告に stderr の末尾を添える", async () => {
+    const f = await fixture();
+    const ctx = await withSetup(f.cloneA, [
+      "node",
+      "-e",
+      "console.error('原因の行'); process.exit(4)",
+    ]);
+    await runCommand(ticketCreate, ctx, { title: "A" });
+    const claimed = await runCommand(ticketClaim, ctx, { ticket: "t1", branch: "feat/stderr" });
+    expect(claimed.warnings.join("\n")).toContain("終了コード 4");
+    expect(claimed.warnings.join("\n")).toContain("stderr の末尾: 原因の行");
+  });
+
   it("claim が作った worktree で、引数配列のコマンドを worktree の中で回す（元のクローンでは回さない）", async () => {
     const f = await fixture();
     const ctx = await withSetup(f.cloneA, marker);

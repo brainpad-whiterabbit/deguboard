@@ -25,7 +25,11 @@ import { wouldCreateCycle } from "../storage/integrity.js";
 import type { Store, WorkflowEntry } from "../storage/store.js";
 import type { Facts } from "../workflow/conditions.js";
 import { canTransition, describeRejection, findConstraint } from "../workflow/resolve.js";
-import { prepareIterationForClaim, prepareWorktreeForClaim } from "./claim-setup.js";
+import {
+  prepareIterationForClaim,
+  prepareWorktreeForClaim,
+  runSetupInWorktree,
+} from "./claim-setup.js";
 import { defineCommand, ok, type CommandContext } from "./define.js";
 import { parseDraftSource } from "./draft-source.js";
 import { matchesFilter, ticketFilterSchema } from "./filters.js";
@@ -996,8 +1000,8 @@ export const ticketClaim = defineCommand({
   summary:
     "チケットに着手する。担当者（assignee）を自分にしてブランチを記録し、in_progress にする。push の成功で排他を得る。todo → in_progress の制約（requires: [deps_done] など）があれば従う。" +
     "lint.require_iteration が true で Iteration が空なら、Project の active の Iteration（なければ planned のうち start が最も早いもの、並べば ID の小さいもの）に入れる。入れ先がなければ warnings で人に頼むよう伝える。チケットの Iteration が planned なら active にし、できなければ（ほかの active・actor.human_only）warnings に出して claim は成功にする。どちらも claim と同じ書き込みで push する。" +
-    "push の後、作業ブランチの worktree を worktree.root/<ブランチ名>（--worktree-path で変えられる）に base から作り、場所を worktree に出す。そのブランチの worktree が既にあればそれを、ローカルにブランチだけあればそれを checkout する。作れなければ warnings に出して claim は成功にする。作った worktree（既存のものは除く）では config の worktree.setup のコマンドを回し、失敗は warnings に出して claim は成功にする。--no-worktree・--without-branch では作らない。" +
-    "agent なら続けて実装の Run（Workflow の steps のうち opens_on: claim のもの、なければ implement）を開き、ID を run（人向けの出力では標準出力の最後の行）に出す。開けなければ警告だけして claim は成功にする。" +
+    "push の後、作業ブランチの worktree を worktree.root/<ブランチ名>（--worktree-path で変えられる）に base から作り、場所を worktree に出す。そのブランチの worktree が既にあればそれを、ローカルにブランチだけあればそれを checkout する。作れなければ warnings に出して claim は成功にする。作った worktree（既存のものは除く）では config の worktree.setup のコマンドを回し、失敗は warnings に出して claim は成功にする。その準備は pnpm install などで数分かかることがあり（上限 10 分）、claim はその間戻らない。--no-worktree・--without-branch では作らない。" +
+    "agent なら続けて実装の Run（Workflow の steps のうち opens_on: claim のもの、なければ implement）を開き、ID を run（人向けの出力では標準出力の最後の行）に出す。Run は準備のコマンドより先に開く。開けなければ警告だけして claim は成功にする。" +
     "自分（同じユーザの人と AI）が claim 済みで PR のあるチケット（in_progress か review）をもう一度 claim すると、手直し（見直しの修正ループ・人のレビューの後）の開始とみなす。チケットは変えず、agent なら手直しの Run（opens_on: reclaim のもの、なければ fix）を開く。実装の Run でも手直しの Run でも、開くときに同じチケットの開いたままの前の手直しの Run があれば、この claim を区切りとして、その Run の開始より後の最後の push の時刻（なければこの claim の時刻）で success にしてから開く（手直しの Run を開くとき、前の手直しの Run の session がこの claim のセッション（--session、なければ環境の DEGUBOARD_SESSION、なければ dg を呼んだエージェントが環境に付けるセッション ID。サブエージェントの claim では起動した親のセッション）と違えば、落ちたセッションの残りとみなして interrupted にする。どちらかのセッションが分からなければ success）。ほかの主体の claim は拒否する",
   input: z.object({
     ticket: ticketRef,
@@ -1152,7 +1156,7 @@ export const ticketClaim = defineCommand({
     warnings.push(...iterationWarnings);
     // worktree を作るのは claim が push で取れた後（取れなかった claim でブランチを残さない）
     const branch = result.value.data.branch;
-    const worktree =
+    const made =
       branch && !input.no_worktree
         ? await prepareWorktreeForClaim(ctx, branch, input.worktree_path, warnings)
         : null;
@@ -1172,7 +1176,13 @@ export const ticketClaim = defineCommand({
             warnings,
           )
         : null;
-    return ok<ClaimView>({ ...withBody(result.value), run, worktree }, result.write, warnings);
+    // 準備のコマンドは Run を開いた後に回す。pnpm install などで長くかかり、呼ぶ側の上限で切れても Run は残る（t621）
+    if (made?.created) await runSetupInWorktree(ctx, made.path, warnings);
+    return ok<ClaimView>(
+      { ...withBody(result.value), run, worktree: made?.path ?? null },
+      result.write,
+      warnings,
+    );
   },
 });
 

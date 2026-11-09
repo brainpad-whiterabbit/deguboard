@@ -97,11 +97,22 @@ export async function prepareIterationForClaim(
 /** 準備のコマンドの上限。pnpm install と build が入るので、普通の検査より長く待つ */
 const SETUP_TIMEOUT_MS = 10 * 60_000;
 
+/** 警告に添える stderr の末尾（空でない最後の 3 行を 1 行にまとめる） */
+function stderrTail(stderr: string): string {
+  return stderr
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line !== "")
+    .slice(-3)
+    .join(" / ");
+}
+
 /**
  * claim が作った worktree で config の worktree.setup を回す（t621）。空なら回さない。
- * 失敗（終了コード・起動できない・上限）は claim を失敗させず、warnings に失敗と手で回すコマンドを書く
+ * 失敗（終了コード・起動できない・上限）は claim を失敗させず、warnings に失敗と手で回すコマンドを書く。
+ * 準備は pnpm install などで長くかかるので、呼ぶ側は実装の Run を開いた後に回す（ticket.ts の claim）
  */
-async function runSetupInWorktree(
+export async function runSetupInWorktree(
   ctx: CommandContext,
   dir: string,
   warnings: string[],
@@ -116,8 +127,9 @@ async function runSetupInWorktree(
       timeoutMs: SETUP_TIMEOUT_MS,
     });
     if (result.code === 0) return;
+    const tail = stderrTail(result.stderr);
     warnings.push(
-      `worktree の準備のコマンド（${command}）が終了コード ${result.code} で止まった。claim は済んでいるので、${dir} で ${command} を手で回す`,
+      `worktree の準備のコマンド（${command}）が終了コード ${result.code} で止まった${tail ? `（stderr の末尾: ${tail}）` : ""}。claim は済んでいるので、${dir} で ${command} を手で回す`,
     );
   } catch (error) {
     const reason = error instanceof Error ? error.message.split("\n")[0] : String(error);
@@ -130,14 +142,14 @@ async function runSetupInWorktree(
 /**
  * claim したブランチの worktree を用意して場所を返す。既にそのブランチの worktree があればそれを返し、
  * ローカルにブランチだけ残っていれば（unclaim の後など）そのブランチを checkout する。作れなければ warnings に理由を書いて null。
- * 作った worktree（既存のものは除く）では worktree.setup を回す
+ * created は今作ったかどうか（既存のものは false）。worktree.setup はここでは回さず、呼ぶ側が Run を開いた後に runSetupInWorktree で回す
  */
 export async function prepareWorktreeForClaim(
   ctx: CommandContext,
   branch: string,
   requestedPath: string | undefined,
   warnings: string[],
-): Promise<string | null> {
+): Promise<{ path: string; created: boolean } | null> {
   const repo = ctx.repo;
   // 作れなかったときの警告に場所を出すので、try の外で決める（依頼の path か既定の場所。t617）
   const dir = path.resolve(
@@ -147,7 +159,7 @@ export async function prepareWorktreeForClaim(
   let created: string;
   try {
     const existing = await findBranchWorktree(repo, branch);
-    if (existing) return existing;
+    if (existing) return { path: existing, created: false };
     const local = await runGit(
       repo.topLevel,
       ["show-ref", "--verify", "--quiet", `refs/heads/${branch}`],
@@ -168,6 +180,5 @@ export async function prepareWorktreeForClaim(
     );
     return null;
   }
-  await runSetupInWorktree(ctx, created, warnings);
-  return created;
+  return { path: created, created: true };
 }
