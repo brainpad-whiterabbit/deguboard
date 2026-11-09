@@ -12,7 +12,7 @@ import { ASK_LANGUAGES } from "./ask.js";
 import { briefOf, type BriefRole } from "./brief.js";
 import { defineCommand, ok, type CommandContext } from "./define.js";
 import { FIX_ROUNDS_LIMIT, heavyReviewRounds } from "./gate.js";
-import { openPlanOf, ticketRef } from "./helpers.js";
+import { agentDg as dg, openPlanOf, ticketRef } from "./helpers.js";
 import { planReadiness } from "./plan.js";
 import { openedStepOf } from "./run.js";
 
@@ -309,7 +309,6 @@ export function nextOf(ctx: CommandContext, facts: StageFacts): NextStep {
       brief: null,
     };
   };
-  const dg = (args: string) => `dg --json --actor agent ${args}`;
   // フックがサブエージェントの Run を開け閉めする印（ADR-025）。委譲する親は claim に --no-run を付け、印で頼む
   const marker = (step: string) =>
     `サブエージェントに頼む文の最初の行に deguboard: ticket=${id} step=${step}`;

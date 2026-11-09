@@ -4,13 +4,14 @@
 // 項目ごとの範囲（scope）もここで決める：local の項目だけが、Git に入らない個人の設定（deguboard-local/config.yaml）で上書きできる
 
 import { z } from "zod";
+import { GUIDE_TOPICS } from "../guide/topics.js";
 import { slugSchema } from "./common.js";
 
 const COMMIT_MODES = ["each", "batch", "manual"] as const;
 export type CommitMode = (typeof COMMIT_MODES)[number];
 const PUSH_MODES = ["auto", "manual"] as const;
 export type PushMode = (typeof PUSH_MODES)[number];
-/** gh pr merge のマージの方法（actions の merge_pr と同じ。Core の汎用部分は actions に依存しないので別に持つ） */
+/** gh pr merge のマージの方法。auto.merge_method・dg pr merge・actions の merge_pr がここを読む */
 export const PR_MERGE_METHODS = ["squash", "merge", "rebase"] as const;
 /**
  * --auto で聞かずに選んでよい判断（流れの段階の名前）。人が決める判断（abandoned・閉じる・リリースの PR のマージ）は
@@ -19,23 +20,9 @@ export const PR_MERGE_METHODS = ["squash", "merge", "rebase"] as const;
 export const AUTO_DECISIONS = ["assign", "check", "plan", "audit", "accept"] as const;
 /** dg flow next が返さずに飛ばせる段階。stop は流れを止める段階なので飛ばせない（ADR-030） */
 export const FLOW_SKIPS = ["assign", "check", "plan", "work", "audit", "release"] as const;
+/** actions.test を回す時間の上限（run_tests の既定と品質ゲートの検査）。リポジトリの検査の全体（テストを含む）を回すので長めにとる */
+export const ACTIONS_TEST_TIMEOUT_MS = 30 * 60_000;
 
-/** guide.notes で文書を差し込めるトピック（guide の GUIDE_TOPICS と同じ。ずれは guide のテストが知らせる） */
-export const NOTE_TOPICS = [
-  "overview",
-  "import",
-  "assign",
-  "check",
-  "plan",
-  "work",
-  "run",
-  "parallel",
-  "review",
-  "audit",
-  "release",
-  "done",
-  "all",
-] as const;
 const noteField = z
   .string()
   .default("")
@@ -213,7 +200,7 @@ export const configSchema = z.looseObject({
   guide: z
     .looseObject({
       notes: z
-        .looseObject(Object.fromEntries(NOTE_TOPICS.map((topic) => [topic, noteField])))
+        .looseObject(Object.fromEntries(GUIDE_TOPICS.map((topic) => [topic, noteField])))
         .prefault({}),
     })
     .prefault({}),

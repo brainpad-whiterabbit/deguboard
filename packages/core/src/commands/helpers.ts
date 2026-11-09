@@ -12,6 +12,9 @@ import type { CommandContext } from "./define.js";
 
 export const nowIso = (ctx: CommandContext): string => toIsoDateTime(ctx.now());
 
+/** 親のエージェントが打つ dg のコマンド（dg next・dg flow next の commands）。JSON で読み、agent として記録する */
+export const agentDg = (args: string): string => `dg --json --actor agent ${args}`;
+
 /** 手元の暦日（YYYY-MM-DD）。Iteration の期限は利用者の暦で数える（web の periodNote と同じ） */
 export function localDate(now: Date): string {
   const pad = (n: number) => String(n).padStart(2, "0");

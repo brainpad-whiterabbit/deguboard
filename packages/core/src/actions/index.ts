@@ -8,7 +8,6 @@ import { shellAction } from "./shell.js";
 import { softwareActions } from "./software.js";
 
 export * from "./define.js";
-export { defaultWorktreePath, isSafeBranchName, MERGE_METHODS } from "./software.js";
 
 export const actions: readonly AnyAction[] = [...softwareActions, shellAction] as AnyAction[];
 
