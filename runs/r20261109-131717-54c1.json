@@ -1,0 +1,32 @@
+{
+  "id": "r20261109-131717-54c1",
+  "ticket": "t625",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-09T13:17:17Z",
+  "finished_at": "2026-11-09T13:20:50Z",
+  "result": "success",
+  "error": null,
+  "retries": 1,
+  "retry_reasons": [
+    "parse は中で Document を作るのに、コメントとテスト名が Document を作らないと書いている根拠の誤りを直す"
+  ],
+  "usage": {
+    "input": 24,
+    "output": 9484,
+    "cache_read": 599124,
+    "cache_write": 42373
+  },
+  "tools": {
+    "read": 4,
+    "search": 0,
+    "write": 6,
+    "bash": 10,
+    "other": 1,
+    "read_before_write": 3,
+    "search_before_write": 0
+  },
+  "session": "a6e4409e-9924-4902-b4ff-016a8f5ae296",
+  "review": null
+}
