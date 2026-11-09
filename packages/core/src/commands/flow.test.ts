@@ -1,7 +1,9 @@
 import { readFile } from "node:fs/promises";
 import { afterEach, describe, expect, it } from "vitest";
 import { createFixture } from "../../test/helpers/git-fixture.js";
-import { findGuideSection } from "../guide/sections.js";
+import { composeGuide } from "../guide/guide.js";
+import { findGuideSection, guideSections } from "../guide/sections.js";
+import { configSchema } from "../model/config.js";
 import { openContext } from "./context.js";
 import { runCommand, type CommandContext } from "./define.js";
 import {
@@ -15,6 +17,7 @@ import {
   type FlowFacts,
   type FlowMemory,
   type FlowNext,
+  type FlowStageName,
 } from "./flow.js";
 import { iterationAdd, iterationClose, iterationCreate } from "./iteration.js";
 import { planApprove, planCreate } from "./plan.js";
@@ -282,14 +285,46 @@ describe("approvalOf（承認の要否）", () => {
 });
 
 describe("FLOW_GUIDE（段階の節）", () => {
+  const bodyOf = (topic: string) =>
+    readFile(new URL(`../guide/guide-${topic}.md`, import.meta.url), "utf8");
+
   it("段階ごとに指す guide の節が core の guide-*.md にある", async () => {
     for (const [stage, ref] of Object.entries(FLOW_GUIDE)) {
-      const body = await readFile(
-        new URL(`../guide/guide-${ref.topic}.md`, import.meta.url),
-        "utf8",
-      );
-      expect(findGuideSection(ref.topic, body, ref.section).heading, stage).toContain(ref.section);
+      const body = await bodyOf(ref.topic);
+      for (const section of ref.sections)
+        expect(findGuideSection(ref.topic, body, section).heading, stage).toContain(section);
     }
+  });
+
+  // guide.text と同じ本文（config は既定値。guide.notes は空なので repoTop は読まない）
+  const textOf = async (ref: (typeof FLOW_GUIDE)[FlowStageName]) =>
+    (await composeGuide(ref.topic, configSchema.parse({}), process.cwd(), ref.sections)).text;
+
+  it("返す本文が「」で指す同じトピックの節は、返す本文の中にある（参照が閉じている）", async () => {
+    for (const [stage, ref] of Object.entries(FLOW_GUIDE)) {
+      const body = await bodyOf(ref.topic);
+      const all = guideSections(body);
+      // 返す本文を節に分け直すと、指した節がその順に並ぶ
+      const returned = guideSections(`# ${ref.topic}\n\n${await textOf(ref)}`);
+      const wanted = ref.sections.map((s) => findGuideSection(ref.topic, body, s).name);
+      expect(
+        returned.map((s) => s.name),
+        stage,
+      ).toEqual(wanted);
+      const names = new Set(returned.flatMap((s) => [s.heading, s.name]));
+      for (const s of returned) {
+        for (const m of s.text.matchAll(/(?:`dg guide ([a-z]+)`\s*の)?「([^」]+)」/g)) {
+          // ほかのトピックの節は案内されたトピックとして読む（指す先があるかは check:docs が検査する）
+          if (m[1] !== undefined && m[1] !== ref.topic) continue;
+          if (!all.some((x) => x.heading === m[2] || x.name === m[2])) continue;
+          expect(names.has(m[2]!), `${stage}：節「${s.name}」が指す「${m[2]}」`).toBe(true);
+        }
+      }
+    }
+  });
+
+  it("見直しの段階の本文に、起票するチケットのラベル audit-<S> の付け方が入る", async () => {
+    expect(await textOf(FLOW_GUIDE.audit)).toContain("ラベル `audit-<S>`（例 `audit-s3`）を付ける");
   });
 });
 
@@ -320,14 +355,15 @@ describe("dg flow next", () => {
       stage: { name: "assign", rule: 1, tickets: ["t2"] },
       guide: {
         topic: "assign",
-        section: "Iteration",
-        command: "dg guide assign --section Iteration",
+        sections: ["割り当てを提案するとき", "Iteration"],
+        command: "dg guide assign --section 割り当てを提案するとき --section Iteration",
       },
       commands: ["dg --json --actor agent iteration add s1 <入れるチケット…>"],
       approval: { required: true, what: "入れる行" },
     });
-    // guide.text は段階の節の本文（見出しから始まり、config を埋めたもの）
-    expect(assign.guide.text.startsWith("## Iteration")).toBe(true);
+    // guide.text は段階の節の本文を順につないだもの（手順の節の見出しから始まり、config を埋めたもの）
+    expect(assign.guide.text.startsWith("## 割り当てを提案するとき")).toBe(true);
+    expect(assign.guide.text).toContain("\n\n## Iteration\n");
     const check = await flow(ctx, { resume: assign.resume });
     expect(check.stage).toMatchObject({ name: "check", rule: 2 });
     expect(check.memory).toEqual({ ...none, assigned: true });

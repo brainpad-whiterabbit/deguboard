@@ -7,7 +7,7 @@ import {
   defaultConfig,
   openContext,
   type Config,
-  type GuideTopic,
+  type GuideText,
 } from "@deguboard/core";
 
 export { GUIDE_TOPICS, fillPlaceholders, readGuide, readGuideMeta } from "@deguboard/core";
@@ -32,20 +32,14 @@ async function loadGuideConfig(
 }
 
 /**
- * section を省くとトピック全体。指定すると、その節の本文だけ（見出しの文言か「（…）」を除いた名前）。
- * warnings は guide.notes の文書を差し込めなかった理由（guide は差し込まずに出す）
+ * sections を省くか空ならトピック全体。節を 1 つか並べて指すと、その節の本文だけを指した順につなぐ（組み方は composeGuide）。
+ * dg flow next の guide.command（--section の重ね指定）で同じ本文を読み直せる
  */
 export async function renderGuide(
   topic: string,
   cwd: string,
-  section?: string,
-): Promise<{
-  topic: GuideTopic;
-  section: string | null;
-  text: string;
-  initialized: boolean;
-  warnings: string[];
-}> {
+  sections: string | readonly string[] = [],
+): Promise<GuideText & { initialized: boolean }> {
   const { config, repoTop, initialized } = await loadGuideConfig(cwd);
-  return { ...(await composeGuide(topic, config, repoTop, section)), initialized };
+  return { ...(await composeGuide(topic, config, repoTop, sections)), initialized };
 }

@@ -30,10 +30,10 @@ Iteration かチケットを、割り当てからリリースまでの流れで�
 
 ## 流れの進め方
 
-1. 始めるときと、段階の手を終えるたびに \`dg --json --actor agent flow next <対象…>\` を呼ぶ（\`--auto\`・\`--no-assign\` は指定があれば付ける）。返りの \`stage.name\` が今の段階（\`assign\`・\`check\`・\`plan\`・\`work\`・\`audit\`・\`release\`・\`stop\`）、\`commands\` が呼ぶ dg のコマンド（順に）、\`guide.text\` が段階の手のやり方、\`approval\` が承認の要否と場所
-2. \`stage\` の手を行う。\`commands\` を順に行い、\`guide.text\` のとおりに進める（読み直すときは \`guide.command\`）。
+1. 始めるときと、段階の手を終えるたびに \`dg --json --actor agent flow next <対象…>\` を呼ぶ（\`--auto\`・\`--no-assign\` は指定があれば付ける）。返りの \`stage.name\` が今の段階（\`assign\`・\`check\`・\`plan\`・\`work\`・\`audit\`・\`release\`・\`stop\`）、\`commands\` が呼ぶ dg のコマンド（順に）、\`guide.text\` が段階の手のやり方（\`guide.sections\` の節を順につないだ本文で、手順の節が指す同じトピックの節をすべて含む）、\`approval\` が承認の要否と場所
+2. \`stage\` の手を行う。\`commands\` を順に行い、\`guide.text\` のとおりに進める（読み直すときは \`guide.command\`）。段階のトピックの全体は読み直さない。\`guide.text\` がほかのトピックを案内したとき（\`dg guide <topic>\` の「…」）だけ、そのトピックの節を読む
    - \`work\` は \`dg guide parallel\` のとおり、件数によらずチケットごとにサブエージェントに任せる。親は進行・承認・\`dg\` の読み書きだけを行う
-   - \`release\` で、リポジトリの規約にリリースの手順がなければ \`dg guide done\` の手順で片付ける
+   - \`release\` で、リポジトリの規約にリリースの手順がなければ、\`guide.text\` の「リリースの手順がないとき」に従う
 3. \`approval.required\` が true の場面は、\`approval.what\` を人に聞く。選択肢には「ここで止める」を入れる。\`--auto\` のときの扱いは下の「\`--auto\` で自動で選ぶ」
 4. 段階の手を終えたら（承認を得た・直した・行い終えた）、その返りの \`resume\` をそのまま \`--resume\` に写して、1 に戻る（\`dg --json --actor agent flow next <対象…> --resume <resume>\`）。値は組み立てない。割り当て・点検・見直しの手の途中で止めたとき（承認が得られなかった、見直しの指摘の表で止めた）は、その \`resume\` を写さずに止まる。再開するときは、その前に写した \`resume\` を渡すか、\`--resume\` なしで同じ対象と指定で呼ぶ。途中で止めた手の \`resume\` を写すと、その段階を終えたものとして飛ばす
 5. \`stage.name\` が \`stop\`、または \`repeated\` が null でないとき（同じ段階が続き、事実が変わらない）は、\`ask_human\` と状態を示して止まる
@@ -552,7 +552,7 @@ exports[`dg guide の出力（本文の組み立て） > トピックごとの�
 5. 承認待ちの Plan に記録する（下の「Plan の作り方」）。結果の \`data.id\` が Plan の ID
 6. 人に見せて承認を得る。\`dg --json --actor agent plan show <p>\` の \`items\`（Plan の順）・\`after\`・\`details\` を表で示し（段階の列を設ける）、「承認する」「修正する」「承認待ちのまま止める」の選択肢で聞く。直すよう言われたら、\`plan close <p>\` で閉じて作り直す（Plan は作った後に書き換えられない）
 7. 人が承認したら \`dg --json --actor agent plan approve <p>\` で承認を記録する（\`approved_by\` は操作した主体）。人の承認を得ないまま approve しない。承認待ちの Plan のチケットには着手しない
-8. 承認済みの Plan は \`dg guide work\` の手順で進める（下の「次の手順を選ぶ」）。Plan の ID を見失ったら、\`dg --json --actor agent plan list --status open\` で開いた Plan を一覧するか、チケットの \`ticket show\` の \`plan\`（入っている開いた Plan）で引く
+8. 承認済みの Plan は \`dg guide work\` の手順で進める。Plan の ID を見失ったら、\`dg --json --actor agent plan list --status open\` で開いた Plan を一覧するか、チケットの \`ticket show\` の \`plan\`（入っている開いた Plan）で引く
 
 ## Plan の作り方
 

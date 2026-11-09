@@ -168,10 +168,14 @@ export async function readGuideMeta(topic: string): Promise<GuideMeta> {
   return (await readGuideFile(topic)).meta;
 }
 
-/** composeGuide の結果。section は節を指したときだけ見出しの文言、トピック全体のときは null */
+/**
+ * composeGuide の結果。sections は指した節ごとの見出しの文言（トピック全体のときは空）。
+ * section はその先頭（dg guide --json の互換のため）、トピック全体のときは null
+ */
 export interface GuideText {
   topic: GuideTopic;
   section: string | null;
+  sections: string[];
   /** 本文。guide.notes の文書と config の値（`{{…}}` の項目）を埋めてある */
   text: string;
   /** guide.notes の文書を差し込めなかった理由（guide は差し込まずに出す） */
@@ -180,32 +184,38 @@ export interface GuideText {
 
 /**
  * guide の本文を組む唯一の処理（dg guide・dg next・dg brief・dg flow next がこれを使い、写すだけにする）。
- * section を省くとトピック全体。指定すると、その節の本文だけ（見出しの文言か「（…）」を除いた名前）。
- * guide.notes の文書は、トピック全体では題名の直後、節では節の見出しの直後に差し込む（節だけ出しても判断の基準が付く）。
+ * sections を省くか空ならトピック全体。節を 1 つか並べて指すと、その節の本文だけ（見出しの文言か「（…）」を除いた名前）を
+ * 指した順に空行でつなぐ（dg guide --section の重ね指定と dg flow next）。
+ * guide.notes の文書は、トピック全体では題名の直後、節では最初の節の見出しの直後に 1 度だけ差し込む（節だけ出しても判断の基準が付く）。
  * repoTop は作業ツリーの最上位（guide.notes のパスの基準）。初期化前の dg guide は既定の config と cwd を渡す
  */
 export async function composeGuide(
   topic: string,
   config: Config,
   repoTop: string,
-  section?: string,
+  sections: string | readonly string[] = [],
 ): Promise<GuideText> {
+  const wanted = typeof sections === "string" ? [sections] : sections;
   const notes = await readGuideNotes(topic, config, repoTop);
-  if (section === undefined) {
+  if (wanted.length === 0) {
     const body = await readGuide(topic, notes.text);
     return {
       topic: topic as GuideTopic,
       section: null,
+      sections: [],
       text: fillPlaceholders(body, config).trimEnd(),
       warnings: notes.warnings,
     };
   }
-  const picked = findGuideSection(topic, await readGuide(topic), section);
-  const [heading = "", ...rest] = picked.text.split("\n");
-  const withNotes = notes.text === "" ? picked.text : [heading, "", notes.text, ...rest].join("\n");
+  const body = await readGuide(topic);
+  const picked = wanted.map((s) => findGuideSection(topic, body, s));
+  const joined = picked.map((p) => p.text).join("\n\n");
+  const [heading = "", ...rest] = joined.split("\n");
+  const withNotes = notes.text === "" ? joined : [heading, "", notes.text, ...rest].join("\n");
   return {
     topic: topic as GuideTopic,
-    section: picked.heading,
+    section: picked[0]!.heading,
+    sections: picked.map((p) => p.heading),
     text: fillPlaceholders(withNotes, config).trimEnd(),
     warnings: notes.warnings,
   };

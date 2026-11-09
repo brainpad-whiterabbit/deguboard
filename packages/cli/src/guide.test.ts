@@ -532,6 +532,38 @@ describe("dg guide", () => {
     expect(JSON.parse(whole.out).data).toMatchObject({ topic: "work", section: null });
   });
 
+  it("--section を重ねると指定した順につなぎ、dg flow next の guide.command で guide.text と同じ本文を読み直せる", async () => {
+    const local = await createLocalOnlyRepo();
+    cleanups.push(local.cleanup);
+    const both = await dg(local.dir, [
+      "--json",
+      "guide",
+      "work",
+      "--section",
+      "claim の前後",
+      "--section",
+      "実装する",
+    ]);
+    expect(JSON.parse(both.out).data).toMatchObject({
+      section: "claim の前後",
+      sections: ["claim の前後", "実装する（draft の PR まで）"],
+    });
+    const text: string = JSON.parse(both.out).data.text;
+    expect(text.startsWith("## claim の前後")).toBe(true);
+    expect(text).toContain("\n\n## 実装する（draft の PR まで）\n");
+
+    expect((await dg(local.dir, ["init"])).code).toBe(0);
+    await dg(local.dir, ["iteration", "create", "S1"]);
+    await dg(local.dir, ["ticket", "create", "A"]);
+    const flow = JSON.parse((await dg(local.dir, ["--json", "flow", "next", "s1"])).out).data;
+    // 引用した節の名前（空白を含む）を 1 つの引数に戻す
+    const args = [...(flow.guide.command as string).matchAll(/"([^"]*)"|(\S+)/g)].map(
+      (m) => m[1] ?? m[2]!,
+    );
+    expect(args.slice(0, 2)).toEqual(["dg", "guide"]);
+    expect((await dg(local.dir, args.slice(1))).out).toBe(flow.guide.text);
+  });
+
   it("buildProgram 経由の dg guide は guide.notes の文書を題名の直後に差し込み、読めないものは warnings に載せて guide は出す", async () => {
     const local = await createLocalOnlyRepo();
     cleanups.push(local.cleanup);

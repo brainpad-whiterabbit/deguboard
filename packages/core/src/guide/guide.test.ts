@@ -44,6 +44,14 @@ describe("guide.notes の文書の差し込み（CL-5）", () => {
     expect(sectionLines[0]).toBe("## claim の前後");
     expect(sectionLines[2]).toBe("作業の判断の基準を書く");
     expect(section.warnings).toEqual([]);
+
+    // 節を重ねると指定した順につなぎ、差し込みは最初の節の見出しの直後に 1 度だけ
+    const both = await composeGuide("work", config, root, ["claim の前後", "流れ"]);
+    expect(both.sections).toEqual(["claim の前後", "流れ"]);
+    expect(both.section).toBe("claim の前後");
+    expect(both.text.split("\n")[2]).toBe("作業の判断の基準を書く");
+    expect(both.text.split("作業の判断の基準を書く")).toHaveLength(2);
+    expect(both.text.indexOf("## 流れ")).toBeGreaterThan(both.text.indexOf("## claim の前後"));
   });
 
   it("ファイルがなければ警告を返し、guide は差し込まずに出す", async () => {
