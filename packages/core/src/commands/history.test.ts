@@ -159,7 +159,52 @@ describe("history", () => {
     expect(all[0]!.slice(all[0]!.indexOf("--"))).toEqual(["--", "tickets", "epics", "iterations"]);
   });
 
-  it("merge で片側の変更が落ちても、チケット 1 枚の経過は全体から絞った経過と同じ（消えたチケットを含む）", async () => {
+  it("線形の履歴では、チケット 1 枚の経過は全体から絞った経過と同じ（消えたチケットを含む）", async () => {
+    const ctx = await scenario();
+    const dir = ctx.repo.dataDir;
+    await git(dir, ["rm", "-q", "tickets/t1.md"]);
+    await git(dir, ["commit", "-qm", "t1 を消す"]);
+    expect((await git(dir, ["rev-list", "--merges", "HEAD"])).stdout.trim()).toBe("");
+
+    const full = await readHistory(dir);
+    expect(full.events.some((e) => e.id === "t1" && e.type === "deleted")).toBe(true);
+    for (const id of ["t1", "t2"]) {
+      const only = await readHistory(dir, { ticket: id });
+      expect(only.events).toEqual(full.events.filter((e) => e.kind === "ticket" && e.id === id));
+      expect(only.incomplete).toEqual(full.incomplete.filter((x) => x === id));
+      expect(only.shallow).toBe(full.shallow);
+    }
+  });
+
+  it("線形の履歴では、--epic・--iteration の結果は変わらない（全体の読みのまま）", async () => {
+    const ctx = await scenario();
+    const bySprint = (await runCommand(history, ctx, { iteration: "s1" })).data.events;
+    expect(bySprint.map((e) => `${e.kind}:${e.id}:${e.type}`)).toEqual([
+      "ticket:t1:created",
+      "ticket:t2:created",
+      "iteration:s1:created",
+      "iteration:s1:changed",
+      "ticket:t1:changed",
+      "ticket:t2:changed",
+      "iteration:s1:changed",
+      "ticket:t2:changed",
+      "ticket:t2:changed",
+      "ticket:t2:changed",
+    ]);
+    expect(changesOf(bySprint.filter((e) => e.kind === "iteration"))).toEqual([
+      "status: - → planned",
+      "status: planned → active",
+      "status: active → closed",
+    ]);
+    const byEpic = (await runCommand(history, ctx, { epic: "e1" })).data.events;
+    expect(byEpic.map((e) => `${e.kind}:${e.id}:${e.type}`)).toEqual([
+      "epic:e1:created",
+      "ticket:t1:created",
+      "ticket:t1:changed",
+    ]);
+  });
+
+  it("merge の片側だけに入った変更は、チケット 1 枚の経過には残るが、全体の経過（--epic・--iteration を含む）には残らない", async () => {
     const ctx = await scenario();
     const dir = ctx.repo.dataDir;
     const base = (await git(dir, ["rev-parse", "--abbrev-ref", "HEAD"])).stdout.trim();
@@ -168,7 +213,7 @@ describe("history", () => {
       writeFile(t2, (await readFile(t2, "utf8")).replace(/^status: .*$/m, `status: ${to}`));
 
     // 同じ行を両側で違う値に変えてから merge し、解決で side の版を採る。main 側の変化（done）は
-    // 結果の版に残らないので、既定の簡約で path を追うと経過から落ちる（--full-history で残す）
+    // 結果の版に残らない。既定の簡約の全体の読みでは経過から落ち、チケット 1 枚の読み（--full-history）では残る
     await git(dir, ["switch", "-q", "-c", "side"]);
     await setStatus("review");
     await git(dir, ["commit", "-qam", "t2 を review に"]);
@@ -186,14 +231,13 @@ describe("history", () => {
 
     const full = await readHistory(dir);
     expect(full.events.some((e) => e.id === "t2" && e.changes.some((c) => c.to === "done"))).toBe(
-      true,
+      false,
     );
     expect(full.events.some((e) => e.id === "t1" && e.type === "deleted")).toBe(true);
-    for (const id of ["t1", "t2"]) {
-      const only = await readHistory(dir, { ticket: id });
-      expect(only.events).toEqual(full.events.filter((e) => e.kind === "ticket" && e.id === id));
-      expect(only.incomplete).toEqual(full.incomplete.filter((x) => x === id));
-      expect(only.shallow).toBe(full.shallow);
-    }
+    const only = await readHistory(dir, { ticket: "t2" });
+    expect(only.events.some((e) => e.changes.some((c) => c.to === "done"))).toBe(true);
+    expect(only.events.some((e) => e.changes.some((c) => c.to === "review"))).toBe(true);
+    const deleted = await readHistory(dir, { ticket: "t1" });
+    expect(deleted.events.map((e) => e.type)).toEqual(["created", "changed", "deleted"]);
   });
 });

@@ -242,24 +242,26 @@ export interface ReadHistoryOptions {
 
 /**
  * deguboard の worktree（dataDir）の HEAD の履歴を読む。ticket があれば、そのチケットのファイルを含むコミットだけを読む
- * （全体の log -p は履歴が長いと秒単位になるので）。結果は全体を読んでから絞った経過と同じになる
+ * （全体の log -p は履歴が長いと秒単位になるので）。線形の履歴では、全体を読んでから絞った経過と同じになる
  */
 export async function readHistory(
   dataDir: string,
   opts: ReadHistoryOptions = {},
 ): Promise<HistoryLog> {
   const boundary = await shallowCommits(dataDir);
-  // --full-history は、merge の片側だけに入った変化を既定の簡約で落とさないため（全体の log と同じ差分を読む）
   const paths = opts.ticket
     ? ticketPaths(opts.ticket).map((p) => `:(literal)${p}`)
     : ["tickets", "epics", "iterations"];
+  // --full-history は、チケット 1 枚の読みだけに付ける。merge の片側だけに入った変化を既定の簡約で落とさず、そのチケットの経過に残す。
+  // 全体の読み（--epic・--iteration の経過を含む）は従来の簡約のままにして、その結果を変えない
+  const fullHistory = opts.ticket ? ["--full-history"] : [];
   const log = await runGit(dataDir, [
     "-c",
     "core.quotepath=off",
     "log",
     "--reverse",
     "--no-renames",
-    "--full-history",
+    ...fullHistory,
     "--no-color",
     "--no-ext-diff",
     "-p",
