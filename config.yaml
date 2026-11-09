@@ -17,3 +17,9 @@ models:
 merge:
   method: squash
   delete_branch: true
+actions:
+  shell: false
+  test:
+    - mise
+    - run
+    - check
