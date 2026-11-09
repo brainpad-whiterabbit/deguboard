@@ -29,7 +29,7 @@
   "type": "module",
   "main": "./dist/extension.cjs",
   "scripts": {
-    "build": "vite build && rm -rf dist/web && cp -r ../web/dist dist/web",
+    "build": "vite build && rm -rf dist/web && cp -r ../web/dist dist/web && cp ../core/src/guide/guide-*.md dist/",
     "package": "node ../../scripts/vscode-readme.mjs && cp ../../LICENSE LICENSE && vsce package --no-dependencies --out deguboard-vscode.vsix"
   },
   "dependencies": {

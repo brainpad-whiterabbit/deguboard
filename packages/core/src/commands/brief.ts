@@ -1,9 +1,11 @@
 // サブエージェントに渡す文（brief・EX-3、ADR-011）。役（実装・見直し・手直し）とチケットの事実から、貼る文を組む。読み取りだけで、データは書き換えない。
+// 役が行う手順は guide の節の本文を文に入れる（ADR-030）。サブエージェントに guide を読ませず、dg next・dg brief・dg flow next が同じ本文を返す。
 // 文の組み立ては純粋な関数（composeBrief）に置き、brief コマンドと dg next が事実を渡して使う。定型の文の言語は ask と同じく表示言語で選ぶ（ADR-027）。
 // どの役の文も先頭に印を置き、フックが Run を開け閉めする。手直しのやり直しの理由は、サブエージェントが run retry-reason で開いている Run に書き足す（ADR-025）
 
 import { z } from "zod";
 import { findBranchWorktree } from "../git/worktree.js";
+import { guideSectionText } from "../guide/guide.js";
 import { REVIEW_STEP } from "../model/run.js";
 import { type AcceptanceItem, parseAcceptance, type Ticket } from "../model/ticket.js";
 import { ASK_LANGUAGES, type AskLanguage } from "./ask.js";
@@ -15,7 +17,14 @@ import { openedStepOf } from "./run.js";
 export const BRIEF_ROLES = ["implement", "review", "fix"] as const;
 export type BriefRole = (typeof BRIEF_ROLES)[number];
 
-/** 文に入れる事実。step は役が開く Run の step */
+/** 役が行う手順の節（guide のトピックと節の名前）。文には節の本文を入れる */
+export const BRIEF_GUIDE: Record<BriefRole, { topic: string; section: string }> = {
+  implement: { topic: "work", section: "実装する" },
+  review: { topic: "review", section: "見直す" },
+  fix: { topic: "review", section: "指摘を直す" },
+};
+
+/** 文に入れる事実。step は役が開く Run の step。guideText は BRIEF_GUIDE の節の本文（見出しを除き、config を埋めたもの） */
 export interface BriefFacts {
   id: string;
   title: string;
@@ -27,6 +36,7 @@ export interface BriefFacts {
   plan: { id: string; scope: string | null; approach: string | null } | null;
   remote: string;
   baseBranch: string;
+  guideText: string;
 }
 
 export interface Brief {
@@ -99,6 +109,12 @@ export function composeBrief(
   const returns = (ja: string, en: string) => item(L("返すもの", "Return"), L(ja, en));
   const runLine = (ja: string, en: string) => item("Run", L(ja, en));
   const marker = `deguboard: ticket=${id} step=${f.step}`;
+  // 役の手順の節の本文を、区切りの行で挟んで入れる（見出しは区切りの行の名前で示す）
+  const steps = [
+    `--- ${L("手順", "Steps")}${colon}${BRIEF_GUIDE[role].section} ---`,
+    f.guideText,
+    `--- ${L("手順ここまで", "End of steps")} ---`,
+  ];
 
   if (role === "implement") {
     return [
@@ -112,10 +128,11 @@ export function composeBrief(
       item(
         L("規約", "Conventions"),
         L(
-          `リポジトリのルートにあるエージェント向けの指示ファイルと \`dg guide work\` の「実装する」（draft の PR まで）に従う。読み直して直す正本は requirements（約束だけを直し、細部は足さない）と README・コードのコメントで、ADR は判断と理由を書き換えないので入れない。この PR で古くなった ADR の細部は直さず、報告に書く（\`dg guide audit\` が起票する「ADR の細部を消す」の材料）。PR は \`gh pr create --draft\` で作り、本文にチケット ID（${id}）を書く。`,
-          `Follow the agent instruction file at the repository root and the "実装する" section of \`dg guide work\` (up to creating a draft PR). The sources to reread and fix are requirements (change only the promises; do not add details), the README, and code comments; do not include ADRs, since they record decisions and reasons and are not rewritten. Do not fix ADR details that this PR leaves stale; report them as material for the "ADR の細部を消す" ticket from \`dg guide audit\`. Create the PR with \`gh pr create --draft\` and write the ticket ID (${id}) in its body.`,
+          `リポジトリのルートにあるエージェント向けの指示ファイルに従い、下の手順を行う。PR の本文にチケット ID（${id}）を書く。`,
+          `Follow the agent instruction file at the repository root, and the steps below. Write the ticket ID (${id}) in the PR body.`,
         ),
       ),
+      ...steps,
       ...acceptance,
       tools,
       runLine(
@@ -158,10 +175,11 @@ export function composeBrief(
       item(
         L("規約", "Conventions"),
         L(
-          "リポジトリのルートにあるエージェント向けの指示ファイルと `dg guide review` の「見直す」に従う。見る観点は受け入れ条件の漏れ・不具合・文書との食い違い（この PR が変えた約束・手順・規約で、文書を同じ PR で直していないものは重い。ADR や要件に細部を足した変更も重い。文書を直していない重い指摘は約束・手順・規約の変更に限る。細部の直し方はコード・テスト・ヘルプへ移すこと。前からのずれは軽い）・規約の違反・範囲の外の変更。チケット本文に `## 参考` 節があれば、そこに書いたファイルと差分で変えたファイルを見比べ、参考節にない大きな広がりと、参考節のファイルに触れていない変更を「参考節との食い違い」として返す。",
-          'Follow the agent instruction file at the repository root and the "見直す" (Review) section of `dg guide review`. Look for missed acceptance criteria, bugs, mismatches with the docs (docs left stale by a promise, procedure, or rule this PR changed are heavy, and so are details added to an ADR or requirements, whose fix moves the details into code, tests, or help; heavy findings about docs are limited to promises, procedures, and rules; older drift is light), rule violations, and changes outside the scope. If the ticket body has a `## 参考` section, compare the files it names with the files the diff changes, and report as "参考節との食い違い" any large spread outside the section and any change that does not touch the files the section names.',
+          "リポジトリのルートにあるエージェント向けの指示ファイルに従い、下の手順を行う。",
+          "Follow the agent instruction file at the repository root, and the steps below.",
         ),
       ),
+      ...steps,
       tools,
       runLine(
         "この文の先頭の印で、フックが見直しの Run（review）を開き閉じる。Run は開かず閉じない。",
@@ -222,10 +240,11 @@ export function composeBrief(
     item(
       L("規約", "Conventions"),
       L(
-        "リポジトリのルートにあるエージェント向けの指示ファイルと `dg guide review` の「指摘を直す」に従う。検査（書式・lint・テスト）を最新のコミットで通してから push する。",
-        'Follow the agent instruction file at the repository root and the "指摘を直す" (Fixing findings) section of `dg guide review`. Run the checks (format, lint, tests) on the latest commit before you push.',
+        "リポジトリのルートにあるエージェント向けの指示ファイルに従い、下の手順を行う。検査（書式・lint・テスト）を最新のコミットで通してから push する。",
+        "Follow the agent instruction file at the repository root, and the steps below. Run the checks (format, lint, tests) on the latest commit before you push.",
       ),
     ),
+    ...steps,
     ...acceptance,
     tools,
     runLine(
@@ -243,7 +262,7 @@ export function composeBrief(
   ].join("\n");
 }
 
-/** 役の文を、チケットの事実（ブランチの worktree・Plan・規約の場所の設定）から組む */
+/** 役の文を、チケットの事実（ブランチの worktree・Plan・git の設定）と役の節の本文から組む */
 export async function briefOf(
   ctx: CommandContext,
   ticket: Ticket,
@@ -260,6 +279,7 @@ export async function briefOf(
   const doc = ctx.store.require("ticket", ticket.id);
   const plan = openPlanOf(ctx.store, ticket.id);
   const details = plan?.data.details?.[ticket.id];
+  const guide = BRIEF_GUIDE[role];
   const facts: BriefFacts = {
     id: ticket.id,
     title: ticket.title,
@@ -273,6 +293,11 @@ export async function briefOf(
       : null,
     remote: ctx.config.git.remote,
     baseBranch: ctx.config.git.base_branch,
+    // 節の見出しは区切りの行に書くので外す（本文だけを入れる）
+    guideText: (await guideSectionText(guide.topic, guide.section, ctx.config)).text.replace(
+      /^[^\n]*\n*/,
+      "",
+    ),
   };
   return {
     ticket: ticket.id,
@@ -289,7 +314,7 @@ export const brief = defineCommand({
   group: "brief",
   summary:
     "サブエージェントに渡す文を組む（EX-3。読み取りだけ）。役（implement・review・fix）ごとに、先頭に印 `deguboard: ticket=<id> step=<step>` を置いた文を返す（フックが印で Run を開け閉めする）。" +
-    "文には場所（worktree・ブランチ）・Plan の範囲と方針・規約の場所・受け入れ条件・道具（Read・Edit）・Run の扱い・しないこと・返すものを入れる。review には結果を記録する呼び出し、fix には直す指摘の一覧（findings）とやり直しの理由を書く呼び出し（run retry-reason）を入れる。" +
+    "文には場所（worktree・ブランチ）・Plan の範囲と方針・規約・役の手順（guide の節の本文）・受け入れ条件・道具（Read・Edit）・Run の扱い・しないこと・返すものを入れる。review には結果を記録する呼び出し、fix には直す指摘の一覧（findings）とやり直しの理由を書く呼び出し（run retry-reason）を入れる。" +
     "定型の文の言語は language（ask と同じく省けば ja）。チケットの中身は書いた言葉のまま。dg next の implement・review・fix の手の brief と同じ文",
   input: z.object({
     ticket: ticketRef,

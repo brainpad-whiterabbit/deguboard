@@ -140,7 +140,7 @@ export function buildProgram(options: ProgramOptions = {}): Command {
     return g;
   };
 
-  // guide は core のコマンドではなく CLI の責務（手順の正本は CLI に同梱する。CL-5）
+  // guide は core のコマンドではなく CLI の責務（本文と読み込みは Core が持ち、ここは写す。CL-5・ADR-030）
   program
     .command("guide")
     .description(

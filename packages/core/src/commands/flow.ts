@@ -5,6 +5,7 @@
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import { UsageError } from "../errors.js";
+import { guideSectionText } from "../guide/guide.js";
 import { isTerminal } from "../model/common.js";
 import { compareIds, parseId, type IterationId } from "../model/id.js";
 import type { Ticket } from "../model/ticket.js";
@@ -201,7 +202,7 @@ export function isRepeated(prev: ResumeState | undefined, stage: FlowStageName, 
   return prev !== undefined && prev.stage === stage && prev.facts === facts && stage !== "stop";
 }
 
-/** 段階の手のやり方の節（guide-all の「段階」の表の読むトピック）。本文の読み込みは Core に移すまで CLI が持つ（t593） */
+/** 段階の手のやり方の節（guide-all の「段階」の表の読むトピック）。本文は guideSectionText が Core から読む */
 export const FLOW_GUIDE: Record<FlowStageName, { topic: string; section: string }> = {
   assign: { topic: "assign", section: "Iteration" },
   check: { topic: "check", section: "点検の手順" },
@@ -425,8 +426,8 @@ export interface FlowNext {
   stage: FlowStage;
   /** 同じ段階が事実も変わらずに続いて止まったとき、続いた段階。ほかは null */
   repeated: FlowStageName | null;
-  /** この段階の手のやり方（guide の節）。text は節の本文で、Core が guide を読むまで（t593）null。command で同じ本文を読める */
-  guide: { topic: string; section: string; text: string | null; command: string };
+  /** この段階の手のやり方（guide の節）。text は節の本文（config を埋めたもの）。command で同じ本文を読める */
+  guide: { topic: string; section: string; text: string; command: string };
   /** この段階で親が呼ぶ dg のコマンド（順に） */
   commands: string[];
   approval: FlowApproval;
@@ -500,7 +501,7 @@ export const flowNext = defineCommand({
       repeated,
       guide: {
         ...guide,
-        text: null,
+        text: (await guideSectionText(guide.topic, guide.section, ctx.config)).text,
         command: `dg guide ${guide.topic} --section ${guide.section}`,
       },
       commands: commandsOf(stage, facts.iteration, auto),

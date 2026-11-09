@@ -357,4 +357,51 @@ describe("dg mcp", () => {
     expect(body(viaMcp.results[1]!)).toEqual(resumed);
     expect((await cli(["flow", "next", "s1", "--no-assign"])).data.stage.name).toBe("check");
   });
+
+  it("next と brief は CLI の --json と MCP で同じ文を返し、役ごとの文に節の本文が入る（t593）", async () => {
+    const f = await initialized();
+    const cli = async (argv: string[]) => {
+      const out: string[] = [];
+      await run(["-C", f.cloneA, "--json", ...argv], {
+        env: cliEnv(),
+        streams: { out: (t) => out.push(t), err: () => {} },
+      });
+      return JSON.parse(out.join(""));
+    };
+    await cli(["ticket", "create", "A"]);
+    // 役ごとの文。fix は直す指摘を渡す
+    const roles = ["implement", "review", "fix"] as const;
+    const findings = "1. 直す指摘";
+    const cliBriefs: any[] = [];
+    for (const role of roles)
+      cliBriefs.push(
+        await cli([
+          "brief",
+          "t1",
+          "--role",
+          role,
+          ...(role === "fix" ? ["--findings", findings] : []),
+        ]),
+      );
+    const cliNext = await cli(["next", "t1"]);
+    expect(cliNext.data.brief).toBe(cliBriefs[0].data.text);
+    const viaMcp = await session(
+      ["-C", f.cloneA],
+      [
+        { method: "tools/call", params: { name: "next", arguments: { ticket: "t1" } } },
+        ...roles.map((role) => ({
+          method: "tools/call",
+          params: {
+            name: "brief",
+            arguments: { ticket: "t1", role, ...(role === "fix" ? { findings } : {}) },
+          },
+        })),
+      ],
+    );
+    expect(body(viaMcp.results[0]!)).toEqual(cliNext);
+    roles.forEach((role, i) => {
+      expect(body(viaMcp.results[i + 1]!), role).toEqual(cliBriefs[i]);
+      expect(cliBriefs[i].data.text, role).toContain("--- 手順：");
+    });
+  });
 });

@@ -29,6 +29,7 @@ const COPIED = [
   "README.ja.md",
   "docs",
   "packages/cli/src",
+  "packages/core/src/guide",
   "packages/vscode/src/dg.ts",
   "packages/vscode/media/walkthrough",
 ];
@@ -295,18 +296,24 @@ describe("check-docs の要件 ID・先頭コメント・guide の重複（t536�
 
   it("同じ段落が 2 本の guide にあると、両方の名前を出して落ちる", async () => {
     const text = "この段落は二つの guide に同じ文として置かれている（重複の検査の確かめ）。";
-    for (const rel of ["packages/cli/src/guide-plan.md", "packages/cli/src/guide-work.md"]) {
+    for (const rel of [
+      "packages/core/src/guide/guide-plan.md",
+      "packages/core/src/guide/guide-work.md",
+    ]) {
       await writeFile(join(dir, rel), `${await readFile(join(dir, rel), "utf8")}\n${text}\n`);
     }
     const { code, stderr } = await run();
     expect(code).toBe(1);
     expect(stderr).toMatch(
-      /packages\/cli\/src\/guide-plan\.md:\d+, packages\/cli\/src\/guide-work\.md:\d+: 同じ段落がある/,
+      /packages\/core\/src\/guide\/guide-plan\.md:\d+, packages\/core\/src\/guide\/guide-work\.md:\d+: 同じ段落がある/,
     );
   });
 
   it("40 字未満の短い箇条書きだけの同じ節は指摘しない", async () => {
-    for (const rel of ["packages/cli/src/guide-plan.md", "packages/cli/src/guide-work.md"]) {
+    for (const rel of [
+      "packages/core/src/guide/guide-plan.md",
+      "packages/core/src/guide/guide-work.md",
+    ]) {
       await writeFile(
         join(dir, rel),
         `${await readFile(join(dir, rel), "utf8")}\n## 短い節\n\n- 一行目\n- 二行目\n`,
@@ -319,7 +326,10 @@ describe("check-docs の要件 ID・先頭コメント・guide の重複（t536�
   it("40 字以上の同じ節の本文は、見出しと両方の guide の名前を出して落ちる", async () => {
     const body =
       "この節の本文は二つの guide に同じ文として置かれていて、正本を 1 本にする必要がある。";
-    for (const rel of ["packages/cli/src/guide-plan.md", "packages/cli/src/guide-work.md"]) {
+    for (const rel of [
+      "packages/core/src/guide/guide-plan.md",
+      "packages/core/src/guide/guide-work.md",
+    ]) {
       await writeFile(
         join(dir, rel),
         `${await readFile(join(dir, rel), "utf8")}\n## 長い節\n\n${body}\n`,
@@ -328,7 +338,7 @@ describe("check-docs の要件 ID・先頭コメント・guide の重複（t536�
     const { code, stderr } = await run();
     expect(code).toBe(1);
     expect(stderr).toMatch(
-      /packages\/cli\/src\/guide-plan\.md, packages\/cli\/src\/guide-work\.md: 見出し「長い節」の節の本文が同じ/,
+      /packages\/core\/src\/guide\/guide-plan\.md, packages\/core\/src\/guide\/guide-work\.md: 見出し「長い節」の節の本文が同じ/,
     );
   });
 });
@@ -365,7 +375,7 @@ describe("check-docs の dg guide の節の参照（t561）", () => {
 
   it("「と「…」」で続く 2 つ目の節が切れていても落ちる", async () => {
     await append(
-      "packages/cli/src/guide-plan.md",
+      "packages/core/src/guide/guide-plan.md",
       "参照の確かめ：`dg guide work` の「流れ」と「存在しない節」を見る。",
     );
     const { code, stderr } = await run();
@@ -435,12 +445,12 @@ describe("check-docs の正本の外の文書の段落の重複（t551）", () =
   });
 
   it("guide と docs/requirements.md の段落の重複も落ちる", async () => {
-    await append("packages/cli/src/guide-plan.md", SHARED);
+    await append("packages/core/src/guide/guide-plan.md", SHARED);
     await append("docs/requirements.md", SHARED);
     const { code, stderr } = await run();
     expect(code).toBe(1);
     expect(stderr).toMatch(
-      /packages\/cli\/src\/guide-plan\.md:\d+, docs\/requirements\.md:\d+: 同じ段落がある/,
+      /packages\/core\/src\/guide\/guide-plan\.md:\d+, docs\/requirements\.md:\d+: 同じ段落がある/,
     );
   });
 
