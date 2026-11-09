@@ -2,5 +2,9 @@ id: s23
 project: default
 name: sprint23
 goal: guide の規則を dg のコマンドと config に移し、guide は判断のやり方だけを節で渡す
-status: active
+status: closed
 start: 2026-11-09
+end: 2026-11-09
+closed_at: 2026-11-09T23:22:56Z
+completed: 50
+carried_over: 0
