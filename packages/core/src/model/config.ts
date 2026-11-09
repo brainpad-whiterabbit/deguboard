@@ -109,6 +109,18 @@ export const configSchema = z.looseObject({
         .describe(
           "テスト実行の Action（run_tests）と、品質ゲート（dg gate・dg pr ready・dg pr merge）の検査が呼ぶコマンドの引数配列（例 [mise, run, check]）。空なら run_tests は拒否し、品質ゲートの検査は判定しない（リポジトリの規約の検査で確かめる）",
         ),
+      light_test: z
+        .array(z.string().min(1))
+        .default([])
+        .describe(
+          "作業ブランチの base との差分のファイルがすべて actions.light_paths に入るとき、品質ゲートの検査が actions.test の代わりに回す軽い検査のコマンドの引数配列（例 [mise, run, check:light]）。空なら、または actions.light_paths が空なら、いつも actions.test を回す。actions.test が空なら軽い検査も回さない",
+        ),
+      light_paths: z
+        .array(z.string().min(1))
+        .default([])
+        .describe(
+          "軽い検査（actions.light_test）で済ませるファイルの glob（リポジトリの最上位からの相対パス。* と ? は / をまたがず、** は階層をまたぐ。例 docs/**）。差分に 1 つでも外のファイルがあれば actions.test を回す",
+        ),
     })
     .prefault({}),
   auto: z

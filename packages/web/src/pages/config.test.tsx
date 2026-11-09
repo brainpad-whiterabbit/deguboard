@@ -1006,6 +1006,7 @@ describe("設定画面の部品", () => {
 
   it("保存の前に確かめるのは、同期と照合・worktree・実行するコマンド・エージェントに許す操作を変える項目だけ", () => {
     expect([...CONFIRM_KEYS.keys()].sort()).toEqual([
+      "actions.light_test",
       "actions.shell",
       "actions.test",
       "actor.human_only",

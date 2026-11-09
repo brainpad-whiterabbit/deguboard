@@ -5,6 +5,7 @@ import { createFixture, git } from "../../test/helpers/git-fixture.js";
 import { resetGhCache } from "../git/facts.js";
 import { openContext } from "./context.js";
 import { runCommand, type CommandContext } from "./define.js";
+import { chooseCheck, matchesAnyGlob } from "./gate-check.js";
 import { gate, type GateView } from "./gate.js";
 import { runFinish, runReviewResult, runStart } from "./run.js";
 import { configSet, init } from "./setup.js";
@@ -194,8 +195,9 @@ describe("dg gate の検査（actions.test。t601）", () => {
     await review(ctx, later(1), 0);
     const view = await judge(ctx, "ready");
     expect(view.passed).toBe(true);
+    // 軽い検査を設定していなければ、actions.test を回したとだけ出す
     expect(check(view).detail).toMatch(
-      /^検査（sh .*check\.sh）が最新のコミット [0-9a-f]{8} で通った$/,
+      /^検査（actions\.test: sh .*check\.sh）が最新のコミット [0-9a-f]{8} で通った$/,
     );
     expect(await runs()).toBe(1);
     // 同じコミットの判定（ready の後の merge など）は覚えた結果を使う
@@ -261,7 +263,7 @@ describe("dg gate の検査（actions.test。t601）", () => {
     expect(view.passed).toBe(false);
     expect(check(view)).toMatchObject({
       ok: false,
-      detail: expect.stringContaining(`検査（${name}）を回せない`),
+      detail: expect.stringContaining(`検査（actions.test: ${name}）を回せない`),
     });
     // 回せなかった結果は覚えない（記録のファイルがない）
     const stored = await readFile(path.join(ctx.repo.localDir, "checks", "t1.json"), "utf8").catch(
@@ -290,5 +292,119 @@ describe("dg gate の検査（actions.test。t601）", () => {
     await writeFile(path.join(f.cloneA, "dirty.txt"), "x");
     expect(check(await judge(ctx, "ready")).detail).toContain("未コミットの変更がある");
     expect(await runs()).toBe(0);
+  });
+
+  describe("軽い検査（actions.light_test・actions.light_paths。t632）", () => {
+    /**
+     * withCheck に、軽い検査の台本と対象のパス（docs/** と最上位の *.md）を足した文脈。
+     * 台本は回数のファイルに、actions.test は run、軽い検査は light を 1 行足す
+     */
+    async function withLight() {
+      const base = await withCheck();
+      const light = path.join(base.f.root, "light.sh");
+      const count = path.join(base.f.root, "check-count");
+      await writeFile(light, `#!/bin/sh\necho light >> '${count}'\necho 軽い検査\nexit 0\n`, {
+        mode: 0o755,
+      });
+      await runCommand(configSet, base.ctx, { key: "actions.light_test", value: `sh, ${light}` });
+      await runCommand(configSet, base.ctx, {
+        key: "actions.light_paths",
+        value: "docs/**, *.md",
+      });
+      const ctx = await openContext({ cwd: base.f.cloneA, actor: base.ctx.actor });
+      const lines = async () =>
+        (await readFile(count, "utf8").catch(() => "")).split("\n").filter(Boolean);
+      /** 作業ブランチにファイルを足してコミットし push する */
+      const commit = async (...files: string[]) => {
+        for (const file of files) {
+          await mkdir(path.dirname(path.join(base.f.cloneA, file)), { recursive: true });
+          await writeFile(path.join(base.f.cloneA, file), "x\n");
+        }
+        await git(base.f.cloneA, ["add", "--", ...files]);
+        await git(base.f.cloneA, ["commit", "-q", "-m", "変更"]);
+        await git(base.f.cloneA, ["push", "-q", "origin", "feat/t1"]);
+      };
+      return { ...base, ctx, lines, commit };
+    }
+
+    it("差分がすべて対象のパスに入れば軽い検査を回して detail に出し、同じコミットの merge では回し直さない", async () => {
+      const { ctx, lines, commit } = await withLight();
+      await commit("docs/a/b.md", "NOTE.md");
+      await review(ctx, later(1), 0);
+      const view = await judge(ctx, "ready");
+      expect(view.passed).toBe(true);
+      expect(check(view).detail).toMatch(
+        /^検査（軽い検査 actions\.light_test: sh .*light\.sh）が最新のコミット [0-9a-f]{8} で通った（差分のファイル 2 件がすべて actions\.light_paths に入るので軽い検査を回した）$/,
+      );
+      expect(await lines()).toEqual(["light"]);
+      // ready で通った同じコミットの merge は、覚えた結果を使う（軽い検査も actions.test も回さない）
+      await runCommand(ticketCheck, ctx, { ticket: "t1", items: [1, 2] });
+      const merged = await judge(ctx, "merge");
+      expect(merged.passed).toBe(true);
+      expect(check(merged).detail).toContain("軽い検査 actions.light_test");
+      expect(await lines()).toEqual(["light"]);
+    });
+
+    it("差分に対象のパスの外のファイルが 1 つでもあれば actions.test を回し、外のファイルを detail に出す", async () => {
+      const { ctx, lines, commit } = await withLight();
+      // docs/ の下と最上位の md に加えて、docs の外の md（* は / をまたがない）とコードを変える
+      await commit("docs/a.md", "README.md", "src/a.ts");
+      await review(ctx, later(1), 0);
+      const view = await judge(ctx, "ready");
+      expect(view.passed).toBe(true);
+      expect(check(view).detail).toContain("検査（actions.test: sh ");
+      expect(check(view).detail).toContain(
+        "差分に actions.light_paths の外のファイル（src/a.ts。1 件）があるので actions.test を回した",
+      );
+      expect(await lines()).toEqual(["run"]);
+    });
+
+    it("差分のファイルがない（空のコミットだけ）なら actions.test を回す", async () => {
+      const { ctx, lines } = await withLight();
+      await review(ctx, later(1), 0);
+      const view = await judge(ctx, "ready");
+      expect(check(view).detail).toContain("差分のファイルがないので actions.test を回した");
+      expect(await lines()).toEqual(["run"]);
+    });
+  });
+});
+
+describe("回す検査の選び方（chooseCheck。t632）", () => {
+  const actions = {
+    test: ["full"],
+    light_test: ["light"],
+    light_paths: ["docs/**", "*.md", "packages/vscode/media/**/*.png", "a?.txt"],
+  };
+
+  it("glob は * と ? が / をまたがず、** が階層をまたぐ", () => {
+    expect(matchesAnyGlob("docs/x/y/z.md", ["docs/**"])).toBe(true);
+    expect(matchesAnyGlob("docs", ["docs/**"])).toBe(false);
+    expect(matchesAnyGlob("README.md", ["*.md"])).toBe(true);
+    expect(matchesAnyGlob("docs/README.md", ["*.md"])).toBe(false);
+    expect(matchesAnyGlob("packages/vscode/media/icon.png", actions.light_paths)).toBe(true);
+    expect(matchesAnyGlob("packages/vscode/media/a/b.png", actions.light_paths)).toBe(true);
+    expect(matchesAnyGlob("ab.txt", actions.light_paths)).toBe(true);
+    expect(matchesAnyGlob("a/b.txt", actions.light_paths)).toBe(false);
+    // . などの記号は文字のまま比べる
+    expect(matchesAnyGlob("READMExmd", ["*.md"])).toBe(false);
+  });
+
+  it("軽い検査かその対象のパスが空なら、差分によらず actions.test", () => {
+    expect(chooseCheck({ ...actions, light_test: [] }, ["docs/a.md"])).toMatchObject({
+      command: ["full"],
+      light: false,
+      why: "",
+    });
+    expect(chooseCheck({ ...actions, light_paths: [] }, ["docs/a.md"]).light).toBe(false);
+  });
+
+  it("差分を読めない・空・外のファイルがあれば actions.test、すべて対象なら軽い検査", () => {
+    expect(chooseCheck(actions, undefined).command).toEqual(["full"]);
+    expect(chooseCheck(actions, []).command).toEqual(["full"]);
+    expect(chooseCheck(actions, ["docs/a.md", "src/b.ts"]).command).toEqual(["full"]);
+    expect(chooseCheck(actions, ["docs/a.md", "README.md"])).toMatchObject({
+      command: ["light"],
+      light: true,
+    });
   });
 });
