@@ -1,0 +1,36 @@
+{
+  "id": "r20261109-163146-6c43",
+  "ticket": "t634",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-09T16:31:46Z",
+  "finished_at": "2026-11-09T16:35:36Z",
+  "result": "success",
+  "error": null,
+  "retries": 5,
+  "retry_reasons": [
+    "実在の検査が .md と一部の拡張子しか読まず、.css などの ADR 参照の切れを拾えない",
+    "test/ の先頭コメントの ADR 番号の照合が一般の検査に移って消えている",
+    "ADR_WARN_CHARS のコメントが指す節の名前が違う",
+    "スクリプトのテストが終了コード 0 に頼り、写したリンクの切れに左右される",
+    "リポジトリのルートの設定ファイルが実在の検査の範囲に入っていない"
+  ],
+  "usage": {
+    "input": 36,
+    "output": 28298,
+    "cache_read": 1279589,
+    "cache_write": 95962
+  },
+  "tools": {
+    "read": 4,
+    "search": 0,
+    "write": 13,
+    "bash": 9,
+    "other": 1,
+    "read_before_write": 3,
+    "search_before_write": 0
+  },
+  "session": "a4fc4b19-7929-40d9-b1bb-d6d6d31eead5",
+  "review": null
+}
