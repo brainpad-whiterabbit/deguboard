@@ -216,15 +216,26 @@ describe("dg guide", () => {
     expect(done).toContain("plan close");
   });
 
-  it("all は --auto で自動で選ぶものと承認を残すものを分け、自動マージは auto.merge を true にしたときだけ条件を確かめて行う", async () => {
+  it("all は --auto の範囲を config の auto.decisions と auto.merge に任せ、人が決める判断は聞いて止まる。自動マージは auto.merge を true にしたときだけ条件を確かめて行う", async () => {
     const all = await readGuide("all");
     const auto = section(all, "## `--auto` で自動で選ぶ");
-    for (const word of ["自動で選ぶ", "自動にしない", "auto.merge", "dg guide review"])
+    for (const word of [
+      "approval.auto",
+      "approval.what",
+      "accept",
+      "auto.decisions",
+      "auto.merge",
+      "dg guide review",
+      "人が決める判断",
+    ])
       expect(auto).toContain(word);
     expect(fillPlaceholders(all, defaultConfig())).toContain("今の設定：`false`");
-    expect(fillPlaceholders(all, { ...defaultConfig(), auto: { merge: true } })).toContain(
-      "今の設定：`true`",
+    expect(fillPlaceholders(all, defaultConfig())).toContain(
+      "今の設定：`assign, check, plan, audit, accept`",
     );
+    expect(
+      fillPlaceholders(all, { ...defaultConfig(), auto: { ...defaultConfig().auto, merge: true } }),
+    ).toContain("今の設定：`true`");
     expect(await readGuideMeta("all")).toMatchObject({
       "argument-hint": expect.stringContaining("--auto"),
     });
