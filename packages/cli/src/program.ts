@@ -151,7 +151,7 @@ export function buildProgram(options: ProgramOptions = {}): Command {
     )
     .option(
       "--section <節>",
-      "節の見出し、または見出しの「（…）」を除いた名前で、その節の本文だけを出す（ない節は節の一覧を返す）。重ねて指定すると、指定した順につないで出す",
+      "節の見出し、または見出しの「（…）」を除いた名前で、その節の本文だけを出す（ない節は使い方の誤りとして一覧を添えて失敗する）。重ねて指定すると、指定した順につないで出す",
       (value: string, prev: string[] = []) => [...prev, value],
     )
     .action(async (topic: string, opts: { section?: string[] }) => {

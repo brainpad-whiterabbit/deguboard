@@ -28,7 +28,7 @@ argument-hint: "<Plan の ID|チケットの ID>"
 ## claim の前後
 
 - 担当者（`ticket show` の `assignee`）が別のユーザなら避ける
-- claim は、`lint.require_iteration` が true なら（今の設定：`{{lint.require_iteration}}`）`iteration` が空のチケットを Iteration に入れ、planned の Iteration を開始し、作業ブランチの worktree を作る（選び方は `ticket claim --help`）。`warnings` に入れ先がない・開始できない・worktree を作れないが出たら、Iteration は人に頼み（入れずに進むと `lint_iteration_missing`）、worktree は `worktree` の場所に手で作る。作業は続ける
+- claim は、`lint.require_iteration` が true なら（今の設定：`{{lint.require_iteration}}`）`iteration` が空のチケットを Iteration に入れ、planned の Iteration を開始し、作業ブランチの worktree を作る（選び方は `ticket claim --help`）。`warnings` に入れ先がない・開始できない・worktree を作れないが出たら、Iteration は人に頼み（入れずに進むと `lint_iteration_missing`）、worktree は警告に書いた場所に手で作る（`worktree` が null のとき。既定は `{{worktree.root}}/<ブランチ名>`）。作業は続ける
 - `CLAIM_LOST` なら別のチケットへ。`BRANCH_IN_USE` なら `--branch` の名前を変えて claim し直す
 
 ## 実装する（draft の PR まで）

@@ -159,7 +159,7 @@ export const prMerge = defineCommand({
       .boolean()
       .optional()
       .describe(
-        "リモートとローカルの作業ブランチも消すか（gh pr merge --delete-branch）。省けば config の merge.delete_branch（既定は消さない）。消すときは、品質ゲート（検査を含む）を通した後、gh を呼ぶ前にブランチを checkout した worktree を消す（残っていると gh がローカルのブランチを消せない）。worktree は先に消さず、その worktree の外（main の worktree）から呼ぶ",
+        "リモートとローカルの作業ブランチも消すか（gh pr merge --delete-branch）。省けば config の merge.delete_branch（既定は消さない）。消すときは、品質ゲート（検査を含む）を通した後、gh を呼ぶ前にブランチを checkout した worktree を消す（残っていると gh がローカルのブランチを消せない）。worktree は先に消さず、その worktree の外（main の worktree）から呼ぶ。この旗は付けるだけで、config が true のときに今回だけ消さない手段は CLI の旗にない（消したくないときは config の merge.delete_branch を false にする）",
       ),
   }),
   write: false,

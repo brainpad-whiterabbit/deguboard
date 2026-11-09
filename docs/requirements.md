@@ -178,7 +178,7 @@ updated_at: 2026-10-31T05:10:00Z
 - CL-2 コマンドの一覧とオプションは `dg --help`（各コマンドは `dg <コマンド> --help`）が正本
 - CL-3 書き込みを伴うコマンドは `commit.mode` に従ってコミットする。作成・`ticket claim`・`iteration start / reopen` は採番と排他のため即座にコミットして push する
 - CL-4 `ticket import` は下書きの配列を 1 コミットで取り込み、取り込めない下書きがあれば起票せずに拒む（形と条件は `guide import`）
-- CL-5 `dg guide <topic>` は、各手のやり方を `config.yaml` の値で埋めて出す。`guide.notes.<topic>` の文書は題名の直後（節なら見出しの直後）に差し込み、読めなければ警告を出す。`--section <節>` は節だけを出し（重ねると順につなぐ）、ない節は一覧を返す。段階・次の手は Core が返す（EX-3。[ADR-030](adr/ADR-030-flow-and-guide-in-core.md)）
+- CL-5 `dg guide <topic>` は、各手のやり方を `config.yaml` の値で埋めて出す。`guide.notes.<topic>` の文書は題名の直後（節なら見出しの直後）に差し込み、読めなければ警告を出す。`--section <節>` は節だけを出し（重ねると順につなぐ）、ない節は使い方の誤りとして一覧を添えて失敗する。段階・次の手は Core が返す（EX-3。[ADR-030](adr/ADR-030-flow-and-guide-in-core.md)）
 - CL-6 CLI はロジックを持たず、Core のコマンド定義（`packages/core/src/commands/`）を写す
 - CL-7 `history` は deguboard ブランチの git の履歴から、チケット・Epic・Iteration の起票と属性（Status・所属・担当者・PR）の変化を古い順に返す。データの形は変えず、差分から読む。浅い clone では欠けたことを返して失敗しない（返す項目は `packages/core/src/commands/history.ts`）
 

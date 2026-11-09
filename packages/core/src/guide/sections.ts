@@ -45,7 +45,7 @@ export function guideSections(body: string): GuideSection[] {
 
 /**
  * 名前で 1 節を引く。見出しの文言か補足を除いた名前が一致する最初の節を返す。
- * ない節は使い方の誤りとして、そのトピックの節の名前の一覧を返す
+ * ない節は使い方の誤りとして一覧を添えて失敗する（UsageError。CL-5）
  */
 export function findGuideSection(topic: string, body: string, name: string): GuideSection {
   const sections = guideSections(body);

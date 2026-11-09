@@ -41,7 +41,7 @@ Iteration かチケットを、割り当てからリリースまでの流れで�
 ## 段階の間の進み方
 
 - **段階の間は止まらない**：\`approval.required\` の場面以外では聞かず、次の \`flow next\` へ進む
-- **マージは人が行う**：PR を出したら、マージを待つ間も次の手を進め、手がなければ止まる。マージの承認は \`approval\` のとおり
+- **マージは \`auto.merge\` に従う**：\`auto.merge\`（今の設定：\`false\`）が true なら品質ゲートを満たす PR は \`--auto\` のとき自動でマージし、false なら人が行う。PR を出したら、マージを待つ間も次の手を進め、手がなければ止まる。マージの承認は \`approval\` のとおり
 - **失敗の扱い**：実装が失敗したチケットは \`dg guide parallel\` のとおり todo に戻し、それを待たないチケットを進める。見直し・手直しが failure で返った・返らないチケットは todo に戻さず、\`dg guide review\` の「終わり方」に従う
 
 ## \`--auto\` で自動で選ぶ
@@ -765,7 +765,7 @@ exports[`dg guide の出力（本文の組み立て） > トピックごとの�
 ## claim の前後
 
 - 担当者（\`ticket show\` の \`assignee\`）が別のユーザなら避ける
-- claim は、\`lint.require_iteration\` が true なら（今の設定：\`false\`）\`iteration\` が空のチケットを Iteration に入れ、planned の Iteration を開始し、作業ブランチの worktree を作る（選び方は \`ticket claim --help\`）。\`warnings\` に入れ先がない・開始できない・worktree を作れないが出たら、Iteration は人に頼み（入れずに進むと \`lint_iteration_missing\`）、worktree は \`worktree\` の場所に手で作る。作業は続ける
+- claim は、\`lint.require_iteration\` が true なら（今の設定：\`false\`）\`iteration\` が空のチケットを Iteration に入れ、planned の Iteration を開始し、作業ブランチの worktree を作る（選び方は \`ticket claim --help\`）。\`warnings\` に入れ先がない・開始できない・worktree を作れないが出たら、Iteration は人に頼み（入れずに進むと \`lint_iteration_missing\`）、worktree は警告に書いた場所に手で作る（\`worktree\` が null のとき。既定は \`../<repo>.worktrees/<ブランチ名>\`）。作業は続ける
 - \`CLAIM_LOST\` なら別のチケットへ。\`BRANCH_IN_USE\` なら \`--branch\` の名前を変えて claim し直す
 
 ## 実装する（draft の PR まで）
