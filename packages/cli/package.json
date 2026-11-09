@@ -1,6 +1,6 @@
 {
   "name": "deguboard",
-  "version": "0.17.0",
+  "version": "0.18.0",
   "description": "Git-native な AI ワークフロー・チケット管理ツール deguboard の CLI（dg）。チケットを deguboard ブランチの Markdown で管理し、画面（dg serve）と Claude Code 向けの手順（dg guide）を同梱する",
   "keywords": [
     "ai-agent",
