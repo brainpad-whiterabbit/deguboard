@@ -300,6 +300,8 @@ export const EN: Readonly<Record<string, string>> = {
   "シェルの Action を許す": "Allow shell Actions",
   テストのコマンド: "Test command",
   "PR を自動でマージする": "Merge PRs automatically",
+  マージの方法: "Merge method",
+  マージしたら作業ブランチを消す: "Delete the work branch after merging",
   "Iteration に入れてから進める": "Require an Iteration before starting",
   重いとみなす見直しの指摘の種類: "Review finding categories treated as heavy",
   "段階 light のモデル": "Model for tier light",
@@ -544,6 +546,10 @@ export const CONFIG_DESCRIPTIONS_EN: Readonly<Record<string, string>> = {
     "Argument array of the command the test Action (run_tests) runs (e.g. [mise, run, check]). When empty, run_tests is rejected",
   "auto.merge":
     "Whether dg guide all --auto merges PRs that pass the quality gate (dg gate --for merge) automatically. By default a person merges",
+  "merge.method":
+    "Merge method dg pr merge uses when --method is omitted (squash, merge, or rebase)",
+  "merge.delete_branch":
+    "Whether dg pr merge also deletes the remote and local work branch when --delete-branch is omitted",
   "review.heavy_categories":
     "Review finding categories (run review-result --findings-file) treated as heavy regardless of severity. Empty by default, so the reviewer's severity is kept",
   "lint.require_iteration":

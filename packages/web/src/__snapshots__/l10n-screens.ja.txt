@@ -295,6 +295,25 @@ auto.merge
 無効
 [title] 既定の false に戻す
 既定に戻す
+マージの方法
+merge.method
+[title] 既定は squash
+変更あり
+merge.method
+squash
+（既定）
+merge
+rebase
+[title] 既定の squash に戻す
+既定に戻す
+マージしたら作業ブランチを消す
+merge.delete_branch
+[title] 既定は false
+変更あり
+merge.delete_branch
+無効
+[title] 既定の false に戻す
+既定に戻す
 重いとみなす見直しの指摘の種類
 review.heavy_categories
 [title] 既定は 空

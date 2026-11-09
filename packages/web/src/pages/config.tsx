@@ -24,7 +24,7 @@ const GROUPS: { id: string; label: string; tops: string[] }[] = [
   {
     id: "agent",
     label: msg("エージェント"),
-    tops: ["actions", "auto", "review", "lint", "models", "actor"],
+    tops: ["actions", "auto", "merge", "review", "lint", "models", "actor"],
   },
   { id: "metrics", label: msg("計測"), tops: ["metrics"] },
   { id: "notify", label: msg("通知"), tops: ["notify"] },
@@ -41,6 +41,8 @@ const NAMES: Record<string, string> = {
   "actions.shell": msg("シェルの Action を許す"),
   "actions.test": msg("テストのコマンド"),
   "auto.merge": msg("PR を自動でマージする"),
+  "merge.method": msg("マージの方法"),
+  "merge.delete_branch": msg("マージしたら作業ブランチを消す"),
   "review.heavy_categories": msg("重いとみなす見直しの指摘の種類"),
   "lint.require_iteration": msg("Iteration に入れてから進める"),
   "models.light": msg("段階 light のモデル"),

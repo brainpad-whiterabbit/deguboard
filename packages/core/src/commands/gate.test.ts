@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { createFixture, git } from "../../test/helpers/git-fixture.js";
@@ -7,7 +7,7 @@ import { openContext } from "./context.js";
 import { runCommand, type CommandContext } from "./define.js";
 import { gate, type GateView } from "./gate.js";
 import { runFinish, runReviewResult, runStart } from "./run.js";
-import { init } from "./setup.js";
+import { configSet, init } from "./setup.js";
 import { ticketCheck, ticketClaim, ticketCreate } from "./ticket.js";
 import type { Run } from "../model/run.js";
 
@@ -117,7 +117,13 @@ describe("dg gate（品質ゲート。t532）", () => {
       "review",
       "fix_rounds",
       "mergeable",
+      "check",
     ]);
+    // actions.test が空なら検査は判定せずに通し、そう detail に出す
+    expect(view.conditions.find((c) => c.id === "check")).toMatchObject({
+      ok: true,
+      detail: expect.stringContaining("actions.test が空なので、検査は判定しない"),
+    });
   });
 
   it("見直しが最後の push より前・通っていない・結果がないなら review を満たさない", async () => {
@@ -155,5 +161,76 @@ describe("dg gate（品質ゲート。t532）", () => {
     await setPr("");
     // 空の JSON は読めない PR として扱い、通さない
     expect(failed(await judge(ctx))).toEqual(["pr", "mergeable"]);
+  });
+});
+
+describe("dg gate の検査（actions.test。t601）", () => {
+  /**
+   * actions.test に、リポジトリの外の検査の台本を置いた文脈。台本は回るたびに回数のファイルに 1 行足し、
+   * exit-code のファイルの値で終わる（出力の末尾が detail に出ることを見るため、最後に「最後の行」を出す）
+   */
+  async function withCheck() {
+    const base = await prepared();
+    const script = path.join(base.f.root, "check.sh");
+    const count = path.join(base.f.root, "check-count");
+    const code = path.join(base.f.root, "exit-code");
+    await writeFile(code, "0");
+    await writeFile(
+      script,
+      `#!/bin/sh\necho run >> '${count}'\necho 前の行\necho 最後の行\nexit $(cat '${code}')\n`,
+      { mode: 0o755 },
+    );
+    await runCommand(configSet, base.ctx, { key: "actions.test", value: `sh, ${script}` });
+    const ctx = await openContext({ cwd: base.f.cloneA, actor: base.ctx.actor });
+    const runs = async () =>
+      (await readFile(count, "utf8").catch(() => "")).split("\n").filter(Boolean).length;
+    const setCode = (n: number) => writeFile(code, String(n));
+    return { ...base, ctx, runs, setCode };
+  }
+  const check = (view: GateView) => view.conditions.find((c) => c.id === "check")!;
+
+  it("最新のコミットの worktree で actions.test を回して判定し、同じコミットでは回し直さない", async () => {
+    const { ctx, runs } = await withCheck();
+    await review(ctx, later(1), 0);
+    const view = await judge(ctx, "ready");
+    expect(view.passed).toBe(true);
+    expect(check(view).detail).toMatch(
+      /^検査（sh .*check\.sh）が最新のコミット [0-9a-f]{8} で通った$/,
+    );
+    expect(await runs()).toBe(1);
+    // 同じコミットの判定（ready の後の merge など）は覚えた結果を使う
+    await judge(ctx, "ready");
+    expect(await runs()).toBe(1);
+  });
+
+  it("通らなければ終了コードと出力の末尾を detail に出し、ほかの条件を満たさなければ回さない", async () => {
+    const { f, ctx, runs, setCode } = await withCheck();
+    // 見直しがない（review を満たさない）うちは回さない
+    expect(check(await judge(ctx, "ready"))).toMatchObject({
+      ok: false,
+      detail: expect.stringContaining("回していない"),
+    });
+    expect(await runs()).toBe(0);
+    await setCode(3);
+    // 新しいコミットを push して見直す（前のコミットの結果は使わない）
+    await git(f.cloneA, ["commit", "-q", "--allow-empty", "-m", "直し"]);
+    await git(f.cloneA, ["push", "-q", "origin", "feat/t1"]);
+    await review(ctx, later(2), 0);
+    const view = await judge(ctx, "ready");
+    expect(failed(view)).toEqual(["check"]);
+    expect(check(view).detail).toContain("通らない（exit 3）");
+    expect(check(view).detail).toContain("前の行\n最後の行");
+  });
+
+  it("worktree が最新のコミットでない・未コミットの変更があるなら回さずに満たさない", async () => {
+    const { f, ctx, runs } = await withCheck();
+    await review(ctx, later(1), 0);
+    // push していないコミットがある（worktree の HEAD がリモートの先端と違う）
+    await git(f.cloneA, ["commit", "-q", "--allow-empty", "-m", "まだ push していない"]);
+    expect(check(await judge(ctx, "ready")).detail).toContain("最新のコミット");
+    await git(f.cloneA, ["reset", "-q", "--hard", "HEAD~1"]);
+    await writeFile(path.join(f.cloneA, "dirty.txt"), "x");
+    expect(check(await judge(ctx, "ready")).detail).toContain("未コミットの変更がある");
+    expect(await runs()).toBe(0);
   });
 });

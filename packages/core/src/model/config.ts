@@ -10,6 +10,8 @@ const COMMIT_MODES = ["each", "batch", "manual"] as const;
 export type CommitMode = (typeof COMMIT_MODES)[number];
 const PUSH_MODES = ["auto", "manual"] as const;
 export type PushMode = (typeof PUSH_MODES)[number];
+/** gh pr merge のマージの方法（actions の merge_pr と同じ。Core の汎用部分は actions に依存しないので別に持つ） */
+export const PR_MERGE_METHODS = ["squash", "merge", "rebase"] as const;
 
 export const configSchema = z.looseObject({
   default_project: slugSchema.default("default").describe("省略時の Project"),
@@ -93,6 +95,20 @@ export const configSchema = z.looseObject({
         .default(false)
         .describe(
           "dg guide all --auto で、品質ゲート（dg gate --for merge）を満たした PR を自動でマージするか。既定は人がマージする",
+        ),
+    })
+    .prefault({}),
+  merge: z
+    .looseObject({
+      method: z
+        .enum(PR_MERGE_METHODS)
+        .default("squash")
+        .describe("dg pr merge が --method を省いたときのマージの方法（squash・merge・rebase）"),
+      delete_branch: z
+        .boolean()
+        .default(false)
+        .describe(
+          "dg pr merge が --delete-branch を省いたとき、リモートとローカルの作業ブランチも消すか",
         ),
     })
     .prefault({}),
