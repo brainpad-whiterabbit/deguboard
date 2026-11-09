@@ -142,15 +142,21 @@ export function buildProgram(options: ProgramOptions = {}): Command {
   // guide は core のコマンドではなく CLI の責務（手順の正本は CLI に同梱する。CL-5）
   program
     .command("guide")
-    .description("エージェント向けの手順を出す。トピックを省くと overview")
+    .description(
+      "エージェント向けの手順を出す。トピックを省くと overview。--section で節の本文だけを出す",
+    )
     .addArgument(
       new Argument("[topic]", `トピック（${GUIDE_TOPICS.join(" / ")}）`).default("overview"),
     )
-    .action(async (topic: string) => {
+    .option(
+      "--section <節>",
+      "節の見出し、または見出しの「（…）」を除いた名前で、その節の本文だけを出す（ない節は節の一覧を返す）",
+    )
+    .action(async (topic: string, opts: { section?: string }) => {
       const global = program.opts<{ json?: boolean; C?: string }>();
       const cwd = resolve(options.cwd ?? process.cwd(), global.C ?? ".");
       try {
-        const guide = await renderGuide(topic, cwd);
+        const guide = await renderGuide(topic, cwd, opts.section);
         if (global.json)
           streams.out(
             JSON.stringify({ ok: true, data: guide, warnings: [], write: null }, null, 2),
