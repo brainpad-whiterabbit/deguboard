@@ -177,7 +177,7 @@ updated_at: 2026-10-31T05:10:00Z
 - CL-2 コマンドの一覧とオプションは `dg --help`（各コマンドは `dg <コマンド> --help`）が正本
 - CL-3 書き込みを伴うコマンドは `commit.mode` に従ってコミットする。作成・`ticket claim`・`iteration start / reopen` は採番と排他のため即座にコミットして push する
 - CL-4 `ticket import` は下書きの配列を 1 コミットで取り込み、取り込めない下書きがあれば起票せずに拒む（形と条件は `guide import`）
-- CL-5 `dg guide <topic>` は、エージェント向けの各手のやり方を `config.yaml` の値を埋めて出す。段階・次の 1 手・修正ループの回数・品質ゲートの判定・brief は guide に書かず Core（`dg next`・`dg gate`・`dg brief`）が返す（EX-3）。トピックの一覧は `dg guide overview`（省略時）。やり方の正本は CLI に同梱した `packages/cli/src/guide-*.md`
+- CL-5 `dg guide <topic>` は、各手のやり方を `config.yaml` の値と `guide.notes` を埋めて出す。段階・次の 1 手・修正ループの回数・品質ゲート・brief は書かず Core が返す（EX-3）。本文と読み込みは Core が持ち、`dg next`・`dg brief` も節の本文を返す（[ADR-030](adr/ADR-030-flow-and-guide-in-core.md)）。一覧は `dg guide overview`
 - CL-6 CLI はロジックを持たず、Core のコマンド定義（`packages/core/src/commands/`）を写す
 - CL-7 `history` は deguboard ブランチの git の履歴から、チケット・Epic・Iteration の起票と属性（Status・所属・担当者・PR）の変化を古い順に返す。データの形は変えず、差分から読む。浅い clone では欠けたことを返して失敗しない（返す項目は `packages/core/src/commands/history.ts`）
 
@@ -251,7 +251,7 @@ updated_at: 2026-10-31T05:10:00Z
 
 - EX-1 deguboard はエージェントを起動しない。エージェントが `dg` を呼んで進める
 - EX-2 終了していない Run は一覧で見え、`interrupted` として閉じられる
-- EX-3 チケットを段階に進める既定の手続きは Core が持ち、`dg next` が段階と次の 1 手を、`dg gate` が品質ゲートと修正ループの回数を、`dg brief` がサブエージェントに渡す文を返す。段階は Run・PR・ブランチと Plan の待ちから都度求めて保存せず、`ticket show` の `stage` も同じ（名前は `dg next --help`、理由は [ADR-011](adr/ADR-011-procedure-in-code.md)）
+- EX-3 段階に進める既定の手続きは Core が持つ。チケットは `dg next`・`dg gate`・`dg brief`、Iteration の流れは `dg flow next` が返し、会話の中にしかない事実は前の結果の `resume` を写して受け取る。段階は保存せず都度求め、`ticket show` の `stage` も同じ（理由は ADR-011 と [ADR-030](adr/ADR-030-flow-and-guide-in-core.md)）
 - EX-4 Workflow が `by: [human]` で人に限った遷移は、エージェントからは行えない
 - EX-5 `dg next` は読み取りだけで、次の 1 手と開く step・呼ぶコマンド・人に聞くことを、サブエージェントに渡す手では brief と合わせて返す。修正ループの上限を超えたなど人の判断が要るチケットは人を待つ手になる。着手できるチケットは PL-6 か `ticket list --ready` に従う（EX-3）
 - EX-6 エージェントが PR を出す・マージする道は `dg pr ready`・`dg pr merge` で、`dg gate` を満たすときだけ gh を呼び、満たさなければ満たさない条件と理由を `GATE_FAILED` で返す。満たさないまま進めるときは人が gh を打つ（AG-10。条件は `dg gate --help`、判定しない検査は `dg guide review`、理由は [ADR-026](adr/ADR-026-guard-pr-and-data.md)）
