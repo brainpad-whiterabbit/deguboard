@@ -25,7 +25,7 @@ const EXTENSION_DIR = path.join(ROOT, "packages/vscode");
 
 /**
  * VS Code 本体の版。結果が再現するよう完全な版で固定する（"stable" にすると @vscode/test-electron が起動のたびに最新版を引き、
- * 新しい安定版が出るたびに落とし直す。ADR-008）。packages/vscode の engines.vscode を満たす版にし、上げるときはここを書き換える。
+ * 新しい安定版が出るたびに落とし直す）。packages/vscode の engines.vscode を満たす版にし、上げるときはここを書き換える。
  * 落とした版は .vscode-test/vscode-<platform>-<版>/ に残り、あれば落とさない
  */
 const VSCODE_VERSION = "1.145.1";

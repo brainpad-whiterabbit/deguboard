@@ -25,7 +25,7 @@ const WIDTHS = [300, 260];
 const SCHEMES = ["light", "dark"] as const;
 /**
  * サイドバーで出す画面。履歴は閉じた Iteration の行（目標の長いものを含む）を出す。
- * Run の画面はない（ADR-027。前の版の #/runs はカンバンとして開く）
+ * Run の画面はない（画面の配置は UI-12。前の版の #/runs はカンバンとして開く）
  */
 const PAGES = ["#/board", "#/backlog", "#/epics/e1", "#/history"];
 /** 左パネルのタブの数（カンバン・バックログ・履歴。UI-12） */
@@ -263,7 +263,7 @@ describe.each(
   );
 });
 
-// dg serve は ?surface= がなければ左パネルの配置で出す（ブラウザだけの配置はない。ADR-027）
+// dg serve は ?surface= がなければ左パネルの配置で出す（ブラウザだけの配置はない。画面の正本は UI-12 の VS Code 拡張で、dg serve は開発用）
 it("?surface= を付けなければサイドバーの配置で開き、前の版の Run の画面のハッシュはカンバンになる", async () => {
   const context = await browser.newContext({ viewport: { width: 300, height: 900 } });
   const page = await context.newPage();
