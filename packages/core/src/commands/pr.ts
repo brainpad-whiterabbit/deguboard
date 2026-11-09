@@ -9,8 +9,8 @@ import path from "node:path";
 import { runGh, runGit } from "../git/run.js";
 import { findBranchWorktree } from "../git/worktree.js";
 import { PR_MERGE_METHODS } from "../model/config.js";
-import type { TicketId } from "../model/id.js";
-import { findingText, splitFindings, withUnfixedLight } from "../run/findings.js";
+import type { Ticket } from "../model/ticket.js";
+import { unfixedLightLines, withUnfixedLight } from "../run/findings.js";
 import { readReviewFindings } from "../run/record.js";
 import { defineCommand, ok, type CommandContext } from "./define.js";
 import { judgeGate, type GateStage, type GateView } from "./gate.js";
@@ -73,25 +73,34 @@ async function removeBranchWorktree(
 }
 
 /**
- * 直さなかった軽い指摘を PR の本文に書き足す（t600）。見直しの記録（最新の見直しの指摘の一覧）から、手直しに渡さなかった軽い指摘を読み、
- * もとの本文は残して節を書き足す（前に書いた節は入れ替える）。本文が変わるときだけ gh pr edit を呼ぶ。書き足した件数を返す
+ * 直さなかった軽い指摘を PR の本文に書き足す（t600）。作業ブランチ（branch_at 以降）の見直しの回ごとの一覧から、手直しに渡さなかった
+ * 軽い指摘を回の順に集め（同じ文は 1 つ）、もとの本文は残して節を書き足す（前に書いた節は入れ替える）。本文が変わるときだけ gh pr edit を呼ぶ。
+ * 書いた件数を返す。gh の失敗は本文を書き足せなかったと OperationError で返し、ready は呼ばない（呼び出し側）
  */
-async function noteUnfixedLight(
-  ctx: CommandContext,
-  ticketId: TicketId,
-  pr: number,
-): Promise<number> {
-  const stored = await readReviewFindings(ctx.repo, ticketId);
+async function noteUnfixedLight(ctx: CommandContext, ticket: Ticket, pr: number): Promise<number> {
+  const stored = await readReviewFindings(ctx.repo, ticket.id);
   if (!stored) return 0;
-  const { unfixedLight } = splitFindings(stored.findings, ctx.config.review.heavy_categories);
-  const view = await runGh(ctx.repo.topLevel, ["pr", "view", String(pr), "--json", "body"], {
-    timeoutMs: 60_000,
-  });
-  const current = (JSON.parse(view.stdout) as { body?: string | null }).body ?? "";
-  const next = withUnfixedLight(
-    current,
-    unfixedLight.map((f) => findingText(f, "ja")),
+  const lines = unfixedLightLines(
+    stored.rounds,
+    ticket.branch_at,
+    ctx.config.review.heavy_categories,
   );
+  const failed = (what: string, e: unknown) =>
+    new OperationError(
+      "GIT_ERROR",
+      `PR #${pr} の本文を書き足せず（${what}に失敗）、ready にしていない（直さなかった軽い指摘を載せるため）`,
+      e instanceof Error ? (e.message.split("\n")[0] ?? "") : String(e),
+    );
+  let current: string;
+  try {
+    const view = await runGh(ctx.repo.topLevel, ["pr", "view", String(pr), "--json", "body"], {
+      timeoutMs: 60_000,
+    });
+    current = (JSON.parse(view.stdout) as { body?: string | null }).body ?? "";
+  } catch (e) {
+    throw failed("本文の読み取り", e);
+  }
+  const next = withUnfixedLight(current, lines);
   if (next !== current) {
     // 本文は引数の配列で渡せない長さ・改行を含むので、一時ファイルから --body-file で渡す
     const dir = await mkdtemp(path.join(os.tmpdir(), "dg-pr-body-"));
@@ -101,11 +110,13 @@ async function noteUnfixedLight(
       await runGh(ctx.repo.topLevel, ["pr", "edit", String(pr), "--body-file", file], {
         timeoutMs: 60_000,
       });
+    } catch (e) {
+      throw failed("本文の書き込み", e);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
   }
-  return unfixedLight.length;
+  return lines.length;
 }
 
 export const prReady = defineCommand({
@@ -123,7 +134,7 @@ export const prReady = defineCommand({
   needs: "store",
   async run(ctx, input) {
     const { ticket, gate, pr } = await passGate(ctx, input.ticket, "ready");
-    const noted = await noteUnfixedLight(ctx, ticket.id, pr);
+    const noted = await noteUnfixedLight(ctx, ticket, pr);
     await runGh(ctx.repo.topLevel, ["pr", "ready", String(pr)], { timeoutMs: 60_000 });
     const view: PrAdvanceView = { ticket: ticket.id, pr, action: "ready", gate, noted };
     return ok(view);

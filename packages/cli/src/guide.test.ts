@@ -144,14 +144,21 @@ describe("dg guide", () => {
     const back = bullet(section(review, "## 見直す"), "返す");
     for (const word of ["この PR が変えた", "文書の見直し", "ADR-001", "参考節との食い違い"])
       expect(back, word).toContain(word);
+    // 受け入れ条件の指摘は category に「受け入れ条件」を含め、手直しに渡す軽い指摘を dg が category で選ぶ（t600）
+    for (const word of ["受け入れ条件の欠け", "category に「受け入れ条件」を含める"])
+      expect(back, word).toContain(word);
     const fix = section(review, "## 修正ループ（親）");
     for (const word of [
       "参考節との食い違い",
       "dg pr ready` が PR の本文に書き足す",
       "直さなかった軽い指摘",
+      // 手直しが直さずに返した理由は dg が書けないので、親が報告に書く（t600）
+      "手直しが直さずに返した指摘と理由は dg が書けない",
+      "親が報告に書く",
     ])
       expect(fix, word).toContain(word);
     expect(fix).not.toContain("gh pr edit");
+    expect(fix).not.toContain("手直しが返すときも理由を含めてもらう");
     expect(await readGuide("parallel")).toContain(
       "直さなかった軽い指摘は `dg pr ready` が PR の本文に書き足す",
     );

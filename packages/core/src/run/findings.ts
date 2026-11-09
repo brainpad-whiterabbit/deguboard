@@ -56,6 +56,42 @@ export function findingText(f: ReviewFinding, lang: "ja" | "en"): string {
   return `${head}${sep}${f.reason}${fixPart}`.replace(/\s*\n\s*/g, " ");
 }
 
+/** 見直しの 1 回分の、指摘の部分（record.ts の ReviewRound のうち読む側が使う形） */
+export interface ReviewRoundLike {
+  at: string;
+  findings: readonly ReviewFinding[] | null;
+}
+
+/**
+ * 作業ブランチ（branch_at 以降。since がなければすべて）の見直しの回のうち、最新の回を返す。
+ * 一覧なしの回（findings が null）は、それが最新なら一覧がないものとして扱う（前の回の一覧は使わない）
+ */
+export function latestRoundSince<T extends ReviewRoundLike>(
+  rounds: readonly T[],
+  since: string | undefined,
+): T | undefined {
+  const round = rounds.filter((r) => r.at >= (since ?? "")).at(-1);
+  return round && round.findings !== null ? round : undefined;
+}
+
+/**
+ * 作業ブランチの見直しの回すべてから、直さなかった軽い指摘（手直しに渡さなかったもの）の文を集める。
+ * 回の順に、同じ文は 1 つにする（同じ指摘が次の回にも出るため）。一覧なしの回は何も足さない
+ */
+export function unfixedLightLines(
+  rounds: readonly ReviewRoundLike[],
+  since: string | undefined,
+  heavyCategories: readonly string[],
+): string[] {
+  const lines = new Set<string>();
+  for (const round of rounds) {
+    if (round.at < (since ?? "") || round.findings === null) continue;
+    const { unfixedLight } = splitFindings(round.findings, heavyCategories);
+    for (const f of unfixedLight) lines.add(findingText(f, "ja"));
+  }
+  return [...lines];
+}
+
 /** PR の本文に書き足す節の印。dg pr ready が書き直すときは、この印の間を入れ替える（もとの本文は残す） */
 export const UNFIXED_LIGHT_BEGIN = "<!-- dg:unfixed-light-findings:begin -->";
 export const UNFIXED_LIGHT_END = "<!-- dg:unfixed-light-findings:end -->";

@@ -271,6 +271,11 @@ describe("dg brief と dg next の文（EX-3）", () => {
     expect(fix.text).toContain("- [重い] src/a.ts:3 (不具合)：型が違う。直し方：型を直す");
     expect(fix.text).toContain("- [軽い] 受け入れ条件の漏れ：1 つめが足りない");
     expect(fix.text).not.toContain("参考節との食い違い");
+    // 数だけで記録した回が最新なら、前の回の一覧は使わず貼る場所を空ける（t600）
+    await runCommand(runReviewResult, ctx, { ticket: "t1", heavy: 0, light: 0, passed: true });
+    const counted = (await runCommand(brief, ctx, { ticket: "t1", role: "fix" })).data;
+    expect(counted.text).toContain("（直す指摘の一覧をここに貼る");
+    expect(counted.text).not.toContain("型が違う");
     // 渡したときは渡したものを使う
     const given = (await runCommand(brief, ctx, { ticket: "t1", role: "fix", findings: "1. 別" }))
       .data;

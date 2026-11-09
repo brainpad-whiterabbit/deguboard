@@ -26,6 +26,8 @@ async function fakeGh(root: string, pr: () => string) {
   const log = path.join(root, "gh-calls.log");
   const viewFile = path.join(root, "gh-view.json");
   const edited = path.join(root, "gh-edited-body.md");
+  // このファイルがあると、--json body の pr view だけ失敗する（検査の view は通す）
+  const failBody = path.join(root, "gh-fail-body");
   await mkdir(bin, { recursive: true });
   const write = async () => {
     await writeFile(viewFile, pr());
@@ -35,7 +37,7 @@ async function fakeGh(root: string, pr: () => string) {
         "#!/bin/sh",
         'case "$1" in --version) echo "gh version 0 (fake)"; exit 0;; esac',
         'case "$2" in',
-        `  view) cat '${viewFile}';;`,
+        `  view) if [ "$5" = body ] && [ -f '${failBody}' ]; then echo "gh の失敗" >&2; exit 1; fi; cat '${viewFile}';;`,
         `  ready|merge) echo "$@" >> '${log}';;`,
         `  edit) echo "pr edit $3" >> '${log}'; cp "$5" '${edited}';;`,
         "  *) exit 1;;",
@@ -56,7 +58,8 @@ async function fakeGh(root: string, pr: () => string) {
   const calls = async () =>
     (await readFile(log, "utf8").catch(() => "")).split("\n").filter((l) => l !== "");
   const editedBody = () => readFile(edited, "utf8");
-  return { write, calls, editedBody };
+  const failBodyView = () => writeFile(failBody, "1");
+  return { write, calls, editedBody, failBodyView };
 }
 
 /** t1 を feat/t1 で claim して 1 コミット push し、PR #7（偽の gh。draft）がある文脈 */
@@ -95,7 +98,34 @@ async function prepared() {
     state.draft = false;
     await gh.write();
   };
-  return { ctx, calls: gh.calls, editedBody: gh.editedBody, undraft };
+  return {
+    ctx,
+    calls: gh.calls,
+    editedBody: gh.editedBody,
+    failBodyView: gh.failBodyView,
+    undraft,
+  };
+}
+
+/** 見直しの 1 回を記録する（offset 秒後の時刻。回の順と作業ブランチの後を分けるため） */
+async function reviewRound(
+  ctx: CommandContext,
+  offset: number,
+  findings: Array<{
+    severity: "heavy" | "light";
+    category: string;
+    file?: string;
+    line?: number;
+    reason: string;
+    fix?: string;
+  }>,
+) {
+  ctx.now = () => new Date(Date.now() + offset * 1000);
+  const run = (
+    await runCommand(runStart, ctx, { ticket: "t1", step: "review", agent: "claude-code" })
+  ).data as Run;
+  await runCommand(runReviewResult, ctx, { ticket: "t1", findings });
+  await runCommand(runFinish, ctx, { run: run.id, result: "success" });
 }
 
 /** 最後の push より後に通った見直しを記録する */
@@ -229,5 +259,52 @@ describe("dg pr ready・dg pr merge（t545）", () => {
     expect(body).toContain("- [軽い] src/b.ts (参考節との食い違い)：広がり。直し方：節に足す");
     expect(body).not.toContain("1 つめが足りない");
     expect(await calls()).toEqual(["pr edit 7", "pr ready 7"]);
+  });
+
+  it("見直しを 2 回したとき、1 回目に手直しに渡さなかった軽い指摘も本文に載り、同じ文は 1 つだけ書く（t600）", async () => {
+    const { ctx, calls, editedBody } = await prepared();
+    await reviewRound(ctx, 60, [
+      { severity: "heavy", category: "不具合", file: "src/a.ts", line: 3, reason: "型が違う" },
+      { severity: "light", category: "受け入れ条件の漏れ", reason: "1 つめが足りない" },
+      { severity: "light", category: "参考節との食い違い", file: "src/b.ts", reason: "広がり1" },
+    ]);
+    await reviewRound(ctx, 120, [
+      { severity: "light", category: "参考節との食い違い", file: "src/b.ts", reason: "広がり1" },
+      { severity: "light", category: "言い回し", file: "src/c.ts", reason: "2 回目の軽い" },
+    ]);
+    const ready = (await runCommand(prReady, ctx, { ticket: "t1" })).data as PrAdvanceView;
+    expect(ready.noted).toBe(2);
+    const body = await editedBody();
+    expect(body.split("[軽い] src/b.ts (参考節との食い違い)：広がり1").length - 1).toBe(1);
+    expect(body).toContain("- [軽い] src/c.ts (言い回し)：2 回目の軽い");
+    expect(body).not.toContain("1 つめが足りない");
+    expect(body).not.toContain("型が違う");
+    expect(body).toContain("## 概要\n\n元の本文");
+    expect(await calls()).toEqual(["pr edit 7", "pr ready 7"]);
+  });
+
+  it("作業ブランチより前の見直しの軽い指摘は本文に載せない（t600）", async () => {
+    const { ctx, editedBody } = await prepared();
+    // 作業ブランチ（claim）より前の見直しの回。本文には載らない
+    await reviewRound(ctx, -3600, [
+      { severity: "light", category: "言い回し", reason: "前の作業" },
+    ]);
+    await reviewRound(ctx, 60, [{ severity: "light", category: "言い回し", reason: "今回の軽い" }]);
+    const ready = (await runCommand(prReady, ctx, { ticket: "t1" })).data as PrAdvanceView;
+    expect(ready.noted).toBe(1);
+    const body = await editedBody();
+    expect(body).toContain("今回の軽い");
+    expect(body).not.toContain("前の作業");
+  });
+
+  it("gh pr view の失敗は本文を書き足せなかったと OperationError で返し、ready を呼ばない（t600）", async () => {
+    const { ctx, calls, failBodyView } = await prepared();
+    await reviewRound(ctx, 60, [{ severity: "light", category: "言い回し", reason: "軽い" }]);
+    await failBodyView();
+    const err = await rejection(runCommand(prReady, ctx, { ticket: "t1" }));
+    expect(err).toBeInstanceOf(OperationError);
+    expect(err!.message).toContain("本文を書き足せず");
+    expect(err!.message).toContain("ready にしていない");
+    expect(await calls()).toEqual([]);
   });
 });

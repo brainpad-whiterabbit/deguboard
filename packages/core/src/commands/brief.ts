@@ -6,10 +6,9 @@
 import { z } from "zod";
 import { findBranchWorktree } from "../git/worktree.js";
 import { guideSectionText } from "../guide/guide.js";
-import type { TicketId } from "../model/id.js";
 import { REVIEW_STEP } from "../model/run.js";
 import { type AcceptanceItem, parseAcceptance, type Ticket } from "../model/ticket.js";
-import { findingText, splitFindings } from "../run/findings.js";
+import { findingText, latestRoundSince, splitFindings } from "../run/findings.js";
 import { readReviewFindings } from "../run/record.js";
 import { ASK_LANGUAGES, type AskLanguage } from "./ask.js";
 import { defineCommand, ok, type CommandContext } from "./define.js";
@@ -271,12 +270,14 @@ export function composeBrief(
  */
 async function latestFixFindings(
   ctx: CommandContext,
-  ticketId: TicketId,
+  ticket: Ticket,
   lang: AskLanguage,
 ): Promise<string | undefined> {
-  const stored = await readReviewFindings(ctx.repo, ticketId);
-  if (!stored) return undefined;
-  const { fix } = splitFindings(stored.findings, ctx.config.review.heavy_categories);
+  const stored = await readReviewFindings(ctx.repo, ticket.id);
+  // 作業ブランチの最新の回。一覧なしの回（数だけ）なら前の回の一覧は使わず、貼る場所を空ける
+  const round = stored && latestRoundSince(stored.rounds, ticket.branch_at);
+  if (!round?.findings) return undefined;
+  const { fix } = splitFindings(round.findings, ctx.config.review.heavy_categories);
   if (fix.length === 0)
     return say(
       lang,
@@ -296,8 +297,7 @@ export async function briefOf(
   const language = opts.language ?? "ja";
   // 手直しの指摘は、渡されなければ見直しの記録から読む（渡されたものはそのまま使う）
   const findings =
-    opts.findings ??
-    (role === "fix" ? await latestFixFindings(ctx, ticket.id, language) : undefined);
+    opts.findings ?? (role === "fix" ? await latestFixFindings(ctx, ticket, language) : undefined);
   const step =
     role === "implement"
       ? openedStepOf(ctx, ticket, "claim")

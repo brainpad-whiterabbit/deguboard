@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 import type { ReviewFinding } from "../model/run.js";
 import {
   findingText,
+  latestRoundSince,
   splitFindings,
   UNFIXED_LIGHT_BEGIN,
   UNFIXED_LIGHT_END,
+  unfixedLightLines,
   withUnfixedLight,
 } from "./findings.js";
 
@@ -16,6 +18,41 @@ const finding = (over: Partial<ReviewFinding>): ReviewFinding => ({
   reason: "理由",
   fix: null,
   ...over,
+});
+
+describe("見直しの回から最新の回と直さなかった軽い指摘を読む（t600）", () => {
+  const round = (at: string, findings: ReviewFinding[] | null) => ({ at, findings });
+
+  it("作業ブランチ（since 以降）の最新の回を返し、一覧なしの回が最新なら前の回を使わない", () => {
+    const a = round("2026-11-09T01:00:00Z", [finding({ reason: "前の作業" })]);
+    const b = round("2026-11-09T03:00:00Z", [finding({ reason: "今回" })]);
+    expect(latestRoundSince([a, b], "2026-11-09T02:00:00Z")).toBe(b);
+    // since より前の回しかなければ最新はない
+    expect(latestRoundSince([a], "2026-11-09T02:00:00Z")).toBeUndefined();
+    // 数だけの回が最新なら、その前の一覧は使わない
+    expect(latestRoundSince([a, round("2026-11-09T04:00:00Z", null)], undefined)).toBeUndefined();
+  });
+
+  it("直さなかった軽い指摘を回の順に集め、同じ文は 1 つにし、作業ブランチより前の回と一覧なしの回は読まない", () => {
+    const acceptance = finding({ category: "受け入れ条件の漏れ", reason: "1 つめ" });
+    const neighbor = finding({
+      category: "参考節との食い違い",
+      file: "src/b.ts",
+      reason: "広がり",
+    });
+    const wording = finding({ category: "言い回し", reason: "2 回目だけ" });
+    const old = finding({ category: "言い回し", reason: "前の作業" });
+    const rounds = [
+      round("2026-11-09T01:00:00Z", [old]),
+      round("2026-11-09T02:00:00Z", [acceptance, neighbor]),
+      round("2026-11-09T03:00:00Z", [neighbor, wording, finding({ severity: "heavy" })]),
+      round("2026-11-09T04:00:00Z", null),
+    ];
+    expect(unfixedLightLines(rounds, "2026-11-09T01:30:00Z", ["規約の違反"])).toEqual([
+      "[軽い] src/b.ts (参考節との食い違い)：広がり",
+      "[軽い] 言い回し：2 回目だけ",
+    ]);
+  });
 });
 
 describe("見直しの指摘から手直しに渡すものを選ぶ（t600）", () => {

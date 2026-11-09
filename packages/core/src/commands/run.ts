@@ -35,7 +35,7 @@ import {
   appendRetryReasons,
   closeRun,
   putPendingReview,
-  putReviewFindings,
+  putReviewRound,
   putPendingRetryReasons,
   dropRunning,
   finishRun,
@@ -764,15 +764,14 @@ export const runReviewResult = defineCommand({
       );
     }
     const ticket = ctx.store.require("ticket", input.ticket).data;
-    // 一覧は書いた先の Run（保留なら null）と一緒に deguboard-local に置く（置き場所の理由は run/record.ts）
+    // 回の記録は書いた先の Run（保留なら null）と一緒に deguboard-local に置く（置き場所の理由は run/record.ts）。
+    // 数だけの呼び方も回として置く（一覧は null）。前の回の一覧を最新として使わせないため
     const keep = async (run: RunId | null) => {
-      if (input.findings === undefined) return;
-      await putReviewFindings(ctx.repo, {
-        ticket: ticket.id,
+      await putReviewRound(ctx.repo, ticket.id, {
         run,
         at: toIsoDateTime(ctx.now()),
         review,
-        findings: input.findings,
+        findings: input.findings ?? null,
       });
     };
     const local = (await readRunningRuns(ctx.repo)).runs;

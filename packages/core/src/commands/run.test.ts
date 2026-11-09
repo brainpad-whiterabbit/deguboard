@@ -895,9 +895,9 @@ describe("run review-result（見直しの結果。ADR-025）", () => {
       review: { heavy: 1, light: 2, passed: false },
     });
     expect(written.warnings).toEqual([]);
-    const stored = await readReviewFindings(ctx.repo, "t1");
-    expect(stored).toMatchObject({ ticket: "t1", run: run.id, review: { heavy: 1, light: 2 } });
-    expect(stored!.findings[2]).toEqual({
+    const stored = (await readReviewFindings(ctx.repo, "t1"))!.rounds.at(-1)!;
+    expect(stored).toMatchObject({ run: run.id, review: { heavy: 1, light: 2 } });
+    expect(stored.findings![2]).toEqual({
       severity: "light",
       category: "参考節との食い違い",
       file: null,
@@ -967,7 +967,10 @@ describe("run review-result（見直しの結果。ADR-025）", () => {
     const counted = await record(ctx, "t1", 0, 1, true);
     expect(counted.data).toMatchObject({ review: { heavy: 0, light: 1, passed: true } });
     expect(counted.warnings).toEqual([expect.stringContaining("--findings-file")]);
-    expect(await readReviewFindings(ctx.repo, "t1")).toBeUndefined();
+    // 数だけの回は一覧を null で置く（前の回の一覧を最新として使わせない。t600）
+    expect((await readReviewFindings(ctx.repo, "t1"))!.rounds.at(-1)).toMatchObject({
+      findings: null,
+    });
     await expect(
       runCommand(runReviewResult, ctx, { ticket: "t1", findings: [], heavy: 0 }),
     ).rejects.toMatchObject({ name: "UsageError" });
@@ -983,7 +986,7 @@ describe("run review-result（見直しの結果。ADR-025）", () => {
       pending: true,
       review: { heavy: 0, light: 1, passed: true },
     });
-    expect(await readReviewFindings(ctx.repo, "t1")).toMatchObject({
+    expect((await readReviewFindings(ctx.repo, "t1"))!.rounds.at(-1)).toMatchObject({
       run: null,
       findings: [finding()],
     });
