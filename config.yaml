@@ -14,3 +14,6 @@ models:
   light: haiku
   standard: haiku
   heavy: opus
+merge:
+  method: squash
+  delete_branch: true
