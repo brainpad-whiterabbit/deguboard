@@ -81,11 +81,9 @@ beforeAll(async () => {
       labels: ["ui", "web"],
     });
   }
-  await call("ticket.claim", { ticket: "t1", without_branch: true });
   await call("ticket.move", { ticket: "t2", status: "review" });
   await call("ticket.move", { ticket: "t3", status: "done" });
   await call("ticket.move", { ticket: "t4", status: "abandoned" });
-  await call("run.start", { ticket: "t1", step: "implement", agent: "claude-code" });
   const done = (await call("run.start", {
     ticket: "t3",
     step: "implement",
@@ -128,6 +126,10 @@ beforeAll(async () => {
   await call("ticket.move", { ticket: "t14", status: "abandoned" });
   await call("iteration.close", { iteration: "s8" });
   await call("iteration.start", { iteration: "s2" });
+  // t1 の claim は planned の Iteration を開始する（ticket.claim は s2 を始める。t594）ので、s2 を始めた後に claim する。
+  // 先に claim すると s2 が active になり、s8 の開始が IT-1 で拒否される
+  await call("ticket.claim", { ticket: "t1", without_branch: true });
+  await call("run.start", { ticket: "t1", step: "implement", agent: "claude-code" });
   // 設定画面：長い worktree.root（区切りのない長いパス）と、項目の多い actions.test
   await call("config.set", { key: "worktree.root", value: LONG_ROOT });
   await call("config.set", { key: "actions.test", value: TEST_COMMAND });
