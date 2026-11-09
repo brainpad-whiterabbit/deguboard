@@ -141,7 +141,7 @@ npm に出すのは `@deguboard/core`・`@deguboard/server`・`deguboard`（cli�
 
 ```sh
 mise run release:version -- <版>    # 版を揃え、PR で main に入れる
-mise run check && mise run pack      # release/ に 3 つの tarball（LICENSE が欠ければ失敗）
+mise run check && mise run pack      # release/ に 3 つの tarball（LICENSE が欠ければ、cli に guide-*.md があるか core に dist/guide/ の guide がなければ失敗）
 mise run audit                       # 本番の依存の脆弱性（あれば直すか人が判断する）
 mise run test:layout && mise run test:vscode   # 画面の配置と VS Code の実機（check に入らない）
 mise run release:publish             # npm login 済みで
