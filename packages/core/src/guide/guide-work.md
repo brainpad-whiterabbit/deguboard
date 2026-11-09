@@ -18,8 +18,8 @@ argument-hint: "<Plan の ID|チケットの ID>"
 1. `dg --json --actor agent next <id>` を呼び、`kind` の手を 1 つ行う。`commands` の順に行い、`brief` があればサブエージェントに貼る（後ろに一時ファイルの置き場所を足してよい）。`model` が空でなければ、そのモデルでサブエージェントを起動する（`null` は親のモデル）。印のない調べもののサブエージェントは `models.light`（空なら親のモデル）。終えたらもう一度 `next` を呼ぶ
 2. `kind` ごとの親の手：
    - `implement`：`commands` の claim を行い、「claim の前後」に従う。作業ブランチの worktree は claim が作り、場所を `worktree` に返す（既定は `{{worktree.root}}/<ブランチ名>`）。文を渡し、返ったら「実装の結果を受け取る」。親が自分で実装するなら、claim の `--no-run` を外して下の「実装する」を行う（claim が実装の Run を開く）
-   - `review`：見直し役を起動する（`dg guide review` の「見直す」）
-   - `fix`：見直し役の指摘を、`dg guide review` の「指摘を直す」の手順で渡す
+   - `review`：見直し役を起動する（文に「見直す」の手順が入る。`dg guide review`）
+   - `fix`：見直し役の指摘を `brief <id> --role fix --findings` の文で渡す（文に「指摘を直す」の手順が入る）
    - `ready`：`dg guide review` の「終わり方」で PR を出す。PR を見ない Workflow（general など。`sync` が review に進めない）では、PR を出したら続けて自分で `dg --json --actor agent ticket move <id> review` に進める
    - `wait_merge`・`wait_human`：`ask_human` を人に伝えて聞く（`wait_human` は `dg guide review` の「終わり方」）。人のレビューの指摘は `dg guide review` の「指摘を直す」。マージされたら `dg guide done`
    - `wait_deps`：待つ。Plan の `next` から、ほかのチケットを選ぶ
@@ -33,10 +33,10 @@ argument-hint: "<Plan の ID|チケットの ID>"
 
 ## 実装する（draft の PR まで）
 
-実装する役（親かサブエージェント）は、`next` の `plan` の範囲と方針の中で実装し、次を行う。文が `dg guide work` の「実装する」を指すのはこの節。
+実装する役（親かサブエージェント）は、`next` の `plan` の範囲と方針の中で実装し、次を行う。implement の文には、この節の本文がそのまま入る。
 
 1. リポジトリの検査（書式・lint・テスト）を通す
-2. 触れた節の正本（requirements・README・コードのコメント）を読み直し、この PR で変えた約束・手順・規約の文書を同じ PR で直す（`dg guide review` の「見る」と ADR-001 の「文書の見直し」）。要件は約束だけを直し、細部は足さない（細部の正本はヘルプ・コード・テスト）。ADR は判断と理由を書き換えないので、読み直して直す正本に入れない。判断を変えるときだけ新しい ADR を書き、古い ADR を置き換えにして一覧を直す（ADR-001 の「ADR を書く場面」）。この PR で古くなった ADR の細部は直さず、報告に書く（`dg guide audit` が起票する「ADR の細部を消す」の材料）。前からあるずれは直さず、報告に書く
+2. 触れた節の正本（requirements・README・コードのコメント）を読み直し、この PR で変えた約束・手順・規約の文書を同じ PR で直す（見直しで見る文書との食い違いと、ADR-001 の「文書の見直し」）。要件は約束だけを直し、細部は足さない（細部の正本はヘルプ・コード・テスト）。ADR は判断と理由を書き換えないので、読み直して直す正本に入れない。判断を変えるときだけ新しい ADR を書き、古い ADR を置き換えにして一覧を直す（ADR-001 の「ADR を書く場面」）。この PR で古くなった ADR の細部は直さず、報告に書く（親が「ADR の細部を消す」の起票の材料にする）。前からあるずれは直さず、報告に書く
 3. `gh pr create --draft` で PR を作る。本文にチケット ID（`t12`）、付けられなかった受け入れ条件と理由、読み直した正本と直した箇所を書く
 4. 受け入れ条件は、成果物やテストで満たしたと確かめた項目だけを報告する（印は親が付ける）
 

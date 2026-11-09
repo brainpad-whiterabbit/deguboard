@@ -142,7 +142,7 @@ describe("dg guide", () => {
       expect(look, word).toContain(word);
     // 重い・軽いの分けは「返す」だけに書く（見る と返す で二度並べない）
     const back = bullet(section(review, "## 見直す"), "返す");
-    for (const word of ["この PR が変えた", "dg guide audit", "ADR-001", "参考節との食い違い"])
+    for (const word of ["この PR が変えた", "文書の見直し", "ADR-001", "参考節との食い違い"])
       expect(back, word).toContain(word);
     const fix = section(review, "## 指摘を直す（修正ループ）");
     for (const word of ["参考節との食い違い", "親が PR の本文に書き足す", "直さなかった軽い指摘"])
