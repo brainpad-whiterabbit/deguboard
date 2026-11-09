@@ -510,13 +510,14 @@ async function syncLocked(ctx: CommandContext, resolve?: ResolveSide) {
       }
       if (r.ok) integrated ||= r.changed;
       else {
-        // 仮番号の衝突（オフラインで起票した番号がリモートで使われた）なら振り直して積み直す（DT-5）。
-        // 作業ツリーに未コミットが残る manual のときは、巻き戻しで消えるので扱わない
+        // 仮番号の衝突（オフラインで起票した番号がリモートで使われた）なら振り直して取り込み直す（DT-5）。
+        // 作業ツリーに未コミットが残る manual のときは扱わない
         const fixed =
           (dirty && !flushed) || resolve ? null : await renumberProvisional(repo, r.conflicts);
         if (fixed) {
-          renumbered = fixed;
-          integrated = true;
+          renumbered = fixed.renumbered;
+          integrated = fixed.renumbered.length > 0;
+          conflicts = fixed.conflicts;
         } else conflicts = r.conflicts;
       }
     }
