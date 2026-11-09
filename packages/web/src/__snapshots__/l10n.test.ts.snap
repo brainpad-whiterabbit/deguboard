@@ -39,5 +39,6 @@ exports[`設定の項目の説明の訳 > core の説明が変わったら訳を
   "push.mode": "auto: コミットのたびに push / manual: dg sync が push する（即時の操作は manual でも push する）",
   "review.heavy_categories": "見直しの指摘（run review-result --findings-file）のうち、severity によらず重いとみなす category。既定は空で、見直し役の severity のまま",
   "worktree.root": "作業 worktree の置き場所。リポジトリからの相対パス",
+  "worktree.setup": "claim が作った作業 worktree で最初に回す準備のコマンドの引数配列（例 [mise, run, setup]）。空なら何も回さない。失敗しても claim は成功し、warnings に失敗と手で回すコマンドを出す",
 }
 `;

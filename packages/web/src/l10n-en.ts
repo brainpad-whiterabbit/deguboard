@@ -315,6 +315,7 @@ export const EN: Readonly<Record<string, string>> = {
   同期先のリモート: "Remote to sync with",
   基準のブランチ: "Base branch",
   "worktree の置き場所": "Worktree location",
+  "worktree の準備のコマンド": "Setup command for worktrees",
   "既定の Project": "Default Project",
   "優先度 high の判断基準": "Criteria for priority high",
   "優先度 medium の判断基準": "Criteria for priority medium",
@@ -338,6 +339,8 @@ export const EN: Readonly<Record<string, string>> = {
   作業場所が変わる: "changes where work happens",
   "テストとして確認なしで実行するコマンドが変わる（シェルを許すのと同じ）":
     "changes the command run as tests without confirmation (same as allowing a shell)",
+  "claim のたびに確認なしで回すコマンドが変わる（シェルを許すのと同じ）":
+    "changes the command run on every claim without confirmation (same as allowing a shell)",
   エージェントが任意のシェルを実行できるかが変わる:
     "changes whether agents can run any shell command",
   エージェントに許す操作が変わる: "changes what agents are allowed to do",
@@ -549,6 +552,8 @@ export const CONFIG_DESCRIPTIONS_EN: Readonly<Record<string, string>> = {
   "git.remote": "Git remote that deguboard fetches from and pushes to",
   "git.base_branch": "Base for work branches and for deciding what is merged",
   "worktree.root": "Where work worktrees go. A path relative to the repository",
+  "worktree.setup":
+    "Command (as an argument array) run first in a work worktree that claim created. Empty runs nothing. If it fails, claim still succeeds and the warnings give the command to run by hand",
   "commit.mode":
     "each: commit on every write / batch: leave changes in the working tree; dg commit, dg sync, and immediate operations commit them together / manual: only dg commit and immediate operations",
   "push.mode":

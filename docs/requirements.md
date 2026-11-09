@@ -186,7 +186,7 @@ updated_at: 2026-10-31T05:10:00Z
 
 - ST-1 `status` はチケットに保存する。変えるのは `ticket move`・`claim`・`unclaim`、UI の操作、照合だけ
 - ST-2 遷移は Workflow の `transitions` の制約で検査する。`by` に含まれない主体の遷移と `requires` を満たさない遷移は拒否し、制約のない遷移は誰でも行える。同じ Status への move は拒否する
-- ST-3 `claim` は todo のチケットの `assignee` を自分にし、`branch` を記録して in_progress に進め、agent なら実装の Run を開く（RN-5）。Iteration への追加と開始・作業ブランチの worktree の作成も行い、できなければ警告して成功する。todo 以外と使えないブランチ名は拒否し、別のユーザの `assignee` は上書きして警告する（細部は `ticket claim --help`）
+- ST-3 `claim` は todo のチケットの `assignee` を自分にし、`branch` を記録して in_progress に進め、agent なら実装の Run を開く（RN-5）。Iteration の追加と開始・作業 worktree の作成・`worktree.setup` を回し、できなければ警告して成功する。todo 以外と使えないブランチ名は拒否し、別のユーザの `assignee` は上書きして警告する（細部は `ticket claim --help`）
 - ST-4 照合は `dg sync` と、画面の同期（UI-6）で行う。`branch` のあるチケットについて Git から事実を集め、`reconcile` 規則を上から評価し、今より前進の順が先のときだけ書き換える。`branch` のないチケットと `done`・`abandoned` のチケットには触れない
 - ST-5 後退を指す事実（消えたブランチ・マージされずに閉じた PR）は書き換えず警告する。取れなかった事実は不明とし、前進の判定では偽と読む。結果（`reconciled`）には根拠の条件（`when`）を含める。細部は `packages/core/src/git/facts.ts`・`workflow/reconcile.ts`、理由は [ADR-028](adr/ADR-028-agents-and-state.md)
 - ST-6 PR の事実は `gh` が使えるときだけ取る（なくても照合は Git の事実で成り立つ）。ブランチ名で見つけた PR の番号を `pr` に記録し（記録済みは書き換えない）、実装の Run を閉じる（RN-6）。`branch_at` より前にマージされた PR は前の作業のものとして使わず警告する（細部は `packages/core/src/git/facts.ts`）

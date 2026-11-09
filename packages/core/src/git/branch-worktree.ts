@@ -63,14 +63,15 @@ export async function createBranchWorktree(
 
 /**
  * ブランチ branch の worktree を用意して場所を返す（claim。ADR-031）。既にそのブランチの worktree があればそれを返し、
- * ローカルにブランチだけ残っていれば（unclaim の後など）そのブランチを dir に checkout し、なければ base から切って dir に作る
+ * ローカルにブランチだけ残っていれば（unclaim の後など）そのブランチを dir に checkout し、なければ base から切って dir に作る。
+ * created は今作ったかどうか（既存のものは false）。worktree.setup を回すかの判断に使う（t621）
  */
 export async function ensureBranchWorktree(
   repo: GitRepo,
   input: { branch: string; base: string; dir: string },
-): Promise<string> {
+): Promise<{ path: string; created: boolean }> {
   const existing = await findBranchWorktree(repo, input.branch);
-  if (existing) return existing;
+  if (existing) return { path: existing, created: false };
   const local = await runGit(
     repo.topLevel,
     ["show-ref", "--verify", "--quiet", `refs/heads/${input.branch}`],
@@ -78,7 +79,7 @@ export async function ensureBranchWorktree(
   );
   if (local.code === 0) {
     await runGit(repo.topLevel, ["worktree", "add", "--", input.dir, input.branch]);
-    return input.dir;
+    return { path: input.dir, created: true };
   }
-  return (await createBranchWorktree(repo.topLevel, repo, input)).path;
+  return { path: (await createBranchWorktree(repo.topLevel, repo, input)).path, created: true };
 }

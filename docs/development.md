@@ -32,7 +32,7 @@ mise run dg -- guide done      # マージ後の後始末
 
 - `dg` は `mise run install`・`setup`・`build` のいずれかのあと `mise run dg -- <引数>` で動く。`core`・`server`・`cli` を変えた PR を取り込んだら、もう一度 `mise run build` する
 - Claude が呼ぶときは `DEGUBOARD_ACTOR=agent`（CLAUDE.md）。人の操作は既定の human のまま
-- worktree は `../deguboard.worktrees/<ブランチ名>` に置く（`dg` の `worktree.root` の既定と同じで、リポジトリの外なので `.gitignore` は要らない）。ブランチ名は `<種類>/<内容>`（例：`docs/branch-strategy`、`feat/ticket-create`、`fix/sync-warning`）。`mise trust` と `node_modules` は worktree ごとに要る。worktree では `mise run setup`（依存とビルドだけ）を使い、`mise run install` は使わない（作業中のブランチの拡張で VS Code の拡張を差し替えてしまう）。`dg ticket claim` は worktree を作るので、手で作るのは claim しない作業のときだけ
+- worktree は `../deguboard.worktrees/<ブランチ名>` に置く（`dg` の `worktree.root` の既定と同じで、リポジトリの外なので `.gitignore` は要らない）。ブランチ名は `<種類>/<内容>`（例：`docs/branch-strategy`、`feat/ticket-create`、`fix/sync-warning`）。`mise trust` と `node_modules` は worktree ごとに要る。worktree では `mise run setup`（依存とビルドだけ）を使い、`mise run install` は使わない（作業中のブランチの拡張で VS Code の拡張を差し替えてしまう）。`dg ticket claim` は worktree を作り、config の `worktree.setup`（このリポジトリは `mise run setup`）をそこで回すので、手で作るのは claim しない作業のときだけ（その場合も `mise run setup` を手で回す）
 
   ```sh
   git fetch origin

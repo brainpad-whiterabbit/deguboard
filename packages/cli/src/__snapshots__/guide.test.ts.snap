@@ -765,7 +765,8 @@ exports[`dg guide の出力（本文の組み立て） > トピックごとの�
 ## claim の前後
 
 - 担当者（\`ticket show\` の \`assignee\`）が別のユーザなら避ける
-- claim は、\`lint.require_iteration\` が true なら（今の設定：\`false\`）\`iteration\` が空のチケットを Iteration に入れ、planned の Iteration を開始し、作業ブランチの worktree を作る（選び方は \`ticket claim --help\`）。\`warnings\` に入れ先がない・開始できない・worktree を作れないが出たら、Iteration は人に頼み（入れずに進むと \`lint_iteration_missing\`）、worktree は警告に書いた場所に手で作る（\`worktree\` が null のとき。既定は \`../<repo>.worktrees/<ブランチ名>\`）。作業は続ける
+- claim は、\`lint.require_iteration\` が true なら（今の設定：\`false\`）\`iteration\` が空のチケットを Iteration に入れ、planned の Iteration を開始し、作業ブランチの worktree を作って、その中で config の \`worktree.setup\`（準備のコマンド）を回す（選び方は \`ticket claim --help\`）。\`warnings\` に入れ先がない・開始できない・worktree を作れない・準備のコマンドが止まったが出たら、Iteration は人に頼み（入れずに進むと \`lint_iteration_missing\`）、worktree は警告に書いた場所に手で作り、準備のコマンドは警告に書いたものを手で回す（\`worktree\` が null のとき。既定は \`../<repo>.worktrees/<ブランチ名>\`）。作業は続ける
+- 準備のコマンドは数分かかることがあり、claim はその間戻らない（上限 10 分）。呼ぶ側の上限（エージェントの Bash の既定 2 分など）より長いときは、claim を回す時間を長くする。途中で切れても claim と実装の Run は残るが、警告は出ないので、worktree で config の \`worktree.setup\` を手で回す
 - \`CLAIM_LOST\` なら別のチケットへ。\`BRANCH_IN_USE\` なら \`--branch\` の名前を変えて claim し直す
 
 ## 実装する（draft の PR まで）

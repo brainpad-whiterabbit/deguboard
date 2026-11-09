@@ -1014,6 +1014,7 @@ describe("設定画面の部品", () => {
       "git.base_branch",
       "git.remote",
       "worktree.root",
+      "worktree.setup",
     ]);
   });
 

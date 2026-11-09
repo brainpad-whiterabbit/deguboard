@@ -425,6 +425,17 @@ Modified
 Where work worktrees go. A path relative to the repository
 [title] Reset to default ../<repo>.worktrees
 Reset to Default
+Setup command for worktrees
+worktree.setup
+[title] Default: Empty
+Modified
+Command (as an argument array) run first in a work worktree that claim created. Empty runs nothing. If it fails, claim still succeeds and the warnings give the command to run by hand
+Empty
+[aria-label] Items
+[placeholder] Add item
+Add
+[title] Reset to default Empty
+Reset to Default
 Tickets
 Criteria for priority high
 priority.high
