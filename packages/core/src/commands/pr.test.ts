@@ -20,15 +20,20 @@ afterEach(async () => {
 
 /**
  * 偽の gh。pr view は PR #7 の JSON（pr() の値。ファイルから返す）を返し、pr ready・pr merge は引数を記録に書き足す。
- * pr edit は --body-file の中身を edited に残し、呼んだことを記録に書く（t600）
+ * 本文の読み書きは gh api の pulls（REST）で受け、PATCH の --input の中身を edited に残して呼んだことを記録に書く（t600）。
+ * Projects (classic) の廃止を写し、pr view --json body と pr edit は GraphQL の projectCards のエラーで落ちる（t637）
  */
 async function fakeGh(root: string, pr: () => string) {
   const bin = path.join(root, "fake-bin");
   const log = path.join(root, "gh-calls.log");
   const viewFile = path.join(root, "gh-view.json");
-  const edited = path.join(root, "gh-edited-body.md");
-  // このファイルがあると、--json body の pr view だけ失敗する（検査の view は通す）
+  const edited = path.join(root, "gh-edited-body.json");
+  // このファイルがあると、本文の読み取り（gh api の GET）だけ失敗する（検査の view は通す）
   const failBody = path.join(root, "gh-fail-body");
+  // このファイルがあると、本文の書き込み（gh api の PATCH）だけ失敗する
+  const failWrite = path.join(root, "gh-fail-write");
+  const projectCards =
+    'echo "GraphQL: Projects (classic) is being deprecated in favor of the new Projects experience (repository.pullRequest.projectCards)" >&2; exit 1';
   await mkdir(bin, { recursive: true });
   const write = async () => {
     await writeFile(viewFile, pr());
@@ -37,10 +42,20 @@ async function fakeGh(root: string, pr: () => string) {
       [
         "#!/bin/sh",
         'case "$1" in --version) echo "gh version 0 (fake)"; exit 0;; esac',
+        'if [ "$1" = api ]; then',
+        '  if [ "$2" = --method ] && [ "$3" = PATCH ] && [ "$4" = "repos/{owner}/{repo}/pulls/7" ] && [ "$5" = --input ]; then',
+        `    if [ -f '${failWrite}' ]; then echo "gh の失敗" >&2; exit 1; fi`,
+        `    echo "api PATCH pulls/7" >> '${log}'; cp "$6" '${edited}'; exit 0`,
+        "  fi",
+        '  if [ "$2" = "repos/{owner}/{repo}/pulls/7" ]; then',
+        `    if [ -f '${failBody}' ]; then echo "gh の失敗" >&2; exit 1; fi; cat '${viewFile}'; exit 0`,
+        "  fi",
+        "  exit 1",
+        "fi",
         'case "$2" in',
-        `  view) if [ "$5" = body ] && [ -f '${failBody}' ]; then echo "gh の失敗" >&2; exit 1; fi; cat '${viewFile}';;`,
+        `  view) if [ "$5" = body ]; then ${projectCards}; fi; cat '${viewFile}';;`,
         `  ready|merge) echo "$@" >> '${log}';;`,
-        `  edit) echo "pr edit $3" >> '${log}'; cp "$5" '${edited}';;`,
+        `  edit) ${projectCards};;`,
         "  *) exit 1;;",
         "esac",
         "",
@@ -58,9 +73,11 @@ async function fakeGh(root: string, pr: () => string) {
   });
   const calls = async () =>
     (await readFile(log, "utf8").catch(() => "")).split("\n").filter((l) => l !== "");
-  const editedBody = () => readFile(edited, "utf8");
+  const editedBody = async () =>
+    (JSON.parse(await readFile(edited, "utf8")) as { body: string }).body;
   const failBodyView = () => writeFile(failBody, "1");
-  return { write, calls, editedBody, failBodyView };
+  const failBodyWrite = () => writeFile(failWrite, "1");
+  return { write, calls, editedBody, failBodyView, failBodyWrite };
 }
 
 /** t1 を feat/t1 で claim して 1 コミット push し、PR #7（偽の gh。draft）がある文脈 */
@@ -104,6 +121,7 @@ async function prepared() {
     calls: gh.calls,
     editedBody: gh.editedBody,
     failBodyView: gh.failBodyView,
+    failBodyWrite: gh.failBodyWrite,
     undraft,
   };
 }
@@ -258,7 +276,7 @@ describe("dg pr ready・dg pr merge（t545）", () => {
     expect((await git(main, ["worktree", "list"])).stdout).toContain("wt-t1");
   });
 
-  it("dg pr ready は直さなかった軽い指摘を PR の本文に書き足し、もとの本文は残す。受け入れ条件の軽い指摘は手直しに回るので書かない（t600）", async () => {
+  it("dg pr ready は直さなかった軽い指摘を PR の本文に書き足し、もとの本文は残す。受け入れ条件の軽い指摘は手直しに回るので書かない（t600）。gh pr view --json body・gh pr edit が Projects (classic) のエラーで落ちても、REST で読み書きして ready にする（t637）", async () => {
     const { ctx, calls, editedBody } = await prepared();
     ctx.now = () => new Date(Date.now() + 60_000);
     const run = (
@@ -285,7 +303,7 @@ describe("dg pr ready・dg pr merge（t545）", () => {
     expect(body).toContain("## 直さなかった軽い指摘");
     expect(body).toContain("- [軽い] src/b.ts (参考節との食い違い)：広がり。直し方：節に足す");
     expect(body).not.toContain("1 つめが足りない");
-    expect(await calls()).toEqual(["pr edit 7", "pr ready 7"]);
+    expect(await calls()).toEqual(["api PATCH pulls/7", "pr ready 7"]);
   });
 
   it("見直しを 2 回したとき、1 回目に手直しに渡さなかった軽い指摘も本文に載り、同じ文は 1 つだけ書く（t600）", async () => {
@@ -307,7 +325,7 @@ describe("dg pr ready・dg pr merge（t545）", () => {
     expect(body).not.toContain("1 つめが足りない");
     expect(body).not.toContain("型が違う");
     expect(body).toContain("## 概要\n\n元の本文");
-    expect(await calls()).toEqual(["pr edit 7", "pr ready 7"]);
+    expect(await calls()).toEqual(["api PATCH pulls/7", "pr ready 7"]);
   });
 
   it("作業ブランチより前の見直しの軽い指摘は本文に載せない（t600）", async () => {
@@ -324,14 +342,26 @@ describe("dg pr ready・dg pr merge（t545）", () => {
     expect(body).not.toContain("前の作業");
   });
 
-  it("gh pr view の失敗は本文を書き足せなかったと OperationError で返し、ready を呼ばない（t600）", async () => {
+  it("本文の読み取りの失敗は本文を書き足せなかったと OperationError で返し、ready を呼ばない（t600）", async () => {
     const { ctx, calls, failBodyView } = await prepared();
     await reviewRound(ctx, 60, [{ severity: "light", category: "言い回し", reason: "軽い" }]);
     await failBodyView();
     const err = await rejection(runCommand(prReady, ctx, { ticket: "t1" }));
     expect(err).toBeInstanceOf(OperationError);
+    expect(err!.code).toBe("GIT_ERROR");
     expect(err!.message).toContain("本文を書き足せず");
     expect(err!.message).toContain("ready にしていない");
+    expect(await calls()).toEqual([]);
+  });
+
+  it("本文の書き込みの失敗は GIT_ERROR で返し、ready を呼ばない（t637）", async () => {
+    const { ctx, calls, failBodyWrite } = await prepared();
+    await reviewRound(ctx, 60, [{ severity: "light", category: "言い回し", reason: "軽い" }]);
+    await failBodyWrite();
+    const err = await rejection(runCommand(prReady, ctx, { ticket: "t1" }));
+    expect(err).toBeInstanceOf(OperationError);
+    expect(err!.code).toBe("GIT_ERROR");
+    expect(err!.message).toContain("本文の書き込みに失敗");
     expect(await calls()).toEqual([]);
   });
 });
