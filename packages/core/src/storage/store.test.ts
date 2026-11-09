@@ -489,22 +489,26 @@ describe("ディスクに残した読みの結果（ADR-033）", () => {
     const { root, cacheDir, open, cacheFile } = await cachedFixture();
     const files = (await open()).lastScan.read;
     const file = await cacheFile();
-    const saved = JSON.parse(await readFile(file, "utf8")) as {
-      key: string;
-      entries: Record<string, { stamp: string; value: { ok: boolean; doc: { body: string } } }>;
-    };
-    const key = JSON.parse(saved.key) as Record<string, unknown>;
-    expect(key).toMatchObject({ format: 1, root: path.resolve(root), actions: ["run_tests"] });
-    expect(key["version"]).toMatch(/^\d+\.\d+\.\d+/);
-    // 同じ印のまま値だけを差し替え、版の違う dg が書いたキャッシュに見せる。使えば本文が変わって見える
-    saved.entries["tickets/t1.md"]!.value.doc.body = "古い版の値";
-    await writeFile(
-      file,
-      JSON.stringify({ ...saved, key: JSON.stringify({ ...key, version: "0.0.1" }) }),
-    );
-    const store = await open();
-    expect(store.lastScan).toEqual({ read: files, reused: 0 });
-    expect(store.tickets.get("t1")?.body).toContain("本文");
+    // dg の版・読みのコードの印（スキーマを変えた作り直し）・キャッシュの形の版のどれが違っても使わない
+    for (const changed of [{ version: "0.0.1" }, { code: "0".repeat(64) }, { format: 0 }]) {
+      const saved = JSON.parse(await readFile(file, "utf8")) as {
+        key: string;
+        entries: Record<string, { stamp: string; value: { ok: boolean; doc: { body: string } } }>;
+      };
+      const key = JSON.parse(saved.key) as Record<string, unknown>;
+      expect(key).toMatchObject({ format: 1, root: path.resolve(root), actions: ["run_tests"] });
+      expect(key["version"]).toMatch(/^\d+\.\d+\.\d+/);
+      expect(key["code"]).toMatch(/^[0-9a-f]{64}$/);
+      // 同じ印のまま値だけを差し替え、鍵の違う dg が書いたキャッシュに見せる。使えば本文が変わって見える
+      saved.entries["tickets/t1.md"]!.value.doc.body = "古い版の値";
+      await writeFile(
+        file,
+        JSON.stringify({ ...saved, key: JSON.stringify({ ...key, ...changed }) }),
+      );
+      const store = await open();
+      expect(store.lastScan, JSON.stringify(changed)).toEqual({ read: files, reused: 0 });
+      expect(store.tickets.get("t1")?.body).toContain("本文");
+    }
     // Action の一覧が違えば別のファイルになり、互いを書き換えない
     await Store.open(root, { cacheDir, actions: [] });
     expect(await readdir(cacheDir)).toHaveLength(2);

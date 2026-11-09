@@ -41,7 +41,7 @@
 ### 画面の操作のコミットはまとめる
 
 - `commit.mode` でコミットの単位を、`push.mode` で push の時期を選び、既定はまとめてコミットする `batch` にする
-- claim・作成・Iteration の開始と再開は、mode によらず即座にコミットして push する（排他と採番。[ADR-002](ADR-002-storage-and-id.md)・[ADR-028](ADR-028-agents-and-state.md)）
+- claim・作成・Iteration の開始と再開は、mode によらず即座にコミットして push する（排他と採番。[ADR-034](ADR-034-storage-and-id.md)・[ADR-028](ADR-028-agents-and-state.md)）
 
 ### ほかの変更はエージェントへの依頼文を作り、コピーか開いているターミナルへの送り込みで渡す
 

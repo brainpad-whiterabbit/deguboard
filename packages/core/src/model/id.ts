@@ -1,4 +1,4 @@
-// ID の解析・整形・採番（requirements.md 5.2、ADR-002）。
+// ID の解析・整形・採番（requirements.md 5.2、ADR-034）。
 // ID は接頭辞＋連番で、ファイル名もそのまま。ゼロ埋めしない。
 
 import { z } from "zod";

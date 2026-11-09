@@ -57,7 +57,10 @@ function codeStamp(): Promise<string> {
   return codeStampPromise;
 }
 
-/** core の版（package.json）。束ねた拡張では読めないので空 */
+/**
+ * core の版（package.json）。束ねた拡張（VS Code）では読めないので空になり、版の区別は codeStamp の束ねたファイルの印
+ * （大きさと更新時刻）だけに頼る。拡張を入れ替えると束ねたファイルが書き直されて印が変わるので、それで足りるとする
+ */
 async function coreVersion(): Promise<string> {
   try {
     const text = await readFile(new URL("../../package.json", import.meta.url), "utf8");
