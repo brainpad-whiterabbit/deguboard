@@ -1,4 +1,4 @@
-// 文書とコードの参照を検査する（docs/adr/ADR-001-doc-strategy.md）。大きさの予算は持たない。検査するのは、ADR 一覧の整合・「最後に使った番号」を超える ADR の番号と実在しない ADR の番号の参照（文書とコードの地の文・コメント・文字列）・リンクと見出しアンカーの切れ・拡張と Walkthrough が指す README の見出しアンカー・README.md と README.ja.md の節の構成のずれ・コードとテストの要件 ID・要件の 1 項の上限（250 字）・コードとテストが指す置き換え済みの ADR・コードの先頭コメントの参照・`dg guide <topic>` の「節」と英語の "節" section of `dg guide <topic>` の参照（文書と packages の .ts・.tsx の文字列とコメント）・文書の重複。
+// 文書とコードの参照を検査する（docs/adr/ADR-001-doc-strategy.md）。大きさの予算は持たない。検査するのは、ADR 一覧の整合・「最後に使った番号」を超える ADR の番号と実在しない ADR の番号の参照（文書・CLAUDE.md・README・ルートの追跡ファイル・guide・packages・scripts の地の文・コメント・文字列と、test の先頭コメント）・リンクと見出しアンカーの切れ・拡張と Walkthrough が指す README の見出しアンカー・README.md と README.ja.md の節の構成のずれ・コードとテストの要件 ID・要件の 1 項の上限（250 字）・コードとテストが指す置き換え済みの ADR・コードの先頭コメントの参照・`dg guide <topic>` の「節」と英語の "節" section of `dg guide <topic>` の参照（文書と packages の .ts・.tsx の文字列とコメント）・文書の重複。
 // 要件 ID は docs/requirements.md の箇条書き「- XX-N」で定義されたものに限る。接頭辞は定義と「要件の ID の接頭辞：」の一覧から取り、定義にない番号を参照していたら指摘する（一覧にない接頭辞は要件 ID と見なさない）。先頭コメントは最初の // の行で、requirements.md の節番号・ADR・docs のパス（#アンカー）・guide-*.md を照らす。
 // 要件の 1 項は「- XX-N」の項目とその下の字下げした行を、行のまま（記号「- 」と字下げ・ID とリンクの記法を含み、改行は 1 字）数える（節の前文は数えない）。置き換え済みかは各 ADR のステータスの「置き換え（ADR-0xx）」から読み、packages・scripts・test のコードの ADR-0xx の参照すべて（コメント・テスト名・文字列）を照らし、置き換えの先を置き換え済みでなくなるまでたどって今の判断を出す。
 // 文書の重複は、同じ見出しの節の本文が同じ guide どうし（正本を 1 本にする）、または同じ段落が 2 本以上の文書にあるときに指摘する。段落は 40 字以上で、空行・見出し・表・コードで切り、箇条書きの 1 項目も 1 段落にする。比べるのは guide・docs/requirements.md・docs の下のほかの文書（ADR を除く）・CLAUDE.md・README.md・README.ja.md・packages/*/README.md。ADR は判断の記録で、判断と理由を書き換えないので比べない。README.md と README.ja.md は訳どうしなので、この 2 つだけの組は指摘しない。frontmatter と ``` の中は除く。短い選択肢や定型句は同じ語でよいので対象にしない。指摘には段落の場所（ファイルと行）を出す。
@@ -24,7 +24,7 @@ const SOURCE_EXTS = [".ts", ".tsx", ".mjs", ".js", ".cjs"];
 const DUP_MIN_CHARS = 40;
 // 要件の 1 項の字数の上限（ADR-001 の「要件定義書に書くもの」）
 const REQUIREMENT_ITEM_MAX_CHARS = 250;
-// ADR 1 本の字数の目安（ADR-001 の「ADR を書く場面」）。超えても落とさず、分割・整理の起票を促す警告にする
+// ADR 1 本の字数の目安（ADR-001 の「ADR は今の判断だけを書き、判断を変える PR で直す」の節）。超えても落とさず、分割・整理の起票を促す警告にする
 const ADR_WARN_CHARS = 8000;
 
 const errors = [];
@@ -265,6 +265,15 @@ for (const rel of sources) {
         errors.push(`${where}: 先頭コメントが指す docs/requirements.md の節 ${m[1]} がない`);
       }
     }
+    // test の本文の ADR 番号は読まない（フィクスチャがある）が、先頭コメントの番号は実在を照らす。packages・scripts の番号は上の ADR 番号の実在の検査で読む
+    if (rel.startsWith("test/")) {
+      for (const m of text.matchAll(/\bADR-(\d{3})\b/g)) {
+        topRefCount++;
+        if (!adrNumbers.has(m[1])) {
+          errors.push(`${where}: 先頭コメントが指す ADR-${m[1]} が docs/adr にない`);
+        }
+      }
+    }
     for (const m of text.matchAll(/docs\/[\w./-]+\.md(?:#[^\s)）、。`]+)?/g)) {
       topRefCount++;
       const [file, anchor] = m[0].split("#");
@@ -286,18 +295,41 @@ for (const rel of sources) {
   }
 }
 
-// ADR 番号の参照の実在：文書（docs・CLAUDE.md・README・packages・scripts の追跡ファイル）の地の文・コメント・文字列の ADR-0xx が、docs/adr の番号にあること。
+// ADR 番号の参照の実在：範囲の追跡ファイル（docs・packages・scripts の下と、ルートのファイル）の地の文・コメント・文字列の ADR-0xx が、docs/adr の番号にあること。
+// 拡張では絞らず、バイナリの拡張子（画像・フォント・アーカイブなど）だけ除く。test の本文は読まない（フィクスチャがあるため）。test の先頭コメントは上の先頭コメントの検査で見る。
 // 置き換え済みの ADR は本文を消してよく、消した後に参照が残ると指す先がないので、ここで見つける。dist の成果物は読まない
+const BINARY_EXTS = [
+  ".png",
+  ".jpg",
+  ".jpeg",
+  ".gif",
+  ".webp",
+  ".avif",
+  ".ico",
+  ".icns",
+  ".woff",
+  ".woff2",
+  ".ttf",
+  ".otf",
+  ".eot",
+  ".zip",
+  ".gz",
+  ".tgz",
+  ".tar",
+  ".vsix",
+  ".7z",
+  ".rar",
+  ".pdf",
+  ".wasm",
+  ".mp3",
+  ".mp4",
+  ".mov",
+  ".webm",
+];
 const adrRefFiles = tracked.filter((f) => {
   if (f.split("/").includes("dist")) return false;
-  const inScope =
-    f === "CLAUDE.md" ||
-    f === "README.md" ||
-    f === "README.ja.md" ||
-    f.startsWith("docs/") ||
-    f.startsWith("packages/") ||
-    f.startsWith("scripts/");
-  return inScope && (f.endsWith(".md") || SOURCE_EXTS.some((x) => f.endsWith(x)));
+  if (BINARY_EXTS.some((x) => f.toLowerCase().endsWith(x))) return false;
+  return !f.includes("/") || ["docs/", "packages/", "scripts/"].some((d) => f.startsWith(d));
 });
 let adrRefFileCount = 0;
 for (const rel of adrRefFiles) {
