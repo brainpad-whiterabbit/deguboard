@@ -6,11 +6,11 @@ import { createFixture, git, type Fixture } from "../../test/helpers/git-fixture
 import { openContext } from "../commands/context.js";
 import { runCommand, type CommandContext } from "../commands/define.js";
 import { planApprove, planClose, planCreate } from "../commands/plan.js";
-import { init, sync } from "../commands/setup.js";
+import { configSet, init, sync } from "../commands/setup.js";
 import { ticketCreate, ticketUpdate } from "../commands/ticket.js";
 import { attributesFile, mergeDocuments, mergeDriverCommandLine } from "./merge.js";
 import { checkOutside, recordBaseline } from "./outside.js";
-import { CONFLICT_REMEDY, withWrite } from "./write.js";
+import { CONFLICT_REMEDY, UNRESOLVABLE_REMEDY, withWrite } from "./write.js";
 
 const cleanups: Array<() => Promise<void>> = [];
 afterEach(async () => {
@@ -488,5 +488,58 @@ describe("dg sync --resolve（SY-4）", () => {
     const log = (await git(b.repo.dataDir, ["log", "--format=%s", "-4"])).stdout.trim().split("\n");
     expect(log.slice(1, 3)).toEqual(["変更をまとめてコミット", "t3 を起票: B の 2"]);
     expect((await checkOutside(b.repo)).kind).toBe("clean");
+  });
+
+  it("config.yaml を両側で同じ行変えた分岐は、--resolve でも解けず data.conflicts に残し、push せず作業ツリーを clean にして rebase を中止する", async () => {
+    const f = await fixture();
+    const { a, b } = await twoClones(f);
+    await runCommand(configSet, a, { key: "commit.mode", value: "each" });
+    await runCommand(sync, a, {});
+    // b は同じ行（commit.mode）を別の値にする。batch なので未コミットのまま sync が 1 コミットにする
+    await runCommand(configSet, b, { key: "commit.mode", value: "manual" });
+    const synced = await runCommand(sync, b, { resolve: "remote" });
+    expect(synced.data.conflicts).toEqual(["config.yaml"]);
+    expect(synced.data.resolved).toEqual([]);
+    expect(synced.data.pushed).toBe(false);
+    expect(synced.data.status).toMatchObject({ ahead: 1, behind: 1, dirty: false });
+    expect(synced.warnings.join("\n")).toContain("--resolve でも解けない競合が残った");
+    expect(synced.warnings.join("\n")).toContain("config.yaml");
+    expect(synced.warnings.join("\n")).toContain(UNRESOLVABLE_REMEDY);
+    expect((await git(b.repo.dataDir, ["status", "--porcelain"])).stdout).toBe("");
+    // 途中で止めず rebase を中止したので、REBASE_HEAD が残らない
+    const rebasing = await git(b.repo.dataDir, ["rev-parse", "-q", "--verify", "REBASE_HEAD"]).then(
+      () => true,
+      () => false,
+    );
+    expect(rebasing).toBe(false);
+  });
+
+  it("commit.mode が manual で未コミットの変更を持ったまま --resolve を呼ぶと、まとめてコミットしてから競合を解き、push して揃える", async () => {
+    const f = await fixture();
+    const { a, b } = await twoClones(f);
+    await runCommand(ticketUpdate, a, { ticket: "t1", title: "A の題" });
+    await runCommand(sync, a, {});
+    // 個人の設定で manual にする（チームの config.yaml は変えない）。開き直して、新しい設定で書く
+    await runCommand(configSet, b, { key: "commit.mode", value: "manual", local: true });
+    const bManual = await openContext({
+      cwd: f.cloneB,
+      actor: { kind: "human", user: "eiki" },
+      mergeDriver: DRIVER,
+    });
+    await runCommand(ticketUpdate, bManual, { ticket: "t1", title: "B の題" });
+    // manual なので書き込みはコミットされず、作業ツリーに残ったまま
+    expect((await git(bManual.repo.dataDir, ["status", "--porcelain"])).stdout).not.toBe("");
+    const synced = await runCommand(sync, bManual, { resolve: "local" });
+    expect(synced.data.conflicts).toEqual([]);
+    expect(synced.data.resolved).toEqual([
+      { file: "tickets/t1.md", field: "title", taken: "B の題", discarded: "A の題" },
+    ]);
+    expect(synced.data.pushed).toBe(true);
+    expect(synced.data.status).toMatchObject({ ahead: 0, behind: 0, dirty: false });
+    expect((await git(bManual.repo.dataDir, ["show", "HEAD:tickets/t1.md"])).stdout).toContain(
+      "title: B の題",
+    );
+    await runCommand(sync, a, {});
+    expect(await t1(a)).toContain("title: B の題");
   });
 });
