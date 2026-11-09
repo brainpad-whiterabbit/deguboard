@@ -19,7 +19,7 @@ import {
 import { iterationAdd, iterationClose, iterationCreate } from "./iteration.js";
 import { planApprove, planCreate } from "./plan.js";
 import { findCommand } from "./registry.js";
-import { init } from "./setup.js";
+import { configSet, init } from "./setup.js";
 import { ticketCreate, ticketMove } from "./ticket.js";
 
 const cleanups: Array<() => Promise<void>> = [];
@@ -174,26 +174,110 @@ describe("resume", () => {
   });
 });
 
+describe("flowStageOf の flow.skip（飛ばした段階は返さない）", () => {
+  it("割り当て・点検・計画・作業を飛ばすと、その規則を読まずに次の規則に進む", () => {
+    const f = facts({ candidates: ["t2"], unplanned: ["t1"] });
+    expect(flowStageOf(f, none, ["assign"]).name).toBe("check");
+    expect(flowStageOf(f, none, ["assign", "check"]).name).toBe("plan");
+    expect(flowStageOf(f, checked, ["plan"]).name).toBe("stop");
+    const pending = facts({ pendingPlans: [{ id: "p1", tickets: ["t1"] }] });
+    expect(flowStageOf(pending, checked).name).toBe("plan");
+    expect(flowStageOf(pending, checked, ["plan"]).name).toBe("stop");
+    const working = facts({ approvedPlans: [{ id: "p1", unfinished: ["t1"] }] });
+    expect(flowStageOf(working, checked).name).toBe("work");
+    expect(flowStageOf(working, checked, ["work"]).name).toBe("stop");
+  });
+
+  it("見直しを飛ばすと、すべて終わったときは見直しを返さずリリースを返す。リリースも飛ばすと止まる", () => {
+    const done = facts(finished());
+    expect(flowStageOf(done, checked, ["audit"])).toMatchObject({
+      name: "release",
+      rule: 7,
+    });
+    expect(flowStageOf(done, checked, ["audit", "release"])).toMatchObject({
+      name: "stop",
+      rule: 8,
+      tickets: [],
+    });
+    // 見直しを飛ばしても、見直し済みの判定（ラベル）はそのまま使う
+    expect(flowStageOf(done, checked).name).toBe("audit");
+  });
+
+  it("リリースを飛ばすと、見直しまでで止まる。見直しを終えた後にリリースを繰り返さない", () => {
+    const done = facts(finished());
+    expect(flowStageOf(done, checked, ["release"]).name).toBe("audit");
+    expect(flowStageOf(done, { ...checked, audited: true }, ["release"]).name).toBe("stop");
+  });
+
+  it("飛ばさなければ今までどおり（既定の skip は空）", () => {
+    const f = facts({ candidates: ["t2"] });
+    expect(flowStageOf(f, none, [])).toEqual(flowStageOf(f, none));
+  });
+});
+
+/** 既定の auto.decisions（config の既定と同じ） */
+const DEFAULT_DECISIONS = ["assign", "check", "plan", "audit", "accept"];
+
 describe("approvalOf（承認の要否）", () => {
   it("--auto がなければどの段階も承認を求め、止まるときは求めない", () => {
     for (const stage of ["assign", "check", "plan", "work", "audit", "release"] as const)
-      expect(approvalOf(stage, { auto: false, autoMerge: true }), stage).toMatchObject({
-        required: true,
-        auto: null,
-      });
-    expect(approvalOf("stop", { auto: false, autoMerge: false }).required).toBe(false);
+      expect(
+        approvalOf(stage, { auto: false, autoMerge: true, decisions: DEFAULT_DECISIONS }),
+        stage,
+      ).toMatchObject({ required: true, auto: null, auto_ok: false });
+    expect(
+      approvalOf("stop", { auto: false, autoMerge: false, decisions: DEFAULT_DECISIONS }),
+    ).toMatchObject({ required: false, auto_ok: false });
   });
 
-  it("--auto は割り当て・Plan・見直しの表を聞かずに選び、点検の削除や閉じる・リリースは聞く。マージは auto.merge のときだけ", () => {
+  it("既定の auto.decisions では --auto が割り当て・Plan・見直しの表を聞かずに選び、点検の削除や閉じる・リリースは聞く。マージは auto.merge のときだけ", () => {
     const auto = (stage: Parameters<typeof approvalOf>[0], autoMerge = false) =>
-      approvalOf(stage, { auto: true, autoMerge });
-    expect(auto("assign").required).toBe(false);
-    expect(auto("plan")).toMatchObject({ required: false, auto: "Plan の承認（plan approve）" });
-    expect(auto("audit").required).toBe(false);
-    expect(auto("check")).toMatchObject({ required: true, what: "削除・abandoned・閉じる" });
-    expect(auto("release").required).toBe(true);
-    expect(auto("work").required).toBe(true);
-    expect(auto("work", true).required).toBe(false);
+      approvalOf(stage, { auto: true, autoMerge, decisions: DEFAULT_DECISIONS });
+    expect(auto("assign")).toMatchObject({ required: false, auto_ok: true });
+    expect(auto("plan")).toMatchObject({
+      required: false,
+      auto: "Plan の承認（plan approve）",
+      auto_ok: true,
+    });
+    expect(auto("audit")).toMatchObject({ required: false, auto_ok: true });
+    expect(auto("check")).toMatchObject({
+      required: true,
+      what: "削除・abandoned・閉じる",
+      auto: "直し方が 1 つに決まる直す行",
+      auto_ok: true,
+    });
+    expect(auto("release")).toMatchObject({ required: true, auto_ok: false });
+    expect(auto("work")).toMatchObject({ required: true, auto_ok: false });
+    expect(auto("work", true)).toMatchObject({ required: false, auto_ok: true });
+  });
+
+  it("auto.decisions に入らない判断は --auto でも聞いて止まり、auto_ok は false", () => {
+    const only = (
+      decisions: string[],
+      stage: Parameters<typeof approvalOf>[0],
+      autoMerge = false,
+    ) => approvalOf(stage, { auto: true, autoMerge, decisions });
+    expect(only([], "assign")).toMatchObject({ required: true, what: "入れる行", auto_ok: false });
+    expect(only(["plan"], "audit")).toMatchObject({ required: true, what: "指摘の表" });
+    expect(only(["audit"], "plan")).toMatchObject({ required: true, auto: null, auto_ok: false });
+    expect(only(["plan"], "check")).toMatchObject({
+      required: true,
+      what: "直す行、削除・abandoned・閉じる",
+      auto_ok: false,
+    });
+    // マージは auto.decisions ではなく auto.merge で決まる
+    expect(only([], "work")).toMatchObject({ required: true, auto_ok: false });
+  });
+
+  it("人が決める判断（リリース・削除・abandoned・閉じる）は、config で入れても auto_ok にならない", () => {
+    // 検査はスキーマでも拒むが、承認の判定でも人が決める判断を自動にしない（EX-7）
+    const everything = ["assign", "check", "plan", "audit", "release", "work", "stop"];
+    const release = approvalOf("release", { auto: true, autoMerge: true, decisions: everything });
+    expect(release).toMatchObject({ required: true, what: expect.any(String), auto_ok: false });
+    expect(release.auto).toBeNull();
+    const check = approvalOf("check", { auto: true, autoMerge: true, decisions: everything });
+    expect(check.what).toBe("削除・abandoned・閉じる");
+    expect(check.required).toBe(true);
   });
 });
 
@@ -297,6 +381,37 @@ describe("dg flow next", () => {
     const fresh = await flow(ctx, {});
     expect(fresh.stage.name).toBe("check");
     expect((await flow(ctx, { resume: fresh.resume })).stage.name).toBe("stop");
+  });
+
+  it("config の auto.decisions と flow.skip に従い、--auto が聞かずに選ぶ判断と返す段階を決める", async () => {
+    const ctx = await ready();
+    await runCommand(iterationCreate, ctx, { name: "S1" });
+    await runCommand(ticketCreate, ctx, { title: "A" });
+    await runCommand(iterationAdd, ctx, { iteration: "s1", tickets: ["t1"] });
+    await runCommand(ticketCreate, ctx, { title: "候補" });
+    // 既定は今までどおり：割り当てを --auto で聞かずに選ぶ（approve の呼び出しは Plan のときだけ）
+    const def = await flow(ctx, { auto: true });
+    expect(def).toMatchObject({
+      stage: { name: "assign" },
+      approval: { required: false, auto_ok: true },
+    });
+    // 割り当てを auto.decisions から外すと、--auto でも聞いて止まる
+    await runCommand(configSet, ctx, { key: "auto.decisions", value: "check" });
+    const withoutAssign = { ...ctx, config: ctx.store.config };
+    expect(await flow(withoutAssign, { auto: true })).toMatchObject({
+      stage: { name: "assign" },
+      approval: { required: true, what: "入れる行", auto_ok: false },
+    });
+    // flow.skip に入れた段階は返さず、次の規則へ進む
+    await runCommand(configSet, ctx, { key: "flow.skip", value: "assign" });
+    const skipped = { ...ctx, config: ctx.store.config };
+    expect(await flow(skipped, { auto: true })).toMatchObject({ stage: { name: "check" } });
+    // 人が決める判断は、auto.decisions に入れても auto_ok にならない（検査もスキーマで拒む）
+    const bad = await runCommand(configSet, ctx, { key: "auto.decisions", value: "release" }).then(
+      () => "accepted",
+      () => "rejected",
+    );
+    expect(bad).toBe("rejected");
   });
 
   it("ラベル audit-<S> のチケットがあれば見直し済みで、候補があっても割り当てない", async () => {

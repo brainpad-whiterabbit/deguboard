@@ -24,7 +24,7 @@ const GROUPS: { id: string; label: string; tops: string[] }[] = [
   {
     id: "agent",
     label: msg("エージェント"),
-    tops: ["actions", "auto", "merge", "review", "lint", "models", "actor"],
+    tops: ["actions", "auto", "flow", "merge", "review", "lint", "models", "actor"],
   },
   { id: "metrics", label: msg("計測"), tops: ["metrics"] },
   { id: "notify", label: msg("通知"), tops: ["notify"] },
@@ -41,6 +41,8 @@ const NAMES: Record<string, string> = {
   "actions.shell": msg("シェルの Action を許す"),
   "actions.test": msg("テストのコマンド"),
   "auto.merge": msg("PR を自動でマージする"),
+  "auto.decisions": msg("--auto で自動で選ぶ判断"),
+  "flow.skip": msg("流れから外す段階"),
   "merge.method": msg("マージの方法"),
   "merge.delete_branch": msg("マージしたら作業ブランチを消す"),
   "review.heavy_categories": msg("重いとみなす見直しの指摘の種類"),
@@ -74,6 +76,7 @@ export const CONFIRM_KEYS: ReadonlyMap<string, string> = new Map([
   ["actions.shell", msg("エージェントが任意のシェルを実行できるかが変わる")],
   ["actor.human_only", msg("エージェントに許す操作が変わる")],
   ["auto.merge", msg("エージェントが PR を自動でマージするかが変わる")],
+  ["auto.decisions", msg("エージェントが聞かずに選ぶ判断が変わる")],
 ]);
 
 type Values = Record<string, unknown>;
