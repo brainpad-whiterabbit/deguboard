@@ -8,7 +8,7 @@ import { findBranchWorktree } from "../git/worktree.js";
 import { composeGuide } from "../guide/guide.js";
 import { REVIEW_STEP } from "../model/run.js";
 import { type AcceptanceItem, parseAcceptance, type Ticket } from "../model/ticket.js";
-import { findingText, latestRoundSince, splitFindings } from "../run/findings.js";
+import { findingKey, findingText, latestRoundSince, splitFindings } from "../run/findings.js";
 import { readReviewFindings } from "../run/record.js";
 import { ASK_LANGUAGES, type AskLanguage } from "./ask.js";
 import { defineCommand, ok, type CommandContext } from "./define.js";
@@ -265,7 +265,7 @@ export function composeBrief(
 }
 
 /**
- * 手直しの文に入れる指摘：最新の見直しの重い指摘と、受け入れ条件の文言に当たる軽い指摘（t600）。
+ * 手直しの文に入れる指摘：最新の見直しの重い指摘と、受け入れ条件の文言に当たる軽い指摘（t600）、親が手直しに渡した軽い指摘（t639）。
  * 見直しの一覧がなければ undefined（文は貼る場所を空けて返す）。一覧は見直しの記録から読み、親が書き写さない
  */
 async function latestFixFindings(
@@ -277,14 +277,17 @@ async function latestFixFindings(
   // 作業ブランチの最新の回。一覧なしの回（数だけ）なら前の回の一覧は使わず、貼る場所を空ける
   const round = stored && latestRoundSince(stored.rounds, ticket.branch_at);
   if (!round?.findings) return undefined;
-  const { fix } = splitFindings(round.findings, ctx.config.review.heavy_categories);
-  if (fix.length === 0)
+  // 親が手直しに渡した軽い指摘（run handoff）も直す指摘に入れる（t639）
+  const { fix, unfixedLight } = splitFindings(round.findings, ctx.config.review.heavy_categories);
+  const handed = new Set((round.handed ?? []).map(findingKey));
+  const toFix = [...fix, ...unfixedLight.filter((f) => handed.has(findingKey(f)))];
+  if (toFix.length === 0)
     return say(
       lang,
       "（最新の見直しに直す指摘はない）",
       "(the latest review has no findings to fix)",
     );
-  return fix.map((f) => `- ${findingText(f, lang)}`).join("\n");
+  return toFix.map((f) => `- ${findingText(f, lang)}`).join("\n");
 }
 
 /** 役の文を、チケットの事実（ブランチの worktree・Plan・git の設定）と役の節の本文から組む */

@@ -35,6 +35,7 @@ import { pathExists } from "../storage/exists.js";
 import type { Issue } from "../storage/issue.js";
 import { DIRS, runPath, TRANSCRIPTS_DIR, transcriptPath } from "../storage/paths.js";
 import type { Store } from "../storage/store.js";
+import { latestRoundSince } from "./findings.js";
 
 /**
  * 書く先の見直しの Run がまだないときに置く、保留の見直しの結果（deguboard-local/reviews/<ticket>.json。RN-9）。
@@ -103,6 +104,11 @@ export interface ReviewRound {
   at: string;
   review: RunReview;
   findings: ReviewFinding[] | null;
+  /**
+   * 親が手直しに渡した指摘（run handoff）。直さなかった軽い指摘の節から外し、手直しの文の直す指摘に入れる。
+   * 呼び直すと置き換える。渡さなかった回は省く（読む側は空として扱う）
+   */
+  handed?: ReviewFinding[];
 }
 
 export interface StoredReviewFindings {
@@ -128,6 +134,26 @@ export async function putReviewRound(
   await mkdir(path.dirname(file), { recursive: true });
   const stored: StoredReviewFindings = { ticket, rounds };
   await writeFileAtomic(file, `${JSON.stringify(stored, null, 2)}\n`);
+}
+
+/**
+ * 作業ブランチ（since 以降）の最新の見直しの回（一覧のある回）に、親が手直しに渡した指摘を置く（t639）。呼び直すと置き換える。
+ * 手直しに渡すのは見直しの一覧の指摘なので、その回がなければ false を返す（呼び出し側が使い方の誤りにする）。
+ * 手直しの文と PR の本文は同じマシンの記録から読むので、ここに置けば dg が両方を決められる
+ */
+export async function setHandedFindings(
+  repo: Pick<GitRepo, "localDir">,
+  ticket: TicketId,
+  since: string | undefined,
+  handed: ReviewFinding[],
+): Promise<boolean> {
+  const stored = await readReviewFindings(repo, ticket);
+  const round = stored && latestRoundSince(stored.rounds, since);
+  if (!stored || !round) return false;
+  round.handed = handed;
+  const file = reviewFindingsPath(repo, ticket);
+  await writeFileAtomic(file, `${JSON.stringify(stored, null, 2)}\n`);
+  return true;
 }
 
 /**
