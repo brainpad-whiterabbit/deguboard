@@ -1,0 +1,32 @@
+{
+  "id": "r20261109-062754-1c1c",
+  "ticket": "t593",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-09T06:27:54Z",
+  "finished_at": "2026-11-09T06:29:52Z",
+  "result": "success",
+  "error": null,
+  "retries": 1,
+  "retry_reasons": [
+    "見直す節が親の節の項を指し、範囲の外と ADR の細部の案内が消えた"
+  ],
+  "usage": {
+    "input": 10,
+    "output": 3088,
+    "cache_read": 2536861,
+    "cache_write": 8341
+  },
+  "tools": {
+    "read": 0,
+    "search": 0,
+    "write": 1,
+    "bash": 5,
+    "other": 0,
+    "read_before_write": 0,
+    "search_before_write": 0
+  },
+  "session": "9ecee8ef-d3fe-4fc7-a962-2832cb500f39",
+  "review": null
+}
