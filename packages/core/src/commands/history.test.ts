@@ -198,8 +198,8 @@ describe("history", () => {
     ]);
     const byEpic = (await runCommand(history, ctx, { epic: "e1" })).data.events;
     expect(byEpic.map((e) => `${e.kind}:${e.id}:${e.type}`)).toEqual([
-      "epic:e1:created",
       "ticket:t1:created",
+      "epic:e1:created",
       "ticket:t1:changed",
     ]);
   });
