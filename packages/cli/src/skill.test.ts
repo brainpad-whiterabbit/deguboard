@@ -156,6 +156,8 @@ describe("dg skill install", () => {
     expect(parsed.data.retiredKept).toEqual(["deguboard"]);
     expect(parsed.data.files).toEqual([]);
     expect(parsed.warnings.join("\n")).toContain("上書きしない。");
+    // 手を加えた文は guide.notes に移すよう案内する（AG-2）
+    expect(parsed.warnings.join("\n")).toContain("dg config set guide.notes.work");
     expect(parsed.warnings.join("\n")).toContain("消さない。");
     expect(parsed.warnings.join("\n")).not.toContain("しなかった");
     expect(await readFile(edited, "utf8")).toBe("手で書いた\n");

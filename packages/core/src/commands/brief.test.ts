@@ -226,7 +226,7 @@ describe("dg brief と dg next の文（EX-3）", () => {
     const ctx = await prepared();
     // 節の見出しを除いた本文。文の中では区切りの行に挟まれる
     const body = async (topic: string, section: string) =>
-      (await guideSectionText(topic, section, ctx.config)).text
+      (await guideSectionText(topic, section, ctx.config, ctx.repo.topLevel)).text
         .split("\n")
         .slice(1)
         .join("\n")

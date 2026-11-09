@@ -157,12 +157,13 @@ export function buildProgram(options: ProgramOptions = {}): Command {
       const global = program.opts<{ json?: boolean; C?: string }>();
       const cwd = resolve(options.cwd ?? process.cwd(), global.C ?? ".");
       try {
-        const guide = await renderGuide(topic, cwd, opts.section);
+        const { warnings, ...guide } = await renderGuide(topic, cwd, opts.section);
         if (global.json)
-          streams.out(
-            JSON.stringify({ ok: true, data: guide, warnings: [], write: null }, null, 2),
-          );
-        else streams.out(guide.text);
+          streams.out(JSON.stringify({ ok: true, data: guide, warnings, write: null }, null, 2));
+        else {
+          for (const w of warnings) streams.err(`警告: ${w}`);
+          streams.out(guide.text);
+        }
         process.exitCode = 0;
       } catch (error) {
         const view = toErrorView(error);

@@ -407,8 +407,8 @@ export const next = defineCommand({
     const role = BRIEF_ROLE_OF[step.kind];
     // 実行中の Run を待つ手には文を出さない（貼ると Run が重なる）。running_run が入るのは待つ手だけ
     if (!role || step.running_run !== null) return ok(step);
-    const brief = await briefOf(ctx, ticket, role, { language: input.language });
-    return ok({ ...step, brief: brief.text });
+    const { brief, warnings } = await briefOf(ctx, ticket, role, { language: input.language });
+    return ok({ ...step, brief: brief.text }, undefined, warnings);
   },
 });
 
