@@ -299,6 +299,8 @@ export const EN: Readonly<Record<string, string>> = {
   "push の仕方": "Push mode",
   "シェルの Action を許す": "Allow shell Actions",
   テストのコマンド: "Test command",
+  軽い検査のコマンド: "Lighter check command",
+  軽い検査で済ませるパス: "Paths the lighter check is enough for",
   "PR を自動でマージする": "Merge PRs automatically",
   "--auto で自動で選ぶ判断": "Decisions --auto chooses automatically",
   流れから外す段階: "Stages to leave out of the flow",
@@ -339,6 +341,8 @@ export const EN: Readonly<Record<string, string>> = {
   作業場所が変わる: "changes where work happens",
   "テストとして確認なしで実行するコマンドが変わる（シェルを許すのと同じ）":
     "changes the command run as tests without confirmation (same as allowing a shell)",
+  "軽い検査として確認なしで実行するコマンドが変わる（シェルを許すのと同じ）":
+    "changes the command run as the lighter check without confirmation (same as allowing a shell)",
   "claim のたびに確認なしで回すコマンドが変わる（シェルを許すのと同じ）":
     "changes the command run on every claim without confirmation (same as allowing a shell)",
   エージェントが任意のシェルを実行できるかが変わる:
@@ -566,6 +570,10 @@ export const CONFIG_DESCRIPTIONS_EN: Readonly<Record<string, string>> = {
     "Whether to allow the arbitrary shell Action (shell). Even when allowed, each run asks for confirmation (AG-7)",
   "actions.test":
     "Argument array of the command that the test Action (run_tests) and the quality gate's check (dg gate, dg pr ready, dg pr merge) run (e.g. [mise, run, check]). When empty, run_tests is rejected and the gate's check does not judge (the repo's own checks are confirmed instead)",
+  "actions.light_test":
+    "Argument array of the lighter check the quality gate's check runs instead of actions.test when every file in the work branch's diff against base falls under actions.light_paths (e.g. [mise, run, check:light]). When this or actions.light_paths is empty, actions.test always runs. When actions.test is empty, the lighter check does not run either",
+  "actions.light_paths":
+    "Globs of files the lighter check (actions.light_test) is enough for (relative to the repository top; * and ? do not cross /, ** crosses directories; e.g. docs/**). If even one file in the diff falls outside, actions.test runs",
   "auto.merge":
     "Whether dg guide all --auto merges PRs that pass the quality gate (dg gate --for merge) automatically. By default a person merges",
   "auto.decisions":

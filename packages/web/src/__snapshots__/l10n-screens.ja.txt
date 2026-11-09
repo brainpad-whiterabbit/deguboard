@@ -287,6 +287,28 @@ actions.test
 足す
 [title] 既定の 空 に戻す
 既定に戻す
+軽い検査のコマンド
+actions.light_test
+[title] 既定は 空
+変更あり
+actions.light_test
+空
+[aria-label] 項目
+[placeholder] 項目を足す
+足す
+[title] 既定の 空 に戻す
+既定に戻す
+軽い検査で済ませるパス
+actions.light_paths
+[title] 既定は 空
+変更あり
+actions.light_paths
+空
+[aria-label] 項目
+[placeholder] 項目を足す
+足す
+[title] 既定の 空 に戻す
+既定に戻す
 PR を自動でマージする
 auto.merge
 [title] 既定は false

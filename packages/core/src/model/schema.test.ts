@@ -181,6 +181,8 @@ describe("スキーマ", () => {
       "notify.approvals",
       "actions.shell",
       "actions.test",
+      "actions.light_test",
+      "actions.light_paths",
       "auto.merge",
       "auto.decisions",
       "flow.skip",
@@ -218,6 +220,9 @@ describe("スキーマ", () => {
     expect(byKey.get("auto.merge")).toMatchObject({ type: "boolean", default: false });
     expect(byKey.get("notify.approvals")).toMatchObject({ type: "boolean", default: true });
     expect(byKey.get("actions.test")).toMatchObject({ type: "list", default: [] });
+    // 軽い検査とその対象のパスは既定で空（空ならいつも actions.test を回す。t632）
+    expect(byKey.get("actions.light_test")).toMatchObject({ type: "list", default: [] });
+    expect(byKey.get("actions.light_paths")).toMatchObject({ type: "list", default: [] });
     expect(byKey.get("git.remote")).toMatchObject({ type: "string", default: "origin" });
     for (const tier of ["light", "standard", "heavy"])
       expect(byKey.get(`models.${tier}`)).toMatchObject({ type: "string", default: "" });

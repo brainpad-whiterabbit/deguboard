@@ -177,7 +177,7 @@ export const gate = defineCommand({
     "pr（PR が開いている。--for merge なら draft でない）・acceptance（--for merge のとき受け入れ条件すべてに印）・" +
     "review（作業ブランチのリモートの先端のコミットの時刻より後に始めた見直しの Run が success で閉じていて、run review-result の結果が通っている）・" +
     `fix_rounds（このブランチで重い指摘が出た見直しが ${FIX_ROUNDS_LIMIT} 回以内）・mergeable（--for merge のとき gh の mergeable が MERGEABLE）・` +
-    "check（config の actions.test を、作業ブランチの最新のコミット（リモートの先端）を checkout した未コミットの変更のない worktree で回して通る。actions.test が空なら判定せずに通し、そう detail に出す。通らなければ detail に終了コードと出力の末尾を出す。通った結果はコミットとコマンドごとに deguboard-local に覚え、同じコミットでは回し直さない（worktree を消した後のマージでも使える。通らなかった結果は覚えず、次の判定で回し直す）。時間がかかるので、ほかの条件をすべて満たしたときだけ回す）。" +
+    "check（config の actions.test を、作業ブランチの最新のコミット（リモートの先端）を checkout した未コミットの変更のない worktree で回して通る。base との差分のファイルがすべて actions.light_paths に入るなら、代わりに軽い検査 actions.light_test を回し、どちらを回したかと理由を detail に出す。actions.test が空なら判定せずに通し、そう detail に出す。通らなければ detail に終了コードと出力の末尾を出す。通った結果はコミットとコマンドごとに deguboard-local に覚え、同じコミットでは回し直さない（worktree を消した後のマージでも使える。通らなかった結果は覚えず、次の判定で回し直す）。時間がかかるので、ほかの条件をすべて満たしたときだけ回す）。" +
     "gh・Git が読めない条件は満たさないとする。" +
     "dg pr ready・dg pr merge が gh を呼ぶ前に同じ判定をする。見直しを省く・上限を超えて進めるなどの例外は持たず、人の判断に任せる（人に gh を打ってもらう）。チケットのデータは書かない（書くのは通った検査の結果を deguboard-local に覚えることだけ）",
   input: z.object({

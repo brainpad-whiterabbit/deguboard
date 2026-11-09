@@ -287,6 +287,28 @@ Empty
 Add
 [title] Reset to default Empty
 Reset to Default
+Lighter check command
+actions.light_test
+[title] Default: Empty
+Modified
+Argument array of the lighter check the quality gate's check runs instead of actions.test when every file in the work branch's diff against base falls under actions.light_paths (e.g. [mise, run, check:light]). When this or actions.light_paths is empty, actions.test always runs. When actions.test is empty, the lighter check does not run either
+Empty
+[aria-label] Items
+[placeholder] Add item
+Add
+[title] Reset to default Empty
+Reset to Default
+Paths the lighter check is enough for
+actions.light_paths
+[title] Default: Empty
+Modified
+Globs of files the lighter check (actions.light_test) is enough for (relative to the repository top; * and ? do not cross /, ** crosses directories; e.g. docs/**). If even one file in the diff falls outside, actions.test runs
+Empty
+[aria-label] Items
+[placeholder] Add item
+Add
+[title] Reset to default Empty
+Reset to Default
 Merge PRs automatically
 auto.merge
 [title] Default: false

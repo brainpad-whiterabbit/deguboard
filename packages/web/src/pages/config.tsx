@@ -41,6 +41,8 @@ const NAMES: Record<string, string> = {
   "push.mode": msg("push の仕方"),
   "actions.shell": msg("シェルの Action を許す"),
   "actions.test": msg("テストのコマンド"),
+  "actions.light_test": msg("軽い検査のコマンド"),
+  "actions.light_paths": msg("軽い検査で済ませるパス"),
   "auto.merge": msg("PR を自動でマージする"),
   "auto.decisions": msg("--auto で自動で選ぶ判断"),
   "flow.skip": msg("流れから外す段階"),
@@ -80,7 +82,7 @@ const NAMES: Record<string, string> = {
 /**
  * 保存の前に確かめる項目と、確かめの文に出す変わること。誤ると同期・照合・worktree・実行するコマンド・エージェントに許す操作を壊し、
  * 戻すまで気づきにくい（チームのタブでは全員に効く）。どちらのタブでも確かめる。
- * actions.test と worktree.setup は確認なしで実行するコマンドなので、シェルの許可（actions.shell）と同じ重さで扱う。
+ * actions.test・actions.light_test と worktree.setup は確認なしで実行するコマンドなので、シェルの許可（actions.shell）と同じ重さで扱う。
  * auto.merge はエージェントに PR のマージを許すので、エージェントに許す操作として扱う（ADR-027・ADR-033）
  */
 export const CONFIRM_KEYS: ReadonlyMap<string, string> = new Map([
@@ -89,6 +91,10 @@ export const CONFIRM_KEYS: ReadonlyMap<string, string> = new Map([
   ["worktree.root", msg("作業場所が変わる")],
   ["worktree.setup", msg("claim のたびに確認なしで回すコマンドが変わる（シェルを許すのと同じ）")],
   ["actions.test", msg("テストとして確認なしで実行するコマンドが変わる（シェルを許すのと同じ）")],
+  [
+    "actions.light_test",
+    msg("軽い検査として確認なしで実行するコマンドが変わる（シェルを許すのと同じ）"),
+  ],
   ["actions.shell", msg("エージェントが任意のシェルを実行できるかが変わる")],
   ["actor.human_only", msg("エージェントに許す操作が変わる")],
   ["auto.merge", msg("エージェントが PR を自動でマージするかが変わる")],
