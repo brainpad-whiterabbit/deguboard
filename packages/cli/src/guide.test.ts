@@ -1,9 +1,11 @@
+import { writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { defaultConfig } from "@deguboard/core";
 import { cliEnv } from "../../core/test/helpers/env.js";
 import { createLocalOnlyRepo } from "../../core/test/helpers/git-fixture.js";
 import { GUIDE_TOPICS, fillPlaceholders, readGuide, readGuideMeta } from "./guide.js";
-import { run } from "./program.js";
+import { buildProgram, run } from "./program.js";
 
 const cleanups: Array<() => Promise<void>> = [];
 afterEach(async () => {
@@ -504,5 +506,39 @@ describe("dg guide", () => {
     expect(JSON.parse(withSection.out).data.text).toContain("gh pr create --draft");
     const whole = await dg(local.dir, ["--json", "guide", "work"]);
     expect(JSON.parse(whole.out).data).toMatchObject({ topic: "work", section: null });
+  });
+
+  it("buildProgram 経由の dg guide は guide.notes の文書を題名の直後に差し込み、読めないものは warnings に載せて guide は出す", async () => {
+    const local = await createLocalOnlyRepo();
+    cleanups.push(local.cleanup);
+    expect((await dg(local.dir, ["init"])).code).toBe(0);
+    await writeFile(join(local.dir, "work-notes.md"), "CLI の判断の基準\n");
+    expect((await dg(local.dir, ["config", "set", "guide.notes.work", "work-notes.md"])).code).toBe(
+      0,
+    );
+    await dg(local.dir, ["config", "set", "guide.notes.plan", "missing.md"]);
+
+    const out: string[] = [];
+    const err: string[] = [];
+    const program = buildProgram({
+      cwd: local.dir,
+      env: cliEnv(),
+      streams: { out: (t) => out.push(t), err: (t) => err.push(t) },
+    });
+    await program.parseAsync(["--json", "guide", "work"], { from: "user" });
+    const parsed = JSON.parse(out.join("\n"));
+    expect(parsed.warnings).toEqual([]);
+    expect(parsed.data.text.split("\n")[2]).toBe("CLI の判断の基準");
+
+    const planOut: string[] = [];
+    const planProgram = buildProgram({
+      cwd: local.dir,
+      env: cliEnv(),
+      streams: { out: (t) => planOut.push(t), err: () => undefined },
+    });
+    await planProgram.parseAsync(["--json", "guide", "plan"], { from: "user" });
+    const planParsed = JSON.parse(planOut.join("\n"));
+    expect(planParsed.warnings[0]).toContain("guide.notes.plan");
+    expect(planParsed.data.text.startsWith("# ")).toBe(true);
   });
 });

@@ -3,7 +3,7 @@
 // 読む場所は import.meta.url からの相対。ビルドでは core の dist/ に guide-*.md をコピーし（root の package.json の build）、
 // 束ねた拡張（VS Code）は bundle（dist/extension.cjs）の隣に置く（packages/vscode/package.json の build）。ずれると読めないので両方を直す
 
-import { readFile } from "node:fs/promises";
+import { readFile, realpath, stat } from "node:fs/promises";
 import { isAbsolute, relative, resolve, sep } from "node:path";
 import { parse as parseYaml } from "yaml";
 import { UsageError } from "../errors.js";
@@ -96,9 +96,33 @@ export async function readGuide(topic: string, notes = ""): Promise<string> {
   return body.replace(/^\{\{choices\}\}$/m, () => choices);
 }
 
+/** guide.notes の文書の大きさの上限。guide は毎回読むので、長い文書は差し込まず警告を返す */
+const NOTES_MAX_BYTES = 64 * 1024;
+
+/** 見出し（# の行）があるか。コードブロックの中の # は見出しとして数えない（シェルのコメントなど） */
+function hasHeadingOutsideCode(content: string): boolean {
+  let fence: string | undefined;
+  for (const line of content.split("\n")) {
+    const mark = /^\s*(`{3,}|~{3,})/.exec(line)?.[1];
+    if (fence === undefined) {
+      if (mark !== undefined) fence = mark;
+      else if (/^#{1,6}\s/.test(line)) return true;
+    } else if (
+      mark !== undefined &&
+      mark[0] === fence[0] &&
+      mark.length >= fence.length &&
+      line.trim() === mark
+    ) {
+      fence = undefined;
+    }
+  }
+  return false;
+}
+
 /**
  * config の guide.notes.<topic> のファイルを読む。パスはリポジトリの最上位（repoTop）からの相対パスで、
- * リポジトリの外・読めないファイル・見出し（#）を含むファイルは差し込まず、警告を返す（guide は出す）
+ * リポジトリの外・読めないファイル・通常のファイルでないもの・大きすぎるファイル・見出し（#）を含むファイルは差し込まず、警告を返す（guide は出す）。
+ * 外かどうかは symlink をたどった先の実体パスで判定する（リポジトリ内の symlink から外の秘密を読ませないため。config と symlink は Git で共有される）
  */
 export async function readGuideNotes(
   topic: string,
@@ -108,24 +132,34 @@ export async function readGuideNotes(
   const rel = (config.guide.notes as Record<string, string | undefined>)[topic] ?? "";
   if (rel.trim() === "") return { text: "", warnings: [] };
   const key = `guide.notes.${topic}`;
-  const inside = relative(repoTop, resolve(repoTop, rel));
-  if (isAbsolute(rel) || inside === "" || inside.split(sep)[0] === ".." || isAbsolute(inside)) {
-    return {
-      text: "",
-      warnings: [
-        `${key} の ${rel} はリポジトリの外を指すので差し込まない（リポジトリからの相対パスで書く）`,
-      ],
-    };
+  const warn = (message: string): GuideNotes => ({ text: "", warnings: [`${key} ${message}`] });
+  if (isAbsolute(rel)) {
+    return warn(
+      `の ${rel} はリポジトリの外を指すので差し込まない（リポジトリからの相対パスで書く）`,
+    );
   }
-  const content = await readFile(resolve(repoTop, rel), "utf8").catch(() => undefined);
-  if (content === undefined) {
-    return { text: "", warnings: [`${key} のファイル ${rel} を読めないので差し込まない`] };
+  const top = await realpath(repoTop).catch(() => resolve(repoTop));
+  const real = await realpath(resolve(top, rel)).catch(() => undefined);
+  if (real === undefined) return warn(`のファイル ${rel} を読めないので差し込まない`);
+  const inside = relative(top, real);
+  if (inside === "") {
+    return warn(`の ${rel} はリポジトリの最上位を指すので差し込まない（ファイルのパスで書く）`);
   }
-  if (/^#{1,6}\s/m.test(content)) {
-    return {
-      text: "",
-      warnings: [`${key} のファイル ${rel} に見出し（#）があるので差し込まない。見出しを外す`],
-    };
+  if (inside.split(sep)[0] === ".." || isAbsolute(inside)) {
+    return warn(
+      `の ${rel} はリポジトリの外を指すので差し込まない（リポジトリからの相対パスで書く。symlink の先も見る）`,
+    );
+  }
+  const info = await stat(real).catch(() => undefined);
+  if (info === undefined) return warn(`のファイル ${rel} を読めないので差し込まない`);
+  if (!info.isFile()) return warn(`のファイル ${rel} は通常のファイルでないので差し込まない`);
+  if (info.size > NOTES_MAX_BYTES) {
+    return warn(`のファイル ${rel} は ${NOTES_MAX_BYTES / 1024} KiB を超えるので差し込まない`);
+  }
+  const content = await readFile(real, "utf8").catch(() => undefined);
+  if (content === undefined) return warn(`のファイル ${rel} を読めないので差し込まない`);
+  if (hasHeadingOutsideCode(content)) {
+    return warn(`のファイル ${rel} に見出し（#）があるので差し込まない。見出しを外す`);
   }
   return { text: content.trim(), warnings: [] };
 }

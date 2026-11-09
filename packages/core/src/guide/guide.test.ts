@@ -1,9 +1,9 @@
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { configSchema, type Config } from "../model/config.js";
-import { guideSectionText, readGuide, readGuideNotes } from "./guide.js";
+import { configSchema, NOTE_TOPICS, type Config } from "../model/config.js";
+import { GUIDE_TOPICS, guideSectionText, readGuide, readGuideNotes } from "./guide.js";
 
 let root: string;
 
@@ -81,5 +81,54 @@ describe("guide.notes の文書の差し込み（CL-5）", () => {
     const config = configWith({ plan: "plan.md" });
     expect((await readGuideNotes("plan", config, root)).text).toBe("計画の基準");
     expect(await readGuideNotes("work", config, root)).toEqual({ text: "", warnings: [] });
+  });
+
+  it("リポジトリの最上位を指すパスは、外ではなく最上位だと警告する", async () => {
+    const notes = await readGuideNotes("work", configWith({ work: "." }), root);
+    expect(notes.warnings[0]).toContain("最上位");
+    expect(notes.warnings[0]).not.toContain("外を指す");
+  });
+
+  it("symlink の先がリポジトリの外なら読まずに警告を返す（相対パスの指定でも同じ）", async () => {
+    const repo = join(root, "repo");
+    await mkdir(repo);
+    await writeFile(join(root, "secret.txt"), "秘密\n");
+    await symlink("../secret.txt", join(repo, "link.md"));
+    const notes = await readGuideNotes("review", configWith({ review: "link.md" }), repo);
+    expect(notes.text).toBe("");
+    expect(notes.warnings[0]).toContain("guide.notes.review");
+    expect(notes.warnings[0]).toContain("外を指す");
+  });
+
+  it("symlink の先がリポジトリの中なら、その文書を差し込む", async () => {
+    const repo = join(root, "repo");
+    await mkdir(repo);
+    await writeFile(join(repo, "real.md"), "判断の基準\n");
+    await symlink("real.md", join(repo, "link.md"));
+    const notes = await readGuideNotes("review", configWith({ review: "link.md" }), repo);
+    expect(notes).toEqual({ text: "判断の基準", warnings: [] });
+  });
+
+  it("通常のファイルでないもの（ディレクトリ）と大きすぎるファイルは差し込まず、警告を返す", async () => {
+    const repo = join(root, "repo");
+    await mkdir(join(repo, "dir"), { recursive: true });
+    const dir = await readGuideNotes("work", configWith({ work: "dir" }), repo);
+    expect(dir.text).toBe("");
+    expect(dir.warnings[0]).toContain("通常のファイルでない");
+
+    await writeFile(join(repo, "big.md"), "x".repeat(64 * 1024 + 1));
+    const big = await readGuideNotes("work", configWith({ work: "big.md" }), repo);
+    expect(big.text).toBe("");
+    expect(big.warnings[0]).toContain("KiB");
+  });
+
+  it("見出しの検査はコードブロックの外だけを見る", async () => {
+    await writeFile(join(root, "code.md"), "判断\n```sh\n# シェルのコメント\n```\n");
+    const notes = await readGuideNotes("work", configWith({ work: "code.md" }), root);
+    expect(notes).toEqual({ text: "判断\n```sh\n# シェルのコメント\n```", warnings: [] });
+  });
+
+  it("guide.notes のトピックは GUIDE_TOPICS と同じ（ずれたらここで知らせる）", () => {
+    expect([...NOTE_TOPICS]).toEqual([...GUIDE_TOPICS]);
   });
 });

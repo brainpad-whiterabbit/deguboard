@@ -21,7 +21,7 @@ export const AUTO_DECISIONS = ["assign", "check", "plan", "audit", "accept"] as 
 export const FLOW_SKIPS = ["assign", "check", "plan", "work", "audit", "release"] as const;
 
 /** guide.notes で文書を差し込めるトピック（guide の GUIDE_TOPICS と同じ。ずれは guide のテストが知らせる） */
-const NOTE_TOPICS = [
+export const NOTE_TOPICS = [
   "overview",
   "import",
   "assign",
