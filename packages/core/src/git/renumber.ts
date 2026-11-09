@@ -108,9 +108,27 @@ export async function renumberCollisions(repo: GitRepo): Promise<Renumbered[]> {
 
   const shas = await localCommits(repo, base);
   const mapping = await assignNumbers(repo, ids);
+  const head = (await git(repo, ["rev-parse", "HEAD"])).stdout.trim();
   const pending = await takePending(repo);
-  await resetHard(repo, base);
-  await replay(repo, shas, mapping);
+  try {
+    await resetHard(repo, base);
+    await replay(repo, shas, mapping);
+  } catch (e) {
+    // まとめ待ちの中身はここではメモリにしかないので、積み直しが途中で失敗したら元の先端に戻して書き戻す（失わない）
+    await resetHard(repo, head);
+    await restorePending(repo, pending, new Map());
+    throw e;
+  }
+  await restorePending(repo, pending, mapping);
+  return [...mapping].map(([from, to]) => ({ from, to }));
+}
+
+/** takePending で退けた中身を、パスと中身の番号を対応表で書き換えて作業ツリーに戻す */
+async function restorePending(
+  repo: GitRepo,
+  pending: ReadonlyMap<string, string | null>,
+  mapping: ReadonlyMap<string, string>,
+): Promise<void> {
   for (const [file, content] of pending) {
     const target = path.join(repo.dataDir, rewriteIds(file, mapping));
     if (content === null) {
@@ -120,7 +138,6 @@ export async function renumberCollisions(repo: GitRepo): Promise<Renumbered[]> {
     await mkdir(path.dirname(target), { recursive: true });
     await writeFile(target, rewriteIds(content, mapping));
   }
-  return [...mapping].map(([from, to]) => ({ from, to }));
 }
 
 /** 分岐点より後のローカルのコミット（古い順） */
