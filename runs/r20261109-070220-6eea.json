@@ -1,0 +1,36 @@
+{
+  "id": "r20261109-070220-6eea",
+  "ticket": "t600",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-09T07:02:20Z",
+  "finished_at": "2026-11-09T07:16:44Z",
+  "result": "success",
+  "error": null,
+  "retries": 5,
+  "retry_reasons": [
+    "見直し直しで1回目の軽い指摘が本文から消える（回ごとの一覧を残し集める）",
+    "受け入れ条件の指摘の付け方が見直し役の手順に書かれていない",
+    "数だけの呼び方で一覧の置き場を書き換えず古い一覧を使う",
+    "直さなかった軽い指摘の理由の書き手が親と食い違う",
+    "gh pr view・edit の失敗が生のエラーで止まる"
+  ],
+  "usage": {
+    "input": 124,
+    "output": 54261,
+    "cache_read": 6455798,
+    "cache_write": 123257
+  },
+  "tools": {
+    "read": 15,
+    "search": 0,
+    "write": 35,
+    "bash": 27,
+    "other": 1,
+    "read_before_write": 3,
+    "search_before_write": 0
+  },
+  "session": "9ecee8ef-d3fe-4fc7-a962-2832cb500f39",
+  "review": null
+}
