@@ -9,24 +9,7 @@ import { parse as parseYaml } from "yaml";
 import { UsageError } from "../errors.js";
 import { type Config } from "../model/config.js";
 import { findGuideSection } from "./sections.js";
-
-/** 流れの順に並べる。frontmatter に description を持つトピックは dg<トピック> の Skill として配る（AG-2）。overview・run・parallel・review は Skill を持たず、ほかのトピックから読む */
-export const GUIDE_TOPICS = [
-  "overview",
-  "import",
-  "assign",
-  "check",
-  "plan",
-  "work",
-  "run",
-  "parallel",
-  "review",
-  "audit",
-  "release",
-  "done",
-  "all",
-] as const;
-export type GuideTopic = (typeof GUIDE_TOPICS)[number];
+import { GUIDE_TOPICS, type GuideTopic } from "./topics.js";
 
 /** guide の frontmatter。Skill の説明と引数の案内の正本 */
 export interface GuideMeta {

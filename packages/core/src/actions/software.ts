@@ -10,9 +10,8 @@ import {
   isSafeBranchName,
 } from "../git/branch-worktree.js";
 import { runGh, runGit, runProcess } from "../git/run.js";
+import { ACTIONS_TEST_TIMEOUT_MS, PR_MERGE_METHODS } from "../model/config.js";
 import { defineAction } from "./define.js";
-
-export { defaultWorktreePath, isSafeBranchName };
 
 const refName = z
   .string()
@@ -59,11 +58,7 @@ export const runTestsAction = defineAction({
   name: "run_tests",
   summary: "actions.test のコマンドを作業ディレクトリで実行する。失敗しても投げずに結果を返す",
   input: z.object({
-    timeout_ms: z
-      .number()
-      .int()
-      .positive()
-      .default(30 * 60_000),
+    timeout_ms: z.number().int().positive().default(ACTIONS_TEST_TIMEOUT_MS),
   }),
   confirm: false,
   allowed: (config) =>
@@ -111,14 +106,12 @@ export const createPrAction = defineAction({
   },
 });
 
-export const MERGE_METHODS = ["squash", "merge", "rebase"] as const;
-
 export const mergePrAction = defineAction({
   name: "merge_pr",
   summary: "PR を gh でマージする（既定は squash）",
   input: z.object({
     pr: z.number().int().positive(),
-    method: z.enum(MERGE_METHODS).default("squash"),
+    method: z.enum(PR_MERGE_METHODS).default("squash"),
     delete_branch: z.boolean().default(false).describe("リモートとローカルのブランチも消すか"),
   }),
   confirm: false,

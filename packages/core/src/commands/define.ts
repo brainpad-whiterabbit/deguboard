@@ -77,6 +77,14 @@ export function ok<O>(data: O, write?: WriteOutcome, warnings: string[] = []): C
 }
 
 /**
+ * config の actor.human_only で、いまの主体に command が禁じられているか。人はいつでも許す。
+ * runCommand の拒否と、claim が中で行う操作（iteration.add・iteration.start）の判定がここを使う
+ */
+export function deniedToAgent(ctx: CommandContext, command: string): boolean {
+  return ctx.actor.kind !== "human" && ctx.config.actor.human_only.includes(command);
+}
+
+/**
  * 入力を検証してから実行する。形の誤りは UsageError（終了コード 2）。
  * config の actor.human_only に入ったコマンドは agent から拒否する（全入口がここを通るので検査は 1 か所）。
  * ストアを開いていない文脈（storeless）では config がないので検査しない。
@@ -94,11 +102,7 @@ export async function runCommand<I extends z.ZodType, O>(
     const { prettifyError } = await import("zod");
     throw new UsageError(`${def.name} の入力が正しくない`, prettifyError(parsed.error));
   }
-  if (
-    !ctx.storeless &&
-    ctx.actor.kind !== "human" &&
-    ctx.config.actor.human_only.includes(def.name)
-  ) {
+  if (!ctx.storeless && deniedToAgent(ctx, def.name)) {
     throw new OperationError(
       "TRANSITION_REJECTED",
       `${def.name} は設定（actor.human_only）で人だけに限られている（--actor human で実行する）`,

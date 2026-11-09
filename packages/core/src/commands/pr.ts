@@ -16,8 +16,6 @@ import { defineCommand, ok, type CommandContext } from "./define.js";
 import { judgeGate, type GateStage, type GateView } from "./gate.js";
 import { ticketRef } from "./helpers.js";
 
-export { PR_MERGE_METHODS };
-
 export interface PrAdvanceView {
   ticket: string;
   pr: number;
