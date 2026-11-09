@@ -16,6 +16,7 @@ import type { Run } from "../model/run.js";
 import { toIsoDateTime } from "../model/common.js";
 import { unfixedLightLines } from "../run/findings.js";
 import {
+  bindTranscript,
   peekRunningRuns,
   putPendingReview,
   putReviewRound,
@@ -46,6 +47,7 @@ import {
   STALE_SESSION_ERROR,
   type RunView,
 } from "./run.js";
+import { next, type NextStep } from "./next.js";
 import { commit, configSet, init, sync } from "./setup.js";
 import { ticketClaim, ticketCreate, ticketUpdate } from "./ticket.js";
 import { runGit } from "../git/run.js";
@@ -1135,6 +1137,27 @@ describe("バックグラウンドで起動した見直し役（t638）", () => 
       review: { heavy: 0, light: 1, passed: true },
     });
     expect(await prLines(ctx)).toHaveLength(1);
+    // dg next は閉じた見直しを 1 回と数え、待つ Run を返さない
+    const step = (await runCommand(next, ctx, { ticket: "t1" })).data as NextStep;
+    expect(step.stage).toMatchObject({ reviews: 1 });
+    expect(step.running_run).toBeNull();
+  });
+
+  it("起動と止まりのフックが重なって動いている印が残っても、止まって待っている印のある Run は run finish で閉じられる", async () => {
+    const { ctx, parent, subagent } = await prepared();
+    await call(ctx, "PostToolUse", launched(parent, "a1", prompt));
+    await subagentRecord(subagent("a1"), prompt, 1);
+    await stop(ctx, subagent("a1"));
+    const [waiting] = await peekRunningRuns(ctx.repo);
+    expect(waiting!.waiting_since).not.toBeNull();
+    // 起動のフックの live の書き込みが、止まりのフックの結び付け直しより後になった形
+    await bindTranscript(ctx.repo, waiting!.id, subagent("a1"), true);
+    const failed = await runCommand(runFinish, ctx, {
+      run: waiting!.id,
+      result: "failure",
+      error: "直さない",
+    });
+    expect(failed.data).toMatchObject({ result: "failure" });
   });
 
   it("返らないまま止まった Run は interrupted で閉じられ、止まって待っている Run は failure でも閉じられる", async () => {

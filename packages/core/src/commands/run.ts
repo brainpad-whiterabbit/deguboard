@@ -595,6 +595,9 @@ export const runStart = defineCommand({
  * 返らないまま止まった Run は --result interrupted で閉じられる（呼び出し側が拒まない）
  */
 async function rejectLiveSubagentRun(ctx: CommandContext, run: Run): Promise<void> {
+  // 止まったフックは Run を閉じるか、止まって待っている印・書き終わり待ちの印を付ける。起動のフックが live を書く前に
+  // 止まりのフックが結び付け直した（起動と止まりが重なった）ときは live が残るので、どちらかの印があれば止まったとみなす
+  if (run.waiting_since !== null || run.settling_since !== null) return;
   if (!(await isLiveSubagent(ctx.repo, run.id))) return;
   throw new OperationError(
     "REJECTED",
