@@ -53,6 +53,8 @@ Iteration かチケットを、割り当てからリリースまでの流れで�
 - `approval.auto` に書いたもの（勧める選択肢で進める。どの判断が入るかは config の `auto.decisions`（今の設定：`{{auto.decisions}}`）と `auto.merge` が決める）
 - `auto.decisions` に `accept` があるときの、照合の後の受け入れ条件の確認（`dg guide done` の手順 3）
 
+マージと人が決める判断は、次のとおりに扱う。
+
 - PR のマージは、`auto.merge`（今の設定：`{{auto.merge}}`）が true のときだけ、`dg guide review` の「品質ゲート」を満たす PR を `dg --json --actor agent pr merge <id>` で行う。方法とブランチを消すかは `--method`・`--delete-branch` を省いて config の `merge.method`・`merge.delete_branch`（今の設定：`{{merge.method}}`・`{{merge.delete_branch}}`）に任せる。満たさなければ、満たさなかった条件を示して承認を求めて止まる
 - **人が決める判断は config によらず聞いて止まる**：リリースの PR のマージと公開（タグ・配布先）、チケットの削除・abandoned・done の取り消し、Epic・Iteration・Plan を閉じる・再開する。`auto.merge` が false のときのマージ。Plan の待ち（`after`）と範囲を変えること、`--force` の付く操作。勧めるものがない判断と、選択肢にできない答え
 
