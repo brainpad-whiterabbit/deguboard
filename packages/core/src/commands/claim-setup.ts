@@ -1,9 +1,10 @@
-// claim に付く準備（ST-3）：Iteration への追加と開始、作業ブランチの worktree の作成。
+// claim に付く準備（ST-3）：Iteration への追加と開始、作業ブランチの worktree の作成と、その worktree での準備のコマンド（worktree.setup）。
 // 親のエージェントが claim の前後に文で打っていた手を claim の中に入れ、規則を毎回同じに守る（ADR-030）。
 // どれも claim の排他（push）の成否とは別の都合なので、できなくても claim は失敗させず warnings で伝える
 
 import path from "node:path";
 import { defaultWorktreePath, ensureBranchWorktree } from "../git/branch-worktree.js";
+import { runProcess } from "../git/run.js";
 import { compareIds } from "../model/id.js";
 import { otherActiveOf, type Iteration } from "../model/iteration.js";
 import type { Ticket } from "../model/ticket.js";
@@ -87,8 +88,54 @@ export async function prepareIterationForClaim(
   return iterationId;
 }
 
+/** 準備のコマンドの上限。pnpm install と build が入るので、普通の検査より長く待つ */
+const SETUP_TIMEOUT_MS = 10 * 60_000;
+
+/** 警告に添える stderr の末尾（空でない最後の 3 行を 1 行にまとめる） */
+function stderrTail(stderr: string): string {
+  return stderr
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line !== "")
+    .slice(-3)
+    .join(" / ");
+}
+
+/**
+ * claim が作った worktree で config の worktree.setup を回す（t621）。空なら回さない。
+ * 失敗（終了コード・起動できない・上限）は claim を失敗させず、warnings に失敗と手で回すコマンドを書く。
+ * 準備は pnpm install などで長くかかるので、呼ぶ側は実装の Run を開いた後に回す（ticket.ts の claim）
+ */
+export async function runSetupInWorktree(
+  ctx: CommandContext,
+  dir: string,
+  warnings: string[],
+): Promise<void> {
+  const [file, ...args] = ctx.config.worktree.setup;
+  if (!file) return;
+  // 手で回すときの書き方。引数に空白があってもそのまま読めるように、引数は引用せず並べる
+  const command = ctx.config.worktree.setup.join(" ");
+  try {
+    const result = await runProcess(dir, file, args, {
+      allowFailure: true,
+      timeoutMs: SETUP_TIMEOUT_MS,
+    });
+    if (result.code === 0) return;
+    const tail = stderrTail(result.stderr);
+    warnings.push(
+      `worktree の準備のコマンド（${command}）が終了コード ${result.code} で止まった${tail ? `（stderr の末尾: ${tail}）` : ""}。claim は済んでいるので、${dir} で ${command} を手で回す`,
+    );
+  } catch (error) {
+    const reason = error instanceof Error ? error.message.split("\n")[0] : String(error);
+    warnings.push(
+      `worktree の準備のコマンド（${command}）を回せなかった（${reason}）。claim は済んでいるので、${dir} で ${command} を手で回す`,
+    );
+  }
+}
+
 /**
  * claim したブランチの worktree を用意して場所を返す（手順は git の層の ensureBranchWorktree。ADR-031）。
+ * created は今作ったかどうか（既存のものは false）。worktree.setup はここでは回さず、呼ぶ側が Run を開いた後に runSetupInWorktree で回す。
  * 作れなければ warnings に理由を書いて null
  */
 export async function prepareWorktreeForClaim(
@@ -96,7 +143,7 @@ export async function prepareWorktreeForClaim(
   branch: string,
   requestedPath: string | undefined,
   warnings: string[],
-): Promise<string | null> {
+): Promise<{ path: string; created: boolean } | null> {
   const repo = ctx.repo;
   // 作れなかったときの警告に場所を出すので、try の外で決める（依頼の path か既定の場所。t617）
   const dir = path.resolve(

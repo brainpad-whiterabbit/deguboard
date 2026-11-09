@@ -1,6 +1,7 @@
 // deguboard ブランチの git の履歴から、チケット・Epic・Iteration の属性の変化を読む（requirements.md 6.1 の history）。
-// `git log -p -U0` を 1 回だけ走らせ、frontmatter（Iteration は YAML 全体）の行の差分から変化を拾う。データの形は変えない。
-// 1 つのコミットで複数のファイルが変わっていても（変更をまとめてコミット）、ファイルごとの差分から読むので取りこぼさない
+// `git log -p -U0` を 1 回だけ走らせ（チケット 1 枚のときはそのファイルに絞って）、frontmatter（Iteration は YAML 全体）の行の差分から変化を拾う。データの形は変えない。
+// 1 つのコミットで複数のファイルが変わっていても（変更をまとめてコミット）、ファイルごとの差分から読むので取りこぼさない。
+// 画面のように何度も読む入口は、HEAD が同じあいだ解析結果を使い回す（createHistoryCache）
 
 import { readFile } from "node:fs/promises";
 import path from "node:path";
@@ -235,31 +236,100 @@ export function buildHistory(
   return { events, shallow: boundary.size > 0, incomplete: [...incomplete].sort() };
 }
 
-/** deguboard の worktree（dataDir）の HEAD の履歴を読む */
-export async function readHistory(dataDir: string): Promise<HistoryLog> {
-  const boundary = await shallowCommits(dataDir);
+export interface ReadHistoryOptions {
+  /** このチケットのファイル（tickets/<id>.md・.yaml・.yml）の履歴だけを読む。消えたチケットでも引ける */
+  ticket?: string | undefined;
+}
+
+/**
+ * deguboard の worktree（dataDir）の HEAD の履歴を読む。ticket があれば、そのチケットのファイルを含むコミットだけを読む
+ * （全体の log -p は履歴が長いと秒単位になるので）。線形の履歴では、全体を読んでから絞った経過と同じになる
+ */
+export async function readHistory(
+  dataDir: string,
+  opts: ReadHistoryOptions = {},
+): Promise<HistoryLog> {
+  return readLog(dataDir, opts, await shallowCommits(dataDir));
+}
+
+/** 経過の読み手。readHistory か、createHistoryCache の使い回す読み手 */
+export type HistoryReader = (dataDir: string, opts?: ReadHistoryOptions) => Promise<HistoryLog>;
+
+/** 同じ HEAD のあいだに覚えておく、チケット 1 枚の読みの数の上限（全体の読みは別に 1 つ） */
+const CACHED_TICKETS = 64;
+
+/**
+ * HEAD が同じあいだは解析結果を使い回す readHistory（プロセス内の CommandClient が持つ。commands/local.ts）。
+ * 鍵は HEAD のコミット・浅い clone の境界・読み方（全体かチケット 1 枚か）。全体の読み（既定の簡約）と
+ * チケット 1 枚の読み（--full-history）は結果が違いうるので混ぜない。HEAD か境界が変われば覚えたものを捨てて読み直す。
+ * 経過は git のコミットだけから読むので、コミットされていない書き込みでは変わらない。返す HistoryLog は共有なので、呼び手は書き換えない
+ */
+export function createHistoryCache(): HistoryReader {
+  let key: string | undefined;
+  const logs = new Map<string, HistoryLog>();
+  return async (dataDir, opts = {}) => {
+    // HEAD と浅い clone の境界のファイルの場所を 1 回の rev-parse で引く
+    const out = (
+      await runGit(dataDir, ["rev-parse", "HEAD", "--git-path", "shallow"])
+    ).stdout.split("\n");
+    const boundary = await shallowCommits(dataDir, out[1]!.trim());
+    const current = [dataDir, out[0]!.trim(), ...[...boundary].sort()].join("\n");
+    if (current !== key) {
+      key = current;
+      logs.clear();
+    }
+    const mode = opts.ticket ? `ticket:${opts.ticket}` : "all";
+    const hit = logs.get(mode);
+    if (hit) return hit;
+    const log = await readLog(dataDir, opts, boundary);
+    if (opts.ticket && logs.size > CACHED_TICKETS) {
+      // 古く覚えたチケットから捨てる（全体の読みは残す）
+      const oldest = [...logs.keys()].find((k) => k !== "all");
+      if (oldest) logs.delete(oldest);
+    }
+    logs.set(mode, log);
+    return log;
+  };
+}
+
+async function readLog(
+  dataDir: string,
+  opts: ReadHistoryOptions,
+  boundary: ReadonlySet<string>,
+): Promise<HistoryLog> {
+  const paths = opts.ticket
+    ? ticketPaths(opts.ticket).map((p) => `:(literal)${p}`)
+    : ["tickets", "epics", "iterations"];
+  // --full-history は、チケット 1 枚の読みだけに付ける。merge の片側だけに入った変化を既定の簡約で落とさず、そのチケットの経過に残す。
+  // 全体の読み（--epic・--iteration の経過を含む）は従来の簡約のままにして、その結果を変えない
+  const fullHistory = opts.ticket ? ["--full-history"] : [];
   const log = await runGit(dataDir, [
     "-c",
     "core.quotepath=off",
     "log",
     "--reverse",
     "--no-renames",
+    ...fullHistory,
     "--no-color",
     "--no-ext-diff",
     "-p",
     "-U0",
     `--format=${COMMIT_MARK}%H${FIELD_SEP}%aI${FIELD_SEP}%an${FIELD_SEP}%s`,
     "--",
-    "tickets",
-    "epics",
-    "iterations",
+    ...paths,
   ]);
   return buildHistory(parseLog(log.stdout), boundary);
 }
 
+/** チケットのファイルの候補（md・yaml・yml の 3 つ。subjectOf と同じ）。存在しない拡張子は log に何も出さない */
+function ticketPaths(id: string): string[] {
+  return [`tickets/${id}.md`, `tickets/${id}.yaml`, `tickets/${id}.yml`];
+}
+
 /** 浅い clone の境界のコミット（$GIT_DIR/shallow）。浅くなければ空 */
-async function shallowCommits(dataDir: string): Promise<Set<string>> {
-  const file = (await runGit(dataDir, ["rev-parse", "--git-path", "shallow"])).stdout.trim();
+async function shallowCommits(dataDir: string, gitPath?: string): Promise<Set<string>> {
+  const file =
+    gitPath ?? (await runGit(dataDir, ["rev-parse", "--git-path", "shallow"])).stdout.trim();
   try {
     const text = await readFile(path.resolve(dataDir, file), "utf8");
     return new Set(text.split("\n").filter(Boolean));

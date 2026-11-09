@@ -6,6 +6,7 @@ import { checkOutside, describeOutside, outsideError, outsideRemedy } from "../g
 import type { ActorKind, UserSource } from "../model/actor.js";
 import type { WriteContext, WriteOutcome } from "../git/write.js";
 import type { WorktreeOrigin } from "../git/worktree.js";
+import type { HistoryReader } from "../git/history.js";
 
 /** 操作の主体。入口が決める（CLI は環境変数かオプション、UI は常に human） */
 export interface ActorInfo {
@@ -32,6 +33,8 @@ export interface CommandContext extends WriteContext {
    * now・env だけを持ち、store・config・actor・repo.remote・repo.baseBranch を読むと例外になる
    */
   storeless?: boolean | undefined;
+  /** 経過の読み手。プロセス内の CommandClient が HEAD で使い回す読み手を入れる（local.ts）。省けば毎回 git log を読む readHistory */
+  readHistory?: HistoryReader | undefined;
 }
 
 export interface CommandResult<O> {

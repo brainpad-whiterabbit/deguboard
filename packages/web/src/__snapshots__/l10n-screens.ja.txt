@@ -425,6 +425,17 @@ worktree.root
 worktree.root
 [title] 既定の ../<repo>.worktrees に戻す
 既定に戻す
+worktree の準備のコマンド
+worktree.setup
+[title] 既定は 空
+変更あり
+worktree.setup
+空
+[aria-label] 項目
+[placeholder] 項目を足す
+足す
+[title] 既定の 空 に戻す
+既定に戻す
 チケット
 優先度 high の判断基準
 priority.high

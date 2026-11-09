@@ -64,12 +64,14 @@ export const history = defineCommand({
   needs: "store",
   async run(ctx, input) {
     // 消えたチケットの経過も引けるよう、今あるかは確かめず ID の形だけ整える
-    const log = await readHistory(ctx.repo.dataDir);
-    const result = filterHistory(log, {
+    const by = {
       ticket: idShapeOf(input.ticket, "ticket"),
       epic: idShapeOf(input.epic, "epic"),
       iteration: idShapeOf(input.iteration, "iteration"),
-    });
+    };
+    // チケットのときはそのファイルの履歴だけを読む（絞った結果は全体から絞ったものと同じ）
+    const log = await (ctx.readHistory ?? readHistory)(ctx.repo.dataDir, { ticket: by.ticket });
+    const result = filterHistory(log, by);
     const warnings: string[] = [];
     if (result.shallow)
       warnings.push(
