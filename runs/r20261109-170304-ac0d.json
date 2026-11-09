@@ -1,0 +1,32 @@
+{
+  "id": "r20261109-170304-ac0d",
+  "ticket": "t638",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-09T17:03:04Z",
+  "finished_at": "2026-11-09T17:08:18Z",
+  "result": "success",
+  "error": null,
+  "retries": 1,
+  "retry_reasons": [
+    "起動と止まりが重なると動いている印が残り run finish が拒み続ける競合を直す"
+  ],
+  "usage": {
+    "input": 20,
+    "output": 4946,
+    "cache_read": 2143287,
+    "cache_write": 7545
+  },
+  "tools": {
+    "read": 3,
+    "search": 0,
+    "write": 4,
+    "bash": 6,
+    "other": 0,
+    "read_before_write": 1,
+    "search_before_write": 0
+  },
+  "session": "da4709b5-9f60-4ff4-bc7e-c1b8bd1a61d9",
+  "review": null
+}
