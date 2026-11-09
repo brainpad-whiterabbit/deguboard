@@ -1,0 +1,35 @@
+{
+  "id": "r20261109-160315-1827",
+  "ticket": "t633",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-09T16:03:15Z",
+  "finished_at": "2026-11-09T16:06:21Z",
+  "result": "success",
+  "error": null,
+  "retries": 4,
+  "retry_reasons": [
+    "ADR-024 の採らなかった案から旧規則を理由にした 2 行を消す",
+    "ADR-001 の参照が切れる説明を判断変更の場面に限って書き直す",
+    "guide-audit の文書と実装の観点のセルを短くし snapshot を直す",
+    "guide.test.ts の ADR 番号検査を guide-*.md 全体に広げる"
+  ],
+  "usage": {
+    "input": 46,
+    "output": 19035,
+    "cache_read": 1559834,
+    "cache_write": 72033
+  },
+  "tools": {
+    "read": 6,
+    "search": 0,
+    "write": 10,
+    "bash": 18,
+    "other": 1,
+    "read_before_write": 4,
+    "search_before_write": 0
+  },
+  "session": "a4fc4b19-7929-40d9-b1bb-d6d6d31eead5",
+  "review": null
+}
