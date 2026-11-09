@@ -20,7 +20,7 @@ after:
     - t617
     - t615
     - t609
-pending_approval: true
+pending_approval: false
 details:
   t606:
     scope: FLOW_GUIDE が返す節と guide の節の参照を閉じ、guide-all の記述を合わせる
@@ -82,3 +82,5 @@ details:
     scope: マージの方法・トピック・段階の一覧の重複、使われない再 export、human_only と worktree の分岐を 1 か所にまとめる
     approach: 定義を 1 か所に寄せて他は読む。worktree の分岐は git の層へ。development.md のトピック追加の案内を直す
     tier: heavy
+approved_by: eiki.kitajima/agent
+approved_at: 2026-11-09T11:41:21Z
