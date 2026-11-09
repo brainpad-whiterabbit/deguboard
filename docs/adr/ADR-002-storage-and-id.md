@@ -31,7 +31,7 @@
 
 ### 同期の競合：frontmatter をフィールド単位でマージする
 
-- 取り込みは rebase で行い、Markdown に git のマージドライバを当てる。規則の正本は core の `git/merge.ts`
+- ※ ADR-032 で置き換え（この項の「Markdown に git のマージドライバを当てる」の部分は失効）。取り込みは rebase で行い、Markdown に git のマージドライバを当てる。規則の正本は core の `git/merge.ts`
 - frontmatter はフィールドごとに 3-way で決め、片側だけ変えた値を採る。両側が違う値に変えたフィールドと本文の同じ行のぶつかりだけを競合にする（SY-4）
 - 登録は `dg init` と `dg sync` が行い、ドライバは絶対パスで指す。`.gitattributes` はデータのブランチにコミットする
 - VS Code 拡張は自分の `dg` を持たないので登録せず、CLI が登録した config を使う。ドライバが動かなければ競合として報告され、次の CLI の `dg sync` で登録し直す

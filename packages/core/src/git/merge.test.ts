@@ -1,13 +1,14 @@
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 import { createFixture, git, type Fixture } from "../../test/helpers/git-fixture.js";
 import { openContext } from "../commands/context.js";
 import { runCommand, type CommandContext } from "../commands/define.js";
+import { planApprove, planClose, planCreate } from "../commands/plan.js";
 import { init, sync } from "../commands/setup.js";
 import { ticketCreate, ticketUpdate } from "../commands/ticket.js";
-import { mergeDocuments, mergeDriverCommandLine } from "./merge.js";
+import { attributesFile, mergeDocuments, mergeDriverCommandLine } from "./merge.js";
 import { recordBaseline } from "./outside.js";
 import { CONFLICT_REMEDY, withWrite } from "./write.js";
 
@@ -105,6 +106,41 @@ describe("frontmatter の 3-way マージ", () => {
   it("frontmatter がない・base が空（add/add）なら undefined を返して行単位のマージに任せる", async () => {
     expect(await mergeDocuments("", doc(BASE), doc({ ...BASE, title: "別" }))).toBeUndefined();
     expect(await mergeDocuments("a\n", "b\n", "c\n")).toBeUndefined();
+  });
+
+  it("frontmatter のない YAML は、両側が別のフィールドを変えたらフィールド単位で解き、書式とコメントを保つ", async () => {
+    const base = [
+      "# Plan のコメント",
+      "id: p1",
+      "tickets:",
+      "  - t1 # 先に進める",
+      "  - t2",
+      'approved_by: ""',
+      "updated_at: 2026-11-01T00:00:00Z",
+      "",
+    ].join("\n");
+    const ours = base
+      .replace('approved_by: ""', "approved_by: eiki")
+      .replace("00:00:00Z", "00:00:05Z");
+    const theirs = `${base.replace("00:00:00Z", "00:00:09Z")}closed_at: 2026-11-01T00:00:09Z\n`;
+    const merged = await mergeDocuments(base, ours, theirs);
+    expect(merged).toEqual({
+      ok: true,
+      text: `${ours.replace("00:00:05Z", "00:00:09Z")}closed_at: 2026-11-01T00:00:09Z\n`,
+    });
+    // 片側だけの変更なら、その側の YAML を 1 バイトも変えずに返す
+    expect(await mergeDocuments(base, ours, base)).toEqual({ ok: true, text: ours });
+  });
+
+  it("frontmatter のない YAML でも、両側が同じフィールドを違う値に変えたら競合として返し、形の揃わない 3 つは行単位に任せる", async () => {
+    const base = "id: p1\nclosed_at: null\n";
+    const r = await mergeDocuments(
+      base,
+      "id: p1\nclosed_at: 2026-11-01T00:00:01Z\n",
+      "id: p1\nclosed_at: 2026-11-01T00:00:02Z\n",
+    );
+    expect(r).toEqual({ ok: false, conflicts: ["closed_at"] });
+    expect(await mergeDocuments(base, doc({ id: "p1" }), base)).toBeUndefined();
   });
 
   it("登録するコマンド行は空白や引用符を含むパスをシェル向けにクォートし、%O %A %B %P を付ける", () => {
@@ -205,6 +241,77 @@ describe("同期のマージドライバ", () => {
     );
     expect((await git(b.repo.dataDir, ["status", "--porcelain"])).stdout).toBe("");
     expect(await t1(b)).toContain("title: B の題");
+  });
+
+  it("前の版の .gitattributes には、sync が Plan・Iteration・Project の行を足してコミットする", async () => {
+    const f = await fixture();
+    const { a } = await twoClones(f);
+    const file = path.join(a.repo.dataDir, ".gitattributes");
+    const old = [
+      "# dg のマージドライバ（frontmatter をフィールド単位でマージする）",
+      "tickets/*.md merge=deguboard",
+      "tickets/deleted/*.md merge=deguboard",
+      "epics/*.md merge=deguboard",
+      "",
+    ].join("\n");
+    await writeFile(file, old);
+    await git(a.repo.dataDir, ["commit", "-qam", "前の版の .gitattributes を模す"]);
+    await recordBaseline(a.repo);
+    await runCommand(sync, a, {});
+    const text = await readFile(file, "utf8");
+    expect(text.startsWith(old)).toBe(true);
+    // .gitattributes がまだリモートにないときに rebase へ渡すローカルの属性ファイルにも入る
+    const local = await readFile(attributesFile(a.repo), "utf8");
+    for (const p of ["plans/p1.yaml", "iterations/s1.yaml", "projects/default.yaml"]) {
+      const line = `${p.split("/")[0]}/*.yaml merge=deguboard`;
+      expect(text).toContain(line);
+      expect(local).toContain(line);
+      const attr = await git(a.repo.dataDir, ["check-attr", "merge", p]);
+      expect(attr.stdout.trim()).toBe(`${p}: merge: deguboard`);
+    }
+    expect((await git(a.repo.dataDir, ["status", "--porcelain"])).stdout).toBe("");
+    const log = await git(a.repo.dataDir, ["log", "-1", "--format=%s", "--", ".gitattributes"]);
+    expect(log.stdout.trim()).toBe("マージドライバの .gitattributes を置く");
+  });
+
+  it("同じ Plan の別のフィールドを双方で変えた分岐を、sync が競合なしで揃える", async () => {
+    const f = await fixture();
+    const { a, b } = await twoClones(f);
+    const created = await runCommand(planCreate, a, { tickets: ["t1"] });
+    const id = created.data.id;
+    await runCommand(sync, a, {});
+    await runCommand(sync, b, {});
+    await runCommand(planApprove, a, { plan: id });
+    await runCommand(sync, a, {});
+    await runCommand(planClose, b, { plan: id });
+    const synced = await runCommand(sync, b, {});
+    expect(synced.data.conflicts).toEqual([]);
+    expect(synced.data.pushed).toBe(true);
+    expect(b.store.plans.get(id)?.data).toMatchObject({
+      pending_approval: false,
+      approved_by: "eiki",
+      closed_at: expect.any(String),
+    });
+    await runCommand(sync, a, {});
+    const file = `plans/${id}.yaml`;
+    expect(await readFile(path.join(a.repo.dataDir, file), "utf8")).toBe(
+      await readFile(path.join(b.repo.dataDir, file), "utf8"),
+    );
+  });
+
+  it("同じ Plan の同じフィールドを双方で違う値にした分岐は、今までどおり競合として報告する", async () => {
+    const f = await fixture();
+    const { a, b } = await twoClones(f);
+    const created = await runCommand(planCreate, a, { tickets: ["t1"] });
+    const id = created.data.id;
+    await runCommand(sync, a, {});
+    await runCommand(sync, b, {});
+    await runCommand(planClose, a, { plan: id });
+    await runCommand(sync, a, {});
+    await runCommand(planClose, b, { plan: id });
+    const synced = await runCommand(sync, b, {});
+    expect(synced.data.conflicts).toEqual([`plans/${id}.yaml`]);
+    expect(synced.data.pushed).toBe(false);
   });
 
   it("競合が残る間の sync の警告と起票の SYNC_CONFLICT は、同じ戻し方（人が deguboard worktree で解消する）を案内する", async () => {
