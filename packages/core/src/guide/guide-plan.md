@@ -25,7 +25,7 @@ argument-hint: "<チケットの ID...|Iteration|Epic|next [N]> | <Plan の ID>"
 5. 承認待ちの Plan に記録する（下の「Plan の作り方」）。結果の `data.id` が Plan の ID
 6. 人に見せて承認を得る。`dg --json --actor agent plan show <p>` の `items`（Plan の順）・`after`・`details` を表で示し（段階の列を設ける）、「承認する」「修正する」「承認待ちのまま止める」の選択肢で聞く。直すよう言われたら、`plan close <p>` で閉じて作り直す（Plan は作った後に書き換えられない）
 7. 人が承認したら `dg --json --actor agent plan approve <p>` で承認を記録する（`approved_by` は操作した主体）。人の承認を得ないまま approve しない。承認待ちの Plan のチケットには着手しない
-8. 承認済みの Plan は `dg guide work` の手順で進める（下の「次の手順を選ぶ」）。Plan の ID を見失ったら、`dg --json --actor agent plan list --status open` で開いた Plan を一覧するか、チケットの `ticket show` の `plan`（入っている開いた Plan）で引く
+8. 承認済みの Plan は `dg guide work` の手順で進める。Plan の ID を見失ったら、`dg --json --actor agent plan list --status open` で開いた Plan を一覧するか、チケットの `ticket show` の `plan`（入っている開いた Plan）で引く
 
 ## Plan の作り方
 

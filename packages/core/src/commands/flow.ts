@@ -227,16 +227,39 @@ export function isRepeated(prev: ResumeState | undefined, stage: FlowStageName, 
   return prev !== undefined && prev.stage === stage && prev.facts === facts && stage !== "stop";
 }
 
-/** 段階の手のやり方の節（段階ごとに読む guide の節）。本文は composeGuide が Core から読む */
-export const FLOW_GUIDE: Record<FlowStageName, { topic: string; section: string }> = {
-  assign: { topic: "assign", section: "Iteration" },
-  check: { topic: "check", section: "点検の手順" },
-  plan: { topic: "plan", section: "流れ" },
-  work: { topic: "work", section: "流れ" },
-  audit: { topic: "audit", section: "見直しの手順" },
-  release: { topic: "release", section: "リリースの手順" },
-  stop: { topic: "all", section: "次の手順を選ぶ" },
+/**
+ * 段階の手のやり方の節（段階ごとに読む guide の節。先頭が手順の節）。本文は composeGuide が Core から読み、並べた順につなぐ。
+ * 返す本文だけで段階を進められるよう、手順の節が同じトピックの中で「」で指す節はすべて入れる（flow.test.ts が閉じ方を確かめる）。
+ * ほかのトピックの節（`dg guide <topic>` の「…」）は案内されたトピックとして読む
+ */
+export const FLOW_GUIDE: Record<FlowStageName, { topic: string; sections: readonly string[] }> = {
+  assign: { topic: "assign", sections: ["割り当てを提案するとき", "Iteration"] },
+  check: { topic: "check", sections: ["点検の手順"] },
+  plan: { topic: "plan", sections: ["流れ", "Plan の作り方", "承認について"] },
+  work: {
+    topic: "work",
+    sections: ["流れ", "claim の前後", "実装する", "実装の結果を受け取る", "Plan に従う"],
+  },
+  audit: {
+    topic: "audit",
+    sections: [
+      "見直しの手順",
+      "観点",
+      "サブエージェントに任せる",
+      "同じ指摘を繰り返さない",
+      "重大度と置き場",
+      "起票するチケット",
+    ],
+  },
+  release: { topic: "release", sections: ["リリースの手順", "リリースの手順がないとき"] },
+  stop: { topic: "all", sections: ["次の手順を選ぶ"] },
 };
+
+/** guide.command：返した本文を読み直す dg guide の呼び出し。空白を含む節の名前は引用する */
+function guideCommandOf(topic: string, sections: readonly string[]): string {
+  const quote = (s: string) => (/\s/.test(s) ? `"${s}"` : s);
+  return [`dg guide ${topic}`, ...sections.map((s) => `--section ${quote(s)}`)].join(" ");
+}
 
 export interface FlowApproval {
   /** この段階で人の承認を得てから進める操作があるか（--auto で聞かずに選べるものだけなら false） */
@@ -464,8 +487,11 @@ export interface FlowNext {
   stage: FlowStage;
   /** 同じ段階が事実も変わらずに続いて止まったとき、続いた段階。ほかは null */
   repeated: FlowStageName | null;
-  /** この段階の手のやり方（guide の節）。text は節の本文（config を埋めたもの）。command で同じ本文を読める */
-  guide: { topic: string; section: string; text: string; command: string };
+  /**
+   * この段階の手のやり方（guide の節）。sections は読む節（先頭が手順の節）、text はその本文を順につないだもの（config を埋めたもの）。
+   * 手順の節が同じトピックの中で指す節はすべて text に入る。command で同じ本文を読める
+   */
+  guide: { topic: string; sections: string[]; text: string; command: string };
   /** この段階で親が呼ぶ dg のコマンド（順に） */
   commands: string[];
   approval: FlowApproval;
@@ -533,7 +559,12 @@ export const flowNext = defineCommand({
         }
       : found;
     const guide = FLOW_GUIDE[stage.name];
-    const guideText = await composeGuide(guide.topic, ctx.config, ctx.repo.topLevel, guide.section);
+    const guideText = await composeGuide(
+      guide.topic,
+      ctx.config,
+      ctx.repo.topLevel,
+      guide.sections,
+    );
     warnings.push(...guideText.warnings);
     const approval = approvalOf(stage.name, {
       auto,
@@ -545,9 +576,10 @@ export const flowNext = defineCommand({
       stage,
       repeated,
       guide: {
-        ...guide,
+        topic: guide.topic,
+        sections: [...guide.sections],
         text: guideText.text,
-        command: `dg guide ${guide.topic} --section ${guide.section}`,
+        command: guideCommandOf(guide.topic, guide.sections),
       },
       approval,
       commands: commandsOf(stage, facts.iteration, approval.auto_ok),
