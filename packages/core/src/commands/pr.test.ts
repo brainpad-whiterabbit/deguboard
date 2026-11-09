@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { createFixture, git } from "../../test/helpers/git-fixture.js";
@@ -32,6 +32,8 @@ async function fakeGh(root: string, pr: () => string) {
   const failBody = path.join(root, "gh-fail-body");
   // このファイルがあると、本文の書き込み（gh api の PATCH）だけ失敗する
   const failWrite = path.join(root, "gh-fail-write");
+  // このファイルがあると、gh pr merge だけ失敗する（t643。マージの失敗で消した worktree を戻すかを見る）
+  const failMerge = path.join(root, "gh-fail-merge");
   const projectCards =
     'echo "GraphQL: Projects (classic) is being deprecated in favor of the new Projects experience (repository.pullRequest.projectCards)" >&2; exit 1';
   await mkdir(bin, { recursive: true });
@@ -54,7 +56,8 @@ async function fakeGh(root: string, pr: () => string) {
         "fi",
         'case "$2" in',
         `  view) if [ "$5" = body ]; then ${projectCards}; fi; cat '${viewFile}';;`,
-        `  ready|merge) echo "$@" >> '${log}';;`,
+        `  merge) if [ -f '${failMerge}' ]; then echo "gh の失敗" >&2; exit 1; fi; echo "$@" >> '${log}';;`,
+        `  ready) echo "$@" >> '${log}';;`,
         `  edit) ${projectCards};;`,
         "  *) exit 1;;",
         "esac",
@@ -77,7 +80,9 @@ async function fakeGh(root: string, pr: () => string) {
     (JSON.parse(await readFile(edited, "utf8")) as { body: string }).body;
   const failBodyView = () => writeFile(failBody, "1");
   const failBodyWrite = () => writeFile(failWrite, "1");
-  return { write, calls, editedBody, failBodyView, failBodyWrite };
+  const failMergeCall = () => writeFile(failMerge, "1");
+  const allowMergeCall = () => rm(failMerge, { force: true });
+  return { write, calls, editedBody, failBodyView, failBodyWrite, failMergeCall, allowMergeCall };
 }
 
 /** t1 を feat/t1 で claim して 1 コミット push し、PR #7（偽の gh。draft）がある文脈 */
@@ -122,6 +127,8 @@ async function prepared() {
     editedBody: gh.editedBody,
     failBodyView: gh.failBodyView,
     failBodyWrite: gh.failBodyWrite,
+    failMergeCall: gh.failMergeCall,
+    allowMergeCall: gh.allowMergeCall,
     undraft,
   };
 }
@@ -233,6 +240,35 @@ describe("dg pr ready・dg pr merge（t545）", () => {
       "pr merge 7 --squash --delete-branch",
       "pr merge 7 --squash --delete-branch",
     ]);
+  });
+
+  it("--delete-branch で gh pr merge が失敗したら、消した作業ブランチの worktree を同じパスに戻し、エラーの detail にその扱いを出す。原因を直した後の再実行はマージできる（t643）", async () => {
+    const { ctx, calls, undraft, failMergeCall, allowMergeCall } = await prepared();
+    await passedReview(ctx);
+    await undraft();
+    await runCommand(ticketCheck, ctx, { ticket: "t1", items: [1] });
+    const main = ctx.repo.topLevel;
+    await git(main, ["checkout", "-q", "main"]);
+    const wt = path.join(path.dirname(main), "wt-t1");
+    await git(main, ["worktree", "add", "-q", wt, "feat/t1"]);
+    await failMergeCall();
+    const err = await rejection(runCommand(prMerge, ctx, { ticket: "t1", delete_branch: true }));
+    expect(err).toBeInstanceOf(OperationError);
+    expect(err!.code).toBe("GIT_ERROR");
+    expect(err!.detail).toContain("消した worktree");
+    expect(err!.detail).toContain("戻した（作業を続けられる）");
+    // 同じパスに、作業ブランチを checkout した worktree が戻っている
+    expect(existsSync(wt)).toBe(true);
+    expect((await git(wt, ["branch", "--show-current"])).stdout.trim()).toBe("feat/t1");
+    expect((await git(main, ["worktree", "list"])).stdout).toContain("wt-t1");
+    expect(await calls()).toEqual([]);
+    // 原因を直した後は、同じ呼び方でマージでき、今度は worktree を消してから gh を呼ぶ
+    await allowMergeCall();
+    const merged = await runCommand(prMerge, ctx, { ticket: "t1", delete_branch: true });
+    expect(merged.data).toMatchObject({ pr: 7, action: "merge" });
+    expect(merged.warnings).toEqual([]);
+    expect((await git(main, ["worktree", "list"])).stdout).not.toContain("wt-t1");
+    expect(await calls()).toEqual(["pr merge 7 --squash --delete-branch"]);
   });
 
   it("検査（actions.test）が通らなければ GATE_FAILED に終了コードと出力の末尾を入れ、gh を呼ばない（t601）", async () => {
