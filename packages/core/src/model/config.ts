@@ -114,7 +114,7 @@ export const configSchema = z.looseObject({
         .array(z.string().min(1))
         .default([])
         .describe(
-          "テスト実行の Action（run_tests）が呼ぶコマンドの引数配列（例 [mise, run, check]）。空なら run_tests は拒否する",
+          "テスト実行の Action（run_tests）と、品質ゲート（dg gate・dg pr ready・dg pr merge）の検査が呼ぶコマンドの引数配列（例 [mise, run, check]）。空なら run_tests は拒否し、品質ゲートの検査は判定しない（リポジトリの規約の検査で確かめる）",
         ),
     })
     .prefault({}),
