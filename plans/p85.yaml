@@ -1,0 +1,16 @@
+id: p85
+project: default
+tickets: [t604, t605]
+after:
+  t605:
+    - t604
+pending_approval: true
+details:
+  t604:
+    scope: マージドライバの対象に plans・iterations・projects の YAML を足し、frontmatter のない YAML をフィールド単位で 3-way する。SY-4 と ADR-002 の印まで
+    approach: merge.ts の parse を素の YAML にも広げ、ATTRIBUTE_LINES に 3 種を足して ensureGitattributes で既存 worktree にも補う。bare リモートの分岐テストで確かめる
+    tier: heavy
+  t605:
+    scope: dg sync --resolve remote|local で競合したフィールドだけ選んだ側を採り、rebase・基準の更新・照合・push まで 1 回で行う。CONFLICT_REMEDY・guide overview・SY-4 も直す
+    approach: t604 のドライバに採る側を環境変数などで渡し、rebase 中の ours が upstream になる点を対称に扱う。基準の更新は書き込みのロックの中で行う
+    tier: heavy
