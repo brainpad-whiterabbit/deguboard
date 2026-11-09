@@ -1,4 +1,4 @@
-// deguboard ブランチのマージドライバ（SY-4、ADR-002）。チケットと Epic の frontmatter をフィールド単位で 3-way マージする。
+// deguboard ブランチのマージドライバ（SY-4、ADR-002）。チケットと Epic の frontmatter と、Plan・Iteration・Project の YAML をフィールド単位で 3-way マージする。
 // git が rebase の中で `<dg> merge-driver %O %A %B %P` として呼ぶ。登録は ensureMergeDriver（init と sync）が行う
 
 import { isDeepStrictEqual } from "node:util";
@@ -19,14 +19,21 @@ import { runGit } from "./run.js";
 /** git config の merge.<名前> と .gitattributes の merge=<名前> */
 const MERGE_DRIVER_NAME = "deguboard";
 
-/** ドライバを当てるパス。frontmatter を持つ Markdown（チケット・墓標・Epic）だけ */
+/**
+ * ドライバを当てるパス。frontmatter を持つ Markdown（チケット・墓標・Epic）と、素の YAML（Plan・Iteration・Project）。
+ * config.yaml と workflows は人が手で書く設定なので外し、行単位のマージのままにする
+ */
 const ATTRIBUTE_LINES = [
   `tickets/*.md merge=${MERGE_DRIVER_NAME}`,
   `tickets/deleted/*.md merge=${MERGE_DRIVER_NAME}`,
   `epics/*.md merge=${MERGE_DRIVER_NAME}`,
+  `plans/*.yaml merge=${MERGE_DRIVER_NAME}`,
+  `iterations/*.yaml merge=${MERGE_DRIVER_NAME}`,
+  `projects/*.yaml merge=${MERGE_DRIVER_NAME}`,
 ];
 
-const GITATTRIBUTES_HEADER = "# dg のマージドライバ（frontmatter をフィールド単位でマージする）";
+const GITATTRIBUTES_HEADER =
+  "# dg のマージドライバ（frontmatter と YAML をフィールド単位でマージする）";
 
 /** 両側が違う値に変えても、新しい方を採るフィールド（書き込みのたびに変わる時刻） */
 const NEWER_WINS = new Set(["updated_at"]);
@@ -35,20 +42,22 @@ export type MergeOutcome = { ok: true; text: string } | { ok: false; conflicts: 
 
 interface Parsed {
   text: string;
-  yaml: string;
-  body: string;
+  /** frontmatter つき Markdown なら本文。素の YAML（Plan・Iteration・Project）なら undefined */
+  body: string | undefined;
   doc: YamlDocument;
   data: Record<string, unknown>;
 }
 
+/** frontmatter つき Markdown か、全体が 1 つのマッピングの素の YAML を読む。どちらでもなければ undefined */
 function parse(text: string): Parsed | undefined {
   const fm = splitFrontmatter(text);
-  if (fm === undefined || fm === "unterminated") return undefined;
-  const { doc, errors } = parseYamlDocument(fm.yaml);
+  if (fm === "unterminated") return undefined;
+  const { doc, errors } = parseYamlDocument(fm === undefined ? text : fm.yaml);
   if (errors.length > 0) return undefined;
+  // 空のファイル（add/add の base）とスカラーは null や文字列になり、ここで外れる
   const data: unknown = doc.toJS();
   if (typeof data !== "object" || data === null || Array.isArray(data)) return undefined;
-  return { text, yaml: fm.yaml, body: fm.body, doc, data: data as Record<string, unknown> };
+  return { text, body: fm?.body, doc, data: data as Record<string, unknown> };
 }
 
 /** ISO 8601 の時刻の新しい方。どちらかが読めなければ undefined */
@@ -86,11 +95,11 @@ async function mergeText(base: string, ours: string, theirs: string): Promise<st
 }
 
 /**
- * frontmatter つき Markdown の 3-way マージ。
- * - フィールドごとに、片側だけ変えた値を採る。両側が違う値に変えたら競合（updated_at だけは新しい方を採る）
+ * frontmatter つき Markdown と素の YAML（最上位がマッピング）の 3-way マージ。
+ * - フィールド（最上位のキー）ごとに、片側だけ変えた値を採る。両側が違う値に変えたら競合（updated_at だけは新しい方を採る）
  * - 本文は片側だけ変えたらその本文、両側が変えたら行単位でマージし、同じ行がぶつかれば競合
- * - frontmatter が読めない・base にない（add/add）ときは ok: false の代わりに undefined を返し、呼び手が行単位のマージに任せる
- *   （仮番号の add/add を行単位の競合のまま残し、振り直し DT-5 の検出を変えないため）
+ * - 読めない・base にない（add/add）・3 つの形（frontmatter の有無）が揃わないときは ok: false の代わりに undefined を返し、
+ *   呼び手が行単位のマージに任せる（仮番号の add/add を行単位の競合のまま残し、振り直し DT-5 の検出を変えないため）
  */
 export async function mergeDocuments(
   base: string,
@@ -101,6 +110,8 @@ export async function mergeDocuments(
   const a = parse(ours);
   const b = parse(theirs);
   if (!o || !a || !b) return undefined;
+  const plain = a.body === undefined;
+  if ((o.body === undefined) !== plain || (b.body === undefined) !== plain) return undefined;
 
   const conflicts: string[] = [];
   const patch: Record<string, unknown> = {};
@@ -124,20 +135,26 @@ export async function mergeDocuments(
     if (!isDeepStrictEqual(value, a.data[key])) patch[key] = value;
   }
 
-  let body: string | undefined;
-  const pickedBody = pick(o.body, a.body, b.body);
-  if (pickedBody !== "conflict") body = pickedBody.value as string;
-  else body = await mergeText(o.body, a.body, b.body);
-  if (body === undefined) conflicts.push("本文");
+  let body = "";
+  if (!plain) {
+    const pickedBody = pick(o.body, a.body, b.body);
+    const merged =
+      pickedBody !== "conflict"
+        ? (pickedBody.value as string)
+        : await mergeText(o.body ?? "", a.body ?? "", b.body ?? "");
+    if (merged === undefined) conflicts.push("本文");
+    else body = merged;
+  }
 
-  if (conflicts.length > 0 || body === undefined) return { ok: false, conflicts };
+  if (conflicts.length > 0) return { ok: false, conflicts };
   if (Object.keys(patch).length === 0) {
-    // frontmatter は ours のまま。書式とコメントを 1 バイトも変えない
-    return { ok: true, text: a.text.slice(0, a.text.length - a.body.length) + body };
+    // YAML は ours のまま。書式とコメントを 1 バイトも変えない
+    return { ok: true, text: a.text.slice(0, a.text.length - (a.body?.length ?? 0)) + body };
   }
   const doc = cloneYamlDocument(a.doc);
   patchYamlDocument(doc, patch);
-  return { ok: true, text: joinFrontmatter(stringifyYaml(doc), body) };
+  const yaml = stringifyYaml(doc);
+  return { ok: true, text: plain ? yaml : joinFrontmatter(yaml, body) };
 }
 
 /**
@@ -243,7 +260,7 @@ export async function ensureMergeDriver(
       "config",
       "--local",
       `merge.${MERGE_DRIVER_NAME}.name`,
-      "deguboard の frontmatter をフィールド単位でマージする（dg が登録）",
+      "deguboard の frontmatter と YAML をフィールド単位でマージする（dg が登録）",
     ]);
   }
   return line;
