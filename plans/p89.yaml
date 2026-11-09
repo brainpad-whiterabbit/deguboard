@@ -10,7 +10,7 @@ after:
   t635:
     - t634
     - t636
-pending_approval: true
+pending_approval: false
 details:
   t633:
     scope: ADR-001 の ADR の書き方・採らなかった案、docs/adr/README.md の説明、CLAUDE.md の ADR の行、同梱 guide（work・review・audit・import）を新しい方針に合わせる
@@ -28,3 +28,5 @@ details:
     scope: 置き換え済みの ADR のファイルを消し、参照を張り替える。有効な ADR の冒頭に要約を置き、更新日とステータスの行を消し、一覧に最後に使った番号を置く
     approach: t634 の検査で張り替えの漏れを見つけ、check:docs が通るまで直す
     tier: standard
+approved_by: maji/agent
+approved_at: 2026-11-09T15:50:22Z
