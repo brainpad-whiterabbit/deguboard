@@ -1,13 +1,13 @@
 // 仮番号の振り直し（DT-5、ADR-002）。オフラインで起票した仮番号がリモートの番号と衝突したら、
-// 未 push のコミットを「番号・ファイル名・参照」を書き換えながらリモートの上に積み直す。
-// 対象は「競合がすべて tickets/tNN.md の add/add で、ローカル側が provisional」のときだけで、それ以外の競合は扱わない
+// 未 push のコミットを「番号・ファイル名・参照」を書き換えながら分岐点の上に積み直し、マージドライバを通して取り込む。
+// --resolve なしの対象は「競合がすべて tickets/tNN.md の add/add で、ローカル側が provisional」のときだけで、それ以外の競合は扱わない
 
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { idNumber, nextNumber } from "../model/id.js";
 import type { GitRepo } from "./repo.js";
 import { runGit } from "./run.js";
-import { commitAll, remoteRef, resetHard } from "./sync.js";
+import { commitAll, integrate, remoteRef, resetHard } from "./sync.js";
 
 export interface Renumbered {
   from: string;
@@ -50,39 +50,58 @@ function rewriteIds(text: string, mapping: ReadonlyMap<string, string>): string 
   return text.replace(/\bt[1-9]\d*\b/g, (id) => mapping.get(id) ?? id);
 }
 
+/** renumberProvisional の結果。取り込めなければ conflicts に残った競合が入り、振り直しは捨てて元の先端に戻っている */
+export interface RenumberedSync {
+  renumbered: Renumbered[];
+  conflicts: string[];
+}
+
 /**
- * rebase の競合が仮番号の衝突だけなら振り直して積み直し、対応表を返す。扱えない競合なら null を返し、何も変えない。
- * 呼ぶ側は rebase を中止済み（HEAD はローカルの先端、作業ツリーは clean）であること
+ * --resolve なしの dg sync の後段（DT-5）。rebase の競合が仮番号の衝突だけなら、renumberCollisions で分岐点の上で振り直してから
+ * もう一度取り込む。リモートの先端に中身を書き写さずマージドライバを通すので、同じファイルの別のフィールドのリモートの変更も残る。
+ * 扱えない競合なら null を返し、何も変えない。振り直した後の取り込みも競合したら、元の先端に戻して残った競合を返す
+ * （振り直しより後のコミットの競合は、最初の rebase が手前の衝突で止まったので見えていなかった）。
+ * 呼ぶ側は rebase を中止済み（HEAD はローカルの先端）であること。まとめ待ちがあれば振り直しの前後で退けて戻す
  */
 export async function renumberProvisional(
   repo: GitRepo,
   conflicts: readonly string[],
-): Promise<Renumbered[] | null> {
+): Promise<RenumberedSync | null> {
   if (!repo.remote || conflicts.length === 0) return null;
   const remote = remoteRef(repo);
-  const ids: string[] = [];
   for (const file of conflicts) {
-    const id = CONFLICT_PATH.exec(file)?.[1];
-    if (!id) return null;
+    if (!CONFLICT_PATH.test(file)) return null;
     const local = await show(repo, "HEAD", file);
     if (local === undefined || !isProvisional(local)) return null;
     if ((await show(repo, remote, file)) === undefined) return null;
-    ids.push(id);
   }
 
-  const base = (await git(repo, ["merge-base", "HEAD", remote])).stdout.trim();
-  const shas = await localCommits(repo, base);
-  const mapping = await assignNumbers(repo, ids);
-  // リモートの先端に移り、未 push のコミットを 1 つずつ書き換えて積み直す
-  await resetHard(repo, remote);
-  await replay(repo, shas, mapping);
-  return [...mapping].map(([from, to]) => ({ from, to }));
+  const head = (await git(repo, ["rev-parse", "HEAD"])).stdout.trim();
+  const pending = await readPending(repo);
+  const renumbered = await renumberCollisions(repo);
+  if (renumbered.length === 0) return null;
+  const restore = async () => {
+    await clearWorkTree(repo, head);
+    await restorePending(repo, pending, new Map());
+  };
+  let r: Awaited<ReturnType<typeof integrate>>;
+  try {
+    r = await integrate(repo, { autostash: pending.size > 0 });
+  } catch (e) {
+    await restore();
+    throw e;
+  }
+  if (r.ok) return { renumbered, conflicts: [] };
+  // 振り直した番号のパスは、戻した後の番号に読み替えて返す
+  const back = new Map(renumbered.map(({ from, to }) => [to, from]));
+  await restore();
+  return { renumbered: [], conflicts: r.conflicts.map((file) => rewriteIds(file, back)) };
 }
 
 /**
- * dg sync --resolve の前段（SY-4）。ローカルで足した仮番号のチケットのうち、リモートにも同じ番号のファイルがあるものを振り直す。
+ * dg sync --resolve の前段（SY-4）と renumberProvisional の中で使う。ローカルで足した仮番号のチケットのうち、リモートにも同じ番号のファイルがあるものを振り直す。
  * 未 push のコミットを分岐点の上で書き換えて積み直すだけで、取り込み（rebase）は呼び手がこの後に行う
- * （リモートの上に中身を書き写す renumberProvisional と違い、ほかのファイルのリモートの変更はドライバのマージに残る）。
+ * （リモートの先端に書き写さないので、リモートの変更は取り込みのドライバのマージに残る）。
  * 未コミットの変更（まとめ待ち）は退けておき、振り直した後に番号を書き換えて作業ツリーに戻す（コミットは呼び手）。
  * 衝突がなければ何も変えず空を返す
  */
