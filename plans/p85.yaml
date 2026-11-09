@@ -4,7 +4,7 @@ tickets: [t604, t605]
 after:
   t605:
     - t604
-pending_approval: true
+pending_approval: false
 details:
   t604:
     scope: マージドライバの対象に plans・iterations・projects の YAML を足し、frontmatter のない YAML をフィールド単位で 3-way する。SY-4 と ADR-002 の印まで
@@ -14,3 +14,5 @@ details:
     scope: dg sync --resolve remote|local で競合したフィールドだけ選んだ側を採り、rebase・基準の更新・照合・push まで 1 回で行う。CONFLICT_REMEDY・guide overview・SY-4 も直す
     approach: t604 のドライバに採る側を環境変数などで渡し、rebase 中の ours が upstream になる点を対称に扱う。基準の更新は書き込みのロックの中で行う
     tier: heavy
+approved_by: eiki.kitajima/agent
+approved_at: 2026-11-09T09:46:58Z
