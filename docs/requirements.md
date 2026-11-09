@@ -168,7 +168,7 @@ updated_at: 2026-10-31T05:10:00Z
 - 値は「個人 > チーム > 既定」の順に読み、どの入口も Core 経由で同じ値を使う。個人のファイルの無効な項目と値は無視して `dg validate` が警告する（細部は `dg config set --help`、理由は [ADR-027](adr/ADR-027-screen-vscode-writes-and-asks.md)）
 
 - `actor.human_only`：agent が呼ぶと `TRANSITION_REJECTED` で拒否するコマンド名の一覧（検査しない呼び出しは `packages/core/src/commands/define.ts`）。チケットの遷移を人に限るのは Workflow の `by`（WF-1）
-- `models.*`：Plan の段階（PL-1）に対応するモデル名。手順（`dg guide work`）がサブエージェントに渡す
+- `models.*`：Plan の段階（PL-1）に対応するモデル名。`dg next` が implement・fix の手の `model` に返す（EX-5）
 
 ## 6. 機能要件
 
@@ -254,7 +254,7 @@ updated_at: 2026-10-31T05:10:00Z
 - EX-2 終了していない Run は一覧で見え、`interrupted` として閉じられる
 - EX-3 段階に進める既定の手続きは Core が持つ。チケットは `dg next`・`dg gate`・`dg brief`、Iteration の流れは `dg flow next` が返し、会話の中にしかない事実は前の結果の `resume` を写して受け取る。段階は保存せず都度求め、`ticket show` の `stage` も同じ（理由は ADR-011 と [ADR-030](adr/ADR-030-flow-and-guide-in-core.md)）
 - EX-4 Workflow が `by: [human]` で人に限った遷移は、エージェントからは行えない
-- EX-5 `dg next` は読み取りだけで、次の 1 手と開く step・呼ぶコマンド・人に聞くことを、サブエージェントに渡す手では brief と合わせて返す。修正ループの上限を超えたなど人の判断が要るチケットは人を待つ手になる。着手できるチケットは PL-6 か `ticket list --ready` に従う（EX-3）
+- EX-5 `dg next` は読み取りだけで、次の 1 手と開く step・呼ぶコマンド・人に聞くことを、サブエージェントに渡す手では brief と合わせて返し、サブエージェントを起動する implement・fix の手では起動するモデル（`model`）を返す。修正ループの上限を超えたなど人の判断が要るチケットは人を待つ手になる。着手できるチケットは PL-6 か `ticket list --ready` に従う（EX-3）
 - EX-6 エージェントが PR を出す・マージする道は `dg pr ready`・`dg pr merge` で、`dg gate` を満たすときだけ gh を呼び、満たさなければ満たさない条件と理由を `GATE_FAILED` で返す。満たさないまま進めるときは人が gh を打つ（AG-10。条件は `dg gate --help`、判定しない検査は `dg guide review`、理由は [ADR-026](adr/ADR-026-guard-pr-and-data.md)）
 - EX-7 `--auto` は戻せる判断を自動で選ぶ（Plan の承認を含む。`approved_by` は agent）。自動でマージするのは `dg guide all --auto` で `auto.merge` が true のときの品質ゲートを通った PR だけで、ほかのマージとリリースの PR は人を待つ。やめる（abandoned・done の取り消し）は常に人が決め、Core は人を待つ手を返す（各手のやり方は `dg guide all`・`work`・`review`）
 

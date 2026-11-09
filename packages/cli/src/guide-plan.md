@@ -39,7 +39,7 @@ dg --json --actor agent plan create t12 t13 t14 t15 \
 
 - 並べた順が実行順の目安。`--after t15=t13,t14` は「t15 を t13・t14 の後に進める」で、計画の中だけの待ち（チケットの `depends_on` とは別）。並行できるものは互いに after を書かない
 - `--scope`・`--approach` はチケットごとに 1 文で書く。着手するときに `plan show` の `details` で読み返す
-- `--tier` はチケットの難しさの段階で、どのモデルで実装するか（`config.yaml` の `models.*`。`dg guide work`）を決める。light：文書・設定・文言だけ。heavy：設計の判断・データの形・複数パッケージにまたがる・原因の分からない不具合。standard：それ以外。迷ったら重い方にする。省くと standard と同じに扱う
+- `--tier` はチケットの難しさの段階で、どのモデルで実装するか（`config.yaml` の `models.*`。`dg next` の `model` に出る）を決める。light：文書・設定・文言だけ。heavy：設計の判断・データの形・複数パッケージにまたがる・原因の分からない不具合。standard：それ以外。迷ったら重い方にする。省くと standard と同じに扱う
 - done・abandoned のチケットと、別の開いた Plan に入っているチケット（`ticket show` の `plan` が空でないもの）は入れられない（`REJECTED`）。別の Plan に入っていれば、その Plan を閉じてよいか人に確かめる
 - 依存が足りなければ `dg --json --actor agent ticket update <id> --depends-on t12,t13` で直す。`--depends-on` は一覧を**置き換える**ので、残す依存も全部指定する（`--label` も同じ）。循環は拒否される
 - 計画の途中で新しい作業が見つかったら、勝手に進めず `dg guide import` の手順で起票を提案する
