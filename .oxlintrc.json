@@ -64,6 +64,7 @@
         "packages/core/src/workflow/**",
         "packages/core/src/model/**",
         "packages/core/src/git/**",
+        "packages/core/src/guide/**",
         "packages/core/src/run/**",
         "packages/core/src/agents/**",
         "packages/core/src/errors.ts"
