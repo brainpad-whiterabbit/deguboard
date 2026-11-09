@@ -1,4 +1,4 @@
-// E2E：CLI・HTTP・Webview（postMessage）の 3 経路から同じコマンドを通し、結果の JSON と deguboard ブランチのコミットが一致することを確かめる（CL-6、ADR-007）。
+// E2E：CLI・HTTP・Webview（postMessage）の 3 経路から同じコマンドを通し、結果の JSON と deguboard ブランチのコミットが一致することを確かめる（CL-6、ADR-033）。
 // 経路ごとに bare リモート付きの一時リポジトリを作り、同じ手順を流して最後に比べる。
 // 手順を足すときは STEPS に input（HTTP・Webview に渡す形）と argv（CLI に渡す形）の両方を書く。
 // 前の手順の結果（run.start が返した Run の ID）を使う手順は、input と argv を Vars を受ける関数にする

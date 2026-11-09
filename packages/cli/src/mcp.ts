@@ -1,4 +1,4 @@
-// dg mcp：core の commands を MCP のツールに写し、stdio で配信する（AG-4、ADR-007）。ロジックはここに書かない。
+// dg mcp：core の commands を MCP のツールに写し、stdio で配信する（AG-4、ADR-033）。ロジックはここに書かない。
 //   - ツールの一覧と入力スキーマは、コマンド定義（名前・要約・Zod の入力・write）から生成する。コマンドを足せばツールも増える
 //   - 実行は core の createLocalClient（文脈の管理・再走査・直列化・入力の検証・human_only の検査）に任せる
 //   - 主体は常に agent（<ユーザ>/agent）。結果は CLI の --json と同じ形（ok・data・warnings・write / error）

@@ -1,4 +1,4 @@
-// 主体 ID の形の写しを照らすためだけに core の実行時のコード（actorIdOf）を取り込む（画面のコードは型だけを取る。ADR-007）
+// 主体 ID の形の写しを照らすためだけに core の実行時のコード（actorIdOf）を取り込む（画面のコードは型だけを取る。ADR-033）
 import { actorIdOf } from "@deguboard/core";
 import { describe, expect, it } from "vitest";
 import { assigneeMarkOf } from "./assignee-mark.js";

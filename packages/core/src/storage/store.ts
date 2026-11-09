@@ -1,7 +1,8 @@
-// deguboard worktree を走査してメモリ上に索引を作り、読み書きの入口になる（ADR-007「索引はメモリ上に持つ」）。
+// deguboard worktree を走査してメモリ上に索引を作り、読み書きの入口になる（ADR-033）。
 // 自分の書き込みは即座に索引へ反映し（write-through）、Git の取り込みの後は rescan() で作り直す。
 // rescan() はファイルごとの inode・大きさ・更新時刻（ns）・変更時刻（ns）を覚え、変わっていないファイルは読み直さずに前の結果を使う。
-// ファイルシステムの時刻の刻みは粗く inode も使い回されるので、更新が新しい（RACY_WINDOW_NS の内の）ファイルは覚えずに毎回読む（git の racy-clean と同じ考え方）
+// ファイルシステムの時刻の刻みは粗く inode も使い回されるので、更新が新しい（RACY_WINDOW_NS の内の）ファイルは覚えずに毎回読む（git の racy-clean と同じ考え方）。
+// cacheDir を渡すと、覚えた結果をディスクに残して次のプロセスが開くときに使う（store-cache.ts）。印で確かめてから使うのはメモリのときと同じ
 
 import { readdir, readFile, rename, rm, stat } from "node:fs/promises";
 import path from "node:path";
@@ -51,6 +52,13 @@ import {
   ticketPath,
   workflowPath,
 } from "./paths.js";
+import {
+  loadStoreCache,
+  saveStoreCache,
+  storeCacheFile,
+  storeCacheKey,
+  type CachedRead,
+} from "./store-cache.js";
 import { newYamlDocument, parseYamlDocument, patchYamlDocument, stringifyYaml } from "./yaml.js";
 
 export interface WorkflowEntry {
@@ -117,15 +125,6 @@ const collections = {
 export type EntityKind = keyof typeof collections;
 
 /**
- * 1 ファイルの読みの結果を、読んだときの印（stat）と一緒に覚えておく。
- * 覚えた結果（Doc・config・Workflow・Issue）は次の rescan でもそのまま索引に戻すので、書き換えない（更新は複製して作る）
- */
-interface CachedRead {
-  stamp: string;
-  value: unknown;
-}
-
-/**
  * 更新時刻・変更時刻が rescan を始めた時刻からこの幅の内にあるファイルは覚えない。
  * 同じ刻みの中で同じ大きさに書き直されると印が変わらないため。FAT・SMB の 2 秒刻みも見込んで 3 秒にする。
  * ファイルの時刻と Date.now が同じ時計であることが前提（NFS・SMB でサーバの時計が遅れていると効かない）
@@ -149,6 +148,11 @@ export interface StoreOptions extends WorkflowValidationOptions {
    * 上書きできる項目（model/config.ts の scope が local）だけをチームの値に重ねる
    */
   localDir?: string | undefined;
+  /**
+   * 読みの結果を残すディレクトリ（deguboard-local/store-cache/ の絶対パス）。省くとディスクに残さず、開くたびにすべて読む。
+   * 残した結果は、ファイルの印が同じときだけ使う（store-cache.ts）
+   */
+  cacheDir?: string | undefined;
 }
 
 export class Store {
@@ -172,24 +176,35 @@ export class Store {
   readonly runs = new Map<RunId, Doc<Run>>();
   readonly workflows = new Map<string, WorkflowEntry>();
   lastScan: ScanStats = { read: 0, reused: 0 };
-  /** 相対パスごとの読みの結果。rescan() で見つからなくなったファイルの分は捨てる */
-  private readonly readCache = new Map<string, CachedRead>();
+  /**
+   * 相対パスごとの読みの結果。rescan() で見つからなくなったファイルの分は捨てる。
+   * 覚えた結果（Doc・config・Workflow・Issue）は次の rescan でもそのまま索引に戻すので、書き換えない（更新は複製して作る）
+   */
+  private readCache = new Map<string, CachedRead>();
+  /** ディスクのキャッシュの場所と鍵。cacheDir を渡されなければ undefined */
+  private diskCache: { file: string; key: string; loaded: boolean } | undefined;
 
   private constructor(
     readonly root: string,
-    /** Workflow の検証に渡す。Action の一覧は入口が渡す（ADR-007） */
+    /** Workflow の検証に渡す。Action の一覧は入口が渡す（ADR-033） */
     private readonly workflowOptions: WorkflowValidationOptions,
     /** 個人の config.yaml の絶対パス。localDir を渡されなければ undefined */
     private readonly localConfigPath: string | undefined,
   ) {}
 
   static async open(root: string, options: StoreOptions = {}): Promise<Store> {
-    const { localDir, ...workflowOptions } = options;
+    const { localDir, cacheDir, ...workflowOptions } = options;
     const store = new Store(
       root,
       workflowOptions,
       localDir ? path.join(localDir, LOCAL_CONFIG_FILE) : undefined,
     );
+    if (cacheDir) {
+      const key = await storeCacheKey(root, workflowOptions.actions);
+      const file = storeCacheFile(cacheDir, key);
+      store.readCache = await loadStoreCache(file, key);
+      store.diskCache = { file, key, loaded: store.readCache.size > 0 };
+    }
     await store.rescan();
     return store;
   }
@@ -203,6 +218,8 @@ export class Store {
     const settledBefore = BigInt(Date.now()) * 1_000_000n - RACY_WINDOW_NS;
     const seen = new Set<string>();
     const stats: ScanStats = { read: 0, reused: 0 };
+    // 覚えた結果が変わったか（ディスクのキャッシュを書き直すか）
+    let changed = false;
     const cached = async <T>(relPath: string, load: () => Promise<T>): Promise<T> => {
       seen.add(relPath);
       const stamp = await this.stampOf(relPath);
@@ -213,9 +230,10 @@ export class Store {
       }
       stats.read++;
       const value = await load();
-      if (stamp && stamp.changedNs < settledBefore)
+      if (stamp && stamp.changedNs < settledBefore) {
         this.readCache.set(relPath, { stamp: stamp.key, value });
-      else this.readCache.delete(relPath);
+        changed = true;
+      } else if (this.readCache.delete(relPath)) changed = true;
       return value;
     };
     // Issue の順は並びの順に固定する（読み直すファイルの数で順が揺れないように）
@@ -231,8 +249,18 @@ export class Store {
       this.readWorkflows(cached),
     ]);
     this.issues = issues.flat();
-    for (const key of this.readCache.keys()) if (!seen.has(key)) this.readCache.delete(key);
+    for (const key of this.readCache.keys()) {
+      if (seen.has(key)) continue;
+      this.readCache.delete(key);
+      changed = true;
+    }
     this.lastScan = stats;
+    const disk = this.diskCache;
+    if (disk && changed) {
+      // 鍵の違う古いキャッシュの掃除は、読めるキャッシュが無かったとき（版を変えた後など）だけにする
+      await saveStoreCache(disk.file, disk.key, this.readCache, !disk.loaded);
+      disk.loaded = true;
+    }
   }
 
   /**

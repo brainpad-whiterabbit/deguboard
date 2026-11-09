@@ -1,4 +1,4 @@
-// Agent Adapter の形（AG-5・MT-1、ADR-029・ADR-007）。
+// Agent Adapter の形（AG-5・MT-1、ADR-029・ADR-033）。
 // 特定の AI 製品に依存する処理は adapters/ に閉じ、Core の汎用部分はこの形と agents/index.ts の一覧だけを見る
 
 import type { Run, RunTools, RunUsage } from "../model/run.js";

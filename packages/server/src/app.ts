@@ -1,4 +1,4 @@
-// core の commands を HTTP に写す（ADR-007）。ロジックはここに書かない。
+// core の commands を HTTP に写す（ADR-033）。ロジックはここに書かない。
 //   GET  /api/commands            コマンドの一覧（名前・要約・入力の JSON Schema）
 //   POST /api/commands/<name>     { input } を渡して CommandResult を返す
 //   GET  /api/status              同期の状態（未 push・未取り込み・読めないファイル）

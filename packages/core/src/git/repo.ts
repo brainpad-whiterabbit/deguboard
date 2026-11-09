@@ -1,4 +1,4 @@
-// リポジトリの位置の解決（requirements.md 5.1、ADR-002）
+// リポジトリの位置の解決（requirements.md 5.1、ADR-034）
 
 import { mkdir } from "node:fs/promises";
 import os from "node:os";
