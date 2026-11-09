@@ -16,7 +16,7 @@ async function fixture(): Promise<Fixture> {
 }
 
 describe("dg serve / dg open", () => {
-  it("serve と open の --help は開発用と書く（画面は VS Code 拡張で開く。ADR-027）", () => {
+  it("serve と open の --help は開発用と書く（画面は VS Code 拡張で開く。UI-12）", () => {
     const program = new Command("dg");
     addServeCommands(program, { streams: { out: () => {}, err: () => {} }, resolveCwd: () => "." });
     for (const name of ["serve", "open"]) {

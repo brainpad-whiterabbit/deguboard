@@ -156,7 +156,7 @@ describe("画面", () => {
     expect(screen.queryByText("ログイン")).toBeNull();
     const guide = document.querySelector(".board-empty")!;
     expect(guide.querySelector("a")!.getAttribute("href")).toBe("#/backlog");
-    // Iteration を作るのはエージェントに頼む（ADR-027）ので、作るボタンは出さない
+    // Iteration を作るのはエージェントに頼む（UI-7）ので、作るボタンは出さない
     expect(screen.queryByRole("button", { name: "+ Iteration を作る" })).toBeNull();
     expect(guide.querySelector("button")).toBeNull();
     const chips = [...document.querySelectorAll(".iteration-chip")].map((c) => c.textContent);
@@ -1072,7 +1072,7 @@ describe("画面", () => {
     expect(window.location.hash).toBe("#/backlog");
   });
 
-  // Run の画面はない（ADR-027）ので、Run を出すのはパネルのチケット詳細だけ
+  // Run の画面はない（UI-4）ので、Run を出すのはパネルのチケット詳細だけ
   it.each(["#/tickets/t3"])(
     "拡張ホストから reload の event が来ると、%s の Run を取り直す（ターミナルの dg run start はチケットを変えない）",
     async (hash) => {
@@ -1840,7 +1840,7 @@ describe("画面", () => {
     expect(none!.querySelector("summary .name")!.textContent).toBe("Iteration なし");
     expect(none!.querySelector("summary .count")!.textContent).toBe("0 件");
     expect(none!.querySelector("summary .name")!.children).toHaveLength(0);
-    // Iteration を作るのはエージェントに頼む（ADR-027）
+    // Iteration を作るのはエージェントに頼む（UI-7）
     expect(screen.queryByRole("button", { name: "Iteration を作る" })).toBeNull();
   });
 
@@ -2327,7 +2327,7 @@ describe("画面", () => {
     await screen.findByText("ログイン");
     const group = screen.getByRole("group", { name: "Iteration" });
     const chips = [...group.querySelectorAll<HTMLButtonElement>(".iteration-chip")];
-    // 先頭に すべて、閉じた Iteration は出さず番号順に並べる（作る「+」は置かない。ADR-027）
+    // 先頭に すべて、閉じた Iteration は出さず番号順に並べる（作る「+」は置かない。UI-7）
     expect(chips).toHaveLength(4);
     expect(chips[0]!.classList.contains("all")).toBe(true);
     expect(chips[1]!.classList.contains("active")).toBe(true);

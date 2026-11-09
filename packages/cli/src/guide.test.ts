@@ -362,7 +362,7 @@ describe("dg guide", () => {
       "## 終わり方",
     ])
       expect(review).toContain(heading);
-    // 回数と Run の説明は dg が持つ。guide には書かない（ADR-011）
+    // 回数と Run の説明は dg が持つ。guide には書かない（EX-3）
     for (const word of ["2 回まで", "3 回まで", "Run の分け方", "--agent", "run start", "--no-run"])
       expect(review, word).not.toContain(word);
     const fix = section(review, "## 修正ループ（親）");

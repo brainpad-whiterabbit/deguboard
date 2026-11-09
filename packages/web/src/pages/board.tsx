@@ -555,7 +555,7 @@ function FilterChips({
 
 /**
  * カンバンに出ているチケットの進み。数え方は core の progressOf（EP-3）の写しで、同じ結果になることを board.test.ts で確かめる
- * （web は core の実行時のコードを取り込まない。ADR-033）
+ * （web は core の実行時のコードを取り込まない）
  */
 export function ticketProgress(tickets: readonly Pick<Ticket, "status">[]): Progress {
   const by_status: Record<Status, number> = {
