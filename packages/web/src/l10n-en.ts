@@ -560,7 +560,7 @@ export const CONFIG_DESCRIPTIONS_EN: Readonly<Record<string, string>> = {
   "actions.shell":
     "Whether to allow the arbitrary shell Action (shell). Even when allowed, each run asks for confirmation (AG-7)",
   "actions.test":
-    "Argument array of the command the test Action (run_tests) runs (e.g. [mise, run, check]). When empty, run_tests is rejected",
+    "Argument array of the command that the test Action (run_tests) and the quality gate's check (dg gate, dg pr ready, dg pr merge) run (e.g. [mise, run, check]). When empty, run_tests is rejected and the gate's check does not judge (the repo's own checks are confirmed instead)",
   "auto.merge":
     "Whether dg guide all --auto merges PRs that pass the quality gate (dg gate --for merge) automatically. By default a person merges",
   "auto.decisions":

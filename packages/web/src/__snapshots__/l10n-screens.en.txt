@@ -280,7 +280,7 @@ Test command
 actions.test
 [title] Default: Empty
 Modified
-Argument array of the command the test Action (run_tests) runs (e.g. [mise, run, check]). When empty, run_tests is rejected
+Argument array of the command that the test Action (run_tests) and the quality gate's check (dg gate, dg pr ready, dg pr merge) run (e.g. [mise, run, check]). When empty, run_tests is rejected and the gate's check does not judge (the repo's own checks are confirmed instead)
 Empty
 [aria-label] Items
 [placeholder] Add item
