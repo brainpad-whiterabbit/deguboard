@@ -3,6 +3,7 @@ import type { ReviewFinding } from "../model/run.js";
 import {
   findingText,
   latestRoundSince,
+  matchFindings,
   splitFindings,
   UNFIXED_LIGHT_BEGIN,
   UNFIXED_LIGHT_END,
@@ -84,6 +85,38 @@ describe("見直しの指摘から手直しに渡すものを選ぶ（t600）", 
       ),
     ).toBe("[重い] a.ts:3 (不具合)：x y。直し方：z");
     expect(findingText(finding({ category: "好み", reason: "r" }), "en")).toBe("[light] 好み: r");
+  });
+});
+
+describe("親が手直しに渡した指摘（t639）", () => {
+  it("手直しに渡した軽い指摘は、直したかによらず直さなかった軽い指摘の節から外す。渡していない同じ文の指摘は残す", () => {
+    const handed = finding({ category: "参考節との食い違い", file: "src/b.ts", reason: "渡した" });
+    const kept = finding({ category: "言い回し", reason: "渡さなかった" });
+    const rounds = [
+      { at: "2026-11-09T03:00:00Z", findings: [handed, kept], handed: [handed] },
+      // 次の回に同じ指摘が出ても、手直しに渡したので外す
+      { at: "2026-11-09T04:00:00Z", findings: [handed], handed: undefined },
+    ];
+    expect(unfixedLightLines(rounds, "2026-11-09T01:00:00Z", ["規約の違反"])).toEqual([
+      "[軽い] 言い回し：渡さなかった",
+    ]);
+  });
+
+  it("作業ブランチより前の回で渡した指摘は、今の作業の節からは外さない", () => {
+    const old = finding({ reason: "前の作業" });
+    const rounds = [{ at: "2026-11-09T01:00:00Z", findings: [old], handed: [old] }];
+    expect(unfixedLightLines(rounds, "2026-11-09T02:00:00Z", ["規約の違反"])).toEqual([]);
+  });
+
+  it("照合は severity を見ず、一覧にない指摘を unmatched に返す", () => {
+    const listed = finding({ severity: "light", category: "言い回し", reason: "一覧" });
+    const other = finding({ category: "言い回し", reason: "一覧にない" });
+    const { matched, unmatched } = matchFindings(
+      [listed],
+      [{ ...listed, severity: "heavy" }, other],
+    );
+    expect(matched).toEqual([listed]);
+    expect(unmatched).toEqual([other]);
   });
 });
 

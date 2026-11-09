@@ -29,7 +29,7 @@ import {
 } from "../model/run.js";
 import { AbortWrite, withWrite } from "../git/write.js";
 import { lastPushedAt } from "../git/facts.js";
-import { isHeavyFinding } from "../run/findings.js";
+import { findingText, isHeavyFinding, latestRoundSince, matchFindings } from "../run/findings.js";
 import {
   amendRunning,
   appendRetryReasons,
@@ -42,8 +42,10 @@ import {
   finishRun,
   isLiveSubagent,
   pruneTranscripts,
+  readReviewFindings,
   readRunningRuns,
   readTranscriptPaths,
+  setHandedFindings,
   startRun,
   takePendingReview,
   TRANSCRIPT_RETENTION_DAYS,
@@ -957,6 +959,52 @@ export const runRetryReason = defineCommand({
   },
 });
 
+/**
+ * 親が手直しに渡す指摘を、作業ブランチの最新の見直しの回に記録する（t639）。渡した軽い指摘は、手直しの文の直す指摘に入り、
+ * dg pr ready の「直さなかった軽い指摘」から外れる。一覧にない指摘は使い方の誤り（手直しの文と PR の本文を誤らせないため）
+ */
+export const runHandoff = defineCommand({
+  name: "run.handoff",
+  positionals: ["ticket"],
+  group: "run",
+  summary:
+    "親が手直しに渡す指摘を、作業ブランチの最新の見直しの回に記録する（deguboard-local。Git には書かない）。渡した指摘は、手直しの文（brief --role fix）の直す指摘に入り、" +
+    "直したかによらず dg pr ready の「直さなかった軽い指摘」から外れる（直さずに返したものは親が報告に書く）。指摘は見直しの一覧（run review-result）の 1 件と同じ形で、" +
+    "最新の見直しの一覧にあるものだけを受け付ける（ない・見直しの一覧がないなら使い方の誤り）。呼び直すと置き換える",
+  input: z.object({
+    ticket: ticketRef,
+    findings: z
+      .array(reviewFindingSchema)
+      .min(1)
+      .meta({ cliFile: "findings-file" })
+      .describe(
+        "手直しに渡す指摘の一覧。最新の見直しの一覧から写す（JSON の配列。1 件は review-result と同じ形）",
+      ),
+  }),
+  write: true,
+  needs: "store",
+  async run(ctx, input) {
+    const ticket = ctx.store.require("ticket", input.ticket).data;
+    const stored = await readReviewFindings(ctx.repo, ticket.id);
+    const round = stored && latestRoundSince(stored.rounds, ticket.branch_at);
+    if (!round?.findings)
+      throw new OperationError(
+        "VALIDATION_FAILED",
+        `${ticket.id} の作業ブランチの見直しの一覧がない`,
+        "先に dg run review-result --findings-file で見直しの指摘を記録する",
+      );
+    const { matched, unmatched } = matchFindings(round.findings, input.findings);
+    if (unmatched.length > 0)
+      throw new OperationError(
+        "VALIDATION_FAILED",
+        "手直しに渡す指摘のうち、最新の見直しの一覧にないものがある",
+        unmatched.map((f) => `- ${findingText(f, "ja")}`).join("\n"),
+      );
+    await setHandedFindings(ctx.repo, ticket.id, ticket.branch_at, matched);
+    return ok({ ticket: ticket.id, handed: matched.length });
+  },
+});
+
 export const runList = defineCommand({
   name: "run.list",
   group: "run",
@@ -1207,6 +1255,7 @@ export const runCommands = [
   runStart,
   runFinish,
   runReviewResult,
+  runHandoff,
   runRetryReason,
   runList,
   runRefresh,

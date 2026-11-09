@@ -8,8 +8,9 @@ import { resetGhCache } from "../git/facts.js";
 import type { Run } from "../model/run.js";
 import { openContext } from "./context.js";
 import { runCommand, type CommandContext } from "./define.js";
+import { brief } from "./brief.js";
 import { prMerge, prReady, type PrAdvanceView } from "./pr.js";
-import { runFinish, runReviewResult, runStart } from "./run.js";
+import { runFinish, runHandoff, runReviewResult, runStart } from "./run.js";
 import { configSet, init } from "./setup.js";
 import { ticketCheck, ticketClaim, ticketCreate } from "./ticket.js";
 
@@ -427,6 +428,76 @@ describe("dg pr ready・dg pr merge（t545）", () => {
     const body = await editedBody();
     expect(body).toContain("今回の軽い");
     expect(body).not.toContain("前の作業");
+  });
+
+  it("親が手直しに渡した軽い指摘は、直したかによらず PR の本文に書かない。渡さなかった軽い指摘は載る（t639）", async () => {
+    const { ctx, editedBody } = await prepared();
+    await reviewRound(ctx, 60, [
+      {
+        severity: "light",
+        category: "参考節との食い違い",
+        file: "src/b.ts",
+        reason: "渡した広がり",
+      },
+      { severity: "light", category: "言い回し", file: "src/c.ts", reason: "渡さなかった言い回し" },
+    ]);
+    await runCommand(runHandoff, ctx, {
+      ticket: "t1",
+      findings: [
+        {
+          severity: "light",
+          category: "参考節との食い違い",
+          file: "src/b.ts",
+          reason: "渡した広がり",
+        },
+      ],
+    });
+    const ready = (await runCommand(prReady, ctx, { ticket: "t1" })).data as PrAdvanceView;
+    expect(ready.noted).toBe(1);
+    const body = await editedBody();
+    expect(body).toContain("- [軽い] src/c.ts (言い回し)：渡さなかった言い回し");
+    expect(body).not.toContain("渡した広がり");
+  });
+
+  it("手直しに渡す指摘は最新の見直しの一覧にあるものだけ。ないものは VALIDATION_FAILED で、一覧がなければ同じく止まる（t639）", async () => {
+    const { ctx } = await prepared();
+    const none = await rejection(
+      runCommand(runHandoff, ctx, {
+        ticket: "t1",
+        findings: [
+          { severity: "light", category: "言い回し", file: "src/x.ts", reason: "一覧なし" },
+        ],
+      }),
+    );
+    expect(none!.code).toBe("VALIDATION_FAILED");
+    await reviewRound(ctx, 60, [{ severity: "light", category: "言い回し", reason: "一覧の軽い" }]);
+    const err = await rejection(
+      runCommand(runHandoff, ctx, {
+        ticket: "t1",
+        findings: [{ severity: "light", category: "言い回し", reason: "一覧にない" }],
+      }),
+    );
+    expect(err!.code).toBe("VALIDATION_FAILED");
+    expect(err!.detail).toContain("一覧にない");
+  });
+
+  it("手直しに渡した軽い指摘は、手直しの文（brief --role fix）の直す指摘に入る（t639）", async () => {
+    const { ctx } = await prepared();
+    await reviewRound(ctx, 60, [
+      { severity: "light", category: "言い回し", file: "src/c.ts", reason: "渡した言い回し" },
+      { severity: "light", category: "言い回し", file: "src/d.ts", reason: "渡さない言い回し" },
+    ]);
+    await runCommand(runHandoff, ctx, {
+      ticket: "t1",
+      findings: [
+        { severity: "light", category: "言い回し", file: "src/c.ts", reason: "渡した言い回し" },
+      ],
+    });
+    const fix = (await runCommand(brief, ctx, { ticket: "t1", role: "fix" })).data as {
+      text: string;
+    };
+    expect(fix.text).toContain("渡した言い回し");
+    expect(fix.text).not.toContain("渡さない言い回し");
   });
 
   it("本文の読み取りの失敗は本文を書き足せなかったと OperationError で返し、ready を呼ばない（t600）", async () => {

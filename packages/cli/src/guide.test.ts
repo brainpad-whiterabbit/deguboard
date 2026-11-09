@@ -182,6 +182,10 @@ describe("dg guide", () => {
       // 手直しが直さずに返した理由は dg が書けないので、親が報告に書く（t600）
       "手直しが直さずに返した指摘と理由は dg が書けない",
       "親が報告に書く",
+      // 親が手直しに渡す軽い指摘は run handoff で dg に伝え、直したかによらず本文に載らない（t639）
+      "`dg --json --actor agent run handoff <id> --findings-file <ファイル>`",
+      "直したかによらず PR の本文の「直さなかった軽い指摘」から外れる",
+      "手直しに渡した指摘（`run handoff`）は、直したかによらず載らない",
     ])
       expect(fix, word).toContain(word);
     expect(fix).not.toContain("gh pr edit");
