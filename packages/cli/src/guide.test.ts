@@ -184,18 +184,18 @@ describe("dg guide", () => {
     expect(section(audit, "## 同じ指摘を繰り返さない")).toContain("テストかコメント");
   });
 
-  it("work は PR の要らない作業を --without-branch で claim し、確かめたら done、残れば review と案内する。claim の前に「claim の前後」の Iteration を案内し、選び方は書き写さず、今の設定を埋める", async () => {
+  it("work は PR の要らない作業を --without-branch で claim し、確かめたら done、残れば review と案内する。claim の warnings は「claim の前後」に任せ、Iteration の選び方は書き写さず、今の設定を埋める", async () => {
     const work = await readGuide("work");
     const noBranch = section(work, "## PR の要らない作業");
     expect(noBranch).toContain("ticket claim <id> --without-branch");
     expect(noBranch).toContain("ticket move <id> done");
     expect(noBranch).toContain("ticket move <id> review");
-    expect(noBranch.indexOf("「claim の前後」")).toBeLessThan(
-      noBranch.indexOf("ticket claim <id> --without-branch"),
-    );
+    expect(noBranch).toContain("「claim の前後」");
     expect(noBranch).not.toContain("iteration add <S> <id>");
     const before = (text: string) => section(text, "## claim の前後");
-    expect(before(work)).toContain("iteration add <S> <id>");
+    // 入れ先の選び方は claim のコード（ticket claim --help）が正本で、guide に書き写さない（ST-3）
+    expect(before(work)).toContain("ticket claim --help");
+    expect(before(work)).not.toContain("start` が最も早い");
     expect(before(fillPlaceholders(work, defaultConfig()))).toContain("今の設定：`false`");
     expect(
       before(fillPlaceholders(work, { ...defaultConfig(), lint: { require_iteration: true } })),
@@ -230,28 +230,20 @@ describe("dg guide", () => {
     });
   });
 
-  it("work は lint.require_iteration が true なら claim の前後で Iteration に入れて始め、拒否されたら読み直して planned のままなら人に頼むと案内し、check は lint_iteration_missing の直す案を work の「claim の前後」に合わせて示す。今の設定は両方で埋める", async () => {
+  it("work は Iteration への追加と開始、worktree の作成を claim に任せ、warnings が出たら人に頼むと案内し、親に git worktree と iteration add・start を打たせない。check は lint_iteration_missing の直す案を claim と同じ規則で示す。今の設定は両方で埋める", async () => {
     const work = await readGuide("work");
     const before = section(work, "## claim の前後");
-    for (const word of [
-      "iteration add <S> <id>",
-      "lint_iteration_missing",
-      "iteration start <S>",
-      "拒否されたら",
-      "iteration show",
-      "active なら何もせず",
-      "planned のまま",
-      "人に頼む",
-      "作業は続ける",
-    ])
+    for (const word of ["`warnings`", "lint_iteration_missing", "人に頼み", "作業は続ける"])
       expect(before, word).toContain(word);
-    expect(before.indexOf("iteration add")).toBeLessThan(before.indexOf("iteration start"));
+    for (const text of [work, await readGuide("parallel")])
+      for (const word of ["git worktree add", "iteration add <S>", "iteration start <S>"])
+        expect(text, word).not.toContain(word);
     const check = await readGuide("check");
     for (const word of [
       "lint_iteration_missing",
       "iteration add <S> <id>",
       "人に聞く",
-      "claim の前後",
+      "ticket claim --help",
     ])
       expect(check, word).toContain(word);
     for (const text of [work, check]) {
@@ -420,11 +412,11 @@ describe("dg guide", () => {
   it("初期化前は既定値で埋め、初期化後は config.yaml の値で埋める", async () => {
     const local = await createLocalOnlyRepo();
     cleanups.push(local.cleanup);
-    const before = await dg(local.dir, ["--json", "guide", "work"]);
-    expect(JSON.parse(before.out).data).toMatchObject({ topic: "work", initialized: false });
+    const before = await dg(local.dir, ["--json", "guide", "audit"]);
+    expect(JSON.parse(before.out).data).toMatchObject({ topic: "audit", initialized: false });
     expect(before.out).toContain("origin/main");
     await dg(local.dir, ["init", "--base-branch", "develop"]);
-    const after = await dg(local.dir, ["guide", "work"]);
+    const after = await dg(local.dir, ["guide", "audit"]);
     expect(after.out).toContain("origin/develop");
     expect(after.out).not.toContain("origin/main");
   });

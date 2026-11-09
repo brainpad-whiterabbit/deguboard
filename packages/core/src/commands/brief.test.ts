@@ -217,7 +217,7 @@ describe("dg brief と dg next の文（EX-3）", () => {
 
   it("実行中の Run を待つ手（implement・review・fix）では文を出さない（貼ると Run が重なる）", async () => {
     const ctx = await prepared();
-    await runCommand(ticketClaim, ctx, { ticket: "t1", agent: "claude-code" });
+    await runCommand(ticketClaim, ctx, { no_worktree: true, ticket: "t1", agent: "claude-code" });
     const waiting = (await runCommand(next, ctx, { ticket: "t1" })).data as NextStep;
     expect(waiting).toMatchObject({ kind: "implement", brief: null });
     expect(waiting.running_run).not.toBeNull();

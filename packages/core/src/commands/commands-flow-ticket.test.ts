@@ -57,9 +57,9 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
     expect(
       (await runCommand(ticketMove, human, { ticket: "t1", status: "done" })).data.status,
     ).toBe("done");
-    expect((await runCommand(ticketClaim, agent, { ticket: "t2" })).data.status).toBe(
-      "in_progress",
-    );
+    expect(
+      (await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t2" })).data.status,
+    ).toBe("in_progress");
     const dropped = (await runCommand(ticketMove, agent, { ticket: "t2", status: "abandoned" }))
       .data;
     expect(dropped.status).toBe("abandoned");
@@ -76,7 +76,9 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
       code: "TRANSITION_REJECTED",
       message: "todo から done への遷移は Workflow がこの主体に許していない",
     });
-    await expect(runCommand(ticketClaim, human, { ticket: "t4" })).rejects.toMatchObject({
+    await expect(
+      runCommand(ticketClaim, human, { no_worktree: true, ticket: "t4" }),
+    ).rejects.toMatchObject({
       code: "TRANSITION_REJECTED",
       message: "todo から in_progress への遷移の条件を満たしていない: deps_done",
     });
@@ -94,7 +96,7 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
     // 依存先が abandoned なら deps_done は満たされ、着手できる（WF-2）
     const ready = await runCommand(ticketList, human, { ready: true });
     expect(ready.data.map((t) => t.id)).toEqual(["t4"]);
-    const claimed = await runCommand(ticketClaim, human, { ticket: "t4" });
+    const claimed = await runCommand(ticketClaim, human, { no_worktree: true, ticket: "t4" });
     expect(claimed.data.status).toBe("in_progress");
   });
 
@@ -151,7 +153,7 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
     const f = await fixture();
     const eiki = await initialized(f.cloneA);
     await runCommand(ticketCreate, eiki, { title: "A" });
-    await runCommand(ticketClaim, eiki, { ticket: "t1", branch: "feature/a" });
+    await runCommand(ticketClaim, eiki, { no_worktree: true, ticket: "t1", branch: "feature/a" });
     const other = await openContext({ cwd: f.cloneA, actor: { kind: "human", user: "other" } });
     await expect(runCommand(ticketUnclaim, other, { ticket: "t1" })).rejects.toMatchObject({
       code: "REJECTED",
@@ -164,7 +166,7 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
 
     // eiki の AI が claim したものは eiki 本人が force なしで外せる
     const eikiAgent = await openContext({ cwd: f.cloneA, actor: { kind: "agent", user: "eiki" } });
-    const byAgent = await runCommand(ticketClaim, eikiAgent, { ticket: "t1" });
+    const byAgent = await runCommand(ticketClaim, eikiAgent, { no_worktree: true, ticket: "t1" });
     expect(byAgent.data.assignee).toBe("eiki/agent");
     await eiki.store.rescan();
     const released = await runCommand(ticketUnclaim, eiki, { ticket: "t1" });
@@ -177,7 +179,11 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
     await runCommand(ticketCreate, eiki, { title: "A" });
     // 前の作業の PR を記録したまま todo に残ったチケット（pr を外す前の unclaim で残ったもの）
     await runCommand(ticketUpdate, eiki, { ticket: "t1", pr: 7 });
-    const claimed = await runCommand(ticketClaim, eiki, { ticket: "t1", branch: "feature/a" });
+    const claimed = await runCommand(ticketClaim, eiki, {
+      no_worktree: true,
+      ticket: "t1",
+      branch: "feature/a",
+    });
     expect(claimed.data).toMatchObject({ status: "in_progress", assignee: "eiki" });
     expect(claimed.data.pr).toBeUndefined();
     expect(claimed.warnings.some((w) => w.includes("手直しの開始"))).toBe(false);
@@ -245,7 +251,7 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
     const assigned = await runCommand(ticketUpdate, human, { ticket: "t1", assignee: "other" });
     expect(assigned.data.assignee).toBe("other");
     // 事前の担当者と別のユーザが claim すると上書きし、warnings で知らせる
-    const claimed = await runCommand(ticketClaim, human, { ticket: "t1" });
+    const claimed = await runCommand(ticketClaim, human, { no_worktree: true, ticket: "t1" });
     expect(claimed.data.assignee).toBe("eiki");
     expect(claimed.warnings).toContain("担当者を other から eiki に変えた");
     // todo に戻すと担当者は消える。起票者は残る
@@ -300,11 +306,13 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
     const hooks = {
       beforePush: async () => {
         hooks.beforePush = async () => {};
-        await runCommand(ticketClaim, b, { ticket: "t1" });
+        await runCommand(ticketClaim, b, { no_worktree: true, ticket: "t1" });
       },
     };
     const racer = await openContext({ cwd: f.cloneA, actor: { kind: "agent", user: "a" }, hooks });
-    await expect(runCommand(ticketClaim, racer, { ticket: "t1" })).rejects.toMatchObject({
+    await expect(
+      runCommand(ticketClaim, racer, { no_worktree: true, ticket: "t1" }),
+    ).rejects.toMatchObject({
       code: "CLAIM_LOST",
     });
     expect(racer.store.tickets.get("t1")?.data.assignee).toBe("b/agent");

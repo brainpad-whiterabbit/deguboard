@@ -161,8 +161,9 @@ const STEPS: Step[] = [
   },
   {
     name: "ticket.claim",
-    input: { ticket: "t1", branch: "feat/login" },
-    argv: ["ticket", "claim", "t1", "--branch", "feat/login"],
+    // worktree の場所はリポジトリごとに違うので、経路の比べ合いでは作らない
+    input: { ticket: "t1", branch: "feat/login", no_worktree: true },
+    argv: ["ticket", "claim", "t1", "--branch", "feat/login", "--no-worktree"],
   },
   {
     name: "ticket.move",
@@ -455,10 +456,11 @@ describe("3 経路の E2E", () => {
         running: false,
       },
     ]);
-    // iteration update で直した目標と期間が show に出る
+    // iteration update で直した目標と終了日が show に出る。t1 の claim が planned の s1 を開始し、開始日を始めた日に書き換える（ST-3）
     expect(at("iteration.show").data).toMatchObject({
       goal: "ログインを出す",
-      start: "2026-11-02",
+      status: "active",
+      start: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
       end: "2026-11-07",
     });
     // config.set した models.light が config.show と config.yaml に残る

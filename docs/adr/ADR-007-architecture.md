@@ -48,7 +48,7 @@ Core の中は責務ごとのモジュールに分け、最初からパッケー
 - Workflow の `steps` は Action を名前（文字列）で持ち、名前の検証は入口が名前の一覧を渡して行う（ADR-003）
 - `dg` のコマンド・MCP のツール・画面には出さず、core の公開も名前の一覧だけにする。エージェントは `dg guide` の手順に従って git・gh・テストを自分で呼ぶ（EX-1）
 - `run_tests` は `actions.test` に書いた引数配列だけを確認なしで実行する。config.yaml は Git で共有されるので、deguboard ブランチに push できる人はここに任意のコマンドを書ける。その権限をシェルの許可と同等とみなす前提に立つ。`shell` は `actions.shell` が true で、呼び出し側の確認が通ったときだけ実行する（AG-7）
-- worktree・ブランチの操作は guide の手順と同じ形にする。claim は `branch` を記録するだけで、ブランチも worktree も作らない（ST-3）
+- ※ ADR-031 で置き換え（この項は失効）。worktree・ブランチの操作は guide の手順と同じ形にする。claim は `branch` を記録するだけで、ブランチも worktree も作らない（ST-3）
 
 ### 索引はメモリ上に持つ
 

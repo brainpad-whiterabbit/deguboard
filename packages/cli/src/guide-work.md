@@ -17,7 +17,7 @@ argument-hint: "<Plan の ID|チケットの ID>"
 
 1. `dg --json --actor agent next <id>` を呼び、`kind` の手を 1 つ行う。`commands` の順に行い、`brief` があればサブエージェントに貼る（後ろに一時ファイルの置き場所を足してよい）。終えたらもう一度 `next` を呼ぶ
 2. `kind` ごとの親の手：
-   - `implement`：「claim の前後」を済ませ、`commands` の claim を行う。作業ブランチの worktree は親が作る（`git fetch {{git.remote}}` のあと `git worktree add --no-track -b <ブランチ名> <場所> {{git.remote}}/{{git.base_branch}}`。場所の既定は `{{worktree.root}}`）。文を渡し、返ったら「実装の結果を受け取る」。親が自分で実装するなら、claim の `--no-run` を外して下の「実装する」を行う（claim が実装の Run を開く）
+   - `implement`：`commands` の claim を行い、「claim の前後」に従う。作業ブランチの worktree は claim が作り、場所を `worktree` に返す（既定は `{{worktree.root}}/<ブランチ名>`）。文を渡し、返ったら「実装の結果を受け取る」。親が自分で実装するなら、claim の `--no-run` を外して下の「実装する」を行う（claim が実装の Run を開く）
    - `review`：見直し役を起動する（`dg guide review` の「見直す」）
    - `fix`：見直し役の指摘を、`dg guide review` の「指摘を直す」の手順で渡す
    - `ready`：`dg guide review` の「終わり方」で PR を出す。PR を見ない Workflow（general など。`sync` が review に進めない）では、PR を出したら続けて自分で `dg --json --actor agent ticket move <id> review` に進める
@@ -29,8 +29,7 @@ argument-hint: "<Plan の ID|チケットの ID>"
 ## claim の前後
 
 - 担当者（`ticket show` の `assignee`）が別のユーザなら避ける
-- `lint.require_iteration` が true なら（今の設定：`{{lint.require_iteration}}`）、`iteration` が空のチケットを、Project の active の Iteration（なければ planned のうち `start` が最も早いもの。並べば ID の小さいもの）に `dg --json --actor agent iteration add <S> <id>` で入れる。入れ先がなければ人に頼む（入れずに進むと `lint_iteration_missing`）
-- claim の後、Iteration が planned なら `dg --json --actor agent iteration start <S>` で active にする。拒否されたら `iteration show` を読み直し、active なら何もせず、planned のままなら人に頼む。作業は続ける
+- claim は、`lint.require_iteration` が true なら（今の設定：`{{lint.require_iteration}}`）`iteration` が空のチケットを Iteration に入れ、planned の Iteration を開始し、作業ブランチの worktree を作る（選び方は `ticket claim --help`）。`warnings` に入れ先がない・開始できない・worktree を作れないが出たら、Iteration は人に頼み（入れずに進むと `lint_iteration_missing`）、worktree は `worktree` の場所に手で作る。作業は続ける
 - `CLAIM_LOST` なら別のチケットへ。`BRANCH_IN_USE` なら `--branch` の名前を変えて claim し直す
 
 ## 実装する（draft の PR まで）
@@ -59,7 +58,7 @@ argument-hint: "<Plan の ID|チケットの ID>"
 
 リポジトリのファイルを変えない作業（データの整備・確認・調査など）は、ブランチも PR も作らず、照合に頼らず done まで進める（`next` は PR を前提にするので使わない）。
 
-1. 「claim の前後」の Iteration を済ませてから、`dg --json --actor agent ticket claim <id> --without-branch`（claim が Run を開く）
+1. `dg --json --actor agent ticket claim <id> --without-branch`（claim が Run を開く）。`warnings` は「claim の前後」のとおり扱う
 2. 受け入れ条件を 1 項目ずつ確かめ、満たした項目だけ `ticket check` で付ける
 3. すべて付いたら `dg --json --actor agent ticket move <id> done`。付けられない項目が残ったら `ticket move <id> review` にして、残った項目と理由を人に報告する（done にするのは人）
 4. 途中でリポジトリのファイルを変える必要が出たら、`ticket update <id> --branch <種類>/<内容>` で記録して上の流れに移る。ブランチが要らなくなったら `--branch none`

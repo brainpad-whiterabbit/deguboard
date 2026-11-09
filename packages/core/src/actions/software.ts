@@ -1,53 +1,24 @@
-// ソフトウェア開発向けの登録済みの Action（AG-6）。git・gh は引数配列で呼び、シェルを経由しない
+// ソフトウェア開発向けの登録済みの Action（AG-6）。worktree の作成は claim と共有するので git/branch-worktree.ts に置く。git・gh は引数配列で呼び、シェルを経由しない
 
 import path from "node:path";
 import { z } from "zod";
 import { OperationError } from "../errors.js";
+import {
+  branchStartPoint,
+  createBranchWorktree,
+  defaultWorktreePath,
+  isSafeBranchName,
+} from "../git/branch-worktree.js";
 import { runGh, runGit, runProcess } from "../git/run.js";
-import { defineAction, type ActionContext } from "./define.js";
+import { defineAction } from "./define.js";
 
-/**
- * `git check-ref-format --branch` 相当の検査。先頭の `-` を拒み、git にオプションとして読まれないようにする
- * （`--upload-pack=<コマンド>` のような注入で actions.shell を回り込ませない。AG-7）
- */
-export function isSafeBranchName(name: string): boolean {
-  if (name === "" || name === "@" || name.startsWith("-")) return false;
-  // 制御文字・空白・~ ^ : ? * [ \ と、`..`・`@{`・`//` を含むもの
-  // oxlint-disable-next-line no-control-regex
-  if (/[\x00-\x20\x7f~^:?*[\\]|\.\.|@\{|\/\//.test(name)) return false;
-  if (name.startsWith("/") || name.endsWith("/") || name.endsWith(".")) return false;
-  return name.split("/").every((part) => !part.startsWith(".") && !part.endsWith(".lock"));
-}
+export { defaultWorktreePath, isSafeBranchName };
 
 const refName = z
   .string()
   .refine(isSafeBranchName, "ブランチ名として使えない（先頭の - や git が許さない文字を含む）");
 const branchName = refName.describe("ブランチ名（feat/xxx など）");
 const baseName = refName.optional().describe("元にするブランチ。省略時は git.base_branch");
-
-/** 作業ブランチの起点。リモートがあれば取り込んでから <remote>/<base>、なければローカルの <base> */
-async function startPoint(ctx: ActionContext & { cwd: string }, base: string): Promise<string> {
-  // 省略時の base は config（Git で共有される）から来るので、ここでも検査する
-  if (!isSafeBranchName(base)) {
-    throw new OperationError("REJECTED", `base のブランチ名として使えない：${base}`);
-  }
-  const remote = ctx.repo.remote;
-  if (!remote) return base;
-  await runGit(ctx.cwd, ["fetch", "--", remote, base], { timeoutMs: 120_000 });
-  return `${remote}/${base}`;
-}
-
-/** worktree.root（`<repo>` を置き換え、メインの作業ツリーからの相対）にブランチ名をつないだ場所 */
-export function defaultWorktreePath(
-  repo: ActionContext["repo"],
-  root: string,
-  branch: string,
-): string {
-  const main =
-    path.basename(repo.commonDir) === ".git" ? path.dirname(repo.commonDir) : repo.topLevel;
-  const resolvedRoot = path.resolve(main, root.replaceAll("<repo>", path.basename(main)));
-  return path.join(resolvedRoot, branch);
-}
 
 export const createWorktreeAction = defineAction({
   name: "create_worktree",
@@ -68,9 +39,7 @@ export const createWorktreeAction = defineAction({
       ctx.cwd,
       input.path ?? defaultWorktreePath(ctx.repo, ctx.config.worktree.root, input.branch),
     );
-    const start = await startPoint(ctx, base);
-    await runGit(ctx.cwd, ["worktree", "add", "--no-track", "-b", input.branch, "--", dir, start]);
-    return { branch: input.branch, path: dir, base: start };
+    return createBranchWorktree(ctx.cwd, ctx.repo, { branch: input.branch, base, dir });
   },
 });
 
@@ -80,7 +49,7 @@ export const createBranchAction = defineAction({
   input: z.object({ branch: branchName, base: baseName }),
   confirm: false,
   async run(ctx, input) {
-    const start = await startPoint(ctx, input.base ?? ctx.repo.baseBranch);
+    const start = await branchStartPoint(ctx.cwd, ctx.repo, input.base ?? ctx.repo.baseBranch);
     await runGit(ctx.cwd, ["branch", "--no-track", "--", input.branch, start]);
     return { branch: input.branch, base: start };
   },
