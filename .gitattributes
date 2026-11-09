@@ -2,3 +2,6 @@
 tickets/*.md merge=deguboard
 tickets/deleted/*.md merge=deguboard
 epics/*.md merge=deguboard
+plans/*.yaml merge=deguboard
+iterations/*.yaml merge=deguboard
+projects/*.yaml merge=deguboard
