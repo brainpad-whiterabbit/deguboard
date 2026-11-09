@@ -86,6 +86,32 @@ describe("スキーマ", () => {
       expect(configFields().find((f) => f.key === key)?.scope).toBe("team");
   });
 
+  it("auto.decisions と flow.skip は既定で今の --auto の判断と空の一覧で、人が決める判断や stop は入れられない", () => {
+    const c = defaultConfig();
+    expect(c.auto.decisions).toEqual(["assign", "check", "plan", "audit"]);
+    expect(c.flow.skip).toEqual([]);
+    expect(configSchema.safeParse({ auto: { decisions: ["release"] } }).success).toBe(false);
+    expect(configSchema.safeParse({ auto: { decisions: ["work"] } }).success).toBe(false);
+    expect(configSchema.safeParse({ flow: { skip: ["stop"] } }).success).toBe(false);
+    expect(configSchema.parse({ auto: { decisions: [] } }).auto.decisions).toEqual([]);
+    expect(configSchema.parse({ flow: { skip: ["audit", "release"] } }).flow.skip).toEqual([
+      "audit",
+      "release",
+    ]);
+  });
+
+  it("auto.decisions と flow.skip は設定の項目として、チームの範囲で、説明（describe）を持つ", () => {
+    const byKey = new Map(configFields().map((f) => [f.key, f]));
+    expect(byKey.get("auto.decisions")).toMatchObject({
+      type: "list",
+      scope: "team",
+      default: ["assign", "check", "plan", "audit"],
+    });
+    expect(byKey.get("flow.skip")).toMatchObject({ type: "list", scope: "team", default: [] });
+    expect(byKey.get("auto.decisions")?.description).toContain("--auto");
+    expect(byKey.get("flow.skip")?.description).toContain("dg flow next");
+  });
+
   it("flattenConfig と nestedConfigValue は入れ子とドット区切りを行き来し、空になった入れ子は消す", () => {
     expect(
       flattenConfig({ commit: { mode: "each" }, actions: { test: ["a", "b"] }, x: 1 }),
@@ -149,6 +175,8 @@ describe("スキーマ", () => {
       "actions.shell",
       "actions.test",
       "auto.merge",
+      "auto.decisions",
+      "flow.skip",
       "merge.method",
       "merge.delete_branch",
       "review.heavy_categories",

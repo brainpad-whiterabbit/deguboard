@@ -295,6 +295,28 @@ Whether dg guide all --auto merges PRs that pass the quality gate (dg gate --for
 Off
 [title] Reset to default false
 Reset to Default
+Decisions --auto chooses automatically
+auto.decisions
+[title] Default: [assign, check, plan, audit]
+Modified
+Decisions --auto chooses without asking (assign: assignment / check: the fix line when only one fix fits / plan: Plan approval / audit: the review findings table). Decisions a person makes cannot be added; PR merging is set by auto.merge
+Empty
+[aria-label] Items
+[placeholder] Add item
+Add
+[title] Reset to default [assign, check, plan, audit]
+Reset to Default
+Stages to leave out of the flow
+flow.skip
+[title] Default: Empty
+Modified
+Stages that dg flow next never returns (assign, check, plan, work, audit, release). A skipped stage's rule is not read; the flow moves to the next rule
+Empty
+[aria-label] Items
+[placeholder] Add item
+Add
+[title] Reset to default Empty
+Reset to Default
 Merge method
 merge.method
 [title] Default: squash

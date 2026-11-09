@@ -82,10 +82,18 @@ export function isAudited(facts: Pick<FlowFacts, "auditLabeled">, memory: FlowMe
 const allFinished = (tickets: readonly FlowTicket[]) =>
   tickets.length > 0 && tickets.every((t) => isTerminal(t.status));
 
-/** 事実とこの実行で終えたことから、guide-all の 8 規則で最初に当たる段階を求める（純粋関数） */
-export function flowStageOf(facts: FlowFacts, memory: FlowMemory): FlowStage {
+/**
+ * 事実とこの実行で終えたことから、guide-all の 8 規則で最初に当たる段階を求める（純粋関数）。
+ * skip（config の flow.skip）の段階は規則を読まず、次の規則に進む。見直しを飛ばすと、すべて終わったときはすぐリリースに進める
+ */
+export function flowStageOf(
+  facts: FlowFacts,
+  memory: FlowMemory,
+  skip: readonly FlowStageName[] = [],
+): FlowStage {
   const audited = isAudited(facts, memory);
   const s = facts.iteration;
+  const skipped = (name: FlowStageName) => skip.includes(name);
   const at = (
     name: FlowStageName,
     rule: number,
@@ -93,17 +101,25 @@ export function flowStageOf(facts: FlowFacts, memory: FlowMemory): FlowStage {
     tickets: readonly string[] = [],
     plan: string | null = null,
   ): FlowStage => ({ name, rule, reason, plan, tickets: [...tickets] });
-  if (!memory.assigned && !audited && facts.candidates.length > 0 && !facts.noAssign)
+  if (
+    !skipped("assign") &&
+    !memory.assigned &&
+    !audited &&
+    facts.candidates.length > 0 &&
+    !facts.noAssign
+  )
     return at(
       "assign",
       1,
       `Iteration に入っていない todo が ${facts.candidates.length} 件ある`,
       facts.candidates,
     );
-  if (!memory.checked) return at("check", 2, "この実行でまだ点検していない");
-  const pending = facts.pendingPlans[0];
+  if (!skipped("check") && !memory.checked) return at("check", 2, "この実行でまだ点検していない");
+  const pending = skipped("plan") ? undefined : facts.pendingPlans[0];
   if (pending) return at("plan", 3, `Plan ${pending.id} が承認待ち`, pending.tickets, pending.id);
-  const working = facts.approvedPlans.find((p) => p.unfinished.length > 0);
+  const working = skipped("work")
+    ? undefined
+    : facts.approvedPlans.find((p) => p.unfinished.length > 0);
   if (working)
     return at(
       "work",
@@ -112,7 +128,7 @@ export function flowStageOf(facts: FlowFacts, memory: FlowMemory): FlowStage {
       working.unfinished,
       working.id,
     );
-  if (facts.unplanned.length > 0)
+  if (!skipped("plan") && facts.unplanned.length > 0)
     return at(
       "plan",
       5,
@@ -123,10 +139,19 @@ export function flowStageOf(facts: FlowFacts, memory: FlowMemory): FlowStage {
   const open = facts.targets.filter((t) => !isTerminal(t.status)).map((t) => t.id);
   if (s !== null && facts.iterationClosed)
     return at("stop", 8, `${s} は閉じていて、流れを終えた`, open);
-  if (s !== null && allFinished(facts.releaseScope))
-    return audited
-      ? at("release", 7, `${s} のチケットがすべて done か abandoned で、見直し済み`)
-      : at("audit", 6, `${s} のチケットがすべて done か abandoned で、まだ見直していない`);
+  if (s !== null && allFinished(facts.releaseScope)) {
+    if (!audited && !skipped("audit"))
+      return at("audit", 6, `${s} のチケットがすべて done か abandoned で、まだ見直していない`);
+    if (skipped("release"))
+      return at("stop", 8, `${s} のチケットがすべて終わったが、リリースは流れから外している`, open);
+    return at(
+      "release",
+      7,
+      audited
+        ? `${s} のチケットがすべて done か abandoned で、見直し済み`
+        : `${s} のチケットがすべて done か abandoned で、見直しは流れから外している`,
+    );
+  }
   return at(
     "stop",
     8,
@@ -218,52 +243,65 @@ export interface FlowApproval {
   required: boolean;
   /** 承認を求める場所（guide-all の表）。required が false なら null */
   what: string | null;
-  /** --auto のとき聞かずに勧める選択肢で進めるもの。--auto でなければ null */
+  /** --auto のとき聞かずに勧める選択肢で進めるもの。--auto でない・config の判断に入らない・人が決める判断なら null */
   auto: string | null;
+  /** --auto が聞かずに選ぶものが、この段階にあるか（auto と同じ。点検は直す行だけ、人が決める削除・閉じるは含まない） */
+  auto_ok: boolean;
 }
 
-/** 段階の承認の要否（guide-all の表と「--auto で自動で選ぶ」）。人が決める穴は config によらず自動にしない（EX-7） */
+/**
+ * 段階の承認の要否（guide-all の表と「--auto で自動で選ぶ」）。--auto が聞かずに選ぶのは config の auto.decisions に入る判断と、
+ * auto.merge のときの PR のマージだけ。人が決める判断（削除・abandoned・閉じる・リリース）は config によらず聞く（EX-7）
+ */
 export function approvalOf(
   stage: FlowStageName,
-  opts: { auto: boolean; autoMerge: boolean },
+  opts: { auto: boolean; autoMerge: boolean; decisions: readonly string[] },
 ): FlowApproval {
-  const human = (what: string, auto: string | null = null): FlowApproval => ({
+  const chosen = (decision: string) => opts.auto && opts.decisions.includes(decision);
+  const ask = (what: string): FlowApproval => ({
     required: true,
     what,
-    auto: opts.auto ? auto : null,
+    auto: null,
+    auto_ok: false,
   });
-  const automatic = (what: string, auto: string): FlowApproval =>
-    opts.auto ? { required: false, what: null, auto } : { required: true, what, auto: null };
+  const choose = (decision: string, what: string, auto: string): FlowApproval =>
+    chosen(decision) ? { required: false, what: null, auto, auto_ok: true } : ask(what);
   switch (stage) {
     case "assign":
-      return automatic("入れる行", "入れる行");
+      return choose("assign", "入れる行", "入れる行");
     case "check":
-      return opts.auto
-        ? human("削除・abandoned・閉じる", "直し方が 1 つに決まる直す行")
-        : human("直す行、削除・abandoned・閉じる");
+      return chosen("check")
+        ? {
+            required: true,
+            what: "削除・abandoned・閉じる",
+            auto: "直し方が 1 つに決まる直す行",
+            auto_ok: true,
+          }
+        : ask("直す行、削除・abandoned・閉じる");
     case "plan":
-      return automatic("Plan", "Plan の承認（plan approve）");
+      return choose("plan", "Plan", "Plan の承認（plan approve）");
     case "work":
       return opts.auto && opts.autoMerge
         ? {
             required: false,
             what: null,
             auto: "品質ゲート（dg gate --for merge）を満たす PR のマージ（dg pr merge）",
+            auto_ok: true,
           }
-        : human("PR ごとのマージ（dg guide done）");
+        : ask("PR ごとのマージ（dg guide done）");
     case "audit":
-      return automatic("指摘の表", "指摘の表（「直さない」以外を反映する）");
+      return choose("audit", "指摘の表", "指摘の表（「直さない」以外を反映する）");
     case "release":
-      return human("リリースの PR のマージ・公開・閉じる");
+      return ask("リリースの PR のマージ・公開・閉じる");
     case "stop":
-      return { required: false, what: null, auto: null };
+      return { required: false, what: null, auto: null, auto_ok: false };
   }
 }
 
 const dg = (args: string) => `dg --json --actor agent ${args}`;
 
-/** 段階で親が呼ぶ dg のコマンド（順に）。手のやり方は guide の節 */
-function commandsOf(stage: FlowStage, s: string | null, auto: boolean): string[] {
+/** 段階で親が呼ぶ dg のコマンド（順に）。手のやり方は guide の節。Plan の承認は --auto が聞かずに選ぶときだけ呼ぶ */
+function commandsOf(stage: FlowStage, s: string | null, autoOk: boolean): string[] {
   switch (stage.name) {
     case "assign":
       return [dg(`iteration add ${s ?? "<S>"} <入れるチケット…>`)];
@@ -271,7 +309,7 @@ function commandsOf(stage: FlowStage, s: string | null, auto: boolean): string[]
       return [dg("sync"), dg("validate"), dg("lint")];
     case "plan":
       return stage.plan
-        ? [dg(`plan show ${stage.plan}`), ...(auto ? [dg(`plan approve ${stage.plan}`)] : [])]
+        ? [dg(`plan show ${stage.plan}`), ...(autoOk ? [dg(`plan approve ${stage.plan}`)] : [])]
         : [dg(`plan create ${stage.tickets.join(" ")}`)];
     case "work":
       return [dg(`plan show ${stage.plan}`), ...stage.tickets.map((t) => dg(`next ${t}`))];
@@ -452,7 +490,7 @@ export const flowNext = defineCommand({
     "見直し済みは、ラベル audit-<S> のチケットがあるか、この実行で見直しを終えた。チケットか Plan の指定では、<S> はチケットの Iteration（1 つに決まるときだけ）で、見直しとリリースはその Iteration のチケットがすべて終わったときだけ。" +
     "返す resume を次の呼び出しの --resume に写して渡すと、前に返した割り当て・点検・見直しを終えたものとして飛ばす。resume がない・読めない・別の対象のものなら割り当てと点検からやり直す。" +
     "段階を終えずに止めたとき（見直しの指摘の表で止めたなど）は、その resume を渡さない（渡すとその段階を飛ばす）。" +
-    "前に返した段階と同じ段階で事実（チケット・Plan・Run）が変わらなければ stop を返す。段階の節（guide）・呼ぶコマンド（commands）・承認の要否（approval。--auto で聞かずに選べるものと、config の auto.merge）を返す。何も書かない",
+    "config の flow.skip の段階は規則を読まずに飛ばす。前に返した段階と同じ段階で事実（チケット・Plan・Run）が変わらなければ stop を返す。段階の節（guide）・呼ぶコマンド（commands）・承認の要否（approval。auto_ok は --auto が聞かずに選ぶかで、config の auto.decisions と auto.merge に従い、人が決める判断は含まない）を返す。何も書かない",
   input: z.object({
     targets: z
       .array(z.string().min(1))
@@ -483,7 +521,7 @@ export const flowNext = defineCommand({
       prev = undefined;
     }
     const memory = memoryAfter(prev);
-    const found = flowStageOf(facts, memory);
+    const found = flowStageOf(facts, memory, ctx.config.flow.skip);
     const repeated = isRepeated(prev, found.name, fingerprint) ? found.name : null;
     const stage: FlowStage = repeated
       ? {
@@ -495,6 +533,11 @@ export const flowNext = defineCommand({
         }
       : found;
     const guide = FLOW_GUIDE[stage.name];
+    const approval = approvalOf(stage.name, {
+      auto,
+      autoMerge: ctx.config.auto.merge,
+      decisions: ctx.config.auto.decisions,
+    });
     const result: FlowNext = {
       target: { iteration: facts.iteration, tickets: facts.targets.map((t) => t.id) },
       stage,
@@ -504,8 +547,8 @@ export const flowNext = defineCommand({
         text: (await guideSectionText(guide.topic, guide.section, ctx.config)).text,
         command: `dg guide ${guide.topic} --section ${guide.section}`,
       },
-      commands: commandsOf(stage, facts.iteration, auto),
-      approval: approvalOf(stage.name, { auto, autoMerge: ctx.config.auto.merge }),
+      approval,
+      commands: commandsOf(stage, facts.iteration, approval.auto_ok),
       ask_human:
         stage.name === "stop"
           ? `${stage.reason}。状態を示して止まる。同じ対象で起動し直せば状態から求め直す`

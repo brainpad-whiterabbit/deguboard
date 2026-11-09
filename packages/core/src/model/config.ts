@@ -12,6 +12,13 @@ const PUSH_MODES = ["auto", "manual"] as const;
 export type PushMode = (typeof PUSH_MODES)[number];
 /** gh pr merge のマージの方法（actions の merge_pr と同じ。Core の汎用部分は actions に依存しないので別に持つ） */
 export const PR_MERGE_METHODS = ["squash", "merge", "rebase"] as const;
+/**
+ * --auto で聞かずに選んでよい判断（流れの段階の名前）。人が決める判断（abandoned・閉じる・リリースの PR のマージ）は
+ * ここに入らないので、config でも自動にできない（EX-7）。マージは auto.merge で決める
+ */
+export const AUTO_DECISIONS = ["assign", "check", "plan", "audit"] as const;
+/** dg flow next が返さずに飛ばせる段階。stop は流れを止める段階なので飛ばせない（ADR-030） */
+export const FLOW_SKIPS = ["assign", "check", "plan", "work", "audit", "release"] as const;
 
 export const configSchema = z.looseObject({
   default_project: slugSchema.default("default").describe("省略時の Project"),
@@ -95,6 +102,22 @@ export const configSchema = z.looseObject({
         .default(false)
         .describe(
           "dg guide all --auto で、品質ゲート（dg gate --for merge）を満たした PR を自動でマージするか。既定は人がマージする",
+        ),
+      decisions: z
+        .array(z.enum(AUTO_DECISIONS))
+        .default(["assign", "check", "plan", "audit"])
+        .describe(
+          "--auto で聞かずに選ぶ判断（assign: 割り当て・check: 直し方が 1 つに決まる直す行・plan: Plan の承認・audit: 見直しの指摘の表）。人が決める判断は入れられず、PR のマージは auto.merge",
+        ),
+    })
+    .prefault({}),
+  flow: z
+    .looseObject({
+      skip: z
+        .array(z.enum(FLOW_SKIPS))
+        .default([])
+        .describe(
+          "dg flow next が返さない段階（assign・check・plan・work・audit・release）。飛ばした段階の規則は読まず、次の規則に進む",
         ),
     })
     .prefault({}),

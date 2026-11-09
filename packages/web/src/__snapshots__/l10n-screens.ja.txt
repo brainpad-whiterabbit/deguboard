@@ -295,6 +295,28 @@ auto.merge
 無効
 [title] 既定の false に戻す
 既定に戻す
+--auto で自動で選ぶ判断
+auto.decisions
+[title] 既定は [assign, check, plan, audit]
+変更あり
+auto.decisions
+空
+[aria-label] 項目
+[placeholder] 項目を足す
+足す
+[title] 既定の [assign, check, plan, audit] に戻す
+既定に戻す
+流れから外す段階
+flow.skip
+[title] 既定は 空
+変更あり
+flow.skip
+空
+[aria-label] 項目
+[placeholder] 項目を足す
+足す
+[title] 既定の 空 に戻す
+既定に戻す
 マージの方法
 merge.method
 [title] 既定は squash
