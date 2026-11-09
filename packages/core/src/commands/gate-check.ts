@@ -7,12 +7,10 @@ import { mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { runGit, runProcess } from "../git/run.js";
 import { findBranchWorktree } from "../git/worktree.js";
+import { ACTIONS_TEST_TIMEOUT_MS } from "../model/config.js";
 import type { Ticket } from "../model/ticket.js";
 import { writeFileAtomic } from "../storage/atomic.js";
 import type { CommandContext } from "./define.js";
-
-/** 検査の時間の上限。リポジトリの検査の全体（テストを含む）を回すので長めにとる */
-export const CHECK_TIMEOUT_MS = 30 * 60_000;
 
 /** 通らなかったときに detail に出す出力の末尾の行数 */
 const TAIL_LINES = 30;
@@ -105,7 +103,7 @@ export async function judgeCheck(ctx: CommandContext, ticket: Ticket): Promise<C
     try {
       const out = await runProcess(dir, file0!, args, {
         allowFailure: true,
-        timeoutMs: CHECK_TIMEOUT_MS,
+        timeoutMs: ACTIONS_TEST_TIMEOUT_MS,
       });
       result = { code: out.code, tail: tailOf(out.stdout, out.stderr) };
     } catch (error) {

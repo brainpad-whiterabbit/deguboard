@@ -15,9 +15,9 @@ export type { AgentEnv, HookSupport, SkillDirs, SkillQuery } from "./agents/inde
 export {
   composeGuide,
   fillPlaceholders,
-  GUIDE_TOPICS,
   readGuide,
   readGuideMeta,
   readGuideNotes,
 } from "./guide/guide.js";
-export type { GuideMeta, GuideNotes, GuideText, GuideTopic } from "./guide/guide.js";
+export type { GuideMeta, GuideNotes, GuideText } from "./guide/guide.js";
+export { GUIDE_TOPICS, type GuideTopic } from "./guide/topics.js";

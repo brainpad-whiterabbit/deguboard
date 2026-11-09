@@ -3,13 +3,13 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { createFixture, git, type Fixture } from "../../test/helpers/git-fixture.js";
 import { OperationError, UsageError } from "../errors.js";
+import { isSafeBranchName } from "../git/branch-worktree.js";
 import { resolveRepoPaths, type GitRepo } from "../git/repo.js";
 import { configSchema, type Config } from "../model/config.js";
 import { WORKFLOW_TEMPLATES } from "../workflow/templates/index.js";
 import { validateWorkflow } from "../workflow/validate.js";
 import {
   ACTION_NAMES,
-  isSafeBranchName,
   listActions,
   runAction,
   type ActionContext,

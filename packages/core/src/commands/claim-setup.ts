@@ -3,20 +3,14 @@
 // どれも claim の排他（push）の成否とは別の都合なので、できなくても claim は失敗させず warnings で伝える
 
 import path from "node:path";
-import { createBranchWorktree, defaultWorktreePath } from "../git/branch-worktree.js";
-import { runGit, runProcess } from "../git/run.js";
-import { findBranchWorktree } from "../git/worktree.js";
+import { defaultWorktreePath, ensureBranchWorktree } from "../git/branch-worktree.js";
+import { runProcess } from "../git/run.js";
 import { compareIds } from "../model/id.js";
 import { otherActiveOf, type Iteration } from "../model/iteration.js";
 import type { Ticket } from "../model/ticket.js";
 import type { Doc } from "../storage/documents.js";
-import type { CommandContext } from "./define.js";
+import { deniedToAgent, type CommandContext } from "./define.js";
 import { localDate } from "./helpers.js";
-
-/** agent に許されたコマンドか（actor.human_only）。人はいつでも許す */
-function allowedFor(ctx: CommandContext, command: string): boolean {
-  return ctx.actor.kind !== "agent" || !ctx.config.actor.human_only.includes(command);
-}
 
 /**
  * Iteration の空いたチケットを入れる先：Project の active の Iteration、なければ planned のうち start が最も早いもの
@@ -60,7 +54,7 @@ export async function prepareIterationForClaim(
       warnings.push(
         `${ticket.id} を入れる Iteration（active か planned）がない。人に Iteration を作って入れるよう頼む（入れずに進むと lint_iteration_missing）`,
       );
-    } else if (!allowedFor(ctx, "iteration.add")) {
+    } else if (deniedToAgent(ctx, "iteration.add")) {
       warnings.push(
         `${ticket.id} を ${target.id} に入れられない（iteration.add は actor.human_only）。人に入れるよう頼む`,
       );
@@ -72,7 +66,7 @@ export async function prepareIterationForClaim(
   if (!iterationId) return iterationId;
   const it = ctx.store.iterations.get(iterationId);
   if (!it || it.data.status !== "planned") return iterationId;
-  if (!allowedFor(ctx, "iteration.start")) {
+  if (deniedToAgent(ctx, "iteration.start")) {
     warnings.push(
       `${it.id} は planned のまま（iteration.start は actor.human_only）。人に開始を頼む`,
     );
@@ -140,9 +134,9 @@ export async function runSetupInWorktree(
 }
 
 /**
- * claim したブランチの worktree を用意して場所を返す。既にそのブランチの worktree があればそれを返し、
- * ローカルにブランチだけ残っていれば（unclaim の後など）そのブランチを checkout する。作れなければ warnings に理由を書いて null。
- * created は今作ったかどうか（既存のものは false）。worktree.setup はここでは回さず、呼ぶ側が Run を開いた後に runSetupInWorktree で回す
+ * claim したブランチの worktree を用意して場所を返す（手順は git の層の ensureBranchWorktree。ADR-031）。
+ * created は今作ったかどうか（既存のものは false）。worktree.setup はここでは回さず、呼ぶ側が Run を開いた後に runSetupInWorktree で回す。
+ * 作れなければ warnings に理由を書いて null
  */
 export async function prepareWorktreeForClaim(
   ctx: CommandContext,
@@ -156,23 +150,8 @@ export async function prepareWorktreeForClaim(
     repo.topLevel,
     requestedPath ?? defaultWorktreePath(repo, ctx.config.worktree.root, branch),
   );
-  let created: string;
   try {
-    const existing = await findBranchWorktree(repo, branch);
-    if (existing) return { path: existing, created: false };
-    const local = await runGit(
-      repo.topLevel,
-      ["show-ref", "--verify", "--quiet", `refs/heads/${branch}`],
-      { allowFailure: true },
-    );
-    if (local.code === 0) {
-      await runGit(repo.topLevel, ["worktree", "add", "--", dir, branch]);
-      created = dir;
-    } else {
-      created = (
-        await createBranchWorktree(repo.topLevel, repo, { branch, base: repo.baseBranch, dir })
-      ).path;
-    }
+    return await ensureBranchWorktree(repo, { branch, base: repo.baseBranch, dir });
   } catch (error) {
     const reason = error instanceof Error ? error.message.split("\n")[0] : String(error);
     warnings.push(
@@ -180,5 +159,4 @@ export async function prepareWorktreeForClaim(
     );
     return null;
   }
-  return { path: created, created: true };
 }

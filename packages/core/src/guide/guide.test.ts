@@ -2,8 +2,8 @@ import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { configSchema, NOTE_TOPICS, type Config } from "../model/config.js";
-import { composeGuide, GUIDE_TOPICS, readGuide, readGuideNotes } from "./guide.js";
+import { configSchema, type Config } from "../model/config.js";
+import { composeGuide, readGuide, readGuideNotes } from "./guide.js";
 
 let root: string;
 
@@ -143,9 +143,5 @@ describe("guide.notes の文書の差し込み（CL-5）", () => {
     await writeFile(join(root, "code.md"), "判断\n```sh\n# シェルのコメント\n```\n");
     const notes = await readGuideNotes("work", configWith({ work: "code.md" }), root);
     expect(notes).toEqual({ text: "判断\n```sh\n# シェルのコメント\n```", warnings: [] });
-  });
-
-  it("guide.notes のトピックは GUIDE_TOPICS と同じ（ずれたらここで知らせる）", () => {
-    expect([...NOTE_TOPICS]).toEqual([...GUIDE_TOPICS]);
   });
 });

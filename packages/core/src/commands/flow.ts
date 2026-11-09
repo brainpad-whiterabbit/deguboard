@@ -7,14 +7,15 @@ import { z } from "zod";
 import { UsageError } from "../errors.js";
 import { composeGuide } from "../guide/guide.js";
 import { isTerminal } from "../model/common.js";
+import { FLOW_SKIPS } from "../model/config.js";
 import { compareIds, parseId, type IterationId } from "../model/id.js";
 import type { Ticket } from "../model/ticket.js";
 import type { Store } from "../storage/store.js";
 import { defineCommand, ok, type CommandContext } from "./define.js";
-import { sortedDocs, ticketsInIteration } from "./helpers.js";
+import { agentDg as dg, sortedDocs, ticketsInIteration } from "./helpers.js";
 
-/** 流れの段階。stop は規則 8（どれにも当たらない）と、同じ段階が事実も変わらずに続いたとき */
-export const FLOW_STAGES = ["assign", "check", "plan", "work", "audit", "release", "stop"] as const;
+/** 流れの段階。飛ばせる段階（config の flow.skip）に、規則 8（どれにも当たらない）と同じ段階が事実も変わらずに続いたときの stop を足す */
+export const FLOW_STAGES = [...FLOW_SKIPS, "stop"] as const;
 export type FlowStageName = (typeof FLOW_STAGES)[number];
 
 /** この実行で終えたこと（会話の中にしかない事実）。resume が運ぶ */
@@ -320,8 +321,6 @@ export function approvalOf(
       return { required: false, what: null, auto: null, auto_ok: false };
   }
 }
-
-const dg = (args: string) => `dg --json --actor agent ${args}`;
 
 /** 段階で親が呼ぶ dg のコマンド（順に）。手のやり方は guide の節。Plan の承認は --auto が聞かずに選ぶときだけ呼ぶ */
 function commandsOf(stage: FlowStage, s: string | null, autoOk: boolean): string[] {

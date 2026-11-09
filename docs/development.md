@@ -107,7 +107,7 @@ mise run dg -- guide done      # マージ後の後始末
 
 core の `commands` を commander（`program.ts`）と MCP のツール（`mcp.ts`）に写す。ロジックは持たない。各ファイルの役割は冒頭のコメントが正本で、引数の型ごとの対応は `options.ts`、`--json` の形は `output.ts`、終了コードは `errors.ts`。
 
-グローバルオプションは `dg --help` が正本。`dg serve` / `dg open`（`serve.ts`）は開発用（配置の確認とスクリーンショット。[ADR-027](adr/ADR-027-screen-vscode-writes-and-asks.md)）で、`@deguboard/server` を起動する・ブラウザで開くだけ。`guide-*.md` は `packages/core/src/guide/` にあり、ビルドで core の `dist/guide/` に、拡張の `dist/` に写す（ルートと `packages/vscode` の `build`）。`skill.md` は `dist/` に、web の `dist` は `packages/cli/web` に写す（ルートの `build`）。トピックを足すときは `packages/core/src/guide/guide.ts` の `GUIDE_TOPICS` と `guide-overview.md` の表も直す。
+グローバルオプションは `dg --help` が正本。`dg serve` / `dg open`（`serve.ts`）は開発用（配置の確認とスクリーンショット。[ADR-027](adr/ADR-027-screen-vscode-writes-and-asks.md)）で、`@deguboard/server` を起動する・ブラウザで開くだけ。`guide-*.md` は `packages/core/src/guide/` にあり、ビルドで core の `dist/guide/` に、拡張の `dist/` に写す（ルートと `packages/vscode` の `build`）。`skill.md` は `dist/` に、web の `dist` は `packages/cli/web` に写す（ルートの `build`）。トピックを足すときは `guide-<トピック>.md` を置き、`packages/core/src/guide/topics.ts` の `GUIDE_TOPICS`（guide の読み込みと config の `guide.notes` が読む）・`guide-overview.md` の表・`packages/core/src/model/schema.test.ts` の `guide.notes.<トピック>` の一覧を直す。Skill を持つトピック（frontmatter に `description`）は `packages/core/src/commands/ask.ts` の `SKILL_SUMMARY` に文を足し、持たないトピックは `packages/cli/src/guide.test.ts` の Skill を持たないトピックの並びに足す。
 
 ### `packages/server`（`@deguboard/server`）
 

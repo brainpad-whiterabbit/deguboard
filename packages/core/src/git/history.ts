@@ -1,5 +1,5 @@
 // deguboard ブランチの git の履歴から、チケット・Epic・Iteration の属性の変化を読む（requirements.md 6.1 の history）。
-// `git log -p -U0` を 1 回だけ走らせ、frontmatter（Iteration は YAML 全体）の行の差分から変化を拾う。データの形は変えない。
+// `git log -p -U0` を 1 回だけ走らせ（チケット 1 枚のときはそのファイルに絞って）、frontmatter（Iteration は YAML 全体）の行の差分から変化を拾う。データの形は変えない。
 // 1 つのコミットで複数のファイルが変わっていても（変更をまとめてコミット）、ファイルごとの差分から読むので取りこぼさない
 
 import { readFile } from "node:fs/promises";
@@ -235,26 +235,47 @@ export function buildHistory(
   return { events, shallow: boundary.size > 0, incomplete: [...incomplete].sort() };
 }
 
-/** deguboard の worktree（dataDir）の HEAD の履歴を読む */
-export async function readHistory(dataDir: string): Promise<HistoryLog> {
+export interface ReadHistoryOptions {
+  /** このチケットのファイル（tickets/<id>.md・.yaml・.yml）の履歴だけを読む。消えたチケットでも引ける */
+  ticket?: string | undefined;
+}
+
+/**
+ * deguboard の worktree（dataDir）の HEAD の履歴を読む。ticket があれば、そのチケットのファイルを含むコミットだけを読む
+ * （全体の log -p は履歴が長いと秒単位になるので）。線形の履歴では、全体を読んでから絞った経過と同じになる
+ */
+export async function readHistory(
+  dataDir: string,
+  opts: ReadHistoryOptions = {},
+): Promise<HistoryLog> {
   const boundary = await shallowCommits(dataDir);
+  const paths = opts.ticket
+    ? ticketPaths(opts.ticket).map((p) => `:(literal)${p}`)
+    : ["tickets", "epics", "iterations"];
+  // --full-history は、チケット 1 枚の読みだけに付ける。merge の片側だけに入った変化を既定の簡約で落とさず、そのチケットの経過に残す。
+  // 全体の読み（--epic・--iteration の経過を含む）は従来の簡約のままにして、その結果を変えない
+  const fullHistory = opts.ticket ? ["--full-history"] : [];
   const log = await runGit(dataDir, [
     "-c",
     "core.quotepath=off",
     "log",
     "--reverse",
     "--no-renames",
+    ...fullHistory,
     "--no-color",
     "--no-ext-diff",
     "-p",
     "-U0",
     `--format=${COMMIT_MARK}%H${FIELD_SEP}%aI${FIELD_SEP}%an${FIELD_SEP}%s`,
     "--",
-    "tickets",
-    "epics",
-    "iterations",
+    ...paths,
   ]);
   return buildHistory(parseLog(log.stdout), boundary);
+}
+
+/** チケットのファイルの候補（md・yaml・yml の 3 つ。subjectOf と同じ）。存在しない拡張子は log に何も出さない */
+function ticketPaths(id: string): string[] {
+  return [`tickets/${id}.md`, `tickets/${id}.yaml`, `tickets/${id}.yml`];
 }
 
 /** 浅い clone の境界のコミット（$GIT_DIR/shallow）。浅くなければ空 */

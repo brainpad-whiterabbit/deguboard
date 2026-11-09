@@ -5,6 +5,7 @@ import path from "node:path";
 import { OperationError } from "../errors.js";
 import type { GitRepo, RepoPaths } from "./repo.js";
 import { runGit } from "./run.js";
+import { findBranchWorktree } from "./worktree.js";
 
 /**
  * `git check-ref-format --branch` 相当の検査。先頭の `-` を拒み、git にオプションとして読まれないようにする
@@ -58,4 +59,27 @@ export async function createBranchWorktree(
   const start = await branchStartPoint(cwd, repo, input.base);
   await runGit(cwd, ["worktree", "add", "--no-track", "-b", input.branch, "--", input.dir, start]);
   return { branch: input.branch, path: input.dir, base: start };
+}
+
+/**
+ * ブランチ branch の worktree を用意して場所を返す（claim。ADR-031）。既にそのブランチの worktree があればそれを返し、
+ * ローカルにブランチだけ残っていれば（unclaim の後など）そのブランチを dir に checkout し、なければ base から切って dir に作る。
+ * created は今作ったかどうか（既存のものは false）。worktree.setup を回すかの判断に使う（t621）
+ */
+export async function ensureBranchWorktree(
+  repo: GitRepo,
+  input: { branch: string; base: string; dir: string },
+): Promise<{ path: string; created: boolean }> {
+  const existing = await findBranchWorktree(repo, input.branch);
+  if (existing) return { path: existing, created: false };
+  const local = await runGit(
+    repo.topLevel,
+    ["show-ref", "--verify", "--quiet", `refs/heads/${input.branch}`],
+    { allowFailure: true },
+  );
+  if (local.code === 0) {
+    await runGit(repo.topLevel, ["worktree", "add", "--", input.dir, input.branch]);
+    return { path: input.dir, created: true };
+  }
+  return { path: (await createBranchWorktree(repo.topLevel, repo, input)).path, created: true };
 }
