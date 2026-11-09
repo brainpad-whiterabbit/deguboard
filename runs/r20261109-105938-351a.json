@@ -1,0 +1,33 @@
+{
+  "id": "r20261109-105938-351a",
+  "ticket": "t605",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-09T10:59:38Z",
+  "finished_at": "2026-11-09T11:04:01Z",
+  "result": "success",
+  "error": null,
+  "retries": 2,
+  "retry_reasons": [
+    "まとめ待ちの退避中に replay が失敗すると変更が失われるので失敗時に書き戻す",
+    "guide overview の manual では sync がコミットしない記述と --resolve の振る舞いの食い違いを直す"
+  ],
+  "usage": {
+    "input": 32,
+    "output": 8732,
+    "cache_read": 890808,
+    "cache_write": 50196
+  },
+  "tools": {
+    "read": 3,
+    "search": 0,
+    "write": 4,
+    "bash": 11,
+    "other": 1,
+    "read_before_write": 1,
+    "search_before_write": 0
+  },
+  "session": "25761519-bb28-435b-b7bf-47cade7bb504",
+  "review": null
+}
