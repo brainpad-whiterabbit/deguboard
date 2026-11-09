@@ -1,4 +1,6 @@
-// scripts/check-docs.mjs が ADR の更新日と一覧（docs/adr/README.md）の更新日の食い違い（t210）と、README.md と README.ja.md の節の構成のずれ（t464）で落ちることを確かめる。
+// scripts/check-docs.mjs が ADR の更新日の照合をやめ、列や行がなくても通ることを確かめる（t634）。
+// 実在しない ADR の番号・「最後に使った番号」との食い違いで落ち、8,000 字を超える ADR は警告で落とさないことも確かめる（t634）。
+// README.md と README.ja.md の節の構成のずれで落ちることを確かめる（t464）。
 // 拡張と Walkthrough が指す README の見出しアンカーが切れたときも落ちる（t524）。
 // 要件 ID・先頭コメント・guide の重複の検査が落ちることも確かめる（t536）。
 // 節を消して定義がなくなった接頭辞の参照は、接頭辞の一覧から拾って落ちることも確かめる（t552）。
@@ -10,9 +12,10 @@
 // スクリプトは自分の置き場所の親をルートとして読むので、検査に要るファイルを一時ディレクトリに写して動かす。
 // 調べるファイルは git の追跡と無視の規則で決まるので、一時ディレクトリは git init して .gitignore も写す。
 // 写さないファイルへのリンクの切れも出るので、確かめる指摘だけを見る
+// ADR 番号の実在は、packages・scripts・docs・ルートのファイル（バイナリを除く）と test の先頭コメントで見ることも確かめる（t634）。
 
 import { execFile } from "node:child_process";
-import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -64,6 +67,11 @@ function run(): Promise<{ code: number; stderr: string }> {
   });
 }
 
+/** 指摘の欄（「check:docs の指摘」の後ろ）。警告の欄と分けて、落とす指摘が出ていないかを見る */
+function findingsOf(stderr: string): string {
+  return stderr.split("check:docs の指摘")[1] ?? "";
+}
+
 async function rewrite(rel: string, from: RegExp, to: string): Promise<void> {
   const file = join(dir, rel);
   const text = await readFile(file, "utf8");
@@ -80,55 +88,160 @@ describe("check-docs の README.ja.md", () => {
   });
 });
 
-describe("check-docs の ADR の更新日", () => {
-  it("写したままなら更新日の指摘は出ない", async () => {
+describe("check-docs の ADR の更新日の照合をやめる（t634）", () => {
+  it("ADR の「- 更新日：」の行と一覧の更新日の列がなくても落ちない", async () => {
+    const adrPath = join(dir, "docs/adr");
+    for (const f of await readdir(adrPath)) {
+      if (!/^ADR-\d{3}-.+\.md$/.test(f)) continue;
+      const file = join(adrPath, f);
+      await writeFile(file, (await readFile(file, "utf8")).replace(/^- 更新日：.*\n/m, ""));
+    }
+    const list = join(dir, "docs/adr/README.md");
+    await writeFile(
+      list,
+      (await readFile(list, "utf8")).replace(/\|\s*\d{4}-\d{2}-\d{2}\s*\|$/gm, "|"),
+    );
+    const { stderr } = await run();
+    expect(findingsOf(stderr)).not.toContain("更新日");
+    expect(stderr).not.toContain("一覧に載っていない");
+    expect(stderr).not.toContain("の行がない");
+  });
+
+  it("ADR の更新日が一覧と食い違っても指摘しない", async () => {
+    await rewrite(ADR, /^- 更新日：\d{4}-\d{2}-\d{2}$/m, "- 更新日：2000-01-01");
     const { stderr } = await run();
     expect(stderr).not.toContain("更新日");
   });
+});
 
-  it("ADR の更新日をずらすと、一覧との食い違いで落ちる", async () => {
-    await rewrite(ADR, /^- 更新日：\d{4}-\d{2}-\d{2}$/m, "- 更新日：2000-01-01");
+describe("check-docs の ADR 番号の実在（t634）", () => {
+  const PROBE = "packages/cli/src/zz-probe.ts";
+  // 本リポジトリに存在しない ADR の番号
+  const UNKNOWN_ADR = "ADR-099";
+
+  async function append(rel: string, text: string): Promise<void> {
+    await writeFile(join(dir, rel), `${await readFile(join(dir, rel), "utf8")}\n${text}\n`);
+  }
+
+  it("写したままなら実在しない ADR 番号の指摘は出ない", async () => {
+    const { stderr } = await run();
+    expect(stderr).not.toContain("docs/adr にない");
+  });
+
+  it("文書・CLAUDE.md・packages の .ts の文字列・scripts のコメントの実在しない番号は、場所を出して落ちる", async () => {
+    await append("docs/development.md", `参照の確かめ：${UNKNOWN_ADR} を見る。`);
+    await append("CLAUDE.md", `参照の確かめ：${UNKNOWN_ADR} を見る。`);
+    await writeFile(join(dir, PROBE), `export const s = "${UNKNOWN_ADR}";\n`);
+    await writeFile(join(dir, "scripts/zz-probe.mjs"), `// ${UNKNOWN_ADR} の確かめ\n`);
+    const { code, stderr } = await run();
+    expect(code).toBe(1);
+    expect(stderr).toMatch(/docs\/development\.md:\d+: ADR-099 が docs\/adr にない/);
+    expect(stderr).toMatch(/CLAUDE\.md:\d+: ADR-099 が docs\/adr にない/);
+    expect(stderr).toContain(`${PROBE}:1: ADR-099 が docs/adr にない`);
+    expect(stderr).toContain("scripts/zz-probe.mjs:1: ADR-099 が docs/adr にない");
+  });
+
+  it("実在する番号（ADR-034）と、git が無視するビルドの成果物の中の番号は指摘しない", async () => {
+    await writeFile(join(dir, PROBE), "export const s = 'ADR-034';\n");
+    const built = join(dir, "packages/cli/web/assets/index-x.js");
+    await mkdir(dirname(built), { recursive: true });
+    await writeFile(built, `var a = "${UNKNOWN_ADR}";\n`);
+    const { stderr } = await run();
+    expect(stderr).not.toContain("ADR-034 が docs/adr にない");
+    expect(stderr).not.toContain(UNKNOWN_ADR);
+  });
+
+  it("packages の .css・.mts・.json・.html と、ルートの設定ファイル（pnpm-workspace.yaml）の実在しない番号も、場所を出して落ちる", async () => {
+    await mkdir(join(dir, "packages/web/src"), { recursive: true });
+    await mkdir(join(dir, "packages/cli"), { recursive: true });
+    await writeFile(join(dir, "packages/web/src/zz-probe.css"), `/* ${UNKNOWN_ADR} */\n`);
+    await writeFile(
+      join(dir, "packages/cli/src/zz-probe.mts"),
+      `export const s = "${UNKNOWN_ADR}";\n`,
+    );
+    await writeFile(join(dir, "packages/cli/zz-probe.json"), `{"note": "${UNKNOWN_ADR}"}\n`);
+    await writeFile(join(dir, "packages/cli/zz-probe.html"), `<!-- ${UNKNOWN_ADR} -->\n`);
+    await writeFile(join(dir, "pnpm-workspace.yaml"), `# ${UNKNOWN_ADR}\n`);
+    const { stderr } = await run();
+    const findings = findingsOf(stderr);
+    expect(findings).toContain("packages/web/src/zz-probe.css:1: ADR-099 が docs/adr にない");
+    expect(findings).toContain("packages/cli/src/zz-probe.mts:1: ADR-099 が docs/adr にない");
+    expect(findings).toContain("packages/cli/zz-probe.json:1: ADR-099 が docs/adr にない");
+    expect(findings).toContain("packages/cli/zz-probe.html:1: ADR-099 が docs/adr にない");
+    expect(findings).toContain("pnpm-workspace.yaml:1: ADR-099 が docs/adr にない");
+  });
+
+  it("バイナリの拡張子（画像など）の中の番号は読まない", async () => {
+    await mkdir(join(dir, "packages/web/src"), { recursive: true });
+    await writeFile(join(dir, "packages/web/src/zz-logo.png"), `${UNKNOWN_ADR}\n`);
+    const { stderr } = await run();
+    expect(stderr).not.toContain("zz-logo.png");
+  });
+
+  it("test の先頭コメントの実在しない番号は場所を出して落ち、test の本文の番号は指摘しない", async () => {
+    await mkdir(join(dir, "test"), { recursive: true });
+    await writeFile(
+      join(dir, "test/zz-probe.test.ts"),
+      `// ${UNKNOWN_ADR} の確かめ\nit("${UNKNOWN_ADR} のとおり動く", () => {});\n`,
+    );
+    const { stderr } = await run();
+    const findings = findingsOf(stderr);
+    expect(findings).toContain(
+      "test/zz-probe.test.ts:1: 先頭コメントが指す ADR-099 が docs/adr にない",
+    );
+    expect(findings).not.toContain("test/zz-probe.test.ts:2");
+  });
+});
+
+describe("check-docs の最後に使った番号（t634）", () => {
+  it("写したままなら最後に使った番号の指摘は出ない", async () => {
+    const { stderr } = await run();
+    expect(stderr).not.toContain("最後に使った番号");
+  });
+
+  it("実在の最大より小さい番号を書くと、その ADR を出して落ちる", async () => {
+    await rewrite("docs/adr/README.md", /最後に使った番号：ADR-034/, "最後に使った番号：ADR-033");
     const { code, stderr } = await run();
     expect(code).toBe(1);
     expect(stderr).toMatch(
-      /ADR-008-tech-stack\.md の更新日が \d{4}-\d{2}-\d{2} で、ADR の 2000-01-01 と食い違う/,
+      /「最後に使った番号」が ADR-033 だが、ADR-034-storage-and-id\.md はそれより大きい/,
     );
   });
 
-  it("一覧の更新日をずらしても落ちる", async () => {
-    await rewrite(
-      "docs/adr/README.md",
-      /(\[ADR-008\]\(ADR-008-tech-stack\.md\).*\|\s*)\d{4}-\d{2}-\d{2}(\s*\|)$/m,
-      "$12000-01-01$2",
-    );
+  it("最後に使った番号より大きい番号の ADR を足すと、その ADR を出して落ちる", async () => {
+    await writeFile(join(dir, "docs/adr/ADR-035-probe.md"), "# 確かめ\n");
     const { code, stderr } = await run();
     expect(code).toBe(1);
-    expect(stderr).toContain("ADR-008-tech-stack.md の更新日が 2000-01-01 で");
+    expect(stderr).toContain(
+      "docs/adr/README.md: 「最後に使った番号」が ADR-034 だが、ADR-035-probe.md はそれより大きい",
+    );
   });
 
-  it("置き換え済みの ADR は更新日がずれても指摘しない", async () => {
-    await rewrite(ADR, /^- ステータス：.*$/m, "- ステータス：置き換え（ADR-009）");
-    await rewrite(ADR, /^- 更新日：\d{4}-\d{2}-\d{2}$/m, "- 更新日：2000-01-01");
+  it("「最後に使った番号」の行を消すと、場所を出して落ちる", async () => {
+    await rewrite("docs/adr/README.md", /^最後に使った番号：.*\n/m, "");
+    const { code, stderr } = await run();
+    expect(code).toBe(1);
+    expect(stderr).toContain("docs/adr/README.md: 「最後に使った番号：ADR-NNN」の行がない");
+  });
+});
+
+describe("check-docs の ADR の長さの警告（t634）", () => {
+  // 「# ADR-008\n」は 10 字
+  const HEAD = "# ADR-008\n";
+
+  it("8,000 字ちょうどの ADR は警告しない", async () => {
+    await writeFile(join(dir, ADR), `${HEAD}${"あ".repeat(8000 - HEAD.length)}`);
     const { stderr } = await run();
-    expect(stderr).not.toContain("更新日");
+    expect(stderr).not.toContain("字を超えている");
   });
 
-  it("ADR に更新日の行がなければ落ちる", async () => {
-    await rewrite(ADR, /^- 更新日：.*\n/m, "");
-    const { code, stderr } = await run();
-    expect(code).toBe(1);
-    expect(stderr).toContain("ADR-008-tech-stack.md: 「- 更新日：YYYY-MM-DD」の行がない");
-  });
-
-  it("一覧の行から更新日を消すと落ちる", async () => {
-    await rewrite(
-      "docs/adr/README.md",
-      /(\[ADR-008\]\(ADR-008-tech-stack\.md\).*\|)\s*\d{4}-\d{2}-\d{2}\s*\|$/m,
-      "$1",
+  it("8,001 字の ADR は警告を出すが、指摘の欄には出ない（落とさない）", async () => {
+    await writeFile(join(dir, ADR), `${HEAD}${"あ".repeat(8001 - HEAD.length)}`);
+    const { stderr } = await run();
+    expect(stderr).toMatch(
+      /警告[\s\S]*docs\/adr\/ADR-008-tech-stack\.md: 8001 字で、8000 字を超えている/,
     );
-    const { code, stderr } = await run();
-    expect(code).toBe(1);
-    expect(stderr).toContain("docs/adr/README.md: ADR-008-tech-stack.md の行に更新日がない");
+    expect(findingsOf(stderr)).not.toContain("ADR-008-tech-stack.md");
   });
 });
 
@@ -289,7 +402,7 @@ describe("check-docs の要件 ID・先頭コメント・guide の重複（t536�
     const { code, stderr } = await run();
     expect(code).toBe(1);
     expect(stderr).toContain("先頭コメントが指す docs/requirements.md の節 9.9 がない");
-    expect(stderr).toContain("先頭コメントが指す ADR-999 がない");
+    expect(stderr).toContain("packages/cli/src/zz-probe.ts:1: ADR-999 が docs/adr にない");
     expect(stderr).toContain("先頭コメントが指す見出しがない: docs/requirements.md#存在しない");
     expect(stderr).toContain("先頭コメントが指す guide-nope.md がない");
   });
