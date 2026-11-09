@@ -1,0 +1,84 @@
+id: p86
+project: default
+tickets: [t606, t607, t608, t610, t612, t613, t614, t609, t611, t617, t619, t620, t618, t615, t616]
+after:
+  t611:
+    - t607
+  t617:
+    - t606
+  t619:
+    - t612
+  t620:
+    - t610
+  t618:
+    - t610
+  t615:
+    - t608
+  t616:
+    - t606
+    - t613
+    - t617
+    - t615
+    - t609
+pending_approval: true
+details:
+  t606:
+    scope: FLOW_GUIDE が返す節と guide の節の参照を閉じ、guide-all の記述を合わせる
+    approach: 返す節を複数にするか参照先を節に取り込むかを決め、参照の閉じ方を検査するテストを足す。guide-all は flow next の返りに合わせる
+    tier: heavy
+  t607:
+    scope: --resolve なしの renumberProvisional がリモートの別フィールドの変更を失わないようにする
+    approach: renumberCollisions と同じく merge-base の上で書き直してマージドライバを通す。bare リモートのテストで再現してから直す
+    tier: heavy
+  t608:
+    scope: config の actions.test に mise run check を設定する（PR なし）
+    approach: dg config で設定し、claim の worktree で dg gate --for ready を回して確かめ、準備の不足は起票を提案する
+    tier: light
+  t610:
+    scope: pack した cli に古い guide-*.md が入らないようにし、check-pack で確かめる
+    approach: build の前に dist を消すか files を絞り、check-pack.mjs に tarball の中身の検査を足す
+    tier: standard
+  t612:
+    scope: README 英日のフックの節に拒む操作を書く
+    approach: claude-code-hooks.ts の拒む操作を確かめ、英日の同じ節に足す
+    tier: light
+  t613:
+    scope: guide の本文の組み立てを core の関数 1 つにまとめる
+    approach: renderGuide の順を core に移し、cli・節・brief が使う。出力が変わらないテストを先に置く
+    tier: standard
+  t614:
+    scope: .oxlintrc.json の override に core の guide を入れ、漏れを検査するテストを足す
+    approach: packages/core/src の項目を読み、actions と index.ts 以外が files にあることを oxlint-copies のテストで確かめる
+    tier: standard
+  t609:
+    scope: actions.test の説明（日英）に品質ゲートでの使い方と空の扱いを書く
+    approach: config.ts の describe と l10n-en.ts の英訳だけ直す
+    tier: light
+  t611:
+    scope: --resolve で解けない競合と manual のまとめ待ちの道のテストを足す
+    approach: merge.test.ts に bare リモートの分岐を作る 2 つのテストを足す。実装は直さない（不具合なら起票を提案）
+    tier: standard
+  t617:
+    scope: worktree の案内・guide-all の見出し・pr merge の旗・ない節の言い回しの 4 点を実装に合わせる
+    approach: (1) 警告に場所を出す (2) 見出しを直す (3) --no-delete-branch を足すか help に書く (4) CL-5・help・実装の文を揃える
+    tier: standard
+  t619:
+    scope: README 英日の Hand off everything に承認で止まることと config で選べることを書く
+    approach: guide-all の auto の節に合わせ、英日の同じ節に足す
+    tier: light
+  t620:
+    scope: cli の description と server の README から dg serve を利用者の画面とする書き方を消す
+    approach: packages/cli/README.md の書き方に合わせて 2 か所を直す
+    tier: light
+  t618:
+    scope: "@types/vscode を 1.123 系に、playwright-core を正式版 1.65.0 にする"
+    approach: package.json と lock を更新し、mise run check と test:layout を回す
+    tier: standard
+  t615:
+    scope: gate-check の使い回し・回せないときと pr merge の GATE_FAILED のテストを足す
+    approach: gate.test.ts と pr.test.ts にテストを足す。実装は直さない（不具合なら起票を提案）
+    tier: standard
+  t616:
+    scope: マージの方法・トピック・段階の一覧の重複、使われない再 export、human_only と worktree の分岐を 1 か所にまとめる
+    approach: 定義を 1 か所に寄せて他は読む。worktree の分岐は git の層へ。development.md のトピック追加の案内を直す
+    tier: heavy
