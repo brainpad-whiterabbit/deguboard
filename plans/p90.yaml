@@ -1,0 +1,39 @@
+id: p90
+project: default
+tickets: [t643, t642, t640, t635, t639, t641, t627]
+after:
+  t639:
+    - t643
+  t641:
+    - t635
+    - t640
+pending_approval: true
+details:
+  t643:
+    scope: ブランチを消す指定でマージに失敗したとき、作業ブランチの worktree を残すか戻し、扱いを警告に出す
+    approach: removeBranchWorktree の位置を失敗に耐える形に変え、一時リポジトリのテストで成功と失敗の両方を確かめる
+    tier: standard
+  t642:
+    scope: hook.test.ts のサブエージェントが開いた Run に記録を結び付けるテストの不安定さの原因を突き止めて直す
+    approach: コードの根拠から順序・時刻の依存を特定し、その条件を固定して再現するテストを足す
+    tier: heavy
+  t640:
+    scope: ルートの test/ の先頭のコメントの外の ADR 番号を、要件 ID か「なぜ」に寄せる
+    approach: sidebar.layout.ts と host.ts の該当行を直し、ほかに残りがないか検索で確かめる
+    tier: light
+  t635:
+    scope: 置き換え済みの ADR を削除して参照を張り替え、有効な ADR の冒頭に要約を置き、更新日の行と列を消す
+    approach: ADR ごとに要約を書き、docs/adr/README.md に最後に使った番号を書く。check:docs で参照の切れを確かめる
+    tier: standard
+  t639:
+    scope: 直さなかった軽い指摘の本文の欄に、手直しに渡して直した指摘を載せないようにする
+    approach: 手直しに渡した指摘を dg に伝える道を足し、noteUnfixedLight で除く。guide-review に書く
+    tier: standard
+  t641:
+    scope: check:docs に、先頭のコメントの外の ADR 番号と先頭のコメントの複数の ADR 番号を落とす検査を足す
+    approach: 追跡ファイルを走査し、フィクスチャと check-docs 自身は理由付きの例外にする。検査ごとにテストを足す
+    tier: standard
+  t627:
+    scope: 変更の要らない計測：呼び出し元ごとの dg の 1 回の内訳を測り、案 G の要否と案 E の閾値を決めて記録する
+    approach: claim --without-branch で着手し、測った値と決定をチケットの本文に書く
+    tier: standard
