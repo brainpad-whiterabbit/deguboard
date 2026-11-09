@@ -130,6 +130,30 @@ export async function putReviewRound(
   await writeFileAtomic(file, `${JSON.stringify(stored, null, 2)}\n`);
 }
 
+/**
+ * 見直しの Run に結果を書いた・保留の結果を結び付けたとき、その Run の開始（since）より後に置いた保留の回（run が null）を
+ * その Run の回にまとめる（t638）。Run の回がまだなければ最新の保留の回をその Run の回にし、Run の回があればそれを残す
+ * （Git の Run の数と同じ回）。ほかの保留の回は外す。保留の回を残すと同じ見直しが 2 回になり、dg pr ready が同じ指摘を 2 行書く（t637）
+ */
+export async function adoptPendingRounds(
+  repo: Pick<GitRepo, "localDir">,
+  ticket: TicketId,
+  run: RunId,
+  since: string,
+): Promise<void> {
+  const stored = await readReviewFindings(repo, ticket);
+  if (!stored) return;
+  const held = (r: ReviewRound) => r.run === null && r.at >= since;
+  const latestHeld = stored.rounds.filter(held).at(-1);
+  if (!latestHeld) return;
+  const owned = stored.rounds.some((r) => r.run === run);
+  const rounds = stored.rounds
+    .filter((r) => !held(r) || (!owned && r === latestHeld))
+    .map((r) => (r === latestHeld ? { ...r, run } : r));
+  const next: StoredReviewFindings = { ticket, rounds };
+  await writeFileAtomic(reviewFindingsPath(repo, ticket), `${JSON.stringify(next, null, 2)}\n`);
+}
+
 /** チケットの見直しの回。なければ（記録なし・別のマシン・読めない）undefined */
 export async function readReviewFindings(
   repo: Pick<GitRepo, "localDir">,
@@ -378,16 +402,33 @@ export async function readTranscriptPaths(
   return paths;
 }
 
-/** Run の会話記録のパスを置き換える（フックがサブエージェントの記録を結び付けるとき。RN-7）。パスは絶対パスにする */
+/**
+ * Run の会話記録のパスを置き換える（フックがサブエージェントの記録を結び付けるとき。RN-7）。パスは絶対パスにする。
+ * live は、サブエージェントが動いている（バックグラウンドで起動したか再開して、まだ止まっていない）印。
+ * 止まったときのフックが live なしで結び付け直すので、印はそこで消える
+ */
 export async function bindTranscript(
   repo: Pick<GitRepo, "localDir">,
   id: RunId,
   transcript: string,
+  live = false,
 ): Promise<void> {
   await writeFileAtomic(
     path.join(repo.localDir, transcriptPath(id)),
-    `${JSON.stringify({ path: path.resolve(transcript) })}\n`,
+    `${JSON.stringify({ path: path.resolve(transcript), ...(live ? { live: true } : {}) })}\n`,
   );
+}
+
+/** Run のサブエージェントが動いている印（bindTranscript の live）があるか。読めなければ false */
+export async function isLiveSubagent(repo: Pick<GitRepo, "localDir">, id: RunId): Promise<boolean> {
+  try {
+    const value: unknown = JSON.parse(
+      await readFile(path.join(repo.localDir, transcriptPath(id)), "utf8"),
+    );
+    return (value as { live?: unknown } | null)?.live === true;
+  } catch {
+    return false;
+  }
 }
 
 /**

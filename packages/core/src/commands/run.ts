@@ -34,15 +34,18 @@ import {
   amendRunning,
   appendRetryReasons,
   closeRun,
+  adoptPendingRounds,
   putPendingReview,
   putReviewRound,
   putPendingRetryReasons,
   dropRunning,
   finishRun,
+  isLiveSubagent,
   pruneTranscripts,
   readRunningRuns,
   readTranscriptPaths,
   startRun,
+  takePendingReview,
   TRANSCRIPT_RETENTION_DAYS,
   transcriptExpired,
   type PrunedTranscript,
@@ -585,13 +588,29 @@ export const runStart = defineCommand({
   },
 });
 
+/**
+ * 印で頼んだサブエージェントがまだ動いている Run（フックが付けた live の印。バックグラウンドの起動か再開の後、止まる前）を閉じるのを拒む（t638）。
+ * 先に閉じると、その後の作業を使用量とツールの回数に数えず、見直し役の run review-result が書く先を失って保留になり、
+ * 見直しの回が二重になった（t637）。止まればフックが閉じるか、止まって待っている印を付ける。
+ * 返らないまま止まった Run は --result interrupted で閉じられる（呼び出し側が拒まない）
+ */
+async function rejectLiveSubagentRun(ctx: CommandContext, run: Run): Promise<void> {
+  if (!(await isLiveSubagent(ctx.repo, run.id))) return;
+  throw new OperationError(
+    "REJECTED",
+    `Run ${run.id} は印で頼んだサブエージェントの Run で、サブエージェントがまだ止まっていない。サブエージェントの終わりの通知を待つ（止まったらフックが閉じる）。` +
+      "返らないまま止まったなら --result interrupted で閉じる",
+  );
+}
+
 export const runFinish = defineCommand({
   name: "run.finish",
   positionals: ["run"],
   group: "run",
   summary:
     "実行中の Run を閉じ、完了時の集計を runs/ に書く（commit.mode に従ってコミット）。止まった Run は --result interrupted で閉じる。使用量とツールの回数（tools）は自己申告を受けず、agent の Adapter が会話記録から取り込む。使用量が取れなければ null のまま警告する。ツールを数えない Adapter では tools は null。" +
-    "既に閉じた Run（チケットの操作が閉じた実装の Run など）なら記録を変えずに警告して返す",
+    "既に閉じた Run（チケットの操作が閉じた実装の Run など）なら記録を変えずに警告して返す。" +
+    "印で頼んだサブエージェントがまだ動いている Run（バックグラウンドの起動か再開の後、止まる前）は、--result interrupted のほかは拒む（止まればフックが閉じる）",
   input: z.object({
     run: z.string().min(1).describe("Run の ID（r20261031-041500-3fa2）"),
     result: z.enum(RUN_RESULTS).describe("success・failure・interrupted"),
@@ -645,6 +664,7 @@ export const runFinish = defineCommand({
     if (closed) return alreadyClosed(closed);
     // 実行中の記録がなければ取り込まず、finishRun が見つからない・終わっていると拒否する
     const usage = running ? await usageContext(ctx, local) : undefined;
+    if (running && input.result !== "interrupted") await rejectLiveSubagentRun(ctx, running.data);
     const collected =
       running && usage
         ? await collectRunUsage(ctx.config, {
@@ -766,20 +786,25 @@ export const runReviewResult = defineCommand({
     const ticket = ctx.store.require("ticket", input.ticket).data;
     // 回の記録は書いた先の Run（保留なら null）と一緒に deguboard-local に置く（置き場所の理由は run/record.ts）。
     // 数だけの呼び方も回として置く（一覧は null）。前の回の一覧を最新として使わせないため
-    const keep = async (run: RunId | null) => {
+    const keep = async (run: Run | null) => {
       await putReviewRound(ctx.repo, ticket.id, {
-        run,
+        run: run?.id ?? null,
         at: toIsoDateTime(ctx.now()),
         review,
         findings: input.findings ?? null,
       });
+      if (!run) return;
+      // この Run の間に保留にした結果（Run を先に閉じられて書く先を失った回など）は、今書いた結果に置き換わる。
+      // 保留と保留の回を残すと、同じ見直しが 2 回になる（t638）
+      await takePendingReview(ctx.repo, ticket.id, run.started_at);
+      await adoptPendingRounds(ctx.repo, ticket.id, run.id, run.started_at);
     };
     const local = (await readRunningRuns(ctx.repo)).runs;
     const running = local.find((r) => r.data.ticket === ticket.id && r.data.step === REVIEW_STEP);
     if (running) {
       try {
         const amended = await amendRunning(ctx.repo, running.data.id, { review });
-        await keep(amended.id);
+        await keep(amended);
         return ok<Run | PendingReviewView>(amended, undefined, warnings);
       } catch (e) {
         // 読んだ後にフックが閉じた。閉じた Run に書く
@@ -847,7 +872,7 @@ export const runReviewResult = defineCommand({
       },
       { message: (run) => `見直しの結果を記録: ${run.ticket} ${run.id}` },
     );
-    await keep(written.value.id);
+    await keep(written.value);
     return ok<Run | PendingReviewView>(written.value, written.write, warnings);
   },
 });
