@@ -9,7 +9,7 @@ import { openContext } from "./context.js";
 import { runCommand, type CommandContext } from "./define.js";
 import { prMerge, prReady, type PrAdvanceView } from "./pr.js";
 import { runFinish, runReviewResult, runStart } from "./run.js";
-import { init } from "./setup.js";
+import { configSet, init } from "./setup.js";
 import { ticketCheck, ticketClaim, ticketCreate } from "./ticket.js";
 
 const cleanups: Array<() => Promise<void> | void> = [];
@@ -126,5 +126,63 @@ describe("dg pr ready・dg pr merge（t545）", () => {
       .data as PrAdvanceView;
     expect(merged).toMatchObject({ pr: 7, action: "merge", method: "squash" });
     expect(await calls()).toEqual(["pr ready 7", "pr merge 7 --squash --delete-branch"]);
+  });
+
+  it("--method・--delete-branch を省けば config の merge.method・merge.delete_branch に従い、渡せばそちらを使う（t601）", async () => {
+    const { ctx: first, calls, undraft } = await prepared();
+    await runCommand(configSet, first, { key: "merge.method", value: "rebase" });
+    await runCommand(configSet, first, { key: "merge.delete_branch", value: "true" });
+    const ctx = await openContext({ cwd: first.repo.topLevel, actor: first.actor });
+    await passedReview(ctx);
+    await undraft();
+    await runCommand(ticketCheck, ctx, { ticket: "t1", items: [1] });
+    const merged = (await runCommand(prMerge, ctx, { ticket: "t1" })).data as PrAdvanceView;
+    expect(merged.method).toBe("rebase");
+    await runCommand(prMerge, ctx, { ticket: "t1", method: "merge", delete_branch: false });
+    expect(await calls()).toEqual(["pr merge 7 --rebase --delete-branch", "pr merge 7 --merge"]);
+  });
+
+  it("--delete-branch のときは品質ゲートを通した後、gh を呼ぶ前に作業ブランチの worktree を消し、その worktree から呼べば消さずに警告する（t601）", async () => {
+    const { ctx, calls, undraft } = await prepared();
+    await passedReview(ctx);
+    await undraft();
+    await runCommand(ticketCheck, ctx, { ticket: "t1", items: [1] });
+    // feat/t1 を cloneA から外し、別の worktree に checkout する
+    const main = ctx.repo.topLevel;
+    await git(main, ["checkout", "-q", "main"]);
+    const wt = path.join(path.dirname(main), "wt-t1");
+    await git(main, ["worktree", "add", "-q", wt, "feat/t1"]);
+    // その worktree から呼ぶと、自分の作業ツリーは消さない
+    const inner = await openContext({ cwd: wt, actor: ctx.actor });
+    const fromInside = await runCommand(prMerge, inner, { ticket: "t1", delete_branch: true });
+    expect(fromInside.warnings.join("\n")).toContain(
+      "worktree から呼んだので、worktree を消さない",
+    );
+    expect(await git(main, ["worktree", "list"])).toMatchObject({
+      stdout: expect.stringContaining("wt-t1"),
+    });
+    // main の worktree から呼ぶと消してから gh を呼ぶ
+    const merged = await runCommand(prMerge, ctx, { ticket: "t1", delete_branch: true });
+    expect(merged.warnings).toEqual([]);
+    expect((await git(main, ["worktree", "list"])).stdout).not.toContain("wt-t1");
+    expect(await calls()).toEqual([
+      "pr merge 7 --squash --delete-branch",
+      "pr merge 7 --squash --delete-branch",
+    ]);
+  });
+
+  it("検査（actions.test）が通らなければ GATE_FAILED に終了コードと出力の末尾を入れ、gh を呼ばない（t601）", async () => {
+    const { ctx: first, calls } = await prepared();
+    const script = path.join(path.dirname(first.repo.topLevel), "failing-check.sh");
+    await writeFile(script, "#!/bin/sh\necho 落ちたテスト\nexit 1\n", { mode: 0o755 });
+    await runCommand(configSet, first, { key: "actions.test", value: `sh, ${script}` });
+    const ctx = await openContext({ cwd: first.repo.topLevel, actor: first.actor });
+    await passedReview(ctx);
+    const ready = await rejection(runCommand(prReady, ctx, { ticket: "t1" }));
+    expect(ready!.code).toBe("GATE_FAILED");
+    expect(ready!.detail).toContain("check: 検査");
+    expect(ready!.detail).toContain("exit 1");
+    expect(ready!.detail).toContain("落ちたテスト");
+    expect(await calls()).toEqual([]);
   });
 });

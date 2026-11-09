@@ -7,6 +7,7 @@ import { REVIEW_STEP, type Run } from "../model/run.js";
 import { parseAcceptance, type Ticket } from "../model/ticket.js";
 import { readRunningRuns } from "../run/record.js";
 import { defineCommand, ok, type CommandContext } from "./define.js";
+import { judgeCheck } from "./gate-check.js";
 import { ticketRef } from "./helpers.js";
 
 /** 重い指摘を直す回数の上限（見直しは最初を含めて 3 回まで。guide-review の「上限」） */
@@ -15,7 +16,14 @@ export const FIX_ROUNDS_LIMIT = 2;
 export const GATE_STAGES = ["ready", "merge"] as const;
 export type GateStage = (typeof GATE_STAGES)[number];
 
-export const GATE_CONDITIONS = ["pr", "acceptance", "review", "fix_rounds", "mergeable"] as const;
+export const GATE_CONDITIONS = [
+  "pr",
+  "acceptance",
+  "review",
+  "fix_rounds",
+  "mergeable",
+  "check",
+] as const;
 export type GateConditionId = (typeof GATE_CONDITIONS)[number];
 
 export interface GateCondition {
@@ -145,6 +153,12 @@ export async function judgeGate(
       );
   }
 
+  // 検査（actions.test）。時間がかかるので、ほかの条件をすべて満たしたときだけ回す（空なら回さずに通すので、いつでも判定する）
+  if (ctx.config.actions.test.length === 0 || conditions.every((c) => c.ok)) {
+    const check = await judgeCheck(ctx, ticket);
+    add("check", check.ok, check.detail);
+  } else add("check", false, "ほかの条件を満たさないので、検査（actions.test）は回していない");
+
   return {
     ticket: ticket.id,
     for: stage,
@@ -162,9 +176,10 @@ export const gate = defineCommand({
     "品質ゲートを記録と Git・PR の事実で判定し、条件ごとの結果（conditions）と満たさない理由を返す（EX-3）。条件は " +
     "pr（PR が開いている。--for merge なら draft でない）・acceptance（--for merge のとき受け入れ条件すべてに印）・" +
     "review（作業ブランチのリモートの先端のコミットの時刻より後に始めた見直しの Run が success で閉じていて、run review-result の結果が通っている）・" +
-    `fix_rounds（このブランチで重い指摘が出た見直しが ${FIX_ROUNDS_LIMIT} 回以内）・mergeable（--for merge のとき gh の mergeable が MERGEABLE）。` +
-    "gh・Git が読めない条件は満たさないとする。検査（lint・テスト）が通るかは判定しない（リポジトリの規約で確かめる）。" +
-    "dg pr ready・dg pr merge が gh を呼ぶ前に同じ判定をする。見直しを省く・上限を超えて進めるなどの例外は持たず、人の判断に任せる（人に gh を打ってもらう）。何も書かない",
+    `fix_rounds（このブランチで重い指摘が出た見直しが ${FIX_ROUNDS_LIMIT} 回以内）・mergeable（--for merge のとき gh の mergeable が MERGEABLE）・` +
+    "check（config の actions.test を、作業ブランチの最新のコミット（リモートの先端）を checkout した未コミットの変更のない worktree で回して通る。actions.test が空なら判定せずに通し、そう detail に出す。通らなければ detail に終了コードと出力の末尾を出す。通った結果はコミットとコマンドごとに deguboard-local に覚え、同じコミットでは回し直さない（worktree を消した後のマージでも使える。通らなかった結果は覚えず、次の判定で回し直す）。時間がかかるので、ほかの条件をすべて満たしたときだけ回す）。" +
+    "gh・Git が読めない条件は満たさないとする。" +
+    "dg pr ready・dg pr merge が gh を呼ぶ前に同じ判定をする。見直しを省く・上限を超えて進めるなどの例外は持たず、人の判断に任せる（人に gh を打ってもらう）。チケットのデータは書かない（書くのは通った検査の結果を deguboard-local に覚えることだけ）",
   input: z.object({
     ticket: ticketRef,
     for: z

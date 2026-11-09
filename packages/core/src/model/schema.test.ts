@@ -149,6 +149,8 @@ describe("スキーマ", () => {
       "actions.shell",
       "actions.test",
       "auto.merge",
+      "merge.method",
+      "merge.delete_branch",
       "review.heavy_categories",
       "lint.require_iteration",
       "models.light",

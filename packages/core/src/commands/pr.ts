@@ -3,13 +3,15 @@
 
 import { z } from "zod";
 import { OperationError } from "../errors.js";
-import { runGh } from "../git/run.js";
+import path from "node:path";
+import { runGh, runGit } from "../git/run.js";
+import { findBranchWorktree } from "../git/worktree.js";
+import { PR_MERGE_METHODS } from "../model/config.js";
 import { defineCommand, ok, type CommandContext } from "./define.js";
 import { judgeGate, type GateStage, type GateView } from "./gate.js";
 import { ticketRef } from "./helpers.js";
 
-/** gh pr merge のマージの方法（actions の merge_pr と同じ。Core の汎用部分は actions に依存しないので別に持つ） */
-export const PR_MERGE_METHODS = ["squash", "merge", "rebase"] as const;
+export { PR_MERGE_METHODS };
 
 export interface PrAdvanceView {
   ticket: string;
@@ -35,6 +37,32 @@ async function passGate(ctx: CommandContext, ticketId: string, stage: GateStage)
     );
   }
   return { ticket, gate, pr: gate.pr };
+}
+
+/**
+ * 作業ブランチを checkout した worktree を消す（gh がローカルのブランチを消せるように）。呼んだ作業ツリーそのもの・未コミットの変更が
+ * ある worktree は消さずに warnings に出す（作業を失わない。gh がローカルのブランチを消せなければ gh の警告になる）
+ */
+async function removeBranchWorktree(
+  ctx: CommandContext,
+  branch: string,
+  warnings: string[],
+): Promise<void> {
+  const dir = await findBranchWorktree(ctx.repo, branch);
+  if (!dir) return;
+  if (path.resolve(dir) === path.resolve(ctx.repo.topLevel)) {
+    warnings.push(
+      `ブランチ ${branch} の worktree から呼んだので、worktree を消さない（ローカルのブランチが残る。main の worktree から呼ぶ）`,
+    );
+    return;
+  }
+  const removed = await runGit(ctx.repo.topLevel, ["worktree", "remove", "--", dir], {
+    allowFailure: true,
+  });
+  if (removed.code !== 0)
+    warnings.push(
+      `worktree ${dir} を消せなかった（${removed.stderr.trim().split("\n")[0] ?? ""}）。要るものを退避してから消す`,
+    );
 }
 
 export const prReady = defineCommand({
@@ -66,29 +94,38 @@ export const prMerge = defineCommand({
     "dg を経由しない gh pr merge はフックが拒む。満たさないままマージするのは人の判断で、人が gh pr merge を打つ。チケットのデータは書かない（done への前進は次の sync）",
   input: z.object({
     ticket: ticketRef,
-    method: z.enum(PR_MERGE_METHODS).default("squash").describe("マージの方法"),
+    method: z
+      .enum(PR_MERGE_METHODS)
+      .optional()
+      .describe("マージの方法。省けば config の merge.method（既定は squash）"),
     delete_branch: z
       .boolean()
-      .default(false)
+      .optional()
       .describe(
-        "リモートとローカルの作業ブランチも消すか（gh pr merge --delete-branch）。ブランチを checkout した worktree が残っていると gh がローカルのブランチを消せないので、先に worktree を消して main の worktree から呼ぶ",
+        "リモートとローカルの作業ブランチも消すか（gh pr merge --delete-branch）。省けば config の merge.delete_branch（既定は消さない）。消すときは、品質ゲート（検査を含む）を通した後、gh を呼ぶ前にブランチを checkout した worktree を消す（残っていると gh がローカルのブランチを消せない）。worktree は先に消さず、その worktree の外（main の worktree）から呼ぶ",
       ),
   }),
   write: false,
   needs: "store",
   async run(ctx, input) {
     const { ticket, gate, pr } = await passGate(ctx, input.ticket, "merge");
-    const args = ["pr", "merge", String(pr), `--${input.method}`];
-    if (input.delete_branch) args.push("--delete-branch");
+    // 省いた方法とブランチの扱いはリポジトリの config で決める（LLM が規約から読み取って選ばない。ADR-030）
+    const method = input.method ?? ctx.config.merge.method;
+    const deleteBranch = input.delete_branch ?? ctx.config.merge.delete_branch;
+    const warnings: string[] = [];
+    // 検査（actions.test）は作業ブランチの worktree で回すので、worktree は品質ゲートを通した後に消す（先に消すと検査を回せない）
+    if (deleteBranch && ticket.branch) await removeBranchWorktree(ctx, ticket.branch, warnings);
+    const args = ["pr", "merge", String(pr), `--${method}`];
+    if (deleteBranch) args.push("--delete-branch");
     await runGh(ctx.repo.topLevel, args, { timeoutMs: 120_000 });
     const view: PrAdvanceView = {
       ticket: ticket.id,
       pr,
       action: "merge",
       gate,
-      method: input.method,
+      method,
     };
-    return ok(view);
+    return ok(view, undefined, warnings);
   },
 });
 

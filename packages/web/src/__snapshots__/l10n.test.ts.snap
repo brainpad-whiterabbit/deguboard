@@ -11,6 +11,8 @@ exports[`設定の項目の説明の訳 > core の説明が変わったら訳を
   "git.base_branch": "作業ブランチの元と「マージ済み」の判定の基準",
   "git.remote": "同期先のリモート",
   "lint.require_iteration": "dg lint が、Iteration に入らずに todo・abandoned 以外に進んだチケットを指摘するか（閉じた Epic の done は除く）。dg guide work は claim の前に Iteration に入れるよう案内する",
+  "merge.delete_branch": "dg pr merge が --delete-branch を省いたとき、リモートとローカルの作業ブランチも消すか",
+  "merge.method": "dg pr merge が --method を省いたときのマージの方法（squash・merge・rebase）",
   "metrics.read_transcripts": "run finish・run refresh が Adapter で会話記録を読んで使用量を補うか。DEGUBOARD_NO_TRANSCRIPTS のマシンでは true でも読まない（MT-2）",
   "models.heavy": "Plan の段階 heavy（設計の判断・データの形・複数パッケージ・原因の分からない不具合）に使うモデル。空なら親のモデル",
   "models.light": "Plan の段階 light（文書・設定・文言だけ）と、実装の中の調べものに使うモデル。空なら親のモデル",
