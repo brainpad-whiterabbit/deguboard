@@ -29,6 +29,7 @@ import {
 } from "../model/run.js";
 import { AbortWrite, withWrite } from "../git/write.js";
 import { lastPushedAt } from "../git/facts.js";
+import { isHeavyFinding } from "../run/findings.js";
 import {
   amendRunning,
   appendRetryReasons,
@@ -702,9 +703,7 @@ export function reviewOfFindings(
   findings: readonly ReviewFinding[],
   heavyCategories: readonly string[],
 ): RunReview {
-  const heavy = findings.filter(
-    (f) => f.severity === "heavy" || heavyCategories.includes(f.category),
-  ).length;
+  const heavy = findings.filter((f) => isHeavyFinding(f, heavyCategories)).length;
   return { heavy, light: findings.length - heavy, passed: heavy === 0 };
 }
 

@@ -19,7 +19,7 @@ argument-hint: "<Plan の ID|チケットの ID>"
 2. `kind` ごとの親の手：
    - `implement`：`commands` の claim を行い、「claim の前後」に従う。作業ブランチの worktree は claim が作り、場所を `worktree` に返す（既定は `{{worktree.root}}/<ブランチ名>`）。文を渡し、返ったら「実装の結果を受け取る」。親が自分で実装するなら、claim の `--no-run` を外して下の「実装する」を行う（claim が実装の Run を開く）
    - `review`：`dg guide review` の「見直しを起動する（親）」で見直し役を起動する（文に「見直す」の手順が入る）
-   - `fix`：`dg guide review` の「修正ループ（親）」で、見直し役の指摘を `brief <id> --role fix --findings` の文で渡す（文に「指摘を直す」の手順が入る）
+   - `fix`：`dg guide review` の「修正ループ（親）」で、`brief <id> --role fix` の文で渡す（文に「指摘を直す」の手順と、見直しの記録の指摘が入る）
    - `ready`：`dg guide review` の「終わり方」で PR を出す。PR を見ない Workflow（general など。`sync` が review に進めない）では、PR を出したら続けて自分で `dg --json --actor agent ticket move <id> review` に進める
    - `wait_merge`・`wait_human`：`ask_human` を人に伝えて聞く（`wait_human` は `dg guide review` の「終わり方」）。人のレビューの指摘は `dg guide review` の「修正ループ（親）」。マージされたら `dg guide done`
    - `wait_deps`：待つ。Plan の `next` から、ほかのチケットを選ぶ

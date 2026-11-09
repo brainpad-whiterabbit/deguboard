@@ -129,7 +129,7 @@ describe("dg guide", () => {
     expect(await readGuide("overview")).toContain("`ticket claim` が開く");
   });
 
-  it("review は文書との食い違いを、この PR が変えた約束・手順・規約で文書を直していないものに限って重い指摘にし、前からのずれは audit と ADR-001 に送る。参考節との食い違いは軽い指摘として返し、参考節がなければ見比べないと案内し、直さなかった軽い指摘は親が PR の本文に書き足すと決める", async () => {
+  it("review は文書との食い違いを、この PR が変えた約束・手順・規約で文書を直していないものに限って重い指摘にし、前からのずれは audit と ADR-001 に送る。参考節との食い違いは軽い指摘として返し、参考節がなければ見比べないと案内し、直さなかった軽い指摘は dg pr ready が PR の本文に書き足すと決める", async () => {
     const review = await readGuide("review");
     const look = bullet(section(review, "## 見直す"), "見る");
     for (const word of [
@@ -145,9 +145,16 @@ describe("dg guide", () => {
     for (const word of ["この PR が変えた", "文書の見直し", "ADR-001", "参考節との食い違い"])
       expect(back, word).toContain(word);
     const fix = section(review, "## 修正ループ（親）");
-    for (const word of ["参考節との食い違い", "親が PR の本文に書き足す", "直さなかった軽い指摘"])
+    for (const word of [
+      "参考節との食い違い",
+      "dg pr ready` が PR の本文に書き足す",
+      "直さなかった軽い指摘",
+    ])
       expect(fix, word).toContain(word);
-    expect(await readGuide("parallel")).toContain("直さなかった軽い指摘を PR の本文に書き足し");
+    expect(fix).not.toContain("gh pr edit");
+    expect(await readGuide("parallel")).toContain(
+      "直さなかった軽い指摘は `dg pr ready` が PR の本文に書き足す",
+    );
   });
 
   it("review は ADR や要件に足した細部を重い指摘にし、文書を直していない重い指摘は約束・手順・規約の変更に限る", async () => {

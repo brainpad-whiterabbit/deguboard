@@ -1,12 +1,17 @@
 // PR を進めるコマンド（EX-6・AG-10、ADR-026）。品質ゲート（gate.ts の judgeGate）を満たすときだけ gh を呼ぶ。
 // エージェントが PR を ready にする・マージする正しい道で、フックは dg を経由しない gh pr ready・merge を拒む（hook.ts）
 
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import os from "node:os";
 import { z } from "zod";
 import { OperationError } from "../errors.js";
 import path from "node:path";
 import { runGh, runGit } from "../git/run.js";
 import { findBranchWorktree } from "../git/worktree.js";
 import { PR_MERGE_METHODS } from "../model/config.js";
+import type { TicketId } from "../model/id.js";
+import { findingText, splitFindings, withUnfixedLight } from "../run/findings.js";
+import { readReviewFindings } from "../run/record.js";
 import { defineCommand, ok, type CommandContext } from "./define.js";
 import { judgeGate, type GateStage, type GateView } from "./gate.js";
 import { ticketRef } from "./helpers.js";
@@ -22,6 +27,8 @@ export interface PrAdvanceView {
   gate: GateView;
   /** マージの方法（merge のときだけ） */
   method?: (typeof PR_MERGE_METHODS)[number];
+  /** PR の本文の「直さなかった軽い指摘」に載せた件数（ready のときだけ。見直しの記録がなければ 0） */
+  noted?: number;
 }
 
 /** ゲートを判定し、満たさなければ満たさない条件と理由を GATE_FAILED で返す（gh を呼ばない） */
@@ -65,6 +72,42 @@ async function removeBranchWorktree(
     );
 }
 
+/**
+ * 直さなかった軽い指摘を PR の本文に書き足す（t600）。見直しの記録（最新の見直しの指摘の一覧）から、手直しに渡さなかった軽い指摘を読み、
+ * もとの本文は残して節を書き足す（前に書いた節は入れ替える）。本文が変わるときだけ gh pr edit を呼ぶ。書き足した件数を返す
+ */
+async function noteUnfixedLight(
+  ctx: CommandContext,
+  ticketId: TicketId,
+  pr: number,
+): Promise<number> {
+  const stored = await readReviewFindings(ctx.repo, ticketId);
+  if (!stored) return 0;
+  const { unfixedLight } = splitFindings(stored.findings, ctx.config.review.heavy_categories);
+  const view = await runGh(ctx.repo.topLevel, ["pr", "view", String(pr), "--json", "body"], {
+    timeoutMs: 60_000,
+  });
+  const current = (JSON.parse(view.stdout) as { body?: string | null }).body ?? "";
+  const next = withUnfixedLight(
+    current,
+    unfixedLight.map((f) => findingText(f, "ja")),
+  );
+  if (next !== current) {
+    // 本文は引数の配列で渡せない長さ・改行を含むので、一時ファイルから --body-file で渡す
+    const dir = await mkdtemp(path.join(os.tmpdir(), "dg-pr-body-"));
+    try {
+      const file = path.join(dir, "body.md");
+      await writeFile(file, next);
+      await runGh(ctx.repo.topLevel, ["pr", "edit", String(pr), "--body-file", file], {
+        timeoutMs: 60_000,
+      });
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  }
+  return unfixedLight.length;
+}
+
 export const prReady = defineCommand({
   name: "pr.ready",
   positionals: ["ticket"],
@@ -72,14 +115,17 @@ export const prReady = defineCommand({
   summary:
     "チケットの PR を、品質ゲート（dg gate <ticket> --for ready）を満たすときだけ gh pr ready で draft から出す。" +
     "満たさなければ GATE_FAILED で満たさない条件と理由を返し、gh を呼ばない。エージェントが PR を出す正しい道で、" +
-    "dg を経由しない gh pr ready はフックが拒む。満たさないまま出すのは人の判断で、人が gh pr ready を打つ。チケットのデータは書かない（review への前進は次の sync）",
+    "dg を経由しない gh pr ready はフックが拒む。満たさないまま出すのは人の判断で、人が gh pr ready を打つ。" +
+    "出す前に、見直しの記録にある軽い指摘のうち手直しに渡さなかったもの（参考節との食い違いを含む）を PR の本文に書き足す（もとの本文は残す。noted に件数）。" +
+    "チケットのデータは書かない（review への前進は次の sync）",
   input: z.object({ ticket: ticketRef }),
   write: false,
   needs: "store",
   async run(ctx, input) {
     const { ticket, gate, pr } = await passGate(ctx, input.ticket, "ready");
+    const noted = await noteUnfixedLight(ctx, ticket.id, pr);
     await runGh(ctx.repo.topLevel, ["pr", "ready", String(pr)], { timeoutMs: 60_000 });
-    const view: PrAdvanceView = { ticket: ticket.id, pr, action: "ready", gate };
+    const view: PrAdvanceView = { ticket: ticket.id, pr, action: "ready", gate, noted };
     return ok(view);
   },
 });
