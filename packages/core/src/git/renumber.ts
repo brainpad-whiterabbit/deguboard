@@ -109,14 +109,25 @@ export async function renumberCollisions(repo: GitRepo): Promise<Renumbered[]> {
   const shas = await localCommits(repo, base);
   const mapping = await assignNumbers(repo, ids);
   const head = (await git(repo, ["rev-parse", "HEAD"])).stdout.trim();
-  const pending = await takePending(repo);
+  const pending = await readPending(repo);
+  // 読んだ後は、まとめ待ちの中身がメモリにしかない。作業ツリーを空にする所から try に入れ、
+  // 途中で失敗したら元の先端に戻して書き戻す（失わない）
   try {
+    await clearWorkTree(repo, "HEAD");
     await resetHard(repo, base);
     await replay(repo, shas, mapping);
   } catch (e) {
-    // まとめ待ちの中身はここではメモリにしかないので、積み直しが途中で失敗したら元の先端に戻して書き戻す（失わない）
-    await resetHard(repo, head);
-    await restorePending(repo, pending, new Map());
+    try {
+      // replay は振り直した番号のファイル（未追跡）を書いてからコミットするので、reset だけでなく clean も要る。
+      // 残すと次の sync でまとめ待ちとして重複したチケットがコミットされる
+      await clearWorkTree(repo, head);
+      await restorePending(repo, pending, new Map());
+    } catch (restoreError) {
+      throw new Error(
+        `振り直しの失敗の後、まとめ待ちを書き戻せませんでした: ${errorMessage(restoreError)}`,
+        { cause: e },
+      );
+    }
     throw e;
   }
   await restorePending(repo, pending, mapping);
@@ -163,11 +174,21 @@ async function assignNumbers(repo: GitRepo, ids: string[]): Promise<Map<string, 
   return mapping;
 }
 
+function errorMessage(e: unknown): string {
+  return e instanceof Error ? e.message : String(e);
+}
+
+/** 作業ツリーを ref に戻し、未追跡のファイルも消す */
+async function clearWorkTree(repo: GitRepo, ref: string): Promise<void> {
+  await resetHard(repo, ref);
+  await git(repo, ["clean", "-fdq"]);
+}
+
 /**
- * 未コミットの変更（パス → 中身。消したものは null）を読み、作業ツリーを HEAD に戻す。
- * 戻すのは作業ツリーを空にして積み直すため。読んだ中身は呼び手が書き戻す
+ * 未コミットの変更（パス → 中身。消したものは null）を読む。作業ツリーは変えない。
+ * 読んだ中身は、呼び手が作業ツリーを空にして積み直した後に書き戻す
  */
-async function takePending(repo: GitRepo): Promise<Map<string, string | null>> {
+async function readPending(repo: GitRepo): Promise<Map<string, string | null>> {
   const out = (await git(repo, ["status", "--porcelain=v1", "-z", "--untracked-files=all"])).stdout;
   const entries = out.split("\0");
   const pending = new Map<string, string | null>();
@@ -181,8 +202,6 @@ async function takePending(repo: GitRepo): Promise<Map<string, string | null>> {
     pending.set(file, await readFile(path.join(repo.dataDir, file), "utf8").catch(() => null));
   }
   pending.delete("");
-  await git(repo, ["reset", "--hard", "--quiet", "HEAD"]);
-  await git(repo, ["clean", "-fdq"]);
   return pending;
 }
 

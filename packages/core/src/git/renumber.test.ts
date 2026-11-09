@@ -36,53 +36,76 @@ const DRIVER = [
   fileURLToPath(new URL("../../test/helpers/merge-driver.mjs", import.meta.url)),
 ];
 
+/** b がオフラインで起票した仮番号の t2 が、a の push した t2 と衝突し、b にまとめ待ちがある状態を作る */
+async function collided() {
+  const f: Fixture = await createFixture();
+  cleanups.push(f.cleanup);
+  let tick = Date.parse("2026-11-01T00:00:00Z");
+  const now = () => new Date((tick += 1000));
+  const open = (cwd: string, initialize?: object) =>
+    openContext({
+      cwd,
+      actor: { kind: "human", user: "eiki" },
+      now,
+      mergeDriver: DRIVER,
+      initialize,
+    });
+  await runCommand(init, await open(f.cloneA, {}), {});
+  const a = await open(f.cloneA);
+  await runCommand(ticketCreate, a, { title: "ログイン" });
+  await runCommand(sync, a, {});
+  await runCommand(init, await open(f.cloneB, {}), {});
+  const b = await open(f.cloneB);
+  // b はオフラインで t2 を起票し（仮番号）、その間に a が t2 を起票して push する
+  await git(f.cloneB, ["remote", "set-url", "origin", path.join(f.root, "nonexistent.git")]);
+  await runCommand(ticketCreate, b, { title: "B の 2" });
+  await runCommand(ticketCreate, a, { title: "A の 2" });
+  await runCommand(sync, a, {});
+  // b のまとめ待ち（未コミット）
+  await runCommand(ticketUpdate, b, { ticket: "t2", priority: "high" });
+  await runCommand(ticketUpdate, b, { ticket: "t1", title: "B の題" });
+  await git(f.cloneB, ["remote", "set-url", "origin", f.remoteDir]);
+  await fetchData(b.repo);
+  return b;
+}
+
 describe("仮番号の振り直し（renumberCollisions）", () => {
-  it("積み直しが途中で失敗したら、元の先端に戻してまとめ待ちの中身を書き戻す", async () => {
-    const f: Fixture = await createFixture();
-    cleanups.push(f.cleanup);
-    let tick = Date.parse("2026-11-01T00:00:00Z");
-    const now = () => new Date((tick += 1000));
-    const open = (cwd: string, initialize?: object) =>
-      openContext({
-        cwd,
-        actor: { kind: "human", user: "eiki" },
-        now,
-        mergeDriver: DRIVER,
-        initialize,
-      });
-    await runCommand(init, await open(f.cloneA, {}), {});
-    const a = await open(f.cloneA);
-    await runCommand(ticketCreate, a, { title: "ログイン" });
-    await runCommand(sync, a, {});
-    await runCommand(init, await open(f.cloneB, {}), {});
-    const b = await open(f.cloneB);
-    // b はオフラインで t2 を起票し（仮番号）、その間に a が t2 を起票して push する
-    await git(f.cloneB, ["remote", "set-url", "origin", path.join(f.root, "nonexistent.git")]);
-    await runCommand(ticketCreate, b, { title: "B の 2" });
-    await runCommand(ticketCreate, a, { title: "A の 2" });
-    await runCommand(sync, a, {});
-    // b のまとめ待ち（未コミット）
-    await runCommand(ticketUpdate, b, { ticket: "t2", priority: "high" });
-    await runCommand(ticketUpdate, b, { ticket: "t1", title: "B の題" });
-    await git(f.cloneB, ["remote", "set-url", "origin", f.remoteDir]);
-    await fetchData(b.repo);
+  // diff-tree はファイルを書く前、log と add は振り直した番号のファイル（未追跡）を書いた後の失敗
+  it.each(["diff-tree", "log", "add"])(
+    "積み直しが途中（%s）で失敗したら、元の先端に戻してまとめ待ちの中身を書き戻し、未追跡のファイルを残さない",
+    async (subcommand) => {
+      const b = await collided();
+      const dir = b.repo.dataDir;
+      const head = (await git(dir, ["rev-parse", "HEAD"])).stdout.trim();
+      const status = (await git(dir, ["status", "--porcelain"])).stdout;
+      const t1 = await readFile(path.join(dir, "tickets/t1.md"), "utf8");
+      const t2 = await readFile(path.join(dir, "tickets/t2.md"), "utf8");
+      expect(status).not.toBe("");
 
-    const dir = b.repo.dataDir;
-    const head = (await git(dir, ["rev-parse", "HEAD"])).stdout.trim();
-    const status = (await git(dir, ["status", "--porcelain"])).stdout;
-    const t1 = await readFile(path.join(dir, "tickets/t1.md"), "utf8");
-    const t2 = await readFile(path.join(dir, "tickets/t2.md"), "utf8");
-    expect(status).not.toBe("");
+      failing.subcommand = subcommand;
+      await expect(renumberCollisions(b.repo)).rejects.toThrow("故意の失敗");
+      failing.subcommand = undefined;
 
-    failing.subcommand = "diff-tree";
-    await expect(renumberCollisions(b.repo)).rejects.toThrow("故意の失敗");
-    failing.subcommand = undefined;
+      expect((await git(dir, ["rev-parse", "HEAD"])).stdout.trim()).toBe(head);
+      expect((await git(dir, ["status", "--porcelain"])).stdout).toBe(status);
+      expect(await readFile(path.join(dir, "tickets/t1.md"), "utf8")).toBe(t1);
+      expect(await readFile(path.join(dir, "tickets/t2.md"), "utf8")).toBe(t2);
+      expect(t1).toContain("B の題");
+      expect(t2).toContain("priority: high");
+      expect((await git(dir, ["ls-files", "--others"])).stdout).toBe("");
+    },
+  );
 
-    expect((await git(dir, ["rev-parse", "HEAD"])).stdout.trim()).toBe(head);
-    expect((await git(dir, ["status", "--porcelain"])).stdout).toBe(status);
-    expect(await readFile(path.join(dir, "tickets/t1.md"), "utf8")).toBe(t1);
-    expect(await readFile(path.join(dir, "tickets/t2.md"), "utf8")).toBe(t2);
-    expect(t1).toContain("B の題");
-    expect(t2).toContain("priority: high");
+  it("戻しも失敗したら、元のエラーを cause に付けて投げる", async () => {
+    const b = await collided();
+    // clean は作業ツリーを空にするときと戻すときの両方で呼ぶので、積み直しも戻しも失敗する
+    failing.subcommand = "clean";
+    const error = await renumberCollisions(b.repo).then(
+      () => undefined,
+      (e: unknown) => e,
+    );
+    expect(error).toBeInstanceOf(Error);
+    expect((error as Error).message).toContain("まとめ待ちを書き戻せませんでした");
+    expect(((error as Error).cause as Error).message).toBe("故意の失敗");
   });
 });
