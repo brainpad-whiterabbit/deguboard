@@ -1,0 +1,32 @@
+{
+  "id": "r20261109-081844-a8cb",
+  "ticket": "t598",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-09T08:18:44Z",
+  "finished_at": "2026-11-09T08:22:32Z",
+  "result": "success",
+  "error": null,
+  "retries": 1,
+  "retry_reasons": [
+    "PR の本文が表を戻した状態と食い違う"
+  ],
+  "usage": {
+    "input": 12,
+    "output": 4947,
+    "cache_read": 3983056,
+    "cache_write": 7603
+  },
+  "tools": {
+    "read": 0,
+    "search": 0,
+    "write": 4,
+    "bash": 6,
+    "other": 0,
+    "read_before_write": 0,
+    "search_before_write": 0
+  },
+  "session": "9ecee8ef-d3fe-4fc7-a962-2832cb500f39",
+  "review": null
+}

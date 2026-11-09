@@ -1,0 +1,37 @@
+{
+  "id": "r20261109-081616-b7ce",
+  "ticket": "t602",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-09T08:16:16Z",
+  "finished_at": "2026-11-09T08:24:13Z",
+  "result": "success",
+  "error": null,
+  "retries": 6,
+  "retry_reasons": [
+    "guide.notes の読み込みで symlink をたどり、リポジトリの外の内容が guide に出る恐れがあるため、実体パスで判定し通常ファイルと大きさを確かめる",
+    "NOTE_TOPICS と GUIDE_TOPICS のずれを検出するテストがないため、テストを足すか由来を一本化する",
+    "リポジトリのルートを指すと、外を指す警告になる誤判定を直す",
+    "見出しの検査がコードブロックの中の行まで見出しとして扱うため、コードブロックの外だけを見る",
+    "AG-2 の約束から消えた正本への案内を戻し、文言を詰めて字数の上限に収める",
+    "CLI の dg guide を通したテストがないため、buildProgram 経由のテストを足す"
+  ],
+  "usage": {
+    "input": 112,
+    "output": 55057,
+    "cache_read": 5837265,
+    "cache_write": 130345
+  },
+  "tools": {
+    "read": 7,
+    "search": 0,
+    "write": 16,
+    "bash": 32,
+    "other": 9,
+    "read_before_write": 1,
+    "search_before_write": 0
+  },
+  "session": "9ecee8ef-d3fe-4fc7-a962-2832cb500f39",
+  "review": null
+}
