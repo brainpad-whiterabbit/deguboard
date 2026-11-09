@@ -35,7 +35,7 @@ AI エージェントに仕事を任せるための、Git リポジトリの中�
    dg hooks install
    ```
 
-   `dg hooks install` は Claude Code のフックを入れ、セッションをエージェントとして扱い、最初の行に `deguboard: ticket=<id> step=<step>` と書いて頼んだサブエージェントを Run として記録します。ほかのエージェントでは準備は要らず、「`dg guide` を読んでから `dg` で進めて」と頼みます。
+   `dg hooks install` は Claude Code のフックを入れ、セッションをエージェントとして扱い、最初の行に `deguboard: ticket=<id> step=<step>` と書いて頼んだサブエージェントを Run として記録します。フックは、`dg` を通さない PR の ready・マージと、`.git/deguboard/` への直接の書き込みも拒みます。ほかのエージェントでは準備は要らず、「`dg guide` を読んでから `dg` で進めて」と頼みます。
 
 5. **ボードを開く**：Activity Bar の deguboard のアイコンを押します。
 
@@ -115,7 +115,7 @@ dg config set notify.approvals false --local
 - 拡張が呼ぶコマンドは `git`・`gh`・`dg --version` だけで、どれもシェルを通しません（同期の rebase で git がマージドライバを `sh -c` で動かすのは git の仕様です）。
 - git の設定が任意のコマンドを実行させ得るため、信頼したフォルダーでだけ動きます（制限モードと仮想ワークスペースでは動きません）。
 - `dg skill install` が書く Skill は `dg guide` を読ませる文面だけで、スクリプトもツールの許可も持ちません。`--dry-run` で中身を見られます。
-- `dg hooks install` が書くフックは `dg hook <イベント>` を呼ぶだけで、Run を記録し、`~/.claude/projects/` の下の会話記録を読みます。`--dry-run` で設定を見られ、`dg hooks uninstall` で外せます。
+- `dg hooks install` が書くフックは `dg hook <イベント>` を呼ぶだけで、Run を記録し、`~/.claude/projects/` の下の会話記録を読みます。実行の前に、`dg` を通さない `gh pr ready`・`gh pr merge`（`gh api` での同じ操作も）、`.git/deguboard/` の下に書くファイル編集のツール、`.git/deguboard` の語を含む Bash のコマンドも拒みます。そのときは `dg` のコマンドを使います。`--dry-run` で設定を見られ、`dg hooks uninstall` で外せます。
 - 脆弱性の報告先は [SECURITY.md](SECURITY.md) にあります。
 
 ## ほかの使い方
