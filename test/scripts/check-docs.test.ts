@@ -13,6 +13,7 @@
 // 調べるファイルは git の追跡と無視の規則で決まるので、一時ディレクトリは git init して .gitignore も写す。
 // 写さないファイルへのリンクの切れも出るので、確かめる指摘だけを見る
 // ADR 番号の実在は、packages・scripts・docs・ルートのファイル（バイナリを除く）と test の先頭コメントで見ることも確かめる（t634）。
+// packages・scripts・test の ADR 番号が先頭のコメントの外にあると場所を出して落ち、先頭のコメントに異なる番号が 2 つ以上あっても落ちることも確かめる（t641）。
 
 import { execFile } from "node:child_process";
 import { appendFile, cp, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
@@ -174,7 +175,7 @@ describe("check-docs の ADR 番号の実在（t634）", () => {
     expect(stderr).not.toContain("zz-logo.png");
   });
 
-  it("test の先頭コメントの実在しない番号は場所を出して落ち、test の本文の番号は指摘しない", async () => {
+  it("test の先頭コメントの実在しない番号は場所を出して落ち、test の本文の番号は実在の指摘を出さない（本文の番号は位置の検査が見る）", async () => {
     await mkdir(join(dir, "test"), { recursive: true });
     await writeFile(
       join(dir, "test/zz-probe.test.ts"),
@@ -185,7 +186,96 @@ describe("check-docs の ADR 番号の実在（t634）", () => {
     expect(findings).toContain(
       "test/zz-probe.test.ts:1: 先頭コメントが指す ADR-099 が docs/adr にない",
     );
-    expect(findings).not.toContain("test/zz-probe.test.ts:2");
+    expect(findings).not.toContain("test/zz-probe.test.ts:2: ADR-099 が docs/adr にない");
+  });
+});
+
+describe("check-docs の ADR 番号の位置（t641）", () => {
+  // 本リポジトリに存在する ADR の番号（位置だけを見るので、実在は問わない）
+  const KNOWN_ADR = "ADR-008";
+
+  it("写したままなら先頭のコメントの外の ADR 番号の指摘は出ない", async () => {
+    const { stderr } = await run();
+    expect(stderr).not.toContain("先頭のコメントの外");
+    expect(stderr).not.toContain("異なる ADR 番号");
+  });
+
+  it("packages・scripts・test の本文の ADR 番号は、ファイルと行を出して落ちる", async () => {
+    await mkdir(join(dir, "test"), { recursive: true });
+    await writeFile(
+      join(dir, "packages/cli/src/zz-probe.ts"),
+      `// 先頭の確かめ\nexport const s = "${KNOWN_ADR}";\n`,
+    );
+    await writeFile(
+      join(dir, "scripts/zz-probe.mjs"),
+      `// 先頭の確かめ\nconst s = "${KNOWN_ADR}";\n`,
+    );
+    await writeFile(
+      join(dir, "test/zz-probe.test.ts"),
+      `// 先頭の確かめ\nit("${KNOWN_ADR}", () => {});\n`,
+    );
+    const { code, stderr } = await run();
+    const findings = findingsOf(stderr);
+    expect(code).toBe(1);
+    expect(findings).toContain(
+      `packages/cli/src/zz-probe.ts:2: ${KNOWN_ADR} が先頭のコメントの外にある（ADR 番号は先頭のコメントに書く）`,
+    );
+    expect(findings).toContain(`scripts/zz-probe.mjs:2: ${KNOWN_ADR} が先頭のコメントの外にある`);
+    expect(findings).toContain(`test/zz-probe.test.ts:2: ${KNOWN_ADR} が先頭のコメントの外にある`);
+  });
+
+  it("先頭の /* … */ の塊（CSS の先頭コメント）の中の番号は落とさず、その後の行の番号は落とす", async () => {
+    await mkdir(join(dir, "packages/web/src"), { recursive: true });
+    await writeFile(
+      join(dir, "packages/web/src/zz-probe.css"),
+      `/* 先頭の確かめ（${KNOWN_ADR}）\n   続きの行 */\n.a { color: red; }\n/* ${KNOWN_ADR} */\n`,
+    );
+    const { stderr } = await run();
+    const findings = findingsOf(stderr);
+    expect(findings).toContain(
+      `packages/web/src/zz-probe.css:4: ${KNOWN_ADR} が先頭のコメントの外にある`,
+    );
+    expect(findings).not.toContain("packages/web/src/zz-probe.css:1:");
+  });
+
+  it("先頭のコメントに異なる ADR 番号が 2 つ以上あると、ファイルを出して落ちる", async () => {
+    await writeFile(
+      join(dir, "packages/cli/src/zz-probe.ts"),
+      `// ${KNOWN_ADR} と ADR-001 の話\nexport {};\n`,
+    );
+    const { code, stderr } = await run();
+    expect(code).toBe(1);
+    expect(findingsOf(stderr)).toContain(
+      `packages/cli/src/zz-probe.ts: 先頭のコメントに異なる ADR 番号が 2 個ある（${KNOWN_ADR}、ADR-001）。1 つにする`,
+    );
+  });
+
+  it("先頭のコメントに同じ番号を 2 度書いても、異なる番号の指摘は出ない", async () => {
+    await writeFile(
+      join(dir, "packages/cli/src/zz-probe.ts"),
+      `// ${KNOWN_ADR} の話と ${KNOWN_ADR} の続き\nexport {};\n`,
+    );
+    const { stderr } = await run();
+    expect(stderr).not.toContain("異なる ADR 番号");
+  });
+
+  it("ADR 番号そのものを検査するテストと check-docs 自身は、理由を書いた例外として落とさない", async () => {
+    await mkdir(join(dir, "test/scripts"), { recursive: true });
+    await writeFile(
+      join(dir, "test/scripts/check-docs.test.ts"),
+      `// 先頭の確かめ\nit("${KNOWN_ADR}", () => {});\n`,
+    );
+    await appendFile(join(dir, "scripts/check-docs.mjs"), `\nconst probe = "${KNOWN_ADR}";\n`);
+    const { stderr } = await run();
+    expect(stderr).not.toContain("test/scripts/check-docs.test.ts:");
+    expect(stderr).not.toContain("scripts/check-docs.mjs:");
+  });
+
+  it("git が無視するビルドの成果物（dist）の本文の番号は落とさない", async () => {
+    await mkdir(join(dir, "packages/cli/dist"), { recursive: true });
+    await writeFile(join(dir, "packages/cli/dist/zz-probe.js"), `var a = 1;\n// ${KNOWN_ADR}\n`);
+    const { stderr } = await run();
+    expect(stderr).not.toContain("zz-probe.js");
   });
 });
 
