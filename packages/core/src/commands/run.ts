@@ -20,6 +20,8 @@ import {
   REVIEW_STEP,
   RUN_RESULTS,
   type Run,
+  reviewFindingSchema,
+  type ReviewFinding,
   type RunReview,
   type RunId,
   type RunResult,
@@ -32,6 +34,7 @@ import {
   appendRetryReasons,
   closeRun,
   putPendingReview,
+  putReviewFindings,
   putPendingRetryReasons,
   dropRunning,
   finishRun,
@@ -691,6 +694,20 @@ export const REVIEW_UNRECORDED =
 
 const findingCount = z.number().int().nonnegative();
 
+/**
+ * 指摘の一覧から見直しの結果を求める。重いのは severity が heavy か、category がリポジトリの重いとみなす種類（review.heavy_categories）のもの。
+ * 通ったかは重い指摘が残っていないこと（見直し役の自己申告にしない）
+ */
+export function reviewOfFindings(
+  findings: readonly ReviewFinding[],
+  heavyCategories: readonly string[],
+): RunReview {
+  const heavy = findings.filter(
+    (f) => f.severity === "heavy" || heavyCategories.includes(f.category),
+  ).length;
+  return { heavy, light: findings.length - heavy, passed: heavy === 0 };
+}
+
 export const runReviewResult = defineCommand({
   name: "run.review-result",
   positionals: ["ticket"],
@@ -698,30 +715,74 @@ export const runReviewResult = defineCommand({
   summary:
     "見直しの結果（重い・軽い指摘の数と通ったか）を、チケットの見直し（review の step）の Run に書く（ADR-025）。見直し役が指摘の一覧を返す前に 1 回呼ぶ。" +
     "このマシンで実行中の見直しの Run があればそれに書き（呼び直せば置き換える）、なければチケットの最新の Run が閉じた見直しの Run のときだけ、結果がまだなければそれに書く（commit.mode に従ってコミット。後に手直しなどの Run が始まっているか、もう結果があれば前の回の見直しなので書かない）。" +
-    "閉じた Run が結果の記録なしに failure で閉じていたら success に直す。どちらもなければ（前景で起動した見直し役）結果を保留にし（pending: true）、フックが見直しの Run を閉じるときに結び付ける（ADR-025）。重い指摘があるのに --passed なら使い方の誤り",
+    "閉じた Run が結果の記録なしに failure で閉じていたら success に直す。どちらもなければ（前景で起動した見直し役）結果を保留にし（pending: true）、フックが見直しの Run を閉じるときに結び付ける（ADR-025）。" +
+    "指摘は --findings-file（JSON か YAML の配列。1 件は severity・category・file・line・reason・fix）で渡す。dg がスキーマで検証し（誤りは場所を示して INVALID_INPUT）、heavy は severity が heavy か category が review.heavy_categories のもの、light は残り、passed は heavy が 0 のときとして求める。一覧は deguboard-local に置き、Git の Run には数だけを書く。" +
+    "--heavy・--light・--passed で数だけを渡す呼び方は前の版の見直し役のために残すが、数は自己申告になるので警告する。--findings-file と一緒には使えず、重い指摘があるのに --passed なら使い方の誤り",
   input: z.object({
     ticket: ticketRef,
-    heavy: findingCount.describe(
-      "重い指摘の数（受け入れ条件の漏れ・不具合・文書との食い違い・規約の違反）",
-    ),
-    light: findingCount.describe("軽い指摘の数（言い回し・好み。参考節との食い違いを含む）"),
-    passed: z.boolean().optional().describe("通った（重い指摘が残っていない）。省けば通っていない"),
+    findings: z
+      .array(reviewFindingSchema)
+      .meta({ cliFile: "findings-file" })
+      .optional()
+      .describe("指摘の一覧。指摘がなければ空の配列"),
+    heavy: findingCount
+      .optional()
+      .describe(
+        "前の版の呼び方：重い指摘の数（受け入れ条件の漏れ・不具合・文書との食い違い・規約の違反）",
+      ),
+    light: findingCount
+      .optional()
+      .describe("前の版の呼び方：軽い指摘の数（言い回し・好み。参考節との食い違いを含む）"),
+    passed: z
+      .boolean()
+      .optional()
+      .describe("前の版の呼び方：通った（重い指摘が残っていない）。省けば通っていない"),
   }),
   write: true,
   needs: "store",
   async run(ctx, input) {
-    const passed = input.passed ?? false;
-    if (passed && input.heavy > 0)
-      throw new UsageError(`重い指摘が ${input.heavy} 件あるのに --passed を付けた`);
+    const counted =
+      input.heavy !== undefined || input.light !== undefined || input.passed !== undefined;
+    const warnings: string[] = [];
+    let review: RunReview;
+    if (input.findings !== undefined) {
+      if (counted)
+        throw new UsageError(
+          "--findings-file と --heavy・--light・--passed は一緒に使えない（数は一覧から求める）",
+        );
+      review = reviewOfFindings(input.findings, ctx.config.review.heavy_categories);
+    } else {
+      if (input.heavy === undefined || input.light === undefined)
+        throw new UsageError(
+          "指摘の一覧を --findings-file で渡す（前の版の呼び方なら --heavy と --light）",
+        );
+      const passed = input.passed ?? false;
+      if (passed && input.heavy > 0)
+        throw new UsageError(`重い指摘が ${input.heavy} 件あるのに --passed を付けた`);
+      review = { heavy: input.heavy, light: input.light, passed };
+      warnings.push(
+        "数だけの呼び方は数が自己申告になる。指摘の一覧を --findings-file で渡せば dg が数と通ったかを求める",
+      );
+    }
     const ticket = ctx.store.require("ticket", input.ticket).data;
-    const review: RunReview = { heavy: input.heavy, light: input.light, passed };
+    // 一覧は書いた先の Run（保留なら null）と一緒に deguboard-local に置く（置き場所の理由は run/record.ts）
+    const keep = async (run: RunId | null) => {
+      if (input.findings === undefined) return;
+      await putReviewFindings(ctx.repo, {
+        ticket: ticket.id,
+        run,
+        at: toIsoDateTime(ctx.now()),
+        review,
+        findings: input.findings,
+      });
+    };
     const local = (await readRunningRuns(ctx.repo)).runs;
     const running = local.find((r) => r.data.ticket === ticket.id && r.data.step === REVIEW_STEP);
     if (running) {
       try {
-        return ok<Run | PendingReviewView>(
-          await amendRunning(ctx.repo, running.data.id, { review }),
-        );
+        const amended = await amendRunning(ctx.repo, running.data.id, { review });
+        await keep(amended.id);
+        return ok<Run | PendingReviewView>(amended, undefined, warnings);
       } catch (e) {
         // 読んだ後にフックが閉じた。閉じた Run に書く
         if (!(e instanceof OperationError) || (e.code !== "NOT_FOUND" && e.code !== "REJECTED"))
@@ -754,8 +815,10 @@ export const runReviewResult = defineCommand({
     const hold = async () => {
       const at = toIsoDateTime(ctx.now());
       await putPendingReview(ctx.repo, ticket.id, { review, at });
+      await keep(null);
       const view: PendingReviewView = { ticket: ticket.id, review, pending: true, at };
       return ok<Run | PendingReviewView>(view, undefined, [
+        ...warnings,
         `${ticket.id} の見直しの Run がまだないので、結果を保留にした。フックが見直しの Run を閉じるときに結び付ける`,
       ]);
     };
@@ -786,7 +849,8 @@ export const runReviewResult = defineCommand({
       },
       { message: (run) => `見直しの結果を記録: ${run.ticket} ${run.id}` },
     );
-    return ok<Run | PendingReviewView>(written.value, written.write);
+    await keep(written.value.id);
+    return ok<Run | PendingReviewView>(written.value, written.write, warnings);
   },
 });
 

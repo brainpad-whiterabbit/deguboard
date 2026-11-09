@@ -295,6 +295,17 @@ Whether dg guide all --auto merges PRs that pass the quality gate (dg gate --for
 Off
 [title] Reset to default false
 Reset to Default
+Review finding categories treated as heavy
+review.heavy_categories
+[title] Default: Empty
+Modified
+Review finding categories (run review-result --findings-file) treated as heavy regardless of severity. Empty by default, so the reviewer's severity is kept
+Empty
+[aria-label] Items
+[placeholder] Add item
+Add
+[title] Reset to default Empty
+Reset to Default
 Require an Iteration before starting
 lint.require_iteration
 [title] Default: false

@@ -21,7 +21,11 @@ import { trNode } from "../l10n-node.js";
 /** 画面のまとまり。キーの最上位（commit.mode なら commit）で振り分ける */
 const GROUPS: { id: string; label: string; tops: string[] }[] = [
   { id: "commit", label: msg("コミットと push"), tops: ["commit", "push"] },
-  { id: "agent", label: msg("エージェント"), tops: ["actions", "auto", "lint", "models", "actor"] },
+  {
+    id: "agent",
+    label: msg("エージェント"),
+    tops: ["actions", "auto", "review", "lint", "models", "actor"],
+  },
   { id: "metrics", label: msg("計測"), tops: ["metrics"] },
   { id: "notify", label: msg("通知"), tops: ["notify"] },
   { id: "git", label: "Git", tops: ["git", "worktree", "default_project"] },
@@ -37,6 +41,7 @@ const NAMES: Record<string, string> = {
   "actions.shell": msg("シェルの Action を許す"),
   "actions.test": msg("テストのコマンド"),
   "auto.merge": msg("PR を自動でマージする"),
+  "review.heavy_categories": msg("重いとみなす見直しの指摘の種類"),
   "lint.require_iteration": msg("Iteration に入れてから進める"),
   "models.light": msg("段階 light のモデル"),
   "models.standard": msg("段階 standard のモデル"),

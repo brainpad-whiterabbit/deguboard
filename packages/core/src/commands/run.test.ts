@@ -22,6 +22,7 @@ import {
   runList,
   runPruneTranscripts,
   runRefresh,
+  reviewOfFindings,
   runReviewResult,
   runStart,
   type RunRefreshItem,
@@ -37,10 +38,11 @@ import {
   amendRunning,
   finishRun,
   peekRunningRuns,
+  readReviewFindings,
   TRANSCRIPT_RETENTION_DAYS,
 } from "../run/record.js";
 import { recordBaseline } from "../git/outside.js";
-import type { Run } from "../model/run.js";
+import type { ReviewFinding, Run } from "../model/run.js";
 
 vi.mock("node:fs/promises", async (importOriginal) =>
   (await import("../../test/helpers/slow-lock.js")).withSlowLock(await importOriginal()),
@@ -721,7 +723,10 @@ describe("run review-result（見直しの結果。ADR-025）", () => {
     await start(ctx, "t1", "implement");
     const held = await record(ctx, "t1", 0, 0, true);
     expect(held.data).toMatchObject({ ticket: "t1", pending: true, review: { passed: true } });
-    expect(held.warnings).toEqual([expect.stringContaining("保留にした")]);
+    expect(held.warnings).toEqual([
+      expect.stringContaining("--findings-file"),
+      expect.stringContaining("保留にした"),
+    ]);
     const [run] = await peekRunningRuns(ctx.repo);
     expect(run!.review).toBeNull();
   });
@@ -862,6 +867,125 @@ describe("run review-result（見直しの結果。ADR-025）", () => {
       passed: 0,
       heavy: 0,
       light: 0,
+    });
+  });
+
+  const finding = (over: Partial<ReviewFinding> = {}) => ({
+    severity: "light" as const,
+    category: "言い回し",
+    file: "docs/a.md",
+    line: 3,
+    reason: "読みにくい",
+    fix: "短くする",
+    ...over,
+  });
+
+  it("指摘の一覧から重い・軽いの数と通ったかを dg が求めて Run に書き、一覧は deguboard-local に置く（RN-9）", async () => {
+    const ctx = await prepared();
+    const run = await start(ctx, "t1", "review");
+    const findings = [
+      finding({ severity: "heavy", category: "不具合" }),
+      finding(),
+      // file・line・fix を省けば null にそろえる
+      { severity: "light" as const, category: "参考節との食い違い", reason: "広がり" },
+    ];
+    const written = await runCommand(runReviewResult, ctx, { ticket: "t1", findings });
+    expect(written.data).toMatchObject({
+      id: run.id,
+      review: { heavy: 1, light: 2, passed: false },
+    });
+    expect(written.warnings).toEqual([]);
+    const stored = await readReviewFindings(ctx.repo, "t1");
+    expect(stored).toMatchObject({ ticket: "t1", run: run.id, review: { heavy: 1, light: 2 } });
+    expect(stored!.findings[2]).toEqual({
+      severity: "light",
+      category: "参考節との食い違い",
+      file: null,
+      line: null,
+      reason: "広がり",
+      fix: null,
+    });
+    // 一覧は Git の Run に入れない
+    const closed = await runCommand(runFinish, ctx, { run: run.id, result: "success" });
+    expect(Object.keys(closed.data as Run)).not.toContain("findings");
+    // 空の一覧は通った（重い指摘なし）
+    const again = await start(ctx, "t2", "review");
+    const empty = await runCommand(runReviewResult, ctx, { ticket: "t2", findings: [] });
+    expect(empty.data).toMatchObject({
+      id: again.id,
+      review: { heavy: 0, light: 0, passed: true },
+    });
+  });
+
+  it("review.heavy_categories の category は severity によらず重いとみなす", async () => {
+    const ctx = await prepared();
+    await runCommand(configSet, ctx, {
+      key: "review.heavy_categories",
+      value: "参考節との食い違い",
+    });
+    const reopened = await openContext({ cwd: ctx.repo.topLevel, actor: ctx.actor });
+    await start(reopened, "t1", "review");
+    const written = await runCommand(runReviewResult, reopened, {
+      ticket: "t1",
+      findings: [finding({ category: "参考節との食い違い" }), finding()],
+    });
+    expect(written.data).toMatchObject({ review: { heavy: 1, light: 1, passed: false } });
+    expect(reviewOfFindings([finding({ category: "x" })], ["x"])).toEqual({
+      heavy: 1,
+      light: 0,
+      passed: false,
+    });
+  });
+
+  it("一覧の誤りは場所（何件目のどの項目か）を示して INVALID_INPUT で拒否し、何も書かない", async () => {
+    const ctx = await prepared();
+    await start(ctx, "t1", "review");
+    const bad = [finding(), { ...finding(), severity: "medium" }, { ...finding(), line: 0 }];
+    const rejected = runCommand(runReviewResult, ctx, { ticket: "t1", findings: bad as never });
+    await expect(rejected).rejects.toMatchObject({ code: "INVALID_INPUT" });
+    // 場所は error の detail（zod の prettifyError）に出る
+    const detail = String(
+      ((await rejected.catch((e: unknown) => e)) as { detail?: unknown }).detail,
+    );
+    expect(detail).toContain("findings[1].severity");
+    expect(detail).toContain("findings[2].line");
+    // 知らない項目（書き間違い）も誤り
+    await expect(
+      runCommand(runReviewResult, ctx, {
+        ticket: "t1",
+        findings: [{ ...finding(), resaon: "x" }] as never,
+      }),
+    ).rejects.toMatchObject({ code: "INVALID_INPUT" });
+    expect(await readReviewFindings(ctx.repo, "t1")).toBeUndefined();
+    const [run] = await peekRunningRuns(ctx.repo);
+    expect(run!.review).toBeNull();
+  });
+
+  it("数だけの呼び方は残して警告し、一覧は置かない。一覧と数を一緒に渡す・どちらも渡さないのは使い方の誤り", async () => {
+    const ctx = await prepared();
+    await start(ctx, "t1", "review");
+    const counted = await record(ctx, "t1", 0, 1, true);
+    expect(counted.data).toMatchObject({ review: { heavy: 0, light: 1, passed: true } });
+    expect(counted.warnings).toEqual([expect.stringContaining("--findings-file")]);
+    expect(await readReviewFindings(ctx.repo, "t1")).toBeUndefined();
+    await expect(
+      runCommand(runReviewResult, ctx, { ticket: "t1", findings: [], heavy: 0 }),
+    ).rejects.toMatchObject({ name: "UsageError" });
+    await expect(runCommand(runReviewResult, ctx, { ticket: "t1" })).rejects.toMatchObject({
+      name: "UsageError",
+    });
+  });
+
+  it("見直しの Run がなく保留にしたときも一覧を置き、run は null", async () => {
+    const ctx = await prepared();
+    const held = await runCommand(runReviewResult, ctx, { ticket: "t1", findings: [finding()] });
+    expect(held.data).toMatchObject({
+      pending: true,
+      review: { heavy: 0, light: 1, passed: true },
+    });
+    expect(await readReviewFindings(ctx.repo, "t1")).toMatchObject({
+      run: null,
+      findings: [finding()],
     });
   });
 });

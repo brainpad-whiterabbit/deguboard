@@ -332,7 +332,7 @@ export function nextOf(ctx: CommandContext, facts: StageFacts): NextStep {
     case "reviewing":
       return make("review", REVIEW_STEP, [
         marker(REVIEW_STEP),
-        dg(`run review-result ${id} --heavy <数> --light <数> [--passed]`),
+        dg(`run review-result ${id} --findings-file <ファイル>`),
       ]);
     case "reviewed":
       return facts.ticket.status === "in_progress" && st.review_passed

@@ -80,6 +80,39 @@ const runReviewSchema = z.looseObject({
 });
 export type RunReview = z.output<typeof runReviewSchema>;
 
+/** 見直しの指摘の重さ。heavy は受け入れ条件の漏れ・不具合・文書との食い違い・規約の違反、light は言い回し・好み・前からのずれ */
+export const FINDING_SEVERITIES = ["heavy", "light"] as const;
+
+/**
+ * 見直しの指摘の 1 件（run review-result --findings-file）。見直し役が一覧で返し、dg が数と通ったかを求める。
+ * 知らない項目は誤りにする（書き間違えた項目名で reason や fix が落ちないように）
+ */
+export const reviewFindingSchema = z.strictObject({
+  severity: z.enum(FINDING_SEVERITIES).describe("heavy か light"),
+  category: z
+    .string()
+    .min(1)
+    .describe(
+      "指摘の種類（受け入れ条件の漏れ・不具合・文書との食い違い・規約の違反・参考節との食い違いなど）",
+    ),
+  file: z
+    .string()
+    .min(1)
+    .nullable()
+    .default(null)
+    .describe("リポジトリのルートからのパス。なければ null"),
+  line: z
+    .number()
+    .int()
+    .positive()
+    .nullable()
+    .default(null)
+    .describe("1 始まりの行。なければ null"),
+  reason: z.string().min(1).describe("なぜ指摘するか"),
+  fix: z.string().min(1).nullable().default(null).describe("直し方。なければ null"),
+});
+export type ReviewFinding = z.output<typeof reviewFindingSchema>;
+
 /** 1 Run 1 ファイル（RN-1）。取れなかった値は null で、キーは省かない */
 export const runSchema = z.looseObject({
   id: runIdSchema,

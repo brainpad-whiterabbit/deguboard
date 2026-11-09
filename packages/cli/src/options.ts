@@ -8,7 +8,7 @@
 //   nullable                    none で外す（--epic none）
 //   record（fields）            --field key=value の繰り返し。true / false / 数値は変換する
 //   string（meta cliSource）    位置引数 <file> の中身（YAML / JSON。- で標準入力）を読んだ文字列。オプションにはしない（ticket import。program.ts）
-//   record（meta cliFile）      --<cliFile> <path> の YAML / JSON（- で標準入力）を読んだ値（workflow set の --file。program.ts）
+//   record・array（meta cliFile） --<cliFile> <path> の YAML / JSON（- で標準入力）を読んだ値（workflow set の --file・run review-result の --findings-file。program.ts）
 //   positionals                 CommandDef.positionals のキーは位置引数。最後が配列なら可変長
 
 import type { AnyCommand } from "@deguboard/core";
@@ -87,6 +87,9 @@ export function describeShape(key: string, schema: z.ZodType): FieldShape {
     case "enum":
       return { ...base, kind: "enum", choices: Object.keys(def.entries ?? {}) };
     case "array": {
+      // CLI ではファイルから読む配列（zod の meta cliFile がオプションの名前。run review-result の --findings-file）
+      const cliFile = inner.meta()?.["cliFile"];
+      if (typeof cliFile === "string") return { ...base, flag: cliFile, kind: "file" };
       const element = unwrap(def.element!).inner;
       const edef = defOf(element);
       if (edef.type === "object") return { ...base, kind: "objects" };

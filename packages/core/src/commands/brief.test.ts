@@ -61,8 +61,8 @@ describe("サブエージェントに渡す文の形（brief）", () => {
       - 規約：リポジトリのルートにあるエージェント向けの指示ファイルと \`dg guide review\` の「見直す」に従う。見る観点は受け入れ条件の漏れ・不具合・文書との食い違い（この PR が変えた約束・手順・規約で、文書を同じ PR で直していないものは重い。ADR や要件に細部を足した変更も重い。文書を直していない重い指摘は約束・手順・規約の変更に限る。細部の直し方はコード・テスト・ヘルプへ移すこと。前からのずれは軽い）・規約の違反・範囲の外の変更。チケット本文に \`## 参考\` 節があれば、そこに書いたファイルと差分で変えたファイルを見比べ、参考節にない大きな広がりと、参考節のファイルに触れていない変更を「参考節との食い違い」として返す。
       - 道具：ファイルは Read で読む。Bash の cat・heredoc・sed -i でソースを書き換えない。
       - Run：この文の先頭の印で、フックが見直しの Run（review）を開き閉じる。Run は開かず閉じない。
-      - 記録：一覧を返す前に、\`dg --json --actor agent run review-result t12 --heavy <重い指摘の数> --light <軽い指摘の数>\` を 1 回記録する（重い指摘がなければ \`--passed\` も付ける）。
-      - しない：ファイルを変える・コミットする・push する・Run のほかに dg へ書き込む・ほかのチケットを見る。
+      - 記録：一覧を返す前に、指摘を JSON の配列（1 件は severity（heavy か light）・category・file・line・reason・fix。形は \`dg run review-result --help\`）でリポジトリの外の一時ファイルに書き、\`dg --json --actor agent run review-result t12 --findings-file <ファイル>\` で 1 回記録する。指摘がなければ \`[]\`。数と通ったかは dg が求める。
+      - しない：リポジトリのファイルを変える・コミットする・push する・Run のほかに dg へ書き込む・ほかのチケットを見る。
       - 返すもの：指摘を重い（受け入れ条件の漏れ・不具合・この PR が変えた約束・手順・規約で文書を直していないもの・ADR や要件に足した細部・規約の違反）と軽い（言い回し・好み・前からのずれ）に分けた一覧（ファイルと行・理由・直し方）と、最新のコミットで回した検査の結果。参考節との食い違いは軽い指摘の欄に分けて書き、重い指摘に数えない。"
     `);
   });
@@ -113,8 +113,8 @@ describe("サブエージェントに渡す文の形（brief）", () => {
       - Conventions: Follow the agent instruction file at the repository root and the "見直す" (Review) section of \`dg guide review\`. Look for missed acceptance criteria, bugs, mismatches with the docs (docs left stale by a promise, procedure, or rule this PR changed are heavy, and so are details added to an ADR or requirements, whose fix moves the details into code, tests, or help; heavy findings about docs are limited to promises, procedures, and rules; older drift is light), rule violations, and changes outside the scope. If the ticket body has a \`## 参考\` section, compare the files it names with the files the diff changes, and report as "参考節との食い違い" any large spread outside the section and any change that does not touch the files the section names.
       - Tools: read files with Read. Do not write source with Bash cat, heredoc, or sed -i.
       - Run: the marker on the first line makes the hook open and close the review Run. Do not open or close a Run.
-      - Record: Before returning the list, record the result once with \`dg --json --actor agent run review-result t12 --heavy <number of heavy findings> --light <number of light findings>\` (add \`--passed\` if there are no heavy findings).
-      - Do not: change files, commit, push, write anything to dg other than the Run, or look at other tickets.
+      - Record: Before returning the list, write the findings as a JSON array (each with severity (heavy or light), category, file, line, reason, and fix; the shape is in \`dg run review-result --help\`) to a temporary file outside the repository, and record it once with \`dg --json --actor agent run review-result t12 --findings-file <file>\`. Use \`[]\` if there are no findings. dg works out the counts and whether the review passed.
+      - Do not: change files in the repository, commit, push, write anything to dg other than the Run, or look at other tickets.
       - Return: a list of findings split into heavy (missed acceptance criteria, bugs, docs left stale by a promise, procedure, or rule this PR changed, details added to an ADR or requirements, rule violations) and light (wording, preference, older drift from the docs), each with file and line, reason, and how to fix it; and the results of the checks run on the latest commit. Report 参考節との食い違い (mismatches with the 参考 section) under the light findings, and do not count them as heavy."
     `);
     expect(composeBrief("fix", facts({ step: "fix" }), "en")).toMatchInlineSnapshot(`

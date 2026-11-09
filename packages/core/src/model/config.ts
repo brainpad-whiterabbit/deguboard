@@ -96,6 +96,16 @@ export const configSchema = z.looseObject({
         ),
     })
     .prefault({}),
+  review: z
+    .looseObject({
+      heavy_categories: z
+        .array(z.string().min(1))
+        .default([])
+        .describe(
+          "見直しの指摘（run review-result --findings-file）のうち、severity によらず重いとみなす category。既定は空で、見直し役の severity のまま",
+        ),
+    })
+    .prefault({}),
   lint: z
     .looseObject({
       require_iteration: z
