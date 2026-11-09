@@ -7,7 +7,7 @@ after:
   t641:
     - t635
     - t640
-pending_approval: true
+pending_approval: false
 details:
   t643:
     scope: ブランチを消す指定でマージに失敗したとき、作業ブランチの worktree を残すか戻し、扱いを警告に出す
@@ -37,3 +37,5 @@ details:
     scope: 変更の要らない計測：呼び出し元ごとの dg の 1 回の内訳を測り、案 G の要否と案 E の閾値を決めて記録する
     approach: claim --without-branch で着手し、測った値と決定をチケットの本文に書く
     tier: standard
+approved_by: maji/agent
+approved_at: 2026-11-09T22:07:46Z
