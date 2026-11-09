@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-// 進みの数え方の写しを照らすためだけに core の実行時のコードを取り込む（画面のコードは型だけを取る。ADR-033）
+// 進みの数え方の写しを照らすためだけに core の実行時のコードを取り込む（画面のコードは型だけを取る）
 import { progressOf } from "@deguboard/core";
 import { STATUSES, type Epic, type Iteration, type Ticket } from "../types.js";
 import { iteration, ticket } from "../test-helpers.js";

@@ -98,7 +98,7 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
         retries: 1,
         retry_reasons: ["指摘 A"],
         started_at: "2026-11-06T01:00:00Z",
-        // もう一度の claim も会話記録の場所を手直しの Run に渡す（ADR-025）
+        // もう一度の claim も会話記録の場所を手直しの Run に渡す（RN-5）
         session: "s-fix",
       });
 
@@ -178,7 +178,7 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
     }
   });
 
-  it("もう一度の claim は、別のセッションで開いたままの前の手直しの Run を落ちたセッションの残りとみなして interrupted で閉じ、同じセッションの前の手直しは今までどおり区切りとして success で閉じる（ADR-025）", async () => {
+  it("もう一度の claim は、別のセッションで開いたままの前の手直しの Run を落ちたセッションの残りとみなして interrupted で閉じ、同じセッションの前の手直しは今までどおり区切りとして success で閉じる（RN-6）", async () => {
     const f = await fixture();
     let clock = new Date("2026-11-06T00:00:00Z");
     const human = await initialized(
@@ -241,7 +241,7 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
     }
   });
 
-  it("サブエージェントのもう一度の claim は、DEGUBOARD_SESSION がなくても Claude Code が環境に付けるセッション ID で手直しの Run を開き、別のセッションの前の手直しを interrupted で閉じる（ADR-025）", async () => {
+  it("サブエージェントのもう一度の claim は、DEGUBOARD_SESSION がなくても Claude Code が環境に付けるセッション ID で手直しの Run を開き、別のセッションの前の手直しを interrupted で閉じる（RN-6）", async () => {
     const f = await fixture();
     let clock = new Date("2026-11-06T00:00:00Z");
     const human = await initialized(
@@ -978,7 +978,7 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
     expect(agent.store.tickets.get("t5")!.data.status).toBe("in_progress");
   });
 
-  it("run start は、同じチケットの開いたままの手直しの Run を、手直しと同じ秒の開始も区切りとして閉じてから始める。手直しでない step では別のセッションの手直しも success。照合も同じ秒の次の Run を区切りに数える（RN-6・ADR-025）", async () => {
+  it("run start は、同じチケットの開いたままの手直しの Run を、手直しと同じ秒の開始も区切りとして閉じてから始める。手直しでない step では別のセッションの手直しも success。照合も同じ秒の次の Run を区切りに数える（RN-6）", async () => {
     const f = await fixture();
     let clock = new Date("2026-11-06T00:00:00Z");
     const human = await initialized(
@@ -1062,7 +1062,7 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
     }
   });
 
-  it("見直しの修正ループの手直しは、draft の PR を記録した in_progress のチケットのもう一度の claim（--retry-reason）が fix の Run を開き、次の見直しの run start と照合の PR の ready が区切りとして push の時刻で閉じる（RN-5・RN-6・ADR-025）", async () => {
+  it("見直しの修正ループの手直しは、draft の PR を記録した in_progress のチケットのもう一度の claim（--retry-reason）が fix の Run を開き、次の見直しの run start と照合の PR の ready が区切りとして push の時刻で閉じる（RN-5・RN-6）", async () => {
     const f = await fixture();
     let clock = new Date("2026-11-06T00:00:00Z");
     const human = await initialized(
@@ -1113,7 +1113,7 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
       clock = new Date("2026-11-06T01:25:00Z");
       expect((await runCommand(sync, agent, {})).data.runs_closed).toEqual([]);
 
-      // 見直し直しの review の Run の開始が区切り。run start がその場で閉じ、finished_at は手直しの最後の push の時刻（ADR-025）
+      // 見直し直しの review の Run の開始が区切り。run start がその場で閉じ、finished_at は手直しの最後の push の時刻（RN-6）
       clock = new Date("2026-11-06T01:30:00Z");
       const started = await runCommand(runStart, agent, {
         ticket: "t1",

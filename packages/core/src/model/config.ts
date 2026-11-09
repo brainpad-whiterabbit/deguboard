@@ -18,7 +18,7 @@ export const PR_MERGE_METHODS = ["squash", "merge", "rebase"] as const;
  * ここに入らないので、config でも自動にできない（EX-7）。マージは auto.merge で決める
  */
 export const AUTO_DECISIONS = ["assign", "check", "plan", "audit", "accept"] as const;
-/** dg flow next が返さずに飛ばせる段階。stop は流れを止める段階なので飛ばせない（ADR-030） */
+/** dg flow next が返さずに飛ばせる段階。stop は流れを止める段階なので飛ばせない（EX-8） */
 export const FLOW_SKIPS = ["assign", "check", "plan", "work", "audit", "release"] as const;
 /** actions.test を回す時間の上限（run_tests の既定と品質ゲートの検査）。リポジトリの検査の全体（テストを含む）を回すので長めにとる */
 export const ACTIONS_TEST_TIMEOUT_MS = 30 * 60_000;

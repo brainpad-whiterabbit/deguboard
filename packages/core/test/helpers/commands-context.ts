@@ -40,7 +40,7 @@ export async function writeStrictWorkflow(ctx: CommandContext): Promise<void> {
       "",
     ].join("\n"),
   );
-  // 利用者が直に置いて dg adopt で取り込んだ状態にする（dg の外の変更の検査の基準。ADR-026）
+  // 利用者が直に置いて dg adopt で取り込んだ状態にする（dg の外の変更の検査の基準。SY-8）
   await recordBaseline(ctx.repo);
   await ctx.store.rescan();
 }

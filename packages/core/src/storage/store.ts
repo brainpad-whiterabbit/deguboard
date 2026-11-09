@@ -186,7 +186,7 @@ export class Store {
 
   private constructor(
     readonly root: string,
-    /** Workflow の検証に渡す。Action の一覧は入口が渡す（ADR-033） */
+    /** Workflow の検証に渡す。Action の一覧は入口が渡す（AG-6） */
     private readonly workflowOptions: WorkflowValidationOptions,
     /** 個人の config.yaml の絶対パス。localDir を渡されなければ undefined */
     private readonly localConfigPath: string | undefined,

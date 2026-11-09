@@ -30,7 +30,7 @@ describe("ハッシュのルーティング", () => {
     });
     expect(parseRoute("#/history?q=&result=x")).toEqual({ page: "history" });
     expect(parseRoute("#/config")).toEqual({ page: "config" });
-    // Run の画面はない（ADR-027）。前の版の #/runs はカンバンとして読む
+    // Run の画面はない（UI-4）。前の版の #/runs はカンバンとして読む
     expect(parseRoute("#/runs")).toEqual({ page: "board" });
     expect(parseRoute("#/runs?by=iteration&iteration=s5")).toEqual({
       page: "board",

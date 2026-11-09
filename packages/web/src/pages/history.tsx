@@ -197,7 +197,7 @@ export function groupByEpic(
  * 履歴（history のコマンド）で、その Iteration から外れる・別の Iteration に移る出来事のあったチケットを持ち越しとみなす。
  * 今もその Iteration に入っているものは除く。
  * core の carriedOverFrom（iteration.show の next.moved、iteration.ts）と同じ求め方の写し。
- * web は core の実行時のコードを取り込まず（ADR-033）、iteration.show に置き換えると Iteration ごとに履歴を読むため写す。
+ * web は core の実行時のコードを取り込まず、iteration.show に置き換えると Iteration ごとに履歴を読むため写す。
  * 2 つが同じ入力で同じ結果を返すことは history.test.tsx が確かめる
  */
 export function carriedOverFrom(

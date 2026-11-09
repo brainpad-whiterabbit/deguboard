@@ -36,6 +36,7 @@ const COPIED = [
   "packages/vscode/src/dg.ts",
   "packages/vscode/media/walkthrough",
 ];
+// ADR 番号そのものを検査するテストなので、検査の入力と期待する指摘の文には ADR 番号を残す（テストの文字列から番号を外す規則の例外）
 const ADR = "docs/adr/ADR-008-tech-stack.md";
 const ANCHOR = "#getting-started-before-release";
 // 検査が本リポジトリのテストの文字列を要件 ID と読まないよう、存在しない ID は組み立てて書く
@@ -141,7 +142,7 @@ describe("check-docs の ADR 番号の実在（t634）", () => {
     expect(stderr).toContain("scripts/zz-probe.mjs:1: ADR-099 が docs/adr にない");
   });
 
-  it("実在する番号（ADR-034）と、git が無視するビルドの成果物の中の番号は指摘しない", async () => {
+  it("実在する番号と、git が無視するビルドの成果物の中の番号は指摘しない", async () => {
     await writeFile(join(dir, PROBE), "export const s = 'ADR-034';\n");
     const built = join(dir, "packages/cli/web/assets/index-x.js");
     await mkdir(dirname(built), { recursive: true });
@@ -349,7 +350,7 @@ describe("check-docs の要件 ID・先頭コメント・guide の重複（t536�
     expect(stderr).not.toContain("要件 ID");
   });
 
-  it("接頭辞の一覧にない語（ADR-001・UTC-5・SP-10）は、定義がなくても指摘しない", async () => {
+  it("接頭辞の一覧にない語（ADR の番号・UTC-5・SP-10）は、定義がなくても指摘しない", async () => {
     await writeFile(
       join(dir, "packages/cli/src/zz-probe.ts"),
       "// ADR-001 と UTF-8 と SHA-256 と UTC-5 と SP-10 の話\nexport {};\n",
@@ -783,7 +784,7 @@ describe("check-docs の置き換え済みの ADR への参照（t580）", () =>
     expect(stderr).toContain(`${probe}:1: 置き換え済みの ${OLD_ADR} を指している`);
   });
 
-  it("置き換えていない ADR（ADR-028）の参照は指摘しない", async () => {
+  it("置き換えていない ADR の参照は指摘しない", async () => {
     await writeFile(join(dir, PROBE), "// 理由は ADR-028\nexport const s = 'ADR-008';\n");
     const { stderr } = await run();
     expect(stderr).not.toContain("置き換え済みの ADR");

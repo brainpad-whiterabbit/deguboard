@@ -104,7 +104,7 @@ export interface AskCandidate {
   skill_summary: string | null;
   /** 先頭の候補だけ true */
   recommended: boolean;
-  /** 札の下に出す、この頼むことで何が起きるかの 1 文。対象があれば ID から始まり、Status を変えるものは行き先を含む。依頼文（text）には入れない（ADR-027）。
+  /** 札の下に出す、この頼むことで何が起きるかの 1 文。対象があれば ID から始まり、Status を変えるものは行き先を含む。依頼文（text）には入れない（UI-15）。
    *  依頼文は agent が読む指示、この文は人が札の下で読む説明で言い回しが違うので、依頼文から組まずに別々に組む */
   meaning: string;
 }
@@ -260,7 +260,7 @@ interface HumanStep {
 }
 
 interface ActionDef {
-  /** Skill の名前（dg skill install で配る dg<トピック>）。null なら Skill の形でも文章だけの形で返す（ADR-027） */
+  /** Skill の名前（dg skill install で配る dg<トピック>）。null なら Skill の形でも文章だけの形で返す（AG-8） */
   skill: string | null;
   /** 1 行目に対象の ID を並べない（起票・作成） */
   bare?: boolean;
@@ -1360,7 +1360,7 @@ export function buildAsk(input: BuildAskInput): AskView {
   const note = input.note?.trim();
   if (chosen === "free" && s.length === 0 && !note)
     throw new UsageError("自由に頼むときは、対象か指示（note）が要る");
-  // 題・本文・Status はエージェントが dg で読むので、依頼文には ID だけを入れる（ADR-027）
+  // 題・本文・Status はエージェントが dg で読むので、依頼文には ID だけを入れる（読んだ時点の写しが古くならないため）
   const lines: string[] = [];
   if (format === "skill" && candidate.skill) {
     // Skill の形は呼び出しと指示だけ。呼び出しで頼むことが決まらないもの（起票・作成・外す・分ける・組み直す・持ち越し）だけ短い頼みごとを挟む

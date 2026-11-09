@@ -217,7 +217,7 @@ describe("dg mcp", () => {
       retries: 0,
       usage: { ...emptyUsage(), input: 10 },
     });
-    // ストアに直に置いた Run を取り込む（dg の外の変更の検査。ADR-026）
+    // ストアに直に置いた Run を取り込む（dg の外の変更の検査。SY-8）
     await runCommand(adopt, ctx, {});
     await runCommand(commit, ctx, {});
 

@@ -735,7 +735,7 @@ async function factsFor(
 }
 
 /**
- * ブランチ名の使い回しを拒否する（ST-3、ADR-028）。終わっていない別のチケットが同じ名前を記録しているか、
+ * ブランチ名の使い回しを拒否する（ST-3）。終わっていない別のチケットが同じ名前を記録しているか、
  * 前の作業でマージ済みのブランチが同じ名前で残っていれば BRANCH_IN_USE。残ったブランチは照合が branch_merged で
  * done にし、PR を見ない照合では claim の時刻で外せないので、記録する前に止める
  */
@@ -953,9 +953,9 @@ async function openClaimRun(
 /**
  * もう一度の claim（自分が claim 済みで PR のあるチケット）。手直し（見直しの修正ループ・人のレビューの後）の開始とみなし、チケットは変えない（ST-9）。
  * agent なら手直しの Run（opens_on: reclaim の step、なければ fix）を開く（RN-5）。開いたままの前の手直しの Run は、
- * openRun が次の Run の開始を区切りとして閉じてから開く（RN-6・ADR-025）。前の Run が別のセッションで開いたものなら、
- * そのセッションが落ちた残りとみなして interrupted で閉じる（ADR-025）。この claim のセッションは sessionOf で決め、
- * サブエージェントの claim でも起動した親のセッションになる（ADR-025）
+ * openRun が次の Run の開始を区切りとして閉じてから開く（RN-6）。前の Run が別のセッションで開いたものなら、
+ * そのセッションが落ちた残りとみなして interrupted で閉じる（RN-6）。この claim のセッションは sessionOf で決め、
+ * サブエージェントの claim でも起動した親のセッションになる
  */
 async function reclaim(
   ctx: CommandContext,

@@ -154,7 +154,7 @@ export async function commitPaths(
   return true;
 }
 
-/** まとめてコミットする。dg のコミットの印（DG_COMMIT_TRAILER）を末尾に付ける（dg の外のコミットと見分ける。ADR-026） */
+/** まとめてコミットする。dg のコミットの印（DG_COMMIT_TRAILER）を末尾に付ける（dg の外のコミットと見分ける。SY-8） */
 export async function commitAll(repo: GitRepo, message: string): Promise<boolean> {
   await git(repo, ["add", "-A"]);
   const staged = await git(repo, ["diff", "--cached", "--quiet"], { allowFailure: true });

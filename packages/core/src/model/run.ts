@@ -1,4 +1,4 @@
-// Run（runs/r20261031-041500-3fa2.json。requirements.md 5.9、ADR-034・ADR-029）。
+// Run（runs/r20261031-041500-3fa2.json。requirements.md 5.9、ADR-029）。
 // Git に入れるのは完了時の集計だけ。実行中の記録（deguboard-local/runs/。RN-3）も同じスキーマで置く（run/record.ts）
 
 import { z } from "zod";
@@ -66,11 +66,11 @@ const runToolsSchema = z.looseObject({
 });
 export type RunTools = z.output<typeof runToolsSchema>;
 
-/** 見直し役の見直しの step（同梱の Workflow の steps。ADR-025） */
+/** 見直し役の見直しの step（同梱の Workflow の steps） */
 export const REVIEW_STEP = "review";
 
 /**
- * 見直しの結果（ADR-025）。重い・軽い指摘の数と、通ったか（重い指摘が残っていない）。
+ * 見直しの結果（RN-9）。重い・軽い指摘の数と、通ったか（重い指摘が残っていない）。
  * 見直し役が `run review-result` で見直しの Run に書く。見直し以外の Run と、書かれていない Run は null
  */
 const runReviewSchema = z.looseObject({
@@ -132,19 +132,19 @@ export const runSchema = z.looseObject({
   /** ツールの回数。取れなければ null。この項目より前に書いた Run にはキーがないので、読むときに null にそろえる */
   tools: runToolsSchema.nullable().default(null),
   /**
-   * 会話記録のセッション ID（ADR-029）。開くときに渡されなければ null。記録のパスはマシンごとに違い、ホームのパスとユーザ名を含むので
+   * 会話記録のセッション ID（RN-1）。開くときに渡されなければ null。記録のパスはマシンごとに違い、ホームのパスとユーザ名を含むので
    * Git に入る Run には書かず、deguboard-local/transcripts/ に置く（run/record.ts）。この項目より前に書いた Run にはキーがないので、読むときに null にそろえる
    */
   session: z.string().min(1).nullable().default(null),
   /** 見直しの結果。この項目より前に書いた Run にはキーがないので、読むときに null にそろえる */
   review: runReviewSchema.nullable().default(null),
   /**
-   * 止まって待っている印（ADR-025）。サブエージェントが step を終えた事実のないまま止まった時刻（親への質問など）。
+   * 止まって待っている印（RN-7）。サブエージェントが step を終えた事実のないまま止まった時刻（親への質問など）。
    * 実行中の記録にだけ置き、閉じた Run（Git）には書かない。再開（同じ agent_id の起動）で消す。この項目より前の記録とは null にそろえる
    */
   waiting_since: isoDateTime.nullable().default(null),
   /**
-   * 記録の書き終わりを待つ印（ADR-025）。step を終えた事実はあるが、止まった時に最後の応答がまだ書かれていなかった時刻。
+   * 記録の書き終わりを待つ印（RN-7）。step を終えた事実はあるが、止まった時に最後の応答がまだ書かれていなかった時刻。
    * 次のフック・dg sync・SessionEnd が書き終わりを見て閉じる。止まって待っている印とは別で、実行中の記録にだけ置く
    */
   settling_since: isoDateTime.nullable().default(null),

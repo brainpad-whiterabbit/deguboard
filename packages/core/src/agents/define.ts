@@ -1,4 +1,4 @@
-// Agent Adapter の形（AG-5・MT-1、ADR-029・ADR-033）。
+// Agent Adapter の形（AG-5・MT-1、ADR-029）。
 // 特定の AI 製品に依存する処理は adapters/ に閉じ、Core の汎用部分はこの形と agents/index.ts の一覧だけを見る
 
 import type { Run, RunTools, RunUsage } from "../model/run.js";
@@ -21,7 +21,7 @@ export interface UsageQuery {
    */
   others?: ReadonlyMap<string, RunSpan>;
   /**
-   * このマシンに置いた、この Run の会話記録のパス（deguboard-local/transcripts/。ADR-029）。あればそのファイルから数え、
+   * このマシンに置いた、この Run の会話記録のパス（deguboard-local/transcripts/。RN-3）。あればそのファイルから数え、
    * なければ Run の session、それもなければ推測で探す
    */
   transcript?: string | undefined;
@@ -63,7 +63,7 @@ export interface SkillDirs {
 }
 
 /**
- * harness のフックの出来事を、製品によらない形にしたもの（ADR-025）。Core の hook のコマンドはこれだけを見る。
+ * harness のフックの出来事を、製品によらない形にしたもの（AG-5・AG-9）。Core の hook のコマンドはこれだけを見る。
  * transcript は記録のファイルの絶対パス（取れなければ null）
  */
 export type HookEvent =
@@ -86,7 +86,7 @@ export type HookEvent =
     }
   /**
    * サブエージェントが始まった（初めての起動と、親が続きを頼んだ再開の両方）。transcript はサブエージェントの記録のパス。
-   * 再開なら同じ agentId で、同じ記録に追記される（ADR-025）
+   * 再開なら同じ agentId で、同じ記録に追記される（RN-7）
    */
   | { kind: "subagent_started"; session: string; agentId: string; transcript: string | null }
   /** サブエージェントが止まった（終わったか、親に質問を返して待っている） */
@@ -137,7 +137,7 @@ export interface HookSupport {
    */
   selfOpenedRunIds(transcript: string): Promise<string[]>;
   /**
-   * 記録が書き終わっているか。止まった瞬間には最後の応答がまだ書かれていないことがある（ADR-025）。読めなければ true
+   * 記録が書き終わっているか。止まった瞬間には最後の応答がまだ書かれていないことがある（数え漏らさずに閉じるため。RN-7）。読めなければ true
    * （待っても変わらない）
    */
   transcriptSettled(transcript: string): Promise<boolean>;
@@ -165,7 +165,7 @@ export interface AgentAdapter {
   detect?(env: AgentEnv): boolean;
   /**
    * dg を呼んだプロセスの環境変数から、この製品が付ける会話記録のセッション ID を読む（Run を開く操作が --session も
-   * DEGUBOARD_SESSION もないときに使う。ADR-025）。サブエージェントの Bash にも親のセッションの ID で付く変数だけを読む。
+   * DEGUBOARD_SESSION もないときに使う。AG-5）。サブエージェントの Bash にも親のセッションの ID で付く変数だけを読む。
    * 製品が付ける変数が確かめられない Adapter は持たない
    */
   sessionFromEnv?(env: AgentEnv): string | undefined;

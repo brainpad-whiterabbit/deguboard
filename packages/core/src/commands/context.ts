@@ -29,7 +29,7 @@ export interface ContextOptions {
   env?: Readonly<Record<string, string | undefined>> | undefined;
   /**
    * Workflow の steps に書ける Action の名前。commands は actions に依存しないので、入口が
-   * core/actions の ACTION_NAMES を渡す（ADR-033）。省略すると未知の Action を指摘しない
+   * core/actions の ACTION_NAMES を渡す（AG-6）。省略すると未知の Action を指摘しない
    */
   actions?: readonly string[] | undefined;
 }
@@ -101,7 +101,7 @@ export async function openContext(opts: ContextOptions): Promise<CommandContext>
     worktree = await ensureDeguboardWorktree(paths, remote);
   }
   // 個人の設定（deguboard-local/config.yaml）もここで重ねるので、CLI・HTTP・VS Code 拡張は同じ値を読む。
-  // 読みの結果は deguboard-local/store-cache/ に残し、次の呼び出し（CLI は毎回別のプロセス）は変わったファイルだけを読む（ADR-033）
+  // 読みの結果は deguboard-local/store-cache/ に残し、次の呼び出し（CLI は毎回別のプロセス）は変わったファイルだけを読む
   const store = await Store.open(paths.dataDir, {
     actions: opts.actions,
     localDir: paths.localDir,

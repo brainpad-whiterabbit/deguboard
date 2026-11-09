@@ -282,7 +282,7 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
       file,
       text.replace("status: todo", "status: in_progress\nclaimed_by: eiki@laptop"),
     );
-    // 古い版の dg が書いた形を模すので、検査の基準をここに置く（ADR-026）
+    // 古い版の dg が書いた形を模すので、検査の基準をここに置く（SY-8）
     await recordBaseline(ctx.repo);
     await ctx.store.rescan();
     const shown = await runCommand(ticketShow, ctx, { ticket: "t1" });

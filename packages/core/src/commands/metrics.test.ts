@@ -72,7 +72,7 @@ async function scenario(): Promise<CommandContext> {
     result: null,
     usage: emptyUsage(),
   });
-  // ストアに直に置いた Run を dg の書き込みとみなす（dg の外の変更の検査の基準。ADR-026）
+  // ストアに直に置いた Run を dg の書き込みとみなす（dg の外の変更の検査の基準。SY-8）
   await recordBaseline(ctx.repo);
   await runCommand(commit, ctx, {});
   return ctx;

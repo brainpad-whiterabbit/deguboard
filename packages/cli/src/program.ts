@@ -140,7 +140,7 @@ export function buildProgram(options: ProgramOptions = {}): Command {
     return g;
   };
 
-  // guide は core のコマンドではなく CLI の責務（本文と読み込みは Core が持ち、ここは写す。CL-5・ADR-030）
+  // guide は core のコマンドではなく CLI の責務（本文と読み込みは Core が持ち、ここは写す。CL-5）
   program
     .command("guide")
     .description(
@@ -232,7 +232,7 @@ export function buildProgram(options: ProgramOptions = {}): Command {
       }
     });
 
-  // hooks も CLI の責務。書くイベントと置き場所は Adapter の hooks が決め、フックが呼ぶのは core の hook コマンド（ADR-025）
+  // hooks も CLI の責務。書くイベントと置き場所は Adapter の hooks が決め、フックが呼ぶのは core の hook コマンド（AG-5・AG-9）
   const hooksCmd = program
     .command("hooks")
     .description("harness（Claude Code）のフックの操作")

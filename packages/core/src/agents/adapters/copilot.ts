@@ -5,7 +5,7 @@
 //     出力は tool.execution_complete の結果に入り、その応答の session.usage_record は応答の終わりに書かれるので Run に入る。
 //     ID が最初に出たのが finished_at より後の記録（閉じた後に run refresh を呼んだ session など）は Run の記録とみなさない
 //   - 数える行：Run の ID が出た後の、started_at〜finished_at の session.usage_record。サブエージェント（task ツール）は別の
-//     session-state のディレクトリに自分の記録を持ち、自分で run start した分だけその記録から数える（親の Run には混ぜない。ADR-029）
+//     session-state のディレクトリに自分の記録を持ち、自分で run start した分だけその記録から数える（親の Run には混ぜない）
 //   - 写し方：Copilot の inputTokens はキャッシュの読み書きを含む総量なので、input は inputTokens から cacheReadTokens と
 //     cacheWriteTokens を引いた新規の入力にする（Copilot 自身の課金内訳 copilotUsage.tokenDetails の input と一致する）。
 //     cache_read は cacheReadTokens、cache_write は cacheWriteTokens、output は outputTokens

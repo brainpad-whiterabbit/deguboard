@@ -1,5 +1,5 @@
 // チケットの作業の段階と次の 1 手（EX-3・EX-5、ADR-011）。Run・PR・ブランチの事実と Plan の待ちから都度求め、保存しない（Plan の進捗と同じ考え）。
-// 段階を返すだけで、エージェントを起動も監視もしない（ADR-028）。親は dg next の 1 手を行い、終えたらもう一度 dg next を呼ぶ
+// 段階を返すだけで、エージェントを起動も監視もしない（EX-1）。親は dg next の 1 手を行い、終えたらもう一度 dg next を呼ぶ
 
 import { z } from "zod";
 import { lastPushedAt } from "../git/facts.js";
@@ -309,7 +309,7 @@ export function nextOf(ctx: CommandContext, facts: StageFacts): NextStep {
       brief: null,
     };
   };
-  // フックがサブエージェントの Run を開け閉めする印（ADR-025）。委譲する親は claim に --no-run を付け、印で頼む
+  // フックがサブエージェントの Run を開け閉めする印（RN-7）。委譲する親は claim に --no-run を付け、印で頼む
   const marker = (step: string) =>
     `サブエージェントに頼む文の最初の行に deguboard: ticket=${id} step=${step}`;
   switch (st.name) {
@@ -359,7 +359,7 @@ export function nextOf(ctx: CommandContext, facts: StageFacts): NextStep {
       return facts.ticket.status === "in_progress" && st.review_passed
         ? // dg pr ready が品質ゲートを判定してから gh pr ready を呼ぶ（t545）
           make("ready", null, [dg(`pr ready ${id}`), dg("sync")])
-        : // 手直しの Run も印でフックが開く。理由は直すエージェントが run retry-reason で書き足す（ADR-025）
+        : // 手直しの Run も印でフックが開く。理由は直すエージェントが run retry-reason で書き足す（RN-8）
           make("fix", fixStep, [
             marker(fixStep),
             `直すエージェント（実装と同じモデル）が最初に ${dg(`run retry-reason ${id} --reason <直す指摘の要約>`)}`,

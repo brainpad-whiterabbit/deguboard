@@ -1,5 +1,5 @@
 // Iteration の流れの段階と次の手（EX-3・EX-8、ADR-030）。流れの 8 つの規則（ここが正本。guide-all は書かない）と止まる判定を、
-// チケット・Plan の事実と resume から都度求め、保存しない（dg next と同じ考え）。段階を返すだけで、エージェントを起動も監視もしない（ADR-028）。
+// チケット・Plan の事実と resume から都度求め、保存しない（dg next と同じ考え）。段階を返すだけで、エージェントを起動も監視もしない（EX-1）。
 // 会話の中にしかない事実（この実行で割り当て・点検・見直しを終えた）は resume に入れて返す。エージェントは次の呼び出しに --resume で写して渡す
 
 import { createHash } from "node:crypto";
@@ -165,7 +165,7 @@ export function flowStageOf(
   );
 }
 
-/** resume の中身。不透明な値として返し、エージェントは組み立てない（ADR-030） */
+/** resume の中身。不透明な値として返し、エージェントは組み立てない（EX-8） */
 interface ResumeState {
   v: 1;
   /** 対象（解決した ID。チケットは並べ替えた並び）。違う対象の resume は使わない */
@@ -507,7 +507,7 @@ export const flowNext = defineCommand({
   positionals: ["targets"],
   group: "flow",
   summary:
-    "Iteration の流れ（割り当て → 点検 → 計画 → 作業 → 見直し → リリース）の今の段階と次の手を返す（EX-3・EX-8、ADR-030）。" +
+    "Iteration の流れ（割り当て → 点検 → 計画 → 作業 → 見直し → リリース）の今の段階と次の手を返す。" +
     "対象は Iteration 1 つ・Plan 1 つ・チケット 1 つ以上のどれか。段階は次の 8 つの規則の順で最初に当たるもの" +
     "（1 割り当て：この実行で割り当てを終えておらず、見直し済みでなく、Iteration に入っていない todo があり、--no-assign がない／" +
     "2 点検：この実行でまだ点検していない／3 計画：対象を含む承認待ちの Plan がある／4 作業：対象を含む承認済みの Plan に終わっていないチケットがある／" +

@@ -1,4 +1,4 @@
-// 画面（web）が入口と話すための 1 つのインターフェース（ADR-027・ADR-033）。
+// 画面（web）が入口と話すための 1 つのインターフェース（ADR-033）。
 // HTTP と postMessage の実装は web が持ち、入口の側はプロセス内の実装（local.ts）を HTTP・postMessage に写す。core はここで形を決める
 
 import type { SyncStatus } from "../git/sync.js";

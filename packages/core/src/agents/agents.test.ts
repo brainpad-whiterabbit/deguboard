@@ -639,7 +639,7 @@ describe("Claude Code の Adapter", () => {
     expect(got.warnings).toEqual([expect.stringContaining("見つからない")]);
   });
 
-  describe("会話記録の場所（ADR-029）", () => {
+  describe("会話記録の場所（MT-2）", () => {
     const usageOf = async (q: UsageQuery) =>
       (await claudeCodeAdapter.readTranscriptUsage(q)).usage.input;
 
@@ -885,7 +885,7 @@ describe("Core の汎用部分は特定の AI 製品を知らない（AG-5）", 
   });
 });
 
-describe("Claude Code のフックの入力（ADR-025）", () => {
+describe("Claude Code のフックの入力（AG-5・AG-9）", () => {
   const hooks = claudeCodeAdapter.hooks!;
   const parent = "/h/.claude/projects/d/s1.jsonl";
 
@@ -981,7 +981,7 @@ describe("Claude Code のフックの入力（ADR-025）", () => {
       kind: "session_end",
       session: "s1",
     });
-    // SubagentStart は再開を続きとして扱うのに読む（ADR-025）。記録のパスは親の記録の隣
+    // SubagentStart は再開を続きとして扱うのに読む（RN-7）。記録のパスは親の記録の隣
     expect(
       hooks.parse(
         "SubagentStart",

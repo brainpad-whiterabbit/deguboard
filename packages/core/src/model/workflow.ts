@@ -36,7 +36,7 @@ const stepIdSchema = z.string().regex(/^[a-z][a-z0-9_-]*$/, "step は小文字�
 export const STEP_OPENERS = ["claim", "reclaim"] as const;
 export type StepOpener = (typeof STEP_OPENERS)[number];
 
-// Action は名前（文字列）だけで持つ。登録済みかは actions の一覧を外から渡して validate.ts が見る（ADR-033）
+// Action は名前（文字列）だけで持つ。登録済みかは actions の一覧を外から渡して validate.ts が見る（AG-6）
 const actionNameShape = z.string().regex(/^[a-z][a-z0-9_]*$/, "Action の名前は snake_case");
 
 export const workflowDefinitionSchema = z.looseObject({
@@ -75,7 +75,7 @@ export const workflowDefinitionSchema = z.looseObject({
         label: z.string().optional(),
         /** この step で使える Action の名前。Action を実行する主体は、ここにない Action を実行しない */
         actions: z.array(actionNameShape).default([]),
-        /** 人の承認が要る step か。Action を実行する主体が runAction の前に確認を取る。今は記録だけで強制しない（ADR-003） */
+        /** 人の承認が要る step か。Action を実行する主体が runAction の前に確認を取る。今は記録だけで強制しない */
         approval: z.boolean().default(false),
         /** この step の Run を開くチケットの操作（RN-5）。claim なら agent の ticket claim、reclaim ならもう一度の claim が開く。同じ操作は 1 つの step にだけ付ける（validate.ts） */
         opens_on: z.enum(STEP_OPENERS).optional(),

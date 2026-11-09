@@ -7,7 +7,7 @@ import { parseRoute } from "../router.js";
 import { StoreProvider } from "../store.js";
 import { iteration, mockClient, ticket } from "../test-helpers.js";
 import { createUiState, memoryBackend } from "../ui-state.js";
-// 持ち越しの求め方の写しを照らすためだけに core の実行時のコード（carriedOverFrom）を取り込む（画面のコードは型だけを取る。ADR-033）
+// 持ち越しの求め方の写しを照らすためだけに core の実行時のコード（carriedOverFrom）を取り込む（画面のコードは型だけを取る）
 import { carriedOverFrom as coreCarriedOverFrom } from "@deguboard/core";
 import { carriedOverFrom, epicCountsOf, groupByEpic, historyAskTarget } from "./history.js";
 

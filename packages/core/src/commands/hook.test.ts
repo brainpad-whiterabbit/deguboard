@@ -166,7 +166,7 @@ describe("フックの印", () => {
   });
 });
 
-describe("dg hook（AG-9・RN-7・ADR-025）", () => {
+describe("dg hook（AG-9・RN-7）", () => {
   it("SessionStart は以後の Bash の環境に export 付きで主体・セッション ID・記録のパスを書く", async () => {
     const { ctx, home, parent } = await prepared();
     const envFile = path.join(home, "env.sh");
@@ -222,7 +222,7 @@ describe("dg hook（AG-9・RN-7・ADR-025）", () => {
     expect(missing.warnings).toEqual([expect.stringContaining("t99 が見つからない")]);
   });
 
-  it("別のセッションで開いたままの見直しの Run は、印 step=review の起動が interrupted で閉じてから新しい Run を開き、run review-result は新しい Run に書く（ADR-025）", async () => {
+  it("別のセッションで開いたままの見直しの Run は、印 step=review の起動が interrupted で閉じてから新しい Run を開き、run review-result は新しい Run に書く（RN-6・RN-9）", async () => {
     const { ctx, parent, subagent } = await prepared();
     // 落ちたセッション s-old の見直しの Run が開いたまま残っている
     const stale = (
@@ -272,7 +272,7 @@ describe("dg hook（AG-9・RN-7・ADR-025）", () => {
     expect(unknown.warnings).toContainEqual(expect.stringContaining("Run を開いていない"));
   });
 
-  it("前景の起動で、見直し役が別のセッションの古い見直しの Run に書いた結果は、古い Run から外して新しい Run に結び付ける。起動より前に書かれた結果は古い Run に残す（ADR-025）", async () => {
+  it("前景の起動で、見直し役が別のセッションの古い見直しの Run に書いた結果は、古い Run から外して新しい Run に結び付ける。起動より前に書かれた結果は古い Run に残す（RN-9）", async () => {
     const { ctx, parent, subagent } = await prepared();
     const stale = (
       await runCommand(runStart, ctx, {
@@ -336,7 +336,7 @@ describe("dg hook（AG-9・RN-7・ADR-025）", () => {
     expect(runs2.find((r) => r.id !== old.id)).toMatchObject({ running: true, review: null });
   });
 
-  it("前景の起動でかかった時間が入力にないときは、記録の最初の行の時刻を起動の時刻にし、その後に古い Run に書かれた結果を新しい Run に結び付ける（ADR-025）", async () => {
+  it("前景の起動でかかった時間が入力にないときは、記録の最初の行の時刻を起動の時刻にし、その後に古い Run に書かれた結果を新しい Run に結び付ける（RN-9）", async () => {
     const { ctx, parent, subagent } = await prepared();
     const stale = (
       await runCommand(runStart, ctx, {
@@ -382,7 +382,7 @@ describe("dg hook（AG-9・RN-7・ADR-025）", () => {
     expect(Date.parse(fresh.started_at)).toBeGreaterThan(Date.parse(firstAt) - 1000);
   });
 
-  it("dg sync は、書き終わり待ちで残った別のセッションの見直しの Run を閉じず、同じセッションのものは閉じる（ADR-025）", async () => {
+  it("dg sync は、書き終わり待ちで残った別のセッションの見直しの Run を閉じず、同じセッションのものは閉じる（RN-7）", async () => {
     const { ctx, parent } = await prepared();
     hookTiming.settleMs = 60;
     hookTiming.pollMs = 20;
@@ -415,7 +415,7 @@ describe("dg hook（AG-9・RN-7・ADR-025）", () => {
     expect(await peekRunningRuns(ctx.repo)).toEqual([]);
   });
 
-  it("同じセッションで同じチケットの見直しの Run を重ねて開くと、前の Run を閉じずに拒否して警告する（ADR-025）", async () => {
+  it("同じセッションで同じチケットの見直しの Run を重ねて開くと、前の Run を閉じずに拒否して警告する（SY-5）", async () => {
     const { ctx, parent } = await prepared();
     await call(ctx, "PostToolUse", launched(parent, "a1", "deguboard: ticket=t1 step=review"));
     const [first] = await peekRunningRuns(ctx.repo);
@@ -471,7 +471,7 @@ describe("dg hook（AG-9・RN-7・ADR-025）", () => {
     expect(run!.duration_seconds).toBeGreaterThanOrEqual(89);
   });
 
-  it("SubagentStop は印のある Run を記録の全体から数えて閉じ、見直しは結果が記録されていれば success（ADR-025）", async () => {
+  it("SubagentStop は印のある Run を記録の全体から数えて閉じ、見直しは結果が記録されていれば success（RN-7・RN-9）", async () => {
     const { ctx, parent, subagent } = await prepared();
     const prompt = "deguboard: ticket=t1 step=review\n\n見直す";
     await call(ctx, "PostToolUse", launched(parent, "a1", prompt));
@@ -495,7 +495,7 @@ describe("dg hook（AG-9・RN-7・ADR-025）", () => {
     });
   });
 
-  it("SubagentStop は結果の記録のない見直しの Run を閉じず、止まって待っている印を付けて run list --running に出す（ADR-025）", async () => {
+  it("SubagentStop は結果の記録のない見直しの Run を閉じず、止まって待っている印を付けて run list --running に出す（RN-7）", async () => {
     const { ctx, parent, subagent } = await prepared();
     const prompt = "deguboard: ticket=t1 step=review\n\n見直す";
     await call(ctx, "PostToolUse", launched(parent, "a1", prompt));
@@ -574,7 +574,7 @@ describe("dg hook（AG-9・RN-7・ADR-025）", () => {
     expect((await readTranscriptPaths(ctx.repo)).get(run.id)).toBe(subagent("a9"));
   });
 
-  it("SessionEnd はこのセッションのサブエージェントの開いた Run をすべて閉じ（見直しは interrupted、PR のない実装は failure）、親が自分で開いた Run とほかのセッションの Run は残す（ADR-025）", async () => {
+  it("SessionEnd はこのセッションのサブエージェントの開いた Run をすべて閉じ（見直しは interrupted、PR のない実装は failure）、親が自分で開いた Run とほかのセッションの Run は残す（RN-7）", async () => {
     const { ctx, parent, subagent } = await prepared();
     await call(ctx, "PostToolUse", launched(parent, "a1", "deguboard: ticket=t1 step=review"));
     await call(ctx, "PostToolUse", launched(parent, "a2", "deguboard: ticket=t2 step=implement"));
@@ -619,7 +619,7 @@ describe("dg hook（AG-9・RN-7・ADR-025）", () => {
   });
 });
 
-describe("dg hook の見直しで直した場面（ADR-025）", () => {
+describe("dg hook の見直しで直した場面（RN-7）", () => {
   it("移行の経路は、同じセッションで記録の最初の行より後に始まった Run だけを結び付け、記録に ID が出るだけの Run は結び付け直さない", async () => {
     const { ctx, parent, subagent } = await prepared();
     // 前からある、ほかのセッションの Run（一覧で ID を見ただけ）
@@ -727,7 +727,7 @@ describe("dg hook の見直しで直した場面（ADR-025）", () => {
   });
 });
 
-describe("dg hook の移行の経路と兄弟の Run（ADR-025）", () => {
+describe("dg hook の移行の経路と兄弟の Run（RN-7）", () => {
   /** 印のない A が自分で run start した記録。最初の行の時刻は A の Run の開始より前 */
   async function selfStarted(
     ctx: CommandContext,
@@ -830,7 +830,7 @@ describe("dg hook の移行の経路と兄弟の Run（ADR-025）", () => {
     ]);
   });
 
-  it("自分で開いた手直しの Run が push なしで返ったら、止まって待っている印を付けて開いたままにする（ADR-025）", async () => {
+  it("自分で開いた手直しの Run が push なしで返ったら、止まって待っている印を付けて開いたままにする（RN-7）", async () => {
     const { ctx, subagent } = await prepared();
     const mine = await selfStarted(
       ctx,
@@ -935,7 +935,7 @@ async function appendResponses(file: string, tokens: number, ids: string[]) {
   await appendFile(file, lines.map((l) => JSON.stringify(l)).join("\n") + "\n");
 }
 
-describe("サブエージェントの止まりと再開（RN-7・ADR-025）", () => {
+describe("サブエージェントの止まりと再開（RN-7）", () => {
   const stop = (ctx: CommandContext, file: string, agentId = "a1") =>
     call(ctx, "SubagentStop", {
       session_id: SESSION,
@@ -1454,7 +1454,7 @@ describe("PreToolUse（AG-10・t532）", () => {
   });
 });
 
-describe("手直しの Run の印と run retry-reason（RN-7・RN-8・ADR-025）", () => {
+describe("手直しの Run の印と run retry-reason（RN-7・RN-8）", () => {
   const fixRuns = async (ctx: CommandContext, ticket: string) =>
     ((await runCommand(runList, ctx, { ticket })).data as RunView[]).filter(
       (r) => r.step === "fix",
@@ -1503,7 +1503,7 @@ describe("手直しの Run の印と run retry-reason（RN-7・RN-8・ADR-025）
     expect(runs2.filter((r) => r.running)).toHaveLength(1);
   });
 
-  it("印 step=review の起動も、開いたままの手直しの Run を区切りとして閉じてから開く。見直しを開くときは別のセッションの手直しも success で閉じる（ADR-025）", async () => {
+  it("印 step=review の起動も、開いたままの手直しの Run を区切りとして閉じてから開く。見直しを開くときは別のセッションの手直しも success で閉じる（RN-6）", async () => {
     const { ctx, parent } = await prepared();
     const same = (
       await runCommand(runStart, ctx, {
@@ -1547,7 +1547,7 @@ describe("手直しの Run の印と run retry-reason（RN-7・RN-8・ADR-025）
     ]);
   });
 
-  it("前景の起動でかかった時間だけ前にした開始が、手直しの Run の開始より前なら閉じず、同じ秒と後なら閉じる（ADR-025）", async () => {
+  it("前景の起動でかかった時間だけ前にした開始が、手直しの Run の開始より前なら閉じず、同じ秒と後なら閉じる（RN-6）", async () => {
     const { ctx, parent, subagent } = await prepared();
     let clock = new Date("2026-11-08T01:10:00Z");
     ctx.now = () => clock;

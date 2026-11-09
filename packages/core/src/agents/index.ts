@@ -1,4 +1,4 @@
-// Agent Adapter の一覧と、Run の使用量の取り込み（AG-5・MT-1・MT-2、ADR-029・ADR-033）。
+// Agent Adapter の一覧と、Run の使用量の取り込み（AG-5・MT-1・MT-2、ADR-029）。
 // Core の汎用部分はここだけを import し、Run の agent の値で Adapter を選ぶ。adapters/ を直接 import しない（.oxlintrc.json）
 
 import type { Config } from "../model/config.js";
@@ -24,7 +24,7 @@ export function agentNames(): string[] {
   return ADAPTERS.map((a) => a.name);
 }
 
-/** Adapter が Skill を読むディレクトリをまとめたもの。ask が形式の既定を決めるのに使う（ADR-027） */
+/** Adapter が Skill を読むディレクトリをまとめたもの。ask が形式の既定を決めるのに使う（AG-8） */
 export function agentSkillDirs(query: SkillQuery): string[] {
   return ADAPTERS.flatMap((a) =>
     a.skillDirs ? [a.skillDirs.project(query.topLevel), a.skillDirs.personal(query.env)] : [],
@@ -63,7 +63,7 @@ export function detectAgent(env: AgentEnv): AgentDetection {
 }
 
 /**
- * 環境変数から判定した agent の Adapter が読む会話記録のセッション ID（ADR-025）。agent を判定できないか、
+ * 環境変数から判定した agent の Adapter が読む会話記録のセッション ID（AG-5）。agent を判定できないか、
  * その Adapter がセッションを読まなければ undefined
  */
 export function sessionFromEnv(env: AgentEnv): string | undefined {

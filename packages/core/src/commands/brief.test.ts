@@ -78,7 +78,7 @@ describe("サブエージェントに渡す文の形（brief）", () => {
     `);
   });
 
-  it("手直しの文は先頭の行に fix の印を置き、run retry-reason で理由を書かせ、指摘の一覧を入れる（日本語）（ADR-025）", () => {
+  it("手直しの文は先頭の行に fix の印を置き、run retry-reason で理由を書かせ、指摘の一覧を入れる（日本語）（RN-8）", () => {
     expect(composeBrief("fix", facts({ step: "fix" }), "ja", "1. src/a.ts:3 の型が違う（重い）"))
       .toMatchInlineSnapshot(`
         "deguboard: ticket=t12 step=fix
@@ -163,7 +163,7 @@ describe("サブエージェントに渡す文の形（brief）", () => {
     `);
   });
 
-  it("どの役の文も先頭の行に印があり、手直しの文は claim で Run を開かせない（印と claim で二重にしない。ADR-025）", () => {
+  it("どの役の文も先頭の行に印があり、手直しの文は claim で Run を開かせない（印と claim で二重にしない。RN-7）", () => {
     const marked = (role: "implement" | "review" | "fix") =>
       composeBrief(role, facts({ step: role }), "ja").split("\n")[0];
     expect(marked("implement")).toBe("deguboard: ticket=t12 step=implement");
