@@ -1,10 +1,11 @@
 // プロセス内の CommandClient。入口（server・vscode）はこれを HTTP や postMessage に写すだけで、文脈の管理を持たない（ADR-007）。
 //   - 文脈は最初の呼び出しで開き、以後は呼び出しごとに再走査して他のプロセス（CLI）の変更を取り込む。
-//     再走査は変わったファイルだけを読み直す（Store.rescan）
+//     再走査は変わったファイルだけを読み直す（Store.rescan）。経過（history）は HEAD が同じあいだ解析結果を使い回す
 //   - 呼び出しは 1 つずつ順に処理する（同じプロセスの中で Store の再走査と書き込みが重ならないように）
 //   - 主体は既定で人（画面からの操作。ADR-027）。MCP は agent を渡す。init（needs: repo）は出さない
 
 import { DeguboardError, OperationError } from "../errors.js";
+import { createHistoryCache } from "../git/history.js";
 import { remoteWebUrl } from "../git/repo.js";
 import { syncStatus } from "../git/sync.js";
 import type { CommandClient, CommandFailure, StatusView } from "./client.js";
@@ -43,6 +44,8 @@ export function createLocalClient(options: LocalClientOptions): LocalClient {
   };
   let ctxPromise: Promise<CommandContext> | undefined;
   let queue: Promise<unknown> = Promise.resolve();
+  // 経過の解析結果は deguboard ブランチの HEAD が同じあいだ使い回す（画面は詳細を開くたびに history を呼ぶ）
+  const readHistory = createHistoryCache();
 
   const context = async (): Promise<CommandContext> => {
     ctxPromise ??= openContext({
@@ -53,6 +56,7 @@ export function createLocalClient(options: LocalClientOptions): LocalClient {
     });
     try {
       const ctx = await ctxPromise;
+      ctx.readHistory = readHistory;
       await ctx.store.rescan();
       ctx.config = ctx.store.config;
       return ctx;

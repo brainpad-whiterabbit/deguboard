@@ -2,7 +2,7 @@
 
 import { z } from "zod";
 import { OperationError } from "../errors.js";
-import { readHistory, type HistoryEvent } from "../git/history.js";
+import { readHistory, type HistoryEvent, type HistoryReader } from "../git/history.js";
 import { withWrite } from "../git/write.js";
 import { isTerminal, slugSchema, type Status } from "../model/common.js";
 import type { TicketId } from "../model/id.js";
@@ -151,19 +151,24 @@ export function carriedOverFrom(
 
 /** 次の操作を決める。案内が要らなければ null（active で期限内、閉じて持ち越しなし、など） */
 export async function iterationNextOf(
-  ctx: { store: Store; repo: { dataDir: string }; now(): Date },
+  ctx: {
+    store: Store;
+    repo: { dataDir: string };
+    now(): Date;
+    readHistory?: HistoryReader | undefined;
+  },
   it: Iteration,
   items: readonly Ticket[],
 ): Promise<IterationNext | null> {
   if (it.status === "planned") return { kind: "planned", ask: null };
   if (it.status === "closed") {
     if (!it.carried_over) return null;
-    // 費用：持ち越しのある closed の Iteration は、show のたびに履歴（git log -p）全体を読む。名前だけ要る呼び出しは iteration.list を使う
+    // 費用：持ち越しのある closed の Iteration は、show のたびに履歴（git log -p）全体を読む（プロセス内の CommandClient では HEAD が同じあいだ使い回す）。名前だけ要る呼び出しは iteration.list を使う
     let ids: string[] = [];
     try {
       ids = carriedOverFrom(
         it.id,
-        (await readHistory(ctx.repo.dataDir)).events,
+        (await (ctx.readHistory ?? readHistory)(ctx.repo.dataDir)).events,
         [...ctx.store.tickets.values()].map((t) => t.data),
       );
     } catch {

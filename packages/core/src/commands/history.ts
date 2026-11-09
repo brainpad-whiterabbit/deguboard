@@ -70,7 +70,7 @@ export const history = defineCommand({
       iteration: idShapeOf(input.iteration, "iteration"),
     };
     // チケットのときはそのファイルの履歴だけを読む（絞った結果は全体から絞ったものと同じ）
-    const log = await readHistory(ctx.repo.dataDir, { ticket: by.ticket });
+    const log = await (ctx.readHistory ?? readHistory)(ctx.repo.dataDir, { ticket: by.ticket });
     const result = filterHistory(log, by);
     const warnings: string[] = [];
     if (result.shallow)
