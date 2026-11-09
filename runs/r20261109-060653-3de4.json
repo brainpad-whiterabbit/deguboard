@@ -1,0 +1,32 @@
+{
+  "id": "r20261109-060653-3de4",
+  "ticket": "t601",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-09T06:06:53Z",
+  "finished_at": "2026-11-09T06:11:02Z",
+  "result": "success",
+  "error": null,
+  "retries": 1,
+  "retry_reasons": [
+    "通らなかった検査の結果も覚えて回し直せない"
+  ],
+  "usage": {
+    "input": 30,
+    "output": 10090,
+    "cache_read": 6461229,
+    "cache_write": 20195
+  },
+  "tools": {
+    "read": 5,
+    "search": 0,
+    "write": 12,
+    "bash": 4,
+    "other": 1,
+    "read_before_write": 1,
+    "search_before_write": 0
+  },
+  "session": "9ecee8ef-d3fe-4fc7-a962-2832cb500f39",
+  "review": null
+}
