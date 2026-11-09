@@ -72,7 +72,7 @@ async function removeBranchWorktree(
 
 /**
  * 直さなかった軽い指摘を PR の本文に書き足す（t600）。作業ブランチ（branch_at 以降）の見直しの回ごとの一覧から、手直しに渡さなかった
- * 軽い指摘を回の順に集め（同じ文は 1 つ）、もとの本文は残して節を書き足す（前に書いた節は入れ替える）。本文が変わるときだけ gh pr edit を呼ぶ。
+ * 軽い指摘を回の順に集め（同じ文は 1 つ）、もとの本文は残して節を書き足す（前に書いた節は入れ替える）。本文が変わるときだけ書き込む。
  * 書いた件数を返す。gh の失敗は本文を書き足せなかったと OperationError で返し、ready は呼ばない（呼び出し側）
  */
 async function noteUnfixedLight(ctx: CommandContext, ticket: Ticket, pr: number): Promise<number> {
@@ -89,25 +89,28 @@ async function noteUnfixedLight(ctx: CommandContext, ticket: Ticket, pr: number)
       `PR #${pr} の本文を書き足せず（${what}に失敗）、ready にしていない（直さなかった軽い指摘を載せるため）`,
       e instanceof Error ? (e.message.split("\n")[0] ?? "") : String(e),
     );
+  // 本文の読み書きは REST（gh api の pulls）で行う。gh pr view・gh pr edit は GraphQL で PR の projectCards も引き、
+  // Projects (classic) の廃止でエラーになって ready まで止まる（t637）。{owner}/{repo} は gh が作業ツリーのリポジトリで埋める
+  const endpoint = `repos/{owner}/{repo}/pulls/${pr}`;
   let current: string;
   try {
-    const view = await runGh(ctx.repo.topLevel, ["pr", "view", String(pr), "--json", "body"], {
-      timeoutMs: 60_000,
-    });
+    const view = await runGh(ctx.repo.topLevel, ["api", endpoint], { timeoutMs: 60_000 });
     current = (JSON.parse(view.stdout) as { body?: string | null }).body ?? "";
   } catch (e) {
     throw failed("本文の読み取り", e);
   }
   const next = withUnfixedLight(current, lines);
   if (next !== current) {
-    // 本文は引数の配列で渡せない長さ・改行を含むので、一時ファイルから --body-file で渡す
+    // 本文は引数の配列で渡せない長さ・改行を含むので、一時ファイルの JSON から --input で渡す
     const dir = await mkdtemp(path.join(os.tmpdir(), "dg-pr-body-"));
     try {
-      const file = path.join(dir, "body.md");
-      await writeFile(file, next);
-      await runGh(ctx.repo.topLevel, ["pr", "edit", String(pr), "--body-file", file], {
-        timeoutMs: 60_000,
-      });
+      const file = path.join(dir, "body.json");
+      await writeFile(file, JSON.stringify({ body: next }));
+      await runGh(
+        ctx.repo.topLevel,
+        ["api", "--method", "PATCH", endpoint, "--input", file, "--silent"],
+        { timeoutMs: 60_000 },
+      );
     } catch (e) {
       throw failed("本文の書き込み", e);
     } finally {
