@@ -2,5 +2,9 @@ id: s22
 project: default
 name: sprint22
 goal: このリポジトリの開発の待ちを減らす（e16）。ADR と requirements を必要最低限にし、細部の正本をコードとテストにする（e17）
-status: active
+status: closed
 start: 2026-11-08
+end: 2026-11-09
+closed_at: 2026-11-09T00:37:58Z
+completed: 37
+carried_over: 0
