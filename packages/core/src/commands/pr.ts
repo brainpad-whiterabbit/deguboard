@@ -12,6 +12,7 @@ import { PR_MERGE_METHODS } from "../model/config.js";
 import type { Ticket } from "../model/ticket.js";
 import { unfixedLightLines, withUnfixedLight } from "../run/findings.js";
 import { readReviewFindings } from "../run/record.js";
+import { setupFailureIn } from "./claim-setup.js";
 import { defineCommand, ok, type CommandContext } from "./define.js";
 import { judgeGate, type GateStage, type GateView } from "./gate.js";
 import { ticketRef } from "./helpers.js";
@@ -76,20 +77,29 @@ async function removeBranchWorktree(
 
 /**
  * マージに失敗したとき、removeBranchWorktree で消した worktree を同じパスに戻す（作業を続けられるように）。
- * 戻したか戻せなかったかを、エラーの detail に出す文として返す（戻せなかったときは手で戻す手順を添える）
+ * 消すと無視されたファイル（node_modules など）も消えるので、戻したら config の worktree.setup も回す（t643）。
+ * 戻したか・準備が回ったかを、エラーの detail に出す文として返す（戻せなかったとき・準備が止まったときは手で回す手順を添える）
  */
 async function restoreBranchWorktree(
   ctx: CommandContext,
   branch: string,
   dir: string,
 ): Promise<string> {
+  const setup = ctx.config.worktree.setup;
+  const command = setup.join(" ");
   const back = await runGit(ctx.repo.topLevel, ["worktree", "add", dir, branch], {
     allowFailure: true,
   });
-  if (back.code === 0)
-    return `マージに失敗したので、消した worktree ${dir} を戻した（作業を続けられる）`;
-  const reason = back.stderr.trim().split("\n")[0] ?? "";
-  return `マージに失敗し、消した worktree ${dir} を戻せなかった（${reason}）。git worktree add ${dir} ${branch} で戻す`;
+  if (back.code !== 0) {
+    const reason = back.stderr.trim().split("\n")[0] ?? "";
+    const then = setup.length > 0 ? `し、${dir} で ${command} を回す` : "";
+    return `マージに失敗し、消した worktree ${dir} を戻せなかった（${reason}）。git worktree add ${dir} ${branch} で戻す${then}`;
+  }
+  const head = `マージに失敗したので、消した worktree ${dir} を戻した（作業を続けられる）`;
+  if (setup.length === 0) return head;
+  const failure = await setupFailureIn(ctx, dir);
+  if (failure === null) return `${head}。準備のコマンド（${command}）も回し直した`;
+  return `${head}。ただ${failure}ので、${dir} で ${command} を手で回してから作業を続ける`;
 }
 
 /**
@@ -182,7 +192,7 @@ export const prMerge = defineCommand({
       .boolean()
       .optional()
       .describe(
-        "リモートとローカルの作業ブランチも消すか（gh pr merge --delete-branch）。省けば config の merge.delete_branch（既定は消さない）。消すときは、品質ゲート（検査を含む）を通した後、gh を呼ぶ前にブランチを checkout した worktree を消す（残っていると gh がローカルのブランチを消せない）。マージに失敗したら消した worktree を同じパスに戻し、エラーの detail にその扱いを出す。worktree は先に消さず、その worktree の外（main の worktree）から呼ぶ。この旗は付けるだけで、config が true のときに今回だけ消さない手段は CLI の旗にない（消したくないときは config の merge.delete_branch を false にする）",
+        "リモートとローカルの作業ブランチも消すか（gh pr merge --delete-branch）。省けば config の merge.delete_branch（既定は消さない）。消すときは、品質ゲート（検査を含む）を通した後、gh を呼ぶ前にブランチを checkout した worktree を消す（残っていると gh がローカルのブランチを消せない）。マージに失敗したら消した worktree を同じパスに戻して worktree.setup を回し直し、エラーの detail にその扱いを出す。worktree は先に消さず、その worktree の外（main の worktree）から呼ぶ。この旗は付けるだけで、config が true のときに今回だけ消さない手段は CLI の旗にない（消したくないときは config の merge.delete_branch を false にする）",
       ),
   }),
   write: false,

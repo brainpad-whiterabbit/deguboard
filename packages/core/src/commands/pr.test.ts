@@ -271,6 +271,57 @@ describe("dg pr ready・dg pr merge（t545）", () => {
     expect(await calls()).toEqual(["pr merge 7 --squash --delete-branch"]);
   });
 
+  /**
+   * worktree.setup を書き、作業ブランチの worktree を main の外に用意して、gh pr merge が失敗する状態にした文脈を返す。
+   * --delete-branch で呼ぶと worktree は消され、失敗で同じパスに戻る
+   */
+  async function setupWorktreeMergeFails(setup: string[]) {
+    const { ctx: first, calls, undraft, failMergeCall } = await prepared();
+    await runCommand(configSet, first, { key: "worktree.setup", value: setup });
+    const ctx = await openContext({ cwd: first.repo.topLevel, actor: first.actor });
+    await passedReview(ctx);
+    await undraft();
+    await runCommand(ticketCheck, ctx, { ticket: "t1", items: [1] });
+    const main = ctx.repo.topLevel;
+    await git(main, ["checkout", "-q", "main"]);
+    const wt = path.join(path.dirname(main), "wt-t1");
+    await git(main, ["worktree", "add", "-q", wt, "feat/t1"]);
+    await failMergeCall();
+    return { ctx, main, wt, calls };
+  }
+
+  it("--delete-branch で gh pr merge が失敗して worktree を戻したら、戻した worktree で config の worktree.setup を回し直す（t643）", async () => {
+    // node で印のファイルを書くだけの準備のコマンド（シェルを通さない）
+    const marker = ["node", "-e", "require('node:fs').writeFileSync('setup-ran.txt', 'ok')"];
+    const { ctx, main, wt, calls } = await setupWorktreeMergeFails(marker);
+    const err = await rejection(runCommand(prMerge, ctx, { ticket: "t1", delete_branch: true }));
+    expect(err!.code).toBe("GIT_ERROR");
+    expect(err!.detail).toContain("戻した（作業を続けられる）");
+    expect(err!.detail).toContain("準備のコマンド（node -e");
+    expect(err!.detail).toContain("回し直した");
+    // 印のファイルは戻した worktree の中にあり、元のクローンには無い
+    expect(existsSync(path.join(wt, "setup-ran.txt"))).toBe(true);
+    expect(existsSync(path.join(main, "setup-ran.txt"))).toBe(false);
+    expect(await calls()).toEqual([]);
+  });
+
+  it("戻した worktree で準備のコマンドが止まったら、エラーの detail に終了コードと手で回す案内を出す（t643）", async () => {
+    const { ctx, wt, calls } = await setupWorktreeMergeFails([
+      "node",
+      "-e",
+      "console.error('準備の失敗'); process.exit(3)",
+    ]);
+    const err = await rejection(runCommand(prMerge, ctx, { ticket: "t1", delete_branch: true }));
+    expect(err!.code).toBe("GIT_ERROR");
+    expect(err!.detail).toContain("戻した（作業を続けられる）");
+    expect(err!.detail).toContain("終了コード 3");
+    expect(err!.detail).toContain("stderr の末尾: 準備の失敗");
+    expect(err!.detail).toContain("を手で回してから作業を続ける");
+    // 戻した worktree は残っている（作業を続けられる）
+    expect(existsSync(wt)).toBe(true);
+    expect(await calls()).toEqual([]);
+  });
+
   it("検査（actions.test）が通らなければ GATE_FAILED に終了コードと出力の末尾を入れ、gh を呼ばない（t601）", async () => {
     const { ctx: first, calls } = await prepared();
     const script = path.join(path.dirname(first.repo.topLevel), "failing-check.sh");

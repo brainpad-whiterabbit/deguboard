@@ -102,17 +102,13 @@ function stderrTail(stderr: string): string {
 }
 
 /**
- * claim が作った worktree で config の worktree.setup を回す（t621）。空なら回さない。
- * 失敗（終了コード・起動できない・上限）は claim を失敗させず、warnings に失敗と手で回すコマンドを書く。
- * 準備は pnpm install などで長くかかるので、呼ぶ側は実装の Run を開いた後に回す（ticket.ts の claim）
+ * dir で config の worktree.setup を回す（t621）。空なら回さず null。成功も null。
+ * 失敗（終了コード・起動できない・上限）は、何が起きたかの文を返す（手で回す案内は呼ぶ側が書く）。
+ * claim（runSetupInWorktree）と、マージの失敗で戻した worktree（pr.ts）が同じ規則で回す
  */
-export async function runSetupInWorktree(
-  ctx: CommandContext,
-  dir: string,
-  warnings: string[],
-): Promise<void> {
+export async function setupFailureIn(ctx: CommandContext, dir: string): Promise<string | null> {
   const [file, ...args] = ctx.config.worktree.setup;
-  if (!file) return;
+  if (!file) return null;
   // 手で回すときの書き方。引数に空白があってもそのまま読めるように、引数は引用せず並べる
   const command = ctx.config.worktree.setup.join(" ");
   try {
@@ -120,17 +116,29 @@ export async function runSetupInWorktree(
       allowFailure: true,
       timeoutMs: SETUP_TIMEOUT_MS,
     });
-    if (result.code === 0) return;
+    if (result.code === 0) return null;
     const tail = stderrTail(result.stderr);
-    warnings.push(
-      `worktree の準備のコマンド（${command}）が終了コード ${result.code} で止まった${tail ? `（stderr の末尾: ${tail}）` : ""}。claim は済んでいるので、${dir} で ${command} を手で回す`,
-    );
+    return `worktree の準備のコマンド（${command}）が終了コード ${result.code} で止まった${tail ? `（stderr の末尾: ${tail}）` : ""}`;
   } catch (error) {
     const reason = error instanceof Error ? error.message.split("\n")[0] : String(error);
-    warnings.push(
-      `worktree の準備のコマンド（${command}）を回せなかった（${reason}）。claim は済んでいるので、${dir} で ${command} を手で回す`,
-    );
+    return `worktree の準備のコマンド（${command}）を回せなかった（${reason}）`;
   }
+}
+
+/**
+ * claim が作った worktree で config の worktree.setup を回す（t621）。空なら回さない。
+ * 失敗は claim を失敗させず、warnings に失敗と手で回すコマンドを書く。
+ * 準備は pnpm install などで長くかかるので、呼ぶ側は実装の Run を開いた後に回す（ticket.ts の claim）
+ */
+export async function runSetupInWorktree(
+  ctx: CommandContext,
+  dir: string,
+  warnings: string[],
+): Promise<void> {
+  const failure = await setupFailureIn(ctx, dir);
+  if (failure === null) return;
+  const command = ctx.config.worktree.setup.join(" ");
+  warnings.push(`${failure}。claim は済んでいるので、${dir} で ${command} を手で回す`);
 }
 
 /**
