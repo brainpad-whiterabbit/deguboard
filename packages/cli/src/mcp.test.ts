@@ -372,7 +372,7 @@ describe("dg mcp", () => {
     // 役ごとの文。fix は直す指摘を渡す
     const roles = ["implement", "review", "fix"] as const;
     const findings = "1. 直す指摘";
-    const cliBriefs = [];
+    const cliBriefs: any[] = [];
     for (const role of roles)
       cliBriefs.push(
         await cli([
