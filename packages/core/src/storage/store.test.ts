@@ -91,6 +91,19 @@ describe("Store", () => {
     expect(text.endsWith("---\n\n## 概要\n\n本文\n")).toBe(true);
   });
 
+  it("読んだ Doc は YAML の Document を持たず、書き直しても値とコメントを保つ（t625）", async () => {
+    const root = await fixture({ "tickets/t1.md": ticketText("t1", "estimate: 3 # 見積り\n") });
+    const store = await Store.open(root);
+    const doc = store.tickets.get("t1")!;
+    expect("yaml" in doc).toBe(false);
+    expect(doc.raw).toMatchObject({ id: "t1", estimate: 3 });
+    const next = await store.update("ticket", "t1", { status: "in_progress" });
+    expect(next.raw["status"]).toBe("in_progress");
+    const text = await readFile(path.join(root, "tickets/t1.md"), "utf8");
+    expect(text).toContain("estimate: 3 # 見積り");
+    expect(text).toContain("priority: medium # low | medium | high");
+  });
+
   it("壊れた YAML のチケットが 1 件あっても他は読め、Issue に path と理由が載る", async () => {
     const root = await fixture({
       "tickets/t1.md": ticketText("t1"),

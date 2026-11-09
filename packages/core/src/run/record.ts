@@ -238,7 +238,7 @@ export async function appendRetryReasons(
     if (!result.ok) throw new OperationError("NOT_FOUND", `実行中の Run ${id} が見つからない`);
     const retryReasons = [...result.doc.data.retry_reasons, ...reasons];
     const next = {
-      ...(result.doc.yaml.toJS() as Record<string, unknown>),
+      ...result.doc.raw,
       retry_reasons: retryReasons,
       retries: retryReasons.length,
     };
@@ -481,7 +481,7 @@ export async function amendRunning(
       throw new OperationError("REJECTED", `Run ${id} は終わっている`);
     const result = await readDoc(repo.localDir, runPath(id), "json", runSchema, id);
     if (!result.ok) throw new OperationError("NOT_FOUND", `実行中の Run ${id} が見つからない`);
-    const next = { ...(result.doc.yaml.toJS() as Record<string, unknown>), ...patch };
+    const next = { ...result.doc.raw, ...patch };
     await writeFileAtomic(
       path.join(repo.localDir, runPath(id)),
       `${JSON.stringify(next, null, 2)}\n`,
@@ -514,7 +514,7 @@ export async function moveReviewToPending(
       review,
       at: toIsoDateTime(written),
     });
-    const next = { ...(result.doc.yaml.toJS() as Record<string, unknown>), review: null };
+    const next = { ...result.doc.raw, review: null };
     await writeFileAtomic(file, `${JSON.stringify(next, null, 2)}\n`);
     return review;
   });
@@ -646,7 +646,7 @@ async function closeRunLocked(
   const decided = input.decide?.(local.data) ?? { result: input.result, error: input.error };
   const finishedAt = input.finishedAt ?? toIsoDateTime(input.now);
   // 実行中の記録に重ねる。中の未知のキーは残す（DT-2）。実行中の記録は集計を書くまで書き換えない
-  const base = local.yaml.toJS() as Record<string, unknown>;
+  const base = local.raw;
   const closed: Record<string, unknown> = {
     ...base,
     finished_at: finishedAt < local.data.started_at ? local.data.started_at : finishedAt,

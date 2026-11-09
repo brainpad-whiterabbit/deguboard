@@ -1,5 +1,6 @@
 // 1 ファイルの読み書き。読みは Zod で検証し、失敗は Issue にする。
-// JSON（Run）も YAML の Document に載せて、YAML と同じ部分更新で書く
+// 読みは parse で値にし、Doc に YAML の Document を持たせない（parse の中で作られる Document は読みの中で捨てる）。
+// 書くときにだけ、読んだ文字列から Document を作って部分更新し、コメントとキー順を保つ。JSON（Run）は値に当てて書く
 
 import { readFile } from "node:fs/promises";
 import path from "node:path";
@@ -9,9 +10,9 @@ import { writeFileAtomic } from "./atomic.js";
 import { joinFrontmatter, splitFrontmatter } from "./frontmatter.js";
 import type { Issue } from "./issue.js";
 import {
-  cloneYamlDocument,
   newYamlDocument,
   parseYamlDocument,
+  parseYamlValue,
   patchYamlDocument,
   stringifyYaml,
   type YamlDocument,
@@ -19,7 +20,7 @@ import {
 
 export type DocFormat = "markdown" | "yaml" | "json";
 
-/** 読み込んだ 1 ファイル。yaml はコメントとキー順を保つための Document */
+/** 読み込んだ 1 ファイル。YAML の Document は持たない（書くときに source から作る） */
 export interface Doc<T> {
   id: string;
   /** worktree からの相対パス */
@@ -28,7 +29,10 @@ export interface Doc<T> {
   data: T;
   /** Markdown の本文。YAML・JSON のファイルでは空 */
   body: string;
-  yaml: YamlDocument;
+  /** 読んだ値（Markdown は frontmatter の値）。スキーマにないキーも含む。JSON を書き直すときと、Run の項目を重ねるときの元 */
+  raw: Record<string, unknown>;
+  /** YAML の文字列（Markdown は frontmatter の中身）。書くときに Document を作る元で、コメントとキー順はここから保つ。JSON では空 */
+  source: string;
 }
 
 export type ReadResult<T> = { ok: true; doc: Doc<T> } | { ok: false; issue: Issue };
@@ -57,10 +61,10 @@ export async function readDoc<T extends { id: string }>(
   } catch (error) {
     return fail("read_error", "ファイルを読めない", String(error));
   }
-  let doc: YamlDocument;
+  let value: unknown;
+  let source = "";
   let body = "";
   if (format === "json") {
-    let value: unknown;
     try {
       value = JSON.parse(text);
     } catch (error) {
@@ -68,7 +72,6 @@ export async function readDoc<T extends { id: string }>(
     }
     if (typeof value !== "object" || value === null || Array.isArray(value))
       return fail("json_error", "JSON のオブジェクトでない");
-    doc = newYamlDocument(value as Record<string, unknown>);
   } else {
     let yamlText = text;
     if (format === "markdown") {
@@ -80,12 +83,14 @@ export async function readDoc<T extends { id: string }>(
       yamlText = split.yaml;
       body = split.body;
     }
-    const parsedYaml = parseYamlDocument(yamlText);
-    if (parsedYaml.errors.length > 0)
-      return fail("yaml_error", "YAML を読めない", parsedYaml.errors.join("\n"));
-    doc = parsedYaml.doc;
+    const read = parseYamlValue(yamlText);
+    if (read.errors.length > 0)
+      return fail("yaml_error", "YAML を読めない", read.errors.join("\n"));
+    value = read.value;
+    source = yamlText;
   }
-  const parsed = schema.safeParse(doc.toJS() ?? {});
+  const raw = (value ?? {}) as Record<string, unknown>;
+  const parsed = schema.safeParse(raw);
   if (!parsed.success)
     return fail("schema_error", "スキーマに合わない", z.prettifyError(parsed.error));
   if (parsed.data.id !== expectedId) {
@@ -93,17 +98,30 @@ export async function readDoc<T extends { id: string }>(
   }
   return {
     ok: true,
-    doc: { id: expectedId, path: relPath, format, data: parsed.data, body, yaml: doc },
+    doc: { id: expectedId, path: relPath, format, data: parsed.data, body, raw, source },
   };
 }
 
-function render(format: DocFormat, yaml: YamlDocument, body: string): string {
-  if (format === "json") return `${JSON.stringify(yaml.toJS() ?? {}, null, 2)}\n`;
-  const y = stringifyYaml(yaml);
-  return format === "markdown" ? joinFrontmatter(y, body) : y;
+/** 書く文字列。YAML のときは Document を書き出した文字列（source に残す）、Markdown はそれに本文を足す */
+function render(format: DocFormat, raw: Record<string, unknown>, source: string, body: string) {
+  if (format === "json") return `${JSON.stringify(raw, null, 2)}\n`;
+  return format === "markdown" ? joinFrontmatter(source, body) : source;
 }
 
-/** patch を Document に当て、検証してから原子的に書く。失敗したらファイルは変わらない */
+/** JSON の値に patch を当てる。yaml の Document と同じく、既存のキーは位置を保ち、undefined のキーは消す */
+function patchRaw(raw: Record<string, unknown>, patch: Partial<Record<string, unknown>>) {
+  const next = { ...raw };
+  for (const [key, value] of Object.entries(patch)) {
+    if (value === undefined) delete next[key];
+    else next[key] = value;
+  }
+  return next;
+}
+
+/**
+ * patch を当て、検証してから原子的に書く。失敗したらファイルは変わらない。
+ * YAML は読んだ文字列から Document を作って当てる（書くときだけ作る）。元の Doc は変えない
+ */
 export async function writeDoc<T extends { id: string }>(
   root: string,
   doc: Doc<T>,
@@ -111,10 +129,16 @@ export async function writeDoc<T extends { id: string }>(
   patch: Partial<Record<string, unknown>>,
   body?: string,
 ): Promise<Doc<T>> {
-  // 元の Document を壊さないよう複製してから当てる
-  const yaml = cloneYamlDocument(doc.yaml);
-  patchYamlDocument(yaml, patch);
-  const parsed = schema.safeParse(yaml.toJS() ?? {});
+  let raw: Record<string, unknown>;
+  let yaml: YamlDocument | undefined;
+  if (doc.format === "json") {
+    raw = patchRaw(doc.raw, patch);
+  } else {
+    yaml = parseYamlDocument(doc.source).doc;
+    patchYamlDocument(yaml, patch);
+    raw = (yaml.toJS() ?? {}) as Record<string, unknown>;
+  }
+  const parsed = schema.safeParse(raw);
   if (!parsed.success) {
     throw new OperationError(
       "VALIDATION_FAILED",
@@ -123,8 +147,9 @@ export async function writeDoc<T extends { id: string }>(
     );
   }
   const nextBody = body ?? doc.body;
-  await writeFileAtomic(path.join(root, doc.path), render(doc.format, yaml, nextBody));
-  return { ...doc, data: parsed.data, body: nextBody, yaml };
+  const source = yaml ? stringifyYaml(yaml) : "";
+  await writeFileAtomic(path.join(root, doc.path), render(doc.format, raw, source, nextBody));
+  return { ...doc, data: parsed.data, body: nextBody, raw, source };
 }
 
 /** 新しいファイルを書く。既にあれば失敗する */
@@ -145,6 +170,8 @@ export async function createDoc<T extends { id: string }>(
     );
   }
   const yaml = newYamlDocument(data);
-  await writeFileAtomic(path.join(root, relPath), render(format, yaml, body));
-  return { id: parsed.data.id, path: relPath, format, data: parsed.data, body, yaml };
+  const raw = (yaml.toJS() ?? {}) as Record<string, unknown>;
+  const source = format === "json" ? "" : stringifyYaml(yaml);
+  await writeFileAtomic(path.join(root, relPath), render(format, raw, source, body));
+  return { id: parsed.data.id, path: relPath, format, data: parsed.data, body, raw, source };
 }
