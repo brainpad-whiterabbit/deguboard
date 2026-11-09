@@ -1,4 +1,4 @@
-// 文書とコードの参照を検査する（docs/adr/ADR-001-doc-strategy.md）。大きさの予算は持たない。検査するのは、ADR 一覧の整合と更新日の一致・リンクと見出しアンカーの切れ・拡張と Walkthrough が指す README の見出しアンカー・README.md と README.ja.md の節の構成のずれ・コードとテストの要件 ID・要件の 1 項の上限（250 字）・コードとテストが指す置き換え済みの ADR・コードの先頭コメントの参照・`dg guide <topic>` の「節」と英語の "節" section of `dg guide <topic>` の参照（文書と packages の .ts・.tsx の文字列とコメント）・文書の重複。
+// 文書とコードの参照を検査する（docs/adr/ADR-001-doc-strategy.md）。大きさの予算は持たない。検査するのは、ADR 一覧の整合・「最後に使った番号」を超える ADR の番号と実在しない ADR の番号の参照（文書とコードの地の文・コメント・文字列）・リンクと見出しアンカーの切れ・拡張と Walkthrough が指す README の見出しアンカー・README.md と README.ja.md の節の構成のずれ・コードとテストの要件 ID・要件の 1 項の上限（250 字）・コードとテストが指す置き換え済みの ADR・コードの先頭コメントの参照・`dg guide <topic>` の「節」と英語の "節" section of `dg guide <topic>` の参照（文書と packages の .ts・.tsx の文字列とコメント）・文書の重複。
 // 要件 ID は docs/requirements.md の箇条書き「- XX-N」で定義されたものに限る。接頭辞は定義と「要件の ID の接頭辞：」の一覧から取り、定義にない番号を参照していたら指摘する（一覧にない接頭辞は要件 ID と見なさない）。先頭コメントは最初の // の行で、requirements.md の節番号・ADR・docs のパス（#アンカー）・guide-*.md を照らす。
 // 要件の 1 項は「- XX-N」の項目とその下の字下げした行を、行のまま（記号「- 」と字下げ・ID とリンクの記法を含み、改行は 1 字）数える（節の前文は数えない）。置き換え済みかは各 ADR のステータスの「置き換え（ADR-0xx）」から読み、packages・scripts・test のコードの ADR-0xx の参照すべて（コメント・テスト名・文字列）を照らし、置き換えの先を置き換え済みでなくなるまでたどって今の判断を出す。
 // 文書の重複は、同じ見出しの節の本文が同じ guide どうし（正本を 1 本にする）、または同じ段落が 2 本以上の文書にあるときに指摘する。段落は 40 字以上で、空行・見出し・表・コードで切り、箇条書きの 1 項目も 1 段落にする。比べるのは guide・docs/requirements.md・docs の下のほかの文書（ADR を除く）・CLAUDE.md・README.md・README.ja.md・packages/*/README.md。ADR は判断の記録で、判断と理由を書き換えないので比べない。README.md と README.ja.md は訳どうしなので、この 2 つだけの組は指摘しない。frontmatter と ``` の中は除く。短い選択肢や定型句は同じ語でよいので対象にしない。指摘には段落の場所（ファイルと行）を出す。
@@ -24,8 +24,11 @@ const SOURCE_EXTS = [".ts", ".tsx", ".mjs", ".js", ".cjs"];
 const DUP_MIN_CHARS = 40;
 // 要件の 1 項の字数の上限（ADR-001 の「要件定義書に書くもの」）
 const REQUIREMENT_ITEM_MAX_CHARS = 250;
+// ADR 1 本の字数の目安（ADR-001 の「ADR を書く場面」）。超えても落とさず、分割・整理の起票を促す警告にする
+const ADR_WARN_CHARS = 8000;
 
 const errors = [];
+const warnings = [];
 
 const adrDir = path.join(root, "docs", "adr");
 const adrFiles = (await readdir(adrDir)).filter((f) => /^ADR-\d{3}-.+\.md$/.test(f)).sort();
@@ -61,27 +64,29 @@ for (const file of adrFiles) {
   if (status) supersededBy.set(file.slice(4, 7), status[1]);
 }
 
-// 更新日の検査：有効な ADR の「- 更新日：」が「有効な ADR」の表の更新日と一致すること（置き換え済みの ADR は表に更新日がないので見ない）
-const indexDates = new Map();
-for (const m of index.matchAll(
-  /^\|\s*\[ADR-\d{3}\]\((ADR-\d{3}-[^)]+\.md)\).*\|\s*(\d{4}-\d{2}-\d{2})\s*\|\s*$/gm,
-)) {
-  indexDates.set(m[1], m[2]);
+// 最後に使った番号（docs/adr/README.md の「最後に使った番号：ADR-034」）：実在する ADR の番号はそれ以下であること。
+// 新しい ADR は、この番号の次にする（ADR-001）。番号を上げ忘れた ADR を見つけるために、実在の番号と照らす
+const adrNumbers = new Set(adrFiles.map((f) => f.slice(4, 7)));
+const lastUsed = /^最後に使った番号：ADR-(\d{3})\s*$/m.exec(index)?.[1];
+if (lastUsed === undefined) {
+  errors.push("docs/adr/README.md: 「最後に使った番号：ADR-NNN」の行がない");
+} else {
+  for (const file of adrFiles) {
+    if (Number(file.slice(4, 7)) > Number(lastUsed)) {
+      errors.push(
+        `docs/adr/README.md: 「最後に使った番号」が ADR-${lastUsed} だが、${file} はそれより大きい`,
+      );
+    }
+  }
 }
-let datedCount = 0;
+
+// ADR の長さ：1 本が ADR_WARN_CHARS 字を超えたら警告する（落とさない）。分割・整理を起票する（ADR-001）
 for (const file of adrFiles) {
-  if (!linked.has(file)) continue; // 一覧に載っていないことは上で指摘した
-  if (supersededBy.has(file.slice(4, 7))) continue;
-  const text = adrTexts.get(file);
-  datedCount++;
-  const own = /^- 更新日：(\d{4}-\d{2}-\d{2})\s*$/m.exec(text)?.[1];
-  const listed = indexDates.get(file);
-  if (own === undefined) {
-    errors.push(`docs/adr/${file}: 「- 更新日：YYYY-MM-DD」の行がない`);
-  } else if (listed === undefined) {
-    errors.push(`docs/adr/README.md: ${file} の行に更新日がない`);
-  } else if (own !== listed) {
-    errors.push(`docs/adr/README.md: ${file} の更新日が ${listed} で、ADR の ${own} と食い違う`);
+  const chars = [...adrTexts.get(file)].length;
+  if (chars > ADR_WARN_CHARS) {
+    warnings.push(
+      `docs/adr/${file}: ${chars} 字で、${ADR_WARN_CHARS} 字を超えている（分割・整理の起票を検討する）`,
+    );
   }
 }
 
@@ -250,7 +255,6 @@ for (const rel of sources) {
 const requirementSections = new Set(
   [...requirementsText.matchAll(/^#{2,3} (\d+(?:\.\d+)*)(?=[.\s])/gm)].map((m) => m[1]),
 );
-const adrNumbers = new Set(adrFiles.map((f) => f.slice(4, 7)));
 let topRefCount = 0;
 for (const rel of sources) {
   for (const { line, text } of topComment(await readFile(path.join(root, rel), "utf8"))) {
@@ -260,10 +264,6 @@ for (const rel of sources) {
       if (!requirementSections.has(m[1])) {
         errors.push(`${where}: 先頭コメントが指す docs/requirements.md の節 ${m[1]} がない`);
       }
-    }
-    for (const m of text.matchAll(/\bADR-(\d{3})\b/g)) {
-      topRefCount++;
-      if (!adrNumbers.has(m[1])) errors.push(`${where}: 先頭コメントが指す ADR-${m[1]} がない`);
     }
     for (const m of text.matchAll(/docs\/[\w./-]+\.md(?:#[^\s)）、。`]+)?/g)) {
       topRefCount++;
@@ -281,6 +281,32 @@ for (const rel of sources) {
       topRefCount++;
       if (!existsSync(path.join(root, guideDir, `guide-${m[1]}.md`))) {
         errors.push(`${where}: 先頭コメントが指す guide-${m[1]}.md がない`);
+      }
+    }
+  }
+}
+
+// ADR 番号の参照の実在：文書（docs・CLAUDE.md・README・packages・scripts の追跡ファイル）の地の文・コメント・文字列の ADR-0xx が、docs/adr の番号にあること。
+// 置き換え済みの ADR は本文を消してよく、消した後に参照が残ると指す先がないので、ここで見つける。dist の成果物は読まない
+const adrRefFiles = tracked.filter((f) => {
+  if (f.split("/").includes("dist")) return false;
+  const inScope =
+    f === "CLAUDE.md" ||
+    f === "README.md" ||
+    f === "README.ja.md" ||
+    f.startsWith("docs/") ||
+    f.startsWith("packages/") ||
+    f.startsWith("scripts/");
+  return inScope && (f.endsWith(".md") || SOURCE_EXTS.some((x) => f.endsWith(x)));
+});
+let adrRefFileCount = 0;
+for (const rel of adrRefFiles) {
+  const text = await readFile(path.join(root, rel), "utf8");
+  for (const [i, line] of text.split("\n").entries()) {
+    for (const m of line.matchAll(/\bADR-(\d{3})\b/g)) {
+      adrRefFileCount++;
+      if (!adrNumbers.has(m[1])) {
+        errors.push(`${rel}:${i + 1}: ADR-${m[1]} が docs/adr にない`);
       }
     }
   }
@@ -385,13 +411,18 @@ for (const rel of guideRefFiles) {
   }
 }
 
+// 警告は落とさない（終了コードは変えない）
+if (warnings.length > 0) {
+  console.warn("check:docs の警告");
+  for (const w of warnings) console.warn(`  - ${w}`);
+}
 if (errors.length > 0) {
   console.error("check:docs の指摘");
   for (const e of errors) console.error(`  - ${e}`);
   process.exit(1);
 }
 console.log(
-  `check:docs: ADR ${adrFiles.length} 件（更新日の一致 ${datedCount} 件）、文書 ${new Set(paragraphDocs).size} 件（guide ${guideFiles.length} 件を含む）に重複なし、リンク ${linkCount} 件に切れなし、README.ja.md の見出し ${readmeJaHeadings.length} 個が README.md と同じ構成、拡張と Walkthrough の README の見出しアンカー ${readmeAnchorCount} 件に切れなし、要件 ID ${requirementRefCount} 件が定義どおり、要件 ${requirementItemCount} 項が ${REQUIREMENT_ITEM_MAX_CHARS} 字以内、コードとテストの ADR の参照 ${adrRefCount} 件に置き換え済みなし、先頭コメントの参照 ${topRefCount} 件に切れなし、dg guide の節の参照 ${guideRefCount} 件に切れなし`,
+  `check:docs: ADR ${adrFiles.length} 件（最後に使った番号 ADR-${lastUsed} 以内、${ADR_WARN_CHARS} 字超の警告 ${warnings.length} 件）、ADR 番号の参照 ${adrRefFileCount} 件が実在、文書 ${new Set(paragraphDocs).size} 件（guide ${guideFiles.length} 件を含む）に重複なし、リンク ${linkCount} 件に切れなし、README.ja.md の見出し ${readmeJaHeadings.length} 個が README.md と同じ構成、拡張と Walkthrough の README の見出しアンカー ${readmeAnchorCount} 件に切れなし、要件 ID ${requirementRefCount} 件が定義どおり、要件 ${requirementItemCount} 項が ${REQUIREMENT_ITEM_MAX_CHARS} 字以内、コードとテストの ADR の参照 ${adrRefCount} 件に置き換え済みなし、先頭コメントの参照 ${topRefCount} 件に切れなし、dg guide の節の参照 ${guideRefCount} 件に切れなし`,
 );
 
 /** ファイルの先頭の // の行（shebang を除く）。最初の // 以外の行で止める */
