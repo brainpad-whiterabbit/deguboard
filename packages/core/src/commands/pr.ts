@@ -167,7 +167,7 @@ export const prMerge = defineCommand({
   needs: "store",
   async run(ctx, input) {
     const { ticket, gate, pr } = await passGate(ctx, input.ticket, "merge");
-    // 省いた方法とブランチの扱いはリポジトリの config で決める（LLM が規約から読み取って選ばない。EX-3）
+    // 省いた方法とブランチの扱いはリポジトリの config で決める（LLM が規約から読み取って選ばない。EX-6）
     const method = input.method ?? ctx.config.merge.method;
     const deleteBranch = input.delete_branch ?? ctx.config.merge.delete_branch;
     const warnings: string[] = [];

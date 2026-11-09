@@ -192,7 +192,7 @@ describe("workflow set", () => {
     const ctx = await initialized(f.cloneA);
     const broken = "id: general\nname: G\nreconcile:\n  - { when: [nope], status: done }\n";
     await writeFile(path.join(ctx.repo.dataDir, "workflows/general.yaml"), broken);
-    // 古い版の dg のときに壊れた Workflow を模すので、検査の基準をここに置く（SY-7）
+    // 古い版の dg のときに壊れた Workflow を模すので、検査の基準をここに置く（SY-8）
     await recordBaseline(ctx.repo);
     await ctx.store.rescan();
     expect(ctx.store.workflows.has("general")).toBe(false);

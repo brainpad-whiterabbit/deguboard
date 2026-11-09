@@ -36,6 +36,7 @@ const COPIED = [
   "packages/vscode/src/dg.ts",
   "packages/vscode/media/walkthrough",
 ];
+// ADR 番号そのものを検査するテストなので、検査の入力と期待する指摘の文には ADR 番号を残す（テストの文字列から番号を外す規則の例外）
 const ADR = "docs/adr/ADR-008-tech-stack.md";
 const ANCHOR = "#getting-started-before-release";
 // 検査が本リポジトリのテストの文字列を要件 ID と読まないよう、存在しない ID は組み立てて書く
