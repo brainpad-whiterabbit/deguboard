@@ -115,6 +115,14 @@ const FIELDS: ConfigField[] = [
     clears_to_default: false,
   },
   {
+    key: "auto.decisions",
+    type: "list",
+    description: "聞かずに選ぶ判断",
+    default: ["assign", "check", "plan", "audit", "accept"],
+    scope: "team",
+    clears_to_default: false,
+  },
+  {
     key: "models.light",
     type: "string",
     description: "light のモデル",
@@ -142,7 +150,7 @@ function configClient(initialLocal: Record<string, unknown> = {}) {
     push: { mode: "auto" },
     metrics: { read_transcripts: false },
     actions: { shell: false, test: ["mise", "run", "check"] },
-    auto: { merge: false },
+    auto: { merge: false, decisions: ["assign", "check", "plan", "audit", "accept"] },
     models: { light: "" },
     actor: { human_only: [] as string[] },
   };
@@ -387,6 +395,14 @@ describe("設定画面", () => {
     expect(within(fieldOf("auto.merge")).getByRole<HTMLInputElement>("checkbox").checked).toBe(
       false,
     );
+    expect(setCalls(client)).toEqual([]);
+
+    // 聞かずに選ぶ判断：外した結果を確かめ、やめると元のリストに戻る
+    fireEvent.click(within(fieldOf("auto.decisions")).getByLabelText("accept を外す"));
+    const decisions = within(fieldOf("auto.decisions")).getByRole("alertdialog");
+    expect(decisions.textContent).toContain("エージェントが聞かずに選ぶ判断が変わる");
+    fireEvent.click(within(decisions).getByText("やめる"));
+    expect(within(fieldOf("auto.decisions")).getByLabelText("accept を外す")).toBeTruthy();
     expect(setCalls(client)).toEqual([]);
 
     // 人だけに許すコマンド：足してから保存する
@@ -993,6 +1009,7 @@ describe("設定画面の部品", () => {
       "actions.shell",
       "actions.test",
       "actor.human_only",
+      "auto.decisions",
       "auto.merge",
       "git.base_branch",
       "git.remote",

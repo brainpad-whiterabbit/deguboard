@@ -76,6 +76,7 @@ export const CONFIRM_KEYS: ReadonlyMap<string, string> = new Map([
   ["actions.shell", msg("エージェントが任意のシェルを実行できるかが変わる")],
   ["actor.human_only", msg("エージェントに許す操作が変わる")],
   ["auto.merge", msg("エージェントが PR を自動でマージするかが変わる")],
+  ["auto.decisions", msg("エージェントが聞かずに選ぶ判断が変わる")],
 ]);
 
 type Values = Record<string, unknown>;

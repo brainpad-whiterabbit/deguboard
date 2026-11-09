@@ -54,10 +54,10 @@ Iteration かチケットを、割り当てからリリースまでの段階で�
 
 ## `--auto` で自動で選ぶ
 
-`--auto` のときは、承認を求める場面のうち、`dg --json --actor agent flow next` の `approval.auto_ok` が true のものを、聞かずに勧める選択肢で進める。どの判断がそれに入るかは config の `auto.decisions`（今の設定：`{{auto.decisions}}`）と `auto.merge` が決める。照合の後の受け入れ条件の確認は `auto.decisions` によらず、`--auto` のとき聞かずに進める。選んだものと判断の材料はその場で短く示す。
+`--auto` のときは、承認を求める場面で `dg --json --actor agent flow next` の `approval.auto` に書いたものだけを、聞かずに勧める選択肢で進め、`approval.what` に残るものは聞く。どの判断がそれに入るかは config の `auto.decisions`（今の設定：`{{auto.decisions}}`）と `auto.merge` が決める。照合の後の受け入れ条件の確認は、`auto.decisions` に `accept` があるときだけ、`--auto` のとき聞かずに進める。選んだものと判断の材料はその場で短く示す。
 
 - PR のマージは、`auto.merge`（今の設定：`{{auto.merge}}`）が true のときだけ、`dg guide review` の「品質ゲート」を満たす PR を `dg --json --actor agent pr merge <id>` で行う。方法とブランチを消すかは `--method`・`--delete-branch` を省いて config の `merge.method`・`merge.delete_branch`（今の設定：`{{merge.method}}`・`{{merge.delete_branch}}`）に任せる。満たさなければ、満たさなかった条件を示して承認を求めて止まる
-- **人が決める判断は config によらず聞いて止まる**：リリースの PR のマージと公開（タグ・配布先）、チケットの削除・abandoned、Epic・Iteration・Plan を閉じる・再開する。`auto.merge` が false のときのマージ。Plan の待ち（`after`）と範囲を変えること、`--force` の付く操作。勧めるものがない判断と、選択肢にできない答え
+- **人が決める判断は config によらず聞いて止まる**：リリースの PR のマージと公開（タグ・配布先）、チケットの削除・abandoned・done の取り消し、Epic・Iteration・Plan を閉じる・再開する。`auto.merge` が false のときのマージ。Plan の待ち（`after`）と範囲を変えること、`--force` の付く操作。勧めるものがない判断と、選択肢にできない答え
 - 実装が失敗したチケットは `dg guide parallel` のとおり todo に戻し、それを待たないチケットを進める。見直し・手直しが failure で返った・返らないチケットは todo に戻さず、`dg guide review` の「終わり方」に従う
 
 ## 結果を伝える

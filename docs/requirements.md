@@ -256,7 +256,7 @@ updated_at: 2026-10-31T05:10:00Z
 - EX-4 Workflow が `by: [human]` で人に限った遷移は、エージェントからは行えない
 - EX-5 `dg next` は読み取りだけで、次の 1 手と開く step・呼ぶコマンド・人に聞くことを返す。サブエージェントに渡す手（implement・review・fix）は役の文（brief）を返し、文には役の手順の節の本文が入る。起動するモデル（`model`）は implement・fix の手が返す。修正ループの上限を超えたなど人の判断が要るチケットは人を待つ手になる。着手できるチケットは PL-6 か `ticket list --ready` に従う（EX-3）
 - EX-6 エージェントが PR を出す・マージするのは `dg pr ready`・`dg pr merge` で、`dg gate`（検査 `actions.test` を含む）を満たすときだけ gh を呼び、ほかは条件と理由を `GATE_FAILED` で返す。マージの方法の既定は config。満たさず進めるときは人が gh を打つ（AG-10。条件は `dg gate --help`、理由は [ADR-026](adr/ADR-026-guard-pr-and-data.md)）
-- EX-7 `--auto` は config の `auto.decisions` に入る戻せる判断を自動で選ぶ（`approved_by` は agent）。自動でマージするのは `auto.merge` が true のときの品質ゲートを通った PR だけ。リリース・abandoned・閉じるは人が決め、`auto.decisions` に入れられない（各手のやり方は `dg guide all`）
+- EX-7 `--auto` は config の `auto.decisions` に入る戻せる判断を自動で選ぶ（`approved_by` は agent）。自動でマージするのは `auto.merge` が true のときの品質ゲートを通った PR だけ。リリース・abandoned・done の取り消し・閉じるは人が決め、`auto.decisions` に入れられない。人を待つ手は Core が返す（各手のやり方は `dg guide all`）
 - EX-8 `dg flow next` は読み取りだけで、Iteration・Plan・チケットの流れの段階と、その手のやり方の節・呼ぶコマンド・承認の要否・`resume` を返す。`resume` を写して渡すと前に返した割り当て・点検・見直しを終えたものとして進め、なければ割り当てと点検からやり直す。config の `flow.skip` に入れた段階は返さず、同じ段階が事実も変わらずに続けば止まる手を返す（規則は `dg flow next --help`、EX-3）
 
 ## 7. 非機能要件

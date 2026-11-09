@@ -216,7 +216,7 @@ describe("flowStageOf の flow.skip（飛ばした段階は返さない）", () 
 });
 
 /** 既定の auto.decisions（config の既定と同じ） */
-const DEFAULT_DECISIONS = ["assign", "check", "plan", "audit"];
+const DEFAULT_DECISIONS = ["assign", "check", "plan", "audit", "accept"];
 
 describe("approvalOf（承認の要否）", () => {
   it("--auto がなければどの段階も承認を求め、止まるときは求めない", () => {

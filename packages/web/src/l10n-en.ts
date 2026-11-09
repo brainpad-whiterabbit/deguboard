@@ -329,6 +329,7 @@ export const EN: Readonly<Record<string, string>> = {
   エージェントに許す操作が変わる: "changes what agents are allowed to do",
   "エージェントが PR を自動でマージするかが変わる":
     "changes whether agents merge PRs automatically",
+  エージェントが聞かずに選ぶ判断が変わる: "changes which decisions agents make without asking",
   空: "Empty",
   "{0} を {1} にした": "Set {0} to {1}",
   "（{0}）": " ({0})",
@@ -549,7 +550,7 @@ export const CONFIG_DESCRIPTIONS_EN: Readonly<Record<string, string>> = {
   "auto.merge":
     "Whether dg guide all --auto merges PRs that pass the quality gate (dg gate --for merge) automatically. By default a person merges",
   "auto.decisions":
-    "Decisions --auto chooses without asking (assign: assignment / check: the fix line when only one fix fits / plan: Plan approval / audit: the review findings table). Decisions a person makes cannot be added; PR merging is set by auto.merge",
+    "Decisions --auto chooses without asking (assign: assignment / check: the fix line when only one fix fits / plan: Plan approval / audit: the review findings table / accept: confirming acceptance criteria after reconciling). Decisions a person makes cannot be added; PR merging is set by auto.merge",
   "flow.skip":
     "Stages that dg flow next never returns (assign, check, plan, work, audit, release). A skipped stage's rule is not read; the flow moves to the next rule",
   "merge.method":

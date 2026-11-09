@@ -297,14 +297,14 @@ auto.merge
 既定に戻す
 --auto で自動で選ぶ判断
 auto.decisions
-[title] 既定は [assign, check, plan, audit]
+[title] 既定は [assign, check, plan, audit, accept]
 変更あり
 auto.decisions
 空
 [aria-label] 項目
 [placeholder] 項目を足す
 足す
-[title] 既定の [assign, check, plan, audit] に戻す
+[title] 既定の [assign, check, plan, audit, accept] に戻す
 既定に戻す
 流れから外す段階
 flow.skip

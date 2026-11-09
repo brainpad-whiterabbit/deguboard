@@ -220,7 +220,9 @@ describe("dg guide", () => {
     const all = await readGuide("all");
     const auto = section(all, "## `--auto` で自動で選ぶ");
     for (const word of [
-      "auto_ok",
+      "approval.auto",
+      "approval.what",
+      "accept",
       "auto.decisions",
       "auto.merge",
       "dg guide review",
@@ -229,7 +231,7 @@ describe("dg guide", () => {
       expect(auto).toContain(word);
     expect(fillPlaceholders(all, defaultConfig())).toContain("今の設定：`false`");
     expect(fillPlaceholders(all, defaultConfig())).toContain(
-      "今の設定：`assign, check, plan, audit`",
+      "今の設定：`assign, check, plan, audit, accept`",
     );
     expect(
       fillPlaceholders(all, { ...defaultConfig(), auto: { ...defaultConfig().auto, merge: true } }),

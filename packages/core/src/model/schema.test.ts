@@ -88,9 +88,14 @@ describe("スキーマ", () => {
 
   it("auto.decisions と flow.skip は既定で今の --auto の判断と空の一覧で、人が決める判断や stop は入れられない", () => {
     const c = defaultConfig();
-    expect(c.auto.decisions).toEqual(["assign", "check", "plan", "audit"]);
+    expect(c.auto.decisions).toEqual(["assign", "check", "plan", "audit", "accept"]);
     expect(c.flow.skip).toEqual([]);
+    expect(configSchema.parse({ auto: { decisions: ["accept"] } }).auto.decisions).toEqual([
+      "accept",
+    ]);
+    // 人が決める判断（done の取り消しを含む）は入れられない
     expect(configSchema.safeParse({ auto: { decisions: ["release"] } }).success).toBe(false);
+    expect(configSchema.safeParse({ auto: { decisions: ["done"] } }).success).toBe(false);
     expect(configSchema.safeParse({ auto: { decisions: ["work"] } }).success).toBe(false);
     expect(configSchema.safeParse({ flow: { skip: ["stop"] } }).success).toBe(false);
     expect(configSchema.parse({ auto: { decisions: [] } }).auto.decisions).toEqual([]);
@@ -105,10 +110,11 @@ describe("スキーマ", () => {
     expect(byKey.get("auto.decisions")).toMatchObject({
       type: "list",
       scope: "team",
-      default: ["assign", "check", "plan", "audit"],
+      default: ["assign", "check", "plan", "audit", "accept"],
     });
     expect(byKey.get("flow.skip")).toMatchObject({ type: "list", scope: "team", default: [] });
     expect(byKey.get("auto.decisions")?.description).toContain("--auto");
+    expect(byKey.get("auto.decisions")?.description).toContain("accept");
     expect(byKey.get("flow.skip")?.description).toContain("dg flow next");
   });
 

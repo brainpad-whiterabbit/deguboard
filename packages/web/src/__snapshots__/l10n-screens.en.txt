@@ -297,14 +297,14 @@ Off
 Reset to Default
 Decisions --auto chooses automatically
 auto.decisions
-[title] Default: [assign, check, plan, audit]
+[title] Default: [assign, check, plan, audit, accept]
 Modified
-Decisions --auto chooses without asking (assign: assignment / check: the fix line when only one fix fits / plan: Plan approval / audit: the review findings table). Decisions a person makes cannot be added; PR merging is set by auto.merge
+Decisions --auto chooses without asking (assign: assignment / check: the fix line when only one fix fits / plan: Plan approval / audit: the review findings table / accept: confirming acceptance criteria after reconciling). Decisions a person makes cannot be added; PR merging is set by auto.merge
 Empty
 [aria-label] Items
 [placeholder] Add item
 Add
-[title] Reset to default [assign, check, plan, audit]
+[title] Reset to default [assign, check, plan, audit, accept]
 Reset to Default
 Stages to leave out of the flow
 flow.skip
