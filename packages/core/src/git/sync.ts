@@ -1,6 +1,6 @@
 // 取り込み・push・同期状態（SY-2、SY-4、UI-6）
 
-import { attributesFile } from "./merge.js";
+import { attributesFile, MERGE_LOG_ENV, MERGE_PREFER_ENV } from "./merge.js";
 import { DG_COMMIT_TRAILER } from "./outside.js";
 import type { GitRepo } from "./repo.js";
 import { runGit } from "./run.js";
@@ -15,6 +15,9 @@ export interface SyncStatus {
   dirty: boolean;
   remote: string | null;
 }
+
+/** dg sync --resolve で競合したフィールドに採る側（SY-4）。remote はリモートの値、local はローカルのコミットの値 */
+export type ResolveSide = "remote" | "local";
 
 export type FetchResult = { ok: true; remoteBranch: boolean } | { ok: false; detail: string };
 export type IntegrateResult = { ok: true; changed: boolean } | { ok: false; conflicts: string[] };
@@ -72,7 +75,7 @@ export async function isDirty(repo: GitRepo): Promise<boolean> {
  */
 export async function integrate(
   repo: GitRepo,
-  opts: { autostash?: boolean } = {},
+  opts: { autostash?: boolean; resolve?: { side: ResolveSide; log: string } } = {},
 ): Promise<IntegrateResult> {
   if (!repo.remote) return { ok: true, changed: false };
   const has = await git(repo, ["show-ref", "--verify", "--quiet", remoteRef(repo)], {
@@ -88,7 +91,14 @@ export async function integrate(
     ...(opts.autostash ? ["--autostash"] : []),
     remoteRef(repo),
   ];
-  const result = await git(repo, args, { allowFailure: true });
+  // rebase はリモートの先端にローカルのコミットを積み直すので、ドライバの ours（%A）がリモート、theirs（%B）がローカルになる
+  const env = opts.resolve
+    ? {
+        [MERGE_PREFER_ENV]: opts.resolve.side === "remote" ? "ours" : "theirs",
+        [MERGE_LOG_ENV]: opts.resolve.log,
+      }
+    : undefined;
+  const result = await git(repo, args, { allowFailure: true, ...(env ? { env } : {}) });
   if (result.code === 0) return { ok: true, changed: (await headSha(repo)) !== before };
   const conflicts = (
     await git(repo, ["diff", "--name-only", "--diff-filter=U"], { allowFailure: true })

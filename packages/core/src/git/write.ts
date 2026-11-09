@@ -20,10 +20,15 @@ import {
 
 /**
  * 同期の競合の戻し方（SY-4・dg guide overview の「同期が止まったとき」）。
- * dg sync は競合を解かないので、書き込みの失敗・警告と sync の警告はどれもこの文言で人の解消を案内する
+ * 競合のどちらの値を残すかは人が決める（--auto でも自動で選ばない）ので、書き込みの失敗・警告と sync の警告はどれもこの文言で、
+ * 人に remote か local を選んでもらい dg sync --resolve を 1 回呼ぶ手順を案内する
  */
 export const CONFLICT_REMEDY =
-  "自分では解かず人に伝える。人が deguboard worktree で解消してから dg sync を回す（解いて続けるなら git rebase <remote>/deguboard で解いて git rebase --continue、ローカルのコミットを捨てるなら git reset --hard <remote>/deguboard で捨てて操作をやり直す。dg guide overview の「同期が止まったとき」）";
+  "自分では選ばず、競合したファイルを示して人に remote（リモートの値を採る）か local（ローカルの値を採る）かを選択肢で聞き、選ばれた側で dg sync --resolve <remote|local> を 1 回呼ぶ（競合したフィールドだけその側の値を採り、採った値と捨てた値を data.resolved に返す。--auto でも自動で選ばない。dg guide overview の「同期が止まったとき」）";
+
+/** dg sync --resolve でも解けない競合（マージドライバの対象でないファイル）の戻し方。行単位の競合なので人が解く */
+export const UNRESOLVABLE_REMEDY =
+  "自分では解かず人に伝える。人が deguboard worktree で git rebase <remote>/deguboard を始めてそのファイルを解き、git rebase --continue で続けてから dg adopt で今の状態を基準にし、dg sync を回す（dg guide overview の「同期が止まったとき」）";
 
 export interface WriteContext {
   repo: GitRepo;

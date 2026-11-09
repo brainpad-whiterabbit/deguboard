@@ -2,7 +2,7 @@
 // 未 push のコミットを「番号・ファイル名・参照」を書き換えながらリモートの上に積み直す。
 // 対象は「競合がすべて tickets/tNN.md の add/add で、ローカル側が provisional」のときだけで、それ以外の競合は扱わない
 
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { idNumber, nextNumber } from "../model/id.js";
 import type { GitRepo } from "./repo.js";
@@ -71,23 +71,110 @@ export async function renumberProvisional(
   }
 
   const base = (await git(repo, ["merge-base", "HEAD", remote])).stdout.trim();
-  const shas = (await git(repo, ["rev-list", "--reverse", `${base}..HEAD`])).stdout
+  const shas = await localCommits(repo, base);
+  const mapping = await assignNumbers(repo, ids);
+  // リモートの先端に移り、未 push のコミットを 1 つずつ書き換えて積み直す
+  await resetHard(repo, remote);
+  await replay(repo, shas, mapping);
+  return [...mapping].map(([from, to]) => ({ from, to }));
+}
+
+/**
+ * dg sync --resolve の前段（SY-4）。ローカルで足した仮番号のチケットのうち、リモートにも同じ番号のファイルがあるものを振り直す。
+ * 未 push のコミットを分岐点の上で書き換えて積み直すだけで、取り込み（rebase）は呼び手がこの後に行う
+ * （リモートの上に中身を書き写す renumberProvisional と違い、ほかのファイルのリモートの変更はドライバのマージに残る）。
+ * 未コミットの変更（まとめ待ち）は退けておき、振り直した後に番号を書き換えて作業ツリーに戻す（コミットは呼び手）。
+ * 衝突がなければ何も変えず空を返す
+ */
+export async function renumberCollisions(repo: GitRepo): Promise<Renumbered[]> {
+  if (!repo.remote) return [];
+  const remote = remoteRef(repo);
+  const base = (await git(repo, ["merge-base", "HEAD", remote])).stdout.trim();
+  const added = (
+    await git(repo, ["diff", "--name-only", "--diff-filter=A", base, "HEAD", "--", "tickets"])
+  ).stdout
+    .split("\n")
+    .filter(Boolean);
+  const ids: string[] = [];
+  for (const file of added) {
+    const id = CONFLICT_PATH.exec(file)?.[1];
+    if (!id) continue;
+    const local = await show(repo, "HEAD", file);
+    if (local === undefined || !isProvisional(local)) continue;
+    if ((await show(repo, remote, file)) === undefined) continue;
+    ids.push(id);
+  }
+  if (ids.length === 0) return [];
+
+  const shas = await localCommits(repo, base);
+  const mapping = await assignNumbers(repo, ids);
+  const pending = await takePending(repo);
+  await resetHard(repo, base);
+  await replay(repo, shas, mapping);
+  for (const [file, content] of pending) {
+    const target = path.join(repo.dataDir, rewriteIds(file, mapping));
+    if (content === null) {
+      await rm(target, { force: true });
+      continue;
+    }
+    await mkdir(path.dirname(target), { recursive: true });
+    await writeFile(target, rewriteIds(content, mapping));
+  }
+  return [...mapping].map(([from, to]) => ({ from, to }));
+}
+
+/** 分岐点より後のローカルのコミット（古い順） */
+async function localCommits(repo: GitRepo, base: string): Promise<string[]> {
+  return (await git(repo, ["rev-list", "--reverse", `${base}..HEAD`])).stdout
     .trim()
     .split("\n")
     .filter(Boolean);
+}
+
+/** 仮番号に、リモートとローカルのどちらでも使っていない番号を小さい順に割り当てる */
+async function assignNumbers(repo: GitRepo, ids: string[]): Promise<Map<string, string>> {
   const used = new Set<number>([
-    ...(await ticketNumbers(repo, remote)),
+    ...(await ticketNumbers(repo, remoteRef(repo))),
     ...(await ticketNumbers(repo, "HEAD")),
   ]);
   const mapping = new Map<string, string>();
-  for (const id of ids.sort((a, b) => idNumber(a) - idNumber(b))) {
+  for (const id of [...ids].sort((a, b) => idNumber(a) - idNumber(b))) {
     const n = nextNumber(used);
     used.add(n);
     mapping.set(id, `t${n}`);
   }
+  return mapping;
+}
 
-  // リモートの先端に移り、未 push のコミットを 1 つずつ書き換えて積み直す
-  await resetHard(repo, remote);
+/**
+ * 未コミットの変更（パス → 中身。消したものは null）を読み、作業ツリーを HEAD に戻す。
+ * 戻すのは作業ツリーを空にして積み直すため。読んだ中身は呼び手が書き戻す
+ */
+async function takePending(repo: GitRepo): Promise<Map<string, string | null>> {
+  const out = (await git(repo, ["status", "--porcelain=v1", "-z", "--untracked-files=all"])).stdout;
+  const entries = out.split("\0");
+  const pending = new Map<string, string | null>();
+  for (let i = 0; i < entries.length; i++) {
+    const entry = entries[i]!;
+    if (entry.length < 4) continue;
+    const file = entry.slice(3);
+    // 名前の変更とコピーは、次の要素に元のパスが続く（元のパスは消えたものとして戻す）
+    if (entry[0] === "R") pending.set(entries[++i] ?? "", null);
+    else if (entry[0] === "C") i++;
+    pending.set(file, await readFile(path.join(repo.dataDir, file), "utf8").catch(() => null));
+  }
+  pending.delete("");
+  await git(repo, ["reset", "--hard", "--quiet", "HEAD"]);
+  await git(repo, ["clean", "-fdq"]);
+  return pending;
+}
+
+/** コミットを 1 つずつ、変えたファイルの中身とメッセージの番号を書き換えて、今の HEAD の上に積み直す */
+async function replay(
+  repo: GitRepo,
+  shas: readonly string[],
+  mapping: ReadonlyMap<string, string>,
+): Promise<void> {
   for (const sha of shas) {
     const changes = (
       await git(repo, [
@@ -116,5 +203,4 @@ export async function renumberProvisional(
     const message = (await git(repo, ["log", "--format=%B", "-1", sha])).stdout.trim();
     await commitAll(repo, rewriteIds(message, mapping));
   }
-  return [...mapping].map(([from, to]) => ({ from, to }));
 }

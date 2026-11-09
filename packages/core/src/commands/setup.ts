@@ -1,6 +1,6 @@
 // 用意と同期：init・sync・commit・validate・lint・config（show・set・unset）・whoami
 
-import { writeFile } from "node:fs/promises";
+import { readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
 import { OperationError } from "../errors.js";
@@ -12,8 +12,8 @@ import {
 } from "../git/facts.js";
 import { withLock } from "../git/lock.js";
 import { checkOutside, describeOutside, recordBaseline } from "../git/outside.js";
-import { renumberProvisional, type Renumbered } from "../git/renumber.js";
-import { ensureGitattributes, ensureMergeDriver } from "../git/merge.js";
+import { renumberCollisions, renumberProvisional, type Renumbered } from "../git/renumber.js";
+import { ensureGitattributes, ensureMergeDriver, type ResolvedField } from "../git/merge.js";
 import {
   commitAll,
   commitPaths,
@@ -22,8 +22,15 @@ import {
   isDirty,
   push,
   syncStatus,
+  type ResolveSide,
 } from "../git/sync.js";
-import { CONFLICT_REMEDY, flushPending, withWrite, withWriteLock } from "../git/write.js";
+import {
+  CONFLICT_REMEDY,
+  flushPending,
+  UNRESOLVABLE_REMEDY,
+  withWrite,
+  withWriteLock,
+} from "../git/write.js";
 import {
   isAgentActorId,
   ownActorIds,
@@ -437,12 +444,20 @@ export const sync = defineCommand({
   group: "setup",
   summary:
     "リモートの deguboard を取り込み、未 push のコミットを送り、作業ブランチの事実でチケットの状態を進める。作業ブランチの PR を見つけたら、このマシンで実行中の実装の Run を success で閉じる（finished_at は PR の作成時刻）。開いたままの手直しの Run は、次の区切り（同じチケットの次の Run の開始（手直しの Run と同じ秒を含む）・PR の ready・マージ・チケットの終了）を見たときに、それまでの最後の push の時刻で success にする（次の Run の開始は、その Run を開いた claim・run start・フックが先に閉じている。照合は閉じ損ねたものを拾う）。終わったチケットに開いたままの実装の Run は ticket move と同じ結果で閉じる（abandoned は failure、PR のない done は success。PR のある done は PR の作成時刻で success）。todo に戻ったチケットか別の主体の claim になったチケットの実装の Run は failure で閉じる。" +
-    "記録の書き終わりを待ちきれずに残したサブエージェントの Run（書き終わり待ちの印 settling_since のあるもの）も、書き終わっていれば閉じる（見直しの Run のうち、sync のセッションと別のセッションのものは閉じない。次の見直しの起動が閉じる）",
-  input: z.object({}),
+    "記録の書き終わりを待ちきれずに残したサブエージェントの Run（書き終わり待ちの印 settling_since のあるもの）も、書き終わっていれば閉じる（見直しの Run のうち、sync のセッションと別のセッションのものは閉じない。次の見直しの起動が閉じる）。" +
+    "--resolve remote|local は、人が選んだ側で同期の競合を解く（SY-4）：仮番号の衝突を振り直し、まとめ待ちの変更を（manual でも）コミットしてから取り込み、競合したフィールド（本文なら同じ行がぶつかった箇所）だけ選んだ側の値を採る。競合していないフィールドとコミットはそのまま残し、履歴を捨てず force push もしない。採った値と捨てた値は data.resolved に出る。マージドライバの対象でないファイル（config.yaml・workflows）の競合は解かずに data.conflicts に残す",
+  input: z.object({
+    resolve: z
+      .enum(["remote", "local"])
+      .optional()
+      .describe(
+        "競合したフィールドに採る側。remote はリモートの値、local はローカルのコミットの値。人が選んだときだけ渡す",
+      ),
+  }),
   write: true,
   needs: "store",
-  async run(ctx) {
-    const synced = await syncLocked(ctx);
+  async run(ctx, input) {
+    const synced = await syncLocked(ctx, input.resolve);
     // 記録の書き終わりを待ちきれずに残したサブエージェントの Run を閉じる（ADR-025）。閉じる書き込みは write のロックを取るので、外してから行う。
     // 別のセッションの見直しの Run は閉じない（前景の見直し役が今回の結果を書いているかもしれない。ADR-025）。
     // セッションの分からない sync（人が端末や画面から呼ぶもの）は閉じるので、人が前景の見直しの最中に呼ぶ場合は防げない
@@ -453,8 +468,12 @@ export const sync = defineCommand({
   },
 });
 
-/** sync の本体（write のロックの中） */
-async function syncLocked(ctx: CommandContext) {
+/**
+ * sync の本体（write のロックの中）。resolve があれば、振り直し → まとめ待ちのコミット → 選んだ側での取り込みの順に行う
+ * （振り直しは未 push のコミットを積み直すので、まとめ待ちの変更を退けてから行い、番号を書き換えて戻してからコミットする）。
+ * 書き換えた履歴と作業ツリーは、withWriteLock がロックを放す前に dg の外の変更の基準に記録する（ADR-026）
+ */
+async function syncLocked(ctx: CommandContext, resolve?: ResolveSide) {
   return withWriteLock(ctx.repo, async () => {
     const warnings: string[] = [];
     const repo = ctx.repo;
@@ -463,22 +482,38 @@ async function syncLocked(ctx: CommandContext) {
     await ensureMergeDriver(repo, ctx.mergeDriver);
     if (await ensureGitattributes(repo.dataDir))
       await commitPaths(repo, [".gitattributes"], "マージドライバの .gitattributes を置く");
+    const fetched = await fetchAll(repo);
+    let renumbered: Renumbered[] = [];
+    if (resolve && fetched.ok && fetched.remoteBranch) {
+      renumbered = await renumberCollisions(repo);
+      if (await isDirty(repo)) flushed = await flushPending(ctx);
+    }
     const dirty = await isDirty(repo);
     if (dirty && ctx.config.commit.mode !== "manual") flushed = await flushPending(ctx);
 
-    const fetched = await fetchAll(repo);
     let conflicts: string[] = [];
-    let integrated = false;
-    let renumbered: Renumbered[] = [];
+    let integrated = renumbered.length > 0;
+    let resolved: Array<ResolvedField & { file: string }> = [];
     if (!fetched.ok) {
       warnings.push(`リモートから取り込めない: ${fetched.detail}`);
     } else if (fetched.remoteBranch) {
-      const r = await integrate(repo, { autostash: dirty && !flushed });
-      if (r.ok) integrated = r.changed;
+      const log = path.join(repo.localDir, RESOLVE_LOG);
+      if (resolve) await writeFile(log, "");
+      const r = await integrate(repo, {
+        autostash: dirty && !flushed,
+        ...(resolve ? { resolve: { side: resolve, log } } : {}),
+      });
+      if (resolve) {
+        // 取り込みを中止したときは、積み直しの途中で解いた分も捨てられたので返さない
+        if (r.ok) resolved = await readResolveLog(log);
+        await rm(log, { force: true });
+      }
+      if (r.ok) integrated ||= r.changed;
       else {
         // 仮番号の衝突（オフラインで起票した番号がリモートで使われた）なら振り直して積み直す（DT-5）。
         // 作業ツリーに未コミットが残る manual のときは、巻き戻しで消えるので扱わない
-        const fixed = dirty && !flushed ? null : await renumberProvisional(repo, r.conflicts);
+        const fixed =
+          (dirty && !flushed) || resolve ? null : await renumberProvisional(repo, r.conflicts);
         if (fixed) {
           renumbered = fixed;
           integrated = true;
@@ -486,7 +521,11 @@ async function syncLocked(ctx: CommandContext) {
       }
     }
     if (conflicts.length > 0) {
-      warnings.push(`リモートの変更と競合している: ${conflicts.join(", ")}。${CONFLICT_REMEDY}`);
+      warnings.push(
+        resolve
+          ? `--resolve でも解けない競合が残った（マージドライバの対象でないファイルか、読めないファイル）: ${conflicts.join(", ")}。${UNRESOLVABLE_REMEDY}`
+          : `リモートの変更と競合している: ${conflicts.join(", ")}。${CONFLICT_REMEDY}`,
+      );
     }
     if (integrated) await ctx.store.rescan();
 
@@ -556,6 +595,7 @@ async function syncLocked(ctx: CommandContext) {
         pushed,
         conflicts,
         renumbered,
+        resolved,
         reconciled,
         pr_recorded: prRecorded,
         runs_closed: runsClosed,
@@ -566,6 +606,18 @@ async function syncLocked(ctx: CommandContext) {
       warnings,
     );
   });
+}
+
+/** --resolve の間だけ、マージドライバが採る側で解いたフィールドを書き足すファイル（deguboard-local/ の中） */
+const RESOLVE_LOG = "resolve-log.jsonl";
+
+/** ドライバが書き足した 1 行 1 件の JSON を読む */
+async function readResolveLog(file: string): Promise<Array<ResolvedField & { file: string }>> {
+  const text = await readFile(file, "utf8").catch(() => "");
+  return text
+    .split("\n")
+    .filter(Boolean)
+    .map((line) => JSON.parse(line) as ResolvedField & { file: string });
 }
 
 export const commit = defineCommand({

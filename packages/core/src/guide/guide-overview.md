@@ -17,9 +17,9 @@ deguboard は Git で管理するチケットのツール。あなた（AI エ�
 
 書き込みと `sync` は、リモートの deguboard ブランチを取り込んでから push する。止まったら次のとおりにする。どの場合もデータのファイルは直さない。
 
-- **競合**：`sync` の `data.conflicts` が空でない（`ok` は true のまま）か、起票・claim・Iteration の start と reopen が `SYNC_CONFLICT` で失敗した。両側が同じフィールドを違う値に変えたか、本文の同じ行を変えている。ローカルのコミットは残り、解消するまで push・照合・起票・claim・Iteration の start と reopen が止まる。自分では解かず、`conflicts` のファイルと `data.status` の `ahead`・`behind` を人に伝え、どちらの値を残すかを決めて解消してもらう。解消されたら `sync` を回し、`conflicts` が空になったことを確かめてから続ける
+- **競合**：`sync` の `data.conflicts` が空でない（`ok` は true のまま）か、起票・claim・Iteration の start と reopen が `SYNC_CONFLICT` で失敗した。両側が同じフィールドを違う値に変えたか、本文の同じ行を変えている。ローカルのコミットは残り、解消するまで push・照合・起票・claim・Iteration の start と reopen が止まる。どちらの値を残すかは自分では選ばない（`--auto` で進めているときも選ばない）。`conflicts` のファイルを示して人に「remote（リモートの値を採る）」か「local（ローカルの値を採る）」かを選択肢で聞き、選ばれた側で `dg --json --actor agent sync --resolve <remote|local>` を 1 回呼ぶ。競合したフィールド（本文ならぶつかった行）だけその側の値になり、ほかの変更とコミットは残り、push と照合まで済む。`data.resolved` の `file`・`field`・`taken`（採った値）・`discarded`（捨てた値）を人に伝える。`--resolve` の後も `conflicts` が残れば、マージドライバの対象でないファイル（`config.yaml` など）なので、警告の戻し方のとおり人に解いてもらう
 - **push の拒否が続く**：起票・claim・Iteration の start と reopen が `PUSH_FAILED` で失敗したら、何も取得できておらず、コミットも残っていない。少し置いて同じ操作をやり直す（claim なら先に `ticket show` で誰かが着手していないか確かめる）。それ以外の書き込みで push できなかった警告が出たら、コミットはローカルに残り、次の `sync` が再送する
-- **リモートに届かない**：コミットはローカルに残り、起票した番号は仮番号（`provisional: true`）になる。届くようになったら `sync` を回す。仮番号がリモートの番号と重なっていれば `sync` が振り直し、`data.renumbered` に `{ from, to }` を出す。振り直されたら、人に伝えた番号を直して伝え直す。仮番号のほかに競合があるときと、`manual` で未コミットの変更が残るときは振り直せず、上の競合として出る
+- **リモートに届かない**：コミットはローカルに残り、起票した番号は仮番号（`provisional: true`）になる。届くようになったら `sync` を回す。仮番号がリモートの番号と重なっていれば `sync` が振り直し、`data.renumbered` に `{ from, to }` を出す。振り直されたら、人に伝えた番号を直して伝え直す。仮番号のほかに競合があるときと、`manual` で未コミットの変更が残るときは振り直せず、上の競合として出る（`--resolve` は振り直してから、まとめ待ちの変更をコミットして競合を解く）
 
 ## dg の外の変更
 
