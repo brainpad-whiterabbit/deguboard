@@ -11,3 +11,6 @@ export * from "./run/index.js";
 // dg hooks install が書くフックを引く hooksOf と hookAgentNames だけにする（AG-5、ADR-007）
 export { agentSkillDirs, hookAgentNames, hooksOf, skillDirsOf } from "./agents/index.js";
 export type { AgentEnv, HookSupport, SkillDirs, SkillQuery } from "./agents/index.js";
+// guide の節の切り出しは Core に置く（ADR-030）。公開は dg guide --section が引く findGuideSection だけにする
+export { findGuideSection } from "./guide/sections.js";
+export type { GuideSection } from "./guide/sections.js";

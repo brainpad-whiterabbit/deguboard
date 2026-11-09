@@ -428,4 +428,60 @@ describe("dg guide", () => {
     expect(after.out).toContain("origin/develop");
     expect(after.out).not.toContain("origin/main");
   });
+
+  it("--section は見出しの文言でも、補足を除いた名前でも、その節の本文だけを出す", async () => {
+    const local = await createLocalOnlyRepo();
+    cleanups.push(local.cleanup);
+    const full = await dg(local.dir, ["guide", "work"]);
+    const byHeading = await dg(local.dir, [
+      "guide",
+      "work",
+      "--section",
+      "実装する（draft の PR まで）",
+    ]);
+    const byName = await dg(local.dir, ["guide", "work", "--section", "実装する"]);
+    expect(byHeading.code).toBe(0);
+    expect(byName.out).toBe(byHeading.out);
+    expect(byName.out.startsWith("## 実装する（draft の PR まで）")).toBe(true);
+    expect(byName.out).toContain("gh pr create --draft");
+    expect(byName.out).not.toContain("実装の結果を受け取る");
+    expect(full.out).toContain(byName.out);
+  });
+
+  it("--section の本文でも {{choices}} の差し替えと config の値の埋め込みが効く", async () => {
+    const local = await createLocalOnlyRepo();
+    cleanups.push(local.cleanup);
+    const choices = await dg(local.dir, ["guide", "plan", "--section", "選択肢で聞く"]);
+    expect(choices.out.startsWith("## 選択肢で聞く")).toBe(true);
+    expect(choices.out).not.toContain("{{");
+    expect(choices.out).toContain("AskUserQuestion");
+    const claim = await dg(local.dir, ["guide", "work", "--section", "claim の前後"]);
+    expect(claim.out).not.toContain("{{");
+    // 初期化していない repo は既定値で埋める（config の既定値に合わせる）
+    expect(claim.out).toContain(`今の設定：\`${defaultConfig().lint.require_iteration}\``);
+  });
+
+  it("ない節は使い方の誤りとして終了コード 2 で、そのトピックの節の一覧を返す", async () => {
+    const local = await createLocalOnlyRepo();
+    cleanups.push(local.cleanup);
+    const result = await dg(local.dir, ["guide", "work", "--section", "ない節"]);
+    expect(result.code).toBe(2);
+    expect(result.err).toContain("ない節");
+    expect(result.err).toContain("実装する");
+    expect(result.err).toContain("claim の前後");
+  });
+
+  it("--json の data には topic・section（見出しの文言）・text が入り、節を指定しないと section は null", async () => {
+    const local = await createLocalOnlyRepo();
+    cleanups.push(local.cleanup);
+    const withSection = await dg(local.dir, ["--json", "guide", "work", "--section", "実装する"]);
+    expect(JSON.parse(withSection.out).data).toMatchObject({
+      topic: "work",
+      section: "実装する（draft の PR まで）",
+      initialized: false,
+    });
+    expect(JSON.parse(withSection.out).data.text).toContain("gh pr create --draft");
+    const whole = await dg(local.dir, ["--json", "guide", "work"]);
+    expect(JSON.parse(whole.out).data).toMatchObject({ topic: "work", section: null });
+  });
 });

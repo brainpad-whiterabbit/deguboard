@@ -6,6 +6,7 @@ import {
   ACTION_NAMES,
   DeguboardError,
   defaultConfig,
+  findGuideSection,
   openContext,
   type Config,
 } from "@deguboard/core";
@@ -99,11 +100,19 @@ async function loadGuideConfig(cwd: string): Promise<{ config: Config; initializ
   }
 }
 
+/** section を省くとトピック全体。指定すると、その節の本文だけ（見出しの文言か「（…）」を除いた名前。節の切り出しは Core が行う） */
 export async function renderGuide(
   topic: string,
   cwd: string,
-): Promise<{ topic: GuideTopic; text: string; initialized: boolean }> {
-  const raw = await readGuide(topic);
+  section?: string,
+): Promise<{ topic: GuideTopic; section: string | null; text: string; initialized: boolean }> {
+  const body = await readGuide(topic);
+  const picked = section === undefined ? undefined : findGuideSection(topic, body, section);
   const { config, initialized } = await loadGuideConfig(cwd);
-  return { topic: topic as GuideTopic, text: fillPlaceholders(raw, config).trimEnd(), initialized };
+  return {
+    topic: topic as GuideTopic,
+    section: picked?.heading ?? null,
+    text: fillPlaceholders(picked?.text ?? body, config).trimEnd(),
+    initialized,
+  };
 }
