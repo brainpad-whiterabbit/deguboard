@@ -1,0 +1,41 @@
+id: p87
+project: default
+tickets: [t621, t624, t622, t625, t623, t626, t627]
+after:
+  t623:
+    - t622
+  t626:
+    - t625
+  t627:
+    - t624
+    - t626
+pending_approval: true
+details:
+  t621:
+    scope: claim が作った worktree で config の準備コマンドを回す。設定画面の説明も直す
+    approach: claim-setup のコマンド定義に足し、git・コマンドは execFile の引数配列で呼ぶ
+    tier: standard
+  t624:
+    scope: dg の起動で Node のコンパイルキャッシュを有効にする
+    approach: bin/dg.js で module.enableCompileCache を呼び、使えない Node では黙って飛ばす
+    tier: standard
+  t622:
+    scope: チケット 1 枚の経過を、そのチケットのファイルの git 履歴だけから組み立てる
+    approach: git log をそのチケットのパスに絞って読み、既存の buildHistory に渡す
+    tier: standard
+  t625:
+    scope: ストアの読みで YAML の Document を作らず、書くときにだけ作る
+    approach: documents.ts の readDoc を素の parse に替え、writeDoc で Document を作って書く
+    tier: standard
+  t623:
+    scope: 経過の解析結果を deguboard ブランチの HEAD が同じ間は使い回す
+    approach: createLocalClient の中に HEAD をキーにした解析結果のキャッシュを置く
+    tier: heavy
+  t626:
+    scope: ストアの索引をディスクに残し、CLI でも変わったファイルだけを読む
+    approach: Store.open で索引を読み、mtime などで変わったファイルだけ読み直す。ADR-007 に当たるかを確かめる
+    tier: heavy
+  t627:
+    scope: 起動の改善の後に dg の 1 回の内訳を測り直し、外の変更の検査と Run の量の手当ての要否を決める
+    approach: 測った結果を本文に書き、要る手当ては起票を提案する
+    tier: heavy
