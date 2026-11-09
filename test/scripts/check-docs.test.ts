@@ -15,7 +15,7 @@
 // ADR 番号の実在は、packages・scripts・docs・ルートのファイル（バイナリを除く）と test の先頭コメントで見ることも確かめる（t634）。
 
 import { execFile } from "node:child_process";
-import { cp, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { appendFile, cp, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -43,8 +43,9 @@ const ANCHOR = "#getting-started-before-release";
 const UNKNOWN_ID = ["TK", "999"].join("-");
 // 定義をすべて消す接頭辞（一覧には残す）の ID。組み立てて書くのは UNKNOWN_ID と同じ理由
 const GONE_ID = ["SY", "1"].join("-");
-// 置き換え済みの ADR（docs/adr で ADR-028 に置き換えた 004 番）。本リポジトリのテストが置き換え済みの ADR を指すと検査が落ちるので組み立てて書く
+// 置き換え済みの ADR（ADR-028 に置き換えた 004 番の架空のファイル）。本リポジトリのテストが置き換え済みの ADR を指すと検査が落ちるので組み立てて書く
 const OLD_ADR = ["ADR", "004"].join("-");
+const OLD_FILE = "ADR-004-old-agents-and-state.md";
 
 let dir: string;
 
@@ -106,12 +107,6 @@ describe("check-docs の ADR の更新日の照合をやめる（t634）", () =>
     expect(findingsOf(stderr)).not.toContain("更新日");
     expect(stderr).not.toContain("一覧に載っていない");
     expect(stderr).not.toContain("の行がない");
-  });
-
-  it("ADR の更新日が一覧と食い違っても指摘しない", async () => {
-    await rewrite(ADR, /^- 更新日：\d{4}-\d{2}-\d{2}$/m, "- 更新日：2000-01-01");
-    const { stderr } = await run();
-    expect(stderr).not.toContain("更新日");
   });
 });
 
@@ -749,6 +744,15 @@ describe("check-docs の要件の 1 項の上限（t580）", () => {
 
 describe("check-docs の置き換え済みの ADR への参照（t580）", () => {
   const PROBE = "packages/cli/src/zz-probe.ts";
+
+  // 本リポジトリの docs/adr には置き換え済みの ADR を残さないので、一時ディレクトリに 1 本だけ置き、一覧に載せる
+  beforeEach(async () => {
+    await writeFile(
+      join(dir, "docs/adr", OLD_FILE),
+      `# ${OLD_ADR} 旧\n\n- ステータス：置き換え（ADR-028）\n`,
+    );
+    await appendFile(join(dir, "docs/adr/README.md"), `\n| [${OLD_ADR}](${OLD_FILE}) | 旧 |\n`);
+  });
 
   it("写したままなら置き換え済みの ADR の指摘は出ない", async () => {
     const { stderr } = await run();

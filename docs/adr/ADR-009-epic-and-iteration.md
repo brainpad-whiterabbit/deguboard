@@ -1,7 +1,10 @@
 # ADR-009 Epic と Iteration
 
 - ステータス：承認
-- 更新日：2026-11-03
+
+## 要約
+
+Epic は目的ごとにチケットを束ねる独立したエンティティで、期間の目標は Milestone を置かず Iteration で表す。Epic と Iteration の閉じる・再開は Workflow の外に置き、既定では誰でも行える。active な Iteration は Project に 1 つに限る。
 
 ## 背景
 

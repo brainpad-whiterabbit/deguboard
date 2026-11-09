@@ -1,13 +1,14 @@
 # ADR-028 ツールはエージェントを動かさず、状態はブランチの事実で進め、排他は claim の push で決める
 
 - ステータス：承認
-- 更新日：2026-11-08
+
+## 要約
+
+ツールはエージェントを起動も監視もせず、エージェントが `dg` を呼んでチケットを読み書きする。状態はチケットのブランチの事実で前進させ、排他は claim の push で決める。主体は `<ユーザ>`・`<ユーザ>/agent` の ID で、起票者と担当者を分けて記録する。
 
 ## 背景
 
 AI エージェント（Claude Code・Codex など）がチケットを処理する。ツール側がエージェントを起動・監視して状態を進める設計と、エージェントが自分で CLI を呼んで状態を記録する設計がある。先行プロジェクトは前者（ヘッドレス起動と統合ターミナル起動）を作ったが、起動・worktree の準備・監視のどこかで失敗するたびに壊れた実行が残り、安定せずに削除した。実務は「人が動かすエージェントが CLI でチケットを操作する」形に落ち着いていた。
-
-この判断を書いた ADR-004 は、Run の開け閉め・並列実行の進め方・フックの扱いの項を ADR-011・025・026 に置き換えられ、失効の印が 4 つになった。[ADR-001](ADR-001-doc-strategy.md) の基準で、今の判断と理由だけをこの 1 本にまとめ直す。
 
 ## 決定
 
@@ -58,10 +59,6 @@ AI エージェント（Claude Code・Codex など）がチケットを処理す
 - `packages/core/src/model/actor.ts`・`packages/core/src/git/repo.ts`（ユーザ名）・`packages/core/src/git/lock.ts`
 - `packages/core/src/model/plan.ts`・`packages/core/src/commands/plan.ts`・`packages/core/src/model/config.ts`（`models.*`）
 - `packages/core/src/commands/commands-flow-reconcile.test.ts`・`commands-flow-ticket.test.ts`・`commands-plan.test.ts`
-
-### 置き換えるもの
-
-- ADR-004 の全体。ADR-011・025・026 が置き換えた項（並列実行・修正ループ・自動マージの進め方、Run を開き閉じる文と自動復旧しない項、フックがエージェントを起動も監視もしない文）は取り込まず、それぞれの ADR が今の判断
 
 ## 理由
 

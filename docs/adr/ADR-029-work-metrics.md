@@ -1,13 +1,14 @@
 # ADR-029 作業の使用量は Run ごとに公式の記録から実測し、数だけを Git に写す
 
 - ステータス：承認
-- 更新日：2026-11-08
+
+## 要約
+
+作業の使用量は Run ごとに公式の会話記録から実測し、エージェントの自己申告は使わない。Git に写すのは数とモデル名だけで、プロンプトや中身は写さない。実装・見直し・手直しは別の step の Run にし、会話記録を読む許可はリポジトリの config に置く。
 
 ## 背景
 
 チケットの分割の粒度やモデルの選び方を決めるのに、AI エージェントがどれだけのトークンと時間を使ったかの実績が欲しい。ただし AI の自己申告は正確でなく、会話記録は個人のデータでもある。何を、どこから、どこまで記録するかを決める。
-
-この判断を書いた ADR-005 は、Run の開け閉めと会話記録の場所の項を [ADR-025](ADR-025-runs-by-hooks.md) に置き換えられ、失効の印が 5 つになった。[ADR-001](ADR-001-doc-strategy.md) の基準で、今の判断と理由だけをこの 1 本にまとめ直す。
 
 ## 決定
 
@@ -66,10 +67,6 @@
 - `packages/core/src/model/run.ts`（Run の形）・`packages/core/src/commands/run.ts`（`run start`・`run finish`・`run refresh`）・`packages/core/src/run/record.ts`・`packages/core/src/commands/run.test.ts`
 - `packages/core/src/commands/ticket.ts`（`ticket update --pr`）・`packages/core/src/commands/setup.ts`（照合が閉じる Run と `dg lint`）・`packages/core/src/commands/commands-flow-reconcile.test.ts`
 - `packages/core/src/model/metrics.ts`・`packages/core/src/commands/metrics.ts`（`dg metrics show --help`）
-
-### 置き換えるもの
-
-- ADR-005 の全体。ADR-025 が置き換えた項（サブエージェントが自分で Run を開く文、見直し役が `run start`・`run finish` する文、手直しの Run の開き方と閉じ方、claim の `--retry-reason`、サブエージェントの記録の場所の文）は取り込まず、ADR-025 が今の判断
 
 ## 理由
 

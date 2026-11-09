@@ -1,20 +1,21 @@
 # ADR-031 claim が Iteration への追加と開始、作業ブランチの worktree の作成まで行う
 
 - ステータス：承認
-- 更新日：2026-11-09
+
+## 要約
+
+claim は排他を得た後に、`lint.require_iteration` が true なら Iteration への追加と planned の開始を同じ書き込みで行い、作業ブランチを base から切って worktree を作る。どれもできないときは claim を失敗させず、warnings で人への頼みを返す。
 
 ## 背景
 
-[ADR-007](ADR-007-architecture.md) の「Action の呼び方」は、worktree・ブランチの操作を guide の手順と同じ形にし、claim は `branch` を記録するだけでブランチも worktree も作らないと決めた。そのため `dg guide work` の「claim の前後」が、Iteration の入れ先の選び方（active → start が最も早い planned → ID の小さい順）・`iteration start`・`git worktree add` を親のエージェントに文で打たせていた。[ADR-030](ADR-030-flow-and-guide-in-core.md) は決まった規則を guide の文からコードへ移すと決め、claim の前後の手はその最初の対象になった。
+claim は `branch` を記録するだけでブランチも worktree も作らない。そのため `dg guide work` の「claim の前後」が、Iteration の入れ先の選び方（active → start が最も早い planned → ID の小さい順）・`iteration start`・`git worktree add` を親のエージェントに文で打たせていた。[ADR-030](ADR-030-flow-and-guide-in-core.md) は決まった規則を guide の文からコードへ移すと決め、claim の前後の手はその最初の対象になった。
 
 ## 決定
-
-ADR-007 の「Action の呼び方」の「worktree・ブランチの操作は guide の手順と同じ形にする。claim は `branch` を記録するだけで、ブランチも worktree も作らない（ST-3）」の項を置き換える。
 
 - claim は、`lint.require_iteration` が true なら Iteration の空いたチケットを Iteration に入れ、チケットの Iteration が planned なら開始する。どちらも claim と同じ書き込みに入れ、claim の push で一緒に決まる
 - claim は push で排他を得た後、作業ブランチを base から切って worktree を作り、場所を返す。作らない指定もできる
 - どれもできないとき（入れ先がない・ほかの active がある・`actor.human_only`・worktree を作れない）は、claim を失敗させず warnings で人への頼みを返す
-- worktree を作る手順は Core の git の層に置き、claim と `create_worktree` の Action が同じものを使う。commands は actions に依存しない（ADR-007・AG-6）ことは変えない
+- worktree を作る手順は Core の git の層に置き、claim と `create_worktree` の Action が同じものを使う。commands は actions に依存しない（ADR-033・AG-6）ことは変えない
 
 ## 理由
 
@@ -26,6 +27,6 @@ ADR-007 の「Action の呼び方」の「worktree・ブランチの操作は gu
 
 ## 採らなかった案
 
-- **claim が actions の `create_worktree` を呼ぶ**：commands が actions に依存し、AG-6 と ADR-007 の依存の向きを変えることになる
+- **claim が actions の `create_worktree` を呼ぶ**：commands が actions に依存し、AG-6 と ADR-033 の依存の向きを変えることになる
 - **worktree の作成を別のコマンドにする**：親が claim と別に打つ手が残り、打ち忘れが確率的に起きる
 - **Iteration の追加と開始を claim の後の別の書き込みにする**：claim の push と別に決まり、間に割り込まれる
