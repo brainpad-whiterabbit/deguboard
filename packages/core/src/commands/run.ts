@@ -29,12 +29,13 @@ import {
 } from "../model/run.js";
 import { AbortWrite, withWrite } from "../git/write.js";
 import { lastPushedAt } from "../git/facts.js";
+import { isHeavyFinding } from "../run/findings.js";
 import {
   amendRunning,
   appendRetryReasons,
   closeRun,
   putPendingReview,
-  putReviewFindings,
+  putReviewRound,
   putPendingRetryReasons,
   dropRunning,
   finishRun,
@@ -702,9 +703,7 @@ export function reviewOfFindings(
   findings: readonly ReviewFinding[],
   heavyCategories: readonly string[],
 ): RunReview {
-  const heavy = findings.filter(
-    (f) => f.severity === "heavy" || heavyCategories.includes(f.category),
-  ).length;
+  const heavy = findings.filter((f) => isHeavyFinding(f, heavyCategories)).length;
   return { heavy, light: findings.length - heavy, passed: heavy === 0 };
 }
 
@@ -765,15 +764,14 @@ export const runReviewResult = defineCommand({
       );
     }
     const ticket = ctx.store.require("ticket", input.ticket).data;
-    // 一覧は書いた先の Run（保留なら null）と一緒に deguboard-local に置く（置き場所の理由は run/record.ts）
+    // 回の記録は書いた先の Run（保留なら null）と一緒に deguboard-local に置く（置き場所の理由は run/record.ts）。
+    // 数だけの呼び方も回として置く（一覧は null）。前の回の一覧を最新として使わせないため
     const keep = async (run: RunId | null) => {
-      if (input.findings === undefined) return;
-      await putReviewFindings(ctx.repo, {
-        ticket: ticket.id,
+      await putReviewRound(ctx.repo, ticket.id, {
         run,
         at: toIsoDateTime(ctx.now()),
         review,
-        findings: input.findings,
+        findings: input.findings ?? null,
       });
     };
     const local = (await readRunningRuns(ctx.repo)).runs;

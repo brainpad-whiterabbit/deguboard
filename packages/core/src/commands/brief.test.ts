@@ -5,6 +5,7 @@ import { openContext } from "./context.js";
 import { brief, composeBrief, type BriefFacts } from "./brief.js";
 import { runCommand } from "./define.js";
 import { next, type NextStep } from "./next.js";
+import { runReviewResult } from "./run.js";
 import { findCommand } from "./registry.js";
 import { init } from "./setup.js";
 import { ticketClaim, ticketCreate, ticketUpdate } from "./ticket.js";
@@ -244,6 +245,42 @@ describe("dg brief と dg next の文（EX-3）", () => {
     const implement = (await runCommand(brief, ctx, { ticket: "t1", role: "implement" })).data;
     const next1 = (await runCommand(next, ctx, { ticket: "t1" })).data as NextStep;
     expect(next1.brief).toBe(implement.text);
+  });
+
+  it("手直しの文は --findings を渡さなければ、最新の見直しの記録から重い指摘と受け入れ条件の軽い指摘を入れる。参考節の軽い指摘は入れない（t600）", async () => {
+    const ctx = await prepared();
+    // 見直しの記録がないチケット（t2）は、貼る場所を空けて返す
+    const none = (await runCommand(brief, ctx, { ticket: "t2", role: "fix" })).data;
+    expect(none.text).toContain("（直す指摘の一覧をここに貼る");
+    await runCommand(runReviewResult, ctx, {
+      ticket: "t1",
+      findings: [
+        {
+          severity: "heavy",
+          category: "不具合",
+          file: "src/a.ts",
+          line: 3,
+          reason: "型が違う",
+          fix: "型を直す",
+        },
+        { severity: "light", category: "受け入れ条件の漏れ", reason: "1 つめが足りない" },
+        { severity: "light", category: "参考節との食い違い", file: "src/b.ts", reason: "広がり" },
+      ],
+    });
+    const fix = (await runCommand(brief, ctx, { ticket: "t1", role: "fix" })).data;
+    expect(fix.text).toContain("- [重い] src/a.ts:3 (不具合)：型が違う。直し方：型を直す");
+    expect(fix.text).toContain("- [軽い] 受け入れ条件の漏れ：1 つめが足りない");
+    expect(fix.text).not.toContain("参考節との食い違い");
+    // 数だけで記録した回が最新なら、前の回の一覧は使わず貼る場所を空ける（t600）
+    await runCommand(runReviewResult, ctx, { ticket: "t1", heavy: 0, light: 0, passed: true });
+    const counted = (await runCommand(brief, ctx, { ticket: "t1", role: "fix" })).data;
+    expect(counted.text).toContain("（直す指摘の一覧をここに貼る");
+    expect(counted.text).not.toContain("型が違う");
+    // 渡したときは渡したものを使う
+    const given = (await runCommand(brief, ctx, { ticket: "t1", role: "fix", findings: "1. 別" }))
+      .data;
+    expect(given.text).toContain("1. 別");
+    expect(given.text).not.toContain("型が違う");
   });
 
   it("見直しと手直しの文には親向けの手順が入らない（親の節は文に入れない。t593）", async () => {

@@ -8,6 +8,8 @@ import { findBranchWorktree } from "../git/worktree.js";
 import { guideSectionText } from "../guide/guide.js";
 import { REVIEW_STEP } from "../model/run.js";
 import { type AcceptanceItem, parseAcceptance, type Ticket } from "../model/ticket.js";
+import { findingText, latestRoundSince, splitFindings } from "../run/findings.js";
+import { readReviewFindings } from "../run/record.js";
 import { ASK_LANGUAGES, type AskLanguage } from "./ask.js";
 import { defineCommand, ok, type CommandContext } from "./define.js";
 import { openPlanOf, ticketRef } from "./helpers.js";
@@ -262,6 +264,29 @@ export function composeBrief(
   ].join("\n");
 }
 
+/**
+ * 手直しの文に入れる指摘：最新の見直しの重い指摘と、受け入れ条件の文言に当たる軽い指摘（t600）。
+ * 見直しの一覧がなければ undefined（文は貼る場所を空けて返す）。一覧は見直しの記録から読み、親が書き写さない
+ */
+async function latestFixFindings(
+  ctx: CommandContext,
+  ticket: Ticket,
+  lang: AskLanguage,
+): Promise<string | undefined> {
+  const stored = await readReviewFindings(ctx.repo, ticket.id);
+  // 作業ブランチの最新の回。一覧なしの回（数だけ）なら前の回の一覧は使わず、貼る場所を空ける
+  const round = stored && latestRoundSince(stored.rounds, ticket.branch_at);
+  if (!round?.findings) return undefined;
+  const { fix } = splitFindings(round.findings, ctx.config.review.heavy_categories);
+  if (fix.length === 0)
+    return say(
+      lang,
+      "（最新の見直しに直す指摘はない）",
+      "(the latest review has no findings to fix)",
+    );
+  return fix.map((f) => `- ${findingText(f, lang)}`).join("\n");
+}
+
 /** 役の文を、チケットの事実（ブランチの worktree・Plan・git の設定）と役の節の本文から組む */
 export async function briefOf(
   ctx: CommandContext,
@@ -270,6 +295,9 @@ export async function briefOf(
   opts: { language?: AskLanguage | undefined; findings?: string | undefined } = {},
 ): Promise<Brief> {
   const language = opts.language ?? "ja";
+  // 手直しの指摘は、渡されなければ見直しの記録から読む（渡されたものはそのまま使う）
+  const findings =
+    opts.findings ?? (role === "fix" ? await latestFixFindings(ctx, ticket, language) : undefined);
   const step =
     role === "implement"
       ? openedStepOf(ctx, ticket, "claim")
@@ -304,7 +332,7 @@ export async function briefOf(
     role,
     step,
     language,
-    text: composeBrief(role, facts, language, opts.findings),
+    text: composeBrief(role, facts, language, findings),
   };
 }
 
@@ -314,7 +342,7 @@ export const brief = defineCommand({
   group: "brief",
   summary:
     "サブエージェントに渡す文を組む（EX-3。読み取りだけ）。役（implement・review・fix）ごとに、先頭に印 `deguboard: ticket=<id> step=<step>` を置いた文を返す（フックが印で Run を開け閉めする）。" +
-    "文には場所（worktree・ブランチ）・Plan の範囲と方針・規約・役の手順（guide の節の本文）・受け入れ条件・道具（Read・Edit）・Run の扱い・しないこと・返すものを入れる。review には結果を記録する呼び出し、fix には直す指摘の一覧（findings）とやり直しの理由を書く呼び出し（run retry-reason）を入れる。" +
+    "文には場所（worktree・ブランチ）・Plan の範囲と方針・規約・役の手順（guide の節の本文）・受け入れ条件・道具（Read・Edit）・Run の扱い・しないこと・返すものを入れる。review には結果を記録する呼び出し、fix には直す指摘（最新の見直しの記録から、重い指摘と受け入れ条件の文言に当たる軽い指摘。findings で渡せばそれを使う）とやり直しの理由を書く呼び出し（run retry-reason）を入れる。" +
     "定型の文の言語は language（ask と同じく省けば ja）。チケットの中身は書いた言葉のまま。dg next の implement・review・fix の手の brief と同じ文",
   input: z.object({
     ticket: ticketRef,
@@ -327,7 +355,7 @@ export const brief = defineCommand({
       .string()
       .optional()
       .describe(
-        "fix の文に入れる、直す指摘の一覧（見直し役か人のレビューが返したもの）。省けば貼る場所を空けて返す",
+        "fix の文に入れる、直す指摘の一覧（見直し役か人のレビューが返したもの）。省けば最新の見直しの記録から重い指摘と受け入れ条件の軽い指摘を入れ、記録がなければ貼る場所を空けて返す",
       ),
   }),
   write: false,

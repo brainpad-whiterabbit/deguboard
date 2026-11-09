@@ -86,38 +86,51 @@ export async function takePendingReview(
 }
 
 /**
- * 見直しの指摘の一覧（run review-result --findings-file）の置き場所：deguboard-local/review-findings/<ticket>.json。チケットごとに最新の 1 回だけを置く。
+ * 見直しの指摘の一覧（run review-result）の置き場所：deguboard-local/review-findings/<ticket>.json。見直しの回ごとに 1 つ置き、回の順に並べる。
  * Git の Run には数と通ったか（review）だけを書き、一覧は書かない。理由：
  *   - 作業の記録として Git に写すのは数だけにする（ADR-029）。品質ゲートと修正ループの回数（dg gate）も数だけで決まる（ADR-025）
- *   - 一覧は指摘の文・パス・直し方の長い文で、回ごとに変わる。使うのは直後に同じマシンの親が組む手直しの文と PR の本文だけ（t600）
+ *   - 一覧は指摘の文・パス・直し方の長い文で、回ごとに変わる。使うのは同じマシンの親が組む手直しの文と PR の本文だけ（t600）
  *   - 閉じた Run は書き換えない（RN-4）ので、前景の見直し役のように Run より先に結果が来る形では、Run に一覧を後から足せない
+ *   - 回ごとに残すのは、PR の本文に 1 回目の軽い指摘も載せるため（手直しに渡さなかった軽い指摘は、次の回の一覧には出ない）
  */
 const REVIEW_FINDINGS_DIR = "review-findings";
 
-export interface StoredReviewFindings {
-  ticket: TicketId;
+/** 見直しの 1 回分の記録。一覧なしの呼び方（数だけ）は findings を null にする */
+export interface ReviewRound {
   /** 書いた見直しの Run。Run がまだなく保留にしたときは null */
   run: RunId | null;
   /** 置いた時刻（ISO） */
   at: string;
   review: RunReview;
-  findings: ReviewFinding[];
+  findings: ReviewFinding[] | null;
+}
+
+export interface StoredReviewFindings {
+  ticket: TicketId;
+  /** 見直しの回。置いた順（末尾が最新）。同じ Run の回は呼び直したとき置き換える */
+  rounds: ReviewRound[];
 }
 
 const reviewFindingsPath = (repo: Pick<GitRepo, "localDir">, ticket: TicketId) =>
   path.join(repo.localDir, REVIEW_FINDINGS_DIR, `${ticket}.json`);
 
-/** 見直しの指摘の一覧を置く（同じチケットの前の回は置き換える） */
-export async function putReviewFindings(
+/** 見直しの 1 回分を置く。同じ Run の回があれば置き換え、なければ末尾に足す */
+export async function putReviewRound(
   repo: Pick<GitRepo, "localDir">,
-  stored: StoredReviewFindings,
+  ticket: TicketId,
+  round: ReviewRound,
 ): Promise<void> {
-  const file = reviewFindingsPath(repo, stored.ticket);
+  const rounds = (await readReviewFindings(repo, ticket))?.rounds ?? [];
+  const same = round.run === null ? -1 : rounds.findIndex((r) => r.run === round.run);
+  if (same >= 0) rounds[same] = round;
+  else rounds.push(round);
+  const file = reviewFindingsPath(repo, ticket);
   await mkdir(path.dirname(file), { recursive: true });
+  const stored: StoredReviewFindings = { ticket, rounds };
   await writeFileAtomic(file, `${JSON.stringify(stored, null, 2)}\n`);
 }
 
-/** チケットの最新の見直しの指摘の一覧。なければ（一覧なしの呼び方・別のマシン・読めない）undefined */
+/** チケットの見直しの回。なければ（記録なし・別のマシン・読めない）undefined */
 export async function readReviewFindings(
   repo: Pick<GitRepo, "localDir">,
   ticket: TicketId,
@@ -126,7 +139,7 @@ export async function readReviewFindings(
     const stored = JSON.parse(
       await readFile(reviewFindingsPath(repo, ticket), "utf8"),
     ) as StoredReviewFindings;
-    return Array.isArray(stored?.findings) ? stored : undefined;
+    return Array.isArray(stored?.rounds) ? stored : undefined;
   } catch {
     return undefined;
   }
