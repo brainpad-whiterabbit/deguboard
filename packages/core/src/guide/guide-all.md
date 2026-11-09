@@ -37,7 +37,7 @@ Iteration かチケットを、割り当てからリリースまでの流れで�
    - `work` は `dg guide parallel` のとおり、件数によらずチケットごとにサブエージェントに任せる。親は進行・承認・`dg` の読み書きだけを行う
    - `release` で、リポジトリの規約にリリースの手順がなければ `dg guide done` の手順で片付ける
 3. `approval.required` が true の場面は、`approval.what` を人に聞く。選択肢には「ここで止める」を入れる。`--auto` のときの扱いは下の「`--auto` で自動で選ぶ」
-4. 段階の手を終えたら（承認を得た・直した・行い終えた）、その返りの `resume` をそのまま `--resume` に写して、1 に戻る（`dg --json --actor agent flow next <対象…> --resume <resume>`）。値は組み立てない。割り当て・点検・見直しの手の途中で止めたとき（承認が得られなかった、見直しの指摘の表で止めた）は写さず、同じ対象と指定で最初から呼ぶ。写すとその段階を終えたものとして飛ばす
+4. 段階の手を終えたら（承認を得た・直した・行い終えた）、その返りの `resume` をそのまま `--resume` に写して、1 に戻る（`dg --json --actor agent flow next <対象…> --resume <resume>`）。値は組み立てない。割り当て・点検・見直しの手の途中で止めたとき（承認が得られなかった、見直しの指摘の表で止めた）は、その `resume` を写さずに止まる。再開するときは、その前に写した `resume` を渡すか、`--resume` なしで同じ対象と指定で呼ぶ。途中で止めた手の `resume` を写すと、その段階を終えたものとして飛ばす
 5. `stage.name` が `stop`、または `repeated` が null でないとき（同じ段階が続き、事実が変わらない）は、`ask_human` と状態を示して止まる
 
 ## 段階の間の進み方
@@ -48,7 +48,13 @@ Iteration かチケットを、割り当てからリリースまでの流れで�
 
 ## `--auto` で自動で選ぶ
 
-`--auto` のときは、`approval.auto_ok` が true のものと、`auto.decisions`（今の設定：`{{auto.decisions}}`）に accept があるときの照合の後の受け入れ条件の確認（`dg guide done` の手順 3）だけを、聞かずに `approval.auto` の選択肢で進め、ほか（`approval.what` に残るもの。人が決める判断はここに入る）は聞く。PR のマージは、`auto.merge`（今の設定：`{{auto.merge}}`）が true のときだけ、`approval.auto` のとおり品質ゲート（`dg guide review` の「品質ゲート」）を満たすときだけ `dg --json --actor agent pr merge <id>` で行い、満たさなければ満たさなかった条件を示して承認を求めて止まる。方法とブランチを消すかは config に任せる。選んだものと判断の材料はその場で短く示す。
+`--auto` のときは、聞かずに進めるのは次の 2 つだけで、`approval.what` に残るものは聞く。選んだものと判断の材料はその場で短く示す。
+
+- `approval.auto` に書いたもの（勧める選択肢で進める。どの判断が入るかは config の `auto.decisions`（今の設定：`{{auto.decisions}}`）と `auto.merge` が決める）
+- `auto.decisions` に `accept` があるときの、照合の後の受け入れ条件の確認（`dg guide done` の手順 3）
+
+- PR のマージは、`auto.merge`（今の設定：`{{auto.merge}}`）が true のときだけ、`dg guide review` の「品質ゲート」を満たす PR を `dg --json --actor agent pr merge <id>` で行う。方法とブランチを消すかは `--method`・`--delete-branch` を省いて config の `merge.method`・`merge.delete_branch`（今の設定：`{{merge.method}}`・`{{merge.delete_branch}}`）に任せる。満たさなければ、満たさなかった条件を示して承認を求めて止まる
+- **人が決める判断は config によらず聞いて止まる**：リリースの PR のマージと公開（タグ・配布先）、チケットの削除・abandoned・done の取り消し、Epic・Iteration・Plan を閉じる・再開する。`auto.merge` が false のときのマージ。Plan の待ち（`after`）と範囲を変えること、`--force` の付く操作。勧めるものがない判断と、選択肢にできない答え
 
 ## 結果を伝える
 
