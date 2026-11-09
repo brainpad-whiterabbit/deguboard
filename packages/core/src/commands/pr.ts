@@ -12,6 +12,7 @@ import { PR_MERGE_METHODS } from "../model/config.js";
 import type { Ticket } from "../model/ticket.js";
 import { unfixedLightLines, withUnfixedLight } from "../run/findings.js";
 import { readReviewFindings } from "../run/record.js";
+import { setupFailureIn } from "./claim-setup.js";
 import { defineCommand, ok, type CommandContext } from "./define.js";
 import { judgeGate, type GateStage, type GateView } from "./gate.js";
 import { ticketRef } from "./helpers.js";
@@ -45,29 +46,60 @@ async function passGate(ctx: CommandContext, ticketId: string, stage: GateStage)
 }
 
 /**
- * 作業ブランチを checkout した worktree を消す（gh がローカルのブランチを消せるように）。呼んだ作業ツリーそのもの・未コミットの変更が
- * ある worktree は消さずに warnings に出す（作業を失わない。gh がローカルのブランチを消せなければ gh の警告になる）
+ * 作業ブランチを checkout した worktree を消す（gh がローカルのブランチを消せるように）。消したパスを返す（消さなかったら null）。
+ * 呼んだ作業ツリーそのもの・未コミットの変更がある worktree は消さずに warnings に出す（作業を失わない。gh がローカルのブランチを
+ * 消せなければ gh の警告になる）
  */
 async function removeBranchWorktree(
   ctx: CommandContext,
   branch: string,
   warnings: string[],
-): Promise<void> {
+): Promise<string | null> {
   const dir = await findBranchWorktree(ctx.repo, branch);
-  if (!dir) return;
+  if (!dir) return null;
   if (path.resolve(dir) === path.resolve(ctx.repo.topLevel)) {
     warnings.push(
       `ブランチ ${branch} の worktree から呼んだので、worktree を消さない（ローカルのブランチが残る。main の worktree から呼ぶ）`,
     );
-    return;
+    return null;
   }
   const removed = await runGit(ctx.repo.topLevel, ["worktree", "remove", "--", dir], {
     allowFailure: true,
   });
-  if (removed.code !== 0)
+  if (removed.code !== 0) {
     warnings.push(
       `worktree ${dir} を消せなかった（${removed.stderr.trim().split("\n")[0] ?? ""}）。要るものを退避してから消す`,
     );
+    return null;
+  }
+  return dir;
+}
+
+/**
+ * マージに失敗したとき、removeBranchWorktree で消した worktree を同じパスに戻す（作業を続けられるように）。
+ * 消すと無視されたファイル（node_modules など）も消えるので、戻したら config の worktree.setup も回す（t643）。
+ * 戻したか・準備が回ったかを、エラーの detail に出す文として返す（戻せなかったとき・準備が止まったときは手で回す手順を添える）
+ */
+async function restoreBranchWorktree(
+  ctx: CommandContext,
+  branch: string,
+  dir: string,
+): Promise<string> {
+  const setup = ctx.config.worktree.setup;
+  const command = setup.join(" ");
+  const back = await runGit(ctx.repo.topLevel, ["worktree", "add", dir, branch], {
+    allowFailure: true,
+  });
+  if (back.code !== 0) {
+    const reason = back.stderr.trim().split("\n")[0] ?? "";
+    const then = setup.length > 0 ? `し、${dir} で ${command} を回す` : "";
+    return `マージに失敗し、消した worktree ${dir} を戻せなかった（${reason}）。git worktree add ${dir} ${branch} で戻す${then}`;
+  }
+  const head = `マージに失敗したので、消した worktree ${dir} を戻した（作業を続けられる）`;
+  if (setup.length === 0) return head;
+  const failure = await setupFailureIn(ctx, dir);
+  if (failure === null) return `${head}。準備のコマンド（${command}）も回し直した`;
+  return `${head}。ただ${failure}ので、${dir} で ${command} を手で回してから作業を続ける`;
 }
 
 /**
@@ -160,7 +192,7 @@ export const prMerge = defineCommand({
       .boolean()
       .optional()
       .describe(
-        "リモートとローカルの作業ブランチも消すか（gh pr merge --delete-branch）。省けば config の merge.delete_branch（既定は消さない）。消すときは、品質ゲート（検査を含む）を通した後、gh を呼ぶ前にブランチを checkout した worktree を消す（残っていると gh がローカルのブランチを消せない）。worktree は先に消さず、その worktree の外（main の worktree）から呼ぶ。この旗は付けるだけで、config が true のときに今回だけ消さない手段は CLI の旗にない（消したくないときは config の merge.delete_branch を false にする）",
+        "リモートとローカルの作業ブランチも消すか（gh pr merge --delete-branch）。省けば config の merge.delete_branch（既定は消さない）。消すときは、品質ゲート（検査を含む）を通した後、gh を呼ぶ前にブランチを checkout した worktree を消す（残っていると gh がローカルのブランチを消せない）。マージに失敗したら消した worktree を同じパスに戻して worktree.setup を回し直し、エラーの detail にその扱いを出す。worktree は先に消さず、その worktree の外（main の worktree）から呼ぶ。この旗は付けるだけで、config が true のときに今回だけ消さない手段は CLI の旗にない（消したくないときは config の merge.delete_branch を false にする）",
       ),
   }),
   write: false,
@@ -172,10 +204,24 @@ export const prMerge = defineCommand({
     const deleteBranch = input.delete_branch ?? ctx.config.merge.delete_branch;
     const warnings: string[] = [];
     // 検査（actions.test）は作業ブランチの worktree で回すので、worktree は品質ゲートを通した後に消す（先に消すと検査を回せない）
-    if (deleteBranch && ticket.branch) await removeBranchWorktree(ctx, ticket.branch, warnings);
+    const removedDir =
+      deleteBranch && ticket.branch
+        ? await removeBranchWorktree(ctx, ticket.branch, warnings)
+        : null;
     const args = ["pr", "merge", String(pr), `--${method}`];
     if (deleteBranch) args.push("--delete-branch");
-    await runGh(ctx.repo.topLevel, args, { timeoutMs: 120_000 });
+    try {
+      await runGh(ctx.repo.topLevel, args, { timeoutMs: 120_000 });
+    } catch (e) {
+      // マージに失敗したら消した worktree を戻し、その扱いを detail に出す（ブランチとデータを残して作業を続けられるように）
+      if (removedDir === null || !ticket.branch) throw e;
+      const kept = await restoreBranchWorktree(ctx, ticket.branch, removedDir);
+      throw new OperationError(
+        "GIT_ERROR",
+        `PR #${pr} のマージに失敗した（gh pr merge）`,
+        `${e instanceof Error ? (e.message.split("\n")[0] ?? "") : String(e)}\n${kept}`,
+      );
+    }
     const view: PrAdvanceView = {
       ticket: ticket.id,
       pr,
