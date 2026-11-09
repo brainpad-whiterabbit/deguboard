@@ -80,7 +80,7 @@ Click a row's speech bubble, choose what to ask for, and paste the copied reques
 
 ### Hand off everything
 
-Describe what you want to build with `/dgall --auto` (in Claude Code), and the agent creates tickets, plans, and implements them in one go. Watch the progress on the board, and click a plan's band to see its dependencies as a graph. For other agents, ask them to "read `dg guide all` and proceed to the end with `--auto`".
+Describe what you want to build with `/dgall --auto` (in Claude Code), and the agent creates tickets, plans, and implements them in one go. It stops where approval is needed, such as releases, deleting, abandoning, or closing tickets, and merging PRs unless `auto.merge` is on. Which other decisions proceed without stopping is set by `auto.decisions` in config. Watch the progress on the board, and click a plan's band to see its dependencies as a graph. For other agents, ask them to "read `dg guide all` and proceed to the end with `--auto`".
 
 <img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/run-all.gif" alt="Handing off everything" width="560">
 
