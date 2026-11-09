@@ -13,7 +13,17 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { createFixture } from "../../test/helpers/git-fixture.js";
 import type { Run } from "../model/run.js";
-import { peekRunningRuns, readTranscriptPaths, startRun } from "../run/record.js";
+import { toIsoDateTime } from "../model/common.js";
+import { unfixedLightLines } from "../run/findings.js";
+import {
+  bindTranscript,
+  peekRunningRuns,
+  putPendingReview,
+  putReviewRound,
+  readReviewFindings,
+  readTranscriptPaths,
+  startRun,
+} from "../run/record.js";
 import { runPath } from "../storage/paths.js";
 import { hooksOf } from "../agents/index.js";
 import { openContext, openContextFor } from "./context.js";
@@ -29,6 +39,7 @@ import {
   type HookView,
 } from "./hook.js";
 import {
+  runFinish,
   runList,
   runRetryReason,
   runReviewResult,
@@ -36,6 +47,7 @@ import {
   STALE_SESSION_ERROR,
   type RunView,
 } from "./run.js";
+import { next, type NextStep } from "./next.js";
 import { commit, configSet, init, sync } from "./setup.js";
 import { ticketClaim, ticketCreate, ticketUpdate } from "./ticket.js";
 import { runGit } from "../git/run.js";
@@ -1069,6 +1081,160 @@ describe("サブエージェントの止まりと再開（RN-7）", () => {
     expect(warnings).toContainEqual(expect.stringContaining("まだ閉じない"));
     expect(view.done.some((d) => d.includes("で閉じた"))).toBe(false);
     expect((await peekRunningRuns(ctx.repo))[0]!.settling_since).not.toBeNull();
+  });
+});
+
+describe("バックグラウンドで起動した見直し役（t638）", () => {
+  const prompt = "deguboard: ticket=t1 step=review\n\n見直す";
+  const stop = (ctx: CommandContext, file: string) =>
+    call(ctx, "SubagentStop", { session_id: SESSION, agent_id: "a1", agent_transcript_path: file });
+  const finding = (reason: string) => ({
+    severity: "light" as const,
+    category: "言い回し",
+    file: "a.ts",
+    line: 1,
+    reason,
+    fix: null,
+  });
+  const pendingFile = (ctx: CommandContext) => path.join(ctx.repo.localDir, "reviews", "t1.json");
+  /** 先に閉じられて書く先を失った見直し役の結果を、保留と保留の回（run が null）として置く（t637 で残った形） */
+  const holdPending = async (ctx: CommandContext, reason: string) => {
+    const review = { heavy: 0, light: 1, passed: true };
+    const at = toIsoDateTime(new Date());
+    await putPendingReview(ctx.repo, "t1", { review, at });
+    await putReviewRound(ctx.repo, "t1", { run: null, at, review, findings: [finding(reason)] });
+  };
+  const prLines = async (ctx: CommandContext) =>
+    unfixedLightLines((await readReviewFindings(ctx.repo, "t1"))!.rounds, undefined, []);
+
+  it("見直し役が動いている間は、親の run finish が interrupted のほかを拒み、止まったらフックが記録の全体とツールの回数を数えて閉じる", async () => {
+    const { ctx, parent, subagent } = await prepared();
+    await call(ctx, "PostToolUse", launched(parent, "a1", prompt));
+    const [opened] = await peekRunningRuns(ctx.repo);
+    await subagentRecord(subagent("a1"), prompt, 2, [
+      ...bashCall("git diff origin/main...HEAD", "diff"),
+      ...bashCall("mise run check", "ok"),
+    ]);
+    await expect(
+      runCommand(runFinish, ctx, { run: opened!.id, result: "success" }),
+    ).rejects.toMatchObject({ code: "REJECTED" });
+    // 動いている間に記録した結果は、保留にならずにフックの開いた Run に書く
+    const recorded = await runCommand(runReviewResult, ctx, {
+      ticket: "t1",
+      findings: [finding("名前が長い")],
+    });
+    expect(recorded.data).toMatchObject({ id: opened!.id, review: { light: 1 } });
+    expect(recorded.data).not.toHaveProperty("pending");
+
+    const { view } = await stop(ctx, subagent("a1"));
+    expect(view.done).toEqual([expect.stringContaining("success で閉じた")]);
+    const [run] = (await runCommand(runList, ctx, { ticket: "t1" })).data as RunView[];
+    expect(run).toMatchObject({
+      id: opened!.id,
+      result: "success",
+      usage: { input: 4 },
+      tools: { bash: 2 },
+      review: { heavy: 0, light: 1, passed: true },
+    });
+    expect(await prLines(ctx)).toHaveLength(1);
+    // dg next は閉じた見直しを 1 回と数え、待つ Run を返さない
+    const step = (await runCommand(next, ctx, { ticket: "t1" })).data as NextStep;
+    expect(step.stage).toMatchObject({ reviews: 1 });
+    expect(step.running_run).toBeNull();
+  });
+
+  it("起動と止まりのフックが重なって動いている印が残っても、止まって待っている印のある Run は run finish で閉じられる", async () => {
+    const { ctx, parent, subagent } = await prepared();
+    await call(ctx, "PostToolUse", launched(parent, "a1", prompt));
+    await subagentRecord(subagent("a1"), prompt, 1);
+    await stop(ctx, subagent("a1"));
+    const [waiting] = await peekRunningRuns(ctx.repo);
+    expect(waiting!.waiting_since).not.toBeNull();
+    // 起動のフックの live の書き込みが、止まりのフックの結び付け直しより後になった形
+    await bindTranscript(ctx.repo, waiting!.id, subagent("a1"), true);
+    const failed = await runCommand(runFinish, ctx, {
+      run: waiting!.id,
+      result: "failure",
+      error: "直さない",
+    });
+    expect(failed.data).toMatchObject({ result: "failure" });
+  });
+
+  it("返らないまま止まった Run は interrupted で閉じられ、止まって待っている Run は failure でも閉じられる", async () => {
+    const { ctx, parent, subagent } = await prepared();
+    await call(ctx, "PostToolUse", launched(parent, "a1", prompt));
+    const [first] = await peekRunningRuns(ctx.repo);
+    const closed = await runCommand(runFinish, ctx, { run: first!.id, result: "interrupted" });
+    expect(closed.data).toMatchObject({ result: "interrupted" });
+
+    await call(ctx, "PostToolUse", launched(parent, "a2", prompt));
+    await subagentRecord(subagent("a2"), prompt, 1);
+    // 結果の記録なしに止まった：止まって待っている印が付く
+    await call(ctx, "SubagentStop", {
+      session_id: SESSION,
+      agent_id: "a2",
+      agent_transcript_path: subagent("a2"),
+    });
+    const [waiting] = await peekRunningRuns(ctx.repo);
+    expect(waiting!.waiting_since).not.toBeNull();
+    const failed = await runCommand(runFinish, ctx, {
+      run: waiting!.id,
+      result: "failure",
+      error: "直さない",
+    });
+    expect(failed.data).toMatchObject({ result: "failure" });
+  });
+
+  it("保留の結果が残ったまま同じ見直しの Run に結果を記録すると、保留を消して回を 1 つにし、フックはもう結び付けない", async () => {
+    const { ctx, parent, subagent } = await prepared();
+    await call(ctx, "PostToolUse", launched(parent, "a1", prompt));
+    const [opened] = await peekRunningRuns(ctx.repo);
+    await holdPending(ctx, "名前が長い（保留）");
+    await runCommand(runReviewResult, ctx, { ticket: "t1", findings: [finding("名前が長い")] });
+    const rounds = (await readReviewFindings(ctx.repo, "t1"))!.rounds;
+    expect(rounds.map((r) => r.run)).toEqual([opened!.id]);
+    await expect(readFile(pendingFile(ctx), "utf8")).rejects.toThrow();
+
+    await subagentRecord(subagent("a1"), prompt, 1);
+    const { view } = await stop(ctx, subagent("a1"));
+    expect(view.done).not.toContainEqual(expect.stringContaining("保留の見直しの結果"));
+    expect(await prLines(ctx)).toEqual([expect.stringContaining("名前が長い")]);
+    const reviews = ((await runCommand(runList, ctx, { ticket: "t1" })).data as RunView[]).filter(
+      (r) => r.step === "review",
+    );
+    expect(reviews).toHaveLength(1);
+  });
+
+  it("結果のある見直しの Run を閉じるとき、その Run の間に置いた保留の結果と回は Run の結果に重ねず消す（t637 の順）", async () => {
+    const { ctx, parent, subagent } = await prepared();
+    await call(ctx, "PostToolUse", launched(parent, "a1", prompt));
+    const [opened] = await peekRunningRuns(ctx.repo);
+    await runCommand(runReviewResult, ctx, { ticket: "t1", findings: [finding("名前が長い")] });
+    await holdPending(ctx, "テスト名が長く、読み取りにくい");
+
+    await subagentRecord(subagent("a1"), prompt, 1);
+    const { view } = await stop(ctx, subagent("a1"));
+    expect(view.done).toEqual([expect.stringContaining("success で閉じた")]);
+    const rounds = (await readReviewFindings(ctx.repo, "t1"))!.rounds;
+    expect(rounds.map((r) => r.run)).toEqual([opened!.id]);
+    expect(await prLines(ctx)).toEqual([expect.stringContaining("名前が長い")]);
+    await expect(readFile(pendingFile(ctx), "utf8")).rejects.toThrow();
+  });
+
+  it("結果のない見直しの Run に保留の結果を結び付けるときは、保留の回をその Run の回にする", async () => {
+    const { ctx, parent, subagent } = await prepared();
+    await call(ctx, "PostToolUse", launched(parent, "a1", prompt));
+    const [opened] = await peekRunningRuns(ctx.repo);
+    await holdPending(ctx, "古い保留");
+    await holdPending(ctx, "新しい保留");
+
+    await subagentRecord(subagent("a1"), prompt, 1);
+    const { view } = await stop(ctx, subagent("a1"));
+    expect(view.done).toContainEqual(expect.stringContaining("保留の見直しの結果"));
+    const rounds = (await readReviewFindings(ctx.repo, "t1"))!.rounds;
+    expect(rounds.map((r) => [r.run, r.findings?.[0]?.reason])).toEqual([
+      [opened!.id, "新しい保留"],
+    ]);
   });
 });
 

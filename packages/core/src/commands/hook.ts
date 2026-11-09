@@ -4,8 +4,9 @@
 //     （届くのは親の Bash だけ。サブエージェントの claim・run start のセッションは Adapter の sessionFromEnv が補う）
 //   - subagent_launched：頼んだ文の先頭の印（deguboard: ticket=<id> step=<step>）があれば、その Run を開いて記録の場所をサブエージェントの記録にする（RN-7）。
 //     見直しは、別のセッションで開いたままの同じチケットの見直しの Run を先に interrupted で閉じる。
-//     開いたままの前の手直しの Run は、ほかの Run を開くときと同じく openRun が区切りとして閉じる（RN-6）
-//   - subagent_started：同じ記録の開いた Run（親への質問で止まっていたもの）を続きとして使い、止まって待っている印と書き終わり待ちの印を消す
+//     開いたままの前の手直しの Run は、ほかの Run を開くときと同じく openRun が区切りとして閉じる（RN-6）。
+//     バックグラウンドの起動は、止まるまで動いている印（live）を付ける。印のある間は run finish が interrupted のほかで閉じない（RN-7）
+//   - subagent_started：同じ記録の開いた Run（親への質問で止まっていたもの）を続きとして使い、止まって待っている印と書き終わり待ちの印を消し、動いている印を付ける
 //   - subagent_stopped：記録の場所で Run を引き、記録の最初の文の印で照らしてから、step を終えた事実があれば記録の書き終わりを待って
 //     記録の全体から数えて閉じる。事実がなければ閉じずに止まって待っている印を付ける。
 //     前景のサブエージェントが Run のないうちに保留にした見直しの結果とやり直しの理由は、閉じる前の Run に結び付ける。
@@ -30,6 +31,7 @@ import { ticketIdSchema, type TicketId } from "../model/id.js";
 import { REVIEW_STEP, type Run, type RunId, type RunResult } from "../model/run.js";
 import type { Ticket } from "../model/ticket.js";
 import {
+  adoptPendingRounds,
   amendRunning,
   appendRetryReasons,
   bindTranscript,
@@ -340,9 +342,11 @@ async function subagentLaunched(
     warnings.push(`${marker.ticket} の ${marker.step} の Run を開いていない: ${e.message}`);
     return;
   }
+  if (!event.transcript) return;
   // 前景の起動はもう終わっている（終わりの出来事は先に来て、閉じる Run がなかった）ので、ここで閉じる
-  if (event.finished && event.transcript)
-    await stopSubagentRun(ctx, agent, run, event.transcript, view, warnings);
+  if (event.finished) await stopSubagentRun(ctx, agent, run, event.transcript, view, warnings);
+  // バックグラウンドの起動は、止まるまで動いている印を付ける。印のある間は run finish が閉じない（t638）
+  else await bindTranscript(ctx.repo, run.id, event.transcript, true);
 }
 
 /**
@@ -543,9 +547,11 @@ async function bindPending(
   ticket: Ticket | undefined,
   view: HookView,
 ): Promise<Run> {
-  if (run.step === REVIEW_STEP && run.review === null) {
+  if (run.step === REVIEW_STEP) {
+    // Run に結果があれば、保留の結果は同じ見直しの重なりなので消す（Run の結果を残す。t638）
     const review = await takePendingReview(ctx.repo, run.ticket, run.started_at);
-    if (!review) return run;
+    await adoptPendingRounds(ctx.repo, run.ticket, run.id, run.started_at);
+    if (!review || run.review !== null) return run;
     view.done.push(`${run.ticket} の保留の見直しの結果を Run ${run.id} に結び付けた`);
     return amendRunning(ctx.repo, run.id, { review });
   }
@@ -671,6 +677,8 @@ async function subagentStarted(
   await amendRunning(ctx.repo, run.id, { waiting_since: null });
   // 続きの作業があるので、書き終わり待ちもやめる（次の Stop がもう一度決める）
   if (run.settling_since !== null) await amendRunning(ctx.repo, run.id, { settling_since: null });
+  // 次に止まるまで動いている（run finish が閉じない。t638）
+  await bindTranscript(ctx.repo, run.id, event.transcript, true);
   view.done.push(`${run.ticket} の ${run.step} の Run ${run.id} を続きとして使う（印を消した）`);
 }
 

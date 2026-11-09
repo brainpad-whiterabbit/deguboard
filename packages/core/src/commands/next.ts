@@ -303,7 +303,12 @@ export function nextOf(ctx: CommandContext, facts: StageFacts): NextStep {
       kind,
       step,
       running_run: running ?? awaited,
-      commands: awaited ? [`実行中の Run ${awaited} の終わりを待つ（新しく起動しない）`] : commands,
+      // 印で頼んだサブエージェントの Run はフックが閉じる。親が先に閉じると、その後の作業と見直しの結果を失う（t638）
+      commands: awaited
+        ? [
+            `実行中の Run ${awaited} の終わりを待つ（新しく起動しない。印で頼んだサブエージェントなら、終わりの通知を待つ。Run はフックが閉じるので run finish で閉じない）`,
+          ]
+        : commands,
       model: MODEL_KINDS.includes(kind) ? modelOf(details?.tier, ctx.config.models) : null,
       ask_human: ask,
       brief: null,
