@@ -1,13 +1,16 @@
 # ADR-025 Run は harness のフックが印で開け閉めし、step を終えた事実で閉じる
 
 - ステータス：承認
-- 更新日：2026-11-08
+
+## 要約
+
+Run は harness のフックが印で開け、step を終えた事実で閉じる。サブエージェントの Run は頼む文の印 `deguboard: ticket=<id> step=<step>` で開き、止まったサブエージェントは事実がなければ閉じずに待つ。落ちたセッションの残りは、次の開始が interrupted で閉じる。
 
 ## 背景
 
-ADR-004 と ADR-005（今は [ADR-028](ADR-028-agents-and-state.md) と [ADR-029](ADR-029-work-metrics.md) にまとめ直した）は、Run をエージェント自身が `run start`・`ticket claim` で開き、`run finish` で閉じる受動型にした。2026-11 の調査で、見直し役が見直しを終えてから `run start` を呼ぶため、見直しの Run の使用量が約 2 割しか入らないことが分かった（成功した見直し 368 件のうち 48 件が出力 300 トークン未満）。自己申告では、開き忘れ・開く時刻の遅れ・閉じ忘れを防げない。
+Run をエージェント自身が `run start`・`ticket claim` で開き、`run finish` で閉じると、2026-11 の調査で、見直し役が見直しを終えてから `run start` を呼ぶため、見直しの Run の使用量が約 2 割しか入らないことが分かった（成功した見直し 368 件のうち 48 件が出力 300 トークン未満）。自己申告では、開き忘れ・開く時刻の遅れ・閉じ忘れを防げない。
 
-そこで harness（今は Claude Code）のフックが Run を開け閉めする形にしたが、その判断と、止まったサブエージェント・落ちたセッション・前景の起動・手直しの区切りの扱いが ADR-012〜018・022 の 8 本に散り、端のケースごとに ADR が増えた。[ADR-001](ADR-001-doc-strategy.md) の基準で、今の判断と理由だけをこの 1 本にまとめ直す。
+そこで harness（今は Claude Code）のフックが Run を開け閉めする。止まったサブエージェント・落ちたセッション・前景の起動・手直しの区切りの扱いも、この 1 本に今の判断として書く。
 
 ## 決定
 
@@ -53,12 +56,6 @@ ADR-004 と ADR-005（今は [ADR-028](ADR-028-agents-and-state.md) と [ADR-029
 - `packages/core/src/commands/hook.ts`（冒頭にイベントごとの扱い）・`packages/core/src/agents/adapters/claude-code-hooks.ts`（Claude Code のフックの入力と発火の順）
 - `packages/core/src/commands/run.ts`（`openRun`・`closePreviousFixRun`・`sessionOf`・`run review-result`・`run retry-reason`）・`packages/core/src/run/record.ts`（保留と実行中の記録）・`packages/core/src/commands/setup.ts`（照合の区切り）
 - `packages/core/src/commands/hook.test.ts`・`run.test.ts`・`commands-flow-reclaim.test.ts`・`packages/core/src/agents/agents.test.ts`
-
-### 置き換えるもの
-
-- ADR-012〜018・022 の全体
-- ADR-004 の「Run は受動型で記録する」のうち、Run を agent の `ticket claim` か `dg run start` で開き、エージェント（または Skill）が `dg run finish` で閉じる文の全体と、自動復旧はしない項
-- ADR-005 の「実装・見直し・手直しを別の Run にする」と「会話記録を Run に結び付ける」のうち、ADR-012・018 が置き換えた項（失効の印の先をこの ADR にする）と、手直しの Run の開き方と閉じ方の項の全体
 
 ## 理由
 

@@ -1,7 +1,10 @@
 # ADR-008 技術構成と開発環境
 
 - ステータス：承認
-- 更新日：2026-11-06
+
+## 要約
+
+言語は TypeScript（Node.js 24・pnpm workspace）、画面は React、VS Code 拡張は Vite で 1 つの CommonJS に束ねる。作業のコマンドは `mise run` に統一し、CI は使わずローカルの `mise run check` をマージの条件にする。lint は oxlint、整形は oxfmt を使う。
 
 ## 背景
 

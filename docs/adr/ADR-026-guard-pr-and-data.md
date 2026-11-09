@@ -1,13 +1,14 @@
 # ADR-026 PR とデータを守る正しい道は dg のコマンドにし、フックは語の有無で粗く止め、すり抜けは事後に見つける
 
 - ステータス：承認
-- 更新日：2026-11-08
+
+## 要約
+
+PR を進めるのは dg のコマンド（`dg pr ready`・`dg pr merge`）だけにし、品質ゲートを満たすときだけ gh を呼ぶ。ツールを使う前のフックは語の有無で粗く止め、フックをすり抜けた変更は、データの dg の外の変更として事後の検査が見つけて書き込みを止める。
 
 ## 背景
 
 品質ゲート（`dg gate`、EX-3）を守らせることと、データのリポジトリ（`.git/deguboard/`）を dg の外で書かせないことのために、t532 でツールを使う前のフック（PreToolUse）が Bash のコマンドを字句に分け、`gh pr merge`・`gh pr ready` と PR の指定、`.git/deguboard/` への書き込みを読み分ける形にした。読み違えは通す側に倒れ、見直しのたびに抜け道が見つかった。止めすぎを減らすために文字と言い切れる部分を伏せる形（t545）にしても、伏せた所が次の抜け道になった。
-
-その判断が ADR-019〜021 の 3 本に散り、互いに節と項を置き換え合った。[ADR-001](ADR-001-doc-strategy.md) の基準で、今の判断と理由だけをこの 1 本にまとめ直す。
 
 ## 決定
 
@@ -42,11 +43,6 @@
 - `packages/core/src/commands/hook.ts`（`advancesPrOutsideDg`・`touchesDataDir`・`toolRequested`・`turnStopped`）
 - `packages/core/src/git/outside.ts`（基準と比べ方・戻し方）・`packages/core/src/git/write.ts`（`withWriteLock`）・`packages/core/src/commands/define.ts`（`runCommand` の検査）
 - `packages/core/src/commands/pr.test.ts`・`gate.test.ts`・`hook.test.ts` の「PreToolUse」・`packages/core/src/git/outside.test.ts`
-
-### 置き換えるもの
-
-- ADR-019〜021 の全体
-- ADR-004 の「ツールはエージェントを起動も監視もしない」の節の主体の項のうち、ADR-019 が置き換えた部分（失効の印の先をこの ADR にする）
 
 ## 理由
 

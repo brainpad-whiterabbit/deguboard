@@ -1,11 +1,14 @@
 # ADR-027 人の画面は VS Code 拡張にし、画面から書くのはチケット詳細と設定だけで、ほかはエージェントに頼む
 
 - ステータス：承認
-- 更新日：2026-11-08
+
+## 要約
+
+人の画面は VS Code 拡張（サイドバーとエディタのパネル）だけにし、`dg serve` は開発用に残す。画面から直接書くのはチケット詳細・設定・同期だけで、ほかの変更はエージェントへの依頼文をコピーするか開いているターミナルへ送って渡す。
 
 ## 背景
 
-カンバン・バックログ・詳細を人が見て直す画面について、画面の構成と配り方を [ADR-006](ADR-006-ui-and-writes.md) が、画面から書く範囲とエージェントへの依頼を [ADR-010](ADR-010-ui-writes-and-agent-requests.md) が、入口を VS Code 拡張に絞ることを [ADR-023](ADR-023-screen-entry-vscode.md) が決めた。ADR-010 は ADR-006 の書き込みの範囲を反転し、ADR-023 は ADR-006 と ADR-010 のブラウザの部分を失効させたので、今の判断を知るのに 3 本を照らす必要があった。ADR-006 の採らなかった案と理由には、失効の印のないままブラウザを入口とする記述も残った。[ADR-001](ADR-001-doc-strategy.md) の基準で、今の判断と理由だけをこの 1 本にまとめ直す。
+カンバン・バックログ・詳細を人が見て直す画面について、入口・画面の構成・画面から書く範囲・エージェントへの依頼の形を決める。
 
 ## 決定
 
@@ -64,10 +67,6 @@
 - 書き込みの範囲と設定：`packages/web/src/write-commands.test.ts`・`pages/ticket.tsx`・`components/ticket-props-panel.tsx`・`pages/config.tsx`・`packages/core/src/model/config.ts`・`packages/core/src/git/write.ts`
 - 依頼と入口：`packages/core/src/commands/ask.ts`（`ask`・`ask-menu`・`SKILL_SUMMARY`）・`packages/web/src/components/ask-menu.tsx`・`ask-composer.tsx`・`row-nav.tsx`・`packages/vscode/src/terminals.ts`・`context-menu.ts`
 - テスト：`packages/core/src/commands/ask.test.ts`・`client.test.ts`・`local.test.ts`・`packages/web/src/app.test.tsx`・`pages/config.test.tsx`・`components/ask-menu.test.tsx`・`ask-composer.test.tsx`・`packages/vscode/src/terminals.test.ts`・`context-menu.test.ts`・`dg.test.ts`・`test/layout/`
-
-### 置き換えるもの
-
-- ADR-006・ADR-010・ADR-023 の全体
 
 ## 理由
 
