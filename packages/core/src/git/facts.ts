@@ -74,7 +74,7 @@ async function baseRef(repo: GitRepo): Promise<string | undefined> {
 }
 
 /**
- * 記録しようとするブランチ名に、前の作業でマージ済みのブランチが残っているか（ADR-028）。
+ * 記録しようとするブランチ名に、前の作業でマージ済みのブランチが残っているか（ST-3）。
  * 残ったブランチの先端は base の真の祖先なので、同じ名前で claim すると照合が branch_merged で done にする。
  * 残っていればその ref を返す。先端が base と同じ（切ったばかり）・base にない作業がある・ref がないときは undefined。
  * claim の取り込みは deguboard ブランチだけなので、ここで base と対象のブランチを取り込む。取り込めなければ手元の ref で判定する

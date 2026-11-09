@@ -28,5 +28,5 @@ export const runPath = (id: string): string => `${DIRS.runs}/${id}.json`;
 /** Run の会話記録のパス。deguboard-local/（Git 管理外）からの相対パス。Run を閉じた後も run refresh の期間は残す（run/record.ts） */
 export const TRANSCRIPTS_DIR = "transcripts";
 export const transcriptPath = (id: string): string => `${TRANSCRIPTS_DIR}/${id}.json`;
-/** ストアの読みの結果のキャッシュ（ADR-033）。deguboard-local/（Git 管理外）からの相対パス。消してもよい */
+/** ストアの読みの結果のキャッシュ（CLI は毎回別のプロセスなので、変わったファイルだけを読むため）。deguboard-local/（Git 管理外）からの相対パス。消してもよい */
 export const STORE_CACHE_DIR = "store-cache";

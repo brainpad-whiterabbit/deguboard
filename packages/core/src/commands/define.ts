@@ -61,7 +61,7 @@ export interface CommandDef<I extends z.ZodType, O> {
    */
   storeless?(input: z.output<I>, env: Readonly<Record<string, string | undefined>>): boolean;
   /**
-   * dg の外の変更の検査（ADR-026）を runCommand で行わない。自分で扱うコマンドだけが付ける（取り込む dg adopt と、
+   * dg の外の変更の検査（SY-7）を runCommand で行わない。自分で扱うコマンドだけが付ける（取り込む dg adopt と、
    * Stop で確かめてエージェントに返し、ほかのイベントで作業を止めない dg hook）
    */
   ownsOutsideCheck?: boolean;
@@ -91,7 +91,7 @@ export function deniedToAgent(ctx: CommandContext, command: string): boolean {
  * 入力を検証してから実行する。形の誤りは UsageError（終了コード 2）。
  * config の actor.human_only に入ったコマンドは agent から拒否する（全入口がここを通るので検査は 1 か所）。
  * ストアを開いていない文脈（storeless）では config がないので検査しない。
- * データのリポジトリに dg の外の変更（ADR-026）があれば、書くコマンドは OUTSIDE_CHANGES で止め、読むだけのコマンドは警告を足す
+ * データのリポジトリに dg の外の変更（SY-7）があれば、書くコマンドは OUTSIDE_CHANGES で止め、読むだけのコマンドは警告を足す
  * （ストアを開かない文脈・初期化の前に動く needs: repo・検査を自分で扱うコマンドでは見ない）。
  * ここはロックの外なので、書く前の決め手はデータに書くときの書き込みのロックの中の検査（withWriteLock）で、ここは早く知らせるだけ
  */

@@ -74,7 +74,7 @@ import {
 } from "./run.js";
 
 const TEMPLATE_IDS = WORKFLOW_TEMPLATES.map((t) => t.id) as [string, ...string[]];
-/** 見直し役の Run の step（ADR-029。同梱の software-development と general の steps の id） */
+/** 見直し役の Run の step（RN-1。同梱の software-development と general の steps の id） */
 const REVIEW_STEP = "review";
 
 export const init = defineCommand({
@@ -458,8 +458,8 @@ export const sync = defineCommand({
   needs: "store",
   async run(ctx, input) {
     const synced = await syncLocked(ctx, input.resolve);
-    // 記録の書き終わりを待ちきれずに残したサブエージェントの Run を閉じる（ADR-025）。閉じる書き込みは write のロックを取るので、外してから行う。
-    // 別のセッションの見直しの Run は閉じない（前景の見直し役が今回の結果を書いているかもしれない。ADR-025）。
+    // 記録の書き終わりを待ちきれずに残したサブエージェントの Run を閉じる（RN-7）。閉じる書き込みは write のロックを取るので、外してから行う。
+    // 別のセッションの見直しの Run は閉じない（前景の見直し役が今回の結果を書いているかもしれない）。
     // セッションの分からない sync（人が端末や画面から呼ぶもの）は閉じるので、人が前景の見直しの最中に呼ぶ場合は防げない
     const closing: string[] = [];
     const view: HookView = { event: "sync", done: [] };
@@ -471,7 +471,7 @@ export const sync = defineCommand({
 /**
  * sync の本体（write のロックの中）。resolve があれば、振り直し → まとめ待ちのコミット → 選んだ側での取り込みの順に行う
  * （振り直しは未 push のコミットを積み直すので、まとめ待ちの変更を退けてから行い、番号を書き換えて戻してからコミットする）。
- * 書き換えた履歴と作業ツリーは、withWriteLock がロックを放す前に dg の外の変更の基準に記録する（ADR-026）
+ * 書き換えた履歴と作業ツリーは、withWriteLock がロックを放す前に dg の外の変更の基準に記録する（dg 自身の書き換えを外の変更とみなさないため。SY-8）
  */
 async function syncLocked(ctx: CommandContext, resolve?: ResolveSide) {
   return withWriteLock(ctx.repo, async () => {
@@ -662,7 +662,7 @@ export const adopt = defineCommand({
   name: "adopt",
   group: "setup",
   summary:
-    "データのリポジトリの dg の外の変更（未コミットの変更と、印のないコミット。ADR-026）を取り込む。dg validate と同じ検査でエラーがなければ、" +
+    "データのリポジトリの dg の外の変更（未コミットの変更と、印のないコミット）を取り込む。dg validate と同じ検査でエラーがなければ、" +
     "今の状態を以後の検査の基準にする（未コミットの変更は、まとめ待ちの変更として次の dg commit・dg sync でコミットされる）。エラーがあれば VALIDATION_FAILED で取り込まない。" +
     "捨てるなら、人が deguboard worktree（.git/deguboard）で git restore --staged --worktree と git reset --keep <基準の HEAD> で戻し（基準の HEAD は検査の文に出る）、そのあと dg adopt で今の状態を基準にする（エージェントの扱いは dg guide overview の「dg の外の変更」）",
   input: z.object({}),

@@ -41,7 +41,7 @@ export interface RunMetrics {
   /** 推定の値（usage.estimated）を含む Run の数。0 でなければ合計も推定を含む */
   estimated_runs: number;
   /**
-   * 見直しの結果（review。ADR-025）。recorded は結果のある Run の数、passed はそのうち通った数、heavy・light は指摘の数の合計。
+   * 見直しの結果（review。RN-9）。recorded は結果のある Run の数、passed はそのうち通った数、heavy・light は指摘の数の合計。
    * 結果のない Run（見直し以外の step と、結果を記録せずに終わった見直し）は数えない
    */
   reviews: { recorded: number; passed: number; heavy: number; light: number };

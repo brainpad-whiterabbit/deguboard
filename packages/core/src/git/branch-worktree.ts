@@ -62,7 +62,7 @@ export async function createBranchWorktree(
 }
 
 /**
- * ブランチ branch の worktree を用意して場所を返す（claim。ADR-031）。既にそのブランチの worktree があればそれを返し、
+ * ブランチ branch の worktree を用意して場所を返す（claim。ST-3）。既にそのブランチの worktree があればそれを返し、
  * ローカルにブランチだけ残っていれば（unclaim の後など）そのブランチを dir に checkout し、なければ base から切って dir に作る。
  * created は今作ったかどうか（既存のものは false）。worktree.setup を回すかの判断に使う（t621）
  */

@@ -104,7 +104,7 @@ describe("プロセス内の CommandClient", () => {
     expect(lastScan().reused).toBeGreaterThan(0);
   });
 
-  it("CLI と同じ経路（openContext）で開き直すと、前の呼び出しが残した結果を使い、変わっていないファイルを読み直さない（ADR-033）", async () => {
+  it("CLI と同じ経路（openContext）で開き直すと、前の呼び出しが残した結果を使い、変わっていないファイルを読み直さない", async () => {
     const f = await initialized();
     const cli = () => openContext({ cwd: f.cloneA, actions: ["run_tests"] });
     const create = commands.find((c) => c.name === "ticket.create")!;

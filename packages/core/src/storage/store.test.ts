@@ -430,7 +430,7 @@ describe("Store", () => {
   });
 });
 
-describe("ディスクに残した読みの結果（ADR-033）", () => {
+describe("ディスクに残した読みの結果", () => {
   /** 比べる索引の中身。キャッシュの有無で同じになることを確かめる */
   const contents = (store: Store) => ({
     tickets: [...store.tickets.values()],

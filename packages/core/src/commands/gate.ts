@@ -1,5 +1,5 @@
 // 品質ゲート（EX-3、ADR-011）。guide-review の品質ゲートのうち、記録と Git・PR の事実で判定できるものをコードで判定する。
-// 判定は保存せず、呼ぶたびに事実から求める。dg pr ready・dg pr merge が gh を呼ぶ前に呼ぶ（pr.ts。ADR-026）
+// 判定は保存せず、呼ぶたびに事実から求める。dg pr ready・dg pr merge が gh を呼ぶ前に呼ぶ（pr.ts。EX-6）
 
 import { z } from "zod";
 import { fetchPrGateFacts, lastPushedAt } from "../git/facts.js";

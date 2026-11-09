@@ -2,7 +2,7 @@
 
 import { z } from "zod";
 
-/** 全ワークフロー共通の 5 つの Status（WF-1、ADR-003） */
+/** 全ワークフロー共通の 5 つの Status（WF-1） */
 export const STATUSES = ["todo", "in_progress", "review", "done", "abandoned"] as const;
 export type Status = (typeof STATUSES)[number];
 export const statusSchema = z.enum(STATUSES);

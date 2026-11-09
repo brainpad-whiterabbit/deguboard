@@ -4,7 +4,7 @@
 //     closeRun をその操作の書き込みの中で呼び、同じコミットに入れる
 //   - 同じチケットと step の二重の start は、deguboard-local/locks/ のロックの中で実行中の記録を見て拒否する
 //   - チケットの frontmatter には書き足さない。チケットの Run は Run の ticket から引く（書き足すと Run のたびにチケットが衝突する）
-//   - 会話記録のパスは Run に書かず、deguboard-local/transcripts/<id>.json に置く（ADR-029）。ホームのパスとユーザ名を含み、
+//   - 会話記録のパスは Run に書かず、deguboard-local/transcripts/<id>.json に置く（RN-3）。ホームのパスとユーザ名を含み、
 //     別のマシンでは読めないので Git に入れない。閉じた後の run refresh も同じファイルから数えるので、Run を閉じても消さず、
 //     終了の時刻（finished_at）から TRANSCRIPT_RETENTION_DAYS を過ぎたものと Run のない ID のものを run prune-transcripts が消す
 
@@ -37,7 +37,7 @@ import { DIRS, runPath, TRANSCRIPTS_DIR, transcriptPath } from "../storage/paths
 import type { Store } from "../storage/store.js";
 
 /**
- * 書く先の見直しの Run がまだないときに置く、保留の見直しの結果（deguboard-local/reviews/<ticket>.json。ADR-025）。
+ * 書く先の見直しの Run がまだないときに置く、保留の見直しの結果（deguboard-local/reviews/<ticket>.json。RN-9）。
  * 前景で起動した見直し役は、動いている間に Run がない（フックが終わった後に開いて閉じる）。フックが見直しの Run を閉じるとき、
  * その Run の開始より後に置いた結果を結び付けて消す。Git には入れない
  */
@@ -65,7 +65,7 @@ export async function putPendingReview(
 
 /**
  * 保留の見直しの結果を取り出して消す。since（Run の開始）より前に置いたものは前の回のものなので、使わずに消す。
- * 保留はチケットごとに 1 つで、同じチケットの前景の見直し役を並べて動かすことは扱わない（ADR-025）
+ * 保留はチケットごとに 1 つで、同じチケットの前景の見直し役を並べて動かすことは扱わない
  */
 export async function takePendingReview(
   repo: Pick<GitRepo, "localDir">,
@@ -88,7 +88,7 @@ export async function takePendingReview(
 /**
  * 見直しの指摘の一覧（run review-result）の置き場所：deguboard-local/review-findings/<ticket>.json。見直しの回ごとに 1 つ置き、回の順に並べる。
  * Git の Run には数と通ったか（review）だけを書き、一覧は書かない。理由：
- *   - 作業の記録として Git に写すのは数だけにする（ADR-029）。品質ゲートと修正ループの回数（dg gate）も数だけで決まる（ADR-025）
+ *   - 作業の記録として Git に写すのは数だけにする（MT-4）。品質ゲートと修正ループの回数（dg gate）も数だけで決まる（RN-9）
  *   - 一覧は指摘の文・パス・直し方の長い文で、回ごとに変わる。使うのは同じマシンの親が組む手直しの文と PR の本文だけ（t600）
  *   - 閉じた Run は書き換えない（RN-4）ので、前景の見直し役のように Run より先に結果が来る形では、Run に一覧を後から足せない
  *   - 回ごとに残すのは、PR の本文に 1 回目の軽い指摘も載せるため（手直しに渡さなかった軽い指摘は、次の回の一覧には出ない）
@@ -151,7 +151,7 @@ const RUN_LOCK = "runs";
 type RunDirs = Pick<GitRepo, "localDir" | "dataDir">;
 
 /**
- * 書き足す先の手直しの Run がまだないときに置く、保留のやり直しの理由（deguboard-local/retry-reasons/<ticket>.json。ADR-025）。
+ * 書き足す先の手直しの Run がまだないときに置く、保留のやり直しの理由（deguboard-local/retry-reasons/<ticket>.json。RN-8）。
  * 前景で起動した手直しのサブエージェントは、動いている間に Run がない（フックが終わった後に開いて閉じる）。フックが手直しの Run を
  * 閉じるとき、その Run の開始より後に置いた理由を結び付けて消す。呼ぶたびに書き足す。Git には入れない
  */
@@ -207,7 +207,7 @@ export async function putPendingRetryReasons(
 
 /**
  * 保留のやり直しの理由を取り出して消す。since（Run の開始）より前に置いたものは前の回のものなので、使わずに消す。
- * 保留はチケットごとで、同じチケットの前景の手直しを並べて動かすことは扱わない（ADR-025）
+ * 保留はチケットごとで、同じチケットの前景の手直しを並べて動かすことは扱わない
  */
 export async function takePendingRetryReasons(
   repo: Pick<GitRepo, "localDir">,
@@ -223,7 +223,7 @@ export async function takePendingRetryReasons(
 }
 
 /**
- * 実行中の Run のやり直しの理由に書き足し、回数を理由の数にする（ADR-025。run retry-reason と、フックの保留の結び付け）。
+ * 実行中の Run のやり直しの理由に書き足し、回数を理由の数にする（RN-8。run retry-reason と、フックの保留の結び付け）。
  * 実行中の記録がなければ NOT_FOUND、集計を書いた後なら REJECTED
  */
 export async function appendRetryReasons(
@@ -378,7 +378,7 @@ export async function readTranscriptPaths(
   return paths;
 }
 
-/** Run の会話記録のパスを置き換える（フックがサブエージェントの記録を結び付けるとき。ADR-025）。パスは絶対パスにする */
+/** Run の会話記録のパスを置き換える（フックがサブエージェントの記録を結び付けるとき。RN-7）。パスは絶対パスにする */
 export async function bindTranscript(
   repo: Pick<GitRepo, "localDir">,
   id: RunId,
@@ -463,8 +463,8 @@ export async function pruneTranscripts(
 }
 
 /**
- * 実行中の Run を直す。チケットと step はフックが開いた Run をサブエージェントの記録の印で照らして直すとき（ADR-025）、
- * review は見直し役が見直しの結果を書くとき（ADR-025）、waiting_since は止まって待っている印を付け外しするとき（ADR-025）。実行中の記録がなければ NOT_FOUND、集計を書いた後なら REJECTED
+ * 実行中の Run を直す。チケットと step はフックが開いた Run をサブエージェントの記録の印で照らして直すとき（RN-7）、
+ * review は見直し役が見直しの結果を書くとき（RN-9）、waiting_since は止まって待っている印を付け外しするとき（RN-7）。実行中の記録がなければ NOT_FOUND、集計を書いた後なら REJECTED
  */
 export async function amendRunning(
   repo: RunDirs,
@@ -491,10 +491,10 @@ export async function amendRunning(
 }
 
 /**
- * 実行中の Run に since より後に書かれた見直しの結果を、その Run から外して保留に移す（ADR-025）。
+ * 実行中の Run に since より後に書かれた見直しの結果を、その Run から外して保留に移す（RN-9）。
  * 別のセッションの見直しの Run を閉じる前に、前景の見直し役がその Run に書いてしまった今回の結果を、新しい Run に回すため。
  * 書かれた時刻は実行中の記録のファイルの更新時刻で見る（別のセッションの見直しの Run は、結果を書く操作とそのセッションのフック・
- * 次の見直しの起動のほかに更新されない。dg sync も閉じない。ADR-025）。
+ * 次の見直しの起動のほかに更新されない。dg sync も閉じない）。
  * 移したら保留の結果を、移さなければ undefined を返す
  */
 export async function moveReviewToPending(
@@ -579,7 +579,7 @@ export interface FinishRunInput {
   error?: string | null | undefined;
   /**
    * ロックの中で読み直した実行中の記録から結果を決め直す（result・error より先）。フックが見直しの成否を結果の記録で決めるとき、
-   * 読んでから閉じるまでの間に書かれた結果を取りこぼさないため（ADR-025）
+   * 読んでから閉じるまでの間に書かれた結果を取りこぼさないため
    */
   decide?: ((local: Run) => { result: RunResult; error?: string | null | undefined }) | undefined;
   retries?: number | undefined;
@@ -665,7 +665,7 @@ async function closeRunLocked(
     },
     tools: input.tools === undefined ? local.data.tools : input.tools,
   };
-  // 止まって待っている印は実行中のものだけで、閉じた Run（Git）には書かない（ADR-025）
+  // 止まって待っている印は実行中のものだけで、閉じた Run（Git）には書かない（RN-3）
   delete closed["waiting_since"];
   delete closed["settling_since"];
   // 別のプロセスが先に閉じていないか、ファイルで確かめる（索引は古いことがある）

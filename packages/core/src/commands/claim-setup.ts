@@ -1,5 +1,5 @@
 // claim に付く準備（ST-3）：Iteration への追加と開始、作業ブランチの worktree の作成と、その worktree での準備のコマンド（worktree.setup）。
-// 親のエージェントが claim の前後に文で打っていた手を claim の中に入れ、規則を毎回同じに守る（ADR-030）。
+// 親のエージェントが claim の前後に文で打っていた手を claim の中に入れ、規則を毎回同じに守る（ADR-031）。
 // どれも claim の排他（push）の成否とは別の都合なので、できなくても claim は失敗させず warnings で伝える
 
 import path from "node:path";
@@ -134,7 +134,7 @@ export async function runSetupInWorktree(
 }
 
 /**
- * claim したブランチの worktree を用意して場所を返す（手順は git の層の ensureBranchWorktree。ADR-031）。
+ * claim したブランチの worktree を用意して場所を返す（手順は git の層の ensureBranchWorktree。ST-3）。
  * created は今作ったかどうか（既存のものは false）。worktree.setup はここでは回さず、呼ぶ側が Run を開いた後に runSetupInWorktree で回す。
  * 作れなければ warnings に理由を書いて null
  */
