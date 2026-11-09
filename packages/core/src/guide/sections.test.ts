@@ -60,7 +60,7 @@ describe("guide の節の切り出し", () => {
     expect(findGuideSection("work", body, "実装する").heading).toBe("実装する（draft の PR まで）");
   });
 
-  it("ない節は使い方の誤りとして、そのトピックの節の名前の一覧を返す", () => {
+  it("ない節は使い方の誤りとして一覧を添えて失敗する", () => {
     let error: unknown;
     try {
       findGuideSection("work", body, "ない節");

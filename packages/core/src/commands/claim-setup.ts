@@ -105,13 +105,14 @@ export async function prepareWorktreeForClaim(
   warnings: string[],
 ): Promise<string | null> {
   const repo = ctx.repo;
+  // 作れなかったときの警告に場所を出すので、try の外で決める（依頼の path か既定の場所。t617）
+  const dir = path.resolve(
+    repo.topLevel,
+    requestedPath ?? defaultWorktreePath(repo, ctx.config.worktree.root, branch),
+  );
   try {
     const existing = await findBranchWorktree(repo, branch);
     if (existing) return existing;
-    const dir = path.resolve(
-      repo.topLevel,
-      requestedPath ?? defaultWorktreePath(repo, ctx.config.worktree.root, branch),
-    );
     const local = await runGit(
       repo.topLevel,
       ["show-ref", "--verify", "--quiet", `refs/heads/${branch}`],
@@ -126,7 +127,7 @@ export async function prepareWorktreeForClaim(
   } catch (error) {
     const reason = error instanceof Error ? error.message.split("\n")[0] : String(error);
     warnings.push(
-      `ブランチ ${branch} の worktree を作れなかった（${reason}）。claim は済んでいるので、worktree を手で作って続ける`,
+      `ブランチ ${branch} の worktree を作れなかった（${reason}）。claim は済んでいるので、worktree を ${dir} に手で作って続ける`,
     );
     return null;
   }

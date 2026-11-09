@@ -225,8 +225,10 @@ describe("claim の worktree の作成", () => {
       worktree_path: dir,
     });
     expect(blocked.data).toMatchObject({ status: "in_progress", worktree: null });
+    // 警告は手で作る場所（依頼の path）も書く。作れなかったときに場所が分かるように（t617）
     expect(blocked.warnings.join("\n")).toContain(
-      "ブランチ feat/blocked の worktree を作れなかった",
+      `ブランチ feat/blocked の worktree を作れなかった`,
     );
+    expect(blocked.warnings.join("\n")).toContain(`worktree を ${dir} に手で作って続ける`);
   });
 });
