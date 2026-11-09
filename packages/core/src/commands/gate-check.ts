@@ -1,5 +1,5 @@
 // 品質ゲートの検査の条件（EX-6）：config の actions.test を、作業ブランチの最新のコミットを checkout した worktree で回す。
-// actions.test は run_tests の Action と同じく確認なしで実行する（config.yaml に書ける人の権限をシェルの許可と同等とみなす。ADR-007・AG-7）。
+// actions.test は run_tests の Action と同じく確認なしで実行する（config.yaml に書ける人の権限をシェルの許可と同等とみなす。ADR-033・AG-7）。
 // 通った結果はコミットとコマンドごとに deguboard-local/checks/ に置き、同じコミットの ready の後の merge で回し直さない。Git には入れない。
 // 通らなかった結果は覚えない（確率で落ちる検査を、コミットを足さずに回し直せるように）
 

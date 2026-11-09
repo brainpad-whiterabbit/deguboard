@@ -404,7 +404,7 @@ describe("Workflow の steps と Action", () => {
   });
 });
 
-describe("入口は Action の一覧を渡す（ADR-007）", () => {
+describe("入口は Action の一覧を渡す（ADR-033）", () => {
   it("CLI・MCP・HTTP・VS Code の openContext・openContextFor・createLocalClient の呼び出しはどれも ACTION_NAMES を渡す", async () => {
     const packages = path.resolve(import.meta.dirname, "../../..");
     const calls: string[] = [];

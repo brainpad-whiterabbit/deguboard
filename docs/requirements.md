@@ -52,7 +52,7 @@ deguboard は、Git で管理するチケットとユーザー定義のワーク
 ### 5.1 配置
 
 - データは orphan ブランチ `deguboard` に置き、`<git-common-dir>/deguboard/` に専用 worktree として checkout する。読み書きはすべてここで行い、作業ブランチにはデータを置かない（理由は [ADR-002](adr/ADR-002-storage-and-id.md)）
-- Git 管理外のもの（ローカルロック、実行中の Run の記録、マージドライバの属性ファイル、個人の設定 `config.yaml`（5.10））は `<git-common-dir>/deguboard-local/` に置く
+- Git 管理外のもの（ローカルロック、実行中の Run の記録、マージドライバの属性ファイル、個人の設定 `config.yaml`（5.10）、消してよい読みのキャッシュ `store-cache/`（[ADR-033](adr/ADR-033-architecture.md)））は `<git-common-dir>/deguboard-local/` に置く
 
 ```
 config.yaml
@@ -233,8 +233,8 @@ updated_at: 2026-10-31T05:10:00Z
 - AG-2 `dg skill install` は段階別に `dg guide <topic>` を読む薄い Skill（`dg<トピック>`）を配る。Skill は任意で、スクリプトもツールの許可も持たない。手を加えた Skill は残し、加えた文は `guide.notes` へ移すよう警告する。冒頭一文は `SKILL_SUMMARY`（`packages/core/src/commands/ask.ts`）が正本（`packages/cli/src/skill.ts` とそのテスト）
 - AG-3 チケット化（`ticket import`）と、分解・Epic への束ね・依存・Iteration への割り当ては、エージェントが提案して人の承認を得てから行う（手順は `dg guide import`）
 - AG-4 MCP サーバー（`dg mcp`。stdio）は Bash のないクライアントの入口で、ツールを Core のコマンド定義から生成する。CLI と同じ操作ができ（`init` と CLI だけの `guide`・`skill`・`serve`・`open` を除く）、結果は `--json` と同じ形（CL-1）で、主体は常に agent。細部は `packages/cli/src/mcp.ts` とそのテスト
-- AG-5 AI 製品ごとの差（使用量の取得・dg を呼んだエージェントの判定・フックの入力と設定）は Agent Adapter が吸収し、実装は Core の `agents/adapters/` に閉じる（対応する製品はそこのコード）。エージェントの起動と権限は扱わない（EX-1、[ADR-007](adr/ADR-007-architecture.md)）
-- AG-6 ソフトウェア開発向けの Action（worktree・PR 作成・マージなど）は Core の `actions` に置き、汎用部分は依存しない。`dg` のコマンドにせず、公開するのは名前の一覧（`ACTION_NAMES`）だけ（[ADR-007](adr/ADR-007-architecture.md)）
+- AG-5 AI 製品ごとの差（使用量の取得・dg を呼んだエージェントの判定・フックの入力と設定）は Agent Adapter が吸収し、実装は Core の `agents/adapters/` に閉じる（対応する製品はそこのコード）。エージェントの起動と権限は扱わない（EX-1、[ADR-033](adr/ADR-033-architecture.md)）
+- AG-6 ソフトウェア開発向けの Action（worktree・PR 作成・マージなど）は Core の `actions` に置き、汎用部分は依存しない。`dg` のコマンドにせず、公開するのは名前の一覧（`ACTION_NAMES`）だけ（[ADR-033](adr/ADR-033-architecture.md)）
 - AG-7 任意のシェルの Action は `actions.shell: true` のときだけ使え、毎回確認を経る
 - AG-8 `ask` は対象（複数可）・頼むこと・指示・形式から、エージェントに貼る依頼文を返す読み取りだけのコマンドで、人に限られた操作なら人が打つ `dg` のコマンドを返す。`ask-menu` は画面の場所ごとの候補を返す。候補・おすすめ・文の形は `dg ask --help` と `packages/core/src/commands/ask.ts`・そのテストが正本
 - AG-9 `dg hooks install` は harness（今は Claude Code）の設定に `dg hook` を呼ぶフックを重ねずに書き、`uninstall` は dg のフックだけを外し（手で足したフックは残す）、`check` が確かめる。フックは主体を agent にする（Run の開け閉めは RN-7）。細部は `dg hook --help` とそのテスト、理由は [ADR-025](adr/ADR-025-runs-by-hooks.md)
@@ -265,7 +265,7 @@ updated_at: 2026-10-31T05:10:00Z
 
 - NF-3 データ形式は人と AI の両方が読める（Markdown・YAML・JSON）
 - NF-10 Git 管理するログと実績に秘密情報を含めない
-- NF-11 `core` は VS Code API・HTTP・React に依存しない。依存の向きは [ADR-007](adr/ADR-007-architecture.md)
+- NF-11 `core` は VS Code API・HTTP・React に依存しない。依存の向きは [ADR-033](adr/ADR-033-architecture.md)
 
 ## 8. 対象外
 

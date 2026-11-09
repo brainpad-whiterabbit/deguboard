@@ -26,7 +26,7 @@
                   "react-dom",
                   "react-dom/*"
                 ],
-                "message": "core は何にも依存しない（ADR-007）"
+                "message": "core は何にも依存しない（ADR-033）"
               },
               {
                 "group": [
@@ -41,15 +41,15 @@
                   "tls",
                   "http2"
                 ],
-                "message": "core は HTTP と通信のモジュールを import しない（ADR-007）"
+                "message": "core は HTTP と通信のモジュールを import しない（ADR-033）"
               },
               {
                 "regex": "^\\.\\.?/(\\.\\./)*(cli|server|web|vscode)(/|$)",
-                "message": "core は他のパッケージを相対パスでも import しない（ADR-007）"
+                "message": "core は他のパッケージを相対パスでも import しない（ADR-033）"
               },
               {
                 "regex": "^\\.\\.?/(\\.\\./)*agents/adapters(/|$)",
-                "message": "特定の AI 製品の Adapter は agents の外から import しない。agents/index.ts の一覧を通す（AG-5、ADR-007）"
+                "message": "特定の AI 製品の Adapter は agents の外から import しない。agents/index.ts の一覧を通す（AG-5、ADR-033）"
               }
             ]
           }
@@ -84,7 +84,7 @@
                   "react-dom",
                   "react-dom/*"
                 ],
-                "message": "core は何にも依存しない（ADR-007）"
+                "message": "core は何にも依存しない（ADR-033）"
               },
               {
                 "group": [
@@ -99,19 +99,19 @@
                   "tls",
                   "http2"
                 ],
-                "message": "core は HTTP と通信のモジュールを import しない（ADR-007）"
+                "message": "core は HTTP と通信のモジュールを import しない（ADR-033）"
               },
               {
                 "regex": "^\\.\\.?/(\\.\\./)*(cli|server|web|vscode)(/|$)",
-                "message": "core は他のパッケージを相対パスでも import しない（ADR-007）"
+                "message": "core は他のパッケージを相対パスでも import しない（ADR-033）"
               },
               {
                 "regex": "^\\.\\.?/(\\.\\./)*agents/adapters(/|$)",
-                "message": "特定の AI 製品の Adapter は agents の外から import しない。agents/index.ts の一覧を通す（AG-5、ADR-007）"
+                "message": "特定の AI 製品の Adapter は agents の外から import しない。agents/index.ts の一覧を通す（AG-5、ADR-033）"
               },
               {
                 "regex": "^\\.\\.?/(\\.\\./)*actions(/|$)",
-                "message": "Core の汎用部分（actions と index.ts の外）は actions に依存しない（AG-6、ADR-007）"
+                "message": "Core の汎用部分（actions と index.ts の外）は actions に依存しない（AG-6、ADR-033）"
               }
             ]
           }
@@ -127,7 +127,7 @@
             "patterns": [
               {
                 "group": ["@deguboard/*", "!@deguboard/core", "deguboard", "deguboard-vscode"],
-                "message": "server と vscode は core だけに依存する（ADR-007）"
+                "message": "server と vscode は core だけに依存する（ADR-033）"
               }
             ]
           }
@@ -148,7 +148,7 @@
                   "!@deguboard/server",
                   "deguboard-vscode"
                 ],
-                "message": "cli は core と server だけに依存する（ADR-007）"
+                "message": "cli は core と server だけに依存する（ADR-033）"
               }
             ]
           }
@@ -166,13 +166,13 @@
               {
                 "name": "@deguboard/core",
                 "allowTypeImports": true,
-                "message": "web は core から型だけを取り込む。実行時のコードは Vite が node のモジュールを束ねないので禁止（ADR-007）"
+                "message": "web は core から型だけを取り込む。実行時のコードは Vite が node のモジュールを束ねないので禁止（ADR-033）"
               }
             ],
             "patterns": [
               {
                 "group": ["@deguboard/*", "!@deguboard/core", "deguboard", "deguboard-vscode"],
-                "message": "web は core だけに依存する（ADR-007）"
+                "message": "web は core だけに依存する（ADR-033）"
               }
             ]
           }
@@ -193,7 +193,7 @@
             "patterns": [
               {
                 "group": ["@deguboard/*", "!@deguboard/core", "deguboard", "deguboard-vscode"],
-                "message": "web は core だけに依存する（ADR-007）"
+                "message": "web は core だけに依存する（ADR-033）"
               }
             ]
           }

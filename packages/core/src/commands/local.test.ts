@@ -104,6 +104,33 @@ describe("プロセス内の CommandClient", () => {
     expect(lastScan().reused).toBeGreaterThan(0);
   });
 
+  it("CLI と同じ経路（openContext）で開き直すと、前の呼び出しが残した結果を使い、変わっていないファイルを読み直さない（ADR-033）", async () => {
+    const f = await initialized();
+    const cli = () => openContext({ cwd: f.cloneA, actions: ["run_tests"] });
+    const create = commands.find((c) => c.name === "ticket.create")!;
+    await runCommand(create, await cli(), { title: "一" });
+    await runCommand(create, await cli(), { title: "二" });
+    vi.spyOn(Date, "now").mockReturnValue(Date.now() + 60_000);
+    // 1 回目の呼び出しが読んで残し、2 回目からは読み直さない
+    const files = (await cli()).store.lastScan.read;
+    expect(files).toBeGreaterThan(0);
+    for (const [name, input] of [
+      ["ticket.list", {}],
+      ["ticket.show", { ticket: "t1" }],
+    ] as const) {
+      const ctx = await cli();
+      expect(ctx.store.lastScan).toEqual({ read: 0, reused: files });
+      await runCommand(
+        commands.find((c) => c.name === name)!,
+        ctx,
+        input,
+      );
+    }
+    const ctx = await cli();
+    expect(await readdir(path.join(ctx.repo.localDir, "store-cache"))).toHaveLength(1);
+    expect([...ctx.store.tickets.keys()]).toEqual(["t1", "t2"]);
+  });
+
   /** データのチケットのファイルの更新時刻を古い値に揃える（後の書き込みで時刻が必ず変わるように） */
   async function ageTickets(client: ReturnType<typeof createLocalClient>): Promise<string> {
     const dir = path.join((await client.status()).data_dir, "tickets");

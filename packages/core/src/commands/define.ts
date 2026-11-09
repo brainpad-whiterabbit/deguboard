@@ -1,4 +1,4 @@
-// コマンド定義の形。CLI・HTTP・Webview はこの定義を写すだけで、ロジックを持たない（ADR-007）
+// コマンド定義の形。CLI・HTTP・Webview はこの定義を写すだけで、ロジックを持たない（ADR-033）
 
 import type { z } from "zod";
 import { OperationError, UsageError } from "../errors.js";

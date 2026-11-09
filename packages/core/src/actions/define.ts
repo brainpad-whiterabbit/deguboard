@@ -1,4 +1,4 @@
-// Action の形。Core の汎用部分（commands・storage・workflow）はこのモジュールに依存しない（AG-6、ADR-007）
+// Action の形。Core の汎用部分（commands・storage・workflow）はこのモジュールに依存しない（AG-6、ADR-033）
 
 import type { z } from "zod";
 import type { GitRepo } from "../git/repo.js";

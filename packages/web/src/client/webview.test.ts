@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-// 拡張と合わせる値の写しを照らすためだけに core の実行時のコード（WEBVIEW_CONTRACT と詳細のルート）を取り込む（画面のコードは型だけを取る。ADR-007）
+// 拡張と合わせる値の写しを照らすためだけに core の実行時のコード（WEBVIEW_CONTRACT と詳細のルート）を取り込む（画面のコードは型だけを取る。ADR-033）
 import {
   detailOfRoute,
   detailRouteOf,

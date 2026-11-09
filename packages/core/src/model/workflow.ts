@@ -36,7 +36,7 @@ const stepIdSchema = z.string().regex(/^[a-z][a-z0-9_-]*$/, "step は小文字�
 export const STEP_OPENERS = ["claim", "reclaim"] as const;
 export type StepOpener = (typeof STEP_OPENERS)[number];
 
-// Action は名前（文字列）だけで持つ。登録済みかは actions の一覧を外から渡して validate.ts が見る（ADR-007）
+// Action は名前（文字列）だけで持つ。登録済みかは actions の一覧を外から渡して validate.ts が見る（ADR-033）
 const actionNameShape = z.string().regex(/^[a-z][a-z0-9_]*$/, "Action の名前は snake_case");
 
 export const workflowDefinitionSchema = z.looseObject({

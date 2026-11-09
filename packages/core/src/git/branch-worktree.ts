@@ -1,5 +1,5 @@
 // 作業ブランチの worktree を作る（ST-3・AG-6）。claim（core/commands）と create_worktree の Action が同じ手順を使うよう、
-// actions ではなく git の層に置く（commands は actions に依存しない。ADR-007）。git は引数配列で呼び、シェルを経由しない
+// actions ではなく git の層に置く（commands は actions に依存しない。ADR-033）。git は引数配列で呼び、シェルを経由しない
 
 import path from "node:path";
 import { OperationError } from "../errors.js";

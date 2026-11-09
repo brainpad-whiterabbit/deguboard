@@ -429,3 +429,160 @@ describe("Store", () => {
     expect(store.lastScan).toEqual({ read: 0, reused: files });
   });
 });
+
+describe("ディスクに残した読みの結果（ADR-033）", () => {
+  /** 比べる索引の中身。キャッシュの有無で同じになることを確かめる */
+  const contents = (store: Store) => ({
+    tickets: [...store.tickets.values()],
+    projects: [...store.projects.values()],
+    workflows: [...store.workflows.entries()],
+    config: store.config,
+    issues: store.issues,
+  });
+
+  /** 読めないチケットと Workflow を含むデータと、キャッシュの置き場所。時計を進め、どのファイルも更新が十分に古いものとして覚えさせる */
+  async function cachedFixture() {
+    const root = await fixture({
+      "tickets/t1.md": ticketText("t1"),
+      "tickets/t2.md": ticketText("t2"),
+      "tickets/t3.md": "---\nid: t3\ntitle: [\n---\n",
+    });
+    const cacheDir = path.join(root, "..", `${path.basename(root)}-cache`);
+    dirs.push(cacheDir);
+    vi.spyOn(Date, "now").mockReturnValue(Date.now() + 60_000);
+    await (await Store.open(root)).writeWorkflow(WORKFLOW_TEMPLATES[0]!);
+    const actions = ["run_tests"];
+    const open = () => Store.open(root, { cacheDir, actions });
+    const cacheFile = async () => {
+      const files = await readdir(cacheDir);
+      expect(files).toHaveLength(1);
+      return path.join(cacheDir, files[0]!);
+    };
+    return { root, cacheDir, open, cacheFile, plain: () => Store.open(root, { actions }) };
+  }
+
+  it("別に開いたストア（次の CLI の呼び出し）は、変わっていないファイルを読み直さず解析もしない。変わったファイルだけを読む", async () => {
+    const { root, open, plain } = await cachedFixture();
+    const first = await open();
+    const files = first.lastScan.read;
+    expect(first.lastScan).toEqual({ read: files, reused: 0 });
+
+    const second = await open();
+    expect(second.lastScan).toEqual({ read: 0, reused: files });
+    expect(contents(second)).toEqual(contents(await plain()));
+
+    // 書き換え・追加・削除したファイルだけを読む
+    const t1 = path.join(root, "tickets/t1.md");
+    await writeFile(t1, ticketText("t1").replace("本文", "本日"));
+    await utimes(t1, new Date("2020-01-01T00:00:00Z"), new Date("2020-01-01T00:00:00Z"));
+    await writeFile(path.join(root, "tickets/t4.md"), ticketText("t4"));
+    await unlink(path.join(root, "tickets/t2.md"));
+    const third = await open();
+    expect(third.lastScan).toEqual({ read: 2, reused: files - 2 });
+    expect([...third.tickets.keys()]).toEqual(["t1", "t4"]);
+    expect(third.tickets.get("t1")?.body).toContain("本日");
+    expect(contents(third)).toEqual(contents(await plain()));
+    expect((await open()).lastScan).toEqual({ read: 0, reused: files });
+  });
+
+  it("鍵（dg の版・キャッシュの形・読みのコード・Action の一覧）の違うキャッシュは使わずに読み直す", async () => {
+    const { root, cacheDir, open, cacheFile } = await cachedFixture();
+    const files = (await open()).lastScan.read;
+    const file = await cacheFile();
+    const saved = JSON.parse(await readFile(file, "utf8")) as {
+      key: string;
+      entries: Record<string, { stamp: string; value: { ok: boolean; doc: { body: string } } }>;
+    };
+    const key = JSON.parse(saved.key) as Record<string, unknown>;
+    expect(key).toMatchObject({ format: 1, root: path.resolve(root), actions: ["run_tests"] });
+    expect(key["version"]).toMatch(/^\d+\.\d+\.\d+/);
+    // 同じ印のまま値だけを差し替え、版の違う dg が書いたキャッシュに見せる。使えば本文が変わって見える
+    saved.entries["tickets/t1.md"]!.value.doc.body = "古い版の値";
+    await writeFile(
+      file,
+      JSON.stringify({ ...saved, key: JSON.stringify({ ...key, version: "0.0.1" }) }),
+    );
+    const store = await open();
+    expect(store.lastScan).toEqual({ read: files, reused: 0 });
+    expect(store.tickets.get("t1")?.body).toContain("本文");
+    // Action の一覧が違えば別のファイルになり、互いを書き換えない
+    await Store.open(root, { cacheDir, actions: [] });
+    expect(await readdir(cacheDir)).toHaveLength(2);
+  });
+
+  it("キャッシュを消しても、壊れたもの・形の違うものを置いても、ストアの結果は同じになる", async () => {
+    const { cacheDir, open, cacheFile, plain } = await cachedFixture();
+    const files = (await open()).lastScan.read;
+    const expected = contents(await plain());
+    const file = await cacheFile();
+    const good = await readFile(file, "utf8");
+    const broken = [
+      good.slice(0, good.length / 2),
+      "",
+      "[]",
+      JSON.stringify({ key: JSON.parse(good).key, entries: [] }),
+      JSON.stringify({ key: JSON.parse(good).key, entries: { "tickets/t1.md": { stamp: 1 } } }),
+    ];
+    for (const text of broken) {
+      await writeFile(file, text);
+      const store = await open();
+      expect(store.lastScan).toEqual({ read: files, reused: 0 });
+      expect(contents(store)).toEqual(expected);
+      // 読み直した結果で書き直し、次からは使える
+      expect((await open()).lastScan).toEqual({ read: 0, reused: files });
+    }
+    await rm(cacheDir, { recursive: true });
+    const store = await open();
+    expect(store.lastScan).toEqual({ read: files, reused: 0 });
+    expect(contents(store)).toEqual(expected);
+  });
+
+  it("並んで動く dg が古い索引のキャッシュを後から書いても、他のプロセスが書き換えたファイルは読み直す", async () => {
+    const { root, open, cacheFile } = await cachedFixture();
+    const a = await open();
+    const files = a.lastScan.read;
+    // 遅いプロセスが書き換え前に覚えたキャッシュ
+    const stale = await readFile(await cacheFile(), "utf8");
+    // 別のプロセスが t1 を同じ大きさに書き換え、時刻も古い値に付け直す
+    const b = await open();
+    await b.update("ticket", "t1", { title: "t1 の新しい題" });
+    const t1 = path.join(root, "tickets/t1.md");
+    await utimes(t1, new Date("2020-01-01T00:00:00Z"), new Date("2020-01-01T00:00:00Z"));
+    // 遅いプロセスが古いキャッシュを最後に書いた
+    await writeFile(await cacheFile(), stale);
+    const c = await open();
+    expect(c.lastScan).toEqual({ read: 1, reused: files - 1 });
+    expect(c.tickets.get("t1")?.data.title).toBe("t1 の新しい題");
+    // 古い索引を持つ a も、rescan で取り込む
+    await a.rescan();
+    expect(a.tickets.get("t1")?.data.title).toBe("t1 の新しい題");
+  });
+
+  it("読めるキャッシュがなく書き直すときは、鍵の違うキャッシュを新しい 3 つだけ残し、古い一時ファイルも消す", async () => {
+    const { cacheDir, open } = await cachedFixture();
+    await mkdir(cacheDir, { recursive: true });
+    const others = ["a", "b", "c", "d", "e"].map((n) => path.join(cacheDir, `${n}.json`));
+    for (const [i, file] of others.entries()) {
+      await writeFile(file, "{}");
+      const at = new Date(Date.UTC(2026, 0, 1 + i));
+      await utimes(file, at, at);
+    }
+    const tmp = path.join(cacheDir, ".x.json.1.ab.tmp");
+    await writeFile(tmp, "");
+    await utimes(tmp, new Date("2020-01-01T00:00:00Z"), new Date("2020-01-01T00:00:00Z"));
+    await open();
+    const left = await readdir(cacheDir);
+    expect(left.filter((f) => others.some((o) => o.endsWith(`/${f}`))).sort()).toEqual([
+      "c.json",
+      "d.json",
+      "e.json",
+    ]);
+    expect(left).toHaveLength(4);
+  });
+
+  it("cacheDir を渡さなければディスクに何も残さない", async () => {
+    const { cacheDir, plain } = await cachedFixture();
+    await plain();
+    await expect(readdir(cacheDir)).rejects.toMatchObject({ code: "ENOENT" });
+  });
+});

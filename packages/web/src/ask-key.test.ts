@@ -1,4 +1,4 @@
-// 鍵の写しを照らすためだけに core の実行時のコード（askMenuKey・parseAskMenuKey）を取り込む（画面のコードは型だけを取る。ADR-007）
+// 鍵の写しを照らすためだけに core の実行時のコード（askMenuKey・parseAskMenuKey）を取り込む（画面のコードは型だけを取る。ADR-033）
 import { askMenuKey, parseAskMenuKey } from "@deguboard/core";
 import { describe, expect, it } from "vitest";
 import { askKey, parseAskKey } from "./ask-key.js";
