@@ -166,6 +166,18 @@ async function subagentRecord(
   );
 }
 
+/**
+ * 記録の最初の行（頼んだ文を受け取った時刻）を、Run の開始から offsetMs ずらした時刻にする。本物では頼んだ文を受け取ってから
+ * Run を開くが、テストは Run を開いてから記録を書くので、そのままでは最初の行が開始の後になる。移行の経路は開始の秒の初めから
+ * 999 ミリ秒までしか待たないので、開始の時刻を固めずに書くと、run start に掛かった時間と秒の繰り上がりしだいで落ちる
+ */
+async function setFirstLineTime(file: string, run: Run, offsetMs: number) {
+  const lines = (await readFile(file, "utf8")).split("\n");
+  const first = JSON.parse(lines[0]!) as Record<string, unknown>;
+  first["timestamp"] = new Date(Date.parse(run.started_at) + offsetMs).toISOString();
+  await writeFile(file, [JSON.stringify(first), ...lines.slice(1)].join("\n"));
+}
+
 describe("フックの印", () => {
   it("最初の空でない行の deguboard: ticket=<id> step=<step> だけを印と読む", () => {
     expect(parseMarker("\ndeguboard: ticket=t12 step=review\n\n本文")).toEqual({
@@ -571,6 +583,8 @@ describe("dg hook（AG-9・RN-7）", () => {
       1,
       bashCall("dg --json --actor agent run start t1 review --agent claude-code", startOutput(run)),
     );
+    // 頼んだ文を受け取ってから Run を開いた順にする
+    await setFirstLineTime(subagent("a9"), run, -500);
     const { view } = await call(ctx, "SubagentStop", {
       session_id: SESSION,
       transcript_path: parent,
@@ -583,6 +597,37 @@ describe("dg hook（AG-9・RN-7）", () => {
       expect.stringContaining(`Run ${run.id} の記録の場所`),
       expect.stringContaining(`Run ${run.id} は止まって待っている`),
     ]);
+    expect((await readTranscriptPaths(ctx.repo)).get(run.id)).toBe(subagent("a9"));
+  });
+
+  it("移行の経路は、記録の最初の行が Run の開始の秒の初めから 999 ミリ秒までなら結び付け、1 秒を過ぎたら結び付けない", async () => {
+    const { ctx, parent, subagent } = await prepared();
+    const run = (
+      await runCommand(runStart, ctx, {
+        ticket: "t1",
+        step: "review",
+        agent: "claude-code",
+        session: SESSION,
+      })
+    ).data as Run;
+    const stop = (id: string) =>
+      call(ctx, "SubagentStop", {
+        session_id: SESSION,
+        transcript_path: parent,
+        agent_id: id,
+        agent_transcript_path: subagent(id),
+        last_assistant_message: "ok",
+      });
+    const output = bashCall("dg --json run start t1 review", startOutput(run));
+    // run start が秒の終わり近くで始まり、記録の最初の行が次の秒の後に書かれた場面（直す前のテストが落ちた順序）
+    await subagentRecord(subagent("a8"), "見直す", 1, output);
+    await setFirstLineTime(subagent("a8"), run, 1000);
+    await stop("a8");
+    expect((await readTranscriptPaths(ctx.repo)).get(run.id)).toBeUndefined();
+    // 開始は秒までなので、その秒の中で最初の行が開始より後でも結び付ける
+    await subagentRecord(subagent("a9"), "見直す", 1, output);
+    await setFirstLineTime(subagent("a9"), run, 999);
+    await stop("a9");
     expect((await readTranscriptPaths(ctx.repo)).get(run.id)).toBe(subagent("a9"));
   });
 
@@ -658,13 +703,7 @@ describe("dg hook の見直しで直した場面（RN-7）", () => {
       ...bashCall("dg --json run start t1 review", startOutput(mine)),
     ]);
     // 記録の最初の行の時刻を、自分の Run の開始より前に（old の開始より後に）する
-    const text = await readFile(subagent("a9"), "utf8");
-    const first = JSON.parse(text.split("\n")[0]!) as Record<string, unknown>;
-    first["timestamp"] = new Date(Date.parse(mine.started_at) - 500).toISOString();
-    await writeFile(
-      subagent("a9"),
-      [JSON.stringify(first), ...text.split("\n").slice(1)].join("\n"),
-    );
+    await setFirstLineTime(subagent("a9"), mine, -500);
     await call(ctx, "SubagentStop", {
       session_id: SESSION,
       transcript_path: parent,
@@ -694,13 +733,7 @@ describe("dg hook の見直しで直した場面（RN-7）", () => {
       1,
       bashCall("mise run dg -- --json run start t1 review", startOutput(own)),
     );
-    const text = await readFile(subagent("a1"), "utf8");
-    const first = JSON.parse(text.split("\n")[0]!) as Record<string, unknown>;
-    first["timestamp"] = new Date(Date.parse(own.started_at) - 500).toISOString();
-    await writeFile(
-      subagent("a1"),
-      [JSON.stringify(first), ...text.split("\n").slice(1)].join("\n"),
-    );
+    await setFirstLineTime(subagent("a1"), own, -500);
     await call(ctx, "SubagentStop", {
       session_id: SESSION,
       agent_id: "a1",
@@ -756,10 +789,7 @@ describe("dg hook の移行の経路と兄弟の Run（RN-7）", () => {
       })
     ).data as Run;
     await subagentRecord(file, "見直す", 1, extra(mine));
-    const text = await readFile(file, "utf8");
-    const first = JSON.parse(text.split("\n")[0]!) as Record<string, unknown>;
-    first["timestamp"] = new Date(Date.parse(mine.started_at) - 500).toISOString();
-    await writeFile(file, [JSON.stringify(first), ...text.split("\n").slice(1)].join("\n"));
+    await setFirstLineTime(file, mine, -500);
     return mine;
   }
   const stopA = (ctx: CommandContext, file: string) =>
@@ -814,13 +844,7 @@ describe("dg hook の移行の経路と兄弟の Run（RN-7）", () => {
         JSON.stringify({ ok: true, data: [mine, other] }, null, 2),
       ),
     ]);
-    const text = await readFile(subagent("a1"), "utf8");
-    const first = JSON.parse(text.split("\n")[0]!) as Record<string, unknown>;
-    first["timestamp"] = new Date(Date.parse(mine.started_at) - 500).toISOString();
-    await writeFile(
-      subagent("a1"),
-      [JSON.stringify(first), ...text.split("\n").slice(1)].join("\n"),
-    );
+    await setFirstLineTime(subagent("a1"), mine, -500);
     await stopA(ctx, subagent("a1"));
     const paths = await readTranscriptPaths(ctx.repo);
     expect(paths.get(mine.id)).toBe(subagent("a1"));
@@ -896,13 +920,7 @@ describe("dg hook の移行の経路と兄弟の Run（RN-7）", () => {
       1,
       bashCall("dg --json ticket claim t1 --retry-reason 指摘", startOutput(mine)),
     );
-    const text = await readFile(subagent("a1"), "utf8");
-    const first = JSON.parse(text.split("\n")[0]!) as Record<string, unknown>;
-    first["timestamp"] = new Date(Date.parse(mine.started_at) - 500).toISOString();
-    await writeFile(
-      subagent("a1"),
-      [JSON.stringify(first), ...text.split("\n").slice(1)].join("\n"),
-    );
+    await setFirstLineTime(subagent("a1"), mine, -500);
     // 1 回目の止まり：push がないので、結び付けて待ちの印を付ける
     await stopA(ctx, subagent("a1"));
     expect((await peekRunningRuns(ctx.repo))[0]!.waiting_since).not.toBeNull();
