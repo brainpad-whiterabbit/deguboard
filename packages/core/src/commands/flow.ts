@@ -1,4 +1,4 @@
-// Iteration の流れの段階と次の手（EX-3・EX-8、ADR-030）。guide-all の「今の段階を求める」の 8 規則と止まる判定を、
+// Iteration の流れの段階と次の手（EX-3・EX-8、ADR-030）。流れの 8 つの規則（ここが正本。guide-all は書かない）と止まる判定を、
 // チケット・Plan の事実と resume から都度求め、保存しない（dg next と同じ考え）。段階を返すだけで、エージェントを起動も監視もしない（ADR-028）。
 // 会話の中にしかない事実（この実行で割り当て・点検・見直しを終えた）は resume に入れて返す。エージェントは次の呼び出しに --resume で写して渡す
 
@@ -64,7 +64,7 @@ export interface FlowFacts {
 
 export interface FlowStage {
   name: FlowStageName;
-  /** 当たった guide-all の規則の番号（1〜8）。同じ段階が続いて止まったときは null */
+  /** 当たった規則の番号（flowStageOf の 1〜8）。同じ段階が続いて止まったときは null */
   rule: number | null;
   /** 段階を決めた事実（1 文） */
   reason: string;
@@ -83,7 +83,7 @@ const allFinished = (tickets: readonly FlowTicket[]) =>
   tickets.length > 0 && tickets.every((t) => isTerminal(t.status));
 
 /**
- * 事実とこの実行で終えたことから、guide-all の 8 規則で最初に当たる段階を求める（純粋関数）。
+ * 事実とこの実行で終えたことから、8 つの規則（--help に並べた順）で最初に当たる段階を求める（純粋関数）。
  * skip（config の flow.skip）の段階は規則を読まず、次の規則に進む。見直しを飛ばすと、すべて終わったときはすぐリリースに進める
  */
 export function flowStageOf(
@@ -227,7 +227,7 @@ export function isRepeated(prev: ResumeState | undefined, stage: FlowStageName, 
   return prev !== undefined && prev.stage === stage && prev.facts === facts && stage !== "stop";
 }
 
-/** 段階の手のやり方の節（guide-all の「段階」の表の読むトピック）。本文は guideSectionText が Core から読む */
+/** 段階の手のやり方の節（段階ごとに読む guide の節）。本文は guideSectionText が Core から読む */
 export const FLOW_GUIDE: Record<FlowStageName, { topic: string; section: string }> = {
   assign: { topic: "assign", section: "Iteration" },
   check: { topic: "check", section: "点検の手順" },
@@ -483,7 +483,7 @@ export const flowNext = defineCommand({
   group: "flow",
   summary:
     "Iteration の流れ（割り当て → 点検 → 計画 → 作業 → 見直し → リリース）の今の段階と次の手を返す（EX-3・EX-8、ADR-030）。" +
-    "対象は Iteration 1 つ・Plan 1 つ・チケット 1 つ以上のどれか。段階は dg guide all の 8 規則の順で最初に当たるもの" +
+    "対象は Iteration 1 つ・Plan 1 つ・チケット 1 つ以上のどれか。段階は次の 8 つの規則の順で最初に当たるもの" +
     "（1 割り当て：この実行で割り当てを終えておらず、見直し済みでなく、Iteration に入っていない todo があり、--no-assign がない／" +
     "2 点検：この実行でまだ点検していない／3 計画：対象を含む承認待ちの Plan がある／4 作業：対象を含む承認済みの Plan に終わっていないチケットがある／" +
     "5 計画：開いた Plan に入っていない todo がある／6 見直し：<S> のチケットがすべて done か abandoned で見直し済みでない／7 リリース：同じで見直し済み／8 止まる。<S> が閉じていれば割り当てず、6・7 の前に流れを終えたとして止まる）。" +

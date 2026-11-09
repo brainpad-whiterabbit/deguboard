@@ -55,7 +55,7 @@ const finished = (): Partial<FlowFacts> => ({
   ],
 });
 
-describe("flowStageOf（guide-all の 8 規則）", () => {
+describe("flowStageOf（流れの 8 つの規則）", () => {
   it("規則 1 割り当て：割り当てを終えておらず、見直し済みでなく、候補があり、--no-assign がない", () => {
     const f = facts({ candidates: ["t2"] });
     expect(flowStageOf(f, none)).toMatchObject({ name: "assign", rule: 1, tickets: ["t2"] });
