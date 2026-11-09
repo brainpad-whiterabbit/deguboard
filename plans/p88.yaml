@@ -1,0 +1,10 @@
+id: p88
+project: default
+tickets: [t632]
+after: {}
+pending_approval: true
+details:
+  t632:
+    scope: config の actions に軽い検査のコマンドと対象のパスを足し、品質ゲートの検査で差分がすべて対象に入るときは軽い検査を回す。このリポジトリの設定と CLAUDE.md のコミット前の規約、EX-6・設定画面・guide review を合わせる
+    approach: core の gate-check.ts で base との差分のファイルを glob で照らしてコマンドを選び、結果の使い回しはコマンドごとの今の仕組みに乗せる。設定画面は core の定義を写すだけにする
+    tier: heavy
