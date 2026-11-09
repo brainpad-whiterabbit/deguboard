@@ -22,9 +22,9 @@ const guideDir = "packages/core/src/guide";
 const SOURCE_EXTS = [".ts", ".tsx", ".mjs", ".js", ".cjs"];
 // 重複と見なす段落・節の本文の長さ（字）。これより短い選択肢や定型句は対象にしない
 const DUP_MIN_CHARS = 40;
-// 要件の 1 項の字数の上限（ADR-001 の「要件定義書に書くもの」）
+// 要件の 1 項の字数の上限（先頭の ADR の「要件定義書に書くもの」）
 const REQUIREMENT_ITEM_MAX_CHARS = 250;
-// ADR 1 本の字数の目安（ADR-001 の「ADR は今の判断だけを書き、判断を変える PR で直す」の節）。超えても落とさず、分割・整理の起票を促す警告にする
+// ADR 1 本の字数の目安（先頭の ADR の「ADR は今の判断だけを書き、判断を変える PR で直す」の節）。超えても落とさず、分割・整理の起票を促す警告にする
 const ADR_WARN_CHARS = 8000;
 
 const errors = [];
@@ -64,8 +64,8 @@ for (const file of adrFiles) {
   if (status) supersededBy.set(file.slice(4, 7), status[1]);
 }
 
-// 最後に使った番号（docs/adr/README.md の「最後に使った番号：ADR-034」）：実在する ADR の番号はそれ以下であること。
-// 新しい ADR は、この番号の次にする（ADR-001）。番号を上げ忘れた ADR を見つけるために、実在の番号と照らす
+// 最後に使った番号（docs/adr/README.md の「最後に使った番号：ADR-NNN」）：実在する ADR の番号はそれ以下であること。
+// 新しい ADR は、この番号の次にする（番号を使い回さないため）。番号を上げ忘れた ADR を見つけるために、実在の番号と照らす
 const adrNumbers = new Set(adrFiles.map((f) => f.slice(4, 7)));
 const lastUsed = /^最後に使った番号：ADR-(\d{3})\s*$/m.exec(index)?.[1];
 if (lastUsed === undefined) {
@@ -80,7 +80,7 @@ if (lastUsed === undefined) {
   }
 }
 
-// ADR の長さ：1 本が ADR_WARN_CHARS 字を超えたら警告する（落とさない）。分割・整理を起票する（ADR-001）
+// ADR の長さ：1 本が ADR_WARN_CHARS 字を超えたら警告する（落とさない）。分割・整理を起票する
 for (const file of adrFiles) {
   const chars = [...adrTexts.get(file)].length;
   if (chars > ADR_WARN_CHARS) {
@@ -196,8 +196,8 @@ for (const rel of sources) {
   }
 }
 
-// 要件の 1 項の上限（ADR-001 の「要件定義書に書くもの」）：「- XX-N」の箇条書きの 1 項目と、その下の字下げした行の合計の字数。
-// 行のまま（箇条書きの記号「- 」と字下げ・ID とリンクの記法を含み、改行は 1 字）数える。ADR-001 が上限を決めたときの値（105 項・中央値 120 字・超えていたのは 20 項）がこの数え方で出るため。ID のない行（節の前文・ID のない箇条書き）は数えない
+// 要件の 1 項の上限（先頭の ADR の「要件定義書に書くもの」）：「- XX-N」の箇条書きの 1 項目と、その下の字下げした行の合計の字数。
+// 行のまま（箇条書きの記号「- 」と字下げ・ID とリンクの記法を含み、改行は 1 字）数える。その ADR が上限を決めたときの値（105 項・中央値 120 字・超えていたのは 20 項）がこの数え方で出るため。ID のない行（節の前文・ID のない箇条書き）は数えない
 let requirementItemCount = 0;
 let item = null;
 const checkItem = () => {
