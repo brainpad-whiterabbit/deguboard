@@ -2,7 +2,7 @@
 // git が rebase の中で `<dg> merge-driver %O %A %B %P` として呼ぶ。登録は ensureMergeDriver（init と sync）が行う
 
 import { isDeepStrictEqual } from "node:util";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { appendFile, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { joinFrontmatter, splitFrontmatter } from "../storage/frontmatter.js";
@@ -38,7 +38,27 @@ const GITATTRIBUTES_HEADER =
 /** 両側が違う値に変えても、新しい方を採るフィールド（書き込みのたびに変わる時刻） */
 const NEWER_WINS = new Set(["updated_at"]);
 
-export type MergeOutcome = { ok: true; text: string } | { ok: false; conflicts: string[] };
+/**
+ * 競合したフィールドで採る側（dg sync --resolve）。git の %A（ours）か %B（theirs）で言う。
+ * rebase の中では ours が upstream（リモート）、theirs が積み直すローカルのコミットなので、remote → ours・local → theirs に読み替えるのは呼び手（sync.ts）
+ */
+export type MergeSide = "ours" | "theirs";
+
+/** ドライバに採る側を渡す環境変数（git がドライバを子プロセスで動かすので、rebase に渡した環境が届く） */
+export const MERGE_PREFER_ENV = "DEGUBOARD_MERGE_PREFER";
+/** 採る側で解いたフィールドを 1 行 1 件の JSON で書き足すファイル（呼び手が読んで結果に返す） */
+export const MERGE_LOG_ENV = "DEGUBOARD_MERGE_LOG";
+
+/** 採る側で解いた 1 件。本文は field が "本文" で、値は両側の本文全体 */
+export interface ResolvedField {
+  field: string;
+  taken: unknown;
+  discarded: unknown;
+}
+
+export type MergeOutcome =
+  | { ok: true; text: string; resolved: ResolvedField[] }
+  | { ok: false; conflicts: string[] };
 
 interface Parsed {
   text: string;
@@ -77,8 +97,16 @@ function pick(base: unknown, ours: unknown, theirs: unknown): { value: unknown }
   return "conflict";
 }
 
-/** git merge-file を一時ファイルで呼ぶ。行単位でぶつからなければマージ結果、ぶつかれば undefined */
-async function mergeText(base: string, ours: string, theirs: string): Promise<string | undefined> {
+/**
+ * git merge-file を一時ファイルで呼ぶ。行単位でぶつからなければマージ結果、ぶつかれば undefined。
+ * prefer を渡すと、ぶつかった行だけその側を採る（--ours / --theirs）
+ */
+async function mergeText(
+  base: string,
+  ours: string,
+  theirs: string,
+  prefer?: MergeSide,
+): Promise<string | undefined> {
   const dir = await mkdtemp(path.join(os.tmpdir(), "deguboard-merge-"));
   try {
     const [o, a, b] = ["base", "ours", "theirs"].map((n) => path.join(dir, n)) as [
@@ -87,7 +115,10 @@ async function mergeText(base: string, ours: string, theirs: string): Promise<st
       string,
     ];
     await Promise.all([writeFile(o, base), writeFile(a, ours), writeFile(b, theirs)]);
-    const r = await runGit(dir, ["merge-file", "-p", "--quiet", a, o, b], { allowFailure: true });
+    const side = prefer ? [`--${prefer}`] : [];
+    const r = await runGit(dir, ["merge-file", "-p", "--quiet", ...side, a, o, b], {
+      allowFailure: true,
+    });
     return r.code === 0 ? r.stdout : undefined;
   } finally {
     await rm(dir, { recursive: true, force: true });
@@ -100,11 +131,14 @@ async function mergeText(base: string, ours: string, theirs: string): Promise<st
  * - 本文は片側だけ変えたらその本文、両側が変えたら行単位でマージし、同じ行がぶつかれば競合
  * - 読めない・base にない（add/add）・3 つの形（frontmatter の有無）が揃わないときは ok: false の代わりに undefined を返し、
  *   呼び手が行単位のマージに任せる（仮番号の add/add を行単位の競合のまま残し、振り直し DT-5 の検出を変えないため）
+ * - prefer を渡すと（dg sync --resolve）、競合したフィールドだけその側の値を採り、本文は同じ行がぶつかった箇所だけその側を採る。
+ *   採った値と捨てた値を resolved に返す。競合していないフィールドと行は prefer なしと同じに解く。add/add などの undefined は変えない
  */
 export async function mergeDocuments(
   base: string,
   ours: string,
   theirs: string,
+  prefer?: MergeSide,
 ): Promise<MergeOutcome | undefined> {
   const o = parse(base);
   const a = parse(ours);
@@ -114,34 +148,47 @@ export async function mergeDocuments(
   if ((o.body === undefined) !== plain || (b.body === undefined) !== plain) return undefined;
 
   const conflicts: string[] = [];
+  const resolved: ResolvedField[] = [];
+  /** 競合を prefer の側で解く。prefer がなければ undefined */
+  const settle = (field: string, ourValue: unknown, theirValue: unknown) => {
+    if (!prefer) return undefined;
+    const [taken, discarded] = prefer === "ours" ? [ourValue, theirValue] : [theirValue, ourValue];
+    resolved.push({ field, taken, discarded });
+    return { value: taken };
+  };
   const patch: Record<string, unknown> = {};
   const keys = [
     ...new Set([...Object.keys(a.data), ...Object.keys(b.data), ...Object.keys(o.data)]),
   ];
   for (const key of keys) {
-    const picked = pick(o.data[key], a.data[key], b.data[key]);
-    let value: unknown;
-    if (picked !== "conflict") value = picked.value;
-    else if (NEWER_WINS.has(key)) {
-      value = newer(a.data[key], b.data[key]);
-      if (value === undefined) {
+    let picked = pick(o.data[key], a.data[key], b.data[key]);
+    if (picked === "conflict" && NEWER_WINS.has(key)) {
+      const value = newer(a.data[key], b.data[key]);
+      if (value !== undefined) picked = { value };
+    }
+    if (picked === "conflict") {
+      const settled = settle(key, a.data[key], b.data[key]);
+      if (!settled) {
         conflicts.push(key);
         continue;
       }
-    } else {
-      conflicts.push(key);
-      continue;
+      picked = settled;
     }
-    if (!isDeepStrictEqual(value, a.data[key])) patch[key] = value;
+    // 採った値が undefined（その側が消した）なら、patchYamlDocument がキーを消す
+    if (!isDeepStrictEqual(picked.value, a.data[key])) patch[key] = picked.value;
   }
 
   let body = "";
   if (!plain) {
     const pickedBody = pick(o.body, a.body, b.body);
-    const merged =
+    let merged =
       pickedBody !== "conflict"
         ? (pickedBody.value as string)
         : await mergeText(o.body ?? "", a.body ?? "", b.body ?? "");
+    if (merged === undefined && prefer) {
+      merged = await mergeText(o.body ?? "", a.body ?? "", b.body ?? "", prefer);
+      if (merged !== undefined) settle("本文", a.body, b.body);
+    }
     if (merged === undefined) conflicts.push("本文");
     else body = merged;
   }
@@ -149,21 +196,27 @@ export async function mergeDocuments(
   if (conflicts.length > 0) return { ok: false, conflicts };
   if (Object.keys(patch).length === 0) {
     // YAML は ours のまま。書式とコメントを 1 バイトも変えない
-    return { ok: true, text: a.text.slice(0, a.text.length - (a.body?.length ?? 0)) + body };
+    return {
+      ok: true,
+      text: a.text.slice(0, a.text.length - (a.body?.length ?? 0)) + body,
+      resolved,
+    };
   }
   const doc = cloneYamlDocument(a.doc);
   patchYamlDocument(doc, patch);
   const yaml = stringifyYaml(doc);
-  return { ok: true, text: plain ? yaml : joinFrontmatter(yaml, body) };
+  return { ok: true, text: plain ? yaml : joinFrontmatter(yaml, body), resolved };
 }
 
 /**
  * git のマージドライバの本体。引数は %O %A %B [%P]。結果を %A に書き、解けたら 0、競合なら 1 を返す。
- * 競合のときは %A に git merge-file の競合マーカーを残す（人が deguboard worktree で解くときのため）
+ * 競合のときは %A に git merge-file の競合マーカーを残す（人が deguboard worktree で解くときのため）。
+ * 環境変数 MERGE_PREFER_ENV（ours / theirs）があれば競合したフィールドをその側で解き、MERGE_LOG_ENV のファイルに 1 件 1 行で書き足す
  */
 export async function runMergeDriver(
   args: readonly string[],
   log: (line: string) => void = (line) => process.stderr.write(`${line}\n`),
+  env: NodeJS.ProcessEnv = process.env,
 ): Promise<number> {
   const [basePath, oursPath, theirsPath, name] = args;
   if (!basePath || !oursPath || !theirsPath) {
@@ -175,9 +228,19 @@ export async function runMergeDriver(
     readFile(oursPath, "utf8"),
     readFile(theirsPath, "utf8"),
   ]);
-  const outcome = await mergeDocuments(base, ours, theirs);
+  const preferEnv = env[MERGE_PREFER_ENV];
+  const prefer = preferEnv === "ours" || preferEnv === "theirs" ? preferEnv : undefined;
+  const outcome = await mergeDocuments(base, ours, theirs, prefer);
   if (outcome?.ok) {
     await writeFile(oursPath, outcome.text);
+    const logFile = env[MERGE_LOG_ENV];
+    if (logFile && outcome.resolved.length > 0) {
+      const file = name ?? oursPath;
+      await appendFile(
+        logFile,
+        outcome.resolved.map((r) => `${JSON.stringify({ file, ...r })}\n`).join(""),
+      );
+    }
     return 0;
   }
   if (outcome) {
