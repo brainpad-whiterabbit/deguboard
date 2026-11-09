@@ -1,0 +1,32 @@
+{
+  "id": "r20261109-081324-eabb",
+  "ticket": "t598",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-09T08:13:24Z",
+  "finished_at": "2026-11-09T08:15:15Z",
+  "result": "success",
+  "error": null,
+  "retries": 1,
+  "retry_reasons": [
+    "段階の表の承認を求める場所が消えていて受け入れ条件 2 を満たさない"
+  ],
+  "usage": {
+    "input": 12,
+    "output": 2212,
+    "cache_read": 3176848,
+    "cache_write": 13296
+  },
+  "tools": {
+    "read": 1,
+    "search": 0,
+    "write": 2,
+    "bash": 2,
+    "other": 2,
+    "read_before_write": 1,
+    "search_before_write": 0
+  },
+  "session": "9ecee8ef-d3fe-4fc7-a962-2832cb500f39",
+  "review": null
+}
