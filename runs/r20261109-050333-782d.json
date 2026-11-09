@@ -1,0 +1,34 @@
+{
+  "id": "r20261109-050333-782d",
+  "ticket": "t595",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-09T05:03:33Z",
+  "finished_at": "2026-11-09T05:09:08Z",
+  "result": "success",
+  "error": null,
+  "retries": 3,
+  "retry_reasons": [
+    "guide-parallel.md の model の規則が消えた規則を指している",
+    "guide-work から調べもののサブエージェントの models.light の規則が消え、規則が残っていない",
+    "next.ts の import の位置を ../model/* の近くへ移す"
+  ],
+  "usage": {
+    "input": 36,
+    "output": 9739,
+    "cache_read": 980179,
+    "cache_write": 67290
+  },
+  "tools": {
+    "read": 5,
+    "search": 0,
+    "write": 7,
+    "bash": 12,
+    "other": 1,
+    "read_before_write": 0,
+    "search_before_write": 0
+  },
+  "session": "9ecee8ef-d3fe-4fc7-a962-2832cb500f39",
+  "review": null
+}
