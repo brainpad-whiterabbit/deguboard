@@ -16,6 +16,7 @@ import { workflowCommands } from "./workflow.js";
 import { hookCommands } from "./hook.js";
 import { gateCommands } from "./gate.js";
 import { nextCommands } from "./next.js";
+import { flowCommands } from "./flow.js";
 import { prCommands } from "./pr.js";
 
 export const commands: readonly AnyCommand[] = [
@@ -34,6 +35,7 @@ export const commands: readonly AnyCommand[] = [
   ...gateCommands,
   ...prCommands,
   ...nextCommands,
+  ...flowCommands,
   ...briefCommands,
 ] as AnyCommand[];
 

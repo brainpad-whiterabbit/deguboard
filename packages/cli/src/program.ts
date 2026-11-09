@@ -79,6 +79,7 @@ const GROUP_SUMMARY: Record<string, string> = {
   metrics: "Run（作業の実績）の集計",
   run: "Run（1 回の AI 実行）の記録",
   pr: "PR を品質ゲート（dg gate）を満たすときだけ進める",
+  flow: "Iteration の流れの段階と次の手",
   config: "設定（チームの config.yaml と個人の上書き）の参照と変更",
 };
 

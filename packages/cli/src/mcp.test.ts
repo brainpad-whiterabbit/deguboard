@@ -324,4 +324,37 @@ describe("dg mcp", () => {
     expect(mine.data).toEqual(all.data);
     expect(others.data).toEqual([]);
   });
+
+  it("flow_next は CLI の dg flow next --json と同じ結果を返し、--resume・--no-assign を受け取る", async () => {
+    const f = await initialized();
+    const cli = async (argv: string[]) => {
+      const out: string[] = [];
+      await run(["-C", f.cloneA, "--json", ...argv], {
+        env: cliEnv(),
+        streams: { out: (t) => out.push(t), err: () => {} },
+      });
+      return JSON.parse(out.join(""));
+    };
+    await cli(["iteration", "create", "S1"]);
+    await cli(["ticket", "create", "A"]);
+    await cli(["ticket", "create", "B"]);
+    await cli(["iteration", "add", "s1", "t1"]);
+    const first = await cli(["flow", "next", "s1"]);
+    expect(first.data.stage).toMatchObject({ name: "assign", rule: 1 });
+    const viaMcp = await session(
+      ["-C", f.cloneA],
+      [
+        { method: "tools/call", params: { name: "flow_next", arguments: { targets: ["s1"] } } },
+        {
+          method: "tools/call",
+          params: { name: "flow_next", arguments: { targets: ["s1"], resume: first.data.resume } },
+        },
+      ],
+    );
+    expect(body(viaMcp.results[0]!)).toEqual(first);
+    const resumed = await cli(["flow", "next", "s1", "--resume", first.data.resume]);
+    expect(resumed.data.stage.name).toBe("check");
+    expect(body(viaMcp.results[1]!)).toEqual(resumed);
+    expect((await cli(["flow", "next", "s1", "--no-assign"])).data.stage.name).toBe("check");
+  });
 });

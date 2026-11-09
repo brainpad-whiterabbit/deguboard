@@ -256,6 +256,7 @@ updated_at: 2026-10-31T05:10:00Z
 - EX-5 `dg next` は読み取りだけで、次の 1 手と開く step・呼ぶコマンド・人に聞くことを、サブエージェントに渡す手では brief と合わせて返す。修正ループの上限を超えたなど人の判断が要るチケットは人を待つ手になる。着手できるチケットは PL-6 か `ticket list --ready` に従う（EX-3）
 - EX-6 エージェントが PR を出す・マージする道は `dg pr ready`・`dg pr merge` で、`dg gate` を満たすときだけ gh を呼び、満たさなければ満たさない条件と理由を `GATE_FAILED` で返す。満たさないまま進めるときは人が gh を打つ（AG-10。条件は `dg gate --help`、判定しない検査は `dg guide review`、理由は [ADR-026](adr/ADR-026-guard-pr-and-data.md)）
 - EX-7 `--auto` は戻せる判断を自動で選ぶ（Plan の承認を含む。`approved_by` は agent）。自動でマージするのは `dg guide all --auto` で `auto.merge` が true のときの品質ゲートを通った PR だけで、ほかのマージとリリースの PR は人を待つ。やめる（abandoned・done の取り消し）は常に人が決め、Core は人を待つ手を返す（各手のやり方は `dg guide all`・`work`・`review`）
+- EX-8 `dg flow next` は読み取りだけで、Iteration・Plan・チケットの流れの段階と、その手のやり方の節・呼ぶコマンド・承認の要否・`resume` を返す。`resume` を写して渡すと前に返した割り当てと点検を終えたものとして進め、なければそこからやり直す。同じ段階が事実も変わらずに続けば止まる手を返す（規則は `dg flow next --help`、EX-3）
 
 ## 7. 非機能要件
 
