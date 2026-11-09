@@ -2,7 +2,8 @@ import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createFixture, git, type Fixture } from "../../test/helpers/git-fixture.js";
-import { readHistory } from "../git/history.js";
+import { readHistory, type HistoryLog } from "../git/history.js";
+import { createLocalClient } from "./local.js";
 import { openContext } from "./context.js";
 import { runCommand, type CommandContext } from "./define.js";
 import { epicAdd, epicCreate } from "./epic.js";
@@ -239,5 +240,58 @@ describe("history", () => {
     expect(only.events.some((e) => e.changes.some((c) => c.to === "review"))).toBe(true);
     const deleted = await readHistory(dir, { ticket: "t1" });
     expect(deleted.events.map((e) => e.type)).toEqual(["created", "changed", "deleted"]);
+  });
+});
+
+describe("プロセス内の CommandClient の history", () => {
+  const logCalls = () => gitCalls.filter((a) => a.includes("log")).length;
+
+  it("HEAD が同じあいだは、2 回目からの history は git log を走らせない。全体とチケット 1 枚の読みは別に覚える", async () => {
+    const ctx = await scenario();
+    const client = createLocalClient({ cwd: ctx.repo.topLevel });
+    gitCalls.length = 0;
+    const first = (await client.run<HistoryLog>("history", {})).data;
+    const one = (await client.run<HistoryLog>("history", { ticket: "t2" })).data;
+    expect(logCalls()).toBe(2);
+    expect((await client.run<HistoryLog>("history", {})).data).toEqual(first);
+    expect((await client.run<HistoryLog>("history", { ticket: "t2" })).data).toEqual(one);
+    // 全体の読みを絞った結果も、覚えた全体の読みから出す
+    await client.run("history", { iteration: "s1" });
+    await client.run("iteration.show", { iteration: "s1" });
+    expect(logCalls()).toBe(2);
+    // チケット 1 枚の読み（--full-history）と全体の読みを混ぜない
+    expect(one.events.every((e) => e.id === "t2")).toBe(true);
+    expect(first.events.some((e) => e.id === "t1")).toBe(true);
+  });
+
+  it("コミットが増えたら読み直し、新しい経過を出す", async () => {
+    const ctx = await scenario();
+    const client = createLocalClient({ cwd: ctx.repo.topLevel });
+    await client.run("history", {});
+    await client.run("history", { ticket: "t2" });
+    await runCommand(ticketMove, ctx, { ticket: "t2", status: "review" });
+    await runCommand(commit, ctx, {});
+    gitCalls.length = 0;
+    const all = (await client.run<HistoryLog>("history", {})).data;
+    const one = (await client.run<HistoryLog>("history", { ticket: "t2" })).data;
+    expect(logCalls()).toBe(2);
+    expect(changesOf(all.events).at(-1)).toBe("status: in_progress → review");
+    expect(changesOf(one.events).at(-1)).toBe("status: in_progress → review");
+  });
+
+  it("浅い clone の警告は、HEAD が同じまま浅くなっても使い回さずに出す", async () => {
+    const ctx = await scenario();
+    const client = createLocalClient({ cwd: ctx.repo.topLevel });
+    expect((await client.run<HistoryLog>("history", {})).warnings).toEqual([]);
+    // HEAD を変えずに浅くする（境界が変わったので読み直す）
+    await git(ctx.repo.dataDir, ["fetch", "--quiet", "--depth", "1", "origin", "deguboard"]);
+    for (let i = 0; i < 2; i++) {
+      const r = await client.run<HistoryLog>("history", {});
+      expect(r.data.shallow).toBe(true);
+      expect(r.warnings.join()).toContain("浅い");
+      const one = await client.run<HistoryLog>("history", { ticket: "t2" });
+      expect(one.data.shallow).toBe(true);
+      expect(one.warnings.join()).toContain("浅い");
+    }
   });
 });
