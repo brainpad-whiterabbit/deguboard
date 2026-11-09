@@ -198,10 +198,10 @@ describe("approvalOf（承認の要否）", () => {
 });
 
 describe("FLOW_GUIDE（段階の節）", () => {
-  it("段階ごとに指す guide の節が CLI の guide-*.md にある", async () => {
+  it("段階ごとに指す guide の節が core の guide-*.md にある", async () => {
     for (const [stage, ref] of Object.entries(FLOW_GUIDE)) {
       const body = await readFile(
-        new URL(`../../../cli/src/guide-${ref.topic}.md`, import.meta.url),
+        new URL(`../guide/guide-${ref.topic}.md`, import.meta.url),
         "utf8",
       );
       expect(findGuideSection(ref.topic, body, ref.section).heading, stage).toContain(ref.section);
@@ -242,6 +242,8 @@ describe("dg flow next", () => {
       commands: ["dg --json --actor agent iteration add s1 <入れるチケット…>"],
       approval: { required: true, what: "入れる行" },
     });
+    // guide.text は段階の節の本文（見出しから始まり、config を埋めたもの）
+    expect(assign.guide.text.startsWith("## Iteration")).toBe(true);
     const check = await flow(ctx, { resume: assign.resume });
     expect(check.stage).toMatchObject({ name: "check", rule: 2 });
     expect(check.memory).toEqual({ ...none, assigned: true });

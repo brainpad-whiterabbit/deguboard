@@ -16,8 +16,8 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 // 調べるファイルの一覧（root からの相対パス）。ビルドの成果物などの無視されたファイルは含まない
 const tracked = await gitFiles();
 
-// dg guide のトピック（guide-*.md）の置き場所。CLI に同梱する手順の本文
-const guideDir = "packages/cli/src";
+// dg guide のトピック（guide-*.md）の置き場所。Core が読む手順の本文（CLI と拡張はここから同梱する）
+const guideDir = "packages/core/src/guide";
 // 要件 ID と先頭コメントを照らす対象の拡張子（packages・scripts・test の下）
 const SOURCE_EXTS = [".ts", ".tsx", ".mjs", ".js", ".cjs"];
 // 重複と見なす段落・節の本文の長さ（字）。これより短い選択肢や定型句は対象にしない

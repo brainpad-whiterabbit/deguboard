@@ -1,4 +1,4 @@
 {
   "$schema": "./node_modules/oxfmt/configuration_schema.json",
-  "ignorePatterns": ["packages/cli/src/guide-*.md"]
+  "ignorePatterns": ["packages/core/src/guide/guide-*.md"]
 }

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { createFixture } from "../../test/helpers/git-fixture.js";
+import { guideSectionText } from "../guide/guide.js";
 import { openContext } from "./context.js";
 import { brief, composeBrief, type BriefFacts } from "./brief.js";
 import { runCommand } from "./define.js";
@@ -29,6 +30,7 @@ const facts = (over: Partial<BriefFacts> = {}): BriefFacts => ({
   plan: { id: "p3", scope: "右の列の CSS だけ", approach: "幅の変数を 1 つ足す" },
   remote: "origin",
   baseBranch: "main",
+  guideText: "1. 検査を通す\n2. 読み直した正本を直す",
   ...over,
 });
 
@@ -40,7 +42,11 @@ describe("サブエージェントに渡す文の形（brief）", () => {
       - 場所：worktree /work/deguboard.worktrees/feat/t12、ブランチ feat/t12。ファイルはこの worktree の中だけで編集する。
       - Plan p3 の範囲：右の列の CSS だけ
       - 方針：幅の変数を 1 つ足す
-      - 規約：リポジトリのルートにあるエージェント向けの指示ファイルと \`dg guide work\` の「実装する」（draft の PR まで）に従う。読み直して直す正本は requirements（約束だけを直し、細部は足さない）と README・コードのコメントで、ADR は判断と理由を書き換えないので入れない。この PR で古くなった ADR の細部は直さず、報告に書く（\`dg guide audit\` が起票する「ADR の細部を消す」の材料）。PR は \`gh pr create --draft\` で作り、本文にチケット ID（t12）を書く。
+      - 規約：リポジトリのルートにあるエージェント向けの指示ファイルに従い、下の手順を行う。PR の本文にチケット ID（t12）を書く。
+      --- 手順：実装する ---
+      1. 検査を通す
+      2. 読み直した正本を直す
+      --- 手順ここまで ---
       - 受け入れ条件：
         1. 列の幅が 240px になる
         2. 狭い画面で折り返さない
@@ -58,7 +64,11 @@ describe("サブエージェントに渡す文の形（brief）", () => {
       - 場所：worktree /work/deguboard.worktrees/feat/t12、ブランチ feat/t12。ファイルは読むだけで、変えない。
       - 差分：\`git fetch origin\` のあと \`git diff origin/main...feat/t12\` で見る。
       - チケット本文：\`dg --json --actor agent ticket show t12\` の本文と受け入れ条件を読む。
-      - 規約：リポジトリのルートにあるエージェント向けの指示ファイルと \`dg guide review\` の「見直す」に従う。見る観点は受け入れ条件の漏れ・不具合・文書との食い違い（この PR が変えた約束・手順・規約で、文書を同じ PR で直していないものは重い。ADR や要件に細部を足した変更も重い。文書を直していない重い指摘は約束・手順・規約の変更に限る。細部の直し方はコード・テスト・ヘルプへ移すこと。前からのずれは軽い）・規約の違反・範囲の外の変更。チケット本文に \`## 参考\` 節があれば、そこに書いたファイルと差分で変えたファイルを見比べ、参考節にない大きな広がりと、参考節のファイルに触れていない変更を「参考節との食い違い」として返す。
+      - 規約：リポジトリのルートにあるエージェント向けの指示ファイルに従い、下の手順を行う。
+      --- 手順：見直す ---
+      1. 検査を通す
+      2. 読み直した正本を直す
+      --- 手順ここまで ---
       - 道具：ファイルは Read で読む。Bash の cat・heredoc・sed -i でソースを書き換えない。
       - Run：この文の先頭の印で、フックが見直しの Run（review）を開き閉じる。Run は開かず閉じない。
       - 記録：一覧を返す前に、指摘を JSON の配列（1 件は severity（heavy か light）・category・file・line・reason・fix。形は \`dg run review-result --help\`）でリポジトリの外の一時ファイルに書き、\`dg --json --actor agent run review-result t12 --findings-file <ファイル>\` で 1 回記録する。指摘がなければ \`[]\`。数と通ったかは dg が求める。
@@ -77,7 +87,11 @@ describe("サブエージェントに渡す文の形（brief）", () => {
         - 直す指摘：1. src/a.ts:3 の型が違う（重い）
         - 直し始める前に：\`dg --json --actor agent run retry-reason t12 --reason <直す指摘 1 件の要約> --reason <2 件目の要約> …\` を単独のコマンドで 1 回呼んで、fix の Run にやり直しの理由を書く。直す指摘 1 件に 1 つ --reason を繰り返す（回数は理由の数になる）。書くのは見直し役・人のレビューの指摘だけで、検査の失敗を直したことは書かない。要約は 1 行で、秘密・コマンドの文字列・パスは書かない。
         - 直す範囲：挙げられた重い指摘と、直すと決めた軽い指摘。ほかの軽い指摘は直すかを決め、直さないものは理由を返す。
-        - 規約：リポジトリのルートにあるエージェント向けの指示ファイルと \`dg guide review\` の「指摘を直す」に従う。検査（書式・lint・テスト）を最新のコミットで通してから push する。
+        - 規約：リポジトリのルートにあるエージェント向けの指示ファイルに従い、下の手順を行う。検査（書式・lint・テスト）を最新のコミットで通してから push する。
+        --- 手順：指摘を直す ---
+        1. 検査を通す
+        2. 読み直した正本を直す
+        --- 手順ここまで ---
         - 受け入れ条件：
           1. 列の幅が 240px になる
           2. 狭い画面で折り返さない
@@ -95,7 +109,11 @@ describe("サブエージェントに渡す文の形（brief）", () => {
       - Location: worktree /work/deguboard.worktrees/feat/t12, branch feat/t12. Edit files only inside this worktree.
       - Plan p3 scope: 右の列の CSS だけ
       - Approach: 幅の変数を 1 つ足す
-      - Conventions: Follow the agent instruction file at the repository root and the "実装する" section of \`dg guide work\` (up to creating a draft PR). The sources to reread and fix are requirements (change only the promises; do not add details), the README, and code comments; do not include ADRs, since they record decisions and reasons and are not rewritten. Do not fix ADR details that this PR leaves stale; report them as material for the "ADR の細部を消す" ticket from \`dg guide audit\`. Create the PR with \`gh pr create --draft\` and write the ticket ID (t12) in its body.
+      - Conventions: Follow the agent instruction file at the repository root, and the steps below. Write the ticket ID (t12) in the PR body.
+      --- Steps: 実装する ---
+      1. 検査を通す
+      2. 読み直した正本を直す
+      --- End of steps ---
       - Acceptance criteria: 
         1. 列の幅が 240px になる
         2. 狭い画面で折り返さない
@@ -110,7 +128,11 @@ describe("サブエージェントに渡す文の形（brief）", () => {
       - Location: worktree /work/deguboard.worktrees/feat/t12, branch feat/t12. Read the files only; do not change them.
       - Diff: After \`git fetch origin\`, look at \`git diff origin/main...feat/t12\`.
       - Ticket body: Read the body and acceptance criteria in \`dg --json --actor agent ticket show t12\`.
-      - Conventions: Follow the agent instruction file at the repository root and the "見直す" (Review) section of \`dg guide review\`. Look for missed acceptance criteria, bugs, mismatches with the docs (docs left stale by a promise, procedure, or rule this PR changed are heavy, and so are details added to an ADR or requirements, whose fix moves the details into code, tests, or help; heavy findings about docs are limited to promises, procedures, and rules; older drift is light), rule violations, and changes outside the scope. If the ticket body has a \`## 参考\` section, compare the files it names with the files the diff changes, and report as "参考節との食い違い" any large spread outside the section and any change that does not touch the files the section names.
+      - Conventions: Follow the agent instruction file at the repository root, and the steps below.
+      --- Steps: 見直す ---
+      1. 検査を通す
+      2. 読み直した正本を直す
+      --- End of steps ---
       - Tools: read files with Read. Do not write source with Bash cat, heredoc, or sed -i.
       - Run: the marker on the first line makes the hook open and close the review Run. Do not open or close a Run.
       - Record: Before returning the list, write the findings as a JSON array (each with severity (heavy or light), category, file, line, reason, and fix; the shape is in \`dg run review-result --help\`) to a temporary file outside the repository, and record it once with \`dg --json --actor agent run review-result t12 --findings-file <file>\`. Use \`[]\` if there are no findings. dg works out the counts and whether the review passed.
@@ -125,7 +147,11 @@ describe("サブエージェントに渡す文の形（brief）", () => {
       - Findings to fix: (paste the list of findings here: the heavy findings and the light ones you decided to fix, returned by the reviewer or the human reviewer, each with file and line, reason, and how to fix it)
       - Before you start fixing: Run \`dg --json --actor agent run retry-reason t12 --reason <summary of finding 1> --reason <summary of finding 2> …\` once, as a standalone command, to write the retry reasons on the fix Run. Repeat --reason once per finding you fix (the number of reasons is the retry count). Write only the findings from the reviewer or the human reviewer, not fixes for failed checks. Each summary is one line and must not contain secrets, command strings, or paths.
       - Scope of the fix: The heavy findings listed, and the light ones you decide to fix. For the other light findings, decide whether to fix them, and return the reasons for those you leave.
-      - Conventions: Follow the agent instruction file at the repository root and the "指摘を直す" (Fixing findings) section of \`dg guide review\`. Run the checks (format, lint, tests) on the latest commit before you push.
+      - Conventions: Follow the agent instruction file at the repository root, and the steps below. Run the checks (format, lint, tests) on the latest commit before you push.
+      --- Steps: 指摘を直す ---
+      1. 検査を通す
+      2. 読み直した正本を直す
+      --- End of steps ---
       - Acceptance criteria: 
         1. 列の幅が 240px になる
         2. 狭い画面で折り返さない
@@ -193,6 +219,50 @@ describe("dg brief と dg next の文（EX-3）", () => {
     expect(fix).toMatchObject({ step: "fix" });
     expect(fix.text.split("\n")[0]).toBe("deguboard: ticket=t1 step=fix");
     expect(fix.text).toContain("1. 直す指摘");
+  });
+
+  it("役の文は指す節の本文を入れ、guide を読ませる文がない。dg next の brief も同じ本文", async () => {
+    const ctx = await prepared();
+    // 節の見出しを除いた本文。文の中では区切りの行に挟まれる
+    const body = async (topic: string, section: string) =>
+      (await guideSectionText(topic, section, ctx.config)).text
+        .split("\n")
+        .slice(1)
+        .join("\n")
+        .trim();
+    const cases = [
+      { role: "implement", topic: "work", section: "実装する" },
+      { role: "review", topic: "review", section: "見直す" },
+      { role: "fix", topic: "review", section: "指摘を直す" },
+    ] as const;
+    for (const { role, topic, section } of cases) {
+      const text = (await runCommand(brief, ctx, { ticket: "t1", role, findings: "1. 直す指摘" }))
+        .data.text;
+      expect(text, role).toContain(await body(topic, section));
+      expect(text, role).not.toContain("dg guide");
+    }
+    const implement = (await runCommand(brief, ctx, { ticket: "t1", role: "implement" })).data;
+    const next1 = (await runCommand(next, ctx, { ticket: "t1" })).data as NextStep;
+    expect(next1.brief).toBe(implement.text);
+  });
+
+  it("見直しと手直しの文には親向けの手順が入らない（親の節は文に入れない。t593）", async () => {
+    const ctx = await prepared();
+    // 親が進める手順の語（見直し役の起動・PR の本文・dg next の呼び出し・上限の進め方）
+    const parentOnly = [
+      "親",
+      "新しいサブエージェント",
+      "dg next を呼ばない",
+      "上限を超え",
+      "gh pr edit",
+      "書き足",
+      "人に頼",
+    ];
+    for (const role of ["review", "fix"] as const) {
+      const text = (await runCommand(brief, ctx, { ticket: "t1", role, findings: "1. 直す指摘" }))
+        .data.text;
+      for (const word of parentOnly) expect(text, `${role} ${word}`).not.toContain(word);
+    }
   });
 
   it("language を en にすると定型の文が英語になり、チケットの題は書いた言葉のまま", async () => {

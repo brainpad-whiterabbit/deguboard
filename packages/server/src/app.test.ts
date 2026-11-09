@@ -155,4 +155,28 @@ describe("HTTP サーバー", () => {
     );
     expect(viaHttp.body.data).toEqual(direct.data);
   });
+
+  it("POST /api/commands/next と brief は、役ごとの文をプロセス内で呼んだ dg と同じ結果で返す（t593）", async () => {
+    const f = await fixture();
+    await runCommand(init, await openContext({ cwd: f.cloneA, initialize: {} }), {});
+    const s = await serve(f.cloneA);
+    await post(s, "ticket.create", { title: "A" });
+    const ctx = await openContext({ cwd: f.cloneA });
+    const findings = "1. 直す指摘";
+    const roles = ["implement", "review", "fix"] as const;
+    const next = await post(s, "next", { ticket: "t1" });
+    expect(next.status).toBe(200);
+    expect(next.body.data).toEqual(
+      (await runCommand(findCommand("next")!, ctx, { ticket: "t1" })).data,
+    );
+    for (const role of roles) {
+      const input = { ticket: "t1", role, ...(role === "fix" ? { findings } : {}) };
+      const viaHttp = await post(s, "brief", input);
+      expect(viaHttp.status, role).toBe(200);
+      expect(viaHttp.body.data.text, role).toContain("--- 手順：");
+      expect(viaHttp.body.data, role).toEqual(
+        (await runCommand(findCommand("brief")!, ctx, input)).data,
+      );
+    }
+  });
 });
