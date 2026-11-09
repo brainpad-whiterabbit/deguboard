@@ -1,0 +1,133 @@
+// claim に付く準備（ST-3）：Iteration への追加と開始、作業ブランチの worktree の作成。
+// 親のエージェントが claim の前後に文で打っていた手を claim の中に入れ、規則を毎回同じに守る（ADR-030）。
+// どれも claim の排他（push）の成否とは別の都合なので、できなくても claim は失敗させず warnings で伝える
+
+import path from "node:path";
+import { createBranchWorktree, defaultWorktreePath } from "../git/branch-worktree.js";
+import { runGit } from "../git/run.js";
+import { findBranchWorktree } from "../git/worktree.js";
+import { compareIds } from "../model/id.js";
+import { otherActiveOf, type Iteration } from "../model/iteration.js";
+import type { Ticket } from "../model/ticket.js";
+import type { Doc } from "../storage/documents.js";
+import type { CommandContext } from "./define.js";
+import { localDate } from "./helpers.js";
+
+/** agent に許されたコマンドか（actor.human_only）。人はいつでも許す */
+function allowedFor(ctx: CommandContext, command: string): boolean {
+  return ctx.actor.kind !== "agent" || !ctx.config.actor.human_only.includes(command);
+}
+
+/**
+ * Iteration の空いたチケットを入れる先：Project の active の Iteration、なければ planned のうち start が最も早いもの
+ * （start のないものは後ろ。並べば ID の小さいもの）。閉じた Iteration には入れない
+ */
+export function iterationTargetFor(
+  iterations: Iterable<Doc<Iteration>>,
+  project: string,
+): Doc<Iteration> | undefined {
+  const inProject = [...iterations].filter((i) => i.data.project === project);
+  const active = inProject.find((i) => i.data.status === "active");
+  if (active) return active;
+  return inProject
+    .filter((i) => i.data.status === "planned")
+    .sort((a, b) => {
+      const as = a.data.start;
+      const bs = b.data.start;
+      if (as !== bs) {
+        if (as === undefined) return 1;
+        if (bs === undefined) return -1;
+        return as < bs ? -1 : 1;
+      }
+      return compareIds(a.id, b.id);
+    })[0];
+}
+
+/**
+ * claim の書き込みの中で、チケットの Iteration を決めて返し、planned なら開始する（lint.require_iteration・IT-1）。
+ * require_iteration が false なら Iteration には入れないが、入っている Iteration の開始は行う。
+ * 入れ先がない・agent に禁じられた・ほかの active があるときは、何もせず warnings に人への頼みを書く
+ */
+export async function prepareIterationForClaim(
+  ctx: CommandContext,
+  ticket: Doc<Ticket>,
+  warnings: string[],
+): Promise<Ticket["iteration"]> {
+  let iterationId = ticket.data.iteration;
+  if (!iterationId && ctx.config.lint.require_iteration) {
+    const target = iterationTargetFor(ctx.store.iterations.values(), ticket.data.project);
+    if (!target) {
+      warnings.push(
+        `${ticket.id} を入れる Iteration（active か planned）がない。人に Iteration を作って入れるよう頼む（入れずに進むと lint_iteration_missing）`,
+      );
+    } else if (!allowedFor(ctx, "iteration.add")) {
+      warnings.push(
+        `${ticket.id} を ${target.id} に入れられない（iteration.add は actor.human_only）。人に入れるよう頼む`,
+      );
+    } else {
+      iterationId = target.id as NonNullable<Ticket["iteration"]>;
+      warnings.push(`${ticket.id} を ${target.id} に入れた`);
+    }
+  }
+  if (!iterationId) return iterationId;
+  const it = ctx.store.iterations.get(iterationId);
+  if (!it || it.data.status !== "planned") return iterationId;
+  if (!allowedFor(ctx, "iteration.start")) {
+    warnings.push(
+      `${it.id} は planned のまま（iteration.start は actor.human_only）。人に開始を頼む`,
+    );
+    return iterationId;
+  }
+  const other = otherActiveOf(
+    [...ctx.store.iterations.values()].map((i) => i.data),
+    it.data,
+  );
+  if (other) {
+    warnings.push(
+      `${it.id} を開始できない（${other.id} が active）。人に ${it.id} の扱いを確かめる`,
+    );
+    return iterationId;
+  }
+  // 予定の開始日は実際とずれるので、始めた日に書き換える（iteration.start と同じ。IT-1）
+  await ctx.store.update("iteration", it.id, { status: "active", start: localDate(ctx.now()) });
+  warnings.push(`${it.id} を開始した（active）`);
+  return iterationId;
+}
+
+/**
+ * claim したブランチの worktree を用意して場所を返す。既にそのブランチの worktree があればそれを返し、
+ * ローカルにブランチだけ残っていれば（unclaim の後など）そのブランチを checkout する。作れなければ warnings に理由を書いて null
+ */
+export async function prepareWorktreeForClaim(
+  ctx: CommandContext,
+  branch: string,
+  requestedPath: string | undefined,
+  warnings: string[],
+): Promise<string | null> {
+  const repo = ctx.repo;
+  try {
+    const existing = await findBranchWorktree(repo, branch);
+    if (existing) return existing;
+    const dir = path.resolve(
+      repo.topLevel,
+      requestedPath ?? defaultWorktreePath(repo, ctx.config.worktree.root, branch),
+    );
+    const local = await runGit(
+      repo.topLevel,
+      ["show-ref", "--verify", "--quiet", `refs/heads/${branch}`],
+      { allowFailure: true },
+    );
+    if (local.code === 0) {
+      await runGit(repo.topLevel, ["worktree", "add", "--", dir, branch]);
+      return dir;
+    }
+    return (await createBranchWorktree(repo.topLevel, repo, { branch, base: repo.baseBranch, dir }))
+      .path;
+  } catch (error) {
+    const reason = error instanceof Error ? error.message.split("\n")[0] : String(error);
+    warnings.push(
+      `ブランチ ${branch} の worktree を作れなかった（${reason}）。claim は済んでいるので、worktree を手で作って続ける`,
+    );
+    return null;
+  }
+}

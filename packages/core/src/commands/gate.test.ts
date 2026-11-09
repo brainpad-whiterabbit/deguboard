@@ -61,7 +61,12 @@ async function prepared() {
     title: "A",
     body: "## 受け入れ条件\n\n- [ ] 1 つめ\n- [ ] 2 つめ\n",
   });
-  await runCommand(ticketClaim, ctx, { ticket: "t1", branch: "feat/t1", no_run: true });
+  await runCommand(ticketClaim, ctx, {
+    no_worktree: true,
+    ticket: "t1",
+    branch: "feat/t1",
+    no_run: true,
+  });
   await git(f.cloneA, ["checkout", "-qb", "feat/t1"]);
   await git(f.cloneA, ["commit", "-q", "--allow-empty", "-m", "作業"]);
   await git(f.cloneA, ["push", "-q", "origin", "feat/t1"]);

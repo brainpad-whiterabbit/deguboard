@@ -25,6 +25,7 @@ import { wouldCreateCycle } from "../storage/integrity.js";
 import type { Store, WorkflowEntry } from "../storage/store.js";
 import type { Facts } from "../workflow/conditions.js";
 import { canTransition, describeRejection, findConstraint } from "../workflow/resolve.js";
+import { prepareIterationForClaim, prepareWorktreeForClaim } from "./claim-setup.js";
 import { defineCommand, ok, type CommandContext } from "./define.js";
 import { parseDraftSource } from "./draft-source.js";
 import { matchesFilter, ticketFilterSchema } from "./filters.js";
@@ -897,8 +898,11 @@ const retryReasons = z
   )
   .meta({ freeText: true });
 
-/** ticket.claim の出力。run は claim が開いた実行中の Run の ID（開かなかったときは null。RN-5） */
-export type ClaimView = Ticket & { body: string; run: RunId | null };
+/**
+ * ticket.claim の出力。run は claim が開いた実行中の Run の ID（開かなかったときは null。RN-5）。
+ * worktree は claim が用意した作業ブランチの worktree の場所（作らなかった・作れなかったときは null。ST-3）
+ */
+export type ClaimView = Ticket & { body: string; run: RunId | null; worktree: string | null };
 
 /**
  * agent の claim が開く Run の step と agent（RN-5。claim は実装、reclaim は手直し）。開けない理由は warnings に入れて null を返す
@@ -991,6 +995,8 @@ export const ticketClaim = defineCommand({
   group: "ticket",
   summary:
     "チケットに着手する。担当者（assignee）を自分にしてブランチを記録し、in_progress にする。push の成功で排他を得る。todo → in_progress の制約（requires: [deps_done] など）があれば従う。" +
+    "lint.require_iteration が true で Iteration が空なら、Project の active の Iteration（なければ planned のうち start が最も早いもの、並べば ID の小さいもの）に入れる。入れ先がなければ warnings で人に頼むよう伝える。チケットの Iteration が planned なら active にし、できなければ（ほかの active・actor.human_only）warnings に出して claim は成功にする。どちらも claim と同じ書き込みで push する。" +
+    "push の後、作業ブランチの worktree を worktree.root/<ブランチ名>（--worktree-path で変えられる）に base から作り、場所を worktree に出す。そのブランチの worktree が既にあればそれを、ローカルにブランチだけあればそれを checkout する。作れなければ warnings に出して claim は成功にする。--no-worktree・--without-branch では作らない。" +
     "agent なら続けて実装の Run（Workflow の steps のうち opens_on: claim のもの、なければ implement）を開き、ID を run（人向けの出力では標準出力の最後の行）に出す。開けなければ警告だけして claim は成功にする。" +
     "自分（同じユーザの人と AI）が claim 済みで PR のあるチケット（in_progress か review）をもう一度 claim すると、手直し（見直しの修正ループ・人のレビューの後）の開始とみなす。チケットは変えず、agent なら手直しの Run（opens_on: reclaim のもの、なければ fix）を開く。実装の Run でも手直しの Run でも、開くときに同じチケットの開いたままの前の手直しの Run があれば、この claim を区切りとして、その Run の開始より後の最後の push の時刻（なければこの claim の時刻）で success にしてから開く（手直しの Run を開くとき、前の手直しの Run の session がこの claim のセッション（--session、なければ環境の DEGUBOARD_SESSION、なければ dg を呼んだエージェントが環境に付けるセッション ID。サブエージェントの claim では起動した親のセッション）と違えば、落ちたセッションの残りとみなして interrupted にする。どちらかのセッションが分からなければ success）。ほかの主体の claim は拒否する",
   input: z.object({
@@ -1006,6 +1012,17 @@ export const ticketClaim = defineCommand({
       .boolean()
       .optional()
       .describe("PR も作業ブランチも要らない作業。branch を記録せず、照合の対象にしない"),
+    no_worktree: z
+      .boolean()
+      .optional()
+      .describe("作業ブランチの worktree を作らない（ブランチも作らず、branch を記録するだけ）"),
+    worktree_path: z
+      .string()
+      .min(1)
+      .optional()
+      .describe(
+        "作る worktree の場所（作業ツリーの最上位からの相対か絶対パス）。省略時は worktree.root/<ブランチ名>",
+      ),
     agent: token
       .optional()
       .describe(
@@ -1031,6 +1048,9 @@ export const ticketClaim = defineCommand({
     if (input.without_branch && input.branch !== undefined) {
       throw new UsageError("branch と without_branch は同時に指定できない");
     }
+    if (input.worktree_path !== undefined && (input.no_worktree || input.without_branch)) {
+      throw new UsageError("worktree_path は no_worktree・without_branch と同時に指定できない");
+    }
     if (input.no_run && input.agent !== undefined) {
       throw new UsageError("agent と no_run は同時に指定できない");
     }
@@ -1052,9 +1072,12 @@ export const ticketClaim = defineCommand({
     }
     // もう一度の claim（自分が claim 済みで PR のあるチケット。ST-9・RN-5）かは、書き込みの中で取り込んだ後の索引で決める。
     // 書くものがないので ReclaimRequested で書き込みを抜け、外で reclaim に回す
+    // Iteration の準備の警告は書き込みのやり直し（cas）ごとに作り直し、最後の 1 回の分だけ返す
+    let iterationWarnings: string[] = [];
     const result = await withWrite(
       ctx,
       async () => {
+        iterationWarnings = [];
         const doc = ctx.store.require("ticket", input.ticket);
         if (isReclaim(ctx, doc.data)) throw new ReclaimRequested(doc);
         if (doc.data.status !== "todo") {
@@ -1095,8 +1118,11 @@ export const ticketClaim = defineCommand({
           ? undefined
           : (input.branch ?? defaultBranchName(doc.data));
         if (branch) await requireBranchAvailable(ctx, doc.id, branch);
+        // Iteration への追加と開始は claim と同じ書き込みに入れ、claim の push で一緒に決まるようにする（ST-3）
+        const iteration = await prepareIterationForClaim(ctx, doc, iterationWarnings);
         const now = nowIso(ctx);
         return ctx.store.update("ticket", doc.id, {
+          iteration,
           status: "in_progress",
           assignee: ctx.actor.id,
           claimed_by: undefined,
@@ -1121,8 +1147,15 @@ export const ticketClaim = defineCommand({
         { ...input, retry_reasons: retryReasonsGiven },
         warnings,
       );
-      return ok<ClaimView>({ ...withBody(result.doc), run }, undefined, warnings);
+      return ok<ClaimView>({ ...withBody(result.doc), run, worktree: null }, undefined, warnings);
     }
+    warnings.push(...iterationWarnings);
+    // worktree を作るのは claim が push で取れた後（取れなかった claim でブランチを残さない）
+    const branch = result.value.data.branch;
+    const worktree =
+      branch && !input.no_worktree
+        ? await prepareWorktreeForClaim(ctx, branch, input.worktree_path, warnings)
+        : null;
     // Run を開くのは claim が push で取れた後。人の claim と no_run では開かない（RN-5）
     const run =
       ctx.actor.kind === "agent" && !input.no_run
@@ -1139,7 +1172,7 @@ export const ticketClaim = defineCommand({
             warnings,
           )
         : null;
-    return ok<ClaimView>({ ...withBody(result.value), run }, result.write, warnings);
+    return ok<ClaimView>({ ...withBody(result.value), run, worktree }, result.write, warnings);
   },
 });
 

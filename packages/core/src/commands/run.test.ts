@@ -1182,6 +1182,7 @@ describe("run finish の使用量の取り込み（MT-1・MT-2・MT-4）", () =>
       const { ctx, projectDir } = await withTranscripts(true);
       const file = path.join(projectDir, "s1.jsonl");
       const claimed = await runCommand(ticketClaim, ctx, {
+        no_worktree: true,
         ticket: "t1",
         agent: "claude-code",
         session: "s1",
@@ -1191,11 +1192,16 @@ describe("run finish の使用量の取り込み（MT-1・MT-2・MT-4）", () =>
       const running = (await runCommand(runList, ctx, { running: true })).data as RunView[];
       expect(running.find((r) => r.id === id)?.session).toBe("s1");
       await expect(
-        runCommand(ticketClaim, ctx, { ticket: "t2", no_run: true, session: "s1" }),
+        runCommand(ticketClaim, ctx, {
+          no_worktree: true,
+          ticket: "t2",
+          no_run: true,
+          session: "s1",
+        }),
       ).rejects.toThrow(/session と transcript/);
       const human = { ...ctx, actor: { ...ctx.actor, kind: "human" as const } };
       await expect(
-        runCommand(ticketClaim, human, { ticket: "t2", transcript: file }),
+        runCommand(ticketClaim, human, { no_worktree: true, ticket: "t2", transcript: file }),
       ).rejects.toThrow(/session と transcript/);
     });
   });

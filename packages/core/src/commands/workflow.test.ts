@@ -172,7 +172,7 @@ describe("workflow set", () => {
     const f = await fixture();
     const ctx = await initialized(f.cloneA);
     const a = await runCommand(ticketCreate, ctx, { title: "A" });
-    await runCommand(ticketClaim, ctx, { ticket: a.data.id, branch: "feat/a" });
+    await runCommand(ticketClaim, ctx, { no_worktree: true, ticket: a.data.id, branch: "feat/a" });
     const b = await runCommand(ticketCreate, ctx, { title: "B" });
     await runCommand(workflowSet, ctx, { workflow: "general", definition: strict });
 

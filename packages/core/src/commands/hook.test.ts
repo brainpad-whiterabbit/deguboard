@@ -862,7 +862,12 @@ describe("dg hook の移行の経路と兄弟の Run（ADR-025）", () => {
 
   it("手直しを続きで頼んだ会話で claim が開いた手直しの Run は、待ちの印から続けて止まっても印の step（実装）に直さず、push があれば fix のまま success で閉じる", async () => {
     const { ctx, parent, subagent } = await prepared();
-    await runCommand(ticketClaim, ctx, { ticket: "t1", branch: "feat/t1", no_run: true });
+    await runCommand(ticketClaim, ctx, {
+      no_worktree: true,
+      ticket: "t1",
+      branch: "feat/t1",
+      no_run: true,
+    });
     await runGit(ctx.repo.topLevel, ["checkout", "-qb", "feat/t1"]);
     const mine = (
       await runCommand(runStart, ctx, {
@@ -1683,9 +1688,15 @@ describe("手直しの Run の印と run retry-reason（RN-7・RN-8・ADR-025）
   it("人や親が自分で直すときの ticket claim --retry-reason は今のとおり手直しの Run を開き、run retry-reason はその Run に書き足す", async () => {
     const { ctx } = await prepared();
     // PR のある自分の claim（もう一度の claim になる）を作る
-    await runCommand(ticketClaim, ctx, { ticket: "t2", branch: "feat/t2", no_run: true });
+    await runCommand(ticketClaim, ctx, {
+      no_worktree: true,
+      ticket: "t2",
+      branch: "feat/t2",
+      no_run: true,
+    });
     await runCommand(ticketUpdate, ctx, { ticket: "t2", pr: 9 });
     const claimed = await runCommand(ticketClaim, ctx, {
+      no_worktree: true,
       ticket: "t2",
       agent: "claude-code",
       retry_reasons: ["親が直す"],

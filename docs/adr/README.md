@@ -22,6 +22,7 @@
 | [ADR-028](ADR-028-agents-and-state.md)              | ツールはエージェントを動かさず、状態はブランチの事実で進め、排他は claim の push で決める               | エージェントと照合 | 2026-11-08 |
 | [ADR-029](ADR-029-work-metrics.md)                  | 作業の使用量は Run ごとに公式の記録から実測し、数だけを Git に写す                                      | 作業の実績         | 2026-11-08 |
 | [ADR-030](ADR-030-flow-and-guide-in-core.md)        | Iteration の流れもコードが判定し、guide の節は Core が返し、カスタマイズは config と guide.notes に限る | ワークフロー       | 2026-11-09 |
+| [ADR-031](ADR-031-claim-prepares-work.md)           | claim が Iteration への追加と開始、作業ブランチの worktree の作成まで行う                               | ワークフロー       | 2026-11-09 |
 
 ## 置き換え済み
 
