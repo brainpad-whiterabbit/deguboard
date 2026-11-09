@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -128,13 +128,14 @@ describe("dg guide", () => {
     expect(work).not.toContain("--body");
   });
 
-  it("work の実装の手順は draft の PR まで、正本を読み直して ADR-001 の範囲で直し、PR の本文に読み直したことと付けられなかった項目を書く", async () => {
+  it("work の実装の手順は draft の PR まで、正本を読み直して直し、PR の本文に読み直したことと付けられなかった項目を書く", async () => {
     const impl = section(await readGuide("work"), "## 実装する（draft の PR まで）");
-    for (const word of ["requirements", "ADR-001", "README"]) expect(impl).toContain(word);
-    // ADR は判断を変えるときの置き換えの一覧と、この PR で古くなった細部の報告まで書く（直さない）
+    for (const word of ["requirements", "README"]) expect(impl).toContain(word);
+    // 判断を変えたら ADR の本文を同じ PR で直し、この PR が誤りにした ADR の細部は消す（報告に回さない）
     for (const word of [
-      "古い ADR を置き換えにして一覧を直す",
-      "この PR で古くなった ADR の細部は直さず、報告に書く",
+      "判断を変えたら、その判断の ADR（あれば）の本文を同じ PR で直接書き換える",
+      "この PR が誤りにした ADR の細部は、その PR で消す",
+      "変えていない文書の前からのずれは直さず、報告に書く",
     ])
       expect(impl, word).toContain(word);
     // 読み直し → PR を作る → 本文に読み直した正本と直した箇所を書く、の順
@@ -155,7 +156,7 @@ describe("dg guide", () => {
     expect(await readGuide("overview")).toContain("`ticket claim` が開く");
   });
 
-  it("review は文書との食い違いを、この PR が変えた約束・手順・規約で文書を直していないものに限って重い指摘にし、前からのずれは audit と ADR-001 に送る。参考節との食い違いは軽い指摘として返し、参考節がなければ見比べないと案内し、直さなかった軽い指摘は dg pr ready が PR の本文に書き足すと決める", async () => {
+  it("review は文書との食い違いを、この PR が変えた約束・手順・規約で文書を直していないものに限って重い指摘にし、前からのずれは audit に送る。参考節との食い違いは軽い指摘として返し、参考節がなければ見比べないと案内し、直さなかった軽い指摘は dg pr ready が PR の本文に書き足すと決める", async () => {
     const review = await readGuide("review");
     const look = bullet(section(review, "## 見直す"), "見る");
     for (const word of [
@@ -168,7 +169,7 @@ describe("dg guide", () => {
       expect(look, word).toContain(word);
     // 重い・軽いの分けは「返す」だけに書く（見る と返す で二度並べない）
     const back = bullet(section(review, "## 見直す"), "返す");
-    for (const word of ["この PR が変えた", "文書の見直し", "ADR-001", "参考節との食い違い"])
+    for (const word of ["この PR が変えた", "Iteration の見直しに送る", "参考節との食い違い"])
       expect(back, word).toContain(word);
     // 受け入れ条件の指摘は category に「受け入れ条件」を含め、手直しに渡す軽い指摘を dg が category で選ぶ（t600）
     for (const word of ["受け入れ条件の欠け", "category に「受け入れ条件」を含める"])
@@ -203,9 +204,17 @@ describe("dg guide", () => {
       expect(back, word).toContain(word);
   });
 
-  it("import は受け入れ条件に ADR や要件の書き足しを入れるのを ADR-001 の基準に当たるときだけにし、それ以外はテストとコメントで約束を示すと案内する", async () => {
+  it("import は受け入れ条件に ADR や要件の書き足しを入れるのを判断の種類に当たるときだけにし、それ以外はテストとコメントで約束を示すと案内する", async () => {
     const criteria = lineWith(await readGuide("import"), "受け入れ条件に ADR や要件定義書");
-    for (const word of ["ADR-001", "テストとコメント"]) expect(criteria, word).toContain(word);
+    for (const word of ["移行が要る", "テストとコメント"]) expect(criteria, word).toContain(word);
+  });
+
+  it("同梱の guide（guide-*.md の全部）は、このリポジトリの ADR 番号を書かない（基準は中身を 1 文で書く）", async () => {
+    const dir = new URL("../../core/src/guide/", import.meta.url);
+    const files = (await readdir(dir)).filter((file) => /^guide-.+\.md$/.test(file));
+    expect(files.length).toBeGreaterThan(0);
+    for (const file of files)
+      expect(await readFile(new URL(file, dir), "utf8"), file).not.toMatch(/ADR-\d{3}/);
   });
 
   it("import は本文の項目の引用しない値の行末コメントが拒まれると書き、直し方はエラーの文に任せる", async () => {
