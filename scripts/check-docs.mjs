@@ -1,5 +1,5 @@
-// 文書とコードの参照を検査する（docs/adr/ADR-001-doc-strategy.md）。大きさの予算は持たない。検査するのは、ADR 一覧の整合・「最後に使った番号」を超える ADR の番号と実在しない ADR の番号の参照（文書・CLAUDE.md・README・ルートの追跡ファイル・guide・packages・scripts の地の文・コメント・文字列と、test の先頭コメント）・リンクと見出しアンカーの切れ・拡張と Walkthrough が指す README の見出しアンカー・README.md と README.ja.md の節の構成のずれ・コードとテストの要件 ID・要件の 1 項の上限（250 字）・コードとテストが指す置き換え済みの ADR・コードの先頭コメントの参照・`dg guide <topic>` の「節」と英語の "節" section of `dg guide <topic>` の参照（文書と packages の .ts・.tsx の文字列とコメント）・文書の重複。
-// 要件 ID は docs/requirements.md の箇条書き「- XX-N」で定義されたものに限る。接頭辞は定義と「要件の ID の接頭辞：」の一覧から取り、定義にない番号を参照していたら指摘する（一覧にない接頭辞は要件 ID と見なさない）。先頭コメントは最初の // の行で、requirements.md の節番号・ADR・docs のパス（#アンカー）・guide-*.md を照らす。
+// 文書とコードの参照を検査する（docs/adr/ADR-001-doc-strategy.md）。大きさの予算は持たない。検査するのは、ADR 一覧の整合・「最後に使った番号」を超える ADR の番号と実在しない ADR の番号の参照（文書・CLAUDE.md・README・ルートの追跡ファイル・guide・packages・scripts の地の文・コメント・文字列と、test の先頭コメント）・packages・scripts・test の ADR 番号が先頭のコメントの外にあること（ファイルと行を出す）と、先頭のコメントの異なる番号が 2 つ以上ないこと・リンクと見出しアンカーの切れ・拡張と Walkthrough が指す README の見出しアンカー・README.md と README.ja.md の節の構成のずれ・コードとテストの要件 ID・要件の 1 項の上限（250 字）・コードとテストが指す置き換え済みの ADR・コードの先頭コメントの参照・`dg guide <topic>` の「節」と英語の "節" section of `dg guide <topic>` の参照（文書と packages の .ts・.tsx の文字列とコメント）・文書の重複。
+// 要件 ID は docs/requirements.md の箇条書き「- XX-N」で定義されたものに限る。接頭辞は定義と「要件の ID の接頭辞：」の一覧から取り、定義にない番号を参照していたら指摘する（一覧にない接頭辞は要件 ID と見なさない）。先頭コメントは最初の // の行（CSS などは先頭の /* の塊）で、requirements.md の節番号・ADR・docs のパス（#アンカー）・guide-*.md を照らす。
 // 要件の 1 項は「- XX-N」の項目とその下の字下げした行を、行のまま（記号「- 」と字下げ・ID とリンクの記法を含み、改行は 1 字）数える（節の前文は数えない）。置き換え済みかは各 ADR のステータスの「置き換え（ADR-0xx）」から読み、packages・scripts・test のコードの ADR-0xx の参照すべて（コメント・テスト名・文字列）を照らし、置き換えの先を置き換え済みでなくなるまでたどって今の判断を出す。
 // 文書の重複は、同じ見出しの節の本文が同じ guide どうし（正本を 1 本にする）、または同じ段落が 2 本以上の文書にあるときに指摘する。段落は 40 字以上で、空行・見出し・表・コードで切り、箇条書きの 1 項目も 1 段落にする。比べるのは guide・docs/requirements.md・docs の下のほかの文書（ADR を除く）・CLAUDE.md・README.md・README.ja.md・packages/*/README.md。ADR は判断の記録で、判断と理由を書き換えないので比べない。README.md と README.ja.md は訳どうしなので、この 2 つだけの組は指摘しない。frontmatter と ``` の中は除く。短い選択肢や定型句は同じ語でよいので対象にしない。指摘には段落の場所（ファイルと行）を出す。
 // 調べるファイルは git が追跡しているか無視されていないもの（.gitignore のビルドの成果物は読まない）。git のリポジトリの中で動かす。
@@ -251,7 +251,7 @@ for (const rel of sources) {
   }
 }
 
-// 先頭コメント：最初の // の行が指す requirements.md の節・ADR・docs のパス（#アンカー）・guide のトピックが存在すること
+// 先頭コメント：先頭のコメント（// の行・先頭の /* の塊）が指す requirements.md の節・ADR・docs のパス（#アンカー）・guide のトピックが存在すること
 const requirementSections = new Set(
   [...requirementsText.matchAll(/^#{2,3} (\d+(?:\.\d+)*)(?=[.\s])/gm)].map((m) => m[1]),
 );
@@ -341,6 +341,48 @@ for (const rel of adrRefFiles) {
         errors.push(`${rel}:${i + 1}: ADR-${m[1]} が docs/adr にない`);
       }
     }
+  }
+}
+
+// ADR 番号の位置：packages（dist を除く）・scripts・test の追跡ファイルは、ADR 番号を先頭のコメントに書く。
+// 先頭のコメントの外の番号は、ファイルと行を出して落とす。先頭のコメントに異なる番号が 2 つ以上あっても落とす（同じ番号を 2 度書くのは落とさない）。
+// 例外は、ADR 番号そのものを検査するファイルだけ（理由を書く）。番号の実在は上の検査が見る
+const ADR_NUMBER_EXEMPT = new Map([
+  [
+    "scripts/check-docs.mjs",
+    "この検査自身。正規表現と説明の文が ADR 番号の形を扱い、番号を書く参照ではない",
+  ],
+  [
+    "test/scripts/check-docs.test.ts",
+    "この検査のテスト。フィクスチャと期待する指摘の文に ADR 番号を書く（テストの文字列から番号を外す規則の例外）",
+  ],
+]);
+const adrPlacementFiles = tracked.filter(
+  (f) =>
+    !f.split("/").includes("dist") &&
+    !BINARY_EXTS.some((x) => f.toLowerCase().endsWith(x)) &&
+    ["packages/", "scripts/", "test/"].some((d) => f.startsWith(d)) &&
+    !ADR_NUMBER_EXEMPT.has(f),
+);
+for (const rel of adrPlacementFiles) {
+  const text = await readFile(path.join(root, rel), "utf8");
+  const top = topComment(text);
+  const topLines = new Set(top.map((t) => t.line));
+  for (const [i, line] of text.split("\n").entries()) {
+    if (topLines.has(i + 1)) continue;
+    for (const m of line.matchAll(/\bADR-(\d{3})\b/g)) {
+      errors.push(
+        `${rel}:${i + 1}: ADR-${m[1]} が先頭のコメントの外にある（ADR 番号は先頭のコメントに書く）`,
+      );
+    }
+  }
+  const topNumbers = [
+    ...new Set(top.flatMap((t) => [...t.text.matchAll(/\bADR-(\d{3})\b/g)].map((m) => m[1]))),
+  ];
+  if (topNumbers.length > 1) {
+    errors.push(
+      `${rel}: 先頭のコメントに異なる ADR 番号が ${topNumbers.length} 個ある（${topNumbers.map((n) => `ADR-${n}`).join("、")}）。1 つにする`,
+    );
   }
 }
 
@@ -457,13 +499,23 @@ console.log(
   `check:docs: ADR ${adrFiles.length} 件（最後に使った番号 ADR-${lastUsed} 以内、${ADR_WARN_CHARS} 字超の警告 ${warnings.length} 件）、ADR 番号の参照 ${adrRefFileCount} 件が実在、文書 ${new Set(paragraphDocs).size} 件（guide ${guideFiles.length} 件を含む）に重複なし、リンク ${linkCount} 件に切れなし、README.ja.md の見出し ${readmeJaHeadings.length} 個が README.md と同じ構成、拡張と Walkthrough の README の見出しアンカー ${readmeAnchorCount} 件に切れなし、要件 ID ${requirementRefCount} 件が定義どおり、要件 ${requirementItemCount} 項が ${REQUIREMENT_ITEM_MAX_CHARS} 字以内、コードとテストの ADR の参照 ${adrRefCount} 件に置き換え済みなし、先頭コメントの参照 ${topRefCount} 件に切れなし、dg guide の節の参照 ${guideRefCount} 件に切れなし`,
 );
 
-/** ファイルの先頭の // の行（shebang を除く）。最初の // 以外の行で止める */
+/** ファイルの先頭のコメント（shebang を除く）。// の行と、先頭の /* … *\/ の塊（CSS の先頭コメント）を行ごとに返す。それ以外の行で止める */
 function topComment(text) {
   const out = [];
+  let inBlock = false;
   for (const [i, line] of text.split("\n").entries()) {
     if (i === 0 && line.startsWith("#!")) continue;
-    if (!line.startsWith("//")) break;
-    out.push({ line: i + 1, text: line });
+    if (inBlock) {
+      out.push({ line: i + 1, text: line });
+      if (line.includes("*/")) inBlock = false;
+    } else if (line.startsWith("//")) {
+      out.push({ line: i + 1, text: line });
+    } else if (line.startsWith("/*")) {
+      out.push({ line: i + 1, text: line });
+      inBlock = !line.includes("*/", 2);
+    } else {
+      break;
+    }
   }
   return out;
 }
