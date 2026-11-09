@@ -4,6 +4,7 @@ import type { Run, RunReview } from "../model/run.js";
 import { openContext } from "./context.js";
 import { runCommand } from "./define.js";
 import { next, nextOf, stageOf, type NextStep, type StageFacts } from "./next.js";
+import { planCreate } from "./plan.js";
 import { findCommand } from "./registry.js";
 import { init } from "./setup.js";
 import { ticketCreate, ticketShow, ticketUpdate, type TicketDetail } from "./ticket.js";
@@ -362,6 +363,42 @@ describe("dg next と ticket show の stage（EX-3）", () => {
     });
     expect(step.commands).toEqual([]);
     expect(step.ask_human).toContain("push なしで返った");
+  });
+
+  it("implement・fix の手の model は plan.tier を models.* に対応させ、tier を省いた段階は standard、対応が空なら null。review とほかの手は null", async () => {
+    const ctx = await prepared();
+    await runCommand(ticketCreate, ctx, { title: "C" });
+    await runCommand(planCreate, ctx, {
+      tickets: ["t1", "t2"],
+      tier: { t1: "heavy", t2: "light" },
+    });
+    const models = { light: "haiku", standard: "sonnet", heavy: "opus" };
+    const withModels = { ...ctx, config: { ...ctx.config, models } };
+    const kind = (f: StageFacts) => nextOf(withModels, f);
+    const todo = (id: string) =>
+      facts({ ticket: { id: id as TicketFacts["id"], status: "todo", pr: undefined } });
+    // tier に対応するモデル（heavy は opus、light は haiku）
+    expect(kind(todo("t1"))).toMatchObject({ kind: "implement", model: "opus" });
+    expect(kind(todo("t2"))).toMatchObject({ kind: "implement", model: "haiku" });
+    // Plan に入らないチケットは standard（tier を省いた段階と同じ）
+    expect(kind(todo("t3"))).toMatchObject({ kind: "implement", model: "sonnet" });
+    // 直す手は実装と同じモデル。見直しと、見直しが通った後の手は親のモデル（null）
+    expect(kind(facts({ runs: [review(6, heavy)] }))).toMatchObject({ kind: "fix", model: "opus" });
+    expect(kind(facts({ runs: [] }))).toMatchObject({ kind: "review", model: null });
+    expect(kind(facts({ runs: [review(6, passed)] }))).toMatchObject({
+      kind: "ready",
+      model: null,
+    });
+    // 対応が空なら null（親のモデル）
+    const bare = {
+      ...ctx,
+      config: { ...ctx.config, models: { light: "", standard: "", heavy: "" } },
+    };
+    expect(nextOf(bare, todo("t1"))).toMatchObject({ kind: "implement", model: null });
+    expect(nextOf(bare, todo("t3"))).toMatchObject({ kind: "implement", model: null });
+    // 既定の config（models.* は空）の dg next も model を返す
+    const step = (await runCommand(next, ctx, { ticket: "t1" })).data as NextStep;
+    expect(step).toMatchObject({ kind: "implement", model: null, plan: { tier: "heavy" } });
   });
 
   it("CLI・HTTP・MCP が写す一覧に next があり、読み取りだけ（write: false）", () => {

@@ -254,17 +254,10 @@ describe("dg guide", () => {
     }
   });
 
-  it("work は段階のモデルを config の models.* で埋め、空なら「なし」と出す。見直し役は親のモデル", async () => {
+  it("work はモデルの対応を書かず dg next の model に任せる。見直し役は親のモデル", async () => {
     const work = await readGuide("work");
-    expect(fillPlaceholders(work, defaultConfig())).toContain(
-      "light `なし`・standard `なし`・heavy `なし`",
-    );
-    expect(
-      fillPlaceholders(work, {
-        ...defaultConfig(),
-        models: { light: "haiku", standard: "sonnet", heavy: "opus" },
-      }),
-    ).toContain("light `haiku`・standard `sonnet`・heavy `opus`");
+    expect(work).not.toContain("models.");
+    expect(work).toContain("`model` が空でなければ");
     expect(await readGuide("review")).toContain("段階によらず親のモデル");
     expect(await readGuide("plan")).toContain("--tier");
   });

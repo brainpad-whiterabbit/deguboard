@@ -9,6 +9,8 @@ import { readRunningRuns } from "../run/record.js";
 import { ASK_LANGUAGES } from "./ask.js";
 import { briefOf, type BriefRole } from "./brief.js";
 import { defineCommand, ok, type CommandContext } from "./define.js";
+import type { Config } from "../model/config.js";
+import type { PlanTier } from "../model/plan.js";
 import { FIX_ROUNDS_LIMIT, heavyReviewRounds } from "./gate.js";
 import { openPlanOf, ticketRef } from "./helpers.js";
 import { planReadiness } from "./plan.js";
@@ -66,6 +68,8 @@ export interface NextStep {
   pr: number | null;
   /** Plan の段階・範囲・方針（開いた Plan に入っていれば） */
   plan: { id: string; tier: string | null; scope: string | null; approach: string | null } | null;
+  /** サブエージェントを起動するモデル（implement・fix の手。plan.tier を config の models.* に対応させ、空なら null は親のモデル）。ほかの手は null */
+  model: string | null;
   /** この手で、親かエージェントが呼ぶ dg・gh のコマンド（順に） */
   commands: string[];
   /** 人に伝えて答えを待つこと（wait_human・wait_merge）。なければ null */
@@ -80,6 +84,23 @@ const BRIEF_ROLE_OF: Partial<Record<NextKind, BriefRole>> = {
   review: "review",
   fix: "fix",
 };
+
+/**
+ * モデルを決める手。review は親のモデルで起動する（見直し役は品質ゲートを弱めない）。
+ * 直す手（fix）は実装と同じモデル（guide-review の「指摘を直す」）
+ */
+const MODEL_KINDS: readonly NextKind[] = ["implement", "fix"];
+
+/**
+ * plan.tier を config の models.* のモデル名に対応させる。tier を省いた段階は standard（guide-plan の `--tier` と同じ）。
+ * 対応の値が空なら null（親のモデル）
+ */
+export function modelOf(
+  tier: PlanTier | null | undefined,
+  models: Config["models"],
+): string | null {
+  return models[tier ?? "standard"] || null;
+}
 
 /** 実行中の Run を待つ（新しく起動しない）手。ほかの手（done・wait_deps・wait_merge など）は待たない */
 const WAITABLE: readonly NextKind[] = ["implement", "review", "fix", "ready"];
@@ -283,6 +304,7 @@ export function nextOf(ctx: CommandContext, facts: StageFacts): NextStep {
       step,
       running_run: running ?? awaited,
       commands: awaited ? [`実行中の Run ${awaited} の終わりを待つ（新しく起動しない）`] : commands,
+      model: MODEL_KINDS.includes(kind) ? modelOf(details?.tier, ctx.config.models) : null,
       ask_human: ask,
       brief: null,
     };
@@ -367,6 +389,7 @@ export const next = defineCommand({
     "段階を Run（実装・見直し・手直しとその結果、止まって待っている印）・PR・作業ブランチの事実・Plan の待ちから求め、" +
     "手の種類（kind：implement・review・fix・ready・wait_merge・wait_deps・wait_human・done）と、開く step・実行中の Run・Plan の段階と範囲と方針・呼ぶコマンド（commands。サブエージェントに委譲する形。モデルが親と同じで自分で進めるなら、implement の claim は --no-run を外し印を使わない。implement・review・fix・ready の手は、その手の Run か、このブランチで実行中の実装の Run・開始より後に push がない手直しの Run が実行中なら、起動せずに終わりを待つ）・人に聞くこと（ask_human）を返す。" +
     "implement・review・fix の手には、サブエージェントに貼る文（brief。dg brief と同じ。language で定型の文の言語）を入れる。" +
+    "implement・fix の手には、起動するモデル（model）を入れる（Plan の tier を config の models.* に対応させ、tier のないチケットは standard。対応が空・review・ほかの手は null で、null は親のモデル）。" +
     "waiting_human の段階のチケットは wait_human。作業ブランチを取り込んでから読む。何も書かない",
   input: z.object({
     ticket: ticketRef,
