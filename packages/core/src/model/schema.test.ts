@@ -149,6 +149,7 @@ describe("スキーマ", () => {
       "actions.shell",
       "actions.test",
       "auto.merge",
+      "review.heavy_categories",
       "lint.require_iteration",
       "models.light",
       "models.standard",

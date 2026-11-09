@@ -170,13 +170,13 @@ export function composeBrief(
       item(
         L("記録", "Record"),
         L(
-          `一覧を返す前に、\`dg --json --actor agent run review-result ${id} --heavy <重い指摘の数> --light <軽い指摘の数>\` を 1 回記録する（重い指摘がなければ \`--passed\` も付ける）。`,
-          `Before returning the list, record the result once with \`dg --json --actor agent run review-result ${id} --heavy <number of heavy findings> --light <number of light findings>\` (add \`--passed\` if there are no heavy findings).`,
+          `一覧を返す前に、指摘を JSON の配列（1 件は severity（heavy か light）・category・file・line・reason・fix。形は \`dg run review-result --help\`）でリポジトリの外の一時ファイルに書き、\`dg --json --actor agent run review-result ${id} --findings-file <ファイル>\` で 1 回記録する。指摘がなければ \`[]\`。数と通ったかは dg が求める。`,
+          `Before returning the list, write the findings as a JSON array (each with severity (heavy or light), category, file, line, reason, and fix; the shape is in \`dg run review-result --help\`) to a temporary file outside the repository, and record it once with \`dg --json --actor agent run review-result ${id} --findings-file <file>\`. Use \`[]\` if there are no findings. dg works out the counts and whether the review passed.`,
         ),
       ),
       never(
-        "ファイルを変える・コミットする・push する・Run のほかに dg へ書き込む・ほかのチケットを見る。",
-        "change files, commit, push, write anything to dg other than the Run, or look at other tickets.",
+        "リポジトリのファイルを変える・コミットする・push する・Run のほかに dg へ書き込む・ほかのチケットを見る。",
+        "change files in the repository, commit, push, write anything to dg other than the Run, or look at other tickets.",
       ),
       returns(
         "指摘を重い（受け入れ条件の漏れ・不具合・この PR が変えた約束・手順・規約で文書を直していないもの・ADR や要件に足した細部・規約の違反）と軽い（言い回し・好み・前からのずれ）に分けた一覧（ファイルと行・理由・直し方）と、最新のコミットで回した検査の結果。参考節との食い違いは軽い指摘の欄に分けて書き、重い指摘に数えない。",

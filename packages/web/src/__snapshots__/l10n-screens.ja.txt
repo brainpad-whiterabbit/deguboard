@@ -295,6 +295,17 @@ auto.merge
 無効
 [title] 既定の false に戻す
 既定に戻す
+重いとみなす見直しの指摘の種類
+review.heavy_categories
+[title] 既定は 空
+変更あり
+review.heavy_categories
+空
+[aria-label] 項目
+[placeholder] 項目を足す
+足す
+[title] 既定の 空 に戻す
+既定に戻す
 Iteration に入れてから進める
 lint.require_iteration
 [title] 既定は false

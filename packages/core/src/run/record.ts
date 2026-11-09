@@ -24,6 +24,7 @@ import {
   type Run,
   type RunId,
   type RunResult,
+  type ReviewFinding,
   type RunReview,
   type RunTools,
   type RunUsage,
@@ -82,6 +83,53 @@ export async function takePendingReview(
   await unlink(file).catch(() => undefined);
   if (typeof pending?.at !== "string" || pending.at < since || !pending.review) return undefined;
   return pending.review;
+}
+
+/**
+ * 見直しの指摘の一覧（run review-result --findings-file）の置き場所：deguboard-local/review-findings/<ticket>.json。チケットごとに最新の 1 回だけを置く。
+ * Git の Run には数と通ったか（review）だけを書き、一覧は書かない。理由：
+ *   - 作業の記録として Git に写すのは数だけにする（ADR-029）。品質ゲートと修正ループの回数（dg gate）も数だけで決まる（ADR-025）
+ *   - 一覧は指摘の文・パス・直し方の長い文で、回ごとに変わる。使うのは直後に同じマシンの親が組む手直しの文と PR の本文だけ（t600）
+ *   - 閉じた Run は書き換えない（RN-4）ので、前景の見直し役のように Run より先に結果が来る形では、Run に一覧を後から足せない
+ */
+const REVIEW_FINDINGS_DIR = "review-findings";
+
+export interface StoredReviewFindings {
+  ticket: TicketId;
+  /** 書いた見直しの Run。Run がまだなく保留にしたときは null */
+  run: RunId | null;
+  /** 置いた時刻（ISO） */
+  at: string;
+  review: RunReview;
+  findings: ReviewFinding[];
+}
+
+const reviewFindingsPath = (repo: Pick<GitRepo, "localDir">, ticket: TicketId) =>
+  path.join(repo.localDir, REVIEW_FINDINGS_DIR, `${ticket}.json`);
+
+/** 見直しの指摘の一覧を置く（同じチケットの前の回は置き換える） */
+export async function putReviewFindings(
+  repo: Pick<GitRepo, "localDir">,
+  stored: StoredReviewFindings,
+): Promise<void> {
+  const file = reviewFindingsPath(repo, stored.ticket);
+  await mkdir(path.dirname(file), { recursive: true });
+  await writeFileAtomic(file, `${JSON.stringify(stored, null, 2)}\n`);
+}
+
+/** チケットの最新の見直しの指摘の一覧。なければ（一覧なしの呼び方・別のマシン・読めない）undefined */
+export async function readReviewFindings(
+  repo: Pick<GitRepo, "localDir">,
+  ticket: TicketId,
+): Promise<StoredReviewFindings | undefined> {
+  try {
+    const stored = JSON.parse(
+      await readFile(reviewFindingsPath(repo, ticket), "utf8"),
+    ) as StoredReviewFindings;
+    return Array.isArray(stored?.findings) ? stored : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /** start と finish の確かめと書き込みを直列にするロックの名前（deguboard-local/locks/runs） */

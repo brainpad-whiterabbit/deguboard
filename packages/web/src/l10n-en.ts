@@ -301,6 +301,7 @@ export const EN: Readonly<Record<string, string>> = {
   テストのコマンド: "Test command",
   "PR を自動でマージする": "Merge PRs automatically",
   "Iteration に入れてから進める": "Require an Iteration before starting",
+  重いとみなす見直しの指摘の種類: "Review finding categories treated as heavy",
   "段階 light のモデル": "Model for tier light",
   "段階 standard のモデル": "Model for tier standard",
   "段階 heavy のモデル": "Model for tier heavy",
@@ -543,6 +544,8 @@ export const CONFIG_DESCRIPTIONS_EN: Readonly<Record<string, string>> = {
     "Argument array of the command the test Action (run_tests) runs (e.g. [mise, run, check]). When empty, run_tests is rejected",
   "auto.merge":
     "Whether dg guide all --auto merges PRs that pass the quality gate (dg gate --for merge) automatically. By default a person merges",
+  "review.heavy_categories":
+    "Review finding categories (run review-result --findings-file) treated as heavy regardless of severity. Empty by default, so the reviewer's severity is kept",
   "lint.require_iteration":
     "Whether dg lint flags tickets that moved past todo or abandoned without being in an Iteration (except done tickets in closed Epics). dg guide work asks to add the ticket to an Iteration before claim",
   "models.light":
