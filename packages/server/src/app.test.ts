@@ -1,7 +1,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { commands, openContext, runCommand, init } from "@deguboard/core";
+import { commands, findCommand, openContext, runCommand, init } from "@deguboard/core";
 import {
   createFixture,
   createLocalOnlyRepo,
@@ -134,5 +134,25 @@ describe("HTTP サーバー", () => {
     expect((await fetch(`${s.url}..%2F..%2Fetc%2Fpasswd`)).status).toBe(404); // ルートの外は拒否する
     expect((await fetch(`${s.url}api/nope`)).status).toBe(404);
     expect(s.host).toBe("127.0.0.1");
+  });
+
+  it("POST /api/commands/flow.next はプロセス内で呼んだ dg flow next と同じ結果を返す", async () => {
+    const f = await fixture();
+    await runCommand(init, await openContext({ cwd: f.cloneA, initialize: {} }), {});
+    const s = await serve(f.cloneA);
+    await post(s, "iteration.create", { name: "S1" });
+    await post(s, "ticket.create", { title: "A" });
+    await post(s, "iteration.add", { iteration: "s1", tickets: ["t1"] });
+    const viaHttp = await post(s, "flow.next", { targets: ["s1"] });
+    expect(viaHttp.status).toBe(200);
+    expect(viaHttp.body.data.stage).toMatchObject({ name: "check", rule: 2 });
+    const direct = await runCommand(
+      findCommand("flow.next")!,
+      await openContext({ cwd: f.cloneA }),
+      {
+        targets: ["s1"],
+      },
+    );
+    expect(viaHttp.body.data).toEqual(direct.data);
   });
 });
