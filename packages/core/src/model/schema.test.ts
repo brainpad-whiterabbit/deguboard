@@ -174,6 +174,7 @@ describe("スキーマ", () => {
       "git.remote",
       "git.base_branch",
       "worktree.root",
+      "worktree.setup",
       "commit.mode",
       "push.mode",
       "metrics.read_transcripts",

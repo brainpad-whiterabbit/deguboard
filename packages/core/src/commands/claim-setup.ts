@@ -1,10 +1,10 @@
-// claim に付く準備（ST-3）：Iteration への追加と開始、作業ブランチの worktree の作成。
+// claim に付く準備（ST-3）：Iteration への追加と開始、作業ブランチの worktree の作成と、その worktree での準備のコマンド（worktree.setup）。
 // 親のエージェントが claim の前後に文で打っていた手を claim の中に入れ、規則を毎回同じに守る（ADR-030）。
 // どれも claim の排他（push）の成否とは別の都合なので、できなくても claim は失敗させず warnings で伝える
 
 import path from "node:path";
 import { createBranchWorktree, defaultWorktreePath } from "../git/branch-worktree.js";
-import { runGit } from "../git/run.js";
+import { runGit, runProcess } from "../git/run.js";
 import { findBranchWorktree } from "../git/worktree.js";
 import { compareIds } from "../model/id.js";
 import { otherActiveOf, type Iteration } from "../model/iteration.js";
@@ -94,9 +94,43 @@ export async function prepareIterationForClaim(
   return iterationId;
 }
 
+/** 準備のコマンドの上限。pnpm install と build が入るので、普通の検査より長く待つ */
+const SETUP_TIMEOUT_MS = 10 * 60_000;
+
+/**
+ * claim が作った worktree で config の worktree.setup を回す（t621）。空なら回さない。
+ * 失敗（終了コード・起動できない・上限）は claim を失敗させず、warnings に失敗と手で回すコマンドを書く
+ */
+async function runSetupInWorktree(
+  ctx: CommandContext,
+  dir: string,
+  warnings: string[],
+): Promise<void> {
+  const [file, ...args] = ctx.config.worktree.setup;
+  if (!file) return;
+  // 手で回すときの書き方。引数に空白があってもそのまま読めるように、引数は引用せず並べる
+  const command = ctx.config.worktree.setup.join(" ");
+  try {
+    const result = await runProcess(dir, file, args, {
+      allowFailure: true,
+      timeoutMs: SETUP_TIMEOUT_MS,
+    });
+    if (result.code === 0) return;
+    warnings.push(
+      `worktree の準備のコマンド（${command}）が終了コード ${result.code} で止まった。claim は済んでいるので、${dir} で ${command} を手で回す`,
+    );
+  } catch (error) {
+    const reason = error instanceof Error ? error.message.split("\n")[0] : String(error);
+    warnings.push(
+      `worktree の準備のコマンド（${command}）を回せなかった（${reason}）。claim は済んでいるので、${dir} で ${command} を手で回す`,
+    );
+  }
+}
+
 /**
  * claim したブランチの worktree を用意して場所を返す。既にそのブランチの worktree があればそれを返し、
- * ローカルにブランチだけ残っていれば（unclaim の後など）そのブランチを checkout する。作れなければ warnings に理由を書いて null
+ * ローカルにブランチだけ残っていれば（unclaim の後など）そのブランチを checkout する。作れなければ warnings に理由を書いて null。
+ * 作った worktree（既存のものは除く）では worktree.setup を回す
  */
 export async function prepareWorktreeForClaim(
   ctx: CommandContext,
@@ -110,6 +144,7 @@ export async function prepareWorktreeForClaim(
     repo.topLevel,
     requestedPath ?? defaultWorktreePath(repo, ctx.config.worktree.root, branch),
   );
+  let created: string;
   try {
     const existing = await findBranchWorktree(repo, branch);
     if (existing) return existing;
@@ -120,10 +155,12 @@ export async function prepareWorktreeForClaim(
     );
     if (local.code === 0) {
       await runGit(repo.topLevel, ["worktree", "add", "--", dir, branch]);
-      return dir;
+      created = dir;
+    } else {
+      created = (
+        await createBranchWorktree(repo.topLevel, repo, { branch, base: repo.baseBranch, dir })
+      ).path;
     }
-    return (await createBranchWorktree(repo.topLevel, repo, { branch, base: repo.baseBranch, dir }))
-      .path;
   } catch (error) {
     const reason = error instanceof Error ? error.message.split("\n")[0] : String(error);
     warnings.push(
@@ -131,4 +168,6 @@ export async function prepareWorktreeForClaim(
     );
     return null;
   }
+  await runSetupInWorktree(ctx, created, warnings);
+  return created;
 }

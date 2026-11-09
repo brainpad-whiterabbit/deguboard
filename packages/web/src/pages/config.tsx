@@ -57,6 +57,7 @@ const NAMES: Record<string, string> = {
   "git.remote": msg("同期先のリモート"),
   "git.base_branch": msg("基準のブランチ"),
   "worktree.root": msg("worktree の置き場所"),
+  "worktree.setup": msg("worktree の準備のコマンド"),
   default_project: msg("既定の Project"),
   "priority.high": msg("優先度 high の判断基準"),
   "priority.medium": msg("優先度 medium の判断基準"),
@@ -79,13 +80,14 @@ const NAMES: Record<string, string> = {
 /**
  * 保存の前に確かめる項目と、確かめの文に出す変わること。誤ると同期・照合・worktree・実行するコマンド・エージェントに許す操作を壊し、
  * 戻すまで気づきにくい（チームのタブでは全員に効く）。どちらのタブでも確かめる。
- * actions.test は確認なしで実行するコマンドなので、シェルの許可（actions.shell）と同じ重さで扱う。
+ * actions.test と worktree.setup は確認なしで実行するコマンドなので、シェルの許可（actions.shell）と同じ重さで扱う。
  * auto.merge はエージェントに PR のマージを許すので、エージェントに許す操作として扱う（ADR-027・ADR-007）
  */
 export const CONFIRM_KEYS: ReadonlyMap<string, string> = new Map([
   ["git.remote", msg("同期先が変わる")],
   ["git.base_branch", msg("マージ済みの判定の基準が変わる")],
   ["worktree.root", msg("作業場所が変わる")],
+  ["worktree.setup", msg("claim のたびに確認なしで回すコマンドが変わる（シェルを許すのと同じ）")],
   ["actions.test", msg("テストとして確認なしで実行するコマンドが変わる（シェルを許すのと同じ）")],
   ["actions.shell", msg("エージェントが任意のシェルを実行できるかが変わる")],
   ["actor.human_only", msg("エージェントに許す操作が変わる")],

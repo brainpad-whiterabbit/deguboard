@@ -62,6 +62,12 @@ export const configSchema = z.looseObject({
         .min(1)
         .default("../<repo>.worktrees")
         .describe("作業 worktree の置き場所。リポジトリからの相対パス"),
+      setup: z
+        .array(z.string().min(1))
+        .default([])
+        .describe(
+          "claim が作った作業 worktree で最初に回す準備のコマンドの引数配列（例 [mise, run, setup]）。空なら何も回さない。失敗しても claim は成功し、warnings に失敗と手で回すコマンドを出す",
+        ),
     })
     .prefault({}),
   commit: z

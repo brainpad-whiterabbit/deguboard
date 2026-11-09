@@ -1,5 +1,6 @@
 // claim に付く準備（Iteration への追加と開始・作業ブランチの worktree の作成）を、bare リモート付きの一時リポジトリで確かめる（ST-3）
 
+import { existsSync } from "node:fs";
 import { realpath } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -230,5 +231,52 @@ describe("claim の worktree の作成", () => {
       `ブランチ feat/blocked の worktree を作れなかった`,
     );
     expect(blocked.warnings.join("\n")).toContain(`worktree を ${dir} に手で作って続ける`);
+  });
+});
+
+describe("claim の worktree の準備のコマンド（worktree.setup）", () => {
+  // node で印のファイルを書くだけの準備のコマンド。シェルを通さず、引数配列のまま呼ばれることを使う
+  const marker = ["node", "-e", "require('node:fs').writeFileSync('setup-ran.txt', 'ok')"];
+
+  /** worktree.setup を書いたあと、読み直した文脈を返す（claim は開いたときの config で回る） */
+  async function withSetup(cwd: string, value: unknown): Promise<CommandContext> {
+    const ctx = await initialized(cwd);
+    await runCommand(configSet, ctx, { key: "worktree.setup", value });
+    return openContext({ cwd, actor: { kind: "human", user: "eiki" } });
+  }
+
+  it("claim が作った worktree で、引数配列のコマンドを worktree の中で回す（元のクローンでは回さない）", async () => {
+    const f = await fixture();
+    const ctx = await withSetup(f.cloneA, marker);
+    await runCommand(ticketCreate, ctx, { title: "A" });
+    const claimed = await runCommand(ticketClaim, ctx, { ticket: "t1", branch: "feat/setup" });
+    const dir = claimed.data.worktree!;
+    expect(existsSync(path.join(dir, "setup-ran.txt"))).toBe(true);
+    expect(existsSync(path.join(f.cloneA, "setup-ran.txt"))).toBe(false);
+    expect(claimed.warnings).toEqual([]);
+  });
+
+  it("準備が失敗しても claim は成功し、warnings に失敗と手で回すコマンドを出す", async () => {
+    const f = await fixture();
+    const ctx = await withSetup(f.cloneA, ["node", "-e", "process.exit(3)"]);
+    await runCommand(ticketCreate, ctx, { title: "A" });
+    const claimed = await runCommand(ticketClaim, ctx, { ticket: "t1", branch: "feat/exit" });
+    expect(claimed.data).toMatchObject({ status: "in_progress" });
+    expect(claimed.data.worktree).toBeTruthy();
+    const text = claimed.warnings.join("\n");
+    expect(text).toContain("終了コード 3");
+    expect(text).toContain("node -e process.exit(3)");
+    expect(text).toContain(`${claimed.data.worktree} で node -e process.exit(3) を手で回す`);
+  });
+
+  it("起動できないコマンドも claim は成功し、回せなかったことと手で回すコマンドを warnings に出す", async () => {
+    const f = await fixture();
+    const ctx = await withSetup(f.cloneA, ["deguboard-no-such-command-t621"]);
+    await runCommand(ticketCreate, ctx, { title: "A" });
+    const claimed = await runCommand(ticketClaim, ctx, { ticket: "t1", branch: "feat/missing" });
+    expect(claimed.data).toMatchObject({ status: "in_progress" });
+    expect(claimed.warnings.join("\n")).toContain(
+      "worktree の準備のコマンド（deguboard-no-such-command-t621）を回せなかった",
+    );
   });
 });
