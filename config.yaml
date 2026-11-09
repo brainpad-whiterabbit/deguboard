@@ -23,6 +23,17 @@ actions:
     - mise
     - run
     - check
+  light_test:
+    - mise
+    - run
+    - check:light
+  light_paths:
+    - docs/**
+    - CLAUDE.md
+    - SECURITY.md
+    - packages/vscode/images/**
+    - packages/vscode/media/icon.png
+    - packages/vscode/media/deguboard.svg
 worktree:
   root: ../<repo>.worktrees
   setup:

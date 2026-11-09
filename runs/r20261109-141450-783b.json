@@ -1,0 +1,36 @@
+{
+  "id": "r20261109-141450-783b",
+  "ticket": "t626",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-09T14:14:50Z",
+  "finished_at": "2026-11-09T14:22:13Z",
+  "result": "success",
+  "error": null,
+  "retries": 5,
+  "retry_reasons": [
+    "ADR-002 に失効の印が 2 つたまったのでまとめ直す",
+    "CLAUDE.md の依存の向きのリンクが本文を削った ADR-007 を指したまま",
+    "有効な ADR に本文を削った ADR-007 への参照が残る",
+    "ADR-033 に印と鍵の中身という実装の細部を写した",
+    "読みのコードの印が変わったキャッシュを捨てるテストがない"
+  ],
+  "usage": {
+    "input": 50,
+    "output": 15245,
+    "cache_read": 1775757,
+    "cache_write": 74052
+  },
+  "tools": {
+    "read": 3,
+    "search": 0,
+    "write": 5,
+    "bash": 18,
+    "other": 1,
+    "read_before_write": 1,
+    "search_before_write": 0
+  },
+  "session": "a6e4409e-9924-4902-b4ff-016a8f5ae296",
+  "review": null
+}
