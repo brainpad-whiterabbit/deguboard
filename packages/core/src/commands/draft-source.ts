@@ -1,4 +1,4 @@
-// ticket import の下書きの本文（YAML か JSON）を読み、行末コメントで本文が切れる下書きを拒む。CLI は読んだ文字列を渡すだけ（ADR-007）
+// ticket import の下書きの本文（YAML か JSON）を読み、行末コメントで本文が切れる下書きを拒む。CLI は読んだ文字列を渡すだけ（ADR-033）
 
 import { isMap, isScalar, isSeq, parseDocument } from "yaml";
 import { UsageError } from "../errors.js";

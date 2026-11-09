@@ -11,7 +11,7 @@
 - 親とサブエージェントは、要る節が 1 つでも guide のトピック全体を読み直す。節だけを渡せば読む量は 75〜87% 減る
 - 段階の判定に要る事実のうち「この実行で割り当てを終えた・点検した・見直しを終えた」は、Git にもチケットのデータにもなく、会話の中にしかない
 - 利用者が手続きを変える入口が定まっていない。config の値は guide の文に埋まるだけで効くかは LLM 次第、SKILL.md を書き換えると `dg skill install` の更新を受け取れず、CLAUDE.md は形が決まっていないので dg が読めない
-- `dg next`・`dg brief` が guide の節の本文を返すには、CLI に同梱した guide-*.md（CL-5）を Core から読む必要があるが、[ADR-007](ADR-007-architecture.md) では Core は CLI に依存しない
+- `dg next`・`dg brief` が guide の節の本文を返すには、CLI に同梱した guide-*.md（CL-5）を Core から読む必要があるが、[ADR-033](ADR-033-architecture.md) では Core は CLI に依存しない
 
 この ADR は ADR-011 を置き換えず、その範囲を Iteration の流れと guide の読み込み・カスタマイズに広げる。ADR-011 の決定（1 枚のチケットの手続き・人の判断の穴・修正ループと並列の上限を config に置かない）はそのまま有効。
 
@@ -33,7 +33,7 @@
 
 - guide の本文（guide-*.md）と読み込み（frontmatter の分離・節の切り出し・共通の節 `{{choices}}` の差し込み・config の値と `guide.notes` の埋め込み）は Core に置く。`dg next`・`dg brief`・`dg flow next` は、指す節の本文を Core の中で読んで返す
 - `dg guide` と `dg skill install` は CLI だけの操作のまま（AG-4）で、Core の読み込みを写す
-- Core が読むのは同梱の静的な文書だけで、VS Code API・HTTP・React には依存しない（ADR-007 の依存の向きは変えない）。束ねられる入口（VS Code 拡張）でも読めるようにする方法は実装の細部
+- Core が読むのは同梱の静的な文書だけで、VS Code API・HTTP・React には依存しない（ADR-033 の依存の向きは変えない）。束ねられる入口（VS Code 拡張）でも読めるようにする方法は実装の細部
 
 ### カスタマイズは config の項目と guide.notes の枠で行う
 
@@ -56,6 +56,6 @@
 - **流れの事実を Run に印として残す**：Git に書く量が増え、Run を実績の記録（[ADR-029](ADR-029-work-metrics.md)）の外の用途に使う
 - **流れの事実をセッションごとに deguboard-local に残す**：フックのない製品ではセッションを見分けられず効かない
 - **resume の中身をエージェントが組み立てる**：事実の記録が LLM 次第に戻り、確率的な飛ばしが残る
-- **guide の読み込みを CLI に残し、CLI が next・brief の結果に節を足す**：入口にロジックが入り、HTTP・MCP の結果が CLI とずれる（ADR-007）
+- **guide の読み込みを CLI に残し、CLI が next・brief の結果に節を足す**：入口にロジックが入り、HTTP・MCP の結果が CLI とずれる（ADR-033）
 - **入口が guide の読み手を Core に注入する**：すべての入口が同じ読み手を渡す必要があり、渡し忘れた入口だけ結果が欠ける。版と一緒に変わる静的な文書に注入の口は要らない
 - **SKILL.md・guide・CLAUDE.md の書き換えでカスタマイズする**：Skill と guide は更新を受け取れなくなり、CLAUDE.md は dg が形を読めない

@@ -1,4 +1,4 @@
-// Run（runs/r20261031-041500-3fa2.json。requirements.md 5.9、ADR-002・ADR-029）。
+// Run（runs/r20261031-041500-3fa2.json。requirements.md 5.9、ADR-034・ADR-029）。
 // Git に入れるのは完了時の集計だけ。実行中の記録（deguboard-local/runs/。RN-3）も同じスキーマで置く（run/record.ts）
 
 import { z } from "zod";

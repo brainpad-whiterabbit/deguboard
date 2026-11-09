@@ -2,7 +2,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-// コマンドが書き込むか（write）を照らすためだけに core の実行時のコードを取り込む（画面のコードは型だけを取る。ADR-007）
+// コマンドが書き込むか（write）を照らすためだけに core の実行時のコードを取り込む（画面のコードは型だけを取る。ADR-033）
 import { findCommand } from "@deguboard/core";
 
 const SRC = fileURLToPath(new URL(".", import.meta.url));

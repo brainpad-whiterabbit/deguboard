@@ -1,4 +1,4 @@
-// deguboard ブランチのマージドライバ（SY-4、ADR-002）。チケットと Epic の frontmatter と、Plan・Iteration・Project の YAML をフィールド単位で 3-way マージする。
+// deguboard ブランチのマージドライバ（SY-4、ADR-034）。チケットと Epic の frontmatter と、Plan・Iteration・Project の YAML をフィールド単位で 3-way マージする。
 // git が rebase の中で `<dg> merge-driver %O %A %B %P` として呼ぶ。登録は ensureMergeDriver（init と sync）が行う
 
 import { isDeepStrictEqual } from "node:util";

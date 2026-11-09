@@ -128,7 +128,7 @@ export type IterationNext =
 
 /**
  * 履歴から、その Iteration から外れた（持ち越した）チケットの ID を番号の順に返す。今もそこに入っているものは除く。
- * web の履歴の画面（history.tsx の carriedOverFrom）は同じ求め方を写している（web は core の実行時のコードを取り込まず（ADR-007）、iteration.show に置き換えると Iteration ごとに履歴を読むため）。
+ * web の履歴の画面（history.tsx の carriedOverFrom）は同じ求め方を写している（web は core の実行時のコードを取り込まず（ADR-033）、iteration.show に置き換えると Iteration ごとに履歴を読むため）。
  * 一致は web の history.test.tsx が確かめるので、ここを変えたら web の写しも直す
  */
 export function carriedOverFrom(

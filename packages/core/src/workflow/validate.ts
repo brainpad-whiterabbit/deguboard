@@ -16,7 +16,7 @@ export interface WorkflowValidation {
 export interface WorkflowValidationOptions {
   /**
    * steps に書ける Action の名前（登録済みの Action の一覧）。workflow は actions に依存しないので、
-   * 入口が core/actions の ACTION_NAMES を渡す（ADR-007）。省略すると Action の名前は形だけ見る
+   * 入口が core/actions の ACTION_NAMES を渡す（ADR-033）。省略すると Action の名前は形だけ見る
    */
   actions?: readonly string[] | undefined;
 }

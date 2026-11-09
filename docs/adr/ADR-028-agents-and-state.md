@@ -14,7 +14,7 @@ AI エージェント（Claude Code・Codex など）がチケットを処理す
 ### ツールはエージェントを起動も監視もしない
 
 - `dg`・サーバー・VS Code 拡張は、チケットの作業のためにエージェントを起動しない。実行中のプロセスも監視しない（EX-1）。harness のフックの扱いは [ADR-025](ADR-025-runs-by-hooks.md)・[ADR-026](ADR-026-guard-pr-and-data.md)
-- エージェントは Bash から `dg` を呼んでチケットを読み書きし、手順は `dg guide <topic>` が出す（AG-1）。Claude Code 向けには guide を読む薄い Skill を配り（AG-2）、ほかのエージェントは同じ手順に従う。特定の AI 製品に依存する処理は Adapter（[ADR-007](ADR-007-architecture.md)）に閉じる
+- エージェントは Bash から `dg` を呼んでチケットを読み書きし、手順は `dg guide <topic>` が出す（AG-1）。Claude Code 向けには guide を読む薄い Skill を配り（AG-2）、ほかのエージェントは同じ手順に従う。特定の AI 製品に依存する処理は Adapter（[ADR-033](ADR-033-architecture.md)）に閉じる
 - 主体（human / agent）は Adapter のフックが環境に入れて決め、フックのない製品では申告（`--actor` か `DEGUBOARD_ACTOR`）に従う。申告がなければ human で、その製品では guide の手順が必ず agent を名乗る。こうして Workflow が人に限った遷移をエージェントから遠ざける
 - 権限管理や偽装の防止はしない（同じリポジトリに書ける人を信頼する）
 

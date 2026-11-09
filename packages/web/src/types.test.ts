@@ -1,4 +1,4 @@
-// 写しを照らすためだけに core の実行時のコード（matchesQuery・canTransition）を取り込む（画面のコードは型だけを取る。ADR-007）
+// 写しを照らすためだけに core の実行時のコード（matchesQuery・canTransition）を取り込む（画面のコードは型だけを取る。ADR-033）
 import {
   canTransition,
   matchesQuery,

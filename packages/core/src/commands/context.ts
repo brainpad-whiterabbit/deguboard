@@ -1,5 +1,6 @@
 // 入口がコマンドを呼ぶための文脈を組み立てる
 
+import path from "node:path";
 import { OperationError } from "../errors.js";
 import {
   defaultUser,
@@ -10,6 +11,7 @@ import {
 } from "../git/repo.js";
 import { ensureDeguboardWorktree, type WorktreeOrigin } from "../git/worktree.js";
 import { actorIdOf } from "../model/actor.js";
+import { STORE_CACHE_DIR } from "../storage/paths.js";
 import { Store } from "../storage/store.js";
 import type { ActorInfo, AnyCommand, CommandContext } from "./define.js";
 
@@ -27,7 +29,7 @@ export interface ContextOptions {
   env?: Readonly<Record<string, string | undefined>> | undefined;
   /**
    * Workflow の steps に書ける Action の名前。commands は actions に依存しないので、入口が
-   * core/actions の ACTION_NAMES を渡す（ADR-007）。省略すると未知の Action を指摘しない
+   * core/actions の ACTION_NAMES を渡す（ADR-033）。省略すると未知の Action を指摘しない
    */
   actions?: readonly string[] | undefined;
 }
@@ -98,10 +100,12 @@ export async function openContext(opts: ContextOptions): Promise<CommandContext>
     const remote = await resolveRemote(paths, opts.initialize.remote ?? "origin");
     worktree = await ensureDeguboardWorktree(paths, remote);
   }
-  // 個人の設定（deguboard-local/config.yaml）もここで重ねるので、CLI・HTTP・VS Code 拡張は同じ値を読む
+  // 個人の設定（deguboard-local/config.yaml）もここで重ねるので、CLI・HTTP・VS Code 拡張は同じ値を読む。
+  // 読みの結果は deguboard-local/store-cache/ に残し、次の呼び出し（CLI は毎回別のプロセス）は変わったファイルだけを読む（ADR-033）
   const store = await Store.open(paths.dataDir, {
     actions: opts.actions,
     localDir: paths.localDir,
+    cacheDir: path.join(paths.localDir, STORE_CACHE_DIR),
   });
   const remoteName = opts.initialize?.remote ?? store.config.git.remote;
   const repo: GitRepo = {

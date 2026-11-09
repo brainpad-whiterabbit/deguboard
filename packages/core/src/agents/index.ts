@@ -1,4 +1,4 @@
-// Agent Adapter の一覧と、Run の使用量の取り込み（AG-5・MT-1・MT-2、ADR-029・ADR-007）。
+// Agent Adapter の一覧と、Run の使用量の取り込み（AG-5・MT-1・MT-2、ADR-029・ADR-033）。
 // Core の汎用部分はここだけを import し、Run の agent の値で Adapter を選ぶ。adapters/ を直接 import しない（.oxlintrc.json）
 
 import type { Config } from "../model/config.js";

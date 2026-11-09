@@ -1,4 +1,4 @@
-// プロセス内の CommandClient。入口（server・vscode）はこれを HTTP や postMessage に写すだけで、文脈の管理を持たない（ADR-007）。
+// プロセス内の CommandClient。入口（server・vscode）はこれを HTTP や postMessage に写すだけで、文脈の管理を持たない（ADR-033）。
 //   - 文脈は最初の呼び出しで開き、以後は呼び出しごとに再走査して他のプロセス（CLI）の変更を取り込む。
 //     再走査は変わったファイルだけを読み直す（Store.rescan）。経過（history）は HEAD が同じあいだ解析結果を使い回す
 //   - 呼び出しは 1 つずつ順に処理する（同じプロセスの中で Store の再走査と書き込みが重ならないように）

@@ -9,9 +9,7 @@
 | 番号                                                | タイトル                                                                                                | テーマ             | 更新日     |
 | --------------------------------------------------- | ------------------------------------------------------------------------------------------------------- | ------------------ | ---------- |
 | [ADR-001](ADR-001-doc-strategy.md)                  | 文書の方針                                                                                              | 文書               | 2026-11-09 |
-| [ADR-002](ADR-002-storage-and-id.md)                | チケットの保存と ID                                                                                     | データ             | 2026-11-02 |
 | [ADR-003](ADR-003-status-and-workflow.md)           | ステータスとワークフロー                                                                                | ワークフロー       | 2026-11-03 |
-| [ADR-007](ADR-007-architecture.md)                  | アーキテクチャ                                                                                          | アーキテクチャ     | 2026-11-05 |
 | [ADR-008](ADR-008-tech-stack.md)                    | 技術構成と開発環境                                                                                      | 技術構成           | 2026-11-06 |
 | [ADR-009](ADR-009-epic-and-iteration.md)            | Epic と Iteration                                                                                       | チケットのまとまり | 2026-11-03 |
 | [ADR-011](ADR-011-procedure-in-code.md)             | 既定の手続きは dg のコードが持つ                                                                        | ワークフロー       | 2026-11-07 |
@@ -23,15 +21,18 @@
 | [ADR-029](ADR-029-work-metrics.md)                  | 作業の使用量は Run ごとに公式の記録から実測し、数だけを Git に写す                                      | 作業の実績         | 2026-11-08 |
 | [ADR-030](ADR-030-flow-and-guide-in-core.md)        | Iteration の流れもコードが判定し、guide の節は Core が返し、カスタマイズは config と guide.notes に限る | ワークフロー       | 2026-11-09 |
 | [ADR-031](ADR-031-claim-prepares-work.md)           | claim が Iteration への追加と開始、作業ブランチの worktree の作成まで行う                               | ワークフロー       | 2026-11-09 |
-| [ADR-032](ADR-032-merge-driver-yaml.md)             | マージドライバを Plan・Iteration・Project の YAML にも当てる                                            | データ             | 2026-11-09 |
+| [ADR-033](ADR-033-architecture.md)                  | アーキテクチャ（索引は印で確かめる読みの結果をディスクに残す）                                          | アーキテクチャ     | 2026-11-09 |
+| [ADR-034](ADR-034-storage-and-id.md)                | チケットの保存と ID                                                                                     | データ             | 2026-11-09 |
 
 ## 置き換え済み
 
 | 番号                                                   | 置き換えた先                                        |
 | ------------------------------------------------------ | --------------------------------------------------- |
+| [ADR-002](ADR-002-storage-and-id.md)                   | [ADR-034](ADR-034-storage-and-id.md)                |
 | [ADR-004](ADR-004-agents-and-state.md)                 | [ADR-028](ADR-028-agents-and-state.md)              |
 | [ADR-005](ADR-005-work-metrics.md)                     | [ADR-029](ADR-029-work-metrics.md)                  |
 | [ADR-006](ADR-006-ui-and-writes.md)                    | [ADR-027](ADR-027-screen-vscode-writes-and-asks.md) |
+| [ADR-007](ADR-007-architecture.md)                     | [ADR-033](ADR-033-architecture.md)                  |
 | [ADR-010](ADR-010-ui-writes-and-agent-requests.md)     | [ADR-027](ADR-027-screen-vscode-writes-and-asks.md) |
 | [ADR-012](ADR-012-hooks-open-runs.md)                  | [ADR-025](ADR-025-runs-by-hooks.md)                 |
 | [ADR-013](ADR-013-review-result-on-run.md)             | [ADR-025](ADR-025-runs-by-hooks.md)                 |
@@ -45,3 +46,4 @@
 | [ADR-021](ADR-021-detect-outside-dg-changes.md)        | [ADR-026](ADR-026-guard-pr-and-data.md)             |
 | [ADR-022](ADR-022-close-fix-run-on-open.md)            | [ADR-025](ADR-025-runs-by-hooks.md)                 |
 | [ADR-023](ADR-023-screen-entry-vscode.md)              | [ADR-027](ADR-027-screen-vscode-writes-and-asks.md) |
+| [ADR-032](ADR-032-merge-driver-yaml.md)                | [ADR-034](ADR-034-storage-and-id.md)                |

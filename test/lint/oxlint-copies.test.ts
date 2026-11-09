@@ -1,4 +1,4 @@
-// .oxlintrc.json の no-restricted-imports の写しがずれていないことを確かめる（ADR-007）。
+// .oxlintrc.json の no-restricted-imports の写しがずれていないことを確かめる（ADR-033）。
 // 同じファイルに当たる override は前の制限を上書きするので、狭い override には広い override の patterns を手で写している。
 // 片方だけ直すと黙って制限が抜けるので、写した側が元の patterns をそのまま含むことを見る
 

@@ -5,7 +5,7 @@
 
 ## 背景
 
-[ADR-007](ADR-007-architecture.md) の構成を何で作るか、開発環境をどう揃えるかを決める。AI エージェントが主に実装するので、ツールの入口が 1 つで、速く、設定が少ないことを重視する。
+[ADR-033](ADR-033-architecture.md) の構成を何で作るか、開発環境をどう揃えるかを決める。AI エージェントが主に実装するので、ツールの入口が 1 つで、速く、設定が少ないことを重視する。
 
 ## 決定
 
@@ -17,7 +17,7 @@
 - HTTP サーバーは Node 標準の `node:http` で書き、フレームワークを入れない。要るのはコマンドの呼び出しと静的ファイルの配信だけなので、小さなルータで足りる（エンドポイントは `packages/server/src/app.ts`）
 - git と gh は `child_process.execFile` で引数配列として呼ぶ。シェルを経由しない
 - MCP は公式の `@modelcontextprotocol/sdk` の低水準の `Server` と stdio の transport を使い、検証は core の `runCommand` に任せる（高水準の `McpServer` は Zod のスキーマを自分で変換・検証するので、二重になる）。ツールの一覧の作り方は `packages/cli/src/mcp.ts` の冒頭
-- DB は使わない（ADR-007）
+- DB は使わない（ADR-033）
 
 ### ツールと作業コマンドは mise に統一する
 
