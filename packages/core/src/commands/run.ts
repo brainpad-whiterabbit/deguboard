@@ -1123,7 +1123,7 @@ export const runRefresh = defineCommand({
           if (item.changes.length === 0) continue;
           const doc = closed(item.id as RunId);
           const { model, usage, dropEstimated } = refreshPlan(doc.data, collected.get(item.id)!);
-          const base = doc.yaml.toJS() as Record<string, unknown>;
+          const base = doc.raw;
           // usage の中の未知のキーは残す（DT-2）
           const nextUsage = { ...(base["usage"] as Record<string, unknown>), ...usage };
           if (dropEstimated) delete nextUsage["estimated"];
