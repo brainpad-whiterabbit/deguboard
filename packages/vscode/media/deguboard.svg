@@ -1,60 +1,66 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
-  <!-- Activity Bar のアイコン：左上の小さいボードの前に、バイザーを付けたデグーが座る。VS Code は 1 色のマスクとして描くので、重なりは塗り分けずに隙間で分ける -->
+  <!-- Activity Bar のアイコン：大きなボードの前に、ゴーグルを付けたデグーが座る。VS Code は 1 色のマスクとして描くので、重なりは塗り分けずに細い隙間で分ける -->
   <defs>
     <!-- デグーの体（左向きに座る。デグー自身の 24×24 の座標） -->
     <path id="body" d="M3.75 9.25C3.75 6.5 6 4.5 8.75 4.5C11.5 4.5 13 6.5 13 9C15.5 10.5 17 13.5 17 16.5C17 19.25 15.5 20.75 13 20.75H9C7.5 20.75 7 19.75 7.75 19C6.5 17 6.75 14 8 12.25C5.5 12 3.75 11 3.75 9.25Z"/>
     <ellipse id="ear-near" cx="12.75" cy="4.1" rx="2.6" ry="3.1" transform="rotate(22 12.75 4.1)"/>
     <ellipse id="ear-far" cx="10.1" cy="3.3" rx="2.2" ry="2.7" transform="rotate(-8 10.1 3.3)"/>
-    <path id="tail" d="M16.2 20.1C19.6 20.6 21.3 18.4 20.7 15.2C20.3 13.3 21 11.6 22.3 10.8"/>
-    <path id="tuft" d="M22.4 11.4c-1.3-.6-1.8-2.7-1.1-4.7c.3-.8.7-1.3 1-1.6c.6.6 1.1 1.6 1.2 2.7c.2 1.6-.2 2.9-1.1 3.6z"/>
+    <!-- 尻尾：ボードを大きくする幅を空けるため、体の後ろで短く巻き上げ、先に小さい房を付ける -->
+    <path id="tail" d="M16.2 20.1C18.6 20.5 19.9 19.2 19.7 16.9"/>
+    <path id="tuft" transform="translate(19.7 17.2) scale(.6) translate(-22.4 -11.4)" d="M22.4 11.4c-1.3-.6-1.8-2.7-1.1-4.7c.3-.8.7-1.3 1-1.6c.6.6 1.1 1.6 1.2 2.7c.2 1.6-.2 2.9-1.1 3.6z"/>
     <circle id="paw" cx="7.2" cy="14.2" r="1.1"/>
-    <!-- バイザー：顔の前にかぶせ、鼻先より前へはみ出させる。24px でもゴーグルと読める大きさにする -->
-    <rect id="visor" x="1.9" y="6.3" width="8.9" height="3.5" rx="1.4"/>
+    <!-- ゴーグル：アプリアイコン（icon.png）に合わせ、横長で角の丸い板を鼻先より前へはみ出させ、横のベルトで丸い耳当てにつなぐ -->
+    <g id="visor">
+      <rect x="1.5" y="5.9" width="9.2" height="4.2" rx="2"/>
+      <rect x="10.2" y="7.35" width="1.6" height="1.3"/>
+      <circle cx="12.9" cy="8" r="1.75"/>
+    </g>
 
-    <!-- 体から、バイザーの形を少し太らせたもの（バイザーと顔の間の隙間）と後ろ足の線を抜く -->
+    <!-- 体から、ゴーグルの形を少し太らせたもの（ゴーグルと顔の間の隙間）と後ろ足の線を抜く -->
     <mask id="body-cut">
       <rect width="24" height="24" fill="#fff"/>
-      <use href="#visor" fill="#000" stroke="#000" stroke-width="2" stroke-linejoin="round"/>
+      <use href="#visor" fill="#000" stroke="#000" stroke-width="1" stroke-linejoin="round"/>
       <path d="M10.25 20.6C9.75 18 11 16 13.75 15.75" fill="none" stroke="#000" stroke-width=".8" stroke-linecap="round"/>
     </mask>
     <!-- 手前の耳：体との間に隙間を空け、耳の内側を抜く -->
     <mask id="ear-near-cut">
       <rect width="24" height="24" fill="#fff"/>
-      <use href="#body" fill="#000" stroke="#000" stroke-width="2.2" stroke-linejoin="round"/>
+      <use href="#body" fill="#000" stroke="#000" stroke-width="1.2" stroke-linejoin="round"/>
       <ellipse cx="13" cy="4.35" rx=".85" ry="1.25" transform="rotate(22 13 4.35)" fill="#000"/>
     </mask>
     <!-- 奥の耳：体と手前の耳との間に隙間を空け、耳の内側を抜く -->
     <mask id="ear-far-cut">
       <rect width="24" height="24" fill="#fff"/>
-      <use href="#body" fill="#000" stroke="#000" stroke-width="2.2" stroke-linejoin="round"/>
-      <use href="#ear-near" fill="#000" stroke="#000" stroke-width="2.2"/>
+      <use href="#body" fill="#000" stroke="#000" stroke-width="1.2" stroke-linejoin="round"/>
+      <use href="#ear-near" fill="#000" stroke="#000" stroke-width="1.2"/>
       <ellipse cx="10.15" cy="3.5" rx=".7" ry="1.1" transform="rotate(-8 10.15 3.5)" fill="#000"/>
     </mask>
-    <!-- ボードから、デグーの形を少し太らせて抜く（デグーとボードの間の隙間） -->
+    <!-- ボードから、デグーの形を少し太らせて抜く（デグーとボードの間の隙間）。尻尾は線の太さ 1.5 に隙間を足す -->
     <mask id="board-cut">
       <rect width="24" height="24" fill="#fff"/>
-      <g transform="translate(3 3.6) scale(.86)" fill="#000" stroke="#000" stroke-width="2.8" stroke-linejoin="round" stroke-linecap="round">
+      <g transform="translate(4.8 3.7) scale(.86)" fill="#000" stroke="#000" stroke-width="1.2" stroke-linejoin="round" stroke-linecap="round">
         <use href="#body"/>
         <use href="#ear-near"/>
         <use href="#ear-far"/>
         <use href="#paw"/>
         <use href="#tuft"/>
-        <use href="#tail" fill="none" stroke-width="4.3"/>
+        <use href="#tail" fill="none" stroke-width="2.7"/>
         <use href="#visor"/>
       </g>
     </mask>
-    <!-- バイザーに四角い目を 2 つ抜く -->
+    <!-- ゴーグルに縦長の目を 2 つ抜き、耳当ての中を抜く -->
     <mask id="visor-eyes">
       <rect width="24" height="24" fill="#fff"/>
-      <rect x="3.3" y="7.25" width="2.1" height="1.6" rx=".45" fill="#000"/>
-      <rect x="6.5" y="7.25" width="2.1" height="1.6" rx=".45" fill="#000"/>
+      <rect x="3.25" y="6.95" width="1.15" height="2.1" rx=".35" fill="#000"/>
+      <rect x="6.45" y="6.95" width="1.15" height="2.1" rx=".35" fill="#000"/>
+      <circle cx="12.9" cy="8" r=".8" fill="#000"/>
     </mask>
   </defs>
 
   <g fill="currentColor">
-    <!-- 背景のボード（3 列のカンバンを縮めて左上に置く） -->
+    <!-- 背景のボード（3 列のカンバン。デグーの後ろにほぼ全体へ広げる） -->
     <g mask="url(#board-cut)">
-      <g transform="translate(-1.2 -1.4) scale(.78)">
+      <g transform="translate(-2.5 -3.5)">
         <rect x="2.75" y="3.75" width="18.5" height="16.5" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.5"/>
         <path d="M8.92 3.75v16.5M15.08 3.75v16.5" fill="none" stroke="currentColor" stroke-width="1.5"/>
         <rect x="4.5" y="6" width="2.75" height="3" rx=".5"/>
@@ -65,7 +71,7 @@
       </g>
     </g>
     <!-- 手前のデグー -->
-    <g transform="translate(3 3.6) scale(.86)">
+    <g transform="translate(4.8 3.7) scale(.86)">
       <use href="#ear-far" mask="url(#ear-far-cut)"/>
       <use href="#ear-near" mask="url(#ear-near-cut)"/>
       <use href="#body" mask="url(#body-cut)"/>
