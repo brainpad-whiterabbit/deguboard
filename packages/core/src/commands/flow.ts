@@ -6,7 +6,7 @@ import { createHash } from "node:crypto";
 import { z } from "zod";
 import { UsageError } from "../errors.js";
 import { isTerminal } from "../model/common.js";
-import { parseId, type IterationId } from "../model/id.js";
+import { compareIds, parseId, type IterationId } from "../model/id.js";
 import type { Ticket } from "../model/ticket.js";
 import type { Store } from "../storage/store.js";
 import { defineCommand, ok, type CommandContext } from "./define.js";
@@ -38,6 +38,8 @@ type FlowTicket = Pick<Ticket, "id" | "status">;
 export interface FlowFacts {
   /** 対象の Iteration（<S>）。チケットか Plan の指定で、Iteration が 1 つに決まらなければ null */
   iteration: string | null;
+  /** <S> が閉じている（リリースして閉じた後）。<S> がなければ false */
+  iterationClosed: boolean;
   /** 対象のチケット */
   targets: readonly FlowTicket[];
   /**
@@ -116,11 +118,14 @@ export function flowStageOf(facts: FlowFacts, memory: FlowMemory): FlowStage {
       `開いた Plan に入っていない todo が ${facts.unplanned.length} 件ある`,
       facts.unplanned,
     );
+  // 閉じた Iteration は流れを終えている。見直しとリリースを返すと、閉じた後の呼び出しでリリースを繰り返す
+  const open = facts.targets.filter((t) => !isTerminal(t.status)).map((t) => t.id);
+  if (s !== null && facts.iterationClosed)
+    return at("stop", 8, `${s} は閉じていて、流れを終えた`, open);
   if (s !== null && allFinished(facts.releaseScope))
     return audited
       ? at("release", 7, `${s} のチケットがすべて done か abandoned で、見直し済み`)
       : at("audit", 6, `${s} のチケットがすべて done か abandoned で、まだ見直していない`);
-  const open = facts.targets.filter((t) => !isTerminal(t.status)).map((t) => t.id);
   return at(
     "stop",
     8,
@@ -136,7 +141,7 @@ export function flowStageOf(facts: FlowFacts, memory: FlowMemory): FlowStage {
 /** resume の中身。不透明な値として返し、エージェントは組み立てない（ADR-030） */
 interface ResumeState {
   v: 1;
-  /** 対象（指定した ID の並び）。違う対象の resume は使わない */
+  /** 対象（解決した ID。チケットは並べ替えた並び）。違う対象の resume は使わない */
   target: string;
   /** 前の呼び出しが求めた段階（同じ段階が続いて止まったときは、続いた段階） */
   stage: FlowStageName;
@@ -282,7 +287,13 @@ function commandsOf(stage: FlowStage, s: string | null, auto: boolean): string[]
 function resolveTargets(
   store: Store,
   refs: readonly string[],
-): { kind: "iteration" | "plan" | "tickets"; iteration: string | null; tickets: Ticket[] } {
+): {
+  kind: "iteration" | "plan" | "tickets";
+  /** resume の対象と比べる鍵。解決した ID で、チケットは並べ替える（t1 t2 と t2 t1 を同じ対象にする） */
+  key: string;
+  iteration: string | null;
+  tickets: Ticket[];
+} {
   const kinds = refs.map((r) =>
     parseId(r, "iteration") ? "iteration" : parseId(r, "plan") ? "plan" : "ticket",
   );
@@ -293,16 +304,21 @@ function resolveTargets(
       const it = store.require("iteration", refs[0]!);
       return {
         kind: "iteration",
+        key: it.id,
         iteration: it.id,
         tickets: ticketsInIteration(store, it.id).map((d) => d.data),
       };
     }
     const plan = store.require("plan", refs[0]!);
     const tickets = plan.data.tickets.flatMap((id) => store.tickets.get(id)?.data ?? []);
-    return { kind: "plan", iteration: commonIteration(tickets), tickets };
+    return { kind: "plan", key: plan.id, iteration: commonIteration(tickets), tickets };
   }
   const tickets = [...new Set(refs.map((r) => store.require("ticket", r).data))];
-  return { kind: "tickets", iteration: commonIteration(tickets), tickets };
+  const key = tickets
+    .map((t) => t.id)
+    .sort(compareIds)
+    .join(" ");
+  return { kind: "tickets", key, iteration: commonIteration(tickets), tickets };
 }
 
 /** チケットの Iteration が 1 つに決まればそれ（Iteration のないチケットは数えない）。決まらなければ null */
@@ -316,24 +332,28 @@ export function flowFactsOf(
   ctx: CommandContext,
   refs: readonly string[],
   noAssign: boolean,
-): { facts: FlowFacts; fingerprint: string } {
+): { facts: FlowFacts; fingerprint: string; key: string } {
   const store = ctx.store;
   const target = resolveTargets(store, refs);
   const s = target.iteration;
   const auditLabel = s ? `audit-${s}` : undefined;
   const all = sortedDocs(store.tickets.values()).map((d) => d.data);
   const ids = new Set(target.tickets.map((t) => t.id));
-  const project = s ? store.iterations.get(s as IterationId)?.data.project : undefined;
+  const iteration = s ? store.iterations.get(s as IterationId)?.data : undefined;
+  const project = iteration?.project;
+  // 閉じた Iteration には入れられないので、割り当ての候補はない
   const candidates =
-    target.kind === "iteration"
-      ? all.filter(
-          (t) =>
-            t.status === "todo" &&
-            t.iteration === undefined &&
-            t.project === project &&
-            !(auditLabel && t.labels.includes(auditLabel)),
-        )
-      : target.tickets.filter((t) => t.status === "todo" && t.iteration === undefined);
+    iteration?.status === "closed"
+      ? []
+      : target.kind === "iteration"
+        ? all.filter(
+            (t) =>
+              t.status === "todo" &&
+              t.iteration === undefined &&
+              t.project === project &&
+              !(auditLabel && t.labels.includes(auditLabel)),
+          )
+        : target.tickets.filter((t) => t.status === "todo" && t.iteration === undefined);
   const releaseScope =
     s === null
       ? []
@@ -351,6 +371,7 @@ export function flowFactsOf(
   );
   const facts: FlowFacts = {
     iteration: s,
+    iterationClosed: iteration?.status === "closed",
     targets: target.tickets,
     releaseScope,
     candidates: candidates.map((t) => t.id),
@@ -395,7 +416,7 @@ export function flowFactsOf(
     )
     .digest("hex")
     .slice(0, 16);
-  return { facts, fingerprint };
+  return { facts, fingerprint, key: target.key };
 }
 
 export interface FlowNext {
@@ -426,9 +447,10 @@ export const flowNext = defineCommand({
     "対象は Iteration 1 つ・Plan 1 つ・チケット 1 つ以上のどれか。段階は dg guide all の 8 規則の順で最初に当たるもの" +
     "（1 割り当て：この実行で割り当てを終えておらず、見直し済みでなく、Iteration に入っていない todo があり、--no-assign がない／" +
     "2 点検：この実行でまだ点検していない／3 計画：対象を含む承認待ちの Plan がある／4 作業：対象を含む承認済みの Plan に終わっていないチケットがある／" +
-    "5 計画：開いた Plan に入っていない todo がある／6 見直し：<S> のチケットがすべて done か abandoned で見直し済みでない／7 リリース：同じで見直し済み／8 止まる）。" +
+    "5 計画：開いた Plan に入っていない todo がある／6 見直し：<S> のチケットがすべて done か abandoned で見直し済みでない／7 リリース：同じで見直し済み／8 止まる。<S> が閉じていれば割り当てず、6・7 の前に流れを終えたとして止まる）。" +
     "見直し済みは、ラベル audit-<S> のチケットがあるか、この実行で見直しを終えた。チケットか Plan の指定では、<S> はチケットの Iteration（1 つに決まるときだけ）で、見直しとリリースはその Iteration のチケットがすべて終わったときだけ。" +
     "返す resume を次の呼び出しの --resume に写して渡すと、前に返した割り当て・点検・見直しを終えたものとして飛ばす。resume がない・読めない・別の対象のものなら割り当てと点検からやり直す。" +
+    "段階を終えずに止めたとき（見直しの指摘の表で止めたなど）は、その resume を渡さない（渡すとその段階を飛ばす）。" +
     "前に返した段階と同じ段階で事実（チケット・Plan・Run）が変わらなければ stop を返す。段階の節（guide）・呼ぶコマンド（commands）・承認の要否（approval。--auto で聞かずに選べるものと、config の auto.merge）を返す。何も書かない",
   input: z.object({
     targets: z
@@ -446,8 +468,12 @@ export const flowNext = defineCommand({
   needs: "store",
   async run(ctx, input) {
     const auto = input.auto ?? false;
-    const target = input.targets.join(" ");
     const warnings: string[] = [];
+    const {
+      facts,
+      fingerprint,
+      key: target,
+    } = flowFactsOf(ctx, input.targets, input.no_assign ?? false);
     let prev = input.resume === undefined ? undefined : decodeResume(input.resume);
     if (input.resume !== undefined && !prev)
       warnings.push("resume を読めないので、割り当てと点検からやり直す");
@@ -455,7 +481,6 @@ export const flowNext = defineCommand({
       warnings.push(`resume は別の対象（${prev.target}）のものなので、割り当てと点検からやり直す`);
       prev = undefined;
     }
-    const { facts, fingerprint } = flowFactsOf(ctx, input.targets, input.no_assign ?? false);
     const memory = memoryAfter(prev);
     const found = flowStageOf(facts, memory);
     const repeated = isRepeated(prev, found.name, fingerprint) ? found.name : null;

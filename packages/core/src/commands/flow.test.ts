@@ -16,7 +16,7 @@ import {
   type FlowMemory,
   type FlowNext,
 } from "./flow.js";
-import { iterationAdd, iterationCreate } from "./iteration.js";
+import { iterationAdd, iterationClose, iterationCreate } from "./iteration.js";
 import { planApprove, planCreate } from "./plan.js";
 import { findCommand } from "./registry.js";
 import { init } from "./setup.js";
@@ -33,6 +33,7 @@ const checked: FlowMemory = { assigned: true, checked: true, audited: false };
 /** 流れの事実。既定は s1 の t1（in_progress）だけで、候補も Plan もない */
 const facts = (over: Partial<FlowFacts> = {}): FlowFacts => ({
   iteration: "s1",
+  iterationClosed: false,
   targets: [{ id: "t1", status: "in_progress" }],
   releaseScope: [{ id: "t1", status: "in_progress" }],
   candidates: [],
@@ -133,6 +134,15 @@ describe("flowStageOf（guide-all の 8 規則）", () => {
     expect(noIteration.reason).toContain("Iteration が 1 つに決まらない");
     // チケットのない Iteration は見直さない
     expect(flowStageOf(facts({ targets: [], releaseScope: [] }), checked).name).toBe("stop");
+  });
+
+  it("閉じた Iteration：見直しもリリースもせず、流れを終えたとして止まる（点検はする）", () => {
+    const closed = facts({ ...finished(), iterationClosed: true });
+    const stage = flowStageOf(closed, { ...checked, audited: true });
+    expect(stage).toMatchObject({ name: "stop", rule: 8 });
+    expect(stage.reason).toBe("s1 は閉じていて、流れを終えた");
+    expect(flowStageOf({ ...closed, auditLabeled: true }, checked).name).toBe("stop");
+    expect(flowStageOf(closed, { ...none, assigned: true }).name).toBe("check");
   });
 
   it("チケットの指定：対象が終わっても、Iteration のほかのチケットが残れば見直さない", () => {
@@ -275,6 +285,16 @@ describe("dg flow next", () => {
     });
     // resume を失えば、割り当てと点検からやり直す（見直しを終えた事実も失う）
     expect((await flow(ctx, {})).stage.name).toBe("assign");
+
+    // リリースして閉じた後は、resume を渡してもリリースを繰り返さずに止まる。新しく呼んでも点検の後に止まる
+    await runCommand(iterationClose, ctx, { iteration: "s1" });
+    const closed = await flow(ctx, { resume: release.resume });
+    expect(closed).toMatchObject({ stage: { name: "stop", rule: 8 }, repeated: null });
+    expect(closed.ask_human).toContain("s1 は閉じていて、流れを終えた");
+    // 閉じた Iteration には割り当てないので、候補（t2）があっても点検から
+    const fresh = await flow(ctx, {});
+    expect(fresh.stage.name).toBe("check");
+    expect((await flow(ctx, { resume: fresh.resume })).stage.name).toBe("stop");
   });
 
   it("ラベル audit-<S> のチケットがあれば見直し済みで、候補があっても割り当てない", async () => {
@@ -305,6 +325,12 @@ describe("dg flow next", () => {
     expect((await flow(ctx, { resume: "garbage" })).warnings).toEqual([
       "resume を読めないので、割り当てと点検からやり直す",
     ]);
+    // チケットの並びが違っても同じ対象。解決した ID を並べ替えて比べる
+    await runCommand(ticketCreate, ctx, { title: "B" });
+    const t12 = await flow(ctx, { targets: ["t1", "t2"] });
+    const t21 = await flow(ctx, { targets: ["t2", "t1"], resume: t12.resume });
+    expect(t21.warnings).toEqual([]);
+    expect(t21.memory).not.toEqual(none);
     await expect(flow(ctx, { targets: ["s1", "t1"] })).rejects.toMatchObject({
       code: "INVALID_INPUT",
     });
