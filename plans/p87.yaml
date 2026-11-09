@@ -9,7 +9,7 @@ after:
   t627:
     - t624
     - t626
-pending_approval: true
+pending_approval: false
 details:
   t621:
     scope: claim が作った worktree で config の準備コマンドを回す。設定画面の説明も直す
@@ -39,3 +39,5 @@ details:
     scope: 起動の改善の後に dg の 1 回の内訳を測り直し、外の変更の検査と Run の量の手当ての要否を決める
     approach: 測った結果を本文に書き、要る手当ては起票を提案する
     tier: heavy
+approved_by: eiki.kitajima/agent
+approved_at: 2026-11-09T12:55:51Z
