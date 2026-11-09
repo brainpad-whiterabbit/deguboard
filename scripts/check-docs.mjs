@@ -344,7 +344,7 @@ for (const rel of adrRefFiles) {
   }
 }
 
-// ADR 番号の位置（ADR-001）：packages（dist を除く）・scripts・test の追跡ファイルは、ADR 番号を先頭のコメントに書く。
+// ADR 番号の位置：packages（dist を除く）・scripts・test の追跡ファイルは、ADR 番号を先頭のコメントに書く。
 // 先頭のコメントの外の番号は、ファイルと行を出して落とす。先頭のコメントに異なる番号が 2 つ以上あっても落とす（同じ番号を 2 度書くのは落とさない）。
 // 例外は、ADR 番号そのものを検査するファイルだけ（理由を書く）。番号の実在は上の検査が見る
 const ADR_NUMBER_EXEMPT = new Map([
