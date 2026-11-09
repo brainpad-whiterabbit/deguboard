@@ -313,6 +313,11 @@ describe("dg guide", () => {
     expect(fix).toContain("`dg next` を呼ばない");
     // 見直しは dg next の brief を渡す。ゲートの条件は dg gate の判定に任せる
     expect(section(review, "## 見直しを起動する（親）")).toContain("`dg next` が `review`");
+    // brief に入るのは役の節だけなので、親は work の review・fix の手から親の節へ辿る（t593）
+    const work = await readGuide("work");
+    expect(lineWith(work, "- `review`：")).toContain("「見直しを起動する（親）」");
+    expect(lineWith(work, "- `fix`：")).toContain("「修正ループ（親）」");
+    expect(bullet(fix, "範囲の外の指摘")).toContain("dg guide import");
     expect(section(review, "## 品質ゲート")).toContain("MERGEABLE");
     expect(section(review, "## 品質ゲート")).toContain("fix_rounds");
     // PR を出すのは dg pr ready（ゲートを満たすときだけ gh を呼ぶ）。満たさないまま出すときだけ人が gh を打つ
