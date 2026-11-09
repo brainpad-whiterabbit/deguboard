@@ -254,10 +254,14 @@ describe("dg guide", () => {
     }
   });
 
-  it("work はモデルの対応を書かず dg next の model に任せる。見直し役は親のモデル", async () => {
+  it("work は段階のモデルを dg next の model に任せ、調べものは models.light。{{models.*}} は埋めない。見直し役は親のモデル", async () => {
     const work = await readGuide("work");
-    expect(work).not.toContain("models.");
+    expect(work).not.toContain("{{models.");
+    expect(work).not.toContain("implement` のモデル");
     expect(work).toContain("`model` が空でなければ");
+    expect(work).toContain(
+      "印のない調べもののサブエージェントは `models.light`（空なら親のモデル）",
+    );
     expect(await readGuide("review")).toContain("段階によらず親のモデル");
     expect(await readGuide("plan")).toContain("--tier");
   });

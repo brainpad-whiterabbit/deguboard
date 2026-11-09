@@ -15,7 +15,7 @@ argument-hint: "<Plan の ID|チケットの ID>"
 
 ## 流れ
 
-1. `dg --json --actor agent next <id>` を呼び、`kind` の手を 1 つ行う。`commands` の順に行い、`brief` があればサブエージェントに貼る（後ろに一時ファイルの置き場所を足してよい）。`model` が空でなければ、そのモデルでサブエージェントを起動する（`null` は親のモデル）。終えたらもう一度 `next` を呼ぶ
+1. `dg --json --actor agent next <id>` を呼び、`kind` の手を 1 つ行う。`commands` の順に行い、`brief` があればサブエージェントに貼る（後ろに一時ファイルの置き場所を足してよい）。`model` が空でなければ、そのモデルでサブエージェントを起動する（`null` は親のモデル）。印のない調べもののサブエージェントは `models.light`（空なら親のモデル）。終えたらもう一度 `next` を呼ぶ
 2. `kind` ごとの親の手：
    - `implement`：`commands` の claim を行い、「claim の前後」に従う。作業ブランチの worktree は claim が作り、場所を `worktree` に返す（既定は `{{worktree.root}}/<ブランチ名>`）。文を渡し、返ったら「実装の結果を受け取る」。親が自分で実装するなら、claim の `--no-run` を外して下の「実装する」を行う（claim が実装の Run を開く）
    - `review`：見直し役を起動する（`dg guide review` の「見直す」）
