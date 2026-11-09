@@ -30,6 +30,7 @@ const GROUPS: { id: string; label: string; tops: string[] }[] = [
   { id: "notify", label: msg("通知"), tops: ["notify"] },
   { id: "git", label: "Git", tops: ["git", "worktree", "default_project"] },
   { id: "ticket", label: msg("チケット"), tops: ["priority"] },
+  { id: "guide", label: msg("ガイドの差し込み"), tops: ["guide"] },
 ];
 /** GROUPS に入っていない項目（スキーマに足したばかりのもの）の受け皿 */
 const OTHER_GROUP = { id: "other", label: msg("その他") };
@@ -60,6 +61,19 @@ const NAMES: Record<string, string> = {
   "priority.high": msg("優先度 high の判断基準"),
   "priority.medium": msg("優先度 medium の判断基準"),
   "priority.low": msg("優先度 low の判断基準"),
+  "guide.notes.overview": msg("差し込む文書（概要）"),
+  "guide.notes.import": msg("差し込む文書（起票）"),
+  "guide.notes.assign": msg("差し込む文書（割り当て）"),
+  "guide.notes.check": msg("差し込む文書（点検）"),
+  "guide.notes.plan": msg("差し込む文書（計画）"),
+  "guide.notes.work": msg("差し込む文書（作業）"),
+  "guide.notes.run": msg("差し込む文書（Run）"),
+  "guide.notes.parallel": msg("差し込む文書（並べて進める）"),
+  "guide.notes.review": msg("差し込む文書（見直しと品質ゲート）"),
+  "guide.notes.audit": msg("差し込む文書（見直し）"),
+  "guide.notes.release": msg("差し込む文書（リリース）"),
+  "guide.notes.done": msg("差し込む文書（完了）"),
+  "guide.notes.all": msg("差し込む文書（一気通し）"),
 };
 
 /**

@@ -178,7 +178,7 @@ updated_at: 2026-10-31T05:10:00Z
 - CL-2 コマンドの一覧とオプションは `dg --help`（各コマンドは `dg <コマンド> --help`）が正本
 - CL-3 書き込みを伴うコマンドは `commit.mode` に従ってコミットする。作成・`ticket claim`・`iteration start / reopen` は採番と排他のため即座にコミットして push する
 - CL-4 `ticket import` は下書きの配列を 1 コミットで取り込み、取り込めない下書きがあれば起票せずに拒む（形と条件は `guide import`）
-- CL-5 `dg guide <topic>` は、各手のやり方を `config.yaml` の値と `guide.notes` を埋めて出す。段階・次の手・品質ゲート・brief は書かず Core が返す（EX-3）。`--section <節>` は節だけを出し、ない節は一覧を返す。本文と読み込みは Core が持ち、`dg next`・`dg brief` も節を返す（[ADR-030](adr/ADR-030-flow-and-guide-in-core.md)）
+- CL-5 `dg guide <topic>` は、各手のやり方を `config.yaml` の値で埋めて出す。`guide.notes.<topic>` の文書は題名の直後（節なら見出しの直後）に差し込み、読めなければ警告を出す。`--section <節>` は節だけを出し、ない節は一覧を返す。段階・次の手は Core が返す（EX-3。[ADR-030](adr/ADR-030-flow-and-guide-in-core.md)）
 - CL-6 CLI はロジックを持たず、Core のコマンド定義（`packages/core/src/commands/`）を写す
 - CL-7 `history` は deguboard ブランチの git の履歴から、チケット・Epic・Iteration の起票と属性（Status・所属・担当者・PR）の変化を古い順に返す。データの形は変えず、差分から読む。浅い clone では欠けたことを返して失敗しない（返す項目は `packages/core/src/commands/history.ts`）
 
@@ -230,7 +230,7 @@ updated_at: 2026-10-31T05:10:00Z
 ### 6.5 エージェント連携
 
 - AG-1 エージェントは `dg` を Bash から `--json` で呼び、データを直接編集しない。主体はフック（AG-9）が agent にし、フックがなければ `--actor agent` か `DEGUBOARD_ACTOR` で申告する（既定は human）。guide の手順は agent を名乗る（`skill.test.ts`。ID は TK-7 と `dg --help`、理由は [ADR-028](adr/ADR-028-agents-and-state.md)）
-- AG-2 `dg skill install` は、段階ごとに `dg guide <topic>` を読む薄い Claude Code の Skill（`dg<トピック>`）を配る。Skill は任意で、スクリプトもツールの許可も持たない。名前・説明は guide の frontmatter、冒頭の 1 文は `SKILL_SUMMARY`（`packages/core/src/commands/ask.ts`）が正本（`packages/cli/src/skill.ts` とそのテスト）
+- AG-2 `dg skill install` は段階別に `dg guide <topic>` を読む薄い Skill（`dg<トピック>`）を配る。Skill は任意で、スクリプトもツールの許可も持たない。手を加えた Skill は残し、加えた文は `guide.notes` へ移すよう警告する。冒頭一文は `SKILL_SUMMARY`（`packages/core/src/commands/ask.ts`）が正本（`packages/cli/src/skill.ts` とそのテスト）
 - AG-3 チケット化（`ticket import`）と、分解・Epic への束ね・依存・Iteration への割り当ては、エージェントが提案して人の承認を得てから行う（手順は `dg guide import`）
 - AG-4 MCP サーバー（`dg mcp`。stdio）は Bash のないクライアントの入口で、ツールを Core のコマンド定義から生成する。CLI と同じ操作ができ（`init` と CLI だけの `guide`・`skill`・`serve`・`open` を除く）、結果は `--json` と同じ形（CL-1）で、主体は常に agent。細部は `packages/cli/src/mcp.ts` とそのテスト
 - AG-5 AI 製品ごとの差（使用量の取得・dg を呼んだエージェントの判定・フックの入力と設定）は Agent Adapter が吸収し、実装は Core の `agents/adapters/` に閉じる（対応する製品はそこのコード）。エージェントの起動と権限は扱わない（EX-1、[ADR-007](adr/ADR-007-architecture.md)）

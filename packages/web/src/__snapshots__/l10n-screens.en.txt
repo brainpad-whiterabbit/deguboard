@@ -447,6 +447,98 @@ Modified
 Criteria for priority low. Used when creating and reviewing tickets, and by the priority marks and selection hints on screen
 [title] Reset to default Unused code and dependencies, duplicated settings, inconsistent wording, and investigation and study that are not urgent
 Reset to Default
+Guide notes
+Document inserted into overview
+guide.notes.overview
+[title] Default: 
+Modified
+Path of a document inserted just after the guide title (just after the section heading when a section is shown). A path relative to the repository root; paths outside the repository are not read. Empty inserts nothing. A document with headings (#) is not inserted.
+[title] Reset to default 
+Reset to Default
+Document inserted into import
+guide.notes.import
+[title] Default: 
+Modified
+Path of a document inserted just after the guide title (just after the section heading when a section is shown). A path relative to the repository root; paths outside the repository are not read. Empty inserts nothing. A document with headings (#) is not inserted.
+[title] Reset to default 
+Reset to Default
+Document inserted into assign
+guide.notes.assign
+[title] Default: 
+Modified
+Path of a document inserted just after the guide title (just after the section heading when a section is shown). A path relative to the repository root; paths outside the repository are not read. Empty inserts nothing. A document with headings (#) is not inserted.
+[title] Reset to default 
+Reset to Default
+Document inserted into check
+guide.notes.check
+[title] Default: 
+Modified
+Path of a document inserted just after the guide title (just after the section heading when a section is shown). A path relative to the repository root; paths outside the repository are not read. Empty inserts nothing. A document with headings (#) is not inserted.
+[title] Reset to default 
+Reset to Default
+Document inserted into plan
+guide.notes.plan
+[title] Default: 
+Modified
+Path of a document inserted just after the guide title (just after the section heading when a section is shown). A path relative to the repository root; paths outside the repository are not read. Empty inserts nothing. A document with headings (#) is not inserted.
+[title] Reset to default 
+Reset to Default
+Document inserted into work
+guide.notes.work
+[title] Default: 
+Modified
+Path of a document inserted just after the guide title (just after the section heading when a section is shown). A path relative to the repository root; paths outside the repository are not read. Empty inserts nothing. A document with headings (#) is not inserted.
+[title] Reset to default 
+Reset to Default
+Document inserted into run
+guide.notes.run
+[title] Default: 
+Modified
+Path of a document inserted just after the guide title (just after the section heading when a section is shown). A path relative to the repository root; paths outside the repository are not read. Empty inserts nothing. A document with headings (#) is not inserted.
+[title] Reset to default 
+Reset to Default
+Document inserted into parallel
+guide.notes.parallel
+[title] Default: 
+Modified
+Path of a document inserted just after the guide title (just after the section heading when a section is shown). A path relative to the repository root; paths outside the repository are not read. Empty inserts nothing. A document with headings (#) is not inserted.
+[title] Reset to default 
+Reset to Default
+Document inserted into review and quality gate
+guide.notes.review
+[title] Default: 
+Modified
+Path of a document inserted just after the guide title (just after the section heading when a section is shown). A path relative to the repository root; paths outside the repository are not read. Empty inserts nothing. A document with headings (#) is not inserted.
+[title] Reset to default 
+Reset to Default
+Document inserted into audit
+guide.notes.audit
+[title] Default: 
+Modified
+Path of a document inserted just after the guide title (just after the section heading when a section is shown). A path relative to the repository root; paths outside the repository are not read. Empty inserts nothing. A document with headings (#) is not inserted.
+[title] Reset to default 
+Reset to Default
+Document inserted into release
+guide.notes.release
+[title] Default: 
+Modified
+Path of a document inserted just after the guide title (just after the section heading when a section is shown). A path relative to the repository root; paths outside the repository are not read. Empty inserts nothing. A document with headings (#) is not inserted.
+[title] Reset to default 
+Reset to Default
+Document inserted into done
+guide.notes.done
+[title] Default: 
+Modified
+Path of a document inserted just after the guide title (just after the section heading when a section is shown). A path relative to the repository root; paths outside the repository are not read. Empty inserts nothing. A document with headings (#) is not inserted.
+[title] Reset to default 
+Reset to Default
+Document inserted into all
+guide.notes.all
+[title] Default: 
+Modified
+Path of a document inserted just after the guide title (just after the section heading when a section is shown). A path relative to the repository root; paths outside the repository are not read. Empty inserts nothing. A document with headings (#) is not inserted.
+[title] Reset to default 
+Reset to Default
 
 ## パネルのチケット詳細
 t2

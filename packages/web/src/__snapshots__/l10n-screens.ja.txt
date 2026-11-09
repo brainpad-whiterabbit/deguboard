@@ -447,6 +447,98 @@ priority.low
 priority.low
 [title] 既定の 使われていないコードと依存・設定の重複・言い回しの揺れ・急がない調査と検討 に戻す
 既定に戻す
+ガイドの差し込み
+差し込む文書（概要）
+guide.notes.overview
+[title] 既定は 
+変更あり
+guide.notes.overview
+[title] 既定の  に戻す
+既定に戻す
+差し込む文書（起票）
+guide.notes.import
+[title] 既定は 
+変更あり
+guide.notes.import
+[title] 既定の  に戻す
+既定に戻す
+差し込む文書（割り当て）
+guide.notes.assign
+[title] 既定は 
+変更あり
+guide.notes.assign
+[title] 既定の  に戻す
+既定に戻す
+差し込む文書（点検）
+guide.notes.check
+[title] 既定は 
+変更あり
+guide.notes.check
+[title] 既定の  に戻す
+既定に戻す
+差し込む文書（計画）
+guide.notes.plan
+[title] 既定は 
+変更あり
+guide.notes.plan
+[title] 既定の  に戻す
+既定に戻す
+差し込む文書（作業）
+guide.notes.work
+[title] 既定は 
+変更あり
+guide.notes.work
+[title] 既定の  に戻す
+既定に戻す
+差し込む文書（Run）
+guide.notes.run
+[title] 既定は 
+変更あり
+guide.notes.run
+[title] 既定の  に戻す
+既定に戻す
+差し込む文書（並べて進める）
+guide.notes.parallel
+[title] 既定は 
+変更あり
+guide.notes.parallel
+[title] 既定の  に戻す
+既定に戻す
+差し込む文書（見直しと品質ゲート）
+guide.notes.review
+[title] 既定は 
+変更あり
+guide.notes.review
+[title] 既定の  に戻す
+既定に戻す
+差し込む文書（見直し）
+guide.notes.audit
+[title] 既定は 
+変更あり
+guide.notes.audit
+[title] 既定の  に戻す
+既定に戻す
+差し込む文書（リリース）
+guide.notes.release
+[title] 既定は 
+変更あり
+guide.notes.release
+[title] 既定の  に戻す
+既定に戻す
+差し込む文書（完了）
+guide.notes.done
+[title] 既定は 
+変更あり
+guide.notes.done
+[title] 既定の  に戻す
+既定に戻す
+差し込む文書（一気通し）
+guide.notes.all
+[title] 既定は 
+変更あり
+guide.notes.all
+[title] 既定の  に戻す
+既定に戻す
 
 ## パネルのチケット詳細
 t2

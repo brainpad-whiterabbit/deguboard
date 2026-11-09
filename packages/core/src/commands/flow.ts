@@ -533,6 +533,13 @@ export const flowNext = defineCommand({
         }
       : found;
     const guide = FLOW_GUIDE[stage.name];
+    const guideText = await guideSectionText(
+      guide.topic,
+      guide.section,
+      ctx.config,
+      ctx.repo.topLevel,
+    );
+    warnings.push(...guideText.warnings);
     const approval = approvalOf(stage.name, {
       auto,
       autoMerge: ctx.config.auto.merge,
@@ -544,7 +551,7 @@ export const flowNext = defineCommand({
       repeated,
       guide: {
         ...guide,
-        text: (await guideSectionText(guide.topic, guide.section, ctx.config)).text,
+        text: guideText.text,
         command: `dg guide ${guide.topic} --section ${guide.section}`,
       },
       approval,

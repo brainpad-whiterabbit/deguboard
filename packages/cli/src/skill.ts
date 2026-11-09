@@ -167,7 +167,8 @@ export function skillInstallWarnings(result: SkillInstallResult): string[] {
   return [
     ...result.conflicts.map(
       (name) =>
-        `${name}: 手を加えてあるので上書き${result.dryRun ? "しない" : "しなかった"}。上書きするなら --force を付ける`,
+        `${name}: 手を加えてあるので上書き${result.dryRun ? "しない" : "しなかった"}。上書きするなら --force を付ける。` +
+        `加えた文は SKILL.md から外し、文書にして dg config set guide.notes.${name.replace(/^dg/, "")} <パス> で差し込む（guide と Skill は更新を受け取り続けられる）`,
     ),
     ...result.retiredKept.map(
       (name) =>

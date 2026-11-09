@@ -18,5 +18,6 @@ export {
   guideSectionText,
   readGuide,
   readGuideMeta,
+  readGuideNotes,
 } from "./guide/guide.js";
-export type { GuideMeta, GuideTopic } from "./guide/guide.js";
+export type { GuideMeta, GuideNotes, GuideTopic } from "./guide/guide.js";

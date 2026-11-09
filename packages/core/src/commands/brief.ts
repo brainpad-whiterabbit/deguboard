@@ -293,7 +293,7 @@ export async function briefOf(
   ticket: Ticket,
   role: BriefRole,
   opts: { language?: AskLanguage | undefined; findings?: string | undefined } = {},
-): Promise<Brief> {
+): Promise<{ brief: Brief; warnings: string[] }> {
   const language = opts.language ?? "ja";
   // 手直しの指摘は、渡されなければ見直しの記録から読む（渡されたものはそのまま使う）
   const findings =
@@ -308,6 +308,7 @@ export async function briefOf(
   const plan = openPlanOf(ctx.store, ticket.id);
   const details = plan?.data.details?.[ticket.id];
   const guide = BRIEF_GUIDE[role];
+  const note = await guideSectionText(guide.topic, guide.section, ctx.config, ctx.repo.topLevel);
   const facts: BriefFacts = {
     id: ticket.id,
     title: ticket.title,
@@ -322,17 +323,17 @@ export async function briefOf(
     remote: ctx.config.git.remote,
     baseBranch: ctx.config.git.base_branch,
     // 節の見出しは区切りの行に書くので外す（本文だけを入れる）
-    guideText: (await guideSectionText(guide.topic, guide.section, ctx.config)).text.replace(
-      /^[^\n]*\n*/,
-      "",
-    ),
+    guideText: note.text.replace(/^[^\n]*\n*/, ""),
   };
   return {
-    ticket: ticket.id,
-    role,
-    step,
-    language,
-    text: composeBrief(role, facts, language, findings),
+    brief: {
+      ticket: ticket.id,
+      role,
+      step,
+      language,
+      text: composeBrief(role, facts, language, findings),
+    },
+    warnings: note.warnings,
   };
 }
 
@@ -362,12 +363,11 @@ export const brief = defineCommand({
   needs: "store",
   async run(ctx, input) {
     const ticket = ctx.store.require("ticket", input.ticket).data;
-    return ok<Brief>(
-      await briefOf(ctx, ticket, input.role, {
-        language: input.language,
-        findings: input.findings,
-      }),
-    );
+    const { brief, warnings } = await briefOf(ctx, ticket, input.role, {
+      language: input.language,
+      findings: input.findings,
+    });
+    return ok<Brief>(brief, undefined, warnings);
   },
 });
 

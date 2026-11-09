@@ -319,6 +319,20 @@ export const EN: Readonly<Record<string, string>> = {
   "優先度 high の判断基準": "Criteria for priority high",
   "優先度 medium の判断基準": "Criteria for priority medium",
   "優先度 low の判断基準": "Criteria for priority low",
+  ガイドの差し込み: "Guide notes",
+  "差し込む文書（概要）": "Document inserted into overview",
+  "差し込む文書（起票）": "Document inserted into import",
+  "差し込む文書（割り当て）": "Document inserted into assign",
+  "差し込む文書（点検）": "Document inserted into check",
+  "差し込む文書（計画）": "Document inserted into plan",
+  "差し込む文書（作業）": "Document inserted into work",
+  "差し込む文書（Run）": "Document inserted into run",
+  "差し込む文書（並べて進める）": "Document inserted into parallel",
+  "差し込む文書（見直しと品質ゲート）": "Document inserted into review and quality gate",
+  "差し込む文書（見直し）": "Document inserted into audit",
+  "差し込む文書（リリース）": "Document inserted into release",
+  "差し込む文書（完了）": "Document inserted into done",
+  "差し込む文書（一気通し）": "Document inserted into all",
   同期先が変わる: "changes where data is synced",
   マージ済みの判定の基準が変わる: "changes the base for detecting merges",
   作業場所が変わる: "changes where work happens",
@@ -575,6 +589,32 @@ export const CONFIG_DESCRIPTIONS_EN: Readonly<Record<string, string>> = {
     "Criteria for priority medium (the default). Used when creating and reviewing tickets, and by the priority marks and selection hints on screen",
   "priority.low":
     "Criteria for priority low. Used when creating and reviewing tickets, and by the priority marks and selection hints on screen",
+  "guide.notes.overview":
+    "Path of a document inserted just after the guide title (just after the section heading when a section is shown). A path relative to the repository root; paths outside the repository are not read. Empty inserts nothing. A document with headings (#) is not inserted.",
+  "guide.notes.import":
+    "Path of a document inserted just after the guide title (just after the section heading when a section is shown). A path relative to the repository root; paths outside the repository are not read. Empty inserts nothing. A document with headings (#) is not inserted.",
+  "guide.notes.assign":
+    "Path of a document inserted just after the guide title (just after the section heading when a section is shown). A path relative to the repository root; paths outside the repository are not read. Empty inserts nothing. A document with headings (#) is not inserted.",
+  "guide.notes.check":
+    "Path of a document inserted just after the guide title (just after the section heading when a section is shown). A path relative to the repository root; paths outside the repository are not read. Empty inserts nothing. A document with headings (#) is not inserted.",
+  "guide.notes.plan":
+    "Path of a document inserted just after the guide title (just after the section heading when a section is shown). A path relative to the repository root; paths outside the repository are not read. Empty inserts nothing. A document with headings (#) is not inserted.",
+  "guide.notes.work":
+    "Path of a document inserted just after the guide title (just after the section heading when a section is shown). A path relative to the repository root; paths outside the repository are not read. Empty inserts nothing. A document with headings (#) is not inserted.",
+  "guide.notes.run":
+    "Path of a document inserted just after the guide title (just after the section heading when a section is shown). A path relative to the repository root; paths outside the repository are not read. Empty inserts nothing. A document with headings (#) is not inserted.",
+  "guide.notes.parallel":
+    "Path of a document inserted just after the guide title (just after the section heading when a section is shown). A path relative to the repository root; paths outside the repository are not read. Empty inserts nothing. A document with headings (#) is not inserted.",
+  "guide.notes.review":
+    "Path of a document inserted just after the guide title (just after the section heading when a section is shown). A path relative to the repository root; paths outside the repository are not read. Empty inserts nothing. A document with headings (#) is not inserted.",
+  "guide.notes.audit":
+    "Path of a document inserted just after the guide title (just after the section heading when a section is shown). A path relative to the repository root; paths outside the repository are not read. Empty inserts nothing. A document with headings (#) is not inserted.",
+  "guide.notes.release":
+    "Path of a document inserted just after the guide title (just after the section heading when a section is shown). A path relative to the repository root; paths outside the repository are not read. Empty inserts nothing. A document with headings (#) is not inserted.",
+  "guide.notes.done":
+    "Path of a document inserted just after the guide title (just after the section heading when a section is shown). A path relative to the repository root; paths outside the repository are not read. Empty inserts nothing. A document with headings (#) is not inserted.",
+  "guide.notes.all":
+    "Path of a document inserted just after the guide title (just after the section heading when a section is shown). A path relative to the repository root; paths outside the repository are not read. Empty inserts nothing. A document with headings (#) is not inserted.",
 };
 
 /**

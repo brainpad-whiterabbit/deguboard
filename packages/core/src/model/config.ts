@@ -20,6 +20,29 @@ export const AUTO_DECISIONS = ["assign", "check", "plan", "audit", "accept"] as 
 /** dg flow next が返さずに飛ばせる段階。stop は流れを止める段階なので飛ばせない（ADR-030） */
 export const FLOW_SKIPS = ["assign", "check", "plan", "work", "audit", "release"] as const;
 
+/** guide.notes で文書を差し込めるトピック（guide の GUIDE_TOPICS と同じ。ずれは guide のテストが知らせる） */
+export const NOTE_TOPICS = [
+  "overview",
+  "import",
+  "assign",
+  "check",
+  "plan",
+  "work",
+  "run",
+  "parallel",
+  "review",
+  "audit",
+  "release",
+  "done",
+  "all",
+] as const;
+const noteField = z
+  .string()
+  .default("")
+  .describe(
+    "guide の題名の直後（節を出すときは節の見出しの直後）に差し込む文書のパス。リポジトリの最上位からの相対パスで、リポジトリの外は読まない。空なら差し込まない。見出し（#）を含む文書は差し込まない",
+  );
+
 export const configSchema = z.looseObject({
   default_project: slugSchema.default("default").describe("省略時の Project"),
   git: z
@@ -187,6 +210,13 @@ export const configSchema = z.looseObject({
         ),
     })
     .prefault({}),
+  guide: z
+    .looseObject({
+      notes: z
+        .looseObject(Object.fromEntries(NOTE_TOPICS.map((topic) => [topic, noteField])))
+        .prefault({}),
+    })
+    .prefault({}),
   priority: z
     .looseObject({
       high: z
@@ -293,14 +323,17 @@ function fieldOf(key: string, schema: z.ZodType, fallback: unknown): ConfigField
 export function configFields(): ConfigField[] {
   const defaults = defaultConfig() as Record<string, unknown>;
   const fields: ConfigField[] = [];
-  for (const [top, schema] of Object.entries(configSchema.shape)) {
-    const inner = unwrap(schema as z.ZodType);
+  // 入れ子は葉まで開く（guide.notes.<topic> は 2 段の下にある）
+  const walk = (key: string, schema: z.ZodType, value: unknown): void => {
+    const inner = unwrap(schema);
     if (inner instanceof z.ZodObject) {
-      const values = defaults[top] as Record<string, unknown>;
+      const values = (value ?? {}) as Record<string, unknown>;
       for (const [leaf, child] of Object.entries(inner.shape))
-        fields.push(fieldOf(`${top}.${leaf}`, child as z.ZodType, values[leaf]));
-    } else fields.push(fieldOf(top, schema as z.ZodType, defaults[top]));
-  }
+        walk(`${key}.${leaf}`, child as z.ZodType, values[leaf]);
+    } else fields.push(fieldOf(key, schema, value));
+  };
+  for (const [top, schema] of Object.entries(configSchema.shape))
+    walk(top, schema as z.ZodType, defaults[top]);
   return fields;
 }
 
