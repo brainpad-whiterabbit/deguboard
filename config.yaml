@@ -23,3 +23,9 @@ actions:
     - mise
     - run
     - check
+worktree:
+  root: ../<repo>.worktrees
+  setup:
+    - mise
+    - run
+    - setup
