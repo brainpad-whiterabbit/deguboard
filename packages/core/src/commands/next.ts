@@ -87,7 +87,7 @@ const BRIEF_ROLE_OF: Partial<Record<NextKind, BriefRole>> = {
 
 /**
  * モデルを決める手。review は親のモデルで起動する（見直し役は品質ゲートを弱めない）。
- * 直す手（fix）は実装と同じモデル（guide-review の「指摘を直す」）
+ * 直す手（fix）は実装と同じモデル（guide-review の「修正ループ（親）」）
  */
 const MODEL_KINDS: readonly NextKind[] = ["implement", "fix"];
 

@@ -246,6 +246,25 @@ describe("dg brief と dg next の文（EX-3）", () => {
     expect(next1.brief).toBe(implement.text);
   });
 
+  it("見直しと手直しの文には親向けの手順が入らない（親の節は文に入れない。t593）", async () => {
+    const ctx = await prepared();
+    // 親が進める手順の語（見直し役の起動・PR の本文・dg next の呼び出し・上限の進め方）
+    const parentOnly = [
+      "親",
+      "新しいサブエージェント",
+      "dg next を呼ばない",
+      "上限を超え",
+      "gh pr edit",
+      "書き足",
+      "人に頼",
+    ];
+    for (const role of ["review", "fix"] as const) {
+      const text = (await runCommand(brief, ctx, { ticket: "t1", role, findings: "1. 直す指摘" }))
+        .data.text;
+      for (const word of parentOnly) expect(text, `${role} ${word}`).not.toContain(word);
+    }
+  });
+
   it("language を en にすると定型の文が英語になり、チケットの題は書いた言葉のまま", async () => {
     const ctx = await prepared();
     const text = (await runCommand(brief, ctx, { ticket: "t1", role: "implement", language: "en" }))

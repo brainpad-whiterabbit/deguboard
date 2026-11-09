@@ -15,7 +15,7 @@
     "test:layout": "vitest run --config vitest.layout.config.ts",
     "test:vscode": "vitest run --config vitest.vscode.config.ts",
     "check:docs": "node scripts/check-docs.mjs",
-    "build": "tsc -b tsconfig.build.json && mkdir -p packages/core/dist/guide && cp packages/core/src/guide/guide-*.md packages/core/dist/guide/ && cp packages/cli/src/skill.md packages/cli/dist/ &&pnpm --filter @deguboard/web build && rm -rf packages/cli/web && cp -r packages/web/dist packages/cli/web && pnpm --filter deguboard-vscode build",
+    "build": "tsc -b tsconfig.build.json && mkdir -p packages/core/dist/guide && cp packages/core/src/guide/guide-*.md packages/core/dist/guide/ && cp packages/cli/src/skill.md packages/cli/dist/ && pnpm --filter @deguboard/web build && rm -rf packages/cli/web && cp -r packages/web/dist packages/cli/web && pnpm --filter deguboard-vscode build",
     "dg": "node packages/cli/bin/dg.js",
     "vsix": "pnpm --filter deguboard-vscode package && node scripts/vsix-sha256.mjs",
     "vsix:install": "node scripts/install-vsix.mjs",

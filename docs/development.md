@@ -100,6 +100,7 @@ mise run dg -- guide done      # マージ後の後始末
 | `agents/`   | Agent Adapter（`adapters/` に製品ごと）。会話記録からの使用量の取り込みと、Skill の置き場所（`skillDirs`）。汎用部分は `index.ts` だけを import する                                            |
 | `actions/`  | 登録済みの Action（ライブラリ。コマンドにはしない）。core の公開は `ACTION_NAMES` だけ                                                                                                          |
 | `commands/` | 3 つの入口の正本。`defineCommand` で「名前・Zod の入力・実装」を組にし、`openContext` と `runCommand` で呼ぶ                                                                                    |
+| `guide/`    | guide の本文（`guide-*.md`）の読み込み・節の切り出し（`sections.ts`）・config の埋め込み。`dg guide`・`dg next`・`dg brief`・`dg flow next` が写す（ADR-030）                                   |
 
 入口がコマンドを呼ぶ流れ：`openContext({ cwd, actor, actions: ACTION_NAMES })` → `runCommand(findCommand("ticket.create"), ctx, input)`。入力の形の誤りは `UsageError`（終了コード 2）、実行時の失敗は `OperationError`（終了コード 1、`code` に種類）。
 
@@ -107,7 +108,7 @@ mise run dg -- guide done      # マージ後の後始末
 
 core の `commands` を commander（`program.ts`）と MCP のツール（`mcp.ts`）に写す。ロジックは持たない。各ファイルの役割は冒頭のコメントが正本で、引数の型ごとの対応は `options.ts`、`--json` の形は `output.ts`、終了コードは `errors.ts`。
 
-グローバルオプションは `dg --help` が正本。`dg serve` / `dg open`（`serve.ts`）は開発用（配置の確認とスクリーンショット。[ADR-027](adr/ADR-027-screen-vscode-writes-and-asks.md)）で、`@deguboard/server` を起動する・ブラウザで開くだけ。`guide-*.md` と `skill.md` はビルドで `dist/` に、web の `dist` は `packages/cli/web` に写す（ルートの `build`）。トピックを足すときは `guide.ts` の `GUIDE_TOPICS` と `guide-overview.md` の表も直す。
+グローバルオプションは `dg --help` が正本。`dg serve` / `dg open`（`serve.ts`）は開発用（配置の確認とスクリーンショット。[ADR-027](adr/ADR-027-screen-vscode-writes-and-asks.md)）で、`@deguboard/server` を起動する・ブラウザで開くだけ。`guide-*.md` は `packages/core/src/guide/` にあり、ビルドで core の `dist/guide/` に、拡張の `dist/` に写す（ルートと `packages/vscode` の `build`）。`skill.md` は `dist/` に、web の `dist` は `packages/cli/web` に写す（ルートの `build`）。トピックを足すときは `packages/core/src/guide/guide.ts` の `GUIDE_TOPICS` と `guide-overview.md` の表も直す。
 
 ### `packages/server`（`@deguboard/server`）
 

@@ -81,7 +81,7 @@ export async function readGuideMeta(topic: string): Promise<GuideMeta> {
 }
 
 /**
- * トピックの 1 節を、config の値と guide.notes を埋めて返す（見出しの文言と本文。本文は見出しを含まない）。
+ * トピックの 1 節を、config の値（`{{…}}` の項目）を埋めて返す。text は見出しの行から始まり、heading は見出しの文言。
  * dg guide --section・dg next・dg brief・dg flow next が同じ本文を返すよう、この関数を写す
  */
 export async function guideSectionText(

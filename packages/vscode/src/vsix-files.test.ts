@@ -18,7 +18,7 @@ const allowed: RegExp[] = [
   /^README\.md$/,
   /^LICENSE$/,
   /^dist\/extension\.cjs$/,
-  // dg guide の本文。拡張は bundle の隣から読む（core の guide.ts）。CLI と core にも同じ文が入っている
+  // dg guide の本文。拡張は bundle の隣から読む（core の guide.ts）。本文は core の src/guide/ の guide-*.md を写したもの
   /^dist\/guide-[\w-]+\.md$/,
   /^dist\/THIRD_PARTY_LICENSES\.md$/,
   /^dist\/assets\/[\w.-]+\.cjs$/,

@@ -144,7 +144,7 @@ describe("dg guide", () => {
     const back = bullet(section(review, "## 見直す"), "返す");
     for (const word of ["この PR が変えた", "文書の見直し", "ADR-001", "参考節との食い違い"])
       expect(back, word).toContain(word);
-    const fix = section(review, "## 指摘を直す（修正ループ）");
+    const fix = section(review, "## 修正ループ（親）");
     for (const word of ["参考節との食い違い", "親が PR の本文に書き足す", "直さなかった軽い指摘"])
       expect(fix, word).toContain(word);
     expect(await readGuide("parallel")).toContain("直さなかった軽い指摘を PR の本文に書き足し");
@@ -295,22 +295,24 @@ describe("dg guide", () => {
     const review = await readGuide("review");
     for (const heading of [
       "## 品質ゲート",
+      "## 見直しを起動する（親）",
       "## 見直す",
-      "## 指摘を直す（修正ループ）",
+      "## 指摘を直す",
+      "## 修正ループ（親）",
       "## 終わり方",
     ])
       expect(review).toContain(heading);
     // 回数と Run の説明は dg が持つ。guide には書かない（ADR-011）
     for (const word of ["2 回まで", "3 回まで", "Run の分け方", "--agent", "run start", "--no-run"])
       expect(review, word).not.toContain(word);
-    const fix = section(review, "## 指摘を直す（修正ループ）");
+    const fix = section(review, "## 修正ループ（親）");
     expect(bullet(fix, "上限")).toContain("fix_rounds");
     expect(bullet(fix, "上限")).toContain("wait_human");
     expect(bullet(fix, "直す指摘")).toContain("--role fix");
     expect(fix).toContain("同じ会話の続きでは頼まない");
     expect(fix).toContain("`dg next` を呼ばない");
     // 見直しは dg next の brief を渡す。ゲートの条件は dg gate の判定に任せる
-    expect(section(review, "## 見直す")).toContain("`dg next` が `review`");
+    expect(section(review, "## 見直しを起動する（親）")).toContain("`dg next` が `review`");
     expect(section(review, "## 品質ゲート")).toContain("MERGEABLE");
     expect(section(review, "## 品質ゲート")).toContain("fix_rounds");
     // PR を出すのは dg pr ready（ゲートを満たすときだけ gh を呼ぶ）。満たさないまま出すときだけ人が gh を打つ
