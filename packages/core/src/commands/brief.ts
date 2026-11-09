@@ -5,7 +5,7 @@
 
 import { z } from "zod";
 import { findBranchWorktree } from "../git/worktree.js";
-import { guideSectionText } from "../guide/guide.js";
+import { composeGuide } from "../guide/guide.js";
 import { REVIEW_STEP } from "../model/run.js";
 import { type AcceptanceItem, parseAcceptance, type Ticket } from "../model/ticket.js";
 import { findingText, latestRoundSince, splitFindings } from "../run/findings.js";
@@ -308,7 +308,7 @@ export async function briefOf(
   const plan = openPlanOf(ctx.store, ticket.id);
   const details = plan?.data.details?.[ticket.id];
   const guide = BRIEF_GUIDE[role];
-  const note = await guideSectionText(guide.topic, guide.section, ctx.config, ctx.repo.topLevel);
+  const note = await composeGuide(guide.topic, ctx.config, ctx.repo.topLevel, guide.section);
   const facts: BriefFacts = {
     id: ticket.id,
     title: ticket.title,

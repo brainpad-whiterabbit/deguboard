@@ -11,13 +11,13 @@ export * from "./run/index.js";
 // dg hooks install が書くフックを引く hooksOf と hookAgentNames だけにする（AG-5、ADR-007）
 export { agentSkillDirs, hookAgentNames, hooksOf, skillDirsOf } from "./agents/index.js";
 export type { AgentEnv, HookSupport, SkillDirs, SkillQuery } from "./agents/index.js";
-// guide の本文と読み込みは Core に置く（ADR-030）。公開は dg guide（CLI）が写す読み込みと、節の本文を引く関数だけにする
+// guide の本文と読み込みは Core に置く（ADR-030）。公開は本文を組む composeGuide と、dg guide（CLI）が写す読み込みだけにする
 export {
+  composeGuide,
   fillPlaceholders,
   GUIDE_TOPICS,
-  guideSectionText,
   readGuide,
   readGuideMeta,
   readGuideNotes,
 } from "./guide/guide.js";
-export type { GuideMeta, GuideNotes, GuideTopic } from "./guide/guide.js";
+export type { GuideMeta, GuideNotes, GuideText, GuideTopic } from "./guide/guide.js";

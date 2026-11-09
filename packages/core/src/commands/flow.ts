@@ -5,7 +5,7 @@
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import { UsageError } from "../errors.js";
-import { guideSectionText } from "../guide/guide.js";
+import { composeGuide } from "../guide/guide.js";
 import { isTerminal } from "../model/common.js";
 import { compareIds, parseId, type IterationId } from "../model/id.js";
 import type { Ticket } from "../model/ticket.js";
@@ -227,7 +227,7 @@ export function isRepeated(prev: ResumeState | undefined, stage: FlowStageName, 
   return prev !== undefined && prev.stage === stage && prev.facts === facts && stage !== "stop";
 }
 
-/** 段階の手のやり方の節（段階ごとに読む guide の節）。本文は guideSectionText が Core から読む */
+/** 段階の手のやり方の節（段階ごとに読む guide の節）。本文は composeGuide が Core から読む */
 export const FLOW_GUIDE: Record<FlowStageName, { topic: string; section: string }> = {
   assign: { topic: "assign", section: "Iteration" },
   check: { topic: "check", section: "点検の手順" },
@@ -533,12 +533,7 @@ export const flowNext = defineCommand({
         }
       : found;
     const guide = FLOW_GUIDE[stage.name];
-    const guideText = await guideSectionText(
-      guide.topic,
-      guide.section,
-      ctx.config,
-      ctx.repo.topLevel,
-    );
+    const guideText = await composeGuide(guide.topic, ctx.config, ctx.repo.topLevel, guide.section);
     warnings.push(...guideText.warnings);
     const approval = approvalOf(stage.name, {
       auto,
