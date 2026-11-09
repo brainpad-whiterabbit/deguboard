@@ -1,6 +1,7 @@
 // 品質ゲートの検査の条件（EX-6）：config の actions.test を、作業ブランチの最新のコミットを checkout した worktree で回す。
 // actions.test は run_tests の Action と同じく確認なしで実行する（config.yaml に書ける人の権限をシェルの許可と同等とみなす。ADR-007・AG-7）。
-// 結果はコミットとコマンドごとに deguboard-local/checks/ に置き、同じコミットの ready の後の merge で回し直さない。Git には入れない
+// 通った結果はコミットとコマンドごとに deguboard-local/checks/ に置き、同じコミットの ready の後の merge で回し直さない。Git には入れない。
+// 通らなかった結果は覚えない（確率で落ちる検査を、コミットを足さずに回し直せるように）
 
 import { mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
@@ -86,7 +87,7 @@ export async function judgeCheck(ctx: CommandContext, ticket: Ticket): Promise<C
     if (!dir)
       return {
         ok: false,
-        detail: `作業ブランチ ${ticket.branch} の worktree がないので、検査を回せない（claim が作る）`,
+        detail: `作業ブランチ ${ticket.branch} の worktree がなく、最新のコミット ${short(sha)} の検査の結果もないので、検査を回せない（worktree は claim が作る。dg pr merge は検査を通した後に worktree を消すので、先に消さない）`,
       };
     const head = (await runGit(dir, ["rev-parse", "HEAD"])).stdout.trim();
     if (head !== sha)
@@ -112,15 +113,17 @@ export async function judgeCheck(ctx: CommandContext, ticket: Ticket): Promise<C
       const reason = error instanceof Error ? error.message : String(error);
       return { ok: false, detail: `検査（${shown}）を回せない: ${reason}` };
     }
-    const record: StoredCheck = {
-      sha,
-      command,
-      code: result.code,
-      tail: result.tail,
-      at: new Date(ctx.now()).toISOString(),
-    };
-    await mkdir(path.dirname(file), { recursive: true });
-    await writeFileAtomic(file, `${JSON.stringify(record, null, 2)}\n`);
+    if (result.code === 0) {
+      const record: StoredCheck = {
+        sha,
+        command,
+        code: result.code,
+        tail: result.tail,
+        at: new Date(ctx.now()).toISOString(),
+      };
+      await mkdir(path.dirname(file), { recursive: true });
+      await writeFileAtomic(file, `${JSON.stringify(record, null, 2)}\n`);
+    }
   }
   return result.code === 0
     ? { ok: true, detail: `検査（${shown}）が最新のコミット ${short(sha)} で通った` }

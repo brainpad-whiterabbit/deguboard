@@ -203,7 +203,7 @@ describe("dg gate の検査（actions.test。t601）", () => {
     expect(await runs()).toBe(1);
   });
 
-  it("通らなければ終了コードと出力の末尾を detail に出し、ほかの条件を満たさなければ回さない", async () => {
+  it("通らなければ終了コードと出力の末尾を detail に出して結果を覚えず、ほかの条件を満たさなければ回さない", async () => {
     const { f, ctx, runs, setCode } = await withCheck();
     // 見直しがない（review を満たさない）うちは回さない
     expect(check(await judge(ctx, "ready"))).toMatchObject({
@@ -220,6 +220,10 @@ describe("dg gate の検査（actions.test。t601）", () => {
     expect(failed(view)).toEqual(["check"]);
     expect(check(view).detail).toContain("通らない（exit 3）");
     expect(check(view).detail).toContain("前の行\n最後の行");
+    // 通らなかった結果は覚えないので、同じコミットでも回し直す（確率で落ちる検査をコミットを足さずにやり直せる）
+    await setCode(0);
+    expect(check(await judge(ctx, "ready")).ok).toBe(true);
+    expect(await runs()).toBe(2);
   });
 
   it("worktree が最新のコミットでない・未コミットの変更があるなら回さずに満たさない", async () => {
