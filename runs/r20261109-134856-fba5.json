@@ -1,0 +1,30 @@
+{
+  "id": "r20261109-134856-fba5",
+  "ticket": "t621",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-09T13:48:56Z",
+  "finished_at": "2026-11-09T13:51:33Z",
+  "result": "success",
+  "error": null,
+  "retries": 0,
+  "retry_reasons": [],
+  "usage": {
+    "input": 28,
+    "output": 9268,
+    "cache_read": 678521,
+    "cache_write": 60593
+  },
+  "tools": {
+    "read": 2,
+    "search": 0,
+    "write": 5,
+    "bash": 8,
+    "other": 1,
+    "read_before_write": 1,
+    "search_before_write": 0
+  },
+  "session": "a6e4409e-9924-4902-b4ff-016a8f5ae296",
+  "review": null
+}
