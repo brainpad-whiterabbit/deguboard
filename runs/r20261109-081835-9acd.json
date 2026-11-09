@@ -1,0 +1,32 @@
+{
+  "id": "r20261109-081835-9acd",
+  "ticket": "t598",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-09T08:18:35Z",
+  "finished_at": "2026-11-09T08:18:42Z",
+  "result": "success",
+  "error": null,
+  "retries": 1,
+  "retry_reasons": [
+    "人が決める判断の一覧が消えた"
+  ],
+  "usage": {
+    "input": 2,
+    "output": 444,
+    "cache_read": 658942,
+    "cache_write": 1189
+  },
+  "tools": {
+    "read": 0,
+    "search": 0,
+    "write": 0,
+    "bash": 2,
+    "other": 0,
+    "read_before_write": 0,
+    "search_before_write": 0
+  },
+  "session": "9ecee8ef-d3fe-4fc7-a962-2832cb500f39",
+  "review": null
+}
