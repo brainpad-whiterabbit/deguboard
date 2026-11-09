@@ -1,0 +1,33 @@
+{
+  "id": "r20261109-222301-021f",
+  "ticket": "t643",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-09T22:23:01Z",
+  "finished_at": "2026-11-09T22:28:51Z",
+  "result": "success",
+  "error": null,
+  "retries": 2,
+  "retry_reasons": [
+    "pr merge の worktree 復元が worktree.setup を回さず、戻した worktree で準備の要る検査が動かない",
+    "requirements.md の EX-6 が t643 と関わらない約束を 2 つ消している"
+  ],
+  "usage": {
+    "input": 58,
+    "output": 29736,
+    "cache_read": 1891363,
+    "cache_write": 74688
+  },
+  "tools": {
+    "read": 5,
+    "search": 0,
+    "write": 12,
+    "bash": 15,
+    "other": 1,
+    "read_before_write": 2,
+    "search_before_write": 0
+  },
+  "session": "222d1b34-90e5-4154-801a-4ad9c985d1bc",
+  "review": null
+}
