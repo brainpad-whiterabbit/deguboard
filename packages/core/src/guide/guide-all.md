@@ -1,6 +1,6 @@
 ---
 description: Advances a deguboard Iteration or tickets through assignment, check, plan, work, audit, and release (or clean-up), in one flow. Approval stays where each stage's steps put it, and the flow does not stop between stages. A flow that stopped midway can be resumed with the same arguments. --no-assign skips the assignment stage. --auto chooses reversible decisions that come with a suggested option. Use when asked「s3 を最後まで進めて」「割り当てからリリースまでやって」.
-argument-hint: "<Iteration|ticket ID...> [--no-assign] [--auto]"
+argument-hint: "<Iteration|ticket ID...> [--no-assign] [--auto] [--gate-high|--gate-low|--gate-free]"
 ---
 
 # End to end (all)
@@ -14,6 +14,7 @@ Advances an Iteration or tickets from assignment to release, in one flow. The cu
 - No target given: the same as the "Deciding the target" section of `dg guide release`
 - `--no-assign`: skips the assignment stage. If the check suggests putting tickets into an Iteration, it does not apply the suggestion and leaves it in the final report
 - `--auto`: see "Choosing automatically with `--auto`" below. It can be combined with `--no-assign`
+- `--gate-high`, `--gate-low`, `--gate-free`: the quality gate level for the target tickets. Pass it to `flow next` as `--gate <level>`. The work stage's `commands` then set the level on each ticket whose level differs, before its `next`, and `next` follows that level: high goes through the review and the fix loop, low and free go from the PR straight to `ready` (low still runs the checks, free does not). The conditions per level are in the "Quality gate" section of `dg guide review`. A level a human wrote in the command is the human's decision, so with `--auto` too, set it without asking. With no level given, each ticket keeps its own level (no level is high)
 
 Below, the target Iteration is written as `<S>`. The flow starts without asking, and closing is done only on a human's instruction.
 
@@ -32,7 +33,7 @@ The order of stages and the current stage are decided by `dg flow next`. Approva
 
 ## Running the flow
 
-1. Call `dg --json --actor agent flow next <target…>` when starting, and after finishing each stage (add `--auto` and `--no-assign` if given). In the result, `stage.name` is the current stage (`assign`, `check`, `plan`, `work`, `audit`, `release`, or `stop`); `commands` are the dg commands to call (in order); `guide.text` is how to do the stage (the sections in `guide.sections` joined in order, including all the sections of the same topic that the step section points to); and `approval` is whether approval is needed and where
+1. Call `dg --json --actor agent flow next <target…>` when starting, and after finishing each stage (add `--auto` and `--no-assign` if given, and `--gate <level>` for `--gate-<level>`). In the result, `stage.name` is the current stage (`assign`, `check`, `plan`, `work`, `audit`, `release`, or `stop`); `commands` are the dg commands to call (in order); `guide.text` is how to do the stage (the sections in `guide.sections` joined in order, including all the sections of the same topic that the step section points to); and `approval` is whether approval is needed and where
 2. Do the stage's step. Run `commands` in order, and follow `guide.text` (to read it again, use `guide.command`). Do not read the whole guide of the stage's topic again. Read a section of another topic only when `guide.text` points to it (the "…" section of `dg guide <topic>`)
    - `work` follows `dg guide parallel` whatever the number of tickets: each ticket is given to a subagent. The parent only advances, asks for approval, and reads and writes `dg`
    - For `release`, if the repository's rules have no release steps, follow the "When there are no release steps" section of `guide.text`

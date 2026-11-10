@@ -9,7 +9,7 @@ import { composeGuide } from "../guide/guide.js";
 import { isTerminal } from "../model/common.js";
 import { FLOW_SKIPS } from "../model/config.js";
 import { compareIds, parseId, type IterationId } from "../model/id.js";
-import type { Ticket } from "../model/ticket.js";
+import { DEFAULT_GATE_LEVEL, GATE_LEVELS, type GateLevel, type Ticket } from "../model/ticket.js";
 import type { Store } from "../storage/store.js";
 import { defineCommand, ok, type CommandContext } from "./define.js";
 import { agentDg as dg, sortedDocs, ticketsInIteration } from "./helpers.js";
@@ -247,6 +247,7 @@ export const FLOW_GUIDE: Record<FlowStageName, { topic: string; sections: readon
     topic: "work",
     sections: [
       "Flow",
+      "Gate level",
       "Before and after claim",
       "Implement",
       "Receive the implementation result",
@@ -334,8 +335,17 @@ export function approvalOf(
   }
 }
 
-/** 段階で親が呼ぶ dg のコマンド（順に）。手のやり方は guide の節。Plan の承認は --auto が聞かずに選ぶときだけ呼ぶ */
-function commandsOf(stage: FlowStage, s: string | null, autoOk: boolean): string[] {
+/**
+ * 段階で親が呼ぶ dg のコマンド（順に）。手のやり方は guide の節。Plan の承認は --auto が聞かずに選ぶときだけ呼ぶ。
+ * gate（--gate の段）があれば、作業の段階で段の違うチケットにだけ next の前に段を付ける（TK-9）。
+ * 同じ段のチケットに入れないのは、呼ぶたびに更新が出て止まる判定（fingerprint の updated_at）を揺らさないため
+ */
+function commandsOf(
+  stage: FlowStage,
+  s: string | null,
+  autoOk: boolean,
+  gate?: { level: GateLevel; of: (id: string) => GateLevel },
+): string[] {
   switch (stage.name) {
     case "assign":
       return [dg(`iteration add ${s ?? "<S>"} <tickets to add…>`)];
@@ -346,7 +356,15 @@ function commandsOf(stage: FlowStage, s: string | null, autoOk: boolean): string
         ? [dg(`plan show ${stage.plan}`), ...(autoOk ? [dg(`plan approve ${stage.plan}`)] : [])]
         : [dg(`plan create ${stage.tickets.join(" ")}`)];
     case "work":
-      return [dg(`plan show ${stage.plan}`), ...stage.tickets.map((t) => dg(`next ${t}`))];
+      return [
+        dg(`plan show ${stage.plan}`),
+        ...stage.tickets.flatMap((t) => [
+          ...(gate && gate.of(t) !== gate.level
+            ? [dg(`ticket update ${t} --gate ${gate.level}`)]
+            : []),
+          dg(`next ${t}`),
+        ]),
+      ];
     case "audit":
       return [dg(`ticket list --label audit-${s}`)];
     case "release":
@@ -527,7 +545,7 @@ export const flowNext = defineCommand({
     "Audited means a ticket with the label audit-<S> exists, or the audit was finished in this run. For a ticket or Plan target, <S> is the ticket's Iteration (only when it is a single one), and audit and release apply only when all tickets in that Iteration are finished. " +
     "Passing the returned resume to --resume in the next call marks the assignment, check, and audit that it returned as finished, and skips them. If resume is missing, unreadable, or for a different target, it starts again from assign and check. " +
     "When stopped without finishing a stage (such as stopping at the audit findings table), do not pass that resume (passing it would skip that stage). " +
-    "Stages in config's flow.skip are skipped without reading their rules. If the facts (tickets, Plans, Runs) have not changed for the same stage as the previous return, it returns stop. Returns the stage's section (guide), the commands to call (commands), and whether approval is needed (approval; auto_ok says whether --auto chooses it without asking, following config's auto.decisions and auto.merge; decisions a person makes are not included). Writes nothing",
+    "Stages in config's flow.skip are skipped without reading their rules. If the facts (tickets, Plans, Runs) have not changed for the same stage as the previous return, it returns stop. Returns the stage's section (guide), the commands to call (commands; with --gate, the work stage sets the level on tickets whose level differs before next), and whether approval is needed (approval; auto_ok says whether --auto chooses it without asking, following config's auto.decisions and auto.merge; decisions a person makes are not included). Writes nothing",
   input: z.object({
     targets: z
       .array(z.string().min(1))
@@ -540,6 +558,12 @@ export const flowNext = defineCommand({
         "Automatically choose reversible decisions that come with a suggested option (EX-7)",
       ),
     no_assign: z.boolean().optional().describe("Skip the assign stage"),
+    gate: z
+      .enum(GATE_LEVELS)
+      .optional()
+      .describe(
+        "Quality gate level the person gave (TK-9; /dgall --gate-<level>). In the work stage, puts dg ticket update <id> --gate <level> before next only for tickets whose level differs (a ticket with no gate is high)",
+      ),
     resume: z
       .string()
       .optional()
@@ -602,7 +626,18 @@ export const flowNext = defineCommand({
         command: guideCommandOf(guide.topic, guide.sections),
       },
       approval,
-      commands: commandsOf(stage, facts.iteration, approval.auto_ok),
+      commands: commandsOf(
+        stage,
+        facts.iteration,
+        approval.auto_ok,
+        input.gate === undefined
+          ? undefined
+          : {
+              level: input.gate,
+              of: (id) =>
+                ctx.store.tickets.get(id as Ticket["id"])?.data.gate ?? DEFAULT_GATE_LEVEL,
+            },
+      ),
       ask_human:
         stage.name === "stop"
           ? `${stage.reason}. Show the state and stop. Starting again with the same target works it out again from the state`

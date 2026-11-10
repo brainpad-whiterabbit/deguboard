@@ -17,7 +17,7 @@ Agentic-Agile を実践するための、Git リポジトリの中で動くカ�
 
 ツールとコマンドは mise に統一する（[mise.toml](mise.toml)、[ADR-008](docs/adr/ADR-008-tech-stack.md)）。始め方は [development.md の「開発の始め方」](docs/development.md#開発の始め方)。
 
-- コードや文書を変更したら、コミットの前に `mise run format` で整え、`mise run check` が通ることを確かめる。`main` との差分のファイルがすべて config の `actions.light_paths`（`dg config show` で見る）に入るときは、`mise run check` の代わりに軽い検査 `mise run check:light` でよい（品質ゲートの検査と同じ扱い）
+- コードや文書を変更したら、コミットの前に `mise run format` で整え、`mise run check` が通ることを確かめる。`main` との差分のファイルがすべて config の `actions.light_paths`（`dg config show` で見る）に入るときは、`mise run check` の代わりに軽い検査 `mise run check:light` でよい（品質ゲートの検査と同じ扱い）。段（`gate`）が free のチケットは、品質ゲートが検査を判定しないので `mise run check` は要らない（`mise run format` はする）
 - 作業の途中は `mise run test:related` で変えたファイルに関わるテストだけを回す。全体は、コミットの前の `mise run check` でだけ回す
 - 新しいタスクは mise.toml に足し、pnpm scripts を呼ぶだけにする。`pnpm run`・`npx` を直接案内しない
 
