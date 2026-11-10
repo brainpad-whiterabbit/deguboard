@@ -348,6 +348,61 @@ After reporting the result (including when there were no findings), ask with the
 - **Stop here**"
 `;
 
+exports[`dg guide の出力（本文の組み立て） > トピックごとの本文と、節の本文が変わらない > discuss 1`] = `
+"# Discussion (discuss)
+
+Discusses the targets with a human until the open points are settled, then reflects the conclusion. This guide covers the discussion and the approval. The steps of writing follow the existing guides: \`dg guide import\` for tickets, and \`dg guide change\` for an Epic or Iteration.
+
+## Deciding the target
+
+- The IDs after the Skill call (\`/dgdiscuss t12\`) are the targets: tickets in todo, in_progress, or review (several allowed), or an open Epic or Iteration. The instruction that follows, if any, says what to discuss
+- A done or abandoned ticket, or a closed Epic, Iteration, or Plan, is not discussed here. Show its state, point to the ask that fits (for example, filing follow-ups by \`dg guide import\`, or reopening by \`dg guide change\`), and stop
+- No target given: ask which target to discuss
+
+## While discussing
+
+- Change no files and no data until the human approves the reflection in step 4. Only read: \`dg --json --actor agent ticket show <t12>\` (\`epic show <e3>\`, \`iteration show <s3>\`), and the code and documents the target refers to. Do not write with \`dg\`, edit files, or make branches or commits
+- List the open points (what is unclear, what conflicts, which options exist) with the material for each, and settle them with choices by "Asking with choices" below. Put the recommended option first with its reason
+- An answer that cannot be a choice (such as the wording of an acceptance criterion) is taken as free input
+
+## What is reflected
+
+Only the title, body (summary), acceptance criteria, priority, dependencies, and gate level are reflected (for an Iteration: the name, goal, and dates; for an Epic: the title and summary). Lowering the gate level needs the human's explicit instruction.
+
+When the conclusion is a change of Status, of membership (Iteration or Epic), closing, or abandoning, do not do it here. Show the ask that fits and stop:
+
+- Status (starting, reviewing, done): \`dg guide work\` or \`dg guide done\` (if a Skill is available, \`/dgwork <t12>\` or \`/dgdone <t12>\`)
+- Membership: \`dg guide assign\` (\`/dgassign <t12>\`)
+- Closing, reopening, abandoning, or undoing done: \`dg guide change\` (\`/dgchange <ID>\`)
+
+## Steps
+
+1. **Read the targets**: \`dg --json --actor agent ticket show <t12>\` (or \`epic show\`, \`iteration show\`). Keep the current values as "before"
+2. **Discuss**: settle the open points by "While discussing" above. If the conclusion falls outside "What is reflected", show the ask that fits and stop
+3. **Running Run**: for an in_progress ticket, check \`dg --json --actor agent run list --running --ticket <t12>\`. If a Run is running, tell the human before reflecting (the working agent reads the ticket it started with), and ask whether to reflect now or after the Run ends
+4. **Approval**: show before → after for each target and field, and ask with the choices "Reflect" (recommended), "Revise", and "Cancel". Do not reflect without approval
+5. **Reflect**: tickets by the steps of \`dg guide import\` (fixing an existing ticket with \`ticket update\`; splitting by filing new tickets), and an Epic or Iteration by the edit of \`dg guide change\`. The approval in step 4 is the human's instruction, so do not ask again for the same content
+6. **Report**: the targets, before → after, and the \`warnings\` of the result
+
+## Asking with choices
+
+Tickets advance in this order: import (\`dg guide import\`) → assign (\`dg guide assign\`) → check (\`dg guide check\`) → plan (\`dg guide plan\`) → work (\`dg guide work\`) → audit (\`dg guide audit\`, when an Iteration or Epic ends) → release (\`dg guide release\`; if there are no release steps, clean up with \`dg guide done\`). Done (\`dg guide done\`) comes after every merge. To carry on from assign through release, use \`dg guide all\`. When asking a human for a decision (approval, correction, which one to choose), and when a step is finished and the next step must be decided, show the choices and ask.
+
+- When the agent can offer choices, ask with that mechanism (in Claude Code, the AskUserQuestion tool). If it cannot, show the numbered choices in text
+- Show the material for the decision (tables, Plans, lists of PRs) before the choices. Do not ask for a decision with only the choices' descriptions
+- Offer 2 to 4 choices, put the recommended one first, and give its reason. An answer that cannot be a choice, such as the content of a correction, is taken as free input outside the choices
+- Ask questions where several can be chosen (such as which lines to reflect) with multiple selection. Ask about deletion, abandoned, and close operations one at a time
+- When deciding the next step, make the next step in the flow and "stop here" the choices (see the "Choosing the next step" section of each guide). When the next step is chosen, if a Skill is available (for example \`/dgwork p3\`), start it. If not, read \`dg guide <topic>\` and continue with that step. Do not do the next step's work inside the current step.
+
+## Choosing the next step
+
+When the reflected tickets have a next step in the flow, ask with these choices after reporting. If they have none (or an Epic or Iteration was the target), finish with the report.
+
+- **Make a plan**: for todo tickets whose content is settled, decide the order by the steps of \`dg guide plan\` (if a Skill is available, \`/dgplan <ID...>\`)
+- **Assign**: for tickets not in an Iteration, assign them by the steps of \`dg guide assign\` (if a Skill is available, \`/dgassign <ID...>\`)
+- **Stop here**"
+`;
+
 exports[`dg guide の出力（本文の組み立て） > トピックごとの本文と、節の本文が変わらない > done 1`] = `
 "# Done (done)
 
@@ -575,6 +630,7 @@ By default, agents can run every operation. Limits are added in the settings.
 | release  | dgrelease | Confirms all tickets in an Iteration are done, advances with the repository's release steps, and closes the Iteration                         | After review, when releasing                                       |
 | done     | dgdone    | Cleanup after merge, confirming the remaining acceptance criteria, and closing a Plan                                                          | After a PR is merged                                               |
 | change   | dgchange  | Carries out one change a human asked for (edit, close, reopen, abandon, undo done): checks the preconditions, writes with one \`dg\` call per target, and hands the command to a human when refused | When asked to edit, close, reopen, abandon, or undo done |
+| discuss  | dgdiscuss | Settles the open points of tickets, an Epic, or an Iteration with a human through choices without changing data, then reflects the result after approval of before → after (writing by import or change) | When asked to discuss what a ticket, Epic, or Iteration should be |
 | all      | dgall     | Advances assign → check → plan → work → audit → release, taking the stage from the state (can resume with the same arguments)                  | When asked to "carry s3 through to the end"                        |
 
 Read with \`dg guide <topic>\`. In Claude Code, the Skill that \`dg skill install\` installs (such as \`/dgimport\`) reads the topic. The only asks from the screen (\`dg ask\`) that have no Skill are free, status, retro, and carry; their request text is plain text without a topic. A Skill is optional. Without one, read \`dg guide <topic>\` and proceed with the same steps. In Claude Code, \`dg hooks install\` can also install hooks, and \`dg hooks check\` confirms whether they are installed, whether they work, and whether their input has the right shape (it warns when something is missing). For the list of commands, see \`dg --help\`. For each command's options, see \`dg <group> <operation> --help\`."

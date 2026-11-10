@@ -92,6 +92,7 @@ const ENGLISH_TOPICS = new Set([
   "release",
   "done",
   "change",
+  "discuss",
   "all",
 ]);
 
@@ -490,6 +491,48 @@ describe("dg guide", () => {
     // 版上げの条件（変更の範囲）は review にだけ書く
     expect(release).not.toContain("version numbers");
     expect(release).not.toContain("CHANGELOG and lock file");
+  });
+
+  it("discuss は議論の間は書き換えず、論点を選択肢で決め、前後の差の承認を得てから import・change の手順で反映する", async () => {
+    const guide = await readGuide("discuss");
+    const discussing = section(guide, "## While discussing");
+    for (const word of ["Change no files and no data", "with choices", '"Asking with choices"'])
+      expect(discussing).toContain(word);
+    // 選択肢の聞き方は共通の節（guide-choices）を差し込む
+    expect(guide).toContain("## Asking with choices");
+    const steps = section(guide, "## Steps");
+    for (const word of ["in_progress", "run list --running", "tell the human before reflecting"])
+      expect(step(steps, 3)).toContain(word);
+    for (const word of ["before → after", "Do not reflect without approval"])
+      expect(step(steps, 4)).toContain(word);
+    // 反映の手順は書き写さず、チケットは import、Epic・Iteration は change に任せる
+    expect(lineWith(step(steps, 5), "tickets")).toContain("`dg guide import`");
+    expect(lineWith(step(steps, 5), "Epic or Iteration")).toContain("`dg guide change`");
+    for (const word of ["ticket import", "ticket create", "epic update", "iteration update"])
+      expect(guide).not.toContain(word);
+    // 反映するのは題・本文・受け入れ条件・優先度・依存・段だけで、Status・所属・閉じる・やめるは合う頼むことを示して止まる
+    const reflected = section(guide, "## What is reflected");
+    for (const word of [
+      "title",
+      "body",
+      "acceptance criteria",
+      "priority",
+      "dependencies",
+      "gate level",
+    ])
+      expect(reflected.split("\n")[1]).toContain(word);
+    for (const word of [
+      "Status",
+      "membership",
+      "closing",
+      "abandoning",
+      "Show the ask that fits and stop",
+    ])
+      expect(reflected).toContain(word);
+    for (const word of ["`dg guide assign`", "`dg guide change`"])
+      expect(reflected).toContain(word);
+    // status・retro・carry の節は持たない（t672 以降で扱う）
+    expect(guide).not.toMatch(/^## .*(status|retro|carry)/im);
   });
 
   it("change は操作ごとの前提を確かめ、当たるときだけ前後を示して承認を得て、dg を 1 回呼び、拒否されたら人にコマンドを渡す", async () => {

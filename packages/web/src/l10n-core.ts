@@ -42,6 +42,7 @@ export const CORE_LABELS: CoreTextTable = {
   待ちを確かめる: { en: "Check what it's waiting on" },
   点検する: { en: "Check" },
   リリースする: { en: "Release" },
+  検討する: { en: "Discuss" },
   持ち越しを相談する: { en: "Discuss carrying over" },
   "done を取り消す": { en: "Undo done" },
   様子を聞く: { en: "Ask for status" },

@@ -23,6 +23,7 @@ export const ASK_ACTIONS = [
   "split",
   "remove",
   "edit",
+  "discuss",
   "assign",
   "plan",
   "approve",
@@ -174,6 +175,10 @@ export const SKILL_SUMMARY: Readonly<Record<string, Readonly<Record<AskLanguage,
   dgchange: {
     ja: "人が頼んだ直す・閉じる・再開・やめる・done の取り消しを、前提を確かめてから dg の 1 回の呼び出しで行います。",
     en: "Carries out the edit, close, reopen, abandon, or undo done that a human asked for, with one dg call after checking the preconditions.",
+  },
+  dgdiscuss: {
+    ja: "チケット・Epic・Iteration の論点を人と選択肢で決め、前後の差の承認を得てから反映します。",
+    en: "Settles the open points of tickets, an Epic, or an Iteration with a human through choices, and reflects the result after approval of before → after.",
   },
 };
 
@@ -519,6 +524,17 @@ const ACTIONS: Record<AskAction, ActionDef> = {
                 check: ["ticket.update"],
                 command: `dg ticket update ${t.id} --title "<題>" --acceptance "<受け入れ条件>" --priority <優先度>`,
               },
+      ),
+  },
+  // 答えの決まった直すと違い、何を直すかを人と決めてから反映する。/dgdiscuss <ID> の呼び出しで頼むことが決まるので、頼みごとの 1 行は付けない
+  discuss: {
+    skill: "dgdiscuss",
+    label: () => "検討する",
+    text: (s, _w, lang) =>
+      say(
+        lang,
+        `${idList(s, lang)} の論点を選択肢で相談して決め、前後の差を示して承認を得てから反映してください（議論の間はファイルとデータを変えない）。`,
+        `Discuss the open points of ${idList(s, lang)} with me through choices, and reflect the result after showing before → after and getting approval (change no files or data while discussing).`,
       ),
   },
   assign: {
@@ -904,6 +920,12 @@ const MEANING: Record<
             `${idList(s, lang)} の題・概要・受け入れ条件・優先度・ラベル・依存を指示のとおりに直します。`,
             `Edit the title, summary, acceptance criteria, priority, labels, or dependencies of ${idList(s, lang)} as instructed.`,
           ),
+  discuss: (s, _w, lang) =>
+    say(
+      lang,
+      `${idList(s, lang)} の論点を人と選択肢で決め、前後の差の承認を得てから反映します（議論の間はデータを書き換えません）。`,
+      `Settle the open points of ${idList(s, lang)} with a human through choices, and reflect them after approval of before → after (no data changes while discussing).`,
+    ),
   assign: (s, _w, lang) => {
     const it = single(s, "iteration");
     if (it?.status === "closed")
@@ -1107,15 +1129,25 @@ export function askHumanChecks(action: AskAction, s: Subjects, within?: string):
 
 /**
  * 対象の種類と状態から、頼むことの候補を決める。先頭がおすすめ。
- * within（対象のチケットが入っている Iteration・Epic）を渡し、チケットがどれもそこに入っていて終わっていなければ、外すを直す（edit）の後（直すがなければ自由にの前）に足す
+ * within（対象のチケットが入っている Iteration・Epic）を渡し、チケットがどれもそこに入っていて終わっていなければ、外すを直す（edit）の後（直すがなければ自由にの前）に足す。
+ * 検討する（discuss）は、終わっていないチケット（複数可）と開いている 1 つの Iteration・Epic に、直す（外すがあればその後）の次（直すがなければ自由にの前）に足す。
+ * 答えの決まった直すと、これから決める検討するを隣に並べるため。どの並びも直すから始まらないので、おすすめ（先頭）にはならない
  */
 function askActions(s: Subjects, within?: string): AskAction[] {
-  const actions = baseActions(s);
+  let actions = baseActions(s);
   const tickets = only(s, "ticket");
-  if (!withinOf(s, within) || !tickets || tickets.some((t) => isTerminal(t.status as Status)))
-    return actions;
-  const at = actions.includes("edit") ? actions.indexOf("edit") + 1 : actions.indexOf("free");
-  return [...actions.slice(0, at), "remove", ...actions.slice(at)];
+  const open = tickets && !tickets.some((t) => isTerminal(t.status as Status));
+  if (withinOf(s, within) && open) actions = afterEdit(actions, "remove");
+  const container = single(s, "iteration") ?? single(s, "epic");
+  if (open || (container && container.status !== "closed")) actions = afterEdit(actions, "discuss");
+  return actions;
+}
+
+/** 直す（とその後の外す）の次に action を挟む。直すがなければ自由にの前 */
+function afterEdit(actions: readonly AskAction[], action: AskAction): AskAction[] {
+  const last = Math.max(actions.indexOf("edit"), actions.indexOf("remove"));
+  const at = last >= 0 ? last + 1 : actions.indexOf("free");
+  return [...actions.slice(0, at), action, ...actions.slice(at)];
 }
 
 function baseActions(s: Subjects): AskAction[] {
@@ -1189,6 +1221,10 @@ const NO_TARGET: Partial<Record<AskAction, { ja: string; en: string }>> = {
     en: "Remove the tickets from the Iteration or Epic they belong to.",
   },
   edit: { ja: "指示のとおりに直します。", en: "Edit as instructed." },
+  discuss: {
+    ja: "論点を人と選択肢で決め、前後の差の承認を得てから反映します（議論の間はデータを書き換えません）。",
+    en: "Settle the open points with a human through choices, and reflect them after approval of before → after (no data changes while discussing).",
+  },
   assign: {
     ja: "指示のチケットを合う Iteration・Epic に割り当てます。",
     en: "Assign the tickets to a fitting Iteration or Epic.",

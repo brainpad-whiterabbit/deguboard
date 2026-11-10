@@ -77,6 +77,7 @@ const NAMES: Record<string, string> = {
   "guide.notes.release": msg("差し込む文書（リリース）"),
   "guide.notes.done": msg("差し込む文書（完了）"),
   "guide.notes.change": msg("差し込む文書（書き換え）"),
+  "guide.notes.discuss": msg("差し込む文書（検討）"),
   "guide.notes.all": msg("差し込む文書（一気通し）"),
 };
 
