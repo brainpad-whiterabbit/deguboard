@@ -1,0 +1,30 @@
+{
+  "id": "r20261110-104314-60f0",
+  "ticket": "t661",
+  "step": "implement",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-10T10:43:14Z",
+  "finished_at": "2026-11-10T10:54:02Z",
+  "result": "success",
+  "error": null,
+  "retries": 0,
+  "retry_reasons": [],
+  "usage": {
+    "input": 98,
+    "output": 29941,
+    "cache_read": 4144183,
+    "cache_write": 110511
+  },
+  "tools": {
+    "read": 10,
+    "search": 0,
+    "write": 15,
+    "bash": 27,
+    "other": 10,
+    "read_before_write": 4,
+    "search_before_write": 0
+  },
+  "session": "5d214853-845f-4e7a-a2cf-37464869b869",
+  "review": null
+}

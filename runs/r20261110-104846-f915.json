@@ -1,0 +1,32 @@
+{
+  "id": "r20261110-104846-f915",
+  "ticket": "t659",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-10T10:48:46Z",
+  "finished_at": "2026-11-10T10:53:13Z",
+  "result": "success",
+  "error": null,
+  "retries": 1,
+  "retry_reasons": [
+    "README.md:83 の /dgall の段の説明に /dgwork も同じ --gate-* を取ると書かれていない（README.ja.md も同じ）"
+  ],
+  "usage": {
+    "input": 24,
+    "output": 4319,
+    "cache_read": 436550,
+    "cache_write": 33369
+  },
+  "tools": {
+    "read": 2,
+    "search": 0,
+    "write": 2,
+    "bash": 6,
+    "other": 2,
+    "read_before_write": 2,
+    "search_before_write": 0
+  },
+  "session": "5d214853-845f-4e7a-a2cf-37464869b869",
+  "review": null
+}
