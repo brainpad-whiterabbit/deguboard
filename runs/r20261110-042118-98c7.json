@@ -1,0 +1,36 @@
+{
+  "id": "r20261110-042118-98c7",
+  "ticket": "t488",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-10T04:21:18Z",
+  "finished_at": "2026-11-10T04:27:55Z",
+  "result": "success",
+  "error": null,
+  "retries": 5,
+  "retry_reasons": [
+    "guide-import の本文の節の名前を英語に訳しており、受け入れ条件・概要の節が読めない",
+    "guide-check の概要の直し方が英語の見出しを指しており、lint の指摘が消えない",
+    "guide-plan の参考節の見出しを英語に訳しており、計画の重なりの判断が効かない",
+    "frontmatter を持つトピックの次の手順の見出しを確かめるテストが外れている",
+    "guide.ts のコメントが共通の節を古い名前で呼んでいる"
+  ],
+  "usage": {
+    "input": 54,
+    "output": 19182,
+    "cache_read": 2002347,
+    "cache_write": 81526
+  },
+  "tools": {
+    "read": 10,
+    "search": 0,
+    "write": 12,
+    "bash": 18,
+    "other": 1,
+    "read_before_write": 3,
+    "search_before_write": 0
+  },
+  "session": "acdeea67-8af2-4428-8ea2-d2e346d7d1d9",
+  "review": null
+}

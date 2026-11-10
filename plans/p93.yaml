@@ -16,7 +16,7 @@ after:
     - t650
   t652:
     - t651
-pending_approval: true
+pending_approval: false
 details:
   t488:
     scope: overview・choices・import・assign・check・plan の 6 本と、その見出しを名指す参照・flow.ts の表・テスト
@@ -50,3 +50,5 @@ details:
     scope: dg next・flow next の理由・brief の定型の文と language の入力・フックの文・データのコミットの 1 行目・pr ready の節
     approach: brief は英語だけにして language を外し、コミットの 1 行目を読む処理は古い日本語も読めるようにする
     tier: heavy
+approved_by: eiki.kitajima/agent
+approved_at: 2026-11-10T04:19:33Z
