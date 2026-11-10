@@ -4,7 +4,7 @@ description: Checks deguboard tickets, Epics, Iterations, and Plans. Shows the f
 argument-hint: "[Iteration|Epic|ticket ID...]"
 ---
 
-<!-- dg skill sha256:639f73b077f10061e4df7addf3af3535605585960bdd485d8a212d48ebebeebc -->
+<!-- dg skill sha256:ce824c9849690172f67a768406a5ccfc821e8f859eb5debbe34bfd1e16a0dd78 -->
 
 # Check (check)
 
@@ -12,7 +12,7 @@ Checks tickets, Epics, Iterations, and Plans, then fixes them after showing the 
 
 Run `dg guide check` first, and advance the target below by the steps it prints. This Skill holds no steps. The source of the steps is bundled with dg and matches its version.
 
-- Always call `dg` with `--json --actor agent` (for example `dg --json --actor agent ticket show t12`). You identify as the agent. A refused operation (`TRANSITION_REJECTED`) is for a human to handle
+- Always call `dg` with `--json --actor agent` (for example `dg --json --actor agent ticket show t12`). You identify as the agent. If an operation is refused (`TRANSITION_REJECTED`), ask a human to do it
 - Read and write tickets only with `dg`. Do not edit the data files (under `.git/deguboard/`) directly
 - If `dg` is not on PATH, replace `dg` with the command the repository's guide tells you to use (`npx deguboard`, `mise run dg --`, etc.). The same applies to `dg` in the steps.
 

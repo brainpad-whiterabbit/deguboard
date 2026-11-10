@@ -4,7 +4,7 @@ description: Once every ticket of a deguboard Iteration (or Epic) is done, and b
 argument-hint: "[Iteration|Epic]"
 ---
 
-<!-- dg skill sha256:260b1f535f44d105a391fd0690978bcf36c25903e0ce849a9168ac39b268c2fe -->
+<!-- dg skill sha256:fb1226c4b6c664f3bb511f857599af3dfca8c8f691355fd2f6324206df45a25b -->
 
 # Audit (audit)
 
@@ -12,7 +12,7 @@ After an Iteration or Epic is done, reviews the whole repository by aspect and t
 
 Run `dg guide audit` first, and advance the target below by the steps it prints. This Skill holds no steps. The source of the steps is bundled with dg and matches its version.
 
-- Always call `dg` with `--json --actor agent` (for example `dg --json --actor agent ticket show t12`). You identify as the agent. A refused operation (`TRANSITION_REJECTED`) is for a human to handle
+- Always call `dg` with `--json --actor agent` (for example `dg --json --actor agent ticket show t12`). You identify as the agent. If an operation is refused (`TRANSITION_REJECTED`), ask a human to do it
 - Read and write tickets only with `dg`. Do not edit the data files (under `.git/deguboard/`) directly
 - If `dg` is not on PATH, replace `dg` with the command the repository's guide tells you to use (`npx deguboard`, `mise run dg --`, etc.). The same applies to `dg` in the steps.
 
