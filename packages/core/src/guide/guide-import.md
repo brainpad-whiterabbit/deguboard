@@ -16,7 +16,7 @@ Turns the requirements, research results, and review findings settled in the con
 ## Flow
 
 1. When the requirements are settled, **propose** turning them into tickets. Do not file on your own. Show the decomposition (title, summary, acceptance criteria, dependencies, Epic) in a table, and get approval with the choices "File after approval", "Revise", and "Cancel"
-2. For one ticket: `dg --json --actor agent ticket create "<title>" --created-by human --summary "<summary>" --acceptance "<criterion>" --acceptance "<criterion>" [--epic e3] [--depends-on t9,t10] [--priority high] [--assignee agent]`
+2. For one ticket: `dg --json --actor agent ticket create "<title>" --created-by human --summary "<summary>" --acceptance "<criterion>" --acceptance "<criterion>" [--epic e3] [--depends-on t9,t10] [--priority high] [--gate high] [--assignee agent]`
 3. For several: write a YAML draft to one file and run `dg --json --actor agent ticket import <file>`. IDs are assigned together in one commit
 4. Read the IDs from the result's `data` and report them to a human
 
@@ -35,6 +35,7 @@ Turns the requirements, research results, and review findings settled in the con
   epic: e3 # Existing Epic. Optional
   iteration: s3 # Existing Iteration. Optional
   priority: high # low / medium / high. Default is medium
+  gate: high # Quality gate level: high / low / free. Default is high. Lower it only on a human's instruction
   labels: [backend]
   created_by: human # Creator. If omitted, the acting actor (for you, <user>/agent)
   assignee: agent # Assignee. Optional
@@ -81,6 +82,7 @@ Choose `priority` by these criteria (they can be changed in `priority` of `confi
 - Do not create a dependency cycle (it is refused at creation)
 - Do not add a ticket to a closed Epic (it is refused)
 - Do not change `status` without starting work. A filed ticket stays todo
+- Do not set `gate` to `low` or `free` without a human's instruction. The level decides which conditions the PR must meet (see the "Quality gate" section of `dg guide review`)
 - When the result has `provisional: true`, do not tell a human the ID as final (see `dg guide overview`)
 
 {{choices}}
