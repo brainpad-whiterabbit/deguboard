@@ -3,7 +3,7 @@
 // - カンバンにチケットの行が出て、タブ（バックログ）に切り替えても戻しても行が出ること
 // - 行を押すとエディタ領域のパネルに詳細が開くこと（Webview → 拡張ホストのやり取り）
 // - ウィンドウ全体（ワークベンチと Webview）に CSP 違反と捕まえていない例外が 1 つもないこと（検出が効くことは、Webview の中でわざと違反と例外を起こして確かめる）
-// - ライトとダークのテーマでスクリーンショットを test/vscode/screenshots/ に出すこと
+// - ライトとダークのテーマでスクリーンショット（カンバンと設定画面）を test/vscode/screenshots/ に出すこと
 // VS Code 本体のダウンロードと画面が要るので mise run test には入れず、mise run test:vscode で回す（先に mise run build）
 
 import { access } from "node:fs/promises";
@@ -99,6 +99,26 @@ describe("VS Code の実機の左パネル", () => {
       await access(shot.sidebar);
     }
     console.log(`スクリーンショット: ${SCREENSHOT_DIR}`);
+  });
+
+  it("設定画面に並列の上限（work.parallel）の数の欄が出て、ライトとダークで撮る", async () => {
+    // 画面の中の歯車は文言に頼らず、ハッシュで設定画面に移る
+    await sidebar.locator("body").evaluate(() => {
+      location.hash = "#/config";
+    });
+    const input = sidebar.locator("#config-work-parallel");
+    await input.waitFor({ timeout: 60_000 });
+    expect(await input.getAttribute("type")).toBe("number");
+    expect(await input.inputValue()).toBe("3");
+    await input.scrollIntoViewIfNeeded();
+    for (const theme of ["dark", "light"] as const) {
+      await host.setTheme(theme);
+      const shot = await host.screenshot("config", theme);
+      await access(shot.sidebar);
+    }
+    await sidebar.locator("body").evaluate(() => {
+      location.hash = "#/board";
+    });
   });
 
   it("ワークベンチと Webview に CSP 違反と捕まえていない例外がない", () => {

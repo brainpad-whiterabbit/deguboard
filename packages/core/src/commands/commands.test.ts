@@ -169,7 +169,24 @@ describe("用意", () => {
     await expect(
       runCommand(configSet, ctx, { key: "auto.merge", value: "yes" }),
     ).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
-    // 数値：スキーマに数値の項目はないので、スキーマにない項目（looseObject が通す）で今のとおり数値に直すことを確かめる
+    // 数値の項目（work.parallel）：数字の文字列は数値に直し、範囲（1〜10）の外と整数でない値は拒む
+    const p = await runCommand(configSet, ctx, { key: "work.parallel", value: "5" });
+    expect(p.data.work.parallel).toBe(5);
+    for (const value of ["0", "11", "2.5", "many", ""])
+      await expect(
+        runCommand(configSet, ctx, { key: "work.parallel", value }),
+      ).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
+    // 個人の設定（--local）でも書け、範囲の外は拒む
+    const mine = await runCommand(configSet, ctx, {
+      key: "work.parallel",
+      value: "2",
+      local: true,
+    });
+    expect(mine.data.work.parallel).toBe(2);
+    await expect(
+      runCommand(configSet, ctx, { key: "work.parallel", value: "11", local: true }),
+    ).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
+    // スキーマにない項目（looseObject が通す）も数値に直す
     const n = await runCommand(configSet, ctx, { key: "git.depth", value: "3" });
     expect((n.data.git as Record<string, unknown>).depth).toBe(3);
     // リストの項目：カンマ区切りで配列に。数字だけ・true だけの要素も文字列のまま、空文字は空の配列

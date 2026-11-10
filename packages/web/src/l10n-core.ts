@@ -122,6 +122,11 @@ export const CONFIG_DESCRIPTIONS: CoreTextTable = {
     {
       ja: "軽い検査（actions.light_test）で済ませるファイルの glob（リポジトリの最上位からの相対パス。* と ? は / をまたがず、** は階層をまたぐ。例 docs/**）。差分に 1 つでも外のファイルがあれば actions.test を回す",
     },
+  // work.parallel
+  "Most tickets of a Plan advanced at the same time with a subagent each (dg guide parallel). An integer from 1 to 10":
+    {
+      ja: "Plan のチケットを、1 件ずつサブエージェントで同時に進める数の上限（dg guide parallel）。1〜10 の整数",
+    },
   // auto.merge
   "Whether dg guide all --auto merges PRs that pass the quality gate (dg gate --for merge) automatically. By default a person merges":
     {

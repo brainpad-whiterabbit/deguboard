@@ -73,6 +73,7 @@ describe("スキーマ", () => {
       "push.mode",
       "notify.approvals",
       "actions.shell",
+      "work.parallel",
       "models.light",
       "models.standard",
       "models.heavy",
@@ -84,6 +85,19 @@ describe("スキーマ", () => {
       "actor.human_only",
     ])
       expect(configFields().find((f) => f.key === key)?.scope).toBe("team");
+  });
+
+  it("work.parallel は既定 3 で 1〜10 の整数だけを受け、個人の設定で上書きできる", () => {
+    expect(defaultConfig().work.parallel).toBe(3);
+    for (const n of [1, 5, 10])
+      expect(configSchema.parse({ work: { parallel: n } }).work.parallel).toBe(n);
+    for (const bad of [0, 11, 2.5, -1, "3"])
+      expect(configSchema.safeParse({ work: { parallel: bad } }).success, String(bad)).toBe(false);
+    const team = configSchema.parse({ work: { parallel: 4 } });
+    expect(overlayLocalConfig(team, { work: { parallel: 2 } }).config.work.parallel).toBe(2);
+    const invalid = overlayLocalConfig(team, { work: { parallel: 20 } });
+    expect(invalid.config.work.parallel).toBe(4);
+    expect(invalid.ignored[0]?.reason).toContain("Invalid value");
   });
 
   it("auto.decisions と flow.skip は既定で今の --auto の判断と空の一覧で、人が決める判断や stop は入れられない", () => {
@@ -186,6 +200,7 @@ describe("スキーマ", () => {
       "auto.merge",
       "auto.decisions",
       "flow.skip",
+      "work.parallel",
       "merge.method",
       "merge.delete_branch",
       "review.heavy_categories",
@@ -226,6 +241,13 @@ describe("スキーマ", () => {
     expect(byKey.get("actions.light_test")).toMatchObject({ type: "list", default: [] });
     expect(byKey.get("actions.light_paths")).toMatchObject({ type: "list", default: [] });
     expect(byKey.get("git.remote")).toMatchObject({ type: "string", default: "origin" });
+    // 並列の上限は数の項目で、既定 3・個人で上書きできる（t685）
+    expect(byKey.get("work.parallel")).toMatchObject({
+      type: "number",
+      default: 3,
+      scope: "local",
+      clears_to_default: false,
+    });
     for (const tier of ["light", "standard", "heavy"])
       expect(byKey.get(`models.${tier}`)).toMatchObject({ type: "string", default: "" });
     for (const f of fields) expect(f.description, f.key).not.toBe("");

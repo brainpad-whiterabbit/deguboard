@@ -302,6 +302,7 @@ export const EN: Readonly<Record<string, string>> = {
   "PR を自動でマージする": "Merge PRs automatically",
   "--auto で自動で選ぶ判断": "Decisions --auto chooses automatically",
   流れから外す段階: "Stages to leave out of the flow",
+  同時に進めるチケットの上限: "Most tickets advanced at the same time",
   マージの方法: "Merge method",
   マージしたら作業ブランチを消す: "Delete the work branch after merging",
   "Iteration に入れてから進める": "Require an Iteration before starting",

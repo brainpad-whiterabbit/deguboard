@@ -1075,7 +1075,7 @@ export const configSet = defineCommand({
   positionals: ["key", "value"],
   group: "setup",
   summary:
-    "Change one item of config.yaml (point to it with dots, like commit.mode). Separate array items with commas, and set an empty string to empty the list. For a non-empty string default (such as priority.*; clears_to_default is true in config show --fields), an empty string returns it to the default. For items with choices (such as commit.mode), empty, null, and omitted values are rejected. --local writes to personal settings. Returns the value that was written: the team value, or the value layered with personal settings",
+    "Change one item of config.yaml (point to it with dots, like commit.mode). Separate array items with commas, and set an empty string to empty the list. For a non-empty string default (such as priority.*; clears_to_default is true in config show --fields), an empty string returns it to the default. For items with choices (such as commit.mode), empty, null, and omitted values are rejected. For number items (such as work.parallel), a string of digits is turned into a number, and values out of range are rejected. --local writes to personal settings. Returns the value that was written: the team value, or the value layered with personal settings",
   input: z.object({
     key: z.string().min(1).describe("Item. Example: commit.mode"),
     value: z.unknown().describe("Value"),

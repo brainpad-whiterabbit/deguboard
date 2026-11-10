@@ -340,6 +340,13 @@ Empty
 Add
 [title] Reset to default Empty
 Reset to Default
+Most tickets advanced at the same time
+work.parallel
+[title] Default: 3
+Modified
+Most tickets of a Plan advanced at the same time with a subagent each (dg guide parallel). An integer from 1 to 10
+[title] Reset to default 3
+Reset to Default
 Merge method
 merge.method
 [title] Default: squash

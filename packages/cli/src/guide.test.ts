@@ -394,7 +394,7 @@ describe("dg guide", () => {
     expect(parallel).toContain("# Advancing ready tickets in parallel");
     for (const word of [
       "`next`",
-      "up to 3 at the same time",
+      "up to {{work.parallel}} at the same time",
       "One ticket does not stop the others",
       "CLAIM_LOST",
       "waiting for a merge",
@@ -614,6 +614,19 @@ describe("dg guide", () => {
     const after = await dg(local.dir, ["guide", "audit"]);
     expect(after.out).toContain("origin/develop");
     expect(after.out).not.toContain("origin/main");
+  });
+
+  it("parallel の上限は数字を書かず、config の work.parallel の今の値（個人の上書きを含む）を埋める", async () => {
+    expect(await readGuide("parallel")).not.toMatch(/up to \d/);
+    const local = await createLocalOnlyRepo();
+    cleanups.push(local.cleanup);
+    const before = await dg(local.dir, ["guide", "parallel"]);
+    expect(before.out).toContain(`up to ${defaultConfig().work.parallel} at the same time`);
+    await dg(local.dir, ["init"]);
+    await dg(local.dir, ["config", "set", "work.parallel", "5"]);
+    expect((await dg(local.dir, ["guide", "parallel"])).out).toContain("up to 5 at the same time");
+    await dg(local.dir, ["config", "set", "work.parallel", "2", "--local"]);
+    expect((await dg(local.dir, ["guide", "parallel"])).out).toContain("up to 2 at the same time");
   });
 
   it("--section は見出しの文言でも、補足を除いた名前でも、その節の本文だけを出す", async () => {
