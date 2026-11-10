@@ -1,0 +1,36 @@
+{
+  "id": "r20261110-055306-a774",
+  "ticket": "t490",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-10T05:53:06Z",
+  "finished_at": "2026-11-10T05:58:29Z",
+  "result": "success",
+  "error": null,
+  "retries": 5,
+  "retry_reasons": [
+    "guide-all の release 参照の形が受け入れ条件の形と違う",
+    "guide-all のほかのトピックへの案内が英語の形だけになっていない",
+    "guide-audit の 8,000 字の訳が長さの話に読める",
+    "guide-audit の手順 2 の全体と禁止の訳が落ちている・足している",
+    "guide-audit の観点の表の列がそろっていない"
+  ],
+  "usage": {
+    "input": 32,
+    "output": 12919,
+    "cache_read": 961582,
+    "cache_write": 57674
+  },
+  "tools": {
+    "read": 2,
+    "search": 0,
+    "write": 7,
+    "bash": 14,
+    "other": 1,
+    "read_before_write": 2,
+    "search_before_write": 0
+  },
+  "session": "acdeea67-8af2-4428-8ea2-d2e346d7d1d9",
+  "review": null
+}
