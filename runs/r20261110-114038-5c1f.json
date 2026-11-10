@@ -1,0 +1,35 @@
+{
+  "id": "r20261110-114038-5c1f",
+  "ticket": "t667",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-10T11:40:38Z",
+  "finished_at": "2026-11-10T11:47:01Z",
+  "result": "success",
+  "error": null,
+  "retries": 4,
+  "retry_reasons": [
+    "理由の節から、細部をいつでも消せる理由と、テストで振る舞いを守る理由が消えていた",
+    "決定の項から、機械で守る判断の書き方とテスト・lint への洗い出しの列挙が消えていた",
+    "dg guide の oxfmt 除外の理由と表の書き方が、移し先のどこにも残っていなかった",
+    "英語で書く dg の出力の範囲の列挙が消え、CLAUDE.md の参照が ADR-001 を指して循環していた"
+  ],
+  "usage": {
+    "input": 100,
+    "output": 17940,
+    "cache_read": 3442130,
+    "cache_write": 67289
+  },
+  "tools": {
+    "read": 9,
+    "search": 0,
+    "write": 5,
+    "bash": 17,
+    "other": 24,
+    "read_before_write": 2,
+    "search_before_write": 0
+  },
+  "session": "5d214853-845f-4e7a-a2cf-37464869b869",
+  "review": null
+}
