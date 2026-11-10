@@ -8,6 +8,8 @@ import {
   type AskAction,
   ASK_DG_USAGE,
   ASK_DG_USAGE_EN,
+  ASK_FIRST,
+  ASK_FIRST_EN,
   DG_PATH_NOTE,
   DG_PATH_NOTE_EN,
   askGuideLine,
@@ -549,7 +551,15 @@ describe("依頼文の定型の文の言語（UI-11）", () => {
     const firstEn = (subjects: AskSubject[], action: AskAction) =>
       buildAsk({ subjects, action, format: "text", language: "en" }).text.split("\n")[0];
     // 添え書きは括弧を重ねず別の文にし、複数の対象にも合う形にする
-    expect(firstEn([], "create_iteration")).toBe(
+    // 対象なしでも聞く対象がない依頼文は、1 行目がそのまま依頼文になる（ASK_FIRST を前置しない）
+    expect(
+      buildAsk({
+        subjects: [],
+        action: "create_iteration",
+        format: "text",
+        language: "en",
+      }).text.split("\n")[0],
+    ).toBe(
       "Create an Iteration, with the name, goal, and dates as instructed (propose them if not given). If you create tickets, pass --created-by human, since this is a human's instruction.",
     );
     expect(firstEn([ticket(), ticket({ id: "t266" })], "abandon")).toBe(
@@ -652,12 +662,126 @@ describe("頼むことの候補", () => {
     expect(first(plan("pending_approval"))).toBe("approve");
     expect(first(plan("approved"))).toBe("work");
     expect(first(plan("approved", true))).toBe("done");
-    expect(askActions([])).toEqual(["create", "create_iteration", "create_epic", "check", "free"]);
     const view = buildAsk({ subjects: [iteration("active")] });
     expect(view.candidates.map((c) => c.recommended)).toEqual(
       view.candidates.map((_, n) => n === 0),
     );
     expect(view.candidates.at(-1)).toMatchObject({ action: "free", skill: null });
+  });
+
+  it("対象なしの候補は、Skill を持つ頼むことを流れの順にすべて出し、先頭は起票（discuss は change の直後）", () => {
+    expect(askActions([])).toEqual([
+      "create",
+      "create_iteration",
+      "create_epic",
+      "assign",
+      "check",
+      "plan",
+      "work",
+      "all",
+      "done",
+      "release",
+      "change",
+      "discuss",
+      "close",
+      "reopen",
+      "abandon",
+      "free",
+    ]);
+    // 対象がないと意味のないもの（外す・分ける・done の取り消し・再開・承認）と、Skill のないもの（様子・振り返り・持ち越し）は出さない
+    for (const action of [
+      "remove",
+      "split",
+      "undo_done",
+      "resume",
+      "approve",
+      "status",
+      "retro",
+      "carry",
+    ] as const)
+      expect(askActions([])).not.toContain(action);
+    expect(buildAsk({ subjects: [] }).action).toBe("create");
+  });
+
+  it("対象なしの Skill の形は ID のない呼び出しで、呼び出しで頼むことが決まらないものだけ頼みごとの 1 行を添える", () => {
+    const withIntent = new Set([
+      "change",
+      "close",
+      "reopen",
+      "abandon",
+      "assign",
+      "create_iteration",
+      "create_epic",
+    ]);
+    for (const language of ["ja", "en"] as const)
+      for (const c of askCandidates([], undefined, language).filter((c) => c.skill)) {
+        const lines = buildAsk({
+          subjects: [],
+          action: c.action,
+          format: "skill",
+          language,
+        }).text.split("\n");
+        expect(lines[0], `${language} ${c.action}`).toBe(c.skill);
+        expect(lines.length > 1, `${language} ${c.action}`).toBe(withIntent.has(c.action));
+        if (lines.length > 1) expect(lines[1], `${language} ${c.action}`).toMatch(/\S/);
+        // 英語の頼みごとは英語で、ID の入る場所は「その対象」になる（ID の入る場所を空にしない）
+        if (language === "en") expect(lines.join("\n"), c.action).not.toMatch(/[぀-ヿ一-鿿]/);
+      }
+    expect(buildAsk({ subjects: [], action: "change", format: "skill" }).text).toBe(
+      "/dgchange\n直す対象を聞いてから直して",
+    );
+    expect(buildAsk({ subjects: [], action: "close", format: "skill" }).text).toBe(
+      "/dgchange\n閉じる Iteration・Epic を聞いてから閉じて",
+    );
+    expect(buildAsk({ subjects: [], action: "assign", format: "skill" }).text).toBe(
+      "/dgassign\n割り当てるチケットを聞いてから割り当てて",
+    );
+    expect(buildAsk({ subjects: [], action: "discuss", format: "skill" }).text).toBe("/dgdiscuss");
+  });
+
+  it("対象なしの文章だけの形は、聞く対象があるものは 1 行目で対象を先に聞かせ、ID の入る場所を空にしない。聞く対象がない依頼文は 1 行目がそのまま依頼文", () => {
+    // 聞く対象がない依頼文（create 系・点検）は ASK_FIRST を前置しない
+    const direct = new Set(["create", "create_iteration", "create_epic", "check"]);
+    for (const language of ["ja", "en"] as const)
+      for (const action of askActions([])) {
+        if (action === "free") continue;
+        const lines = buildAsk({ subjects: [], action, format: "text", language }).text.split("\n");
+        if (direct.has(action)) {
+          expect(lines[0], `${language} ${action}`).not.toBe(
+            language === "en" ? ASK_FIRST_EN : ASK_FIRST,
+          );
+        } else {
+          expect(lines[0], `${language} ${action}`).toBe(
+            language === "en" ? ASK_FIRST_EN : ASK_FIRST,
+          );
+          // 依頼文は空白や助詞で始まらず、二重の空白も入らない（「 を閉じて」のような空の場所を作らない）
+          expect(lines[1], `${language} ${action}`).not.toMatch(/^[\s を・の]|\s\s/);
+          // 日本語では「その対象」の後に空白を入れない（ID の並びのときだけ空白が要る）
+          if (language === "ja")
+            expect(lines[1], `${language} ${action}`).not.toMatch(/その対象\s/);
+        }
+        if (language === "en") expect(lines.join("\n"), action).not.toMatch(/[぀-ヿ一-鿿]/);
+      }
+    expect(buildAsk({ subjects: [], action: "create", format: "text" }).text).toBe(
+      [
+        "指示の内容をチケットにしてください（人の指示なので --created-by human を付ける）。",
+        ASK_DG_USAGE,
+        askGuideLine("/dgimport"),
+      ].join("\n"),
+    );
+    expect(buildAsk({ subjects: [], action: "check", format: "text" }).text.split("\n")[0]).toBe(
+      "全体を点検し、直す案を表で示してください。",
+    );
+    expect(buildAsk({ subjects: [], action: "close", format: "text" }).text.split("\n")[1]).toBe(
+      "指示の Iteration・Epic を閉じてください（人の指示。終わっていないチケットがあれば閉じる前に知らせる）。",
+    );
+    expect(
+      buildAsk({ subjects: [], action: "discuss", format: "text", language: "en" }).text.split(
+        "\n",
+      )[1],
+    ).toBe(
+      "Discuss the open points of the targets with me through choices, and reflect the result after showing before → after and getting approval (change no files or data while discussing).",
+    );
   });
 
   it("詳細の中の行（within）なら、入っている Iteration・Epic から外すを変えるの後に足す。入っていない・終わったチケットには足さない", () => {
@@ -743,7 +867,6 @@ describe("頼むことの候補", () => {
       [planOf("approved")],
       [planOf("closed")],
       [ticket(), epic("open")],
-      [],
     ])
       expect(askActions(s), JSON.stringify(s)).not.toContain("discuss");
   });

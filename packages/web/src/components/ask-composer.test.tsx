@@ -161,18 +161,30 @@ const suggestions = () =>
   within(within(composer()).getByRole("group", { name: "頼むこと" })).getAllByRole("button");
 
 describe("エージェントに頼む入力欄（UI-15）", () => {
-  it("タイトル行・コマンドパレットの ask の event で、対象なしの入力欄を開き、起票・Iteration を作る・Epic を作る・点検するを頼める", async () => {
+  it("タイトル行・コマンドパレットの ask の event で、対象なしの入力欄を開き、流れの順に Skill を持つ頼むことをすべて出す（先頭は起票）", async () => {
     const view = mountWebview(askClient());
     await screen.findByText("見直す");
     expect(screen.queryByRole("region", { name: "エージェントに頼む" })).toBeNull();
     view.ask([]);
     await waitFor(() => expect(suggestions().length).toBeGreaterThan(0));
     const labels = suggestions().map((b) => b.textContent);
-    expect(labels.slice(0, 4)).toEqual([
+    expect(labels).toEqual([
       "★起票する",
       "Iteration を作る",
       "Epic を作る",
+      "割り当てる",
       "点検する",
+      "計画を立てる",
+      "進める",
+      "最後まで進める",
+      "確かめて片付ける",
+      "リリースする",
+      "変える",
+      "検討する",
+      "閉じる",
+      "再開する",
+      "やめる",
+      "自由に",
     ]);
     // おすすめ（先頭）を選んだ状態で始まり、欄の頭に Skill の札を出す。対象の札はない
     expect(suggestions()[0]!.getAttribute("aria-pressed")).toBe("true");
@@ -450,7 +462,11 @@ describe("エージェントに頼む入力欄（UI-15）", () => {
     expect(
       (within(composer()).getByRole("textbox", { name: "指示" }) as HTMLTextAreaElement).value,
     ).toBe("下書き");
-    fireEvent.click(within(composer()).getByRole("button", { name: "閉じる" }));
+    // 対象なしでは「閉じる」の頼むことの札と名前が同じなので、札の group の外の閉じるボタンを押す
+    const closeButton = within(composer())
+      .getAllByRole("button", { name: "閉じる" })
+      .find((b) => !b.closest('[role="group"]'))!;
+    fireEvent.click(closeButton);
     expect(screen.queryByRole("region", { name: "エージェントに頼む" })).toBeNull();
     expect(view.state.get(ASK_NOTE_KEY)).toBe("下書き");
   });
