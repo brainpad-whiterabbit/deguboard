@@ -157,11 +157,7 @@ export const prReady = defineCommand({
   positionals: ["ticket"],
   group: "pr",
   summary:
-    "チケットの PR を、品質ゲート（dg gate <ticket> --for ready）を満たすときだけ gh pr ready で draft から出す。" +
-    "満たさなければ GATE_FAILED で満たさない条件と理由を返し、gh を呼ばない。エージェントが PR を出す正しい道で、" +
-    "dg を経由しない gh pr ready はフックが拒む。満たさないまま出すのは人の判断で、人が gh pr ready を打つ。" +
-    "出す前に、見直しの記録にある軽い指摘のうち手直しに渡さなかったもの（参考節との食い違いを含む）を PR の本文に書き足す（もとの本文は残す。noted に件数）。" +
-    "チケットのデータは書かない（review への前進は次の sync）",
+    "Take a ticket's PR out of draft with gh pr ready, only when it meets the quality gate (dg gate <ticket> --for ready). If it does not, it returns GATE_FAILED with the unmet conditions and their reasons, and does not call gh. This is the right way for an agent to open a PR; gh pr ready run outside dg is rejected by the hook. Opening it while conditions are unmet is a person's decision, and a person runs gh pr ready. Before opening, it adds to the PR body the light findings in the review record that were not passed to the fix (including differences from the reference section) (the original body is kept; the count is in noted). It does not write ticket data (moving to review happens at the next sync)",
   input: z.object({ ticket: ticketRef }),
   write: false,
   needs: "store",
@@ -179,20 +175,18 @@ export const prMerge = defineCommand({
   positionals: ["ticket"],
   group: "pr",
   summary:
-    "チケットの PR を、品質ゲート（dg gate <ticket> --for merge）を満たすときだけ gh pr merge でマージする（既定は squash）。" +
-    "満たさなければ GATE_FAILED で満たさない条件と理由を返し、gh を呼ばない。エージェントがマージする正しい道で（マージしてよいかは手順が決める。dg guide all）、" +
-    "dg を経由しない gh pr merge はフックが拒む。満たさないままマージするのは人の判断で、人が gh pr merge を打つ。チケットのデータは書かない（done への前進は次の sync）",
+    "Merge a ticket's PR with gh pr merge (squash by default), only when it meets the quality gate (dg gate <ticket> --for merge). If it does not, it returns GATE_FAILED with the unmet conditions and their reasons, and does not call gh. This is the right way for an agent to merge (the steps decide whether a merge is allowed; dg guide all). gh pr merge run outside dg is rejected by the hook. Merging while conditions are unmet is a person's decision, and a person runs gh pr merge. It does not write ticket data (moving to done happens at the next sync)",
   input: z.object({
     ticket: ticketRef,
     method: z
       .enum(PR_MERGE_METHODS)
       .optional()
-      .describe("マージの方法。省けば config の merge.method（既定は squash）"),
+      .describe("Merge method. When omitted, config's merge.method (squash by default)"),
     delete_branch: z
       .boolean()
       .optional()
       .describe(
-        "リモートとローカルの作業ブランチも消すか（gh pr merge --delete-branch）。省けば config の merge.delete_branch（既定は消さない）。消すときは、品質ゲート（検査を含む）を通した後、gh を呼ぶ前にブランチを checkout した worktree を消す（残っていると gh がローカルのブランチを消せない）。マージに失敗したら消した worktree を同じパスに戻して worktree.setup を回し直し、エラーの detail にその扱いを出す。worktree は先に消さず、その worktree の外（main の worktree）から呼ぶ。この旗は付けるだけで、config が true のときに今回だけ消さない手段は CLI の旗にない（消したくないときは config の merge.delete_branch を false にする）",
+        "Also delete the remote and local work branch (gh pr merge --delete-branch). When omitted, config's merge.delete_branch applies (not deleted by default). When deleting, after the quality gate (including its checks) passes and before gh is called, the worktree that has the branch checked out is removed (gh cannot delete the local branch while it remains). If the merge fails, the removed worktree is restored at the same path and worktree.setup is run again, and the error's detail gives what was done. Do not remove the worktree first; call from outside it (the main worktree). This flag only adds deletion: when config is true there is no CLI flag to skip deletion for this one merge (to keep the branch, set config's merge.delete_branch to false)",
       ),
   }),
   write: false,

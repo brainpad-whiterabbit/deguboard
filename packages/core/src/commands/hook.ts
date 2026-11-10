@@ -149,36 +149,33 @@ export const hook = defineCommand({
   positionals: ["event"],
   group: "hook",
   summary:
-    "harness のフックが呼ぶ（dg hooks install が設定に書く。人が打つものではない）。--payload - で標準入力のフックの入力（JSON）を読み、" +
-    "セッションの始まりに主体とセッション ID・記録のパスを環境に入れ、頼んだ文の先頭に `deguboard: ticket=<id> step=<step>` の印のあるサブエージェントの Run を起動で開き" +
-    "（同じチケットと step の Run が開いたままなら開かずに警告する。見直しは、その Run が別のセッションのものなら落ちたセッションの残りとみなして interrupted で閉じてから開く。前景の起動で起動より後にその Run に書かれた見直しの結果は、保留に移して新しい Run に結び付ける。同じチケットの開いたままの前の手直しの Run は、run start と同じく起動を区切りとして閉じてから開く）、step を終えた事実があれば止まったときに閉じ" +
-    "（なければ止まって待っている印を付け、再開で続ける。自分で開いた Run も同じ）、セッションの終わりにそのセッションのサブエージェントの開いたままの Run を閉じる。" +
-    "ツールを使う前（PreToolUse）には、書くツールの .git/deguboard/ の下への書き込みと、.git/deguboard の語を含む Bash（読むだけのものも、引用符・コメントの中も）を拒んで dg の読み書きのコマンドへ案内し" +
-    "（語として現れない書き込みは見ない。取りこぼしは dg の外の変更として、dg が次に動くときと Stop で見つける）、" +
-    "dg を経由しない gh pr ready・gh pr merge（gh api の同じ操作も）を拒んで dg pr ready・dg pr merge へ案内する" +
-    "（PR の指定は読まない。字句を読まずに、dg pr ready・dg pr merge と gh pr ready --undo を除いた残りに gh・pr・merge か ready の語があれば止める。" +
-    "引用符・ヒアドキュメント・コメントの中も伏せず、本文の語はファイルに書いて --body-file・git commit -F で渡すよう案内する）。" +
-    "PreToolUse はツールのたびに呼ばれるので、ストア（チケット・Plan・Epic・Iteration・config）を開かずにパスとコマンドの文字列だけで判定し、dg の外の変更の検査もしない。" +
-    "エージェントが応答を終えたとき（Stop）は、データのリポジトリの dg の外の変更（未コミットの変更と、dg の印のないコミット）を確かめ、見つけたら止まらずに続けさせて、どのファイルかと戻し方・取り込み方（dg adopt）を伝える" +
-    "（続けさせた後の Stop では伝えない）。ほかのイベントでは dg の外の変更があっても作業を止めない。" +
-    "扱うイベントは、読む入力の項目の有無と時刻を deguboard-local/hook-inputs/ にイベントごとの最新の 1 件で残す（値は残さない。dg hooks check が読む）。ほかの失敗は作業を止めないよう、警告にして成功で返す",
+    "Called by the harness hooks (dg hooks install writes them into the settings; people do not run it). Reads the hook input (JSON) from stdin with --payload -. At the start of a session, puts the actor, session ID, and record path into the environment. For a sub-agent whose prompt starts with the marker `deguboard: ticket=<id> step=<step>`, opens a Run when it starts " +
+    "(if a Run for the same ticket and step is still open, it does not open one and warns. For a review, if that Run is from a different session, it is treated as left over from a crashed session and closed as interrupted before opening. A review result written to that Run after a foreground start is held and linked to the new Run. An earlier fix Run still open on the same ticket is closed at the start boundary, as run start does, before opening). When it stops, if the step was finished, it closes the Run (otherwise it marks the Run as stopped and waiting, and resuming continues it; a Run opened by the agent itself is the same). At the end of the session it closes the open Runs of that session's sub-agents. " +
+    "Before a tool is used (PreToolUse), it rejects writes under .git/deguboard/ by writing tools, and Bash containing the word .git/deguboard (including read-only commands, and text inside quotes or comments), and points to dg's read and write commands instead " +
+    "(writes that do not show the word are not seen; a miss is found as a change outside dg the next time dg runs, and at Stop). " +
+    "It rejects gh pr ready and gh pr merge run outside dg (including the same operations through gh api) and points to dg pr ready and dg pr merge " +
+    "(it does not read the PR argument. Without parsing the tokens, it stops if the rest, after removing dg pr ready, dg pr merge, and gh pr ready --undo, contains the words gh, pr, merge, or ready. " +
+    "It does not hide text inside quotes, here-documents, or comments; it advises writing the body to a file and passing it with --body-file or git commit -F). " +
+    "PreToolUse is called for every tool, so it decides only from the path and command string, without opening the store (tickets, Plans, Epics, Iterations, config), and does not check for changes outside dg. " +
+    "When an agent finishes its response (Stop), it checks the data repository for changes outside dg (uncommitted changes, and commits with no dg mark); if it finds any, it keeps the agent going instead of stopping, and reports which files and how to restore or adopt them (dg adopt). A Stop after the agent was already kept going does not report them again. Other events do not stop work even when there are changes outside dg. " +
+    "For each event it keeps, in deguboard-local/hook-inputs/, the presence of the input fields it reads and the time, as the latest one entry per event (no values are kept; dg hooks check reads it). Other failures are turned into warnings and return success, so they do not stop work",
   input: z.object({
     event: z
       .string()
       .min(1)
-      .describe("フックのイベント名（製品のイベント名。dg hooks install が書く）"),
+      .describe("Hook event name (the product's event name; written by dg hooks install)"),
     agent: z
       .string()
       .min(1)
       .optional()
       .describe(
-        `フックを持つエージェント名（${hookAgentNames().join("・")}）。フックを持つ Adapter が 1 つなら省ける`,
+        `Agent name with hooks (${hookAgentNames().join(", ")}). Can be omitted when exactly one Adapter has hooks`,
       ),
     payload: z
       .record(z.string(), z.unknown())
       .meta({ cliFile: "payload" })
       .optional()
-      .describe("フックの入力（JSON）。CLI では --payload - で標準入力から読む"),
+      .describe("Hook input (JSON). On the CLI, read from stdin with --payload -"),
   }),
   write: true,
   needs: "store",

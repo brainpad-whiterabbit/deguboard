@@ -70,17 +70,17 @@ export interface ProgramOptions {
 }
 
 const GROUP_SUMMARY: Record<string, string> = {
-  project: "Project（チケットを束ねる単位）の操作",
-  ticket: "チケットの操作",
-  iteration: "Iteration（期間の計画）の操作。sprint はエイリアス",
-  epic: "Epic（目的ごとの束ね）の操作",
-  plan: "Plan（チケットを進める順と承認）の操作",
-  workflow: "Workflow 定義の参照・検証・書き換え",
-  metrics: "Run（作業の実績）の集計",
-  run: "Run（1 回の AI 実行）の記録",
-  pr: "PR を品質ゲート（dg gate）を満たすときだけ進める",
-  flow: "Iteration の流れの段階と次の手",
-  config: "設定（チームの config.yaml と個人の上書き）の参照と変更",
+  project: "Operations on Projects (groups of tickets)",
+  ticket: "Operations on tickets",
+  iteration: "Operations on Iterations (time-boxed plans). sprint is an alias",
+  epic: "Operations on Epics (groupings by purpose)",
+  plan: "Operations on Plans (the order to advance tickets, and approval)",
+  workflow: "Look up, validate, and rewrite Workflow definitions",
+  metrics: "Aggregate Runs (records of actual work)",
+  run: "Record Runs (one AI execution each)",
+  pr: "Advance a PR only when it meets the quality gate (dg gate)",
+  flow: "Iteration flow stages and the next step",
+  config: "Look up and change settings (the team's config.yaml and personal overrides)",
 };
 
 function version(): string {
@@ -99,21 +99,21 @@ export function buildProgram(options: ProgramOptions = {}): Command {
   const jsonMode = (): boolean => program.opts<{ json?: boolean }>().json === true;
   program
     .description(
-      "Agentic-Agile を実践するための Git-native なカンバン。データは deguboard ブランチに置く",
+      "A Git-native kanban for practicing Agentic-Agile. Data lives on the deguboard branch",
     )
-    .version(version(), "-v, --version", "版を出す")
-    .helpOption("-h, --help", "使い方を出す")
-    .option("--json", "結果を JSON で出す（エージェント向け）")
-    .option("-C <dir>", "このディレクトリのリポジトリに対して実行する")
+    .version(version(), "-v, --version", "Print the version")
+    .helpOption("-h, --help", "Show usage")
+    .option("--json", "Print the result as JSON (for agents)")
+    .option("-C <dir>", "Run against the repository in this directory")
     .option(
       "--actor <kind>",
-      "操作の主体（human / agent）。既定は環境変数 DEGUBOARD_ACTOR か human",
+      "Actor kind (human / agent). Defaults to the DEGUBOARD_ACTOR environment variable, else human",
     )
     .option(
       "--user <name>",
-      "主体のユーザ名。既定は環境変数 DEGUBOARD_USER、git config の deguboard.user、git の user.name、OS のユーザ名の順。記録される ID は <ユーザ>（human）か <ユーザ>/agent（agent）",
+      "Actor user name. Defaults, in order, to the DEGUBOARD_USER environment variable, git config deguboard.user, git user.name, then the OS user name. The recorded ID is <user> (human) or <user>/agent (agent)",
     )
-    .helpCommand("help [command]", "コマンドの使い方を出す")
+    .helpCommand("help [command]", "Show usage for a command")
     .configureOutput({
       writeOut: (s) => streams.out(s.trimEnd()),
       // commander が writeErr に書くのは引数の誤りの案内と使い方だけ。--json のときは run() が JSON で stdout に出すので書かない
@@ -121,18 +121,18 @@ export function buildProgram(options: ProgramOptions = {}): Command {
         if (!jsonMode()) streams.err(s.trimEnd());
       },
       outputError: (s, write) => {
-        if (!jsonMode()) write(`エラー: ${s.replace(/^error: /, "")}`);
+        if (!jsonMode()) write(`Error: ${s.replace(/^error: /, "")}`);
       },
     })
     .exitOverride()
-    .showHelpAfterError("（--help で使い方を見る）");
+    .showHelpAfterError("(See usage with --help)");
 
   const groups = new Map<string, Command>();
   const groupFor = (name: string): Command => {
     let g = groups.get(name);
     if (!g) {
       g = program.command(name).description(GROUP_SUMMARY[name] ?? name);
-      g.helpCommand("help [command]", "コマンドの使い方を出す")
+      g.helpCommand("help [command]", "Show usage for a command")
         .exitOverride()
         .configureOutput(program.configureOutput());
       for (const [alias, target] of Object.entries(GROUP_ALIASES))
@@ -146,14 +146,12 @@ export function buildProgram(options: ProgramOptions = {}): Command {
   program
     .command("guide")
     .description(
-      "エージェント向けの手順を出す。トピックを省くと overview。--section で節の本文だけを出す",
+      "Print the steps for agents. Omit the topic to print overview. --section prints only the body of a section",
     )
-    .addArgument(
-      new Argument("[topic]", `トピック（${GUIDE_TOPICS.join(" / ")}）`).default("overview"),
-    )
+    .addArgument(new Argument("[topic]", `Topic (${GUIDE_TOPICS.join(" / ")})`).default("overview"))
     .option(
-      "--section <節>",
-      "節の見出し、または見出しの「（…）」を除いた名前で、その節の本文だけを出す（ない節は使い方の誤りとして一覧を添えて失敗する）。重ねて指定すると、指定した順につないで出す",
+      "--section <name>",
+      "A section heading, or the heading's name without the parenthesized part. Prints only that section's body (a section that does not exist fails as a usage error, listing the sections). Given more than once, prints the sections joined in the order given",
       (value: string, prev: string[] = []) => [...prev, value],
     )
     .action(async (topic: string, opts: { section?: string[] }) => {
@@ -179,22 +177,22 @@ export function buildProgram(options: ProgramOptions = {}): Command {
   // skill も CLI の責務。Skill は guide を読ませるだけで手順を持たない（AG-2）
   program
     .command("skill")
-    .description("Claude Code の Skill の操作")
-    .helpCommand("help [command]", "コマンドの使い方を出す")
+    .description("Operations on Claude Code Skills")
+    .helpCommand("help [command]", "Show usage for a command")
     .exitOverride()
     .configureOutput(program.configureOutput())
     .command("install")
     .description(
-      "段階ごとに dg guide を読む Claude Code の Skill（dgimport・dgplan・dgwork など）を <リポジトリ>/.claude/skills/ に書く。手を加えていない Skill は最新にし、廃止した deguboard Skill は消す",
+      "Write the Claude Code Skills that read dg guide at each stage (dgimport, dgplan, dgwork, etc.) into <repository>/.claude/skills/. Skills you have not edited are updated to the latest, and retired deguboard Skills are deleted",
     )
     .option(
       "--personal",
-      "リポジトリではなく ~/.claude/skills に書く（Claude Code の個人の Skill。どのリポジトリでも使う）",
+      "Write to ~/.claude/skills instead of the repository (personal Claude Code Skills, used in any repository)",
     )
-    .option("--force", "手を加えた SKILL.md も上書きする")
+    .option("--force", "Also overwrite SKILL.md files you have edited")
     .option(
       "--dry-run",
-      "何も書かず消さず、書く先と SKILL.md の中身を出す（入れる前に確かめる）。--json は data.files に name・path・content を返す",
+      "Write and delete nothing; print where files would go and the SKILL.md contents (to check before installing). --json returns name, path, and content in data.files",
     )
     .exitOverride()
     .configureOutput(program.configureOutput())
@@ -237,8 +235,8 @@ export function buildProgram(options: ProgramOptions = {}): Command {
   // hooks も CLI の責務。書くイベントと置き場所は Adapter の hooks が決め、フックが呼ぶのは core の hook コマンド（AG-5・AG-9）
   const hooksCmd = program
     .command("hooks")
-    .description("harness（Claude Code）のフックの操作")
-    .helpCommand("help [command]", "コマンドの使い方を出す")
+    .description("Operations on harness (Claude Code) hooks")
+    .helpCommand("help [command]", "Show usage for a command")
     .exitOverride()
     .configureOutput(program.configureOutput());
   for (const action of ["install", "uninstall"] as const) {
@@ -246,15 +244,18 @@ export function buildProgram(options: ProgramOptions = {}): Command {
       .command(action)
       .description(
         action === "install"
-          ? "Claude Code の設定（<リポジトリ>/.claude/settings.json）に dg hook を呼ぶフックを書く。入ったかと動くかは dg hooks check で確かめる。主体を agent にし、頼んだ文の先頭に印 `deguboard: ticket=<id> step=<step>` のあるサブエージェントの Run を起動で開き、step を終えたら閉じる。dg を経由しない gh pr merge・gh pr ready（dg pr merge・dg pr ready が dg gate を通してから呼ぶ）と、.git/deguboard/ への書き込み・.git/deguboard の語を含む Bash を拒む。応答を終えたとき（Stop）にデータの dg の外の変更を見つけたら、止まらずに続けさせて伝える。もう一度実行しても重ならず、手で足したフックは残す"
-          : "Claude Code の設定から dg のフックだけを外す。手で足したフックは残す",
+          ? "Write hooks that call dg hook into the Claude Code settings (<repository>/.claude/settings.json). Check whether they are installed and working with dg hooks check. Sets the actor to agent; for a sub-agent whose prompt starts with the marker `deguboard: ticket=<id> step=<step>`, opens a Run when it starts and closes it when the step ends. Rejects gh pr merge and gh pr ready when run outside dg (dg pr merge and dg pr ready call them after dg gate passes), writes to .git/deguboard/, and Bash that contains .git/deguboard. When a response ends (Stop) and a change to the data made outside dg is found, it tells the agent to keep going and reports it. Running it again does not duplicate entries; hooks added by hand are kept"
+          : "Remove only dg's hooks from the Claude Code settings. Hooks added by hand are kept",
       )
-      .option("--personal", "リポジトリではなく個人の設定（~/.claude/settings.json）に書く")
+      .option(
+        "--personal",
+        "Write to the personal settings (~/.claude/settings.json) instead of the repository",
+      )
       .option(
         "--command <cmd>",
-        "フックが dg を呼ぶコマンド。既定は dg。PATH に dg がなければ npx deguboard など（install だけ）",
+        "The command hooks use to call dg. Defaults to dg. If dg is not on PATH, use npx deguboard or similar (install only)",
       )
-      .option("--dry-run", "何も書かず、書くことになる設定の全体を出す")
+      .option("--dry-run", "Write nothing; print the whole settings that would be written")
       .exitOverride()
       .configureOutput(program.configureOutput())
       .action(async (opts: { personal?: boolean; command?: string; dryRun?: boolean }) => {
@@ -297,9 +298,12 @@ export function buildProgram(options: ProgramOptions = {}): Command {
   hooksCmd
     .command("check")
     .description(
-      "Claude Code の設定に dg のフックが入っているか（イベントごと・matcher）、ハンドラ（dg を呼ぶコマンド）が --version で動くか、直近のフックの入力で受け取らなかった項目（値は見ず有無だけ）がなかったかを確かめる。欠けていれば警告する。警告があっても終了コードは 0。入力の記録はリポジトリの中でだけ見る",
+      "Check that dg's hooks are in the Claude Code settings (per event and matcher), that each handler (the command that calls dg) runs with --version, and that no field in the most recent hook input went unreceived (only whether fields are present, not their values). Warns if anything is missing. The exit code is 0 even with warnings. Input records are read only inside the repository",
     )
-    .option("--personal", "リポジトリではなく個人の設定（~/.claude/settings.json）を見る")
+    .option(
+      "--personal",
+      "Check the personal settings (~/.claude/settings.json) instead of the repository",
+    )
     .exitOverride()
     .configureOutput(program.configureOutput())
     .action(async (opts: { personal?: boolean }) => {
@@ -345,7 +349,7 @@ export function buildProgram(options: ProgramOptions = {}): Command {
   // 文脈（ロック・Store）を開かない：sync がロックを持ったまま rebase するので、開くと待ち合う
   program
     .command("merge-driver", { hidden: true })
-    .description("deguboard ブランチのマージドライバ（git が %O %A %B %P で呼ぶ）")
+    .description("Merge driver for the deguboard branch (git calls it with %O %A %B %P)")
     .argument("<base>")
     .argument("<ours>")
     .argument("<theirs>")
@@ -369,7 +373,7 @@ export function buildProgram(options: ProgramOptions = {}): Command {
   program
     .command("mcp")
     .description(
-      "MCP サーバーを stdio で起動する（主体は <ユーザ>/agent）。ツールは dg のコマンドと 1 対 1 で、名前は ticket_create の形",
+      "Start the MCP server over stdio (the actor is <user>/agent). Tools map one-to-one to dg commands, named like ticket_create",
     )
     .action(async () => {
       const global = program.opts<{ C?: string; user?: string }>();
@@ -402,7 +406,7 @@ export function buildProgram(options: ProgramOptions = {}): Command {
     const fileField = shapes.find((s) => s.kind === "source");
     if (fileField)
       cmd.addArgument(
-        new Argument("<file>", `${fileField.description}（YAML か JSON のファイル。- で標準入力）`),
+        new Argument("<file>", `${fileField.description} (YAML or JSON file; - for stdin)`),
       );
 
     cmd.action(async (...args: unknown[]) => {
@@ -513,8 +517,7 @@ function defaultStreams(): Streams {
  * `dg help nosuch` のように help に知らないコマンドを渡したとき）は文言がないので、どちらにも合う文言を補う
  */
 function commanderMessage(view: ErrorView): string {
-  if (view.code === "commander.help")
-    return "コマンドが足りないか、知らないコマンドを指定した（--help で使い方を見る）";
+  if (view.code === "commander.help") return "Missing or unknown command (See usage with --help)";
   return view.message.replace(/^error: /, "");
 }
 
@@ -543,8 +546,8 @@ export async function run(argv: readonly string[], options: ProgramOptions = {})
       printJsonError(streams ?? defaultStreams(), view);
       return view.exitCode;
     }
-    if (streams) streams.err(`エラー: ${view.message}`);
-    else process.stderr.write(`エラー: ${view.message}\n`);
+    if (streams) streams.err(`Error: ${view.message}`);
+    else process.stderr.write(`Error: ${view.message}\n`);
     return view.exitCode;
   }
   return Number(process.exitCode ?? 0);

@@ -7,28 +7,31 @@ import { PRIORITIES, type Ticket } from "../model/ticket.js";
 import type { Store } from "../storage/store.js";
 
 export const ticketFilterSchema = z.object({
-  project: z.string().optional().describe("Project で絞る。省略時はすべて"),
-  status: z.array(z.enum(STATUSES)).optional().describe("Status で絞る"),
-  priority: z.array(z.enum(PRIORITIES)).optional().describe("優先度で絞る"),
-  iteration: z.string().optional().describe("Iteration の ID で絞る"),
-  epic: z.string().optional().describe("Epic の ID で絞る"),
-  label: z.array(z.string()).optional().describe("いずれかのラベルを持つ"),
-  assignee: z.string().optional().describe("担当者の ID で絞る（human で自分、agent で自分の AI）"),
+  project: z.string().optional().describe("Filter by Project. Omit for all"),
+  status: z.array(z.enum(STATUSES)).optional().describe("Filter by Status"),
+  priority: z.array(z.enum(PRIORITIES)).optional().describe("Filter by priority"),
+  iteration: z.string().optional().describe("Filter by Iteration ID"),
+  epic: z.string().optional().describe("Filter by Epic ID"),
+  label: z.array(z.string()).optional().describe("Has any of these labels"),
+  assignee: z
+    .string()
+    .optional()
+    .describe("Filter by assignee ID (human for yourself, agent for your own AI)"),
   created_by: z
     .string()
     .optional()
-    .describe("起票者の ID で絞る（human で自分、agent で自分の AI）"),
+    .describe("Filter by creator ID (human for yourself, agent for your own AI)"),
   ready: z
     .boolean()
     .optional()
     .describe(
-      "着手できる（todo で依存先が全部 done か abandoned）ものだけ。担当者の有無は見ない（assignee で絞る）",
+      "Only tickets that can be started (todo with all dependencies done or abandoned). Assignment is not checked (filter with assignee)",
     ),
   include_abandoned: z
     .boolean()
     .optional()
-    .describe("abandoned も含める（status を指定しないとき）"),
-  query: z.string().optional().describe("番号・タイトル・ラベルの部分一致"),
+    .describe("Include abandoned (when status is not given)"),
+  query: z.string().optional().describe("Partial match on number, title, or label"),
 });
 export type TicketFilter = z.output<typeof ticketFilterSchema>;
 

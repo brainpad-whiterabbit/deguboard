@@ -43,11 +43,11 @@ export function addServeCommands(program: Command, deps: ServeDeps): void {
   program
     .command("serve")
     .description(
-      `開発用：画面と API を配信する HTTP サーバーを起動する（左パネルとパネルの配置の確認とスクリーンショットに使う。画面は VS Code 拡張で開く）。既定で ${DEFAULT_HOST}:${DEFAULT_PORT} に閉じ、認証は持たない。配置は ?surface=sidebar（既定）か ?surface=panel で選ぶ`,
+      `For development: starts the HTTP server that serves the screen and the API (used to check the layout of the left panel and panels, and for screenshots. The screen opens in the VS Code extension). Binds to ${DEFAULT_HOST}:${DEFAULT_PORT} by default and has no authentication. Choose the layout with ?surface=sidebar (default) or ?surface=panel`,
     )
-    .option("--host <host>", "バインドするアドレス", DEFAULT_HOST)
-    .option("--port <port>", "ポート。0 なら空いているポート", toPort, DEFAULT_PORT)
-    .option("--open", "起動後にブラウザで開く")
+    .option("--host <host>", "Address to bind to", DEFAULT_HOST)
+    .option("--port <port>", "Port. 0 picks a free port", toPort, DEFAULT_PORT)
+    .option("--open", "Open the browser after starting")
     .action(async (opts: { host: string; port: number; open?: boolean }) => {
       const global = program.opts<{ json?: boolean; C?: string; user?: string }>();
       try {
@@ -93,9 +93,11 @@ export function addServeCommands(program: Command, deps: ServeDeps): void {
 
   program
     .command("open")
-    .description("開発用：起動中の dg serve の画面をブラウザで開く（画面は VS Code 拡張で開く）")
-    .option("--host <host>", "サーバーのアドレス", DEFAULT_HOST)
-    .option("--port <port>", "サーバーのポート", toPort, DEFAULT_PORT)
+    .description(
+      "For development: opens the screen of the running dg serve in the browser (the screen opens in the VS Code extension)",
+    )
+    .option("--host <host>", "Server address", DEFAULT_HOST)
+    .option("--port <port>", "Server port", toPort, DEFAULT_PORT)
     .action(async (opts: { host: string; port: number }) => {
       const global = program.opts<{ json?: boolean }>();
       const url = `http://${opts.host}:${opts.port}/`;

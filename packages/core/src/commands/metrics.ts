@@ -24,17 +24,21 @@ export const metricsShow = defineCommand({
   name: "metrics.show",
   group: "metrics",
   summary:
-    "Run を集計する。絞り込みは Run・チケット・Epic・Iteration・Project・Agent・Model・Step（Epic・Iteration・Project はチケットの今の値でたどる）。取れなかった値は足さず missing に数え、推定を含む Run は estimated_runs に数える。ツールの回数（tools）も種類ごとに足し、ない Run は missing.tools に数える。集計値は保存しない",
+    "Aggregate Runs. Filter by Run, ticket, Epic, Iteration, Project, Agent, Model, or Step (Epic, Iteration, and Project follow each ticket's current value). Values that could not be read are not added and are counted in missing; Runs with estimated values are counted in estimated_runs. Tool counts (tools) are also added up per kind, and Runs without them are counted in missing.tools. Aggregates are not stored",
   input: z.object({
-    run: runIdSchema.optional().describe("この Run だけ"),
-    ticket: ticketRef.optional().describe("このチケットの Run だけ"),
-    epic: epicRef.optional().describe("この Epic のチケットの Run だけ"),
-    iteration: iterationRef.optional().describe("この Iteration のチケットの Run だけ"),
-    project: slugSchema.optional().describe("この Project のチケットの Run だけ"),
-    agent: z.string().min(1).optional().describe("このエージェントの Run だけ"),
-    model: z.string().min(1).optional().describe("このモデルの Run だけ"),
-    step: z.string().min(1).optional().describe("この step（implement・review など）の Run だけ"),
-    by: z.enum(METRIC_UNITS).optional().describe("この単位ごとにも集計する"),
+    run: runIdSchema.optional().describe("Only this Run"),
+    ticket: ticketRef.optional().describe("Only Runs of this ticket"),
+    epic: epicRef.optional().describe("Only Runs of tickets in this Epic"),
+    iteration: iterationRef.optional().describe("Only Runs of tickets in this Iteration"),
+    project: slugSchema.optional().describe("Only Runs of tickets in this Project"),
+    agent: z.string().min(1).optional().describe("Only Runs of this agent"),
+    model: z.string().min(1).optional().describe("Only Runs of this model"),
+    step: z
+      .string()
+      .min(1)
+      .optional()
+      .describe("Only Runs of this step (such as implement or review)"),
+    by: z.enum(METRIC_UNITS).optional().describe("Also aggregate by this unit"),
   }),
   write: false,
   needs: "store",

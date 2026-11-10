@@ -21,8 +21,8 @@ describe("dg serve / dg open", () => {
     addServeCommands(program, { streams: { out: () => {}, err: () => {} }, resolveCwd: () => "." });
     for (const name of ["serve", "open"]) {
       const command = program.commands.find((c) => c.name() === name)!;
-      expect(command.helpInformation(), name).toContain("開発用");
-      expect(command.description(), name).toContain("画面は VS Code 拡張で開く");
+      expect(command.helpInformation(), name).toContain("For development");
+      expect(command.description(), name).toContain("VS Code extension");
     }
   });
 

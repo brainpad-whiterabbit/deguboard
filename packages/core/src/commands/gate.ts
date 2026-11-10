@@ -173,20 +173,20 @@ export const gate = defineCommand({
   positionals: ["ticket"],
   group: "gate",
   summary:
-    "品質ゲートを記録と Git・PR の事実で判定し、条件ごとの結果（conditions）と満たさない理由を返す（EX-3）。条件は " +
-    "pr（PR が開いている。--for merge なら draft でない）・acceptance（--for merge のとき受け入れ条件すべてに印）・" +
-    "review（作業ブランチのリモートの先端のコミットの時刻より後に始めた見直しの Run が success で閉じていて、run review-result の結果が通っている）・" +
-    `fix_rounds（このブランチで重い指摘が出た見直しが ${FIX_ROUNDS_LIMIT} 回以内）・mergeable（--for merge のとき gh の mergeable が MERGEABLE）・` +
-    "check（config の actions.test を、作業ブランチの最新のコミット（リモートの先端）を checkout した未コミットの変更のない worktree で回して通る。base との差分のファイルがすべて actions.light_paths に入るなら、代わりに軽い検査 actions.light_test を回し、どちらを回したかと理由を detail に出す。actions.test が空なら判定せずに通し、そう detail に出す。通らなければ detail に終了コードと出力の末尾を出す。通った結果はコミットとコマンドごとに deguboard-local に覚え、同じコミットでは回し直さない（worktree を消した後のマージでも使える。通らなかった結果は覚えず、次の判定で回し直す）。時間がかかるので、ほかの条件をすべて満たしたときだけ回す）。" +
-    "gh・Git が読めない条件は満たさないとする。" +
-    "dg pr ready・dg pr merge が gh を呼ぶ前に同じ判定をする。見直しを省く・上限を超えて進めるなどの例外は持たず、人の判断に任せる（人に gh を打ってもらう）。チケットのデータは書かない（書くのは通った検査の結果を deguboard-local に覚えることだけ）",
+    "Judge the quality gate from records and the Git and PR facts, and return the result of each condition (conditions) and the reasons for any unmet one (EX-3). The conditions are " +
+    "pr (the PR is open; with --for merge, not a draft) · acceptance (with --for merge, every acceptance criterion is checked) · " +
+    "review (a review Run that started after the time of the latest commit on the work branch's remote tip has closed with success, and the run review-result result passed) · " +
+    `fix_rounds (reviews that raised heavy findings on this branch are at most ${FIX_ROUNDS_LIMIT} times) · mergeable (with --for merge, gh's mergeable is MERGEABLE) · ` +
+    "check (config's actions.test passes when run in a worktree with no uncommitted changes, checked out at the latest commit of the work branch (remote tip). When every file in the diff against base falls under actions.light_paths, the lighter check actions.light_test runs instead, and detail gives which one ran and why. When actions.test is empty, it passes without judging and detail says so. When it fails, detail gives the exit code and the tail of the output. A passing result is remembered per commit and per command in deguboard-local and is not rerun for the same commit (it still counts after the worktree is removed, e.g. after a merge. A failing result is not remembered; the next check reruns it). It takes time, so it runs only when all the other conditions are met). " +
+    "A condition that gh or Git cannot read is treated as unmet. " +
+    "dg pr ready and dg pr merge make the same judgment before they call gh. They have no exceptions, such as skipping review or going past the limit; that is left to a person (a person runs gh). They do not write ticket data (they only record the results of passed checks in deguboard-local)",
   input: z.object({
     ticket: ticketRef,
     for: z
       .enum(GATE_STAGES)
       .optional()
       .describe(
-        "ready は PR を出す前（gh pr ready）、merge はマージの前（gh pr merge）。省けば merge",
+        "ready is before opening the PR (gh pr ready), merge is before merging (gh pr merge). Defaults to merge when omitted",
       ),
   }),
   write: false,

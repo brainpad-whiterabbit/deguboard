@@ -27,19 +27,23 @@ const noteField = z
   .string()
   .default("")
   .describe(
-    "guide の題名の直後（節を出すときは節の見出しの直後）に差し込む文書のパス。リポジトリの最上位からの相対パスで、リポジトリの外は読まない。空なら差し込まない。見出し（#）を含む文書は差し込まない",
+    "Path of a document inserted just after the guide title (just after the section heading when a section is shown). A path relative to the repository root; paths outside the repository are not read. Empty inserts nothing. A document with headings (#) is not inserted.",
   );
 
 export const configSchema = z.looseObject({
-  default_project: slugSchema.default("default").describe("省略時の Project"),
+  default_project: slugSchema.default("default").describe("Project used when none is given"),
   git: z
     .looseObject({
-      remote: z.string().min(1).default("origin").describe("同期先のリモート"),
+      remote: z
+        .string()
+        .min(1)
+        .default("origin")
+        .describe("Git remote that deguboard fetches from and pushes to"),
       base_branch: z
         .string()
         .min(1)
         .default("main")
-        .describe("作業ブランチの元と「マージ済み」の判定の基準"),
+        .describe("Base for work branches and for deciding what is merged"),
     })
     .prefault({}),
   worktree: z
@@ -48,12 +52,12 @@ export const configSchema = z.looseObject({
         .string()
         .min(1)
         .default("../<repo>.worktrees")
-        .describe("作業 worktree の置き場所。リポジトリからの相対パス"),
+        .describe("Where work worktrees go. A path relative to the repository"),
       setup: z
         .array(z.string().min(1))
         .default([])
         .describe(
-          "claim が作った作業 worktree で最初に回す準備のコマンドの引数配列（例 [mise, run, setup]）。空なら何も回さない。失敗しても claim は成功し、warnings に失敗と手で回すコマンドを出す",
+          "Argument array of the setup command run first in a work worktree that claim created (e.g. [mise, run, setup]). Empty runs nothing. If it fails, claim still succeeds and the warnings give the failure and the command to run by hand",
         ),
     })
     .prefault({}),
@@ -63,7 +67,7 @@ export const configSchema = z.looseObject({
         .enum(COMMIT_MODES)
         .default("batch")
         .describe(
-          "each: 書き込みのたびにコミット / batch: 作業ツリーに残し、dg commit・dg sync・即時の操作がまとめてコミット / manual: dg commit と即時の操作だけ",
+          "each: commit on every write / batch: leave changes in the working tree; dg commit, dg sync, and immediate operations commit them together / manual: only dg commit and immediate operations",
         ),
     })
     .prefault({}),
@@ -73,7 +77,7 @@ export const configSchema = z.looseObject({
         .enum(PUSH_MODES)
         .default("auto")
         .describe(
-          "auto: コミットのたびに push / manual: dg sync が push する（即時の操作は manual でも push する）",
+          "auto: push on every commit / manual: dg sync pushes (immediate operations push even in manual)",
         ),
     })
     .prefault({}),
@@ -83,7 +87,7 @@ export const configSchema = z.looseObject({
         .boolean()
         .default(false)
         .describe(
-          "run finish・run refresh が Adapter で会話記録を読んで使用量を補うか。DEGUBOARD_NO_TRANSCRIPTS のマシンでは true でも読まない（MT-2）",
+          "Whether run finish and run refresh read conversation transcripts through the Adapter to fill in usage. Machines with DEGUBOARD_NO_TRANSCRIPTS never read them, even when true (MT-2)",
         ),
     })
     .prefault({}),
@@ -93,7 +97,7 @@ export const configSchema = z.looseObject({
         .boolean()
         .default(true)
         .describe(
-          "承認待ちの Plan や review のチケットが増えたとき、VS Code 拡張が通知を出すか（件数の表示は常に出る）",
+          "Whether the VS Code extension shows a notification when Plans awaiting approval or tickets in review increase (the count is always shown)",
         ),
     })
     .prefault({}),
@@ -102,24 +106,26 @@ export const configSchema = z.looseObject({
       shell: z
         .boolean()
         .default(false)
-        .describe("任意のシェルの Action（shell）を許すか。許しても実行のたびに確認する（AG-7）"),
+        .describe(
+          "Whether to allow the arbitrary shell Action (shell). Even when allowed, each run asks for confirmation (AG-7)",
+        ),
       test: z
         .array(z.string().min(1))
         .default([])
         .describe(
-          "テスト実行の Action（run_tests）と、品質ゲート（dg gate・dg pr ready・dg pr merge）の検査が呼ぶコマンドの引数配列（例 [mise, run, check]）。空なら run_tests は拒否し、品質ゲートの検査は判定しない（リポジトリの規約の検査で確かめる）",
+          "Argument array of the command that the test Action (run_tests) and the quality gate's check (dg gate, dg pr ready, dg pr merge) run (e.g. [mise, run, check]). When empty, run_tests is rejected and the gate's check does not judge (the repo's own checks are confirmed instead)",
         ),
       light_test: z
         .array(z.string().min(1))
         .default([])
         .describe(
-          "作業ブランチの base との差分のファイルがすべて actions.light_paths に入るとき、品質ゲートの検査が actions.test の代わりに回す軽い検査のコマンドの引数配列（例 [mise, run, check:light]）。空なら、または actions.light_paths が空なら、いつも actions.test を回す。actions.test が空なら軽い検査も回さない",
+          "Argument array of the lighter check the quality gate's check runs instead of actions.test when every file in the work branch's diff against base falls under actions.light_paths (e.g. [mise, run, check:light]). When this or actions.light_paths is empty, actions.test always runs. When actions.test is empty, the lighter check does not run either",
         ),
       light_paths: z
         .array(z.string().min(1))
         .default([])
         .describe(
-          "軽い検査（actions.light_test）で済ませるファイルの glob（リポジトリの最上位からの相対パス。* と ? は / をまたがず、** は階層をまたぐ。例 docs/**）。差分に 1 つでも外のファイルがあれば actions.test を回す",
+          "Globs of files the lighter check (actions.light_test) is enough for (relative to the repository top; * and ? do not cross /, ** crosses directories; e.g. docs/**). If even one file in the diff falls outside, actions.test runs",
         ),
     })
     .prefault({}),
@@ -129,13 +135,13 @@ export const configSchema = z.looseObject({
         .boolean()
         .default(false)
         .describe(
-          "dg guide all --auto で、品質ゲート（dg gate --for merge）を満たした PR を自動でマージするか。既定は人がマージする",
+          "Whether dg guide all --auto merges PRs that pass the quality gate (dg gate --for merge) automatically. By default a person merges",
         ),
       decisions: z
         .array(z.enum(AUTO_DECISIONS))
         .default(["assign", "check", "plan", "audit", "accept"])
         .describe(
-          "--auto で聞かずに選ぶ判断（assign: 割り当て・check: 直し方が 1 つに決まる直す行・plan: Plan の承認・audit: 見直しの指摘の表・accept: 照合の後の受け入れ条件の確認）。人が決める判断は入れられず、PR のマージは auto.merge",
+          "Decisions --auto chooses without asking (assign: assignment / check: the fix line when only one fix fits / plan: Plan approval / audit: the review findings table / accept: confirming acceptance criteria after reconciling). Decisions a person makes cannot be added; PR merging is set by auto.merge",
         ),
     })
     .prefault({}),
@@ -145,7 +151,7 @@ export const configSchema = z.looseObject({
         .array(z.enum(FLOW_SKIPS))
         .default([])
         .describe(
-          "dg flow next が返さない段階（assign・check・plan・work・audit・release）。飛ばした段階の規則は読まず、次の規則に進む",
+          "Stages that dg flow next never returns (assign, check, plan, work, audit, release). A skipped stage's rule is not read; the flow moves to the next rule",
         ),
     })
     .prefault({}),
@@ -154,12 +160,14 @@ export const configSchema = z.looseObject({
       method: z
         .enum(PR_MERGE_METHODS)
         .default("squash")
-        .describe("dg pr merge が --method を省いたときのマージの方法（squash・merge・rebase）"),
+        .describe(
+          "Merge method dg pr merge uses when --method is omitted (squash, merge, or rebase)",
+        ),
       delete_branch: z
         .boolean()
         .default(false)
         .describe(
-          "dg pr merge が --delete-branch を省いたとき、リモートとローカルの作業ブランチも消すか",
+          "Whether dg pr merge also deletes the remote and local work branch when --delete-branch is omitted",
         ),
     })
     .prefault({}),
@@ -169,7 +177,7 @@ export const configSchema = z.looseObject({
         .array(z.string().min(1))
         .default([])
         .describe(
-          "見直しの指摘（run review-result --findings-file）のうち、severity によらず重いとみなす category。既定は空で、見直し役の severity のまま",
+          "Review finding categories (run review-result --findings-file) treated as heavy regardless of severity. Empty by default, so the reviewer's severity is kept",
         ),
     })
     .prefault({}),
@@ -179,7 +187,7 @@ export const configSchema = z.looseObject({
         .boolean()
         .default(false)
         .describe(
-          "dg lint が、Iteration に入らずに todo・abandoned 以外に進んだチケットを指摘するか（閉じた Epic の done は除く）。dg guide work は claim の前に Iteration に入れるよう案内する",
+          "Whether dg lint flags tickets that moved past todo or abandoned without being in an Iteration (except done tickets in closed Epics). dg guide work asks to add the ticket to an Iteration before claim",
         ),
     })
     .prefault({}),
@@ -189,19 +197,19 @@ export const configSchema = z.looseObject({
         .string()
         .default("")
         .describe(
-          "Plan の段階 light（文書・設定・文言だけ）と、実装の中の調べものに使うモデル。空なら親のモデル",
+          "Model for Plan tier light (docs, settings, and wording only) and for research within implementation. When empty, the parent's model",
         ),
       standard: z
         .string()
         .default("")
         .describe(
-          "Plan の段階 standard（light・heavy に当たらないもの）に使うモデル。空なら親のモデル",
+          "Model for Plan tier standard (anything that is not light or heavy). When empty, the parent's model",
         ),
       heavy: z
         .string()
         .default("")
         .describe(
-          "Plan の段階 heavy（設計の判断・データの形・複数パッケージ・原因の分からない不具合）に使うモデル。空なら親のモデル",
+          "Model for Plan tier heavy (design decisions, data shapes, multiple packages, bugs of unknown cause). When empty, the parent's model",
         ),
     })
     .prefault({}),
@@ -211,7 +219,7 @@ export const configSchema = z.looseObject({
         .array(z.string().min(1))
         .default([])
         .describe(
-          "agent からは拒否するコマンド名（epic.close など）。既定は空で、すべて許す。チケットの遷移は Workflow の by で縛る",
+          "Command names rejected for agents (such as epic.close). Empty by default, allowing everything. Ticket transitions are restricted with the Workflow's by",
         ),
     })
     .prefault({}),
@@ -229,19 +237,23 @@ export const configSchema = z.looseObject({
         .default(
           "利用者に見える不具合・利用者を誤らせる文書・悪用できる脆弱性・ライセンスの漏れ・検査が通らない・ほかのチケットを止めている",
         )
-        .describe("優先度 high の判断基準。起票・見直しと画面の優先度の印・選択の説明が使う"),
+        .describe(
+          "Criteria for priority high. Used when creating and reviewing tickets, and by the priority marks and selection hints on screen",
+        ),
       medium: z
         .string()
         .default(
           "機能の追加と改善・テストの抜けと不安定なテスト・内部の文書の食い違い・今は害のない規約違反・大きく古い依存",
         )
         .describe(
-          "優先度 medium（既定）の判断基準。起票・見直しと画面の優先度の印・選択の説明が使う",
+          "Criteria for priority medium (the default). Used when creating and reviewing tickets, and by the priority marks and selection hints on screen",
         ),
       low: z
         .string()
         .default("使われていないコードと依存・設定の重複・言い回しの揺れ・急がない調査と検討")
-        .describe("優先度 low の判断基準。起票・見直しと画面の優先度の印・選択の説明が使う"),
+        .describe(
+          "Criteria for priority low. Used when creating and reviewing tickets, and by the priority marks and selection hints on screen",
+        ),
     })
     .prefault({}),
 });

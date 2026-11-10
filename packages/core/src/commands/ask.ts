@@ -1465,34 +1465,38 @@ export const ask = defineCommand({
   name: "ask",
   group: "ask",
   summary:
-    "エージェントに貼る依頼文を作る（読み取りだけ）。対象の種類と状態から頼むことの候補とおすすめ（先頭）を返し、頼むこと・指示・形式（Skill か文章だけ）・言語（定型の文を日本語か英語で）から文を組む。操作が 1 つに決まる頼むことは、その操作が actor.human_only に入っているか、Workflow の by が遷移を人に限れば、人が打つ dg のコマンドを返す",
+    "Create request text to paste to an agent (read-only). From the kind and state of the targets, returns the candidate actions and the suggested one (first), and composes the text from the action, the instruction, the format (Skill or text only), and the language (fixed text in Japanese or English). For an action that comes down to one operation, if that operation is in actor.human_only, or the Workflow's by limits the transition to people, it returns the dg command for a person to run",
   input: z.object({
     targets: z
       .array(z.string().min(1))
       .default([])
-      .describe("対象の ID（t12・s3・e2・p7。複数可）。省けば対象なし（起票・作成・全体の点検）"),
+      .describe(
+        "Target IDs (t12, s3, e2, p7; more than one allowed). Omit for no target (creating, making, or checking everything)",
+      ),
     action: z
       .enum(ASK_ACTIONS)
       .optional()
-      .describe("頼むこと。省けばおすすめ（candidates の先頭）。候補にないものは使い方の誤り"),
-    note: z.string().optional().describe("依頼文に添える指示"),
+      .describe(
+        "Action. When omitted, the suggested one (first in candidates). An action that is not in the candidates is a usage error",
+      ),
+    note: z.string().optional().describe("Instruction added to the request text"),
     format: z
       .enum(ASK_FORMATS)
       .optional()
       .describe(
-        "skill は Skill の呼び出しと指示だけ、text は頼む 1 文と dg の呼び方と（Skill を持つ頼むことは）読む guide の 1 文と指示。Skill のない頼むことは skill でも text の形。省けば、dg skill install の置き場所（リポジトリかホームディレクトリの下）に dg の Skill があれば skill、なければ text",
+        "skill gives only the Skill call and the instruction; text gives one line asking for the action, the dg command, and (for actions that have a Skill) one line to read guide, plus the instruction. For an action with no Skill, the form is text even when skill is given. When omitted, uses skill if dg's Skill is in the place dg skill install writes to (under the repository or the home directory), otherwise text",
       ),
     within: z
       .string()
       .optional()
       .describe(
-        "対象のチケットが入っている Iteration か Epic（s3・e2）。詳細の中の行から頼むときに渡し、チケットがどれもそこに入っていれば「そこから外す」を候補に足す",
+        "The Iteration or Epic that the target tickets are in (s3, e2). Passed when asking from a row in the details; if every ticket is in it, 'remove from it' is added as a candidate",
       ),
     language: z
       .enum(ASK_LANGUAGES)
       .optional()
       .describe(
-        "依頼文の定型の文（頼む 1 文・dg の呼び方・guide を読む 1 文・Skill の次の行の頼みごと）の言語。省けば ja。指示とチケットの中身は書いた言葉のまま",
+        "Language of the fixed text in the request (the one-line ask, the dg command, the one line to read guide, and the request line after the Skill). Defaults to ja when omitted. Instructions and ticket content stay in the words they were written in",
       ),
   }),
   write: false,
@@ -1531,18 +1535,20 @@ export const askMenu = defineCommand({
   name: "ask-menu",
   group: "ask",
   summary:
-    "画面の行・見出しごとの頼むことの候補（先頭がおすすめ）をまとめて返す（読み取りだけ）。組ごとに ask の candidates と同じものを返し、引けない組は error に理由を入れる。画面（VS Code の左パネル・エディタのパネルの詳細）の吹き出しが使う",
+    "Return the candidate actions for each screen row or heading together (suggested one first) (read-only). Each set gets the same result as ask's candidates; a set that cannot be looked up puts the reason in error. Used by the callouts on screen (the details of the VS Code left panel and editor panel)",
   input: z.object({
     sets: z
       .array(z.string())
       .default([])
       .describe(
-        '対象の組（ID を空白で区切る。t12・"t1 t2"・s3）。空の文字列は対象なし。@ を付けた Iteration・Epic（"t12 @s3"）は、チケットが入っている場所（ask の within）',
+        'Sets of targets (IDs separated by spaces: t12, "t1 t2", s3). An empty string means no target. An Iteration or Epic with @ ("t12 @s3") means where the tickets are (ask\'s within)',
       ),
     language: z
       .enum(ASK_LANGUAGES)
       .optional()
-      .describe("候補の 1 文（meaning）の言語。省けば ja。画面の表示言語を渡す"),
+      .describe(
+        "Language of the candidate's one-line meaning. Defaults to ja when omitted. Pass the display language of the screen",
+      ),
   }),
   write: false,
   needs: "store",

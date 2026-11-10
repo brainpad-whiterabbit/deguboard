@@ -21,13 +21,15 @@ export const epicCreate = defineCommand({
   name: "epic.create",
   positionals: ["title"],
   group: "epic",
-  summary: "Epic を作る",
+  summary: "Create an Epic",
   input: z.object({
-    title: z.string().min(1).describe("タイトル"),
-    project: slugSchema.optional().describe("Project。省略時は config の default_project"),
-    labels: z.array(z.string()).optional().describe("ラベル"),
-    summary: z.string().optional().describe("概要。本文の雛形に入れる"),
-    body: z.string().optional().describe("本文全体。summary より優先"),
+    title: z.string().min(1).describe("Title"),
+    project: slugSchema
+      .optional()
+      .describe("Project. Defaults to config's default_project when omitted"),
+    labels: z.array(z.string()).optional().describe("Labels"),
+    summary: z.string().optional().describe("Summary. Goes into the body template"),
+    body: z.string().optional().describe("Full body. Takes precedence over summary"),
   }),
   write: true,
   needs: "store",
@@ -67,10 +69,11 @@ export type EpicDetail = EpicRow & { body: string; tickets: Ticket[] };
 export const epicList = defineCommand({
   name: "epic.list",
   group: "epic",
-  summary: "Epic を番号順に、進捗（done の件数と abandoned を除く件数）つきで出す",
+  summary:
+    "List Epics in number order, with progress (the done count and the count excluding abandoned)",
   input: z.object({
-    project: z.string().optional().describe("Project で絞る。省略時はすべて"),
-    status: z.array(z.enum(EPIC_STATUSES)).optional().describe("Status で絞る。省略時はすべて"),
+    project: z.string().optional().describe("Filter by Project. Omit for all"),
+    status: z.array(z.enum(EPIC_STATUSES)).optional().describe("Filter by Status. Omit for all"),
   }),
   write: false,
   needs: "store",
@@ -93,7 +96,7 @@ export const epicShow = defineCommand({
   name: "epic.show",
   positionals: ["epic"],
   group: "epic",
-  summary: "Epic の本文と進捗、所属するチケットを Status ごとに出す",
+  summary: "Show an Epic's body, progress, and its tickets by Status",
   input: z.object({ epic: epicRef }),
   write: false,
   needs: "store",
@@ -112,15 +115,15 @@ export const epicUpdate = defineCommand({
   name: "epic.update",
   positionals: ["epic"],
   group: "epic",
-  summary: "Epic の属性と本文を直す",
+  summary: "Edit an Epic's attributes and body",
   input: z.object({
     epic: epicRef,
-    title: z.string().min(1).optional().describe("タイトル"),
+    title: z.string().min(1).optional().describe("Title"),
     labels: z
       .array(z.string())
       .optional()
-      .describe("ラベル。一覧を置き換える（既存も含めて全部指定する）"),
-    body: z.string().optional().describe("本文全体を置き換える"),
+      .describe("Labels. Replaces the whole list (specify all of them, including existing ones)"),
+    body: z.string().optional().describe("Replace the whole body"),
   }),
   write: true,
   needs: "store",
@@ -142,14 +145,15 @@ export const epicUpdate = defineCommand({
 
 const membership = z.object({
   epic: epicRef,
-  tickets: z.array(ticketRef).min(1).describe("チケットの ID（t12 または 12）。複数指定できる"),
+  tickets: z.array(ticketRef).min(1).describe("Ticket ID (t12 or 12). Can be given more than once"),
 });
 
 export const epicAdd = defineCommand({
   name: "epic.add",
   positionals: ["epic", "tickets"],
   group: "epic",
-  summary: "チケットを Epic に入れる。同じ Project のチケットだけで、閉じた Epic には入れられない",
+  summary:
+    "Add tickets to an Epic. Only tickets in the same Project; tickets cannot be added to a closed Epic",
   input: membership,
   write: true,
   needs: "store",
@@ -180,7 +184,7 @@ export const epicRemove = defineCommand({
   name: "epic.remove",
   positionals: ["epic", "tickets"],
   group: "epic",
-  summary: "チケットを Epic から外す",
+  summary: "Remove tickets from an Epic",
   input: membership,
   write: true,
   needs: "store",
@@ -209,10 +213,11 @@ export const epicClose = defineCommand({
   name: "epic.close",
   positionals: ["epic"],
   group: "epic",
-  summary: "Epic を閉じる。done・abandoned 以外のチケットが残っていれば拒否し、force で閉じる",
+  summary:
+    "Close an Epic. Rejected if tickets other than done or abandoned remain; use force to close it anyway",
   input: z.object({
     epic: epicRef,
-    force: z.boolean().optional().describe("残ったチケットがあっても閉じる"),
+    force: z.boolean().optional().describe("Close even if tickets remain"),
   }),
   write: true,
   needs: "store",
@@ -251,7 +256,7 @@ export const epicReopen = defineCommand({
   name: "epic.reopen",
   positionals: ["epic"],
   group: "epic",
-  summary: "閉じた Epic を再開する",
+  summary: "Reopen a closed Epic",
   input: z.object({ epic: epicRef }),
   write: true,
   needs: "store",

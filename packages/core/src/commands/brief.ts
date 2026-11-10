@@ -345,21 +345,25 @@ export const brief = defineCommand({
   positionals: ["ticket"],
   group: "brief",
   summary:
-    "サブエージェントに渡す文を組む（EX-3。読み取りだけ）。役（implement・review・fix）ごとに、先頭に印 `deguboard: ticket=<id> step=<step>` を置いた文を返す（フックが印で Run を開け閉めする）。" +
-    "文には場所（worktree・ブランチ）・Plan の範囲と方針・規約・役の手順（guide の節の本文）・受け入れ条件・道具（Read・Edit）・Run の扱い・しないこと・返すものを入れる。review には結果を記録する呼び出し、fix には直す指摘（最新の見直しの記録から、重い指摘と受け入れ条件の文言に当たる軽い指摘。findings で渡せばそれを使う）とやり直しの理由を書く呼び出し（run retry-reason）を入れる。" +
-    "定型の文の言語は language（ask と同じく省けば ja）。チケットの中身は書いた言葉のまま。dg next の implement・review・fix の手の brief と同じ文",
+    "Compose the text to hand to a sub-agent (EX-3; read-only). For each role (implement, review, fix), returns text whose first line is the marker `deguboard: ticket=<id> step=<step>` (the hook opens and closes the Run from the marker). " +
+    "The text includes the location (worktree and branch), the Plan's scope and approach, conventions, the role's steps (the body of the guide section), the acceptance criteria, tools (Read and Edit), how to treat the Run, what not to do, and what to return. For review it includes the call that records the result; for fix it includes the findings to fix (from the latest review record: the heavy findings and the light findings that match acceptance criteria wording; findings passed in are used instead) and the call that writes the reasons for the retry (run retry-reason). " +
+    "The fixed text is in the language set by language (ja when omitted, as with ask). Ticket content stays in the words it was written in. It is the same text as the brief for dg next's implement, review, and fix steps",
   input: z.object({
     ticket: ticketRef,
-    role: z.enum(BRIEF_ROLES).describe("役。implement（実装）・review（見直し）・fix（手直し）"),
+    role: z
+      .enum(BRIEF_ROLES)
+      .describe("Role. implement (implementation), review (review), or fix (fix)"),
     language: z
       .enum(ASK_LANGUAGES)
       .optional()
-      .describe("文の定型の文の言語。省けば ja。チケットの中身は変えない"),
+      .describe(
+        "Language of the fixed text. Defaults to ja when omitted. Ticket content is not changed",
+      ),
     findings: z
       .string()
       .optional()
       .describe(
-        "fix の文に入れる、直す指摘の一覧（見直し役か人のレビューが返したもの）。省けば最新の見直しの記録から重い指摘と受け入れ条件の軽い指摘を入れ、記録がなければ貼る場所を空けて返す",
+        "List of findings to fix, for the fix text (what the reviewer or a person's review returned). When omitted, the heavy findings and the light findings that match acceptance criteria are taken from the latest review record; if there is no record, returns with a blank space to paste into",
       ),
   }),
   write: false,

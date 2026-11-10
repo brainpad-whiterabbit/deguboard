@@ -55,10 +55,10 @@ export function idShapeOf<K extends IdKind>(ref: string | undefined, kind: K): I
 }
 
 /** `t12` でも `12` でも受け付ける参照 */
-export const ticketRef = z.string().min(1).describe("チケットの ID（t12 または 12）");
-export const epicRef = z.string().min(1).describe("Epic の ID（e3 または 3）");
-export const iterationRef = z.string().min(1).describe("Iteration の ID（s3 または 3）");
-export const planRef = z.string().min(1).describe("Plan の ID（p7 または 7）");
+export const ticketRef = z.string().min(1).describe("Ticket ID (t12 or 12)");
+export const epicRef = z.string().min(1).describe("Epic ID (e3 or 3)");
+export const iterationRef = z.string().min(1).describe("Iteration ID (s3 or 3)");
+export const planRef = z.string().min(1).describe("Plan ID (p7 or 7)");
 
 export function projectOf(ctx: CommandContext, project: string | undefined): string {
   return project ?? ctx.config.default_project;

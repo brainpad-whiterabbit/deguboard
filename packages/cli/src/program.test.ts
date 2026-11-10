@@ -203,7 +203,7 @@ describe("dg", () => {
     const human = await dg(f.cloneA, ["ticket", "move", "1", "done"]);
     expect(human.code).toBe(1);
     expect(human.err).toContain(
-      "エラー: todo から done への遷移は Workflow がこの主体に許していない",
+      "Error: todo から done への遷移は Workflow がこの主体に許していない",
     );
 
     expect((await dg(f.cloneA, ["ticket", "create", "x", "--priority", "nope"])).code).toBe(2);
@@ -253,7 +253,7 @@ describe("dg", () => {
       ["--json", "help", "nosuch"],
     ])
       expect((await dg(f.cloneA, argv)).json().error?.message).toBe(
-        "コマンドが足りないか、知らないコマンドを指定した（--help で使い方を見る）",
+        "Missing or unknown command (See usage with --help)",
       );
   });
 
@@ -263,8 +263,8 @@ describe("dg", () => {
     const ran = await dg(f.cloneA, ["metrics", "show", "--by", "nothing"]);
     expect(ran.code).toBe(2);
     expect(ran.out).toBe("");
-    expect(ran.err).toContain("エラー: option '--by <value>' argument 'nothing' is invalid");
-    expect(ran.err).toContain("（--help で使い方を見る）");
+    expect(ran.err).toContain("Error: option '--by <value>' argument 'nothing' is invalid");
+    expect(ran.err).toContain("(See usage with --help)");
   });
 
   it("--json のとき commander 以外の例外も { ok: false, error } で stdout に出し、平文は出さない", async () => {
@@ -288,7 +288,7 @@ describe("dg", () => {
     const ran = await dg(f.cloneA, ["serve", "--port", "abc"]);
     expect(ran.code).toBe(1);
     expect(ran.out).toBe("");
-    expect(ran.err).toBe("エラー: ポートは 0〜65535 の整数");
+    expect(ran.err).toBe("Error: ポートは 0〜65535 の整数");
   });
 
   it("初期化前は NOT_INITIALIZED で終了コード 1", async () => {
@@ -555,7 +555,7 @@ describe("dg", () => {
   it("外せるオプションのヘルプは外し方を none の 1 つだけ示す", async () => {
     const f = await fixture();
     const help = (await dg(f.cloneA, ["ticket", "update", "--help"])).out;
-    expect(help.match(/（none で外す）/g)).toHaveLength(6);
+    expect(help.match(/\(none to clear\)/g)).toHaveLength(6);
     expect(help).not.toContain("null");
   });
 
