@@ -466,6 +466,15 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
     expect(a2.data.body).toBe(
       "## 概要\n\n直した\n\n## 受け入れ条件\n\n- [ ] b\n- [x] a\n- [ ] c\n",
     );
+    // 英語の名前の節も同じに置き換える
+    await runCommand(ticketUpdate, ctx, {
+      ticket: "t1",
+      body: "## Summary\n\ns\n\n## Acceptance criteria\n\n- [x] a\n\n## References\n\n- x.ts\n",
+    });
+    const a3 = await runCommand(ticketUpdate, ctx, { ticket: "t1", acceptance: ["a", "b"] });
+    expect(a3.data.body).toBe(
+      "## Summary\n\ns\n\n## Acceptance criteria\n\n- [x] a\n- [ ] b\n\n## References\n\n- x.ts\n",
+    );
     await expect(
       runCommand(ticketUpdate, ctx, { ticket: "t1", body: "x", acceptance: ["a"] }),
     ).rejects.toMatchObject({ code: "INVALID_INPUT" });
@@ -495,9 +504,17 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
     ]);
     const checked = await runCommand(ticketCheck, ctx, { ticket: "t1", items: [3, 1, 1] });
     expect(checked.data.body).toBe(
-      "## 概要\n\ns\n\n## 受け入れ条件\n\n- [x] a\n- [ ] b\n- [x] c\n",
+      "## Summary\n\ns\n\n## Acceptance criteria\n\n- [x] a\n- [ ] b\n- [x] c\n",
     );
     expect(checked.data.acceptance.map((i) => i.checked)).toEqual([true, false, true]);
+    // 前の版の雛形の日本語の名前の節も同じに読み、印を付ける
+    await runCommand(ticketCreate, ctx, {
+      title: "J",
+      body: "## 概要\n\ns\n\n## 受け入れ条件\n\n- [ ] a\n- [ ] b\n",
+    });
+    expect((await runCommand(ticketShow, ctx, { ticket: "t2" })).data.acceptance).toHaveLength(2);
+    const ja = await runCommand(ticketCheck, ctx, { ticket: "t2", items: [2] });
+    expect(ja.data.body).toBe("## 概要\n\ns\n\n## 受け入れ条件\n\n- [ ] a\n- [x] b\n");
     expect(checked.write).toMatchObject({ committed: false });
     const undone = await runCommand(ticketCheck, ctx, { ticket: "t1", items: [1], undo: true });
     expect(undone.data.acceptance.map((i) => i.checked)).toEqual([false, false, true]);
@@ -540,7 +557,9 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
     await runCommand(ticketCreate, ctx, { title: "A", summary: "s", acceptance: ["a", "b"] });
     const read = (await runCommand(ticketShow, ctx, { ticket: "t1" })).data.body;
     const checked = await runCommand(ticketCheck, ctx, { ticket: "t1", items: [2], base: read });
-    expect(checked.data.body).toBe("## 概要\n\ns\n\n## 受け入れ条件\n\n- [ ] a\n- [x] b\n");
+    expect(checked.data.body).toBe(
+      "## Summary\n\ns\n\n## Acceptance criteria\n\n- [ ] a\n- [x] b\n",
+    );
     // 画面が古い本文（read）のまま 1 を押した：間に 2 の書き込みがあったので拒否し、本文は変えない
     await expect(
       runCommand(ticketCheck, ctx, { ticket: "t1", items: [1], base: read }),
@@ -559,6 +578,21 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
 });
 
 describe("Epic と Iteration", () => {
+  it("Epic の雛形は ## Summary を書き、lint は英語と日本語のどちらの名前の節も読む", async () => {
+    const f = await fixture();
+    const ctx = await initialized(f.cloneA);
+    const created = await runCommand(epicCreate, ctx, { title: "E", summary: "目的" });
+    expect((await runCommand(epicShow, ctx, { epic: created.data.id })).data.body).toBe(
+      "## Summary\n\n目的\n",
+    );
+    await runCommand(epicCreate, ctx, { title: "F", body: "## 概要\n\n前の版\n" });
+    await runCommand(epicCreate, ctx, { title: "G", body: "本文だけ\n" });
+    const issues = (await runCommand(lint, ctx, {})).data.issues.filter(
+      (i) => i.code === "lint_summary_missing",
+    );
+    expect(issues.map((i) => i.id)).toEqual(["e3"]);
+  });
+
   it("Epic は進捗を都度求め、終わっていないチケットが残ると force なしでは閉じられない", async () => {
     const f = await fixture();
     const ctx = await initialized(f.cloneA);

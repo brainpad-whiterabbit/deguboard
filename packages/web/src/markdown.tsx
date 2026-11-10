@@ -1,7 +1,8 @@
-// チケットと Epic の本文（## 概要・## 受け入れ条件）を表示する最小の Markdown。見出し・段落・箇条書き・チェックリスト・インラインコードだけ。
+// チケットと Epic の本文（## Summary・## Acceptance criteria。前の版の ## 概要・## 受け入れ条件 も同じ）を表示する最小の Markdown。見出し・段落・箇条書き・チェックリスト・インラインコードだけ。
 // タスクリストのある節は、見出しに済んだ数とメーターを出す。
-// onToggle を渡すと、`## 受け入れ条件` の節の項目（core の ticket.check の番号が付く行）だけチェックボックスを押せる。ほかの節は表示だけ
+// onToggle を渡すと、受け入れ条件の節の項目（core の ticket.check の番号が付く行）だけチェックボックスを押せる。ほかの節は表示だけ
 
+import type { BODY_HEADINGS } from "@deguboard/core";
 import type { ReactNode } from "react";
 import { ProgressMeter } from "./components/parts.js";
 import { tr } from "./l10n.js";
@@ -14,8 +15,19 @@ type Block =
 /** 箇条書きの 1 行。acceptance は受け入れ条件の番号（core の parseAcceptance の index と同じ数え方）で、節の外の行にはない */
 type ListItem = { checked: boolean | null; text: string; acceptance?: number };
 
+/**
+ * 受け入れ条件の節の名前。web は core の実行時のコードを取り込めないので、型で core の BODY_HEADINGS と同じ字に縛る
+ * （食い違えば型の検査が落ちる）
+ */
+const ACCEPTANCE_NAMES: (typeof BODY_HEADINGS)["acceptance"] = {
+  en: "Acceptance criteria",
+  ja: "受け入れ条件",
+};
 /** core の ticket.ts の ACCEPTANCE_HEADING と CHECK_LINE と同じ形。節は最初の見出しから次の `## ` の行まで */
-const ACCEPTANCE_HEADING = /^## 受け入れ条件[ \t]*$/;
+const ACCEPTANCE_HEADING = new RegExp(
+  `^## (?:${ACCEPTANCE_NAMES.en}|${ACCEPTANCE_NAMES.ja})[ \\t]*$`,
+  "i",
+);
 const ACCEPTANCE_ITEM = /^- \[[ xX]\] (.*)$/;
 
 export function parseBlocks(body: string): Block[] {

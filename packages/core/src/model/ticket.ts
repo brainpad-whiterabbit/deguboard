@@ -74,22 +74,57 @@ export function pendingDeps(
   });
 }
 
-/** `## 受け入れ条件` の見出し行。節の切り出しと雛形で共有する */
-const ACCEPTANCE_HEADING = /^## 受け入れ条件[ \t]*$/m;
+/**
+ * チケットと Epic の本文の節の名前（TK-3・EP-1）。en は雛形が書く名前、ja は前の版の雛形が書いた名前で、
+ * 読む側は両方を同じ節として読む（既存の本文は書き換えない）。節の名前を字のまま読む処理は core も web もここから引く
+ */
+export const BODY_HEADINGS = {
+  summary: { en: "Summary", ja: "概要" },
+  acceptance: { en: "Acceptance criteria", ja: "受け入れ条件" },
+  references: { en: "References", ja: "参考" },
+} as const;
+
+export type BodySection = keyof typeof BODY_HEADINGS;
+
+/** 正規表現の特殊文字を逃がす */
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * 節の見出し行（`## <英語か日本語の名前>`、行末の空白は許す）に合う正規表現。flags に m を渡すと本文の中の行を探せる。
+ * 英語の名前は大文字と小文字を区別しない
+ */
+export function bodyHeadingPattern(section: BodySection, flags = ""): RegExp {
+  const { en, ja } = BODY_HEADINGS[section];
+  return new RegExp(
+    `^## (?:${escapeRegExp(en)}|${escapeRegExp(ja)})[ \\t]*$`,
+    flags.includes("i") ? flags : `${flags}i`,
+  );
+}
+
+/** 本文に節の見出しがあるか（lint の節の欠け） */
+export function hasBodySection(body: string, section: BodySection): boolean {
+  return bodyHeadingPattern(section, "m").test(body);
+}
+
+/** `## Acceptance criteria`（か `## 受け入れ条件`）の見出し行。節の切り出しで使う */
+const ACCEPTANCE_HEADING = bodyHeadingPattern("acceptance", "m");
 /** チェックリストの 1 行。[1] が印、[2] が文 */
 const CHECK_ITEM = /^- \[([ xX])\] (.*\S)[ \t]*$/gm;
 
 /**
- * 本文の雛形（TK-3）。`## 概要` に summary を、`## 受け入れ条件` に acceptance の項目をチェックリストで置く。
+ * 本文の雛形（TK-3）。`## Summary` に summary を、`## Acceptance criteria` に acceptance の項目をチェックリストで置く。
  * 項目がなければ空の `- [ ] ` を 1 行置く（lint が空として指摘する）
  */
 export function ticketBodyTemplate(summary = "", acceptance: readonly string[] = []): string {
   const items = acceptance.length === 0 ? ["- [ ] "] : acceptance.map((a) => `- [ ] ${a.trim()}`);
-  return `## 概要\n\n${summary}\n\n## 受け入れ条件\n\n${items.join("\n")}\n`;
+  const h = BODY_HEADINGS;
+  return `## ${h.summary.en}\n\n${summary}\n\n## ${h.acceptance.en}\n\n${items.join("\n")}\n`;
 }
 
 /**
- * 本文から `## 受け入れ条件` の節（見出しの次の行から、次の `## ` 見出しの手前か末尾まで）を返す。
+ * 本文から受け入れ条件の節（見出しの次の行から、次の `## ` 見出しの手前か末尾まで）を返す。
  * 見出しがなければ undefined
  */
 export function acceptanceSection(body: string): string | undefined {
@@ -107,8 +142,9 @@ function acceptanceRange(body: string): { start: number; end: number } | undefin
 }
 
 /**
- * `## 受け入れ条件` の節の項目を items で置き換えた本文を返す。他の節は変えない。
- * 同じ文の項目が済み（`- [x]`）なら印を保つ（TK-5）。節がなければ末尾に足す
+ * 受け入れ条件の節の項目を items で置き換えた本文を返す。他の節は変えない。
+ * 同じ文の項目が済み（`- [x]`）なら印を保つ（TK-5）。節がなければ末尾に足す。
+ * 足す見出しは英語の名前で、本文が日本語の `## 概要` で書かれていれば日本語の名前にそろえる
  */
 export function replaceAcceptance(body: string, items: readonly string[]): string {
   const range = acceptanceRange(body);
@@ -123,7 +159,8 @@ export function replaceAcceptance(body: string, items: readonly string[]): strin
   const section = `\n\n${lines.join("\n")}\n`;
   if (!range) {
     const sep = body === "" ? "" : body.endsWith("\n") ? "\n" : "\n\n";
-    return `${body}${sep}## 受け入れ条件${section}`;
+    const ja = new RegExp(`^## ${BODY_HEADINGS.summary.ja}[ \\t]*$`, "m").test(body);
+    return `${body}${sep}## ${BODY_HEADINGS.acceptance[ja ? "ja" : "en"]}${section}`;
   }
   // 次の節が続くなら空行で区切る
   const tail = range.end < body.length ? "\n" : "";
