@@ -187,4 +187,101 @@ describe("プロセス内の CommandClient", () => {
     const list = await client.run<{ id: string; title: string }[]>("ticket.list");
     expect(list.data.map((t) => [t.id, t.title])).toEqual([["t1", "外から来"]]);
   });
+
+  it("同じ瞬間に届いた N 本の読みは、再走査を 1 回だけ行って結果を共有する", async () => {
+    const f = await initialized();
+    const client = createLocalClient({ cwd: f.cloneA });
+    await client.run("ticket.create", { title: "一" });
+    const rescan = vi.spyOn(Store.prototype, "rescan");
+    const results = await Promise.all([
+      client.run<{ id: string }[]>("ticket.list"),
+      client.run("epic.list"),
+      client.run("project.list"),
+      client.run("config.show", { fields: true }),
+      client.status(),
+    ]);
+    expect(rescan).toHaveBeenCalledTimes(1);
+    expect(results[0].data).toEqual([expect.objectContaining({ id: "t1" })]);
+  });
+
+  it("届く前に始まった再走査は使わず、届いた後の再走査で、要求の前に外で書いた変更が見える", async () => {
+    const f = await initialized();
+    const client = createLocalClient({ cwd: f.cloneA });
+    await client.run("ticket.create", { title: "画面から" });
+    // 最初の再走査を読み終えたところで止め、そのあいだに要求を届けて外から書き換える
+    const real = Store.prototype.rescan;
+    let entered!: () => void;
+    const reached = new Promise<void>((resolve) => (entered = resolve));
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    const rescan = vi.spyOn(Store.prototype, "rescan").mockImplementationOnce(async function (
+      this: Store,
+    ) {
+      await real.call(this);
+      entered();
+      await gate;
+    });
+    const first = client.run("ticket.list");
+    await reached;
+    const cli = await openContext({ cwd: f.cloneA });
+    await runCommand(
+      commands.find((c) => c.name === "ticket.create")!,
+      cli,
+      { title: "外から" },
+    );
+    const second = client.run<{ id: string }[]>("ticket.list");
+    release();
+    await first;
+    expect((await second).data.map((t) => t.id)).toEqual(["t1", "t2"]);
+    expect(rescan).toHaveBeenCalled();
+  });
+
+  it("書き込みのあとの読みは、使い回さずに新しく再走査する。書き込みは毎回自分で再走査する", async () => {
+    const f = await initialized();
+    const client = createLocalClient({ cwd: f.cloneA });
+    await client.run("ticket.create", { title: "一" });
+    await client.run("ticket.list");
+    const rescan = vi.spyOn(Store.prototype, "rescan");
+    await client.run("ticket.create", { title: "二" });
+    expect(rescan.mock.calls.length).toBeGreaterThanOrEqual(1);
+    rescan.mockClear();
+    const [first, second] = await Promise.all([
+      client.run<{ id: string }[]>("ticket.list"),
+      client.run<{ id: string }[]>("ticket.list"),
+    ]);
+    expect(rescan).toHaveBeenCalledTimes(1);
+    expect(first.data).toHaveLength(2);
+    expect(second.data).toHaveLength(2);
+  });
+
+  it("同時に届いた読みの 1 本が失敗しても、他の結果は返り、失敗はその呼び出しの失敗になる", async () => {
+    const f = await initialized();
+    const client = createLocalClient({ cwd: f.cloneA });
+    await client.run("ticket.create", { title: "一" });
+    const [missing, list] = await Promise.allSettled([
+      client.run("ticket.show", { ticket: "t99" }),
+      client.run<{ id: string }[]>("ticket.list"),
+    ]);
+    expect(missing.status).toBe("rejected");
+    expect(toCommandFailure((missing as PromiseRejectedResult).reason)).toMatchObject({
+      code: "NOT_FOUND",
+    });
+    expect(list).toMatchObject({ status: "fulfilled", value: { data: [{ id: "t1" }] } });
+  });
+
+  it("再走査が失敗すると、その要求だけが失敗し、次の要求は自分で再走査する", async () => {
+    const f = await initialized();
+    const client = createLocalClient({ cwd: f.cloneA });
+    await client.run("ticket.create", { title: "一" });
+    vi.spyOn(Store.prototype, "rescan").mockRejectedValueOnce(new Error("走査に失敗"));
+    await expect(client.run("ticket.list")).rejects.toThrow("走査に失敗");
+    const cli = await openContext({ cwd: f.cloneA });
+    await runCommand(
+      commands.find((c) => c.name === "ticket.create")!,
+      cli,
+      { title: "外から" },
+    );
+    const list = await client.run<{ id: string }[]>("ticket.list");
+    expect(list.data.map((t) => t.id)).toEqual(["t1", "t2"]);
+  });
 });
