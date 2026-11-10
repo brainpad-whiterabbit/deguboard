@@ -6,7 +6,7 @@ after:
     - t492
   t493:
     - t492
-pending_approval: true
+pending_approval: false
 details:
   t492:
     scope: requirements.md の「1. 目的」を Agentic-Agile の実践・人はパートナー・対象はソフトウェア開発に書き換え、食い違う ADR（ADR-028 など）を直す
@@ -20,3 +20,5 @@ details:
     scope: README.md・README.ja.md の冒頭と特長、拡張の package.nls の description、cli の package.json と README の冒頭を Agentic-Agile の実践に合わせる
     approach: 2 本の README の節の構成をそろえ、vsix の生成で拡張の README に入るのを確かめる。Microsoft 公式と受け取られない書き方にする
     tier: light
+approved_by: eiki.kitajima/agent
+approved_at: 2026-11-10T01:53:05Z
