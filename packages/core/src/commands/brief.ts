@@ -7,7 +7,12 @@ import { z } from "zod";
 import { findBranchWorktree } from "../git/worktree.js";
 import { composeGuide } from "../guide/guide.js";
 import { REVIEW_STEP } from "../model/run.js";
-import { type AcceptanceItem, parseAcceptance, type Ticket } from "../model/ticket.js";
+import {
+  type AcceptanceItem,
+  DEFAULT_GATE_LEVEL,
+  parseAcceptance,
+  type Ticket,
+} from "../model/ticket.js";
 import { findingKey, findingText, latestRoundSince, splitFindings } from "../run/findings.js";
 import { readReviewFindings } from "../run/record.js";
 import { defineCommand, ok, type CommandContext } from "./define.js";
@@ -251,6 +256,14 @@ export async function briefOf(
     // 節の見出しは区切りの行に書くので外す（本文だけを入れる）
     guideText: note.text.replace(/^[^\n]*\n*/, ""),
   };
+  // low・free の段は見直しを判定しない（TK-9）。頼めば品質ゲートに効かない見直しの Run が増えるので、止めずに警告する
+  const level = ticket.gate ?? DEFAULT_GATE_LEVEL;
+  const gateWarnings =
+    role === "review" && level !== "high"
+      ? [
+          `The gate level of ${ticket.id} is ${level}, so the review is skipped in the flow and dg gate does not judge it (dg next goes to ready). Raise the level with dg ticket update ${ticket.id} --gate high if a review is needed`,
+        ]
+      : [];
   return {
     brief: {
       ticket: ticket.id,
@@ -258,7 +271,7 @@ export async function briefOf(
       step,
       text: composeBrief(role, facts, findings),
     },
-    warnings: note.warnings,
+    warnings: [...gateWarnings, ...note.warnings],
   };
 }
 
@@ -269,6 +282,7 @@ export const brief = defineCommand({
   summary:
     "Compose the text to hand to a sub-agent (EX-3; read-only). For each role (implement, review, fix), returns text whose first line is the marker `deguboard: ticket=<id> step=<step>` (the hook opens and closes the Run from the marker). " +
     "The text includes the location (worktree and branch), the Plan's scope and approach, conventions, the role's steps (the body of the guide section), the acceptance criteria, tools (Read and Edit), how to treat the Run, what not to do, and what to return. For review it includes the call that records the result; for fix it includes the findings to fix (from the latest review record: the heavy findings and the light findings that match acceptance criteria wording; findings passed in are used instead) and the call that writes the reasons for the retry (run retry-reason). " +
+    "For a review of a ticket whose gate level is low or free (TK-9), it warns that the flow skips the review (it still returns the text). " +
     "The fixed text is in English. Ticket content stays in the words it was written in. It is the same text as the brief for dg next's implement, review, and fix steps",
   input: z.object({
     ticket: ticketRef,

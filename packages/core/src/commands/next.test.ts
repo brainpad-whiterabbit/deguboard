@@ -122,6 +122,36 @@ describe("作業の段階（stageOf。EX-3）", () => {
     });
   });
 
+  it("段が low・free で PR があれば見直しを飛ばす：draft は通った reviewed、出したら ready。段がなければ今と同じ", () => {
+    for (const gate of ["low", "free"] as const) {
+      // 見直しがなくても、重い指摘の見直しがあっても、見直しの往復に入らない
+      for (const runs of [[], [review(6, heavy)]]) {
+        expect(stageOf(facts({ ticket: { gate }, runs }))).toMatchObject({
+          name: "reviewed",
+          review_passed: true,
+          reason: expect.stringContaining(`gate level is ${gate}`),
+        });
+      }
+      expect(stageOf(facts({ ticket: { gate, status: "review" } }))).toMatchObject({
+        name: "ready",
+        review_passed: true,
+      });
+      // PR がない・todo・done・止まった Run の判定は段によらず先に効く
+      expect(stageOf(facts({ ticket: { gate, pr: undefined } })).name).toBe("claimed");
+      expect(stageOf(facts({ ticket: { gate, status: "todo", pr: undefined } })).name).toBe("todo");
+      expect(stageOf(facts({ ticket: { gate, status: "done" } })).name).toBe("merged");
+      const waiting = run("implement", 1, {
+        finished_at: null,
+        result: null,
+        waiting_since: "2026-11-07T10:02:00Z",
+      });
+      expect(stageOf(facts({ ticket: { gate }, runs: [waiting] })).name).toBe("waiting_human");
+    }
+    // 段のない・high のチケットは今と同じ（見直しがなければ implemented）
+    expect(stageOf(facts()).name).toBe("implemented");
+    expect(stageOf(facts({ ticket: { gate: "high" } })).name).toBe("implemented");
+  });
+
   it("ブランチを記録する前の見直しは数えない（使い回したブランチの前の作業）", () => {
     expect(
       stageOf(facts({ ticket: { branch_at: "2026-11-07T10:03:00Z" }, runs: [review(1, heavy)] })),
@@ -297,6 +327,29 @@ describe("dg next と ticket show の stage（EX-3）", () => {
       step: "review",
       running_run: waiting.id,
     });
+  });
+
+  it("段が low・free のチケットは review・fix の手を返さず、draft なら ready、出した PR は wait_merge。段がなければ review", async () => {
+    const ctx = await prepared();
+    for (const gate of ["low", "free"] as const) {
+      const draft = nextOf(ctx, facts({ ticket: { gate }, runs: [review(6, heavy)] }));
+      expect(draft).toMatchObject({ kind: "ready", step: null });
+      expect(draft.commands).toEqual([
+        "dg --json --actor agent pr ready t1",
+        "dg --json --actor agent sync",
+      ]);
+      expect(nextOf(ctx, facts({ ticket: { gate, status: "review" } })).kind).toBe("wait_merge");
+      // 実装の Run が実行中なら、ready の手も終わりを待つ
+      const implementing = nextOf(
+        ctx,
+        facts({
+          ticket: { gate },
+          runs: [run("implement", 6, { finished_at: null, result: null })],
+        }),
+      );
+      expect(implementing).toMatchObject({ kind: "ready", running_run: expect.any(String) });
+    }
+    expect(nextOf(ctx, facts()).kind).toBe("review");
   });
 
   it("実行中の Run で置き換えるのは実装・見直し・手直し・ready の手だけ。使い回したブランチの前に始まった Run は数えない", async () => {

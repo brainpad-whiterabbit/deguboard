@@ -1,6 +1,6 @@
 ---
 description: Advances the tickets of an approved Plan, starting with the ones that can be started. Claims a ticket, implements it, checks its acceptance criteria, and takes it to a PR. Work that needs no PR goes to done. Use when asked「p3 を進めて」「計画を再開して」「t12 を進めて」. For several tickets with no Plan, make a plan with dgplan first.
-argument-hint: "<Plan ID|ticket ID>"
+argument-hint: "<Plan ID|ticket ID> [--gate-high|--gate-low|--gate-free]"
 ---
 
 # Work (work)
@@ -12,10 +12,11 @@ Advances one ticket to a draft PR. `dg next` decides the steps and their order. 
 - Plan ID (`p3`): following "Following the Plan" below, advance one ticket at a time, starting with one that can be started
 - Ticket ID: advance that ticket. If it is in an open Plan (`plan` of `ticket show`), follow that Plan
 - No target given: suggest an approved Plan from `plan list --status open`, and confirm. If there is none, suggest making a plan with `dg guide plan`
+- `--gate-high`, `--gate-low`, `--gate-free`: the quality gate level for the target tickets. See "Gate level" below
 
 ## Flow
 
-1. Call `dg --json --actor agent next <id>`, and do one of the `kind` steps. Do the `commands` in order. If there is a `brief`, paste it to a subagent (you may add a location for temporary files after it). If `model` is not empty, start the subagent with that model (`null` means the parent's model). A research subagent with no mark uses `models.light` (the parent's model if it is empty). After finishing, call `next` again
+1. If a level was given, follow "Gate level" first. Call `dg --json --actor agent next <id>`, and do one of the `kind` steps. Do the `commands` in order. If there is a `brief`, paste it to a subagent (you may add a location for temporary files after it). If `model` is not empty, start the subagent with that model (`null` means the parent's model). A research subagent with no mark uses `models.light` (the parent's model if it is empty). After finishing, call `next` again
 2. The parent's step for each `kind`:
    - `implement`: do the claim in `commands`, and follow "Before and after claim". Claim creates the worktree of the work branch, and returns its location in `worktree` (the default is `{{worktree.root}}/<branch name>`). Pass the text, and when it returns, do "Receive the implementation result". If the parent implements it itself, remove `--no-run` from the claim and do "Implement" below (claim opens the implementation Run)
    - `review`: start the reviewer by the "Starting the review (parent)" section of `dg guide review` (the text includes the "Review" steps)
@@ -24,6 +25,11 @@ Advances one ticket to a draft PR. `dg next` decides the steps and their order. 
    - `wait_merge` and `wait_human`: tell a human `ask_human` and ask (`wait_human` is in the "How to finish" section of `dg guide review`). For review findings from a human, follow the "Fix loop (parent)" section of `dg guide review`. After the merge, `dg guide done`
    - `wait_deps`: wait. Choose another ticket from `next` of the Plan
    - `done`: clean up by the steps of `dg guide done`
+
+## Gate level
+
+- **Setting it**: when the command gave `--gate-<level>`, before the first `next` of each target ticket, compare the level with `gate` of `ticket show` (no `gate` is high). Only when it differs, run `dg --json --actor agent ticket update <id> --gate <level>`. A level a human wrote in the command is the human's decision, so set it without asking. With no level given, keep the ticket's own level
+- **Flow per level**: `next` follows the level. high (the default): implement → review → fix → `ready` → merge. low: implement → `ready` → merge, with no review or fix loop, and `dg gate` still runs the checks. free: implement → `ready` → merge, with neither the review nor the checks. For low and free, do not start a reviewer (`brief <id> --role review` warns). The conditions per level are in the "Quality gate" section of `dg guide review`
 
 ## Before and after claim
 
@@ -36,7 +42,7 @@ Advances one ticket to a draft PR. `dg next` decides the steps and their order. 
 
 The implementer works within the scope and approach of `plan` in `next`, and does the following.
 
-1. Pass the checks of the repository (format, lint, tests)
+1. Pass the checks of the repository (format, lint, tests). A ticket whose `gate` is free does not need them
 2. Read again the sources of truth for the sections touched (requirements, README, code comments). In the same PR, fix the documents of promises, procedures, and conventions that this PR changed. Report stale documents from before that this PR did not change, without fixing them. If the PR changed a decision, also rewrite the body of that decision's ADR (if there is one) directly in the same PR (keep the number). Delete the details of an ADR that this PR made wrong. Requirements state only promises, so do not add details to them (the sources of details are help, code, and tests)
 3. Make a PR with `gh pr create --draft`. In the body, write the ticket ID (`t12`), the acceptance criteria that could not be met and why, and the sources you read again and the places you fixed
 4. Report only the acceptance criteria that you confirmed as met by the deliverable or tests (the parent attaches the marks)

@@ -1,10 +1,10 @@
 ---
 name: dgall
 description: Advances a deguboard Iteration or tickets through assignment, check, plan, work, audit, and release (or clean-up), in one flow. Approval stays where each stage's steps put it, and the flow does not stop between stages. A flow that stopped midway can be resumed with the same arguments. --no-assign skips the assignment stage. --auto chooses reversible decisions that come with a suggested option. Use when asked「s3 を最後まで進めて」「割り当てからリリースまでやって」.
-argument-hint: <Iteration|ticket ID...> [--no-assign] [--auto]
+argument-hint: <Iteration|ticket ID...> [--no-assign] [--auto] [--gate-high|--gate-low|--gate-free]
 ---
 
-<!-- dg skill sha256:2714963862678dbab092551b20a562869dcb5101431b81d5440666e1c7d2d7e3 -->
+<!-- dg skill sha256:892520b252d5053c7ab301fa4e08633b640554ec3c1070b420359edaab1ac4ac -->
 
 # End to end (all)
 

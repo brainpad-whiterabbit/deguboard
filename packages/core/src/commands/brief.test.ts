@@ -155,6 +155,27 @@ describe("dg brief と dg next の文（EX-3）", () => {
     expect(fix.text).toContain("1. 直す指摘");
   });
 
+  it("段が low・free のチケットで見直しの文を求めると、文を返したうえで警告する。high・段なし・ほかの役では警告しない", async () => {
+    const ctx = await prepared();
+    const gateWarnings = async (ticket: string, role: "implement" | "review" | "fix") =>
+      (await runCommand(brief, ctx, { ticket, role, findings: "1. 指摘" })).warnings.filter((w) =>
+        w.includes("gate level"),
+      );
+    expect(await gateWarnings("t1", "review")).toEqual([]);
+    for (const gate of ["low", "free"] as const) {
+      await runCommand(ticketUpdate, ctx, { ticket: "t1", gate });
+      const result = await runCommand(brief, ctx, { ticket: "t1", role: "review" });
+      expect(result.data.text.split("\n")[0]).toBe("deguboard: ticket=t1 step=review");
+      expect(result.warnings).toContainEqual(
+        expect.stringContaining(`The gate level of t1 is ${gate}`),
+      );
+      expect(await gateWarnings("t1", "implement")).toEqual([]);
+      expect(await gateWarnings("t1", "fix")).toEqual([]);
+    }
+    await runCommand(ticketUpdate, ctx, { ticket: "t1", gate: "high" });
+    expect(await gateWarnings("t1", "review")).toEqual([]);
+  });
+
   it("dg brief は英語の名前の節（## Acceptance criteria）の受け入れ条件も文に入れる", async () => {
     const ctx = await prepared();
     await runCommand(ticketCreate, ctx, {

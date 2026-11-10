@@ -4,6 +4,14 @@ Checked before a PR is handed to a human (`review`, `fix`, and `ready` from `dg 
 
 ## Quality gate
 
+The conditions judged depend on the ticket's gate level (`gate` of `ticket show`; a ticket with no level is high). Set it with `dg --json --actor agent ticket update <id> --gate <level>`, and lower it only on a human's instruction (`--gate-<level>` written in `/dgall` or `/dgwork` is one).
+
+| Level            | Conditions `dg gate` judges           | Flow after the PR (`dg next`)                     |
+| ---------------- | ------------------------------------- | ------------------------------------------------- |
+| high (default)   | All of the items below                | Review → fix → `ready` → merge                    |
+| low              | All but the review and `fix_rounds`   | `ready` → merge (no review; the checks still run) |
+| free             | Only `pr` and, before a merge, `mergeable` | `ready` → merge (no review and no checks)    |
+
 - **Checks**: `check` of `dg gate` runs `actions.test` (current setting: `{{actions.test}}`) in the worktree of the latest commit of the work branch to confirm it. If all the files that differ from base are in `actions.light_paths` (current setting: `{{actions.light_paths}}`), it runs the light check `actions.light_test` (current setting: `{{actions.light_test}}`) instead. The `check` detail shows which one ran. When you run it by hand, choose the same way. If `actions.test` is empty, nothing is judged, so the parent runs the repository's convention checks (format, lint, tests) on the latest commit to confirm. If there is CI, CI too
 - **Acceptance criteria**: before a PR is opened, the items confirmed have a mark, and the items that cannot be marked have a reason in the PR body and the report. Before a merge, all of them are marked (`acceptance` of `dg gate`)
 - **Review**: a separate subagent's review has no heavy findings left. `review` of `dg gate` confirms that a review passed after the last push, and `fix_rounds` confirms that the count is within the limit

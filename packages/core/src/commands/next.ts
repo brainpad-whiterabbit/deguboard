@@ -4,7 +4,7 @@
 import { z } from "zod";
 import { lastPushedAt } from "../git/facts.js";
 import { REVIEW_STEP, type Run } from "../model/run.js";
-import type { Ticket } from "../model/ticket.js";
+import { DEFAULT_GATE_LEVEL, type Ticket } from "../model/ticket.js";
 import type { Config } from "../model/config.js";
 import type { PlanTier } from "../model/plan.js";
 import { readRunningRuns } from "../run/record.js";
@@ -106,7 +106,7 @@ const WAITABLE: readonly NextKind[] = ["implement", "review", "fix", "ready"];
 
 /** 段階を求める材料（事実）。テストは事実を直に渡して求め方を確かめる */
 export interface StageFacts {
-  ticket: Pick<Ticket, "id" | "status" | "pr" | "branch" | "branch_at">;
+  ticket: Pick<Ticket, "id" | "status" | "pr" | "branch" | "branch_at" | "gate">;
   /** Plan の待ち（after）と依存先の終わっていないもの */
   waiting: readonly string[];
   /** このチケットの Run（閉じたものと実行中のもの） */
@@ -155,6 +155,25 @@ export function stageOf(facts: StageFacts): Stage {
       ? stage("blocked", n, fixes, `Waiting on ${facts.waiting.join(", ")}`)
       : stage("todo", n, fixes, "Can be started");
   if (ticket.pr === undefined) return stage("claimed", n, fixes, "No PR yet");
+  // low・free の段は見直しを判定しない（TK-9）ので、見直しと手直しの往復を飛ばす。
+  // draft なら見直しが通ったものとして ready の手（dg pr ready）に、draft でなければマージを待つ
+  const level = ticket.gate ?? DEFAULT_GATE_LEVEL;
+  if (level !== "high")
+    return ticket.status === "in_progress"
+      ? stage(
+          "reviewed",
+          n,
+          fixes,
+          `The gate level is ${level}, so the review is skipped (the PR is a draft)`,
+          true,
+        )
+      : stage(
+          "ready",
+          n,
+          fixes,
+          `The gate level is ${level}, so the review is skipped, and PR #${ticket.pr} was marked ready`,
+          true,
+        );
   const latest = reviews.at(-1);
   // 最後の見直しより後に閉じた手直しが failure か interrupted なら、人を待つ（the "How to finish" section of `dg guide review`）
   // 一番新しい手直しの Run だけを見る（人が続けると決めて開き直した手直しが成功していれば、前の失敗は見ない）
@@ -389,6 +408,7 @@ export const next = defineCommand({
     "claimed (no PR), implemented (PR exists, no review), reviewing (a review is running), reviewed (the review after the last push has closed; review_passed says whether it passed), " +
     "fixed (a push after the last review, or the last review has no result), ready (the review passed and a PR was opened), merged (done), closed (abandoned), " +
     `waiting_human (a Run is waiting for a person, the fix after the last review closed with failure or interrupted, or reviews that raised heavy findings went past ${FIX_ROUNDS_LIMIT} times). Whether the PR is a draft is seen in status (a PR with in_progress is a draft). ` +
+    "For a ticket whose gate level is low or free (TK-9), a PR skips the review: a draft is reviewed with review_passed (the ready step), otherwise ready (wait_merge). " +
     "The stage is derived from the facts of Runs (implementation, review, and fix Runs and their results, and the mark of waiting for a person), the PR, the work branch, and Plan waits. " +
     "It returns the kind of step (kind: implement, review, fix, ready, wait_merge, wait_deps, wait_human, done), the step to open, the Run in progress, the Plan's tier, scope, and approach, the commands to call (commands; delegate to a sub-agent. If the model is the same as the parent's and it proceeds on its own, the implement claim drops --no-run and does not use the mark. For implement, review, fix, and ready steps, if that step's Run is already running, or an implementation Run or a fix Run on this branch that has no push since it started is running, it waits for that to end instead of starting another), and the questions to ask a person (ask_human). " +
     "For implement, review, and fix steps it includes the text to paste into a sub-agent (brief, the same as dg brief). " +

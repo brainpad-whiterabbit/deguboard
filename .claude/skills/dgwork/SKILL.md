@@ -1,10 +1,10 @@
 ---
 name: dgwork
 description: Advances the tickets of an approved Plan, starting with the ones that can be started. Claims a ticket, implements it, checks its acceptance criteria, and takes it to a PR. Work that needs no PR goes to done. Use when asked「p3 を進めて」「計画を再開して」「t12 を進めて」. For several tickets with no Plan, make a plan with dgplan first.
-argument-hint: <Plan ID|ticket ID>
+argument-hint: <Plan ID|ticket ID> [--gate-high|--gate-low|--gate-free]
 ---
 
-<!-- dg skill sha256:eba8fa94de45fdfe2626ddf59e573b44f733957acbcd2e1c26c1da3993cb5b19 -->
+<!-- dg skill sha256:f557c0fe1ba179d4970bd7d554cbe97fe44062e498c81f13d08f16f07f2f59a4 -->
 
 # Work (work)
 

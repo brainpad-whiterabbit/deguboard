@@ -502,6 +502,44 @@ describe("dg flow next", () => {
     });
   });
 
+  it("--gate を渡すと、作業の段階で段の違うチケットにだけ next の前に段を付ける。段のないチケットは high とみなす", async () => {
+    const ctx = await ready();
+    await runCommand(iterationCreate, ctx, { name: "S1" });
+    await runCommand(ticketCreate, ctx, { title: "段なし" });
+    await runCommand(ticketCreate, ctx, { title: "free", gate: "free" });
+    await runCommand(ticketCreate, ctx, { title: "low", gate: "low" });
+    await runCommand(iterationAdd, ctx, { iteration: "s1", tickets: ["t1", "t2", "t3"] });
+    await runCommand(planCreate, ctx, { tickets: ["t1", "t2", "t3"] });
+    await runCommand(planApprove, ctx, { plan: "p1" });
+    const checked = await flow(ctx, { gate: "free" });
+    expect(checked.stage.name).toBe("check");
+    // 点検の段階には段を付ける行を入れない
+    expect(checked.commands.join(" ")).not.toContain("--gate");
+    const work = await flow(ctx, { gate: "free", resume: checked.resume });
+    expect(work.stage.name).toBe("work");
+    expect(work.commands).toEqual([
+      "dg --json --actor agent plan show p1",
+      "dg --json --actor agent ticket update t1 --gate free",
+      "dg --json --actor agent next t1",
+      "dg --json --actor agent next t2",
+      "dg --json --actor agent ticket update t3 --gate free",
+      "dg --json --actor agent next t3",
+    ]);
+    // high は段のないチケットと同じ段なので入れない
+    const high = await flow(ctx, { gate: "high", resume: checked.resume });
+    expect(high.commands).toEqual([
+      "dg --json --actor agent plan show p1",
+      "dg --json --actor agent next t1",
+      "dg --json --actor agent ticket update t2 --gate high",
+      "dg --json --actor agent next t2",
+      "dg --json --actor agent ticket update t3 --gate high",
+      "dg --json --actor agent next t3",
+    ]);
+    // --gate がなければ今と同じ
+    const plain = await flow(ctx, { resume: checked.resume });
+    expect(plain.commands.join(" ")).not.toContain("--gate");
+  });
+
   it("registry に flow.next として載り、読み取りだけ", () => {
     expect(findCommand("flow.next")).toMatchObject({ write: false, group: "flow" });
   });
