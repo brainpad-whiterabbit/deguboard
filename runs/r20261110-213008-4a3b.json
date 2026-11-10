@@ -1,0 +1,34 @@
+{
+  "id": "r20261110-213008-4a3b",
+  "ticket": "t680",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-10T21:30:08Z",
+  "finished_at": "2026-11-10T21:35:15Z",
+  "result": "success",
+  "error": null,
+  "retries": 3,
+  "retry_reasons": [
+    "flow.ts の work の段の guide.text に work の選択肢が入り、dgall が flow next に戻らず止まる食い違いを直す",
+    "guide-work の wait_human の書きぶりを、止まらずほかの ready を進める形に直す",
+    "guide.command と text の読み直しのテストを work の段に広げ、also の節の扱いを揃える"
+  ],
+  "usage": {
+    "input": 38,
+    "output": 15833,
+    "cache_read": 1058453,
+    "cache_write": 63241
+  },
+  "tools": {
+    "read": 6,
+    "search": 0,
+    "write": 6,
+    "bash": 16,
+    "other": 1,
+    "read_before_write": 6,
+    "search_before_write": 0
+  },
+  "session": "816996d9-8e7c-419b-8543-85c2e8405cdf",
+  "review": null
+}
