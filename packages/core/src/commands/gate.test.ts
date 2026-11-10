@@ -111,7 +111,8 @@ describe("dg gate（品質ゲート。t532）", () => {
     expect(failed(await judge(ctx))).toEqual(["acceptance"]);
     await runCommand(ticketCheck, ctx, { ticket: "t1", items: [1, 2] });
     const view = await judge(ctx);
-    expect(view).toMatchObject({ ticket: "t1", for: "merge", pr: 7, passed: true });
+    // gate のないチケットは high として判定し、判定した段を gate に出す
+    expect(view).toMatchObject({ ticket: "t1", for: "merge", gate: "high", pr: 7, passed: true });
     expect(view.conditions.map((c) => c.id)).toEqual([
       "pr",
       "acceptance",
@@ -176,6 +177,29 @@ describe("dg gate（品質ゲート。t532）", () => {
     await setPr("");
     // 空の JSON は読めない PR として扱い、通さない
     expect(failed(await judge(ctx))).toEqual(["pr", "mergeable"]);
+  });
+
+  it("high と書いた段は gate のないチケットと同じ条件で判定する", async () => {
+    const { ctx } = await prepared();
+    await runCommand(ticketUpdate, ctx, { ticket: "t1", gate: "high" });
+    const view = await judge(ctx, "ready");
+    expect(view.gate).toBe("high");
+    expect(view.conditions.map((c) => c.id)).toEqual(["pr", "review", "fix_rounds", "check"]);
+    expect(failed(view)).toEqual(["review"]);
+  });
+
+  it("low は見直しの Run がなくても pr・acceptance・mergeable・check で通り、受け入れ条件に印がなければ acceptance で落ちる", async () => {
+    const { ctx } = await prepared();
+    await runCommand(ticketUpdate, ctx, { ticket: "t1", gate: "low" });
+    const ready = await judge(ctx, "ready");
+    expect(ready).toMatchObject({ gate: "low", passed: true });
+    expect(ready.conditions.map((c) => c.id)).toEqual(["pr", "check"]);
+    const merge = await judge(ctx);
+    expect(merge.conditions.map((c) => c.id)).toEqual(["pr", "acceptance", "mergeable", "check"]);
+    // actions.test が空なので、check はほかの条件によらず判定せずに通る
+    expect(failed(merge)).toEqual(["acceptance"]);
+    await runCommand(ticketCheck, ctx, { ticket: "t1", items: [1, 2] });
+    expect(await judge(ctx)).toMatchObject({ gate: "low", passed: true });
   });
 });
 
@@ -294,6 +318,33 @@ describe("dg gate の検査（actions.test。t601）", () => {
       process.env["PATH"] = saved;
     });
     expect(check(await judge(ctx, "ready")).ok).toBe(true);
+  });
+
+  it("low は見直しがなくても検査を回して判定し、検査が落ちれば通さない", async () => {
+    const { f, ctx, runs, setCode } = await withCheck();
+    await runCommand(ticketUpdate, ctx, { ticket: "t1", gate: "low" });
+    expect(await judge(ctx, "ready")).toMatchObject({ gate: "low", passed: true });
+    expect(await runs()).toBe(1);
+    await setCode(1);
+    await runCommand(ticketCheck, ctx, { ticket: "t1", items: [1, 2] });
+    // 通った結果はコミットごとに覚えるので、検査を落とすには新しいコミットが要る
+    await git(f.cloneA, ["commit", "-q", "--allow-empty", "-m", "直し"]);
+    await git(f.cloneA, ["push", "-q", "origin", "feat/t1"]);
+    expect(failed(await judge(ctx))).toEqual(["check"]);
+  });
+
+  it("free は merge で pr・mergeable、ready で pr だけを判定し、actions.test が落ちる設定でも見直しなしで通る", async () => {
+    const { ctx, runs, setCode } = await withCheck();
+    await setCode(1);
+    await runCommand(ticketUpdate, ctx, { ticket: "t1", gate: "free" });
+    const ready = await judge(ctx, "ready");
+    expect(ready).toMatchObject({ gate: "free", passed: true });
+    expect(ready.conditions.map((c) => c.id)).toEqual(["pr"]);
+    // 受け入れ条件に印がなくても通る
+    const merge = await judge(ctx);
+    expect(merge).toMatchObject({ gate: "free", passed: true });
+    expect(merge.conditions.map((c) => c.id)).toEqual(["pr", "mergeable"]);
+    expect(await runs()).toBe(0);
   });
 
   it("worktree が最新のコミットでない・未コミットの変更があるなら回さずに満たさない", async () => {
