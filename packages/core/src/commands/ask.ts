@@ -20,7 +20,6 @@ export const ASK_ACTIONS = [
   "create",
   "create_iteration",
   "create_epic",
-  "fix",
   "split",
   "remove",
   "edit",
@@ -133,7 +132,7 @@ export const DG_PATH_NOTE =
 
 /**
  * Skill（dg<トピック>）が何をするかの 1 文。SKILL.md の冒頭（dg skill install は en）と、頼む小窓の札・候補のツールチップ（候補の skill_summary）が、この 1 か所から出る（UI-15・AG-2）。
- * 文を別の場所に写さない。9 本すべてに文があることは cli のテストが確かめる。Skill の guide の frontmatter の description を変えたら、この文も見直す
+ * 文を別の場所に写さない。配る Skill のすべてに文があることは cli のテストが確かめる。Skill の guide の frontmatter の description を変えたら、この文も見直す
  */
 export const SKILL_SUMMARY: Readonly<Record<string, Readonly<Record<AskLanguage, string>>>> = {
   dgimport: {
@@ -171,6 +170,10 @@ export const SKILL_SUMMARY: Readonly<Record<string, Readonly<Record<AskLanguage,
   dgrelease: {
     ja: "Iteration のチケットがすべて done かを確かめ、リリースの手順で進めて Iteration を閉じます。",
     en: "Checks that all tickets in an Iteration are done, follows the release steps, and closes the Iteration.",
+  },
+  dgchange: {
+    ja: "人が頼んだ直す・閉じる・再開・やめる・done の取り消しを、前提を確かめてから dg の 1 回の呼び出しで行います。",
+    en: "Carries out the edit, close, reopen, abandon, or undo done that a human asked for, with one dg call after checking the preconditions.",
   },
 };
 
@@ -268,7 +271,7 @@ interface ActionDef {
   label(s: Subjects, w?: Within): string;
   /** 文章だけの形の頼む 1 文。対象の ID を含める。lang は定型の文の言語 */
   text(s: Subjects, w: Within | undefined, lang: AskLanguage): string;
-  /** Skill の呼び出しだけでは頼むことが決まらないとき（起票・作成・外す・分ける・組み直す・持ち越し）、指示の行と同じ位置に置く短い頼みごとの 1 行 */
+  /** Skill の呼び出しだけでは頼むことが決まらないとき（起票・作成・外す・分ける・組み直す・持ち越し・dgchange の書き換え）、指示の行と同じ位置に置く短い頼みごとの 1 行 */
   intent?(s: Subjects, w: Within | undefined, lang: AskLanguage): string;
   /** 1 行目に並べる対象。省けばすべて */
   args?(s: Subjects): Subjects;
@@ -420,16 +423,6 @@ const ACTIONS: Record<AskAction, ActionDef> = {
       ),
     human: () => [{ check: ["epic.create"], command: 'dg epic create "<題>"' }],
   },
-  fix: {
-    skill: "dgimport",
-    label: () => "直す",
-    text: (s, _w, lang) =>
-      say(
-        lang,
-        `${idList(s, lang)} を指示のとおりに直してください。`,
-        `Fix ${idList(s, lang)} as instructed.`,
-      ),
-  },
   split: {
     skill: "dgimport",
     label: () => "分ける",
@@ -441,7 +434,7 @@ const ACTIONS: Record<AskAction, ActionDef> = {
       ) +
       createdByHumanLater(lang) +
       end(lang),
-    // 直すと同じ呼び出しになるので、分けることを添える
+    // チケットの ID だけの /dgimport は会話からチケットを直すことになるので、分けることを添える
     intent: (s, _w, lang) => say(lang, `${idList(s, lang)} を分けて`, `Split ${idList(s, lang)}`),
   },
   remove: {
@@ -469,9 +462,15 @@ const ACTIONS: Record<AskAction, ActionDef> = {
           ]
         : [],
   },
+  // 人の指示による書き換え（直す・閉じる・再開・やめる・done の取り消し）は /dgchange。呼び出しだけでは何を書き換えるかが決まらないので、頼みごとの 1 行を添える
   edit: {
-    skill: null,
-    label: (s) => (single(s, "iteration") ? "名前・目標・期間を直す" : "題・概要を直す"),
+    skill: "dgchange",
+    label: (s) =>
+      single(s, "iteration")
+        ? "名前・目標・期間を直す"
+        : single(s, "epic")
+          ? "題・概要を直す"
+          : "直す",
     text: (s, _w, lang) =>
       single(s, "iteration")
         ? say(
@@ -479,11 +478,31 @@ const ACTIONS: Record<AskAction, ActionDef> = {
             `${idList(s, lang)} の名前・目標・期間を、指示のとおりに直してください。`,
             `Update the name, goal, and dates of ${idList(s, lang)} as instructed.`,
           )
-        : say(
+        : single(s, "epic")
+          ? say(
+              lang,
+              `${idList(s, lang)} の題と概要を、指示のとおりに直してください。`,
+              `Update the title and summary of ${idList(s, lang)} as instructed.`,
+            )
+          : say(
+              lang,
+              `${idList(s, lang)} を指示のとおりに直してください（題・概要・受け入れ条件・優先度・ラベル・依存）。`,
+              `Edit ${idList(s, lang)} as instructed (title, summary, acceptance criteria, priority, labels, dependencies).`,
+            ),
+    intent: (s, _w, lang) =>
+      single(s, "iteration")
+        ? say(
             lang,
-            `${idList(s, lang)} の題と概要を、指示のとおりに直してください。`,
-            `Update the title and summary of ${idList(s, lang)} as instructed.`,
-          ),
+            `${idList(s, lang)} の名前・目標・期間を直して`,
+            `Edit the name, goal, and dates of ${idList(s, lang)}`,
+          )
+        : single(s, "epic")
+          ? say(
+              lang,
+              `${idList(s, lang)} の題・概要を直して`,
+              `Edit the title and summary of ${idList(s, lang)}`,
+            )
+          : say(lang, `${idList(s, lang)} を直して`, `Edit ${idList(s, lang)}`),
     human: (s) =>
       s.map((t) =>
         t.kind === "iteration"
@@ -491,10 +510,15 @@ const ACTIONS: Record<AskAction, ActionDef> = {
               check: ["iteration.update"],
               command: `dg iteration update ${t.id} --name "<名前>" --goal "<目標>" --start "<開始日>" --end "<終了日>"`,
             }
-          : {
-              check: ["epic.update"],
-              command: `dg epic update ${t.id} --title "<題>" --body "<概要>"`,
-            },
+          : t.kind === "epic"
+            ? {
+                check: ["epic.update"],
+                command: `dg epic update ${t.id} --title "<題>" --body "<概要>"`,
+              }
+            : {
+                check: ["ticket.update"],
+                command: `dg ticket update ${t.id} --title "<題>" --body "<本文>"`,
+              },
       ),
   },
   assign: {
@@ -679,8 +703,9 @@ const ACTIONS: Record<AskAction, ActionDef> = {
       ),
   },
   close: {
-    skill: null,
+    skill: "dgchange",
     label: () => "閉じる",
+    intent: (s, _w, lang) => say(lang, `${idList(s, lang)} を閉じて`, `Close ${idList(s, lang)}`),
     text: (s, _w, lang) =>
       say(
         lang,
@@ -694,8 +719,10 @@ const ACTIONS: Record<AskAction, ActionDef> = {
       })),
   },
   reopen: {
-    skill: null,
+    skill: "dgchange",
     label: () => "再開する",
+    intent: (s, _w, lang) =>
+      say(lang, `${idList(s, lang)} を再開して`, `Reopen ${idList(s, lang)}`),
     text: (s, _w, lang) =>
       s[0]?.kind === "iteration"
         ? say(
@@ -715,8 +742,10 @@ const ACTIONS: Record<AskAction, ActionDef> = {
       })),
   },
   abandon: {
-    skill: null,
+    skill: "dgchange",
     label: () => "やめる",
+    intent: (s, _w, lang) =>
+      say(lang, `${idList(s, lang)} をやめて abandoned にして`, `Abandon ${idList(s, lang)}`),
     text: (s, _w, lang) =>
       say(
         lang,
@@ -731,8 +760,10 @@ const ACTIONS: Record<AskAction, ActionDef> = {
       })),
   },
   undo_done: {
-    skill: null,
+    skill: "dgchange",
     label: () => "done を取り消す",
+    intent: (s, _w, lang) =>
+      say(lang, `${idList(s, lang)} の done を取り消して`, `Undo done for ${idList(s, lang)}`),
     text: (s, _w, lang) =>
       say(
         lang,
@@ -843,12 +874,6 @@ const MEANING: Record<
           `Create an Epic to group ${idList(s, lang)}.`,
         )
       : say(lang, "Epic を作ります。", "Create an Epic."),
-  fix: (s, _w, lang) =>
-    say(
-      lang,
-      `${idList(s, lang)} を指示のとおりに直します。`,
-      `Fix ${idList(s, lang)} as instructed.`,
-    ),
   split: (s, _w, lang) =>
     say(
       lang,
@@ -868,11 +893,17 @@ const MEANING: Record<
           `${idList(s, lang)} の名前・目標・期間を指示のとおりに直します。`,
           `Update the name, goal, and dates of ${idList(s, lang)} as instructed.`,
         )
-      : say(
-          lang,
-          `${idList(s, lang)} の題と概要を指示のとおりに直します。`,
-          `Update the title and summary of ${idList(s, lang)} as instructed.`,
-        ),
+      : single(s, "epic")
+        ? say(
+            lang,
+            `${idList(s, lang)} の題と概要を指示のとおりに直します。`,
+            `Update the title and summary of ${idList(s, lang)} as instructed.`,
+          )
+        : say(
+            lang,
+            `${idList(s, lang)} の題・概要・受け入れ条件・優先度・ラベル・依存を指示のとおりに直します。`,
+            `Edit the title, summary, acceptance criteria, priority, labels, or dependencies of ${idList(s, lang)} as instructed.`,
+          ),
   assign: (s, _w, lang) => {
     const it = single(s, "iteration");
     if (it?.status === "closed")
@@ -1076,14 +1107,14 @@ export function askHumanChecks(action: AskAction, s: Subjects, within?: string):
 
 /**
  * 対象の種類と状態から、頼むことの候補を決める。先頭がおすすめ。
- * within（対象のチケットが入っている Iteration・Epic）を渡し、チケットがどれもそこに入っていて終わっていなければ、外すを直すの後（直すがなければ自由にの前）に足す
+ * within（対象のチケットが入っている Iteration・Epic）を渡し、チケットがどれもそこに入っていて終わっていなければ、外すを直す（edit）の後（直すがなければ自由にの前）に足す
  */
 function askActions(s: Subjects, within?: string): AskAction[] {
   const actions = baseActions(s);
   const tickets = only(s, "ticket");
   if (!withinOf(s, within) || !tickets || tickets.some((t) => isTerminal(t.status as Status)))
     return actions;
-  const at = actions.includes("fix") ? actions.indexOf("fix") + 1 : actions.indexOf("free");
+  const at = actions.includes("edit") ? actions.indexOf("edit") + 1 : actions.indexOf("free");
   return [...actions.slice(0, at), "remove", ...actions.slice(at)];
 }
 
@@ -1093,27 +1124,27 @@ function baseActions(s: Subjects): AskAction[] {
   const tickets = only(s, "ticket");
   if (tickets) {
     const all = (status: string) => tickets.every((t) => t.status === status);
-    if (all("review")) return ["done", "fix", "check", "free"];
+    if (all("review")) return ["done", "edit", "check", "free"];
     if (all("done")) return ["create", "undo_done", "free"];
     if (all("abandoned")) return ["create", "free"];
     if (all("in_progress"))
       return tickets.some(isStalled)
-        ? ["resume", "status", "fix", "free"]
-        : ["status", "fix", "free"];
+        ? ["resume", "status", "edit", "free"]
+        : ["status", "edit", "free"];
     if (all("todo")) {
       // Iteration に入れてから進める（todo・abandoned のほかは Iteration が要る）
       if (tickets.some((t) => t.iteration === null))
-        return ["assign", "create_iteration", "fix", "split", "check", "abandon", "free"];
+        return ["assign", "create_iteration", "edit", "split", "check", "abandon", "free"];
       // closed の Iteration に残った持ち越しは、計画より先に別の Iteration へ割り当てる
       if (tickets.some((t) => t.iteration_status === "closed"))
-        return ["assign", "create_iteration", "plan", "fix", "split", "check", "abandon", "free"];
+        return ["assign", "create_iteration", "plan", "edit", "split", "check", "abandon", "free"];
       if (tickets.length > 1) return ["plan", "assign", "check", "abandon", "free"];
       // 着手可でも、planned の Iteration（バックログ）ではまず計画を立て、active の Iteration（カンバン）なら進める
       if (tickets[0]!.deps_done)
         return tickets[0]!.iteration_status === "active"
-          ? ["work", "plan", "fix", "split", "check", "abandon", "free"]
-          : ["plan", "work", "fix", "split", "check", "abandon", "free"];
-      return ["check", "fix", "split", "plan", "abandon", "free"];
+          ? ["work", "plan", "edit", "split", "check", "abandon", "free"]
+          : ["plan", "work", "edit", "split", "check", "abandon", "free"];
+      return ["check", "edit", "split", "plan", "abandon", "free"];
     }
     return ["check", "assign", "free"];
   }
@@ -1149,7 +1180,6 @@ function baseActions(s: Subjects): AskAction[] {
  * ここにない頼むことは、対象がなくても MEANING の文を使う（起票・Iteration・Epic・点検・自由に）
  */
 const NO_TARGET: Partial<Record<AskAction, { ja: string; en: string }>> = {
-  fix: { ja: "指示のとおりにチケットを直します。", en: "Fix the tickets as instructed." },
   split: {
     ja: "指示のチケットを分けます。元のチケットを残すか abandoned にするかの案を示します。",
     en: "Split the tickets, and propose whether to keep the original tickets or make them abandoned.",
@@ -1158,10 +1188,7 @@ const NO_TARGET: Partial<Record<AskAction, { ja: string; en: string }>> = {
     ja: "チケットを、入っている Iteration・Epic から外します。",
     en: "Remove the tickets from the Iteration or Epic they belong to.",
   },
-  edit: {
-    ja: "指示のとおりに題と概要を直します。",
-    en: "Update the title and summary as instructed.",
-  },
+  edit: { ja: "指示のとおりに直します。", en: "Edit as instructed." },
   assign: {
     ja: "指示のチケットを合う Iteration・Epic に割り当てます。",
     en: "Assign the tickets to a fitting Iteration or Epic.",
@@ -1363,7 +1390,7 @@ export function buildAsk(input: BuildAskInput): AskView {
   // 題・本文・Status はエージェントが dg で読むので、依頼文には ID だけを入れる（読んだ時点の写しが古くならないため）
   const lines: string[] = [];
   if (format === "skill" && candidate.skill) {
-    // Skill の形は呼び出しと指示だけ。呼び出しで頼むことが決まらないもの（起票・作成・外す・分ける・組み直す・持ち越し）だけ短い頼みごとを挟む
+    // Skill の形は呼び出しと指示だけ。呼び出しで頼むことが決まらないもの（起票・作成・外す・分ける・組み直す・持ち越し・dgchange の書き換え）だけ短い頼みごとを挟む
     lines.push(
       def.bare ? candidate.skill : [candidate.skill, ...ids(def.args?.(s) ?? s)].join(" "),
     );
@@ -1484,7 +1511,7 @@ export const ask = defineCommand({
       .enum(ASK_FORMATS)
       .optional()
       .describe(
-        "skill gives only the Skill call and the instruction; text gives one line asking for the action, the dg command, and (for actions that have a Skill) one line to read guide, plus the instruction. For an action with no Skill, the form is text even when skill is given. When omitted, uses skill if dg's Skill is in the place dg skill install writes to (under the repository or the home directory), otherwise text",
+        "skill gives only the Skill call and the instruction; text gives one line asking for the action, the dg command, and (for actions that have a Skill) one line to read guide, plus the instruction. The actions with no Skill (free, status, retro, carry) use the text form even when skill is given. When omitted, uses skill if dg's Skill is in the place dg skill install writes to (under the repository or the home directory), otherwise text",
       ),
     within: z
       .string()

@@ -565,6 +565,13 @@ guide.notes.done
 guide.notes.done
 [title] 既定の  に戻す
 既定に戻す
+差し込む文書（書き換え）
+guide.notes.change
+[title] 既定は 
+変更あり
+guide.notes.change
+[title] 既定の  に戻す
+既定に戻す
 差し込む文書（一気通し）
 guide.notes.all
 [title] 既定は 
@@ -1087,9 +1094,9 @@ Iteration の見出し s1
 起票して s1 に入れる
 [title] /dgassign: チケットを Iteration（スプリント）と Epic に割り当てます。
 チケットを足す・外す
-[title] Skill を使わない
+[title] /dgchange: 人が頼んだ直す・閉じる・再開・やめる・done の取り消しを、前提を確かめてから dg の 1 回の呼び出しで行います。
 名前・目標・期間を直す
-[title] Skill を使わない
+[title] /dgchange: 人が頼んだ直す・閉じる・再開・やめる・done の取り消しを、前提を確かめてから dg の 1 回の呼び出しで行います。
 閉じる
 [title] /dgcheck: チケット・Epic・Iteration・Plan を点検し、直す案を示して承認を得てから直します。
 点検する
@@ -1211,9 +1218,9 @@ t1
 起票して s1 に入れる
 [title] /dgassign: チケットを Iteration（スプリント）と Epic に割り当てます。
 チケットを足す・外す
-[title] Skill を使わない
+[title] /dgchange: 人が頼んだ直す・閉じる・再開・やめる・done の取り消しを、前提を確かめてから dg の 1 回の呼び出しで行います。
 名前・目標・期間を直す
-[title] Skill を使わない
+[title] /dgchange: 人が頼んだ直す・閉じる・再開・やめる・done の取り消しを、前提を確かめてから dg の 1 回の呼び出しで行います。
 閉じる
 [title] /dgcheck: チケット・Epic・Iteration・Plan を点検し、直す案を示して承認を得てから直します。
 点検する

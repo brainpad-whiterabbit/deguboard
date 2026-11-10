@@ -91,6 +91,7 @@ const ENGLISH_TOPICS = new Set([
   "audit",
   "release",
   "done",
+  "change",
   "all",
 ]);
 
@@ -489,6 +490,31 @@ describe("dg guide", () => {
     // 版上げの条件（変更の範囲）は review にだけ書く
     expect(release).not.toContain("version numbers");
     expect(release).not.toContain("CHANGELOG and lock file");
+  });
+
+  it("change は操作ごとの前提を確かめ、当たるときだけ前後を示して承認を得て、dg を 1 回呼び、拒否されたら人にコマンドを渡す", async () => {
+    const steps = section(await readGuide("change"), "## Steps");
+    // 前提の確認：close は未完了、Iteration の reopen はほかの active、abandon は理由、undo done は戻す Status と理由、edit は前後
+    const pre = step(steps, 2);
+    expect(lineWith(pre, "**close**")).toContain("not done or abandoned");
+    expect(lineWith(pre, "**close**")).toContain("Close without releasing");
+    expect(lineWith(pre, "**reopen**")).toContain(
+      "another Iteration in the same Project is active",
+    );
+    expect(lineWith(pre, "**abandon**")).toContain("reason");
+    for (const word of ["Status to return to", "reason"])
+      expect(lineWith(pre, "**undo done**")).toContain(word);
+    expect(lineWith(pre, "**edit**")).toContain("before → after");
+    // 前後を示した承認は前提に当たるときだけ（頼んだ時点で人の指示があるので二重に聞かない）
+    for (const word of ["before → after", "ask with choices", "do not ask again"])
+      expect(step(steps, 3)).toContain(word);
+    expect(step(steps, 4)).toContain("call `dg` once per target");
+    for (const word of ["TRANSITION_REJECTED", "exact command", "do not retry"])
+      expect(step(steps, 5)).toContain(word);
+    // 1 回の呼び出しは表の dg のコマンドで、ticket の直すの範囲は題・概要・受け入れ条件・優先度・ラベル・依存
+    const ops = section(await readGuide("change"), "## Operations");
+    for (const word of ["--acceptance", "--priority", "--label", "--depends-on", "iteration close"])
+      expect(ops).toContain(word);
   });
 
   it("config の値を埋める（既定なら main と origin、空の配列と空の文字列は none）", () => {

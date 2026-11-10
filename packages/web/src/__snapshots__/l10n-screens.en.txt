@@ -565,6 +565,13 @@ Modified
 Path of a document inserted just after the guide title (just after the section heading when a section is shown). A path relative to the repository root; paths outside the repository are not read. Empty inserts nothing. A document with headings (#) is not inserted.
 [title] Reset to default 
 Reset to Default
+Document inserted into change
+guide.notes.change
+[title] Default: 
+Modified
+Path of a document inserted just after the guide title (just after the section heading when a section is shown). A path relative to the repository root; paths outside the repository are not read. Empty inserts nothing. A document with headings (#) is not inserted.
+[title] Reset to default 
+Reset to Default
 Document inserted into all
 guide.notes.all
 [title] Default: 
@@ -1087,9 +1094,9 @@ Release
 Create tickets in s1
 [title] /dgassign: Assigns tickets to an Iteration (sprint) and an Epic.
 Add or remove tickets
-[title] No Skill
+[title] /dgchange: Carries out the edit, close, reopen, abandon, or undo done that a human asked for, with one dg call after checking the preconditions.
 Edit name, goal, and period
-[title] No Skill
+[title] /dgchange: Carries out the edit, close, reopen, abandon, or undo done that a human asked for, with one dg call after checking the preconditions.
 Close
 [title] /dgcheck: Checks tickets, Epics, Iterations, and Plans, then fixes them after showing the proposed changes and getting approval.
 Check
@@ -1211,9 +1218,9 @@ Release
 Create tickets in s1
 [title] /dgassign: Assigns tickets to an Iteration (sprint) and an Epic.
 Add or remove tickets
-[title] No Skill
+[title] /dgchange: Carries out the edit, close, reopen, abandon, or undo done that a human asked for, with one dg call after checking the preconditions.
 Edit name, goal, and period
-[title] No Skill
+[title] /dgchange: Carries out the edit, close, reopen, abandon, or undo done that a human asked for, with one dg call after checking the preconditions.
 Close
 [title] /dgcheck: Checks tickets, Epics, Iterations, and Plans, then fixes them after showing the proposed changes and getting approval.
 Check

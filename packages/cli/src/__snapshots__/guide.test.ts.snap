@@ -237,6 +237,64 @@ After showing the result (also when there were no findings), ask with the follow
 - **Stop here**"
 `;
 
+exports[`dg guide の出力（本文の組み立て） > トピックごとの本文と、節の本文が変わらない > change 1`] = `
+"# Change (change)
+
+Carries out one change that a human asked for: edit, close, reopen, abandon, or undo done. The change is the human's instruction, so the agent does not decide on its own whether to make it. It checks the preconditions, writes with one \`dg\` call per target, and reports before → after. Creating, splitting, assigning, and fixing tickets from a conversation are not here (\`dg guide import\`, \`dg guide assign\`).
+
+## Deciding the target
+
+- The IDs after the Skill call (\`/dgchange t12\`) are the targets, and the next line says what to change (for example "t12 を直して", "s3 を閉じて", "t12 の done を取り消して"). The instruction that follows gives the content (the new text, the reason, the Status to return to)
+- If the change is not stated, or the target does not fit the change (for example, closing a ticket), do not guess. Show the target's state and ask what to change
+- No target given: ask which target and which change
+
+## Operations
+
+| Change    | Target                    | Command                                                                                                                                     |
+| --------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| edit      | Ticket                    | \`dg --json --actor agent ticket update <t12> --title … --body … --acceptance … --priority … --label … --depends-on …\` (only what changes)    |
+| edit      | Iteration                 | \`dg --json --actor agent iteration update <s3> --name … --goal … --start … --end …\` (only what changes)                                     |
+| edit      | Epic                      | \`dg --json --actor agent epic update <e3> --title … --body …\` (only what changes)                                                           |
+| close     | Iteration / Epic          | \`dg --json --actor agent iteration close <s3>\` / \`epic close <e3>\`                                                                          |
+| reopen    | Iteration / Epic          | \`dg --json --actor agent iteration reopen <s3>\` / \`epic reopen <e3>\`                                                                        |
+| abandon   | Ticket                    | \`dg --json --actor agent ticket move <t12> abandoned\`, after writing the reason in the body                                                 |
+| undo done | Ticket (done)             | \`dg --json --actor agent ticket move <t12> <todo/in_progress/review>\`, after writing the reason in the body                                 |
+
+Editing a ticket covers the title, summary, acceptance criteria, priority, labels, and dependencies. \`--label\` and \`--depends-on\` replace the whole list, so pass the existing values too. \`--acceptance\` replaces only the acceptance criteria section and keeps the marks of items with the same text. Iteration, Epic, gate level, assignee, and Workflow are not changed here (assignment is \`dg guide assign\`; lowering the gate level needs its own instruction).
+
+## Steps
+
+1. **Read the target**: \`dg --json --actor agent ticket show <t12>\` (or \`iteration show <s3>\`, \`epic show <e3>\`). Keep the current values of what will change as "before"
+2. **Check the preconditions** of the change:
+   - **close**: if any ticket in the Iteration or Epic is not done or abandoned, say so with the list (ID, title, state). An Iteration carries those tickets over (they are removed from it); an Epic refuses to close and closes only with \`--force\`. If the Iteration is active and every ticket is done or abandoned, and the repository has release steps (CLAUDE.md, README, development docs), ask with "Proceed with release" (\`dg guide release\`; if a Skill is available, \`/dgrelease <s3>\`) and "Close without releasing"
+   - **reopen**: for an Iteration, if another Iteration in the same Project is active, say so (reopening is refused while one is active), and ask whether to close that one first. Carried-over tickets do not come back, so say that \`iteration add\` puts them in again
+   - **abandon**: the reason must be in the instruction. If it is not, ask for it
+   - **undo done**: the Status to return to (todo, in_progress, or review) and the reason must be in the instruction. If either is missing, ask for it
+   - **edit**: work out before → after for each field. If the instruction does not settle the new value (for example "make it shorter" with several possible wordings), propose the new value
+3. **Approval**: when a precondition above is hit, or the new value is your proposal, show before → after (and the material, such as the list of unfinished tickets) and ask with choices. When nothing is hit and the instruction settles the content, the request is already the human's instruction, so do not ask again
+4. **Write once**: call \`dg\` once per target with the command in the table above (for abandon and undo done, the \`ticket update --body\` that writes the reason comes first). Do not split one change into several calls, and do not write anything the change did not ask for
+5. **When refused**: if \`dg\` returns \`TRANSITION_REJECTED\` (the operation is in \`actor.human_only\`, or the Workflow's \`by\` limits the transition to humans), do not retry in another way. Give the human the exact command to run (without \`--actor agent\`), with the reason from \`error.message\`
+6. **Report**: the target, before → after, and the \`warnings\` of the result (for example, tickets carried over by closing)
+
+## Asking with choices
+
+Tickets advance in this order: import (\`dg guide import\`) → assign (\`dg guide assign\`) → check (\`dg guide check\`) → plan (\`dg guide plan\`) → work (\`dg guide work\`) → audit (\`dg guide audit\`, when an Iteration or Epic ends) → release (\`dg guide release\`; if there are no release steps, clean up with \`dg guide done\`). Done (\`dg guide done\`) comes after every merge. To carry on from assign through release, use \`dg guide all\`. When asking a human for a decision (approval, correction, which one to choose), and when a step is finished and the next step must be decided, show the choices and ask.
+
+- When the agent can offer choices, ask with that mechanism (in Claude Code, the AskUserQuestion tool). If it cannot, show the numbered choices in text
+- Show the material for the decision (tables, Plans, lists of PRs) before the choices. Do not ask for a decision with only the choices' descriptions
+- Offer 2 to 4 choices, put the recommended one first, and give its reason. An answer that cannot be a choice, such as the content of a correction, is taken as free input outside the choices
+- Ask questions where several can be chosen (such as which lines to reflect) with multiple selection. Ask about deletion, abandoned, and close operations one at a time
+- When deciding the next step, make the next step in the flow and "stop here" the choices (see the "Choosing the next step" section of each guide). When the next step is chosen, if a Skill is available (for example \`/dgwork p3\`), start it. If not, read \`dg guide <topic>\` and continue with that step. Do not do the next step's work inside the current step.
+
+## Choosing the next step
+
+After reporting, ask with the following choices only when there is a next step in the flow; otherwise finish with the report.
+
+- **Release**: if you closed an Iteration without releasing and release steps exist, release by the steps of \`dg guide release\` (if a Skill is available, \`/dgrelease <s3>\`)
+- **Assign**: if closing carried tickets over, assign them by the steps of \`dg guide assign\` (if a Skill is available, \`/dgassign <s3>\`)
+- **Stop here**"
+`;
+
 exports[`dg guide の出力（本文の組み立て） > トピックごとの本文と、節の本文が変わらない > check 1`] = `
 "# Check (check)
 
@@ -498,7 +556,7 @@ By default, agents can run every operation. Limits are added in the settings.
 
 - By command: a command listed in \`actor.human_only\` in \`config.yaml\` is refused for the agent. Current setting: none. Examples: \`plan.approve\` (limit approving a Plan to humans), \`epic.close\`, \`iteration.close\`
 - By ticket transition: a transition whose Workflow \`transitions\` marks \`by: [human]\` (such as making a ticket abandoned, or moving it back from done) is refused for the agent. Check with \`dg --json --actor agent workflow show <id>\`
-- Making a ticket abandoned, undoing done, and closing or reopening an Epic or Iteration are decisions for humans. Even when they are not refused, if no human has instructed them, confirm with a human before running them
+- Making a ticket abandoned, undoing done, and closing or reopening an Epic or Iteration are decisions for humans. Even when they are not refused, if no human has instructed them, confirm with a human before running them. When a human has asked for one, follow \`dg guide change\`
 - Approving a Plan (\`plan approve\`) is done only when a human has approved it, even when it is not refused (see \`dg guide plan\`)
 
 ## Topics
@@ -516,9 +574,10 @@ By default, agents can run every operation. Limits are added in the settings.
 | audit    | dgaudit   | Before release, reviews the whole repository by perspective and files the findings after approval (subagents; does not edit files)            | When all tickets in an Iteration or Epic are done                  |
 | release  | dgrelease | Confirms all tickets in an Iteration are done, advances with the repository's release steps, and closes the Iteration                         | After review, when releasing                                       |
 | done     | dgdone    | Cleanup after merge, confirming the remaining acceptance criteria, and closing a Plan                                                          | After a PR is merged                                               |
+| change   | dgchange  | Carries out one change a human asked for (edit, close, reopen, abandon, undo done): checks the preconditions, writes with one \`dg\` call per target, and hands the command to a human when refused | When asked to edit, close, reopen, abandon, or undo done |
 | all      | dgall     | Advances assign → check → plan → work → audit → release, taking the stage from the state (can resume with the same arguments)                  | When asked to "carry s3 through to the end"                        |
 
-Read with \`dg guide <topic>\`. In Claude Code, the Skill that \`dg skill install\` installs (such as \`/dgimport\`) reads the topic. A Skill is optional. Without one, read \`dg guide <topic>\` and proceed with the same steps. In Claude Code, \`dg hooks install\` can also install hooks, and \`dg hooks check\` confirms whether they are installed, whether they work, and whether their input has the right shape (it warns when something is missing). For the list of commands, see \`dg --help\`. For each command's options, see \`dg <group> <operation> --help\`."
+Read with \`dg guide <topic>\`. In Claude Code, the Skill that \`dg skill install\` installs (such as \`/dgimport\`) reads the topic. The only asks from the screen (\`dg ask\`) that have no Skill are free, status, retro, and carry; their request text is plain text without a topic. A Skill is optional. Without one, read \`dg guide <topic>\` and proceed with the same steps. In Claude Code, \`dg hooks install\` can also install hooks, and \`dg hooks check\` confirms whether they are installed, whether they work, and whether their input has the right shape (it warns when something is missing). For the list of commands, see \`dg --help\`. For each command's options, see \`dg <group> <operation> --help\`."
 `;
 
 exports[`dg guide の出力（本文の組み立て） > トピックごとの本文と、節の本文が変わらない > parallel 1`] = `

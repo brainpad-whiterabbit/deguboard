@@ -360,12 +360,12 @@ describe("エージェントに頼む入力欄（UI-15）", () => {
     expect(box.getByRole("status").textContent).toBe("");
     // 選び直しでもコピーする（t340）
     await waitFor(() => expect(view.copied).toHaveLength(2));
-    expect(view.copied[1]).toBe("/dgimport t5");
+    expect(view.copied[1]).toBe("/dgchange t5\nt5 を直して");
     const note = box.getByRole("textbox", { name: "指示" });
     fireEvent.change(note, { target: { value: "題を短く" } });
     fireEvent.keyDown(note, { key: "Enter", metaKey: true });
     await waitFor(() => expect(view.copied).toHaveLength(3));
-    expect(view.copied[2]).toBe("/dgimport t5\n題を短く");
+    expect(view.copied[2]).toBe("/dgchange t5\nt5 を直して\n題を短く");
     fireEvent.keyDown(note, { key: "Enter", ctrlKey: true });
     await waitFor(() => expect(view.copied).toHaveLength(4));
     await waitFor(() => expect(box.getByRole("status").textContent).toContain("コピーしました"));
@@ -591,7 +591,7 @@ describe("エージェントに頼む入力欄（UI-15）", () => {
     await screen.findByText("見直す");
     await pickFromBubble("行 t5", "直す");
     await waitFor(() => expect(view.copied).toHaveLength(1));
-    expect(view.copied[0]).toBe("/dgimport t5");
+    expect(view.copied[0]).toBe("/dgchange t5\nt5 を直して");
     await waitFor(() =>
       expect(within(composer()).getByRole("status").textContent).toContain("コピーしました"),
     );
@@ -603,7 +603,7 @@ describe("エージェントに頼む入力欄（UI-15）", () => {
     // 見た目の状態から復元して開いたときは、勝手にコピーしない
     cleanup();
     const state = createUiState(
-      memoryBackend({ [ASK_OPEN_KEY]: { targets: ["t5"], action: "fix" } }),
+      memoryBackend({ [ASK_OPEN_KEY]: { targets: ["t5"], action: "edit" } }),
     );
     // ask の応答を止めて開き、すべて解決して流しきってから、コピーが 1 回も来ていないことを確かめる
     const restoredClient = askClient();

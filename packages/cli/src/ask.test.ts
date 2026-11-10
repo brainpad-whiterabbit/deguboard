@@ -74,13 +74,13 @@ describe("dg ask", () => {
     await runCommand(init, await openContext({ cwd: f.cloneA, initialize: {} }), {});
     expect((await dg(f.cloneA, ["ticket", "create", "画面の直し"])).code).toBe(0);
 
-    const input = { targets: ["t1"], action: "fix", note: "文言だけ", format: "text" };
+    const input = { targets: ["t1"], action: "edit", note: "文言だけ", format: "text" };
     const cli = await dg(f.cloneA, [
       "--json",
       "ask",
       "t1",
       "--action",
-      "fix",
+      "edit",
       "--note",
       "文言だけ",
       "--format",
@@ -108,9 +108,9 @@ describe("dg ask", () => {
     expect(fromWebview.data).toEqual(fromCli.data);
     expect(fromCli.data.text).toBe(
       [
-        "t1 を指示のとおりに直してください。",
+        "t1 を指示のとおりに直してください（題・概要・受け入れ条件・優先度・ラベル・依存）。",
         ASK_DG_USAGE,
-        "手順は `dg guide import` を読み、そのとおりに進めてください。",
+        "手順は `dg guide change` を読み、そのとおりに進めてください。",
         "文言だけ",
       ].join("\n"),
     );
@@ -121,7 +121,7 @@ describe("dg ask", () => {
       "ask",
       "t1",
       "--action",
-      "fix",
+      "edit",
       "--note",
       "文言だけ",
       "--format",
@@ -139,15 +139,15 @@ describe("dg ask", () => {
     expect(await resEn.json()).toEqual(fromCliEn);
     expect(fromCliEn.data.text).toBe(
       [
-        "Fix t1 as instructed.",
+        "Edit t1 as instructed (title, summary, acceptance criteria, priority, labels, dependencies).",
         ASK_DG_USAGE_EN,
-        "Read `dg guide import` for the steps and follow them.",
+        "Read `dg guide change` for the steps and follow them.",
         "文言だけ",
       ].join("\n"),
     );
 
-    const human = await dg(f.cloneA, ["ask", "t1", "--action", "fix", "--format", "skill"]);
-    expect(human.out).toBe("/dgimport t1");
+    const human = await dg(f.cloneA, ["ask", "t1", "--action", "edit", "--format", "skill"]);
+    expect(human.out).toBe("/dgchange t1\nt1 を直して");
     expect(human.err).toContain("★割り当てる (assign)");
     // 候補にない頼むことは使い方の誤り（終了コード 2）
     expect((await dg(f.cloneA, ["ask", "t1", "--action", "release"])).code).toBe(2);
@@ -165,17 +165,17 @@ describe("dg ask", () => {
     const server = await startServer({ cwd: f.cloneA, port: 0, user: "ui" });
     cleanups.push(server.close);
     const both = async () => {
-      const cli = await dg(f.cloneA, ["--json", "ask", "t1", "--action", "fix"]);
+      const cli = await dg(f.cloneA, ["--json", "ask", "t1", "--action", "edit"]);
       const res = await fetch(`${server.url}api/commands/ask`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ input: { targets: ["t1"], action: "fix" } }),
+        body: JSON.stringify({ input: { targets: ["t1"], action: "edit" } }),
       });
       const fromCli = (JSON.parse(cli.out) as { data: AskView }).data;
       expect(((await res.json()) as { data: AskView }).data).toEqual(fromCli);
       const local = await createLocalClient({ cwd: f.cloneA, user: "ui" }).run<AskView>("ask", {
         targets: ["t1"],
-        action: "fix",
+        action: "edit",
       });
       expect(local.data).toEqual(fromCli);
       return fromCli;
@@ -183,7 +183,7 @@ describe("dg ask", () => {
     expect((await both()).format).toBe("text");
     // dg skill install で置いた Skill があれば Skill の形
     expect((await dg(f.cloneA, ["skill", "install"])).code).toBe(0);
-    expect(await both()).toMatchObject({ format: "skill", text: "/dgimport t1" });
+    expect(await both()).toMatchObject({ format: "skill", text: "/dgchange t1\nt1 を直して" });
   });
 
   it("ask-menu は組ごとに ask と同じ候補を返し、引けない組は error に理由を入れる（画面の吹き出し）", async () => {
