@@ -12,6 +12,7 @@ run = ["pnpm install --frozen-lockfile", "pnpm run build"]
 description = "依存を lockfile どおりに入れ、dist と VSIX をビルドし、VSIX を VS Code に入れる（dg と拡張が変更前のまま残らないように。main の checkout で使い、worktree では setup。code CLI がないか上限までに答えなければ導入は飛ばす）"
 run = ["pnpm install --frozen-lockfile", "pnpm run build", "pnpm run vsix", "pnpm run vsix:install"]
 
+# .oxfmtrc.json で guide-*.md を整形の対象から外す。表の列をそろえる空白を入れないため。guide の表のセルは短く、表は手で書く（ADR-001）
 [tasks.format]
 description = "oxfmt でコードと設定ファイルの書式を整える"
 run = "pnpm run format"
