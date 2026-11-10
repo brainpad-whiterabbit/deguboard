@@ -136,7 +136,7 @@ export const planCreate = defineCommand({
         });
       },
       {
-        message: (doc) => `${doc.id} を作成: ${doc.data.tickets.join(", ")}`,
+        message: (doc) => `Create ${doc.id}: ${doc.data.tickets.join(", ")}`,
         immediate: true,
         cas: true,
       },
@@ -336,7 +336,7 @@ export const planApprove = defineCommand({
           approved_at: nowIso(ctx),
         });
       },
-      { message: (doc) => `${doc.id} を承認` },
+      { message: (doc) => `Approve ${doc.id}` },
     );
     return ok(result.value.data, result.write);
   },
@@ -366,7 +366,7 @@ export const planClose = defineCommand({
         if (open.length > 0) warnings.push(`Closed with ${open.join(", ")} left open`);
         return ctx.store.update("plan", plan.id, { closed_at: nowIso(ctx) });
       },
-      { message: (doc) => `${doc.id} を閉じる` },
+      { message: (doc) => `Close ${doc.id}` },
     );
     return ok(result.value.data, result.write, warnings);
   },

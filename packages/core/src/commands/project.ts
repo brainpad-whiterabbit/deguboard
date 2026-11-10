@@ -35,7 +35,7 @@ export const projectCreate = defineCommand({
           status: "active",
         });
       },
-      { message: (doc) => `Project ${doc.id} を作成`, immediate: true },
+      { message: (doc) => `Create Project ${doc.id}`, immediate: true },
     );
     return ok(result.value.data, result.write);
   },
@@ -90,7 +90,7 @@ export const projectArchive = defineCommand({
           throw new OperationError("REJECTED", `${doc.id} is already archived`);
         return ctx.store.update("project", doc.id, { status: "archived" });
       },
-      { message: (doc) => `Project ${doc.id} をアーカイブ` },
+      { message: (doc) => `Archive Project ${doc.id}` },
     );
     return ok(result.value.data, result.write);
   },

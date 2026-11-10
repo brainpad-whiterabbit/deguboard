@@ -310,7 +310,7 @@ export function openedStepOf(ctx: CommandContext, ticket: Ticket, opener: StepOp
 
 /** 操作が開く Run の呼び名（警告とコミットメッセージ）。claim は実装、reclaim は手直し */
 export const openedRunLabel = (opener: StepOpener): string =>
-  opener === "claim" ? "実装" : "手直し";
+  opener === "claim" ? "implementation" : "fix";
 
 /** 警告に書く操作が開いた Run の呼び名（英語。コミットメッセージの openedRunLabel とは別に持つ） */
 const openedRunWord = (opener: StepOpener): string =>
@@ -454,7 +454,7 @@ export function describeClosedRuns(
     const runs = closed.filter((c) => c.opener === opener);
     if (runs.length === 0) continue;
     parts.push(
-      `${openedRunLabel(opener)}の Run を記録: ${runs.map((c) => `${c.run.ticket} ${c.run.id} ${c.run.result}`).join(", ")}`,
+      `Record ${openedRunLabel(opener)} Runs: ${runs.map((c) => `${c.run.ticket} ${c.run.id} ${c.run.result}`).join(", ")}`,
     );
   }
   return parts;
@@ -888,7 +888,7 @@ export const runReviewResult = defineCommand({
           })
         ).data;
       },
-      { message: (run) => `見直しの結果を記録: ${run.ticket} ${run.id}` },
+      { message: (run) => `Record the review result: ${run.ticket} ${run.id}` },
     );
     await keep(written.value);
     return ok<Run | PendingReviewView>(written.value, written.write, warnings);

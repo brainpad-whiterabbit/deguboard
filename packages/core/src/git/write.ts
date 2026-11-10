@@ -71,7 +71,7 @@ export interface WriteResult<T> {
   write: WriteOutcome;
 }
 
-const BATCH_MESSAGE = "変更をまとめてコミット";
+const BATCH_MESSAGE = "Commit batched changes";
 
 /** 未コミットの変更を 1 コミットにする。`dg commit`・`dg sync`・即時の操作（作成・claim・Iteration の開始と再開）の直前に呼ばれる。コミットしたら true */
 export async function flushPending(ctx: WriteContext, message = BATCH_MESSAGE): Promise<boolean> {

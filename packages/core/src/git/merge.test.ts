@@ -251,7 +251,7 @@ describe("同期のマージドライバ", () => {
     const driver = await git(a.repo.dataDir, ["config", "--get", "merge.deguboard.driver"]);
     expect(driver.stdout.trim()).toBe(mergeDriverCommandLine(DRIVER));
     const log = await git(a.repo.dataDir, ["log", "-1", "--format=%s", "--", ".gitattributes"]);
-    expect(log.stdout.trim()).toBe("マージドライバの .gitattributes を置く");
+    expect(log.stdout.trim()).toBe("Add .gitattributes for the merge driver");
   });
 
   it("同じチケットの別のフィールドを双方で変えた競合を、sync が両方の変更を残して自動で解く", async () => {
@@ -323,7 +323,7 @@ describe("同期のマージドライバ", () => {
     }
     expect((await git(a.repo.dataDir, ["status", "--porcelain"])).stdout).toBe("");
     const log = await git(a.repo.dataDir, ["log", "-1", "--format=%s", "--", ".gitattributes"]);
-    expect(log.stdout.trim()).toBe("マージドライバの .gitattributes を置く");
+    expect(log.stdout.trim()).toBe("Add .gitattributes for the merge driver");
   });
 
   it("同じ Plan の別のフィールドを双方で変えた分岐を、sync が競合なしで揃える", async () => {
@@ -486,7 +486,7 @@ describe("dg sync --resolve（SY-4）", () => {
     expect(b.store.tickets.get("t3")?.data).toMatchObject({ priority: "high" });
     expect(b.store.tickets.get("t3")?.data.provisional).toBeUndefined();
     const log = (await git(b.repo.dataDir, ["log", "--format=%s", "-4"])).stdout.trim().split("\n");
-    expect(log.slice(1, 3)).toEqual(["変更をまとめてコミット", "t3 を起票: B の 2"]);
+    expect(log.slice(1, 3)).toEqual(["Commit batched changes", "File t3: B の 2"]);
     expect((await checkOutside(b.repo)).kind).toBe("clean");
   });
 

@@ -95,7 +95,7 @@ describe("history", () => {
       "assignee: - → eiki/agent",
       "pr: - → 5",
     ]);
-    expect(t2.find((e) => e.subject.includes("claim"))?.author).toBe("テスト");
+    expect(t2.find((e) => e.subject.includes("Claim"))?.author).toBe("テスト");
     // 時刻の順
     const times = all.events.map((e) => e.at);
     expect([...times].sort()).toEqual(times);

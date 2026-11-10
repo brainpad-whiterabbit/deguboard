@@ -755,7 +755,7 @@ export async function finishRun(
   input: FinishRunInput,
 ): Promise<{ run: Run; write: WriteOutcome }> {
   const written = await withWrite(ctx, () => closeRun(ctx.store, ctx.repo, id, input), {
-    message: (run) => `Run ${run.id} を記録: ${run.ticket} ${run.step} ${run.result ?? ""}`,
+    message: (run) => `Record Run ${run.id}: ${run.ticket} ${run.step} ${run.result ?? ""}`,
   });
   await dropRunning(ctx.repo, id);
   return { run: written.value, write: written.write };

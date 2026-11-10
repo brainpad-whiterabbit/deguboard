@@ -115,7 +115,7 @@ describe("run", () => {
       await git(ctx.repo.dataDir, ["show", "--name-only", "--format=%s", "HEAD"])
     ).stdout.trim();
     expect(changed.split("\n")).toEqual([
-      `Run ${run.id} を記録: t1 implement success`,
+      `Record Run ${run.id}: t1 implement success`,
       "",
       `runs/${run.id}.json`,
     ]);

@@ -134,8 +134,8 @@ describe("チケットの流れ（照合と claim）", () => {
     expect(synced.data.status).toMatchObject({ ahead: 0, behind: 0, dirty: false });
     expect(ctx.store.tickets.get("t1")?.data.status).toBe("done");
     const log = (await git(ctx.repo.dataDir, ["log", "--format=%s"])).stdout.trim().split("\n");
-    expect(log[0]).toContain("照合で t1: review → done（branch_merged）");
-    expect(log[1]).toBe("変更をまとめてコミット");
+    expect(log[0]).toContain("Reconcile t1: review → done (branch_merged)");
+    expect(log[1]).toBe("Commit batched changes");
   });
 
   it("照合は gh がブランチ名で見つけた PR の番号を pr に記録し、記録済みや PR のないチケットは書き換えない", async () => {
@@ -187,7 +187,7 @@ describe("チケットの流れ（照合と claim）", () => {
       expect(ctx.store.tickets.get("t2")?.data.pr).toBeUndefined();
       const log = (await git(ctx.repo.dataDir, ["log", "-1", "--format=%s"])).stdout.trim();
       expect(log).toBe(
-        "照合で t1: in_progress → review（pr_open, !pr_draft）。PR 番号を記録: t1: #42",
+        "Reconcile t1: in_progress → review (pr_open, !pr_draft). Record PR numbers: t1: #42",
       );
 
       // 2 回目は状態も pr も変わらず、コミットも増えない
@@ -672,7 +672,7 @@ describe("チケットの流れ（照合と claim）", () => {
       });
       expect((await peekRunningRuns(agent.repo)).map((r) => r.id)).toEqual([runs.t4]);
       expect((await git(agent.repo.dataDir, ["log", "-1", "--format=%s"])).stdout.trim()).toBe(
-        `照合で t2: in_progress → review（pr_open, !pr_draft）。PR 番号を記録: t2: #42, t4: #44。実装の Run を記録: t2 ${runs.t2} success, t3 ${runs.t3} success`,
+        `Reconcile t2: in_progress → review (pr_open, !pr_draft). Record PR numbers: t2: #42, t4: #44. Record implementation Runs: t2 ${runs.t2} success, t3 ${runs.t3} success`,
       );
       // 2 回目は閉じるものがない（t4 は開いたまま）
       expect((await runCommand(sync, agent, {})).data.runs_closed).toEqual([]);
