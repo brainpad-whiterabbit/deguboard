@@ -1,0 +1,52 @@
+id: p93
+project: default
+tickets: [t488, t653, t489, t490, t491, t650, t651, t652]
+after:
+  t653:
+    - t488
+  t489:
+    - t653
+  t490:
+    - t489
+  t491:
+    - t490
+  t650:
+    - t491
+  t651:
+    - t650
+  t652:
+    - t651
+pending_approval: true
+details:
+  t488:
+    scope: overview・choices・import・assign・check・plan の 6 本と、その見出しを名指す参照・flow.ts の表・テスト
+    approach: 見出しは英語の形の参照に直し、まだ日本語の guide の節を指す参照と、チケットの本文の節の名前（## 概要 など）は字のまま残す
+    tier: standard
+  t653:
+    scope: 雛形が書く節の名前と、節の名前を読む core・web の処理、guide の節の名前、TK-3・EP-1
+    approach: 節の名前の日英の組を model/ticket.ts に 1 か所で持ち、読む側はすべてそこから引く。既存のチケットは書き換えない
+    tier: heavy
+  t489:
+    scope: work・run・parallel・review の 4 本と、その見出しを名指す参照・brief.ts と flow.ts の表・テスト、isAcceptanceFinding
+    approach: t488 と同じ形で訳し、isAcceptanceFinding は日英の両方の語で見分ける。本文の節の名前は t653 の英語の名前で書く
+    tier: standard
+  t490:
+    scope: all・audit・done・release の 4 本と、その見出しを名指す参照・flow.ts の表・テスト
+    approach: t488・t489 と同じ形で訳す
+    tier: standard
+  t491:
+    scope: skill.md・skill.ts の差し込み・.claude/skills の入れ直しとテスト
+    approach: DG_PATH_NOTE_EN と SKILL_SUMMARY の en を使い、skill.md を英語にして dg skill install で 9 本を入れ直す
+    tier: standard
+  t650:
+    scope: コマンド定義の説明と describe・program.ts の決まった文・config の describe と、設定画面の ja 訳
+    approach: 説明を英語にし、日本語の設定画面に出す今の説明を l10n-core.ts の表の ja 訳に移す。大きければ commands とそれ以外で PR を分ける
+    tier: standard
+  t651:
+    scope: core と cli のエラー・警告・validate と lint の指摘の文と、画面の ja 訳。エラーコードは変えない
+    approach: 文を英語にし、画面で訳していた文を l10n-core.ts の表の ja 訳に移す。大きければ commands とそれ以外で PR を分ける
+    tier: standard
+  t652:
+    scope: dg next・flow next の理由・brief の定型の文と language の入力・フックの文・データのコミットの 1 行目・pr ready の節
+    approach: brief は英語だけにして language を外し、コミットの 1 行目を読む処理は古い日本語も読めるようにする
+    tier: heavy
