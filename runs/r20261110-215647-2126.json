@@ -1,0 +1,34 @@
+{
+  "id": "r20261110-215647-2126",
+  "ticket": "t685",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-10T21:56:47Z",
+  "finished_at": "2026-11-10T21:59:23Z",
+  "result": "success",
+  "error": null,
+  "retries": 3,
+  "retry_reasons": [
+    "ADR-030 の原則（config はコードが判定に効かせる）と work.parallel を guide に埋めるだけの判断が食い違っている",
+    "ADR-011 の guide が埋める値の説明がコードの持つ値と読めて紛らわしい",
+    "config set の説明に数の項目の扱いが書かれていない"
+  ],
+  "usage": {
+    "input": 14,
+    "output": 3591,
+    "cache_read": 239651,
+    "cache_write": 29001
+  },
+  "tools": {
+    "read": 3,
+    "search": 0,
+    "write": 6,
+    "bash": 4,
+    "other": 1,
+    "read_before_write": 1,
+    "search_before_write": 0
+  },
+  "session": "816996d9-8e7c-419b-8543-85c2e8405cdf",
+  "review": null
+}
