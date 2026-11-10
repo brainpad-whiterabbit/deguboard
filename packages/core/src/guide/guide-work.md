@@ -13,7 +13,7 @@ Advances one ticket to a draft PR. `dg next` decides the steps and their order. 
 - Ticket ID: advance that ticket. If it is in an open Plan (`plan` of `ticket show`), follow that Plan
 - No target given: suggest an approved Plan from `plan list --status open`, and confirm. If there is none, suggest making a plan with `dg guide plan`
 
-## Steps
+## Flow
 
 1. Call `dg --json --actor agent next <id>`, and do one of the `kind` steps. Do the `commands` in order. If there is a `brief`, paste it to a subagent (you may add a location for temporary files after it). If `model` is not empty, start the subagent with that model (`null` means the parent's model). A research subagent with no mark uses `models.light` (the parent's model if it is empty). After finishing, call `next` again
 2. The parent's step for each `kind`:

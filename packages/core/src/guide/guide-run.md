@@ -14,4 +14,3 @@ A Run is the record of one piece of work, and it keeps the usage (tokens). This 
 ## Stopped Run
 
 Find a Run that is still open and has not returned with `dg --json --actor agent run list --running --ticket <id>`, and close it with `run finish <Run ID> --result interrupted --error <reason>`. After that, follow `dg next` for the next step.
-</content>

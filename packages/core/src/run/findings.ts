@@ -9,13 +9,14 @@ export function isHeavyFinding(f: ReviewFinding, heavyCategories: readonly strin
 }
 
 /**
- * 受け入れ条件の文言に当たる指摘（category に「受け入れ条件」か "acceptance"（大文字小文字は問わない）を含むもの）。
+ * 受け入れ条件の文言に当たる指摘（category に「受け入れ条件」か "acceptance criteria"（大文字小文字は問わない）を含むもの）。
  * 一覧には印がなく、見直し役は受け入れ条件の欠けを category の名（「受け入れ条件の漏れ」や "missing acceptance criteria" など）で書く（the "Return" section of `dg guide review`）。
  * 英語の guide を読んだ見直し役も同じ語で書くので、guide の言語によらず見分ける（t489）。
  * category で決めるので、どの回の一覧でも同じ規則で決まり、dg が後から印を付け直さなくてすむ
  */
 export function isAcceptanceFinding(f: ReviewFinding): boolean {
-  return /受け入れ条件|acceptance/i.test(f.category);
+  // "acceptance criteri" は criteria と criterion の両方に当たる。"acceptance test" など受け入れ条件でない語は拾わない
+  return /受け入れ条件|acceptance criteri/i.test(f.category);
 }
 
 /**

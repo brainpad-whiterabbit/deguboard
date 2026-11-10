@@ -567,7 +567,7 @@ describe("check-docs の dg guide の節の参照（t561）", () => {
       "docs/development.md",
       "切れた参照の確かめ：`dg guide work` の「存在しない節」を見る。",
     );
-    await rewrite("docs/development.md", /存在しない節/, "Steps");
+    await rewrite("docs/development.md", /存在しない節/, "Flow");
     const { stderr } = await run();
     expect(stderr).not.toMatch(/dg guide [a-z-]+ に節「.+」がない/);
   });
@@ -575,7 +575,7 @@ describe("check-docs の dg guide の節の参照（t561）", () => {
   it("「と「…」」で続く 2 つ目の節が切れていても落ちる", async () => {
     await append(
       "packages/core/src/guide/guide-plan.md",
-      "参照の確かめ：`dg guide work` の「Steps」と「存在しない節」を見る。",
+      "参照の確かめ：`dg guide work` の「Flow」と「存在しない節」を見る。",
     );
     const { code, stderr } = await run();
     expect(code).toBe(1);
@@ -705,7 +705,7 @@ describe("check-docs の .ts の文字列とコメントの dg guide の節の�
   });
 
   it(".ts の切れた参照を直すと、落ちない", async () => {
-    await writeFile(join(dir, PROBE), 'export const s = "dg guide work の「Steps」";\n');
+    await writeFile(join(dir, PROBE), 'export const s = "dg guide work の「Flow」";\n');
     // 写さないファイルへのリンクの切れも出るので、確かめる指摘だけを見る
     const { stderr } = await run();
     expect(stderr).not.toMatch(/dg guide [a-z-]+ に節/);
@@ -734,7 +734,7 @@ describe("check-docs の英語の形の dg guide の節の参照（t563）", () 
       "docs/development.md",
       '切れた参照の確かめ：the "存在しない節" section of `dg guide work` を見る。',
     );
-    await rewrite("docs/development.md", /存在しない節/, "Steps");
+    await rewrite("docs/development.md", /存在しない節/, "Flow");
     const { stderr } = await run();
     expect(stderr).not.toMatch(/dg guide [a-z-]+ に節「.+」がない/);
   });

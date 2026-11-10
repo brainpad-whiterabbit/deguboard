@@ -213,13 +213,13 @@ describe("dg guide", () => {
     for (const word of [
       "mismatches with the references section",
       "`dg pr ready` adds them to the PR body",
-      "Light findings not fixed",
+      "Unfixed light findings",
       // 手直しが直さずに返した理由は dg が書けないので、親が報告に書く（t600）
       "dg cannot write the findings that the fixer returned without fixing",
       "the parent writes them in the report",
       // 親が手直しに渡す軽い指摘は run handoff で dg に伝え、直したかによらず本文に載らない（t639）
       "`dg --json --actor agent run handoff <id> --findings-file <file>`",
-      'they leave "Light findings not fixed" in the PR body whether they were fixed or not',
+      'they are left out of the "Unfixed light findings" section (## 直さなかった軽い指摘) of the PR body whether they were fixed or not',
       "Findings passed to the fix (`run handoff`) are left out whether they were fixed or not",
     ])
       expect(fix, word).toContain(word);

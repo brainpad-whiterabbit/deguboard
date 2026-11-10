@@ -46,12 +46,12 @@ describe("guide.notes の文書の差し込み（CL-5）", () => {
     expect(section.warnings).toEqual([]);
 
     // 節を重ねると指定した順につなぎ、差し込みは最初の節の見出しの直後に 1 度だけ
-    const both = await composeGuide("work", config, root, ["Before and after claim", "Steps"]);
-    expect(both.sections).toEqual(["Before and after claim", "Steps"]);
+    const both = await composeGuide("work", config, root, ["Before and after claim", "Flow"]);
+    expect(both.sections).toEqual(["Before and after claim", "Flow"]);
     expect(both.section).toBe("Before and after claim");
     expect(both.text.split("\n")[2]).toBe("作業の判断の基準を書く");
     expect(both.text.split("作業の判断の基準を書く")).toHaveLength(2);
-    expect(both.text.indexOf("## Steps")).toBeGreaterThan(
+    expect(both.text.indexOf("## Flow")).toBeGreaterThan(
       both.text.indexOf("## Before and after claim"),
     );
   });

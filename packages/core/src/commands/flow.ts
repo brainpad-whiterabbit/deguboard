@@ -240,7 +240,7 @@ export const FLOW_GUIDE: Record<FlowStageName, { topic: string; sections: readon
   work: {
     topic: "work",
     sections: [
-      "Steps",
+      "Flow",
       "Before and after claim",
       "Implement",
       "Receive the implementation result",
