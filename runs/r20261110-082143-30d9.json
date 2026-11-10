@@ -1,0 +1,37 @@
+{
+  "id": "r20261110-082143-30d9",
+  "ticket": "t651",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-10T08:21:43Z",
+  "finished_at": "2026-11-10T08:30:36Z",
+  "result": "success",
+  "error": null,
+  "retries": 6,
+  "retry_reasons": [
+    "write.ts の cas 経路の文が claim 専用に読める（Epic 等の操作を含められない）",
+    "push 拒否の文が claim 専用に読める",
+    "pr.ts GATE_FAILED の hint が日本語のまま残る",
+    "guide.ts・guide/sections.ts の UsageError と guide.notes の警告が日本語のまま残る",
+    "integrity.ts の循環の文でコロンの後の空白が落ちる",
+    "setup.ts の未確認項目の文が 1 件のとき数が合わない"
+  ],
+  "usage": {
+    "input": 68,
+    "output": 21296,
+    "cache_read": 2226887,
+    "cache_write": 65596
+  },
+  "tools": {
+    "read": 16,
+    "search": 0,
+    "write": 18,
+    "bash": 16,
+    "other": 1,
+    "read_before_write": 1,
+    "search_before_write": 0
+  },
+  "session": "acdeea67-8af2-4428-8ea2-d2e346d7d1d9",
+  "review": null
+}
