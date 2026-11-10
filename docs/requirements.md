@@ -8,12 +8,12 @@
 
 ## 1. 目的
 
-deguboard は、Git で管理するチケットとユーザー定義のワークフローを組み合わせた、Local-first で AI エージェント対応のタスク管理ツールである。
+deguboard は、Microsoft が公開する Agentic-Agile の考え方（[マニフェスト](https://github.com/microsoft/agentic-agile-template/blob/main/MANIFESTO.md)）を、ソフトウェア開発で実践するためのツールである。
 
-- 人は「何を作るか」「どの順で進めるか」「成果物を承認するか」を決める
-- AI エージェント（Claude Code・Codex など）は、普段どおりの対話の中でチケットの起票・計画・実行・レビュー・完了を進める。エージェントは人が動かし、deguboard は起動も監視もしない（[ADR-028](adr/ADR-028-agents-and-state.md)）
+- 人はエージェントのパートナーとして、設計・見直し・承認を担う
+- AI エージェント（Claude Code・Codex など）は、仕様（チケットと受け入れ条件）に沿って作業を進める。エージェントは人が動かし、deguboard は起動も監視もしない（[ADR-028](adr/ADR-028-agents-and-state.md)）
 - データは Git リポジトリ内のテキストファイルで管理し、外部 SaaS・DB・常駐サーバーを必須としない
-- ソフトウェア開発・コンサルティング・調査・資料作成など、業務の違いはワークフロー定義で表し、Core に組み込まない
+- 対象はソフトウェア開発で、チームごとの工程の違いはワークフロー定義で表し、Core に組み込まない
 
 ## 2. 想定利用者と前提
 
@@ -43,7 +43,6 @@ deguboard は、Git で管理するチケットとユーザー定義のワーク
 ## 4. ユースケース
 
 - **ソフトウェア開発**：チケットを claim して作業ブランチと PR で進め、マージされると照合で done になる
-- **コンサルティング**：工程を Workflow の step で表して同じ仕組みで進め、PR のない成果物のブランチのマージで done になる
 
 ## 5. データ要件
 
@@ -144,7 +143,7 @@ updated_at: 2026-10-31T05:10:00Z
 - WF-1 Status は全ワークフロー共通の 5 つ（3. 用語）で、増やせず、変えられるのは表示名だけ。前進の順は todo → in_progress → review → done で、`abandoned` は前進の軸の外の終端。`transitions` は遷移に主体 `by`（`[]` で禁止）と条件 `requires`（AND）の制約を足すだけ（検査は ST-2、理由は [ADR-003](adr/ADR-003-status-and-workflow.md)）
 - WF-2 `requires` と `reconcile.when` に書けるのは組み込みの事実（`deps_done`・`branch_exists`・`branch_pushed`・`branch_merged`・`pr_open`・`pr_draft`・`pr_merged`）とその否定（`!pr_draft`）だけで、利用者のスクリプトは実行しない。`deps_done` は `depends_on` がすべて done か abandoned のとき真
 - WF-3 存在しない Status・未知の条件と Action・重複などの誤りは、読み込み時と `dg workflow validate` で指摘する（検査の項目は `packages/core/src/workflow/validate.ts`）
-- WF-4 `software-development`・`consulting`・`general` のテンプレートを同梱し、`dg init` が 3 つとも置く（既にある Workflow は書き換えない）。`default` プロジェクトの Workflow はそのどれかを選べ、既定は `general`
+- WF-4 `software-development`・`general` のテンプレートを同梱し、`dg init` が 2 つとも置く（既にある Workflow は書き換えない）。`default` プロジェクトの Workflow はそのどれかを選べ、既定は `general`
 - WF-5 `steps` は Run の step の語彙（`opens_on` は RN-5）で、`run start` は語彙にない step を拒否する（`steps` がなければ縛らない）。手続きは YAML に書かず、既定の手続きは Core が（EX-3）、各手のやり方は `dg guide` が持つ
 - WF-6 `dg workflow set` は Workflow を 1 つ作るか置き換え、WF-3 の誤りがあれば何も書かず、前と後を返す（細部は `dg workflow set --help`）
 
