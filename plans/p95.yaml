@@ -1,0 +1,64 @@
+id: p95
+project: default
+tickets: [t659, t660, t661, t664, t669, t662, t663, t666, t667, t665, t668]
+after:
+  t662:
+    - t660
+  t663:
+    - t661
+  t666:
+    - t661
+  t667:
+    - t662
+  t665:
+    - t663
+    - t664
+  t668:
+    - t659
+    - t662
+pending_approval: true
+details:
+  t659:
+    scope: README.md と README.ja.md の品質ゲートの説明と Skill の --gate-* の 1 句
+    approach: README の 1 文を段で限定し、両言語の見出しの構成を保つ
+    tier: light
+  t660:
+    scope: CLAUDE.md のマージの条件の free の例外と、段を下げる規約
+    approach: CLAUDE.md の 2 か所を 1 句ずつ直す
+    tier: light
+  t661:
+    scope: guide-review・guide-release の版上げの扱い、hook.ts・pr.ts の GATE_FAILED などの文、段の表の桁
+    approach: 版上げは人の指示で low にする道を案内し、GATE_FAILED の文から版上げの例を外して段の付け替えを案内する
+    tier: standard
+  t664:
+    scope: 段を変えたときの stageOf・nextOf の手の決定とテスト
+    approach: 開いた見直しの Run があれば待つ（WAITABLE に合わせる）かを決め、なぜをコメントに書く
+    tier: heavy
+  t669:
+    scope: commander・vite・@vitejs/plugin-react の版上げ
+    approach: pnpm で版を上げ、lockfile を更新して mise run check を通す
+    tier: standard
+  t662:
+    scope: check-docs のテストと light_paths の食い違いの解消と、check:light の説明
+    approach: テストの値を写したファイルから求めるか、そのテストを check:light に入れるかを決める
+    tier: standard
+  t663:
+    scope: pr.test.ts・gate.test.ts・program.test.ts へのテストの追加だけ
+    approach: 既存の fakeGh と prepared を使ってケースを足す
+    tier: standard
+  t666:
+    scope: guide-import の雛形と guide-overview の品質ゲートの説明
+    approach: guide の md とスナップショットを直す
+    tier: light
+  t667:
+    scope: ADR-001 の細部を正本へ移すか分割する。判断は変えない
+    approach: check:docs の検査の細部などを scripts とテストへ移す
+    tier: light
+  t665:
+    scope: 段の判断の関数を 1 か所にまとめ、pr.ts の説明の写しを除く
+    approach: model/ticket.ts に段の関数を置き、各コマンドから使う
+    tier: standard
+  t668:
+    scope: dg を PATH に入れる mise の task と、dg hooks check の案内
+    approach: mise.toml に task を足し、development.md と README から案内する
+    tier: standard
