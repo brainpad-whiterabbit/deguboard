@@ -633,9 +633,10 @@ By default, agents can run every operation. Limits are added in the settings.
 | done     | dgdone    | Cleanup after merge, confirming the remaining acceptance criteria, and closing a Plan                                                          | After a PR is merged                                               |
 | change   | dgchange  | Carries out one change a human asked for (edit, close, reopen, abandon, undo done): checks the preconditions, writes with one \`dg\` call per target, and hands the command to a human when refused | When asked to edit, close, reopen, abandon, or undo done |
 | discuss  | dgdiscuss | Settles the open points of tickets, an Epic, or an Iteration with a human through choices without changing data, then reflects the result after approval of before → after (writing by import or change) | When asked to discuss what a ticket, Epic, or Iteration should be |
+| status   | dgstatus  | Tells where an in-progress ticket is, why it has stopped, and the next step, from the ticket, \`next\`, Runs, and the PR, without changing data (recommends resuming, does not resume) | When asked how the work on a ticket is going |
 | all      | dgall     | Advances assign → check → plan → work → audit → release, taking the stage from the state (can resume with the same arguments)                  | When asked to "carry s3 through to the end"                        |
 
-Read with \`dg guide <topic>\`. In Claude Code, the Skill that \`dg skill install\` installs (such as \`/dgimport\`) reads the topic. The only asks from the screen (\`dg ask\`) that have no Skill are free, status, and retro; their request text is plain text without a topic. A Skill is optional. Without one, read \`dg guide <topic>\` and proceed with the same steps. In Claude Code, \`dg hooks install\` can also install hooks, and \`dg hooks check\` confirms whether they are installed, whether they work, and whether their input has the right shape (it warns when something is missing). For the list of commands, see \`dg --help\`. For each command's options, see \`dg <group> <operation> --help\`."
+Read with \`dg guide <topic>\`. In Claude Code, the Skill that \`dg skill install\` installs (such as \`/dgimport\`) reads the topic. The only asks from the screen (\`dg ask\`) that have no Skill are free and retro; their request text is plain text without a topic. A Skill is optional. Without one, read \`dg guide <topic>\` and proceed with the same steps. In Claude Code, \`dg hooks install\` can also install hooks, and \`dg hooks check\` confirms whether they are installed, whether they work, and whether their input has the right shape (it warns when something is missing). For the list of commands, see \`dg --help\`. For each command's options, see \`dg <group> <operation> --help\`."
 `;
 
 exports[`dg guide の出力（本文の組み立て） > トピックごとの本文と、節の本文が変わらない > parallel 1`] = `
@@ -871,6 +872,57 @@ A Run is the record of one piece of work, and it keeps the usage (tokens). This 
 ## Stopped Run
 
 Find a Run that is still open and has not returned with \`dg --json --actor agent run list --running --ticket <id>\`, and close it with \`run finish <Run ID> --result interrupted --error <reason>\`. After that, follow \`dg next\` for the next step."
+`;
+
+exports[`dg guide の出力（本文の組み立て） > トピックごとの本文と、節の本文が変わらない > status 1`] = `
+"# Status (status)
+
+Tells a human how the work on a ticket is going: where it is now, why it has stopped (if it has), and the next step. This guide only reads. It changes no data: no \`dg\` write, no file, no branch, no commit, and no PR.
+
+## Deciding the target
+
+- The IDs after the Skill call (\`/dgstatus t12\`) are the targets. Each should be an in_progress ticket. For any other status, show its status from \`ticket show\` and the ask that fits (for example, \`dg guide work\` for a todo ticket, or \`dg guide done\` for one in review), and stop
+- No target given: ask which ticket, with the choices below
+
+## Asking with choices
+
+Tickets advance in this order: import (\`dg guide import\`) → assign (\`dg guide assign\`) → check (\`dg guide check\`) → plan (\`dg guide plan\`) → work (\`dg guide work\`) → audit (\`dg guide audit\`, when an Iteration or Epic ends) → release (\`dg guide release\`; if there are no release steps, clean up with \`dg guide done\`). Done (\`dg guide done\`) comes after every merge. To carry on from assign through release, use \`dg guide all\`. When asking a human for a decision (approval, correction, which one to choose), and when a step is finished and the next step must be decided, show the choices and ask.
+
+- When the agent can offer choices, ask with that mechanism (in Claude Code, the AskUserQuestion tool). If it cannot, show the numbered choices in text
+- Show the material for the decision (tables, Plans, lists of PRs) before the choices. Do not ask for a decision with only the choices' descriptions
+- Offer 2 to 4 choices, put the recommended one first, and give its reason. An answer that cannot be a choice, such as the content of a correction, is taken as free input outside the choices
+- Ask questions where several can be chosen (such as which lines to reflect) with multiple selection. Ask about deletion, abandoned, and close operations one at a time
+- When deciding the next step, make the next step in the flow and "stop here" the choices (see the "Choosing the next step" section of each guide). When the next step is chosen, if a Skill is available (for example \`/dgwork p3\`), start it. If not, read \`dg guide <topic>\` and continue with that step. Do not do the next step's work inside the current step.
+
+## Reading
+
+For each target, read with \`dg --json --actor agent\` (none of these writes):
+
+- \`ticket show <t12>\`: \`status\`, \`stage\` (where the work is), \`worktree\` (null if there is none yet), \`branch\`, \`pr\`, \`plan\`, \`deps_done\`, and \`pending_deps\`
+- \`next <t12>\`: the next step and the reason for the stage
+- \`run list --ticket <t12>\`: the Runs of the ticket. The latest one's \`result\` and \`error\` say why a stop happened. \`run list --running --ticket <t12>\` lists the unfinished ones on this machine
+- The commits in the worktree: when \`worktree\` is set, \`git -C <worktree> log --oneline -5\`
+- The PR: when \`pr\` is set, \`gh pr view <number> --json state,isDraft,reviewDecision\`. If \`gh\` is not available, say that the PR state is unknown
+
+## Answering
+
+Answer in 3 to 5 lines, in the words the human used: where the work is now (the stage, and whether a Run is running), why it has stopped (if it has), and the next step. Then:
+
+- A Run is running (\`run list --running\` shows one): show the stage of that Run and the latest commits of the worktree. Do not act on the ticket or the Run (no claim, finish, resume, or move). The agent working on it owns it
+- It has stopped (in_progress and no Run running): say why, from the latest Run's \`result\` and \`error\`, or from the stage in \`next\`. Recommend resuming only, and do not resume here (see "Choosing the next step")
+- It is waiting (\`deps_done\` is false, or it is in a Plan that is not approved yet): say which dependencies or which Plan it waits for
+- Otherwise: say how far it has got (the commits and the PR state), and give the next step from \`next\`
+
+## Steps
+
+1. **Read the target**: \`ticket show <t12>\`. If it is not in_progress, show its status and the ask that fits, then stop
+2. **Read the stage and the Runs**: \`next <t12>\`, \`run list --ticket <t12>\`, and \`run list --running --ticket <t12>\`
+3. **Read the worktree and the PR**: the commits in the worktree and the PR state, as in "Reading"
+4. **Answer**: 3 to 5 lines, as in "Answering"
+
+## Choosing the next step
+
+This guide does not use the shared "next step" choices of "Asking with choices" above: it only answers how the work is going, and asks no choices. A stopped ticket is resumed with \`dg guide work\` (if a Skill is available, \`/dgwork <t12>\`). This guide only recommends it as the last line of the answer. It does not ask with choices and does not resume the work. Without a Skill, read \`dg guide work\` and continue with that step when the human asks."
 `;
 
 exports[`dg guide の出力（本文の組み立て） > トピックごとの本文と、節の本文が変わらない > work 1`] = `

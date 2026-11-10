@@ -587,6 +587,13 @@ guide.notes.discuss
 guide.notes.discuss
 [title] 既定の  に戻す
 既定に戻す
+差し込む文書（様子）
+guide.notes.status
+[title] 既定は 
+変更あり
+guide.notes.status
+[title] 既定の  に戻す
+既定に戻す
 差し込む文書（一気通し）
 guide.notes.all
 [title] 既定は 

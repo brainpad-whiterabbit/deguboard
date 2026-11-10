@@ -185,6 +185,10 @@ export const SKILL_SUMMARY: Readonly<Record<string, Readonly<Record<AskLanguage,
     ja: "チケット・Epic・Iteration の論点を人と選択肢で決め、前後の差の承認を得てから反映します。",
     en: "Settles the open points of tickets, an Epic, or an Iteration with a human through choices, and reflects the result after approval of before → after.",
   },
+  dgstatus: {
+    ja: "進んでいるチケットの様子を、今の段階・止まった理由・次の一手で、データを書き換えずに教えます。",
+    en: "Tells where an in-progress ticket is, why it has stopped, and the next step, without changing any data.",
+  },
 };
 
 /** Skill（dg<トピック>）の 1 文。SKILL_SUMMARY に文がなければ例外 */
@@ -892,14 +896,20 @@ const ACTIONS: Record<AskAction, ActionDef> = {
       })),
   },
   status: {
-    skill: null,
+    skill: "dgstatus",
     label: () => "様子を聞く",
     text: (s, _w, lang) =>
-      say(
-        lang,
-        `${idList(s, lang)} の作業の様子を教えてください（データは書き換えない）。`,
-        `Tell me how the work on ${idList(s, lang)} is going (do not change any data).`,
-      ),
+      s.length === 0
+        ? say(
+            lang,
+            "指示のチケットの作業の様子を教えてください（データは書き換えない）。",
+            "Tell me how the work on the instructed tickets is going (do not change any data).",
+          )
+        : say(
+            lang,
+            `${idList(s, lang)} の作業の様子を教えてください（データは書き換えない）。`,
+            `Tell me how the work on ${idList(s, lang)} is going (do not change any data).`,
+          ),
   },
   retro: {
     skill: null,
@@ -1245,7 +1255,7 @@ function afterChange(actions: readonly AskAction[], action: AskAction): AskActio
 }
 
 function baseActions(s: Subjects, place?: AskPlace): AskAction[] {
-  // 対象なしは、Skill を持つ頼むことを流れの順にすべて出す（Skill が対象を聞く）。対象がないと意味のないもの（外す・分ける・done の取り消し・再開・承認）と、Skill のないもの（様子・振り返り・持ち越し）は出さない
+  // 対象なしは、Skill を持つ頼むことを流れの順にすべて出す（Skill が対象を聞く）。対象がないと意味のないもの（外す・分ける・done の取り消し・再開・承認）と、Skill のないもの（振り返り）は出さない
   if (s.length === 0)
     return [
       "create",
@@ -1255,6 +1265,7 @@ function baseActions(s: Subjects, place?: AskPlace): AskAction[] {
       "check",
       "plan",
       "work",
+      "status",
       "all",
       "done",
       "release",
@@ -1394,8 +1405,8 @@ const NO_TARGET: Partial<Record<AskAction, { ja: string; en: string }>> = {
     en: "Undo done on the done tickets and return their Status to todo, in_progress, or review (a human's instruction).",
   },
   status: {
-    ja: "作業の様子を教えます（データは書き換えません）。",
-    en: "Tell how the work is going (no data changes).",
+    ja: "進んでいるチケットの作業の様子を教えます（データは書き換えません）。",
+    en: "Tell how the work on an in-progress ticket is going (no data changes).",
   },
   retro: {
     ja: "振り返りをまとめます（データは書き換えません）。",
@@ -1647,7 +1658,7 @@ export const ask = defineCommand({
       .array(z.string().min(1))
       .default([])
       .describe(
-        "Target IDs (t12, s3, e2, p7; more than one allowed). Omit for no target: the candidates are the actions that start without a target (creating, assigning, planning, working, releasing, changing, discussing, closing, or checking everything), and the Skill asks for the target",
+        "Target IDs (t12, s3, e2, p7; more than one allowed). Omit for no target: the candidates are the actions that start without a target (creating, assigning, planning, working, reading the status of work, releasing, changing, discussing, closing, or checking everything), and the Skill asks for the target",
       ),
     action: z
       .enum(ASK_ACTIONS)
@@ -1660,7 +1671,7 @@ export const ask = defineCommand({
       .enum(ASK_FORMATS)
       .optional()
       .describe(
-        "skill gives only the Skill call and the instruction; text gives one line asking for the action, the dg command, and (for actions that have a Skill) one line to read guide, plus the instruction. The actions with no Skill (free, status, retro) use the text form even when skill is given. When omitted, uses skill if dg's Skill is in the place dg skill install writes to (under the repository or the home directory), otherwise text",
+        "skill gives only the Skill call and the instruction; text gives one line asking for the action, the dg command, and (for actions that have a Skill) one line to read guide, plus the instruction. The actions with no Skill (free, retro) use the text form even when skill is given. When omitted, uses skill if dg's Skill is in the place dg skill install writes to (under the repository or the home directory), otherwise text",
       ),
     within: z
       .string()

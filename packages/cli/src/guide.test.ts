@@ -93,6 +93,7 @@ const ENGLISH_TOPICS = new Set([
   "done",
   "change",
   "discuss",
+  "status",
   "all",
 ]);
 
@@ -541,8 +542,25 @@ describe("dg guide", () => {
       expect(reflected).toContain(word);
     for (const word of ["`dg guide assign`", "`dg guide change`"])
       expect(reflected).toContain(word);
-    // status・retro の節は持たない（t672 以降で扱う）
+    // status・retro の節は持たない（様子は guide status、振り返りは別の頼むこと）
     expect(guide).not.toMatch(/^## .*(status|retro)/im);
+  });
+
+  it("status は進んでいる作業の様子を読むだけで書き換えず、Run が実行中なら手を出さず、止まっていれば再開を勧めるだけにする", async () => {
+    const guide = await readGuide("status");
+    // 読むものは ticket show・next・run list・worktree のコミット・PR の状態。書く dg の呼び方は持たない
+    const reading = section(guide, "## Reading");
+    for (const word of ["ticket show", "`next", "run list", "git -C", "gh pr view"])
+      expect(reading).toContain(word);
+    for (const word of ["ticket update", "ticket move", "ticket check", "run start", "run finish"])
+      expect(guide).not.toContain(word);
+    // 答えは 3 から 5 行で、今の段階・止まった理由・次の一手
+    const answering = section(guide, "## Answering");
+    expect(answering).toContain("3 to 5 lines");
+    expect(answering).toContain("Do not act on the ticket or the Run");
+    // 止まっていれば再開を勧めるだけで、ここでは再開せず、選択肢で聞かない
+    expect(section(guide, "## Choosing the next step")).toContain("does not resume");
+    expect(guide).toContain("## Asking with choices");
   });
 
   it("change は操作ごとの前提を確かめ、当たるときだけ前後を示して承認を得て、dg を 1 回呼び、拒否されたら人にコマンドを渡す", async () => {
