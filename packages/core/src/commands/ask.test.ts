@@ -189,11 +189,14 @@ describe("依頼文の組み立て", () => {
       ["all", "all"],
       ["release", "release"],
       ["check", "check"],
+      ["edit", "change"],
+      ["close", "change"],
+      ["abandon", "change"],
     ];
     for (const [action, topic] of topics) {
       const subjects = action.startsWith("create")
         ? []
-        : action === "release" || action === "all"
+        : action === "release" || action === "all" || action === "close"
           ? [iteration("active")]
           : [ticket({ status: action === "done" ? "review" : "todo" })];
       const view = buildAsk({ subjects, action, format: "text", note: "指示" });
@@ -205,7 +208,11 @@ describe("依頼文の組み立て", () => {
       expect(lines.at(-1)).toBe("指示");
     }
     // Skill を持たない頼むことは変わらない（guide の一文なし）
-    const none = buildAsk({ subjects: [iteration("active")], action: "close", format: "text" });
+    const none = buildAsk({
+      subjects: [ticket({ status: "in_progress" })],
+      action: "status",
+      format: "text",
+    });
     expect(none.skill).toBeNull();
     expect(none.text).not.toContain("dg guide");
   });
@@ -233,8 +240,7 @@ describe("依頼文の組み立て", () => {
     ).toBe(
       "指示の内容をチケットにして s10 に入れてください（人の指示なので --created-by human を付ける）。",
     );
-    // 分けるは直すと同じ呼び出しになるので、分けることを添える
-    expect(buildAsk({ subjects: [ticket()], action: "fix" }).text).toBe("/dgimport t265");
+    // 分けるは ID だけの /dgimport（会話から直す）と同じ呼び出しになるので、分けることを添える
     const split = buildAsk({ subjects: [ticket()], action: "split", note: "画面と CLI で" });
     expect(split.text).toBe("/dgimport t265\nt265 を分けて\n画面と CLI で");
     expect(buildAsk({ subjects: [ticket()], action: "split", format: "text" }).text).toContain(
@@ -264,7 +270,7 @@ describe("依頼文の組み立て", () => {
     );
   });
 
-  it("閉じる・再開・done の取り消し・やめるの依頼文には「人の指示」と書き添える", () => {
+  it("閉じる・再開・done の取り消し・やめるの文章だけの依頼文には「人の指示」と書き添える", () => {
     const cases: Array<[AskSubject, AskView["action"]]> = [
       [iteration("active"), "close"],
       [epic("open"), "close"],
@@ -274,9 +280,80 @@ describe("依頼文の組み立て", () => {
       [ticket(), "abandon"],
     ];
     for (const [subject, action] of cases) {
-      const view = buildAsk({ subjects: [subject], action });
+      const view = buildAsk({ subjects: [subject], action, format: "text" });
       expect(view.kind).toBe("prompt");
       expect(view.text).toContain("（人の指示");
+    }
+  });
+
+  it("人の指示による書き換え（直す・閉じる・再開・やめる・done の取り消し）の Skill の形は、/dgchange <ID> と頼みごとの 1 行になる", () => {
+    const cases: Array<[AskSubject[], AskAction, string]> = [
+      [[ticket()], "edit", "/dgchange t265\nt265 を直して"],
+      [[ticket({ status: "review" })], "edit", "/dgchange t265\nt265 を直して"],
+      [[iteration("active")], "edit", "/dgchange s10\ns10 の名前・目標・期間を直して"],
+      [[epic("open")], "edit", "/dgchange e9\ne9 の題・概要を直して"],
+      [[iteration("active")], "close", "/dgchange s10\ns10 を閉じて"],
+      [[epic("open")], "close", "/dgchange e9\ne9 を閉じて"],
+      [[iteration("closed")], "reopen", "/dgchange s10\ns10 を再開して"],
+      [[epic("closed")], "reopen", "/dgchange e9\ne9 を再開して"],
+      [
+        [ticket(), ticket({ id: "t266" })],
+        "abandon",
+        "/dgchange t265 t266\nt265・t266 をやめて abandoned にして",
+      ],
+      [[ticket({ status: "done" })], "undo_done", "/dgchange t265\nt265 の done を取り消して"],
+    ];
+    for (const [subjects, action, text] of cases) {
+      const view = buildAsk({ subjects, action, format: "skill" });
+      expect(view, action).toMatchObject({ kind: "prompt", skill: "/dgchange", text });
+      // 指示は頼みごとの次の行に置く
+      expect(buildAsk({ subjects, action, format: "skill", note: "理由は重複" }).text).toBe(
+        `${text}\n理由は重複`,
+      );
+    }
+    // 英語の頼みごと
+    expect(
+      buildAsk({ subjects: [ticket({ status: "done" })], action: "undo_done", language: "en" })
+        .text,
+    ).toBe("/dgchange t265\nUndo done for t265");
+    // チケットの直すは fix（/dgimport）ではなく edit（/dgchange）。会話から直す /dgimport は候補に出さない
+    expect([...ASK_ACTIONS] as string[]).not.toContain("fix");
+    expect(askCandidates([ticket()]).find((c) => c.action === "edit")).toMatchObject({
+      label: "直す",
+      skill: "/dgchange",
+    });
+  });
+
+  it("Skill を持たない頼むことは free・status・retro・carry だけ", () => {
+    const none = new Set<string>();
+    for (const [s, within] of SAMPLES)
+      for (const c of askCandidates(s, within)) if (c.skill === null) none.add(c.action);
+    expect([...none].sort()).toEqual(["carry", "free", "retro", "status"]);
+  });
+
+  it("actor.human_only に当たる書き換えは、/dgchange の代わりに今までどおり人が打つコマンドを返す", () => {
+    const cases: Array<[AskSubject[], AskAction, string, string]> = [
+      [
+        [ticket()],
+        "edit",
+        "ticket.update",
+        'dg ticket update t265 --title "<題>" --acceptance "<受け入れ条件>" --priority <優先度>',
+      ],
+      [[epic("open")], "edit", "epic.update", 'dg epic update e9 --title "<題>" --body "<概要>"'],
+      [[iteration("active")], "close", "iteration.close", "dg iteration close s10"],
+      [[epic("closed")], "reopen", "epic.reopen", "dg epic reopen e9"],
+      [[ticket()], "abandon", "ticket.move", "dg ticket move t265 abandoned"],
+      [
+        [ticket({ status: "done" })],
+        "undo_done",
+        "ticket.move",
+        'dg ticket move t265 "<戻す Status>"',
+      ],
+    ];
+    for (const [subjects, action, op, text] of cases) {
+      const view = buildAsk({ subjects, action, format: "skill", humanOnly: [op] });
+      expect(view, action).toMatchObject({ kind: "command", human_only: [op], text });
+      expect(view.text).not.toContain("/dgchange");
     }
   });
 
@@ -381,13 +458,14 @@ describe("依頼文の組み立て", () => {
   });
 
   it("Skill を使わない頼むことは、Skill 形式でも頼む 1 文と dg の呼び方の形になる", () => {
-    const view = buildAsk({ subjects: [iteration("active")], action: "close" });
+    const view = buildAsk({
+      subjects: [ticket({ status: "in_progress", running: true })],
+      action: "status",
+      format: "skill",
+    });
     expect(view.skill).toBeNull();
     expect(view.text).toBe(
-      [
-        "s10 を閉じてください（人の指示。終わっていないチケットがあれば閉じる前に知らせる）。",
-        ASK_DG_USAGE,
-      ].join("\n"),
+      ["t265 の作業の様子を教えてください（データは書き換えない）。", ASK_DG_USAGE].join("\n"),
     );
   });
 
@@ -526,6 +604,7 @@ describe("人に回すかを決める操作の名前", () => {
       "ticket.create",
       "ticket.import",
       "ticket.move",
+      "ticket.update",
     ]);
   });
 });
@@ -581,17 +660,17 @@ describe("頼むことの候補", () => {
     expect(askActions([ticket()], "s10")).toEqual([
       "work",
       "plan",
-      "fix",
+      "edit",
       "remove",
       "split",
       "check",
       "abandon",
       "free",
     ]);
-    // 直すのない候補（in_progress で実行中）では自由にの前
+    // in_progress で実行中でも、直すの後
     expect(askActions([ticket({ status: "in_progress", running: true })], "s10")).toEqual([
       "status",
-      "fix",
+      "edit",
       "remove",
       "free",
     ]);
@@ -703,7 +782,7 @@ describe("ask", () => {
     const ctx = await openContext({ cwd, actor, env: { HOME: home } });
     await runCommand(ticketCreate, ctx, { title: "A" });
     const run = async (input: Record<string, unknown>) =>
-      (await runCommand(ask, ctx, { targets: ["t1"], action: "fix", ...input })).data;
+      (await runCommand(ask, ctx, { targets: ["t1"], action: "check", ...input })).data;
     const skill = async (base: string, name: string) => {
       await mkdir(join(base, ".claude", "skills", name), { recursive: true });
       await writeFile(join(base, ".claude", "skills", name, "SKILL.md"), "---\nname: x\n---\n");
@@ -714,18 +793,18 @@ describe("ask", () => {
     await skill(home, "kfplan");
     expect(await run({})).toMatchObject({ format: "text", text: textForm });
     // 人が選んだ形式は、Skill がなくてもそのまま
-    expect((await run({ format: "skill" })).text).toBe("/dgimport t1");
+    expect((await run({ format: "skill" })).text).toBe("/dgcheck t1");
 
     // HOME（~/.claude/skills）にあれば Skill の形。頼むことの Skill と別の dg の Skill でもよい
     await skill(home, "dgplan");
-    expect(await run({})).toMatchObject({ format: "skill", text: "/dgimport t1" });
+    expect(await run({})).toMatchObject({ format: "skill", text: "/dgcheck t1" });
     expect((await run({ format: "text" })).text).toBe(textForm);
 
     // リポジトリ（<リポジトリ>/.claude/skills）にあっても Skill の形
     await rm(join(home, ".claude"), { recursive: true });
     expect((await run({})).format).toBe("text");
     await skill(cwd, "dgwork");
-    expect(await run({})).toMatchObject({ format: "skill", text: "/dgimport t1" });
+    expect(await run({})).toMatchObject({ format: "skill", text: "/dgcheck t1" });
   });
 
   it("within は Iteration・Epic を引いて確かめ、ask-menu の組は @ を付けた場所を受ける", async () => {
@@ -775,10 +854,14 @@ describe("ask", () => {
     const { ctx } = await initialized();
     await runCommand(ticketCreate, ctx, { title: "A" });
     const run = async (input: Record<string, unknown>) =>
-      (await runCommand(ask, ctx, { targets: ["t1"], action: "fix", format: "text", ...input }))
+      (await runCommand(ask, ctx, { targets: ["t1"], action: "edit", format: "text", ...input }))
         .data.text;
-    expect((await run({ language: "en" })).split("\n")[0]).toBe("Fix t1 as instructed.");
-    expect((await run({})).split("\n")[0]).toBe("t1 を指示のとおりに直してください。");
+    expect((await run({ language: "en" })).split("\n")[0]).toBe(
+      "Edit t1 as instructed (title, summary, acceptance criteria, priority, labels, dependencies).",
+    );
+    expect((await run({})).split("\n")[0]).toBe(
+      "t1 を指示のとおりに直してください（題・概要・受け入れ条件・優先度・ラベル・依存）。",
+    );
     await expect(run({ language: "fr" })).rejects.toThrow();
   });
 
@@ -877,7 +960,7 @@ describe("Skill の 1 文（skill_summary・UI-15）", () => {
 
   it("Skill の名前に文がなければ例外", () => {
     expect(() => skillSummary("dgnone")).toThrow();
-    expect(Object.keys(SKILL_SUMMARY)).toHaveLength(9);
+    expect(Object.keys(SKILL_SUMMARY)).toHaveLength(10);
   });
 });
 

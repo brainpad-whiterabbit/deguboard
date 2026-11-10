@@ -206,6 +206,7 @@ describe("スキーマ", () => {
       "guide.notes.audit",
       "guide.notes.release",
       "guide.notes.done",
+      "guide.notes.change",
       "guide.notes.all",
       "priority.high",
       "priority.medium",
