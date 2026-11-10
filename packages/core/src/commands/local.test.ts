@@ -229,29 +229,43 @@ describe("プロセス内の CommandClient", () => {
       cli,
       { title: "外から" },
     );
+    // 外からの書き込みで増えた走査の数は数えず、2 本目の読みが自分で走査した 1 回だけを見る
+    const before = rescan.mock.calls.length;
     const second = client.run<{ id: string }[]>("ticket.list");
     release();
     await first;
     expect((await second).data.map((t) => t.id)).toEqual(["t1", "t2"]);
-    expect(rescan).toHaveBeenCalled();
+    // 2 本目の読みは、1 本目の走査が終わったあとに届いたので、自分で再走査している
+    expect(rescan.mock.calls.length - before).toBe(1);
   });
 
-  it("書き込みのあとの読みは、使い回さずに新しく再走査する。書き込みは毎回自分で再走査する", async () => {
+  it("書き込みが列で待っているあいだに届いた読みは、書き込みのあとに新しく再走査し、書き込みの結果が見える", async () => {
     const f = await initialized();
     const client = createLocalClient({ cwd: f.cloneA });
     await client.run("ticket.create", { title: "一" });
     await client.run("ticket.list");
     const rescan = vi.spyOn(Store.prototype, "rescan");
-    await client.run("ticket.create", { title: "二" });
-    expect(rescan.mock.calls.length).toBeGreaterThanOrEqual(1);
-    rescan.mockClear();
-    const [first, second] = await Promise.all([
-      client.run<{ id: string }[]>("ticket.list"),
+    // 書き込みと読みを同じ瞬間に投げる。読みは書き込みの走査の前に届くので、書き込みの走査の番号を使い回してはいけない
+    const [, list] = await Promise.all([
+      client.run("ticket.create", { title: "二" }),
       client.run<{ id: string }[]>("ticket.list"),
     ]);
-    expect(rescan).toHaveBeenCalledTimes(1);
-    expect(first.data).toHaveLength(2);
-    expect(second.data).toHaveLength(2);
+    // 書き込みの走査と、読みの走査の 2 回
+    expect(rescan).toHaveBeenCalledTimes(2);
+    expect(list.data.map((t) => t.id)).toEqual(["t1", "t2"]);
+  });
+
+  it("書き込みは再走査を共有せず、同時に届いても 1 本ずつ自分で再走査する", async () => {
+    const f = await initialized();
+    const client = createLocalClient({ cwd: f.cloneA });
+    await client.run("ticket.create", { title: "一" });
+    const rescan = vi.spyOn(Store.prototype, "rescan");
+    const [a, b] = await Promise.all([
+      client.run<{ id: string }>("ticket.create", { title: "二" }),
+      client.run<{ id: string }>("ticket.create", { title: "三" }),
+    ]);
+    expect(rescan).toHaveBeenCalledTimes(2);
+    expect([a.data.id, b.data.id]).toEqual(["t2", "t3"]);
   });
 
   it("同時に届いた読みの 1 本が失敗しても、他の結果は返り、失敗はその呼び出しの失敗になる", async () => {
