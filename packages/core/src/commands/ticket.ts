@@ -10,6 +10,7 @@ import { STATUSES, isTerminal, slugSchema, statusSchema, type Status } from "../
 import { parseId, type TicketId } from "../model/id.js";
 import type { RunId } from "../model/run.js";
 import {
+  GATE_LEVELS,
   PRIORITIES,
   parseAcceptance,
   replaceAcceptance,
@@ -116,6 +117,12 @@ const actorRef = z.string().min(1);
 const ticketAttributes = {
   priority: z.enum(PRIORITIES).optional().describe("Priority"),
   labels: z.array(z.string()).optional().describe("Labels"),
+  gate: z
+    .enum(GATE_LEVELS)
+    .optional()
+    .describe(
+      "Quality gate level (TK-9). high checks every condition, low skips the review, free checks only that the PR is open and has no conflict. Treated as high when omitted (see dg gate --help)",
+    ),
   iteration: z.string().optional().describe("Iteration ID"),
   epic: z.string().optional().describe("Epic ID. Cannot be set on a closed Epic"),
   depends_on: z.array(z.string()).optional().describe("IDs of tickets this one depends on"),
@@ -192,6 +199,7 @@ function buildTicket(
     status: "todo",
     priority: input.priority ?? "medium",
     labels: input.labels ?? [],
+    ...(input.gate ? { gate: input.gate } : {}),
     ...(iteration ? { iteration } : {}),
     ...(epic ? { epic } : {}),
     depends_on,
@@ -522,6 +530,13 @@ export const ticketUpdate = defineCommand({
       .describe(
         "IDs of tickets this one depends on. Replaces the whole list (specify all of them, including existing ones)",
       ),
+    gate: z
+      .enum(GATE_LEVELS)
+      .nullable()
+      .optional()
+      .describe(
+        "Quality gate level (TK-9): high, low, or free. Removing it returns to high (see dg gate --help)",
+      ),
     iteration: z.string().nullable().optional().describe("Iteration ID"),
     epic: z.string().nullable().optional().describe("Epic ID"),
     workflow: slugSchema
@@ -576,6 +591,7 @@ export const ticketUpdate = defineCommand({
         if (input.title !== undefined) patch["title"] = input.title;
         if (input.priority !== undefined) patch["priority"] = input.priority;
         if (input.labels !== undefined) patch["labels"] = input.labels;
+        if (input.gate !== undefined) patch["gate"] = input.gate ?? undefined;
         if (input.pr !== undefined) patch["pr"] = input.pr ?? undefined;
         if (input.branch !== undefined && input.branch !== (t.branch ?? null)) {
           if (input.branch !== null) await requireBranchAvailable(ctx, t.id, input.branch);

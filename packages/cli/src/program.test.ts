@@ -555,7 +555,8 @@ describe("dg", () => {
   it("外せるオプションのヘルプは外し方を none の 1 つだけ示す", async () => {
     const f = await fixture();
     const help = (await dg(f.cloneA, ["ticket", "update", "--help"])).out;
-    expect(help.match(/\(none to clear\)/g)).toHaveLength(6);
+    // iteration・epic・workflow・pr・branch・assignee・gate
+    expect(help.match(/\(none to clear\)/g)).toHaveLength(7);
     expect(help).not.toContain("null");
   });
 

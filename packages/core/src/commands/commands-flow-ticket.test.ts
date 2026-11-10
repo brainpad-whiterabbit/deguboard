@@ -492,6 +492,39 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
     expect(text).toContain("estimate: 3");
   });
 
+  it("ゲートの段（gate。TK-9）は create・import・update で付き、update の null で外れ、段にない値は拒む", async () => {
+    const f = await fixture();
+    const ctx = await initialized(f.cloneA);
+    const created = await runCommand(ticketCreate, ctx, { title: "A", gate: "low" });
+    expect(created.data).toMatchObject({ gate: "low" });
+    // 付けなければ gate を書かない（判定では high として扱う）
+    const plain = await runCommand(ticketCreate, ctx, { title: "B" });
+    expect(plain.data).not.toHaveProperty("gate");
+    const imported = await runCommand(ticketImport, ctx, {
+      source: "- title: C\n  gate: free\n",
+    });
+    expect(imported.data).toMatchObject([{ gate: "free" }]);
+    const updated = await runCommand(ticketUpdate, ctx, { ticket: "t2", gate: "free" });
+    expect(updated.data).toMatchObject({ gate: "free" });
+    const removed = await runCommand(ticketUpdate, ctx, { ticket: "t2", gate: null });
+    expect(removed.data).not.toHaveProperty("gate");
+    const text = await readFile(path.join(ctx.repo.dataDir, "tickets/t2.md"), "utf8");
+    expect(text).not.toContain("gate:");
+    // 段にない値（none など）は、どの入口でも拒む
+    await expect(
+      runCommand(ticketCreate, ctx, { title: "D", gate: "none" as never }),
+    ).rejects.toMatchObject({ code: "INVALID_INPUT" });
+    await expect(
+      runCommand(ticketImport, ctx, { source: "- title: D\n  gate: none\n" }),
+    ).rejects.toMatchObject({ code: "INVALID_INPUT" });
+    await expect(
+      runCommand(ticketUpdate, ctx, { ticket: "t1", gate: "none" as never }),
+    ).rejects.toMatchObject({ code: "INVALID_INPUT" });
+    expect((await runCommand(ticketShow, ctx, { ticket: "t1" })).data).toMatchObject({
+      gate: "low",
+    });
+  });
+
   it("check は番号で受け入れ条件に印を付け外しし、show が acceptance を出す", async () => {
     const f = await fixture();
     const ctx = await initialized(f.cloneA);

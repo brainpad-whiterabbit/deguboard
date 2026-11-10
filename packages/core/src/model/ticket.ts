@@ -14,6 +14,14 @@ import { epicIdSchema, iterationIdSchema, ticketIdSchema, type TicketId } from "
 export const PRIORITIES = ["low", "medium", "high"] as const;
 export type Priority = (typeof PRIORITIES)[number];
 
+/**
+ * 品質ゲートの段（TK-9）。high は見直しを含むすべての条件、low は見直しを除く条件、free は PR が開いていることと
+ * 衝突しないことだけを判定する（段ごとの条件は commands/gate.ts の judgeGate）。チケットに gate がなければ high
+ */
+export const GATE_LEVELS = ["high", "low", "free"] as const;
+export type GateLevel = (typeof GATE_LEVELS)[number];
+export const DEFAULT_GATE_LEVEL: GateLevel = "high";
+
 // スキーマにないキーは looseObject で残す（DT-2）。Workflow の fields の値もここを通る
 const ticketFrontmatter = z.looseObject({
   id: ticketIdSchema,
@@ -22,6 +30,8 @@ const ticketFrontmatter = z.looseObject({
   status: statusSchema,
   priority: z.enum(PRIORITIES).default("medium"),
   labels: z.array(z.string()).default([]),
+  /** 品質ゲートの段（TK-9）。省くと high として判定する */
+  gate: z.enum(GATE_LEVELS).optional(),
   iteration: iterationIdSchema.optional(),
   epic: epicIdSchema.optional(),
   depends_on: z.array(ticketIdSchema).default([]),

@@ -4,7 +4,12 @@
 import { z } from "zod";
 import { fetchPrGateFacts, lastPushedAt } from "../git/facts.js";
 import { REVIEW_STEP, type Run } from "../model/run.js";
-import { parseAcceptance, type Ticket } from "../model/ticket.js";
+import {
+  DEFAULT_GATE_LEVEL,
+  parseAcceptance,
+  type GateLevel,
+  type Ticket,
+} from "../model/ticket.js";
 import { readRunningRuns } from "../run/record.js";
 import { defineCommand, ok, type CommandContext } from "./define.js";
 import { judgeCheck } from "./gate-check.js";
@@ -37,6 +42,8 @@ export interface GateView {
   ticket: string;
   /** ready は PR を出す前（gh pr ready）、merge はマージの前（gh pr merge） */
   for: GateStage;
+  /** 判定した段（チケットの gate。ないときは high。TK-9） */
+  gate: GateLevel;
   pr: number | null;
   passed: boolean;
   conditions: GateCondition[];
@@ -61,12 +68,18 @@ export function heavyReviewRounds(runs: readonly Run[], branchAt: string | undef
   ).length;
 }
 
-/** チケットの品質ゲートを判定する。gh・Git が読めない条件は満たさないとする（判定できないものを通さない） */
+/**
+ * チケットの品質ゲートを判定する。gh・Git が読めない条件は満たさないとする（判定できないものを通さない）。
+ * 判定する条件はチケットの段（gate。TK-9）で決まる。high はすべて、low は見直し（review・fix_rounds）を除き、
+ * free は pr と（マージの前の）mergeable だけ。判定しない条件は conditions に出さず、その材料（見直しの Run・push の時刻と
+ * そのための fetch・検査）も読まない
+ */
 export async function judgeGate(
   ctx: CommandContext,
   ticket: Ticket,
   stage: GateStage,
 ): Promise<GateView> {
+  const level = ticket.gate ?? DEFAULT_GATE_LEVEL;
   const conditions: GateCondition[] = [];
   const add = (id: GateConditionId, ok: boolean, detail: string) =>
     conditions.push({ id, ok, detail });
@@ -91,8 +104,8 @@ export async function judgeGate(
     }
   }
 
-  // 受け入れ条件。PR を出す前は、付けられない項目の理由を PR の本文に書けばよいので見ない
-  if (stage === "merge") {
+  // 受け入れ条件。PR を出す前は、付けられない項目の理由を PR の本文に書けばよいので見ない。free は見ない
+  if (stage === "merge" && level !== "free") {
     const items = parseAcceptance(ctx.store.tickets.get(ticket.id)?.body ?? "") ?? [];
     const unchecked = items.filter((i) => !i.checked).map((i) => i.index);
     add(
@@ -104,6 +117,52 @@ export async function judgeGate(
     );
   }
 
+  // 見直しは high だけが判定する
+  if (level === "high") await judgeReview(ctx, ticket, add);
+
+  // base と衝突しない（マージの前だけ）
+  if (stage === "merge") {
+    if (mergeable === undefined)
+      add("mergeable", false, "Cannot read the PR, so conflicts cannot be checked");
+    else
+      add(
+        "mergeable",
+        mergeable === "MERGEABLE",
+        mergeable === "MERGEABLE"
+          ? "No conflict with base"
+          : `mergeable is ${mergeable} (there is a conflict, or it is still being computed. Wait a moment and check again)`,
+      );
+  }
+
+  // 検査（actions.test）。free は回さない。時間がかかるので、ほかの条件をすべて満たしたときだけ回す（空なら回さずに通すので、いつでも判定する）
+  if (level !== "free") {
+    if (ctx.config.actions.test.length === 0 || conditions.every((c) => c.ok)) {
+      const check = await judgeCheck(ctx, ticket);
+      add("check", check.ok, check.detail);
+    } else
+      add(
+        "check",
+        false,
+        "The other conditions are not met, so the check (actions.test) was not run",
+      );
+  }
+
+  return {
+    ticket: ticket.id,
+    for: stage,
+    gate: level,
+    pr: prNumber,
+    passed: conditions.every((c) => c.ok),
+    conditions,
+  };
+}
+
+/** 見直しの条件（review・fix_rounds）を足す。見直しの Run と push の時刻（fetch を含む）はここでだけ読む */
+async function judgeReview(
+  ctx: CommandContext,
+  ticket: Ticket,
+  add: (id: GateConditionId, ok: boolean, detail: string) => void,
+): Promise<void> {
   // 見直し：最後の push より後に始めた見直しが、閉じていて通っている
   const running = (await readRunningRuns(ctx.repo)).runs.map((r) => r.data);
   const reviews = reviewRuns(ctx, ticket, running);
@@ -144,39 +203,6 @@ export async function judgeGate(
       ? `${rounds} review rounds found heavy findings (limit ${FIX_ROUNDS_LIMIT})`
       : `${rounds} review rounds found heavy findings, which exceeds the limit of ${FIX_ROUNDS_LIMIT}. Ask the human whether to continue`,
   );
-
-  // base と衝突しない（マージの前だけ）
-  if (stage === "merge") {
-    if (mergeable === undefined)
-      add("mergeable", false, "Cannot read the PR, so conflicts cannot be checked");
-    else
-      add(
-        "mergeable",
-        mergeable === "MERGEABLE",
-        mergeable === "MERGEABLE"
-          ? "No conflict with base"
-          : `mergeable is ${mergeable} (there is a conflict, or it is still being computed. Wait a moment and check again)`,
-      );
-  }
-
-  // 検査（actions.test）。時間がかかるので、ほかの条件をすべて満たしたときだけ回す（空なら回さずに通すので、いつでも判定する）
-  if (ctx.config.actions.test.length === 0 || conditions.every((c) => c.ok)) {
-    const check = await judgeCheck(ctx, ticket);
-    add("check", check.ok, check.detail);
-  } else
-    add(
-      "check",
-      false,
-      "The other conditions are not met, so the check (actions.test) was not run",
-    );
-
-  return {
-    ticket: ticket.id,
-    for: stage,
-    pr: prNumber,
-    passed: conditions.every((c) => c.ok),
-    conditions,
-  };
 }
 
 export const gate = defineCommand({
@@ -190,7 +216,12 @@ export const gate = defineCommand({
     `fix_rounds (reviews that raised heavy findings on this branch are at most ${FIX_ROUNDS_LIMIT} times) · mergeable (with --for merge, gh's mergeable is MERGEABLE) · ` +
     "check (config's actions.test passes when run in a worktree with no uncommitted changes, checked out at the latest commit of the work branch (remote tip). When every file in the diff against base falls under actions.light_paths, the lighter check actions.light_test runs instead, and detail gives which one ran and why. When actions.test is empty, it passes without judging and detail says so. When it fails, detail gives the exit code and the tail of the output. A passing result is remembered per commit and per command in deguboard-local and is not rerun for the same commit (it still counts after the worktree is removed, e.g. after a merge. A failing result is not remembered; the next check reruns it). It takes time, so it runs only when all the other conditions are met). " +
     "A condition that gh or Git cannot read is treated as unmet. " +
-    "dg pr ready and dg pr merge make the same judgment before they call gh. They have no exceptions, such as skipping review or going past the limit; that is left to a person (a person runs gh). They do not write ticket data (they only record the results of passed checks in deguboard-local)",
+    "Which conditions are judged depends on the ticket's gate level (TK-9; gate in the output; a ticket with no gate is high). " +
+    "high judges all of them (--for merge: pr · acceptance · review · fix_rounds · mergeable · check; --for ready: pr · review · fix_rounds · check). " +
+    "low leaves out review and fix_rounds (merge: pr · acceptance · mergeable · check; ready: pr · check). " +
+    "free judges only pr and, with --for merge, mergeable (merge: pr · mergeable; ready: pr). Conditions that are not judged do not appear in conditions, and their inputs (review Runs, the push time and its fetch, the check) are not read. " +
+    "Set the level with dg ticket create/import/update --gate; lowering it follows a person's instruction. " +
+    "dg pr ready and dg pr merge make the same judgment before they call gh. Proceeding outside the conditions of the level is left to a person (a person runs gh). They do not write ticket data (they only record the results of passed checks in deguboard-local)",
   input: z.object({
     ticket: ticketRef,
     for: z
