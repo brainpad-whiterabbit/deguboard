@@ -1,0 +1,65 @@
+id: p92
+project: default
+tickets: [t487, t648, t649, t488, t489, t490, t491, t650, t651, t652]
+after:
+  t648:
+    - t487
+  t649:
+    - t487
+  t488:
+    - t648
+  t489:
+    - t488
+  t490:
+    - t489
+  t491:
+    - t490
+  t650:
+    - t649
+    - t491
+  t651:
+    - t650
+  t652:
+    - t651
+pending_approval: true
+details:
+  t487:
+    scope: ADR-001 の言語の項と採らなかった案・requirements.md の AG-2・UI-11・CL の 1 項・CLAUDE.md の言語の規約だけを直す。コードは変えない
+    approach: 新しい ADR は書かず ADR-001 の本文を書き換え、8,000 字を超えるなら細部を正本へ移して収める
+    tier: heavy
+  t648:
+    scope: 節の名前の半角の補足・英語の参照の閉じの検査と check:docs・埋め込みの none だけ。guide の本文は変えない
+    approach: sections.ts と check-docs の正規表現をそろえて直し、英語の見出しと参照の例をテストに足す
+    tier: standard
+  t649:
+    scope: web の訳の表の形と引き方だけ。core の文と画面の見た目は変えない
+    approach: core の文を鍵に ja・en の訳を持つ表へ移し、日本語の表示でも引くようにして、スナップショットで不変を確かめる
+    tier: heavy
+  t488:
+    scope: overview・choices・import・assign・check・plan の 6 本と、その見出しを名指す参照・flow.ts の表・テスト
+    approach: 見出しは英語の形の参照に直し、まだ日本語の guide の節を指す参照はそのまま残す
+    tier: standard
+  t489:
+    scope: work・run・parallel・review の 4 本と、その見出しを名指す参照・brief.ts と flow.ts の表・テスト、isAcceptanceFinding
+    approach: t488 と同じ形で訳し、isAcceptanceFinding は日英の両方の語で見分ける
+    tier: standard
+  t490:
+    scope: all・audit・done・release の 4 本と、その見出しを名指す参照・flow.ts の表・テスト
+    approach: t488・t489 と同じ形で訳す。skill.md が名指す見出しは t491 に残す
+    tier: standard
+  t491:
+    scope: skill.md・skill.ts の差し込み・.claude/skills の入れ直しとテスト
+    approach: DG_PATH_NOTE_EN と SKILL_SUMMARY の en を使い、dg skill install で 9 本を入れ直す
+    tier: standard
+  t650:
+    scope: コマンド定義の説明と describe・program.ts の決まった文・config の describe と、設定画面の ja 訳
+    approach: 説明を英語にし、日本語の設定画面に出す今の説明を t649 の表の ja 訳に移す。大きければ commands とそれ以外で PR を分ける
+    tier: standard
+  t651:
+    scope: core と cli のエラー・警告・validate と lint の指摘の文と、画面の ja 訳。エラーコードは変えない
+    approach: 文を英語にし、画面で訳していた文を t649 の表の ja 訳に移す。大きければ commands とそれ以外で PR を分ける
+    tier: standard
+  t652:
+    scope: dg next・flow next の理由・brief の定型の文と language の入力・フックの文・データのコミットの 1 行目・pr ready の節
+    approach: brief は英語だけにして language を外し、コミットの 1 行目を読む処理は古い日本語も読めるようにする
+    tier: heavy
