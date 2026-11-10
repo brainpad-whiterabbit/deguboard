@@ -1,7 +1,7 @@
 // エージェントに頼む入力欄（UI-15・ADR-027）。左パネルとエディタのパネルの下に出し、欄に書いたものがそのまま貼る文になる
 // （VS Code の QuickPick と InputBox では指示が 1 行しか書けないので、画面の中に欄を作る）。
 // 頼むことの候補・おすすめ・依頼文は core の ask コマンド（読み取りだけ）が決め、ここでは組み立て直さない。定型の文の言語は画面の表示言語を ask に渡して決める。データには書き込まない。
-// 上の 1 行が頼むことの候補（★ がおすすめ）、欄の頭が Skill と対象の札（札とボタンのツールチップが Skill の 1 文）、札の下が頼むことの 1 文（依頼文には入らない）、本体が指示、下が全文・形式・コピー。
+// 上の 1 行が頼むことの候補（★ がおすすめ）、欄の頭が Skill と対象の札（札とボタンのツールチップが Skill の 1 文）、札の下が頼むことの 1 文（依頼文には入らない）、本体が指示、下が全文・形式・クリア・コピー。
 // 開いているターミナルがあれば（Webview だけ）、送り先を選んで「送る」でその入力に入れられる。Enter は押さず、ターミナルは起動しない。なければコピーだけ。
 // 指示の下書きと形式は見た目の状態に残し、閉じて開き直しても消えない。形式は人が切り替えるまで残さず、既定は ask が dg の Skill の有無から決める。
 // 閉じるのは Esc・× と、小窓の外を押し始めたとき（下の effect）
@@ -392,6 +392,21 @@ export function AskComposer({
             }}
           >
             {format === "text" ? tr("形式：文章") : tr("形式：Skill")}
+          </button>
+          <button
+            type="button"
+            className="ask-ghost"
+            title={tr("指示の欄を空にする（下書きも消す）")}
+            disabled={note === ""}
+            onClick={() => {
+              // 待っている依頼文の取り直しは捨て、空の指示で引き直す（下の effect が settledNote を見て ask を呼ぶ）
+              copySeq.current++;
+              setNote("");
+              setResult(null);
+              noteRef.current?.focus();
+            }}
+          >
+            {tr("クリア")}
           </button>
           <span className="spacer" />
           <span className="ask-keys muted">{COPY_KEYS}</span>

@@ -1259,6 +1259,8 @@ Make a Plan to proceed with s1, and wait for approval.
 Full text
 [title] Invoke a Skill, or plain text without a Skill. Defaults to Skill if the dg Skills are in the repository or ~/.claude/skills, otherwise text
 Format: Skill
+[title] Empty the instructions (the draft is cleared too)
+Clear
 Ctrl+↵
 Copy
 ✓ Copied. Paste it into the agent's input

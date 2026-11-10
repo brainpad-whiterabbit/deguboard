@@ -475,6 +475,58 @@ describe("エージェントに頼む入力欄（UI-15）", () => {
     expect(view.state.get(ASK_NOTE_KEY)).toBe("下書き");
   });
 
+  it("クリアは指示の欄が空のとき押せず、文があると押せて、欄と下書きを空にし、依頼文は指示なしで引き直す（t684）", async () => {
+    const client = askClient();
+    const view = mountWebview(client);
+    await screen.findByText("見直す");
+    view.ask(["t5"]);
+    await waitFor(() => expect(suggestions()[0]!.textContent).toContain("★確かめて片付ける"));
+    const box = within(composer());
+    // 形式の隣に、全文・形式と同じ控えめな並びで出る
+    const foot = box.getByRole("button", { name: "形式：Skill" }).parentElement!;
+    expect(foot.querySelector(".ask-ghost")).toBeTruthy();
+    expect((box.getByRole("button", { name: "クリア" }) as HTMLButtonElement).disabled).toBe(true);
+
+    const note = box.getByRole("textbox", { name: "指示" }) as HTMLTextAreaElement;
+    fireEvent.change(note, { target: { value: "題を短く" } });
+    expect((box.getByRole("button", { name: "クリア" }) as HTMLButtonElement).disabled).toBe(false);
+    fireEvent.click(box.getByRole("button", { name: "全文" }));
+    await waitFor(() =>
+      expect(box.getByLabelText("全文").textContent).toBe("/dgdone t5\n題を短く"),
+    );
+
+    fireEvent.click(box.getByRole("button", { name: "クリア" }));
+    expect(note.value).toBe("");
+    expect(view.state.get(ASK_NOTE_KEY)).toBe("");
+    expect(document.activeElement).toBe(note);
+    // 指示なしで引き直され、全文から指示が消える
+    await waitFor(() => expect(box.getByLabelText("全文").textContent).toBe("/dgdone t5"));
+    expect((box.getByRole("button", { name: "クリア" }) as HTMLButtonElement).disabled).toBe(true);
+
+    // 閉じて開き直しても下書きは戻らない
+    fireEvent.keyDown(note, { key: "Escape" });
+    expect(screen.queryByRole("region", { name: "エージェントに頼む" })).toBeNull();
+    view.ask(["t5"]);
+    await waitFor(() => expect(suggestions().length).toBeGreaterThan(0));
+    expect(
+      (within(composer()).getByRole("textbox", { name: "指示" }) as HTMLTextAreaElement).value,
+    ).toBe("");
+  });
+
+  it("クリアの読み上げの名前とツールチップは表示言語に合わせて出る（英語では Clear）", async () => {
+    setLanguage("en");
+    const state = createUiState(memoryBackend());
+    state.set(ASK_NOTE_KEY, "draft");
+    const view = mountWebview(askClient(), { state });
+    await screen.findByText("見直す");
+    view.ask(["t5"]);
+    const box = within(document.querySelector<HTMLElement>(".ask-composer")!);
+    await box.findByRole("textbox", { name: "Instructions" });
+    const clear = box.getByRole("button", { name: "Clear" });
+    expect(clear.getAttribute("title")).toBe("Empty the instructions (the draft is cleared too)");
+    expect((clear as HTMLButtonElement).disabled).toBe(false);
+  });
+
   describe("小窓の外を押し始めたら閉じる（t683）", () => {
     const isOpen = () => screen.queryByRole("region", { name: "エージェントに頼む" }) !== null;
     /** 押す：押し始め（pointerdown）と、離したあとの click */
