@@ -1,0 +1,33 @@
+{
+  "id": "r20261110-064738-b060",
+  "ticket": "t491",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-10T06:47:38Z",
+  "finished_at": "2026-11-10T06:50:38Z",
+  "result": "success",
+  "error": null,
+  "retries": 2,
+  "retry_reasons": [
+    "ask.ts の SKILL_SUMMARY・DG_PATH_NOTE・DG_PATH_NOTE_EN のコメントが英語化後の使い分けと食い違う",
+    "skill.md の「人に頼む」の訳が指示の強さを弱めている"
+  ],
+  "usage": {
+    "input": 22,
+    "output": 6560,
+    "cache_read": 513400,
+    "cache_write": 38172
+  },
+  "tools": {
+    "read": 2,
+    "search": 0,
+    "write": 4,
+    "bash": 8,
+    "other": 1,
+    "read_before_write": 2,
+    "search_before_write": 0
+  },
+  "session": "acdeea67-8af2-4428-8ea2-d2e346d7d1d9",
+  "review": null
+}
