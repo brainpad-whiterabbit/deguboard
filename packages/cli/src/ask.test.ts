@@ -74,13 +74,13 @@ describe("dg ask", () => {
     await runCommand(init, await openContext({ cwd: f.cloneA, initialize: {} }), {});
     expect((await dg(f.cloneA, ["ticket", "create", "画面の直し"])).code).toBe(0);
 
-    const input = { targets: ["t1"], action: "edit", note: "文言だけ", format: "text" };
+    const input = { targets: ["t1"], action: "change", note: "文言だけ", format: "text" };
     const cli = await dg(f.cloneA, [
       "--json",
       "ask",
       "t1",
       "--action",
-      "edit",
+      "change",
       "--note",
       "文言だけ",
       "--format",
@@ -121,7 +121,7 @@ describe("dg ask", () => {
       "ask",
       "t1",
       "--action",
-      "edit",
+      "change",
       "--note",
       "文言だけ",
       "--format",
@@ -146,7 +146,7 @@ describe("dg ask", () => {
       ].join("\n"),
     );
 
-    const human = await dg(f.cloneA, ["ask", "t1", "--action", "edit", "--format", "skill"]);
+    const human = await dg(f.cloneA, ["ask", "t1", "--action", "change", "--format", "skill"]);
     expect(human.out).toBe("/dgchange t1\nt1 を直して");
     expect(human.err).toContain("★割り当てる (assign)");
     // 候補にない頼むことは使い方の誤り（終了コード 2）
@@ -165,17 +165,17 @@ describe("dg ask", () => {
     const server = await startServer({ cwd: f.cloneA, port: 0, user: "ui" });
     cleanups.push(server.close);
     const both = async () => {
-      const cli = await dg(f.cloneA, ["--json", "ask", "t1", "--action", "edit"]);
+      const cli = await dg(f.cloneA, ["--json", "ask", "t1", "--action", "change"]);
       const res = await fetch(`${server.url}api/commands/ask`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ input: { targets: ["t1"], action: "edit" } }),
+        body: JSON.stringify({ input: { targets: ["t1"], action: "change" } }),
       });
       const fromCli = (JSON.parse(cli.out) as { data: AskView }).data;
       expect(((await res.json()) as { data: AskView }).data).toEqual(fromCli);
       const local = await createLocalClient({ cwd: f.cloneA, user: "ui" }).run<AskView>("ask", {
         targets: ["t1"],
-        action: "edit",
+        action: "change",
       });
       expect(local.data).toEqual(fromCli);
       return fromCli;

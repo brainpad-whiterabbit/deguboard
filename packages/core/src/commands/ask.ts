@@ -22,7 +22,7 @@ export const ASK_ACTIONS = [
   "create_epic",
   "split",
   "remove",
-  "edit",
+  "change",
   "discuss",
   "assign",
   "plan",
@@ -467,15 +467,15 @@ const ACTIONS: Record<AskAction, ActionDef> = {
           ]
         : [],
   },
-  // 人の指示による書き換え（直す・閉じる・再開・やめる・done の取り消し）は /dgchange。呼び出しだけでは何を書き換えるかが決まらないので、頼みごとの 1 行を添える
-  edit: {
+  // 人の指示による書き換え（直す・閉じる・再開・やめる・done の取り消し）は /dgchange。呼び出しだけでは何を書き換えるかが決まらないので、頼みごとの 1 行を添える。鍵と表示名は Skill の名前 dgchange に揃えて change・変える
+  change: {
     skill: "dgchange",
     label: (s) =>
       single(s, "iteration")
-        ? "名前・目標・期間を直す"
+        ? "名前・目標・期間を変える"
         : single(s, "epic")
-          ? "題・概要を直す"
-          : "直す",
+          ? "題・概要を変える"
+          : "変える",
     text: (s, _w, lang) =>
       single(s, "iteration")
         ? say(
@@ -902,7 +902,7 @@ const MEANING: Record<
       `${idList(s, lang)} を ${w?.id ?? "入っている Iteration・Epic"} から外します。`,
       `Remove ${idList(s, lang)} from ${w?.id ?? "the Iteration or Epic they belong to"}.`,
     ),
-  edit: (s, _w, lang) =>
+  change: (s, _w, lang) =>
     single(s, "iteration")
       ? say(
           lang,
@@ -1129,23 +1129,24 @@ export function askHumanChecks(action: AskAction, s: Subjects, within?: string):
 
 /**
  * 対象の種類と状態から、頼むことの候補を決める。先頭がおすすめ。
- * within（対象のチケットが入っている Iteration・Epic）を渡し、チケットがどれもそこに入っていて終わっていなければ、外すを直す（edit）の後（直すがなければ自由にの前）に足す。
- * 検討する（discuss）は、終わっていないチケット（複数可）と開いている 1 つの Iteration・Epic に、直す（外すがあればその後）の次（直すがなければ自由にの前）に足す。
- * 答えの決まった直すと、これから決める検討するを隣に並べるため。どの並びも直すから始まらないので、おすすめ（先頭）にはならない
+ * within（対象のチケットが入っている Iteration・Epic）を渡し、チケットがどれもそこに入っていて終わっていなければ、外すを変える（change）の後（変えるがなければ自由にの前）に足す。
+ * 検討する（discuss）は、終わっていないチケット（複数可）と開いている 1 つの Iteration・Epic に、変える（外すがあればその後）の次（変えるがなければ自由にの前）に足す。
+ * 答えの決まった変えると、これから決める検討するを隣に並べるため。どの並びも変えるから始まらないので、おすすめ（先頭）にはならない
  */
 function askActions(s: Subjects, within?: string): AskAction[] {
   let actions = baseActions(s);
   const tickets = only(s, "ticket");
   const open = tickets && !tickets.some((t) => isTerminal(t.status as Status));
-  if (withinOf(s, within) && open) actions = afterEdit(actions, "remove");
+  if (withinOf(s, within) && open) actions = afterChange(actions, "remove");
   const container = single(s, "iteration") ?? single(s, "epic");
-  if (open || (container && container.status !== "closed")) actions = afterEdit(actions, "discuss");
+  if (open || (container && container.status !== "closed"))
+    actions = afterChange(actions, "discuss");
   return actions;
 }
 
-/** 直す（とその後の外す）の次に action を挟む。直すがなければ自由にの前 */
-function afterEdit(actions: readonly AskAction[], action: AskAction): AskAction[] {
-  const last = Math.max(actions.indexOf("edit"), actions.indexOf("remove"));
+/** 変える（とその後の外す）の次に action を挟む。変えるがなければ自由にの前 */
+function afterChange(actions: readonly AskAction[], action: AskAction): AskAction[] {
+  const last = Math.max(actions.indexOf("change"), actions.indexOf("remove"));
   const at = last >= 0 ? last + 1 : actions.indexOf("free");
   return [...actions.slice(0, at), action, ...actions.slice(at)];
 }
@@ -1156,27 +1157,36 @@ function baseActions(s: Subjects): AskAction[] {
   const tickets = only(s, "ticket");
   if (tickets) {
     const all = (status: string) => tickets.every((t) => t.status === status);
-    if (all("review")) return ["done", "edit", "check", "free"];
+    if (all("review")) return ["done", "change", "check", "free"];
     if (all("done")) return ["create", "undo_done", "free"];
     if (all("abandoned")) return ["create", "free"];
     if (all("in_progress"))
       return tickets.some(isStalled)
-        ? ["resume", "status", "edit", "free"]
-        : ["status", "edit", "free"];
+        ? ["resume", "status", "change", "free"]
+        : ["status", "change", "free"];
     if (all("todo")) {
       // Iteration に入れてから進める（todo・abandoned のほかは Iteration が要る）
       if (tickets.some((t) => t.iteration === null))
-        return ["assign", "create_iteration", "edit", "split", "check", "abandon", "free"];
+        return ["assign", "create_iteration", "change", "split", "check", "abandon", "free"];
       // closed の Iteration に残った持ち越しは、計画より先に別の Iteration へ割り当てる
       if (tickets.some((t) => t.iteration_status === "closed"))
-        return ["assign", "create_iteration", "plan", "edit", "split", "check", "abandon", "free"];
+        return [
+          "assign",
+          "create_iteration",
+          "plan",
+          "change",
+          "split",
+          "check",
+          "abandon",
+          "free",
+        ];
       if (tickets.length > 1) return ["plan", "assign", "check", "abandon", "free"];
       // 着手可でも、planned の Iteration（バックログ）ではまず計画を立て、active の Iteration（カンバン）なら進める
       if (tickets[0]!.deps_done)
         return tickets[0]!.iteration_status === "active"
-          ? ["work", "plan", "edit", "split", "check", "abandon", "free"]
-          : ["plan", "work", "edit", "split", "check", "abandon", "free"];
-      return ["check", "edit", "split", "plan", "abandon", "free"];
+          ? ["work", "plan", "change", "split", "check", "abandon", "free"]
+          : ["plan", "work", "change", "split", "check", "abandon", "free"];
+      return ["check", "change", "split", "plan", "abandon", "free"];
     }
     return ["check", "assign", "free"];
   }
@@ -1184,7 +1194,7 @@ function baseActions(s: Subjects): AskAction[] {
   const it = single(s, "iteration");
   if (it) {
     if (it.status === "closed") return ["retro", "assign", "reopen", "free"];
-    const rest: AskAction[] = ["create", "assign", "edit", "close", "check", "free"];
+    const rest: AskAction[] = ["create", "assign", "change", "close", "check", "free"];
     if (it.status === "active" && it.complete) return ["release", "plan", "all", ...rest];
     if (it.status === "active" && it.overdue) return ["carry", "plan", "all", "release", ...rest];
     return it.status === "active" ? ["plan", "all", "release", ...rest] : ["plan", "all", ...rest];
@@ -1194,7 +1204,7 @@ function baseActions(s: Subjects): AskAction[] {
   if (ep)
     return ep.status === "closed"
       ? ["create", "retro", "reopen", "free"]
-      : ["create", "assign", "plan", "edit", "close", "check", "free"];
+      : ["create", "assign", "plan", "change", "close", "check", "free"];
 
   const plan = single(s, "plan");
   if (plan) {
@@ -1220,7 +1230,7 @@ const NO_TARGET: Partial<Record<AskAction, { ja: string; en: string }>> = {
     ja: "チケットを、入っている Iteration・Epic から外します。",
     en: "Remove the tickets from the Iteration or Epic they belong to.",
   },
-  edit: { ja: "指示のとおりに直します。", en: "Edit as instructed." },
+  change: { ja: "指示のとおりに直します。", en: "Edit as instructed." },
   discuss: {
     ja: "論点を人と選択肢で決め、前後の差の承認を得てから反映します（議論の間はデータを書き換えません）。",
     en: "Settle the open points with a human through choices, and reflect them after approval of before → after (no data changes while discussing).",

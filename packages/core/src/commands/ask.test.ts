@@ -189,7 +189,7 @@ describe("依頼文の組み立て", () => {
       ["all", "all"],
       ["release", "release"],
       ["check", "check"],
-      ["edit", "change"],
+      ["change", "change"],
       ["close", "change"],
       ["abandon", "change"],
     ];
@@ -288,10 +288,10 @@ describe("依頼文の組み立て", () => {
 
   it("人の指示による書き換え（直す・閉じる・再開・やめる・done の取り消し）の Skill の形は、/dgchange <ID> と頼みごとの 1 行になる", () => {
     const cases: Array<[AskSubject[], AskAction, string]> = [
-      [[ticket()], "edit", "/dgchange t265\nt265 を直して"],
-      [[ticket({ status: "review" })], "edit", "/dgchange t265\nt265 を直して"],
-      [[iteration("active")], "edit", "/dgchange s10\ns10 の名前・目標・期間を直して"],
-      [[epic("open")], "edit", "/dgchange e9\ne9 の題・概要を直して"],
+      [[ticket()], "change", "/dgchange t265\nt265 を直して"],
+      [[ticket({ status: "review" })], "change", "/dgchange t265\nt265 を直して"],
+      [[iteration("active")], "change", "/dgchange s10\ns10 の名前・目標・期間を直して"],
+      [[epic("open")], "change", "/dgchange e9\ne9 の題・概要を直して"],
       [[iteration("active")], "close", "/dgchange s10\ns10 を閉じて"],
       [[epic("open")], "close", "/dgchange e9\ne9 を閉じて"],
       [[iteration("closed")], "reopen", "/dgchange s10\ns10 を再開して"],
@@ -316,10 +316,14 @@ describe("依頼文の組み立て", () => {
       buildAsk({ subjects: [ticket({ status: "done" })], action: "undo_done", language: "en" })
         .text,
     ).toBe("/dgchange t265\nUndo done for t265");
-    // チケットの直すは fix（/dgimport）ではなく edit（/dgchange）。会話から直す /dgimport は候補に出さない
+    // チケットの書き換えは fix（/dgimport）ではなく change（/dgchange）。会話から直す /dgimport は候補に出さない
     expect([...ASK_ACTIONS] as string[]).not.toContain("fix");
-    expect(askCandidates([ticket()]).find((c) => c.action === "edit")).toMatchObject({
-      label: "直す",
+    expect([...ASK_ACTIONS] as string[]).not.toContain("edit");
+    expect(
+      SAMPLES.flatMap(([s, within]) => askCandidates(s, within).map((c) => c.action as string)),
+    ).not.toContain("edit");
+    expect(askCandidates([ticket()]).find((c) => c.action === "change")).toMatchObject({
+      label: "変える",
       skill: "/dgchange",
     });
   });
@@ -335,11 +339,11 @@ describe("依頼文の組み立て", () => {
     const cases: Array<[AskSubject[], AskAction, string, string]> = [
       [
         [ticket()],
-        "edit",
+        "change",
         "ticket.update",
         'dg ticket update t265 --title "<題>" --acceptance "<受け入れ条件>" --priority <優先度>',
       ],
-      [[epic("open")], "edit", "epic.update", 'dg epic update e9 --title "<題>" --body "<概要>"'],
+      [[epic("open")], "change", "epic.update", 'dg epic update e9 --title "<題>" --body "<概要>"'],
       [[iteration("active")], "close", "iteration.close", "dg iteration close s10"],
       [[epic("closed")], "reopen", "epic.reopen", "dg epic reopen e9"],
       [[ticket()], "abandon", "ticket.move", "dg ticket move t265 abandoned"],
@@ -405,21 +409,21 @@ describe("依頼文の組み立て", () => {
       human_only: ["plan.approve"],
       text: "dg plan approve p21",
     });
-    // Epic の直すは題・概要を直すので、人に回すコマンドも題と本文を直す
+    // Epic の変えるは題・概要を変えるので、人に回すコマンドも題と本文を直す
     const edit = buildAsk({
       subjects: [epic("open")],
-      action: "edit",
+      action: "change",
       humanOnly: ["epic.update"],
     });
-    expect(edit).toMatchObject({ kind: "command", label: "題・概要を直す" });
+    expect(edit).toMatchObject({ kind: "command", label: "題・概要を変える" });
     expect(edit.text).toBe(`dg epic update ${epic("open").id} --title "<題>" --body "<概要>"`);
-    // Iteration の直すは名前・目標・期間を直すので、人に回すコマンドも名前・目標・期間を直す
+    // Iteration の変えるは名前・目標・期間を変えるので、人に回すコマンドも名前・目標・期間を直す
     const editIt = buildAsk({
       subjects: [iteration("active")],
-      action: "edit",
+      action: "change",
       humanOnly: ["iteration.update"],
     });
-    expect(editIt).toMatchObject({ kind: "command", label: "名前・目標・期間を直す" });
+    expect(editIt).toMatchObject({ kind: "command", label: "名前・目標・期間を変える" });
     expect(editIt.text).toBe(
       'dg iteration update s10 --name "<名前>" --goal "<目標>" --start "<開始日>" --end "<終了日>"',
     );
@@ -656,11 +660,11 @@ describe("頼むことの候補", () => {
     expect(view.candidates.at(-1)).toMatchObject({ action: "free", skill: null });
   });
 
-  it("詳細の中の行（within）なら、入っている Iteration・Epic から外すを直すの後に足す。入っていない・終わったチケットには足さない", () => {
+  it("詳細の中の行（within）なら、入っている Iteration・Epic から外すを変えるの後に足す。入っていない・終わったチケットには足さない", () => {
     expect(askActions([ticket()], "s10")).toEqual([
       "work",
       "plan",
-      "edit",
+      "change",
       "remove",
       "discuss",
       "split",
@@ -668,10 +672,10 @@ describe("頼むことの候補", () => {
       "abandon",
       "free",
     ]);
-    // in_progress で実行中でも、直すの後（検討するは外すの後）
+    // in_progress で実行中でも、変えるの後（検討するは外すの後）
     expect(askActions([ticket({ status: "in_progress", running: true })], "s10")).toEqual([
       "status",
-      "edit",
+      "change",
       "remove",
       "discuss",
       "free",
@@ -698,7 +702,7 @@ describe("頼むことの候補", () => {
     );
   });
 
-  it("検討するは終わっていないチケット（複数可）と開いている Iteration・Epic に、直すの次に出て、おすすめにならない。終わったもの・閉じたもの・Plan には出ない", () => {
+  it("検討するは終わっていないチケット（複数可）と開いている Iteration・Epic に、変えるの次に出て、おすすめにならない。終わったもの・閉じたもの・Plan には出ない", () => {
     const next = (s: AskSubject[], before: AskAction) => {
       const actions = askActions(s);
       expect(actions, `${before}`).toContain("discuss");
@@ -709,16 +713,16 @@ describe("頼むことの候補", () => {
         recommended: false,
       });
     };
-    next([ticket()], "edit");
-    next([ticket({ iteration: null, iteration_status: null })], "edit");
-    next([ticket({ deps_done: false })], "edit");
-    next([ticket({ status: "in_progress" })], "edit");
-    next([ticket({ status: "in_progress", running: true })], "edit");
-    next([ticket({ status: "review" })], "edit");
-    next([iteration("active")], "edit");
-    next([iteration("planned")], "edit");
-    next([epic("open")], "edit");
-    // 直すのない並び（複数の todo・Status の混ざったチケット）でも出て、自由にの前に置く
+    next([ticket()], "change");
+    next([ticket({ iteration: null, iteration_status: null })], "change");
+    next([ticket({ deps_done: false })], "change");
+    next([ticket({ status: "in_progress" })], "change");
+    next([ticket({ status: "in_progress", running: true })], "change");
+    next([ticket({ status: "review" })], "change");
+    next([iteration("active")], "change");
+    next([iteration("planned")], "change");
+    next([epic("open")], "change");
+    // 変えるのない並び（複数の todo・Status の混ざったチケット）でも出て、自由にの前に置く
     for (const s of [
       [ticket(), ticket({ id: "t266" })],
       [ticket(), ticket({ id: "t266", status: "review" })],
@@ -925,7 +929,7 @@ describe("ask", () => {
     const { ctx } = await initialized();
     await runCommand(ticketCreate, ctx, { title: "A" });
     const run = async (input: Record<string, unknown>) =>
-      (await runCommand(ask, ctx, { targets: ["t1"], action: "edit", format: "text", ...input }))
+      (await runCommand(ask, ctx, { targets: ["t1"], action: "change", format: "text", ...input }))
         .data.text;
     expect((await run({ language: "en" })).split("\n")[0]).toBe(
       "Edit t1 as instructed (title, summary, acceptance criteria, priority, labels, dependencies).",
