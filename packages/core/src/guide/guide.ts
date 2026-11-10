@@ -68,7 +68,7 @@ function insertNotes(body: string, notes: string): string {
 }
 
 /**
- * 本文を返す。notes があれば題名の直後に差し込み、`{{choices}}` の行は共通の「選択肢で聞く」の節（guide-choices.md）に置き換える。
+ * 本文を返す。notes があれば題名の直後に差し込み、`{{choices}}` の行は共通の "Asking with choices" の節（guide-choices.md）に置き換える。
  * notes は readGuideNotes の text（既定は差し込まない）
  */
 export async function readGuide(topic: string, notes = ""): Promise<string> {

@@ -17,7 +17,7 @@ Finds mismatches among tickets, Epics, Iterations, and Plans, and fixes them aft
 
 1. **Collect findings**: run `dg --json --actor agent sync`, `dg --json --actor agent validate`, and `dg --json --actor agent lint` in order. Narrow the `sync` `warnings`, and the `validate` and `lint` `issues` (`code`, `id`, `message`) to the target
 2. **Make fix proposals**: for each finding, read the content with `ticket show`, `epic show`, or `plan show` and decide how to fix it. Examples:
-   - A section of the body is missing, or the acceptance criteria are empty: make a draft of acceptance criteria from the body (`ticket update --acceptance`). For the summary, pass the whole body with a `## Summary` section added to the current body via `--body` (`--body` replaces the body)
+   - A section of the body is missing, or the acceptance criteria are empty: make a draft of acceptance criteria from the body (`ticket update --acceptance`). For the summary, pass the whole body with a `## 概要` (summary) section added to the current body via `--body` (`--body` replaces the body)
    - An unfinished ticket remains in a closed Epic: propose one of moving it to another Epic, removing it from the Epic, or making it abandoned
    - All tickets are finished, but the Epic or Plan is still open: propose closing it (`epic close` / `plan close`)
    - Not in an Iteration (`lint_iteration_missing`, when `lint.require_iteration` is true. Current setting: `{{lint.require_iteration}}`): choose an Iteration by the same rule as claim (see `ticket claim --help`) and propose adding it with `iteration add <S> <id>`. If there is no place to add it (a closed Iteration cannot take it, as with done tickets), ask a human whether to create an Iteration or change the setting

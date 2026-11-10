@@ -98,7 +98,8 @@ describe("dg guide", () => {
       // 英語に直した手順（overview・choices・import・assign・check・plan）は英語の見出し。選択肢の節は共通で英語
       const english = ENGLISH_TOPICS.has(topic);
       const target = english ? "## Deciding the target" : "## 対象を決める";
-      for (const heading of [target, "## Asking with choices"])
+      const next = english ? "## Choosing the next step" : "## 次の手順を選ぶ";
+      for (const heading of [target, "## Asking with choices", next])
         expect(text, `${topic} ${heading}`).toContain(heading);
       expect(text, topic).not.toContain("{{choices}}");
     }
@@ -421,7 +422,7 @@ describe("dg guide", () => {
   it("plan の手順 4 は参考節のファイルが重なるチケットを並行させず after でつなぎ、参考節のないチケットは依存と優先度で順を決めると案内する", async () => {
     const order = step(await readGuide("plan"), 4);
     for (const word of [
-      "## References",
+      "## 参考",
       "overlap",
       "do not run them in parallel",
       "`after`",

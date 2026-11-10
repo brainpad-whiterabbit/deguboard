@@ -42,12 +42,12 @@ Turns the requirements, research results, and review findings settled in the con
 - key: api
   title: Implement the API
   depends_on: [schema] # Temporary key or existing ID (t9)
-  body: | # You may write the whole body instead of summary
-    ## Summary
+  body: | # Whole body instead of summary. ## 概要 is the summary and ## 受け入れ条件 the acceptance criteria; keep these headings exact
+    ## 概要
 
     …
 
-    ## Acceptance criteria
+    ## 受け入れ条件
 
     - [ ] …
 ```
@@ -66,8 +66,8 @@ Choose `priority` by these criteria (they can be changed in `priority` of `confi
 ## How to write a good ticket
 
 - The title is one line where "what is done, and how" is clear at a glance. Write it by the result, not the means of implementation
-- The body has `## Summary` and `## Acceptance criteria` (a `- [ ]` checklist). `dg lint` flags a missing section and a section with no items
-- Write the references you looked up while filing in an optional `## References` section. It is passed to the agent that works the ticket. It also helps the planner (`dg guide plan`) connect tickets whose reference files overlap with `after` instead of running them in parallel, and gives humans (and the reviewer) a filing-time estimate to compare with the PR. Write the file paths you expect to change as an estimate. You may write requirement IDs, ADR numbers, related ticket IDs, file paths, function names, and command names. Do not include line numbers or copies of docs (they go stale quickly), and do not write how to change it (the means of implementation). The section is optional, and `dg lint` does not flag its absence
+- The body has `## 概要` (summary) and `## 受け入れ条件` (acceptance criteria; a `- [ ]` checklist). Keep these headings as written; dg reads them literally. `dg lint` flags a missing section and a section with no items
+- Write the references you looked up while filing in an optional `## 参考` (references) section. It is passed to the agent that works the ticket. It also helps the planner (`dg guide plan`) connect tickets whose reference files overlap with `after` instead of running them in parallel, and gives humans (and the reviewer) a filing-time estimate to compare with the PR. Write the file paths you expect to change as an estimate. You may write requirement IDs, ADR numbers, related ticket IDs, file paths, function names, and command names. Do not include line numbers or copies of docs (they go stale quickly), and do not write how to change it (the means of implementation). The section is optional, and `dg lint` does not flag its absence
 - Acceptance criteria are sentences whose truth can be judged by looking at the PR or the deliverable
 - Add a requirement document or ADR as an acceptance criterion only when the decision needs a migration to reverse, is a promise to users or a data shape, is a choice of structure or technology, or rejects a plausible alternative. Otherwise, make the criterion show the promise through tests and comments
 - One ticket should be sized to finish in one PR. If it is large, split it and connect the parts with `depends_on`
