@@ -2,4 +2,5 @@ id: s25
 project: default
 name: sprint25
 goal: Iteration の期間を実績の日時だけで記録する形にし、頼むことの候補と Skill を揃える
-status: planned
+status: active
+start: 2026-11-10
