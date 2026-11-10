@@ -43,6 +43,8 @@ export const EN: Readonly<Record<string, string>> = {
     "Invoke a Skill, or plain text without a Skill. Defaults to Skill if the dg Skills are in the repository or ~/.claude/skills, otherwise text",
   "形式：文章": "Format: Text",
   "形式：Skill": "Format: Skill",
+  クリア: "Clear",
+  "指示の欄を空にする（下書きも消す）": "Empty the instructions (the draft is cleared too)",
   "{0}コピー": "{0}Copy",
   "{0}なので、人が打つコマンドをコピーする": "{0}, so copy the commands for a person to run",
   "{0} は人に限った操作（actor.human_only）": "{0} is limited to people (actor.human_only)",
