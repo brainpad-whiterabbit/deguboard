@@ -128,7 +128,8 @@ Install [mise](https://mise.jdx.dev/), clone the repository, and put the built `
 git clone https://github.com/brainpad-whiterabbit/deguboard.git && cd deguboard
 mise trust && mise install    # install node and pnpm at the versions in mise.toml
 mise run install              # install dependencies, build dg and the extension, and install the VSIX into VS Code
-mkdir -p ~/.local/bin && ln -sf "$PWD/packages/cli/bin/dg.js" ~/.local/bin/dg   # add ~/.local/bin to PATH if needed. To update, git pull and then mise run install
+mise run dg:link              # link dg to ~/.local/bin/dg (once per clone; add ~/.local/bin to PATH if needed). To update, git pull and then mise run install
+dg hooks check                # confirm the hooks are installed and that the dg they call is on PATH (if it says not found, run mise run dg:link again)
 ```
 
 To install the VSIX by hand, run `code --install-extension packages/vscode/deguboard-vscode.vsix` after `mise run vsix`.

@@ -128,7 +128,8 @@ dg config set notify.approvals false --local
 git clone https://github.com/brainpad-whiterabbit/deguboard.git && cd deguboard
 mise trust && mise install    # node・pnpm を mise.toml の版で入れる
 mise run install              # 依存を入れ、dg と拡張をビルドし、VSIX を VS Code に入れる
-mkdir -p ~/.local/bin && ln -sf "$PWD/packages/cli/bin/dg.js" ~/.local/bin/dg   # ~/.local/bin が PATH になければ足す。更新は git pull のあと mise run install
+mise run dg:link              # dg を ~/.local/bin/dg にリンクする（clone ごとに一度。~/.local/bin が PATH になければ足す）。更新は git pull のあと mise run install
+dg hooks check                # フックが入っているか、フックが呼ぶ dg が PATH にあるかを確かめる（not found と出たら mise run dg:link をやり直す）
 ```
 
 VSIX を手で入れるときは、`mise run vsix` の後に `code --install-extension packages/vscode/deguboard-vscode.vsix` を実行します。
