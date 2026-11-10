@@ -12,7 +12,7 @@ deguboard is an independent project. It is not made, endorsed, or supported by M
 
 - **Delegate with specs**: Hand over work as small tickets with acceptance criteria instead of open-ended prompts. Agents work from the ticket, and the result is checked against its criteria.
 - **Run in parallel along dependencies**: Plan the order from dependencies, and agents work on tickets that are not blocked at the same time, each on its own branch and worktree.
-- **Governance built in**: Plans wait for approval before work starts. A PR is marked ready or merged only when an independent review and the checks pass (the quality gate, `dg gate`). `actor.human_only` and workflow rules can reserve commands and transitions for people, and the Claude Code hooks refuse to mark a PR ready or merge it outside `dg`, and to write to the data directly.
+- **Governance built in**: Plans wait for approval before work starts. A PR is marked ready or merged only when the quality gate (`dg gate`) passes. Each ticket has a gate level, `high` by default, which requires everything including an independent review; `low` skips the review, and `free` checks only that the PR is open and does not conflict. `actor.human_only` and workflow rules can reserve commands and transitions for people, and the Claude Code hooks refuse to mark a PR ready or merge it outside `dg`, and to write to the data directly.
 - **Measure and improve**: Aggregate duration, tokens, retries, review findings, and results per ticket, step, and model with `dg metrics`, and use retrospectives to find bottlenecks and what to fix next.
 
 ## Installation
@@ -80,7 +80,7 @@ Click a row's speech bubble, choose what to ask for, and paste the copied reques
 
 ### Hand off everything
 
-Describe what you want to build with `/dgall --auto` (in Claude Code), and the agent creates tickets, plans, and implements them in one go. It stops where approval is needed, such as releases, deleting, abandoning, or closing tickets, and merging PRs unless `auto.merge` is on. Which other decisions proceed without stopping is set by `auto.decisions` in config. Watch the progress on the board, and click a plan's band to see its dependencies as a graph. For other agents, ask them to "read `dg guide all` and proceed to the end with `--auto`".
+Describe what you want to build with `/dgall --auto` (in Claude Code), and the agent creates tickets, plans, and implements them in one go. It stops where approval is needed, such as releases, deleting, abandoning, or closing tickets, and merging PRs unless `auto.merge` is on. Which other decisions proceed without stopping is set by `auto.decisions` in config. Watch the progress on the board, and click a plan's band to see its dependencies as a graph. `--gate-high`, `--gate-low`, or `--gate-free` sets the quality gate level of the target tickets (without one, each ticket keeps its own level). For other agents, ask them to "read `dg guide all` and proceed to the end with `--auto`".
 
 <img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/run-all.gif" alt="Handing off everything" width="560">
 
