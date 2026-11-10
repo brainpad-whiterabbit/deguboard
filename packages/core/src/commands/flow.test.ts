@@ -313,11 +313,18 @@ describe("FLOW_GUIDE（段階の節）", () => {
       ).toEqual(wanted);
       const names = new Set(returned.flatMap((s) => [s.heading, s.name]));
       for (const s of returned) {
-        for (const m of s.text.matchAll(/(?:`dg guide ([a-z]+)`\s*の)?「([^」]+)」/g)) {
+        // 日本語は「」（`dg guide <topic>` の「…」の形も含む）、英語は "" の section（of の後ろにトピックがなければ同じトピック）
+        const refs = [
+          ...s.text.matchAll(/(?:`dg guide ([a-z]+)`\s*の)?「([^」]+)」/g),
+          ...s.text.matchAll(/"([^"]+)"(?: \([^)]*\))? section(?: of `dg guide ([a-z]+)`)?/g),
+        ].map((m) =>
+          m[0].startsWith('"') ? { topic: m[2], name: m[1] } : { topic: m[1], name: m[2] },
+        );
+        for (const { topic, name } of refs) {
           // ほかのトピックの節は案内されたトピックとして読む（指す先があるかは check:docs が検査する）
-          if (m[1] !== undefined && m[1] !== ref.topic) continue;
-          if (!all.some((x) => x.heading === m[2] || x.name === m[2])) continue;
-          expect(names.has(m[2]!), `${stage}：節「${s.name}」が指す「${m[2]}」`).toBe(true);
+          if (topic !== undefined && topic !== ref.topic) continue;
+          if (!all.some((x) => x.heading === name || x.name === name)) continue;
+          expect(names.has(name!), `${stage}：節「${s.name}」が指す「${name}」`).toBe(true);
         }
       }
     }

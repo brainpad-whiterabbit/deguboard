@@ -443,26 +443,26 @@ describe("dg guide", () => {
     expect(release).not.toContain("ロックファイル");
   });
 
-  it("config の値を埋める（既定なら main と origin、空の配列と空の文字列は「なし」）", () => {
+  it("config の値を埋める（既定なら main と origin、空の配列と空の文字列は none）", () => {
     expect(
       fillPlaceholders(
         "{{git.remote}}/{{git.base_branch}} {{commit.mode}} {{actor.human_only}} {{nope}}",
         defaultConfig(),
       ),
-    ).toBe("origin/main batch なし {{nope}}");
+    ).toBe("origin/main batch none {{nope}}");
     expect(
       fillPlaceholders("{{actor.human_only}}", {
         ...defaultConfig(),
         actor: { human_only: ["epic.close", "iteration.close"] },
       }),
     ).toBe("epic.close, iteration.close");
-    // 既定が空でも、空の文字列を明示して「なし」になることを確かめる
+    // 既定が空でも、空の文字列を明示して none になることを確かめる
     expect(
       fillPlaceholders("{{models.light}}", {
         ...defaultConfig(),
         models: { ...defaultConfig().models, light: "" },
       }),
-    ).toBe("なし");
+    ).toBe("none");
   });
 
   it("overview にはすべてのトピックが載り、未知のトピックは終了コード 2", async () => {

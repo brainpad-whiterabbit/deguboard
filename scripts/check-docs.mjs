@@ -438,15 +438,16 @@ for (const [text, places] of sameParagraphs) {
   errors.push(`${where}: 同じ段落がある（「${text.slice(0, 30)}…」）`);
 }
 
-// dg guide の節の参照：日本語の「`dg guide <topic>` の「<節>」」と、英語の「the "<節>" section of `dg guide <topic>`」（"<節>" の後ろの「(…)」の補足を許す）を、文書（.md）と packages の .ts・.tsx の文字列とコメントから集め、guide-<topic>.md の見出し（「（…）」の補足を除いた名前を含む）と、節の中の太字の項目・一覧の先頭のコードと照らす。日本語は「と「…」」で続く節も見る。バッククォートの有無によらない。
+// dg guide の節の参照：日本語の「`dg guide <topic>` の「<節>」」と、英語の「the "<節>" section of `dg guide <topic>`」（"<節>" の後ろの「(…)」の補足を許す）を、文書（.md）と packages の .ts・.tsx の文字列とコメントから集め、guide-<topic>.md の見出し（末尾の補足「（…）」か半角の「 (…)」を除いた名前を含む）と、節の中の太字の項目・一覧の先頭のコードと照らす。日本語は「と「…」」で続く節も見る。バッククォートの有無によらない。
+// guide-<topic>.md の中の英語の「the "<節>" section」（of の後ろにトピックがない）は同じトピックの節を指す。
 // 見る名前は「」と "" の中だけ（後ろの「の `implement` のモデル」などは見ない）。.md のコードブロックの中は除く。.ts の中の \`（テンプレート文字列のエスケープ）も読む
 const guideNameSets = new Map();
 for (const rel of guideFiles) {
   const topic = path.basename(rel).slice("guide-".length, -".md".length);
   guideNameSets.set(topic, guideSectionNames(await readFile(path.join(root, rel), "utf8")));
 }
-/** 1 行にある dg guide の節の参照を、トピックと節の名前の配列で返す */
-function guideRefsIn(line) {
+/** 1 行にある dg guide の節の参照を、トピックと節の名前の配列で返す。sameTopic は guide-<topic>.md の中のとき、その topic（of の無い英語の参照に使う） */
+function guideRefsIn(line, sameTopic) {
   const refs = [];
   for (const m of line.matchAll(
     /(?:\\?`)?dg guide ([a-z][a-z-]*)(?:\\?`)?\s*の(「[^」]+」(?:と「[^」]+」)*)/g,
@@ -458,6 +459,11 @@ function guideRefsIn(line) {
   )) {
     refs.push({ topic: m[2], names: [m[1]] });
   }
+  if (sameTopic !== undefined) {
+    for (const m of line.matchAll(/"([^"]+)"(?: \([^)]*\))? section(?! of )/g)) {
+      refs.push({ topic: sameTopic, names: [m[1]] });
+    }
+  }
   return refs;
 }
 let guideRefCount = 0;
@@ -468,8 +474,11 @@ const guideRefFiles = [
 for (const rel of guideRefFiles) {
   const text = await readFile(path.join(root, rel), "utf8");
   const lines = rel.endsWith(".md") ? linesOutsideFences(text) : text.split("\n");
+  const sameTopic = guideFiles.includes(rel)
+    ? path.basename(rel).slice("guide-".length, -".md".length)
+    : undefined;
   for (const [i, line] of lines.entries()) {
-    for (const { topic, names: refNames } of guideRefsIn(line)) {
+    for (const { topic, names: refNames } of guideRefsIn(line, sameTopic)) {
       const names = guideNameSets.get(topic);
       for (const name of refNames) {
         guideRefCount++;
@@ -616,14 +625,14 @@ function linesOutsideFences(text) {
   });
 }
 
-/** guide の節の名前の集合：見出しの文言と、その「（…）」の補足を除いた名前、節の中の太字の項目（- **見る**）と一覧の先頭のコード（- `ready`） */
+/** guide の節の名前の集合：見出しの文言と、末尾の補足（「（…）」か半角の「 (…)」）を除いた名前、節の中の太字の項目（- **見る**）と一覧の先頭のコード（- `ready`） */
 function guideSectionNames(text) {
   const names = new Set();
   for (const line of linesOutsideFences(text)) {
     const heading = /^#{1,6}\s+(.+?)\s*$/.exec(line)?.[1];
     if (heading !== undefined) {
       names.add(heading);
-      names.add(heading.replace(/（[^（）]*）$/, ""));
+      names.add(heading.replace(/（[^（）]*）$| \([^()]*\)$/, ""));
       continue;
     }
     const item = /^\s*(?:[-*]|\d+\.)\s+(?:\*\*([^*]+)\*\*|`([^`]+)`)/.exec(line);
