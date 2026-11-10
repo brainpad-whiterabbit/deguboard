@@ -148,7 +148,7 @@ async function writeLocked<T>(
           if (opts.cas)
             throw new OperationError(
               "SYNC_CONFLICT",
-              `Conflicts with remote changes, so the ticket cannot be claimed. ${CONFLICT_REMEDY}`,
+              `Conflicts with remote changes, so the change cannot be applied. ${CONFLICT_REMEDY}`,
               detail,
             );
           warnings.push(
@@ -207,7 +207,7 @@ async function writeLocked<T>(
       if (attempts >= maxAttempts) {
         throw new OperationError(
           "PUSH_FAILED",
-          `The push was rejected ${attempts} times, so the ticket cannot be claimed`,
+          `The push was rejected ${attempts} times, so the change could not be applied`,
           pushed.detail,
         );
       }

@@ -47,7 +47,7 @@ function splitFrontmatter(raw: string): { meta: GuideMeta; body: string } {
 
 async function readGuideFile(topic: string): Promise<{ meta: GuideMeta; body: string }> {
   if (!isGuideTopic(topic)) {
-    throw new UsageError(`guide のトピック ${topic} はない。${GUIDE_TOPICS.join(" / ")} のどれか`);
+    throw new UsageError(`No guide topic ${topic}. Use one of: ${GUIDE_TOPICS.join(" / ")}`);
   }
   return splitFrontmatter(await readFile(new URL(`./guide-${topic}.md`, import.meta.url), "utf8"));
 }
@@ -118,31 +118,31 @@ export async function readGuideNotes(
   const warn = (message: string): GuideNotes => ({ text: "", warnings: [`${key} ${message}`] });
   if (isAbsolute(rel)) {
     return warn(
-      `の ${rel} はリポジトリの外を指すので差し込まない（リポジトリからの相対パスで書く）`,
+      `${rel} is outside the repository, so it is not inserted (write a path relative to the repository)`,
     );
   }
   const top = await realpath(repoTop).catch(() => resolve(repoTop));
   const real = await realpath(resolve(top, rel)).catch(() => undefined);
-  if (real === undefined) return warn(`のファイル ${rel} を読めないので差し込まない`);
+  if (real === undefined) return warn(`file ${rel} cannot be read, so it is not inserted`);
   const inside = relative(top, real);
   if (inside === "") {
-    return warn(`の ${rel} はリポジトリの最上位を指すので差し込まない（ファイルのパスで書く）`);
+    return warn(`${rel} is the repository root, so it is not inserted (write a file path)`);
   }
   if (inside.split(sep)[0] === ".." || isAbsolute(inside)) {
     return warn(
-      `の ${rel} はリポジトリの外を指すので差し込まない（リポジトリからの相対パスで書く。symlink の先も見る）`,
+      `${rel} is outside the repository, so it is not inserted (write a path relative to the repository; symlink targets are checked too)`,
     );
   }
   const info = await stat(real).catch(() => undefined);
-  if (info === undefined) return warn(`のファイル ${rel} を読めないので差し込まない`);
-  if (!info.isFile()) return warn(`のファイル ${rel} は通常のファイルでないので差し込まない`);
+  if (info === undefined) return warn(`file ${rel} cannot be read, so it is not inserted`);
+  if (!info.isFile()) return warn(`file ${rel} is not a regular file, so it is not inserted`);
   if (info.size > NOTES_MAX_BYTES) {
-    return warn(`のファイル ${rel} は ${NOTES_MAX_BYTES / 1024} KiB を超えるので差し込まない`);
+    return warn(`file ${rel} is over ${NOTES_MAX_BYTES / 1024} KiB, so it is not inserted`);
   }
   const content = await readFile(real, "utf8").catch(() => undefined);
-  if (content === undefined) return warn(`のファイル ${rel} を読めないので差し込まない`);
+  if (content === undefined) return warn(`file ${rel} cannot be read, so it is not inserted`);
   if (hasHeadingOutsideCode(content)) {
-    return warn(`のファイル ${rel} に見出し（#）があるので差し込まない。見出しを外す`);
+    return warn(`file ${rel} has a heading (#), so it is not inserted. Remove the heading`);
   }
   return { text: content.trim(), warnings: [] };
 }

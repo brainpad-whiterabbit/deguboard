@@ -86,7 +86,7 @@ function findDependencyCycles(store: Store): Issue[] {
       code: "depends_on_cycle",
       path: store.tickets.get(cycle.start as `t${number}`)?.path ?? "",
       id: cycle.start,
-      message: `Dependencies form a cycle:${cyclePath(cycle, false)}`,
+      message: `Dependencies form a cycle: ${cyclePath(cycle, false)}`,
     });
   });
   return issues;

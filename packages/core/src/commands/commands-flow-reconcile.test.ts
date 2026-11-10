@@ -128,7 +128,7 @@ describe("チケットの流れ（照合と claim）", () => {
       { id: "t1", from: "review", to: "done", when: ["branch_merged"] },
     ]);
     expect(synced.warnings).toContain(
-      "t1: acceptance criteria 2 were not checked, but the ticket became done",
+      "t1: acceptance criteria items 2 were left unchecked when the ticket became done",
     );
     expect(synced.data.pushed).toBe(true);
     expect(synced.data.status).toMatchObject({ ahead: 0, behind: 0, dirty: false });

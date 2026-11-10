@@ -179,7 +179,7 @@ describe("dg pr ready・dg pr merge（t545）", () => {
     expect(ready!.code).toBe("GATE_FAILED");
     expect(ready!.message).toContain("dg gate t1 --for ready");
     expect(ready!.detail).toContain("review:");
-    expect(ready!.detail).toContain("人に gh pr ready を打ってもらう");
+    expect(ready!.detail).toContain("ask a human to run gh pr ready");
     const merge = await rejection(runCommand(prMerge, ctx, { ticket: "t1" }));
     expect(merge!.code).toBe("GATE_FAILED");
     expect(merge!.detail).toContain("acceptance:");

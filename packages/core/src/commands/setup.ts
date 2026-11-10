@@ -372,7 +372,7 @@ async function reconcileAll(ctx: CommandContext, warnings: string[]): Promise<Re
       const left = uncheckedAcceptance(doc);
       if (outcome.to === "done" && left.length > 0) {
         warnings.push(
-          `${doc.id}: acceptance criteria ${left.join(", ")} were not checked, but the ticket became done`,
+          `${doc.id}: acceptance criteria items ${left.join(", ")} were left unchecked when the ticket became done`,
         );
       }
     } else if (outcome.kind === "blocked") {
