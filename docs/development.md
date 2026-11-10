@@ -13,6 +13,7 @@
 mise trust          # このリポジトリの mise.toml を信頼する
 mise install        # node・pnpm を mise.toml の版で入れる
 mise run install    # 依存を入れ、dist と VSIX をビルドし、VSIX を VS Code に入れる
+mkdir -p ~/.local/bin && ln -sf "$PWD/packages/cli/bin/dg.js" ~/.local/bin/dg   # 追跡している .claude/settings.json のフックが PATH の dg を呼ぶ。~/.local/bin が PATH になければ足す
 ```
 
 3. タスクの一覧は `mise tasks` で見られる。タスクは pnpm scripts を呼ぶだけで、定義は [mise.toml](../mise.toml) と [package.json](../package.json)
