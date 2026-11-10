@@ -6,6 +6,7 @@ import { createFixture } from "../../test/helpers/git-fixture.js";
 import {
   ASK_ACTIONS,
   type AskAction,
+  type AskPlace,
   ASK_DG_USAGE,
   ASK_DG_USAGE_EN,
   ASK_FIRST,
@@ -30,7 +31,7 @@ import {
 import { openContext } from "./context.js";
 import { runCommand, type CommandContext } from "./define.js";
 import { epicCreate } from "./epic.js";
-import { iterationAdd, iterationCreate, iterationStart } from "./iteration.js";
+import { iterationAdd, iterationClose, iterationCreate, iterationStart } from "./iteration.js";
 import { planCreate } from "./plan.js";
 import { commands } from "./registry.js";
 import { runStart } from "./run.js";
@@ -38,9 +39,9 @@ import { configSet, init } from "./setup.js";
 import { ticketCreate, ticketMove, ticketUpdate } from "./ticket.js";
 import { workflowSet } from "./workflow.js";
 
-/** 候補の頼むことだけを順に並べる */
-const askActions = (s: AskSubject[], within?: string) =>
-  askCandidates(s, within).map((c) => c.action);
+/** 候補の頼むことだけを順に並べる（place は頼む場所。省けば場所なし） */
+const askActions = (s: AskSubject[], within?: string, place?: AskPlace) =>
+  askCandidates(s, within, "ja", place).map((c) => c.action);
 
 const cleanups: Array<() => Promise<void>> = [];
 afterEach(async () => {
@@ -328,10 +329,11 @@ describe("依頼文の組み立て", () => {
     });
   });
 
-  it("Skill を持たない頼むことは free・status・retro だけ", () => {
+  it("Skill を持たない頼むことは free・status・retro だけ（振り返るは履歴の見出しの場所で数える）", () => {
     const none = new Set<string>();
     for (const [s, within] of SAMPLES)
-      for (const c of askCandidates(s, within)) if (c.skill === null) none.add(c.action);
+      for (const c of askCandidates(s, within, "ja", "historyRow"))
+        if (c.skill === null) none.add(c.action);
     expect([...none].sort()).toEqual(["free", "retro", "status"]);
   });
 
@@ -571,8 +573,9 @@ describe("人に回すかを決める操作の名前", () => {
     const seen = new Set<string>();
     const checked = new Set<string>();
     const unknown: string[] = [];
+    // 場所によって出る頼むこと（振り返る）も数えるため、履歴の見出しの場所で引く
     for (const [s, within] of SAMPLES)
-      for (const action of askActions(s, within)) {
+      for (const action of askActions(s, within, "historyRow")) {
         seen.add(action);
         for (const name of askHumanChecks(action, s, within)) {
           checked.add(name);
@@ -635,7 +638,9 @@ describe("頼むことの候補", () => {
     expect(first([iteration("planned")])).toBe("plan");
     expect(first([iteration("active")])).toBe("plan");
     expect(first([iteration("active", true)])).toBe("release");
-    expect(first([iteration("closed")])).toBe("retro");
+    // 閉じた Iteration の詳細（場所なし）には振り返るを出さず、履歴の見出しからだけ先頭に出す
+    expect(first([iteration("closed")])).toBe("assign");
+    expect(askActions([iteration("closed")], undefined, "historyRow")[0]).toBe("retro");
     expect(first([epic("open")])).toBe("create");
     expect(first([epic("closed")])).toBe("create");
     const plan = (status: "pending_approval" | "approved" | "closed", complete = false) =>
@@ -648,6 +653,34 @@ describe("頼むことの候補", () => {
       view.candidates.map((_, n) => n === 0),
     );
     expect(view.candidates.at(-1)).toMatchObject({ action: "free", skill: null });
+  });
+
+  it("振り返るは履歴の見出し（historyRow）から閉じた Iteration に出すだけ。閉じた Iteration の詳細と閉じた Epic には場所によらず出さない", () => {
+    expect(askActions([iteration("closed")])).not.toContain("retro");
+    expect(askActions([iteration("closed")], undefined, "detailTitle")).not.toContain("retro");
+    expect(askActions([iteration("closed")], undefined, "boardHeading")).not.toContain("retro");
+    expect(askActions([iteration("closed")], undefined, "historyRow")).toContain("retro");
+    // 開いた Iteration には historyRow でも出さない
+    expect(askActions([iteration("active")], undefined, "historyRow")).not.toContain("retro");
+    // 閉じた Epic には historyRow でも出さない
+    expect(askActions([epic("closed")])).not.toContain("retro");
+    expect(askActions([epic("closed")], undefined, "historyRow")).not.toContain("retro");
+    // 履歴の行のチケットは Iteration の見出しではないので、振り返るは出さない
+    expect(
+      askActions([ticket({ status: "done", iteration_status: "closed" })], undefined, "historyRow"),
+    ).not.toContain("retro");
+  });
+
+  it("振り返るの依頼文は履歴の見出しの場所で作れ、場所を省くと候補にないので UsageError", () => {
+    const view = buildAsk({
+      subjects: [iteration("closed")],
+      action: "retro",
+      place: "historyRow",
+    });
+    expect(view).toMatchObject({ action: "retro", kind: "prompt", skill: null });
+    expect(() => buildAsk({ subjects: [iteration("closed")], action: "retro" })).toThrow(
+      /retro is not a candidate/,
+    );
   });
 
   it("対象なしの候補は、Skill を持つ頼むことを流れの順にすべて出し、先頭は起票（discuss は change の直後）", () => {
@@ -1010,7 +1043,44 @@ describe("ask", () => {
     expect(parseAskMenuKey("t1 t2 @s3")).toEqual({ refs: ["t1", "t2"], within: "s3" });
     // 場所を重ねたら後のもの、空白が重なっても分ける
     expect(parseAskMenuKey(" @e1  t1 @s3 ")).toEqual({ refs: ["t1"], within: "s3" });
-    expect(parseAskMenuKey("")).toEqual({ refs: [], within: undefined });
+    expect(parseAskMenuKey("")).toEqual({ refs: [], within: undefined, place: undefined });
+    // 頼む場所は # を付けた 1 つ（場所の後ろに置く）。対象と場所と分けて読む
+    expect(askMenuKey(["s3"], undefined, "historyRow")).toBe("s3 #historyRow");
+    expect(askMenuKey(["t1"], "s3", "historyRow")).toBe("t1 @s3 #historyRow");
+    expect(parseAskMenuKey("#historyRow s3 @e1")).toEqual({
+      refs: ["s3"],
+      within: "e1",
+      place: "historyRow",
+    });
+  });
+
+  it("ask-menu は # の頼む場所で候補を変え、閉じた Iteration の見出しからだけ振り返るを出す。知らない場所は組の error に出す", async () => {
+    const { ctx } = await initialized();
+    await runCommand(iterationCreate, ctx, { name: "Sprint 1" });
+    await runCommand(iterationClose, ctx, { iteration: "s1" });
+    const menus = (
+      await runCommand(askMenu, ctx, {
+        sets: ["s1", "s1 #historyRow", "s1 #detailTitle", "s1 #nowhere"],
+      })
+    ).data;
+    expect(menus.map((m) => m.key)).toEqual([
+      "s1",
+      "s1 #historyRow",
+      "s1 #detailTitle",
+      "s1 #nowhere",
+    ]);
+    expect(menus[0]!.candidates.map((c) => c.action)).not.toContain("retro");
+    expect(menus[1]!.candidates.map((c) => c.action)[0]).toBe("retro");
+    expect(menus[2]!.candidates.map((c) => c.action)).not.toContain("retro");
+    expect(menus[3]).toMatchObject({ candidates: [], error: expect.stringContaining("nowhere") });
+    // ask も同じ場所を受ける。場所を省いた詳細からは振り返るを頼めない
+    const view = (
+      await runCommand(ask, ctx, { targets: ["s1"], action: "retro", place: "historyRow" })
+    ).data;
+    expect(view).toMatchObject({ action: "retro", kind: "prompt" });
+    await expect(runCommand(ask, ctx, { targets: ["s1"], action: "retro" })).rejects.toThrow(
+      /retro is not a candidate/,
+    );
   });
 
   it("ask-menu は language を渡すと候補の 1 文も英語にし、省けば日本語にする", async () => {

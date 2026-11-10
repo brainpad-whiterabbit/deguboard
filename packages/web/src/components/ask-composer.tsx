@@ -41,6 +41,7 @@ const COPY_KEYS =
 interface AskInput {
   targets: string[];
   within?: string | undefined;
+  place?: string | undefined;
   action?: AskAction | undefined;
   note?: string | undefined;
   format?: AskFormat | undefined;
@@ -52,12 +53,15 @@ export function AskComposer({
   targets: initialTargets,
   action: initialAction,
   within,
+  place,
   copyOnOpen = false,
   onClose,
 }: {
   targets: readonly string[];
   /** 対象のチケットが入っている Iteration・Epic（詳細の中の行から開いたとき）。外すの候補が出る */
   within?: string | undefined;
+  /** 頼む場所（履歴の行・見出しなど）。場所によって候補が変わる */
+  place?: string | undefined;
   /** 選んで開く頼むこと（行・見出しの吹き出し）。省くか候補になければおすすめ */
   action?: AskAction | undefined;
   /** 開いたときに、選んだ頼むこと（action）の依頼文をそのままコピーする（一覧で選んで開いたとき。復元では false） */
@@ -118,6 +122,7 @@ export function AskComposer({
       .run<AskView>("ask", {
         targets: parseAskKey(targetsKey).targets,
         within,
+        place,
         language: language(),
       } satisfies AskInput)
       .then((r) => alive && (setBase(r.data), setError(null)))
@@ -125,7 +130,7 @@ export function AskComposer({
     return () => {
       alive = false;
     };
-  }, [client, targetsKey, within, store.tickets]);
+  }, [client, targetsKey, within, place, store.tickets]);
 
   // 選んだ頼むことが候補にない（開いた後に Status が変わったなど）ときは、おすすめに戻す
   const action = picked && base?.candidates.some((c) => c.action === picked) ? picked : null;
@@ -135,6 +140,7 @@ export function AskComposer({
     const input: AskInput = {
       targets: parseAskKey(targetsKey).targets,
       within,
+      place,
       action: action ?? undefined,
       note: settledNote,
       format: chosenFormat ?? undefined,
@@ -147,7 +153,7 @@ export function AskComposer({
     return () => {
       alive = false;
     };
-  }, [client, base, targetsKey, within, action, settledNote, chosenFormat]);
+  }, [client, base, targetsKey, within, place, action, settledNote, chosenFormat]);
 
   const chosen = action ?? base?.candidates[0]?.action ?? null;
   // 出している形式。人が選んでいなければ、形式を渡さずに引いた結果の既定
@@ -171,6 +177,7 @@ export function AskComposer({
       const r = await client.run<AskView>("ask", {
         targets,
         within,
+        place,
         action: pick ?? undefined,
         note,
         format: chosenFormat ?? undefined,

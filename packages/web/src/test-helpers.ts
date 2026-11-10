@@ -268,13 +268,14 @@ export function mockClient(data = fixture()): MockClient {
     // 返す key は core と同じくそろえた形なので、画面が別の形の鍵で引くと候補が見つからない
     "ask-menu": (input) =>
       ((input as { sets?: string[] }).sets ?? []).map((set): AskMenu => {
-        const { refs, within } = parseAskMenuKey(set);
-        const key = askMenuKey(refs, within);
+        const { refs, within, place } = parseAskMenuKey(set);
+        const key = askMenuKey(refs, within, place);
         try {
           const candidates = askCandidates(
             refs.map((id) => askSubjectOf(data, id)),
             within,
             (input as { language?: "ja" | "en" }).language,
+            place as Parameters<typeof askCandidates>[3],
           );
           return { key, candidates, error: null };
         } catch (e) {

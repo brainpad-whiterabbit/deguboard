@@ -62,6 +62,7 @@ export function HistoryTicketRow({
     targets: [t.id],
     label: tr("行 {0}", t.id),
     section: ASK_SECTIONS.historyRow,
+    place: ASK_SECTIONS.historyRow,
     select: true,
   });
   const q = query?.trim().toLowerCase() ?? "";

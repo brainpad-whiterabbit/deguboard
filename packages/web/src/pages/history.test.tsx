@@ -5,7 +5,7 @@ import { App } from "../app.js";
 import { HostProvider, type Host } from "../host.js";
 import { parseRoute } from "../router.js";
 import { StoreProvider } from "../store.js";
-import { iteration, mockClient, ticket } from "../test-helpers.js";
+import { iteration, iterationDetail, mockClient, ticket } from "../test-helpers.js";
 import { createUiState, memoryBackend } from "../ui-state.js";
 // 持ち越しの求め方の写しを照らすためだけに core の実行時のコード（carriedOverFrom）を取り込む（画面のコードは型だけを取る）
 import { carriedOverFrom as coreCarriedOverFrom } from "@deguboard/core";
@@ -952,6 +952,43 @@ describe("履歴のタブ・Iteration の行・Epic の見方", () => {
       { page: "ticket", id: "t1" },
       { page: "epics", id: "e1" },
     ]);
+  });
+
+  it("閉じた Iteration の見出しの吹き出しから振り返るを頼め、先頭がおすすめになる", async () => {
+    window.location.hash = "#/history";
+    const client = mockClient();
+    client.data.iterations = [iteration({ id: "s1", name: "最初", status: "closed" })];
+    render(
+      <StoreProvider client={client}>
+        <HostProvider host={sidebarHost()}>
+          <App />
+        </HostProvider>
+      </StoreProvider>,
+    );
+    await screen.findByRole("heading", { level: 1, name: "履歴" });
+    fireEvent.click(document.querySelector(".history-row .ask-bubble")!);
+    await waitFor(() => expect(document.querySelector(".ask-menu-item")).toBeTruthy());
+    const items = [...document.querySelectorAll(".ask-menu-item > span:first-child")];
+    expect(items.map((s) => s.textContent)[0]).toBe("振り返る");
+  });
+
+  it("閉じた Iteration の詳細の頼むことには振り返るが出ない", async () => {
+    window.location.hash = "#/iterations/s1";
+    const client = mockClient();
+    client.data.iterations = [iteration({ id: "s1", name: "最初", status: "closed" })];
+    client.handlers["iteration.show"] = () => iterationDetail(client.data.iterations[0]!);
+    render(
+      <StoreProvider client={client}>
+        <HostProvider host={sidebarHost()}>
+          <App />
+        </HostProvider>
+      </StoreProvider>,
+    );
+    await screen.findByRole("heading", { level: 1, name: /最初/ });
+    fireEvent.click(document.querySelector("h1.ask-title .ask-bubble")!);
+    await waitFor(() => expect(document.querySelector(".ask-menu-item")).toBeTruthy());
+    const items = [...document.querySelectorAll(".ask-menu-item > span:first-child")];
+    expect(items.map((s) => s.textContent)).not.toContain("振り返る");
   });
 
   it("履歴を Epic の見方に切り替えると、閉じた Epic を閉じた新しい順に出し、見方がハッシュに残る。検索も効く", async () => {
