@@ -21,7 +21,7 @@ import {
 } from "./test-helpers.js";
 import type { RunView } from "./types.js";
 import { createUiState, memoryBackend } from "./ui-state.js";
-import { setLanguage, type Language } from "./l10n.js";
+import { language, setLanguage, type Language } from "./l10n.js";
 
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ["Date"], now: new Date("2026-11-04T12:00:00Z") });
@@ -168,9 +168,12 @@ function richClient(): MockClient {
     git: { remote: "origin", base_branch: "main" },
     commit: { mode: "each" },
   };
-  // 項目の説明は、日本語では core の configFields の文のまま、英語では項目のキーで引いた訳で出す（UI-11）。
-  // 日本語のスナップショットが core の説明の書き換えで動かないよう、説明をキーに差し替える（英語の訳はキーで引くので変わらない）
-  const fields = configFields().map((f) => ({ ...f, description: f.key }));
+  // 項目の説明は、core の説明を鍵に表示言語の訳を引き、訳がなければ core の説明のまま出す（UI-11・t649）。
+  // 日本語のスナップショットが core の説明の書き換えで動かないよう、日本語では説明をキーに差し替える（表にない文なのでそのまま出る）。
+  // 英語では core の説明のまま渡して訳を引く（説明と訳の鍵の揃いは l10n.test.ts が確かめる）
+  const fields = configFields().map((f) =>
+    language() === "ja" ? { ...f, description: f.key } : f,
+  );
   client.handlers["config.show"] = (input) =>
     (input as { fields?: boolean }).fields ? { config, team: config, local: {}, fields } : config;
   return client;

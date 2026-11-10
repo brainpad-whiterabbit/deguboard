@@ -1,6 +1,6 @@
 // config.yaml のスキーマ。項目の全体はここが正本（requirements.md 5.10）。
 // 入れ子の既定は prefault で与える（Zod 4 の default は検証を短絡するため）。
-// 各項目の説明は describe に書き、configFields が設定画面（config.show の fields）に渡す。英語の訳は web の l10n-en.ts（CONFIG_DESCRIPTIONS_EN）に置き、説明を書き換えたら訳も直す（web の l10n.test.ts が知らせる）。
+// 各項目の説明は describe に書き、configFields が設定画面（config.show の fields）に渡す。表示言語ごとの訳は web の l10n-core.ts（CONFIG_DESCRIPTIONS。鍵は説明の文）に置き、説明を書き換えたら訳の鍵も直す（web の l10n.test.ts が知らせる）。
 // 項目ごとの範囲（scope）もここで決める：local の項目だけが、Git に入らない個人の設定（deguboard-local/config.yaml）で上書きできる
 
 import { z } from "zod";

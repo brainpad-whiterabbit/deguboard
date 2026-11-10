@@ -1,4 +1,4 @@
-// 設定画面（#/config）。config.show の fields で全項目を既定値・説明（スキーマの describe。英語の表示では configDescription の訳）・範囲（scope）つきで読み、
+// 設定画面（#/config）。config.show の fields で全項目を既定値・説明（スキーマの describe。configDescription で表示言語の訳にする）・範囲（scope）つきで読み、
 // 「チーム」と「自分」のタブで書き分ける。値を変えるたびに 1 項目ずつ保存する。
 // - チーム：全項目を出し、チームで共有する config.yaml の値（view.team）を config.set で書く。欄に個人の上書きを重ねない
 //   （重ねた値を出すと保存が効かなかったように見える）。自分で上書きしている項目には「自分：値」の印を出し、押すと自分のタブのその項目に移る
@@ -158,7 +158,7 @@ export function nameOf(key: string): string {
 export function fieldMatchesQuery(field: ConfigField, query: string): boolean {
   const q = query.trim().toLowerCase();
   if (!q) return true;
-  return [nameOf(field.key), field.key, configDescription(field.key, field.description)].some((s) =>
+  return [nameOf(field.key), field.key, configDescription(field.description)].some((s) =>
     s.toLowerCase().includes(q),
   );
 }
@@ -675,7 +675,7 @@ function FieldRow({
         {badges}
         {busy ? <span className="muted">{tr("保存中…")}</span> : null}
       </div>
-      <p className="config-desc muted">{configDescription(field.key, field.description)}</p>
+      <p className="config-desc muted">{configDescription(field.description)}</p>
       {lead}
       <div className="config-control">
         {children}
