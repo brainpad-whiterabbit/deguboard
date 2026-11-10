@@ -2,7 +2,7 @@
   "name": "deguboard-monorepo",
   "version": "0.0.0",
   "private": true,
-  "description": "Git-native な AI ワークフローとチケット管理。CLI は dg",
+  "description": "Agentic-Agile を実践するための Git-native なカンバン。CLI は dg",
   "license": "MIT",
   "type": "module",
   "scripts": {

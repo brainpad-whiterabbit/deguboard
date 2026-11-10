@@ -113,7 +113,7 @@ describe("拡張ホストの文言の置き場所", () => {
 /** 英語の文言にする前（日本語の直書きだったとき）の manifest の文言。表示言語が日本語なら今と同じに出ることを確かめる */
 const MANIFEST_JA_BEFORE: Record<string, string> = {
   description:
-    "AI エージェントに仕事を任せるためのカンバン。小さなチケットに分けて並列に進め、その働きを測れます。",
+    "Agentic-Agile を実践するための、Git リポジトリの中で動くカンバンボード。小さなチケットを AI エージェントに任せて並列に進め、その働きを測れます。",
   "command.gotoTicket.title": "チケットへ移動",
   "command.sync.title": "同期",
   "command.config.title": "設定",
