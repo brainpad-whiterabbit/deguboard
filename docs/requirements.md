@@ -124,7 +124,7 @@ updated_at: 2026-10-31T05:10:00Z
 
 ### 5.6 Iteration（`iterations/s3.yaml`）
 
-- IT-1 `status` は `planned` / `active` / `closed` で、期間を `start`・`end` に持つ。閉じたときに `closed_at` と完了・持ち越しの件数を書く（日付の書き換えは `iteration start / close --help`）。閉じる・再開するのは既定で誰でも行える（EP-4 と同じ）。active は Project に 1 つに保つ
+- IT-1 `status` は `planned` / `active` / `closed` で、実績の期間として active になったときに `started_at`、閉じたときに `closed_at` と完了・持ち越しの件数を書く（細部は `iteration start / close / reopen --help`）。閉じる・再開するのは既定で誰でも行える（EP-4 と同じ）。active は Project に 1 つに保つ
 - IT-2 所属はチケットの `iteration` で表し、Iteration 側にチケットの一覧は持たない。入れるのは同じ Project のチケットだけで、閉じた Iteration には入れられない。閉じるときに done・abandoned 以外のチケットの `iteration` を外す。進捗は都度求める（EP-3）
 - IT-3 `iteration show` は次の操作 `next` と中のチケットを含む Plan `plans` を返し、画面はこれを読む（形は `packages/core/src/commands/iteration.ts`、並びは `commands/helpers.ts` の `ticketsInIteration`）
 
@@ -214,7 +214,7 @@ updated_at: 2026-10-31T05:10:00Z
 - UI-2 カンバン：planned か active の Iteration 1 つ（既定は active）か「すべて」（planned・active の全部）のチケットを Status ごとの列に出し、Epic と担当者で絞れる
 - UI-3 バックログ：done・abandoned 以外のチケットを Iteration ごとの区画に出し、検索と絞り込みができる
 - UI-4 チケット詳細：本文・属性・依存・作業ブランチと worktree・PR・Run・経過（CL-7）を出す。属性と本文を編集でき、受け入れ条件の印を本文のチェックボックスで付け外しできる。細部は `dg ticket show --help`
-- UI-5 Iteration：詳細の画面で期間・目標・進捗（EP-3）と中のチケット、状態に応じた次の操作（IT-3 の `next`）、中のチケットを含む Plan を出す。閉じた Iteration・Epic と終わったチケットは履歴の画面で見る
+- UI-5 Iteration：詳細の画面で実績の期間（`started_at`〜`closed_at`。記録のない開始は不明と出す）・目標・進捗（EP-3）と中のチケット、状態に応じた次の操作（IT-3 の `next`）、中のチケットを含む Plan を出す。閉じた Iteration・Epic と終わったチケットは履歴の画面で見る
 - UI-6 未 push のコミットと未取り込みのリモートの更新を印で知らせ、同期のボタンで `dg sync` と同じ同期をして読み直す
 - UI-7 画面から書き込むのはチケット詳細と設定画面と同期だけで、ほかの変更は UI-15 で頼む。書き込みは Core の同じコマンドと検査を通り、拒否されたら理由を出して戻す（コミットは CL-3）
 - UI-8 `dg serve` は既定で `127.0.0.1` にバインドする。認証は持たない

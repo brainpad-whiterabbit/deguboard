@@ -26,6 +26,7 @@ import {
   StatusDot,
   DetailLink,
 } from "../components/parts.js";
+import { formatShortTime } from "../components/date-time.js";
 import { FilterToggle } from "../components/filter-toggle.js";
 import { PlanBand } from "../components/plan-band.js";
 import { shortPeriod } from "../components/iteration-parts.js";
@@ -345,7 +346,7 @@ function BoardHead({
     : open.length > 0
       ? tr("planned・active のすべて")
       : tr("開いた Iteration はない");
-  const period = it ? shortPeriod(it.start, it.end) : undefined;
+  const period = it ? shortPeriod(it) : undefined;
   // 選んでいる Iteration の見出し（名前・期間・目標の段）から、その Iteration を頼む（「すべて」のときは出さない）
   const spot = useAskSpot(
     it
@@ -443,8 +444,11 @@ function IterationChips({
         // core の iteration.list は進みを返さず、札は画面の都合（閉じた Epic の終わったチケットを除く）で数える対象を決めるので、
         // core の progressOf の写し（ticketProgress）で数える。core が進みを返す Epic の行（履歴）は core の値を読む
         const progress = ticketProgress(tickets.filter((t) => t.iteration === i.id));
+        // 札は planned と active だけで、実績の期間は active の開始の日時だけ（planned は期間を出さない）
         const period =
-          i.start || i.end ? tr("\n期間 {0} 〜 {1}", i.start ?? "?", i.end ?? "?") : "";
+          i.status === "active"
+            ? tr("\n開始 {0}", i.started_at ? formatShortTime(i.started_at) : tr("不明"))
+            : "";
         const goal = i.goal ? tr("\n目標 {0}", i.goal) : "";
         return (
           <button

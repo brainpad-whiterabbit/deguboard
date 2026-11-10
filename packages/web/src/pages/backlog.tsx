@@ -444,7 +444,7 @@ function Section({
   // 見出し（カンバンの BoardHead と同じ部品）：左の帯の色で Iteration の状態を出し、1 段目に番号・名前・件数、
   // 2 段目に状態・月日の期間・目標を 1 行で（目標が溢れたら省略してツールチップで全文。カンバンと同じ）。
   // 0 件の区画は帯も 2 段目もない 1 行にする
-  const period = it ? shortPeriod(it.start, it.end) : undefined;
+  const period = it ? shortPeriod(it) : undefined;
   // 区画の見出しから頼む：Iteration の区画はその Iteration、「Iteration なし」は中のチケットをまとめて（0 件なら出さない）
   const spot = useAskSpot(
     it || tickets.length > 0

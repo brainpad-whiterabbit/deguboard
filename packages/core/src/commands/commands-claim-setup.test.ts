@@ -67,8 +67,12 @@ describe("claim の Iteration の準備", () => {
       expect.arrayContaining(["Added t1 to s3", "Started s3 (active)"]),
     );
     const s3 = (await runCommand(iterationShow, ctx, { iteration: "s3" })).data;
-    // 開始日は始めた日に書き換える（iteration.start と同じ。IT-1）
-    expect(s3).toMatchObject({ status: "active", start: localDate(NOW) });
+    // 実績の開始の日時 started_at を書き、開始日は始めた日に書き換える（iteration.start と同じ。IT-1）
+    expect(s3).toMatchObject({
+      status: "active",
+      start: localDate(NOW),
+      started_at: "2026-11-09T03:00:00Z",
+    });
     // 規則だけの確かめ：start のない Iteration だけなら ID の小さいもの、閉じたものと別の Project のものは選ばない
     const doc = (id: string, data: object) =>
       ({ id, data: { project: "default", ...data } }) as never;

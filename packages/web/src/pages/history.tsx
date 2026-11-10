@@ -478,8 +478,8 @@ function IterationItem({
     .sort(byNumber);
   const epics = epicCountsOf(finished);
   const abandoned = finished.filter((t) => t.status === "abandoned").length;
-  // 1 段目は目標（なければ薄く「目標なし」。名前は出さず、ツールチップにだけ置く）。2 段目は閉じた日と Epic ごとの内訳。
-  // 期間（start〜end）は出さない（t421 より前に閉じたものは start・end が予定の日のままで、実際の期間と食い違う）
+  // 1 段目は目標（なければ薄く「目標なし」。名前は出さず、ツールチップにだけ置く）。2 段目は実績の期間と Epic ごとの内訳。
+  // 期間は予定の start〜end でなく、実績の started_at〜closed_at で出す（UI-5）。started_at のないものは開始を「不明」と出す
   const goal = i.goal?.trim();
   // 終わったチケットがすべて Epic なしなら内訳は出さない（Epic なしだけの内訳は情報にならない）
   const showEpics = epics.some((e) => e.epic !== null);
@@ -508,6 +508,11 @@ function IterationItem({
             title={tr("完了と持ち越しは閉じたときに記録した件数")}
           />
           <small>
+            {i.started_at ? (
+              <>{trNode("{0} 〜 ", <ShortDay iso={i.started_at} />)}</>
+            ) : (
+              tr("開始は不明 ・ ")
+            )}
             <ClosedOn iso={i.closed_at} />
             {showEpics ? (
               <span className="epics">

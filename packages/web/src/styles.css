@@ -659,13 +659,6 @@ button.link:hover {
   margin: 0;
   overflow-wrap: anywhere;
 }
-.iteration-summary .period-note {
-  margin-left: 0.5rem;
-  color: var(--vscode-descriptionForeground);
-}
-.iteration-summary .period-note.overdue {
-  color: var(--dg-error);
-}
 /* Iteration 詳細の次の操作の案内（iteration-next.tsx） */
 .iteration-next {
   display: flex;
