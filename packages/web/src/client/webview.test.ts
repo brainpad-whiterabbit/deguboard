@@ -84,7 +84,7 @@ describe("postMessage の CommandClient", () => {
       id: 1,
       ok: true,
       data: null,
-      warnings: ["t9 が見つからない（削除された）", "訳のない警告"],
+      warnings: ["t9 not found (deleted)", "訳のない警告"],
       write: null,
     });
     expect((await warned).warnings).toEqual(["t9 not found (deleted)", "訳のない警告"]);
@@ -94,14 +94,14 @@ describe("postMessage の CommandClient", () => {
       ok: false,
       error: {
         code: "VALIDATION_FAILED",
-        message: "commit.mode の値が正しくない",
-        detail: "値を省けない。選択肢：immediate・batch・manual",
+        message: "Invalid value for commit.mode",
+        detail: "A value is required. Options: immediate, batch, manual",
       },
     });
     expect(await rejected.catch((e: unknown) => e)).toMatchObject({
       code: "VALIDATION_FAILED",
       message: "Invalid value for commit.mode",
-      detail: "A value is required. Options: immediate・batch・manual",
+      detail: "A value is required. Options: immediate, batch, manual",
     });
   });
 

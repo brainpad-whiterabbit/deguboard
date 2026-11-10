@@ -26,7 +26,7 @@ export const projectCreate = defineCommand({
       async () => {
         const workflow = input.workflow ?? "general";
         if (!ctx.store.workflows.has(workflow))
-          throw new OperationError("NOT_FOUND", `Workflow ${workflow} が見つからない`);
+          throw new OperationError("NOT_FOUND", `Workflow ${workflow} not found`);
         return ctx.store.create("project", {
           id: input.id,
           name: input.name ?? input.id,
@@ -87,7 +87,7 @@ export const projectArchive = defineCommand({
       async () => {
         const doc = ctx.store.requireProject(input.project);
         if (doc.data.status === "archived")
-          throw new OperationError("REJECTED", `${doc.id} は既にアーカイブ済み`);
+          throw new OperationError("REJECTED", `${doc.id} is already archived`);
         return ctx.store.update("project", doc.id, { status: "archived" });
       },
       { message: (doc) => `Project ${doc.id} をアーカイブ` },

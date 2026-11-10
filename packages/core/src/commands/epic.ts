@@ -163,12 +163,15 @@ export const epicAdd = defineCommand({
       async () => {
         const epic = ctx.store.require("epic", input.epic);
         if (epic.data.status === "closed")
-          throw new OperationError("REJECTED", `${epic.id} は閉じているのでチケットを足せない`);
+          throw new OperationError("REJECTED", `${epic.id} is closed, so tickets cannot be added`);
         const ids: string[] = [];
         for (const ref of input.tickets) {
           const t = ctx.store.require("ticket", ref);
           if (t.data.project !== epic.data.project)
-            throw new OperationError("REJECTED", `${t.id} は ${epic.id} と別の Project`);
+            throw new OperationError(
+              "REJECTED",
+              `${t.id} is in a different Project from ${epic.id}`,
+            );
           await ctx.store.update("ticket", t.id, { epic: epic.id, updated_at: nowIso(ctx) });
           ids.push(t.id);
         }
@@ -197,7 +200,7 @@ export const epicRemove = defineCommand({
         for (const ref of input.tickets) {
           const t = ctx.store.require("ticket", ref);
           if (t.data.epic !== epic.id)
-            throw new OperationError("REJECTED", `${t.id} は ${epic.id} に入っていない`);
+            throw new OperationError("REJECTED", `${t.id} is not in ${epic.id}`);
           await ctx.store.update("ticket", t.id, { epic: undefined, updated_at: nowIso(ctx) });
           ids.push(t.id);
         }
@@ -228,16 +231,16 @@ export const epicClose = defineCommand({
       async () => {
         const epic = ctx.store.require("epic", input.epic);
         if (epic.data.status === "closed")
-          throw new OperationError("REJECTED", `${epic.id} は既に閉じている`);
+          throw new OperationError("REJECTED", `${epic.id} is already closed`);
         const open = ticketsInEpic(ctx.store, epic.id).filter((t) => !isTerminal(t.data.status));
         if (open.length > 0) {
           const ids = open.map((t) => t.id).join(", ");
           if (!input.force)
             throw new OperationError(
               "REJECTED",
-              `${ids} が終わっていない。閉じるなら force を付ける`,
+              `${ids} not finished. To close it anyway, add force`,
             );
-          warnings.push(`${ids} を残したまま閉じた`);
+          warnings.push(`Closed with ${ids} left unfinished`);
         }
         const now = nowIso(ctx);
         return ctx.store.update("epic", epic.id, {
@@ -266,7 +269,7 @@ export const epicReopen = defineCommand({
       async () => {
         const epic = ctx.store.require("epic", input.epic);
         if (epic.data.status !== "closed")
-          throw new OperationError("REJECTED", `${epic.id} は閉じていない`);
+          throw new OperationError("REJECTED", `${epic.id} is not closed`);
         return ctx.store.update("epic", epic.id, {
           status: "open",
           updated_at: nowIso(ctx),

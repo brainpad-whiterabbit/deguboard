@@ -119,15 +119,15 @@ describe("用意", () => {
     expect(v.data.ok).toBe(true);
     const l = await runCommand(lint, ctx, {});
     expect(l.data.issues.map((i) => [i.id, i.code, i.message])).toEqual([
-      ["t1", "lint_summary_missing", "本文に ## Summary（か ## 概要）がない"],
+      ["t1", "lint_summary_missing", "The body has no ## Summary (or ## 概要)"],
       [
         "t1",
         "lint_acceptance_missing",
-        "本文に ## Acceptance criteria（か ## 受け入れ条件）がない",
+        "The body has no ## Acceptance criteria (or ## 受け入れ条件) section",
       ],
-      ["t2", "lint_acceptance_empty", "受け入れ条件に項目がない"],
-      ["t3", "lint_acceptance_empty", "受け入れ条件に項目がない"],
-      ["t9", "lint_acceptance_empty", "受け入れ条件に項目がない"],
+      ["t2", "lint_acceptance_empty", "The acceptance criteria have no items"],
+      ["t3", "lint_acceptance_empty", "The acceptance criteria have no items"],
+      ["t9", "lint_acceptance_empty", "The acceptance criteria have no items"],
     ]);
     const c = await runCommand(configSet, ctx, { key: "commit.mode", value: "each" });
     expect(c.data.commit.mode).toBe("each");
@@ -371,19 +371,19 @@ describe("用意", () => {
         "warning",
         "deguboard-local/config.yaml",
         "local_config_ignored",
-        "個人の設定の auto.merge を無視した",
+        "Ignored the personal setting auto.merge",
       ],
       [
         "warning",
         "deguboard-local/config.yaml",
         "local_config_ignored",
-        "個人の設定の push.mode を無視した",
+        "Ignored the personal setting push.mode",
       ],
       [
         "warning",
         "deguboard-local/config.yaml",
         "local_config_ignored",
-        "個人の設定の unknown_key を無視した",
+        "Ignored the personal setting unknown_key",
       ],
     ]);
     // 同じ最上位（commit）のチームの項目を変えても、個人の上書き（each）はチームのファイルに写らない
@@ -481,9 +481,9 @@ describe("用意", () => {
     await runCommand(planClose, ctx, { plan: "p2" });
     const l = await runCommand(lint, ctx, {});
     expect(l.data.issues.map((i) => [i.id, i.code, i.message])).toEqual([
-      ["e1", "lint_epic_closed_unfinished", "閉じた Epic に終わっていないチケット t1 が残る"],
-      ["e2", "lint_epic_finished_open", "チケットがすべて終わったが Epic が開いている"],
-      ["p1", "lint_plan_finished_open", "チケットがすべて終わったが Plan が開いている"],
+      ["e1", "lint_epic_closed_unfinished", "Unfinished tickets t1 remain in a closed Epic"],
+      ["e2", "lint_epic_finished_open", "All tickets are finished, but the Epic is open"],
+      ["p1", "lint_plan_finished_open", "All tickets are finished, but the Plan is open"],
     ]);
   });
 
@@ -501,7 +501,7 @@ describe("用意", () => {
       [
         "p1",
         "lint_plan_wait_cycle",
-        "after と depends_on が循環している: t1 →(after) t2 →(depends_on) t1",
+        "after and depends_on form a cycle: t1 →(after) t2 →(depends_on) t1",
       ],
     ]);
     // 終わったチケットは待ちにならないので、そこを通る循環は指摘しない
@@ -519,7 +519,7 @@ describe("用意", () => {
     await runCommand(ticketUpdate, ctx, { ticket: "t2", depends_on: ["t3"] });
     const outer = await runCommand(lint, ctx, {});
     expect(outer.data.issues.map((i) => i.message)).toEqual([
-      "after と depends_on が循環している: t1 →(after) t2 →(depends_on) t3 →(depends_on) t1",
+      "after and depends_on form a cycle: t1 →(after) t2 →(depends_on) t3 →(depends_on) t1",
     ]);
     await runCommand(ticketMove, ctx, { ticket: "t3", status: "done" });
     const outerDone = await runCommand(lint, ctx, {});
@@ -562,10 +562,10 @@ describe("用意", () => {
     const c = await runCommand(configSet, ctx, { key: "lint.require_iteration", value: "true" });
     expect(c.data.lint.require_iteration).toBe(true);
     expect(await missing()).toEqual([
-      ["t3", "Iteration に入らずに in_progress に進んでいる"],
-      ["t6", "Iteration に入らずに done に進んでいる"],
-      ["t7", "Iteration に入らずに done に進んでいる"],
-      ["t8", "Iteration に入らずに in_progress に進んでいる"],
+      ["t3", "Moved to in_progress without being in an Iteration"],
+      ["t6", "Moved to done without being in an Iteration"],
+      ["t7", "Moved to done without being in an Iteration"],
+      ["t8", "Moved to in_progress without being in an Iteration"],
     ]);
     await runCommand(configSet, ctx, { key: "lint.require_iteration", value: "false" });
     expect(await missing()).toEqual([]);

@@ -74,7 +74,7 @@ function exec(
           | (NodeJS.ErrnoException & { code?: number | string; killed?: boolean; signal?: string })
           | null;
         if (e && e.code === "ENOENT") {
-          reject(new GitError("missing", args, undefined, `${file} が見つからない`));
+          reject(new GitError("missing", args, undefined, `${file} not found`));
           return;
         }
         if (e && (e.killed || e.signal === "SIGTERM") && typeof e.code !== "number") {
@@ -83,7 +83,7 @@ function exec(
               "timeout",
               args,
               { stdout, stderr, code: -1 },
-              `${file} ${args[0] ?? ""} が時間内に終わらない`,
+              `${file} ${args[0] ?? ""} did not finish in time`,
             ),
           );
           return;
@@ -96,7 +96,7 @@ function exec(
               "exit",
               args,
               result,
-              `${file} ${args.join(" ")} が失敗した (exit ${code}): ${stderr.trim()}`,
+              `${file} ${args.join(" ")} failed (exit ${code}): ${stderr.trim()}`,
             ),
           );
           return;

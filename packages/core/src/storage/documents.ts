@@ -59,7 +59,7 @@ export async function readDoc<T extends { id: string }>(
   try {
     text = await readFile(path.join(root, relPath), "utf8");
   } catch (error) {
-    return fail("read_error", "ファイルを読めない", String(error));
+    return fail("read_error", "Cannot read the file", String(error));
   }
   let value: unknown;
   let source = "";
@@ -68,33 +68,36 @@ export async function readDoc<T extends { id: string }>(
     try {
       value = JSON.parse(text);
     } catch (error) {
-      return fail("json_error", "JSON を読めない", String(error));
+      return fail("json_error", "Cannot parse JSON", String(error));
     }
     if (typeof value !== "object" || value === null || Array.isArray(value))
-      return fail("json_error", "JSON のオブジェクトでない");
+      return fail("json_error", "Not a JSON object");
   } else {
     let yamlText = text;
     if (format === "markdown") {
       const split = splitFrontmatter(text);
       if (split === undefined)
-        return fail("frontmatter_missing", "先頭に frontmatter（---）がない");
+        return fail("frontmatter_missing", "Missing frontmatter (---) at the start");
       if (split === "unterminated")
-        return fail("frontmatter_unterminated", "frontmatter を閉じる --- がない");
+        return fail("frontmatter_unterminated", "Missing the closing --- of the frontmatter");
       yamlText = split.yaml;
       body = split.body;
     }
     const read = parseYamlValue(yamlText);
     if (read.errors.length > 0)
-      return fail("yaml_error", "YAML を読めない", read.errors.join("\n"));
+      return fail("yaml_error", "Cannot parse YAML", read.errors.join("\n"));
     value = read.value;
     source = yamlText;
   }
   const raw = (value ?? {}) as Record<string, unknown>;
   const parsed = schema.safeParse(raw);
   if (!parsed.success)
-    return fail("schema_error", "スキーマに合わない", z.prettifyError(parsed.error));
+    return fail("schema_error", "Does not match the schema", z.prettifyError(parsed.error));
   if (parsed.data.id !== expectedId) {
-    return fail("id_mismatch", `ファイル名の ID ${expectedId} と中の id ${parsed.data.id} が違う`);
+    return fail(
+      "id_mismatch",
+      `The ID ${expectedId} in the file name differs from the id ${parsed.data.id} inside`,
+    );
   }
   return {
     ok: true,
@@ -142,7 +145,7 @@ export async function writeDoc<T extends { id: string }>(
   if (!parsed.success) {
     throw new OperationError(
       "VALIDATION_FAILED",
-      `${doc.path} の更新がスキーマに合わない`,
+      `The update to ${doc.path} does not match the schema`,
       z.prettifyError(parsed.error),
     );
   }
@@ -165,7 +168,7 @@ export async function createDoc<T extends { id: string }>(
   if (!parsed.success) {
     throw new OperationError(
       "VALIDATION_FAILED",
-      `${relPath} の内容がスキーマに合わない`,
+      `The content of ${relPath} does not match the schema`,
       z.prettifyError(parsed.error),
     );
   }

@@ -93,19 +93,19 @@ export async function collectRunUsage(
     usage: { input: null, output: null, cache_read: null, cache_write: null },
     model: null,
     tools: null,
-    warnings: [`${reason}。使用量は null で残す`],
+    warnings: [`${reason}. Usage is left as null`],
   });
   const adapter = findAdapter(query.run.agent);
   if (!adapter) {
     return skipped(
-      `agent ${query.run.agent} の Adapter がない（${agentNames().join("・")} だけ取り込める）`,
+      `There is no Adapter for agent ${query.run.agent} (only ${agentNames().join(", ")} can be imported)`,
     );
   }
   if (!config.metrics.read_transcripts) {
-    return skipped("metrics.read_transcripts が false なので会話記録を読まない");
+    return skipped("metrics.read_transcripts is false, so the conversation record is not read");
   }
   if (refusedOnThisMachine(query.env)) {
-    return skipped("DEGUBOARD_NO_TRANSCRIPTS が設定されているので会話記録を読まない");
+    return skipped("DEGUBOARD_NO_TRANSCRIPTS is set, so the conversation record is not read");
   }
   try {
     return await adapter.readTranscriptUsage(query);
@@ -113,6 +113,6 @@ export async function collectRunUsage(
     // メッセージはパスや中身を含みうるので、コード（なければ例外の名前）だけを出す
     const code = (e as { code?: unknown } | null)?.code;
     const reason = typeof code === "string" ? code : e instanceof Error ? e.name : "unknown";
-    return skipped(`${adapter.name} の会話記録を読めない（${reason}）`);
+    return skipped(`Cannot read the ${adapter.name} conversation record (${reason})`);
   }
 }

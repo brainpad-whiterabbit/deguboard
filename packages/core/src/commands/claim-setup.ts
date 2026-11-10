@@ -52,15 +52,15 @@ export async function prepareIterationForClaim(
     const target = iterationTargetFor(ctx.store.iterations.values(), ticket.data.project);
     if (!target) {
       warnings.push(
-        `${ticket.id} を入れる Iteration（active か planned）がない。人に Iteration を作って入れるよう頼む（入れずに進むと lint_iteration_missing）`,
+        `There is no Iteration (active or planned) to add ${ticket.id} to. Ask the human to create an Iteration and add it (going on without adding it gives lint_iteration_missing)`,
       );
     } else if (deniedToAgent(ctx, "iteration.add")) {
       warnings.push(
-        `${ticket.id} を ${target.id} に入れられない（iteration.add は actor.human_only）。人に入れるよう頼む`,
+        `Cannot add ${ticket.id} to ${target.id} (iteration.add is actor.human_only). Ask the human to add it`,
       );
     } else {
       iterationId = target.id as NonNullable<Ticket["iteration"]>;
-      warnings.push(`${ticket.id} を ${target.id} に入れた`);
+      warnings.push(`Added ${ticket.id} to ${target.id}`);
     }
   }
   if (!iterationId) return iterationId;
@@ -68,7 +68,7 @@ export async function prepareIterationForClaim(
   if (!it || it.data.status !== "planned") return iterationId;
   if (deniedToAgent(ctx, "iteration.start")) {
     warnings.push(
-      `${it.id} は planned のまま（iteration.start は actor.human_only）。人に開始を頼む`,
+      `${it.id} stays planned (iteration.start is actor.human_only). Ask the human to start it`,
     );
     return iterationId;
   }
@@ -78,13 +78,13 @@ export async function prepareIterationForClaim(
   );
   if (other) {
     warnings.push(
-      `${it.id} を開始できない（${other.id} が active）。人に ${it.id} の扱いを確かめる`,
+      `Cannot start ${it.id} (${other.id} is active). Ask the human how to handle ${it.id}`,
     );
     return iterationId;
   }
   // 予定の開始日は実際とずれるので、始めた日に書き換える（iteration.start と同じ。IT-1）
   await ctx.store.update("iteration", it.id, { status: "active", start: localDate(ctx.now()) });
-  warnings.push(`${it.id} を開始した（active）`);
+  warnings.push(`Started ${it.id} (active)`);
   return iterationId;
 }
 
@@ -118,10 +118,10 @@ export async function setupFailureIn(ctx: CommandContext, dir: string): Promise<
     });
     if (result.code === 0) return null;
     const tail = stderrTail(result.stderr);
-    return `worktree の準備のコマンド（${command}）が終了コード ${result.code} で止まった${tail ? `（stderr の末尾: ${tail}）` : ""}`;
+    return `the worktree setup command (${command}) stopped with exit code ${result.code}${tail ? ` (end of stderr: ${tail})` : ""}`;
   } catch (error) {
     const reason = error instanceof Error ? error.message.split("\n")[0] : String(error);
-    return `worktree の準備のコマンド（${command}）を回せなかった（${reason}）`;
+    return `the worktree setup command (${command}) could not be run (${reason})`;
   }
 }
 
@@ -138,7 +138,7 @@ export async function runSetupInWorktree(
   const failure = await setupFailureIn(ctx, dir);
   if (failure === null) return;
   const command = ctx.config.worktree.setup.join(" ");
-  warnings.push(`${failure}。claim は済んでいるので、${dir} で ${command} を手で回す`);
+  warnings.push(`The claim is done, but ${failure}. Run ${command} by hand in ${dir}`);
 }
 
 /**
@@ -163,7 +163,7 @@ export async function prepareWorktreeForClaim(
   } catch (error) {
     const reason = error instanceof Error ? error.message.split("\n")[0] : String(error);
     warnings.push(
-      `ブランチ ${branch} の worktree を作れなかった（${reason}）。claim は済んでいるので、worktree を ${dir} に手で作って続ける`,
+      `Could not create the worktree of branch ${branch} (${reason}). The claim is done, so create the worktree in ${dir} by hand and continue`,
     );
     return null;
   }

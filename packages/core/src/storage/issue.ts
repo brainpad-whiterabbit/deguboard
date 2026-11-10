@@ -15,7 +15,7 @@ export interface Issue {
 }
 
 export function formatIssue(issue: Issue): string {
-  const head = `${issue.severity === "error" ? "エラー" : "警告"} ${issue.path}${issue.id ? ` (${issue.id})` : ""}: ${issue.message}`;
+  const head = `${issue.severity === "error" ? "Error" : "Warning"} ${issue.path}${issue.id ? ` (${issue.id})` : ""}: ${issue.message}`;
   return issue.detail ? `${head}\n${indent(issue.detail)}` : head;
 }
 

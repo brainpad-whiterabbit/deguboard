@@ -397,11 +397,11 @@ export function overlayLocalConfig(
   knownKeys ??= new Set(configFields().map((f) => f.key));
   for (const [key, value] of Object.entries(flattenConfig(local))) {
     if (!knownKeys.has(key)) {
-      ignored.push({ key, reason: "スキーマにない項目" });
+      ignored.push({ key, reason: "Not in the schema" });
       continue;
     }
     if (configScopeOf(key) !== "local") {
-      ignored.push({ key, reason: "チーム専用の項目（チームの config.yaml で変える）" });
+      ignored.push({ key, reason: "Team-only setting (change it in the team's config.yaml)" });
       continue;
     }
     const [top, ...rest] = key.split(".") as [string, ...string[]];
@@ -410,7 +410,7 @@ export function overlayLocalConfig(
       [top]: nestedConfigValue(config[top], rest, value),
     });
     if (!probe.success) {
-      ignored.push({ key, reason: `値が正しくない: ${z.prettifyError(probe.error)}` });
+      ignored.push({ key, reason: `Invalid value: ${z.prettifyError(probe.error)}` });
       continue;
     }
     config = probe.data;

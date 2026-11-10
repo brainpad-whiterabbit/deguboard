@@ -344,7 +344,7 @@ describe("gh を呼ぶ Action（create_pr・merge_pr）", () => {
     const ctx = await contextOf(f.cloneA);
     const error = await rejection(runAction(ctx, "create_pr", { title: "題" }));
     expect(error.code).toBe("REJECTED");
-    expect(error.message).toContain("ブランチを checkout していない");
+    expect(error.message).toContain("has no branch checked out");
     expect(await gh.args()).toBeNull();
     // branch を渡せば detached HEAD でも作れる
     await expect(

@@ -254,18 +254,20 @@ export const codexAdapter: AgentAdapter = {
     if (elsewhere.size > 0)
       best = await scan(bestFile, query, to, elsewhere).catch(() => undefined);
     if (!best) {
-      return none(`Codex の会話記録に Run ${query.run.id} が見つからない。使用量は null で残す`);
+      return none(
+        `Run ${query.run.id} not found in the Codex conversation record. Usage is left as null`,
+      );
     }
     if (!best.last) {
       return none(
-        `Codex の会話記録に Run ${query.run.id} の期間の使用量（token_count）がない。使用量は null で残す`,
+        `The Codex conversation record has no usage (token_count) in the period of Run ${query.run.id}. Usage is left as null`,
       );
     }
     const usage = usageOf(best, best.last);
     const missing = (Object.keys(usage) as Array<keyof Counts>).filter((k) => usage[k] === null);
     const warnings =
       missing.length > 0
-        ? [`Codex の会話記録から ${missing.join("・")} を取れない。null で残す`]
+        ? [`Cannot get ${missing.join(", ")} from the Codex conversation record. Left as null`]
         : [];
     return { usage, model: mainModel(best), tools: null, warnings };
   },

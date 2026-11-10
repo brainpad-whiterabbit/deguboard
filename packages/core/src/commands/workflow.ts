@@ -48,7 +48,10 @@ export const workflowShow = defineCommand({
   async run(ctx, input) {
     const w = ctx.store.workflows.get(input.workflow);
     if (!w)
-      throw new OperationError("NOT_FOUND", `Workflow ${input.workflow} が見つからないか読めない`);
+      throw new OperationError(
+        "NOT_FOUND",
+        `Workflow ${input.workflow} not found or cannot be read`,
+      );
     return ok({
       definition: w.definition,
       labels: w.resolved.labels,
@@ -78,7 +81,7 @@ export const workflowValidate = defineCommand({
       .filter((id) => !input.workflow || id === input.workflow)
       .sort();
     if (input.workflow && issues.length === 0 && valid.length === 0) {
-      throw new OperationError("NOT_FOUND", `Workflow ${input.workflow} が見つからない`);
+      throw new OperationError("NOT_FOUND", `Workflow ${input.workflow} not found`);
     }
     return ok({ ok: issues.every((i) => i.severity !== "error"), valid, issues });
   },
@@ -118,7 +121,7 @@ export const workflowSet = defineCommand({
   needs: "store",
   async run(ctx, input) {
     if ((input.definition === undefined) === (input.template === undefined)) {
-      throw new UsageError("定義（CLI では --file）か --template のどちらか一方を指定する");
+      throw new UsageError("Give exactly one of the definition (--file in the CLI) or --template");
     }
     let definition: Record<string, unknown>;
     let comment: string | undefined;
@@ -131,7 +134,7 @@ export const workflowSet = defineCommand({
       if (definition["id"] !== input.workflow) {
         throw new OperationError(
           "VALIDATION_FAILED",
-          `定義の id（${String(definition["id"])}）が ${input.workflow} と違う`,
+          `The id in the definition (${String(definition["id"])}) differs from ${input.workflow}`,
         );
       }
     }

@@ -127,7 +127,9 @@ describe("チケットの流れ（照合と claim）", () => {
     expect(synced.data.reconciled).toEqual([
       { id: "t1", from: "review", to: "done", when: ["branch_merged"] },
     ]);
-    expect(synced.warnings).toContain("t1: 受け入れ条件 2 が未チェックのまま done になった");
+    expect(synced.warnings).toContain(
+      "t1: acceptance criteria 2 were not checked, but the ticket became done",
+    );
     expect(synced.data.pushed).toBe(true);
     expect(synced.data.status).toMatchObject({ ahead: 0, behind: 0, dirty: false });
     expect(ctx.store.tickets.get("t1")?.data.status).toBe("done");
@@ -264,8 +266,8 @@ describe("チケットの流れ（照合と claim）", () => {
       expect(t1Warnings[0]).toContain("2026-11-01T10:00:00Z");
       // このチケットの PR なら、ticket update で記録して sync を回し直す手を書く（前の作業の PR なら何もしない）
       expect(t1Warnings[0]).toContain("ticket update t1 --pr 105");
-      expect(t1Warnings[0]).toContain("sync を回し直す");
-      expect(t1Warnings[0]).toContain("前の作業のものなら何もしない");
+      expect(t1Warnings[0]).toContain("run sync again");
+      expect(t1Warnings[0]).toContain("If it belongs to earlier work, do nothing");
       expect(ctx.store.tickets.get("t2")?.data).toMatchObject({ status: "done", pr: 200 });
       // branch_at のない古いチケットは created_at より前にマージされた PR を外す
       expect(ctx.store.tickets.get("t3")?.data).toMatchObject({ status: "in_progress" });
@@ -323,7 +325,9 @@ describe("チケットの流れ（照合と claim）", () => {
     // 残ったブランチの拒否は、別の名前と、古いブランチを消すか base に揃える案内を返す
     const leftover = expect.objectContaining({
       code: "BRANCH_IN_USE",
-      message: expect.stringMatching(/別の名前を指定する.*古いブランチを消すか base に揃えて/),
+      message: expect.stringMatching(
+        /Give a different name, or delete the old branch or bring it up to base/,
+      ),
     });
     await expect(
       runCommand(ticketClaim, ctx, { no_worktree: true, ticket: "t1", branch: "chore/reused" }),
@@ -356,13 +360,13 @@ describe("チケットの流れ（照合と claim）", () => {
       runCommand(ticketClaim, ctx, { no_worktree: true, ticket: "t4", branch: "chore/new" }),
     ).rejects.toMatchObject({
       code: "BRANCH_IN_USE",
-      message: expect.stringMatching(/t1（in_progress）が使っている。別の名前を指定する/),
+      message: expect.stringMatching(/in use by t1 \(in_progress\)\. Give a different name/),
     });
     await expect(
       runCommand(ticketUpdate, ctx, { ticket: "t4", branch: "chore/cut" }),
     ).rejects.toMatchObject({
       code: "BRANCH_IN_USE",
-      message: expect.stringContaining("別の名前を指定する"),
+      message: expect.stringContaining("Give a different name"),
     });
 
     // リモートで消したブランチの古い追跡 ref は見ない
@@ -407,7 +411,7 @@ describe("チケットの流れ（照合と claim）", () => {
     const attached = await runCommand(ticketUpdate, ctx, { ticket: "t1", branch: "feature/gone" });
     expect(attached.data.branch).toBe("feature/gone");
     expect((await runCommand(sync, ctx, {})).warnings).toContain(
-      "t1: 作業ブランチがローカルにもリモートにも見つからない",
+      "t1: The work branch was not found locally or on the remote",
     );
     const detached = await runCommand(ticketUpdate, ctx, { ticket: "t1", branch: null });
     expect(detached.data.branch).toBeUndefined();
@@ -457,7 +461,7 @@ describe("チケットの流れ（照合と claim）", () => {
     resetGhCache();
     try {
       const synced = await runCommand(sync, ctx, {});
-      expect(synced.warnings).toContain("t2: PR がマージされずに閉じている");
+      expect(synced.warnings).toContain("t2: The PR was closed without being merged");
       expect(synced.warnings.filter((w) => w.startsWith("t1:"))).toEqual([]);
     } finally {
       process.env["PATH"] = savedPath;
@@ -522,7 +526,7 @@ describe("チケットの流れ（照合と claim）", () => {
     const undetected = await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t5" });
     expect(undetected.data).toMatchObject({ status: "in_progress", run: null });
     expect(undetected.warnings).toEqual([
-      expect.stringMatching(/^implement の Run を開いていない: .*--agent/),
+      expect.stringMatching(/^The implement Run is not open: .*--agent/),
     ]);
     expect((await peekRunningRuns(agent.repo)).map((r) => r.ticket).sort()).toEqual(["t1", "t2"]);
   });
@@ -554,7 +558,7 @@ describe("チケットの流れ（照合と claim）", () => {
     expect(missing.data).toMatchObject({ status: "in_progress", run: null });
     expect(missing.warnings).toEqual([
       expect.stringMatching(
-        /^implement の Run を開いていない: step implement は Workflow noimpl の steps にない/,
+        /^The implement Run is not open: step implement is not in the steps of Workflow noimpl/,
       ),
     ]);
     // 同じ秒に始めた Run の並びは ID の末尾の乱数で決まるので、並べ替えてから比べる
@@ -610,7 +614,7 @@ describe("チケットの流れ（照合と claim）", () => {
       // --pr：PR の作成時刻で success に閉じ、チケットの更新と同じ書き込みに入る
       const updated = await runCommand(ticketUpdate, agent, { ticket: "t1", pr: 41 });
       expect(updated.data.pr).toBe(41);
-      expect(updated.warnings[0]).toMatch(/^t1 の実装の Run r\S+ を success で閉じた/);
+      expect(updated.warnings[0]).toMatch(/^Closed the implementation Run r\S+ of t1 with success/);
       const closed = agent.store.runs.get(runs.t1)!.data;
       expect(closed).toMatchObject({
         ticket: "t1",
@@ -634,7 +638,7 @@ describe("チケットの流れ（照合と claim）", () => {
       const again = await runCommand(runFinish, agent, { run: runs.t1, result: "failure" });
       expect(again.data).toMatchObject({ result: "success", finished_at: "2026-11-06T01:00:00Z" });
       expect(again.warnings).toEqual([
-        `Run ${runs.t1} は既に success で閉じている（finished_at 2026-11-06T01:00:00Z）。記録は変えない`,
+        `Run ${runs.t1} is already closed with success (finished_at 2026-11-06T01:00:00Z). The record is not changed`,
       ]);
       expect((await git(agent.repo.dataDir, ["rev-parse", "HEAD"])).stdout.trim()).toBe(head);
       expect(agent.store.runs.get(runs.t1)!.data).toEqual(closed);
@@ -655,7 +659,7 @@ describe("チケットの流れ（照合と claim）", () => {
       ]);
       expect(synced.warnings).toContainEqual(
         expect.stringMatching(
-          /^t4: 実装の Run r\S+ は PR #44 の作成（2026-11-05T23:00:00Z）より後に始まったので照合では閉じない/,
+          /^t4: implementation Run r\S+ started after PR #44 was created \(2026-11-05T23:00:00Z\), so reconcile does not close it/,
         ),
       );
       expect(agent.store.runs.get(runs.t2)!.data).toMatchObject({
@@ -701,7 +705,7 @@ describe("チケットの流れ（照合と claim）", () => {
       clock = new Date("2026-11-06T04:00:00Z");
       const updated = await runCommand(ticketUpdate, agent, { ticket: "t1", pr: 7 });
       expect(updated.warnings[0]).toBe(
-        "PR #7 が見つからないので、実装の Run の finished_at は今の時刻にする",
+        "PR #7 not found, so the finished_at of the implementation Run is set to the current time",
       );
       expect(agent.store.runs.get(run)!.data).toMatchObject({
         result: "success",
@@ -714,7 +718,7 @@ describe("チケットの流れ（照合と claim）", () => {
       // PR が Run の開始より前なら、PR の作成時刻ではなく今の時刻で閉じる
       const late = await runCommand(ticketUpdate, agent, { ticket: "t3", pr: 9 });
       expect(late.warnings[0]).toBe(
-        `PR #9 は Run ${reopened} の開始より前に作られたので、実装の Run の finished_at は今の時刻にする`,
+        `PR #9 was created before Run ${reopened} started, so the finished_at of the implementation Run is set to the current time`,
       );
       expect(agent.store.runs.get(reopened)!.data).toMatchObject({
         result: "success",
@@ -751,7 +755,7 @@ describe("チケットの流れ（照合と claim）", () => {
       finished_at: "2026-11-06T01:00:00Z",
     });
     expect(second.warnings).toEqual([
-      `Run ${run} は既に success で閉じている（finished_at 2026-11-06T01:00:00Z）。記録は変えない`,
+      `Run ${run} is already closed with success (finished_at 2026-11-06T01:00:00Z). The record is not changed`,
     ]);
     expect(await peekRunningRuns(stale.repo)).toEqual([]);
     // 知らない Run は変わらず見つからない
@@ -799,7 +803,7 @@ describe("チケットの流れ（照合と claim）", () => {
       const synced = await runCommand(sync, agent, {});
       expect(race.beforeClose).toBeUndefined();
       expect(synced.warnings).toContain(
-        `t1: 実装の Run ${raced} は既に閉じていた（別の操作や別のマシンが先に閉じた）ので、照合では閉じない`,
+        `t1: the implementation Run ${raced} was already closed (another operation or another machine closed it first), so it is not closed in reconcile`,
       );
       expect(synced.data.runs_closed).toEqual([
         { id: "t2", run: other, opener: "claim", result: "success" },
@@ -849,7 +853,7 @@ describe("チケットの流れ（照合と claim）", () => {
       };
     };
     const rejected = (ticket: string, run: RunId) =>
-      `${ticket}: 実装の Run ${run} は既に閉じていた（別の操作や別のマシンが先に閉じた）ので、この操作では閉じない`;
+      `${ticket}: the implementation Run ${run} was already closed (another operation or another machine closed it first), so it is not closed in this operation`;
     /** 別の文脈が閉じたとおりの記録が残り、操作は書き換えていない */
     const closedByOther = (run: RunId) =>
       expect(agent.store.runs.get(run)!.data).toMatchObject({
@@ -925,7 +929,7 @@ describe("チケットの流れ（照合と claim）", () => {
 
     const unclaimed = await runCommand(ticketUnclaim, agent, { ticket: "t1" });
     expect(unclaimed.data.status).toBe("todo");
-    expect(unclaimed.warnings[0]).toMatch(/^t1 の実装の Run r\S+ を failure で閉じた/);
+    expect(unclaimed.warnings[0]).toMatch(/^Closed the implementation Run r\S+ of t1 with failure/);
     expect(agent.store.runs.get(runs.t1)!.data).toMatchObject({
       result: "failure",
       error: "ticket unclaim で todo に戻した",
@@ -933,13 +937,13 @@ describe("チケットの流れ（照合と claim）", () => {
     });
 
     const reviewed = await runCommand(ticketMove, agent, { ticket: "t2", status: "review" });
-    expect(reviewed.warnings[0]).toMatch(/^t2 の実装の Run r\S+ を success で閉じた/);
+    expect(reviewed.warnings[0]).toMatch(/^Closed the implementation Run r\S+ of t2 with success/);
     expect(agent.store.runs.get(runs.t2)!.data).toMatchObject({
       result: "success",
       finished_at: "2026-11-06T05:00:00Z",
     });
     const done = await runCommand(ticketMove, agent, { ticket: "t3", status: "done" });
-    expect(done.warnings[0]).toMatch(/^t3 の実装の Run r\S+ を success で閉じた/);
+    expect(done.warnings[0]).toMatch(/^Closed the implementation Run r\S+ of t3 with success/);
     expect(agent.store.runs.get(runs.t3)!.data).toMatchObject({ result: "success" });
 
     // branch のあるチケットは PR の記録・発見が閉じるので、move では開いたまま。閉じた Run は実行中の記録から消えている
@@ -962,7 +966,7 @@ describe("チケットの流れ（照合と claim）", () => {
     const human = await initialized(f.cloneA, { now: () => clock });
     /** 閉じた Run の知らせだけを取り出す（読み取りの警告は除く） */
     const closedWarnings = (warnings: string[]) =>
-      warnings.filter((w) => /を (failure|success) で閉じた/.test(w));
+      warnings.filter((w) => /^Closed the .* with (failure|success)/.test(w));
     for (const title of ["Abandoned", "Abandoned after fix", "Done without PR"])
       await runCommand(ticketCreate, human, { title });
     const agent = await agentWithRuns(f.cloneA, () => clock);
@@ -989,7 +993,7 @@ describe("チケットの流れ（照合と claim）", () => {
 
     const abandoned = await runCommand(ticketMove, agent, { ticket: "t1", status: "abandoned" });
     expect(closedWarnings(abandoned.warnings)).toEqual([
-      expect.stringMatching(/^t1 の実装の Run r\S+ を failure で閉じた/),
+      expect.stringMatching(/^Closed the implementation Run r\S+ of t1 with failure/),
     ]);
     expect(agent.store.runs.get(implement)!.data).toMatchObject({
       result: "failure",
@@ -999,8 +1003,8 @@ describe("チケットの流れ（照合と claim）", () => {
     // 手直しの Run も、実装の Run と同じく開いたままなら failure で閉じる
     const abandonedFix = await runCommand(ticketMove, agent, { ticket: "t2", status: "abandoned" });
     expect(closedWarnings(abandonedFix.warnings)).toEqual([
-      expect.stringMatching(/^t2 の実装の Run r\S+ を failure で閉じた/),
-      expect.stringMatching(/^t2 の手直しの Run r\S+ を failure で閉じた/),
+      expect.stringMatching(/^Closed the implementation Run r\S+ of t2 with failure/),
+      expect.stringMatching(/^Closed the fix Run r\S+ of t2 with failure/),
     ]);
     expect(agent.store.runs.get(implement2)!.data).toMatchObject({ result: "failure" });
     expect(agent.store.runs.get(fix)!.data).toMatchObject({ result: "failure" });
@@ -1008,7 +1012,7 @@ describe("チケットの流れ（照合と claim）", () => {
     // branch のあるチケットを PR なしで done にすると、実装の Run を success で閉じる
     const finished = await runCommand(ticketMove, agent, { ticket: "t3", status: "done" });
     expect(closedWarnings(finished.warnings)).toEqual([
-      expect.stringMatching(/^t3 の実装の Run r\S+ を success で閉じた/),
+      expect.stringMatching(/^Closed the implementation Run r\S+ of t3 with success/),
     ]);
     expect(agent.store.runs.get(done)!.data).toMatchObject({
       result: "success",

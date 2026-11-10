@@ -109,7 +109,7 @@ export function createLocalClient(options: LocalClientOptions): LocalClient {
     run<O>(name: string, input: unknown = {}): Promise<CommandResult<O>> {
       const def = findCommand(name, commands);
       if (!def)
-        return Promise.reject(new OperationError("UNKNOWN_COMMAND", `コマンド ${name} はない`));
+        return Promise.reject(new OperationError("UNKNOWN_COMMAND", `There is no command ${name}`));
       return serialized(!def.write, async (arrivedAt) => {
         try {
           return (await runCommand(def, await context(arrivedAt), input)) as CommandResult<O>;

@@ -134,7 +134,7 @@ describe("画面の文言の置き場所", () => {
       expect(placeholders(value), key).toEqual(placeholders(key));
     }
   });
-  it("core の文の訳の表は、どの文も表示言語（ja・en）の訳だけを持ち、日本語の文（CORE_LABELS・CORE_MESSAGES）には英語の訳が揃う", () => {
+  it("core の文の訳の表は、どの文も表示言語（ja・en）の訳だけを持ち、CORE_LABELS の日本語の文には英語の訳が、英語の文の CORE_MESSAGES には日本語の訳（ja）が揃う", () => {
     const tables: Record<string, CoreTextTable> = {
       CORE_LABELS,
       CORE_MESSAGES,
@@ -147,9 +147,15 @@ describe("画面の文言の置き場所", () => {
           Object.keys(entry).every((l) => l === "ja" || l === "en"),
           where,
         ).toBe(true);
-        // core の文は日本語なので、英語の訳はどの文にも要る
-        expect(entry.en, where).toBeDefined();
-        expect(entry.en, where).not.toMatch(JAPANESE);
+        if (name === "CORE_MESSAGES") {
+          // エラー・警告の文は core の英語の文が鍵で、日本語の訳（ja）を持つ
+          expect(key, where).not.toMatch(JAPANESE);
+          expect(entry.ja, where).toBeDefined();
+        } else {
+          // CORE_LABELS の文は日本語なので、英語の訳はどの文にも要る
+          expect(entry.en, where).toBeDefined();
+          expect(entry.en, where).not.toMatch(JAPANESE);
+        }
         for (const text of Object.values(entry)) {
           expect(placeholders(text), where).toEqual(placeholders(key.replace(/^\w+:/, "")));
         }
@@ -317,13 +323,18 @@ describe("core が返すエラー・警告の文の訳（UI-11）", () => {
         expect(source.includes(part), `${key}: ${part}`).toBe(true);
     }
   });
-  it("英語の表示では可変の部分を埋めた訳を出し、入れ子の文も訳す", () => {
-    setLanguage("en");
-    expect(trCoreMessage("priority.high は個人の設定に書けない")).toBe(
-      "priority.high cannot be set in personal settings",
+  it("日本語の表示では可変の部分を埋めた訳を出し、入れ子の文も訳す。英語の表示では core の英語の文のまま出す", () => {
+    setLanguage("ja");
+    expect(trCoreMessage("priority.high cannot be set in personal settings")).toBe(
+      "priority.high は個人の設定に書けない",
     );
-    expect(trCoreMessage("t3 が見つからない（削除された）")).toBe("t3 not found (deleted)");
-    expect(trCoreMessage("deguboard-local/runs/r1.json: JSON を読めない")).toBe(
+    expect(trCoreMessage("t3 not found (deleted)")).toBe("t3 が見つからない（削除された）");
+    expect(trCoreMessage("deguboard-local/runs/r1.json: Cannot parse JSON")).toBe(
+      "deguboard-local/runs/r1.json: JSON を読めない",
+    );
+    setLanguage("en");
+    expect(trCoreMessage("t3 not found (deleted)")).toBe("t3 not found (deleted)");
+    expect(trCoreMessage("deguboard-local/runs/r1.json: Cannot parse JSON")).toBe(
       "deguboard-local/runs/r1.json: Cannot parse JSON",
     );
   });

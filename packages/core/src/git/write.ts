@@ -24,11 +24,11 @@ import {
  * 人に remote か local を選んでもらい dg sync --resolve を 1 回呼ぶ手順を案内する
  */
 export const CONFLICT_REMEDY =
-  "自分では選ばず、競合したファイルを示して人に remote（リモートの値を採る）か local（ローカルの値を採る）かを選択肢で聞き、選ばれた側で dg sync --resolve <remote|local> を 1 回呼ぶ（競合したフィールドだけその側の値を採り、採った値と捨てた値を data.resolved に返す。--auto でも自動で選ばない。dg guide overview の「When sync stops」）";
+  'Do not choose yourself. Show the conflicted files and ask the human, as a choice, whether to take remote (the remote values) or local (the local values), then call dg sync --resolve <remote|local> once with the chosen side (only the conflicted fields take that side\'s value, and the taken and discarded values are returned in data.resolved. It is not chosen automatically even with --auto. See "When sync stops" in dg guide overview)';
 
 /** dg sync --resolve でも解けない競合（マージドライバの対象でないファイル）の戻し方。行単位の競合なので人が解く */
 export const UNRESOLVABLE_REMEDY =
-  "自分では解かず人に伝える。人が deguboard worktree で git rebase <remote>/deguboard を始めてそのファイルを解き、git rebase --continue で続けてから dg adopt で今の状態を基準にし、dg sync を回す（dg guide overview の「When sync stops」）";
+  'Do not resolve it yourself; tell the human. The human starts git rebase <remote>/deguboard in the deguboard worktree, resolves the file, continues with git rebase --continue, makes the current state the baseline with dg adopt, and runs dg sync (see "When sync stops" in dg guide overview)';
 
 export interface WriteContext {
   repo: GitRepo;
@@ -132,7 +132,7 @@ async function writeLocked<T>(
 
   await requireIdentity(repo);
   // 即時の操作は、まとめ待ちの変更を先にコミットして作業ツリーを空にする
-  if (await flushPending(ctx)) warnings.push("まとめ待ちの変更を先にコミットした");
+  if (await flushPending(ctx)) warnings.push("Committed the pending changes first");
 
   let attempts = 0;
   for (;;) {
@@ -140,19 +140,19 @@ async function writeLocked<T>(
     if (repo.remote) {
       const fetched = await fetchData(repo);
       if (!fetched.ok) {
-        warnings.push(`リモートから取り込めない: ${fetched.detail}`);
+        warnings.push(`Cannot fetch from the remote: ${fetched.detail}`);
       } else if (fetched.remoteBranch) {
         const integrated = await integrate(repo);
         if (!integrated.ok) {
-          const detail = `競合: ${integrated.conflicts.join(", ")}`;
+          const detail = `Conflicts: ${integrated.conflicts.join(", ")}`;
           if (opts.cas)
             throw new OperationError(
               "SYNC_CONFLICT",
-              `リモートの変更と競合しているので取得できない。${CONFLICT_REMEDY}`,
+              `Conflicts with remote changes, so the ticket cannot be claimed. ${CONFLICT_REMEDY}`,
               detail,
             );
           warnings.push(
-            `リモートの変更と競合している。ローカルのコミットを残す（${detail}）。${CONFLICT_REMEDY}`,
+            `Conflicts with remote changes. The local commit is kept (${detail}). ${CONFLICT_REMEDY}`,
           );
         }
         if (integrated.ok && integrated.changed) await ctx.store.rescan();
@@ -194,7 +194,7 @@ async function writeLocked<T>(
         provisional = true;
       }
       warnings.push(
-        `push できないのでコミットをローカルに残す。次の dg sync で再送する（${pushed.detail}）`,
+        `Cannot push, so the commit is kept locally. The next dg sync sends it again (${pushed.detail})`,
       );
       return { value, write: { committed: true, pushed: false, provisional, attempts, warnings } };
     }
@@ -207,7 +207,7 @@ async function writeLocked<T>(
       if (attempts >= maxAttempts) {
         throw new OperationError(
           "PUSH_FAILED",
-          `push が ${attempts} 回拒否されたので取得できなかった`,
+          `The push was rejected ${attempts} times, so the ticket cannot be claimed`,
           pushed.detail,
         );
       }
@@ -215,7 +215,7 @@ async function writeLocked<T>(
     }
     if (attempts >= maxAttempts) {
       warnings.push(
-        `push が ${attempts} 回拒否された。コミットをローカルに残し、次の dg sync で再送する`,
+        `The push was rejected ${attempts} times. The commit is kept locally and the next dg sync sends it again`,
       );
       return {
         value,
@@ -230,9 +230,9 @@ async function writeLocked<T>(
       // 取り込みの警告が既に戻し方を案内していれば繰り返さない
       const remedy = warnings.some((w) => w.includes(CONFLICT_REMEDY))
         ? ""
-        : `。${CONFLICT_REMEDY}`;
+        : `. ${CONFLICT_REMEDY}`;
       warnings.push(
-        `リモートの変更と競合しているので push できない（${integrated.conflicts.join(", ")}）${remedy}`,
+        `Conflicts with remote changes, so it cannot push (${integrated.conflicts.join(", ")})${remedy}`,
       );
       return {
         value,
@@ -254,7 +254,7 @@ async function writeLocked<T>(
         },
       };
     warnings.push(
-      `push できなかった。コミットをローカルに残し、次の dg sync で再送する（${again.detail}）`,
+      `Could not push. The commit is kept locally and the next dg sync sends it again (${again.detail})`,
     );
     return {
       value,

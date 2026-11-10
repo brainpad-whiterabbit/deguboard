@@ -1,6 +1,6 @@
 // 画面が引く core の文の訳の表（UI-11・t649）。鍵は core の文そのもの（可変の部分は {0}・{1}）で、値は表示言語ごとの訳。
 // 表示言語の訳がない言語では core の文のまま出す（l10n.ts の trCore・trCoreMessage・configDescription）。
-// CORE_LABELS と CORE_MESSAGES の文は今は日本語なので、鍵の文に ja の訳は持たず en の訳だけを持つ（英語化は e11 で進める）。
+// CORE_LABELS の文は今は日本語なので、鍵の文に en の訳だけを持つ（英語化は e11 で進める）。CORE_MESSAGES は core のエラー・警告の英語の文を鍵に、ja に今の日本語の文を持つ（t651）。
 // CONFIG_DESCRIPTIONS は設定の項目の説明の英語の文を鍵にし、値に ja の訳を持つ（英語の表示では鍵の英語の文をそのまま出す）。
 // 鍵が core の候補の名前・エラーと警告の文・設定の項目の説明に合うことと、訳の揃いは l10n.test.ts が確かめる。
 // 画面のコードの文言（tr の鍵）の英訳は l10n-en.ts に置く
@@ -204,37 +204,37 @@ export const CONFIG_DESCRIPTIONS: CoreTextTable = {
  */
 export const CORE_MESSAGES: CoreTextTable = {
   // 設定の保存の拒否（config.set・config.unset）
-  "key が空": { en: "key is empty" },
-  "{0} は個人の設定に書けない": { en: "{0} cannot be set in personal settings" },
-  "チーム専用の項目。--local を外してチームの config.yaml を変える": {
-    en: "This item is team-only. Drop --local and change the team's config.yaml",
+  "key is empty": { ja: "key が空" },
+  "{0} cannot be set in personal settings": { ja: "{0} は個人の設定に書けない" },
+  "This item is team-only. Drop --local and change the team's config.yaml": {
+    ja: "チーム専用の項目。--local を外してチームの config.yaml を変える",
   },
-  "スキーマにない項目。上書きできる項目：{0}": {
-    en: "Not in the schema. Items you can override: {0}",
+  "Not in the schema. Items you can override: {0}": {
+    ja: "スキーマにない項目。上書きできる項目：{0}",
   },
-  "{0} の値が正しくない": { en: "Invalid value for {0}" },
-  "値を省けない。選択肢：{0}": { en: "A value is required. Options: {0}" },
-  "actor.human_only にないコマンドがある: {0}": {
-    en: "actor.human_only has unknown commands: {0}",
+  "Invalid value for {0}": { ja: "{0} の値が正しくない" },
+  "A value is required. Options: {0}": { ja: "値を省けない。選択肢：{0}" },
+  "actor.human_only has unknown commands: {0}": {
+    ja: "actor.human_only にないコマンドがある: {0}",
   },
-  "config の更新がスキーマに合わない": { en: "The config update does not match the schema" },
-  個人の設定に書けない項目: { en: "Items that cannot be set in personal settings" },
+  "The config update does not match the schema": { ja: "config の更新がスキーマに合わない" },
+  "Items that cannot be set in personal settings": { ja: "個人の設定に書けない項目" },
   // Plan の警告（plan.show）
-  "{0} が見つからない（削除された）": { en: "{0} not found (deleted)" },
+  "{0} not found (deleted)": { ja: "{0} が見つからない（削除された）" },
   // Run の警告（run.list・metrics.show）
-  "deguboard-local/{0}: {1}": { en: "deguboard-local/{0}: {1}" },
-  "チケット {0} が見つからないので、その Run の Epic・Iteration・Project は分からない": {
-    en: "Ticket(s) {0} not found, so the Epic, Iteration, and Project of their Runs are unknown",
+  "deguboard-local/{0}: {1}": { ja: "deguboard-local/{0}: {1}" },
+  "Tickets {0} not found, so the Epic, Iteration and Project of those Runs are unknown": {
+    ja: "チケット {0} が見つからないので、その Run の Epic・Iteration・Project は分からない",
   },
   // 読めないファイルの理由（readDoc）
-  ファイルを読めない: { en: "Cannot read the file" },
-  "JSON を読めない": { en: "Cannot parse JSON" },
-  "JSON のオブジェクトでない": { en: "Not a JSON object" },
-  "先頭に frontmatter（---）がない": { en: "No frontmatter (---) at the top" },
-  "frontmatter を閉じる --- がない": { en: "No closing --- for the frontmatter" },
-  "YAML を読めない": { en: "Cannot parse YAML" },
-  スキーマに合わない: { en: "Does not match the schema" },
-  "ファイル名の ID {0} と中の id {1} が違う": {
-    en: "The ID {0} in the file name differs from the id {1} inside",
+  "Cannot read the file": { ja: "ファイルを読めない" },
+  "Cannot parse JSON": { ja: "JSON を読めない" },
+  "Not a JSON object": { ja: "JSON のオブジェクトでない" },
+  "Missing frontmatter (---) at the start": { ja: "先頭に frontmatter（---）がない" },
+  "Missing the closing --- of the frontmatter": { ja: "frontmatter を閉じる --- がない" },
+  "Cannot parse YAML": { ja: "YAML を読めない" },
+  "Does not match the schema": { ja: "スキーマに合わない" },
+  "The ID {0} in the file name differs from the id {1} inside": {
+    ja: "ファイル名の ID {0} と中の id {1} が違う",
   },
 };

@@ -143,7 +143,7 @@ export async function renumberCollisions(repo: GitRepo): Promise<Renumbered[]> {
       await restorePending(repo, pending, new Map());
     } catch (restoreError) {
       throw new Error(
-        `振り直しの失敗の後、まとめ待ちを書き戻せませんでした: ${errorMessage(restoreError)}`,
+        `Could not write the pending changes back after the renumbering failed: ${errorMessage(restoreError)}`,
         { cause: e },
       );
     }

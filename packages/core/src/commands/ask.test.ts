@@ -403,7 +403,7 @@ describe("依頼文の組み立て", () => {
 
   it("候補にない頼むことは使い方の誤りで、候補を添える", () => {
     expect(() => buildAsk({ subjects: [ticket({ status: "review" })], action: "all" })).toThrow(
-      expect.objectContaining({ code: "INVALID_INPUT", detail: expect.stringContaining("done（") }),
+      expect.objectContaining({ code: "INVALID_INPUT", detail: expect.stringContaining("done (") }),
     );
   });
 });

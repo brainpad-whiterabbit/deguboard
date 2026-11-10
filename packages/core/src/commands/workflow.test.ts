@@ -93,22 +93,22 @@ describe("workflow set", () => {
     const cases: Array<[Record<string, unknown>, string]> = [
       [
         { id: "general", name: "G", transitions: [{ from: "todo", to: "done", requires: ["x"] }] },
-        "transitions[0]: 未知の条件 x",
+        "transitions[0]: unknown condition x",
       ],
       [
         { id: "general", name: "G", reconcile: [{ when: ["nope"], status: "done" }] },
-        "reconcile[0]: 未知の条件 nope",
+        "reconcile[0]: unknown condition nope",
       ],
       [
         { id: "general", name: "G", reconcile: [{ when: ["pr_merged"], status: "abandoned" }] },
-        "照合で abandoned にはできない",
+        "reconcile cannot set abandoned",
       ],
-      [{ id: "general", name: "G", steps: [{ id: "a" }, { id: "a" }] }, "a が重複している"],
+      [{ id: "general", name: "G", steps: [{ id: "a" }, { id: "a" }] }, "a is duplicated"],
       [
         { id: "general", transitions: [{ from: "todo", to: "nowhere" }] },
-        "Workflow 定義の形が違う",
+        "The Workflow definition has the wrong shape",
       ],
-      [{ ...strict, id: "other" }, "定義の id（other）が general と違う"],
+      [{ ...strict, id: "other" }, "The id in the definition (other) differs from general"],
     ];
     for (const [definition, message] of cases) {
       const error = await runCommand(workflowSet, ctx, { workflow: "general", definition }).catch(
@@ -222,6 +222,6 @@ describe("workflow set", () => {
       definition: { id: "general", name: "G", steps: [{ id: "x", actions: ["nope"] }] },
     });
     expect(r.write).toMatchObject({ committed: true });
-    expect(r.warnings.some((w) => w.includes("未知の Action nope"))).toBe(true);
+    expect(r.warnings.some((w) => w.includes("unknown Action nope"))).toBe(true);
   });
 });

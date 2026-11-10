@@ -13,16 +13,16 @@ const DRAFT_TEXT_KEYS = ["title", "summary", "acceptance", "body"];
 export function parseDraftSource(text: string): unknown {
   const doc = parseDocument(text);
   if (doc.errors.length > 0)
-    throw new UsageError("下書きを YAML として読めない", doc.errors.map(String).join("\n"));
+    throw new UsageError("Cannot read the draft as YAML", doc.errors.map(String).join("\n"));
   const root = isMap(doc.contents) ? doc.contents.get("drafts", true) : doc.contents;
   if (isSeq(root)) {
     const cut = root.items.flatMap((draft, i) =>
-      cutFields(draft, text).map((key) => `${i + 1} 件目の ${key}`),
+      cutFields(draft, text).map((key) => `${key} of draft ${i + 1}`),
     );
     if (cut.length > 0)
       throw new UsageError(
-        `下書きの本文の項目の引用しない値の # 以降がコメントになっている（${cut.join("・")}）`,
-        "空白＋# 以降はコメントとして捨てられ、本文が切れる。# を含む値は引用符で囲むか body の | で書く",
+        `In an unquoted value of a draft body field, everything after # is treated as a comment (${cut.join(", ")})`,
+        "Everything after a space plus # is dropped as a comment, so the body is cut off. Quote a value that contains # or write it with | in body",
       );
   }
   const parsed: unknown = doc.toJS();

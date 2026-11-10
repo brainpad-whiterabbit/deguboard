@@ -220,7 +220,7 @@ export async function fetchPrGateFacts(
   repo: GitRepo,
   selector: string,
 ): Promise<{ pr: PrGateFacts } | { missing: true } | { reason: string }> {
-  if (!(await hasGh(repo.topLevel))) return { reason: "gh がない" };
+  if (!(await hasGh(repo.topLevel))) return { reason: "gh is not installed" };
   try {
     const result = await runGh(
       repo.topLevel,
@@ -230,15 +230,15 @@ export async function fetchPrGateFacts(
     if (result.code !== 0) {
       return /no pull requests found|could not find|not found/i.test(result.stderr)
         ? { missing: true }
-        : { reason: `gh で PR を読めない（${result.stderr.trim().split("\n")[0] ?? ""}）` };
+        : { reason: `Cannot read the PR with gh (${result.stderr.trim().split("\n")[0] ?? ""})` };
     }
     let data: Partial<PrGateFacts>;
     try {
       data = JSON.parse(result.stdout) as Partial<PrGateFacts>;
     } catch {
-      return { reason: "gh の出力を読めない" };
+      return { reason: "Cannot read the output of gh" };
     }
-    if (!Number.isInteger(data.number)) return { reason: "gh の PR の番号を読めない" };
+    if (!Number.isInteger(data.number)) return { reason: "Cannot read the PR number from gh" };
     return {
       pr: {
         number: data.number!,
@@ -248,7 +248,7 @@ export async function fetchPrGateFacts(
       },
     };
   } catch (error) {
-    if (error instanceof GitError) return { reason: `gh を呼べない（${error.message}）` };
+    if (error instanceof GitError) return { reason: `Cannot call gh (${error.message})` };
     throw error;
   }
 }
@@ -266,10 +266,10 @@ export async function fetchPrCreatedAt(
   pr: number,
 ): Promise<{ createdAt: string; reason?: undefined } | { createdAt?: undefined; reason: string }> {
   const viewed = await viewPr(repo, String(pr));
-  if (!viewed) return { reason: "gh で PR を読めない" };
-  if ("missing" in viewed) return { reason: `PR #${pr} が見つからない` };
+  if (!viewed) return { reason: "Cannot read the PR with gh" };
+  if ("missing" in viewed) return { reason: `PR #${pr} not found` };
   const createdAt = isoOrUndefined(viewed.data.createdAt);
-  return createdAt ? { createdAt } : { reason: `PR #${pr} の作成時刻を読めない` };
+  return createdAt ? { createdAt } : { reason: `Cannot read the creation time of PR #${pr}` };
 }
 
 async function collectPrFacts(

@@ -101,7 +101,7 @@ async function readSettings(file: string): Promise<Settings> {
   if (text === undefined || text.trim() === "") return {};
   const parsed: unknown = JSON.parse(text);
   if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed))
-    throw new Error(`${file} は JSON のオブジェクトでない`);
+    throw new Error(`${file} is not a JSON object`);
   return parsed as Settings;
 }
 
@@ -131,7 +131,7 @@ async function handlerStatus(base: string): Promise<HandlerStatus> {
 
 function support(agent: string): HookSupport {
   const hooks = hooksOf(agent);
-  if (!hooks) throw new Error(`agent ${agent} にはフックがない`);
+  if (!hooks) throw new Error(`agent ${agent} has no hooks`);
   return hooks;
 }
 
@@ -199,7 +199,9 @@ export async function checkHooks(options: {
   try {
     current = await readSettings(file);
   } catch (error) {
-    warnings.push(`設定を読めない（${error instanceof Error ? error.message : String(error)}）`);
+    warnings.push(
+      `Cannot read the settings (${error instanceof Error ? error.message : String(error)})`,
+    );
   }
   const statuses = new Map<string, Promise<HandlerStatus>>();
   const events: HookCheckEvent[] = [];
@@ -219,7 +221,7 @@ export async function checkHooks(options: {
       command !== undefined && (matcher === undefined || ours?.group.matcher === matcher);
     if (command !== undefined && !installed)
       warnings.push(
-        `${event} のフックの matcher が「${ours?.group.matcher ?? "（なし）"}」。「${matcher}」であるべき（dg hooks install で入れ直す）`,
+        `The matcher of the ${event} hook is "${ours?.group.matcher ?? "(none)"}". It should be "${matcher}" (reinstall with dg hooks install)`,
       );
     let handler: HandlerStatus | null = null;
     if (command !== undefined) {
@@ -234,28 +236,28 @@ export async function checkHooks(options: {
       .map(([field]) => field);
     if (record !== undefined && missing.length > 0)
       warnings.push(
-        `${event} の直近の入力（${record.received_at}）に ${missing.join("・")} がない。Claude Code の入力の形が変わった可能性があり、この項目を使う記録（Run など）が取れていないかもしれない`,
+        `The latest input for ${event} (${record.received_at}) lacks ${missing.join(", ")}. The shape of Claude Code's input may have changed, and records that use these fields (such as Runs) may not be captured`,
       );
     events.push({ event, installed, handler, received_at: record?.received_at ?? null, missing });
   }
   const absent = events.filter((e) => !e.installed).map((e) => e.event);
   if (absent.length === hooks.events.length)
-    warnings.push("設定に dg のフックがない（dg hooks install で入れる）");
+    warnings.push("The settings have no dg hooks (install them with dg hooks install)");
   else if (absent.length > 0)
     warnings.push(
-      `設定に dg のフックがないイベント：${absent.join("・")}（dg hooks install で入れ直す）`,
+      `The settings have no dg hooks for these events: ${absent.join(", ")} (reinstall with dg hooks install)`,
     );
   for (const [base, status] of statuses) {
     const verdict = await status;
     if (verdict === "ok") continue;
     const text: Record<Exclude<HandlerStatus, "ok">, string> = {
-      missing: "見つからない（PATH に dg がない。npx なら dg hooks install --command で直す）",
-      timeout: "--version が時間切れ（15 秒）",
-      failed: "--version が異常終了した（起動に失敗したか終了コードが 0 でない）",
+      missing: "not found (dg is not on PATH. With npx, fix it with dg hooks install --command)",
+      timeout: "--version timed out (15 seconds)",
+      failed: "--version exited abnormally (it failed to start or the exit code is not 0)",
       unverified:
-        "シェルの書き方（~・引用符・VAR=x など）を含むので確かめられない。単純なコマンドで dg hooks install --command し直すと確かめられる",
+        "it uses shell syntax (~, quotes, VAR=x, etc.), so it cannot be verified. Run dg hooks install --command again with a plain command to verify it",
     };
-    warnings.push(`ハンドラ「${base}」：${text[verdict]}`);
+    warnings.push(`Handler "${base}": ${text[verdict]}`);
   }
   return { agent, scope: options.scope, file, events, warnings };
 }

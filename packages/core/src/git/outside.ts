@@ -218,7 +218,7 @@ export async function checkOutside(
 export function outsideError(changes: OutsideChanges, command = "dg"): OperationError {
   return new OperationError(
     "OUTSIDE_CHANGES",
-    `データのリポジトリに dg の外の変更があるので、${command} は書かない。${outsideRemedy(changes)}`,
+    `The data repository has changes made outside dg, so ${command} does not write. ${outsideRemedy(changes)}`,
     describeOutside(changes),
   );
 }
@@ -228,27 +228,27 @@ export function describeOutside(changes: OutsideChanges): string {
   const parts: string[] = [];
   if (changes.files.length > 0)
     parts.push(
-      `未コミットの変更: ${changes.files
-        .map((f) => (f.change === "reverted" ? `${f.path}（dg の変更が戻された）` : f.path))
-        .join("、")}`,
+      `Uncommitted changes: ${changes.files
+        .map((f) => (f.change === "reverted" ? `${f.path} (a dg change was reverted)` : f.path))
+        .join(", ")}`,
     );
   for (const c of changes.commits)
     parts.push(
-      `コミット ${c.sha.slice(0, 7)}「${c.subject}」: ${c.files.join("、") || "（ファイルの変更なし）"}`,
+      `Commit ${c.sha.slice(0, 7)} "${c.subject}": ${c.files.join(", ") || "(no file changes)"}`,
     );
   if (changes.rewritten)
     parts.push(
-      `基準のコミット ${changes.baseline.slice(0, 7)} が今の HEAD の祖先でない（dg の外で履歴を捨てたか書き換えた）`,
+      `The baseline commit ${changes.baseline.slice(0, 7)} is not an ancestor of the current HEAD (history was discarded or rewritten outside dg)`,
     );
-  return parts.join("。");
+  return parts.join(". ");
 }
 
 /** 見つけたときの戻し方と取り込み方（dg adopt --help と戻し方が同じ。エージェントの扱いは dg guide overview の「Changes outside dg」） */
 export function outsideRemedy(changes: OutsideChanges): string {
   return (
-    "データ（.git/deguboard/）は dg のコマンドでだけ書く。dg の外の変更を正しいと確かめたら dg adopt で取り込む" +
-    "（検査を通してから今の状態を基準にする）。この版より前の dg（版の古い VS Code 拡張や CLI）が書いた変更も外の変更に見えるので、そのときは版を揃えてから dg adopt で取り込む。" +
-    `捨てるなら、人が deguboard worktree で未コミットの変更を git restore --staged --worktree で戻し（足したファイルは消す。まとめ待ちの dg の変更も戻る）、` +
-    `dg の外のコミットを git reset --keep ${changes.baseline.slice(0, 12)} で外してから、dg adopt で今の状態を基準にする（エージェントの扱いは dg guide overview の「Changes outside dg」）`
+    "Write the data (.git/deguboard/) only with dg commands. Once you have confirmed that the changes outside dg are correct, take them in with dg adopt" +
+    " (it makes the current state the baseline after running the checks). Changes written by an older dg (an old VS Code extension or CLI) also look like outside changes, so in that case align the versions and then take them in with dg adopt. " +
+    `To discard them, the human reverts the uncommitted changes in the deguboard worktree with git restore --staged --worktree (delete added files; pending dg changes are reverted too), ` +
+    `removes the commits made outside dg with git reset --keep ${changes.baseline.slice(0, 12)}, and then makes the current state the baseline with dg adopt (for how agents handle this, see "Changes outside dg" in dg guide overview)`
   );
 }

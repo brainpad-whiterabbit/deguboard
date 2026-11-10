@@ -120,12 +120,12 @@ describe("dg", () => {
     const f = await fixture();
     const first = await dg(f.cloneA, ["init"]);
     expect(first.code).toBe(0);
-    expect(first.err).toContain("コミット済み・push 済み");
+    expect(first.err).toContain("Committed, pushed");
     const second = await dg(f.cloneB, ["init"]);
     expect(second.code).toBe(0);
     expect(second.out).toContain("from_remote");
-    expect(second.err).not.toContain("作業ツリーに残した");
-    expect(second.err).not.toContain("コミット済み");
+    expect(second.err).not.toContain("Left in the working tree");
+    expect(second.err).not.toContain("Committed");
     // deguboard worktree に未コミットの変更は残っていない
     const status = await git(path.join(f.cloneB, ".git", "deguboard"), ["status", "--porcelain"]);
     expect(status.stdout).toBe("");
@@ -203,7 +203,7 @@ describe("dg", () => {
     const human = await dg(f.cloneA, ["ticket", "move", "1", "done"]);
     expect(human.code).toBe(1);
     expect(human.err).toContain(
-      "Error: todo から done への遷移は Workflow がこの主体に許していない",
+      "Error: The Workflow does not allow this actor to move from todo to done",
     );
 
     expect((await dg(f.cloneA, ["ticket", "create", "x", "--priority", "nope"])).code).toBe(2);
@@ -219,7 +219,7 @@ describe("dg", () => {
     const ran = await dg(f.cloneA, ["ticket", "check", "1", "all"]);
     expect(ran.code).toBe(2);
     expect(ran.err).toContain("'all'");
-    expect(ran.err).toContain("数値を指定する");
+    expect(ran.err).toContain("Specify a number");
     expect((await dg(f.cloneA, ["ticket", "check", "1", "--all"])).code).toBe(0);
   });
 
@@ -279,7 +279,7 @@ describe("dg", () => {
       const json = ran.json();
       expect(json.ok).toBe(false);
       expect(json.error?.code).toBe("INTERNAL");
-      expect(json.error?.message).toBe("ポートは 0〜65535 の整数");
+      expect(json.error?.message).toBe("The port must be an integer from 0 to 65535");
     }
   });
 
@@ -288,7 +288,7 @@ describe("dg", () => {
     const ran = await dg(f.cloneA, ["serve", "--port", "abc"]);
     expect(ran.code).toBe(1);
     expect(ran.out).toBe("");
-    expect(ran.err).toBe("Error: ポートは 0〜65535 の整数");
+    expect(ran.err).toBe("Error: The port must be an integer from 0 to 65535");
   });
 
   it("初期化前は NOT_INITIALIZED で終了コード 1", async () => {
@@ -453,7 +453,7 @@ describe("dg", () => {
     const rejected = await dg(f.cloneA, ["--json", "ticket", "import", file]);
     expect(rejected.code).toBe(2);
     expect(rejected.json()).toMatchObject({ ok: false, error: { code: "INVALID_INPUT" } });
-    expect(rejected.json().error!.message).toContain("1 件目の title");
+    expect(rejected.json().error!.message).toContain("title of draft 1");
     expect((await git(dataDir, ["rev-parse", "HEAD"])).stdout.trim()).toBe(before);
   });
 
@@ -576,7 +576,7 @@ describe("dg", () => {
     await writeFile(b, md("題", "low"));
     const clash = await dg(dir, ["merge-driver", o, a, b, "tickets/t1.md"]);
     expect(clash.code).toBe(1);
-    expect(clash.err).toContain("tickets/t1.md: 両側で違う値に変えた: priority");
+    expect(clash.err).toContain("tickets/t1.md: both sides changed to different values: priority");
     expect(await readFile(a, "utf8")).toContain("<<<<<<< ours");
 
     expect((await dg(dir, ["--help"])).out).not.toContain("merge-driver");

@@ -282,13 +282,12 @@ export const iterationAdd = defineCommand({
       ctx,
       async () => {
         const it = ctx.store.require("iteration", input.iteration);
-        if (it.data.status === "closed")
-          throw new OperationError("REJECTED", `${it.id} は閉じている`);
+        if (it.data.status === "closed") throw new OperationError("REJECTED", `${it.id} is closed`);
         const ids: string[] = [];
         for (const ref of input.tickets) {
           const t = ctx.store.require("ticket", ref);
           if (t.data.project !== it.data.project)
-            throw new OperationError("REJECTED", `${t.id} は ${it.id} と別の Project`);
+            throw new OperationError("REJECTED", `${t.id} is in a different Project from ${it.id}`);
           await ctx.store.update("ticket", t.id, { iteration: it.id, updated_at: nowIso(ctx) });
           ids.push(t.id);
         }
@@ -317,7 +316,7 @@ export const iterationRemove = defineCommand({
         for (const ref of input.tickets) {
           const t = ctx.store.require("ticket", ref);
           if (t.data.iteration !== it.id)
-            throw new OperationError("REJECTED", `${t.id} は ${it.id} に入っていない`);
+            throw new OperationError("REJECTED", `${t.id} is not in ${it.id}`);
           await ctx.store.update("ticket", t.id, { iteration: undefined, updated_at: nowIso(ctx) });
           ids.push(t.id);
         }
@@ -344,8 +343,11 @@ export const iterationStart = defineCommand({
       async () => {
         const it = ctx.store.require("iteration", input.iteration);
         if (it.data.status !== "planned")
-          throw new OperationError("REJECTED", `${it.id} は ${it.data.status} なので開始できない`);
-        rejectIfOtherActive(ctx.store, it, "開始");
+          throw new OperationError(
+            "REJECTED",
+            `${it.id} is ${it.data.status}, so it cannot be started`,
+          );
+        rejectIfOtherActive(ctx.store, it, "started");
         // 予定の開始日は実際とずれるので、始めた日に書き換えて実際の期間を残す（IT-1）。end は予定のまま
         return ctx.store.update("iteration", it.id, {
           status: "active",
@@ -374,7 +376,7 @@ export const iterationClose = defineCommand({
       async () => {
         const it = ctx.store.require("iteration", input.iteration);
         if (it.data.status === "closed")
-          throw new OperationError("REJECTED", `${it.id} は既に閉じている`);
+          throw new OperationError("REJECTED", `${it.id} is already closed`);
         const tickets = ticketsInIteration(ctx.store, it.id);
         const completed = tickets.filter((t) => t.data.status === "done").length;
         const carried = tickets.filter((t) => !isTerminal(t.data.status));
@@ -416,11 +418,11 @@ export const iterationReopen = defineCommand({
         warnings.length = 0;
         const it = ctx.store.require("iteration", input.iteration);
         if (it.data.status !== "closed")
-          throw new OperationError("REJECTED", `${it.id} は閉じていない`);
-        rejectIfOtherActive(ctx.store, it, "再開");
+          throw new OperationError("REJECTED", `${it.id} is not closed`);
+        rejectIfOtherActive(ctx.store, it, "resumed");
         if (it.data.carried_over)
           warnings.push(
-            `閉じたときに外した ${it.data.carried_over} 件は戻らない。iteration add で入れ直す`,
+            `The ${it.data.carried_over} tickets removed when it was closed do not come back. Add them again with iteration add`,
           );
         return ctx.store.update("iteration", it.id, {
           status: "active",

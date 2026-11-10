@@ -103,12 +103,12 @@ export async function runCommand<I extends z.ZodType, O>(
   const parsed = def.input.safeParse(rawInput);
   if (!parsed.success) {
     const { prettifyError } = await import("zod");
-    throw new UsageError(`${def.name} の入力が正しくない`, prettifyError(parsed.error));
+    throw new UsageError(`Invalid input for ${def.name}`, prettifyError(parsed.error));
   }
   if (!ctx.storeless && deniedToAgent(ctx, def.name)) {
     throw new OperationError(
       "TRANSITION_REJECTED",
-      `${def.name} は設定（actor.human_only）で人だけに限られている（--actor human で実行する）`,
+      `${def.name} is limited to humans by the config (actor.human_only) (run it with --actor human)`,
     );
   }
   const check =
@@ -122,7 +122,7 @@ export async function runCommand<I extends z.ZodType, O>(
       ...result,
       warnings: [
         ...result.warnings,
-        `データのリポジトリに dg の外の変更がある（${describeOutside(check.changes)}）。${outsideRemedy(check.changes)}`,
+        `The data repository has changes made outside dg (${describeOutside(check.changes)}). ${outsideRemedy(check.changes)}`,
       ],
     };
   return result;

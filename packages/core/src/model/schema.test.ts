@@ -160,9 +160,9 @@ describe("スキーマ", () => {
       "metrics.read_transcripts",
       "nope.x",
     ]);
-    expect(ignored.find((i) => i.key === "auto.merge")?.reason).toContain("チーム専用");
-    expect(ignored.find((i) => i.key === "nope.x")?.reason).toContain("スキーマにない");
-    expect(ignored.find((i) => i.key === "push.mode")?.reason).toContain("値が正しくない");
+    expect(ignored.find((i) => i.key === "auto.merge")?.reason).toContain("Team-only");
+    expect(ignored.find((i) => i.key === "nope.x")?.reason).toContain("Not in the schema");
+    expect(ignored.find((i) => i.key === "push.mode")?.reason).toContain("Invalid value");
     // 個人のファイルがなければ（undefined）チームの値のまま
     expect(overlayLocalConfig(team, undefined)).toEqual({ config: team, local: {}, ignored: [] });
   });

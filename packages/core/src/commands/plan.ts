@@ -70,17 +70,17 @@ export const planCreate = defineCommand({
           const t = ctx.store.require("ticket", ref);
           if (tickets.includes(t.data.id)) continue;
           if (t.data.project !== project)
-            throw new OperationError("REJECTED", `${t.id} は Project ${project} のチケットでない`);
+            throw new OperationError("REJECTED", `${t.id} is not a ticket of Project ${project}`);
           if (isTerminal(t.data.status))
             throw new OperationError(
               "REJECTED",
-              `${t.id} は ${t.data.status} なので Plan に入れられない`,
+              `${t.id} is ${t.data.status}, so it cannot be put in a Plan`,
             );
           const other = openPlanOf(ctx.store, t.data.id);
           if (other)
             throw new OperationError(
               "REJECTED",
-              `${t.id} は開いた Plan ${other.id} に入っている。先に ${other.id} を閉じる`,
+              `${t.id} is in the open Plan ${other.id}. Close ${other.id} first`,
             );
           tickets.push(t.data.id);
         }
@@ -88,7 +88,7 @@ export const planCreate = defineCommand({
         const member = (ref: string, what: string): TicketId => {
           const t = ctx.store.require("ticket", ref);
           if (!tickets.includes(t.data.id))
-            throw new OperationError("REJECTED", `${what}の ${t.id} は Plan に入っていない`);
+            throw new OperationError("REJECTED", `The ${what} ticket ${t.id} is not in the Plan`);
           return t.data.id;
         };
         const after: Record<string, TicketId[]> = {};
@@ -96,7 +96,7 @@ export const planCreate = defineCommand({
           const id = member(key, "after");
           const waits = splitRefs(value).map((r) => member(r, "after"));
           if (waits.includes(id))
-            throw new OperationError("REJECTED", `${id} は自分自身を待てない`);
+            throw new OperationError("REJECTED", `${id} cannot wait for itself`);
           after[id] = [...new Set([...(after[id] ?? []), ...waits])];
         }
         const afterEdges = (id: string): WaitEdge[] =>
@@ -105,14 +105,14 @@ export const planCreate = defineCommand({
         if (cycle)
           throw new OperationError(
             "REJECTED",
-            `after が循環している: ${cyclePath(cycle, false)}。その after を外すか向きを変える`,
+            `after forms a cycle: ${cyclePath(cycle, false)}. Remove that after or change its direction`,
           );
         // after と depends_on を合わせても循環しない（互いを待って着手できなくなる）
         const crossing = findCrossingCycle(ctx.store, tickets, after);
         if (crossing)
           throw new OperationError(
             "REJECTED",
-            `after と depends_on が循環している: ${cyclePath(crossing, true)}。その after を外すか向きを変える`,
+            `after and depends_on form a cycle: ${cyclePath(crossing, true)}. Remove that after or change its direction`,
           );
         const details: Record<string, { scope?: string; approach?: string; tier?: PlanTier }> = {};
         for (const [field, map] of [
@@ -286,7 +286,7 @@ export const planShow = defineCommand({
     for (const id of doc.data.tickets) {
       const t = ctx.store.tickets.get(id);
       if (t) found.push(t);
-      else warnings.push(`${id} が見つからない（削除された）`);
+      else warnings.push(`${id} not found (deleted)`);
     }
     // チケットごとの待ちの相手は items[].waiting に出すので、上の階層には ready と next だけを置く
     const { waiting, ready, next } = readinessIn(ctx.store, doc.data);
@@ -324,11 +324,11 @@ export const planApprove = defineCommand({
       async () => {
         const plan = ctx.store.require("plan", input.plan);
         if (plan.data.closed_at !== undefined)
-          throw new OperationError("REJECTED", `${plan.id} は閉じている`);
+          throw new OperationError("REJECTED", `${plan.id} is closed`);
         if (!plan.data.pending_approval)
           throw new OperationError(
             "REJECTED",
-            `${plan.id} は既に承認されている（${plan.data.approved_by ?? "不明"}）`,
+            `${plan.id} is already approved (${plan.data.approved_by ?? "unknown"})`,
           );
         return ctx.store.update("plan", plan.id, {
           pending_approval: false,
@@ -358,12 +358,12 @@ export const planClose = defineCommand({
       async () => {
         const plan = ctx.store.require("plan", input.plan);
         if (plan.data.closed_at !== undefined)
-          throw new OperationError("REJECTED", `${plan.id} は既に閉じている`);
+          throw new OperationError("REJECTED", `${plan.id} is already closed`);
         const open = plan.data.tickets.filter((id) => {
           const status = ctx.store.tickets.get(id)?.data.status;
           return status !== undefined && !isTerminal(status);
         });
-        if (open.length > 0) warnings.push(`${open.join(", ")} を残したまま閉じた`);
+        if (open.length > 0) warnings.push(`Closed with ${open.join(", ")} left open`);
         return ctx.store.update("plan", plan.id, { closed_at: nowIso(ctx) });
       },
       { message: (doc) => `${doc.id} を閉じる` },

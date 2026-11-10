@@ -54,10 +54,10 @@ export async function withLock<T>(
       if (state.kind === "error") lastError = state.error;
       // 古いロックを消せないときや stat が失敗し続けるときも、待ち時間の上限で止める
       if (Date.now() > deadline) {
-        const detail = lastError instanceof Error ? `。${lastError.message}` : "";
+        const detail = lastError instanceof Error ? `. ${lastError.message}` : "";
         throw new OperationError(
           "GIT_ERROR",
-          `別の dg が書き込み中（${lockPath}）。残っていれば消す（${lockPath}.break も）${detail}`,
+          `Another dg is writing (${lockPath}). If it is left over, delete it (also ${lockPath}.break)${detail}`,
         );
       }
       if (!broke) await sleep(50);

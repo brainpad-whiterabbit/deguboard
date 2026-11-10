@@ -293,7 +293,7 @@ describe("Copilot の Adapter", () => {
     await writeEvents(eventsFile("sess-1"), [sessionStart("sess-1", topLevel), usageRecord(1)]);
     const got = await copilotAdapter.readTranscriptUsage(query());
     expect(got.usage).toEqual({ input: null, output: null, cache_read: null, cache_write: null });
-    expect(got.warnings).toEqual([expect.stringContaining("見つからない")]);
+    expect(got.warnings).toEqual([expect.stringContaining("not found")]);
   });
 
   it("期間に使用量の記録がなければ null にして警告する", async () => {

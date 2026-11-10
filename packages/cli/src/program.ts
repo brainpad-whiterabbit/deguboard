@@ -162,7 +162,7 @@ export function buildProgram(options: ProgramOptions = {}): Command {
         if (global.json)
           streams.out(JSON.stringify({ ok: true, data: guide, warnings, write: null }, null, 2));
         else {
-          for (const w of warnings) streams.err(`警告: ${w}`);
+          for (const w of warnings) streams.err(`Warning: ${w}`);
           streams.out(guide.text);
         }
         process.exitCode = 0;
@@ -211,17 +211,17 @@ export function buildProgram(options: ProgramOptions = {}): Command {
           streams.out(JSON.stringify({ ok: true, data: result, warnings, write: null }, null, 2));
         else {
           const lines = [
-            [result.dryRun ? "書く" : "書いた", result.written],
-            [result.dryRun ? "更新する" : "更新した", result.updated],
-            ["最新だった", result.unchanged],
-            [result.dryRun ? "廃止して消す" : "廃止して消した", result.retired],
+            [result.dryRun ? "Would write" : "Wrote", result.written],
+            [result.dryRun ? "Would update" : "Updated", result.updated],
+            ["Already up to date", result.unchanged],
+            [result.dryRun ? "Would retire and remove" : "Retired and removed", result.retired],
           ] as const;
-          if (result.dryRun) streams.out("--dry-run：何も書いていない");
-          streams.out(`Skill の置き場所：${result.dir}`);
+          if (result.dryRun) streams.out("--dry-run: nothing was written");
+          streams.out(`Skill directory: ${result.dir}`);
           for (const [label, names] of lines)
-            if (names.length > 0) streams.out(`${label}：${names.join(", ")}`);
+            if (names.length > 0) streams.out(`${label}: ${names.join(", ")}`);
           for (const f of result.files) streams.out(`\n--- ${f.path}\n${f.content}`);
-          for (const w of warnings) streams.err(`警告: ${w}`);
+          for (const w of warnings) streams.err(`Warning: ${w}`);
         }
         process.exitCode = 0;
       } catch (error) {
@@ -276,12 +276,12 @@ export function buildProgram(options: ProgramOptions = {}): Command {
               JSON.stringify({ ok: true, data: result, warnings: [], write: null }, null, 2),
             );
           else {
-            if (result.dryRun) streams.out("--dry-run：何も書いていない");
-            streams.out(`設定のファイル：${result.file}`);
+            if (result.dryRun) streams.out("--dry-run: nothing was written");
+            streams.out(`Settings file: ${result.file}`);
             streams.out(
               result.unchanged
-                ? "変わらなかった"
-                : `${action === "install" ? "入れた" : "外した"}：${result.events.join(", ")}`,
+                ? "No change"
+                : `${action === "install" ? "Installed" : "Removed"}: ${result.events.join(", ")}`,
             );
             if (result.content) streams.out(`\n${result.content}`);
           }
@@ -318,23 +318,23 @@ export function buildProgram(options: ProgramOptions = {}): Command {
           streams.out(JSON.stringify({ ok: true, data, warnings, write: null }, null, 2));
         else {
           const label: Record<HandlerStatus, string> = {
-            ok: "ハンドラは動く",
-            missing: "ハンドラが見つからない",
-            timeout: "ハンドラは時間切れ",
-            failed: "ハンドラは異常終了",
-            unverified: "ハンドラは確かめられない",
+            ok: "handler works",
+            missing: "handler not found",
+            timeout: "handler timed out",
+            failed: "handler exited abnormally",
+            unverified: "handler cannot be verified",
           };
-          streams.out(`設定のファイル：${data.file}`);
+          streams.out(`Settings file: ${data.file}`);
           for (const e of data.events) {
-            const handler = e.handler === null ? "" : `・${label[e.handler]}`;
+            const handler = e.handler === null ? "" : `, ${label[e.handler]}`;
             const received = e.received_at
-              ? `・直近の入力 ${e.received_at}`
-              : "・まだ受け取っていない";
+              ? `, latest input ${e.received_at}`
+              : ", no input received yet";
             streams.out(
-              `${e.event}：${e.installed ? "入っている" : "入っていない"}${handler}${received}`,
+              `${e.event}: ${e.installed ? "installed" : "not installed"}${handler}${received}`,
             );
           }
-          for (const w of warnings) streams.err(`警告: ${w}`);
+          for (const w of warnings) streams.err(`Warning: ${w}`);
         }
         process.exitCode = 0;
       } catch (error) {
@@ -424,7 +424,7 @@ export function buildProgram(options: ProgramOptions = {}): Command {
       const input = collectInput(bound, positionals, opts);
       const actorKind = (global.actor ?? env["DEGUBOARD_ACTOR"] ?? "human") as ActorInfo["kind"];
       if (actorKind !== "human" && actorKind !== "agent") {
-        command.error("--actor は human か agent", { exitCode: 2 });
+        command.error("--actor must be human or agent", { exitCode: 2 });
       }
       const actor = { kind: actorKind, ...pickUser(global.user, env["DEGUBOARD_USER"]) };
       const initialize =
@@ -480,7 +480,7 @@ async function readText(file: string, cwd: string): Promise<string> {
   try {
     return file === "-" ? await readStdin() : await readFile(resolve(cwd, file), "utf8");
   } catch (error) {
-    throw new UsageError(`${file} を読めない`, String(error));
+    throw new UsageError(`Cannot read ${file}`, String(error));
   }
 }
 
@@ -490,12 +490,12 @@ async function readYamlFile(file: string, cwd: string): Promise<unknown> {
   try {
     text = file === "-" ? await readStdin() : await readFile(resolve(cwd, file), "utf8");
   } catch (error) {
-    throw new UsageError(`${file} を読めない`, String(error));
+    throw new UsageError(`Cannot read ${file}`, String(error));
   }
   try {
     return parseYaml(text);
   } catch (error) {
-    throw new UsageError(`${file} を YAML として読めない`, String(error));
+    throw new UsageError(`Cannot read ${file} as YAML`, String(error));
   }
 }
 

@@ -285,7 +285,7 @@ describe("同期のマージドライバ", () => {
     const synced = await runCommand(sync, b, {});
     expect(synced.data.conflicts).toEqual(["tickets/t1.md"]);
     expect(synced.data.pushed).toBe(false);
-    expect(synced.warnings.join("\n")).toContain("リモートの変更と競合している: tickets/t1.md");
+    expect(synced.warnings.join("\n")).toContain("Conflicts with remote changes: tickets/t1.md");
     // ローカルのコミット（まとめ待ちを sync がコミットしたもの）は push されずに残る
     expect(synced.data.status).toMatchObject({ ahead: 1, behind: 1, dirty: false });
     expect((await git(b.repo.dataDir, ["show", "HEAD:tickets/t1.md"])).stdout).toContain(
@@ -375,9 +375,9 @@ describe("同期のマージドライバ", () => {
     const synced = await runCommand(sync, b, {});
     expect(synced.warnings.join("\n")).toContain(CONFLICT_REMEDY);
     // 戻し方は、自分では選ばずに人に remote か local を聞き、--resolve を 1 回呼ぶこと（--auto でも自動で選ばない）
-    expect(CONFLICT_REMEDY).toContain("自分では選ばず");
-    expect(CONFLICT_REMEDY).toContain("dg sync --resolve <remote|local> を 1 回呼ぶ");
-    expect(CONFLICT_REMEDY).toContain("--auto でも自動で選ばない");
+    expect(CONFLICT_REMEDY).toContain("Do not choose yourself");
+    expect(CONFLICT_REMEDY).toContain("dg sync --resolve <remote|local> once");
+    expect(CONFLICT_REMEDY).toContain("It is not chosen automatically even with --auto");
     await expect(runCommand(ticketCreate, b, { title: "新しい題" })).rejects.toMatchObject({
       code: "SYNC_CONFLICT",
       message: expect.stringContaining(CONFLICT_REMEDY),
@@ -502,7 +502,7 @@ describe("dg sync --resolve（SY-4）", () => {
     expect(synced.data.resolved).toEqual([]);
     expect(synced.data.pushed).toBe(false);
     expect(synced.data.status).toMatchObject({ ahead: 1, behind: 1, dirty: false });
-    expect(synced.warnings.join("\n")).toContain("--resolve でも解けない競合が残った");
+    expect(synced.warnings.join("\n")).toContain("Conflicts that --resolve cannot resolve remain");
     expect(synced.warnings.join("\n")).toContain("config.yaml");
     expect(synced.warnings.join("\n")).toContain(UNRESOLVABLE_REMEDY);
     expect((await git(b.repo.dataDir, ["status", "--porcelain"])).stdout).toBe("");

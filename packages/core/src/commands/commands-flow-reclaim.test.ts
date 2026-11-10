@@ -86,7 +86,7 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
       expect(reclaimed.data).toMatchObject({ status: "review", assignee: "eiki/agent", pr: 41 });
       expect(reclaimed.write).toBeUndefined();
       expect(reclaimed.warnings).toEqual([
-        "t1 は自分（eiki/agent）が claim 済みで PR #41 があるので、手直しの開始とみなしてチケットは変えない",
+        "t1 is already claimed by you (eiki/agent) and has PR #41, so this is treated as the start of a fix and the ticket is not changed",
       ]);
       expect((await git(agent.repo.dataDir, ["rev-parse", "HEAD"])).stdout.trim()).toBe(head);
       expect(agent.store.tickets.get("t1")!.data).toEqual(before);
@@ -107,19 +107,21 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
       await human.store.rescan();
       const humanAgain = await runCommand(ticketClaim, human, { no_worktree: true, ticket: "t1" });
       expect(humanAgain.data.run).toBeNull();
-      expect(humanAgain.warnings[0]).toContain("手直しの開始とみなしてチケットは変えない");
+      expect(humanAgain.warnings[0]).toContain(
+        "treated as the start of a fix and the ticket is not changed",
+      );
       const other = await openContext({ cwd: f.cloneA, actor: { kind: "agent", user: "taro" } });
       await expect(
         runCommand(ticketClaim, other, { no_worktree: true, ticket: "t1" }),
       ).rejects.toMatchObject({
         code: "CLAIM_LOST",
-        message: "t1 は eiki/agent が claim 済み",
+        message: "t1 is already claimed by eiki/agent",
       });
       await expect(
         runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t2" }),
       ).rejects.toMatchObject({
         code: "CLAIM_LOST",
-        message: expect.stringContaining("PR がまだない"),
+        message: expect.stringContaining("has no PR yet"),
       });
       await expect(
         runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t3", retry_reasons: ["x"] }),
@@ -142,7 +144,7 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
       const fix2 = again.data.run!;
       expect(fix2).not.toBe(fix1);
       expect(again.warnings).toContainEqual(
-        `t1 の手直しの Run ${fix1} を success で閉じた（finished_at 2026-11-06T01:30:00Z）`,
+        `Closed the fix Run ${fix1} of t1 with success (finished_at 2026-11-06T01:30:00Z)`,
       );
       expect(agent.store.runs.get(fix1)!.data).toMatchObject({
         step: "fix",
@@ -160,7 +162,7 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
       clock = new Date("2026-11-06T02:30:00Z");
       const third = await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t1" });
       expect(third.warnings).toContainEqual(
-        `t1: 前の手直しの Run ${fix2} を、次の fix の Run の開始を区切りとして、push がないので開始の時刻で閉じる`,
+        `t1: closing the earlier fix Run ${fix2} with the start of the next fix Run as the boundary, at the start time, since there was no push`,
       );
       expect(agent.store.runs.get(fix2)!.data).toMatchObject({
         result: "success",
@@ -209,7 +211,7 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
       const fix2 = again.data.run!;
       expect(fix2).not.toBe(fix1);
       expect(again.warnings).toContainEqual(
-        `t1: 前の手直しの Run ${fix1} は別のセッション（s-old）で開いたままだったので、落ちたセッションの残りとみなして interrupted で閉じる`,
+        `t1: the earlier fix Run ${fix1} was still open in another session (s-old), so it is treated as left over from a crashed session and closed as interrupted`,
       );
       expect(agent.store.runs.get(fix1)!.data).toMatchObject({
         step: "fix",
@@ -225,7 +227,7 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
         session: "s-new",
       });
       expect(third.warnings).toContainEqual(
-        `t1: 前の手直しの Run ${fix2} を、次の fix の Run の開始を区切りとして、push がないので開始の時刻で閉じる`,
+        `t1: closing the earlier fix Run ${fix2} with the start of the next fix Run as the boundary, at the start time, since there was no push`,
       );
       expect(agent.store.runs.get(fix2)!.data).toMatchObject({ result: "success", error: null });
       // --session を省けば、フックが環境に入れた DEGUBOARD_SESSION と比べる
@@ -285,7 +287,7 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
       const again = await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t1" });
       const fix2 = again.data.run!;
       expect(again.warnings).toContainEqual(
-        `t1: 前の手直しの Run ${fix1} は別のセッション（s-old）で開いたままだったので、落ちたセッションの残りとみなして interrupted で閉じる`,
+        `t1: the earlier fix Run ${fix1} was still open in another session (s-old), so it is treated as left over from a crashed session and closed as interrupted`,
       );
       expect(agent.store.runs.get(fix1)!.data).toMatchObject({
         result: "interrupted",
@@ -353,7 +355,7 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
       const fix2 = again.data.run!;
       expect(fix2).not.toBe(fix1);
       expect(again.warnings.filter((w) => w.includes(fix1))).toEqual([
-        `t1: 手直しの Run ${fix1} は既に閉じていた（別の操作や別のマシンが先に閉じた）ので、この操作では閉じない`,
+        `t1: the fix Run ${fix1} was already closed (another operation or another machine closed it first), so it is not closed in this operation`,
       ]);
       // 先に閉じた方の記録のまま。この claim は書き込まない
       expect(agent.store.runs.get(fix1)!.data).toMatchObject({
@@ -409,7 +411,7 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
         pr: 41,
       });
       expect(reclaimed.warnings).toContainEqual(
-        "t1 は自分（eiki/agent）が claim 済みで PR #41 があるので、手直しの開始とみなしてチケットは変えない",
+        "t1 is already claimed by you (eiki/agent) and has PR #41, so this is treated as the start of a fix and the ticket is not changed",
       );
       expect(
         (await peekRunningRuns(agent.repo)).find((r) => r.id === reclaimed.data.run),
@@ -467,7 +469,9 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
       (await runCommand(lint, agent, {})).data.issues
         .filter((i) => i.code === "lint_run_implement_missing")
         .map((i) => [i.id, i.message]);
-    expect(await missing()).toEqual([["t1", "PR 41 まで進んだが実装の Run（implement）がない"]]);
+    expect(await missing()).toEqual([
+      ["t1", "Reached PR 41, but there is no implementation Run (implement)"],
+    ]);
   });
 
   it("lint は閉じた実装の Run の後の push で、どの Run の期間にも入らないものを指摘し、手直しの Run の期間に入れば指摘しない（RN-6）", async () => {
@@ -502,7 +506,7 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
     expect(await outside()).toEqual([
       [
         "t1",
-        `実装の Run を閉じた後のコミット 1 件（${tip} など）がどの Run の期間にも入らない。Run の記録は書き換えず、コミットの内容（git show <sha>）を確かめて人に伝える（人の push・rebase などや、別のマシンで開いた Run でも出る）`,
+        `1 commit(s) after a closed implementation Run (${tip} etc.) fall in no Run's period. Do not rewrite the Run records. Check the content of the commits (git show <sha>) and tell a person (this also happens with a push or rebase by a person, or with a Run opened on another machine)`,
       ],
     ]);
     // 手直しの Run（開いたまま）の期間に入れば指摘しない。もう一度の claim は PR のある自分の claim なので fix を開く
@@ -637,7 +641,7 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
     const tipOf = async (t: string) =>
       (await git(f.cloneA, ["rev-parse", "--short=7", `origin/feat/${t}`])).stdout.trim();
     const message = (tip: string) =>
-      `見直しの後のコミット 1 件（${tip} など）があるが、その後に手直しの Run（fix）がない。Run の記録は書き換えず、コミットの内容（git show <sha>）を確かめて、手直しかどうかを人に伝える（人の push・見直しの後の rebase などや、別のマシンで開いた Run でも出る）`;
+      `1 commit(s) after the review (${tip} etc.), but no fix Run (fix) after them. Do not rewrite the Run records. Check the content of the commits (git show <sha>) and tell a person whether they are fixes (this also happens with a push by a person or a rebase after the review, or with a Run opened on another machine)`;
     expect(await missing()).toEqual([
       ["t1", message(await tipOf("t1"))],
       ["t2", message(await tipOf("t2"))],
@@ -696,7 +700,7 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
     ).toEqual([
       [
         "t1",
-        `見直しの後のコミット 1 件（${tip} など）があるが、その後に手直しの Run（fix）がない。Run の記録は書き換えず、コミットの内容（git show <sha>）を確かめて、手直しかどうかを人に伝える（人の push・見直しの後の rebase などや、別のマシンで開いた Run でも出る）`,
+        `1 commit(s) after the review (${tip} etc.), but no fix Run (fix) after them. Do not rewrite the Run records. Check the content of the commits (git show <sha>) and tell a person whether they are fixes (this also happens with a push by a person or a rebase after the review, or with a Run opened on another machine)`,
       ],
     ]);
   });
@@ -759,7 +763,7 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
         { id: "t1", run: fix1, opener: "reclaim", result: "success" },
       ]);
       expect(synced.warnings).toContainEqual(
-        `t1: 次の Run ${review} の開始を区切りとして閉じた（最後の push の時刻）`,
+        `t1: closed with start of the next Run ${review} as the boundary (time of the last push)`,
       );
       expect(agent.store.runs.get(fix1)!.data).toMatchObject({
         step: "fix",
@@ -839,13 +843,13 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
         { id: "t2", run: fix3, opener: "reclaim", result: "success" },
       ]);
       expect(merged.warnings).toContainEqual(
-        "t1: done への前進を区切りとして閉じた（最後の push の時刻）",
+        "t1: closed with advance to done as the boundary (time of the last push)",
       );
       expect(merged.warnings).toContainEqual(
-        "t4: review への前進を区切りとして閉じた（最後の push の時刻）",
+        "t4: closed with advance to review as the boundary (time of the last push)",
       );
       expect(merged.warnings).toContainEqual(
-        `t3: 次の Run ${review3} の開始を区切りとして閉じた（区切りまでの push がないので区切りの時刻）`,
+        `t3: closed with start of the next Run ${review3} as the boundary (time of the boundary, since there was no push before it)`,
       );
       expect(agent.store.runs.get(fix4)!.data).toMatchObject({
         result: "success",
@@ -859,7 +863,7 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
         retry_reasons: ["D"],
       });
       expect(merged.warnings).toContainEqual(
-        "t2: チケットの終了（done）を区切りとして閉じた（push がないので今の時刻）",
+        "t2: closed with ticket finished (done) as the boundary (current time, since there was no push)",
       );
       expect(agent.store.runs.get(fix2)!.data).toMatchObject({
         result: "success",
@@ -875,9 +879,9 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
       const fix6 = (await runCommand(ticketClaim, agent, { no_worktree: true, ticket: "t3" })).data
         .run!;
       const unclaimed = await runCommand(ticketUnclaim, agent, { ticket: "t3" });
-      expect(unclaimed.warnings.filter((w) => /を failure で閉じた/.test(w))).toEqual([
-        expect.stringMatching(/^t3 の実装の Run r\S+ を failure で閉じた/),
-        `t3 の手直しの Run ${fix6} を failure で閉じた（finished_at 2026-11-06T05:00:00Z）`,
+      expect(unclaimed.warnings.filter((w) => /^Closed the .* with failure/.test(w))).toEqual([
+        expect.stringMatching(/^Closed the implementation Run r\S+ of t3 with failure/),
+        `Closed the fix Run ${fix6} of t3 with failure (finished_at 2026-11-06T05:00:00Z)`,
       ]);
       expect(agent.store.runs.get(fix6)!.data).toMatchObject({
         step: "fix",
@@ -951,11 +955,11 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
     );
     expect(synced.warnings).toEqual(
       expect.arrayContaining([
-        expect.stringMatching(/^t1 の実装の Run r\S+ を failure で閉じた/),
-        expect.stringMatching(/^t2 の実装の Run r\S+ を success で閉じた/),
-        expect.stringMatching(/^t3 の実装の Run r\S+ を failure で閉じた/),
-        expect.stringMatching(/^t4 の実装の Run r\S+ を failure で閉じた/),
-        expect.stringMatching(/^t6 の実装の Run r\S+ を success で閉じた/),
+        expect.stringMatching(/^Closed the implementation Run r\S+ of t1 with failure/),
+        expect.stringMatching(/^Closed the implementation Run r\S+ of t2 with success/),
+        expect.stringMatching(/^Closed the implementation Run r\S+ of t3 with failure/),
+        expect.stringMatching(/^Closed the implementation Run r\S+ of t4 with failure/),
+        expect.stringMatching(/^Closed the implementation Run r\S+ of t6 with success/),
       ]),
     );
     expect(agent.store.runs.get(opened.get("t6")!)!.data).toMatchObject({
@@ -964,11 +968,11 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
     });
     expect(agent.store.runs.get(opened.get("t3")!)!.data).toMatchObject({
       result: "failure",
-      error: "照合で todo に戻っていた",
+      error: "Went back to todo during reconcile",
     });
     expect(agent.store.runs.get(opened.get("t4")!)!.data).toMatchObject({
       result: "failure",
-      error: "照合で別の主体の claim になっていた",
+      error: "Became claimed by another actor during reconcile",
     });
     expect((await git(agent.repo.dataDir, ["log", "-1", "--format=%s"])).stdout.trim()).toContain(
       `t1 ${opened.get("t1")} failure`,
@@ -1009,7 +1013,7 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
       const fix1 = (await start("fix", "s-old")).data.id;
       const review1 = await start("review", "s-new");
       expect(review1.warnings).toContainEqual(
-        `t1: 前の手直しの Run ${fix1} を、次の review の Run の開始を区切りとして、push がないので開始の時刻で閉じる`,
+        `t1: closing the earlier fix Run ${fix1} with the start of the next review Run as the boundary, at the start time, since there was no push`,
       );
       expect(agent.store.runs.get(fix1)!.data).toMatchObject({
         result: "success",
@@ -1047,7 +1051,7 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
         { id: "t1", run: fix2, opener: "reclaim", result: "success" },
       ]);
       expect(synced.warnings).toContainEqual(
-        `t1: 次の Run ${review2} の開始を区切りとして閉じた（区切りまでの push がないので区切りの時刻）`,
+        `t1: closed with start of the next Run ${review2} as the boundary (time of the boundary, since there was no push before it)`,
       );
       expect(agent.store.runs.get(fix2)!.data.finished_at).toBe("2026-11-06T02:00:00Z");
 
@@ -1055,7 +1059,7 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
       clock = new Date("2026-11-06T03:00:00Z");
       const fix3 = (await start("fix", "s-new")).data.id;
       clock = new Date("2026-11-06T03:10:00Z");
-      await expect(start("fix", "s-new")).rejects.toThrow(`Run ${fix3} が実行中`);
+      await expect(start("fix", "s-new")).rejects.toThrow(`Run ${fix3} of t1 fix is running`);
       expect((await peekRunningRuns(agent.repo)).map((r) => r.id)).toContain(fix3);
     } finally {
       restore();
@@ -1122,7 +1126,7 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
       });
       const review2 = started.data.id;
       expect(started.warnings).toContainEqual(
-        `t1: 前の手直しの Run ${fix1} を、次の review の Run の開始を区切りとして最後の push の時刻で閉じる`,
+        `t1: closing the earlier fix Run ${fix1} with the start of the next review Run as the boundary, at the time of the last push`,
       );
       expect((await peekRunningRuns(agent.repo)).map((r) => r.id)).toEqual([review2]);
       // 閉じた後の照合は何も閉じない
@@ -1161,7 +1165,7 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
         { id: "t1", run: fix2, opener: "reclaim", result: "success" },
       ]);
       expect(ready.warnings).toContainEqual(
-        "t1: review への前進を区切りとして閉じた（最後の push の時刻）",
+        "t1: closed with advance to review as the boundary (time of the last push)",
       );
       expect(agent.store.runs.get(fix2)!.data).toMatchObject({
         step: "fix",

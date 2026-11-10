@@ -73,7 +73,7 @@ export const metricsShow = defineCommand({
     const warnings =
       lost.length > 0 && (filter.epic || filter.iteration || filter.project || input.by)
         ? [
-            `チケット ${lost.join(", ")} が見つからないので、その Run の Epic・Iteration・Project は分からない`,
+            `Tickets ${lost.join(", ")} not found, so the Epic, Iteration and Project of those Runs are unknown`,
           ]
         : [];
     const view: MetricsView = { filter, by: input.by ?? null, ...report };

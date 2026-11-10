@@ -110,7 +110,7 @@ describe("Plan", () => {
     ).rejects.toMatchObject({
       code: "REJECTED",
       message: expect.stringContaining(
-        "t1 →(after) t2 →(depends_on) t1。その after を外すか向きを変える",
+        "t1 →(after) t2 →(depends_on) t1. Remove that after or change its direction",
       ),
     });
     // Plan の外のチケット（t2）の depends_on を回って戻る循環も拒否する
@@ -119,7 +119,7 @@ describe("Plan", () => {
     ).rejects.toMatchObject({
       code: "REJECTED",
       message: expect.stringContaining(
-        "t1 →(after) t3 →(depends_on) t2 →(depends_on) t1。その after を外すか向きを変える",
+        "t1 →(after) t3 →(depends_on) t2 →(depends_on) t1. Remove that after or change its direction",
       ),
     });
     // after だけの循環は経路と、外すか向きを変える手を拒否の文に出す（guide の plan は手を書かない）
@@ -128,7 +128,7 @@ describe("Plan", () => {
     ).rejects.toMatchObject({
       code: "REJECTED",
       message: expect.stringContaining(
-        "after が循環している: t1 → t2 → t1。その after を外すか向きを変える",
+        "after forms a cycle: t1 → t2 → t1. Remove that after or change its direction",
       ),
     });
     expect(ctx.store.plans.size).toBe(0);
@@ -287,7 +287,7 @@ describe("Plan", () => {
     await runCommand(planCreate, ctx, { tickets: ["t1", "t2"], after: { t2: "t1" } });
     await runCommand(ticketDelete, ctx, { ticket: "t1" });
     const shown = await runCommand(planShow, ctx, { plan: "p1" });
-    expect(shown.warnings).toEqual(["t1 が見つからない（削除された）"]);
+    expect(shown.warnings).toEqual(["t1 not found (deleted)"]);
     expect(shown.data.items.map((t) => [t.id, t.waiting, t.ready])).toEqual([["t2", [], true]]);
     expect(shown.data.next).toEqual({ id: "t2", waiting: [] });
     const [row] = (await runCommand(planList, ctx, {})).data;
@@ -361,7 +361,7 @@ describe("Plan", () => {
     });
     const closed = await runCommand(planClose, ctx, { plan: "p1" });
     expect(closed.data.closed_at).toBeDefined();
-    expect(closed.warnings).toEqual(["t1 を残したまま閉じた"]);
+    expect(closed.warnings).toEqual(["Closed with t1 left open"]);
     await expect(runCommand(planClose, ctx, { plan: "p1" })).rejects.toMatchObject({
       code: "REJECTED",
     });

@@ -38,7 +38,7 @@ async function passGate(ctx: CommandContext, ticketId: string, stage: GateStage)
     const failed = gate.conditions.filter((c) => !c.ok).map((c) => `${c.id}: ${c.detail}`);
     throw new OperationError(
       "GATE_FAILED",
-      `${ticket.id} の品質ゲート（dg gate ${ticket.id} --for ${stage}）を満たさないので、gh pr ${stage} を呼ばない`,
+      `${ticket.id} does not meet the quality gate (dg gate ${ticket.id} --for ${stage}), so gh pr ${stage} is not called`,
       `${failed.join("\n")}\n満たさないまま進める（見直し役を起動できない・修正ループの上限を超えた・版上げの PR・人が回数を指示した）のは人の判断なので、人に gh pr ${stage} を打ってもらう（dg guide review）`,
     );
   }
@@ -59,7 +59,7 @@ async function removeBranchWorktree(
   if (!dir) return null;
   if (path.resolve(dir) === path.resolve(ctx.repo.topLevel)) {
     warnings.push(
-      `ブランチ ${branch} の worktree から呼んだので、worktree を消さない（ローカルのブランチが残る。main の worktree から呼ぶ）`,
+      `Called from the worktree of branch ${branch}, so the worktree is not deleted (the local branch remains. Call it from the main worktree)`,
     );
     return null;
   }
@@ -68,7 +68,7 @@ async function removeBranchWorktree(
   });
   if (removed.code !== 0) {
     warnings.push(
-      `worktree ${dir} を消せなかった（${removed.stderr.trim().split("\n")[0] ?? ""}）。要るものを退避してから消す`,
+      `Could not delete worktree ${dir} (${removed.stderr.trim().split("\n")[0] ?? ""}). Move anything you need out, then delete it`,
     );
     return null;
   }
@@ -92,14 +92,14 @@ async function restoreBranchWorktree(
   });
   if (back.code !== 0) {
     const reason = back.stderr.trim().split("\n")[0] ?? "";
-    const then = setup.length > 0 ? `し、${dir} で ${command} を回す` : "";
-    return `マージに失敗し、消した worktree ${dir} を戻せなかった（${reason}）。git worktree add ${dir} ${branch} で戻す${then}`;
+    const then = setup.length > 0 ? ` and run ${command} in ${dir}` : "";
+    return `The merge failed and the deleted worktree ${dir} could not be restored (${reason}). Restore it with git worktree add ${dir} ${branch}${then}`;
   }
-  const head = `マージに失敗したので、消した worktree ${dir} を戻した（作業を続けられる）`;
+  const head = `The merge failed, so the deleted worktree ${dir} was restored (you can continue working)`;
   if (setup.length === 0) return head;
   const failure = await setupFailureIn(ctx, dir);
-  if (failure === null) return `${head}。準備のコマンド（${command}）も回し直した`;
-  return `${head}。ただ${failure}ので、${dir} で ${command} を手で回してから作業を続ける`;
+  if (failure === null) return `${head}. The setup command (${command}) was also run again`;
+  return `${head}. However, ${failure}, so run ${command} by hand in ${dir} before continuing work`;
 }
 
 /**
@@ -118,7 +118,7 @@ async function noteUnfixedLight(ctx: CommandContext, ticket: Ticket, pr: number)
   const failed = (what: string, e: unknown) =>
     new OperationError(
       "GIT_ERROR",
-      `PR #${pr} の本文を書き足せず（${what}に失敗）、ready にしていない（直さなかった軽い指摘を載せるため）`,
+      `Could not append to the body of PR #${pr} (${what} failed), so it was not made ready (the unfixed light findings must be added)`,
       e instanceof Error ? (e.message.split("\n")[0] ?? "") : String(e),
     );
   // 本文の読み書きは REST（gh api の pulls）で行う。gh pr view・gh pr edit は GraphQL で PR の projectCards も引き、
@@ -129,7 +129,7 @@ async function noteUnfixedLight(ctx: CommandContext, ticket: Ticket, pr: number)
     const view = await runGh(ctx.repo.topLevel, ["api", endpoint], { timeoutMs: 60_000 });
     current = (JSON.parse(view.stdout) as { body?: string | null }).body ?? "";
   } catch (e) {
-    throw failed("本文の読み取り", e);
+    throw failed("reading the body", e);
   }
   const next = withUnfixedLight(current, lines);
   if (next !== current) {
@@ -144,7 +144,7 @@ async function noteUnfixedLight(ctx: CommandContext, ticket: Ticket, pr: number)
         { timeoutMs: 60_000 },
       );
     } catch (e) {
-      throw failed("本文の書き込み", e);
+      throw failed("writing the body", e);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
@@ -212,7 +212,7 @@ export const prMerge = defineCommand({
       const kept = await restoreBranchWorktree(ctx, ticket.branch, removedDir);
       throw new OperationError(
         "GIT_ERROR",
-        `PR #${pr} のマージに失敗した（gh pr merge）`,
+        `The merge of PR #${pr} failed (gh pr merge)`,
         `${e instanceof Error ? (e.message.split("\n")[0] ?? "") : String(e)}\n${kept}`,
       );
     }

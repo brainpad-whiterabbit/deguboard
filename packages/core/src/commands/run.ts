@@ -106,9 +106,9 @@ export function agentFromEnv(
   if (agent) return { agent };
   const reason =
     matched.length > 1
-      ? `環境変数から ${matched.join("・")} のどれとも判定できる`
-      : `環境変数から agent を判定できない（判定できるのは環境変数を付ける Adapter だけ）`;
-  return { agent: null, reason: `${reason}。--agent でエージェント名を渡す` };
+      ? `Cannot decide the agent from the environment variables: they match ${matched.join(", ")}`
+      : `Cannot decide the agent from the environment variables (only an Adapter that sets environment variables can be decided)`;
+  return { agent: null, reason: `${reason}. Pass the agent name with --agent` };
 }
 
 /**
@@ -146,7 +146,7 @@ export async function openRun(
   if (transcript !== undefined && !(await transcriptUnderRoot(agent, transcript, env))) {
     throw new OperationError(
       "VALIDATION_FAILED",
-      `transcript は ${agent} の会話記録の置き場所の下のファイルだけを受け付ける`,
+      `transcript accepts only files under the place where ${agent} keeps conversation records`,
     );
   }
   const workflow = ctx.store.workflowFor(ticket);
@@ -155,17 +155,17 @@ export async function openRun(
     if (!found.ok) {
       throw new OperationError(
         "VALIDATION_FAILED",
-        `step ${step} は Workflow ${workflow.resolved.id} の steps にない（${found.known.join("・")}）`,
+        `step ${step} is not in the steps of Workflow ${workflow.resolved.id} (${found.known.join(", ")})`,
       );
     }
   } else {
     warnings.push(
-      `${ticket.id} の Workflow が見つからないか読めないので、step ${step} を確かめていない`,
+      `The Workflow of ${ticket.id} is not found or cannot be read, so step ${step} was not checked`,
     );
   }
   if (!agentNames().includes(agent)) {
     warnings.push(
-      `agent ${agent} には Adapter がないので、finish は使用量とモデル名を取り込めない（Adapter のある名前: ${agentNames().join("・")}。サブエージェントも自分の Adapter の名前で始める）`,
+      `agent ${agent} has no Adapter, so finish cannot take in usage or the model name (names with an Adapter: ${agentNames().join(", ")}. A subagent also starts with the name of its own Adapter)`,
     );
   }
   const startedAt = input.startedAt ?? ctx.now();
@@ -185,7 +185,7 @@ export async function openRun(
   const open = (await readRunningRuns(ctx.repo)).runs.filter((r) => r.data.agent === agent);
   if (open.length > 0) {
     warnings.push(
-      `このマシンで ${agent} の Run ${open.map((r) => `${r.id}（${r.data.ticket} ${r.data.step}）`).join("・")}が開いたまま。同じ会話記録なら、この後の応答は新しい Run にだけ数える。終わった Run は dg run finish で閉じる（並行する別のエージェントの Run や、自分が始めた覚えのない ID なら無視してよい）`,
+      `${agent} Run ${open.map((r) => `${r.id} (${r.data.ticket} ${r.data.step})`).join(", ")} is still open on this machine. If it shares the same conversation record, the responses after this are counted only toward the new Run. Close finished Runs with dg run finish (you can ignore Runs of other agents working in parallel, or IDs you do not remember starting)`,
     );
   }
   const run = await startRun(ctx.repo, {
@@ -218,7 +218,7 @@ async function closePreviousFixRunOrWarn(
     );
   } catch (e) {
     warnings.push(
-      `${ticket.id} の前の手直しの Run を閉じられなかった（${e instanceof Error ? e.message : String(e)}）`,
+      `Could not close the earlier fix Run of ${ticket.id} (${e instanceof Error ? e.message : String(e)})`,
     );
   }
 }
@@ -288,7 +288,7 @@ export interface TranscriptInput {
 export const transcriptFields = {
   session: z
     .string()
-    .regex(/^\S+$/, "空白・改行を含まない 1 語")
+    .regex(/^\S+$/, "One word with no spaces or line breaks")
     .optional()
     .describe(
       "Session ID of the conversation record. Kept on the Run; finish and refresh count from that session's record. If omitted, uses DEGUBOARD_SESSION from the environment (set by the harness hook), else the session ID the calling agent sets in its environment (read by the Adapter; for a sub-agent, the parent session that started it), else null",
@@ -311,6 +311,10 @@ export function openedStepOf(ctx: CommandContext, ticket: Ticket, opener: StepOp
 /** 操作が開く Run の呼び名（警告とコミットメッセージ）。claim は実装、reclaim は手直し */
 export const openedRunLabel = (opener: StepOpener): string =>
   opener === "claim" ? "実装" : "手直し";
+
+/** 警告に書く操作が開いた Run の呼び名（英語。コミットメッセージの openedRunLabel とは別に持つ） */
+const openedRunWord = (opener: StepOpener): string =>
+  opener === "claim" ? "implementation" : "fix";
 
 /**
  * チケットの操作（claim は実装、reclaim は手直し。RN-5）が開く step の Run のうち、このマシンで実行中のもの。
@@ -387,7 +391,7 @@ export async function closeOpenedRun(
   return {
     run,
     warnings: [
-      `${run.ticket} の${openedRunLabel(input.opener)}の Run ${run.id} を ${run.result} で閉じた（finished_at ${run.finished_at}）`,
+      `Closed the ${openedRunWord(input.opener)} Run ${run.id} of ${run.ticket} with ${run.result} (finished_at ${run.finished_at})`,
       ...collected.warnings.map((w) => `Run ${run.id}: ${w}`),
     ],
   };
@@ -411,7 +415,7 @@ export async function closeOpenedRunUnlessClosed(
     if (!(e instanceof OperationError) || e.code !== "REJECTED") throw e;
     await ctx.store.rescan();
     warnings.push(
-      `${running.data.ticket}: ${openedRunLabel(input.opener)}の Run ${running.id} は既に閉じていた（別の操作や別のマシンが先に閉じた）ので、${where}では閉じない`,
+      `${running.data.ticket}: the ${openedRunWord(input.opener)} Run ${running.id} was already closed (another operation or another machine closed it first), so it is not closed in ${where}`,
     );
     return undefined;
   }
@@ -474,7 +478,13 @@ export async function closeOpenedRunAlone(
     const written = await withWrite(
       ctx,
       async () => {
-        const closed = await closeOpenedRunUnlessClosed(ctx, running, input, "この操作", rejected);
+        const closed = await closeOpenedRunUnlessClosed(
+          ctx,
+          running,
+          input,
+          "this operation",
+          rejected,
+        );
         if (!closed) throw new AlreadyClosed();
         return closed;
       },
@@ -532,11 +542,11 @@ async function closePreviousFixRun(
   });
   // 別の文脈が先に閉じていたら、閉じずに警告だけ出す
   if (closed.run) {
-    const when = pushed ? "最後の push の時刻" : "、push がないので開始の時刻";
+    const when = pushed ? "the time of the last push" : "the start time, since there was no push";
     warnings.push(
       interrupted
-        ? `${ticket.id}: 前の手直しの Run ${stale.id} は別のセッション（${stale.data.session}）で開いたままだったので、落ちたセッションの残りとみなして interrupted で閉じる`
-        : `${ticket.id}: 前の手直しの Run ${stale.id} を、次の ${input.step} の Run の開始を区切りとして${when}で閉じる`,
+        ? `${ticket.id}: the earlier fix Run ${stale.id} was still open in another session (${stale.data.session}), so it is treated as left over from a crashed session and closed as interrupted`
+        : `${ticket.id}: closing the earlier fix Run ${stale.id} with the start of the next ${input.step} Run as the boundary, at ${when}`,
     );
   }
   warnings.push(...closed.warnings);
@@ -544,7 +554,7 @@ async function closePreviousFixRun(
 }
 
 /** 空白・改行を含まない 1 語。step の語彙は openRun がチケットの Workflow の steps（WF-5）で確かめる。ticket claim の --agent も同じ形 */
-export const token = z.string().regex(/^\S+$/, "空白・改行を含まない 1 語");
+export const token = z.string().regex(/^\S+$/, "One word with no spaces or line breaks");
 
 export const runStart = defineCommand({
   name: "run.start",
@@ -603,8 +613,8 @@ async function rejectLiveSubagentRun(ctx: CommandContext, run: Run): Promise<voi
   if (!(await isLiveSubagent(ctx.repo, run.id))) return;
   throw new OperationError(
     "REJECTED",
-    `Run ${run.id} は印で頼んだサブエージェントの Run で、サブエージェントがまだ止まっていない。サブエージェントの終わりの通知を待つ（止まったらフックが閉じる）。` +
-      "返らないまま止まったなら --result interrupted で閉じる",
+    `Run ${run.id} is a Run of a subagent requested with a marker, and the subagent has not stopped yet. Wait for the subagent's end notice (the hook closes it once it stops). ` +
+      "If it stopped without returning, close it with --result interrupted",
   );
 }
 
@@ -630,8 +640,8 @@ export const runFinish = defineCommand({
       .array(
         z
           .string()
-          .regex(/^[^\r\n]+$/, "理由は 1 件 1 行で書く")
-          .regex(/\S/, "理由が空白だけ"),
+          .regex(/^[^\r\n]+$/, "Write each reason on one line")
+          .regex(/\S/, "The reason is only whitespace"),
       )
       .meta({ freeText: true })
       .optional()
@@ -650,12 +660,12 @@ export const runFinish = defineCommand({
   needs: "store",
   async run(ctx, input) {
     if (!isRunId(input.run))
-      throw new UsageError(`${input.run} は Run の ID の形（r20261031-041500-3fa2）でない`);
+      throw new UsageError(`${input.run} is not in the form of a Run ID (r20261031-041500-3fa2)`);
     // 空の配列は省いたのと同じに扱う
     const reasons = input.retry_reasons?.length ? input.retry_reasons : undefined;
     if (reasons && input.retries !== undefined && input.retries !== reasons.length) {
       throw new UsageError(
-        `リトライの回数（${input.retries}）と理由の数（${reasons.length}）が食い違う。回数を省けば理由の数を回数にする`,
+        `The retry count (${input.retries}) and the number of reasons (${reasons.length}) do not match. To use the number of reasons as the count, omit the count`,
       );
     }
     const now = ctx.now();
@@ -663,7 +673,7 @@ export const runFinish = defineCommand({
     // 閉じた Run（ticket update --pr・sync・unclaim・move が閉じた実装の Run など。RN-6）は書き換えず（RN-4）、記録をそのまま返す
     const alreadyClosed = (doc: Doc<Run>) =>
       ok(doc.data, undefined, [
-        `Run ${doc.id} は既に ${doc.data.result} で閉じている（finished_at ${doc.data.finished_at}）。記録は変えない`,
+        `Run ${doc.id} is already closed with ${doc.data.result} (finished_at ${doc.data.finished_at}). The record is not changed`,
       ]);
     const local = (await readRunningRuns(ctx.repo)).runs;
     const running = local.find((r) => r.id === id);
@@ -775,20 +785,20 @@ export const runReviewResult = defineCommand({
     if (input.findings !== undefined) {
       if (counted)
         throw new UsageError(
-          "--findings-file と --heavy・--light・--passed は一緒に使えない（数は一覧から求める）",
+          "--findings-file cannot be used with --heavy, --light, or --passed (the counts are taken from the list)",
         );
       review = reviewOfFindings(input.findings, ctx.config.review.heavy_categories);
     } else {
       if (input.heavy === undefined || input.light === undefined)
         throw new UsageError(
-          "指摘の一覧を --findings-file で渡す（前の版の呼び方なら --heavy と --light）",
+          "Pass the findings list with --findings-file (for the earlier form, use --heavy and --light)",
         );
       const passed = input.passed ?? false;
       if (passed && input.heavy > 0)
-        throw new UsageError(`重い指摘が ${input.heavy} 件あるのに --passed を付けた`);
+        throw new UsageError(`There are ${input.heavy} heavy findings, but --passed was given`);
       review = { heavy: input.heavy, light: input.light, passed };
       warnings.push(
-        "数だけの呼び方は数が自己申告になる。指摘の一覧を --findings-file で渡せば dg が数と通ったかを求める",
+        "A call with counts only makes the counts self-reported. If the findings list is passed with --findings-file, dg works out the counts and whether the review passed",
       );
     }
     const ticket = ctx.store.require("ticket", input.ticket).data;
@@ -850,7 +860,7 @@ export const runReviewResult = defineCommand({
       const view: PendingReviewView = { ticket: ticket.id, review, pending: true, at };
       return ok<Run | PendingReviewView>(view, undefined, [
         ...warnings,
-        `${ticket.id} の見直しの Run がまだないので、結果を保留にした。フックが見直しの Run を閉じるときに結び付ける`,
+        `There is no review Run for ${ticket.id} yet, so the result is held. The hook links it when it closes the review Run`,
       ]);
     };
     // 結果のある閉じた Run は前の回の見直し（間に手直しを挟まずに前景の見直しを続けたとき）。書き換えず（RN-4）、保留にする
@@ -863,12 +873,12 @@ export const runReviewResult = defineCommand({
         if (!doc)
           throw new OperationError(
             "REJECTED",
-            `${ticket.id} の閉じた見直しの Run が、書き込みの間に最新でなくなった。もう一度呼ぶ`,
+            `The closed review Run of ${ticket.id} is no longer the latest during the write. Call again`,
           );
         if (doc.data.review !== null)
           throw new OperationError(
             "REJECTED",
-            `閉じた見直しの Run ${doc.id} に、書き込みの間に結果が書かれた（閉じた Run の結果は書き換えない。RN-4）`,
+            `A result was written to the closed review Run ${doc.id} during the write (the result of a closed Run is not rewritten. RN-4)`,
           );
         const unrecorded = doc.data.result === "failure" && doc.data.error === REVIEW_UNRECORDED;
         return (
@@ -906,8 +916,8 @@ export const runRetryReason = defineCommand({
       .array(
         z
           .string()
-          .regex(/^[^\r\n]+$/, "理由は 1 件 1 行で書く")
-          .regex(/\S/, "理由が空白だけ"),
+          .regex(/^[^\r\n]+$/, "Write each reason on one line")
+          .regex(/\S/, "The reason is only whitespace"),
       )
       .min(1)
       .meta({ freeText: true })
@@ -921,7 +931,7 @@ export const runRetryReason = defineCommand({
     const ticket = ctx.store.require("ticket", input.ticket).data;
     // 手直しは PR のあるチケットの作業（RN-5 のもう一度の claim と同じ）。打ち間違いで要らない保留を残さない
     if (ticket.pr === undefined)
-      throw new UsageError(`${ticket.id} には PR がないので、手直しの理由は書けない`);
+      throw new UsageError(`${ticket.id} has no PR, so fix reasons cannot be written`);
     const step = openedStepOf(ctx, ticket, "reclaim");
     const local = (await readRunningRuns(ctx.repo)).runs;
     // 最後の見直しより前に始まった手直しの Run は、その見直しの前の回のもの（sync がまだ閉じていない）。書き足さない（dg next の待つ手直しと同じ見方）。
@@ -957,7 +967,7 @@ export const runRetryReason = defineCommand({
       at,
     };
     return ok<Run | PendingRetryReasonsView>(view, undefined, [
-      `${ticket.id} の今回の手直しの Run がまだないので、理由を保留にした。フックが手直しの Run を閉じるときに結び付ける`,
+      `There is no fix Run for ${ticket.id} yet, so the reasons are held. The hook links them when it closes the fix Run`,
     ]);
   },
 });
@@ -991,14 +1001,14 @@ export const runHandoff = defineCommand({
     if (!round?.findings)
       throw new OperationError(
         "VALIDATION_FAILED",
-        `${ticket.id} の作業ブランチの見直しの一覧がない`,
-        "先に dg run review-result --findings-file で見直しの指摘を記録する",
+        `There is no review findings list for the work branch of ${ticket.id}`,
+        "First record the review findings with dg run review-result --findings-file",
       );
     const { matched, unmatched } = matchFindings(round.findings, input.findings);
     if (unmatched.length > 0)
       throw new OperationError(
         "VALIDATION_FAILED",
-        "手直しに渡す指摘のうち、最新の見直しの一覧にないものがある",
+        "Some findings passed to the fix are not in the latest review list",
         unmatched.map((f) => `- ${findingText(f, "ja")}`).join("\n"),
       );
     await setHandedFindings(ctx.repo, ticket.id, ticket.branch_at, matched);
@@ -1109,7 +1119,7 @@ function refreshPlan(
  * Adapter の文言が変わって外せなくても、末尾は必ず「今の値を残す」になる
  */
 const keepWording = (warning: string) =>
-  `${warning.replace(/。(使用量は )?null で残す$/, "")}。今の値を残す`;
+  `${warning.replace(/\. (Usage is )?[Ll]eft as null$/, "")}. Keep the current value`;
 
 export const runRefresh = defineCommand({
   name: "run.refresh",
@@ -1132,18 +1142,18 @@ export const runRefresh = defineCommand({
     const ids = [...new Set(input.runs)] as RunId[];
     const closed = (id: RunId) => {
       const doc = ctx.store.runs.get(id);
-      if (!doc) throw new OperationError("NOT_FOUND", `閉じた Run ${id} が見つからない`);
+      if (!doc) throw new OperationError("NOT_FOUND", `Closed Run ${id} not found`);
       return doc;
     };
     const local = (await readRunningRuns(ctx.repo)).runs;
     const running = new Set(local.map((r) => r.id));
     for (const id of ids) {
       if (!isRunId(id))
-        throw new UsageError(`${id} は Run の ID の形（r20261031-041500-3fa2）でない`);
+        throw new UsageError(`${id} is not in the form of a Run ID (r20261031-041500-3fa2)`);
       if (running.has(id))
         throw new OperationError(
           "REJECTED",
-          `Run ${id} は実行中。dg run finish ${id} で閉じれば finish が会話記録から取り込む`,
+          `Run ${id} is still running. If it is closed with dg run finish ${id}, finish takes in the values from the conversation record`,
         );
       closed(id);
     }
@@ -1162,7 +1172,7 @@ export const runRefresh = defineCommand({
             model: null,
             tools: null,
             warnings: [
-              `終了の時刻（finished_at）から ${TRANSCRIPT_RETENTION_DAYS} 日を過ぎた Run は、会話記録の場所を片付けるので取り直さない`,
+              `A Run more than ${TRANSCRIPT_RETENTION_DAYS} days past its end time (finished_at) is not read again, because its conversation record location is cleaned up`,
             ],
           }
         : await collectRunUsage(ctx.config, {
@@ -1189,7 +1199,7 @@ export const runRefresh = defineCommand({
     for (const item of items) {
       if (item.kept.length > 0 && !explained.has(item.id))
         warnings.push(
-          `Run ${item.id}: ${item.kept.join("・")} は会話記録から取れなかったので今の値を残す`,
+          `Run ${item.id}: ${item.kept.join(", ")} could not be read from the conversation record, so the current values are kept`,
         );
     }
     if (input.dry_run || items.every((i) => i.changes.length === 0)) {

@@ -54,7 +54,7 @@ export function printHuman(
     // 依頼文はそのまま貼れるよう標準出力に文だけを出し、候補は標準エラーに出す
     streams.out(data.text);
     streams.err(
-      `候補: ${data.candidates.map((c) => `${c.recommended ? "★" : ""}${c.label}（${c.action}）`).join("、")}`,
+      `Candidates: ${data.candidates.map((c) => `${c.recommended ? "★" : ""}${c.label} (${c.action})`).join(", ")}`,
     );
   } else if (commandName === "ticket.claim" && isClaimView(data)) {
     // 開いた Run の ID は控えるものなので、本文の後の最後の行に出す
@@ -62,17 +62,17 @@ export function printHuman(
     streams.out(record(rest));
     if (run) streams.out(`run: ${run}`);
   } else if (isIssueReport(data)) {
-    if (data.issues.length === 0) streams.out("指摘はない");
+    if (data.issues.length === 0) streams.out("No issues");
     for (const issue of data.issues) streams.out(formatIssue(issue));
   } else if (Array.isArray(data)) {
-    if (data.length === 0) streams.out("（なし）");
+    if (data.length === 0) streams.out("(none)");
     else streams.out(table(data as Row[], columnsFor(group)));
   } else if (data && typeof data === "object") {
     streams.out(record(data as Row));
   } else if (data !== undefined) {
     streams.out(String(data));
   }
-  for (const w of result.warnings) streams.err(`警告: ${w}`);
+  for (const w of result.warnings) streams.err(`Warning: ${w}`);
   if (result.write) streams.err(describeWrite(result.write));
 }
 
@@ -100,11 +100,11 @@ export function exitCodeOf(result: CommandResult<unknown>): number {
 }
 
 function describeWrite(write: WriteOutcome): string {
-  if (!write.committed) return "作業ツリーに残した（dg commit か dg sync でコミットする）";
-  const parts = ["コミット済み"];
-  parts.push(write.pushed ? "push 済み" : "未 push（次の dg sync で送る）");
-  if (write.provisional) parts.push("仮番号");
-  return parts.join("・");
+  if (!write.committed) return "Left in the working tree (commit with dg commit or dg sync)";
+  const parts = ["Committed"];
+  parts.push(write.pushed ? "pushed" : "not pushed (the next dg sync sends it)");
+  if (write.provisional) parts.push("provisional number");
+  return parts.join(", ");
 }
 
 const COLUMNS: Record<string, string[]> = {
@@ -146,7 +146,8 @@ function cell(key: string, row: Row): string {
     const p = v as { done: number; total: number };
     return `${p.done}/${p.total}`;
   }
-  if (key === "tickets" && Array.isArray(v)) return `${v.length} 件`;
+  if (key === "tickets" && Array.isArray(v))
+    return `${v.length} ${v.length === 1 ? "item" : "items"}`;
   if (key === "changes" && Array.isArray(v))
     return (v as { field: string; from: string | null; to: string | null }[])
       .map((c) => `${c.field}: ${c.from ?? "-"} → ${c.to ?? "-"}`)

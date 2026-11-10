@@ -105,19 +105,20 @@ export function chooseCheck(
 ): CheckChoice {
   const full = (why: string): CheckChoice => ({ command: actions.test, light: false, why });
   if (actions.light_test.length === 0 || actions.light_paths.length === 0) return full("");
-  if (!files) return full("base との差分のファイルを読めないので actions.test を回した");
-  if (files.length === 0) return full("base との差分のファイルがないので actions.test を回した");
+  if (!files) return full("Ran actions.test because the files changed from base could not be read");
+  if (files.length === 0)
+    return full("Ran actions.test because there are no files changed from base");
   const outside = files.filter((f) => !matchesAnyGlob(f, actions.light_paths));
   if (outside.length > 0) {
-    const shown = outside.slice(0, 3).join("・") + (outside.length > 3 ? " ほか" : "");
+    const shown = outside.slice(0, 3).join(", ") + (outside.length > 3 ? " and others" : "");
     return full(
-      `差分に actions.light_paths の外のファイル（${shown}。${outside.length} 件）があるので actions.test を回した`,
+      `Ran actions.test because the diff has files outside actions.light_paths (${shown}; ${outside.length} files)`,
     );
   }
   return {
     command: actions.light_test,
     light: true,
-    why: `差分のファイル ${files.length} 件がすべて actions.light_paths に入るので軽い検査を回した`,
+    why: `Ran the light check because all ${files.length} changed files are in actions.light_paths`,
   };
 }
 
@@ -142,12 +143,14 @@ export async function judgeCheck(ctx: CommandContext, ticket: Ticket): Promise<C
   if (ctx.config.actions.test.length === 0)
     return {
       ok: true,
-      detail: "actions.test が空なので、検査は判定しない（リポジトリの規約の検査で確かめる）",
+      detail:
+        "actions.test is empty, so the check is not judged (confirm it with the repository's check)",
     };
-  if (!ticket.branch) return { ok: false, detail: "作業ブランチがないので、検査を回せない" };
+  if (!ticket.branch)
+    return { ok: false, detail: "There is no work branch, so the check cannot be run" };
   const sha = await latestCommit(ctx, ticket.branch);
   if (!sha)
-    return { ok: false, detail: `作業ブランチ ${ticket.branch} の最新のコミットを読めない` };
+    return { ok: false, detail: `Cannot read the latest commit of work branch ${ticket.branch}` };
   const configured =
     ctx.config.actions.light_test.length > 0 && ctx.config.actions.light_paths.length > 0;
   const choice = chooseCheck(
@@ -156,8 +159,8 @@ export async function judgeCheck(ctx: CommandContext, ticket: Ticket): Promise<C
   );
   const command = choice.command;
   // detail には、どちらの検査を回したか（actions.test か actions.light_test か）と、選んだ理由を出す
-  const shown = `${choice.light ? "軽い検査 actions.light_test" : "actions.test"}: ${command.join(" ")}`;
-  const why = choice.why ? `（${choice.why}）` : "";
+  const shown = `${choice.light ? "light check actions.light_test" : "actions.test"}: ${command.join(" ")}`;
+  const why = choice.why ? ` (${choice.why})` : "";
   const file = path.join(ctx.repo.localDir, CHECKS_DIR, `${ticket.id}.json`);
   const stored = await readStored(file, sha, command);
   let result: { code: number; tail: string };
@@ -167,19 +170,19 @@ export async function judgeCheck(ctx: CommandContext, ticket: Ticket): Promise<C
     if (!dir)
       return {
         ok: false,
-        detail: `作業ブランチ ${ticket.branch} の worktree がなく、最新のコミット ${short(sha)} の検査の結果もないので、検査を回せない（worktree は claim が作る。dg pr merge は検査を通した後に worktree を消すので、先に消さない）`,
+        detail: `Work branch ${ticket.branch} has no worktree and no check result for the latest commit ${short(sha)}, so the check cannot be run (claim creates the worktree. dg pr merge deletes the worktree after the check passes, so do not delete it earlier)`,
       };
     const head = (await runGit(dir, ["rev-parse", "HEAD"])).stdout.trim();
     if (head !== sha)
       return {
         ok: false,
-        detail: `worktree の HEAD（${short(head)}）が作業ブランチの最新のコミット（${short(sha)}）でない。push か pull でそろえてから`,
+        detail: `The worktree HEAD (${short(head)}) is not the latest commit of the work branch (${short(sha)}). Align them with push or pull first`,
       };
     const dirty = (await runGit(dir, ["status", "--porcelain"])).stdout.trim();
     if (dirty)
       return {
         ok: false,
-        detail: `worktree ${dir} に未コミットの変更があるので、検査を回さない（コミットして push してから）`,
+        detail: `Worktree ${dir} has uncommitted changes, so the check is not run (commit and push first)`,
       };
     const [file0, ...args] = command;
     try {
@@ -191,7 +194,7 @@ export async function judgeCheck(ctx: CommandContext, ticket: Ticket): Promise<C
     } catch (error) {
       // コマンドが見つからない・時間内に終わらない。どちらも回し直せば変わりうるので覚えない
       const reason = error instanceof Error ? error.message : String(error);
-      return { ok: false, detail: `検査（${shown}）を回せない: ${reason}` };
+      return { ok: false, detail: `Cannot run the check (${shown}): ${reason}` };
     }
     if (result.code === 0) {
       const record: StoredCheck = {
@@ -206,9 +209,9 @@ export async function judgeCheck(ctx: CommandContext, ticket: Ticket): Promise<C
     }
   }
   return result.code === 0
-    ? { ok: true, detail: `検査（${shown}）が最新のコミット ${short(sha)} で通った${why}` }
+    ? { ok: true, detail: `The check (${shown}) passed on the latest commit ${short(sha)}${why}` }
     : {
         ok: false,
-        detail: `検査（${shown}）が最新のコミット ${short(sha)} で通らない（exit ${result.code}）${why}。出力の末尾:\n${result.tail}`,
+        detail: `The check (${shown}) failed on the latest commit ${short(sha)} (exit ${result.code})${why}. End of output:\n${result.tail}`,
       };
 }

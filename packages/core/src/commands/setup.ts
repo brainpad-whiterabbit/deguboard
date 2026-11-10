@@ -209,9 +209,9 @@ function fixRunBoundary(
     .filter((r) => r.id !== run.id && r.data.ticket === ticket.id)
     .filter((r) => r.data.started_at >= run.data.started_at)
     .sort((a, b) => a.data.started_at.localeCompare(b.data.started_at))[0];
-  if (later) return { at: later.data.started_at, why: `次の Run ${later.id} の開始` };
-  if (advanced) return { why: `${ticket.status} への前進` };
-  if (isTerminal(ticket.status)) return { why: `チケットの終了（${ticket.status}）` };
+  if (later) return { at: later.data.started_at, why: `start of the next Run ${later.id}` };
+  if (advanced) return { why: `advance to ${ticket.status}` };
+  if (isTerminal(ticket.status)) return { why: `ticket finished (${ticket.status})` };
   return undefined;
 }
 
@@ -235,23 +235,23 @@ async function closeFixRun(
     fallback,
   });
   const basis = pushed
-    ? "最後の push の時刻"
+    ? "time of the last push"
     : boundary.at !== undefined
-      ? "区切りまでの push がないので区切りの時刻"
+      ? "time of the boundary, since there was no push before it"
       : fallback !== undefined
-        ? "push がないので PR のマージ時刻"
-        : "push がないので今の時刻";
+        ? "PR merge time, since there was no push"
+        : "current time, since there was no push";
   const closed = await closeOpenedRunUnlessClosed(
     ctx,
     run,
     { opener: "reclaim", result: "success", finishedAt },
-    "照合",
+    "reconcile",
     out.warnings,
   );
   if (!closed) return;
   out.runsClosed.push({ id: doc.id, run: closed.run.id, opener: "reclaim", result: "success" });
   out.warnings.push(
-    `${doc.id}: ${boundary.why}を区切りとして閉じた（${basis}）`,
+    `${doc.id}: closed with ${boundary.why} as the boundary (${basis})`,
     ...closed.warnings,
   );
 }
@@ -271,7 +271,7 @@ async function closeImplRun(
     ctx,
     run,
     { opener: "claim", ...input },
-    "照合",
+    "reconcile",
     out.warnings,
   );
   if (!closed) return;
@@ -292,7 +292,7 @@ async function reconcileAll(ctx: CommandContext, warnings: string[]): Promise<Re
   for (const doc of targets) {
     const wf = ctx.store.workflowFor(doc.data);
     if (!wf) {
-      warnings.push(`${doc.id}: Workflow が読めないので照合しない`);
+      warnings.push(`${doc.id}: cannot read the Workflow, so it is not reconciled`);
       continue;
     }
     const { facts, pr, prCreatedAt, prMergedAt, prMissing, ignoredPr } = await collectBranchFacts(
@@ -314,14 +314,14 @@ async function reconcileAll(ctx: CommandContext, warnings: string[]): Promise<Re
       if (implementing && prCreatedAt !== undefined && prCreatedAt < implementing.data.started_at) {
         // PR より後に開き直した Run は PR では終わらない。閉じずに知らせる（PR の後の作業はもう一度の claim で手直しの Run にする）
         warnings.push(
-          `${doc.id}: 実装の Run ${implementing.id} は PR #${pr} の作成（${prCreatedAt}）より後に始まったので照合では閉じない。終えたら run finish で閉じる（PR の後の作業は、もう一度 claim して手直しの Run にする）`,
+          `${doc.id}: implementation Run ${implementing.id} started after PR #${pr} was created (${prCreatedAt}), so reconcile does not close it. When it is finished, close it with run finish (work after the PR becomes a fix Run, by claiming again)`,
         );
       } else if (implementing) {
         const closed = await closeOpenedRunUnlessClosed(
           ctx,
           implementing,
           { opener: "claim", result: "success", finishedAt: prCreatedAt },
-          "照合",
+          "reconcile",
           warnings,
         );
         if (closed) {
@@ -332,7 +332,7 @@ async function reconcileAll(ctx: CommandContext, warnings: string[]): Promise<Re
     }
     if (ignoredPr) {
       warnings.push(
-        `${doc.id}: ブランチ名で見つけた PR #${ignoredPr.number} は branch を記録する前（${ignoredPr.mergedAt}）にマージされたので、同じ名前の前の作業の PR とみなして照合に使わない。この PR がこのチケットのものなら ticket update ${doc.id} --pr ${ignoredPr.number} で記録してから sync を回し直すと照合する（前の作業のものなら何もしない）`,
+        `${doc.id}: PR #${ignoredPr.number}, found by branch name, was merged (${ignoredPr.mergedAt}) before the branch was recorded. It is taken as a PR of earlier work with the same name, so reconcile does not use it. If this PR belongs to this ticket, record it with ticket update ${doc.id} --pr ${ignoredPr.number}, then run sync again to reconcile it. If it belongs to earlier work, do nothing`,
       );
     }
     const outcome = reconcileStatus(wf.resolved, doc.data.status, facts);
@@ -372,12 +372,12 @@ async function reconcileAll(ctx: CommandContext, warnings: string[]): Promise<Re
       const left = uncheckedAcceptance(doc);
       if (outcome.to === "done" && left.length > 0) {
         warnings.push(
-          `${doc.id}: 受け入れ条件 ${left.join(", ")} が未チェックのまま done になった`,
+          `${doc.id}: acceptance criteria ${left.join(", ")} were not checked, but the ticket became done`,
         );
       }
     } else if (outcome.kind === "blocked") {
       warnings.push(
-        `${doc.id}: 事実は ${outcome.to} を指すが、Workflow が照合にその遷移を許していない`,
+        `${doc.id}: the facts point to ${outcome.to}, but the Workflow does not allow that transition in reconcile`,
       );
     }
   }
@@ -403,7 +403,7 @@ async function reconcileAll(ctx: CommandContext, warnings: string[]): Promise<Re
           const created = await fetchPrCreatedAt(ctx.repo, doc.data.pr);
           if (created.createdAt === undefined)
             warnings.push(
-              `${doc.id}: PR #${doc.data.pr} の作成時刻を取れないので、実装の Run は今の時刻で閉じる（${created.reason}）`,
+              `${doc.id}: cannot get the creation time of PR #${doc.data.pr}, so the implementation Run is closed at the current time (${created.reason})`,
             );
           const finishedAt =
             created.createdAt !== undefined && created.createdAt >= run.data.started_at
@@ -421,7 +421,7 @@ async function reconcileAll(ctx: CommandContext, warnings: string[]): Promise<Re
         ctx,
         doc,
         run,
-        { result: "failure", error: "照合で todo に戻っていた" },
+        { result: "failure", error: "Went back to todo during reconcile" },
         out,
       );
     } else if (doc.data.assignee !== undefined && !sameUser(doc.data.assignee, ctx.actor.id)) {
@@ -429,7 +429,7 @@ async function reconcileAll(ctx: CommandContext, warnings: string[]): Promise<Re
         ctx,
         doc,
         run,
-        { result: "failure", error: "照合で別の主体の claim になっていた" },
+        { result: "failure", error: "Became claimed by another actor during reconcile" },
         out,
       );
     }
@@ -498,7 +498,7 @@ async function syncLocked(ctx: CommandContext, resolve?: ResolveSide) {
     let integrated = renumbered.length > 0;
     let resolved: Array<ResolvedField & { file: string }> = [];
     if (!fetched.ok) {
-      warnings.push(`リモートから取り込めない: ${fetched.detail}`);
+      warnings.push(`Cannot fetch from the remote: ${fetched.detail}`);
     } else if (fetched.remoteBranch) {
       const log = path.join(repo.localDir, RESOLVE_LOG);
       if (resolve) await writeFile(log, "");
@@ -527,8 +527,8 @@ async function syncLocked(ctx: CommandContext, resolve?: ResolveSide) {
     if (conflicts.length > 0) {
       warnings.push(
         resolve
-          ? `--resolve でも解けない競合が残った（マージドライバの対象でないファイルか、読めないファイル）: ${conflicts.join(", ")}。${UNRESOLVABLE_REMEDY}`
-          : `リモートの変更と競合している: ${conflicts.join(", ")}。${CONFLICT_REMEDY}`,
+          ? `Conflicts that --resolve cannot resolve remain (files outside the merge driver, or files that cannot be read): ${conflicts.join(", ")}. ${UNRESOLVABLE_REMEDY}`
+          : `Conflicts with remote changes: ${conflicts.join(", ")}. ${CONFLICT_REMEDY}`,
       );
     }
     if (integrated) await ctx.store.rescan();
@@ -538,7 +538,7 @@ async function syncLocked(ctx: CommandContext, resolve?: ResolveSide) {
     if (repo.remote && conflicts.length === 0 && before.ahead > 0) {
       const r = await push(repo);
       if (r.ok) pushed = true;
-      else warnings.push(`push できない: ${r.detail}`);
+      else warnings.push(`Cannot push: ${r.detail}`);
     }
 
     // push が済んだ仮番号は確定する（DT-5）
@@ -588,7 +588,7 @@ async function syncLocked(ctx: CommandContext, resolve?: ResolveSide) {
       if (repo.remote) {
         const r = await push(repo);
         if (r.ok) pushed = true;
-        else warnings.push(`照合の結果を push できない: ${r.detail}`);
+        else warnings.push(`Cannot push the reconcile result: ${r.detail}`);
       }
     }
     const status = await syncStatus(repo);
@@ -640,7 +640,7 @@ export const commit = defineCommand({
       if (committed && ctx.repo.remote && ctx.config.push.mode === "auto") {
         const r = await push(ctx.repo);
         if (r.ok) pushed = true;
-        else warnings.push(`push できない。次の dg sync で再送する（${r.detail}）`);
+        else warnings.push(`Cannot push. The next dg sync will send it again (${r.detail})`);
       }
       return ok({ committed, pushed }, undefined, warnings);
     });
@@ -681,7 +681,7 @@ export const adopt = defineCommand({
       if (errors.length > 0)
         throw new OperationError(
           "VALIDATION_FAILED",
-          `dg の外の変更に検査のエラーがあるので取り込まない（${describeOutside(check.changes)}）。直すか捨ててから dg adopt をもう一度実行する`,
+          `Changes made outside dg have check errors, so they are not taken in (${describeOutside(check.changes)}). Fix or discard them, then run dg adopt again`,
           errors.map((i) => `${i.path}: ${i.message}`).join("\n"),
         );
       await recordBaseline(ctx.repo);
@@ -707,17 +707,17 @@ export const lint = defineCommand({
     for (const doc of ctx.store.tickets.values()) {
       if (input.project && doc.data.project !== input.project) continue;
       if (!hasBodySection(doc.body, "summary"))
-        warn(doc.path, doc.id, "lint_summary_missing", "本文に ## Summary（か ## 概要）がない");
+        warn(doc.path, doc.id, "lint_summary_missing", "The body has no ## Summary (or ## 概要)");
       const acceptance = parseAcceptance(doc.body);
       if (acceptance === undefined)
         warn(
           doc.path,
           doc.id,
           "lint_acceptance_missing",
-          "本文に ## Acceptance criteria（か ## 受け入れ条件）がない",
+          "The body has no ## Acceptance criteria (or ## 受け入れ条件) section",
         );
       else if (acceptance.length === 0)
-        warn(doc.path, doc.id, "lint_acceptance_empty", "受け入れ条件に項目がない");
+        warn(doc.path, doc.id, "lint_acceptance_empty", "The acceptance criteria have no items");
       const wf = ctx.store.workflowFor(doc.data);
       for (const f of wf?.resolved.fields ?? []) {
         const v = doc.data[f.id];
@@ -737,7 +737,7 @@ export const lint = defineCommand({
             doc.path,
             doc.id,
             "lint_field_type",
-            `フィールド ${f.id} の値が型 ${f.type} に合わない`,
+            `The value of field ${f.id} does not match type ${f.type}`,
           );
       }
       if (ctx.store.config.lint.require_iteration && !doc.data.iteration) {
@@ -750,14 +750,14 @@ export const lint = defineCommand({
             doc.path,
             doc.id,
             "lint_iteration_missing",
-            `Iteration に入らずに ${status} に進んでいる`,
+            `Moved to ${status} without being in an Iteration`,
           );
       }
     }
     for (const doc of ctx.store.epics.values()) {
       if (input.project && doc.data.project !== input.project) continue;
       if (!hasBodySection(doc.body, "summary"))
-        warn(doc.path, doc.id, "lint_summary_missing", "本文に ## Summary（か ## 概要）がない");
+        warn(doc.path, doc.id, "lint_summary_missing", "The body has no ## Summary (or ## 概要)");
     }
     // Epic・Plan の状態と、所属するチケットの状態の食い違い。Iteration は閉じると終わっていないチケットを外すので見ない
     const tickets = [...ctx.store.tickets.values()].filter(
@@ -778,14 +778,14 @@ export const lint = defineCommand({
           doc.path,
           doc.id,
           "lint_epic_closed_unfinished",
-          `閉じた Epic に終わっていないチケット ${left} が残る`,
+          `Unfinished tickets ${left} remain in a closed Epic`,
         );
       if (doc.data.status === "open" && members.some((t) => t.data.status === "done") && !left)
         warn(
           doc.path,
           doc.id,
           "lint_epic_finished_open",
-          "チケットがすべて終わったが Epic が開いている",
+          "All tickets are finished, but the Epic is open",
         );
     }
     for (const doc of ctx.store.plans.values()) {
@@ -797,7 +797,7 @@ export const lint = defineCommand({
           doc.path,
           doc.id,
           "lint_plan_finished_open",
-          "チケットがすべて終わったが Plan が開いている",
+          "All tickets are finished, but the Plan is open",
         );
     }
     // 開いた Plan の after と depends_on をまたぐ循環（PL-3）。Plan を作った後の depends_on の変更でできたものを拾う
@@ -810,7 +810,7 @@ export const lint = defineCommand({
           doc.path,
           doc.id,
           "lint_plan_wait_cycle",
-          `after と depends_on が循環している: ${cyclePath(crossing, true)}`,
+          `after and depends_on form a cycle: ${cyclePath(crossing, true)}`,
         );
     }
     // active の Iteration は Project に 1 つ（IT-1）。同時の start や直接の編集・マージで 2 つになったものを拾う
@@ -831,7 +831,7 @@ export const lint = defineCommand({
           doc.path,
           doc.id,
           "lint_iteration_multiple_active",
-          `同じ Project に active の Iteration が ${docs.length} つある（${ids}）`,
+          `The same Project has ${docs.length} active Iterations (${ids})`,
         );
     }
     // 実装の Run の抜け（RN-5・RN-6）。Run を開けなかった環境や手順の抜けで、agent の PR があるのに実装の Run がないもの、
@@ -863,7 +863,7 @@ export const lint = defineCommand({
           doc.path,
           doc.id,
           "lint_run_implement_missing",
-          `PR ${doc.data.pr} まで進んだが実装の Run（${implStep}）がない`,
+          `Reached PR ${doc.data.pr}, but there is no implementation Run (${implStep})`,
         );
       const closedAt = implRuns.flatMap((r) =>
         r.finished_at === null ? [] : [Date.parse(r.finished_at)],
@@ -891,7 +891,7 @@ export const lint = defineCommand({
             doc.path,
             doc.id,
             "lint_commit_outside_run",
-            `実装の Run を閉じた後のコミット ${outside.length} 件（${outside[0]?.sha.slice(0, 7)} など）がどの Run の期間にも入らない。Run の記録は書き換えず、コミットの内容（git show <sha>）を確かめて人に伝える（人の push・rebase などや、別のマシンで開いた Run でも出る）`,
+            `${outside.length} commit(s) after a closed implementation Run (${outside[0]?.sha.slice(0, 7)} etc.) fall in no Run's period. Do not rewrite the Run records. Check the content of the commits (git show <sha>) and tell a person (this also happens with a push or rebase by a person, or with a Run opened on another machine)`,
           );
       }
       // 見直しの後のコミットがあるのに、見直しの後に開いた手直しの Run（reclaim の step）がない。コミットが修正かは分からないので安全網として出す
@@ -907,7 +907,7 @@ export const lint = defineCommand({
             doc.path,
             doc.id,
             "lint_run_fix_missing",
-            `見直しの後のコミット ${afterReview.length} 件（${afterReview[0]?.sha.slice(0, 7)} など）があるが、その後に手直しの Run（${fixStep}）がない。Run の記録は書き換えず、コミットの内容（git show <sha>）を確かめて、手直しかどうかを人に伝える（人の push・見直しの後の rebase などや、別のマシンで開いた Run でも出る）`,
+            `${afterReview.length} commit(s) after the review (${afterReview[0]?.sha.slice(0, 7)} etc.), but no fix Run (${fixStep}) after them. Do not rewrite the Run records. Check the content of the commits (git show <sha>) and tell a person whether they are fixes (this also happens with a push by a person or a rebase after the review, or with a Run opened on another machine)`,
           );
       }
     }
@@ -1006,18 +1006,18 @@ function splitKey(
   local: boolean,
 ): { top: string; rest: string[]; field?: ConfigField } {
   const [top, ...rest] = key.split(".");
-  if (!top) throw new OperationError("VALIDATION_FAILED", "key が空");
+  if (!top) throw new OperationError("VALIDATION_FAILED", "key is empty");
   const field = configFields().find((f) => f.key === key);
   if (local && field?.scope !== "local") {
     throw new OperationError(
       "VALIDATION_FAILED",
-      `${key} は個人の設定に書けない`,
+      `${key} cannot be set in personal settings`,
       field
-        ? "チーム専用の項目。--local を外してチームの config.yaml を変える"
-        : `スキーマにない項目。上書きできる項目：${configFields()
+        ? "This item is team-only. Drop --local and change the team's config.yaml"
+        : `Not in the schema. Items you can override: ${configFields()
             .filter((f) => f.scope === "local")
             .map((f) => f.key)
-            .join("・")}`,
+            .join(", ")}`,
     );
   }
   return { top, rest, ...(field ? { field } : {}) };
@@ -1041,8 +1041,8 @@ function resolveLeaf(
   if (field?.type === "enum" && rawValue === undefined)
     throw new OperationError(
       "VALIDATION_FAILED",
-      `${key} の値が正しくない`,
-      `値を省けない。選択肢：${(field.options ?? []).join("・")}`,
+      `Invalid value for ${key}`,
+      `A value is required. Options: ${(field.options ?? []).join(", ")}`,
     );
   const clearsToDefault =
     field?.clears_to_default === true &&
@@ -1058,7 +1058,11 @@ function resolveLeaf(
     if (probe.success) return leaf;
     error ??= probe.error;
   }
-  throw new OperationError("VALIDATION_FAILED", `${key} の値が正しくない`, z.prettifyError(error!));
+  throw new OperationError(
+    "VALIDATION_FAILED",
+    `Invalid value for ${key}`,
+    z.prettifyError(error!),
+  );
 }
 
 const LOCAL_FILE_NOTE =
@@ -1105,7 +1109,7 @@ export const configSet = defineCommand({
           if (unknown.length > 0)
             throw new OperationError(
               "VALIDATION_FAILED",
-              `actor.human_only にないコマンドがある: ${unknown.join(", ")}`,
+              `actor.human_only has unknown commands: ${unknown.join(", ")}`,
             );
           leaf = names.map((n) => findCommand(n)!.name);
         }

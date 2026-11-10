@@ -166,7 +166,7 @@ describe("Store", () => {
         created_at: ts,
         updated_at: ts,
       }),
-    ).rejects.toThrow(/既にある/);
+    ).rejects.toThrow(/already exists/);
     await store.deleteTicket("t1");
     expect(store.tickets.size).toBe(0);
     expect(await readdir(path.join(root, "tickets/deleted"))).toEqual(["t1.md"]);
@@ -404,7 +404,7 @@ describe("Store", () => {
       expect(store.issues.map((i) => [i.severity, i.code, i.path])).toEqual([
         ["warning", "schema_error", "deguboard-local/config.yaml"],
       ]);
-      expect(store.issues[0]?.message).toContain("マップ");
+      expect(store.issues[0]?.message).toContain("Not a key-value map");
     }
   });
 

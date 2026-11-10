@@ -607,7 +607,7 @@ describe("Claude Code の Adapter", () => {
     const old = new Date(Date.parse(STARTED) - 60_000);
     await utimes(file, old, old);
     const got = await claudeCodeAdapter.readTranscriptUsage(query());
-    expect(got.warnings).toEqual([expect.stringContaining("見つからない")]);
+    expect(got.warnings).toEqual([expect.stringContaining("not found")]);
   });
 
   it("Run の ID が出る前の行と、subagents/ の外のサブエージェントの行（isSidechain）は数えない", async () => {
@@ -636,7 +636,7 @@ describe("Claude Code の Adapter", () => {
     await writeTranscript(path.join(projectDir, "s1.jsonl"), [assistant("m1", 1, [1, 1, 1, 1])]);
     const got = await claudeCodeAdapter.readTranscriptUsage(query());
     expect(got.usage).toEqual({ input: null, output: null, cache_read: null, cache_write: null });
-    expect(got.warnings).toEqual([expect.stringContaining("見つからない")]);
+    expect(got.warnings).toEqual([expect.stringContaining("not found")]);
   });
 
   describe("会話記録の場所（MT-2）", () => {
@@ -740,7 +740,7 @@ describe("Claude Code の Adapter", () => {
       const missing = path.join(projectDir, "gone", "subagents", "agent-x.jsonl");
       const got = await claudeCodeAdapter.readTranscriptUsage(query({ transcript: missing }));
       expect(got.usage.input).toBeNull();
-      expect(got.warnings).toEqual([expect.stringContaining("読めない")]);
+      expect(got.warnings).toEqual([expect.stringContaining("Cannot read the file")]);
       expect(got.warnings[0]).not.toContain(projectDir);
     });
 
@@ -768,7 +768,7 @@ describe("Claude Code の Adapter", () => {
         query({ run: run({ session: "s9" }) }),
       );
       expect(got.usage.input).toBeNull();
-      expect(got.warnings).toEqual([expect.stringContaining("別のマシン")]);
+      expect(got.warnings).toEqual([expect.stringContaining("another machine")]);
     });
 
     it("セッションの記録は <session>.jsonl と <session>/subagents/ の下", () => {

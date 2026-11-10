@@ -181,7 +181,7 @@ describe("仮番号の振り直し（renumberCollisions）", () => {
       (e: unknown) => e,
     );
     expect(error).toBeInstanceOf(Error);
-    expect((error as Error).message).toContain("まとめ待ちを書き戻せませんでした");
+    expect((error as Error).message).toContain("Could not write the pending changes back");
     expect(((error as Error).cause as Error).message).toBe("故意の失敗");
   });
 });

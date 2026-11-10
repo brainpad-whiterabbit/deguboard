@@ -177,7 +177,7 @@ export const SKILL_SUMMARY: Readonly<Record<string, Readonly<Record<AskLanguage,
 /** Skill（dg<トピック>）の 1 文。SKILL_SUMMARY に文がなければ例外 */
 export function skillSummary(skill: string, lang: AskLanguage = "ja"): string {
   const text = SKILL_SUMMARY[skill]?.[lang];
-  if (text === undefined) throw new Error(`Skill の説明の文がない：${skill}`);
+  if (text === undefined) throw new Error(`No description text for the Skill: ${skill}`);
   return text;
 }
 
@@ -1329,8 +1329,8 @@ export function buildAsk(input: BuildAskInput): AskView {
   const candidate = candidates.find((c) => c.action === chosen);
   if (!candidate)
     throw new UsageError(
-      `${chosen} はこの対象の頼むことの候補にない`,
-      `候補：${candidates.map((c) => `${c.action}（${c.label}）`).join("、")}`,
+      `${chosen} is not a candidate ask for this target`,
+      `Candidates: ${candidates.map((c) => `${c.action} (${c.label})`).join(", ")}`,
     );
   const def = ACTIONS[chosen];
   const targets = s.map((t) => ({ ...t, line: targetLine(t, lang), sub: targetSub(t) }));
@@ -1359,7 +1359,7 @@ export function buildAsk(input: BuildAskInput): AskView {
 
   const note = input.note?.trim();
   if (chosen === "free" && s.length === 0 && !note)
-    throw new UsageError("自由に頼むときは、対象か指示（note）が要る");
+    throw new UsageError("A free-form ask needs a target or an instruction (note)");
   // 題・本文・Status はエージェントが dg で読むので、依頼文には ID だけを入れる（読んだ時点の写しが古くならないため）
   const lines: string[] = [];
   if (format === "skill" && candidate.skill) {
@@ -1404,7 +1404,7 @@ function askSubjectOf(
 ): AskSubject {
   const kind = idKindOf(ref);
   if (!kind || !parseId(ref, kind))
-    throw new UsageError(`${ref} は対象の ID ではない（t12・s3・e2・p7 の形で書く）`);
+    throw new UsageError(`${ref} is not a target ID (write it like t12, s3, e2, or p7)`);
   switch (kind) {
     case "ticket": {
       const t = store.require("ticket", ref).data;
@@ -1607,7 +1607,7 @@ function withinRef(store: Store, within: string | undefined): string | undefined
   if (!ref) return undefined;
   const kind = idKindOf(ref);
   if ((kind !== "iteration" && kind !== "epic") || !parseId(ref, kind))
-    throw new UsageError(`${ref} は Iteration・Epic の ID ではない（s3・e2 の形で書く）`);
+    throw new UsageError(`${ref} is not an Iteration or Epic ID (write it like s3 or e2)`);
   return store.require(kind, ref).id;
 }
 

@@ -34,7 +34,7 @@ export const isoDateTime = z.iso.datetime({ offset: true });
 /** Project や Workflow の ID に使う slug */
 export const slugSchema = z
   .string()
-  .regex(/^[a-z0-9][a-z0-9-]*$/, "小文字の英数字とハイフンの slug");
+  .regex(/^[a-z0-9][a-z0-9-]*$/, "A slug of lowercase letters, digits and hyphens");
 
 /** 現在時刻を ISO 8601（UTC、ミリ秒なし）で返す */
 export function toIsoDateTime(date: Date): string {
