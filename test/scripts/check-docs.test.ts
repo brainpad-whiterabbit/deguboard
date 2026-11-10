@@ -14,6 +14,9 @@
 // 写さないファイルへのリンクの切れも出るので、確かめる指摘だけを見る
 // ADR 番号の実在は、packages・scripts・docs・ルートのファイル（バイナリを除く）と test の先頭コメントで見ることも確かめる（t634）。
 // packages・scripts・test の ADR 番号が先頭のコメントの外にあると場所を出して落ち、先頭のコメントに異なる番号が 2 つ以上あっても落ちることも確かめる（t641）。
+// このテストは実際の docs・CLAUDE.md の値（最後に使った番号・ADR の状態の行など）を写して確かめるので、文書だけの PR で落ちうる。
+// 軽い検査（mise run check:light、test:docs）にも入れて、main の check で初めて落ちないようにする（t662）。
+// 値を写したファイルに替える案は採らない。ここで確かめたい入力そのものが実際の文書だから。
 
 import { execFile } from "node:child_process";
 import { appendFile, cp, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
