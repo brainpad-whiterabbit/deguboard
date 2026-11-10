@@ -1102,7 +1102,7 @@ Create tickets in s1
 [title] /dgassign: Assigns tickets to an Iteration (sprint) and an Epic.
 Add or remove tickets
 [title] /dgchange: Carries out the edit, close, reopen, abandon, or undo done that a human asked for, with one dg call after checking the preconditions.
-Edit name, goal, and period
+Change name, goal, and period
 [title] /dgdiscuss: Settles the open points of tickets, an Epic, or an Iteration with a human through choices, and reflects the result after approval of before → after.
 Discuss
 [title] /dgchange: Carries out the edit, close, reopen, abandon, or undo done that a human asked for, with one dg call after checking the preconditions.
@@ -1228,7 +1228,7 @@ Create tickets in s1
 [title] /dgassign: Assigns tickets to an Iteration (sprint) and an Epic.
 Add or remove tickets
 [title] /dgchange: Carries out the edit, close, reopen, abandon, or undo done that a human asked for, with one dg call after checking the preconditions.
-Edit name, goal, and period
+Change name, goal, and period
 [title] /dgdiscuss: Settles the open points of tickets, an Epic, or an Iteration with a human through choices, and reflects the result after approval of before → after.
 Discuss
 [title] /dgchange: Carries out the edit, close, reopen, abandon, or undo done that a human asked for, with one dg call after checking the preconditions.

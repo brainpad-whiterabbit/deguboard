@@ -356,7 +356,7 @@ describe("エージェントに頼む入力欄（UI-15）", () => {
     await waitFor(() => expect(box.getByRole("status").textContent).toContain("コピーしました"));
 
     // 頼むことを選び直すと知らせを消し、⌘↵ でも（待たずに）今の指示まで入れてコピーする
-    fireEvent.click(suggestions().find((b) => b.textContent === "直す")!);
+    fireEvent.click(suggestions().find((b) => b.textContent === "変える")!);
     expect(box.getByRole("status").textContent).toBe("");
     // 選び直しでもコピーする（t340）
     await waitFor(() => expect(view.copied).toHaveLength(2));
@@ -375,7 +375,7 @@ describe("エージェントに頼む入力欄（UI-15）", () => {
     [
       "行の吹き出しから頼むことを選んで開いたとき（開くと同時にコピーする）",
       async () => {
-        await pickFromBubble("行 t5", "直す");
+        await pickFromBubble("行 t5", "変える");
       },
     ],
     [
@@ -589,7 +589,7 @@ describe("エージェントに頼む入力欄（UI-15）", () => {
   it("頼むことを選んで開くと、開くと同時に依頼文をコピーして「コピーしました」を出す。開き直しの復元ではコピーしない（t340）", async () => {
     const view = mountWebview(askClient());
     await screen.findByText("見直す");
-    await pickFromBubble("行 t5", "直す");
+    await pickFromBubble("行 t5", "変える");
     await waitFor(() => expect(view.copied).toHaveLength(1));
     expect(view.copied[0]).toBe("/dgchange t5\nt5 を直して");
     await waitFor(() =>
@@ -603,7 +603,7 @@ describe("エージェントに頼む入力欄（UI-15）", () => {
     // 見た目の状態から復元して開いたときは、勝手にコピーしない
     cleanup();
     const state = createUiState(
-      memoryBackend({ [ASK_OPEN_KEY]: { targets: ["t5"], action: "edit" } }),
+      memoryBackend({ [ASK_OPEN_KEY]: { targets: ["t5"], action: "change" } }),
     );
     // ask の応答を止めて開き、すべて解決して流しきってから、コピーが 1 回も来ていないことを確かめる
     const restoredClient = askClient();
