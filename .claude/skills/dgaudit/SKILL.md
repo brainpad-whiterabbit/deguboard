@@ -1,12 +1,12 @@
 ---
 name: dgaudit
-description: deguboard の Iteration（か Epic）のチケットがすべて done になった後、リリースの前にリポジトリ全体（文書と実装・テスト・アーキテクチャ・README・依存・設定）を観点ごとにサブエージェントで見直し、指摘を表で示して、承認を得てチケットにする。見直しではファイルを直さない。「リリースの前に見直して」「リポジトリ全体を見直して」と頼まれたときに使う。
+description: Once every ticket of a deguboard Iteration (or Epic) is done, and before release, reviews the whole repository by viewpoint with subagents (documents and implementation, tests, architecture, README, dependencies, config files). Shows the findings in a table and, after approval, files them as tickets. The review does not change files. Use when asked「リリースの前に見直して」「リポジトリ全体を見直して」.
 argument-hint: "[Iteration|Epic]"
 ---
 
-<!-- dg skill sha256:1438ba6ee8c5f6cd57cfcfab1ea1bc2020ee0afde2d9012ce1c1abee0d7ab4cf -->
+<!-- dg skill sha256:8fc740b73da99d0f99aa9e2355833c874f5f11bf443c16b3a91cdb7239fa8b95 -->
 
-# 見直し（audit）
+# Audit (audit)
 
 Iteration か Epic の完了後、リポジトリ全体を観点ごとに見直し、承認を得た指摘をチケットにします。
 

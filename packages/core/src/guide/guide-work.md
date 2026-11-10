@@ -52,7 +52,7 @@ Follow the order and contents of the approved Plan (`dg guide plan`).
 - Before starting, run `dg --json --actor agent plan show <p>`. If `pending_approval` is true, do not start. Ask a human for approval
 - The next ticket is `next` of `plan show`: the earliest one in the Plan's order that can be started (`ready`). `waiting` is the party to wait for. `after` is not checked by claim, so keep it yourself (if you advance tickets at the same time, see `dg guide parallel`)
 - The scope (`scope`) and approach (`approach`) appear in `plan` of `next`. Before you widen the scope or change the approach, confirm with a human
-- When one ticket reaches a PR, read `plan show` again and choose the next one. When all tickets of the Plan are finished, do the "Plan を閉じる" section of `dg guide done`
+- When one ticket reaches a PR, read `plan show` again and choose the next one. When all tickets of the Plan are finished, do the "Closing a Plan" section of `dg guide done`
 
 ## Work that needs no PR
 

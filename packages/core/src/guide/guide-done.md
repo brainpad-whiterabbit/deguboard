@@ -1,51 +1,51 @@
 ---
-description: deguboard のマージ済みのチケットを照合して done を確かめ、残った受け入れ条件を確かめ、作業ブランチと worktree を片付けて、終わった Plan を閉じる。「t12 を完了にして」「マージしたので片付けて」「Plan を閉じて」と頼まれたときに使う。
-argument-hint: "[チケットの ID...|Plan の ID|Iteration]"
+description: Checks merged tickets against their PRs to confirm they are done, confirms the remaining acceptance criteria, cleans up the work branch and worktree, and closes a finished Plan. Use when asked「t12 を完了にして」「マージしたので片付けて」「Plan を閉じて」.
+argument-hint: "[ticket ID...|Plan ID|Iteration]"
 ---
 
-# 完了（done）
+# Done (done)
 
-PR がマージされたあとの後始末（PR の要らない作業は `dg guide work` の中で done まで進むので、ここは読まない）。done にするのは照合か人で、エージェントは確認と記録を行う。受け入れ条件の印は普段 `dg guide work` の段階で付いている。
+Cleanup after a PR is merged. Work that needs no PR advances to done within `dg guide work`, so do not read this guide for it. Done is set by reconciling or by a human; the agent confirms and records. The marks on acceptance criteria are normally set in the `dg guide work` stage.
 
-## 対象を決める
+## Deciding the target
 
-- チケットの ID：そのチケットを片付ける
-- Plan の ID（`p3`）：その Plan のチケットのうち、PR がマージされたものを片付ける
-- Iteration（`s3`）：その Iteration の review・in_progress のチケットを照合して片付ける
-- 指定が空：`sync` が done に進めたチケット（`reconciled`）と、自分が担当の review のチケットを対象にする
+- Ticket ID: cleans up that ticket
+- Plan ID (`p3`): cleans up the tickets of that Plan whose PRs are merged
+- Iteration (`s3`): reconciles the review and in_progress tickets of that Iteration, and cleans them up
+- No target given: targets the tickets that `sync` moved to done (`reconciled`), and the review tickets assigned to you
 
-## 流れ
+## Steps
 
-1. `dg --json --actor agent sync` を回す。PR のマージ（または作業ブランチが `{{git.base_branch}}` に入ったこと）を照合してチケットが done になる。`reconciled` に `{ id, from, to, when }` が出る（`when` は根拠になった事実）
-2. `dg --json --actor agent ticket show <id>` で `status` が done になったことを確かめる。なっていなければ `sync` の `warnings` を読む。事実が足りない（`gh` がない、ブランチがまだ push されていない）か、Workflow がその遷移の `by` に reconcile を含めていない。後者は人に確かめて `ticket move <id> done` で進める
-   - ブランチ名で見つけた PR を照合に使わなかったという `warnings` が出たら、その案内に従う
-   - branch を記録し忘れたままマージした作業に後から branch を記録しようとすると、`BRANCH_IN_USE` で拒否されることがある（残ったブランチの先端が base の真の祖先のとき。ff・merge コミットでのマージ）。記録はせず、マージを人に確かめて `ticket move <id> done` で進める。squash マージなら記録でき、その後は上の項の警告になる
-3. 残った受け入れ条件を確かめる。`sync` の `warnings`（`受け入れ条件 2, 3 が未チェックのまま done になった`）と `ticket show --json` の `acceptance` で未チェックの項目を見て、マージされた成果物で満たしたと確認できたものだけ `dg --json --actor agent ticket check <id> <番号...>` で付ける（deguboard が自動で付けることはない）。確認できない項目はそのまま残し、人に伝える
-4. 作業ブランチと worktree を片付ける（リポジトリの規約に従う）
-5. Plan に従っていたなら、`dg --json --actor agent plan show <p>` の `progress` を読む。チケットがすべて done か abandoned なら下の「Plan を閉じる」
-6. 人に報告する：何が done になったか、残った受け入れ条件、次に着手できるもの（Plan があれば `plan show` の `ready`、なければ `dg --json --actor agent ticket list --ready`）
+1. Run `dg --json --actor agent sync`. Reconciling the merge of the PR (or the work branch entering `{{git.base_branch}}`) moves the ticket to done. `reconciled` shows `{ id, from, to, when }` (`when` is the fact that became the basis)
+2. Confirm that `status` of `dg --json --actor agent ticket show <id>` became done. If it did not, read the `warnings` of `sync`. Either the facts are lacking (`gh` is not present, the branch is not pushed yet), or the Workflow does not include reconcile in that transition's `by`. In the latter case, confirm with a human, then advance with `ticket move <id> done`
+   - If the `warnings` say that a PR found by branch name was not used for reconciling, follow its guidance
+   - If you try to record a branch afterward for work merged without recording it, `BRANCH_IN_USE` may refuse it (when the tip of the remaining branch is a true ancestor of base; merges by ff or merge commit). Do not record it. Confirm the merge with a human, then advance with `ticket move <id> done`. A squash merge can be recorded, and afterwards the warning in the item above applies
+3. Check the remaining acceptance criteria. Using the `warnings` of `sync` (the warning "受け入れ条件 2, 3 が未チェックのまま done になった", as printed) and the unchecked items in `acceptance` of `ticket show --json`, attach with `dg --json --actor agent ticket check <id> <numbers...>` only the items you confirmed as met by the merged deliverable (dg never attaches them on its own). Items you cannot confirm stay unchecked, and you tell a human
+4. Clean up the work branch and worktree (follow the repository's rules)
+5. If you followed a Plan, read `progress` of `dg --json --actor agent plan show <p>`. If all its tickets are done or abandoned, see the "Closing a Plan" section below
+6. Report to a human: what became done, the acceptance criteria left, and what can be started next (`ready` of `plan show` if there is a Plan; otherwise `dg --json --actor agent ticket list --ready`)
 
-## Plan を閉じる
+## Closing a Plan
 
-- Plan のチケットがすべて終わったら（done か abandoned）`dg --json --actor agent plan close <p>` で閉じる。進捗は Plan に書かないので、閉じるのはこの 1 回だけ
-- 終わらないまま計画を立て直すとき（順や範囲が変わった、チケットを足す・外す）も、`plan close <p>` で閉じてから `dg guide plan` の手順で作り直し、改めて人の承認を得る。残ったチケットがあれば `warnings` に出るが閉じられる。閉じるまで、残ったチケットは新しい Plan に入れられない
+- When all tickets of a Plan are finished (done or abandoned), close it with `dg --json --actor agent plan close <p>`. Progress is not written to the Plan, so this is the only time to close it
+- When rebuilding a plan without finishing it (the order or scope changed, or tickets were added or removed), also close it with `plan close <p>`, make it again by the steps of `dg guide plan`, and get human approval again. If tickets remain, `warnings` shows them, but it still closes. Until it is closed, the remaining tickets cannot go into a new Plan
 
-## 終わらなかったとき
+## When not finished
 
-- 作業をやめるなら `dg --json --actor agent ticket unclaim <id>`（in_progress のときだけ。todo に戻す）。開いたままの実装・手直しの Run は unclaim が `failure` で閉じる。手直し・見直しの Run は unclaim せず、the "How to finish" section of `dg guide review` に従う。チケット自体をやめる（abandoned）のは人に確かめてから `ticket move <id> abandoned`
-- 要件が変わって別のチケットにすべきなら、`dg guide import` の手順で新しく起票を提案し、元のチケットの扱いは人に確かめる
+- To stop the work, run `dg --json --actor agent ticket unclaim <id>` (only for in_progress; the ticket goes back to todo). An implementation or fix Run left open is closed as `failure` by unclaim. Do not unclaim a fix or review Run; follow the "How to finish" section of `dg guide review`. To give up the ticket itself (abandoned), confirm with a human first, then `ticket move <id> abandoned`
+- If the requirements changed so that it should be a different ticket, propose filing a new one by the steps of `dg guide import`, and confirm with a human what to do with the original ticket
 
-## Iteration と Epic
+## Iteration and Epic
 
-- Iteration と Epic を閉じる・再開するのは人の指示で行う（`dg guide assign`）。閉じられそうなら（残りがすべて done か abandoned）人に知らせる
-- Epic の進捗は `dg --json --actor agent epic show <e3>` の `progress` で都度求まる。保存はされない
+- Closing or reopening an Iteration and Epic is done only on a human's instruction (`dg guide assign`). If one looks closable (the rest are all done or abandoned), tell a human
+- Epic progress is found each time from `progress` of `dg --json --actor agent epic show <e3>`. It is not saved
 
 {{choices}}
 
-## 次の手順を選ぶ
+## Choosing the next step
 
-片付けたら、結果を伝えて次の選択肢で聞く。
+After cleaning up, report the result and ask with the following choices.
 
-- **Plan を進める**（勧める。Plan に残りがあれば）：`dg guide work` の手順で続ける（Skill があれば `/dgwork p3`）
-- **計画を立てる**：Plan が終わり、着手できるチケット（`ticket list --ready`）があれば `dg guide plan` の手順で次の Plan を作る（Skill があれば `/dgplan next <N>`）
-- **ここで止める**
+- **Advance the Plan** (recommended if the Plan has tickets left): advance it by the steps of `dg guide work` (if a Skill is available, `/dgwork p3`)
+- **Make a plan**: if the Plan is finished and there are tickets that can be started (`ticket list --ready`), make the next Plan by the steps of `dg guide plan` (if a Skill is available, `/dgplan next <N>`)
+- **Stop here**

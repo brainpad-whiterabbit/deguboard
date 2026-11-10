@@ -1,72 +1,72 @@
 ---
-description: deguboard の Iteration かチケットを、割り当て → 点検 → 計画 → 作業 → 見直し → リリース（か片付け）の段階で続けて進める。承認の場所は各段階の手順のとおりに残し、段階の間は止まらずに進む。途中で止まった流れは、同じ引数で再開できる。--no-assign で割り当ての段階を飛ばす。--auto で、勧める選択肢がある戻せる判断を自動で選ぶ。「s3 を最後まで進めて」「割り当てからリリースまでやって」と頼まれたときに使う。
-argument-hint: "<Iteration|チケットの ID...> [--no-assign] [--auto]"
+description: Advances a deguboard Iteration or tickets through assignment, check, plan, work, audit, and release (or clean-up), in one flow. Approval stays where each stage's steps put it, and the flow does not stop between stages. A flow that stopped midway can be resumed with the same arguments. --no-assign skips the assignment stage. --auto chooses reversible decisions that come with a suggested option. Use when asked「s3 を最後まで進めて」「割り当てからリリースまでやって」.
+argument-hint: "<Iteration|ticket ID...> [--no-assign] [--auto]"
 ---
 
-# 一気通し（all）
+# End to end (all)
 
-Iteration かチケットを、割り当てからリリースまでの流れで続けて進める。今の段階と次の手は `dg flow next` が求めるので、ここには返った手の行い方だけを書く。
+Advances an Iteration or tickets from assignment to release, in one flow. The current stage and the next step come from `dg flow next`, so this guide only describes how to do each step it returns.
 
-## 対象を決める
+## Deciding the target
 
-- Iteration（`s3`）：その Iteration のチケットと、そこに入れる候補（Iteration に入っていない todo）。候補を扱うのは割り当ての段階だけ
-- チケットの ID（1 つ以上）か Plan の ID（`p7`）：その対象を扱う。見直しとリリースは、対象のチケットの Iteration のチケットがすべて終わったときだけ、その Iteration を対象に行う。Iteration に入っていなければ見直しとリリースはしない
-- 指定が空：`dg guide release` の「対象を決める」と同じ
-- `--no-assign`：割り当ての段階を飛ばす。点検で Iteration に入れる案が出ても反映せず、終わりの報告に残す
-- `--auto`：下の「`--auto` で自動で選ぶ」。`--no-assign` と一緒に指定できる
+- Iteration (`s3`): the tickets of that Iteration, and the candidates to put into it (todos not in an Iteration). Candidates are handled only in the assignment stage
+- Ticket ID (one or more) or Plan ID (`p7`): advances that target. Audit and release run for a ticket's Iteration only when all the tickets of that Iteration are finished. If the ticket is not in an Iteration, audit and release do not run
+- No target given: the same as "Deciding the target" in `dg guide release`
+- `--no-assign`: skips the assignment stage. If the check suggests putting tickets into an Iteration, it does not apply the suggestion and leaves it in the final report
+- `--auto`: see "Choosing automatically with `--auto`" below. It can be combined with `--no-assign`
 
-以下の `<S>` は対象の Iteration。聞かずに始め、閉じるのは人の指示で行う。
+Below, the target Iteration is written as `<S>`. The flow starts without asking, and closing is done only on a human's instruction.
 
-## 段階
+## Stages
 
-段階の順と今の段階は `dg flow next` が決める。承認を求める場所は次のとおりで、各段階の手順もそこで承認を得る。
+The order of stages and the current stage are decided by `dg flow next`. Approval is asked in the places below, and each stage's steps also get approval there.
 
-| 段階     | 承認を求める場所                     |
-| -------- | ------------------------------------ |
-| 割り当て | 入れる行                             |
-| 点検     | 直す行、削除・abandoned・閉じる      |
-| 計画     | Plan                                 |
-| 作業     | PR ごとのマージ（`dg guide done`）   |
-| 見直し   | 指摘の表                             |
-| リリース | リリースの PR のマージ・公開・閉じる |
+| Stage   | Where approval is asked                      |
+| ------- | -------------------------------------------- |
+| Assign  | Rows to put in                               |
+| Check   | Rows to fix; deletion, abandoned, closing    |
+| Plan    | Plan                                         |
+| Work    | Merge of each PR (`dg guide done`)           |
+| Audit   | Table of findings                            |
+| Release | Merge of the release PR, publishing, closing |
 
-## 流れの進め方
+## Running the flow
 
-1. 始めるときと、段階の手を終えるたびに `dg --json --actor agent flow next <対象…>` を呼ぶ（`--auto`・`--no-assign` は指定があれば付ける）。返りの `stage.name` が今の段階（`assign`・`check`・`plan`・`work`・`audit`・`release`・`stop`）、`commands` が呼ぶ dg のコマンド（順に）、`guide.text` が段階の手のやり方（`guide.sections` の節を順につないだ本文で、手順の節が指す同じトピックの節をすべて含む）、`approval` が承認の要否と場所
-2. `stage` の手を行う。`commands` を順に行い、`guide.text` のとおりに進める（読み直すときは `guide.command`）。段階のトピックの全体は読み直さない。`guide.text` がほかのトピックを案内したとき（`dg guide <topic>` の「…」）だけ、そのトピックの節を読む
-   - `work` は `dg guide parallel` のとおり、件数によらずチケットごとにサブエージェントに任せる。親は進行・承認・`dg` の読み書きだけを行う
-   - `release` で、リポジトリの規約にリリースの手順がなければ、`guide.text` の「リリースの手順がないとき」に従う
-3. `approval.required` が true の場面は、`approval.what` を人に聞く。選択肢には「ここで止める」を入れる。`--auto` のときの扱いは下の「`--auto` で自動で選ぶ」
-4. 段階の手を終えたら（承認を得た・直した・行い終えた）、その返りの `resume` をそのまま `--resume` に写して、1 に戻る（`dg --json --actor agent flow next <対象…> --resume <resume>`）。値は組み立てない。割り当て・点検・見直しの手の途中で止めたとき（承認が得られなかった、見直しの指摘の表で止めた）は、その `resume` を写さずに止まる。再開するときは、その前に写した `resume` を渡すか、`--resume` なしで同じ対象と指定で呼ぶ。途中で止めた手の `resume` を写すと、その段階を終えたものとして飛ばす
-5. `stage.name` が `stop`、または `repeated` が null でないとき（同じ段階が続き、事実が変わらない）は、`ask_human` と状態を示して止まる
+1. Call `dg --json --actor agent flow next <target…>` when starting, and after finishing each stage (add `--auto` and `--no-assign` if given). In the result, `stage.name` is the current stage (`assign`, `check`, `plan`, `work`, `audit`, `release`, or `stop`); `commands` are the dg commands to call (in order); `guide.text` is how to do the stage (the sections in `guide.sections` joined in order, including all the sections of the same topic that the step section points to); and `approval` is whether approval is needed and where
+2. Do the stage's step. Run `commands` in order, and follow `guide.text` (to read it again, use `guide.command`). Do not read the whole guide of the stage's topic again. Read a section of another topic only when `guide.text` points to it (the 「…」 of `dg guide <topic>`)
+   - `work` follows `dg guide parallel` whatever the number of tickets: each ticket is given to a subagent. The parent only advances, asks for approval, and reads and writes `dg`
+   - For `release`, if the repository's rules have no release steps, follow the "When there are no release steps" section of `guide.text`
+3. When `approval.required` is true, ask a human about `approval.what`. Include "Stop here" in the choices. For how `--auto` handles it, see "Choosing automatically with `--auto`" below
+4. After a stage's step is finished (approval obtained, fixed, or done), copy that result's `resume` as it is into `--resume`, and return to 1 (`dg --json --actor agent flow next <target…> --resume <resume>`). Do not assemble the value. If you stop midway through an assign, check, or audit step (approval was not obtained, or you stopped at the table of findings), stop without copying that `resume`. To resume, pass the `resume` copied before, or call without `--resume` using the same target and arguments. Copying the `resume` of a step stopped midway makes the flow skip that stage as finished
+5. When `stage.name` is `stop`, or `repeated` is not null (the same stage continues and the facts do not change), show `ask_human` and the state, and stop
 
-## 段階の間の進み方
+## Between stages
 
-- **段階の間は止まらない**：`approval.required` の場面以外では聞かず、次の `flow next` へ進む
-- **マージは `auto.merge` に従う**：`auto.merge`（今の設定：`{{auto.merge}}`）が true なら品質ゲートを満たす PR は `--auto` のとき自動でマージし、false なら人が行う。PR を出したら、マージを待つ間も次の手を進め、手がなければ止まる。マージの承認は `approval` のとおり
-- **失敗の扱い**：実装が失敗したチケットは `dg guide parallel` のとおり todo に戻し、それを待たないチケットを進める。見直し・手直しが failure で返った・返らないチケットは todo に戻さず、the "How to finish" section of `dg guide review` に従う
+- **No stopping between stages**: except where `approval.required` applies, do not ask, and call the next `flow next`
+- **Merge follows `auto.merge`**: if `auto.merge` (current setting: `{{auto.merge}}`) is true, a PR that passes the quality gate is merged automatically with `--auto`; if false, a human merges it. After a PR is put out, advance the next step while waiting for its merge. If there is no next step, stop. Approval for the merge follows `approval`
+- **Handling failures**: a ticket whose implementation failed goes back to todo, as in `dg guide parallel`, and tickets that do not wait for it advance. A ticket whose review or fix returned failure, or did not return, is not put back to todo, and follows the "How to finish" section of `dg guide review`
 
-## `--auto` で自動で選ぶ
+## Choosing automatically with `--auto`
 
-`--auto` のときは、聞かずに進めるのは次の 2 つだけで、`approval.what` に残るものは聞く。選んだものと判断の材料はその場で短く示す。
+With `--auto`, the flow proceeds without asking only in the following two cases. Whatever remains in `approval.what` is asked about. Briefly show what was chosen and the material for the decision on the spot.
 
-- `approval.auto` に書いたもの（勧める選択肢で進める。どの判断が入るかは config の `auto.decisions`（今の設定：`{{auto.decisions}}`）と `auto.merge` が決める）
-- `auto.decisions` に `accept` があるときの、照合の後の受け入れ条件の確認（`dg guide done` の手順 3）
+- What is written in `approval.auto`: proceeds with the suggested option. Which decisions are included is decided by `auto.decisions` in config (current setting: `{{auto.decisions}}`) and by `auto.merge`
+- The check of acceptance criteria after reconciling (step 3 of `dg guide done`), when `accept` is in `auto.decisions`
 
-マージと人が決める判断は、次のとおりに扱う。
+Merges and decisions a human makes are handled as follows.
 
-- PR のマージは、`auto.merge`（今の設定：`{{auto.merge}}`）が true のときだけ、the "Quality gate" section of `dg guide review` を満たす PR を `dg --json --actor agent pr merge <id>` で行う。方法とブランチを消すかは `--method`・`--delete-branch` を省いて config の `merge.method`・`merge.delete_branch`（今の設定：`{{merge.method}}`・`{{merge.delete_branch}}`）に任せる。満たさなければ、満たさなかった条件を示して承認を求めて止まる
-- **人が決める判断は config によらず聞いて止まる**：リリースの PR のマージと公開（タグ・配布先）、チケットの削除・abandoned・done の取り消し、Epic・Iteration・Plan を閉じる・再開する。`auto.merge` が false のときのマージ。Plan の待ち（`after`）と範囲を変えること、`--force` の付く操作。勧めるものがない判断と、選択肢にできない答え
+- **A PR is merged** only when `auto.merge` (current setting: `{{auto.merge}}`) is true, and only a PR that meets the "Quality gate" section of `dg guide review` is merged with `dg --json --actor agent pr merge <id>`. Leave out `--method` and `--delete-branch`, so that config's `merge.method` and `merge.delete_branch` (current settings: `{{merge.method}}` and `{{merge.delete_branch}}`) decide the method and whether the branch is deleted. If the PR does not meet the gate, show the conditions it did not meet, ask for approval, and stop
+- **Decisions a human makes are asked, and the flow stops, regardless of config**: merging and publishing the release PR (tags and destinations); deleting a ticket, abandoning it, or undoing done; closing or reopening an Epic, Iteration, or Plan; merging when `auto.merge` is false; changing a Plan's waits (`after`) and scope; operations with `--force`; decisions with no suggested option; and answers that cannot be a choice
 
-## 結果を伝える
+## Reporting the result
 
-流れの終わりに、段階ごとの結果を伝える（割り当て・点検で直した行・承認した Plan・出した PR とマージ・起票したチケット・リリースした版と Iteration の状態・反映しなかった割り当ての案・残ったチケット）。`--auto` のときは、自動で選んだ判断と、自動でマージした PR の条件の確かめの結果も伝える。
+At the end of the flow, report the result of each stage: the lines fixed in assign and check, the Plans approved, the PRs put out and merged, the tickets filed, the released version and the state of the Iteration, the assignment suggestions not applied, and the tickets left. With `--auto`, also report the decisions chosen automatically and the results of checking the conditions for PRs merged automatically.
 
 {{choices}}
 
-## 次の手順を選ぶ
+## Choosing the next step
 
-止まったときは、止まった理由に合わせて次の選択肢で聞く。Iteration が閉じて流れを終えたとき（`flow next` の理由がそれ）は聞かずに結果を伝える。
+When the flow stops, ask with the following choices, according to the reason it stopped. When the Iteration is closed and the flow has ended (the reason `flow next` gives for that), report the result without asking.
 
-- **再開する**（マージを待って止まったとき勧める）：マージの後に `dg guide all` を読み直し、同じ対象と指定（`--auto` など）で `flow next` を呼んで続ける（Skill があれば `/dgall <S>`）
-- **ここで止める**
+- **Resume** (recommended when it stopped waiting for a merge): after the merge, read `dg guide all` again, and call `flow next` with the same target and arguments (such as `--auto`) to continue (if a Skill is available, `/dgall <S>`)
+- **Stop here**
