@@ -146,6 +146,16 @@ describe("dg guide", () => {
     }
   });
 
+  it("import の次の手順は選択肢を 4 つ以内に収め、勧める割り当ては先頭のままで、検討は決めたい点が残るときに起票した ID で dg guide discuss へ進むと案内する", async () => {
+    const next = section(await readGuide("import"), "## Choosing the next step");
+    const items = next.split("\n").filter((line) => line.startsWith("- **"));
+    expect(items.length).toBeLessThanOrEqual(4);
+    expect(items[0]).toContain("**Assign** (recommended)");
+    const discuss = lineWith(next, "**Discuss**");
+    for (const word of ["open points", "`dg guide discuss`", "with the filed IDs", "/dgdiscuss"])
+      expect(discuss, word).toContain(word);
+  });
+
   it("import は受け入れ条件が 7 項目以上のチケットを分けることを、根拠とともに勧める", async () => {
     const tips = section(await readGuide("import"), "## How to write a good ticket");
     expect(tips).toMatch(/7 or more acceptance criteria[\s\S]*?recommend splitting[\s\S]*?9 of 10/);
