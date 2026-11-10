@@ -1,10 +1,10 @@
-# 着手できるチケットを並べて進める（parallel）
+# Advancing ready tickets in parallel (parallel)
 
-`next` が `implement`・`review`・`fix`・`ready` を返すチケットが複数あり、サブエージェントを起動できるなら、チケットごとに起動して同時に進めてよい。`dg` は順を示すだけで、起動と待ち合わせはこの手順で行う。進めるセッション（親）は進行・承認・`dg` の読み書きだけを行う。
+When `next` returns `implement`, `review`, `fix`, or `ready` for several tickets, and subagents can be started, you may start one for each ticket and advance them at the same time. `dg` only shows the order. Starting and waiting for them is done by these steps. The session that advances (the parent) only advances, gets approvals, and reads and writes `dg`.
 
-- **上限**：同時に 3 件まで。人が数を指示したらそれに従う。検査が負荷で落ちるなら減らす
-- **始める前**：開いた Plan と PR を見て、同じファイルを直すものがないか確かめる。同じファイルを変えるチケットは並べず、`after` で順にすることを人に提案する
-- **親**：チケットごとに `dg guide work` の「claim の前後」と「流れ」の `implement` の手（claim は `--no-run`。worktree は claim が作る）を 1 件ずつ行い、サブエージェントを起動する。返ったら `dg guide work` の「実装の結果を受け取る」と `dg guide review` の見直し・修正ループを回し（直さなかった軽い指摘は `dg pr ready` が PR の本文に書き足す）、空いた枠で `dg next` を読み直して次を起動する。マージ待ちのチケットと、人を待つチケットは枠に数えない
-- **渡す文**：`dg next` の `brief` を書き換えずに渡す（手直しは `--role fix` の文）。役の手順（節の本文）は文に入っているので、サブエージェントに guide を読ませない。モデルは `dg next` の `model`（`null` は親のモデル）
-- **サブエージェントがしない**：claim・unclaim・`iteration add`・Plan の操作・見直し役の起動・`dg pr ready`・マージ・`ticket check`・`ticket update --pr`・ほかのチケットの作業
-- **1 件でほかを止めない**：`CLAIM_LOST` ならそのチケットを飛ばす。実装が失敗したら `ticket unclaim` で todo に戻し、worktree は残して、同じ流れでは claim し直さない。見直し・手直しが failure で返った・返らないときは、`dg guide review` の「終わり方」に従う。待つのは `after` でつながるチケットだけ
+- **Limit**: up to 3 at the same time. If a human gives a number, follow it. If checks fail under load, reduce it
+- **Before starting**: look at the open Plan and the PRs, and check that no two tickets change the same file. Do not run tickets that change the same file side by side. Propose to a human that they run in order with `after`
+- **Parent**: for each ticket, do the `implement` step of the "Steps" section of `dg guide work`, and the "Before and after claim" section of `dg guide work`, one at a time (claim with `--no-run`; claim creates the worktree), and start a subagent. When it returns, do the "Receive the implementation result" section of `dg guide work`, and the review and fix loop in `dg guide review` (light findings you did not fix are added to the PR body by `dg pr ready`). With the free slot, read `dg next` again and start the next one. Tickets waiting for a merge and tickets waiting for a human do not count toward the slots
+- **Passing the text**: pass the `brief` from `dg next` as it is (for fixes, the `--role fix` text). The steps of each role are already in the text, so do not have the subagent read the guide. The model is `model` from `dg next` (`null` means the parent's model)
+- **The subagent does not**: claim, unclaim, `iteration add`, Plan operations, start a reviewer, `dg pr ready`, merge, `ticket check`, `ticket update --pr`, or work on other tickets
+- **One ticket does not stop the others**: on `CLAIM_LOST`, skip that ticket. If implementation fails, `ticket unclaim` it back to todo, keep the worktree, and do not claim it again in the same flow. If a review or fix returns failure or does not return, follow the "How to finish" section of `dg guide review`. Wait only for tickets linked by `after`

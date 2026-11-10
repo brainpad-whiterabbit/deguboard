@@ -567,7 +567,7 @@ describe("check-docs の dg guide の節の参照（t561）", () => {
       "docs/development.md",
       "切れた参照の確かめ：`dg guide work` の「存在しない節」を見る。",
     );
-    await rewrite("docs/development.md", /存在しない節/, "流れ");
+    await rewrite("docs/development.md", /存在しない節/, "Steps");
     const { stderr } = await run();
     expect(stderr).not.toMatch(/dg guide [a-z-]+ に節「.+」がない/);
   });
@@ -575,7 +575,7 @@ describe("check-docs の dg guide の節の参照（t561）", () => {
   it("「と「…」」で続く 2 つ目の節が切れていても落ちる", async () => {
     await append(
       "packages/core/src/guide/guide-plan.md",
-      "参照の確かめ：`dg guide work` の「流れ」と「存在しない節」を見る。",
+      "参照の確かめ：`dg guide work` の「Steps」と「存在しない節」を見る。",
     );
     const { code, stderr } = await run();
     expect(code).toBe(1);
@@ -601,7 +601,7 @@ describe("check-docs の dg guide の節の参照（t561）", () => {
   it("「（…）」の補足を除いた名前と、節の中の太字の項目・手の名前は節と見なし、落とさない", async () => {
     await append(
       "docs/development.md",
-      "参照の確かめ：`dg guide work` の「実装する」と、`dg guide review` の「見る」を見る。`dg guide work` の「ready」の手も同じ。",
+      "参照の確かめ：`dg guide work` の「Implement」と、`dg guide review` の「Return」を見る。`dg guide work` の「ready」の手も同じ。",
     );
     const { stderr } = await run();
     expect(stderr).not.toMatch(/dg guide [a-z-]+ に節「.+」がない/);
@@ -705,7 +705,7 @@ describe("check-docs の .ts の文字列とコメントの dg guide の節の�
   });
 
   it(".ts の切れた参照を直すと、落ちない", async () => {
-    await writeFile(join(dir, PROBE), 'export const s = "dg guide work の「流れ」";\n');
+    await writeFile(join(dir, PROBE), 'export const s = "dg guide work の「Steps」";\n');
     // 写さないファイルへのリンクの切れも出るので、確かめる指摘だけを見る
     const { stderr } = await run();
     expect(stderr).not.toMatch(/dg guide [a-z-]+ に節/);
@@ -734,7 +734,7 @@ describe("check-docs の英語の形の dg guide の節の参照（t563）", () 
       "docs/development.md",
       '切れた参照の確かめ：the "存在しない節" section of `dg guide work` を見る。',
     );
-    await rewrite("docs/development.md", /存在しない節/, "流れ");
+    await rewrite("docs/development.md", /存在しない節/, "Steps");
     const { stderr } = await run();
     expect(stderr).not.toMatch(/dg guide [a-z-]+ に節「.+」がない/);
   });
@@ -742,12 +742,12 @@ describe("check-docs の英語の形の dg guide の節の参照（t563）", () 
   it("英語の参照は「(…)」の補足を除いた名前で照らし、バッククォートのない形も拾う", async () => {
     await append(
       "docs/development.md",
-      '英語の確かめ：the "見る" (Review) section of dg guide review と、the "存在しない節" section of dg guide work を見る。',
+      '英語の確かめ：the "Return" (Review) section of dg guide review と、the "存在しない節" section of dg guide work を見る。',
     );
     const { code, stderr } = await run();
     expect(code).toBe(1);
     expect(stderr).toContain("dg guide work に節「存在しない節」がない");
-    expect(stderr).not.toContain("dg guide review に節「見る」がない");
+    expect(stderr).not.toContain("dg guide review に節「Return」がない");
   });
 
   it(".ts のテンプレート文字列（\\` のエスケープ）の英語の切れた参照は、場所を出して落ちる", async () => {

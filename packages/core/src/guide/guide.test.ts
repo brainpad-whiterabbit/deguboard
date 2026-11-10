@@ -36,22 +36,24 @@ describe("guide.notes の文書の差し込み（CL-5）", () => {
 
     // 題名（1 行目）の次の空行を挟んで、差し込んだ文が 3 行目に来る
     const lines = (await readGuide("work", notes.text)).split("\n");
-    expect(lines[0]).toBe("# 作業（work）");
+    expect(lines[0]).toBe("# Work (work)");
     expect(lines[2]).toBe("作業の判断の基準を書く");
 
-    const section = await composeGuide("work", config, root, "claim の前後");
+    const section = await composeGuide("work", config, root, "Before and after claim");
     const sectionLines = section.text.split("\n");
-    expect(sectionLines[0]).toBe("## claim の前後");
+    expect(sectionLines[0]).toBe("## Before and after claim");
     expect(sectionLines[2]).toBe("作業の判断の基準を書く");
     expect(section.warnings).toEqual([]);
 
     // 節を重ねると指定した順につなぎ、差し込みは最初の節の見出しの直後に 1 度だけ
-    const both = await composeGuide("work", config, root, ["claim の前後", "流れ"]);
-    expect(both.sections).toEqual(["claim の前後", "流れ"]);
-    expect(both.section).toBe("claim の前後");
+    const both = await composeGuide("work", config, root, ["Before and after claim", "Steps"]);
+    expect(both.sections).toEqual(["Before and after claim", "Steps"]);
+    expect(both.section).toBe("Before and after claim");
     expect(both.text.split("\n")[2]).toBe("作業の判断の基準を書く");
     expect(both.text.split("作業の判断の基準を書く")).toHaveLength(2);
-    expect(both.text.indexOf("## 流れ")).toBeGreaterThan(both.text.indexOf("## claim の前後"));
+    expect(both.text.indexOf("## Steps")).toBeGreaterThan(
+      both.text.indexOf("## Before and after claim"),
+    );
   });
 
   it("ファイルがなければ警告を返し、guide は差し込まずに出す", async () => {
@@ -62,9 +64,9 @@ describe("guide.notes の文書の差し込み（CL-5）", () => {
     expect(notes.warnings[0]).toContain("guide.notes.work");
 
     expect(await readGuide("work", notes.text)).toBe(await readGuide("work"));
-    const section = await composeGuide("work", config, root, "claim の前後");
+    const section = await composeGuide("work", config, root, "Before and after claim");
     expect(section.text).toBe(
-      (await composeGuide("work", configSchema.parse({}), root, "claim の前後")).text,
+      (await composeGuide("work", configSchema.parse({}), root, "Before and after claim")).text,
     );
     expect(section.warnings).toHaveLength(1);
   });

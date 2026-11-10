@@ -87,7 +87,7 @@ const BRIEF_ROLE_OF: Partial<Record<NextKind, BriefRole>> = {
 
 /**
  * モデルを決める手。review は親のモデルで起動する（見直し役は品質ゲートを弱めない）。
- * 直す手（fix）は実装と同じモデル（guide-review の「修正ループ（親）」）
+ * 直す手（fix）は実装と同じモデル（the "Fix loop (parent)" section of `dg guide review`）
  */
 const MODEL_KINDS: readonly NextKind[] = ["implement", "fix"];
 
@@ -157,7 +157,7 @@ export function stageOf(facts: StageFacts): Stage {
       : stage("todo", n, fixes, "着手できる");
   if (ticket.pr === undefined) return stage("claimed", n, fixes, "PR がまだない");
   const latest = reviews.at(-1);
-  // 最後の見直しより後に閉じた手直しが failure か interrupted なら、人を待つ（guide-review の「終わり方」）
+  // 最後の見直しより後に閉じた手直しが failure か interrupted なら、人を待つ（the "How to finish" section of `dg guide review`）
   // 一番新しい手直しの Run だけを見る（人が続けると決めて開き直した手直しが成功していれば、前の失敗は見ない）
   const lastFix = runs
     .filter(

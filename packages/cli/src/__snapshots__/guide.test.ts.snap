@@ -42,7 +42,7 @@ Iteration かチケットを、割り当てからリリースまでの流れで�
 
 - **段階の間は止まらない**：\`approval.required\` の場面以外では聞かず、次の \`flow next\` へ進む
 - **マージは \`auto.merge\` に従う**：\`auto.merge\`（今の設定：\`false\`）が true なら品質ゲートを満たす PR は \`--auto\` のとき自動でマージし、false なら人が行う。PR を出したら、マージを待つ間も次の手を進め、手がなければ止まる。マージの承認は \`approval\` のとおり
-- **失敗の扱い**：実装が失敗したチケットは \`dg guide parallel\` のとおり todo に戻し、それを待たないチケットを進める。見直し・手直しが failure で返った・返らないチケットは todo に戻さず、\`dg guide review\` の「終わり方」に従う
+- **失敗の扱い**：実装が失敗したチケットは \`dg guide parallel\` のとおり todo に戻し、それを待たないチケットを進める。見直し・手直しが failure で返った・返らないチケットは todo に戻さず、the "How to finish" section of \`dg guide review\` に従う
 
 ## \`--auto\` で自動で選ぶ
 
@@ -53,7 +53,7 @@ Iteration かチケットを、割り当てからリリースまでの流れで�
 
 マージと人が決める判断は、次のとおりに扱う。
 
-- PR のマージは、\`auto.merge\`（今の設定：\`false\`）が true のときだけ、\`dg guide review\` の「品質ゲート」を満たす PR を \`dg --json --actor agent pr merge <id>\` で行う。方法とブランチを消すかは \`--method\`・\`--delete-branch\` を省いて config の \`merge.method\`・\`merge.delete_branch\`（今の設定：\`squash\`・\`false\`）に任せる。満たさなければ、満たさなかった条件を示して承認を求めて止まる
+- PR のマージは、\`auto.merge\`（今の設定：\`false\`）が true のときだけ、the "Quality gate" section of \`dg guide review\` を満たす PR を \`dg --json --actor agent pr merge <id>\` で行う。方法とブランチを消すかは \`--method\`・\`--delete-branch\` を省いて config の \`merge.method\`・\`merge.delete_branch\`（今の設定：\`squash\`・\`false\`）に任せる。満たさなければ、満たさなかった条件を示して承認を求めて止まる
 - **人が決める判断は config によらず聞いて止まる**：リリースの PR のマージと公開（タグ・配布先）、チケットの削除・abandoned・done の取り消し、Epic・Iteration・Plan を閉じる・再開する。\`auto.merge\` が false のときのマージ。Plan の待ち（\`after\`）と範囲を変えること、\`--force\` の付く操作。勧めるものがない判断と、選択肢にできない答え
 
 ## 結果を伝える
@@ -319,7 +319,7 @@ PR がマージされたあとの後始末（PR の要らない作業は \`dg gu
 
 ## 終わらなかったとき
 
-- 作業をやめるなら \`dg --json --actor agent ticket unclaim <id>\`（in_progress のときだけ。todo に戻す）。開いたままの実装・手直しの Run は unclaim が \`failure\` で閉じる。手直し・見直しの Run は unclaim せず、\`dg guide review\` の「終わり方」に従う。チケット自体をやめる（abandoned）のは人に確かめてから \`ticket move <id> abandoned\`
+- 作業をやめるなら \`dg --json --actor agent ticket unclaim <id>\`（in_progress のときだけ。todo に戻す）。開いたままの実装・手直しの Run は unclaim が \`failure\` で閉じる。手直し・見直しの Run は unclaim せず、the "How to finish" section of \`dg guide review\` に従う。チケット自体をやめる（abandoned）のは人に確かめてから \`ticket move <id> abandoned\`
 - 要件が変わって別のチケットにすべきなら、\`dg guide import\` の手順で新しく起票を提案し、元のチケットの扱いは人に確かめる
 
 ## Iteration と Epic
@@ -469,7 +469,7 @@ deguboard is a ticket tool that is managed with Git. You (the AI agent) call \`d
 - Do not edit data files directly (under \`.git/deguboard/\`). Read them with \`dg … show --json\`. Changes written outside dg are found the next time dg runs, and dg stops writing (see "Changes outside dg" below)
 - Ticket IDs can be \`t12\` or \`12\`. Epics are \`e3\`, Iterations are \`s3\`. When calling from outside the repository, use \`-C <dir>\`
 - Writes are committed according to \`commit.mode\` (currently \`batch\`). Filing, claim, and starting or reopening an Iteration commit and push at once. In \`batch\`, other changes stay in the working tree, so run \`dg --json --actor agent sync\` at each break. In \`manual\`, \`sync\` does not commit either, so ask a human to run \`dg commit\` (only \`sync --resolve\`, which resolves conflicts, commits the waiting changes first, even in \`manual\`)
-- Record work results as a Run. When the parent advances work itself, \`ticket claim\` opens the implementation Run, so note the ID in \`data.run\`, and close it when recording the PR (\`ticket update --pr\`). For the steps, see the "親が自分で進めるとき" section of \`dg guide run\`. Usage (token counts) is imported from the conversation record when the Run closes, so do not write the numbers yourself
+- Record work results as a Run. When the parent advances work itself, \`ticket claim\` opens the implementation Run, so note the ID in \`data.run\`, and close it when recording the PR (\`ticket update --pr\`). For the steps, see the "When the parent advances work itself" section of \`dg guide run\`. Usage (token counts) is imported from the conversation record when the Run closes, so do not write the numbers yourself
 - If a filing result has \`provisional: true\`, the number is provisional and not yet pushed, and the ID may change. Tell a human and run \`sync\`
 - Write tickets, PRs, commits, and replies to humans in the language of the repository's existing text and of the human's request. Do not switch to English just because this guide is in English
 
@@ -519,16 +519,16 @@ Read with \`dg guide <topic>\`. In Claude Code, the Skill that \`dg skill instal
 `;
 
 exports[`dg guide の出力（本文の組み立て） > トピックごとの本文と、節の本文が変わらない > parallel 1`] = `
-"# 着手できるチケットを並べて進める（parallel）
+"# Advancing ready tickets in parallel (parallel)
 
-\`next\` が \`implement\`・\`review\`・\`fix\`・\`ready\` を返すチケットが複数あり、サブエージェントを起動できるなら、チケットごとに起動して同時に進めてよい。\`dg\` は順を示すだけで、起動と待ち合わせはこの手順で行う。進めるセッション（親）は進行・承認・\`dg\` の読み書きだけを行う。
+When \`next\` returns \`implement\`, \`review\`, \`fix\`, or \`ready\` for several tickets, and subagents can be started, you may start one for each ticket and advance them at the same time. \`dg\` only shows the order. Starting and waiting for them is done by these steps. The session that advances (the parent) only advances, gets approvals, and reads and writes \`dg\`.
 
-- **上限**：同時に 3 件まで。人が数を指示したらそれに従う。検査が負荷で落ちるなら減らす
-- **始める前**：開いた Plan と PR を見て、同じファイルを直すものがないか確かめる。同じファイルを変えるチケットは並べず、\`after\` で順にすることを人に提案する
-- **親**：チケットごとに \`dg guide work\` の「claim の前後」と「流れ」の \`implement\` の手（claim は \`--no-run\`。worktree は claim が作る）を 1 件ずつ行い、サブエージェントを起動する。返ったら \`dg guide work\` の「実装の結果を受け取る」と \`dg guide review\` の見直し・修正ループを回し（直さなかった軽い指摘は \`dg pr ready\` が PR の本文に書き足す）、空いた枠で \`dg next\` を読み直して次を起動する。マージ待ちのチケットと、人を待つチケットは枠に数えない
-- **渡す文**：\`dg next\` の \`brief\` を書き換えずに渡す（手直しは \`--role fix\` の文）。役の手順（節の本文）は文に入っているので、サブエージェントに guide を読ませない。モデルは \`dg next\` の \`model\`（\`null\` は親のモデル）
-- **サブエージェントがしない**：claim・unclaim・\`iteration add\`・Plan の操作・見直し役の起動・\`dg pr ready\`・マージ・\`ticket check\`・\`ticket update --pr\`・ほかのチケットの作業
-- **1 件でほかを止めない**：\`CLAIM_LOST\` ならそのチケットを飛ばす。実装が失敗したら \`ticket unclaim\` で todo に戻し、worktree は残して、同じ流れでは claim し直さない。見直し・手直しが failure で返った・返らないときは、\`dg guide review\` の「終わり方」に従う。待つのは \`after\` でつながるチケットだけ"
+- **Limit**: up to 3 at the same time. If a human gives a number, follow it. If checks fail under load, reduce it
+- **Before starting**: look at the open Plan and the PRs, and check that no two tickets change the same file. Do not run tickets that change the same file side by side. Propose to a human that they run in order with \`after\`
+- **Parent**: for each ticket, do the \`implement\` step of the "Steps" section of \`dg guide work\`, and the "Before and after claim" section of \`dg guide work\`, one at a time (claim with \`--no-run\`; claim creates the worktree), and start a subagent. When it returns, do the "Receive the implementation result" section of \`dg guide work\`, and the review and fix loop in \`dg guide review\` (light findings you did not fix are added to the PR body by \`dg pr ready\`). With the free slot, read \`dg next\` again and start the next one. Tickets waiting for a merge and tickets waiting for a human do not count toward the slots
+- **Passing the text**: pass the \`brief\` from \`dg next\` as it is (for fixes, the \`--role fix\` text). The steps of each role are already in the text, so do not have the subagent read the guide. The model is \`model\` from \`dg next\` (\`null\` means the parent's model)
+- **The subagent does not**: claim, unclaim, \`iteration add\`, Plan operations, start a reviewer, \`dg pr ready\`, merge, \`ticket check\`, \`ticket update --pr\`, or work on other tickets
+- **One ticket does not stop the others**: on \`CLAIM_LOST\`, skip that ticket. If implementation fails, \`ticket unclaim\` it back to todo, keep the worktree, and do not claim it again in the same flow. If a review or fix returns failure or does not return, follow the "How to finish" section of \`dg guide review\`. Wait only for tickets linked by \`after\`"
 `;
 
 exports[`dg guide の出力（本文の組み立て） > トピックごとの本文と、節の本文が変わらない > plan 1`] = `
@@ -642,10 +642,10 @@ Iteration のチケットがすべて done かを確かめ、リポジトリの�
    - 作業中の checkout ではなく、\`git fetch origin main\` の後に \`git worktree add --detach ../<repo>.worktrees/release-<S> origin/main\` で作った一時 worktree で進める。リリースのブランチ・依存のインストール・ビルドもこの中で行う
    - リリースの PR のマージは一時 worktree の外で行う。マージの後の確かめと公開は、マージを取り込んでから一時 worktree を作り直して行う
    - 承認を待たずに進めてよいのは準備の操作（一時 worktree、ブランチ、版の更新、CHANGELOG、確かめのコマンド、PR の作成）。PR の中で見直せるため
-   - リリースの PR で別のサブエージェントの見直しを省けるかは、\`dg guide review\` の「品質ゲート」の版上げの条件に従う
+   - リリースの PR で別のサブエージェントの見直しを省けるかは、the "Quality gate" section of \`dg guide review\` の版上げの条件に従う
    - **承認を得てから行う**：リリースの PR のマージ、公開の操作（タグの push・配布先への公開）。それぞれの前に聞く。手順に \`--dry-run\` などの確かめ方があれば先に実行し、結果を判断の材料に示す
    - 終わったら（やめたときも）一時 worktree を消す。\`git worktree remove\` が止まったら \`git -C <パス> status --short --branch\` で残りを確かめ、リリースに要る変更が残っていなければ \`--force\` で消す。残っていれば消さずに伝える
-4. **Iteration を閉じる**：「閉じる」「ここで止める」で聞き、承認されたら \`dg --json --actor agent iteration close <S>\`。次の Iteration は、それに入ったチケットに着手するときに \`dg guide work\` の「claim の前後」で始まる（聞かない）
+4. **Iteration を閉じる**：「閉じる」「ここで止める」で聞き、承認されたら \`dg --json --actor agent iteration close <S>\`。次の Iteration は、それに入ったチケットに着手するときに the "Before and after claim" section of \`dg guide work\` で始まる（聞かない）
 5. **結果を伝える**：リリースした版・PR・公開したもの・Iteration の状態・残した一時 worktree（あれば）
 
 ## リリースの手順がないとき
@@ -672,142 +672,143 @@ Tickets advance in this order: import (\`dg guide import\`) → assign (\`dg gui
 `;
 
 exports[`dg guide の出力（本文の組み立て） > トピックごとの本文と、節の本文が変わらない > review 1`] = `
-"# 見直しと品質ゲート（review）
+"# Review and quality gate (review)
 
-PR を人に出す前（\`dg next\` の \`review\`・\`fix\`・\`ready\`）と、自動でマージする前（\`dg guide all\` の \`--auto\`）に確かめる。判定は \`dg gate <id> --for ready\`・\`--for merge\` が行い（条件の正本は \`dg gate --help\`）、PR とマージは \`dg pr ready\`・\`dg pr merge\` で出す。どちらも判定してから gh を呼び、満たさなければ \`GATE_FAILED\` で満たさない条件と理由を返す。\`gh pr ready\`・\`gh pr merge\` は自分で打たない（フックが拒む）。ゲートを満たさないまま進めるのは人の判断なので、人に \`gh\` を打ってもらう。
+Checked before a PR is handed to a human (\`review\`, \`fix\`, and \`ready\` from \`dg next\`) and before it is merged automatically (\`--auto\` of \`dg guide all\`). \`dg gate <id> --for ready\` and \`--for merge\` make the judgment (the source of the conditions is \`dg gate --help\`), and \`dg pr ready\` and \`dg pr merge\` put the PR out and merge it. Both judge first and then call gh. When the conditions are not met, they return \`GATE_FAILED\` with the unmet conditions and the reasons. Do not run \`gh pr ready\` or \`gh pr merge\` yourself (the hook refuses them). Advancing without meeting the gate is a human's decision, so have a human run \`gh\`.
 
-## 品質ゲート
+## Quality gate
 
-- **検査**：\`dg gate\` の \`check\` が、\`actions.test\`（今の設定：\`none\`）を作業ブランチの最新のコミットの worktree で回して確かめる。base との差分のファイルがすべて \`actions.light_paths\`（今の設定：\`none\`）に入るなら、代わりに軽い検査 \`actions.light_test\`（今の設定：\`none\`）を回す（どちらを回したかは \`check\` の detail に出る）。手で回すときも同じに選ぶ。\`actions.test\` が空なら判定しないので、リポジトリの規約の検査（書式・lint・テスト）を親が最新のコミットで回して確かめる。CI があれば CI も
-- **受け入れ条件**：PR を出す前は確かめた項目に印があり、付けられない項目は PR の本文と報告に理由がある。マージの前はすべて印あり（\`dg gate\` の \`acceptance\`）
-- **見直し**：別のサブエージェントの見直しで重い指摘が残っていない。\`dg gate\` の \`review\` が最後の push より後の見直しの通過を、\`fix_rounds\` が上限以内を確かめる
-- **衝突**（マージの前だけ）：\`dg gate\` の \`mergeable\` が MERGEABLE。マージの直前に確かめ直す（base が進むと他の PR は \`UNKNOWN\` になる）
-- 条件を確かめた後にブランチを直したら、検査と受け入れ条件を確かめ直す。衝突を直して push したら見直し直す
-- **版上げの PR は見直しを省ける**：\`dg guide release\` の版上げの PR で、変更が版の数字（\`version\` など）と手順が決めた CHANGELOG・ロックファイルだけ（コード・文書・手順を変えない）のときに限り省いてよい。版上げの PR のマージは \`auto.merge\` によらず人が承認するので、人の承認が見直しの代わりになる。省いたら PR の本文に書く。ほかの条件は省かない
+- **Checks**: \`check\` of \`dg gate\` runs \`actions.test\` (current setting: \`none\`) in the worktree of the latest commit of the work branch to confirm it. If all the files that differ from base are in \`actions.light_paths\` (current setting: \`none\`), it runs the light check \`actions.light_test\` (current setting: \`none\`) instead. The \`check\` detail shows which one ran. When you run it by hand, choose the same way. If \`actions.test\` is empty, nothing is judged, so the parent runs the repository's convention checks (format, lint, tests) on the latest commit to confirm. If there is CI, CI too
+- **Acceptance criteria**: before a PR is opened, the items confirmed have a mark, and the items that cannot be marked have a reason in the PR body and the report. Before a merge, all of them are marked (\`acceptance\` of \`dg gate\`)
+- **Review**: a separate subagent's review has no heavy findings left. \`review\` of \`dg gate\` confirms that a review passed after the last push, and \`fix_rounds\` confirms that the count is within the limit
+- **Conflicts** (only before a merge): \`mergeable\` of \`dg gate\` is MERGEABLE. Confirm again just before merging (when base moves on, other PRs become \`UNKNOWN\`)
+- If you change the branch after confirming the conditions, run the checks and confirm the acceptance criteria again. If you push a fix for a conflict, review again
+- **A version-bump PR may skip the review**: in a version-bump PR of \`dg guide release\`, you may skip it only when the changes are the version numbers (\`version\` and the like) and the CHANGELOG and lock file that the steps define (no changes to code, documents, or steps). Merging a version-bump PR is approved by a human regardless of \`auto.merge\`, so the human's approval takes the place of the review. When you skip it, write it in the PR body. Do not skip the other conditions
 
-## 見直しを起動する（親）
+## Starting the review (parent)
 
-親は、実装したのとは別のサブエージェントを見直し役として起動する。見直し役は段階によらず親のモデルで起動する（品質ゲートを弱めない）。実装者は PR を draft で作って返し、draft のうちは照合が review に進めない。
+The parent starts a reviewer as a subagent separate from the one that implemented. The reviewer always starts with the parent's model, regardless of the stage (so the quality gate is not weakened). The implementer returns the PR as a draft, and while it is a draft, reconcile cannot move the ticket to review.
 
-- **渡す**：\`dg next\` が \`review\` の手で返す \`brief\`（\`brief <id> --role review\` と同じ文）を渡す。文には「見直す」の本文が入っているので、見直し役に guide を読ませない。1 Run で 1 枚のチケットを見るので、複数のチケットはチケットごとに起動する
-- **待つ**：バックグラウンドで起動したら、見直し役の終わりの通知が来るまで、見直しの Run を閉じず、結果を記録しない（Run は見直し役が止まったときに閉じ、結果は見直し役が記録する）
+- **Pass**: the \`brief\` that \`dg next\` returns as the \`review\` step (the same text as \`brief <id> --role review\`). The text includes the body of "Review", so do not have the reviewer read the guide. One Run looks at one ticket, so start one for each ticket
+- **Wait**: when you start it in the background, do not close the review Run or record the result until the reviewer's end notification arrives. The Run is closed when the reviewer stops, and the reviewer records the result
 
-## 見直す
+## Review
 
-見直し役は、文の「場所」「差分」「チケット本文」の手順で PR を読み、次を見て、次の形で返す。
+The reviewer reads the PR by the steps "Location", "Diff", and "Ticket body" in the text. It looks at the following and returns the result in the form below.
 
-- **見る**：受け入れ条件の漏れ・不具合・規約の違反・範囲の外の変更。文書との食い違いも見る。範囲の外の変更は、範囲の外の指摘として分けて返す。チケット本文の \`## 参考\` 節（英語の \`## References\` も同じ）があれば、差分で変えたファイルと見比べ、節にない大きな広がりと、節のファイルに触れていない変更を「参考節との食い違い」として返す（節がなければ見比べない）
-- **返す**：指摘を重いと軽いに分けた一覧（ファイルと行・理由・直し方）と、最新のコミットで回した検査の結果。重いのは、受け入れ条件の漏れ・不具合・規約の違反・この PR が変えた約束・手順・規約で文書を直していないもの（文書の重い指摘は約束・手順・規約の変更に限る）・判断を変えたのに同じ PR で ADR の本文を直していないもの・ADR に残った誤り（この PR が誤りにした細部）・ADR や要件に足した細部（直し方は「細部をコード・テスト・ヘルプへ移す」。規約の違反として数える）。軽いのは、言い回し・好み・前からのずれ（Iteration の見直しに送る）・参考節との食い違い。一覧は \`dg --json --actor agent run review-result <id> --findings-file <ファイル>\` に渡す JSON の配列にし（1 件は severity・category・file・line・reason・fix。形は \`dg run review-result --help\`）、返す前に 1 回記録する。受け入れ条件の文言に当たる指摘（受け入れ条件の欠け）は、category に「受け入れ条件」を含める（例：「受け入れ条件の漏れ」）。受け入れ条件の文言の軽い指摘は、この category で手直しに回る（ほかの軽い指摘を手直しに渡すなら、その記録は \`run handoff\`。手順は修正ループ）。数と通ったかは dg が求める
+- **Look at**: missed acceptance criteria, bugs, violations of conventions, and changes outside the scope. Mismatches with the documents too. Report changes outside the scope separately, as findings outside the scope. If the ticket body has a \`## References\` section (the Japanese \`## 参考\` is the same), compare it with the files the diff changed. Report a large spread that is not in the section, and changes that do not touch the files of the section, as "mismatch with the references section". If there is no section, do not compare
+- **Return**: the findings divided into heavy and light, as a list (file and line, reason, and how to fix), and the results of the checks run on the latest commit. Heavy: missed acceptance criteria, bugs, violations of conventions, a promise, procedure, or convention this PR changed without fixing the documents (for heavy findings on documents, limit them to changes to promises, procedures, or conventions), a change of decision without rewriting the ADR body in the same PR, an error left in an ADR (a detail this PR made wrong), and details added to an ADR or the requirements (the fix is to move the detail to code, tests, or help; count it as a violation of conventions). Light: wording, preference, drift from before (sent to the Iteration review), and mismatches with the references section. Make the list a JSON array for \`dg --json --actor agent run review-result <id> --findings-file <file>\` (each item has severity, category, file, line, reason, and fix; see \`dg run review-result --help\` for the shape), and record it once before you return it. For a finding that falls under the wording of acceptance criteria (missing acceptance criteria), include "acceptance criteria" in its category (for example, "missing acceptance criteria"). Light findings about the wording of acceptance criteria go to the fix by this category. To pass other light findings to the fix, record them with \`run handoff\` (see the fix loop for the steps). dg works out the counts and whether the review passed
 
-## 指摘を直す
+## Fix findings
 
-直す役は、文の「直す指摘」の件ごとに次を行う。
+The fixer does the following for each finding in "Findings to fix" in the text.
 
-- **直し方**：ファイルと行・理由・直し方を読み、直し方に従って直す。直し方が指摘の内容と合わないときは直さず、その理由を返す。
-- **文書**：指摘が文書の食い違い（約束・手順・規約）なら、指摘の直し方に従って文書を直す。判断を変えた PR は、その判断の ADR（あれば）の本文も同じ PR で直し、この PR が誤りにした細部は消す。
+- **How to fix**: read the file and line, the reason, and how to fix, and fix it as the how-to says. If the how-to does not match the finding, do not fix it, and return the reason
+- **Documents**: if the finding is a mismatch in a document (a promise, procedure, or convention), fix the document as the finding's how-to says. For a change of decision, also rewrite the body of that decision's ADR (if there is one) in the same PR, and delete the details that this PR made wrong
 
-## 修正ループ（親）
+## Fix loop (parent)
 
-- **直す指摘**：重い指摘と、受け入れ条件の文言に当たる軽い指摘。親が手直しに渡すと決めた軽い指摘（参考節との食い違い・言い回しなど）も入れる。その場合は先に \`dg --json --actor agent run handoff <id> --findings-file <ファイル>\` で 1 回記録する（ファイルは最新の見直しの一覧から写した指摘の JSON の配列。一覧にない指摘は使い方の誤りで返る）。記録した指摘は文の直す指摘に入り、直したかによらず PR の本文の「直さなかった軽い指摘」から外れる。新しいサブエージェント（実装者と同じモデル）を起動し、同じブランチで直して push させる。文は \`dg --json --actor agent brief <id> --role fix\`（「指摘を直す」の本文と、最新の見直しの記録の指摘が文に入る。親が指摘を写さない）。同じ会話の続きでは頼まない。親が自分で直すなら、親が進める手順（run の「親が自分で進めるとき」）
-- **直さなかった軽い指摘**（参考節との食い違いを含む）は、\`dg pr ready\` が PR の本文に書き足す（もとの本文は残す。親は書かない）。本文に載るのは、手直しに渡さなかった軽い指摘の見直し役の文（理由・直し方）。手直しに渡した指摘（\`run handoff\`）は、直したかによらず載らない。手直しが直さずに返した指摘と理由は dg が書けないので、親が報告に書く。参考節との食い違いは回数に数えない
-- **直した後**：親が最新のコミットで検査を回し、受け入れ条件を確かめ直す。見直しは、重い指摘を直したときと、軽い指摘だけでも \`dg gate\` の \`review\` が求めるときに、前回からの差分を見直し役（新しく起動してよい）に見させる（重い指摘が出なければ回数に数えない）。手直しのサブエージェントが返るまで \`dg next\` を呼ばない（途中の push と直し終えた push は区別できない）
-- **上限**：手直しの回数は dg が数え（\`dg gate\` の \`fix_rounds\`）、超えると \`dg next\` が \`wait_human\` を返す（下の「終わり方」）。人が回数を指示したらそれに従う。人が上限を超えて「続けて直す」を選んだら、\`dg next\` によらず \`brief <id> --role fix\` と \`--role review\` の文で回す。ready は \`dg gate\` の \`fix_rounds\` が通さないので、人に \`gh pr ready\` を打ってもらう
-- **範囲の外の指摘**：そのチケットでは直さず、\`dg guide import\` の起票の候補として人に示す
+- **Findings to fix**: heavy findings, and light findings about the wording of acceptance criteria. Also add the light findings that the parent decides to pass to the fix (mismatches with the references section, wording, and the like). In that case, first record them once with \`dg --json --actor agent run handoff <id> --findings-file <file>\` (the file is a JSON array of findings copied from the latest review list. A finding that is not in the list is returned as a usage error). Recorded findings go into the fix text's "Findings to fix", and they leave "Light findings not fixed" in the PR body whether they were fixed or not. Start a new subagent (the same model as the implementer), and have it fix on the same branch and push. The text is \`dg --json --actor agent brief <id> --role fix\` (it includes the body of "Fix findings" and the findings of the latest review record; the parent does not copy the findings). Do not ask for it in the continuation of the same conversation. If the parent fixes it itself, follow the steps the parent advances in the "When the parent advances work itself" section of \`dg guide run\`
+- **Light findings not fixed** (including mismatches with the references section): \`dg pr ready\` adds them to the PR body. The original body stays, and the parent does not write them. What is added is the reviewer's text (reason and how to fix) for the light findings that were not passed to the fix. Findings passed to the fix (\`run handoff\`) are left out whether they were fixed or not. dg cannot write the findings that the fixer returned without fixing, and their reasons, so the parent writes them in the report. Mismatches with the references section do not count toward the limit
+- **After fixing**: the parent runs the checks on the latest commit and confirms the acceptance criteria again. When a heavy finding was fixed, or when only light findings remain and \`review\` of \`dg gate\` asks for it, have a reviewer (it may be newly started) review the difference from the last review. If no heavy finding comes up, it does not count toward the limit. Do not call \`dg next\` until the fixing subagent returns (a push in the middle and the push after the fix is done cannot be told apart)
+- **Limit**: dg counts the fix rounds (\`fix_rounds\` of \`dg gate\`). When the count goes over, \`dg next\` returns \`wait_human\` (see "How to finish" below). If a human gives a number, follow it. If a human chooses "keep fixing" after the limit is exceeded, run the rounds with the \`brief <id> --role fix\` and \`--role review\` texts, not \`dg next\`. \`fix_rounds\` of \`dg gate\` does not pass ready, so have a human run \`gh pr ready\`
+- **Findings outside the scope**: do not fix them in this ticket. Show them to a human as candidates for filing with \`dg guide import\`
 
-## 終わり方
+## How to finish
 
-- **通った**：\`dg --json --actor agent pr ready <id>\` で PR を出し（人にレビューを頼む）、\`sync\` を回す（\`dg next\` の \`ready\`）。PR を見ない Workflow の扱いは \`dg guide work\` の「ready」の手
-- **見直し役を起動できない**（サブエージェントを起動できない環境）：見直しを人に頼む。PR を \`dg pr ready\` で出し（\`GATE_FAILED\` なら人に \`gh pr ready\` を打ってもらう）、見直していないことを PR の本文と報告に書く
-- **上限を超えた**（重い指摘が残る）・**手直しが failure で返った・返らない**：上限を超えた手直しは始めない。PR は draft、チケットは in_progress のまま置き、残った指摘・直した回数・PR を人に報告して、続けて直すか（上限を超えたときは上の「上限」の進め方）・ready にする（人が \`gh pr ready\`）か・やめる（\`ticket unclaim\`）かを聞く。自分では unclaim しない。人を待つ間も、それを待たないチケットは進める
-- **止まって待っている**（\`dg next\` が \`wait_human\` を返す）：\`ask_human\` に従い、続けさせるなら同じ会話に続きを送る。直さないと決めたら、その Run を \`run finish <Run> --result failure --error <理由>\` で閉じてよいかを人に聞く
-- **見直し役が返らない**：\`dg guide run\` の「止まった Run」で閉じ、見直し役を起動し直す。PR は draft、チケットは in_progress のまま。起動し直しても返らなければ「見直し役を起動できない」"
+- **Passed**: \`dg --json --actor agent pr ready <id>\` puts the PR out (asking a human to review it), and then run \`sync\` (\`ready\` of \`dg next\`). For a Workflow that does not look at PRs, see "ready" in \`dg guide work\`
+- **Cannot start a reviewer** (the environment cannot start subagents): ask a human to review it. Put the PR out with \`dg pr ready\` (if it returns \`GATE_FAILED\`, have a human run \`gh pr ready\`), and write in the PR body and the report that it was not reviewed
+- **Over the limit** (heavy findings remain), or **fix failed or did not return**: do not start a fix beyond the limit. Keep the PR as a draft and the ticket in_progress. Report the remaining findings, the number of fix rounds, and the PR to a human, and ask whether to keep fixing (when over the limit, by the steps in "Limit" above), to make it ready (a human runs \`gh pr ready\`), or to stop (\`ticket unclaim\`). Do not unclaim it yourself. While waiting for a human, advance the tickets that do not wait for it
+- **Waiting for a human** (\`dg next\` returns \`wait_human\`): follow \`ask_human\`, and to keep going, send the continuation in the same conversation. If you decide not to fix it, ask a human whether you may close the Run with \`run finish <Run> --result failure --error <reason>\`
+- **Reviewer does not return**: close the Run by the "Stopped Run" section of \`dg guide run\`, and start the reviewer again. The PR stays a draft and the ticket stays in_progress. If it still does not return after starting again, it is "Cannot start a reviewer""
 `;
 
 exports[`dg guide の出力（本文の組み立て） > トピックごとの本文と、節の本文が変わらない > run 1`] = `
-"# Run の記録（run）
+"# Recording a Run (run)
 
-Run は 1 回の作業の記録で、使用量（トークン）が残る。親が自分で作業するときの claim と PR の記録、止まった Run の始末だけを書く。
+A Run is the record of one piece of work, and it keeps the usage (tokens). This guide covers only the claim and PR recording when the parent does the work itself, and cleaning up a stopped Run.
 
-## 親が自分で進めるとき
+## When the parent advances work itself
 
-- Run を開く claim は単独で呼び、ほかのコマンドとつながない（ID が会話記録に出るのが遅れると、同じ会話で重ねた Run の応答を正しく分けられない）
-- 実装の Run は \`ticket claim\` が開く。step は Workflow の \`opens_on: claim\` のもの（なければ \`implement\`）。ID は \`data.run\`
-- 実装の Run は \`ticket update --pr <番号>\` が \`success\` で閉じる（finished_at は PR の作成時刻）。\`run finish\` は要らない。PR の要らない作業は \`ticket move\` の done・review が閉じる
-- やめるなら \`ticket unclaim\` が \`failure\` で閉じる。理由を残すなら先に \`run finish <Run の ID> --result failure --error <理由>\`
-- 自分で手直しするなら、自分が claim 済みで PR のあるチケットを \`ticket claim <id> --retry-reason <指摘 1 件の要約>\` で claim する。指摘 1 件に 1 つ繰り返す。チケットは変わらず、手直しの Run（\`opens_on: reclaim\` のもの、なければ \`fix\`）が開く。次の見直しの Run の開始か \`sync\` が、最後の push の時刻で閉じる
-- 理由は 1 行で、秘密・コマンドの文字列・パスは書かない
+- Call the claim that opens a Run alone, and do not chain other commands to it (if the ID shows up late in the conversation record, the responses of Runs stacked in the same conversation cannot be told apart correctly)
+- \`ticket claim\` opens the implementation Run. Its step is the Workflow's \`opens_on: claim\` one (\`implement\` if there is none). The ID is in \`data.run\`
+- \`ticket update --pr <number>\` closes the implementation Run as \`success\` (finished_at is the time the PR was created). \`run finish\` is not needed. For work that needs no PR, \`ticket move\` to done or review closes it
+- To stop, \`ticket unclaim\` closes it as \`failure\`. To leave a reason, first run \`run finish <Run ID> --result failure --error <reason>\`
+- To fix findings yourself, claim a ticket that you already claimed and that has a PR, with \`ticket claim <id> --retry-reason <one-line summary of each finding>\`. Repeat it once per finding. The ticket does not change, and the fix Run (the one with \`opens_on: reclaim\`, or \`fix\` if there is none) opens. The start of the next review Run or \`sync\` closes it at the time of the last push
+- Keep each reason to one line, and do not write secrets, command strings, or paths
 
-## 止まった Run
+## Stopped Run
 
-返らないまま開いている Run は \`dg --json --actor agent run list --running --ticket <id>\` で探し、\`run finish <Run の ID> --result interrupted --error <理由>\` で閉じる。その後の手は \`dg next\` に従う。"
+Find a Run that is still open and has not returned with \`dg --json --actor agent run list --running --ticket <id>\`, and close it with \`run finish <Run ID> --result interrupted --error <reason>\`. After that, follow \`dg next\` for the next step.
+</content>"
 `;
 
 exports[`dg guide の出力（本文の組み立て） > トピックごとの本文と、節の本文が変わらない > work 1`] = `
-"# 作業（work）
+"# Work (work)
 
-1 枚のチケットを PR を draft で出すまで進める。段階と手は \`dg next\` が求め、ここには各手のやり方だけを書く。
+Advances one ticket to a draft PR. \`dg next\` decides the steps and their order. This guide describes only how to do each step.
 
-## 対象を決める
+## Deciding the target
 
-- Plan の ID（\`p3\`）：下の「Plan に従う」で、着手できるものから 1 枚ずつ進める
-- チケットの ID：そのチケットを進める。開いた Plan に入っていれば（\`ticket show\` の \`plan\`）その Plan に従う
-- 指定が空：\`plan list --status open\` の承認済みの Plan を勧めて確かめる。なければ \`dg guide plan\` で計画を立てることを勧める
+- Plan ID (\`p3\`): following "Following the Plan" below, advance one ticket at a time, starting with one that can be started
+- Ticket ID: advance that ticket. If it is in an open Plan (\`plan\` of \`ticket show\`), follow that Plan
+- No target given: suggest an approved Plan from \`plan list --status open\`, and confirm. If there is none, suggest making a plan with \`dg guide plan\`
 
-## 流れ
+## Steps
 
-1. \`dg --json --actor agent next <id>\` を呼び、\`kind\` の手を 1 つ行う。\`commands\` の順に行い、\`brief\` があればサブエージェントに貼る（後ろに一時ファイルの置き場所を足してよい）。\`model\` が空でなければ、そのモデルでサブエージェントを起動する（\`null\` は親のモデル）。印のない調べもののサブエージェントは \`models.light\`（空なら親のモデル）。終えたらもう一度 \`next\` を呼ぶ
-2. \`kind\` ごとの親の手：
-   - \`implement\`：\`commands\` の claim を行い、「claim の前後」に従う。作業ブランチの worktree は claim が作り、場所を \`worktree\` に返す（既定は \`../<repo>.worktrees/<ブランチ名>\`）。文を渡し、返ったら「実装の結果を受け取る」。親が自分で実装するなら、claim の \`--no-run\` を外して下の「実装する」を行う（claim が実装の Run を開く）
-   - \`review\`：\`dg guide review\` の「見直しを起動する（親）」で見直し役を起動する（文に「見直す」の手順が入る）
-   - \`fix\`：\`dg guide review\` の「修正ループ（親）」で、\`brief <id> --role fix\` の文で渡す（文に「指摘を直す」の手順と、見直しの記録の指摘が入る）
-   - \`ready\`：\`dg guide review\` の「終わり方」で PR を出す。PR を見ない Workflow（general など。\`sync\` が review に進めない）では、PR を出したら続けて自分で \`dg --json --actor agent ticket move <id> review\` に進める
-   - \`wait_merge\`・\`wait_human\`：\`ask_human\` を人に伝えて聞く（\`wait_human\` は \`dg guide review\` の「終わり方」）。人のレビューの指摘は \`dg guide review\` の「修正ループ（親）」。マージされたら \`dg guide done\`
-   - \`wait_deps\`：待つ。Plan の \`next\` から、ほかのチケットを選ぶ
-   - \`done\`：\`dg guide done\` の手順で片付ける
+1. Call \`dg --json --actor agent next <id>\`, and do one of the \`kind\` steps. Do the \`commands\` in order. If there is a \`brief\`, paste it to a subagent (you may add a location for temporary files after it). If \`model\` is not empty, start the subagent with that model (\`null\` means the parent's model). A research subagent with no mark uses \`models.light\` (the parent's model if it is empty). After finishing, call \`next\` again
+2. The parent's step for each \`kind\`:
+   - \`implement\`: do the claim in \`commands\`, and follow "Before and after claim". Claim creates the worktree of the work branch, and returns its location in \`worktree\` (the default is \`../<repo>.worktrees/<branch name>\`). Pass the text, and when it returns, do "Receive the implementation result". If the parent implements it itself, remove \`--no-run\` from the claim and do "Implement" below (claim opens the implementation Run)
+   - \`review\`: start the reviewer by the "Starting the review (parent)" section of \`dg guide review\` (the text includes the "Review" steps)
+   - \`fix\`: follow the "Fix loop (parent)" section of \`dg guide review\`, and pass the text with \`brief <id> --role fix\` (the text includes the "Fix findings" steps and the findings of the review record)
+   - \`ready\`: put the PR out by the "How to finish" section of \`dg guide review\`. For a Workflow that does not look at PRs (such as general, where \`sync\` does not move it to review), after the PR is put out, move it to review yourself with \`dg --json --actor agent ticket move <id> review\`
+   - \`wait_merge\` and \`wait_human\`: tell a human \`ask_human\` and ask (\`wait_human\` is in the "How to finish" section of \`dg guide review\`). For review findings from a human, follow the "Fix loop (parent)" section of \`dg guide review\`. After the merge, \`dg guide done\`
+   - \`wait_deps\`: wait. Choose another ticket from \`next\` of the Plan
+   - \`done\`: clean up by the steps of \`dg guide done\`
 
-## claim の前後
+## Before and after claim
 
-- 担当者（\`ticket show\` の \`assignee\`）が別のユーザなら避ける
-- claim は、\`lint.require_iteration\` が true なら（今の設定：\`false\`）\`iteration\` が空のチケットを Iteration に入れ、planned の Iteration を開始し、作業ブランチの worktree を作って、その中で config の \`worktree.setup\`（準備のコマンド）を回す（選び方は \`ticket claim --help\`）。\`warnings\` に入れ先がない・開始できない・worktree を作れない・準備のコマンドが止まったが出たら、Iteration は人に頼み（入れずに進むと \`lint_iteration_missing\`）、worktree は警告に書いた場所に手で作り、準備のコマンドは警告に書いたものを手で回す（\`worktree\` が null のとき。既定は \`../<repo>.worktrees/<ブランチ名>\`）。作業は続ける
-- 準備のコマンドは数分かかることがあり、claim はその間戻らない（上限 10 分）。呼ぶ側の上限（エージェントの Bash の既定 2 分など）より長いときは、claim を回す時間を長くする。途中で切れても claim と実装の Run は残るが、警告は出ないので、worktree で config の \`worktree.setup\` を手で回す
-- \`CLAIM_LOST\` なら別のチケットへ。\`BRANCH_IN_USE\` なら \`--branch\` の名前を変えて claim し直す
+- If the assignee (\`assignee\` of \`ticket show\`) is another user, avoid the ticket
+- When \`lint.require_iteration\` is true (current setting: \`false\`), claim puts a ticket with no \`iteration\` into an Iteration, starts the planned Iteration, creates the worktree of the work branch, and runs config's \`worktree.setup\` (the preparation commands) in it. For how the Iteration is chosen, see \`ticket claim --help\`. If \`warnings\` says there is no Iteration to put it in, that it could not be started, that the worktree could not be created, or that a preparation command stopped, ask a human for the Iteration (going on without one causes \`lint_iteration_missing\`). Make the worktree by hand at the place the warning shows (when \`worktree\` is null; the default is \`../<repo>.worktrees/<branch name>\`), and run the preparation commands the warning shows by hand. Keep going with the work
+- The preparation commands can take several minutes, and claim does not return until they finish (limit: 10 minutes). If that is longer than the caller's limit (such as the default 2 minutes of an agent's Bash), lengthen the time you give the claim. If it is cut off midway, the claim and the implementation Run remain, but no warning appears. Run config's \`worktree.setup\` by hand in the worktree
+- On \`CLAIM_LOST\`, go to another ticket. On \`BRANCH_IN_USE\`, change the \`--branch\` name and claim again
 
-## 実装する（draft の PR まで）
+## Implement (up to a draft PR)
 
-実装する役は、\`next\` の \`plan\` の範囲と方針の中で実装し、次を行う。
+The implementer works within the scope and approach of \`plan\` in \`next\`, and does the following.
 
-1. リポジトリの検査（書式・lint・テスト）を通す
-2. 触れた節の正本（requirements・README・コードのコメント）を読み直し、この PR で変えた約束・手順・規約の文書を同じ PR で直す（変えていない文書の前からのずれは直さず、報告に書く）。判断を変えたら、その判断の ADR（あれば）の本文を同じ PR で直接書き換える（番号は変えない）。この PR が誤りにした ADR の細部は、その PR で消す。要件は約束だけを直し、細部は足さない（細部の正本はヘルプ・コード・テスト）
-3. \`gh pr create --draft\` で PR を作る。本文にチケット ID（\`t12\`）、付けられなかった受け入れ条件と理由、読み直した正本と直した箇所を書く
-4. 受け入れ条件は、成果物やテストで満たしたと確かめた項目だけを報告する（印は親が付ける）
+1. Pass the checks of the repository (format, lint, tests)
+2. Read again the sources of truth for the sections touched (requirements, README, code comments). In the same PR, fix the documents of promises, procedures, and conventions that this PR changed. Report stale documents from before that this PR did not change, without fixing them. If the PR changed a decision, also rewrite the body of that decision's ADR (if there is one) directly in the same PR (keep the number). Delete the details of an ADR that this PR made wrong. Requirements state only promises, so do not add details to them (the sources of details are help, code, and tests)
+3. Make a PR with \`gh pr create --draft\`. In the body, write the ticket ID (\`t12\`), the acceptance criteria that could not be met and why, and the sources you read again and the places you fixed
+4. Report only the acceptance criteria that you confirmed as met by the deliverable or tests (the parent attaches the marks)
 
-## 実装の結果を受け取る
+## Receive the implementation result
 
-返ったら、\`ticket show\` の \`acceptance\` と照らし、確かめた項目だけ \`dg --json --actor agent ticket check <id> <番号...>\` で付ける（付けられない項目は PR の本文と報告に理由）。PR 番号は \`dg --json --actor agent ticket update <id> --pr <番号>\` で記録する。報告された前からのずれは直させず、PR の本文に残して Iteration の見直し（\`dg guide audit\`）の材料にする。この PR が誤りにした ADR の細部が残っていたら、直させてから記録する。記録したら \`next\` に戻る。
+When it returns, compare the result with \`acceptance\` of \`ticket show\`, and attach with \`dg --json --actor agent ticket check <id> <numbers...>\` only the items you confirmed (items that could not be attached get their reasons in the PR body and the report). Record the PR number with \`dg --json --actor agent ticket update <id> --pr <number>\`. Do not have the drift from before that was reported fixed. Keep it in the PR body, as material for the Iteration review (\`dg guide audit\`). If details of an ADR that this PR made wrong remain, have them fixed before recording. After recording, go back to \`next\`.
 
-## Plan に従う
+## Following the Plan
 
-承認済みの Plan（\`dg guide plan\`）の順と中身に従う。
+Follow the order and contents of the approved Plan (\`dg guide plan\`).
 
-- 着手する前に \`dg --json --actor agent plan show <p>\`。\`pending_approval\` が true なら着手せず、人に承認を求める
-- 次は \`plan show\` の \`next\`（Plan の順で先の、着手できる \`ready\`）。\`waiting\` は待ちの相手。after は claim では検査されないので、自分で守る（同時に進めるなら \`dg guide parallel\`）
-- 範囲（\`scope\`）と方針（\`approach\`）は \`next\` の \`plan\` に出る。範囲を広げる・方針を変えるなら、先に人に確かめる
-- 1 枚が PR まで進んだら \`plan show\` を読み直して次を選ぶ。Plan のチケットがすべて終わったら \`dg guide done\` の「Plan を閉じる」
+- Before starting, run \`dg --json --actor agent plan show <p>\`. If \`pending_approval\` is true, do not start. Ask a human for approval
+- The next ticket is \`next\` of \`plan show\`: the earliest one in the Plan's order that can be started (\`ready\`). \`waiting\` is the party to wait for. \`after\` is not checked by claim, so keep it yourself (if you advance tickets at the same time, see \`dg guide parallel\`)
+- The scope (\`scope\`) and approach (\`approach\`) appear in \`plan\` of \`next\`. Before you widen the scope or change the approach, confirm with a human
+- When one ticket reaches a PR, read \`plan show\` again and choose the next one. When all tickets of the Plan are finished, do the "Plan を閉じる" section of \`dg guide done\`
 
-## PR の要らない作業
+## Work that needs no PR
 
-リポジトリのファイルを変えない作業（データの整備・確認・調査など）は、ブランチも PR も作らず、照合に頼らず done まで進める（\`next\` は PR を前提にするので使わない）。
+Work that does not change repository files (data maintenance, checks, research) makes no branch and no PR. It goes to done without relying on reconcile. (\`next\` assumes a PR, so do not use it.)
 
-1. \`dg --json --actor agent ticket claim <id> --without-branch\`（claim が Run を開く）。\`warnings\` は「claim の前後」のとおり扱う
-2. 受け入れ条件を 1 項目ずつ確かめ、満たした項目だけ \`ticket check\` で付ける
-3. すべて付いたら \`dg --json --actor agent ticket move <id> done\`。付けられない項目が残ったら \`ticket move <id> review\` にして、残った項目と理由を人に報告する（done にするのは人）
-4. 途中でリポジトリのファイルを変える必要が出たら、\`ticket update <id> --branch <種類>/<内容>\` で記録して上の流れに移る。ブランチが要らなくなったら \`--branch none\`
+1. \`dg --json --actor agent ticket claim <id> --without-branch\` (claim opens a Run). Treat \`warnings\` as in "Before and after claim"
+2. Confirm the acceptance criteria one item at a time, and attach with \`ticket check\` only the items that are met
+3. When all of them are attached, \`dg --json --actor agent ticket move <id> done\`. If items that cannot be attached remain, \`ticket move <id> review\`, and report the remaining items and reasons to a human (a human sets done)
+4. If you need to change repository files midway, record it with \`ticket update <id> --branch <type>/<content>\`, and move to the flow above. When the branch is no longer needed, use \`--branch none\`
 
-## 状態
+## Status
 
-- \`status\` を自分で進めるのは in_progress から review まで。done は照合（マージ）で進み、照合で進まないときや人に指示されたときだけ \`ticket move <id> done\`（制限は \`dg guide overview\`）
-- 実装をやめるなら \`dg --json --actor agent ticket unclaim <id>\`（todo に戻る。Run の扱いは \`dg guide run\`）
-- 作業中に別の作業が見つかったら、そのチケットに混ぜず \`dg guide import\` で起票を提案する
+- Advance \`status\` yourself only from in_progress to review. done is set by reconcile (merge). Run \`ticket move <id> done\` only when reconcile does not advance it, or when a human has instructed it (for the limits, see \`dg guide overview\`)
+- To stop implementing, run \`dg --json --actor agent ticket unclaim <id>\` (the ticket goes back to todo. For how Runs are handled, see \`dg guide run\`)
+- If you find other work midway, do not mix it into this ticket. Propose filing it with \`dg guide import\`
 
 ## Asking with choices
 
@@ -819,22 +820,22 @@ Tickets advance in this order: import (\`dg guide import\`) → assign (\`dg gui
 - Ask questions where several can be chosen (such as which lines to reflect) with multiple selection. Ask about deletion, abandoned, and close operations one at a time
 - When deciding the next step, make the next step in the flow and "stop here" the choices (see the "Choosing the next step" section of each guide). When the next step is chosen, if a Skill is available (for example \`/dgwork p3\`), start it. If not, read \`dg guide <topic>\` and continue with that step. Do not do the next step's work inside the current step.
 
-## 次の手順を選ぶ
+## Choosing the next step
 
-PR を出したら（PR の要らない作業を終えたときも）、結果を伝えて次の選択肢で聞く。
+After you open a PR (and also after finishing work that needs no PR), report the result and ask with the following choices.
 
-- **次のチケットに進む**（勧める。Plan に着手できるチケットが残っていれば）：\`plan show\` を読み直し、この手順で次の 1 枚を進める
-- **完了にする**：PR がマージされていれば、\`dg guide done\` の手順で片付ける（Skill があれば \`/dgdone <ID>\`）
-- **ここで止める**：マージを待つ（マージ後は \`dg guide done\`）"
+- **Advance to the next ticket** (recommended, if the Plan still has tickets that can be started): read \`plan show\` again, and advance the next one by these steps
+- **Mark it done**: if the PR was merged, clean up by the steps of \`dg guide done\` (if a Skill is available, \`/dgdone <ID>\`)
+- **Stop here**: wait for the merge (after the merge, \`dg guide done\`)"
 `;
 
 exports[`dg guide の出力（本文の組み立て） > トピックごとの本文と、節の本文が変わらない > work の節 1`] = `
-"## 実装する（draft の PR まで）
+"## Implement (up to a draft PR)
 
-実装する役は、\`next\` の \`plan\` の範囲と方針の中で実装し、次を行う。
+The implementer works within the scope and approach of \`plan\` in \`next\`, and does the following.
 
-1. リポジトリの検査（書式・lint・テスト）を通す
-2. 触れた節の正本（requirements・README・コードのコメント）を読み直し、この PR で変えた約束・手順・規約の文書を同じ PR で直す（変えていない文書の前からのずれは直さず、報告に書く）。判断を変えたら、その判断の ADR（あれば）の本文を同じ PR で直接書き換える（番号は変えない）。この PR が誤りにした ADR の細部は、その PR で消す。要件は約束だけを直し、細部は足さない（細部の正本はヘルプ・コード・テスト）
-3. \`gh pr create --draft\` で PR を作る。本文にチケット ID（\`t12\`）、付けられなかった受け入れ条件と理由、読み直した正本と直した箇所を書く
-4. 受け入れ条件は、成果物やテストで満たしたと確かめた項目だけを報告する（印は親が付ける）"
+1. Pass the checks of the repository (format, lint, tests)
+2. Read again the sources of truth for the sections touched (requirements, README, code comments). In the same PR, fix the documents of promises, procedures, and conventions that this PR changed. Report stale documents from before that this PR did not change, without fixing them. If the PR changed a decision, also rewrite the body of that decision's ADR (if there is one) directly in the same PR (keep the number). Delete the details of an ADR that this PR made wrong. Requirements state only promises, so do not add details to them (the sources of details are help, code, and tests)
+3. Make a PR with \`gh pr create --draft\`. In the body, write the ticket ID (\`t12\`), the acceptance criteria that could not be met and why, and the sources you read again and the places you fixed
+4. Report only the acceptance criteria that you confirmed as met by the deliverable or tests (the parent attaches the marks)"
 `;

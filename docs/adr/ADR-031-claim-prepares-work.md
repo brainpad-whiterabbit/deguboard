@@ -8,7 +8,7 @@ claim は排他を得た後に、`lint.require_iteration` が true なら Iterat
 
 ## 背景
 
-claim は `branch` を記録するだけでブランチも worktree も作らない。そのため `dg guide work` の「claim の前後」が、Iteration の入れ先の選び方（active → start が最も早い planned → ID の小さい順）・`iteration start`・`git worktree add` を親のエージェントに文で打たせていた。[ADR-030](ADR-030-flow-and-guide-in-core.md) は決まった規則を guide の文からコードへ移すと決め、claim の前後の手はその最初の対象になった。
+claim は `branch` を記録するだけでブランチも worktree も作らない。そのため the "Before and after claim" section of `dg guide work` が、Iteration の入れ先の選び方（active → start が最も早い planned → ID の小さい順）・`iteration start`・`git worktree add` を親のエージェントに文で打たせていた。[ADR-030](ADR-030-flow-and-guide-in-core.md) は決まった規則を guide の文からコードへ移すと決め、claim の前後の手はその最初の対象になった。
 
 ## 決定
 

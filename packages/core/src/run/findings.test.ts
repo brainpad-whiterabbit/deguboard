@@ -70,6 +70,14 @@ describe("見直しの指摘から手直しに渡すものを選ぶ（t600）", 
     expect(unfixedLight).toEqual([other]);
   });
 
+  it("英語の guide を読んだ見直し役が書く acceptance criteria の category も、受け入れ条件の文言として直す側に分ける（t489）", () => {
+    const english = finding({ category: "missing acceptance criteria" });
+    const upper = finding({ category: "Acceptance Criteria gap" });
+    const wording = finding({ category: "wording" });
+    expect(splitFindings([english, upper, wording], []).fix).toEqual([english, upper]);
+    expect(splitFindings([english, upper, wording], []).unfixedLight).toEqual([wording]);
+  });
+
   it("指摘の 1 件は場所・種類・理由・直し方を 1 行にする", () => {
     expect(
       findingText(

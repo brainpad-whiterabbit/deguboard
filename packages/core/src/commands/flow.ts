@@ -239,7 +239,13 @@ export const FLOW_GUIDE: Record<FlowStageName, { topic: string; sections: readon
   plan: { topic: "plan", sections: ["Flow", "Creating a Plan", "About approval"] },
   work: {
     topic: "work",
-    sections: ["流れ", "claim の前後", "実装する", "実装の結果を受け取る", "Plan に従う"],
+    sections: [
+      "Steps",
+      "Before and after claim",
+      "Implement",
+      "Receive the implementation result",
+      "Following the Plan",
+    ],
   },
   audit: {
     topic: "audit",

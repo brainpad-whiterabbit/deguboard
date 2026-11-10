@@ -44,7 +44,7 @@ describe("サブエージェントに渡す文の形（brief）", () => {
       - Plan p3 の範囲：右の列の CSS だけ
       - 方針：幅の変数を 1 つ足す
       - 規約：リポジトリのルートにあるエージェント向けの指示ファイルに従い、下の手順を行う。PR の本文にチケット ID（t12）を書く。
-      --- 手順：実装する ---
+      --- 手順：Implement ---
       1. 検査を通す
       2. 読み直した正本を直す
       --- 手順ここまで ---
@@ -66,7 +66,7 @@ describe("サブエージェントに渡す文の形（brief）", () => {
       - 差分：\`git fetch origin\` のあと \`git diff origin/main...feat/t12\` で見る。
       - チケット本文：\`dg --json --actor agent ticket show t12\` の本文と受け入れ条件を読む。
       - 規約：リポジトリのルートにあるエージェント向けの指示ファイルに従い、下の手順を行う。
-      --- 手順：見直す ---
+      --- 手順：Review ---
       1. 検査を通す
       2. 読み直した正本を直す
       --- 手順ここまで ---
@@ -89,7 +89,7 @@ describe("サブエージェントに渡す文の形（brief）", () => {
         - 直し始める前に：\`dg --json --actor agent run retry-reason t12 --reason <直す指摘 1 件の要約> --reason <2 件目の要約> …\` を単独のコマンドで 1 回呼んで、fix の Run にやり直しの理由を書く。直す指摘 1 件に 1 つ --reason を繰り返す（回数は理由の数になる）。書くのは見直し役・人のレビューの指摘だけで、検査の失敗を直したことは書かない。要約は 1 行で、秘密・コマンドの文字列・パスは書かない。
         - 直す範囲：挙げられた重い指摘と、直すと決めた軽い指摘。ほかの軽い指摘は直すかを決め、直さないものは理由を返す。
         - 規約：リポジトリのルートにあるエージェント向けの指示ファイルに従い、下の手順を行う。検査（書式・lint・テスト）を最新のコミットで通してから push する。
-        --- 手順：指摘を直す ---
+        --- 手順：Fix findings ---
         1. 検査を通す
         2. 読み直した正本を直す
         --- 手順ここまで ---
@@ -111,7 +111,7 @@ describe("サブエージェントに渡す文の形（brief）", () => {
       - Plan p3 scope: 右の列の CSS だけ
       - Approach: 幅の変数を 1 つ足す
       - Conventions: Follow the agent instruction file at the repository root, and the steps below. Write the ticket ID (t12) in the PR body.
-      --- Steps: 実装する ---
+      --- Steps: Implement ---
       1. 検査を通す
       2. 読み直した正本を直す
       --- End of steps ---
@@ -130,7 +130,7 @@ describe("サブエージェントに渡す文の形（brief）", () => {
       - Diff: After \`git fetch origin\`, look at \`git diff origin/main...feat/t12\`.
       - Ticket body: Read the body and acceptance criteria in \`dg --json --actor agent ticket show t12\`.
       - Conventions: Follow the agent instruction file at the repository root, and the steps below.
-      --- Steps: 見直す ---
+      --- Steps: Review ---
       1. 検査を通す
       2. 読み直した正本を直す
       --- End of steps ---
@@ -149,7 +149,7 @@ describe("サブエージェントに渡す文の形（brief）", () => {
       - Before you start fixing: Run \`dg --json --actor agent run retry-reason t12 --reason <summary of finding 1> --reason <summary of finding 2> …\` once, as a standalone command, to write the retry reasons on the fix Run. Repeat --reason once per finding you fix (the number of reasons is the retry count). Write only the findings from the reviewer or the human reviewer, not fixes for failed checks. Each summary is one line and must not contain secrets, command strings, or paths.
       - Scope of the fix: The heavy findings listed, and the light ones you decide to fix. For the other light findings, decide whether to fix them, and return the reasons for those you leave.
       - Conventions: Follow the agent instruction file at the repository root, and the steps below. Run the checks (format, lint, tests) on the latest commit before you push.
-      --- Steps: 指摘を直す ---
+      --- Steps: Fix findings ---
       1. 検査を通す
       2. 読み直した正本を直す
       --- End of steps ---
@@ -242,9 +242,9 @@ describe("dg brief と dg next の文（EX-3）", () => {
         .join("\n")
         .trim();
     const cases = [
-      { role: "implement", topic: "work", section: "実装する" },
-      { role: "review", topic: "review", section: "見直す" },
-      { role: "fix", topic: "review", section: "指摘を直す" },
+      { role: "implement", topic: "work", section: "Implement" },
+      { role: "review", topic: "review", section: "Review" },
+      { role: "fix", topic: "review", section: "Fix findings" },
     ] as const;
     for (const { role, topic, section } of cases) {
       const text = (await runCommand(brief, ctx, { ticket: "t1", role, findings: "1. 直す指摘" }))
