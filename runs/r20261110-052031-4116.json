@@ -1,0 +1,35 @@
+{
+  "id": "r20261110-052031-4116",
+  "ticket": "t489",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-10T05:20:31Z",
+  "finished_at": "2026-11-10T05:25:35Z",
+  "result": "success",
+  "error": null,
+  "retries": 4,
+  "retry_reasons": [
+    "guide-run.md 末尾の訳しの切れ端 </content> を消し、スナップショットを直す",
+    "guide-work の「流れ」の見出しを Flow にそろえ、参照とテストを合わせる",
+    "guide-review の未直しの軽い指摘の節を、dg pr ready の実際の見出しを括弧で添えて書く",
+    "isAcceptanceFinding が日本語の語だけでなく criteria も拾うようにし、テストを足す"
+  ],
+  "usage": {
+    "input": 48,
+    "output": 23295,
+    "cache_read": 2038744,
+    "cache_write": 92636
+  },
+  "tools": {
+    "read": 12,
+    "search": 0,
+    "write": 23,
+    "bash": 18,
+    "other": 1,
+    "read_before_write": 0,
+    "search_before_write": 0
+  },
+  "session": "acdeea67-8af2-4428-8ea2-d2e346d7d1d9",
+  "review": null
+}
