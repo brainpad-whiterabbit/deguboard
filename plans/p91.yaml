@@ -1,0 +1,22 @@
+id: p91
+project: default
+tickets: [t492, t494, t493]
+after:
+  t494:
+    - t492
+  t493:
+    - t492
+pending_approval: true
+details:
+  t492:
+    scope: requirements.md の「1. 目的」を Agentic-Agile の実践・人はパートナー・対象はソフトウェア開発に書き換え、食い違う ADR（ADR-028 など）を直す
+    approach: ADR は今の判断を本文で直接書き換える規約（CLAUDE.md）に従い、本文の「新しい ADR・置き換えの印」は使わない。位置づけの判断は ADR-028 か関わる ADR の本文に書く
+    tier: light
+  t494:
+    scope: metrics.analyze（dg metrics analyze）を core に足し、最初の受け入れ率・工程ごとの割合・モデル/tier の比較・Iteration の推移・外れ値を出す。差分の行数は gh があるときだけ
+    approach: core のコマンド定義と model の集計関数に置き、CLI は写すだけ。tier は Plan の details からたどる。判断は ADR-029 の本文を書き換えて残し（新しい ADR は作らない）、requirements.md に MT の項を 1 つ足す
+    tier: heavy
+  t493:
+    scope: README.md・README.ja.md の冒頭と特長、拡張の package.nls の description、cli の package.json と README の冒頭を Agentic-Agile の実践に合わせる
+    approach: 2 本の README の節の構成をそろえ、vsix の生成で拡張の README に入るのを確かめる。Microsoft 公式と受け取られない書き方にする
+    tier: light
