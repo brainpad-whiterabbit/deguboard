@@ -43,7 +43,6 @@ describe("init", () => {
       ".gitignore",
       ".gitattributes",
       "workflows/software-development.yaml",
-      "workflows/consulting.yaml",
       "workflows/general.yaml",
       "projects/default.yaml",
     ]);
@@ -57,7 +56,7 @@ describe("init", () => {
     // 別の clone は リモートから取り込み、何も書かないので書き込みの結果を返さない
     const b = await openContext({ cwd: f.cloneB, initialize: {} });
     expect(b.worktree).toBe("from_remote");
-    expect(b.store.workflows.size).toBe(3);
+    expect(b.store.workflows.size).toBe(2);
     const rb = await runCommand(init, b, {});
     expect(rb.data).toMatchObject({ worktree: "from_remote", created: [] });
     expect(rb.write).toBeUndefined();

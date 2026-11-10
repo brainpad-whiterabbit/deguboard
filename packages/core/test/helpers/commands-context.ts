@@ -57,7 +57,7 @@ export async function setDependsOn(ctx: CommandContext, id: string, value: strin
 export async function initialized(
   cwd: string,
   opts: Partial<ContextOptions> = {},
-  initInput: { template?: "general" | "software-development" | "consulting" } = {},
+  initInput: { template?: "general" | "software-development" } = {},
 ): Promise<CommandContext> {
   const first = await openContext({
     cwd,

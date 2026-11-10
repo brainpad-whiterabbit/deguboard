@@ -4,7 +4,7 @@ import { STATUSES } from "../model/common.js";
 import { evaluateCondition, parseCondition } from "./conditions.js";
 import { reconcileStatus, regressionWarnings } from "./reconcile.js";
 import { canTransition, findStep, resolveWorkflow, stepOpenedOn } from "./resolve.js";
-import { WORKFLOW_TEMPLATES } from "./templates/index.js";
+import { WORKFLOW_TEMPLATES, findWorkflowTemplate } from "./templates/index.js";
 import { validateWorkflow } from "./validate.js";
 
 const base = { id: "x", name: "X" };
@@ -226,7 +226,7 @@ describe("定義の検証（WF-3）", () => {
     expect(opened(undefined, "reclaim")).toBe("fix");
   });
 
-  it("同梱テンプレート 3 つは検証を通る", () => {
+  it("同梱テンプレート 2 つは検証を通る", () => {
     for (const t of WORKFLOW_TEMPLATES) {
       const { issues, workflow } = validateWorkflow(t, `${t.id}.yaml`);
       expect(issues, t.id).toEqual([]);
@@ -238,12 +238,12 @@ describe("定義の検証（WF-3）", () => {
       expect(
         workflow?.steps?.filter((s) => s.opens_on === "claim").map((s) => s.id),
         t.id,
-      ).toEqual([t.id === "consulting" ? "draft" : "implement"]);
-      // 手直しの step を持つテンプレートでは、もう一度の claim がそれを開く。consulting には手直しの step がない
+      ).toEqual(["implement"]);
+      // もう一度の claim は手直しの step を開く
       expect(
         workflow?.steps?.filter((s) => s.opens_on === "reclaim").map((s) => s.id),
         t.id,
-      ).toEqual(t.id === "consulting" ? [] : ["fix"]);
+      ).toEqual(["fix"]);
     }
   });
 
@@ -259,7 +259,7 @@ describe("定義の検証（WF-3）", () => {
 });
 
 describe("照合", () => {
-  const sd = validateWorkflow(WORKFLOW_TEMPLATES[0]!, "sd.yaml").workflow!;
+  const sd = validateWorkflow(findWorkflowTemplate("software-development")!, "sd.yaml").workflow!;
 
   it("不明な事実を偽と読み、branch_merged だけで review → done に進む", () => {
     expect(reconcileStatus(sd, "review", { branch_merged: true })).toMatchObject({
@@ -270,16 +270,10 @@ describe("照合", () => {
   });
 
   it("general では in_progress のままマージされても照合で done に進む（レビューを経ない作業）", () => {
-    const general = validateWorkflow(WORKFLOW_TEMPLATES[2]!, "general.yaml").workflow!;
+    const general = validateWorkflow(findWorkflowTemplate("general")!, "general.yaml").workflow!;
     expect(
       reconcileStatus(general, "in_progress", { branch_exists: false, branch_merged: true }),
     ).toMatchObject({
-      kind: "advance",
-      to: "done",
-    });
-    // consulting も遷移を縛らないので、review からマージの照合で done に進む
-    const consulting = validateWorkflow(WORKFLOW_TEMPLATES[1]!, "consulting.yaml").workflow!;
-    expect(reconcileStatus(consulting, "review", { branch_merged: true })).toMatchObject({
       kind: "advance",
       to: "done",
     });

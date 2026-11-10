@@ -4,7 +4,7 @@ import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { OperationError } from "../errors.js";
 import { emptyUsage } from "../model/run.js";
-import { WORKFLOW_TEMPLATES } from "../workflow/templates/index.js";
+import { WORKFLOW_TEMPLATES, findWorkflowTemplate } from "../workflow/templates/index.js";
 import { checkReferences, wouldCreateCycle } from "./integrity.js";
 import { Store } from "./store.js";
 
@@ -180,7 +180,7 @@ describe("Store", () => {
     const store = await Store.open(root);
     expect(store.workflows.has("bad")).toBe(false);
     expect(store.issues.some((i) => i.code === "workflow_condition_unknown")).toBe(true);
-    await store.writeWorkflow(WORKFLOW_TEMPLATES[2]!, "汎用のワークフロー");
+    await store.writeWorkflow(findWorkflowTemplate("general")!, "汎用のワークフロー");
     const text = await readFile(path.join(root, "workflows/general.yaml"), "utf8");
     expect(text.startsWith("# 汎用のワークフロー\n")).toBe(true);
     expect(store.workflows.get("general")?.resolved.labels.todo).toBe("Todo");
@@ -316,8 +316,9 @@ describe("Store", () => {
     // 時計を進め、どのファイルも更新が十分に古いものとして覚えさせる
     vi.spyOn(Date, "now").mockReturnValue(Date.now() + 60_000);
     const store = await Store.open(root);
-    const id = String(WORKFLOW_TEMPLATES[2]!["id"]);
-    await store.writeWorkflow(WORKFLOW_TEMPLATES[2]!);
+    const general = findWorkflowTemplate("general")!;
+    const id = String(general["id"]);
+    await store.writeWorkflow(general);
     // 自分で書いた Workflow の 1 ファイルだけを読み直す
     await store.rescan();
     const files = store.lastScan.read + store.lastScan.reused;
