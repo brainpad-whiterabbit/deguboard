@@ -1,0 +1,16 @@
+id: p96
+project: default
+tickets: [t670, t671]
+after:
+  t671:
+    - t670
+pending_approval: true
+details:
+  t670:
+    scope: guide-change.md と dgchange の配布、edit・close・reopen・abandon・undo_done の Skill を /dgchange＋intent にし、チケットの fix を edit に置き換える。split と status・retro・carry は含めない
+    approach: ask.ts の ACTIONS・SKILL_SUMMARY・baseActions を直し、guide-change.md を topics.ts に登録し、skill.ts で配り、guide-overview と dg ask の --help と l10n を合わせてテストで確かめる
+    tier: heavy
+  t671:
+    scope: discuss（検討する）の頼むことと guide-discuss.md・dgdiscuss の配布。status・retro・carry の Skill は含めない
+    approach: ask.ts に discuss を足して候補の並び（直すの次）を決め、guide-discuss.md は反映を import・change に委ね、l10n-core に表示名を足し、テストと頼む小窓のスクリーンショットで確かめる
+    tier: heavy
