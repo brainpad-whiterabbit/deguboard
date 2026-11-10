@@ -4,7 +4,7 @@ tickets: [t657, t658]
 after:
   t658:
     - t657
-pending_approval: true
+pending_approval: false
 details:
   t657:
     scope: チケットの gate 項目・create/import/update の入口・judgeGate の段ごとの条件・TK-9/EX-6/ADR-026。流れの変更は含めない
@@ -14,3 +14,5 @@ details:
     scope: dg next・brief・flow next --gate・guide all/work/review・Skill の argument-hint・CLAUDE.md・EX-5/EX-8
     approach: stageOf で PR のある low・free を reviewed(passed)/ready に早く返し、flow next は段の違うチケットにだけ ticket update --gate を commands に入れる
     tier: heavy
+approved_by: eiki.kitajima/agent
+approved_at: 2026-11-10T10:04:59Z
