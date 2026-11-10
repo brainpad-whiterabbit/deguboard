@@ -108,7 +108,7 @@ export async function installSkill(options: {
   dryRun?: boolean;
 }): Promise<SkillInstallResult> {
   const dirs = skillDirsOf("claude-code");
-  if (!dirs) throw new Error("claude-code の Adapter が Skill の置き場所を持たない");
+  if (!dirs) throw new Error("The claude-code Adapter has no Skill directory");
   const dir =
     options.scope === "personal"
       ? dirs.personal(options.env)
@@ -167,12 +167,12 @@ export function skillInstallWarnings(result: SkillInstallResult): string[] {
   return [
     ...result.conflicts.map(
       (name) =>
-        `${name}: 手を加えてあるので上書き${result.dryRun ? "しない" : "しなかった"}。上書きするなら --force を付ける。` +
-        `加えた文は SKILL.md から外し、文書にして dg config set guide.notes.${name.replace(/^dg/, "")} <パス> で差し込む（guide と Skill は更新を受け取り続けられる）`,
+        `${name}: it was edited by hand, so it ${result.dryRun ? "will not be" : "was not"} overwritten. To overwrite it, add --force. ` +
+        `Move the text you added out of SKILL.md into a document and insert it with dg config set guide.notes.${name.replace(/^dg/, "")} <path> (guide and the Skill keep receiving updates)`,
     ),
     ...result.retiredKept.map(
       (name) =>
-        `${name}: 廃止した Skill だが、手を加えてあるので消${result.dryRun ? "さない" : "さなかった"}。要らなければ消す`,
+        `${name}: this Skill is retired, but it was edited by hand, so it ${result.dryRun ? "will not be" : "was not"} removed. Remove it yourself if you do not need it`,
     ),
   ];
 }

@@ -121,9 +121,9 @@ export function describeRejection(
 ): string {
   switch (check.reason) {
     case "actor_not_allowed":
-      return `${from} から ${to} への遷移は Workflow がこの主体に許していない`;
+      return `The Workflow does not allow this actor to move from ${from} to ${to}`;
     case "requires_unmet":
-      return `${from} から ${to} への遷移の条件を満たしていない: ${check.unmet.join(", ")}`;
+      return `The conditions for moving from ${from} to ${to} are not met: ${check.unmet.join(", ")}`;
   }
 }
 

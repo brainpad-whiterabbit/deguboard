@@ -54,6 +54,6 @@ export function findGuideSection(topic: string, body: string, name: string): Gui
   if (found) return found;
   const names = sections.map((s) => s.name);
   throw new UsageError(
-    `guide ${topic} に節 ${wanted} はない。節は ${names.length > 0 ? names.join(" / ") : "ない"}`,
+    `guide ${topic} has no section ${wanted}. Sections: ${names.length > 0 ? names.join(" / ") : "none"}`,
   );
 }

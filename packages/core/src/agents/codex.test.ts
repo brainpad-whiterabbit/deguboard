@@ -346,7 +346,7 @@ describe("Codex の Adapter", () => {
     ]);
     const got = await codexAdapter.readTranscriptUsage(query());
     expect(got.usage).toEqual({ input: null, output: 50, cache_read: null, cache_write: 0 });
-    expect(got.warnings).toEqual([expect.stringContaining("input・cache_read")]);
+    expect(got.warnings).toEqual([expect.stringContaining("input, cache_read")]);
   });
 
   it("Run の ID を最初に含む記録を選び、ID を含まない並行の記録と ID を後から受け取った記録は数えない", async () => {
@@ -386,7 +386,7 @@ describe("Codex の Adapter", () => {
     ]);
     const got = await codexAdapter.readTranscriptUsage(query({ env }));
     expect(got.usage.input).toBeNull();
-    expect(got.warnings).toEqual([expect.stringContaining("見つからない")]);
+    expect(got.warnings).toEqual([expect.stringContaining("not found")]);
   });
 
   it("Run の ID はあるが期間の token_count がなければ、値を null にして警告する", async () => {

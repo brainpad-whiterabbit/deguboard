@@ -283,9 +283,9 @@ export async function appendRetryReasons(
 ): Promise<Run> {
   return withRunLock(repo, async () => {
     if (await hasSummary(repo, id))
-      throw new OperationError("REJECTED", `Run ${id} は終わっている`);
+      throw new OperationError("REJECTED", `Run ${id} is already finished`);
     const result = await readDoc(repo.localDir, runPath(id), "json", runSchema, id);
-    if (!result.ok) throw new OperationError("NOT_FOUND", `実行中の Run ${id} が見つからない`);
+    if (!result.ok) throw new OperationError("NOT_FOUND", `Running Run ${id} not found`);
     const retryReasons = [...result.doc.data.retry_reasons, ...reasons];
     const next = {
       ...result.doc.raw,
@@ -545,9 +545,9 @@ export async function amendRunning(
   return withRunLock(repo, async () => {
     // 集計を書いた後（閉じた後）の実行中の記録には書かない。書いても集計に入らない
     if (await hasSummary(repo, id))
-      throw new OperationError("REJECTED", `Run ${id} は終わっている`);
+      throw new OperationError("REJECTED", `Run ${id} is already finished`);
     const result = await readDoc(repo.localDir, runPath(id), "json", runSchema, id);
-    if (!result.ok) throw new OperationError("NOT_FOUND", `実行中の Run ${id} が見つからない`);
+    if (!result.ok) throw new OperationError("NOT_FOUND", `Running Run ${id} not found`);
     const next = { ...result.doc.raw, ...patch };
     await writeFileAtomic(
       path.join(repo.localDir, runPath(id)),
@@ -595,7 +595,7 @@ export async function startRun(repo: RunDirs, input: StartRunInput): Promise<Run
     if (dup) {
       throw new OperationError(
         "ALREADY_EXISTS",
-        `${input.ticket} の ${input.step} の Run ${dup.id} が実行中。終わっていなければ dg run finish ${dup.id} --result interrupted で閉じる`,
+        `Run ${dup.id} of ${input.ticket} ${input.step} is running. If it has not finished, close it with dg run finish ${dup.id} --result interrupted`,
       );
     }
     let id = newRunId(input.now);
@@ -675,18 +675,18 @@ export interface FinishRunInput {
 async function readRunningLocked(repo: RunDirs, id: RunId): Promise<Doc<Run>> {
   if (await hasSummary(repo, id)) {
     await removeRunning(repo, id);
-    throw new OperationError("REJECTED", `Run ${id} は終わっている`);
+    throw new OperationError("REJECTED", `Run ${id} is already finished`);
   }
   const result = await readDoc(repo.localDir, runPath(id), "json", runSchema, id);
   if (result.ok) return result.doc;
   if (result.issue.code !== "read_error") {
     throw new OperationError(
       "VALIDATION_FAILED",
-      `実行中の Run ${id} の記録を読めない（${result.issue.message}）`,
+      `Cannot read the record of running Run ${id} (${result.issue.message})`,
       result.issue.detail,
     );
   }
-  throw new OperationError("NOT_FOUND", `実行中の Run ${id} が見つからない`);
+  throw new OperationError("NOT_FOUND", `Running Run ${id} not found`);
 }
 
 /**
@@ -738,7 +738,7 @@ async function closeRunLocked(
   // 別のプロセスが先に閉じていないか、ファイルで確かめる（索引は古いことがある）
   if ((await hasSummary(repo, id)) || store.runs.has(id)) {
     await removeRunning(repo, id);
-    throw new OperationError("REJECTED", `Run ${id} は終わっている`);
+    throw new OperationError("REJECTED", `Run ${id} is already finished`);
   }
   return (await store.create("run", closed)).data;
 }

@@ -52,10 +52,10 @@ export async function runAction(
   rawInput: unknown = {},
 ): Promise<unknown> {
   const def = findAction(name);
-  if (!def) throw new OperationError("NOT_FOUND", `Action ${name} は登録されていない`);
+  if (!def) throw new OperationError("NOT_FOUND", `Action ${name} is not registered`);
   const parsed = def.input.safeParse(rawInput);
   if (!parsed.success) {
-    throw new UsageError(`Action ${name} の入力が正しくない`, prettifyError(parsed.error));
+    throw new UsageError(`Invalid input for Action ${name}`, prettifyError(parsed.error));
   }
   const denied = def.allowed?.(ctx.config) ?? null;
   if (denied !== null) throw new OperationError("REJECTED", denied);
@@ -65,7 +65,7 @@ export async function runAction(
       ? await ctx.confirm({ action: name, input: parsed.data, cwd })
       : false;
     if (!confirmed) {
-      throw new OperationError("REJECTED", `Action ${name} は確認が得られなかったので実行しない`);
+      throw new OperationError("REJECTED", `Action ${name} was not confirmed, so it is not run`);
     }
   }
   return def.run({ ...ctx, cwd }, parsed.data);

@@ -191,7 +191,7 @@ export const hook = defineCommand({
     const warnings: string[] = [];
     const agent = hookAgentOf(input.agent);
     const hooks = hooksOf(agent);
-    if (!hooks) return ok(view, undefined, [`agent ${agent} にはフックがない`]);
+    if (!hooks) return ok(view, undefined, [`agent ${agent} has no hooks`]);
     // フックの入力の項目の有無を、イベントごとの最新の 1 件に残す（dg hooks check が読む）。扱うイベントの名前だけを使う
     if (hooks.events.some((e) => e.event === input.event)) {
       try {
@@ -205,7 +205,7 @@ export const hook = defineCommand({
         );
       } catch (e) {
         warnings.push(
-          `フックの入力の記録を書けなかった（${e instanceof Error ? e.message : String(e)}）`,
+          `Could not write the hook input record (${e instanceof Error ? e.message : String(e)})`,
         );
       }
     }
@@ -217,7 +217,7 @@ export const hook = defineCommand({
     } catch (e) {
       // フックの失敗で作業を止めない
       warnings.push(
-        `${input.event} のフックを最後まで行えなかった（${e instanceof Error ? e.message : String(e)}）`,
+        `Could not finish the ${input.event} hook (${e instanceof Error ? e.message : String(e)})`,
       );
     }
     return ok(view, undefined, warnings);
@@ -265,7 +265,7 @@ async function sessionStart(
 ): Promise<void> {
   if (!event.envFile) {
     warnings.push(
-      "環境を書くファイルが渡されなかったので、主体とセッション ID を環境に入れていない",
+      "No file to write the environment to was given, so the actor and session ID are not put in the environment",
     );
     return;
   }
@@ -291,7 +291,7 @@ async function subagentLaunched(
   if (!marker) return;
   const ticket = ctx.store.tickets.get(marker.ticket);
   if (!ticket) {
-    warnings.push(`印のチケット ${marker.ticket} が見つからないので Run を開いていない`);
+    warnings.push(`The marked ticket ${marker.ticket} was not found, so no Run was opened`);
     return;
   }
   if (event.transcript && !(await underRoot(ctx, agent, event.transcript, warnings))) return;
@@ -336,7 +336,7 @@ async function subagentLaunched(
     view.done.push(`${run.ticket} の ${run.step} の Run ${run.id} を開いた`);
   } catch (e) {
     if (!(e instanceof OperationError)) throw e;
-    warnings.push(`${marker.ticket} の ${marker.step} の Run を開いていない: ${e.message}`);
+    warnings.push(`Could not open the ${marker.step} Run of ${marker.ticket}: ${e.message}`);
     return;
   }
   if (!event.transcript) return;
@@ -382,7 +382,7 @@ async function closeStaleReviewRuns(
       );
     } catch (e) {
       warnings.push(
-        `別のセッション（${stale.session}）で開いたままの Run ${stale.id} を閉じられなかった（${e instanceof Error ? e.message : String(e)}）`,
+        `Could not close Run ${stale.id}, which is still open in another session (${stale.session}) (${e instanceof Error ? e.message : String(e)})`,
       );
     }
   }
@@ -396,7 +396,9 @@ async function underRoot(
   warnings: string[],
 ): Promise<boolean> {
   if (await transcriptUnderRoot(agent, transcript, ctx.env ?? process.env)) return true;
-  warnings.push(`記録のパスが ${agent} の会話記録の置き場所の下にないので使わない`);
+  warnings.push(
+    `The record path is not under the place where ${agent} keeps conversation records, so it is not used`,
+  );
   return false;
 }
 
@@ -452,7 +454,7 @@ async function subagentStopped(
 ): Promise<void> {
   const transcript = event.transcript;
   if (!transcript) {
-    warnings.push(`サブエージェント ${event.agentId} の記録のパスが渡されなかった`);
+    warnings.push(`No record path was given for subagent ${event.agentId}`);
     return;
   }
   if (!(await underRoot(ctx, agent, transcript, warnings))) return;
@@ -507,7 +509,7 @@ async function stopSubagentRun(
     // 並べて起動して取り違えた。記録の最初の文が正しい
     run = await amendRunning(ctx.repo, run.id, marker);
     warnings.push(
-      `Run ${run.id} のチケットと step を記録の印に合わせて ${marker.ticket} の ${marker.step} に直した`,
+      `Corrected Run ${run.id} to ${marker.ticket} ${marker.step} to match the marker in its record`,
     );
   }
   await bindTranscript(ctx.repo, run.id, transcript);
@@ -527,7 +529,7 @@ async function stopSubagentRun(
     if (run.settling_since === null)
       await amendRunning(ctx.repo, run.id, { settling_since: toIsoDateTime(ctx.now()) });
     warnings.push(
-      `Run ${run.id} の記録の最後の応答が ${hookTiming.settleMs} ミリ秒のうちに書かれなかったので、まだ閉じない（次のフック・dg sync・セッションの終わりで閉じる）`,
+      `The last response in the record of Run ${run.id} was not written within ${hookTiming.settleMs} ms, so it is not closed yet (it is closed at the next hook, dg sync, or the end of the session)`,
     );
     return;
   }
@@ -648,7 +650,7 @@ export async function closeStoppedRuns(
       await stopSubagentRun(ctx, run.agent, run, transcript!, view, warnings, false);
     } catch (e) {
       warnings.push(
-        `書き終わりを待っていた Run ${run.id} を閉じられなかった（${e instanceof Error ? e.message : String(e)}）`,
+        `Could not close Run ${run.id}, which was waiting for its writing to finish (${e instanceof Error ? e.message : String(e)})`,
       );
     }
   }
@@ -786,7 +788,7 @@ async function sessionEnd(
       await closeSubagentRun(ctx, current, transcript!, closing, view, warnings);
     } catch (e) {
       warnings.push(
-        `Run ${run.id} をセッションの終わりに閉じられなかった（${e instanceof Error ? e.message : String(e)}）`,
+        `Could not close Run ${run.id} at the end of the session (${e instanceof Error ? e.message : String(e)})`,
       );
     }
   }

@@ -179,7 +179,7 @@ describe("dg pr ready・dg pr merge（t545）", () => {
     expect(ready!.code).toBe("GATE_FAILED");
     expect(ready!.message).toContain("dg gate t1 --for ready");
     expect(ready!.detail).toContain("review:");
-    expect(ready!.detail).toContain("人に gh pr ready を打ってもらう");
+    expect(ready!.detail).toContain("ask a human to run gh pr ready");
     const merge = await rejection(runCommand(prMerge, ctx, { ticket: "t1" }));
     expect(merge!.code).toBe("GATE_FAILED");
     expect(merge!.detail).toContain("acceptance:");
@@ -227,9 +227,7 @@ describe("dg pr ready・dg pr merge（t545）", () => {
     // その worktree から呼ぶと、自分の作業ツリーは消さない
     const inner = await openContext({ cwd: wt, actor: ctx.actor });
     const fromInside = await runCommand(prMerge, inner, { ticket: "t1", delete_branch: true });
-    expect(fromInside.warnings.join("\n")).toContain(
-      "worktree から呼んだので、worktree を消さない",
-    );
+    expect(fromInside.warnings.join("\n")).toContain("so the worktree is not deleted");
     expect(await git(main, ["worktree", "list"])).toMatchObject({
       stdout: expect.stringContaining("wt-t1"),
     });
@@ -256,8 +254,8 @@ describe("dg pr ready・dg pr merge（t545）", () => {
     const err = await rejection(runCommand(prMerge, ctx, { ticket: "t1", delete_branch: true }));
     expect(err).toBeInstanceOf(OperationError);
     expect(err!.code).toBe("GIT_ERROR");
-    expect(err!.detail).toContain("消した worktree");
-    expect(err!.detail).toContain("戻した（作業を続けられる）");
+    expect(err!.detail).toContain("the deleted worktree");
+    expect(err!.detail).toContain("was restored (you can continue working)");
     // 同じパスに、作業ブランチを checkout した worktree が戻っている
     expect(existsSync(wt)).toBe(true);
     expect((await git(wt, ["branch", "--show-current"])).stdout.trim()).toBe("feat/t1");
@@ -297,9 +295,9 @@ describe("dg pr ready・dg pr merge（t545）", () => {
     const { ctx, main, wt, calls } = await setupWorktreeMergeFails(marker);
     const err = await rejection(runCommand(prMerge, ctx, { ticket: "t1", delete_branch: true }));
     expect(err!.code).toBe("GIT_ERROR");
-    expect(err!.detail).toContain("戻した（作業を続けられる）");
-    expect(err!.detail).toContain("準備のコマンド（node -e");
-    expect(err!.detail).toContain("回し直した");
+    expect(err!.detail).toContain("was restored (you can continue working)");
+    expect(err!.detail).toContain("The setup command (node -e");
+    expect(err!.detail).toContain("was also run again");
     // 印のファイルは戻した worktree の中にあり、元のクローンには無い
     expect(existsSync(path.join(wt, "setup-ran.txt"))).toBe(true);
     expect(existsSync(path.join(main, "setup-ran.txt"))).toBe(false);
@@ -314,10 +312,10 @@ describe("dg pr ready・dg pr merge（t545）", () => {
     ]);
     const err = await rejection(runCommand(prMerge, ctx, { ticket: "t1", delete_branch: true }));
     expect(err!.code).toBe("GIT_ERROR");
-    expect(err!.detail).toContain("戻した（作業を続けられる）");
-    expect(err!.detail).toContain("終了コード 3");
-    expect(err!.detail).toContain("stderr の末尾: 準備の失敗");
-    expect(err!.detail).toContain("を手で回してから作業を続ける");
+    expect(err!.detail).toContain("was restored (you can continue working)");
+    expect(err!.detail).toContain("exit code 3");
+    expect(err!.detail).toContain("end of stderr: 準備の失敗");
+    expect(err!.detail).toContain("by hand in");
     // 戻した worktree は残っている（作業を続けられる）
     expect(existsSync(wt)).toBe(true);
     expect(await calls()).toEqual([]);
@@ -332,7 +330,7 @@ describe("dg pr ready・dg pr merge（t545）", () => {
     await passedReview(ctx);
     const ready = await rejection(runCommand(prReady, ctx, { ticket: "t1" }));
     expect(ready!.code).toBe("GATE_FAILED");
-    expect(ready!.detail).toContain("check: 検査");
+    expect(ready!.detail).toContain("check: The check");
     expect(ready!.detail).toContain("exit 1");
     expect(ready!.detail).toContain("落ちたテスト");
     expect(await calls()).toEqual([]);
@@ -356,7 +354,7 @@ describe("dg pr ready・dg pr merge（t545）", () => {
     const err = await rejection(runCommand(prMerge, ctx, { ticket: "t1", delete_branch: true }));
     expect(err).toBeInstanceOf(OperationError);
     expect(err!.code).toBe("GATE_FAILED");
-    expect(err!.detail).toContain("check: 検査");
+    expect(err!.detail).toContain("check: The check");
     expect(err!.detail).toContain("exit 1");
     expect(err!.detail).toContain("落ちたテスト");
     expect(await calls()).toEqual([]);
@@ -507,8 +505,8 @@ describe("dg pr ready・dg pr merge（t545）", () => {
     const err = await rejection(runCommand(prReady, ctx, { ticket: "t1" }));
     expect(err).toBeInstanceOf(OperationError);
     expect(err!.code).toBe("GIT_ERROR");
-    expect(err!.message).toContain("本文を書き足せず");
-    expect(err!.message).toContain("ready にしていない");
+    expect(err!.message).toContain("Could not append to the body");
+    expect(err!.message).toContain("so it was not made ready");
     expect(await calls()).toEqual([]);
   });
 
@@ -519,7 +517,7 @@ describe("dg pr ready・dg pr merge（t545）", () => {
     const err = await rejection(runCommand(prReady, ctx, { ticket: "t1" }));
     expect(err).toBeInstanceOf(OperationError);
     expect(err!.code).toBe("GIT_ERROR");
-    expect(err!.message).toContain("本文の書き込みに失敗");
+    expect(err!.message).toContain("writing the body failed");
     expect(await calls()).toEqual([]);
   });
 });

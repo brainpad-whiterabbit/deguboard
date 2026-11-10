@@ -14,7 +14,7 @@ describe("idShapeOf（ID の形だけを確かめる）", () => {
 
   it("別の種類の ID は UsageError で拒む", () => {
     expect(() => idShapeOf("t3", "iteration")).toThrow(UsageError);
-    expect(() => idShapeOf("t3", "iteration")).toThrow("t3 は iteration の ID ではない");
+    expect(() => idShapeOf("t3", "iteration")).toThrow("t3 is not a iteration ID");
   });
 });
 

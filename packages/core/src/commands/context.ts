@@ -59,13 +59,10 @@ export async function openContextFor(
 async function storelessContext(opts: ContextOptions): Promise<CommandContext> {
   const paths = await resolveRepoPaths(opts.cwd);
   if (!(await isInitialized(paths)))
-    throw new OperationError(
-      "NOT_INITIALIZED",
-      "deguboard が初期化されていない。dg init を実行する",
-    );
+    throw new OperationError("NOT_INITIALIZED", "deguboard is not initialized. Run dg init");
   const unread = (name: string) => ({
     get(): never {
-      throw new Error(`ストアを開いていない文脈（storeless）で ${name} を読んだ`);
+      throw new Error(`${name} was read in a context without an open store (storeless)`);
     },
   });
   const repo = Object.defineProperties(
@@ -92,10 +89,7 @@ export async function openContext(opts: ContextOptions): Promise<CommandContext>
   let worktree: WorktreeOrigin | undefined;
   if (!(await isInitialized(paths))) {
     if (!opts.initialize) {
-      throw new OperationError(
-        "NOT_INITIALIZED",
-        "deguboard が初期化されていない。dg init を実行する",
-      );
+      throw new OperationError("NOT_INITIALIZED", "deguboard is not initialized. Run dg init");
     }
     const remote = await resolveRemote(paths, opts.initialize.remote ?? "origin");
     worktree = await ensureDeguboardWorktree(paths, remote);

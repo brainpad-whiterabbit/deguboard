@@ -40,7 +40,7 @@ export async function branchStartPoint(
 ): Promise<string> {
   // base は config（Git で共有される）から来るので、ここでも検査する
   if (!isSafeBranchName(base)) {
-    throw new OperationError("REJECTED", `base のブランチ名として使えない：${base}`);
+    throw new OperationError("REJECTED", `Cannot be used as the base branch name: ${base}`);
   }
   if (!repo.remote) return base;
   await runGit(cwd, ["fetch", "--", repo.remote, base], { timeoutMs: 120_000 });
@@ -54,7 +54,7 @@ export async function createBranchWorktree(
   input: { branch: string; base: string; dir: string },
 ): Promise<{ branch: string; path: string; base: string }> {
   if (!isSafeBranchName(input.branch)) {
-    throw new OperationError("REJECTED", `ブランチ名として使えない：${input.branch}`);
+    throw new OperationError("REJECTED", `Cannot be used as a branch name: ${input.branch}`);
   }
   const start = await branchStartPoint(cwd, repo, input.base);
   await runGit(cwd, ["worktree", "add", "--no-track", "-b", input.branch, "--", input.dir, start]);

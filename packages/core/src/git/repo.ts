@@ -34,9 +34,9 @@ export async function resolveRepoPaths(cwd: string): Promise<RepoPaths> {
     commonDir = path.resolve(topLevel, raw);
   } catch (error) {
     if (error instanceof GitError && error.kind === "missing") {
-      throw new OperationError("GIT_ERROR", "git が見つからない。git 2.30 以上を入れる");
+      throw new OperationError("GIT_ERROR", "git not found. Install git 2.30 or later");
     }
-    throw new OperationError("GIT_ERROR", `${cwd} は Git リポジトリの中ではない`, String(error));
+    throw new OperationError("GIT_ERROR", `${cwd} is not inside a Git repository`, String(error));
   }
   return { topLevel, commonDir, ...repoDirsOf(commonDir) };
 }
@@ -117,7 +117,7 @@ export async function requireIdentity(
   if (!name || !email) {
     throw new OperationError(
       "IDENTITY_MISSING",
-      "git の user.name と user.email を設定する（claim と実績の作者に使う）",
+      "Set user.name and user.email in git (used as the author of claims and records)",
     );
   }
   return { name, email };

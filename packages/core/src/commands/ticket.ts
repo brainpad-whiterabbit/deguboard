@@ -78,7 +78,7 @@ async function closeRunsWith(
       ctx,
       run,
       { opener, ...input },
-      "この操作",
+      "this operation",
       warnings,
     );
     if (!result) continue;
@@ -175,11 +175,11 @@ function buildTicket(
   const project = projectOf(ctx, input.project);
   const projectDoc = store.requireProject(project);
   if (projectDoc.data.status !== "active")
-    throw new OperationError("REJECTED", `Project ${project} はアーカイブ済み`);
+    throw new OperationError("REJECTED", `Project ${project} is archived`);
   const workflowId = input.workflow ?? projectDoc.data.workflow;
   const workflow = store.workflows.get(workflowId);
   if (!workflow)
-    throw new OperationError("NOT_FOUND", `Workflow ${workflowId} が見つからないか読めない`);
+    throw new OperationError("NOT_FOUND", `Workflow ${workflowId} not found or cannot be read`);
   const epic = input.epic === undefined ? undefined : requireOpenEpic(store, input.epic, project);
   const iteration =
     input.iteration === undefined ? undefined : requireIteration(store, input.iteration, project);
@@ -207,18 +207,21 @@ function buildTicket(
 function requireOpenEpic(store: Store, ref: string, project: string) {
   const epic = store.require("epic", ref);
   if (epic.data.project !== project)
-    throw new OperationError("REJECTED", `Epic ${epic.id} は Project ${project} のものではない`);
+    throw new OperationError("REJECTED", `Epic ${epic.id} does not belong to Project ${project}`);
   if (epic.data.status === "closed")
-    throw new OperationError("REJECTED", `Epic ${epic.id} は閉じているのでチケットを足せない`);
+    throw new OperationError("REJECTED", `Epic ${epic.id} is closed, so tickets cannot be added`);
   return epic.id;
 }
 
 function requireIteration(store: Store, ref: string, project: string) {
   const it = store.require("iteration", ref);
   if (it.data.project !== project)
-    throw new OperationError("REJECTED", `Iteration ${it.id} は Project ${project} のものではない`);
+    throw new OperationError(
+      "REJECTED",
+      `Iteration ${it.id} does not belong to Project ${project}`,
+    );
   if (it.data.status === "closed")
-    throw new OperationError("REJECTED", `Iteration ${it.id} は閉じている`);
+    throw new OperationError("REJECTED", `Iteration ${it.id} is closed`);
   return it.id;
 }
 
@@ -234,7 +237,7 @@ function validateFields(
     if (!def)
       throw new OperationError(
         "VALIDATION_FAILED",
-        `フィールド ${key} は Workflow ${workflow.resolved.id} に定義されていない`,
+        `Field ${key} is not defined in Workflow ${workflow.resolved.id}`,
       );
     if (value === null || value === undefined) {
       out[key] = undefined;
@@ -253,7 +256,7 @@ function validateFields(
     if (!okType)
       throw new OperationError(
         "VALIDATION_FAILED",
-        `フィールド ${key} の値が型 ${def.type} に合わない`,
+        `The value of field ${key} does not match type ${def.type}`,
       );
     out[key] = value;
   }
@@ -310,7 +313,8 @@ const draftsSchema = z
 /** source（YAML か JSON の本文）から下書きを読み、形を検査する。行末コメントの判定は draft-source.ts */
 function draftsFromSource(source: string) {
   const parsed = draftsSchema.safeParse(parseDraftSource(source));
-  if (!parsed.success) throw new UsageError("下書きの形が正しくない", prettifyError(parsed.error));
+  if (!parsed.success)
+    throw new UsageError("The draft has the wrong shape", prettifyError(parsed.error));
   return parsed.data;
 }
 
@@ -334,13 +338,13 @@ export const ticketImport = defineCommand({
   needs: "store",
   async run(ctx, input) {
     if (input.drafts && input.source !== undefined)
-      throw new UsageError("drafts と source は一緒に渡せない");
+      throw new UsageError("drafts and source cannot be passed together");
     const drafts = input.source !== undefined ? draftsFromSource(input.source) : input.drafts;
-    if (!drafts) throw new UsageError("drafts か source のどちらかで下書きを渡す");
+    if (!drafts) throw new UsageError("Pass the drafts with either drafts or source");
     const keys = new Set<string>();
     for (const d of drafts) {
       if (d.key && keys.has(d.key))
-        throw new OperationError("VALIDATION_FAILED", `仮キー ${d.key} が重複している`);
+        throw new OperationError("VALIDATION_FAILED", `Provisional key ${d.key} is duplicated`);
       if (d.key) keys.add(d.key);
     }
     const result = await withWrite(
@@ -358,7 +362,7 @@ export const ticketImport = defineCommand({
           if (parseId(ref, "ticket")) return store.require("ticket", ref).data.id;
           throw new OperationError(
             "NOT_FOUND",
-            `依存先 ${ref} はチケットの ID でも下書きの key でもない`,
+            `Dependency ${ref} is neither a ticket ID nor a draft key`,
           );
         };
         const built = drafts.map((d) => ({
@@ -374,7 +378,7 @@ export const ticketImport = defineCommand({
           while (queue.length) {
             const cur = queue.shift()!;
             if (cur === id)
-              throw new OperationError("VALIDATION_FAILED", `依存が循環している: ${id}`);
+              throw new OperationError("VALIDATION_FAILED", `Dependencies form a cycle: ${id}`);
             if (seen.has(cur)) continue;
             seen.add(cur);
             queue.push(
@@ -563,7 +567,7 @@ export const ticketUpdate = defineCommand({
         const doc = store.require("ticket", input.ticket);
         const t = doc.data;
         if (input.body !== undefined && input.acceptance !== undefined) {
-          throw new UsageError("body と acceptance は同時に指定できない");
+          throw new UsageError("body and acceptance cannot be given together");
         }
         const body =
           input.acceptance === undefined
@@ -595,14 +599,14 @@ export const ticketUpdate = defineCommand({
         }
         if (input.workflow !== undefined) {
           if (input.workflow !== null && !store.workflows.has(input.workflow)) {
-            throw new OperationError("NOT_FOUND", `Workflow ${input.workflow} が見つからない`);
+            throw new OperationError("NOT_FOUND", `Workflow ${input.workflow} not found`);
           }
           patch["workflow"] = input.workflow ?? undefined;
         }
         if (input.depends_on !== undefined) {
           const ids = input.depends_on.map((ref) => store.require("ticket", ref).data.id);
           if (ids.includes(t.id) || wouldCreateCycle(store, t.id, ids)) {
-            throw new OperationError("REJECTED", "依存が循環する");
+            throw new OperationError("REJECTED", "This would create a dependency cycle");
           }
           patch["depends_on"] = ids;
         }
@@ -611,7 +615,7 @@ export const ticketUpdate = defineCommand({
             (input.workflow === undefined ? t.workflow : (input.workflow ?? undefined)) ??
             store.requireProject(t.project).data.workflow;
           const wf = store.workflows.get(wfId);
-          if (!wf) throw new OperationError("NOT_FOUND", `Workflow ${wfId} が見つからない`);
+          if (!wf) throw new OperationError("NOT_FOUND", `Workflow ${wfId} not found`);
           Object.assign(patch, validateFields(wf, input.fields));
         }
         // PR を記録したら実装は終わっている。実行中の実装の Run を PR の作成時刻で閉じる（RN-6）。
@@ -621,14 +625,14 @@ export const ticketUpdate = defineCommand({
           typeof input.pr === "number" ? await findOpenedRun(ctx, t, "claim") : undefined;
         if (running && typeof input.pr === "number") {
           const created = prCreated ?? {
-            reason: `実装の Run ${running.id} は PR の作成時刻を取った後に始まった`,
+            reason: `Implementation Run ${running.id} started after the PR's creation time was taken`,
           };
           // PR より後に開き直した Run（PR の後の作業は fix の Run にする）は、PR の作成時刻では終わっていない
           const reason =
             created.createdAt === undefined
               ? created.reason
               : created.createdAt < running.data.started_at
-                ? `PR #${input.pr} は Run ${running.id} の開始より前に作られた`
+                ? `PR #${input.pr} was created before Run ${running.id} started`
                 : undefined;
           const result = await closeOpenedRunUnlessClosed(
             ctx,
@@ -638,11 +642,14 @@ export const ticketUpdate = defineCommand({
               result: "success",
               finishedAt: reason ? undefined : created.createdAt,
             },
-            "この操作",
+            "this operation",
             warnings,
           );
           if (result) {
-            if (reason) warnings.push(`${reason}ので、実装の Run の finished_at は今の時刻にする`);
+            if (reason)
+              warnings.push(
+                `${reason}, so the finished_at of the implementation Run is set to the current time`,
+              );
             warnings.push(...result.warnings);
             closed.push({ ...result, opener: "claim" });
           }
@@ -684,8 +691,9 @@ export const ticketCheck = defineCommand({
   async run(ctx, input) {
     // CLI は可変長の位置引数を省くと [] を渡すので、番号の有無はここで見る
     const numbers = [...new Set(input.items ?? [])].sort((a, b) => a - b);
-    if (input.all && numbers.length > 0) throw new UsageError("all と番号は同時に指定できない");
-    if (!input.all && numbers.length === 0) throw new UsageError("項目の番号か all を指定する");
+    if (input.all && numbers.length > 0)
+      throw new UsageError("all and item numbers cannot be given together");
+    if (!input.all && numbers.length === 0) throw new UsageError("Give item numbers or all");
     const checked = !input.undo;
     const result = await withWrite(
       ctx,
@@ -694,22 +702,25 @@ export const ticketCheck = defineCommand({
         if (input.base !== undefined && input.base !== doc.body) {
           throw new OperationError(
             "REJECTED",
-            `${doc.id} の本文は読んだ後に変わっている。読み直してから付け直す`,
+            `The body of ${doc.id} changed after it was read. Read it again, then check the items again`,
           );
         }
         const items = parseAcceptance(doc.body);
         if (items === undefined)
           throw new OperationError(
             "NOT_FOUND",
-            `${doc.id} の本文に ## Acceptance criteria（か ## 受け入れ条件）がない`,
+            `The body of ${doc.id} has no ## Acceptance criteria (or ## 受け入れ条件) section`,
           );
         if (items.length === 0)
-          throw new OperationError("NOT_FOUND", `${doc.id} の受け入れ条件に項目がない`);
+          throw new OperationError(
+            "NOT_FOUND",
+            `${doc.id} has no items in its acceptance criteria`,
+          );
         const missing = numbers.filter((n) => n > items.length);
         if (missing.length > 0) {
           throw new OperationError(
             "NOT_FOUND",
-            `${doc.id} の受け入れ条件に番号 ${missing.join(", ")} の項目はない（1〜${items.length}）`,
+            `${doc.id} has no acceptance criteria items numbered ${missing.join(", ")} (1 to ${items.length})`,
           );
         }
         const targets = input.all ? items.map((i) => i.index) : numbers;
@@ -722,7 +733,7 @@ export const ticketCheck = defineCommand({
       },
       {
         message: (doc) =>
-          `${doc.id} の受け入れ条件${input.all ? "をすべて" : ` ${numbers.join(", ")} を`}${checked ? "済みにする" : "未済に戻す"}`,
+          `${checked ? "Check" : "Uncheck"} ${input.all ? "all acceptance criteria" : `items ${numbers.join(", ")}`} of ${doc.id}`,
       },
     );
     const doc = result.value;
@@ -772,14 +783,14 @@ async function requireBranchAvailable(
   if (other) {
     throw new OperationError(
       "BRANCH_IN_USE",
-      `ブランチ ${branch} は ${other.id}（${other.data.status}）が使っている。別の名前を指定する`,
+      `Branch ${branch} is in use by ${other.id} (${other.data.status}). Give a different name`,
     );
   }
   const leftover = await findMergedLeftover(ctx.repo, branch);
   if (leftover) {
     throw new OperationError(
       "BRANCH_IN_USE",
-      `ブランチ ${leftover} の先端が base の真の祖先（前の作業でマージ済みか、古い base から切ったまま）で、照合が done にしてしまう。別の名前を指定するか、古いブランチを消すか base に揃えてからやり直す`,
+      `The tip of branch ${leftover} is an ancestor of base (merged in earlier work, or cut from an old base), so reconcile would mark it done. Give a different name, or delete the old branch or bring it up to base, then try again`,
     );
   }
 }
@@ -819,7 +830,8 @@ export const ticketMove = defineCommand({
       async () => {
         const doc = ctx.store.require("ticket", input.ticket);
         const from = doc.data.status;
-        if (from === input.status) throw new OperationError("REJECTED", `${doc.id} は既に ${from}`);
+        if (from === input.status)
+          throw new OperationError("REJECTED", `${doc.id} is already ${from}`);
         const wf = ctx.store.requireWorkflowFor(doc.data);
         const facts = await factsFor(ctx, doc, wf, from, input.status);
         const check = canTransition(wf.resolved, from, input.status, ctx.actor.kind, facts);
@@ -874,7 +886,7 @@ export const ticketDelete = defineCommand({
         const doc = store.require("ticket", input.ticket);
         const deps = dependents(store, doc.data.id);
         if (deps.length > 0)
-          warnings.push(`${deps.join(", ")} が ${doc.id} に依存している。depends_on を直す`);
+          warnings.push(`${doc.id} is depended on by ${deps.join(", ")}. Fix depends_on`);
         await store.deleteTicket(doc.data.id);
         return doc;
       },
@@ -910,7 +922,7 @@ function isReclaim(ctx: CommandContext, ticket: Ticket): boolean {
  */
 class ReclaimRequested extends AbortWrite {
   constructor(readonly doc: Doc<Ticket>) {
-    super(`${doc.id} はもう一度の claim`);
+    super(`${doc.id} needs claiming again`);
   }
 }
 
@@ -919,8 +931,8 @@ const retryReasons = z
   .array(
     z
       .string()
-      .regex(/^[^\r\n]+$/, "理由は 1 件 1 行で書く")
-      .regex(/\S/, "理由が空白だけ"),
+      .regex(/^[^\r\n]+$/, "Write each reason on one line")
+      .regex(/\S/, "The reason is only whitespace"),
   )
   .meta({ freeText: true });
 
@@ -949,7 +961,7 @@ async function openClaimRun(
     ? { agent: input.agent, reason: undefined }
     : agentFromEnv(ctx.env ?? process.env);
   const skipped = (reason: string) =>
-    `${step} の Run を開いていない: ${reason}（開くなら dg run start ${doc.id} ${step} --agent <エージェント>）`;
+    `The ${step} Run is not open: ${reason} (to open one, run dg run start ${doc.id} ${step} --agent <agent>)`;
   if (detected.agent === null) {
     warnings.push(skipped(detected.reason));
     return null;
@@ -993,11 +1005,11 @@ async function reclaim(
 ): Promise<RunId | null> {
   if (input.without_branch || (input.branch !== undefined && input.branch !== doc.data.branch)) {
     throw new UsageError(
-      `${doc.id} は claim 済み（branch ${doc.data.branch ?? "なし"}、PR #${doc.data.pr}）。もう一度の claim ではブランチを変えられない`,
+      `${doc.id} is already claimed (branch ${doc.data.branch ?? "none"}, PR #${doc.data.pr}). Claiming again cannot change the branch`,
     );
   }
   warnings.push(
-    `${doc.id} は自分（${doc.data.assignee}）が claim 済みで PR #${doc.data.pr} があるので、手直しの開始とみなしてチケットは変えない`,
+    `${doc.id} is already claimed by you (${doc.data.assignee}) and has PR #${doc.data.pr}, so this is treated as the start of a fix and the ticket is not changed`,
   );
   if (ctx.actor.kind !== "agent" || input.no_run) return null;
   // 開いたままの前の手直しの Run は、openRun が閉じてから開く
@@ -1076,29 +1088,33 @@ export const ticketClaim = defineCommand({
   async run(ctx, input) {
     const warnings: string[] = [];
     if (input.without_branch && input.branch !== undefined) {
-      throw new UsageError("branch と without_branch は同時に指定できない");
+      throw new UsageError("branch and without_branch cannot be given together");
     }
     if (input.worktree_path !== undefined && (input.no_worktree || input.without_branch)) {
-      throw new UsageError("worktree_path は no_worktree・without_branch と同時に指定できない");
+      throw new UsageError("worktree_path cannot be given with no_worktree or without_branch");
     }
     if (input.no_run && input.agent !== undefined) {
-      throw new UsageError("agent と no_run は同時に指定できない");
+      throw new UsageError("agent and no_run cannot be given together");
     }
     if (input.agent !== undefined && ctx.actor.kind !== "agent") {
       throw new UsageError(
-        "agent は Run を開く agent の claim でだけ使える（人の claim は Run を開かない）",
+        "agent can be used only when an agent claims, because the agent opens a Run (a person's claim does not open a Run)",
       );
     }
     if (
       (input.session !== undefined || input.transcript !== undefined) &&
       (input.no_run || ctx.actor.kind !== "agent")
     ) {
-      throw new UsageError("session と transcript は Run を開く agent の claim でだけ使える");
+      throw new UsageError(
+        "session and transcript can be used only when an agent claims and opens a Run",
+      );
     }
     // 空の配列は省いたのと同じに扱う
     const retryReasonsGiven = input.retry_reasons?.length ? input.retry_reasons : undefined;
     if (retryReasonsGiven && (input.no_run || ctx.actor.kind !== "agent")) {
-      throw new UsageError("retry_reason は手直しの Run を開く agent の claim でだけ使える");
+      throw new UsageError(
+        "retry_reason can be used only when an agent claims and opens a fix Run",
+      );
     }
     // もう一度の claim（自分が claim 済みで PR のあるチケット。ST-9・RN-5）かは、書き込みの中で取り込んだ後の索引で決める。
     // 書くものがないので ReclaimRequested で書き込みを抜け、外で reclaim に回す
@@ -1114,23 +1130,23 @@ export const ticketClaim = defineCommand({
           const owner = doc.data.assignee;
           const own = owner !== undefined && sameUser(owner, ctx.actor.id);
           if (owner && !own) {
-            throw new OperationError("CLAIM_LOST", `${doc.id} は ${owner} が claim 済み`);
+            throw new OperationError("CLAIM_LOST", `${doc.id} is already claimed by ${owner}`);
           }
           // 自分の claim でも PR がなければ手直しにはならない（実装の途中。続けるなら run start、やめるなら unclaim）
           if (own && (doc.data.status === "in_progress" || doc.data.status === "review")) {
             throw new OperationError(
               "CLAIM_LOST",
-              `${doc.id} は自分（${owner}）が claim 済みで PR がまだない。実装を続けるなら run start、やめるなら ticket unclaim`,
+              `${doc.id} is claimed by you (${owner}) and has no PR yet. To keep implementing, use run start. To stop, use ticket unclaim`,
             );
           }
           throw new OperationError(
             "TRANSITION_REJECTED",
-            `${doc.id} は ${doc.data.status} なので claim できない`,
+            `${doc.id} is ${doc.data.status}, so it cannot be claimed`,
           );
         }
         if (retryReasonsGiven) {
           throw new UsageError(
-            `retry_reason は自分が claim 済みで PR のあるチケットのもう一度の claim でだけ使える（${doc.id} は todo）`,
+            `retry_reason can be used only when claiming again a ticket that you have claimed and that has a PR (${doc.id} is todo)`,
           );
         }
         const wf = ctx.store.requireWorkflowFor(doc.data);
@@ -1143,7 +1159,7 @@ export const ticketClaim = defineCommand({
           );
         const previous = doc.data.assignee;
         if (previous && !sameUser(previous, ctx.actor.id))
-          warnings.push(`担当者を ${previous} から ${ctx.actor.id} に変えた`);
+          warnings.push(`Changed the assignee from ${previous} to ${ctx.actor.id}`);
         const branch = input.without_branch
           ? undefined
           : (input.branch ?? defaultBranchName(doc.data));
@@ -1233,14 +1249,14 @@ export const ticketUnclaim = defineCommand({
         if (doc.data.status !== "in_progress") {
           throw new OperationError(
             "TRANSITION_REJECTED",
-            `${doc.id} は ${doc.data.status} なので unclaim できない`,
+            `${doc.id} is ${doc.data.status}, so it cannot be unclaimed`,
           );
         }
         const owner = doc.data.assignee;
         if (owner && !sameUser(owner, ctx.actor.id) && !input.force) {
           throw new OperationError(
             "REJECTED",
-            `${doc.id} は ${owner} の claim。外すなら force を付ける`,
+            `${doc.id} is claimed by ${owner}. To release it, add force`,
           );
         }
         // 実装（か手直し）を途中でやめたので、開いたままの実装・手直しの Run は失敗で閉じる（RN-6）

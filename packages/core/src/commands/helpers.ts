@@ -50,7 +50,7 @@ export function iterationReadiness(
 export function idShapeOf<K extends IdKind>(ref: string | undefined, kind: K): IdOf<K> | undefined {
   if (ref === undefined) return undefined;
   const id = parseId(ref, kind);
-  if (!id) throw new UsageError(`${ref} は ${kind} の ID ではない`);
+  if (!id) throw new UsageError(`${ref} is not a ${kind} ID`);
   return id;
 }
 

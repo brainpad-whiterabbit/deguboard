@@ -12,51 +12,61 @@ export function checkReferences(store: Store): Issue[] {
 
   for (const doc of store.projects.values()) {
     if (!store.workflows.has(doc.data.workflow)) {
-      push(doc.path, doc.id, "workflow_missing", `既定の Workflow ${doc.data.workflow} がない`);
+      push(
+        doc.path,
+        doc.id,
+        "workflow_missing",
+        `The default Workflow ${doc.data.workflow} is missing`,
+      );
     }
   }
   for (const doc of store.tickets.values()) {
     const t = doc.data;
     if (!store.projects.has(t.project))
-      push(doc.path, t.id, "project_missing", `Project ${t.project} がない`);
+      push(doc.path, t.id, "project_missing", `Project ${t.project} is missing`);
     if (!store.workflowFor(t))
       push(
         doc.path,
         t.id,
         "workflow_missing",
-        `Workflow ${t.workflow ?? "(Project の既定)"} がない`,
+        `Workflow ${t.workflow ?? "(the Project default)"} is missing`,
       );
     for (const dep of t.depends_on) {
-      if (dep === t.id) push(doc.path, t.id, "depends_on_self", "自分自身に依存している");
+      if (dep === t.id) push(doc.path, t.id, "depends_on_self", "Depends on itself");
       else if (!store.tickets.has(dep))
-        push(doc.path, t.id, "depends_on_missing", `依存先 ${dep} がない`);
+        push(doc.path, t.id, "depends_on_missing", `The dependency ${dep} is missing`);
     }
     if (t.epic) {
       const epic = store.epics.get(t.epic);
-      if (!epic) push(doc.path, t.id, "epic_missing", `Epic ${t.epic} がない`);
+      if (!epic) push(doc.path, t.id, "epic_missing", `Epic ${t.epic} is missing`);
       else if (epic.data.project !== t.project)
-        push(doc.path, t.id, "epic_project", `Epic ${t.epic} は別の Project`);
+        push(doc.path, t.id, "epic_project", `Epic ${t.epic} belongs to another Project`);
     }
     if (t.iteration) {
       const it = store.iterations.get(t.iteration);
-      if (!it) push(doc.path, t.id, "iteration_missing", `Iteration ${t.iteration} がない`);
+      if (!it) push(doc.path, t.id, "iteration_missing", `Iteration ${t.iteration} is missing`);
       else if (it.data.project !== t.project)
-        push(doc.path, t.id, "iteration_project", `Iteration ${t.iteration} は別の Project`);
+        push(
+          doc.path,
+          t.id,
+          "iteration_project",
+          `Iteration ${t.iteration} belongs to another Project`,
+        );
     }
   }
   for (const doc of store.epics.values()) {
     if (!store.projects.has(doc.data.project))
-      push(doc.path, doc.id, "project_missing", `Project ${doc.data.project} がない`);
+      push(doc.path, doc.id, "project_missing", `Project ${doc.data.project} is missing`);
   }
   for (const doc of store.iterations.values()) {
     if (!store.projects.has(doc.data.project))
-      push(doc.path, doc.id, "project_missing", `Project ${doc.data.project} がない`);
+      push(doc.path, doc.id, "project_missing", `Project ${doc.data.project} is missing`);
   }
   for (const doc of store.runs.values()) {
     const t = doc.data.ticket;
     // 消したチケット（墓標）の Run は実績として残すので指摘しない
     if (!store.tickets.has(t) && !store.deletedTicketNumbers.has(idNumber(t)))
-      push(doc.path, doc.id, "ticket_missing", `チケット ${t} がない`);
+      push(doc.path, doc.id, "ticket_missing", `Ticket ${t} is missing`);
   }
   issues.push(...findDependencyCycles(store));
   return issues;
@@ -76,7 +86,7 @@ function findDependencyCycles(store: Store): Issue[] {
       code: "depends_on_cycle",
       path: store.tickets.get(cycle.start as `t${number}`)?.path ?? "",
       id: cycle.start,
-      message: `依存が循環している: ${cyclePath(cycle, false)}`,
+      message: `Dependencies form a cycle: ${cyclePath(cycle, false)}`,
     });
   });
   return issues;

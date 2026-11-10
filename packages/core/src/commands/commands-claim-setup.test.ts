@@ -43,7 +43,7 @@ describe("claim の Iteration の準備", () => {
     const claimed = await runCommand(ticketClaim, ctx, { ticket: "t1", no_worktree: true });
     // start の早い planned（s2）より active（s1）を選ぶ
     expect(claimed.data.iteration).toBe("s1");
-    expect(claimed.warnings).toContain("t1 を s1 に入れた");
+    expect(claimed.warnings).toContain("Added t1 to s1");
     // claim と同じ書き込みで push され、別の clone からも見える
     const other = await openContext({
       cwd: f.cloneB,
@@ -64,7 +64,7 @@ describe("claim の Iteration の準備", () => {
     const claimed = await runCommand(ticketClaim, ctx, { ticket: "t1", no_worktree: true });
     expect(claimed.data.iteration).toBe("s3");
     expect(claimed.warnings).toEqual(
-      expect.arrayContaining(["t1 を s3 に入れた", "s3 を開始した（active）"]),
+      expect.arrayContaining(["Added t1 to s3", "Started s3 (active)"]),
     );
     const s3 = (await runCommand(iterationShow, ctx, { iteration: "s3" })).data;
     // 開始日は始めた日に書き換える（iteration.start と同じ。IT-1）
@@ -93,7 +93,7 @@ describe("claim の Iteration の準備", () => {
     expect(claimed.data).toMatchObject({ status: "in_progress" });
     expect(claimed.data.iteration).toBeUndefined();
     expect(claimed.warnings.join("\n")).toContain(
-      "t1 を入れる Iteration（active か planned）がない",
+      "There is no Iteration (active or planned) to add t1 to",
     );
 
     const g = await fixture();
@@ -115,11 +115,11 @@ describe("claim の Iteration の準備", () => {
     await runCommand(ticketCreate, ctx, { title: "A", iteration: "s1" });
     await runCommand(ticketCreate, ctx, { title: "B", iteration: "s2" });
     const first = await runCommand(ticketClaim, ctx, { ticket: "t1", no_worktree: true });
-    expect(first.warnings).toContain("s1 を開始した（active）");
+    expect(first.warnings).toContain("Started s1 (active)");
     expect((await runCommand(iterationShow, ctx, { iteration: "s1" })).data.status).toBe("active");
     const second = await runCommand(ticketClaim, ctx, { ticket: "t2", no_worktree: true });
     expect(second.data.status).toBe("in_progress");
-    expect(second.warnings.join("\n")).toContain("s2 を開始できない（s1 が active）");
+    expect(second.warnings.join("\n")).toContain("Cannot start s2 (s1 is active)");
     expect((await runCommand(iterationShow, ctx, { iteration: "s2" })).data.status).toBe("planned");
   });
 
@@ -140,13 +140,13 @@ describe("claim の Iteration の準備", () => {
       no_run: true,
     });
     expect(a.data.iteration).toBeUndefined();
-    expect(a.warnings.join("\n")).toContain("iteration.add は actor.human_only");
+    expect(a.warnings.join("\n")).toContain("iteration.add is actor.human_only");
     const b = await runCommand(ticketClaim, agent, {
       ticket: "t2",
       no_worktree: true,
       no_run: true,
     });
-    expect(b.warnings.join("\n")).toContain("iteration.start は actor.human_only");
+    expect(b.warnings.join("\n")).toContain("iteration.start is actor.human_only");
     expect((await runCommand(iterationShow, agent, { iteration: "s1" })).data.status).toBe(
       "planned",
     );
@@ -228,9 +228,11 @@ describe("claim の worktree の作成", () => {
     expect(blocked.data).toMatchObject({ status: "in_progress", worktree: null });
     // 警告は手で作る場所（依頼の path）も書く。作れなかったときに場所が分かるように（t617）
     expect(blocked.warnings.join("\n")).toContain(
-      `ブランチ feat/blocked の worktree を作れなかった`,
+      `Could not create the worktree of branch feat/blocked`,
     );
-    expect(blocked.warnings.join("\n")).toContain(`worktree を ${dir} に手で作って続ける`);
+    expect(blocked.warnings.join("\n")).toContain(
+      `create the worktree in ${dir} by hand and continue`,
+    );
   });
 });
 
@@ -253,7 +255,7 @@ describe("claim の worktree の準備のコマンド（worktree.setup）", () =
     const dir = claimed.data.worktree!;
     expect(claimed.data.status).toBe("in_progress");
     expect(existsSync(path.join(dir, "setup-ran.txt"))).toBe(false);
-    expect(claimed.warnings.join("\n")).not.toContain("準備のコマンド");
+    expect(claimed.warnings.join("\n")).not.toContain("worktree setup command");
   });
 
   it("終了コードで止まったときは、警告に stderr の末尾を添える", async () => {
@@ -265,8 +267,8 @@ describe("claim の worktree の準備のコマンド（worktree.setup）", () =
     ]);
     await runCommand(ticketCreate, ctx, { title: "A" });
     const claimed = await runCommand(ticketClaim, ctx, { ticket: "t1", branch: "feat/stderr" });
-    expect(claimed.warnings.join("\n")).toContain("終了コード 4");
-    expect(claimed.warnings.join("\n")).toContain("stderr の末尾: 原因の行");
+    expect(claimed.warnings.join("\n")).toContain("exit code 4");
+    expect(claimed.warnings.join("\n")).toContain("end of stderr: 原因の行");
   });
 
   it("claim が作った worktree で、引数配列のコマンドを worktree の中で回す（元のクローンでは回さない）", async () => {
@@ -288,9 +290,9 @@ describe("claim の worktree の準備のコマンド（worktree.setup）", () =
     expect(claimed.data).toMatchObject({ status: "in_progress" });
     expect(claimed.data.worktree).toBeTruthy();
     const text = claimed.warnings.join("\n");
-    expect(text).toContain("終了コード 3");
+    expect(text).toContain("exit code 3");
     expect(text).toContain("node -e process.exit(3)");
-    expect(text).toContain(`${claimed.data.worktree} で node -e process.exit(3) を手で回す`);
+    expect(text).toContain(`Run node -e process.exit(3) by hand in ${claimed.data.worktree}`);
   });
 
   it("起動できないコマンドも claim は成功し、回せなかったことと手で回すコマンドを warnings に出す", async () => {
@@ -300,7 +302,7 @@ describe("claim の worktree の準備のコマンド（worktree.setup）", () =
     const claimed = await runCommand(ticketClaim, ctx, { ticket: "t1", branch: "feat/missing" });
     expect(claimed.data).toMatchObject({ status: "in_progress" });
     expect(claimed.warnings.join("\n")).toContain(
-      "worktree の準備のコマンド（deguboard-no-such-command-t621）を回せなかった",
+      "worktree setup command (deguboard-no-such-command-t621) could not be run",
     );
   });
 });

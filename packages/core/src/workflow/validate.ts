@@ -35,7 +35,7 @@ export function validateWorkflow(
           severity: "error",
           code: "workflow_schema",
           path,
-          message: "Workflow 定義の形が違う",
+          message: "The Workflow definition has the wrong shape",
           detail: z.prettifyError(parsed.error),
         },
       ],
@@ -50,12 +50,12 @@ export function validateWorkflow(
   def.transitions.forEach((t, i) => {
     for (const c of t.requires) {
       if (!parseCondition(c))
-        issue("workflow_condition_unknown", `transitions[${i}]: 未知の条件 ${c}`);
+        issue("workflow_condition_unknown", `transitions[${i}]: unknown condition ${c}`);
     }
     if (t.from === t.to) {
       issue(
         "workflow_transition_self",
-        `transitions[${i}]: ${t.from} → ${t.to} は意味がない。同じ Status への move は常に拒否される`,
+        `transitions[${i}]: ${t.from} → ${t.to} is meaningless. A move to the same Status is always rejected`,
       );
       return;
     }
@@ -63,7 +63,7 @@ export function validateWorkflow(
     if (seen.has(key)) {
       issue(
         "workflow_transition_duplicate",
-        `transitions[${i}]: ${t.from} → ${t.to} が重複している。1 つにまとめる`,
+        `transitions[${i}]: ${t.from} → ${t.to} is duplicated. Merge them into one`,
       );
     }
     seen.add(key);
@@ -71,22 +71,22 @@ export function validateWorkflow(
   def.reconcile.forEach((r, i) => {
     for (const c of r.when) {
       if (!parseCondition(c))
-        issue("workflow_condition_unknown", `reconcile[${i}]: 未知の条件 ${c}`);
+        issue("workflow_condition_unknown", `reconcile[${i}]: unknown condition ${c}`);
     }
     if (r.status === "abandoned")
-      issue("workflow_reconcile_abandoned", `reconcile[${i}]: 照合で abandoned にはできない`);
+      issue("workflow_reconcile_abandoned", `reconcile[${i}]: reconcile cannot set abandoned`);
   });
   for (const s of Object.keys(def.labels ?? {})) {
     if (!(STATUSES as readonly string[]).includes(s))
-      issue("workflow_status_unknown", `labels: 存在しない Status ${s}`);
+      issue("workflow_status_unknown", `labels: Status ${s} does not exist`);
   }
   const fieldIds = new Set<string>();
   def.fields.forEach((f, i) => {
     if (fieldIds.has(f.id))
-      issue("workflow_field_duplicate", `fields[${i}]: ${f.id} が重複している`);
+      issue("workflow_field_duplicate", `fields[${i}]: ${f.id} is duplicated`);
     fieldIds.add(f.id);
     if (f.type === "enum" && (!f.options || f.options.length === 0)) {
-      issue("workflow_field_options", `fields[${i}]: enum の ${f.id} には options が要る`);
+      issue("workflow_field_options", `fields[${i}]: the enum ${f.id} needs options`);
     }
   });
   const stepIds = new Set<string>();
@@ -94,14 +94,14 @@ export function validateWorkflow(
   const openers = new Map<string, string>();
   def.steps?.forEach((step, i) => {
     if (stepIds.has(step.id))
-      issue("workflow_step_duplicate", `steps[${i}]: ${step.id} が重複している`);
+      issue("workflow_step_duplicate", `steps[${i}]: ${step.id} is duplicated`);
     stepIds.add(step.id);
     if (step.opens_on) {
       const first = openers.get(step.opens_on);
       if (first) {
         issue(
           "workflow_opens_on_duplicate",
-          `steps[${i}]: opens_on: ${step.opens_on} は ${first} にも付いている。1 つの step にだけ付ける`,
+          `steps[${i}]: opens_on: ${step.opens_on} is also set on ${first}. Set it on only one step`,
         );
       } else openers.set(step.opens_on, step.id);
     }
@@ -109,7 +109,7 @@ export function validateWorkflow(
     // 古い版で読んでも、遷移と照合を止めない
     for (const action of step.actions) {
       if (options.actions && !options.actions.includes(action))
-        issue("workflow_action_unknown", `steps[${i}]: 未知の Action ${action}`, "warning");
+        issue("workflow_action_unknown", `steps[${i}]: unknown Action ${action}`, "warning");
     }
   });
 

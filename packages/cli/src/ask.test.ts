@@ -148,7 +148,7 @@ describe("dg ask", () => {
 
     const human = await dg(f.cloneA, ["ask", "t1", "--action", "fix", "--format", "skill"]);
     expect(human.out).toBe("/dgimport t1");
-    expect(human.err).toContain("★割り当てる（assign）");
+    expect(human.err).toContain("★割り当てる (assign)");
     // 候補にない頼むことは使い方の誤り（終了コード 2）
     expect((await dg(f.cloneA, ["ask", "t1", "--action", "release"])).code).toBe(2);
   });

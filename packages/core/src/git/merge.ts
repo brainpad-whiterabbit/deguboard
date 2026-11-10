@@ -220,7 +220,7 @@ export async function runMergeDriver(
 ): Promise<number> {
   const [basePath, oursPath, theirsPath, name] = args;
   if (!basePath || !oursPath || !theirsPath) {
-    log("dg merge-driver: 引数は <base> <ours> <theirs> [<path>]");
+    log("dg merge-driver: arguments are <base> <ours> <theirs> [<path>]");
     return 2;
   }
   const [base, ours, theirs] = await Promise.all([
@@ -245,7 +245,7 @@ export async function runMergeDriver(
   }
   if (outcome) {
     log(
-      `dg merge-driver: ${name ?? oursPath}: 両側で違う値に変えた: ${outcome.conflicts.join(", ")}`,
+      `dg merge-driver: ${name ?? oursPath}: both sides changed to different values: ${outcome.conflicts.join(", ")}`,
     );
   }
   // frontmatter として読めないものと競合は、git の行単位のマージに任せて競合マーカーを残す

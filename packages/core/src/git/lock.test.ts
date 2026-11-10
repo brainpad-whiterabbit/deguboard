@@ -122,7 +122,7 @@ describe("withLock", () => {
       ),
     ).rejects.toMatchObject({
       code: "GIT_ERROR",
-      message: expect.stringMatching(/別の dg が書き込み中.*EACCES/),
+      message: expect.stringMatching(/Another dg is writing.*EACCES/),
     });
     // 約 50ms ごとに確かめるので、waitMs（200ms）なら数回、既定の 10 秒なら約 200 回になる。
     // waitMs を守らなかったときもテストのタイムアウトでなくこの回数で落ちるよう、タイムアウトを広げてある

@@ -92,7 +92,7 @@ describe("guide.notes の文書の差し込み（CL-5）", () => {
     await writeFile(join(root, "bad.md"), "判断\n## 見出し\n");
     const notes = await readGuideNotes("work", configWith({ work: "bad.md" }), root);
     expect(notes.text).toBe("");
-    expect(notes.warnings[0]).toContain("見出し（#）");
+    expect(notes.warnings[0]).toContain("has a heading (#)");
   });
 
   it("トピックごとに別のファイルを指せ、指していないトピックには差し込まない", async () => {
@@ -104,8 +104,8 @@ describe("guide.notes の文書の差し込み（CL-5）", () => {
 
   it("リポジトリの最上位を指すパスは、外ではなく最上位だと警告する", async () => {
     const notes = await readGuideNotes("work", configWith({ work: "." }), root);
-    expect(notes.warnings[0]).toContain("最上位");
-    expect(notes.warnings[0]).not.toContain("外を指す");
+    expect(notes.warnings[0]).toContain("is the repository root");
+    expect(notes.warnings[0]).not.toContain("outside the repository");
   });
 
   it("symlink の先がリポジトリの外なら読まずに警告を返す（相対パスの指定でも同じ）", async () => {
@@ -116,7 +116,7 @@ describe("guide.notes の文書の差し込み（CL-5）", () => {
     const notes = await readGuideNotes("review", configWith({ review: "link.md" }), repo);
     expect(notes.text).toBe("");
     expect(notes.warnings[0]).toContain("guide.notes.review");
-    expect(notes.warnings[0]).toContain("外を指す");
+    expect(notes.warnings[0]).toContain("is outside the repository");
   });
 
   it("symlink の先がリポジトリの中なら、その文書を差し込む", async () => {
@@ -133,7 +133,7 @@ describe("guide.notes の文書の差し込み（CL-5）", () => {
     await mkdir(join(repo, "dir"), { recursive: true });
     const dir = await readGuideNotes("work", configWith({ work: "dir" }), repo);
     expect(dir.text).toBe("");
-    expect(dir.warnings[0]).toContain("通常のファイルでない");
+    expect(dir.warnings[0]).toContain("is not a regular file");
 
     await writeFile(join(repo, "big.md"), "x".repeat(64 * 1024 + 1));
     const big = await readGuideNotes("work", configWith({ work: "big.md" }), repo);

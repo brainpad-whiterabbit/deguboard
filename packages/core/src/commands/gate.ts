@@ -75,19 +75,19 @@ export async function judgeGate(
   const selector = ticket.pr !== undefined ? String(ticket.pr) : ticket.branch;
   let prNumber: number | null = ticket.pr ?? null;
   let mergeable: string | undefined;
-  if (!selector) add("pr", false, "チケットに PR も作業ブランチもない");
+  if (!selector) add("pr", false, "The ticket has neither a PR nor a work branch");
   else {
     const facts = await fetchPrGateFacts(ctx.repo, selector);
-    if ("reason" in facts) add("pr", false, `PR を確かめられない: ${facts.reason}`);
-    else if ("missing" in facts) add("pr", false, `PR がない（${selector}）`);
+    if ("reason" in facts) add("pr", false, `Cannot check the PR: ${facts.reason}`);
+    else if ("missing" in facts) add("pr", false, `No PR (${selector})`);
     else {
       prNumber = facts.pr.number;
       mergeable = facts.pr.mergeable;
       if (facts.pr.state !== "OPEN")
-        add("pr", false, `PR #${prNumber} が開いていない（${facts.pr.state}）`);
+        add("pr", false, `PR #${prNumber} is not open (${facts.pr.state})`);
       else if (stage === "merge" && facts.pr.isDraft)
-        add("pr", false, `PR #${prNumber} が draft のまま`);
-      else add("pr", true, `PR #${prNumber} が開いている${facts.pr.isDraft ? "（draft）" : ""}`);
+        add("pr", false, `PR #${prNumber} is still a draft`);
+      else add("pr", true, `PR #${prNumber} is open${facts.pr.isDraft ? " (draft)" : ""}`);
     }
   }
 
@@ -99,8 +99,8 @@ export async function judgeGate(
       "acceptance",
       unchecked.length === 0,
       unchecked.length === 0
-        ? `受け入れ条件 ${items.length} 項目すべてに印がある`
-        : `受け入れ条件 ${unchecked.join("・")} に印がない`,
+        ? `All ${items.length} acceptance criteria are marked`
+        : `Acceptance criteria ${unchecked.join(", ")} are not marked`,
     );
   }
 
@@ -111,24 +111,29 @@ export async function judgeGate(
     ? await lastPushedAt(ctx.repo, ticket.branch, { fetch: true }).catch(() => undefined)
     : undefined;
   // 比べるのはリモートの先端のコミットの時刻（push した時刻ではない。facts.ts の lastPushedAt）
-  if (pushedAt === undefined) add("review", false, "作業ブランチの最後の push の時刻を読めない");
+  if (pushedAt === undefined)
+    add("review", false, "Cannot read the time of the last push of the work branch");
   else {
     const after = reviews.filter((r) => r.started_at >= pushedAt);
     const latest = after.at(-1);
-    if (!latest) add("review", false, `最後の push（${pushedAt}）より後の見直しがない`);
+    if (!latest) add("review", false, `No review after the last push (${pushedAt})`);
     else if (latest.finished_at === null)
-      add("review", false, `最後の push より後の見直し ${latest.id} が終わっていない`);
+      add("review", false, `Review ${latest.id} after the last push has not finished`);
     else if (latest.result !== "success")
-      add("review", false, `最後の push より後の見直し ${latest.id} が ${latest.result} で閉じた`);
+      add("review", false, `Review ${latest.id} after the last push closed as ${latest.result}`);
     else if (latest.review === null)
-      add("review", false, `見直し ${latest.id} の結果が記録されていない（dg run review-result）`);
+      add(
+        "review",
+        false,
+        `The result of review ${latest.id} is not recorded (dg run review-result)`,
+      );
     else if (!latest.review.passed)
       add(
         "review",
         false,
-        `見直し ${latest.id} が通っていない（重い指摘 ${latest.review.heavy} 件）`,
+        `Review ${latest.id} did not pass (${latest.review.heavy} heavy findings)`,
       );
-    else add("review", true, `最後の push より後の見直し ${latest.id} が通っている`);
+    else add("review", true, `Review ${latest.id} after the last push passed`);
   }
 
   const rounds = heavyReviewRounds(reviews, ticket.branch_at);
@@ -136,20 +141,21 @@ export async function judgeGate(
     "fix_rounds",
     rounds <= FIX_ROUNDS_LIMIT,
     rounds <= FIX_ROUNDS_LIMIT
-      ? `重い指摘が出た見直し ${rounds} 回（上限 ${FIX_ROUNDS_LIMIT}）`
-      : `重い指摘が出た見直しが ${rounds} 回で、上限 ${FIX_ROUNDS_LIMIT} を超えた。続けるかは人に聞く`,
+      ? `${rounds} review rounds found heavy findings (limit ${FIX_ROUNDS_LIMIT})`
+      : `${rounds} review rounds found heavy findings, which exceeds the limit of ${FIX_ROUNDS_LIMIT}. Ask the human whether to continue`,
   );
 
   // base と衝突しない（マージの前だけ）
   if (stage === "merge") {
-    if (mergeable === undefined) add("mergeable", false, "PR を読めないので衝突を確かめられない");
+    if (mergeable === undefined)
+      add("mergeable", false, "Cannot read the PR, so conflicts cannot be checked");
     else
       add(
         "mergeable",
         mergeable === "MERGEABLE",
         mergeable === "MERGEABLE"
-          ? "base と衝突しない"
-          : `mergeable が ${mergeable}（衝突しているか、まだ計算中。少し待って確かめ直す）`,
+          ? "No conflict with base"
+          : `mergeable is ${mergeable} (there is a conflict, or it is still being computed. Wait a moment and check again)`,
       );
   }
 
@@ -157,7 +163,12 @@ export async function judgeGate(
   if (ctx.config.actions.test.length === 0 || conditions.every((c) => c.ok)) {
     const check = await judgeCheck(ctx, ticket);
     add("check", check.ok, check.detail);
-  } else add("check", false, "ほかの条件を満たさないので、検査（actions.test）は回していない");
+  } else
+    add(
+      "check",
+      false,
+      "The other conditions are not met, so the check (actions.test) was not run",
+    );
 
   return {
     ticket: ticket.id,

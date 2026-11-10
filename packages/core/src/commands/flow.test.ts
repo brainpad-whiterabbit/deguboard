@@ -482,10 +482,10 @@ describe("dg flow next", () => {
     expect(byTicket.target).toEqual({ iteration: "s1", tickets: ["t1"] });
     expect(byTicket.stage.name).toBe("check");
     expect(byTicket.warnings).toEqual([
-      "resume は別の対象（s1）のものなので、割り当てと点検からやり直す",
+      "resume belongs to a different target (s1), so starting over from assignment and check",
     ]);
     expect((await flow(ctx, { resume: "garbage" })).warnings).toEqual([
-      "resume を読めないので、割り当てと点検からやり直す",
+      "Cannot read resume, so starting over from assignment and check",
     ]);
     // チケットの並びが違っても同じ対象。解決した ID を並べ替えて比べる
     await runCommand(ticketCreate, ctx, { title: "B" });

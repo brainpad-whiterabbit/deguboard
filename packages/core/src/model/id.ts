@@ -34,16 +34,16 @@ function idPattern(kind: IdKind): RegExp {
 
 export const ticketIdSchema = z
   .string()
-  .regex(idPattern("ticket"), "t12 の形の ID") as unknown as z.ZodType<TicketId>;
+  .regex(idPattern("ticket"), "An ID like t12") as unknown as z.ZodType<TicketId>;
 export const epicIdSchema = z
   .string()
-  .regex(idPattern("epic"), "e3 の形の ID") as unknown as z.ZodType<EpicId>;
+  .regex(idPattern("epic"), "An ID like e3") as unknown as z.ZodType<EpicId>;
 export const iterationIdSchema = z
   .string()
-  .regex(idPattern("iteration"), "s3 の形の ID") as unknown as z.ZodType<IterationId>;
+  .regex(idPattern("iteration"), "An ID like s3") as unknown as z.ZodType<IterationId>;
 export const planIdSchema = z
   .string()
-  .regex(idPattern("plan"), "p7 の形の ID") as unknown as z.ZodType<PlanId>;
+  .regex(idPattern("plan"), "An ID like p7") as unknown as z.ZodType<PlanId>;
 
 /** `t12` でも `12` でも受け付ける（DT-6）。ゼロ埋めや別の接頭辞は受け付けない */
 export function parseId<K extends IdKind>(input: string, kind: K): IdOf<K> | undefined {
@@ -54,7 +54,8 @@ export function parseId<K extends IdKind>(input: string, kind: K): IdOf<K> | und
 }
 
 export function formatId<K extends IdKind>(kind: K, n: number): IdOf<K> {
-  if (!Number.isInteger(n) || n < 1) throw new RangeError(`番号は 1 以上の整数: ${n}`);
+  if (!Number.isInteger(n) || n < 1)
+    throw new RangeError(`The number must be an integer of 1 or more: ${n}`);
   return `${ID_PREFIX[kind]}${n}` as IdOf<K>;
 }
 

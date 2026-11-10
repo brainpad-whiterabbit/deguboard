@@ -18,7 +18,9 @@ export const shellAction = defineAction({
   }),
   confirm: true,
   allowed: (config) =>
-    config.actions.shell ? null : "任意のシェルの Action は設定（actions.shell）で許されていない",
+    config.actions.shell
+      ? null
+      : "The arbitrary shell Action is not allowed by the config (actions.shell)",
   async run(ctx, input) {
     const result = await runProcess(ctx.cwd, "sh", ["-c", input.command], {
       allowFailure: true,

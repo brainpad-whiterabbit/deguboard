@@ -254,7 +254,7 @@ export const claudeCodeAdapter: AgentAdapter = {
       files = files.filter((f) => inSession(f, session));
       if (files.length === 0) {
         return none(
-          `Claude Code の会話記録に Run ${query.run.id} のセッション ${session} がない（別のマシンの記録か、消された）。使用量は null で残す`,
+          `The Claude Code conversation record has no session ${session} for Run ${query.run.id} (the record is on another machine, or it was deleted). Usage is left as null`,
         );
       }
     }
@@ -271,7 +271,7 @@ export const claudeCodeAdapter: AgentAdapter = {
     }
     if (!best) {
       return none(
-        `Claude Code の会話記録に Run ${query.run.id} が見つからない。使用量は null で残す`,
+        `Run ${query.run.id} not found in the Claude Code conversation record. Usage is left as null`,
       );
     }
     return collected(query, best);
@@ -282,7 +282,7 @@ export const claudeCodeAdapter: AgentAdapter = {
 function collected(query: UsageQuery, best: Scan): CollectedUsage {
   if (best.messages.size === 0 && !best.ceded) {
     return none(
-      `Claude Code の会話記録に Run ${query.run.id} の期間の応答がない。使用量は null で残す`,
+      `The Claude Code conversation record has no responses in the period of Run ${query.run.id}. Usage is left as null`,
     );
   }
   return {
@@ -318,14 +318,14 @@ async function fromLocation(query: UsageQuery, file: string, to: number): Promis
     .catch(() => false);
   if (!readable) {
     return none(
-      `Run ${query.run.id} の会話記録の場所（deguboard-local/transcripts/）のファイルを読めない（別のマシンの記録か、消された）。使用量は null で残す`,
+      `Cannot read the file in the conversation record location of Run ${query.run.id} (deguboard-local/transcripts/) (the record is on another machine, or it was deleted). Usage is left as null`,
     );
   }
   const from = isSubagentFile(file) ? previousEnd(query, file) : Date.parse(query.run.started_at);
   const best = await scan(file, query, from, to, undefined, true).catch(() => undefined);
   if (!best) {
     return none(
-      `Run ${query.run.id} の会話記録の場所（deguboard-local/transcripts/）のファイルを読めない。使用量は null で残す`,
+      `Cannot read the file in the conversation record location of Run ${query.run.id} (deguboard-local/transcripts/). Usage is left as null`,
     );
   }
   return collected(query, best);

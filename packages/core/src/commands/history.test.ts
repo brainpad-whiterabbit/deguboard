@@ -121,7 +121,7 @@ describe("history", () => {
     await runCommand(commit, ctx, {});
     const r = await runCommand(history, ctx, {});
     expect(r.data.shallow).toBe(true);
-    expect(r.warnings.join()).toContain("浅い");
+    expect(r.warnings.join()).toContain("shallow clone");
     // 境界のコミットより前は欠ける。境界の中身は起点として読み、その後の変化だけを返す
     expect(r.data.incomplete).toEqual(["e1", "s1", "t1", "t2"]);
     expect(r.data.events.map((e) => e.type)).toEqual(["changed"]);
@@ -288,10 +288,10 @@ describe("プロセス内の CommandClient の history", () => {
     for (let i = 0; i < 2; i++) {
       const r = await client.run<HistoryLog>("history", {});
       expect(r.data.shallow).toBe(true);
-      expect(r.warnings.join()).toContain("浅い");
+      expect(r.warnings.join()).toContain("shallow clone");
       const one = await client.run<HistoryLog>("history", { ticket: "t2" });
       expect(one.data.shallow).toBe(true);
-      expect(one.warnings.join()).toContain("浅い");
+      expect(one.warnings.join()).toContain("shallow clone");
     }
   });
 });

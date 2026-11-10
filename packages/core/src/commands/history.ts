@@ -77,7 +77,7 @@ export const history = defineCommand({
     const warnings: string[] = [];
     if (result.shallow)
       warnings.push(
-        "履歴が浅い clone なので、古い経過が欠けている（git fetch --unshallow で補える）",
+        "This is a shallow clone, so older history is missing (git fetch --unshallow fills it in)",
       );
     return ok(result, undefined, warnings);
   },

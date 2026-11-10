@@ -158,17 +158,17 @@ describe("dg skill install", () => {
     expect(parsed.data.conflicts).toEqual(["dgwork"]);
     expect(parsed.data.retiredKept).toEqual(["deguboard"]);
     expect(parsed.data.files).toEqual([]);
-    expect(parsed.warnings.join("\n")).toContain("上書きしない。");
+    expect(parsed.warnings.join("\n")).toContain("will not be overwritten.");
     // 手を加えた文は guide.notes に移すよう案内する（AG-2）
     expect(parsed.warnings.join("\n")).toContain("dg config set guide.notes.work");
-    expect(parsed.warnings.join("\n")).toContain("消さない。");
-    expect(parsed.warnings.join("\n")).not.toContain("しなかった");
+    expect(parsed.warnings.join("\n")).toContain("will not be removed.");
+    expect(parsed.warnings.join("\n")).not.toContain("was not");
     expect(await readFile(edited, "utf8")).toBe("手で書いた\n");
     expect(await readFile(retired, "utf8")).toBe(`${RETIRED_TEMPLATE}手を加えた\n`);
     // 実際に入れるときは過去形のまま
     const real = JSON.parse((await dg(local.dir, ["--json", "skill", "install"])).out);
-    expect(real.warnings.join("\n")).toContain("上書きしなかった");
-    expect(real.warnings.join("\n")).toContain("消さなかった");
+    expect(real.warnings.join("\n")).toContain("was not overwritten");
+    expect(real.warnings.join("\n")).toContain("was not removed");
   });
 
   it("--personal --dry-run は書く先が HOME の下になり、何も書かない", async () => {

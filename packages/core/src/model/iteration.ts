@@ -41,5 +41,5 @@ export function otherActiveOf<T extends ActiveCheck>(
 
 /** ほかに active があって開始・再開を拒否するときの理由 */
 export function otherActiveMessage(otherId: string, itId: string, verb: string): string {
-  return `${otherId} が active なので ${itId} を${verb}できない（active の Iteration は Project に 1 つ）。先に ${otherId} を閉じる（閉じるかは人が決める）`;
+  return `${otherId} is active, so ${itId} cannot be ${verb} (only one Iteration per Project can be active). Close ${otherId} first (a person decides whether to close it)`;
 }

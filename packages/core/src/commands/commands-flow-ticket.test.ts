@@ -74,13 +74,13 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
       runCommand(ticketMove, human, { ticket: "t3", status: "done" }),
     ).rejects.toMatchObject({
       code: "TRANSITION_REJECTED",
-      message: "todo から done への遷移は Workflow がこの主体に許していない",
+      message: "The Workflow does not allow this actor to move from todo to done",
     });
     await expect(
       runCommand(ticketClaim, human, { no_worktree: true, ticket: "t4" }),
     ).rejects.toMatchObject({
       code: "TRANSITION_REJECTED",
-      message: "todo から in_progress への遷移の条件を満たしていない: deps_done",
+      message: "The conditions for moving from todo to in_progress are not met: deps_done",
     });
     await expect(
       runCommand(ticketMove, agent, { ticket: "t3", status: "abandoned" }),
@@ -253,7 +253,7 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
     // 事前の担当者と別のユーザが claim すると上書きし、warnings で知らせる
     const claimed = await runCommand(ticketClaim, human, { no_worktree: true, ticket: "t1" });
     expect(claimed.data.assignee).toBe("eiki");
-    expect(claimed.warnings).toContain("担当者を other から eiki に変えた");
+    expect(claimed.warnings).toContain("Changed the assignee from other to eiki");
     // todo に戻すと担当者は消える。起票者は残る
     const back = await runCommand(ticketMove, human, { ticket: "t1", status: "todo" });
     expect(back.data.assignee).toBeUndefined();
@@ -375,14 +375,14 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
     const head = async () => (await git(ctx.repo.dataDir, ["rev-parse", "HEAD"])).stdout.trim();
     const before = await head();
     const cases: Array<[string, string]> = [
-      ["- title: 設定 #/config の画面\n", "1 件目の title"],
-      ["- title: A\n- title: B\n  summary: 戻る #/board へ\n", "2 件目の summary"],
+      ["- title: 設定 #/config の画面\n", "title of draft 1"],
+      ["- title: A\n- title: B\n  summary: 戻る #/board へ\n", "summary of draft 2"],
       [
         "- title: A\n  acceptance:\n    - 条件 1\n    - 歯車で #/config # 開く\n",
-        "1 件目の acceptance",
+        "acceptance of draft 1",
       ],
-      ["drafts:\n  - title: A\n    body: 本文 #/config\n", "1 件目の body"],
-      ["- title: A\n  body: 複数行の\n    最後の行 #/config\n", "1 件目の body"],
+      ["drafts:\n  - title: A\n    body: 本文 #/config\n", "body of draft 1"],
+      ["- title: A\n  body: 複数行の\n    最後の行 #/config\n", "body of draft 1"],
     ];
     for (const [source, field] of cases) {
       await expect(runCommand(ticketImport, ctx, { source })).rejects.toMatchObject({
@@ -395,7 +395,7 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
         drafts: [{ title: "A" }],
         source: "- title: B\n",
       }),
-    ).rejects.toThrow("一緒に");
+    ).rejects.toThrow("cannot be passed together");
     expect(await head()).toBe(before);
   });
 
@@ -563,7 +563,10 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
     // 画面が古い本文（read）のまま 1 を押した：間に 2 の書き込みがあったので拒否し、本文は変えない
     await expect(
       runCommand(ticketCheck, ctx, { ticket: "t1", items: [1], base: read }),
-    ).rejects.toMatchObject({ code: "REJECTED", message: expect.stringContaining("読み直して") });
+    ).rejects.toMatchObject({
+      code: "REJECTED",
+      message: expect.stringContaining("Read it again"),
+    });
     const shown = await runCommand(ticketShow, ctx, { ticket: "t1" });
     expect(shown.data.body).toBe(checked.data.body);
     // 読み直した本文なら外せる
@@ -824,8 +827,8 @@ describe("Epic と Iteration", () => {
     expect(reopened.data.carried_over).toBeUndefined();
     // 再開は即座に push するので、まとめ待ちの変更を先にコミットした警告も並ぶ
     expect(reopened.warnings).toEqual([
-      "まとめ待ちの変更を先にコミットした",
-      "閉じたときに外した 1 件は戻らない。iteration add で入れ直す",
+      "Committed the pending changes first",
+      "The 1 tickets removed when it was closed do not come back. Add them again with iteration add",
     ]);
     // 持ち越したチケットは戻らないので入れ直す
     expect(agent.store.tickets.get("t1")?.data.iteration).toBeUndefined();
@@ -836,7 +839,7 @@ describe("Epic と Iteration", () => {
     await runCommand(ticketMove, agent, { ticket: "t1", status: "done" });
     await runCommand(iterationClose, agent, { iteration: "s1" });
     const again = await runCommand(iterationReopen, agent, { iteration: "s1" });
-    expect(again.warnings).toEqual(["まとめ待ちの変更を先にコミットした"]);
+    expect(again.warnings).toEqual(["Committed the pending changes first"]);
   });
 
   it("active の Iteration は Project に 1 つで、ほかに active があれば start と reopen を拒否する（IT-1）", async () => {
@@ -850,7 +853,7 @@ describe("Epic と Iteration", () => {
     // 拒否のメッセージに今 active の Iteration を出し、記録は変えない
     await expect(runCommand(iterationStart, ctx, { iteration: "s2" })).rejects.toMatchObject({
       code: "REJECTED",
-      message: expect.stringContaining("s1 が active"),
+      message: expect.stringContaining("s1 is active"),
     });
     expect(ctx.store.iterations.get("s2")?.data.status).toBe("planned");
     // 別の Project の Iteration は数えない
@@ -860,7 +863,7 @@ describe("Epic と Iteration", () => {
     await runCommand(iterationStart, ctx, { iteration: "s2" });
     await expect(runCommand(iterationReopen, ctx, { iteration: "s1" })).rejects.toMatchObject({
       code: "REJECTED",
-      message: expect.stringContaining("s2 が active"),
+      message: expect.stringContaining("s2 is active"),
     });
     expect(ctx.store.iterations.get("s1")?.data.status).toBe("closed");
     await runCommand(iterationClose, ctx, { iteration: "s2" });
@@ -887,7 +890,7 @@ describe("Epic と Iteration", () => {
     const racer = await openContext({ cwd: f.cloneA, actor: { kind: "agent", user: "a" }, hooks });
     await expect(runCommand(iterationStart, racer, { iteration: "s1" })).rejects.toMatchObject({
       code: "REJECTED",
-      message: expect.stringContaining("s2 が active"),
+      message: expect.stringContaining("s2 is active"),
     });
     expect(racer.store.iterations.get("s1")?.data.status).toBe("planned");
     expect(racer.store.iterations.get("s2")?.data.status).toBe("active");
@@ -917,7 +920,7 @@ describe("Epic と Iteration", () => {
     const reopened = await runCommand(iterationReopen, racer, { iteration: "s1" });
     expect(reopened.data.status).toBe("active");
     expect(reopened.warnings).toEqual([
-      "閉じたときに外した 1 件は戻らない。iteration add で入れ直す",
+      "The 1 tickets removed when it was closed do not come back. Add them again with iteration add",
     ]);
     // 相手の変更も取り込んでいる
     expect(racer.store.iterations.get("s2")?.data.name).toBe("Sprint 2");
@@ -944,7 +947,7 @@ describe("Epic と Iteration", () => {
     const racer = await openContext({ cwd: f.cloneA, actor: { kind: "agent", user: "a" }, hooks });
     await expect(runCommand(iterationReopen, racer, { iteration: "s1" })).rejects.toMatchObject({
       code: "REJECTED",
-      message: expect.stringContaining("s2 が active"),
+      message: expect.stringContaining("s2 is active"),
     });
     expect(racer.store.iterations.get("s1")?.data.status).toBe("closed");
     expect(racer.store.iterations.get("s2")?.data.status).toBe("active");
@@ -967,7 +970,7 @@ describe("Epic と Iteration", () => {
     expect(await multiple()).toEqual([]);
     // 手の編集やマージで 2 つ目の active ができた場合（start の検査を通らない）
     await ctx.store.update("iteration", "s3", { status: "active" });
-    const message = "同じ Project に active の Iteration が 2 つある（s1, s3）";
+    const message = "The same Project has 2 active Iterations (s1, s3)";
     expect(await multiple()).toEqual([
       ["s1", message],
       ["s3", message],

@@ -294,13 +294,13 @@ export class Store {
   /** 見つからなければ NOT_FOUND */
   require<K extends IdKind>(kind: K, ref: string): Doc<EntityOf<K>> {
     const doc = this.resolve(kind, ref);
-    if (!doc) throw new OperationError("NOT_FOUND", `${kind} ${ref} が見つからない`);
+    if (!doc) throw new OperationError("NOT_FOUND", `${kind} ${ref} not found`);
     return doc;
   }
 
   requireProject(slug: string): Doc<Project> {
     const doc = this.projects.get(slug);
-    if (!doc) throw new OperationError("NOT_FOUND", `project ${slug} が見つからない`);
+    if (!doc) throw new OperationError("NOT_FOUND", `project ${slug} not found`);
     return doc;
   }
 
@@ -313,7 +313,10 @@ export class Store {
   requireWorkflowFor(ticket: Ticket): WorkflowEntry {
     const wf = this.workflowFor(ticket);
     if (!wf) {
-      throw new OperationError("NOT_FOUND", `${ticket.id} の Workflow が見つからないか読めない`);
+      throw new OperationError(
+        "NOT_FOUND",
+        `The Workflow of ${ticket.id} not found or cannot be read`,
+      );
     }
     return wf;
   }
@@ -345,7 +348,7 @@ export class Store {
     const c = collections[kind] as unknown as Collection<EntityOf<K>>;
     const id = String(data["id"]);
     if (this.map(kind).has(id))
-      throw new OperationError("ALREADY_EXISTS", `${kind} ${id} は既にある`);
+      throw new OperationError("ALREADY_EXISTS", `${kind} ${id} already exists`);
     const doc = await createDoc(this.root, c.pathOf(id), c.format, c.schema, data, body);
     this.map(kind).set(id, doc);
     return doc;
@@ -359,7 +362,7 @@ export class Store {
   ): Promise<Doc<EntityOf<K>>> {
     const c = collections[kind] as unknown as Collection<EntityOf<K>>;
     const doc = this.map(kind).get(id);
-    if (!doc) throw new OperationError("NOT_FOUND", `${kind} ${id} が見つからない`);
+    if (!doc) throw new OperationError("NOT_FOUND", `${kind} ${id} not found`);
     const next = await writeDoc(this.root, doc, c.schema, patch, body);
     this.map(kind).set(id, next);
     return next;
@@ -368,7 +371,7 @@ export class Store {
   /** チケットは消さずに墓標へ移す（番号を再利用しない） */
   async deleteTicket(id: TicketId): Promise<void> {
     const doc = this.tickets.get(id);
-    if (!doc) throw new OperationError("NOT_FOUND", `ticket ${id} が見つからない`);
+    if (!doc) throw new OperationError("NOT_FOUND", `ticket ${id} not found`);
     const to = path.join(this.root, deletedTicketPath(id));
     await writeFileAtomic(to, "");
     await rename(path.join(this.root, doc.path), to);
@@ -384,7 +387,7 @@ export class Store {
     if (!parsed.success) {
       throw new OperationError(
         "VALIDATION_FAILED",
-        "config の更新がスキーマに合わない",
+        "The config update does not match the schema",
         z.prettifyError(parsed.error),
       );
     }
@@ -401,7 +404,7 @@ export class Store {
    */
   async writeLocalConfig(key: string, leaf: unknown): Promise<Config> {
     if (!this.localConfigPath)
-      throw new OperationError("VALIDATION_FAILED", "個人の設定の置き場所が分からない");
+      throw new OperationError("VALIDATION_FAILED", "The location of personal settings is unknown");
     const { doc } = await this.readLocalConfigDocument(this.localConfigPath);
     const current = (doc.toJS() ?? {}) as Record<string, unknown>;
     // 書く前から無視されていた項目はそのまま残し、この書き込みで増える無視だけを拒む
@@ -415,7 +418,7 @@ export class Store {
     if (rejected.length > 0) {
       throw new OperationError(
         "VALIDATION_FAILED",
-        "個人の設定に書けない項目",
+        "Items that cannot be set in personal settings",
         rejected.map((i) => `${i.key}: ${i.reason}`).join("\n"),
       );
     }
@@ -437,7 +440,7 @@ export class Store {
       severity: "warning",
       code: "local_config_ignored",
       path: LOCAL_CONFIG_LABEL,
-      message: `個人の設定の ${i.key} を無視した`,
+      message: `Ignored the personal setting ${i.key}`,
       detail: i.reason,
     }));
   }
@@ -459,7 +462,7 @@ export class Store {
     ) {
       throw new OperationError(
         "VALIDATION_FAILED",
-        `Workflow ${String(definition["id"])} の定義に誤りがある`,
+        `The definition of Workflow ${String(definition["id"])} has errors`,
         result.issues
           .filter((i) => i.severity === "error")
           .map(formatIssue)
@@ -526,7 +529,7 @@ export class Store {
             severity: "warning",
             code: "yaml_error",
             path: LOCAL_CONFIG_LABEL,
-            message: "YAML を読めないので個人の設定を無視した",
+            message: "Cannot parse YAML, so the personal settings were ignored",
             detail: errors.join("\n"),
           },
         ],
@@ -541,7 +544,7 @@ export class Store {
             severity: "warning",
             code: "schema_error",
             path: LOCAL_CONFIG_LABEL,
-            message: "項目の対応（マップ）でないので個人の設定を無視した",
+            message: "Not a key-value map, so the personal settings were ignored",
           },
         ],
       };
@@ -559,7 +562,7 @@ export class Store {
             severity: "error",
             code: "yaml_error",
             path: CONFIG_FILE,
-            message: "YAML を読めない",
+            message: "Cannot parse YAML",
             detail: errors.join("\n"),
           },
         ],
@@ -574,7 +577,7 @@ export class Store {
             severity: "error",
             code: "schema_error",
             path: CONFIG_FILE,
-            message: "スキーマに合わない",
+            message: "Does not match the schema",
             detail: z.prettifyError(parsed.error),
           },
         ],
@@ -622,7 +625,7 @@ export class Store {
           severity: "warning",
           code: "unexpected_file",
           path: `${c.dir}/${file}`,
-          message: "ID の形でないファイル",
+          message: "The file name is not in the form of an ID",
         });
         continue;
       }
@@ -676,7 +679,7 @@ export class Store {
             code: "read_error",
             path: relPath,
             id,
-            message: "ファイルを読めない",
+            message: "Cannot read the file",
             detail: String(error),
           },
         ],
@@ -692,7 +695,7 @@ export class Store {
             code: "yaml_error",
             path: relPath,
             id,
-            message: "YAML を読めない",
+            message: "Cannot parse YAML",
             detail: errors.join("\n"),
           },
         ],
@@ -707,7 +710,7 @@ export class Store {
         code: "id_mismatch",
         path: relPath,
         id,
-        message: `ファイル名の ID ${id} と中の id ${result.definition.id} が違う`,
+        message: `The ID ${id} in the file name differs from the id ${result.definition.id} inside`,
       });
       return { id, issues };
     }

@@ -123,7 +123,7 @@ describe("dg gate（品質ゲート。t532）", () => {
     // actions.test が空なら検査は判定せずに通し、そう detail に出す
     expect(view.conditions.find((c) => c.id === "check")).toMatchObject({
       ok: true,
-      detail: expect.stringContaining("actions.test が空なので、検査は判定しない"),
+      detail: expect.stringContaining("actions.test is empty, so the check is not judged"),
     });
   });
 
@@ -147,12 +147,12 @@ describe("dg gate（品質ゲート。t532）", () => {
     await review(ctx, later(-60), 0);
     const before = await judge(ctx, "ready");
     expect(before.conditions.find((c) => c.id === "review")!.detail).toContain(
-      "より後の見直しがない",
+      "No review after the last push",
     );
     await review(ctx, later(1), 2);
     const heavy = await judge(ctx, "ready");
     expect(heavy.conditions.find((c) => c.id === "review")).toMatchObject({ ok: false });
-    expect(heavy.conditions.find((c) => c.id === "review")!.detail).toContain("重い指摘 2 件");
+    expect(heavy.conditions.find((c) => c.id === "review")!.detail).toContain("2 heavy findings");
   });
 
   it("重い指摘が出た見直しが上限（2 回）を超えたら fix_rounds を満たさない", async () => {
@@ -211,7 +211,7 @@ describe("dg gate の検査（actions.test。t601）", () => {
     expect(view.passed).toBe(true);
     // 軽い検査を設定していなければ、actions.test を回したとだけ出す
     expect(check(view).detail).toMatch(
-      /^検査（actions\.test: sh .*check\.sh）が最新のコミット [0-9a-f]{8} で通った$/,
+      /^The check \(actions\.test: sh .*check\.sh\) passed on the latest commit [0-9a-f]{8}$/,
     );
     expect(await runs()).toBe(1);
     // 同じコミットの判定（ready の後の merge など）は覚えた結果を使う
@@ -224,7 +224,7 @@ describe("dg gate の検査（actions.test。t601）", () => {
     // 見直しがない（review を満たさない）うちは回さない
     expect(check(await judge(ctx, "ready"))).toMatchObject({
       ok: false,
-      detail: expect.stringContaining("回していない"),
+      detail: expect.stringContaining("was not run"),
     });
     expect(await runs()).toBe(0);
     await setCode(3);
@@ -234,7 +234,7 @@ describe("dg gate の検査（actions.test。t601）", () => {
     await review(ctx, later(2), 0);
     const view = await judge(ctx, "ready");
     expect(failed(view)).toEqual(["check"]);
-    expect(check(view).detail).toContain("通らない（exit 3）");
+    expect(check(view).detail).toContain("(exit 3)");
     expect(check(view).detail).toContain("前の行\n最後の行");
     // 通らなかった結果は覚えないので、同じコミットでも回し直す（確率で落ちる検査をコミットを足さずにやり直せる）
     await setCode(0);
@@ -277,7 +277,7 @@ describe("dg gate の検査（actions.test。t601）", () => {
     expect(view.passed).toBe(false);
     expect(check(view)).toMatchObject({
       ok: false,
-      detail: expect.stringContaining(`検査（actions.test: ${name}）を回せない`),
+      detail: expect.stringContaining(`Cannot run the check (actions.test: ${name})`),
     });
     // 回せなかった結果は覚えない（記録のファイルがない）
     const stored = await readFile(path.join(ctx.repo.localDir, "checks", "t1.json"), "utf8").catch(
@@ -301,10 +301,10 @@ describe("dg gate の検査（actions.test。t601）", () => {
     await review(ctx, later(1), 0);
     // push していないコミットがある（worktree の HEAD がリモートの先端と違う）
     await git(f.cloneA, ["commit", "-q", "--allow-empty", "-m", "まだ push していない"]);
-    expect(check(await judge(ctx, "ready")).detail).toContain("最新のコミット");
+    expect(check(await judge(ctx, "ready")).detail).toContain("is not the latest commit");
     await git(f.cloneA, ["reset", "-q", "--hard", "HEAD~1"]);
     await writeFile(path.join(f.cloneA, "dirty.txt"), "x");
-    expect(check(await judge(ctx, "ready")).detail).toContain("未コミットの変更がある");
+    expect(check(await judge(ctx, "ready")).detail).toContain("has uncommitted changes");
     expect(await runs()).toBe(0);
   });
 
@@ -348,14 +348,14 @@ describe("dg gate の検査（actions.test。t601）", () => {
       const view = await judge(ctx, "ready");
       expect(view.passed).toBe(true);
       expect(check(view).detail).toMatch(
-        /^検査（軽い検査 actions\.light_test: sh .*light\.sh）が最新のコミット [0-9a-f]{8} で通った（差分のファイル 2 件がすべて actions\.light_paths に入るので軽い検査を回した）$/,
+        /^The check \(light check actions\.light_test: sh .*light\.sh\) passed on the latest commit [0-9a-f]{8} \(Ran the light check because all 2 changed files are in actions\.light_paths\)$/,
       );
       expect(await lines()).toEqual(["light"]);
       // ready で通った同じコミットの merge は、覚えた結果を使う（軽い検査も actions.test も回さない）
       await runCommand(ticketCheck, ctx, { ticket: "t1", items: [1, 2] });
       const merged = await judge(ctx, "merge");
       expect(merged.passed).toBe(true);
-      expect(check(merged).detail).toContain("軽い検査 actions.light_test");
+      expect(check(merged).detail).toContain("light check actions.light_test");
       expect(await lines()).toEqual(["light"]);
     });
 
@@ -366,9 +366,9 @@ describe("dg gate の検査（actions.test。t601）", () => {
       await review(ctx, later(1), 0);
       const view = await judge(ctx, "ready");
       expect(view.passed).toBe(true);
-      expect(check(view).detail).toContain("検査（actions.test: sh ");
+      expect(check(view).detail).toContain("The check (actions.test: sh ");
       expect(check(view).detail).toContain(
-        "差分に actions.light_paths の外のファイル（src/a.ts。1 件）があるので actions.test を回した",
+        "Ran actions.test because the diff has files outside actions.light_paths (src/a.ts; 1 files)",
       );
       expect(await lines()).toEqual(["run"]);
     });
@@ -377,7 +377,9 @@ describe("dg gate の検査（actions.test。t601）", () => {
       const { ctx, lines } = await withLight();
       await review(ctx, later(1), 0);
       const view = await judge(ctx, "ready");
-      expect(check(view).detail).toContain("差分のファイルがないので actions.test を回した");
+      expect(check(view).detail).toContain(
+        "Ran actions.test because there are no files changed from base",
+      );
       expect(await lines()).toEqual(["run"]);
     });
   });

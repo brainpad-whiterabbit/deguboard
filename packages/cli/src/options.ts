@@ -126,11 +126,11 @@ function parseScalar(shape: FieldShape, raw: string): unknown {
   const kind = shape.kind === "array" ? shape.element : shape.kind;
   if (kind === "number") {
     const n = Number(raw);
-    if (!Number.isFinite(n)) throw new InvalidArgumentError("数値を指定する");
+    if (!Number.isFinite(n)) throw new InvalidArgumentError("Specify a number");
     return n;
   }
   if (kind === "enum" && shape.choices && !shape.choices.includes(raw)) {
-    throw new InvalidArgumentError(`次のどれかを指定する: ${shape.choices.join(", ")}`);
+    throw new InvalidArgumentError(`Specify one of:${shape.choices.join(", ")}`);
   }
   return raw;
 }
@@ -141,7 +141,7 @@ function parseRecordEntry(
   previous: Record<string, unknown> = {},
 ): Record<string, unknown> {
   const eq = raw.indexOf("=");
-  if (eq <= 0) throw new InvalidArgumentError("key=value の形で指定する");
+  if (eq <= 0) throw new InvalidArgumentError("Specify it in the form key=value");
   const key = raw.slice(0, eq);
   const text = raw.slice(eq + 1);
   const value =

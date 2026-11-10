@@ -150,8 +150,8 @@ describe("定義の検証（WF-3）", () => {
     };
     const { issues, workflow } = validateWorkflow(raw, "x.yaml", { actions: ["create_pr"] });
     expect(issues.map((i) => [i.code, i.severity, i.message])).toEqual([
-      ["workflow_action_unknown", "warning", "steps[0]: 未知の Action deploy"],
-      ["workflow_step_duplicate", "error", "steps[2]: implement が重複している"],
+      ["workflow_action_unknown", "warning", "steps[0]: unknown Action deploy"],
+      ["workflow_step_duplicate", "error", "steps[2]: implement is duplicated"],
     ]);
     expect(workflow?.steps?.[1]).toMatchObject({ id: "review", actions: [], approval: true });
     // 一覧を渡さなければ Action の名前は形だけ見る
@@ -195,7 +195,7 @@ describe("定義の検証（WF-3）", () => {
       [
         "workflow_opens_on_duplicate",
         "error",
-        "steps[1]: opens_on: claim は implement にも付いている。1 つの step にだけ付ける",
+        "steps[1]: opens_on: claim is also set on implement. Set it on only one step",
       ],
     ]);
     expect(

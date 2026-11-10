@@ -48,7 +48,7 @@ export function regressionWarnings(
   if (isTerminal(current)) return [];
   const warnings: string[] = [];
   if (facts.branch_exists === false)
-    warnings.push("作業ブランチがローカルにもリモートにも見つからない");
+    warnings.push("The work branch was not found locally or on the remote");
   // PR がまだないだけなら閉じた PR ではない（gh は両方を pr_* がすべて偽の形で返す）
   if (
     !opts.prMissing &&
@@ -56,7 +56,7 @@ export function regressionWarnings(
     facts.pr_merged === false &&
     current === "review"
   ) {
-    warnings.push("PR がマージされずに閉じている");
+    warnings.push("The PR was closed without being merged");
   }
   return warnings;
 }

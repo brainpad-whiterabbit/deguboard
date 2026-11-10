@@ -236,14 +236,16 @@ describe("dg hook（AG-9・RN-7）", () => {
       "PostToolUse",
       launched(parent, "a2", "deguboard: ticket=t1 step=review"),
     );
-    expect(again.warnings).toEqual([expect.stringContaining("Run を開いていない")]);
+    expect(again.warnings).toEqual([expect.stringContaining("Could not open the review Run")]);
     // 印のチケットがなければ警告する
     const missing = await call(
       ctx,
       "PostToolUse",
       launched(parent, "a3", "deguboard: ticket=t99 step=review"),
     );
-    expect(missing.warnings).toEqual([expect.stringContaining("t99 が見つからない")]);
+    expect(missing.warnings).toEqual([
+      expect.stringContaining("The marked ticket t99 was not found"),
+    ]);
   });
 
   it("別のセッションで開いたままの見直しの Run は、印 step=review の起動が interrupted で閉じてから新しい Run を開き、run review-result は新しい Run に書く（RN-6・RN-9）", async () => {
@@ -262,7 +264,7 @@ describe("dg hook（AG-9・RN-7）", () => {
       "PostToolUse",
       launched(parent, "a1", "deguboard: ticket=t1 step=review\n\n見直す"),
     );
-    expect(warnings).not.toContainEqual(expect.stringContaining("Run を開いていない"));
+    expect(warnings).not.toContainEqual(expect.stringContaining("Could not open the review Run"));
     expect(view.done).toEqual([
       `t1 の review の Run ${stale.id} を interrupted で閉じた`,
       expect.stringMatching(/^t1 の review の Run r\S+ を開いた$/),
@@ -293,7 +295,9 @@ describe("dg hook（AG-9・RN-7）", () => {
       "PostToolUse",
       launched(parent, "a2", "deguboard: ticket=t2 step=review"),
     );
-    expect(unknown.warnings).toContainEqual(expect.stringContaining("Run を開いていない"));
+    expect(unknown.warnings).toContainEqual(
+      expect.stringContaining("Could not open the review Run"),
+    );
   });
 
   it("前景の起動で、見直し役が別のセッションの古い見直しの Run に書いた結果は、古い Run から外して新しい Run に結び付ける。起動より前に書かれた結果は古い Run に残す（RN-9）", async () => {
@@ -451,7 +455,7 @@ describe("dg hook（AG-9・RN-7）", () => {
     expect(again.view.done).toEqual([]);
     expect(again.warnings).toEqual([
       expect.stringContaining(
-        `t1 の review の Run を開いていない: t1 の review の Run ${first!.id} が実行中`,
+        `Could not open the review Run of t1: Run ${first!.id} of t1 review is running`,
       ),
     ]);
     expect((await peekRunningRuns(ctx.repo)).map((r) => r.id)).toEqual([first!.id]);
@@ -545,7 +549,7 @@ describe("dg hook（AG-9・RN-7）", () => {
       agent_transcript_path: subagent("a1"),
       last_assistant_message: "ok",
     });
-    expect(warnings).toContainEqual(expect.stringContaining("t2 の review に直した"));
+    expect(warnings).toContainEqual(expect.stringContaining("to t2 review to match the marker"));
     const runs = (await runCommand(runList, ctx, {})).data as RunView[];
     // 結果を記録していない見直しなので、閉じずに待つ
     expect(runs.map((r) => [r.ticket, r.step, r.running])).toEqual([["t2", "review", true]]);
@@ -761,14 +765,14 @@ describe("dg hook の見直しで直した場面（RN-7）", () => {
       "PostToolUse",
       launched(outside, "a1", "deguboard: ticket=t1 step=review"),
     );
-    expect(opened.warnings).toEqual([expect.stringContaining("置き場所の下にない")]);
+    expect(opened.warnings).toEqual([expect.stringContaining("is not under the place where")]);
     expect(await peekRunningRuns(ctx.repo)).toEqual([]);
     const stopped = await call(ctx, "SubagentStop", {
       session_id: SESSION,
       agent_id: "a1",
       agent_transcript_path: path.join(home, ".ssh", "id_rsa"),
     });
-    expect(stopped.warnings).toEqual([expect.stringContaining("置き場所の下にない")]);
+    expect(stopped.warnings).toEqual([expect.stringContaining("is not under the place where")]);
   });
 });
 
@@ -1011,7 +1015,7 @@ describe("サブエージェントの止まりと再開（RN-7）", () => {
     await call(ctx, "PostToolUse", launched(parent, "a1", prompt));
     await subagentRecord(subagent("a1"), prompt, 1, [], [{ type: "api-request", id: "q1" }]);
     const first = await stop(ctx, subagent("a1"));
-    expect(first.warnings).toContainEqual(expect.stringContaining("まだ閉じない"));
+    expect(first.warnings).toContainEqual(expect.stringContaining("so it is not closed yet"));
     expect(await peekRunningRuns(ctx.repo)).toHaveLength(1);
 
     await appendResponses(subagent("a1"), 5, ["m3"]);
@@ -1096,7 +1100,7 @@ describe("サブエージェントの止まりと再開（RN-7）", () => {
     // 待ちの上限を過ぎた直後、同じフックの掃除の前に書かれる
     hookTiming.onGiveUp = () => appendResponses(subagent("a1"), 5, ["m3"]);
     const { view, warnings } = await stop(ctx, subagent("a1"));
-    expect(warnings).toContainEqual(expect.stringContaining("まだ閉じない"));
+    expect(warnings).toContainEqual(expect.stringContaining("so it is not closed yet"));
     expect(view.done.some((d) => d.includes("で閉じた"))).toBe(false);
     expect((await peekRunningRuns(ctx.repo))[0]!.settling_since).not.toBeNull();
   });
@@ -1634,7 +1638,7 @@ describe("PreToolUse（AG-10・t532）", () => {
       },
     };
     // CLI はこの失敗を標準エラーに書いて 0 で返すので、フックはツールを止めない
-    await expect(openContextFor(hook, input, opts)).rejects.toThrow("初期化されていない");
+    await expect(openContextFor(hook, input, opts)).rejects.toThrow("is not initialized");
   });
 });
 
@@ -1660,7 +1664,7 @@ describe("手直しの Run の印と run retry-reason（RN-7・RN-8）", () => {
       launched(parent, "a1", "deguboard: ticket=t1 step=fix\n\n直す"),
     );
     expect(warnings).toContainEqual(
-      `t1: 前の手直しの Run ${previous.id} を、次の fix の Run の開始を区切りとして、push がないので開始の時刻で閉じる`,
+      `t1: closing the earlier fix Run ${previous.id} with the start of the next fix Run as the boundary, at the start time, since there was no push`,
     );
     const runs = await fixRuns(ctx, "t1");
     expect(runs.find((r) => r.id === previous.id)).toMatchObject({
@@ -1711,7 +1715,7 @@ describe("手直しの Run の印と run retry-reason（RN-7・RN-8）", () => {
       launched(parent, "a1", "deguboard: ticket=t1 step=review\n\n見直す"),
     );
     expect(warnings).toContainEqual(
-      `t1: 前の手直しの Run ${same.id} を、次の review の Run の開始を区切りとして、push がないので開始の時刻で閉じる`,
+      `t1: closing the earlier fix Run ${same.id} with the start of the next review Run as the boundary, at the start time, since there was no push`,
     );
     await call(ctx, "PostToolUse", launched(parent, "a2", "deguboard: ticket=t2 step=review"));
     expect((await fixRuns(ctx, "t1"))[0]).toMatchObject({
@@ -1800,7 +1804,7 @@ describe("手直しの Run の印と run retry-reason（RN-7・RN-8）", () => {
     // PR のないチケットでは使い方の誤り（要らない保留を残さない）
     await expect(
       runCommand(runRetryReason, ctx, { ticket: "t2", reasons: ["打ち間違い"] }),
-    ).rejects.toThrow("PR がない");
+    ).rejects.toThrow("has no PR");
   });
 
   it("前景で起動した手直しの理由は保留になり、フックが開いた Run に結び付く。手直し 1 回につき Run は 1 本", async () => {

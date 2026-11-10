@@ -15,7 +15,7 @@ export type RunId = `r${string}`;
 
 export const runIdSchema = z
   .string()
-  .regex(RUN_ID, "r20261031-041500-3fa2 の形の ID") as unknown as z.ZodType<RunId>;
+  .regex(RUN_ID, "An ID like r20261031-041500-3fa2") as unknown as z.ZodType<RunId>;
 
 export function isRunId(text: string): text is RunId {
   return RUN_ID.test(text);

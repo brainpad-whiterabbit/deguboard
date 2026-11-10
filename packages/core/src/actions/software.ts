@@ -15,7 +15,10 @@ import { defineAction } from "./define.js";
 
 const refName = z
   .string()
-  .refine(isSafeBranchName, "ブランチ名として使えない（先頭の - や git が許さない文字を含む）");
+  .refine(
+    isSafeBranchName,
+    "Cannot be used as a branch name (it starts with - or contains characters git does not allow)",
+  );
 const branchName = refName.describe("ブランチ名（feat/xxx など）");
 const baseName = refName.optional().describe("元にするブランチ。省略時は git.base_branch");
 
@@ -64,7 +67,7 @@ export const runTestsAction = defineAction({
   allowed: (config) =>
     config.actions.test.length > 0
       ? null
-      : "テストのコマンドが設定されていない（config.yaml の actions.test に引数配列で書く）",
+      : "The test command is not set (write it as an argument array in actions.test of config.yaml)",
   async run(ctx, input) {
     const [file, ...args] = ctx.config.actions.test;
     const result = await runProcess(ctx.cwd, file ?? "", args, {
@@ -78,7 +81,7 @@ export const runTestsAction = defineAction({
 async function currentBranch(cwd: string): Promise<string> {
   const name = (await runGit(cwd, ["rev-parse", "--abbrev-ref", "HEAD"])).stdout.trim();
   if (name === "HEAD") {
-    throw new OperationError("REJECTED", `${cwd} はブランチを checkout していない`);
+    throw new OperationError("REJECTED", `${cwd} has no branch checked out`);
   }
   return name;
 }

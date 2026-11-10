@@ -28,14 +28,15 @@ export async function openInBrowser(url: string): Promise<void> {
   const cmd = process.platform === "darwin" ? "open" : "xdg-open";
   await new Promise<void>((resolve, reject) => {
     execFile(cmd, [url], (error) =>
-      error ? reject(new Error(`${cmd} でブラウザを開けない: ${error.message}`)) : resolve(),
+      error ? reject(new Error(`Cannot open the browser with ${cmd}:${error.message}`)) : resolve(),
     );
   });
 }
 
 function toPort(raw: string): number {
   const n = Number(raw);
-  if (!Number.isInteger(n) || n < 0 || n > 65535) throw new Error("ポートは 0〜65535 の整数");
+  if (!Number.isInteger(n) || n < 0 || n > 65535)
+    throw new Error("The port must be an integer from 0 to 65535");
   return n;
 }
 
@@ -69,7 +70,7 @@ export function addServeCommands(program: Command, deps: ServeDeps): void {
               write: null,
             }),
           );
-        else deps.streams.out(`deguboard server: ${running.url}（Ctrl+C で止める）`);
+        else deps.streams.out(`deguboard server: ${running.url} (stop with Ctrl+C)`);
         if (opts.open) await (deps.openUrl ?? openInBrowser)(running.url);
         if (deps.onListening) {
           await deps.onListening(running.url);

@@ -55,7 +55,7 @@ describe("dg hooks install / uninstall（AG-9）", () => {
     );
     expect((await dg(cwd, ["hooks", "install"])).code).toBe(0);
     const again = await dg(cwd, ["hooks", "install"]);
-    expect(again.out).toContain("変わらなかった");
+    expect(again.out).toContain("No change");
     const settings = await settingsOf(file);
     expect(settings["permissions"]).toEqual({ allow: ["Bash(ls)"] });
     expect(settings.hooks["SessionStart"]).toEqual([
@@ -199,7 +199,7 @@ describe("dg hooks check（AG-9・t542）", () => {
     const cwd = await repo();
     const result = await checkOf(cwd);
     expect(result.data.events.every((e) => !e.installed && e.handler === null)).toBe(true);
-    expect(result.warnings).toContainEqual(expect.stringContaining("dg のフックがない"));
+    expect(result.warnings).toContainEqual(expect.stringContaining("no dg hooks"));
   });
 
   it("入れたフックは入っていると報告し、ハンドラが --version で動くことを確かめる。動かないコマンドは見つからないと警告する", async () => {
@@ -212,7 +212,7 @@ describe("dg hooks check（AG-9・t542）", () => {
     await dg(cwd, ["hooks", "install", "--command", "/nonexistent/dg-for-test"]);
     const broken = await checkOf(cwd);
     expect(broken.data.events.every((e) => e.handler === "missing")).toBe(true);
-    expect(broken.warnings).toContainEqual(expect.stringContaining("見つからない"));
+    expect(broken.warnings).toContainEqual(expect.stringContaining("not found"));
   });
 
   it("シェルの書き方を含むハンドラは、確かめられないと報告して警告する", async () => {
@@ -220,7 +220,7 @@ describe("dg hooks check（AG-9・t542）", () => {
     await dg(cwd, ["hooks", "install", "--command", "~/bin/dg"]);
     const result = await checkOf(cwd);
     expect(result.data.events.every((e) => e.handler === "unverified")).toBe(true);
-    expect(result.warnings).toContainEqual(expect.stringContaining("確かめられない"));
+    expect(result.warnings).toContainEqual(expect.stringContaining("cannot be verified"));
   });
 
   it("直近の入力で受け取らなかった項目があれば、項目の名前を警告する。記録がなければ警告しない", async () => {
@@ -234,7 +234,7 @@ describe("dg hooks check（AG-9・t542）", () => {
     const after = await checkOf(cwd);
     const post = after.data.events.find((e) => e.event === "PostToolUse")!;
     expect(post.missing).toEqual(["tool_response.agentId"]);
-    expect(after.warnings).toContainEqual(expect.stringContaining("tool_response.agentId がない"));
+    expect(after.warnings).toContainEqual(expect.stringContaining("lacks tool_response.agentId"));
   });
 
   it("PreToolUse の Bash で command が欠けていれば、check が警告する", async () => {
@@ -242,7 +242,7 @@ describe("dg hooks check（AG-9・t542）", () => {
     await dg(cwd, ["hooks", "install", "--command", process.execPath]);
     await recordOf(cwd, "PreToolUse", { tool_name: true, cwd: true, "tool_input.command": false });
     const result = await checkOf(cwd);
-    expect(result.warnings).toContainEqual(expect.stringContaining("tool_input.command がない"));
+    expect(result.warnings).toContainEqual(expect.stringContaining("lacks tool_input.command"));
   });
 
   it("設定が一部だけ入っているときは、入っていないイベントを名前で警告する", async () => {

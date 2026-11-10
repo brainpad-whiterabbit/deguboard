@@ -111,7 +111,7 @@ export async function integrate(
 
 /** push の結果を --porcelain の行で判定する（文言に依存しない） */
 export async function push(repo: GitRepo): Promise<PushResult> {
-  if (!repo.remote) return { ok: false, reason: "unreachable", detail: "リモートがない" };
+  if (!repo.remote) return { ok: false, reason: "unreachable", detail: "No remote" };
   const result = await git(
     repo,
     ["push", "--porcelain", "-u", repo.remote, `${DATA_BRANCH}:${DATA_BRANCH}`],

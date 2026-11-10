@@ -366,7 +366,7 @@ function resolveTargets(
   );
   if (kinds.some((k) => k !== "ticket")) {
     if (refs.length !== 1)
-      throw new UsageError("Iteration か Plan は 1 つだけ指定する（チケットと混ぜない）");
+      throw new UsageError("Specify only one Iteration or Plan (do not mix it with tickets)");
     if (kinds[0] === "iteration") {
       const it = store.require("iteration", refs[0]!);
       return {
@@ -553,9 +553,11 @@ export const flowNext = defineCommand({
     } = flowFactsOf(ctx, input.targets, input.no_assign ?? false);
     let prev = input.resume === undefined ? undefined : decodeResume(input.resume);
     if (input.resume !== undefined && !prev)
-      warnings.push("resume を読めないので、割り当てと点検からやり直す");
+      warnings.push("Cannot read resume, so starting over from assignment and check");
     if (prev && prev.target !== target) {
-      warnings.push(`resume は別の対象（${prev.target}）のものなので、割り当てと点検からやり直す`);
+      warnings.push(
+        `resume belongs to a different target (${prev.target}), so starting over from assignment and check`,
+      );
       prev = undefined;
     }
     const memory = memoryAfter(prev);

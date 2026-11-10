@@ -24,10 +24,12 @@ export type Actor = (typeof ACTORS)[number];
 const FIELD_TYPES = ["string", "number", "boolean", "date", "enum"] as const;
 
 // 条件は形だけ見る（未知の名前は validate.ts が WF-3 の指摘にする）
-const conditionShape = z.string().regex(/^!?[a-z_]+$/, "条件は事実の名前か !事実の名前");
+const conditionShape = z.string().regex(/^!?[a-z_]+$/, "A condition is a fact name or !fact-name");
 
 /** step の名前。Run の step（空白・改行を含まない 1 語）に書ける小文字の語 */
-const stepIdSchema = z.string().regex(/^[a-z][a-z0-9_-]*$/, "step は小文字の英数字と _ と -");
+const stepIdSchema = z
+  .string()
+  .regex(/^[a-z][a-z0-9_-]*$/, "A step is lowercase letters, digits, _ and -");
 
 /**
  * step の Run を開くチケットの操作（RN-5）。claim は todo のチケットの claim（実装）、
@@ -37,7 +39,7 @@ export const STEP_OPENERS = ["claim", "reclaim"] as const;
 export type StepOpener = (typeof STEP_OPENERS)[number];
 
 // Action は名前（文字列）だけで持つ。登録済みかは actions の一覧を外から渡して validate.ts が見る（AG-6）
-const actionNameShape = z.string().regex(/^[a-z][a-z0-9_]*$/, "Action の名前は snake_case");
+const actionNameShape = z.string().regex(/^[a-z][a-z0-9_]*$/, "An Action name is snake_case");
 
 export const workflowDefinitionSchema = z.looseObject({
   id: slugSchema,
@@ -60,7 +62,7 @@ export const workflowDefinitionSchema = z.looseObject({
   fields: z
     .array(
       z.looseObject({
-        id: z.string().regex(/^[a-z][a-z0-9_]*$/, "フィールド ID は小文字の英数字と _"),
+        id: z.string().regex(/^[a-z][a-z0-9_]*$/, "A field ID is lowercase letters, digits and _"),
         type: z.enum(FIELD_TYPES),
         label: z.string().optional(),
         options: z.array(z.string()).optional(),
@@ -81,7 +83,7 @@ export const workflowDefinitionSchema = z.looseObject({
         opens_on: z.enum(STEP_OPENERS).optional(),
       }),
     )
-    .min(1, "steps を書くなら 1 つ以上。縛らないなら steps ごと省く")
+    .min(1, "If you write steps, write at least one. To leave the order free, omit steps entirely")
     .optional(),
 });
 export type WorkflowDefinition = z.output<typeof workflowDefinitionSchema>;

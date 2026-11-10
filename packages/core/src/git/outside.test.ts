@@ -55,7 +55,7 @@ describe("dg の外の変更（SY-7・SY-8）", () => {
     await editOutside(ctx);
     const shown = await runCommand(ticketShow, ctx, { ticket: "t1" });
     expect(shown.warnings).toEqual([
-      expect.stringContaining("dg の外の変更がある（未コミットの変更: tickets/t1.md）"),
+      expect.stringContaining("changes made outside dg (Uncommitted changes: tickets/t1.md)"),
     ]);
     expect(shown.warnings[0]).toContain("dg adopt");
     const refused = await runCommand(ticketUpdate, ctx, { ticket: "t1", priority: "high" }).then(
@@ -64,7 +64,7 @@ describe("dg の外の変更（SY-7・SY-8）", () => {
     );
     expect(refused).toMatchObject({
       code: "OUTSIDE_CHANGES",
-      detail: "未コミットの変更: tickets/t1.md",
+      detail: "Uncommitted changes: tickets/t1.md",
     });
     // 戻し方の文は、ステージした変更も戻す git restore のフラグを示す（guide から細部を消したので、ここで文言を確かめる）
     expect((refused as Error).message).toContain("git restore --staged --worktree");
@@ -96,7 +96,7 @@ describe("dg の外の変更（SY-7・SY-8）", () => {
     const sha = (await git(ctx.repo.dataDir, ["rev-parse", "--short=7", "HEAD"])).stdout.trim();
     await expect(runCommand(sync, ctx, {})).rejects.toMatchObject({
       code: "OUTSIDE_CHANGES",
-      detail: `コミット ${sha}「外で直した」: tickets/t1.md`,
+      detail: `Commit ${sha} "外で直した": tickets/t1.md`,
     });
   });
 
@@ -178,7 +178,10 @@ describe("dg の外の変更（SY-7・SY-8）", () => {
       withWriteLock(ctx.repo, async () => {
         ran = true;
       }),
-    ).rejects.toMatchObject({ code: "OUTSIDE_CHANGES", detail: "未コミットの変更: tickets/t1.md" });
+    ).rejects.toMatchObject({
+      code: "OUTSIDE_CHANGES",
+      detail: "Uncommitted changes: tickets/t1.md",
+    });
     expect(ran).toBe(false);
     expect((await git(ctx.repo.dataDir, ["rev-parse", "HEAD"])).stdout).toBe(head);
     expect((await checkOutside(ctx.repo)).kind).toBe("found");
@@ -195,7 +198,7 @@ describe("dg の外の変更（SY-7・SY-8）", () => {
       runCommand(ticketUpdate, ctx, { ticket: "t1", priority: "low" }),
     ).rejects.toMatchObject({
       code: "OUTSIDE_CHANGES",
-      detail: expect.stringContaining("今の HEAD の祖先でない"),
+      detail: expect.stringContaining("is not an ancestor of the current HEAD"),
     });
   });
 

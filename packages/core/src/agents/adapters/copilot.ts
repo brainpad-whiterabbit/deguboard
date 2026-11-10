@@ -162,19 +162,19 @@ export const copilotAdapter: AgentAdapter = {
       : undefined;
     if (!best) {
       return none(
-        `Copilot の session 記録に Run ${query.run.id} が見つからない。使用量は null で残す`,
+        `Run ${query.run.id} not found in the Copilot session record. Usage is left as null`,
       );
     }
     if (!best.seen) {
       return none(
-        `Copilot の session 記録に Run ${query.run.id} の期間の使用量（session.usage_record）がない。使用量は null で残す`,
+        `The Copilot session record has no usage (session.usage_record) in the period of Run ${query.run.id}. Usage is left as null`,
       );
     }
     const usage = usageOf(best.totals);
     const missing = (Object.keys(usage) as Array<keyof Counts>).filter((k) => usage[k] === null);
     const warnings =
       missing.length > 0
-        ? [`Copilot の session 記録から ${missing.join("・")} を取れない。null で残す`]
+        ? [`Cannot get ${missing.join(", ")} from the Copilot session record. Left as null`]
         : [];
     return { usage, model: mainModel(best.models), tools: null, warnings };
   },

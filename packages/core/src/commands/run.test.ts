@@ -228,7 +228,7 @@ describe("run", () => {
     const again = await runCommand(runFinish, ctx, { run: a.id, result: "success" });
     expect(again.data).toMatchObject({ result: "interrupted", error: "セッションが切れた" });
     expect(again.warnings).toEqual([
-      expect.stringMatching(/^Run .* は既に interrupted で閉じている/),
+      expect.stringMatching(/^Run .* is already closed with interrupted/),
     ]);
     expect((await git(ctx.repo.dataDir, ["rev-parse", "HEAD"])).stdout.trim()).toBe(head);
     await expect(
@@ -340,7 +340,7 @@ describe("run", () => {
           agent: "claude-code",
           transcript: outside,
         }),
-      ).rejects.toThrow(/会話記録の置き場所の下/);
+      ).rejects.toThrow(/accepts only files under the place where/);
     }
   });
 
@@ -360,7 +360,7 @@ describe("run", () => {
         agent: "claude-code",
         transcript: path.join(projects, "link", "id_rsa"),
       }),
-    ).rejects.toThrow(/会話記録の置き場所の下/);
+    ).rejects.toThrow(/accepts only files under the place where/);
   });
 
   it("手直しの Run を区切りで閉じる時刻は、開始より後で区切りまでの最後の push、なければ区切りの時刻、マージの時刻、今の順（RN-6）", () => {
@@ -436,7 +436,10 @@ describe("run", () => {
         retries: 1,
         retry_reasons: ["検査が落ちた", "見直しの指摘"],
       }),
-    ).rejects.toMatchObject({ code: "INVALID_INPUT", message: expect.stringMatching(/食い違う/) });
+    ).rejects.toMatchObject({
+      code: "INVALID_INPUT",
+      message: expect.stringMatching(/do not match/),
+    });
     await expect(
       runCommand(runFinish, ctx, {
         run: run.id,
@@ -500,7 +503,7 @@ describe("run", () => {
     const b = await leftover();
     const finished = await runCommand(runFinish, ctx, { run: b.run.id, result: "interrupted" });
     expect(finished.data).toMatchObject({ id: b.run.id, result: "success" });
-    expect(finished.warnings).toEqual([expect.stringContaining("は既に success で閉じている")]);
+    expect(finished.warnings).toEqual([expect.stringContaining("is already closed with success")]);
     expect(await exists(b.file)).toBe(false);
 
     // 一覧の表示（ticket.list の run_agent）：readRunningRuns と同じくファイルで確かめて実行中に数えず、ロックを取らないので残りは消さない
@@ -591,7 +594,7 @@ describe("run", () => {
     // 既定の general の steps は investigate・implement・review・fix
     await expect(start(ctx, "t1", "deploy")).rejects.toMatchObject({
       code: "VALIDATION_FAILED",
-      message: expect.stringContaining("investigate・implement・review・fix"),
+      message: expect.stringContaining("investigate, implement, review, fix"),
     });
     await expect(start(ctx, "t1", "investigate")).resolves.toMatchObject({ step: "investigate" });
     // 利用者の既存の YAML（steps なし）は今までどおり任意の step を受ける
@@ -606,7 +609,7 @@ describe("run", () => {
       agent: "claude-code",
     });
     expect(r.warnings).toContain(
-      "t2 の Workflow が見つからないか読めないので、step anything を確かめていない",
+      "The Workflow of t2 is not found or cannot be read, so step anything was not checked",
     );
   });
 
@@ -725,7 +728,7 @@ describe("run review-result（見直しの結果。RN-9）", () => {
     expect(held.data).toMatchObject({ ticket: "t1", pending: true, review: { passed: true } });
     expect(held.warnings).toEqual([
       expect.stringContaining("--findings-file"),
-      expect.stringContaining("保留にした"),
+      expect.stringContaining("the result is held"),
     ]);
     const [run] = await peekRunningRuns(ctx.repo);
     expect(run!.review).toBeNull();
@@ -1104,7 +1107,7 @@ describe("run finish の使用量の取り込み（MT-1・MT-2・MT-4）", () =>
     });
     expect((r.data as Run).agent).toBe("no-such-reviewer");
     expect(r.warnings).toEqual([
-      expect.stringMatching(/no-such-reviewer.*Adapter がない.*claude-code/),
+      expect.stringMatching(/no-such-reviewer.*no Adapter.*claude-code/),
     ]);
   });
 
@@ -1126,7 +1129,7 @@ describe("run finish の使用量の取り込み（MT-1・MT-2・MT-4）", () =>
     });
     const b = started.data as Run;
     expect(started.warnings).toEqual([
-      expect.stringMatching(new RegExp(`claude-code の Run ${a.id}（t1 implement）が開いたまま`)),
+      expect.stringMatching(new RegExp(`claude-code Run ${a.id} \\(t1 implement\\) is still open`)),
     ]);
     const reply = (id: string, minutes: number, output: number) => ({
       type: "assistant",
@@ -1175,7 +1178,7 @@ describe("run finish の使用量の取り込み（MT-1・MT-2・MT-4）", () =>
       });
       expect((r.data as Run).model).toBeNull();
       expect((r.data as Run).tools).toBeNull();
-      expect(r.warnings).toEqual([expect.stringMatching(/会話記録を読まない/)]);
+      expect(r.warnings).toEqual([expect.stringMatching(/conversation record is not read/)]);
     }
   });
 
@@ -1302,7 +1305,7 @@ describe("run finish の使用量の取り込み（MT-1・MT-2・MT-4）", () =>
       await transcript(projectDir, run);
       const r = await runCommand(runFinish, ctx, { run: run.id, result: "success" });
       expect(r.data).toMatchObject({ usage: { input: null, output: null } });
-      expect(r.warnings).toEqual([expect.stringContaining("読めない")]);
+      expect(r.warnings).toEqual([expect.stringContaining("Cannot read")]);
     });
 
     it("agent の claim は session と transcript を開く Run に渡し、人の claim と no_run では使い方の誤りにする", async () => {
@@ -1325,11 +1328,11 @@ describe("run finish の使用量の取り込み（MT-1・MT-2・MT-4）", () =>
           no_run: true,
           session: "s1",
         }),
-      ).rejects.toThrow(/session と transcript/);
+      ).rejects.toThrow(/session and transcript/);
       const human = { ...ctx, actor: { ...ctx.actor, kind: "human" as const } };
       await expect(
         runCommand(ticketClaim, human, { no_worktree: true, ticket: "t2", transcript: file }),
-      ).rejects.toThrow(/session と transcript/);
+      ).rejects.toThrow(/session and transcript/);
     });
   });
 });
@@ -1368,9 +1371,9 @@ describe("deguboard-local/runs/ の壊れた記録", () => {
     const r = await runCommand(runList, ctx, {});
     expect((r.data as RunView[]).filter((v) => v.running).map((v) => v.id)).toEqual([running.id]);
     expect(r.warnings).toEqual([
-      `deguboard-local/runs/${files.json}.json: JSON を読めない`,
-      `deguboard-local/runs/${files.schema}.json: スキーマに合わない`,
-      `deguboard-local/runs/${files.mismatch}.json: ファイル名の ID ${files.mismatch} と中の id r20261101-999999-9999 が違う`,
+      `deguboard-local/runs/${files.json}.json: Cannot parse JSON`,
+      `deguboard-local/runs/${files.schema}.json: Does not match the schema`,
+      `deguboard-local/runs/${files.mismatch}.json: The ID ${files.mismatch} in the file name differs from the id r20261101-999999-9999 inside`,
     ]);
     for (const id of Object.values(files))
       expect(await exists(path.join(dir, `${id}.json`))).toBe(true);
@@ -1400,7 +1403,7 @@ describe("deguboard-local/runs/ の壊れた記録", () => {
         runCommand(runFinish, ctx, { run: id, result: "interrupted" }),
       ).rejects.toMatchObject({
         code: "VALIDATION_FAILED",
-        message: expect.stringContaining(`実行中の Run ${id} の記録を読めない`),
+        message: expect.stringContaining(`Cannot read the record of running Run ${id}`),
       });
       expect(await readFile(path.join(dir, `${id}.json`), "utf8")).toBe(before);
       expect(await exists(path.join(ctx.repo.dataDir, "runs", `${id}.json`))).toBe(false);
@@ -1663,7 +1666,7 @@ describe("run refresh の取り直し（RN-4・MT-5）", () => {
       updated: true,
     });
     expect(r.warnings).toEqual([
-      `Run ${started.id}: usage.cache_read・usage.cache_write は会話記録から取れなかったので今の値を残す`,
+      `Run ${started.id}: usage.cache_read, usage.cache_write could not be read from the conversation record, so the current values are kept`,
     ]);
     expect((JSON.parse(await saved(started.id)) as Run).usage).toEqual({
       input: 3,
@@ -1686,7 +1689,7 @@ describe("run refresh の取り直し（RN-4・MT-5）", () => {
     const none = await runCommand(runRefresh, ctx, { runs: [lost.id] });
     expect(none.write).toBeUndefined();
     expect(none.warnings).toEqual([
-      `Run ${lost.id}: Claude Code の会話記録に Run ${lost.id} が見つからない。今の値を残す`,
+      `Run ${lost.id}: Run ${lost.id} not found in the Claude Code conversation record. Keep the current value`,
     ]);
     expect((none.data as RunRefreshItem[])[0]?.kept).toHaveLength(5);
     expect(await saved(lost.id)).toBe(before);
@@ -1703,7 +1706,7 @@ describe("run refresh の取り直し（RN-4・MT-5）", () => {
     expect(r.warnings).toEqual([
       expect.stringMatching(
         new RegExp(
-          `^Run ${started.id}: agent no-such-agent の Adapter がない（.*）。今の値を残す$`,
+          `^Run ${started.id}: There is no Adapter for agent no-such-agent \\(.*\\)\\. Keep the current value$`,
         ),
       ),
     ]);
@@ -1756,7 +1759,7 @@ describe("run refresh の取り直し（RN-4・MT-5）", () => {
     ctx.config = ctx.store.config;
     const before = await saved(a.id);
     const r = await runCommand(runRefresh, ctx, { runs: [a.id] });
-    expect(r.warnings[0]).toMatch(/会話記録を読まない。今の値を残す$/);
+    expect(r.warnings[0]).toMatch(/conversation record is not read\. Keep the current value$/);
     expect(await saved(a.id)).toBe(before);
   });
 
@@ -1773,7 +1776,7 @@ describe("run refresh の取り直し（RN-4・MT-5）", () => {
     ctx.now = () => new Date(finished + TRANSCRIPT_RETENTION_DAYS * 86400_000);
     const r = await runCommand(runRefresh, ctx, { runs: [a.id] });
     expect(r.warnings).toEqual([
-      `Run ${a.id}: 終了の時刻（finished_at）から 30 日を過ぎた Run は、会話記録の場所を片付けるので取り直さない。今の値を残す`,
+      `Run ${a.id}: A Run more than 30 days past its end time (finished_at) is not read again, because its conversation record location is cleaned up. Keep the current value`,
     ]);
     expect(r.data).toMatchObject([{ id: a.id, changes: [], updated: false }]);
     expect(await saved(a.id)).toBe(before);
@@ -1787,7 +1790,7 @@ describe("run refresh の取り直し（RN-4・MT-5）", () => {
     const running = await start(ctx, "t2");
     await expect(runCommand(runRefresh, ctx, { runs: [a.id, running.id] })).rejects.toMatchObject({
       code: "REJECTED",
-      message: expect.stringContaining("実行中"),
+      message: expect.stringContaining("is still running"),
     });
     await expect(
       runCommand(runRefresh, ctx, { runs: [a.id, "r20261101-000000-0000"] }),
