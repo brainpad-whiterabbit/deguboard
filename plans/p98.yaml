@@ -4,7 +4,7 @@ tickets: [t680, t681, t682, t683, t684, t685]
 after:
   t684:
     - t683
-pending_approval: true
+pending_approval: false
 details:
   t680:
     scope: guide-work・guide-parallel・guide-plan の文面を ready が複数なら並列が既定になる形に直し、guide-parallel に節の見出しを付けて FLOW_GUIDE.work に足す。上限の数字と config は t685
@@ -30,3 +30,5 @@ details:
     scope: 並列の上限を config の work.parallel（1〜10、既定 3、scope local）にし、guide-parallel に値を差し込み、ADR-011・ADR-030 と設定画面を直す
     approach: config のスキーマと既定・検証を足し、guide の差し込みで数字を消し、ADR の決定と理由を書き換えて Core が持つ案を採らなかった案に残し、設定画面の表示名と説明を ja・en で足す
     tier: heavy
+approved_by: maji/agent
+approved_at: 2026-11-10T15:19:43Z
