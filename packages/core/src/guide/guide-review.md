@@ -6,18 +6,18 @@ Checked before a PR is handed to a human (`review`, `fix`, and `ready` from `dg 
 
 The conditions judged depend on the ticket's gate level (`gate` of `ticket show`; a ticket with no level is high). Set it with `dg --json --actor agent ticket update <id> --gate <level>`, and lower it only on a human's instruction (`--gate-<level>` written in `/dgall` or `/dgwork` is one).
 
-| Level            | Conditions `dg gate` judges           | Flow after the PR (`dg next`)                     |
-| ---------------- | ------------------------------------- | ------------------------------------------------- |
-| high (default)   | All of the items below                | Review → fix → `ready` → merge                    |
-| low              | All but the review and `fix_rounds`   | `ready` → merge (no review; the checks still run) |
-| free             | Only `pr` and, before a merge, `mergeable` | `ready` → merge (no review and no checks)    |
+| Level          | Conditions `dg gate` judges                | Flow after the PR (`dg next`)                     |
+| -------------- | ------------------------------------------ | ------------------------------------------------- |
+| high (default) | All of the items below                     | Review → fix → `ready` → merge                    |
+| low            | All but the review and `fix_rounds`        | `ready` → merge (no review; the checks still run) |
+| free           | Only `pr` and, before a merge, `mergeable` | `ready` → merge (no review and no checks)         |
 
 - **Checks**: `check` of `dg gate` runs `actions.test` (current setting: `{{actions.test}}`) in the worktree of the latest commit of the work branch to confirm it. If all the files that differ from base are in `actions.light_paths` (current setting: `{{actions.light_paths}}`), it runs the light check `actions.light_test` (current setting: `{{actions.light_test}}`) instead. The `check` detail shows which one ran. When you run it by hand, choose the same way. If `actions.test` is empty, nothing is judged, so the parent runs the repository's convention checks (format, lint, tests) on the latest commit to confirm. If there is CI, CI too
 - **Acceptance criteria**: before a PR is opened, the items confirmed have a mark, and the items that cannot be marked have a reason in the PR body and the report. Before a merge, all of them are marked (`acceptance` of `dg gate`)
 - **Review**: a separate subagent's review has no heavy findings left. `review` of `dg gate` confirms that a review passed after the last push, and `fix_rounds` confirms that the count is within the limit
 - **Conflicts** (only before a merge): `mergeable` of `dg gate` is MERGEABLE. Confirm again just before merging (when base moves on, other PRs become `UNKNOWN`)
 - If you change the branch after confirming the conditions, run the checks and confirm the acceptance criteria again. If you push a fix for a conflict, review again
-- **A version-bump PR may skip the review**: in a version-bump PR of `dg guide release`, you may skip it only when the changes are the version numbers (`version` and the like) and the CHANGELOG and lock file that the steps define (no changes to code, documents, or steps). Merging a version-bump PR is approved by a human regardless of `auto.merge`, so the human's approval takes the place of the review. When you skip it, write it in the PR body. Do not skip the other conditions
+- **A version-bump PR runs at the low level**: the version-bump PR of `dg guide release` is set to `low` only on a human's instruction (`dg --json --actor agent ticket update <id> --gate low`). At low, the review is not judged, and the other conditions still are. Merging a version-bump PR is approved by a human regardless of `auto.merge`, so the human's approval takes the place of the review. When the change is more than the version numbers (`version` and the like) and the CHANGELOG and lock file that the steps define (code, documents, or steps changed), it is not a version-bump PR: keep the high level and have it reviewed. Write in the PR body that the level was set to low by a human's instruction
 
 ## Starting the review (parent)
 

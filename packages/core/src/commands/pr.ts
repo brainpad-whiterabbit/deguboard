@@ -39,7 +39,7 @@ async function passGate(ctx: CommandContext, ticketId: string, stage: GateStage)
     throw new OperationError(
       "GATE_FAILED",
       `${ticket.id} does not meet the quality gate (dg gate ${ticket.id} --for ${stage}), so gh pr ${stage} is not called`,
-      `${failed.join("\n")}\nProceeding without meeting it (the review cannot be started, the fix loop went past its limit, a version-bump PR, or a human set the count) is a human decision, so ask a human to run gh pr ${stage} (dg guide review)`,
+      `${failed.join("\n")}\nProceeding without meeting it (the review cannot be started, the fix loop went past its limit, or a human set the count) is a human decision, so ask a human to run gh pr ${stage} (dg guide review). If the level of the ticket does not fit the change, change it with dg ticket update ${ticket.id} --gate <level> (lowering it is a human's instruction), then run dg pr ${stage} again`,
     );
   }
   return { ticket, gate, pr: gate.pr };
