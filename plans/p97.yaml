@@ -11,7 +11,7 @@ after:
     - t677
   t672:
     - t674
-pending_approval: true
+pending_approval: false
 details:
   t673:
     scope: t676・t677 に分かれたことと ADR・requirements の案の承認を確かめ、PR なしで done にする
@@ -41,3 +41,5 @@ details:
     scope: status を /dgstatus の Skill で頼めるようにする（読み取りだけ）
     approach: guide-status.md と topics を足し、ask.ts の status に skill と SKILL_SUMMARY を付け、skill install と overview・help・テストを直す
     tier: standard
+approved_by: maji/agent
+approved_at: 2026-11-10T14:36:04Z
