@@ -1,6 +1,6 @@
 # deguboard
 
-Git-native な AI ワークフロー・チケット管理ツール。CLI は `dg`。概要は [README.md](README.md)。このファイルには毎回守る規約だけを書く。
+Agentic-Agile を実践するための、Git リポジトリの中で動くカンバン。CLI は `dg`。概要は [README.md](README.md)。このファイルには毎回守る規約だけを書く。
 
 ## ドキュメント（入口と正本）
 

@@ -1,5 +1,5 @@
 {
-  "description": "AI エージェントに仕事を任せるためのカンバン。小さなチケットに分けて並列に進め、その働きを測れます。",
+  "description": "Agentic-Agile を実践するための、Git リポジトリの中で動くカンバンボード。小さなチケットを AI エージェントに任せて並列に進め、その働きを測れます。",
   "command.gotoTicket.title": "チケットへ移動",
   "command.sync.title": "同期",
   "command.config.title": "設定",

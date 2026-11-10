@@ -2,18 +2,18 @@
 
 English | [日本語](https://github.com/brainpad-whiterabbit/deguboard/blob/main/README.ja.md)
 
-A kanban board that lives inside your Git repository, built for handing work to AI agents. Split work into small tickets, hand them to agents, run them in parallel along their dependencies, and measure how the agents perform so you can improve.
+A Git-native kanban board for practicing [Agentic-Agile](https://github.com/microsoft/agentic-agile-template/blob/main/MANIFESTO.md). You work as the agents' partner, designing, reviewing, and approving, while agents carry out small tickets with acceptance criteria in parallel along their dependencies. Every run is measured, so you can see where the work gets stuck and improve how you work together.
+
+deguboard is an independent project. It is not made, endorsed, or supported by Microsoft.
 
 > **Under development.** deguboard is not yet published to npm or the Marketplace. For now, clone and build `dg` and the VSIX yourself (see [Getting started before release](https://github.com/brainpad-whiterabbit/deguboard#getting-started-before-release)).
 
 ## Features
 
-- **Keep delegated work small and uniform**: Each piece of work you hand over is a small ticket, verified against its acceptance criteria.
-- **Run in parallel along dependencies**: Plan the order from dependencies, and work on tickets that are not blocked at the same time.
-- **Measure how agents perform**: Aggregate duration, tokens, and results per ticket, step, and model to find bottlenecks.
-- **Works with any agent**: Any agent that can use a shell (Claude Code, Codex, Copilot CLI, and others) can drive it through the `dg` command.
-- **No service required**: Data lives on a dedicated branch of your repository. Push it, and your team sees the same board.
-- **Everything inside VS Code**: View the board, backlog, and history in the sidebar, and ask agents for work from there.
+- **Delegate with specs**: Hand over work as small tickets with acceptance criteria instead of open-ended prompts. Agents work from the ticket, and the result is checked against its criteria.
+- **Run in parallel along dependencies**: Plan the order from dependencies, and agents work on tickets that are not blocked at the same time, each on its own branch and worktree.
+- **Governance built in**: Plans wait for approval before work starts. A PR is marked ready or merged only when an independent review and the checks pass (the quality gate, `dg gate`). `actor.human_only` and workflow rules can reserve commands and transitions for people, and the Claude Code hooks refuse operations that bypass `dg`.
+- **Measure and improve**: Aggregate duration, tokens, rework, and results per ticket, step, and model with `dg metrics`, and use retrospectives to find bottlenecks and what to fix next.
 
 ## Installation
 
@@ -35,11 +35,11 @@ Prerequisites: Linux or macOS, Git 2.30 or later, and Node.js 24 or later. To re
    dg hooks install
    ```
 
-   `dg hooks install` adds Claude Code hooks that mark the session as an agent and record the subagents you start with a first line `deguboard: ticket=<id> step=<step>` as Runs. The hooks also refuse to mark a PR ready or merge it outside `dg`, and to edit `.git/deguboard/` directly. Other agents need no setup. Just ask them to "read `dg guide` and proceed with `dg`".
+   `dg hooks install` adds Claude Code hooks that mark the session as an agent and record the subagents you start with a first line `deguboard: ticket=<id> step=<step>` as Runs. The hooks also refuse to mark a PR ready or merge it outside `dg`, and to edit `.git/deguboard/` directly. Other agents that can use a shell (Codex, Copilot CLI, and others) need no setup. Just ask them to "read `dg guide` and proceed with `dg`".
 
 5. **Open the board**: Click the deguboard icon in the Activity Bar.
 
-Other team members only need to clone the repository and run `dg init` to see the same board.
+Data lives on a dedicated branch of your repository, so no service is required. Other team members only need to clone the repository and run `dg init` to see the same board.
 
 ## Usage
 

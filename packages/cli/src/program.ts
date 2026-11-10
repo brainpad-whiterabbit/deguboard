@@ -98,7 +98,9 @@ export function buildProgram(options: ProgramOptions = {}): Command {
   const program = new Command("dg");
   const jsonMode = (): boolean => program.opts<{ json?: boolean }>().json === true;
   program
-    .description("Git-native な AI ワークフロー・チケット管理。データは deguboard ブランチに置く")
+    .description(
+      "Agentic-Agile を実践するための Git-native なカンバン。データは deguboard ブランチに置く",
+    )
     .version(version(), "-v, --version", "版を出す")
     .helpOption("-h, --help", "使い方を出す")
     .option("--json", "結果を JSON で出す（エージェント向け）")

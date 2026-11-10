@@ -1,6 +1,6 @@
 # deguboard
 
-The CLI of [deguboard](https://github.com/brainpad-whiterabbit/deguboard), a task management tool for AI agents that combines tickets managed in Git with user-defined workflows. The command is `dg`.
+The CLI of [deguboard](https://github.com/brainpad-whiterabbit/deguboard), a Git-native kanban board for practicing [Agentic-Agile](https://github.com/microsoft/agentic-agile-template/blob/main/MANIFESTO.md) with AI agents, made independently of Microsoft. The command is `dg`.
 
 ```sh
 npm i -g deguboard

@@ -1,5 +1,5 @@
 {
-  "description": "A kanban for handing work to AI agents. Split work into small tickets, run them in parallel, and measure how the agents perform.",
+  "description": "A Git-native kanban board for practicing Agentic-Agile. Hand small tickets to AI agents, run them in parallel, and measure how the work goes.",
   "command.gotoTicket.title": "Go to Ticket",
   "command.sync.title": "Sync",
   "command.config.title": "Settings",
