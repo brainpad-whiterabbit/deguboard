@@ -1,4 +1,4 @@
-// 品質ゲート（EX-3、ADR-011）。guide-review の品質ゲートのうち、記録と Git・PR の事実で判定できるものをコードで判定する。
+// 品質ゲート（EX-3、ADR-011）。the "Quality gate" section of `dg guide review` のうち、記録と Git・PR の事実で判定できるものをコードで判定する。
 // 判定は保存せず、呼ぶたびに事実から求める。dg pr ready・dg pr merge が gh を呼ぶ前に呼ぶ（pr.ts。EX-6）
 
 import { z } from "zod";
@@ -10,7 +10,7 @@ import { defineCommand, ok, type CommandContext } from "./define.js";
 import { judgeCheck } from "./gate-check.js";
 import { ticketRef } from "./helpers.js";
 
-/** 重い指摘を直す回数の上限（見直しは最初を含めて 3 回まで。guide-review の「上限」） */
+/** 重い指摘を直す回数の上限（見直しは最初を含めて 3 回まで。the "Limit" section of `dg guide review`） */
 export const FIX_ROUNDS_LIMIT = 2;
 
 export const GATE_STAGES = ["ready", "merge"] as const;

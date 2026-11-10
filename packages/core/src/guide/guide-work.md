@@ -1,80 +1,80 @@
 ---
-description: deguboard の承認済みの Plan のチケットを、着手できるものから claim して実装し、受け入れ条件を確かめて PR まで進める。PR の要らない作業は done まで進める。「p3 を進めて」「計画を再開して」「t12 を進めて」と頼まれたときに使う。Plan のない複数のチケットは dgplan で計画を立ててから使う。
-argument-hint: "<Plan の ID|チケットの ID>"
+description: Advances the tickets of an approved Plan, starting with the ones that can be started. Claims a ticket, implements it, checks its acceptance criteria, and takes it to a PR. Work that needs no PR goes to done. Use when asked「p3 を進めて」「計画を再開して」「t12 を進めて」. For several tickets with no Plan, make a plan with dgplan first.
+argument-hint: "<Plan ID|ticket ID>"
 ---
 
-# 作業（work）
+# Work (work)
 
-1 枚のチケットを PR を draft で出すまで進める。段階と手は `dg next` が求め、ここには各手のやり方だけを書く。
+Advances one ticket to a draft PR. `dg next` decides the steps and their order. This guide describes only how to do each step.
 
-## 対象を決める
+## Deciding the target
 
-- Plan の ID（`p3`）：下の「Plan に従う」で、着手できるものから 1 枚ずつ進める
-- チケットの ID：そのチケットを進める。開いた Plan に入っていれば（`ticket show` の `plan`）その Plan に従う
-- 指定が空：`plan list --status open` の承認済みの Plan を勧めて確かめる。なければ `dg guide plan` で計画を立てることを勧める
+- Plan ID (`p3`): following "Following the Plan" below, advance one ticket at a time, starting with one that can be started
+- Ticket ID: advance that ticket. If it is in an open Plan (`plan` of `ticket show`), follow that Plan
+- No target given: suggest an approved Plan from `plan list --status open`, and confirm. If there is none, suggest making a plan with `dg guide plan`
 
-## 流れ
+## Flow
 
-1. `dg --json --actor agent next <id>` を呼び、`kind` の手を 1 つ行う。`commands` の順に行い、`brief` があればサブエージェントに貼る（後ろに一時ファイルの置き場所を足してよい）。`model` が空でなければ、そのモデルでサブエージェントを起動する（`null` は親のモデル）。印のない調べもののサブエージェントは `models.light`（空なら親のモデル）。終えたらもう一度 `next` を呼ぶ
-2. `kind` ごとの親の手：
-   - `implement`：`commands` の claim を行い、「claim の前後」に従う。作業ブランチの worktree は claim が作り、場所を `worktree` に返す（既定は `{{worktree.root}}/<ブランチ名>`）。文を渡し、返ったら「実装の結果を受け取る」。親が自分で実装するなら、claim の `--no-run` を外して下の「実装する」を行う（claim が実装の Run を開く）
-   - `review`：`dg guide review` の「見直しを起動する（親）」で見直し役を起動する（文に「見直す」の手順が入る）
-   - `fix`：`dg guide review` の「修正ループ（親）」で、`brief <id> --role fix` の文で渡す（文に「指摘を直す」の手順と、見直しの記録の指摘が入る）
-   - `ready`：`dg guide review` の「終わり方」で PR を出す。PR を見ない Workflow（general など。`sync` が review に進めない）では、PR を出したら続けて自分で `dg --json --actor agent ticket move <id> review` に進める
-   - `wait_merge`・`wait_human`：`ask_human` を人に伝えて聞く（`wait_human` は `dg guide review` の「終わり方」）。人のレビューの指摘は `dg guide review` の「修正ループ（親）」。マージされたら `dg guide done`
-   - `wait_deps`：待つ。Plan の `next` から、ほかのチケットを選ぶ
-   - `done`：`dg guide done` の手順で片付ける
+1. Call `dg --json --actor agent next <id>`, and do one of the `kind` steps. Do the `commands` in order. If there is a `brief`, paste it to a subagent (you may add a location for temporary files after it). If `model` is not empty, start the subagent with that model (`null` means the parent's model). A research subagent with no mark uses `models.light` (the parent's model if it is empty). After finishing, call `next` again
+2. The parent's step for each `kind`:
+   - `implement`: do the claim in `commands`, and follow "Before and after claim". Claim creates the worktree of the work branch, and returns its location in `worktree` (the default is `{{worktree.root}}/<branch name>`). Pass the text, and when it returns, do "Receive the implementation result". If the parent implements it itself, remove `--no-run` from the claim and do "Implement" below (claim opens the implementation Run)
+   - `review`: start the reviewer by the "Starting the review (parent)" section of `dg guide review` (the text includes the "Review" steps)
+   - `fix`: follow the "Fix loop (parent)" section of `dg guide review`, and pass the text with `brief <id> --role fix` (the text includes the "Fix findings" steps and the findings of the review record)
+   - `ready`: put the PR out by the "How to finish" section of `dg guide review`. For a Workflow that does not look at PRs (such as general, where `sync` does not move it to review), after the PR is put out, move it to review yourself with `dg --json --actor agent ticket move <id> review`
+   - `wait_merge` and `wait_human`: tell a human `ask_human` and ask (`wait_human` is in the "How to finish" section of `dg guide review`). For review findings from a human, follow the "Fix loop (parent)" section of `dg guide review`. After the merge, `dg guide done`
+   - `wait_deps`: wait. Choose another ticket from `next` of the Plan
+   - `done`: clean up by the steps of `dg guide done`
 
-## claim の前後
+## Before and after claim
 
-- 担当者（`ticket show` の `assignee`）が別のユーザなら避ける
-- claim は、`lint.require_iteration` が true なら（今の設定：`{{lint.require_iteration}}`）`iteration` が空のチケットを Iteration に入れ、planned の Iteration を開始し、作業ブランチの worktree を作って、その中で config の `worktree.setup`（準備のコマンド）を回す（選び方は `ticket claim --help`）。`warnings` に入れ先がない・開始できない・worktree を作れない・準備のコマンドが止まったが出たら、Iteration は人に頼み（入れずに進むと `lint_iteration_missing`）、worktree は警告に書いた場所に手で作り、準備のコマンドは警告に書いたものを手で回す（`worktree` が null のとき。既定は `{{worktree.root}}/<ブランチ名>`）。作業は続ける
-- 準備のコマンドは数分かかることがあり、claim はその間戻らない（上限 10 分）。呼ぶ側の上限（エージェントの Bash の既定 2 分など）より長いときは、claim を回す時間を長くする。途中で切れても claim と実装の Run は残るが、警告は出ないので、worktree で config の `worktree.setup` を手で回す
-- `CLAIM_LOST` なら別のチケットへ。`BRANCH_IN_USE` なら `--branch` の名前を変えて claim し直す
+- If the assignee (`assignee` of `ticket show`) is another user, avoid the ticket
+- When `lint.require_iteration` is true (current setting: `{{lint.require_iteration}}`), claim puts a ticket with no `iteration` into an Iteration, starts the planned Iteration, creates the worktree of the work branch, and runs config's `worktree.setup` (the preparation commands) in it. For how the Iteration is chosen, see `ticket claim --help`. If `warnings` says there is no Iteration to put it in, that it could not be started, that the worktree could not be created, or that a preparation command stopped, ask a human for the Iteration (going on without one causes `lint_iteration_missing`). Make the worktree by hand at the place the warning shows (when `worktree` is null; the default is `{{worktree.root}}/<branch name>`), and run the preparation commands the warning shows by hand. Keep going with the work
+- The preparation commands can take several minutes, and claim does not return until they finish (limit: 10 minutes). If that is longer than the caller's limit (such as the default 2 minutes of an agent's Bash), lengthen the time you give the claim. If it is cut off midway, the claim and the implementation Run remain, but no warning appears. Run config's `worktree.setup` by hand in the worktree
+- On `CLAIM_LOST`, go to another ticket. On `BRANCH_IN_USE`, change the `--branch` name and claim again
 
-## 実装する（draft の PR まで）
+## Implement (up to a draft PR)
 
-実装する役は、`next` の `plan` の範囲と方針の中で実装し、次を行う。
+The implementer works within the scope and approach of `plan` in `next`, and does the following.
 
-1. リポジトリの検査（書式・lint・テスト）を通す
-2. 触れた節の正本（requirements・README・コードのコメント）を読み直し、この PR で変えた約束・手順・規約の文書を同じ PR で直す（変えていない文書の前からのずれは直さず、報告に書く）。判断を変えたら、その判断の ADR（あれば）の本文を同じ PR で直接書き換える（番号は変えない）。この PR が誤りにした ADR の細部は、その PR で消す。要件は約束だけを直し、細部は足さない（細部の正本はヘルプ・コード・テスト）
-3. `gh pr create --draft` で PR を作る。本文にチケット ID（`t12`）、付けられなかった受け入れ条件と理由、読み直した正本と直した箇所を書く
-4. 受け入れ条件は、成果物やテストで満たしたと確かめた項目だけを報告する（印は親が付ける）
+1. Pass the checks of the repository (format, lint, tests)
+2. Read again the sources of truth for the sections touched (requirements, README, code comments). In the same PR, fix the documents of promises, procedures, and conventions that this PR changed. Report stale documents from before that this PR did not change, without fixing them. If the PR changed a decision, also rewrite the body of that decision's ADR (if there is one) directly in the same PR (keep the number). Delete the details of an ADR that this PR made wrong. Requirements state only promises, so do not add details to them (the sources of details are help, code, and tests)
+3. Make a PR with `gh pr create --draft`. In the body, write the ticket ID (`t12`), the acceptance criteria that could not be met and why, and the sources you read again and the places you fixed
+4. Report only the acceptance criteria that you confirmed as met by the deliverable or tests (the parent attaches the marks)
 
-## 実装の結果を受け取る
+## Receive the implementation result
 
-返ったら、`ticket show` の `acceptance` と照らし、確かめた項目だけ `dg --json --actor agent ticket check <id> <番号...>` で付ける（付けられない項目は PR の本文と報告に理由）。PR 番号は `dg --json --actor agent ticket update <id> --pr <番号>` で記録する。報告された前からのずれは直させず、PR の本文に残して Iteration の見直し（`dg guide audit`）の材料にする。この PR が誤りにした ADR の細部が残っていたら、直させてから記録する。記録したら `next` に戻る。
+When it returns, compare the result with `acceptance` of `ticket show`, and attach with `dg --json --actor agent ticket check <id> <numbers...>` only the items you confirmed (items that could not be attached get their reasons in the PR body and the report). Record the PR number with `dg --json --actor agent ticket update <id> --pr <number>`. Do not have the drift from before that was reported fixed. Keep it in the PR body, as material for the Iteration review (`dg guide audit`). If details of an ADR that this PR made wrong remain, have them fixed before recording. After recording, go back to `next`.
 
-## Plan に従う
+## Following the Plan
 
-承認済みの Plan（`dg guide plan`）の順と中身に従う。
+Follow the order and contents of the approved Plan (`dg guide plan`).
 
-- 着手する前に `dg --json --actor agent plan show <p>`。`pending_approval` が true なら着手せず、人に承認を求める
-- 次は `plan show` の `next`（Plan の順で先の、着手できる `ready`）。`waiting` は待ちの相手。after は claim では検査されないので、自分で守る（同時に進めるなら `dg guide parallel`）
-- 範囲（`scope`）と方針（`approach`）は `next` の `plan` に出る。範囲を広げる・方針を変えるなら、先に人に確かめる
-- 1 枚が PR まで進んだら `plan show` を読み直して次を選ぶ。Plan のチケットがすべて終わったら `dg guide done` の「Plan を閉じる」
+- Before starting, run `dg --json --actor agent plan show <p>`. If `pending_approval` is true, do not start. Ask a human for approval
+- The next ticket is `next` of `plan show`: the earliest one in the Plan's order that can be started (`ready`). `waiting` is the party to wait for. `after` is not checked by claim, so keep it yourself (if you advance tickets at the same time, see `dg guide parallel`)
+- The scope (`scope`) and approach (`approach`) appear in `plan` of `next`. Before you widen the scope or change the approach, confirm with a human
+- When one ticket reaches a PR, read `plan show` again and choose the next one. When all tickets of the Plan are finished, do the "Plan を閉じる" section of `dg guide done`
 
-## PR の要らない作業
+## Work that needs no PR
 
-リポジトリのファイルを変えない作業（データの整備・確認・調査など）は、ブランチも PR も作らず、照合に頼らず done まで進める（`next` は PR を前提にするので使わない）。
+Work that does not change repository files (data maintenance, checks, research) makes no branch and no PR. It goes to done without relying on reconcile. (`next` assumes a PR, so do not use it.)
 
-1. `dg --json --actor agent ticket claim <id> --without-branch`（claim が Run を開く）。`warnings` は「claim の前後」のとおり扱う
-2. 受け入れ条件を 1 項目ずつ確かめ、満たした項目だけ `ticket check` で付ける
-3. すべて付いたら `dg --json --actor agent ticket move <id> done`。付けられない項目が残ったら `ticket move <id> review` にして、残った項目と理由を人に報告する（done にするのは人）
-4. 途中でリポジトリのファイルを変える必要が出たら、`ticket update <id> --branch <種類>/<内容>` で記録して上の流れに移る。ブランチが要らなくなったら `--branch none`
+1. `dg --json --actor agent ticket claim <id> --without-branch` (claim opens a Run). Treat `warnings` as in "Before and after claim"
+2. Confirm the acceptance criteria one item at a time, and attach with `ticket check` only the items that are met
+3. When all of them are attached, `dg --json --actor agent ticket move <id> done`. If items that cannot be attached remain, `ticket move <id> review`, and report the remaining items and reasons to a human (a human sets done)
+4. If you need to change repository files midway, record it with `ticket update <id> --branch <type>/<content>`, and move to the flow above. When the branch is no longer needed, use `--branch none`
 
-## 状態
+## Status
 
-- `status` を自分で進めるのは in_progress から review まで。done は照合（マージ）で進み、照合で進まないときや人に指示されたときだけ `ticket move <id> done`（制限は `dg guide overview`）
-- 実装をやめるなら `dg --json --actor agent ticket unclaim <id>`（todo に戻る。Run の扱いは `dg guide run`）
-- 作業中に別の作業が見つかったら、そのチケットに混ぜず `dg guide import` で起票を提案する
+- Advance `status` yourself only from in_progress to review. done is set by reconcile (merge). Run `ticket move <id> done` only when reconcile does not advance it, or when a human has instructed it (for the limits, see `dg guide overview`)
+- To stop implementing, run `dg --json --actor agent ticket unclaim <id>` (the ticket goes back to todo. For how Runs are handled, see `dg guide run`)
+- If you find other work midway, do not mix it into this ticket. Propose filing it with `dg guide import`
 
 {{choices}}
 
-## 次の手順を選ぶ
+## Choosing the next step
 
-PR を出したら（PR の要らない作業を終えたときも）、結果を伝えて次の選択肢で聞く。
+After you open a PR (and also after finishing work that needs no PR), report the result and ask with the following choices.
 
-- **次のチケットに進む**（勧める。Plan に着手できるチケットが残っていれば）：`plan show` を読み直し、この手順で次の 1 枚を進める
-- **完了にする**：PR がマージされていれば、`dg guide done` の手順で片付ける（Skill があれば `/dgdone <ID>`）
-- **ここで止める**：マージを待つ（マージ後は `dg guide done`）
+- **Advance to the next ticket** (recommended, if the Plan still has tickets that can be started): read `plan show` again, and advance the next one by these steps
+- **Mark it done**: if the PR was merged, clean up by the steps of `dg guide done` (if a Skill is available, `/dgdone <ID>`)
+- **Stop here**: wait for the merge (after the merge, `dg guide done`)

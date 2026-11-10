@@ -9,17 +9,19 @@ export function isHeavyFinding(f: ReviewFinding, heavyCategories: readonly strin
 }
 
 /**
- * 受け入れ条件の文言に当たる指摘（category に「受け入れ条件」を含むもの）。
- * 一覧には印がなく、見直し役は受け入れ条件の欠けを category の名（「受け入れ条件の漏れ」など）で書く（guide-review の「返す」）。
+ * 受け入れ条件の文言に当たる指摘（category に「受け入れ条件」か "acceptance criteria"（大文字小文字は問わない）を含むもの）。
+ * 一覧には印がなく、見直し役は受け入れ条件の欠けを category の名（「受け入れ条件の漏れ」や "missing acceptance criteria" など）で書く（the "Return" section of `dg guide review`）。
+ * 英語の guide を読んだ見直し役も同じ語で書くので、guide の言語によらず見分ける（t489）。
  * category で決めるので、どの回の一覧でも同じ規則で決まり、dg が後から印を付け直さなくてすむ
  */
 export function isAcceptanceFinding(f: ReviewFinding): boolean {
-  return f.category.includes("受け入れ条件");
+  // "acceptance criteri" は criteria と criterion の両方に当たる。"acceptance test" など受け入れ条件でない語は拾わない
+  return /受け入れ条件|acceptance criteri/i.test(f.category);
 }
 
 /**
  * 一覧を直す指摘と、直さなかった軽い指摘に分ける。
- * fix は重い指摘と、受け入れ条件の文言に当たる軽い指摘（手直しの文に入れる。guide-review の「直す指摘」）。
+ * fix は重い指摘と、受け入れ条件の文言に当たる軽い指摘（手直しの文に入れる。the "Findings to fix" section of `dg guide review`）。
  * unfixedLight は残りの軽い指摘（参考節との食い違いを含む）。親が手直しに渡す軽い指摘は run handoff で dg に伝える（t639）ので、
  * dg pr ready は伝えられなかった残りを PR の本文に書く（「直さなかった軽い指摘」。直す役が直したかは見分けられないので、渡したものは直したかによらず外す）
  */

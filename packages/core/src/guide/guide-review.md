@@ -1,49 +1,49 @@
-# 見直しと品質ゲート（review）
+# Review and quality gate (review)
 
-PR を人に出す前（`dg next` の `review`・`fix`・`ready`）と、自動でマージする前（`dg guide all` の `--auto`）に確かめる。判定は `dg gate <id> --for ready`・`--for merge` が行い（条件の正本は `dg gate --help`）、PR とマージは `dg pr ready`・`dg pr merge` で出す。どちらも判定してから gh を呼び、満たさなければ `GATE_FAILED` で満たさない条件と理由を返す。`gh pr ready`・`gh pr merge` は自分で打たない（フックが拒む）。ゲートを満たさないまま進めるのは人の判断なので、人に `gh` を打ってもらう。
+Checked before a PR is handed to a human (`review`, `fix`, and `ready` from `dg next`) and before it is merged automatically (`--auto` of `dg guide all`). `dg gate <id> --for ready` and `--for merge` make the judgment (the source of the conditions is `dg gate --help`), and `dg pr ready` and `dg pr merge` put the PR out and merge it. Both judge first and then call gh. When the conditions are not met, they return `GATE_FAILED` with the unmet conditions and the reasons. Do not run `gh pr ready` or `gh pr merge` yourself (the hook refuses them). Advancing without meeting the gate is a human's decision, so have a human run `gh`.
 
-## 品質ゲート
+## Quality gate
 
-- **検査**：`dg gate` の `check` が、`actions.test`（今の設定：`{{actions.test}}`）を作業ブランチの最新のコミットの worktree で回して確かめる。base との差分のファイルがすべて `actions.light_paths`（今の設定：`{{actions.light_paths}}`）に入るなら、代わりに軽い検査 `actions.light_test`（今の設定：`{{actions.light_test}}`）を回す（どちらを回したかは `check` の detail に出る）。手で回すときも同じに選ぶ。`actions.test` が空なら判定しないので、リポジトリの規約の検査（書式・lint・テスト）を親が最新のコミットで回して確かめる。CI があれば CI も
-- **受け入れ条件**：PR を出す前は確かめた項目に印があり、付けられない項目は PR の本文と報告に理由がある。マージの前はすべて印あり（`dg gate` の `acceptance`）
-- **見直し**：別のサブエージェントの見直しで重い指摘が残っていない。`dg gate` の `review` が最後の push より後の見直しの通過を、`fix_rounds` が上限以内を確かめる
-- **衝突**（マージの前だけ）：`dg gate` の `mergeable` が MERGEABLE。マージの直前に確かめ直す（base が進むと他の PR は `UNKNOWN` になる）
-- 条件を確かめた後にブランチを直したら、検査と受け入れ条件を確かめ直す。衝突を直して push したら見直し直す
-- **版上げの PR は見直しを省ける**：`dg guide release` の版上げの PR で、変更が版の数字（`version` など）と手順が決めた CHANGELOG・ロックファイルだけ（コード・文書・手順を変えない）のときに限り省いてよい。版上げの PR のマージは `auto.merge` によらず人が承認するので、人の承認が見直しの代わりになる。省いたら PR の本文に書く。ほかの条件は省かない
+- **Checks**: `check` of `dg gate` runs `actions.test` (current setting: `{{actions.test}}`) in the worktree of the latest commit of the work branch to confirm it. If all the files that differ from base are in `actions.light_paths` (current setting: `{{actions.light_paths}}`), it runs the light check `actions.light_test` (current setting: `{{actions.light_test}}`) instead. The `check` detail shows which one ran. When you run it by hand, choose the same way. If `actions.test` is empty, nothing is judged, so the parent runs the repository's convention checks (format, lint, tests) on the latest commit to confirm. If there is CI, CI too
+- **Acceptance criteria**: before a PR is opened, the items confirmed have a mark, and the items that cannot be marked have a reason in the PR body and the report. Before a merge, all of them are marked (`acceptance` of `dg gate`)
+- **Review**: a separate subagent's review has no heavy findings left. `review` of `dg gate` confirms that a review passed after the last push, and `fix_rounds` confirms that the count is within the limit
+- **Conflicts** (only before a merge): `mergeable` of `dg gate` is MERGEABLE. Confirm again just before merging (when base moves on, other PRs become `UNKNOWN`)
+- If you change the branch after confirming the conditions, run the checks and confirm the acceptance criteria again. If you push a fix for a conflict, review again
+- **A version-bump PR may skip the review**: in a version-bump PR of `dg guide release`, you may skip it only when the changes are the version numbers (`version` and the like) and the CHANGELOG and lock file that the steps define (no changes to code, documents, or steps). Merging a version-bump PR is approved by a human regardless of `auto.merge`, so the human's approval takes the place of the review. When you skip it, write it in the PR body. Do not skip the other conditions
 
-## 見直しを起動する（親）
+## Starting the review (parent)
 
-親は、実装したのとは別のサブエージェントを見直し役として起動する。見直し役は段階によらず親のモデルで起動する（品質ゲートを弱めない）。実装者は PR を draft で作って返し、draft のうちは照合が review に進めない。
+The parent starts a reviewer as a subagent separate from the one that implemented. The reviewer always starts with the parent's model, regardless of the stage (so the quality gate is not weakened). The implementer returns the PR as a draft, and while it is a draft, reconcile cannot move the ticket to review.
 
-- **渡す**：`dg next` が `review` の手で返す `brief`（`brief <id> --role review` と同じ文）を渡す。文には「見直す」の本文が入っているので、見直し役に guide を読ませない。1 Run で 1 枚のチケットを見るので、複数のチケットはチケットごとに起動する
-- **待つ**：バックグラウンドで起動したら、見直し役の終わりの通知が来るまで、見直しの Run を閉じず、結果を記録しない（Run は見直し役が止まったときに閉じ、結果は見直し役が記録する）
+- **Pass**: the `brief` that `dg next` returns as the `review` step (the same text as `brief <id> --role review`). The text includes the body of "Review", so do not have the reviewer read the guide. One Run looks at one ticket, so start one for each ticket
+- **Wait**: when you start it in the background, do not close the review Run or record the result until the reviewer's end notification arrives. The Run is closed when the reviewer stops, and the reviewer records the result
 
-## 見直す
+## Review
 
-見直し役は、文の「場所」「差分」「チケット本文」の手順で PR を読み、次を見て、次の形で返す。
+The reviewer reads the PR by the steps "Location", "Diff", and "Ticket body" in the text. It looks at the following and returns the result in the form below.
 
-- **見る**：受け入れ条件の漏れ・不具合・規約の違反・範囲の外の変更。文書との食い違いも見る。範囲の外の変更は、範囲の外の指摘として分けて返す。チケット本文の `## 参考` 節（英語の `## References` も同じ）があれば、差分で変えたファイルと見比べ、節にない大きな広がりと、節のファイルに触れていない変更を「参考節との食い違い」として返す（節がなければ見比べない）
-- **返す**：指摘を重いと軽いに分けた一覧（ファイルと行・理由・直し方）と、最新のコミットで回した検査の結果。重いのは、受け入れ条件の漏れ・不具合・規約の違反・この PR が変えた約束・手順・規約で文書を直していないもの（文書の重い指摘は約束・手順・規約の変更に限る）・判断を変えたのに同じ PR で ADR の本文を直していないもの・ADR に残った誤り（この PR が誤りにした細部）・ADR や要件に足した細部（直し方は「細部をコード・テスト・ヘルプへ移す」。規約の違反として数える）。軽いのは、言い回し・好み・前からのずれ（Iteration の見直しに送る）・参考節との食い違い。一覧は `dg --json --actor agent run review-result <id> --findings-file <ファイル>` に渡す JSON の配列にし（1 件は severity・category・file・line・reason・fix。形は `dg run review-result --help`）、返す前に 1 回記録する。受け入れ条件の文言に当たる指摘（受け入れ条件の欠け）は、category に「受け入れ条件」を含める（例：「受け入れ条件の漏れ」）。受け入れ条件の文言の軽い指摘は、この category で手直しに回る（ほかの軽い指摘を手直しに渡すなら、その記録は `run handoff`。手順は修正ループ）。数と通ったかは dg が求める
+- **Look at**: missed acceptance criteria, bugs, violations of conventions, and changes outside the scope. Mismatches with the documents too. Report changes outside the scope separately, as findings outside the scope. If the ticket body has a `## References` section (the Japanese `## 参考` is the same), compare it with the files the diff changed. Report a large spread that is not in the section, and changes that do not touch the files of the section, as "mismatch with the references section". If there is no section, do not compare
+- **Return**: the findings divided into heavy and light, as a list (file and line, reason, and how to fix), and the results of the checks run on the latest commit. Heavy: missed acceptance criteria, bugs, violations of conventions, a promise, procedure, or convention this PR changed without fixing the documents (for heavy findings on documents, limit them to changes to promises, procedures, or conventions), a change of decision without rewriting the ADR body in the same PR, an error left in an ADR (a detail this PR made wrong), and details added to an ADR or the requirements (the fix is to move the detail to code, tests, or help; count it as a violation of conventions). Light: wording, preference, drift from before (sent to the Iteration review), and mismatches with the references section. Make the list a JSON array for `dg --json --actor agent run review-result <id> --findings-file <file>` (each item has severity, category, file, line, reason, and fix; see `dg run review-result --help` for the shape), and record it once before you return it. For a finding that falls under the wording of acceptance criteria (missing acceptance criteria), include "acceptance criteria" in its category (for example, "missing acceptance criteria"). Light findings about the wording of acceptance criteria go to the fix by this category. To pass other light findings to the fix, record them with `run handoff` (see the fix loop for the steps). dg works out the counts and whether the review passed
 
-## 指摘を直す
+## Fix findings
 
-直す役は、文の「直す指摘」の件ごとに次を行う。
+The fixer does the following for each finding in "Findings to fix" in the text.
 
-- **直し方**：ファイルと行・理由・直し方を読み、直し方に従って直す。直し方が指摘の内容と合わないときは直さず、その理由を返す。
-- **文書**：指摘が文書の食い違い（約束・手順・規約）なら、指摘の直し方に従って文書を直す。判断を変えた PR は、その判断の ADR（あれば）の本文も同じ PR で直し、この PR が誤りにした細部は消す。
+- **How to fix**: read the file and line, the reason, and how to fix, and fix it as the how-to says. If the how-to does not match the finding, do not fix it, and return the reason
+- **Documents**: if the finding is a mismatch in a document (a promise, procedure, or convention), fix the document as the finding's how-to says. For a change of decision, also rewrite the body of that decision's ADR (if there is one) in the same PR, and delete the details that this PR made wrong
 
-## 修正ループ（親）
+## Fix loop (parent)
 
-- **直す指摘**：重い指摘と、受け入れ条件の文言に当たる軽い指摘。親が手直しに渡すと決めた軽い指摘（参考節との食い違い・言い回しなど）も入れる。その場合は先に `dg --json --actor agent run handoff <id> --findings-file <ファイル>` で 1 回記録する（ファイルは最新の見直しの一覧から写した指摘の JSON の配列。一覧にない指摘は使い方の誤りで返る）。記録した指摘は文の直す指摘に入り、直したかによらず PR の本文の「直さなかった軽い指摘」から外れる。新しいサブエージェント（実装者と同じモデル）を起動し、同じブランチで直して push させる。文は `dg --json --actor agent brief <id> --role fix`（「指摘を直す」の本文と、最新の見直しの記録の指摘が文に入る。親が指摘を写さない）。同じ会話の続きでは頼まない。親が自分で直すなら、親が進める手順（run の「親が自分で進めるとき」）
-- **直さなかった軽い指摘**（参考節との食い違いを含む）は、`dg pr ready` が PR の本文に書き足す（もとの本文は残す。親は書かない）。本文に載るのは、手直しに渡さなかった軽い指摘の見直し役の文（理由・直し方）。手直しに渡した指摘（`run handoff`）は、直したかによらず載らない。手直しが直さずに返した指摘と理由は dg が書けないので、親が報告に書く。参考節との食い違いは回数に数えない
-- **直した後**：親が最新のコミットで検査を回し、受け入れ条件を確かめ直す。見直しは、重い指摘を直したときと、軽い指摘だけでも `dg gate` の `review` が求めるときに、前回からの差分を見直し役（新しく起動してよい）に見させる（重い指摘が出なければ回数に数えない）。手直しのサブエージェントが返るまで `dg next` を呼ばない（途中の push と直し終えた push は区別できない）
-- **上限**：手直しの回数は dg が数え（`dg gate` の `fix_rounds`）、超えると `dg next` が `wait_human` を返す（下の「終わり方」）。人が回数を指示したらそれに従う。人が上限を超えて「続けて直す」を選んだら、`dg next` によらず `brief <id> --role fix` と `--role review` の文で回す。ready は `dg gate` の `fix_rounds` が通さないので、人に `gh pr ready` を打ってもらう
-- **範囲の外の指摘**：そのチケットでは直さず、`dg guide import` の起票の候補として人に示す
+- **Findings to fix**: heavy findings, and light findings about the wording of acceptance criteria. Also add the light findings that the parent decides to pass to the fix (mismatches with the references section, wording, and the like). In that case, first record them once with `dg --json --actor agent run handoff <id> --findings-file <file>` (the file is a JSON array of findings copied from the latest review list. A finding that is not in the list is returned as a usage error). Recorded findings go into the fix text's "Findings to fix", and they are left out of the "Unfixed light findings" section (## 直さなかった軽い指摘) of the PR body whether they were fixed or not. Start a new subagent (the same model as the implementer), and have it fix on the same branch and push. The text is `dg --json --actor agent brief <id> --role fix` (it includes the body of "Fix findings" and the findings of the latest review record; the parent does not copy the findings). Do not ask for it in the continuation of the same conversation. If the parent fixes it itself, follow the steps the parent advances in the "When the parent advances work itself" section of `dg guide run`
+- **Unfixed light findings** (including mismatches with the references section): `dg pr ready` adds them to the PR body as the "Unfixed light findings" section (## 直さなかった軽い指摘). The original body stays, and the parent does not write them. What is added is the reviewer's text (reason and how to fix) for the light findings that were not passed to the fix. Findings passed to the fix (`run handoff`) are left out whether they were fixed or not. dg cannot write the findings that the fixer returned without fixing, and their reasons, so the parent writes them in the report. Mismatches with the references section do not count toward the limit
+- **After fixing**: the parent runs the checks on the latest commit and confirms the acceptance criteria again. When a heavy finding was fixed, or when only light findings remain and `review` of `dg gate` asks for it, have a reviewer (it may be newly started) review the difference from the last review. If no heavy finding comes up, it does not count toward the limit. Do not call `dg next` until the fixing subagent returns (a push in the middle and the push after the fix is done cannot be told apart)
+- **Limit**: dg counts the fix rounds (`fix_rounds` of `dg gate`). When the count goes over, `dg next` returns `wait_human` (see "How to finish" below). If a human gives a number, follow it. If a human chooses "keep fixing" after the limit is exceeded, run the rounds with the `brief <id> --role fix` and `--role review` texts, not `dg next`. `fix_rounds` of `dg gate` does not pass ready, so have a human run `gh pr ready`
+- **Findings outside the scope**: do not fix them in this ticket. Show them to a human as candidates for filing with `dg guide import`
 
-## 終わり方
+## How to finish
 
-- **通った**：`dg --json --actor agent pr ready <id>` で PR を出し（人にレビューを頼む）、`sync` を回す（`dg next` の `ready`）。PR を見ない Workflow の扱いは `dg guide work` の「ready」の手
-- **見直し役を起動できない**（サブエージェントを起動できない環境）：見直しを人に頼む。PR を `dg pr ready` で出し（`GATE_FAILED` なら人に `gh pr ready` を打ってもらう）、見直していないことを PR の本文と報告に書く
-- **上限を超えた**（重い指摘が残る）・**手直しが failure で返った・返らない**：上限を超えた手直しは始めない。PR は draft、チケットは in_progress のまま置き、残った指摘・直した回数・PR を人に報告して、続けて直すか（上限を超えたときは上の「上限」の進め方）・ready にする（人が `gh pr ready`）か・やめる（`ticket unclaim`）かを聞く。自分では unclaim しない。人を待つ間も、それを待たないチケットは進める
-- **止まって待っている**（`dg next` が `wait_human` を返す）：`ask_human` に従い、続けさせるなら同じ会話に続きを送る。直さないと決めたら、その Run を `run finish <Run> --result failure --error <理由>` で閉じてよいかを人に聞く
-- **見直し役が返らない**：`dg guide run` の「止まった Run」で閉じ、見直し役を起動し直す。PR は draft、チケットは in_progress のまま。起動し直しても返らなければ「見直し役を起動できない」
+- **Passed**: `dg --json --actor agent pr ready <id>` puts the PR out (asking a human to review it), and then run `sync` (`ready` of `dg next`). For a Workflow that does not look at PRs, see "ready" in `dg guide work`
+- **Cannot start a reviewer** (the environment cannot start subagents): ask a human to review it. Put the PR out with `dg pr ready` (if it returns `GATE_FAILED`, have a human run `gh pr ready`), and write in the PR body and the report that it was not reviewed
+- **Over the limit** (heavy findings remain), or **fix failed or did not return**: do not start a fix beyond the limit. Keep the PR as a draft and the ticket in_progress. Report the remaining findings, the number of fix rounds, and the PR to a human, and ask whether to keep fixing (when over the limit, by the steps in "Limit" above), to make it ready (a human runs `gh pr ready`), or to stop (`ticket unclaim`). Do not unclaim it yourself. While waiting for a human, advance the tickets that do not wait for it
+- **Waiting for a human** (`dg next` returns `wait_human`): follow `ask_human`, and to keep going, send the continuation in the same conversation. If you decide not to fix it, ask a human whether you may close the Run with `run finish <Run> --result failure --error <reason>`
+- **Reviewer does not return**: close the Run by the "Stopped Run" section of `dg guide run`, and start the reviewer again. The PR stays a draft and the ticket stays in_progress. If it still does not return after starting again, it is "Cannot start a reviewer"

@@ -21,9 +21,9 @@ export type BriefRole = (typeof BRIEF_ROLES)[number];
 
 /** 役が行う手順の節（guide のトピックと節の名前）。文には節の本文を入れる */
 export const BRIEF_GUIDE: Record<BriefRole, { topic: string; section: string }> = {
-  implement: { topic: "work", section: "実装する" },
-  review: { topic: "review", section: "見直す" },
-  fix: { topic: "review", section: "指摘を直す" },
+  implement: { topic: "work", section: "Implement" },
+  review: { topic: "review", section: "Review" },
+  fix: { topic: "review", section: "Fix findings" },
 };
 
 /** 文に入れる事実。step は役が開く Run の step。guideText は BRIEF_GUIDE の節の本文（見出しを除き、config を埋めたもの） */

@@ -1,12 +1,12 @@
 ---
 name: dgwork
-description: deguboard の承認済みの Plan のチケットを、着手できるものから claim して実装し、受け入れ条件を確かめて PR まで進める。PR の要らない作業は done まで進める。「p3 を進めて」「計画を再開して」「t12 を進めて」と頼まれたときに使う。Plan のない複数のチケットは dgplan で計画を立ててから使う。
-argument-hint: <Plan の ID|チケットの ID>
+description: Advances the tickets of an approved Plan, starting with the ones that can be started. Claims a ticket, implements it, checks its acceptance criteria, and takes it to a PR. Work that needs no PR goes to done. Use when asked「p3 を進めて」「計画を再開して」「t12 を進めて」. For several tickets with no Plan, make a plan with dgplan first.
+argument-hint: <Plan ID|ticket ID>
 ---
 
-<!-- dg skill sha256:6fd1b7a90e4c119e2fba3412284141657f09d30050c28a76148d0bba47cf3013 -->
+<!-- dg skill sha256:234644cccafc41ee203874b7456ae23568c30947ca4ef03d7ddaef2c0e29bc6a -->
 
-# 作業（work）
+# Work (work)
 
 承認済みの Plan かチケットを、着手できるものから実装して PR まで進めます。
 
