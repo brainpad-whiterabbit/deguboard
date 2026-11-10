@@ -16,7 +16,7 @@ after:
   t668:
     - t659
     - t662
-pending_approval: true
+pending_approval: false
 details:
   t659:
     scope: README.md と README.ja.md の品質ゲートの説明と Skill の --gate-* の 1 句
@@ -62,3 +62,5 @@ details:
     scope: dg を PATH に入れる mise の task と、dg hooks check の案内
     approach: mise.toml に task を足し、development.md と README から案内する
     tier: standard
+approved_by: eiki.kitajima/agent
+approved_at: 2026-11-10T10:42:03Z
