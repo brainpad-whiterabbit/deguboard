@@ -36,75 +36,8 @@ const facts = (over: Partial<BriefFacts> = {}): BriefFacts => ({
 });
 
 describe("サブエージェントに渡す文の形（brief）", () => {
-  it("実装の文は先頭の行に印を置き、場所・Plan・規約・受け入れ条件・道具・Run・しないこと・返すものを含む（日本語）", () => {
-    expect(composeBrief("implement", facts(), "ja")).toMatchInlineSnapshot(`
-      "deguboard: ticket=t12 step=implement
-      チケット t12「右の列を細くする」を実装し、PR を draft で作ってください。
-      - 場所：worktree /work/deguboard.worktrees/feat/t12、ブランチ feat/t12。ファイルはこの worktree の中だけで編集する。
-      - Plan p3 の範囲：右の列の CSS だけ
-      - 方針：幅の変数を 1 つ足す
-      - 規約：リポジトリのルートにあるエージェント向けの指示ファイルに従い、下の手順を行う。PR の本文にチケット ID（t12）を書く。
-      --- 手順：Implement ---
-      1. 検査を通す
-      2. 読み直した正本を直す
-      --- 手順ここまで ---
-      - 受け入れ条件：
-        1. 列の幅が 240px になる
-        2. 狭い画面で折り返さない
-      - 道具：ファイルは Read で読み、Edit で直す。Bash の cat・heredoc・sed -i でソースを読み書きしない。
-      - Run：この文の先頭の印で、フックが実装の Run を開き閉じる。Run は開かず閉じない。claim は親が済ませている。
-      - しない：claim・unclaim・iteration add・Plan の操作・見直し役の起動・PR の ready（\`dg pr ready\`）・マージ・\`ticket check\`・\`ticket update --pr\`・ほかのチケットの作業。範囲の外で見つけたことは直さず、返すものに書く。
-      - 返すもの：draft の PR の URL と番号・確かめた受け入れ条件（番号ごと）と付けられなかった項目（理由）・読み直した正本と直した箇所・検査（書式・lint・テスト）の結果・人に伝えること。"
-    `);
-  });
-
-  it("見直しの文は先頭の行に review の印を置き、差分の取り方と結果の記録を含む（日本語）", () => {
-    expect(composeBrief("review", facts({ step: "review" }), "ja")).toMatchInlineSnapshot(`
-      "deguboard: ticket=t12 step=review
-      チケット t12「右の列を細くする」の PR を見直してください。実装したのとは別の役として見ます。
-      - 場所：worktree /work/deguboard.worktrees/feat/t12、ブランチ feat/t12。ファイルは読むだけで、変えない。
-      - 差分：\`git fetch origin\` のあと \`git diff origin/main...feat/t12\` で見る。
-      - チケット本文：\`dg --json --actor agent ticket show t12\` の本文と受け入れ条件を読む。
-      - 規約：リポジトリのルートにあるエージェント向けの指示ファイルに従い、下の手順を行う。
-      --- 手順：Review ---
-      1. 検査を通す
-      2. 読み直した正本を直す
-      --- 手順ここまで ---
-      - 道具：ファイルは Read で読む。Bash の cat・heredoc・sed -i でソースを書き換えない。
-      - Run：この文の先頭の印で、フックが見直しの Run（review）を開き閉じる。Run は開かず閉じない。
-      - 記録：一覧を返す前に、指摘を JSON の配列（1 件は severity（heavy か light）・category・file・line・reason・fix。形は \`dg run review-result --help\`）でリポジトリの外の一時ファイルに書き、\`dg --json --actor agent run review-result t12 --findings-file <ファイル>\` で 1 回記録する。指摘がなければ \`[]\`。数と通ったかは dg が求める。
-      - しない：リポジトリのファイルを変える・コミットする・push する・Run のほかに dg へ書き込む・ほかのチケットを見る。
-      - 返すもの：指摘を重い（受け入れ条件の漏れ・不具合・この PR が変えた約束・手順・規約で文書を直していないもの・ADR や要件に足した細部・規約の違反）と軽い（言い回し・好み・前からのずれ）に分けた一覧（ファイルと行・理由・直し方）と、最新のコミットで回した検査の結果。参考節（本文の \`## References\` か \`## 参考\`）との食い違いは軽い指摘の欄に分けて書き、重い指摘に数えない。"
-    `);
-  });
-
-  it("手直しの文は先頭の行に fix の印を置き、run retry-reason で理由を書かせ、指摘の一覧を入れる（日本語）（RN-8）", () => {
-    expect(composeBrief("fix", facts({ step: "fix" }), "ja", "1. src/a.ts:3 の型が違う（重い）"))
-      .toMatchInlineSnapshot(`
-        "deguboard: ticket=t12 step=fix
-        チケット t12「右の列を細くする」の PR の指摘を直してください。同じブランチで直して push します。
-        - PR：#7（draft のまま。ready にしない）
-        - 場所：worktree /work/deguboard.worktrees/feat/t12、ブランチ feat/t12。ファイルはこの worktree の中だけで編集する。
-        - 直す指摘：1. src/a.ts:3 の型が違う（重い）
-        - 直し始める前に：\`dg --json --actor agent run retry-reason t12 --reason <直す指摘 1 件の要約> --reason <2 件目の要約> …\` を単独のコマンドで 1 回呼んで、fix の Run にやり直しの理由を書く。直す指摘 1 件に 1 つ --reason を繰り返す（回数は理由の数になる）。書くのは見直し役・人のレビューの指摘だけで、検査の失敗を直したことは書かない。要約は 1 行で、秘密・コマンドの文字列・パスは書かない。
-        - 直す範囲：挙げられた重い指摘と、直すと決めた軽い指摘。ほかの軽い指摘は直すかを決め、直さないものは理由を返す。
-        - 規約：リポジトリのルートにあるエージェント向けの指示ファイルに従い、下の手順を行う。検査（書式・lint・テスト）を最新のコミットで通してから push する。
-        --- 手順：Fix findings ---
-        1. 検査を通す
-        2. 読み直した正本を直す
-        --- 手順ここまで ---
-        - 受け入れ条件：
-          1. 列の幅が 240px になる
-          2. 狭い画面で折り返さない
-        - 道具：ファイルは Read で読み、Edit で直す。Bash の cat・heredoc・sed -i でソースを読み書きしない。
-        - Run：この文の先頭の印で、フックが手直しの Run（fix）を開き閉じる。Run は開かず閉じない（claim・\`run start\`・\`run finish\` は使わない）。
-        - しない：claim・unclaim・PR の ready（\`dg pr ready\`）・マージ・\`ticket update --pr\`・\`ticket check\`・ほかのチケットの作業。
-        - 返すもの：直したコミット（ハッシュと要約）と push の有無・直さなかった軽い指摘と理由・確かめた受け入れ条件（番号ごと）と付けられなかった項目（理由）・検査の結果・人に伝えること。"
-      `);
-  });
-
-  it("英語の文は定型の文だけを英語にし、チケットの中身は書いた言葉のまま入れる", () => {
-    expect(composeBrief("implement", facts(), "en")).toMatchInlineSnapshot(`
+  it("定型の文は英語だけで、チケットの中身は書いた言葉のまま入れる。実装・見直し・手直しの文の形は固定", () => {
+    expect(composeBrief("implement", facts())).toMatchInlineSnapshot(`
       "deguboard: ticket=t12 step=implement
       Implement ticket t12 "右の列を細くする" and create the PR as a draft.
       - Location: worktree /work/deguboard.worktrees/feat/t12, branch feat/t12. Edit files only inside this worktree.
@@ -123,7 +56,7 @@ describe("サブエージェントに渡す文の形（brief）", () => {
       - Do not: claim, unclaim, iteration add, Plan operations, launching a reviewer, making the PR ready (\`dg pr ready\`), merge, \`ticket check\`, \`ticket update --pr\`, or work on other tickets. Do not fix things outside the scope; report them in what you return.
       - Return: the draft PR's URL and number; the acceptance criteria you checked (by number) and those you could not (with reasons); the sources you reread and what you changed there; the results of the checks (format, lint, tests); and anything the human should know."
     `);
-    expect(composeBrief("review", facts({ step: "review" }), "en")).toMatchInlineSnapshot(`
+    expect(composeBrief("review", facts({ step: "review" }))).toMatchInlineSnapshot(`
       "deguboard: ticket=t12 step=review
       Review the PR for ticket t12 "右の列を細くする" as a reviewer separate from the implementer.
       - Location: worktree /work/deguboard.worktrees/feat/t12, branch feat/t12. Read the files only; do not change them.
@@ -138,9 +71,9 @@ describe("サブエージェントに渡す文の形（brief）", () => {
       - Run: the marker on the first line makes the hook open and close the review Run. Do not open or close a Run.
       - Record: Before returning the list, write the findings as a JSON array (each with severity (heavy or light), category, file, line, reason, and fix; the shape is in \`dg run review-result --help\`) to a temporary file outside the repository, and record it once with \`dg --json --actor agent run review-result t12 --findings-file <file>\`. Use \`[]\` if there are no findings. dg works out the counts and whether the review passed.
       - Do not: change files in the repository, commit, push, write anything to dg other than the Run, or look at other tickets.
-      - Return: a list of findings split into heavy (missed acceptance criteria, bugs, docs left stale by a promise, procedure, or rule this PR changed, details added to an ADR or requirements, rule violations) and light (wording, preference, older drift from the docs), each with file and line, reason, and how to fix it; and the results of the checks run on the latest commit. Report 参考節との食い違い (mismatches with the references section, \`## References\` or \`## 参考\` in the body) under the light findings, and do not count them as heavy."
+      - Return: a list of findings split into heavy (missed acceptance criteria, bugs, docs left stale by a promise, procedure, or rule this PR changed, details added to an ADR or requirements, rule violations) and light (wording, preference, older drift from the docs), each with file and line, reason, and how to fix it; and the results of the checks run on the latest commit. Report mismatches with the references section (\`## References\` or \`## 参考\` in the body) under the light findings, and do not count them as heavy."
     `);
-    expect(composeBrief("fix", facts({ step: "fix" }), "en")).toMatchInlineSnapshot(`
+    expect(composeBrief("fix", facts({ step: "fix" }))).toMatchInlineSnapshot(`
       "deguboard: ticket=t12 step=fix
       Fix the findings on the PR for ticket t12 "右の列を細くする". Fix them on the same branch and push.
       - PR: #7 (keep it as a draft; do not mark it ready)
@@ -165,18 +98,18 @@ describe("サブエージェントに渡す文の形（brief）", () => {
 
   it("どの役の文も先頭の行に印があり、手直しの文は claim で Run を開かせない（印と claim で二重にしない。RN-7）", () => {
     const marked = (role: "implement" | "review" | "fix") =>
-      composeBrief(role, facts({ step: role }), "ja").split("\n")[0];
+      composeBrief(role, facts({ step: role })).split("\n")[0];
     expect(marked("implement")).toBe("deguboard: ticket=t12 step=implement");
     expect(marked("review")).toBe("deguboard: ticket=t12 step=review");
     expect(marked("fix")).toBe("deguboard: ticket=t12 step=fix");
-    expect(composeBrief("fix", facts({ step: "fix" }), "ja")).not.toContain("ticket claim");
+    expect(composeBrief("fix", facts({ step: "fix" }))).not.toContain("ticket claim");
   });
 
   it("Plan の範囲と方針がなければ、その行は出さない。受け入れ条件がなければ親に聞く旨を出す", () => {
-    const text = composeBrief("implement", facts({ plan: null, acceptance: [] }), "ja");
+    const text = composeBrief("implement", facts({ plan: null, acceptance: [] }));
     expect(text).not.toContain("Plan p3");
-    expect(text).not.toContain("方針：");
-    expect(text).toContain("本文に受け入れ条件がない");
+    expect(text).not.toContain("Approach:");
+    expect(text).toContain("none in the body");
   });
 
   it("dg brief は読み取りだけ（write: false）で、CLI・HTTP・MCP が写す一覧にある", () => {
@@ -208,8 +141,8 @@ describe("dg brief と dg next の文（EX-3）", () => {
       ticket: "t1",
       role: "implement",
       step: "implement",
-      language: "ja",
     });
+    expect(implement).not.toHaveProperty("language");
     expect(implement.text.split("\n")[0]).toBe("deguboard: ticket=t1 step=implement");
     expect(implement.text).toContain("1. 一覧が出る");
     const review = (await runCommand(brief, ctx, { ticket: "t1", role: "review" })).data;
@@ -261,7 +194,7 @@ describe("dg brief と dg next の文（EX-3）", () => {
     const ctx = await prepared();
     // 見直しの記録がないチケット（t2）は、貼る場所を空けて返す
     const none = (await runCommand(brief, ctx, { ticket: "t2", role: "fix" })).data;
-    expect(none.text).toContain("（直す指摘の一覧をここに貼る");
+    expect(none.text).toContain("(paste the list of findings here");
     await runCommand(runReviewResult, ctx, {
       ticket: "t1",
       findings: [
@@ -278,13 +211,13 @@ describe("dg brief と dg next の文（EX-3）", () => {
       ],
     });
     const fix = (await runCommand(brief, ctx, { ticket: "t1", role: "fix" })).data;
-    expect(fix.text).toContain("- [重い] src/a.ts:3 (不具合)：型が違う。直し方：型を直す");
-    expect(fix.text).toContain("- [軽い] 受け入れ条件の漏れ：1 つめが足りない");
+    expect(fix.text).toContain("- [heavy] src/a.ts:3 (不具合): 型が違う Fix: 型を直す");
+    expect(fix.text).toContain("- [light] 受け入れ条件の漏れ: 1 つめが足りない");
     expect(fix.text).not.toContain("参考節との食い違い");
     // 数だけで記録した回が最新なら、前の回の一覧は使わず貼る場所を空ける（t600）
     await runCommand(runReviewResult, ctx, { ticket: "t1", heavy: 0, light: 0, passed: true });
     const counted = (await runCommand(brief, ctx, { ticket: "t1", role: "fix" })).data;
-    expect(counted.text).toContain("（直す指摘の一覧をここに貼る");
+    expect(counted.text).toContain("(paste the list of findings here");
     expect(counted.text).not.toContain("型が違う");
     // 渡したときは渡したものを使う
     const given = (await runCommand(brief, ctx, { ticket: "t1", role: "fix", findings: "1. 別" }))
@@ -312,10 +245,9 @@ describe("dg brief と dg next の文（EX-3）", () => {
     }
   });
 
-  it("language を en にすると定型の文が英語になり、チケットの題は書いた言葉のまま", async () => {
+  it("定型の文は英語で、チケットの題は書いた言葉のまま入る", async () => {
     const ctx = await prepared();
-    const text = (await runCommand(brief, ctx, { ticket: "t1", role: "implement", language: "en" }))
-      .data.text;
+    const text = (await runCommand(brief, ctx, { ticket: "t1", role: "implement" })).data.text;
     expect(text).toContain('Implement ticket t1 "A"');
     expect(text).toContain("Do not:");
   });
@@ -328,8 +260,7 @@ describe("dg brief と dg next の文（EX-3）", () => {
     expect(t1.brief?.split("\n")[0]).toBe("deguboard: ticket=t1 step=implement");
     const t2 = (await runCommand(next, ctx, { ticket: "t2" })).data as NextStep;
     expect(t2).toMatchObject({ kind: "wait_deps", brief: null });
-    const en = (await runCommand(next, ctx, { ticket: "t1", language: "en" })).data as NextStep;
-    expect(en.brief).toContain("Implement ticket t1");
+    expect(t1.brief).toContain("Implement ticket t1");
   });
 
   it("実行中の Run を待つ手（implement・review・fix）では文を出さない（貼ると Run が重なる）", async () => {
@@ -338,7 +269,7 @@ describe("dg brief と dg next の文（EX-3）", () => {
     const waiting = (await runCommand(next, ctx, { ticket: "t1" })).data as NextStep;
     expect(waiting).toMatchObject({ kind: "implement", brief: null });
     expect(waiting.running_run).not.toBeNull();
-    expect(waiting.commands[0]).toContain("終わりを待つ");
+    expect(waiting.commands[0]).toContain("Wait for the running Run");
   });
 
   it("todo の手は claim の前に組むので、claim の後に文を組み直す行を出す", async () => {

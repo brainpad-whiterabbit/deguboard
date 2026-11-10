@@ -356,7 +356,7 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
     const shown = await runCommand(ticketShow, ctx, { ticket: "t1" });
     expect(shown.data.body).toContain("- [ ] 表が決まる\n");
     const log = (await git(ctx.repo.dataDir, ["log", "--format=%s"])).stdout.trim().split("\n");
-    expect(log[0]).toBe("3 件のチケットを取り込み: t1, t2, t3");
+    expect(log[0]).toBe("Import 3 tickets: t1, t2, t3");
     await expect(
       runCommand(ticketImport, ctx, {
         drafts: [
@@ -525,7 +525,7 @@ describe("チケットの流れ（遷移・担当・編集）", () => {
     // batch なので作業ツリーに残り、sync がまとめてコミットする
     await runCommand(sync, ctx, {});
     const log = (await git(ctx.repo.dataDir, ["log", "--format=%s"])).stdout.trim().split("\n");
-    expect(log[0]).toBe("変更をまとめてコミット");
+    expect(log[0]).toBe("Commit batched changes");
   });
 
   it("check は all と番号の同時指定・無指定を INVALID_INPUT、節や項目がない・範囲外を NOT_FOUND で拒否する", async () => {

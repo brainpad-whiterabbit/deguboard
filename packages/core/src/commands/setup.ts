@@ -139,7 +139,7 @@ export const init = defineCommand({
         }
         return created;
       },
-      { message: "deguboard を初期化", immediate: true },
+      { message: "Initialize deguboard", immediate: true },
     );
     return ok(
       {
@@ -484,7 +484,7 @@ async function syncLocked(ctx: CommandContext, resolve?: ResolveSide) {
     // 取り込みの前にマージドライバの登録を揃える（init より前に作ったリポジトリでも効くように。SY-4）
     await ensureMergeDriver(repo, ctx.mergeDriver);
     if (await ensureGitattributes(repo.dataDir))
-      await commitPaths(repo, [".gitattributes"], "マージドライバの .gitattributes を置く");
+      await commitPaths(repo, [".gitattributes"], "Add .gitattributes for the merge driver");
     const fetched = await fetchAll(repo);
     let renumbered: Renumbered[] = [];
     if (resolve && fetched.ok && fetched.remoteBranch) {
@@ -567,13 +567,13 @@ async function syncLocked(ctx: CommandContext, resolve?: ResolveSide) {
       const parts = [
         ...(reconciled.length > 0
           ? [
-              `照合で ${reconciled
-                .map((r) => `${r.id}: ${r.from} → ${r.to}（${r.when.join(", ")}）`)
+              `Reconcile ${reconciled
+                .map((r) => `${r.id}: ${r.from} → ${r.to} (${r.when.join(", ")})`)
                 .join(", ")}`,
             ]
           : []),
         ...(prRecorded.length > 0
-          ? [`PR 番号を記録: ${prRecorded.map((r) => `${r.id}: #${r.pr}`).join(", ")}`]
+          ? [`Record PR numbers: ${prRecorded.map((r) => `${r.id}: #${r.pr}`).join(", ")}`]
           : []),
         ...describeClosedRuns(
           runsClosed.map((r) => ({
@@ -581,9 +581,9 @@ async function syncLocked(ctx: CommandContext, resolve?: ResolveSide) {
             opener: r.opener,
           })),
         ),
-        ...(confirmed.length > 0 ? [`仮番号を確定: ${confirmed.join(", ")}`] : []),
+        ...(confirmed.length > 0 ? [`Confirm provisional IDs: ${confirmed.join(", ")}`] : []),
       ];
-      await commitAll(repo, parts.join("。"));
+      await commitAll(repo, parts.join(". "));
       for (const r of runsClosed) await dropRunning(repo, r.run);
       if (repo.remote) {
         const r = await push(repo);
@@ -1116,7 +1116,7 @@ export const configSet = defineCommand({
         const value = nestedConfigValue((team as Record<string, unknown>)[top], rest, leaf);
         return ctx.store.writeConfig({ [top]: value });
       },
-      { message: `config の ${input.key} を変更` },
+      { message: `Change config ${input.key}` },
     );
     return ok(result.value, result.write);
   },
@@ -1149,7 +1149,7 @@ export const configUnset = defineCommand({
         const team = ctx.store.teamConfig as Record<string, unknown>;
         return ctx.store.writeConfig({ [top]: nestedConfigValue(team[top], rest, undefined) });
       },
-      { message: `config の ${input.key} を既定に戻す` },
+      { message: `Reset config ${input.key} to the default` },
     );
     return ok(result.value, result.write);
   },

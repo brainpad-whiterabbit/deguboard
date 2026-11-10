@@ -118,7 +118,7 @@ describe("作業の段階（stageOf。EX-3）", () => {
     });
     expect(stageOf(facts({ ticket: { pr: undefined }, runs: [waiting] }))).toMatchObject({
       name: "waiting_human",
-      reason: expect.stringContaining("止まって待っている"),
+      reason: expect.stringContaining("has stopped and is waiting"),
     });
   });
 
@@ -186,20 +186,20 @@ describe("dg next と ticket show の stage（EX-3）", () => {
     // 実装を委譲する親は --no-run で claim し、印で頼む
     const impl = kind(facts({ ticket: { status: "todo", pr: undefined } }));
     expect(impl.commands[0]).toBe(
-      "dg --json --actor agent ticket claim t1 --branch <種類>/<内容> --no-run",
+      "dg --json --actor agent ticket claim t1 --branch <type>/<content> --no-run",
     );
     expect(impl.commands[1]).toContain("deguboard: ticket=t1 step=implement");
     // 実行中の見直し・実装があれば、新しく起動させず終わりを待つ
     const reviewing = kind(facts({ runs: [review(6, null, { finished_at: null, result: null })] }));
     expect(reviewing).toMatchObject({ kind: "review", running_run: expect.any(String) });
-    expect(reviewing.commands).toEqual([expect.stringContaining("終わりを待つ")]);
+    expect(reviewing.commands).toEqual([expect.stringContaining("Wait for the running Run")]);
     const implementing = kind(
       facts({
         ticket: { pr: undefined },
         runs: [run("implement", 1, { finished_at: null, result: null })],
       }),
     );
-    expect(implementing.commands).toEqual([expect.stringContaining("終わりを待つ")]);
+    expect(implementing.commands).toEqual([expect.stringContaining("Wait for the running Run")]);
     // 手直しが failure・interrupted で閉じたら人を待つ
     expect(
       kind(facts({ runs: [review(6, heavy), run("fix", 7, { result: "interrupted" })] })),
@@ -230,7 +230,7 @@ describe("dg next と ticket show の stage（EX-3）", () => {
       facts({ runs: [review(6, heavy), run("fix", 7, { finished_at: null, result: null })] }),
     );
     expect(fixing).toMatchObject({ kind: "fix", running_run: expect.any(String) });
-    expect(fixing.commands).toEqual([expect.stringContaining("終わりを待つ")]);
+    expect(fixing.commands).toEqual([expect.stringContaining("Wait for the running Run")]);
     // 最後の push が読めないときは最後の見直しを今の見直しとみなし、開いたままの手直しを待つ
     const noPush = kind(
       facts({
@@ -238,7 +238,7 @@ describe("dg next と ticket show の stage（EX-3）", () => {
         runs: [review(6, heavy), run("fix", 7, { finished_at: null, result: null })],
       }),
     );
-    expect(noPush.commands).toEqual([expect.stringContaining("終わりを待つ")]);
+    expect(noPush.commands).toEqual([expect.stringContaining("Wait for the running Run")]);
     // 見直しの手（fixed）で、開始より後に push がない手直しは待つ。push のあとの手直しは待たず見直しを返す
     const reviewWaits = kind(
       facts({
@@ -251,7 +251,7 @@ describe("dg next と ticket show の stage（EX-3）", () => {
       }),
     );
     expect(reviewWaits).toMatchObject({ kind: "review", running_run: expect.any(String) });
-    expect(reviewWaits.commands).toEqual([expect.stringContaining("終わりを待つ")]);
+    expect(reviewWaits.commands).toEqual([expect.stringContaining("Wait for the running Run")]);
     const reviewPushed = kind(
       facts({
         pushedAt: "2026-11-07T10:08:00Z",
@@ -362,7 +362,7 @@ describe("dg next と ticket show の stage（EX-3）", () => {
       stage: { name: "waiting_human" },
     });
     expect(step.commands).toEqual([]);
-    expect(step.ask_human).toContain("push なしで返った");
+    expect(step.ask_human).toContain("returned without a push");
   });
 
   it("implement・fix の手の model は plan.tier を models.* に対応させ、tier を省いた段階は standard、対応が空なら null。review とほかの手は null", async () => {

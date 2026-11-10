@@ -89,7 +89,9 @@ export async function ensureDeguboardWorktree(
     }
   }
   const tree = (await git(["hash-object", "-t", "tree", "--stdin"])).stdout.trim();
-  const commit = (await git(["commit-tree", tree, "-m", "deguboard ブランチを作成"])).stdout.trim();
+  const commit = (
+    await git(["commit-tree", tree, "-m", "Create the deguboard branch"])
+  ).stdout.trim();
   await git(["branch", DATA_BRANCH, commit]);
   await git(["worktree", "add", paths.dataDir, DATA_BRANCH]);
   return "orphan";

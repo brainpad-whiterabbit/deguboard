@@ -156,8 +156,8 @@ export const workflowSet = defineCommand({
       },
       {
         message: (v) =>
-          `Workflow ${input.workflow} を${v.created ? "作成" : "置き換え"}${
-            input.template !== undefined ? `（テンプレート ${input.template}）` : ""
+          `${v.created ? "Create" : "Replace"} Workflow ${input.workflow}${
+            input.template !== undefined ? ` (template ${input.template})` : ""
           }`,
       },
     );

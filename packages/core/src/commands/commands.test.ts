@@ -615,9 +615,9 @@ describe("仮番号の振り直し（DT-5）", () => {
       readFile(path.join(a.repo.dataDir, "tickets", "t3.md"), "utf8"),
     ).resolves.toContain("id: t3");
     const log = (await git(a.repo.dataDir, ["log", "--format=%s"])).stdout.trim().split("\n");
-    expect(log).toContain("t3 を起票: A の 1");
-    expect(log).toContain("t1 を起票: B の 1");
-    expect(log.some((m) => m === "t1 を起票: A の 1")).toBe(false);
+    expect(log).toContain("File t3: A の 1");
+    expect(log).toContain("File t1: B の 1");
+    expect(log.some((m) => m === "File t1: A の 1")).toBe(false);
 
     // B が取り込むと同じ 3 件が見える
     await runCommand(sync, b, {});

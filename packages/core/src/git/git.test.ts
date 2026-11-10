@@ -153,7 +153,7 @@ describe("書き込みの 1 単位", () => {
     });
     expect(write).toMatchObject({ committed: true, pushed: true });
     const log = (await git(a.repo.dataDir, ["log", "--format=%s"])).stdout.trim().split("\n");
-    expect(log.slice(0, 2)).toEqual(["t2 を作成", "変更をまとめてコミット"]);
+    expect(log.slice(0, 2)).toEqual(["t2 を作成", "Commit batched changes"]);
   });
 
   it("2 つの clone が同時に作成すると、push を拒否された側は採番し直して次の番号になる", async () => {
@@ -204,7 +204,7 @@ describe("書き込みの 1 単位", () => {
     expect(await fetchData(a.repo)).toEqual({ ok: true, remoteBranch: true });
     expect(await integrate(a.repo)).toEqual({ ok: true, changed: true });
     const log = (await git(a.repo.dataDir, ["log", "--format=%s"])).stdout.trim().split("\n");
-    expect(log).toEqual(["B", "deguboard ブランチを作成"]);
+    expect(log).toEqual(["B", "Create the deguboard branch"]);
     expect((await git(a.repo.dataDir, ["rev-parse", "HEAD"])).stdout.trim()).toBe(
       (await git(b.repo.dataDir, ["rev-parse", "HEAD"])).stdout.trim(),
     );

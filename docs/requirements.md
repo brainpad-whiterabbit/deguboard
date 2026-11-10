@@ -180,7 +180,7 @@ updated_at: 2026-10-31T05:10:00Z
 - CL-5 `dg guide <topic>` は、各手のやり方を `config.yaml` の値で埋めて出す。`guide.notes.<topic>` の文書は題名の直後（節なら見出しの直後）に差し込み、読めなければ警告を出す。`--section <節>` は節だけを出し（重ねると順につなぐ）、ない節は使い方の誤りとして一覧を添えて失敗する。段階・次の手は Core が返す（EX-3。[ADR-030](adr/ADR-030-flow-and-guide-in-core.md)）
 - CL-6 CLI はロジックを持たず、Core のコマンド定義（`packages/core/src/commands/`）を写す
 - CL-7 `history` は deguboard ブランチの git の履歴から、チケット・Epic・Iteration の起票と属性（Status・所属・担当者・PR）の変化を古い順に返す。データの形は変えず、差分から読む。浅い clone では欠けたことを返して失敗しない（返す項目は `packages/core/src/commands/history.ts`）
-- CL-8 `dg` の出力（ヘルプ・MCP のツールの説明・エラー・警告・次の手の理由・定型の文・`dg` が書くコミットの題）は英語で出す。チケットの中身と `config.yaml` の値は書いたまま出す。予定（`e11`）。理由は [ADR-001](adr/ADR-001-doc-strategy.md)
+- CL-8 `dg` の出力（ヘルプ・MCP のツールの説明・エラー・警告・次の手の理由・定型の文・`dg` が書くコミットの題）は英語で出す。チケットの中身と `config.yaml` の値は書いたまま出す。理由は [ADR-001](adr/ADR-001-doc-strategy.md)
 
 ### 6.2 状態遷移と照合
 
@@ -218,7 +218,7 @@ updated_at: 2026-10-31T05:10:00Z
 - UI-7 画面から書き込むのはチケット詳細と設定画面と同期だけで、ほかの変更は UI-15 で頼む。書き込みは Core の同じコマンドと検査を通り、拒否されたら理由を出して戻す（コミットは CL-3）
 - UI-8 `dg serve` は既定で `127.0.0.1` にバインドする。認証は持たない
 - UI-10 Epic：open の Epic の進捗（EP-3）を出し、Epic で絞れる。詳細の画面で中のチケットを出す
-- UI-11 VS Code 拡張は `core` を同梱して `dg` なしで動き、`dg` が PATH にないか版のメジャーが `core` と違えば知らせる。拡張と画面の文言は表示言語で出し、core の決まった文（英語）は表示言語が日本語なら訳のあるものを日本語で出す（チケットの中身と指示は書いたまま。予定（`e11`））。細部は `vscode/src/l10n.ts`・`web/src/l10n.ts` とそのテスト
+- UI-11 VS Code 拡張は `core` を同梱して `dg` なしで動き、`dg` が PATH にないか版のメジャーが `core` と違えば知らせる。拡張と画面の文言は表示言語で出し、core の決まった文（英語）は表示言語が日本語なら訳のあるものを日本語で出す（チケットの中身と指示は書いたまま）。細部は `vscode/src/l10n.ts`・`web/src/l10n.ts` とそのテスト
 - UI-12 VS Code 拡張はサイドバーを主画面にし、エディタのパネルには詳細だけを出す。コード中の ID から要約と詳細を開け、コマンドで ID か題からも探せる。CLI やエージェントの書き込みを自動で映し、承認待ちの Plan と review のチケットを知らせ（設定で切れる）、`dg init` 前は始め方を出す。細部は `packages/vscode/package.json`・`src/extension.ts`
 - UI-13 実行計画：カンバンの上に、選んだ範囲のチケットを含む Plan の進捗と次（PL-6）・依存グラフを出し、Plan の番号から Plan 詳細を開く。表示だけで書き込まない（出す項目は `plan show` と `packages/web/src/pages/plans.tsx`）
 - UI-14 設定画面：チームの `config.yaml` の全項目（5.10）と、個人で上書きできる項目を分けて出して直せ、個人の上書きは外せる。影響の大きい項目は保存前に確かめる。VS Code の settings.json は使わない（細部は `packages/web/src/pages/config.tsx` とそのテスト、理由は [ADR-027](adr/ADR-027-screen-vscode-writes-and-asks.md)）

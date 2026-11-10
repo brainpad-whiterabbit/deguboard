@@ -276,7 +276,9 @@ async function sessionStart(
     ...(event.transcript ? [`export DEGUBOARD_TRANSCRIPT=${quote(event.transcript)}`] : []),
   ];
   await appendFile(event.envFile, `${lines.join("\n")}\n`);
-  view.done.push("主体（agent）とセッション ID・記録のパスを以後の Bash の環境に入れた");
+  view.done.push(
+    "Put the actor (agent), the session ID, and the transcript path into the environment of later Bash calls",
+  );
 }
 
 async function subagentLaunched(
@@ -301,7 +303,7 @@ async function subagentLaunched(
     [...(await readTranscriptPaths(ctx.repo)).values()].includes(event.transcript)
   ) {
     view.done.push(
-      `${marker.ticket} の ${marker.step} は、この記録に結び付いた Run があるので開かない`,
+      `Does not open ${marker.step} for ${marker.ticket}, because a Run is already tied to this transcript`,
     );
     return;
   }
@@ -333,7 +335,7 @@ async function subagentLaunched(
     });
     run = opened.run;
     warnings.push(...opened.warnings);
-    view.done.push(`${run.ticket} の ${run.step} の Run ${run.id} を開いた`);
+    view.done.push(`Opened the ${run.step} Run ${run.id} for ${run.ticket}`);
   } catch (e) {
     if (!(e instanceof OperationError)) throw e;
     warnings.push(`Could not open the ${marker.step} Run of ${marker.ticket}: ${e.message}`);
@@ -369,7 +371,7 @@ async function closeStaleReviewRuns(
       if (await moveReviewToPending(ctx.repo, run.id, launchedAt)) {
         run = { ...run, review: null };
         view.done.push(
-          `${ticket} の見直しの結果は今回の見直し役が書いたものなので、Run ${run.id} から外して保留に移した`,
+          `The review result for ${ticket} was written by the current reviewer, so it was taken off Run ${run.id} and kept pending`,
         );
       }
       await closeSubagentRun(
@@ -551,13 +553,13 @@ async function bindPending(
     const review = await takePendingReview(ctx.repo, run.ticket, run.started_at);
     await adoptPendingRounds(ctx.repo, run.ticket, run.id, run.started_at);
     if (!review || run.review !== null) return run;
-    view.done.push(`${run.ticket} の保留の見直しの結果を Run ${run.id} に結び付けた`);
+    view.done.push(`Tied the pending review result for ${run.ticket} to Run ${run.id}`);
     return amendRunning(ctx.repo, run.id, { review });
   }
   if (ticket && run.step === openedStepOf(ctx, ticket, "reclaim")) {
     const reasons = await takePendingRetryReasons(ctx.repo, run.ticket, run.started_at);
     if (reasons.length === 0) return run;
-    view.done.push(`${run.ticket} の保留のやり直しの理由を Run ${run.id} に結び付けた`);
+    view.done.push(`Tied the pending retry reasons for ${run.ticket} to Run ${run.id}`);
     return appendRetryReasons(ctx.repo, run.id, reasons);
   }
   return run;
@@ -567,7 +569,9 @@ async function bindPending(
 async function markWaiting(ctx: CommandContext, run: Run, view: HookView): Promise<void> {
   if (run.waiting_since !== null) return;
   await amendRunning(ctx.repo, run.id, { waiting_since: toIsoDateTime(ctx.now()) });
-  view.done.push(`${run.ticket} の ${run.step} の Run ${run.id} は止まって待っている（閉じない）`);
+  view.done.push(
+    `The ${run.step} Run ${run.id} for ${run.ticket} has stopped and is waiting (not closed)`,
+  );
 }
 
 /**
@@ -615,7 +619,9 @@ async function closeSubagentRun(
     now,
   });
   warnings.push(...collected.warnings.map((w) => `Run ${run.id}: ${w}`), ...closed.write.warnings);
-  view.done.push(`${run.ticket} の ${run.step} の Run ${run.id} を ${closed.run.result} で閉じた`);
+  view.done.push(
+    `Closed the ${run.step} Run ${run.id} for ${run.ticket} with ${closed.run.result}`,
+  );
 }
 
 /**
@@ -678,7 +684,9 @@ async function subagentStarted(
   if (run.settling_since !== null) await amendRunning(ctx.repo, run.id, { settling_since: null });
   // 次に止まるまで動いている（run finish が閉じない。t638）
   await bindTranscript(ctx.repo, run.id, event.transcript, true);
-  view.done.push(`${run.ticket} の ${run.step} の Run ${run.id} を続きとして使う（印を消した）`);
+  view.done.push(
+    `Uses the ${run.step} Run ${run.id} for ${run.ticket} as the continuation (removed the mark)`,
+  );
 }
 
 /**
@@ -699,7 +707,7 @@ async function bindSelfOpened(
   const closed: RunId[] = [];
   for (const id of ids) {
     await bindTranscript(ctx.repo, id, transcript);
-    view.done.push(`Run ${id} の記録の場所をサブエージェントの記録にした`);
+    view.done.push(`Set the transcript of Run ${id} to the sub-agent's transcript`);
     if (ctx.store.runs.has(id)) {
       closed.push(id);
       continue;
@@ -714,7 +722,7 @@ async function bindSelfOpened(
   if (closed.length === 0) return;
   const refreshed = await runCommand(runRefresh, ctx, { runs: closed });
   warnings.push(...refreshed.warnings);
-  view.done.push(`閉じた Run ${closed.join("・")} の使用量を取り直した`);
+  view.done.push(`Re-read the usage of the closed Runs ${closed.join(", ")}`);
 }
 
 /**
@@ -856,20 +864,20 @@ export function advancesPrOutsideDg(command: string): boolean {
 
 /** dg を経由しない gh pr ready・merge を拒む文（t545・t555） */
 export const GH_PR_DENIED =
-  "PR を ready にする・マージするのは dg のコマンドで行う：dg pr ready <ticket>・dg pr merge <ticket>（品質ゲート dg gate を満たすときだけ gh を呼び、満たさなければ条件と理由を返す）。" +
-  "ゲートを満たさないまま進める（見直し役を起動できない・修正ループの上限を超えた・版上げの PR・人が回数を指示した）のは人の判断なので、人に gh pr ready・gh pr merge を打ってもらう（dg guide review）。" +
-  "このフックは引用符・ヒアドキュメント・コメントの中も伏せずに、gh・pr・merge か ready の語がどこかにあれば止める。" +
-  "本文にその語を書くなら、Write でファイルに書いて gh pr create --body-file <ファイル>・git commit -F <ファイル> で渡す。ほかのコマンドと一緒に打って止まったなら、分けて打つ";
+  "Mark a PR ready and merge it with dg commands: dg pr ready <ticket> and dg pr merge <ticket> (they call gh only when the quality gate dg gate is met, and otherwise return the conditions and reasons). " +
+  "Going ahead without meeting the gate (a reviewer cannot be launched, the fix loop went over its limit, a version-bump PR, or a person set the count) is a human decision, so ask a person to run gh pr ready or gh pr merge (dg guide review). " +
+  "This hook does not mask quotes, heredocs, or comments, and stops when the words gh, pr, and merge or ready appear anywhere. " +
+  "To write those words in a body, write it to a file with Write and pass it with gh pr create --body-file <file> or git commit -F <file>. If it stopped because you ran it together with other commands, run them separately";
 
 /** 書くツールが .git/deguboard/ の下に書くのを拒む文 */
 export const DATA_WRITE_DENIED =
-  "deguboard のデータ（.git/deguboard/）はファイルを直接書かず、dg のコマンドで読み書きする";
+  "Do not write the deguboard data (.git/deguboard/) files directly; read and write them with dg commands";
 
 /** .git/deguboard の語を含む Bash を拒む文（t546） */
 export const DATA_BASH_DENIED =
-  "deguboard のデータ（.git/deguboard/）は Bash で触れず、dg のコマンドで読み書きする（読むのは dg ticket show・dg ticket list・dg plan show など、書くのは dg ticket update など）。" +
-  "このフックは、読むだけのものも、引用符・コメントの中も、.git/deguboard の語があれば止める。文書やコードの中の語を探すなら Grep ツールを使い、" +
-  "本文にその語を書くなら Write でファイルに書いて --body-file・git commit -F で渡す。止めきれずに書いた変更は、dg が次に動くときに dg の外の変更として見つけて書き込みを止める（dg adopt --help）";
+  "Do not touch the deguboard data (.git/deguboard/) with Bash; read and write it with dg commands (read with dg ticket show, dg ticket list, dg plan show, and so on; write with dg ticket update and so on). " +
+  "This hook stops on the word .git/deguboard anywhere, even in read-only commands, quotes, and comments. To search for the word in documents or code, use the Grep tool. " +
+  "To write the word in a body, write it to a file with Write and pass it with --body-file or git commit -F. A change that gets through anyway is found the next time dg runs as a change made outside dg, and dg stops writing (dg adopt --help)";
 
 /**
  * ツールを使う前（PreToolUse。t532・t545・t555・t546）。書くツールの .git/deguboard/ の下への書き込みと、.git/deguboard の語を含む Bash
@@ -886,7 +894,7 @@ function toolRequested(
   const deny = (reason: string) => {
     // イベント名は製品のもの（入力のまま返す。AG-5）
     view.output = hooksOf(agent)!.denyOutput(view.event, reason);
-    view.done.push(`拒んだ: ${reason}`);
+    view.done.push(`Denied: ${reason}`);
   };
   if (event.tool === "write") {
     if (!event.path) return;
@@ -921,10 +929,10 @@ async function turnStopped(
   const check = await checkOutside(ctx.repo);
   if (check.kind !== "found") return;
   const reason =
-    `deguboard のデータのリポジトリに dg の外の変更がある（${describeOutside(check.changes)}）。` +
-    `${outsideRemedy(check.changes)}。自分で書いたものなら人に伝えて、取り込むか捨てるかを確かめる`;
+    `The deguboard data repository has changes made outside dg (${describeOutside(check.changes)}). ` +
+    `${outsideRemedy(check.changes)}. If you wrote them yourself, tell a person and confirm whether to adopt or discard them`;
   view.output = hooksOf(agent)!.continueOutput(view.event, reason);
-  view.done.push(`dg の外の変更を伝えた: ${describeOutside(check.changes)}`);
+  view.done.push(`Reported changes made outside dg: ${describeOutside(check.changes)}`);
 }
 
 export const hookCommands = [hook];

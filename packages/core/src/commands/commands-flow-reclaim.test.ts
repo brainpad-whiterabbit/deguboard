@@ -772,7 +772,7 @@ describe("チケットの流れ（もう一度の claim と手直し）", () => 
         retry_reasons: ["A"],
       });
       expect((await git(agent.repo.dataDir, ["log", "-1", "--format=%s"])).stdout.trim()).toBe(
-        `手直しの Run を記録: t1 ${fix1} success`,
+        `Record fix Runs: t1 ${fix1} success`,
       );
       await runCommand(runFinish, agent, { run: review, result: "success" });
 

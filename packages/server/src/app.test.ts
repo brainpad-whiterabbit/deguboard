@@ -173,7 +173,7 @@ describe("HTTP サーバー", () => {
       const input = { ticket: "t1", role, ...(role === "fix" ? { findings } : {}) };
       const viaHttp = await post(s, "brief", input);
       expect(viaHttp.status, role).toBe(200);
-      expect(viaHttp.body.data.text, role).toContain("--- 手順：");
+      expect(viaHttp.body.data.text, role).toContain("--- Steps: ");
       expect(viaHttp.body.data, role).toEqual(
         (await runCommand(findCommand("brief")!, ctx, input)).data,
       );

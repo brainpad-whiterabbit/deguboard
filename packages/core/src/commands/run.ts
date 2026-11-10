@@ -310,7 +310,7 @@ export function openedStepOf(ctx: CommandContext, ticket: Ticket, opener: StepOp
 
 /** 操作が開く Run の呼び名（警告とコミットメッセージ）。claim は実装、reclaim は手直し */
 export const openedRunLabel = (opener: StepOpener): string =>
-  opener === "claim" ? "実装" : "手直し";
+  opener === "claim" ? "implementation" : "fix";
 
 /** 警告に書く操作が開いた Run の呼び名（英語。コミットメッセージの openedRunLabel とは別に持つ） */
 const openedRunWord = (opener: StepOpener): string =>
@@ -454,7 +454,7 @@ export function describeClosedRuns(
     const runs = closed.filter((c) => c.opener === opener);
     if (runs.length === 0) continue;
     parts.push(
-      `${openedRunLabel(opener)}の Run を記録: ${runs.map((c) => `${c.run.ticket} ${c.run.id} ${c.run.result}`).join(", ")}`,
+      `Record ${openedRunLabel(opener)} Runs: ${runs.map((c) => `${c.run.ticket} ${c.run.id} ${c.run.result}`).join(", ")}`,
     );
   }
   return parts;
@@ -490,7 +490,7 @@ export async function closeOpenedRunAlone(
       },
       {
         message: ({ run }) =>
-          `${openedRunLabel(input.opener)}の Run を記録: ${run.ticket} ${run.id} ${run.result ?? ""}`,
+          `Record ${openedRunLabel(input.opener)} Run: ${run.ticket} ${run.id} ${run.result ?? ""}`,
       },
     );
     await dropRunning(ctx.repo, running.data.id);
@@ -888,7 +888,7 @@ export const runReviewResult = defineCommand({
           })
         ).data;
       },
-      { message: (run) => `見直しの結果を記録: ${run.ticket} ${run.id}` },
+      { message: (run) => `Record the review result: ${run.ticket} ${run.id}` },
     );
     await keep(written.value);
     return ok<Run | PendingReviewView>(written.value, written.write, warnings);
@@ -1009,7 +1009,7 @@ export const runHandoff = defineCommand({
       throw new OperationError(
         "VALIDATION_FAILED",
         "Some findings passed to the fix are not in the latest review list",
-        unmatched.map((f) => `- ${findingText(f, "ja")}`).join("\n"),
+        unmatched.map((f) => `- ${findingText(f)}`).join("\n"),
       );
     await setHandedFindings(ctx.repo, ticket.id, ticket.branch_at, matched);
     return ok({ ticket: ticket.id, handed: matched.length });
@@ -1227,7 +1227,7 @@ export const runRefresh = defineCommand({
       },
       {
         message: (done) =>
-          `Run を会話記録から取り直す: ${done
+          `Re-read Runs from transcripts: ${done
             .filter((i) => i.updated)
             .map((i) => i.id)
             .join(" ")}`,

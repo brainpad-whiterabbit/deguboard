@@ -134,7 +134,7 @@ describe("flowStageOf（流れの 8 つの規則）", () => {
       checked,
     );
     expect(noIteration).toMatchObject({ name: "stop", rule: 8 });
-    expect(noIteration.reason).toContain("Iteration が 1 つに決まらない");
+    expect(noIteration.reason).toContain("no single Iteration is determined");
     // チケットのない Iteration は見直さない
     expect(flowStageOf(facts({ targets: [], releaseScope: [] }), checked).name).toBe("stop");
   });
@@ -143,7 +143,7 @@ describe("flowStageOf（流れの 8 つの規則）", () => {
     const closed = facts({ ...finished(), iterationClosed: true });
     const stage = flowStageOf(closed, { ...checked, audited: true });
     expect(stage).toMatchObject({ name: "stop", rule: 8 });
-    expect(stage.reason).toBe("s1 は閉じていて、流れを終えた");
+    expect(stage.reason).toBe("s1 is closed, and the flow is finished");
     expect(flowStageOf({ ...closed, auditLabeled: true }, checked).name).toBe("stop");
     expect(flowStageOf(closed, { ...none, assigned: true }).name).toBe("check");
   });
@@ -239,14 +239,14 @@ describe("approvalOf（承認の要否）", () => {
     expect(auto("assign")).toMatchObject({ required: false, auto_ok: true });
     expect(auto("plan")).toMatchObject({
       required: false,
-      auto: "Plan の承認（plan approve）",
+      auto: "Approving the Plan (plan approve)",
       auto_ok: true,
     });
     expect(auto("audit")).toMatchObject({ required: false, auto_ok: true });
     expect(auto("check")).toMatchObject({
       required: true,
-      what: "削除・abandoned・閉じる",
-      auto: "直し方が 1 つに決まる直す行",
+      what: "Deletions, abandoned, and closing",
+      auto: "Fix rows that have exactly one way to fix",
       auto_ok: true,
     });
     expect(auto("release")).toMatchObject({ required: true, auto_ok: false });
@@ -260,12 +260,16 @@ describe("approvalOf（承認の要否）", () => {
       stage: Parameters<typeof approvalOf>[0],
       autoMerge = false,
     ) => approvalOf(stage, { auto: true, autoMerge, decisions });
-    expect(only([], "assign")).toMatchObject({ required: true, what: "入れる行", auto_ok: false });
-    expect(only(["plan"], "audit")).toMatchObject({ required: true, what: "指摘の表" });
+    expect(only([], "assign")).toMatchObject({
+      required: true,
+      what: "Rows to add",
+      auto_ok: false,
+    });
+    expect(only(["plan"], "audit")).toMatchObject({ required: true, what: "Findings table" });
     expect(only(["audit"], "plan")).toMatchObject({ required: true, auto: null, auto_ok: false });
     expect(only(["plan"], "check")).toMatchObject({
       required: true,
-      what: "直す行、削除・abandoned・閉じる",
+      what: "Rows to fix, and deletions, abandoned, and closing",
       auto_ok: false,
     });
     // マージは auto.decisions ではなく auto.merge で決まる
@@ -279,7 +283,7 @@ describe("approvalOf（承認の要否）", () => {
     expect(release).toMatchObject({ required: true, what: expect.any(String), auto_ok: false });
     expect(release.auto).toBeNull();
     const check = approvalOf("check", { auto: true, autoMerge: true, decisions: everything });
-    expect(check.what).toBe("削除・abandoned・閉じる");
+    expect(check.what).toBe("Deletions, abandoned, and closing");
     expect(check.required).toBe(true);
   });
 });
@@ -367,8 +371,8 @@ describe("dg flow next", () => {
         sections: ["When proposing an assignment", "Iteration"],
         command: 'dg guide assign --section "When proposing an assignment" --section Iteration',
       },
-      commands: ["dg --json --actor agent iteration add s1 <入れるチケット…>"],
-      approval: { required: true, what: "入れる行" },
+      commands: ["dg --json --actor agent iteration add s1 <tickets to add…>"],
+      approval: { required: true, what: "Rows to add" },
     });
     // guide.text は段階の節の本文を順につないだもの（手順の節の見出しから始まり、config を埋めたもの）
     expect(assign.guide.text.startsWith("## When proposing an assignment")).toBe(true);
@@ -393,7 +397,7 @@ describe("dg flow next", () => {
     // 承認が得られず、事実が変わらないまま同じ段階が続けば止まる。もう一度呼んでも止まったまま
     const stopped = await flow(ctx, { resume: plan3.resume });
     expect(stopped).toMatchObject({ stage: { name: "stop", rule: null }, repeated: "plan" });
-    expect(stopped.ask_human).toContain("段階 plan が続き");
+    expect(stopped.ask_human).toContain("The stage plan repeats");
     expect((await flow(ctx, { resume: stopped.resume })).stage.name).toBe("stop");
 
     await runCommand(planApprove, ctx, { plan: "p1" });
@@ -401,7 +405,7 @@ describe("dg flow next", () => {
     expect(work).toMatchObject({
       stage: { name: "work", rule: 4, plan: "p1", tickets: ["t1"] },
       commands: ["dg --json --actor agent plan show p1", "dg --json --actor agent next t1"],
-      approval: { required: true, what: "PR ごとのマージ（dg guide done）" },
+      approval: { required: true, what: "Merging each PR (dg guide done)" },
       repeated: null,
     });
     expect(work.memory).toEqual({ ...none, assigned: true, checked: true });
@@ -412,7 +416,7 @@ describe("dg flow next", () => {
     const release = await flow(ctx, { resume: audit.resume });
     expect(release).toMatchObject({
       stage: { name: "release", rule: 7 },
-      approval: { required: true, what: "リリースの PR のマージ・公開・閉じる" },
+      approval: { required: true, what: "Merging the release PR, publishing, and closing" },
     });
     // resume を失えば、割り当てと点検からやり直す（見直しを終えた事実も失う）
     expect((await flow(ctx, {})).stage.name).toBe("assign");
@@ -421,7 +425,7 @@ describe("dg flow next", () => {
     await runCommand(iterationClose, ctx, { iteration: "s1" });
     const closed = await flow(ctx, { resume: release.resume });
     expect(closed).toMatchObject({ stage: { name: "stop", rule: 8 }, repeated: null });
-    expect(closed.ask_human).toContain("s1 は閉じていて、流れを終えた");
+    expect(closed.ask_human).toContain("s1 is closed, and the flow is finished");
     // 閉じた Iteration には割り当てないので、候補（t2）があっても点検から
     const fresh = await flow(ctx, {});
     expect(fresh.stage.name).toBe("check");
@@ -445,7 +449,7 @@ describe("dg flow next", () => {
     const withoutAssign = { ...ctx, config: ctx.store.config };
     expect(await flow(withoutAssign, { auto: true })).toMatchObject({
       stage: { name: "assign" },
-      approval: { required: true, what: "入れる行", auto_ok: false },
+      approval: { required: true, what: "Rows to add", auto_ok: false },
     });
     // flow.skip に入れた段階は返さず、次の規則へ進む
     await runCommand(configSet, ctx, { key: "flow.skip", value: "assign" });

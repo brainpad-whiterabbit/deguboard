@@ -223,7 +223,7 @@ describe("dg guide", () => {
       "the parent writes them in the report",
       // 親が手直しに渡す軽い指摘は run handoff で dg に伝え、直したかによらず本文に載らない（t639）
       "`dg --json --actor agent run handoff <id> --findings-file <file>`",
-      'they are left out of the "Unfixed light findings" section (## 直さなかった軽い指摘) of the PR body whether they were fixed or not',
+      'they are left out of the "Unfixed light findings" section (## Unfixed light findings) of the PR body whether they were fixed or not',
       "Findings passed to the fix (`run handoff`) are left out whether they were fixed or not",
     ])
       expect(fix, word).toContain(word);

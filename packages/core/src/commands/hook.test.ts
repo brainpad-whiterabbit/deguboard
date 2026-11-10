@@ -220,7 +220,7 @@ describe("dg hook（AG-9・RN-7）", () => {
       "PostToolUse",
       launched(parent, "a1", "deguboard: ticket=t1 step=review\n\n見直す"),
     );
-    expect(view.done).toEqual([expect.stringContaining("t1 の review の Run")]);
+    expect(view.done).toEqual([expect.stringContaining("Opened the review Run")]);
     const [run] = await peekRunningRuns(ctx.repo);
     expect(run).toMatchObject({
       ticket: "t1",
@@ -266,8 +266,8 @@ describe("dg hook（AG-9・RN-7）", () => {
     );
     expect(warnings).not.toContainEqual(expect.stringContaining("Could not open the review Run"));
     expect(view.done).toEqual([
-      `t1 の review の Run ${stale.id} を interrupted で閉じた`,
-      expect.stringMatching(/^t1 の review の Run r\S+ を開いた$/),
+      `Closed the review Run ${stale.id} for t1 with interrupted`,
+      expect.stringMatching(/^Opened the review Run r\S+ for t1$/),
     ]);
     const [fresh] = await peekRunningRuns(ctx.repo);
     expect(fresh).toMatchObject({ ticket: "t1", step: "review", session: SESSION });
@@ -328,7 +328,7 @@ describe("dg hook（AG-9・RN-7）", () => {
       },
     });
     const { view } = await call(ctx, "PostToolUse", completed("a1", prompt));
-    expect(view.done).toContainEqual(expect.stringContaining("保留に移した"));
+    expect(view.done).toContainEqual(expect.stringContaining("kept pending"));
     const runs = (await runCommand(runList, ctx, { ticket: "t1" })).data as RunView[];
     expect(runs.find((r) => r.id === stale.id)).toMatchObject({
       result: "interrupted",
@@ -394,7 +394,7 @@ describe("dg hook（AG-9・RN-7）", () => {
         content: [{ type: "text", text: "指摘はない" }],
       },
     });
-    expect(view.done).toContainEqual(expect.stringContaining("保留に移した"));
+    expect(view.done).toContainEqual(expect.stringContaining("kept pending"));
     const runs = (await runCommand(runList, ctx, { ticket: "t1" })).data as RunView[];
     expect(runs.find((r) => r.id === stale.id)).toMatchObject({
       result: "interrupted",
@@ -439,7 +439,7 @@ describe("dg hook（AG-9・RN-7）", () => {
     // 同じセッションの sync なら閉じる
     ctx.env = { ...ctx.env, DEGUBOARD_SESSION: "s-old" };
     const synced = await runCommand(sync, ctx, {});
-    expect(synced.warnings).toContainEqual(expect.stringContaining("success で閉じた"));
+    expect(synced.warnings).toContainEqual(expect.stringContaining("with success"));
     expect(await peekRunningRuns(ctx.repo)).toEqual([]);
   });
 
@@ -491,8 +491,8 @@ describe("dg hook（AG-9・RN-7）", () => {
       },
     });
     expect(view.done).toEqual([
-      expect.stringContaining("を開いた"),
-      expect.stringContaining("success で閉じた"),
+      expect.stringContaining("Opened the"),
+      expect.stringContaining("with success"),
     ]);
     const [run] = (await runCommand(runList, ctx, {})).data as RunView[];
     expect(run).toMatchObject({ result: "success", running: false, usage: { input: 6 } });
@@ -512,7 +512,7 @@ describe("dg hook（AG-9・RN-7）", () => {
       agent_transcript_path: subagent("a1"),
       last_assistant_message: "指摘はない",
     });
-    expect(view.done).toEqual([expect.stringContaining("success で閉じた")]);
+    expect(view.done).toEqual([expect.stringContaining("with success")]);
     const [run] = (await runCommand(runList, ctx, { ticket: "t1" })).data as RunView[];
     // 開始の前の応答も、サブエージェントの記録の先頭から数える
     expect(run).toMatchObject({
@@ -598,8 +598,8 @@ describe("dg hook（AG-9・RN-7）", () => {
     });
     // 見直しの結果がないまま返ったので、記録の場所の結び付けのあとに止まって待っている印を付ける
     expect(view.done).toEqual([
-      expect.stringContaining(`Run ${run.id} の記録の場所`),
-      expect.stringContaining(`Run ${run.id} は止まって待っている`),
+      expect.stringContaining(`Set the transcript of Run ${run.id}`),
+      expect.stringContaining(`Run ${run.id} for t1 has stopped and is waiting`),
     ]);
     expect((await readTranscriptPaths(ctx.repo)).get(run.id)).toBe(subagent("a9"));
   });
@@ -752,7 +752,7 @@ describe("dg hook の見直しで直した場面（RN-7）", () => {
         content: [{ type: "text", text: "ok" }],
       },
     });
-    expect(view.done).toEqual([expect.stringContaining("開かない")]);
+    expect(view.done).toEqual([expect.stringContaining("Does not open")]);
     const runs = (await runCommand(runList, ctx, { ticket: "t1" })).data as RunView[];
     expect(runs.map((r) => r.id)).toEqual([own.id]);
   });
@@ -814,8 +814,8 @@ describe("dg hook の移行の経路と兄弟の Run（RN-7）", () => {
     );
     const { view } = await stopA(ctx, subagent("a1"));
     expect(view.done).toEqual([
-      expect.stringContaining(`Run ${mine.id} の記録の場所`),
-      expect.stringContaining(`Run ${mine.id} は止まって待っている`),
+      expect.stringContaining(`Set the transcript of Run ${mine.id}`),
+      expect.stringContaining(`Run ${mine.id} for t1 has stopped and is waiting`),
     ]);
     const paths = await readTranscriptPaths(ctx.repo);
     expect(paths.get(mine.id)).toBe(subagent("a1"));
@@ -865,8 +865,8 @@ describe("dg hook の移行の経路と兄弟の Run（RN-7）", () => {
     );
     const { view } = await stopA(ctx, subagent("a1"));
     expect(view.done).toEqual([
-      expect.stringContaining(`Run ${mine.id} の記録の場所`),
-      expect.stringContaining(`Run ${mine.id} は止まって待っている`),
+      expect.stringContaining(`Set the transcript of Run ${mine.id}`),
+      expect.stringContaining(`Run ${mine.id} for t1 has stopped and is waiting`),
     ]);
   });
 
@@ -880,8 +880,8 @@ describe("dg hook の移行の経路と兄弟の Run（RN-7）", () => {
     );
     const { view } = await stopA(ctx, subagent("a1"));
     expect(view.done).toEqual([
-      expect.stringContaining(`Run ${mine.id} の記録の場所`),
-      expect.stringContaining("止まって待っている"),
+      expect.stringContaining(`Set the transcript of Run ${mine.id}`),
+      expect.stringContaining("has stopped and is waiting"),
     ]);
     const [open] = await peekRunningRuns(ctx.repo);
     expect(open).toMatchObject({ id: mine.id, step: "fix" });
@@ -992,7 +992,7 @@ describe("サブエージェントの止まりと再開（RN-7）", () => {
       agent_id: "a1",
       agent_type: "general-purpose",
     });
-    expect(started.view.done).toEqual([expect.stringContaining("続きとして使う")]);
+    expect(started.view.done).toEqual([expect.stringContaining("as the continuation")]);
     const resumed = await peekRunningRuns(ctx.repo);
     // 新しい Run を開かず、印だけを消す
     expect(resumed.map((r) => [r.id, r.waiting_since])).toEqual([[waiting!.id, null]]);
@@ -1000,7 +1000,7 @@ describe("サブエージェントの止まりと再開（RN-7）", () => {
     await appendResponses(subagent("a1"), 3, ["m3", "m4"]);
     await runCommand(runReviewResult, ctx, { ticket: "t1", heavy: 0, light: 0, passed: true });
     const { view } = await stop(ctx, subagent("a1"));
-    expect(view.done).toEqual([expect.stringContaining("success で閉じた")]);
+    expect(view.done).toEqual([expect.stringContaining("with success")]);
     const [run] = (await runCommand(runList, ctx, { ticket: "t1" })).data as RunView[];
     // 最初の Stop までの 2 つ（1 ずつ）と再開後の 2 つ（3 ずつ）
     expect(run).toMatchObject({ id: waiting!.id, result: "success", usage: { input: 8 } });
@@ -1020,7 +1020,7 @@ describe("サブエージェントの止まりと再開（RN-7）", () => {
 
     await appendResponses(subagent("a1"), 5, ["m3"]);
     const synced = await runCommand(sync, ctx, {});
-    expect(synced.warnings).toContainEqual(expect.stringContaining("success で閉じた"));
+    expect(synced.warnings).toContainEqual(expect.stringContaining("with success"));
     const [run] = (await runCommand(runList, ctx, { ticket: "t1" })).data as RunView[];
     expect(run).toMatchObject({ result: "success", running: false, usage: { input: 7 } });
   });
@@ -1034,7 +1034,7 @@ describe("サブエージェントの止まりと再開（RN-7）", () => {
     const late = setTimeout(() => void appendResponses(subagent("a1"), 5, ["m3"]), 100);
     const { view } = await stop(ctx, subagent("a1"));
     clearTimeout(late);
-    expect(view.done).toEqual([expect.stringContaining("success で閉じた")]);
+    expect(view.done).toEqual([expect.stringContaining("with success")]);
     const [run] = (await runCommand(runList, ctx, { ticket: "t1" })).data as RunView[];
     expect(run).toMatchObject({ usage: { input: 7 } });
   });
@@ -1060,8 +1060,8 @@ describe("サブエージェントの止まりと再開（RN-7）", () => {
         totalDurationMs: 90_000,
       },
     });
-    expect(view.done).toContainEqual(expect.stringContaining("保留の見直しの結果"));
-    expect(view.done).toContainEqual(expect.stringContaining("success で閉じた"));
+    expect(view.done).toContainEqual(expect.stringContaining("pending review result"));
+    expect(view.done).toContainEqual(expect.stringContaining("with success"));
     const [run] = (await runCommand(runList, ctx, { ticket: "t1" })).data as RunView[];
     expect(run).toMatchObject({ result: "success", review: { heavy: 0, light: 1, passed: true } });
   });
@@ -1101,7 +1101,7 @@ describe("サブエージェントの止まりと再開（RN-7）", () => {
     hookTiming.onGiveUp = () => appendResponses(subagent("a1"), 5, ["m3"]);
     const { view, warnings } = await stop(ctx, subagent("a1"));
     expect(warnings).toContainEqual(expect.stringContaining("so it is not closed yet"));
-    expect(view.done.some((d) => d.includes("で閉じた"))).toBe(false);
+    expect(view.done.some((d) => d.includes("Closed the"))).toBe(false);
     expect((await peekRunningRuns(ctx.repo))[0]!.settling_since).not.toBeNull();
   });
 });
@@ -1149,7 +1149,7 @@ describe("バックグラウンドで起動した見直し役（t638）", () => 
     expect(recorded.data).not.toHaveProperty("pending");
 
     const { view } = await stop(ctx, subagent("a1"));
-    expect(view.done).toEqual([expect.stringContaining("success で閉じた")]);
+    expect(view.done).toEqual([expect.stringContaining("with success")]);
     const [run] = (await runCommand(runList, ctx, { ticket: "t1" })).data as RunView[];
     expect(run).toMatchObject({
       id: opened!.id,
@@ -1219,7 +1219,7 @@ describe("バックグラウンドで起動した見直し役（t638）", () => 
 
     await subagentRecord(subagent("a1"), prompt, 1);
     const { view } = await stop(ctx, subagent("a1"));
-    expect(view.done).not.toContainEqual(expect.stringContaining("保留の見直しの結果"));
+    expect(view.done).not.toContainEqual(expect.stringContaining("pending review result"));
     expect(await prLines(ctx)).toEqual([expect.stringContaining("名前が長い")]);
     const reviews = ((await runCommand(runList, ctx, { ticket: "t1" })).data as RunView[]).filter(
       (r) => r.step === "review",
@@ -1236,7 +1236,7 @@ describe("バックグラウンドで起動した見直し役（t638）", () => 
 
     await subagentRecord(subagent("a1"), prompt, 1);
     const { view } = await stop(ctx, subagent("a1"));
-    expect(view.done).toEqual([expect.stringContaining("success で閉じた")]);
+    expect(view.done).toEqual([expect.stringContaining("with success")]);
     const rounds = (await readReviewFindings(ctx.repo, "t1"))!.rounds;
     expect(rounds.map((r) => r.run)).toEqual([opened!.id]);
     expect(await prLines(ctx)).toEqual([expect.stringContaining("名前が長い")]);
@@ -1252,7 +1252,7 @@ describe("バックグラウンドで起動した見直し役（t638）", () => 
 
     await subagentRecord(subagent("a1"), prompt, 1);
     const { view } = await stop(ctx, subagent("a1"));
-    expect(view.done).toContainEqual(expect.stringContaining("保留の見直しの結果"));
+    expect(view.done).toContainEqual(expect.stringContaining("pending review result"));
     const rounds = (await readReviewFindings(ctx.repo, "t1"))!.rounds;
     expect(rounds.map((r) => [r.run, r.findings?.[0]?.reason])).toEqual([
       [opened!.id, "新しい保留"],
@@ -1549,7 +1549,7 @@ describe("PreToolUse（AG-10・t532）", () => {
       hookSpecificOutput: { permissionDecision: string; permissionDecisionReason: string };
     };
     expect(out.hookSpecificOutput.permissionDecision).toBe("deny");
-    expect(out.hookSpecificOutput.permissionDecisionReason).toContain("dg のコマンド");
+    expect(out.hookSpecificOutput.permissionDecisionReason).toContain("with dg commands");
     const allowed = await pre(ctx, { file_path: "src/a.ts" }, "Edit");
     expect((allowed.data as HookView).output).toBeUndefined();
   });
@@ -1565,7 +1565,7 @@ describe("PreToolUse（AG-10・t532）", () => {
         }
       ).hookSpecificOutput.permissionDecisionReason;
       expect(reason, command).toContain("dg pr merge <ticket>");
-      expect(reason, command).toContain("人に gh pr ready・gh pr merge を打ってもらう");
+      expect(reason, command).toContain("ask a person to run gh pr ready or gh pr merge");
     }
     // 取り消し（--undo）と、ほかの gh のコマンドと dg pr は通す
     for (const command of [
@@ -1603,8 +1603,8 @@ describe("PreToolUse（AG-10・t532）", () => {
     expect(() => light.store).toThrow("storeless");
     expect(() => light.config).toThrow("storeless");
     for (const [i, reason] of [
-      [writeInput, "dg のコマンド"],
-      [input("Bash", { command: "rm .git/deguboard/tickets/t1.md" }), "dg のコマンド"],
+      [writeInput, "with dg commands"],
+      [input("Bash", { command: "rm .git/deguboard/tickets/t1.md" }), "with dg commands"],
       [input("Bash", { command: "gh pr merge 5 --squash" }), "dg pr merge <ticket>"],
     ] as const) {
       const r = await runCommand(hook, await openContextFor(hook, i, opts), i);
@@ -1823,7 +1823,7 @@ describe("手直しの Run の印と run retry-reason（RN-7・RN-8）", () => {
         totalDurationMs: 90_000,
       },
     });
-    expect(view.done).toContainEqual(expect.stringContaining("保留のやり直しの理由"));
+    expect(view.done).toContainEqual(expect.stringContaining("pending retry reasons"));
     const runs = await fixRuns(ctx, "t1");
     expect(runs).toHaveLength(1);
     expect(runs[0]).toMatchObject({ retries: 1, retry_reasons: ["型の誤り"] });

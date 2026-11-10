@@ -108,7 +108,7 @@ async function dropClosed(ctx: CommandContext, closed: readonly ClosedRun[]): Pr
 
 /** 書き込みのコミットメッセージに、付随して閉じた Run を足す（照合のメッセージと同じ形） */
 const withClosedRun = (message: string, closed: readonly ClosedRun[]) =>
-  [message, ...describeClosedRuns(closed)].join("。");
+  [message, ...describeClosedRuns(closed)].join(". ");
 
 /** 主体の参照。`human` / `agent` は自分（のユーザ）に解く（model/actor.ts） */
 const actorRef = z.string().min(1);
@@ -292,7 +292,7 @@ export const ticketCreate = defineCommand({
         return ctx.store.create("ticket", { id, ...data }, body);
       },
       {
-        message: (doc) => `${doc.id} を起票: ${doc.data.title}`,
+        message: (doc) => `File ${doc.id}: ${doc.data.title}`,
         immediate: true,
         cas: true,
         markProvisional: provisionalMarker(ctx),
@@ -400,8 +400,7 @@ export const ticketImport = defineCommand({
         return docs;
       },
       {
-        message: (docs) =>
-          `${docs.length} 件のチケットを取り込み: ${docs.map((d) => d.id).join(", ")}`,
+        message: (docs) => `Import ${docs.length} tickets: ${docs.map((d) => d.id).join(", ")}`,
         immediate: true,
         cas: true,
         markProvisional: provisionalMarker(ctx),
@@ -657,7 +656,7 @@ export const ticketUpdate = defineCommand({
         return { doc: await store.update("ticket", t.id, patch, body), closed };
       },
       {
-        message: ({ doc, closed }) => withClosedRun(`${doc.id} を更新: ${doc.data.title}`, closed),
+        message: ({ doc, closed }) => withClosedRun(`Update ${doc.id}: ${doc.data.title}`, closed),
       },
     );
     await dropClosed(ctx, result.value.closed);
@@ -861,7 +860,7 @@ export const ticketMove = defineCommand({
       },
       {
         message: ({ doc, from, closed }) =>
-          withClosedRun(`${doc.id} を ${from} から ${doc.data.status} へ`, closed),
+          withClosedRun(`Move ${doc.id} from ${from} to ${doc.data.status}`, closed),
       },
     );
     await dropClosed(ctx, result.value.closed);
@@ -890,7 +889,7 @@ export const ticketDelete = defineCommand({
         await store.deleteTicket(doc.data.id);
         return doc;
       },
-      { message: (doc) => `${doc.id} を削除: ${doc.data.title}` },
+      { message: (doc) => `Delete ${doc.id}: ${doc.data.title}` },
     );
     return ok({ id: result.value.id, title: result.value.data.title }, result.write, warnings);
   },
@@ -1180,7 +1179,7 @@ export const ticketClaim = defineCommand({
         });
       },
       {
-        message: (doc) => `${doc.id} を claim: ${doc.data.assignee}`,
+        message: (doc) => `Claim ${doc.id}: ${doc.data.assignee}`,
         immediate: true,
         cas: true,
       },
@@ -1279,7 +1278,7 @@ export const ticketUnclaim = defineCommand({
         });
         return { doc: updated, closed };
       },
-      { message: ({ doc, closed }) => withClosedRun(`${doc.id} の claim を外す`, closed) },
+      { message: ({ doc, closed }) => withClosedRun(`Unclaim ${doc.id}`, closed) },
     );
     await dropClosed(ctx, result.value.closed);
     return ok(withBody(result.value.doc), result.write, warnings);

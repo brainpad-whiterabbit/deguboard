@@ -55,7 +55,7 @@ export const epicCreate = defineCommand({
           input.body ?? epicBodyTemplate(input.summary),
         );
       },
-      { message: (doc) => `${doc.id} を作成: ${doc.data.title}`, immediate: true, cas: true },
+      { message: (doc) => `Create ${doc.id}: ${doc.data.title}`, immediate: true, cas: true },
     );
     return ok(withBody(result.value), result.write);
   },
@@ -137,7 +137,7 @@ export const epicUpdate = defineCommand({
         if (input.labels !== undefined) patch["labels"] = input.labels;
         return ctx.store.update("epic", doc.id, patch, input.body);
       },
-      { message: (doc) => `${doc.id} を更新: ${doc.data.title}` },
+      { message: (doc) => `Update ${doc.id}: ${doc.data.title}` },
     );
     return ok(withBody(result.value), result.write);
   },
@@ -177,7 +177,7 @@ export const epicAdd = defineCommand({
         }
         return { epic: epic.id, tickets: ids };
       },
-      { message: (r) => `${r.epic} に ${r.tickets.join(", ")} を入れる` },
+      { message: (r) => `Add ${r.tickets.join(", ")} to ${r.epic}` },
     );
     return ok(result.value, result.write);
   },
@@ -206,7 +206,7 @@ export const epicRemove = defineCommand({
         }
         return { epic: epic.id, tickets: ids };
       },
-      { message: (r) => `${r.epic} から ${r.tickets.join(", ")} を外す` },
+      { message: (r) => `Remove ${r.tickets.join(", ")} from ${r.epic}` },
     );
     return ok(result.value, result.write);
   },
@@ -249,7 +249,7 @@ export const epicClose = defineCommand({
           closed_at: now,
         });
       },
-      { message: (doc) => `${doc.id} を閉じる: ${doc.data.title}` },
+      { message: (doc) => `Close ${doc.id}: ${doc.data.title}` },
     );
     return ok(withBody(result.value), result.write, warnings);
   },
@@ -276,7 +276,7 @@ export const epicReopen = defineCommand({
           closed_at: undefined,
         });
       },
-      { message: (doc) => `${doc.id} を再開: ${doc.data.title}` },
+      { message: (doc) => `Reopen ${doc.id}: ${doc.data.title}` },
     );
     return ok(withBody(result.value), result.write);
   },

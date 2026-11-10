@@ -73,7 +73,7 @@ export const iterationCreate = defineCommand({
           status: "planned",
         });
       },
-      { message: (doc) => `${doc.id} を作成: ${doc.data.name}`, immediate: true, cas: true },
+      { message: (doc) => `Create ${doc.id}: ${doc.data.name}`, immediate: true, cas: true },
     );
     return ok(result.value.data, result.write);
   },
@@ -258,7 +258,7 @@ export const iterationUpdate = defineCommand({
         if (input.end !== undefined) patch["end"] = input.end;
         return ctx.store.update("iteration", it.id, patch);
       },
-      { message: (doc) => `${doc.id} を更新: ${doc.data.name}` },
+      { message: (doc) => `Update ${doc.id}: ${doc.data.name}` },
     );
     return ok(result.value.data, result.write);
   },
@@ -293,7 +293,7 @@ export const iterationAdd = defineCommand({
         }
         return { iteration: it.id, tickets: ids };
       },
-      { message: (r) => `${r.iteration} に ${r.tickets.join(", ")} を入れる` },
+      { message: (r) => `Add ${r.tickets.join(", ")} to ${r.iteration}` },
     );
     return ok(result.value, result.write);
   },
@@ -322,7 +322,7 @@ export const iterationRemove = defineCommand({
         }
         return { iteration: it.id, tickets: ids };
       },
-      { message: (r) => `${r.iteration} から ${r.tickets.join(", ")} を外す` },
+      { message: (r) => `Remove ${r.tickets.join(", ")} from ${r.iteration}` },
     );
     return ok(result.value, result.write);
   },
@@ -355,7 +355,7 @@ export const iterationStart = defineCommand({
         });
       },
       // active を 1 つに保つ排他なので、claim と同じく即座に push し、拒否されたら検査からやり直す
-      { message: (doc) => `${doc.id} を開始: ${doc.data.name}`, immediate: true, cas: true },
+      { message: (doc) => `Start ${doc.id}: ${doc.data.name}`, immediate: true, cas: true },
     );
     return ok(result.value.data, result.write);
   },
@@ -394,7 +394,7 @@ export const iterationClose = defineCommand({
           carried_over: carried.length,
         });
       },
-      { message: (doc) => `${doc.id} を閉じる: ${doc.data.name}` },
+      { message: (doc) => `Close ${doc.id}: ${doc.data.name}` },
     );
     return ok(result.value.data, result.write);
   },
@@ -431,7 +431,7 @@ export const iterationReopen = defineCommand({
           carried_over: undefined,
         });
       },
-      { message: (doc) => `${doc.id} を再開: ${doc.data.name}`, immediate: true, cas: true },
+      { message: (doc) => `Reopen ${doc.id}: ${doc.data.name}`, immediate: true, cas: true },
     );
     return ok(result.value.data, result.write, warnings);
   },

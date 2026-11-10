@@ -50,8 +50,8 @@ describe("見直しの回から最新の回と直さなかった軽い指摘を�
       round("2026-11-09T04:00:00Z", null),
     ];
     expect(unfixedLightLines(rounds, "2026-11-09T01:30:00Z", ["規約の違反"])).toEqual([
-      "[軽い] src/b.ts (参考節との食い違い)：広がり",
-      "[軽い] 言い回し：2 回目だけ",
+      "[light] src/b.ts (参考節との食い違い): 広がり",
+      "[light] 言い回し: 2 回目だけ",
     ]);
   });
 });
@@ -95,10 +95,9 @@ describe("見直しの指摘から手直しに渡すものを選ぶ（t600）", 
           reason: "x\ny",
           fix: "z",
         }),
-        "ja",
       ),
-    ).toBe("[重い] a.ts:3 (不具合)：x y。直し方：z");
-    expect(findingText(finding({ category: "好み", reason: "r" }), "en")).toBe("[light] 好み: r");
+    ).toBe("[heavy] a.ts:3 (不具合): x y Fix: z");
+    expect(findingText(finding({ category: "好み", reason: "r" }))).toBe("[light] 好み: r");
   });
 });
 
@@ -112,7 +111,7 @@ describe("親が手直しに渡した指摘（t639）", () => {
       { at: "2026-11-09T04:00:00Z", findings: [handed], handed: undefined },
     ];
     expect(unfixedLightLines(rounds, "2026-11-09T01:00:00Z", ["規約の違反"])).toEqual([
-      "[軽い] 言い回し：渡さなかった",
+      "[light] 言い回し: 渡さなかった",
     ]);
   });
 
@@ -137,14 +136,14 @@ describe("親が手直しに渡した指摘（t639）", () => {
 describe("PR の本文に書き足す節（t600）", () => {
   it("もとの本文を残して節を書き足し、もう一度書くと節を入れ替える（二重にしない）", () => {
     const body = "## 概要\n\n元の本文\n";
-    const once = withUnfixedLight(body, ["[軽い] a.ts：一"]);
+    const once = withUnfixedLight(body, ["[light] a.ts: 一"]);
     expect(once.startsWith("## 概要\n\n元の本文\n\n")).toBe(true);
     expect(once).toContain(
-      `${UNFIXED_LIGHT_BEGIN}\n## 直さなかった軽い指摘\n\n- [軽い] a.ts：一\n${UNFIXED_LIGHT_END}`,
+      `${UNFIXED_LIGHT_BEGIN}\n## Unfixed light findings\n\n- [light] a.ts: 一\n${UNFIXED_LIGHT_END}`,
     );
-    const twice = withUnfixedLight(once, ["[軽い] b.ts：二"]);
+    const twice = withUnfixedLight(once, ["[light] b.ts: 二"]);
     expect(twice.split(UNFIXED_LIGHT_BEGIN)).toHaveLength(2);
-    expect(twice).toContain("- [軽い] b.ts：二");
+    expect(twice).toContain("- [light] b.ts: 二");
     expect(twice).not.toContain("a.ts");
     expect(twice.startsWith("## 概要\n\n元の本文\n\n")).toBe(true);
   });
@@ -152,7 +151,7 @@ describe("PR の本文に書き足す節（t600）", () => {
   it("指摘がなければ本文を変えず、前の回の節だけを外す", () => {
     const body = "## 概要\n\n元の本文\n";
     expect(withUnfixedLight(body, [])).toBe(body);
-    const noted = withUnfixedLight(body, ["[軽い] a.ts：一"]);
+    const noted = withUnfixedLight(body, ["[light] a.ts: 一"]);
     expect(withUnfixedLight(noted, [])).toBe("## 概要\n\n元の本文\n");
   });
 });

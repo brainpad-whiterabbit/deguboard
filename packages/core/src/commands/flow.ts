@@ -112,12 +112,13 @@ export function flowStageOf(
     return at(
       "assign",
       1,
-      `Iteration に入っていない todo が ${facts.candidates.length} 件ある`,
+      `${facts.candidates.length} todo tickets are not in an Iteration`,
       facts.candidates,
     );
-  if (!skipped("check") && !memory.checked) return at("check", 2, "この実行でまだ点検していない");
+  if (!skipped("check") && !memory.checked) return at("check", 2, "Not checked yet in this run");
   const pending = skipped("plan") ? undefined : facts.pendingPlans[0];
-  if (pending) return at("plan", 3, `Plan ${pending.id} が承認待ち`, pending.tickets, pending.id);
+  if (pending)
+    return at("plan", 3, `Plan ${pending.id} is awaiting approval`, pending.tickets, pending.id);
   const working = skipped("work")
     ? undefined
     : facts.approvedPlans.find((p) => p.unfinished.length > 0);
@@ -125,7 +126,7 @@ export function flowStageOf(
     return at(
       "work",
       4,
-      `承認済みの Plan ${working.id} に終わっていないチケットが ${working.unfinished.length} 件ある`,
+      `The approved Plan ${working.id} has ${working.unfinished.length} unfinished tickets`,
       working.unfinished,
       working.id,
     );
@@ -133,34 +134,39 @@ export function flowStageOf(
     return at(
       "plan",
       5,
-      `開いた Plan に入っていない todo が ${facts.unplanned.length} 件ある`,
+      `${facts.unplanned.length} todo tickets are not in an open Plan`,
       facts.unplanned,
     );
   // 閉じた Iteration は流れを終えている。見直しとリリースを返すと、閉じた後の呼び出しでリリースを繰り返す
   const open = facts.targets.filter((t) => !isTerminal(t.status)).map((t) => t.id);
   if (s !== null && facts.iterationClosed)
-    return at("stop", 8, `${s} は閉じていて、流れを終えた`, open);
+    return at("stop", 8, `${s} is closed, and the flow is finished`, open);
   if (s !== null && allFinished(facts.releaseScope)) {
     if (!audited && !skipped("audit"))
-      return at("audit", 6, `${s} のチケットがすべて done か abandoned で、まだ見直していない`);
+      return at("audit", 6, `Every ticket in ${s} is done or abandoned, and it is not audited yet`);
     if (skipped("release"))
-      return at("stop", 8, `${s} のチケットがすべて終わったが、リリースは流れから外している`, open);
+      return at(
+        "stop",
+        8,
+        `Every ticket in ${s} is finished, and release is skipped in the flow`,
+        open,
+      );
     return at(
       "release",
       7,
       audited
-        ? `${s} のチケットがすべて done か abandoned で、見直し済み`
-        : `${s} のチケットがすべて done か abandoned で、見直しは流れから外している`,
+        ? `Every ticket in ${s} is done or abandoned, and it is audited`
+        : `Every ticket in ${s} is done or abandoned, and the audit is skipped in the flow`,
     );
   }
   return at(
     "stop",
     8,
     s === null && allFinished(facts.targets)
-      ? "対象のチケットはすべて終わったが、Iteration が 1 つに決まらないので見直しとリリースはしない"
+      ? "Every target ticket is finished, but no single Iteration is determined, so there is no audit or release"
       : open.length > 0
-        ? `進められる手がない（${open.join("・")} は PR のない in_progress か、マージ待ちの review など）`
-        : "対象にチケットがない",
+        ? `No step can move forward (${open.join(", ")} are in_progress without a PR, review waiting for merge, or similar)`
+        : "There are no target tickets",
     open,
   );
 }
@@ -298,31 +304,31 @@ export function approvalOf(
     chosen(decision) ? { required: false, what: null, auto, auto_ok: true } : ask(what);
   switch (stage) {
     case "assign":
-      return choose("assign", "入れる行", "入れる行");
+      return choose("assign", "Rows to add", "Rows to add");
     case "check":
       return chosen("check")
         ? {
             required: true,
-            what: "削除・abandoned・閉じる",
-            auto: "直し方が 1 つに決まる直す行",
+            what: "Deletions, abandoned, and closing",
+            auto: "Fix rows that have exactly one way to fix",
             auto_ok: true,
           }
-        : ask("直す行、削除・abandoned・閉じる");
+        : ask("Rows to fix, and deletions, abandoned, and closing");
     case "plan":
-      return choose("plan", "Plan", "Plan の承認（plan approve）");
+      return choose("plan", "Plan", "Approving the Plan (plan approve)");
     case "work":
       return opts.auto && opts.autoMerge
         ? {
             required: false,
             what: null,
-            auto: "品質ゲート（dg gate --for merge）を満たす PR のマージ（dg pr merge）",
+            auto: "Merging PRs that meet the quality gate (dg gate --for merge) with dg pr merge",
             auto_ok: true,
           }
-        : ask("PR ごとのマージ（dg guide done）");
+        : ask("Merging each PR (dg guide done)");
     case "audit":
-      return choose("audit", "指摘の表", "指摘の表（「直さない」以外を反映する）");
+      return choose("audit", "Findings table", 'Findings table (apply all except "won\'t fix")');
     case "release":
-      return ask("リリースの PR のマージ・公開・閉じる");
+      return ask("Merging the release PR, publishing, and closing");
     case "stop":
       return { required: false, what: null, auto: null, auto_ok: false };
   }
@@ -332,7 +338,7 @@ export function approvalOf(
 function commandsOf(stage: FlowStage, s: string | null, autoOk: boolean): string[] {
   switch (stage.name) {
     case "assign":
-      return [dg(`iteration add ${s ?? "<S>"} <入れるチケット…>`)];
+      return [dg(`iteration add ${s ?? "<S>"} <tickets to add…>`)];
     case "check":
       return [dg("sync"), dg("validate"), dg("lint")];
     case "plan":
@@ -567,7 +573,7 @@ export const flowNext = defineCommand({
       ? {
           name: "stop",
           rule: null,
-          reason: `段階 ${repeated} が続き、事実が変わらない（${found.reason}）`,
+          reason: `The stage ${repeated} repeats with no change in the facts (${found.reason})`,
           plan: found.plan,
           tickets: found.tickets,
         }
@@ -599,7 +605,7 @@ export const flowNext = defineCommand({
       commands: commandsOf(stage, facts.iteration, approval.auto_ok),
       ask_human:
         stage.name === "stop"
-          ? `${stage.reason}。状態を示して止まる。同じ対象で起動し直せば状態から求め直す`
+          ? `${stage.reason}. Show the state and stop. Starting again with the same target works it out again from the state`
           : null,
       memory,
       // 止まったときも求めた段階を覚える。同じ事実で呼び直しても、続いた段階として止まり続ける
