@@ -1,0 +1,43 @@
+id: p97
+project: default
+tickets: [t673, t676, t678, t679, t677, t674, t672]
+after:
+  t679:
+    - t678
+  t677:
+    - t676
+    - t679
+  t674:
+    - t677
+  t672:
+    - t674
+pending_approval: true
+details:
+  t673:
+    scope: t676・t677 に分かれたことと ADR・requirements の案の承認を確かめ、PR なしで done にする
+    approach: claim --without-branch で着手し、受け入れ条件を確かめて done にする（確かめられなければ review に置いて人に聞く）
+    tier: light
+  t676:
+    scope: Iteration に started_at を足し、start と claim の自動 active で書き、画面の期間を started_at〜closed_at で出す。start・end を外すのは t677
+    approach: core の model と iteration・claim-setup のコマンドで started_at を書き、web の iteration-parts・board・backlog・history は実績の日時だけを出す
+    tier: heavy
+  t678:
+    scope: 頼むことの鍵を edit から change に、表示名を「変える」/Change にする
+    approach: ask.ts の ACTIONS と型・テスト、cli の ask.test、web の l10n とスナップショットを揃える
+    tier: standard
+  t679:
+    scope: 対象なしの ask に、流れの順で Skill を持つ札をすべて出す（change の直後に discuss）
+    approach: baseActions の対象なしの並びと NO_TARGET の文・intent を足し、ask.test と ask-menu で確かめ、スクリーンショットを撮る
+    tier: standard
+  t677:
+    scope: Iteration の start・end と overdue・carry をなくし、今あるデータの start・end を消す。planned が複数なら claim は warnings で人に頼む
+    approach: model・コマンド・ヘルプ・ask.ts・web から start・end と carry を外し、データの移行を入れ、ADR-009 と requirements の IT-1 を書き換える
+    tier: heavy
+  t674:
+    scope: retro を History タブの Iteration の見出しからだけ頼めるようにし、閉じた Iteration の詳細と Epic からは外す
+    approach: ask-menu に場所で候補を変える仕組みを足し、history-rows・timeline から頼めるようにして、テストとスクリーンショットで示す
+    tier: standard
+  t672:
+    scope: status を /dgstatus の Skill で頼めるようにする（読み取りだけ）
+    approach: guide-status.md と topics を足し、ask.ts の status に skill と SKILL_SUMMARY を付け、skill install と overview・help・テストを直す
+    tier: standard
