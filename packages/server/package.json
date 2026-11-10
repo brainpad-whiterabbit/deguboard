@@ -1,6 +1,6 @@
 {
   "name": "@deguboard/server",
-  "version": "0.19.0",
+  "version": "0.20.0",
   "description": "deguboard の HTTP サーバー。core のコマンド定義を HTTP に写し、web を配信する",
   "homepage": "https://github.com/brainpad-whiterabbit/deguboard#readme",
   "bugs": "https://github.com/brainpad-whiterabbit/deguboard/issues",
