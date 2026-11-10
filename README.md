@@ -12,8 +12,8 @@ deguboard is an independent project. It is not made, endorsed, or supported by M
 
 - **Delegate with specs**: Hand over work as small tickets with acceptance criteria instead of open-ended prompts. Agents work from the ticket, and the result is checked against its criteria.
 - **Run in parallel along dependencies**: Plan the order from dependencies, and agents work on tickets that are not blocked at the same time, each on its own branch and worktree.
-- **Governance built in**: Plans wait for approval before work starts. A PR is marked ready or merged only when an independent review and the checks pass (the quality gate, `dg gate`). `actor.human_only` and workflow rules can reserve commands and transitions for people, and the Claude Code hooks refuse operations that bypass `dg`.
-- **Measure and improve**: Aggregate duration, tokens, rework, and results per ticket, step, and model with `dg metrics`, and use retrospectives to find bottlenecks and what to fix next.
+- **Governance built in**: Plans wait for approval before work starts. A PR is marked ready or merged only when an independent review and the checks pass (the quality gate, `dg gate`). `actor.human_only` and workflow rules can reserve commands and transitions for people, and the Claude Code hooks refuse to mark a PR ready or merge it outside `dg`, and to write to the data directly.
+- **Measure and improve**: Aggregate duration, tokens, retries, review findings, and results per ticket, step, and model with `dg metrics`, and use retrospectives to find bottlenecks and what to fix next.
 
 ## Installation
 
