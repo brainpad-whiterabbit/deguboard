@@ -361,7 +361,7 @@ Turns the requirements, research results, and review findings settled in the con
 ## Flow
 
 1. When the requirements are settled, **propose** turning them into tickets. Do not file on your own. Show the decomposition (title, summary, acceptance criteria, dependencies, Epic) in a table, and get approval with the choices "File after approval", "Revise", and "Cancel"
-2. For one ticket: \`dg --json --actor agent ticket create "<title>" --created-by human --summary "<summary>" --acceptance "<criterion>" --acceptance "<criterion>" [--epic e3] [--depends-on t9,t10] [--priority high] [--assignee agent]\`
+2. For one ticket: \`dg --json --actor agent ticket create "<title>" --created-by human --summary "<summary>" --acceptance "<criterion>" --acceptance "<criterion>" [--epic e3] [--depends-on t9,t10] [--priority high] [--gate high] [--assignee agent]\`
 3. For several: write a YAML draft to one file and run \`dg --json --actor agent ticket import <file>\`. IDs are assigned together in one commit
 4. Read the IDs from the result's \`data\` and report them to a human
 
@@ -380,6 +380,7 @@ Turns the requirements, research results, and review findings settled in the con
   epic: e3 # Existing Epic. Optional
   iteration: s3 # Existing Iteration. Optional
   priority: high # low / medium / high. Default is medium
+  gate: high # Quality gate level: high / low / free. Default is high. Lower it only on a human's instruction
   labels: [backend]
   created_by: human # Creator. If omitted, the acting actor (for you, <user>/agent)
   assignee: agent # Assignee. Optional
@@ -426,6 +427,7 @@ Choose \`priority\` by these criteria (they can be changed in \`priority\` of \`
 - Do not create a dependency cycle (it is refused at creation)
 - Do not add a ticket to a closed Epic (it is refused)
 - Do not change \`status\` without starting work. A filed ticket stays todo
+- Do not set \`gate\` to \`low\` or \`free\` without a human's instruction. The level decides which conditions the PR must meet (see the "Quality gate" section of \`dg guide review\`)
 - When the result has \`provisional: true\`, do not tell a human the ID as final (see \`dg guide overview\`)
 
 ## Asking with choices
@@ -510,7 +512,7 @@ By default, agents can run every operation. Limits are added in the settings.
 | work     | dgwork    | Advances one ticket (the Plan's order and scope, claim, worktree, checking acceptance criteria, PR, reconcile; also work that needs no PR)     | When starting work on a ticket                                     |
 | run      | None      | The Run for when the parent advances work itself (claim and PR recording), and cleaning up a stopped Run (a helper read from work and review)  | When recording a Run or cleaning up a stopped Run                  |
 | parallel | None      | Advances ready tickets of a Plan at the same time, with a subagent per ticket (limits, roles of parent and subagents, one ticket does not stop the others) | When several tickets are ready and subagents can be started |
-| review   | None      | Quality gate before opening a PR and before merging (checks, acceptance criteria, review, no conflicts), and review by a separate subagent with a fix loop that has a limit | After opening a PR as a draft / before merging automatically |
+| review   | None      | Quality gate before opening a PR and before merging. The conditions depend on the ticket's gate level: high (all, including review by a separate subagent with a fix loop that has a limit), low (all but review), free (only the PR is open and has no conflicts) | After opening a PR as a draft / before merging automatically |
 | audit    | dgaudit   | Before release, reviews the whole repository by perspective and files the findings after approval (subagents; does not edit files)            | When all tickets in an Iteration or Epic are done                  |
 | release  | dgrelease | Confirms all tickets in an Iteration are done, advances with the repository's release steps, and closes the Iteration                         | After review, when releasing                                       |
 | done     | dgdone    | Cleanup after merge, confirming the remaining acceptance criteria, and closing a Plan                                                          | After a PR is merged                                               |
