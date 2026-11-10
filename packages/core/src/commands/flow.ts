@@ -259,7 +259,6 @@ export const FLOW_GUIDE: Record<FlowStageName, FlowGuideRef> = {
       "Implement",
       "Receive the implementation result",
       "Following the Plan",
-      "Choosing the next step",
     ],
     also: { topic: "parallel", sections: ["Advancing in parallel"] },
   },
@@ -527,7 +526,7 @@ export interface FlowNext {
   repeated: FlowStageName | null;
   /**
    * この段階の手のやり方（guide の節）。sections は読む節（先頭が手順の節）、text はその本文を順につないだもの（config を埋めたもの）。
-   * 手順の節が同じトピックの中で指す節はすべて text に入る。also の節（work の並列の手順）も text に続く。command で同じ本文を読める（also のあるときは続けて読む）
+   * 手順の節が同じトピックの中で指す節はすべて text に入る。also の節（work の並列の手順）も text に続く。command で同じ本文を読める（also のあるときは command が 2 つの dg guide を && でつなぐので、両方を順に読む）
    */
   guide: { topic: string; sections: string[]; text: string; command: string };
   /** この段階で親が呼ぶ dg のコマンド（順に） */

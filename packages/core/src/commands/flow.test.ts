@@ -419,7 +419,11 @@ describe("dg flow next", () => {
     expect(work.memory).toEqual({ ...none, assigned: true, checked: true });
     // 作業の段階の guide.text には、並列の手順（dg guide parallel の節）が入り、command で読み直せる
     expect(work.guide.text).toContain("## Advancing in parallel");
-    expect(work.guide.command).toContain('dg guide parallel --section "Advancing in parallel"');
+    expect(work.guide.command).toContain('&& dg guide parallel --section "Advancing in parallel"');
+    // dgall の work の段は、work の選択肢で人に尋ねず、手順の終わりで flow next に戻る（guide-all の手順 4 と食い違わない）
+    expect(work.guide.text).not.toContain("## Choosing the next step");
+    expect(work.guide.text).not.toContain("Stop here");
+    expect(work.guide.text).toContain("return to `flow next`");
 
     await runCommand(ticketMove, ctx, { ticket: "t1", status: "done" });
     const audit = await flow(ctx, { resume: work.resume });
