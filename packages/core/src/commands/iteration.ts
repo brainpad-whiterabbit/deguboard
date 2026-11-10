@@ -44,13 +44,15 @@ export const iterationCreate = defineCommand({
   name: "iteration.create",
   positionals: ["name"],
   group: "iteration",
-  summary: "Iteration を作る",
+  summary: "Create an Iteration",
   input: z.object({
-    name: z.string().min(1).describe("名前"),
-    project: slugSchema.optional().describe("Project。省略時は config の default_project"),
-    goal: z.string().optional().describe("目標"),
-    start: isoDate.optional().describe("開始日（YYYY-MM-DD）"),
-    end: isoDate.optional().describe("終了日（YYYY-MM-DD）"),
+    name: z.string().min(1).describe("Name"),
+    project: slugSchema
+      .optional()
+      .describe("Project. Defaults to config's default_project when omitted"),
+    goal: z.string().optional().describe("Goal"),
+    start: isoDate.optional().describe("Start date (YYYY-MM-DD)"),
+    end: isoDate.optional().describe("End date (YYYY-MM-DD)"),
   }),
   write: true,
   needs: "store",
@@ -80,13 +82,13 @@ export const iterationCreate = defineCommand({
 export const iterationList = defineCommand({
   name: "iteration.list",
   group: "iteration",
-  summary: "Iteration を番号順に出す",
+  summary: "List Iterations in number order",
   input: z.object({
-    project: z.string().optional().describe("Project で絞る。省略時はすべて"),
+    project: z.string().optional().describe("Filter by Project. Omit for all"),
     status: z
       .array(z.enum(ITERATION_STATUSES))
       .optional()
-      .describe("Status で絞る。省略時はすべて"),
+      .describe("Filter by Status. Omit for all"),
   }),
   write: false,
   needs: "store",
@@ -210,7 +212,7 @@ export const iterationShow = defineCommand({
   positionals: ["iteration"],
   group: "iteration",
   summary:
-    "Iteration と進捗・次の操作（next）・中のチケットを含む Plan（plans）、入っているチケットを優先度と番号の順で出す。持ち越しのある閉じた Iteration は履歴を読むので重い",
+    "Show an Iteration with its progress, the next step (next), the Plans that include its tickets (plans), and the tickets in it in priority and number order. A closed Iteration with carried-over tickets reads the history, so it is slow",
   input: z.object({ iteration: iterationRef }),
   write: false,
   needs: "store",
@@ -234,13 +236,13 @@ export const iterationUpdate = defineCommand({
   name: "iteration.update",
   positionals: ["iteration"],
   group: "iteration",
-  summary: "Iteration の名前・目標・期間を直す。閉じた Iteration も直せる",
+  summary: "Edit an Iteration's name, goal, and period. A closed Iteration can also be edited",
   input: z.object({
     iteration: iterationRef,
-    name: z.string().min(1).optional().describe("名前"),
-    goal: z.string().optional().describe("目標。空文字で消す"),
-    start: isoDate.optional().describe("開始日（YYYY-MM-DD）"),
-    end: isoDate.optional().describe("終了日（YYYY-MM-DD）"),
+    name: z.string().min(1).optional().describe("Name"),
+    goal: z.string().optional().describe("Goal. An empty string clears it"),
+    start: isoDate.optional().describe("Start date (YYYY-MM-DD)"),
+    end: isoDate.optional().describe("End date (YYYY-MM-DD)"),
   }),
   write: true,
   needs: "store",
@@ -264,14 +266,14 @@ export const iterationUpdate = defineCommand({
 
 const membership = z.object({
   iteration: iterationRef,
-  tickets: z.array(ticketRef).min(1).describe("チケットの ID（t12 または 12）。複数指定できる"),
+  tickets: z.array(ticketRef).min(1).describe("Ticket ID (t12 or 12). Can be given more than once"),
 });
 
 export const iterationAdd = defineCommand({
   name: "iteration.add",
   positionals: ["iteration", "tickets"],
   group: "iteration",
-  summary: "チケットを Iteration に入れる。閉じた Iteration には入れられない",
+  summary: "Add tickets to an Iteration. Tickets cannot be added to a closed Iteration",
   input: membership,
   write: true,
   needs: "store",
@@ -302,7 +304,7 @@ export const iterationRemove = defineCommand({
   name: "iteration.remove",
   positionals: ["iteration", "tickets"],
   group: "iteration",
-  summary: "チケットを Iteration から外す",
+  summary: "Remove tickets from an Iteration",
   input: membership,
   write: true,
   needs: "store",
@@ -332,7 +334,7 @@ export const iterationStart = defineCommand({
   positionals: ["iteration"],
   group: "iteration",
   summary:
-    "Iteration を開始する（active にする）。開始日（start）は始めた日（手元の暦日）に書き換え、終了日は変えない。同じ Project にほかの active があれば拒否する",
+    "Start an Iteration (make it active). The start date (start) is rewritten to the day it starts (local calendar date); the end date is not changed. Rejected if another Iteration in the same Project is active",
   input: z.object({ iteration: iterationRef }),
   write: true,
   needs: "store",
@@ -362,7 +364,7 @@ export const iterationClose = defineCommand({
   positionals: ["iteration"],
   group: "iteration",
   summary:
-    "Iteration を閉じ、完了と持ち越しの件数を記録する。終了日（end）は閉じた日（手元の暦日）に書き換え、開始日がそれより後なら開始日も閉じた日にする。持ち越したチケットの iteration は外す",
+    "Close an Iteration and record the counts of completed and carried-over tickets. The end date (end) is rewritten to the day it closes (local calendar date); if the start date is later than that, the start date is also set to the closing day. Carried-over tickets lose their iteration",
   input: z.object({ iteration: iterationRef }),
   write: true,
   needs: "store",
@@ -401,7 +403,7 @@ export const iterationReopen = defineCommand({
   positionals: ["iteration"],
   group: "iteration",
   summary:
-    "閉じた Iteration を再開して active に戻す（同じ Project にほかの active があれば拒否する）。closed_at と完了・持ち越しの件数は消す。開始日は変えず、終了日は閉じた日のままなので、要れば iteration update で直す。持ち越したチケットは戻らないので iteration add で入れ直す",
+    "Reopen a closed Iteration and make it active again (rejected if another Iteration in the same Project is active). Clears closed_at and the completed and carried-over counts. The start date is not changed, and the end date stays the closing day, so fix it with iteration update if needed. Carried-over tickets do not come back, so add them again with iteration add",
   input: z.object({ iteration: iterationRef }),
   write: true,
   needs: "store",

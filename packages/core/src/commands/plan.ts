@@ -30,23 +30,31 @@ export const planCreate = defineCommand({
   positionals: ["tickets"],
   group: "plan",
   summary:
-    "Plan を承認待ちで作る。存在しない・終わった・別の開いた Plan に入っているチケットは入れられない",
+    "Create a Plan awaiting approval. Tickets that do not exist, are finished, or are in another open Plan cannot be added",
   input: z.object({
-    tickets: z.array(ticketRef).min(1).describe("進めるチケット（並べた順が実行順の目安）"),
-    project: slugSchema.optional().describe("Project。省略時は config の default_project"),
+    tickets: z
+      .array(ticketRef)
+      .min(1)
+      .describe("Tickets to advance (the order listed is a guide to the run order)"),
+    project: slugSchema
+      .optional()
+      .describe("Project. Defaults to config's default_project when omitted"),
     after: z
       .record(z.string(), refList)
       .optional()
       .describe(
-        "計画内だけの待ち（t3=t1,t2 で t3 を t1・t2 の後に進める）。循環は拒否され、経路が出る（after を外すか向きを変える）",
+        "Waits within the Plan only (t3=t1,t2 advances t3 after t1 and t2). Cycles are rejected and the path is shown (remove after or reverse its direction)",
       ),
-    scope: z.record(z.string(), freeText).optional().describe("チケットごとの範囲（t3=文）"),
-    approach: z.record(z.string(), freeText).optional().describe("チケットごとの方針（t3=文）"),
+    scope: z.record(z.string(), freeText).optional().describe("Scope for each ticket (t3=text)"),
+    approach: z
+      .record(z.string(), freeText)
+      .optional()
+      .describe("Approach for each ticket (t3=text)"),
     tier: z
       .record(z.string(), z.enum(PLAN_TIERS))
       .optional()
       .describe(
-        "チケットごとの段階（t3=light。light / standard / heavy）。config の models.* でモデルに対応させる",
+        "Tier for each ticket (t3=light; light / standard / heavy). Maps to models in config's models.*",
       ),
   }),
   write: true,
@@ -233,13 +241,15 @@ export const planList = defineCommand({
   name: "plan.list",
   group: "plan",
   summary:
-    "Plan を番号順に、状態（pending・approved・closed）と進捗、チケットの待ちの相手（waiting）・着手できるもの（ready）・次（next）つきで出す。--status open で開いたもの（承認待ちと承認済み）に絞る",
+    "List Plans in number order, with status (pending, approved, closed), progress, each ticket's waiting-on (waiting), tickets that can be started (ready), and next. --status open limits the list to open Plans (awaiting approval and approved)",
   input: z.object({
-    project: slugSchema.optional().describe("Project で絞る"),
+    project: slugSchema.optional().describe("Filter by Project"),
     status: z
       .enum(PLAN_FILTERS)
       .optional()
-      .describe("open（閉じていない）・pending（承認待ち）・approved（承認済みで開いた）・closed"),
+      .describe(
+        "open (not closed), pending (awaiting approval), approved (approved and open), or closed",
+      ),
   }),
   write: false,
   needs: "store",
@@ -265,7 +275,7 @@ export const planShow = defineCommand({
   positionals: ["plan"],
   group: "plan",
   summary:
-    "Plan と、入っているチケットを Plan の順で出す。状態（status。pending・approved・closed）・進捗・待ちの相手（items[].waiting）・着手できるか（items[].ready）・次（next）は Plan に書かず、チケットの状態から求める",
+    "Show a Plan and its tickets in Plan order. Status (status: pending, approved, closed), progress, what each ticket waits on (items[].waiting), whether it can be started (items[].ready), and next are not written in the Plan; they are derived from ticket states",
   input: z.object({ plan: planRef }),
   write: false,
   needs: "store",
@@ -304,7 +314,7 @@ export const planApprove = defineCommand({
   name: "plan.approve",
   positionals: ["plan"],
   group: "plan",
-  summary: "承認待ちの Plan を承認する。承認者と日時を書く",
+  summary: "Approve a Plan awaiting approval. Records the approver and the time",
   input: z.object({ plan: planRef }),
   write: true,
   needs: "store",
@@ -337,7 +347,7 @@ export const planClose = defineCommand({
   positionals: ["plan"],
   group: "plan",
   summary:
-    "Plan を閉じる。入っていたチケットは別の Plan に入れられるようになる。終わっていないチケットは警告する",
+    "Close a Plan. Its tickets can then be added to another Plan. Unfinished tickets produce a warning",
   input: z.object({ plan: planRef }),
   write: true,
   needs: "store",

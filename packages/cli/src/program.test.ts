@@ -263,8 +263,8 @@ describe("dg", () => {
     const ran = await dg(f.cloneA, ["metrics", "show", "--by", "nothing"]);
     expect(ran.code).toBe(2);
     expect(ran.out).toBe("");
-    expect(ran.err).toContain("エラー: option '--by <value>' argument 'nothing' is invalid");
-    expect(ran.err).toContain("（--help で使い方を見る）");
+    expect(ran.err).toContain("Error: option '--by <value>' argument 'nothing' is invalid");
+    expect(ran.err).toContain("(See usage with --help)");
   });
 
   it("--json のとき commander 以外の例外も { ok: false, error } で stdout に出し、平文は出さない", async () => {
@@ -288,7 +288,7 @@ describe("dg", () => {
     const ran = await dg(f.cloneA, ["serve", "--port", "abc"]);
     expect(ran.code).toBe(1);
     expect(ran.out).toBe("");
-    expect(ran.err).toBe("エラー: ポートは 0〜65535 の整数");
+    expect(ran.err).toBe("Error: ポートは 0〜65535 の整数");
   });
 
   it("初期化前は NOT_INITIALIZED で終了コード 1", async () => {
@@ -555,7 +555,7 @@ describe("dg", () => {
   it("外せるオプションのヘルプは外し方を none の 1 つだけ示す", async () => {
     const f = await fixture();
     const help = (await dg(f.cloneA, ["ticket", "update", "--help"])).out;
-    expect(help.match(/（none で外す）/g)).toHaveLength(6);
+    expect(help.match(/\(none to clear\)/g)).toHaveLength(6);
     expect(help).not.toContain("null");
   });
 

@@ -81,14 +81,17 @@ export const init = defineCommand({
   name: "init",
   group: "setup",
   summary:
-    "deguboard ブランチと専用 worktree を用意し、default プロジェクトとテンプレートの Workflow を置く",
+    "Set up the deguboard branch and its dedicated worktree, and put in the default Project and the template Workflow",
   input: z.object({
     template: z
       .enum(TEMPLATE_IDS)
       .optional()
-      .describe("default プロジェクトの Workflow。省略時は general"),
-    remote: z.string().optional().describe("同期先のリモート。省略時は origin"),
-    base_branch: z.string().optional().describe("作業ブランチの元。省略時は main"),
+      .describe("Workflow of the default Project. Defaults to general when omitted"),
+    remote: z.string().optional().describe("Remote to sync with. Defaults to origin when omitted"),
+    base_branch: z
+      .string()
+      .optional()
+      .describe("Base of work branches. Defaults to main when omitted"),
   }),
   write: true,
   needs: "repo",
@@ -443,15 +446,15 @@ export const sync = defineCommand({
   name: "sync",
   group: "setup",
   summary:
-    "リモートの deguboard を取り込み、未 push のコミットを送り、作業ブランチの事実でチケットの状態を進める。作業ブランチの PR を見つけたら、このマシンで実行中の実装の Run を success で閉じる（finished_at は PR の作成時刻）。開いたままの手直しの Run は、次の区切り（同じチケットの次の Run の開始（手直しの Run と同じ秒を含む）・PR の ready・マージ・チケットの終了）を見たときに、それまでの最後の push の時刻で success にする（次の Run の開始は、その Run を開いた claim・run start・フックが先に閉じている。照合は閉じ損ねたものを拾う）。終わったチケットに開いたままの実装の Run は ticket move と同じ結果で閉じる（abandoned は failure、PR のない done は success。PR のある done は PR の作成時刻で success）。todo に戻ったチケットか別の主体の claim になったチケットの実装の Run は failure で閉じる。" +
-    "記録の書き終わりを待ちきれずに残したサブエージェントの Run（書き終わり待ちの印 settling_since のあるもの）も、書き終わっていれば閉じる（見直しの Run のうち、sync のセッションと別のセッションのものは閉じない。次の見直しの起動が閉じる）。" +
-    "--resolve remote|local は、人が選んだ側で同期の競合を解く（SY-4）：仮番号の衝突を振り直し、まとめ待ちの変更を（manual でも）コミットしてから取り込み、競合したフィールド（本文なら同じ行がぶつかった箇所）だけ選んだ側の値を採る。競合していないフィールドとコミットはそのまま残し、履歴を捨てず force push もしない。採った値と捨てた値は data.resolved に出る。マージドライバの対象でないファイル（config.yaml・workflows）の競合は解かずに data.conflicts に残す",
+    "Fetch deguboard from the remote, send unpushed commits, and advance ticket states from the facts of the work branches. When a work branch's PR is found, the implementation Run running on this machine is closed with success (finished_at is the PR's creation time). An open fix Run is closed with success at the last push before the next boundary is seen: the next Run's start on the same ticket (including the same second as the fix Run's start), the PR's ready or merge, or the ticket's end. The next Run's start is preceded by closing the earlier Run in the claim, run start, or hook that opened it; reconciliation picks up any that were missed. An implementation Run still open on a finished ticket is closed with the same result as ticket move (abandoned is failure; done with no PR is success; done with a PR is success at the PR's creation time). An implementation Run on a ticket moved back to todo, or claimed by another actor, is closed with failure." +
+    "A sub-agent Run left open because its record was not finished being written (one with a settling_since mark) is also closed once it has finished writing. Review Runs from a session other than the sync's are not closed; the next review start closes them. " +
+    "--resolve remote|local resolves a sync conflict in favor of the side a person chooses (SY-4): it renumbers colliding provisional numbers, commits pending changes (even in manual mode) before importing, and takes the chosen side's value only for conflicting fields (for a body, only where the same line collided). Non-conflicting fields and commits are kept; history is not discarded and nothing is force-pushed. The values taken and discarded appear in data.resolved. Conflicts in files the merge driver does not handle (config.yaml and workflows) are not resolved and stay in data.conflicts",
   input: z.object({
     resolve: z
       .enum(["remote", "local"])
       .optional()
       .describe(
-        "競合したフィールドに採る側。remote はリモートの値、local はローカルのコミットの値。人が選んだときだけ渡す",
+        "Side to take for a conflicting field. remote takes the remote's value, local takes the local commit's value. Pass only when a person chooses",
       ),
   }),
   write: true,
@@ -625,8 +628,8 @@ export const commit = defineCommand({
   name: "commit",
   group: "setup",
   summary:
-    "まとめ待ちの変更を 1 コミットにする（commit.mode が batch / manual のとき）。push.mode が auto なら push する",
-  input: z.object({ message: z.string().min(1).optional().describe("コミットメッセージ") }),
+    "Make pending changes into one commit (when commit.mode is batch or manual). Pushes if push.mode is auto",
+  input: z.object({ message: z.string().min(1).optional().describe("Commit message") }),
   write: true,
   needs: "store",
   async run(ctx, input) {
@@ -647,7 +650,7 @@ export const commit = defineCommand({
 export const validate = defineCommand({
   name: "validate",
   group: "setup",
-  summary: "読めないファイルと参照の不整合を出す。エラーがあれば ok: false",
+  summary: "Show unreadable files and inconsistent references. ok is false if there are errors",
   input: z.object({}),
   write: false,
   needs: "store",
@@ -662,9 +665,8 @@ export const adopt = defineCommand({
   name: "adopt",
   group: "setup",
   summary:
-    "データのリポジトリの dg の外の変更（未コミットの変更と、印のないコミット）を取り込む。dg validate と同じ検査でエラーがなければ、" +
-    "今の状態を以後の検査の基準にする（未コミットの変更は、まとめ待ちの変更として次の dg commit・dg sync でコミットされる）。エラーがあれば VALIDATION_FAILED で取り込まない。" +
-    "捨てるなら、人が deguboard worktree（.git/deguboard）で git restore --staged --worktree と git reset --keep <基準の HEAD> で戻し（基準の HEAD は検査の文に出る）、そのあと dg adopt で今の状態を基準にする（エージェントの扱いは dg guide overview の「Changes outside dg」）",
+    "Adopt changes made outside dg in the data repository (uncommitted changes, and commits with no mark). If dg validate's checks find no errors, the current state becomes the baseline for later checks (uncommitted changes are committed as pending changes by the next dg commit or dg sync). If there are errors, nothing is adopted and VALIDATION_FAILED is returned. " +
+    "To discard them, a person restores them in the deguboard worktree (.git/deguboard) with git restore --staged --worktree and git reset --keep <base HEAD> (the base HEAD appears in the check's text), then runs dg adopt to make the current state the baseline (for how agents handle this, see 'Changes outside dg' in dg guide overview)",
   input: z.object({}),
   write: true,
   needs: "store",
@@ -692,9 +694,9 @@ export const lint = defineCommand({
   name: "lint",
   group: "setup",
   summary:
-    "本文の推奨の節（## Summary・## Acceptance criteria。日本語の ## 概要・## 受け入れ条件 も読む）の欠けと空、Workflow の fields に合わない値、閉じた Epic に残る終わっていないチケット、lint.require_iteration が true なら Iteration に入らずに todo・abandoned 以外に進んだチケット（閉じた Epic の done は除く）、チケットがすべて終わったのに開いている Epic・Plan、開いた Plan の after と depends_on をまたぐ循環、同じ Project に 2 つ以上ある active の Iteration を指摘する。実装・手直しの Run の抜け（agent が PR まで進めたのに実装の Run がない、閉じた実装の Run の後のコミットがどの Run の期間にも入らない、見直しの後のコミットに手直しの Run がない）は、終わっていないチケットと、閉じていない Iteration に入った done のチケットだけを見る。done のチケットの未チェックの受け入れ条件は指摘しない",
+    "Point out missing or empty recommended body sections (## Summary and ## Acceptance criteria; the Japanese headings ## 概要 and ## 受け入れ条件 are also read), values that do not fit the Workflow's fields, unfinished tickets left in a closed Epic, tickets that moved past todo or abandoned without being in an Iteration when lint.require_iteration is true (except done tickets in closed Epics), open Epics and Plans whose tickets are all finished, cycles across an open Plan's after and depends_on, and two or more active Iterations in the same Project. Gaps in implementation and fix Runs (an agent got to a PR with no implementation Run, a commit after a closed implementation Run that falls within no Run's window, or a commit after a review with no fix Run) only look at unfinished tickets and done tickets in Iterations that are not closed. Unchecked acceptance criteria on done tickets are not flagged",
   input: z.object({
-    project: z.string().optional().describe("Project で絞る。省略時はすべて"),
+    project: z.string().optional().describe("Filter by Project. Omit for all"),
   }),
   write: false,
   needs: "store",
@@ -917,13 +919,13 @@ export const configShow = defineCommand({
   name: "config.show",
   group: "setup",
   summary:
-    "設定を既定値で補って出す。個人の上書き（deguboard-local/config.yaml）> チームの config.yaml > 既定 の順に重ねた、各コマンドが使う値",
+    "Show settings filled in with defaults: the values each command uses, layered as personal overrides (deguboard-local/config.yaml) > team config.yaml > defaults",
   input: z.object({
     fields: z
       .boolean()
       .optional()
       .describe(
-        "値と一緒に全項目のキー・型・既定値・説明・範囲（scope：team はチーム専用、local は個人で上書きできる）と、チームの値・個人の上書きも出す（{ config, team, local, fields } の形。設定画面が使う）",
+        "Also show, with the values, every item's key, type, default, description, and scope (scope: team is team-only, local can be overridden personally), plus the team values and personal overrides (in the form { config, team, local, fields }; used by the settings screen)",
       ),
   }),
   write: false,
@@ -970,7 +972,8 @@ export interface WhoamiView {
 export const whoami = defineCommand({
   name: "whoami",
   group: "setup",
-  summary: "操作している主体（ユーザ名とその出どころ・種別・ID）と、本人とみなす主体の ID を出す",
+  summary:
+    "Show the acting actor (user name and where it came from, kind, and ID) and the ID of the actor treated as the person themselves",
   input: z.object({}),
   write: false,
   needs: "store",
@@ -1059,19 +1062,19 @@ function resolveLeaf(
 }
 
 const LOCAL_FILE_NOTE =
-  "個人の設定は <git-common-dir>/deguboard-local/config.yaml（Git に入らず、コミットも push もしない）。個人で上書きできる項目（config show --fields の scope が local）だけで、値は個人 > チーム > 既定 の順に読まれる";
-const LOCAL_SET_DESCRIPTION = `チームの config.yaml でなく個人の設定に書く。${LOCAL_FILE_NOTE}`;
-const LOCAL_UNSET_DESCRIPTION = `個人の上書きを外してチームの値に戻す。${LOCAL_FILE_NOTE}`;
+  "Personal settings are in <git-common-dir>/deguboard-local/config.yaml (not put into Git, and never committed or pushed). Only items that can be overridden personally (scope is local in config show --fields) are read there, and values are read in the order personal > team > default";
+const LOCAL_SET_DESCRIPTION = `Write to personal settings instead of the team's config.yaml. ${LOCAL_FILE_NOTE}`;
+const LOCAL_UNSET_DESCRIPTION = `Remove the personal override and return to the team's value. ${LOCAL_FILE_NOTE}`;
 
 export const configSet = defineCommand({
   name: "config.set",
   positionals: ["key", "value"],
   group: "setup",
   summary:
-    "config.yaml の 1 項目を変える（commit.mode のようにドットで指す）。配列の項目はカンマ区切りで、空文字で空にする。既定が空でない文字列の項目（priority.* など。config show --fields の clears_to_default が true）は空文字で既定に戻す。選択肢の項目（commit.mode など）は空・null・省略を弾く。--local で個人の設定に書く。返すのは書いた側の値（チームの値か、個人を重ねた値）",
+    "Change one item of config.yaml (point to it with dots, like commit.mode). Separate array items with commas, and set an empty string to empty the list. For a non-empty string default (such as priority.*; clears_to_default is true in config show --fields), an empty string returns it to the default. For items with choices (such as commit.mode), empty, null, and omitted values are rejected. --local writes to personal settings. Returns the value that was written: the team value, or the value layered with personal settings",
   input: z.object({
-    key: z.string().min(1).describe("項目。例: commit.mode"),
-    value: z.unknown().describe("値"),
+    key: z.string().min(1).describe("Item. Example: commit.mode"),
+    value: z.unknown().describe("Value"),
     local: z.boolean().optional().describe(LOCAL_SET_DESCRIPTION),
   }),
   write: true,
@@ -1120,9 +1123,9 @@ export const configUnset = defineCommand({
   positionals: ["key"],
   group: "setup",
   summary:
-    "config.yaml の 1 項目を消して既定に戻す（commit.mode のようにドットで指す）。--local なら個人の上書きを外してチームの値に戻す。返すのは書いた側の値（チームの値か、個人を重ねた値）",
+    "Remove one item from config.yaml and return it to the default (point to it with dots, like commit.mode). With --local, remove the personal override and return to the team value. Returns the value that was written: the team value, or the value layered with personal settings",
   input: z.object({
-    key: z.string().min(1).describe("項目。例: commit.mode"),
+    key: z.string().min(1).describe("Item. Example: commit.mode"),
     local: z.boolean().optional().describe(LOCAL_UNSET_DESCRIPTION),
   }),
   write: true,

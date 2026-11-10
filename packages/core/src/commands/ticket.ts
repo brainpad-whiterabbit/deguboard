@@ -114,19 +114,21 @@ const withClosedRun = (message: string, closed: readonly ClosedRun[]) =>
 const actorRef = z.string().min(1);
 
 const ticketAttributes = {
-  priority: z.enum(PRIORITIES).optional().describe("優先度"),
-  labels: z.array(z.string()).optional().describe("ラベル"),
-  iteration: z.string().optional().describe("Iteration の ID"),
-  epic: z.string().optional().describe("Epic の ID。閉じた Epic には付けられない"),
-  depends_on: z.array(z.string()).optional().describe("依存先のチケットの ID"),
-  workflow: slugSchema.optional().describe("Workflow。省略時は Project の既定"),
+  priority: z.enum(PRIORITIES).optional().describe("Priority"),
+  labels: z.array(z.string()).optional().describe("Labels"),
+  iteration: z.string().optional().describe("Iteration ID"),
+  epic: z.string().optional().describe("Epic ID. Cannot be set on a closed Epic"),
+  depends_on: z.array(z.string()).optional().describe("IDs of tickets this one depends on"),
+  workflow: slugSchema
+    .optional()
+    .describe("Workflow. Defaults to the Project's default when omitted"),
   assignee: actorRef
     .optional()
-    .describe("担当者。human で自分、agent で自分の AI、ほかは ID のまま"),
+    .describe("Assignee. human for yourself, agent for your own AI, otherwise the ID as-is"),
   fields: z
     .record(z.string(), z.unknown())
     .optional()
-    .describe("Workflow の fields で定義した任意フィールド"),
+    .describe("Optional fields defined in the Workflow's fields"),
 };
 
 /** 受け入れ条件の項目。1 項目 1 行の自由文（CLI はカンマで割らない） */
@@ -140,19 +142,24 @@ const acceptanceItems = z
   .meta({ freeText: true });
 
 const createInput = z.object({
-  title: z.string().min(1).describe("タイトル"),
-  project: slugSchema.optional().describe("Project。省略時は config の default_project"),
-  summary: z.string().optional().describe("概要。本文の雛形に入れる"),
+  title: z.string().min(1).describe("Title"),
+  project: slugSchema
+    .optional()
+    .describe("Project. Defaults to config's default_project when omitted"),
+  summary: z.string().optional().describe("Summary. Goes into the body template"),
   acceptance: acceptanceItems
     .optional()
     .describe(
-      "受け入れ条件。1 項目ずつ、本文の雛形のチェックリストに入れる。body があるときは使わない",
+      "Acceptance criteria. Each item goes into the body template's checklist, one per line. Not used when body is given",
     ),
-  body: z.string().optional().describe("本文全体（Markdown）。summary と acceptance より優先"),
+  body: z
+    .string()
+    .optional()
+    .describe("Full body (Markdown). Takes precedence over summary and acceptance"),
   created_by: actorRef
     .optional()
     .describe(
-      "起票者。省略時は操作した主体。エージェントが人の指示・承認で起票するときは human（ユーザ本人）",
+      "Creator. Defaults to the acting actor. When an agent creates tickets on a person's instruction or approval, use human (the user themselves)",
     ),
   ...ticketAttributes,
 });
@@ -268,7 +275,7 @@ export const ticketCreate = defineCommand({
   name: "ticket.create",
   positionals: ["title"],
   group: "ticket",
-  summary: "チケットを起票する。commit.mode によらず即座にコミットして push する",
+  summary: "Create a ticket. Commits and pushes immediately, regardless of commit.mode",
   input: createInput,
   write: true,
   needs: "store",
@@ -293,7 +300,11 @@ export const ticketCreate = defineCommand({
 });
 
 const draftsSchema = z
-  .array(createInput.extend({ key: z.string().optional().describe("下書きの中だけで使う仮キー") }))
+  .array(
+    createInput.extend({
+      key: z.string().optional().describe("Temporary key, used only within the drafts"),
+    }),
+  )
   .min(1);
 
 /** source（YAML か JSON の本文）から下書きを読み、形を検査する。行末コメントの判定は draft-source.ts */
@@ -307,14 +318,17 @@ export const ticketImport = defineCommand({
   name: "ticket.import",
   positionals: ["file"],
   group: "ticket",
-  summary: "下書きの配列を 1 コミットで取り込む。下書きの key を depends_on から参照できる",
+  summary:
+    "Import an array of drafts in one commit. A draft's key can be referenced from depends_on",
   input: z.object({
-    drafts: draftsSchema.optional().describe("チケットの下書きの配列（source と一緒には渡せない）"),
+    drafts: draftsSchema
+      .optional()
+      .describe("Array of ticket drafts (cannot be given together with source)"),
     source: z
       .string()
       .meta({ cliSource: true })
       .optional()
-      .describe("下書きの本文（YAML か JSON。drafts の代わり）"),
+      .describe("Draft body (YAML or JSON; use instead of drafts)"),
   }),
   write: true,
   needs: "store",
@@ -422,7 +436,7 @@ export const ticketList = defineCommand({
   name: "ticket.list",
   group: "ticket",
   summary:
-    "チケットを番号順に出す。各行に依存先が終わったか（deps_done。ticket.show と同じ）と、Run の agent（run_agent。実行中の Run、なければ最後の Run の agent）を足す。abandoned は include_abandoned か status の指定で出す",
+    "List tickets in number order. Each row adds whether its dependencies are finished (deps_done, same as ticket show) and the agent of its Run (run_agent: the agent of the running Run, or else of the last Run). abandoned tickets are listed with include_abandoned or a status filter",
   input: ticketFilterSchema,
   write: false,
   needs: "store",
@@ -457,7 +471,7 @@ export const ticketShow = defineCommand({
   positionals: ["ticket"],
   group: "ticket",
   summary:
-    "チケットの属性と本文、受け入れ条件の項目（acceptance）、依存元（dependents）、依存先が終わったか（deps_done）と終わっていない依存先（pending_deps）、入っている開いた Plan（plan）、作業ブランチの worktree のパス（worktree。なければ null）、作業の段階（stage。dg next と同じ求め方）を出す",
+    "Show a ticket's attributes and body, its acceptance items (acceptance), dependents (dependents), whether its dependencies are finished (deps_done) and the unfinished ones (pending_deps), the open Plan it is in (plan), the worktree path of its work branch (worktree; null if none), and its work stage (stage; derived the same way as dg next)",
   input: z.object({ ticket: ticketRef }),
   write: false,
   needs: "store",
@@ -484,28 +498,33 @@ export const ticketUpdate = defineCommand({
   positionals: ["ticket"],
   group: "ticket",
   summary:
-    "チケットの属性と本文を直す。status は ticket.move で変える。pr を記録すると、このマシンで実行中の実装の Run を success で閉じ、finished_at を PR の作成時刻（gh から取れなければ今）にする",
+    "Edit a ticket's attributes and body. Change status with ticket.move. Recording a pr closes the implementation Run running on this machine with success, and sets finished_at to the PR's creation time (now, if gh cannot provide it)",
   input: z.object({
     ticket: ticketRef,
-    title: z.string().min(1).optional().describe("タイトル"),
-    body: z.string().optional().describe("本文全体を置き換える"),
+    title: z.string().min(1).optional().describe("Title"),
+    body: z.string().optional().describe("Replace the whole body"),
     acceptance: acceptanceItems
       .optional()
       .describe(
-        "受け入れ条件の項目。## Acceptance criteria（か ## 受け入れ条件）の節だけを置き換え、同じ文の済みの印は保つ。節がなければ末尾に足す。body とは同時に指定できない",
+        "Acceptance items. Replaces only the ## Acceptance criteria (or ## 受け入れ条件) section, and keeps the check marks of items with the same text. Appends the section at the end if there is none. Cannot be given together with body",
       ),
     ...ticketAttributes,
     labels: z
       .array(z.string())
       .optional()
-      .describe("ラベル。一覧を置き換える（既存も含めて全部指定する）"),
+      .describe("Labels. Replaces the whole list (specify all of them, including existing ones)"),
     depends_on: z
       .array(z.string())
       .optional()
-      .describe("依存先のチケットの ID。一覧を置き換える（既存も含めて全部指定する）"),
-    iteration: z.string().nullable().optional().describe("Iteration の ID"),
-    epic: z.string().nullable().optional().describe("Epic の ID"),
-    workflow: slugSchema.nullable().optional().describe("Workflow。外すと Project の既定に戻る"),
+      .describe(
+        "IDs of tickets this one depends on. Replaces the whole list (specify all of them, including existing ones)",
+      ),
+    iteration: z.string().nullable().optional().describe("Iteration ID"),
+    epic: z.string().nullable().optional().describe("Epic ID"),
+    workflow: slugSchema
+      .nullable()
+      .optional()
+      .describe("Workflow. Removing it returns to the Project's default"),
     pr: z
       .number()
       .int()
@@ -513,7 +532,7 @@ export const ticketUpdate = defineCommand({
       .nullable()
       .optional()
       .describe(
-        "PR 番号。記録すると実行中の実装の Run を success で閉じる（finished_at は PR の作成時刻）",
+        "PR number. When recorded, closes the running implementation Run with success (finished_at is the PR's creation time)",
       ),
     branch: z
       .string()
@@ -521,12 +540,12 @@ export const ticketUpdate = defineCommand({
       .nullable()
       .optional()
       .describe(
-        "作業ブランチ名。外すと PR の要らない作業になり、照合の対象から外れる。使用中の名前と、先端が base の真の祖先のまま残った名前は拒否（BRANCH_IN_USE）",
+        "Work branch name. Removing it makes this a task with no PR, which is left out of reconciliation. Names in use, and names whose tip is still a true ancestor of base, are rejected (BRANCH_IN_USE)",
       ),
     assignee: actorRef
       .nullable()
       .optional()
-      .describe("担当者。human で自分、agent で自分の AI。起票者は変えない"),
+      .describe("Assignee. human for yourself, agent for your own AI. The creator is not changed"),
   }),
   write: true,
   needs: "store",
@@ -644,20 +663,20 @@ export const ticketCheck = defineCommand({
   positionals: ["ticket", "items"],
   group: "ticket",
   summary:
-    "受け入れ条件の項目に済みの印を付ける。項目は番号で指定し、全部なら all、印を外すなら undo のオプションを使う。番号は ticket show の acceptance の index",
+    "Mark acceptance items as done. Specify items by number; use all for every item, and undo to remove the mark. The numbers are the index in ticket show's acceptance",
   input: z.object({
     ticket: ticketRef,
     items: z
       .array(z.number().int().positive())
       .optional()
-      .describe("項目の番号（1 始まり）。ticket show の acceptance の index"),
-    all: z.boolean().optional().describe("すべての項目を対象にする"),
-    undo: z.boolean().optional().describe("印を外して未済に戻す"),
+      .describe("Item numbers (starting at 1). The index in ticket show's acceptance"),
+    all: z.boolean().optional().describe("Apply to all items"),
+    undo: z.boolean().optional().describe("Remove the mark and return to not done"),
     base: z
       .string()
       .optional()
       .describe(
-        "読んだときの本文。今の本文と違えば（読んだ後に別の書き込みがあれば）書かずに REJECTED。画面が付け外しに使う",
+        "The body as it was when read. If it differs from the current body (another write happened after reading), nothing is written and the result is REJECTED. The screen uses this to check and uncheck items",
       ),
   }),
   write: true,
@@ -786,10 +805,10 @@ export const ticketMove = defineCommand({
   positionals: ["ticket", "status"],
   group: "ticket",
   summary:
-    "Status を変える。Workflow の transitions の制約（by・requires）に反する遷移と、同じ Status への move は拒否する。このマシンで実行中の Run を閉じる（RN-6）：abandoned は実装と手直しの Run を failure で、branch のないチケットの review・done と PR のない done は実装の Run を success で閉じる",
+    "Change the Status. Transitions that break the Workflow's transitions constraints (by, requires), and moves to the same Status, are rejected. Closes Runs running on this machine (RN-6): abandoned closes implementation and fix Runs with failure; review and done for a ticket with no branch, and done with no PR, close the implementation Run with success",
   input: z.object({
     ticket: ticketRef,
-    status: statusSchema.describe(`次の Status（${STATUSES.join(" / ")}）`),
+    status: statusSchema.describe(`Next Status (${STATUSES.join(" / ")})`),
   }),
   write: true,
   needs: "store",
@@ -842,7 +861,7 @@ export const ticketDelete = defineCommand({
   name: "ticket.delete",
   positionals: ["ticket"],
   group: "ticket",
-  summary: "チケットを墓標（tickets/deleted/）へ移す。番号は再利用しない",
+  summary: "Move a ticket to the tombstones (tickets/deleted/). Its number is not reused",
   input: z.object({ ticket: ticketRef }),
   write: true,
   needs: "store",
@@ -1001,11 +1020,11 @@ export const ticketClaim = defineCommand({
   positionals: ["ticket"],
   group: "ticket",
   summary:
-    "チケットに着手する。担当者（assignee）を自分にしてブランチを記録し、in_progress にする。push の成功で排他を得る。todo → in_progress の制約（requires: [deps_done] など）があれば従う。" +
-    "lint.require_iteration が true で Iteration が空なら、Project の active の Iteration（なければ planned のうち start が最も早いもの、並べば ID の小さいもの）に入れる。入れ先がなければ warnings で人に頼むよう伝える。チケットの Iteration が planned なら active にし、できなければ（ほかの active・actor.human_only）warnings に出して claim は成功にする。どちらも claim と同じ書き込みで push する。" +
-    "push の後、作業ブランチの worktree を worktree.root/<ブランチ名>（--worktree-path で変えられる）に base から作り、場所を worktree に出す。そのブランチの worktree が既にあればそれを、ローカルにブランチだけあればそれを checkout する。作れなければ warnings に出して claim は成功にする。作った worktree（既存のものは除く）では config の worktree.setup のコマンドを回し、失敗は warnings に出して claim は成功にする。その準備は pnpm install などで数分かかることがあり（上限 10 分）、claim はその間戻らない。--no-worktree・--without-branch では作らない。" +
-    "agent なら続けて実装の Run（Workflow の steps のうち opens_on: claim のもの、なければ implement）を開き、ID を run（人向けの出力では標準出力の最後の行）に出す。Run は準備のコマンドより先に開く。開けなければ警告だけして claim は成功にする。" +
-    "自分（同じユーザの人と AI）が claim 済みで PR のあるチケット（in_progress か review）をもう一度 claim すると、手直し（見直しの修正ループ・人のレビューの後）の開始とみなす。チケットは変えず、agent なら手直しの Run（opens_on: reclaim のもの、なければ fix）を開く。実装の Run でも手直しの Run でも、開くときに同じチケットの開いたままの前の手直しの Run があれば、この claim を区切りとして、その Run の開始より後の最後の push の時刻（なければこの claim の時刻）で success にしてから開く（手直しの Run を開くとき、前の手直しの Run の session がこの claim のセッション（--session、なければ環境の DEGUBOARD_SESSION、なければ dg を呼んだエージェントが環境に付けるセッション ID。サブエージェントの claim では起動した親のセッション）と違えば、落ちたセッションの残りとみなして interrupted にする。どちらかのセッションが分からなければ success）。ほかの主体の claim は拒否する",
+    "Start work on a ticket. Sets the assignee to yourself, records the branch, and sets in_progress. Winning the push gives exclusive access. Follows any todo → in_progress constraint (such as requires: [deps_done])." +
+    "If lint.require_iteration is true and the ticket has no Iteration, it goes into the Project's active Iteration (or else the planned one with the earliest start, or the lowest ID when tied). If there is no target, the warnings tell a person to ask. If the ticket's Iteration is planned, it becomes active; if that fails (another active one, or actor.human_only), the failure goes into the warnings and claim still succeeds. Both are pushed in the same write as the claim." +
+    "After the push, it creates the work branch's worktree at worktree.root/<branch name> (change with --worktree-path) from base, and puts its path in worktree. If a worktree for that branch already exists, it uses that; if only the local branch exists, it checks it out. If it cannot be created, the failure goes into the warnings and claim still succeeds. In a worktree it created (not an existing one), it runs config's worktree.setup commands; a failure goes into the warnings and claim still succeeds. That setup can take several minutes, such as pnpm install (limit 10 minutes), and claim does not roll back while it runs. It creates no worktree with --no-worktree or --without-branch." +
+    "For an agent, it then opens an implementation Run (the step in the Workflow's steps with opens_on: claim, or else implement) and prints its ID as run (on the last line of stdout in human output). The Run opens before the setup commands run. If it cannot be opened, only a warning is given and claim still succeeds." +
+    "If you claim again a ticket that you (the same user, human or AI) already claimed and that has a PR (in_progress or review), it is treated as the start of a fix (the review fix loop, or after a person's review). The ticket is not changed; for an agent it opens a fix Run (the step with opens_on: reclaim, or else fix). For either an implementation Run or a fix Run, when it opens, any still-open earlier fix Run on the same ticket is first closed with success at the time of the last push after that Run started (or at this claim's time if there is none), using this claim as the boundary. If the earlier fix Run's session differs from this claim's session (--session, else DEGUBOARD_SESSION from the environment, else the session ID the calling agent sets in its environment; for a sub-agent's claim, the parent session that started it), it is treated as left over from a crashed session and closed as interrupted. If either session is unknown, it is closed with success. Claims by other actors are rejected",
   input: z.object({
     ticket: ticketRef,
     branch: z
@@ -1013,38 +1032,42 @@ export const ticketClaim = defineCommand({
       .min(1)
       .optional()
       .describe(
-        "作業ブランチ名。省略時は feature/<id>-<slug>。使用中の名前と、先端が base の真の祖先のまま残った名前は拒否（BRANCH_IN_USE）",
+        "Work branch name. Defaults to feature/<id>-<slug> when omitted. Names in use, and names whose tip is still a true ancestor of base, are rejected (BRANCH_IN_USE)",
       ),
     without_branch: z
       .boolean()
       .optional()
-      .describe("PR も作業ブランチも要らない作業。branch を記録せず、照合の対象にしない"),
+      .describe(
+        "Work that needs neither a PR nor a work branch. Does not record a branch and is not reconciled",
+      ),
     no_worktree: z
       .boolean()
       .optional()
-      .describe("作業ブランチの worktree を作らない（ブランチも作らず、branch を記録するだけ）"),
+      .describe(
+        "Do not create the work branch's worktree (no branch is created either; only branch is recorded)",
+      ),
     worktree_path: z
       .string()
       .min(1)
       .optional()
       .describe(
-        "作る worktree の場所（作業ツリーの最上位からの相対か絶対パス）。省略時は worktree.root/<ブランチ名>",
+        "Where to create the worktree (relative to the top of the working tree, or absolute). Defaults to worktree.root/<branch name>",
       ),
     agent: token
       .optional()
       .describe(
-        "開く Run のエージェント名（dg run start --help）。省けば dg を呼んだエージェントを環境変数から判定し、判定できなければ Run を開かずに警告する。人の claim では使えない（使い方の誤り）",
+        "Name of the agent that opens the Run (see dg run start --help). When omitted, the agent calling dg is detected from the environment; if it cannot be detected, a warning is given and no Run is opened. Cannot be used for a person's claim (usage error)",
       ),
     no_run: z
       .boolean()
       .optional()
       .describe(
-        "Run を開かない。実装をサブエージェントに渡すとき（印 deguboard: ticket=<id> step=<step> で頼み、フックが Run を開く）",
+        "Do not open a Run. Use when passing implementation to a sub-agent (asked with the marker deguboard: ticket=<id> step=<step>; the hook opens the Run)",
       ),
     retry_reasons: retryReasons
       .optional()
       .describe(
-        "もう一度の claim（人や親が自分で直す手直し）でだけ使う。直す指摘の 1 行の要約で、手直しの Run の retry_reasons に入る（書き方は run finish --help）。印で頼んだ手直しのサブエージェントは claim せず run retry-reason で書く",
+        "Use only when claiming again (a fix made by a person or by the parent). One-line summary of the finding to fix, which goes into the fix Run's retry_reasons (see run finish --help for how to write it). A fix sub-agent asked with the marker does not claim; it writes with run retry-reason",
       ),
     ...transcriptFields,
   }),
@@ -1194,10 +1217,10 @@ export const ticketUnclaim = defineCommand({
   positionals: ["ticket"],
   group: "ticket",
   summary:
-    "claim を外して todo に戻す。branch・branch_at と pr（前の作業の PR の記録）も外す。自分（同じユーザの人と AI）の claim か記録のない claim だけ。他人のものは force。このマシンで実行中の実装・手直しの Run は failure で閉じる（理由を残すなら先に run finish --result failure --error で閉じる）",
+    "Remove the claim and return to todo. Also removes branch, branch_at, and pr (the PR record of the earlier work). Only your own claim (same user, human or AI) or a claim with no record; others' claims need force. Implementation and fix Runs running on this machine are closed with failure (to keep a reason, close them first with run finish --result failure --error)",
   input: z.object({
     ticket: ticketRef,
-    force: z.boolean().optional().describe("他人の claim も外す"),
+    force: z.boolean().optional().describe("Also remove other people's claims"),
   }),
   write: true,
   needs: "store",

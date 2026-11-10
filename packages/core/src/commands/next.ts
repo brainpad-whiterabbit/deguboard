@@ -386,21 +386,23 @@ export const next = defineCommand({
   positionals: ["ticket"],
   group: "next",
   summary:
-    "チケットの次の 1 手を返す（EX-3・EX-5）。段階（stage。ticket show と同じ）は、todo（着手できる）・blocked（Plan の待ちか依存先がある）・" +
-    "claimed（PR がない）・implemented（PR があり見直しがない）・reviewing（見直しが実行中）・reviewed（最後の push より後の見直しが閉じた。review_passed で通ったか）・" +
-    "fixed（見直しの後に push があるか、最後の見直しの結果がない）・ready（見直しが通り PR を出した）・merged（done）・closed（abandoned）・" +
-    `waiting_human（止まって待っている Run がある、最後の見直しの後の手直しが failure か interrupted で閉じた、か、重い指摘が出た見直しが ${FIX_ROUNDS_LIMIT} 回を超えた）。PR が draft かは status で見る（in_progress で PR があれば draft）。` +
-    "段階を Run（実装・見直し・手直しとその結果、止まって待っている印）・PR・作業ブランチの事実・Plan の待ちから求め、" +
-    "手の種類（kind：implement・review・fix・ready・wait_merge・wait_deps・wait_human・done）と、開く step・実行中の Run・Plan の段階と範囲と方針・呼ぶコマンド（commands。サブエージェントに委譲する形。モデルが親と同じで自分で進めるなら、implement の claim は --no-run を外し印を使わない。implement・review・fix・ready の手は、その手の Run か、このブランチで実行中の実装の Run・開始より後に push がない手直しの Run が実行中なら、起動せずに終わりを待つ）・人に聞くこと（ask_human）を返す。" +
-    "implement・review・fix の手には、サブエージェントに貼る文（brief。dg brief と同じ。language で定型の文の言語）を入れる。" +
-    "implement・fix の手には、起動するモデル（model）を入れる（Plan の tier を config の models.* に対応させ、tier のないチケットは standard。対応が空・review・ほかの手は null で、null は親のモデル）。" +
-    "waiting_human の段階のチケットは wait_human。作業ブランチを取り込んでから読む。何も書かない",
+    "Return the next step for a ticket (EX-3・EX-5). The stage (same as ticket show) is one of: todo (can be started), blocked (waiting on a Plan or on unfinished dependencies), " +
+    "claimed (no PR), implemented (PR exists, no review), reviewing (a review is running), reviewed (the review after the last push has closed; review_passed says whether it passed), " +
+    "fixed (a push after the last review, or the last review has no result), ready (the review passed and a PR was opened), merged (done), closed (abandoned), " +
+    `waiting_human (a Run is waiting for a person, the fix after the last review closed with failure or interrupted, or reviews that raised heavy findings went past ${FIX_ROUNDS_LIMIT} times). Whether the PR is a draft is seen in status (a PR with in_progress is a draft). ` +
+    "The stage is derived from the facts of Runs (implementation, review, and fix Runs and their results, and the mark of waiting for a person), the PR, the work branch, and Plan waits. " +
+    "It returns the kind of step (kind: implement, review, fix, ready, wait_merge, wait_deps, wait_human, done), the step to open, the Run in progress, the Plan's tier, scope, and approach, the commands to call (commands; delegate to a sub-agent. If the model is the same as the parent's and it proceeds on its own, the implement claim drops --no-run and does not use the mark. For implement, review, fix, and ready steps, if that step's Run is already running, or an implementation Run or a fix Run on this branch that has no push since it started is running, it waits for that to end instead of starting another), and the questions to ask a person (ask_human). " +
+    "For implement, review, and fix steps it includes the text to paste into a sub-agent (brief, the same as dg brief; language sets the language of the fixed text). " +
+    "For implement and fix steps it includes the model to launch (model) (the Plan's tier maps to config's models.*; a ticket with no tier is standard. When the mapping is empty, and for review and other steps, it is null, meaning the parent's model). " +
+    "A ticket in the waiting_human stage is wait_human. Read it after bringing in the work branch. It writes nothing",
   input: z.object({
     ticket: ticketRef,
     language: z
       .enum(ASK_LANGUAGES)
       .optional()
-      .describe("brief の定型の文の言語。省けば ja。チケットの中身は変えない"),
+      .describe(
+        "Language of the fixed text in brief. Defaults to ja when omitted. Does not change the ticket's content",
+      ),
   }),
   write: false,
   needs: "store",

@@ -206,7 +206,7 @@ export function bindInputs(cmd: Command, command: AnyCommand, shapes = shapesOf(
   });
 
   for (const shape of options) {
-    const desc = shape.description + (shape.nullable ? `（${NONE} で外す）` : "");
+    const desc = shape.description + (shape.nullable ? ` (${NONE} to clear)` : "");
     switch (shape.kind) {
       case "boolean":
         cmd.addOption(new Option(`--${shape.flag}`, desc));

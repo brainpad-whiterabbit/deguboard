@@ -52,13 +52,15 @@ export const history = defineCommand({
   name: "history",
   group: "history",
   summary:
-    "deguboard ブランチの履歴から、起票・Status の遷移・Iteration と Epic の出入り・担当者・PR 番号の変化を時刻の順に出す。浅い clone では欠けたことを出す",
+    "From the history of the deguboard branch, print creation, Status changes, entries to and exits from Iterations and Epics, assignee, and PR number changes in time order. A shallow clone shows what is missing",
   input: z.object({
-    ticket: ticketRef.optional().describe("このチケットの経過だけ"),
-    epic: epicRef.optional().describe("この Epic と、一度でも入っていたチケットの経過"),
+    ticket: ticketRef.optional().describe("Only the history of this ticket"),
+    epic: epicRef.optional().describe("This Epic, and the history of tickets that were ever in it"),
     iteration: iterationRef
       .optional()
-      .describe("この Iteration と、一度でも入っていたチケットの経過（持ち越したものも）"),
+      .describe(
+        "This Iteration, and the history of tickets that were ever in it (including carried-over ones)",
+      ),
   }),
   write: false,
   needs: "store",

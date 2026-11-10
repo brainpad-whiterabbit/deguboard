@@ -513,26 +513,33 @@ export const flowNext = defineCommand({
   positionals: ["targets"],
   group: "flow",
   summary:
-    "Iteration の流れ（割り当て → 点検 → 計画 → 作業 → 見直し → リリース）の今の段階と次の手を返す。" +
-    "対象は Iteration 1 つ・Plan 1 つ・チケット 1 つ以上のどれか。段階は次の 8 つの規則の順で最初に当たるもの" +
-    "（1 割り当て：この実行で割り当てを終えておらず、見直し済みでなく、Iteration に入っていない todo があり、--no-assign がない／" +
-    "2 点検：この実行でまだ点検していない／3 計画：対象を含む承認待ちの Plan がある／4 作業：対象を含む承認済みの Plan に終わっていないチケットがある／" +
-    "5 計画：開いた Plan に入っていない todo がある／6 見直し：<S> のチケットがすべて done か abandoned で見直し済みでない／7 リリース：同じで見直し済み／8 止まる。<S> が閉じていれば割り当てず、6・7 の前に流れを終えたとして止まる）。" +
-    "見直し済みは、ラベル audit-<S> のチケットがあるか、この実行で見直しを終えた。チケットか Plan の指定では、<S> はチケットの Iteration（1 つに決まるときだけ）で、見直しとリリースはその Iteration のチケットがすべて終わったときだけ。" +
-    "返す resume を次の呼び出しの --resume に写して渡すと、前に返した割り当て・点検・見直しを終えたものとして飛ばす。resume がない・読めない・別の対象のものなら割り当てと点検からやり直す。" +
-    "段階を終えずに止めたとき（見直しの指摘の表で止めたなど）は、その resume を渡さない（渡すとその段階を飛ばす）。" +
-    "config の flow.skip の段階は規則を読まずに飛ばす。前に返した段階と同じ段階で事実（チケット・Plan・Run）が変わらなければ stop を返す。段階の節（guide）・呼ぶコマンド（commands）・承認の要否（approval。auto_ok は --auto が聞かずに選ぶかで、config の auto.decisions と auto.merge に従い、人が決める判断は含まない）を返す。何も書かない",
+    "Return the current stage of the Iteration flow (assign → check → plan → work → audit → release) and the next step. " +
+    "The target is one Iteration, one Plan, or one or more tickets. The stage is the first of these eight rules that applies, in order " +
+    "(1 assign: in this run, assignment is not finished yet, some todo is neither reviewed nor in an Iteration, and --no-assign is not given / " +
+    "2 check: not yet checked in this run / 3 plan: an approval-waiting Plan includes the target / 4 work: an approved Plan that includes the target has unfinished tickets / " +
+    "5 plan: an open Plan does not include some todo / 6 audit: all tickets of <S> are done or abandoned but not yet audited / 7 release: the same, and audited / 8 stop. If <S> is closed, nothing is assigned, and the flow stops as finished before 6 and 7). " +
+    "Audited means a ticket with the label audit-<S> exists, or the audit was finished in this run. For a ticket or Plan target, <S> is the ticket's Iteration (only when it is a single one), and audit and release apply only when all tickets in that Iteration are finished. " +
+    "Passing the returned resume to --resume in the next call marks the assignment, check, and audit that it returned as finished, and skips them. If resume is missing, unreadable, or for a different target, it starts again from assign and check. " +
+    "When stopped without finishing a stage (such as stopping at the audit findings table), do not pass that resume (passing it would skip that stage). " +
+    "Stages in config's flow.skip are skipped without reading their rules. If the facts (tickets, Plans, Runs) have not changed for the same stage as the previous return, it returns stop. Returns the stage's section (guide), the commands to call (commands), and whether approval is needed (approval; auto_ok says whether --auto chooses it without asking, following config's auto.decisions and auto.merge; decisions a person makes are not included). Writes nothing",
   input: z.object({
     targets: z
       .array(z.string().min(1))
       .min(1)
-      .describe("対象。Iteration（s3）1 つ、Plan（p7）1 つ、チケット（t12）1 つ以上のどれか"),
-    auto: z.boolean().optional().describe("勧める選択肢がある戻せる判断を自動で選ぶ（EX-7）"),
-    no_assign: z.boolean().optional().describe("割り当ての段階を飛ばす"),
+      .describe("Target: one Iteration (s3), one Plan (p7), or one or more tickets (t12)"),
+    auto: z
+      .boolean()
+      .optional()
+      .describe(
+        "Automatically choose reversible decisions that come with a suggested option (EX-7)",
+      ),
+    no_assign: z.boolean().optional().describe("Skip the assign stage"),
     resume: z
       .string()
       .optional()
-      .describe("前の dg flow next が返した resume。そのまま写して渡し、組み立てない"),
+      .describe(
+        "The resume returned by the previous dg flow next. Pass it through as-is; do not build it",
+      ),
   }),
   write: false,
   needs: "store",

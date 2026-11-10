@@ -291,14 +291,14 @@ export const transcriptFields = {
     .regex(/^\S+$/, "空白・改行を含まない 1 語")
     .optional()
     .describe(
-      "会話記録のセッション ID。Run に残し、finish と refresh はそのセッションの記録から数える。省けば環境の DEGUBOARD_SESSION（harness のフックが入れる）、なければ dg を呼んだエージェントが環境に付けるセッション ID（Adapter が読む。サブエージェントでは起動した親のセッション）、どれもなければ null",
+      "Session ID of the conversation record. Kept on the Run; finish and refresh count from that session's record. If omitted, uses DEGUBOARD_SESSION from the environment (set by the harness hook), else the session ID the calling agent sets in its environment (read by the Adapter; for a sub-agent, the parent session that started it), else null",
     ),
   transcript: z
     .string()
     .min(1)
     .optional()
     .describe(
-      "会話記録のファイルのパス。Git に入る Run には書かず、このマシンの deguboard-local/transcripts/ に置く。あれば finish と refresh はそのファイルから数える。harness のフックが渡す",
+      "Path of the conversation record file. Not written to a Run that goes into Git; it is kept in deguboard-local/transcripts/ on this machine. If present, finish and refresh count from that file. Passed by the harness hook",
     ),
 };
 
@@ -551,21 +551,21 @@ export const runStart = defineCommand({
   positionals: ["ticket", "step"],
   group: "run",
   summary:
-    "Run を始める。実行中の記録は deguboard-local/runs/ にだけ置き、Git には入れない。同じチケットと step の Run が実行中か、step がチケットの Workflow の steps にないなら拒否する。このマシンで同じ agent の Run が実行中なら警告して始める。Adapter のない agent 名でも拒まずに記録し、警告する。同じチケットの開いたままの手直しの Run は、この開始を区切りとして、その Run の開始より後の最後の push の時刻（なければこの開始の時刻）で success にしてから始める（手直しの step を始めるとき、前の手直しの Run が別のセッションのものなら interrupted）。同じチケットと step の Run が実行中で拒むときは、手直しの Run も閉じない。--agent を省けば、dg を呼んだエージェントを Adapter が環境変数から判定する（判定できなければ使い方の誤り）",
+    "Start a Run. The running record is kept only in deguboard-local/runs/ and is not put into Git. Rejected if a Run for the same ticket and step is running, or if the step is not in the ticket's Workflow steps. Warns and starts if a Run for the same agent is running on this machine. An agent name with no Adapter is recorded without rejection, with a warning. An open fix Run on the same ticket is closed with success at the last push after its start (or at this start's time if there is none), using this start as the boundary, and then this Run starts (when a fix step starts, an earlier fix Run from a different session is closed as interrupted). When this is rejected because a Run for the same ticket and step is running, the fix Run is not closed either. If --agent is omitted, the Adapter detects the agent calling dg from environment variables (if it cannot, it is a usage error)",
   input: z.object({
     ticket: ticketRef,
-    step: token.describe("工程。チケットの Workflow の steps の id（dg workflow show で見る）"),
+    step: token.describe("Stage. An id from the ticket's Workflow steps (see dg workflow show)"),
     agent: token
       .optional()
       .describe(
-        `エージェント名。${agentNames().join("・")} なら finish が会話記録から使用量を取り込む（metrics.read_transcripts）。省けば dg を呼んだエージェントを環境変数から判定し、判定できなければ使い方の誤り`,
+        `Agent name. For ${agentNames().join(", ")}, finish imports usage from the conversation record (metrics.read_transcripts). If omitted, the agent calling dg is detected from environment variables; if that fails, it is a usage error`,
       ),
     model: z
       .string()
       .min(1)
       .optional()
       .describe(
-        "モデル名（別名でもよい）。finish が会話記録から正式な名前を取れればそちらを記録し、取れないときだけこの名前を使う。分からなければ省く（null で残す）",
+        "Model name (an alias is fine). If finish can get the official name from the conversation record, that is recorded; this name is used only when it cannot. If unknown, omit it (it stays null)",
       ),
     ...transcriptFields,
   }),
@@ -613,19 +613,19 @@ export const runFinish = defineCommand({
   positionals: ["run"],
   group: "run",
   summary:
-    "実行中の Run を閉じ、完了時の集計を runs/ に書く（commit.mode に従ってコミット）。止まった Run は --result interrupted で閉じる。使用量とツールの回数（tools）は自己申告を受けず、agent の Adapter が会話記録から取り込む。使用量が取れなければ null のまま警告する。ツールを数えない Adapter では tools は null。" +
-    "既に閉じた Run（チケットの操作が閉じた実装の Run など）なら記録を変えずに警告して返す。" +
-    "印で頼んだサブエージェントがまだ動いている Run（バックグラウンドの起動か再開の後、止まる前）は、--result interrupted のほかは拒む（止まればフックが閉じる）",
+    "Close the running Run and write its completion totals to runs/ (commits per commit.mode). Close a stopped Run with --result interrupted. Usage and tool counts (tools) are not taken as self-reports; the agent's Adapter imports them from the conversation record. If usage cannot be read, it stays null with a warning. With an Adapter that does not count tools, tools is null. " +
+    "A Run that is already closed (such as an implementation Run closed by a ticket operation) is returned unchanged with a warning. " +
+    "A Run whose sub-agent was asked with the marker and is still running (after a background start or resume, before it stops) is rejected except with --result interrupted (the hook closes it when it stops)",
   input: z.object({
-    run: z.string().min(1).describe("Run の ID（r20261031-041500-3fa2）"),
-    result: z.enum(RUN_RESULTS).describe("success・failure・interrupted"),
-    error: z.string().min(1).optional().describe("失敗・中断の理由"),
+    run: z.string().min(1).describe("Run ID (r20261031-041500-3fa2)"),
+    result: z.enum(RUN_RESULTS).describe("success, failure, or interrupted"),
+    error: z.string().min(1).optional().describe("Reason for failure or interruption"),
     retries: z
       .number()
       .int()
       .nonnegative()
       .optional()
-      .describe("リトライの回数。省いて理由を渡せば理由の数"),
+      .describe("Number of retries. If omitted and reasons are given, the number of reasons"),
     retry_reasons: z
       .array(
         z
@@ -636,13 +636,15 @@ export const runFinish = defineCommand({
       .meta({ freeText: true })
       .optional()
       .describe(
-        "やり直しの理由。見直しや人のレビューで直した指摘の 1 行の要約。秘密・コマンドの文字列・パスは書かない",
+        "Reasons for retrying. One-line summary of the findings fixed in a review or a person's review. Do not write secrets, command strings, or paths",
       ),
     model: z
       .string()
       .min(1)
       .optional()
-      .describe("モデル名。会話記録から取れないときだけ使う（start の名前より先）"),
+      .describe(
+        "Model name. Used only when it cannot be read from the conversation record (preferred over the name given at start)",
+      ),
   }),
   write: true,
   needs: "store",
@@ -737,30 +739,31 @@ export const runReviewResult = defineCommand({
   positionals: ["ticket"],
   group: "run",
   summary:
-    "見直しの結果（重い・軽い指摘の数と通ったか）を、チケットの見直し（review の step）の Run に書く。見直し役が指摘の一覧を返す前に 1 回呼ぶ。" +
-    "このマシンで実行中の見直しの Run があればそれに書き（呼び直せば置き換える）、なければチケットの最新の Run が閉じた見直しの Run のときだけ、結果がまだなければそれに書く（commit.mode に従ってコミット。後に手直しなどの Run が始まっているか、もう結果があれば前の回の見直しなので書かない）。" +
-    "閉じた Run が結果の記録なしに failure で閉じていたら success に直す。どちらもなければ（前景で起動した見直し役）結果を保留にし（pending: true）、フックが見直しの Run を閉じるときに結び付ける。" +
-    "指摘は --findings-file（JSON か YAML の配列。1 件は severity・category・file・line・reason・fix）で渡す。dg がスキーマで検証し（誤りは場所を示して INVALID_INPUT）、heavy は severity が heavy か category が review.heavy_categories のもの、light は残り、passed は heavy が 0 のときとして求める。一覧は deguboard-local に置き、Git の Run には数だけを書く。" +
-    "--heavy・--light・--passed で数だけを渡す呼び方は前の版の見直し役のために残すが、数は自己申告になるので警告する。--findings-file と一緒には使えず、重い指摘があるのに --passed なら使い方の誤り",
+    "Write the review result (the counts of heavy and light findings, and whether it passed) to the Run of the ticket's review step. Call it once before the reviewer returns its list of findings. If a review Run is running on this machine, the result is written to it (calling again replaces it); otherwise it is written to the ticket's latest Run only when that is a closed review Run with no result yet (committed per commit.mode. If a later Run such as a fix has started, or a result already exists, it belongs to an earlier review and is not written). " +
+    "A closed Run that closed with failure and no result record is changed to success. If neither applies (a reviewer started in the foreground), the result is held (pending: true), and the hook links it when it closes the review Run. " +
+    "Findings are passed with --findings-file (a JSON or YAML array; each item has severity, category, file, line, reason, and fix). dg validates them against the schema (an error shows its location, as INVALID_INPUT); heavy is the findings with severity heavy or a category in review.heavy_categories, light is the rest, and passed means no heavy findings. The list is kept in deguboard-local, and only the counts are written to the Run in Git. " +
+    "The form that passes only counts with --heavy, --light, and --passed remains for an earlier version of the reviewer, but counts are self-reported, so it warns. It cannot be used with --findings-file; giving --passed when there are heavy findings is a usage error",
   input: z.object({
     ticket: ticketRef,
     findings: z
       .array(reviewFindingSchema)
       .meta({ cliFile: "findings-file" })
       .optional()
-      .describe("指摘の一覧。指摘がなければ空の配列"),
+      .describe("List of findings. An empty array if there are none"),
     heavy: findingCount
       .optional()
       .describe(
-        "前の版の呼び方：重い指摘の数（受け入れ条件の漏れ・不具合・文書との食い違い・規約の違反）",
+        "Earlier form: number of heavy findings (missed acceptance criteria, bugs, mismatches with the documents, rule violations)",
       ),
     light: findingCount
       .optional()
-      .describe("前の版の呼び方：軽い指摘の数（言い回し・好み。参考節との食い違いを含む）"),
+      .describe(
+        "Earlier form: number of light findings (wording and preferences, including mismatches with the reference section)",
+      ),
     passed: z
       .boolean()
       .optional()
-      .describe("前の版の呼び方：通った（重い指摘が残っていない）。省けば通っていない"),
+      .describe("Earlier form: passed (no heavy findings remain). Omit if it did not pass"),
   }),
   write: true,
   needs: "store",
@@ -895,8 +898,8 @@ export const runRetryReason = defineCommand({
   positionals: ["ticket"],
   group: "run",
   summary:
-    "手直しのやり直しの理由（直した指摘の 1 行の要約）を、チケットの開いている手直しの Run（opens_on: reclaim の step、なければ fix）の retry_reasons に書き足す。PR のないチケットでは使い方の誤り。回数は理由の数になる。印 step=fix で起動した手直しのサブエージェントが、直し始める前に呼ぶ。" +
-    "このマシンで実行中の手直しの Run が、そのチケットの最後の見直しの Run より後に始まっていれば、それに書き足す。なければ（前景で起動した手直し、前の回の手直しの Run だけが開いている）理由を保留にし（pending: true）、フックが手直しの Run を閉じるときに、その Run の開始より後に置いた理由を結び付ける",
+    "Add the reason for a fix retry (a one-line summary of a finding that was fixed) to the retry_reasons of the ticket's open fix Run (the step with opens_on: reclaim, or else fix). A usage error for a ticket with no PR. The count becomes the number of reasons. A fix sub-agent started with the marker step=fix calls it before it starts fixing. " +
+    "If a fix Run on this machine is running and started after the ticket's last review Run, the reason is added to it. Otherwise (a fix started in the foreground, or only an earlier fix Run is open), the reason is held (pending: true), and when the hook closes the fix Run, the reasons placed after that Run's start are linked to it",
   input: z.object({
     ticket: ticketRef,
     reasons: z
@@ -909,7 +912,7 @@ export const runRetryReason = defineCommand({
       .min(1)
       .meta({ freeText: true })
       .describe(
-        "直した指摘（見直し役・人のレビュー）の 1 行の要約。1 件に 1 つ繰り返す。検査の失敗を直したことは書かない。秘密・コマンドの文字列・パスは書かない",
+        "One-line summary of a fixed finding (from the reviewer or a person's review). One per item, repeated. Do not write that failing checks were fixed. Do not write secrets, command strings, or paths",
       ),
   }),
   write: true,
@@ -968,9 +971,7 @@ export const runHandoff = defineCommand({
   positionals: ["ticket"],
   group: "run",
   summary:
-    "親が手直しに渡す指摘を、作業ブランチの最新の見直しの回に記録する（deguboard-local。Git には書かない）。渡した指摘は、手直しの文（brief --role fix）の直す指摘に入り、" +
-    "直したかによらず dg pr ready の「直さなかった軽い指摘」から外れる（直さずに返したものは親が報告に書く）。指摘は見直しの一覧（run review-result）の 1 件と同じ形で、" +
-    "最新の見直しの一覧にあるものだけを受け付ける（ない・見直しの一覧がないなら使い方の誤り）。呼び直すと置き換える",
+    "Record the findings that the parent hands to the fix on the latest review of the work branch (deguboard-local; not written to Git). The handed-over findings go into the findings to fix in the fix instructions (brief --role fix), and whether or not they were fixed, they drop out of the 'light findings not fixed' list that dg pr ready shows (the parent reports any it returned unfixed). A finding has the same form as one item in the review list (run review-result), and only findings in the latest review list are accepted (a finding that is not there, or no review list at all, is a usage error). Calling again replaces it",
   input: z.object({
     ticket: ticketRef,
     findings: z
@@ -978,7 +979,7 @@ export const runHandoff = defineCommand({
       .min(1)
       .meta({ cliFile: "findings-file" })
       .describe(
-        "手直しに渡す指摘の一覧。最新の見直しの一覧から写す（JSON の配列。1 件は review-result と同じ形）",
+        "List of findings to hand to the fix. Copied from the latest review list (a JSON array; one item has the same form as in review-result)",
       ),
   }),
   write: true,
@@ -1009,16 +1010,16 @@ export const runList = defineCommand({
   name: "run.list",
   group: "run",
   summary:
-    "Run を開始の順に出す。終わっていない Run（running: true。このマシンの deguboard-local/runs/）も出す。Iteration・Project はチケットの今の値でたどる（metrics.show と同じ）。duration_seconds は実行時間（終わっていなければ null）",
+    "List Runs in start order. Also lists unfinished Runs (running: true, from deguboard-local/runs/ on this machine). Iteration and Project follow each ticket's current value (same as metrics.show). duration_seconds is the run time (null if unfinished)",
   input: z.object({
-    ticket: ticketRef.optional().describe("このチケットの Run だけ"),
+    ticket: ticketRef.optional().describe("Only Runs of this ticket"),
     iteration: iterationRef
       .optional()
       .describe(
-        "この Iteration のチケットの Run だけ。今ない Iteration（打ち間違い・文書を直接消したものなど）はエラーにせず空を返す。ticket.list・metrics.show の絞り込みと同じく、あるかは確かめない",
+        "Only Runs of tickets in this Iteration. An Iteration that does not exist now (a typo, or a document deleted directly) returns an empty list rather than an error. As with the ticket.list and metrics.show filters, existence is not checked",
       ),
-    project: slugSchema.optional().describe("この Project のチケットの Run だけ"),
-    running: z.boolean().optional().describe("終わっていない Run だけ"),
+    project: slugSchema.optional().describe("Only Runs of tickets in this Project"),
+    running: z.boolean().optional().describe("Only unfinished Runs"),
   }),
   write: false,
   needs: "store",
@@ -1114,13 +1115,16 @@ export const runRefresh = defineCommand({
   name: "run.refresh",
   positionals: ["runs"],
   group: "run",
-  summary: `閉じた Run のモデル名と使用量を、agent の Adapter で会話記録から取り直す（finish と同じ探し方。metrics.read_transcripts と DEGUBOARD_NO_TRANSCRIPTS に従う）。取れた値だけを書き換え、取れなかった値は今の値を残して警告する。終了の時刻（finished_at）から ${TRANSCRIPT_RETENTION_DAYS} 日を過ぎた Run は会話記録の場所を片付ける（run prune-transcripts）ので取り直さず、今の値を残して警告する。--dry-run では書かずに差分（changes）だけを返す`,
+  summary: `Re-read the model name and usage of closed Runs from the conversation record through the agent's Adapter (same search as finish; follows metrics.read_transcripts and DEGUBOARD_NO_TRANSCRIPTS). Only values that are read are rewritten; values that cannot be read keep their current value and produce a warning. A Run more than ${TRANSCRIPT_RETENTION_DAYS} days past its finished_at has its conversation record location cleaned up (run prune-transcripts), so it is not re-read; its current values are kept and a warning is given. With --dry-run nothing is written; only the differences (changes) are returned`,
   input: z.object({
     runs: z
       .array(z.string().min(1))
       .min(1)
-      .describe("閉じた Run の ID（r20261031-041500-3fa2）。複数指定できる"),
-    dry_run: z.boolean().optional().describe("書き換えずに、書き換えることになる差分だけを返す"),
+      .describe("ID of a closed Run (r20261031-041500-3fa2). Can be given more than once"),
+    dry_run: z
+      .boolean()
+      .optional()
+      .describe("Do not rewrite; return only the differences that would be written"),
   }),
   write: true,
   needs: "store",
@@ -1233,9 +1237,9 @@ export interface RunPruneTranscriptsResult {
 export const runPruneTranscripts = defineCommand({
   name: "run.prune-transcripts",
   group: "run",
-  summary: `このマシンの deguboard-local/transcripts/ から、終了の時刻（finished_at）から ${TRANSCRIPT_RETENTION_DAYS} 日を過ぎた Run（expired）と、実行中の記録も runs/ の集計もない ID（orphan）の会話記録のパスを消す。期間の中の Run と同じファイルを指すものは残す。消した Run は run refresh が取り直さない。Git には書かない。--dry-run では消さずに消すものだけを返す`,
+  summary: `Delete the conversation record paths in deguboard-local/transcripts/ on this machine for Runs more than ${TRANSCRIPT_RETENTION_DAYS} days past their finished_at (expired), and for IDs that have neither a running record nor an aggregate in runs/ (orphan). Records that point to the same file as a Run in the window are kept. Runs deleted here are not re-read by run refresh. Nothing is written to Git. With --dry-run nothing is deleted; only what would be deleted is returned`,
   input: z.object({
-    dry_run: z.boolean().optional().describe("消さずに、消すことになるものだけを返す"),
+    dry_run: z.boolean().optional().describe("Delete nothing; return only what would be deleted"),
   }),
   // Git には書かないが、このマシンのファイルを消すので書くコマンドにする（MCP で読むだけのツールに見せない。retry-reason と同じ）
   write: true,

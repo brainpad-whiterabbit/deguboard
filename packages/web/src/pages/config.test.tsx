@@ -43,7 +43,7 @@ const FIELDS: ConfigField[] = [
   {
     key: "git.remote",
     type: "string",
-    description: "同期先のリモート",
+    description: "Git remote that deguboard fetches from and pushes to",
     default: "origin",
     scope: "local",
     clears_to_default: true,

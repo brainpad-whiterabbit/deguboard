@@ -17,7 +17,7 @@ const TEMPLATE_IDS = WORKFLOW_TEMPLATES.map((t) => t.id) as [string, ...string[]
 export const workflowList = defineCommand({
   name: "workflow.list",
   group: "workflow",
-  summary: "読めた Workflow を出す。読めなかったものは workflow.validate で見る",
+  summary: "List readable Workflows. Use workflow.validate to see the ones that could not be read",
   input: z.object({}),
   write: false,
   needs: "store",
@@ -39,8 +39,10 @@ export const workflowShow = defineCommand({
   positionals: ["workflow"],
   group: "workflow",
   summary:
-    "Workflow の定義と、from→to ごとに合成した遷移の制約を出す。書かれていない遷移は誰でも条件なしで行える",
-  input: z.object({ workflow: slugSchema.describe("出す Workflow の ID（workflows/<id>.yaml）") }),
+    "Show a Workflow's definition and the transition constraints composed for each from→to. A transition that is not written is allowed for anyone without conditions",
+  input: z.object({
+    workflow: slugSchema.describe("ID of the Workflow to show (workflows/<id>.yaml)"),
+  }),
   write: false,
   needs: "store",
   async run(ctx, input) {
@@ -61,8 +63,8 @@ export const workflowValidate = defineCommand({
   positionals: ["workflow"],
   group: "workflow",
   summary:
-    "Workflow 定義の指摘（存在しない Status、未知の条件・Action、同じ遷移・step の重複）を出す",
-  input: z.object({ workflow: slugSchema.optional().describe("1 つだけ検査する") }),
+    "Show problems in Workflow definitions (Statuses that do not exist, unknown conditions or Actions, duplicate transitions or steps)",
+  input: z.object({ workflow: slugSchema.optional().describe("Check only this one") }),
   write: false,
   needs: "store",
   async run(ctx, input) {
@@ -97,20 +99,20 @@ export const workflowSet = defineCommand({
   positionals: ["workflow"],
   group: "workflow",
   summary:
-    "Workflow の定義を書く（なければ作り、あれば置き換える）。定義か同梱のテンプレートのどちらか一方を渡す。読み込み時と同じ検証（WF-3）の誤りがあれば何も書かない（未知の Action は警告だけ）",
+    "Write a Workflow definition (create it if missing, replace it if present). Pass either a definition or a bundled template. If there is an error the same as on load (WF-3), nothing is written (an unknown Action is only a warning)",
   input: z.object({
-    workflow: slugSchema.describe("書く Workflow の ID（workflows/<id>.yaml）"),
+    workflow: slugSchema.describe("ID of the Workflow to write (workflows/<id>.yaml)"),
     definition: z
       .record(z.string(), z.unknown())
       .meta({ cliFile: "file" })
       .optional()
       .describe(
-        "Workflow の定義。形は dg workflow show の definition と同じで、中の id は workflow と同じにする",
+        "The Workflow definition. Its shape is the same as the definition from dg workflow show, and its id must match workflow",
       ),
     template: z
       .enum(TEMPLATE_IDS)
       .optional()
-      .describe("同梱のテンプレートの名前。id は workflow に置き換えて書く"),
+      .describe("Name of a bundled template. Its id is replaced with workflow when written"),
   }),
   write: true,
   needs: "store",

@@ -134,11 +134,10 @@ describe("画面の文言の置き場所", () => {
       expect(placeholders(value), key).toEqual(placeholders(key));
     }
   });
-  it("core の文の訳の表は、どの文も表示言語（ja・en）の訳だけを持ち、今の core の文（日本語）にない英語の訳が揃う", () => {
+  it("core の文の訳の表は、どの文も表示言語（ja・en）の訳だけを持ち、日本語の文（CORE_LABELS・CORE_MESSAGES）には英語の訳が揃う", () => {
     const tables: Record<string, CoreTextTable> = {
       CORE_LABELS,
       CORE_MESSAGES,
-      CONFIG_DESCRIPTIONS,
     };
     for (const [name, table] of Object.entries(tables)) {
       expect(Object.keys(table).length, name).toBeGreaterThan(0);
@@ -155,6 +154,14 @@ describe("画面の文言の置き場所", () => {
           expect(placeholders(text), where).toEqual(placeholders(key.replace(/^\w+:/, "")));
         }
       }
+    }
+  });
+  it("設定の項目の説明の表は、鍵が英語の文で、どの鍵も日本語の訳（ja）を持つ", () => {
+    expect(Object.keys(CONFIG_DESCRIPTIONS).length).toBeGreaterThan(0);
+    for (const [key, entry] of Object.entries(CONFIG_DESCRIPTIONS)) {
+      expect(key, key).not.toMatch(JAPANESE);
+      expect(Object.keys(entry), key).toEqual(["ja"]);
+      expect(entry.ja, key).toMatch(JAPANESE);
     }
   });
   it("単数の形（EN_ONE）は EN にある鍵だけに置き、日本語を含まず {0} の並びと数の引数の番号が合う", () => {
@@ -332,20 +339,23 @@ describe("設定の項目の説明の訳", () => {
     const descriptions = [...new Set(configFields().map((f) => f.description))].sort();
     expect(Object.keys(CONFIG_DESCRIPTIONS).sort()).toEqual(descriptions);
   });
-  it("日本語では core の説明のまま、英語では訳を出し、表にない説明は core の説明のまま出す", () => {
-    expect(configDescription("同期先のリモート")).toBe("同期先のリモート");
+  it("日本語では表の ja の訳を出し、英語では core の説明（英語の文）のまま出し、表にない説明は core の説明のまま出す", () => {
+    const description = "Git remote that deguboard fetches from and pushes to";
+    expect(configDescription(description)).toBe("同期先のリモート");
     setLanguage("en");
-    expect(configDescription("同期先のリモート")).toBe(
-      "Git remote that deguboard fetches from and pushes to",
-    );
+    expect(configDescription(description)).toBe(description);
+    expect(configDescription("New item")).toBe("New item");
+    setLanguage("ja");
     expect(configDescription("新しい項目")).toBe("新しい項目");
   });
 });
 
 describe("core の文の訳の表の引き方（t649）", () => {
-  it("日本語の表示では、表にある文もない文も core の文と同じ字で出す", () => {
+  it("日本語の表示では、設定の説明は表の訳を、表にない文は core の文と同じ字で出す", () => {
     for (const { description } of configFields())
-      expect(configDescription(description)).toBe(description);
+      expect(configDescription(description)).toBe(
+        CONFIG_DESCRIPTIONS[description]?.ja ?? description,
+      );
     for (const { subjects, within } of subjectSets()) {
       for (const c of askCandidates(subjects, within))
         expect(trCore(c.label, c.action)).toBe(c.label);
