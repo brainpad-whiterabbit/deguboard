@@ -187,4 +187,115 @@ describe("プロセス内の CommandClient", () => {
     const list = await client.run<{ id: string; title: string }[]>("ticket.list");
     expect(list.data.map((t) => [t.id, t.title])).toEqual([["t1", "外から来"]]);
   });
+
+  it("同じ瞬間に届いた N 本の読みは、再走査を 1 回だけ行って結果を共有する", async () => {
+    const f = await initialized();
+    const client = createLocalClient({ cwd: f.cloneA });
+    await client.run("ticket.create", { title: "一" });
+    const rescan = vi.spyOn(Store.prototype, "rescan");
+    const results = await Promise.all([
+      client.run<{ id: string }[]>("ticket.list"),
+      client.run("epic.list"),
+      client.run("project.list"),
+      client.run("config.show", { fields: true }),
+      client.status(),
+    ]);
+    expect(rescan).toHaveBeenCalledTimes(1);
+    expect(results[0].data).toEqual([expect.objectContaining({ id: "t1" })]);
+  });
+
+  it("届く前に始まった再走査は使わず、届いた後の再走査で、要求の前に外で書いた変更が見える", async () => {
+    const f = await initialized();
+    const client = createLocalClient({ cwd: f.cloneA });
+    await client.run("ticket.create", { title: "画面から" });
+    // 最初の再走査を読み終えたところで止め、そのあいだに要求を届けて外から書き換える
+    const real = Store.prototype.rescan;
+    let entered!: () => void;
+    const reached = new Promise<void>((resolve) => (entered = resolve));
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    const rescan = vi.spyOn(Store.prototype, "rescan").mockImplementationOnce(async function (
+      this: Store,
+    ) {
+      await real.call(this);
+      entered();
+      await gate;
+    });
+    const first = client.run("ticket.list");
+    await reached;
+    const cli = await openContext({ cwd: f.cloneA });
+    await runCommand(
+      commands.find((c) => c.name === "ticket.create")!,
+      cli,
+      { title: "外から" },
+    );
+    // 外からの書き込みで増えた走査の数は数えず、2 本目の読みが自分で走査した 1 回だけを見る
+    const before = rescan.mock.calls.length;
+    const second = client.run<{ id: string }[]>("ticket.list");
+    release();
+    await first;
+    expect((await second).data.map((t) => t.id)).toEqual(["t1", "t2"]);
+    // 2 本目の読みは、1 本目の走査が終わったあとに届いたので、自分で再走査している
+    expect(rescan.mock.calls.length - before).toBe(1);
+  });
+
+  it("書き込みが列で待っているあいだに届いた読みは、書き込みのあとに新しく再走査し、書き込みの結果が見える", async () => {
+    const f = await initialized();
+    const client = createLocalClient({ cwd: f.cloneA });
+    await client.run("ticket.create", { title: "一" });
+    await client.run("ticket.list");
+    const rescan = vi.spyOn(Store.prototype, "rescan");
+    // 書き込みと読みを同じ瞬間に投げる。読みは書き込みの走査の前に届くので、書き込みの走査の番号を使い回してはいけない
+    const [, list] = await Promise.all([
+      client.run("ticket.create", { title: "二" }),
+      client.run<{ id: string }[]>("ticket.list"),
+    ]);
+    // 書き込みの走査と、読みの走査の 2 回
+    expect(rescan).toHaveBeenCalledTimes(2);
+    expect(list.data.map((t) => t.id)).toEqual(["t1", "t2"]);
+  });
+
+  it("書き込みは再走査を共有せず、同時に届いても 1 本ずつ自分で再走査する", async () => {
+    const f = await initialized();
+    const client = createLocalClient({ cwd: f.cloneA });
+    await client.run("ticket.create", { title: "一" });
+    const rescan = vi.spyOn(Store.prototype, "rescan");
+    const [a, b] = await Promise.all([
+      client.run<{ id: string }>("ticket.create", { title: "二" }),
+      client.run<{ id: string }>("ticket.create", { title: "三" }),
+    ]);
+    expect(rescan).toHaveBeenCalledTimes(2);
+    expect([a.data.id, b.data.id]).toEqual(["t2", "t3"]);
+  });
+
+  it("同時に届いた読みの 1 本が失敗しても、他の結果は返り、失敗はその呼び出しの失敗になる", async () => {
+    const f = await initialized();
+    const client = createLocalClient({ cwd: f.cloneA });
+    await client.run("ticket.create", { title: "一" });
+    const [missing, list] = await Promise.allSettled([
+      client.run("ticket.show", { ticket: "t99" }),
+      client.run<{ id: string }[]>("ticket.list"),
+    ]);
+    expect(missing.status).toBe("rejected");
+    expect(toCommandFailure((missing as PromiseRejectedResult).reason)).toMatchObject({
+      code: "NOT_FOUND",
+    });
+    expect(list).toMatchObject({ status: "fulfilled", value: { data: [{ id: "t1" }] } });
+  });
+
+  it("再走査が失敗すると、その要求だけが失敗し、次の要求は自分で再走査する", async () => {
+    const f = await initialized();
+    const client = createLocalClient({ cwd: f.cloneA });
+    await client.run("ticket.create", { title: "一" });
+    vi.spyOn(Store.prototype, "rescan").mockRejectedValueOnce(new Error("走査に失敗"));
+    await expect(client.run("ticket.list")).rejects.toThrow("走査に失敗");
+    const cli = await openContext({ cwd: f.cloneA });
+    await runCommand(
+      commands.find((c) => c.name === "ticket.create")!,
+      cli,
+      { title: "外から" },
+    );
+    const list = await client.run<{ id: string }[]>("ticket.list");
+    expect(list.data.map((t) => t.id)).toEqual(["t1", "t2"]);
+  });
 });
