@@ -2,7 +2,8 @@
 // model が guide の読み込み（fs・yaml）に依存しないよう、一覧だけを依存のないこのファイルに置く
 
 /**
- * 流れの順に並べる。change は流れの外で、人が頼んだ 1 つの書き換え（直す・閉じる・再開・やめる・done の取り消し）を受ける。
+ * 流れの順に並べる。change と discuss は流れの外で、change は人が頼んだ 1 つの書き換え（直す・閉じる・再開・やめる・done の取り消し）を受け、
+ * discuss は人と論点を決めてから、その結論の反映を import・change に任せる。
  * frontmatter に description を持つトピックは dg<トピック> の Skill として配る（AG-2）。overview・run・parallel・review は Skill を持たず、ほかのトピックから読む
  */
 export const GUIDE_TOPICS = [
@@ -19,6 +20,7 @@ export const GUIDE_TOPICS = [
   "release",
   "done",
   "change",
+  "discuss",
   "all",
 ] as const;
 export type GuideTopic = (typeof GUIDE_TOPICS)[number];

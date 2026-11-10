@@ -317,6 +317,7 @@ describe("Skill の本文", () => {
       "dgrelease",
       "dgdone",
       "dgchange",
+      "dgdiscuss",
       "dgall",
     ]);
     for (const s of skills) {

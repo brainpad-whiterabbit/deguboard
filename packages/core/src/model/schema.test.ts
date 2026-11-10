@@ -207,6 +207,7 @@ describe("スキーマ", () => {
       "guide.notes.release",
       "guide.notes.done",
       "guide.notes.change",
+      "guide.notes.discuss",
       "guide.notes.all",
       "priority.high",
       "priority.medium",

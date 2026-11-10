@@ -335,6 +335,7 @@ export const EN: Readonly<Record<string, string>> = {
   "差し込む文書（リリース）": "Document inserted into release",
   "差し込む文書（完了）": "Document inserted into done",
   "差し込む文書（書き換え）": "Document inserted into change",
+  "差し込む文書（検討）": "Document inserted into discuss",
   "差し込む文書（一気通し）": "Document inserted into all",
   同期先が変わる: "changes where data is synced",
   マージ済みの判定の基準が変わる: "changes the base for detecting merges",
