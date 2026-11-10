@@ -17,8 +17,8 @@ Puts tickets into Iterations (a period of planning. `sprint` is an alias) and Ep
 ## Iteration
 
 - List: `dg --json --actor agent iteration list` (`status` is planned / active / closed)
-- Create: `dg --json --actor agent iteration create "<name>" --goal "<goal>" --start 2026-11-01 --end 2026-11-14`
-- Update: `dg --json --actor agent iteration update <s3> --goal "<goal>"`. `--name`, `--start`, and `--end` also change only what is specified. A closed Iteration can also be updated
+- Create: `dg --json --actor agent iteration create "<name>" --goal "<goal>"`. An Iteration has no planned dates; the period is recorded from when it starts (`started_at`) to when it closes (`closed_at`)
+- Update: `dg --json --actor agent iteration update <s3> --goal "<goal>"`. `--name` also changes only what is specified. A closed Iteration can also be updated
 - Add: `dg --json --actor agent iteration add <s3> <t12> <t13>`. A ticket that was in another Iteration moves
 - Remove: `dg --json --actor agent iteration remove <s3> <t12>`
 - Start: `dg --json --actor agent iteration start <s3>` (planned → active). Only one Iteration in a Project can be active. If another one is active, both starting and reopening are refused. Ask a human whether to close the previous one
@@ -40,7 +40,7 @@ Puts tickets into Iterations (a period of planning. `sprint` is an alias) and Ep
 
 ## When proposing an assignment
 
-1. Read the Iteration's goal and period and the tickets in it with `dg --json --actor agent iteration show <s3>`
+1. Read the Iteration's goal and the tickets in it with `dg --json --actor agent iteration show <s3>`
 2. Collect the unassigned todos (those without an `iteration`, from `dg --json --actor agent ticket list --status todo`). Make a proposal from the ones that fit the goal, looking at the order of dependencies
 3. Show a table with one line for each, giving the reason for putting it in or not. Have a human select the rows to put in with multiple selection, then run `iteration add`
 4. For items that should be handled soon (such as bugs), propose putting them into the active Iteration

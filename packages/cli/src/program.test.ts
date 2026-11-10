@@ -343,13 +343,25 @@ describe("dg", () => {
       "sprint",
       "create",
       "Sprint 1",
-      "--start",
-      "2026-11-01",
+      "--goal",
+      "読む",
     ]);
     expect(created.code).toBe(0);
-    expect(created.json().data).toMatchObject({ id: "s1", start: "2026-11-01" });
+    expect(created.json().data).toMatchObject({ id: "s1", goal: "読む" });
     const list = await dg(f.cloneA, ["iteration", "list"]);
     expect(list.out).toContain("s1");
+  });
+
+  it("Iteration は予定の期間を持たないので、create・update のヘルプに --start・--end がなく、渡すと使い方の誤り", async () => {
+    const f = await fixture();
+    await dg(f.cloneA, ["init"]);
+    for (const op of ["create", "update"]) {
+      const help = await dg(f.cloneA, ["iteration", op, "--help"]);
+      expect(help.out).not.toMatch(/--start|--end/);
+    }
+    const rejected = await dg(f.cloneA, ["iteration", "create", "Sprint 1", "--end", "2026-11-14"]);
+    expect(rejected.code).toBe(2);
+    expect((await dg(f.cloneA, ["--json", "iteration", "list"])).json().data).toEqual([]);
   });
 
   it("plan create は --after・--scope・--approach・--tier を key=value で受け、段階の誤りは終了コード 2、開いた Plan と同じチケットは 1", async () => {

@@ -123,9 +123,7 @@ describe("Iteration の行", () => {
         status: "closed",
         started_at: "2026-10-20T00:00:00Z",
         closed_at: "2026-11-01T00:00:00Z",
-        // 期間は実績の started_at〜closed_at で出し、予定の start・end は出さない（UI-5）
-        start: "2026-11-15",
-        end: "2026-11-28",
+        // 期間は実績の started_at〜closed_at で出す（UI-5）
         completed: 3,
         carried_over: 2,
       }),
@@ -850,8 +848,6 @@ describe("履歴のタブ・Iteration の行・Epic の見方", () => {
         closed_at: "2026-10-10T00:00:00Z",
         completed: 3,
         carried_over: 1,
-        start: "2026-09-29",
-        end: "2026-10-10",
         goal: "core",
       }),
       iteration({ id: "s2", name: "次", status: "closed", closed_at: "2026-10-24T00:00:00Z" }),

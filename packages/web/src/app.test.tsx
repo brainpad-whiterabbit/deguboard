@@ -1816,9 +1816,7 @@ describe("画面", () => {
         id: "s1",
         name: "今",
         status: "active",
-        // 予定の start・end ではなく、実績の started_at から出す（active は開始だけ）
-        start: "2026-10-20",
-        end: "2026-11-14",
+        // 実績の started_at から出す（active は開始だけ）
         started_at: "2026-11-01T12:00:00Z",
         goal: "左パネルを整える",
       }),
@@ -1845,7 +1843,7 @@ describe("画面", () => {
     const client = mockClient();
     client.data.iterations = [
       iteration({ id: "s1", name: "今", status: "active" }),
-      iteration({ id: "s2", name: "次", status: "planned", start: "2026-12-01", goal: "次の目標" }),
+      iteration({ id: "s2", name: "次", status: "planned", goal: "次の目標" }),
     ];
     for (const t of client.data.tickets) t.iteration = "s1";
     mount(client, hostOf("sidebar"));
@@ -2184,9 +2182,6 @@ describe("画面", () => {
         id: "s1",
         name: "今",
         status: "active",
-        // 予定の終了日を過ぎていても、予定の start・end は出さない
-        start: "2026-11-10",
-        end: "2026-11-30",
         started_at: "2026-11-17T03:04:00Z",
         goal: "見出しを分ける",
       }),
@@ -2227,8 +2222,6 @@ describe("画面", () => {
       id: "s1",
       name: "今",
       status: "planned",
-      start: "2026-12-10",
-      end: "2026-12-20",
     });
     mount(client, hostOf("panel"));
     await screen.findByRole("heading", { level: 1, name: /s1 今/ });
@@ -2245,8 +2238,6 @@ describe("画面", () => {
         id: "s0",
         name: "前",
         status: "closed",
-        start: "2026-09-25",
-        end: "2026-10-14",
         started_at: "2026-10-01T09:30:00Z",
         closed_at: "2026-10-14T18:05:00Z",
         completed: 3,
@@ -2328,8 +2319,6 @@ describe("画面", () => {
         id: "s1",
         name: "今",
         status: "planned",
-        start: "2026-11-15",
-        end: "2026-11-28",
         goal: "左パネルを整える",
       }),
     ];
@@ -2361,8 +2350,6 @@ describe("画面", () => {
         id: "s1",
         name: "今",
         status: "active",
-        start: "2026-11-01",
-        end: "2026-11-14",
         started_at: "2026-11-02T08:15:00Z",
         goal: "札で切り替える",
       }),
@@ -2392,7 +2379,7 @@ describe("画面", () => {
     ]);
     expect(chips[1]!.querySelector("svg.ring")).toBeTruthy();
     expect(chips[1]!.title).toBe(
-      // 期間は予定の start・end でなく、実績の開始の日時だけ
+      // 期間は実績の開始の日時だけ
       `s1 今（進行中）\n開始 ${formatShortTime("2026-11-02T08:15:00Z")}\n目標 札で切り替える`,
     );
     expect(chips[2]!.title).toBe("s2 次（予定）");

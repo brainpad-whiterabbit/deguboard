@@ -113,19 +113,6 @@ describe("Iteration 詳細の案内の表示（core の next を出すだけ）"
     expect(text).toContain("dg guide release");
   });
 
-  it("overdue は未完了の件数と、carry の依頼文のコピーを出す（close ではない）", async () => {
-    const { run } = mount(withNext({ kind: "overdue", unfinished: 2, ask: "carry" }));
-    expect(screen.getByText(/未完了が 2 件/)).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "依頼文をコピー" }));
-    await waitFor(() =>
-      expect(run).toHaveBeenCalledWith("ask", {
-        targets: ["s1"],
-        action: "carry",
-        language: "ja",
-      }),
-    );
-  });
-
   it("planned は「ほかに active がなければ」着手で active になると出し、ボタンは出さない", () => {
     mount(withNext({ kind: "planned", ask: null }));
     expect(screen.getByText(/ほかに active がなければ.*着手（claim）すると active/)).toBeTruthy();

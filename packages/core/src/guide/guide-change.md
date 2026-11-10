@@ -18,7 +18,7 @@ Carries out one change that a human asked for: edit, close, reopen, abandon, or 
 | Change    | Target                    | Command                                                                                                                                     |
 | --------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
 | edit      | Ticket                    | `dg --json --actor agent ticket update <t12> --title … --body … --acceptance … --priority … --label … --depends-on …` (only what changes)    |
-| edit      | Iteration                 | `dg --json --actor agent iteration update <s3> --name … --goal … --start … --end …` (only what changes)                                     |
+| edit      | Iteration                 | `dg --json --actor agent iteration update <s3> --name … --goal …` (only what changes)                                                       |
 | edit      | Epic                      | `dg --json --actor agent epic update <e3> --title … --body …` (only what changes)                                                           |
 | close     | Iteration / Epic          | `dg --json --actor agent iteration close <s3>` / `epic close <e3>`                                                                          |
 | reopen    | Iteration / Epic          | `dg --json --actor agent iteration reopen <s3>` / `epic reopen <e3>`                                                                        |

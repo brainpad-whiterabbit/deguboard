@@ -59,13 +59,12 @@ const ticket = (over: Partial<Extract<AskSubject, { kind: "ticket" }>> = {}): As
   running: false,
   ...over,
 });
-const iteration = (status: string, complete = false, overdue = false): AskSubject => ({
+const iteration = (status: string, complete = false): AskSubject => ({
   kind: "iteration",
   id: "s10",
   title: "チケット詳細の改善",
   status,
   complete,
-  overdue,
 });
 const epic = (status: string): AskSubject => ({
   kind: "epic",
@@ -96,7 +95,6 @@ const SAMPLES: Array<[AskSubject[], string?]> = [
   [[iteration("closed")]],
   [[iteration("active", true)]],
   [[iteration("active")]],
-  [[iteration("active", false, true)]],
   [[iteration("planned")]],
   [[epic("closed")]],
   [[epic("open")]],
@@ -292,7 +290,7 @@ describe("依頼文の組み立て", () => {
     const cases: Array<[AskSubject[], AskAction, string]> = [
       [[ticket()], "change", "/dgchange t265\nt265 を直して"],
       [[ticket({ status: "review" })], "change", "/dgchange t265\nt265 を直して"],
-      [[iteration("active")], "change", "/dgchange s10\ns10 の名前・目標・期間を直して"],
+      [[iteration("active")], "change", "/dgchange s10\ns10 の名前・目標を直して"],
       [[epic("open")], "change", "/dgchange e9\ne9 の題・概要を直して"],
       [[iteration("active")], "close", "/dgchange s10\ns10 を閉じて"],
       [[epic("open")], "close", "/dgchange e9\ne9 を閉じて"],
@@ -330,11 +328,11 @@ describe("依頼文の組み立て", () => {
     });
   });
 
-  it("Skill を持たない頼むことは free・status・retro・carry だけ", () => {
+  it("Skill を持たない頼むことは free・status・retro だけ", () => {
     const none = new Set<string>();
     for (const [s, within] of SAMPLES)
       for (const c of askCandidates(s, within)) if (c.skill === null) none.add(c.action);
-    expect([...none].sort()).toEqual(["carry", "free", "retro", "status"]);
+    expect([...none].sort()).toEqual(["free", "retro", "status"]);
   });
 
   it("actor.human_only に当たる書き換えは、/dgchange の代わりに今までどおり人が打つコマンドを返す", () => {
@@ -363,24 +361,9 @@ describe("依頼文の組み立て", () => {
     }
   });
 
-  it("終了日を過ぎて未完了がある active の Iteration は持ち越しの相談（carry）がおすすめで、close を使わない。human_only に iteration.close があってもコマンドにならない", () => {
-    const overdue: AskSubject = iteration("active", false, true);
-    expect(askActions([overdue])[0]).toBe("carry");
-    // 期限内・全件終了・閉じたものには出さない
-    for (const s of [iteration("active"), iteration("active", true), iteration("closed")])
-      expect(askActions([s])).not.toContain("carry");
-    const view = buildAsk({
-      subjects: [overdue],
-      action: "carry",
-      humanOnly: ["iteration.close", "iteration.update"],
-    });
-    expect(view.kind).toBe("prompt");
-    expect(view.human_only).toEqual([]);
-    expect(view.text).toContain("持ち越すか続けるか");
-    expect(view.text).toContain("書き換えない");
-    // 閉じる依頼（人の指示で閉じる）の文にならない
-    expect(view.text).not.toContain("閉じてください");
-    expect(view.text).not.toContain("dg iteration close");
+  it("持ち越しの相談（carry）はなく、active の Iteration は未完了が残っても計画がおすすめ（予定の期間を持たない）", () => {
+    expect(ASK_ACTIONS).not.toContain("carry");
+    expect(askActions([iteration("active")])[0]).toBe("plan");
   });
 
   it("頼むことの操作が actor.human_only に入っていれば、依頼文の代わりに人が打つ dg のコマンドを返す", () => {
@@ -419,16 +402,14 @@ describe("依頼文の組み立て", () => {
     });
     expect(edit).toMatchObject({ kind: "command", label: "題・概要を変える" });
     expect(edit.text).toBe(`dg epic update ${epic("open").id} --title "<題>" --body "<概要>"`);
-    // Iteration の変えるは名前・目標・期間を変えるので、人に回すコマンドも名前・目標・期間を直す
+    // Iteration の変えるは名前・目標を変えるので、人に回すコマンドも名前・目標を直す（予定の期間は持たない）
     const editIt = buildAsk({
       subjects: [iteration("active")],
       action: "change",
       humanOnly: ["iteration.update"],
     });
-    expect(editIt).toMatchObject({ kind: "command", label: "名前・目標・期間を変える" });
-    expect(editIt.text).toBe(
-      'dg iteration update s10 --name "<名前>" --goal "<目標>" --start "<開始日>" --end "<終了日>"',
-    );
+    expect(editIt).toMatchObject({ kind: "command", label: "名前・目標を変える" });
+    expect(editIt.text).toBe('dg iteration update s10 --name "<名前>" --goal "<目標>"');
     // 入っていない操作は依頼文のまま
     expect(buildAsk({ subjects: [epic("open")], action: "close", humanOnly }).kind).toBe("prompt");
     // Skill の手順に任せる頼むことは、拒否されたらエージェントが人に頼むので依頼文のまま
@@ -560,7 +541,7 @@ describe("依頼文の定型の文の言語（UI-11）", () => {
         language: "en",
       }).text.split("\n")[0],
     ).toBe(
-      "Create an Iteration, with the name, goal, and dates as instructed (propose them if not given). If you create tickets, pass --created-by human, since this is a human's instruction.",
+      "Create an Iteration, with the name and goal as instructed (propose them if not given). If you create tickets, pass --created-by human, since this is a human's instruction.",
     );
     expect(firstEn([ticket(), ticket({ id: "t266" })], "abandon")).toBe(
       "Abandon t265, t266 by moving them to abandoned (a human's instruction; write the reason in the body as instructed).",
@@ -688,7 +669,7 @@ describe("頼むことの候補", () => {
       "abandon",
       "free",
     ]);
-    // 対象がないと意味のないもの（外す・分ける・done の取り消し・再開・承認）と、Skill のないもの（様子・振り返り・持ち越し）は出さない
+    // 対象がないと意味のないもの（外す・分ける・done の取り消し・再開・承認）と、Skill のないもの（様子・振り返り）は出さない
     for (const action of [
       "remove",
       "split",
@@ -697,7 +678,6 @@ describe("頼むことの候補", () => {
       "approve",
       "status",
       "retro",
-      "carry",
     ] as const)
       expect(askActions([])).not.toContain(action);
     expect(buildAsk({ subjects: [] }).action).toBe("create");

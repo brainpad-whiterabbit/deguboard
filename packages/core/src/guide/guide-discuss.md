@@ -21,7 +21,7 @@ Discusses the targets with a human until the open points are settled, then refle
 
 ## What is reflected
 
-Only the title, body (summary), acceptance criteria, priority, dependencies, and gate level are reflected (for an Iteration: the name, goal, and dates; for an Epic: the title and summary). Lowering the gate level needs the human's explicit instruction.
+Only the title, body (summary), acceptance criteria, priority, dependencies, and gate level are reflected (for an Iteration: the name and goal; for an Epic: the title and summary). Lowering the gate level needs the human's explicit instruction.
 
 When the conclusion is a change of Status, of membership (Iteration or Epic), closing, or abandoning, do not do it here. Show the ask that fits and stop:
 

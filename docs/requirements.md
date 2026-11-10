@@ -67,7 +67,7 @@ runs/r20261031-041500-3fa2.json  # Run の完了時の集計だけ。ID は開�
 ```
 
 - DT-1 書き込みは一時ファイルへ書いてから rename する。読み込みは Zod のスキーマで検証し、読めないファイルは止めずに `dg validate` と画面で報告する
-- DT-2 スキーマにない項目は読み書きで残す（版の違う `dg` が消さない）
+- DT-2 スキーマにない項目は読み書きで残す（版の違う `dg` が消さない）。`dg` がやめた項目（Iteration の `start`・`end`）は書くときに消す（[ADR-009](adr/ADR-009-epic-and-iteration.md)）
 
 ### 5.2 ID と番号
 
@@ -124,7 +124,7 @@ updated_at: 2026-10-31T05:10:00Z
 
 ### 5.6 Iteration（`iterations/s3.yaml`）
 
-- IT-1 `status` は `planned` / `active` / `closed` で、実績の期間として active になったときに `started_at`、閉じたときに `closed_at` と完了・持ち越しの件数を書く（細部は `iteration start / close / reopen --help`）。閉じる・再開するのは既定で誰でも行える（EP-4 と同じ）。active は Project に 1 つに保つ
+- IT-1 `status` は `planned` / `active` / `closed` で、予定の期間は持たず、実績の期間として active になったときに `started_at`、閉じたときに `closed_at` と完了・持ち越しの件数を書く（細部は `iteration start / close / reopen --help`）。閉じる・再開するのは既定で誰でも行える（EP-4 と同じ）。active は Project に 1 つに保つ
 - IT-2 所属はチケットの `iteration` で表し、Iteration 側にチケットの一覧は持たない。入れるのは同じ Project のチケットだけで、閉じた Iteration には入れられない。閉じるときに done・abandoned 以外のチケットの `iteration` を外す。進捗は都度求める（EP-3）
 - IT-3 `iteration show` は次の操作 `next` と中のチケットを含む Plan `plans` を返し、画面はこれを読む（形は `packages/core/src/commands/iteration.ts`、並びは `commands/helpers.ts` の `ticketsInIteration`）
 

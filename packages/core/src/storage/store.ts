@@ -27,7 +27,7 @@ import {
   type PlanId,
   type TicketId,
 } from "../model/id.js";
-import { iterationSchema, type Iteration } from "../model/iteration.js";
+import { iterationSchema, RETIRED_ITERATION_KEYS, type Iteration } from "../model/iteration.js";
 import { planSchema, type Plan } from "../model/plan.js";
 import { projectSchema, type Project } from "../model/project.js";
 import { isRunId, runSchema, type Run, type RunId } from "../model/run.js";
@@ -74,6 +74,11 @@ interface Collection<T extends { id: string }> {
   /** ファイル名から ID を取り出す。対象外のファイルなら undefined */
   idOf(fileName: string): string | undefined;
   pathOf(id: string): string;
+  /**
+   * やめたキー。書くたびに消す（スキーマにない項目は残す DT-2 の例外で、dg 自身が書いていた古い形だけを移す）。
+   * 移すための書き込みは iteration update を引数なしで呼ぶだけでもよい
+   */
+  retired?: readonly string[];
 }
 
 const collections = {
@@ -104,6 +109,8 @@ const collections = {
     schema: iterationSchema,
     idOf: (f) => idFromFileName(f, "iteration"),
     pathOf: iterationPath,
+    // 予定の期間はやめた（期間は実績の started_at・closed_at だけ）
+    retired: RETIRED_ITERATION_KEYS,
   } satisfies Collection<Iteration>,
   plan: {
     dir: DIRS.plans,
@@ -363,7 +370,8 @@ export class Store {
     const c = collections[kind] as unknown as Collection<EntityOf<K>>;
     const doc = this.map(kind).get(id);
     if (!doc) throw new OperationError("NOT_FOUND", `${kind} ${id} not found`);
-    const next = await writeDoc(this.root, doc, c.schema, patch, body);
+    const retired = Object.fromEntries((c.retired ?? []).map((k) => [k, undefined]));
+    const next = await writeDoc(this.root, doc, c.schema, { ...retired, ...patch }, body);
     this.map(kind).set(id, next);
     return next;
   }

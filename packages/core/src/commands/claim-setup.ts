@@ -10,37 +10,30 @@ import { otherActiveOf, type Iteration } from "../model/iteration.js";
 import type { Ticket } from "../model/ticket.js";
 import type { Doc } from "../storage/documents.js";
 import { deniedToAgent, type CommandContext } from "./define.js";
-import { localDate, nowIso } from "./helpers.js";
+import { nowIso } from "./helpers.js";
 
 /**
- * Iteration の空いたチケットを入れる先：Project の active の Iteration、なければ planned のうち start が最も早いもの
- * （start のないものは後ろ。並べば ID の小さいもの）。閉じた Iteration には入れない
+ * Iteration の空いたチケットを入れる先：Project の active の Iteration、なければ planned がただ 1 つのときのそれ。
+ * planned が複数なら、どれを先にするかは予定の期間を持たないので決めず、候補を ID の順に返す。閉じた Iteration には入れない
  */
 export function iterationTargetFor(
   iterations: Iterable<Doc<Iteration>>,
   project: string,
-): Doc<Iteration> | undefined {
+): { target: Doc<Iteration> } | { candidates: Doc<Iteration>[] } {
   const inProject = [...iterations].filter((i) => i.data.project === project);
   const active = inProject.find((i) => i.data.status === "active");
-  if (active) return active;
-  return inProject
+  if (active) return { target: active };
+  const planned = inProject
     .filter((i) => i.data.status === "planned")
-    .sort((a, b) => {
-      const as = a.data.start;
-      const bs = b.data.start;
-      if (as !== bs) {
-        if (as === undefined) return 1;
-        if (bs === undefined) return -1;
-        return as < bs ? -1 : 1;
-      }
-      return compareIds(a.id, b.id);
-    })[0];
+    .sort((a, b) => compareIds(a.id, b.id));
+  const [only] = planned;
+  return planned.length === 1 && only ? { target: only } : { candidates: planned };
 }
 
 /**
  * claim の書き込みの中で、チケットの Iteration を決めて返し、planned なら開始する（lint.require_iteration・IT-1）。
  * require_iteration が false なら Iteration には入れないが、入っている Iteration の開始は行う。
- * 入れ先がない・agent に禁じられた・ほかの active があるときは、何もせず warnings に人への頼みを書く
+ * 入れ先がない・planned が複数で決まらない・agent に禁じられた・ほかの active があるときは、何もせず warnings に人への頼みを書く
  */
 export async function prepareIterationForClaim(
   ctx: CommandContext,
@@ -49,8 +42,13 @@ export async function prepareIterationForClaim(
 ): Promise<Ticket["iteration"]> {
   let iterationId = ticket.data.iteration;
   if (!iterationId && ctx.config.lint.require_iteration) {
-    const target = iterationTargetFor(ctx.store.iterations.values(), ticket.data.project);
-    if (!target) {
+    const found = iterationTargetFor(ctx.store.iterations.values(), ticket.data.project);
+    const target = "target" in found ? found.target : undefined;
+    if (!target && "candidates" in found && found.candidates.length > 0) {
+      warnings.push(
+        `There is no active Iteration, and ${found.candidates.length} are planned (${found.candidates.map((i) => i.id).join(", ")}), so ${ticket.id} was not added to any. Ask the human which Iteration to add it to (going on without adding it gives lint_iteration_missing)`,
+      );
+    } else if (!target) {
       warnings.push(
         `There is no Iteration (active or planned) to add ${ticket.id} to. Ask the human to create an Iteration and add it (going on without adding it gives lint_iteration_missing)`,
       );
@@ -82,10 +80,9 @@ export async function prepareIterationForClaim(
     );
     return iterationId;
   }
-  // iteration.start と同じく、実績の期間の始まり started_at を書き、予定の開始日も始めた日に書き換える（IT-1）
+  // iteration.start と同じく、実績の期間の始まり started_at を書く（IT-1）
   await ctx.store.update("iteration", it.id, {
     status: "active",
-    start: localDate(ctx.now()),
     started_at: nowIso(ctx),
   });
   warnings.push(`Started ${it.id} (active)`);

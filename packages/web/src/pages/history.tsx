@@ -3,8 +3,8 @@
 // どちらもタブを移って戻ったときに残す（履歴のタブのリンクは最後に見た履歴のハッシュを指す。app.tsx）
 // Iteration の見方：closed の Iteration を閉じた新しい順に 2 段の行で出す（KanbanForge の History のタブと同じ形）。
 // 1 段目は番号・目標（目標がなければ薄く「目標なし」。名前は出さない）と件数（完了は数字、中止・持ち越しは 1 件以上のときだけ
-// 色付きの文字）、2 段目は閉じた日と、終わったチケットの Epic ごとの内訳（見出しなし。Epic なしを含み、合計は終わったチケットの件数に合う。
-// すべて Epic なしなら出さない）。期間（start〜end）は出さない（t421 より前に閉じたものは start・end が予定の日のままで、実際の期間と食い違う）。
+// 色付きの文字）、2 段目は実績の期間（started_at〜closed_at）と、終わったチケットの Epic ごとの内訳（見出しなし。Epic なしを含み、合計は終わったチケットの件数に合う。
+// すべて Epic なしなら出さない）。
 // Run の実績はここに出さない（チケット詳細の Run の節と dg metrics show で見る）。
 // 左パネルの狭い幅で読めるよう、Iteration の行は開閉の印を付け、開くと中の done・abandoned のチケットを番号の順の 1 本の一覧（履歴用の行。
 // components/history-rows.tsx）で出し、持ち越しを最後に分ける。
@@ -479,7 +479,7 @@ function IterationItem({
   const epics = epicCountsOf(finished);
   const abandoned = finished.filter((t) => t.status === "abandoned").length;
   // 1 段目は目標（なければ薄く「目標なし」。名前は出さず、ツールチップにだけ置く）。2 段目は実績の期間と Epic ごとの内訳。
-  // 期間は予定の start〜end でなく、実績の started_at〜closed_at で出す（UI-5）。started_at のないものは開始を「不明」と出す
+  // 期間は実績の started_at〜closed_at で出す（UI-5）。started_at のないものは開始を「不明」と出す
   const goal = i.goal?.trim();
   // 終わったチケットがすべて Epic なしなら内訳は出さない（Epic なしだけの内訳は情報にならない）
   const showEpics = epics.some((e) => e.epic !== null);
