@@ -1,6 +1,6 @@
 {
   "name": "deguboard",
-  "version": "0.19.0",
+  "version": "0.20.0",
   "description": "The CLI (dg) of deguboard, a Git-native kanban board for practicing Agentic-Agile with AI agents. Tickets live as Markdown on the deguboard branch, and workflows for agents come with it (dg guide).",
   "keywords": [
     "ai-agent",
