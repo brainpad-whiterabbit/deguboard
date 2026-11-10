@@ -4,18 +4,18 @@ description: Assigns deguboard tickets to Iterations (sprints) and Epics. When a
 argument-hint: "[Iteration|Epic|ticket ID...]"
 ---
 
-<!-- dg skill sha256:bd842be94a52753f7f03fda74afc3f2d410cd4710bdcafe64518109b719dfac3 -->
+<!-- dg skill sha256:cae71952692f1ef00f1fe7287531bce6de5096b6923dda411fe93fd3a164c664 -->
 
 # Assignment (assign)
 
-チケットを Iteration（スプリント）と Epic に割り当てます。
+Assigns tickets to an Iteration (sprint) and an Epic.
 
-最初に `dg guide assign` を実行し、出力された手順のとおりに、次の指定の対象を進める。この Skill は手順を持たない。手順の正本は dg に同梱されていて、dg の版に合う。
+Run `dg guide assign` first, and advance the target below by the steps it prints. This Skill holds no steps. The source of the steps is bundled with dg and matches its version.
 
-- `dg` は必ず `--json --actor agent` を付けて呼ぶ（例：`dg --json --actor agent ticket show t12`）。あなたは agent を名乗る。拒否された操作（`TRANSITION_REJECTED`）は人に頼む
-- チケットは `dg` でだけ読み書きする。データのファイル（`.git/deguboard/` の下）を直接編集しない
-- PATH に `dg` がなければ、リポジトリの案内が書く呼び方（`npx deguboard`、`mise run dg --` など）で `dg` を置き換える。手順の中の `dg` も同じ。
+- Always call `dg` with `--json --actor agent` (for example `dg --json --actor agent ticket show t12`). You identify as the agent. A refused operation (`TRANSITION_REJECTED`) is for a human to handle
+- Read and write tickets only with `dg`. Do not edit the data files (under `.git/deguboard/`) directly
+- If `dg` is not on PATH, replace `dg` with the command the repository's guide tells you to use (`npx deguboard`, `mise run dg --`, etc.). The same applies to `dg` in the steps.
 
-指定：$ARGUMENTS
+Target: $ARGUMENTS
 
-指定が空なら、手順の「対象を決める」（英語の手順では "Deciding the target"）に従う。
+If the target is empty, follow the "Deciding the target" section of the steps.

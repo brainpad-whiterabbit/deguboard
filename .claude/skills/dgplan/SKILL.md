@@ -4,18 +4,18 @@ description: Decides the order in which to advance deguboard tickets, records it
 argument-hint: <ticket ID...|Iteration|Epic|next [N]> | <Plan ID>
 ---
 
-<!-- dg skill sha256:8154090e41ffa90a7de1998a34435af6984002bbcc40857c1aad21163cb5263e -->
+<!-- dg skill sha256:6c2f8de21930ca6d5d6865f4131c3d03f43630bf017f37650e882e235db55869 -->
 
 # Plan (plan)
 
-チケットを進める順を決めて Plan に記録し、人の承認を得ます。
+Decides the order to advance tickets, records it as a Plan, and gets human approval.
 
-最初に `dg guide plan` を実行し、出力された手順のとおりに、次の指定の対象を進める。この Skill は手順を持たない。手順の正本は dg に同梱されていて、dg の版に合う。
+Run `dg guide plan` first, and advance the target below by the steps it prints. This Skill holds no steps. The source of the steps is bundled with dg and matches its version.
 
-- `dg` は必ず `--json --actor agent` を付けて呼ぶ（例：`dg --json --actor agent ticket show t12`）。あなたは agent を名乗る。拒否された操作（`TRANSITION_REJECTED`）は人に頼む
-- チケットは `dg` でだけ読み書きする。データのファイル（`.git/deguboard/` の下）を直接編集しない
-- PATH に `dg` がなければ、リポジトリの案内が書く呼び方（`npx deguboard`、`mise run dg --` など）で `dg` を置き換える。手順の中の `dg` も同じ。
+- Always call `dg` with `--json --actor agent` (for example `dg --json --actor agent ticket show t12`). You identify as the agent. A refused operation (`TRANSITION_REJECTED`) is for a human to handle
+- Read and write tickets only with `dg`. Do not edit the data files (under `.git/deguboard/`) directly
+- If `dg` is not on PATH, replace `dg` with the command the repository's guide tells you to use (`npx deguboard`, `mise run dg --`, etc.). The same applies to `dg` in the steps.
 
-指定：$ARGUMENTS
+Target: $ARGUMENTS
 
-指定が空なら、手順の「対象を決める」（英語の手順では "Deciding the target"）に従う。
+If the target is empty, follow the "Deciding the target" section of the steps.

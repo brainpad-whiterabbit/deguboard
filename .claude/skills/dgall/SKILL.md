@@ -4,18 +4,18 @@ description: Advances a deguboard Iteration or tickets through assignment, check
 argument-hint: <Iteration|ticket ID...> [--no-assign] [--auto]
 ---
 
-<!-- dg skill sha256:96711f2e28b9cba3eabf5ad8665cd00a8d5c9fa7b863419ef8cdbc1530ba5795 -->
+<!-- dg skill sha256:adff2585bf9a65f8bddeb3b5e77546918ad4893853a1f13cca5f2249128ee0f8 -->
 
 # End to end (all)
 
-Iteration かチケットを、割り当てからリリース（か片付け）まで段階ごとに続けて進めます。
+Advances an Iteration or tickets stage by stage, from assignment through release (or cleanup).
 
-最初に `dg guide all` を実行し、出力された手順のとおりに、次の指定の対象を進める。この Skill は手順を持たない。手順の正本は dg に同梱されていて、dg の版に合う。
+Run `dg guide all` first, and advance the target below by the steps it prints. This Skill holds no steps. The source of the steps is bundled with dg and matches its version.
 
-- `dg` は必ず `--json --actor agent` を付けて呼ぶ（例：`dg --json --actor agent ticket show t12`）。あなたは agent を名乗る。拒否された操作（`TRANSITION_REJECTED`）は人に頼む
-- チケットは `dg` でだけ読み書きする。データのファイル（`.git/deguboard/` の下）を直接編集しない
-- PATH に `dg` がなければ、リポジトリの案内が書く呼び方（`npx deguboard`、`mise run dg --` など）で `dg` を置き換える。手順の中の `dg` も同じ。
+- Always call `dg` with `--json --actor agent` (for example `dg --json --actor agent ticket show t12`). You identify as the agent. A refused operation (`TRANSITION_REJECTED`) is for a human to handle
+- Read and write tickets only with `dg`. Do not edit the data files (under `.git/deguboard/`) directly
+- If `dg` is not on PATH, replace `dg` with the command the repository's guide tells you to use (`npx deguboard`, `mise run dg --`, etc.). The same applies to `dg` in the steps.
 
-指定：$ARGUMENTS
+Target: $ARGUMENTS
 
-指定が空なら、手順の「対象を決める」（英語の手順では "Deciding the target"）に従う。
+If the target is empty, follow the "Deciding the target" section of the steps.

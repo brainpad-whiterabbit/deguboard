@@ -15,6 +15,7 @@ import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   DG_PATH_NOTE,
+  DG_PATH_NOTE_EN,
   SKILL_SUMMARY,
   agentSkillDirs,
   askSkillInstalled,
@@ -62,18 +63,20 @@ const exists = (p: string) =>
   );
 
 describe("dg skill install", () => {
-  it("どの Skill にも、PATH に dg がないときの置き換えの案内（core の DG_PATH_NOTE）が入る", async () => {
+  it("どの Skill にも、PATH に dg がないときの置き換えの案内（core の DG_PATH_NOTE_EN）が入り、日本語の案内は入らない", async () => {
     for (const s of await buildSkills()) {
-      expect(s.content).toContain(DG_PATH_NOTE);
+      expect(s.content).toContain(DG_PATH_NOTE_EN);
+      expect(s.content).not.toContain(DG_PATH_NOTE);
       expect(s.content).not.toContain("{{");
     }
   });
 
-  it("すべての Skill の冒頭に、core の SKILL_SUMMARY の日本語の 1 文が入る（英語の文は小窓が引く）", async () => {
+  it("すべての Skill の冒頭に、core の SKILL_SUMMARY の英語の 1 文が入る（日本語の文は小窓と依頼文が引く）", async () => {
     const skills = await buildSkills();
     expect(Object.keys(SKILL_SUMMARY).sort()).toEqual(skills.map((s) => s.name).sort());
     for (const s of skills) {
-      expect(s.content).toContain(`\n${skillSummary(s.name, "ja")}\n`);
+      expect(s.content).toContain(`\n${skillSummary(s.name, "en")}\n`);
+      expect(s.content).not.toContain(skillSummary(s.name, "ja"));
       expect(skillSummary(s.name, "en"), s.name).not.toMatch(/[぀-ヿ一-鿿]/);
     }
   });
@@ -212,7 +215,10 @@ describe("dg skill install", () => {
     await writeFile(skillPath(local.dir, "dgwork"), "手で書いた\n");
     // 古い版の中身でも、印のハッシュが中身と合えば手を加えていないので更新する（dgimport）
     const unmodified = (await buildSkills()).find((s) => s.name === "dgimport")!;
-    const older = unmodified.content.replace("指定：$ARGUMENTS", "指定（古い版）：$ARGUMENTS");
+    const older = unmodified.content.replace(
+      "Target: $ARGUMENTS",
+      "Target (older version): $ARGUMENTS",
+    );
     const hash = createHash("sha256")
       .update(older.replace(/^<!-- dg skill sha256:[0-9a-f]{64} -->\n/m, ""))
       .digest("hex");
@@ -321,7 +327,8 @@ describe("Skill の本文", () => {
       expect(s.content, s.name).toContain(`dg guide ${s.topic}`);
       expect(s.content, s.name).toContain("$ARGUMENTS");
       expect(s.content, s.name).toContain("--json --actor agent");
-      expect(s.content, s.name).toContain("対象を決める");
+      expect(s.content, s.name).toContain('"Deciding the target"');
+      expect(await readGuide(s.topic), s.name).toContain("## Deciding the target");
     }
   });
 
