@@ -40,7 +40,7 @@ Puts tickets into Iterations (a period of planning. `sprint` is an alias) and Ep
 
 ## When proposing an assignment
 
-1. Read the Iteration's goal and period and the tickets in it with `dg --json --actor agent iteration show <s3>`
+1. Read the Iteration's goal and the tickets in it with `dg --json --actor agent iteration show <s3>`
 2. Collect the unassigned todos (those without an `iteration`, from `dg --json --actor agent ticket list --status todo`). Make a proposal from the ones that fit the goal, looking at the order of dependencies
 3. Show a table with one line for each, giving the reason for putting it in or not. Have a human select the rows to put in with multiple selection, then run `iteration add`
 4. For items that should be handled soon (such as bugs), propose putting them into the active Iteration
