@@ -348,8 +348,42 @@ describe("dg next と ticket show の stage（EX-3）", () => {
         }),
       );
       expect(implementing).toMatchObject({ kind: "ready", running_run: expect.any(String) });
+      // 見直しの Run が開いたまま段を下げたら、ready の手は見直しの終わりを待つ（フックが閉じる Run を置いて進まない）
+      const openReview = review(6, null, { finished_at: null, result: null });
+      const reviewing = nextOf(ctx, facts({ ticket: { gate }, runs: [openReview] }));
+      expect(reviewing).toMatchObject({ kind: "ready", running_run: openReview.id });
+      expect(reviewing.commands).toEqual([
+        expect.stringContaining(`Wait for the running Run ${openReview.id} to end`),
+      ]);
+      // 見直しが終われば、重い指摘があっても段は見直しを判定しないので dg pr ready を返す
+      const reviewed = nextOf(ctx, facts({ ticket: { gate }, runs: [review(6, heavy)] }));
+      expect(reviewed).toMatchObject({ kind: "ready", running_run: null });
+      expect(reviewed.commands[0]).toContain("pr ready t1");
+      // 出した PR（status review）は wait_merge で、開いた見直しの Run を待たない（マージは人を待つ手）
+      expect(
+        nextOf(ctx, facts({ ticket: { gate, status: "review" }, runs: [openReview] })),
+      ).toMatchObject({ kind: "wait_merge" });
+      // 使い回したブランチの前に始まった見直しの Run は待たない
+      const stale = nextOf(
+        ctx,
+        facts({ ticket: { gate, branch_at: "2026-11-07T10:07:00Z" }, runs: [openReview] }),
+      );
+      expect(stale).toMatchObject({ kind: "ready", running_run: null });
     }
     expect(nextOf(ctx, facts()).kind).toBe("review");
+  });
+
+  it("段のないまま ready にした low のチケットを high に上げると、見直しがないので review の手を返す", async () => {
+    const ctx = await prepared();
+    // low で見直しを飛ばして PR を出した（status review）。そのままなら wait_merge
+    const low = facts({ ticket: { gate: "low", status: "review" } });
+    expect(nextOf(ctx, low).kind).toBe("wait_merge");
+    // high に上げると、見直しの Run がないので implemented に戻り、見直しを頼む
+    const high = facts({ ticket: { gate: "high", status: "review" } });
+    expect(stageOf(high).name).toBe("implemented");
+    const step = nextOf(ctx, high);
+    expect(step).toMatchObject({ kind: "review", step: "review", running_run: null });
+    expect(step.commands[0]).toContain("deguboard: ticket=t1 step=review");
   });
 
   it("実行中の Run で置き換えるのは実装・見直し・手直し・ready の手だけ。使い回したブランチの前に始まった Run は数えない", async () => {
