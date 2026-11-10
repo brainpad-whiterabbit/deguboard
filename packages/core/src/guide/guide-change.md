@@ -37,7 +37,7 @@ Editing a ticket covers the title, summary, acceptance criteria, priority, label
    - **undo done**: the Status to return to (todo, in_progress, or review) and the reason must be in the instruction. If either is missing, ask for it
    - **edit**: work out before → after for each field. If the instruction does not settle the new value (for example "make it shorter" with several possible wordings), propose the new value
 3. **Approval**: when a precondition above is hit, or the new value is your proposal, show before → after (and the material, such as the list of unfinished tickets) and ask with choices. When nothing is hit and the instruction settles the content, the request is already the human's instruction, so do not ask again
-4. **Write once**: call `dg` once per target with the command in the table above (for abandon and undo done, the `ticket update --body` that writes the reason comes first). Do not split one change into several calls, and do not write anything the change did not ask for
+4. **Write once**: call `dg` once per target with the command in the table above, except abandon and undo done, which first write the reason with `ticket update --body` and then call `ticket move`. Do not split the change itself into several calls, and do not write anything the change did not ask for
 5. **When refused**: if `dg` returns `TRANSITION_REJECTED` (the operation is in `actor.human_only`, or the Workflow's `by` limits the transition to humans), do not retry in another way. Give the human the exact command to run (without `--actor agent`), with the reason from `error.message`
 6. **Report**: the target, before → after, and the `warnings` of the result (for example, tickets carried over by closing)
 

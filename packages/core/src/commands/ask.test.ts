@@ -333,7 +333,12 @@ describe("依頼文の組み立て", () => {
 
   it("actor.human_only に当たる書き換えは、/dgchange の代わりに今までどおり人が打つコマンドを返す", () => {
     const cases: Array<[AskSubject[], AskAction, string, string]> = [
-      [[ticket()], "edit", "ticket.update", 'dg ticket update t265 --title "<題>" --body "<本文>"'],
+      [
+        [ticket()],
+        "edit",
+        "ticket.update",
+        'dg ticket update t265 --title "<題>" --acceptance "<受け入れ条件>" --priority <優先度>',
+      ],
       [[epic("open")], "edit", "epic.update", 'dg epic update e9 --title "<題>" --body "<概要>"'],
       [[iteration("active")], "close", "iteration.close", "dg iteration close s10"],
       [[epic("closed")], "reopen", "epic.reopen", "dg epic reopen e9"],

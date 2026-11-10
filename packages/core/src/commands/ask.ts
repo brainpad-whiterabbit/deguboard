@@ -517,7 +517,7 @@ const ACTIONS: Record<AskAction, ActionDef> = {
               }
             : {
                 check: ["ticket.update"],
-                command: `dg ticket update ${t.id} --title "<題>" --body "<本文>"`,
+                command: `dg ticket update ${t.id} --title "<題>" --acceptance "<受け入れ条件>" --priority <優先度>`,
               },
       ),
   },
