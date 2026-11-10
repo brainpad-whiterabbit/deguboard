@@ -9,7 +9,7 @@ Advances an Iteration or tickets from assignment to release, in one flow. The cu
 
 - Iteration (\`s3\`): the tickets of that Iteration, and the candidates to put into it (todos not in an Iteration). Candidates are handled only in the assignment stage
 - Ticket ID (one or more) or Plan ID (\`p7\`): advances that target. Audit and release run for a ticket's Iteration only when all the tickets of that Iteration are finished. If the ticket is not in an Iteration, audit and release do not run
-- No target given: the same as "Deciding the target" in \`dg guide release\`
+- No target given: the same as the "Deciding the target" section of \`dg guide release\`
 - \`--no-assign\`: skips the assignment stage. If the check suggests putting tickets into an Iteration, it does not apply the suggestion and leaves it in the final report
 - \`--auto\`: see "Choosing automatically with \`--auto\`" below. It can be combined with \`--no-assign\`
 
@@ -31,7 +31,7 @@ The order of stages and the current stage are decided by \`dg flow next\`. Appro
 ## Running the flow
 
 1. Call \`dg --json --actor agent flow next <target…>\` when starting, and after finishing each stage (add \`--auto\` and \`--no-assign\` if given). In the result, \`stage.name\` is the current stage (\`assign\`, \`check\`, \`plan\`, \`work\`, \`audit\`, \`release\`, or \`stop\`); \`commands\` are the dg commands to call (in order); \`guide.text\` is how to do the stage (the sections in \`guide.sections\` joined in order, including all the sections of the same topic that the step section points to); and \`approval\` is whether approval is needed and where
-2. Do the stage's step. Run \`commands\` in order, and follow \`guide.text\` (to read it again, use \`guide.command\`). Do not read the whole guide of the stage's topic again. Read a section of another topic only when \`guide.text\` points to it (the 「…」 of \`dg guide <topic>\`)
+2. Do the stage's step. Run \`commands\` in order, and follow \`guide.text\` (to read it again, use \`guide.command\`). Do not read the whole guide of the stage's topic again. Read a section of another topic only when \`guide.text\` points to it (the "…" section of \`dg guide <topic>\`)
    - \`work\` follows \`dg guide parallel\` whatever the number of tickets: each ticket is given to a subagent. The parent only advances, asks for approval, and reads and writes \`dg\`
    - For \`release\`, if the repository's rules have no release steps, follow the "When there are no release steps" section of \`guide.text\`
 3. When \`approval.required\` is true, ask a human about \`approval.what\`. Include "Stop here" in the choices. For how \`--auto\` handles it, see "Choosing automatically with \`--auto\`" below
@@ -156,7 +156,7 @@ Below, the target's ID is written as \`<S>\`.
 ## Audit steps
 
 1. **Read the state**: after \`dg --json --actor agent sync\`, read the target (\`iteration show <S>\` or \`epic show <S>\`) and the tickets filed by the previous review (those whose label starts with \`audit-\`; find them with \`ticket list --label\`). From the repository's rules (CLAUDE.md, README, development docs), take the documents that are the sources of truth, the check commands, and any additions or removals to the viewpoints. From the tag of the previous release (\`git tag --sort=-creatordate\`), decide the range to look at first (what changed after it)
-2. **Make a temporary worktree**: after \`git fetch origin main\`, run \`git worktree add --detach ../<repo>.worktrees/audit-<S> origin/main\`. If it remains, remove it with \`git worktree remove --force\` before making it. Then run the install, build, and check steps that the rules write, in this order, only once. Note the result of each, and the last part of the output on failure. Do not stop on failure
+2. **Make a temporary worktree**: after \`git fetch origin main\`, run \`git worktree add --detach ../<repo>.worktrees/audit-<S> origin/main\`. If it remains, remove it with \`git worktree remove --force\` before making it. Then run the install, build, and whole check steps that the rules write, in this order, only once. Note the result of each, and the last part of the output on failure. Do not stop on failure
 3. **Decide the viewpoints**: apply the rules' decisions to the "Viewpoints" section below. For a viewpoint whose target is not in the repository, skip it and give the reason
 4. **Review by viewpoint with subagents**: run them side by side, as in the "Delegating to subagents" section below
 5. **Collect and match**: merge findings of the same target and the same mismatch across viewpoints into one. As in the "Not repeating the same findings" section below, remove those already handled, or make them \`ticket update\` proposals. Do not bring the contents of the files read into the session running this step
@@ -173,14 +173,14 @@ Running the review (subagents, read-only commands, the temporary worktree) proce
 
 ## Viewpoints
 
-| Viewpoint     | What to check                                                                                                                                                                       |
-| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Viewpoint                    | What to check                                                                                                                                                                                                          |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Documents and implementation | Mismatches between the sources of truth and the implementation. Decided work with neither an implementation nor a follow-up ticket. The length and organization of ADRs (for filing, see the "Filing tickets" section) |
-| Tests         | Missing tests for the specs and acceptance criteria, flaky tests, skips without a reason, failures of the checks in step 2                                                          |
-| Architecture  | Violations of the structure, dependency direction, or code conventions in the rules. Unused code, duplicated processing                                                              |
-| README        | Whether the steps, commands, and options for users match the current implementation. Broken links                                                                                   |
-| Dependencies  | Known vulnerabilities; dependencies that are far behind, stopped being updated, or unused; missing license notices                                                                  |
-| Config files  | Inconsistencies among the settings of packages, builds, lint, type checks, and tool versions; unused settings; settings that differ from what the rules write                      |
+| Tests                        | Missing tests for the specs and acceptance criteria, flaky tests, skips without a reason, failures of the checks in step 2                                                                                             |
+| Architecture                 | Violations of the structure, dependency direction, or code conventions in the rules. Unused code, duplicated processing                                                                                                |
+| README                       | Whether the steps, commands, and options for users match the current implementation. Broken links                                                                                                                      |
+| Dependencies                 | Known vulnerabilities; dependencies that are far behind, stopped being updated, or unused; missing license notices                                                                                                     |
+| Config files                 | Inconsistencies among the settings of packages, builds, lint, type checks, and tool versions; unused settings; settings that differ from what the rules write                                                          |
 
 The specifics of each viewpoint (the documents to read and the check commands) are read from the rules and are not written here. Look first at what changed since the previous release.
 
@@ -190,7 +190,7 @@ Start one subagent for each viewpoint, and run them side by side. This session o
 
 - **What to pass**: the viewpoint and what to check (the table above and the specifics from the rules), the location of the rules, the path of the temporary worktree, and the range to look at first (for example \`git diff <tag>..origin/main\`). For the test viewpoint, also pass the results of the checks noted in step 2
 - **What it may do**: read files in the temporary worktree, and run read-only commands that write no generated files (audit, individual lint or type checks, and so on)
-- **What it must not do**: install dependencies again, rebuild, run the whole check, or delete generated files (they share one worktree, so they would break each other). Fix files. Write with \`dg\`
+- **What it must not do**: install dependencies, rebuild, run the whole check, or delete generated files (they share one worktree, so they would break each other). Fix files. Write with \`dg\`
 - **What it returns**: for each finding, the target (file and line), both sides of the mismatch, the basis (the output or the place in the document), a severity proposal, and a fix proposal. If there are no findings, the range it looked at
 
 ## Not repeating the same findings
@@ -214,7 +214,7 @@ The place suggested for a finding is the target (fixed before release). Only fin
 - Attach the label \`audit-<S>\` (for example \`audit-s3\`). If the review was done without a target, use \`audit\`. If the target is an Iteration, write \`<S>\` in \`iteration\`; if it is an Epic, write it in \`epic\`
 - If tickets with the label \`audit-<S>\` exist, \`<S>\` counts as already reviewed. Do not add or remove this label except when filing by this procedure
 - File a mismatch between an ADR's details and the implementation with the title "Remove ADR details" (with the ADR number). Keep the decision as it is, and move the details to code, tests, and help
-- When an ADR has grown long (the guide is 8,000 characters), an ADR is no longer needed, or decisions on the same theme are scattered, file with the title "Split and organize ADRs". Gather into one ticket: splitting, merging, deleting, deleting details, matching against the implementation, and listing the decisions that can move to tests or lint
+- When an ADR has grown long (roughly 8,000 characters as a guideline), an ADR is no longer needed, or decisions on the same theme are scattered, file with the title "Split and organize ADRs". Gather into one ticket: splitting, merging, deleting, deleting details, matching against the implementation, and listing the decisions that can move to tests or lint
 - In the summary, write the viewpoint, the target, and both sides of the mismatch. Do not decide which side to match (decide it in planning)
 
 ## Asking with choices

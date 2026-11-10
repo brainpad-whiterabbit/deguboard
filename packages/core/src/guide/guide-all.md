@@ -11,7 +11,7 @@ Advances an Iteration or tickets from assignment to release, in one flow. The cu
 
 - Iteration (`s3`): the tickets of that Iteration, and the candidates to put into it (todos not in an Iteration). Candidates are handled only in the assignment stage
 - Ticket ID (one or more) or Plan ID (`p7`): advances that target. Audit and release run for a ticket's Iteration only when all the tickets of that Iteration are finished. If the ticket is not in an Iteration, audit and release do not run
-- No target given: the same as "Deciding the target" in `dg guide release`
+- No target given: the same as the "Deciding the target" section of `dg guide release`
 - `--no-assign`: skips the assignment stage. If the check suggests putting tickets into an Iteration, it does not apply the suggestion and leaves it in the final report
 - `--auto`: see "Choosing automatically with `--auto`" below. It can be combined with `--no-assign`
 
@@ -33,7 +33,7 @@ The order of stages and the current stage are decided by `dg flow next`. Approva
 ## Running the flow
 
 1. Call `dg --json --actor agent flow next <target…>` when starting, and after finishing each stage (add `--auto` and `--no-assign` if given). In the result, `stage.name` is the current stage (`assign`, `check`, `plan`, `work`, `audit`, `release`, or `stop`); `commands` are the dg commands to call (in order); `guide.text` is how to do the stage (the sections in `guide.sections` joined in order, including all the sections of the same topic that the step section points to); and `approval` is whether approval is needed and where
-2. Do the stage's step. Run `commands` in order, and follow `guide.text` (to read it again, use `guide.command`). Do not read the whole guide of the stage's topic again. Read a section of another topic only when `guide.text` points to it (the 「…」 of `dg guide <topic>`)
+2. Do the stage's step. Run `commands` in order, and follow `guide.text` (to read it again, use `guide.command`). Do not read the whole guide of the stage's topic again. Read a section of another topic only when `guide.text` points to it (the "…" section of `dg guide <topic>`)
    - `work` follows `dg guide parallel` whatever the number of tickets: each ticket is given to a subagent. The parent only advances, asks for approval, and reads and writes `dg`
    - For `release`, if the repository's rules have no release steps, follow the "When there are no release steps" section of `guide.text`
 3. When `approval.required` is true, ask a human about `approval.what`. Include "Stop here" in the choices. For how `--auto` handles it, see "Choosing automatically with `--auto`" below
