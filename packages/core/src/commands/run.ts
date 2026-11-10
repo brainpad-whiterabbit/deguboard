@@ -1009,7 +1009,7 @@ export const runHandoff = defineCommand({
       throw new OperationError(
         "VALIDATION_FAILED",
         "Some findings passed to the fix are not in the latest review list",
-        unmatched.map((f) => `- ${findingText(f, "ja")}`).join("\n"),
+        unmatched.map((f) => `- ${findingText(f)}`).join("\n"),
       );
     await setHandedFindings(ctx.repo, ticket.id, ticket.branch_at, matched);
     return ok({ ticket: ticket.id, handed: matched.length });

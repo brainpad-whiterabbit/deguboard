@@ -401,7 +401,7 @@ describe("dg mcp", () => {
     expect(body(viaMcp.results[0]!)).toEqual(cliNext);
     roles.forEach((role, i) => {
       expect(body(viaMcp.results[i + 1]!), role).toEqual(cliBriefs[i]);
-      expect(cliBriefs[i].data.text, role).toContain("--- 手順：");
+      expect(cliBriefs[i].data.text, role).toContain("--- Steps: ");
     });
   });
 });

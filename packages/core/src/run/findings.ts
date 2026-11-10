@@ -42,20 +42,12 @@ export function splitFindings(
  * 指摘の 1 件を 1 行の文にする（箇条書きの記号は付けない）。場所・種類・理由・直し方を入れる。
  * 改行は空白にそろえ、1 件が 1 行に収まるようにする
  */
-export function findingText(f: ReviewFinding, lang: "ja" | "en"): string {
-  const sev =
-    lang === "en"
-      ? f.severity === "heavy"
-        ? "heavy"
-        : "light"
-      : f.severity === "heavy"
-        ? "重い"
-        : "軽い";
+export function findingText(f: ReviewFinding): string {
+  const sev = f.severity === "heavy" ? "heavy" : "light";
   const loc = f.file === null ? undefined : f.line === null ? f.file : `${f.file}:${f.line}`;
   const head = loc ? `[${sev}] ${loc} (${f.category})` : `[${sev}] ${f.category}`;
-  const fixPart = f.fix === null ? "" : lang === "en" ? ` Fix: ${f.fix}` : `。直し方：${f.fix}`;
-  const sep = lang === "en" ? ": " : "：";
-  return `${head}${sep}${f.reason}${fixPart}`.replace(/\s*\n\s*/g, " ");
+  const fixPart = f.fix === null ? "" : ` Fix: ${f.fix}`;
+  return `${head}: ${f.reason}${fixPart}`.replace(/\s*\n\s*/g, " ");
 }
 
 /**
@@ -116,7 +108,7 @@ export function unfixedLightLines(
   for (const round of inBranch) {
     if (round.findings === null) continue;
     const { unfixedLight } = splitFindings(round.findings, heavyCategories);
-    for (const f of unfixedLight) if (!handed.has(findingKey(f))) lines.add(findingText(f, "ja"));
+    for (const f of unfixedLight) if (!handed.has(findingKey(f))) lines.add(findingText(f));
   }
   return [...lines];
 }
@@ -139,7 +131,7 @@ export function withUnfixedLight(body: string, lines: readonly string[]): string
   if (lines.length === 0) return hadSection ? (kept ? `${kept}\n` : "") : body;
   const section = [
     UNFIXED_LIGHT_BEGIN,
-    "## 直さなかった軽い指摘",
+    "## Unfixed light findings",
     "",
     ...lines.map((l) => `- ${l}`),
     UNFIXED_LIGHT_END,

@@ -386,8 +386,8 @@ describe("dg pr ready・dg pr merge（t545）", () => {
     expect(ready.noted).toBe(1);
     const body = await editedBody();
     expect(body).toContain("## 概要\n\n元の本文");
-    expect(body).toContain("## 直さなかった軽い指摘");
-    expect(body).toContain("- [軽い] src/b.ts (参考節との食い違い)：広がり。直し方：節に足す");
+    expect(body).toContain("## Unfixed light findings");
+    expect(body).toContain("- [light] src/b.ts (参考節との食い違い): 広がり Fix: 節に足す");
     expect(body).not.toContain("1 つめが足りない");
     expect(await calls()).toEqual(["api PATCH pulls/7", "pr ready 7"]);
   });
@@ -406,8 +406,8 @@ describe("dg pr ready・dg pr merge（t545）", () => {
     const ready = (await runCommand(prReady, ctx, { ticket: "t1" })).data as PrAdvanceView;
     expect(ready.noted).toBe(2);
     const body = await editedBody();
-    expect(body.split("[軽い] src/b.ts (参考節との食い違い)：広がり1").length - 1).toBe(1);
-    expect(body).toContain("- [軽い] src/c.ts (言い回し)：2 回目の軽い");
+    expect(body.split("[light] src/b.ts (参考節との食い違い): 広がり1").length - 1).toBe(1);
+    expect(body).toContain("- [light] src/c.ts (言い回し): 2 回目の軽い");
     expect(body).not.toContain("1 つめが足りない");
     expect(body).not.toContain("型が違う");
     expect(body).toContain("## 概要\n\n元の本文");
@@ -453,7 +453,7 @@ describe("dg pr ready・dg pr merge（t545）", () => {
     const ready = (await runCommand(prReady, ctx, { ticket: "t1" })).data as PrAdvanceView;
     expect(ready.noted).toBe(1);
     const body = await editedBody();
-    expect(body).toContain("- [軽い] src/c.ts (言い回し)：渡さなかった言い回し");
+    expect(body).toContain("- [light] src/c.ts (言い回し): 渡さなかった言い回し");
     expect(body).not.toContain("渡した広がり");
   });
 

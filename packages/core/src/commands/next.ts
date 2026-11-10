@@ -8,7 +8,6 @@ import type { Ticket } from "../model/ticket.js";
 import type { Config } from "../model/config.js";
 import type { PlanTier } from "../model/plan.js";
 import { readRunningRuns } from "../run/record.js";
-import { ASK_LANGUAGES } from "./ask.js";
 import { briefOf, type BriefRole } from "./brief.js";
 import { defineCommand, ok, type CommandContext } from "./define.js";
 import { FIX_ROUNDS_LIMIT, heavyReviewRounds } from "./gate.js";
@@ -141,21 +140,21 @@ export function stageOf(facts: StageFacts): Stage {
   const closedReviews = reviews.filter((r) => r.finished_at !== null);
   const fixes = heavyReviewRounds(reviews, ticket.branch_at);
   const n = closedReviews.length;
-  if (ticket.status === "done") return stage("merged", n, fixes, "チケットが done");
-  if (ticket.status === "abandoned") return stage("closed", n, fixes, "チケットが abandoned");
+  if (ticket.status === "done") return stage("merged", n, fixes, "The ticket is done");
+  if (ticket.status === "abandoned") return stage("closed", n, fixes, "The ticket is abandoned");
   const waitingRun = runs.find((r) => r.finished_at === null && r.waiting_since !== null);
   if (waitingRun)
     return stage(
       "waiting_human",
       n,
       fixes,
-      `${waitingRun.step} の Run ${waitingRun.id} が止まって待っている（${waitingRun.waiting_since} から）`,
+      `The ${waitingRun.step} Run ${waitingRun.id} has stopped and is waiting (since ${waitingRun.waiting_since})`,
     );
   if (ticket.status === "todo")
     return facts.waiting.length > 0
-      ? stage("blocked", n, fixes, `${facts.waiting.join("・")} を待っている`)
-      : stage("todo", n, fixes, "着手できる");
-  if (ticket.pr === undefined) return stage("claimed", n, fixes, "PR がまだない");
+      ? stage("blocked", n, fixes, `Waiting on ${facts.waiting.join(", ")}`)
+      : stage("todo", n, fixes, "Can be started");
+  if (ticket.pr === undefined) return stage("claimed", n, fixes, "No PR yet");
   const latest = reviews.at(-1);
   // 最後の見直しより後に閉じた手直しが failure か interrupted なら、人を待つ（the "How to finish" section of `dg guide review`）
   // 一番新しい手直しの Run だけを見る（人が続けると決めて開き直した手直しが成功していれば、前の失敗は見ない）
@@ -177,7 +176,7 @@ export function stageOf(facts: StageFacts): Stage {
       "waiting_human",
       n,
       fixes,
-      `手直しの Run ${failedFix.id} が ${failedFix.result} で閉じた`,
+      `The fix Run ${failedFix.id} closed with ${failedFix.result}`,
     );
   // 上限を超えたら、その後の push や見直しの結果によらず人を待つ（dg gate の fix_rounds が通さない）
   if (fixes > FIX_ROUNDS_LIMIT)
@@ -185,11 +184,11 @@ export function stageOf(facts: StageFacts): Stage {
       "waiting_human",
       n,
       fixes,
-      `重い指摘が出た見直しが ${fixes} 回で、上限 ${FIX_ROUNDS_LIMIT} を超えた`,
+      `Reviews with heavy findings happened ${fixes} times, over the limit of ${FIX_ROUNDS_LIMIT}`,
       latest?.review?.passed === true,
     );
   if (latest && latest.finished_at === null)
-    return stage("reviewing", n, fixes, `見直しの Run ${latest.id} が実行中`);
+    return stage("reviewing", n, fixes, `The review Run ${latest.id} is running`);
   // 最後の push を読めない（追跡 ref がない・fetch しない ticket show）ときは、最後の見直しを今の見直しとみなす。
   // dg gate は読めない条件を満たさないとするので、ここで ready でも gate が止めることがある
   const pushedAt = facts.pushedAt;
@@ -197,25 +196,25 @@ export function stageOf(facts: StageFacts): Stage {
     latest && (pushedAt === undefined || latest.started_at >= pushedAt) ? latest : undefined;
   if (!current)
     return n === 0
-      ? stage("implemented", n, fixes, `PR #${ticket.pr} があり、見直しがまだない`)
-      : stage("fixed", n, fixes, "最後の見直しの後に push があり、見直し直しがまだない");
+      ? stage("implemented", n, fixes, `PR #${ticket.pr} exists and has no review yet`)
+      : stage("fixed", n, fixes, "There is a push after the last review, and no new review yet");
   if (current.review === null || current.result !== "success")
     return stage(
       "fixed",
       n,
       fixes,
-      `最後の見直し ${current.id} の結果がない（${current.result ?? "未完了"}）ので、見直し直す`,
+      `The last review ${current.id} has no result (${current.result ?? "not finished"}), so review again`,
     );
   if (!current.review.passed)
     return stage(
       "reviewed",
       n,
       fixes,
-      `見直し ${current.id} で重い指摘 ${current.review.heavy} 件`,
+      `The review ${current.id} has ${current.review.heavy} heavy findings`,
     );
   return ticket.status === "in_progress"
-    ? stage("reviewed", n, fixes, `見直し ${current.id} が通った（PR は draft）`, true)
-    : stage("ready", n, fixes, `見直しが通り、PR #${ticket.pr} を出した`, true);
+    ? stage("reviewed", n, fixes, `The review ${current.id} passed (the PR is a draft)`, true)
+    : stage("ready", n, fixes, `The review passed and PR #${ticket.pr} was marked ready`, true);
 }
 
 /** チケットの段階の事実を集める。fetch を渡せば作業ブランチを取り込んでから最後の push を読む */
@@ -306,7 +305,7 @@ export function nextOf(ctx: CommandContext, facts: StageFacts): NextStep {
       // 印で頼んだサブエージェントの Run はフックが閉じる。親が先に閉じると、その後の作業と見直しの結果を失う（t638）
       commands: awaited
         ? [
-            `実行中の Run ${awaited} の終わりを待つ（新しく起動しない。印で頼んだサブエージェントなら、終わりの通知を待つ。Run はフックが閉じるので run finish で閉じない）`,
+            `Wait for the running Run ${awaited} to end (do not start another. For a sub-agent asked with the mark, wait for its completion notice. The hook closes the Run, so do not close it with run finish)`,
           ]
         : commands,
       model: MODEL_KINDS.includes(kind) ? modelOf(details?.tier, ctx.config.models) : null,
@@ -316,7 +315,7 @@ export function nextOf(ctx: CommandContext, facts: StageFacts): NextStep {
   };
   // フックがサブエージェントの Run を開け閉めする印（RN-7）。委譲する親は claim に --no-run を付け、印で頼む
   const marker = (step: string) =>
-    `サブエージェントに頼む文の最初の行に deguboard: ticket=${id} step=${step}`;
+    `Put deguboard: ticket=${id} step=${step} on the first line of the text you give the sub-agent`;
   switch (st.name) {
     case "merged":
     case "closed":
@@ -330,35 +329,35 @@ export function nextOf(ctx: CommandContext, facts: StageFacts): NextStep {
             "wait_human",
             waiting.step,
             [],
-            `止まって待っているサブエージェントに続きを送る。質問で止まったなら人に伝えて答えを送り、push なしで返ったなら続けて直させるか、人に聞く（${st.reason}）`,
+            `Send the stopped, waiting sub-agent a follow-up. If it stopped with a question, pass it to a person and send the answer. If it returned without a push, have it keep fixing or ask a person (${st.reason})`,
             waiting.id,
           )
         : make(
             "wait_human",
             null,
             [],
-            `${st.reason}。続けて直すか・ready にするか（人に gh pr ready を打ってもらう）・やめるかを人に聞く`,
+            `${st.reason}. Ask a person whether to keep fixing, mark it ready (a person runs gh pr ready), or stop`,
           );
     }
     case "todo":
       return make("implement", facts.implementStep, [
-        dg(`ticket claim ${id} --branch <種類>/<内容> --no-run`),
+        dg(`ticket claim ${id} --branch <type>/<content> --no-run`),
         marker(facts.implementStep),
         // 文は claim の前に組むので、ブランチと worktree が空欄。claim の後に組み直して渡す
-        `claim の後に ${dg(`brief ${id} --role implement`)} で文を組み直し、その文を渡す（ブランチと worktree が入る）`,
-        dg(`ticket update ${id} --pr <番号>`),
+        `After claim, rebuild the text with ${dg(`brief ${id} --role implement`)} and pass that text (it then has the branch and worktree)`,
+        dg(`ticket update ${id} --pr <number>`),
       ]);
     case "claimed":
       return make("implement", facts.implementStep, [
         marker(facts.implementStep),
-        dg(`ticket update ${id} --pr <番号>`),
+        dg(`ticket update ${id} --pr <number>`),
       ]);
     case "implemented":
     case "fixed":
     case "reviewing":
       return make("review", REVIEW_STEP, [
         marker(REVIEW_STEP),
-        dg(`run review-result ${id} --findings-file <ファイル>`),
+        dg(`run review-result ${id} --findings-file <file>`),
       ]);
     case "reviewed":
       return facts.ticket.status === "in_progress" && st.review_passed
@@ -367,8 +366,8 @@ export function nextOf(ctx: CommandContext, facts: StageFacts): NextStep {
         : // 手直しの Run も印でフックが開く。理由は直すエージェントが run retry-reason で書き足す（RN-8）
           make("fix", fixStep, [
             marker(fixStep),
-            `直すエージェント（実装と同じモデル）が最初に ${dg(`run retry-reason ${id} --reason <直す指摘の要約>`)}`,
-            "同じブランチで直して push する",
+            `The fixing agent (the same model as the implementation) first runs ${dg(`run retry-reason ${id} --reason <summary of the finding to fix>`)}`,
+            "Fix on the same branch and push",
           ]);
     case "ready":
       // マージは人を待つ手にする。自動でマージするのは auto.merge が true で品質ゲートを通った PR だけ（EX-7）
@@ -376,7 +375,7 @@ export function nextOf(ctx: CommandContext, facts: StageFacts): NextStep {
         "wait_merge",
         null,
         [dg(`gate ${id} --for merge`)],
-        `PR #${facts.ticket.pr} のレビューとマージを人に頼む（auto.merge が true なら dg pr merge ${id} が dg gate --for merge を満たした PR をマージする）`,
+        `Ask a person to review and merge PR #${facts.ticket.pr} (if auto.merge is true, dg pr merge ${id} merges a PR that meets dg gate --for merge)`,
       );
   }
 }
@@ -392,17 +391,11 @@ export const next = defineCommand({
     `waiting_human (a Run is waiting for a person, the fix after the last review closed with failure or interrupted, or reviews that raised heavy findings went past ${FIX_ROUNDS_LIMIT} times). Whether the PR is a draft is seen in status (a PR with in_progress is a draft). ` +
     "The stage is derived from the facts of Runs (implementation, review, and fix Runs and their results, and the mark of waiting for a person), the PR, the work branch, and Plan waits. " +
     "It returns the kind of step (kind: implement, review, fix, ready, wait_merge, wait_deps, wait_human, done), the step to open, the Run in progress, the Plan's tier, scope, and approach, the commands to call (commands; delegate to a sub-agent. If the model is the same as the parent's and it proceeds on its own, the implement claim drops --no-run and does not use the mark. For implement, review, fix, and ready steps, if that step's Run is already running, or an implementation Run or a fix Run on this branch that has no push since it started is running, it waits for that to end instead of starting another), and the questions to ask a person (ask_human). " +
-    "For implement, review, and fix steps it includes the text to paste into a sub-agent (brief, the same as dg brief; language sets the language of the fixed text). " +
+    "For implement, review, and fix steps it includes the text to paste into a sub-agent (brief, the same as dg brief). " +
     "For implement and fix steps it includes the model to launch (model) (the Plan's tier maps to config's models.*; a ticket with no tier is standard. When the mapping is empty, and for review and other steps, it is null, meaning the parent's model). " +
     "A ticket in the waiting_human stage is wait_human. Read it after bringing in the work branch. It writes nothing",
   input: z.object({
     ticket: ticketRef,
-    language: z
-      .enum(ASK_LANGUAGES)
-      .optional()
-      .describe(
-        "Language of the fixed text in brief. Defaults to ja when omitted. Does not change the ticket's content",
-      ),
   }),
   write: false,
   needs: "store",
@@ -413,7 +406,7 @@ export const next = defineCommand({
     const role = BRIEF_ROLE_OF[step.kind];
     // 実行中の Run を待つ手には文を出さない（貼ると Run が重なる）。running_run が入るのは待つ手だけ
     if (!role || step.running_run !== null) return ok(step);
-    const { brief, warnings } = await briefOf(ctx, ticket, role, { language: input.language });
+    const { brief, warnings } = await briefOf(ctx, ticket, role);
     return ok({ ...step, brief: brief.text }, undefined, warnings);
   },
 });
