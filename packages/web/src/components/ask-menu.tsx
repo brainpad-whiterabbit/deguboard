@@ -7,7 +7,8 @@
 // まとめて 1 回で引き、一覧が読み直されたら（Status が変わったかもしれない）引き直す。Provider の外では一覧を開いたときに引く。
 // 部品は場所によらない（左パネルのカンバン・バックログ・履歴と、パネルのチケット・Iteration・Epic の詳細のタイトルと中の行で使う）。
 // 詳細のタイトルは幅に余裕があるので、吹き出しをタイトルの横に常に出す（pinned）。詳細の中の行は、チケットが入っている
-// Iteration・Epic を within に渡し、「そこから外す」を候補に足す。
+// Iteration・Epic を within に渡し、「そこから外す」を候補に足す。履歴の行・見出しは place（historyRow）を渡し、
+// 場所で変わる候補（閉じた Iteration の見出しの「振り返る」）を出す。場所は core が決め、画面は鍵に写して渡すだけ。
 // 一覧の行は select で複数選べ（selection.tsx）、選んだ行の吹き出しは選んだ全件を対象にする。選んでいる間は
 // 画面の下に「n 件を選択 ・ 頼む」の帯（SelectionBar）を出す。
 // 選べる行はキーでも操作できる（リンクにフォーカスがあるとき）：Space で選びに足し外しし、a か Shift+F10 で頼む一覧を開く。↑↓・Enter は row-nav.tsx
@@ -44,6 +45,9 @@ export const ASK_SECTIONS = WEBVIEW_CONTRACT_COPY.askSections;
 export type AskSection =
   | (typeof ASK_SECTIONS)[keyof typeof ASK_SECTIONS]
   | typeof WEBVIEW_CONTRACT_COPY.backlogRowSection;
+
+/** 頼む場所（core の ask-menu の # の名前。場所によって候補が変わる）。askSections の名前と同じ */
+export type AskPlace = (typeof ASK_SECTIONS)[keyof typeof ASK_SECTIONS];
 
 /** 初めての案内を消したかの鍵（見た目の状態） */
 export const ASK_HINT_KEY = "ask.hintDismissed";
@@ -155,6 +159,8 @@ export interface AskSpotOptions {
   pinned?: boolean | undefined;
   /** 対象のチケットが入っている Iteration・Epic（詳細の中の行）。候補に「そこから外す」が足される */
   within?: string | undefined;
+  /** 頼む場所（履歴の行・見出しは historyRow）。場所によって候補が変わる（閉じた Iteration の見出しの振り返るなど） */
+  place?: AskPlace | undefined;
   /**
    * 一覧の行（対象は targets の 1 件）を Ctrl/⌘・Shift+クリックで選べるようにする（selection.tsx）。
    * 選んだ行が 2 件以上なら、吹き出し・Shift+F10 は選んだ全件を対象にする
@@ -201,11 +207,14 @@ export function useAskSpot(options: AskSpotOptions | null): AskSpot {
   const many = selected && selection!.ids.length > 1;
   const targets = many ? selection!.ids : (options?.targets ?? []);
   const within = many ? selection!.within : options?.within;
+  const place = options?.place;
   const label = many ? tr("選んだ {0} 件", targets.length) : (options?.label ?? "");
-  const key = askKey(targets, within);
+  const key = askKey(targets, within, place);
   const menu = useAskMenu(options ? key : null, open);
   const asking =
-    !!options && ask.request !== null && askKey(ask.request.targets, ask.request.within) === key;
+    !!options &&
+    ask.request !== null &&
+    askKey(ask.request.targets, ask.request.within, ask.request.place) === key;
   // 右クリックのメニューはバックログの行だけ「詳細を開く」「ID をコピー」を出す。ほかの場所は既定の切り取り・コピー・貼り付けを出さない
   const context = options
     ? JSON.stringify({
@@ -260,7 +269,7 @@ export function useAskSpot(options: AskSpotOptions | null): AskSpot {
           onPick={(c) => {
             setOpen(false);
             returnTo.current = null;
-            ask.open(targets, c.action, within);
+            ask.open(targets, c.action, within, place);
           }}
           onClose={close}
         />

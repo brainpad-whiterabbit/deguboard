@@ -14,6 +14,14 @@ import type { Store } from "../storage/store.js";
 import { findConstraint } from "../workflow/resolve.js";
 import { defineCommand, ok } from "./define.js";
 import { iterationComplete, ticketsInIteration } from "./helpers.js";
+import { WEBVIEW_CONTRACT } from "./client.js";
+
+/**
+ * 頼む場所（画面の行・見出しの種類。WEBVIEW_CONTRACT.askSections の名前）。場所によって候補が変わる。
+ * 今は historyRow（履歴のタブの行・見出し）からだけ、閉じた Iteration に振り返るを候補に足す。細部はテストが正本
+ */
+export const ASK_PLACES = WEBVIEW_CONTRACT.askSections;
+export type AskPlace = (typeof ASK_PLACES)[number];
 
 /** 頼むこと。どの対象で候補に出るかは askCandidates が決める */
 export const ASK_ACTIONS = [
@@ -1216,9 +1224,10 @@ export function askHumanChecks(action: AskAction, s: Subjects, within?: string):
  * within（対象のチケットが入っている Iteration・Epic）を渡し、チケットがどれもそこに入っていて終わっていなければ、外すを変える（change）の後（変えるがなければ自由にの前）に足す。
  * 検討する（discuss）は、終わっていないチケット（複数可）と開いている 1 つの Iteration・Epic に、変える（外すがあればその後）の次（変えるがなければ自由にの前）に足す。
  * 答えの決まった変えると、これから決める検討するを隣に並べるため。どの並びも変えるから始まらないので、おすすめ（先頭）にはならない
+ * place は頼む場所（ASK_PLACES）。場所によって候補が変わるものだけに使う（振り返るは historyRow の閉じた Iteration だけ）
  */
-function askActions(s: Subjects, within?: string): AskAction[] {
-  let actions = baseActions(s);
+function askActions(s: Subjects, within?: string, place?: AskPlace): AskAction[] {
+  let actions = baseActions(s, place);
   const tickets = only(s, "ticket");
   const open = tickets && !tickets.some((t) => isTerminal(t.status as Status));
   if (withinOf(s, within) && open) actions = afterChange(actions, "remove");
@@ -1235,7 +1244,7 @@ function afterChange(actions: readonly AskAction[], action: AskAction): AskActio
   return [...actions.slice(0, at), action, ...actions.slice(at)];
 }
 
-function baseActions(s: Subjects): AskAction[] {
+function baseActions(s: Subjects, place?: AskPlace): AskAction[] {
   // 対象なしは、Skill を持つ頼むことを流れの順にすべて出す（Skill が対象を聞く）。対象がないと意味のないもの（外す・分ける・done の取り消し・再開・承認）と、Skill のないもの（様子・振り返り・持ち越し）は出さない
   if (s.length === 0)
     return [
@@ -1296,7 +1305,9 @@ function baseActions(s: Subjects): AskAction[] {
 
   const it = single(s, "iteration");
   if (it) {
-    if (it.status === "closed") return ["retro", "assign", "reopen", "free"];
+    // 振り返るは履歴の見出しからだけ（閉じた Iteration の詳細には出さない）
+    if (it.status === "closed")
+      return [...(place === "historyRow" ? (["retro"] as const) : []), "assign", "reopen", "free"];
     const rest: AskAction[] = ["create", "assign", "change", "close", "check", "free"];
     if (it.status === "active" && it.complete) return ["release", "plan", "all", ...rest];
     return it.status === "active" ? ["plan", "all", "release", ...rest] : ["plan", "all", ...rest];
@@ -1305,7 +1316,7 @@ function baseActions(s: Subjects): AskAction[] {
   const ep = single(s, "epic");
   if (ep)
     return ep.status === "closed"
-      ? ["create", "retro", "reopen", "free"]
+      ? ["create", "reopen", "free"]
       : ["create", "assign", "plan", "change", "close", "check", "free"];
 
   const plan = single(s, "plan");
@@ -1408,9 +1419,10 @@ export function askCandidates(
   s: Subjects,
   within?: string,
   lang: AskLanguage = "ja",
+  place?: AskPlace,
 ): AskCandidate[] {
   const w = withinOf(s, within);
-  return askActions(s, within).map((action, n) => {
+  return askActions(s, within, place).map((action, n) => {
     const skill = ACTIONS[action].skill;
     return {
       action,
@@ -1485,6 +1497,8 @@ export interface BuildAskInput {
   humanOnly?: readonly string[] | undefined;
   /** 対象のチケットが入っている Iteration・Epic（詳細の中の行から頼むとき）。外すの候補が出る */
   within?: string | undefined;
+  /** 頼む場所（履歴の見出しなど）。場所によって候補が変わる */
+  place?: AskPlace | undefined;
   /** 定型の文の言語。省けば日本語。指示とチケットの中身は変えない */
   language?: AskLanguage | undefined;
 }
@@ -1494,7 +1508,7 @@ export function buildAsk(input: BuildAskInput): AskView {
   const s = input.subjects;
   const format = input.format ?? "skill";
   const lang = input.language ?? "ja";
-  const candidates = askCandidates(s, input.within, lang);
+  const candidates = askCandidates(s, input.within, lang, input.place);
   const w = withinOf(s, input.within);
   const chosen = input.action ?? candidates[0]!.action;
   const candidate = candidates.find((c) => c.action === chosen);
@@ -1654,6 +1668,12 @@ export const ask = defineCommand({
       .describe(
         "The Iteration or Epic that the target tickets are in (s3, e2). Passed when asking from a row in the details; if every ticket is in it, 'remove from it' is added as a candidate",
       ),
+    place: z
+      .enum(ASK_PLACES)
+      .optional()
+      .describe(
+        "Where the ask is made from, the screen's kind of row or heading. historyRow is a row or heading in the History tab. Some candidates appear only from a place: retro (retrospective) is a candidate only with historyRow, on a closed Iteration. Omit it from the details and the boards",
+      ),
     language: z
       .enum(ASK_LANGUAGES)
       .optional()
@@ -1678,6 +1698,7 @@ export const ask = defineCommand({
         format,
         humanOnly: ctx.config.actor.human_only,
         within: withinRef(ctx.store, input.within),
+        place: input.place,
         language: input.language,
       }),
     );
@@ -1703,7 +1724,7 @@ export const askMenu = defineCommand({
       .array(z.string())
       .default([])
       .describe(
-        'Sets of targets (IDs separated by spaces: t12, "t1 t2", s3). An empty string means no target. An Iteration or Epic with @ ("t12 @s3") means where the tickets are (ask\'s within)',
+        'Sets of targets (IDs separated by spaces: t12, "t1 t2", s3). An empty string means no target. An Iteration or Epic with @ ("t12 @s3") means where the tickets are (ask\'s within). A place with # ("s3 #historyRow") means the screen row or heading it is asked from (ask\'s place)',
       ),
     language: z
       .enum(ASK_LANGUAGES)
@@ -1724,11 +1745,12 @@ export const askMenu = defineCommand({
     return ok(
       keys.map((key): AskMenu => {
         try {
-          const { refs, within } = parseAskMenuKey(key);
+          const { refs, within, place } = parseAskMenuKey(key);
           const candidates = askCandidates(
             subjectsOf(ctx.store, refs, running),
             withinRef(ctx.store, within),
             input.language,
+            placeRef(place),
           );
           return { key, candidates, error: null };
         } catch (e) {
@@ -1740,27 +1762,36 @@ export const askMenu = defineCommand({
 });
 
 /**
- * ask-menu の組の鍵。対象の ID を空白でつなぎ、場所（within）があれば @ を付けて後ろに置く（返す key はこの形）。
+ * ask-menu の組の鍵。対象の ID を空白でつなぎ、場所（within）があれば @ を、頼む場所（place）があれば # を付けて、後ろに置く（返す key はこの形）。
  * web は core を実行時に取り込めないので同じ書式を写し（ask-key.ts）、一致を web のテストで確かめる
  */
-export function askMenuKey(refs: readonly string[], within?: string): string {
-  return [...refs, ...(within ? [`@${within}`] : [])].join(" ");
+export function askMenuKey(refs: readonly string[], within?: string, place?: string): string {
+  return [...refs, ...(within ? [`@${within}`] : []), ...(place ? [`#${place}`] : [])].join(" ");
 }
 
-/** 組の文字列を対象と場所（@ を付けた 1 つ。重ねたら後のもの）に分ける */
-export function parseAskMenuKey(key: string): { refs: string[]; within: string | undefined } {
+/** 組の文字列を対象と場所（@ を付けた 1 つ）と頼む場所（# を付けた 1 つ）に分ける。重ねたら後のもの */
+export function parseAskMenuKey(key: string): {
+  refs: string[];
+  within: string | undefined;
+  place: string | undefined;
+} {
   const tokens = key.split(/\s+/).filter(Boolean);
-  const within = tokens
-    .filter((t) => t.startsWith("@"))
-    .at(-1)
-    ?.slice(1);
-  return { refs: tokens.filter((t) => !t.startsWith("@")), within };
+  const last = (mark: string) =>
+    tokens
+      .filter((t) => t.startsWith(mark))
+      .at(-1)
+      ?.slice(1);
+  return {
+    refs: tokens.filter((t) => !t.startsWith("@") && !t.startsWith("#")),
+    within: last("@"),
+    place: last("#"),
+  };
 }
 
-/** 組の文字列を、対象の ID の後に場所を置いた形にそろえる（返す key はこの形） */
+/** 組の文字列を、対象の ID の後に場所と頼む場所を置いた形にそろえる（返す key はこの形） */
 function normalizeKey(key: string): string {
-  const { refs, within } = parseAskMenuKey(key);
-  return askMenuKey(refs, within);
+  const { refs, within, place } = parseAskMenuKey(key);
+  return askMenuKey(refs, within, place);
 }
 
 /** within を確かめる。Iteration・Epic の ID でなければ使い方の誤り、なければ NOT_FOUND */
@@ -1771,6 +1802,16 @@ function withinRef(store: Store, within: string | undefined): string | undefined
   if ((kind !== "iteration" && kind !== "epic") || !parseId(ref, kind))
     throw new UsageError(`${ref} is not an Iteration or Epic ID (write it like s3 or e2)`);
   return store.require(kind, ref).id;
+}
+
+/** place を確かめる。画面の場所の名前（ASK_PLACES）でなければ使い方の誤り */
+function placeRef(place: string | undefined): AskPlace | undefined {
+  if (place === undefined || place === "") return undefined;
+  if (!(ASK_PLACES as readonly string[]).includes(place))
+    throw new UsageError(
+      `${place} is not a place (one of ${ASK_PLACES.join(", ")}, written like #historyRow)`,
+    );
+  return place as AskPlace;
 }
 
 /** チケットを含むときだけ、このマシンで実行中の Run があるチケットを読む */

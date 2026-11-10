@@ -192,6 +192,7 @@ export function App() {
           action={ask.request.action}
           copyOnOpen={ask.serial > 0}
           within={ask.request.within}
+          place={ask.request.place}
           onClose={ask.close}
         />
       ) : null}

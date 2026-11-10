@@ -483,11 +483,12 @@ function IterationItem({
   const goal = i.goal?.trim();
   // 終わったチケットがすべて Epic なしなら内訳は出さない（Epic なしだけの内訳は情報にならない）
   const showEpics = epics.some((e) => e.epic !== null);
-  // 閉じた Iteration の行から頼む（UI-15）
+  // 閉じた Iteration の見出しから頼む（UI-15）。履歴の見出しだから、閉じた Iteration の振り返るが候補に出る（core の ask-menu が決める）
   const spot = useAskSpot({
     targets: [i.id],
     label: `Iteration ${i.id}`,
     section: ASK_SECTIONS.historyRow,
+    place: ASK_SECTIONS.historyRow,
   });
   return (
     <li>
@@ -692,6 +693,7 @@ function EpicItem({ epic: e, fold, query }: { epic: EpicRow; fold: RowFold; quer
     targets: [e.id],
     label: `Epic ${e.id}`,
     section: ASK_SECTIONS.historyRow,
+    place: ASK_SECTIONS.historyRow,
   });
   const head = (
     <>
