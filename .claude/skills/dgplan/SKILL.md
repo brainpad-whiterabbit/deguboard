@@ -1,12 +1,12 @@
 ---
 name: dgplan
-description: deguboard のチケットを進める順を決めて Plan に記録し、人の承認を得る。「t12 を進めて」「s3 を全部進めて」「次の 3 件を進めて」「計画だけ立てて」と頼まれたときや、承認待ちの Plan を承認するときに使う。「次にやるチケットは？」と順だけを聞かれたときも使う（順を示して止める）。承認した Plan は dgwork で進める。
-argument-hint: <チケットの ID...|Iteration|Epic|next [N]> | <Plan の ID>
+description: Decides the order in which to advance deguboard tickets, records it in a Plan, and gets human approval. Use when asked「t12 を進めて」「s3 を全部進めて」「次の 3 件を進めて」「計画だけ立てて」, or to approve a Plan that is awaiting approval. Also use when asked only for the order, such as「次にやるチケットは？」 (shows the order and stops). Advance an approved Plan with dgwork.
+argument-hint: <ticket ID...|Iteration|Epic|next [N]> | <Plan ID>
 ---
 
-<!-- dg skill sha256:2e6470ca4f51486832288816525ba2f4abda1e2782382d489ca71abe45bbe2f2 -->
+<!-- dg skill sha256:8154090e41ffa90a7de1998a34435af6984002bbcc40857c1aad21163cb5263e -->
 
-# 計画（plan）
+# Plan (plan)
 
 チケットを進める順を決めて Plan に記録し、人の承認を得ます。
 
@@ -18,4 +18,4 @@ argument-hint: <チケットの ID...|Iteration|Epic|next [N]> | <Plan の ID>
 
 指定：$ARGUMENTS
 
-指定が空なら、手順の「対象を決める」に従う。
+指定が空なら、手順の「対象を決める」（英語の手順では "Deciding the target"）に従う。

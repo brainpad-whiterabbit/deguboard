@@ -4,7 +4,7 @@ description: deguboard の承認済みの Plan のチケットを、着手でき
 argument-hint: <Plan の ID|チケットの ID>
 ---
 
-<!-- dg skill sha256:bb067ee834b410f3bccbec64b9c8a2b1ccc42e22c5031866a594b8785719f8e7 -->
+<!-- dg skill sha256:6fd1b7a90e4c119e2fba3412284141657f09d30050c28a76148d0bba47cf3013 -->
 
 # 作業（work）
 
@@ -18,4 +18,4 @@ argument-hint: <Plan の ID|チケットの ID>
 
 指定：$ARGUMENTS
 
-指定が空なら、手順の「対象を決める」に従う。
+指定が空なら、手順の「対象を決める」（英語の手順では "Deciding the target"）に従う。

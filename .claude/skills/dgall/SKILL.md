@@ -4,7 +4,7 @@ description: deguboard の Iteration かチケットを、割り当て → 点�
 argument-hint: <Iteration|チケットの ID...> [--no-assign] [--auto]
 ---
 
-<!-- dg skill sha256:c840779dc2ab6b68b79fb30c3d8d43aa42fc53c6d5049bc1aa4a9d2e8da4a8f0 -->
+<!-- dg skill sha256:b2ccaa8915c9353fe9f85980c2994990926b79233c65fae691209673ff71beeb -->
 
 # 一気通し（all）
 
@@ -18,4 +18,4 @@ Iteration かチケットを、割り当てからリリース（か片付け）�
 
 指定：$ARGUMENTS
 
-指定が空なら、手順の「対象を決める」に従う。
+指定が空なら、手順の「対象を決める」（英語の手順では "Deciding the target"）に従う。

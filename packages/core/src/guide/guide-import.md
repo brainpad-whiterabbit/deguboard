@@ -1,48 +1,48 @@
 ---
-description: 会話で検討した結果（設計の相談・不具合の調査・レビューの指摘など）や計画・設計書を deguboard のチケットに分解し、承認を得てから一度に起票する。既存のチケットの修正・分割で済むものは直す。「起票して」「チケットにして」「チケットを直して」と頼まれたときや、要件の整理が終わってチケット化を提案するときに使う。
-argument-hint: "[対象（案の名前・文書のパス・チケットの ID）]"
+description: Breaks down the results of a conversation (design discussion, bug investigation, review findings, etc.) or a plan or design document into deguboard tickets, and files them in one batch after approval. Fixes or splits existing tickets when that is enough. Use when asked「起票して」「チケットにして」「チケットを直して」, or when proposing to turn settled requirements into tickets.
+argument-hint: "[target (plan name, document path, or ticket ID)]"
 ---
 
-# 起票（import）
+# Filing (import)
 
-会話で固まった要件・調査の結果・レビューの指摘を、チケットに起こす。
+Turns the requirements, research results, and review findings settled in the conversation into tickets.
 
-## 対象を決める
+## Deciding the target
 
-- 案の名前・文書のパス：その案や文書（設計書・調査の結果）を対象にする
-- チケットの ID：そのチケットの修正・分割を対象にする（`ticket update` で直し、分けるなら新しく起票して元の範囲を狭める）
-- 指定が空：この会話で検討した結果のうち、まだチケットになっていないものを対象にする。何を対象にし、何を保留にするかを最初に示す
+- Plan name or document path: targets that plan or document (a design doc or research results)
+- Ticket ID: targets fixing or splitting that ticket (fix it with `ticket update`, and to split it, file a new ticket and narrow the original's scope)
+- No target given: targets the results of this conversation that are not yet tickets. First show what is targeted and what is held back
 
-## 流れ
+## Flow
 
-1. 要件の整理が終わったら、チケット化を**提案**する。勝手に起票しない。分解の案（題・概要・受け入れ条件・依存・Epic）を表で見せ、「承認して起票する」「修正する」「やめる」の選択肢で承認を得る
-2. 1 枚なら `dg --json --actor agent ticket create "<題>" --created-by human --summary "<概要>" --acceptance "<条件>" --acceptance "<条件>" [--epic e3] [--depends-on t9,t10] [--priority high] [--assignee agent]`
-3. 複数なら YAML の下書きを 1 ファイルに書いて `dg --json --actor agent ticket import <file>`。1 回のコミットでまとめて採番される
-4. 結果の `data` から ID を読み、人に報告する
+1. When the requirements are settled, **propose** turning them into tickets. Do not file on your own. Show the decomposition (title, summary, acceptance criteria, dependencies, Epic) in a table, and get approval with the choices "File after approval", "Revise", and "Cancel"
+2. For one ticket: `dg --json --actor agent ticket create "<title>" --created-by human --summary "<summary>" --acceptance "<criterion>" --acceptance "<criterion>" [--epic e3] [--depends-on t9,t10] [--priority high] [--assignee agent]`
+3. For several: write a YAML draft to one file and run `dg --json --actor agent ticket import <file>`. IDs are assigned together in one commit
+4. Read the IDs from the result's `data` and report them to a human
 
-## 起票者と担当者
+## Creator and assignee
 
-- 起票者（`created_by`）は、起票を指示・承認した人か、人の確認を経ずに起票した AI。人の指示や承認で起票するときは `--created-by human` を付けてユーザ本人にする。自動の手順の中などで人の確認を経ずに起票するときは付けない（`<ユーザ>/agent` になる）
-- 担当者（`assignee`）は任意。自分が続けて進めるなら `--assignee agent`、人が進めるなら `--assignee human`。claim すると claim した主体で上書きされる
+- The creator (`created_by`) is the person who instructed or approved the filing, or the AI that filed without a human's check. When filing on a human's instruction or approval, pass `--created-by human` so the user is the creator. In an automatic step that files without a human's check, do not pass it (it becomes `<user>/agent`)
+- The assignee (`assignee`) is optional. If you will continue advancing it, use `--assignee agent`. If a human will advance it, use `--assignee human`. Claim overwrites it with the claiming actor
 
-## 下書きの形（import）
+## Draft format (import)
 
 ```yaml
-- key: schema # 下書きの中だけで使う仮キー
-  title: スキーマを決める
+- key: schema # Temporary key used only inside this draft
+  title: Decide the schema
   summary: …
-  acceptance: [条件 1, 条件 2] # 本文の雛形のチェックリストに入る
-  epic: e3 # 既存の Epic。省略可
-  iteration: s3 # 既存の Iteration。省略可
-  priority: high # low / medium / high。既定は medium
+  acceptance: [criterion 1, criterion 2] # Goes into the checklist of the body template
+  epic: e3 # Existing Epic. Optional
+  iteration: s3 # Existing Iteration. Optional
+  priority: high # low / medium / high. Default is medium
   labels: [backend]
-  created_by: human # 起票者。省略時は操作した主体（あなたなら <ユーザ>/agent）
-  assignee: agent # 担当者。省略可
-  fields: { estimate: 3 } # Workflow の fields で定義した任意フィールド
+  created_by: human # Creator. If omitted, the acting actor (for you, <user>/agent)
+  assignee: agent # Assignee. Optional
+  fields: { estimate: 3 } # Optional fields defined by the Workflow's fields
 - key: api
-  title: API を実装する
-  depends_on: [schema] # 仮キーか既存の ID（t9）
-  body: | # summary の代わりに本文全体を書いてもよい
+  title: Implement the API
+  depends_on: [schema] # Temporary key or existing ID (t9)
+  body: | # Whole body instead of summary. ## 概要 is the summary and ## 受け入れ条件 the acceptance criteria; keep these headings exact
     ## 概要
 
     …
@@ -52,43 +52,43 @@ argument-hint: "[対象（案の名前・文書のパス・チケットの ID）
     - [ ] …
 ```
 
-- 引用しない値の「空白＋#」以降は YAML のコメントになり、捨てられる。`#` を含む値（`#/config` など）は引用符で囲むか、body の `|` で書く
-- 本文の項目（title・summary・acceptance・body）の引用しない値の行末コメントは拒まれる（直し方はエラーの文）。ほかの項目の行末コメントと、行だけのコメントは使える
+- In an unquoted value, "a space followed by #" and everything after it become a YAML comment and are dropped. Write a value containing `#` (such as `#/config`) inside quotes, or in the body with `|`
+- In the body items (title, summary, acceptance, body), a trailing comment on an unquoted value is refused (the error message says how to fix it). Trailing comments and comment-only lines are allowed in other items
 
-## 優先度の判断基準
+## Priority criteria
 
-`priority` は、次の基準で選ぶ（`config.yaml` の `priority` で書き換えられる）。
+Choose `priority` by these criteria (they can be changed in `priority` of `config.yaml`).
 
-- high：{{priority.high}}
-- medium（既定）：{{priority.medium}}
-- low：{{priority.low}}
+- high: {{priority.high}}
+- medium (default): {{priority.medium}}
+- low: {{priority.low}}
 
-## よいチケットの書き方
+## How to write a good ticket
 
-- 題は「何をどうする」が一読でわかる 1 行。実装の手段ではなく成果で書く
-- 本文は `## 概要` と `## 受け入れ条件`（`- [ ]` のチェックリスト）。`dg lint` が節の欠けと項目のない節を指摘する
-- 起票時に調べた参照先は、任意の `## 参考` 節に書く。着手するエージェントに渡すほか、計画（`dg guide plan`）で参考節のファイルが重なるチケットを並行させず `after` でつなぐ材料になり、人（と見直し役）が PR と見比べる起票時の見込みにもなる。見込みとして直すと考えたファイルのパスを書く。書いてよいのは、要件の ID・ADR の番号・関連するチケットの ID・ファイルのパス・関数名とコマンド名。行番号と docs の書き写しは入れず（すぐ古くなる）、どう直すか（実装の手段）は書かない。節は任意で、なくても `dg lint` は指摘しない
-- 受け入れ条件は、PR や成果物を見て真偽を判定できる文にする
-- 受け入れ条件に ADR や要件定義書の書き足しを入れるのは、判断が戻すのに移行が要る・利用者に見える約束とデータの形・構成と技術の選択・提案されそうな案を退ける、のどれかに当たるときだけにする。それ以外は、テストとコメントで約束を示す条件にする
-- 1 枚は 1 つの PR で終わる大きさにする。大きければ分けて `depends_on` でつなぐ
-- 受け入れ条件が 7 項目以上になったら、分けることを勧める（deguboard 自身の開発では、7 項目以上のチケット 10 件のうち 9 件で手直しが要った）。分けないなら、そのまま 1 件で進める理由を人に示す
-- PR の要らない作業（チケットのデータの整備・確認・調査）は、概要にそう書く。受け入れ条件はデータや報告で真偽を判定できる文にする
-- 目的で束ねるなら Epic（`dg --json --actor agent epic list` で既存を見る。なければ作ることを提案する）
-- 任意フィールド（Workflow の `fields`）は `--field key=value`。定義は `dg --json --actor agent workflow show <id>`
+- The title is one line where "what is done, and how" is clear at a glance. Write it by the result, not the means of implementation
+- The body has `## 概要` (summary) and `## 受け入れ条件` (acceptance criteria; a `- [ ]` checklist). Keep these headings as written; dg reads them literally. `dg lint` flags a missing section and a section with no items
+- Write the references you looked up while filing in an optional `## 参考` (references) section. It is passed to the agent that works the ticket. It also helps the planner (`dg guide plan`) connect tickets whose reference files overlap with `after` instead of running them in parallel, and gives humans (and the reviewer) a filing-time estimate to compare with the PR. Write the file paths you expect to change as an estimate. You may write requirement IDs, ADR numbers, related ticket IDs, file paths, function names, and command names. Do not include line numbers or copies of docs (they go stale quickly), and do not write how to change it (the means of implementation). The section is optional, and `dg lint` does not flag its absence
+- Acceptance criteria are sentences whose truth can be judged by looking at the PR or the deliverable
+- Add a requirement document or ADR as an acceptance criterion only when the decision needs a migration to reverse, is a promise to users or a data shape, is a choice of structure or technology, or rejects a plausible alternative. Otherwise, make the criterion show the promise through tests and comments
+- One ticket should be sized to finish in one PR. If it is large, split it and connect the parts with `depends_on`
+- When a ticket reaches 7 or more acceptance criteria, recommend splitting it (in deguboard's own development, 9 of 10 tickets with 7 or more criteria needed rework). If you do not split it, show a human the reason to proceed with one ticket
+- Work that needs no PR (data maintenance, checks, research) says so in the summary. Make its acceptance criteria sentences whose truth can be judged from data or a report
+- To group tickets by purpose, use an Epic (see existing ones with `dg --json --actor agent epic list`. If there are none, propose creating one)
+- For optional fields (the Workflow's `fields`), use `--field key=value`. For the definitions, use `dg --json --actor agent workflow show <id>`
 
-## してはいけないこと
+## What not to do
 
-- 依存の循環を作る（作成時に拒否される）
-- 閉じた Epic にチケットを足す（拒否される）
-- 着手していないのに `status` を変える。起票したチケットは todo のまま
-- 結果が `provisional: true` のときに ID を確定として人に伝える（`dg guide overview`）
+- Do not create a dependency cycle (it is refused at creation)
+- Do not add a ticket to a closed Epic (it is refused)
+- Do not change `status` without starting work. A filed ticket stays todo
+- When the result has `provisional: true`, do not tell a human the ID as final (see `dg guide overview`)
 
 {{choices}}
 
-## 次の手順を選ぶ
+## Choosing the next step
 
-結果を伝えたら（やめたときも）、次の選択肢で聞く。
+When you have reported the result (including when you stopped), ask with these choices.
 
-- **割り当てる**（勧める）：起票したチケットを `dg guide assign` の手順で Iteration と Epic に入れる（Skill があれば `/dgassign <ID...>`）
-- **計画を立てる**：割り当てが要らなければ、`dg guide plan` の手順で進める順を決める（Skill があれば `/dgplan <ID...>`）
-- **ここで止める**
+- **Assign** (recommended): put the filed tickets into Iterations and Epics by the steps of `dg guide assign` (if a Skill is available, `/dgassign <ID...>`)
+- **Make a plan**: if no assignment is needed, decide the order of advancing by the steps of `dg guide plan` (if a Skill is available, `/dgplan <ID...>`)
+- **Stop here**

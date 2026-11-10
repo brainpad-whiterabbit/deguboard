@@ -1,12 +1,12 @@
 ---
 name: dgimport
-description: 会話で検討した結果（設計の相談・不具合の調査・レビューの指摘など）や計画・設計書を deguboard のチケットに分解し、承認を得てから一度に起票する。既存のチケットの修正・分割で済むものは直す。「起票して」「チケットにして」「チケットを直して」と頼まれたときや、要件の整理が終わってチケット化を提案するときに使う。
-argument-hint: "[対象（案の名前・文書のパス・チケットの ID）]"
+description: Breaks down the results of a conversation (design discussion, bug investigation, review findings, etc.) or a plan or design document into deguboard tickets, and files them in one batch after approval. Fixes or splits existing tickets when that is enough. Use when asked「起票して」「チケットにして」「チケットを直して」, or when proposing to turn settled requirements into tickets.
+argument-hint: "[target (plan name, document path, or ticket ID)]"
 ---
 
-<!-- dg skill sha256:d8508f1961091e39e51d04771124d1c997cbb1a9c9af034441a4dfe446ee630a -->
+<!-- dg skill sha256:8454d435489084b39bba4739bcabf1d97e26a1e8cdabfd7dbf281f3c9afc15f9 -->
 
-# 起票（import）
+# Filing (import)
 
 会話で検討した内容や計画・設計書を、承認を得てからチケットに分けて起票します。
 
@@ -18,4 +18,4 @@ argument-hint: "[対象（案の名前・文書のパス・チケットの ID）
 
 指定：$ARGUMENTS
 
-指定が空なら、手順の「対象を決める」に従う。
+指定が空なら、手順の「対象を決める」（英語の手順では "Deciding the target"）に従う。

@@ -1,66 +1,66 @@
 ---
-description: deguboard のチケットを進める順を決めて Plan に記録し、人の承認を得る。「t12 を進めて」「s3 を全部進めて」「次の 3 件を進めて」「計画だけ立てて」と頼まれたときや、承認待ちの Plan を承認するときに使う。「次にやるチケットは？」と順だけを聞かれたときも使う（順を示して止める）。承認した Plan は dgwork で進める。
-argument-hint: "<チケットの ID...|Iteration|Epic|next [N]> | <Plan の ID>"
+description: Decides the order in which to advance deguboard tickets, records it in a Plan, and gets human approval. Use when asked「t12 を進めて」「s3 を全部進めて」「次の 3 件を進めて」「計画だけ立てて」, or to approve a Plan that is awaiting approval. Also use when asked only for the order, such as「次にやるチケットは？」 (shows the order and stops). Advance an approved Plan with dgwork.
+argument-hint: "<ticket ID...|Iteration|Epic|next [N]> | <Plan ID>"
 ---
 
-# 計画（plan）
+# Plan (plan)
 
-複数のチケットを、どの順で進めるかを決める。計画は Plan（`p3`）に記録する。Plan は進める順（`after`）とチケットごとの範囲・方針・段階（`details` の `scope`・`approach`・`tier`）を持つ。承認待ちで作り、人の承認を受けて `plan approve` で承認済みにする。
+Decides the order in which to advance several tickets. The plan is recorded in a Plan (`p3`). A Plan holds the order (`after`) and, for each ticket, the scope, approach, and tier (`details`'s `scope`, `approach`, and `tier`). It is created awaiting approval, and it becomes approved with `plan approve` after a human's approval.
 
-## 対象を決める
+## Deciding the target
 
-- チケットの ID（1 つ以上）：そのチケットの Plan を作る
-- Iteration（`s3`）・Epic（`e3`）：その中の todo を対象にする（`ticket list --iteration s3 --status todo`）
-- `next [N]`：`ticket list --ready` の上位 N 枚（省くと 1 枚）
-- Plan の ID（`p3`）：承認待ちなら下の手順 6・7 で承認を得る。承認済みなら「次の手順を選ぶ」で聞く
-- 「次にやるのは？」のように順だけを聞かれたら、手順 1〜4 の案を示して止める。Plan は作らない
-- 指定が空：active の Iteration の todo を勧めて確かめる
+- Ticket ID (one or more): creates a Plan for those tickets
+- Iteration (`s3`) and Epic (`e3`): targets the todos in them (`ticket list --iteration s3 --status todo`)
+- `next [N]`: the top N of `ticket list --ready` (one if omitted)
+- Plan ID (`p3`): if awaiting approval, get approval with steps 6 and 7 below. If already approved, ask with the "Choosing the next step" section
+- If asked only for the order, such as "What is next?", show the proposal from steps 1 to 4 and stop. Do not create a Plan
+- No target given: suggests the todos of the active Iteration and confirms them
 
-## 流れ
+## Flow
 
-1. 対象を集める：`dg --json --actor agent ticket list --project {{default_project}}`（Epic で絞るなら `--epic e3`、Iteration なら `--iteration s3`）
-2. 依存を確かめる：各チケットの `depends_on` と、`dg --json --actor agent ticket show <id>` の `dependents`（自分に依存しているもの）
-3. 着手できるものを出す：`dg --json --actor agent ticket list --ready`。todo で依存先がすべて done か abandoned のもの（`deps_done`）。担当者の有無は見ないので、`assignee` が別のユーザのものは避ける（自分のものだけなら `--assignee agent`）
-4. 順序の案を作る。依存が先、優先度が高いものが先。並行できるもの（互いに依存しないもの）はまとめて示す。チケットの本文に `## 参考` 節があり、そこに書いたファイルが別のチケットの参考節のファイルと重なるものは、並行させず `after` でつなぐ（先に進めるものを前にする）。参考節のないチケットは、この重なりの判断に入れず、従来どおり依存と優先度で順を決める。参考節は起票時の見込みなので、つないだ理由（重なるファイル）を案に書き、承認の段階で人が直せるようにする
-5. 承認待ちの Plan に記録する（下の「Plan の作り方」）。結果の `data.id` が Plan の ID
-6. 人に見せて承認を得る。`dg --json --actor agent plan show <p>` の `items`（Plan の順）・`after`・`details` を表で示し（段階の列を設ける）、「承認する」「修正する」「承認待ちのまま止める」の選択肢で聞く。直すよう言われたら、`plan close <p>` で閉じて作り直す（Plan は作った後に書き換えられない）
-7. 人が承認したら `dg --json --actor agent plan approve <p>` で承認を記録する（`approved_by` は操作した主体）。人の承認を得ないまま approve しない。承認待ちの Plan のチケットには着手しない
-8. 承認済みの Plan は `dg guide work` の手順で進める。Plan の ID を見失ったら、`dg --json --actor agent plan list --status open` で開いた Plan を一覧するか、チケットの `ticket show` の `plan`（入っている開いた Plan）で引く
+1. Collect the targets: `dg --json --actor agent ticket list --project {{default_project}}` (narrow by Epic with `--epic e3`, or by Iteration with `--iteration s3`)
+2. Check dependencies: each ticket's `depends_on`, and the `dependents` (tickets that depend on it) from `dg --json --actor agent ticket show <id>`
+3. Find tickets that can start: `dg --json --actor agent ticket list --ready`. These are todos whose dependencies are all done or abandoned (`deps_done`). This does not check the assignee, so avoid tickets whose `assignee` is another user (if only your own, use `--assignee agent`)
+4. Make an order proposal. Dependencies come first, and higher priority comes first. Show the tickets that can run in parallel (those that do not depend on each other) together. If a ticket's body has a `## 参考` (references) section and the files written there overlap with another ticket's references, do not run them in parallel. Connect them with `after` (put the one that can advance first in front). Tickets without a references section are not judged for this overlap, and their order is decided by dependencies and priority as before. References are an estimate at filing time, so state the overlapping files in the proposal, and let a human fix it at approval
+5. Record it in a Plan awaiting approval (see the "Creating a Plan" section). The result's `data.id` is the Plan's ID
+6. Show it to a human and get approval. Show `items` (the Plan's order), `after`, and `details` from `dg --json --actor agent plan show <p>` in a table (include a tier column), and ask with the choices "Approve", "Revise", and "Keep it awaiting approval". If asked to revise, close it with `plan close <p>` and create it again (a Plan cannot be changed after it is created)
+7. When a human approves, record the approval with `dg --json --actor agent plan approve <p>` (`approved_by` is the acting actor). Do not approve without a human's approval. Do not start tickets in a Plan that is awaiting approval
+8. Advance an approved Plan following `dg guide work`. If you lose track of the Plan's ID, list open Plans with `dg --json --actor agent plan list --status open`, or find it from the `plan` of `ticket show` (the open Plan the ticket is in)
 
-## Plan の作り方
+## Creating a Plan
 
 ```sh
 dg --json --actor agent plan create t12 t13 t14 t15 \
   --after t13=t12 --after t14=t12 --after t15=t13,t14 \
-  --scope t13="一覧と詳細の API。認証は含めない" \
-  --approach t13="core のコマンド定義を足し、HTTP は写すだけ" \
+  --scope t13="API for listing and detail. Authentication is not included" \
+  --approach t13="Add core command definitions, and HTTP only passes them through" \
   --tier t12=light --tier t13=standard --tier t15=heavy
 ```
 
-- 並べた順が実行順の目安。`--after t15=t13,t14` は「t15 を t13・t14 の後に進める」で、計画の中だけの待ち（チケットの `depends_on` とは別）。並行できるものは互いに after を書かない
-- `--scope`・`--approach` はチケットごとに 1 文で書く。着手するときに `plan show` の `details` で読み返す
-- `--tier` はチケットの難しさの段階で、どのモデルで実装するか（`config.yaml` の `models.*`。`dg next` の `model` に出る）を決める。light：文書・設定・文言だけ。heavy：設計の判断・データの形・複数パッケージにまたがる・原因の分からない不具合。standard：それ以外。迷ったら重い方にする。省くと standard と同じに扱う
-- done・abandoned のチケットと、別の開いた Plan に入っているチケット（`ticket show` の `plan` が空でないもの）は入れられない（`REJECTED`）。別の Plan に入っていれば、その Plan を閉じてよいか人に確かめる
-- 依存が足りなければ `dg --json --actor agent ticket update <id> --depends-on t12,t13` で直す。`--depends-on` は一覧を**置き換える**ので、残す依存も全部指定する（`--label` も同じ）。循環は拒否される
-- 計画の途中で新しい作業が見つかったら、勝手に進めず `dg guide import` の手順で起票を提案する
+- The order you list them is a guide to the execution order. `--after t15=t13,t14` means "advance t15 after t13 and t14". It is a wait within the Plan only (separate from the ticket's `depends_on`). Tickets that can run in parallel do not write after for each other
+- Write `--scope` and `--approach` in one sentence per ticket. Read them back with `details` from `plan show` when starting the ticket
+- `--tier` is the ticket's difficulty level, and decides which model implements it (`models.*` in `config.yaml`. It appears as `model` in `dg next`). light: only documents, settings, and wording. heavy: design decisions, data shapes, spanning several packages, or a bug whose cause is unknown. standard: everything else. When in doubt, choose the heavier one. If omitted, it is treated the same as standard
+- Tickets that are done or abandoned, and tickets in another open Plan (those whose `plan` in `ticket show` is not empty), cannot be added (`REJECTED`). If one is in another Plan, ask a human whether that Plan may be closed
+- If dependencies are missing, fix them with `dg --json --actor agent ticket update <id> --depends-on t12,t13`. `--depends-on` **replaces** the whole list, so specify every dependency you keep (`--label` works the same way). Cycles are refused
+- If new work is found while planning, do not advance it on your own. Propose filing it by the steps of `dg guide import`
 
-## 承認について
+## About approval
 
-既定ではエージェントも `plan approve` を実行できる（人に限るなら `config.yaml` の `actor.human_only` に `plan.approve` を入れる。`dg guide overview`）。拒否されたら（`TRANSITION_REJECTED`）人に `dg plan approve <p>` を頼む。
+By default, agents can also run `plan approve`. To limit it to humans, add `plan.approve` to `actor.human_only` in `config.yaml` (see `dg guide overview`). If it is refused (`TRANSITION_REJECTED`), ask a human to run `dg plan approve <p>`.
 
-## 進め方の原則
+## Principles of progress
 
-- 1 度に claim するのは、自分が今すぐ進める 1 枚だけ。先に全部 claim しない（他の人やエージェントが着手できなくなる）
-- 依存先が done でも abandoned でもないチケットには着手しない。Workflow が todo → in_progress に `requires: [deps_done]` を書いていれば claim は拒否される（`TRANSITION_REJECTED`）。書いていなくても `--ready` に出るまで待つか、依存先を先に進める
-- Plan の `after` は claim では検査されない。`plan show` の `items[].waiting`（`after` と `depends_on` の終わっていない待ち先）が空になるまで待つ
+- Claim only the one ticket you can advance right now. Do not claim everything first (others, or other agents, could not start)
+- Do not start a ticket whose dependency is neither done nor abandoned. If the Workflow writes `requires: [deps_done]` for todo → in_progress, claim is refused (`TRANSITION_REJECTED`). If it does not, wait until the ticket appears in `--ready`, or advance the dependency first
+- A Plan's `after` is not checked at claim. Wait until `items[].waiting` in `plan show` (the waits on `after` and `depends_on` that are not finished) is empty
 
 {{choices}}
 
-## 次の手順を選ぶ
+## Choosing the next step
 
-Plan を承認したら（承認済みの Plan を指定されたときも）、次の選択肢で聞く。承認待ちのまま止めたときは聞かない。
+After approving a Plan (including when an approved Plan was specified), ask with these choices. When you stop while the Plan is still awaiting approval, do not ask.
 
-- **Plan を進める**（勧める）：`dg guide work` の手順で Plan の ID を指定して進める（Skill があれば `/dgwork p3`）。進める側は Plan の記録（`plan show`）を手がかりに始める
-- **ここで止める**：別のセッションで Plan の ID を指定して進める
+- **Advance the Plan** (recommended): advance it by the steps of `dg guide work`, specifying the Plan's ID (if a Skill is available, `/dgwork p3`). The one advancing starts from the Plan's record (`plan show`)
+- **Stop here**: another session advances it by specifying the Plan's ID
 
-順だけを示したときは、「計画を立てる」（`dg guide plan` の手順。Skill があれば `/dgplan next <N>`）・「割り当てる」（未割り当てのチケットがあれば `dg guide assign` の手順。Skill があれば `/dgassign`）・「ここで止める」で聞く。
+When you only show the order, ask with "Make a plan" (the steps of `dg guide plan`; if a Skill is available, `/dgplan next <N>`), "Assign" (if there are unassigned tickets, the steps of `dg guide assign`; if a Skill is available, `/dgassign`), and "Stop here".

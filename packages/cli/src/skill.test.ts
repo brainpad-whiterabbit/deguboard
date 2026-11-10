@@ -334,7 +334,7 @@ describe("Skill の本文", () => {
   it("起票は guide import を経て提案と承認に届く（AG-3）", async () => {
     const dgimport = (await buildSkills()).find((s) => s.name === "dgimport")!;
     expect(dgimport.content).toContain("dg guide import");
-    expect(await readGuide("import")).toContain("チケット化を**提案**する");
+    expect(await readGuide("import")).toContain("**propose** turning them into tickets");
   });
 
   it("このリポジトリに入れた Skill は生成した中身と同じで、廃止した deguboard Skill は残っていない", async () => {

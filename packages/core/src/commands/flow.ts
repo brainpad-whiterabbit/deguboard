@@ -234,9 +234,9 @@ export function isRepeated(prev: ResumeState | undefined, stage: FlowStageName, 
  * ほかのトピックの節（`dg guide <topic>` の「…」）は案内されたトピックとして読む
  */
 export const FLOW_GUIDE: Record<FlowStageName, { topic: string; sections: readonly string[] }> = {
-  assign: { topic: "assign", sections: ["割り当てを提案するとき", "Iteration"] },
-  check: { topic: "check", sections: ["点検の手順"] },
-  plan: { topic: "plan", sections: ["流れ", "Plan の作り方", "承認について"] },
+  assign: { topic: "assign", sections: ["When proposing an assignment", "Iteration"] },
+  check: { topic: "check", sections: ["Check steps"] },
+  plan: { topic: "plan", sections: ["Flow", "Creating a Plan", "About approval"] },
   work: {
     topic: "work",
     sections: ["流れ", "claim の前後", "実装する", "実装の結果を受け取る", "Plan に従う"],

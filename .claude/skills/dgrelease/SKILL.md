@@ -4,7 +4,7 @@ description: deguboard の Iteration のチケットがすべて done かを確�
 argument-hint: "[Iteration]"
 ---
 
-<!-- dg skill sha256:4c3ac435962c0b0550cad918c1c2745448df69ee2e0ef778a3abfed9900ee15b -->
+<!-- dg skill sha256:e6ad7285221518409bad9965199ca58c484b8262c6bf9e905d58e46e6252aec4 -->
 
 # リリース（release）
 
@@ -18,4 +18,4 @@ Iteration のチケットがすべて done かを確かめ、リリースの手�
 
 指定：$ARGUMENTS
 
-指定が空なら、手順の「対象を決める」に従う。
+指定が空なら、手順の「対象を決める」（英語の手順では "Deciding the target"）に従う。

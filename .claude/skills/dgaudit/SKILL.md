@@ -4,7 +4,7 @@ description: deguboard の Iteration（か Epic）のチケットがすべて do
 argument-hint: "[Iteration|Epic]"
 ---
 
-<!-- dg skill sha256:f1bfd4460cc63ae8f6969e8db98c05b7db5a9e9e1a0e67f57f3edab745652440 -->
+<!-- dg skill sha256:1438ba6ee8c5f6cd57cfcfab1ea1bc2020ee0afde2d9012ce1c1abee0d7ab4cf -->
 
 # 見直し（audit）
 
@@ -18,4 +18,4 @@ Iteration か Epic の完了後、リポジトリ全体を観点ごとに見直�
 
 指定：$ARGUMENTS
 
-指定が空なら、手順の「対象を決める」に従う。
+指定が空なら、手順の「対象を決める」（英語の手順では "Deciding the target"）に従う。

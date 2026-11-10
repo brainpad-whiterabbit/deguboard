@@ -1,47 +1,47 @@
 ---
-description: deguboard のチケット・Epic・Iteration・Plan を点検し、dg sync・validate・lint の指摘と直す案を表で示して、承認を得てから直す。「チケットを点検して」「整合性を確認して」「Iteration を見直して」と頼まれたときや、計画を立てる前に使う。
-argument-hint: "[Iteration|Epic|チケットの ID...]"
+description: Checks deguboard tickets, Epics, Iterations, and Plans. Shows the findings from dg sync, validate, and lint with fix proposals in a table, and fixes them only after approval. Use when asked「チケットを点検して」「整合性を確認して」「Iteration を見直して」, or before making a plan.
+argument-hint: "[Iteration|Epic|ticket ID...]"
 ---
 
-# 点検（check）
+# Check (check)
 
-チケット・Epic・Iteration・Plan の食い違いを見つけ、承認を得てから直す。何を食い違いとみなすかは `dg validate`・`dg lint` が判定する（`lint` が何を指摘するかは `dg lint --help`）。この手順は判定を持たず、指摘を読んで直し方を決める。
+Finds mismatches among tickets, Epics, Iterations, and Plans, and fixes them after approval. What counts as a mismatch is decided by `dg validate` and `dg lint` (for what `lint` flags, see `dg lint --help`). These steps do not decide the criteria. They read the findings and decide how to fix them.
 
-## 対象を決める
+## Deciding the target
 
-- Iteration（`s3`）・Epic（`e3`）：その中のチケットと、その Iteration・Epic 自身の指摘を対象にする
-- チケットの ID：そのチケットの指摘を対象にする
-- 指定が空：Project 全体（`--project {{default_project}}`）を対象にする
+- Iteration (`s3`) and Epic (`e3`): targets the tickets in it, and the findings on that Iteration or Epic itself
+- Ticket ID: targets the findings on that ticket
+- No target given: targets the whole Project (`--project {{default_project}}`)
 
-## 点検の手順
+## Check steps
 
-1. **指摘を集める**：`dg --json --actor agent sync`・`dg --json --actor agent validate`・`dg --json --actor agent lint` を順に回す。`sync` の `warnings`、`validate` と `lint` の `issues`（`code`・`id`・`message`）を対象で絞る
-2. **直す案を作る**：指摘ごとに、`ticket show`・`epic show`・`plan show` で中身を読んで直し方を決める。例：
-   - 本文の節が欠けている・受け入れ条件が空：本文から受け入れ条件の案を作る（`ticket update --acceptance`）。概要は今の本文に `## 概要` を足した全文を `--body` で渡す（`--body` は本文を置き換える）
-   - 閉じた Epic に終わっていないチケットが残る：別の Epic に移す・Epic から外す・abandoned にする、のどれかを案にする
-   - チケットがすべて終わったのに Epic・Plan が開いている：閉じる（`epic close` / `plan close`）を案にする
-   - Iteration に入っていない（`lint_iteration_missing`。`lint.require_iteration` が true のとき。今の設定：`{{lint.require_iteration}}`）：claim と同じ規則（`ticket claim --help`）で Iteration を選んで `iteration add <S> <id>` で入れるを案にする。入れ先がない（閉じた Iteration には入れられない。done のチケットなど）なら、Iteration を作るか設定を変えるかを人に聞く
-   - 開いた Plan の after と depends_on が循環している（`lint_plan_wait_cycle`）：`ticket update --depends-on` で辺を外す・Plan を閉じて after を変えて作り直す・待っているチケットを abandoned にする、のどれかを案にする（Plan を閉じるか・abandoned にするかは人に聞く）
-   - 同じ Project に active の Iteration が 2 つ以上（`lint_iteration_multiple_active`）：どれを閉じるかを人に聞く（閉じるのは人の指示で行う）
-   - PR まで進んだのに実装の Run がない（`lint_run_implement_missing`）：Run の記録の抜けなので、チケットは直さず人に報告する。Run を後から作り直す手段はない。対象は終わっていないチケットと、閉じていない Iteration に入った done のチケット
-   - 閉じた実装の Run の後のコミットがどの Run の期間にも入らない（`lint_commit_outside_run`）、見直しの後のコミットに手直しの Run がない（`lint_run_fix_missing`）：Run の記録は書き換えず、message のとおりコミットの内容を確かめて人に伝える。`lint_run_fix_missing` は、そのコミットが修正でなければ無視してよい。同じコミットで `lint_commit_outside_run` と両方出たら、`lint_run_fix_missing` の対処を優先する
-   - `sync` の警告（照合できない、未チェックの受け入れ条件が残ったまま done になった）：`dg guide done` の手順で確かめる案にする
-3. **表で示して承認を得る**：次の表を示し、反映する行を `#` の複数選択で聞く（「反映しない」も入れる）。直し方が 1 つに決まらない行は案を並べ、選択肢の外の入力で受ける
+1. **Collect findings**: run `dg --json --actor agent sync`, `dg --json --actor agent validate`, and `dg --json --actor agent lint` in order. Narrow the `sync` `warnings`, and the `validate` and `lint` `issues` (`code`, `id`, `message`) to the target
+2. **Make fix proposals**: for each finding, read the content with `ticket show`, `epic show`, or `plan show` and decide how to fix it. Examples:
+   - A section of the body is missing, or the acceptance criteria are empty: make a draft of acceptance criteria from the body (`ticket update --acceptance`). For the summary, pass the whole body with a `## 概要` (summary) section added to the current body via `--body` (`--body` replaces the body)
+   - An unfinished ticket remains in a closed Epic: propose one of moving it to another Epic, removing it from the Epic, or making it abandoned
+   - All tickets are finished, but the Epic or Plan is still open: propose closing it (`epic close` / `plan close`)
+   - Not in an Iteration (`lint_iteration_missing`, when `lint.require_iteration` is true. Current setting: `{{lint.require_iteration}}`): choose an Iteration by the same rule as claim (see `ticket claim --help`) and propose adding it with `iteration add <S> <id>`. If there is no place to add it (a closed Iteration cannot take it, as with done tickets), ask a human whether to create an Iteration or change the setting
+   - The open Plan's `after` and `depends_on` form a cycle (`lint_plan_wait_cycle`): propose one of removing the edge with `ticket update --depends-on`, closing the Plan and recreating it with a different `after`, or making the waiting ticket abandoned. Ask a human whether to close the Plan or make the ticket abandoned
+   - Two or more active Iterations in the same Project (`lint_iteration_multiple_active`): ask a human which one to close (closing is done only on a human's instruction)
+   - PR is made but there is no implementation Run (`lint_run_implement_missing`): this is a gap in Run recording, so do not fix the ticket. Report it to a human. There is no way to create the Run afterward. The target is unfinished tickets, and done tickets in an Iteration that is not closed
+   - A commit after a closed implementation Run is not in any Run's period (`lint_commit_outside_run`), or a commit after review has no fix Run (`lint_run_fix_missing`): do not rewrite the Run record. As the message says, check the content of the commit and tell a human. `lint_run_fix_missing` may be ignored if that commit is not a fix. If one commit raises both `lint_commit_outside_run` and `lint_run_fix_missing`, follow the remedy for `lint_run_fix_missing`
+   - `sync` warnings (cannot reconcile, or done with unchecked acceptance criteria left): propose confirming with the steps of `dg guide done`
+3. **Show a table and get approval**: show the following table and ask with multiple selection (`#`) which rows to reflect (include "Do not reflect"). If a row's fix is not one choice, list the proposals and accept input outside the choices
 
-   | #   | 対象 | 指摘（code） | 直す案 | コマンド |
-   | --- | ---- | ------------ | ------ | -------- |
+   | #   | Target | Finding (code) | Fix proposal | Command |
+   | --- | ------ | -------------- | ------------ | ------- |
 
-4. **直す**：承認された行だけを表の順に実行する。削除・abandoned・Epic や Iteration を閉じる・再開するのは、承認された行でも 1 件ずつもう一度確かめる
-5. **確かめて伝える**：`lint` と `validate` を回し直し、直したもの・残した指摘（理由）・新しく出た指摘を伝える
+4. **Fix**: run only the approved rows, in table order. Deletion, abandoned, and closing or reopening an Epic or Iteration are confirmed once more one at a time, even if the row was approved
+5. **Confirm and report**: run `lint` and `validate` again, and report what was fixed, the findings left (with reasons), and any new findings
 
-指摘を集めて表を作るまでは承認を待たずに進める（書き込まないため）。`sync` の書き込みは照合だけなので待たない。
+Collecting findings and making the table proceeds without waiting for approval (nothing is written). The `sync` writes only reconcile, so do not wait for them.
 
 {{choices}}
 
-## 次の手順を選ぶ
+## Choosing the next step
 
-結果を伝えたら（指摘がなかったときも）、次の選択肢で聞く。
+After reporting the result (including when there were no findings), ask with these choices.
 
-- **計画を立てる**（勧める）：対象の todo を `dg guide plan` の手順で計画する（Skill があれば `/dgplan <対象>`）
-- **割り当てる**：Iteration に入っていない todo があれば `dg guide assign` の手順で割り当てる（Skill があれば `/dgassign`）
-- **ここで止める**
+- **Make a plan** (recommended): plan the target's todos by the steps of `dg guide plan` (if a Skill is available, `/dgplan <target>`)
+- **Assign**: if there are todos not in an Iteration, assign them by the steps of `dg guide assign` (if a Skill is available, `/dgassign`)
+- **Stop here**
