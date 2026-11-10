@@ -196,6 +196,11 @@ export const DG_PATH_NOTE_EN =
 /** 文章だけの形式で、頼む 1 文の次に添える dg の呼び方（AG-1） */
 export const ASK_DG_USAGE = `dg は \`dg … --json --actor agent\` で呼び、.git/deguboard/ のファイルは直接編集しないでください。${DG_PATH_NOTE}`;
 
+/** 文章だけの形で対象のないとき、依頼文の頭の行。対象を先に聞いてから進めさせる（その後の文の「その対象」を指す） */
+export const ASK_FIRST = "対象はまだ決まっていないので、どれにするかを先に聞いてください。";
+/** ASK_FIRST の英語 */
+export const ASK_FIRST_EN = "No target is chosen yet, so ask me first which ones to use.";
+
 /** ASK_DG_USAGE の英語 */
 export const ASK_DG_USAGE_EN = `Call dg as \`dg … --json --actor agent\`, and do not edit the files under .git/deguboard/ directly. ${DG_PATH_NOTE_EN}`;
 
@@ -285,8 +290,12 @@ interface ActionDef {
 }
 
 const withDenied = (denied: string | undefined) => (denied ? { denied } : {});
-/** 頼む 1 文に入れる対象の ID */
-const idList = (s: Subjects, lang: AskLanguage) => ids(s).join(say(lang, "・", ", "));
+/**
+ * 頼む 1 文に入れる対象の ID。対象がないときは「その対象」を入れ、ID の入る場所を空にしない。
+ * 文章だけの形では、その前の行（ASK_FIRST）で、どの対象にするかを先に聞かせる
+ */
+const idList = (s: Subjects, lang: AskLanguage) =>
+  s.length === 0 ? say(lang, "その対象", "those targets") : ids(s).join(say(lang, "・", ", "));
 
 /** 起票の行き先。頼む 1 文と、Skill の呼び出しの次の行の頼みごとの両方に使う */
 function createTarget(s: Subjects, lang: AskLanguage): { text: string; intent?: string } {
@@ -495,19 +504,21 @@ const ACTIONS: Record<AskAction, ActionDef> = {
               `Edit ${idList(s, lang)} as instructed (title, summary, acceptance criteria, priority, labels, dependencies).`,
             ),
     intent: (s, _w, lang) =>
-      single(s, "iteration")
-        ? say(
-            lang,
-            `${idList(s, lang)} の名前・目標・期間を直して`,
-            `Edit the name, goal, and dates of ${idList(s, lang)}`,
-          )
-        : single(s, "epic")
+      s.length === 0
+        ? say(lang, "直す対象を聞いてから直して", "Ask which targets to edit, then edit them")
+        : single(s, "iteration")
           ? say(
               lang,
-              `${idList(s, lang)} の題・概要を直して`,
-              `Edit the title and summary of ${idList(s, lang)}`,
+              `${idList(s, lang)} の名前・目標・期間を直して`,
+              `Edit the name, goal, and dates of ${idList(s, lang)}`,
             )
-          : say(lang, `${idList(s, lang)} を直して`, `Edit ${idList(s, lang)}`),
+          : single(s, "epic")
+            ? say(
+                lang,
+                `${idList(s, lang)} の題・概要を直して`,
+                `Edit the title and summary of ${idList(s, lang)}`,
+              )
+            : say(lang, `${idList(s, lang)} を直して`, `Edit ${idList(s, lang)}`),
     human: (s) =>
       s.map((t) =>
         t.kind === "iteration"
@@ -575,6 +586,12 @@ const ACTIONS: Record<AskAction, ActionDef> = {
     // 閉じた Iteration はふつうの割り当てと同じ呼び出しになるので、持ち越しであることを添える
     intent(s, _w, lang) {
       const it = single(s, "iteration");
+      if (s.length === 0)
+        return say(
+          lang,
+          "割り当てるチケットを聞いてから割り当てて",
+          "Ask which tickets to assign, then assign them",
+        );
       return it?.status === "closed"
         ? say(
             lang,
@@ -721,7 +738,14 @@ const ACTIONS: Record<AskAction, ActionDef> = {
   close: {
     skill: "dgchange",
     label: () => "閉じる",
-    intent: (s, _w, lang) => say(lang, `${idList(s, lang)} を閉じて`, `Close ${idList(s, lang)}`),
+    intent: (s, _w, lang) =>
+      s.length === 0
+        ? say(
+            lang,
+            "閉じる Iteration・Epic を聞いてから閉じて",
+            "Ask which Iteration or Epic to close, then close it",
+          )
+        : say(lang, `${idList(s, lang)} を閉じて`, `Close ${idList(s, lang)}`),
     text: (s, _w, lang) =>
       say(
         lang,
@@ -738,7 +762,13 @@ const ACTIONS: Record<AskAction, ActionDef> = {
     skill: "dgchange",
     label: () => "再開する",
     intent: (s, _w, lang) =>
-      say(lang, `${idList(s, lang)} を再開して`, `Reopen ${idList(s, lang)}`),
+      s.length === 0
+        ? say(
+            lang,
+            "再開する Iteration・Epic を聞いてから再開して",
+            "Ask which Iteration or Epic to reopen, then reopen it",
+          )
+        : say(lang, `${idList(s, lang)} を再開して`, `Reopen ${idList(s, lang)}`),
     text: (s, _w, lang) =>
       s[0]?.kind === "iteration"
         ? say(
@@ -761,12 +791,18 @@ const ACTIONS: Record<AskAction, ActionDef> = {
     skill: "dgchange",
     label: () => "やめる",
     intent: (s, _w, lang) =>
-      say(lang, `${idList(s, lang)} をやめて abandoned にして`, `Abandon ${idList(s, lang)}`),
+      s.length === 0
+        ? say(
+            lang,
+            "やめるチケットを聞いてから abandoned にして",
+            "Ask which tickets to abandon, then move them to abandoned",
+          )
+        : say(lang, `${idList(s, lang)} をやめて abandoned にして`, `Abandon ${idList(s, lang)}`),
     text: (s, _w, lang) =>
       say(
         lang,
         `${idList(s, lang)} をやめて abandoned にしてください（人の指示。理由は指示のとおりに本文へ書く）。`,
-        `Abandon ${idList(s, lang)} by moving ${s.length > 1 ? "them" : "it"} to abandoned (a human's instruction; write the reason in the body as instructed).`,
+        `Abandon ${idList(s, lang)} by moving ${s.length === 1 ? "it" : "them"} to abandoned (a human's instruction; write the reason in the body as instructed).`,
       ),
     human: (s) =>
       s.map((t) => ({
@@ -1152,7 +1188,26 @@ function afterChange(actions: readonly AskAction[], action: AskAction): AskActio
 }
 
 function baseActions(s: Subjects): AskAction[] {
-  if (s.length === 0) return ["create", "create_iteration", "create_epic", "check", "free"];
+  // 対象なしは、Skill を持つ頼むことを流れの順にすべて出す（Skill が対象を聞く）。対象がないと意味のないもの（外す・分ける・done の取り消し・再開・承認）と、Skill のないもの（様子・振り返り・持ち越し）は出さない
+  if (s.length === 0)
+    return [
+      "create",
+      "create_iteration",
+      "create_epic",
+      "assign",
+      "check",
+      "plan",
+      "work",
+      "all",
+      "done",
+      "release",
+      "change",
+      "discuss",
+      "close",
+      "reopen",
+      "abandon",
+      "free",
+    ];
 
   const tickets = only(s, "ticket");
   if (tickets) {
@@ -1445,6 +1500,8 @@ export function buildAsk(input: BuildAskInput): AskView {
   } else {
     // 文章だけの形と Skill を使わない頼むことは、頼む 1 文と dg の呼び方を添える。Skill を持つ頼むことには、その段階の guide を読む 1 文も添える
     const text = def.text(s, w, lang);
+    // 対象なしの依頼文は、文の「その対象」が何かを先に聞かせてから進めさせる（free は指示だけで進むので聞かない）
+    if (text && s.length === 0) lines.push(say(lang, ASK_FIRST, ASK_FIRST_EN));
     if (text) lines.push(text);
     lines.push(say(lang, ASK_DG_USAGE, ASK_DG_USAGE_EN));
     // Skill を持つ頼むことは、Skill と同じ手順（承認や品質ゲート）で進むよう、その段階の guide を読ませる
@@ -1544,7 +1601,7 @@ export const ask = defineCommand({
       .array(z.string().min(1))
       .default([])
       .describe(
-        "Target IDs (t12, s3, e2, p7; more than one allowed). Omit for no target (creating, making, or checking everything)",
+        "Target IDs (t12, s3, e2, p7; more than one allowed). Omit for no target: the candidates are the actions that start without a target (creating, assigning, planning, working, releasing, changing, discussing, closing, or checking everything), and the Skill asks for the target",
       ),
     action: z
       .enum(ASK_ACTIONS)
