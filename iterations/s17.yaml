@@ -3,8 +3,6 @@ project: default
 name: sprint17
 goal: VS Code 拡張を VS Code そのもの（ステータスバー・エディタ・パレット・ターミナル）とつなぐ
 status: closed
-start: 2026-11-05
-end: 2026-11-05
 closed_at: 2026-11-05T22:55:49Z
 completed: 35
 carried_over: 0
