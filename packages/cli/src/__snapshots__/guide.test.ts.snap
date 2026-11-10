@@ -60,15 +60,15 @@ Iteration かチケットを、割り当てからリリースまでの流れで�
 
 流れの終わりに、段階ごとの結果を伝える（割り当て・点検で直した行・承認した Plan・出した PR とマージ・起票したチケット・リリースした版と Iteration の状態・反映しなかった割り当ての案・残ったチケット）。\`--auto\` のときは、自動で選んだ判断と、自動でマージした PR の条件の確かめの結果も伝える。
 
-## 選択肢で聞く
+## Asking with choices
 
-チケットは、起票（\`dg guide import\`）→ 割り当て（\`dg guide assign\`）→ 点検（\`dg guide check\`）→ 計画（\`dg guide plan\`）→ 作業（\`dg guide work\`）→ 見直し（\`dg guide audit\`。Iteration か Epic が終わったとき）→ リリース（\`dg guide release\`。リリースの手順がなければ \`dg guide done\` で片付ける）の順に進める。完了（\`dg guide done\`）はマージのたびに挟む。割り当てからリリースまで続けて進めるのは \`dg guide all\`。人に判断を求めるとき（承認・修正・どれを選ぶか）と、手順を終えて次の手順を決めるときは、選択肢を示して聞く。
+Tickets advance in this order: import (\`dg guide import\`) → assign (\`dg guide assign\`) → check (\`dg guide check\`) → plan (\`dg guide plan\`) → work (\`dg guide work\`) → audit (\`dg guide audit\`, when an Iteration or Epic ends) → release (\`dg guide release\`; if there are no release steps, clean up with \`dg guide done\`). Done (\`dg guide done\`) comes after every merge. To carry on from assign through release, use \`dg guide all\`. When asking a human for a decision (approval, correction, which one to choose), and when a step is finished and the next step must be decided, show the choices and ask.
 
-- 選択肢を出せるエージェントでは、その仕組みで聞く（Claude Code では AskUserQuestion ツール）。出せなければ、番号を付けた選択肢を文で示す
-- 判断の材料（表・計画・PR の一覧など）は選択肢の前に示す。選択肢の説明だけで判断させない
-- 選択肢は 2〜4 個にし、勧めるものを先頭に置いて理由を添える。修正の中身のように選択肢にできない答えは、選択肢の外の自由な入力で受ける
-- 複数を選べる問い（反映する行など）は複数選択で聞く。削除・abandoned・閉じる操作は 1 件ずつ聞く
-- 次の手順を決めるときは、流れの次の手順と「ここで止める」を選択肢にする（各手順の「次の手順を選ぶ」）。次の手順が選ばれたら、Skill（例 \`/dgwork p3\`）が使えるならそれを起動し、使えなければ \`dg guide <topic>\` を読んでその手順で続ける。いまの手順の中で、次の手順の作業をしない
+- When the agent can offer choices, ask with that mechanism (in Claude Code, the AskUserQuestion tool). If it cannot, show the numbered choices in text
+- Show the material for the decision (tables, Plans, lists of PRs) before the choices. Do not ask for a decision with only the choices' descriptions
+- Offer 2 to 4 choices, put the recommended one first, and give its reason. An answer that cannot be a choice, such as the content of a correction, is taken as free input outside the choices
+- Ask questions where several can be chosen (such as which lines to reflect) with multiple selection. Ask about deletion, abandoned, and close operations one at a time
+- When deciding the next step, make the next step in the flow and "stop here" the choices (see the "Choosing the next step" section of each guide). When the next step is chosen, if a Skill is available (for example \`/dgwork p3\`), start it. If not, read \`dg guide <topic>\` and continue with that step. Do not do the next step's work inside the current step.
 
 ## 次の手順を選ぶ
 
@@ -79,65 +79,65 @@ Iteration かチケットを、割り当てからリリースまでの流れで�
 `;
 
 exports[`dg guide の出力（本文の組み立て） > トピックごとの本文と、節の本文が変わらない > assign 1`] = `
-"# 割り当て（assign）
+"# Assignment (assign)
 
-チケットを Iteration（期間の計画。\`sprint\` はエイリアス）と Epic（目的の束ね）に入れる。
+Puts tickets into Iterations (a period of planning. \`sprint\` is an alias) and Epics (grouping by purpose).
 
-## 対象を決める
+## Deciding the target
 
-- Iteration（\`s3\`）：未割り当ての todo を、その Iteration に入れるか入れないか 1 枚ずつ判断する
-- Epic（\`e3\`）：Epic のないチケットのうち、目的が合うものを入れる案を作る
-- チケットの ID：そのチケットに合う Iteration と Epic を提案する（なければ作ることを提案する）
-- 指定が空：active の Iteration（なければ planned のもの）を勧めて確かめ、未割り当ての todo を対象にする
+- Iteration (\`s3\`): decides one by one whether to put each unassigned todo into that Iteration
+- Epic (\`e3\`): makes a proposal of tickets that have no Epic and fit its purpose
+- Ticket ID: proposes an Iteration and Epic that fit that ticket (if none fit, propose creating one)
+- No target given: suggests the active Iteration (or a planned one if there is none) and confirms it, then targets unassigned todos
 
 ## Iteration
 
-- 一覧：\`dg --json --actor agent iteration list\`（\`status\` は planned / active / closed）
-- 作る：\`dg --json --actor agent iteration create "<名前>" --goal "<目標>" --start 2026-11-01 --end 2026-11-14\`
-- 直す：\`dg --json --actor agent iteration update <s3> --goal "<目標>"\`。\`--name\`・\`--start\`・\`--end\` も、指定したものだけ変わる。閉じた Iteration も直せる
-- 入れる：\`dg --json --actor agent iteration add <s3> <t12> <t13>\`。別の Iteration に入っていたチケットは移る
-- 外す：\`dg --json --actor agent iteration remove <s3> <t12>\`
-- 開始：\`dg --json --actor agent iteration start <s3>\`（planned → active）。active は Project に 1 つで、ほかに active があれば開始も再開も拒否される。前のものを閉じるかは人に聞く
-- 閉じる：\`dg --json --actor agent iteration close <s3>\`。持ち越したチケットは Iteration から外れる。人の指示で閉じる（制限は \`dg guide overview\`）
-- 再開：\`dg --json --actor agent iteration reopen <s3>\`。active に戻る。持ち越したチケットは戻らないので \`iteration add\` で入れ直す。人の指示で行う
+- List: \`dg --json --actor agent iteration list\` (\`status\` is planned / active / closed)
+- Create: \`dg --json --actor agent iteration create "<name>" --goal "<goal>" --start 2026-11-01 --end 2026-11-14\`
+- Update: \`dg --json --actor agent iteration update <s3> --goal "<goal>"\`. \`--name\`, \`--start\`, and \`--end\` also change only what is specified. A closed Iteration can also be updated
+- Add: \`dg --json --actor agent iteration add <s3> <t12> <t13>\`. A ticket that was in another Iteration moves
+- Remove: \`dg --json --actor agent iteration remove <s3> <t12>\`
+- Start: \`dg --json --actor agent iteration start <s3>\` (planned → active). Only one Iteration in a Project can be active. If another one is active, both starting and reopening are refused. Ask a human whether to close the previous one
+- Close: \`dg --json --actor agent iteration close <s3>\`. Tickets carried over are removed from the Iteration. Close only on a human's instruction (limits: see \`dg guide overview\`)
+- Reopen: \`dg --json --actor agent iteration reopen <s3>\`. Returns to active. Carried-over tickets do not return, so add them again with \`iteration add\`. Do this only on a human's instruction
 
 ## Epic
 
-- 一覧と進捗：\`dg --json --actor agent epic list\`（\`progress.done / progress.total\`）
-- 入れる：\`dg --json --actor agent epic add <e3> <t12> <t13>\`。同じ Project のチケットだけ。閉じた Epic には入れられない
-- 外す：\`dg --json --actor agent epic remove <e3> <t12>\`
-- 閉じる・再開する：\`dg --json --actor agent epic close <e3>\` / \`epic reopen <e3>\`。done・abandoned 以外が残っていれば拒否され、\`--force\` で閉じられる。人の指示で閉じる（制限は \`dg guide overview\`）
+- List and progress: \`dg --json --actor agent epic list\` (\`progress.done / progress.total\`)
+- Add: \`dg --json --actor agent epic add <e3> <t12> <t13>\`. Only tickets in the same Project. A closed Epic cannot take tickets
+- Remove: \`dg --json --actor agent epic remove <e3> <t12>\`
+- Close and reopen: \`dg --json --actor agent epic close <e3>\` / \`epic reopen <e3>\`. If anything other than done or abandoned remains, it is refused, and \`--force\` closes it anyway. Close only on a human's instruction (limits: see \`dg guide overview\`)
 
-## 担当者
+## Assignee
 
-- 人かその AI に担当を付ける：\`dg --json --actor agent ticket update <t12> --assignee human\`（ユーザ本人）、\`--assignee agent\`（ユーザの AI）、\`--assignee <ID>\`（別のユーザ。\`bob\` や \`bob/agent\`）。外すのは \`--assignee none\`
-- 担当は予定の印で、排他ではない。着手は claim で決まり、claim した主体が担当者になる
-- チケットを起票するなら、\`dg guide import\` の「起票者と担当者」の扱い（\`--created-by\`）に従う
+- Assign a human or their AI: \`dg --json --actor agent ticket update <t12> --assignee human\` (the user), \`--assignee agent\` (the user's AI), \`--assignee <ID>\` (another user, such as \`bob\` or \`bob/agent\`). Remove it with \`--assignee none\`
+- An assignee is a planned mark, not exclusive. Starting work is decided by claim, and the claiming actor becomes the assignee
+- If you file a ticket, follow the "Creator and assignee" section of \`dg guide import\` (\`--created-by\`)
 
-## 割り当てを提案するとき
+## When proposing an assignment
 
-1. Iteration の目標と期間、入っているチケットを \`dg --json --actor agent iteration show <s3>\` で読む
-2. 未割り当ての todo（\`dg --json --actor agent ticket list --status todo\` のうち \`iteration\` がないもの）を集め、目標に合うものと依存の順を見て案を作る
-3. 入れる・入れないの理由を 1 行ずつ添えた表を見せ、入れる行を複数選択で選んでもらってから \`iteration add\` する
-4. 早めに対応した方がよいもの（不具合など）は進行中の Iteration に入れることを提案する
+1. Read the Iteration's goal and period and the tickets in it with \`dg --json --actor agent iteration show <s3>\`
+2. Collect the unassigned todos (those without an \`iteration\`, from \`dg --json --actor agent ticket list --status todo\`). Make a proposal from the ones that fit the goal, looking at the order of dependencies
+3. Show a table with one line for each, giving the reason for putting it in or not. Have a human select the rows to put in with multiple selection, then run \`iteration add\`
+4. For items that should be handled soon (such as bugs), propose putting them into the active Iteration
 
-## 選択肢で聞く
+## Asking with choices
 
-チケットは、起票（\`dg guide import\`）→ 割り当て（\`dg guide assign\`）→ 点検（\`dg guide check\`）→ 計画（\`dg guide plan\`）→ 作業（\`dg guide work\`）→ 見直し（\`dg guide audit\`。Iteration か Epic が終わったとき）→ リリース（\`dg guide release\`。リリースの手順がなければ \`dg guide done\` で片付ける）の順に進める。完了（\`dg guide done\`）はマージのたびに挟む。割り当てからリリースまで続けて進めるのは \`dg guide all\`。人に判断を求めるとき（承認・修正・どれを選ぶか）と、手順を終えて次の手順を決めるときは、選択肢を示して聞く。
+Tickets advance in this order: import (\`dg guide import\`) → assign (\`dg guide assign\`) → check (\`dg guide check\`) → plan (\`dg guide plan\`) → work (\`dg guide work\`) → audit (\`dg guide audit\`, when an Iteration or Epic ends) → release (\`dg guide release\`; if there are no release steps, clean up with \`dg guide done\`). Done (\`dg guide done\`) comes after every merge. To carry on from assign through release, use \`dg guide all\`. When asking a human for a decision (approval, correction, which one to choose), and when a step is finished and the next step must be decided, show the choices and ask.
 
-- 選択肢を出せるエージェントでは、その仕組みで聞く（Claude Code では AskUserQuestion ツール）。出せなければ、番号を付けた選択肢を文で示す
-- 判断の材料（表・計画・PR の一覧など）は選択肢の前に示す。選択肢の説明だけで判断させない
-- 選択肢は 2〜4 個にし、勧めるものを先頭に置いて理由を添える。修正の中身のように選択肢にできない答えは、選択肢の外の自由な入力で受ける
-- 複数を選べる問い（反映する行など）は複数選択で聞く。削除・abandoned・閉じる操作は 1 件ずつ聞く
-- 次の手順を決めるときは、流れの次の手順と「ここで止める」を選択肢にする（各手順の「次の手順を選ぶ」）。次の手順が選ばれたら、Skill（例 \`/dgwork p3\`）が使えるならそれを起動し、使えなければ \`dg guide <topic>\` を読んでその手順で続ける。いまの手順の中で、次の手順の作業をしない
+- When the agent can offer choices, ask with that mechanism (in Claude Code, the AskUserQuestion tool). If it cannot, show the numbered choices in text
+- Show the material for the decision (tables, Plans, lists of PRs) before the choices. Do not ask for a decision with only the choices' descriptions
+- Offer 2 to 4 choices, put the recommended one first, and give its reason. An answer that cannot be a choice, such as the content of a correction, is taken as free input outside the choices
+- Ask questions where several can be chosen (such as which lines to reflect) with multiple selection. Ask about deletion, abandoned, and close operations one at a time
+- When deciding the next step, make the next step in the flow and "stop here" the choices (see the "Choosing the next step" section of each guide). When the next step is chosen, if a Skill is available (for example \`/dgwork p3\`), start it. If not, read \`dg guide <topic>\` and continue with that step. Do not do the next step's work inside the current step.
 
-## 次の手順を選ぶ
+## Choosing the next step
 
-割り当てたら、次の選択肢で聞く。
+After assigning, ask with these choices.
 
-- **点検する**：割り当てたチケットの本文や Epic の食い違いを \`dg guide check\` の手順で直す（Skill があれば \`/dgcheck s3\`）
-- **計画を立てる**（勧める）：割り当てた Iteration のチケットを \`dg guide plan\` の手順で進める順に並べる（Skill があれば \`/dgplan s3\`）
-- **ここで止める**"
+- **Check**: fix the mismatches in the assigned tickets' bodies and Epics by the steps of \`dg guide check\` (if a Skill is available, \`/dgcheck s3\`)
+- **Make a plan** (recommended): arrange the assigned Iteration's tickets in the order of advancing by the steps of \`dg guide plan\` (if a Skill is available, \`/dgplan s3\`)
+- **Stop here**"
 `;
 
 exports[`dg guide の出力（本文の組み立て） > トピックごとの本文と、節の本文が変わらない > audit 1`] = `
@@ -217,15 +217,15 @@ Iteration（か Epic）のチケットがすべて done になった後、リリ
 - ADR が長くなった（目安は 8,000 字）・要らなくなった ADR がある・同じ主題の判断が散らばっているときは、題を「ADR の分割・整理」にして起票する。分割・統合・削除・細部の削除・実装との照合、テストや lint に移せる判断の洗い出しを 1 チケットにまとめる
 - 概要には観点・対象・食い違いの両側を書き、どちらに合わせて直すかは決めない（計画で決める）
 
-## 選択肢で聞く
+## Asking with choices
 
-チケットは、起票（\`dg guide import\`）→ 割り当て（\`dg guide assign\`）→ 点検（\`dg guide check\`）→ 計画（\`dg guide plan\`）→ 作業（\`dg guide work\`）→ 見直し（\`dg guide audit\`。Iteration か Epic が終わったとき）→ リリース（\`dg guide release\`。リリースの手順がなければ \`dg guide done\` で片付ける）の順に進める。完了（\`dg guide done\`）はマージのたびに挟む。割り当てからリリースまで続けて進めるのは \`dg guide all\`。人に判断を求めるとき（承認・修正・どれを選ぶか）と、手順を終えて次の手順を決めるときは、選択肢を示して聞く。
+Tickets advance in this order: import (\`dg guide import\`) → assign (\`dg guide assign\`) → check (\`dg guide check\`) → plan (\`dg guide plan\`) → work (\`dg guide work\`) → audit (\`dg guide audit\`, when an Iteration or Epic ends) → release (\`dg guide release\`; if there are no release steps, clean up with \`dg guide done\`). Done (\`dg guide done\`) comes after every merge. To carry on from assign through release, use \`dg guide all\`. When asking a human for a decision (approval, correction, which one to choose), and when a step is finished and the next step must be decided, show the choices and ask.
 
-- 選択肢を出せるエージェントでは、その仕組みで聞く（Claude Code では AskUserQuestion ツール）。出せなければ、番号を付けた選択肢を文で示す
-- 判断の材料（表・計画・PR の一覧など）は選択肢の前に示す。選択肢の説明だけで判断させない
-- 選択肢は 2〜4 個にし、勧めるものを先頭に置いて理由を添える。修正の中身のように選択肢にできない答えは、選択肢の外の自由な入力で受ける
-- 複数を選べる問い（反映する行など）は複数選択で聞く。削除・abandoned・閉じる操作は 1 件ずつ聞く
-- 次の手順を決めるときは、流れの次の手順と「ここで止める」を選択肢にする（各手順の「次の手順を選ぶ」）。次の手順が選ばれたら、Skill（例 \`/dgwork p3\`）が使えるならそれを起動し、使えなければ \`dg guide <topic>\` を読んでその手順で続ける。いまの手順の中で、次の手順の作業をしない
+- When the agent can offer choices, ask with that mechanism (in Claude Code, the AskUserQuestion tool). If it cannot, show the numbered choices in text
+- Show the material for the decision (tables, Plans, lists of PRs) before the choices. Do not ask for a decision with only the choices' descriptions
+- Offer 2 to 4 choices, put the recommended one first, and give its reason. An answer that cannot be a choice, such as the content of a correction, is taken as free input outside the choices
+- Ask questions where several can be chosen (such as which lines to reflect) with multiple selection. Ask about deletion, abandoned, and close operations one at a time
+- When deciding the next step, make the next step in the flow and "stop here" the choices (see the "Choosing the next step" section of each guide). When the next step is chosen, if a Skill is available (for example \`/dgwork p3\`), start it. If not, read \`dg guide <topic>\` and continue with that step. Do not do the next step's work inside the current step.
 
 ## 次の手順を選ぶ
 
@@ -237,56 +237,56 @@ Iteration（か Epic）のチケットがすべて done になった後、リリ
 `;
 
 exports[`dg guide の出力（本文の組み立て） > トピックごとの本文と、節の本文が変わらない > check 1`] = `
-"# 点検（check）
+"# Check (check)
 
-チケット・Epic・Iteration・Plan の食い違いを見つけ、承認を得てから直す。何を食い違いとみなすかは \`dg validate\`・\`dg lint\` が判定する（\`lint\` が何を指摘するかは \`dg lint --help\`）。この手順は判定を持たず、指摘を読んで直し方を決める。
+Finds mismatches among tickets, Epics, Iterations, and Plans, and fixes them after approval. What counts as a mismatch is decided by \`dg validate\` and \`dg lint\` (for what \`lint\` flags, see \`dg lint --help\`). These steps do not decide the criteria. They read the findings and decide how to fix them.
 
-## 対象を決める
+## Deciding the target
 
-- Iteration（\`s3\`）・Epic（\`e3\`）：その中のチケットと、その Iteration・Epic 自身の指摘を対象にする
-- チケットの ID：そのチケットの指摘を対象にする
-- 指定が空：Project 全体（\`--project default\`）を対象にする
+- Iteration (\`s3\`) and Epic (\`e3\`): targets the tickets in it, and the findings on that Iteration or Epic itself
+- Ticket ID: targets the findings on that ticket
+- No target given: targets the whole Project (\`--project default\`)
 
-## 点検の手順
+## Check steps
 
-1. **指摘を集める**：\`dg --json --actor agent sync\`・\`dg --json --actor agent validate\`・\`dg --json --actor agent lint\` を順に回す。\`sync\` の \`warnings\`、\`validate\` と \`lint\` の \`issues\`（\`code\`・\`id\`・\`message\`）を対象で絞る
-2. **直す案を作る**：指摘ごとに、\`ticket show\`・\`epic show\`・\`plan show\` で中身を読んで直し方を決める。例：
-   - 本文の節が欠けている・受け入れ条件が空：本文から受け入れ条件の案を作る（\`ticket update --acceptance\`）。概要は今の本文に \`## 概要\` を足した全文を \`--body\` で渡す（\`--body\` は本文を置き換える）
-   - 閉じた Epic に終わっていないチケットが残る：別の Epic に移す・Epic から外す・abandoned にする、のどれかを案にする
-   - チケットがすべて終わったのに Epic・Plan が開いている：閉じる（\`epic close\` / \`plan close\`）を案にする
-   - Iteration に入っていない（\`lint_iteration_missing\`。\`lint.require_iteration\` が true のとき。今の設定：\`false\`）：claim と同じ規則（\`ticket claim --help\`）で Iteration を選んで \`iteration add <S> <id>\` で入れるを案にする。入れ先がない（閉じた Iteration には入れられない。done のチケットなど）なら、Iteration を作るか設定を変えるかを人に聞く
-   - 開いた Plan の after と depends_on が循環している（\`lint_plan_wait_cycle\`）：\`ticket update --depends-on\` で辺を外す・Plan を閉じて after を変えて作り直す・待っているチケットを abandoned にする、のどれかを案にする（Plan を閉じるか・abandoned にするかは人に聞く）
-   - 同じ Project に active の Iteration が 2 つ以上（\`lint_iteration_multiple_active\`）：どれを閉じるかを人に聞く（閉じるのは人の指示で行う）
-   - PR まで進んだのに実装の Run がない（\`lint_run_implement_missing\`）：Run の記録の抜けなので、チケットは直さず人に報告する。Run を後から作り直す手段はない。対象は終わっていないチケットと、閉じていない Iteration に入った done のチケット
-   - 閉じた実装の Run の後のコミットがどの Run の期間にも入らない（\`lint_commit_outside_run\`）、見直しの後のコミットに手直しの Run がない（\`lint_run_fix_missing\`）：Run の記録は書き換えず、message のとおりコミットの内容を確かめて人に伝える。\`lint_run_fix_missing\` は、そのコミットが修正でなければ無視してよい。同じコミットで \`lint_commit_outside_run\` と両方出たら、\`lint_run_fix_missing\` の対処を優先する
-   - \`sync\` の警告（照合できない、未チェックの受け入れ条件が残ったまま done になった）：\`dg guide done\` の手順で確かめる案にする
-3. **表で示して承認を得る**：次の表を示し、反映する行を \`#\` の複数選択で聞く（「反映しない」も入れる）。直し方が 1 つに決まらない行は案を並べ、選択肢の外の入力で受ける
+1. **Collect findings**: run \`dg --json --actor agent sync\`, \`dg --json --actor agent validate\`, and \`dg --json --actor agent lint\` in order. Narrow the \`sync\` \`warnings\`, and the \`validate\` and \`lint\` \`issues\` (\`code\`, \`id\`, \`message\`) to the target
+2. **Make fix proposals**: for each finding, read the content with \`ticket show\`, \`epic show\`, or \`plan show\` and decide how to fix it. Examples:
+   - A section of the body is missing, or the acceptance criteria are empty: make a draft of acceptance criteria from the body (\`ticket update --acceptance\`). For the summary, pass the whole body with a \`## Summary\` section added to the current body via \`--body\` (\`--body\` replaces the body)
+   - An unfinished ticket remains in a closed Epic: propose one of moving it to another Epic, removing it from the Epic, or making it abandoned
+   - All tickets are finished, but the Epic or Plan is still open: propose closing it (\`epic close\` / \`plan close\`)
+   - Not in an Iteration (\`lint_iteration_missing\`, when \`lint.require_iteration\` is true. Current setting: \`false\`): choose an Iteration by the same rule as claim (see \`ticket claim --help\`) and propose adding it with \`iteration add <S> <id>\`. If there is no place to add it (a closed Iteration cannot take it, as with done tickets), ask a human whether to create an Iteration or change the setting
+   - The open Plan's \`after\` and \`depends_on\` form a cycle (\`lint_plan_wait_cycle\`): propose one of removing the edge with \`ticket update --depends-on\`, closing the Plan and recreating it with a different \`after\`, or making the waiting ticket abandoned. Ask a human whether to close the Plan or make the ticket abandoned
+   - Two or more active Iterations in the same Project (\`lint_iteration_multiple_active\`): ask a human which one to close (closing is done only on a human's instruction)
+   - PR is made but there is no implementation Run (\`lint_run_implement_missing\`): this is a gap in Run recording, so do not fix the ticket. Report it to a human. There is no way to create the Run afterward. The target is unfinished tickets, and done tickets in an Iteration that is not closed
+   - A commit after a closed implementation Run is not in any Run's period (\`lint_commit_outside_run\`), or a commit after review has no fix Run (\`lint_run_fix_missing\`): do not rewrite the Run record. As the message says, check the content of the commit and tell a human. \`lint_run_fix_missing\` may be ignored if that commit is not a fix. If one commit raises both \`lint_commit_outside_run\` and \`lint_run_fix_missing\`, follow the remedy for \`lint_run_fix_missing\`
+   - \`sync\` warnings (cannot reconcile, or done with unchecked acceptance criteria left): propose confirming with the steps of \`dg guide done\`
+3. **Show a table and get approval**: show the following table and ask with multiple selection (\`#\`) which rows to reflect (include "Do not reflect"). If a row's fix is not one choice, list the proposals and accept input outside the choices
 
-   | #   | 対象 | 指摘（code） | 直す案 | コマンド |
-   | --- | ---- | ------------ | ------ | -------- |
+   | #   | Target | Finding (code) | Fix proposal | Command |
+   | --- | ------ | -------------- | ------------ | ------- |
 
-4. **直す**：承認された行だけを表の順に実行する。削除・abandoned・Epic や Iteration を閉じる・再開するのは、承認された行でも 1 件ずつもう一度確かめる
-5. **確かめて伝える**：\`lint\` と \`validate\` を回し直し、直したもの・残した指摘（理由）・新しく出た指摘を伝える
+4. **Fix**: run only the approved rows, in table order. Deletion, abandoned, and closing or reopening an Epic or Iteration are confirmed once more one at a time, even if the row was approved
+5. **Confirm and report**: run \`lint\` and \`validate\` again, and report what was fixed, the findings left (with reasons), and any new findings
 
-指摘を集めて表を作るまでは承認を待たずに進める（書き込まないため）。\`sync\` の書き込みは照合だけなので待たない。
+Collecting findings and making the table proceeds without waiting for approval (nothing is written). The \`sync\` writes only reconcile, so do not wait for them.
 
-## 選択肢で聞く
+## Asking with choices
 
-チケットは、起票（\`dg guide import\`）→ 割り当て（\`dg guide assign\`）→ 点検（\`dg guide check\`）→ 計画（\`dg guide plan\`）→ 作業（\`dg guide work\`）→ 見直し（\`dg guide audit\`。Iteration か Epic が終わったとき）→ リリース（\`dg guide release\`。リリースの手順がなければ \`dg guide done\` で片付ける）の順に進める。完了（\`dg guide done\`）はマージのたびに挟む。割り当てからリリースまで続けて進めるのは \`dg guide all\`。人に判断を求めるとき（承認・修正・どれを選ぶか）と、手順を終えて次の手順を決めるときは、選択肢を示して聞く。
+Tickets advance in this order: import (\`dg guide import\`) → assign (\`dg guide assign\`) → check (\`dg guide check\`) → plan (\`dg guide plan\`) → work (\`dg guide work\`) → audit (\`dg guide audit\`, when an Iteration or Epic ends) → release (\`dg guide release\`; if there are no release steps, clean up with \`dg guide done\`). Done (\`dg guide done\`) comes after every merge. To carry on from assign through release, use \`dg guide all\`. When asking a human for a decision (approval, correction, which one to choose), and when a step is finished and the next step must be decided, show the choices and ask.
 
-- 選択肢を出せるエージェントでは、その仕組みで聞く（Claude Code では AskUserQuestion ツール）。出せなければ、番号を付けた選択肢を文で示す
-- 判断の材料（表・計画・PR の一覧など）は選択肢の前に示す。選択肢の説明だけで判断させない
-- 選択肢は 2〜4 個にし、勧めるものを先頭に置いて理由を添える。修正の中身のように選択肢にできない答えは、選択肢の外の自由な入力で受ける
-- 複数を選べる問い（反映する行など）は複数選択で聞く。削除・abandoned・閉じる操作は 1 件ずつ聞く
-- 次の手順を決めるときは、流れの次の手順と「ここで止める」を選択肢にする（各手順の「次の手順を選ぶ」）。次の手順が選ばれたら、Skill（例 \`/dgwork p3\`）が使えるならそれを起動し、使えなければ \`dg guide <topic>\` を読んでその手順で続ける。いまの手順の中で、次の手順の作業をしない
+- When the agent can offer choices, ask with that mechanism (in Claude Code, the AskUserQuestion tool). If it cannot, show the numbered choices in text
+- Show the material for the decision (tables, Plans, lists of PRs) before the choices. Do not ask for a decision with only the choices' descriptions
+- Offer 2 to 4 choices, put the recommended one first, and give its reason. An answer that cannot be a choice, such as the content of a correction, is taken as free input outside the choices
+- Ask questions where several can be chosen (such as which lines to reflect) with multiple selection. Ask about deletion, abandoned, and close operations one at a time
+- When deciding the next step, make the next step in the flow and "stop here" the choices (see the "Choosing the next step" section of each guide). When the next step is chosen, if a Skill is available (for example \`/dgwork p3\`), start it. If not, read \`dg guide <topic>\` and continue with that step. Do not do the next step's work inside the current step.
 
-## 次の手順を選ぶ
+## Choosing the next step
 
-結果を伝えたら（指摘がなかったときも）、次の選択肢で聞く。
+After reporting the result (including when there were no findings), ask with these choices.
 
-- **計画を立てる**（勧める）：対象の todo を \`dg guide plan\` の手順で計画する（Skill があれば \`/dgplan <対象>\`）
-- **割り当てる**：Iteration に入っていない todo があれば \`dg guide assign\` の手順で割り当てる（Skill があれば \`/dgassign\`）
-- **ここで止める**"
+- **Make a plan** (recommended): plan the target's todos by the steps of \`dg guide plan\` (if a Skill is available, \`/dgplan <target>\`)
+- **Assign**: if there are todos not in an Iteration, assign them by the steps of \`dg guide assign\` (if a Skill is available, \`/dgassign\`)
+- **Stop here**"
 `;
 
 exports[`dg guide の出力（本文の組み立て） > トピックごとの本文と、節の本文が変わらない > done 1`] = `
@@ -327,15 +327,15 @@ PR がマージされたあとの後始末（PR の要らない作業は \`dg gu
 - Iteration と Epic を閉じる・再開するのは人の指示で行う（\`dg guide assign\`）。閉じられそうなら（残りがすべて done か abandoned）人に知らせる
 - Epic の進捗は \`dg --json --actor agent epic show <e3>\` の \`progress\` で都度求まる。保存はされない
 
-## 選択肢で聞く
+## Asking with choices
 
-チケットは、起票（\`dg guide import\`）→ 割り当て（\`dg guide assign\`）→ 点検（\`dg guide check\`）→ 計画（\`dg guide plan\`）→ 作業（\`dg guide work\`）→ 見直し（\`dg guide audit\`。Iteration か Epic が終わったとき）→ リリース（\`dg guide release\`。リリースの手順がなければ \`dg guide done\` で片付ける）の順に進める。完了（\`dg guide done\`）はマージのたびに挟む。割り当てからリリースまで続けて進めるのは \`dg guide all\`。人に判断を求めるとき（承認・修正・どれを選ぶか）と、手順を終えて次の手順を決めるときは、選択肢を示して聞く。
+Tickets advance in this order: import (\`dg guide import\`) → assign (\`dg guide assign\`) → check (\`dg guide check\`) → plan (\`dg guide plan\`) → work (\`dg guide work\`) → audit (\`dg guide audit\`, when an Iteration or Epic ends) → release (\`dg guide release\`; if there are no release steps, clean up with \`dg guide done\`). Done (\`dg guide done\`) comes after every merge. To carry on from assign through release, use \`dg guide all\`. When asking a human for a decision (approval, correction, which one to choose), and when a step is finished and the next step must be decided, show the choices and ask.
 
-- 選択肢を出せるエージェントでは、その仕組みで聞く（Claude Code では AskUserQuestion ツール）。出せなければ、番号を付けた選択肢を文で示す
-- 判断の材料（表・計画・PR の一覧など）は選択肢の前に示す。選択肢の説明だけで判断させない
-- 選択肢は 2〜4 個にし、勧めるものを先頭に置いて理由を添える。修正の中身のように選択肢にできない答えは、選択肢の外の自由な入力で受ける
-- 複数を選べる問い（反映する行など）は複数選択で聞く。削除・abandoned・閉じる操作は 1 件ずつ聞く
-- 次の手順を決めるときは、流れの次の手順と「ここで止める」を選択肢にする（各手順の「次の手順を選ぶ」）。次の手順が選ばれたら、Skill（例 \`/dgwork p3\`）が使えるならそれを起動し、使えなければ \`dg guide <topic>\` を読んでその手順で続ける。いまの手順の中で、次の手順の作業をしない
+- When the agent can offer choices, ask with that mechanism (in Claude Code, the AskUserQuestion tool). If it cannot, show the numbered choices in text
+- Show the material for the decision (tables, Plans, lists of PRs) before the choices. Do not ask for a decision with only the choices' descriptions
+- Offer 2 to 4 choices, put the recommended one first, and give its reason. An answer that cannot be a choice, such as the content of a correction, is taken as free input outside the choices
+- Ask questions where several can be chosen (such as which lines to reflect) with multiple selection. Ask about deletion, abandoned, and close operations one at a time
+- When deciding the next step, make the next step in the flow and "stop here" the choices (see the "Choosing the next step" section of each guide). When the next step is chosen, if a Skill is available (for example \`/dgwork p3\`), start it. If not, read \`dg guide <topic>\` and continue with that step. Do not do the next step's work inside the current step.
 
 ## 次の手順を選ぶ
 
@@ -347,174 +347,175 @@ PR がマージされたあとの後始末（PR の要らない作業は \`dg gu
 `;
 
 exports[`dg guide の出力（本文の組み立て） > トピックごとの本文と、節の本文が変わらない > import 1`] = `
-"# 起票（import）
+"# Filing (import)
 
-会話で固まった要件・調査の結果・レビューの指摘を、チケットに起こす。
+Turns the requirements, research results, and review findings settled in the conversation into tickets.
 
-## 対象を決める
+## Deciding the target
 
-- 案の名前・文書のパス：その案や文書（設計書・調査の結果）を対象にする
-- チケットの ID：そのチケットの修正・分割を対象にする（\`ticket update\` で直し、分けるなら新しく起票して元の範囲を狭める）
-- 指定が空：この会話で検討した結果のうち、まだチケットになっていないものを対象にする。何を対象にし、何を保留にするかを最初に示す
+- Plan name or document path: targets that plan or document (a design doc or research results)
+- Ticket ID: targets fixing or splitting that ticket (fix it with \`ticket update\`, and to split it, file a new ticket and narrow the original's scope)
+- No target given: targets the results of this conversation that are not yet tickets. First show what is targeted and what is held back
 
-## 流れ
+## Flow
 
-1. 要件の整理が終わったら、チケット化を**提案**する。勝手に起票しない。分解の案（題・概要・受け入れ条件・依存・Epic）を表で見せ、「承認して起票する」「修正する」「やめる」の選択肢で承認を得る
-2. 1 枚なら \`dg --json --actor agent ticket create "<題>" --created-by human --summary "<概要>" --acceptance "<条件>" --acceptance "<条件>" [--epic e3] [--depends-on t9,t10] [--priority high] [--assignee agent]\`
-3. 複数なら YAML の下書きを 1 ファイルに書いて \`dg --json --actor agent ticket import <file>\`。1 回のコミットでまとめて採番される
-4. 結果の \`data\` から ID を読み、人に報告する
+1. When the requirements are settled, **propose** turning them into tickets. Do not file on your own. Show the decomposition (title, summary, acceptance criteria, dependencies, Epic) in a table, and get approval with the choices "File after approval", "Revise", and "Cancel"
+2. For one ticket: \`dg --json --actor agent ticket create "<title>" --created-by human --summary "<summary>" --acceptance "<criterion>" --acceptance "<criterion>" [--epic e3] [--depends-on t9,t10] [--priority high] [--assignee agent]\`
+3. For several: write a YAML draft to one file and run \`dg --json --actor agent ticket import <file>\`. IDs are assigned together in one commit
+4. Read the IDs from the result's \`data\` and report them to a human
 
-## 起票者と担当者
+## Creator and assignee
 
-- 起票者（\`created_by\`）は、起票を指示・承認した人か、人の確認を経ずに起票した AI。人の指示や承認で起票するときは \`--created-by human\` を付けてユーザ本人にする。自動の手順の中などで人の確認を経ずに起票するときは付けない（\`<ユーザ>/agent\` になる）
-- 担当者（\`assignee\`）は任意。自分が続けて進めるなら \`--assignee agent\`、人が進めるなら \`--assignee human\`。claim すると claim した主体で上書きされる
+- The creator (\`created_by\`) is the person who instructed or approved the filing, or the AI that filed without a human's check. When filing on a human's instruction or approval, pass \`--created-by human\` so the user is the creator. In an automatic step that files without a human's check, do not pass it (it becomes \`<user>/agent\`)
+- The assignee (\`assignee\`) is optional. If you will continue advancing it, use \`--assignee agent\`. If a human will advance it, use \`--assignee human\`. Claim overwrites it with the claiming actor
 
-## 下書きの形（import）
+## Draft format (import)
 
 \`\`\`yaml
-- key: schema # 下書きの中だけで使う仮キー
-  title: スキーマを決める
+- key: schema # Temporary key used only inside this draft
+  title: Decide the schema
   summary: …
-  acceptance: [条件 1, 条件 2] # 本文の雛形のチェックリストに入る
-  epic: e3 # 既存の Epic。省略可
-  iteration: s3 # 既存の Iteration。省略可
-  priority: high # low / medium / high。既定は medium
+  acceptance: [criterion 1, criterion 2] # Goes into the checklist of the body template
+  epic: e3 # Existing Epic. Optional
+  iteration: s3 # Existing Iteration. Optional
+  priority: high # low / medium / high. Default is medium
   labels: [backend]
-  created_by: human # 起票者。省略時は操作した主体（あなたなら <ユーザ>/agent）
-  assignee: agent # 担当者。省略可
-  fields: { estimate: 3 } # Workflow の fields で定義した任意フィールド
+  created_by: human # Creator. If omitted, the acting actor (for you, <user>/agent)
+  assignee: agent # Assignee. Optional
+  fields: { estimate: 3 } # Optional fields defined by the Workflow's fields
 - key: api
-  title: API を実装する
-  depends_on: [schema] # 仮キーか既存の ID（t9）
-  body: | # summary の代わりに本文全体を書いてもよい
-    ## 概要
+  title: Implement the API
+  depends_on: [schema] # Temporary key or existing ID (t9)
+  body: | # You may write the whole body instead of summary
+    ## Summary
 
     …
 
-    ## 受け入れ条件
+    ## Acceptance criteria
 
     - [ ] …
 \`\`\`
 
-- 引用しない値の「空白＋#」以降は YAML のコメントになり、捨てられる。\`#\` を含む値（\`#/config\` など）は引用符で囲むか、body の \`|\` で書く
-- 本文の項目（title・summary・acceptance・body）の引用しない値の行末コメントは拒まれる（直し方はエラーの文）。ほかの項目の行末コメントと、行だけのコメントは使える
+- In an unquoted value, "a space followed by #" and everything after it become a YAML comment and are dropped. Write a value containing \`#\` (such as \`#/config\`) inside quotes, or in the body with \`|\`
+- In the body items (title, summary, acceptance, body), a trailing comment on an unquoted value is refused (the error message says how to fix it). Trailing comments and comment-only lines are allowed in other items
 
-## 優先度の判断基準
+## Priority criteria
 
-\`priority\` は、次の基準で選ぶ（\`config.yaml\` の \`priority\` で書き換えられる）。
+Choose \`priority\` by these criteria (they can be changed in \`priority\` of \`config.yaml\`).
 
-- high：利用者に見える不具合・利用者を誤らせる文書・悪用できる脆弱性・ライセンスの漏れ・検査が通らない・ほかのチケットを止めている
-- medium（既定）：機能の追加と改善・テストの抜けと不安定なテスト・内部の文書の食い違い・今は害のない規約違反・大きく古い依存
-- low：使われていないコードと依存・設定の重複・言い回しの揺れ・急がない調査と検討
+- high: 利用者に見える不具合・利用者を誤らせる文書・悪用できる脆弱性・ライセンスの漏れ・検査が通らない・ほかのチケットを止めている
+- medium (default): 機能の追加と改善・テストの抜けと不安定なテスト・内部の文書の食い違い・今は害のない規約違反・大きく古い依存
+- low: 使われていないコードと依存・設定の重複・言い回しの揺れ・急がない調査と検討
 
-## よいチケットの書き方
+## How to write a good ticket
 
-- 題は「何をどうする」が一読でわかる 1 行。実装の手段ではなく成果で書く
-- 本文は \`## 概要\` と \`## 受け入れ条件\`（\`- [ ]\` のチェックリスト）。\`dg lint\` が節の欠けと項目のない節を指摘する
-- 起票時に調べた参照先は、任意の \`## 参考\` 節に書く。着手するエージェントに渡すほか、計画（\`dg guide plan\`）で参考節のファイルが重なるチケットを並行させず \`after\` でつなぐ材料になり、人（と見直し役）が PR と見比べる起票時の見込みにもなる。見込みとして直すと考えたファイルのパスを書く。書いてよいのは、要件の ID・ADR の番号・関連するチケットの ID・ファイルのパス・関数名とコマンド名。行番号と docs の書き写しは入れず（すぐ古くなる）、どう直すか（実装の手段）は書かない。節は任意で、なくても \`dg lint\` は指摘しない
-- 受け入れ条件は、PR や成果物を見て真偽を判定できる文にする
-- 受け入れ条件に ADR や要件定義書の書き足しを入れるのは、判断が戻すのに移行が要る・利用者に見える約束とデータの形・構成と技術の選択・提案されそうな案を退ける、のどれかに当たるときだけにする。それ以外は、テストとコメントで約束を示す条件にする
-- 1 枚は 1 つの PR で終わる大きさにする。大きければ分けて \`depends_on\` でつなぐ
-- 受け入れ条件が 7 項目以上になったら、分けることを勧める（deguboard 自身の開発では、7 項目以上のチケット 10 件のうち 9 件で手直しが要った）。分けないなら、そのまま 1 件で進める理由を人に示す
-- PR の要らない作業（チケットのデータの整備・確認・調査）は、概要にそう書く。受け入れ条件はデータや報告で真偽を判定できる文にする
-- 目的で束ねるなら Epic（\`dg --json --actor agent epic list\` で既存を見る。なければ作ることを提案する）
-- 任意フィールド（Workflow の \`fields\`）は \`--field key=value\`。定義は \`dg --json --actor agent workflow show <id>\`
+- The title is one line where "what is done, and how" is clear at a glance. Write it by the result, not the means of implementation
+- The body has \`## Summary\` and \`## Acceptance criteria\` (a \`- [ ]\` checklist). \`dg lint\` flags a missing section and a section with no items
+- Write the references you looked up while filing in an optional \`## References\` section. It is passed to the agent that works the ticket. It also helps the planner (\`dg guide plan\`) connect tickets whose reference files overlap with \`after\` instead of running them in parallel, and gives humans (and the reviewer) a filing-time estimate to compare with the PR. Write the file paths you expect to change as an estimate. You may write requirement IDs, ADR numbers, related ticket IDs, file paths, function names, and command names. Do not include line numbers or copies of docs (they go stale quickly), and do not write how to change it (the means of implementation). The section is optional, and \`dg lint\` does not flag its absence
+- Acceptance criteria are sentences whose truth can be judged by looking at the PR or the deliverable
+- Add a requirement document or ADR as an acceptance criterion only when the decision needs a migration to reverse, is a promise to users or a data shape, is a choice of structure or technology, or rejects a plausible alternative. Otherwise, make the criterion show the promise through tests and comments
+- One ticket should be sized to finish in one PR. If it is large, split it and connect the parts with \`depends_on\`
+- When a ticket reaches 7 or more acceptance criteria, recommend splitting it (in deguboard's own development, 9 of 10 tickets with 7 or more criteria needed rework). If you do not split it, show a human the reason to proceed with one ticket
+- Work that needs no PR (data maintenance, checks, research) says so in the summary. Make its acceptance criteria sentences whose truth can be judged from data or a report
+- To group tickets by purpose, use an Epic (see existing ones with \`dg --json --actor agent epic list\`. If there are none, propose creating one)
+- For optional fields (the Workflow's \`fields\`), use \`--field key=value\`. For the definitions, use \`dg --json --actor agent workflow show <id>\`
 
-## してはいけないこと
+## What not to do
 
-- 依存の循環を作る（作成時に拒否される）
-- 閉じた Epic にチケットを足す（拒否される）
-- 着手していないのに \`status\` を変える。起票したチケットは todo のまま
-- 結果が \`provisional: true\` のときに ID を確定として人に伝える（\`dg guide overview\`）
+- Do not create a dependency cycle (it is refused at creation)
+- Do not add a ticket to a closed Epic (it is refused)
+- Do not change \`status\` without starting work. A filed ticket stays todo
+- When the result has \`provisional: true\`, do not tell a human the ID as final (see \`dg guide overview\`)
 
-## 選択肢で聞く
+## Asking with choices
 
-チケットは、起票（\`dg guide import\`）→ 割り当て（\`dg guide assign\`）→ 点検（\`dg guide check\`）→ 計画（\`dg guide plan\`）→ 作業（\`dg guide work\`）→ 見直し（\`dg guide audit\`。Iteration か Epic が終わったとき）→ リリース（\`dg guide release\`。リリースの手順がなければ \`dg guide done\` で片付ける）の順に進める。完了（\`dg guide done\`）はマージのたびに挟む。割り当てからリリースまで続けて進めるのは \`dg guide all\`。人に判断を求めるとき（承認・修正・どれを選ぶか）と、手順を終えて次の手順を決めるときは、選択肢を示して聞く。
+Tickets advance in this order: import (\`dg guide import\`) → assign (\`dg guide assign\`) → check (\`dg guide check\`) → plan (\`dg guide plan\`) → work (\`dg guide work\`) → audit (\`dg guide audit\`, when an Iteration or Epic ends) → release (\`dg guide release\`; if there are no release steps, clean up with \`dg guide done\`). Done (\`dg guide done\`) comes after every merge. To carry on from assign through release, use \`dg guide all\`. When asking a human for a decision (approval, correction, which one to choose), and when a step is finished and the next step must be decided, show the choices and ask.
 
-- 選択肢を出せるエージェントでは、その仕組みで聞く（Claude Code では AskUserQuestion ツール）。出せなければ、番号を付けた選択肢を文で示す
-- 判断の材料（表・計画・PR の一覧など）は選択肢の前に示す。選択肢の説明だけで判断させない
-- 選択肢は 2〜4 個にし、勧めるものを先頭に置いて理由を添える。修正の中身のように選択肢にできない答えは、選択肢の外の自由な入力で受ける
-- 複数を選べる問い（反映する行など）は複数選択で聞く。削除・abandoned・閉じる操作は 1 件ずつ聞く
-- 次の手順を決めるときは、流れの次の手順と「ここで止める」を選択肢にする（各手順の「次の手順を選ぶ」）。次の手順が選ばれたら、Skill（例 \`/dgwork p3\`）が使えるならそれを起動し、使えなければ \`dg guide <topic>\` を読んでその手順で続ける。いまの手順の中で、次の手順の作業をしない
+- When the agent can offer choices, ask with that mechanism (in Claude Code, the AskUserQuestion tool). If it cannot, show the numbered choices in text
+- Show the material for the decision (tables, Plans, lists of PRs) before the choices. Do not ask for a decision with only the choices' descriptions
+- Offer 2 to 4 choices, put the recommended one first, and give its reason. An answer that cannot be a choice, such as the content of a correction, is taken as free input outside the choices
+- Ask questions where several can be chosen (such as which lines to reflect) with multiple selection. Ask about deletion, abandoned, and close operations one at a time
+- When deciding the next step, make the next step in the flow and "stop here" the choices (see the "Choosing the next step" section of each guide). When the next step is chosen, if a Skill is available (for example \`/dgwork p3\`), start it. If not, read \`dg guide <topic>\` and continue with that step. Do not do the next step's work inside the current step.
 
-## 次の手順を選ぶ
+## Choosing the next step
 
-結果を伝えたら（やめたときも）、次の選択肢で聞く。
+When you have reported the result (including when you stopped), ask with these choices.
 
-- **割り当てる**（勧める）：起票したチケットを \`dg guide assign\` の手順で Iteration と Epic に入れる（Skill があれば \`/dgassign <ID...>\`）
-- **計画を立てる**：割り当てが要らなければ、\`dg guide plan\` の手順で進める順を決める（Skill があれば \`/dgplan <ID...>\`）
-- **ここで止める**"
+- **Assign** (recommended): put the filed tickets into Iterations and Epics by the steps of \`dg guide assign\` (if a Skill is available, \`/dgassign <ID...>\`)
+- **Make a plan**: if no assignment is needed, decide the order of advancing by the steps of \`dg guide plan\` (if a Skill is available, \`/dgplan <ID...>\`)
+- **Stop here**"
 `;
 
 exports[`dg guide の出力（本文の組み立て） > トピックごとの本文と、節の本文が変わらない > import の節 1`] = `
-"## 次の手順を選ぶ
+"## Choosing the next step
 
-結果を伝えたら（やめたときも）、次の選択肢で聞く。
+When you have reported the result (including when you stopped), ask with these choices.
 
-- **割り当てる**（勧める）：起票したチケットを \`dg guide assign\` の手順で Iteration と Epic に入れる（Skill があれば \`/dgassign <ID...>\`）
-- **計画を立てる**：割り当てが要らなければ、\`dg guide plan\` の手順で進める順を決める（Skill があれば \`/dgplan <ID...>\`）
-- **ここで止める**"
+- **Assign** (recommended): put the filed tickets into Iterations and Epics by the steps of \`dg guide assign\` (if a Skill is available, \`/dgassign <ID...>\`)
+- **Make a plan**: if no assignment is needed, decide the order of advancing by the steps of \`dg guide plan\` (if a Skill is available, \`/dgplan <ID...>\`)
+- **Stop here**"
 `;
 
 exports[`dg guide の出力（本文の組み立て） > トピックごとの本文と、節の本文が変わらない > overview 1`] = `
-"# deguboard の使い方（エージェント向け）
+"# How to use deguboard (for agents)
 
-deguboard は Git で管理するチケットのツール。あなた（AI エージェント）は \`dg\` を Bash から呼んでチケットを読み書きする。人は「何を作るか」「どの順で進めるか」「成果物を承認するか」を決め、あなたは起票・計画・実装・レビューを進める。
+deguboard is a ticket tool that is managed with Git. You (the AI agent) call \`dg\` from Bash to read and write tickets. Humans decide "what to build", "in what order to proceed", and "whether to approve the deliverables". You carry out filing, planning, implementation, and review.
 
-## 毎回守ること
+## Rules to follow every time
 
-- \`dg\` は必ず \`--json\` を付けて呼び、結果の \`ok\` と \`data\` を読む。失敗は \`error.code\` と \`error.message\`。終了コードは 0 成功 / 1 失敗 / 2 使い方の誤り
-- 毎回 \`--actor agent\` を付ける（環境変数は Bash の呼び出しをまたいで残らないことがある）。人だけに限られた操作はエージェントには拒否される（\`TRANSITION_REJECTED\`）。拒否されたら人に頼む
-- あなたは \`<ユーザ>/agent\`（例：\`eiki/agent\`）として記録される。ユーザは \`--user\`・\`DEGUBOARD_USER\`・git config の \`deguboard.user\`・git の \`user.name\`・OS のユーザ名の順で決まり（\`whoami\` の \`user_source\` が出どころ）、人本人は \`<ユーザ>\`。チケットの起票者（\`created_by\`）と担当者（\`assignee\`）はこの形で入る。コマンドの \`--created-by\` と \`--assignee\` には \`human\`（ユーザ本人）か \`agent\`（ユーザの AI）の略記も書ける
-- データのファイル（\`.git/deguboard/\` の下）を直接編集しない。読むのも \`dg … show --json\`。dg の外で書いた変更は、dg が次に動くときに見つけて書き込みを止める（下の「dg の外の変更」）
-- チケットの ID は \`t12\` でも \`12\` でもよい。Epic は \`e3\`、Iteration は \`s3\`。リポジトリの外から呼ぶときは \`-C <dir>\`
-- 書き込みは \`commit.mode\`（今は \`batch\`）に従ってコミットされる。起票・claim・Iteration の start と reopen は即座にコミットして push される。\`batch\` ではそれ以外の変更が作業ツリーに残るので、区切りで \`dg --json --actor agent sync\` を回す。\`manual\` では \`sync\` もコミットしないので、人に \`dg commit\` を頼む（競合を解く \`sync --resolve\` だけは、\`manual\` でもまとめ待ちの変更をコミットしてから解く）
-- 作業の実績は Run で残す。親が自分で進めるときは、実装の Run を \`ticket claim\` が開くので \`data.run\` の ID を控え、PR の記録（\`ticket update --pr\`）で閉じる。手順は \`dg guide run\` の「親が自分で進めるとき」。使用量（トークン数）は閉じるときに会話記録から取り込むので、数を自分で書かない
-- 起票の結果に \`provisional: true\` があれば push できていない仮番号で、ID が変わりうる。人に伝え、\`sync\` を回す
+- Always call \`dg\` with \`--json\` and read the result's \`ok\` and \`data\`. A failure has \`error.code\` and \`error.message\`. Exit codes: 0 success / 1 failure / 2 usage error
+- Always pass \`--actor agent\` on every call (environment variables may not persist across Bash calls). Operations limited to humans are refused for agents (\`TRANSITION_REJECTED\`). When refused, ask a human
+- You are recorded as \`<user>/agent\` (for example \`eiki/agent\`). The user is decided in this order: \`--user\`, \`DEGUBOARD_USER\`, git config \`deguboard.user\`, git \`user.name\`, OS user name (the source is shown as \`user_source\` in \`whoami\`). A human is recorded as \`<user>\`. A ticket's creator (\`created_by\`) and assignee (\`assignee\`) are stored in this form. The \`--created-by\` and \`--assignee\` options also accept the shorthands \`human\` (the user) and \`agent\` (the user's AI)
+- Do not edit data files directly (under \`.git/deguboard/\`). Read them with \`dg … show --json\`. Changes written outside dg are found the next time dg runs, and dg stops writing (see "Changes outside dg" below)
+- Ticket IDs can be \`t12\` or \`12\`. Epics are \`e3\`, Iterations are \`s3\`. When calling from outside the repository, use \`-C <dir>\`
+- Writes are committed according to \`commit.mode\` (currently \`batch\`). Filing, claim, and starting or reopening an Iteration commit and push at once. In \`batch\`, other changes stay in the working tree, so run \`dg --json --actor agent sync\` at each break. In \`manual\`, \`sync\` does not commit either, so ask a human to run \`dg commit\` (only \`sync --resolve\`, which resolves conflicts, commits the waiting changes first, even in \`manual\`)
+- Record work results as a Run. When the parent advances work itself, \`ticket claim\` opens the implementation Run, so note the ID in \`data.run\`, and close it when recording the PR (\`ticket update --pr\`). For the steps, see the "親が自分で進めるとき" section of \`dg guide run\`. Usage (token counts) is imported from the conversation record when the Run closes, so do not write the numbers yourself
+- If a filing result has \`provisional: true\`, the number is provisional and not yet pushed, and the ID may change. Tell a human and run \`sync\`
+- Write tickets, PRs, commits, and replies to humans in the language of the repository's existing text and of the human's request. Do not switch to English just because this guide is in English
 
-## 同期が止まったとき
+## When sync stops
 
-書き込みと \`sync\` は、リモートの deguboard ブランチを取り込んでから push する。止まったら次のとおりにする。どの場合もデータのファイルは直さない。
+Writes and \`sync\` take in the remote deguboard branch before they push. When they stop, do the following. In every case, do not edit the data files.
 
-- **競合**：\`sync\` の \`data.conflicts\` が空でない（\`ok\` は true のまま）か、起票・claim・Iteration の start と reopen が \`SYNC_CONFLICT\` で失敗した。両側が同じフィールドを違う値に変えたか、本文の同じ行を変えている。ローカルのコミットは残り、解消するまで push・照合・起票・claim・Iteration の start と reopen が止まる。どちらの値を残すかは自分では選ばない（\`--auto\` で進めているときも選ばない）。\`conflicts\` のファイルを示して人に「remote（リモートの値を採る）」か「local（ローカルの値を採る）」かを選択肢で聞き、選ばれた側で \`dg --json --actor agent sync --resolve <remote|local>\` を 1 回呼ぶ。競合したフィールド（本文ならぶつかった行）だけその側の値になり、ほかの変更とコミットは残り、push と照合まで済む。\`data.resolved\` の \`file\`・\`field\`・\`taken\`（採った値）・\`discarded\`（捨てた値）を人に伝える。\`--resolve\` の後も \`conflicts\` が残れば、マージドライバの対象でないファイル（\`config.yaml\` など）なので、警告の戻し方のとおり人に解いてもらう
-- **push の拒否が続く**：起票・claim・Iteration の start と reopen が \`PUSH_FAILED\` で失敗したら、何も取得できておらず、コミットも残っていない。少し置いて同じ操作をやり直す（claim なら先に \`ticket show\` で誰かが着手していないか確かめる）。それ以外の書き込みで push できなかった警告が出たら、コミットはローカルに残り、次の \`sync\` が再送する
-- **リモートに届かない**：コミットはローカルに残り、起票した番号は仮番号（\`provisional: true\`）になる。届くようになったら \`sync\` を回す。仮番号がリモートの番号と重なっていれば \`sync\` が振り直し、\`data.renumbered\` に \`{ from, to }\` を出す。振り直されたら、人に伝えた番号を直して伝え直す。仮番号のほかに競合があるときと、\`manual\` で未コミットの変更が残るときは振り直せず、上の競合として出る（\`--resolve\` は振り直してから、まとめ待ちの変更をコミットして競合を解く）
+- **Conflict**: \`data.conflicts\` of \`sync\` is not empty (\`ok\` stays true), or filing, claim, or starting or reopening an Iteration fails with \`SYNC_CONFLICT\`. Both sides changed the same field to different values, or changed the same line of a body. Local commits remain, and push, reconcile, filing, claim, and starting or reopening an Iteration stop until it is resolved. Do not choose which value to keep yourself (even when advancing with \`--auto\`). Show the files in \`conflicts\` and ask a human with choices: "remote" (take the remote value) or "local" (take the local value). Then run \`dg --json --actor agent sync --resolve <remote|local>\` once, on the side that was chosen. Only the conflicting fields (for a body, the lines that collided) take that side's value. Other changes and commits remain, and push and reconcile complete. Tell a human the \`file\`, \`field\`, \`taken\` (the value taken), and \`discarded\` (the value thrown away) in \`data.resolved\`. If \`conflicts\` remains after \`--resolve\`, the file is outside the merge driver's scope (such as \`config.yaml\`), so a human has to resolve it, as the warning's remedy says
+- **Push keeps being refused**: if filing, claim, or starting or reopening an Iteration fails with \`PUSH_FAILED\`, nothing was fetched and no commit remains. Wait a little and retry the same operation (for claim, first check with \`ticket show\` that no one has started it). If another write leaves a warning that it could not be pushed, the commit remains locally, and the next \`sync\` sends it again
+- **Remote unreachable**: the commits remain locally, and the filed number becomes a provisional number (\`provisional: true\`). When the remote is reachable again, run \`sync\`. If the provisional number collides with a remote number, \`sync\` renumbers it and shows \`{ from, to }\` in \`data.renumbered\`. If it was renumbered, correct the number you told a human and tell them again. When there is a conflict besides the provisional number, or when uncommitted changes remain in \`manual\`, it cannot be renumbered and appears as a conflict above (\`--resolve\` renumbers first, then commits the waiting changes and resolves the conflict)
 
-## dg の外の変更
+## Changes outside dg
 
-dg は、データのリポジトリ（deguboard worktree）に dg のコマンドを通さない変更（未コミットの変更と、dg の印のないコミット）がないかを、コマンドのたびに確かめる。見つけたら、書くコマンドは \`OUTSIDE_CHANGES\` で止まり、読むだけのコマンドは警告を返す。\`error.detail\`（警告では括弧の中）に、どのファイルか（コミットなら短い SHA・件名・ファイル）が出る。Stop のフックを入れていれば、応答を終えたときにも同じことが返る。
+dg checks the data repository (the deguboard worktree) for changes that did not go through dg commands (uncommitted changes, and commits without dg's mark) each time a command runs. When it finds some, a command that writes stops with \`OUTSIDE_CHANGES\`, and a command that only reads returns a warning. \`error.detail\` (in parentheses for a warning) shows which files are involved (for a commit, the short SHA, subject, and files). If a Stop hook is installed, the same thing is returned when you finish a response.
 
-- 自分で書いた覚えがあってもなくても、勝手に戻したり取り込んだりしない。出たファイルとコミットを人に伝え、取り込むか捨てるかを決めてもらう
-- **取り込む**：人が正しいと確かめたら \`dg --json --actor agent adopt\` を実行する。\`dg validate\` と同じ検査でエラーがなければ、今の状態を以後の検査の基準にする（未コミットの変更は、まとめ待ちの変更として次の \`commit\`・\`sync\` でコミットされる）。エラーがあれば \`VALIDATION_FAILED\` で取り込まないので、人に直すか捨てるかを決めてもらう
-- **捨てる**：人が deguboard worktree で戻す。戻し終えても、dg のまとめ待ちの変更まで戻したときなどは基準と違うので、\`dg --json --actor agent adopt\` で今の状態を基準にしてから続ける
+- Do not revert or adopt them on your own, even if you may have written them. Tell a human the files and commits that came up, and let them decide whether to adopt or discard
+- **Adopt**: when a human confirms they are correct, run \`dg --json --actor agent adopt\`. If there are no errors in the same check as \`dg validate\`, the current state becomes the baseline for later checks (uncommitted changes are committed as waiting changes by the next \`commit\` or \`sync\`). If there are errors, \`adopt\` does not adopt them and fails with \`VALIDATION_FAILED\`, so let a human fix them or decide to discard them
+- **Discard**: a human reverts in the deguboard worktree. Even after the revert, the baseline may differ, for example when dg's waiting changes were reverted too, so run \`dg --json --actor agent adopt\` to make the current state the baseline before continuing
 
-## 人だけに限られうる操作
+## Operations that may be limited to humans
 
-既定ではすべての操作をエージェントも行える。制限は設定で足す。
+By default, agents can run every operation. Limits are added in the settings.
 
-- コマンド単位：\`config.yaml\` の \`actor.human_only\` に入ったコマンドは agent からは拒否される。今の設定：none。例：\`plan.approve\`（計画の承認を人に限る）、\`epic.close\`、\`iteration.close\`
-- チケットの遷移：Workflow の \`transitions\` が \`by: [human]\` を書いた遷移（abandoned にする、done から戻す、など）は agent からは拒否される。\`dg --json --actor agent workflow show <id>\` で確かめられる
-- チケットをやめる（abandoned）、done の取り消し、Epic や Iteration を閉じる・再開するのは人の判断に関わるので、拒否されなくても、人の指示がないときは実行する前に人に確かめる
-- Plan の承認（\`plan approve\`）は、拒否されなくても人が承認したときだけ行う（\`dg guide plan\`）
+- By command: a command listed in \`actor.human_only\` in \`config.yaml\` is refused for the agent. Current setting: none. Examples: \`plan.approve\` (limit approving a Plan to humans), \`epic.close\`, \`iteration.close\`
+- By ticket transition: a transition whose Workflow \`transitions\` marks \`by: [human]\` (such as making a ticket abandoned, or moving it back from done) is refused for the agent. Check with \`dg --json --actor agent workflow show <id>\`
+- Making a ticket abandoned, undoing done, and closing or reopening an Epic or Iteration are decisions for humans. Even when they are not refused, if no human has instructed them, confirm with a human before running them
+- Approving a Plan (\`plan approve\`) is done only when a human has approved it, even when it is not refused (see \`dg guide plan\`)
 
-## トピック
+## Topics
 
-| トピック | Skill     | 内容                                                                                                                              | 読むとき                                                       |
-| -------- | --------- | --------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
-| import   | dgimport  | 会話の内容をチケットに起こす（分解、依存、Epic、下書きの取り込み）                                                                | 要件が固まり「チケットにして」と言われたとき                   |
-| assign   | dgassign  | Iteration（スプリント）と Epic に入れる                                                                                           | 「スプリントに入れて」と言われたとき                           |
-| check    | dgcheck   | \`sync\`・\`validate\`・\`lint\` の指摘と直す案を表で示し、承認を得て直す                                                               | 計画を立てる前・「点検して」と言われたとき                     |
-| plan     | dgplan    | どの順で進めるかを決め、Plan に記録して人の承認を得る（依存、\`--ready\`、\`plan create\`・\`plan approve\`）                           | 複数のチケットを進める前                                       |
-| work     | dgwork    | 1 枚のチケットを進める（Plan の順と範囲、claim、worktree、受け入れ条件の確認、PR、照合。PR の要らない作業も）                     | チケットに着手するとき                                         |
-| run      | なし      | 親が自分で進めるときの Run（claim と PR の記録）と、止まった Run の始末（work と review から読む補助）                                      | Run の記録・止まった Run を始末するとき                         |
-| parallel | なし      | Plan の着手できるチケットをチケットごとのサブエージェントで同時に進める（上限、親とサブエージェントの役割、1 件でほかを止めない） | 着手できるチケットが複数あり、サブエージェントを起動できるとき |
-| review   | なし      | PR を出す前とマージの前の品質ゲート（検査・受け入れ条件・見直し・衝突なし）と、別のサブエージェントの見直し・上限付きの修正ループ | PR を draft で出したあと・自動でマージする前                   |
-| audit    | dgaudit   | リリースの前にリポジトリ全体を観点ごとに見直し、指摘を承認を得て起票する（サブエージェント。ファイルは直さない）                  | Iteration か Epic のチケットがすべて done になったとき         |
-| release  | dgrelease | Iteration のチケットがすべて done かを確かめ、リポジトリのリリースの手順で進めて Iteration を閉じる                               | 見直しを終えてリリースするとき                                 |
-| done     | dgdone    | マージ後の後始末と残った受け入れ条件の確認、Plan を閉じる                                                                         | PR がマージされたあと                                          |
-| all      | dgall     | 割り当て → 点検 → 計画 → 作業 → 見直し → リリースを、状態から段階を求めて続けて進める（同じ引数で再開できる）                     | 「s3 を最後まで進めて」と言われたとき                          |
+| Topic    | Skill     | Contents                                                                                                                                       | When to read                                                       |
+| -------- | --------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| import   | dgimport  | Turns a conversation into tickets (decomposition, dependencies, Epics, importing drafts)                                                       | When requirements are settled and asked to "make tickets"          |
+| assign   | dgassign  | Puts tickets into Iterations (sprints) and Epics                                                                                               | When asked to "put it in the sprint"                               |
+| check    | dgcheck   | Shows findings from \`sync\`, \`validate\`, and \`lint\` with fix proposals in a table, and fixes them after approval                                | Before planning / when asked to "check"                            |
+| plan     | dgplan    | Decides the order of advancing, records it in a Plan, and gets human approval (dependencies, \`--ready\`, \`plan create\`, \`plan approve\`)         | Before advancing several tickets                                   |
+| work     | dgwork    | Advances one ticket (the Plan's order and scope, claim, worktree, checking acceptance criteria, PR, reconcile; also work that needs no PR)     | When starting work on a ticket                                     |
+| run      | None      | The Run for when the parent advances work itself (claim and PR recording), and cleaning up a stopped Run (a helper read from work and review)  | When recording a Run or cleaning up a stopped Run                  |
+| parallel | None      | Advances ready tickets of a Plan at the same time, with a subagent per ticket (limits, roles of parent and subagents, one ticket does not stop the others) | When several tickets are ready and subagents can be started |
+| review   | None      | Quality gate before opening a PR and before merging (checks, acceptance criteria, review, no conflicts), and review by a separate subagent with a fix loop that has a limit | After opening a PR as a draft / before merging automatically |
+| audit    | dgaudit   | Before release, reviews the whole repository by perspective and files the findings after approval (subagents; does not edit files)            | When all tickets in an Iteration or Epic are done                  |
+| release  | dgrelease | Confirms all tickets in an Iteration are done, advances with the repository's release steps, and closes the Iteration                         | After review, when releasing                                       |
+| done     | dgdone    | Cleanup after merge, confirming the remaining acceptance criteria, and closing a Plan                                                          | After a PR is merged                                               |
+| all      | dgall     | Advances assign → check → plan → work → audit → release, taking the stage from the state (can resume with the same arguments)                  | When asked to "carry s3 through to the end"                        |
 
-\`dg guide <topic>\` で読む。Claude Code では \`dg skill install\` が入れる Skill（\`/dgimport\` など）がそのトピックを読む。Skill は任意で、なければ \`dg guide <topic>\` を読んで同じ手順で進める。Claude Code では \`dg hooks install\` でフックも入れられ、\`dg hooks check\` で入っているか・動くか・入力の形が合っているかを確かめられる（欠けていれば警告が出る）。コマンドの一覧は \`dg --help\`、各コマンドのオプションは \`dg <群> <操作> --help\`。"
+Read with \`dg guide <topic>\`. In Claude Code, the Skill that \`dg skill install\` installs (such as \`/dgimport\`) reads the topic. A Skill is optional. Without one, read \`dg guide <topic>\` and proceed with the same steps. In Claude Code, \`dg hooks install\` can also install hooks, and \`dg hooks check\` confirms whether they are installed, whether they work, and whether their input has the right shape (it warns when something is missing). For the list of commands, see \`dg --help\`. For each command's options, see \`dg <group> <operation> --help\`."
 `;
 
 exports[`dg guide の出力（本文の組み立て） > トピックごとの本文と、節の本文が変わらない > parallel 1`] = `
@@ -531,94 +532,94 @@ exports[`dg guide の出力（本文の組み立て） > トピックごとの�
 `;
 
 exports[`dg guide の出力（本文の組み立て） > トピックごとの本文と、節の本文が変わらない > plan 1`] = `
-"# 計画（plan）
+"# Plan (plan)
 
-複数のチケットを、どの順で進めるかを決める。計画は Plan（\`p3\`）に記録する。Plan は進める順（\`after\`）とチケットごとの範囲・方針・段階（\`details\` の \`scope\`・\`approach\`・\`tier\`）を持つ。承認待ちで作り、人の承認を受けて \`plan approve\` で承認済みにする。
+Decides the order in which to advance several tickets. The plan is recorded in a Plan (\`p3\`). A Plan holds the order (\`after\`) and, for each ticket, the scope, approach, and tier (\`details\`'s \`scope\`, \`approach\`, and \`tier\`). It is created awaiting approval, and it becomes approved with \`plan approve\` after a human's approval.
 
-## 対象を決める
+## Deciding the target
 
-- チケットの ID（1 つ以上）：そのチケットの Plan を作る
-- Iteration（\`s3\`）・Epic（\`e3\`）：その中の todo を対象にする（\`ticket list --iteration s3 --status todo\`）
-- \`next [N]\`：\`ticket list --ready\` の上位 N 枚（省くと 1 枚）
-- Plan の ID（\`p3\`）：承認待ちなら下の手順 6・7 で承認を得る。承認済みなら「次の手順を選ぶ」で聞く
-- 「次にやるのは？」のように順だけを聞かれたら、手順 1〜4 の案を示して止める。Plan は作らない
-- 指定が空：active の Iteration の todo を勧めて確かめる
+- Ticket ID (one or more): creates a Plan for those tickets
+- Iteration (\`s3\`) and Epic (\`e3\`): targets the todos in them (\`ticket list --iteration s3 --status todo\`)
+- \`next [N]\`: the top N of \`ticket list --ready\` (one if omitted)
+- Plan ID (\`p3\`): if awaiting approval, get approval with steps 6 and 7 below. If already approved, ask with the "Choosing the next step" section
+- If asked only for the order, such as "What is next?", show the proposal from steps 1 to 4 and stop. Do not create a Plan
+- No target given: suggests the todos of the active Iteration and confirms them
 
-## 流れ
+## Flow
 
-1. 対象を集める：\`dg --json --actor agent ticket list --project default\`（Epic で絞るなら \`--epic e3\`、Iteration なら \`--iteration s3\`）
-2. 依存を確かめる：各チケットの \`depends_on\` と、\`dg --json --actor agent ticket show <id>\` の \`dependents\`（自分に依存しているもの）
-3. 着手できるものを出す：\`dg --json --actor agent ticket list --ready\`。todo で依存先がすべて done か abandoned のもの（\`deps_done\`）。担当者の有無は見ないので、\`assignee\` が別のユーザのものは避ける（自分のものだけなら \`--assignee agent\`）
-4. 順序の案を作る。依存が先、優先度が高いものが先。並行できるもの（互いに依存しないもの）はまとめて示す。チケットの本文に \`## 参考\` 節があり、そこに書いたファイルが別のチケットの参考節のファイルと重なるものは、並行させず \`after\` でつなぐ（先に進めるものを前にする）。参考節のないチケットは、この重なりの判断に入れず、従来どおり依存と優先度で順を決める。参考節は起票時の見込みなので、つないだ理由（重なるファイル）を案に書き、承認の段階で人が直せるようにする
-5. 承認待ちの Plan に記録する（下の「Plan の作り方」）。結果の \`data.id\` が Plan の ID
-6. 人に見せて承認を得る。\`dg --json --actor agent plan show <p>\` の \`items\`（Plan の順）・\`after\`・\`details\` を表で示し（段階の列を設ける）、「承認する」「修正する」「承認待ちのまま止める」の選択肢で聞く。直すよう言われたら、\`plan close <p>\` で閉じて作り直す（Plan は作った後に書き換えられない）
-7. 人が承認したら \`dg --json --actor agent plan approve <p>\` で承認を記録する（\`approved_by\` は操作した主体）。人の承認を得ないまま approve しない。承認待ちの Plan のチケットには着手しない
-8. 承認済みの Plan は \`dg guide work\` の手順で進める。Plan の ID を見失ったら、\`dg --json --actor agent plan list --status open\` で開いた Plan を一覧するか、チケットの \`ticket show\` の \`plan\`（入っている開いた Plan）で引く
+1. Collect the targets: \`dg --json --actor agent ticket list --project default\` (narrow by Epic with \`--epic e3\`, or by Iteration with \`--iteration s3\`)
+2. Check dependencies: each ticket's \`depends_on\`, and the \`dependents\` (tickets that depend on it) from \`dg --json --actor agent ticket show <id>\`
+3. Find tickets that can start: \`dg --json --actor agent ticket list --ready\`. These are todos whose dependencies are all done or abandoned (\`deps_done\`). This does not check the assignee, so avoid tickets whose \`assignee\` is another user (if only your own, use \`--assignee agent\`)
+4. Make an order proposal. Dependencies come first, and higher priority comes first. Show the tickets that can run in parallel (those that do not depend on each other) together. If a ticket's body has a \`## References\` section and the files written there overlap with another ticket's references, do not run them in parallel. Connect them with \`after\` (put the one that can advance first in front). Tickets without a references section are not judged for this overlap, and their order is decided by dependencies and priority as before. References are an estimate at filing time, so state the overlapping files in the proposal, and let a human fix it at approval
+5. Record it in a Plan awaiting approval (see the "Creating a Plan" section). The result's \`data.id\` is the Plan's ID
+6. Show it to a human and get approval. Show \`items\` (the Plan's order), \`after\`, and \`details\` from \`dg --json --actor agent plan show <p>\` in a table (include a tier column), and ask with the choices "Approve", "Revise", and "Keep it awaiting approval". If asked to revise, close it with \`plan close <p>\` and create it again (a Plan cannot be changed after it is created)
+7. When a human approves, record the approval with \`dg --json --actor agent plan approve <p>\` (\`approved_by\` is the acting actor). Do not approve without a human's approval. Do not start tickets in a Plan that is awaiting approval
+8. Advance an approved Plan following \`dg guide work\`. If you lose track of the Plan's ID, list open Plans with \`dg --json --actor agent plan list --status open\`, or find it from the \`plan\` of \`ticket show\` (the open Plan the ticket is in)
 
-## Plan の作り方
+## Creating a Plan
 
 \`\`\`sh
 dg --json --actor agent plan create t12 t13 t14 t15 \\
   --after t13=t12 --after t14=t12 --after t15=t13,t14 \\
-  --scope t13="一覧と詳細の API。認証は含めない" \\
-  --approach t13="core のコマンド定義を足し、HTTP は写すだけ" \\
+  --scope t13="API for listing and detail. Authentication is not included" \\
+  --approach t13="Add core command definitions, and HTTP only passes them through" \\
   --tier t12=light --tier t13=standard --tier t15=heavy
 \`\`\`
 
-- 並べた順が実行順の目安。\`--after t15=t13,t14\` は「t15 を t13・t14 の後に進める」で、計画の中だけの待ち（チケットの \`depends_on\` とは別）。並行できるものは互いに after を書かない
-- \`--scope\`・\`--approach\` はチケットごとに 1 文で書く。着手するときに \`plan show\` の \`details\` で読み返す
-- \`--tier\` はチケットの難しさの段階で、どのモデルで実装するか（\`config.yaml\` の \`models.*\`。\`dg next\` の \`model\` に出る）を決める。light：文書・設定・文言だけ。heavy：設計の判断・データの形・複数パッケージにまたがる・原因の分からない不具合。standard：それ以外。迷ったら重い方にする。省くと standard と同じに扱う
-- done・abandoned のチケットと、別の開いた Plan に入っているチケット（\`ticket show\` の \`plan\` が空でないもの）は入れられない（\`REJECTED\`）。別の Plan に入っていれば、その Plan を閉じてよいか人に確かめる
-- 依存が足りなければ \`dg --json --actor agent ticket update <id> --depends-on t12,t13\` で直す。\`--depends-on\` は一覧を**置き換える**ので、残す依存も全部指定する（\`--label\` も同じ）。循環は拒否される
-- 計画の途中で新しい作業が見つかったら、勝手に進めず \`dg guide import\` の手順で起票を提案する
+- The order you list them is a guide to the execution order. \`--after t15=t13,t14\` means "advance t15 after t13 and t14". It is a wait within the Plan only (separate from the ticket's \`depends_on\`). Tickets that can run in parallel do not write after for each other
+- Write \`--scope\` and \`--approach\` in one sentence per ticket. Read them back with \`details\` from \`plan show\` when starting the ticket
+- \`--tier\` is the ticket's difficulty level, and decides which model implements it (\`models.*\` in \`config.yaml\`. It appears as \`model\` in \`dg next\`). light: only documents, settings, and wording. heavy: design decisions, data shapes, spanning several packages, or a bug whose cause is unknown. standard: everything else. When in doubt, choose the heavier one. If omitted, it is treated the same as standard
+- Tickets that are done or abandoned, and tickets in another open Plan (those whose \`plan\` in \`ticket show\` is not empty), cannot be added (\`REJECTED\`). If one is in another Plan, ask a human whether that Plan may be closed
+- If dependencies are missing, fix them with \`dg --json --actor agent ticket update <id> --depends-on t12,t13\`. \`--depends-on\` **replaces** the whole list, so specify every dependency you keep (\`--label\` works the same way). Cycles are refused
+- If new work is found while planning, do not advance it on your own. Propose filing it by the steps of \`dg guide import\`
 
-## 承認について
+## About approval
 
-既定ではエージェントも \`plan approve\` を実行できる（人に限るなら \`config.yaml\` の \`actor.human_only\` に \`plan.approve\` を入れる。\`dg guide overview\`）。拒否されたら（\`TRANSITION_REJECTED\`）人に \`dg plan approve <p>\` を頼む。
+By default, agents can also run \`plan approve\`. To limit it to humans, add \`plan.approve\` to \`actor.human_only\` in \`config.yaml\` (see \`dg guide overview\`). If it is refused (\`TRANSITION_REJECTED\`), ask a human to run \`dg plan approve <p>\`.
 
-## 進め方の原則
+## Principles of progress
 
-- 1 度に claim するのは、自分が今すぐ進める 1 枚だけ。先に全部 claim しない（他の人やエージェントが着手できなくなる）
-- 依存先が done でも abandoned でもないチケットには着手しない。Workflow が todo → in_progress に \`requires: [deps_done]\` を書いていれば claim は拒否される（\`TRANSITION_REJECTED\`）。書いていなくても \`--ready\` に出るまで待つか、依存先を先に進める
-- Plan の \`after\` は claim では検査されない。\`plan show\` の \`items[].waiting\`（\`after\` と \`depends_on\` の終わっていない待ち先）が空になるまで待つ
+- Claim only the one ticket you can advance right now. Do not claim everything first (others, or other agents, could not start)
+- Do not start a ticket whose dependency is neither done nor abandoned. If the Workflow writes \`requires: [deps_done]\` for todo → in_progress, claim is refused (\`TRANSITION_REJECTED\`). If it does not, wait until the ticket appears in \`--ready\`, or advance the dependency first
+- A Plan's \`after\` is not checked at claim. Wait until \`items[].waiting\` in \`plan show\` (the waits on \`after\` and \`depends_on\` that are not finished) is empty
 
-## 選択肢で聞く
+## Asking with choices
 
-チケットは、起票（\`dg guide import\`）→ 割り当て（\`dg guide assign\`）→ 点検（\`dg guide check\`）→ 計画（\`dg guide plan\`）→ 作業（\`dg guide work\`）→ 見直し（\`dg guide audit\`。Iteration か Epic が終わったとき）→ リリース（\`dg guide release\`。リリースの手順がなければ \`dg guide done\` で片付ける）の順に進める。完了（\`dg guide done\`）はマージのたびに挟む。割り当てからリリースまで続けて進めるのは \`dg guide all\`。人に判断を求めるとき（承認・修正・どれを選ぶか）と、手順を終えて次の手順を決めるときは、選択肢を示して聞く。
+Tickets advance in this order: import (\`dg guide import\`) → assign (\`dg guide assign\`) → check (\`dg guide check\`) → plan (\`dg guide plan\`) → work (\`dg guide work\`) → audit (\`dg guide audit\`, when an Iteration or Epic ends) → release (\`dg guide release\`; if there are no release steps, clean up with \`dg guide done\`). Done (\`dg guide done\`) comes after every merge. To carry on from assign through release, use \`dg guide all\`. When asking a human for a decision (approval, correction, which one to choose), and when a step is finished and the next step must be decided, show the choices and ask.
 
-- 選択肢を出せるエージェントでは、その仕組みで聞く（Claude Code では AskUserQuestion ツール）。出せなければ、番号を付けた選択肢を文で示す
-- 判断の材料（表・計画・PR の一覧など）は選択肢の前に示す。選択肢の説明だけで判断させない
-- 選択肢は 2〜4 個にし、勧めるものを先頭に置いて理由を添える。修正の中身のように選択肢にできない答えは、選択肢の外の自由な入力で受ける
-- 複数を選べる問い（反映する行など）は複数選択で聞く。削除・abandoned・閉じる操作は 1 件ずつ聞く
-- 次の手順を決めるときは、流れの次の手順と「ここで止める」を選択肢にする（各手順の「次の手順を選ぶ」）。次の手順が選ばれたら、Skill（例 \`/dgwork p3\`）が使えるならそれを起動し、使えなければ \`dg guide <topic>\` を読んでその手順で続ける。いまの手順の中で、次の手順の作業をしない
+- When the agent can offer choices, ask with that mechanism (in Claude Code, the AskUserQuestion tool). If it cannot, show the numbered choices in text
+- Show the material for the decision (tables, Plans, lists of PRs) before the choices. Do not ask for a decision with only the choices' descriptions
+- Offer 2 to 4 choices, put the recommended one first, and give its reason. An answer that cannot be a choice, such as the content of a correction, is taken as free input outside the choices
+- Ask questions where several can be chosen (such as which lines to reflect) with multiple selection. Ask about deletion, abandoned, and close operations one at a time
+- When deciding the next step, make the next step in the flow and "stop here" the choices (see the "Choosing the next step" section of each guide). When the next step is chosen, if a Skill is available (for example \`/dgwork p3\`), start it. If not, read \`dg guide <topic>\` and continue with that step. Do not do the next step's work inside the current step.
 
-## 次の手順を選ぶ
+## Choosing the next step
 
-Plan を承認したら（承認済みの Plan を指定されたときも）、次の選択肢で聞く。承認待ちのまま止めたときは聞かない。
+After approving a Plan (including when an approved Plan was specified), ask with these choices. When you stop while the Plan is still awaiting approval, do not ask.
 
-- **Plan を進める**（勧める）：\`dg guide work\` の手順で Plan の ID を指定して進める（Skill があれば \`/dgwork p3\`）。進める側は Plan の記録（\`plan show\`）を手がかりに始める
-- **ここで止める**：別のセッションで Plan の ID を指定して進める
+- **Advance the Plan** (recommended): advance it by the steps of \`dg guide work\`, specifying the Plan's ID (if a Skill is available, \`/dgwork p3\`). The one advancing starts from the Plan's record (\`plan show\`)
+- **Stop here**: another session advances it by specifying the Plan's ID
 
-順だけを示したときは、「計画を立てる」（\`dg guide plan\` の手順。Skill があれば \`/dgplan next <N>\`）・「割り当てる」（未割り当てのチケットがあれば \`dg guide assign\` の手順。Skill があれば \`/dgassign\`）・「ここで止める」で聞く。"
+When you only show the order, ask with "Make a plan" (the steps of \`dg guide plan\`; if a Skill is available, \`/dgplan next <N>\`), "Assign" (if there are unassigned tickets, the steps of \`dg guide assign\`; if a Skill is available, \`/dgassign\`), and "Stop here"."
 `;
 
 exports[`dg guide の出力（本文の組み立て） > トピックごとの本文と、節の本文が変わらない > plan の節（見出し） 1`] = `
-"## Plan の作り方
+"## Creating a Plan
 
 \`\`\`sh
 dg --json --actor agent plan create t12 t13 t14 t15 \\
   --after t13=t12 --after t14=t12 --after t15=t13,t14 \\
-  --scope t13="一覧と詳細の API。認証は含めない" \\
-  --approach t13="core のコマンド定義を足し、HTTP は写すだけ" \\
+  --scope t13="API for listing and detail. Authentication is not included" \\
+  --approach t13="Add core command definitions, and HTTP only passes them through" \\
   --tier t12=light --tier t13=standard --tier t15=heavy
 \`\`\`
 
-- 並べた順が実行順の目安。\`--after t15=t13,t14\` は「t15 を t13・t14 の後に進める」で、計画の中だけの待ち（チケットの \`depends_on\` とは別）。並行できるものは互いに after を書かない
-- \`--scope\`・\`--approach\` はチケットごとに 1 文で書く。着手するときに \`plan show\` の \`details\` で読み返す
-- \`--tier\` はチケットの難しさの段階で、どのモデルで実装するか（\`config.yaml\` の \`models.*\`。\`dg next\` の \`model\` に出る）を決める。light：文書・設定・文言だけ。heavy：設計の判断・データの形・複数パッケージにまたがる・原因の分からない不具合。standard：それ以外。迷ったら重い方にする。省くと standard と同じに扱う
-- done・abandoned のチケットと、別の開いた Plan に入っているチケット（\`ticket show\` の \`plan\` が空でないもの）は入れられない（\`REJECTED\`）。別の Plan に入っていれば、その Plan を閉じてよいか人に確かめる
-- 依存が足りなければ \`dg --json --actor agent ticket update <id> --depends-on t12,t13\` で直す。\`--depends-on\` は一覧を**置き換える**ので、残す依存も全部指定する（\`--label\` も同じ）。循環は拒否される
-- 計画の途中で新しい作業が見つかったら、勝手に進めず \`dg guide import\` の手順で起票を提案する"
+- The order you list them is a guide to the execution order. \`--after t15=t13,t14\` means "advance t15 after t13 and t14". It is a wait within the Plan only (separate from the ticket's \`depends_on\`). Tickets that can run in parallel do not write after for each other
+- Write \`--scope\` and \`--approach\` in one sentence per ticket. Read them back with \`details\` from \`plan show\` when starting the ticket
+- \`--tier\` is the ticket's difficulty level, and decides which model implements it (\`models.*\` in \`config.yaml\`. It appears as \`model\` in \`dg next\`). light: only documents, settings, and wording. heavy: design decisions, data shapes, spanning several packages, or a bug whose cause is unknown. standard: everything else. When in doubt, choose the heavier one. If omitted, it is treated the same as standard
+- Tickets that are done or abandoned, and tickets in another open Plan (those whose \`plan\` in \`ticket show\` is not empty), cannot be added (\`REJECTED\`). If one is in another Plan, ask a human whether that Plan may be closed
+- If dependencies are missing, fix them with \`dg --json --actor agent ticket update <id> --depends-on t12,t13\`. \`--depends-on\` **replaces** the whole list, so specify every dependency you keep (\`--label\` works the same way). Cycles are refused
+- If new work is found while planning, do not advance it on your own. Propose filing it by the steps of \`dg guide import\`"
 `;
 
 exports[`dg guide の出力（本文の組み立て） > トピックごとの本文と、節の本文が変わらない > release 1`] = `
@@ -651,15 +652,15 @@ Iteration のチケットがすべて done かを確かめ、リポジトリの�
 
 版・タグ・CHANGELOG を推測して作らない。手順が見つからなかったことを伝え、「Iteration を閉じる（リリースはしない）」と「ここで止める」で聞く。
 
-## 選択肢で聞く
+## Asking with choices
 
-チケットは、起票（\`dg guide import\`）→ 割り当て（\`dg guide assign\`）→ 点検（\`dg guide check\`）→ 計画（\`dg guide plan\`）→ 作業（\`dg guide work\`）→ 見直し（\`dg guide audit\`。Iteration か Epic が終わったとき）→ リリース（\`dg guide release\`。リリースの手順がなければ \`dg guide done\` で片付ける）の順に進める。完了（\`dg guide done\`）はマージのたびに挟む。割り当てからリリースまで続けて進めるのは \`dg guide all\`。人に判断を求めるとき（承認・修正・どれを選ぶか）と、手順を終えて次の手順を決めるときは、選択肢を示して聞く。
+Tickets advance in this order: import (\`dg guide import\`) → assign (\`dg guide assign\`) → check (\`dg guide check\`) → plan (\`dg guide plan\`) → work (\`dg guide work\`) → audit (\`dg guide audit\`, when an Iteration or Epic ends) → release (\`dg guide release\`; if there are no release steps, clean up with \`dg guide done\`). Done (\`dg guide done\`) comes after every merge. To carry on from assign through release, use \`dg guide all\`. When asking a human for a decision (approval, correction, which one to choose), and when a step is finished and the next step must be decided, show the choices and ask.
 
-- 選択肢を出せるエージェントでは、その仕組みで聞く（Claude Code では AskUserQuestion ツール）。出せなければ、番号を付けた選択肢を文で示す
-- 判断の材料（表・計画・PR の一覧など）は選択肢の前に示す。選択肢の説明だけで判断させない
-- 選択肢は 2〜4 個にし、勧めるものを先頭に置いて理由を添える。修正の中身のように選択肢にできない答えは、選択肢の外の自由な入力で受ける
-- 複数を選べる問い（反映する行など）は複数選択で聞く。削除・abandoned・閉じる操作は 1 件ずつ聞く
-- 次の手順を決めるときは、流れの次の手順と「ここで止める」を選択肢にする（各手順の「次の手順を選ぶ」）。次の手順が選ばれたら、Skill（例 \`/dgwork p3\`）が使えるならそれを起動し、使えなければ \`dg guide <topic>\` を読んでその手順で続ける。いまの手順の中で、次の手順の作業をしない
+- When the agent can offer choices, ask with that mechanism (in Claude Code, the AskUserQuestion tool). If it cannot, show the numbered choices in text
+- Show the material for the decision (tables, Plans, lists of PRs) before the choices. Do not ask for a decision with only the choices' descriptions
+- Offer 2 to 4 choices, put the recommended one first, and give its reason. An answer that cannot be a choice, such as the content of a correction, is taken as free input outside the choices
+- Ask questions where several can be chosen (such as which lines to reflect) with multiple selection. Ask about deletion, abandoned, and close operations one at a time
+- When deciding the next step, make the next step in the flow and "stop here" the choices (see the "Choosing the next step" section of each guide). When the next step is chosen, if a Skill is available (for example \`/dgwork p3\`), start it. If not, read \`dg guide <topic>\` and continue with that step. Do not do the next step's work inside the current step.
 
 ## 次の手順を選ぶ
 
@@ -808,15 +809,15 @@ exports[`dg guide の出力（本文の組み立て） > トピックごとの�
 - 実装をやめるなら \`dg --json --actor agent ticket unclaim <id>\`（todo に戻る。Run の扱いは \`dg guide run\`）
 - 作業中に別の作業が見つかったら、そのチケットに混ぜず \`dg guide import\` で起票を提案する
 
-## 選択肢で聞く
+## Asking with choices
 
-チケットは、起票（\`dg guide import\`）→ 割り当て（\`dg guide assign\`）→ 点検（\`dg guide check\`）→ 計画（\`dg guide plan\`）→ 作業（\`dg guide work\`）→ 見直し（\`dg guide audit\`。Iteration か Epic が終わったとき）→ リリース（\`dg guide release\`。リリースの手順がなければ \`dg guide done\` で片付ける）の順に進める。完了（\`dg guide done\`）はマージのたびに挟む。割り当てからリリースまで続けて進めるのは \`dg guide all\`。人に判断を求めるとき（承認・修正・どれを選ぶか）と、手順を終えて次の手順を決めるときは、選択肢を示して聞く。
+Tickets advance in this order: import (\`dg guide import\`) → assign (\`dg guide assign\`) → check (\`dg guide check\`) → plan (\`dg guide plan\`) → work (\`dg guide work\`) → audit (\`dg guide audit\`, when an Iteration or Epic ends) → release (\`dg guide release\`; if there are no release steps, clean up with \`dg guide done\`). Done (\`dg guide done\`) comes after every merge. To carry on from assign through release, use \`dg guide all\`. When asking a human for a decision (approval, correction, which one to choose), and when a step is finished and the next step must be decided, show the choices and ask.
 
-- 選択肢を出せるエージェントでは、その仕組みで聞く（Claude Code では AskUserQuestion ツール）。出せなければ、番号を付けた選択肢を文で示す
-- 判断の材料（表・計画・PR の一覧など）は選択肢の前に示す。選択肢の説明だけで判断させない
-- 選択肢は 2〜4 個にし、勧めるものを先頭に置いて理由を添える。修正の中身のように選択肢にできない答えは、選択肢の外の自由な入力で受ける
-- 複数を選べる問い（反映する行など）は複数選択で聞く。削除・abandoned・閉じる操作は 1 件ずつ聞く
-- 次の手順を決めるときは、流れの次の手順と「ここで止める」を選択肢にする（各手順の「次の手順を選ぶ」）。次の手順が選ばれたら、Skill（例 \`/dgwork p3\`）が使えるならそれを起動し、使えなければ \`dg guide <topic>\` を読んでその手順で続ける。いまの手順の中で、次の手順の作業をしない
+- When the agent can offer choices, ask with that mechanism (in Claude Code, the AskUserQuestion tool). If it cannot, show the numbered choices in text
+- Show the material for the decision (tables, Plans, lists of PRs) before the choices. Do not ask for a decision with only the choices' descriptions
+- Offer 2 to 4 choices, put the recommended one first, and give its reason. An answer that cannot be a choice, such as the content of a correction, is taken as free input outside the choices
+- Ask questions where several can be chosen (such as which lines to reflect) with multiple selection. Ask about deletion, abandoned, and close operations one at a time
+- When deciding the next step, make the next step in the flow and "stop here" the choices (see the "Choosing the next step" section of each guide). When the next step is chosen, if a Skill is available (for example \`/dgwork p3\`), start it. If not, read \`dg guide <topic>\` and continue with that step. Do not do the next step's work inside the current step.
 
 ## 次の手順を選ぶ
 

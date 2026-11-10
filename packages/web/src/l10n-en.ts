@@ -538,7 +538,7 @@ export const EN_ONE: Readonly<Record<string, { arg: number; text: string }>> = {
 
 /**
  * 優先度の判断基準の既定のままの値の訳（core の config の既定。UI-11）。書き換えた値は訳さない。
- * 日本語の既定と意味を揃える（dg guide import の優先度の判断基準と同じ内容）。l10n.test.ts が 3 つの値の揃いを確かめる
+ * 日本語の既定と意味を揃える（dg guide import の「Priority criteria」と同じ内容）。l10n.test.ts が 3 つの値の揃いを確かめる
  */
 export const PRIORITY_CRITERIA_EN: Readonly<Record<"high" | "medium" | "low", string>> = {
   high: "User-visible bugs, documents that mislead users, exploitable vulnerabilities, license omissions, failing checks, and anything blocking other tickets",

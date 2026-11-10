@@ -1,12 +1,12 @@
 ---
 name: dgassign
-description: deguboard のチケットを Iteration（スプリント）と Epic に割り当てる。Iteration を指定すると未割り当ての todo を入れるかどうか判断し、指定がなければ内容に合う Iteration・Epic（新設を含む）を提案する。早めに対応した方がよいものは進行中の Iteration に入れる。「スプリントに入れて」「Epic にまとめて」「割り振って」と頼まれたときに使う。
-argument-hint: "[Iteration|Epic|チケットの ID...]"
+description: Assigns deguboard tickets to Iterations (sprints) and Epics. When an Iteration is given, decides whether to put each unassigned todo into it. When none is given, proposes an Iteration or Epic that fits (creating one if needed). Puts items that should be handled soon into the active Iteration. Use when asked「スプリントに入れて」「Epic にまとめて」「割り振って」.
+argument-hint: "[Iteration|Epic|ticket ID...]"
 ---
 
-<!-- dg skill sha256:bd8f3b70126dc7880c96350ef93bbffa65bf426ca2b0ffba9dcc645312e105f0 -->
+<!-- dg skill sha256:bd842be94a52753f7f03fda74afc3f2d410cd4710bdcafe64518109b719dfac3 -->
 
-# 割り当て（assign）
+# Assignment (assign)
 
 チケットを Iteration（スプリント）と Epic に割り当てます。
 
@@ -18,4 +18,4 @@ argument-hint: "[Iteration|Epic|チケットの ID...]"
 
 指定：$ARGUMENTS
 
-指定が空なら、手順の「対象を決める」に従う。
+指定が空なら、手順の「対象を決める」（英語の手順では "Deciding the target"）に従う。

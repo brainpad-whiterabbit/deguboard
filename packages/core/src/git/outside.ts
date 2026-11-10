@@ -243,12 +243,12 @@ export function describeOutside(changes: OutsideChanges): string {
   return parts.join("。");
 }
 
-/** 見つけたときの戻し方と取り込み方（dg adopt --help と戻し方が同じ。エージェントの扱いは dg guide overview の「dg の外の変更」） */
+/** 見つけたときの戻し方と取り込み方（dg adopt --help と戻し方が同じ。エージェントの扱いは dg guide overview の「Changes outside dg」） */
 export function outsideRemedy(changes: OutsideChanges): string {
   return (
     "データ（.git/deguboard/）は dg のコマンドでだけ書く。dg の外の変更を正しいと確かめたら dg adopt で取り込む" +
     "（検査を通してから今の状態を基準にする）。この版より前の dg（版の古い VS Code 拡張や CLI）が書いた変更も外の変更に見えるので、そのときは版を揃えてから dg adopt で取り込む。" +
     `捨てるなら、人が deguboard worktree で未コミットの変更を git restore --staged --worktree で戻し（足したファイルは消す。まとめ待ちの dg の変更も戻る）、` +
-    `dg の外のコミットを git reset --keep ${changes.baseline.slice(0, 12)} で外してから、dg adopt で今の状態を基準にする（エージェントの扱いは dg guide overview の「dg の外の変更」）`
+    `dg の外のコミットを git reset --keep ${changes.baseline.slice(0, 12)} で外してから、dg adopt で今の状態を基準にする（エージェントの扱いは dg guide overview の「Changes outside dg」）`
   );
 }

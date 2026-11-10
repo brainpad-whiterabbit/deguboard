@@ -1,12 +1,12 @@
 ---
 name: dgcheck
-description: deguboard のチケット・Epic・Iteration・Plan を点検し、dg sync・validate・lint の指摘と直す案を表で示して、承認を得てから直す。「チケットを点検して」「整合性を確認して」「Iteration を見直して」と頼まれたときや、計画を立てる前に使う。
-argument-hint: "[Iteration|Epic|チケットの ID...]"
+description: Checks deguboard tickets, Epics, Iterations, and Plans. Shows the findings from dg sync, validate, and lint with fix proposals in a table, and fixes them only after approval. Use when asked「チケットを点検して」「整合性を確認して」「Iteration を見直して」, or before making a plan.
+argument-hint: "[Iteration|Epic|ticket ID...]"
 ---
 
-<!-- dg skill sha256:f3aac7292fdd90494b0730bc84c466f5fce4da8fdc50ec578b4cc2682d4cdbb3 -->
+<!-- dg skill sha256:644fc94e94c20d610c4a19d7be5da15fcf2ee2778a0b6f5d291423469379286c -->
 
-# 点検（check）
+# Check (check)
 
 チケット・Epic・Iteration・Plan を点検し、直す案を示して承認を得てから直します。
 
@@ -18,4 +18,4 @@ argument-hint: "[Iteration|Epic|チケットの ID...]"
 
 指定：$ARGUMENTS
 
-指定が空なら、手順の「対象を決める」に従う。
+指定が空なら、手順の「対象を決める」（英語の手順では "Deciding the target"）に従う。

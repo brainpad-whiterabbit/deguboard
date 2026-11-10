@@ -4,7 +4,7 @@ description: deguboard のマージ済みのチケットを照合して done を
 argument-hint: "[チケットの ID...|Plan の ID|Iteration]"
 ---
 
-<!-- dg skill sha256:42765fef15cb26145d4e38e8cd38a306b0f5f864495f090d173da232bd860c27 -->
+<!-- dg skill sha256:56576392cb939a72b5c4da518674d0046edf7539bc92bee18236469dc8ff0539 -->
 
 # 完了（done）
 
@@ -18,4 +18,4 @@ argument-hint: "[チケットの ID...|Plan の ID|Iteration]"
 
 指定：$ARGUMENTS
 
-指定が空なら、手順の「対象を決める」に従う。
+指定が空なら、手順の「対象を決める」（英語の手順では "Deciding the target"）に従う。

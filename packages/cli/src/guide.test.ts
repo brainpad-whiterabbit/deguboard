@@ -27,10 +27,10 @@ describe("dg guide の出力（本文の組み立て）", () => {
     expect((await renderGuide("work", dir, "実装する（draft の PR まで）")).text).toMatchSnapshot(
       "work の節",
     );
-    expect((await renderGuide("import", dir, "次の手順を選ぶ")).text).toMatchSnapshot(
+    expect((await renderGuide("import", dir, "Choosing the next step")).text).toMatchSnapshot(
       "import の節",
     );
-    expect((await renderGuide("plan", dir, "Plan の作り方")).text).toMatchSnapshot(
+    expect((await renderGuide("plan", dir, "Creating a Plan")).text).toMatchSnapshot(
       "plan の節（見出し）",
     );
   });
@@ -72,6 +72,9 @@ function bullet(text: string, name: string): string {
   return text.split("\n").find((line) => line.replace(/\*\*/g, "").startsWith(`- ${name}：`)) ?? "";
 }
 
+/** 英語に直したトピック（guide-*.md の本文が英語。選択肢の節は共通で英語） */
+const ENGLISH_TOPICS = new Set(["overview", "choices", "import", "assign", "check", "plan"]);
+
 describe("dg guide", () => {
   it("すべてのトピックが読め、見出しで始まり、未知の項目を残さない", async () => {
     for (const topic of GUIDE_TOPICS) {
@@ -92,31 +95,38 @@ describe("dg guide", () => {
       }
       expect(meta.description, topic).toBeTruthy();
       expect(meta["argument-hint"], topic).toBeTruthy();
-      for (const heading of ["## 対象を決める", "## 選択肢で聞く", "## 次の手順を選ぶ"])
+      // 英語に直した手順（overview・choices・import・assign・check・plan）は英語の見出し。選択肢の節は共通で英語
+      const english = ENGLISH_TOPICS.has(topic);
+      const target = english ? "## Deciding the target" : "## 対象を決める";
+      for (const heading of [target, "## Asking with choices"])
         expect(text, `${topic} ${heading}`).toContain(heading);
       expect(text, topic).not.toContain("{{choices}}");
     }
   });
 
   it("次の手順は Skill がなければ dg guide を読んで続けると案内する", async () => {
-    const choices = lineWith(await readGuide("import"), "次の手順が選ばれたら");
-    for (const word of ["Skill", "使えなければ", "`dg guide <topic>`", "その手順で続ける"])
+    const choices = lineWith(await readGuide("import"), "When the next step is chosen");
+    for (const word of ["Skill", "If not", "`dg guide <topic>`", "continue with that step"])
       expect(choices).toContain(word);
-    expect(lineWith(await readGuide("overview"), "Skill は任意")).toContain("dg guide <topic>");
+    expect(lineWith(await readGuide("overview"), "A Skill is optional")).toContain(
+      "`dg guide <topic>`",
+    );
     for (const topic of GUIDE_TOPICS) {
-      const next = section(await readGuide(topic), "## 次の手順を選ぶ");
+      const english = ENGLISH_TOPICS.has(topic);
+      const next = section(
+        await readGuide(topic),
+        english ? "## Choosing the next step" : "## 次の手順を選ぶ",
+      );
       for (const line of next.split("\n").filter((l) => l.includes("`/dg"))) {
-        expect(line, topic).toContain("Skill があれば");
+        expect(line, topic).toContain(english ? "if a Skill is available" : "Skill があれば");
         expect(line, topic).toContain("dg guide");
       }
     }
   });
 
   it("import は受け入れ条件が 7 項目以上のチケットを分けることを、根拠とともに勧める", async () => {
-    const tips = section(await readGuide("import"), "## よいチケットの書き方");
-    expect(tips).toMatch(
-      /受け入れ条件が 7 項目以上[\s\S]*?分けることを勧める[\s\S]*?10 件のうち 9 件/,
-    );
+    const tips = section(await readGuide("import"), "## How to write a good ticket");
+    expect(tips).toMatch(/7 or more acceptance criteria[\s\S]*?recommend splitting[\s\S]*?9 of 10/);
   });
 
   it("work と done は ticket check を案内し、本文全体を書き戻す手順を残さない", async () => {
@@ -153,7 +163,7 @@ describe("dg guide", () => {
     // サブエージェントの Run の開閉・--agent・開いたままの警告は書かない
     for (const word of ["--agent", "フック", "--no-run", "run start", "開いたまま"])
       expect(run, word).not.toContain(word);
-    expect(await readGuide("overview")).toContain("`ticket claim` が開く");
+    expect(await readGuide("overview")).toContain("`ticket claim` opens");
   });
 
   it("review は文書との食い違いを、この PR が変えた約束・手順・規約で文書を直していないものに限って重い指摘にし、前からのずれは audit に送る。参考節との食い違いは軽い指摘として返し、参考節がなければ見比べないと案内し、直さなかった軽い指摘は dg pr ready が PR の本文に書き足すと決める", async () => {
@@ -209,8 +219,9 @@ describe("dg guide", () => {
   });
 
   it("import は受け入れ条件に ADR や要件の書き足しを入れるのを判断の種類に当たるときだけにし、それ以外はテストとコメントで約束を示すと案内する", async () => {
-    const criteria = lineWith(await readGuide("import"), "受け入れ条件に ADR や要件定義書");
-    for (const word of ["移行が要る", "テストとコメント"]) expect(criteria, word).toContain(word);
+    const criteria = lineWith(await readGuide("import"), "Add a requirement document or ADR");
+    for (const word of ["migration to reverse", "tests and comments"])
+      expect(criteria, word).toContain(word);
   });
 
   it("同梱の guide（guide-*.md の全部）は、このリポジトリの ADR 番号を書かない（基準は中身を 1 文で書く）", async () => {
@@ -222,11 +233,11 @@ describe("dg guide", () => {
   });
 
   it("import は本文の項目の引用しない値の行末コメントが拒まれると書き、直し方はエラーの文に任せる", async () => {
-    const comment = lineWith(await readGuide("import"), "行末コメントは拒まれる");
+    const comment = lineWith(await readGuide("import"), "trailing comment on an unquoted value");
     for (const word of [
-      "title・summary・acceptance・body",
-      "直し方はエラーの文",
-      "行だけのコメントは使える",
+      "title, summary, acceptance, body",
+      "the error message says how to fix it",
+      "comment-only lines are allowed",
     ])
       expect(comment, word).toContain(word);
   });
@@ -262,7 +273,7 @@ describe("dg guide", () => {
     expect(plan).not.toContain("まだない");
     for (const command of ["plan create", "plan approve", "plan show", "--after", "--scope"])
       expect(plan).toContain(command);
-    expect(plan).toContain("人の承認を得ないまま approve しない");
+    expect(plan).toContain("Do not approve without a human's approval");
     expect(plan).toContain("plan.approve");
     for (const word of ["plan show", "`next`", "`ready`", "waiting", "scope", "approach"])
       expect(work).toContain(word);
@@ -306,16 +317,15 @@ describe("dg guide", () => {
     for (const word of [
       "lint_iteration_missing",
       "iteration add <S> <id>",
-      "人に聞く",
+      "ask a human whether",
       "ticket claim --help",
     ])
       expect(check, word).toContain(word);
-    for (const text of [work, check]) {
-      expect(fillPlaceholders(text, defaultConfig())).toContain("今の設定：`false`");
-      expect(
-        fillPlaceholders(text, { ...defaultConfig(), lint: { require_iteration: true } }),
-      ).toContain("今の設定：`true`");
-    }
+    expect(fillPlaceholders(work, defaultConfig())).toContain("今の設定：`false`");
+    expect(fillPlaceholders(check, defaultConfig())).toContain("Current setting: `false`");
+    expect(
+      fillPlaceholders(check, { ...defaultConfig(), lint: { require_iteration: true } }),
+    ).toContain("Current setting: `true`");
   });
 
   it("work は段階のモデルを dg next の model に任せ、調べものは models.light。{{models.*}} は埋めない。見直し役は親のモデル", async () => {
@@ -332,8 +342,8 @@ describe("dg guide", () => {
 
   it("check は lint_iteration_multiple_active でどれを閉じるかを人に聞き、閉じるのは人の指示で行う", async () => {
     const multiple = lineWith(await readGuide("check"), "lint_iteration_multiple_active");
-    expect(multiple).toContain("どれを閉じるかを人に聞く");
-    expect(multiple).toContain("人の指示で行う");
+    expect(multiple).toContain("ask a human which one to close");
+    expect(multiple).toContain("only on a human's instruction");
   });
 
   it("parallel は next の手が複数あるとき上限付きでサブエージェントに並べ、1 件でほかを止めないと案内し、work・all はそこへ案内する", async () => {
@@ -411,19 +421,19 @@ describe("dg guide", () => {
   it("plan の手順 4 は参考節のファイルが重なるチケットを並行させず after でつなぎ、参考節のないチケットは依存と優先度で順を決めると案内する", async () => {
     const order = step(await readGuide("plan"), 4);
     for (const word of [
-      "## 参考",
-      "重なる",
-      "並行させず",
+      "## References",
+      "overlap",
+      "do not run them in parallel",
       "`after`",
-      "参考節のないチケット",
-      "依存と優先度",
+      "Tickets without a references section",
+      "dependencies and priority",
     ])
       expect(order, word).toContain(word);
     // つなぐ判断 → 参考節のないチケットは対象外 → 従来どおり依存と優先度、の順
     expect(order).toMatch(
-      /並行させず `after` でつなぐ[\s\S]*?参考節のないチケット[\s\S]*?依存と優先度/,
+      /do not run them in parallel[\s\S]*?`after`[\s\S]*?Tickets without a references section[\s\S]*?dependencies and priority/,
     );
-    expect(await readGuide("import")).toContain("並行させず `after` でつなぐ");
+    expect(await readGuide("import")).toContain("with `after` instead of running them in parallel");
   });
 
   it("review は版上げの PR で見直しを省ける条件を品質ゲートに書き、release はそこへ案内する", async () => {
@@ -511,8 +521,8 @@ describe("dg guide", () => {
   it("--section の本文でも {{choices}} の差し替えと config の値の埋め込みが効く", async () => {
     const local = await createLocalOnlyRepo();
     cleanups.push(local.cleanup);
-    const choices = await dg(local.dir, ["guide", "plan", "--section", "選択肢で聞く"]);
-    expect(choices.out.startsWith("## 選択肢で聞く")).toBe(true);
+    const choices = await dg(local.dir, ["guide", "plan", "--section", "Asking with choices"]);
+    expect(choices.out.startsWith("## Asking with choices")).toBe(true);
     expect(choices.out).not.toContain("{{");
     expect(choices.out).toContain("AskUserQuestion");
     const claim = await dg(local.dir, ["guide", "work", "--section", "claim の前後"]);

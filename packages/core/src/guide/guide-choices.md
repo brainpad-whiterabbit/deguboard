@@ -1,9 +1,9 @@
-## 選択肢で聞く
+## Asking with choices
 
-チケットは、起票（`dg guide import`）→ 割り当て（`dg guide assign`）→ 点検（`dg guide check`）→ 計画（`dg guide plan`）→ 作業（`dg guide work`）→ 見直し（`dg guide audit`。Iteration か Epic が終わったとき）→ リリース（`dg guide release`。リリースの手順がなければ `dg guide done` で片付ける）の順に進める。完了（`dg guide done`）はマージのたびに挟む。割り当てからリリースまで続けて進めるのは `dg guide all`。人に判断を求めるとき（承認・修正・どれを選ぶか）と、手順を終えて次の手順を決めるときは、選択肢を示して聞く。
+Tickets advance in this order: import (`dg guide import`) → assign (`dg guide assign`) → check (`dg guide check`) → plan (`dg guide plan`) → work (`dg guide work`) → audit (`dg guide audit`, when an Iteration or Epic ends) → release (`dg guide release`; if there are no release steps, clean up with `dg guide done`). Done (`dg guide done`) comes after every merge. To carry on from assign through release, use `dg guide all`. When asking a human for a decision (approval, correction, which one to choose), and when a step is finished and the next step must be decided, show the choices and ask.
 
-- 選択肢を出せるエージェントでは、その仕組みで聞く（Claude Code では AskUserQuestion ツール）。出せなければ、番号を付けた選択肢を文で示す
-- 判断の材料（表・計画・PR の一覧など）は選択肢の前に示す。選択肢の説明だけで判断させない
-- 選択肢は 2〜4 個にし、勧めるものを先頭に置いて理由を添える。修正の中身のように選択肢にできない答えは、選択肢の外の自由な入力で受ける
-- 複数を選べる問い（反映する行など）は複数選択で聞く。削除・abandoned・閉じる操作は 1 件ずつ聞く
-- 次の手順を決めるときは、流れの次の手順と「ここで止める」を選択肢にする（各手順の「次の手順を選ぶ」）。次の手順が選ばれたら、Skill（例 `/dgwork p3`）が使えるならそれを起動し、使えなければ `dg guide <topic>` を読んでその手順で続ける。いまの手順の中で、次の手順の作業をしない
+- When the agent can offer choices, ask with that mechanism (in Claude Code, the AskUserQuestion tool). If it cannot, show the numbered choices in text
+- Show the material for the decision (tables, Plans, lists of PRs) before the choices. Do not ask for a decision with only the choices' descriptions
+- Offer 2 to 4 choices, put the recommended one first, and give its reason. An answer that cannot be a choice, such as the content of a correction, is taken as free input outside the choices
+- Ask questions where several can be chosen (such as which lines to reflect) with multiple selection. Ask about deletion, abandoned, and close operations one at a time
+- When deciding the next step, make the next step in the flow and "stop here" the choices (see the "Choosing the next step" section of each guide). When the next step is chosen, if a Skill is available (for example `/dgwork p3`), start it. If not, read `dg guide <topic>` and continue with that step. Do not do the next step's work inside the current step.

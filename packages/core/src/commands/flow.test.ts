@@ -316,7 +316,7 @@ describe("FLOW_GUIDE（段階の節）", () => {
         // 日本語は「」（`dg guide <topic>` の「…」の形も含む）、英語は "" の section（of の後ろにトピックがなければ同じトピック）
         const refs = [
           ...s.text.matchAll(/(?:`dg guide ([a-z]+)`\s*の)?「([^」]+)」/g),
-          ...s.text.matchAll(/"([^"]+)"(?: \([^)]*\))? section(?: of `dg guide ([a-z]+)`)?/g),
+          ...s.text.matchAll(/"([^"]+)"(?: \([^)]*\))? section(?: of `?dg guide ([a-z]+)`?)?/g),
         ].map((m) =>
           m[0].startsWith('"') ? { topic: m[2], name: m[1] } : { topic: m[1], name: m[2] },
         );
@@ -362,14 +362,14 @@ describe("dg flow next", () => {
       stage: { name: "assign", rule: 1, tickets: ["t2"] },
       guide: {
         topic: "assign",
-        sections: ["割り当てを提案するとき", "Iteration"],
-        command: "dg guide assign --section 割り当てを提案するとき --section Iteration",
+        sections: ["When proposing an assignment", "Iteration"],
+        command: 'dg guide assign --section "When proposing an assignment" --section Iteration',
       },
       commands: ["dg --json --actor agent iteration add s1 <入れるチケット…>"],
       approval: { required: true, what: "入れる行" },
     });
     // guide.text は段階の節の本文を順につないだもの（手順の節の見出しから始まり、config を埋めたもの）
-    expect(assign.guide.text.startsWith("## 割り当てを提案するとき")).toBe(true);
+    expect(assign.guide.text.startsWith("## When proposing an assignment")).toBe(true);
     expect(assign.guide.text).toContain("\n\n## Iteration\n");
     const check = await flow(ctx, { resume: assign.resume });
     expect(check.stage).toMatchObject({ name: "check", rule: 2 });

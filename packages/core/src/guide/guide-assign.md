@@ -1,56 +1,56 @@
 ---
-description: deguboard のチケットを Iteration（スプリント）と Epic に割り当てる。Iteration を指定すると未割り当ての todo を入れるかどうか判断し、指定がなければ内容に合う Iteration・Epic（新設を含む）を提案する。早めに対応した方がよいものは進行中の Iteration に入れる。「スプリントに入れて」「Epic にまとめて」「割り振って」と頼まれたときに使う。
-argument-hint: "[Iteration|Epic|チケットの ID...]"
+description: Assigns deguboard tickets to Iterations (sprints) and Epics. When an Iteration is given, decides whether to put each unassigned todo into it. When none is given, proposes an Iteration or Epic that fits (creating one if needed). Puts items that should be handled soon into the active Iteration. Use when asked「スプリントに入れて」「Epic にまとめて」「割り振って」.
+argument-hint: "[Iteration|Epic|ticket ID...]"
 ---
 
-# 割り当て（assign）
+# Assignment (assign)
 
-チケットを Iteration（期間の計画。`sprint` はエイリアス）と Epic（目的の束ね）に入れる。
+Puts tickets into Iterations (a period of planning. `sprint` is an alias) and Epics (grouping by purpose).
 
-## 対象を決める
+## Deciding the target
 
-- Iteration（`s3`）：未割り当ての todo を、その Iteration に入れるか入れないか 1 枚ずつ判断する
-- Epic（`e3`）：Epic のないチケットのうち、目的が合うものを入れる案を作る
-- チケットの ID：そのチケットに合う Iteration と Epic を提案する（なければ作ることを提案する）
-- 指定が空：active の Iteration（なければ planned のもの）を勧めて確かめ、未割り当ての todo を対象にする
+- Iteration (`s3`): decides one by one whether to put each unassigned todo into that Iteration
+- Epic (`e3`): makes a proposal of tickets that have no Epic and fit its purpose
+- Ticket ID: proposes an Iteration and Epic that fit that ticket (if none fit, propose creating one)
+- No target given: suggests the active Iteration (or a planned one if there is none) and confirms it, then targets unassigned todos
 
 ## Iteration
 
-- 一覧：`dg --json --actor agent iteration list`（`status` は planned / active / closed）
-- 作る：`dg --json --actor agent iteration create "<名前>" --goal "<目標>" --start 2026-11-01 --end 2026-11-14`
-- 直す：`dg --json --actor agent iteration update <s3> --goal "<目標>"`。`--name`・`--start`・`--end` も、指定したものだけ変わる。閉じた Iteration も直せる
-- 入れる：`dg --json --actor agent iteration add <s3> <t12> <t13>`。別の Iteration に入っていたチケットは移る
-- 外す：`dg --json --actor agent iteration remove <s3> <t12>`
-- 開始：`dg --json --actor agent iteration start <s3>`（planned → active）。active は Project に 1 つで、ほかに active があれば開始も再開も拒否される。前のものを閉じるかは人に聞く
-- 閉じる：`dg --json --actor agent iteration close <s3>`。持ち越したチケットは Iteration から外れる。人の指示で閉じる（制限は `dg guide overview`）
-- 再開：`dg --json --actor agent iteration reopen <s3>`。active に戻る。持ち越したチケットは戻らないので `iteration add` で入れ直す。人の指示で行う
+- List: `dg --json --actor agent iteration list` (`status` is planned / active / closed)
+- Create: `dg --json --actor agent iteration create "<name>" --goal "<goal>" --start 2026-11-01 --end 2026-11-14`
+- Update: `dg --json --actor agent iteration update <s3> --goal "<goal>"`. `--name`, `--start`, and `--end` also change only what is specified. A closed Iteration can also be updated
+- Add: `dg --json --actor agent iteration add <s3> <t12> <t13>`. A ticket that was in another Iteration moves
+- Remove: `dg --json --actor agent iteration remove <s3> <t12>`
+- Start: `dg --json --actor agent iteration start <s3>` (planned → active). Only one Iteration in a Project can be active. If another one is active, both starting and reopening are refused. Ask a human whether to close the previous one
+- Close: `dg --json --actor agent iteration close <s3>`. Tickets carried over are removed from the Iteration. Close only on a human's instruction (limits: see `dg guide overview`)
+- Reopen: `dg --json --actor agent iteration reopen <s3>`. Returns to active. Carried-over tickets do not return, so add them again with `iteration add`. Do this only on a human's instruction
 
 ## Epic
 
-- 一覧と進捗：`dg --json --actor agent epic list`（`progress.done / progress.total`）
-- 入れる：`dg --json --actor agent epic add <e3> <t12> <t13>`。同じ Project のチケットだけ。閉じた Epic には入れられない
-- 外す：`dg --json --actor agent epic remove <e3> <t12>`
-- 閉じる・再開する：`dg --json --actor agent epic close <e3>` / `epic reopen <e3>`。done・abandoned 以外が残っていれば拒否され、`--force` で閉じられる。人の指示で閉じる（制限は `dg guide overview`）
+- List and progress: `dg --json --actor agent epic list` (`progress.done / progress.total`)
+- Add: `dg --json --actor agent epic add <e3> <t12> <t13>`. Only tickets in the same Project. A closed Epic cannot take tickets
+- Remove: `dg --json --actor agent epic remove <e3> <t12>`
+- Close and reopen: `dg --json --actor agent epic close <e3>` / `epic reopen <e3>`. If anything other than done or abandoned remains, it is refused, and `--force` closes it anyway. Close only on a human's instruction (limits: see `dg guide overview`)
 
-## 担当者
+## Assignee
 
-- 人かその AI に担当を付ける：`dg --json --actor agent ticket update <t12> --assignee human`（ユーザ本人）、`--assignee agent`（ユーザの AI）、`--assignee <ID>`（別のユーザ。`bob` や `bob/agent`）。外すのは `--assignee none`
-- 担当は予定の印で、排他ではない。着手は claim で決まり、claim した主体が担当者になる
-- チケットを起票するなら、`dg guide import` の「起票者と担当者」の扱い（`--created-by`）に従う
+- Assign a human or their AI: `dg --json --actor agent ticket update <t12> --assignee human` (the user), `--assignee agent` (the user's AI), `--assignee <ID>` (another user, such as `bob` or `bob/agent`). Remove it with `--assignee none`
+- An assignee is a planned mark, not exclusive. Starting work is decided by claim, and the claiming actor becomes the assignee
+- If you file a ticket, follow the "Creator and assignee" section of `dg guide import` (`--created-by`)
 
-## 割り当てを提案するとき
+## When proposing an assignment
 
-1. Iteration の目標と期間、入っているチケットを `dg --json --actor agent iteration show <s3>` で読む
-2. 未割り当ての todo（`dg --json --actor agent ticket list --status todo` のうち `iteration` がないもの）を集め、目標に合うものと依存の順を見て案を作る
-3. 入れる・入れないの理由を 1 行ずつ添えた表を見せ、入れる行を複数選択で選んでもらってから `iteration add` する
-4. 早めに対応した方がよいもの（不具合など）は進行中の Iteration に入れることを提案する
+1. Read the Iteration's goal and period and the tickets in it with `dg --json --actor agent iteration show <s3>`
+2. Collect the unassigned todos (those without an `iteration`, from `dg --json --actor agent ticket list --status todo`). Make a proposal from the ones that fit the goal, looking at the order of dependencies
+3. Show a table with one line for each, giving the reason for putting it in or not. Have a human select the rows to put in with multiple selection, then run `iteration add`
+4. For items that should be handled soon (such as bugs), propose putting them into the active Iteration
 
 {{choices}}
 
-## 次の手順を選ぶ
+## Choosing the next step
 
-割り当てたら、次の選択肢で聞く。
+After assigning, ask with these choices.
 
-- **点検する**：割り当てたチケットの本文や Epic の食い違いを `dg guide check` の手順で直す（Skill があれば `/dgcheck s3`）
-- **計画を立てる**（勧める）：割り当てた Iteration のチケットを `dg guide plan` の手順で進める順に並べる（Skill があれば `/dgplan s3`）
-- **ここで止める**
+- **Check**: fix the mismatches in the assigned tickets' bodies and Epics by the steps of `dg guide check` (if a Skill is available, `/dgcheck s3`)
+- **Make a plan** (recommended): arrange the assigned Iteration's tickets in the order of advancing by the steps of `dg guide plan` (if a Skill is available, `/dgplan s3`)
+- **Stop here**
