@@ -88,6 +88,10 @@ const ENGLISH_TOPICS = new Set([
   "run",
   "parallel",
   "review",
+  "audit",
+  "release",
+  "done",
+  "all",
 ]);
 
 describe("dg guide", () => {
@@ -268,8 +272,8 @@ describe("dg guide", () => {
 
   it("audit は ADR の細部と実装のずれを「ADR の細部を消す」として起票し、意図した設計はテストかコメントで押さえる起票を勧める", async () => {
     const audit = await readGuide("audit");
-    expect(audit).toContain("「ADR の細部を消す」");
-    expect(section(audit, "## 同じ指摘を繰り返さない")).toContain("テストかコメント");
+    expect(audit).toContain('"Remove ADR details"');
+    expect(section(audit, "## Not repeating the same findings")).toContain("tests or comments");
   });
 
   it("work は PR の要らない作業を --without-branch で claim し、確かめたら done、残れば review と案内する。claim の warnings は「claim の前後」に任せ、Iteration の選び方は書き写さず、今の設定を埋める", async () => {
@@ -306,7 +310,7 @@ describe("dg guide", () => {
 
   it("all は --auto の範囲を config の auto.decisions と auto.merge に任せ、人が決める判断は聞いて止まる。自動マージは auto.merge を true にしたときだけ条件を確かめて行う", async () => {
     const all = await readGuide("all");
-    const auto = section(all, "## `--auto` で自動で選ぶ");
+    const auto = section(all, "## Choosing automatically with `--auto`");
     for (const word of [
       "approval.auto",
       "approval.what",
@@ -314,16 +318,16 @@ describe("dg guide", () => {
       "auto.decisions",
       "auto.merge",
       "dg guide review",
-      "人が決める判断",
+      "Decisions a human makes",
     ])
       expect(auto).toContain(word);
-    expect(fillPlaceholders(all, defaultConfig())).toContain("今の設定：`false`");
+    expect(fillPlaceholders(all, defaultConfig())).toContain("current setting: `false`");
     expect(fillPlaceholders(all, defaultConfig())).toContain(
-      "今の設定：`assign, check, plan, audit, accept`",
+      "current setting: `assign, check, plan, audit, accept`",
     );
     expect(
       fillPlaceholders(all, { ...defaultConfig(), auto: { ...defaultConfig().auto, merge: true } }),
-    ).toContain("今の設定：`true`");
+    ).toContain("current setting: `true`");
     expect(await readGuideMeta("all")).toMatchObject({
       "argument-hint": expect.stringContaining("--auto"),
     });
@@ -438,7 +442,7 @@ describe("dg guide", () => {
     // 作業の guide は review を参照し、条件の中身は review に書く
     for (const topic of ["work", "all"] as const)
       expect(await readGuide(topic), topic).toContain("`dg guide review`");
-    expect(lineWith(await readGuide("all"), "todo に戻さず")).toContain("返らない");
+    expect(lineWith(await readGuide("all"), "not put back to todo")).toContain("did not return");
   });
 
   it("plan・work・parallel・all・run・review は plan の Run を案内しない", async () => {
@@ -474,8 +478,8 @@ describe("dg guide", () => {
     ])
       expect(gate).toContain(word);
     const release = await readGuide("release");
-    const steps = section(release, "## リリースの手順");
-    for (const word of ["`dg guide review`", "Quality gate", "版上げの条件"])
+    const steps = section(release, "## Release steps");
+    for (const word of ["`dg guide review`", "Quality gate", "version-bump conditions"])
       expect(steps).toContain(word);
     // 条件の中身は review にだけ書く
     expect(release).not.toContain("コード・文書・手順を変えない");

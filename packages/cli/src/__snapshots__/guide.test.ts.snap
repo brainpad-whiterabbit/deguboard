@@ -1,64 +1,64 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
 exports[`dg guide の出力（本文の組み立て） > トピックごとの本文と、節の本文が変わらない > all 1`] = `
-"# 一気通し（all）
+"# End to end (all)
 
-Iteration かチケットを、割り当てからリリースまでの流れで続けて進める。今の段階と次の手は \`dg flow next\` が求めるので、ここには返った手の行い方だけを書く。
+Advances an Iteration or tickets from assignment to release, in one flow. The current stage and the next step come from \`dg flow next\`, so this guide only describes how to do each step it returns.
 
-## 対象を決める
+## Deciding the target
 
-- Iteration（\`s3\`）：その Iteration のチケットと、そこに入れる候補（Iteration に入っていない todo）。候補を扱うのは割り当ての段階だけ
-- チケットの ID（1 つ以上）か Plan の ID（\`p7\`）：その対象を扱う。見直しとリリースは、対象のチケットの Iteration のチケットがすべて終わったときだけ、その Iteration を対象に行う。Iteration に入っていなければ見直しとリリースはしない
-- 指定が空：\`dg guide release\` の「対象を決める」と同じ
-- \`--no-assign\`：割り当ての段階を飛ばす。点検で Iteration に入れる案が出ても反映せず、終わりの報告に残す
-- \`--auto\`：下の「\`--auto\` で自動で選ぶ」。\`--no-assign\` と一緒に指定できる
+- Iteration (\`s3\`): the tickets of that Iteration, and the candidates to put into it (todos not in an Iteration). Candidates are handled only in the assignment stage
+- Ticket ID (one or more) or Plan ID (\`p7\`): advances that target. Audit and release run for a ticket's Iteration only when all the tickets of that Iteration are finished. If the ticket is not in an Iteration, audit and release do not run
+- No target given: the same as the "Deciding the target" section of \`dg guide release\`
+- \`--no-assign\`: skips the assignment stage. If the check suggests putting tickets into an Iteration, it does not apply the suggestion and leaves it in the final report
+- \`--auto\`: see "Choosing automatically with \`--auto\`" below. It can be combined with \`--no-assign\`
 
-以下の \`<S>\` は対象の Iteration。聞かずに始め、閉じるのは人の指示で行う。
+Below, the target Iteration is written as \`<S>\`. The flow starts without asking, and closing is done only on a human's instruction.
 
-## 段階
+## Stages
 
-段階の順と今の段階は \`dg flow next\` が決める。承認を求める場所は次のとおりで、各段階の手順もそこで承認を得る。
+The order of stages and the current stage are decided by \`dg flow next\`. Approval is asked in the places below, and each stage's steps also get approval there.
 
-| 段階     | 承認を求める場所                     |
-| -------- | ------------------------------------ |
-| 割り当て | 入れる行                             |
-| 点検     | 直す行、削除・abandoned・閉じる      |
-| 計画     | Plan                                 |
-| 作業     | PR ごとのマージ（\`dg guide done\`）   |
-| 見直し   | 指摘の表                             |
-| リリース | リリースの PR のマージ・公開・閉じる |
+| Stage   | Where approval is asked                      |
+| ------- | -------------------------------------------- |
+| Assign  | Rows to put in                               |
+| Check   | Rows to fix; deletion, abandoned, closing    |
+| Plan    | Plan                                         |
+| Work    | Merge of each PR (\`dg guide done\`)           |
+| Audit   | Table of findings                            |
+| Release | Merge of the release PR, publishing, closing |
 
-## 流れの進め方
+## Running the flow
 
-1. 始めるときと、段階の手を終えるたびに \`dg --json --actor agent flow next <対象…>\` を呼ぶ（\`--auto\`・\`--no-assign\` は指定があれば付ける）。返りの \`stage.name\` が今の段階（\`assign\`・\`check\`・\`plan\`・\`work\`・\`audit\`・\`release\`・\`stop\`）、\`commands\` が呼ぶ dg のコマンド（順に）、\`guide.text\` が段階の手のやり方（\`guide.sections\` の節を順につないだ本文で、手順の節が指す同じトピックの節をすべて含む）、\`approval\` が承認の要否と場所
-2. \`stage\` の手を行う。\`commands\` を順に行い、\`guide.text\` のとおりに進める（読み直すときは \`guide.command\`）。段階のトピックの全体は読み直さない。\`guide.text\` がほかのトピックを案内したとき（\`dg guide <topic>\` の「…」）だけ、そのトピックの節を読む
-   - \`work\` は \`dg guide parallel\` のとおり、件数によらずチケットごとにサブエージェントに任せる。親は進行・承認・\`dg\` の読み書きだけを行う
-   - \`release\` で、リポジトリの規約にリリースの手順がなければ、\`guide.text\` の「リリースの手順がないとき」に従う
-3. \`approval.required\` が true の場面は、\`approval.what\` を人に聞く。選択肢には「ここで止める」を入れる。\`--auto\` のときの扱いは下の「\`--auto\` で自動で選ぶ」
-4. 段階の手を終えたら（承認を得た・直した・行い終えた）、その返りの \`resume\` をそのまま \`--resume\` に写して、1 に戻る（\`dg --json --actor agent flow next <対象…> --resume <resume>\`）。値は組み立てない。割り当て・点検・見直しの手の途中で止めたとき（承認が得られなかった、見直しの指摘の表で止めた）は、その \`resume\` を写さずに止まる。再開するときは、その前に写した \`resume\` を渡すか、\`--resume\` なしで同じ対象と指定で呼ぶ。途中で止めた手の \`resume\` を写すと、その段階を終えたものとして飛ばす
-5. \`stage.name\` が \`stop\`、または \`repeated\` が null でないとき（同じ段階が続き、事実が変わらない）は、\`ask_human\` と状態を示して止まる
+1. Call \`dg --json --actor agent flow next <target…>\` when starting, and after finishing each stage (add \`--auto\` and \`--no-assign\` if given). In the result, \`stage.name\` is the current stage (\`assign\`, \`check\`, \`plan\`, \`work\`, \`audit\`, \`release\`, or \`stop\`); \`commands\` are the dg commands to call (in order); \`guide.text\` is how to do the stage (the sections in \`guide.sections\` joined in order, including all the sections of the same topic that the step section points to); and \`approval\` is whether approval is needed and where
+2. Do the stage's step. Run \`commands\` in order, and follow \`guide.text\` (to read it again, use \`guide.command\`). Do not read the whole guide of the stage's topic again. Read a section of another topic only when \`guide.text\` points to it (the "…" section of \`dg guide <topic>\`)
+   - \`work\` follows \`dg guide parallel\` whatever the number of tickets: each ticket is given to a subagent. The parent only advances, asks for approval, and reads and writes \`dg\`
+   - For \`release\`, if the repository's rules have no release steps, follow the "When there are no release steps" section of \`guide.text\`
+3. When \`approval.required\` is true, ask a human about \`approval.what\`. Include "Stop here" in the choices. For how \`--auto\` handles it, see "Choosing automatically with \`--auto\`" below
+4. After a stage's step is finished (approval obtained, fixed, or done), copy that result's \`resume\` as it is into \`--resume\`, and return to 1 (\`dg --json --actor agent flow next <target…> --resume <resume>\`). Do not assemble the value. If you stop midway through an assign, check, or audit step (approval was not obtained, or you stopped at the table of findings), stop without copying that \`resume\`. To resume, pass the \`resume\` copied before, or call without \`--resume\` using the same target and arguments. Copying the \`resume\` of a step stopped midway makes the flow skip that stage as finished
+5. When \`stage.name\` is \`stop\`, or \`repeated\` is not null (the same stage continues and the facts do not change), show \`ask_human\` and the state, and stop
 
-## 段階の間の進み方
+## Between stages
 
-- **段階の間は止まらない**：\`approval.required\` の場面以外では聞かず、次の \`flow next\` へ進む
-- **マージは \`auto.merge\` に従う**：\`auto.merge\`（今の設定：\`false\`）が true なら品質ゲートを満たす PR は \`--auto\` のとき自動でマージし、false なら人が行う。PR を出したら、マージを待つ間も次の手を進め、手がなければ止まる。マージの承認は \`approval\` のとおり
-- **失敗の扱い**：実装が失敗したチケットは \`dg guide parallel\` のとおり todo に戻し、それを待たないチケットを進める。見直し・手直しが failure で返った・返らないチケットは todo に戻さず、the "How to finish" section of \`dg guide review\` に従う
+- **No stopping between stages**: except where \`approval.required\` applies, do not ask, and call the next \`flow next\`
+- **Merge follows \`auto.merge\`**: if \`auto.merge\` (current setting: \`false\`) is true, a PR that passes the quality gate is merged automatically with \`--auto\`; if false, a human merges it. After a PR is put out, advance the next step while waiting for its merge. If there is no next step, stop. Approval for the merge follows \`approval\`
+- **Handling failures**: a ticket whose implementation failed goes back to todo, as in \`dg guide parallel\`, and tickets that do not wait for it advance. A ticket whose review or fix returned failure, or did not return, is not put back to todo, and follows the "How to finish" section of \`dg guide review\`
 
-## \`--auto\` で自動で選ぶ
+## Choosing automatically with \`--auto\`
 
-\`--auto\` のときは、聞かずに進めるのは次の 2 つだけで、\`approval.what\` に残るものは聞く。選んだものと判断の材料はその場で短く示す。
+With \`--auto\`, the flow proceeds without asking only in the following two cases. Whatever remains in \`approval.what\` is asked about. Briefly show what was chosen and the material for the decision on the spot.
 
-- \`approval.auto\` に書いたもの（勧める選択肢で進める。どの判断が入るかは config の \`auto.decisions\`（今の設定：\`assign, check, plan, audit, accept\`）と \`auto.merge\` が決める）
-- \`auto.decisions\` に \`accept\` があるときの、照合の後の受け入れ条件の確認（\`dg guide done\` の手順 3）
+- What is written in \`approval.auto\`: proceeds with the suggested option. Which decisions are included is decided by \`auto.decisions\` in config (current setting: \`assign, check, plan, audit, accept\`) and by \`auto.merge\`
+- The check of acceptance criteria after reconciling (step 3 of \`dg guide done\`), when \`accept\` is in \`auto.decisions\`
 
-マージと人が決める判断は、次のとおりに扱う。
+Merges and decisions a human makes are handled as follows.
 
-- PR のマージは、\`auto.merge\`（今の設定：\`false\`）が true のときだけ、the "Quality gate" section of \`dg guide review\` を満たす PR を \`dg --json --actor agent pr merge <id>\` で行う。方法とブランチを消すかは \`--method\`・\`--delete-branch\` を省いて config の \`merge.method\`・\`merge.delete_branch\`（今の設定：\`squash\`・\`false\`）に任せる。満たさなければ、満たさなかった条件を示して承認を求めて止まる
-- **人が決める判断は config によらず聞いて止まる**：リリースの PR のマージと公開（タグ・配布先）、チケットの削除・abandoned・done の取り消し、Epic・Iteration・Plan を閉じる・再開する。\`auto.merge\` が false のときのマージ。Plan の待ち（\`after\`）と範囲を変えること、\`--force\` の付く操作。勧めるものがない判断と、選択肢にできない答え
+- **A PR is merged** only when \`auto.merge\` (current setting: \`false\`) is true, and only a PR that meets the "Quality gate" section of \`dg guide review\` is merged with \`dg --json --actor agent pr merge <id>\`. Leave out \`--method\` and \`--delete-branch\`, so that config's \`merge.method\` and \`merge.delete_branch\` (current settings: \`squash\` and \`false\`) decide the method and whether the branch is deleted. If the PR does not meet the gate, show the conditions it did not meet, ask for approval, and stop
+- **Decisions a human makes are asked, and the flow stops, regardless of config**: merging and publishing the release PR (tags and destinations); deleting a ticket, abandoning it, or undoing done; closing or reopening an Epic, Iteration, or Plan; merging when \`auto.merge\` is false; changing a Plan's waits (\`after\`) and scope; operations with \`--force\`; decisions with no suggested option; and answers that cannot be a choice
 
-## 結果を伝える
+## Reporting the result
 
-流れの終わりに、段階ごとの結果を伝える（割り当て・点検で直した行・承認した Plan・出した PR とマージ・起票したチケット・リリースした版と Iteration の状態・反映しなかった割り当ての案・残ったチケット）。\`--auto\` のときは、自動で選んだ判断と、自動でマージした PR の条件の確かめの結果も伝える。
+At the end of the flow, report the result of each stage: the lines fixed in assign and check, the Plans approved, the PRs put out and merged, the tickets filed, the released version and the state of the Iteration, the assignment suggestions not applied, and the tickets left. With \`--auto\`, also report the decisions chosen automatically and the results of checking the conditions for PRs merged automatically.
 
 ## Asking with choices
 
@@ -70,12 +70,12 @@ Tickets advance in this order: import (\`dg guide import\`) → assign (\`dg gui
 - Ask questions where several can be chosen (such as which lines to reflect) with multiple selection. Ask about deletion, abandoned, and close operations one at a time
 - When deciding the next step, make the next step in the flow and "stop here" the choices (see the "Choosing the next step" section of each guide). When the next step is chosen, if a Skill is available (for example \`/dgwork p3\`), start it. If not, read \`dg guide <topic>\` and continue with that step. Do not do the next step's work inside the current step.
 
-## 次の手順を選ぶ
+## Choosing the next step
 
-止まったときは、止まった理由に合わせて次の選択肢で聞く。Iteration が閉じて流れを終えたとき（\`flow next\` の理由がそれ）は聞かずに結果を伝える。
+When the flow stops, ask with the following choices, according to the reason it stopped. When the Iteration is closed and the flow has ended (the reason \`flow next\` gives for that), report the result without asking.
 
-- **再開する**（マージを待って止まったとき勧める）：マージの後に \`dg guide all\` を読み直し、同じ対象と指定（\`--auto\` など）で \`flow next\` を呼んで続ける（Skill があれば \`/dgall <S>\`）
-- **ここで止める**"
+- **Resume** (recommended when it stopped waiting for a merge): after the merge, read \`dg guide all\` again, and call \`flow next\` with the same target and arguments (such as \`--auto\`) to continue (if a Skill is available, \`/dgall <S>\`)
+- **Stop here**"
 `;
 
 exports[`dg guide の出力（本文の組み立て） > トピックごとの本文と、節の本文が変わらない > assign 1`] = `
@@ -141,81 +141,81 @@ After assigning, ask with these choices.
 `;
 
 exports[`dg guide の出力（本文の組み立て） > トピックごとの本文と、節の本文が変わらない > audit 1`] = `
-"# 見直し（audit）
+"# Audit (audit)
 
-Iteration（か Epic）のチケットがすべて done になった後、リリースの前に、リポジトリ全体を観点ごとに見直し、指摘を承認を得てチケットにする。見直しではファイルを直さない。見つけたものはチケットにして、計画と PR を通して直す。起票の形と書き方は \`dg guide import\` に従う。
+After all tickets of an Iteration (or Epic) are done, and before release, reviews the whole repository by viewpoint, and after approval files the findings as tickets. The review does not change files. What is found becomes tickets, which are fixed through a plan and PRs. The form and writing of the tickets follow \`dg guide import\`.
 
-## 対象を決める
+## Deciding the target
 
-- Iteration（\`s3\`）・Epic（\`e3\`）：直すチケットを入れる先と、見直しを終えたかを判断する単位。見直す範囲はいつもリポジトリ全体
-- 指定が空：active の Iteration を勧めて確かめる。なければどれかを聞く。決めずに見直すと答えたら、指摘はどこにも入れずに起票する
-- 対象に done・abandoned 以外のチケットが残っていれば、見直しを始めてよいか確かめる
+- Iteration (\`s3\`) and Epic (\`e3\`): the place to put the tickets to fix, and the unit for deciding whether the review is finished. The range reviewed is always the whole repository
+- No target given: suggests the active Iteration and asks to confirm it. If there is none, asks which one. If the answer is to review without deciding a target, the findings are filed without putting them anywhere
+- If the target still has tickets that are neither done nor abandoned, confirm whether the review may start
 
-以下では対象の ID を \`<S>\` と書く。
+Below, the target's ID is written as \`<S>\`.
 
-## 見直しの手順
+## Audit steps
 
-1. **状態を読む**：\`dg --json --actor agent sync\` の後に、対象（\`iteration show <S>\` か \`epic show <S>\`）と、前回の見直しで起票したチケット（ラベルが \`audit-\` で始まるもの。\`ticket list --label\` で探す）を読む。リポジトリの規約（CLAUDE.md・README・開発の文書）から、正本とする文書・検査のコマンド・観点の足し外しを拾う。前回のリリースのタグ（\`git tag --sort=-creatordate\`）から、先に見る範囲（その後に変わったところ）を決める
-2. **一時 worktree を作る**：\`git fetch origin main\` の後、\`git worktree add --detach ../<repo>.worktrees/audit-<S> origin/main\`。残っていれば \`git worktree remove --force\` で消してから作る。続けて、規約が書く依存のインストール・ビルド・検査の全体をこの順に 1 回だけ実行し、成否と失敗の出力の末尾を控える。失敗しても止めない
-3. **観点を決める**：下の「観点」に規約の決まりを当てはめる。リポジトリにない対象の観点は理由を添えて飛ばす
-4. **観点ごとにサブエージェントで見直す**：下の「サブエージェントに任せる」のとおり、並べて走らせる
-5. **まとめて照合する**：観点の間で同じ対象・同じ食い違いの指摘を 1 つにする。下の「同じ指摘を繰り返さない」で、すでに扱ったものを除くか \`ticket update\` の案にする。読んだファイルの中身を、この手順を進めるセッションに持ち込まない
-6. **指摘の表を示す**：重大度の高い順に、次の表で示す。重大度が低の指摘は観点ごとに 1 行にまとめる。扱いは「起票」「\`ticket update <ID>\`」「直さない（理由）」のどれか
+1. **Read the state**: after \`dg --json --actor agent sync\`, read the target (\`iteration show <S>\` or \`epic show <S>\`) and the tickets filed by the previous review (those whose label starts with \`audit-\`; find them with \`ticket list --label\`). From the repository's rules (CLAUDE.md, README, development docs), take the documents that are the sources of truth, the check commands, and any additions or removals to the viewpoints. From the tag of the previous release (\`git tag --sort=-creatordate\`), decide the range to look at first (what changed after it)
+2. **Make a temporary worktree**: after \`git fetch origin main\`, run \`git worktree add --detach ../<repo>.worktrees/audit-<S> origin/main\`. If it remains, remove it with \`git worktree remove --force\` before making it. Then run the install, build, and whole check steps that the rules write, in this order, only once. Note the result of each, and the last part of the output on failure. Do not stop on failure
+3. **Decide the viewpoints**: apply the rules' decisions to the "Viewpoints" section below. For a viewpoint whose target is not in the repository, skip it and give the reason
+4. **Review by viewpoint with subagents**: run them side by side, as in the "Delegating to subagents" section below
+5. **Collect and match**: merge findings of the same target and the same mismatch across viewpoints into one. As in the "Not repeating the same findings" section below, remove those already handled, or make them \`ticket update\` proposals. Do not bring the contents of the files read into the session running this step
+6. **Show the table of findings**: in the table below, in order of severity from high to low. Put low-severity findings into one line per viewpoint. Handling is one of "File", "\`ticket update <ID>\`", or "Do not fix (reason)"
 
-   | #   | 観点 | 重大度 | 対象 | 指摘 | 置き場 | 扱い |
-   | --- | ---- | ------ | ---- | ---- | ------ | ---- |
+   | #   | Viewpoint | Severity | Target | Finding | Where | Handling |
+   | --- | --------- | -------- | ------ | ------- | ----- | -------- |
 
-7. **承認を得る**：反映する行を \`#\` の複数選択で 1 回だけ聞く（「反映しない」も入れる）。承認を得るまで書き込まない
-8. **反映する**：承認された行を、\`dg guide import\` の手順で起票する（下の「起票するチケット」）。重なるチケットには \`ticket update <ID> --acceptance\` や本文で指摘を足す
-9. **片付けて結果を伝える**：\`git worktree remove ../<repo>.worktrees/audit-<S>\` で消す（やめたときも）。消せなければ \`git -C <パス> status --short\` で変わったファイルを結果に挙げてから \`--force\` で消す。見た観点と飛ばした観点・起票したチケット・直さない指摘を伝える
+7. **Get approval**: ask once, with multiple selection (\`#\`), which rows to reflect (include "Do not reflect"). Write nothing until approval is obtained
+8. **Reflect**: file the approved rows by the steps of \`dg guide import\` (see the "Filing tickets" section below). For overlapping tickets, add the findings with \`ticket update <ID> --acceptance\` or in the body
+9. **Clean up and report the result**: remove the worktree with \`git worktree remove ../<repo>.worktrees/audit-<S>\` (also when stopped). If it cannot be removed, show the changed files from \`git -C <path> status --short\` in the result, then remove it with \`--force\`. Report the viewpoints reviewed and skipped, the tickets filed, and the findings not fixed
 
-見直しの実行（サブエージェント・読み取りのコマンド・一時 worktree）は承認を待たずに進める。承認を求めるのは手順 7 の 1 回だけ。
+Running the review (subagents, read-only commands, the temporary worktree) proceeds without waiting for approval. Approval is asked only once, in step 7.
 
-## 観点
+## Viewpoints
 
-| 観点           | 見ること                                                                                                   |
-| -------------- | ---------------------------------------------------------------------------------------------------------- |
-| 文書と実装     | 正本と実装の食い違い。実装も後続のチケットもない決めた作業。ADR の長さ・整理（起票は「起票するチケット」） |
-| テスト         | 仕様・受け入れ条件に対応するテストの抜け、不安定なテスト、理由のないスキップ、手順 2 の検査の失敗          |
-| アーキテクチャ | 規約にある構成・依存の向き・コードの規約への違反。使われていないコード、同じ処理の重複                     |
-| README         | 利用者向けの手順・コマンド・オプションが今の実装と合っているか。リンク切れ                                 |
-| 依存           | 既知の脆弱性、大きく古い・更新の止まった・使われていない依存、ライセンスの表記の漏れ                       |
-| 設定ファイル   | パッケージ・ビルド・lint・型検査・ツールの版の設定どうしの不整合、使われていない設定、規約の記述と違う設定 |
+| Viewpoint                    | What to check                                                                                                                                                                                                          |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Documents and implementation | Mismatches between the sources of truth and the implementation. Decided work with neither an implementation nor a follow-up ticket. The length and organization of ADRs (for filing, see the "Filing tickets" section) |
+| Tests                        | Missing tests for the specs and acceptance criteria, flaky tests, skips without a reason, failures of the checks in step 2                                                                                             |
+| Architecture                 | Violations of the structure, dependency direction, or code conventions in the rules. Unused code, duplicated processing                                                                                                |
+| README                       | Whether the steps, commands, and options for users match the current implementation. Broken links                                                                                                                      |
+| Dependencies                 | Known vulnerabilities; dependencies that are far behind, stopped being updated, or unused; missing license notices                                                                                                     |
+| Config files                 | Inconsistencies among the settings of packages, builds, lint, type checks, and tool versions; unused settings; settings that differ from what the rules write                                                          |
 
-観点の具体（見る文書・検査のコマンド）は規約から読み、ここに書かない。前回のリリースより後に変わったところを先に見る。
+The specifics of each viewpoint (the documents to read and the check commands) are read from the rules and are not written here. Look first at what changed since the previous release.
 
-## サブエージェントに任せる
+## Delegating to subagents
 
-観点ごとに 1 つのサブエージェントを起動し、並べて走らせる。この手順を進めるセッションは、まとめ・照合・表・承認・起票だけを行う。
+Start one subagent for each viewpoint, and run them side by side. This session only collects, matches, makes the table, asks for approval, and files tickets.
 
-- **渡すもの**：観点と見ること（上の表と規約の具体）・規約の場所・一時 worktree のパス・先に見る範囲（例 \`git diff <タグ>..origin/main\`）。テストの観点には手順 2 で控えた検査の結果も渡す
-- **してよいこと**：一時 worktree のファイルを読むこと。生成物を書かない読み取りのコマンド（audit・個別の lint や型検査など）を実行すること
-- **してはいけないこと**：依存のインストール・ビルドのし直し・検査の全体の実行・生成物を消すこと（同じ worktree を並べて使うので互いに壊す）。ファイルを直すこと。\`dg\` で書き込むこと
-- **返すもの**：指摘ごとに、対象（ファイルと行）・食い違いの両側・根拠（出力や文書の箇所）・重大度の案・直し方の案。指摘がなければ見た範囲
+- **What to pass**: the viewpoint and what to check (the table above and the specifics from the rules), the location of the rules, the path of the temporary worktree, and the range to look at first (for example \`git diff <tag>..origin/main\`). For the test viewpoint, also pass the results of the checks noted in step 2
+- **What it may do**: read files in the temporary worktree, and run read-only commands that write no generated files (audit, individual lint or type checks, and so on)
+- **What it must not do**: install dependencies, rebuild, run the whole check, or delete generated files (they share one worktree, so they would break each other). Fix files. Write with \`dg\`
+- **What it returns**: for each finding, the target (file and line), both sides of the mismatch, the basis (the output or the place in the document), a severity proposal, and a fix proposal. If there are no findings, the range it looked at
 
-## 同じ指摘を繰り返さない
+## Not repeating the same findings
 
-- **終わっていないチケット**：同じ対象・同じ食い違いのチケットがあれば起票せず、\`ticket update\` の案にするか除く
-- **done のチケット**：同じ対象を扱った記録があれば除く。直した後に戻ったものは新しく起票し、元のチケットを本文に書く
-- **意図した設計で直さないもの**：「直さない」に分け、その意図をテストかコメントで押さえるチケットの起票を勧める（ADR に書き足さず、テストかコメントで示す）。次の見直しでテストかコメントから読んで除ける
+- **Unfinished tickets**: if a ticket with the same target and the same mismatch exists, do not file it. Make it a \`ticket update\` proposal, or remove it
+- **done tickets**: if a record of handling the same target exists, remove it. If it came back after being fixed, file it as new, and write the original ticket in the body
+- **Items not to fix because of the intended design**: put them under "Do not fix", and propose filing a ticket that holds the intent in tests or comments (do not add it to an ADR; show it in tests or comments). The next review reads it from the tests or comments and removes it
 
-## 重大度と置き場
+## Severity and where to put it
 
-| 重大度 | 当てはまるもの      | priority |
-| ------ | ------------------- | -------- |
-| 高     | 利用者に見える不具合・利用者を誤らせる文書・悪用できる脆弱性・ライセンスの漏れ・検査が通らない・ほかのチケットを止めている   | high     |
-| 中     | 機能の追加と改善・テストの抜けと不安定なテスト・内部の文書の食い違い・今は害のない規約違反・大きく古い依存 | medium   |
-| 低     | 使われていないコードと依存・設定の重複・言い回しの揺れ・急がない調査と検討    | low      |
+| Severity | Applies to          | priority |
+| -------- | ------------------- | -------- |
+| High     | 利用者に見える不具合・利用者を誤らせる文書・悪用できる脆弱性・ライセンスの漏れ・検査が通らない・ほかのチケットを止めている   | high     |
+| Medium   | 機能の追加と改善・テストの抜けと不安定なテスト・内部の文書の食い違い・今は害のない規約違反・大きく古い依存 | medium   |
+| Low      | 使われていないコードと依存・設定の重複・言い回しの揺れ・急がない調査と検討    | low      |
 
-置き場の勧めは対象（リリースの前に直す）。設計の判断が要る・外のものを待つ・PR 1 つで直せない・別のテーマに合う指摘だけは、理由を添えて対象に入れない（未割り当て）を勧める。
+The place suggested for a finding is the target (fixed before release). Only findings that need a design decision, wait for something outside, cannot be fixed in one PR, or fit another theme are suggested to be left out of the target (unassigned), with the reason given.
 
-## 起票するチケット
+## Filing tickets
 
-- ラベル \`audit-<S>\`（例 \`audit-s3\`）を付ける。対象を決めずに見直したときは \`audit\`。対象が Iteration なら \`iteration\`、Epic なら \`epic\` に \`<S>\` を書く
-- ラベル \`audit-<S>\` のチケットがあれば、\`<S>\` は見直し済みとみなす。この手順の起票のほかでこのラベルを付け外ししない
-- ADR の細部と実装のずれは、題を「ADR の細部を消す」（ADR 番号を添える）にして起票する。判断は変えず、細部はコード・テスト・ヘルプへ移す
-- ADR が長くなった（目安は 8,000 字）・要らなくなった ADR がある・同じ主題の判断が散らばっているときは、題を「ADR の分割・整理」にして起票する。分割・統合・削除・細部の削除・実装との照合、テストや lint に移せる判断の洗い出しを 1 チケットにまとめる
-- 概要には観点・対象・食い違いの両側を書き、どちらに合わせて直すかは決めない（計画で決める）
+- Attach the label \`audit-<S>\` (for example \`audit-s3\`). If the review was done without a target, use \`audit\`. If the target is an Iteration, write \`<S>\` in \`iteration\`; if it is an Epic, write it in \`epic\`
+- If tickets with the label \`audit-<S>\` exist, \`<S>\` counts as already reviewed. Do not add or remove this label except when filing by this procedure
+- File a mismatch between an ADR's details and the implementation with the title "Remove ADR details" (with the ADR number). Keep the decision as it is, and move the details to code, tests, and help
+- When an ADR has grown long (roughly 8,000 characters as a guideline), an ADR is no longer needed, or decisions on the same theme are scattered, file with the title "Split and organize ADRs". Gather into one ticket: splitting, merging, deleting, deleting details, matching against the implementation, and listing the decisions that can move to tests or lint
+- In the summary, write the viewpoint, the target, and both sides of the mismatch. Do not decide which side to match (decide it in planning)
 
 ## Asking with choices
 
@@ -227,13 +227,13 @@ Tickets advance in this order: import (\`dg guide import\`) → assign (\`dg gui
 - Ask questions where several can be chosen (such as which lines to reflect) with multiple selection. Ask about deletion, abandoned, and close operations one at a time
 - When deciding the next step, make the next step in the flow and "stop here" the choices (see the "Choosing the next step" section of each guide). When the next step is chosen, if a Skill is available (for example \`/dgwork p3\`), start it. If not, read \`dg guide <topic>\` and continue with that step. Do not do the next step's work inside the current step.
 
-## 次の手順を選ぶ
+## Choosing the next step
 
-結果を伝えたら（指摘がなかったときも）、次の選択肢で聞く。
+After showing the result (also when there were no findings), ask with the following choices.
 
-- **計画を立てる**（対象に起票したとき勧める）：\`dg guide plan\` の手順で対象の todo を計画する（Skill があれば \`/dgplan <S>\`）
-- **リリースする**（起票しなかったとき勧める）：\`dg guide release\` の手順でリリースして閉じる（Skill があれば \`/dgrelease <S>\`）。対象が Epic なら \`dg guide done\` で片付ける
-- **ここで止める**"
+- **Make a plan** (recommended when something was filed for the target): plan the target's todos by the steps of \`dg guide plan\` (if a Skill is available, \`/dgplan <S>\`)
+- **Release** (recommended when nothing was filed): release and close by the steps of \`dg guide release\` (if a Skill is available, \`/dgrelease <S>\`). If the target is an Epic, clean up with \`dg guide done\`
+- **Stop here**"
 `;
 
 exports[`dg guide の出力（本文の組み立て） > トピックごとの本文と、節の本文が変わらない > check 1`] = `
@@ -290,42 +290,42 @@ After reporting the result (including when there were no findings), ask with the
 `;
 
 exports[`dg guide の出力（本文の組み立て） > トピックごとの本文と、節の本文が変わらない > done 1`] = `
-"# 完了（done）
+"# Done (done)
 
-PR がマージされたあとの後始末（PR の要らない作業は \`dg guide work\` の中で done まで進むので、ここは読まない）。done にするのは照合か人で、エージェントは確認と記録を行う。受け入れ条件の印は普段 \`dg guide work\` の段階で付いている。
+Cleanup after a PR is merged. Work that needs no PR advances to done within \`dg guide work\`, so do not read this guide for it. Done is set by reconciling or by a human; the agent confirms and records. The marks on acceptance criteria are normally set in the \`dg guide work\` stage.
 
-## 対象を決める
+## Deciding the target
 
-- チケットの ID：そのチケットを片付ける
-- Plan の ID（\`p3\`）：その Plan のチケットのうち、PR がマージされたものを片付ける
-- Iteration（\`s3\`）：その Iteration の review・in_progress のチケットを照合して片付ける
-- 指定が空：\`sync\` が done に進めたチケット（\`reconciled\`）と、自分が担当の review のチケットを対象にする
+- Ticket ID: cleans up that ticket
+- Plan ID (\`p3\`): cleans up the tickets of that Plan whose PRs are merged
+- Iteration (\`s3\`): reconciles the review and in_progress tickets of that Iteration, and cleans them up
+- No target given: targets the tickets that \`sync\` moved to done (\`reconciled\`), and the review tickets assigned to you
 
-## 流れ
+## Steps
 
-1. \`dg --json --actor agent sync\` を回す。PR のマージ（または作業ブランチが \`main\` に入ったこと）を照合してチケットが done になる。\`reconciled\` に \`{ id, from, to, when }\` が出る（\`when\` は根拠になった事実）
-2. \`dg --json --actor agent ticket show <id>\` で \`status\` が done になったことを確かめる。なっていなければ \`sync\` の \`warnings\` を読む。事実が足りない（\`gh\` がない、ブランチがまだ push されていない）か、Workflow がその遷移の \`by\` に reconcile を含めていない。後者は人に確かめて \`ticket move <id> done\` で進める
-   - ブランチ名で見つけた PR を照合に使わなかったという \`warnings\` が出たら、その案内に従う
-   - branch を記録し忘れたままマージした作業に後から branch を記録しようとすると、\`BRANCH_IN_USE\` で拒否されることがある（残ったブランチの先端が base の真の祖先のとき。ff・merge コミットでのマージ）。記録はせず、マージを人に確かめて \`ticket move <id> done\` で進める。squash マージなら記録でき、その後は上の項の警告になる
-3. 残った受け入れ条件を確かめる。\`sync\` の \`warnings\`（\`受け入れ条件 2, 3 が未チェックのまま done になった\`）と \`ticket show --json\` の \`acceptance\` で未チェックの項目を見て、マージされた成果物で満たしたと確認できたものだけ \`dg --json --actor agent ticket check <id> <番号...>\` で付ける（deguboard が自動で付けることはない）。確認できない項目はそのまま残し、人に伝える
-4. 作業ブランチと worktree を片付ける（リポジトリの規約に従う）
-5. Plan に従っていたなら、\`dg --json --actor agent plan show <p>\` の \`progress\` を読む。チケットがすべて done か abandoned なら下の「Plan を閉じる」
-6. 人に報告する：何が done になったか、残った受け入れ条件、次に着手できるもの（Plan があれば \`plan show\` の \`ready\`、なければ \`dg --json --actor agent ticket list --ready\`）
+1. Run \`dg --json --actor agent sync\`. Reconciling the merge of the PR (or the work branch entering \`main\`) moves the ticket to done. \`reconciled\` shows \`{ id, from, to, when }\` (\`when\` is the fact that became the basis)
+2. Confirm that \`status\` of \`dg --json --actor agent ticket show <id>\` became done. If it did not, read the \`warnings\` of \`sync\`. Either the facts are lacking (\`gh\` is not present, the branch is not pushed yet), or the Workflow does not include reconcile in that transition's \`by\`. In the latter case, confirm with a human, then advance with \`ticket move <id> done\`
+   - If the \`warnings\` say that a PR found by branch name was not used for reconciling, follow its guidance
+   - If you try to record a branch afterward for work merged without recording it, \`BRANCH_IN_USE\` may refuse it (when the tip of the remaining branch is a true ancestor of base; merges by ff or merge commit). Do not record it. Confirm the merge with a human, then advance with \`ticket move <id> done\`. A squash merge can be recorded, and afterwards the warning in the item above applies
+3. Check the remaining acceptance criteria. Using the \`warnings\` of \`sync\` (the warning "受け入れ条件 2, 3 が未チェックのまま done になった", as printed) and the unchecked items in \`acceptance\` of \`ticket show --json\`, attach with \`dg --json --actor agent ticket check <id> <numbers...>\` only the items you confirmed as met by the merged deliverable (dg never attaches them on its own). Items you cannot confirm stay unchecked, and you tell a human
+4. Clean up the work branch and worktree (follow the repository's rules)
+5. If you followed a Plan, read \`progress\` of \`dg --json --actor agent plan show <p>\`. If all its tickets are done or abandoned, see the "Closing a Plan" section below
+6. Report to a human: what became done, the acceptance criteria left, and what can be started next (\`ready\` of \`plan show\` if there is a Plan; otherwise \`dg --json --actor agent ticket list --ready\`)
 
-## Plan を閉じる
+## Closing a Plan
 
-- Plan のチケットがすべて終わったら（done か abandoned）\`dg --json --actor agent plan close <p>\` で閉じる。進捗は Plan に書かないので、閉じるのはこの 1 回だけ
-- 終わらないまま計画を立て直すとき（順や範囲が変わった、チケットを足す・外す）も、\`plan close <p>\` で閉じてから \`dg guide plan\` の手順で作り直し、改めて人の承認を得る。残ったチケットがあれば \`warnings\` に出るが閉じられる。閉じるまで、残ったチケットは新しい Plan に入れられない
+- When all tickets of a Plan are finished (done or abandoned), close it with \`dg --json --actor agent plan close <p>\`. Progress is not written to the Plan, so this is the only time to close it
+- When rebuilding a plan without finishing it (the order or scope changed, or tickets were added or removed), also close it with \`plan close <p>\`, make it again by the steps of \`dg guide plan\`, and get human approval again. If tickets remain, \`warnings\` shows them, but it still closes. Until it is closed, the remaining tickets cannot go into a new Plan
 
-## 終わらなかったとき
+## When not finished
 
-- 作業をやめるなら \`dg --json --actor agent ticket unclaim <id>\`（in_progress のときだけ。todo に戻す）。開いたままの実装・手直しの Run は unclaim が \`failure\` で閉じる。手直し・見直しの Run は unclaim せず、the "How to finish" section of \`dg guide review\` に従う。チケット自体をやめる（abandoned）のは人に確かめてから \`ticket move <id> abandoned\`
-- 要件が変わって別のチケットにすべきなら、\`dg guide import\` の手順で新しく起票を提案し、元のチケットの扱いは人に確かめる
+- To stop the work, run \`dg --json --actor agent ticket unclaim <id>\` (only for in_progress; the ticket goes back to todo). An implementation or fix Run left open is closed as \`failure\` by unclaim. Do not unclaim a fix or review Run; follow the "How to finish" section of \`dg guide review\`. To give up the ticket itself (abandoned), confirm with a human first, then \`ticket move <id> abandoned\`
+- If the requirements changed so that it should be a different ticket, propose filing a new one by the steps of \`dg guide import\`, and confirm with a human what to do with the original ticket
 
-## Iteration と Epic
+## Iteration and Epic
 
-- Iteration と Epic を閉じる・再開するのは人の指示で行う（\`dg guide assign\`）。閉じられそうなら（残りがすべて done か abandoned）人に知らせる
-- Epic の進捗は \`dg --json --actor agent epic show <e3>\` の \`progress\` で都度求まる。保存はされない
+- Closing or reopening an Iteration and Epic is done only on a human's instruction (\`dg guide assign\`). If one looks closable (the rest are all done or abandoned), tell a human
+- Epic progress is found each time from \`progress\` of \`dg --json --actor agent epic show <e3>\`. It is not saved
 
 ## Asking with choices
 
@@ -337,13 +337,13 @@ Tickets advance in this order: import (\`dg guide import\`) → assign (\`dg gui
 - Ask questions where several can be chosen (such as which lines to reflect) with multiple selection. Ask about deletion, abandoned, and close operations one at a time
 - When deciding the next step, make the next step in the flow and "stop here" the choices (see the "Choosing the next step" section of each guide). When the next step is chosen, if a Skill is available (for example \`/dgwork p3\`), start it. If not, read \`dg guide <topic>\` and continue with that step. Do not do the next step's work inside the current step.
 
-## 次の手順を選ぶ
+## Choosing the next step
 
-片付けたら、結果を伝えて次の選択肢で聞く。
+After cleaning up, report the result and ask with the following choices.
 
-- **Plan を進める**（勧める。Plan に残りがあれば）：\`dg guide work\` の手順で続ける（Skill があれば \`/dgwork p3\`）
-- **計画を立てる**：Plan が終わり、着手できるチケット（\`ticket list --ready\`）があれば \`dg guide plan\` の手順で次の Plan を作る（Skill があれば \`/dgplan next <N>\`）
-- **ここで止める**"
+- **Advance the Plan** (recommended if the Plan has tickets left): advance it by the steps of \`dg guide work\` (if a Skill is available, \`/dgwork p3\`)
+- **Make a plan**: if the Plan is finished and there are tickets that can be started (\`ticket list --ready\`), make the next Plan by the steps of \`dg guide plan\` (if a Skill is available, \`/dgplan next <N>\`)
+- **Stop here**"
 `;
 
 exports[`dg guide の出力（本文の組み立て） > トピックごとの本文と、節の本文が変わらない > import 1`] = `
@@ -623,34 +623,34 @@ dg --json --actor agent plan create t12 t13 t14 t15 \\
 `;
 
 exports[`dg guide の出力（本文の組み立て） > トピックごとの本文と、節の本文が変わらない > release 1`] = `
-"# リリース（release）
+"# Release (release)
 
-Iteration のチケットがすべて done かを確かめ、リポジトリのリリースの手順で進めて、Iteration を閉じる。リリースの処理（版の決め方・CHANGELOG・タグ・配布先）は deguboard に持たず、リポジトリの手順に従う。この手順に版の付け方やリリースのコマンドを書かない。見直し（\`dg guide audit\`）が済んでいるかは確かめない（リリースの条件ではない）。
+Checks that the tickets of an Iteration are all done, proceeds by the repository's release steps, and closes the Iteration. The release processing (how the version is chosen, CHANGELOG, tags, destinations) is not kept in deguboard; it follows the repository's steps. These steps do not write how versions are assigned or the release commands. Whether the audit (\`dg guide audit\`) has been done is not checked, since it is not a condition for release.
 
-## 対象を決める
+## Deciding the target
 
-- Iteration（\`s3\`）：その Iteration をリリースする
-- 指定が空：active の Iteration を勧めて確かめる。なければどれかを聞く
+- Iteration (\`s3\`): releases that Iteration
+- No target given: suggests the active Iteration and asks to confirm it. If there is none, asks which one
 
-以下では対象の ID を \`<S>\` と書く。
+Below, the Iteration to release is written as \`<S>\`.
 
-## リリースの手順
+## Release steps
 
-1. **done かを確かめる**：\`dg --json --actor agent sync\` の後、\`dg --json --actor agent iteration show <S>\` で、チケットがすべて done か abandoned かを確かめる。チケットがなければそう伝えて止まる。残っていれば一覧（ID・題・状態・PR）を示し、「完了にする」（\`dg guide done\`。Skill があれば \`/dgdone <S>\`）と「ここで止める」で聞く
-2. **リリースの手順を探す**：リポジトリの規約（CLAUDE.md・README・開発の文書）のリリースの節を探し、どの文書のどの手順に従うかを示す。なければ下の「リリースの手順がないとき」
-3. **手順に従って進める**：手順にない操作（版の決め方を変える、手でタグを打つ、手順を飛ばす）はしない。止まったら理由を示して聞く
-   - 作業中の checkout ではなく、\`git fetch origin main\` の後に \`git worktree add --detach ../<repo>.worktrees/release-<S> origin/main\` で作った一時 worktree で進める。リリースのブランチ・依存のインストール・ビルドもこの中で行う
-   - リリースの PR のマージは一時 worktree の外で行う。マージの後の確かめと公開は、マージを取り込んでから一時 worktree を作り直して行う
-   - 承認を待たずに進めてよいのは準備の操作（一時 worktree、ブランチ、版の更新、CHANGELOG、確かめのコマンド、PR の作成）。PR の中で見直せるため
-   - リリースの PR で別のサブエージェントの見直しを省けるかは、the "Quality gate" section of \`dg guide review\` の版上げの条件に従う
-   - **承認を得てから行う**：リリースの PR のマージ、公開の操作（タグの push・配布先への公開）。それぞれの前に聞く。手順に \`--dry-run\` などの確かめ方があれば先に実行し、結果を判断の材料に示す
-   - 終わったら（やめたときも）一時 worktree を消す。\`git worktree remove\` が止まったら \`git -C <パス> status --short --branch\` で残りを確かめ、リリースに要る変更が残っていなければ \`--force\` で消す。残っていれば消さずに伝える
-4. **Iteration を閉じる**：「閉じる」「ここで止める」で聞き、承認されたら \`dg --json --actor agent iteration close <S>\`。次の Iteration は、それに入ったチケットに着手するときに the "Before and after claim" section of \`dg guide work\` で始まる（聞かない）
-5. **結果を伝える**：リリースした版・PR・公開したもの・Iteration の状態・残した一時 worktree（あれば）
+1. **Check that all are done**: after \`dg --json --actor agent sync\`, check with \`dg --json --actor agent iteration show <S>\` that every ticket is done or abandoned. If there are no tickets, say so and stop. If some remain, show the list (ID, title, state, PR), and ask with "Mark as done" (\`dg guide done\`; if a Skill is available, \`/dgdone <S>\`) and "Stop here"
+2. **Find the release steps**: find the release section in the repository's rules (CLAUDE.md, README, development docs), and show which document and which step will be followed. If there are none, see the "When there are no release steps" section below
+3. **Proceed by the steps**: do not do operations that are not in the steps (changing how the version is decided, tagging by hand, skipping a step). If you stop, show the reason and ask
+   - Do not use a checkout you are working in. Proceed in the temporary worktree made by \`git fetch origin main\` and then \`git worktree add --detach ../<repo>.worktrees/release-<S> origin/main\`. The release branch, dependency install, and build are also done inside it
+   - The release PR is merged outside the temporary worktree. The check and publishing after the merge are done after taking in the merge and making the temporary worktree again
+   - Operations that may proceed without waiting for approval are preparation (the temporary worktree, the branch, the version update, CHANGELOG, check commands, making the PR), since they can be reviewed within the PR
+   - Whether a separate subagent review can be skipped for the release PR follows the version-bump conditions in the "Quality gate" section of \`dg guide review\`
+   - **Get approval before doing**: merging the release PR, and publishing operations (pushing a tag, publishing to a destination). Ask before each one. If the steps have a check mode such as \`--dry-run\`, run it first and show its result as material for the decision
+   - When finished (also when stopped), remove the temporary worktree. If \`git worktree remove\` stops, check what remains with \`git -C <path> status --short --branch\`. If no change needed for the release remains, remove it with \`--force\`. If changes remain, do not remove it, and tell a human
+4. **Close the Iteration**: ask with "Close" and "Stop here". If approved, run \`dg --json --actor agent iteration close <S>\`. The next Iteration starts, when you start on a ticket in it, by the "Before and after claim" section of \`dg guide work\` (not asked)
+5. **Report the result**: the released version, the PR, what was published, the state of the Iteration, and the temporary worktree left (if any)
 
-## リリースの手順がないとき
+## When there are no release steps
 
-版・タグ・CHANGELOG を推測して作らない。手順が見つからなかったことを伝え、「Iteration を閉じる（リリースはしない）」と「ここで止める」で聞く。
+Do not guess the version, the tag, or the CHANGELOG. Say that no release steps were found, and ask with "Close the Iteration (no release)" and "Stop here".
 
 ## Asking with choices
 
@@ -662,13 +662,13 @@ Tickets advance in this order: import (\`dg guide import\`) → assign (\`dg gui
 - Ask questions where several can be chosen (such as which lines to reflect) with multiple selection. Ask about deletion, abandoned, and close operations one at a time
 - When deciding the next step, make the next step in the flow and "stop here" the choices (see the "Choosing the next step" section of each guide). When the next step is chosen, if a Skill is available (for example \`/dgwork p3\`), start it. If not, read \`dg guide <topic>\` and continue with that step. Do not do the next step's work inside the current step.
 
-## 次の手順を選ぶ
+## Choosing the next step
 
-結果を伝えたら、次の選択肢で聞く。
+After reporting the result, ask with the following choices.
 
-- **次の計画を立てる**：todo のチケットが残っていれば \`dg guide plan\` の手順で計画する（Skill があれば \`/dgplan next\`）
-- **割り当てる**：未割り当ての todo を \`dg guide assign\` の手順で Iteration に入れる（Skill があれば \`/dgassign\`）
-- **ここで止める**"
+- **Make the next plan**: if todo tickets remain, make a plan by the steps of \`dg guide plan\` (if a Skill is available, \`/dgplan next\`)
+- **Assign**: assign the unassigned todos to an Iteration by the steps of \`dg guide assign\` (if a Skill is available, \`/dgassign\`)
+- **Stop here**"
 `;
 
 exports[`dg guide の出力（本文の組み立て） > トピックごとの本文と、節の本文が変わらない > review 1`] = `
@@ -792,7 +792,7 @@ Follow the order and contents of the approved Plan (\`dg guide plan\`).
 - Before starting, run \`dg --json --actor agent plan show <p>\`. If \`pending_approval\` is true, do not start. Ask a human for approval
 - The next ticket is \`next\` of \`plan show\`: the earliest one in the Plan's order that can be started (\`ready\`). \`waiting\` is the party to wait for. \`after\` is not checked by claim, so keep it yourself (if you advance tickets at the same time, see \`dg guide parallel\`)
 - The scope (\`scope\`) and approach (\`approach\`) appear in \`plan\` of \`next\`. Before you widen the scope or change the approach, confirm with a human
-- When one ticket reaches a PR, read \`plan show\` again and choose the next one. When all tickets of the Plan are finished, do the "Plan を閉じる" section of \`dg guide done\`
+- When one ticket reaches a PR, read \`plan show\` again and choose the next one. When all tickets of the Plan are finished, do the "Closing a Plan" section of \`dg guide done\`
 
 ## Work that needs no PR
 

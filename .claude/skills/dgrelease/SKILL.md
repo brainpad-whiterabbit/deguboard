@@ -1,12 +1,12 @@
 ---
 name: dgrelease
-description: deguboard の Iteration のチケットがすべて done かを確かめ、リポジトリのリリースの手順で進めて、承認を得て Iteration を閉じる。リリースの PR のマージと公開の前に承認を求める。「s3 をリリースして」「リリースを進めて」と頼まれたときに使う。
+description: Checks that every ticket of a deguboard Iteration is done, proceeds by the repository's release steps, and closes the Iteration with approval. Asks for approval before merging the release PR and publishing. Use when asked「s3 をリリースして」「リリースを進めて」.
 argument-hint: "[Iteration]"
 ---
 
-<!-- dg skill sha256:e6ad7285221518409bad9965199ca58c484b8262c6bf9e905d58e46e6252aec4 -->
+<!-- dg skill sha256:58957734909a514faede8d31bef42c67cdc0fb6723475fc5fe09a731759eab45 -->
 
-# リリース（release）
+# Release (release)
 
 Iteration のチケットがすべて done かを確かめ、リリースの手順で進めて Iteration を閉じます。
 

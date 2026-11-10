@@ -46,7 +46,7 @@ export interface FlowFacts {
   targets: readonly FlowTicket[];
   /**
    * 見直しとリリースの判定で「すべて done か abandoned」を見るチケット。Iteration の指定では対象と同じ、
-   * チケットの指定では対象とその Iteration のチケット（guide-all の「対象を決める」）。<S> がなければ空
+   * チケットの指定では対象とその Iteration のチケット（guide-all の「Deciding the target」）。<S> がなければ空
    */
   releaseScope: readonly FlowTicket[];
   /** 割り当ての候補（Iteration に入っていない todo。ラベル audit-<S> を除く） */
@@ -250,16 +250,16 @@ export const FLOW_GUIDE: Record<FlowStageName, { topic: string; sections: readon
   audit: {
     topic: "audit",
     sections: [
-      "見直しの手順",
-      "観点",
-      "サブエージェントに任せる",
-      "同じ指摘を繰り返さない",
-      "重大度と置き場",
-      "起票するチケット",
+      "Audit steps",
+      "Viewpoints",
+      "Delegating to subagents",
+      "Not repeating the same findings",
+      "Severity and where to put it",
+      "Filing tickets",
     ],
   },
-  release: { topic: "release", sections: ["リリースの手順", "リリースの手順がないとき"] },
-  stop: { topic: "all", sections: ["次の手順を選ぶ"] },
+  release: { topic: "release", sections: ["Release steps", "When there are no release steps"] },
+  stop: { topic: "all", sections: ["Choosing the next step"] },
 };
 
 /** guide.command：返した本文を読み直す dg guide の呼び出し。空白を含む節の名前は引用する */
@@ -280,7 +280,7 @@ export interface FlowApproval {
 }
 
 /**
- * 段階の承認の要否（guide-all の表と「--auto で自動で選ぶ」）。--auto が聞かずに選ぶのは config の auto.decisions に入る判断と、
+ * 段階の承認の要否（guide-all の表と「Choosing automatically with `--auto`」）。--auto が聞かずに選ぶのは config の auto.decisions に入る判断と、
  * auto.merge のときの PR のマージだけ。人が決める判断（削除・abandoned・閉じる・リリース）は config によらず聞く（EX-7）
  */
 export function approvalOf(

@@ -1,12 +1,12 @@
 ---
 name: dgdone
-description: deguboard のマージ済みのチケットを照合して done を確かめ、残った受け入れ条件を確かめ、作業ブランチと worktree を片付けて、終わった Plan を閉じる。「t12 を完了にして」「マージしたので片付けて」「Plan を閉じて」と頼まれたときに使う。
-argument-hint: "[チケットの ID...|Plan の ID|Iteration]"
+description: Checks merged tickets against their PRs to confirm they are done, confirms the remaining acceptance criteria, cleans up the work branch and worktree, and closes a finished Plan. Use when asked「t12 を完了にして」「マージしたので片付けて」「Plan を閉じて」.
+argument-hint: "[ticket ID...|Plan ID|Iteration]"
 ---
 
-<!-- dg skill sha256:56576392cb939a72b5c4da518674d0046edf7539bc92bee18236469dc8ff0539 -->
+<!-- dg skill sha256:3f2b0b411685926863d0a39fd2fbe4e958183329184d0095b7714ad85353a34f -->
 
-# 完了（done）
+# Done (done)
 
 マージ済みのチケットを照合して done を確かめ、受け入れ条件を確かめて後片付けをします。
 

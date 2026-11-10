@@ -331,7 +331,9 @@ describe("FLOW_GUIDE（段階の節）", () => {
   });
 
   it("見直しの段階の本文に、起票するチケットのラベル audit-<S> の付け方が入る", async () => {
-    expect(await textOf(FLOW_GUIDE.audit)).toContain("ラベル `audit-<S>`（例 `audit-s3`）を付ける");
+    expect(await textOf(FLOW_GUIDE.audit)).toContain(
+      "Attach the label `audit-<S>` (for example `audit-s3`)",
+    );
   });
 });
 
