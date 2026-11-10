@@ -1,0 +1,43 @@
+{
+  "id": "r20261110-072335-3c48",
+  "ticket": "t650",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-10T07:23:35Z",
+  "finished_at": "2026-11-10T07:28:54Z",
+  "result": "success",
+  "error": null,
+  "retries": 12,
+  "retry_reasons": [
+    "printError の前置きが日本語のまま（エラーの前置きが 2 通りになる）",
+    "flow.next の規則 1 の訳が todo ごとの条件に読める",
+    "claim の待つことの訳が巻き戻さないに変わった",
+    "claim の入れ先がない場合の訳で頼む主体が逆になった",
+    "hook の dg next の訳で、どの dg でも見つける約束が狭まった",
+    "claim の summary の文の連結で空白が抜けている",
+    "program.ts の commander.help の案内が日本語のまま",
+    "epic.list の進捗の訳で分母の説明が落ちた",
+    "config の worktree.setup の説明で例と失敗が落ちた",
+    "run start の step を Stage と訳し紛らわしい、claim の agent の訳も誤り",
+    "next の summary の中黒が残り、hook の waiting の訳に人が足りない",
+    "l10n-screens.test のコメントが今の振る舞いと合わない"
+  ],
+  "usage": {
+    "input": 52,
+    "output": 25059,
+    "cache_read": 1984293,
+    "cache_write": 87567
+  },
+  "tools": {
+    "read": 18,
+    "search": 0,
+    "write": 25,
+    "bash": 21,
+    "other": 1,
+    "read_before_write": 16,
+    "search_before_write": 0
+  },
+  "session": "acdeea67-8af2-4428-8ea2-d2e346d7d1d9",
+  "review": null
+}
