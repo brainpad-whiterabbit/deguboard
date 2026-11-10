@@ -380,8 +380,11 @@ export function nextOf(ctx: CommandContext, facts: StageFacts): NextStep {
       ]);
     case "reviewed":
       return facts.ticket.status === "in_progress" && st.review_passed
-        ? // dg pr ready が品質ゲートを判定してから gh pr ready を呼ぶ（t545）
-          make("ready", null, [dg(`pr ready ${id}`), dg("sync")])
+        ? // dg pr ready が品質ゲートを判定してから gh pr ready を呼ぶ（t545）。
+          // このブランチの見直しの Run が開いたままなら、ready にせず終わりを待つ（t664）。見直しの途中で段を low・free に
+          // 下げたときに当たる。見直しの Run はフックが閉じるので、置いて進むと、ready・マージの後まで開いた Run が残り、ほかの手と重なる。
+          // 終われば段が見直しを判定しないので、結果によらず ready の手になる
+          make("ready", null, [dg(`pr ready ${id}`), dg("sync")], null, runningOf(REVIEW_STEP))
         : // 手直しの Run も印でフックが開く。理由は直すエージェントが run retry-reason で書き足す（RN-8）
           make("fix", fixStep, [
             marker(fixStep),
@@ -410,7 +413,7 @@ export const next = defineCommand({
     `waiting_human (a Run is waiting for a person, the fix after the last review closed with failure or interrupted, or reviews that raised heavy findings went past ${FIX_ROUNDS_LIMIT} times). Whether the PR is a draft is seen in status (a PR with in_progress is a draft). ` +
     "For a ticket whose gate level is low or free (TK-9), a PR skips the review: a draft is reviewed with review_passed (the ready step), otherwise ready (wait_merge). " +
     "The stage is derived from the facts of Runs (implementation, review, and fix Runs and their results, and the mark of waiting for a person), the PR, the work branch, and Plan waits. " +
-    "It returns the kind of step (kind: implement, review, fix, ready, wait_merge, wait_deps, wait_human, done), the step to open, the Run in progress, the Plan's tier, scope, and approach, the commands to call (commands; delegate to a sub-agent. If the model is the same as the parent's and it proceeds on its own, the implement claim drops --no-run and does not use the mark. For implement, review, fix, and ready steps, if that step's Run is already running, or an implementation Run or a fix Run on this branch that has no push since it started is running, it waits for that to end instead of starting another), and the questions to ask a person (ask_human). " +
+    "It returns the kind of step (kind: implement, review, fix, ready, wait_merge, wait_deps, wait_human, done), the step to open, the Run in progress, the Plan's tier, scope, and approach, the commands to call (commands; delegate to a sub-agent. If the model is the same as the parent's and it proceeds on its own, the implement claim drops --no-run and does not use the mark. For implement, review, fix, and ready steps, if that step's Run is already running, or an implementation Run or a fix Run on this branch that has no push since it started is running (for the ready step, also a review Run on this branch, such as one left open when the gate level was lowered), it waits for that to end instead of starting another), and the questions to ask a person (ask_human). " +
     "For implement, review, and fix steps it includes the text to paste into a sub-agent (brief, the same as dg brief). " +
     "For implement and fix steps it includes the model to launch (model) (the Plan's tier maps to config's models.*; a ticket with no tier is standard. When the mapping is empty, and for review and other steps, it is null, meaning the parent's model). " +
     "A ticket in the waiting_human stage is wait_human. Read it after bringing in the work branch. It writes nothing",
