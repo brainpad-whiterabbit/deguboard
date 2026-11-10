@@ -93,9 +93,15 @@ run = "pnpm run dg"
 description = "文書の重複と参照の切れを検査する。guide の節の重複・文書どうしの同じ段落・ADR 一覧の整合と「最後に使った番号」・文書とコードの ADR 番号の実在・packages・scripts・test の ADR 番号が先頭のコメントの外にないことと、先頭のコメントの異なる番号が 2 つ以上ないこと（ADR 番号を検査するテストと check-docs 自身だけ例外）・8,000 字を超える ADR の警告（落とさない）・リンクとアンカーの切れ・拡張と Walkthrough が指す README の見出し・README.ja.md の節の構成のずれ・コードの要件 ID と先頭コメントの参照・要件の 1 項の上限（250 字）・コードとテストが指す置き換え済みの ADR・文書と packages の .ts・.tsx の文字列とコメントの「dg guide <topic> の「節」」と英語の「the \"節\" section of dg guide <topic>」の参照（guide の見出し（括弧の補足を除いた名前を含む）と、節の中の太字の項目・一覧の先頭のコードと照らす）"
 run = "pnpm run check:docs"
 
+# 軽い検査は文書を読むテストも回す。文書のテスト（check-docs.test.ts）は実際の docs・CLAUDE.md の値を確かめるので、
+# 文書だけの PR で check を落とさないように、そのテストを軽い検査に入れる（テストの値を写したファイルに替えるより、同じ入力で確かめる方を選んだ）
 [tasks."check:light"]
-description = "軽い検査。書式と文書だけを検査する。変更が config の actions.light_paths に入るファイル（テストが読まない文書・アセット）だけのとき、check の代わりにコミットの前と品質ゲート（actions.light_test）で回す"
-run = ["pnpm run format:check", "pnpm run check:docs"]
+description = "軽い検査。書式と文書の検査と、文書を読むテスト（test:docs）を回す。変更が config の actions.light_paths に入るファイル（文書・アセット）だけのとき、check の代わりにコミットの前と品質ゲート（actions.light_test）で回す"
+run = ["pnpm run format:check", "pnpm run check:docs", "pnpm run test:docs"]
+
+[tasks."test:docs"]
+description = "文書を読むテスト（test/scripts/check-docs.test.ts）だけを回す。実際の docs・CLAUDE.md・README を写して、check:docs の検査とテストの期待の値が合うかを確かめる。軽い検査（check:light）にも入っている"
+run = "pnpm run test:docs"
 
 [tasks.check]
 description = "コミット前の確認。書式・lint・型・テスト・文書を順に検査する"
