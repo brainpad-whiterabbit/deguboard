@@ -180,6 +180,10 @@ describe("dg pr ready・dg pr merge（t545）", () => {
     expect(ready!.message).toContain("dg gate t1 --for ready");
     expect(ready!.detail).toContain("review:");
     expect(ready!.detail).toContain("ask a human to run gh pr ready");
+    // 段が変更に合わないときの付け替え（版上げの例は出さない。t661）
+    expect(ready!.detail).toContain("dg ticket update t1 --gate <level>");
+    expect(ready!.detail).toContain("then run dg pr ready again");
+    expect(ready!.detail).not.toContain("version-bump");
     const merge = await rejection(runCommand(prMerge, ctx, { ticket: "t1" }));
     expect(merge!.code).toBe("GATE_FAILED");
     expect(merge!.detail).toContain("acceptance:");

@@ -469,21 +469,26 @@ describe("dg guide", () => {
     expect(await readGuide("import")).toContain("with `after` instead of running them in parallel");
   });
 
-  it("review は版上げの PR で見直しを省ける条件を品質ゲートに書き、release はそこへ案内する", async () => {
+  it("review は版上げの PR を人の指示で low の段にする道を品質ゲートに書き、release はそこへ案内する", async () => {
     const gate = section(await readGuide("review"), "## Quality gate");
     for (const word of [
-      "A version-bump PR may skip the review",
-      "no changes to code, documents, or steps",
+      "A version-bump PR runs at the low level",
+      "only on a human's instruction",
       "takes the place of the review",
+      "keep the high level and have it reviewed",
     ])
       expect(gate).toContain(word);
     const release = await readGuide("release");
     const steps = section(release, "## Release steps");
-    for (const word of ["`dg guide review`", "Quality gate", "version-bump conditions"])
+    for (const word of [
+      "`dg guide review`",
+      "Quality gate",
+      "by setting the ticket's level to `low`",
+    ])
       expect(steps).toContain(word);
-    // 条件の中身は review にだけ書く
-    expect(release).not.toContain("コード・文書・手順を変えない");
-    expect(release).not.toContain("ロックファイル");
+    // 版上げの条件（変更の範囲）は review にだけ書く
+    expect(release).not.toContain("version numbers");
+    expect(release).not.toContain("CHANGELOG and lock file");
   });
 
   it("config の値を埋める（既定なら main と origin、空の配列と空の文字列は none）", () => {

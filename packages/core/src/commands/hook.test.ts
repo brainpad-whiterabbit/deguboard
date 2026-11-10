@@ -1498,6 +1498,9 @@ describe("PreToolUse（AG-10・t532）", () => {
       expect(advancesPrOutsideDg(c), c).toBe(true);
     expect(GH_PR_DENIED).toContain("--body-file");
     expect(GH_PR_DENIED).toContain("git commit -F");
+    // 段が変更に合わないときの付け替えを案内する（版上げの例は出さない。t661）
+    expect(GH_PR_DENIED).toContain("dg ticket update <id> --gate <level>");
+    expect(GH_PR_DENIED).not.toContain("version-bump");
     // ファイルで渡せば通る
     for (const c of [
       "gh pr create --draft --title t555 --body-file /tmp/body.md",
