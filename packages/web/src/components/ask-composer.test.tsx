@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { App } from "../app.js";
 import type { WebviewClient } from "../client/webview.js";
 import { ASK_OPEN_KEY, HostBridge, HostProvider, type Host } from "../host.js";
+import type { Route } from "../router.js";
 import { StoreProvider } from "../store.js";
 import { fixture, iteration, mockClient, ticket, type MockClient } from "../test-helpers.js";
 import { setLanguage } from "../l10n.js";
@@ -64,6 +65,7 @@ function mountWebview(
   const send = (event: WebviewEvent) => listeners.forEach((l) => l(event));
   const copied: string[] = [];
   const sent: [number, string][] = [];
+  const opened: Route[] = [];
   const bridge: WebviewClient = {
     run: (name, input) => client.run(name, input),
     status: () => client.status(),
@@ -84,7 +86,7 @@ function mountWebview(
   // Webview の host と同じく、コピーは拡張ホスト（bridge.copy）に頼む
   const host: Host = {
     surface,
-    open: () => {},
+    open: (route) => void opened.push(route),
     show: () => {},
     copy: (text) => bridge.copy(text),
     state,
@@ -108,6 +110,8 @@ function mountWebview(
   return {
     copied,
     sent,
+    /** 拡張ホストの open に渡った行き先（行のリンクが押されたかを見る） */
+    opened,
     state,
     /** 拡張ホストからの、開いているターミナルが変わった通知 */
     terminalsChanged: (next: TerminalChoice[]) =>
@@ -469,6 +473,134 @@ describe("エージェントに頼む入力欄（UI-15）", () => {
     fireEvent.click(closeButton);
     expect(screen.queryByRole("region", { name: "エージェントに頼む" })).toBeNull();
     expect(view.state.get(ASK_NOTE_KEY)).toBe("下書き");
+  });
+
+  describe("小窓の外を押し始めたら閉じる（t683）", () => {
+    const isOpen = () => screen.queryByRole("region", { name: "エージェントに頼む" }) !== null;
+    /** 押す：押し始め（pointerdown）と、離したあとの click */
+    const press = (el: Element) => {
+      fireEvent.pointerDown(el);
+      fireEvent.click(el);
+    };
+
+    it("外の行を押すと閉じ、押した行の詳細を開く操作もそのまま効く", async () => {
+      const view = mountWebview(askClient());
+      const title = await screen.findByText("見直す");
+      view.ask(["s1"]);
+      await waitFor(() => expect(suggestions().length).toBeGreaterThan(0));
+      press(title.closest("a.ticket-row")!);
+      expect(isOpen()).toBe(false);
+      expect(view.opened).toEqual([{ page: "ticket", id: "t5" }]);
+    });
+
+    it("小窓の中（候補・札・指示・全文・形式・送り先）を押しても閉じない", async () => {
+      const view = mountWebview(askClient(), { terminals: [{ id: 4, label: "zsh" }] });
+      await screen.findByText("見直す");
+      view.ask(["t5"]);
+      await waitFor(() => expect(suggestions().length).toBeGreaterThan(0));
+      const box = within(composer());
+      const inside = [
+        box.getByRole("textbox", { name: "指示" }),
+        suggestions()[1]!,
+        box.getByText("/dgdone"),
+        box.getByRole("button", { name: "全文" }),
+        box.getByRole("button", { name: "形式：Skill" }),
+        box.getByRole("combobox", { name: "送り先のターミナル" }),
+      ];
+      for (const el of inside) {
+        press(el);
+        expect(isOpen()).toBe(true);
+      }
+    });
+
+    it("押し始めが中なら、外で離しても閉じず、次に外で押し始めたら閉じる", async () => {
+      const view = mountWebview(askClient());
+      await screen.findByText("見直す");
+      view.ask(["t5"]);
+      await waitFor(() => expect(suggestions().length).toBeGreaterThan(0));
+      fireEvent.pointerDown(within(composer()).getByRole("textbox", { name: "指示" }));
+      fireEvent.click(document.body);
+      expect(isOpen()).toBe(true);
+      fireEvent.pointerDown(document.body);
+      expect(isOpen()).toBe(false);
+    });
+
+    it("外のクリックで閉じても、指示の下書きは残り、開き直すと戻る", async () => {
+      const view = mountWebview(askClient());
+      await screen.findByText("見直す");
+      view.ask([]);
+      await waitFor(() => expect(suggestions().length).toBeGreaterThan(0));
+      fireEvent.change(within(composer()).getByRole("textbox", { name: "指示" }), {
+        target: { value: "下書き" },
+      });
+      fireEvent.pointerDown(document.body);
+      expect(isOpen()).toBe(false);
+      expect(view.state.get(ASK_NOTE_KEY)).toBe("下書き");
+
+      view.ask([]);
+      await waitFor(() => expect(suggestions().length).toBeGreaterThan(0));
+      expect(
+        (within(composer()).getByRole("textbox", { name: "指示" }) as HTMLTextAreaElement).value,
+      ).toBe("下書き");
+    });
+
+    it("吹き出しや頼むことの一覧から開き直すと、閉じたままにならず新しい対象で開く", async () => {
+      const view = mountWebview(askClient());
+      await screen.findByText("見直す");
+      view.ask([]);
+      await waitFor(() => expect(suggestions().length).toBeGreaterThan(0));
+
+      // 開いたまま、ほかの行（t5）の吹き出しを押す：閉じて、一覧から選ぶと t5 で開く
+      const rowBubble = () => screen.getByRole("button", { name: "エージェントに頼む（行 t5）" });
+      fireEvent.pointerDown(rowBubble());
+      expect(isOpen()).toBe(false);
+      fireEvent.click(rowBubble());
+      fireEvent.click((await screen.findAllByRole("menuitem"))[0]!);
+      expect(isOpen()).toBe(true);
+      await waitFor(() =>
+        expect(within(composer()).getByRole("button", { name: "t5 を外す" })).toBeTruthy(),
+      );
+
+      // 外を押して閉じ、Iteration の見出しから開き直すと s1 で開く（t5 は残らない）
+      fireEvent.pointerDown(document.body);
+      expect(isOpen()).toBe(false);
+      const iterationBubble = screen.getByRole("button", {
+        name: "エージェントに頼む（Iteration の見出し s1）",
+      });
+      fireEvent.pointerDown(iterationBubble);
+      fireEvent.click(iterationBubble);
+      fireEvent.click((await screen.findAllByRole("menuitem"))[0]!);
+      expect(isOpen()).toBe(true);
+      await waitFor(() =>
+        expect(within(composer()).getByRole("button", { name: "s1 を外す" })).toBeTruthy(),
+      );
+      expect(within(composer()).queryByRole("button", { name: "t5 を外す" })).toBeNull();
+
+      // 同じ行で閉じてから開き直しても閉じたままにならない
+      fireEvent.pointerDown(document.body);
+      expect(isOpen()).toBe(false);
+      fireEvent.pointerDown(rowBubble());
+      fireEvent.click(rowBubble());
+      fireEvent.click((await screen.findAllByRole("menuitem"))[0]!);
+      expect(isOpen()).toBe(true);
+      await waitFor(() =>
+        expect(within(composer()).getByRole("button", { name: "t5 を外す" })).toBeTruthy(),
+      );
+    });
+
+    it("Webview の外（ターミナル・エディタ）へ移っても閉じない", async () => {
+      const view = mountWebview(askClient());
+      await screen.findByText("見直す");
+      view.ask(["t5"]);
+      await waitFor(() => expect(suggestions().length).toBeGreaterThan(0));
+      const note = within(composer()).getByRole("textbox", { name: "指示" });
+      // フォーカスが Webview の外へ移る・窓の外へ出る。押すことは起きないので閉じない
+      act(() => note.blur());
+      act(() => {
+        window.dispatchEvent(new Event("blur"));
+      });
+      expect(isOpen()).toBe(true);
+    });
   });
 
   it("開いていることと対象は見た目の状態に残り、描き直しても（拡張が data-ask で渡したときも）その入力欄を出す", async () => {

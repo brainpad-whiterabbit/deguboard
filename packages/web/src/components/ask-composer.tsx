@@ -3,7 +3,8 @@
 // 頼むことの候補・おすすめ・依頼文は core の ask コマンド（読み取りだけ）が決め、ここでは組み立て直さない。定型の文の言語は画面の表示言語を ask に渡して決める。データには書き込まない。
 // 上の 1 行が頼むことの候補（★ がおすすめ）、欄の頭が Skill と対象の札（札とボタンのツールチップが Skill の 1 文）、札の下が頼むことの 1 文（依頼文には入らない）、本体が指示、下が全文・形式・コピー。
 // 開いているターミナルがあれば（Webview だけ）、送り先を選んで「送る」でその入力に入れられる。Enter は押さず、ターミナルは起動しない。なければコピーだけ。
-// 指示の下書きと形式は見た目の状態に残し、閉じて開き直しても消えない。形式は人が切り替えるまで残さず、既定は ask が dg の Skill の有無から決める
+// 指示の下書きと形式は見た目の状態に残し、閉じて開き直しても消えない。形式は人が切り替えるまで残さず、既定は ask が dg の Skill の有無から決める。
+// 閉じるのは Esc・× と、小窓の外を押し始めたとき（下の effect）
 
 import type { TerminalChoice } from "@deguboard/core";
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
@@ -80,6 +81,7 @@ export function AskComposer({
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{ ok: boolean; text: string } | null>(null);
   const noteRef = useRef<HTMLTextAreaElement>(null);
+  const rootRef = useRef<HTMLElement>(null);
   const terminals = useTerminals();
   const [terminalId, setTerminalId] = useState<number | null>(null);
   const sendTo = resolveSendTarget(terminals, terminalId);
@@ -94,6 +96,18 @@ export function AskComposer({
   useEffect(() => {
     noteRef.current?.focus();
   }, []);
+
+  // 小窓の外で押し始めたら閉じる。外かどうかは押し始めた場所で決める（中で押して外で離したら閉じない）。
+  // 閉じるだけで押した先の操作は止めない（行の詳細を開くなどはそのまま効く）。pointerdown は Webview の中でだけ起きるので、Webview の外へ移っても閉じない。
+  // 頼むことの吹き出しや一覧（body に出る）を押すのも外なので閉じ、選んだ先で開き直す。下書きは見た目の状態に残るので閉じても消えない
+  useEffect(() => {
+    const onDown = (e: PointerEvent) => {
+      if (rootRef.current?.contains(e.target as Node)) return;
+      onClose();
+    };
+    document.addEventListener("pointerdown", onDown, true);
+    return () => document.removeEventListener("pointerdown", onDown, true);
+  }, [onClose]);
 
   // 一覧が読み直されたら（Status が変わったかもしれない）候補も引き直す。対象は並びの文字列で見る（同じ並びなら引き直さない）。
   // この 2 つの読み込みは useCommandData を使わない：失敗したら前の結果を消し、エラーを全文の読み込みと 1 つの欄で分け合うため
@@ -238,7 +252,12 @@ export function AskComposer({
 
   const skillPill = format === "skill" && shown?.kind !== "command" ? candidate?.skill : null;
   return (
-    <section className="ask-composer" aria-label={tr("エージェントに頼む")} onKeyDown={onKeyDown}>
+    <section
+      ref={rootRef}
+      className="ask-composer"
+      aria-label={tr("エージェントに頼む")}
+      onKeyDown={onKeyDown}
+    >
       <div className="ask-head">
         <div className="ask-suggestions" role="group" aria-label={tr("頼むこと")}>
           {(base?.candidates ?? []).map((c) => (
