@@ -201,6 +201,22 @@ describe("dg gate（品質ゲート。t532）", () => {
     await runCommand(ticketCheck, ctx, { ticket: "t1", items: [1, 2] });
     expect(await judge(ctx)).toMatchObject({ gate: "low", passed: true });
   });
+
+  it("low と free は、リモートの追跡 ref がなく fetch もできなくても通る。high は push の時刻を読めず review で落ちる（t663）", async () => {
+    const { f, ctx } = await prepared();
+    await runCommand(ticketCheck, ctx, { ticket: "t1", items: [1, 2] });
+    // 追跡 ref を消し、fetch が失敗するリモートに向け直す（判定は PR の事実と記録だけで足りることを見る）
+    await git(f.cloneA, ["update-ref", "-d", "refs/remotes/origin/feat/t1"]);
+    await git(f.cloneA, ["remote", "set-url", "origin", path.join(f.root, "no-such-remote.git")]);
+    await runCommand(ticketUpdate, ctx, { ticket: "t1", gate: "low" });
+    expect(failed(await judge(ctx, "ready"))).toEqual([]);
+    expect(failed(await judge(ctx))).toEqual([]);
+    await runCommand(ticketUpdate, ctx, { ticket: "t1", gate: "free" });
+    expect(failed(await judge(ctx, "ready"))).toEqual([]);
+    expect(failed(await judge(ctx))).toEqual([]);
+    await runCommand(ticketUpdate, ctx, { ticket: "t1", gate: "high" });
+    expect(failed(await judge(ctx, "ready"))).toEqual(["review"]);
+  });
 });
 
 describe("dg gate の検査（actions.test。t601）", () => {

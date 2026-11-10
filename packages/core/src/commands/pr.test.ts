@@ -12,7 +12,7 @@ import { brief } from "./brief.js";
 import { prMerge, prReady, type PrAdvanceView } from "./pr.js";
 import { runFinish, runHandoff, runReviewResult, runStart } from "./run.js";
 import { configSet, init } from "./setup.js";
-import { ticketCheck, ticketClaim, ticketCreate } from "./ticket.js";
+import { ticketCheck, ticketClaim, ticketCreate, ticketUpdate } from "./ticket.js";
 
 const cleanups: Array<() => Promise<void> | void> = [];
 afterEach(async () => {
@@ -523,5 +523,36 @@ describe("dg pr ready・dg pr merge（t545）", () => {
     expect(err!.code).toBe("GIT_ERROR");
     expect(err!.message).toContain("writing the body failed");
     expect(await calls()).toEqual([]);
+  });
+
+  it("free のチケットは見直しがなくても dg pr ready・dg pr merge が gh を呼び、受け入れ条件に印がなくても通る（t663）", async () => {
+    const { ctx, calls, undraft } = await prepared();
+    await runCommand(ticketUpdate, ctx, { ticket: "t1", gate: "free" });
+    const ready = (await runCommand(prReady, ctx, { ticket: "t1" })).data as PrAdvanceView;
+    expect(ready).toMatchObject({ pr: 7, action: "ready" });
+    expect(ready.gate).toMatchObject({ gate: "free", passed: true });
+    await undraft();
+    const merged = (await runCommand(prMerge, ctx, { ticket: "t1", delete_branch: false }))
+      .data as PrAdvanceView;
+    expect(merged).toMatchObject({ pr: 7, action: "merge", gate: { gate: "free", passed: true } });
+    expect(await calls()).toEqual(["pr ready 7", "pr merge 7 --squash"]);
+  });
+
+  it("low のチケットは見直しがなくても dg pr ready が gh を呼ぶが、受け入れ条件に印がなければ dg pr merge は GATE_FAILED で止まり、印を付けると通る（t663）", async () => {
+    const { ctx, calls, undraft } = await prepared();
+    await runCommand(ticketUpdate, ctx, { ticket: "t1", gate: "low" });
+    const ready = (await runCommand(prReady, ctx, { ticket: "t1" })).data as PrAdvanceView;
+    expect(ready.gate).toMatchObject({ gate: "low", passed: true });
+    await undraft();
+    const err = await rejection(runCommand(prMerge, ctx, { ticket: "t1", delete_branch: false }));
+    expect(err).toBeInstanceOf(OperationError);
+    expect(err!.code).toBe("GATE_FAILED");
+    expect(err!.detail).toContain("acceptance: Acceptance criteria 1 are not marked");
+    expect(await calls()).toEqual(["pr ready 7"]);
+    await runCommand(ticketCheck, ctx, { ticket: "t1", items: [1] });
+    const merged = (await runCommand(prMerge, ctx, { ticket: "t1", delete_branch: false }))
+      .data as PrAdvanceView;
+    expect(merged).toMatchObject({ pr: 7, action: "merge", gate: { gate: "low", passed: true } });
+    expect(await calls()).toEqual(["pr ready 7", "pr merge 7 --squash"]);
   });
 });
