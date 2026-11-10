@@ -259,6 +259,7 @@ export const FLOW_GUIDE: Record<FlowStageName, FlowGuideRef> = {
       "Implement",
       "Receive the implementation result",
       "Following the Plan",
+      "Choosing the next step",
     ],
     also: { topic: "parallel", sections: ["Advancing in parallel"] },
   },

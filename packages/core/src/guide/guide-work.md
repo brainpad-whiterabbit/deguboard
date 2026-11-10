@@ -24,7 +24,7 @@ Advances one ticket to a draft PR. `dg next` decides the steps and their order. 
    - `ready`: put the PR out by the "How to finish" section of `dg guide review`. For a Workflow that does not look at PRs (such as general, where `sync` does not move it to review), after the PR is put out, move it to review yourself with `dg --json --actor agent ticket move <id> review`
    - `wait_merge`: the PR waits for its merge, so do not wait for it. Advance the other tickets of `ready` (see "Following the Plan"). After the merge, `dg guide done`
    - `wait_human`: ask a human with `ask_human` (it is in the "How to finish" section of `dg guide review`), and advance the other tickets of `ready` meanwhile. For review findings from a human, follow the "Fix loop (parent)" section of `dg guide review`
-   - `wait_deps`: wait. Choose another ticket from `next` of the Plan
+   - `wait_deps`: wait, and advance another ticket of `ready` of `plan show`
    - `done`: clean up by the steps of `dg guide done`
 
 ## Gate level
@@ -80,7 +80,7 @@ Work that does not change repository files (data maintenance, checks, research) 
 
 ## Choosing the next step
 
-After you open a PR (and also after finishing work that needs no PR), read `plan show` again, and advance what is in `ready` by these steps. Do not wait for the merge, and do not ask after each PR. Ask a human only when approval is needed, or when neither `ready` nor a free slot is left. Then ask with the following choices.
+After you open a PR (and also after finishing work that needs no PR), read `plan show` again when the target is in a Plan, and advance what is in `ready` by these steps. A ticket with no Plan goes straight to the choices below. Do not wait for the merge, and do not ask after each PR. Ask a human only when approval is needed, or when `ready` is empty and no subagent is running (nothing is left to start or wait for). Then ask with the following choices.
 
 - **Mark it done**: if a PR was merged, clean up by the steps of `dg guide done` (if a Skill is available, `/dgdone <ID>`)
 - **Stop here**: the Plan waits for merges and for humans. After each merge, `dg guide done`, and then advance the Plan again (if a Skill is available, `/dgwork <p>`)
