@@ -21,7 +21,7 @@ after:
     - t650
   t652:
     - t651
-pending_approval: true
+pending_approval: false
 details:
   t487:
     scope: ADR-001 の言語の項と採らなかった案・requirements.md の AG-2・UI-11・CL の 1 項・CLAUDE.md の言語の規約だけを直す。コードは変えない
@@ -63,3 +63,5 @@ details:
     scope: dg next・flow next の理由・brief の定型の文と language の入力・フックの文・データのコミットの 1 行目・pr ready の節
     approach: brief は英語だけにして language を外し、コミットの 1 行目を読む処理は古い日本語も読めるようにする
     tier: heavy
+approved_by: eiki.kitajima/agent
+approved_at: 2026-11-10T03:35:42Z
