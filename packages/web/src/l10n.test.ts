@@ -224,16 +224,13 @@ function subjectSets(): { subjects: AskSubject[]; within?: string }[] {
     }
   }
   const iterations: AskSubject[] = ["planned", "active", "closed"].flatMap((status) =>
-    [false, true].flatMap((complete) =>
-      [false, true].map((overdue): AskSubject => ({
-        kind: "iteration",
-        id: "s1",
-        title: "x",
-        status,
-        complete,
-        overdue,
-      })),
-    ),
+    [false, true].map((complete): AskSubject => ({
+      kind: "iteration",
+      id: "s1",
+      title: "x",
+      status,
+      complete,
+    })),
   );
   const epics: AskSubject[] = ["open", "closed"].map((status) => ({
     kind: "epic",

@@ -94,8 +94,8 @@ Puts tickets into Iterations (a period of planning. \`sprint\` is an alias) and 
 ## Iteration
 
 - List: \`dg --json --actor agent iteration list\` (\`status\` is planned / active / closed)
-- Create: \`dg --json --actor agent iteration create "<name>" --goal "<goal>" --start 2026-11-01 --end 2026-11-14\`
-- Update: \`dg --json --actor agent iteration update <s3> --goal "<goal>"\`. \`--name\`, \`--start\`, and \`--end\` also change only what is specified. A closed Iteration can also be updated
+- Create: \`dg --json --actor agent iteration create "<name>" --goal "<goal>"\`. An Iteration has no planned dates; the period is recorded from when it starts (\`started_at\`) to when it closes (\`closed_at\`)
+- Update: \`dg --json --actor agent iteration update <s3> --goal "<goal>"\`. \`--name\` also changes only what is specified. A closed Iteration can also be updated
 - Add: \`dg --json --actor agent iteration add <s3> <t12> <t13>\`. A ticket that was in another Iteration moves
 - Remove: \`dg --json --actor agent iteration remove <s3> <t12>\`
 - Start: \`dg --json --actor agent iteration start <s3>\` (planned → active). Only one Iteration in a Project can be active. If another one is active, both starting and reopening are refused. Ask a human whether to close the previous one
@@ -253,7 +253,7 @@ Carries out one change that a human asked for: edit, close, reopen, abandon, or 
 | Change    | Target                    | Command                                                                                                                                     |
 | --------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
 | edit      | Ticket                    | \`dg --json --actor agent ticket update <t12> --title … --body … --acceptance … --priority … --label … --depends-on …\` (only what changes)    |
-| edit      | Iteration                 | \`dg --json --actor agent iteration update <s3> --name … --goal … --start … --end …\` (only what changes)                                     |
+| edit      | Iteration                 | \`dg --json --actor agent iteration update <s3> --name … --goal …\` (only what changes)                                                       |
 | edit      | Epic                      | \`dg --json --actor agent epic update <e3> --title … --body …\` (only what changes)                                                           |
 | close     | Iteration / Epic          | \`dg --json --actor agent iteration close <s3>\` / \`epic close <e3>\`                                                                          |
 | reopen    | Iteration / Epic          | \`dg --json --actor agent iteration reopen <s3>\` / \`epic reopen <e3>\`                                                                        |
@@ -367,7 +367,7 @@ Discusses the targets with a human until the open points are settled, then refle
 
 ## What is reflected
 
-Only the title, body (summary), acceptance criteria, priority, dependencies, and gate level are reflected (for an Iteration: the name, goal, and dates; for an Epic: the title and summary). Lowering the gate level needs the human's explicit instruction.
+Only the title, body (summary), acceptance criteria, priority, dependencies, and gate level are reflected (for an Iteration: the name and goal; for an Epic: the title and summary). Lowering the gate level needs the human's explicit instruction.
 
 When the conclusion is a change of Status, of membership (Iteration or Epic), closing, or abandoning, do not do it here. Show the ask that fits and stop:
 
@@ -633,7 +633,7 @@ By default, agents can run every operation. Limits are added in the settings.
 | discuss  | dgdiscuss | Settles the open points of tickets, an Epic, or an Iteration with a human through choices without changing data, then reflects the result after approval of before → after (writing by import or change) | When asked to discuss what a ticket, Epic, or Iteration should be |
 | all      | dgall     | Advances assign → check → plan → work → audit → release, taking the stage from the state (can resume with the same arguments)                  | When asked to "carry s3 through to the end"                        |
 
-Read with \`dg guide <topic>\`. In Claude Code, the Skill that \`dg skill install\` installs (such as \`/dgimport\`) reads the topic. The only asks from the screen (\`dg ask\`) that have no Skill are free, status, retro, and carry; their request text is plain text without a topic. A Skill is optional. Without one, read \`dg guide <topic>\` and proceed with the same steps. In Claude Code, \`dg hooks install\` can also install hooks, and \`dg hooks check\` confirms whether they are installed, whether they work, and whether their input has the right shape (it warns when something is missing). For the list of commands, see \`dg --help\`. For each command's options, see \`dg <group> <operation> --help\`."
+Read with \`dg guide <topic>\`. In Claude Code, the Skill that \`dg skill install\` installs (such as \`/dgimport\`) reads the topic. The only asks from the screen (\`dg ask\`) that have no Skill are free, status, and retro; their request text is plain text without a topic. A Skill is optional. Without one, read \`dg guide <topic>\` and proceed with the same steps. In Claude Code, \`dg hooks install\` can also install hooks, and \`dg hooks check\` confirms whether they are installed, whether they work, and whether their input has the right shape (it warns when something is missing). For the list of commands, see \`dg --help\`. For each command's options, see \`dg <group> <operation> --help\`."
 `;
 
 exports[`dg guide の出力（本文の組み立て） > トピックごとの本文と、節の本文が変わらない > parallel 1`] = `
@@ -900,7 +900,7 @@ Advances one ticket to a draft PR. \`dg next\` decides the steps and their order
 ## Before and after claim
 
 - If the assignee (\`assignee\` of \`ticket show\`) is another user, avoid the ticket
-- When \`lint.require_iteration\` is true (current setting: \`false\`), claim puts a ticket with no \`iteration\` into an Iteration, starts the planned Iteration, creates the worktree of the work branch, and runs config's \`worktree.setup\` (the preparation commands) in it. For how the Iteration is chosen, see \`ticket claim --help\`. If \`warnings\` says there is no Iteration to put it in, that it could not be started, that the worktree could not be created, or that a preparation command stopped, ask a human for the Iteration (going on without one causes \`lint_iteration_missing\`). Make the worktree by hand at the place the warning shows (when \`worktree\` is null; the default is \`../<repo>.worktrees/<branch name>\`), and run the preparation commands the warning shows by hand. Keep going with the work
+- When \`lint.require_iteration\` is true (current setting: \`false\`), claim puts a ticket with no \`iteration\` into an Iteration, starts the planned Iteration, creates the worktree of the work branch, and runs config's \`worktree.setup\` (the preparation commands) in it. For how the Iteration is chosen, see \`ticket claim --help\`. If \`warnings\` says there is no Iteration to put it in, that several are planned so none was chosen, that it could not be started, that the worktree could not be created, or that a preparation command stopped, ask a human for the Iteration (going on without one causes \`lint_iteration_missing\`). Make the worktree by hand at the place the warning shows (when \`worktree\` is null; the default is \`../<repo>.worktrees/<branch name>\`), and run the preparation commands the warning shows by hand. Keep going with the work
 - The preparation commands can take several minutes, and claim does not return until they finish (limit: 10 minutes). If that is longer than the caller's limit (such as the default 2 minutes of an agent's Bash), lengthen the time you give the claim. If it is cut off midway, the claim and the implementation Run remain, but no warning appears. Run config's \`worktree.setup\` by hand in the worktree
 - On \`CLAIM_LOST\`, go to another ticket. On \`BRANCH_IN_USE\`, change the \`--branch\` name and claim again
 

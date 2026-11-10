@@ -15,32 +15,9 @@ export const nowIso = (ctx: CommandContext): string => toIsoDateTime(ctx.now());
 /** 親のエージェントが打つ dg のコマンド（dg next・dg flow next の commands）。JSON で読み、agent として記録する */
 export const agentDg = (args: string): string => `dg --json --actor agent ${args}`;
 
-/** 手元の暦日（YYYY-MM-DD）。Iteration の期限は利用者の暦で数える（web の periodNote と同じ） */
-export function localDate(now: Date): string {
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
-}
-
-/** 終了日（YYYY-MM-DD か日時）が today より前か。終了日の当日は過ぎていない。終了日がなければ false */
-export function isOverdue(end: string | undefined, today: string): boolean {
-  return end !== undefined && end.slice(0, 10) < today;
-}
-
-/**
- * Iteration の中のチケットの Status から、完了（1 件以上で全件が終わり）と期限切れ（active で終了日を過ぎて未完了あり）を求める。
- * iteration.show の next と ask の候補が同じ判定を使う正本
- */
-export function iterationReadiness(
-  it: { status: string; end?: string | undefined },
-  statuses: readonly (Status | undefined)[],
-  today: string,
-): { complete: boolean; overdue: boolean; unfinished: number } {
-  const unfinished = statuses.filter((st) => st === undefined || !isTerminal(st)).length;
-  return {
-    complete: statuses.length > 0 && unfinished === 0,
-    overdue: it.status === "active" && isOverdue(it.end, today) && unfinished > 0,
-    unfinished,
-  };
+/** Iteration の完了：中のチケットが 1 件以上あり、すべて done か abandoned（Status の引けないものは未完了）。iteration.show の next と ask の候補が同じ判定を使う正本 */
+export function iterationComplete(statuses: readonly (Status | undefined)[]): boolean {
+  return statuses.length > 0 && statuses.every((st) => st !== undefined && isTerminal(st));
 }
 
 /**

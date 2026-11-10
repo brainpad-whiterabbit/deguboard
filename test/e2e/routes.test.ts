@@ -72,8 +72,8 @@ const STEPS: Step[] = [
   },
   {
     name: "iteration.create",
-    input: { name: "第 1 週", start: "2026-11-02", end: "2026-11-06" },
-    argv: ["iteration", "create", "第 1 週", "--start", "2026-11-02", "--end", "2026-11-06"],
+    input: { name: "第 1 週" },
+    argv: ["iteration", "create", "第 1 週"],
   },
   {
     name: "iteration.add",
@@ -82,8 +82,8 @@ const STEPS: Step[] = [
   },
   {
     name: "iteration.update",
-    input: { iteration: "s1", goal: "ログインを出す", end: "2026-11-07" },
-    argv: ["iteration", "update", "s1", "--goal", "ログインを出す", "--end", "2026-11-07"],
+    input: { iteration: "s1", goal: "ログインを出す" },
+    argv: ["iteration", "update", "s1", "--goal", "ログインを出す"],
   },
   {
     name: "ticket.update",
@@ -456,12 +456,11 @@ describe("3 経路の E2E", () => {
         running: false,
       },
     ]);
-    // iteration update で直した目標と終了日が show に出る。t1 の claim が planned の s1 を開始し、開始日を始めた日に書き換える（ST-3）
+    // iteration update で直した目標が show に出る。t1 の claim が planned の s1 を開始し、開始の日時 started_at を書く（ST-3。比べる前に時刻は <time> に揃える）
     expect(at("iteration.show").data).toMatchObject({
       goal: "ログインを出す",
       status: "active",
-      start: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
-      end: "2026-11-07",
+      started_at: "<time>",
     });
     // config.set した models.light が config.show と config.yaml に残る
     expect(at("config.show").data).toMatchObject({ models: { light: "e2e-light-model" } });

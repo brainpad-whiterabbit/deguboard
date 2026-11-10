@@ -531,8 +531,8 @@ describe("dg guide", () => {
       expect(reflected).toContain(word);
     for (const word of ["`dg guide assign`", "`dg guide change`"])
       expect(reflected).toContain(word);
-    // status・retro・carry の節は持たない（t672 以降で扱う）
-    expect(guide).not.toMatch(/^## .*(status|retro|carry)/im);
+    // status・retro の節は持たない（t672 以降で扱う）
+    expect(guide).not.toMatch(/^## .*(status|retro)/im);
   });
 
   it("change は操作ごとの前提を確かめ、当たるときだけ前後を示して承認を得て、dg を 1 回呼び、拒否されたら人にコマンドを渡す", async () => {

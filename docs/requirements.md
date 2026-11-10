@@ -124,7 +124,7 @@ updated_at: 2026-10-31T05:10:00Z
 
 ### 5.6 Iteration（`iterations/s3.yaml`）
 
-- IT-1 `status` は `planned` / `active` / `closed` で、実績の期間として active になったときに `started_at`、閉じたときに `closed_at` と完了・持ち越しの件数を書く（細部は `iteration start / close / reopen --help`）。閉じる・再開するのは既定で誰でも行える（EP-4 と同じ）。active は Project に 1 つに保つ
+- IT-1 `status` は `planned` / `active` / `closed` で、予定の期間は持たず、実績の期間として active になったときに `started_at`、閉じたときに `closed_at` と完了・持ち越しの件数を書く（細部は `iteration start / close / reopen --help`）。閉じる・再開するのは既定で誰でも行える（EP-4 と同じ）。active は Project に 1 つに保つ
 - IT-2 所属はチケットの `iteration` で表し、Iteration 側にチケットの一覧は持たない。入れるのは同じ Project のチケットだけで、閉じた Iteration には入れられない。閉じるときに done・abandoned 以外のチケットの `iteration` を外す。進捗は都度求める（EP-3）
 - IT-3 `iteration show` は次の操作 `next` と中のチケットを含む Plan `plans` を返し、画面はこれを読む（形は `packages/core/src/commands/iteration.ts`、並びは `commands/helpers.ts` の `ticketsInIteration`）
 

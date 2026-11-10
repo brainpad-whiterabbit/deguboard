@@ -4,7 +4,6 @@ import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { git } from "../../test/helpers/git-fixture.js";
-import { UsageError } from "../errors.js";
 import { pickUser } from "../model/actor.js";
 import { recordBaseline } from "../git/outside.js";
 import { osUserName } from "../git/repo.js";
@@ -697,11 +696,7 @@ describe("Epic と Iteration", () => {
   it("Iteration は開始・終了でき、閉じるときに完了と持ち越しを数える", async () => {
     const f = await fixture();
     const ctx = await initialized(f.cloneA);
-    const it1 = await runCommand(iterationCreate, ctx, {
-      name: "Sprint 1",
-      start: "2026-11-01",
-      end: "2026-11-14",
-    });
+    const it1 = await runCommand(iterationCreate, ctx, { name: "Sprint 1" });
     expect(it1.data).toMatchObject({ id: "s1", status: "planned" });
     expect(it1.data).not.toHaveProperty("tickets");
     await runCommand(ticketCreate, ctx, { title: "A" });
@@ -731,72 +726,51 @@ describe("Epic と Iteration", () => {
   it("update は指定した属性だけを直し、閉じた Iteration も直せる", async () => {
     const f = await fixture();
     const ctx = await initialized(f.cloneA);
-    await runCommand(iterationCreate, ctx, {
-      name: "Sprint 1",
-      start: "2026-12-13",
-      end: "2026-12-26",
-    });
+    await runCommand(iterationCreate, ctx, { name: "Sprint 1", goal: "読む" });
     const updated = await runCommand(iterationUpdate, ctx, { iteration: "1", goal: "履歴を読む" });
     expect(updated.data).toMatchObject({
       name: "Sprint 1",
       goal: "履歴を読む",
-      start: "2026-12-13",
-      end: "2026-12-26",
       status: "planned",
-    });
-    // start と end の形の誤りは入力の誤り（UsageError）で、どちらも記録を変えない
-    for (const dates of [{ end: "12/27" }, { start: "2026-12-1" }, { start: "2026/12/13" }]) {
-      await expect(
-        runCommand(iterationUpdate, ctx, { iteration: "s1", ...dates }),
-      ).rejects.toBeInstanceOf(UsageError);
-    }
-    expect(ctx.store.iterations.get("s1")?.data).toMatchObject({
-      start: "2026-12-13",
-      end: "2026-12-26",
     });
     await runCommand(iterationClose, ctx, { iteration: "s1" });
     const renamed = await runCommand(iterationUpdate, ctx, {
       iteration: "s1",
       name: "Sprint 1b",
       goal: "",
-      end: "2026-12-27",
     });
-    expect(renamed.data).toMatchObject({
-      name: "Sprint 1b",
-      goal: "",
-      end: "2026-12-27",
-      status: "closed",
-    });
+    expect(renamed.data).toMatchObject({ name: "Sprint 1b", goal: "", status: "closed" });
   });
 
-  it("start は開始日を始めた日（手元の暦日）に書き換えて終了日は変えず、reopen では開始日を変えない", async () => {
+  it("予定の期間（start・end）は持たない。古いファイルの start・end は読んだ値に出ず、Iteration を書くと（引数なしの update でも）ファイルから消える", async () => {
     const f = await fixture();
-    // 手元の暦日で数えるので、時差によらず同じ日になる昼の時刻にする
-    let clock = new Date(2026, 10, 3, 12, 0, 0);
-    const ctx = await initialized(f.cloneA, { now: () => clock });
-    // 予定の開始日が後でも前でも、開始日がなくても始めた日になる
-    for (const dates of [
-      { start: "2026-11-10", end: "2026-11-20" },
-      { start: "2026-10-20", end: "2026-11-01" },
-      {},
-    ]) {
-      await runCommand(iterationCreate, ctx, { name: "Sprint", ...dates });
+    const ctx = await initialized(f.cloneA);
+    for (const name of ["Sprint 1", "Sprint 2", "Sprint 3"])
+      await runCommand(iterationCreate, ctx, { name });
+    const fileOf = (id: string) => path.join(ctx.repo.dataDir, `iterations/${id}.yaml`);
+    // 作ったファイルには書かない
+    expect(await readFile(fileOf("s1"), "utf8")).not.toMatch(/^(start|end):/m);
+    // 古い版の dg が書いた形を模す（日付と日時の両方）。検査の基準もここに置く（SY-8）
+    for (const id of ["s1", "s2", "s3"]) {
+      const text = await readFile(fileOf(id), "utf8");
+      await writeFile(fileOf(id), `${text}start: 2026-11-01\nend: "2026-11-14T00:00:00Z"\n`);
     }
-    const expected = [
-      { id: "s1", end: "2026-11-20" },
-      { id: "s2", end: "2026-11-01" },
-      { id: "s3", end: undefined },
-    ];
-    for (const { id, end } of expected) {
-      const started = await runCommand(iterationStart, ctx, { iteration: id });
-      expect(started.data.start).toBe("2026-11-03");
-      expect(started.data.end).toBe(end);
-      // active は Project に 1 つなので、次を始める前に閉じる
-      await runCommand(iterationClose, ctx, { iteration: id });
+    await recordBaseline(ctx.repo);
+    await ctx.store.rescan();
+    const shown = (await runCommand(iterationShow, ctx, { iteration: "s1" })).data;
+    expect(shown).not.toHaveProperty("start");
+    expect(shown).not.toHaveProperty("end");
+    // start・close・update のどれで書いても消え、ほかの項目は残る
+    await runCommand(iterationStart, ctx, { iteration: "s1" });
+    await runCommand(iterationClose, ctx, { iteration: "s1" });
+    await runCommand(iterationUpdate, ctx, { iteration: "s2" });
+    for (const id of ["s1", "s2"]) {
+      const text = await readFile(fileOf(id), "utf8");
+      expect(text).not.toMatch(/^(start|end):/m);
+      expect(text).toContain(`id: ${id}`);
     }
-    clock = new Date(2026, 10, 5, 12, 0, 0);
-    const reopened = await runCommand(iterationReopen, ctx, { iteration: "s3" });
-    expect(reopened.data).toMatchObject({ start: "2026-11-03", end: "2026-11-03" });
+    // 書いていない Iteration には残る（移すのは書いたときだけ）
+    expect(await readFile(fileOf("s3"), "utf8")).toMatch(/^start:/m);
   });
 
   it("start は実績の開始の日時 started_at を書き、close は closed_at を足し、reopen は started_at を変えずに closed_at を消す（IT-1）", async () => {
@@ -819,43 +793,6 @@ describe("Epic と Iteration", () => {
     const reopened = await runCommand(iterationReopen, ctx, { iteration: "s1" });
     expect(reopened.data.started_at).toBe("2026-11-03T01:02:03Z");
     expect(reopened.data.closed_at).toBeUndefined();
-  });
-
-  it("close は終了日を閉じた日（手元の暦日）に書き換え、開始日が後なら開始日も揃え、reopen しても終了日はそのまま", async () => {
-    const f = await fixture();
-    // 手元の暦日で数えるので、時差によらず同じ日になる昼の時刻にする
-    const clock = new Date(2026, 10, 3, 12, 0, 0);
-    const ctx = await initialized(f.cloneA, { now: () => clock });
-    // 予定の終了日が閉じた日より後でも、終了日がなくても閉じた日になる
-    await runCommand(iterationCreate, ctx, {
-      name: "Sprint 1",
-      start: "2026-11-01",
-      end: "2026-11-14",
-    });
-    await runCommand(iterationCreate, ctx, { name: "Sprint 2" });
-    // 予定の終了日を過ぎてから閉じても閉じた日になる
-    await runCommand(iterationCreate, ctx, {
-      name: "Sprint 3",
-      start: "2026-10-20",
-      end: "2026-11-01",
-    });
-    // 始める前に閉じたときは、期間が逆にならないよう開始日も閉じた日になる
-    await runCommand(iterationCreate, ctx, {
-      name: "Sprint 4",
-      start: "2026-11-10",
-      end: "2026-11-20",
-    });
-    const first = await runCommand(iterationClose, ctx, { iteration: "s1" });
-    expect(first.data).toMatchObject({ start: "2026-11-01", end: "2026-11-03" });
-    const second = await runCommand(iterationClose, ctx, { iteration: "s2" });
-    expect(second.data.end).toBe("2026-11-03");
-    expect(second.data.start).toBeUndefined();
-    const third = await runCommand(iterationClose, ctx, { iteration: "s3" });
-    expect(third.data).toMatchObject({ start: "2026-10-20", end: "2026-11-03" });
-    const fourth = await runCommand(iterationClose, ctx, { iteration: "s4" });
-    expect(fourth.data).toMatchObject({ start: "2026-11-03", end: "2026-11-03" });
-    const reopened = await runCommand(iterationReopen, ctx, { iteration: "s1" });
-    expect(reopened.data.end).toBe("2026-11-03");
   });
 
   it("閉じた Iteration は reopen で active に戻り、件数が消えてチケットを入れ直せる", async () => {

@@ -1,5 +1,5 @@
 // Iteration の部品：見出しに出す短い実績の期間、詳細の見出しの下の期間・目標・進捗の欄。
-// 期間は予定の start・end ではなく、実績の started_at（active になった日時）〜 closed_at（閉じた日時）で出す（UI-5）。
+// 期間は実績の started_at（active になった日時）〜 closed_at（閉じた日時）で出す（UI-5）。
 // 短い期間はカンバン（board.tsx）とバックログ（backlog.tsx）の左パネルの見出しでも共用する
 
 import { DateTime } from "./date-time.js";

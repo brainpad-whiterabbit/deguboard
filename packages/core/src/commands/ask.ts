@@ -13,7 +13,7 @@ import { peekRunningRuns } from "../run/record.js";
 import type { Store } from "../storage/store.js";
 import { findConstraint } from "../workflow/resolve.js";
 import { defineCommand, ok } from "./define.js";
-import { iterationReadiness, localDate, ticketsInIteration } from "./helpers.js";
+import { iterationComplete, ticketsInIteration } from "./helpers.js";
 
 /** 頼むこと。どの対象で候補に出るかは askCandidates が決める */
 export const ASK_ACTIONS = [
@@ -33,7 +33,6 @@ export const ASK_ACTIONS = [
   "done",
   "check",
   "release",
-  "carry",
   "close",
   "reopen",
   "abandon",
@@ -75,8 +74,6 @@ export type AskSubject =
       status: string;
       /** 中のチケットが 1 件以上あり、すべて done か abandoned か */
       complete: boolean;
-      /** active で終了日を過ぎ、未完了のチケットがあるか（持ち越しの相談。省けば false） */
-      overdue?: boolean;
     }
   | { kind: "epic"; id: string; title: string; status: string }
   | {
@@ -408,8 +405,8 @@ const ACTIONS: Record<AskAction, ActionDef> = {
     text: (s, _w, lang) =>
       say(
         lang,
-        `${s.length > 0 ? `${idList(s, lang)} を入れる ` : ""}Iteration を、名前・目標・期間は指示のとおり（なければ案を示して）作ってください`,
-        `Create an Iteration${s.length > 0 ? ` to hold ${idList(s, lang)}` : ""}, with the name, goal, and dates as instructed (propose them if not given)`,
+        `${s.length > 0 ? `${idList(s, lang)} を入れる ` : ""}Iteration を、名前と目標は指示のとおり（なければ案を示して）作ってください`,
+        `Create an Iteration${s.length > 0 ? ` to hold ${idList(s, lang)}` : ""}, with the name and goal as instructed (propose them if not given)`,
       ) +
       createdByHumanLater(lang) +
       end(lang),
@@ -486,7 +483,7 @@ const ACTIONS: Record<AskAction, ActionDef> = {
     skill: "dgchange",
     label: (s) =>
       single(s, "iteration")
-        ? "名前・目標・期間を変える"
+        ? "名前・目標を変える"
         : single(s, "epic")
           ? "題・概要を変える"
           : "変える",
@@ -500,8 +497,8 @@ const ACTIONS: Record<AskAction, ActionDef> = {
         : single(s, "iteration")
           ? say(
               lang,
-              `${idList(s, lang)} の名前・目標・期間を、指示のとおりに直してください。`,
-              `Update the name, goal, and dates of ${idList(s, lang)} as instructed.`,
+              `${idList(s, lang)} の名前と目標を、指示のとおりに直してください。`,
+              `Update the name and goal of ${idList(s, lang)} as instructed.`,
             )
           : single(s, "epic")
             ? say(
@@ -520,8 +517,8 @@ const ACTIONS: Record<AskAction, ActionDef> = {
         : single(s, "iteration")
           ? say(
               lang,
-              `${idList(s, lang)} の名前・目標・期間を直して`,
-              `Edit the name, goal, and dates of ${idList(s, lang)}`,
+              `${idList(s, lang)} の名前・目標を直して`,
+              `Edit the name and goal of ${idList(s, lang)}`,
             )
           : single(s, "epic")
             ? say(
@@ -535,7 +532,7 @@ const ACTIONS: Record<AskAction, ActionDef> = {
         t.kind === "iteration"
           ? {
               check: ["iteration.update"],
-              command: `dg iteration update ${t.id} --name "<名前>" --goal "<目標>" --start "<開始日>" --end "<終了日>"`,
+              command: `dg iteration update ${t.id} --name "<名前>" --goal "<目標>"`,
             }
           : t.kind === "epic"
             ? {
@@ -774,17 +771,6 @@ const ACTIONS: Record<AskAction, ActionDef> = {
             `Release ${idList(s, lang)}, and ask for approval before merging the release PR and publishing.`,
           ),
   },
-  // 閉じる（close）とは別：データを書き換えず、未完了を持ち越すか続けるかの相談だけを頼む（閉じるのは人の指示で、人に回す対象にしない）
-  carry: {
-    skill: null,
-    label: () => "持ち越しを相談する",
-    text: (s, _w, lang) =>
-      say(
-        lang,
-        `${idList(s, lang)} は終了日を過ぎて未完了のチケットがあります。持ち越すか続けるかを、未完了の一覧を示して相談してください（相談だけで、Iteration・チケットのデータは書き換えない）。`,
-        `${idList(s, lang)} is past its end date with unfinished tickets. List the unfinished tickets and consult me on whether to carry them over or continue (consult only; do not change the Iteration or ticket data).`,
-      ),
-  },
   close: {
     skill: "dgchange",
     label: () => "閉じる",
@@ -1010,8 +996,8 @@ const MEANING: Record<
     single(s, "iteration")
       ? say(
           lang,
-          `${idList(s, lang)} の名前・目標・期間を指示のとおりに直します。`,
-          `Update the name, goal, and dates of ${idList(s, lang)} as instructed.`,
+          `${idList(s, lang)} の名前と目標を指示のとおりに直します。`,
+          `Update the name and goal of ${idList(s, lang)} as instructed.`,
         )
       : single(s, "epic")
         ? say(
@@ -1140,12 +1126,6 @@ const MEANING: Record<
       lang,
       `${idList(s, lang)} をリリースします。リリースの PR のマージと公開の前に承認を求めます。`,
       `Release ${idList(s, lang)}, and ask for approval before merging the release PR and publishing.`,
-    ),
-  carry: (s, _w, lang) =>
-    say(
-      lang,
-      `${idList(s, lang)} の未完了のチケットを示し、持ち越すか続けるかを相談します（データは書き換えません）。`,
-      `List the unfinished tickets of ${idList(s, lang)} and consult on whether to carry them over or continue (no data changes).`,
     ),
   close: (s, _w, lang) =>
     say(
@@ -1319,7 +1299,6 @@ function baseActions(s: Subjects): AskAction[] {
     if (it.status === "closed") return ["retro", "assign", "reopen", "free"];
     const rest: AskAction[] = ["create", "assign", "change", "close", "check", "free"];
     if (it.status === "active" && it.complete) return ["release", "plan", "all", ...rest];
-    if (it.status === "active" && it.overdue) return ["carry", "plan", "all", "release", ...rest];
     return it.status === "active" ? ["plan", "all", "release", ...rest] : ["plan", "all", ...rest];
   }
 
@@ -1386,10 +1365,6 @@ const NO_TARGET: Partial<Record<AskAction, { ja: string; en: string }>> = {
   release: {
     ja: "リリースします。リリースの PR のマージと公開の前に承認を求めます。",
     en: "Release, and ask for approval before merging the release PR and publishing.",
-  },
-  carry: {
-    ja: "未完了のチケットを示し、持ち越すか続けるかを相談します（データは書き換えません）。",
-    en: "List the unfinished tickets and consult on whether to carry them over or continue (no data changes).",
   },
   close: {
     ja: "Iteration・Epic を閉じ、Status を closed にします（人の指示）。",
@@ -1594,12 +1569,7 @@ function agentDenied(store: Store, t: Parameters<Store["workflowFor"]>[0]): stri
 }
 
 /** ID から対象を引く。種類は頭の文字で決めるので、番号だけは受けない */
-function askSubjectOf(
-  store: Store,
-  ref: string,
-  running: ReadonlySet<string>,
-  today: string,
-): AskSubject {
+function askSubjectOf(store: Store, ref: string, running: ReadonlySet<string>): AskSubject {
   const kind = idKindOf(ref);
   if (!kind || !parseId(ref, kind))
     throw new UsageError(`${ref} is not a target ID (write it like t12, s3, e2, or p7)`);
@@ -1623,18 +1593,12 @@ function askSubjectOf(
     }
     case "iteration": {
       const it = store.require("iteration", ref).data;
-      const { complete, overdue } = iterationReadiness(
-        it,
-        ticketsInIteration(store, it.id).map((t) => t.data.status),
-        today,
-      );
       return {
         kind,
         id: it.id,
         title: it.name,
         status: it.status,
-        complete,
-        overdue,
+        complete: iterationComplete(ticketsInIteration(store, it.id).map((t) => t.data.status)),
       };
     }
     case "epic": {
@@ -1682,7 +1646,7 @@ export const ask = defineCommand({
       .enum(ASK_FORMATS)
       .optional()
       .describe(
-        "skill gives only the Skill call and the instruction; text gives one line asking for the action, the dg command, and (for actions that have a Skill) one line to read guide, plus the instruction. The actions with no Skill (free, status, retro, carry) use the text form even when skill is given. When omitted, uses skill if dg's Skill is in the place dg skill install writes to (under the repository or the home directory), otherwise text",
+        "skill gives only the Skill call and the instruction; text gives one line asking for the action, the dg command, and (for actions that have a Skill) one line to read guide, plus the instruction. The actions with no Skill (free, status, retro) use the text form even when skill is given. When omitted, uses skill if dg's Skill is in the place dg skill install writes to (under the repository or the home directory), otherwise text",
       ),
     within: z
       .string()
@@ -1708,7 +1672,7 @@ export const ask = defineCommand({
     const format = input.format ?? ((await askSkillInstalled(dirs)) ? "skill" : "text");
     return ok(
       buildAsk({
-        subjects: subjectsOf(ctx.store, refs, running, localDate(ctx.now())),
+        subjects: subjectsOf(ctx.store, refs, running),
         action: input.action,
         note: input.note,
         format,
@@ -1762,7 +1726,7 @@ export const askMenu = defineCommand({
         try {
           const { refs, within } = parseAskMenuKey(key);
           const candidates = askCandidates(
-            subjectsOf(ctx.store, refs, running, localDate(ctx.now())),
+            subjectsOf(ctx.store, refs, running),
             withinRef(ctx.store, within),
             input.language,
           );
@@ -1823,9 +1787,8 @@ function subjectsOf(
   store: Store,
   refs: readonly string[],
   running: ReadonlySet<string>,
-  today: string,
 ): AskSubject[] {
-  const subjects = [...new Set(refs)].map((r) => askSubjectOf(store, r, running, today));
+  const subjects = [...new Set(refs)].map((r) => askSubjectOf(store, r, running));
   return subjects.filter((t, n) => subjects.findIndex((u) => u.id === t.id) === n);
 }
 

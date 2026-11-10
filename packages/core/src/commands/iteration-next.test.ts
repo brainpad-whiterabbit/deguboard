@@ -10,7 +10,6 @@ import {
   iterationNextOf,
   iterationShow,
   iterationStart,
-  iterationUpdate,
 } from "./iteration.js";
 import { commit, init } from "./setup.js";
 import { planCreate } from "./plan.js";
@@ -21,12 +20,12 @@ afterEach(async () => {
   await Promise.all(cleanups.splice(0).map((c) => c()));
 });
 
-async function ready(now?: () => Date): Promise<CommandContext> {
+async function ready(): Promise<CommandContext> {
   const f: Fixture = await createFixture();
   cleanups.push(f.cleanup);
   const actor = { kind: "human" as const, user: "eiki" };
   await runCommand(init, await openContext({ cwd: f.cloneA, initialize: {}, actor }), {});
-  return openContext({ cwd: f.cloneA, actor, ...(now ? { now } : {}) });
+  return openContext({ cwd: f.cloneA, actor });
 }
 
 const next = async (ctx: CommandContext, id = "s1") =>
@@ -41,43 +40,14 @@ describe("iteration.show の next（UI-5 の次の操作）", () => {
 
   it("active：全件が done か abandoned なら ready（release）、チケットがなければ案内なし", async () => {
     const ctx = await ready();
-    await runCommand(iterationCreate, ctx, { name: "S1", end: "2999-01-01" });
+    await runCommand(iterationCreate, ctx, { name: "S1" });
     await runCommand(iterationStart, ctx, { iteration: "s1" });
     expect(await next(ctx)).toBeNull();
     await runCommand(ticketCreate, ctx, { title: "A" });
     await runCommand(iterationAdd, ctx, { iteration: "s1", tickets: ["t1"] });
-    // 期限内の未完了は案内しない
+    // 未完了が残るうちは案内しない（予定の期間を持たないので、超過の案内もない）
     expect(await next(ctx)).toBeNull();
     await runCommand(ticketMove, ctx, { ticket: "t1", status: "abandoned" });
-    expect(await next(ctx)).toEqual({ kind: "ready", ask: "release" });
-  });
-
-  it("active：終了日を過ぎて未完了があれば overdue（件数と carry）。終了日の当日は過ぎていない（時計を固定）", async () => {
-    // 2024-06-15 12:00（手元の暦）に固定する。実時計や日付の変わる瞬間に依存しない
-    const ctx = await ready(() => new Date(2024, 5, 15, 12, 0, 0));
-    await runCommand(iterationCreate, ctx, { name: "S1", end: "2024-06-14" });
-    await runCommand(iterationStart, ctx, { iteration: "s1" });
-    await runCommand(ticketCreate, ctx, { title: "A" });
-    await runCommand(ticketCreate, ctx, { title: "B" });
-    await runCommand(iterationAdd, ctx, { iteration: "s1", tickets: ["t1", "t2"] });
-    expect(await next(ctx)).toEqual({ kind: "overdue", unfinished: 2, ask: "carry" });
-    await runCommand(iterationUpdate, ctx, { iteration: "s1", end: "2024-06-15" });
-    expect(await next(ctx)).toBeNull();
-    await runCommand(iterationUpdate, ctx, { iteration: "s1", end: "2024-06-16" });
-    expect(await next(ctx)).toBeNull();
-  });
-
-  it("active：全件が終わっていて終了日も過ぎていれば overdue でなく ready になる（時計を固定）", async () => {
-    const ctx = await ready(() => new Date(2024, 5, 15, 12, 0, 0));
-    await runCommand(iterationCreate, ctx, { name: "S1", end: "2024-06-14" });
-    await runCommand(iterationStart, ctx, { iteration: "s1" });
-    await runCommand(ticketCreate, ctx, { title: "A" });
-    await runCommand(ticketCreate, ctx, { title: "B" });
-    await runCommand(iterationAdd, ctx, { iteration: "s1", tickets: ["t1", "t2"] });
-    await runCommand(ticketMove, ctx, { ticket: "t1", status: "abandoned" });
-    // 1 件残っていれば overdue
-    expect(await next(ctx)).toEqual({ kind: "overdue", unfinished: 1, ask: "carry" });
-    await runCommand(ticketMove, ctx, { ticket: "t2", status: "abandoned" });
     expect(await next(ctx)).toEqual({ kind: "ready", ask: "release" });
   });
 

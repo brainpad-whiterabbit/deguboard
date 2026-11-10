@@ -27,12 +27,6 @@ function NextText({ next }: { next: Next }) {
   switch (next.kind) {
     case "ready":
       return <span>{tr("全件が終わっています。リリースできます")}</span>;
-    case "overdue":
-      return (
-        <span>
-          {trNode("終了日を過ぎ、未完了が {0} 件あります。持ち越しを相談できます", next.unfinished)}
-        </span>
-      );
     case "planned":
       return (
         <span>

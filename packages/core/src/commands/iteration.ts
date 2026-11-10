@@ -19,17 +19,14 @@ import { defineCommand, ok } from "./define.js";
 import { plansContaining, type PlanBrief } from "./plan.js";
 import type { AskAction } from "./ask.js";
 import {
-  iterationReadiness,
+  iterationComplete,
   iterationRef,
-  localDate,
   nowIso,
   projectOf,
   sortedDocs,
   ticketRef,
   ticketsInIteration,
 } from "./helpers.js";
-
-const isoDate = z.iso.date();
 
 /** active の Iteration は Project に 1 つ（IT-1）。ほかに active があれば拒否する */
 function rejectIfOtherActive(store: Store, it: Doc<Iteration>, verb: string): void {
@@ -51,8 +48,6 @@ export const iterationCreate = defineCommand({
       .optional()
       .describe("Project. Defaults to config's default_project when omitted"),
     goal: z.string().optional().describe("Goal"),
-    start: isoDate.optional().describe("Start date (YYYY-MM-DD)"),
-    end: isoDate.optional().describe("End date (YYYY-MM-DD)"),
   }),
   write: true,
   needs: "store",
@@ -68,8 +63,6 @@ export const iterationCreate = defineCommand({
           project,
           name: input.name,
           goal: input.goal ?? "",
-          start: input.start,
-          end: input.end,
           status: "planned",
         });
       },
@@ -118,8 +111,6 @@ export interface CarriedTicket {
 export type IterationNext =
   /** active で、中のチケットがすべて done か abandoned */
   | { kind: "ready"; ask: AskAction }
-  /** active で、終了日を過ぎて未完了が残っている */
-  | { kind: "overdue"; unfinished: number; ask: AskAction }
   /** planned。最初のチケットの claim で active になる */
   | { kind: "planned"; ask: null }
   /**
@@ -151,12 +142,11 @@ export function carriedOverFrom(
     .sort((a, b) => (Number(a.slice(1)) || 0) - (Number(b.slice(1)) || 0));
 }
 
-/** 次の操作を決める。案内が要らなければ null（active で期限内、閉じて持ち越しなし、など） */
+/** 次の操作を決める。案内が要らなければ null（active で未完了が残る、閉じて持ち越しなし、など） */
 export async function iterationNextOf(
   ctx: {
     store: Store;
     repo: { dataDir: string };
-    now(): Date;
     readHistory?: HistoryReader | undefined;
   },
   it: Iteration,
@@ -188,14 +178,7 @@ export async function iterationNextOf(
       ask: moved.some((m) => m.iteration === null && !isTerminal(m.status)) ? "assign" : null,
     };
   }
-  const { complete, overdue, unfinished } = iterationReadiness(
-    it,
-    items.map((t) => t.status),
-    localDate(ctx.now()),
-  );
-  if (complete) return { kind: "ready", ask: "release" };
-  if (overdue) return { kind: "overdue", unfinished, ask: "carry" };
-  return null;
+  return iterationComplete(items.map((t) => t.status)) ? { kind: "ready", ask: "release" } : null;
 }
 
 /** iteration.show の出力。items は優先度と番号の順（IT-3）。progress は Epic と同じ形で、中のチケットから都度求める（EP-3）。next は次の操作の案内、plans は中のチケットを含む Plan */
@@ -236,13 +219,11 @@ export const iterationUpdate = defineCommand({
   name: "iteration.update",
   positionals: ["iteration"],
   group: "iteration",
-  summary: "Edit an Iteration's name, goal, and period. A closed Iteration can also be edited",
+  summary: "Edit an Iteration's name and goal. A closed Iteration can also be edited",
   input: z.object({
     iteration: iterationRef,
     name: z.string().min(1).optional().describe("Name"),
     goal: z.string().optional().describe("Goal. An empty string clears it"),
-    start: isoDate.optional().describe("Start date (YYYY-MM-DD)"),
-    end: isoDate.optional().describe("End date (YYYY-MM-DD)"),
   }),
   write: true,
   needs: "store",
@@ -254,8 +235,6 @@ export const iterationUpdate = defineCommand({
         const patch: Record<string, unknown> = {};
         if (input.name !== undefined) patch["name"] = input.name;
         if (input.goal !== undefined) patch["goal"] = input.goal;
-        if (input.start !== undefined) patch["start"] = input.start;
-        if (input.end !== undefined) patch["end"] = input.end;
         return ctx.store.update("iteration", it.id, patch);
       },
       { message: (doc) => `Update ${doc.id}: ${doc.data.name}` },
@@ -333,7 +312,7 @@ export const iterationStart = defineCommand({
   positionals: ["iteration"],
   group: "iteration",
   summary:
-    "Start an Iteration (make it active). Records the time it started (started_at), and the start date (start) is rewritten to the day it starts (local calendar date); the end date is not changed. Rejected if another Iteration in the same Project is active",
+    "Start an Iteration (make it active). Records the time it started (started_at). Rejected if another Iteration in the same Project is active",
   input: z.object({ iteration: iterationRef }),
   write: true,
   needs: "store",
@@ -348,10 +327,9 @@ export const iterationStart = defineCommand({
             `${it.id} is ${it.data.status}, so it cannot be started`,
           );
         rejectIfOtherActive(ctx.store, it, "started");
-        // 実績の期間の始まりとして started_at を書く（IT-1）。予定の開始日も始めた日に書き換え、end は予定のまま
+        // 実績の期間の始まりとして started_at を書く（IT-1）
         return ctx.store.update("iteration", it.id, {
           status: "active",
-          start: localDate(ctx.now()),
           started_at: nowIso(ctx),
         });
       },
@@ -367,7 +345,7 @@ export const iterationClose = defineCommand({
   positionals: ["iteration"],
   group: "iteration",
   summary:
-    "Close an Iteration and record the counts of completed and carried-over tickets. The end date (end) is rewritten to the day it closes (local calendar date); if the start date is later than that, the start date is also set to the closing day. Carried-over tickets lose their iteration",
+    "Close an Iteration and record the time it closed (closed_at) and the counts of completed and carried-over tickets. Carried-over tickets lose their iteration",
   input: z.object({ iteration: iterationRef }),
   write: true,
   needs: "store",
@@ -383,13 +361,8 @@ export const iterationClose = defineCommand({
         const carried = tickets.filter((t) => !isTerminal(t.data.status));
         for (const t of carried)
           await ctx.store.update("ticket", t.id, { iteration: undefined, updated_at: nowIso(ctx) });
-        // 予定の終了日は実際とずれるので、閉じた日に書き換えて実際の期間を残す（IT-1）。
-        // 開始日が閉じた日より後（始める前に閉じた）なら、期間が逆にならないよう開始日も閉じた日にする
-        const today = localDate(ctx.now());
         return ctx.store.update("iteration", it.id, {
           status: "closed",
-          ...(it.data.start !== undefined && it.data.start > today ? { start: today } : {}),
-          end: today,
           closed_at: nowIso(ctx),
           completed,
           carried_over: carried.length,
@@ -406,7 +379,7 @@ export const iterationReopen = defineCommand({
   positionals: ["iteration"],
   group: "iteration",
   summary:
-    "Reopen a closed Iteration and make it active again (rejected if another Iteration in the same Project is active). Clears closed_at and the completed and carried-over counts. The start time (started_at) and the start date are not changed, and the end date stays the closing day, so fix it with iteration update if needed. Carried-over tickets do not come back, so add them again with iteration add",
+    "Reopen a closed Iteration and make it active again (rejected if another Iteration in the same Project is active). Clears closed_at and the completed and carried-over counts. The start time (started_at) is not changed. Carried-over tickets do not come back, so add them again with iteration add",
   input: z.object({ iteration: iterationRef }),
   write: true,
   needs: "store",

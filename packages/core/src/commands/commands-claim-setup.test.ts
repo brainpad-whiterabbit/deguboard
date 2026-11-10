@@ -10,7 +10,6 @@ import { fixture, initialized, runCleanups } from "../../test/helpers/commands-c
 import { iterationTargetFor } from "./claim-setup.js";
 import { openContext } from "./context.js";
 import { runCommand, type CommandContext } from "./define.js";
-import { localDate } from "./helpers.js";
 import { iterationCreate, iterationShow, iterationStart } from "./iteration.js";
 import { configSet } from "./setup.js";
 import { ticketClaim, ticketCreate, ticketShow, ticketUnclaim } from "./ticket.js";
@@ -36,12 +35,12 @@ describe("claim の Iteration の準備", () => {
   it("require_iteration が true なら、Iteration の空いたチケットを active の Iteration に入れる", async () => {
     const f = await fixture();
     const ctx = await requiringIteration(f.cloneA);
-    await runCommand(iterationCreate, ctx, { name: "S1", start: "2026-11-01" });
-    await runCommand(iterationCreate, ctx, { name: "S2", start: "2026-10-01" });
+    await runCommand(iterationCreate, ctx, { name: "S1" });
+    await runCommand(iterationCreate, ctx, { name: "S2" });
     await runCommand(iterationStart, ctx, { iteration: "s1" });
     await runCommand(ticketCreate, ctx, { title: "A" });
     const claimed = await runCommand(ticketClaim, ctx, { ticket: "t1", no_worktree: true });
-    // start の早い planned（s2）より active（s1）を選ぶ
+    // planned（s2）より active（s1）を選ぶ
     expect(claimed.data.iteration).toBe("s1");
     expect(claimed.warnings).toContain("Added t1 to s1");
     // claim と同じ書き込みで push され、別の clone からも見える
@@ -53,40 +52,49 @@ describe("claim の Iteration の準備", () => {
     expect(await iterationOf(other, "t1")).toBe("s1");
   });
 
-  it("active がなければ start の最も早い planned（start のないものは後ろ、並べば ID の小さいもの）に入れて開始する", async () => {
+  it("active がなく planned が 1 つなら、そこに入れて開始する。started_at だけを書き、予定の日付は書かない（IT-1）", async () => {
     const f = await fixture();
     const ctx = await requiringIteration(f.cloneA);
-    await runCommand(iterationCreate, ctx, { name: "start なし" });
-    await runCommand(iterationCreate, ctx, { name: "遅い", start: "2026-11-20" });
-    await runCommand(iterationCreate, ctx, { name: "早い 1", start: "2026-11-10" });
-    await runCommand(iterationCreate, ctx, { name: "早い 2", start: "2026-11-10" });
+    await runCommand(iterationCreate, ctx, { name: "S1" });
     await runCommand(ticketCreate, ctx, { title: "A" });
     const claimed = await runCommand(ticketClaim, ctx, { ticket: "t1", no_worktree: true });
-    expect(claimed.data.iteration).toBe("s3");
+    expect(claimed.data.iteration).toBe("s1");
     expect(claimed.warnings).toEqual(
-      expect.arrayContaining(["Added t1 to s3", "Started s3 (active)"]),
+      expect.arrayContaining(["Added t1 to s1", "Started s1 (active)"]),
     );
-    const s3 = (await runCommand(iterationShow, ctx, { iteration: "s3" })).data;
-    // 実績の開始の日時 started_at を書き、開始日は始めた日に書き換える（iteration.start と同じ。IT-1）
-    expect(s3).toMatchObject({
-      status: "active",
-      start: localDate(NOW),
-      started_at: "2026-11-09T03:00:00Z",
-    });
-    // 規則だけの確かめ：start のない Iteration だけなら ID の小さいもの、閉じたものと別の Project のものは選ばない
+    const s1 = (await runCommand(iterationShow, ctx, { iteration: "s1" })).data;
+    expect(s1).toMatchObject({ status: "active", started_at: "2026-11-09T03:00:00Z" });
+    expect(s1).not.toHaveProperty("start");
+    expect(s1).not.toHaveProperty("end");
+    // 規則だけの確かめ：閉じたものと別の Project のものは数えず、残る planned が 1 つならそれ
     const doc = (id: string, data: object) =>
       ({ id, data: { project: "default", ...data } }) as never;
     expect(
       iterationTargetFor(
         [
           doc("s9", { status: "planned" }),
-          doc("s10", { status: "planned" }),
-          doc("s2", { status: "closed", start: "2026-01-01" }),
+          doc("s2", { status: "closed" }),
           doc("s1", { status: "active", project: "other" }),
         ],
         "default",
-      )?.id,
-    ).toBe("s9");
+      ),
+    ).toMatchObject({ target: { id: "s9" } });
+  });
+
+  it("active がなく planned が複数なら、どれにも入れず開始もせず、warnings で入れる先を人に頼む", async () => {
+    const f = await fixture();
+    const ctx = await requiringIteration(f.cloneA);
+    await runCommand(iterationCreate, ctx, { name: "S1" });
+    await runCommand(iterationCreate, ctx, { name: "S2" });
+    await runCommand(ticketCreate, ctx, { title: "A" });
+    const claimed = await runCommand(ticketClaim, ctx, { ticket: "t1", no_worktree: true });
+    expect(claimed.data).toMatchObject({ status: "in_progress" });
+    expect(claimed.data.iteration).toBeUndefined();
+    expect(claimed.warnings.join("\n")).toContain(
+      "There is no active Iteration, and 2 are planned (s1, s2), so t1 was not added to any. Ask the human which Iteration to add it to",
+    );
+    for (const id of ["s1", "s2"])
+      expect((await runCommand(iterationShow, ctx, { iteration: id })).data.status).toBe("planned");
   });
 
   it("入れ先がなければ Iteration は空のまま claim し、warnings で人に頼むよう伝える。require_iteration が false なら入れない", async () => {

@@ -93,8 +93,6 @@ export const EN: Readonly<Record<string, string>> = {
   押して変える: "Click to change",
   // components/iteration-next.tsx
   "全件が終わっています。リリースできます": "All tickets are finished. Ready to release",
-  "終了日を過ぎ、未完了が {0} 件あります。持ち越しを相談できます":
-    "Past the end date with {0} unfinished. You can discuss carrying them over",
   "ほかに active がなければ、最初のチケットを着手（claim）すると active になります":
     "If no other Iteration is active, claiming the first ticket makes this active",
   "持ち越し {0} 件": "{0} carried over",
@@ -486,10 +484,6 @@ export const EN_ONE: Readonly<Record<string, { arg: number; text: string }>> = {
     text: ". {0} run had no value and is not in the total",
   },
   "Epic をあと {0} 本出す": { arg: 0, text: "Show {0} more Epic" },
-  "終了日を過ぎ、未完了が {0} 件あります。持ち越しを相談できます": {
-    arg: 0,
-    text: "Past the end date with {0} unfinished. You can discuss carrying it over",
-  },
 };
 
 /**
