@@ -551,14 +551,14 @@ describe("依頼文の定型の文の言語（UI-11）", () => {
     const firstEn = (subjects: AskSubject[], action: AskAction) =>
       buildAsk({ subjects, action, format: "text", language: "en" }).text.split("\n")[0];
     // 添え書きは括弧を重ねず別の文にし、複数の対象にも合う形にする
-    // 対象なしは 1 行目で対象を先に聞かせ、2 行目に依頼文を置く
+    // 対象なしでも聞く対象がない依頼文は、1 行目がそのまま依頼文になる（ASK_FIRST を前置しない）
     expect(
       buildAsk({
         subjects: [],
         action: "create_iteration",
         format: "text",
         language: "en",
-      }).text.split("\n")[1],
+      }).text.split("\n")[0],
     ).toBe(
       "Create an Iteration, with the name, goal, and dates as instructed (propose them if not given). If you create tickets, pass --created-by human, since this is a human's instruction.",
     );
@@ -739,27 +739,48 @@ describe("頼むことの候補", () => {
     expect(buildAsk({ subjects: [], action: "discuss", format: "skill" }).text).toBe("/dgdiscuss");
   });
 
-  it("対象なしの文章だけの形は、対象を先に聞かせてから進める依頼文を ja・en で返し、ID の入る場所を空にしない", () => {
+  it("対象なしの文章だけの形は、聞く対象があるものは 1 行目で対象を先に聞かせ、ID の入る場所を空にしない。聞く対象がない依頼文は 1 行目がそのまま依頼文", () => {
+    // 聞く対象がない依頼文（create 系・点検）は ASK_FIRST を前置しない
+    const direct = new Set(["create", "create_iteration", "create_epic", "check"]);
     for (const language of ["ja", "en"] as const)
       for (const action of askActions([])) {
         if (action === "free") continue;
         const lines = buildAsk({ subjects: [], action, format: "text", language }).text.split("\n");
-        expect(lines[0], `${language} ${action}`).toBe(
-          language === "en" ? ASK_FIRST_EN : ASK_FIRST,
-        );
-        // 依頼文は空白や助詞で始まらず、二重の空白も入らない（「 を閉じて」のような空の場所を作らない）
-        expect(lines[1], `${language} ${action}`).not.toMatch(/^[\s を・の]|\s\s/);
+        if (direct.has(action)) {
+          expect(lines[0], `${language} ${action}`).not.toBe(
+            language === "en" ? ASK_FIRST_EN : ASK_FIRST,
+          );
+        } else {
+          expect(lines[0], `${language} ${action}`).toBe(
+            language === "en" ? ASK_FIRST_EN : ASK_FIRST,
+          );
+          // 依頼文は空白や助詞で始まらず、二重の空白も入らない（「 を閉じて」のような空の場所を作らない）
+          expect(lines[1], `${language} ${action}`).not.toMatch(/^[\s を・の]|\s\s/);
+          // 日本語では「その対象」の後に空白を入れない（ID の並びのときだけ空白が要る）
+          if (language === "ja")
+            expect(lines[1], `${language} ${action}`).not.toMatch(/その対象\s/);
+        }
         if (language === "en") expect(lines.join("\n"), action).not.toMatch(/[぀-ヿ一-鿿]/);
       }
+    expect(buildAsk({ subjects: [], action: "create", format: "text" }).text).toBe(
+      [
+        "指示の内容をチケットにしてください（人の指示なので --created-by human を付ける）。",
+        ASK_DG_USAGE,
+        askGuideLine("/dgimport"),
+      ].join("\n"),
+    );
+    expect(buildAsk({ subjects: [], action: "check", format: "text" }).text.split("\n")[0]).toBe(
+      "全体を点検し、直す案を表で示してください。",
+    );
     expect(buildAsk({ subjects: [], action: "close", format: "text" }).text.split("\n")[1]).toBe(
-      "その対象 を閉じてください（人の指示。終わっていないチケットがあれば閉じる前に知らせる）。",
+      "指示の Iteration・Epic を閉じてください（人の指示。終わっていないチケットがあれば閉じる前に知らせる）。",
     );
     expect(
       buildAsk({ subjects: [], action: "discuss", format: "text", language: "en" }).text.split(
         "\n",
       )[1],
     ).toBe(
-      "Discuss the open points of those targets with me through choices, and reflect the result after showing before → after and getting approval (change no files or data while discussing).",
+      "Discuss the open points of the targets with me through choices, and reflect the result after showing before → after and getting approval (change no files or data while discussing).",
     );
   });
 
