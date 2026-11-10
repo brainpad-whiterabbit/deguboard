@@ -156,6 +156,18 @@ describe("dg", () => {
     expect(detached.json().data.branch).toBeUndefined();
   });
 
+  it("ticket update の --gate low を --gate none で外すと、ticket show に gate が出なくなる（t663）", async () => {
+    const f = await fixture();
+    await dg(f.cloneA, ["init"]);
+    await dg(f.cloneA, ["ticket", "create", "A"]);
+    const set = await dg(f.cloneA, ["ticket", "update", "1", "--gate", "low"]);
+    expect(set.code).toBe(0);
+    expect((await dg(f.cloneA, ["ticket", "show", "t1"])).out).toContain("gate: low");
+    const cleared = await dg(f.cloneA, ["--json", "ticket", "update", "1", "--gate", "none"]);
+    expect(cleared.json().data.gate).toBeUndefined();
+    expect((await dg(f.cloneA, ["ticket", "show", "t1"])).out).not.toContain("gate");
+  });
+
   it("agent の claim は開いた Run の ID を人向けの出力の最後の行と --json の data.run に出し、--no-run では開かない（RN-5）", async () => {
     const f = await fixture();
     await dg(f.cloneA, ["init"]);
