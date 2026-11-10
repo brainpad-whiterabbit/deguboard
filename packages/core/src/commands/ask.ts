@@ -1405,8 +1405,8 @@ const NO_TARGET: Partial<Record<AskAction, { ja: string; en: string }>> = {
     en: "Undo done on the done tickets and return their Status to todo, in_progress, or review (a human's instruction).",
   },
   status: {
-    ja: "作業の様子を教えます（データは書き換えません）。",
-    en: "Tell how the work is going (no data changes).",
+    ja: "進んでいるチケットの作業の様子を教えます（データは書き換えません）。",
+    en: "Tell how the work on an in-progress ticket is going (no data changes).",
   },
   retro: {
     ja: "振り返りをまとめます（データは書き換えません）。",
