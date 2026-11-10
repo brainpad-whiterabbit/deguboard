@@ -490,7 +490,7 @@ export async function closeOpenedRunAlone(
       },
       {
         message: ({ run }) =>
-          `${openedRunLabel(input.opener)}の Run を記録: ${run.ticket} ${run.id} ${run.result ?? ""}`,
+          `Record ${openedRunLabel(input.opener)} Run: ${run.ticket} ${run.id} ${run.result ?? ""}`,
       },
     );
     await dropRunning(ctx.repo, running.data.id);
@@ -1227,7 +1227,7 @@ export const runRefresh = defineCommand({
       },
       {
         message: (done) =>
-          `Run を会話記録から取り直す: ${done
+          `Re-read Runs from transcripts: ${done
             .filter((i) => i.updated)
             .map((i) => i.id)
             .join(" ")}`,

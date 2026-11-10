@@ -1611,7 +1611,7 @@ describe("run refresh の取り直し（RN-4・MT-5）", () => {
       await git(ctx.repo.dataDir, ["show", "--name-only", "--format=%s", "HEAD"])
     ).stdout.trim();
     expect(changed.split("\n")).toEqual([
-      `Run を会話記録から取り直す: ${a.id} ${b.id}`,
+      `Re-read Runs from transcripts: ${a.id} ${b.id}`,
       "",
       // git は名前の順に並べる
       ...[`runs/${a.id}.json`, `runs/${b.id}.json`].sort(),

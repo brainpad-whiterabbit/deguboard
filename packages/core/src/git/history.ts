@@ -31,7 +31,7 @@ export interface HistoryEvent {
   commit: string;
   /** コミットの作者（git の user.name） */
   author: string;
-  /** コミットの 1 行目（`t12 を claim: eiki/agent`、`照合で t12: …` など。変えた主体と理由が読める） */
+  /** コミットの 1 行目（`Claim t12: eiki/agent`、`Reconcile t12: …` など。前の版の日本語の題もそのまま返す。変えた主体と理由が読める） */
   subject: string;
   /** created では最初の値（from は null）。deleted では空 */
   changes: HistoryChange[];

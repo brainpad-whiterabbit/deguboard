@@ -65,7 +65,7 @@ describe("workflow set", () => {
     expect(r.data.changed).toEqual(["name", "transitions", "reconcile", "steps"]);
     expect(r.write).toMatchObject({ committed: true, pushed: true });
     expect(await commitCount(ctx)).toBe(commits + 1);
-    expect(await gitOut(ctx, ["log", "-1", "--format=%s"])).toBe("Workflow general を置き換え");
+    expect(await gitOut(ctx, ["log", "-1", "--format=%s"])).toBe("Replace Workflow general");
     expect(await workflowText(ctx, "general")).toContain("name: Strict General");
 
     // 別の clone でも読める
@@ -157,7 +157,7 @@ describe("workflow set", () => {
       true,
     );
     expect(await gitOut(ctx, ["log", "-1", "--format=%s"])).toBe(
-      "Workflow general を置き換え（テンプレート general）",
+      "Replace Workflow general (template general)",
     );
 
     const copy = await runCommand(workflowSet, ctx, {

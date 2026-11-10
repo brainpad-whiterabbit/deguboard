@@ -440,7 +440,7 @@ describe("dg", () => {
     const log = (
       await git(path.join(f.cloneA, ".git", "deguboard"), ["log", "-1", "--format=%s"])
     ).stdout.trim();
-    expect(log).toBe("2 件のチケットを取り込み: t1, t2");
+    expect(log).toBe("Import 2 tickets: t1, t2");
   });
 
   it("ticket import は本文の項目の引用しない値に行末コメントがあると、INVALID_INPUT の JSON と終了コード 2 で起票しない", async () => {

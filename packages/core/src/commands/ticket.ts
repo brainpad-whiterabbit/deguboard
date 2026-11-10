@@ -400,8 +400,7 @@ export const ticketImport = defineCommand({
         return docs;
       },
       {
-        message: (docs) =>
-          `${docs.length} 件のチケットを取り込み: ${docs.map((d) => d.id).join(", ")}`,
+        message: (docs) => `Import ${docs.length} tickets: ${docs.map((d) => d.id).join(", ")}`,
         immediate: true,
         cas: true,
         markProvisional: provisionalMarker(ctx),
