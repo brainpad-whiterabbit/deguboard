@@ -211,7 +211,7 @@ describe("依頼文の組み立て", () => {
     // Skill を持たない頼むことは変わらない（guide の一文なし）
     const none = buildAsk({
       subjects: [ticket({ status: "in_progress" })],
-      action: "status",
+      action: "free",
       format: "text",
     });
     expect(none.skill).toBeNull();
@@ -329,12 +329,12 @@ describe("依頼文の組み立て", () => {
     });
   });
 
-  it("Skill を持たない頼むことは free・status・retro だけ（振り返るは履歴の見出しの場所で数える）", () => {
+  it("Skill を持たない頼むことは free・retro だけ（振り返るは履歴の見出しの場所で数える）", () => {
     const none = new Set<string>();
     for (const [s, within] of SAMPLES)
       for (const c of askCandidates(s, within, "ja", "historyRow"))
         if (c.skill === null) none.add(c.action);
-    expect([...none].sort()).toEqual(["free", "retro", "status"]);
+    expect([...none].sort()).toEqual(["free", "retro"]);
   });
 
   it("actor.human_only に当たる書き換えは、/dgchange の代わりに今までどおり人が打つコマンドを返す", () => {
@@ -446,15 +446,27 @@ describe("依頼文の組み立て", () => {
     ).toBe("prompt");
   });
 
-  it("Skill を使わない頼むことは、Skill 形式でも頼む 1 文と dg の呼び方の形になる", () => {
-    const view = buildAsk({
-      subjects: [ticket({ status: "in_progress", running: true })],
-      action: "status",
-      format: "skill",
-    });
-    expect(view.skill).toBeNull();
-    expect(view.text).toBe(
-      ["t265 の作業の様子を教えてください（データは書き換えない）。", ASK_DG_USAGE].join("\n"),
+  it("様子を聞くは Skill の形で /dgstatus <ID> になり、文章だけの形は頼む 1 文と dg の呼び方と guide の一文になる", () => {
+    const running = ticket({ status: "in_progress", running: true });
+    const view = buildAsk({ subjects: [running], action: "status", format: "skill" });
+    expect(view).toMatchObject({ kind: "prompt", skill: "/dgstatus", action: "status" });
+    // 頼みごとの 1 行は添えない（呼び出しだけで様子を聞く）。指示は次の行
+    expect(view.text).toBe("/dgstatus t265");
+    expect(
+      buildAsk({
+        subjects: [ticket({ status: "in_progress" })],
+        action: "status",
+        note: "いつ止まった？",
+      }).text,
+    ).toBe("/dgstatus t265\nいつ止まった？");
+    // 対象なしは ID のない呼び出し（Skill が対象を聞く）
+    expect(buildAsk({ subjects: [], action: "status", format: "skill" }).text).toBe("/dgstatus");
+    expect(buildAsk({ subjects: [running], action: "status", format: "text" }).text).toBe(
+      [
+        "t265 の作業の様子を教えてください（データは書き換えない）。",
+        ASK_DG_USAGE,
+        askGuideLine("/dgstatus"),
+      ].join("\n"),
     );
   });
 
@@ -683,7 +695,7 @@ describe("頼むことの候補", () => {
     );
   });
 
-  it("対象なしの候補は、Skill を持つ頼むことを流れの順にすべて出し、先頭は起票（discuss は change の直後）", () => {
+  it("対象なしの候補は、Skill を持つ頼むことを流れの順にすべて出し、先頭は起票（discuss は change の直後、status は work の直後）", () => {
     expect(askActions([])).toEqual([
       "create",
       "create_iteration",
@@ -692,6 +704,7 @@ describe("頼むことの候補", () => {
       "check",
       "plan",
       "work",
+      "status",
       "all",
       "done",
       "release",
@@ -702,16 +715,8 @@ describe("頼むことの候補", () => {
       "abandon",
       "free",
     ]);
-    // 対象がないと意味のないもの（外す・分ける・done の取り消し・再開・承認）と、Skill のないもの（様子・振り返り）は出さない
-    for (const action of [
-      "remove",
-      "split",
-      "undo_done",
-      "resume",
-      "approve",
-      "status",
-      "retro",
-    ] as const)
+    // 対象がないと意味のないもの（外す・分ける・done の取り消し・再開・承認）と、Skill のないもの（振り返り）は出さない
+    for (const action of ["remove", "split", "undo_done", "resume", "approve", "retro"] as const)
       expect(askActions([])).not.toContain(action);
     expect(buildAsk({ subjects: [] }).action).toBe("create");
   });
@@ -1208,7 +1213,7 @@ describe("Skill の 1 文（skill_summary・UI-15）", () => {
 
   it("Skill の名前に文がなければ例外", () => {
     expect(() => skillSummary("dgnone")).toThrow();
-    expect(Object.keys(SKILL_SUMMARY)).toHaveLength(11);
+    expect(Object.keys(SKILL_SUMMARY)).toHaveLength(12);
   });
 });
 
