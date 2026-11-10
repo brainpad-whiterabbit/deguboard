@@ -127,12 +127,12 @@ export interface AskView {
   text: string;
 }
 
-/** PATH に dg がないときの置き換えの案内。Skill（cli の skill.md の {{dgPathNote}}）と文章だけの形式が同じ文を写す正本（AG-2・AG-8） */
+/** PATH に dg がないときの置き換えの案内。日本語の依頼文の文章だけの形式が使う（AG-2・AG-8） */
 export const DG_PATH_NOTE =
   "PATH に `dg` がなければ、リポジトリの案内が書く呼び方（`npx deguboard`、`mise run dg --` など）で `dg` を置き換える。手順の中の `dg` も同じ。";
 
 /**
- * Skill（dg<トピック>）が何をするかの 1 文。SKILL.md の冒頭（dg skill install は ja）と、頼む小窓の札・候補のツールチップ（候補の skill_summary）が、この 1 か所から出る（UI-15・AG-2）。
+ * Skill（dg<トピック>）が何をするかの 1 文。SKILL.md の冒頭（dg skill install は en）と、頼む小窓の札・候補のツールチップ（候補の skill_summary）が、この 1 か所から出る（UI-15・AG-2）。
  * 文を別の場所に写さない。9 本すべてに文があることは cli のテストが確かめる。Skill の guide の frontmatter の description を変えたら、この文も見直す
  */
 export const SKILL_SUMMARY: Readonly<Record<string, Readonly<Record<AskLanguage, string>>>> = {
@@ -181,7 +181,7 @@ export function skillSummary(skill: string, lang: AskLanguage = "ja"): string {
   return text;
 }
 
-/** DG_PATH_NOTE の英語。英語の依頼文（language が en）の文章だけの形式に使う */
+/** Skill（skill.md の {{dgPathNote}}）と英語の依頼文の文章だけの形式が同じ文を写す正本（DG_PATH_NOTE の英語） */
 export const DG_PATH_NOTE_EN =
   "If `dg` is not on PATH, replace `dg` with the command the repository's guide tells you to use (`npx deguboard`, `mise run dg --`, etc.). The same applies to `dg` in the steps.";
 
