@@ -1,0 +1,35 @@
+{
+  "id": "r20261110-153252-58af",
+  "ticket": "t680",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-10T15:32:52Z",
+  "finished_at": "2026-11-10T15:39:26Z",
+  "result": "success",
+  "error": null,
+  "retries": 4,
+  "retry_reasons": [
+    "並列の停止条件が文字どおりには満たされないため、ready が空で実行中のサブエージェントもないときに尋ねると書き直す",
+    "wait_deps の案内が 1 件だけの next を指していたため、ready の一覧から次を進める形に直す",
+    "Plan の外のチケットでは読み直す先がないため、次の手順の節に Plan のある場合の条件を足す",
+    "並列の手順が指す節が work の流れの節に入っていなかったため、その節を flow の本文に加える"
+  ],
+  "usage": {
+    "input": 28,
+    "output": 10696,
+    "cache_read": 727479,
+    "cache_write": 54872
+  },
+  "tools": {
+    "read": 4,
+    "search": 0,
+    "write": 4,
+    "bash": 10,
+    "other": 1,
+    "read_before_write": 3,
+    "search_before_write": 0
+  },
+  "session": "816996d9-8e7c-419b-8543-85c2e8405cdf",
+  "review": null
+}
