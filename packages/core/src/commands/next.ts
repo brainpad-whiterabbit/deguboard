@@ -4,7 +4,7 @@
 import { z } from "zod";
 import { lastPushedAt } from "../git/facts.js";
 import { REVIEW_STEP, type Run } from "../model/run.js";
-import { DEFAULT_GATE_LEVEL, type Ticket } from "../model/ticket.js";
+import { gateLevelOf, gateScopeOf, type Ticket } from "../model/ticket.js";
 import type { Config } from "../model/config.js";
 import type { PlanTier } from "../model/plan.js";
 import { readRunningRuns } from "../run/record.js";
@@ -37,7 +37,10 @@ export interface Stage {
   reviews: number;
   /** 重い指摘が出た見直しの回数（fixed(n) の n。修正ループの回数。dg gate の fix_rounds と同じ数え方） */
   fixes: number;
-  /** 最後の push より後の見直しが通っているか（reviewed で ready と fix を分ける） */
+  /**
+   * 最後の push より後の見直しが通っているか（reviewed で ready と fix を分ける）。
+   * low・free の段は見直しを判定しないので、見直しは通ったものとして扱い、常に true（手は ready に進む）
+   */
   review_passed: boolean;
   /** 段階を決めた事実（1 文） */
   reason: string;
@@ -157,8 +160,8 @@ export function stageOf(facts: StageFacts): Stage {
   if (ticket.pr === undefined) return stage("claimed", n, fixes, "No PR yet");
   // low・free の段は見直しを判定しない（TK-9）ので、見直しと手直しの往復を飛ばす。
   // draft なら見直しが通ったものとして ready の手（dg pr ready）に、draft でなければマージを待つ
-  const level = ticket.gate ?? DEFAULT_GATE_LEVEL;
-  if (level !== "high")
+  const level = gateLevelOf(ticket);
+  if (!gateScopeOf(level).review)
     return ticket.status === "in_progress"
       ? stage(
           "reviewed",

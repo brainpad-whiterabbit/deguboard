@@ -9,7 +9,8 @@ import { composeGuide } from "../guide/guide.js";
 import { REVIEW_STEP } from "../model/run.js";
 import {
   type AcceptanceItem,
-  DEFAULT_GATE_LEVEL,
+  gateLevelOf,
+  gateScopeOf,
   parseAcceptance,
   type Ticket,
 } from "../model/ticket.js";
@@ -257,9 +258,9 @@ export async function briefOf(
     guideText: note.text.replace(/^[^\n]*\n*/, ""),
   };
   // low・free の段は見直しを判定しない（TK-9）。頼めば品質ゲートに効かない見直しの Run が増えるので、止めずに警告する
-  const level = ticket.gate ?? DEFAULT_GATE_LEVEL;
+  const level = gateLevelOf(ticket);
   const gateWarnings =
-    role === "review" && level !== "high"
+    role === "review" && !gateScopeOf(level).review
       ? [
           `The gate level of ${ticket.id} is ${level}, so the review is skipped in the flow and dg gate does not judge it (dg next goes to ready). Raise the level with dg ticket update ${ticket.id} --gate high if a review is needed`,
         ]

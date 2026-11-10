@@ -11,6 +11,8 @@ import {
   progressOf,
   replaceAcceptance,
   setAcceptance,
+  gateLevelOf,
+  gateScopeOf,
   ticketBodyTemplate,
 } from "./ticket.js";
 
@@ -145,6 +147,20 @@ describe("進み（progressOf）", () => {
     expect(p.done).toBe(1);
     expect(p.total).toBe(3);
     expect(p.by_status).toMatchObject({ todo: 1, in_progress: 1, review: 0, done: 1 });
+  });
+});
+
+describe("品質ゲートの段（gateLevelOf・gateScopeOf）", () => {
+  it("gate のないチケットは high として判定する", () => {
+    expect(gateLevelOf({})).toBe("high");
+    expect(gateLevelOf(undefined)).toBe("high");
+    expect(gateLevelOf({ gate: "free" })).toBe("free");
+  });
+
+  it("段ごとに判定する条件は、見直しは high だけ、受け入れ条件と検査は free 以外", () => {
+    expect(gateScopeOf("high")).toEqual({ review: true, acceptance: true, check: true });
+    expect(gateScopeOf("low")).toEqual({ review: false, acceptance: true, check: true });
+    expect(gateScopeOf("free")).toEqual({ review: false, acceptance: false, check: false });
   });
 });
 

@@ -9,7 +9,7 @@ import { composeGuide } from "../guide/guide.js";
 import { isTerminal } from "../model/common.js";
 import { FLOW_SKIPS } from "../model/config.js";
 import { compareIds, parseId, type IterationId } from "../model/id.js";
-import { DEFAULT_GATE_LEVEL, GATE_LEVELS, type GateLevel, type Ticket } from "../model/ticket.js";
+import { GATE_LEVELS, gateLevelOf, type GateLevel, type Ticket } from "../model/ticket.js";
 import type { Store } from "../storage/store.js";
 import { defineCommand, ok, type CommandContext } from "./define.js";
 import { agentDg as dg, sortedDocs, ticketsInIteration } from "./helpers.js";
@@ -634,8 +634,7 @@ export const flowNext = defineCommand({
           ? undefined
           : {
               level: input.gate,
-              of: (id) =>
-                ctx.store.tickets.get(id as Ticket["id"])?.data.gate ?? DEFAULT_GATE_LEVEL,
+              of: (id) => gateLevelOf(ctx.store.tickets.get(id as Ticket["id"])?.data),
             },
       ),
       ask_human:

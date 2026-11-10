@@ -5,7 +5,8 @@ import { z } from "zod";
 import { fetchPrGateFacts, lastPushedAt } from "../git/facts.js";
 import { REVIEW_STEP, type Run } from "../model/run.js";
 import {
-  DEFAULT_GATE_LEVEL,
+  gateLevelOf,
+  gateScopeOf,
   parseAcceptance,
   type GateLevel,
   type Ticket,
@@ -79,7 +80,8 @@ export async function judgeGate(
   ticket: Ticket,
   stage: GateStage,
 ): Promise<GateView> {
-  const level = ticket.gate ?? DEFAULT_GATE_LEVEL;
+  const level = gateLevelOf(ticket);
+  const scope = gateScopeOf(level);
   const conditions: GateCondition[] = [];
   const add = (id: GateConditionId, ok: boolean, detail: string) =>
     conditions.push({ id, ok, detail });
@@ -104,8 +106,8 @@ export async function judgeGate(
     }
   }
 
-  // 受け入れ条件。PR を出す前は、付けられない項目の理由を PR の本文に書けばよいので見ない。free は見ない
-  if (stage === "merge" && level !== "free") {
+  // 受け入れ条件。PR を出す前は、付けられない項目の理由を PR の本文に書けばよいので見ない。段が判定しない（free）ときも見ない
+  if (stage === "merge" && scope.acceptance) {
     const items = parseAcceptance(ctx.store.tickets.get(ticket.id)?.body ?? "") ?? [];
     const unchecked = items.filter((i) => !i.checked).map((i) => i.index);
     add(
@@ -117,8 +119,8 @@ export async function judgeGate(
     );
   }
 
-  // 見直しは high だけが判定する
-  if (level === "high") await judgeReview(ctx, ticket, add);
+  // 見直しは段が判定するときだけ（high）
+  if (scope.review) await judgeReview(ctx, ticket, add);
 
   // base と衝突しない（マージの前だけ）
   if (stage === "merge") {
@@ -135,7 +137,7 @@ export async function judgeGate(
   }
 
   // 検査（actions.test）。free は回さない。時間がかかるので、ほかの条件をすべて満たしたときだけ回す（空なら回さずに通すので、いつでも判定する）
-  if (level !== "free") {
+  if (scope.check) {
     if (ctx.config.actions.test.length === 0 || conditions.every((c) => c.ok)) {
       const check = await judgeCheck(ctx, ticket);
       add("check", check.ok, check.detail);
