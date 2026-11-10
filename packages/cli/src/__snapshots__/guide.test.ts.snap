@@ -31,9 +31,9 @@ The order of stages and the current stage are decided by \`dg flow next\`. Appro
 
 ## Running the flow
 
-1. Call \`dg --json --actor agent flow next <target…>\` when starting, and after finishing each stage (add \`--auto\` and \`--no-assign\` if given, and \`--gate <level>\` for \`--gate-<level>\`). In the result, \`stage.name\` is the current stage (\`assign\`, \`check\`, \`plan\`, \`work\`, \`audit\`, \`release\`, or \`stop\`); \`commands\` are the dg commands to call (in order); \`guide.text\` is how to do the stage (the sections in \`guide.sections\` joined in order, including all the sections of the same topic that the step section points to); and \`approval\` is whether approval is needed and where
+1. Call \`dg --json --actor agent flow next <target…>\` when starting, and after finishing each stage (add \`--auto\` and \`--no-assign\` if given, and \`--gate <level>\` for \`--gate-<level>\`). In the result, \`stage.name\` is the current stage (\`assign\`, \`check\`, \`plan\`, \`work\`, \`audit\`, \`release\`, or \`stop\`); \`commands\` are the dg commands to call (in order); \`guide.text\` is how to do the stage (the sections in \`guide.sections\` joined in order, including all the sections of the same topic that the step section points to, and for work the parallel steps after them); and \`approval\` is whether approval is needed and where
 2. Do the stage's step. Run \`commands\` in order, and follow \`guide.text\` (to read it again, use \`guide.command\`). Do not read the whole guide of the stage's topic again. Read a section of another topic only when \`guide.text\` points to it (the "…" section of \`dg guide <topic>\`)
-   - \`work\` follows \`dg guide parallel\` whatever the number of tickets: each ticket is given to a subagent. The parent only advances, asks for approval, and reads and writes \`dg\`
+   - \`work\` follows \`dg guide work\`. Its \`guide.text\` includes the parallel steps (\`dg guide parallel\`), which apply when \`ready\` of \`plan show\` has two or more tickets and subagents can be started. The parent only advances, asks for approval, and reads and writes \`dg\`
    - For \`release\`, if the repository's rules have no release steps, follow the "When there are no release steps" section of \`guide.text\`
 3. When \`approval.required\` is true, ask a human about \`approval.what\`. Include "Stop here" in the choices. For how \`--auto\` handles it, see "Choosing automatically with \`--auto\`" below
 4. After a stage's step is finished (approval obtained, fixed, or done), copy that result's \`resume\` as it is into \`--resume\`, and return to 1 (\`dg --json --actor agent flow next <target…> --resume <resume>\`). Do not assemble the value. If you stop midway through an assign, check, or audit step (approval was not obtained, or you stopped at the table of findings), stop without copying that \`resume\`. To resume, pass the \`resume\` copied before, or call without \`--resume\` using the same target and arguments. Copying the \`resume\` of a step stopped midway makes the flow skip that stage as finished
@@ -639,11 +639,14 @@ Read with \`dg guide <topic>\`. In Claude Code, the Skill that \`dg skill instal
 exports[`dg guide の出力（本文の組み立て） > トピックごとの本文と、節の本文が変わらない > parallel 1`] = `
 "# Advancing ready tickets in parallel (parallel)
 
-When \`next\` returns \`implement\`, \`review\`, \`fix\`, or \`ready\` for several tickets, and subagents can be started, you may start one for each ticket and advance them at the same time. \`dg\` only shows the order. Starting and waiting for them is done by these steps. The session that advances (the parent) only advances, gets approvals, and reads and writes \`dg\`.
+## Advancing in parallel
+
+When \`ready\` of \`dg --json --actor agent plan show <p>\` has two or more tickets and subagents can be started, advance them in parallel. This is the default. Otherwise, advance the Plan by \`dg guide work\`. \`dg\` only shows the order, and the slots below are filled from \`ready\`. Starting and waiting for them is done by these steps. The session that advances (the parent) only advances, gets approvals, and reads and writes \`dg\`.
 
 - **Limit**: up to 3 at the same time. If a human gives a number, follow it. If checks fail under load, reduce it
 - **Before starting**: look at the open Plan and the PRs, and check that no two tickets change the same file. Do not run tickets that change the same file side by side. Propose to a human that they run in order with \`after\`
-- **Parent**: for each ticket, do the \`implement\` step of the "Flow" section of \`dg guide work\`, and the "Before and after claim" section of \`dg guide work\`, one at a time (claim with \`--no-run\`; claim creates the worktree), and start a subagent. When it returns, do the "Receive the implementation result" section of \`dg guide work\`, and the review and fix loop in \`dg guide review\` (light findings you did not fix are added to the PR body by \`dg pr ready\`). With the free slot, read \`dg next\` again and start the next one. Tickets waiting for a merge and tickets waiting for a human do not count toward the slots
+- **Parent**: take the tickets of \`ready\` in the Plan's order. For each, do the \`implement\` step of the "Flow" section of \`dg guide work\`, and the "Before and after claim" section of \`dg guide work\` (claim with \`--no-run\`; claim creates the worktree), and start a subagent. When it returns, do the "Receive the implementation result" section of \`dg guide work\`, and the review and fix loop in \`dg guide review\` (light findings you did not fix are added to the PR body by \`dg pr ready\`). A ticket in review or fix takes the step that \`next\` returns for it. When a slot is free, read \`plan show\` again and start the next ticket of \`ready\`. Tickets waiting for a merge and tickets waiting for a human do not count toward the slots
+- **Not stopping**: after a PR is put out, do not wait for its merge. Do not stop at \`wait_merge\` or \`wait_human\` either: keep advancing the other tickets. Ask a human only when approval is needed, or when neither \`ready\` nor a free slot is left (then ask with the choices in "Choosing the next step" of \`dg guide work\`)
 - **Passing the text**: pass the \`brief\` from \`dg next\` as it is (for fixes, the \`--role fix\` text). The steps of each role are already in the text, so do not have the subagent read the guide. The model is \`model\` from \`dg next\` (\`null\` means the parent's model)
 - **The subagent does not**: claim, unclaim, \`iteration add\`, Plan operations, start a reviewer, \`dg pr ready\`, merge, \`ticket check\`, \`ticket update --pr\`, or work on other tickets
 - **One ticket does not stop the others**: on \`CLAIM_LOST\`, skip that ticket. If implementation fails, \`ticket unclaim\` it back to todo, keep the worktree, and do not claim it again in the same flow. If a review or fix returns failure or does not return, follow the "How to finish" section of \`dg guide review\`. Wait only for tickets linked by \`after\`"
@@ -697,7 +700,7 @@ By default, agents can also run \`plan approve\`. To limit it to humans, add \`p
 
 ## Principles of progress
 
-- Claim only the one ticket you can advance right now. Do not claim everything first (others, or other agents, could not start)
+- Claim only the tickets you start now: the one ticket when advancing serially, or one for each free slot when advancing in parallel (\`dg guide parallel\`). Do not claim the whole Plan first (others, or other agents, could not start)
 - Do not start a ticket whose dependency is neither done nor abandoned. If the Workflow writes \`requires: [deps_done]\` for todo → in_progress, claim is refused (\`TRANSITION_REJECTED\`). If it does not, wait until the ticket appears in \`--ready\`, or advance the dependency first
 - A Plan's \`after\` is not checked at claim. Wait until \`items[].waiting\` in \`plan show\` (the waits on \`after\` and \`depends_on\` that are not finished) is empty
 
@@ -875,7 +878,7 @@ Advances one ticket to a draft PR. \`dg next\` decides the steps and their order
 
 ## Deciding the target
 
-- Plan ID (\`p3\`): following "Following the Plan" below, advance one ticket at a time, starting with one that can be started
+- Plan ID (\`p3\`): following "Following the Plan" below. When \`ready\` of \`plan show\` has two or more tickets and subagents can be started, advance them in parallel: \`dg guide parallel\` is the default, and the steps below apply to each ticket
 - Ticket ID: advance that ticket. If it is in an open Plan (\`plan\` of \`ticket show\`), follow that Plan
 - No target given: suggest an approved Plan from \`plan list --status open\`, and confirm. If there is none, suggest making a plan with \`dg guide plan\`
 - \`--gate-high\`, \`--gate-low\`, \`--gate-free\`: the quality gate level for the target tickets. See "Gate level" below
@@ -888,7 +891,8 @@ Advances one ticket to a draft PR. \`dg next\` decides the steps and their order
    - \`review\`: start the reviewer by the "Starting the review (parent)" section of \`dg guide review\` (the text includes the "Review" steps)
    - \`fix\`: follow the "Fix loop (parent)" section of \`dg guide review\`, and pass the text with \`brief <id> --role fix\` (the text includes the "Fix findings" steps and the findings of the review record)
    - \`ready\`: put the PR out by the "How to finish" section of \`dg guide review\`. For a Workflow that does not look at PRs (such as general, where \`sync\` does not move it to review), after the PR is put out, move it to review yourself with \`dg --json --actor agent ticket move <id> review\`
-   - \`wait_merge\` and \`wait_human\`: tell a human \`ask_human\` and ask (\`wait_human\` is in the "How to finish" section of \`dg guide review\`). For review findings from a human, follow the "Fix loop (parent)" section of \`dg guide review\`. After the merge, \`dg guide done\`
+   - \`wait_merge\`: the PR waits for its merge, so do not wait for it. Advance the other tickets of \`ready\` (see "Following the Plan"). After the merge, \`dg guide done\`
+   - \`wait_human\`: ask a human with \`ask_human\` (it is in the "How to finish" section of \`dg guide review\`), and advance the other tickets of \`ready\` meanwhile. For review findings from a human, follow the "Fix loop (parent)" section of \`dg guide review\`
    - \`wait_deps\`: wait. Choose another ticket from \`next\` of the Plan
    - \`done\`: clean up by the steps of \`dg guide done\`
 
@@ -922,9 +926,9 @@ When it returns, compare the result with \`acceptance\` of \`ticket show\`, and 
 Follow the order and contents of the approved Plan (\`dg guide plan\`).
 
 - Before starting, run \`dg --json --actor agent plan show <p>\`. If \`pending_approval\` is true, do not start. Ask a human for approval
-- The next ticket is \`next\` of \`plan show\`: the earliest one in the Plan's order that can be started (\`ready\`). \`waiting\` is the party to wait for. \`after\` is not checked by claim, so keep it yourself (if you advance tickets at the same time, see \`dg guide parallel\`)
+- The tickets that can be started are \`ready\` of \`plan show\`, in the Plan's order (todo, with no waits). \`next\` of \`plan show\` is the first of them. \`waiting\` is the party to wait for. \`after\` is not checked by claim, so keep it yourself (when several tickets advance at the same time, see \`dg guide parallel\`)
 - The scope (\`scope\`) and approach (\`approach\`) appear in \`plan\` of \`next\`. Before you widen the scope or change the approach, confirm with a human
-- When one ticket reaches a PR, read \`plan show\` again and choose the next one. When all tickets of the Plan are finished, do the "Closing a Plan" section of \`dg guide done\`
+- After a PR is put out, read \`plan show\` again, and advance what is in \`ready\`. When all tickets of the Plan are finished, do the "Closing a Plan" section of \`dg guide done\`
 
 ## Work that needs no PR
 
@@ -953,11 +957,10 @@ Tickets advance in this order: import (\`dg guide import\`) → assign (\`dg gui
 
 ## Choosing the next step
 
-After you open a PR (and also after finishing work that needs no PR), report the result and ask with the following choices.
+After you open a PR (and also after finishing work that needs no PR), read \`plan show\` again, and advance what is in \`ready\` by these steps. Do not wait for the merge, and do not ask after each PR. Ask a human only when approval is needed, or when neither \`ready\` nor a free slot is left. Then ask with the following choices.
 
-- **Advance to the next ticket** (recommended, if the Plan still has tickets that can be started): read \`plan show\` again, and advance the next one by these steps
-- **Mark it done**: if the PR was merged, clean up by the steps of \`dg guide done\` (if a Skill is available, \`/dgdone <ID>\`)
-- **Stop here**: wait for the merge (after the merge, \`dg guide done\`)"
+- **Mark it done**: if a PR was merged, clean up by the steps of \`dg guide done\` (if a Skill is available, \`/dgdone <ID>\`)
+- **Stop here**: the Plan waits for merges and for humans. After each merge, \`dg guide done\`, and then advance the Plan again (if a Skill is available, \`/dgwork <p>\`)"
 `;
 
 exports[`dg guide の出力（本文の組み立て） > トピックごとの本文と、節の本文が変わらない > work の節 1`] = `

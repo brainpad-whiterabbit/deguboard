@@ -234,12 +234,19 @@ export function isRepeated(prev: ResumeState | undefined, stage: FlowStageName, 
   return prev !== undefined && prev.stage === stage && prev.facts === facts && stage !== "stop";
 }
 
+/** 段階の手のやり方を読む節の組。also があれば、そのトピックの節を sections のあとにつなぐ（work は並列の手順） */
+interface FlowGuideRef {
+  topic: string;
+  sections: readonly string[];
+  also?: { topic: string; sections: readonly string[] };
+}
+
 /**
  * 段階の手のやり方の節（段階ごとに読む guide の節。先頭が手順の節）。本文は composeGuide が Core から読み、並べた順につなぐ。
  * 返す本文だけで段階を進められるよう、手順の節が同じトピックの中で「」で指す節はすべて入れる（flow.test.ts が閉じ方を確かめる）。
- * ほかのトピックの節（`dg guide <topic>` の「…」）は案内されたトピックとして読む
+ * ほかのトピックの節（`dg guide <topic>` の「…」）は案内されたトピックとして読む。読むものを返す本文に入れる節は also で足す
  */
-export const FLOW_GUIDE: Record<FlowStageName, { topic: string; sections: readonly string[] }> = {
+export const FLOW_GUIDE: Record<FlowStageName, FlowGuideRef> = {
   assign: { topic: "assign", sections: ["When proposing an assignment", "Iteration"] },
   check: { topic: "check", sections: ["Check steps"] },
   plan: { topic: "plan", sections: ["Flow", "Creating a Plan", "About approval"] },
@@ -253,6 +260,7 @@ export const FLOW_GUIDE: Record<FlowStageName, { topic: string; sections: readon
       "Receive the implementation result",
       "Following the Plan",
     ],
+    also: { topic: "parallel", sections: ["Advancing in parallel"] },
   },
   audit: {
     topic: "audit",
@@ -518,7 +526,7 @@ export interface FlowNext {
   repeated: FlowStageName | null;
   /**
    * この段階の手のやり方（guide の節）。sections は読む節（先頭が手順の節）、text はその本文を順につないだもの（config を埋めたもの）。
-   * 手順の節が同じトピックの中で指す節はすべて text に入る。command で同じ本文を読める
+   * 手順の節が同じトピックの中で指す節はすべて text に入る。also の節（work の並列の手順）も text に続く。command で同じ本文を読める（also のあるときは続けて読む）
    */
   guide: { topic: string; sections: string[]; text: string; command: string };
   /** この段階で親が呼ぶ dg のコマンド（順に） */
@@ -603,13 +611,11 @@ export const flowNext = defineCommand({
         }
       : found;
     const guide = FLOW_GUIDE[stage.name];
-    const guideText = await composeGuide(
-      guide.topic,
-      ctx.config,
-      ctx.repo.topLevel,
-      guide.sections,
+    const parts = [guide, ...(guide.also ? [guide.also] : [])];
+    const guideTexts = await Promise.all(
+      parts.map((p) => composeGuide(p.topic, ctx.config, ctx.repo.topLevel, p.sections)),
     );
-    warnings.push(...guideText.warnings);
+    warnings.push(...guideTexts.flatMap((g) => g.warnings));
     const approval = approvalOf(stage.name, {
       auto,
       autoMerge: ctx.config.auto.merge,
@@ -622,8 +628,8 @@ export const flowNext = defineCommand({
       guide: {
         topic: guide.topic,
         sections: [...guide.sections],
-        text: guideText.text,
-        command: guideCommandOf(guide.topic, guide.sections),
+        text: guideTexts.map((g) => g.text).join("\n\n"),
+        command: parts.map((p) => guideCommandOf(p.topic, p.sections)).join(" && "),
       },
       approval,
       commands: commandsOf(
