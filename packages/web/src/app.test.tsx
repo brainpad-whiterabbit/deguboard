@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App, INFO_NOTICE_MS } from "./app.js";
 import { PICK_SETTLE_MS } from "./components/inline-edit.js";
 import { ClientError } from "./client/http.js";
+import { formatShortTime } from "./components/date-time.js";
 import type { WebviewClient } from "./client/webview.js";
 import type { WebviewEvent } from "@deguboard/core";
 import { HostBridge, HostProvider, type Host } from "./host.js";
@@ -1815,8 +1816,10 @@ describe("画面", () => {
         id: "s1",
         name: "今",
         status: "active",
-        start: "2026-11-01",
+        // 予定の start・end ではなく、実績の started_at から出す（active は開始だけ）
+        start: "2026-10-20",
         end: "2026-11-14",
+        started_at: "2026-11-01T12:00:00Z",
         goal: "左パネルを整える",
       }),
       iteration({ id: "s2", name: "次", status: "planned" }),
@@ -1828,10 +1831,7 @@ describe("画面", () => {
     const [s1] = [...document.querySelectorAll<HTMLDetailsElement>("details.backlog-section")];
     expect(s1!.classList.contains("iteration-active")).toBe(true);
     const lines = [...s1!.querySelectorAll("summary > .head-line")];
-    expect(lines.map((l) => l.textContent)).toEqual([
-      "s1 今2 件",
-      "進行中11/1–11/14左パネルを整える",
-    ]);
+    expect(lines.map((l) => l.textContent)).toEqual(["s1 今2 件", "進行中11/1–左パネルを整える"]);
     // 2 段目は 1 行で目標から省略し、目標の全文はツールチップで読む（カンバンの見出しと同じ）
     expect(lines[1]!.querySelector(".goal")!.getAttribute("title")).toBe("左パネルを整える");
     expect(s1!.querySelector(".actions")).toBeNull();
@@ -2176,16 +2176,18 @@ describe("画面", () => {
     ]);
   });
 
-  it("Iteration 詳細は期間（短い形と残り・超過の日数）・目標・進捗を別の行に出す（UI-5）", async () => {
-    vi.useFakeTimers({ toFake: ["Date"], now: new Date(2026, 10, 17, 12) });
+  it("Iteration 詳細は期間（実績の開始の日時）・目標・進捗を別の行に出し、残り・超過の日数は出さない（UI-5）", async () => {
+    vi.useFakeTimers({ toFake: ["Date"], now: new Date(2026, 11, 2, 9) });
     const client = mockClient();
     client.data.iterations = [
       iteration({
         id: "s1",
         name: "今",
         status: "active",
-        start: "2026-11-17",
+        // 予定の終了日を過ぎていても、予定の start・end は出さない
+        start: "2026-11-10",
         end: "2026-11-30",
+        started_at: "2026-11-17T03:04:00Z",
         goal: "見出しを分ける",
       }),
     ];
@@ -2205,37 +2207,48 @@ describe("画面", () => {
         dt.nextElementSibling!.textContent,
       ]);
     expect(rows()).toEqual([
-      ["期間", "11/17–11/30残り 13 日"],
+      ["期間", "11-17 03:04 〜"],
       ["目標", "見出しを分ける"],
       ["進捗", "完了 1/2"],
     ]);
     expect(summary.querySelector(".progress")).toBeTruthy();
+    expect(summary.textContent).not.toMatch(/残り|超過|今日まで/);
 
-    // 終了日を過ぎたら超過日数。期間がどちらもなければ期間の行を出さない
-    cleanup();
-    vi.setSystemTime(new Date(2026, 11, 2, 9));
-    mount(client, hostOf("panel"));
-    await screen.findByRole("heading", { level: 1, name: /s1 今/ });
-    expect(document.querySelector(".period-note.overdue")!.textContent).toBe("2 日超過");
+    // started_at のない（記録する前に始めた）active は開始を「不明」と出す
     cleanup();
     client.data.iterations[0] = iteration({ id: "s1", name: "今", status: "active" });
+    mount(client, hostOf("panel"));
+    await screen.findByRole("heading", { level: 1, name: /s1 今/ });
+    expect(document.querySelector(".iteration-summary dd")!.textContent).toBe("不明 〜");
+
+    // planned は期間の行を出さない
+    cleanup();
+    client.data.iterations[0] = iteration({
+      id: "s1",
+      name: "今",
+      status: "planned",
+      start: "2026-12-10",
+      end: "2026-12-20",
+    });
     mount(client, hostOf("panel"));
     await screen.findByRole("heading", { level: 1, name: /s1 今/ });
     expect(
       [...document.querySelectorAll(".iteration-summary dt")].map((dt) => dt.textContent),
     ).toEqual(["進捗"]);
-    expect(screen.queryByText(/\?/)).toBeNull();
   });
 
-  it("閉じた Iteration の詳細は、進捗の位置に完了・持ち越しの件数を出す", async () => {
+  it("閉じた Iteration の詳細は、期間を started_at 〜 closed_at の日時で出し、進捗の位置に完了・持ち越しの件数を出す", async () => {
+    vi.useFakeTimers({ toFake: ["Date"], now: new Date(2026, 10, 2, 9) });
     const client = mockClient();
     client.data.iterations = [
       iteration({
         id: "s0",
         name: "前",
         status: "closed",
-        start: "2026-10-01",
+        start: "2026-09-25",
         end: "2026-10-14",
+        started_at: "2026-10-01T09:30:00Z",
+        closed_at: "2026-10-14T18:05:00Z",
         completed: 3,
         carried_over: 1,
       }),
@@ -2251,10 +2264,24 @@ describe("画面", () => {
         dt.nextElementSibling!.textContent,
       ]),
     ).toEqual([
-      ["期間", "10/1–10/14"],
+      ["期間", "10-01 09:30 〜 10-14 18:05"],
       ["進捗", "完了 3 ・ 持ち越し 1"],
     ]);
     expect(summary.querySelector(".progress")).toBeNull();
+
+    // started_at のないもの（記録する前に始めた s1〜s24 など）は開始を「不明」と出す
+    cleanup();
+    client.data.iterations[0] = iteration({
+      id: "s0",
+      name: "前",
+      status: "closed",
+      closed_at: "2026-10-14T18:05:00Z",
+    });
+    mount(client, hostOf("panel"));
+    await screen.findByRole("heading", { level: 1, name: /s0 前/ });
+    expect(document.querySelector(".iteration-summary dd")!.textContent).toBe(
+      "不明 〜 10-14 18:05",
+    );
   });
 
   it("info の通知（コマンドの警告）は数秒で消える", async () => {
@@ -2336,6 +2363,7 @@ describe("画面", () => {
         status: "active",
         start: "2026-11-01",
         end: "2026-11-14",
+        started_at: "2026-11-02T08:15:00Z",
         goal: "札で切り替える",
       }),
       iteration({ id: "s2", name: "次", status: "planned" }),
@@ -2364,7 +2392,8 @@ describe("画面", () => {
     ]);
     expect(chips[1]!.querySelector("svg.ring")).toBeTruthy();
     expect(chips[1]!.title).toBe(
-      "s1 今（進行中）\n期間 2026-11-01 〜 2026-11-14\n目標 札で切り替える",
+      // 期間は予定の start・end でなく、実績の開始の日時だけ
+      `s1 今（進行中）\n開始 ${formatShortTime("2026-11-02T08:15:00Z")}\n目標 札で切り替える`,
     );
     expect(chips[2]!.title).toBe("s2 次（予定）");
 

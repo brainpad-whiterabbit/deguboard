@@ -14,7 +14,7 @@ All
 /
 4
 [title] s1 最初の Iteration (Active)
-Period 2026-11-01 – 2026-11-14
+Started 11-01 12:00
 Goal 目標データの文
 s1
 1
@@ -28,7 +28,7 @@ s2
 [title] Filter by Epic or assignee
 [aria-label] Filter
 最初の Iteration
-11/1–11/14
+11/1–
 [title] 目標データの文
 目標データの文
 [title] Ask Agent (Shift+F10)
@@ -140,7 +140,7 @@ s1
 2
 items
 Active
-11/1–11/14
+11/1–
 [title] 目標データの文
 目標データの文
 [title] Ask Agent (Shift+F10)
@@ -222,6 +222,7 @@ No goal
 —
 Abandoned
 1
+Start unknown ·
 Closed date unknown
 ·
 e1
@@ -946,8 +947,9 @@ Active
 [title] Ask Agent (Shift+F10)
 [aria-label] Ask Agent (Title s1)
 Period
-11/1–11/14
-10d left
+[title] 2026-11-01T12:00:00Z
+11-01 12:00
+–
 Goal
 目標データの文
 Progress
@@ -1000,6 +1002,10 @@ s0
 Ended
 [title] Ask Agent (Shift+F10)
 [aria-label] Ask Agent (Title s0)
+Period
+Unknown
+–
+Unknown
 Progress
 Done — · Carried over —
 [aria-label] Plan
@@ -1127,7 +1133,7 @@ All
 /
 4
 [title] s1 最初の Iteration (Active)
-Period 2026-11-01 – 2026-11-14
+Started 11-01 12:00
 Goal 目標データの文
 s1
 1
@@ -1141,7 +1147,7 @@ s2
 [title] Filter by Epic or assignee
 [aria-label] Filter
 最初の Iteration
-11/1–11/14
+11/1–
 [title] 目標データの文
 目標データの文
 [title] Ask Agent (Shift+F10)

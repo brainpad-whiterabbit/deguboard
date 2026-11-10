@@ -121,8 +121,9 @@ describe("Iteration の行", () => {
         name: "sprint4",
         goal: "左パネルを主画面にする",
         status: "closed",
+        started_at: "2026-10-20T00:00:00Z",
         closed_at: "2026-11-01T00:00:00Z",
-        // 予定の期間は実際に閉じた日と食い違うので出さない
+        // 期間は実績の started_at〜closed_at で出し、予定の start・end は出さない（UI-5）
         start: "2026-11-15",
         end: "2026-11-28",
         completed: 3,
@@ -146,7 +147,9 @@ describe("Iteration の行", () => {
       </StoreProvider>,
     );
     const row = (await screen.findByText("左パネルを主画面にする")).closest(".history-row")!;
-    expect(row.querySelector("small")!.textContent).toBe("11/01 に閉じた ・ e1 2, Epic なし 2");
+    expect(row.querySelector("small")!.textContent).toBe(
+      "10/20 〜 11/01 に閉じた ・ e1 2, Epic なし 2",
+    );
     expect([...row.querySelectorAll(".counts > span")].map((b) => b.textContent)).toEqual([
       "3",
       "中止 1",
@@ -200,14 +203,15 @@ describe("Iteration の行の 1 段目と 2 段目", () => {
       </StoreProvider>,
     );
     const none = (await screen.findByText("目標なし")).closest(".history-row")!;
-    expect(none.querySelector("small")!.textContent).toBe("11/01 に閉じた");
+    // started_at のないもの（記録する前に始めた）は開始を「不明」と出す
+    expect(none.querySelector("small")!.textContent).toBe("開始は不明 ・ 11/01 に閉じた");
     const goal = screen.getByText("目標あり").closest(".history-row")!;
-    expect(goal.querySelector("small")!.textContent).toBe("11/02 に閉じた");
+    expect(goal.querySelector("small")!.textContent).toBe("開始は不明 ・ 11/02 に閉じた");
     const yesterday = screen.getByText("きのう").closest(".history-row")!;
-    expect(yesterday.querySelector("small")!.textContent).toBe("昨日 に閉じた");
+    expect(yesterday.querySelector("small")!.textContent).toBe("開始は不明 ・ 昨日 に閉じた");
     expect(yesterday.querySelector("time")!.getAttribute("title")).toBe("2026-11-03 08:30");
     const today = screen.getByText("きょう").closest(".history-row")!;
-    expect(today.querySelector("small")!.textContent).toBe("今日 に閉じた");
+    expect(today.querySelector("small")!.textContent).toBe("開始は不明 ・ 今日 に閉じた");
     expect(document.body.textContent).not.toContain("sprint4");
     expect(document.body.textContent).not.toContain("sprint5");
     expect(document.body.textContent).not.toContain("内訳");
@@ -878,10 +882,10 @@ describe("履歴のタブ・Iteration の行・Epic の見方", () => {
     const chips = (id: string) =>
       [...rowOf(id).querySelectorAll(".counts > span")].map((b) => b.textContent);
     expect(chips("s1")).toEqual(["3", "持ち越し 1"]);
-    expect(rowOf("s1").querySelector("small")!.textContent).toBe("10/10 に閉じた");
+    expect(rowOf("s1").querySelector("small")!.textContent).toBe("開始は不明 ・ 10/10 に閉じた");
     // s2 には閉じたときの記録がないので、web で数え直さず「—」と出し、持ち越しのチップは出さない
     expect(chips("s2")).toEqual(["—"]);
-    expect(rowOf("s2").querySelector("small")!.textContent).toBe("10/24 に閉じた");
+    expect(rowOf("s2").querySelector("small")!.textContent).toBe("開始は不明 ・ 10/24 に閉じた");
     fireEvent.change(screen.getByLabelText("チケットを探す"), { target: { value: "ログイン" } });
     expect(names()).toEqual(["core"]);
     // 件数の行はなく、見方のバッジが「当たった数 / 全体」になる
@@ -926,7 +930,7 @@ describe("履歴のタブ・Iteration の行・Epic の見方", () => {
     );
     await screen.findByRole("heading", { level: 1, name: "履歴" });
     const row = document.querySelector(".history-row")!;
-    expect(row.querySelector("small")!.textContent).toBe("閉じた日は不明 ・ e1 2");
+    expect(row.querySelector("small")!.textContent).toBe("開始は不明 ・ 閉じた日は不明 ・ e1 2");
     expect([...row.querySelectorAll(".counts > span")].map((b) => b.textContent)).toEqual([
       "—",
       "中止 1",

@@ -10,7 +10,7 @@ import { otherActiveOf, type Iteration } from "../model/iteration.js";
 import type { Ticket } from "../model/ticket.js";
 import type { Doc } from "../storage/documents.js";
 import { deniedToAgent, type CommandContext } from "./define.js";
-import { localDate } from "./helpers.js";
+import { localDate, nowIso } from "./helpers.js";
 
 /**
  * Iteration の空いたチケットを入れる先：Project の active の Iteration、なければ planned のうち start が最も早いもの
@@ -82,8 +82,12 @@ export async function prepareIterationForClaim(
     );
     return iterationId;
   }
-  // 予定の開始日は実際とずれるので、始めた日に書き換える（iteration.start と同じ。IT-1）
-  await ctx.store.update("iteration", it.id, { status: "active", start: localDate(ctx.now()) });
+  // iteration.start と同じく、実績の期間の始まり started_at を書き、予定の開始日も始めた日に書き換える（IT-1）
+  await ctx.store.update("iteration", it.id, {
+    status: "active",
+    start: localDate(ctx.now()),
+    started_at: nowIso(ctx),
+  });
   warnings.push(`Started ${it.id} (active)`);
   return iterationId;
 }

@@ -17,6 +17,9 @@ export const iterationSchema = z.looseObject({
   start: isoDate.optional(),
   end: isoDate.optional(),
   status: z.enum(ITERATION_STATUSES).default("planned"),
+  // 実績の期間：active になった日時（iteration start と claim の自動の開始で書き、reopen では変えない）と閉じた日時。
+  // started_at を書く前に始めた Iteration にはない
+  started_at: isoDateTime.optional(),
   closed_at: isoDateTime.optional(),
   // 閉じたときの件数（closed のときだけ）
   completed: z.number().int().nonnegative().optional(),

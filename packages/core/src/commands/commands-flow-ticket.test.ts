@@ -799,6 +799,28 @@ describe("Epic と Iteration", () => {
     expect(reopened.data).toMatchObject({ start: "2026-11-03", end: "2026-11-03" });
   });
 
+  it("start は実績の開始の日時 started_at を書き、close は closed_at を足し、reopen は started_at を変えずに closed_at を消す（IT-1）", async () => {
+    const f = await fixture();
+    let clock = new Date("2026-11-03T01:02:03Z");
+    const ctx = await initialized(f.cloneA, { now: () => clock });
+    await runCommand(iterationCreate, ctx, { name: "Sprint" });
+    expect((await runCommand(iterationShow, ctx, { iteration: "s1" })).data.started_at).toBe(
+      undefined,
+    );
+    const started = await runCommand(iterationStart, ctx, { iteration: "s1" });
+    expect(started.data.started_at).toBe("2026-11-03T01:02:03Z");
+    clock = new Date("2026-11-04T05:00:00Z");
+    const closed = await runCommand(iterationClose, ctx, { iteration: "s1" });
+    expect(closed.data).toMatchObject({
+      started_at: "2026-11-03T01:02:03Z",
+      closed_at: "2026-11-04T05:00:00Z",
+    });
+    clock = new Date("2026-11-05T05:00:00Z");
+    const reopened = await runCommand(iterationReopen, ctx, { iteration: "s1" });
+    expect(reopened.data.started_at).toBe("2026-11-03T01:02:03Z");
+    expect(reopened.data.closed_at).toBeUndefined();
+  });
+
   it("close は終了日を閉じた日（手元の暦日）に書き換え、開始日が後なら開始日も揃え、reopen しても終了日はそのまま", async () => {
     const f = await fixture();
     // 手元の暦日で数えるので、時差によらず同じ日になる昼の時刻にする

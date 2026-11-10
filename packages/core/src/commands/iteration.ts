@@ -333,7 +333,7 @@ export const iterationStart = defineCommand({
   positionals: ["iteration"],
   group: "iteration",
   summary:
-    "Start an Iteration (make it active). The start date (start) is rewritten to the day it starts (local calendar date); the end date is not changed. Rejected if another Iteration in the same Project is active",
+    "Start an Iteration (make it active). Records the time it started (started_at), and the start date (start) is rewritten to the day it starts (local calendar date); the end date is not changed. Rejected if another Iteration in the same Project is active",
   input: z.object({ iteration: iterationRef }),
   write: true,
   needs: "store",
@@ -348,10 +348,11 @@ export const iterationStart = defineCommand({
             `${it.id} is ${it.data.status}, so it cannot be started`,
           );
         rejectIfOtherActive(ctx.store, it, "started");
-        // 予定の開始日は実際とずれるので、始めた日に書き換えて実際の期間を残す（IT-1）。end は予定のまま
+        // 実績の期間の始まりとして started_at を書く（IT-1）。予定の開始日も始めた日に書き換え、end は予定のまま
         return ctx.store.update("iteration", it.id, {
           status: "active",
           start: localDate(ctx.now()),
+          started_at: nowIso(ctx),
         });
       },
       // active を 1 つに保つ排他なので、claim と同じく即座に push し、拒否されたら検査からやり直す
@@ -405,7 +406,7 @@ export const iterationReopen = defineCommand({
   positionals: ["iteration"],
   group: "iteration",
   summary:
-    "Reopen a closed Iteration and make it active again (rejected if another Iteration in the same Project is active). Clears closed_at and the completed and carried-over counts. The start date is not changed, and the end date stays the closing day, so fix it with iteration update if needed. Carried-over tickets do not come back, so add them again with iteration add",
+    "Reopen a closed Iteration and make it active again (rejected if another Iteration in the same Project is active). Clears closed_at and the completed and carried-over counts. The start time (started_at) and the start date are not changed, and the end date stays the closing day, so fix it with iteration update if needed. Carried-over tickets do not come back, so add them again with iteration add",
   input: z.object({ iteration: iterationRef }),
   write: true,
   needs: "store",
