@@ -1,0 +1,30 @@
+{
+  "id": "r20261110-034200-9c31",
+  "ticket": "t487",
+  "step": "review",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-10T03:42:00Z",
+  "finished_at": "2026-11-10T03:42:27Z",
+  "result": "interrupted",
+  "error": "セッションが終わったとき開いたままだった",
+  "retries": 0,
+  "retry_reasons": [],
+  "usage": {
+    "input": 8,
+    "output": 1921,
+    "cache_read": 150040,
+    "cache_write": 35654
+  },
+  "tools": {
+    "read": 0,
+    "search": 0,
+    "write": 0,
+    "bash": 4,
+    "other": 0,
+    "read_before_write": 0,
+    "search_before_write": 0
+  },
+  "session": "acdeea67-8af2-4428-8ea2-d2e346d7d1d9",
+  "review": null
+}
