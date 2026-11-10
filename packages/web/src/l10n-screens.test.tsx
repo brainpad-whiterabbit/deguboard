@@ -170,7 +170,7 @@ function richClient(): MockClient {
   };
   // 項目の説明は、core の説明を鍵に表示言語の訳を引き、訳がなければ core の説明のまま出す（UI-11・t649）。
   // 日本語のスナップショットが core の説明の書き換えで動かないよう、日本語では説明をキーに差し替える（表にない文なのでそのまま出る）。
-  // 英語では core の説明のまま渡して訳を引く（説明と訳の鍵の揃いは l10n.test.ts が確かめる）
+  // 英語では core の説明をそのまま出す（説明と訳の鍵の揃いは l10n.test.ts が確かめる。日本語の訳の表示も l10n.test.ts が確かめる）
   const fields = configFields().map((f) =>
     language() === "ja" ? { ...f, description: f.key } : f,
   );

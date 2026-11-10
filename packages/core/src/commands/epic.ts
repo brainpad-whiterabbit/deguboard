@@ -69,7 +69,8 @@ export type EpicDetail = EpicRow & { body: string; tickets: Ticket[] };
 export const epicList = defineCommand({
   name: "epic.list",
   group: "epic",
-  summary: "List Epics in number order, with progress (count of done, excluding abandoned)",
+  summary:
+    "List Epics in number order, with progress (the done count and the count excluding abandoned)",
   input: z.object({
     project: z.string().optional().describe("Filter by Project. Omit for all"),
     status: z.array(z.enum(EPIC_STATUSES)).optional().describe("Filter by Status. Omit for all"),

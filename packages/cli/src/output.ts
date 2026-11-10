@@ -32,7 +32,7 @@ export function printJsonError(streams: Streams, error: ErrorView): void {
 }
 
 export function printError(streams: Streams, error: ErrorView): void {
-  streams.err(`エラー: ${error.message}`);
+  streams.err(`Error: ${error.message}`);
   if (error.detail) streams.err(indent(error.detail));
 }
 

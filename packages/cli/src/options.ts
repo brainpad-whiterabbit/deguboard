@@ -215,7 +215,7 @@ export function bindInputs(cmd: Command, command: AnyCommand, shapes = shapesOf(
         const flag = singular(shape.flag);
         const opt = new Option(
           `--${flag} <value>`,
-          `${desc}。${shape.freeText ? "繰り返して複数指定できる" : "繰り返すかカンマ区切りで複数指定できる"}`,
+          `${desc}. ${shape.freeText ? "Repeat to give several values" : "Repeat or use commas to give several values"}`,
         );
         opt.argParser((raw: string, previous: unknown[] = []) => [
           ...previous,
@@ -226,7 +226,7 @@ export function bindInputs(cmd: Command, command: AnyCommand, shapes = shapesOf(
       }
       case "record": {
         const flag = singular(shape.flag);
-        const opt = new Option(`--${flag} <key=value>`, `${desc}。繰り返して複数指定できる`);
+        const opt = new Option(`--${flag} <key=value>`, `${desc}. Repeat to give several values`);
         opt.argParser((raw: string, previous?: Record<string, unknown>) =>
           parseRecordEntry(raw, previous),
         );
@@ -240,7 +240,10 @@ export function bindInputs(cmd: Command, command: AnyCommand, shapes = shapesOf(
       case "file":
         // 値はファイルのパス。読むのは program.ts
         cmd.addOption(
-          new Option(`--${shape.flag} <path>`, `${desc}（YAML か JSON のファイル。- で標準入力）`),
+          new Option(
+            `--${shape.flag} <path>`,
+            `${desc} (a YAML or JSON file; - reads standard input)`,
+          ),
         );
         break;
       default: {

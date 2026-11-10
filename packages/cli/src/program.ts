@@ -517,8 +517,7 @@ function defaultStreams(): Streams {
  * `dg help nosuch` のように help に知らないコマンドを渡したとき）は文言がないので、どちらにも合う文言を補う
  */
 function commanderMessage(view: ErrorView): string {
-  if (view.code === "commander.help")
-    return "コマンドが足りないか、知らないコマンドを指定した（--help で使い方を見る）";
+  if (view.code === "commander.help") return "Missing or unknown command (See usage with --help)";
   return view.message.replace(/^error: /, "");
 }
 

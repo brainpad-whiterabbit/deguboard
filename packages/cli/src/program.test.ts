@@ -203,7 +203,7 @@ describe("dg", () => {
     const human = await dg(f.cloneA, ["ticket", "move", "1", "done"]);
     expect(human.code).toBe(1);
     expect(human.err).toContain(
-      "エラー: todo から done への遷移は Workflow がこの主体に許していない",
+      "Error: todo から done への遷移は Workflow がこの主体に許していない",
     );
 
     expect((await dg(f.cloneA, ["ticket", "create", "x", "--priority", "nope"])).code).toBe(2);
@@ -253,7 +253,7 @@ describe("dg", () => {
       ["--json", "help", "nosuch"],
     ])
       expect((await dg(f.cloneA, argv)).json().error?.message).toBe(
-        "コマンドが足りないか、知らないコマンドを指定した（--help で使い方を見る）",
+        "Missing or unknown command (See usage with --help)",
       );
   });
 

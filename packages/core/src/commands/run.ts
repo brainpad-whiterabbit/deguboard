@@ -554,7 +554,7 @@ export const runStart = defineCommand({
     "Start a Run. The running record is kept only in deguboard-local/runs/ and is not put into Git. Rejected if a Run for the same ticket and step is running, or if the step is not in the ticket's Workflow steps. Warns and starts if a Run for the same agent is running on this machine. An agent name with no Adapter is recorded without rejection, with a warning. An open fix Run on the same ticket is closed with success at the last push after its start (or at this start's time if there is none), using this start as the boundary, and then this Run starts (when a fix step starts, an earlier fix Run from a different session is closed as interrupted). When this is rejected because a Run for the same ticket and step is running, the fix Run is not closed either. If --agent is omitted, the Adapter detects the agent calling dg from environment variables (if it cannot, it is a usage error)",
   input: z.object({
     ticket: ticketRef,
-    step: token.describe("Stage. An id from the ticket's Workflow steps (see dg workflow show)"),
+    step: token.describe("Step. An id from the ticket's Workflow steps (see dg workflow show)"),
     agent: token
       .optional()
       .describe(

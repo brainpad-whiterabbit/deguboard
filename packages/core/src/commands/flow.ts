@@ -515,7 +515,7 @@ export const flowNext = defineCommand({
   summary:
     "Return the current stage of the Iteration flow (assign → check → plan → work → audit → release) and the next step. " +
     "The target is one Iteration, one Plan, or one or more tickets. The stage is the first of these eight rules that applies, in order " +
-    "(1 assign: in this run, assignment is not finished yet, some todo is neither reviewed nor in an Iteration, and --no-assign is not given / " +
+    "(1 assign: assignment is not finished in this run, <S> is not audited, some todo is neither labeled audit-<S> nor in an Iteration, and --no-assign is not given / " +
     "2 check: not yet checked in this run / 3 plan: an approval-waiting Plan includes the target / 4 work: an approved Plan that includes the target has unfinished tickets / " +
     "5 plan: an open Plan does not include some todo / 6 audit: all tickets of <S> are done or abandoned but not yet audited / 7 release: the same, and audited / 8 stop. If <S> is closed, nothing is assigned, and the flow stops as finished before 6 and 7). " +
     "Audited means a ticket with the label audit-<S> exists, or the audit was finished in this run. For a ticket or Plan target, <S> is the ticket's Iteration (only when it is a single one), and audit and release apply only when all tickets in that Iteration are finished. " +

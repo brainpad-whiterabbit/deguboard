@@ -57,7 +57,7 @@ export const configSchema = z.looseObject({
         .array(z.string().min(1))
         .default([])
         .describe(
-          "Command (as an argument array) run first in a work worktree that claim created. Empty runs nothing. If it fails, claim still succeeds and the warnings give the command to run by hand",
+          "Argument array of the setup command run first in a work worktree that claim created (e.g. [mise, run, setup]). Empty runs nothing. If it fails, claim still succeeds and the warnings give the failure and the command to run by hand",
         ),
     })
     .prefault({}),

@@ -78,7 +78,7 @@ export const CONFIG_DESCRIPTIONS: CoreTextTable = {
     ja: "作業 worktree の置き場所。リポジトリからの相対パス",
   },
   // worktree.setup
-  "Command (as an argument array) run first in a work worktree that claim created. Empty runs nothing. If it fails, claim still succeeds and the warnings give the command to run by hand":
+  "Argument array of the setup command run first in a work worktree that claim created (e.g. [mise, run, setup]). Empty runs nothing. If it fails, claim still succeeds and the warnings give the failure and the command to run by hand":
     {
       ja: "claim が作った作業 worktree で最初に回す準備のコマンドの引数配列（例 [mise, run, setup]）。空なら何も回さない。失敗しても claim は成功し、warnings に失敗と手で回すコマンドを出す",
     },

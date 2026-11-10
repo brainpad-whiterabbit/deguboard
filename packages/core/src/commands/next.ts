@@ -386,7 +386,7 @@ export const next = defineCommand({
   positionals: ["ticket"],
   group: "next",
   summary:
-    "Return the next step for a ticket (EX-3・EX-5). The stage (same as ticket show) is one of: todo (can be started), blocked (waiting on a Plan or on unfinished dependencies), " +
+    "Return the next step for a ticket (EX-3, EX-5). The stage (same as ticket show) is one of: todo (can be started), blocked (waiting on a Plan or on unfinished dependencies), " +
     "claimed (no PR), implemented (PR exists, no review), reviewing (a review is running), reviewed (the review after the last push has closed; review_passed says whether it passed), " +
     "fixed (a push after the last review, or the last review has no result), ready (the review passed and a PR was opened), merged (done), closed (abandoned), " +
     `waiting_human (a Run is waiting for a person, the fix after the last review closed with failure or interrupted, or reviews that raised heavy findings went past ${FIX_ROUNDS_LIMIT} times). Whether the PR is a draft is seen in status (a PR with in_progress is a draft). ` +
