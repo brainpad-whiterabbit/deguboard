@@ -1,0 +1,32 @@
+id: p98
+project: default
+tickets: [t680, t681, t682, t683, t684, t685]
+after:
+  t684:
+    - t683
+pending_approval: true
+details:
+  t680:
+    scope: guide-work・guide-parallel・guide-plan の文面を ready が複数なら並列が既定になる形に直し、guide-parallel に節の見出しを付けて FLOW_GUIDE.work に足す。上限の数字と config は t685
+    approach: 1 件ずつと読める文（one ticket at a time・PR まで次を選ばない・PR ごとと wait_* で尋ねる）を消し、始める条件と空いた枠の埋め先を plan show の ready にし、flow の work の guide.text に parallel が入ることを flow のテストで示す
+    tier: standard
+  t681:
+    scope: guide-import の Choosing the next step に「検討する」の選択肢を 1 つ足す
+    approach: 勧める選択肢は割り当てるのままにし、決めたい点が残るときに /dgdiscuss <ID...> へ進むと書き、guide のテストが要れば合わせる
+    tier: light
+  t682:
+    scope: development.md のスクリーンショットの手順で、左パネルとパネルは test:vscode を既定にし、dg serve で撮るときの幅（sidebar 360×800・panel 960×800）を書く
+    approach: development.md の該当の文を直すだけにし、リンクの形（SHA で固定）は今の文を重複させない
+    tier: light
+  t683:
+    scope: 頼む小窓を、Webview の中の外側のクリックで閉じる。中のクリック・開き直し・下書き・Webview の外への移動では閉じない
+    approach: 押し始めた場所で外かどうかを決め、閉じたうえでクリックの操作も効かせ、ask-composer か app のテストで条件を示す
+    tier: standard
+  t684:
+    scope: 頼む小窓の下の行に、指示の欄を空にする「クリア」のボタンを足す（UI 案 B）
+    approach: ask.note を空にするボタンを全文・形式と同じ控えめな並びに置き、文言を l10n に足し、テストとスクリーンショットで示す
+    tier: standard
+  t685:
+    scope: 並列の上限を config の work.parallel（1〜10、既定 3、scope local）にし、guide-parallel に値を差し込み、ADR-011・ADR-030 と設定画面を直す
+    approach: config のスキーマと既定・検証を足し、guide の差し込みで数字を消し、ADR の決定と理由を書き換えて Core が持つ案を採らなかった案に残し、設定画面の表示名と説明を ja・en で足す
+    tier: heavy
