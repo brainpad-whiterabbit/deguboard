@@ -1,0 +1,34 @@
+{
+  "id": "r20261110-221802-9a67",
+  "ticket": "t672",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-10T22:18:02Z",
+  "finished_at": "2026-11-10T22:26:45Z",
+  "result": "success",
+  "error": null,
+  "retries": 3,
+  "retry_reasons": [
+    "画面の見た目を変える PR の本文にスクリーンショットがない（CLAUDE.md の規約違反）",
+    "guide-status.md の共通の節と例外の文言が食い違って読める",
+    "ask.ts の status の札の文が対象（進んでいるチケット）を示していない"
+  ],
+  "usage": {
+    "input": 186,
+    "output": 34747,
+    "cache_read": 7413459,
+    "cache_write": 116078
+  },
+  "tools": {
+    "read": 7,
+    "search": 0,
+    "write": 4,
+    "bash": 53,
+    "other": 63,
+    "read_before_write": 3,
+    "search_before_write": 0
+  },
+  "session": "eb95703d-6a2d-45cc-b619-2cc8e4baee05",
+  "review": null
+}
