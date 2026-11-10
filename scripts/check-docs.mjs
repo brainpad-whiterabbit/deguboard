@@ -22,7 +22,7 @@ const guideDir = "packages/core/src/guide";
 const SOURCE_EXTS = [".ts", ".tsx", ".mjs", ".js", ".cjs"];
 // 重複と見なす段落・節の本文の長さ（字）。これより短い選択肢や定型句は対象にしない
 const DUP_MIN_CHARS = 40;
-// 要件の 1 項の字数の上限（先頭の ADR の「要件定義書に書くもの」）
+// 要件の 1 項の字数の上限（先頭の ADR の「要件定義書に書くもの」）。約束の 1〜2 文と細部の正本への案内 1 文が収まる長さとして決めた
 const REQUIREMENT_ITEM_MAX_CHARS = 250;
 // ADR 1 本の字数の目安（先頭の ADR の「ADR は今の判断だけを書き、判断を変える PR で直す」の節）。超えても落とさず、分割・整理の起票を促す警告にする
 const ADR_WARN_CHARS = 8000;
