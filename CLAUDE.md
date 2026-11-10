@@ -34,7 +34,7 @@ Agentic-Agile を実践するための、Git リポジトリの中で動くカ�
 - このリポジトリのチケットは deguboard 自身で管理する。`mise run dg -- <引数>` で読み書きし、`.git/deguboard/` のファイルを直接編集しない。Issue は使わない。手順は [development.md の「チケットと作業の流れ」](docs/development.md#チケットと作業の流れ)
 - Skill（`dg*`）の手順の中の `dg` も、PATH に `dg` があっても `mise run dg --` で呼ぶ
 - 作業はチケットに紐づける。`claim` してから着手し、PR の本文に ID（`t12`）を書く。PR の要らない作業（チケットのデータの整備・確認）は `claim --without-branch` で着手し、受け入れ条件をすべて確かめたら agent が done にする。確かめられない項目は review に置いて人に報告する
-- Claude は `DEGUBOARD_ACTOR=agent` を付けて `dg` を呼ぶ。人の指示や承認で起票するときは `--created-by human` を付ける（起票者はユーザ本人）。拒否された操作（`TRANSITION_REJECTED`）は人に頼む。abandoned・done の取り消し・Epic や Iteration を閉じる・再開するのは、人の指示があるときだけ行う
+- Claude は `DEGUBOARD_ACTOR=agent` を付けて `dg` を呼ぶ。人の指示や承認で起票するときは `--created-by human` を付ける（起票者はユーザ本人）。拒否された操作（`TRANSITION_REJECTED`）は人に頼む。abandoned・done の取り消し・段（`gate`）を下げる・Epic や Iteration を閉じる・再開するのは、人の指示があるときだけ行う
 - 利用者への約束を変える変更は、同じ PR で requirements.md の項を直す（細部は書き足さない）。判断を変える変更は、同じ PR でその ADR の本文を直接書き換える（番号は変えない。判断が ADR を書く場面に当たらなくなったら削除する。書き方は ADR-001）。新しく ADR を書くのは、ADR を書く場面に当たる判断だけ。当たらない変更は ADR を書かず、テストとコメントで示す
 
 ## ブランチ・PR・マージ
@@ -44,7 +44,7 @@ Agentic-Agile を実践するための、Git リポジトリの中で動くカ�
 - 変更は `main` から切った作業ブランチを git worktree に checkout して行う。`main` に直接コミットせず、`main` の worktree で作業しない
 - コミットメッセージと PR のタイトルは日本語で、要約を 1 行目に書く
 - 画面の見た目を変える PR は、変えた画面のスクリーンショットを本文に載せる。画像は orphan ブランチ `pr-screenshots` に置き、作業ブランチに入れない
-- PR は `main` に向ける。ローカルの `mise run check`（軽い検査で済む変更は `mise run check:light`）の通過と承認をマージの条件にする。CI は使わない（[ADR-008](docs/adr/ADR-008-tech-stack.md)）
+- PR は `main` に向ける。ローカルの `mise run check`（軽い検査で済む変更は `mise run check:light`）の通過と承認をマージの条件にする（段（`gate`）が free のチケットは、この条件を外す）。CI は使わない（[ADR-008](docs/adr/ADR-008-tech-stack.md)）
 - マージは squash で行い、リモートとローカルのブランチと worktree を消す
 - PR の見直しで疑いを確かめるために動かすのは 1 回までにし、引数や回数を変えて回し直さない
 - 競合のように確率でしか起きない不具合は、再現を試さずにコードの根拠（どの順序で何が起きるか）で重い指摘にし、再現するテストは手直しに任せる
