@@ -1,6 +1,8 @@
-// 画面の文言を表示言語で切り替える口（UI-11・t383）。鍵は日本語の文そのもので、英語の訳は l10n-en.ts に置く。
+// 画面の文言を表示言語で切り替える口（UI-11・t383）。画面のコードの文言は鍵が日本語の文そのもので、英語の訳は l10n-en.ts に置く。
 // React に依らない（client/http.ts からも使う）。文の途中に要素を挟む trNode は l10n-node.tsx に置く。
-// 日本語では鍵をそのまま出すので、日本語の表示は訳の表がなくても前と同じになる。
+// 画面のコードの文言は、日本語では鍵をそのまま出すので、日本語の表示は訳の表がなくても前と同じになる。
+// core が返す文は、core の文を鍵に表示言語ごとの訳を持つ表（l10n-core.ts）をどの言語でも引き、訳がなければ core の文のまま出す
+// （core の文の言語と表示言語が違っても訳せるように。t649）。
 // 表示言語は拡張ホストが <html data-language> で渡し（vscode.env.language）、main.tsx が起動のときに setLanguage で決める。
 // 付いていなければ（dg serve）日本語、ja で始まれば日本語、ほかは英語（拡張ホストの文言と同じ決め方）。
 // 鍵は tr("...")・trNode("...")（l10n-node.tsx）・msg("...") の文字列リテラルで書く（l10n.test.ts がソースから鍵を拾い、訳の表と突き合わせる）。
@@ -8,13 +10,12 @@
 // 表のように描く前に決める文言は msg で鍵として印を付け、描くときに tr(値) で訳す。{0}・{1} の位置に引数を埋める
 
 import {
-  CONFIG_DESCRIPTIONS_EN,
-  CORE_EN,
-  CORE_MESSAGES_EN,
-  EN,
-  EN_ONE,
-  PRIORITY_CRITERIA_EN,
-} from "./l10n-en.js";
+  CONFIG_DESCRIPTIONS,
+  CORE_LABELS,
+  CORE_MESSAGES,
+  type CoreTextTable,
+} from "./l10n-core.js";
+import { EN, EN_ONE, PRIORITY_CRITERIA_EN } from "./l10n-en.js";
 
 export type Language = "ja" | "en";
 
@@ -64,13 +65,17 @@ export function msg(key: string): string {
   return key;
 }
 
+/** core の文を鍵に表から今の言語の訳を引く。鍵か今の言語の訳がなければ undefined */
+function lookup(table: CoreTextTable, key: string): string | undefined {
+  return Object.hasOwn(table, key) ? table[key]![current] : undefined;
+}
+
 /**
- * 設定画面の項目の説明を今の言語の文にする。日本語では core の説明（スキーマの describe）のまま、
- * 英語では項目のキーで CONFIG_DESCRIPTIONS_EN を引き、訳がなければ core の説明のまま出す
+ * 設定画面の項目の説明（core のスキーマの describe）を今の言語の文にする。
+ * どの言語でも core の説明を鍵に CONFIG_DESCRIPTIONS を引き、今の言語の訳がなければ core の説明のまま出す
  */
-export function configDescription(key: string, description: string): string {
-  if (current === "ja") return description;
-  return CONFIG_DESCRIPTIONS_EN[key] ?? description;
+export function configDescription(description: string): string {
+  return lookup(CONFIG_DESCRIPTIONS, description) ?? description;
 }
 
 /** 優先度の判断基準の項目（priority.high など）の鍵。PRIORITY_CRITERIA_EN の鍵と同じ */
@@ -102,49 +107,52 @@ const CORE_ARG = /\b[tsep]\d+\b|Iteration・Epic/g;
 
 /**
  * core が返す決まった短い文（エージェントに頼むの候補の名前、札の添え字の Plan の承認の状態）を今の言語の文にする。
- * 文の中の ID を {0}・{1} に置き換えた形を鍵にして CORE_EN を引き、訳がなければ core の文のまま出す。
+ * どの言語でも、文の中の ID を {0}・{1} に置き換えた形を鍵にして CORE_LABELS を引き、表にない文は core の文のまま出す。
+ * 表にあっても今の言語の訳がなければ鍵（core の文の形）に ID を戻して出す（core の文と同じになる）。
  * scope（候補の頼むこと）を渡すと「scope:鍵」を先に引く（同じ文でも頼むことによって訳が違うもの）。
  * 依頼文は訳さない（エージェントに渡す core の出力）。エラー・警告の文は trCoreMessage が訳す
  */
 export function trCore(text: string, scope?: string): string {
-  if (current === "ja") return text;
   const args: string[] = [];
   const key = text.replace(CORE_ARG, (m) => `{${args.push(m) - 1}}`);
-  const found = (scope === undefined ? undefined : CORE_EN[`${scope}:${key}`]) ?? CORE_EN[key];
+  const found = [scope === undefined ? undefined : `${scope}:${key}`, key].find(
+    (k) => k !== undefined && Object.hasOwn(CORE_LABELS, k),
+  );
   if (found === undefined) return text;
+  const entry = CORE_LABELS[found]!;
   return format(
-    found,
-    args.map((a) => CORE_EN[a] ?? a),
+    entry[current] ?? key,
+    args.map((a) => lookup(CORE_LABELS, a) ?? a),
   );
 }
 
-/** CORE_MESSAGES_EN の鍵を、{0}・{1} を可変の部分（1 文字以上）として拾う正規表現にしたもの。初めて使うときに作る */
-let coreMessagePatterns: { pattern: RegExp; text: string }[] | undefined;
+/** CORE_MESSAGES の鍵を、{0}・{1} を可変の部分（1 文字以上）として拾う正規表現にしたもの。初めて使うときに作る */
+let coreMessagePatterns: { pattern: RegExp; key: string }[] | undefined;
 
-function patternsOfCoreMessages(): { pattern: RegExp; text: string }[] {
-  coreMessagePatterns ??= Object.entries(CORE_MESSAGES_EN).map(([key, text]) => ({
+function patternsOfCoreMessages(): { pattern: RegExp; key: string }[] {
+  coreMessagePatterns ??= Object.keys(CORE_MESSAGES).map((key) => ({
     pattern: new RegExp(
       `^${key
         .split(/\{\d+\}/)
         .map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
         .join("([\\s\\S]+?)")}$`,
     ),
-    text,
+    key,
   }));
   return coreMessagePatterns;
 }
 
 /**
  * core が返すエラー・警告の文（設定の保存の拒否・Plan と Run の警告など）を今の言語の文にする（UI-11）。
- * 可変の部分を {0}・{1} にした形で CORE_MESSAGES_EN を引き、可変の部分も同じように訳す（「Run r1: 〜」の中の文）。
- * 日本語の表示と、表にない文（git の出力・スキーマの検査の詳細など）は core の文のまま出す。画面のクライアントが受けたところで呼ぶ
+ * どの言語でも、可変の部分を {0}・{1} にした形で CORE_MESSAGES を引き、可変の部分も同じように訳す（「Run r1: 〜」の中の文）。
+ * 今の言語の訳がなければ鍵（core の文の形）に訳した可変の部分を戻して出す。
+ * 表にない文（git の出力・スキーマの検査の詳細など）は core の文のまま出す。画面のクライアントが受けたところで呼ぶ
  */
 export function trCoreMessage(text: string): string {
-  if (current === "ja") return text;
-  for (const { pattern, text: found } of patternsOfCoreMessages()) {
+  for (const { pattern, key } of patternsOfCoreMessages()) {
     const m = pattern.exec(text);
     // 鍵は {0}・{1} を現れる順に書く約束なので、拾った順がそのまま番号になる（l10n.test.ts が確かめる）
-    if (m) return format(found, m.slice(1).map(trCoreMessage));
+    if (m) return format(CORE_MESSAGES[key]![current] ?? key, m.slice(1).map(trCoreMessage));
   }
   return text;
 }

@@ -2,7 +2,7 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { askCandidates, buildAsk, configFields, type AskSubject } from "@deguboard/core";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   configDescription,
   format,
@@ -16,13 +16,12 @@ import {
   trCoreMessage,
 } from "./l10n.js";
 import {
-  CONFIG_DESCRIPTIONS_EN,
-  CORE_EN,
-  CORE_MESSAGES_EN,
-  EN,
-  EN_ONE,
-  PRIORITY_CRITERIA_EN,
-} from "./l10n-en.js";
+  CONFIG_DESCRIPTIONS,
+  CORE_LABELS,
+  CORE_MESSAGES,
+  type CoreTextTable,
+} from "./l10n-core.js";
+import { EN, EN_ONE, PRIORITY_CRITERIA_EN } from "./l10n-en.js";
 
 const srcDir = dirname(fileURLToPath(import.meta.url));
 
@@ -48,7 +47,7 @@ function sourceCode(): { file: string; code: string }[] {
     });
   return walk(srcDir)
     .filter((p) => /\.tsx?$/.test(p) && !/\.test\.tsx?$/.test(p) && !p.endsWith(".d.ts"))
-    .filter((p) => !/[/\\](l10n\.ts|l10n-en\.ts|test-helpers\.ts)$/.test(p))
+    .filter((p) => !/[/\\](l10n\.ts|l10n-en\.ts|l10n-core\.ts|test-helpers\.ts)$/.test(p))
     .map((path) => {
       const code = readFileSync(path, "utf8")
         // ブロックのコメント（JSX の {/* */} を含む）と、行のコメント（前が空白か行頭の //）を落とす
@@ -130,10 +129,31 @@ describe("画面の文言の置き場所", () => {
     expect(Object.keys(EN).sort()).toEqual(keys);
   });
   it("英語の訳は日本語を含まず、{0} の並びを保つ", () => {
-    for (const table of [EN, CORE_EN, CORE_MESSAGES_EN]) {
-      for (const [key, value] of Object.entries(table)) {
-        expect(value, key).not.toMatch(JAPANESE);
-        expect(placeholders(value), key).toEqual(placeholders(key.replace(/^\w+:/, "")));
+    for (const [key, value] of Object.entries(EN)) {
+      expect(value, key).not.toMatch(JAPANESE);
+      expect(placeholders(value), key).toEqual(placeholders(key));
+    }
+  });
+  it("core の文の訳の表は、どの文も表示言語（ja・en）の訳だけを持ち、今の core の文（日本語）にない英語の訳が揃う", () => {
+    const tables: Record<string, CoreTextTable> = {
+      CORE_LABELS,
+      CORE_MESSAGES,
+      CONFIG_DESCRIPTIONS,
+    };
+    for (const [name, table] of Object.entries(tables)) {
+      expect(Object.keys(table).length, name).toBeGreaterThan(0);
+      for (const [key, entry] of Object.entries(table)) {
+        const where = `${name}: ${key}`;
+        expect(
+          Object.keys(entry).every((l) => l === "ja" || l === "en"),
+          where,
+        ).toBe(true);
+        // core の文は日本語なので、英語の訳はどの文にも要る
+        expect(entry.en, where).toBeDefined();
+        expect(entry.en, where).not.toMatch(JAPANESE);
+        for (const text of Object.values(entry)) {
+          expect(placeholders(text), where).toEqual(placeholders(key.replace(/^\w+:/, "")));
+        }
       }
     }
   });
@@ -265,7 +285,7 @@ describe("core が返す決まった文の訳", () => {
   });
 });
 
-/** core のソース（テストを除く）。CORE_MESSAGES_EN の鍵が core の文に合うかを確かめる */
+/** core のソース（テストを除く）。CORE_MESSAGES の鍵が core の文に合うかを確かめる */
 function coreSource(): string {
   const coreDir = resolve(srcDir, "../../core/src");
   const walk = (dir: string): string[] =>
@@ -283,7 +303,7 @@ describe("core が返すエラー・警告の文の訳（UI-11）", () => {
   it("鍵の {0} 以外の部分はどれも core のソースにあり、{0}・{1} は現れる順に書く", () => {
     // core の文言を書き換えたら、ここで訳の鍵が合わなくなって気づく
     const source = coreSource();
-    for (const key of Object.keys(CORE_MESSAGES_EN)) {
+    for (const key of Object.keys(CORE_MESSAGES)) {
       const numbers = [...key.matchAll(/\{(\d+)\}/g)].map((m) => Number(m[1]));
       expect(numbers, key).toEqual(numbers.map((_, i) => i));
       for (const part of key.split(/\{\d+\}/).filter((p) => p.trim() !== ""))
@@ -308,26 +328,70 @@ describe("core が返すエラー・警告の文の訳（UI-11）", () => {
 });
 
 describe("設定の項目の説明の訳", () => {
-  it("core の項目と CONFIG_DESCRIPTIONS_EN の鍵が過不足なく揃い、訳は日本語を含まない", () => {
-    const keys = configFields()
-      .map((f) => f.key)
-      .sort();
-    expect(Object.keys(CONFIG_DESCRIPTIONS_EN).sort()).toEqual(keys);
-    for (const [key, value] of Object.entries(CONFIG_DESCRIPTIONS_EN)) {
-      expect(value, key).not.toMatch(JAPANESE);
-    }
+  it("core の項目の説明と CONFIG_DESCRIPTIONS の鍵が過不足なく揃う（core の説明を書き換えたら訳の鍵と訳も直す）", () => {
+    const descriptions = [...new Set(configFields().map((f) => f.description))].sort();
+    expect(Object.keys(CONFIG_DESCRIPTIONS).sort()).toEqual(descriptions);
   });
-  it("core の説明が変わったら訳を見直す（説明を書き換えたらスナップショットと CONFIG_DESCRIPTIONS_EN を一緒に直す）", () => {
-    const descriptions = Object.fromEntries(configFields().map((f) => [f.key, f.description]));
-    expect(descriptions).toMatchSnapshot();
-  });
-  it("日本語では core の説明のまま、英語では訳を出し、訳のない項目は core の説明のまま出す", () => {
-    expect(configDescription("git.remote", "同期先のリモート")).toBe("同期先のリモート");
+  it("日本語では core の説明のまま、英語では訳を出し、表にない説明は core の説明のまま出す", () => {
+    expect(configDescription("同期先のリモート")).toBe("同期先のリモート");
     setLanguage("en");
-    expect(configDescription("git.remote", "同期先のリモート")).toBe(
+    expect(configDescription("同期先のリモート")).toBe(
       "Git remote that deguboard fetches from and pushes to",
     );
-    expect(configDescription("new.item", "新しい項目")).toBe("新しい項目");
+    expect(configDescription("新しい項目")).toBe("新しい項目");
+  });
+});
+
+describe("core の文の訳の表の引き方（t649）", () => {
+  it("日本語の表示では、表にある文もない文も core の文と同じ字で出す", () => {
+    for (const { description } of configFields())
+      expect(configDescription(description)).toBe(description);
+    for (const { subjects, within } of subjectSets()) {
+      for (const c of askCandidates(subjects, within))
+        expect(trCore(c.label, c.action)).toBe(c.label);
+    }
+    for (const text of [
+      "priority.high は個人の設定に書けない",
+      "deguboard-local/runs/r1.json: JSON を読めない",
+      "Iteration・Epic から外す",
+    ]) {
+      expect(trCoreMessage(text)).toBe(text);
+      expect(trCore(text)).toBe(text);
+    }
+  });
+  it("日本語の表示でも表を引き、ja の訳があれば出し、訳のない言語は core の文のまま出す", async () => {
+    // core の文が英語になったときの形（鍵が英語の文で、ja の訳を持つ）の表に差し替えて引く
+    vi.resetModules();
+    vi.doMock("./l10n-core.js", () => ({
+      CORE_LABELS: {
+        "Remove from {0}": { ja: "{0} から外す" },
+        Fix: {},
+      },
+      CORE_MESSAGES: {
+        "{0} not found (deleted)": { ja: "{0} が見つからない（削除された）" },
+        "deguboard-local/{0}: {1}": {},
+        "Cannot parse JSON": { ja: "JSON を読めない" },
+      },
+      CONFIG_DESCRIPTIONS: { "Git remote to sync with": { ja: "同期先のリモート" } },
+    }));
+    try {
+      const l = await import("./l10n.js");
+      expect(l.language()).toBe("ja");
+      expect(l.trCore("Remove from s3")).toBe("s3 から外す");
+      expect(l.trCore("Fix")).toBe("Fix");
+      expect(l.trCoreMessage("t3 not found (deleted)")).toBe("t3 が見つからない（削除された）");
+      expect(l.trCoreMessage("deguboard-local/runs/r1.json: Cannot parse JSON")).toBe(
+        "deguboard-local/runs/r1.json: JSON を読めない",
+      );
+      expect(l.configDescription("Git remote to sync with")).toBe("同期先のリモート");
+      l.setLanguage("en");
+      expect(l.trCore("Remove from s3")).toBe("Remove from s3");
+      expect(l.trCoreMessage("t3 not found (deleted)")).toBe("t3 not found (deleted)");
+      expect(l.configDescription("Git remote to sync with")).toBe("Git remote to sync with");
+    } finally {
+      vi.doUnmock("./l10n-core.js");
+      vi.resetModules();
+    }
   });
 });
 
