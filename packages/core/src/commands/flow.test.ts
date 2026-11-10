@@ -289,49 +289,57 @@ describe("approvalOf（承認の要否）", () => {
 });
 
 describe("FLOW_GUIDE（段階の節）", () => {
+  type Part = { topic: string; sections: readonly string[] };
+  // 段階が返す本文の節の組。also があれば、そのトピックの節が後ろに続く
+  const partsOf = (ref: (typeof FLOW_GUIDE)[FlowStageName]): Part[] => [
+    ref,
+    ...(ref.also ? [ref.also] : []),
+  ];
   const bodyOf = (topic: string) =>
     readFile(new URL(`../guide/guide-${topic}.md`, import.meta.url), "utf8");
 
   it("段階ごとに指す guide の節が core の guide-*.md にある", async () => {
-    for (const [stage, ref] of Object.entries(FLOW_GUIDE)) {
-      const body = await bodyOf(ref.topic);
-      for (const section of ref.sections)
-        expect(findGuideSection(ref.topic, body, section).heading, stage).toContain(section);
-    }
+    for (const [stage, ref] of Object.entries(FLOW_GUIDE))
+      for (const part of partsOf(ref)) {
+        const body = await bodyOf(part.topic);
+        for (const section of part.sections)
+          expect(findGuideSection(part.topic, body, section).heading, stage).toContain(section);
+      }
   });
 
-  // guide.text と同じ本文（config は既定値。guide.notes は空なので repoTop は読まない）
-  const textOf = async (ref: (typeof FLOW_GUIDE)[FlowStageName]) =>
-    (await composeGuide(ref.topic, configSchema.parse({}), process.cwd(), ref.sections)).text;
+  // guide.text と同じ本文の 1 トピック分（config は既定値。guide.notes は空なので repoTop は読まない）
+  const textOf = async (part: Part) =>
+    (await composeGuide(part.topic, configSchema.parse({}), process.cwd(), part.sections)).text;
 
   it("返す本文が「」で指す同じトピックの節は、返す本文の中にある（参照が閉じている）", async () => {
-    for (const [stage, ref] of Object.entries(FLOW_GUIDE)) {
-      const body = await bodyOf(ref.topic);
-      const all = guideSections(body);
-      // 返す本文を節に分け直すと、指した節がその順に並ぶ
-      const returned = guideSections(`# ${ref.topic}\n\n${await textOf(ref)}`);
-      const wanted = ref.sections.map((s) => findGuideSection(ref.topic, body, s).name);
-      expect(
-        returned.map((s) => s.name),
-        stage,
-      ).toEqual(wanted);
-      const names = new Set(returned.flatMap((s) => [s.heading, s.name]));
-      for (const s of returned) {
-        // 日本語は「」（`dg guide <topic>` の「…」の形も含む）、英語は "" の section（of の後ろにトピックがなければ同じトピック）
-        const refs = [
-          ...s.text.matchAll(/(?:`dg guide ([a-z]+)`\s*の)?「([^」]+)」/g),
-          ...s.text.matchAll(/"([^"]+)"(?: \([^)]*\))? section(?: of `?dg guide ([a-z]+)`?)?/g),
-        ].map((m) =>
-          m[0].startsWith('"') ? { topic: m[2], name: m[1] } : { topic: m[1], name: m[2] },
-        );
-        for (const { topic, name } of refs) {
-          // ほかのトピックの節は案内されたトピックとして読む（指す先があるかは check:docs が検査する）
-          if (topic !== undefined && topic !== ref.topic) continue;
-          if (!all.some((x) => x.heading === name || x.name === name)) continue;
-          expect(names.has(name!), `${stage}：節「${s.name}」が指す「${name}」`).toBe(true);
+    for (const [stage, ref] of Object.entries(FLOW_GUIDE))
+      for (const part of partsOf(ref)) {
+        const body = await bodyOf(part.topic);
+        const all = guideSections(body);
+        // 返す本文を節に分け直すと、指した節がその順に並ぶ
+        const returned = guideSections(`# ${part.topic}\n\n${await textOf(part)}`);
+        const wanted = part.sections.map((s) => findGuideSection(part.topic, body, s).name);
+        expect(
+          returned.map((s) => s.name),
+          stage,
+        ).toEqual(wanted);
+        const names = new Set(returned.flatMap((s) => [s.heading, s.name]));
+        for (const s of returned) {
+          // 日本語は「」（`dg guide <topic>` の「…」の形も含む）、英語は "" の section（of の後ろにトピックがなければ同じトピック）
+          const refs = [
+            ...s.text.matchAll(/(?:`dg guide ([a-z]+)`\s*の)?「([^」]+)」/g),
+            ...s.text.matchAll(/"([^"]+)"(?: \([^)]*\))? section(?: of `?dg guide ([a-z]+)`?)?/g),
+          ].map((m) =>
+            m[0].startsWith('"') ? { topic: m[2], name: m[1] } : { topic: m[1], name: m[2] },
+          );
+          for (const { topic, name } of refs) {
+            // ほかのトピックの節は案内されたトピックとして読む（指す先があるかは check:docs が検査する）
+            if (topic !== undefined && topic !== part.topic) continue;
+            if (!all.some((x) => x.heading === name || x.name === name)) continue;
+            expect(names.has(name!), `${stage}：節「${s.name}」が指す「${name}」`).toBe(true);
+          }
         }
       }
-    }
   });
 
   it("見直しの段階の本文に、起票するチケットのラベル audit-<S> の付け方が入る", async () => {
@@ -409,6 +417,13 @@ describe("dg flow next", () => {
       repeated: null,
     });
     expect(work.memory).toEqual({ ...none, assigned: true, checked: true });
+    // 作業の段階の guide.text には、並列の手順（dg guide parallel の節）が入り、command で読み直せる
+    expect(work.guide.text).toContain("## Advancing in parallel");
+    expect(work.guide.command).toContain('&& dg guide parallel --section "Advancing in parallel"');
+    // dgall の work の段は、work の選択肢で人に尋ねず、手順の終わりで flow next に戻る（guide-all の手順 4 と食い違わない）
+    expect(work.guide.text).not.toContain("## Choosing the next step");
+    expect(work.guide.text).not.toContain("Stop here");
+    expect(work.guide.text).toContain("return to `flow next`");
 
     await runCommand(ticketMove, ctx, { ticket: "t1", status: "done" });
     const audit = await flow(ctx, { resume: work.resume });

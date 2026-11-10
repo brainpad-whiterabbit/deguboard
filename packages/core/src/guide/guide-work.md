@@ -9,7 +9,7 @@ Advances one ticket to a draft PR. `dg next` decides the steps and their order. 
 
 ## Deciding the target
 
-- Plan ID (`p3`): following "Following the Plan" below, advance one ticket at a time, starting with one that can be started
+- Plan ID (`p3`): following "Following the Plan" below. When `ready` of `plan show` has two or more tickets and subagents can be started, advance them in parallel: `dg guide parallel` is the default, and the steps below apply to each ticket
 - Ticket ID: advance that ticket. If it is in an open Plan (`plan` of `ticket show`), follow that Plan
 - No target given: suggest an approved Plan from `plan list --status open`, and confirm. If there is none, suggest making a plan with `dg guide plan`
 - `--gate-high`, `--gate-low`, `--gate-free`: the quality gate level for the target tickets. See "Gate level" below
@@ -22,8 +22,9 @@ Advances one ticket to a draft PR. `dg next` decides the steps and their order. 
    - `review`: start the reviewer by the "Starting the review (parent)" section of `dg guide review` (the text includes the "Review" steps)
    - `fix`: follow the "Fix loop (parent)" section of `dg guide review`, and pass the text with `brief <id> --role fix` (the text includes the "Fix findings" steps and the findings of the review record)
    - `ready`: put the PR out by the "How to finish" section of `dg guide review`. For a Workflow that does not look at PRs (such as general, where `sync` does not move it to review), after the PR is put out, move it to review yourself with `dg --json --actor agent ticket move <id> review`
-   - `wait_merge` and `wait_human`: tell a human `ask_human` and ask (`wait_human` is in the "How to finish" section of `dg guide review`). For review findings from a human, follow the "Fix loop (parent)" section of `dg guide review`. After the merge, `dg guide done`
-   - `wait_deps`: wait. Choose another ticket from `next` of the Plan
+   - `wait_merge`: the PR waits for its merge, so do not wait for it. Advance the other tickets of `ready` (see "Following the Plan"). After the merge, `dg guide done`
+   - `wait_human`: tell a human the `ask_human` (it is in the "How to finish" section of `dg guide review`), and do not wait for the answer: advance the other tickets of `ready` meanwhile. A decision that needs approval is asked as approval, and only that stops the flow. For review findings from a human, follow the "Fix loop (parent)" section of `dg guide review`
+   - `wait_deps`: wait, and advance another ticket of `ready` of `plan show`
    - `done`: clean up by the steps of `dg guide done`
 
 ## Gate level
@@ -56,9 +57,9 @@ When it returns, compare the result with `acceptance` of `ticket show`, and atta
 Follow the order and contents of the approved Plan (`dg guide plan`).
 
 - Before starting, run `dg --json --actor agent plan show <p>`. If `pending_approval` is true, do not start. Ask a human for approval
-- The next ticket is `next` of `plan show`: the earliest one in the Plan's order that can be started (`ready`). `waiting` is the party to wait for. `after` is not checked by claim, so keep it yourself (if you advance tickets at the same time, see `dg guide parallel`)
+- The tickets that can be started are `ready` of `plan show`, in the Plan's order (todo, with no waits). `next` of `plan show` is the first of them. `waiting` is the party to wait for. `after` is not checked by claim, so keep it yourself (when several tickets advance at the same time, see `dg guide parallel`)
 - The scope (`scope`) and approach (`approach`) appear in `plan` of `next`. Before you widen the scope or change the approach, confirm with a human
-- When one ticket reaches a PR, read `plan show` again and choose the next one. When all tickets of the Plan are finished, do the "Closing a Plan" section of `dg guide done`
+- After a PR is put out, read `plan show` again, and advance what is in `ready`. When all tickets of the Plan are finished, do the "Closing a Plan" section of `dg guide done`
 
 ## Work that needs no PR
 
@@ -79,8 +80,7 @@ Work that does not change repository files (data maintenance, checks, research) 
 
 ## Choosing the next step
 
-After you open a PR (and also after finishing work that needs no PR), report the result and ask with the following choices.
+After you open a PR (and also after finishing work that needs no PR), read `plan show` again when the target is in a Plan, and advance what is in `ready` by these steps. A ticket with no Plan goes straight to the choices below. Do not wait for the merge, and do not ask after each PR. Ask a human only when approval is needed, or when `ready` is empty and no subagent is running (nothing is left to start or wait for). Then ask with the following choices.
 
-- **Advance to the next ticket** (recommended, if the Plan still has tickets that can be started): read `plan show` again, and advance the next one by these steps
-- **Mark it done**: if the PR was merged, clean up by the steps of `dg guide done` (if a Skill is available, `/dgdone <ID>`)
-- **Stop here**: wait for the merge (after the merge, `dg guide done`)
+- **Mark it done**: if a PR was merged, clean up by the steps of `dg guide done` (if a Skill is available, `/dgdone <ID>`)
+- **Stop here**: the Plan waits for merges and for humans. After each merge, `dg guide done`, and then advance the Plan again (if a Skill is available, `/dgwork <p>`)

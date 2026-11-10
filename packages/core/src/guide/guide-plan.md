@@ -50,7 +50,7 @@ By default, agents can also run `plan approve`. To limit it to humans, add `plan
 
 ## Principles of progress
 
-- Claim only the one ticket you can advance right now. Do not claim everything first (others, or other agents, could not start)
+- Claim only the tickets you start now: the one ticket when advancing serially, or one for each free slot when advancing in parallel (`dg guide parallel`). Do not claim the whole Plan first (others, or other agents, could not start)
 - Do not start a ticket whose dependency is neither done nor abandoned. If the Workflow writes `requires: [deps_done]` for todo → in_progress, claim is refused (`TRANSITION_REJECTED`). If it does not, wait until the ticket appears in `--ready`, or advance the dependency first
 - A Plan's `after` is not checked at claim. Wait until `items[].waiting` in `plan show` (the waits on `after` and `depends_on` that are not finished) is empty
 
