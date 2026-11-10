@@ -60,6 +60,27 @@ describe("guide の節の切り出し", () => {
     expect(findGuideSection("work", body, "実装する").heading).toBe("実装する（draft の PR まで）");
   });
 
+  it("英語の見出しの半角の「 (…)」の補足も除いた名前で引ける", () => {
+    const english = [
+      "# work",
+      "",
+      "## Implement (up to a draft PR)",
+      "",
+      "- Run the checks",
+      "",
+      "## Next step",
+      "",
+      "- Stop",
+    ].join("\n");
+    expect(guideSections(english).map((s) => s.name)).toEqual(["Implement", "Next step"]);
+    expect(findGuideSection("work", english, "Implement").heading).toBe(
+      "Implement (up to a draft PR)",
+    );
+    expect(findGuideSection("work", english, "Implement (up to a draft PR)").name).toBe(
+      "Implement",
+    );
+  });
+
   it("ない節は使い方の誤りとして一覧を添えて失敗する", () => {
     let error: unknown;
     try {

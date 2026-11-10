@@ -21,7 +21,7 @@ function isGuideTopic(topic: string): topic is GuideTopic {
   return (GUIDE_TOPICS as readonly string[]).includes(topic);
 }
 
-/** `{{git.base_branch}}` のような項目を config の値で埋める。配列は `, ` でつなぎ、空の配列と空の文字列は「なし」 */
+/** `{{git.base_branch}}` のような項目を config の値で埋める。配列は `, ` でつなぎ、空の配列と空の文字列は none（英語の guide に日本語を混ぜない） */
 export function fillPlaceholders(text: string, config: Config): string {
   return text.replace(/\{\{([a-z_.]+)\}\}/g, (whole, key: string) => {
     const value = key
@@ -32,8 +32,8 @@ export function fillPlaceholders(text: string, config: Config): string {
         config,
       );
     if (value === undefined || value === null) return whole;
-    if (Array.isArray(value)) return value.length === 0 ? "なし" : value.map(String).join(", ");
-    if (value === "") return "なし";
+    if (Array.isArray(value)) return value.length === 0 ? "none" : value.map(String).join(", ");
+    if (value === "") return "none";
     return String(value);
   });
 }

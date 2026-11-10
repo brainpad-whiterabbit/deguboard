@@ -12,9 +12,9 @@ export interface GuideSection {
   text: string;
 }
 
-/** 末尾の「（…）」の補足を除く。check-docs の guideSectionNames と同じ正規表現 */
+/** 末尾の補足（全角「（…）」か、半角の空白に続く「 (…)」）を除く。check-docs の guideSectionNames と同じ正規表現 */
 export function guideSectionName(heading: string): string {
-  return heading.replace(/（[^（）]*）$/, "");
+  return heading.replace(/（[^（）]*）$| \([^()]*\)$/, "");
 }
 
 /** ## の見出しで節に分ける。コードブロックの中の # は見出しにしない。最初の見出し（# の題名）より前は節にしない */
