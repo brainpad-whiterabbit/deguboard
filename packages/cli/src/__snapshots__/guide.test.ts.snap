@@ -251,7 +251,7 @@ Finds mismatches among tickets, Epics, Iterations, and Plans, and fixes them aft
 
 1. **Collect findings**: run \`dg --json --actor agent sync\`, \`dg --json --actor agent validate\`, and \`dg --json --actor agent lint\` in order. Narrow the \`sync\` \`warnings\`, and the \`validate\` and \`lint\` \`issues\` (\`code\`, \`id\`, \`message\`) to the target
 2. **Make fix proposals**: for each finding, read the content with \`ticket show\`, \`epic show\`, or \`plan show\` and decide how to fix it. Examples:
-   - A section of the body is missing, or the acceptance criteria are empty: make a draft of acceptance criteria from the body (\`ticket update --acceptance\`). For the summary, pass the whole body with a \`## 概要\` (summary) section added to the current body via \`--body\` (\`--body\` replaces the body)
+   - A section of the body is missing, or the acceptance criteria are empty: make a draft of acceptance criteria from the body (\`ticket update --acceptance\`). For the summary, pass the whole body with a \`## Summary\` section added to the current body via \`--body\` (\`--body\` replaces the body; dg also reads the Japanese \`## 概要\`)
    - An unfinished ticket remains in a closed Epic: propose one of moving it to another Epic, removing it from the Epic, or making it abandoned
    - All tickets are finished, but the Epic or Plan is still open: propose closing it (\`epic close\` / \`plan close\`)
    - Not in an Iteration (\`lint_iteration_missing\`, when \`lint.require_iteration\` is true. Current setting: \`false\`): choose an Iteration by the same rule as claim (see \`ticket claim --help\`) and propose adding it with \`iteration add <S> <id>\`. If there is no place to add it (a closed Iteration cannot take it, as with done tickets), ask a human whether to create an Iteration or change the setting
@@ -386,12 +386,12 @@ Turns the requirements, research results, and review findings settled in the con
 - key: api
   title: Implement the API
   depends_on: [schema] # Temporary key or existing ID (t9)
-  body: | # Whole body instead of summary. ## 概要 is the summary and ## 受け入れ条件 the acceptance criteria; keep these headings exact
-    ## 概要
+  body: | # Whole body instead of summary. Keep the headings ## Summary and ## Acceptance criteria exact
+    ## Summary
 
     …
 
-    ## 受け入れ条件
+    ## Acceptance criteria
 
     - [ ] …
 \`\`\`
@@ -410,8 +410,8 @@ Choose \`priority\` by these criteria (they can be changed in \`priority\` of \`
 ## How to write a good ticket
 
 - The title is one line where "what is done, and how" is clear at a glance. Write it by the result, not the means of implementation
-- The body has \`## 概要\` (summary) and \`## 受け入れ条件\` (acceptance criteria; a \`- [ ]\` checklist). Keep these headings as written; dg reads them literally. \`dg lint\` flags a missing section and a section with no items
-- Write the references you looked up while filing in an optional \`## 参考\` (references) section. It is passed to the agent that works the ticket. It also helps the planner (\`dg guide plan\`) connect tickets whose reference files overlap with \`after\` instead of running them in parallel, and gives humans (and the reviewer) a filing-time estimate to compare with the PR. Write the file paths you expect to change as an estimate. You may write requirement IDs, ADR numbers, related ticket IDs, file paths, function names, and command names. Do not include line numbers or copies of docs (they go stale quickly), and do not write how to change it (the means of implementation). The section is optional, and \`dg lint\` does not flag its absence
+- The body has \`## Summary\` and \`## Acceptance criteria\` (a \`- [ ]\` checklist). Keep these headings as written; dg reads them literally (it also reads the Japanese names \`## 概要\` and \`## 受け入れ条件\` of older tickets). \`dg lint\` flags a missing section and a section with no items
+- Write the references you looked up while filing in an optional \`## References\` section (dg also reads \`## 参考\`). It is passed to the agent that works the ticket. It also helps the planner (\`dg guide plan\`) connect tickets whose reference files overlap with \`after\` instead of running them in parallel, and gives humans (and the reviewer) a filing-time estimate to compare with the PR. Write the file paths you expect to change as an estimate. You may write requirement IDs, ADR numbers, related ticket IDs, file paths, function names, and command names. Do not include line numbers or copies of docs (they go stale quickly), and do not write how to change it (the means of implementation). The section is optional, and \`dg lint\` does not flag its absence
 - Acceptance criteria are sentences whose truth can be judged by looking at the PR or the deliverable
 - Add a requirement document or ADR as an acceptance criterion only when the decision needs a migration to reverse, is a promise to users or a data shape, is a choice of structure or technology, or rejects a plausible alternative. Otherwise, make the criterion show the promise through tests and comments
 - One ticket should be sized to finish in one PR. If it is large, split it and connect the parts with \`depends_on\`
@@ -550,7 +550,7 @@ Decides the order in which to advance several tickets. The plan is recorded in a
 1. Collect the targets: \`dg --json --actor agent ticket list --project default\` (narrow by Epic with \`--epic e3\`, or by Iteration with \`--iteration s3\`)
 2. Check dependencies: each ticket's \`depends_on\`, and the \`dependents\` (tickets that depend on it) from \`dg --json --actor agent ticket show <id>\`
 3. Find tickets that can start: \`dg --json --actor agent ticket list --ready\`. These are todos whose dependencies are all done or abandoned (\`deps_done\`). This does not check the assignee, so avoid tickets whose \`assignee\` is another user (if only your own, use \`--assignee agent\`)
-4. Make an order proposal. Dependencies come first, and higher priority comes first. Show the tickets that can run in parallel (those that do not depend on each other) together. If a ticket's body has a \`## 参考\` (references) section and the files written there overlap with another ticket's references, do not run them in parallel. Connect them with \`after\` (put the one that can advance first in front). Tickets without a references section are not judged for this overlap, and their order is decided by dependencies and priority as before. References are an estimate at filing time, so state the overlapping files in the proposal, and let a human fix it at approval
+4. Make an order proposal. Dependencies come first, and higher priority comes first. Show the tickets that can run in parallel (those that do not depend on each other) together. If a ticket's body has a \`## References\` section (or the Japanese \`## 参考\`) and the files written there overlap with another ticket's references, do not run them in parallel. Connect them with \`after\` (put the one that can advance first in front). Tickets without a references section are not judged for this overlap, and their order is decided by dependencies and priority as before. References are an estimate at filing time, so state the overlapping files in the proposal, and let a human fix it at approval
 5. Record it in a Plan awaiting approval (see the "Creating a Plan" section). The result's \`data.id\` is the Plan's ID
 6. Show it to a human and get approval. Show \`items\` (the Plan's order), \`after\`, and \`details\` from \`dg --json --actor agent plan show <p>\` in a table (include a tier column), and ask with the choices "Approve", "Revise", and "Keep it awaiting approval". If asked to revise, close it with \`plan close <p>\` and create it again (a Plan cannot be changed after it is created)
 7. When a human approves, record the approval with \`dg --json --actor agent plan approve <p>\` (\`approved_by\` is the acting actor). Do not approve without a human's approval. Do not start tickets in a Plan that is awaiting approval
@@ -696,7 +696,7 @@ PR を人に出す前（\`dg next\` の \`review\`・\`fix\`・\`ready\`）と�
 
 見直し役は、文の「場所」「差分」「チケット本文」の手順で PR を読み、次を見て、次の形で返す。
 
-- **見る**：受け入れ条件の漏れ・不具合・規約の違反・範囲の外の変更。文書との食い違いも見る。範囲の外の変更は、範囲の外の指摘として分けて返す。チケット本文の \`## 参考\` 節があれば、差分で変えたファイルと見比べ、節にない大きな広がりと、節のファイルに触れていない変更を「参考節との食い違い」として返す（節がなければ見比べない）
+- **見る**：受け入れ条件の漏れ・不具合・規約の違反・範囲の外の変更。文書との食い違いも見る。範囲の外の変更は、範囲の外の指摘として分けて返す。チケット本文の \`## 参考\` 節（英語の \`## References\` も同じ）があれば、差分で変えたファイルと見比べ、節にない大きな広がりと、節のファイルに触れていない変更を「参考節との食い違い」として返す（節がなければ見比べない）
 - **返す**：指摘を重いと軽いに分けた一覧（ファイルと行・理由・直し方）と、最新のコミットで回した検査の結果。重いのは、受け入れ条件の漏れ・不具合・規約の違反・この PR が変えた約束・手順・規約で文書を直していないもの（文書の重い指摘は約束・手順・規約の変更に限る）・判断を変えたのに同じ PR で ADR の本文を直していないもの・ADR に残った誤り（この PR が誤りにした細部）・ADR や要件に足した細部（直し方は「細部をコード・テスト・ヘルプへ移す」。規約の違反として数える）。軽いのは、言い回し・好み・前からのずれ（Iteration の見直しに送る）・参考節との食い違い。一覧は \`dg --json --actor agent run review-result <id> --findings-file <ファイル>\` に渡す JSON の配列にし（1 件は severity・category・file・line・reason・fix。形は \`dg run review-result --help\`）、返す前に 1 回記録する。受け入れ条件の文言に当たる指摘（受け入れ条件の欠け）は、category に「受け入れ条件」を含める（例：「受け入れ条件の漏れ」）。受け入れ条件の文言の軽い指摘は、この category で手直しに回る（ほかの軽い指摘を手直しに渡すなら、その記録は \`run handoff\`。手順は修正ループ）。数と通ったかは dg が求める
 
 ## 指摘を直す

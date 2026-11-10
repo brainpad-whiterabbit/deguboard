@@ -97,8 +97,8 @@ describe("チケットの流れ（照合と claim）", () => {
       created_by: "eiki",
     });
     expect(created.data.assignee).toBeUndefined();
-    expect(created.data.body).toContain("## 概要\n\n入力の検査");
-    expect(created.data.body).toContain("## 受け入れ条件\n\n- [ ] a, b\n- [ ] c\n");
+    expect(created.data.body).toContain("## Summary\n\n入力の検査");
+    expect(created.data.body).toContain("## Acceptance criteria\n\n- [ ] a, b\n- [ ] c\n");
     expect(created.write).toMatchObject({ pushed: true });
 
     const claimed = await runCommand(ticketClaim, ctx, { no_worktree: true, ticket: "1" });

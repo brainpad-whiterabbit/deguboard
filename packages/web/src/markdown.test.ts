@@ -46,6 +46,10 @@ describe("本文の Markdown", () => {
       見出しが2つ:
         "## 受け入れ条件\n\n- [ ] a\n\n## メモ\n\n- [ ] x\n\n## 受け入れ条件\n\n- [ ] b\n",
       CRLF: "## 概要\r\n\r\n本文\r\n\r\n## 受け入れ条件\r\n\r\n- [ ] a\r\n- [x] b\r\n",
+      英語の名前:
+        "## Summary\n\n- [ ] x\n\n## Acceptance criteria\n\n- [ ] a\n- [x] b\n\n## References\n\n- [ ] y\n",
+      英語の名前の小文字: "## acceptance criteria\n\n- [ ] a\n",
+      英語と日本語の節が両方: "## Acceptance criteria\n\n- [ ] a\n\n## 受け入れ条件\n\n- [ ] b\n",
     };
     for (const [name, body] of Object.entries(cases)) {
       it(name, () => {

@@ -492,7 +492,7 @@ export const ticketUpdate = defineCommand({
     acceptance: acceptanceItems
       .optional()
       .describe(
-        "受け入れ条件の項目。## 受け入れ条件 の節だけを置き換え、同じ文の済みの印は保つ。節がなければ末尾に足す。body とは同時に指定できない",
+        "受け入れ条件の項目。## Acceptance criteria（か ## 受け入れ条件）の節だけを置き換え、同じ文の済みの印は保つ。節がなければ末尾に足す。body とは同時に指定できない",
       ),
     ...ticketAttributes,
     labels: z
@@ -680,7 +680,10 @@ export const ticketCheck = defineCommand({
         }
         const items = parseAcceptance(doc.body);
         if (items === undefined)
-          throw new OperationError("NOT_FOUND", `${doc.id} の本文に ## 受け入れ条件 がない`);
+          throw new OperationError(
+            "NOT_FOUND",
+            `${doc.id} の本文に ## Acceptance criteria（か ## 受け入れ条件）がない`,
+          );
         if (items.length === 0)
           throw new OperationError("NOT_FOUND", `${doc.id} の受け入れ条件に項目がない`);
         const missing = numbers.filter((n) => n > items.length);

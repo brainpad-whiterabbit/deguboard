@@ -3,6 +3,7 @@
 import { z } from "zod";
 import { isoDateTime, slugSchema } from "./common.js";
 import { epicIdSchema } from "./id.js";
+import { BODY_HEADINGS } from "./ticket.js";
 
 export const EPIC_STATUSES = ["open", "closed"] as const;
 export type EpicStatus = (typeof EPIC_STATUSES)[number];
@@ -19,6 +20,7 @@ export const epicSchema = z.looseObject({
 });
 export type Epic = z.output<typeof epicSchema>;
 
+/** 本文の雛形（EP-1）。`## Summary` に summary を置く */
 export function epicBodyTemplate(summary = ""): string {
-  return `## 概要\n\n${summary}\n`;
+  return `## ${BODY_HEADINGS.summary.en}\n\n${summary}\n`;
 }

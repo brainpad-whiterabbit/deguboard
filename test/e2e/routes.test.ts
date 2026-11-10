@@ -43,7 +43,7 @@ interface Step {
 }
 
 /** 最初の手順で起票する t1 の本文（ticket.check の base に渡す） */
-const T1_BODY = "## 概要\n\n\n\n## 受け入れ条件\n\n- [ ] a\n- [ ] b\n";
+const T1_BODY = "## Summary\n\n\n\n## Acceptance criteria\n\n- [ ] a\n- [ ] b\n";
 
 const STEPS: Step[] = [
   {

@@ -49,7 +49,7 @@ import {
 import type { Iteration } from "../model/iteration.js";
 import type { Run, RunId, RunResult } from "../model/run.js";
 import type { StepOpener } from "../model/workflow.js";
-import { parseAcceptance, type Ticket } from "../model/ticket.js";
+import { hasBodySection, parseAcceptance, type Ticket } from "../model/ticket.js";
 import { dropRunning, peekRunningRuns, readRunningRuns } from "../run/record.js";
 import type { Doc } from "../storage/documents.js";
 import { pathExists } from "../storage/exists.js";
@@ -692,7 +692,7 @@ export const lint = defineCommand({
   name: "lint",
   group: "setup",
   summary:
-    "本文の推奨の節（## 概要・## 受け入れ条件）の欠けと空、Workflow の fields に合わない値、閉じた Epic に残る終わっていないチケット、lint.require_iteration が true なら Iteration に入らずに todo・abandoned 以外に進んだチケット（閉じた Epic の done は除く）、チケットがすべて終わったのに開いている Epic・Plan、開いた Plan の after と depends_on をまたぐ循環、同じ Project に 2 つ以上ある active の Iteration を指摘する。実装・手直しの Run の抜け（agent が PR まで進めたのに実装の Run がない、閉じた実装の Run の後のコミットがどの Run の期間にも入らない、見直しの後のコミットに手直しの Run がない）は、終わっていないチケットと、閉じていない Iteration に入った done のチケットだけを見る。done のチケットの未チェックの受け入れ条件は指摘しない",
+    "本文の推奨の節（## Summary・## Acceptance criteria。日本語の ## 概要・## 受け入れ条件 も読む）の欠けと空、Workflow の fields に合わない値、閉じた Epic に残る終わっていないチケット、lint.require_iteration が true なら Iteration に入らずに todo・abandoned 以外に進んだチケット（閉じた Epic の done は除く）、チケットがすべて終わったのに開いている Epic・Plan、開いた Plan の after と depends_on をまたぐ循環、同じ Project に 2 つ以上ある active の Iteration を指摘する。実装・手直しの Run の抜け（agent が PR まで進めたのに実装の Run がない、閉じた実装の Run の後のコミットがどの Run の期間にも入らない、見直しの後のコミットに手直しの Run がない）は、終わっていないチケットと、閉じていない Iteration に入った done のチケットだけを見る。done のチケットの未チェックの受け入れ条件は指摘しない",
   input: z.object({
     project: z.string().optional().describe("Project で絞る。省略時はすべて"),
   }),
@@ -704,11 +704,16 @@ export const lint = defineCommand({
       issues.push({ severity: "warning", code, path, id, message });
     for (const doc of ctx.store.tickets.values()) {
       if (input.project && doc.data.project !== input.project) continue;
-      if (!/^## 概要\s*$/m.test(doc.body))
-        warn(doc.path, doc.id, "lint_summary_missing", "本文に ## 概要 がない");
+      if (!hasBodySection(doc.body, "summary"))
+        warn(doc.path, doc.id, "lint_summary_missing", "本文に ## Summary（か ## 概要）がない");
       const acceptance = parseAcceptance(doc.body);
       if (acceptance === undefined)
-        warn(doc.path, doc.id, "lint_acceptance_missing", "本文に ## 受け入れ条件 がない");
+        warn(
+          doc.path,
+          doc.id,
+          "lint_acceptance_missing",
+          "本文に ## Acceptance criteria（か ## 受け入れ条件）がない",
+        );
       else if (acceptance.length === 0)
         warn(doc.path, doc.id, "lint_acceptance_empty", "受け入れ条件に項目がない");
       const wf = ctx.store.workflowFor(doc.data);
@@ -749,8 +754,8 @@ export const lint = defineCommand({
     }
     for (const doc of ctx.store.epics.values()) {
       if (input.project && doc.data.project !== input.project) continue;
-      if (!/^## 概要\s*$/m.test(doc.body))
-        warn(doc.path, doc.id, "lint_summary_missing", "本文に ## 概要 がない");
+      if (!hasBodySection(doc.body, "summary"))
+        warn(doc.path, doc.id, "lint_summary_missing", "本文に ## Summary（か ## 概要）がない");
     }
     // Epic・Plan の状態と、所属するチケットの状態の食い違い。Iteration は閉じると終わっていないチケットを外すので見ない
     const tickets = [...ctx.store.tickets.values()].filter(

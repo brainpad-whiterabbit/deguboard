@@ -9,7 +9,7 @@ import { chooseCheck, matchesAnyGlob } from "./gate-check.js";
 import { gate, type GateView } from "./gate.js";
 import { runFinish, runReviewResult, runStart } from "./run.js";
 import { configSet, init } from "./setup.js";
-import { ticketCheck, ticketClaim, ticketCreate } from "./ticket.js";
+import { ticketCheck, ticketClaim, ticketCreate, ticketUpdate } from "./ticket.js";
 import type { Run } from "../model/run.js";
 
 const cleanups: Array<() => Promise<void> | void> = [];
@@ -125,6 +125,20 @@ describe("dg gate（品質ゲート。t532）", () => {
       ok: true,
       detail: expect.stringContaining("actions.test が空なので、検査は判定しない"),
     });
+  });
+
+  it("受け入れ条件は英語の名前の節（## Acceptance criteria）も読む", async () => {
+    const { ctx } = await prepared();
+    await runCommand(ticketUpdate, ctx, {
+      ticket: "t1",
+      body: "## Summary\n\ns\n\n## Acceptance criteria\n\n- [x] 1 つめ\n- [ ] 2 つめ\n",
+    });
+    await review(ctx, later(1), 0);
+    const view = await judge(ctx);
+    expect(failed(view)).toEqual(["acceptance"]);
+    expect(view.conditions.find((c) => c.id === "acceptance")?.detail).toContain("2");
+    await runCommand(ticketCheck, ctx, { ticket: "t1", items: [2] });
+    expect(failed(await judge(ctx))).toEqual([]);
   });
 
   it("見直しが最後の push より前・通っていない・結果がないなら review を満たさない", async () => {

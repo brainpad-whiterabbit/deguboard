@@ -74,7 +74,7 @@ describe("サブエージェントに渡す文の形（brief）", () => {
       - Run：この文の先頭の印で、フックが見直しの Run（review）を開き閉じる。Run は開かず閉じない。
       - 記録：一覧を返す前に、指摘を JSON の配列（1 件は severity（heavy か light）・category・file・line・reason・fix。形は \`dg run review-result --help\`）でリポジトリの外の一時ファイルに書き、\`dg --json --actor agent run review-result t12 --findings-file <ファイル>\` で 1 回記録する。指摘がなければ \`[]\`。数と通ったかは dg が求める。
       - しない：リポジトリのファイルを変える・コミットする・push する・Run のほかに dg へ書き込む・ほかのチケットを見る。
-      - 返すもの：指摘を重い（受け入れ条件の漏れ・不具合・この PR が変えた約束・手順・規約で文書を直していないもの・ADR や要件に足した細部・規約の違反）と軽い（言い回し・好み・前からのずれ）に分けた一覧（ファイルと行・理由・直し方）と、最新のコミットで回した検査の結果。参考節との食い違いは軽い指摘の欄に分けて書き、重い指摘に数えない。"
+      - 返すもの：指摘を重い（受け入れ条件の漏れ・不具合・この PR が変えた約束・手順・規約で文書を直していないもの・ADR や要件に足した細部・規約の違反）と軽い（言い回し・好み・前からのずれ）に分けた一覧（ファイルと行・理由・直し方）と、最新のコミットで回した検査の結果。参考節（本文の \`## References\` か \`## 参考\`）との食い違いは軽い指摘の欄に分けて書き、重い指摘に数えない。"
     `);
   });
 
@@ -138,7 +138,7 @@ describe("サブエージェントに渡す文の形（brief）", () => {
       - Run: the marker on the first line makes the hook open and close the review Run. Do not open or close a Run.
       - Record: Before returning the list, write the findings as a JSON array (each with severity (heavy or light), category, file, line, reason, and fix; the shape is in \`dg run review-result --help\`) to a temporary file outside the repository, and record it once with \`dg --json --actor agent run review-result t12 --findings-file <file>\`. Use \`[]\` if there are no findings. dg works out the counts and whether the review passed.
       - Do not: change files in the repository, commit, push, write anything to dg other than the Run, or look at other tickets.
-      - Return: a list of findings split into heavy (missed acceptance criteria, bugs, docs left stale by a promise, procedure, or rule this PR changed, details added to an ADR or requirements, rule violations) and light (wording, preference, older drift from the docs), each with file and line, reason, and how to fix it; and the results of the checks run on the latest commit. Report 参考節との食い違い (mismatches with the 参考 section) under the light findings, and do not count them as heavy."
+      - Return: a list of findings split into heavy (missed acceptance criteria, bugs, docs left stale by a promise, procedure, or rule this PR changed, details added to an ADR or requirements, rule violations) and light (wording, preference, older drift from the docs), each with file and line, reason, and how to fix it; and the results of the checks run on the latest commit. Report 参考節との食い違い (mismatches with the references section, \`## References\` or \`## 参考\` in the body) under the light findings, and do not count them as heavy."
     `);
     expect(composeBrief("fix", facts({ step: "fix" }), "en")).toMatchInlineSnapshot(`
       "deguboard: ticket=t12 step=fix
@@ -220,6 +220,16 @@ describe("dg brief と dg next の文（EX-3）", () => {
     expect(fix).toMatchObject({ step: "fix" });
     expect(fix.text.split("\n")[0]).toBe("deguboard: ticket=t1 step=fix");
     expect(fix.text).toContain("1. 直す指摘");
+  });
+
+  it("dg brief は英語の名前の節（## Acceptance criteria）の受け入れ条件も文に入れる", async () => {
+    const ctx = await prepared();
+    await runCommand(ticketCreate, ctx, {
+      title: "C",
+      body: "## Summary\n\ns\n\n## Acceptance criteria\n\n- [ ] 英語の節の項目\n",
+    });
+    const implement = (await runCommand(brief, ctx, { ticket: "t3", role: "implement" })).data;
+    expect(implement.text).toContain("1. 英語の節の項目");
   });
 
   it("役の文は指す節の本文を入れ、guide を読ませる文がない。dg next の brief も同じ本文", async () => {

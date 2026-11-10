@@ -106,14 +106,28 @@ describe("用意", () => {
     await runCommand(ticketCreate, ctx, { title: "G", acceptance: ["a"] });
     await runCommand(ticketCheck, ctx, { ticket: "t7", all: true });
     await runCommand(ticketMove, ctx, { ticket: "t7", status: "done" });
+    // 英語の名前の節も日本語と同じに読む（H は指摘なし、I は項目が空）
+    await runCommand(ticketCreate, ctx, {
+      title: "H",
+      body: "## Summary\n\ns\n\n## Acceptance criteria\n\n- [ ] a\n",
+    });
+    await runCommand(ticketCreate, ctx, {
+      title: "I",
+      body: "## Summary\n\ns\n\n## Acceptance criteria\n\n- [ ] \n",
+    });
     const v = await runCommand(validate, ctx, {});
     expect(v.data.ok).toBe(true);
     const l = await runCommand(lint, ctx, {});
     expect(l.data.issues.map((i) => [i.id, i.code, i.message])).toEqual([
-      ["t1", "lint_summary_missing", "本文に ## 概要 がない"],
-      ["t1", "lint_acceptance_missing", "本文に ## 受け入れ条件 がない"],
+      ["t1", "lint_summary_missing", "本文に ## Summary（か ## 概要）がない"],
+      [
+        "t1",
+        "lint_acceptance_missing",
+        "本文に ## Acceptance criteria（か ## 受け入れ条件）がない",
+      ],
       ["t2", "lint_acceptance_empty", "受け入れ条件に項目がない"],
       ["t3", "lint_acceptance_empty", "受け入れ条件に項目がない"],
+      ["t9", "lint_acceptance_empty", "受け入れ条件に項目がない"],
     ]);
     const c = await runCommand(configSet, ctx, { key: "commit.mode", value: "each" });
     expect(c.data.commit.mode).toBe("each");

@@ -109,7 +109,7 @@ describe("dg", () => {
     const shown = await dg(f.cloneA, ["ticket", "show", "t1"]);
     expect(shown.code).toBe(0);
     expect(shown.out).toContain("assignee: claude/agent");
-    expect(shown.out).toContain("## 受け入れ条件");
+    expect(shown.out).toContain("## Acceptance criteria");
 
     const list = await dg(f.cloneA, ["ticket", "list"]);
     expect(list.out.split("\n")[0]).toMatch(/^id\s+status\s+priority\s+title/);
@@ -171,7 +171,7 @@ describe("dg", () => {
       "claude-code",
     ]);
     expect(opened.code).toBe(0);
-    expect(opened.out).toContain("## 受け入れ条件");
+    expect(opened.out).toContain("## Acceptance criteria");
     expect(opened.out.trimEnd().split("\n").at(-1)).toMatch(/^run: r\d{8}-\d{6}-[0-9a-f]{4}$/);
     // commander は --no-run を run: false にするが、入力では no_run: true になる
     const skipped = await dg(f.cloneA, [

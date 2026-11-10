@@ -630,6 +630,30 @@ describe("画面", () => {
       for (const c of outside) expect(c.readOnly).toBe(true);
     });
 
+    it("英語の名前の節（## Summary・## Acceptance criteria）も日本語の節と同じに出し、同じ番号で押せる", async () => {
+      const english = BODY.replace("## 概要", "## Summary").replace(
+        "## 受け入れ条件",
+        "## Acceptance criteria",
+      );
+      window.location.hash = "#/tickets/t3";
+      const client = mockClient();
+      const show = client.handlers["ticket.show"]!;
+      client.handlers["ticket.show"] = (input) => ({ ...(show(input) as object), body: english });
+      client.calls.length = 0;
+      mount(client, hostOf("panel"));
+      await screen.findByRole("heading", { level: 1, name: "画面" });
+      expect(screen.getByText("Summary")).toBeTruthy();
+      expect(screen.getByText("Acceptance criteria")).toBeTruthy();
+      expect(box(1).checked).toBe(false);
+      expect(box(2).checked).toBe(true);
+      expect(screen.queryByRole("checkbox", { name: "受け入れ条件 3" })).toBeNull();
+      const all = [...document.querySelectorAll<HTMLInputElement>(".markdown input")];
+      expect(all.filter((c) => !c.getAttribute("aria-label"))).toHaveLength(3);
+      fireEvent.click(box(1));
+      await waitFor(() => expect(checks(client)).toHaveLength(1));
+      expect(checks(client)[0]).toEqual({ ticket: "t3", items: [1], undo: false, base: english });
+    });
+
     it("保存の間に別の書き込みがあって拒否されたら、理由を出して印を元に戻す", async () => {
       window.location.hash = "#/tickets/t3";
       const client = mockClient();

@@ -3,6 +3,9 @@ import type { Status } from "./common.js";
 import type { TicketId } from "./id.js";
 import {
   acceptanceSection,
+  BODY_HEADINGS,
+  bodyHeadingPattern,
+  hasBodySection,
   parseAcceptance,
   pendingDeps,
   progressOf,
@@ -12,16 +15,42 @@ import {
 } from "./ticket.js";
 
 describe("チケットの本文", () => {
-  it("雛形は概要と受け入れ条件の節を持ち、項目がなければ空の - [ ] を 1 行置く", () => {
+  it("雛形は英語の名前の節（Summary・Acceptance criteria）を持ち、項目がなければ空の - [ ] を 1 行置く", () => {
     expect(ticketBodyTemplate("入力の検査")).toBe(
-      "## 概要\n\n入力の検査\n\n## 受け入れ条件\n\n- [ ] \n",
+      "## Summary\n\n入力の検査\n\n## Acceptance criteria\n\n- [ ] \n",
     );
-    expect(ticketBodyTemplate()).toBe("## 概要\n\n\n\n## 受け入れ条件\n\n- [ ] \n");
+    expect(ticketBodyTemplate()).toBe("## Summary\n\n\n\n## Acceptance criteria\n\n- [ ] \n");
   });
 
   it("受け入れ条件の項目を 1 行ずつチェックリストにし、前後の空白を落とす", () => {
     expect(ticketBodyTemplate("s", [" a, b ", "c"])).toBe(
-      "## 概要\n\ns\n\n## 受け入れ条件\n\n- [ ] a, b\n- [ ] c\n",
+      "## Summary\n\ns\n\n## Acceptance criteria\n\n- [ ] a, b\n- [ ] c\n",
+    );
+  });
+
+  it("節の名前は英語と日本語のどちらも同じ節と読み、英語は大文字と小文字を区別しない", () => {
+    for (const body of ["## Summary\n\ns\n", "## 概要\n\ns\n", "## summary  \n\ns\n"])
+      expect(hasBodySection(body, "summary"), body).toBe(true);
+    expect(hasBodySection("## Summaries\n\ns\n", "summary")).toBe(false);
+    expect(hasBodySection("## References\n\n- a.ts\n", "references")).toBe(true);
+    expect(hasBodySection("## 参考\n\n- a.ts\n", "references")).toBe(true);
+    expect(hasBodySection("## 参考文献\n", "references")).toBe(false);
+    expect(bodyHeadingPattern("acceptance").test("## Acceptance criteria")).toBe(true);
+    expect(bodyHeadingPattern("acceptance").test("## 受け入れ条件")).toBe(true);
+    expect(BODY_HEADINGS.acceptance).toEqual({ en: "Acceptance criteria", ja: "受け入れ条件" });
+  });
+
+  it("英語の名前の受け入れ条件の節も、切り出し・置き換え・読み・印の書き換えをする", () => {
+    const body =
+      "## Summary\n\ns\n\n## Acceptance criteria\n\n- [x] done\n- [ ] gone\n\n## References\n\n- a.ts\n";
+    expect(acceptanceSection(body)).toBe("\n\n- [x] done\n- [ ] gone\n\n");
+    expect(parseAcceptance(body)).toEqual([
+      { index: 1, text: "done", checked: true },
+      { index: 2, text: "gone", checked: false },
+    ]);
+    expect(setAcceptance(body, [2], true)).toBe(body.replace("- [ ] gone", "- [x] gone"));
+    expect(replaceAcceptance(body, ["new", "done"])).toBe(
+      "## Summary\n\ns\n\n## Acceptance criteria\n\n- [ ] new\n- [x] done\n\n## References\n\n- a.ts\n",
     );
   });
 
@@ -44,16 +73,21 @@ describe("チケットの本文", () => {
     );
     // 節が末尾のとき
     expect(replaceAcceptance(ticketBodyTemplate("s"), ["a"])).toBe(
-      "## 概要\n\ns\n\n## 受け入れ条件\n\n- [ ] a\n",
+      "## Summary\n\ns\n\n## Acceptance criteria\n\n- [ ] a\n",
     );
   });
 
-  it("受け入れ条件の節がなければ末尾に足す", () => {
+  it("受け入れ条件の節がなければ末尾に英語の名前で足し、日本語の ## 概要 の本文には日本語の名前で足す", () => {
     expect(replaceAcceptance("## 概要\n\ns\n", ["a"])).toBe(
       "## 概要\n\ns\n\n## 受け入れ条件\n\n- [ ] a\n",
     );
-    expect(replaceAcceptance("本文だけ", ["a"])).toBe("本文だけ\n\n## 受け入れ条件\n\n- [ ] a\n");
-    expect(replaceAcceptance("", ["a"])).toBe("## 受け入れ条件\n\n- [ ] a\n");
+    expect(replaceAcceptance("## Summary\n\ns\n", ["a"])).toBe(
+      "## Summary\n\ns\n\n## Acceptance criteria\n\n- [ ] a\n",
+    );
+    expect(replaceAcceptance("本文だけ", ["a"])).toBe(
+      "本文だけ\n\n## Acceptance criteria\n\n- [ ] a\n",
+    );
+    expect(replaceAcceptance("", ["a"])).toBe("## Acceptance criteria\n\n- [ ] a\n");
   });
 
   const checklist =
