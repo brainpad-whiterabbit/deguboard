@@ -5,7 +5,7 @@
 // - 自分：個人で上書きできる項目（scope が local）だけを出し、deguboard-local/config.yaml（view.local）を config.set --local で書く。
 //   「自分の値を使う」を入れるとチームの値を自分の値として写し、外すと config.unset --local で上書きを外してチームの値を出す
 // VS Code の settings.json は使わない（requirements.md 5.10）。左パネルのビューのタイトル行の歯車で開け閉めし、画面の中の「前の画面に戻る」も歯車と同じく来る前の画面に戻る。
-// 選択欄とチェックは変えたらすぐ、テキストは Enter か欄を離れたとき、リストは足す・外すたびに保存する。
+// 選択欄とチェックは変えたらすぐ、テキストと数は Enter か欄を離れたとき、リストは足す・外すたびに保存する。
 // 同期先とブランチの判定・worktree の置き場所・実行するコマンドとエージェントに許す操作を変える項目（CONFIRM_KEYS）は、どちらのタブでも保存の前に欄の下で確かめる
 // （自分の値を外して効く値が変わるときも確かめる。空にすると既定に戻る項目を空にするときは、戻る既定の値を出す）。拒否されたら理由を項目の下にだけ出し（上の通知の帯には出さない）、値を保存されている値に戻す。
 // 保存は通って読み直しだけが失敗したら、保存できたことと読み直せないことを分けて出し、欄は保存した値で出す
@@ -24,7 +24,7 @@ const GROUPS: { id: string; label: string; tops: string[] }[] = [
   {
     id: "agent",
     label: msg("エージェント"),
-    tops: ["actions", "auto", "flow", "merge", "review", "lint", "models", "actor"],
+    tops: ["actions", "auto", "flow", "work", "merge", "review", "lint", "models", "actor"],
   },
   { id: "metrics", label: msg("計測"), tops: ["metrics"] },
   { id: "notify", label: msg("通知"), tops: ["notify"] },
@@ -46,6 +46,7 @@ const NAMES: Record<string, string> = {
   "auto.merge": msg("PR を自動でマージする"),
   "auto.decisions": msg("--auto で自動で選ぶ判断"),
   "flow.skip": msg("流れから外す段階"),
+  "work.parallel": msg("同時に進めるチケットの上限"),
   "merge.method": msg("マージの方法"),
   "merge.delete_branch": msg("マージしたら作業ブランチを消す"),
   "review.heavy_categories": msg("重いとみなす見直しの指摘の種類"),
@@ -783,10 +784,11 @@ function FieldInput({
         />
       );
     default:
+      // 数の項目（work.parallel）も打った文のまま送り、core の config.set が数に直して範囲を確かめる
       return (
         <input
           id={id}
-          type="text"
+          type={field.type === "number" ? "number" : "text"}
           className="config-text"
           value={String(draft ?? shownConfigValue(field.key, value, field.default) ?? "")}
           disabled={disabled}

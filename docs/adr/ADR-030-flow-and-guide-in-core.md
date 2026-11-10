@@ -16,7 +16,7 @@ Iteration の流れ（段階・次の 1 手・止まる判定・自動で選ん�
 - 利用者が手続きを変える入口が定まっていない。config の値は guide の文に埋まるだけで効くかは LLM 次第、SKILL.md を書き換えると `dg skill install` の更新を受け取れず、CLAUDE.md は形が決まっていないので dg が読めない
 - `dg next`・`dg brief` が guide の節の本文を返すには、CLI に同梱した guide-*.md（CL-5）を Core から読む必要があるが、[ADR-033](ADR-033-architecture.md) では Core は CLI に依存しない
 
-この ADR は ADR-011 を置き換えず、その範囲を Iteration の流れと guide の読み込み・カスタマイズに広げる。ADR-011 の決定（1 枚のチケットの手続き・人の判断の穴・修正ループと並列の上限を config に置かない）はそのまま有効。
+この ADR は ADR-011 を置き換えず、その範囲を Iteration の流れと guide の読み込み・カスタマイズに広げる。ADR-011 の決定（1 枚のチケットの手続き・人の判断の穴・修正ループの回数を config に置かず、並列の上限は config に置く）はそのまま有効。
 
 ## 決定
 
@@ -42,7 +42,7 @@ Iteration の流れ（段階・次の 1 手・止まる判定・自動で選ん�
 
 - 利用者が既定の手続きを変える入口は、`config.yaml` の項目（流れから外す段階・自動で選んでよい判断・マージの方法・検査のコマンドなど。名前は config のスキーマが正本）と、guide の決まった位置に文を差し込む `guide.notes.<topic>` だけにする。項目はコードが読んで判定に効かせ、文を足せるのは `guide.notes` だけ
 - SKILL.md と guide の書き換えはカスタマイズの前提にしない。Skill は `dg skill install` で最新に保てる形のままにする
-- 修正ループと並列の上限は config に置かない（ADR-011 を変えない）。人が決める穴も config の項目にしない
+- 修正ループの回数は config に置かない（ADR-011 を変えない）。並列の上限は config の項目 `work.parallel` にし、`dg guide parallel` はその値を埋めて示す（理由と退けた案は ADR-011）。人が決める穴も config の項目にしない
 
 ## 理由
 

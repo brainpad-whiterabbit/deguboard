@@ -155,6 +155,19 @@ export const configSchema = z.looseObject({
         ),
     })
     .prefault({}),
+  work: z
+    .looseObject({
+      parallel: z
+        .number()
+        .int()
+        .min(1)
+        .max(10)
+        .default(3)
+        .describe(
+          "Most tickets of a Plan advanced at the same time with a subagent each (dg guide parallel). An integer from 1 to 10",
+        ),
+    })
+    .prefault({}),
   merge: z
     .looseObject({
       method: z
@@ -264,8 +277,8 @@ export function defaultConfig(): Config {
   return configSchema.parse({});
 }
 
-/** 設定の 1 項目の型。画面はこれで入力欄（選択欄・チェック・テキスト・リスト）を選ぶ */
-export type ConfigFieldType = "enum" | "boolean" | "string" | "list";
+/** 設定の 1 項目の型。画面はこれで入力欄（選択欄・チェック・数・テキスト・リスト）を選ぶ */
+export type ConfigFieldType = "enum" | "boolean" | "number" | "string" | "list";
 
 /**
  * 項目の範囲。team はチームの config.yaml だけで決まり、local は個人の設定（deguboard-local/config.yaml）で上書きできる。
@@ -285,6 +298,8 @@ const LOCAL_KEYS: ReadonlySet<string> = new Set([
   "models.heavy",
   "actions.shell",
   "notify.approvals",
+  // 同時に回せる数はマシンの重さと契約の上限で人ごとに違う
+  "work.parallel",
 ]);
 
 /** 項目（ドット区切りの名前）の範囲。スキーマにない名前は team（個人のファイルでは無視する） */
@@ -331,6 +346,7 @@ function fieldOf(key: string, schema: z.ZodType, fallback: unknown): ConfigField
     field.type = "enum";
     field.options = inner.options.map(String);
   } else if (inner instanceof z.ZodBoolean) field.type = "boolean";
+  else if (inner instanceof z.ZodNumber) field.type = "number";
   else if (inner instanceof z.ZodArray) field.type = "list";
   else field.clears_to_default = typeof fallback === "string" && fallback !== "";
   return field;

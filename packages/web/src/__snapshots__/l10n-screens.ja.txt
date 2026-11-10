@@ -340,6 +340,13 @@ flow.skip
 足す
 [title] 既定の 空 に戻す
 既定に戻す
+同時に進めるチケットの上限
+work.parallel
+[title] 既定は 3
+変更あり
+work.parallel
+[title] 既定の 3 に戻す
+既定に戻す
 マージの方法
 merge.method
 [title] 既定は squash
