@@ -3,5 +3,8 @@ project: default
 name: sprint24
 goal: 止まった Run と人待ちの Run を見分けて人に知らせる（e14）
 start: 2026-11-10
-end: 2026-11-11
-status: active
+end: 2026-11-10
+status: closed
+closed_at: 2026-11-10T12:48:02Z
+completed: 18
+carried_over: 0
