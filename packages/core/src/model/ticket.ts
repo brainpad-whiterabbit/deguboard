@@ -16,11 +16,38 @@ export type Priority = (typeof PRIORITIES)[number];
 
 /**
  * 品質ゲートの段（TK-9）。high は見直しを含むすべての条件、low は見直しを除く条件、free は PR が開いていることと
- * 衝突しないことだけを判定する（段ごとの条件は commands/gate.ts の judgeGate）。チケットに gate がなければ high
+ * 衝突しないことだけを判定する。段の既定と、段ごとに何を判定するかはこのファイルの gateLevelOf・gateScopeOf で決まり、
+ * 判定の手順は commands/gate.ts の judgeGate。チケットに gate がなければ high
  */
 export const GATE_LEVELS = ["high", "low", "free"] as const;
 export type GateLevel = (typeof GATE_LEVELS)[number];
 export const DEFAULT_GATE_LEVEL: GateLevel = "high";
+
+/** 段が判定する条件の範囲（PR の条件 pr・mergeable は段によらず判定するので含めない） */
+export interface GateScope {
+  /** 見直し（review・fix_rounds）。見直しの Run を要る手として扱うかも、これで決まる */
+  review: boolean;
+  /** 受け入れ条件（merge の前だけ判定する。段が free なら判定しない） */
+  acceptance: boolean;
+  /** 検査（actions.test）。free は回さない */
+  check: boolean;
+}
+
+const GATE_SCOPES: Record<GateLevel, GateScope> = {
+  high: { review: true, acceptance: true, check: true },
+  low: { review: false, acceptance: true, check: true },
+  free: { review: false, acceptance: false, check: false },
+};
+
+/** チケットの段（gate）。省いたチケットは DEFAULT_GATE_LEVEL（high）。ticket がなければ既定 */
+export function gateLevelOf(ticket: Pick<Ticket, "gate"> | undefined): GateLevel {
+  return ticket?.gate ?? DEFAULT_GATE_LEVEL;
+}
+
+/** 段ごとに判定する条件の範囲。gate.ts・next.ts・brief.ts・flow.ts は段をここに渡して使う */
+export function gateScopeOf(level: GateLevel): GateScope {
+  return GATE_SCOPES[level];
+}
 
 // スキーマにないキーは looseObject で残す（DT-2）。Workflow の fields の値もここを通る
 const ticketFrontmatter = z.looseObject({
