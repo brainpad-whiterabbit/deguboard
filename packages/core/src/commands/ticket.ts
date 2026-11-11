@@ -34,7 +34,7 @@ import {
 import { defineCommand, ok, type CommandContext } from "./define.js";
 import { parseDraftSource } from "./draft-source.js";
 import { matchesFilter, ticketFilterSchema } from "./filters.js";
-import { hooksSilentWarning, selfRunWarning } from "./hook-sessions.js";
+import { hooksReachSession, hooksSilentWarning, selfRunWarning } from "./hook-sessions.js";
 import { stageFactsOf, stageOf, type Stage } from "./next.js";
 import {
   dependents,
@@ -1154,9 +1154,13 @@ export const ticketClaim = defineCommand({
           }
           // 自分の claim でも PR がなければ手直しにはならない（実装の途中。続けるなら run start、やめるなら unclaim）
           if (own && (doc.data.status === "in_progress" || doc.data.status === "review")) {
+            // フックが届くセッションでは、親が run start で続けず、印の brief をサブエージェントに渡して続けさせる（t717）
+            const reached = await hooksReachSession(ctx.repo.localDir, ctx.env ?? process.env);
             throw new OperationError(
               "CLAIM_LOST",
-              `${doc.id} is claimed by you (${owner}) and has no PR yet. To keep implementing, use run start. To stop, use ticket unclaim`,
+              reached
+                ? `${doc.id} is claimed by you (${owner}) and has no PR yet. To keep implementing, ask a sub-agent with the brief from dg next (it has the mark, and the hook opens and closes the Run), not run start. To stop, use ticket unclaim`
+                : `${doc.id} is claimed by you (${owner}) and has no PR yet. To keep implementing, use run start. To stop, use ticket unclaim`,
             );
           }
           throw new OperationError(

@@ -33,7 +33,7 @@ For `wait_merge`, `wait_human`, and `wait_deps` with no Plan, there is no other 
 
 ## Who implements and fixes
 
-- **When dg hooks reach the session** (an agent with hooks, such as Claude Code, where `dg hooks check` passes): always ask a subagent for `implement` and `fix` with the `brief` and the mark, even when `model` is `null` (the parent's model) and even for a small fix. The parent does not implement or fix it itself. A Run the parent opens itself counts the parent's long context in its usage, so it cannot be compared with the Runs of subagents. A claim without `--no-run` in such a session warns
+- **When dg hooks reach the session** (an agent with hooks, such as Claude Code, where `dg hooks check` passes): always ask a subagent for `implement` and `fix` with the `brief` and the mark, even when `model` is `null` (the parent's model) and even for a small fix. The parent does not implement or fix it itself. A Run the parent opens itself counts the parent's long context in its usage, so it cannot be compared with the Runs of subagents. In such a session, a claim without `--no-run` and a `run start` for `implement` or `fix` warn
 - **When no dg hook reaches the session** (an agent without hooks, or `dg next` and `brief` warn that no hook has reached it): the mark opens no Run, so the parent may implement or fix it itself. Remove `--no-run` from the claim and do "Implement" below (claim opens the implementation Run). For the Run, follow the "When the parent opens the Run itself" section of `dg guide run`
 - Work that needs no PR (`--without-branch`) is done by the parent (see "Work that needs no PR")
 

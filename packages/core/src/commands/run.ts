@@ -29,6 +29,7 @@ import {
 } from "../model/run.js";
 import { AbortWrite, withWrite } from "../git/write.js";
 import { lastPushedAt } from "../git/facts.js";
+import { selfRunWarning } from "./hook-sessions.js";
 import { findingText, isHeavyFinding, latestRoundSince, matchFindings } from "../run/findings.js";
 import {
   amendRunning,
@@ -561,7 +562,7 @@ export const runStart = defineCommand({
   positionals: ["ticket", "step"],
   group: "run",
   summary:
-    "Start a Run. The running record is kept only in deguboard-local/runs/ and is not put into Git. Rejected if a Run for the same ticket and step is running, or if the step is not in the ticket's Workflow steps. Warns and starts if a Run for the same agent is running on this machine. An agent name with no Adapter is recorded without rejection, with a warning. An open fix Run on the same ticket is closed with success at the last push after its start (or at this start's time if there is none), using this start as the boundary, and then this Run starts (when a fix step starts, an earlier fix Run from a different session is closed as interrupted). When this is rejected because a Run for the same ticket and step is running, the fix Run is not closed either. If --agent is omitted, the Adapter detects the agent calling dg from environment variables (if it cannot, it is a usage error)",
+    "Start a Run. The running record is kept only in deguboard-local/runs/ and is not put into Git. Rejected if a Run for the same ticket and step is running, or if the step is not in the ticket's Workflow steps. Warns and starts if a Run for the same agent is running on this machine. An agent name with no Adapter is recorded without rejection, with a warning. An open fix Run on the same ticket is closed with success at the last push after its start (or at this start's time if there is none), using this start as the boundary, and then this Run starts (when a fix step starts, an earlier fix Run from a different session is closed as interrupted). When this is rejected because a Run for the same ticket and step is running, the fix Run is not closed either. In a session that dg hooks have reached, an agent's run start of implement or fix still opens the Run, and warns to ask a sub-agent to implement or fix with the marker instead. If --agent is omitted, the Adapter detects the agent calling dg from environment variables (if it cannot, it is a usage error)",
   input: z.object({
     ticket: ticketRef,
     step: token.describe("Step. An id from the ticket's Workflow steps (see dg workflow show)"),
@@ -596,6 +597,16 @@ export const runStart = defineCommand({
       session: input.session,
       transcript: input.transcript,
     });
+    // フックが届くセッションで親が自分で実装・手直しの Run を開いたときは、サブエージェントに頼むよう知らせる（t717）。Run の開き方は変えない
+    if (ctx.actor.kind === "agent" && (input.step === "implement" || input.step === "fix")) {
+      const self = await selfRunWarning(
+        ctx.repo.localDir,
+        ctx.env ?? process.env,
+        ticket.id,
+        "run start",
+      );
+      if (self) warnings.push(self);
+    }
     return ok(run, undefined, warnings);
   },
 });
