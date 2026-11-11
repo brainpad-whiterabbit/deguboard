@@ -37,7 +37,6 @@
 - 整形は oxfmt（`.oxfmtrc.json`）。既定の設定から始める
 - ESLint・Prettier・Biome は入れない
 - 版は package.json に固定する
-- ※ ADR-024 で置き換え（この項は失効）。oxlint は、新しい版で増えた React Compiler 系の規則（`react(immutability)`）が web の既存コードで失敗するので上げずに留める。直す作業を起こしてから上げる
 
 ### 画面（web）は依存を少なく
 
@@ -82,3 +81,4 @@
 - **Redux や Zustand**：状態が少なく、書き込みのたびに読み直す方が CLI との整合が取りやすい
 - **Node 22（LTS）**：VS Code の拡張ホストの Node 24 と揃える
 - **拡張を esbuild や webpack で束ねる**：web のビルドに使っている Vite で足りる
+- **oxlint の版を留めたまま、規則 `react(immutability)` を off にする**：web の React の不変性の違反を検査で見つけられなくなる

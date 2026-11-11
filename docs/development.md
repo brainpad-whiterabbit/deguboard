@@ -85,6 +85,7 @@ mise run dg -- guide done      # マージ後の後始末
   - `packages/vscode` の `engines.vscode` は、拡張ホストが Node 24 になった最初の版（1.123。Electron 42.3、Node 24.15）にする。束ねる core の `engines.node`（>=24）と Vite の `target: "node24"` に揃う。1.122 までは Node 22（1.104 は Electron 37.3、Node 22.18）
   - `@types/vscode` は API が変わった版しか公開されない（DefinitelyTyped の運用。1.120.0 の次は 1.125.0）ので、`engines.vscode` を超えない最新の公開版に固定する。engines と番号が揃わなくても上げない（vsce が engines を超えていないか検査する）
   - ルートの `playwright-core` は安定版にせず、`@playwright/mcp` が依存に完全一致で固定する版（alpha）に揃える。別の版にすると playwright-core が二重に入り、`mise run playwright:install` が入れるブラウザと MCP が使う版がずれる。@playwright/mcp が安定版を要求するようになったら一緒に移す
+- oxlint は最新の版に上げ、版を留めない（package.json に固定する）。新しい版で増えた規則が既存のコードで失敗したら、その指摘は上げる PR の中で直す。上げるのを指摘の直しの後に回さない
 - oxlint（`.oxlintrc.json`）の `plugins` は既定の組を置き換えるので、使う言語とライブラリの plugin（web の React には `react`）を明示する
 
 ## パッケージ
