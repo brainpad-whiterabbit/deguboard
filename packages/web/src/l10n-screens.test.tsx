@@ -72,8 +72,6 @@ function richClient(): MockClient {
     name: "最初の Iteration",
     status: "active",
     goal: "目標データの文",
-    start: "2026-11-01",
-    end: "2026-11-14",
     started_at: "2026-11-01T12:00:00Z",
   });
   const s2 = iteration({ id: "s2", name: "次の Iteration", status: "planned" });

@@ -773,6 +773,35 @@ describe("Epic と Iteration", () => {
     expect(await readFile(fileOf("s3"), "utf8")).toMatch(/^start:/m);
   });
 
+  it("古い start・end は形を問わず（null・数・配列でも）書き直すと消え、goal・started_at とスキーマにない項目は残る", async () => {
+    const f = await fixture();
+    const clock = new Date("2026-11-03T01:02:03Z");
+    const ctx = await initialized(f.cloneA, { now: () => clock });
+    await runCommand(iterationCreate, ctx, { name: "Sprint 1", goal: "読む" });
+    await runCommand(iterationStart, ctx, { iteration: "s1" });
+    const fileOf = (id: string) => path.join(ctx.repo.dataDir, `iterations/${id}.yaml`);
+    // 古い版の dg が書いた形のほかに、値の形が違うものと、スキーマにない項目を足す
+    const text = await readFile(fileOf("s1"), "utf8");
+    await writeFile(fileOf("s1"), `${text}start: null\nend: [1, 2]\nmemo: 残す\n`);
+    await recordBaseline(ctx.repo);
+    await ctx.store.rescan();
+    // 読んだ値には出ず、引数なしの update で書き直すとファイルからも消える
+    expect((await runCommand(iterationShow, ctx, { iteration: "s1" })).data).not.toHaveProperty(
+      "start",
+    );
+    await runCommand(iterationUpdate, ctx, { iteration: "s1" });
+    const rewritten = await readFile(fileOf("s1"), "utf8");
+    expect(rewritten).not.toMatch(/^(start|end):/m);
+    expect(rewritten).toContain("memo: 残す");
+    const shown = (await runCommand(iterationShow, ctx, { iteration: "s1" })).data;
+    expect(shown).toMatchObject({
+      goal: "読む",
+      started_at: "2026-11-03T01:02:03Z",
+      memo: "残す",
+    });
+    expect(shown).not.toHaveProperty("end");
+  });
+
   it("start は実績の開始の日時 started_at を書き、close は closed_at を足し、reopen は started_at を変えずに closed_at を消す（IT-1）", async () => {
     const f = await fixture();
     let clock = new Date("2026-11-03T01:02:03Z");
