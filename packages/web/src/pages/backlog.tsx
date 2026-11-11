@@ -14,8 +14,8 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { ASK_SECTIONS, useAskSpot } from "../components/ask-menu.js";
-import { Chip, ChipRow } from "../components/chips.js";
-import { EpicChip } from "../components/epic-chip.js";
+import { Chip } from "../components/chips.js";
+import { EpicChipRow } from "../components/epic-chip.js";
 import { shortPeriod } from "../components/iteration-parts.js";
 import { TicketTable } from "../components/parts.js";
 import { BacklogRowEnd, kanbanPlanMarks } from "../components/row-end.js";
@@ -35,6 +35,8 @@ import {
   isOwnAssignee,
   ITERATION_LABELS,
   matchesClaim,
+  matchesEpic,
+  NO_EPIC,
   ticketMatchesQuery,
   NO_CLAIM,
   type Iteration,
@@ -56,9 +58,6 @@ export interface BacklogFilter {
   /** 操作している人か、その人の agent が担当のものだけ（「自分」のチップ。判定は isOwnAssignee） */
   mine: boolean;
 }
-
-/** バックログで「Epic に入っていないチケット」を選ぶ値 */
-const NO_EPIC = "-";
 
 export const EMPTY_FILTER: BacklogFilter = {
   query: "",
@@ -83,7 +82,7 @@ export function filterBacklog(
     .filter((t) => !isFinished(t.status))
     .filter((t) => !f.status || t.status === f.status)
     .filter((t) => !f.priority || t.priority === f.priority)
-    .filter((t) => !f.epic || (f.epic === NO_EPIC ? !t.epic : t.epic === f.epic))
+    .filter((t) => matchesEpic(t, f.epic))
     .filter((t) => !f.label || t.labels.includes(f.label))
     .filter((t) => matchesClaim(t, f.assignee))
     .filter((t) => !f.mine || (!!t.assignee && isOwnAssignee(me, t.assignee)))
@@ -503,44 +502,11 @@ function useOpenEpics() {
 }
 
 /**
- * Epic の欄：open の Epic があるときだけ、番号の札と「なし」の札（件数つき）を並べる。
+ * Epic の欄：open の Epic があるときだけ、番号の札と「なし」の札（件数つき）を並べる（EpicChipRow）。
  * 押すとその Epic で絞り、もう一度押すと外れる。2 行を超える分は「ほか N」にまとめる
  */
 function EpicChips({ selected, onSelect }: { selected: string; onSelect: (epic: string) => void }) {
   const { epics, noEpic } = useOpenEpics();
   if (epics.length === 0) return null;
-  return (
-    <div className="epic-chips">
-      <span className="chip-label">Epic</span>
-      <ChipRow
-        label={tr("Epic で絞る")}
-        contentKey={
-          epics.map((e) => `${e.id}:${e.title}:${e.progress.done}/${e.progress.total}`).join("|") +
-          `|${noEpic}`
-        }
-        moreLabel={(n) => tr("Epic をあと {0} 本出す", n)}
-        lessLabel={tr("Epic を畳む")}
-      >
-        {epics.map((e) => (
-          <EpicChip
-            key={e.id}
-            id={e.id}
-            title={e.title}
-            progress={e.progress}
-            pressed={selected === e.id}
-            onClick={() => onSelect(e.id)}
-          />
-        ))}
-        <Chip
-          key={NO_EPIC}
-          className="epic-chip loose"
-          pressed={selected === NO_EPIC}
-          title={selected === NO_EPIC ? tr("絞り込みを外す") : tr("Epic のないチケットで絞る")}
-          onClick={() => onSelect(NO_EPIC)}
-        >
-          {tr("なし")} <span className="chip-count">{noEpic}</span>
-        </Chip>
-      </ChipRow>
-    </div>
-  );
+  return <EpicChipRow epics={epics} noEpic={noEpic} selected={selected} onSelect={onSelect} />;
 }

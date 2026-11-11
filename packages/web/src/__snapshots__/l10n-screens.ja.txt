@@ -25,8 +25,16 @@ s2
 0
 /
 1
-[title] Epic・担当で絞り込む
+[title] 担当で絞り込む
 [aria-label] 絞り込み
+Epic
+[aria-label] Epic で絞る
+[title] e1 最初の版・完了 0/1
+[aria-label] e1 最初の版
+e1
+[title] Epic のないチケットで絞る
+なし
+2
 最初の Iteration
 11/1–
 [title] 目標データの文
@@ -1154,8 +1162,16 @@ s2
 0
 /
 1
-[title] Epic・担当で絞り込む
+[title] 担当で絞り込む
 [aria-label] 絞り込み
+Epic
+[aria-label] Epic で絞る
+[title] e1 最初の版・完了 0/1
+[aria-label] e1 最初の版
+e1
+[title] Epic のないチケットで絞る
+なし
+2
 最初の Iteration
 11/1–
 [title] 目標データの文
