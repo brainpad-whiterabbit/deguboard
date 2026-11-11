@@ -1661,11 +1661,6 @@ textarea.body {
   background: transparent;
   padding: 0;
 }
-.chip .chip-title {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
 .chip .chip-count,
 .chip .progress {
   flex: none;
@@ -1724,12 +1719,6 @@ textarea.body {
 }
 .epic-chips .chip-row {
   flex: 1;
-}
-.epic-chip .progress {
-  gap: 3px;
-}
-.epic-chip .progress .bar {
-  width: 24px;
 }
 /*
  * サイドバーのバックログの行（parts.tsx の TicketTable の assigneeInEnd）：状態の丸印は in_progress（青）と review（黄）が塗り、todo は白抜き。

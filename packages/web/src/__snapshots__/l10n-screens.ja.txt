@@ -124,15 +124,11 @@ t1
 high
 Epic
 [aria-label] Epic で絞る
-[title] e1 最初の版 で絞る
+[title] e1 最初の版・完了 0/1
+[aria-label] e1 最初の版
 e1
-最初の版
-[title] In Progress 1
-0
-/
-1
 [title] Epic のないチケットで絞る
-Epic なし
+なし
 3
 [title] 詳細
 s1

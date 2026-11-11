@@ -268,8 +268,9 @@ export const EN: Readonly<Record<string, string>> = {
   "Epic を畳む": "Collapse Epics",
   絞り込みを外す: "Remove filter",
   "Epic のないチケットで絞る": "Filter by tickets without an Epic",
-  "Epic なし{0}": "No Epic{0}",
-  "{0} {1} で絞る": "Filter by {0} {1}",
+  "{0} {1}": "{0} {1}",
+  "{0} {1}・完了 {2}/{3}": "{0} {1} · {2}/{3} done",
+  "{0}。押すと絞り込みを外す": "{0}. Click to remove the filter",
   "Epic なし": "No Epic",
   // pages/board.tsx
   "開いた Iteration（planned・active）はない": "No open Iterations (planned or active)",
