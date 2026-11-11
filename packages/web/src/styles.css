@@ -1562,6 +1562,7 @@ textarea.body {
 /*
  * 番号が先頭の列（頭の印がない kanban）のときは、subgrid が行の左の余白（padding 6px と border 1px）を先頭の列に足すので、
  * 番号は列の左端から 7px 内側に出る。PR の欄も同じだけ内側に寄せて番号と左端を揃える（頭の印の列や backlog の番号は 2 列目で、ずれない）。
+ * 帯を持つ行（[data-select-id]）は .row の padding が 12px になるので、番号は 13px 内側に出る。差の 6px は [data-select-id] .row-pr の padding-left で足す（下の行）。
  * 寄せるのは中のリンクだけにし、欄（.row-pr）は左端から覆ったままにする（余白で包みが選択を受けないように）
  */
 .pr-row.kanban:not(.has-head) > .row-pr > .row-pr-link {
@@ -2980,7 +2981,7 @@ button.ask-copy svg {
   opacity: 1;
 }
 /*
- * 選べる行の左端の帯（UI-15。selection.tsx）。行の要素の疑似要素で、行の左の余白に重ねる（余白は足さない）。
+ * 選べる行の左端の帯（UI-15。selection.tsx）。行の要素の疑似要素で、行の本体の左の余白（帯の幅と同じ 12px）に重ねる。
  * 幅は 12px で、ask-menu.tsx の STRIP_PX（なぞりを帯から始めたかの判定）と同じ値。変えるときは両方を直す。
  * 帯の幅の余白は下の [data-select-id] > .row で取り、番号や題の文字に重ならないようにする。
  * 押すと 1 件を選ぶ・外す（ask-menu.tsx の onClickCapture。帯の当たりは行の要素そのものになる）。
@@ -3001,7 +3002,7 @@ button.ask-copy svg {
 [data-select-id] > .row {
   padding-left: 12px;
 }
-/* 番号の下の PR の欄（.row-pr）は番号の左端に揃える。番号が 6px 右に寄るぶん、欄も 6px 寄せる（subgrid の起点は .row の余白に依らないため） */
+/* 番号の下の PR の欄（.row-pr）は番号の左端に揃える。帯を持つ行は .row の左の余白が 12px と広く、先頭の列の要素（頭の印のない kanban の番号）だけが 6px 右に寄るので、欄も 6px 寄せる（1563 行の説明と合わせる） */
 [data-select-id] .row-pr {
   padding-left: 6px;
 }
