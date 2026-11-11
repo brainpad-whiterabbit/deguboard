@@ -6,6 +6,7 @@ import os from "node:os";
 import { z } from "zod";
 import { OperationError } from "../errors.js";
 import path from "node:path";
+import { checkOutside } from "../git/outside.js";
 import { runGh, runGit } from "../git/run.js";
 import { findBranchWorktree } from "../git/worktree.js";
 import { PR_MERGE_METHODS } from "../model/config.js";
@@ -15,7 +16,7 @@ import { readReviewFindings, readRunningRuns } from "../run/record.js";
 import { withWrite, type WriteOutcome } from "../git/write.js";
 import type { RunId } from "../model/run.js";
 import { setupFailureIn } from "./claim-setup.js";
-import { defineCommand, ok, type CommandContext } from "./define.js";
+import { defineCommand, ok, outsideWarning, type CommandContext } from "./define.js";
 import { judgeGate, type GateStage, type GateView } from "./gate.js";
 import { ticketRef } from "./helpers.js";
 import {
@@ -183,10 +184,12 @@ export const prReady = defineCommand({
   positionals: ["ticket"],
   group: "pr",
   summary:
-    "Take a ticket's PR out of draft with gh pr ready, only when it meets the quality gate (dg gate <ticket> --for ready). The conditions follow the ticket's gate level (a ticket with no gate is high; see dg gate --help). If it does not, it returns GATE_FAILED with the unmet conditions and their reasons, and does not call gh. This is the right way for an agent to open a PR; gh pr ready run outside dg is rejected by the hook. Opening it outside the conditions of the level is a person's decision, and a person runs gh pr ready. Before opening, it adds to the PR body the light findings in the review record that were not passed to the fix (including differences from the reference section) (the original body is kept; the count is in noted). A review result held with no Run that the gate counted as a review is first written as a closed review Run marked capture: none, as dg sync does (data.reviews_recorded). It does not write ticket data (moving to review happens at the next sync)",
+    "Take a ticket's PR out of draft with gh pr ready, only when it meets the quality gate (dg gate <ticket> --for ready). The conditions follow the ticket's gate level (a ticket with no gate is high; see dg gate --help). If it does not, it returns GATE_FAILED with the unmet conditions and their reasons, and does not call gh. This is the right way for an agent to open a PR; gh pr ready run outside dg is rejected by the hook. Opening it outside the conditions of the level is a person's decision, and a person runs gh pr ready. Before opening, it adds to the PR body the light findings in the review record that were not passed to the fix (including differences from the reference section) (the original body is kept; the count is in noted). A review result held with no Run that the gate counted as a review is first written as a closed review Run marked capture: none, as dg sync does (data.reviews_recorded); changes made outside dg stop it with OUTSIDE_CHANGES only when it writes such a record, and otherwise are a warning. It does not write ticket data (moving to review happens at the next sync)",
   input: z.object({ ticket: ticketRef }),
-  // 持ち主のない保留を見直しの記録として書く（orphan-review.ts）
+  // 持ち主のない保留を見直しの記録として書く（orphan-review.ts）。dg の外の変更は、書くときだけ withWrite のロックの中の検査で止め、
+  // 書く保留がなければ読むだけのコマンドと同じく警告で済ませる（書く前は警告だけで PR を開けた）
   write: true,
+  ownsOutsideCheck: true,
   needs: "store",
   async run(ctx, input) {
     const { ticket, gate, pr } = await passGate(ctx, input.ticket, "ready");
@@ -195,7 +198,12 @@ export const prReady = defineCommand({
     const running = (await readRunningRuns(ctx.repo)).runs.map((r) => r.data);
     let recorded: RecordedOrphanReviews = { written: [], linked: [] };
     let write: WriteOutcome | undefined;
-    if ((await orphanReviewRuns(ctx, ticket, running)).length > 0) {
+    const warnings: string[] = [];
+    if ((await orphanReviewRuns(ctx, ticket, running)).length === 0) {
+      const check = await checkOutside(ctx.repo);
+      if (check.kind === "found") warnings.push(outsideWarning(check.changes));
+    } else {
+      // cas を付けないので、push を拒まれても mutate はやり直さない（自分のコミットを残して rebase し直す）。written は 1 回目に書いた Run
       const result = await withWrite(ctx, () => recordOrphanReviews(ctx, ticket, running), {
         message: (r) =>
           `Record held review results: ${ticket.id}: ${r.written.map((w) => w.id).join(", ")}`,
@@ -213,7 +221,7 @@ export const prReady = defineCommand({
       noted,
       reviews_recorded: recorded.written.map((w) => w.id),
     };
-    return ok(view, write);
+    return ok(view, write, warnings);
   },
 });
 

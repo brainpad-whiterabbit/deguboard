@@ -387,4 +387,26 @@ describe("dg sync と dg pr ready が持ち主のない保留を見直しの記�
     expect(view.passed).toBe(true);
     expect(condition(view, "fix_rounds").detail).toContain("1 review rounds");
   });
+
+  it("dg の外の変更があっても、書く保留がなければ pr ready は警告で PR を開き、書く保留があれば OUTSIDE_CHANGES で止める", async () => {
+    const { ctx } = await synced();
+    await hold(ctx, later(1), false);
+    await runCommand(sync, ctx, {});
+    const file = path.join(ctx.repo.dataDir, "tickets", "t1.md");
+    const text = await readFile(file, "utf8");
+    await writeFile(file, text.replace("title: A", "title: 書き換えた"));
+    const opened = await runCommand(prReady, ctx, { ticket: "t1" });
+    expect((opened.data as PrAdvanceView).reviews_recorded).toEqual([]);
+    expect(opened.warnings).toEqual([
+      expect.stringContaining("changes made outside dg (Uncommitted changes: tickets/t1.md)"),
+    ]);
+    // 書く保留があるときは、ロックの中の検査で書く前に止め、保留を残す
+    await writeFile(file, text);
+    await hold(ctx, later(2), false);
+    await writeFile(file, text.replace("title: A", "title: 書き換えた"));
+    await expect(runCommand(prReady, ctx, { ticket: "t1" })).rejects.toMatchObject({
+      code: "OUTSIDE_CHANGES",
+    });
+    expect(await heldRounds(ctx)).toHaveLength(1);
+  });
 });
