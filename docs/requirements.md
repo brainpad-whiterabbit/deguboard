@@ -238,7 +238,7 @@ updated_at: 2026-10-31T05:10:00Z
 - AG-6 ソフトウェア開発向けの Action（worktree・PR 作成・マージなど）は Core の `actions` に置き、汎用部分は依存しない。`dg` のコマンドにせず、公開するのは名前の一覧（`ACTION_NAMES`）だけ（[ADR-033](adr/ADR-033-architecture.md)）
 - AG-7 任意のシェルの Action は `actions.shell: true` のときだけ使え、毎回確認を経る
 - AG-8 `ask` は対象（複数可）・頼むこと・指示・形式から、エージェントに貼る依頼文を返す読み取りだけのコマンドで、人に限られた操作なら人が打つ `dg` のコマンドを返す。`ask-menu` は画面の場所ごとの候補を返す。候補・おすすめ・文の形は `dg ask --help` と `packages/core/src/commands/ask.ts`・そのテストが正本
-- AG-9 `dg hooks install` は harness の追跡しない設定に、node と dg の絶対パスで `dg hook` を呼ぶフックを書き、`uninstall` は dg のフックを外し、`check` が確かめる。届かないフックは `check` と印で頼む操作が警告する。主体を agent にする（Run は RN-7）。細部は `dg hook --help` とそのテスト、理由は [ADR-025](adr/ADR-025-runs-by-hooks.md)
+- AG-9 `dg hooks install` は harness の追跡しない設定に `dg hook` を呼ぶフックを書き、`uninstall` は外す。届かないフックは `check` と印で頼む操作が警告し、そのとき Run は残らず、見直しの結果だけが見直しの記録になる（RN-9）。主体は agent（RN-7）。細部は `dg hook --help` とそのテスト、理由は [ADR-025](adr/ADR-025-runs-by-hooks.md)
 - AG-10 フック（AG-9）は、データの直接の書き換えと dg を経由しない PR の ready・マージを、字句を読まずに語の有無で粗く拒み、dg の読み書きのコマンドと `dg pr ready`・`dg pr merge`（EX-6）へ案内する。応答の終わりに dg の外の変更（SY-7）があれば、止まらずに続けさせて伝える。細部は `dg hook --help` とそのテスト、理由は [ADR-026](adr/ADR-026-guard-pr-and-data.md)
 
 ### 6.6 作業の実績

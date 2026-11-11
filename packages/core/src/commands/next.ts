@@ -13,6 +13,7 @@ import { defineCommand, ok, type CommandContext } from "./define.js";
 import { FIX_ROUNDS_LIMIT, heavyReviewRounds } from "./gate.js";
 import { agentDg as dg, openPlanOf, ticketRef } from "./helpers.js";
 import { planReadiness } from "./plan.js";
+import { unlinkedReviewWarning } from "./hook-sessions.js";
 import { orphanReviewRuns } from "./orphan-review.js";
 import { openedStepOf } from "./run.js";
 
@@ -435,10 +436,18 @@ export const next = defineCommand({
     const facts = await stageFactsOf(ctx, ticket, { fetch: true });
     const step = nextOf(ctx, facts);
     const role = BRIEF_ROLE_OF[step.kind];
+    // フックが結ばなかった見直しを数えたときは知らせる。段階の手によらず出す（t702）
+    const unlinked = unlinkedReviewWarning(
+      ctx.env ?? process.env,
+      ticket.id,
+      facts.runs,
+      ticket.branch_at,
+    );
+    const extra = unlinked ? [unlinked] : [];
     // 実行中の Run を待つ手には文を出さない（貼ると Run が重なる）。running_run が入るのは待つ手だけ
-    if (!role || step.running_run !== null) return ok(step);
+    if (!role || step.running_run !== null) return ok(step, undefined, extra);
     const { brief, warnings } = await briefOf(ctx, ticket, role);
-    return ok({ ...step, brief: brief.text }, undefined, warnings);
+    return ok({ ...step, brief: brief.text }, undefined, [...warnings, ...extra]);
   },
 });
 

@@ -14,6 +14,7 @@ import {
 import { readRunningRuns } from "../run/record.js";
 import { defineCommand, ok, type CommandContext } from "./define.js";
 import { judgeCheck } from "./gate-check.js";
+import { unlinkedReviewWarning } from "./hook-sessions.js";
 import { ticketRef } from "./helpers.js";
 import { orphanReviewRuns } from "./orphan-review.js";
 
@@ -74,12 +75,13 @@ export function heavyReviewRounds(runs: readonly Run[], branchAt: string | undef
  * チケットの品質ゲートを判定する。gh・Git が読めない条件は満たさないとする（判定できないものを通さない）。
  * 判定する条件はチケットの段（gate。TK-9）で決まる。high はすべて、low は見直し（review・fix_rounds）を除き、
  * free は pr と（マージの前の）mergeable だけ。判定しない条件は conditions に出さず、その材料（見直しの Run・push の時刻と
- * そのための fetch・検査）も読まない
+ * そのための fetch・検査）も読まない。warnings には、フックが結ばなかった見直しを数えたときの警告を足す（t702。dg gate だけが渡す）
  */
 export async function judgeGate(
   ctx: CommandContext,
   ticket: Ticket,
   stage: GateStage,
+  warnings: string[] = [],
 ): Promise<GateView> {
   const level = gateLevelOf(ticket);
   const scope = gateScopeOf(level);
@@ -121,7 +123,7 @@ export async function judgeGate(
   }
 
   // 見直しは段が判定するときだけ（high）
-  if (scope.review) await judgeReview(ctx, ticket, add);
+  if (scope.review) await judgeReview(ctx, ticket, add, warnings);
 
   // base と衝突しない（マージの前だけ）
   if (stage === "merge") {
@@ -165,6 +167,7 @@ async function judgeReview(
   ctx: CommandContext,
   ticket: Ticket,
   add: (id: GateConditionId, ok: boolean, detail: string) => void,
+  warnings: string[],
 ): Promise<void> {
   // 見直し：最後の push より後に始めた見直しが、閉じていて通っている
   const running = (await readRunningRuns(ctx.repo)).runs.map((r) => r.data);
@@ -176,6 +179,13 @@ async function judgeReview(
     ...running,
     ...(await orphanReviewRuns(ctx, ticket, running)),
   ]);
+  const unlinked = unlinkedReviewWarning(
+    ctx.env ?? process.env,
+    ticket.id,
+    reviews,
+    ticket.branch_at,
+  );
+  if (unlinked) warnings.push(unlinked);
   // 比べるのはリモートの先端のコミットの時刻（push した時刻ではない。facts.ts の lastPushedAt）
   if (pushedAt === undefined)
     add("review", false, "Cannot read the time of the last push of the work branch");
@@ -243,7 +253,9 @@ export const gate = defineCommand({
   needs: "store",
   async run(ctx, input) {
     const ticket = ctx.store.require("ticket", input.ticket).data;
-    return ok(await judgeGate(ctx, ticket, input.for ?? "merge"));
+    const warnings: string[] = [];
+    const view = await judgeGate(ctx, ticket, input.for ?? "merge", warnings);
+    return ok(view, undefined, warnings);
   },
 });
 
