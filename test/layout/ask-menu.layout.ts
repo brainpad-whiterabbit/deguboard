@@ -336,10 +336,17 @@ describe("行の左端の帯で 1 件ずつ選ぶ（UI-15）", () => {
     await page.goto(`${server.url}?surface=sidebar#/board`, { waitUntil: "networkidle" });
     const row = todoRow(page);
     await row.waitFor();
+    // ほかの行（in_progress の t2）は、載せた行の帯が薄くなっても 0 のまま
+    const other = page.locator('.column[data-status="in_progress"] .row-item', {
+      has: page.locator('a[href="#/tickets/t2"]'),
+    });
+    await other.waitFor();
     await page.mouse.move(0, 0);
     expect(await stripOpacity(row), "載せていないときは透明").toBe("0");
+    expect(await stripOpacity(other), "載せていないときは透明（ほかの行）").toBe("0");
     await row.hover({ position: { x: 3, y: 5 } });
     expect(parseFloat(await stripOpacity(row)), "載せたとき薄く色付く").toBeGreaterThan(0);
+    expect(await stripOpacity(other), "載せていないほかの行の帯は 0 のまま").toBe("0");
     await page.close();
   });
 

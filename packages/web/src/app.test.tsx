@@ -1513,6 +1513,33 @@ describe("画面", () => {
     for (const c of contexts) expect(c).toEqual({ preventDefaultContextMenuItems: true });
   });
 
+  it("エディタのパネルのチケットと Epic の詳細も、右クリックの文脈に ID を載せない", async () => {
+    const contextsOf = () =>
+      [...document.querySelectorAll("[data-vscode-context]")].map(
+        (el) => JSON.parse(el.getAttribute("data-vscode-context")!) as Record<string, unknown>,
+      );
+    // チケットの詳細（タイトル・中の要素）
+    window.location.hash = "#/tickets/t3";
+    mount(mockClient(), hostOf("panel"));
+    await screen.findByRole("heading", { level: 1, name: "画面" });
+    expect(contextsOf().length, "文脈のある要素").toBeGreaterThan(0);
+    for (const c of contextsOf()) expect(c).toEqual({ preventDefaultContextMenuItems: true });
+    cleanup();
+
+    // Epic の詳細（題・中の行）
+    window.location.hash = "#/epics/e1";
+    const client = mockClient();
+    client.handlers["epic.show"] = () => ({
+      ...client.data.epics[0],
+      body: "",
+      tickets: client.data.tickets.filter((t) => t.epic === "e1"),
+    });
+    mount(client, hostOf("panel"));
+    await screen.findByText("API");
+    expect(contextsOf().length, "文脈のある要素").toBeGreaterThan(0);
+    for (const c of contextsOf()) expect(c).toEqual({ preventDefaultContextMenuItems: true });
+  });
+
   it("サイドバーのカンバンの行の頭に、実行中の Run があれば回るリングと「実行中」を、Run のない in_progress なら止まった半分塗りの丸を出し、読み直しで変わる", async () => {
     const client = boardClient();
     client.data.plans.push(plan({ id: "p7", tickets: ["t2"] }));
@@ -2598,6 +2625,33 @@ describe("画面", () => {
     expect(labels()).toEqual(["e1", "なし 2"]);
     fireEvent.click(document.querySelector(".iteration-chip.all")!);
     await waitFor(() => expect(labels()).toEqual(["e1", "e3", "なし 2"]));
+  });
+
+  it("カンバンの Epic の「なし」の札で Epic のないチケットに絞り、もう一度押すと外れる。範囲の外にしかない開いた Epic の札は、絞っていなければ出さない", async () => {
+    const client = boardClient();
+    client.data.iterations = [
+      iteration({ id: "s0", name: "既定", status: "active" }),
+      iteration({ id: "s2", name: "次", status: "planned" }),
+    ];
+    client.data.epics.push({ ...client.data.epics[0]!, id: "e3", title: "次の版" });
+    client.data.tickets.push(ticket({ id: "t4", title: "次の仕事", iteration: "s2", epic: "e3" }));
+    mount(client, hostOf("sidebar"));
+    await screen.findByText("API");
+    const chips = () =>
+      [...document.querySelectorAll(".epic-chips .chip")].map((c) => c.textContent);
+    const none = () => document.querySelector<HTMLElement>(".epic-chips .epic-chip.loose")!;
+    // 既定は s0 の範囲。s2 にしかない開いた Epic（e3）は札を出さず、「なし」は範囲の Epic のないチケットの数
+    expect(chips()).toEqual(["e1", "なし 2"]);
+    expect(none().getAttribute("aria-pressed")).toBe("false");
+    fireEvent.click(none());
+    await waitFor(() => expect(window.location.hash).toBe("#/board?epic=-"));
+    expect(none().getAttribute("aria-pressed")).toBe("true");
+    expect(none().getAttribute("title")).toBe("絞り込みを外す");
+    // 絞っている間も範囲の外の Epic は出さない（一覧の札は範囲で決まる）
+    expect(chips()).toEqual(["e1", "なし 2"]);
+    fireEvent.click(none());
+    await waitFor(() => expect(window.location.hash).not.toContain("epic"));
+    expect(none().getAttribute("aria-pressed")).toBe("false");
   });
 
   it("カンバンの見出しの Epic の札が 2 行を超えるときは「ほか N」にまとめ、開くと「なし」を残して並ぶ", async () => {

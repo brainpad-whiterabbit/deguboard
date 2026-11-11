@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { App } from "../app.js";
 import { HostProvider, type Host } from "../host.js";
@@ -405,4 +405,89 @@ describe("一覧の行の左端の帯で 1 件ずつ選ぶ（UI-15）", () => {
     expect(selected()).toEqual([]);
     expect(open).not.toHaveBeenCalled();
   });
+});
+
+/** jsdom には PointerEvent がないので、同じ名前の Event に pointer の値を載せて送る（React は載った値を読む） */
+function pointer(target: EventTarget, type: string, init: Record<string, unknown>) {
+  const ev = new Event(type, { bubbles: true, cancelable: true });
+  Object.assign(ev, {
+    pointerId: 1,
+    pointerType: "mouse",
+    button: 0,
+    buttons: 1,
+    clientX: 0,
+    clientY: 0,
+    ...init,
+  });
+  act(() => {
+    target.dispatchEvent(ev);
+  });
+}
+
+/**
+ * jsdom は配置をしないので、選べる行に縦の位置を与える（並びの順に 40px ずつ。高さ 30px、左端は 0。
+ * 左端の帯は x = 5 で押せば、12px の中に入る）。戻り値で元に戻す
+ */
+function placeRows(): () => void {
+  const original = Element.prototype.getBoundingClientRect;
+  Element.prototype.getBoundingClientRect = function (this: Element) {
+    if (!this.hasAttribute("data-select-id")) return original.call(this);
+    const index = [...document.querySelectorAll("[data-select-id]")].indexOf(this);
+    const top = 100 + index * 40;
+    return {
+      x: 0,
+      y: top,
+      top,
+      bottom: top + 30,
+      left: 0,
+      right: 300,
+      width: 300,
+      height: 30,
+      toJSON() {},
+    } as DOMRect;
+  };
+  return () => {
+    Element.prototype.getBoundingClientRect = original;
+  };
+}
+
+describe("なぞりの終わり方（UI-15）", () => {
+  // 並びは backlogClient の画面（API・画面・四つ目・五つ目）。画面の行の帯から五つ目の行まで、なぞって選ぶ
+  it.each([
+    [
+      "予備：ボタンが離れているのに離すを受けていない動き（buttons が 0）",
+      () => pointer(window, "pointermove", { buttons: 0, clientX: 5, clientY: 235 }),
+    ],
+    [
+      "離す（pointerup）",
+      () => pointer(window, "pointerup", { buttons: 0, clientX: 5, clientY: 235 }),
+    ],
+  ])(
+    "%sで終えると、通った行を残し、次の Shift+クリックの起点を押した行にし、次の 1 回のクリックだけ捨てる",
+    async (_name, end) => {
+      window.location.hash = "#/backlog";
+      const restore = placeRows();
+      try {
+        const { open } = mount(backlogClient());
+        await screen.findByText("四つ目");
+        pointer(rowOf("画面"), "pointerdown", { clientX: 5, clientY: 155 });
+        pointer(window, "pointermove", { buttons: 1, clientX: 5, clientY: 175 });
+        pointer(window, "pointermove", { buttons: 1, clientX: 5, clientY: 235 });
+        expect(selected(), "なぞりの途中は通った行を選ぶ").toEqual(["t3", "t4", "t5"]);
+        end();
+        // 終えたあとも選んだ行は残り、なぞりを始めた行（画面）が起点になる
+        expect(selected()).toEqual(["t3", "t4", "t5"]);
+        expect(bar()!.textContent).toContain("3 件を選択");
+        // 終えた直後の 1 回のクリックは捨てる（詳細は開かず、選びも変えない）
+        fireEvent.click(linkOf("API"));
+        expect(open).not.toHaveBeenCalled();
+        expect(selected()).toEqual(["t3", "t4", "t5"]);
+        // 起点は画面なので、Shift+クリックの範囲は API から画面まで
+        fireEvent.click(linkOf("API"), { shiftKey: true });
+        expect(selected()).toEqual(["t2", "t3"]);
+      } finally {
+        restore();
+      }
+    },
+  );
 });

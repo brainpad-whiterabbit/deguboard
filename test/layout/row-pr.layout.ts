@@ -250,6 +250,37 @@ describe("行の番号の下の PR のリンク（UI-2）", () => {
     await context.close();
   });
 
+  it("PR のある行は 1 段目と 2 段目のどちらの左端の帯を押しても 1 件を選ぶ・外すになり、詳細は開かない", async () => {
+    const { page, context } = await openPage("/board");
+    const pr = rowOf(page, "t2");
+    await pr.waitFor();
+    const hashBefore = new URL(page.url()).hash;
+    const row = await boxOf(pr);
+    const firstLine = await boxOf(pr.locator("a.ticket-row"));
+    const secondLine = await boxOf(pr.locator(".row-pr"));
+    const points = [
+      { name: "1 段目", y: firstLine.y + firstLine.height / 2 },
+      { name: "2 段目", y: secondLine.y + secondLine.height / 2 },
+    ];
+    for (const { name, y } of points) {
+      // 帯の真ん中（左端から 6px）の点は、子で覆われず行の要素そのものが受ける
+      const x = row.x + 6;
+      const hitsRow = await page.evaluate(
+        ({ px, py }: { px: number; py: number }) =>
+          document.elementFromPoint(px, py) === document.querySelector('[data-select-id="t2"]'),
+        { px: x, py: y },
+      );
+      expect(hitsRow, `${name} の帯の点は行そのものが受ける`).toBe(true);
+      await page.mouse.click(x, y);
+      expect(
+        await pr.getAttribute("data-selected"),
+        `${name} の帯で選ぶ・外す（押すたびに切り替わる）`,
+      ).toBe(name === "1 段目" ? "" : null);
+    }
+    expect(new URL(page.url()).hash, "詳細は開かない").toBe(hashBefore);
+    await context.close();
+  });
+
   it("PR のある行は 2 段目にもホバーの背景が付く", async () => {
     const { page, context } = await openPage("/board");
     const pr = rowOf(page, "t2");
