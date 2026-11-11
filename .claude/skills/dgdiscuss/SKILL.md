@@ -1,10 +1,10 @@
 ---
 name: dgdiscuss
-description: Discusses deguboard tickets, an Epic, or an Iteration with a human, settles the open points with choices, and reflects the conclusion after the human approves before → after. Changes no files or data while discussing. Use when asked「t12 を検討して」「e3 の中身を相談したい」「s3 の目標を一緒に決めて」.
-argument-hint: <ID...>
+description: Discusses deguboard tickets, an Epic, or an Iteration with a human, settles the open points with choices, and reflects the conclusion after the human approves before → after. With --deep, checks every viewpoint (need, purpose, approach, scope, order, premises, reversibility, visibility) and digs into the ones with open points. Changes no files or data while discussing. Use when asked「t12 を検討して」「e3 の中身を相談したい」「s3 の目標を一緒に決めて」「t12 を深く検討して」.
+argument-hint: <ID...> [--deep]
 ---
 
-<!-- dg skill sha256:891399fd8614246868748bda2f43857a95aac4252bb7f8371b65bd84b6725dfa -->
+<!-- dg skill sha256:62d9918f4267a8b56e1078f61e4d46d932a15baf980d6334929cec1370dde6a3 -->
 
 # Discussion (discuss)
 
