@@ -7,6 +7,7 @@ import { dirname } from "node:path";
 import { isDeepStrictEqual, promisify } from "node:util";
 import {
   hooksOf,
+  hooksSilentWarning,
   readHookInput,
   resolveRepoPaths,
   type AgentEnv,
@@ -258,6 +259,17 @@ export async function checkHooks(options: {
         "it uses shell syntax (~, quotes, VAR=x, etc.), so it cannot be verified. Run dg hooks install --command again with a plain command to verify it",
     };
     warnings.push(`Handler "${base}": ${text[verdict]}`);
+  }
+  // ハンドラの確かめは dg 自身の環境で走るので、ハーネスの環境（PATH が違いうる）で動くかは分からない。
+  // 届いた記録で確かめる：入れてあるのに一度も届いていないイベントと、呼んだセッションに届いていないこと（t697）
+  if (localDir !== undefined) {
+    const never = events.filter((e) => e.installed && e.received_at === null).map((e) => e.event);
+    if (never.length > 0)
+      warnings.push(
+        `dg has never received these installed hooks: ${never.join(", ")}. If they were just installed, start a new session and check again. Otherwise the command the hooks call may not run in the agent's environment (for example, node is not on its PATH), even when the handler check above passes in this shell`,
+      );
+    const silent = await hooksSilentWarning(localDir, options.env);
+    if (silent) warnings.push(silent);
   }
   return { agent, scope: options.scope, file, events, warnings };
 }

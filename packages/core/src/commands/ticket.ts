@@ -34,6 +34,7 @@ import {
 import { defineCommand, ok, type CommandContext } from "./define.js";
 import { parseDraftSource } from "./draft-source.js";
 import { matchesFilter, ticketFilterSchema } from "./filters.js";
+import { hooksSilentWarning } from "./hook-sessions.js";
 import { stageFactsOf, stageOf, type Stage } from "./next.js";
 import {
   dependents,
@@ -1233,6 +1234,11 @@ export const ticketClaim = defineCommand({
             warnings,
           )
         : null;
+    // --no-run は印で Run をフックに任せる。このセッションにフックが届いていなければ Run は残らないので知らせる（t697）
+    if (ctx.actor.kind === "agent" && input.no_run) {
+      const silent = await hooksSilentWarning(ctx.repo.localDir, ctx.env ?? process.env);
+      if (silent) warnings.push(silent);
+    }
     // 準備のコマンドは Run を開いた後に回す。pnpm install などで長くかかり、呼ぶ側の上限で切れても Run は残る（t621）
     if (made?.created) await runSetupInWorktree(ctx, made.path, warnings);
     return ok<ClaimView>(

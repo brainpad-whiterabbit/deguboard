@@ -47,6 +47,7 @@ import {
   STALE_SESSION_ERROR,
   type RunView,
 } from "./run.js";
+import { brief } from "./brief.js";
 import { next, type NextStep } from "./next.js";
 import { commit, configSet, init, sync } from "./setup.js";
 import { ticketClaim, ticketCreate, ticketUpdate } from "./ticket.js";
@@ -1901,5 +1902,60 @@ describe("手直しの Run の印と run retry-reason（RN-7・RN-8）", () => {
       retry_reasons: ["親が直す", "もう 1 件"],
       retries: 2,
     });
+  });
+});
+
+describe("フックが届いていないセッションの警告（t697）", () => {
+  const SILENT = "No dg hook has reached this claude-code session";
+
+  it("Claude Code の中で、そのセッションにフックが届いていなければ、claim --no-run・next・brief が警告する。届けば警告しない", async () => {
+    const { ctx, home, parent } = await prepared();
+    ctx.env = { HOME: home, CLAUDECODE: "1", CLAUDE_CODE_SESSION_ID: SESSION };
+    const silentIn = (warnings: string[]) => warnings.some((w) => w.includes(SILENT));
+
+    const claimed = await runCommand(ticketClaim, ctx, {
+      no_worktree: true,
+      ticket: "t1",
+      branch: "feat/t1",
+      no_run: true,
+    });
+    expect(silentIn(claimed.warnings)).toBe(true);
+    const step = await runCommand(next, ctx, { ticket: "t2" });
+    expect((step.data as NextStep & { brief?: string }).brief).toBeDefined();
+    expect(silentIn(step.warnings)).toBe(true);
+    const text = await runCommand(brief, ctx, { ticket: "t1", role: "implement" });
+    expect(silentIn(text.warnings)).toBe(true);
+
+    // このセッションのフックが 1 つ届けば（SessionStart に限らない）、どれも警告しない
+    await call(ctx, "PreToolUse", {
+      session_id: SESSION,
+      transcript_path: parent,
+      tool_name: "Bash",
+      cwd: ctx.repo.topLevel,
+      tool_input: { command: "ls" },
+    });
+    expect(silentIn((await runCommand(next, ctx, { ticket: "t2" })).warnings)).toBe(false);
+    expect(
+      silentIn((await runCommand(brief, ctx, { ticket: "t1", role: "implement" })).warnings),
+    ).toBe(false);
+    const again = await runCommand(ticketClaim, ctx, {
+      no_worktree: true,
+      ticket: "t2",
+      branch: "feat/t2",
+      no_run: true,
+    });
+    expect(silentIn(again.warnings)).toBe(false);
+  });
+
+  it("別のセッションに届いた記録では警告を消さない。エージェントの外（判定できない）では警告しない", async () => {
+    const { ctx, home, parent } = await prepared();
+    await call(ctx, "SessionStart", { session_id: "s-other", transcript_path: parent });
+    ctx.env = { HOME: home, CLAUDECODE: "1", CLAUDE_CODE_SESSION_ID: SESSION };
+    const step = await runCommand(next, ctx, { ticket: "t1" });
+    expect(step.warnings.some((w) => w.includes(SILENT))).toBe(true);
+
+    ctx.env = { HOME: home };
+    const outside = await runCommand(next, ctx, { ticket: "t1" });
+    expect(outside.warnings.some((w) => w.includes(SILENT))).toBe(false);
   });
 });
