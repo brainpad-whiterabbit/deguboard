@@ -4,6 +4,7 @@
 //     （届くのは親の Bash だけ。サブエージェントの claim・run start のセッションは Adapter の sessionFromEnv が補う）
 //   - subagent_launched：頼んだ文の先頭の印（deguboard: ticket=<id> step=<step>）があれば、その Run を開いて記録の場所をサブエージェントの記録にする（RN-7）。
 //     見直しは、別のセッションで開いたままの同じチケットの見直しの Run を先に interrupted で閉じる。
+//     前景の見直し役が動いている間に、その保留から sync・pr ready が見直しの記録（capture: none）を書いていたら、開かずにその記録を引き取る。
 //     開いたままの前の手直しの Run は、ほかの Run を開くときと同じく openRun が区切りとして閉じる（RN-6）。
 //     バックグラウンドの起動は、止まるまで動いている印（live）を付ける。印のある間は run finish が interrupted のほかで閉じない（RN-7）
 //   - subagent_started：同じ記録の開いた Run（親への質問で止まっていたもの）を続きとして使い、止まって待っている印と書き終わり待ちの印を消し、動いている印を付ける
@@ -26,6 +27,7 @@ import { collectRunUsage, hookAgentNames, hooksOf, type HookEvent } from "../age
 import { OperationError } from "../errors.js";
 import { checkOutside, describeOutside, outsideRemedy } from "../git/outside.js";
 import { collectBranchFacts, lastPushedAt } from "../git/facts.js";
+import { withWrite } from "../git/write.js";
 import { toIsoDateTime } from "../model/common.js";
 import { ticketIdSchema, type TicketId } from "../model/id.js";
 import { REVIEW_STEP, type Run, type RunId, type RunResult } from "../model/run.js";
@@ -44,6 +46,7 @@ import {
 } from "../run/record.js";
 import { defineCommand, ok, runCommand, type CommandContext } from "./define.js";
 import { pruneHookSessions, recordHookSession } from "./hook-sessions.js";
+import { adoptableReviewRecord } from "./orphan-review.js";
 import {
   openedInOtherSession,
   openedStepOf,
@@ -151,7 +154,7 @@ export const hook = defineCommand({
   group: "hook",
   summary:
     "Called by the harness hooks (dg hooks install writes them into the settings; people do not run it). Reads the hook input (JSON) from stdin with --payload -. At the start of a session, puts the actor, session ID, and record path into the environment. For a sub-agent whose prompt starts with the marker `deguboard: ticket=<id> step=<step>`, opens a Run when it starts " +
-    "(if a Run for the same ticket and step is still open, it does not open one and warns. For a review, if that Run is from a different session, it is treated as left over from a crashed session and closed as interrupted before opening. A review result written to that Run after a foreground start is held and linked to the new Run. An earlier fix Run still open on the same ticket is closed at the start boundary, as run start does, before opening). When it stops, if the step was finished, it closes the Run (otherwise it marks the Run as stopped and waiting, and resuming continues it; a Run opened by the agent itself is the same). At the end of the session it closes the open Runs of that session's sub-agents. " +
+    "(if a Run for the same ticket and step is still open, it does not open one and warns. For a review, if that Run is from a different session, it is treated as left over from a crashed session and closed as interrupted before opening. A review result written to that Run after a foreground start is held and linked to the new Run. When a foreground reviewer returns and dg sync or dg pr ready has already written its held result as a review record (capture: none) in the same session after the start, it does not open a Run; it ties the transcript to that record, re-reads its usage, and removes capture: none. An earlier fix Run still open on the same ticket is closed at the start boundary, as run start does, before opening). When it stops, if the step was finished, it closes the Run (otherwise it marks the Run as stopped and waiting, and resuming continues it; a Run opened by the agent itself is the same). At the end of the session it closes the open Runs of that session's sub-agents. " +
     "Before a tool is used (PreToolUse), it rejects writes under .git/deguboard/ by writing tools, and Bash containing the word .git/deguboard (including read-only commands, and text inside quotes or comments), and points to dg's read and write commands instead " +
     "(writes that do not show the word are not seen; a miss is found as a change outside dg the next time dg runs, and at Stop). " +
     "It rejects gh pr ready and gh pr merge run outside dg (including the same operations through gh api) and points to dg pr ready and dg pr merge " +
@@ -327,6 +330,15 @@ async function subagentLaunched(
       : event.transcript
         ? await firstLineTime(event.transcript)
         : undefined;
+  // 前景の見直し役が動いている間に、その結果（保留）を別のプロセスの sync・pr ready が見直しの記録にしていたら、開かずに引き取る（t701）
+  if (
+    marker.step === REVIEW_STEP &&
+    event.finished &&
+    event.transcript &&
+    startedAt &&
+    (await adoptReviewRecord(ctx, agent, event, marker.ticket, startedAt, view, warnings))
+  )
+    return;
   // 別のセッションで開いたままの見直しの Run は、そのセッションが落ちた残り。閉じてから開く（RN-6）。
   // 同じセッションの見直しを重ねて開くのは二重の起動なので、閉じずに下の openRun が拒否する
   if (marker.step === REVIEW_STEP)
@@ -356,6 +368,97 @@ async function subagentLaunched(
   if (event.finished) await stopSubagentRun(ctx, agent, run, event.transcript, view, warnings);
   // バックグラウンドの起動は、止まるまで動いている印を付ける。印のある間は run finish が閉じない（t638）
   else await bindTranscript(ctx.repo, run.id, event.transcript, true);
+}
+
+/**
+ * 前景の見直し役が返ったとき、その結果から先に書かれた見直しの記録（capture: none）を引き取る（t701。どの記録かは adoptableReviewRecord）。
+ * 新しい Run は開かず、記録に会話記録を結び付け、起動から今までの Run として agent・開始・終了・モデル・使用量・ツールの回数を書き直し、
+ * capture: none を外す（閉じた Run を書き換える RN-4 の例外）。結果（review・result）は記録のまま。
+ * 開始を起動の時刻、終了を今にするのは、会話記録を数える範囲（サブエージェントの記録は終了まで）に見直し役の最後の応答を入れるため。
+ * ID は結果を書いた時刻のままにする（保留の回と Git の記録が ID で結び付いている）。
+ * 保留の結果と保留の回は記録と同じ見直しなので消すか記録に結び付ける（残すと次の見直しの Run に結び付き、同じ見直しを 2 回数える）。
+ * 引き取る記録がなければ false（呼び出し側が今までどおり Run を開く）
+ */
+async function adoptReviewRecord(
+  ctx: CommandContext,
+  agent: string,
+  event: Extract<HookEvent, { kind: "subagent_launched" }>,
+  ticket: TicketId,
+  launchedAt: Date,
+  view: HookView,
+  warnings: string[],
+): Promise<boolean> {
+  const transcript = event.transcript!;
+  const startedAt = toIsoDateTime(launchedAt);
+  const record = adoptableReviewRecord(
+    [...ctx.store.runs.values()].map((d) => d.data),
+    ticket,
+    event.session,
+    startedAt,
+  );
+  if (!record) return false;
+  await bindTranscript(ctx.repo, record.id, transcript);
+  await takePendingReview(ctx.repo, ticket, startedAt);
+  await adoptPendingRounds(ctx.repo, ticket, record.id, startedAt);
+  if (!(await waitSettled(agent, transcript)))
+    warnings.push(
+      `The last response in the record of Run ${record.id} was not written within ${hookTiming.settleMs} ms, so its usage may miss it (dg run refresh ${record.id} reads it again)`,
+    );
+  const now = ctx.now();
+  const finishedAt = toIsoDateTime(now < launchedAt ? launchedAt : now);
+  const adopted: Run = {
+    ...record,
+    agent,
+    model: event.model ?? record.model,
+    started_at: startedAt,
+    finished_at: finishedAt,
+  };
+  const { others } = await usageContext(ctx, (await readRunningRuns(ctx.repo)).runs);
+  const collected = await collectRunUsage(ctx.config, {
+    run: adopted,
+    finishedAt,
+    env: ctx.env ?? process.env,
+    topLevel: ctx.repo.topLevel,
+    others,
+    transcript,
+  });
+  const written = await withWrite(
+    ctx,
+    async () => {
+      const doc = ctx.store.runs.get(record.id);
+      if (doc?.data.capture !== "none")
+        throw new OperationError(
+          "REJECTED",
+          `The review record ${record.id} was already taken over during the write`,
+        );
+      return (
+        await ctx.store.update("run", record.id, {
+          capture: undefined,
+          agent,
+          model: collected.model ?? adopted.model,
+          started_at: startedAt,
+          finished_at: finishedAt,
+          // 渡されなかったキー（undefined）は重ねない。usage の中の未知のキーは残す（DT-2）
+          usage: {
+            ...(doc.raw["usage"] as Record<string, unknown>),
+            ...Object.fromEntries(
+              Object.entries(collected.usage).filter(([, v]) => v !== undefined),
+            ),
+          },
+          tools: collected.tools ?? doc.data.tools,
+        })
+      ).data;
+    },
+    { message: (run) => `Take over review record ${run.id}: ${run.ticket} review ${run.result}` },
+  );
+  warnings.push(
+    ...collected.warnings.map((w) => `Run ${record.id}: ${w}`),
+    ...written.write.warnings,
+  );
+  view.done.push(
+    `Took over the review record ${record.id} for ${ticket}, written from the held result while the reviewer was running, instead of opening a new Run`,
+  );
+  return true;
 }
 
 /**
