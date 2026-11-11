@@ -2,6 +2,7 @@
 // カンバンとバックログの行・区画の見出し、Iteration の詳細の行の吹き出しを押すと頼むことの一覧が画面の中に出て、
 // 選ぶと入力欄が開くことと、入力欄の頼むことの札が（入らなければ折り返して）幅に収まり、閉じるボタンが残ること、行をドラッグしても書き込みの要求を送らずデータが変わらないこと（画面から書き込むのはチケット詳細と設定画面だけ。ADR-027）を確かめる。
 // 行の左端の帯（styles.css の [data-select-id]::before）は、押すと 1 件を選ぶ・外すになり、足しても行の配置は変わらず、hover で薄く、hover のない画面では常に薄く出ることを確かめる。
+// 帯の幅は 12px（STRIP_PX と同じ）で、内側の端（11px）は選び、外側の端（13px）は詳細を開くことも確かめる。
 // 帯を押したままなぞると通った行をまとめて選ぶ（マウスとペン。タッチは選ばずスクロール）、帯の外から始めたなぞりは選ばず、一覧の端では画面の外の行まで続けて選べることも確かめる。
 // ブラウザが要るので mise run test には入れず、mise run test:layout で回す（先に mise run build と mise run playwright:install）
 
@@ -232,11 +233,14 @@ describe("吹き出しの一覧（UI-15）", () => {
 });
 
 describe("行の左端の帯で 1 件ずつ選ぶ（UI-15）", () => {
-  /** 行の左端 3px（帯の上）の位置 */
-  async function stripPoint(row: Locator): Promise<{ x: number; y: number }> {
+  /** 行の左端から x px の、行の高さの真ん中の位置（帯の幅は 12px） */
+  async function pointAt(row: Locator, x: number): Promise<{ x: number; y: number }> {
     const box = (await row.boundingBox())!;
-    return { x: box.x + 3, y: box.y + box.height / 2 };
+    return { x: box.x + x, y: box.y + box.height / 2 };
   }
+
+  /** 行の左端の帯の中（6px。帯の幅 12px の真ん中） */
+  const stripPoint = (row: Locator) => pointAt(row, 6);
 
   /** 行の左端の帯を押す */
   async function clickStrip(page: Page, row: Locator): Promise<void> {
@@ -307,7 +311,23 @@ describe("行の左端の帯で 1 件ずつ選ぶ（UI-15）", () => {
       const before = getComputedStyle(el, "::before");
       return { position: before.position, width: before.width };
     });
-    expect(position).toEqual({ position: "absolute", width: "6px" });
+    expect(position).toEqual({ position: "absolute", width: "12px" });
+    await page.close();
+  });
+
+  it("帯の幅は 12px。内側の端（11px）を押すと 1 件を選び、外側（13px）を押すと詳細を開く", async () => {
+    const page = await browser.newPage({ viewport: { width: WIDTH, height: 800 } });
+    await page.goto(`${server.url}?surface=sidebar#/board`, { waitUntil: "networkidle" });
+    const row = todoRow(page);
+    await row.waitFor();
+    const inner = await pointAt(row, 11);
+    await page.mouse.click(inner.x, inner.y);
+    expect(await row.getAttribute("data-selected"), "内側の端（11px）は帯で選ぶ").toBe("");
+    expect(new URL(page.url()).hash, "帯では詳細を開かない").toBe("#/board");
+    const outer = await pointAt(row, 13);
+    await page.mouse.click(outer.x, outer.y);
+    // 詳細は押したあとに画面を切り替えるので、着くまで待つ
+    await expect.poll(() => new URL(page.url()).hash).toBe("#/tickets/t1");
     await page.close();
   });
 
@@ -347,8 +367,8 @@ describe("行の左端の帯をなぞって、通った行をまとめて選ぶ�
   type Point = { x: number; y: number };
   /** 画面に出ている選べる行（畳んだ節の中は高さ 0 なので除く）。並びは画面の順 */
   type Row = { id: string; x: number; y: number; height: number };
-  /** 行の左端の帯を押す点（帯の中の、行の高さの真ん中） */
-  const stripOf = (row: Row) => ({ x: row.x + 3, y: row.y + row.height / 2 });
+  /** 行の左端の帯を押す点（帯の幅 12px の真ん中の 6px、行の高さの真ん中） */
+  const stripOf = (row: Row) => ({ x: row.x + 6, y: row.y + row.height / 2 });
 
   const visibleRows = (rows: Locator) =>
     rows.evaluateAll((els) =>
