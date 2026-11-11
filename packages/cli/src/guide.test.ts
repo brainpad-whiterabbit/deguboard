@@ -7,6 +7,7 @@ import { cliEnv } from "../../core/test/helpers/env.js";
 import { createLocalOnlyRepo } from "../../core/test/helpers/git-fixture.js";
 import { GUIDE_TOPICS, fillPlaceholders, readGuide, readGuideMeta, renderGuide } from "./guide.js";
 import { buildProgram, run } from "./program.js";
+import { buildSkills } from "./skill.js";
 
 const cleanups: Array<() => Promise<void>> = [];
 afterEach(async () => {
@@ -544,6 +545,52 @@ describe("dg guide", () => {
       expect(reflected).toContain(word);
     // status・retro の節は持たない（様子は guide status、振り返りは別の頼むこと）
     expect(guide).not.toMatch(/^## .*(status|retro)/im);
+  });
+
+  it("discuss の --deep は frontmatter と Skill の雛形に写り、観点をすべて持ち、論点のある観点だけを掘って外した観点は理由を 1 行で示し、方式は案を 2 つ以上比べ、受け入れ条件の文言は最後に回す", async () => {
+    const guide = await readGuide("discuss");
+    const meta = await readGuideMeta("discuss");
+    expect(meta.description).toContain("--deep");
+    expect(meta["argument-hint"]).toContain("--deep");
+    const dgdiscuss = (await buildSkills()).find((s) => s.name === "dgdiscuss");
+    expect(dgdiscuss?.content.split("\n---\n")[0]).toContain("--deep");
+    expect(dgdiscuss?.content).toContain("With --deep, checks every viewpoint");
+
+    // 観点は 1 つの節にまとめ、ほかの節は「--deep のときはその節に従う」の案内だけを足す
+    expect(guide.split("## Deep discussion (`--deep`)").length - 1).toBe(1);
+    const deep = section(guide, "## Deep discussion (`--deep`)");
+    for (const viewpoint of [
+      "**Need**",
+      "**Purpose and outcome**",
+      "**Approach**",
+      "**Scope**",
+      "**Order, dependencies, and priority**",
+      "**Premises and risks**",
+      "**Reversibility**",
+      "**Visibility**",
+    ])
+      expect(deep, viewpoint).toContain(viewpoint);
+    for (const word of ["now, drop it, or defer", "who gains what", "promise to users"])
+      expect(deep, word).toContain(word);
+    // 範囲の重なりは開いたチケットを ticket list --query で探し、References のファイルと突き合わせる
+    const scope = lineWith(deep, "**Scope**");
+    for (const word of ["ticket list --query", "References", "files"])
+      expect(scope, word).toContain(word);
+    // 方式の論点は案を 2 つ以上、利点と欠点の表で比べ、聞くのは選択肢で
+    const approach = lineWith(deep, "**Approach**");
+    for (const word of ["2 or more", "table of advantages and disadvantages", "recommended"])
+      expect(approach, word).toContain(word);
+    // 論点のある観点だけを掘り、外した観点は理由を 1 行で示す
+    for (const word of ["only the ones with open points", "one-line reason"])
+      expect(deep, word).toContain(word);
+    // 受け入れ条件の文言は観点の論点が決まった後に回す
+    expect(deep).toContain("comes last");
+    expect(deep).toContain("after the points of the viewpoints above are settled");
+    // やめる・分ける・移すの結論は今の反映の範囲に従い、--deep で変えない
+    expect(deep).toContain("does not change what is reflected");
+    // 対象の決め方・議論の間・手順 2 は、--deep のときこの節に従うと案内する
+    for (const heading of ["## Deciding the target", "## While discussing", "## Steps"])
+      expect(section(guide, heading), heading).toContain('"Deep discussion (`--deep`)" section');
   });
 
   it("status は進んでいる作業の様子を読むだけで書き換えず、Run が実行中なら手を出さず、止まっていれば再開を勧めるだけにする", async () => {
