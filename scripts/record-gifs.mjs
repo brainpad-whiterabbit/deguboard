@@ -102,6 +102,10 @@ async function createRepo(dir) {
   await dg(work, ["iteration", "start", "s2"]);
   await dg(work, ["iteration", "create", "Iteration 3"]);
   for (const ticket of open) await create(ticket);
+  // カンバンの Epic の札の列と PR のリンクを見せる。開いている Epic に s2 の 4 件を入れ、レビュー中の t4 に PR を付ける
+  await dg(work, ["epic", "create", "Make the list easier to use"]);
+  await dg(work, ["epic", "add", "e1", "t4", "t5", "t6", "t7"]);
+  await dg(work, ["ticket", "update", "t4", "--pr", "41"]);
   return work;
 }
 
@@ -718,6 +722,7 @@ async function runAllFlow(rec, app, _frame, { work }) {
     ["t1", "review"],
     ["t1", "done"],
   ]);
+  await dgSteps(rec, work, [["ticket", "update", "t1", "--pr", "1"]]);
   await termReplace(rec, "⏺ t1 done (merged PR #1)", 700);
   await step([
     ["t2", "in_progress"],
@@ -733,6 +738,10 @@ async function runAllFlow(rec, app, _frame, { work }) {
     ["t2", "review"],
     ["t2", "done"],
   ]);
+  await dgSteps(rec, work, [
+    ["ticket", "update", "t2", "--pr", "2"],
+    ["ticket", "update", "t3", "--pr", "3"],
+  ]);
   await termReplace(rec, "⏺ t2 and t3 done (merged PR #2 #3)", 700);
   await step([["t4", "in_progress"]]);
   await termSay(rec, "dot", "⏺ Working on t4…", 1000);
@@ -740,6 +749,7 @@ async function runAllFlow(rec, app, _frame, { work }) {
     ["t4", "review"],
     ["t4", "done"],
   ]);
+  await dgSteps(rec, work, [["ticket", "update", "t4", "--pr", "4"]]);
   await termReplace(rec, "⏺ t4 done (merged PR #4)", 500);
   await termSay(rec, "ok", "✓ Plan p1 finished (4/4 done)", 700);
   await rec.moveTo(app.locator(".plan-line .plan-state").first(), 500, 0.5);
