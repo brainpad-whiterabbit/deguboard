@@ -1,0 +1,34 @@
+{
+  "id": "r20261111-085304-687f",
+  "ticket": "t704",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-11T08:53:04Z",
+  "finished_at": "2026-11-11T08:57:31Z",
+  "result": "success",
+  "error": null,
+  "retries": 3,
+  "retry_reasons": [
+    "行の帯の mousedown の既定動作止めが、帯の幅を見ずに行の本体の隙間でも効き、コメントと条件が食い違う",
+    "帯のなぞりで pointer capture がなく、画面の外で離すと終わらず、rAF の自動スクロールが続く",
+    "テストのコメントが作る件数（3 件）と、ループが作る件数（5 件）が食い違う"
+  ],
+  "usage": {
+    "input": 28,
+    "output": 12158,
+    "cache_read": 647753,
+    "cache_write": 37940
+  },
+  "tools": {
+    "read": 5,
+    "search": 0,
+    "write": 4,
+    "bash": 9,
+    "other": 1,
+    "read_before_write": 3,
+    "search_before_write": 0
+  },
+  "session": "87e36f11-d291-4dd6-b8a7-3afbac9a0202",
+  "review": null
+}
