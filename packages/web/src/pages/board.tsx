@@ -3,8 +3,8 @@
 // 範囲は planned か active の Iteration 1 つか「すべて」（planned と active の Iteration すべて）で、Iteration に入っていないチケットはバックログで見る
 // （全チケットを出すと、帯に閉じた Plan がすべて並ぶ）。Iteration の一覧の画面は置かず、札の列で選ぶ（一覧の表は縦に場所を取り、絞り込みが 2 か所に分かれる）。
 // Epic の札の列は、選んでいる範囲のチケットがある開いた Epic と「なし」（件数は範囲の Epic のないチケット）。絞っている Epic は残す。
-// 開いた Epic がなければ列を出さず、バックログへ案内する（開いた Iteration がなければ、列も帯も出さない）。絞り込みの値はハッシュに持つ。
-// VS Code の左パネルに出し、見出しを 2 段と進みの帯に詰め、詳細・件数は出さない（件数は帯の done/全体）。
+// 開いた Epic がなければ列を出さない。開いた Iteration がなければ Epic の列・進みの帯・一覧を出さず、バックログへ案内する（NoOpenIteration）。絞り込みの値はハッシュに持つ。
+// VS Code の左パネルに出し、見出しは Iteration の札・Epic の札・選んでいるものの名前の 3 段と進みの帯に詰め、詳細・件数は出さない（件数は帯の done/全体）。
 // 担当の絞り込みは見出しの右端の漏斗で開き（開閉は host.state）、絞っている間は見出しの下に値の札（× で外す）を出す。状態の節はペイン風の見出しにする。
 // 左パネルの行は担当の名前の列を出さず、右端の上の段（Plan の番号の左）に担当の印（AssigneeMark。人は頭文字の丸、agent は持ち主の丸と汎用のアイコン）を出す。
 // 左パネルの行の右端には、開いた Plan に入っているチケットなら Plan の番号と、todo なら着手可か待ちの相手（Plan の after とチケットの depends_on）か承認待ち（Plan が承認待ち）を出す。
@@ -14,7 +14,7 @@
 // 左パネルの行・状態の節の見出し・Iteration の見出し・Plan の帯は、エージェントに頼める場所にする（吹き出し・Shift+F10。UI-15）。
 // 節の開閉・最後に選んだ Iteration は host.state に覚える。
 // 表示だけで書き込まない。チケットを進める・片付ける・やめる・done を取り消すと、Iteration の作成・閉じるは、吹き出しから
-// エージェントに頼む（ADR-027）。Status を直に選んで変える頼むことはなく、Iteration の開始は着手（claim）の手順が行う
+// エージェントに頼む（ADR-027）。Status を直に選んで変える操作はなく、Iteration の開始は着手（claim）の手順が行う
 
 import { useLayoutEffect, useMemo, useRef, type ReactNode } from "react";
 import { ASK_SECTIONS, useAskSpot } from "../components/ask-menu.js";
@@ -156,7 +156,9 @@ export function BoardPage({ query }: { query: BoardQuery }) {
   );
   // Epic の札の列（UI-2）。開いた Epic がなければ列を出さない。札は範囲のチケットがある開いた Epic と、選んでいる Epic（チケットがなくても残す）。
   // 閉じた Epic は選んでいるときだけ残す（Epic の詳細から閉じた Epic で開いたとき）。「なし」の件数は範囲の Epic のないチケット（担当では変えない）
-  const hasOpenEpic = store.epics.some((e) => e.status === "open");
+  // 開いた Iteration がなければ一覧の代わりに案内（NoOpenIteration）を出すので、Epic の列も出さない。
+  // バックログは Iteration と関係なく開いた Epic の列を出す（ここは範囲のチケットで数える札の列なので、判定が 1 つ多い）
+  const hasOpenEpic = open.length > 0 && store.epics.some((e) => e.status === "open");
   const epicChips = useMemo(() => {
     const inScope = new Set(scoped.flatMap((t) => (t.epic ? [t.epic] : [])));
     return store.epics

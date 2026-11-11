@@ -505,7 +505,8 @@ function useOpenEpics() {
 
 /**
  * Epic の欄：open の Epic があるときだけ、番号の札と「なし」の札（件数つき）を並べる（EpicChipRow）。
- * 押すとその Epic で絞り、もう一度押すと外れる。2 行を超える分は「ほか N」にまとめる
+ * 押すとその Epic で絞り、もう一度押すと外れる。2 行を超える分は「ほか N」にまとめる。
+ * カンバンは開いた Iteration がないと列を出さないが（board.tsx）、バックログは Iteration と関係なく、全体の open の Epic で出す
  */
 function EpicChips({ selected, onSelect }: { selected: string; onSelect: (epic: string) => void }) {
   const { epics, noEpic } = useOpenEpics();

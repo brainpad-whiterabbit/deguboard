@@ -339,13 +339,21 @@ export function SelectionProvider({ scope, children }: { scope: string; children
         }
         sw.frame = requestAnimationFrame(frame);
       };
+      // 終える。動いていたら、通った行の選びを残して押した行を起点にする
+      const endSweep = () => {
+        if (sw.active) {
+          sweptRef.current = true;
+          setState((s) => ({ ...s, anchor: sw.startId }));
+        }
+        finish();
+      };
       const onMove = (ev: Event) => {
         const m = ev as PointerEvent;
         if (m.pointerId !== sw.pointerId) return;
-        // マウスのボタンを離したのを、画面の外で離したときは window で拾えないので、ここで終える
+        // 予備：ボタンが離れているのに離すを受けていないとき（画面の外で離したなど）は、離したのと同じ終わり方で終える。
+        // 通常は window の pointerup と捕捉の lostpointercapture が先に終えるので、ここには来ない
         if (m.pointerType === "mouse" && m.buttons === 0) {
-          if (sw.active) sweptRef.current = true;
-          finish();
+          endSweep();
           return;
         }
         sw.x = m.clientX;
@@ -356,14 +364,6 @@ export function SelectionProvider({ scope, children }: { scope: string; children
           frame();
         }
         sweepTo(sw);
-      };
-      // 終える。動いていたら、通った行の選びを残して押した行を起点にする
-      const endSweep = () => {
-        if (sw.active) {
-          sweptRef.current = true;
-          setState((s) => ({ ...s, anchor: sw.startId }));
-        }
-        finish();
       };
       const onUp = (ev: Event) => {
         if ((ev as PointerEvent).pointerId !== sw.pointerId) return;
