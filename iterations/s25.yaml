@@ -1,5 +1,5 @@
 id: s25
 project: default
 name: sprint25
-goal: Iteration の期間を実績の日時だけで記録する形にし、頼むことの候補と Skill を揃え、work を並列で進めるのを既定にする
+goal: Iteration の期間を実績の日時だけで記録する形にし、頼むことの候補と Skill を揃え、work を並列で進めるのを既定にし、フックのない AI でも見直しの記録が残ってゲートが通るようにする
 status: active
