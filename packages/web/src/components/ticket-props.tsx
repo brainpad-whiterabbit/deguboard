@@ -9,7 +9,7 @@ import { hrefOf } from "../router.js";
 import { CopyableCode } from "./copyable-code.js";
 import { DateTime } from "./date-time.js";
 import type { Choice } from "./inline-edit.js";
-import { PriorityMark, StatusDot, Tags, TicketLink } from "./parts.js";
+import { prHref, PriorityMark, StatusDot, Tags, TicketLink } from "./parts.js";
 import { WorktreeRow } from "./worktree-row.js";
 import { tr } from "../l10n.js";
 
@@ -182,9 +182,10 @@ export function ticketAttrs(store: Store, ticket: TicketDetail) {
 
 /** PR の番号。リモートの Web の URL が分かればそのページへのリンクにする */
 export function PrLink({ pr, webUrl }: { pr: number; webUrl?: string | null | undefined }) {
-  if (!webUrl) return <>#{pr}</>;
+  const href = prHref(webUrl, pr);
+  if (!href) return <>#{pr}</>;
   return (
-    <a href={`${webUrl}/pull/${pr}`} target="_blank" rel="noreferrer">
+    <a href={href} target="_blank" rel="noreferrer">
       #{pr}
     </a>
   );

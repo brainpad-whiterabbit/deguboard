@@ -106,6 +106,8 @@ Done
 t1
 [title] ログイン
 ログイン
+#
+12
 [title] エージェントに頼む（Shift+F10）
 [aria-label] エージェントに頼む（行 t1）
 
@@ -1243,6 +1245,8 @@ Done
 t1
 [title] ログイン
 ログイン
+#
+12
 [title] エージェントに頼む（Shift+F10）
 [aria-label] エージェントに頼む（行 t1）
 [aria-label] エージェントに頼む

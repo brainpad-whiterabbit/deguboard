@@ -211,8 +211,8 @@ updated_at: 2026-10-31T05:10:00Z
 画面は VS Code 拡張だけで、`dg serve` は同じ画面を配信する開発用で、利用者は使わない（理由は [ADR-027](adr/ADR-027-screen-vscode-writes-and-asks.md)）。
 
 - UI-1 プロジェクトの切り替え
-- UI-2 カンバン：planned か active の Iteration 1 つ（既定は active）か「すべて」（planned・active の全部）のチケットを Status ごとの列に出し、Epic は見出しの Epic の札で、担当者は漏斗の欄で絞れる
-- UI-3 バックログ：done・abandoned 以外のチケットを Iteration ごとの区画に出し、検索と絞り込みができる
+- UI-2 カンバン：planned か active の Iteration 1 つ（既定は active）か「すべて」（planned・active の全部）のチケットを Status ごとの列に出し、Epic は見出しの Epic の札で、担当者は漏斗の欄で絞れる。PR の番号があるチケットは行の番号の下に PR へのリンクを出し、押すと詳細を開かずに PR を開く
+- UI-3 バックログ：done・abandoned 以外のチケットを Iteration ごとの区画に出し、検索と絞り込みができる。PR の番号があるチケットは行の番号の下に PR へのリンクを出す（UI-2 と同じ）
 - UI-4 チケット詳細：本文・属性・依存・作業ブランチと worktree・PR・Run・経過（CL-7）を出す。属性と本文を編集でき、受け入れ条件の印を本文のチェックボックスで付け外しできる。細部は `dg ticket show --help`
 - UI-5 Iteration：詳細の画面で実績の期間（`started_at`〜`closed_at`。記録のない開始は不明と出す）・目標・進捗（EP-3）と中のチケット、状態に応じた次の操作（IT-3 の `next`）、中のチケットを含む Plan を出す。閉じた Iteration・Epic と終わったチケットは履歴の画面で見る
 - UI-6 未 push のコミットと未取り込みのリモートの更新を印で知らせ、同期のボタンで `dg sync` と同じ同期をして読み直す
