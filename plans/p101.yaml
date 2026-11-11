@@ -9,7 +9,7 @@ after:
   t702:
     - t699
     - t700
-pending_approval: true
+pending_approval: false
 details:
   t699:
     scope: next の段階と gate の review・fix_rounds が持ち主のない保留を見直しとして数えるところまでで、Git に書くことと警告の文は含まない
@@ -27,3 +27,5 @@ details:
     scope: フックが届かないときの警告の文・持ち主のない保留を数えたときの警告・lint の除外・metrics の集計からの除外
     approach: "capture: none の記録の有無を lint と metrics の判定に足し、警告の文は hooksSilentWarning と next・gate で直す"
     tier: standard
+approved_by: Eiki Kitajima/agent
+approved_at: 2026-11-11T04:39:02Z
