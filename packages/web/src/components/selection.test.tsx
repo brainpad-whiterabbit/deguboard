@@ -386,4 +386,23 @@ describe("一覧の行の左端の帯で 1 件ずつ選ぶ（UI-15）", () => {
     expect(selected()).toEqual([]);
     expect(bar()).toBeNull();
   });
+
+  it("Epic の詳細の行の帯も 1 件ずつ選び、選んだ行は同じ帯の押し方で外せ、詳細は開かない", async () => {
+    const client = mockClient();
+    client.data.tickets = client.data.tickets.map((t) => ({ ...t, epic: "e1" }));
+    client.handlers["epic.show"] = () => ({
+      ...client.data.epics[0],
+      body: "",
+      tickets: client.data.tickets.filter((t) => t.epic === "e1"),
+    });
+    window.location.hash = "#/epics/e1";
+    const { open } = mount(client, "panel");
+    await screen.findByText("API");
+    fireEvent.click(rowOf("API"));
+    expect(selected()).toEqual(["t2"]);
+    expect(open).not.toHaveBeenCalled();
+    fireEvent.click(rowOf("API"));
+    expect(selected()).toEqual([]);
+    expect(open).not.toHaveBeenCalled();
+  });
 });

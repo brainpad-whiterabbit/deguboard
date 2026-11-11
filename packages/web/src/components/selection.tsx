@@ -1,4 +1,5 @@
 // 一覧の行の複数選択（UI-15）。VS Code の一覧と同じく、Ctrl/⌘+クリックで 1 行ずつ足し外し、Shift+クリックで前に押した行からの範囲を選ぶ。
+// 行の左端の帯（styles.css の [data-select-id]::before）を押しても 1 行ずつ足し外しする（ask-menu.tsx の onClickCapture）。
 // ふつうのクリックは今までどおり詳細を開き、選択を外す（次の Shift+クリックの起点になる）。Esc でも外す。
 // 選択は画面の見た目の状態として SelectionProvider が持つ（データには書かない。画面を替えたら外す）。
 // 行は useAskSpot の select で選べるようになり（ask-menu.tsx）、選んだ行の吹き出しは選んだ全件を対象にする。

@@ -330,6 +330,8 @@ export function useAskSpot(options: AskSpotOptions | null): AskSpot {
               const target = e.target as Element;
               if (e.button !== 0 || target.closest?.(NOT_SELECT_CLICK)) return;
               // 左端の帯（styles.css の [data-select-id]::before）は行の要素に当たるので、target が行そのものになる。
+              // これは行の要素が子（リンク・付記など）で埋まり、子に覆われないのは ::before の帯だけ、という前提に依る。
+              // 子で覆われない隙間があると、その隙間のクリックも帯と同じく選択になる
               // 修飾キーなしで帯を押したら、その 1 件を選ぶ・外す（詳細は開かない）。修飾キーつきは下の選び方に任せる
               if (target === e.currentTarget && !e.altKey && !selectKind(e)) {
                 e.preventDefault();

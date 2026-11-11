@@ -1,6 +1,7 @@
 // 吹き出しの一覧（UI-15）。dg serve の画面を Chromium で開き、
 // カンバンとバックログの行・区画の見出し、Iteration の詳細の行の吹き出しを押すと頼むことの一覧が画面の中に出て、
 // 選ぶと入力欄が開くことと、入力欄の頼むことの札が（入らなければ折り返して）幅に収まり、閉じるボタンが残ること、行をドラッグしても書き込みの要求を送らずデータが変わらないこと（画面から書き込むのはチケット詳細と設定画面だけ。ADR-027）を確かめる。
+// 行の左端の帯（styles.css の [data-select-id]::before）は、押すと 1 件を選ぶ・外すになり、足しても行の配置は変わらず、hover で薄く、hover のない画面では常に薄く出ることを確かめる。
 // ブラウザが要るので mise run test には入れず、mise run test:layout で回す（先に mise run build と mise run playwright:install）
 
 import { access } from "node:fs/promises";
@@ -227,4 +228,116 @@ describe("吹き出しの一覧（UI-15）", () => {
       await page.close();
     },
   );
+});
+
+describe("行の左端の帯で 1 件ずつ選ぶ（UI-15）", () => {
+  /** 行の左端 3px（帯の上）の位置 */
+  async function stripPoint(row: Locator): Promise<{ x: number; y: number }> {
+    const box = (await row.boundingBox())!;
+    return { x: box.x + 3, y: box.y + box.height / 2 };
+  }
+
+  /** 行の左端の帯を押す */
+  async function clickStrip(page: Page, row: Locator): Promise<void> {
+    const { x, y } = await stripPoint(row);
+    await page.mouse.click(x, y);
+  }
+
+  /** 行の疑似要素（帯）の不透明度 */
+  const stripOpacity = (row: Locator) =>
+    row.evaluate((el) => getComputedStyle(el, "::before").opacity);
+
+  /** 選べる行の並び（位置と、中身の最初の要素の位置と大きさ）。帯の有無で比べる */
+  const layoutOf = (page: Page) =>
+    page.evaluate(() =>
+      [...document.querySelectorAll("[data-select-id]")].map((el) => {
+        const r = el.getBoundingClientRect();
+        const c = el.firstElementChild?.getBoundingClientRect();
+        return [
+          r.x,
+          r.y,
+          r.width,
+          r.height,
+          c?.x ?? -1,
+          c?.y ?? -1,
+          c?.width ?? -1,
+          c?.height ?? -1,
+        ];
+      }),
+    );
+
+  const todoRow = (page: Page) =>
+    page.locator('.column[data-status="todo"] .row-item', {
+      has: page.locator('a[href="#/tickets/t1"]'),
+    });
+
+  it("帯を押すと、その 1 件を選ぶ・外すの切り替えになり、詳細は開かない。行の本体を押すと詳細を開き選択を外す", async () => {
+    const page = await browser.newPage({ viewport: { width: WIDTH, height: 800 } });
+    await page.goto(`${server.url}?surface=sidebar#/board`, { waitUntil: "networkidle" });
+    const row = todoRow(page);
+    await row.waitFor();
+    await clickStrip(page, row);
+    expect(await row.getAttribute("data-selected"), "帯を押して選ぶ").toBe("");
+    expect(new URL(page.url()).hash, "詳細は開かない").toBe("#/board");
+    await clickStrip(page, row);
+    expect(await row.getAttribute("data-selected"), "帯をもう一度押して外す").toBeNull();
+    expect(new URL(page.url()).hash).toBe("#/board");
+
+    await clickStrip(page, row);
+    await row.locator('a[href="#/tickets/t1"]').first().click();
+    expect(new URL(page.url()).hash, "行の本体は詳細を開く").toBe("#/tickets/t1");
+    expect(await row.getAttribute("data-selected"), "詳細を開くと選択は外れる").toBeNull();
+    await page.close();
+  });
+
+  it("帯は行の余白に重なり、帯の有無で行の位置・大きさと中身の位置が変わらない", async () => {
+    const page = await browser.newPage({ viewport: { width: WIDTH, height: 800 } });
+    await page.goto(`${server.url}?surface=sidebar#/board`, { waitUntil: "networkidle" });
+    await todoRow(page).waitFor();
+    const withStrip = await layoutOf(page);
+    const style = await page.addStyleTag({
+      content: "[data-select-id]::before{display:none !important}",
+    });
+    const withoutStrip = await layoutOf(page);
+    await style.evaluate((el) => (el as Element).remove());
+    expect(withStrip.length, "選べる行の数").toBeGreaterThan(0);
+    expect(withStrip).toEqual(withoutStrip);
+    const position = await todoRow(page).evaluate((el) => {
+      const before = getComputedStyle(el, "::before");
+      return { position: before.position, width: before.width };
+    });
+    expect(position).toEqual({ position: "absolute", width: "6px" });
+    await page.close();
+  });
+
+  it("hover のある画面では、マウスを載せた行の帯だけ薄く色付く", async () => {
+    const page = await browser.newPage({ viewport: { width: WIDTH, height: 800 } });
+    await page.goto(`${server.url}?surface=sidebar#/board`, { waitUntil: "networkidle" });
+    const row = todoRow(page);
+    await row.waitFor();
+    await page.mouse.move(0, 0);
+    expect(await stripOpacity(row), "載せていないときは透明").toBe("0");
+    await row.hover({ position: { x: 3, y: 5 } });
+    expect(parseFloat(await stripOpacity(row)), "載せたとき薄く色付く").toBeGreaterThan(0);
+    await page.close();
+  });
+
+  it("hover のない画面（タッチ）では、帯を常に薄く色付け、選んだ行は今の選択の色（不透明）で出す", async () => {
+    // タッチの画面は、タッチの文脈（hasTouch・isMobile）で開く。CDP の media の上書きでは hover: none にならない
+    const context = await browser.newContext({
+      viewport: { width: WIDTH, height: 800 },
+      hasTouch: true,
+      isMobile: true,
+    });
+    const page = await context.newPage();
+    await page.goto(`${server.url}?surface=sidebar#/board`, { waitUntil: "networkidle" });
+    const row = todoRow(page);
+    await row.waitFor();
+    expect(await page.evaluate(() => matchMedia("(hover: none)").matches)).toBe(true);
+    await page.mouse.move(0, 0);
+    expect(await stripOpacity(row), "載せていなくても薄く色付く").toBe("0.35");
+    await clickStrip(page, row);
+    expect(await stripOpacity(row), "選んだ行は不透明").toBe("1");
+    await context.close();
+  });
 });
