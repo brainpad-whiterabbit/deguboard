@@ -2,7 +2,7 @@
 // フックの命令がハーネスの環境で動かない（PATH に node がないなど）と、dg hook は呼ばれず、サブエージェントの Run は黙って記録されない。
 // dg hooks check がハンドラを dg 自身の環境で確かめても、ハーネスの環境とは PATH が違いうるので当てにならない。
 // そこで、届いたことそのものを記録し、印で Run を任せる操作（next・brief・claim --no-run）がこのセッションに届いていなければ警告する。
-// 届いていれば、実装と手直しはいつもサブエージェントに頼むので、next は親が自分で進める道を案内せず、--no-run なしの claim は警告する（t713）。
+// 届いていれば、実装と手直しはいつもサブエージェントに頼むので、next は親が自分で進める道を案内せず、--no-run なしの claim と run start の implement・fix は警告する（t713・t717）。
 // 判定は SessionStart に限らず、このセッションのどのフックでもよい（セッションの途中で dg hooks install したときも、次のツールの PreToolUse で届く）
 
 import { mkdir, readdir, rm, stat, writeFile } from "node:fs/promises";
@@ -65,18 +65,28 @@ export async function hooksReachSession(localDir: string, env: AgentEnv): Promis
 }
 
 /**
- * フックが届くセッションで、agent が --no-run なしに claim（もう一度の claim を含む）したときの警告（t713）。
+ * フックが届くセッションで、親が自分で実装・手直しの Run を開いたときの警告（t713・t717）。
+ * agent が --no-run なしに claim（もう一度の claim を含む）したとき（opened: "claim"）と、run start で implement・fix を開いたとき（opened: "run start"）に使う。
  * 親が自分で開く Run は親の長い文脈を読み直す分が使用量に入り、サブエージェントの Run と比べられないので、
- * 実装と手直しはモデルが親と同じでも小さな手直しでもサブエージェントに頼む。claim と Run の開き方は変えない（知らせるだけ）。
+ * 実装と手直しはモデルが親と同じでも小さな手直しでもサブエージェントに頼む。Run の開き方は変えない（知らせるだけ）。
  * フックが届かないセッションでは印で頼んでも Run が開かないので、親が自分で進める道を残し、警告しない
  */
 export async function selfRunWarning(
   localDir: string,
   env: AgentEnv,
   ticket: string,
+  opened: "claim" | "run start" = "claim",
 ): Promise<string | undefined> {
   if (!(await hooksReachSession(localDir, env))) return undefined;
-  return `dg hooks reach this session, so ask a sub-agent to implement or fix ${ticket} instead of doing it yourself, even when the model is the parent's and the fix is small: claim with --no-run (a fix needs no claim) and pass the brief from dg next (it has the mark). A Run the parent opens itself counts the parent's long context in its usage. The claim and its Run were made as asked`;
+  const how =
+    opened === "claim"
+      ? "claim with --no-run (a fix needs no claim) and pass the brief from dg next (it has the mark)"
+      : "next time, pass the brief from dg next instead of run start (it has the mark, and the hook opens and closes the Run)";
+  const made =
+    opened === "claim"
+      ? "The claim and its Run were made as asked"
+      : "This Run was opened as asked";
+  return `dg hooks reach this session, so ask a sub-agent to implement or fix ${ticket} instead of doing it yourself, even when the model is the parent's and the fix is small: ${how}. A Run the parent opens itself counts the parent's long context in its usage. ${made}`;
 }
 
 /**

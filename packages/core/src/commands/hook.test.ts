@@ -52,6 +52,7 @@ import { next, type NextStep } from "./next.js";
 import { commit, configSet, init, sync } from "./setup.js";
 import { ticketClaim, ticketCreate, ticketUpdate } from "./ticket.js";
 import { runGit } from "../git/run.js";
+import { recordBaseline } from "../git/outside.js";
 
 const cleanups: Array<() => Promise<void>> = [];
 afterEach(async () => {
@@ -2057,5 +2058,169 @@ describe("フックが届くセッションで親が自分で Run を開く clai
     const step = (await runCommand(next, ctx, { ticket: "t1" })).data as NextStep;
     expect(step.kind).toBe("implement");
     expect(always(step)).toBe(true);
+  });
+});
+
+describe("フックが届くセッションで親が run start で実装・手直しの Run を開く警告と、CLAIM_LOST の案内（t717）", () => {
+  const SELF = "dg hooks reach this session, so ask a sub-agent";
+  const selfIn = (warnings: string[]) => warnings.some((w) => w.includes(SELF));
+  const reach = (ctx: CommandContext, parent: string) =>
+    call(ctx, "PreToolUse", {
+      session_id: SESSION,
+      transcript_path: parent,
+      tool_name: "Bash",
+      cwd: ctx.repo.topLevel,
+      tool_input: { command: "ls" },
+    });
+
+  it("フックが届いたセッションの run start の implement・fix は、Run を開いたうえで警告する。review など別の step では警告しない", async () => {
+    const { ctx, home, parent } = await prepared();
+    ctx.env = { HOME: home, CLAUDECODE: "1", CLAUDE_CODE_SESSION_ID: SESSION };
+    // PR のあるチケット（branch あり）。--no-run の claim は Run を開かず branch だけ付ける
+    await runCommand(ticketClaim, ctx, {
+      no_worktree: true,
+      no_run: true,
+      ticket: "t1",
+      branch: "feat/t1",
+    });
+    await runCommand(ticketClaim, ctx, {
+      no_worktree: true,
+      no_run: true,
+      ticket: "t2",
+      branch: "feat/t2",
+    });
+    await reach(ctx, parent);
+
+    const impl = await runCommand(runStart, ctx, {
+      ticket: "t1",
+      step: "implement",
+      agent: "claude-code",
+    });
+    expect(selfIn(impl.warnings)).toBe(true);
+    expect((impl.data as Run).step).toBe("implement");
+
+    const fix = await runCommand(runStart, ctx, {
+      ticket: "t2",
+      step: "fix",
+      agent: "claude-code",
+    });
+    expect(selfIn(fix.warnings)).toBe(true);
+    expect((fix.data as Run).step).toBe("fix");
+
+    const review = await runCommand(runStart, ctx, {
+      ticket: "t2",
+      step: "review",
+      agent: "claude-code",
+    });
+    expect(selfIn(review.warnings)).toBe(false);
+    expect((review.data as Run).step).toBe("review");
+  });
+
+  it("フックが届いていないセッションの run start の implement では警告せず、Run を開く", async () => {
+    const { ctx, home } = await prepared();
+    ctx.env = { HOME: home };
+    const r = await runCommand(runStart, ctx, {
+      ticket: "t1",
+      step: "implement",
+      agent: "claude-code",
+    });
+    expect(selfIn(r.warnings)).toBe(false);
+    expect((r.data as Run).step).toBe("implement");
+  });
+
+  it("PR の要らない作業（branch なし）は、フックが届いても run start の implement・fix で警告しない", async () => {
+    const { ctx, home, parent } = await prepared();
+    ctx.env = { HOME: home, CLAUDECODE: "1", CLAUDE_CODE_SESSION_ID: SESSION };
+    await reach(ctx, parent);
+    const impl = await runCommand(runStart, ctx, {
+      ticket: "t1",
+      step: "implement",
+      agent: "claude-code",
+    });
+    expect(selfIn(impl.warnings)).toBe(false);
+    expect((impl.data as Run).step).toBe("implement");
+    const fix = await runCommand(runStart, ctx, {
+      ticket: "t2",
+      step: "fix",
+      agent: "claude-code",
+    });
+    expect(selfIn(fix.warnings)).toBe(false);
+    expect((fix.data as Run).step).toBe("fix");
+  });
+
+  it("Workflow が claim・reclaim の開く step に別の名前を付けた定義でも、その step の run start を警告する", async () => {
+    const { ctx, home, parent } = await prepared();
+    await ctx.store.writeWorkflow({
+      id: "general",
+      name: "General",
+      steps: [
+        { id: "build", label: "Build", opens_on: "claim" },
+        { id: "rework", label: "Rework", opens_on: "reclaim" },
+      ],
+    });
+    await recordBaseline(ctx.repo);
+    ctx.env = { HOME: home, CLAUDECODE: "1", CLAUDE_CODE_SESSION_ID: SESSION };
+    await runCommand(ticketClaim, ctx, {
+      no_worktree: true,
+      no_run: true,
+      ticket: "t1",
+      branch: "feat/t1",
+    });
+    await runCommand(ticketClaim, ctx, {
+      no_worktree: true,
+      no_run: true,
+      ticket: "t2",
+      branch: "feat/t2",
+    });
+    await reach(ctx, parent);
+
+    const build = await runCommand(runStart, ctx, {
+      ticket: "t1",
+      step: "build",
+      agent: "claude-code",
+    });
+    expect(selfIn(build.warnings)).toBe(true);
+    expect((build.data as Run).step).toBe("build");
+
+    const rework = await runCommand(runStart, ctx, {
+      ticket: "t2",
+      step: "rework",
+      agent: "claude-code",
+    });
+    expect(selfIn(rework.warnings)).toBe(true);
+    expect((rework.data as Run).step).toBe("rework");
+  });
+
+  it("PR のない自分の claim をもう一度 claim すると、フックが届けば brief をサブエージェントに渡す案内を、届かなければ run start の案内を CLAIM_LOST で返す", async () => {
+    const { ctx, home, parent } = await prepared();
+    ctx.env = { HOME: home, CLAUDECODE: "1", CLAUDE_CODE_SESSION_ID: SESSION };
+    await reach(ctx, parent);
+    await runCommand(ticketClaim, ctx, { no_worktree: true, ticket: "t1", branch: "feat/t1" });
+    await expect(
+      runCommand(ticketClaim, ctx, { no_worktree: true, ticket: "t1" }),
+    ).rejects.toMatchObject({
+      code: "CLAIM_LOST",
+      message: expect.stringContaining("ask a sub-agent with the brief from dg next"),
+    });
+
+    ctx.env = { HOME: home };
+    await runCommand(ticketClaim, ctx, { no_worktree: true, ticket: "t2", branch: "feat/t2" });
+    await expect(
+      runCommand(ticketClaim, ctx, { no_worktree: true, ticket: "t2" }),
+    ).rejects.toMatchObject({
+      code: "CLAIM_LOST",
+      message: expect.stringContaining("To keep implementing, use run start"),
+    });
+  });
+
+  it("PR の要らない作業（branch なし）の自分の claim をもう一度 claim すると、フックが届いていても run start の案内を CLAIM_LOST で返す", async () => {
+    const { ctx, home, parent } = await prepared();
+    ctx.env = { HOME: home, CLAUDECODE: "1", CLAUDE_CODE_SESSION_ID: SESSION };
+    await reach(ctx, parent);
+    await runCommand(ticketClaim, ctx, { ticket: "t1", without_branch: true });
+    await expect(runCommand(ticketClaim, ctx, { ticket: "t1" })).rejects.toMatchObject({
+      code: "CLAIM_LOST",
+      message: expect.stringContaining("To keep implementing, use run start"),
+    });
   });
 });
