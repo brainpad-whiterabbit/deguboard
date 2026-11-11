@@ -7,6 +7,7 @@
 import { mkdir, readdir, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { detectAgent, hooksOf, sessionFromEnv, type AgentEnv } from "../agents/index.js";
+import { REVIEW_STEP, type Run } from "../model/run.js";
 
 const HOOK_SESSIONS_DIR = "hook-sessions";
 /** 残す日数。SessionStart のたびに、これより古い記録を消す */
@@ -53,7 +54,8 @@ export async function hookReachedSession(localDir: string, session: string): Pro
 
 /**
  * フックを持つエージェントの中から呼ばれ、そのセッションにまだフックが 1 つも届いていなければ警告を返す。
- * エージェントを判定できない・フックを持たない・セッション ID を読めないときは判定できないので undefined
+ * エージェントを判定できない・フックを持たない・セッション ID を読めないときは判定できないので undefined。
+ * 見つかった警告の文は、使用量と時間は残らないが見直しの結果は残る、と知らせる（見直しは保留から記録に変わる。t702）
  */
 export async function hooksSilentWarning(
   localDir: string,
@@ -63,5 +65,30 @@ export async function hooksSilentWarning(
   if (!agent || !hooksOf(agent)) return undefined;
   const session = sessionFromEnv(env);
   if (!session || (await hookReachedSession(localDir, session))) return undefined;
-  return `No dg hook has reached this ${agent} session (${session}), so the Runs of sub-agents started with the marker will not be recorded. The command the hooks call may not run in the agent's environment (for example, node is not on its PATH). Check with dg hooks check`;
+  return `No dg hook has reached this ${agent} session (${session}), so the Runs of sub-agents started with the marker will not be recorded: their usage and time are not kept, but a review result is still kept as a review (capture: none; dg next and dg gate count it). The command the hooks call may not run in the agent's environment (for example, node is not on its PATH). Check with dg hooks check`;
+}
+
+/**
+ * フックを持つエージェントが、フックの結び付かなかった見直しの記録（capture: none。持ち主のない保留か、それを sync・pr ready が
+ * 書いたもの）を、作業ブランチ（since）の後の見直しとして数えたときに警告を返す（t702）。
+ * 見直しは数えられたが Run はフックが結ばなかった、という事実を知らせる。フックを持たない・判定できないエージェントでは
+ * その記録が正常な形なので undefined
+ */
+export function unlinkedReviewWarning(
+  env: AgentEnv,
+  ticket: string,
+  reviews: readonly Run[],
+  since: string | undefined,
+): string | undefined {
+  const { agent } = detectAgent(env);
+  if (!agent || !hooksOf(agent)) return undefined;
+  const count = reviews.filter(
+    (r) =>
+      r.step === REVIEW_STEP &&
+      r.capture === "none" &&
+      r.ticket === ticket &&
+      r.started_at >= (since ?? ""),
+  ).length;
+  if (count === 0) return undefined;
+  return `${count} review result(s) of ${ticket} were counted as review(s) with no Run linked by a dg hook (capture: none), so the hook did not record their Run and their usage and time are not kept. Check with dg hooks check`;
 }

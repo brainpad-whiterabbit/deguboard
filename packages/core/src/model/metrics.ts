@@ -100,6 +100,9 @@ export function summarizeRuns(runs: readonly Run[]): RunMetrics {
     }
     results[run.result ?? "unfinished"] += 1;
     retries += run.retries;
+    // 会話記録を取らずに作った見直しの記録（capture: none）は、見直しの回としてだけ数え、使用量と時間は集計から外す（t702）。
+    // 無いのは取れなかった値ではないので、missing にも数えない
+    if (run.capture === "none") continue;
     if (run.usage.estimated === true) estimated += 1;
     const values: Record<MetricValue, number | null> = {
       duration_seconds: runDurationSeconds(run),
