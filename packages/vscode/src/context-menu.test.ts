@@ -1,11 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import {
-  BACKLOG_ROW_COMMANDS,
-  BACKLOG_ROW_SECTION,
-  menuTicketOf,
-  ticketRoute,
-} from "./context-menu.js";
+import { WEBVIEW_CONTRACT } from "@deguboard/core";
+import { MENU_COMMANDS, MENU_SECTION, menuItemOf } from "./context-menu.js";
 
 interface Contributes {
   commands: { command: string; title: string; category?: string; icon?: string }[];
@@ -33,17 +29,15 @@ const pkg = JSON.parse(
 
 describe("package.json の右クリックのメニュー", () => {
   const { commands, menus } = pkg.contributes;
-  const ids = Object.values(BACKLOG_ROW_COMMANDS);
+  const ids = Object.values(MENU_COMMANDS);
 
-  it("「詳細を開く」「ID をコピー」をこの順で、バックログの行の webview/context に出す（「Iteration を移す」は置かない。UI-7）", () => {
+  it("「詳細を開く」「ID をコピー」をこの順で、core の WEBVIEW_CONTRACT の 1 つの webviewSection の webview/context に出す（「Iteration を移す」は置かない。UI-7）", () => {
     const items = menus["webview/context"]!.filter((m) => m.command);
-    expect(items.map((m) => m.command)).toEqual([
-      BACKLOG_ROW_COMMANDS.open,
-      BACKLOG_ROW_COMMANDS.copyId,
-    ]);
+    expect(items.map((m) => m.command)).toEqual([MENU_COMMANDS.open, MENU_COMMANDS.copyId]);
+    expect(MENU_SECTION).toBe(WEBVIEW_CONTRACT.menuSection);
     for (const item of items) {
       expect(item.when).toBe(
-        `webviewId == 'deguboard.screens' && webviewSection == '${BACKLOG_ROW_SECTION}'`,
+        `webviewId == 'deguboard.screens' && webviewSection == '${WEBVIEW_CONTRACT.menuSection}'`,
       );
     }
     expect(ids.map((id) => commands.find((c) => c.command === id)?.title)).toEqual([
@@ -51,6 +45,11 @@ describe("package.json の右クリックのメニュー", () => {
       "ID をコピー",
     ]);
     expect(commands.some((c) => c.command === "deguboard.backlog.moveIteration")).toBe(false);
+  });
+
+  it("コマンド名は場所によらない（バックログなどの場所の名前を含まない）", () => {
+    expect(ids).toEqual(["deguboard.openDetail", "deguboard.copyId"]);
+    expect(commands.filter((c) => c.command.startsWith("deguboard.backlog."))).toEqual([]);
   });
 
   it("エージェントに頼むサブメニューと deguboard.ask.<頼むこと> のコマンドは置かない（頼む入口は画面の吹き出し・Shift+F10・選択の帯。UI-15）", () => {
@@ -97,24 +96,26 @@ describe("package.json のビューのタイトル行", () => {
 });
 
 describe("メニューの引数", () => {
-  it("行の data-vscode-context からチケットを取る", () => {
-    expect(
-      menuTicketOf({
-        webviewSection: BACKLOG_ROW_SECTION,
-        ticket: "t12",
-        preventDefaultContextMenuItems: true,
-      }),
-    ).toEqual({ ticket: "t12" });
+  const contextOf = (id: string) => ({
+    webviewSection: MENU_SECTION,
+    id,
+    preventDefaultContextMenuItems: true,
   });
 
-  it("バックログの行でない・形が違う引数は undefined", () => {
-    expect(menuTicketOf(undefined)).toBeUndefined();
-    expect(menuTicketOf({ webviewSection: "other", ticket: "t1" })).toBeUndefined();
-    expect(menuTicketOf({ webviewSection: BACKLOG_ROW_SECTION })).toBeUndefined();
+  it("行・見出しの data-vscode-context から ID を取り、「ID をコピー」はその ID を、「詳細を開く」はその ID の詳細（チケット・Iteration・Epic）のルートを使う", () => {
+    expect(menuItemOf(contextOf("t12"))).toEqual({ id: "t12", route: "#/tickets/t12" });
+    expect(menuItemOf(contextOf("s3"))).toEqual({ id: "s3", route: "#/iterations/s3" });
+    expect(menuItemOf(contextOf("e2"))).toEqual({ id: "e2", route: "#/epics/e2" });
   });
 
-  it("「詳細を開く」はチケット詳細のルートを開く", () => {
-    expect(ticketRoute({ ticket: "t12" })).toBe("#/tickets/t12");
+  it("文脈の名前が違う・ID がない・詳細を開けない ID の引数は undefined", () => {
+    expect(menuItemOf(undefined)).toBeUndefined();
+    expect(menuItemOf({ webviewSection: "other", id: "t1" })).toBeUndefined();
+    // 前の名前（バックログの行だけの文脈）は受けない
+    expect(menuItemOf({ webviewSection: "backlogTicket", ticket: "t1" })).toBeUndefined();
+    expect(menuItemOf({ webviewSection: MENU_SECTION })).toBeUndefined();
+    expect(menuItemOf(contextOf("x1"))).toBeUndefined();
+    expect(menuItemOf(contextOf("t01"))).toBeUndefined();
   });
 });
 

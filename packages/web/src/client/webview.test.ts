@@ -156,8 +156,8 @@ describe("postMessage の CommandClient", () => {
 });
 
 describe("拡張と合わせる値（core の WEBVIEW_CONTRACT の写し）", () => {
-  it("バックログの行の文脈名と通知の名前は core と同じ", () => {
-    expect(WEBVIEW_CONTRACT_COPY.backlogRowSection).toBe(WEBVIEW_CONTRACT.backlogRowSection);
+  it("右クリックの文脈名・頼める場所の名前・通知の名前は core と同じ", () => {
+    expect(WEBVIEW_CONTRACT_COPY.menuSection).toBe(WEBVIEW_CONTRACT.menuSection);
     expect(Object.values(WEBVIEW_CONTRACT_COPY.askSections).sort()).toEqual(
       [...WEBVIEW_CONTRACT.askSections].sort(),
     );

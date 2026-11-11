@@ -143,10 +143,10 @@ describe("左パネルのバックログの行を複数選ぶ（UI-15）", () =>
     await screen.findByText("四つ目");
     fireEvent.click(linkOf("画面"), { ctrlKey: true });
     fireEvent.click(linkOf("四つ目"), { ctrlKey: true });
-    // 右クリックの文脈には頼む対象を載せない（「詳細を開く」「ID をコピー」の行のチケットだけ）
+    // 右クリックの文脈には選んだ全件を載せない（「詳細を開く」「ID をコピー」の行のチケットだけ）
     expect(contextOf(rowOf("四つ目"))).toEqual({
-      webviewSection: "backlogTicket",
-      ticket: "t4",
+      webviewSection: "deguboardItem",
+      id: "t4",
       preventDefaultContextMenuItems: true,
     });
     // 吹き出し

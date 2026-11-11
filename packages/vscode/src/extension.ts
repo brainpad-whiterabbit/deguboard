@@ -24,12 +24,7 @@ import {
   type WebviewEvent,
 } from "@deguboard/core";
 import * as vscode from "vscode";
-import {
-  BACKLOG_ROW_COMMANDS,
-  menuTicketOf,
-  ticketRoute,
-  type MenuTicket,
-} from "./context-menu.js";
+import { MENU_COMMANDS, menuItemOf, type MenuItem } from "./context-menu.js";
 import {
   type ApprovalItem,
   approvalItems,
@@ -137,21 +132,22 @@ export function activate(context: vscode.ExtensionContext): void {
     // 履歴で開いている行。なければ対象なし）で出す。コマンドパレットは開いているパネルの下（パネルが手前になければ左パネルの下）に、対象なしで出す
     vscode.commands.registerCommand("deguboard.ask", () => void askFromPalette()),
     vscode.commands.registerCommand("deguboard.askInSidebar", () => void askCurrentInSidebar()),
-    // 左パネルのバックログの行の右クリック（package.json の webview/context。引数は行の data-vscode-context）
-    vscode.commands.registerCommand(BACKLOG_ROW_COMMANDS.open, (arg: unknown) =>
-      withMenuTicket(arg, (folder, row) =>
+    // 左パネルのボード・バックログ・履歴のチケットの行と Iteration・Epic の見出しの右クリック
+    // （package.json の webview/context。引数は行・見出しの data-vscode-context）
+    vscode.commands.registerCommand(MENU_COMMANDS.open, (arg: unknown) =>
+      withMenuItem(arg, (folder, item) =>
         // サイドバーのリンクと同じく、フォーカスはサイドバーに残す
         openPanel(context, folder, {
           column: vscode.ViewColumn.Beside,
-          route: ticketRoute(row),
+          route: item.route,
           preserveFocus: true,
         }),
       ),
     ),
-    vscode.commands.registerCommand(BACKLOG_ROW_COMMANDS.copyId, (arg: unknown) =>
-      withMenuTicket(arg, async (_folder, row) => {
-        await copyToClipboard(row.ticket);
-        void vscode.window.setStatusBarMessage(`deguboard: ${t("Copied {0}", row.ticket)}`, 3000);
+    vscode.commands.registerCommand(MENU_COMMANDS.copyId, (arg: unknown) =>
+      withMenuItem(arg, async (_folder, item) => {
+        await copyToClipboard(item.id);
+        void vscode.window.setStatusBarMessage(`deguboard: ${t("Copied {0}", item.id)}`, 3000);
       }),
     ),
     vscode.workspace.onDidChangeWorkspaceFolders((e) => {
@@ -464,15 +460,15 @@ async function syncFolder(): Promise<void> {
   }
 }
 
-/** 右クリックのメニューの引数からチケットを取り、サイドバーのフォルダに対して動かす。取れなければ何もしない */
-async function withMenuTicket(
+/** 右クリックのメニューの引数から対象（チケット・Iteration・Epic）を取り、サイドバーのフォルダに対して動かす。取れなければ何もしない */
+async function withMenuItem(
   arg: unknown,
-  fn: (folder: vscode.WorkspaceFolder, row: MenuTicket) => Promise<void>,
+  fn: (folder: vscode.WorkspaceFolder, item: MenuItem) => Promise<void>,
 ): Promise<void> {
-  const row = menuTicketOf(arg);
+  const item = menuItemOf(arg);
   const folder = sidebarFolder;
-  if (!row || !folder) return;
-  await fn(folder, row);
+  if (!item || !folder) return;
+  await fn(folder, item);
 }
 
 /**

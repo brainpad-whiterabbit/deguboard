@@ -119,8 +119,8 @@ const MANIFEST_JA_BEFORE: Record<string, string> = {
   "command.config.title": "設定",
   "command.ask.title": "エージェントに頼む",
   "command.askInSidebar.title": "エージェントに頼む",
-  "command.backlog.openTicket.title": "詳細を開く",
-  "command.backlog.copyId.title": "ID をコピー",
+  "command.openDetail.title": "詳細を開く",
+  "command.copyId.title": "ID をコピー",
   "walkthrough.start.title": "deguboard を始める",
   "walkthrough.start.description":
     "リポジトリの初期化から、チケットを起こしてエージェントに頼むまで。",

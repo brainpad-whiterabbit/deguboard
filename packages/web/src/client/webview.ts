@@ -110,8 +110,8 @@ type Draft<T> = T extends unknown ? Omit<T, "id"> : never;
  * 同じ値であることを webview.test.ts で確かめる。画面のルートの写しは持たず、router の hrefOf が core の routes と同じハッシュを返すことを確かめる
  */
 export const WEBVIEW_CONTRACT_COPY = {
-  /** バックログの行の右クリックの文脈（data-vscode-context の webviewSection） */
-  backlogRowSection: "backlogTicket",
+  /** 右クリックの「詳細を開く」「ID をコピー」の文脈（data-vscode-context の webviewSection）。場所によらない 1 つの名前 */
+  menuSection: "deguboardItem",
   /** 頼める行・見出しの場所の種類の名前 */
   askSections: {
     boardTicket: "boardTicket",

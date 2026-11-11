@@ -92,13 +92,13 @@
         "icon": "$(comment-discussion)"
       },
       {
-        "command": "deguboard.backlog.openTicket",
-        "title": "%command.backlog.openTicket.title%",
+        "command": "deguboard.openDetail",
+        "title": "%command.openDetail.title%",
         "category": "deguboard"
       },
       {
-        "command": "deguboard.backlog.copyId",
-        "title": "%command.backlog.copyId.title%",
+        "command": "deguboard.copyId",
+        "title": "%command.copyId.title%",
         "category": "deguboard"
       }
     ],
@@ -141,23 +141,23 @@
           "when": "false"
         },
         {
-          "command": "deguboard.backlog.openTicket",
+          "command": "deguboard.openDetail",
           "when": "false"
         },
         {
-          "command": "deguboard.backlog.copyId",
+          "command": "deguboard.copyId",
           "when": "false"
         }
       ],
       "webview/context": [
         {
-          "command": "deguboard.backlog.openTicket",
-          "when": "webviewId == 'deguboard.screens' && webviewSection == 'backlogTicket'",
+          "command": "deguboard.openDetail",
+          "when": "webviewId == 'deguboard.screens' && webviewSection == 'deguboardItem'",
           "group": "2_open@1"
         },
         {
-          "command": "deguboard.backlog.copyId",
-          "when": "webviewId == 'deguboard.screens' && webviewSection == 'backlogTicket'",
+          "command": "deguboard.copyId",
+          "when": "webviewId == 'deguboard.screens' && webviewSection == 'deguboardItem'",
           "group": "9_copy@1"
         }
       ]

@@ -89,11 +89,15 @@ describe("左パネルのカンバンから頼む（UI-15）", () => {
       fireEvent.keyDown(document.activeElement!, { key: "Escape" });
       return first;
     };
-    // 行（todo で着手できる t3）。既定の右クリックのメニューだけを止める
+    // 行（todo で着手できる t3）。右クリックの文脈は「詳細を開く」「ID をコピー」の場所によらない名前と ID だけ
     const row = screen.getByText("画面").closest("[data-ask-spot]")!;
-    expect(contextOf(row)).toEqual({ preventDefaultContextMenuItems: true });
+    expect(contextOf(row)).toEqual({
+      webviewSection: "deguboardItem",
+      id: "t3",
+      preventDefaultContextMenuItems: true,
+    });
     expect(await recommended("行 t3")).toBe("進めるおすすめ");
-    // 状態の節の見出し（in_progress の節は中のチケットをまとめて）
+    // 状態の節の見出し（in_progress の節は中のチケットをまとめて）。ID がないので既定のメニューを止めるだけ
     const section = document.querySelector('.column[data-status="in_progress"] > summary')!;
     expect(contextOf(section)).toEqual({ preventDefaultContextMenuItems: true });
     expect(await recommended("状態の節 In Progress")).toBe("再開するおすすめ");
@@ -103,11 +107,34 @@ describe("左パネルのカンバンから頼む（UI-15）", () => {
         .querySelector('.column[data-status="review"] > summary')!
         .hasAttribute("data-vscode-context"),
     ).toBe(false);
-    // Iteration の見出しと Plan の帯
+    // Iteration の見出しは Iteration の ID を載せる。Plan の帯（Plan の見出し）は載せない
     const head = document.querySelector(".sidebar-head .head-line.sub")!;
-    expect(contextOf(head)).toEqual({ preventDefaultContextMenuItems: true });
+    expect(contextOf(head)).toEqual({
+      webviewSection: "deguboardItem",
+      id: "s0",
+      preventDefaultContextMenuItems: true,
+    });
     expect(await recommended("Iteration の見出し s0")).toBe("計画を立てるおすすめ");
+    const band = bubble("Plan の帯 p7").closest("[data-ask-spot]")!;
+    expect(contextOf(band)).toEqual({ preventDefaultContextMenuItems: true });
     expect(await recommended("Plan の帯 p7")).toBe("承認するおすすめ");
+  });
+
+  it("右クリックしても見出しの節は開閉しない", async () => {
+    mount(boardClient());
+    await screen.findByText("画面");
+    const details = document.querySelector<HTMLDetailsElement>(
+      '.column[data-status="in_progress"]',
+    )!;
+    const before = details.open;
+    const summary = details.querySelector("summary")!;
+    fireEvent.contextMenu(summary);
+    fireEvent.pointerDown(summary, { button: 2 });
+    fireEvent.mouseDown(summary, { button: 2 });
+    fireEvent.mouseUp(summary, { button: 2 });
+    expect(details.open).toBe(before);
+    // 右クリックは頼むことの一覧も出さない（頼む入口は吹き出し・Shift+F10）
+    expect(screen.queryByRole("menu")).toBeNull();
   });
 
   it("出ている場所の候補は 1 回の ask-menu でまとめて引き、一覧が読み直されたら引き直す", async () => {
@@ -230,13 +257,26 @@ describe("左パネルのバックログと履歴から頼む（UI-15）", () =>
     // 行：planned の Iteration の todo は計画を立てるがおすすめ。バックログの行は「詳細を開く」「ID をコピー」の文脈だけ載せる
     const row = screen.getByText("入った").closest("li")!;
     expect(contextOf(row)).toEqual({
-      webviewSection: "backlogTicket",
-      ticket: "t4",
+      webviewSection: "deguboardItem",
+      id: "t4",
       preventDefaultContextMenuItems: true,
     });
     fireEvent.click(bubble("行 t4"));
     await waitFor(() => expect(items()[0]).toBe("計画を立てるおすすめ"));
     fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+    // 区画の見出しの右クリックの文脈：Iteration の区画はその ID、「Iteration なし」は ID がないので載せない
+    const headOf = (name: string) => bubble(`区画の見出し ${name}`).closest("summary")!;
+    expect(contextOf(headOf("s1"))).toEqual({
+      webviewSection: "deguboardItem",
+      id: "s1",
+      preventDefaultContextMenuItems: true,
+    });
+    expect(contextOf(headOf("Iteration なし"))).toEqual({ preventDefaultContextMenuItems: true });
+    // 右クリックしても区画は開閉しない
+    const fold = headOf("s1").closest("details")!;
+    const before = fold.open;
+    fireEvent.contextMenu(headOf("s1"));
+    expect(fold.open).toBe(before);
     // 区画の見出し（「Iteration なし」は中のチケットをまとめて。in_progress と todo が混ざるので点検する）
     fireEvent.click(bubble("区画の見出し s1"));
     await waitFor(() => expect(items()[0]).toBe("計画を立てるおすすめ"));
@@ -266,14 +306,47 @@ describe("左パネルのバックログと履歴から頼む（UI-15）", () =>
     window.location.hash = "#/history";
     mount(client);
     await screen.findByText("終わった週");
+    // Iteration の見出しの右クリックの文脈はその ID。右クリックしても開閉しない
+    const head = bubble("Iteration s1").closest("summary")!;
+    expect(contextOf(head)).toEqual({
+      webviewSection: "deguboardItem",
+      id: "s1",
+      preventDefaultContextMenuItems: true,
+    });
+    const fold = head.closest("details")!;
+    const before = fold.open;
+    fireEvent.contextMenu(head);
+    expect(fold.open).toBe(before);
     fireEvent.click(bubble("Iteration s1"));
     await waitFor(() => expect(items()[0]).toBe("振り返るおすすめ"));
     fireEvent.keyDown(document.activeElement!, { key: "Escape" });
 
     window.location.hash = "#/history?view=ticket";
     await screen.findByText("終えた");
+    expect(contextOf(bubble("行 t1").closest("[data-ask-spot]")!)).toEqual({
+      webviewSection: "deguboardItem",
+      id: "t1",
+      preventDefaultContextMenuItems: true,
+    });
     fireEvent.click(bubble("行 t1"));
     await waitFor(() => expect(items()[0]).toBe("不具合・続きを起票するおすすめ"));
+  });
+
+  it("履歴の閉じた Epic の見出しの右クリックの文脈はその Epic の ID", async () => {
+    const client = mockClient();
+    client.data.epics[0] = {
+      ...client.data.epics[0]!,
+      status: "closed",
+      closed_at: "2026-10-31T00:00:00Z",
+    };
+    window.location.hash = "#/history?view=epic";
+    mount(client);
+    await screen.findByText("最初の版");
+    expect(contextOf(bubble("Epic e1").closest("[data-ask-spot]")!)).toEqual({
+      webviewSection: "deguboardItem",
+      id: "e1",
+      preventDefaultContextMenuItems: true,
+    });
   });
 });
 
