@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { plan, ticket } from "../test-helpers.js";
 import type { PlanRow, TicketRow } from "../types.js";
 import {
+  GRAPH_NODE_H,
   openPlanByTicket,
   planColor,
   planGraph,
@@ -110,7 +111,7 @@ describe("依存グラフ", () => {
       ["t4", 2, 0, true],
     ]);
     // 辺は待つ側の waiting に待たれる側が残れば待ち中
-    expect(g.edges.map(({ path: _path, ...e }) => e)).toEqual([
+    expect(g.edges.map(({ path: _path, entry: _entry, ...e }) => e)).toEqual([
       { from: "t1", to: "t3", done: true, kind: "after" },
       { from: "t2", to: "t4", done: false, kind: "after" },
       { from: "t3", to: "t4", done: false, kind: "after" },
@@ -141,11 +142,18 @@ describe("依存グラフ", () => {
       ["t3", 2],
       ["t4", 0],
     ]);
-    expect(g.edges.map(({ path: _path, ...e }) => e)).toEqual([
+    expect(g.edges.map(({ path: _path, entry: _entry, ...e }) => e)).toEqual([
       { from: "t1", to: "t2", done: true, kind: "depends_on" },
       { from: "t2", to: "t3", done: false, kind: "after" },
       { from: "t1", to: "t3", done: true, kind: "depends_on" },
     ]);
+    // 入口は待つ側の左の縁の上に着く（入口の丸の置き場所）
+    for (const e of g.edges) {
+      const to = g.nodes.find((n) => n.id === e.to)!;
+      expect(e.entry.x).toBe(to.x);
+      expect(e.entry.y).toBeGreaterThan(to.y);
+      expect(e.entry.y).toBeLessThan(to.y + GRAPH_NODE_H);
+    }
   });
 
   it("after と depends_on をまたぐ循環でも段の計算は止まる", () => {

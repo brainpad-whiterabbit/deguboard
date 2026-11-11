@@ -112,6 +112,8 @@ export interface GraphEdge {
   kind: "after" | "depends_on";
   /** 描く経路（SVG の path の d）。待たれる側の右の縁から、待つ側の左の縁に着く */
   path: string;
+  /** 入口の位置（待つ側の左の縁の、経路が着く点）。入口の丸を置く */
+  entry: { x: number; y: number };
 }
 
 export interface PlanGraph {
@@ -182,7 +184,11 @@ export function planGraph(plan: PlanRow, byId: ReadonlyMap<string, Ticket>): Pla
     status: byId.get(id)!.status,
     waiting: waitsOf(plan, id).length > 0,
   }));
-  const edges = links.map((e, i): GraphEdge => ({ ...e, path: layout.paths[i]! }));
+  const edges = links.map((e, i): GraphEdge => ({
+    ...e,
+    path: layout.paths[i]!,
+    entry: layout.entries[i]!,
+  }));
   return {
     nodes,
     edges,
@@ -352,9 +358,11 @@ function layoutGraph(
       start + curveTo(x1, y1, xa, lane) + ` L${r2(xb)},${r2(lane)}` + curveTo(xb, lane, x2, y2)
     );
   });
+  const entries = links.map((e, i) => ({ x: r2(xOf(e.to)), y: r2(inY.get(i)!) }));
   return {
     at: (id: string) => ({ x: xOf(id), y: yOf(id) }),
     paths,
+    entries,
     width: layerCount > 0 ? layerCount * GRAPH_NODE_W + (layerCount - 1) * COL_GAP : 0,
     height: rowOf.size > 0 ? shift + rows * GRAPH_NODE_H + (rows - 1) * ROW_GAP + bottom : 0,
   };
