@@ -1,0 +1,16 @@
+id: p105
+project: default
+tickets: [t728, t729]
+after:
+  t729:
+    - t728
+pending_approval: true
+details:
+  t728:
+    scope: 依存グラフの配置だけを変える：段の中の並びを交差の少ない順にし、入口・出口を縦に散らし、2 段以上離れた辺を行の間の溝に通し、段と行の間を広げる。矢じりと線の見た目は含めない
+    approach: plan-graph.ts の planGraph に並べ替え（重心法）と入口・出口の位置と溝の経路を計算させ、PlanGraphView は返った座標で描くだけにし、plan-band.test.tsx で配置を確かめる
+    tier: heavy
+  t729:
+    scope: 辺の見た目だけを変える：矢じりを入口の丸（待ち中は塗り・待ち終わりは中抜き）にし、done の辺とノードを薄くし、depends_on を短い破線にして凡例を合わせる
+    approach: PlanGraphView の marker と線の class を入口の丸と状態の class に置き換え、styles.css で薄さと破線を定め、plan-band.test.tsx で丸の種類と class を確かめる
+    tier: standard
