@@ -12,7 +12,7 @@ Cleanup after a PR is merged. Work that needs no PR advances to done within `dg 
 - Ticket ID: cleans up that ticket
 - Plan ID (`p3`): cleans up the tickets of that Plan whose PRs are merged
 - Iteration (`s3`): reconciles the review and in_progress tickets of that Iteration, and cleans them up
-- No target given: targets the tickets that `sync` moved to done (`reconciled`), and the review tickets assigned to you
+- No target given: shows the tickets that `sync` moved to done (`reconciled`) and the review tickets assigned to you as candidates, and asks a human which ones to clean up. Do not start on them before the answer
 
 ## Steps
 

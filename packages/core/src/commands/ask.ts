@@ -774,8 +774,8 @@ const ACTIONS: Record<AskAction, ActionDef> = {
       s.length === 0
         ? say(
             lang,
-            "リリースする Iteration を聞いてから、リリースし、リリースの PR のマージと公開の前に承認を求めてください。",
-            "Ask which Iteration to release, then release it, and ask for approval before merging the release PR and publishing.",
+            "指示の Iteration をリリースし、リリースの PR のマージと公開の前に承認を求めてください。",
+            "Release the instructed Iteration, and ask for approval before merging the release PR and publishing.",
           )
         : say(
             lang,
