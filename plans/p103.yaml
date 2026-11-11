@@ -1,0 +1,48 @@
+id: p103
+project: default
+tickets: [t713, t708, t703, t704, t705, t706, t707, t709]
+after:
+  t704:
+    - t703
+  t705:
+    - t704
+  t706:
+    - t705
+  t707:
+    - t706
+  t709:
+    - t707
+pending_approval: true
+details:
+  t713:
+    scope: フックが届くセッションでは implement と fix をいつもサブエージェントに頼む手順に guide・next・claim の警告・ADR をそろえる
+    approach: hook-sessions の判定を使って next の commands と claim の警告を変え、guide と ADR-025・029・RN-5 を書き換えてテストで確かめる
+    tier: heavy
+  t708:
+    scope: /dgdiscuss に --deep を足し、決めた観点をすべて確かめて論点のある観点だけを掘る手順を 1 つの節に書く
+    approach: guide-discuss.md の frontmatter と節を足し、guide.test.ts で雛形と節の中身を確かめる
+    tier: standard
+  t703:
+    scope: 一覧の行の左端の帯を押して 1 件ずつ選ぶ・外す（余白は足さない）
+    approach: row の左の余白を帯の当たり判定にし、selection.tsx の切り替えを呼ぶ。画面のテストで 4 か所を確かめる
+    tier: standard
+  t704:
+    scope: 左端の帯をなぞって複数の行を選ぶ・外す（マウスとペンだけ、端で自動スクロール）
+    approach: pointer イベントで帯から始めたなぞりを追い、selection.tsx にまとめて選ぶ操作を足す。画面のテストで確かめる
+    tier: standard
+  t705:
+    scope: バックログの Epic の札を ID だけにし、題と進みをツールチップに出す共用の部品にする
+    approach: EpicChip を components に移して ID だけの札にし、aria-label とツールチップを足す。UI-10 を直す
+    tier: standard
+  t706:
+    scope: カンバンの見出しに Epic の札の列を出し、漏斗は担当だけにする
+    approach: t705 の札の部品を BoardHead で使い、filterSelects と FilterChips から Epic を外す。UI-2 を直す
+    tier: standard
+  t707:
+    scope: カンバンとバックログの行の番号の下に PR のリンクを出す
+    approach: TicketRow の番号の列に PrLink を 2 段目で置き、行のリンクの外に出して tabIndex=-1 にする。UI-2 を直す
+    tier: standard
+  t709:
+    scope: ボード・履歴の行と Iteration・Epic の見出しにも右クリックの詳細を開く・ID をコピーを出す
+    approach: webviewSection を場所によらない名前にし、WEBVIEW_CONTRACT と package.json のコマンド名をそろえ、各行と見出しに文脈を載せる
+    tier: heavy
