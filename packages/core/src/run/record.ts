@@ -73,6 +73,15 @@ export async function takePendingReview(
   ticket: TicketId,
   since: string,
 ): Promise<RunReview | undefined> {
+  return (await takePendingReviewEntry(repo, ticket, since))?.review;
+}
+
+/** takePendingReview と同じく取り出して消し、置いた時刻も返す（時刻で記録より後の結果かを見分ける呼び出し側のため） */
+export async function takePendingReviewEntry(
+  repo: Pick<GitRepo, "localDir">,
+  ticket: TicketId,
+  since: string,
+): Promise<PendingReview | undefined> {
   const file = pendingReviewPath(repo, ticket);
   let pending: PendingReview;
   try {
@@ -83,7 +92,7 @@ export async function takePendingReview(
   // 前の回の保留（Run の開始より前に置いたもの）は使わないので消す
   await unlink(file).catch(() => undefined);
   if (typeof pending?.at !== "string" || pending.at < since || !pending.review) return undefined;
-  return pending.review;
+  return pending;
 }
 
 /**
@@ -171,13 +180,15 @@ export async function adoptPendingRounds(
   ticket: TicketId,
   run: RunId,
   since: string,
+  options: { relink?: boolean } = {},
 ): Promise<void> {
   const stored = await readReviewFindings(repo, ticket);
   if (!stored) return;
   const held = (r: ReviewRound) => r.run === null && r.at >= since;
   const latestHeld = stored.rounds.filter(held).at(-1);
   if (!latestHeld) return;
-  const owned = stored.rounds.some((r) => r.run === run);
+  // relink：Run の結果を最新の保留で置き換えるとき（t701 の引き取り）は、Run の回があっても最新の保留をその Run の回にする
+  const owned = options.relink !== true && stored.rounds.some((r) => r.run === run);
   const rounds = stored.rounds
     .filter((r) => !held(r) || (!owned && r === latestHeld))
     .map((r) => (r === latestHeld ? { ...r, run } : r));

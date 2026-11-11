@@ -601,6 +601,42 @@ describe("前景の見直し役が返ったとき、起動のフックが先に�
     expect(reviewRuns(ctx)).toHaveLength(1);
   });
 
+  it("記録を書いた後に見直し役が結果を書き直していたら（保留になる）、引き取りで記録の結果をその新しい結果に置き換え、回もその記録に結び付ける", async () => {
+    const { ctx, parent } = await withTranscripts();
+    // later(2) に重い指摘で書き、sync が記録にした後、later(2.5) に通った結果で呼び直す（結果のある閉じた記録には書けず保留）
+    await hold(ctx, later(2), true);
+    await runCommand(sync, ctx, {});
+    const [record] = reviewRuns(ctx);
+    expect(record).toMatchObject({ capture: "none", review: heavy });
+    await hold(ctx, later(2.5), false);
+
+    await returned(ctx, parent, later(3), 90_000);
+    const runs = reviewRuns(ctx);
+    expect(runs).toHaveLength(1);
+    expect(runs[0]).toMatchObject({ id: record!.id, review: passed, result: "success" });
+    expect(
+      await readFile(path.join(ctx.repo.localDir, "reviews", "t1.json")).catch(() => null),
+    ).toBeNull();
+    const rounds = (await readReviewFindings(ctx.repo, "t1"))?.rounds ?? [];
+    expect(rounds.map((r) => r.run)).toEqual([record!.id, record!.id]);
+    expect(rounds.at(-1)?.review).toEqual(passed);
+    expect((await judge(ctx)).passed).toBe(true);
+  });
+
+  it("引き取りでも、開いたままの前の手直しの Run を起動の時刻を区切りに閉じる（RN-6）", async () => {
+    const { ctx, parent } = await withTranscripts();
+    ctx.now = () => later(1);
+    const fix = (
+      await runCommand(runStart, ctx, { ticket: "t1", step: "fix", agent: "claude-code" })
+    ).data as Run;
+    await hold(ctx, later(2), false);
+    await runCommand(sync, ctx, {});
+    const view = await returned(ctx, parent, later(3), 90_000);
+    expect(view.done).toContainEqual(expect.stringContaining("Took over the review record"));
+    expect(await peekRunningRuns(ctx.repo)).toEqual([]);
+    expect(ctx.store.runs.get(fix.id)?.data).toMatchObject({ step: "fix", result: "success" });
+  });
+
   it("別のセッションの記録と、起動より前に書かれた記録は引き取らず、今までどおり Run を開く", async () => {
     // 別のセッション（ほかの見直し役）が書いた結果
     const other = await withTranscripts();

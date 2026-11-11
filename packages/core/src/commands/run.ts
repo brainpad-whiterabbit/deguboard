@@ -201,8 +201,8 @@ export async function openRun(
   return { run, warnings };
 }
 
-/** closePreviousFixRun を呼び、失敗しても Run を開くのは止めずに警告にする */
-async function closePreviousFixRunOrWarn(
+/** closePreviousFixRun を呼び、失敗しても Run を開くのは止めずに警告にする（フックが見直しの記録を引き取るときも呼ぶ。t701） */
+export async function closePreviousFixRunOrWarn(
   ctx: CommandContext,
   ticket: Ticket,
   input: { step: string; session: string | undefined; startedAt: Date },
