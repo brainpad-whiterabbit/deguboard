@@ -1,6 +1,6 @@
 // 吹き出しの一覧（UI-15）。dg serve の画面を Chromium で開き、
 // カンバンとバックログの行・区画の見出し、Iteration の詳細の行の吹き出しを押すと頼むことの一覧が画面の中に出て、
-// 選ぶと入力欄が開くことと、入力欄の頼むことの札が折り返して幅に収まり、閉じるボタンが残ること、行をドラッグしても書き込みの要求を送らずデータが変わらないこと（画面から書き込むのはチケット詳細と設定画面だけ。ADR-027）を確かめる。
+// 選ぶと入力欄が開くことと、入力欄の頼むことの札が（入らなければ折り返して）幅に収まり、閉じるボタンが残ること、行をドラッグしても書き込みの要求を送らずデータが変わらないこと（画面から書き込むのはチケット詳細と設定画面だけ。ADR-027）を確かめる。
 // ブラウザが要るので mise run test には入れず、mise run test:layout で回す（先に mise run build と mise run playwright:install）
 
 import { access } from "node:fs/promises";
@@ -188,7 +188,7 @@ describe("吹き出しの一覧（UI-15）", () => {
   });
 
   it.each([WIDTH, NARROW_WIDTH])(
-    "幅 %ipx の左パネルの入力欄は頼むことの札を折り返して幅の中に収め、すべての札を選べて、閉じるボタンも残る",
+    "幅 %ipx の左パネルの入力欄は頼むことの札を（入らなければ折り返して）幅の中に収め、すべての札を選べて、閉じるボタンも残る",
     async (width) => {
       const page = await browser.newPage({ viewport: { width, height: 800 } });
       await page.goto(`${server.url}?surface=sidebar#/board`, { waitUntil: "networkidle" });
@@ -203,11 +203,15 @@ describe("吹き出しの一覧（UI-15）", () => {
       const chips = composer.locator("button.ask-suggestion");
       await expect.poll(() => chips.count()).toBeGreaterThan(1);
       const count = await chips.count();
-      // 札が 1 行に収まらず折り返した（300px でも 4 枚の札が 2 行になる）
-      const rows = new Set(
-        await chips.evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().y))),
-      );
-      expect(rows.size, "札の行の数").toBeGreaterThanOrEqual(2);
+      // 折り返すのは札が 1 行に入らないときだけなので、折り返したことは札が確実に入らない 200px で確かめる。
+      // 300px で 1 行に収まるかは札の顔ぶれと名前で決まり、in_progress の t2 の札（再開する・様子を聞く・変える・検討する・自由に）は
+      // s25 の頼むことの変更（t670〜t679）の後は 300px の 1 行に収まる。収まるときに折り返さないのは正しい画面なので、300px では幅に収まることだけを見る
+      if (width === NARROW_WIDTH) {
+        const rows = new Set(
+          await chips.evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().y))),
+        );
+        expect(rows.size, "札の行の数").toBeGreaterThanOrEqual(2);
+      }
       for (let i = 0; i < count; i++) {
         const box = (await chips.nth(i).boundingBox())!;
         expect(box.x, `札 ${i} の左端`).toBeGreaterThanOrEqual(0);
