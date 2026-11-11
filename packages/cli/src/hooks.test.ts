@@ -41,7 +41,7 @@ const settingsOf = async (file: string) =>
   >;
 
 describe("dg hooks install / uninstall（AG-9）", () => {
-  it("install はリポジトリの .claude/settings.json に 7 つのイベントのフックを書き、もう一度実行しても重ねず、手で足したフックとほかの設定を残す", async () => {
+  it("install --shared はリポジトリの追跡する .claude/settings.json に、PATH の dg を呼ぶ 7 つのイベントのフックを書き、もう一度実行しても重ねず、手で足したフックとほかの設定を残す", async () => {
     const cwd = await repo();
     const file = path.join(cwd, ".claude", "settings.json");
     await mkdir(path.dirname(file), { recursive: true });
@@ -53,8 +53,8 @@ describe("dg hooks install / uninstall（AG-9）", () => {
         hooks: { SessionStart: [{ hooks: [mine] }] },
       }),
     );
-    expect((await dg(cwd, ["hooks", "install"])).code).toBe(0);
-    const again = await dg(cwd, ["hooks", "install"]);
+    expect((await dg(cwd, ["hooks", "install", "--shared"])).code).toBe(0);
+    const again = await dg(cwd, ["hooks", "install", "--shared"]);
     expect(again.out).toContain("No change");
     const settings = await settingsOf(file);
     expect(settings["permissions"]).toEqual({ allow: ["Bash(ls)"] });
@@ -81,11 +81,75 @@ describe("dg hooks install / uninstall（AG-9）", () => {
     );
   });
 
+  it("既定の install は、追跡しない .claude/settings.local.json に、動いている node と dg.js の実パスを引用した命令で書く（t698）", async () => {
+    const cwd = await repo();
+    expect((await dg(cwd, ["hooks", "install"])).code).toBe(0);
+    const settings = await settingsOf(path.join(cwd, ".claude", "settings.local.json"));
+    const script = await realpath(path.resolve(import.meta.dirname, "..", "bin", "dg.js"));
+    expect(settings.hooks["SessionStart"]).toEqual([
+      {
+        hooks: [
+          {
+            type: "command",
+            command: `"${process.execPath}" "${script}" --actor agent hook SessionStart --payload -`,
+          },
+        ],
+      },
+    ]);
+    await expect(readFile(path.join(cwd, ".claude", "settings.json"), "utf8")).rejects.toThrow();
+  });
+
+  it("既定の install は、書いたファイルを git が無視していなければ警告し、無視していれば警告しない（t698）", async () => {
+    const cwd = await repo();
+    const notIgnored = JSON.parse((await dg(cwd, ["--json", "hooks", "install"])).out) as {
+      warnings: string[];
+    };
+    expect(notIgnored.warnings).toContainEqual(expect.stringContaining("is not ignored by git"));
+    await writeFile(path.join(cwd, ".gitignore"), ".claude/settings.local.json\n");
+    const ignored = JSON.parse((await dg(cwd, ["--json", "hooks", "install"])).out) as {
+      warnings: string[];
+    };
+    expect(ignored.warnings).toEqual([]);
+  });
+
+  it("追跡する .claude/settings.json に dg のフックが残っていれば、既定の install が警告する。手で足したフックだけなら警告しない（t698）", async () => {
+    const cwd = await repo();
+    await writeFile(path.join(cwd, ".gitignore"), ".claude/settings.local.json\n");
+    const shared = path.join(cwd, ".claude", "settings.json");
+    await mkdir(path.dirname(shared), { recursive: true });
+    await writeFile(
+      shared,
+      JSON.stringify({ hooks: { Stop: [{ hooks: [{ type: "command", command: "echo mine" }] }] } }),
+    );
+    const mine = JSON.parse((await dg(cwd, ["--json", "hooks", "install"])).out) as {
+      warnings: string[];
+    };
+    expect(mine.warnings).toEqual([]);
+
+    await dg(cwd, ["hooks", "install", "--shared"]);
+    const both = JSON.parse((await dg(cwd, ["--json", "hooks", "install"])).out) as {
+      warnings: string[];
+    };
+    expect(both.warnings).toContainEqual(expect.stringContaining("dg hooks uninstall --shared"));
+    await dg(cwd, ["hooks", "uninstall", "--shared"]);
+    const after = JSON.parse((await dg(cwd, ["--json", "hooks", "install"])).out) as {
+      warnings: string[];
+    };
+    expect(after.warnings).toEqual([]);
+  });
+
+  it("--personal と --shared は一緒に渡せない", async () => {
+    const cwd = await repo();
+    const r = await dg(cwd, ["hooks", "install", "--personal", "--shared"]);
+    expect(r.code).toBe(2);
+    expect(r.err).toContain("cannot be given together");
+  });
+
   it("--command で dg を呼ぶコマンドを変えると、前の dg のフックを入れ替える", async () => {
     const cwd = await repo();
     await dg(cwd, ["hooks", "install"]);
     await dg(cwd, ["hooks", "install", "--command", "npx deguboard"]);
-    const settings = await settingsOf(path.join(cwd, ".claude", "settings.json"));
+    const settings = await settingsOf(path.join(cwd, ".claude", "settings.local.json"));
     expect(settings.hooks["SessionEnd"]).toEqual([
       {
         hooks: [
@@ -97,7 +161,7 @@ describe("dg hooks install / uninstall（AG-9）", () => {
 
   it("uninstall は dg のフックだけを外し、手で足したフックは残す。--dry-run は書かない", async () => {
     const cwd = await repo();
-    const file = path.join(cwd, ".claude", "settings.json");
+    const file = path.join(cwd, ".claude", "settings.local.json");
     await dg(cwd, ["hooks", "install"]);
     const settings = await settingsOf(file);
     settings.hooks["SessionEnd"]!.push({ hooks: [{ type: "command", command: "echo bye" }] });
@@ -162,7 +226,7 @@ describe("dg hook の失敗", () => {
     await mkdir(path.dirname(file), { recursive: true });
     const theirs = { type: "command", command: "my-tool hook x --payload -" };
     await writeFile(file, JSON.stringify({ hooks: { SessionEnd: [{ hooks: [theirs] }] } }));
-    await dg(cwd, ["hooks", "uninstall"]);
+    await dg(cwd, ["hooks", "uninstall", "--shared"]);
     expect((await settingsOf(file)).hooks["SessionEnd"]).toEqual([{ hooks: [theirs] }]);
   });
 });
@@ -210,10 +274,30 @@ describe("dg hooks check（AG-9・t542）", () => {
     // ハンドラが動いても、まだ届いていないことだけは警告に残る（下の t697 のテスト）
     expect(ok.warnings).toEqual([expect.stringContaining("never received")]);
 
-    await dg(cwd, ["hooks", "install", "--command", "/nonexistent/dg-for-test"]);
+    // 絶対パスでない名前は PATH から探す（なくなった絶対パスは gone で、下の t698 のテスト）
+    await dg(cwd, ["hooks", "install", "--command", "dg-for-test-not-on-path"]);
     const broken = await checkOf(cwd);
     expect(broken.data.events.every((e) => e.handler === "missing")).toBe(true);
     expect(broken.warnings).toContainEqual(expect.stringContaining("not found"));
+  });
+
+  it("既定の install が書いた引用した絶対パスの命令を確かめられ、node か dg.js のパスがなくなっていれば名前を出して警告する（t698）", async () => {
+    const cwd = await repo();
+    await dg(cwd, ["hooks", "install"]);
+    const ok = await checkOf(cwd);
+    expect(ok.data.events.every((e) => e.installed && e.handler === "ok")).toBe(true);
+
+    const home = await tempHome();
+    const gone = path.join(home, "node-24.0.0", "bin", "node");
+    await dg(cwd, ["hooks", "install", "--command", `"${gone}" "${path.join(home, "dg.js")}"`]);
+    const broken = await checkOf(cwd);
+    expect(broken.data.events.every((e) => e.handler === "gone")).toBe(true);
+    expect(broken.warnings).toContainEqual(
+      expect.stringMatching(
+        new RegExp(`${gone.replaceAll(/[.*+?^${}()|[\]\\]/g, "\\$&")}.*no longer exists`),
+      ),
+    );
+    expect(broken.warnings).toContainEqual(expect.stringContaining("Run dg hooks install again"));
   });
 
   it("シェルの書き方を含むハンドラは、確かめられないと報告して警告する", async () => {
@@ -249,7 +333,7 @@ describe("dg hooks check（AG-9・t542）", () => {
   it("設定が一部だけ入っているときは、入っていないイベントを名前で警告する", async () => {
     const cwd = await repo();
     await dg(cwd, ["hooks", "install", "--command", process.execPath]);
-    const file = path.join(cwd, ".claude", "settings.json");
+    const file = path.join(cwd, ".claude", "settings.local.json");
     const settings = await settingsOf(file);
     delete settings.hooks["SessionEnd"];
     await writeFile(file, JSON.stringify(settings));

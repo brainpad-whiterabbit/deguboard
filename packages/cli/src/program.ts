@@ -24,7 +24,13 @@ import { parse as parseYaml } from "yaml";
 import { toErrorView, type ErrorView } from "./errors.js";
 import { GUIDE_TOPICS, renderGuide } from "./guide.js";
 import { installSkill, skillInstallWarnings } from "./skill.js";
-import { checkHooks, installHooks, uninstallHooks, type HandlerStatus } from "./hooks.js";
+import {
+  checkHooks,
+  hookScope,
+  installHooks,
+  uninstallHooks,
+  type HandlerStatus,
+} from "./hooks.js";
 import { addServeCommands } from "./serve.js";
 import { bindInputs, collectInput, shapesOf } from "./options.js";
 import {
@@ -244,7 +250,7 @@ export function buildProgram(options: ProgramOptions = {}): Command {
       .command(action)
       .description(
         action === "install"
-          ? "Write hooks that call dg hook into the Claude Code settings (<repository>/.claude/settings.json). Check whether they are installed and working with dg hooks check. Sets the actor to agent; for a sub-agent whose prompt starts with the marker `deguboard: ticket=<id> step=<step>`, opens a Run when it starts and closes it when the step ends. Rejects gh pr merge and gh pr ready when run outside dg (dg pr merge and dg pr ready call them after dg gate passes), writes to .git/deguboard/, and Bash that contains .git/deguboard. When a response ends (Stop) and a change to the data made outside dg is found, it tells the agent to keep going and reports it. Running it again does not duplicate entries; hooks added by hand are kept"
+          ? "Write hooks that call dg hook into the Claude Code settings. By default they go to <repository>/.claude/settings.local.json (not tracked by git), and call the node running this dg and its dg.js by absolute paths, so they work even when the agent's PATH has no node or dg (run it again after upgrading or moving node; dg hooks check warns). Warns if that file is not ignored by git, or if the tracked .claude/settings.json also has dg hooks. With --shared, writes to the tracked .claude/settings.json and calls dg on PATH. Check whether they are installed and working with dg hooks check. Sets the actor to agent; for a sub-agent whose prompt starts with the marker `deguboard: ticket=<id> step=<step>`, opens a Run when it starts and closes it when the step ends. Rejects gh pr merge and gh pr ready when run outside dg (dg pr merge and dg pr ready call them after dg gate passes), writes to .git/deguboard/, and Bash that contains .git/deguboard. When a response ends (Stop) and a change to the data made outside dg is found, it tells the agent to keep going and reports it. Running it again does not duplicate entries; hooks added by hand are kept"
           : "Remove only dg's hooks from the Claude Code settings. Hooks added by hand are kept",
       )
       .option(
@@ -252,47 +258,58 @@ export function buildProgram(options: ProgramOptions = {}): Command {
         "Write to the personal settings (~/.claude/settings.json) instead of the repository",
       )
       .option(
+        "--shared",
+        "Write to the repository's tracked settings (.claude/settings.json) instead of .claude/settings.local.json",
+      )
+      .option(
         "--command <cmd>",
-        "The command hooks use to call dg. Defaults to dg. If dg is not on PATH, use npx deguboard or similar (install only)",
+        "The command hooks use to call dg (install only). Defaults to the absolute paths of node and dg.js (dg with --shared)",
       )
       .option("--dry-run", "Write nothing; print the whole settings that would be written")
       .exitOverride()
       .configureOutput(program.configureOutput())
-      .action(async (opts: { personal?: boolean; command?: string; dryRun?: boolean }) => {
-        const global = program.opts<{ json?: boolean; C?: string }>();
-        try {
-          const base = {
-            cwd: resolve(options.cwd ?? process.cwd(), global.C ?? "."),
-            scope: opts.personal ? ("personal" as const) : ("project" as const),
-            env,
-            dryRun: opts.dryRun ?? false,
-          };
-          const result =
-            action === "install"
-              ? await installHooks({ ...base, command: opts.command })
-              : await uninstallHooks(base);
-          if (global.json)
-            streams.out(
-              JSON.stringify({ ok: true, data: result, warnings: [], write: null }, null, 2),
-            );
-          else {
-            if (result.dryRun) streams.out("--dry-run: nothing was written");
-            streams.out(`Settings file: ${result.file}`);
-            streams.out(
-              result.unchanged
-                ? "No change"
-                : `${action === "install" ? "Installed" : "Removed"}: ${result.events.join(", ")}`,
-            );
-            if (result.content) streams.out(`\n${result.content}`);
+      .action(
+        async (opts: {
+          personal?: boolean;
+          shared?: boolean;
+          command?: string;
+          dryRun?: boolean;
+        }) => {
+          const global = program.opts<{ json?: boolean; C?: string }>();
+          try {
+            const base = {
+              cwd: resolve(options.cwd ?? process.cwd(), global.C ?? "."),
+              scope: hookScope(opts),
+              env,
+              dryRun: opts.dryRun ?? false,
+            };
+            const result =
+              action === "install"
+                ? await installHooks({ ...base, command: opts.command })
+                : await uninstallHooks(base);
+            const { warnings, ...data } = result;
+            if (global.json)
+              streams.out(JSON.stringify({ ok: true, data, warnings, write: null }, null, 2));
+            else {
+              if (data.dryRun) streams.out("--dry-run: nothing was written");
+              streams.out(`Settings file: ${data.file}`);
+              streams.out(
+                data.unchanged
+                  ? "No change"
+                  : `${action === "install" ? "Installed" : "Removed"}: ${data.events.join(", ")}`,
+              );
+              if (data.content) streams.out(`\n${data.content}`);
+              for (const w of warnings) streams.err(`Warning: ${w}`);
+            }
+            process.exitCode = 0;
+          } catch (error) {
+            const view = toErrorView(error);
+            if (global.json) printJsonError(streams, view);
+            else printError(streams, view);
+            process.exitCode = view.exitCode;
           }
-          process.exitCode = 0;
-        } catch (error) {
-          const view = toErrorView(error);
-          if (global.json) printJsonError(streams, view);
-          else printError(streams, view);
-          process.exitCode = view.exitCode;
-        }
-      });
+        },
+      );
   }
 
   hooksCmd
@@ -304,14 +321,18 @@ export function buildProgram(options: ProgramOptions = {}): Command {
       "--personal",
       "Check the personal settings (~/.claude/settings.json) instead of the repository",
     )
+    .option(
+      "--shared",
+      "Check the repository's tracked settings (.claude/settings.json) instead of .claude/settings.local.json",
+    )
     .exitOverride()
     .configureOutput(program.configureOutput())
-    .action(async (opts: { personal?: boolean }) => {
+    .action(async (opts: { personal?: boolean; shared?: boolean }) => {
       const global = program.opts<{ json?: boolean; C?: string }>();
       try {
         const { warnings, ...data } = await checkHooks({
           cwd: resolve(options.cwd ?? process.cwd(), global.C ?? "."),
-          scope: opts.personal ? "personal" : "project",
+          scope: hookScope(opts),
           env,
         });
         if (global.json)
@@ -323,6 +344,7 @@ export function buildProgram(options: ProgramOptions = {}): Command {
             timeout: "handler timed out",
             failed: "handler exited abnormally",
             unverified: "handler cannot be verified",
+            gone: "handler path no longer exists",
           };
           streams.out(`Settings file: ${data.file}`);
           for (const e of data.events) {

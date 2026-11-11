@@ -309,6 +309,7 @@ export const claudeCodeHooks: HookSupport = {
     { event: "SessionEnd" },
   ],
   settings: {
+    local: (topLevel) => path.join(topLevel, ".claude", "settings.local.json"),
     project: (topLevel) => path.join(topLevel, ".claude", "settings.json"),
     personal: (env) => path.join(claudeConfigDir(env), "settings.json"),
   },
