@@ -1080,8 +1080,9 @@ button.link:hover {
   stroke: var(--dg-warning);
   stroke-opacity: 1;
 }
-/* 両端が done の辺と入口の丸は薄くする */
-.plan-graph-edge-done {
+/* 両端が done の辺と、その入口の丸は薄くする */
+.plan-graph-edge-done,
+.plan-graph-entry-done {
   opacity: 0.35;
 }
 .plan-node {
@@ -1157,7 +1158,8 @@ button.link:hover {
 .plan-graph-edge.related {
   stroke-opacity: 1;
 }
-.plan-graph-edge-done.related {
+.plan-graph-edge-done.related,
+.plan-graph-entry-done.related {
   opacity: 1;
 }
 .plan-graph-legend {

@@ -10,6 +10,7 @@ import { actorLabel, type PlanRow, type Ticket, type TicketRow } from "../types.
 import { ASK_SECTIONS, useAskSpot } from "./ask-menu.js";
 import { DetailLink, ProgressBar, StatusDot, TicketLink } from "./parts.js";
 import {
+  GRAPH_ENTRY_R,
   GRAPH_NODE_H,
   GRAPH_NODE_W,
   PLAN_STATE_LABELS,
@@ -233,6 +234,8 @@ export function PlanGraphView({
             // 両端が done の辺は薄く描く（残りの道だけを目立たせる）
             const finished = status.get(e.from) === "done" && status.get(e.to) === "done";
             const cls = `${e.done ? "" : " plan-graph-edge-pending"}${finished ? " plan-graph-edge-done" : ""}${lit ? " related" : ""}`;
+            // 丸は待ちの状態を塗りで示すだけ。辺の class（線の色・太さ）は写さず、薄く・強調する class だけを付ける
+            const entryCls = `${e.done ? "" : " plan-graph-entry-pending"}${finished ? " plan-graph-entry-done" : ""}${lit ? " related" : ""}`;
             return (
               <g key={`${e.from}-${e.to}`}>
                 <path
@@ -242,8 +245,8 @@ export function PlanGraphView({
                 <circle
                   cx={e.entry.x}
                   cy={e.entry.y}
-                  r={2}
-                  className={`plan-graph-entry${e.done ? "" : " plan-graph-entry-pending"}${cls}`}
+                  r={GRAPH_ENTRY_R}
+                  className={`plan-graph-entry${entryCls}`}
                 />
               </g>
             );
@@ -289,7 +292,7 @@ export function PlanGraphView({
               <svg width="24" height="6" aria-hidden="true">
                 <line x1="0" y1="3" x2="20" y2="3" className={`plan-graph-edge${cls}`} />
                 {entry === undefined ? null : (
-                  <circle cx="20" cy="3" r="2" className={`plan-graph-entry${entry}`} />
+                  <circle cx="20" cy="3" r={GRAPH_ENTRY_R} className={`plan-graph-entry${entry}`} />
                 )}
               </svg>
               {label}

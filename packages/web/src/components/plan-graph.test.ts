@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { plan, ticket } from "../test-helpers.js";
 import type { PlanRow, TicketRow } from "../types.js";
 import {
+  GRAPH_ENTRY_R,
   GRAPH_NODE_H,
   openPlanByTicket,
   planColor,
@@ -147,10 +148,11 @@ describe("依存グラフ", () => {
       { from: "t2", to: "t3", done: false, kind: "after" },
       { from: "t1", to: "t3", done: true, kind: "depends_on" },
     ]);
-    // 入口は待つ側の左の縁の上に着く（入口の丸の置き場所）
+    // 入口の丸は待つ側の左の縁の外に、半径と 1px の隙間を空けて置く（ノードに隠れないよう）
     for (const e of g.edges) {
       const to = g.nodes.find((n) => n.id === e.to)!;
-      expect(e.entry.x).toBe(to.x);
+      expect(e.entry.x).toBe(to.x - GRAPH_ENTRY_R - 1);
+      expect(e.entry.x + GRAPH_ENTRY_R).toBeLessThan(to.x);
       expect(e.entry.y).toBeGreaterThan(to.y);
       expect(e.entry.y).toBeLessThan(to.y + GRAPH_NODE_H);
     }

@@ -7,6 +7,7 @@ import type { Route } from "../router.js";
 import { StoreProvider } from "../store.js";
 import { boardFixture, iteration, mockClient, plan, ticket } from "../test-helpers.js";
 import { createUiState, memoryBackend } from "../ui-state.js";
+import { GRAPH_ENTRY_R } from "./plan-graph.js";
 
 afterEach(() => {
   cleanup();
@@ -184,9 +185,9 @@ describe("実行計画の帯", () => {
     );
     expect(d).toHaveLength(5);
     const end = (path: string) => path.split(" ").at(-1)!.split(",").map(Number);
-    // t5 に入る 3 本は、ノードの左の縁の別々の高さに着く
+    // t5 に入る 3 本は、入口の丸（t5 の左の縁の外）の別々の高さに着く
     const into5 = d.slice(2).map(end);
-    expect(into5.every(([x]) => x === left("t5"))).toBe(true);
+    expect(into5.every(([x]) => x === left("t5") - GRAPH_ENTRY_R - 1)).toBe(true);
     expect(new Set(into5.map(([, y]) => y)).size).toBe(3);
     for (const [, y] of into5) {
       expect(y).toBeGreaterThan(top("t5"));
@@ -212,7 +213,7 @@ describe("実行計画の帯", () => {
     expect(nodeOf("t2").classList.contains("related")).toBe(false);
   });
 
-  it("depends_on だけでつながった組は点線の辺で描き、凡例に出す", async () => {
+  it("depends_on だけでつながった組は破線の辺で描き、凡例に出す", async () => {
     const host = hostOf();
     const client = mockClient(boardFixture());
     client.data.tickets = client.data.tickets.map((t) =>
@@ -264,8 +265,21 @@ describe("実行計画の帯", () => {
     expect(graph.querySelectorAll("circle.plan-graph-entry-pending")).toHaveLength(2);
     // 両端が done の辺（t1→t2）と、その入口の丸と、done のノードは薄く描く
     expect(graph.querySelectorAll("path.plan-graph-edge-done")).toHaveLength(1);
-    expect(graph.querySelectorAll("circle.plan-graph-edge-done")).toHaveLength(1);
+    expect(graph.querySelectorAll("circle.plan-graph-entry-done")).toHaveLength(1);
     expect(document.querySelectorAll(".plan-node.status-done")).toHaveLength(2);
+    // 入口の丸は辺の状態の class を持たず（線の数の選択子に数えない）、どのノードにも重ならない
+    expect(graph.querySelectorAll("circle.plan-graph-edge-pending")).toHaveLength(0);
+    const nodeBoxes = [...document.querySelectorAll<HTMLElement>("a.plan-node")].map((a) => {
+      const left = parseFloat(a.style.left);
+      return [left, left + parseFloat(a.style.width)] as const;
+    });
+    for (const c of graph.querySelectorAll("circle.plan-graph-entry")) {
+      const cx = Number(c.getAttribute("cx"));
+      const r = Number(c.getAttribute("r"));
+      for (const [left, right] of nodeBoxes) {
+        expect(cx + r <= left || cx - r >= right).toBe(true);
+      }
+    }
     // depends_on は待ちの状態によらず破線、after は実線
     expect(graph.querySelectorAll("path.plan-graph-edge-depends")).toHaveLength(2);
     expect(
