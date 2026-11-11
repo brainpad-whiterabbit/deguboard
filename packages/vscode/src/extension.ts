@@ -491,7 +491,7 @@ async function openPanel(
       name: "navigate",
       hash: route,
     } satisfies WebviewEvent);
-    void retitle(existing, folder, route);
+    retitle(existing, folder, route);
     existing.reveal(undefined, options.preserveFocus);
     return;
   }
@@ -503,7 +503,7 @@ async function openPanel(
   );
   panels.set(key, panel);
   panel.onDidDispose(() => panels.delete(key));
-  void retitle(panel, folder, route);
+  retitle(panel, folder, route);
   await attach(context, panel.webview, folder, {
     surface: "panel",
     route,
@@ -520,36 +520,9 @@ async function openPanel(
   });
 }
 
-/** パネルの題。チケットや Iteration の詳細を出しているときは「t12 タイトル」「s3 名前」（Plan は「p5」）にしてエディタのタブで見分けられるようにする（ヘッダーを出さないので。UI-12） */
-async function retitle(
-  panel: vscode.WebviewPanel,
-  folder: vscode.WorkspaceFolder,
-  route: string,
-): Promise<void> {
-  const subject = detailOfRoute(route);
-  if (!subject) {
-    panel.title = panelTitle(folder);
-    return;
-  }
-  panel.title = subject.id;
-  // Plan には名前がないので、題は番号だけにする
-  if (subject.kind === "plan") return;
-  try {
-    const client = clientFor(folder);
-    const name =
-      subject.kind === "ticket"
-        ? (await client.run<{ title: string }>("ticket.show", { ticket: subject.id })).data.title
-        : subject.kind === "epic"
-          ? (await client.run<{ title: string }>("epic.show", { epic: subject.id })).data.title
-          : // iteration.show は持ち越しのある閉じた Iteration で履歴を全件読むので、名前だけなら list で読む
-            (await client.run<{ id: string; name: string }[]>("iteration.list", {})).data.find(
-              (i) => i.id === subject.id,
-            )?.name;
-    // 読んでいる間に別の画面へ移っていたら上書きしない
-    if (panel.title === subject.id) panel.title = name ? `${subject.id} ${name}` : subject.id;
-  } catch {
-    // 題が番号だけになるだけで、画面は Webview が自分で読む
-  }
+/** パネルの題。詳細を出しているときは ID（t12・s3・e2・p5）だけにする。題や名前まで付けるとタブが長くなるので（ヘッダーを出さないので、ID でタブを見分ける。UI-12） */
+function retitle(panel: vscode.WebviewPanel, folder: vscode.WorkspaceFolder, route: string): void {
+  panel.title = detailOfRoute(route)?.id ?? panelTitle(folder);
 }
 
 interface AttachOptions {
