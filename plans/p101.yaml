@@ -1,0 +1,29 @@
+id: p101
+project: default
+tickets: [t699, t700, t701, t702]
+after:
+  t700:
+    - t699
+  t701:
+    - t700
+  t702:
+    - t699
+    - t700
+pending_approval: true
+details:
+  t699:
+    scope: next の段階と gate の review・fix_rounds が持ち主のない保留を見直しとして数えるところまでで、Git に書くことと警告の文は含まない
+    approach: "持ち主のない保留を判定して見直しとして返す関数を 1 つ置き、next と gate が同じ関数を読み、どちらも write: false のまま保つ"
+    tier: heavy
+  t700:
+    scope: "sync と pr ready が持ち主のない保留を capture: none の閉じた見直しの Run として書くところまでで、フックの引き取りと指標は含まない"
+    approach: t699 の判定の関数を書く側でも使い、結果を書いた時刻で Run を作って保留を消し、ほかの Run の形は変えない
+    tier: heavy
+  t701:
+    scope: 起動の戻りのフックが、同じチケット・同じセッションで起動より後に書かれた見直しの記録を引き取るところだけ
+    approach: "起動のフックが Run を開く前に引き取れる記録を探し、あれば新しく開かずに会話記録を結んで capture: none を外す"
+    tier: heavy
+  t702:
+    scope: フックが届かないときの警告の文・持ち主のない保留を数えたときの警告・lint の除外・metrics の集計からの除外
+    approach: "capture: none の記録の有無を lint と metrics の判定に足し、警告の文は hooksSilentWarning と next・gate で直す"
+    tier: standard
