@@ -235,8 +235,9 @@ describe("行の番号の下の PR のリンク（UI-2）", () => {
       // 左端は帯（幅 6px。帯は行の左端で選ぶ）の外の余白から見る
       for (const x of [cell.x + 6.5, cell.x + cell.width / 2, cell.x + cell.width - 3]) {
         const inCell = await page.evaluate(
-          ([px, py]) => document.elementFromPoint(px, py)?.closest(".row-pr") != null,
-          [x, y],
+          ({ px, py }: { px: number; py: number }) =>
+            document.elementFromPoint(px, py)?.closest(".row-pr") != null,
+          { px: x, py: y },
         );
         expect(inCell, `2 段目の x=${Math.round(x)} は欄が受ける`).toBe(true);
         await page.mouse.click(x, y);
