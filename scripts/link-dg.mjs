@@ -1,5 +1,5 @@
 // dg を ~/.local/bin/dg にリンクする。mise run dg:link から pnpm run link:dg で呼ぶ（t668）。
-// .claude/settings.json のフックは PATH の dg を呼ぶので、dg が PATH になければフックは動かない（dg hooks check が not found と警告する）。
+// 端末からほかのリポジトリでも dg を呼ぶためのもの。フックは dg hooks install が node と dg.js の絶対パスで書くので、このリンクに頼らない（t698）。
 // リンク先はこのリポジトリの packages/cli/bin/dg.js の絶対パス。一度張れば、git pull のあとの mise run install で更新される。
 // clone を移したときは張り直す。既存が通常のファイルなら消さずに止める（ほかの dg を壊さない）。既存のリンクは張り替える（ln -sf と同じ）。
 // 置き場所は os.homedir() の下（HOME で変わる。テストは一時ディレクトリの HOME で確かめる）。
@@ -54,5 +54,5 @@ if (!onPath) {
   );
 }
 console.log(
-  "link-dg: 確かめるには dg hooks check を実行する（フックが呼ぶ dg が PATH にあるかを見る）",
+  "link-dg: 確かめるには新しい端末で dg --version を実行する（フックはこのリンクに頼らない。mise run dg -- hooks install で入れる）",
 );

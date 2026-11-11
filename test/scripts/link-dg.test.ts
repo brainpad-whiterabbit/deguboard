@@ -57,7 +57,7 @@ describe("mise run dg:link（link-dg.mjs）", () => {
     expect(first.code).toBe(0);
     expect(await readlink(link)).toBe(TARGET);
     expect(first.stdout).toContain("を張った");
-    expect(first.stdout).toContain("dg hooks check");
+    expect(first.stdout).toContain("dg --version");
     expect(first.stdout).not.toContain("PATH にない");
 
     const second = await run(`${bin}:/usr/bin:/bin`);

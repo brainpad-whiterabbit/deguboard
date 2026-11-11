@@ -120,8 +120,16 @@ export type HookEvent =
 export interface HookSupport {
   /** 設定に入れるフック。event は製品のイベント名、matcher はその製品の matcher（省けばすべて） */
   events: ReadonlyArray<{ event: string; matcher?: string }>;
-  /** フックを書く設定のファイル。project はリポジトリ（topLevel は作業ツリーの最上位）、personal は個人 */
-  settings: { project(topLevel: string): string; personal(env: AgentEnv): string };
+  /**
+   * フックを書く設定のファイル。topLevel は作業ツリーの最上位。local はリポジトリの中で git が追跡しないこのマシンの設定
+   * （dg hooks install の既定。命令にこのマシンの node と dg.js の絶対パスを書くので、追跡する project には書かない。t698）、
+   * project はリポジトリの追跡する設定（チームで共有）、personal は個人の設定
+   */
+  settings: {
+    local(topLevel: string): string;
+    project(topLevel: string): string;
+    personal(env: AgentEnv): string;
+  };
   /**
    * 入力のうち dg が読む項目（JSON のドット区切りのパス）。dg hook が受け取るたびに有無を記録し、dg hooks check が欠けを警告する（t542）。
    * 項目はイベント（とツール）で決まる。扱わないイベントは空。製品が入力の形を変えたら、ここと parse を直す

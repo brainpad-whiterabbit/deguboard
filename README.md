@@ -35,7 +35,7 @@ Prerequisites: Linux or macOS, Git 2.30 or later, and Node.js 24 or later. To re
    dg hooks install
    ```
 
-   `dg hooks install` adds Claude Code hooks that mark the session as an agent and record the subagents you start with a first line `deguboard: ticket=<id> step=<step>` as Runs. The hooks also refuse to mark a PR ready or merge it outside `dg`, and to edit `.git/deguboard/` directly. Confirm with `dg hooks check` in a new session that dg receives them: if the command the hooks call cannot run in Claude Code's environment, it warns, and so do `dg next`, `dg brief`, and `dg ticket claim --no-run`. Other agents that can use a shell (Codex, Copilot CLI, and others) need no setup. Just ask them to "read `dg guide` and proceed with `dg`".
+   `dg hooks install` writes Claude Code hooks to `.claude/settings.local.json` (not tracked by git). They call node and `dg` by their absolute paths, so they work even when Claude Code's PATH differs from your shell's; run it again after upgrading or moving node. The hooks mark the session as an agent and record the subagents you start with a first line `deguboard: ticket=<id> step=<step>` as Runs. The hooks also refuse to mark a PR ready or merge it outside `dg`, and to edit `.git/deguboard/` directly. Confirm with `dg hooks check` in a new session that dg receives them: if the command the hooks call cannot run in Claude Code's environment, it warns, and so do `dg next`, `dg brief`, and `dg ticket claim --no-run`. Other agents that can use a shell (Codex, Copilot CLI, and others) need no setup. Just ask them to "read `dg guide` and proceed with `dg`".
 
 5. **Open the board**: Click the deguboard icon in the Activity Bar.
 
@@ -122,14 +122,15 @@ dg config set notify.approvals false --local
 
 ### Getting started before release
 
-Install [mise](https://mise.jdx.dev/), clone the repository, and put the built `dg` on your PATH. Outside the repository, Node.js 24 must also be on your PATH (with mise, `mise use -g node@24`).
+Install [mise](https://mise.jdx.dev/), clone the repository, and install the hooks. To run `dg` from your terminal in other repositories, also link it to your PATH; Node.js 24 must then be on that shell's PATH too (with mise, `mise use -g node@24`). The hooks do not depend on PATH: `dg hooks install` writes the absolute paths of node and `dg.js`.
 
 ```sh
 git clone https://github.com/brainpad-whiterabbit/deguboard.git && cd deguboard
 mise trust && mise install    # install node and pnpm at the versions in mise.toml
 mise run install              # install dependencies, build dg and the extension, and install the VSIX into VS Code
-mise run dg:link              # link dg to ~/.local/bin/dg (once per clone; add ~/.local/bin to PATH if needed). To update, git pull and then mise run install
-dg hooks check                # confirm the hooks are installed and that dg has received them (if it says not found or never received, run mise run dg:link again and start a new session)
+mise run dg -- hooks install  # write the hooks to .claude/settings.local.json with absolute paths (once per clone; again after upgrading node)
+mise run dg -- hooks check    # in a new session, confirm the hooks are installed and that dg has received them
+mise run dg:link              # optional: link dg to ~/.local/bin/dg to use it from your terminal (add ~/.local/bin to PATH if needed). To update, git pull and then mise run install
 ```
 
 To install the VSIX by hand, run `code --install-extension packages/vscode/deguboard-vscode.vsix` after `mise run vsix`.
