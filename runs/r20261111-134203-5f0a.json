@@ -1,0 +1,33 @@
+{
+  "id": "r20261111-134203-5f0a",
+  "ticket": "t725",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-11T13:42:03Z",
+  "finished_at": "2026-11-11T13:44:42Z",
+  "result": "success",
+  "error": null,
+  "retries": 2,
+  "retry_reasons": [
+    "帯の説明に「余白は足さない」が残り、行の padding を広げた今の形と食い違う",
+    "頭の印のない kanban の PR 欄の余白の説明が 2 か所に分かれ、subgrid の説明が読み取りにくい"
+  ],
+  "usage": {
+    "input": 18,
+    "output": 7681,
+    "cache_read": 325112,
+    "cache_write": 31827
+  },
+  "tools": {
+    "read": 3,
+    "search": 0,
+    "write": 3,
+    "bash": 6,
+    "other": 1,
+    "read_before_write": 3,
+    "search_before_write": 0
+  },
+  "session": "18b06cc8-a5e8-45cd-aaf1-45661a8f5932",
+  "review": null
+}
