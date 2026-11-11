@@ -35,7 +35,7 @@ Prerequisites: Linux or macOS, Git 2.30 or later, and Node.js 24 or later. To re
    dg hooks install
    ```
 
-   `dg hooks install` adds Claude Code hooks that mark the session as an agent and record the subagents you start with a first line `deguboard: ticket=<id> step=<step>` as Runs. The hooks also refuse to mark a PR ready or merge it outside `dg`, and to edit `.git/deguboard/` directly. Other agents that can use a shell (Codex, Copilot CLI, and others) need no setup. Just ask them to "read `dg guide` and proceed with `dg`".
+   `dg hooks install` adds Claude Code hooks that mark the session as an agent and record the subagents you start with a first line `deguboard: ticket=<id> step=<step>` as Runs. The hooks also refuse to mark a PR ready or merge it outside `dg`, and to edit `.git/deguboard/` directly. Confirm with `dg hooks check` in a new session that dg receives them: if the command the hooks call cannot run in Claude Code's environment, it warns, and so do `dg next`, `dg brief`, and `dg ticket claim --no-run`. Other agents that can use a shell (Codex, Copilot CLI, and others) need no setup. Just ask them to "read `dg guide` and proceed with `dg`".
 
 5. **Open the board**: Click the deguboard icon in the Activity Bar.
 
@@ -129,7 +129,7 @@ git clone https://github.com/brainpad-whiterabbit/deguboard.git && cd deguboard
 mise trust && mise install    # install node and pnpm at the versions in mise.toml
 mise run install              # install dependencies, build dg and the extension, and install the VSIX into VS Code
 mise run dg:link              # link dg to ~/.local/bin/dg (once per clone; add ~/.local/bin to PATH if needed). To update, git pull and then mise run install
-dg hooks check                # confirm the hooks are installed and that the dg they call is on PATH (if it says not found, run mise run dg:link again)
+dg hooks check                # confirm the hooks are installed and that dg has received them (if it says not found or never received, run mise run dg:link again and start a new session)
 ```
 
 To install the VSIX by hand, run `code --install-extension packages/vscode/deguboard-vscode.vsix` after `mise run vsix`.

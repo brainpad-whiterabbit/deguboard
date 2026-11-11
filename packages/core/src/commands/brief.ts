@@ -18,6 +18,7 @@ import { findingKey, findingText, latestRoundSince, splitFindings } from "../run
 import { readReviewFindings } from "../run/record.js";
 import { defineCommand, ok, type CommandContext } from "./define.js";
 import { openPlanOf, ticketRef } from "./helpers.js";
+import { hooksSilentWarning } from "./hook-sessions.js";
 import { openedStepOf } from "./run.js";
 
 /** 文を組む役。implement は実装（claim の step）、review は見直し、fix は手直し（reclaim の step） */
@@ -265,6 +266,8 @@ export async function briefOf(
           `The gate level of ${ticket.id} is ${level}, so the review is skipped in the flow and dg gate does not judge it (dg next goes to ready). Raise the level with dg ticket update ${ticket.id} --gate high if a review is needed`,
         ]
       : [];
+  // 文の先頭の印で Run を開け閉めするのはフック。このセッションに届いていなければ Run は黙って残らないので知らせる（t697）
+  const silent = await hooksSilentWarning(ctx.repo.localDir, ctx.env ?? process.env);
   return {
     brief: {
       ticket: ticket.id,
@@ -272,7 +275,7 @@ export async function briefOf(
       step,
       text: composeBrief(role, facts, findings),
     },
-    warnings: [...gateWarnings, ...note.warnings],
+    warnings: [...gateWarnings, ...note.warnings, ...(silent ? [silent] : [])],
   };
 }
 

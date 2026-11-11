@@ -35,7 +35,7 @@ deguboard は独立したプロジェクトで、Microsoft が作ったもので
    dg hooks install
    ```
 
-   `dg hooks install` は Claude Code のフックを入れ、セッションをエージェントとして扱い、最初の行に `deguboard: ticket=<id> step=<step>` と書いて頼んだサブエージェントを Run として記録します。フックは、`dg` を通さない PR の ready・マージと、`.git/deguboard/` への直接の書き込みも拒みます。Codex・Copilot CLI など、シェルを使えるほかのエージェントでは準備は要らず、「`dg guide` を読んでから `dg` で進めて」と頼みます。
+   `dg hooks install` は Claude Code のフックを入れ、セッションをエージェントとして扱い、最初の行に `deguboard: ticket=<id> step=<step>` と書いて頼んだサブエージェントを Run として記録します。フックは、`dg` を通さない PR の ready・マージと、`.git/deguboard/` への直接の書き込みも拒みます。新しいセッションで `dg hooks check` を実行し、dg がフックを受け取っていることを確かめます。フックの呼ぶ命令が Claude Code の環境で動かなければ、`dg hooks check` が警告し、`dg next`・`dg brief`・`dg ticket claim --no-run` も警告します。Codex・Copilot CLI など、シェルを使えるほかのエージェントでは準備は要らず、「`dg guide` を読んでから `dg` で進めて」と頼みます。
 
 5. **ボードを開く**：Activity Bar の deguboard のアイコンを押します。
 
@@ -129,7 +129,7 @@ git clone https://github.com/brainpad-whiterabbit/deguboard.git && cd deguboard
 mise trust && mise install    # node・pnpm を mise.toml の版で入れる
 mise run install              # 依存を入れ、dg と拡張をビルドし、VSIX を VS Code に入れる
 mise run dg:link              # dg を ~/.local/bin/dg にリンクする（clone ごとに一度。~/.local/bin が PATH になければ足す）。更新は git pull のあと mise run install
-dg hooks check                # フックが入っているか、フックが呼ぶ dg が PATH にあるかを確かめる（not found と出たら mise run dg:link をやり直す）
+dg hooks check                # フックが入っているか、dg がフックを受け取っているかを確かめる（not found か never received と出たら mise run dg:link をやり直し、新しいセッションで確かめる）
 ```
 
 VSIX を手で入れるときは、`mise run vsix` の後に `code --install-extension packages/vscode/deguboard-vscode.vsix` を実行します。

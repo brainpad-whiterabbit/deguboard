@@ -298,7 +298,7 @@ export function buildProgram(options: ProgramOptions = {}): Command {
   hooksCmd
     .command("check")
     .description(
-      "Check that dg's hooks are in the Claude Code settings (per event and matcher), that each handler (the command that calls dg) runs with --version, and that no field in the most recent hook input went unreceived (only whether fields are present, not their values). Warns if anything is missing. The exit code is 0 even with warnings. Input records are read only inside the repository",
+      "Check that dg's hooks are in the Claude Code settings (per event and matcher), that each handler (the command that calls dg) runs with --version, that no field in the most recent hook input went unreceived (only whether fields are present, not their values), and that dg has actually received each installed hook. The handler check runs in this shell, whose PATH may differ from the agent's, so the received records decide whether the hooks work: it warns about installed hooks that have never been received, and, when run inside an agent with hooks, about a session that no hook has reached. Warns if anything is missing. The exit code is 0 even with warnings. Input records are read only inside the repository",
     )
     .option(
       "--personal",

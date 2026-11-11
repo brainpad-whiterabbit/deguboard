@@ -14,7 +14,7 @@ mise trust          # このリポジトリの mise.toml を信頼する
 mise install        # node・pnpm を mise.toml の版で入れる
 mise run install    # 依存を入れ、dist と VSIX をビルドし、VSIX を VS Code に入れる
 mise run dg:link    # dg を ~/.local/bin/dg にリンクする（clone ごとに一度。~/.local/bin が PATH になければ足す）
-dg hooks check      # フックが入っているか、フックが呼ぶ dg が PATH にあるかを確かめる（not found と出たら dg:link をやり直す）
+dg hooks check      # フックが入っているか、dg がフックを受け取っているかを確かめる（not found か never received と出たら dg:link をやり直し、新しいセッションで確かめる）
 ```
 
 `mise run dg:link` は、追跡している `.claude/settings.json` のフックが PATH の `dg` を呼ぶので要る。リンク先はこのリポジトリの `packages/cli/bin/dg.js` の絶対パスで、一度張れば `git pull` のあとの `mise run install` で更新される。clone を移したら張り直す。既存の `~/.local/bin/dg` が通常のファイルなら消さずに止まる。

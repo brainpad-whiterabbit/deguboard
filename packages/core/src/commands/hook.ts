@@ -43,6 +43,7 @@ import {
   takePendingRetryReasons,
 } from "../run/record.js";
 import { defineCommand, ok, runCommand, type CommandContext } from "./define.js";
+import { pruneHookSessions, recordHookSession } from "./hook-sessions.js";
 import {
   openedInOtherSession,
   openedStepOf,
@@ -158,7 +159,7 @@ export const hook = defineCommand({
     "It does not hide text inside quotes, here-documents, or comments; it advises writing the body to a file and passing it with --body-file or git commit -F). " +
     "PreToolUse is called for every tool, so it decides only from the path and command string, without opening the store (tickets, Plans, Epics, Iterations, config), and does not check for changes outside dg. " +
     "When an agent finishes its response (Stop), it checks the data repository for changes outside dg (uncommitted changes, and commits with no dg mark); if it finds any, it keeps the agent going instead of stopping, and reports which files and how to restore or adopt them (dg adopt). A Stop after the agent was already kept going does not report them again. Other events do not stop work even when there are changes outside dg. " +
-    "For each event it keeps, in deguboard-local/hook-inputs/, the presence of the input fields it reads and the time, as the latest one entry per event (no values are kept; dg hooks check reads it). Other failures are turned into warnings and return success, so they do not stop work",
+    "For each event it keeps, in deguboard-local/hook-inputs/, the presence of the input fields it reads and the time, as the latest one entry per event (no values are kept; dg hooks check reads it), and, in deguboard-local/hook-sessions/, the time a hook last reached each session (kept for 30 days; dg next, dg brief, and dg ticket claim --no-run warn when no hook has reached the calling session). Other failures are turned into warnings and return success, so they do not stop work",
   input: z.object({
     event: z
       .string()
@@ -212,6 +213,15 @@ export const hook = defineCommand({
     const env = ctx.env ?? process.env;
     const event = hooks.parse(input.event, input.payload ?? {}, env);
     if (!event) return ok(view, undefined, warnings);
+    // このセッションにフックが届いたことを残す（next・brief・claim --no-run が、届いていないセッションを警告する。t697）
+    try {
+      await recordHookSession(ctx.repo.localDir, event.session, toIsoDateTime(ctx.now()));
+      if (event.kind === "session_start") await pruneHookSessions(ctx.repo.localDir, ctx.now());
+    } catch (e) {
+      warnings.push(
+        `Could not write the hook session record (${e instanceof Error ? e.message : String(e)})`,
+      );
+    }
     try {
       await handle(ctx, agent, event, view, warnings);
     } catch (e) {

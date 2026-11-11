@@ -207,7 +207,8 @@ describe("dg hooks check（AG-9・t542）", () => {
     await dg(cwd, ["hooks", "install", "--command", process.execPath]);
     const ok = await checkOf(cwd);
     expect(ok.data.events.every((e) => e.installed && e.handler === "ok")).toBe(true);
-    expect(ok.warnings).toEqual([]);
+    // ハンドラが動いても、まだ届いていないことだけは警告に残る（下の t697 のテスト）
+    expect(ok.warnings).toEqual([expect.stringContaining("never received")]);
 
     await dg(cwd, ["hooks", "install", "--command", "/nonexistent/dg-for-test"]);
     const broken = await checkOf(cwd);
@@ -266,6 +267,45 @@ describe("dg hooks check（AG-9・t542）", () => {
     expect(result.data.events.every((e) => e.installed && e.handler === "ok")).toBe(true);
     expect(result.data.events.every((e) => e.received_at === null)).toBe(true);
     expect(result.warnings).toEqual([]);
+  });
+
+  it("入れてあるのに一度も届いていないイベントを、ハンドラが動いても警告する。すべて届けば警告しない（t697）", async () => {
+    const cwd = await repo();
+    await dg(cwd, ["hooks", "install", "--command", process.execPath]);
+    await recordOf(cwd, "SessionStart", { session_id: true });
+    const some = await checkOf(cwd);
+    const never = some.warnings.find((w) => w.includes("never received"));
+    expect(never).toContain("PreToolUse");
+    expect(never).not.toContain("SessionStart");
+
+    const all = some.data.events.map((e) => e.event);
+    for (const event of all) await recordOf(cwd, event, {});
+    expect((await checkOf(cwd)).warnings).toEqual([]);
+  });
+
+  it("Claude Code の中で呼んだセッションにフックが届いていなければ警告し、dg hook が届けば警告しない（t697）", async () => {
+    const cwd = await repo();
+    await dg(cwd, ["init"]);
+    await dg(cwd, ["hooks", "install", "--command", process.execPath]);
+    const home = await tempHome();
+    const env = { HOME: home, CLAUDECODE: "1", CLAUDE_CODE_SESSION_ID: "sess-697" };
+    const before = await checkOf(cwd, [], env);
+    expect(before.warnings).toContainEqual(
+      expect.stringContaining("No dg hook has reached this claude-code session (sess-697)"),
+    );
+
+    const payload = path.join(home, "payload.json");
+    await writeFile(
+      payload,
+      JSON.stringify({ session_id: "sess-697", transcript_path: "/x.jsonl" }),
+    );
+    const hook = await dg(cwd, ["--actor", "agent", "hook", "SessionStart", "--payload", payload], {
+      HOME: home,
+      CLAUDE_ENV_FILE: path.join(home, "env.sh"),
+    });
+    expect(hook.code).toBe(0);
+    const after = await checkOf(cwd, [], env);
+    expect(after.warnings.some((w) => w.includes("No dg hook has reached"))).toBe(false);
   });
 
   it("JSON では警告は最上位の warnings に出て、data には入らない", async () => {
