@@ -134,11 +134,30 @@ async function importRepo(dir) {
   return work;
 }
 
-/** run-all.gif の見本：始めたばかりの空の Iteration。起票・計画・遷移は台本が dg で行う */
+/** run-all.gif の見本のチケット。/dgimport で起票した体にして、ticket import で入れる（依存は depends_on） */
+const RUN_ALL_DRAFTS = [
+  { key: "format", title: "Decide the export columns and format" },
+  { key: "csv", title: "Build the CSV from the list", depends_on: ["format"] },
+  { key: "button", title: "Add an export button to the screen", depends_on: ["format"] },
+  { key: "docs", title: "Update the usage docs", depends_on: ["csv", "button"] },
+];
+
+/**
+ * run-all.gif の見本：/dgimport で起票済みの 4 件が入った、始めたばかりの Iteration（s1）。計画・遷移は台本が dg で行う。
+ * /dgall は起票しないので、起票は見本の段で済ませておく
+ */
 async function runAllRepo(dir) {
   const work = await initRepo(dir);
   await dg(work, ["iteration", "create", "Iteration 1", "--goal", "Export to CSV"]);
   await dg(work, ["iteration", "start", "s1"]);
+  const drafts = RUN_ALL_DRAFTS.map((d) => ({
+    ...d,
+    iteration: "s1",
+    acceptance: ["Checked on screen"],
+  }));
+  const file = path.join(dir, "import.json");
+  await writeFile(file, JSON.stringify(drafts));
+  await dg(work, ["ticket", "import", file]);
   return work;
 }
 
@@ -662,26 +681,16 @@ async function importFlow(rec, app, _frame, { work, tmp }) {
   await rec.hold(3600);
 }
 
-/** /dgall --auto を付けて頼み、起票・計画のあと、計画の帯から依存のグラフを開き、チケットが Todo から In Progress を経てすべて Done になる */
-async function runAllFlow(rec, app, _frame, { work, tmp }) {
+/** /dgall s1 --auto を付けて頼み、Iteration の 4 件に計画を立てて承認し、計画の帯から依存のグラフを開き、チケットが Todo から In Progress を経てすべて Done になる */
+async function runAllFlow(rec, app, _frame, { work }) {
   await setupAgent(rec, { file: "claude", code: "", term: "auto" });
   await rec.hold(500);
   await rec.moveTo(rec.page.locator(".term-input"), 500, 0.3);
   await rec.click();
-  await termType(rec, "/dgall --auto add CSV export");
+  await termType(rec, "/dgall s1 --auto");
   await rec.hold(200);
   await termEnter(rec);
-  await termSay(rec, "dot", "⏺ Looking at the list screen and the export code…", 600);
-  const drafts = [
-    { key: "format", title: "Decide the export columns and format" },
-    { key: "csv", title: "Build the CSV from the list", depends_on: ["format"] },
-    { key: "button", title: "Add an export button to the screen", depends_on: ["format"] },
-    { key: "docs", title: "Update the usage docs", depends_on: ["csv", "button"] },
-  ].map((d) => ({ ...d, iteration: "s1", acceptance: ["Checked on screen"] }));
-  const file = path.join(tmp, "import.json");
-  await writeFile(file, JSON.stringify(drafts));
-  await dgSteps(rec, work, [["ticket", "import", file]]);
-  await termSay(rec, "dot", "⏺ Created 4 tickets: t1 t2 t3 t4", 700);
+  await termSay(rec, "dot", "⏺ Looking at Iteration s1: 4 tickets, no plan yet…", 900);
   await dgSteps(rec, work, [
     ["plan", "create", "t1", "t2", "t3", "t4"],
     ["plan", "approve", "p1"],
