@@ -1,0 +1,16 @@
+id: p100
+project: default
+tickets: [t697, t698]
+after:
+  t698:
+    - t697
+pending_approval: true
+details:
+  t697:
+    scope: フックが届いていないことの検出（hooks check と next・brief・claim --no-run の警告）だけで、フックの命令の書き方は変えない
+    approach: hook が記録する受け取りの時刻をセッションごとに読み、hooks check は一度も届いていないイベントを、Claude Code の中の next・brief・claim --no-run はそのセッションに SessionStart がないことを warnings に出す
+    tier: heavy
+  t698:
+    scope: hooks install の書く先と命令の形を、node と dg.js の絶対パス・.claude/settings.local.json にし、このリポジトリの設定と案内を合わせる
+    approach: install の既定を process.execPath と dg.js の実パスを引用した命令で settings.local.json に書く形にし、hooks check がその命令を確かめ、settings.json の dg のフックを外して README・development.md・ADR-025・requirements を直す
+    tier: heavy
