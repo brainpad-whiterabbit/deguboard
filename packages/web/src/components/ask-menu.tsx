@@ -174,7 +174,7 @@ export interface AskSpot {
     "data-vscode-context": string;
     "data-ask-spot": "" | "active";
     onKeyDown(e: KeyboardEvent<HTMLElement>): void;
-    /** 選べる行だけ：行の ID・選んでいる印と、Ctrl/⌘・Shift+クリックで選ぶ（詳細は開かない） */
+    /** 選べる行だけ：行の ID・選んでいる印と、Ctrl/⌘・Shift+クリックと左端の帯のクリックで選ぶ（詳細は開かない） */
     "data-select-id"?: string;
     "data-selected"?: "";
     onClickCapture?(e: MouseEvent<HTMLElement>): void;
@@ -329,6 +329,19 @@ export function useAskSpot(options: AskSpotOptions | null): AskSpot {
             onClickCapture(e: MouseEvent<HTMLElement>) {
               const target = e.target as Element;
               if (e.button !== 0 || target.closest?.(NOT_SELECT_CLICK)) return;
+              // 左端の帯（styles.css の [data-select-id]::before）は行の要素に当たるので、target が行そのものになる。
+              // これは行の要素が子（リンク・付記など）で埋まり、子に覆われないのは ::before の帯だけ、という前提に依る。
+              // 子で覆われない隙間があると、その隙間のクリックも帯と同じく選択になる
+              // 修飾キーなしで帯を押したら、その 1 件を選ぶ・外す（詳細は開かない）。修飾キーつきは下の選び方に任せる
+              if (target === e.currentTarget && !e.altKey && !selectKind(e)) {
+                e.preventDefault();
+                e.stopPropagation();
+                selection.click(rowId, { ctrlKey: true } as MouseEvent, {
+                  section: options.section,
+                  within: options.within,
+                });
+                return;
+              }
               if (selection.click(rowId, e, { section: options.section, within: options.within })) {
                 e.preventDefault();
                 e.stopPropagation();
