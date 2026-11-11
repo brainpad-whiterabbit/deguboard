@@ -126,13 +126,20 @@ describe("左パネルのカンバンから頼む（UI-15）", () => {
     const details = document.querySelector<HTMLDetailsElement>(
       '.column[data-status="in_progress"]',
     )!;
-    const before = details.open;
     const summary = details.querySelector("summary")!;
+    const before = details.open;
+    // 前提：左のクリックは見出しを開閉する（jsdom の summary の既定の動き）。開閉が動くことを先に見て、
+    // 右クリックの動き（contextmenu・右のボタンの押す・離す）はそれを起こさないことを確かめる。
+    // 左クリックで動かした分は、ここで元に戻す
+    fireEvent.click(summary);
+    expect(details.open, "左クリックは開閉する（前提）").toBe(!before);
+    fireEvent.click(summary);
+    expect(details.open).toBe(before);
     fireEvent.contextMenu(summary);
     fireEvent.pointerDown(summary, { button: 2 });
     fireEvent.mouseDown(summary, { button: 2 });
     fireEvent.mouseUp(summary, { button: 2 });
-    expect(details.open).toBe(before);
+    expect(details.open, "右クリックでは開閉しない").toBe(before);
     // 右クリックは頼むことの一覧も出さない（頼む入口は吹き出し・Shift+F10）
     expect(screen.queryByRole("menu")).toBeNull();
   });
