@@ -2924,6 +2924,33 @@ button.ask-copy svg {
 [data-selected] > .ask-bubble {
   opacity: 1;
 }
+/*
+ * 選べる行の左端の帯（UI-15。selection.tsx）。行の要素の疑似要素で、行の左の余白（6px）に重ねる（余白は足さない）。
+ * 押すと 1 件を選ぶ・外す（ask-menu.tsx の onClickCapture。帯の当たりは行の要素そのものになる）。
+ * ふだんは透明。マウスを載せたとき・タッチの画面（hover のない画面）は薄く、選んだ行は今の選択の色で出す
+ */
+[data-select-id]::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 6px;
+  background: var(--vscode-focusBorder);
+  opacity: 0;
+  cursor: pointer;
+}
+[data-select-id]:hover::before {
+  opacity: 0.6;
+}
+@media (hover: none) {
+  [data-select-id]::before {
+    opacity: 0.35;
+  }
+}
+[data-select-id][data-selected]::before {
+  opacity: 1;
+}
 /* 選んでいる間に画面の下に出す「n 件を選択 ・ 頼む」の帯。入力欄と同じ場所に出し、入力欄を開いている間は出さない */
 .selection-bar {
   flex: none;

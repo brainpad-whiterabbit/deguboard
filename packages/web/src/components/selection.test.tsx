@@ -308,3 +308,82 @@ describe("カンバンとパネルの詳細の行を複数選ぶ（UI-15）", ()
     expect(bar()!.textContent).toContain("2 件を選択");
   });
 });
+
+describe("一覧の行の左端の帯で 1 件ずつ選ぶ（UI-15）", () => {
+  it("カンバンの行の帯を押すと、その 1 件を選ぶ・外すの切り替えになり、詳細は開かない", async () => {
+    const client = mockClient(boardFixture());
+    const { open } = mount(client);
+    await screen.findByText("画面");
+    fireEvent.click(rowOf("画面"));
+    fireEvent.click(rowOf("API"));
+    expect(selected()).toEqual(["t3", "t2"]);
+    fireEvent.click(rowOf("画面"));
+    expect(selected()).toEqual(["t2"]);
+    expect(open).not.toHaveBeenCalled();
+    // 行の本体のクリックは今までどおり詳細を開き、選択を外す
+    fireEvent.click(linkOf("画面"));
+    expect(open).toHaveBeenCalledWith({ page: "ticket", id: "t3" });
+    expect(selected()).toEqual([]);
+  });
+
+  it("バックログの行の帯も 1 件ずつ選ぶ・外すを切り替え、詳細は開かない", async () => {
+    window.location.hash = "#/backlog";
+    const { open } = mount(backlogClient());
+    await screen.findByText("四つ目");
+    fireEvent.click(rowOf("画面"));
+    fireEvent.click(rowOf("四つ目"));
+    expect(selected()).toEqual(["t3", "t4"]);
+    expect(bar()!.textContent).toContain("2 件を選択");
+    fireEvent.click(rowOf("画面"));
+    expect(selected()).toEqual(["t4"]);
+    expect(open).not.toHaveBeenCalled();
+  });
+
+  it("履歴の行の帯も 1 件ずつ選ぶ・外すを切り替え、詳細は開かない", async () => {
+    window.location.hash = "#/history?view=ticket";
+    const client = mockClient();
+    client.data.tickets = [ticket({ id: "t9", title: "終えた", status: "done" })];
+    client.handlers["history"] = () => ({
+      events: [
+        {
+          kind: "ticket",
+          id: "t9",
+          commit: "t9",
+          author: "a",
+          subject: "s",
+          type: "changed",
+          at: "2026-10-20T12:00:00Z",
+          changes: [{ field: "status", from: "review", to: "done" }],
+        },
+      ],
+      truncated: false,
+    });
+    const { open } = mount(client);
+    await screen.findByText("終えた");
+    fireEvent.click(rowOf("終えた"));
+    expect(selected()).toEqual(["t9"]);
+    fireEvent.click(rowOf("終えた"));
+    expect(selected()).toEqual([]);
+    expect(open).not.toHaveBeenCalled();
+  });
+
+  it("Iteration の詳細の行の帯も 1 件ずつ選び、選んだ行は同じ帯の押し方で外せる", async () => {
+    const data = fixture({ iterations: [iteration({ id: "s1", name: "最初", status: "active" })] });
+    data.tickets = data.tickets.map((t) => ({ ...t, iteration: "s1" }));
+    const client = mockClient(data);
+    client.handlers["iteration.show"] = () =>
+      iterationDetail(
+        client.data.iterations[0]!,
+        client.data.tickets.filter((t) => t.iteration === "s1"),
+      );
+    window.location.hash = "#/iterations/s1";
+    const { open } = mount(client, "panel");
+    await screen.findByText("API");
+    fireEvent.click(rowOf("API"));
+    expect(selected()).toEqual(["t2"]);
+    expect(open).not.toHaveBeenCalled();
+    fireEvent.click(rowOf("API"));
+    expect(selected()).toEqual([]);
+    expect(bar()).toBeNull();
+  });
+});
