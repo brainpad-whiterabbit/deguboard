@@ -12,7 +12,7 @@ after:
   t722:
     - t715
     - t717
-pending_approval: true
+pending_approval: false
 details:
   t714:
     scope: orphan-review.test.ts と hook.test.ts の時刻の読み方を、テストごとに 1 つの基準の時刻に揃える
@@ -58,3 +58,5 @@ details:
     scope: README の GIF を s26 の画面で撮り直す
     approach: mise run gifs -- open-board.gif で撮り、ほかの GIF も今の画面と比べて違えば撮り直す
     tier: light
+approved_by: maji/agent
+approved_at: 2026-11-11T12:46:32Z
