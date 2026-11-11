@@ -42,4 +42,4 @@ Answer in 3 to 5 lines, in the words the human used: where the work is now (the 
 
 ## Choosing the next step
 
-This guide does not use the shared "next step" choices of "Asking with choices" above: it only answers how the work is going, and asks no choices. A stopped ticket is resumed with `dg guide work` (if a Skill is available, `/dgwork <t12>`). This guide only recommends it as the last line of the answer. It does not ask with choices and does not resume the work. Without a Skill, read `dg guide work` and continue with that step when the human asks.
+This guide asks no choices of its own. As the last line of the answer, it only recommends resuming a stopped ticket with `dg guide work` (if a Skill is available, `/dgwork <t12>`), and does not resume the work itself. Without a Skill, read `dg guide work` and continue with that step when the human asks.

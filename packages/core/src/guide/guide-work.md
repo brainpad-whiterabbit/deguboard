@@ -5,11 +5,13 @@ argument-hint: "<Plan ID|ticket ID> [--gate-high|--gate-low|--gate-free]"
 
 # Work (work)
 
-Advances one ticket to a draft PR. `dg next` decides the steps and their order. This guide describes only how to do each step.
+Advances tickets to draft PRs. `dg next` decides the steps and their order. This guide describes only how to do each step.
+
+The tickets of an approved Plan are advanced in parallel when two or more of them in `ready` can be started and subagents can be started (`dg guide parallel` is the default). A single ticket, or a Plan with only one ready ticket, is advanced one at a time by the steps below.
 
 ## Deciding the target
 
-- Plan ID (`p3`): following "Following the Plan" below. When `ready` of `plan show` has two or more tickets and subagents can be started, advance them in parallel: `dg guide parallel` is the default, and the steps below apply to each ticket
+- Plan ID (`p3`): following "Following the Plan" below. When `ready` of `plan show` has two or more tickets and subagents can be started, advance them in parallel (see the opening of this guide), and the steps below apply to each ticket
 - Ticket ID: advance that ticket. If it is in an open Plan (`plan` of `ticket show`), follow that Plan
 - No target given: suggest an approved Plan from `plan list --status open`, and confirm. If there is none, suggest making a plan with `dg guide plan`
 - `--gate-high`, `--gate-low`, `--gate-free`: the quality gate level for the target tickets. See "Gate level" below
@@ -26,6 +28,8 @@ Advances one ticket to a draft PR. `dg next` decides the steps and their order. 
    - `wait_human`: tell a human the `ask_human` (it is in the "How to finish" section of `dg guide review`), and do not wait for the answer: advance the other tickets of `ready` meanwhile. A decision that needs approval is asked as approval, and only that stops the flow. For review findings from a human, follow the "Fix loop (parent)" section of `dg guide review`
    - `wait_deps`: wait, and advance another ticket of `ready` of `plan show`
    - `done`: clean up by the steps of `dg guide done`
+
+For `wait_merge`, `wait_human`, and `wait_deps` with no Plan, there is no other ticket of `ready` to advance meanwhile. Then go to "Choosing the next step" below and ask with its choices instead.
 
 ## Gate level
 
