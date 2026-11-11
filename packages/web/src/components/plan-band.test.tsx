@@ -147,6 +147,67 @@ describe("実行計画の帯", () => {
     expect(itemOf("p3").querySelector(".plan-detail")).toBeNull();
   });
 
+  it("段の中を交差の少ない順に並べ、入口を縦に散らし、段を飛ぶ辺を行の間の溝に通す", async () => {
+    const host = hostOf();
+    const client = mockClient(boardFixture());
+    client.data.tickets.push(
+      ticket({ id: "t4", title: "四", iteration: "s0" }),
+      ticket({ id: "t5", title: "五", iteration: "s0" }),
+    );
+    // 段 0 は t1・t2、段 1 は t3・t4、段 2 は t5。Plan の順のままだと t2→t3 と t1→t4 が交差する。t1→t5 は段 1 を飛ぶ
+    client.data.plans = [
+      plan({
+        id: "p2",
+        tickets: ["t1", "t2", "t3", "t4", "t5"],
+        after: { t3: ["t2"], t4: ["t1"], t5: ["t3", "t4", "t1"] },
+      }),
+    ];
+    host.state.set("board.planGraph.p2", true);
+    mount(client, host);
+    await screen.findByRole("region", { name: "実行計画" });
+    const nodeOf = (id: string) =>
+      document.querySelector<HTMLAnchorElement>(`a.plan-node[href="#/tickets/${id}"]`)!;
+    const top = (id: string) => parseFloat(nodeOf(id).style.top);
+    const left = (id: string) => parseFloat(nodeOf(id).style.left);
+    // 段 1 は t1 に繋がる t4 を上に、t2 に繋がる t3 を下に置き替える
+    expect(left("t3")).toBe(left("t4"));
+    expect(top("t4")).toBeLessThan(top("t3"));
+    expect(top("t1")).toBeLessThan(top("t2"));
+
+    // 辺は Plan の順の待つ側ごとに after の順：t2→t3、t1→t4、t3→t5、t4→t5、t1→t5
+    const d = [...document.querySelectorAll(".plan-graph-canvas .plan-graph-edge")].map((p) =>
+      p.getAttribute("d")!,
+    );
+    expect(d).toHaveLength(5);
+    const end = (path: string) => path.split(" ").at(-1)!.split(",").map(Number);
+    // t5 に入る 3 本は、ノードの左の縁の別々の高さに着く
+    const into5 = d.slice(2).map(end);
+    expect(into5.every(([x]) => x === left("t5"))).toBe(true);
+    expect(new Set(into5.map(([, y]) => y)).size).toBe(3);
+    for (const [, y] of into5) {
+      expect(y).toBeGreaterThan(top("t5"));
+      expect(y).toBeLessThan(top("t5") + 22);
+    }
+    // t1 から出る 2 本も別々の高さから出る
+    const start = (path: string) => path.slice(1).split(" ")[0]!.split(",").map(Number);
+    expect(start(d[1]!)[1]).not.toBe(start(d[4]!)[1]);
+    // t1→t5 は段 1 を水平に通る区間を持ち、その高さは段 1 のどのノードにもかからない
+    const lane = /L[\d.]+,([\d.]+)/.exec(d[4]!);
+    expect(lane).not.toBeNull();
+    const laneY = Number(lane![1]);
+    for (const id of ["t3", "t4"]) {
+      expect(laneY < top(id) || laneY > top(id) + 22).toBe(true);
+    }
+
+    // ホバーすると、繋がる辺とノードを今までどおり強調する
+    fireEvent.mouseEnter(nodeOf("t5"));
+    expect(document.querySelectorAll(".plan-graph-edge.related")).toHaveLength(3);
+    expect(["t1", "t3", "t4", "t5"].every((id) => nodeOf(id).classList.contains("related"))).toBe(
+      true,
+    );
+    expect(nodeOf("t2").classList.contains("related")).toBe(false);
+  });
+
   it("depends_on だけでつながった組は点線の辺で描き、凡例に出す", async () => {
     const host = hostOf();
     const client = mockClient(boardFixture());
