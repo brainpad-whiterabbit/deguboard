@@ -1,0 +1,60 @@
+id: p99
+project: default
+tickets: [t686, t687, t688, t689, t693, t696, t690, t691, t692, t694, t695]
+after:
+  t690:
+    - t687
+  t691:
+    - t690
+  t692:
+    - t691
+  t694:
+    - t687
+  t695:
+    - t688
+pending_approval: true
+details:
+  t686:
+    scope: gh の merge が失敗しても PR が MERGED なら成功にし、ブランチの削除の失敗を warnings に出す。MERGED でないときの振る舞いは変えない
+    approach: pr.ts の merge の失敗の分岐で gh pr view の state を読み、MERGED なら worktree を戻さず準備も回さずに warnings を返す。bare リモート付きのテストで 3 つの場合を確かめる
+    tier: standard
+  t687:
+    scope: README.md・README.ja.md の Hand off everything の節と run-all.gif の場面だけを直し、/dgall の振る舞いは変えない
+    approach: /dgall の対象は Iteration かチケットで起票は /dgimport が先と書き、止まるところを guide-all の Decisions a human makes に合わせ、record-gifs.mjs の run-all を /dgall s<N> の場面にして撮り直す
+    tier: standard
+  t688:
+    scope: ADR-008・ADR-011・ADR-030 の整理と ADR-024 の削除だけで、判断そのものは変えない
+    approach: ADR-024 の決定を development.md の依存の版の方針に 1 行で移して消し、ADR-008 の失効項を消し、ADR-011 の要約と見出しを本文に合わせ、ADR-030 は ADR-011 を指す形にして check:docs で確かめる
+    tier: standard
+  t689:
+    scope: History の見出しから振り返るを選んで小窓が retro で開くまでの画面のテストを足すだけで、実装は変えない
+    approach: history.test.tsx か app の結合のテストで、見出しの札を選ぶと ask が place historyRow で呼ばれ、小窓が retro を選んだ状態でエラーなく開くことを確かめる
+    tier: standard
+  t693:
+    scope: guide-work.md と guide-status.md の文だけを直す
+    approach: guide-work の冒頭に並列と 1 件の両方を書き、待ちの手に Plan のない場合の次の一手を足し、guide-status の重複した文を 1 つにしてスナップショットを更新する
+    tier: light
+  t696:
+    scope: config の actions.light_paths に README.ja.md を足すだけで、PR は作らない
+    approach: dg config で light_paths に README.ja.md を足し、dg config show と README.ja.md だけの差分の判定で確かめて done にする
+    tier: light
+  t690:
+    scope: done・release の対象なしの扱いを guide と依頼文で揃える。ASK_FIRST の前置は残す
+    approach: guide-done の No target given を候補を示して聞く形にし、ask.ts の release の対象なしの文から Iteration を聞かせる文を削って、ask.test.ts で 1 度だけ聞くことを確かめる
+    tier: standard
+  t691:
+    scope: ask.ts・helpers.ts の判定の重複、使われない文、古いコメントと dg ask --help の説明の整理で、候補と振る舞いは変えない
+    approach: isComplete を helpers.ts の iterationComplete にまとめ、NO_TARGET と retro の通らない分岐を消し、テストを対象なしの候補だけに絞って、コメントとヘルプを今の振る舞いに合わせる
+    tier: standard
+  t692:
+    scope: テストの抜けを埋めるだけで、実装は変えない
+    approach: retired の読み飛ばし、iteration list の列、ask --help の place、guide status の選択肢の 2 つの場合をテストで確かめ、l10n-screens の fixture から start・end を消す
+    tier: standard
+  t694:
+    scope: README が載せる GIF のうち、今の画面と違うものだけを撮り直す（run-all.gif は t687 で扱う）
+    approach: mise run gifs で撮り直して前後を見比べ、違わない GIF は PR にそう書く
+    tier: standard
+  t695:
+    scope: "@playwright/mcp・playwright-core と oxlint・oxfmt の版の上げと、それで増えた指摘と書式の差の直しだけ"
+    approach: development.md の方針どおり @playwright/mcp と playwright-core を一緒に上げ、oxlint・oxfmt を上げて mise run format と check で増えた指摘を直す
+    tier: standard
