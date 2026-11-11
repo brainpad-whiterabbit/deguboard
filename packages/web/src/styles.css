@@ -1572,12 +1572,14 @@ textarea.body {
 }
 /*
  * 番号が先頭の列（頭の印がない kanban）のときは、subgrid が行の左の余白（padding 6px と border 1px）を先頭の列に足すので、
- * 番号は列の左端から 7px 内側に出る。PR の欄も同じだけ内側に寄せて番号と左端を揃える（頭の印の列や backlog の番号は 2 列目で、ずれない）。
- * 帯を持つ行（[data-select-id]）は .row の padding が 12px になるので、番号は 13px 内側に出る。差の 6px は帯の節の [data-select-id] .row-pr の padding-left で足す。
- * 寄せるのは中のリンクだけにし、欄（.row-pr）は左端から覆ったままにする（余白で包みが選択を受けないように）
+ * 番号は列の左端から 7px 内側に出る。PR のリンクも同じだけ内側に寄せて番号と左端を揃える（頭の印の列や backlog の番号は 2 列目で、ずれない）。
+ * 帯を持つ行（[data-select-id]）は .row の左の余白が 12px なので、番号は 13px 内側に出る。その行のリンクは 13px に寄せる（下の規則）
  */
 .pr-row.kanban:not(.has-head) > .row-pr > .row-pr-link {
   margin-left: 7px;
+}
+.pr-row.kanban:not(.has-head)[data-select-id] > .row-pr > .row-pr-link {
+  margin-left: 13px;
 }
 /* PR のある行は包みの背景で行全体（PR の欄を含む）を塗る。行のリンクに付く :hover は PR の欄の下に隠れる */
 .pr-row:hover {
@@ -3012,10 +3014,6 @@ button.ask-copy svg {
 /* 帯を持つ行の本体（.row）の左の余白は帯の幅（12px）。.row の既定の 6px より優先する */
 [data-select-id] > .row {
   padding-left: 12px;
-}
-/* 番号の下の PR の欄（.row-pr）は番号の左端に揃える。帯を持つ行は .row の左の余白が 12px と広く、先頭の列の要素（頭の印のない kanban の番号）だけが 6px 右に寄るので、欄も 6px 寄せる（.pr-row.kanban:not(.has-head) の 7px の説明と合わせる） */
-[data-select-id] .row-pr {
-  padding-left: 6px;
 }
 [data-select-id]:hover::before {
   opacity: 0.6;
