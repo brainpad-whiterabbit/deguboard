@@ -103,6 +103,22 @@ async function restoreBranchWorktree(
 }
 
 /**
+ * PR がマージ済みか（gh pr view の state が MERGED か）。読めなければ false にして、呼び出し側は失敗として扱う（t686）
+ */
+async function isMerged(ctx: CommandContext, pr: number): Promise<boolean> {
+  try {
+    const view = await runGh(ctx.repo.topLevel, ["pr", "view", String(pr), "--json", "state"], {
+      allowFailure: true,
+      timeoutMs: 30_000,
+    });
+    if (view.code !== 0) return false;
+    return (JSON.parse(view.stdout) as { state?: string }).state === "MERGED";
+  } catch {
+    return false;
+  }
+}
+
+/**
  * 直さなかった軽い指摘を PR の本文に書き足す（t600）。作業ブランチ（branch_at 以降）の見直しの回ごとの一覧から、手直しに渡さなかった
  * 軽い指摘を回の順に集め（同じ文は 1 つ）、もとの本文は残して節を書き足す（前に書いた節は入れ替える）。本文が変わるときだけ書き込む。
  * 書いた件数を返す。gh の失敗は本文を書き足せなかったと OperationError で返し、ready は呼ばない（呼び出し側）
@@ -186,7 +202,7 @@ export const prMerge = defineCommand({
       .boolean()
       .optional()
       .describe(
-        "Also delete the remote and local work branch (gh pr merge --delete-branch). When omitted, config's merge.delete_branch applies (not deleted by default). When deleting, after the quality gate (including its checks) passes and before gh is called, the worktree that has the branch checked out is removed (gh cannot delete the local branch while it remains). If the merge fails, the removed worktree is restored at the same path and worktree.setup is run again, and the error's detail gives what was done. Do not remove the worktree first; call from outside it (the main worktree). This flag only adds deletion: when config is true there is no CLI flag to skip deletion for this one merge (to keep the branch, set config's merge.delete_branch to false)",
+        "Also delete the remote and local work branch (gh pr merge --delete-branch). When omitted, config's merge.delete_branch applies (not deleted by default). When deleting, after the quality gate (including its checks) passes and before gh is called, the worktree that has the branch checked out is removed (gh cannot delete the local branch while it remains). If the merge fails and the PR is not merged, the removed worktree is restored at the same path and worktree.setup is run again, and the error's detail gives what was done. If the PR is already merged (gh failed after the merge, e.g. the local branch could not be deleted), the call succeeds, the worktree is not restored, and the failure is in warnings. Do not remove the worktree first; call from outside it (the main worktree). This flag only adds deletion: when config is true there is no CLI flag to skip deletion for this one merge (to keep the branch, set config's merge.delete_branch to false)",
       ),
   }),
   write: false,
@@ -207,14 +223,25 @@ export const prMerge = defineCommand({
     try {
       await runGh(ctx.repo.topLevel, args, { timeoutMs: 120_000 });
     } catch (e) {
-      // マージに失敗したら消した worktree を戻し、その扱いを detail に出す（ブランチとデータを残して作業を続けられるように）
-      if (removedDir === null || !ticket.branch) throw e;
-      const kept = await restoreBranchWorktree(ctx, ticket.branch, removedDir);
-      throw new OperationError(
-        "GIT_ERROR",
-        `The merge of PR #${pr} failed (gh pr merge)`,
-        `${e instanceof Error ? (e.message.split("\n")[0] ?? "") : String(e)}\n${kept}`,
-      );
+      const message = e instanceof Error ? (e.message.split("\n")[0] ?? "") : String(e);
+      // gh はマージを済ませたあとでローカルのブランチの削除に失敗すると、非 0 で終わる。PR が MERGED ならマージは済んでいるので成功にし、
+      // 失敗を warnings に出す。worktree は戻さず、準備のコマンドも回さない（作業は終わっている。t686）
+      if (await isMerged(ctx, pr)) {
+        warnings.push(
+          deleteBranch
+            ? `PR #${pr} is merged, but gh could not delete the work branch (${message}). Delete the branch by hand if it remains`
+            : `PR #${pr} is merged, but gh reported an error (${message})`,
+        );
+      } else {
+        // マージに失敗したら消した worktree を戻し、その扱いを detail に出す（ブランチとデータを残して作業を続けられるように）
+        if (removedDir === null || !ticket.branch) throw e;
+        const kept = await restoreBranchWorktree(ctx, ticket.branch, removedDir);
+        throw new OperationError(
+          "GIT_ERROR",
+          `The merge of PR #${pr} failed (gh pr merge)`,
+          `${message}\n${kept}`,
+        );
+      }
     }
     const view: PrAdvanceView = {
       ticket: ticket.id,

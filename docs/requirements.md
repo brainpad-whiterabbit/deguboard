@@ -256,7 +256,7 @@ updated_at: 2026-10-31T05:10:00Z
 - EX-3 段階に進める既定の手続きは Core が持つ。チケットは `dg next`・`dg gate`・`dg brief`、Iteration の流れは `dg flow next` が返し、会話の中にしかない事実は前の結果の `resume` を写して受け取る。段階は保存せず都度求め、`ticket show` の `stage` も同じ（理由は ADR-011 と [ADR-030](adr/ADR-030-flow-and-guide-in-core.md)）
 - EX-4 Workflow が `by: [human]` で人に限った遷移は、エージェントからは行えない
 - EX-5 `dg next` は読み取りだけで、次の 1 手・開く step・呼ぶコマンド・人に聞くことを返す。サブエージェントに渡す手（implement・review・fix）は役の手順の本文と、手直しなら直す指摘を入れた文（brief）を返す。モデル（`model`）は implement・fix の手が返す。low・free の段（TK-9）は見直しを飛ばし、人の判断が要るものは人を待つ手になる。着手順は PL-6 と `ticket list --ready` に従う（EX-3）
-- EX-6 `dg pr ready`・`dg pr merge` は `dg gate` をチケットの段（TK-9）の条件で満たすときだけ gh を呼び、ほかは条件と理由を `GATE_FAILED` で返す。出す前に、直さなかった軽い指摘を本文に足す。マージの方法の既定は config。段の条件の外は人が gh を打つ（AG-10。条件は `dg gate --help`、理由は [ADR-026](adr/ADR-026-guard-pr-and-data.md)）
+- EX-6 `dg pr ready`・`dg pr merge` は段（TK-9）の条件を満たすときだけ gh を呼び、ほかは条件と理由を `GATE_FAILED` で返す。出す前に、直さなかった軽い指摘を本文に足す。マージの方法の既定は config。merge は gh が失敗してもマージ済みなら成功。段の条件の外は人が gh を打つ（AG-10。細部は `dg gate --help`、理由は [ADR-026](adr/ADR-026-guard-pr-and-data.md)）
 - EX-7 `--auto` は config の `auto.decisions` に入る戻せる判断を自動で選ぶ（`approved_by` は agent）。自動でマージするのは `auto.merge` が true のときの品質ゲートを通った PR だけ。リリース・abandoned・done の取り消し・閉じるは人が決め、`auto.decisions` に入れられない。人を待つ手は Core が返す（各手のやり方は `dg guide all`）
 - EX-8 `dg flow next` は読み取りだけで、Iteration・Plan・チケットの流れの段階と、その手のやり方の節・呼ぶコマンド・承認の要否・`resume` を返す。`resume` を写して渡すと前に返した割り当て・点検・見直しを終えたものとして進め、なければ割り当てと点検からやり直す。config の `flow.skip` に入れた段階は返さず、同じ段階が事実も変わらずに続けば止まる手を返す（規則は `dg flow next --help`、EX-3）
 

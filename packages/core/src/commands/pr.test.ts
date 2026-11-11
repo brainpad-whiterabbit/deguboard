@@ -35,6 +35,9 @@ async function fakeGh(root: string, pr: () => string) {
   const failWrite = path.join(root, "gh-fail-write");
   // このファイルがあると、gh pr merge だけ失敗する（t643。マージの失敗で消した worktree を戻すかを見る）
   const failMerge = path.join(root, "gh-fail-merge");
+  // このファイルがあると、gh pr merge はマージを済ませた状態（mergedView の JSON）にしてから失敗する（t686。ブランチの削除の失敗を写す）
+  const mergedThenFail = path.join(root, "gh-merged-then-fail");
+  const mergedView = path.join(root, "gh-merged-view.json");
   const projectCards =
     'echo "GraphQL: Projects (classic) is being deprecated in favor of the new Projects experience (repository.pullRequest.projectCards)" >&2; exit 1';
   await mkdir(bin, { recursive: true });
@@ -57,7 +60,7 @@ async function fakeGh(root: string, pr: () => string) {
         "fi",
         'case "$2" in',
         `  view) if [ "$5" = body ]; then ${projectCards}; fi; cat '${viewFile}';;`,
-        `  merge) if [ -f '${failMerge}' ]; then echo "gh の失敗" >&2; exit 1; fi; echo "$@" >> '${log}';;`,
+        `  merge) if [ -f '${mergedThenFail}' ]; then cp '${mergedView}' '${viewFile}'; echo "gh の失敗" >&2; exit 1; fi; if [ -f '${failMerge}' ]; then echo "gh の失敗" >&2; exit 1; fi; echo "$@" >> '${log}';;`,
         `  ready) echo "$@" >> '${log}';;`,
         `  edit) ${projectCards};;`,
         "  *) exit 1;;",
@@ -83,7 +86,21 @@ async function fakeGh(root: string, pr: () => string) {
   const failBodyWrite = () => writeFile(failWrite, "1");
   const failMergeCall = () => writeFile(failMerge, "1");
   const allowMergeCall = () => rm(failMerge, { force: true });
-  return { write, calls, editedBody, failBodyView, failBodyWrite, failMergeCall, allowMergeCall };
+  // gh pr merge が、PR を merged（JSON）にしてから失敗する状態にする
+  const mergedThenFailCall = async (merged: string) => {
+    await writeFile(mergedView, merged);
+    await writeFile(mergedThenFail, "1");
+  };
+  return {
+    write,
+    calls,
+    editedBody,
+    failBodyView,
+    failBodyWrite,
+    failMergeCall,
+    allowMergeCall,
+    mergedThenFailCall,
+  };
 }
 
 /** t1 を feat/t1 で claim して 1 コミット push し、PR #7（偽の gh。draft）がある文脈 */
@@ -109,19 +126,21 @@ async function prepared() {
   await git(f.cloneA, ["commit", "-q", "--allow-empty", "-m", "作業"]);
   await git(f.cloneA, ["push", "-q", "origin", "feat/t1"]);
   const state = { draft: true };
-  const gh = await fakeGh(f.root, () =>
+  const prJson = (merged: boolean) =>
     JSON.stringify({
       number: 7,
-      state: "OPEN",
+      state: merged ? "MERGED" : "OPEN",
       isDraft: state.draft,
       mergeable: "MERGEABLE",
       body: "## 概要\n\n元の本文\n",
-    }),
-  );
+    });
+  const gh = await fakeGh(f.root, () => prJson(false));
   const undraft = async () => {
     state.draft = false;
     await gh.write();
   };
+  // gh pr merge がマージを済ませた後に失敗する状態（PR の state が MERGED になって gh が非 0 で終わる）
+  const mergedThenFail = () => gh.mergedThenFailCall(prJson(true));
   return {
     ctx,
     calls: gh.calls,
@@ -131,6 +150,7 @@ async function prepared() {
     failMergeCall: gh.failMergeCall,
     allowMergeCall: gh.allowMergeCall,
     undraft,
+    mergedThenFail,
   };
 }
 
@@ -279,7 +299,7 @@ describe("dg pr ready・dg pr merge（t545）", () => {
    * --delete-branch で呼ぶと worktree は消され、失敗で同じパスに戻る
    */
   async function setupWorktreeMergeFails(setup: string[]) {
-    const { ctx: first, calls, undraft, failMergeCall } = await prepared();
+    const { ctx: first, calls, undraft, failMergeCall, mergedThenFail } = await prepared();
     await runCommand(configSet, first, { key: "worktree.setup", value: setup });
     const ctx = await openContext({ cwd: first.repo.topLevel, actor: first.actor });
     await passedReview(ctx);
@@ -290,7 +310,7 @@ describe("dg pr ready・dg pr merge（t545）", () => {
     const wt = path.join(path.dirname(main), "wt-t1");
     await git(main, ["worktree", "add", "-q", wt, "feat/t1"]);
     await failMergeCall();
-    return { ctx, main, wt, calls };
+    return { ctx, main, wt, calls, mergedThenFail };
   }
 
   it("--delete-branch で gh pr merge が失敗して worktree を戻したら、戻した worktree で config の worktree.setup を回し直す（t643）", async () => {
@@ -305,6 +325,25 @@ describe("dg pr ready・dg pr merge（t545）", () => {
     // 印のファイルは戻した worktree の中にあり、元のクローンには無い
     expect(existsSync(path.join(wt, "setup-ran.txt"))).toBe(true);
     expect(existsSync(path.join(main, "setup-ran.txt"))).toBe(false);
+    expect(await calls()).toEqual([]);
+  });
+
+  it("gh pr merge が失敗しても PR がマージ済み（MERGED）なら成功を返し、ブランチの削除の失敗を warnings に出す。worktree は戻さず、準備のコマンドも回さない（t686）", async () => {
+    const marker = ["node", "-e", "require('node:fs').writeFileSync('setup-ran.txt', 'ok')"];
+    const { ctx, main, wt, calls, mergedThenFail } = await setupWorktreeMergeFails(marker);
+    // gh はマージを済ませたあと、ローカルのブランチの削除に失敗した状態
+    await mergedThenFail();
+    const merged = await runCommand(prMerge, ctx, { ticket: "t1", delete_branch: true });
+    expect(merged.data).toMatchObject({ pr: 7, action: "merge", method: "squash" });
+    expect(merged.warnings.join("\n")).toContain(
+      "is merged, but gh could not delete the work branch",
+    );
+    expect(merged.warnings.join("\n")).toContain("gh の失敗");
+    // worktree は消したまま戻さず、準備のコマンドも回していない（戻す先の worktree が無い）
+    expect(existsSync(wt)).toBe(false);
+    expect((await git(main, ["worktree", "list"])).stdout).not.toContain("wt-t1");
+    expect(existsSync(path.join(main, "setup-ran.txt"))).toBe(false);
+    expect(merged.warnings.join("\n")).not.toContain("was restored");
     expect(await calls()).toEqual([]);
   });
 
