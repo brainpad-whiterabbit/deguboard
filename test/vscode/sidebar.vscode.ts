@@ -3,7 +3,7 @@
 // - カンバンにチケットの行が出て、タブ（バックログ）に切り替えても戻しても行が出ること
 // - 行を押すとエディタ領域のパネルに詳細が開くこと（Webview → 拡張ホストのやり取り）
 // - ウィンドウ全体（ワークベンチと Webview）に CSP 違反と捕まえていない例外が 1 つもないこと（検出が効くことは、Webview の中でわざと違反と例外を起こして確かめる）
-// - ライトとダークのテーマでスクリーンショット（カンバンと設定画面）を test/vscode/screenshots/ に出すこと
+// - ライトとダークのテーマでスクリーンショット（カンバン・実行計画の依存グラフ・設定画面）を test/vscode/screenshots/ に出すこと
 // VS Code 本体のダウンロードと画面が要るので mise run test には入れず、mise run test:vscode で回す（先に mise run build）
 
 import { access } from "node:fs/promises";
@@ -15,9 +15,12 @@ import {
   iterationCreate,
   iterationStart,
   openContext,
+  planApprove,
+  planCreate,
   runCommand,
   ticketClaim,
   ticketCreate,
+  ticketMove,
 } from "../../packages/core/src/index.js";
 import { createFixture, type Fixture } from "../../packages/core/test/helpers/git-fixture.js";
 import {
@@ -119,6 +122,39 @@ describe("VS Code の実機の左パネル", () => {
     await sidebar.locator("body").evaluate(() => {
       location.hash = "#/board";
     });
+  });
+
+  it("実行計画の依存グラフを開き、待ちの状態と由来の 4 種類の辺をライトとダークで撮る", async () => {
+    // t4 は done。t5 は depends_on で t4 を（待ち終わり）、t6 は after で t4 を（待ち終わり）、
+    // t7 は after で t5 を（待ち中）、t8 は depends_on で t6 を（待ち中）待つ
+    const ctx = await openContext({ cwd: fixture.cloneA });
+    for (const [i, depends_on] of [[], ["t4"], [], [], ["t6"]].entries()) {
+      await runCommand(ticketCreate, ctx, {
+        title: `実行計画のチケット ${i + 1}`,
+        acceptance: ["辺が出る"],
+        iteration: "s1",
+        depends_on,
+      });
+    }
+    await runCommand(planCreate, ctx, {
+      tickets: ["t4", "t5", "t6", "t7", "t8"],
+      after: { t6: ["t4"], t7: ["t5"] },
+    });
+    await runCommand(planApprove, ctx, { plan: "p1" });
+    await runCommand(ticketMove, ctx, { ticket: "t4", status: "done" });
+    const toggle = sidebar.locator(".plan-item button.plan-toggle");
+    await toggle.waitFor({ timeout: 60_000 });
+    await toggle.click();
+    const graph = sidebar.locator(".plan-graph");
+    await graph.waitFor();
+    expect(await sidebar.locator(".plan-graph-canvas .plan-graph-edge").count()).toBe(4);
+    expect(await sidebar.locator(".plan-graph-canvas .plan-graph-edge-pending").count()).toBe(2);
+    await graph.scrollIntoViewIfNeeded();
+    for (const theme of ["dark", "light"] as const) {
+      await host.setTheme(theme);
+      const shot = await host.screenshot("plan", theme);
+      await access(shot.sidebar);
+    }
   });
 
   it("ワークベンチと Webview に CSP 違反と捕まえていない例外がない", () => {
