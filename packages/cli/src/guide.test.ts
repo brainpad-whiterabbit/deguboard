@@ -563,6 +563,21 @@ describe("dg guide", () => {
     expect(guide).toContain("## Asking with choices");
   });
 
+  it("status は対象を選択肢で聞き、次の一手は選択肢で聞かない（別々に確かめる）", async () => {
+    const guide = await readGuide("status");
+    // 対象の決め方：対象がなければ、選択肢の節（差し込み）で ticket を聞く。その節は対象の節と次の手順の間にある
+    const target = section(guide, "## Deciding the target");
+    expect(target).toContain("No target given: ask which ticket, with the choices below");
+    const choices = guide.indexOf("## Asking with choices");
+    expect(choices).toBeGreaterThan(guide.indexOf("## Deciding the target"));
+    expect(choices).toBeLessThan(guide.indexOf("## Reading"));
+    // 次の一手：選択肢を出さず、再開を勧めるだけ。選択肢の節の語を持たない
+    const next = section(guide, "## Choosing the next step");
+    expect(next).toContain("asks no choices of its own");
+    for (const word of ["Asking with choices", "AskUserQuestion", "ask which"])
+      expect(next).not.toContain(word);
+  });
+
   it("change は操作ごとの前提を確かめ、当たるときだけ前後を示して承認を得て、dg を 1 回呼び、拒否されたら人にコマンドを渡す", async () => {
     const steps = section(await readGuide("change"), "## Steps");
     // 前提の確認：close は未完了、Iteration の reopen はほかの active、abandon は理由、undo done は戻す Status と理由、edit は前後

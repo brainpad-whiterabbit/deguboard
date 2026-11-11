@@ -352,6 +352,30 @@ describe("dg", () => {
     expect(list.out).toContain("s1");
   });
 
+  it("iteration list の人向けの出力は started_at の列を出し、start・end の列は出さない（実績の期間だけ）", async () => {
+    const f = await fixture();
+    await dg(f.cloneA, ["init"]);
+    await dg(f.cloneA, ["iteration", "create", "Sprint 1"]);
+    expect((await dg(f.cloneA, ["iteration", "start", "s1"])).code).toBe(0);
+    const list = await dg(f.cloneA, ["iteration", "list"]);
+    expect(list.code).toBe(0);
+    // 列は空白で区切った見出しの語で確かめる（started_at は start で始まるので部分一致は使わない）
+    const columns = list.out.split("\n")[0]!.trim().split(/\s+/);
+    expect(columns).toContain("started_at");
+    expect(columns).not.toContain("start");
+    expect(columns).not.toContain("end");
+  });
+
+  it("ask --help は --place と historyRow の説明を出す", async () => {
+    const f = await fixture();
+    await dg(f.cloneA, ["init"]);
+    const help = await dg(f.cloneA, ["ask", "--help"]);
+    expect(help.code).toBe(0);
+    expect(help.out).toContain("--place");
+    expect(help.out).toContain("historyRow");
+    expect(help.out).toContain("retro");
+  });
+
   it("Iteration は予定の期間を持たないので、create・update のヘルプに --start・--end がなく、渡すと使い方の誤り", async () => {
     const f = await fixture();
     await dg(f.cloneA, ["init"]);
