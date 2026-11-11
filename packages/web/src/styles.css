@@ -2980,7 +2980,9 @@ button.ask-copy svg {
   opacity: 1;
 }
 /*
- * 選べる行の左端の帯（UI-15。selection.tsx）。行の要素の疑似要素で、行の左の余白（6px）に重ねる（余白は足さない）。
+ * 選べる行の左端の帯（UI-15。selection.tsx）。行の要素の疑似要素で、行の左の余白に重ねる（余白は足さない）。
+ * 幅は 12px で、ask-menu.tsx の STRIP_PX（なぞりを帯から始めたかの判定）と同じ値。変えるときは両方を直す。
+ * 帯の幅の余白は下の [data-select-id] > .row で取り、番号や題の文字に重ならないようにする。
  * 押すと 1 件を選ぶ・外す（ask-menu.tsx の onClickCapture。帯の当たりは行の要素そのものになる）。
  * ふだんは透明。マウスを載せたとき・タッチの画面（hover のない画面）は薄く、選んだ行は今の選択の色で出す
  */
@@ -2990,10 +2992,18 @@ button.ask-copy svg {
   top: 0;
   bottom: 0;
   left: 0;
-  width: 6px;
+  width: 12px;
   background: var(--vscode-focusBorder);
   opacity: 0;
   cursor: pointer;
+}
+/* 帯を持つ行の本体（.row）の左の余白は帯の幅（12px）。.row の既定の 6px より優先する */
+[data-select-id] > .row {
+  padding-left: 12px;
+}
+/* 番号の下の PR の欄（.row-pr）は番号の左端に揃える。番号が 6px 右に寄るぶん、欄も 6px 寄せる（subgrid の起点は .row の余白に依らないため） */
+[data-select-id] .row-pr {
+  padding-left: 6px;
 }
 [data-select-id]:hover::before {
   opacity: 0.6;

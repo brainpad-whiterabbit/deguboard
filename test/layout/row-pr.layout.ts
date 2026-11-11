@@ -51,10 +51,10 @@ const rowOf = (page: Page, id: string) => page.locator(`[data-select-id="${id}"]
 /** 行の番号の下の PR のリンク */
 const prLinkOf = (page: Page, id: string) => rowOf(page, id).locator(".row-pr a");
 
-/** 行の左端 3px（帯の上）の位置 */
+/** 行の左端 6px（帯の幅 12px の真ん中）の位置 */
 async function stripPoint(row: Locator): Promise<{ x: number; y: number }> {
   const box = (await row.boundingBox())!;
-  return { x: box.x + 3, y: box.y + box.height / 2 };
+  return { x: box.x + 6, y: box.y + box.height / 2 };
 }
 
 const boxOf = async (locator: Locator) => (await locator.boundingBox())!;
@@ -232,8 +232,8 @@ describe("行の番号の下の PR のリンク（UI-2）", () => {
       const cell = await boxOf(row.locator(".row-pr"));
       const y = cell.y + cell.height / 2;
       // 2 段目の左端・中ほど・右端（リンクの右の空き）のどこも、包みではなく欄（.row-pr）が受ける
-      // 左端は帯（幅 6px。帯は行の左端で選ぶ）の外の余白から見る
-      for (const x of [cell.x + 6.5, cell.x + cell.width / 2, cell.x + cell.width - 3]) {
+      // 左端は帯（幅 12px。帯は行の左端で選ぶ）の外の余白から見る
+      for (const x of [cell.x + 12.5, cell.x + cell.width / 2, cell.x + cell.width - 3]) {
         const inCell = await page.evaluate(
           ({ px, py }: { px: number; py: number }) =>
             document.elementFromPoint(px, py)?.closest(".row-pr") != null,
