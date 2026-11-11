@@ -1047,25 +1047,37 @@ button.link:hover {
   inset: 0;
   overflow: visible;
 }
+/* 辺の待ちの状態は色と太さ、由来は模様で分ける（plan-band.tsx の PlanGraphView）。既定は待ち終わり：灰色で細く薄く */
 .plan-graph-edge {
   fill: none;
   stroke: var(--vscode-descriptionForeground);
-  stroke-width: 1.2;
+  stroke-width: 1;
+  stroke-opacity: 0.55;
 }
 .plan-graph-edge-pending {
-  stroke-dasharray: 3 3;
+  stroke: var(--dg-warning);
+  stroke-width: 2;
+  stroke-opacity: 1;
 }
-/* depends_on の辺は点線。after の実線・破線と見分け、待ち中は点の間を広げて太くし、待ち終わりと見分ける */
+/* 凡例の由来の見本は状態の色を持たない */
+.plan-graph-edge-sample {
+  stroke-width: 1.5;
+  stroke-opacity: 1;
+}
+/* depends_on の辺は点線。after の実線と見分ける */
 .plan-graph-edge-depends {
   stroke-dasharray: 1 3;
   stroke-linecap: round;
 }
 .plan-graph-edge-depends.plan-graph-edge-pending {
-  stroke-dasharray: 0.1 5;
-  stroke-width: 2.4;
+  stroke-dasharray: 0.1 4;
 }
-.plan-graph-arrow {
+.plan-graph-arrow-done {
   fill: var(--vscode-descriptionForeground);
+  fill-opacity: 0.55;
+}
+.plan-graph-arrow-pending {
+  fill: var(--dg-warning);
 }
 .plan-node {
   position: absolute;
@@ -1131,8 +1143,9 @@ button.link:hover {
 .plan-graph-tracing .plan-graph-edge:not(.related) {
   opacity: 0.35;
 }
+/* 強調しても状態の色は変えず、薄い待ち終わりの辺だけ濃くする */
 .plan-graph-edge.related {
-  stroke: var(--vscode-focusBorder);
+  stroke-opacity: 1;
 }
 .plan-graph-legend {
   display: flex;

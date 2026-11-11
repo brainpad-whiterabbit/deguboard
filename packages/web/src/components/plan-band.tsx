@@ -202,7 +202,8 @@ const yOf = (n: GraphNode) => n.row * (NODE_H + ROW_GAP);
 
 /**
  * 依存グラフ。段を左から右に並べ、段の中は Plan の順。辺は SVG で描き、ノードはチケットへのリンクを上に重ねる。
- * 待ち終わった辺は実線、待ち中は破線。depends_on の辺は点線（待ち中は間を空けた太い点）で after と見分ける。ノードにホバー・フォーカスすると繋がるノードと辺を強調する
+ * 辺の見た目は 2 つの軸を別の手段で分ける：待ちの状態は色と太さ（待ち中は警告の色で太く、待ち終わりは灰色で細く薄く）、由来は模様（after は実線、depends_on は点線）。
+ * 模様だけで両方を分けると 4 種類の模様が混ざって見分けにくいため。ノードにホバー・フォーカスすると繋がるノードと辺を強調する
  */
 export function PlanGraphView({
   plan,
@@ -236,18 +237,24 @@ export function PlanGraphView({
       <div className="plan-graph-canvas" style={{ width, height }}>
         <svg width={width} height={height} aria-hidden="true">
           <defs>
-            <marker
-              id={arrow}
-              viewBox="0 0 6 6"
-              refX="6"
-              refY="3"
-              markerWidth="6"
-              markerHeight="6"
-              markerUnits="userSpaceOnUse"
-              orient="auto"
-            >
-              <path d="M0,0 L6,3 L0,6 z" className="plan-graph-arrow" />
-            </marker>
+            {(["done", "pending"] as const).map((state) => (
+              <marker
+                key={state}
+                id={`${arrow}-${state}`}
+                viewBox="0 0 6 6"
+                refX="6"
+                refY="3"
+                markerWidth="6"
+                markerHeight="6"
+                markerUnits="userSpaceOnUse"
+                orient="auto"
+              >
+                <path
+                  d="M0,0 L6,3 L0,6 z"
+                  className={`plan-graph-arrow plan-graph-arrow-${state}`}
+                />
+              </marker>
+            ))}
           </defs>
           {graph.edges.map((e) => {
             const a = at.get(e.from)!;
@@ -263,7 +270,7 @@ export function PlanGraphView({
                 key={`${e.from}-${e.to}`}
                 d={`M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}`}
                 className={`plan-graph-edge${e.done ? "" : " plan-graph-edge-pending"}${e.kind === "depends_on" ? " plan-graph-edge-depends" : ""}${lit ? " related" : ""}`}
-                markerEnd={`url(#${arrow})`}
+                markerEnd={`url(#${arrow}-${e.done ? "done" : "pending"})`}
               />
             );
           })}
@@ -286,49 +293,23 @@ export function PlanGraphView({
       </div>
       {graph.edges.length > 0 ? (
         <div className="plan-graph-legend muted">
-          <span>
-            {trNode(
-              "{0}{1}待ち終わり",
+          {[
+            { label: tr("待ち中"), cls: " plan-graph-edge-pending" },
+            { label: tr("待ち終わり"), cls: "" },
+            ...(hasDepends
+              ? [
+                  { label: "after", cls: " plan-graph-edge-sample" },
+                  { label: "depends_on", cls: " plan-graph-edge-sample plan-graph-edge-depends" },
+                ]
+              : []),
+          ].map(({ label, cls }) => (
+            <span key={label}>
               <svg width="20" height="6" aria-hidden="true">
-                <line x1="0" y1="3" x2="20" y2="3" className="plan-graph-edge" />
-              </svg>,
-              hasDepends ? "after " : "",
-            )}
-          </span>
-          <span>
-            {trNode(
-              "{0}{1}待ち中",
-              <svg width="20" height="6" aria-hidden="true">
-                <line
-                  x1="0"
-                  y1="3"
-                  x2="20"
-                  y2="3"
-                  className="plan-graph-edge plan-graph-edge-pending"
-                />
-              </svg>,
-              hasDepends ? "after " : "",
-            )}
-          </span>
-          {hasDepends
-            ? [
-                { label: tr("depends_on 待ち終わり"), cls: "" },
-                { label: tr("depends_on 待ち中"), cls: " plan-graph-edge-pending" },
-              ].map(({ label, cls }) => (
-                <span key={label}>
-                  <svg width="20" height="6" aria-hidden="true">
-                    <line
-                      x1="0"
-                      y1="3"
-                      x2="20"
-                      y2="3"
-                      className={`plan-graph-edge plan-graph-edge-depends${cls}`}
-                    />
-                  </svg>
-                  {label}
-                </span>
-              ))
-            : null}
+                <line x1="0" y1="3" x2="20" y2="3" className={`plan-graph-edge${cls}`} />
+              </svg>
+              {label}
+            </span>
+          ))}
         </div>
       ) : null}
     </div>

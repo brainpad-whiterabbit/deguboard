@@ -1074,8 +1074,8 @@ t2
 [aria-label] Code Review
 [title] 題データの三
 t3
-wait done
 waiting
+wait done
 Tickets
 [aria-label] In Progress
 t2
