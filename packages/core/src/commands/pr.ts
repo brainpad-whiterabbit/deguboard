@@ -11,11 +11,19 @@ import { findBranchWorktree } from "../git/worktree.js";
 import { PR_MERGE_METHODS } from "../model/config.js";
 import type { Ticket } from "../model/ticket.js";
 import { unfixedLightLines, withUnfixedLight } from "../run/findings.js";
-import { readReviewFindings } from "../run/record.js";
+import { readReviewFindings, readRunningRuns } from "../run/record.js";
+import { withWrite, type WriteOutcome } from "../git/write.js";
+import type { RunId } from "../model/run.js";
 import { setupFailureIn } from "./claim-setup.js";
 import { defineCommand, ok, type CommandContext } from "./define.js";
 import { judgeGate, type GateStage, type GateView } from "./gate.js";
 import { ticketRef } from "./helpers.js";
+import {
+  linkOrphanRounds,
+  orphanReviewRuns,
+  recordOrphanReviews,
+  type RecordedOrphanReviews,
+} from "./orphan-review.js";
 
 export interface PrAdvanceView {
   ticket: string;
@@ -28,6 +36,8 @@ export interface PrAdvanceView {
   method?: (typeof PR_MERGE_METHODS)[number];
   /** PR の本文の「直さなかった軽い指摘」に載せた件数（ready のときだけ。見直しの記録がなければ 0） */
   noted?: number;
+  /** 持ち主のない保留から書いた見直しの記録の Run（ready のときだけ。orphan-review.ts） */
+  reviews_recorded?: RunId[];
 }
 
 /** ゲートを判定し、満たさなければ満たさない条件と理由を GATE_FAILED で返す（gh を呼ばない） */
@@ -173,16 +183,37 @@ export const prReady = defineCommand({
   positionals: ["ticket"],
   group: "pr",
   summary:
-    "Take a ticket's PR out of draft with gh pr ready, only when it meets the quality gate (dg gate <ticket> --for ready). The conditions follow the ticket's gate level (a ticket with no gate is high; see dg gate --help). If it does not, it returns GATE_FAILED with the unmet conditions and their reasons, and does not call gh. This is the right way for an agent to open a PR; gh pr ready run outside dg is rejected by the hook. Opening it outside the conditions of the level is a person's decision, and a person runs gh pr ready. Before opening, it adds to the PR body the light findings in the review record that were not passed to the fix (including differences from the reference section) (the original body is kept; the count is in noted). It does not write ticket data (moving to review happens at the next sync)",
+    "Take a ticket's PR out of draft with gh pr ready, only when it meets the quality gate (dg gate <ticket> --for ready). The conditions follow the ticket's gate level (a ticket with no gate is high; see dg gate --help). If it does not, it returns GATE_FAILED with the unmet conditions and their reasons, and does not call gh. This is the right way for an agent to open a PR; gh pr ready run outside dg is rejected by the hook. Opening it outside the conditions of the level is a person's decision, and a person runs gh pr ready. Before opening, it adds to the PR body the light findings in the review record that were not passed to the fix (including differences from the reference section) (the original body is kept; the count is in noted). A review result held with no Run that the gate counted as a review is first written as a closed review Run marked capture: none, as dg sync does (data.reviews_recorded). It does not write ticket data (moving to review happens at the next sync)",
   input: z.object({ ticket: ticketRef }),
-  write: false,
+  // 持ち主のない保留を見直しの記録として書く（orphan-review.ts）
+  write: true,
   needs: "store",
   async run(ctx, input) {
     const { ticket, gate, pr } = await passGate(ctx, input.ticket, "ready");
+    // ゲートが数えた保留を、ほかの clone の gate も数えられるように Git に書く（RN-9。t700）。ゲートの後なので判定は変わらない
+    // 保留がなければ書き込みを始めない（まとめ待ちの変更のコミットや fetch を起こさない）
+    const running = (await readRunningRuns(ctx.repo)).runs.map((r) => r.data);
+    let recorded: RecordedOrphanReviews = { written: [], linked: [] };
+    let write: WriteOutcome | undefined;
+    if ((await orphanReviewRuns(ctx, ticket, running)).length > 0) {
+      const result = await withWrite(ctx, () => recordOrphanReviews(ctx, ticket, running), {
+        message: (r) =>
+          `Record held review results: ${ticket.id}: ${r.written.map((w) => w.id).join(", ")}`,
+      });
+      ({ value: recorded, write } = result);
+      await linkOrphanRounds(ctx, ticket, recorded);
+    }
     const noted = await noteUnfixedLight(ctx, ticket, pr);
     await runGh(ctx.repo.topLevel, ["pr", "ready", String(pr)], { timeoutMs: 60_000 });
-    const view: PrAdvanceView = { ticket: ticket.id, pr, action: "ready", gate, noted };
-    return ok(view);
+    const view: PrAdvanceView = {
+      ticket: ticket.id,
+      pr,
+      action: "ready",
+      gate,
+      noted,
+      reviews_recorded: recorded.written.map((w) => w.id),
+    };
+    return ok(view, write);
   },
 });
 

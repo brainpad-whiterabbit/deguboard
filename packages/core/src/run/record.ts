@@ -180,6 +180,30 @@ export async function adoptPendingRounds(
   await writeFileAtomic(reviewFindingsPath(repo, ticket), `${JSON.stringify(next, null, 2)}\n`);
 }
 
+/**
+ * 持ち主のない保留から見直しの記録（capture: none の Run）を書いた後、もとの保留の回をその Run に結び付ける（t700）。
+ * written は書いた記録（started_at が保留の回の at）。since（branch_at）以降の保留の回のうち、記録の時刻の回はその Run の回にし、
+ * 最後の記録までのほかの保留の回（同じ push の後に書き直された回）は外す（adoptPendingRounds と同じく、残すと同じ見直しを 2 回数える）。
+ * 最後の記録より後の保留の回は、書いている間に届いた次の見直しなので残す
+ */
+export async function linkHeldRounds(
+  repo: Pick<GitRepo, "localDir">,
+  ticket: TicketId,
+  since: string | undefined,
+  written: readonly Pick<Run, "id" | "started_at">[],
+): Promise<void> {
+  const stored = await readReviewFindings(repo, ticket);
+  if (!stored || written.length === 0) return;
+  const runAt = new Map(written.map((w) => [w.started_at, w.id]));
+  const last = [...runAt.keys()].sort().at(-1)!;
+  const held = (r: ReviewRound) => r.run === null && r.at >= (since ?? "") && r.at <= last;
+  const rounds = stored.rounds
+    .filter((r) => !held(r) || runAt.has(r.at))
+    .map((r) => (held(r) ? { ...r, run: runAt.get(r.at)! } : r));
+  const next: StoredReviewFindings = { ticket, rounds };
+  await writeFileAtomic(reviewFindingsPath(repo, ticket), `${JSON.stringify(next, null, 2)}\n`);
+}
+
 /** チケットの見直しの回。なければ（記録なし・別のマシン・読めない）undefined */
 export async function readReviewFindings(
   repo: Pick<GitRepo, "localDir">,

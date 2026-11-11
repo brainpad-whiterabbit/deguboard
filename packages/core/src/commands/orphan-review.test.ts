@@ -1,18 +1,20 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { createFixture, git } from "../../test/helpers/git-fixture.js";
 import { resetGhCache } from "../git/facts.js";
 import { runGit } from "../git/run.js";
-import type { Run, RunReview } from "../model/run.js";
-import { amendRunning, bindTranscript } from "../run/record.js";
+import { runSchema, type Run, type RunReview } from "../model/run.js";
+import { amendRunning, bindTranscript, readReviewFindings } from "../run/record.js";
+import { runPath } from "../storage/paths.js";
 import { openContext } from "./context.js";
 import { runCommand, type CommandContext } from "./define.js";
 import { gate, type GateView } from "./gate.js";
 import { next, type NextStep } from "./next.js";
 import { orphanReviewRuns, orphanReviewsOf } from "./orphan-review.js";
-import { runReviewResult, runStart } from "./run.js";
-import { init } from "./setup.js";
+import { prReady, type PrAdvanceView } from "./pr.js";
+import { runFinish, runReviewResult, runStart } from "./run.js";
+import { init, sync } from "./setup.js";
 import { ticketClaim, ticketCreate, ticketUpdate } from "./ticket.js";
 
 const cleanups: Array<() => Promise<void> | void> = [];
@@ -87,6 +89,8 @@ async function fakeGh(root: string) {
     [
       "#!/bin/sh",
       'case "$1" in --version) echo "gh version 0 (fake)"; exit 0;; esac',
+      // dg pr ready が読む PR の本文（gh api）。本文は空
+      `case "$1" in api) echo '{"body":""}'; exit 0;; esac`,
       'case "$3" in',
       `  feat/t1|7) echo '${json}';;`,
       '  *) echo "no pull requests found for branch $3" >&2; exit 1;;',
@@ -106,67 +110,67 @@ async function fakeGh(root: string) {
 
 const later = (minutes: number) => new Date(Date.now() + minutes * 60_000);
 
-describe("dg next と dg gate が持ち主のない保留を見直しとして数える（t699）", () => {
-  /** t1 を feat/t1 で Run なしに claim し、1 コミット push して PR #7 を記録した文脈（フックのない環境） */
-  async function prepared() {
-    const f = await createFixture();
-    cleanups.push(f.cleanup);
-    const actor = { kind: "agent" as const, user: "eiki" };
-    await runCommand(init, await openContext({ cwd: f.cloneA, initialize: {}, actor }), {
-      template: "software-development",
+/** t1 を feat/t1 で Run なしに claim し、1 コミット push して PR #7 を記録した文脈（フックのない環境） */
+async function prepared() {
+  const f = await createFixture();
+  cleanups.push(f.cleanup);
+  const actor = { kind: "agent" as const, user: "eiki" };
+  await runCommand(init, await openContext({ cwd: f.cloneA, initialize: {}, actor }), {
+    template: "software-development",
+  });
+  const ctx: CommandContext = await openContext({ cwd: f.cloneA, actor });
+  await runCommand(ticketCreate, ctx, { title: "A" });
+  // 作業ブランチ（branch_at）を 2 時間前からにする（push より前の保留を作業ブランチの中に置くため）
+  ctx.now = () => later(-120);
+  await runCommand(ticketClaim, ctx, {
+    no_worktree: true,
+    ticket: "t1",
+    branch: "feat/t1",
+    no_run: true,
+  });
+  await git(f.cloneA, ["checkout", "-qb", "feat/t1"]);
+  await git(f.cloneA, ["commit", "-q", "--allow-empty", "-m", "作業"]);
+  await git(f.cloneA, ["push", "-q", "origin", "feat/t1"]);
+  await fakeGh(f.root);
+  await runCommand(ticketUpdate, ctx, { ticket: "t1", pr: 7 });
+  /** コミッタの時刻を at にした直しを push する */
+  const pushAt = async (at: Date) => {
+    await runGit(f.cloneA, ["commit", "-q", "--allow-empty", "-m", "直し"], {
+      env: { GIT_COMMITTER_DATE: at.toISOString() },
     });
-    const ctx: CommandContext = await openContext({ cwd: f.cloneA, actor });
-    await runCommand(ticketCreate, ctx, { title: "A" });
-    // 作業ブランチ（branch_at）を 2 時間前からにする（push より前の保留を作業ブランチの中に置くため）
-    ctx.now = () => later(-120);
-    await runCommand(ticketClaim, ctx, {
-      no_worktree: true,
-      ticket: "t1",
-      branch: "feat/t1",
-      no_run: true,
-    });
-    await git(f.cloneA, ["checkout", "-qb", "feat/t1"]);
-    await git(f.cloneA, ["commit", "-q", "--allow-empty", "-m", "作業"]);
     await git(f.cloneA, ["push", "-q", "origin", "feat/t1"]);
-    await fakeGh(f.root);
-    await runCommand(ticketUpdate, ctx, { ticket: "t1", pr: 7 });
-    /** コミッタの時刻を at にした直しを push する */
-    const pushAt = async (at: Date) => {
-      await runGit(f.cloneA, ["commit", "-q", "--allow-empty", "-m", "直し"], {
-        env: { GIT_COMMITTER_DATE: at.toISOString() },
-      });
-      await git(f.cloneA, ["push", "-q", "origin", "feat/t1"]);
-    };
-    return { ctx, pushAt };
-  }
+  };
+  return { f, ctx, pushAt };
+}
 
-  /** Run のないまま見直しの結果を書く（保留になる）。at は書いた時刻 */
-  async function hold(ctx: CommandContext, at: Date, withHeavy: boolean) {
-    ctx.now = () => at;
-    const out = await runCommand(runReviewResult, ctx, {
-      ticket: "t1",
-      findings: withHeavy
-        ? [
-            {
-              severity: "heavy",
-              category: "不具合",
-              file: null,
-              line: null,
-              reason: "壊れる",
-              fix: null,
-            },
-          ]
-        : [],
-    });
-    expect(out.data).toMatchObject({ pending: true });
-  }
+/** Run のないまま見直しの結果を書く（保留になる）。at は書いた時刻 */
+async function hold(ctx: CommandContext, at: Date, withHeavy: boolean) {
+  ctx.now = () => at;
+  const out = await runCommand(runReviewResult, ctx, {
+    ticket: "t1",
+    findings: withHeavy
+      ? [
+          {
+            severity: "heavy",
+            category: "不具合",
+            file: null,
+            line: null,
+            reason: "壊れる",
+            fix: null,
+          },
+        ]
+      : [],
+  });
+  expect(out.data).toMatchObject({ pending: true });
+}
 
-  const stepOf = async (ctx: CommandContext) =>
-    (await runCommand(next, ctx, { ticket: "t1" })).data as NextStep;
-  const judge = async (ctx: CommandContext) =>
-    (await runCommand(gate, ctx, { ticket: "t1", for: "ready" })).data as GateView;
-  const condition = (view: GateView, id: string) => view.conditions.find((c) => c.id === id)!;
+const stepOf = async (ctx: CommandContext) =>
+  (await runCommand(next, ctx, { ticket: "t1" })).data as NextStep;
+const judge = async (ctx: CommandContext) =>
+  (await runCommand(gate, ctx, { ticket: "t1", for: "ready" })).data as GateView;
+const condition = (view: GateView, id: string) => view.conditions.find((c) => c.id === id)!;
 
+describe("dg next と dg gate が持ち主のない保留を見直しとして数える（t699）", () => {
   it("通った保留なら next は reviewed（通った）で ready を返し、gate --for ready が通る", async () => {
     const { ctx } = await prepared();
     await hold(ctx, later(1), false);
@@ -243,5 +247,144 @@ describe("dg next と dg gate が持ち主のない保留を見直しとして�
       waiting_since: later(3).toISOString(),
     });
     expect(await orphanReviewRuns(ctx, ticket, [waiting])).toHaveLength(1);
+  });
+});
+
+describe("dg sync と dg pr ready が持ち主のない保留を見直しの記録として書く（t700）", () => {
+  /** チケットの Run の、Git に書いたファイルの中身（キーの有無を見る） */
+  const rawRuns = async (ctx: CommandContext) =>
+    Promise.all(
+      [...ctx.store.runs.values()]
+        .filter((d) => d.data.ticket === "t1")
+        .map(
+          async (d) =>
+            JSON.parse(
+              await readFile(path.join(ctx.repo.dataDir, runPath(d.id)), "utf8"),
+            ) as Record<string, unknown>,
+        ),
+    );
+  const heldRounds = async (ctx: CommandContext) =>
+    ((await readReviewFindings(ctx.repo, "t1"))?.rounds ?? []).filter((r) => r.run === null);
+  /** next の段階と、gate の条件ごとの成否（記録の ID を含む文は比べない） */
+  const judgment = async (ctx: CommandContext) => {
+    const step = await stepOf(ctx);
+    const view = await judge(ctx);
+    const { reason: _, ...stage } = step.stage as unknown as Record<string, unknown>;
+    return {
+      kind: step.kind,
+      stage,
+      passed: view.passed,
+      conditions: view.conditions.map((c) => [c.id, c.ok]),
+    };
+  };
+  /**
+   * prepared の後に一度 sync した文脈。PR の照合（draft でない PR #7 で review に進む）を先に済ませ、
+   * 書く前と後の判定の違いを記録を書いたことだけにする
+   */
+  const synced = async () => {
+    const p = await prepared();
+    await runCommand(sync, p.ctx, {});
+    return p;
+  };
+
+  it("sync が保留を、結果を書いた時刻に閉じた capture: none の見直しの Run として書き、保留を結び付ける。判定は書く前と同じ", async () => {
+    const { ctx } = await synced();
+    const at = later(1);
+    await hold(ctx, at, false);
+    const before = await judgment(ctx);
+    const out = (await runCommand(sync, ctx, {})).data as {
+      reviews_recorded: Array<{ id: string; run: string }>;
+    };
+    expect(out.reviews_recorded).toEqual([{ id: "t1", run: expect.stringMatching(/^r/) }]);
+    const [raw] = await rawRuns(ctx);
+    expect(raw).toMatchObject({
+      id: out.reviews_recorded[0]!.run,
+      step: "review",
+      started_at: at.toISOString().replace(/\.\d+Z$/, "Z"),
+      finished_at: at.toISOString().replace(/\.\d+Z$/, "Z"),
+      result: "success",
+      usage: { input: null, output: null, cache_read: null, cache_write: null },
+      review: passed,
+      capture: "none",
+    });
+    // 閉じた Run には実行中の印を書かない
+    expect(raw).not.toHaveProperty("waiting_since");
+    expect(await heldRounds(ctx)).toEqual([]);
+    expect(await judgment(ctx)).toEqual(before);
+    // もう一度の sync は書き足さない
+    const again = (await runCommand(sync, ctx, {})).data as { reviews_recorded: unknown[] };
+    expect(again.reviews_recorded).toEqual([]);
+    expect(await rawRuns(ctx)).toHaveLength(1);
+  });
+
+  it("Git に書いた後で保留を結び付け損ねても、次の sync は書き直さずに結び付けだけをやり直す", async () => {
+    const { ctx } = await synced();
+    await hold(ctx, later(1), false);
+    const file = path.join(ctx.repo.localDir, "review-findings", "t1.json");
+    const held = await readFile(file, "utf8");
+    await runCommand(sync, ctx, {});
+    const before = await judgment(ctx);
+    // 結び付ける前に止まった残り：保留の回を書く前の形に戻す
+    await writeFile(file, held);
+    expect(await heldRounds(ctx)).toHaveLength(1);
+    const out = (await runCommand(sync, ctx, {})).data as { reviews_recorded: unknown[] };
+    expect(out.reviews_recorded).toEqual([]);
+    expect(await rawRuns(ctx)).toHaveLength(1);
+    expect(await heldRounds(ctx)).toEqual([]);
+    expect(await judgment(ctx)).toEqual(before);
+  });
+
+  it("同じ push の後に書き直した保留は最新の 1 件だけを書き、ほかの保留の回も外す", async () => {
+    const { ctx } = await synced();
+    await hold(ctx, later(1), true);
+    await hold(ctx, later(2), false);
+    const before = await judgment(ctx);
+    await runCommand(sync, ctx, {});
+    const runs = await rawRuns(ctx);
+    expect(runs.map((r) => r["review"])).toEqual([passed]);
+    expect((await readReviewFindings(ctx.repo, "t1"))?.rounds).toHaveLength(1);
+    expect(await judgment(ctx)).toEqual(before);
+  });
+
+  it("capture は保留から作った記録にだけ付き、ほかの Run には付かない。項目のない Run は今までどおり読める", async () => {
+    const { ctx } = await prepared();
+    ctx.now = () => later(1);
+    const implement = (
+      await runCommand(runStart, ctx, { ticket: "t1", step: "implement", agent: "claude-code" })
+    ).data as Run;
+    await runCommand(runFinish, ctx, { run: implement.id, result: "success" });
+    await hold(ctx, later(2), false);
+    await runCommand(sync, ctx, {});
+    const runs = await rawRuns(ctx);
+    expect(runs.find((r) => r["step"] === "implement")).not.toHaveProperty("capture");
+    expect(runs.find((r) => r["step"] === "review")).toMatchObject({ capture: "none" });
+    const { capture: _, ...old } = runs.find((r) => r["step"] === "review")!;
+    expect(runSchema.parse(old).capture).toBeUndefined();
+  });
+
+  it("フックなしの通し（claim --no-run → 保留 → 直しの push → 保留 → pr ready）が、保留のない別の clone でも gate を通る", async () => {
+    const { f, ctx, pushAt } = await prepared();
+    await hold(ctx, later(1), true);
+    await pushAt(later(2));
+    await hold(ctx, later(3), false);
+    const before = await judgment(ctx);
+    expect(before.passed).toBe(true);
+    ctx.now = () => later(4);
+    const ready = (await runCommand(prReady, ctx, { ticket: "t1" })).data as PrAdvanceView;
+    expect(ready.reviews_recorded).toHaveLength(2);
+    expect(await heldRounds(ctx)).toEqual([]);
+    expect(await judgment(ctx)).toEqual(before);
+    // まとめ待ちの書き込み（commit.mode）をリモートに送る
+    await runCommand(sync, ctx, {});
+    const other = await openContext({
+      cwd: f.cloneB,
+      initialize: {},
+      actor: { kind: "agent", user: "b" },
+    });
+    await runCommand(sync, other, {});
+    expect(await heldRounds(other)).toEqual([]);
+    const view = await judge(other);
+    expect(view.passed).toBe(true);
+    expect(condition(view, "fix_rounds").detail).toContain("1 review rounds");
   });
 });

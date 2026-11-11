@@ -139,6 +139,11 @@ export const runSchema = z.looseObject({
   /** 見直しの結果。この項目より前に書いた Run にはキーがないので、読むときに null にそろえる */
   review: runReviewSchema.nullable().default(null),
   /**
+   * 会話記録を取らずに作った記録の印（RN-1）。none は、フックが届かず持ち主のないまま残った見直しの結果（保留）から
+   * dg sync・dg pr ready が書いた見直しの記録（commands/orphan-review.ts）。ほかの Run にはキーを書かない（省けば会話記録を取る Run）
+   */
+  capture: z.literal("none").optional(),
+  /**
    * 止まって待っている印（RN-7）。サブエージェントが step を終えた事実のないまま止まった時刻（親への質問など）。
    * 実行中の記録にだけ置き、閉じた Run（Git）には書かない。再開（同じ agent_id の起動）で消す。この項目より前の記録とは null にそろえる
    */
