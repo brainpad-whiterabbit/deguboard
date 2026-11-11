@@ -1,0 +1,33 @@
+{
+  "id": "r20261111-035320-47a5",
+  "ticket": "t687",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-11T03:53:20Z",
+  "finished_at": "2026-11-11T04:01:14Z",
+  "result": "success",
+  "error": null,
+  "retries": 2,
+  "retry_reasons": [
+    "README の run-all.gif が旧版の起票の場面のまま残り、AC3 の撮り直しが未了",
+    "起票しないの書き方が広すぎ、監査の指摘は起票されるのに合わない（作りたいものを起票しないに絞る）"
+  ],
+  "usage": {
+    "input": 46,
+    "output": 14413,
+    "cache_read": 1271131,
+    "cache_write": 69915
+  },
+  "tools": {
+    "read": 3,
+    "search": 0,
+    "write": 4,
+    "bash": 21,
+    "other": 1,
+    "read_before_write": 0,
+    "search_before_write": 0
+  },
+  "session": "f6d97fc8-6ae2-470e-9f1d-5f1ec3703ff5",
+  "review": null
+}
