@@ -12,7 +12,7 @@ after:
     - t687
   t695:
     - t688
-pending_approval: true
+pending_approval: false
 details:
   t686:
     scope: gh の merge が失敗しても PR が MERGED なら成功にし、ブランチの削除の失敗を warnings に出す。MERGED でないときの振る舞いは変えない
@@ -58,3 +58,5 @@ details:
     scope: "@playwright/mcp・playwright-core と oxlint・oxfmt の版の上げと、それで増えた指摘と書式の差の直しだけ"
     approach: development.md の方針どおり @playwright/mcp と playwright-core を一緒に上げ、oxlint・oxfmt を上げて mise run format と check で増えた指摘を直す
     tier: standard
+approved_by: Eiki Kitajima/agent
+approved_at: 2026-11-11T00:17:48Z
