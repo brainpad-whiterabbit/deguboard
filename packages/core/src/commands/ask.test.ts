@@ -1264,9 +1264,9 @@ describe("説明の 1 文（meaning・UI-15）", () => {
       }
   });
 
-  it("対象のない頼むことの meaning は、空白で始まらず二重の空白もなく、en では日本語を含まない", () => {
+  it("対象なしの候補の頼むことの meaning は、空白で始まらず二重の空白もなく、en では日本語を含まない", () => {
     for (const language of ["ja", "en"] as const)
-      for (const action of ASK_ACTIONS) {
+      for (const action of askActions([])) {
         const meaning = askMeaning(action, [], undefined, language);
         expect(meaning, `${language} ${action}`).not.toBe("");
         expect(meaning, `${language} ${action}`).not.toMatch(/^\s|\s\s/);

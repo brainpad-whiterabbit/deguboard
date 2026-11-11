@@ -18,7 +18,7 @@ describe("idShapeOf（ID の形だけを確かめる）", () => {
   });
 });
 
-describe("iterationComplete（Iteration の完了の判定）", () => {
+describe("iterationComplete（Iteration と Plan の完了の判定）", () => {
   it("チケットが 0 件なら完了でない", () => {
     expect(iterationComplete([])).toBe(false);
   });

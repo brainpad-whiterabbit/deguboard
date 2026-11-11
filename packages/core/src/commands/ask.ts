@@ -914,18 +914,13 @@ const ACTIONS: Record<AskAction, ActionDef> = {
   retro: {
     skill: null,
     label: () => "振り返る",
+    // 振り返るは閉じた Iteration 1 つの候補（askActions）だけなので、対象は必ず Iteration
     text: (s, _w, lang) =>
-      s[0]?.kind === "iteration"
-        ? say(
-            lang,
-            `${idList(s, lang)} の振り返りを、終わったチケット・Run の集計・持ち越しから、うまくいったことと次に直すことを挙げてまとめてください（データは書き換えない）。`,
-            `Write a retrospective of ${idList(s, lang)} from the finished tickets, the Run totals, and the carry-overs, listing what went well and what to improve next (do not change any data).`,
-          )
-        : say(
-            lang,
-            `${idList(s, lang)} の振り返りをまとめてください（データは書き換えない）。`,
-            `Write a retrospective of ${idList(s, lang)} (do not change any data).`,
-          ),
+      say(
+        lang,
+        `${idList(s, lang)} の振り返りを、終わったチケット・Run の集計・持ち越しから、うまくいったことと次に直すことを挙げてまとめてください（データは書き換えない）。`,
+        `Write a retrospective of ${idList(s, lang)} from the finished tickets, the Run totals, and the carry-overs, listing what went well and what to improve next (do not change any data).`,
+      ),
   },
   free: {
     skill: null,
@@ -1255,7 +1250,7 @@ function afterChange(actions: readonly AskAction[], action: AskAction): AskActio
 }
 
 function baseActions(s: Subjects, place?: AskPlace): AskAction[] {
-  // 対象なしは、Skill を持つ頼むことを流れの順にすべて出す（Skill が対象を聞く）。対象がないと意味のないもの（外す・分ける・done の取り消し・再開・承認）と、Skill のないもの（振り返り）は出さない
+  // 対象なしは、Skill を持つ頼むことを流れの順にすべて出し（Skill が対象を聞く）、最後に自由に。対象がないと意味のないもの（外す・分ける・done の取り消し・再開・承認）と、閉じた Iteration の振り返るは出さない
   if (s.length === 0)
     return [
       "create",
@@ -1342,18 +1337,10 @@ function baseActions(s: Subjects, place?: AskPlace): AskAction[] {
 }
 
 /**
- * 対象のない頼むことの 1 文（UI-15）。ID の代わりに対象を指す言葉で書き、空白で始めない。
- * ここにない頼むことは、対象がなくても MEANING の文を使う（起票・Iteration・Epic・点検・自由に）
+ * 対象のない候補の頼むことの 1 文（UI-15）。ID の代わりに対象を指す言葉で書き、空白で始めない。
+ * 対象なしの候補（baseActions）に出ないものは置かない。ここにない候補（起票・Iteration・Epic・点検・自由に）は、対象がなくても MEANING の文を使う
  */
 const NO_TARGET: Partial<Record<AskAction, { ja: string; en: string }>> = {
-  split: {
-    ja: "指示のチケットを分けます。元のチケットを残すか abandoned にするかの案を示します。",
-    en: "Split the tickets, and propose whether to keep the original tickets or make them abandoned.",
-  },
-  remove: {
-    ja: "チケットを、入っている Iteration・Epic から外します。",
-    en: "Remove the tickets from the Iteration or Epic they belong to.",
-  },
   change: { ja: "指示のとおりに直します。", en: "Edit as instructed." },
   discuss: {
     ja: "論点を人と選択肢で決め、前後の差の承認を得てから反映します（議論の間はデータを書き換えません）。",
@@ -1367,15 +1354,7 @@ const NO_TARGET: Partial<Record<AskAction, { ja: string; en: string }>> = {
     ja: "指示の内容を進める Plan を立て、承認を待ちます。",
     en: "Make a Plan for the instructions and wait for approval.",
   },
-  approve: {
-    ja: "指示の内容を示し、承認を求めます。",
-    en: "Show the content of the instructions and ask for approval.",
-  },
   work: { ja: "指示の内容を進めます。", en: "Proceed with the instructions." },
-  resume: {
-    ja: "止まっている作業を再開し、Status を in_progress にします。",
-    en: "Resume the stalled work and set their Status to in_progress.",
-  },
   all: {
     ja: "指示の内容を最後まで進めます（承認の場所は手順どおり）。",
     en: "Take the instructions all the way through, pausing for approval where the steps say to.",
@@ -1400,17 +1379,9 @@ const NO_TARGET: Partial<Record<AskAction, { ja: string; en: string }>> = {
     ja: "指示のチケットをやめ、Status を abandoned にします（人の指示）。",
     en: "Abandon the tickets and set their Status to abandoned (a human's instruction).",
   },
-  undo_done: {
-    ja: "done のチケットを戻し、Status を todo・in_progress・review のどれかにします（人の指示）。",
-    en: "Undo done on the done tickets and return their Status to todo, in_progress, or review (a human's instruction).",
-  },
   status: {
     ja: "進んでいるチケットの作業の様子を教えます（データは書き換えません）。",
     en: "Tell how the work on an in-progress ticket is going (no data changes).",
-  },
-  retro: {
-    ja: "振り返りをまとめます（データは書き換えません）。",
-    en: "Write a retrospective (no data changes).",
   },
 };
 
@@ -1579,10 +1550,6 @@ export function buildAsk(input: BuildAskInput): AskView {
   return { ...view, kind: "prompt", human_only: [], workflow_by: [], text: lines.join("\n") };
 }
 
-function isComplete(statuses: readonly (Status | undefined)[]): boolean {
-  return statuses.length > 0 && statuses.every((st) => st !== undefined && isTerminal(st));
-}
-
 /** 今の Status からの遷移のうち、Workflow の by に agent が入っていない行き先。Workflow が読めなければ空（move のときに拒否される） */
 function agentDenied(store: Store, t: Parameters<Store["workflowFor"]>[0]): string[] {
   const wf = store.workflowFor(t);
@@ -1642,7 +1609,7 @@ function askSubjectOf(store: Store, ref: string, running: ReadonlySet<string>): 
               ? "pending_approval"
               : "approved",
         tickets: p.tickets,
-        complete: isComplete(p.tickets.map((id) => store.tickets.get(id)?.data.status)),
+        complete: iterationComplete(p.tickets.map((id) => store.tickets.get(id)?.data.status)),
       };
     }
   }
@@ -1658,7 +1625,7 @@ export const ask = defineCommand({
       .array(z.string().min(1))
       .default([])
       .describe(
-        "Target IDs (t12, s3, e2, p7; more than one allowed). Omit for no target: the candidates are the actions that start without a target (creating, assigning, planning, working, reading the status of work, releasing, changing, discussing, closing, or checking everything), and the Skill asks for the target",
+        "Target IDs (t12, s3, e2, p7; more than one allowed). Omit for no target: the candidates are the actions that start without a target (creating a ticket, Iteration, or Epic, assigning, checking, planning, working, reading the status of work, running everything, marking done, releasing, changing, discussing, closing, reopening, abandoning, or a free instruction), and the Skill asks for the target",
       ),
     action: z
       .enum(ASK_ACTIONS)
@@ -1683,7 +1650,7 @@ export const ask = defineCommand({
       .enum(ASK_PLACES)
       .optional()
       .describe(
-        "Where the ask is made from, the screen's kind of row or heading. historyRow is a row or heading in the History tab. Some candidates appear only from a place: retro (retrospective) is a candidate only with historyRow, on a closed Iteration. Omit it from the details and the boards",
+        "Where the ask is made from, the screen's kind of row or heading (boardTicket, boardHeading, backlogHeading, historyRow, detailTitle, detailTicket). Only historyRow changes the candidates: from a History row or heading on a closed Iteration, retro (retrospective) is added. The other places give the same candidates as omitting it",
       ),
     language: z
       .enum(ASK_LANGUAGES)
