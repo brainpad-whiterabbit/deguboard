@@ -1472,16 +1472,40 @@ describe("画面", () => {
       JSON.parse(screen.getByText(title).closest("li")!.getAttribute("data-vscode-context")!);
     // 「詳細を開く」「ID をコピー」が使う文脈だけで、エージェントに頼む対象・候補・おすすめは載せない
     expect(contextOf("入った")).toEqual({
-      webviewSection: "backlogTicket",
-      ticket: "t4",
+      webviewSection: "deguboardItem",
+      id: "t4",
       preventDefaultContextMenuItems: true,
     });
-    expect(contextOf("画面")).toMatchObject({ ticket: "t3" });
+    expect(contextOf("画面")).toMatchObject({ id: "t3" });
   });
 
-  it("サイドバーのカンバンの行と節の見出しの右クリックの文脈は、既定のメニューを止めるだけで、頼む対象も「詳細を開く」などの文脈も付けない", async () => {
+  it("サイドバーのカンバンの右クリックの文脈は、行と Iteration の見出しが場所によらない 1 つの名前と ID だけを載せ、ID のない状態の節の見出しは既定のメニューを止めるだけで、頼む対象は載せない", async () => {
     mount(boardClient(), hostOf("sidebar"));
     await screen.findByText("ログイン");
+    const contexts = [...document.querySelectorAll("[data-vscode-context]")].map(
+      (el) => JSON.parse(el.getAttribute("data-vscode-context")!) as Record<string, unknown>,
+    );
+    const ids = contexts.flatMap((c) => (c["id"] ? [c["id"]] : []));
+    expect(new Set(ids)).toEqual(new Set(["s0", "t1", "t2", "t3"]));
+    for (const c of contexts) {
+      if (c["id"])
+        expect(c).toEqual({
+          webviewSection: "deguboardItem",
+          id: c["id"],
+          preventDefaultContextMenuItems: true,
+        });
+      else expect(c).toEqual({ preventDefaultContextMenuItems: true });
+    }
+    expect(contexts.some((c) => !c["id"])).toBe(true);
+  });
+
+  it("エディタのパネルの詳細のタイトルと中の行は、右クリックの文脈に ID を載せない（「詳細を開く」「ID をコピー」は左パネルだけ）", async () => {
+    window.location.hash = "#/iterations/s0";
+    const client = boardClient();
+    client.handlers["iteration.show"] = () =>
+      iterationDetail(client.data.iterations[0]!, client.data.tickets);
+    mount(client, hostOf("panel"));
+    await screen.findByText("画面");
     const contexts = [...document.querySelectorAll("[data-vscode-context]")].map(
       (el) => JSON.parse(el.getAttribute("data-vscode-context")!) as Record<string, unknown>,
     );

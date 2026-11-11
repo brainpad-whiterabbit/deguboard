@@ -351,13 +351,15 @@ function BoardHead({
       ? tr("planned・active のすべて")
       : tr("開いた Iteration はない");
   const period = it ? shortPeriod(it) : undefined;
-  // 選んでいる Iteration の見出し（名前・期間・目標の段）から、その Iteration を頼む（「すべて」のときは出さない）
+  // 選んでいる Iteration の見出し（名前・期間・目標の段）から、その Iteration を頼む（「すべて」のときは出さない）。
+  // 右クリックで Iteration の「詳細を開く」「ID をコピー」を出す
   const spot = useAskSpot(
     it
       ? {
           targets: [it.id],
           label: tr("Iteration の見出し {0}", it.id),
           section: ASK_SECTIONS.boardHeading,
+          menu: it.id,
         }
       : null,
   );

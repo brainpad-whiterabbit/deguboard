@@ -2,7 +2,8 @@
 // 押すか Shift+F10 で頼むことの一覧（先頭がおすすめ）を直接出す。選ぶと入力欄（ask-composer.tsx）をその頼むことで開き、依頼文をコピーする（指示を足さないことが多い）。
 // 吹き出しは VS Code のツリーの行の操作ボタンと同じ出し方で、ふだんは右端の印を隠さない（「…」を常に出すと、狭い左パネルで右端の印と場所を取り合い、一覧まで 2 回押す）。
 // 右クリックのメニューには頼む入口を置かない（吹き出しで足り、文言は拡張の定義に固定されて対象に合わせられない。
-// バックログの行の data-vscode-context は「詳細を開く」「ID をコピー」用の ticket だけ）。
+// 左パネルのボード・バックログ・履歴のチケットの行と Iteration・Epic の見出しの data-vscode-context は、
+// 「詳細を開く」「ID をコピー」用の場所によらない webviewSection と ID（menu）だけ）。
 // 候補は core の ask-menu（読み取りだけ）が組ごとに決め、web では組み立て直さない。画面の頼める場所は AskMenuProvider が
 // まとめて 1 回で引き、一覧が読み直されたら（Status が変わったかもしれない）引き直す。Provider の外では一覧を開いたときに引く。
 // 部品は場所によらない（左パネルのカンバン・バックログ・履歴と、パネルのチケット・Iteration・Epic の詳細のタイトルと中の行で使う）。
@@ -43,9 +44,14 @@ import { trNode } from "../l10n-node.js";
  * 頼める場所の種類の名前（core の WEBVIEW_CONTRACT.askSections の写し）。選んだ行の場所を区別するのに使う
  */
 export const ASK_SECTIONS = WEBVIEW_CONTRACT_COPY.askSections;
+/**
+ * バックログの行の場所の種類の名前。画面の中で選んだ行の場所を区別するのにだけ使う（core の頼む場所ではなく、
+ * 右クリックの文脈にも載せない）
+ */
+export const BACKLOG_TICKET_SECTION = "backlogTicket";
 export type AskSection =
   | (typeof ASK_SECTIONS)[keyof typeof ASK_SECTIONS]
-  | typeof WEBVIEW_CONTRACT_COPY.backlogRowSection;
+  | typeof BACKLOG_TICKET_SECTION;
 
 /** 頼む場所（core の ask-menu の # の名前。場所によって候補が変わる）。askSections の名前と同じ */
 export type AskPlace = (typeof ASK_SECTIONS)[keyof typeof ASK_SECTIONS];
@@ -150,10 +156,14 @@ export interface AskSpotOptions {
   targets: readonly string[];
   /** 一覧の頭に出す場所の名前（「行 t12」「Iteration の見出し s3」） */
   label: string;
-  /** 場所の種類。バックログの行（backlogRowSection）だけ、右クリックの文脈（data-vscode-context）の webviewSection に載る */
+  /** 場所の種類（選んだ行の場所を区別する。右クリックの文脈には載せない） */
   section: AskSection;
-  /** バックログの行の右クリックの文脈に足すもの（ticket） */
-  context?: Readonly<Record<string, unknown>> | undefined;
+  /**
+   * 右クリックの「詳細を開く」「ID をコピー」の対象の ID（チケット・Iteration・Epic）。渡すと右クリックの文脈（data-vscode-context）に
+   * 場所によらない webviewSection（WEBVIEW_CONTRACT_COPY.menuSection）と id を載せる。左パネルのボード・バックログ・履歴の
+   * チケットの行と Iteration・Epic の見出しだけが渡す（ID のない見出し・Plan の見出し・詳細のタイトルと中の行・選択の帯は渡さない）
+   */
+  menu?: string | undefined;
   /** 吹き出しのボタンを置くか。置かなくても Shift+F10 で一覧を開ける（選択の帯が使う） */
   bubble?: boolean | undefined;
   /** 吹き出しを右端に重ねず、中身の横に常に出す（詳細のタイトル。styles.css の .ask-bubble.pinned） */
@@ -222,12 +232,12 @@ export function useAskSpot(options: AskSpotOptions | null): AskSpot {
     !!options &&
     ask.request !== null &&
     askKey(ask.request.targets, ask.request.within, ask.request.place) === key;
-  // 右クリックのメニューはバックログの行だけ「詳細を開く」「ID をコピー」を出す。ほかの場所は既定の切り取り・コピー・貼り付けを出さない
+  // 右クリックのメニューは ID（options.menu）のある行・見出しだけ「詳細を開く」「ID をコピー」を出す。
+  // どこでも既定の切り取り・コピー・貼り付けは出さない
   const context = options
     ? JSON.stringify({
-        // ticket（options.context）のある行だけ。選択の帯のように行でない場所には載せない
-        ...(options.section === WEBVIEW_CONTRACT_COPY.backlogRowSection && options.context
-          ? { webviewSection: options.section, ...options.context }
+        ...(options.menu
+          ? { webviewSection: WEBVIEW_CONTRACT_COPY.menuSection, id: options.menu }
           : {}),
         preventDefaultContextMenuItems: true,
       })

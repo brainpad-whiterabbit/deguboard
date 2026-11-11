@@ -1,8 +1,7 @@
 // 小さな表示部品：チケットへのリンク、優先度・Status の印、ラベル、進捗、チケットの行
 
 import { type ComponentProps, type MouseEvent, type ReactNode } from "react";
-import { WEBVIEW_CONTRACT_COPY } from "../client/webview.js";
-import { useAskSpot, type AskSection } from "./ask-menu.js";
+import { BACKLOG_TICKET_SECTION, useAskSpot, type AskSection } from "./ask-menu.js";
 import { useHost } from "../host.js";
 import { hrefOf, type Route } from "../router.js";
 import { useStore } from "../store.js";
@@ -454,7 +453,8 @@ export function sameAssignee(tickets: readonly Pick<Ticket, "assignee">[]): bool
 
 /**
  * 1 行のチケット（サイドバーのカンバン）。variant・head・end は TicketRow に渡す。dimmed でタイトルを説明文の色にする。
- * ask を渡すと行をエージェントに頼める場所にする（右端の吹き出し・Shift+F10。ask-menu.tsx）。Ctrl/⌘・Shift+クリックで複数選べる（selection.tsx）
+ * ask を渡すと行をエージェントに頼める場所にする（右端の吹き出し・Shift+F10。ask-menu.tsx）。Ctrl/⌘・Shift+クリックで複数選べる（selection.tsx）。
+ * 右クリックの文脈に行のチケットを載せ、拡張の「詳細を開く」「ID をコピー」を出す（useAskSpot の menu）
  */
 export function AskRow({
   ticket,
@@ -479,7 +479,13 @@ export function AskRow({
 }) {
   const spot = useAskSpot(
     ask
-      ? { targets: [ticket.id], label: tr("行 {0}", ticket.id), section: ask, select: true }
+      ? {
+          targets: [ticket.id],
+          label: tr("行 {0}", ticket.id),
+          section: ask,
+          menu: ticket.id,
+          select: true,
+        }
       : null,
   );
   const prClass = prRowClass(ticket, variant, head != null);
@@ -502,8 +508,8 @@ export function AskRow({
 }
 
 /**
- * バックログの行（サイドバー）。右クリックの文脈は webviewSection（core の WEBVIEW_CONTRACT の写しで、拡張の package.json の when と合う）と
- * チケット（拡張の「詳細を開く」「ID をコピー」が使う）だけ載せる（useAskSpot。既定の切り取り・コピー・貼り付けは出さない）。頼む入口は吹き出し
+ * バックログの行（サイドバー）。右クリックの文脈は場所によらない webviewSection（core の WEBVIEW_CONTRACT の写しで、拡張の package.json の when と合う）と
+ * チケットの ID（拡張の「詳細を開く」「ID をコピー」が使う）だけ載せる（useAskSpot の menu。既定の切り取り・コピー・貼り付けは出さない）。頼む入口は吹き出し
  */
 function BacklogItem({
   ticket: t,
@@ -517,8 +523,8 @@ function BacklogItem({
   const spot = useAskSpot({
     targets: [t.id],
     label: tr("行 {0}", t.id),
-    section: WEBVIEW_CONTRACT_COPY.backlogRowSection,
-    context: { ticket: t.id },
+    section: BACKLOG_TICKET_SECTION,
+    menu: t.id,
     select: true,
   });
   return (
@@ -545,7 +551,8 @@ export function TicketTable({
    */
   assigneeInEnd?: boolean;
   /**
-   * サイドバーの行に VS Code の右クリックのメニュー（詳細を開く・ID をコピー）の文脈（data-vscode-context）を付け、エージェントに頼む吹き出しを出す。左パネルのバックログで使う。
+   * サイドバーの行に VS Code の右クリックのメニュー（詳細を開く・ID をコピー）の文脈（data-vscode-context）を付け、エージェントに頼む吹き出しを出す。左パネルのバックログで使う
+   * （カンバンの行は AskRow、履歴の行は HistoryTicketRow が同じ文脈を付ける）。
    * メニューとコマンドは拡張の package.json の webview/context と context-menu.ts
    */
   rowMenu?: boolean;

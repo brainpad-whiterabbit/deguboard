@@ -444,13 +444,15 @@ function Section({
   // 2 段目に状態・月日の期間・目標を 1 行で（目標が溢れたら省略してツールチップで全文。カンバンと同じ）。
   // 0 件の区画は帯も 2 段目もない 1 行にする
   const period = it ? shortPeriod(it) : undefined;
-  // 区画の見出しから頼む：Iteration の区画はその Iteration、「Iteration なし」は中のチケットをまとめて（0 件なら出さない）
+  // 区画の見出しから頼む：Iteration の区画はその Iteration、「Iteration なし」は中のチケットをまとめて（0 件なら出さない）。
+  // 右クリックの「詳細を開く」「ID をコピー」は Iteration の区画だけ（「Iteration なし」は ID がない）
   const spot = useAskSpot(
     it || tickets.length > 0
       ? {
           targets: it ? [it.id] : tickets.map((t) => t.id),
           label: tr("区画の見出し {0}", it ? it.id : tr("Iteration なし")),
           section: ASK_SECTIONS.backlogHeading,
+          menu: it?.id,
         }
       : null,
   );

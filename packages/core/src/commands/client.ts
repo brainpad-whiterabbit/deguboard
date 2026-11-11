@@ -73,10 +73,14 @@ export type WebviewEvent =
  * 同じ値であることを web のテスト（packages/web/src/client/webview.test.ts）で確かめる
  */
 export const WEBVIEW_CONTRACT = {
-  /** バックログの行の右クリックの文脈（data-vscode-context の webviewSection）。拡張の package.json の when と合わせる */
-  backlogRowSection: "backlogTicket",
   /**
-   * 頼める行・見出しの場所の種類の名前（バックログの行は backlogRowSection）。右クリックのメニューには載せず、
+   * 右クリックの「詳細を開く」「ID をコピー」の文脈（data-vscode-context の webviewSection）。場所によらない 1 つの名前で、
+   * 左パネルのボード・バックログ・履歴のチケットの行と Iteration・Epic の見出しが、対象の ID（id）と一緒に載せる。
+   * 拡張の package.json の when と合わせる
+   */
+  menuSection: "deguboardItem",
+  /**
+   * 頼める行・見出しの場所の種類の名前。右クリックのメニューには載せず、
    * 画面の中で選んだ行の場所を区別するのに使う
    */
   askSections: [
@@ -99,7 +103,7 @@ export const WEBVIEW_CONTRACT = {
   /** 拡張ホスト → Webview の通知の名前（WebviewEvent の name の全件） */
   eventNames: ["reload", "navigate", "toggle", "ask", "terminals"],
 } as const satisfies {
-  backlogRowSection: string;
+  menuSection: string;
   askSections: readonly string[];
   routes: Record<string, `#/${string}`>;
   detailRoutes: Record<IdKind, `#/${string}/`>;
