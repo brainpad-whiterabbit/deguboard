@@ -13,6 +13,7 @@ import { defineCommand, ok, type CommandContext } from "./define.js";
 import { FIX_ROUNDS_LIMIT, heavyReviewRounds } from "./gate.js";
 import { agentDg as dg, openPlanOf, ticketRef } from "./helpers.js";
 import { planReadiness } from "./plan.js";
+import { orphanReviewRuns } from "./orphan-review.js";
 import { openedStepOf } from "./run.js";
 
 /** 段階の名前。claimed → implemented → reviewed(n) → fixed(n) → ready → merged と、todo・blocked・reviewing・waiting_human・closed */
@@ -246,7 +247,7 @@ export async function stageFactsOf(
   opts: { fetch?: boolean } = {},
 ): Promise<StageFacts> {
   const running = (await readRunningRuns(ctx.repo)).runs.map((r) => r.data);
-  const runs = [...[...ctx.store.runs.values()].map((d) => d.data), ...running].filter(
+  const recorded = [...[...ctx.store.runs.values()].map((d) => d.data), ...running].filter(
     (r) => r.ticket === ticket.id,
   );
   const plan = openPlanOf(ctx.store, ticket.id);
@@ -262,6 +263,9 @@ export async function stageFactsOf(
           () => undefined,
         )
       : undefined;
+  // フックが記録しなかった見直し（持ち主のない保留）も、見直しの Run として数える（dg gate と同じ関数。orphan-review.ts）。
+  // コミットの時刻を読むので、上で作業ブランチを取り込んだ後に読む
+  const runs = [...recorded, ...(await orphanReviewRuns(ctx, ticket, running))];
   return {
     ticket,
     waiting: [...new Set([...planWaits, ...ctx.store.pendingDeps(ticket)])],
@@ -416,6 +420,7 @@ export const next = defineCommand({
     `waiting_human (a Run is waiting for a person, the fix after the last review closed with failure or interrupted, or reviews that raised heavy findings went past ${FIX_ROUNDS_LIMIT} times). Whether the PR is a draft is seen in status (a PR with in_progress is a draft). ` +
     "For a ticket whose gate level is low or free (TK-9), a PR skips the review: a draft is reviewed with review_passed (the ready step), otherwise ready (wait_merge). " +
     "The stage is derived from the facts of Runs (implementation, review, and fix Runs and their results, and the mark of waiting for a person), the PR, the work branch, and Plan waits. " +
+    "A review result held with no review Run counts as a review the same way as in dg gate. " +
     "It returns the kind of step (kind: implement, review, fix, ready, wait_merge, wait_deps, wait_human, done), the step to open, the Run in progress, the Plan's tier, scope, and approach, the commands to call (commands; delegate to a sub-agent. If the model is the same as the parent's and it proceeds on its own, the implement claim drops --no-run and does not use the mark. For implement, review, fix, and ready steps, if that step's Run is already running, or an implementation Run or a fix Run on this branch that has no push since it started is running (for the ready step, also a review Run on this branch, such as one left open when the gate level was lowered), it waits for that to end instead of starting another), and the questions to ask a person (ask_human). " +
     "For implement, review, and fix steps it includes the text to paste into a sub-agent (brief, the same as dg brief). " +
     "For implement and fix steps it includes the model to launch (model) (the Plan's tier maps to config's models.*; a ticket with no tier is standard. When the mapping is empty, and for review and other steps, it is null, meaning the parent's model). " +
