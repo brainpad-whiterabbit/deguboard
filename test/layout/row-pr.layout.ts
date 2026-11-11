@@ -142,7 +142,7 @@ describe("行の番号の下の PR のリンク（UI-2）", () => {
     expect(Math.abs(codeP.x - codeN.x), "番号の左端").toBeLessThan(0.5);
 
     // PR の印とリンクは番号の左端に揃う（番号の下の 2 段目）
-    const link = await boxOf(pr.locator(".row-pr"));
+    const link = await boxOf(pr.locator(".row-pr-link"));
     expect(Math.abs(link.x - codeP.x), "PR の欄の左端は番号の左端").toBeLessThan(0.5);
     expect(link.y, "PR の欄は番号の下").toBeGreaterThanOrEqual(codeP.y + codeP.height - 1);
 
@@ -169,7 +169,7 @@ describe("行の番号の下の PR のリンク（UI-2）", () => {
       await boxOf(plain.locator("code")),
       await boxOf(pr.locator(".row-title")),
       await boxOf(plain.locator(".row-title")),
-      await boxOf(pr.locator(".row-pr")),
+      await boxOf(pr.locator(".row-pr-link")),
     ];
     expect(Math.abs(codeP.x - codeN.x), "番号の左端").toBeLessThan(0.5);
     expect(Math.abs(titleP.x - titleN.x), "タイトルの左端（列の幅）").toBeLessThan(0.5);
@@ -186,7 +186,7 @@ describe("行の番号の下の PR のリンク（UI-2）", () => {
     const codeP = await boxOf(pr.locator("code"));
     const titleP = await boxOf(pr.locator(".row-title"));
     const titleN = await boxOf(rowOf(page, "t1").locator(".row-title"));
-    const link = await boxOf(pr.locator(".row-pr"));
+    const link = await boxOf(pr.locator(".row-pr-link"));
     expect(Math.abs(link.x - codeP.x), "PR の欄の左端は番号の左端").toBeLessThan(0.5);
     expect(Math.abs(titleP.x - titleN.x), "タイトルの左端（列の幅）").toBeLessThan(0.5);
     await context.close();
@@ -213,6 +213,50 @@ describe("行の番号の下の PR のリンク（UI-2）", () => {
     expect(page.url(), "詳細は開かない").toContain("#/board");
     expect(await plain.getAttribute("data-selected"), "選びは変わらない").not.toBeNull();
     expect(await pr.getAttribute("data-selected"), "PR のリンクでは選ばれない").toBeNull();
+    await context.close();
+  });
+
+  it("2 段目の空いたところを押しても詳細は開かず、選択も変えない（頭の印の列・左の余白・右の空きも含む）", async () => {
+    const { page, context } = await openPage("/board");
+    const pr = rowOf(page, "t2");
+    const noHead = rowOf(page, "t4");
+    const plain = rowOf(page, "t1");
+    await pr.waitFor();
+    await noHead.waitFor();
+    const strip = await stripPoint(plain);
+    await page.mouse.click(strip.x, strip.y);
+    expect(await plain.getAttribute("data-selected"), "帯で t1 を選んだ").not.toBeNull();
+    const hashBefore = new URL(page.url()).hash;
+
+    for (const row of [pr, noHead]) {
+      const cell = await boxOf(row.locator(".row-pr"));
+      const y = cell.y + cell.height / 2;
+      // 2 段目の左端・中ほど・右端（リンクの右の空き）のどこも、包みではなく欄（.row-pr）が受ける
+      // 左端は帯（幅 6px。帯は行の左端で選ぶ）の外の余白から見る
+      for (const x of [cell.x + 6.5, cell.x + cell.width / 2, cell.x + cell.width - 3]) {
+        const inCell = await page.evaluate(
+          ([px, py]) => document.elementFromPoint(px, py)?.closest(".row-pr") != null,
+          [x, y],
+        );
+        expect(inCell, `2 段目の x=${Math.round(x)} は欄が受ける`).toBe(true);
+        await page.mouse.click(x, y);
+      }
+    }
+    expect(await plain.getAttribute("data-selected"), "選びは変わらない").not.toBeNull();
+    expect(await pr.getAttribute("data-selected")).toBeNull();
+    expect(await noHead.getAttribute("data-selected")).toBeNull();
+    expect(new URL(page.url()).hash, "詳細は開かない").toBe(hashBefore);
+    await context.close();
+  });
+
+  it("PR のある行は 2 段目にもホバーの背景が付く", async () => {
+    const { page, context } = await openPage("/board");
+    const pr = rowOf(page, "t2");
+    await pr.waitFor();
+    const cell = await boxOf(pr.locator(".row-pr"));
+    await page.mouse.move(cell.x + cell.width - 3, cell.y + cell.height / 2);
+    const bg = await pr.evaluate((el) => getComputedStyle(el).backgroundColor);
+    expect(bg, "2 段目にホバーの背景").not.toBe("rgba(0, 0, 0, 0)");
     await context.close();
   });
 

@@ -409,13 +409,15 @@ function RowPrLink({ pr }: { pr: number }) {
   );
   return (
     <span className="row-pr">
-      {href ? (
-        <a href={href} target="_blank" rel="noreferrer" tabIndex={-1}>
-          {label}
-        </a>
-      ) : (
-        label
-      )}
+      <span className="row-pr-link">
+        {href ? (
+          <a href={href} target="_blank" rel="noreferrer" tabIndex={-1}>
+            {label}
+          </a>
+        ) : (
+          label
+        )}
+      </span>
     </span>
   );
 }
