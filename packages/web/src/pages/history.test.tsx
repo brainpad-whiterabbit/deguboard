@@ -972,6 +972,37 @@ describe("履歴のタブ・Iteration の行・Epic の見方", () => {
     expect(items.map((s) => s.textContent)[0]).toBe("振り返る");
   });
 
+  it("閉じた Iteration の見出しから振り返るを選ぶと、小窓が振り返るを選んだ状態で開き、エラーなく依頼文が出て、ask は historyRow で呼ばれる", async () => {
+    window.location.hash = "#/history";
+    const client = mockClient();
+    client.data.iterations = [iteration({ id: "s1", name: "最初", status: "closed" })];
+    render(
+      <StoreProvider client={client}>
+        <HostProvider host={sidebarHost()}>
+          <App />
+        </HostProvider>
+      </StoreProvider>,
+    );
+    await screen.findByRole("heading", { level: 1, name: "履歴" });
+    fireEvent.click(document.querySelector(".history-row .ask-bubble")!);
+    fireEvent.click(await screen.findByRole("menuitem", { name: /振り返る/ }));
+
+    const composer = await screen.findByRole("region", { name: "エージェントに頼む" });
+    // 選んだ頼むことが札で押されたままになり、入力欄はエラーを出さずに描かれる
+    await waitFor(() => {
+      const pressed = within(within(composer).getByRole("group", { name: "頼むこと" }))
+        .getAllByRole("button")
+        .filter((b) => b.getAttribute("aria-pressed") === "true");
+      expect(pressed.map((b) => b.textContent)).toEqual([expect.stringContaining("振り返る")]);
+    });
+    expect(composer.querySelector(".ask-error")).toBeNull();
+    // 場所は履歴の見出し（historyRow）で、どの ask もその場所で呼ばれ、振り返るの依頼文を引く
+    const asks = client.calls.filter((c) => c.name === "ask");
+    expect(asks.length).toBeGreaterThan(0);
+    expect(asks.every((c) => (c.input as { place?: string }).place === "historyRow")).toBe(true);
+    expect(asks.some((c) => (c.input as { action?: string }).action === "retro")).toBe(true);
+  });
+
   it("閉じた Iteration の詳細の頼むことには振り返るが出ない", async () => {
     window.location.hash = "#/iterations/s1";
     const client = mockClient();
