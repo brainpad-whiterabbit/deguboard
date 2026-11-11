@@ -117,6 +117,37 @@ describe("metrics show", () => {
     });
   });
 
+  it("フックが結ばなかった見直しの記録（capture: none）は見直しの回に数え、使用量・時間・ツールの集計からは外す（t702）", async () => {
+    const ctx = await scenario();
+    const before = (await runCommand(metricsShow, ctx, {})).data.total;
+    await ctx.store.create("run", {
+      id: "r20261031-070000-0004",
+      ticket: "t1",
+      step: "review",
+      agent: "unknown",
+      model: null,
+      started_at: "2026-10-31T07:00:00Z",
+      finished_at: "2026-10-31T07:00:00Z",
+      result: "success",
+      error: null,
+      retries: 0,
+      usage: emptyUsage(),
+      tools: null,
+      review: { heavy: 1, light: 2, passed: false },
+      capture: "none",
+    });
+    // ストアに直に置いた Run を dg の書き込みとみなしてから、コミットする（scenario と同じ）
+    await recordBaseline(ctx.repo);
+    await runCommand(commit, ctx, {});
+    const after = (await runCommand(metricsShow, ctx, {})).data.total;
+    expect(after).toEqual({
+      ...before,
+      runs: before.runs + 1,
+      results: { ...before.results, success: before.results.success + 1 },
+      reviews: { recorded: 1, passed: 0, heavy: 1, light: 2 },
+    });
+  });
+
   it("すべての単位で絞り込み・集計でき、ID は番号だけでも受け付ける", async () => {
     const ctx = await scenario();
     const runsOf = async (input: object) =>

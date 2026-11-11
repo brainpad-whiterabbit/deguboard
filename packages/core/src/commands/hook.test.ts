@@ -1920,6 +1920,9 @@ describe("フックが届いていないセッションの警告（t697）", () 
       no_run: true,
     });
     expect(silentIn(claimed.warnings)).toBe(true);
+    // 警告は、使用量と時間は残らないが見直しの結果は残る、と知らせる（t702）
+    const said = claimed.warnings.find((w) => w.includes(SILENT)) ?? "";
+    expect(said).toContain("their usage and time are not kept, but a review result is still kept");
     const step = await runCommand(next, ctx, { ticket: "t2" });
     expect((step.data as NextStep & { brief?: string }).brief).toBeDefined();
     expect(silentIn(step.warnings)).toBe(true);

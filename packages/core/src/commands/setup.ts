@@ -888,7 +888,10 @@ export const lint = defineCommand({
       const implStep = openedStepOf(ctx, doc.data, "claim");
       const implRuns = own.filter((r) => r.step === implStep);
       const agentClaimed = doc.data.assignee !== undefined && isAgentActorId(doc.data.assignee);
-      if (doc.data.pr !== undefined && agentClaimed && implRuns.length === 0)
+      // フックが結ばなかった見直しの記録（capture: none）があるチケットは、フックが届かない環境で進めた作業。
+      // 実装や手直しの Run が残らないのは環境のせいなので、抜けとしては指摘しない（t702）
+      const hookless = own.some((r) => r.step === REVIEW_STEP && r.capture === "none");
+      if (doc.data.pr !== undefined && agentClaimed && implRuns.length === 0 && !hookless)
         warn(
           doc.path,
           doc.id,
@@ -932,7 +935,7 @@ export const lint = defineCommand({
         const fixedAfter = own.some(
           (r) => r.step === fixStep && Date.parse(r.started_at) >= lastReview,
         );
-        if (afterReview.length > 0 && !fixedAfter)
+        if (afterReview.length > 0 && !fixedAfter && !hookless)
           warn(
             doc.path,
             doc.id,

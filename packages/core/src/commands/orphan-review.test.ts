@@ -14,7 +14,7 @@ import { next, type NextStep } from "./next.js";
 import { orphanReviewRuns, orphanReviewsOf } from "./orphan-review.js";
 import { prReady, type PrAdvanceView } from "./pr.js";
 import { runFinish, runReviewResult, runStart } from "./run.js";
-import { init, sync } from "./setup.js";
+import { init, lint, sync } from "./setup.js";
 import { ticketClaim, ticketCreate, ticketUpdate } from "./ticket.js";
 
 const cleanups: Array<() => Promise<void> | void> = [];
@@ -408,5 +408,52 @@ describe("dg sync と dg pr ready が持ち主のない保留を見直しの記�
       code: "OUTSIDE_CHANGES",
     });
     expect(await heldRounds(ctx)).toHaveLength(1);
+  });
+});
+
+describe("フックが結ばなかった見直しの記録（capture: none）の警告と抜け（t702）", () => {
+  /** フックを持つ Claude Code のセッション（このセッションにはフックが届いていない） */
+  const hooked = { CLAUDECODE: "1", CLAUDE_CODE_SESSION_ID: "sess-702" };
+  const WARNING = "were counted as review(s) with no Run linked by a dg hook (capture: none)";
+  const nextWarnings = async (ctx: CommandContext) =>
+    (await runCommand(next, ctx, { ticket: "t1" })).warnings;
+  const gateWarnings = async (ctx: CommandContext) =>
+    (await runCommand(gate, ctx, { ticket: "t1", for: "ready" })).warnings;
+
+  it("持ち主のない保留を数えるとき、フックを持つエージェントでは next と gate が警告し、フックを持たない環境では警告しない", async () => {
+    const { ctx } = await prepared();
+    await hold(ctx, later(1), false);
+    ctx.env = hooked;
+    expect(await nextWarnings(ctx)).toContainEqual(expect.stringContaining(WARNING));
+    expect(await gateWarnings(ctx)).toContainEqual(
+      expect.stringContaining("1 review result(s) of t1 were counted"),
+    );
+    ctx.env = {};
+    expect((await nextWarnings(ctx)).some((w) => w.includes(WARNING))).toBe(false);
+    expect((await gateWarnings(ctx)).some((w) => w.includes(WARNING))).toBe(false);
+  });
+
+  it("sync が書いた capture: none の記録を数えるときも、フックを持つエージェントでは next と gate が警告する", async () => {
+    const { ctx } = await prepared();
+    await hold(ctx, later(1), false);
+    await runCommand(sync, ctx, {});
+    ctx.env = hooked;
+    expect(await nextWarnings(ctx)).toContainEqual(expect.stringContaining(WARNING));
+    expect(await gateWarnings(ctx)).toContainEqual(expect.stringContaining(WARNING));
+  });
+
+  it("lint は、フックが結ばなかった見直しの記録があるチケットの実装・手直しの Run の抜けを指摘しない", async () => {
+    const { ctx, pushAt } = await prepared();
+    const runIssues = async () =>
+      (await runCommand(lint, ctx, {})).data.issues
+        .filter((i) => i.id === "t1" && i.code.startsWith("lint_run_"))
+        .map((i) => i.code);
+    // 記録がないうちは、PR があるのに実装の Run がない抜けを指摘する
+    expect(await runIssues()).toEqual(["lint_run_implement_missing"]);
+    // 保留を sync が capture: none の記録にし、その後に直しを push する（見直しの後のコミット）
+    await hold(ctx, later(1), false);
+    await runCommand(sync, ctx, {});
+    await pushAt(later(2));
+    expect(await runIssues()).toEqual([]);
   });
 });

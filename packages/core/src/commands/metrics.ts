@@ -24,7 +24,7 @@ export const metricsShow = defineCommand({
   name: "metrics.show",
   group: "metrics",
   summary:
-    "Aggregate Runs. Filter by Run, ticket, Epic, Iteration, Project, Agent, Model, or Step (Epic, Iteration, and Project follow each ticket's current value). Values that could not be read are not added and are counted in missing; Runs with estimated values are counted in estimated_runs. Tool counts (tools) are also added up per kind, and Runs without them are counted in missing.tools. Aggregates are not stored",
+    "Aggregate Runs. Filter by Run, ticket, Epic, Iteration, Project, Agent, Model, or Step (Epic, Iteration, and Project follow each ticket's current value). Values that could not be read are not added and are counted in missing; Runs with estimated values are counted in estimated_runs. Tool counts (tools) are also added up per kind, and Runs without them are counted in missing.tools. Reviews recorded with no Run from a hook (capture: none) are counted as reviews only, and are left out of usage, time, and tools. Aggregates are not stored",
   input: z.object({
     run: runIdSchema.optional().describe("Only this Run"),
     ticket: ticketRef.optional().describe("Only Runs of this ticket"),
