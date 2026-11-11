@@ -1,0 +1,33 @@
+{
+  "id": "r20261111-222056-35ab",
+  "ticket": "t723",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-11T22:20:56Z",
+  "finished_at": "2026-11-11T22:26:12Z",
+  "result": "success",
+  "error": null,
+  "retries": 2,
+  "retry_reasons": [
+    "open-board.gif が今の見出し（Epic の札の列）と PR のリンクを見せていない",
+    "run-all.gif の Done の行に PR のリンクがなく、ターミナルの merged PR と合っていない"
+  ],
+  "usage": {
+    "input": 76,
+    "output": 22376,
+    "cache_read": 2208433,
+    "cache_write": 81147
+  },
+  "tools": {
+    "read": 10,
+    "search": 0,
+    "write": 7,
+    "bash": 24,
+    "other": 1,
+    "read_before_write": 4,
+    "search_before_write": 0
+  },
+  "session": "18b06cc8-a5e8-45cd-aaf1-45661a8f5932",
+  "review": null
+}
