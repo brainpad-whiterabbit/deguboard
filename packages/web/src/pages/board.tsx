@@ -416,11 +416,14 @@ function IterationChips({
     const el = strip.current;
     const chip = el?.querySelector<HTMLElement>('[aria-pressed="true"]');
     if (!el || !chip) return;
-    // 列は position: relative なので、offsetLeft は列の左端からの位置
-    const left = chip.offsetLeft;
-    const right = left + chip.offsetWidth;
-    if (left < el.scrollLeft) el.scrollLeft = left;
-    else if (right > el.scrollLeft + el.clientWidth) el.scrollLeft = right - el.clientWidth;
+    // 札の幅は小数になるので、整数に丸める offsetLeft・offsetWidth ではなく矩形で測る（丸めると札の端が 1px 足らず切れる）。
+    // scrollLeft は整数に丸められるので、足りない側へ切り上げて寄せる
+    const view = el.getBoundingClientRect();
+    const box = chip.getBoundingClientRect();
+    const start = view.left + el.clientLeft;
+    const end = start + el.clientWidth;
+    if (box.left < start) el.scrollLeft -= Math.ceil(start - box.left);
+    else if (box.right > end) el.scrollLeft += Math.ceil(box.right - end);
   }, [selected, open.length]);
   const all = ticketProgress(ticketsInSelection(tickets, open, { kind: "all" }));
   return (
