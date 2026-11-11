@@ -2,6 +2,7 @@
 // カンバンとバックログの行・区画の見出し、Iteration の詳細の行の吹き出しを押すと頼むことの一覧が画面の中に出て、
 // 選ぶと入力欄が開くことと、入力欄の頼むことの札が（入らなければ折り返して）幅に収まり、閉じるボタンが残ること、行をドラッグしても書き込みの要求を送らずデータが変わらないこと（画面から書き込むのはチケット詳細と設定画面だけ。ADR-027）を確かめる。
 // 行の左端の帯（styles.css の [data-select-id]::before）は、押すと 1 件を選ぶ・外すになり、足しても行の配置は変わらず、hover で薄く、hover のない画面では常に薄く出ることを確かめる。
+// 帯を押したままなぞると通った行をまとめて選ぶ（マウスとペン。タッチは選ばずスクロール）、帯の外から始めたなぞりは選ばず、一覧の端では画面の外の行まで続けて選べることも確かめる。
 // ブラウザが要るので mise run test には入れず、mise run test:layout で回す（先に mise run build と mise run playwright:install）
 
 import { access } from "node:fs/promises";
@@ -339,5 +340,260 @@ describe("行の左端の帯で 1 件ずつ選ぶ（UI-15）", () => {
     await clickStrip(page, row);
     expect(await stripOpacity(row), "選んだ行は不透明").toBe("1");
     await context.close();
+  });
+});
+
+describe("行の左端の帯をなぞって、通った行をまとめて選ぶ（UI-15）", () => {
+  type Point = { x: number; y: number };
+  /** 画面に出ている選べる行（畳んだ節の中は高さ 0 なので除く）。並びは画面の順 */
+  type Row = { id: string; x: number; y: number; height: number };
+  /** 行の左端の帯を押す点（帯の中の、行の高さの真ん中） */
+  const stripOf = (row: Row) => ({ x: row.x + 3, y: row.y + row.height / 2 });
+
+  const visibleRows = (rows: Locator) =>
+    rows.evaluateAll((els) =>
+      els.flatMap((el) => {
+        const r = el.getBoundingClientRect();
+        return r.height > 0
+          ? [{ id: el.getAttribute("data-select-id")!, x: r.x, y: r.y, height: r.height }]
+          : [];
+      }),
+    ) as Promise<Row[]>;
+
+  /** 選んでいる行の ID（画面の順） */
+  const selectedIn = (page: Page) =>
+    page.evaluate(() =>
+      [...document.querySelectorAll("[data-selected]")].map((el) =>
+        el.getAttribute("data-select-id"),
+      ),
+    );
+
+  /** 行の縦スクロールの容器（selection.tsx の scrollerOf と同じ決め方。なければ画面全体）の位置と送り */
+  const scrollerOf = (row: Locator) =>
+    row.evaluate((el) => {
+      for (let p = el.parentElement; p; p = p.parentElement) {
+        const overflow = getComputedStyle(p).overflowY;
+        if ((overflow === "auto" || overflow === "scroll") && p.scrollHeight > p.clientHeight) {
+          const r = p.getBoundingClientRect();
+          return {
+            top: r.top,
+            bottom: r.bottom,
+            scrollTop: p.scrollTop,
+            max: p.scrollHeight - p.clientHeight,
+          };
+        }
+      }
+      return {
+        top: 0,
+        bottom: window.innerHeight,
+        scrollTop: window.scrollY,
+        max: document.documentElement.scrollHeight - window.innerHeight,
+      };
+    });
+
+  /** マウスで from を押したまま to まで動かし、ms のあいだ止めてから離す（端で止めると自動スクロールが送り続ける） */
+  async function sweepMouse(page: Page, from: Point, to: Point, ms = 0): Promise<void> {
+    await page.mouse.move(from.x, from.y);
+    await page.mouse.down();
+    await page.mouse.move(to.x, to.y, { steps: 12 });
+    if (ms > 0) await page.waitForTimeout(ms);
+    await page.mouse.up();
+  }
+
+  /** 押すと 1 件を選ぶ・外す（帯のクリック） */
+  async function clickStrip(page: Page, row: Row): Promise<void> {
+    const p = stripOf(row);
+    await page.mouse.click(p.x, p.y);
+  }
+
+  const boardRows = (page: Page) => page.locator('.column[data-status="todo"] [data-select-id]');
+
+  beforeAll(async () => {
+    for (let i = 1; i <= 16; i++)
+      await call("ticket.create", { title: `なぞる ${i}`, iteration: "s1" });
+    // 履歴の行に出すため、終えたチケットを 3 件作る
+    for (let i = 1; i <= 5; i++) {
+      const done = await call<{ id: string }>("ticket.create", {
+        title: `終えた ${i}`,
+        iteration: "s1",
+      });
+      await call("ticket.move", { ticket: done.id, status: "done" });
+    }
+  }, 120_000);
+
+  /** t703 と同じ 4 か所（カンバン・バックログ・詳細の中の行・履歴）で、なぞると間の行を選ぶ */
+  const PLACES: {
+    name: string;
+    query: string;
+    hash: string;
+    width: number;
+    rows: (page: Page) => Locator;
+  }[] = [
+    {
+      name: "カンバン",
+      query: "?surface=sidebar",
+      hash: "#/board",
+      width: WIDTH,
+      rows: boardRows,
+    },
+    {
+      name: "バックログ",
+      query: "?surface=sidebar",
+      hash: "#/backlog",
+      width: WIDTH,
+      rows: (page) =>
+        page.locator(".backlog-section").filter({ hasText: "今週" }).locator("[data-select-id]"),
+    },
+    {
+      name: "Iteration の詳細の中の行",
+      query: "?surface=panel",
+      hash: "#/iterations/s1",
+      width: PANEL_WIDTH,
+      rows: (page) => page.locator(".ticket-sections [data-select-id]"),
+    },
+    {
+      name: "履歴",
+      query: "?surface=sidebar",
+      // 終えたチケットの一覧（履歴の見方の「チケット」）。Iteration の節は閉じた Iteration だけなので、ここで見る
+      hash: "#/history?view=ticket",
+      width: WIDTH,
+      rows: (page) => page.locator("[data-select-id]"),
+    },
+  ];
+
+  for (const place of PLACES) {
+    it(`${place.name}：帯を押したまま上下になぞると、通った行をまとめて選ぶ。詳細は開かない`, async () => {
+      const page = await browser.newPage({ viewport: { width: place.width, height: 800 } });
+      await page.goto(`${server.url}${place.query}${place.hash}`, { waitUntil: "networkidle" });
+      const rows = await visibleRows(place.rows(page));
+      expect(rows.length, "なぞる行の数").toBeGreaterThanOrEqual(5);
+      await sweepMouse(page, stripOf(rows[1]!), stripOf(rows[3]!));
+      expect(await selectedIn(page)).toEqual(rows.slice(1, 4).map((row) => row.id));
+      expect(new URL(page.url()).hash, "詳細は開かない").toBe(place.hash);
+      await page.close();
+    });
+  }
+
+  it("選んである行の帯からなぞり始めると、通った行を外す", async () => {
+    const page = await browser.newPage({ viewport: { width: WIDTH, height: 800 } });
+    await page.goto(`${server.url}?surface=sidebar#/board`, { waitUntil: "networkidle" });
+    const rows = await visibleRows(boardRows(page));
+    const picked = [0, 2, 3, 4].map((i) => rows[i]!);
+    for (const row of picked) await clickStrip(page, row);
+    expect(await selectedIn(page)).toEqual(picked.map((row) => row.id));
+    await sweepMouse(page, stripOf(rows[2]!), stripOf(rows[4]!));
+    expect(await selectedIn(page), "通った行（2 から 4）を外す").toEqual([rows[0]!.id]);
+    await page.close();
+  });
+
+  it("行の本体（帯の外）から始めたなぞりでは行を選ばない", async () => {
+    const page = await browser.newPage({ viewport: { width: WIDTH, height: 800 } });
+    await page.goto(`${server.url}?surface=sidebar#/board`, { waitUntil: "networkidle" });
+    const rows = await visibleRows(boardRows(page));
+    const body = { x: rows[1]!.x + 30, y: rows[1]!.y + rows[1]!.height / 2 };
+    await sweepMouse(page, body, stripOf(rows[3]!));
+    expect(await selectedIn(page)).toEqual([]);
+    await page.close();
+  });
+
+  it("ペンで帯をなぞっても、通った行をまとめて選ぶ", async () => {
+    const page = await browser.newPage({ viewport: { width: WIDTH, height: 800 } });
+    await page.goto(`${server.url}?surface=sidebar#/board`, { waitUntil: "networkidle" });
+    const rows = await visibleRows(boardRows(page));
+    const cdp = await page.context().newCDPSession(page);
+    const from = stripOf(rows[1]!);
+    const to = stripOf(rows[3]!);
+    const pen = { button: "left" as const, pointerType: "pen" as const };
+    await cdp.send("Input.dispatchMouseEvent", {
+      ...pen,
+      type: "mousePressed",
+      x: from.x,
+      y: from.y,
+      buttons: 1,
+      clickCount: 1,
+    });
+    for (let i = 1; i <= 10; i++) {
+      await cdp.send("Input.dispatchMouseEvent", {
+        ...pen,
+        type: "mouseMoved",
+        x: from.x,
+        y: from.y + ((to.y - from.y) * i) / 10,
+        buttons: 1,
+      });
+    }
+    await cdp.send("Input.dispatchMouseEvent", {
+      ...pen,
+      type: "mouseReleased",
+      x: to.x,
+      y: to.y,
+      buttons: 0,
+      clickCount: 1,
+    });
+    expect(await selectedIn(page)).toEqual(rows.slice(1, 4).map((row) => row.id));
+    await page.close();
+  });
+
+  it("タッチで帯をなぞっても選ばず、一覧のスクロールになる", async () => {
+    // タッチの画面は、タッチの文脈（hasTouch・isMobile）で開く
+    const context = await browser.newContext({
+      viewport: { width: WIDTH, height: 480 },
+      hasTouch: true,
+      isMobile: true,
+    });
+    const page = await context.newPage();
+    await page.goto(`${server.url}?surface=sidebar#/board`, { waitUntil: "networkidle" });
+    const rows = await visibleRows(boardRows(page));
+    // 画面の下のほうの行の帯から、指を上へ動かす（一覧は下へ送られる）
+    const start = stripOf(rows.filter((row) => row.y < 400).at(-1)!);
+    const before = await scrollerOf(boardRows(page).first());
+    const cdp = await context.newCDPSession(page);
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [start] });
+    for (let i = 1; i <= 12; i++) {
+      await cdp.send("Input.dispatchTouchEvent", {
+        type: "touchMove",
+        touchPoints: [{ x: start.x, y: start.y - ((start.y - 20) * i) / 12 }],
+      });
+    }
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    await page.waitForTimeout(300);
+    expect(await selectedIn(page), "タッチでは選ばない").toEqual([]);
+    expect(
+      (await scrollerOf(boardRows(page).first())).scrollTop,
+      "一覧がスクロールした",
+    ).toBeGreaterThan(before.scrollTop);
+    await context.close();
+  });
+
+  it("一覧の下端に来ると下へスクロールし、見えている範囲の外の行まで続けて選べる", async () => {
+    const page = await browser.newPage({ viewport: { width: WIDTH, height: 480 } });
+    await page.goto(`${server.url}?surface=sidebar#/board`, { waitUntil: "networkidle" });
+    const rows = await visibleRows(boardRows(page));
+    const last = rows.at(-1)!;
+    expect(last.y, "最後の行は画面の外にある").toBeGreaterThan(480);
+    const scroller = await scrollerOf(boardRows(page).first());
+    await sweepMouse(page, stripOf(rows[0]!), { x: 3, y: scroller.bottom - 4 }, 1500);
+    const selected = await selectedIn(page);
+    expect(selected, "画面の外の最後の行まで選ぶ").toContain(last.id);
+    expect((await scrollerOf(boardRows(page).first())).scrollTop).toBeGreaterThan(0);
+    await page.close();
+  });
+
+  it("一覧の上端に来ると上へスクロールし、見えていない上の行まで続けて選べる", async () => {
+    const page = await browser.newPage({ viewport: { width: WIDTH, height: 480 } });
+    await page.goto(`${server.url}?surface=sidebar#/board`, { waitUntil: "networkidle" });
+    const rows = await visibleRows(boardRows(page));
+    // 先に一覧を下へ送っておき、最初の行が画面の外に出るようにする
+    await boardRows(page)
+      .last()
+      .evaluate((el) => el.scrollIntoView({ block: "center" }));
+    await page.waitForTimeout(100);
+    const after = await visibleRows(boardRows(page));
+    const first = after.find((row) => row.id === rows[0]!.id)!;
+    expect(first.y, "最初の行は画面の外にある").toBeLessThan(0);
+    const from = after.filter((row) => row.y > 0 && row.y < 440).at(-1)!;
+    const scroller = await scrollerOf(boardRows(page).first());
+    await sweepMouse(page, stripOf(from), { x: 3, y: scroller.top + 4 }, 1500);
+    expect(await selectedIn(page), "画面の外の最初の行まで選ぶ").toContain(rows[0]!.id);
+    await page.close();
   });
 });

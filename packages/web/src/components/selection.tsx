@@ -1,5 +1,7 @@
 // 一覧の行の複数選択（UI-15）。VS Code の一覧と同じく、Ctrl/⌘+クリックで 1 行ずつ足し外し、Shift+クリックで前に押した行からの範囲を選ぶ。
 // 行の左端の帯（styles.css の [data-select-id]::before）を押しても 1 行ずつ足し外しする（ask-menu.tsx の onClickCapture）。
+// 帯を押したままなぞると、通った行の範囲をまとめて選ぶ（始めの行が選んであれば外す）。なぞるのはマウスとペンだけで、
+// タッチは一覧のスクロールのまま（pointerType で決める）。一覧の端で自動スクロールする（sweepStart）。
 // ふつうのクリックは今までどおり詳細を開き、選択を外す（次の Shift+クリックの起点になる）。Esc でも外す。
 // 選択は画面の見た目の状態として SelectionProvider が持つ（データには書かない。画面を替えたら外す）。
 // 行は useAskSpot の select で選べるようになり（ask-menu.tsx）、選んだ行の吹き出しは選んだ全件を対象にする。
@@ -12,6 +14,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type MouseEvent,
   type ReactNode,
@@ -20,6 +23,34 @@ import type { AskSection } from "./ask-menu.js";
 
 /** 選べる行に付ける属性の名前（範囲を画面の並びで決めるため） */
 export const SELECT_ATTR = "data-select-id";
+/** 選べる行の場所の印（なぞりは同じ場所の行だけを数える。場所の違う行を混ぜない） */
+export const SCOPE_ATTR = "data-select-scope";
+
+/** 行の場所の印の値（場所の種類と、詳細の中の行なら入っている Iteration・Epic） */
+export function scopeOf(section: AskSection, within: string | undefined): string {
+  return JSON.stringify([section, within ?? null]);
+}
+
+/** なぞりの始まりに要る、押したときの pointer の情報 */
+export type SweepPress = Pick<
+  PointerEvent,
+  | "pointerId"
+  | "pointerType"
+  | "button"
+  | "altKey"
+  | "ctrlKey"
+  | "metaKey"
+  | "shiftKey"
+  | "clientX"
+  | "clientY"
+>;
+
+/** なぞりを始めるまでの動き（px）。これより小さい動きは、ふつうのクリックとして扱う */
+const SWEEP_START_PX = 4;
+/** 一覧の端からこの距離（px）の中に来たら自動でスクロールする */
+const EDGE_PX = 32;
+/** 自動スクロールの 1 フレームの最大（px） */
+const MAX_STEP_PX = 20;
 
 interface SelectionState {
   ids: readonly string[];
@@ -42,7 +73,40 @@ export interface RowSelection {
     e: MouseEvent,
     place: { section: AskSection; within?: string | undefined },
   ): boolean;
+  /**
+   * 左端の帯を押したとき（修飾キーなし・マウスかペン）。動いたら、通った行の範囲をまとめて選ぶ・外すを追う。
+   * 押した行が選んであれば外す。動かずに離したら何もしない（ふつうのクリックが 1 件を足し外しする）
+   */
+  sweepStart(
+    id: string,
+    press: SweepPress,
+    el: HTMLElement,
+    place: { section: AskSection; within?: string | undefined },
+  ): void;
   clear(): void;
+}
+
+/** なぞりの途中の状態 */
+interface Sweep {
+  pointerId: number;
+  startId: string;
+  place: { section: AskSection; within?: string | undefined };
+  /** 行の場所の印と、行の列（左端の位置）。同じ場所・同じ列の行だけを数える */
+  scope: string;
+  column: number;
+  /** なぞる前に選んでいた ID（同じ場所のときだけ） */
+  base: readonly string[];
+  /** 始めの行を足すなぞりか（外すなぞりは false） */
+  adding: boolean;
+  startX: number;
+  startY: number;
+  x: number;
+  y: number;
+  /** 動きが始まったか（始まるまでは click として扱う） */
+  active: boolean;
+  scroller: HTMLElement | null;
+  frame: number | null;
+  stop(): void;
 }
 
 const EMPTY: SelectionState = { ids: [], anchor: null, section: null, within: undefined };
@@ -57,6 +121,46 @@ function shownIds(): string[] {
   return [...document.querySelectorAll<HTMLElement>(`[${SELECT_ATTR}]`)]
     .filter((el) => !el.closest("details:not([open])"))
     .map((el) => el.getAttribute(SELECT_ATTR)!);
+}
+
+/**
+ * なぞりで通れる行（同じ場所・同じ列の、見えている行。並びは画面の順）。
+ * 列は左端の位置で揃える（ボードは列ごとに並ぶので、列をまたいで範囲を取らない）。
+ * 見えていない行（画面の外）も位置は取れるので、一覧の中ならスクロールした先の行も数える
+ */
+function sweepRows(scope: string, column: number): { id: string; top: number }[] {
+  return [...document.querySelectorAll<HTMLElement>(`[${SELECT_ATTR}]`)]
+    .filter((el) => el.getAttribute(SCOPE_ATTR) === scope && !el.closest("details:not([open])"))
+    .map((el) => ({ id: el.getAttribute(SELECT_ATTR)!, r: el.getBoundingClientRect() }))
+    .filter(({ r }) => r.height > 0 && Math.abs(r.left - column) < 1)
+    .map(({ id, r }) => ({ id, top: r.top }));
+}
+
+/** 指している y の行の位置（その行より上の行の先頭に来たら、いちばん近い上の行。一覧の上なら先頭） */
+function rowAt(rows: readonly { top: number }[], y: number): number {
+  let at = 0;
+  rows.forEach((row, i) => {
+    if (row.top <= y) at = i;
+  });
+  return at;
+}
+
+/** 押した行から上にたどって、縦にスクロールできる一覧（なければ null で画面全体） */
+function scrollerOf(el: HTMLElement): HTMLElement | null {
+  for (let p = el.parentElement; p; p = p.parentElement) {
+    const overflow = getComputedStyle(p).overflowY;
+    if ((overflow === "auto" || overflow === "scroll") && p.scrollHeight > p.clientHeight) return p;
+  }
+  return null;
+}
+
+/** 指が一覧の端のどれだけ内側にあるかで、1 フレームにスクロールする量（上は負）を決める */
+function edgeStep(y: number, top: number, bottom: number): number {
+  const up = top + EDGE_PX - y;
+  if (up > 0) return -Math.min(MAX_STEP_PX, Math.max(1, Math.round(up / 2)));
+  const down = y - (bottom - EDGE_PX);
+  if (down > 0) return Math.min(MAX_STEP_PX, Math.max(1, Math.round(down / 2)));
+  return 0;
 }
 
 /** ids を画面の並びに揃える（画面にないものは後ろに残す） */
@@ -135,6 +239,140 @@ export function SelectionProvider({ scope, children }: { scope: string; children
     return true;
   }, []);
 
+  // 押したときの選択を base に取るため、最新の選択を持つ（描いたあとに effect で写す。押すのは描いたあとなので足りる）
+  const latest = useRef(state);
+  useEffect(() => {
+    latest.current = state;
+  }, [state]);
+  const sweepRef = useRef<Sweep | null>(null);
+  // なぞりで選び終えた直後の click を 1 回捨てる（離した場所によっては行の click が届き、選び方を二重に変えるため）
+  const sweptRef = useRef(false);
+
+  useEffect(() => {
+    const onDown = () => {
+      sweptRef.current = false;
+    };
+    const onClick = (e: Event) => {
+      if (!sweptRef.current) return;
+      sweptRef.current = false;
+      e.preventDefault();
+      e.stopPropagation();
+    };
+    window.addEventListener("pointerdown", onDown, true);
+    window.addEventListener("click", onClick, true);
+    return () => {
+      window.removeEventListener("pointerdown", onDown, true);
+      window.removeEventListener("click", onClick, true);
+    };
+  }, []);
+
+  /** 通った行の範囲で選び直す（base に範囲を足す・外す）。押した行から指の今の行までの範囲 */
+  const sweepTo = useCallback((sw: Sweep) => {
+    const rows = sweepRows(sw.scope, sw.column);
+    const start = rows.findIndex((row) => row.id === sw.startId);
+    if (start < 0) return;
+    const at = rowAt(rows, sw.y);
+    const range = rows.slice(Math.min(start, at), Math.max(start, at) + 1).map((row) => row.id);
+    setState((s) => {
+      const next = new Set(
+        sw.adding ? [...sw.base, ...range] : sw.base.filter((id) => !range.includes(id)),
+      );
+      const ids = inShownOrder(next);
+      return {
+        ids,
+        anchor: s.anchor,
+        section: ids.length > 0 ? sw.place.section : null,
+        within: ids.length > 0 ? sw.place.within : undefined,
+      };
+    });
+  }, []);
+
+  const sweepStart = useCallback<RowSelection["sweepStart"]>(
+    (id, press, el, place) => {
+      // タッチは選ばない（一覧のスクロールに任せる）。左のボタン以外と修飾キーつきは、ふつうのクリックの選び方に任せる
+      if (press.pointerType === "touch" || press.button !== 0) return;
+      if (press.altKey || selectKind(press)) return;
+      if (sweepRef.current) return;
+      const cur = latest.current;
+      const same = cur.section === place.section && cur.within === place.within;
+      const base = same ? cur.ids : [];
+      const sw: Sweep = {
+        pointerId: press.pointerId,
+        startId: id,
+        place,
+        scope: el.getAttribute(SCOPE_ATTR) ?? "",
+        column: el.getBoundingClientRect().left,
+        base,
+        adding: !base.includes(id),
+        startX: press.clientX,
+        startY: press.clientY,
+        x: press.clientX,
+        y: press.clientY,
+        active: false,
+        scroller: scrollerOf(el),
+        frame: null,
+        stop: () => {},
+      };
+      sweepRef.current = sw;
+
+      const finish = () => {
+        sw.stop();
+        if (sweepRef.current === sw) sweepRef.current = null;
+      };
+      // 端に来ている間は、動かなくても一覧を送り続ける（行を 1 つ動くたびに選び直す）
+      const frame = () => {
+        const rect = sw.scroller?.getBoundingClientRect() ?? {
+          top: 0,
+          bottom: window.innerHeight,
+        };
+        const step = edgeStep(sw.y, rect.top, rect.bottom);
+        if (step !== 0) {
+          if (sw.scroller) sw.scroller.scrollTop += step;
+          else window.scrollBy(0, step);
+          sweepTo(sw);
+        }
+        sw.frame = requestAnimationFrame(frame);
+      };
+      const onMove = (ev: Event) => {
+        const m = ev as PointerEvent;
+        if (m.pointerId !== sw.pointerId) return;
+        // マウスのボタンを離したのを、画面の外で離したときは window で拾えないので、ここで終える
+        if (m.pointerType === "mouse" && m.buttons === 0) {
+          if (sw.active) sweptRef.current = true;
+          finish();
+          return;
+        }
+        sw.x = m.clientX;
+        sw.y = m.clientY;
+        if (!sw.active) {
+          if (Math.hypot(sw.x - sw.startX, sw.y - sw.startY) < SWEEP_START_PX) return;
+          sw.active = true;
+          frame();
+        }
+        sweepTo(sw);
+      };
+      const onUp = (ev: Event) => {
+        if ((ev as PointerEvent).pointerId !== sw.pointerId) return;
+        if (sw.active) {
+          sweptRef.current = true;
+          setState((s) => ({ ...s, anchor: sw.startId }));
+        }
+        finish();
+      };
+      window.addEventListener("pointermove", onMove);
+      window.addEventListener("pointerup", onUp);
+      window.addEventListener("pointercancel", onUp);
+      sw.stop = () => {
+        window.removeEventListener("pointermove", onMove);
+        window.removeEventListener("pointerup", onUp);
+        window.removeEventListener("pointercancel", onUp);
+        if (sw.frame !== null) cancelAnimationFrame(sw.frame);
+        sw.frame = null;
+      };
+    },
+    [sweepTo],
+  );
+
   const value = useMemo<RowSelection>(
     () => ({
       ids: state.ids,
@@ -142,9 +380,10 @@ export function SelectionProvider({ scope, children }: { scope: string; children
       within: state.within,
       has: (id) => state.ids.includes(id),
       click,
+      sweepStart,
       clear,
     }),
-    [state, click, clear],
+    [state, click, sweepStart, clear],
   );
   return <SelectionContext.Provider value={value}>{children}</SelectionContext.Provider>;
 }
