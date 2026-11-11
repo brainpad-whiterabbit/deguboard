@@ -35,7 +35,7 @@ Prerequisites: Linux or macOS, Git 2.30 or later, and Node.js 24 or later. To re
    dg hooks install
    ```
 
-   `dg hooks install` writes Claude Code hooks to `.claude/settings.local.json` (not tracked by git). They call node and `dg` by their absolute paths, so they work even when Claude Code's PATH differs from your shell's; run it again after upgrading or moving node. The hooks mark the session as an agent and record the subagents you start with a first line `deguboard: ticket=<id> step=<step>` as Runs. The hooks also refuse to mark a PR ready or merge it outside `dg`, and to edit `.git/deguboard/` directly. Confirm with `dg hooks check` in a new session that dg receives them: if the command the hooks call cannot run in Claude Code's environment, it warns, and so do `dg next`, `dg brief`, and `dg ticket claim --no-run`. Other agents that can use a shell (Codex, Copilot CLI, and others) need no setup. Just ask them to "read `dg guide` and proceed with `dg`".
+   `dg hooks install` writes Claude Code hooks to `.claude/settings.local.json` (not tracked by git). They call node and `dg` by their absolute paths, so they work even when Claude Code's PATH differs from your shell's; run it again after upgrading or moving node. The hooks mark the session as an agent and record the subagents you start with a first line `deguboard: ticket=<id> step=<step>` as Runs. The agent hands the implementation and fixes of a ticket to subagents (see `dg guide work`). The hooks also refuse to mark a PR ready or merge it outside `dg`, and to edit `.git/deguboard/` directly. Confirm with `dg hooks check` in a new session that dg receives them: if the command the hooks call cannot run in Claude Code's environment, it warns, and so do `dg next`, `dg brief`, and `dg ticket claim --no-run`. Other agents that can use a shell (Codex, Copilot CLI, and others) need no setup. Just ask them to "read `dg guide` and proceed with `dg`".
 
 5. **Open the board**: Click the deguboard icon in the Activity Bar.
 
@@ -65,6 +65,8 @@ Rows in the sidebar (board, backlog, and history) work without a mouse. When you
 | a                | Open the "Ask Agent" menu for the selected rows (or the current row if none). Shift+F10 also opens it |
 
 None of these conflict with VS Code's default keybindings.
+
+With a mouse, Ctrl/⌘+click adds or removes a row from the selection and Shift+click selects the range from the row you pressed before; a plain click opens details instead. Pressing the strip at a row's left edge adds or removes that row, and dragging across the strip selects a range; Esc clears the selection. The speech bubble of a selected row (and `a`) asks an agent about all the selected rows. Right-click a ticket row or an Iteration or Epic heading to open its details or copy its ID (ask an agent from the speech bubble).
 
 ### Turn a rough idea into tickets
 

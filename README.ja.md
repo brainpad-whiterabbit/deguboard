@@ -35,7 +35,7 @@ deguboard は独立したプロジェクトで、Microsoft が作ったもので
    dg hooks install
    ```
 
-   `dg hooks install` は Claude Code のフックを、git が追跡しない `.claude/settings.local.json` に書きます。フックは node と `dg` を絶対パスで呼ぶので、Claude Code の PATH がシェルと違っても動きます。node を上げたり移したりしたら、もう一度実行します。フックはセッションをエージェントとして扱い、最初の行に `deguboard: ticket=<id> step=<step>` と書いて頼んだサブエージェントを Run として記録します。フックは、`dg` を通さない PR の ready・マージと、`.git/deguboard/` への直接の書き込みも拒みます。新しいセッションで `dg hooks check` を実行し、dg がフックを受け取っていることを確かめます。フックの呼ぶ命令が Claude Code の環境で動かなければ、`dg hooks check` が警告し、`dg next`・`dg brief`・`dg ticket claim --no-run` も警告します。Codex・Copilot CLI など、シェルを使えるほかのエージェントでは準備は要らず、「`dg guide` を読んでから `dg` で進めて」と頼みます。
+   `dg hooks install` は Claude Code のフックを、git が追跡しない `.claude/settings.local.json` に書きます。フックは node と `dg` を絶対パスで呼ぶので、Claude Code の PATH がシェルと違っても動きます。node を上げたり移したりしたら、もう一度実行します。フックはセッションをエージェントとして扱い、最初の行に `deguboard: ticket=<id> step=<step>` と書いて頼んだサブエージェントを Run として記録します。実装と手直しは、エージェントがサブエージェントに頼みます（流れは `dg guide work`）。フックは、`dg` を通さない PR の ready・マージと、`.git/deguboard/` への直接の書き込みも拒みます。新しいセッションで `dg hooks check` を実行し、dg がフックを受け取っていることを確かめます。フックの呼ぶ命令が Claude Code の環境で動かなければ、`dg hooks check` が警告し、`dg next`・`dg brief`・`dg ticket claim --no-run` も警告します。Codex・Copilot CLI など、シェルを使えるほかのエージェントでは準備は要らず、「`dg guide` を読んでから `dg` で進めて」と頼みます。
 
 5. **ボードを開く**：Activity Bar の deguboard のアイコンを押します。
 
@@ -65,6 +65,8 @@ Activity Bar の deguboard のアイコンでカンバンが開きます。上�
 | a                  | 選んだ行（選んでいなければ今の行）に「エージェントに頼む」の一覧を開く。Shift+F10 でも開きます |
 
 どれも VS Code の既定のキー割り当てとぶつかりません。
+
+マウスでは、Ctrl/⌘+クリックで行を足し外しし、Shift+クリックで前に押した行からの範囲を選びます（ふつうのクリックは詳細を開きます）。行の左端の帯を押すと、その行を足し外しし、帯をなぞると範囲を選びます。Esc で選択を外します。選んだ行の吹き出し（と `a`）は、選んだ全件にエージェントへ頼みます。チケットの行と Iteration・Epic の見出しを右クリックすると、「詳細を開く」「ID をコピー」を出します（エージェントに頼むのは吹き出しから）。
 
 ### 雑な指示からチケットを起票する
 
