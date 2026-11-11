@@ -124,9 +124,10 @@ describe("VS Code の実機の左パネル", () => {
     });
   });
 
-  it("実行計画の依存グラフを開き、待ちの状態と由来の 4 種類の辺をライトとダークで撮る", async () => {
+  it("実行計画の依存グラフを開き、待ちの状態と由来の 4 種類の辺と段を飛ぶ辺をライトとダークで撮る", async () => {
     // t4 は done。t5 は depends_on で t4 を（待ち終わり）、t6 は after で t4 を（待ち終わり）、
-    // t7 は after で t5 を（待ち中）、t8 は depends_on で t6 を（待ち中）待つ
+    // t7 は after で t5 を（待ち中）と t4 を（待ち終わり。段 1 を飛ぶので行の間の溝を通る）、t8 は depends_on で t6 を（待ち中）待つ。
+    // Plan の順（t8 が t7 の前）のままだと t5→t7 と t6→t8 が交差するので、段 2 は t7・t8 の順に並べ替わる
     const ctx = await openContext({ cwd: fixture.cloneA });
     for (const [i, depends_on] of [[], ["t4"], [], [], ["t6"]].entries()) {
       await runCommand(ticketCreate, ctx, {
@@ -137,8 +138,8 @@ describe("VS Code の実機の左パネル", () => {
       });
     }
     await runCommand(planCreate, ctx, {
-      tickets: ["t4", "t5", "t6", "t7", "t8"],
-      after: { t6: ["t4"], t7: ["t5"] },
+      tickets: ["t4", "t5", "t6", "t8", "t7"],
+      after: { t6: ["t4"], t7: ["t5", "t4"] },
     });
     await runCommand(planApprove, ctx, { plan: "p1" });
     await runCommand(ticketMove, ctx, { ticket: "t4", status: "done" });
@@ -147,7 +148,7 @@ describe("VS Code の実機の左パネル", () => {
     await toggle.click();
     const graph = sidebar.locator(".plan-graph");
     await graph.waitFor();
-    expect(await sidebar.locator(".plan-graph-canvas .plan-graph-edge").count()).toBe(4);
+    expect(await sidebar.locator(".plan-graph-canvas .plan-graph-edge").count()).toBe(5);
     expect(await sidebar.locator(".plan-graph-canvas .plan-graph-edge-pending").count()).toBe(2);
     await graph.scrollIntoViewIfNeeded();
     for (const theme of ["dark", "light"] as const) {

@@ -10,6 +10,8 @@ import { actorLabel, type PlanRow, type Ticket, type TicketRow } from "../types.
 import { ASK_SECTIONS, useAskSpot } from "./ask-menu.js";
 import { DetailLink, ProgressBar, StatusDot, TicketLink } from "./parts.js";
 import {
+  GRAPH_NODE_H,
+  GRAPH_NODE_W,
   PLAN_STATE_LABELS,
   planColor,
   planGraph,
@@ -192,16 +194,8 @@ function BandNextText({ next, byId }: { next: BandNext; byId: ReadonlyMap<string
   );
 }
 
-const NODE_W = 76;
-const NODE_H = 22;
-const COL_GAP = 32;
-const ROW_GAP = 6;
-
-const xOf = (n: GraphNode) => n.layer * (NODE_W + COL_GAP);
-const yOf = (n: GraphNode) => n.row * (NODE_H + ROW_GAP);
-
 /**
- * 依存グラフ。段を左から右に並べ、段の中は Plan の順。辺は SVG で描き、ノードはチケットへのリンクを上に重ねる。
+ * 依存グラフ。段を左から右に並べ、段の中の並び・ノードの位置・辺の経路は planGraph が決めた座標で描く。辺は SVG で描き、ノードはチケットへのリンクを上に重ねる。
  * 辺の見た目は 2 つの軸を別の手段で分ける：待ちの状態は色と太さ（待ち中は警告の色で太く、待ち終わりは灰色で細く薄く）、由来は模様（after は実線、depends_on は点線）。
  * 模様だけで両方を分けると 4 種類の模様が混ざって見分けにくいため。ノードにホバー・フォーカスすると繋がるノードと辺を強調する
  */
@@ -219,7 +213,6 @@ export function PlanGraphView({
   if (host.surface === "sidebar" && graph.edges.length === 0) {
     return <PlanChips nodes={graph.nodes} byId={byId} />;
   }
-  const at = new Map(graph.nodes.map((n) => [n.id, n]));
   const related = new Set<string>();
   if (focus) {
     related.add(focus);
@@ -228,8 +221,7 @@ export function PlanGraphView({
       if (e.to === focus) related.add(e.from);
     }
   }
-  const width = graph.layers * NODE_W + (graph.layers - 1) * COL_GAP;
-  const height = graph.rows * NODE_H + (graph.rows - 1) * ROW_GAP;
+  const { width, height } = graph;
   const hasDepends = graph.edges.some((e) => e.kind === "depends_on");
   const arrow = `plan-arrow-${plan.id}`;
   return (
@@ -257,18 +249,11 @@ export function PlanGraphView({
             ))}
           </defs>
           {graph.edges.map((e) => {
-            const a = at.get(e.from)!;
-            const b = at.get(e.to)!;
-            const x1 = xOf(a) + NODE_W;
-            const y1 = yOf(a) + NODE_H / 2;
-            const x2 = xOf(b);
-            const y2 = yOf(b) + NODE_H / 2;
-            const mx = (x1 + x2) / 2;
             const lit = focus !== null && (e.from === focus || e.to === focus);
             return (
               <path
                 key={`${e.from}-${e.to}`}
-                d={`M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}`}
+                d={e.path}
                 className={`plan-graph-edge${e.done ? "" : " plan-graph-edge-pending"}${e.kind === "depends_on" ? " plan-graph-edge-depends" : ""}${lit ? " related" : ""}`}
                 markerEnd={`url(#${arrow}-${e.done ? "done" : "pending"})`}
               />
@@ -280,7 +265,7 @@ export function PlanGraphView({
             key={n.id}
             id={n.id}
             className={`plan-node status-${n.status}${n.waiting ? " plan-node-waiting" : ""}${related.has(n.id) ? " related" : ""}`}
-            style={{ left: xOf(n), top: yOf(n), width: NODE_W, height: NODE_H }}
+            style={{ left: n.x, top: n.y, width: GRAPH_NODE_W, height: GRAPH_NODE_H }}
             onMouseEnter={() => setFocus(n.id)}
             onMouseLeave={() => setFocus(null)}
             onFocus={() => setFocus(n.id)}
