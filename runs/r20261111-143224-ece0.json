@@ -1,0 +1,33 @@
+{
+  "id": "r20261111-143224-ece0",
+  "ticket": "t719",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-11T14:32:24Z",
+  "finished_at": "2026-11-11T14:35:17Z",
+  "result": "success",
+  "error": null,
+  "retries": 2,
+  "retry_reasons": [
+    "範囲外の開いた Epic で絞ったときに札が残ることを確かめるテストがない",
+    "なぞりの予備の終わり方のテストが finish() の listener 解除を見ていない"
+  ],
+  "usage": {
+    "input": 48,
+    "output": 15405,
+    "cache_read": 1142567,
+    "cache_write": 50772
+  },
+  "tools": {
+    "read": 6,
+    "search": 0,
+    "write": 2,
+    "bash": 16,
+    "other": 1,
+    "read_before_write": 4,
+    "search_before_write": 0
+  },
+  "session": "18b06cc8-a5e8-45cd-aaf1-45661a8f5932",
+  "review": null
+}
