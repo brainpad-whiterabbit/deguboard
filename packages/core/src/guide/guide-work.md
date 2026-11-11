@@ -5,9 +5,9 @@ argument-hint: "<Plan ID|ticket ID> [--gate-high|--gate-low|--gate-free]"
 
 # Work (work)
 
-Advances one ticket to a draft PR. `dg next` decides the steps and their order. This guide describes only how to do each step.
+Advances tickets to draft PRs, each by the steps below. `dg next` decides the steps and their order. This guide describes only how to do each step.
 
-The tickets of an approved Plan are advanced in parallel when two or more of them in `ready` can be started (`dg guide parallel` is the default). A single ticket, or a Plan with only one ready ticket, is advanced one at a time by the steps below.
+The tickets of an approved Plan are advanced in parallel when two or more of them in `ready` can be started and subagents can be started (`dg guide parallel` is the default). A single ticket, or a Plan with only one ready ticket, is advanced one at a time by the steps below.
 
 ## Deciding the target
 
@@ -24,10 +24,12 @@ The tickets of an approved Plan are advanced in parallel when two or more of the
    - `review`: start the reviewer by the "Starting the review (parent)" section of `dg guide review` (the text includes the "Review" steps)
    - `fix`: follow the "Fix loop (parent)" section of `dg guide review`, and pass the text with `brief <id> --role fix` (the text includes the "Fix findings" steps and the findings of the review record)
    - `ready`: put the PR out by the "How to finish" section of `dg guide review`. For a Workflow that does not look at PRs (such as general, where `sync` does not move it to review), after the PR is put out, move it to review yourself with `dg --json --actor agent ticket move <id> review`
-   - `wait_merge`: the PR waits for its merge, so do not wait for it. Advance the other tickets of `ready` (see "Following the Plan"). After the merge, `dg guide done`. With no Plan there is no other ticket of `ready`, so go to "Choosing the next step" below and ask with its choices instead
-   - `wait_human`: tell a human the `ask_human` (it is in the "How to finish" section of `dg guide review`), and do not wait for the answer: advance the other tickets of `ready` meanwhile. With no Plan there is no other ticket of `ready`, so go to "Choosing the next step" below and ask with its choices instead. A decision that needs approval is asked as approval, and only that stops the flow. For review findings from a human, follow the "Fix loop (parent)" section of `dg guide review`
+   - `wait_merge`: the PR waits for its merge, so do not wait for it. Advance the other tickets of `ready` (see "Following the Plan"). After the merge, `dg guide done`
+   - `wait_human`: tell a human the `ask_human` (it is in the "How to finish" section of `dg guide review`), and do not wait for the answer: advance the other tickets of `ready` meanwhile. A decision that needs approval is asked as approval, and only that stops the flow. For review findings from a human, follow the "Fix loop (parent)" section of `dg guide review`
    - `wait_deps`: wait, and advance another ticket of `ready` of `plan show`
    - `done`: clean up by the steps of `dg guide done`
+
+For `wait_merge`, `wait_human`, and `wait_deps` with no Plan, there is no other ticket of `ready` to advance meanwhile. Then go to "Choosing the next step" below and ask with its choices instead.
 
 ## Gate level
 
