@@ -40,9 +40,9 @@ Iteration の流れ（段階・次の 1 手・止まる判定・自動で選ん�
 
 ### カスタマイズは config の項目と guide.notes の枠で行う
 
-- 利用者が既定の手続きを変える入口は、`config.yaml` の項目（流れから外す段階・自動で選んでよい判断・マージの方法・検査のコマンドなど。名前は config のスキーマが正本）と、guide の決まった位置に文を差し込む `guide.notes.<topic>` だけにする。項目はコードが読んで判定に効かせ、文を足せるのは `guide.notes` だけ。例外は並列の上限 `work.parallel` で、dg はエージェントを起動も監視もしない（ADR-028・EX-1）ので上限を数えられるのは親だけであり、コードの判定には効かせず guide に値を埋めるだけにする
+- 利用者が既定の手続きを変える入口は、`config.yaml` の項目（流れから外す段階・自動で選んでよい判断・マージの方法・検査のコマンドなど。名前は config のスキーマが正本）と、guide の決まった位置に文を差し込む `guide.notes.<topic>` だけにする。項目はコードが読んで判定に効かせ、文を足せるのは `guide.notes` だけ。並列の上限 `work.parallel` の扱いは [ADR-011](ADR-011-procedure-in-code.md) に従う
 - SKILL.md と guide の書き換えはカスタマイズの前提にしない。Skill は `dg skill install` で最新に保てる形のままにする
-- 修正ループの回数は config に置かない（ADR-011 を変えない）。並列の上限は config の項目 `work.parallel` にし、`dg guide parallel` はその値を埋めて示す（理由と退けた案は ADR-011）。人が決める穴も config の項目にしない
+- 修正ループの回数は config に置かない。並列の上限は [ADR-011](ADR-011-procedure-in-code.md) に従う。人が決める穴も config の項目にしない
 
 ## 理由
 

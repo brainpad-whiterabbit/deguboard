@@ -15,7 +15,6 @@
 | [ADR-008](ADR-008-tech-stack.md)                    | 技術構成と開発環境                                                                                      | 技術構成           |
 | [ADR-009](ADR-009-epic-and-iteration.md)            | Epic と Iteration                                                                                       | チケットのまとまり |
 | [ADR-011](ADR-011-procedure-in-code.md)             | 既定の手続きは dg のコードが持つ                                                                        | ワークフロー       |
-| [ADR-024](ADR-024-oxlint-latest.md)                 | react(immutability) の指摘を直したので oxlint を最新に上げ、版を留めない                                | 技術構成           |
 | [ADR-025](ADR-025-runs-by-hooks.md)                 | Run は harness のフックが印で開け閉めし、step を終えた事実で閉じる                                      | エージェント       |
 | [ADR-026](ADR-026-guard-pr-and-data.md)             | PR とデータを守る正しい道は dg のコマンドにし、フックは語の有無で粗く止め、すり抜けは事後に見つける     | エージェント       |
 | [ADR-027](ADR-027-screen-vscode-writes-and-asks.md) | 人の画面は VS Code 拡張にし、画面から書くのはチケット詳細と設定だけで、ほかはエージェントに頼む         | UI                 |

@@ -888,27 +888,27 @@ describe("check-docs の置き換え済みの ADR への参照（t580）", () =>
   });
 
   it("置き換え済みかは ADR のステータスから読み、ステータスを置き換えにした ADR の参照も落ちる", async () => {
-    await rewrite(ADR, /^- ステータス：.*$/m, "- ステータス：置き換え（ADR-024）");
+    await rewrite(ADR, /^- ステータス：.*$/m, "- ステータス：置き換え（ADR-011）");
     await writeFile(join(dir, PROBE), "// 理由は ADR-008\nexport {};\n");
     const { code, stderr } = await run();
     expect(code).toBe(1);
     expect(stderr).toContain(
-      `${PROBE}:1: 置き換え済みの ADR-008 を指している（今の判断は ADR-024）`,
+      `${PROBE}:1: 置き換え済みの ADR-008 を指している（今の判断は ADR-011）`,
     );
   });
 
   it("置き換えた先もさらに置き換え済みなら、置き換え済みでなくなるまでたどった番号を出す", async () => {
-    // 004 → 028 → 024 とたどる
+    // 004 → 028 → 011 とたどる
     await rewrite(
       "docs/adr/ADR-028-agents-and-state.md",
       /^- ステータス：.*$/m,
-      "- ステータス：置き換え（ADR-024）",
+      "- ステータス：置き換え（ADR-011）",
     );
     await writeFile(join(dir, PROBE), `// 理由は ${OLD_ADR}\nexport {};\n`);
     const { code, stderr } = await run();
     expect(code).toBe(1);
     expect(stderr).toContain(
-      `${PROBE}:1: 置き換え済みの ${OLD_ADR} を指している（今の判断は ADR-024）`,
+      `${PROBE}:1: 置き換え済みの ${OLD_ADR} を指している（今の判断は ADR-011）`,
     );
   });
 
