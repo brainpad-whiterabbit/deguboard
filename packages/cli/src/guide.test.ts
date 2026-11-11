@@ -607,9 +607,13 @@ describe("dg guide", () => {
       expect(deep, viewpoint).toContain(viewpoint);
     for (const word of ["now, drop it, or defer", "who gains what", "promise to users"])
       expect(deep, word).toContain(word);
-    // 範囲の重なりは開いたチケットを ticket list --query で探し、References のファイルと突き合わせる
+    // 範囲の重なりは開いたチケットを ticket list --status で絞って --query で探し、References のファイルと突き合わせる
     const scope = lineWith(deep, "**Scope**");
-    for (const word of ["ticket list --query", "References", "files"])
+    for (const word of [
+      "ticket list --status todo,in_progress,review --query",
+      "References",
+      "files",
+    ])
       expect(scope, word).toContain(word);
     // 方式の論点は案を 2 つ以上、利点と欠点の表で比べ、聞くのは選択肢で
     const approach = lineWith(deep, "**Approach**");
