@@ -185,35 +185,43 @@ describe("画面", () => {
     expect(section.querySelector("h2")!.textContent).toBe("Abandoned1");
   });
 
-  it("Epic の選択肢は open だけ。閉じた Epic は選んでいるときだけ残す", async () => {
+  it("カンバンの見出しの Epic の札は、選んでいる範囲のチケットがある開いた Epic だけ。閉じた Epic は選んでいるときだけ残す", async () => {
     const client = boardClient();
     client.data.epics = [
       ...client.data.epics,
+      { ...client.data.epics[0]!, id: "e8", title: "空", status: "open" },
       { ...client.data.epics[0]!, id: "e9", title: "済んだ", status: "closed" },
     ];
-    mount(client, boardFiltersOpen());
+    client.data.tickets[2]!.epic = "e9";
+    mount(client);
     await screen.findByText("API");
-    const options = () =>
-      [...screen.getByLabelText("Epic").querySelectorAll("option")].map((o) => o.value);
-    expect(options()).not.toContain("e9");
+    const chips = () =>
+      [...document.querySelectorAll(".epic-chips .chip")].map((c) => c.textContent);
+    // チケットのない開いた Epic（e8）と閉じた Epic（e9）は出さない。なしの件数は範囲の Epic のないチケット
+    expect(chips()).toEqual(["e1", "なし 1"]);
     act(() => {
       window.location.hash = "#/board?epic=e9";
       window.dispatchEvent(new HashChangeEvent("hashchange"));
     });
-    await waitFor(() => expect(options()).toContain("e9"));
+    await waitFor(() => expect(chips()).toEqual(["e1", "e9", "なし 1"]));
+    expect(screen.getByRole("button", { name: "e9 済んだ" }).getAttribute("aria-pressed")).toBe(
+      "true",
+    );
   });
 
-  it("Epic と担当者で絞れる。旧 ID は @ の前だけを出し、担当者のないものは「なし」", async () => {
+  it("Epic の札で絞れ、もう一度押すと外れる。担当者は漏斗の欄で絞り、旧 ID は @ の前だけを出し、担当者のないものは「なし」", async () => {
     const client = boardClient();
     client.data.tickets[1]!.assignee = "eiki@laptop";
     mount(client, boardFiltersOpen());
     await screen.findByText("API");
-    fireEvent.change(screen.getByLabelText("Epic"), { target: { value: "e1" } });
+    const e1 = () => screen.getByRole("button", { name: "e1 最初の版" });
+    fireEvent.click(e1());
     expect(window.location.hash).toBe("#/board?epic=e1");
     await waitFor(() => expect(screen.queryByText("ログイン")).toBeNull());
     expect(screen.getByText("API")).toBeTruthy();
-    fireEvent.change(screen.getByLabelText("Epic"), { target: { value: "" } });
+    fireEvent.click(e1());
     await screen.findByText("ログイン");
+    expect(window.location.hash).not.toContain("epic");
     const who = screen.getByLabelText("担当");
     expect([...who.querySelectorAll("option")].map((o) => o.textContent)).toEqual([
       "すべて",
@@ -1328,7 +1336,8 @@ describe("画面", () => {
     expect(review.classList.contains("is-empty")).toBe(true);
     expect(review.querySelector(".rows")).toBeNull();
     expect(review.querySelector(".section-count")!.textContent).toBe("0");
-    expect(screen.queryByText("なし")).toBeNull();
+    // 「なし」は見出しの Epic の札の行にだけ出し、空の節には出さない
+    expect(review.textContent).not.toContain("なし");
     // 終わった状態（Done）の節の件数だけ塗らず、数字だけにする
     expect(
       columns.map((c) => c.querySelector(".section-count")!.classList.contains("is-plain")),
@@ -2338,6 +2347,8 @@ describe("画面", () => {
       }),
     ];
     for (const t of client.data.tickets) t.iteration = "s1";
+    // 担当がいるので漏斗を出す
+    client.data.tickets[1]!.assignee = "eiki/agent";
     mount(client, hostOf("sidebar"));
     await screen.findByText("API");
     const head = document.querySelector(".sidebar-head")!;
@@ -2526,12 +2537,90 @@ describe("画面", () => {
     expect(document.querySelector(".filter-chips")).toBeNull();
     expect(funnel.classList.contains("active")).toBe(false);
 
-    // Epic の札は番号を出す
+    // Epic は見出しの札の列で選び、漏斗の欄には出さない。札が見えている間は、値の札に Epic を出さない
     fireEvent.click(funnel);
-    fireEvent.change(screen.getByLabelText("Epic"), { target: { value: "e1" } });
+    expect(screen.queryByLabelText("Epic")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "e1 最初の版" }));
     await waitFor(() =>
-      expect(document.querySelector(".filter-chip-text")!.textContent).toBe("Epic e1"),
+      expect(screen.getByRole("button", { name: "e1 最初の版" }).getAttribute("aria-pressed")).toBe(
+        "true",
+      ),
     );
+    expect(document.querySelector(".filter-chips")).toBeNull();
+  });
+
+  it("担当がいなければ、カンバンの見出しに漏斗を出さない", async () => {
+    mount(boardClient(), hostOf("sidebar"));
+    await screen.findByText("API");
+    expect(screen.queryByRole("button", { name: "絞り込み" })).toBeNull();
+    expect(document.querySelector(".epic-chips")).toBeTruthy();
+  });
+
+  it("カンバンの Epic の札は、選んでいる範囲のチケットがある開いた Epic だけ。「なし」の件数は範囲の Epic のないチケット", async () => {
+    const client = boardClient();
+    client.data.iterations = [
+      iteration({ id: "s0", name: "既定", status: "active" }),
+      iteration({ id: "s2", name: "次", status: "planned" }),
+    ];
+    client.data.epics.push({ ...client.data.epics[0]!, id: "e3", title: "次の版" });
+    client.data.tickets.push(ticket({ id: "t4", title: "次の仕事", iteration: "s2", epic: "e3" }));
+    mount(client, hostOf("sidebar"));
+    await screen.findByText("API");
+    const labels = () =>
+      [...document.querySelectorAll(".epic-chips .chip")].map(
+        (c) => c.querySelector("code")?.textContent ?? c.textContent,
+      );
+    // 既定は active の s0。e3 は s2 にしかないので出さない
+    expect(labels()).toEqual(["e1", "なし 2"]);
+    fireEvent.click(document.querySelector(".iteration-chip.all")!);
+    await waitFor(() => expect(labels()).toEqual(["e1", "e3", "なし 2"]));
+  });
+
+  it("カンバンの見出しの Epic の札が 2 行を超えるときは「ほか N」にまとめ、開くと「なし」を残して並ぶ", async () => {
+    // jsdom は配置をしないので、1 行に 3 つ並ぶとして位置を返す（バックログの同じ試験と同じ）
+    const original = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "offsetTop")!;
+    Object.defineProperty(HTMLElement.prototype, "offsetTop", {
+      configurable: true,
+      get(this: HTMLElement) {
+        const row = this.parentElement;
+        if (!row?.classList.contains("chip-row")) return 0;
+        return Math.floor([...row.children].indexOf(this) / 3) * 20;
+      },
+    });
+    try {
+      const client = boardClient();
+      const base = client.data.epics[0]!;
+      client.data.epics = [1, 2, 3, 4, 5, 6].map((n) => ({ ...base, id: `e${n}`, title: `E${n}` }));
+      client.data.tickets.push(
+        ...[2, 3, 4, 5, 6].map((n) =>
+          ticket({ id: `t${n + 10}`, title: `追加${n}`, iteration: "s0", epic: `e${n}` }),
+        ),
+      );
+      mount(client, hostOf("sidebar"));
+      await screen.findByText("API");
+      const labels = () =>
+        [...document.querySelectorAll(".epic-chips .chip")].map(
+          (c) => c.querySelector("code")?.textContent ?? c.textContent,
+        );
+      await waitFor(() => expect(labels()).toEqual(["e1", "e2", "e3", "e4", "e5", "ほか 2"]));
+      fireEvent.click(screen.getByRole("button", { name: "Epic をあと 2 本出す" }));
+      expect(labels()).toEqual(["e1", "e2", "e3", "e4", "e5", "e6", "なし 2", "畳む"]);
+    } finally {
+      Object.defineProperty(HTMLElement.prototype, "offsetTop", original);
+    }
+  });
+
+  it("開いた Epic がなければ、カンバンの見出しに Epic の札の列を出さず、閉じた Epic で絞っていれば値の札に Epic を出して外せる", async () => {
+    const client = boardClient();
+    client.data.epics = client.data.epics.map((e) => ({ ...e, status: "closed" as const }));
+    window.location.hash = "#/board?epic=e1";
+    mount(client, hostOf("sidebar"));
+    await screen.findByText("API");
+    expect(document.querySelector(".epic-chips")).toBeNull();
+    expect(document.querySelector(".filter-chip-text")!.textContent).toBe("Epic e1");
+    fireEvent.click(screen.getByRole("button", { name: "Epic e1 の絞り込みを外す" }));
+    await waitFor(() => expect(window.location.hash).not.toContain("epic"));
+    expect(document.querySelector(".filter-chips")).toBeNull();
   });
 
   it("サイドバーのバックログの区画は折りたたみの節で、開閉が host.state に残る", async () => {
@@ -2585,7 +2674,7 @@ describe("上のタブの行き先", () => {
     await screen.findByRole("button", { name: /^s2/ });
     fireEvent.click(screen.getByRole("button", { name: /^s2/ }));
     await waitFor(() => expect(window.location.hash).toBe("#/board?iteration=s2"));
-    fireEvent.change(screen.getByLabelText("Epic"), { target: { value: "e1" } });
+    fireEvent.click(screen.getByRole("button", { name: "e1 最初の版" }));
     await waitFor(() => expect(window.location.hash).toBe("#/board?iteration=s2&epic=e1"));
     fireEvent.change(screen.getByLabelText("担当"), { target: { value: "eiki/agent" } });
     const filtered = "#/board?iteration=s2&epic=e1&assignee=eiki%2Fagent";
@@ -2596,7 +2685,9 @@ describe("上のタブの行き先", () => {
     fireEvent.click(tab("カンバン"));
     await waitFor(() => expect(window.location.hash).toBe(filtered));
     expect(screen.getByRole("button", { name: /^s2/ }).getAttribute("aria-pressed")).toBe("true");
-    expect(screen.getByLabelText<HTMLSelectElement>("Epic").value).toBe("e1");
+    expect(screen.getByRole("button", { name: "e1 最初の版" }).getAttribute("aria-pressed")).toBe(
+      "true",
+    );
     expect(screen.getByLabelText<HTMLSelectElement>("担当").value).toBe("eiki/agent");
   });
 

@@ -152,6 +152,16 @@ export function matchesClaim(ticket: Ticket, claim: string): boolean {
   return ticket.assignee === claim;
 }
 
+/** Epic で絞り込むときに「Epic に入っていないチケット」を選ぶ値（バックログとカンバンで同じ） */
+export const NO_EPIC = "-";
+
+/** Epic の絞り込み。空はすべて、NO_EPIC は Epic に入っていないもの */
+export function matchesEpic(ticket: Pick<Ticket, "epic">, epic: string): boolean {
+  if (!epic) return true;
+  if (epic === NO_EPIC) return !ticket.epic;
+  return ticket.epic === epic;
+}
+
 /** workflow.show の出力のうち画面が使うもの（遷移の制約は core の TransitionConstraint のまま） */
 export interface WorkflowView {
   definition: WorkflowDefinition;

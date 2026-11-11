@@ -1704,12 +1704,17 @@ textarea.body {
 .chip[aria-pressed="true"] .progress .bar span.partial {
   background: repeating-linear-gradient(135deg, currentColor 0 2px, transparent 2px 4px);
 }
-/* サイドバーのバックログの Epic の欄：見出しの右にチップを並べる。進捗の帯は短く */
+/* 左パネルの Epic の札の行（バックログの Epic の欄・カンバンの見出し）：「Epic」の見出しの右に札を並べる */
 .epic-chips {
   display: flex;
   align-items: flex-start;
   gap: 0.4em;
   padding: 0 0.3rem;
+  min-width: 0;
+}
+/* カンバンの見出しでは見出しの余白に合わせ、行の幅いっぱいに置く */
+.sidebar-head .epic-chips {
+  padding: 0;
 }
 .epic-chips .chip-label {
   flex: none;
@@ -1719,6 +1724,7 @@ textarea.body {
 }
 .epic-chips .chip-row {
   flex: 1;
+  min-width: 0;
 }
 /*
  * サイドバーのバックログの行（parts.tsx の TicketTable の assigneeInEnd）：状態の丸印は in_progress（青）と review（黄）が塗り、todo は白抜き。

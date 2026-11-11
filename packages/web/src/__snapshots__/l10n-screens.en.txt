@@ -25,8 +25,16 @@ s2
 0
 /
 1
-[title] Filter by Epic or assignee
+[title] Filter by assignee
 [aria-label] Filter
+Epic
+[aria-label] Filter by Epic
+[title] e1 最初の版 · 0/1 done
+[aria-label] e1 最初の版
+e1
+[title] Filter by tickets without an Epic
+None
+2
 最初の Iteration
 11/1–
 [title] 目標データの文
@@ -1154,8 +1162,16 @@ s2
 0
 /
 1
-[title] Filter by Epic or assignee
+[title] Filter by assignee
 [aria-label] Filter
+Epic
+[aria-label] Filter by Epic
+[title] e1 最初の版 · 0/1 done
+[aria-label] e1 最初の版
+e1
+[title] Filter by tickets without an Epic
+None
+2
 最初の Iteration
 11/1–
 [title] 目標データの文
