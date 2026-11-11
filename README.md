@@ -66,7 +66,7 @@ Rows in the sidebar (board, backlog, and history) work without a mouse. When you
 
 None of these conflict with VS Code's default keybindings.
 
-With a mouse, Ctrl/⌘+click adds or removes a row from the selection and Shift+click selects the range from the row you pressed before; a plain click opens details instead. Right-click a ticket, Iteration, or Epic to open its details or copy its ID; asking an agent is done from the speech bubble.
+With a mouse, Ctrl/⌘+click adds or removes a row from the selection and Shift+click selects the range from the row you pressed before; a plain click opens details instead. Pressing the strip at a row's left edge adds or removes that row, and dragging across the strip selects a range; Esc clears the selection. The speech bubble of a selected row (and `a`) asks an agent about all the selected rows. Right-click a ticket row or an Iteration or Epic heading to open its details or copy its ID (ask an agent from the speech bubble).
 
 ### Turn a rough idea into tickets
 
