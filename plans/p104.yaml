@@ -1,0 +1,60 @@
+id: p104
+project: default
+tickets: [t714, t715, t716, t717, t720, t718, t721, t725, t719, t722, t723]
+after:
+  t725:
+    - t721
+  t719:
+    - t721
+    - t725
+  t723:
+    - t719
+  t722:
+    - t715
+    - t717
+pending_approval: true
+details:
+  t714:
+    scope: orphan-review.test.ts と hook.test.ts の時刻の読み方を、テストごとに 1 つの基準の時刻に揃える
+    approach: later() の結果を 1 回だけ求めて使い回し、hook.test.ts の実時間の待ちは ctx.now を決める形にするか理由をコメントに書く
+    tier: standard
+  t715:
+    scope: guide-work の「フックが届かないとき」の文で、警告を出すコマンドを claim と brief にする
+    approach: guide-work.md の文を直し、guide のスナップショットを更新する
+    tier: light
+  t716:
+    scope: 右クリックのメニューの約束を requirements.md に置かないと決め、理由をチケットに残す（PR なし）
+    approach: claim --without-branch で着手し、理由をチケットの本文に書いて受け入れ条件を確かめて done にする
+    tier: light
+  t717:
+    scope: フックが届くセッションで implement・fix の run start に警告を出し、CLAIM_LOST の案内を合わせる
+    approach: claim の selfRunWarning を run start でも使い、届く・届かないの両方をテストで確かめる
+    tier: standard
+  t720:
+    scope: "@types/vscode を engines.vscode 以上の版に上げる"
+    approach: package.json と lockfile を更新し、型の検査を含む mise run check で確かめる
+    tier: standard
+  t718:
+    scope: README.md と README.ja.md に、マウスでの選び方・右クリックのメニュー・サブエージェントに頼む流れを短く書く
+    approach: キーボードの表の近くとフックの節に 1〜2 文を足し、日本語版も同じ構成にする
+    tier: light
+  t721:
+    scope: s26 の Web の使わない CSS と部品を消し、なぞりの予備の終わり方と Epic の札の列の条件を直す
+    approach: styles.css・selection.tsx・epic-chip.tsx・board.tsx・backlog.tsx を直し、札の列を出さない条件を画面のテストで確かめる
+    tier: standard
+  t725:
+    scope: 左端の帯の当たりと見える幅を 12px にし、帯を持つ行の左の余白を広げる
+    approach: CSS の幅と STRIP_PX を揃えて互いを指すコメントを付け、帯の端の当たりを画面のテストで確かめてスクリーンショットを載せる
+    tier: standard
+  t719:
+    scope: s26 の Web の画面のテストの抜け（なぞりの予備の終わり方・PR のある行の帯・Epic の札・右クリック・ID を載せない確認）を埋める
+    approach: selection の単体のテストと layout・画面のテストを足し、名前と中身の合わないテストを直す
+    tier: standard
+  t722:
+    scope: ADR-025・guide-discuss・UI-15 の文言を、決めた書き方と実装に合わせる
+    approach: ADR-025 の要約と 76 行を直し、guide-discuss に --status を付けてスナップショットを更新し、UI-15 を 1〜2 文にする
+    tier: light
+  t723:
+    scope: README の GIF を s26 の画面で撮り直す
+    approach: mise run gifs -- open-board.gif で撮り、ほかの GIF も今の画面と比べて違えば撮り直す
+    tier: light
