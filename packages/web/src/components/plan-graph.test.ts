@@ -86,7 +86,7 @@ describe("Plan の状態", () => {
 });
 
 describe("依存グラフ", () => {
-  it("after だけのとき、段の中は Plan の順に並べる。待ち中かは core の waiting を読む", () => {
+  it("after だけのとき、交差が減らなければ段の中は Plan の順に並べる。待ち中かは core の waiting を読む", () => {
     const byId = byIdOf([
       ticket({ id: "t1", status: "done" }),
       ticket({ id: "t2", status: "in_progress" }),
@@ -110,7 +110,7 @@ describe("依存グラフ", () => {
       ["t4", 2, 0, true],
     ]);
     // 辺は待つ側の waiting に待たれる側が残れば待ち中
-    expect(g.edges).toEqual([
+    expect(g.edges.map(({ path: _path, ...e }) => e)).toEqual([
       { from: "t1", to: "t3", done: true, kind: "after" },
       { from: "t2", to: "t4", done: false, kind: "after" },
       { from: "t3", to: "t4", done: false, kind: "after" },
@@ -141,7 +141,7 @@ describe("依存グラフ", () => {
       ["t3", 2],
       ["t4", 0],
     ]);
-    expect(g.edges).toEqual([
+    expect(g.edges.map(({ path: _path, ...e }) => e)).toEqual([
       { from: "t1", to: "t2", done: true, kind: "depends_on" },
       { from: "t2", to: "t3", done: false, kind: "after" },
       { from: "t1", to: "t3", done: true, kind: "depends_on" },
