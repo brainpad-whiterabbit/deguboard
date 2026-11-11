@@ -24,6 +24,7 @@ import {
   useState,
   type KeyboardEvent,
   type MouseEvent,
+  type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
@@ -34,7 +35,7 @@ import { useCommandData } from "../command-data.js";
 import { useAsk, useUiState } from "../host.js";
 import { useStore } from "../store.js";
 import type { AskCandidate, AskMenu } from "../types.js";
-import { SELECT_ATTR, selectKind, useSelection } from "./selection.js";
+import { SCOPE_ATTR, SELECT_ATTR, scopeOf, selectKind, useSelection } from "./selection.js";
 import { language, tr, trCore, msg } from "../l10n.js";
 import { trNode } from "../l10n-node.js";
 
@@ -176,8 +177,12 @@ export interface AskSpot {
     onKeyDown(e: KeyboardEvent<HTMLElement>): void;
     /** 選べる行だけ：行の ID・選んでいる印と、Ctrl/⌘・Shift+クリックと左端の帯のクリックで選ぶ（詳細は開かない） */
     "data-select-id"?: string;
+    /** 選べる行だけ：行の場所（なぞりは同じ場所の行だけを選ぶ） */
+    "data-select-scope"?: string;
     "data-selected"?: "";
     onClickCapture?(e: MouseEvent<HTMLElement>): void;
+    /** 選べる行だけ：左端の帯を押したまま動かすと、通った行をまとめて選ぶ（selection.tsx の sweepStart） */
+    onPointerDown?(e: ReactPointerEvent<HTMLElement>): void;
     onMouseDown?(e: MouseEvent<HTMLElement>): void;
   };
   /** 要素の中に描くもの：吹き出しのボタンと、開いているときの一覧（body に出す） */
@@ -188,6 +193,8 @@ export interface AskSpot {
 
 /** 選択のクリックとして扱わない場所（吹き出し・頼むことの一覧・行の中のボタンや入力） */
 const NOT_SELECT_CLICK = "button, input, select, textarea, .ask-menu";
+/** 左端の帯の幅（px。styles.css の [data-select-id]::before の width と同じ）。なぞりは帯から始めたときだけ */
+const STRIP_PX = 6;
 
 /**
  * 行・見出しを頼める場所にする。options が null なら何もしない（props は空の文脈、overlay は null）。
@@ -322,6 +329,7 @@ export function useAskSpot(options: AskSpotOptions | null): AskSpot {
       ...(rowId !== undefined && selection && options
         ? {
             [SELECT_ATTR]: rowId,
+            [SCOPE_ATTR]: scopeOf(options.section, options.within),
             ...(selected ? { "data-selected": "" as const } : {}),
             // 捕捉の段階で受け、選んだら行のリンク（TicketLink）と App のハッシュの受け手に渡さない
             // 修飾キーつきのクリックはブラウザの既定（リンクを新しいタブ・窓に開く）を止めて選択に使う。
@@ -347,9 +355,28 @@ export function useAskSpot(options: AskSpotOptions | null): AskSpot {
                 e.stopPropagation();
               }
             },
-            // Shift+クリックで文字を選ばない
+            // 左端の帯を押したまま動かすと、通った行をまとめて選ぶ（マウスとペンだけ。タッチは選ばず、一覧のスクロール）
+            onPointerDown(e: ReactPointerEvent<HTMLElement>) {
+              // 帯の上（行の要素の左 STRIP_PX の中）で押したときだけ。行の本体の余白から始めたなぞりは選ばない
+              if (e.target !== e.currentTarget) return;
+              if (e.clientX - e.currentTarget.getBoundingClientRect().left >= STRIP_PX) return;
+              selection.sweepStart(rowId, e, e.currentTarget, {
+                section: options.section,
+                within: options.within,
+              });
+            },
+            // Shift+クリックで文字を選ばない。帯のなぞりで文字を選ばない（帯は行の要素なので target が行そのもの）。
+            // 帯の幅（STRIP_PX）の中だけを見る。行の本体の余白は帯ではないので、そこから文字を選ぶのは止めない
             onMouseDown(e: MouseEvent<HTMLElement>) {
-              if (e.button === 0 && selectKind(e) === "range") e.preventDefault();
+              if (e.button !== 0) return;
+              if (selectKind(e) === "range") e.preventDefault();
+              else if (
+                e.target === e.currentTarget &&
+                !e.altKey &&
+                !selectKind(e) &&
+                e.clientX - e.currentTarget.getBoundingClientRect().left < STRIP_PX
+              )
+                e.preventDefault();
             },
           }
         : {}),
