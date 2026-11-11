@@ -1154,11 +1154,14 @@ export const ticketClaim = defineCommand({
           }
           // 自分の claim でも PR がなければ手直しにはならない（実装の途中。続けるなら run start、やめるなら unclaim）
           if (own && (doc.data.status === "in_progress" || doc.data.status === "review")) {
-            // フックが届くセッションでは、親が run start で続けず、印の brief をサブエージェントに渡して続けさせる（t717）
-            const reached = await hooksReachSession(ctx.repo.localDir, ctx.env ?? process.env);
+            // フックが届くセッションでは、親が run start で続けず、印の brief をサブエージェントに渡して続けさせる（t717）。
+            // PR の要らない作業（branch なし）は親が自分で進めるので、フックが届いても run start の案内のままにする
+            const delegated = doc.data.branch
+              ? await hooksReachSession(ctx.repo.localDir, ctx.env ?? process.env)
+              : false;
             throw new OperationError(
               "CLAIM_LOST",
-              reached
+              delegated
                 ? `${doc.id} is claimed by you (${owner}) and has no PR yet. To keep implementing, ask a sub-agent with the brief from dg next (it has the mark, and the hook opens and closes the Run), not run start. To stop, use ticket unclaim`
                 : `${doc.id} is claimed by you (${owner}) and has no PR yet. To keep implementing, use run start. To stop, use ticket unclaim`,
             );

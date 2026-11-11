@@ -597,8 +597,12 @@ export const runStart = defineCommand({
       session: input.session,
       transcript: input.transcript,
     });
-    // フックが届くセッションで親が自分で実装・手直しの Run を開いたときは、サブエージェントに頼むよう知らせる（t717）。Run の開き方は変えない
-    if (ctx.actor.kind === "agent" && (input.step === "implement" || input.step === "fix")) {
+    // フックが届くセッションで親が自分で実装・手直しの Run を開いたときは、サブエージェントに頼むよう知らせる（t717）。Run の開き方は変えない。
+    // step は Workflow の opens_on で決まる（claim・reclaim が開く step）。PR の要らない作業（branch なし）は親が進めるので除く
+    const implementing =
+      input.step === openedStepOf(ctx, ticket.data, "claim") ||
+      input.step === openedStepOf(ctx, ticket.data, "reclaim");
+    if (ctx.actor.kind === "agent" && ticket.data.branch && implementing) {
       const self = await selfRunWarning(
         ctx.repo.localDir,
         ctx.env ?? process.env,
