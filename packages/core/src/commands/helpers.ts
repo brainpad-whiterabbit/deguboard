@@ -15,7 +15,7 @@ export const nowIso = (ctx: CommandContext): string => toIsoDateTime(ctx.now());
 /** 親のエージェントが打つ dg のコマンド（dg next・dg flow next の commands）。JSON で読み、agent として記録する */
 export const agentDg = (args: string): string => `dg --json --actor agent ${args}`;
 
-/** Iteration の完了：中のチケットが 1 件以上あり、すべて done か abandoned（Status の引けないものは未完了）。iteration.show の next と ask の候補が同じ判定を使う正本 */
+/** 完了の判定（Iteration・Plan の中のチケット）：1 件以上あり、すべて done か abandoned（Status の引けないものは未完了）。iteration.show の next と ask の候補（Iteration と Plan）が同じ判定を使う正本 */
 export function iterationComplete(statuses: readonly (Status | undefined)[]): boolean {
   return statuses.length > 0 && statuses.every((st) => st !== undefined && isTerminal(st));
 }
