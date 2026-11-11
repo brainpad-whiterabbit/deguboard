@@ -193,13 +193,44 @@ describe("dg guide", () => {
     const work = await readGuide("work");
     expect(lineWith(work, "`implement`")).toContain("--no-run");
     const run = await readGuide("run");
-    const self = section(run, "## When the parent advances work itself");
+    const self = section(run, "## When the parent opens the Run itself");
     for (const word of ["`ticket claim`", "data.run", "ticket update --pr", "`success`"])
       expect(self, word).toContain(word);
     // サブエージェントの Run の開閉・--agent・開いたままの警告は書かない
     for (const word of ["--agent", "フック", "--no-run", "run start", "開いたまま"])
       expect(run, word).not.toContain(word);
     expect(await readGuide("overview")).toContain("`ticket claim` opens");
+  });
+
+  it("フックが届くセッションでは implement と fix を小さな手直しを含めていつもサブエージェントに頼み、親が自分で進めるのはフックが届かないときだけと案内する（t713）", async () => {
+    const work = await readGuide("work");
+    const who = section(work, "## Who implements and fixes");
+    expect(lineWith(who, "**When dg hooks reach the session**")).toMatch(
+      /always ask a subagent for `implement` and `fix`[\s\S]*even for a small fix[\s\S]*does not implement or fix it itself/,
+    );
+    // 親が自分で進める手順（--no-run を外す）は、フックが届かないときの項にだけある
+    expect(lineWith(who, "**When no dg hook reaches the session**")).toContain("Remove `--no-run`");
+    expect(work.split("Remove `--no-run`").length).toBe(2);
+    expect(lineWith(work, "`implement`")).not.toContain("implements it itself");
+    const fixLoop = bullet(
+      section(await readGuide("review"), "## Fix loop (parent)"),
+      "Findings to fix",
+    );
+    expect(fixLoop).toContain(
+      "When dg hooks reach the session, always ask a subagent, even for a small fix",
+    );
+    expect(fixLoop).toContain(
+      "Only when no dg hook reaches the session may the parent fix it itself",
+    );
+    const run = await readGuide("run");
+    expect(run).toContain(
+      "When dg hooks reach the session, implementation and fixes are always asked of a subagent",
+    );
+    const overview = await readGuide("overview");
+    expect(overview).toContain(
+      "When dg hooks reach the session, implementation and fixes are always asked of a subagent",
+    );
+    expect(overview).toContain("Only when no dg hook reaches the session");
   });
 
   it("review は文書との食い違いを、この PR が変えた約束・手順・規約で文書を直していないものに限って重い指摘にし、前からのずれは audit に送る。参考節との食い違いは軽い指摘として返し、参考節がなければ見比べないと案内し、直さなかった軽い指摘は dg pr ready が PR の本文に書き足すと決める", async () => {

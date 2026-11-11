@@ -20,7 +20,7 @@ The tickets of an approved Plan are advanced in parallel when two or more of the
 
 1. If a level was given, follow "Gate level" first. Call `dg --json --actor agent next <id>`, and do one of the `kind` steps. Do the `commands` in order. If there is a `brief`, paste it to a subagent (you may add a location for temporary files after it). If `model` is not empty, start the subagent with that model (`null` means the parent's model). A research subagent with no mark uses `models.light` (the parent's model if it is empty). After finishing, call `next` again
 2. The parent's step for each `kind`:
-   - `implement`: do the claim in `commands`, and follow "Before and after claim". Claim creates the worktree of the work branch, and returns its location in `worktree` (the default is `{{worktree.root}}/<branch name>`). Pass the text, and when it returns, do "Receive the implementation result". If the parent implements it itself, remove `--no-run` from the claim and do "Implement" below (claim opens the implementation Run)
+   - `implement`: do the claim in `commands` (with `--no-run`: the hook opens the Run of the subagent asked with the mark), and follow "Before and after claim". Claim creates the worktree of the work branch, and returns its location in `worktree` (the default is `{{worktree.root}}/<branch name>`). Pass the text, and when it returns, do "Receive the implementation result". See "Who implements and fixes" below
    - `review`: start the reviewer by the "Starting the review (parent)" section of `dg guide review` (the text includes the "Review" steps)
    - `fix`: follow the "Fix loop (parent)" section of `dg guide review`, and pass the text with `brief <id> --role fix` (the text includes the "Fix findings" steps and the findings of the review record)
    - `ready`: put the PR out by the "How to finish" section of `dg guide review`. For a Workflow that does not look at PRs (such as general, where `sync` does not move it to review), after the PR is put out, move it to review yourself with `dg --json --actor agent ticket move <id> review`
@@ -30,6 +30,12 @@ The tickets of an approved Plan are advanced in parallel when two or more of the
    - `done`: clean up by the steps of `dg guide done`
 
 For `wait_merge`, `wait_human`, and `wait_deps` with no Plan, there is no other ticket of `ready` to advance meanwhile. Then go to "Choosing the next step" below and ask with its choices instead.
+
+## Who implements and fixes
+
+- **When dg hooks reach the session** (an agent with hooks, such as Claude Code, where `dg hooks check` passes): always ask a subagent for `implement` and `fix` with the `brief` and the mark, even when `model` is `null` (the parent's model) and even for a small fix. The parent does not implement or fix it itself. A Run the parent opens itself counts the parent's long context in its usage, so it cannot be compared with the Runs of subagents. A claim without `--no-run` in such a session warns
+- **When no dg hook reaches the session** (an agent without hooks, or `dg next` and `brief` warn that no hook has reached it): the mark opens no Run, so the parent may implement or fix it itself. Remove `--no-run` from the claim and do "Implement" below (claim opens the implementation Run). For the Run, follow the "When the parent opens the Run itself" section of `dg guide run`
+- Work that needs no PR (`--without-branch`) is done by the parent (see "Work that needs no PR")
 
 ## Gate level
 

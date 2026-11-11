@@ -34,7 +34,7 @@ import {
 import { defineCommand, ok, type CommandContext } from "./define.js";
 import { parseDraftSource } from "./draft-source.js";
 import { matchesFilter, ticketFilterSchema } from "./filters.js";
-import { hooksSilentWarning } from "./hook-sessions.js";
+import { hooksSilentWarning, selfRunWarning } from "./hook-sessions.js";
 import { stageFactsOf, stageOf, type Stage } from "./next.js";
 import {
   dependents,
@@ -1028,6 +1028,9 @@ async function reclaim(
     `${doc.id} is already claimed by you (${doc.data.assignee}) and has PR #${doc.data.pr}, so this is treated as the start of a fix and the ticket is not changed`,
   );
   if (ctx.actor.kind !== "agent" || input.no_run) return null;
+  // フックが届くセッションでは手直しもサブエージェントに頼む。開き方は変えずに知らせる（t713）
+  const self = await selfRunWarning(ctx.repo.localDir, ctx.env ?? process.env, doc.id);
+  if (self) warnings.push(self);
   // 開いたままの前の手直しの Run は、openRun が閉じてから開く
   return openClaimRun(
     ctx,
@@ -1052,6 +1055,7 @@ export const ticketClaim = defineCommand({
     "If lint.require_iteration is true and the ticket has no Iteration, it goes into the Project's active Iteration (or else the planned one, if there is only one). If there is no target, or there is no active one and several are planned, it goes into none and the warnings say to ask a person. If the ticket's Iteration is planned, it becomes active; if that fails (another active one, or actor.human_only), the failure goes into the warnings and claim still succeeds. Both are pushed in the same write as the claim. " +
     "After the push, it creates the work branch's worktree at worktree.root/<branch name> (change with --worktree-path) from base, and puts its path in worktree. If a worktree for that branch already exists, it uses that; if only the local branch exists, it checks it out. If it cannot be created, the failure goes into the warnings and claim still succeeds. In a worktree it created (not an existing one), it runs config's worktree.setup commands; a failure goes into the warnings and claim still succeeds. That setup can take several minutes, such as pnpm install (limit 10 minutes), and claim does not return until it finishes. It creates no worktree with --no-worktree or --without-branch. " +
     "For an agent, it then opens an implementation Run (the step in the Workflow's steps with opens_on: claim, or else implement) and prints its ID as run (on the last line of stdout in human output). The Run opens before the setup commands run. If it cannot be opened, only a warning is given and claim still succeeds. " +
+    "In a session that dg hooks have reached, an agent's claim without --no-run (other than --without-branch, and including claiming again) still opens the Run, and warns to ask a sub-agent to implement or fix with the marker instead. " +
     "If you claim again a ticket that you (the same user, human or AI) already claimed and that has a PR (in_progress or review), it is treated as the start of a fix (the review fix loop, or after a person's review). The ticket is not changed; for an agent it opens a fix Run (the step with opens_on: reclaim, or else fix). For either an implementation Run or a fix Run, when it opens, any still-open earlier fix Run on the same ticket is first closed with success at the time of the last push after that Run started (or at this claim's time if there is none), using this claim as the boundary. If the earlier fix Run's session differs from this claim's session (--session, else DEGUBOARD_SESSION from the environment, else the session ID the calling agent sets in its environment; for a sub-agent's claim, the parent session that started it), it is treated as left over from a crashed session and closed as interrupted. If either session is unknown, it is closed with success. Claims by other actors are rejected",
   input: z.object({
     ticket: ticketRef,
@@ -1238,6 +1242,12 @@ export const ticketClaim = defineCommand({
     if (ctx.actor.kind === "agent" && input.no_run) {
       const silent = await hooksSilentWarning(ctx.repo.localDir, ctx.env ?? process.env);
       if (silent) warnings.push(silent);
+    }
+    // フックが届くセッションで親が自分で Run を開く claim は、サブエージェントに頼むよう知らせる（t713）。
+    // PR の要らない作業（--without-branch）は親が自分で進めるので除く
+    if (ctx.actor.kind === "agent" && !input.no_run && !input.without_branch) {
+      const self = await selfRunWarning(ctx.repo.localDir, ctx.env ?? process.env, result.value.id);
+      if (self) warnings.push(self);
     }
     // 準備のコマンドは Run を開いた後に回す。pnpm install などで長くかかり、呼ぶ側の上限で切れても Run は残る（t621）
     if (made?.created) await runSetupInWorktree(ctx, made.path, warnings);
