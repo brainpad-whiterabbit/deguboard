@@ -411,7 +411,7 @@ describe("行の左端の帯をなぞって、通った行をまとめて選ぶ�
   beforeAll(async () => {
     for (let i = 1; i <= 16; i++)
       await call("ticket.create", { title: `なぞる ${i}`, iteration: "s1" });
-    // 履歴の行に出すため、終えたチケットを 3 件作る
+    // 履歴の行に出すため、終えたチケットを 5 件作る
     for (let i = 1; i <= 5; i++) {
       const done = await call<{ id: string }>("ticket.create", {
         title: `終えた ${i}`,

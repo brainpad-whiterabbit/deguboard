@@ -365,11 +365,17 @@ export function useAskSpot(options: AskSpotOptions | null): AskSpot {
                 within: options.within,
               });
             },
-            // Shift+クリックで文字を選ばない。帯のなぞりで文字を選ばない（帯は行の要素なので target が行そのもの）
+            // Shift+クリックで文字を選ばない。帯のなぞりで文字を選ばない（帯は行の要素なので target が行そのもの）。
+            // 帯の幅（STRIP_PX）の中だけを見る。行の本体の余白は帯ではないので、そこから文字を選ぶのは止めない
             onMouseDown(e: MouseEvent<HTMLElement>) {
               if (e.button !== 0) return;
               if (selectKind(e) === "range") e.preventDefault();
-              else if (e.target === e.currentTarget && !e.altKey && !selectKind(e))
+              else if (
+                e.target === e.currentTarget &&
+                !e.altKey &&
+                !selectKind(e) &&
+                e.clientX - e.currentTarget.getBoundingClientRect().left < STRIP_PX
+              )
                 e.preventDefault();
             },
           }

@@ -314,6 +314,12 @@ export function SelectionProvider({ scope, children }: { scope: string; children
         stop: () => {},
       };
       sweepRef.current = sw;
+      // 押した行で捕捉する。画面の外へ出ても動きと離すを受け、捕捉が外れたら lostpointercapture で終える
+      try {
+        el.setPointerCapture(press.pointerId);
+      } catch {
+        // 捕捉できないときは、下の window の動き・離す・ぼけで終える
+      }
 
       const finish = () => {
         sw.stop();
@@ -351,21 +357,40 @@ export function SelectionProvider({ scope, children }: { scope: string; children
         }
         sweepTo(sw);
       };
-      const onUp = (ev: Event) => {
-        if ((ev as PointerEvent).pointerId !== sw.pointerId) return;
+      // 終える。動いていたら、通った行の選びを残して押した行を起点にする
+      const endSweep = () => {
         if (sw.active) {
           sweptRef.current = true;
           setState((s) => ({ ...s, anchor: sw.startId }));
         }
         finish();
       };
+      const onUp = (ev: Event) => {
+        if ((ev as PointerEvent).pointerId !== sw.pointerId) return;
+        endSweep();
+      };
+      // 捕捉が外れたとき（画面の外で離して pointerup が届かないときを含む）と、ウィンドウがぼけたときも終える
+      const onLost = (ev: Event) => {
+        if ((ev as PointerEvent).pointerId !== sw.pointerId) return;
+        endSweep();
+      };
+      const onBlur = () => endSweep();
       window.addEventListener("pointermove", onMove);
       window.addEventListener("pointerup", onUp);
       window.addEventListener("pointercancel", onUp);
+      window.addEventListener("blur", onBlur);
+      el.addEventListener("lostpointercapture", onLost);
       sw.stop = () => {
         window.removeEventListener("pointermove", onMove);
         window.removeEventListener("pointerup", onUp);
         window.removeEventListener("pointercancel", onUp);
+        window.removeEventListener("blur", onBlur);
+        el.removeEventListener("lostpointercapture", onLost);
+        try {
+          if (el.hasPointerCapture(sw.pointerId)) el.releasePointerCapture(sw.pointerId);
+        } catch {
+          // 捕捉を外せないときは、ブラウザがすでに外したあとなので何もしない
+        }
         if (sw.frame !== null) cancelAnimationFrame(sw.frame);
         sw.frame = null;
       };
