@@ -2,4 +2,5 @@ id: s26
 project: default
 name: sprint26
 goal: 左パネルの一覧をマウスだけで操作できるようにし、Epic の札と PR へのリンクで、絞り込みと移動を 1 回のクリックで済ませる。/dgdiscuss --deep で検討を観点から深められるようにする
-status: planned
+status: active
+started_at: 2026-11-11T07:54:48Z
