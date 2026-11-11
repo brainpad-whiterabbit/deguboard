@@ -156,10 +156,8 @@ export const EN: Readonly<Record<string, string>> = {
   人の承認を待っている: "Awaiting human approval",
   次: "Next",
   待ち: "Waiting",
-  "{0}{1}待ち終わり": "{0}{1}wait done",
-  "{0}{1}待ち中": "{0}{1}waiting",
-  "depends_on 待ち終わり": "depends_on wait done",
-  "depends_on 待ち中": "depends_on waiting",
+  待ち中: "waiting",
+  待ち終わり: "wait done",
   // components/plan-graph.ts
   進行中: "Active",
   承認待ち: "Awaiting approval",

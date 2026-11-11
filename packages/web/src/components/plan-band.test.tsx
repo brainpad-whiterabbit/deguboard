@@ -127,6 +127,8 @@ describe("実行計画の帯", () => {
     expect(nodes.map((a) => a.getAttribute("href"))).toEqual(["#/tickets/t1", "#/tickets/t3"]);
     const edges = p2.querySelectorAll(".plan-graph-edge");
     expect(edges[0]!.classList.contains("plan-graph-edge-pending")).toBe(false);
+    // 矢印も待ちの状態の色に合わせる
+    expect(edges[0]!.getAttribute("marker-end")).toBe("url(#plan-arrow-p2-done)");
     // ほかの Plan のグラフは開かない
     expect(itemOf("p3").querySelector(".plan-detail")).toBeNull();
     expect(document.querySelectorAll(".plan-detail")).toHaveLength(1);
@@ -160,7 +162,11 @@ describe("実行計画の帯", () => {
     const edges = document.querySelectorAll(".plan-graph-canvas .plan-graph-edge");
     expect(edges).toHaveLength(1);
     expect(edges[0]!.classList.contains("plan-graph-edge-depends")).toBe(true);
-    expect(document.querySelector(".plan-graph-legend")!.textContent).toContain("depends_on");
+    // 凡例は状態（待ち中・待ち終わり）と由来（after・depends_on）を別の見本で示す
+    const legend = [...document.querySelectorAll(".plan-graph-legend > span")].map(
+      (s) => s.textContent,
+    );
+    expect(legend).toEqual(["待ち中", "待ち終わり", "after", "depends_on"]);
   });
 
   it("行の中のチケットの番号を押すとチケットを開き、グラフは開閉しない", async () => {
