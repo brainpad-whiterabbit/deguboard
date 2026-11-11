@@ -124,15 +124,11 @@ Working
 high
 Epic
 [aria-label] Filter by Epic
-[title] Filter by e1 最初の版
+[title] e1 最初の版 · 0/1 done
+[aria-label] e1 最初の版
 e1
-最初の版
-[title] In Progress 1
-0
-/
-1
 [title] Filter by tickets without an Epic
-No Epic
+None
 3
 [title] Details
 s1

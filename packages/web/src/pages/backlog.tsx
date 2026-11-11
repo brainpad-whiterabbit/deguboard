@@ -7,7 +7,7 @@
 // VS Code の左パネルに出す。検索を常に出し、その右端の漏斗（カンバンと同じ FilterToggle）で絞り込みの欄を検索の下に開く（開閉は host.state に残す）。
 // その下によく使う絞り込み（自分・作業中・high）のチップと、欄で効いている条件の札（× で外す）を並べ、
 // 絞り込みか検索が効いているときだけ行の右端に「n / m 件」を出す。漏斗は条件が効いている間だけ色付きにする。
-// Epic の欄は open の Epic があるときだけ、番号・題・進捗のチップと「Epic なし」のチップを並べる（2 行を超える分は「ほか N」）
+// Epic の欄は open の Epic があるときだけ、番号の札（components/epic-chip.tsx）と「なし」の札を並べる（2 行を超える分は「ほか N」）。題と進みは札のツールチップで読む
 // 行の右端には、カンバンと同じ優先度の札と、開いた Plan に入っていれば Plan の番号と着手可・待ちを出す（カンバンと同じ部品と判定。components/row-end.tsx の BacklogRowEnd）。
 // 行は担当者の列を出さず、別の人の担当だけ右端に頭文字の丸で出す（自分か自分の agent は出さない。store.me）。
 // 行・区画の見出しは、エージェントに頼める場所にする（吹き出しと Shift+F10。UI-15）。Epic の札と件数は頼む入口にしない
@@ -15,8 +15,9 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { ASK_SECTIONS, useAskSpot } from "../components/ask-menu.js";
 import { Chip, ChipRow } from "../components/chips.js";
+import { EpicChip } from "../components/epic-chip.js";
 import { shortPeriod } from "../components/iteration-parts.js";
-import { ProgressBar, TicketTable } from "../components/parts.js";
+import { TicketTable } from "../components/parts.js";
 import { BacklogRowEnd, kanbanPlanMarks } from "../components/row-end.js";
 import { FilterToggle } from "../components/filter-toggle.js";
 import { useSelection } from "../components/selection.js";
@@ -36,7 +37,6 @@ import {
   matchesClaim,
   ticketMatchesQuery,
   NO_CLAIM,
-  type EpicRow,
   type Iteration,
   type Ticket,
   type WhoamiView,
@@ -503,7 +503,7 @@ function useOpenEpics() {
 }
 
 /**
- * Epic の欄：open の Epic があるときだけ、番号・題・進捗のチップと「Epic なし」のチップを並べる。
+ * Epic の欄：open の Epic があるときだけ、番号の札と「なし」の札（件数つき）を並べる。
  * 押すとその Epic で絞り、もう一度押すと外れる。2 行を超える分は「ほか N」にまとめる
  */
 function EpicChips({ selected, onSelect }: { selected: string; onSelect: (epic: string) => void }) {
@@ -522,7 +522,14 @@ function EpicChips({ selected, onSelect }: { selected: string; onSelect: (epic: 
         lessLabel={tr("Epic を畳む")}
       >
         {epics.map((e) => (
-          <EpicChip key={e.id} epic={e} pressed={selected === e.id} onSelect={onSelect} />
+          <EpicChip
+            key={e.id}
+            id={e.id}
+            title={e.title}
+            progress={e.progress}
+            pressed={selected === e.id}
+            onClick={() => onSelect(e.id)}
+          />
         ))}
         <Chip
           key={NO_EPIC}
@@ -531,33 +538,9 @@ function EpicChips({ selected, onSelect }: { selected: string; onSelect: (epic: 
           title={selected === NO_EPIC ? tr("絞り込みを外す") : tr("Epic のないチケットで絞る")}
           onClick={() => onSelect(NO_EPIC)}
         >
-          {trNode("Epic なし{0}", <span className="chip-count">{noEpic}</span>)}
+          {tr("なし")} <span className="chip-count">{noEpic}</span>
         </Chip>
       </ChipRow>
     </div>
-  );
-}
-
-/** Epic の札。押すとその Epic で絞る。札は狭いので頼む入口は置かない（頼むのは Epic の詳細から） */
-function EpicChip({
-  epic: e,
-  pressed,
-  onSelect,
-}: {
-  epic: EpicRow;
-  pressed: boolean;
-  onSelect: (epic: string) => void;
-}) {
-  return (
-    <Chip
-      className="epic-chip"
-      pressed={pressed}
-      title={pressed ? tr("絞り込みを外す") : tr("{0} {1} で絞る", e.id, e.title)}
-      onClick={() => onSelect(e.id)}
-    >
-      <code>{e.id}</code>
-      <span className="chip-title">{e.title}</span>
-      <ProgressBar progress={e.progress} short />
-    </Chip>
   );
 }

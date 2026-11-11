@@ -11,12 +11,15 @@ export function Chip({
   pressed,
   onClick,
   title,
+  label,
   className,
   children,
 }: {
   pressed: boolean;
   onClick: () => void;
   title?: string;
+  /** 読み上げの名前。中の文字（番号だけの札など）と違うときに渡す */
+  label?: string;
   className?: string;
   children: ReactNode;
 }) {
@@ -25,6 +28,7 @@ export function Chip({
       type="button"
       className={className ? `chip ${className}` : "chip"}
       aria-pressed={pressed}
+      aria-label={label}
       title={title}
       onClick={onClick}
     >

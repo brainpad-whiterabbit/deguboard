@@ -236,6 +236,21 @@ describe("画面", () => {
     expect(screen.getByText("画面")).toBeTruthy();
   });
 
+  it("バックログの Epic の札は番号だけを出し、題と進みはツールチップと読み上げの名前で読める。絞っている札のツールチップは外す文を添える", async () => {
+    window.location.hash = "#/backlog";
+    mount(mockClient(), hostOf("sidebar"));
+    await screen.findByText("API");
+    const chip = () => screen.getByRole("button", { name: "e1 最初の版" });
+    expect(chip().textContent).toBe("e1");
+    expect(chip().getAttribute("title")).toBe("e1 最初の版・完了 0/1");
+    fireEvent.click(chip());
+    expect(chip().getAttribute("aria-pressed")).toBe("true");
+    expect(chip().getAttribute("title")).toBe("e1 最初の版・完了 0/1。押すと絞り込みを外す");
+    fireEvent.click(chip());
+    expect(chip().getAttribute("aria-pressed")).toBe("false");
+    expect(chip().getAttribute("title")).toBe("e1 最初の版・完了 0/1");
+  });
+
   it("チケット詳細は本文と属性を出し、Status の変更は ticket.move を通り、拒否されたら理由を出す", async () => {
     window.location.hash = "#/tickets/t3";
     const client = mockClient();
@@ -2055,13 +2070,13 @@ describe("画面", () => {
     expect(select("Status").value).toBe("in_progress");
   });
 
-  it("サイドバーのバックログの Epic のチップは番号・題・進捗を出し、押すと絞り、もう一度押すと外れる。「Epic なし」でも絞れる", async () => {
+  it("サイドバーのバックログの Epic の札は番号だけを出し、押すと絞り、もう一度押すと外れる。「Epic なし」は「なし」と件数で絞れる", async () => {
     window.location.hash = "#/backlog";
     mount(mockClient(), hostOf("sidebar"));
     await screen.findByText("API");
     const group = screen.getByRole("group", { name: "Epic で絞る" });
     const chips = [...group.querySelectorAll<HTMLButtonElement>(".chip")];
-    expect(chips.map((c) => c.textContent)).toEqual(["e1最初の版0/1", "Epic なし1"]);
+    expect(chips.map((c) => c.textContent)).toEqual(["e1", "なし 1"]);
     expect(chips.map((c) => c.getAttribute("aria-pressed"))).toEqual(["false", "false"]);
     const count = () => document.querySelector(".quick-filters .count")?.textContent ?? null;
     fireEvent.click(chips[0]!);
@@ -2077,7 +2092,7 @@ describe("画面", () => {
     expect(screen.queryByText("API")).toBeNull();
   });
 
-  it("サイドバーのバックログの Epic のチップが 2 行を超えるときは「ほか N」にまとめ、読み上げは Epic の言葉で出し、開くと「Epic なし」を残して並ぶ", async () => {
+  it("サイドバーのバックログの Epic の札が 2 行を超えるときは「ほか N」にまとめ、読み上げは Epic の言葉で出し、開くと「なし」を残して並ぶ", async () => {
     window.location.hash = "#/backlog";
     // jsdom は配置をしないので、1 行に 3 つ並ぶとして位置を返す（chips.test.tsx と同じ）
     const original = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "offsetTop")!;
@@ -2104,7 +2119,7 @@ describe("画面", () => {
       const more = screen.getByRole("button", { name: "Epic をあと 2 本出す" });
       expect(more.getAttribute("aria-expanded")).toBe("false");
       fireEvent.click(more);
-      expect(labels()).toEqual(["e1", "e2", "e3", "e4", "e5", "e6", "Epic なし1", "畳む"]);
+      expect(labels()).toEqual(["e1", "e2", "e3", "e4", "e5", "e6", "なし 1", "畳む"]);
       expect(
         screen.getByRole("button", { name: "Epic を畳む" }).getAttribute("aria-expanded"),
       ).toBe("true");
