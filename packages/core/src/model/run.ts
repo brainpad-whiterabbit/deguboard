@@ -140,7 +140,8 @@ export const runSchema = z.looseObject({
   review: runReviewSchema.nullable().default(null),
   /**
    * 会話記録を取らずに作った記録の印（RN-1）。none は、フックが届かず持ち主のないまま残った見直しの結果（保留）から
-   * dg sync・dg pr ready が書いた見直しの記録（commands/orphan-review.ts）。ほかの Run にはキーを書かない（省けば会話記録を取る Run）
+   * dg sync・dg pr ready が書いた見直しの記録（commands/orphan-review.ts）。ほかの Run にはキーを書かない（省けば会話記録を取る Run）。
+   * 前景の見直し役が動いている間に書いた記録は、返ったときに起動のフックが会話記録を結び付けてキーを外す（t701）
    */
   capture: z.literal("none").optional(),
   /**

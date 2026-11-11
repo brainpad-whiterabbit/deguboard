@@ -1,20 +1,30 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { createFixture, git } from "../../test/helpers/git-fixture.js";
 import { resetGhCache } from "../git/facts.js";
 import { runGit } from "../git/run.js";
+import { toIsoDateTime } from "../model/common.js";
 import { runSchema, type Run, type RunReview } from "../model/run.js";
-import { amendRunning, bindTranscript, readReviewFindings } from "../run/record.js";
+import {
+  amendRunning,
+  bindTranscript,
+  peekRunningRuns,
+  readReviewFindings,
+  readTranscriptPaths,
+} from "../run/record.js";
+import { unfixedLightLines } from "../run/findings.js";
 import { runPath } from "../storage/paths.js";
 import { openContext } from "./context.js";
 import { runCommand, type CommandContext } from "./define.js";
 import { gate, type GateView } from "./gate.js";
+import { hook, type HookView } from "./hook.js";
 import { next, type NextStep } from "./next.js";
-import { orphanReviewRuns, orphanReviewsOf } from "./orphan-review.js";
+import { adoptableReviewRecord, orphanReviewRuns, orphanReviewsOf } from "./orphan-review.js";
 import { prReady, type PrAdvanceView } from "./pr.js";
 import { runFinish, runReviewResult, runStart } from "./run.js";
-import { init, lint, sync } from "./setup.js";
+import { configSet, init, lint, sync } from "./setup.js";
 import { ticketClaim, ticketCreate, ticketUpdate } from "./ticket.js";
 
 const cleanups: Array<() => Promise<void> | void> = [];
@@ -76,6 +86,53 @@ describe("持ち主のない保留から見直しの記録を作る（orphanRevi
       [],
     );
     expect(made).toEqual([]);
+  });
+
+  it("保留の回のセッションを記録の session に写し、セッションのない前の回は null にする（t701）", () => {
+    const made = orphanReviewsOf(
+      "t1",
+      [
+        { ...round("2026-11-07T10:06:00Z", passed), session: "s-a" },
+        round("2026-11-07T10:12:00Z", passed),
+      ],
+      undefined,
+      ["2026-11-07T10:10:00Z"],
+    );
+    expect(made.map((r) => r.session)).toEqual(["s-a", null]);
+  });
+});
+
+describe("起動のフックが引き取る見直しの記録（adoptableReviewRecord。t701）", () => {
+  const record = (over: Partial<Run>): Run => ({
+    ...orphanReviewsOf(
+      "t1",
+      [{ run: null, at: "2026-11-07T10:06:00Z", review: passed }],
+      "",
+      [],
+    )[0]!,
+    id: "r20261107-100600-0001",
+    session: "s-a",
+    ...over,
+  });
+
+  it("同じチケット・同じセッションで起動より後（同じ秒を含む）に書かれた capture: none の見直しの記録のうち、最も後のものを引き取る", () => {
+    const newer = record({ id: "r20261107-100700-0002", started_at: "2026-11-07T10:07:00Z" });
+    expect(
+      adoptableReviewRecord([record({}), newer], "t1", "s-a", "2026-11-07T10:06:00Z")?.id,
+    ).toBe(newer.id);
+  });
+
+  it("別のセッション・セッションの分からない記録・起動より前の記録・印のない Run・ほかのチケットは引き取らない", () => {
+    const launchedAt = "2026-11-07T10:05:00Z";
+    const { capture: _, ...captured } = record({});
+    for (const r of [
+      record({ session: "s-b" }),
+      record({ session: null }),
+      record({ started_at: "2026-11-07T10:04:59Z" }),
+      captured,
+      record({ ticket: "t2" }),
+    ])
+      expect(adoptableReviewRecord([r], "t1", "s-a", launchedAt)).toBeUndefined();
   });
 });
 
@@ -144,22 +201,36 @@ async function prepared() {
 }
 
 /** Run のないまま見直しの結果を書く（保留になる）。at は書いた時刻 */
-async function hold(ctx: CommandContext, at: Date, withHeavy: boolean) {
+async function hold(ctx: CommandContext, at: Date, withHeavy: boolean, lightReason?: string) {
   ctx.now = () => at;
   const out = await runCommand(runReviewResult, ctx, {
     ticket: "t1",
-    findings: withHeavy
-      ? [
-          {
-            severity: "heavy",
-            category: "不具合",
-            file: null,
-            line: null,
-            reason: "壊れる",
-            fix: null,
-          },
-        ]
-      : [],
+    findings: [
+      ...(withHeavy
+        ? [
+            {
+              severity: "heavy" as const,
+              category: "不具合",
+              file: null,
+              line: null,
+              reason: "壊れる",
+              fix: null,
+            },
+          ]
+        : []),
+      ...(lightReason
+        ? [
+            {
+              severity: "light" as const,
+              category: "言い回し",
+              file: null,
+              line: null,
+              reason: lightReason,
+              fix: null,
+            },
+          ]
+        : []),
+    ],
   });
   expect(out.data).toMatchObject({ pending: true });
 }
@@ -408,6 +479,218 @@ describe("dg sync と dg pr ready が持ち主のない保留を見直しの記�
       code: "OUTSIDE_CHANGES",
     });
     expect(await heldRounds(ctx)).toHaveLength(1);
+  });
+});
+
+describe("前景の見直し役が返ったとき、起動のフックが先に書かれた見直しの記録を引き取る（t701）", () => {
+  const SESSION = "s-parent";
+  const PROMPT = "deguboard: ticket=t1 step=review\n\n見直す";
+
+  /** 一度 sync した prepared に、会話記録を読む設定と HOME（会話記録の置き場所）を足す。review-result のセッションは DEGUBOARD_SESSION */
+  const withTranscripts = async () => {
+    const p = await prepared();
+    await runCommand(sync, p.ctx, {});
+    await runCommand(configSet, p.ctx, { key: "metrics.read_transcripts", value: "true" });
+    p.ctx.config = p.ctx.store.config;
+    const home = await mkdtemp(path.join(os.tmpdir(), "dg-home-"));
+    cleanups.push(() => rm(home, { recursive: true, force: true }));
+    p.ctx.env = { HOME: home, DEGUBOARD_SESSION: SESSION };
+    const parent = path.join(home, ".claude", "projects", "d", `${SESSION}.jsonl`);
+    const transcript = path.join(path.dirname(parent), SESSION, "subagents", "agent-a1.jsonl");
+    // 見直し役の記録：頼んだ文と、使用量の付いた応答 2 つ（入力 3 ずつ）
+    const response = (id: string) => ({
+      type: "assistant",
+      timestamp: new Date().toISOString(),
+      message: {
+        id,
+        model: "claude-test-1",
+        content: "答え",
+        usage: {
+          input_tokens: 3,
+          output_tokens: 1,
+          cache_read_input_tokens: 0,
+          cache_creation_input_tokens: 0,
+        },
+      },
+    });
+    await mkdir(path.dirname(transcript), { recursive: true });
+    await writeFile(
+      transcript,
+      [
+        { type: "user", timestamp: new Date().toISOString(), message: { content: PROMPT } },
+        response("m1"),
+        response("m2"),
+      ]
+        .map((l) => JSON.stringify(l))
+        .join("\n") + "\n",
+    );
+    return { ...p, parent, transcript };
+  };
+
+  /** 前景の起動が返ったときの PostToolUse（SubagentStop は先に来て、閉じる Run がなかった）。at は返った時刻 */
+  const returned = async (ctx: CommandContext, parent: string, at: Date, durationMs: number) => {
+    ctx.now = () => at;
+    const r = await runCommand(hook, ctx, {
+      event: "PostToolUse",
+      payload: {
+        session_id: SESSION,
+        transcript_path: parent,
+        tool_name: "Agent",
+        tool_input: { prompt: PROMPT, description: "x" },
+        tool_response: {
+          status: "completed",
+          agentId: "a1",
+          resolvedModel: "claude-test-1",
+          totalDurationMs: durationMs,
+        },
+      },
+    });
+    return r.data as HookView;
+  };
+
+  const reviewRuns = (ctx: CommandContext) =>
+    [...ctx.store.runs.values()]
+      .filter((d) => d.data.ticket === "t1" && d.data.step === "review")
+      .map((d) => d.data);
+
+  it("run review-result が保留の回にセッションを書き、sync が書く記録の session に写す", async () => {
+    const { ctx } = await withTranscripts();
+    await hold(ctx, later(2), false);
+    expect((await readReviewFindings(ctx.repo, "t1"))?.rounds.at(-1)).toMatchObject({
+      run: null,
+      session: SESSION,
+    });
+    await runCommand(sync, ctx, {});
+    expect(reviewRuns(ctx)).toEqual([
+      expect.objectContaining({ capture: "none", session: SESSION }),
+    ]);
+  });
+
+  it("見直し役が動いている間に sync が保留を記録にしていたら、新しい Run を開かずにその記録へ会話記録を結び、使用量を数え直して capture: none を外し、gate が通る", async () => {
+    const { ctx, parent, transcript } = await withTranscripts();
+    // 起動は later(1.5)、見直し役が結果を書くのは later(2)、別のプロセスの sync が記録にしてから、later(3) に返る
+    await hold(ctx, later(2), false);
+    await runCommand(sync, ctx, {});
+    const [record] = reviewRuns(ctx);
+    expect(record).toMatchObject({ capture: "none", session: SESSION });
+
+    const view = await returned(ctx, parent, later(3), 90_000);
+    expect(view.done).toContainEqual(
+      expect.stringContaining(`Took over the review record ${record!.id}`),
+    );
+    expect(view.done.some((d) => d.startsWith("Opened the"))).toBe(false);
+    expect(await peekRunningRuns(ctx.repo)).toEqual([]);
+    const runs = reviewRuns(ctx);
+    expect(runs).toHaveLength(1);
+    expect(runs[0]).toMatchObject({
+      id: record!.id,
+      agent: "claude-code",
+      model: "claude-test-1",
+      started_at: toIsoDateTime(new Date(later(3).getTime() - 90_000)),
+      finished_at: toIsoDateTime(later(3)),
+      result: "success",
+      error: null,
+      review: passed,
+      session: SESSION,
+      usage: { input: 6, output: 2 },
+    });
+    const raw = JSON.parse(
+      await readFile(path.join(ctx.repo.dataDir, runPath(record!.id)), "utf8"),
+    ) as Record<string, unknown>;
+    expect(raw).not.toHaveProperty("capture");
+    expect((await readTranscriptPaths(ctx.repo)).get(record!.id)).toBe(transcript);
+    // 保留の結果と回は残さない（次の見直しの Run に結び付けない）
+    expect(
+      await readFile(path.join(ctx.repo.localDir, "reviews", "t1.json")).catch(() => null),
+    ).toBeNull();
+    expect((await readReviewFindings(ctx.repo, "t1"))?.rounds.map((r) => r.run)).toEqual([
+      record!.id,
+    ]);
+    // 最新の見直しは結果なしの失敗にならず、gate が通る
+    const gateView = await judge(ctx);
+    expect(gateView.passed).toBe(true);
+    expect(condition(gateView, "review").ok).toBe(true);
+    expect(await stepOf(ctx)).toMatchObject({ stage: { reviews: 1, review_passed: true } });
+    // もう一度の sync は書き足さない
+    await runCommand(sync, ctx, {});
+    expect(reviewRuns(ctx)).toHaveLength(1);
+  });
+
+  it("記録を書いた後に見直し役が結果を書き直していたら（保留になる）、引き取りで記録の結果をその新しい結果に置き換え、回もその記録に結び付ける", async () => {
+    const { ctx, parent } = await withTranscripts();
+    // later(2) に重い指摘で書き、sync が記録にした後、later(2.5) に通った結果で呼び直す（結果のある閉じた記録には書けず保留）
+    await hold(ctx, later(2), true, "古い結果の軽い指摘");
+    await runCommand(sync, ctx, {});
+    const [record] = reviewRuns(ctx);
+    expect(record).toMatchObject({ capture: "none", review: { ...heavy, light: 1 } });
+    await hold(ctx, later(2.5), false);
+
+    await returned(ctx, parent, later(3), 90_000);
+    const runs = reviewRuns(ctx);
+    expect(runs).toHaveLength(1);
+    expect(runs[0]).toMatchObject({ id: record!.id, review: passed, result: "success" });
+    expect(
+      await readFile(path.join(ctx.repo.localDir, "reviews", "t1.json")).catch(() => null),
+    ).toBeNull();
+    const rounds = (await readReviewFindings(ctx.repo, "t1"))?.rounds ?? [];
+    // 記録の回（置き換えられた古い結果）は外し、1 つの Run の回は 1 つに保つ
+    expect(rounds.map((r) => r.run)).toEqual([record!.id]);
+    expect(rounds.at(-1)?.review).toEqual(passed);
+    // 置き換えられた古い結果の軽い指摘は、直さなかった軽い指摘として PR の本文に出ない
+    expect(unfixedLightLines(rounds, undefined, [])).toEqual([]);
+    expect((await judge(ctx)).passed).toBe(true);
+  });
+
+  it("記録の元の結果と同じ秒に違う結果で呼び直していても、新しい結果として記録の結果と回を置き換える", async () => {
+    const { ctx, parent } = await withTranscripts();
+    await hold(ctx, later(2), true);
+    await runCommand(sync, ctx, {});
+    const [record] = reviewRuns(ctx);
+    expect(record).toMatchObject({ capture: "none", review: heavy });
+    await hold(ctx, later(2), false);
+
+    await returned(ctx, parent, later(3), 90_000);
+    expect(reviewRuns(ctx)[0]).toMatchObject({ id: record!.id, review: passed });
+    const rounds = (await readReviewFindings(ctx.repo, "t1"))?.rounds ?? [];
+    expect(rounds.map((r) => r.run)).toEqual([record!.id]);
+    expect(rounds[0]?.review).toEqual(passed);
+    expect((await judge(ctx)).passed).toBe(true);
+  });
+
+  it("引き取りでも、開いたままの前の手直しの Run を起動の時刻を区切りに閉じる（RN-6）", async () => {
+    const { ctx, parent } = await withTranscripts();
+    ctx.now = () => later(1);
+    const fix = (
+      await runCommand(runStart, ctx, { ticket: "t1", step: "fix", agent: "claude-code" })
+    ).data as Run;
+    await hold(ctx, later(2), false);
+    await runCommand(sync, ctx, {});
+    const view = await returned(ctx, parent, later(3), 90_000);
+    expect(view.done).toContainEqual(expect.stringContaining("Took over the review record"));
+    expect(await peekRunningRuns(ctx.repo)).toEqual([]);
+    expect(ctx.store.runs.get(fix.id)?.data).toMatchObject({ step: "fix", result: "success" });
+  });
+
+  it("別のセッションの記録と、起動より前に書かれた記録は引き取らず、今までどおり Run を開く", async () => {
+    // 別のセッション（ほかの見直し役）が書いた結果
+    const other = await withTranscripts();
+    other.ctx.env = { ...other.ctx.env, DEGUBOARD_SESSION: "s-other" };
+    await hold(other.ctx, later(2), false);
+    await runCommand(sync, other.ctx, {});
+    const [fromOther] = reviewRuns(other.ctx);
+    const v1 = await returned(other.ctx, other.parent, later(3), 90_000);
+    expect(v1.done).toContainEqual(expect.stringMatching(/^Opened the review Run/));
+    expect(v1.done.some((d) => d.startsWith("Took over"))).toBe(false);
+    expect(other.ctx.store.runs.get(fromOther!.id)?.data).toMatchObject({ capture: "none" });
+
+    // 同じセッションでも、起動（later(2.5)）より前に書かれた結果
+    const before = await withTranscripts();
+    await hold(before.ctx, later(2), false);
+    await runCommand(sync, before.ctx, {});
+    const [earlier] = reviewRuns(before.ctx);
+    const v2 = await returned(before.ctx, before.parent, later(3), 30_000);
+    expect(v2.done).toContainEqual(expect.stringMatching(/^Opened the review Run/));
+    expect(before.ctx.store.runs.get(earlier!.id)?.data).toMatchObject({ capture: "none" });
   });
 });
 

@@ -73,6 +73,15 @@ export async function takePendingReview(
   ticket: TicketId,
   since: string,
 ): Promise<RunReview | undefined> {
+  return (await takePendingReviewEntry(repo, ticket, since))?.review;
+}
+
+/** takePendingReview と同じく取り出して消し、置いた時刻も返す（時刻で記録より後の結果かを見分ける呼び出し側のため） */
+export async function takePendingReviewEntry(
+  repo: Pick<GitRepo, "localDir">,
+  ticket: TicketId,
+  since: string,
+): Promise<PendingReview | undefined> {
   const file = pendingReviewPath(repo, ticket);
   let pending: PendingReview;
   try {
@@ -83,7 +92,7 @@ export async function takePendingReview(
   // 前の回の保留（Run の開始より前に置いたもの）は使わないので消す
   await unlink(file).catch(() => undefined);
   if (typeof pending?.at !== "string" || pending.at < since || !pending.review) return undefined;
-  return pending.review;
+  return pending;
 }
 
 /**
@@ -104,6 +113,11 @@ export interface ReviewRound {
   at: string;
   review: RunReview;
   findings: ReviewFinding[] | null;
+  /**
+   * 結果を書いたセッション（run review-result の sessionOf）。保留から書く見直しの記録の session に写し、前景の見直し役が返ったときに
+   * 起動のフックが同じセッションの記録だけを引き取る（t701）。分からなければ省く。この項目より前の回にもない
+   */
+  session?: string;
   /**
    * 親が手直しに渡した指摘（run handoff）。直さなかった軽い指摘の節から外し、手直しの文の直す指摘に入れる。
    * 呼び直すと置き換える。渡さなかった回は省く（読む側は空として扱う）
@@ -159,21 +173,26 @@ export async function setHandedFindings(
 /**
  * 見直しの Run に結果を書いた・保留の結果を結び付けたとき、その Run の開始（since）より後に置いた保留の回（run が null）を
  * その Run の回にまとめる（t638）。Run の回がまだなければ最新の保留の回をその Run の回にし、Run の回があればそれを残す
- * （Git の Run の数と同じ回）。ほかの保留の回は外す。保留の回を残すと同じ見直しが 2 回になり、dg pr ready が同じ指摘を 2 行書く（t637）
+ * （Git の Run の数と同じ回。relink のときは Run の回を最新の保留の回で置き換える）。ほかの保留の回は外す。保留の回を残すと同じ見直しが 2 回になり、dg pr ready が同じ指摘を 2 行書く（t637）
  */
 export async function adoptPendingRounds(
   repo: Pick<GitRepo, "localDir">,
   ticket: TicketId,
   run: RunId,
   since: string,
+  options: { relink?: boolean } = {},
 ): Promise<void> {
   const stored = await readReviewFindings(repo, ticket);
   if (!stored) return;
   const held = (r: ReviewRound) => r.run === null && r.at >= since;
   const latestHeld = stored.rounds.filter(held).at(-1);
   if (!latestHeld) return;
-  const owned = stored.rounds.some((r) => r.run === run);
+  // relink：Run の結果を最新の保留で置き換えるとき（t701 の引き取り）は、Run の今の回を外して最新の保留をその Run の回にする。
+  // 今の回を残すと 1 つの Run に回が 2 つでき、dg pr ready が置き換えられた古い結果の軽い指摘まで数える（t637 と同じ二重の数え方）
+  const relink = options.relink === true;
+  const owned = !relink && stored.rounds.some((r) => r.run === run);
   const rounds = stored.rounds
+    .filter((r) => !(relink && r.run === run))
     .filter((r) => !held(r) || (!owned && r === latestHeld))
     .map((r) => (r === latestHeld ? { ...r, run } : r));
   const next: StoredReviewFindings = { ticket, rounds };

@@ -10,6 +10,8 @@
 //     「最後の push より後の見直し」を満たしてしまう
 //   - 同じ push の後の保留が複数あれば最新の 1 件だけを数える（同じ状態の見直しの呼び直し）。push をまたぐ保留は別の回にする。
 //     push の区切りは作業ブランチのコミットの時刻で近似する（lastPushedAt と同じく push した時刻は Git に残らない）
+//   - 前景の見直し役が動いている間に書いた記録は、見直し役が返ったときに起動のフックが引き取り、capture: none を外す
+//     （adoptableReviewRecord。t701）
 
 import { branchCommitTimes } from "../git/facts.js";
 import { toIsoDateTime } from "../model/common.js";
@@ -33,14 +35,14 @@ const orphanId = (at: string) => `held review result written at ${at}` as RunId;
  */
 export function orphanReviewsOf(
   ticket: TicketId,
-  rounds: readonly Pick<ReviewRound, "run" | "at" | "review">[],
+  rounds: readonly Pick<ReviewRound, "run" | "at" | "review" | "session">[],
   since: string | undefined,
   commits: readonly string[],
 ): Run[] {
   const boundaries = [...commits].sort();
   // 結果を書いた時刻の直前のコミットの時刻（なければ空）。同じ値の回は同じ push の後の回
   const pushOf = (at: string) => boundaries.filter((c) => c <= at).at(-1) ?? "";
-  const latest = new Map<string, Pick<ReviewRound, "at" | "review">>();
+  const latest = new Map<string, Pick<ReviewRound, "at" | "review" | "session">>();
   const held = rounds
     .filter((r) => r.run === null && r.at >= (since ?? ""))
     .sort((a, b) => a.at.localeCompare(b.at));
@@ -59,7 +61,8 @@ export function orphanReviewsOf(
     retry_reasons: [],
     usage: emptyUsage(),
     tools: null,
-    session: null,
+    // 結果を書いたセッション。起動のフックが同じセッションの記録だけを引き取る（adoptableReviewRecord）
+    session: r.session ?? null,
     review: r.review,
     // 会話記録を取らずに作った記録の印。書いた記録（recordOrphanReviews）にもそのまま入る
     capture: "none",
@@ -149,4 +152,31 @@ export async function linkOrphanRounds(
   recorded: RecordedOrphanReviews,
 ): Promise<void> {
   await linkHeldRounds(ctx.repo, ticket.id, ticket.branch_at, recorded.linked);
+}
+
+/**
+ * 前景の見直し役が返ったときに、起動のフックが新しい Run を開かずに引き取る見直しの記録（t701）。見直し役が動いている間は Run がないので、
+ * 別のプロセスの dg sync・dg pr ready がその保留を持ち主のないものとして先に記録にしうる。引き取らずに開くと、結果のない Run が
+ * 失敗で閉じて最新の見直しが失敗に見え、保留が新しい Run に結び付けば同じ見直しを 2 回数える。
+ * 引き取るのは、同じチケットの capture: none の見直しの記録のうち、同じセッション（結果を書いたセッション）で起動（launchedAt）より後に
+ * 書かれたものだけ。セッションの分からない記録・別のセッションの記録・起動より前の記録は、この見直し役の結果でないので引き取らない。
+ * 複数あれば最も後のもの
+ */
+export function adoptableReviewRecord(
+  runs: Iterable<Run>,
+  ticket: TicketId,
+  session: string,
+  launchedAt: string,
+): Run | undefined {
+  return [...runs]
+    .filter(
+      (r) =>
+        r.ticket === ticket &&
+        r.step === REVIEW_STEP &&
+        r.capture === "none" &&
+        r.session === session &&
+        r.started_at >= launchedAt,
+    )
+    .sort((a, b) => a.started_at.localeCompare(b.started_at) || a.id.localeCompare(b.id))
+    .at(-1);
 }
