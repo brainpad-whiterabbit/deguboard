@@ -1962,3 +1962,97 @@ describe("フックが届いていないセッションの警告（t697）", () 
     expect(outside.warnings.some((w) => w.includes(SILENT))).toBe(false);
   });
 });
+
+describe("フックが届くセッションで親が自分で Run を開く claim の警告（t713）", () => {
+  const SELF = "dg hooks reach this session, so ask a sub-agent";
+  const selfIn = (warnings: string[]) => warnings.some((w) => w.includes(SELF));
+  const reach = (ctx: CommandContext, parent: string) =>
+    call(ctx, "PreToolUse", {
+      session_id: SESSION,
+      transcript_path: parent,
+      tool_name: "Bash",
+      cwd: ctx.repo.topLevel,
+      tool_input: { command: "ls" },
+    });
+
+  it("フックが届いたセッションで --no-run なしの claim は、Run を開いたうえで警告する。--no-run・--without-branch では警告しない", async () => {
+    const { ctx, home, parent } = await prepared();
+    await runCommand(ticketCreate, ctx, { title: "C" });
+    await runCommand(ticketCreate, ctx, { title: "D" });
+    ctx.env = { HOME: home, CLAUDECODE: "1", CLAUDE_CODE_SESSION_ID: SESSION };
+    await reach(ctx, parent);
+
+    const self = await runCommand(ticketClaim, ctx, {
+      no_worktree: true,
+      ticket: "t1",
+      branch: "feat/t1",
+    });
+    expect(selfIn(self.warnings)).toBe(true);
+    // claim と Run の開き方は今のまま
+    expect((self.data as { run: string | null; status: string }).run).not.toBeNull();
+    expect((self.data as { status: string }).status).toBe("in_progress");
+
+    const delegated = await runCommand(ticketClaim, ctx, {
+      no_worktree: true,
+      ticket: "t2",
+      branch: "feat/t2",
+      no_run: true,
+    });
+    expect(selfIn(delegated.warnings)).toBe(false);
+
+    const noPr = await runCommand(ticketClaim, ctx, { ticket: "t3", without_branch: true });
+    expect(selfIn(noPr.warnings)).toBe(false);
+    expect((noPr.data as { run: string | null }).run).not.toBeNull();
+
+    // もう一度の claim（手直し）も、--no-run なしなら手直しの Run を開いたうえで警告する
+    await runCommand(ticketUpdate, ctx, { ticket: "t2", pr: 9 });
+    const reclaimed = await runCommand(ticketClaim, ctx, {
+      no_worktree: true,
+      ticket: "t2",
+      retry_reasons: ["親が直す"],
+    });
+    expect(selfIn(reclaimed.warnings)).toBe(true);
+    expect((reclaimed.data as { run: string | null }).run).not.toBeNull();
+    const reclaimedNoRun = await runCommand(ticketClaim, ctx, {
+      no_worktree: true,
+      ticket: "t2",
+      no_run: true,
+    });
+    expect(selfIn(reclaimedNoRun.warnings)).toBe(false);
+  });
+
+  it("フックが届いていないセッション・別のセッションに届いた記録・エージェントの外では警告しない", async () => {
+    const { ctx, home, parent } = await prepared();
+    await runCommand(ticketCreate, ctx, { title: "C" });
+    await call(ctx, "SessionStart", { session_id: "s-other", transcript_path: parent });
+    ctx.env = { HOME: home, CLAUDECODE: "1", CLAUDE_CODE_SESSION_ID: SESSION };
+    const silent = await runCommand(ticketClaim, ctx, {
+      no_worktree: true,
+      ticket: "t1",
+      branch: "feat/t1",
+    });
+    expect(selfIn(silent.warnings)).toBe(false);
+    expect((silent.data as { run: string | null }).run).not.toBeNull();
+
+    await reach(ctx, parent);
+    ctx.env = { HOME: home };
+    const outside = await runCommand(ticketClaim, ctx, {
+      no_worktree: true,
+      ticket: "t2",
+      branch: "feat/t2",
+      agent: "claude-code",
+    });
+    expect(selfIn(outside.warnings)).toBe(false);
+  });
+
+  it("フックが届いたセッションの dg next は、implement の手でいつもサブエージェントに頼むと案内し、届く前は案内しない", async () => {
+    const { ctx, home, parent } = await prepared();
+    ctx.env = { HOME: home, CLAUDECODE: "1", CLAUDE_CODE_SESSION_ID: SESSION };
+    const always = (s: NextStep) => s.commands.some((c) => c.includes("Always ask a sub-agent"));
+    expect(always((await runCommand(next, ctx, { ticket: "t1" })).data as NextStep)).toBe(false);
+    await reach(ctx, parent);
+    const step = (await runCommand(next, ctx, { ticket: "t1" })).data as NextStep;
+    expect(step.kind).toBe("implement");
+    expect(always(step)).toBe(true);
+  });
+});

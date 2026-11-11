@@ -2,7 +2,9 @@
 
 A Run is the record of one piece of work, and it keeps the usage (tokens). This guide covers only the claim and PR recording when the parent does the work itself, and cleaning up a stopped Run.
 
-## When the parent advances work itself
+When dg hooks reach the session, implementation and fixes are always asked of a subagent with the mark, and the parent does not open their Runs (see "Who implements and fixes" in `dg guide work`). The parent opens a Run itself only for work that needs no PR, and for implementation and fixes when no dg hook reaches the session.
+
+## When the parent opens the Run itself
 
 - Call the claim that opens a Run alone, and do not chain other commands to it (if the ID shows up late in the conversation record, the responses of Runs stacked in the same conversation cannot be told apart correctly)
 - `ticket claim` opens the implementation Run. Its step is the Workflow's `opens_on: claim` one (`implement` if there is none). The ID is in `data.run`

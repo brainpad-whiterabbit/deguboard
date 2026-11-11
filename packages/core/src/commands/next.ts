@@ -13,7 +13,7 @@ import { defineCommand, ok, type CommandContext } from "./define.js";
 import { FIX_ROUNDS_LIMIT, heavyReviewRounds } from "./gate.js";
 import { agentDg as dg, openPlanOf, ticketRef } from "./helpers.js";
 import { planReadiness } from "./plan.js";
-import { unlinkedReviewWarning } from "./hook-sessions.js";
+import { hooksReachSession, unlinkedReviewWarning } from "./hook-sessions.js";
 import { orphanReviewRuns } from "./orphan-review.js";
 import { openedStepOf } from "./run.js";
 
@@ -277,8 +277,14 @@ export async function stageFactsOf(
   };
 }
 
+/** 次の 1 手を決める、事実のほかの材料 */
+export interface NextOptions {
+  /** このセッションにフックが届いているか（hooksReachSession）。届けば implement・fix をいつもサブエージェントに頼む（t713） */
+  hooksReach?: boolean;
+}
+
 /** 段階から次の 1 手を求める */
-export function nextOf(ctx: CommandContext, facts: StageFacts): NextStep {
+export function nextOf(ctx: CommandContext, facts: StageFacts, opts: NextOptions = {}): NextStep {
   const st = stageOf(facts);
   const id = facts.ticket.id;
   const plan = openPlanOf(ctx.store, id);
@@ -343,6 +349,14 @@ export function nextOf(ctx: CommandContext, facts: StageFacts): NextStep {
   // フックがサブエージェントの Run を開け閉めする印（RN-7）。委譲する親は claim に --no-run を付け、印で頼む
   const marker = (step: string) =>
     `Put deguboard: ticket=${id} step=${step} on the first line of the text you give the sub-agent`;
+  // フックが届くセッションでは、親が自分で進める道を案内しない（t713）。親の Run は親の長い文脈を読み直す分が使用量に入り、
+  // サブエージェントの Run と比べられない。届かないセッションでは印で頼んでも Run が開かないので、この行を足さない
+  const delegate = (what: string): string[] =>
+    opts.hooksReach
+      ? [
+          `Always ask a sub-agent to ${what} with the brief, even when model is null (the parent's model) and the change is small. dg hooks reach this session, so do not do it yourself`,
+        ]
+      : [];
   switch (st.name) {
     case "merged":
     case "closed":
@@ -368,6 +382,7 @@ export function nextOf(ctx: CommandContext, facts: StageFacts): NextStep {
     }
     case "todo":
       return make("implement", facts.implementStep, [
+        ...delegate("implement it"),
         dg(`ticket claim ${id} --branch <type>/<content> --no-run`),
         marker(facts.implementStep),
         // 文は claim の前に組むので、ブランチと worktree が空欄。claim の後に組み直して渡す
@@ -376,6 +391,7 @@ export function nextOf(ctx: CommandContext, facts: StageFacts): NextStep {
       ]);
     case "claimed":
       return make("implement", facts.implementStep, [
+        ...delegate("implement it"),
         marker(facts.implementStep),
         dg(`ticket update ${id} --pr <number>`),
       ]);
@@ -395,6 +411,7 @@ export function nextOf(ctx: CommandContext, facts: StageFacts): NextStep {
           make("ready", null, [dg(`pr ready ${id}`), dg("sync")], null, runningOf(REVIEW_STEP))
         : // 手直しの Run も印でフックが開く。理由は直すエージェントが run retry-reason で書き足す（RN-8）
           make("fix", fixStep, [
+            ...delegate("fix the findings"),
             marker(fixStep),
             `The fixing agent (the same model as the implementation) first runs ${dg(`run retry-reason ${id} --reason <summary of the finding to fix>`)}`,
             "Fix on the same branch and push",
@@ -422,7 +439,7 @@ export const next = defineCommand({
     "For a ticket whose gate level is low or free (TK-9), a PR skips the review: a draft is reviewed with review_passed (the ready step), otherwise ready (wait_merge). " +
     "The stage is derived from the facts of Runs (implementation, review, and fix Runs and their results, and the mark of waiting for a person), the PR, the work branch, and Plan waits. " +
     "A review result held with no review Run counts as a review the same way as in dg gate. " +
-    "It returns the kind of step (kind: implement, review, fix, ready, wait_merge, wait_deps, wait_human, done), the step to open, the Run in progress, the Plan's tier, scope, and approach, the commands to call (commands; delegate to a sub-agent. If the model is the same as the parent's and it proceeds on its own, the implement claim drops --no-run and does not use the mark. For implement, review, fix, and ready steps, if that step's Run is already running, or an implementation Run or a fix Run on this branch that has no push since it started is running (for the ready step, also a review Run on this branch, such as one left open when the gate level was lowered), it waits for that to end instead of starting another), and the questions to ask a person (ask_human). " +
+    "It returns the kind of step (kind: implement, review, fix, ready, wait_merge, wait_deps, wait_human, done), the step to open, the Run in progress, the Plan's tier, scope, and approach, the commands to call (commands; delegate to a sub-agent. In a session that dg hooks have reached, implement and fix are always delegated, even when the model is the parent's and the fix is small, and the commands say so first. Only when no dg hook reaches the session (the mark opens no Run), the parent may proceed on its own: the implement claim drops --no-run and does not use the mark. For implement, review, fix, and ready steps, if that step's Run is already running, or an implementation Run or a fix Run on this branch that has no push since it started is running (for the ready step, also a review Run on this branch, such as one left open when the gate level was lowered), it waits for that to end instead of starting another), and the questions to ask a person (ask_human). " +
     "For implement, review, and fix steps it includes the text to paste into a sub-agent (brief, the same as dg brief). " +
     "For implement and fix steps it includes the model to launch (model) (the Plan's tier maps to config's models.*; a ticket with no tier is standard. When the mapping is empty, and for review and other steps, it is null, meaning the parent's model). " +
     "A ticket in the waiting_human stage is wait_human. Read it after bringing in the work branch. It writes nothing",
@@ -434,15 +451,13 @@ export const next = defineCommand({
   async run(ctx, input) {
     const ticket = ctx.store.require("ticket", input.ticket).data;
     const facts = await stageFactsOf(ctx, ticket, { fetch: true });
-    const step = nextOf(ctx, facts);
+    const env = ctx.env ?? process.env;
+    const step = nextOf(ctx, facts, {
+      hooksReach: await hooksReachSession(ctx.repo.localDir, env),
+    });
     const role = BRIEF_ROLE_OF[step.kind];
     // フックが結ばなかった見直しを数えたときは知らせる。段階の手によらず出す（t702）
-    const unlinked = unlinkedReviewWarning(
-      ctx.env ?? process.env,
-      ticket.id,
-      facts.runs,
-      ticket.branch_at,
-    );
+    const unlinked = unlinkedReviewWarning(env, ticket.id, facts.runs, ticket.branch_at);
     const extra = unlinked ? [unlinked] : [];
     // 実行中の Run を待つ手には文を出さない（貼ると Run が重なる）。running_run が入るのは待つ手だけ
     if (!role || step.running_run !== null) return ok(step, undefined, extra);

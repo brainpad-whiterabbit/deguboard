@@ -329,6 +329,52 @@ describe("dg next と ticket show の stage（EX-3）", () => {
     });
   });
 
+  it("フックが届くセッションでは、implement・fix の手はモデルが親と同じ（null）ときも、いつもサブエージェントに頼むと先に案内し、親が自分で進める道を案内しない（t713）", async () => {
+    const ctx = await prepared();
+    ctx.config = { ...ctx.config, models: { ...ctx.config.models, standard: "" } };
+    const always = "Always ask a sub-agent";
+    const hooked = { hooksReach: true };
+    const todo = facts({ ticket: { status: "todo", pr: undefined } });
+    const claimed = facts({ ticket: { pr: undefined } });
+    const fixing = facts({ runs: [review(6, heavy)] });
+    for (const f of [todo, claimed, fixing]) {
+      const step = nextOf(ctx, f, hooked);
+      expect(step.model).toBeNull();
+      expect(step.commands[0]).toContain(always);
+      expect(step.commands[0]).toContain("do not do it yourself");
+      // claim は --no-run のまま（親が自分で Run を開く claim を案内しない）
+      for (const c of step.commands.filter((c) => c.includes("ticket claim")))
+        expect(c).toContain("--no-run");
+      // フックが届かないセッションでは、この行を足さず、今までの手のまま
+      const plain = nextOf(ctx, f);
+      expect(plain.commands.some((c) => c.includes(always))).toBe(false);
+      expect(step.commands.slice(1)).toEqual(plain.commands);
+    }
+    // review・ready の手と、実行中の Run を待つ手には足さない
+    expect(nextOf(ctx, facts(), hooked).commands.join(" ")).not.toContain(always);
+    expect(nextOf(ctx, facts({ runs: [review(6, passed)] }), hooked).commands).toEqual([
+      "dg --json --actor agent pr ready t1",
+      "dg --json --actor agent sync",
+    ]);
+    const implementing = nextOf(
+      ctx,
+      facts({ ticket: { pr: undefined }, runs: [run("implement", 1, { finished_at: null })] }),
+      hooked,
+    );
+    expect(implementing.commands).toEqual([expect.stringContaining("Wait for the running Run")]);
+    // 説明は、フックが届くセッションでいつも頼み、親が自分で進めるのは届かないときだけと書く
+    const summary = findCommand("next")!.summary;
+    expect(summary).toContain(
+      "In a session that dg hooks have reached, implement and fix are always delegated",
+    );
+    expect(summary).toMatch(
+      /Only when no dg hook reaches the session[^.]*, the parent may proceed on its own/,
+    );
+    expect(summary).not.toContain(
+      "If the model is the same as the parent's and it proceeds on its own",
+    );
+  });
+
   it("段が low・free のチケットは review・fix の手を返さず、draft なら ready、出した PR は wait_merge。段がなければ review", async () => {
     const ctx = await prepared();
     for (const gate of ["low", "free"] as const) {
