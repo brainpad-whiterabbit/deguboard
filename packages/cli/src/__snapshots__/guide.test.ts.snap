@@ -374,7 +374,7 @@ With \`--deep\`, for any target (a ticket, an Epic, or an Iteration), check ever
 - **Need**: whether to do it now, drop it, or defer it
 - **Purpose and outcome**: who gains what, and whether a promise to users changes (the requirements)
 - **Approach**: how to do it, and the approaches not taken. For a point about the approach, offer 2 or more approaches in a table of advantages and disadvantages, then ask with choices, putting the recommended one first
-- **Scope**: whether to split, merge, or overlap with other tickets. To find an overlap, list the open tickets with \`dg --json --actor agent ticket list --query <words from the title>\`, then compare the files in each candidate's References section (\`## References\`, or the Japanese \`## 参考\`) with the files in the target's
+- **Scope**: whether to split, merge, or overlap with other tickets. To find an overlap, list the open tickets with \`dg --json --actor agent ticket list --status todo,in_progress,review --query <words from the title>\`, then compare the files in each candidate's References section (\`## References\`, or the Japanese \`## 参考\`) with the files in the target's
 - **Order, dependencies, and priority**: what must come first, what the target waits for, and its priority
 - **Premises and risks**: conflicts with work in progress, and differences in the environment (OS, versions, other clones)
 - **Reversibility**: whether a migration is needed to go back, and whether the decision falls under the cases that call for an ADR (the repository's rules say which)
