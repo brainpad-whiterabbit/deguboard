@@ -205,7 +205,7 @@ export const DG_PATH_NOTE_EN =
 /** 文章だけの形式で、頼む 1 文の次に添える dg の呼び方（AG-1） */
 export const ASK_DG_USAGE = `dg は \`dg … --json --actor agent\` で呼び、.git/deguboard/ のファイルは直接編集しないでください。${DG_PATH_NOTE}`;
 
-/** 文章だけの形で対象のないとき、依頼文の頭の行。対象を先に聞いてから進めさせる（その後の文の「その対象」を指す） */
+/** 文章だけの形で対象のないとき、依頼文の頭に置く行（noTargetOk と free 以外）。何を対象にするかを先に聞いてから、指示のとおりに進めさせる */
 export const ASK_FIRST = "対象はまだ決まっていないので、どれにするかを先に聞いてください。";
 /** ASK_FIRST の英語 */
 export const ASK_FIRST_EN = "No target is chosen yet, so ask me first which ones to use.";
@@ -302,11 +302,9 @@ interface ActionDef {
 
 const withDenied = (denied: string | undefined) => (denied ? { denied } : {});
 /**
- * 頼む 1 文に入れる対象の ID。対象がないときは「その対象」を入れ、ID の入る場所を空にしない。
- * 文章だけの形では、その前の行（ASK_FIRST）で、どの対象にするかを先に聞かせる
+ * 頼む 1 文に入れる対象の ID を並べる。対象なしの文は ID を入れず「指示の…」で書く（baseActions の対象なしの候補は、どれもこの関数を通らない）
  */
-const idList = (s: Subjects, lang: AskLanguage) =>
-  s.length === 0 ? say(lang, "その対象", "those targets") : ids(s).join(say(lang, "・", ", "));
+const idList = (s: Subjects, lang: AskLanguage) => ids(s).join(say(lang, "・", ", "));
 
 /** 起票の行き先。頼む 1 文と、Skill の呼び出しの次の行の頼みごとの両方に使う */
 function createTarget(s: Subjects, lang: AskLanguage): { text: string; intent?: string } {
@@ -1250,7 +1248,7 @@ function afterChange(actions: readonly AskAction[], action: AskAction): AskActio
 }
 
 function baseActions(s: Subjects, place?: AskPlace): AskAction[] {
-  // 対象なしは、Skill を持つ頼むことを流れの順にすべて出し（Skill が対象を聞く）、最後に自由に。対象がないと意味のないもの（外す・分ける・done の取り消し・再開・承認）と、閉じた Iteration の振り返るは出さない
+  // 対象なしは、Skill を持つ頼むことを流れの順にすべて出し（Skill が対象を聞く）、最後に自由に。対象がないと意味のないもの（外す・分ける・done の取り消し・止まった作業の再開（resume）・承認）と、閉じた Iteration の振り返るは出さない。閉じた Iteration・Epic の再開（reopen）は対象なしでも出す
   if (s.length === 0)
     return [
       "create",
@@ -1539,7 +1537,7 @@ export function buildAsk(input: BuildAskInput): AskView {
   } else {
     // 文章だけの形と Skill を使わない頼むことは、頼む 1 文と dg の呼び方を添える。Skill を持つ頼むことには、その段階の guide を読む 1 文も添える
     const text = def.text(s, w, lang);
-    // 対象なしで依頼文が「その対象」を指すものは、先に何の対象かを聞かせてから進めさせる（noTargetOk と free は聞く対象がないので前置しない）
+    // 対象なしの依頼文には、先に何の対象かを聞かせる行を置く（noTargetOk と free は聞く対象がないので置かない）
     if (text && s.length === 0 && !def.noTargetOk) lines.push(say(lang, ASK_FIRST, ASK_FIRST_EN));
     if (text) lines.push(text);
     lines.push(say(lang, ASK_DG_USAGE, ASK_DG_USAGE_EN));
@@ -1625,7 +1623,7 @@ export const ask = defineCommand({
       .array(z.string().min(1))
       .default([])
       .describe(
-        "Target IDs (t12, s3, e2, p7; more than one allowed). Omit for no target: the candidates are the actions that start without a target (creating a ticket, Iteration, or Epic, assigning, checking, planning, working, reading the status of work, running everything, marking done, releasing, changing, discussing, closing, reopening, abandoning, or a free instruction), and the Skill asks for the target",
+        "Target IDs (t12, s3, e2, p7; more than one allowed). Omit for no target: the candidates are the actions that start without a target (creating a ticket, Iteration, or Epic, assigning, checking, planning, working, reading the status of work, running everything, marking done, releasing, changing, discussing, closing, reopening, abandoning, or a free instruction), and the Skill or the agent asks for the target",
       ),
     action: z
       .enum(ASK_ACTIONS)
@@ -1683,7 +1681,7 @@ export const ask = defineCommand({
   },
 });
 
-/** 画面の 1 か所（行・見出し）の候補。key は askMenuKey の形（対象の ID を空白でつなぎ、場所を @ を付けて後ろに置く。空なら対象なし） */
+/** 画面の 1 か所（行・見出し）の候補。key は askMenuKey の形（対象の ID を空白でつなぎ、場所（within）があれば @、頼む場所（place）があれば # を付けて後ろに置く。空なら対象なし） */
 export interface AskMenu {
   key: string;
   /** 対象の種類と状態から決めた候補（ask の candidates と同じ）。先頭がおすすめ。引けなければ空 */

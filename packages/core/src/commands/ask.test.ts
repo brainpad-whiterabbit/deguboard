@@ -742,7 +742,7 @@ describe("頼むことの候補", () => {
         expect(lines[0], `${language} ${c.action}`).toBe(c.skill);
         expect(lines.length > 1, `${language} ${c.action}`).toBe(withIntent.has(c.action));
         if (lines.length > 1) expect(lines[1], `${language} ${c.action}`).toMatch(/\S/);
-        // 英語の頼みごとは英語で、ID の入る場所は「その対象」になる（ID の入る場所を空にしない）
+        // 英語の頼みごとは英語で書く（対象なしの文は ID を入れず、日本語の定型の文も混ざらない）
         if (language === "en") expect(lines.join("\n"), c.action).not.toMatch(/[぀-ヿ一-鿿]/);
       }
     expect(buildAsk({ subjects: [], action: "change", format: "skill" }).text).toBe(
@@ -757,7 +757,7 @@ describe("頼むことの候補", () => {
     expect(buildAsk({ subjects: [], action: "discuss", format: "skill" }).text).toBe("/dgdiscuss");
   });
 
-  it("対象なしの文章だけの形は、聞く対象があるものは 1 行目で対象を先に聞かせ、ID の入る場所を空にしない。聞く対象がない依頼文は 1 行目がそのまま依頼文", () => {
+  it("対象なしの文章だけの形は、聞く対象があるものは 1 行目で対象を先に聞かせる。聞く対象がない依頼文は 1 行目がそのまま依頼文", () => {
     // 聞く対象がない依頼文（create 系・点検）は ASK_FIRST を前置しない
     const direct = new Set(["create", "create_iteration", "create_epic", "check"]);
     for (const language of ["ja", "en"] as const)
@@ -774,9 +774,10 @@ describe("頼むことの候補", () => {
           );
           // 依頼文は空白や助詞で始まらず、二重の空白も入らない（「 を閉じて」のような空の場所を作らない）
           expect(lines[1], `${language} ${action}`).not.toMatch(/^[\s を・の]|\s\s/);
-          // 日本語では「その対象」の後に空白を入れない（ID の並びのときだけ空白が要る）
-          if (language === "ja")
-            expect(lines[1], `${language} ${action}`).not.toMatch(/その対象\s/);
+          // 対象なしの文は「指示の…」で書き、「その対象」のような ID の代わりの語を入れない（ID の並びのときだけ空白が要る）
+          expect(lines.join("\n"), `${language} ${action}`).not.toContain(
+            language === "en" ? "those targets" : "その対象",
+          );
         }
         if (language === "en") expect(lines.join("\n"), action).not.toMatch(/[぀-ヿ一-鿿]/);
       }
