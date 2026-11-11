@@ -1,0 +1,33 @@
+{
+  "id": "r20261111-130547-5df6",
+  "ticket": "t717",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-11T13:05:47Z",
+  "finished_at": "2026-11-11T13:11:48Z",
+  "result": "success",
+  "error": null,
+  "retries": 2,
+  "retry_reasons": [
+    "PR の要らない作業の CLAIM_LOST の案内が、フックが届くセッションでも親の run start を勧めていた",
+    "run start の実装・手直しの警告が Workflow の opens_on の step 名に対応しておらず、step 名を変えると出なかった"
+  ],
+  "usage": {
+    "input": 72,
+    "output": 21744,
+    "cache_read": 2024088,
+    "cache_write": 65108
+  },
+  "tools": {
+    "read": 5,
+    "search": 0,
+    "write": 8,
+    "bash": 22,
+    "other": 1,
+    "read_before_write": 1,
+    "search_before_write": 0
+  },
+  "session": "18b06cc8-a5e8-45cd-aaf1-45661a8f5932",
+  "review": null
+}

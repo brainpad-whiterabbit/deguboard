@@ -1,0 +1,33 @@
+{
+  "id": "r20261111-130812-4ea8",
+  "ticket": "t718",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-11T13:08:12Z",
+  "finished_at": "2026-11-11T13:11:34Z",
+  "result": "success",
+  "error": null,
+  "retries": 2,
+  "retry_reasons": [
+    "README に行の左端の帯によるマウスでの選び方と Esc での解除、選んだ行の吹き出しの対象が書かれていない",
+    "右クリックのメニューの範囲が広く読め、吹き出しの書き方が受け身でぎこちない"
+  ],
+  "usage": {
+    "input": 18,
+    "output": 5903,
+    "cache_read": 327917,
+    "cache_write": 32255
+  },
+  "tools": {
+    "read": 5,
+    "search": 0,
+    "write": 2,
+    "bash": 5,
+    "other": 1,
+    "read_before_write": 4,
+    "search_before_write": 0
+  },
+  "session": "18b06cc8-a5e8-45cd-aaf1-45661a8f5932",
+  "review": null
+}
