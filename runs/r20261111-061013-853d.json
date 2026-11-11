@@ -1,0 +1,33 @@
+{
+  "id": "r20261111-061013-853d",
+  "ticket": "t701",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-opus-5-5",
+  "started_at": "2026-11-11T06:10:13Z",
+  "finished_at": "2026-11-11T06:17:42Z",
+  "result": "success",
+  "error": null,
+  "retries": 2,
+  "retry_reasons": [
+    "relink で前の回を残したまま最新の保留の回を足し、1 つの Run に回が 2 つできる",
+    "同じ秒に呼び直した結果が新しい結果とみなされず失われる"
+  ],
+  "usage": {
+    "input": 36,
+    "output": 9731,
+    "cache_read": 931150,
+    "cache_write": 44564
+  },
+  "tools": {
+    "read": 3,
+    "search": 0,
+    "write": 5,
+    "bash": 15,
+    "other": 1,
+    "read_before_write": 0,
+    "search_before_write": 0
+  },
+  "session": "3a1ca863-2c83-4ccf-a40f-eb9b3c5afc7e",
+  "review": null
+}
