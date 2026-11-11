@@ -1,0 +1,5 @@
+id: s26
+project: default
+name: sprint26
+goal: 左パネルの一覧をマウスだけで操作できるようにし、Epic の札と PR へのリンクで、絞り込みと移動を 1 回のクリックで済ませる
+status: planned
