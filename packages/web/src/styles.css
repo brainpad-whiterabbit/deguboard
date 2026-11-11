@@ -1573,7 +1573,7 @@ textarea.body {
 /*
  * 番号が先頭の列（頭の印がない kanban）のときは、subgrid が行の左の余白（padding 6px と border 1px）を先頭の列に足すので、
  * 番号は列の左端から 7px 内側に出る。PR の欄も同じだけ内側に寄せて番号と左端を揃える（頭の印の列や backlog の番号は 2 列目で、ずれない）。
- * 帯を持つ行（[data-select-id]）は .row の padding が 12px になるので、番号は 13px 内側に出る。差の 6px は [data-select-id] .row-pr の padding-left で足す（下の行）。
+ * 帯を持つ行（[data-select-id]）は .row の padding が 12px になるので、番号は 13px 内側に出る。差の 6px は帯の節の [data-select-id] .row-pr の padding-left で足す。
  * 寄せるのは中のリンクだけにし、欄（.row-pr）は左端から覆ったままにする（余白で包みが選択を受けないように）
  */
 .pr-row.kanban:not(.has-head) > .row-pr > .row-pr-link {
