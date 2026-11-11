@@ -1,0 +1,10 @@
+id: p102
+project: default
+tickets: [t712]
+after: {}
+pending_approval: true
+details:
+  t712:
+    scope: test:layout で落ちる Iteration の札の列（幅 300px・260px、light・dark）と頼むことの吹き出し（幅 300px）の 5 件を、画面かテストの前提のどちらかを直して通すところまで
+    approach: 落ちる原因を s25 の札と期間の表示の変更（t676〜t679）に照らして確かめ、画面が誤りなら画面を直してスクリーンショットを載せ、テストの前提が古いならテストを直して理由をコメントに書く
+    tier: heavy
