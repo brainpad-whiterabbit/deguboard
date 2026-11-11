@@ -14,6 +14,7 @@ import {
   readReviewFindings,
   readTranscriptPaths,
 } from "../run/record.js";
+import { unfixedLightLines } from "../run/findings.js";
 import { runPath } from "../storage/paths.js";
 import { openContext } from "./context.js";
 import { runCommand, type CommandContext } from "./define.js";
@@ -200,22 +201,36 @@ async function prepared() {
 }
 
 /** Run のないまま見直しの結果を書く（保留になる）。at は書いた時刻 */
-async function hold(ctx: CommandContext, at: Date, withHeavy: boolean) {
+async function hold(ctx: CommandContext, at: Date, withHeavy: boolean, lightReason?: string) {
   ctx.now = () => at;
   const out = await runCommand(runReviewResult, ctx, {
     ticket: "t1",
-    findings: withHeavy
-      ? [
-          {
-            severity: "heavy",
-            category: "不具合",
-            file: null,
-            line: null,
-            reason: "壊れる",
-            fix: null,
-          },
-        ]
-      : [],
+    findings: [
+      ...(withHeavy
+        ? [
+            {
+              severity: "heavy" as const,
+              category: "不具合",
+              file: null,
+              line: null,
+              reason: "壊れる",
+              fix: null,
+            },
+          ]
+        : []),
+      ...(lightReason
+        ? [
+            {
+              severity: "light" as const,
+              category: "言い回し",
+              file: null,
+              line: null,
+              reason: lightReason,
+              fix: null,
+            },
+          ]
+        : []),
+    ],
   });
   expect(out.data).toMatchObject({ pending: true });
 }
@@ -604,10 +619,10 @@ describe("前景の見直し役が返ったとき、起動のフックが先に�
   it("記録を書いた後に見直し役が結果を書き直していたら（保留になる）、引き取りで記録の結果をその新しい結果に置き換え、回もその記録に結び付ける", async () => {
     const { ctx, parent } = await withTranscripts();
     // later(2) に重い指摘で書き、sync が記録にした後、later(2.5) に通った結果で呼び直す（結果のある閉じた記録には書けず保留）
-    await hold(ctx, later(2), true);
+    await hold(ctx, later(2), true, "古い結果の軽い指摘");
     await runCommand(sync, ctx, {});
     const [record] = reviewRuns(ctx);
-    expect(record).toMatchObject({ capture: "none", review: heavy });
+    expect(record).toMatchObject({ capture: "none", review: { ...heavy, light: 1 } });
     await hold(ctx, later(2.5), false);
 
     await returned(ctx, parent, later(3), 90_000);
@@ -618,8 +633,27 @@ describe("前景の見直し役が返ったとき、起動のフックが先に�
       await readFile(path.join(ctx.repo.localDir, "reviews", "t1.json")).catch(() => null),
     ).toBeNull();
     const rounds = (await readReviewFindings(ctx.repo, "t1"))?.rounds ?? [];
-    expect(rounds.map((r) => r.run)).toEqual([record!.id, record!.id]);
+    // 記録の回（置き換えられた古い結果）は外し、1 つの Run の回は 1 つに保つ
+    expect(rounds.map((r) => r.run)).toEqual([record!.id]);
     expect(rounds.at(-1)?.review).toEqual(passed);
+    // 置き換えられた古い結果の軽い指摘は、直さなかった軽い指摘として PR の本文に出ない
+    expect(unfixedLightLines(rounds, undefined, [])).toEqual([]);
+    expect((await judge(ctx)).passed).toBe(true);
+  });
+
+  it("記録の元の結果と同じ秒に違う結果で呼び直していても、新しい結果として記録の結果と回を置き換える", async () => {
+    const { ctx, parent } = await withTranscripts();
+    await hold(ctx, later(2), true);
+    await runCommand(sync, ctx, {});
+    const [record] = reviewRuns(ctx);
+    expect(record).toMatchObject({ capture: "none", review: heavy });
+    await hold(ctx, later(2), false);
+
+    await returned(ctx, parent, later(3), 90_000);
+    expect(reviewRuns(ctx)[0]).toMatchObject({ id: record!.id, review: passed });
+    const rounds = (await readReviewFindings(ctx.repo, "t1"))?.rounds ?? [];
+    expect(rounds.map((r) => r.run)).toEqual([record!.id]);
+    expect(rounds[0]?.review).toEqual(passed);
     expect((await judge(ctx)).passed).toBe(true);
   });
 

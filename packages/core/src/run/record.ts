@@ -173,7 +173,7 @@ export async function setHandedFindings(
 /**
  * 見直しの Run に結果を書いた・保留の結果を結び付けたとき、その Run の開始（since）より後に置いた保留の回（run が null）を
  * その Run の回にまとめる（t638）。Run の回がまだなければ最新の保留の回をその Run の回にし、Run の回があればそれを残す
- * （Git の Run の数と同じ回）。ほかの保留の回は外す。保留の回を残すと同じ見直しが 2 回になり、dg pr ready が同じ指摘を 2 行書く（t637）
+ * （Git の Run の数と同じ回。relink のときは Run の回を最新の保留の回で置き換える）。ほかの保留の回は外す。保留の回を残すと同じ見直しが 2 回になり、dg pr ready が同じ指摘を 2 行書く（t637）
  */
 export async function adoptPendingRounds(
   repo: Pick<GitRepo, "localDir">,
@@ -187,9 +187,12 @@ export async function adoptPendingRounds(
   const held = (r: ReviewRound) => r.run === null && r.at >= since;
   const latestHeld = stored.rounds.filter(held).at(-1);
   if (!latestHeld) return;
-  // relink：Run の結果を最新の保留で置き換えるとき（t701 の引き取り）は、Run の回があっても最新の保留をその Run の回にする
-  const owned = options.relink !== true && stored.rounds.some((r) => r.run === run);
+  // relink：Run の結果を最新の保留で置き換えるとき（t701 の引き取り）は、Run の今の回を外して最新の保留をその Run の回にする。
+  // 今の回を残すと 1 つの Run に回が 2 つでき、dg pr ready が置き換えられた古い結果の軽い指摘まで数える（t637 と同じ二重の数え方）
+  const relink = options.relink === true;
+  const owned = !relink && stored.rounds.some((r) => r.run === run);
   const rounds = stored.rounds
+    .filter((r) => !(relink && r.run === run))
     .filter((r) => !held(r) || (!owned && r === latestHeld))
     .map((r) => (r === latestHeld ? { ...r, run } : r));
   const next: StoredReviewFindings = { ticket, rounds };

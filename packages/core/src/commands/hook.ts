@@ -30,7 +30,7 @@ import { collectBranchFacts, lastPushedAt } from "../git/facts.js";
 import { withWrite } from "../git/write.js";
 import { toIsoDateTime } from "../model/common.js";
 import { ticketIdSchema, type TicketId } from "../model/id.js";
-import { REVIEW_STEP, type Run, type RunId, type RunResult } from "../model/run.js";
+import { REVIEW_STEP, type Run, type RunId, type RunResult, type RunReview } from "../model/run.js";
 import type { Ticket } from "../model/ticket.js";
 import {
   adoptPendingRounds,
@@ -372,6 +372,10 @@ async function subagentLaunched(
   else await bindTranscript(ctx.repo, run.id, event.transcript, true);
 }
 
+/** 見直しの結果が同じか（数と通ったか）。記録と同じ秒に置いた保留の結果が呼び直しかを見分ける */
+const sameReview = (a: RunReview, b: RunReview | null) =>
+  b !== null && a.heavy === b.heavy && a.light === b.light && a.passed === b.passed;
+
 /**
  * 前景の見直し役が返ったとき、その結果から先に書かれた見直しの記録（capture: none）を引き取る（t701。どの記録かは adoptableReviewRecord）。
  * 新しい Run は開かず、記録に会話記録を結び付け、起動から今までの Run として agent・開始・終了・モデル・使用量・ツールの回数を書き直し、
@@ -412,7 +416,13 @@ async function adoptReviewRecord(
   // 記録を書いた後に見直し役が run review-result を呼び直した結果は、記録（結果のある閉じた Run）に書けずに保留になっている。
   // 記録より後に置いた保留は同じ見直し役の新しい結果なので、記録の結果をそれに置き換える（捨てると記録が古い結果のまま残る）
   const pending = await takePendingReviewEntry(ctx.repo, ticket, startedAt);
-  const newer = pending && pending.at > record.started_at ? pending.review : undefined;
+  // 時刻は秒の精度なので、記録の元の結果と同じ秒に呼び直した結果は時刻だけでは見分けられない。同じ秒なら内容が違うかで見分ける
+  const newer =
+    pending &&
+    (pending.at > record.started_at ||
+      (pending.at === record.started_at && !sameReview(pending.review, record.review)))
+      ? pending.review
+      : undefined;
   await adoptPendingRounds(ctx.repo, ticket, record.id, startedAt, { relink: newer !== undefined });
   if (!(await waitSettled(agent, transcript)))
     warnings.push(
