@@ -15,6 +15,7 @@ import { readRunningRuns } from "../run/record.js";
 import { defineCommand, ok, type CommandContext } from "./define.js";
 import { judgeCheck } from "./gate-check.js";
 import { ticketRef } from "./helpers.js";
+import { orphanReviewRuns } from "./orphan-review.js";
 
 /** 重い指摘を直す回数の上限（見直しは最初を含めて 3 回まで。the "Limit" section of `dg guide review`） */
 export const FIX_ROUNDS_LIMIT = 2;
@@ -50,9 +51,9 @@ export interface GateView {
   conditions: GateCondition[];
 }
 
-/** 見直しの Run（閉じたものと実行中のもの）を開始の順に */
-function reviewRuns(ctx: CommandContext, ticket: Ticket, running: readonly Run[]): Run[] {
-  return [...[...ctx.store.runs.values()].map((d) => d.data), ...running]
+/** 見直しの Run（閉じたものと、extra の実行中のものと持ち主のない保留）を開始の順に */
+function reviewRuns(ctx: CommandContext, ticket: Ticket, extra: readonly Run[]): Run[] {
+  return [...[...ctx.store.runs.values()].map((d) => d.data), ...extra]
     .filter((r) => r.ticket === ticket.id && r.step === REVIEW_STEP)
     .sort((a, b) => a.started_at.localeCompare(b.started_at) || a.id.localeCompare(b.id));
 }
@@ -167,10 +168,14 @@ async function judgeReview(
 ): Promise<void> {
   // 見直し：最後の push より後に始めた見直しが、閉じていて通っている
   const running = (await readRunningRuns(ctx.repo)).runs.map((r) => r.data);
-  const reviews = reviewRuns(ctx, ticket, running);
   const pushedAt = ticket.branch
     ? await lastPushedAt(ctx.repo, ticket.branch, { fetch: true }).catch(() => undefined)
     : undefined;
+  // フックが記録しなかった見直し（持ち主のない保留）も数える（dg next と同じ関数。orphan-review.ts）。コミットの時刻を読むので fetch の後
+  const reviews = reviewRuns(ctx, ticket, [
+    ...running,
+    ...(await orphanReviewRuns(ctx, ticket, running)),
+  ]);
   // 比べるのはリモートの先端のコミットの時刻（push した時刻ではない。facts.ts の lastPushedAt）
   if (pushedAt === undefined)
     add("review", false, "Cannot read the time of the last push of the work branch");
@@ -215,6 +220,7 @@ export const gate = defineCommand({
     "Judge the quality gate from records and the Git and PR facts, and return the result of each condition (conditions) and the reasons for any unmet one (EX-3). The conditions are " +
     "pr (the PR is open; with --for merge, not a draft) · acceptance (with --for merge, every acceptance criterion is checked) · " +
     "review (a review Run that started after the time of the latest commit on the work branch's remote tip has closed with success, and the run review-result result passed) · " +
+    "(a review result held with no review Run, while the ticket has no open review Run and no running sub-agent, counts as a review closed when the result was written; when several are held after the same push, only the latest counts) · " +
     `fix_rounds (reviews that raised heavy findings on this branch are at most ${FIX_ROUNDS_LIMIT} times) · mergeable (with --for merge, gh's mergeable is MERGEABLE) · ` +
     "check (config's actions.test passes when run in a worktree with no uncommitted changes, checked out at the latest commit of the work branch (remote tip). When every file in the diff against base falls under actions.light_paths, the lighter check actions.light_test runs instead, and detail gives which one ran and why. When actions.test is empty, it passes without judging and detail says so. When it fails, detail gives the exit code and the tail of the output. A passing result is remembered per commit and per command in deguboard-local and is not rerun for the same commit (it still counts after the worktree is removed, e.g. after a merge. A failing result is not remembered; the next check reruns it). It takes time, so it runs only when all the other conditions are met). " +
     "A condition that gh or Git cannot read is treated as unmet. " +
