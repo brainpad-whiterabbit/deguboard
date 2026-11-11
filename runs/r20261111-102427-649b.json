@@ -1,0 +1,34 @@
+{
+  "id": "r20261111-102427-649b",
+  "ticket": "t707",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-11T10:24:27Z",
+  "finished_at": "2026-11-11T10:31:58Z",
+  "result": "success",
+  "error": null,
+  "retries": 3,
+  "retry_reasons": [
+    "PR のある行の 2 段目の空きを押すと、詳細は開かず行の選択が変わる（.row-pr を 2 段目の右端まで広げ、空きを押しても選択が変わらないことをテストに足す）",
+    "要件 UI-2 の括弧書き（行の選択は変えない）は細部なので消し、テストに任せる",
+    "PR のある行は 2 段目に背景が付かず 1 行が途中で切れて見える（包みの :hover で行全体に背景を付ける）"
+  ],
+  "usage": {
+    "input": 78,
+    "output": 32028,
+    "cache_read": 2893835,
+    "cache_write": 94605
+  },
+  "tools": {
+    "read": 5,
+    "search": 0,
+    "write": 15,
+    "bash": 24,
+    "other": 1,
+    "read_before_write": 1,
+    "search_before_write": 0
+  },
+  "session": "87e36f11-d291-4dd6-b8a7-3afbac9a0202",
+  "review": null
+}
