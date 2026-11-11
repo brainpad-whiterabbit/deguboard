@@ -12,7 +12,7 @@ after:
     - t706
   t709:
     - t707
-pending_approval: true
+pending_approval: false
 details:
   t713:
     scope: フックが届くセッションでは implement と fix をいつもサブエージェントに頼む手順に guide・next・claim の警告・ADR をそろえる
@@ -46,3 +46,5 @@ details:
     scope: ボード・履歴の行と Iteration・Epic の見出しにも右クリックの詳細を開く・ID をコピーを出す
     approach: webviewSection を場所によらない名前にし、WEBVIEW_CONTRACT と package.json のコマンド名をそろえ、各行と見出しに文脈を載せる
     tier: heavy
+approved_by: Eiki Kitajima/agent
+approved_at: 2026-11-11T07:54:32Z
