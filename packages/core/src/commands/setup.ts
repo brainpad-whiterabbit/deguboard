@@ -64,6 +64,11 @@ import { defineCommand, ok, type CommandContext } from "./define.js";
 import { closeStoppedRuns, type HookView } from "./hook.js";
 import { nowIso, sortedDocs } from "./helpers.js";
 import {
+  linkOrphanRounds,
+  recordOrphanReviews,
+  type RecordedOrphanReviews,
+} from "./orphan-review.js";
+import {
   closeOpenedRunUnlessClosed,
   describeClosedRuns,
   findOpenedRun,
@@ -188,6 +193,8 @@ export interface Reconciled {
   prRecorded: Array<{ id: string; pr: number }>;
   /** 照合が閉じた実装の Run（PR の発見・終わったチケット・戻った・取られたチケット）と手直しの Run（区切り）（RN-6）。コミットの後に dropRunning で実行中の記録を消す */
   runsClosed: ReconciledRun[];
+  /** 持ち主のない保留から書いた見直しの記録（RN-9。orphan-review.ts）。コミットの後に linkOrphanRounds で保留を結び付ける */
+  reviewsRecorded: Array<{ ticket: Doc<Ticket>; recorded: RecordedOrphanReviews }>;
 }
 
 /**
@@ -284,6 +291,7 @@ async function reconcileAll(ctx: CommandContext, warnings: string[]): Promise<Re
   const changed: ReconciledTicket[] = [];
   const prRecorded: Array<{ id: string; pr: number }> = [];
   const runsClosed: ReconciledRun[] = [];
+  const reviewsRecorded: Reconciled["reviewsRecorded"] = [];
   const running = (await readRunningRuns(ctx.repo)).runs;
   const targets = [...ctx.store.tickets.values()].filter(
     (t): t is Doc<Ticket> & { data: Ticket & { branch: string } } =>
@@ -367,6 +375,14 @@ async function reconcileAll(ctx: CommandContext, warnings: string[]): Promise<Re
       if (boundary)
         await closeFixRun(ctx, doc, fixing, boundary, prMergedAt, { runsClosed, warnings });
     }
+    // フックが記録しなかった見直し（持ち主のない保留）を、見直しの記録として書く（RN-9。dg next・dg gate と同じ判定。t700）。
+    // 今回閉じた Run は開いたものとして見ない
+    const recorded = await recordOrphanReviews(
+      ctx,
+      doc.data,
+      running.filter((r) => !runsClosed.some((c) => c.run === r.id)).map((r) => r.data),
+    );
+    if (recorded.linked.length > 0) reviewsRecorded.push({ ticket: doc, recorded });
     if (outcome.kind === "advance") {
       // 遷移は止めず、受け入れ条件の確認が残っていることだけ知らせる（TK-5）
       const left = uncheckedAcceptance(doc);
@@ -434,7 +450,7 @@ async function reconcileAll(ctx: CommandContext, warnings: string[]): Promise<Re
       );
     }
   }
-  return { changed, prRecorded, runsClosed };
+  return { changed, prRecorded, runsClosed, reviewsRecorded };
 }
 
 /** 未チェックの受け入れ条件の番号 */
@@ -447,6 +463,7 @@ export const sync = defineCommand({
   group: "setup",
   summary:
     "Fetch deguboard from the remote, send unpushed commits, and advance ticket states from the facts of the work branches. When a work branch's PR is found, the implementation Run running on this machine is closed with success (finished_at is the PR's creation time). An open fix Run is closed with success at the last push before the next boundary is seen: the next Run's start on the same ticket (including the same second as the fix Run's start), the PR's ready or merge, or the ticket's end. The next Run's start is preceded by closing the earlier Run in the claim, run start, or hook that opened it; reconciliation picks up any that were missed. An implementation Run still open on a finished ticket is closed with the same result as ticket move (abandoned is failure; done with no PR is success; done with a PR is success at the PR's creation time). An implementation Run on a ticket moved back to todo, or claimed by another actor, is closed with failure. " +
+    "A review result held with no Run (run review-result with no review Run, left by an environment the hook does not reach) that dg next and dg gate count as a review is written as a closed review Run marked capture: none (started and finished at the time the result was written, usage null), and the held result is linked to it (data.reviews_recorded). " +
     "A sub-agent Run left open because its record was not finished being written (one with a settling_since mark) is also closed once it has finished writing. Review Runs from a session other than the sync's are not closed; the next review start closes them. " +
     "--resolve remote|local resolves a sync conflict in favor of the side a person chooses (SY-4): it renumbers colliding provisional numbers, commits pending changes (even in manual mode) before importing, and takes the chosen side's value only for conflicting fields (for a body, only where the same line collided). Non-conflicting fields and commits are kept; history is not discarded and nothing is force-pushed. The values taken and discarded appear in data.resolved. Conflicts in files the merge driver does not handle (config.yaml and workflows) are not resolved and stay in data.conflicts",
   input: z.object({
@@ -555,13 +572,18 @@ async function syncLocked(ctx: CommandContext, resolve?: ResolveSide) {
       changed: reconciled,
       prRecorded,
       runsClosed,
+      reviewsRecorded,
     }: Reconciled = conflicts.length === 0
       ? await reconcileAll(ctx, warnings)
-      : { changed: [], prRecorded: [], runsClosed: [] };
+      : { changed: [], prRecorded: [], runsClosed: [], reviewsRecorded: [] };
+    const reviewsWritten = reviewsRecorded.flatMap((r) =>
+      r.recorded.written.map((run) => ({ id: r.ticket.id, run: run.id })),
+    );
     if (
       reconciled.length > 0 ||
       prRecorded.length > 0 ||
       runsClosed.length > 0 ||
+      reviewsWritten.length > 0 ||
       confirmed.length > 0
     ) {
       const parts = [
@@ -581,6 +603,11 @@ async function syncLocked(ctx: CommandContext, resolve?: ResolveSide) {
             opener: r.opener,
           })),
         ),
+        ...(reviewsWritten.length > 0
+          ? [
+              `Record held review results: ${reviewsWritten.map((r) => `${r.id}: ${r.run}`).join(", ")}`,
+            ]
+          : []),
         ...(confirmed.length > 0 ? [`Confirm provisional IDs: ${confirmed.join(", ")}`] : []),
       ];
       await commitAll(repo, parts.join(". "));
@@ -591,6 +618,8 @@ async function syncLocked(ctx: CommandContext, resolve?: ResolveSide) {
         else warnings.push(`Cannot push the reconcile result: ${r.detail}`);
       }
     }
+    // 書いた記録（前に書いて結び付け損ねた記録を含む）に保留を結び付ける。コミットの後に行い、コミットの前に止まれば保留が残る
+    for (const r of reviewsRecorded) await linkOrphanRounds(ctx, r.ticket.data, r.recorded);
     const status = await syncStatus(repo);
     return ok(
       {
@@ -603,6 +632,7 @@ async function syncLocked(ctx: CommandContext, resolve?: ResolveSide) {
         reconciled,
         pr_recorded: prRecorded,
         runs_closed: runsClosed,
+        reviews_recorded: reviewsWritten,
         confirmed,
         status,
       },

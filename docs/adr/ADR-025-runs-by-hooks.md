@@ -53,14 +53,15 @@ Run をエージェント自身が `run start`・`ticket claim` で開き、`run
 ### フックがなければ Run は記録せず、見直しの結果は保留を見直しの記録にする
 
 - フックが届かない環境では、印で頼んだサブエージェントの Run を記録しない（Run を作り出さない）
-- 見直しの結果は保留のまま残る。開いた見直しの Run も動いているサブエージェントの印もないチケットの保留（持ち主のない保留）を、結果を書いた時刻に閉じた見直しの記録とする。`dg next` の段階と `dg gate` の見直しの条件はこれを数え、Git には書かない（Git に写すのは別の操作）
+- 見直しの結果は保留のまま残る。開いた見直しの Run も動いているサブエージェントの印もないチケットの保留（持ち主のない保留）を、結果を書いた時刻に閉じた見直しの記録とする。`dg next` の段階と `dg gate` の見直しの条件はこれを数え、何も書かない
+- `dg sync` と `dg pr ready` は同じ判定で、持ち主のない保留を閉じた見直しの Run（使用量は null）として Git に書き、保留をその Run に結び付けて消す。この記録にだけ、会話記録を取らなかった印 `capture: none` を付け、ほかの Run には項目を書かない
 
 ### 細部の正本
 
 イベントごとの扱い・起動の時刻の補い・区切りの同じ秒の判定・書き終わりの待ち方・sync が閉じる範囲・保留の結び付け方は、次のコードとテストが正本で、「なぜ」はそのコメントとテスト名にある。
 
 - `packages/core/src/commands/hook.ts`（冒頭にイベントごとの扱い）・`packages/core/src/agents/adapters/claude-code-hooks.ts`（Claude Code のフックの入力と発火の順）
-- `packages/core/src/commands/run.ts`（`openRun`・`closePreviousFixRun`・`sessionOf`・`run review-result`・`run retry-reason`）・`packages/core/src/run/record.ts`（保留と実行中の記録）・`packages/core/src/commands/setup.ts`（照合の区切り）・`packages/core/src/commands/orphan-review.ts`（持ち主のない保留の判定と数え方）
+- `packages/core/src/commands/run.ts`（`openRun`・`closePreviousFixRun`・`sessionOf`・`run review-result`・`run retry-reason`）・`packages/core/src/run/record.ts`（保留と実行中の記録）・`packages/core/src/commands/setup.ts`（照合の区切り）・`packages/core/src/commands/orphan-review.ts`（持ち主のない保留の判定と数え方・書き方）
 - `packages/core/src/commands/hook.test.ts`・`run.test.ts`・`commands-flow-reclaim.test.ts`・`orphan-review.test.ts`・`packages/core/src/agents/agents.test.ts`
 
 ## 理由
@@ -74,6 +75,7 @@ Run をエージェント自身が `run start`・`ticket claim` で開き、`run
 - 落ちたセッションの扱いを見直しと手直しに限るのは、実装の Run がセッションをまたいで続き、PR の記録と照合で閉じるため
 - 前景の起動では Run を開く時刻がサブエージェントの作業の後になり、順を変えられない。保留をローカルに置けば Run と Git の形を変えずに結果を失わない
 - フックがあれば、前景の見直し役の保留は返ったときに結び付くので、親が次に `dg next`・`dg gate` を呼ぶときまで持ち主のない保留は、フックが記録しなかった見直しと見てよい。フックがないと見直しを数えられず、手順が見直しを繰り返すか止まる。結果を書いた時刻で数えれば、最後のコミットより前の結果が今の見直しにならない
+- 保留はこのマシンにしかないので、数えるだけでは別の clone の `dg gate` が見直しを数えられない。Git に書くときに印を付ければ、使用量もセッションもない記録をほかの Run と見分けられる
 - ハーネスがフックを動かす環境の PATH は利用者のシェルと違いうる（node を mise・nvm・volta などで入れ、対話のシェルでだけ有効にしているなど）。PATH の `dg` を呼ぶと、フックは黙って失敗し Run が残らなかった（2026-11-11）。絶対パスはマシンごとに違うので、追跡しない設定に置く
 
 ## 採らなかった案
@@ -90,6 +92,6 @@ Run をエージェント自身が `run start`・`ticket claim` で開き、`run
 - **見直し役の最後の応答の文から指摘の数を読む**：文の形に依存し、自己申告を解釈することになる
 - **`run finish` に結果の項目を足す**：見直しの Run はフックが閉じるので、見直し役は `run finish` を呼ばない
 - **親が頼む文で claim に `--session` を渡させる**：親が自分のセッションの ID を読んで文に書く手順が増え、守られ方が親の手順に依る。続きを頼むとき（SendMessage）に渡し忘れても気づけない
-- **フックがないとき、持ち主のない保留から見直しの Run を作り出す**：使用量もセッションもない Run が記録に混ざり、後から届いたフックの Run と重なる
+- **持ち主のない保留を、印のない見直しの Run として Git に書く**：使用量もセッションもない Run が、ほかの Run と見分けられずに記録に混ざる
 - **照合の回数を増やして手直しの Run を閉じる**：区切りから閉じるまでの間は残り、フックのたびに git と gh を呼ぶので重い
 - **手直しを、実装したサブエージェントの会話の続き（SendMessage）で頼む**：起動のフックが来ず Run が開かない。文脈より Run の記録を取る

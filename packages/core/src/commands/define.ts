@@ -2,7 +2,13 @@
 
 import type { z } from "zod";
 import { OperationError, UsageError } from "../errors.js";
-import { checkOutside, describeOutside, outsideError, outsideRemedy } from "../git/outside.js";
+import {
+  checkOutside,
+  describeOutside,
+  outsideError,
+  outsideRemedy,
+  type OutsideChanges,
+} from "../git/outside.js";
 import type { ActorKind, UserSource } from "../model/actor.js";
 import type { WriteContext, WriteOutcome } from "../git/write.js";
 import type { WorktreeOrigin } from "../git/worktree.js";
@@ -62,7 +68,7 @@ export interface CommandDef<I extends z.ZodType, O> {
   storeless?(input: z.output<I>, env: Readonly<Record<string, string | undefined>>): boolean;
   /**
    * dg の外の変更の検査（SY-7）を runCommand で行わない。自分で扱うコマンドだけが付ける（取り込む dg adopt と、
-   * Stop で確かめてエージェントに返し、ほかのイベントで作業を止めない dg hook）
+   * Stop で確かめてエージェントに返し、ほかのイベントで作業を止めない dg hook、書くときだけ止めて読むだけのときは警告にする dg pr ready）
    */
   ownsOutsideCheck?: boolean;
   run(ctx: CommandContext, input: z.output<I>): Promise<CommandResult<O>>;
@@ -118,12 +124,11 @@ export async function runCommand<I extends z.ZodType, O>(
   if (check?.kind === "found" && def.write) throw outsideError(check.changes, def.name);
   const result = await def.run(ctx, parsed.data);
   if (check?.kind === "found")
-    return {
-      ...result,
-      warnings: [
-        ...result.warnings,
-        `The data repository has changes made outside dg (${describeOutside(check.changes)}). ${outsideRemedy(check.changes)}`,
-      ],
-    };
+    return { ...result, warnings: [...result.warnings, outsideWarning(check.changes)] };
   return result;
+}
+
+/** 読むだけで済んだときの、dg の外の変更の警告（runCommand と、検査を自分で扱う pr ready が使う） */
+export function outsideWarning(changes: OutsideChanges): string {
+  return `The data repository has changes made outside dg (${describeOutside(changes)}). ${outsideRemedy(changes)}`;
 }
