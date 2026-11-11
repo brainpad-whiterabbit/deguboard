@@ -1,0 +1,33 @@
+{
+  "id": "r20261111-035320-632d",
+  "ticket": "t688",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-11T03:53:20Z",
+  "finished_at": "2026-11-11T03:55:57Z",
+  "result": "success",
+  "error": null,
+  "retries": 2,
+  "retry_reasons": [
+    "ADR-030 の背景に、ADR-011 の並列の上限の判断が残っている（ADR-011 を指すだけにする）",
+    "ADR-030 の並列の上限の記述が同じ節で重複している（1 か所にする）"
+  ],
+  "usage": {
+    "input": 14,
+    "output": 4646,
+    "cache_read": 254377,
+    "cache_write": 47147
+  },
+  "tools": {
+    "read": 1,
+    "search": 0,
+    "write": 2,
+    "bash": 5,
+    "other": 1,
+    "read_before_write": 1,
+    "search_before_write": 0
+  },
+  "session": "f6d97fc8-6ae2-470e-9f1d-5f1ec3703ff5",
+  "review": null
+}
