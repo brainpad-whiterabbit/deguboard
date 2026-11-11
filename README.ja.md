@@ -80,7 +80,7 @@ Activity Bar の deguboard のアイコンでカンバンが開きます。上�
 
 ### 最後まで任せる
 
-作りたいものを `/dgall --auto`（Claude Code の場合）を付けて頼むと、エージェントが起票・計画・実装を続けて進めます。リリース、チケットの削除・abandoned・閉じる、`auto.merge` が false のときの PR のマージなど承認が要るところでは止まって人に聞きます。どの判断を止めずに進めるかは config の `auto.decisions` で選べます。ボードでは進み具合を見守れ、計画の帯を押すと依存をグラフで見られます。`--gate-high`・`--gate-low`・`--gate-free`（`/dgwork` も同じ引数を取ります）で、対象のチケットの品質ゲートの段を決めます（指定がなければ各チケットの段のまま）。ほかのエージェントには「`dg guide all` を読んで、`--auto` で最後まで進めて」と頼みます。
+Iteration かチケットを `/dgall s3 --auto`（Claude Code の場合）のように付けて頼むと、エージェントが計画・実装を続けて進めます。`/dgall` は起票しないので、作りたいものは先に `/dgimport` でチケットにします。リリース（リリース PR のマージと公開）、チケットの削除・abandoned・done の取り消し、Epic・Iteration・Plan の閉じる・再開、`auto.merge` が false のときの PR のマージ、Plan の待ち（after）と範囲の変更、`--force` を付けた操作、提案の選択肢がない判断、選択肢にできない回答が要るところでは止まって人に聞きます。ほかの判断は、config の `auto.decisions` に入っていれば提案の選択肢で進みます。ボードでは進み具合を見守れ、計画の帯を押すと依存をグラフで見られます。`--gate-high`・`--gate-low`・`--gate-free`（`/dgwork` も同じ引数を取ります）で、対象のチケットの品質ゲートの段を決めます（指定がなければ各チケットの段のまま）。ほかのエージェントには「`dg guide all` を読んで、`--auto` で最後まで進めて」と頼みます。
 
 <img src="https://raw.githubusercontent.com/brainpad-whiterabbit/deguboard/main/packages/vscode/images/run-all.gif" alt="最後まで任せる" width="560">
 
