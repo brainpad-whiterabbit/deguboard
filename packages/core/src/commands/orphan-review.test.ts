@@ -574,7 +574,9 @@ describe("前景の見直し役が返ったとき、起動のフックが先に�
     const [record] = reviewRuns(ctx);
     expect(record).toMatchObject({ capture: "none", session: SESSION });
 
-    const view = await returned(ctx, parent, later(3), 90_000);
+    // 返った時刻は 1 回だけ読み、期待の値（開始・終了）にも同じ時刻を使う（読むたびに ms がずれ、秒の境で 1 秒ずれるため）
+    const returnedAt = later(3);
+    const view = await returned(ctx, parent, returnedAt, 90_000);
     expect(view.done).toContainEqual(
       expect.stringContaining(`Took over the review record ${record!.id}`),
     );
@@ -586,8 +588,8 @@ describe("前景の見直し役が返ったとき、起動のフックが先に�
       id: record!.id,
       agent: "claude-code",
       model: "claude-test-1",
-      started_at: toIsoDateTime(new Date(later(3).getTime() - 90_000)),
-      finished_at: toIsoDateTime(later(3)),
+      started_at: toIsoDateTime(new Date(returnedAt.getTime() - 90_000)),
+      finished_at: toIsoDateTime(returnedAt),
       result: "success",
       error: null,
       review: passed,
