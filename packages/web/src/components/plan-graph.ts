@@ -76,6 +76,10 @@ export function openPlanByTicket(plans: readonly PlanRow[]): Map<string, string>
 /** 依存グラフのノードの大きさ（px） */
 export const GRAPH_NODE_W = 76;
 export const GRAPH_NODE_H = 22;
+/** 入口の丸の半径（px）。丸は待つ側のノードの左の縁の外に 1px 空けて置く。ノードは SVG の後に重なるので、縁の内に置くと隠れる */
+export const GRAPH_ENTRY_R = 3;
+/** 入口の丸の中心から待つ側のノードの左の縁までの距離（px）：半径と 1px の隙間 */
+const ENTRY_OFFSET = GRAPH_ENTRY_R + 1;
 /** 段の間。辺の S 字が急に曲がって絡まないよう広く取る */
 const COL_GAP = 48;
 /** 行の間。2 段以上離れた辺をこの溝に通すので、線が数本並べる幅を取る */
@@ -110,8 +114,10 @@ export interface GraphEdge {
   done: boolean;
   /** 辺の由来。Plan の after か、チケットの depends_on だけ（同じ組に両方あれば after） */
   kind: "after" | "depends_on";
-  /** 描く経路（SVG の path の d）。待たれる側の右の縁から、待つ側の左の縁に着く */
+  /** 描く経路（SVG の path の d）。待たれる側の右の縁から、入口の丸の中心に着く */
   path: string;
+  /** 入口の丸の中心。待つ側のノードの左の縁の外（GRAPH_ENTRY_R + 1px 手前）に置く */
+  entry: { x: number; y: number };
 }
 
 export interface PlanGraph {
@@ -182,7 +188,11 @@ export function planGraph(plan: PlanRow, byId: ReadonlyMap<string, Ticket>): Pla
     status: byId.get(id)!.status,
     waiting: waitsOf(plan, id).length > 0,
   }));
-  const edges = links.map((e, i): GraphEdge => ({ ...e, path: layout.paths[i]! }));
+  const edges = links.map((e, i): GraphEdge => ({
+    ...e,
+    path: layout.paths[i]!,
+    entry: layout.entries[i]!,
+  }));
   return {
     nodes,
     edges,
@@ -278,7 +288,7 @@ const curveTo = (x1: number, y1: number, x2: number, y2: number) => {
 
 /**
  * ノードの位置と辺の経路を決める。
- * - 1 つのノードに入る（出る）辺が 2 本以上あれば、着く（出る）高さをノードの縦の縁に等間隔に散らし、相手の高さの順に割り当てる（矢じりが 1 点に重ならないよう）
+ * - 1 つのノードに入る（出る）辺が 2 本以上あれば、着く（出る）高さをノードの縦の縁に等間隔に散らし、相手の高さの順に割り当てる（入口の丸が 1 点に重ならないよう）
  * - 2 段以上離れた辺は、両端の高さに近い行の間の溝を水平に通し、間の段のノードの上を通らない。同じ溝の辺は少しずつずらす
  * - いちばん上・下の外の溝を使うときだけ、その分の余白を足す
  */
@@ -319,6 +329,8 @@ function layoutGraph(
     });
   }
   const xOf = (id: string) => depth.get(id)! * (GRAPH_NODE_W + COL_GAP);
+  // 入口の丸の中心の x：待つ側のノードの左の縁の外
+  const entryX = (id: string) => xOf(id) - ENTRY_OFFSET;
   const yOf = (id: string) => shift + top0(id);
   // 入口・出口の高さ：相手側の高さ（溝を通る辺は溝の高さ）の順に、ノードの縁を等分した位置へ
   const toward = (i: number, other: string) => laneY.get(i) ?? shift + mid0(other);
@@ -341,7 +353,7 @@ function layoutGraph(
   const paths = links.map((e, i) => {
     const x1 = xOf(e.from) + GRAPH_NODE_W;
     const y1 = outY.get(i)!;
-    const x2 = xOf(e.to);
+    const x2 = entryX(e.to);
     const y2 = inY.get(i)!;
     const lane = laneY.get(i);
     const start = `M${r2(x1)},${r2(y1)}`;
@@ -352,9 +364,11 @@ function layoutGraph(
       start + curveTo(x1, y1, xa, lane) + ` L${r2(xb)},${r2(lane)}` + curveTo(xb, lane, x2, y2)
     );
   });
+  const entries = links.map((e, i) => ({ x: r2(entryX(e.to)), y: r2(inY.get(i)!) }));
   return {
     at: (id: string) => ({ x: xOf(id), y: yOf(id) }),
     paths,
+    entries,
     width: layerCount > 0 ? layerCount * GRAPH_NODE_W + (layerCount - 1) * COL_GAP : 0,
     height: rowOf.size > 0 ? shift + rows * GRAPH_NODE_H + (rows - 1) * ROW_GAP + bottom : 0,
   };

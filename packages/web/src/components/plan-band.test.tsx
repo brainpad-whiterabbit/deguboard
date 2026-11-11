@@ -7,6 +7,7 @@ import type { Route } from "../router.js";
 import { StoreProvider } from "../store.js";
 import { boardFixture, iteration, mockClient, plan, ticket } from "../test-helpers.js";
 import { createUiState, memoryBackend } from "../ui-state.js";
+import { GRAPH_ENTRY_R } from "./plan-graph.js";
 
 afterEach(() => {
   cleanup();
@@ -127,8 +128,12 @@ describe("実行計画の帯", () => {
     expect(nodes.map((a) => a.getAttribute("href"))).toEqual(["#/tickets/t1", "#/tickets/t3"]);
     const edges = p2.querySelectorAll(".plan-graph-edge");
     expect(edges[0]!.classList.contains("plan-graph-edge-pending")).toBe(false);
-    // 矢印も待ちの状態の色に合わせる
-    expect(edges[0]!.getAttribute("marker-end")).toBe("url(#plan-arrow-p2-done)");
+    // 矢じりは描かず、辺の入口に丸を置く（待ち終わりは中抜きの丸）
+    expect(p2.querySelector("marker")).toBeNull();
+    expect(edges[0]!.hasAttribute("marker-end")).toBe(false);
+    const entries = p2.querySelectorAll("circle.plan-graph-entry");
+    expect(entries).toHaveLength(edges.length);
+    expect(entries[0]!.classList.contains("plan-graph-entry-pending")).toBe(false);
     // ほかの Plan のグラフは開かない
     expect(itemOf("p3").querySelector(".plan-detail")).toBeNull();
     expect(document.querySelectorAll(".plan-detail")).toHaveLength(1);
@@ -180,9 +185,9 @@ describe("実行計画の帯", () => {
     );
     expect(d).toHaveLength(5);
     const end = (path: string) => path.split(" ").at(-1)!.split(",").map(Number);
-    // t5 に入る 3 本は、ノードの左の縁の別々の高さに着く
+    // t5 に入る 3 本は、入口の丸（t5 の左の縁の外）の別々の高さに着く
     const into5 = d.slice(2).map(end);
-    expect(into5.every(([x]) => x === left("t5"))).toBe(true);
+    expect(into5.every(([x]) => x === left("t5") - GRAPH_ENTRY_R - 1)).toBe(true);
     expect(new Set(into5.map(([, y]) => y)).size).toBe(3);
     for (const [, y] of into5) {
       expect(y).toBeGreaterThan(top("t5"));
@@ -208,7 +213,7 @@ describe("実行計画の帯", () => {
     expect(nodeOf("t2").classList.contains("related")).toBe(false);
   });
 
-  it("depends_on だけでつながった組は点線の辺で描き、凡例に出す", async () => {
+  it("depends_on だけでつながった組は破線の辺で描き、凡例に出す", async () => {
     const host = hostOf();
     const client = mockClient(boardFixture());
     client.data.tickets = client.data.tickets.map((t) =>
@@ -228,6 +233,66 @@ describe("実行計画の帯", () => {
       (s) => s.textContent,
     );
     expect(legend).toEqual(["待ち中", "待ち終わり", "after", "depends_on"]);
+  });
+
+  it("入口の丸は待ち中を塗り、待ち終わりを中抜きにする。両端が done の辺と done のノードは薄く、depends_on は待ちによらず破線", async () => {
+    const host = hostOf();
+    const client = mockClient(boardFixture());
+    client.data.tickets = [
+      ticket({ id: "t1", title: "一", status: "done", iteration: "s0" }),
+      ticket({ id: "t2", title: "二", status: "done", iteration: "s0" }),
+      ticket({ id: "t3", title: "三", iteration: "s0", depends_on: ["t1"] }),
+      ticket({ id: "t4", title: "四", status: "in_progress", iteration: "s0" }),
+      ticket({ id: "t5", title: "五", iteration: "s0", depends_on: ["t4"] }),
+    ];
+    // t1→t2 は両端が done。t2→t3 は待ち終わり、t4→t3 と t4→t5 は待ち中。t1→t3 は depends_on で待ち終わり
+    client.data.plans = [
+      plan({
+        id: "p2",
+        tickets: ["t1", "t2", "t3", "t4", "t5"],
+        after: { t2: ["t1"], t3: ["t2", "t4"] },
+        approved_by: "eiki",
+      }),
+    ];
+    host.state.set("board.planGraph.p2", true);
+    mount(client, host);
+    await screen.findByRole("region", { name: "実行計画" });
+    const graph = document.querySelector(".plan-graph-canvas")!;
+    expect(graph.querySelectorAll("path.plan-graph-edge")).toHaveLength(5);
+    // 矢じりは描かず、入口の丸は待ち中だけ塗る
+    expect(document.querySelector(".plan-graph marker")).toBeNull();
+    expect(graph.querySelectorAll("circle.plan-graph-entry")).toHaveLength(5);
+    expect(graph.querySelectorAll("circle.plan-graph-entry-pending")).toHaveLength(2);
+    // 両端が done の辺（t1→t2）と、その入口の丸と、done のノードは薄く描く
+    expect(graph.querySelectorAll("path.plan-graph-edge-done")).toHaveLength(1);
+    expect(graph.querySelectorAll("circle.plan-graph-entry-done")).toHaveLength(1);
+    expect(document.querySelectorAll(".plan-node.status-done")).toHaveLength(2);
+    // 入口の丸は辺の状態の class を持たず（線の数の選択子に数えない）、どのノードにも重ならない
+    expect(graph.querySelectorAll("circle.plan-graph-edge-pending")).toHaveLength(0);
+    const nodeBoxes = [...document.querySelectorAll<HTMLElement>("a.plan-node")].map((a) => {
+      const left = parseFloat(a.style.left);
+      return [left, left + parseFloat(a.style.width)] as const;
+    });
+    for (const c of graph.querySelectorAll("circle.plan-graph-entry")) {
+      const cx = Number(c.getAttribute("cx"));
+      const r = Number(c.getAttribute("r"));
+      for (const [left, right] of nodeBoxes) {
+        expect(cx + r <= left || cx - r >= right).toBe(true);
+      }
+    }
+    // depends_on は待ちの状態によらず破線、after は実線
+    expect(graph.querySelectorAll("path.plan-graph-edge-depends")).toHaveLength(2);
+    expect(
+      graph.querySelectorAll("path.plan-graph-edge-depends.plan-graph-edge-pending"),
+    ).toHaveLength(1);
+    expect(
+      graph.querySelectorAll("path.plan-graph-edge:not(.plan-graph-edge-depends)"),
+    ).toHaveLength(3);
+    // 凡例の入口の丸は、待ち中（塗り）と待ち終わり（中抜き）の 2 つ
+    expect(document.querySelectorAll(".plan-graph-legend circle.plan-graph-entry")).toHaveLength(2);
+    expect(
+      document.querySelectorAll(".plan-graph-legend circle.plan-graph-entry-pending"),
+    ).toHaveLength(1);
   });
 
   it("行の中のチケットの番号を押すとチケットを開き、グラフは開閉しない", async () => {

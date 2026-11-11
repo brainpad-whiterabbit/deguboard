@@ -10,6 +10,7 @@ import { actorLabel, type PlanRow, type Ticket, type TicketRow } from "../types.
 import { ASK_SECTIONS, useAskSpot } from "./ask-menu.js";
 import { DetailLink, ProgressBar, StatusDot, TicketLink } from "./parts.js";
 import {
+  GRAPH_ENTRY_R,
   GRAPH_NODE_H,
   GRAPH_NODE_W,
   PLAN_STATE_LABELS,
@@ -196,8 +197,8 @@ function BandNextText({ next, byId }: { next: BandNext; byId: ReadonlyMap<string
 
 /**
  * 依存グラフ。段を左から右に並べ、段の中の並び・ノードの位置・辺の経路は planGraph が決めた座標で描く。辺は SVG で描き、ノードはチケットへのリンクを上に重ねる。
- * 辺の見た目は 2 つの軸を別の手段で分ける：待ちの状態は色と太さ（待ち中は警告の色で太く、待ち終わりは灰色で細く薄く）、由来は模様（after は実線、depends_on は点線）。
- * 模様だけで両方を分けると 4 種類の模様が混ざって見分けにくいため。ノードにホバー・フォーカスすると繋がるノードと辺を強調する
+ * 辺の見た目は 2 つの軸を別の手段で分ける：待ちの状態は色と太さと入口の丸の塗り（待ち中は警告の色で太く、入口は塗った丸。待ち終わりは灰色で細く、入口は中抜きの丸）、由来は模様（after は実線、depends_on は短い破線）。
+ * 模様だけで両方を分けると 4 種類の模様が混ざって見分けにくいため。両端が done の辺と done のノードは薄く描き、残りの道を目立たせる。ノードにホバー・フォーカスすると繋がるノードと辺を強調する
  */
 export function PlanGraphView({
   plan,
@@ -223,40 +224,31 @@ export function PlanGraphView({
   }
   const { width, height } = graph;
   const hasDepends = graph.edges.some((e) => e.kind === "depends_on");
-  const arrow = `plan-arrow-${plan.id}`;
+  const status = new Map(graph.nodes.map((n) => [n.id, n.status]));
   return (
     <div className={`plan-graph${focus ? " plan-graph-tracing" : ""}`}>
       <div className="plan-graph-canvas" style={{ width, height }}>
         <svg width={width} height={height} aria-hidden="true">
-          <defs>
-            {(["done", "pending"] as const).map((state) => (
-              <marker
-                key={state}
-                id={`${arrow}-${state}`}
-                viewBox="0 0 6 6"
-                refX="6"
-                refY="3"
-                markerWidth="6"
-                markerHeight="6"
-                markerUnits="userSpaceOnUse"
-                orient="auto"
-              >
-                <path
-                  d="M0,0 L6,3 L0,6 z"
-                  className={`plan-graph-arrow plan-graph-arrow-${state}`}
-                />
-              </marker>
-            ))}
-          </defs>
           {graph.edges.map((e) => {
             const lit = focus !== null && (e.from === focus || e.to === focus);
+            // 両端が done の辺は薄く描く（残りの道だけを目立たせる）
+            const finished = status.get(e.from) === "done" && status.get(e.to) === "done";
+            const cls = `${e.done ? "" : " plan-graph-edge-pending"}${finished ? " plan-graph-edge-done" : ""}${lit ? " related" : ""}`;
+            // 丸は待ちの状態を塗りで示すだけ。辺の class（線の色・太さ）は写さず、薄く・強調する class だけを付ける
+            const entryCls = `${e.done ? "" : " plan-graph-entry-pending"}${finished ? " plan-graph-entry-done" : ""}${lit ? " related" : ""}`;
             return (
-              <path
-                key={`${e.from}-${e.to}`}
-                d={e.path}
-                className={`plan-graph-edge${e.done ? "" : " plan-graph-edge-pending"}${e.kind === "depends_on" ? " plan-graph-edge-depends" : ""}${lit ? " related" : ""}`}
-                markerEnd={`url(#${arrow}-${e.done ? "done" : "pending"})`}
-              />
+              <g key={`${e.from}-${e.to}`}>
+                <path
+                  d={e.path}
+                  className={`plan-graph-edge${cls}${e.kind === "depends_on" ? " plan-graph-edge-depends" : ""}`}
+                />
+                <circle
+                  cx={e.entry.x}
+                  cy={e.entry.y}
+                  r={GRAPH_ENTRY_R}
+                  className={`plan-graph-entry${entryCls}`}
+                />
+              </g>
             );
           })}
         </svg>
@@ -279,18 +271,29 @@ export function PlanGraphView({
       {graph.edges.length > 0 ? (
         <div className="plan-graph-legend muted">
           {[
-            { label: tr("待ち中"), cls: " plan-graph-edge-pending" },
-            { label: tr("待ち終わり"), cls: "" },
+            {
+              label: tr("待ち中"),
+              cls: " plan-graph-edge-pending",
+              entry: " plan-graph-entry-pending",
+            },
+            { label: tr("待ち終わり"), cls: "", entry: "" },
             ...(hasDepends
               ? [
-                  { label: "after", cls: " plan-graph-edge-sample" },
-                  { label: "depends_on", cls: " plan-graph-edge-sample plan-graph-edge-depends" },
+                  { label: "after", cls: " plan-graph-edge-sample", entry: undefined },
+                  {
+                    label: "depends_on",
+                    cls: " plan-graph-edge-sample plan-graph-edge-depends",
+                    entry: undefined,
+                  },
                 ]
               : []),
-          ].map(({ label, cls }) => (
+          ].map(({ label, cls, entry }) => (
             <span key={label}>
-              <svg width="20" height="6" aria-hidden="true">
+              <svg width="24" height="6" aria-hidden="true">
                 <line x1="0" y1="3" x2="20" y2="3" className={`plan-graph-edge${cls}`} />
+                {entry === undefined ? null : (
+                  <circle cx="20" cy="3" r={GRAPH_ENTRY_R} className={`plan-graph-entry${entry}`} />
+                )}
               </svg>
               {label}
             </span>
