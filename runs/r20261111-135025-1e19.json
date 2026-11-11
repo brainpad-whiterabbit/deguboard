@@ -1,0 +1,30 @@
+{
+  "id": "r20261111-135025-1e19",
+  "ticket": "t725",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-11T13:50:25Z",
+  "finished_at": "2026-11-11T14:01:04Z",
+  "result": "success",
+  "error": null,
+  "retries": 0,
+  "retry_reasons": [],
+  "usage": {
+    "input": 86,
+    "output": 30051,
+    "cache_read": 2725380,
+    "cache_write": 91411
+  },
+  "tools": {
+    "read": 6,
+    "search": 0,
+    "write": 8,
+    "bash": 28,
+    "other": 1,
+    "read_before_write": 2,
+    "search_before_write": 0
+  },
+  "session": "18b06cc8-a5e8-45cd-aaf1-45661a8f5932",
+  "review": null
+}

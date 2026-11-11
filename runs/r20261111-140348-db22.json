@@ -1,0 +1,35 @@
+{
+  "id": "r20261111-140348-db22",
+  "ticket": "t729",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-11T14:03:48Z",
+  "finished_at": "2026-11-11T14:09:33Z",
+  "result": "success",
+  "error": null,
+  "retries": 4,
+  "retry_reasons": [
+    "入口の丸に辺の状態の class が付き、VS Code の待ち中の辺の数が合わない",
+    "入口の丸がノードの背面に隠れ、待ちの形が見えない",
+    "layoutGraph のコメントに古い矢じりの文言が残る",
+    "テスト名が破線の見た目と合わない"
+  ],
+  "usage": {
+    "input": 72,
+    "output": 29271,
+    "cache_read": 2599815,
+    "cache_write": 85641
+  },
+  "tools": {
+    "read": 11,
+    "search": 0,
+    "write": 21,
+    "bash": 21,
+    "other": 1,
+    "read_before_write": 6,
+    "search_before_write": 0
+  },
+  "session": "5919e6ee-5f97-4050-857d-2c10a0e442de",
+  "review": null
+}
