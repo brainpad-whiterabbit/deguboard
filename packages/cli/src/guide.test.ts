@@ -210,6 +210,10 @@ describe("dg guide", () => {
     );
     // 親が自分で進める手順（--no-run を外す）は、フックが届かないときの項にだけある
     expect(lineWith(who, "**When no dg hook reaches the session**")).toContain("Remove `--no-run`");
+    // 届いていないと警告するのは claim（--no-run）と brief。dg next は警告しない
+    expect(lineWith(who, "**When no dg hook reaches the session**")).toContain(
+      "`ticket claim --no-run` and `brief` warn",
+    );
     expect(work.split("Remove `--no-run`").length).toBe(2);
     expect(lineWith(work, "`implement`")).not.toContain("implements it itself");
     const fixLoop = bullet(

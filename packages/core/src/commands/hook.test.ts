@@ -684,7 +684,10 @@ describe("dg hook（AG-9・RN-7）", () => {
 describe("dg hook の見直しで直した場面（RN-7）", () => {
   it("移行の経路は、同じセッションで記録の最初の行より後に始まった Run だけを結び付け、記録に ID が出るだけの Run は結び付け直さない", async () => {
     const { ctx, parent, subagent } = await prepared();
+    // 開始の時刻は ctx.now で決める（実時間の待ちにしない）。old と mine は 2 秒ずらし、記録の最初の行をその間に置く
+    const t0 = Date.now();
     // 前からある、ほかのセッションの Run（一覧で ID を見ただけ）
+    ctx.now = () => new Date(t0);
     const old = (
       await runCommand(runStart, ctx, {
         ticket: "t2",
@@ -693,7 +696,7 @@ describe("dg hook の見直しで直した場面（RN-7）", () => {
         session: "s-other",
       })
     ).data as Run;
-    await new Promise((r) => setTimeout(r, 1100));
+    ctx.now = () => new Date(t0 + 2000);
     const mine = (
       await runCommand(runStart, ctx, {
         ticket: "t1",
