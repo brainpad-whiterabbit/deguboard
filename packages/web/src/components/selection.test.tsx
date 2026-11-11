@@ -477,6 +477,9 @@ describe("なぞりの終わり方（UI-15）", () => {
         end();
         // 終えたあとも選んだ行は残り、なぞりを始めた行（画面）が起点になる
         expect(selected()).toEqual(["t3", "t4", "t5"]);
+        // なぞりは終わっているので、ボタンを押したままの動きが来ても選びは動かない（動きの受け口を外していることの確かめ）
+        pointer(window, "pointermove", { buttons: 1, clientX: 5, clientY: 115 });
+        expect(selected()).toEqual(["t3", "t4", "t5"]);
         expect(bar()!.textContent).toContain("3 件を選択");
         // 終えた直後の 1 回のクリックは捨てる（詳細は開かず、選びも変えない）
         fireEvent.click(linkOf("API"));

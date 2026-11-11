@@ -2627,7 +2627,24 @@ describe("画面", () => {
     await waitFor(() => expect(labels()).toEqual(["e1", "e3", "なし 2"]));
   });
 
-  it("カンバンの Epic の「なし」の札で Epic のないチケットに絞り、もう一度押すと外れる。範囲の外にしかない開いた Epic の札は、絞っていなければ出さない", async () => {
+  it("カンバンの Epic の「なし」の札で Epic のないチケットに絞り、もう一度押すと外れる", async () => {
+    mount(boardClient(), hostOf("sidebar"));
+    await screen.findByText("API");
+    const chips = () =>
+      [...document.querySelectorAll(".epic-chips .chip")].map((c) => c.textContent);
+    const none = () => document.querySelector<HTMLElement>(".epic-chips .epic-chip.loose")!;
+    expect(chips()).toEqual(["e1", "なし 2"]);
+    expect(none().getAttribute("aria-pressed")).toBe("false");
+    fireEvent.click(none());
+    await waitFor(() => expect(window.location.hash).toBe("#/board?epic=-"));
+    expect(none().getAttribute("aria-pressed")).toBe("true");
+    expect(none().getAttribute("title")).toBe("絞り込みを外す");
+    fireEvent.click(none());
+    await waitFor(() => expect(window.location.hash).not.toContain("epic"));
+    expect(none().getAttribute("aria-pressed")).toBe("false");
+  });
+
+  it("範囲の外にしかない開いた Epic で絞ると、その札は範囲の外でも残り、押した状態で出る", async () => {
     const client = boardClient();
     client.data.iterations = [
       iteration({ id: "s0", name: "既定", status: "active" }),
@@ -2635,23 +2652,20 @@ describe("画面", () => {
     ];
     client.data.epics.push({ ...client.data.epics[0]!, id: "e3", title: "次の版" });
     client.data.tickets.push(ticket({ id: "t4", title: "次の仕事", iteration: "s2", epic: "e3" }));
+    window.location.hash = "#/board?epic=e3";
     mount(client, hostOf("sidebar"));
-    await screen.findByText("API");
-    const chips = () =>
-      [...document.querySelectorAll(".epic-chips .chip")].map((c) => c.textContent);
-    const none = () => document.querySelector<HTMLElement>(".epic-chips .epic-chip.loose")!;
-    // 既定は s0 の範囲。s2 にしかない開いた Epic（e3）は札を出さず、「なし」は範囲の Epic のないチケットの数
-    expect(chips()).toEqual(["e1", "なし 2"]);
-    expect(none().getAttribute("aria-pressed")).toBe("false");
-    fireEvent.click(none());
-    await waitFor(() => expect(window.location.hash).toBe("#/board?epic=-"));
-    expect(none().getAttribute("aria-pressed")).toBe("true");
-    expect(none().getAttribute("title")).toBe("絞り込みを外す");
-    // 絞っている間も範囲の外の Epic は出さない（一覧の札は範囲で決まる）
-    expect(chips()).toEqual(["e1", "なし 2"]);
-    fireEvent.click(none());
-    await waitFor(() => expect(window.location.hash).not.toContain("epic"));
-    expect(none().getAttribute("aria-pressed")).toBe("false");
+    const labels = () =>
+      [...document.querySelectorAll(".epic-chips .chip")].map(
+        (c) => c.querySelector("code")?.textContent ?? c.textContent,
+      );
+    // e3 は s0 の範囲にチケットがないが、選んでいる Epic なので札を残す。「なし」は範囲の Epic のないチケットの数
+    await waitFor(() => expect(labels()).toEqual(["e1", "e3", "なし 2"]));
+    expect(screen.getByRole("button", { name: "e3 次の版" }).getAttribute("aria-pressed")).toBe(
+      "true",
+    );
+    expect(screen.getByRole("button", { name: "e1 最初の版" }).getAttribute("aria-pressed")).toBe(
+      "false",
+    );
   });
 
   it("カンバンの見出しの Epic の札が 2 行を超えるときは「ほか N」にまとめ、開くと「なし」を残して並ぶ", async () => {
