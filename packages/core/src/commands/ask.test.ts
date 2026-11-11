@@ -802,6 +802,31 @@ describe("頼むことの候補", () => {
     );
   });
 
+  it("対象なしの release の文章だけの依頼文は、Iteration を聞く文を持たず、聞くのは ASK_FIRST の 1 行だけ（英語も同じ）", () => {
+    const cases: Array<[string, string]> = [
+      [
+        "ja",
+        "指示の Iteration をリリースし、リリースの PR のマージと公開の前に承認を求めてください。",
+      ],
+      [
+        "en",
+        "Release the instructed Iteration, and ask for approval before merging the release PR and publishing.",
+      ],
+    ];
+    for (const [language, sentence] of cases) {
+      const lines = buildAsk({
+        subjects: [],
+        action: "release",
+        format: "text",
+        language: language as "ja" | "en",
+      }).text.split("\n");
+      expect(lines[0]).toBe(language === "en" ? ASK_FIRST_EN : ASK_FIRST);
+      expect(lines[1]).toBe(sentence);
+      // 依頼文の 1 文より後に、対象を聞く言葉が残らない（聞く役は ASK_FIRST だけ）
+      expect(lines.slice(2).filter((l) => /聞|\bask/i.test(l))).toEqual([]);
+    }
+  });
+
   it("詳細の中の行（within）なら、入っている Iteration・Epic から外すを変えるの後に足す。入っていない・終わったチケットには足さない", () => {
     expect(askActions([ticket()], "s10")).toEqual([
       "work",
