@@ -59,28 +59,24 @@ export function EpicChipRow({
   );
 }
 
-export function EpicChip({
+function EpicChip({
   id,
   title,
   progress,
   pressed,
   onClick,
-  className,
 }: {
   id: string;
   title: string;
-  /** 進み（done/全体）。あればツールチップに出す */
-  progress?: Progress;
+  /** 進み（done/全体）。ツールチップに出す */
+  progress: Progress;
   pressed: boolean;
   onClick: () => void;
-  className?: string;
 }) {
-  const detail = progress
-    ? tr("{0} {1}・完了 {2}/{3}", id, title, progress.done, progress.total)
-    : tr("{0} {1}", id, title);
+  const detail = tr("{0} {1}・完了 {2}/{3}", id, title, progress.done, progress.total);
   return (
     <Chip
-      className={className ? `epic-chip ${className}` : "epic-chip"}
+      className="epic-chip"
       pressed={pressed}
       title={pressed ? tr("{0}。押すと絞り込みを外す", detail) : detail}
       label={tr("{0} {1}", id, title)}

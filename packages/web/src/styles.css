@@ -1734,8 +1734,7 @@ textarea.body {
   background: transparent;
   padding: 0;
 }
-.chip .chip-count,
-.chip .progress {
+.chip .chip-count {
   flex: none;
   color: var(--vscode-descriptionForeground);
 }
@@ -1757,25 +1756,13 @@ textarea.body {
   background: var(--vscode-button-background);
   border-color: var(--vscode-button-background);
 }
-.chip[aria-pressed="true"] .chip-count,
-.chip[aria-pressed="true"] .progress,
-.chip[aria-pressed="true"] .progress .muted {
+.chip[aria-pressed="true"] .chip-count {
   color: inherit;
 }
 /* 塗った札（Epic の .chip と Iteration の .iteration-chip）の番号の code は塗りの文字色に揃え、VS Code が code に付ける既定の色に負けないようにする */
 .chip[aria-pressed="true"] code,
 .iteration-chip[aria-pressed="true"] code {
   color: inherit;
-}
-/* 塗ったチップの上では進捗の帯を文字の色で描く（状態の色はボタンの色に埋もれる） */
-.chip[aria-pressed="true"] .progress .bar {
-  background: color-mix(in srgb, currentColor 35%, transparent);
-}
-.chip[aria-pressed="true"] .progress .bar span {
-  background: currentColor;
-}
-.chip[aria-pressed="true"] .progress .bar span.partial {
-  background: repeating-linear-gradient(135deg, currentColor 0 2px, transparent 2px 4px);
 }
 /* 左パネルの Epic の札の行（バックログの Epic の欄・カンバンの見出し）：「Epic」の見出しの右に札を並べる */
 .epic-chips {

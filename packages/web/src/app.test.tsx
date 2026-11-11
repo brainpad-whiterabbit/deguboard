@@ -2647,6 +2647,15 @@ describe("画面", () => {
     expect(document.querySelector(".filter-chips")).toBeNull();
   });
 
+  it("開いた Iteration がなければ、開いた Epic があってもカンバンの見出しに Epic の札の列を出さず、案内を出す", async () => {
+    const client = boardClient();
+    client.data.iterations = [iteration({ id: "s0", name: "既定", status: "closed" })];
+    mount(client, hostOf("sidebar"));
+    await screen.findByText("開いた Iteration（planned・active）はない");
+    expect(client.data.epics.some((e) => e.status === "open")).toBe(true);
+    expect(document.querySelector(".epic-chips")).toBeNull();
+  });
+
   it("サイドバーのバックログの区画は折りたたみの節で、開閉が host.state に残る", async () => {
     window.location.hash = "#/backlog";
     const client = mockClient();
