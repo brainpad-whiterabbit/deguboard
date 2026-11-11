@@ -1499,6 +1499,53 @@ textarea.body {
   grid-template-columns: auto auto minmax(0, 1fr) auto;
 }
 /*
+ * PR のある行（UI-2。prRowClass）：番号の下の 2 段目に PR の印と #番号のリンクを出す。
+ * 包み（.row-item・li）が行の列を持ち、行のリンク（.ticket-row）は subgrid でその列を使う。PR のリンクは行のリンクの外に置く
+ * （リンクの中にリンクを入れない）ので、番号の列（2 段目）に置いても列の幅は広げない（幅 0 で、はみ出した分は右の空いた段に出る）。
+ * 包みの列は .ticket-row の列と同じ（kanban は頭の印の有無で 2 通り）。PR のない行には付かないので今の行のままになる
+ */
+.rows li.pr-row,
+.row-item.pr-row {
+  display: grid;
+  column-gap: 6px;
+  row-gap: 0;
+}
+.pr-row.kanban {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+.pr-row.kanban.has-head,
+.pr-row.backlog {
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
+}
+.pr-row > .row.ticket-row {
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+}
+.row-pr {
+  grid-row: 2;
+  grid-column: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  width: 0;
+  justify-self: start;
+  white-space: nowrap;
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--vscode-descriptionForeground);
+}
+.pr-row.kanban.has-head > .row-pr,
+.pr-row.backlog > .row-pr {
+  grid-column: 2;
+}
+/*
+ * 番号が先頭の列（頭の印がない kanban）のときは、subgrid が行の左の余白（padding 6px と border 1px）を先頭の列に足すので、
+ * 番号は列の左端から 7px 内側に出る。PR の欄も同じだけ内側に寄せて番号と左端を揃える（頭の印の列や backlog の番号は 2 列目で、ずれない）
+ */
+.pr-row.kanban:not(.has-head) > .row-pr {
+  margin-left: 7px;
+}
+/*
  * カンバンの行の頭の印（UI-2）。running は 1 秒で 1 回転するリング、idle は止まった半分塗りの丸。どちらも 12px で in_progress の色。
  * 動きを減らす設定ではリングを回さない（止まったリングのまま。半分塗りの丸とは形で見分ける）
  */

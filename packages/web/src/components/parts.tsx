@@ -323,7 +323,8 @@ export function RowPriority({ priority }: { priority: Priority }) {
  * kanban と backlog の行は担当者の列を出さない（担当は右端の印で出す。row-end.tsx の KanbanRowEnd・BacklogRowEnd）。
  * 列がないぶんの幅はタイトルに回る。
  * variant で行の種類を選ぶ（TicketRowVariant）。end を渡すと右端の優先度の印の代わりにそれを出す（カンバンの行の Plan の番号と待ちなど）。
- * head を渡すとカンバンの行の頭（list の行の丸印の位置）にそれを出す（Run の実行中の印。ActivityMark）
+ * head を渡すとカンバンの行の頭（list の行の丸印の位置）にそれを出す（Run の実行中の印。ActivityMark）。
+ * カンバンとバックログの行で PR の番号があるときは、行のリンクの外の 2 段目に PR のリンクを出す（RowPrLink）。包みの class は呼び出し側が prRowClass で付ける
  */
 export function TicketRow({
   ticket,
@@ -349,25 +350,94 @@ export function TicketRow({
   const backlog = variant === "backlog";
   const withHead = kanban && head != null;
   return (
-    <TicketLink
-      id={ticket.id}
-      className={`row ticket-row status-${ticket.status}${kanban ? " kanban-row" : ""}${backlog ? " backlog-row" : ""}${withHead ? " has-head" : ""}${flash ? " changed" : ""}`}
-      onClick={onClick}
-    >
-      {kanban ? withHead ? head : null : <StatusDot status={ticket.status} />}
-      <code>{ticket.id}</code>
-      <span className="row-title" title={ticket.title}>
-        {ticket.title}
-      </span>
-      {kanban || backlog ? null : ticket.assignee && !hideAssignee ? (
-        <span className="row-assignee" title={ticket.assignee}>
-          {actorLabel(ticket.assignee)}
+    <>
+      <TicketLink
+        id={ticket.id}
+        className={`row ticket-row status-${ticket.status}${kanban ? " kanban-row" : ""}${backlog ? " backlog-row" : ""}${withHead ? " has-head" : ""}${flash ? " changed" : ""}`}
+        onClick={onClick}
+      >
+        {kanban ? withHead ? head : null : <StatusDot status={ticket.status} />}
+        <code>{ticket.id}</code>
+        <span className="row-title" title={ticket.title}>
+          {ticket.title}
         </span>
+        {kanban || backlog ? null : ticket.assignee && !hideAssignee ? (
+          <span className="row-assignee" title={ticket.assignee}>
+            {actorLabel(ticket.assignee)}
+          </span>
+        ) : (
+          <span />
+        )}
+        {end ?? <RowPriority priority={ticket.priority} />}
+      </TicketLink>
+      {(kanban || backlog) && ticket.pr ? <RowPrLink pr={ticket.pr} /> : null}
+    </>
+  );
+}
+
+/**
+ * PR の Web の URL（リモートの Web の URL と PR の番号から。詳細の PR の欄と行の PR のリンクが同じ URL を開く）。
+ * web の URL がわからないときは null（リンクにせず番号を文字だけで出す）
+ */
+export function prHref(webUrl: string | null | undefined, pr: number): string | null {
+  return webUrl ? `${webUrl}/pull/${pr}` : null;
+}
+
+/**
+ * PR のある行の包み（UI-2）の class。カンバンとバックログの行で PR の番号があるときだけ付け、番号の列の 2 段目に PR のリンクを置く（styles.css の .pr-row）。
+ * 包みは行の要素（.row-item・li）。head は kanban の頭の印の有無（TicketRow の has-head と同じ）
+ */
+export function prRowClass(
+  ticket: Pick<Ticket, "pr">,
+  variant: TicketRowVariant | undefined,
+  head: boolean,
+): string | undefined {
+  if (!ticket.pr || (variant !== "kanban" && variant !== "backlog")) return undefined;
+  return `pr-row ${variant}${variant === "kanban" && head ? " has-head" : ""}`;
+}
+
+/**
+ * 行の番号の下の PR のリンク（UI-2）。行のリンクの外に置くので、リンクの中にリンクを入れず、Tab では止まらない（tabIndex -1）。
+ * 押しても行の選択と詳細は変えない（ask-menu.tsx の NOT_SELECT_CLICK が .row-pr を外す）。PR の印と #番号（PrLink と同じ URL）
+ */
+function RowPrLink({ pr }: { pr: number }) {
+  const href = prHref(useStore().status?.web_url, pr);
+  const label = (
+    <>
+      <PrGlyph />#{pr}
+    </>
+  );
+  return (
+    <span className="row-pr">
+      {href ? (
+        <a href={href} target="_blank" rel="noreferrer" tabIndex={-1}>
+          {label}
+        </a>
       ) : (
-        <span />
+        label
       )}
-      {end ?? <RowPriority priority={ticket.priority} />}
-    </TicketLink>
+    </span>
+  );
+}
+
+/** PR の印（9px の SVG。枝分かれした線）。色は文字に合わせて currentColor */
+function PrGlyph() {
+  return (
+    <svg
+      className="pr-glyph"
+      width={9}
+      height={9}
+      viewBox="0 0 10 10"
+      aria-hidden="true"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.2}
+    >
+      <circle cx="2.5" cy="2.5" r="1.3" />
+      <circle cx="2.5" cy="7.5" r="1.3" />
+      <circle cx="7.5" cy="7.5" r="1.3" />
+      <path d="M2.5 3.8v2.4M7.5 6.2V4A1.5 1.5 0 0 0 6 2.5H5" />
+    </svg>
   );
 }
 
@@ -410,8 +480,12 @@ export function AskRow({
       ? { targets: [ticket.id], label: tr("行 {0}", ticket.id), section: ask, select: true }
       : null,
   );
+  const prClass = prRowClass(ticket, variant, head != null);
   return (
-    <div className={`row-item${dimmed ? " is-waiting" : ""}`} {...(ask ? spot.props : {})}>
+    <div
+      className={`row-item${dimmed ? " is-waiting" : ""}${prClass ? ` ${prClass}` : ""}`}
+      {...(ask ? spot.props : {})}
+    >
       <TicketRow
         ticket={ticket}
         hideAssignee={hideAssignee}
@@ -429,7 +503,15 @@ export function AskRow({
  * バックログの行（サイドバー）。右クリックの文脈は webviewSection（core の WEBVIEW_CONTRACT の写しで、拡張の package.json の when と合う）と
  * チケット（拡張の「詳細を開く」「ID をコピー」が使う）だけ載せる（useAskSpot。既定の切り取り・コピー・貼り付けは出さない）。頼む入口は吹き出し
  */
-function BacklogItem({ ticket: t, children }: { ticket: Ticket; children: ReactNode }) {
+function BacklogItem({
+  ticket: t,
+  className,
+  children,
+}: {
+  ticket: Ticket;
+  className?: string | undefined;
+  children: ReactNode;
+}) {
   const spot = useAskSpot({
     targets: [t.id],
     label: tr("行 {0}", t.id),
@@ -438,7 +520,7 @@ function BacklogItem({ ticket: t, children }: { ticket: Ticket; children: ReactN
     select: true,
   });
   return (
-    <li {...spot.props}>
+    <li className={className} {...spot.props}>
       {children}
       {spot.overlay}
     </li>
@@ -481,12 +563,15 @@ export function TicketTable({
         const content = (
           <TicketRow ticket={t} hideAssignee={hideAssignee} variant={variant} end={endOf(t)} />
         );
+        const className = prRowClass(t, variant, false);
         return rowMenu ? (
-          <BacklogItem key={t.id} ticket={t}>
+          <BacklogItem key={t.id} ticket={t} className={className}>
             {content}
           </BacklogItem>
         ) : (
-          <li key={t.id}>{content}</li>
+          <li key={t.id} className={className}>
+            {content}
+          </li>
         );
       })}
     </ul>
