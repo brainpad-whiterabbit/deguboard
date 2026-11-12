@@ -153,7 +153,23 @@ export function createApp(options: AppOptions): Handler {
       });
       return;
     }
-    const url = new URL(req.url ?? "/", "http://localhost");
+    // URL として読めない要求先（//a:b のポートなど）と、パーセントの誤り（%E0%A4%A など）は、
+    // API の名前と静的ファイルの両方に効くので、ルーティングの前に 400 で断る。ここが throw すると
+    // 処理されない reject になり、dg serve の過程が落ちる
+    let url: URL;
+    try {
+      url = new URL(req.url ?? "/", "http://localhost");
+      decodeURIComponent(url.pathname);
+    } catch {
+      json(res, 400, {
+        ok: false,
+        error: {
+          code: "BAD_URL",
+          message: `Refused a request whose URL cannot be read: ${JSON.stringify(req.url ?? "")}`,
+        },
+      });
+      return;
+    }
     try {
       if (url.pathname === "/api/commands" && req.method === "GET") {
         json(res, 200, { ok: true, data: descriptors });
@@ -201,6 +217,11 @@ export function createApp(options: AppOptions): Handler {
           : "deguboard server。API は /api/commands。画面（web）はまだ配信していない\n",
       );
     } catch (error) {
+      // 静的ファイルを流し始めた後の失敗は、応答を書けないので接続を閉じる（書くと例外になり、落ちる）
+      if (res.headersSent) {
+        res.destroy();
+        return;
+      }
       if (error instanceof DeguboardError) {
         json(res, statusOf(error), {
           ok: false,
