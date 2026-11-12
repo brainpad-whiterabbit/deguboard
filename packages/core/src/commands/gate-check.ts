@@ -185,7 +185,9 @@ export function chooseCheckSince(
   if (!since.files)
     return whole(`Ran actions.test because the files changed since commit ${at} could not be read`);
   if (since.files.length === 0)
-    return whole(`Ran actions.test because there are no files changed since commit ${at}`);
+    return whole(
+      `Ran actions.test because there are no files changed since commit ${at}, the last commit whose actions.test passed`,
+    );
   const outside = since.files.filter((f) => !matchesAnyGlob(f, actions.light_paths));
   if (outside.length > 0) {
     const shown = outside.slice(0, 3).join(", ") + (outside.length > 3 ? " and others" : "");
@@ -346,7 +348,10 @@ export async function judgeCheck(
     }
   }
   return result.code === 0
-    ? { ok: true, detail: `The check (${shown}) passed on the latest commit ${short(sha)}${why}` }
+    ? {
+        ok: true,
+        detail: `The check (${shown}) passed on the latest commit ${short(sha)}${why}${found ? " (reused the remembered result for this commit)" : ""}`,
+      }
     : {
         ok: false,
         detail: `The check (${shown}) failed on the latest commit ${short(sha)} (exit ${result.code})${why}. End of output:\n${result.tail}`,

@@ -388,6 +388,7 @@ describe("dg gate の検査（actions.test。t601）", () => {
     expect(await runs()).toBe(1);
     // 同じコミットで呼び直すと、覚えた結果を返して回さない
     expect((await only()).passed).toBe(true);
+    expect(check(await only()).detail).toContain("reused the remembered result");
     expect(await runs()).toBe(1);
     // push した後の ready は、同じコミットの覚えた結果を使う
     await git(f.cloneA, ["push", "-q", "origin", "feat/t1"]);
@@ -574,6 +575,62 @@ describe("dg gate の検査（actions.test。t601）", () => {
         "Ran actions.test because actions.test changed since commit",
       );
       expect(await lines()).toEqual(["run", "light", "run"]);
+    });
+
+    it("覚える結果は直近 5 件と全体の検査の基準のコミットの結果だけを残し、古い結果は消す（t741）", async () => {
+      const { ctx, f, commit, lines } = await withLight();
+      await passFull(ctx, f.cloneA, 1);
+      const fullSha = (await git(f.cloneA, ["rev-parse", "HEAD"])).stdout.trim();
+      const shas: string[] = [];
+      // 軽い検査で 6 件の通った結果を積む（基準のコミットは動かない）
+      for (let i = 0; i < 6; i++) {
+        await commit(`docs/n${i}.md`);
+        await review(ctx, later(2 + i), 0);
+        expect(check(await judge(ctx, "ready")).ok).toBe(true);
+        shas.push((await git(f.cloneA, ["rev-parse", "HEAD"])).stdout.trim());
+      }
+      const record = JSON.parse(
+        await readFile(path.join(ctx.repo.localDir, "checks", "t1.json"), "utf8"),
+      ) as { results: Array<{ sha: string }>; full: { sha: string } };
+      const kept = record.results.map((r) => r.sha);
+      // 基準のコミット（古い）と直近 5 件（n1〜n5）は残り、最初の n0 だけが消える
+      expect(kept).toHaveLength(6);
+      expect(kept).toContain(fullSha);
+      expect(kept).not.toContain(shas[0]);
+      expect(kept).toEqual(expect.arrayContaining(shas.slice(1)));
+      expect(record.full.sha).toBe(fullSha);
+      // 基準のコミットに戻して呼ぶと、回さずに覚えた結果を返す
+      const before = (await lines()).length;
+      await git(f.cloneA, ["reset", "-q", "--hard", fullSha]);
+      const only = (await runCommand(gate, ctx, { ticket: "t1", only: "check" })).data as GateView;
+      expect(only.passed).toBe(true);
+      expect(check(only).detail).toContain("reused the remembered result");
+      expect((await lines()).length).toBe(before);
+    });
+
+    it("旧形式（1 チケット 1 件のオブジェクト）の記録は読めないものとして、検査を回して新しい形式で書き直す（t741）", async () => {
+      const { ctx, f, lines } = await withLight();
+      await review(ctx, later(1), 0);
+      const dir = path.join(ctx.repo.localDir, "checks");
+      await mkdir(dir, { recursive: true });
+      await writeFile(
+        path.join(dir, "t1.json"),
+        JSON.stringify({
+          sha: "0".repeat(40),
+          command: ctx.config.actions.test,
+          code: 0,
+          tail: "",
+          at: new Date().toISOString(),
+        }),
+      );
+      expect(check(await judge(ctx, "ready")).ok).toBe(true);
+      expect(await lines()).toEqual(["run"]);
+      const record = JSON.parse(await readFile(path.join(dir, "t1.json"), "utf8")) as {
+        results: Array<{ sha: string }>;
+      };
+      expect(record.results.map((r) => r.sha)).toEqual([
+        (await git(f.cloneA, ["rev-parse", "HEAD"])).stdout.trim(),
+      ]);
     });
   });
 });
