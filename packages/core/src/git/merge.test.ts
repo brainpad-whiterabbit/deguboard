@@ -86,7 +86,11 @@ describe("frontmatter の 3-way マージ", () => {
       doc({ ...BASE, priority: "high" }),
       doc({ ...BASE, priority: "low" }),
     );
-    expect(r).toEqual({ ok: false, conflicts: ["priority"] });
+    expect(r).toEqual({
+      ok: false,
+      conflicts: ["priority"],
+      details: [{ field: "priority", base: "medium", ours: "high", theirs: "low" }],
+    });
   });
 
   it("本文は別々の行の変更なら両方を残し、同じ行の変更なら競合にする", async () => {
@@ -106,7 +110,12 @@ describe("frontmatter の 3-way マージ", () => {
       doc(BASE, body.replace("三", "さん")),
       doc(BASE, body.replace("三", "サン")),
     );
-    expect(clash).toEqual({ ok: false, conflicts: ["本文"] });
+    // ぶつかった行の塊だけを返し、ぶつからなかった行（一・二・四・五）は返さない
+    expect(clash).toEqual({
+      ok: false,
+      conflicts: ["本文"],
+      details: [{ field: "本文", base: "三", ours: "さん", theirs: "サン" }],
+    });
   });
 
   it("frontmatter がない・base が空（add/add）なら undefined を返して行単位のマージに任せる", async () => {
@@ -146,7 +155,18 @@ describe("frontmatter の 3-way マージ", () => {
       "id: p1\nclosed_at: 2026-11-01T00:00:01Z\n",
       "id: p1\nclosed_at: 2026-11-01T00:00:02Z\n",
     );
-    expect(r).toEqual({ ok: false, conflicts: ["closed_at"] });
+    expect(r).toEqual({
+      ok: false,
+      conflicts: ["closed_at"],
+      details: [
+        {
+          field: "closed_at",
+          base: null,
+          ours: "2026-11-01T00:00:01Z",
+          theirs: "2026-11-01T00:00:02Z",
+        },
+      ],
+    });
     expect(await mergeDocuments(base, doc({ id: "p1" }), base)).toBeUndefined();
   });
 
@@ -159,7 +179,7 @@ describe("frontmatter の 3-way マージ", () => {
       body.replace("三", "サン").replace("五", "ご"),
     );
     // prefer がなければ今までどおり競合
-    expect(await mergeDocuments(base, ours, theirs)).toEqual({
+    expect(await mergeDocuments(base, ours, theirs)).toMatchObject({
       ok: false,
       conflicts: ["title", "本文"],
     });
@@ -322,6 +342,76 @@ describe("同期のマージドライバ", () => {
     );
     expect((await git(b.repo.dataDir, ["status", "--porcelain"])).stdout).toBe("");
     expect(await t1(b)).toContain("title: B の題");
+  });
+
+  it("競合で止まると、data.conflict_fields がフィールドと分岐点・ローカル・リモートの値を返し、警告にもフィールドと両側の値を載せる", async () => {
+    const f = await fixture();
+    const { a, b } = await twoClones(f);
+    await runCommand(ticketUpdate, a, { ticket: "t1", title: "A の題" });
+    await runCommand(sync, a, {});
+    await runCommand(ticketUpdate, b, { ticket: "t1", title: "B の題" });
+    const synced = await runCommand(sync, b, {});
+    // conflicts はファイル名の配列のまま。updated_at は新しい方を採るので競合に入らない
+    expect(synced.data.conflicts).toEqual(["tickets/t1.md"]);
+    expect(synced.data.conflict_fields).toEqual([
+      {
+        file: "tickets/t1.md",
+        field: "title",
+        base: "ログイン",
+        local: "B の題",
+        remote: "A の題",
+      },
+    ]);
+    expect(synced.warnings.join("\n")).toContain(
+      'tickets/t1.md title (local "B の題", remote "A の題", base "ログイン")',
+    );
+  });
+
+  it("rebase が止まったコミットの後のコミットでぶつかるフィールドと、本文のぶつかった行の塊も data.conflict_fields に返す", async () => {
+    const f = await fixture();
+    const { a, b } = await twoClones(f);
+    await runCommand(ticketCreate, a, { title: "検索" });
+    await runCommand(ticketUpdate, a, { ticket: "t2", body: "## 概要\n\n一\n二\n三\n" });
+    await runCommand(sync, a, {});
+    await runCommand(sync, b, {});
+    await runCommand(ticketUpdate, a, { ticket: "t1", title: "A の題" });
+    await runCommand(ticketUpdate, a, {
+      ticket: "t2",
+      priority: "high",
+      body: "## 概要\n\n一\nに\n三\n",
+    });
+    await runCommand(sync, a, {});
+    // b の 1 つ目のコミットは t1 で、2 つ目のコミットは t2 でぶつかる
+    await runCommand(ticketUpdate, b, { ticket: "t1", title: "B の題" });
+    await runCommand(sync, b, {});
+    await runCommand(ticketUpdate, b, {
+      ticket: "t2",
+      priority: "low",
+      body: "## 概要\n\n一\nニ\n三\n",
+    });
+    const synced = await runCommand(sync, b, {});
+    // rebase は 1 つ目のコミットで止まるので、git が報告するのは t1 だけ
+    expect(synced.data.conflicts).toEqual(["tickets/t1.md"]);
+    expect(synced.data.conflict_fields).toEqual([
+      {
+        file: "tickets/t1.md",
+        field: "title",
+        base: "ログイン",
+        local: "B の題",
+        remote: "A の題",
+      },
+      { file: "tickets/t2.md", field: "priority", base: "medium", local: "low", remote: "high" },
+      { file: "tickets/t2.md", field: "本文", base: "二", local: "ニ", remote: "に" },
+    ]);
+    expect(synced.warnings.join("\n")).toContain(
+      'tickets/t2.md body lines (local "ニ", remote "に", base "二")',
+    );
+    // --resolve が解く競合と同じフィールドを示している
+    const resolved = await runCommand(sync, b, { resolve: "remote" });
+    expect(resolved.data.conflicts).toEqual([]);
+    expect(resolved.data.resolved.map((r) => [r.file, r.field])).toEqual(
+      synced.data.conflict_fields.map((c) => [c.file, c.field]),
+    );
   });
 
   it("前の版の .gitattributes には、sync が Plan・Iteration・Project の行を足してコミットする", async () => {
