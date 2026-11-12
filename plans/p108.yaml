@@ -1,0 +1,28 @@
+id: p108
+project: default
+tickets: [t765, t749, t750, t752, t751]
+after:
+  t751:
+    - t749
+pending_approval: true
+details:
+  t765:
+    scope: 印で頼み直したとき、別セッションのサブエージェントの記録に結び付いた古い開いた Run を interrupted で閉じ、dg next が古い Run を待たせず頼み直しを案内する
+    approach: hook.ts の印の起動と next.ts の待ちの判定に、記録の最後の更新の古さで落ちた残りを見分ける判定を足し、RN-6・RN-7・ADR-025 とヘルプを直す
+    tier: heavy
+  t749:
+    scope: push が届かないとき、claim・iteration start/reopen と epic・iteration・plan の create を失敗にし、仮番号のチケットの claim を拒否する
+    approach: writeLocked に届かないときに失敗させる指定を足して該当の操作から使い、届かない bare リモートのテストと SY-3・DT-5 を直す
+    tier: heavy
+  t750:
+    scope: pr merge を品質ゲートが判定したコミットに固定し、head が違えばマージしない
+    approach: ゲートの結果に判定した SHA を持たせ、prMerge が --match-head-commit で gh に渡す。後から push した場合のテストを足す
+    tier: standard
+  t752:
+    scope: dg serve が壊れた percent-encoding と URL として読めない要求先に 400 を返し、プロセスが落ちない
+    approach: app.ts と static.ts の URL の解釈を try の中に入れて 400 を返し、両方をテストで示す
+    tier: standard
+  t751:
+    scope: ticket.update が任意の読んだときの本文を照らし、画面の保存が編集中のほかの変更を上書きせずに知らせる
+    approach: ticketCheck の base と同じ照合を ticketUpdate に足し、Web と VS Code の詳細の画面から編集開始時の本文を渡して拒否を知らせる
+    tier: heavy
