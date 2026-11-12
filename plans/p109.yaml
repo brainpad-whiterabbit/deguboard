@@ -1,0 +1,84 @@
+id: p109
+project: default
+tickets: [t749, t750, t752, t756, t757, t751, t753, t765, t759, t761, t762, t755, t754, t763, t764, t758, t760]
+after:
+  t751:
+    - t749
+  t753:
+    - t749
+  t765:
+    - t756
+  t759:
+    - t753
+  t761:
+    - t753
+  t762:
+    - t765
+  t755:
+    - t751
+    - t765
+  t754:
+    - t759
+  t763:
+    - t750
+    - t755
+  t764:
+    - t763
+  t758:
+    - t754
+    - t764
+  t760:
+    - t758
+pending_approval: true
+details:
+  t749:
+    scope: push が届かないときに claim・iteration start/reopen・epic/iteration/plan create を失敗にし、仮番号の claim を拒否する
+    tier: heavy
+  t750:
+    scope: pr merge に検査した SHA を --match-head-commit で渡す
+    tier: standard
+  t752:
+    scope: 壊れた URL を 400 にし、handler の reject でプロセスが落ちないようにする
+    tier: standard
+  t756:
+    scope: フック内の失敗を記録して後から知らせ、届かないフックの種類を hooks check で示す
+    tier: heavy
+  t757:
+    scope: metrics show で Run がまるごと欠けた done チケットを示す
+    tier: standard
+  t751:
+    scope: 画面の本文保存で base を照らし、読んだ後の変更があれば上書きせずに知らせる
+    tier: standard
+  t753:
+    scope: git の時間切れ後に rebase を abort し、途中の状態を基準に残さない
+    tier: heavy
+  t765:
+    scope: 落ちたセッションのサブエージェント Run を頼み直しで interrupted で閉じる
+    tier: heavy
+  t759:
+    scope: 拡張だけで使ってもマージドライバを git config に登録する
+    tier: heavy
+  t761:
+    scope: 画面が定期的に fetch し、未取り込みの更新を示す
+    tier: heavy
+  t762:
+    scope: 移行期の経路のコメントと after を depends_on と分ける理由を ADR に残す
+    tier: light
+  t755:
+    scope: 承認待ちの Plan のチケットを dg next が勧めず、claim が警告する
+    tier: standard
+  t754:
+    scope: 終わった Plan を閉じる手を flow に入れ、終わったの判定を 1 つにする
+    tier: standard
+  t763:
+    scope: 見直しの新しさを見直した SHA で判定する
+    tier: heavy
+  t764:
+    scope: コミットのない作業ブランチを起点 SHA で照らし、done にしない
+    tier: heavy
+  t758:
+    scope: sync が gh で照合する間は書き込みロックを持たない
+    tier: heavy
+  t760:
+    scope: Workflow の review step と Plan をまたぐ循環を書き込み時に検査する
+    tier: standard
