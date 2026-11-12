@@ -4,8 +4,15 @@
 // そこで、届いたことそのものを記録し、印で Run を任せる操作（next・brief・claim --no-run）がこのセッションに届いていなければ警告する。
 // 届いていれば、実装と手直しはいつもサブエージェントに頼むので、next は親が自分で進める道を案内せず、--no-run なしの claim と run start の implement・fix は警告する（t713・t717）。
 // 判定は SessionStart に限らず、このセッションのどのフックでもよい（セッションの途中で dg hooks install したときも、次のツールの PreToolUse で届く）
+//
+// フックの中の警告は終了コード 0 で標準エラーに出るだけで、エージェントにも人にも届かない。そこで、セッションごとに警告を書き残し、
+// まだ知らせていないものを next・brief・hooks check が知らせる（t756）。「届く」はどれか 1 種類で真になるので、届いたフックの種類も
+// セッションごとに残し、印で Run を開いたのに SubagentStop が届かないセッションを警告にする（Run が閉じないまま誰も気づかないため）。
+// ファイルは種類ごと・警告ごとに分け、同時に動くフック（並べたツールの PreToolUse など）が読んで書き直す競合で記録を落とさない：
+//   <session>.json（届いた時刻）・<session>.kind-<種類>.json（その種類が届いた時刻）・<session>.marked.jsonl（印で開いた起動。1 件 1 行）・
+//   <session>.stop-warned（SubagentStop の警告を書いた印）・<session>.warnings.jsonl（警告。1 件 1 行）・<session>.reported（知らせた警告の終わりの位置）
 
-import { mkdir, readdir, rm, stat, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { detectAgent, hooksOf, sessionFromEnv, type AgentEnv } from "../agents/index.js";
 import { REVIEW_STEP, type Run } from "../model/run.js";
@@ -15,24 +22,162 @@ const HOOK_SESSIONS_DIR = "hook-sessions";
 const KEEP_DAYS = 30;
 /** ファイル名に使えるセッション ID。ほかの形はパスを組み立てずに記録しない */
 const SESSION_ID = /^[A-Za-z0-9_-]{1,128}$/;
+/** 一度に知らせる警告の数。これより多ければ新しいものだけを出し、残りの数を添える */
+const REPORT_LIMIT = 10;
+const WARNINGS_SUFFIX = ".warnings.jsonl";
+const KIND_PREFIX = ".kind-";
+/** SubagentStop にあたる出来事の種類（HookEvent の kind） */
+const SUBAGENT_STOPPED = "subagent_stopped";
 
-const fileOf = (localDir: string, session: string) =>
-  path.join(localDir, HOOK_SESSIONS_DIR, `${session}.json`);
+const dirOf = (localDir: string) => path.join(localDir, HOOK_SESSIONS_DIR);
+const fileOf = (localDir: string, session: string, suffix = ".json") =>
+  path.join(dirOf(localDir), `${session}${suffix}`);
 
-/** このセッションにフックが届いたことを記録する。中身は時刻だけで、入力の値は残さない（MT-4） */
+/**
+ * このセッションにフックが届いたことと、届いた出来事の種類（HookEvent の kind）を記録する。
+ * 中身は時刻だけで、入力の値は残さない（MT-4）
+ */
 export async function recordHookSession(
   localDir: string,
   session: string,
   receivedAt: string,
+  kind?: string,
 ): Promise<void> {
   if (!SESSION_ID.test(session)) return;
-  await mkdir(path.join(localDir, HOOK_SESSIONS_DIR), { recursive: true });
-  await writeFile(fileOf(localDir, session), `${JSON.stringify({ received_at: receivedAt })}\n`);
+  await mkdir(dirOf(localDir), { recursive: true });
+  const body = `${JSON.stringify({ received_at: receivedAt })}\n`;
+  await Promise.all([
+    writeFile(fileOf(localDir, session), body),
+    ...(kind && /^[a-z_]+$/.test(kind)
+      ? [writeFile(fileOf(localDir, session, `${KIND_PREFIX}${kind}.json`), body)]
+      : []),
+  ]);
 }
 
-/** KEEP_DAYS より前に書いた記録を消す。消せないものは残す（次の機会に消す） */
+/** このセッションに届いた出来事の種類（HookEvent の kind）。記録がなければ空 */
+export async function hookKindsOf(localDir: string, session: string): Promise<string[]> {
+  if (!SESSION_ID.test(session)) return [];
+  const prefix = `${session}${KIND_PREFIX}`;
+  const names = await readdir(dirOf(localDir)).catch(() => [] as string[]);
+  return names
+    .filter((n) => n.startsWith(prefix) && n.endsWith(".json"))
+    .map((n) => n.slice(prefix.length, -".json".length))
+    .sort();
+}
+
+/** フックの中で出た警告を、このセッションの警告に書き足す（1 件 1 行。追記なので同時に動くフックの記録を落とさない） */
+export async function recordHookWarnings(
+  localDir: string,
+  session: string,
+  event: string,
+  at: string,
+  warnings: readonly string[],
+): Promise<void> {
+  if (!SESSION_ID.test(session) || warnings.length === 0) return;
+  await mkdir(dirOf(localDir), { recursive: true });
+  await appendFile(
+    fileOf(localDir, session, WARNINGS_SUFFIX),
+    warnings.map((text) => `${JSON.stringify({ at, event, text })}\n`).join(""),
+  );
+}
+
+/**
+ * まだ知らせていないフックの警告を、すべてのセッションから古い順に取り出し、知らせたことにする（t756）。
+ * 呼んだセッションに限らないのは、セッションの終わりに書いた警告を次のセッションで知らせるため（同じマシンの deguboard-local だけを読む）。
+ * 知らせた位置はセッションごとに、読んだ行の終わりのバイト数で残す（書きかけの最後の行は次に回す）。
+ * 同時に呼ぶと同じ警告を二度知らせうるが、落とすことはない
+ */
+export async function takeHookWarnings(localDir: string): Promise<string[]> {
+  const names = await readdir(dirOf(localDir)).catch(() => [] as string[]);
+  const found: Array<{ at: string; line: string }> = [];
+  for (const name of names.filter((n) => n.endsWith(WARNINGS_SUFFIX))) {
+    const session = name.slice(0, -WARNINGS_SUFFIX.length);
+    if (!SESSION_ID.test(session)) continue;
+    const text = await readFile(fileOf(localDir, session, WARNINGS_SUFFIX), "utf8").catch(
+      () => undefined,
+    );
+    if (text === undefined) continue;
+    const reportedFile = fileOf(localDir, session, ".reported");
+    const from = Number.parseInt(
+      (await readFile(reportedFile, "utf8").catch(() => "0")).trim(),
+      10,
+    );
+    const bytes = Buffer.from(text, "utf8");
+    const start = Number.isFinite(from) && from >= 0 && from <= bytes.length ? from : 0;
+    const end = bytes.lastIndexOf(0x0a) + 1;
+    if (end <= start) continue;
+    for (const raw of bytes.subarray(start, end).toString("utf8").split("\n")) {
+      if (raw.trim() === "") continue;
+      try {
+        const d = JSON.parse(raw) as { at?: unknown; event?: unknown; text?: unknown };
+        if (typeof d.text !== "string") continue;
+        const at = typeof d.at === "string" ? d.at : "";
+        const event = typeof d.event === "string" ? d.event : "?";
+        found.push({ at, line: `dg hook ${event} (${at}, session ${session}): ${d.text}` });
+      } catch {
+        // 読めない行は飛ばす
+      }
+    }
+    await writeFile(reportedFile, `${end}\n`).catch(() => undefined);
+  }
+  found.sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0));
+  if (found.length <= REPORT_LIMIT) return found.map((f) => f.line);
+  const skipped = found.length - REPORT_LIMIT;
+  return [
+    `${skipped} earlier warning(s) from dg hooks are not shown (they are in ${dirOf(localDir)})`,
+    ...found.slice(-REPORT_LIMIT).map((f) => f.line),
+  ];
+}
+
+/** 印で Run を開いた起動を、このセッションの記録に書き足す。foreground は前景の起動（終わってから返る） */
+export async function recordMarkedLaunch(
+  localDir: string,
+  session: string,
+  at: string,
+  foreground: boolean,
+): Promise<void> {
+  if (!SESSION_ID.test(session)) return;
+  await mkdir(dirOf(localDir), { recursive: true });
+  await appendFile(
+    fileOf(localDir, session, ".marked.jsonl"),
+    `${JSON.stringify({ at, foreground })}\n`,
+  );
+}
+
+/**
+ * 印で Run を開いたのに、このセッションに SubagentStop が 1 つも届いていなければ警告を返す（セッションごとに 1 回。t756）。
+ * SubagentStop は印のないサブエージェントでも届くので、1 つでも届いていれば警告しない。届かないと言えるのは、
+ *   - 前景の起動を開いたとき（SubagentStop は前景の起動の結果より先に来る）
+ *   - 印で開いた起動が 2 つ目になったとき（前の起動が止まっていても届いていない見込みが高い）
+ *   - セッションが終わるとき（ending）
+ * のどれか。バックグラウンドの起動 1 つだけでは、まだ動いているのと見分けられないので待つ
+ */
+export async function subagentStopMissingWarning(
+  localDir: string,
+  session: string,
+  opts: { foreground?: boolean; ending?: boolean },
+): Promise<string | undefined> {
+  if (!SESSION_ID.test(session)) return undefined;
+  if ((await hookKindsOf(localDir, session)).includes(SUBAGENT_STOPPED)) return undefined;
+  const launches = (
+    await readFile(fileOf(localDir, session, ".marked.jsonl"), "utf8").catch(() => "")
+  )
+    .split("\n")
+    .filter((l) => l.trim() !== "").length;
+  if (launches === 0) return undefined;
+  if (!opts.ending && !opts.foreground && launches < 2) return undefined;
+  // 一度だけ書く。印のファイルがもうあれば書かない（同時に来たフックでも 1 回）
+  const wrote = await writeFile(fileOf(localDir, session, ".stop-warned"), "", { flag: "wx" }).then(
+    () => true,
+    () => false,
+  );
+  if (!wrote) return undefined;
+  return `No SubagentStop hook has reached this session (${session}), although ${launches} sub-agent(s) were started with the marker. A Run that the marker opened for a background sub-agent is not closed when the sub-agent stops (it stays open until the session ends, and its usage and time may not be counted). The SubagentStop hook may be missing from the settings, or its command may not run in the agent's environment. Check with dg hooks check`;
+}
+
+/** KEEP_DAYS より前に書いた記録（どのファイルも）を消す。消せないものは残す（次の機会に消す） */
 export async function pruneHookSessions(localDir: string, now: Date): Promise<void> {
-  const dir = path.join(localDir, HOOK_SESSIONS_DIR);
+  const dir = dirOf(localDir);
   const names = await readdir(dir).catch(() => [] as string[]);
   const before = now.getTime() - KEEP_DAYS * 24 * 60 * 60 * 1000;
   await Promise.all(

@@ -13,7 +13,7 @@ import { defineCommand, ok, type CommandContext } from "./define.js";
 import { FIX_ROUNDS_LIMIT, heavyReviewRounds } from "./gate.js";
 import { agentDg as dg, openPlanOf, ticketRef } from "./helpers.js";
 import { planReadiness } from "./plan.js";
-import { hooksReachSession, unlinkedReviewWarning } from "./hook-sessions.js";
+import { hooksReachSession, takeHookWarnings, unlinkedReviewWarning } from "./hook-sessions.js";
 import { orphanReviewRuns } from "./orphan-review.js";
 import { openedStepOf } from "./run.js";
 
@@ -442,7 +442,8 @@ export const next = defineCommand({
     "It returns the kind of step (kind: implement, review, fix, ready, wait_merge, wait_deps, wait_human, done), the step to open, the Run in progress, the Plan's tier, scope, and approach, the commands to call (commands; delegate to a sub-agent. In a session that dg hooks have reached, implement and fix are always delegated, even when the model is the parent's and the fix is small, and the commands say so first. Only when no dg hook reaches the session (the mark opens no Run), the parent may proceed on its own: the implement claim drops --no-run and does not use the mark. For implement, review, fix, and ready steps, if that step's Run is already running, or an implementation Run or a fix Run on this branch that has no push since it started is running (for the ready step, also a review Run on this branch, such as one left open when the gate level was lowered), it waits for that to end instead of starting another), and the questions to ask a person (ask_human). " +
     "For implement, review, and fix steps it includes the text to paste into a sub-agent (brief, the same as dg brief). " +
     "For implement and fix steps it includes the model to launch (model) (the Plan's tier maps to config's models.*; a ticket with no tier is standard. When the mapping is empty, and for review and other steps, it is null, meaning the parent's model). " +
-    "A ticket in the waiting_human stage is wait_human. Read it after bringing in the work branch. It writes nothing",
+    "A ticket in the waiting_human stage is wait_human. Read it after bringing in the work branch. " +
+    "It also warns with the dg hook warnings not reported yet (see dg hook --help). It writes nothing but the mark of the reported hook warnings in deguboard-local",
   input: z.object({
     ticket: ticketRef,
   }),
@@ -458,7 +459,8 @@ export const next = defineCommand({
     const role = BRIEF_ROLE_OF[step.kind];
     // フックが結ばなかった見直しを数えたときは知らせる。段階の手によらず出す（t702）
     const unlinked = unlinkedReviewWarning(env, ticket.id, facts.runs, ticket.branch_at);
-    const extra = unlinked ? [unlinked] : [];
+    // フックの中で出た警告は誰にも届いていないので、まだ知らせていないものをここで知らせる（t756）
+    const extra = [...(unlinked ? [unlinked] : []), ...(await takeHookWarnings(ctx.repo.localDir))];
     // 実行中の Run を待つ手には文を出さない（貼ると Run が重なる）。running_run が入るのは待つ手だけ
     if (!role || step.running_run !== null) return ok(step, undefined, extra);
     const { brief, warnings } = await briefOf(ctx, ticket, role);

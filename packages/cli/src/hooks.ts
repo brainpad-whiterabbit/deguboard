@@ -15,6 +15,7 @@ import {
   hooksSilentWarning,
   readHookInput,
   resolveRepoPaths,
+  takeHookWarnings,
   UsageError,
   type AgentEnv,
   type HookSupport,
@@ -299,7 +300,8 @@ export async function installHooks(options: {
 
 /**
  * フックの状態を確かめる：設定に dg のフックが入っているか（イベントごと・matcher）、ハンドラが動くか、直近の入力に
- * 受け取らなかった項目があるか（deguboard-local/hook-inputs/ の記録。値は見ない）。欠けていれば警告にする
+ * 受け取らなかった項目があるか（deguboard-local/hook-inputs/ の記録。値は見ない）。欠けていれば警告にする。
+ * まだ知らせていないフックの中の警告（deguboard-local/hook-sessions/。t756）も警告に足す
  */
 export async function checkHooks(options: {
   cwd: string;
@@ -405,6 +407,8 @@ export async function checkHooks(options: {
       );
     const silent = await hooksSilentWarning(localDir, options.env);
     if (silent) warnings.push(silent);
+    // フックの中で出た警告（SubagentStop が届かないことを含む）のうち、まだ知らせていないもの（t756）
+    warnings.push(...(await takeHookWarnings(localDir)));
   }
   return { agent, scope: options.scope, file, events, warnings };
 }

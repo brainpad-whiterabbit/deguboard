@@ -17,7 +17,8 @@
 //   - tool_requested：.git/deguboard/ への書き込みと、dg を経由しない gh pr ready・merge を粗く拒む（ストアを開かない。t554）
 //   - turn_stopped：データのリポジトリの dg の外の変更（SY-7）を確かめ、見つけたら止まらずに続けさせて伝える（続けさせた後の Stop では伝えない）。
 //     dg の外の変更の検査は、ほかのイベントでは runCommand でも行わない（フックで作業を止めない。ownsOutsideCheck）
-//   どのイベントでも、扱うイベントなら読む項目の有無と時刻を deguboard-local/hook-inputs/ に残す（t542。dg hooks check が読む）
+//   どのイベントでも、扱うイベントなら読む項目の有無と時刻を deguboard-local/hook-inputs/ に残す（t542。dg hooks check が読む）。
+//   届いた出来事の種類と、フックの中で出た警告は deguboard-local/hook-sessions/ にセッションごとに残し、next・brief・hooks check が後で知らせる（t756）
 //   どのフックの後も、前のフックで書き終わりを待ちきれずに残した Run を閉じる（dg sync も同じ）
 
 import { appendFile, mkdir, readFile, rename, writeFile } from "node:fs/promises";
@@ -46,7 +47,13 @@ import {
   takePendingRetryReasons,
 } from "../run/record.js";
 import { defineCommand, ok, runCommand, type CommandContext } from "./define.js";
-import { pruneHookSessions, recordHookSession } from "./hook-sessions.js";
+import {
+  pruneHookSessions,
+  recordHookSession,
+  recordHookWarnings,
+  recordMarkedLaunch,
+  subagentStopMissingWarning,
+} from "./hook-sessions.js";
 import { adoptableReviewRecord } from "./orphan-review.js";
 import {
   closePreviousFixRunOrWarn,
@@ -164,7 +171,9 @@ export const hook = defineCommand({
     "It does not hide text inside quotes, here-documents, or comments; it advises writing the body to a file and passing it with --body-file or git commit -F). " +
     "PreToolUse is called for every tool, so it decides only from the path and command string, without opening the store (tickets, Plans, Epics, Iterations, config), and does not check for changes outside dg. " +
     "When an agent finishes its response (Stop), it checks the data repository for changes outside dg (uncommitted changes, and commits with no dg mark); if it finds any, it keeps the agent going instead of stopping, and reports which files and how to restore or adopt them (dg adopt). A Stop after the agent was already kept going does not report them again. Other events do not stop work even when there are changes outside dg. " +
-    "For each event it keeps, in deguboard-local/hook-inputs/, the presence of the input fields it reads and the time, as the latest one entry per event (no values are kept; dg hooks check reads it), and, in deguboard-local/hook-sessions/, the time a hook last reached each session (kept for 30 days; dg next, dg brief, and dg ticket claim --no-run warn when no hook has reached the calling session). Other failures are turned into warnings and return success, so they do not stop work",
+    "For each event it keeps, in deguboard-local/hook-inputs/, the presence of the input fields it reads and the time, as the latest one entry per event (no values are kept; dg hooks check reads it), and, in deguboard-local/hook-sessions/, the time a hook last reached each session and each kind of event that reached it (kept for 30 days; dg next, dg brief, and dg ticket claim --no-run warn when no hook has reached the calling session). " +
+    "Other failures are turned into warnings and return success, so they do not stop work. The warnings are also kept per session in deguboard-local/hook-sessions/, and dg next, dg brief, and dg hooks check report the ones not reported yet (from any session on this machine). " +
+    "When a Run was opened from the marker but no SubagentStop has reached the session (seen at a foreground launch, at the second marked launch, or at the end of the session), it adds a warning once per session",
   input: z.object({
     event: z
       .string()
@@ -218,9 +227,14 @@ export const hook = defineCommand({
     const env = ctx.env ?? process.env;
     const event = hooks.parse(input.event, input.payload ?? {}, env);
     if (!event) return ok(view, undefined, warnings);
-    // このセッションにフックが届いたことを残す（next・brief・claim --no-run が、届いていないセッションを警告する。t697）
+    // このセッションにフックが届いたことと、届いた種類を残す（next・brief・claim --no-run が、届いていないセッションを警告する。t697・t756）
     try {
-      await recordHookSession(ctx.repo.localDir, event.session, toIsoDateTime(ctx.now()));
+      await recordHookSession(
+        ctx.repo.localDir,
+        event.session,
+        toIsoDateTime(ctx.now()),
+        event.kind,
+      );
       if (event.kind === "session_start") await pruneHookSessions(ctx.repo.localDir, ctx.now());
     } catch (e) {
       warnings.push(
@@ -233,6 +247,20 @@ export const hook = defineCommand({
       // フックの失敗で作業を止めない
       warnings.push(
         `Could not finish the ${input.event} hook (${e instanceof Error ? e.message : String(e)})`,
+      );
+    }
+    // 警告は標準エラーに出るだけで誰にも届かないので、セッションごとに残し、next・brief・hooks check が後で知らせる（t756）
+    try {
+      await recordHookWarnings(
+        ctx.repo.localDir,
+        event.session,
+        input.event,
+        toIsoDateTime(ctx.now()),
+        warnings,
+      );
+    } catch (e) {
+      warnings.push(
+        `Could not write the hook warnings record (${e instanceof Error ? e.message : String(e)})`,
       );
     }
     return ok(view, undefined, warnings);
@@ -364,6 +392,18 @@ async function subagentLaunched(
     if (!(e instanceof OperationError)) throw e;
     warnings.push(`Could not open the ${marker.step} Run of ${marker.ticket}: ${e.message}`);
     return;
+  }
+  // 印で開いた起動を残し、SubagentStop が届かないと言えれば警告する（t756）。書けなくても Run の扱いは止めない
+  try {
+    await recordMarkedLaunch(ctx.repo.localDir, event.session, toIsoDateTime(now), event.finished);
+    const stopMissing = await subagentStopMissingWarning(ctx.repo.localDir, event.session, {
+      foreground: event.finished,
+    });
+    if (stopMissing) warnings.push(stopMissing);
+  } catch (e) {
+    warnings.push(
+      `Could not write the marked launch record (${e instanceof Error ? e.message : String(e)})`,
+    );
   }
   if (!event.transcript) return;
   // 前景の起動はもう終わっている（終わりの出来事は先に来て、閉じる Run がなかった）ので、ここで閉じる
@@ -917,6 +957,11 @@ async function sessionEnd(
   view: HookView,
   warnings: string[],
 ): Promise<void> {
+  // 印で開いた起動があるのに SubagentStop が一度も届かなかったセッションは、終わりで警告を残す（次のセッションの next などが知らせる。t756）
+  const stopMissing = await subagentStopMissingWarning(ctx.repo.localDir, event.session, {
+    ending: true,
+  }).catch(() => undefined);
+  if (stopMissing) warnings.push(stopMissing);
   const paths = await readTranscriptPaths(ctx.repo);
   for (const { data: run } of (await readRunningRuns(ctx.repo)).runs) {
     const transcript = paths.get(run.id);

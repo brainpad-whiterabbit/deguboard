@@ -18,7 +18,7 @@ import { findingKey, findingText, latestRoundSince, splitFindings } from "../run
 import { readReviewFindings } from "../run/record.js";
 import { defineCommand, ok, type CommandContext } from "./define.js";
 import { openPlanOf, ticketRef } from "./helpers.js";
-import { hooksSilentWarning } from "./hook-sessions.js";
+import { hooksSilentWarning, takeHookWarnings } from "./hook-sessions.js";
 import { openedStepOf } from "./run.js";
 
 /** 文を組む役。implement は実装（claim の step）、review は見直し、fix は手直し（reclaim の step） */
@@ -297,6 +297,7 @@ export const brief = defineCommand({
     "Compose the text to hand to a sub-agent (EX-3; read-only). For each role (implement, review, fix), returns text whose first line is the marker `deguboard: ticket=<id> step=<step>` (the hook opens and closes the Run from the marker). " +
     "The text includes the location (worktree and branch), the Plan's scope and approach, conventions, the role's steps (the body of the guide section), the acceptance criteria, tools (Read and Edit), how to treat the Run, what not to do, and what to return. For review it includes the call that records the result; for fix it includes the findings to fix (from the latest review record: the heavy findings and the light findings that match acceptance criteria wording; findings passed in are used instead) and the call that writes the reasons for the retry (run retry-reason). " +
     "For a review of a ticket whose gate level is low or free (TK-9), it warns that the flow skips the review (it still returns the text). " +
+    "It also warns with the dg hook warnings not reported yet, and marks them reported in deguboard-local (see dg hook --help). " +
     "The fixed text is in English. Ticket content stays in the words it was written in. It is the same text as the brief for dg next's implement, review, and fix steps",
   input: z.object({
     ticket: ticketRef,
@@ -317,7 +318,11 @@ export const brief = defineCommand({
     const { brief, warnings } = await briefOf(ctx, ticket, input.role, {
       findings: input.findings,
     });
-    return ok<Brief>(brief, undefined, warnings);
+    // next と同じく、まだ知らせていないフックの警告を知らせる（t756。briefOf は next も使うので、ここで足す）
+    return ok<Brief>(brief, undefined, [
+      ...warnings,
+      ...(await takeHookWarnings(ctx.repo.localDir)),
+    ]);
   },
 });
 
