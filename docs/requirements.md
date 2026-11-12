@@ -73,7 +73,7 @@ runs/r20261031-041500-3fa2.json  # Run の完了時の集計だけ。ID は開�
 
 - DT-3 ID は接頭辞＋連番（`t12`・`e3`・`s3`・`p7`）。ファイル名は ID そのままでゼロ埋めしない。番号はリポジトリ全体で一意で、CLI と UI は番号で並べる
 - DT-4 採番は「既存（読めないファイルを含む）と墓標の最大 + 1。あるファイルは上書きしない」。作成は fetch → 採番 → commit → push を 1 単位とし、push が拒否されたら採番し直す
-- DT-5 チケットの起票は、push 先に届かないときに `provisional: true`（仮番号）を付けてローカルに commit し、push が済んだ `dg sync` で外す（Epic・Iteration・Plan の作成は SY-3 で失敗する）。仮番号のチケットは claim できない。仮番号がリモートの番号と衝突したら、`dg sync` が次の空き番号に振り直して push する（範囲は `packages/core/src/git/renumber.ts`）。ほかの競合は報告する（SY-4）
+- DT-5 チケットの起票は、push 先に届かないときに `provisional: true`（仮番号）を付けてローカルに commit し、push が済んだ `dg sync` で外す（ほかの作成は SY-3）。仮番号のチケットは claim できない。仮番号がリモートの番号と衝突したら、`dg sync` が次の空き番号に振り直して push する（範囲は `packages/core/src/git/renumber.ts`）。ほかの競合は報告する（SY-4）
 - DT-6 CLI と UI は `t12` でも `12` でも受け付ける
 
 ### 5.3 Project（`projects/<slug>.yaml`）
