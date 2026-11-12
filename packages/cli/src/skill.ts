@@ -1,5 +1,6 @@
 // dg skill install：dg guide を読む薄い Claude Code の Skill を段階ごとに置く（AG-2）。Skill は手順を持たず、正本は guide-*.md（CL-5）。
-// 名前・説明・引数の案内は guide の frontmatter から、冒頭の 1 文は core の SKILL_SUMMARY の en から、本文は隣の skill.md から作る。ビルドでは dist/ にコピーする（package.json の build）
+// 名前・説明・引数の案内は guide の frontmatter から、冒頭の 1 文は core の SKILL_SUMMARY の en から、本文は隣の skill.md から作る。ビルドでは dist/ にコピーする（package.json の build）。
+// VS Code 拡張に同梱する dg.mjs の隣（dist/cli/）にも置く（packages/vscode/package.json の build）
 
 import { createHash } from "node:crypto";
 import { mkdir, readFile, rm, rmdir, writeFile } from "node:fs/promises";

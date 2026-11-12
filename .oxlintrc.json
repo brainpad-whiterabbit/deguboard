@@ -67,7 +67,9 @@
         "packages/core/src/guide/**",
         "packages/core/src/run/**",
         "packages/core/src/agents/**",
-        "packages/core/src/errors.ts"
+        "packages/core/src/errors.ts",
+        "packages/core/src/bundle-layout.ts",
+        "packages/core/src/bundle-layout.test.ts"
       ],
       "rules": {
         "no-restricted-imports": [

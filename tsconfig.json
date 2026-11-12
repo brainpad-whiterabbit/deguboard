@@ -7,6 +7,7 @@
     "packages/*/src",
     "packages/*/test",
     "packages/vscode/vite.config.ts",
+    "packages/vscode/vite.cli.config.ts",
     "vitest.config.ts",
     "vitest.layout.config.ts",
     "vitest.vscode.config.ts"

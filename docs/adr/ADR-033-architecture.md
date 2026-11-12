@@ -26,6 +26,8 @@ CLI・MCP・HTTP・VS Code 拡張という複数の入口から同じ機能を�
 
 - `core` は何にも依存しない（VS Code API・HTTP・React を知らない。HTTP の node モジュールも読まない）
 - `server`・`vscode` は `core` だけに依存する。`cli` は `dg serve` と `dg mcp` のために `server` にも依存する
+- `vscode` のビルドは `cli` の束ねるための入口（`cli/src/bundle.ts`）から CLI を 1 つのファイルに束ねて VSIX に入れるが、拡張のコードは `cli` を読み込まない。依存は束ねたファイルの中の `cli` → `server` → `core` のままで、束ねたファイルは別のプロセスとして動かす
+- 束ねると `import.meta.url` がどのモジュールでも束ねたファイルを指すので、そこからの相対で引けない場所（guide・版・自分のパス）は束ねた入口が起動の最初に core の `bundleLayout` に置き、core と cli はそこから引く
 - `web` は `core` の型と `CommandClient` のインターフェースだけに依存する（`import type` だけ。Vite が node のモジュールを束ねないため）。テストの例外（core の実行時のコードを取り込んでよいこと）は `.oxlintrc.json` の override が正本
 - 逆向きの依存は作らない。検出は `.oxlintrc.json` の `no-restricted-imports`（禁じる import の正本）
 

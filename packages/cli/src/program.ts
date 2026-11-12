@@ -12,6 +12,7 @@ import {
   openContextFor,
   pickUser,
   ACTION_NAMES,
+  bundleLayout,
   runCommand,
   runMergeDriver,
   UsageError,
@@ -42,7 +43,10 @@ import {
   type Streams,
 } from "./output.js";
 
-/** 同梱した web のビルド結果（packages/cli/web。build が packages/web/dist から写し、npm のパッケージにも入る）。なければ undefined */
+/**
+ * 同梱した web のビルド結果（packages/cli/web。build が packages/web/dist から写し、npm のパッケージにも入る）。なければ undefined。
+ * VS Code 拡張に同梱した dg.mjs（dist/cli/）では、同じ相対の dist/web が拡張の Webview と共有する画面になる
+ */
 function webDist(): string | undefined {
   const dir = resolve(dirname(fileURLToPath(import.meta.url)), "../web");
   return existsSync(resolve(dir, "index.html")) ? dir : undefined;
@@ -51,12 +55,12 @@ function webDist(): string | undefined {
 /**
  * git がマージドライバとして呼ぶ dg のコマンド（argv の前置）。PATH に dg がなくても（npx・mise run・node_modules/.bin）動くよう、
  * いま動いている node と、このパッケージの bin/dg.js を絶対パスで指す。init と sync のたびに登録し直すので、
- * npx のキャッシュや worktree が消えてパスが古くなっても次の sync で直る
+ * npx のキャッシュや worktree が消えてパスが古くなっても次の sync で直る。束ねた dg.mjs では、そのファイルを指す
  */
 export function selfMergeDriver(): string[] {
   return [
     process.execPath,
-    fileURLToPath(new URL("../bin/dg.js", import.meta.url)),
+    bundleLayout()?.entry ?? fileURLToPath(new URL("../bin/dg.js", import.meta.url)),
     "merge-driver",
   ];
 }
@@ -89,7 +93,10 @@ const GROUP_SUMMARY: Record<string, string> = {
   config: "Look up and change settings (the team's config.yaml and personal overrides)",
 };
 
+/** dg の版。束ねた dg.mjs には package.json がないので、束ねたときに埋めた版を使う */
 function version(): string {
+  const bundled = bundleLayout()?.version;
+  if (bundled !== undefined) return bundled;
   try {
     const pkg = createRequire(import.meta.url)("../package.json") as { version: string };
     return pkg.version;

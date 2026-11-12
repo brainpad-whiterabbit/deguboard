@@ -1,11 +1,14 @@
 // guide の本文（guide-*.md・同じフォルダ）の読み込み（ADR-030）。frontmatter の分離・{{choices}} の差し込み・config の値の埋め込み・
 // guide.notes の文書の差し込みと、節の本文の取り出しを Core が行う。dg guide（CLI）・dg next・dg brief・dg flow next はここを写す。
 // 読む場所は import.meta.url からの相対。ビルドでは core の dist/ に guide-*.md をコピーし（root の package.json の build）、
-// 束ねた拡張（VS Code）は bundle（dist/extension.cjs）の隣に置く（packages/vscode/package.json の build）。ずれると読めないので両方を直す
+// 束ねた拡張（VS Code）は bundle（dist/extension.cjs）の隣に置く（packages/vscode/package.json の build）。ずれると読めないので両方を直す。
+// 拡張に同梱した CLI（dist/cli/dg.mjs）は、同じ dist/ の本文を bundleLayout の guideDir から読む（二重に入れない）
 
 import { readFile, realpath, stat } from "node:fs/promises";
 import { isAbsolute, relative, resolve, sep } from "node:path";
+import { pathToFileURL } from "node:url";
 import { parse as parseYaml } from "yaml";
+import { bundleLayout } from "../bundle-layout.js";
 import { UsageError } from "../errors.js";
 import { type Config } from "../model/config.js";
 import { findGuideSection } from "./sections.js";
@@ -49,7 +52,15 @@ async function readGuideFile(topic: string): Promise<{ meta: GuideMeta; body: st
   if (!isGuideTopic(topic)) {
     throw new UsageError(`No guide topic ${topic}. Use one of: ${GUIDE_TOPICS.join(" / ")}`);
   }
-  return splitFrontmatter(await readFile(new URL(`./guide-${topic}.md`, import.meta.url), "utf8"));
+  return splitFrontmatter(await readFile(guideFile(`guide-${topic}.md`), "utf8"));
+}
+
+/** guide の本文のファイル。束ねた CLI では guideDir、そうでなければこのモジュールの隣 */
+function guideFile(name: string): URL {
+  const dir = bundleLayout()?.guideDir;
+  return dir === undefined
+    ? new URL(`./${name}`, import.meta.url)
+    : pathToFileURL(resolve(dir, name));
 }
 
 /** guide.notes.<topic> の文書の読み込み結果。読めなければ差し込まず、理由を warnings に入れて guide は出す */
@@ -75,7 +86,7 @@ export async function readGuide(topic: string, notes = ""): Promise<string> {
   const { body: raw } = await readGuideFile(topic);
   const body = insertNotes(raw, notes);
   if (!/^\{\{choices\}\}$/m.test(body)) return body;
-  const choices = (await readFile(new URL("./guide-choices.md", import.meta.url), "utf8")).trim();
+  const choices = (await readFile(guideFile("guide-choices.md"), "utf8")).trim();
   return body.replace(/^\{\{choices\}\}$/m, () => choices);
 }
 

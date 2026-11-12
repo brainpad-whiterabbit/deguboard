@@ -21,3 +21,5 @@ export {
 } from "./guide/guide.js";
 export type { GuideMeta, GuideNotes, GuideText } from "./guide/guide.js";
 export { GUIDE_TOPICS, type GuideTopic } from "./guide/topics.js";
+// 束ねた CLI（VS Code 拡張に同梱する dg.mjs）の入口が、import.meta.url から引けない場所を置く
+export { bundleLayout, setBundleLayout, type BundleLayout } from "./bundle-layout.js";

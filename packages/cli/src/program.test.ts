@@ -3,9 +3,9 @@ import os from "node:os";
 import path from "node:path";
 import { Readable } from "node:stream";
 import { afterEach, describe, expect, it } from "vitest";
-import { commands } from "@deguboard/core";
+import { commands, setBundleLayout } from "@deguboard/core";
 import { createFixture, git, type Fixture } from "../../core/test/helpers/git-fixture.js";
-import { run } from "./program.js";
+import { run, selfMergeDriver } from "./program.js";
 
 const cleanups: Array<() => Promise<void>> = [];
 afterEach(async () => {
@@ -629,5 +629,20 @@ describe("dg", () => {
     expect(await readFile(a, "utf8")).toContain("<<<<<<< ours");
 
     expect((await dg(dir, ["--help"])).out).not.toContain("merge-driver");
+  });
+});
+
+describe("束ねた dg.mjs（VS Code 拡張に同梱する CLI）", () => {
+  afterEach(() => setBundleLayout(undefined));
+
+  it("版とマージドライバの自分のパスは、入口が置いた配置から引く", async () => {
+    const entry = path.join(os.tmpdir(), "ext", "dist", "cli", "dg.mjs");
+    setBundleLayout({ entry, guideDir: path.dirname(path.dirname(entry)), version: "9.8.7" });
+    expect((await dg(os.tmpdir(), ["--version"])).out).toBe("9.8.7");
+    expect(selfMergeDriver()).toEqual([process.execPath, entry, "merge-driver"]);
+  });
+
+  it("配置がなければ、マージドライバは bin/dg.js を指す", () => {
+    expect(selfMergeDriver()[1]).toMatch(/[/\\]bin[/\\]dg\.js$/);
   });
 });
