@@ -201,6 +201,21 @@ describe("チケットの流れ（照合と claim）", () => {
     // unclaim で起点も消える
     await runCommand(ticketUnclaim, ctx, { ticket: "t1" });
     expect(ctx.store.tickets.get("t1")?.data.branch_base).toBeUndefined();
+    // update でブランチを付け替えても外しても、前のブランチの起点を残さない
+    const again = await runCommand(ticketClaim, ctx, {
+      no_worktree: true,
+      ticket: "t1",
+      branch: "feat/t1-again",
+    });
+    expect(again.data.branch_base).toBe(
+      (await git(f.cloneA, ["rev-parse", "origin/main"])).stdout.trim(),
+    );
+    await runCommand(ticketUpdate, ctx, { ticket: "t1", branch: "feat/t1-other" });
+    expect(ctx.store.tickets.get("t1")?.data.branch_base).toBeUndefined();
+    await ctx.store.update("ticket", "t1", { branch_base: again.data.branch_base });
+    await recordBaseline(ctx.repo);
+    await runCommand(ticketUpdate, ctx, { ticket: "t1", branch: null });
+    expect(ctx.store.tickets.get("t1")?.data.branch_base).toBeUndefined();
   });
 
   it("照合は gh がブランチ名で見つけた PR の番号を pr に記録し、記録済みや PR のないチケットは書き換えない", async () => {

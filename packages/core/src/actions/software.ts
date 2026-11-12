@@ -21,13 +21,23 @@ const refName = z
   );
 const branchName = refName.describe("ブランチ名（feat/xxx など）");
 const baseName = refName.optional().describe("元にするブランチ。省略時は git.base_branch");
+// Action はチケットを知らないので、claim --no-worktree の後に切るときは呼び手がチケットの branch_base を渡す。
+// 取り込み直した base から切ると、main が進んでいれば起点が記録とずれ、コミットのないブランチがマージ済みに見える（ST-4）
+const startCommit = z
+  .string()
+  .regex(/^[0-9a-f]{40}([0-9a-f]{24})?$/, "start is a commit SHA")
+  .optional()
+  .describe(
+    "切る起点のコミットの SHA。チケットの branch_base を渡すと claim の記録と同じ起点から切る。省略時は取り込んだ base の先端",
+  );
 
 export const createWorktreeAction = defineAction({
   name: "create_worktree",
-  summary: "base から作業ブランチを切り、worktree に checkout する",
+  summary: "base（start があればそのコミット）から作業ブランチを切り、worktree に checkout する",
   input: z.object({
     branch: branchName,
     base: baseName,
+    start: startCommit,
     path: z
       .string()
       .min(1)
@@ -41,17 +51,23 @@ export const createWorktreeAction = defineAction({
       ctx.cwd,
       input.path ?? defaultWorktreePath(ctx.repo, ctx.config.worktree.root, input.branch),
     );
-    return createBranchWorktree(ctx.cwd, ctx.repo, { branch: input.branch, base, dir });
+    return createBranchWorktree(ctx.cwd, ctx.repo, {
+      branch: input.branch,
+      base,
+      dir,
+      start: input.start,
+    });
   },
 });
 
 export const createBranchAction = defineAction({
   name: "create_branch",
-  summary: "base から作業ブランチを切る（checkout はしない）",
-  input: z.object({ branch: branchName, base: baseName }),
+  summary: "base（start があればそのコミット）から作業ブランチを切る（checkout はしない）",
+  input: z.object({ branch: branchName, base: baseName, start: startCommit }),
   confirm: false,
   async run(ctx, input) {
-    const start = await branchStartPoint(ctx.cwd, ctx.repo, input.base ?? ctx.repo.baseBranch);
+    const start =
+      input.start ?? (await branchStartPoint(ctx.cwd, ctx.repo, input.base ?? ctx.repo.baseBranch));
     await runGit(ctx.cwd, ["branch", "--no-track", "--", input.branch, start]);
     return { branch: input.branch, base: start };
   },
