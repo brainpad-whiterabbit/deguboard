@@ -43,8 +43,108 @@ describe("Store", () => {
     });
     const store = await Store.open(root);
     expect(store.nextId("ticket")).toBe("t10");
-    expect(store.nextId("epic")).toBe("e1"); // 読めない e1 は索引に入らない
+    expect(store.nextId("epic")).toBe("e2"); // 読めない e1 も番号を使う（索引には入らない）
     expect(store.nextId("iteration")).toBe("s1");
+  });
+
+  it("読めないファイルの番号も採番の最大に入り、同じ ID の作成は断って中身を変えない", async () => {
+    // 4 種の文書それぞれに、スキーマに合わない最大の番号のファイルを置く（t10.md など）
+    const brokenMarkdown = "## frontmatter なし\n";
+    const brokenYaml = "title: [\n";
+    const files = {
+      "tickets/t10.md": brokenMarkdown,
+      "epics/e10.md": brokenMarkdown,
+      "iterations/s10.yaml": brokenYaml,
+      "plans/p10.yaml": brokenYaml,
+    };
+    const root = await fixture(files);
+    const store = await Store.open(root);
+    expect(store.nextId("ticket")).toBe("t11");
+    expect(store.nextId("epic")).toBe("e11");
+    expect(store.nextId("iteration")).toBe("s11");
+    expect(store.nextId("plan")).toBe("p11");
+
+    // 次の番号で作ると、読めないファイルは変わらない
+    await store.create("ticket", {
+      id: "t11",
+      project: "default",
+      title: "新規",
+      status: "todo",
+      depends_on: [],
+      created_at: ts,
+      updated_at: ts,
+    });
+    await store.create("epic", {
+      id: "e11",
+      project: "default",
+      title: "新規",
+      status: "open",
+      labels: [],
+      created_at: ts,
+      updated_at: ts,
+    });
+    await store.create("iteration", {
+      id: "s11",
+      project: "default",
+      name: "新規",
+      goal: "",
+      status: "planned",
+    });
+    await store.create("plan", {
+      id: "p11",
+      project: "default",
+      tickets: [],
+      after: {},
+      pending_approval: true,
+      details: {},
+    });
+    expect(store.tickets.get("t11")?.data.title).toBe("新規");
+    expect(store.epics.get("e11")?.data.title).toBe("新規");
+    expect(store.iterations.get("s11")?.data.name).toBe("新規");
+    expect(store.plans.get("p11")?.data.tickets).toEqual([]);
+
+    // 読めないファイルと同じ番号では作れず、中身も変わらない
+    const dup = {
+      project: "default",
+      title: "重複",
+      status: "todo",
+      created_at: ts,
+      updated_at: ts,
+    };
+    await expect(store.create("ticket", { ...dup, id: "t10" })).rejects.toMatchObject({
+      code: "ALREADY_EXISTS",
+    });
+    await expect(store.create("epic", { ...dup, id: "e10", status: "open" })).rejects.toMatchObject(
+      { code: "ALREADY_EXISTS" },
+    );
+    await expect(
+      store.create("iteration", { id: "s10", project: "default", name: "重複" }),
+    ).rejects.toMatchObject({ code: "ALREADY_EXISTS" });
+    await expect(
+      store.create("plan", { id: "p10", project: "default", tickets: [] }),
+    ).rejects.toMatchObject({ code: "ALREADY_EXISTS" });
+    for (const [rel, text] of Object.entries(files)) {
+      expect(await readFile(path.join(root, rel), "utf8")).toBe(text);
+    }
+  });
+
+  it("索引の後に別のプロセスが作ったファイルは、作成の直前に確かめて上書きしない", async () => {
+    const root = await fixture({});
+    const store = await Store.open(root);
+    // 開いた後に、ほかのプロセス（CLI・git）が同じ番号のファイルを作った
+    await mkdir(path.join(root, "tickets"), { recursive: true });
+    await writeFile(path.join(root, "tickets/t3.md"), "## 別の人の書き込み\n");
+    await expect(
+      store.create("ticket", {
+        id: "t3",
+        project: "default",
+        title: "新規",
+        status: "todo",
+        created_at: ts,
+        updated_at: ts,
+      }),
+    ).rejects.toMatchObject({ code: "ALREADY_EXISTS" });
+    expect(await readFile(path.join(root, "tickets/t3.md"), "utf8")).toBe("## 別の人の書き込み\n");
   });
 
   it("t12 でも 12 でも同じチケットを引ける", async () => {

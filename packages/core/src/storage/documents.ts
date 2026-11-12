@@ -2,7 +2,7 @@
 // 読みは parse で値にし、Doc に YAML の Document を持たせない（parse の中で作られる Document は読みの中で捨てる）。
 // 書くときにだけ、読んだ文字列から Document を作って部分更新し、コメントとキー順を保つ。JSON（Run）は値に当てて書く
 
-import { readFile } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
 import { OperationError } from "../errors.js";
@@ -155,7 +155,21 @@ export async function writeDoc<T extends { id: string }>(
   return { ...doc, data: parsed.data, body: nextBody, raw, source };
 }
 
-/** 新しいファイルを書く。既にあれば失敗する */
+/** ファイルがあるか。読めるかどうかは問わない（読めないファイルも上書きしない） */
+async function exists(file: string): Promise<boolean> {
+  try {
+    await stat(file);
+    return true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
+    throw error;
+  }
+}
+
+/**
+ * 新しいファイルを書く。既にあれば（読めないものも含め）ALREADY_EXISTS で断り、上書きしない。
+ * 索引に無いファイルは、作る直前に stat で確かめる（別のプロセスが先に作った場合の上書きを防ぐ）
+ */
 export async function createDoc<T extends { id: string }>(
   root: string,
   relPath: string,
@@ -175,6 +189,8 @@ export async function createDoc<T extends { id: string }>(
   const yaml = newYamlDocument(data);
   const raw = (yaml.toJS() ?? {}) as Record<string, unknown>;
   const source = format === "json" ? "" : stringifyYaml(yaml);
-  await writeFileAtomic(path.join(root, relPath), render(format, raw, source, body));
+  const target = path.join(root, relPath);
+  if (await exists(target)) throw new OperationError("ALREADY_EXISTS", `${relPath} already exists`);
+  await writeFileAtomic(target, render(format, raw, source, body));
   return { id: parsed.data.id, path: relPath, format, data: parsed.data, body, raw, source };
 }

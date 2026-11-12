@@ -177,6 +177,11 @@ export class Store {
   readonly tickets = new Map<TicketId, Doc<Ticket>>();
   /** 墓標（tickets/deleted/）の番号。採番で再利用しないために読む */
   readonly deletedTicketNumbers = new Set<number>();
+  /**
+   * 種類ごとの、読めないファイルの ID（ファイル名が ID の形のもの）。ファイルは残っているので、採番の最大に入れ、
+   * 同じ ID の作成を断る（DT-4）。読めたものは索引に入るので、ここには入れない
+   */
+  private readonly unreadableIds = new Map<EntityKind, Set<string>>();
   readonly epics = new Map<EpicId, Doc<Epic>>();
   readonly iterations = new Map<IterationId, Doc<Iteration>>();
   readonly plans = new Map<PlanId, Doc<Plan>>();
@@ -328,9 +333,9 @@ export class Store {
     return wf;
   }
 
-  /** 採番：既存（チケットは墓標も）の最大 + 1 */
+  /** 採番：既存（読めないファイルも、チケットは墓標も）の最大 + 1 */
   nextId<K extends IdKind>(kind: K): IdOf<K> {
-    const used = [...this.map(kind).keys()].map(idNumber);
+    const used = [...this.map(kind).keys(), ...(this.unreadableIds.get(kind) ?? [])].map(idNumber);
     if (kind === "ticket") used.push(...this.deletedTicketNumbers);
     return `${{ ticket: "t", epic: "e", iteration: "s", plan: "p" }[kind]}${nextNumber(used)}` as IdOf<K>;
   }
@@ -354,7 +359,8 @@ export class Store {
   ): Promise<Doc<EntityOf<K>>> {
     const c = collections[kind] as unknown as Collection<EntityOf<K>>;
     const id = String(data["id"]);
-    if (this.map(kind).has(id))
+    // 読めないファイルの ID も既にあるものとして断る（上書きしない）。ファイルの有無は createDoc が書く前に確かめる
+    if (this.map(kind).has(id) || this.unreadableIds.get(kind)?.has(id))
       throw new OperationError("ALREADY_EXISTS", `${kind} ${id} already exists`);
     const doc = await createDoc(this.root, c.pathOf(id), c.format, c.schema, data, body);
     this.map(kind).set(id, doc);
@@ -623,11 +629,12 @@ export class Store {
         const result = await cached(relPath, () =>
           readDoc(this.root, relPath, c.format, c.schema, id),
         );
-        return { file, result };
+        return { file, id, result };
       }),
     );
     target.clear();
-    for (const { file, result } of results) {
+    const unreadable = new Set<string>();
+    for (const { file, id, result } of results) {
       if (!result) {
         issues.push({
           severity: "warning",
@@ -638,8 +645,12 @@ export class Store {
         continue;
       }
       if (result.ok) target.set(result.doc.id, result.doc);
-      else issues.push(result.issue);
+      else {
+        issues.push(result.issue);
+        if (id) unreadable.add(id);
+      }
     }
+    this.unreadableIds.set(kind, unreadable);
     return issues;
   }
 
