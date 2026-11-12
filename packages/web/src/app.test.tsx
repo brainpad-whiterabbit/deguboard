@@ -2380,6 +2380,36 @@ describe("画面", () => {
     );
   });
 
+  it("dg serve の画面は、上のバーに未 push と未取り込みの印を出し、15 秒ごとの読み直しで数を替える。0 なら出さない", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const client = mockClient();
+    client.data.status = { ...client.data.status, ahead: 2, behind: 1 };
+    mount(client, hostOf("sidebar"));
+    await screen.findByText("未 push 2");
+    expect(screen.getByText("未取り込み 1").getAttribute("title")).toBe(
+      "取り込んでいないリモートの更新",
+    );
+    client.data.status = { ...client.data.status, ahead: 0, behind: 3 };
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(15_000);
+    });
+    expect(screen.getByText("未取り込み 3")).toBeTruthy();
+    expect(screen.queryByText(/未 push/)).toBeNull();
+    client.data.status = { ...client.data.status, ahead: 0, behind: 0 };
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(15_000);
+    });
+    expect(document.querySelector(".sync-mark")).toBeNull();
+  });
+
+  it("拡張の中（Webview）では、同期の印は画面に出さない（ビューのタイトル行のバッジが出す）", async () => {
+    const client = boardClient();
+    client.data.status = { ...client.data.status, ahead: 2, behind: 1 };
+    mount(client, { ...hostOf("sidebar"), extension: true });
+    await screen.findByText("ログイン");
+    expect(document.querySelector(".sync-mark")).toBeNull();
+  });
+
   it("info の通知（コマンドの警告）は数秒で消える", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     window.location.hash = "#/tickets/t3";

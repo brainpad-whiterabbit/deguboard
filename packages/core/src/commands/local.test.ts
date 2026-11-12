@@ -6,9 +6,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   createFixture,
   createLocalOnlyRepo,
+  git,
   type Fixture,
 } from "../../test/helpers/git-fixture.js";
 import { OperationError } from "../errors.js";
+import { withLock } from "../git/lock.js";
 import { openContext } from "./context.js";
 import { runCommand } from "./define.js";
 import { createLocalClient, toCommandFailure } from "./local.js";
@@ -73,6 +75,69 @@ describe("プロセス内の CommandClient", () => {
       // fixture のリモートはローカルのパスなので Web の URL に直せない
       web_url: null,
     });
+  });
+
+  /** 別の clone（cloneB）からチケットを作って push する */
+  async function pushFromB(f: Fixture, title: string): Promise<void> {
+    const b = await openContext({ cwd: f.cloneB, initialize: {} });
+    const r = await runCommand(
+      commands.find((c) => c.name === "ticket.create")!,
+      b,
+      { title },
+    );
+    expect(r.write).toMatchObject({ pushed: true });
+  }
+
+  it("status は後ろでリモートを fetch し、次の status がほかの clone の push を未取り込みに数える。間隔の中では fetch しない", async () => {
+    const f = await initialized();
+    await pushFromB(f, "B から 1");
+    const client = createLocalClient({ cwd: f.cloneA });
+    // 最初の status は fetch を待たずに今の追跡ブランチで数える（fetch はこの status の後ろで走る）
+    expect((await client.status()).behind).toBe(0);
+    const fetched = (await client.status()).behind;
+    expect(fetched).toBeGreaterThan(0);
+    // 既定の間隔（1 分）の中なので、続けて読んでも fetch しない
+    await pushFromB(f, "B から 2");
+    expect((await client.status()).behind).toBe(fetched);
+    expect((await client.status()).behind).toBe(fetched);
+  });
+
+  it("間隔が過ぎた後の status はまた fetch する", async () => {
+    const f = await initialized();
+    const client = createLocalClient({ cwd: f.cloneA, statusFetchIntervalMs: 0 });
+    await client.status();
+    await pushFromB(f, "B から 1");
+    await client.status();
+    const first = (await client.status()).behind;
+    expect(first).toBeGreaterThan(0);
+    await pushFromB(f, "B から 2");
+    await client.status();
+    expect((await client.status()).behind).toBeGreaterThan(first);
+  });
+
+  it("リモートに届かなくても、status は失敗せずに同期の状態を返し続ける", async () => {
+    const f = await initialized();
+    await git(f.cloneA, ["remote", "set-url", "origin", path.join(f.root, "nowhere.git")]);
+    const client = createLocalClient({ cwd: f.cloneA, statusFetchIntervalMs: 0 });
+    for (let i = 0; i < 3; i++) {
+      expect(await client.status()).toMatchObject({ ahead: 0, behind: 0, remote: "origin" });
+    }
+    // 失敗した fetch の後も、書き込みは普段どおり通る（ロックを残さない）
+    const created = await client.run<{ id: string }>("ticket.create", { title: "届かない間" });
+    expect(created.data.id).toBe("t1");
+  });
+
+  it("ほかの dg が書き込みのロックを持つ間は fetch を飛ばし、放した後の status で fetch する", async () => {
+    const f = await initialized();
+    await pushFromB(f, "B から 1");
+    const client = createLocalClient({ cwd: f.cloneA, statusFetchIntervalMs: 0 });
+    const localDir = (await openContext({ cwd: f.cloneA })).repo.localDir;
+    await withLock(localDir, "write", async () => {
+      await client.status();
+      expect((await client.status()).behind).toBe(0);
+    });
+    await client.status();
+    expect((await client.status()).behind).toBeGreaterThan(0);
   });
 
   it("初期化前は NOT_INITIALIZED で失敗し、toCommandFailure が code と message に写す", async () => {

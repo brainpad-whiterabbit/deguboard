@@ -2,6 +2,7 @@
 // 画面はカンバン・バックログ・履歴の 3 つで、Epic の画面は置かない（計画を立てるときに Iteration・Epic・未割り当てのチケットが 3 つの画面に分かれる。
 // open の Epic はバックログの欄に進捗つきで並べて絞り込みを兼ねる）。設定はたまにしか開かないので画面の切り替えに入れず、歯車で開く。
 // 同期のボタンと印・設定の歯車・エージェントに頼む吹き出しはビューのタイトル行のボタンとバッジにある（拡張の view/title。UI-12）。
+// タイトル行のない dg serve の画面では、同期の印（未 push・未取り込み）だけを上のバーに出す（SyncMark。UI-6）。
 // エディタのパネルは詳細だけを出し、上のバーを出さない。
 // エージェントに頼む入力欄（UI-15）は、開いていればページの下に出す。左パネルでは初めて開いたときに 1 度だけ、行の吹き出しの案内を出す
 
@@ -131,6 +132,7 @@ export function App() {
             ))}
           </nav>
           <div className="spacer" />
+          {host.extension ? null : <SyncMark />}
           {/* Project が 1 つなら切り替えの段を出さない（幅を節約する。hidden 属性は .project-select の display に負けるので描かない） */}
           {store.projects.length <= 1 ? null : (
             <label className="project-select">
@@ -197,6 +199,29 @@ export function App() {
         />
       ) : null}
     </div>
+  );
+}
+
+/**
+ * 未 push のコミットと未取り込みのリモートの更新の印（UI-6）。拡張の中ではビューのタイトル行のバッジ（vscode の badgeOf）が出すので、
+ * dg serve の画面でだけ上のバーに出す。どちらも 0 なら出さない（バッジと同じ）。数は store が 15 秒ごとに読む status
+ */
+function SyncMark() {
+  const { status } = useStore();
+  if (!status || (status.ahead === 0 && status.behind === 0)) return null;
+  return (
+    <span className="sync-mark" role="status">
+      {status.ahead > 0 ? (
+        <span className="badge" title={tr("リモートへ送っていないコミット")}>
+          {tr("未 push {0}", status.ahead)}
+        </span>
+      ) : null}
+      {status.behind > 0 ? (
+        <span className="badge" title={tr("取り込んでいないリモートの更新")}>
+          {tr("未取り込み {0}", status.behind)}
+        </span>
+      ) : null}
+    </span>
   );
 }
 

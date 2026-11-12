@@ -33,13 +33,13 @@ export function remoteRef(repo: GitRepo): string {
   return `refs/remotes/${repo.remote}/${DATA_BRANCH}`;
 }
 
-/** deguboard ブランチだけを取り込む。リモートにまだなければ remoteBranch: false */
-export async function fetchData(repo: GitRepo): Promise<FetchResult> {
+/** deguboard ブランチだけを取り込む。リモートにまだなければ remoteBranch: false。timeoutMs を過ぎたら届かないときと同じ失敗 */
+export async function fetchData(repo: GitRepo, timeoutMs = 60_000): Promise<FetchResult> {
   if (!repo.remote) return { ok: true, remoteBranch: false };
   const result = await remoteGit(
     repo,
     ["fetch", repo.remote, `${DATA_BRANCH}:${remoteRef(repo)}`],
-    60_000,
+    timeoutMs,
   );
   if (result.code === 0) return { ok: true, remoteBranch: true };
   if (/couldn't find remote ref/i.test(result.stderr)) return { ok: true, remoteBranch: false };
