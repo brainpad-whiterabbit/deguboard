@@ -17,10 +17,11 @@ import { hooksReachSession, takeHookWarnings, unlinkedReviewWarning } from "./ho
 import { orphanReviewRuns } from "./orphan-review.js";
 import { crashedSubagentRuns, openedStepOf, sessionOf } from "./run.js";
 
-/** 段階の名前。claimed → implemented → reviewed(n) → fixed(n) → ready → merged と、todo・blocked・reviewing・waiting_human・closed */
+/** 段階の名前。claimed → implemented → reviewed(n) → fixed(n) → ready → merged と、todo・blocked・awaiting_approval・reviewing・waiting_human・closed */
 export const STAGES = [
   "todo",
   "blocked",
+  "awaiting_approval",
   "claimed",
   "implemented",
   "reviewing",
@@ -114,6 +115,11 @@ export interface StageFacts {
   ticket: Pick<Ticket, "id" | "status" | "pr" | "branch" | "branch_at" | "gate">;
   /** Plan の待ち（after）と依存先の終わっていないもの */
   waiting: readonly string[];
+  /**
+   * このチケットが入っている開いた Plan が承認待ちなら、その Plan の ID（承認待ちでなければ null）。
+   * 承認待ちの Plan のチケットは、承認まで着手しない（PL-5）
+   */
+  pendingPlan: string | null;
   /** このチケットの Run（閉じたものと実行中のもの） */
   runs: readonly Run[];
   /** 実装の step（Workflow の opens_on: claim） */
@@ -154,6 +160,13 @@ export function stageOf(facts: StageFacts): Stage {
       n,
       fixes,
       `The ${waitingRun.step} Run ${waitingRun.id} has stopped and is waiting (since ${waitingRun.waiting_since})`,
+    );
+  if (ticket.status === "todo" && facts.pendingPlan)
+    return stage(
+      "awaiting_approval",
+      n,
+      fixes,
+      `The ticket is in Plan ${facts.pendingPlan}, which is awaiting approval`,
     );
   if (ticket.status === "todo")
     return facts.waiting.length > 0
@@ -270,6 +283,7 @@ export async function stageFactsOf(
   return {
     ticket,
     waiting: [...new Set([...planWaits, ...ctx.store.pendingDeps(ticket)])],
+    pendingPlan: plan?.data.pending_approval ? plan.id : null,
     runs,
     implementStep: openedStepOf(ctx, ticket, "claim"),
     fixStep: openedStepOf(ctx, ticket, "reclaim"),
@@ -390,6 +404,14 @@ export function nextOf(ctx: CommandContext, facts: StageFacts, opts: NextOptions
       return make("done", null, []);
     case "blocked":
       return make("wait_deps", null, []);
+    // 承認待ちの Plan のチケットは、人が承認するまで着手しない（PL-5）。承認するのは人なので、親は頼まずに待つ
+    case "awaiting_approval":
+      return make(
+        "wait_human",
+        null,
+        [],
+        `Plan ${facts.pendingPlan} is awaiting approval, so do not start ${id}. Ask a person to review and approve Plan ${facts.pendingPlan}`,
+      );
     case "waiting_human": {
       const waiting = facts.runs.find((r) => r.finished_at === null && r.waiting_since !== null);
       return waiting
@@ -460,6 +482,7 @@ export const next = defineCommand({
   group: "next",
   summary:
     "Return the next step for a ticket (EX-3, EX-5). The stage (same as ticket show) is one of: todo (can be started), blocked (waiting on a Plan or on unfinished dependencies), " +
+    "awaiting_approval (a todo ticket in a Plan awaiting approval; the step is wait_human and plan gives the Plan), " +
     "claimed (no PR), implemented (PR exists, no review), reviewing (a review is running), reviewed (the review after the last push has closed; review_passed says whether it passed), " +
     "fixed (a push after the last review, or the last review has no result), ready (the review passed and a PR was opened), merged (done), closed (abandoned), " +
     `waiting_human (a Run is waiting for a person, the fix after the last review closed with failure or interrupted, or reviews that raised heavy findings went past ${FIX_ROUNDS_LIMIT} times). Whether the PR is a draft is seen in status (a PR with in_progress is a draft). ` +
@@ -469,7 +492,7 @@ export const next = defineCommand({
     "It returns the kind of step (kind: implement, review, fix, ready, wait_merge, wait_deps, wait_human, done), the step to open, the Run in progress, the Plan's tier, scope, and approach, the commands to call (commands; delegate to a sub-agent. In a session that dg hooks have reached, implement and fix are always delegated, even when the model is the parent's and the fix is small, and the commands say so first. Only when no dg hook reaches the session (the mark opens no Run), the parent may proceed on its own: the implement claim drops --no-run and does not use the mark. For implement, review, fix, and ready steps, if that step's Run is already running, or an implementation Run or a fix Run on this branch that has no push since it started is running (for the ready step, also a review Run on this branch, such as one left open when the gate level was lowered), it waits for that to end instead of starting another. For implement, review, and fix steps it does not wait for a Run left over from a crashed session: a Run opened by a sub-agent of a different session whose record has not been written for 30 minutes. It returns the steps to ask again with the mark, and says that asking again closes that Run as interrupted. A newer record, an unknown session, and a Run the parent opened itself are still waited for), and the questions to ask a person (ask_human). " +
     "For implement, review, and fix steps it includes the text to paste into a sub-agent (brief, the same as dg brief). " +
     "For implement and fix steps it includes the model to launch (model) (the Plan's tier maps to config's models.*; a ticket with no tier is standard. When the mapping is empty, and for review and other steps, it is null, meaning the parent's model). " +
-    "A ticket in the waiting_human stage is wait_human. Read it after bringing in the work branch. " +
+    "A ticket in the waiting_human stage is wait_human. Read it after bringing in the work branch. A ticket in the awaiting_approval stage is wait_human too (a person approves its Plan). " +
     "It also warns with the dg hook warnings not reported yet (see dg hook --help). It writes nothing but the mark of the reported hook warnings in deguboard-local",
   input: z.object({
     ticket: ticketRef,

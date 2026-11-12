@@ -1074,7 +1074,7 @@ export const ticketClaim = defineCommand({
   positionals: ["ticket"],
   group: "ticket",
   summary:
-    "Start work on a ticket. Sets the assignee to yourself, records the branch, and sets in_progress. Winning the push gives exclusive access. Follows any todo → in_progress constraint (such as requires: [deps_done]). " +
+    "Start work on a ticket. Sets the assignee to yourself, records the branch, and sets in_progress. Winning the push gives exclusive access. Follows any todo → in_progress constraint (such as requires: [deps_done]). If the ticket is in a Plan awaiting approval, claim still succeeds and the warnings say to ask a person to approve it first. " +
     "If lint.require_iteration is true and the ticket has no Iteration, it goes into the Project's active Iteration (or else the planned one, if there is only one). If there is no target, or there is no active one and several are planned, it goes into none and the warnings say to ask a person. If the ticket's Iteration is planned, it becomes active; if that fails (another active one, or actor.human_only), the failure goes into the warnings and claim still succeeds. Both are pushed in the same write as the claim. " +
     "After the push, it creates the work branch's worktree at worktree.root/<branch name> (change with --worktree-path) from base, and puts its path in worktree. If a worktree for that branch already exists, it uses that; if only the local branch exists, it checks it out. If it cannot be created, the failure goes into the warnings and claim still succeeds. In a worktree it created (not an existing one), it runs config's worktree.setup commands; a failure goes into the warnings and claim still succeeds. That setup can take several minutes, such as pnpm install (limit 10 minutes), and claim does not return until it finishes. It creates no worktree with --no-worktree or --without-branch. " +
     "For an agent, it then opens an implementation Run (the step in the Workflow's steps with opens_on: claim, or else implement) and prints its ID as run (on the last line of stdout in human output). The Run opens before the setup commands run. If it cannot be opened, only a warning is given and claim still succeeds. " +
@@ -1163,10 +1163,12 @@ export const ticketClaim = defineCommand({
     // 書くものがないので ReclaimRequested で書き込みを抜け、外で reclaim に回す
     // Iteration の準備の警告は書き込みのやり直し（cas）ごとに作り直し、最後の 1 回の分だけ返す
     let iterationWarnings: string[] = [];
+    let planWarnings: string[] = [];
     const result = await withWrite(
       ctx,
       async () => {
         iterationWarnings = [];
+        planWarnings = [];
         const doc = ctx.store.require("ticket", input.ticket);
         if (isReclaim(ctx, doc.data)) throw new ReclaimRequested(doc);
         // 仮番号は dg sync で振り直されることがある。claim するとブランチ名に仮番号が残り、振り直しで branch だけが書き換わる（DT-5）
@@ -1214,6 +1216,12 @@ export const ticketClaim = defineCommand({
             "TRANSITION_REJECTED",
             describeRejection(check, "todo", "in_progress"),
           );
+        // 承認待ちの Plan に入ったチケットは、承認を待たずに始めたことを知らせる（PL-5）。止めはしない（人が承認前に始めると決めることもある）
+        const pending = openPlanOf(ctx.store, doc.data.id);
+        if (pending?.data.pending_approval)
+          planWarnings = [
+            `${doc.id} is in Plan ${pending.id}, which is awaiting approval. Ask a person to approve it before starting, as dg next says (wait_human)`,
+          ];
         const previous = doc.data.assignee;
         if (previous && !sameUser(previous, ctx.actor.id))
           warnings.push(`Changed the assignee from ${previous} to ${ctx.actor.id}`);
@@ -1252,7 +1260,7 @@ export const ticketClaim = defineCommand({
       );
       return ok<ClaimView>({ ...withBody(result.doc), run, worktree: null }, undefined, warnings);
     }
-    warnings.push(...iterationWarnings);
+    warnings.push(...iterationWarnings, ...planWarnings);
     // worktree を作るのは claim が push で取れた後（取れなかった claim でブランチを残さない）
     const branch = result.value.data.branch;
     const made =

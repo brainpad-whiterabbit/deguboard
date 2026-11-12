@@ -11,12 +11,36 @@ import { iterationTargetFor } from "./claim-setup.js";
 import { openContext } from "./context.js";
 import { runCommand, type CommandContext } from "./define.js";
 import { iterationCreate, iterationShow, iterationStart } from "./iteration.js";
+import { planCreate } from "./plan.js";
 import { configSet } from "./setup.js";
 import { ticketClaim, ticketCreate, ticketShow, ticketUnclaim } from "./ticket.js";
 
 afterEach(runCleanups);
 
 const NOW = new Date("2026-11-09T03:00:00Z");
+
+describe("承認待ちの Plan に入ったチケットの claim（PL-5）", () => {
+  it("承認待ちの Plan に入った todo の claim は成功し、承認を待つよう警告する。Plan の外のチケットは警告しない", async () => {
+    const f = await fixture();
+    await initialized(f.cloneA, { now: () => NOW });
+    const human = await openContext({
+      cwd: f.cloneA,
+      actor: { kind: "human", user: "eiki" },
+      now: () => NOW,
+    });
+    await runCommand(ticketCreate, human, { title: "A" });
+    await runCommand(ticketCreate, human, { title: "B" });
+    await runCommand(planCreate, human, { tickets: ["t1"] });
+    const inPlan = await runCommand(ticketClaim, human, { ticket: "t1", no_worktree: true });
+    expect(inPlan.data).toMatchObject({ status: "in_progress" });
+    expect(inPlan.warnings).toContain(
+      "t1 is in Plan p1, which is awaiting approval. Ask a person to approve it before starting, as dg next says (wait_human)",
+    );
+    const outside = await runCommand(ticketClaim, human, { ticket: "t2", no_worktree: true });
+    expect(outside.data).toMatchObject({ status: "in_progress" });
+    expect(outside.warnings.join("\n")).not.toContain("awaiting approval");
+  });
+});
 
 /** require_iteration を true にした文脈（config を読み直すため開き直す） */
 async function requiringIteration(cwd: string): Promise<CommandContext> {
