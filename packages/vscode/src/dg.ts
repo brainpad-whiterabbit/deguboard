@@ -1,5 +1,5 @@
 // PATH の dg を引く 1 か所（ADR-027）。画面は dg なしで動き、ないときはインストールを案内し、
-// 版のメジャーが同梱の core と違えば知らせる（UI-11）。同梱は npm が使えない環境が出たときに足す
+// 版のメジャーが同梱の core と違えば知らせる（UI-11）。同梱した dg の起動ファイルは launcher.ts が書く
 
 import { execFile } from "node:child_process";
 import { t } from "./l10n.js";
