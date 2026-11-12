@@ -87,7 +87,7 @@ function isIpLiteral(hostname: string): boolean {
 }
 
 /**
- * 認証を持たないので、ブラウザを踏み台にした要求を断る（UI-8・ADR-027）。
+ * 認証を持たないので、ブラウザを踏み台にした要求を断る（UI-8）。
  * - Host の名前：DNS rebinding では攻撃者の名前が来る。localhost・IP そのもの・--host の名前だけを通す。
  *   ポートは比べない（ポートを転送した先や vite の proxy からも開けるように）
  * - Origin：別オリジンのページからの要求（サンドボックスの Origin: null を含む）を断る。名前だけを比べる（同じ理由）
