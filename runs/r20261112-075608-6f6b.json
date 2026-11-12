@@ -1,0 +1,36 @@
+{
+  "id": "r20261112-075608-6f6b",
+  "ticket": "t741",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-12T07:56:08Z",
+  "finished_at": "2026-11-12T08:01:44Z",
+  "result": "success",
+  "error": null,
+  "retries": 5,
+  "retry_reasons": [
+    "review の手直しの文が、push 前に dg gate --only check を回す指示を含まない",
+    "CLAUDE.md の検査の規約と merge 条件が新しい手順と食い違う",
+    "実装・手直しの文の Return が check の結果を求めていない",
+    "検査の記録が増え続け、旧形式の読み込みの扱いが説明されていない",
+    "--only check の結果に for の merge が出て、merge の判定と誤読されうる"
+  ],
+  "usage": {
+    "input": 68,
+    "output": 18533,
+    "cache_read": 2370064,
+    "cache_write": 69854
+  },
+  "tools": {
+    "read": 9,
+    "search": 0,
+    "write": 13,
+    "bash": 19,
+    "other": 1,
+    "read_before_write": 1,
+    "search_before_write": 0
+  },
+  "session": "fc4690ac-0cd3-4ae5-bab3-524da05cc3e2",
+  "review": null
+}

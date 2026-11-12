@@ -1,0 +1,34 @@
+{
+  "id": "r20261112-080503-ff3b",
+  "ticket": "t741",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-12T08:05:03Z",
+  "finished_at": "2026-11-12T08:08:31Z",
+  "result": "success",
+  "error": null,
+  "retries": 3,
+  "retry_reasons": [
+    "gate-check.ts の prunedResults と旧形式の読み込みを確かめるテストがない",
+    "full の基準のコミットを呼び直したときの detail が回し直したように読める",
+    "CLAUDE.md の括弧の位置が mise run check にもかかるように読める"
+  ],
+  "usage": {
+    "input": 28,
+    "output": 16537,
+    "cache_read": 900385,
+    "cache_write": 62617
+  },
+  "tools": {
+    "read": 6,
+    "search": 0,
+    "write": 6,
+    "bash": 7,
+    "other": 1,
+    "read_before_write": 5,
+    "search_before_write": 0
+  },
+  "session": "fc4690ac-0cd3-4ae5-bab3-524da05cc3e2",
+  "review": null
+}
