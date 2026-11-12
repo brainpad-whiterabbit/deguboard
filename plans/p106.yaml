@@ -1,0 +1,51 @@
+id: p106
+project: default
+tickets: [t740, t739, t733, t734, t735, t736, t737, t738]
+after:
+  t734:
+    - t733
+    - t739
+  t737:
+    - t735
+    - t736
+  t738:
+    - t736
+    - t737
+  t735:
+    - t734
+  t736:
+    - t734
+pending_approval: true
+details:
+  t740:
+    scope: ticket update・create・import の空か空白だけの body を INVALID_INPUT で拒む。summary・acceptance からの雛形は今のまま
+    approach: core の ticket コマンド定義で検査し、コマンド定義のテストで 3 つの入口に効くことを示す
+    tier: standard
+  t739:
+    scope: タイトル行の Ask ボタンで小窓を開閉し、開くたびに指示を空にする。再読み込みで戻す小窓だけ指示を残す
+    approach: 拡張から開閉の切り替えを Webview に送り、AskProvider が開くときに ask.note を空にする
+    tier: standard
+  t733:
+    scope: core・server・cli と MCP SDK を 1 つの dg.mjs に束ねて VSIX に入れ、web と guide は既存の同梱を共有する
+    approach: vscode の vite に CLI の入口を足し、import.meta.url で引く場所を束ねた配置でも引けるようにして、skill install・init・mcp まで動かして確かめる
+    tier: heavy
+  t734:
+    scope: 拡張の起動で ~/.local/share/deguboard/ に固定の sh の起動ファイルと current を書き、VS Code の node で dg.mjs を動かす
+    approach: extension.ts で版を比べて current を rename で書き、消えた行き先は版が古くても直す。ADR-027・UI-11 を書き換える
+    tier: heavy
+  t735:
+    scope: 起動ファイル経由の dg は、フックとマージドライバに起動ファイルを書き、hooks check はそれを正しいとみなす
+    approach: 起動ファイルが環境変数で自分の場所を渡し、hooks.ts と selfMergeDriver がそれを優先する。clone の dg は今のまま
+    tier: standard
+  t736:
+    scope: Install / Uninstall dg command で ~/.local/bin/dg のリンクを置き外しし、拡張を消したときは自分の current のときだけ片付ける
+    approach: extension.ts にコマンドを足し、vscode:uninstall のスクリプトで current を見てから消す。dg.ts の案内を変える
+    tier: standard
+  t737:
+    scope: VS Code の始め方の画面に「このリポジトリで始める」ボタンを出し、専用のターミナルで init・skill install・hooks install を実行する
+    approach: onboarding.tsx のボタンを postMessage で拡張へ送り、terminals.ts で起動ファイルの絶対パスの文を Enter まで送る。Walkthrough と ADR-027 も直す
+    tier: standard
+  t738:
+    scope: README・development.md・ADR-008・CLAUDE.md を VSIX だけで入れる形にし、npm に公開する仕組みを消して private にする
+    approach: 各 PR で直した文書をつなぎ、pack・check-pack・release:publish・publishConfig・packages/cli/README.md を消す
+    tier: standard
