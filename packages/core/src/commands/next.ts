@@ -230,16 +230,21 @@ export function stageOf(facts: StageFacts): Stage {
     return stage("reviewing", n, fixes, `The review Run ${latest.id} is running`);
   // 最後の push を読めない（追跡 ref がない・fetch しない ticket show）ときは、最後の見直しを今の見直しとみなす。
   // dg gate は読めない条件を満たさないとするので、ここで ready でも gate が止めることがある。
-  // 読めれば dg gate と同じく、見直した SHA があれば先端の SHA と、なければ先端のコミットの時刻と比べる（reviewedTip。t763）
+  // 読めれば dg gate と同じく、先端を見直した見直しのうち最後のものを今の見直しとする（見直した SHA があれば先端の SHA と、
+  // なければ先端のコミットの時刻と比べる。reviewedTip。t763）。最後の見直しだけを比べると、push していないコミットを後で
+  // 見直したとき、先端を見直して通った前の見直しを見落として gate と食い違う
   const pushedAt = facts.pushedAt;
+  const pushedSha = facts.pushedSha;
   const current =
-    latest &&
-    (pushedAt === undefined ||
-      (facts.pushedSha === undefined
-        ? latest.started_at >= pushedAt
-        : reviewedTip(latest, { sha: facts.pushedSha, at: pushedAt })))
+    pushedAt === undefined
       ? latest
-      : undefined;
+      : reviews
+          .filter((r) =>
+            pushedSha === undefined
+              ? r.started_at >= pushedAt
+              : reviewedTip(r, { sha: pushedSha, at: pushedAt }),
+          )
+          .at(-1);
   if (!current)
     return n === 0
       ? stage("implemented", n, fixes, `PR #${ticket.pr} exists and has no review yet`)

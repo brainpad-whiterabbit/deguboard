@@ -128,6 +128,15 @@ describe("作業の段階（stageOf。EX-3）", () => {
     // SHA のない見直しは時刻で比べる
     expect(stageOf(facts({ pushedSha: tip, runs: [review(1, passed)] })).name).toBe("fixed");
     expect(stageOf(facts({ pushedSha: tip, runs: [review(6, passed)] })).name).toBe("reviewed");
+    // dg gate と同じく、先端を見直した見直しのうち最後のものを見る（後で push していないコミットを見直しても、先端の見直しが今の見直し）
+    expect(
+      stageOf(
+        facts({
+          pushedSha: tip,
+          runs: [review(6, passed, { head: tip }), review(7, heavy, { head: other })],
+        }),
+      ).name,
+    ).toBe("reviewed");
   });
 
   it("重い指摘が出た見直しが上限（2 回）を超えたら waiting_human", () => {
