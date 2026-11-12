@@ -1,5 +1,6 @@
 // 書き込みの 1 単位（SY-2・SY-3・DT-4）：取り込み → 変更 → 検証 → コミット →（auto なら）push。
-// push が拒否されたら取り込み直して再送する。CAS（作成・claim・Iteration の開始と再開）は自分のコミットを捨てて変更からやり直す
+// push が拒否されたら取り込み直して再送する。CAS（作成・claim・Iteration の開始と再開）は自分のコミットを捨てて変更からやり直し、
+// 届かなければ自分のコミットを捨てて失敗する（チケットの起票だけは仮番号でローカルに残す）
 
 import { OperationError } from "../errors.js";
 import type { Config } from "../model/config.js";
@@ -43,9 +44,9 @@ export interface WriteOptions<T> {
   message: string | ((value: T) => string);
   /** commit.mode によらず即座にコミットして push する（作成・claim・Iteration の開始と再開） */
   immediate?: boolean;
-  /** push の成功をもって取得とする。拒否されたらコミットを捨てて変更からやり直す */
+  /** push の成功をもって取得とする。拒否されたらコミットを捨てて変更からやり直し、届かなければコミットを捨てて失敗する（markProvisional がなければ） */
   cas?: boolean;
-  /** push 先に届かないとき、作成した対象に provisional を付ける（DT-5） */
+  /** push 先に届かないとき、失敗にせず、作成した対象に provisional を付けてローカルに残す（DT-5。チケットの起票だけ） */
   markProvisional?: (value: T) => Promise<void>;
   maxAttempts?: number;
 }
@@ -187,6 +188,18 @@ async function writeLocked<T>(
       };
 
     if (pushed.reason === "unreachable") {
+      if (opts.cas && !opts.markProvisional) {
+        // CAS は push の成功で取得とする。届かなければ取れたか分からないので、自分のコミットを捨てて失敗にする（SY-3）。
+        // ローカルに残すと、オフラインの 2 台が同じチケットを claim でき、別々に start すると active が 2 つになる（IT-1）。
+        // Epic・Iteration・Plan の作成は仮番号を付けないので、残すと番号の衝突を dg sync で振り直せない（DT-5）
+        await resetHard(repo, before);
+        await ctx.store.rescan();
+        throw new OperationError(
+          "PUSH_FAILED",
+          "Cannot reach the remote, so the change was not applied and no commit remains. Retry the same operation when the remote is reachable",
+          pushed.detail,
+        );
+      }
       let provisional = false;
       if (opts.markProvisional) {
         await opts.markProvisional(value);
