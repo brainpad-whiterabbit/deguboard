@@ -4,7 +4,7 @@ tickets: [t765, t749, t750, t752, t751]
 after:
   t751:
     - t749
-pending_approval: true
+pending_approval: false
 details:
   t765:
     scope: 印で頼み直したとき、別セッションのサブエージェントの記録に結び付いた古い開いた Run を interrupted で閉じ、dg next が古い Run を待たせず頼み直しを案内する
@@ -26,3 +26,5 @@ details:
     scope: ticket.update が任意の読んだときの本文を照らし、画面の保存が編集中のほかの変更を上書きせずに知らせる
     approach: ticketCheck の base と同じ照合を ticketUpdate に足し、Web と VS Code の詳細の画面から編集開始時の本文を渡して拒否を知らせる
     tier: heavy
+approved_by: Eiki Kitajima/agent
+approved_at: 2026-11-12T08:54:46Z
