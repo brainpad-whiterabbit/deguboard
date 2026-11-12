@@ -189,6 +189,25 @@ describe("Plan", () => {
     expect(ctx.store.plans.size).toBe(1);
   });
 
+  it("depends_on の書き込みは、別の開いた Plan にすでにある壊れた循環に関係なく、その Plan に新しくできる循環を拒否する（PL-3）", async () => {
+    const f = await fixture();
+    const ctx = await initialized(f.cloneA);
+    for (const title of ["A", "B", "C", "D"]) await runCommand(ticketCreate, ctx, { title });
+    // p1 は t2 が after で t1 を待つ。直接の編集で t1 が t2 を depends_on で待つと、p1 の中で壊れた循環になる
+    await runCommand(planCreate, ctx, { tickets: ["t1", "t2"], after: { t2: "t1" } });
+    await setDependsOn(ctx, "t1", "[t2]");
+    await ctx.store.rescan();
+    // p2 は t4 が after で t3 を待つ。t3 が t4 を depends_on で待つと p2 の中に新しく循環ができるので、p1 の壊れた循環があっても拒否する
+    await runCommand(planCreate, ctx, { tickets: ["t3", "t4"], after: { t4: "t3" } });
+    await expect(
+      runCommand(ticketUpdate, ctx, { ticket: "t3", depends_on: ["t4"] }),
+    ).rejects.toMatchObject({
+      code: "REJECTED",
+      message: expect.stringContaining("t3 →(depends_on) t4 →(after) t3"),
+    });
+    expect(ctx.store.require("ticket", "t3").data.depends_on).toEqual([]);
+  });
+
   it("create は after があっても、見つかる循環が after の辺を含まない（depends_on だけ）なら拒否しない", async () => {
     const f = await fixture();
     const ctx = await initialized(f.cloneA);

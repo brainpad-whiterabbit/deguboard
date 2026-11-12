@@ -24,7 +24,7 @@ import { dropRunning, peekRunningRuns, readRunningRuns, runAgentByTicket } from 
 import type { Doc } from "../storage/documents.js";
 import { wouldCreateCycle } from "../storage/integrity.js";
 import type { Store, WorkflowEntry } from "../storage/store.js";
-import { cyclePath, findPlanCycleAfterWrite } from "../storage/wait-cycle.js";
+import { cyclePath, findPlanCycleCreatedBy } from "../storage/wait-cycle.js";
 import type { Facts } from "../workflow/conditions.js";
 import { canTransition, describeRejection, findConstraint } from "../workflow/resolve.js";
 import {
@@ -298,8 +298,8 @@ function rejectPlanWaitCycle(
   before: readonly TicketId[],
 ): void {
   if (dependsOn.every((id) => before.includes(id))) return;
-  const cycle = findPlanCycleAfterWrite(store, ticket, dependsOn);
-  if (cycle && !findPlanCycleAfterWrite(store, ticket, before))
+  const cycle = findPlanCycleCreatedBy(store, ticket, before, dependsOn);
+  if (cycle)
     throw new OperationError(
       "REJECTED",
       `depends_on would form a cycle with after in an open Plan: ${cyclePath(cycle, true)}. Remove that depends_on or change the after`,

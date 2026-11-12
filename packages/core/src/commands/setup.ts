@@ -995,7 +995,7 @@ export const lint = defineCommand({
           "All tickets are finished, but the Plan is open",
         );
     }
-    // 開いた Plan の after と depends_on をまたぐ循環（PL-3）。Plan を作った後の depends_on の変更でできたものを拾う
+    // 開いた Plan の after と depends_on をまたぐ循環（PL-3）。直接の編集や、終わったチケットを戻したことでできたものを拾う
     for (const doc of ctx.store.plans.values()) {
       if (input.project && doc.data.project !== input.project) continue;
       if (doc.data.closed_at !== undefined) continue;

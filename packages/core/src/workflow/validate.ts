@@ -117,7 +117,7 @@ export function validateWorkflow(
   if (def.steps && !def.steps.some((step) => step.id === REVIEW_STEP)) {
     issue(
       "workflow_review_step_missing",
-      `steps has no ${REVIEW_STEP} step. A ${REVIEW_STEP} Run is rejected without it, so the quality gate cannot pass`,
+      `steps has no ${REVIEW_STEP} step. A ${REVIEW_STEP} Run is rejected without it, so a ticket at gate high cannot pass the quality gate`,
       "warning",
     );
   }
