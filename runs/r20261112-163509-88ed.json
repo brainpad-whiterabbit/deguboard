@@ -1,0 +1,33 @@
+{
+  "id": "r20261112-163509-88ed",
+  "ticket": "t775",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-12T16:35:09Z",
+  "finished_at": "2026-11-12T16:42:34Z",
+  "result": "success",
+  "error": null,
+  "retries": 2,
+  "retry_reasons": [
+    "マージドライバで自動解決した時刻の競合を、書き込み経路（claim・create・遷移など）の pull で警告に出していない",
+    "ADR-034 の SAME_STATUS_TIMES の字句がフィールド名の列挙を重複して書いている"
+  ],
+  "usage": {
+    "input": 86,
+    "output": 31098,
+    "cache_read": 3518855,
+    "cache_write": 96274
+  },
+  "tools": {
+    "read": 11,
+    "search": 0,
+    "write": 24,
+    "bash": 18,
+    "other": 4,
+    "read_before_write": 4,
+    "search_before_write": 0
+  },
+  "session": "9c478dc1-8bb7-468e-aaf1-3f03fea01044",
+  "review": null
+}
