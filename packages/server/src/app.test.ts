@@ -129,6 +129,30 @@ describe("HTTP サーバー", () => {
     expect(badJson.status).toBe(400);
   });
 
+  it("壊れた percent-encoding と URL として読めない要求先は、API と静的ファイルの両方で 400 を返し、プロセスは落ちない（t752）", async () => {
+    const f = await fixture();
+    await runCommand(init, await openContext({ cwd: f.cloneA, initialize: {} }), {});
+    const web = path.join(f.root, "web");
+    await mkdir(web, { recursive: true });
+    await writeFile(path.join(web, "index.html"), "<!doctype html><title>deguboard</title>");
+    const s = await serve(f.cloneA, web);
+    // 壊れた percent-encoding：API の名前と静的ファイルの両方で 400
+    const badApi = await raw(s, "POST", "api/commands/%E0%A4%A", {
+      headers: { "content-type": "application/json" },
+      body: "{}",
+    });
+    expect(badApi.status).toBe(400);
+    expect(badApi.body).toMatchObject({ ok: false, error: { code: "BAD_URL" } });
+    expect((await raw(s, "GET", "assets/%E0%A4%A.js")).status).toBe(400);
+    expect((await raw(s, "GET", "%")).status).toBe(400);
+    // URL として読めない要求先（ポートが数でない）：400 で、プロセスは落ちない
+    expect((await raw(s, "GET", "/a:b")).status).toBe(400);
+    expect((await raw(s, "GET", "/a:b/api/commands")).status).toBe(400);
+    // 後続の要求は普通に応答する
+    expect((await fetch(`${s.url}api/status`)).status).toBe(200);
+    expect(await (await fetch(`${s.url}`)).text()).toContain("<title>deguboard</title>");
+  });
+
   it("Host の名前が localhost・IP そのもの・--host の名前でない要求と、別オリジン（Origin: null を含む）の要求を 403 で断り、config.set を書かない", async () => {
     const f = await fixture();
     await runCommand(init, await openContext({ cwd: f.cloneA, initialize: {} }), {});
