@@ -1,0 +1,33 @@
+{
+  "id": "r20261112-064751-5ecc",
+  "ticket": "t736",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-12T06:47:51Z",
+  "finished_at": "2026-11-12T06:50:08Z",
+  "result": "success",
+  "error": null,
+  "retries": 2,
+  "retry_reasons": [
+    "ADR-027 の追記が 外す と拡張の片付けの削除範囲を誤って書いている（外すはリンクだけ）",
+    "requirements.md UI-11 の詳細の案内から vscode/src/l10n.ts が抜けている"
+  ],
+  "usage": {
+    "input": 24,
+    "output": 5922,
+    "cache_read": 559049,
+    "cache_write": 57340
+  },
+  "tools": {
+    "read": 3,
+    "search": 0,
+    "write": 3,
+    "bash": 8,
+    "other": 1,
+    "read_before_write": 2,
+    "search_before_write": 0
+  },
+  "session": "78fc0778-daf5-433b-812f-829c38a9c22c",
+  "review": null
+}
