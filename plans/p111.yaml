@@ -13,7 +13,7 @@ after:
     - t781
   t789:
     - t778
-pending_approval: true
+pending_approval: false
 details:
   t777:
     scope: bin/dg.js が速い経路のファイルを読めないときに main へ落ちる道と、main も読めないときの英語の案内、そのテスト
@@ -63,3 +63,5 @@ details:
     scope: ADR-027 を判断と理由だけに縮める
     approach: ADR は 1 つのまま、細部の正本の一覧を少数のディレクトリか入口の案内に縮め、check:docs を通す
     tier: light
+approved_by: maji/agent
+approved_at: 2026-11-12T17:20:45Z
