@@ -278,6 +278,58 @@ describe("frontmatter の 3-way マージ", () => {
     ).toMatchObject({ ok: false, conflicts: ["closed_at", "本文"] });
   });
 
+  it("承認の時刻（approved_at）も同じ status の規則で早い方を採り、auto として返す", async () => {
+    // Plan には status がないので、この規則は frontmatter の形（status がある）で確かめる
+    const base = doc({ ...BASE, status: "todo" });
+    const late = doc({ ...BASE, status: "todo", approved_at: "2026-11-01T00:00:09Z" });
+    const early = doc({ ...BASE, status: "todo", approved_at: "2026-11-01T00:00:05Z" });
+    const approved = {
+      field: "approved_at",
+      taken: "2026-11-01T00:00:05Z",
+      discarded: "2026-11-01T00:00:09Z",
+      auto: true,
+    };
+    expect(await mergeDocuments(base, late, early)).toEqual({
+      ok: true,
+      text: early,
+      resolved: [approved],
+    });
+    expect(await mergeDocuments(base, early, late)).toEqual({
+      ok: true,
+      text: early,
+      resolved: [approved],
+    });
+  });
+
+  it("時刻が読めないとき、または片側だけに時刻があるときは、同じ status でも時刻の規則で解かず競合のまま返す", async () => {
+    const base = doc({ ...BASE, status: "doing" });
+    // 片側が読めない時刻（Date.parse が NaN）
+    expect(
+      await mergeDocuments(
+        base,
+        doc({ ...BASE, status: "done", closed_at: "いつか" }),
+        doc({ ...BASE, status: "done", closed_at: "2026-11-01T00:00:05Z" }),
+      ),
+    ).toMatchObject({ ok: false, conflicts: ["closed_at"] });
+    // 両側とも読めない
+    expect(
+      await mergeDocuments(
+        base,
+        doc({ ...BASE, status: "done", closed_at: "いつか" }),
+        doc({ ...BASE, status: "done", closed_at: "明日" }),
+      ),
+    ).toMatchObject({ ok: false, conflicts: ["closed_at"] });
+    // 片側だけ時刻があり、もう片側は時刻を消した（status は同じ done）。時刻の値がない側は文字列ではないので競合のまま
+    const baseClosed = doc({ ...BASE, status: "done", closed_at: "2026-11-01T00:00:05Z" });
+    expect(
+      await mergeDocuments(
+        baseClosed,
+        doc({ ...BASE, status: "done", closed_at: "2026-11-01T00:00:09Z" }),
+        doc({ ...BASE, status: "done" }),
+      ),
+    ).toMatchObject({ ok: false, conflicts: ["closed_at"] });
+  });
+
   it("採る側を渡したときは、同じ status の時刻の規則を使わず、その側を採る（人が選んだ解き方）", async () => {
     const base = doc({ ...BASE, status: "doing" });
     const late = doc({ ...BASE, status: "done", closed_at: "2026-11-01T00:00:09Z" });
@@ -472,6 +524,37 @@ describe("同期のマージドライバ", () => {
     );
     expect(created.warnings.join("\n")).not.toContain("Conflicts with remote changes");
     expect(b.store.tickets.get("t1")?.data).toMatchObject({
+      status: "done",
+      closed_at: "2026-11-01T00:00:05Z",
+    });
+  });
+
+  it("push が拒否されて取り込み直す周回で同じ status の時刻が自動で解けたら、その周回の警告に採った値と捨てた値を出す（SY-4）", async () => {
+    const f = await fixture();
+    const { a, b } = await twoClones(f);
+    // a の push の直前に b が遅い時刻で完了にして push する。a の push は拒否され、取り込み直す周回に入る
+    const hooks = {
+      beforePush: async () => {
+        hooks.beforePush = async () => {};
+        await withWrite(
+          b,
+          () =>
+            b.store.update("ticket", "t1", { status: "done", closed_at: "2026-11-01T00:00:09Z" }),
+          { message: "t1 を完了にする", immediate: true },
+        );
+      },
+    };
+    const { write } = await withWrite(
+      { ...a, hooks },
+      () => a.store.update("ticket", "t1", { status: "done", closed_at: "2026-11-01T00:00:05Z" }),
+      { message: "t1 を完了にする", immediate: true },
+    );
+    expect(write).toMatchObject({ committed: true, pushed: true, attempts: 2 });
+    expect(write.warnings.join("\n")).toContain(
+      'Resolved automatically, not a conflict (both sides have the same status and differ only in the time that goes with it, so the earlier time is taken): tickets/t1.md closed_at (taken "2026-11-01T00:00:05Z", discarded "2026-11-01T00:00:09Z")',
+    );
+    expect(write.warnings.join("\n")).not.toContain("Conflicts with remote changes");
+    expect(a.store.tickets.get("t1")?.data).toMatchObject({
       status: "done",
       closed_at: "2026-11-01T00:00:05Z",
     });

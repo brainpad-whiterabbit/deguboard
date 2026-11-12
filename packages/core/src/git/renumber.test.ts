@@ -9,6 +9,7 @@ import { init, sync } from "../commands/setup.js";
 import { ticketCreate, ticketUpdate } from "../commands/ticket.js";
 import { renumberCollisions, renumberProvisional } from "./renumber.js";
 import { fetchData } from "./sync.js";
+import { withWrite } from "./write.js";
 
 // 積み直し（replay）の途中で git を失敗させるため、指定したサブコマンドだけ失敗させる runGit に差し替える
 const failing = vi.hoisted(() => ({ subcommand: undefined as string | undefined }));
@@ -135,6 +136,37 @@ describe("仮番号の振り直し（renumberProvisional、--resolve なしの s
     expect(r).toEqual({ renumbered: [], conflicts: ["tickets/t1.md"], resolved: [] });
     expect((await git(dir, ["rev-parse", "HEAD"])).stdout.trim()).toBe(head);
     expect((await git(dir, ["status", "--porcelain"])).stdout).toBe("");
+  });
+
+  it("振り直した後の取り込みで同じ status の時刻が自動で解けたら、resolved に採った値と捨てた値を返す", async () => {
+    const { a, b } = await collidedWithA();
+    // a が t1 を遅い時刻で完了にして push する
+    await withWrite(
+      a,
+      () => a.store.update("ticket", "t1", { status: "done", closed_at: "2026-11-01T00:00:09Z" }),
+      { message: "t1 を完了にする", immediate: true },
+    );
+    // b は未コミットのまま t1 を早い時刻で完了にし、仮番号の t2 と一緒に 1 コミットにする
+    await b.store.update("ticket", "t1", { status: "done", closed_at: "2026-11-01T00:00:05Z" });
+    await git(b.repo.dataDir, ["add", "-A"]);
+    await git(b.repo.dataDir, ["commit", "-qm", "まとめ待ち"]);
+    await fetchData(b.repo);
+
+    // 振り直した後の取り込みで closed_at だけがぶつかり、status が同じなので早い方を採る（競合にしない）
+    const r = await renumberProvisional(b.repo, ["tickets/t2.md"]);
+    expect(r).toEqual({
+      renumbered: [{ from: "t2", to: "t3" }],
+      conflicts: [],
+      resolved: [
+        {
+          file: "tickets/t1.md",
+          field: "closed_at",
+          taken: "2026-11-01T00:00:05Z",
+          discarded: "2026-11-01T00:00:09Z",
+          auto: true,
+        },
+      ],
+    });
   });
 
   it("仮番号の衝突でない競合があれば null を返し、何も変えない", async () => {
