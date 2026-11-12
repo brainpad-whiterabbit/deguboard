@@ -1,0 +1,65 @@
+id: p111
+project: default
+tickets: [t777, t778, t779, t783, t784, t787, t790, t780, t782, t781, t789, t788]
+after:
+  t780:
+    - t777
+  t782:
+    - t777
+  t781:
+    - t780
+    - t782
+  t788:
+    - t781
+  t789:
+    - t778
+pending_approval: true
+details:
+  t777:
+    scope: bin/dg.js が速い経路のファイルを読めないときに main へ落ちる道と、main も読めないときの英語の案内、そのテスト
+    approach: 動的 import を try で包み ERR_MODULE_NOT_FOUND のときだけ main に回し、bundle.ts は同梱の chunk が揃うので要らない理由をコメントに残す
+    tier: standard
+  t778:
+    scope: Walkthrough の手順 2・3 と英日の md を、PATH に dg がなくても進める形に直す
+    approach: 手順 2 は /dgimport でエージェントに頼む道を先に、dg ticket create は Install dg command のリンク付きで別の道にし、手順 3 から dg skill install を外す
+    tier: light
+  t779:
+    scope: VS Code の同期の競合の通知の英語化と、判定の純粋関数化とテスト、core の型の利用
+    approach: core の describeConflictFields・ResolvedFile を使い、notifySync の分岐を sync-resolve.ts の純粋関数に移してテストする
+    tier: standard
+  t780:
+    scope: 同梱の dg.mjs の入口がコンパイルキャッシュを有効にすること、書けないときに黙って続けることのテスト
+    approach: NODE_COMPILE_CACHE を環境に置かず、入口の呼び出しの有無で結果が変わる観測（キャッシュの置き場所にファイルができる等）で確かめる
+    tier: standard
+  t781:
+    scope: 速い経路が受け持たない PreToolUse の入力で bin/dg.js と同梱の dg.mjs を起動するテスト
+    approach: 初期化していない repo の PreToolUse を標準入力で渡して両方の入口を起動し、本体の経路の出力と比べる
+    tier: standard
+  t782:
+    scope: bin/dg.js の Node の版の確かめと dg:link の説明
+    approach: bin/dg.js の冒頭で major が 24 未満なら英語の案内を出して非 0 で終え、launcher.ts と同じ基準にする
+    tier: standard
+  t783:
+    scope: vite.uninstall.config.ts の型検査と .vscodeignore の列挙の修正
+    approach: ルートの tsconfig.json の include に足し、.vscodeignore の冒頭のコメントに dist/uninstall.mjs を足す
+    tier: light
+  t784:
+    scope: ADR-034・ADR-008 と guide-overview.md の 3 つのずれの修正
+    approach: "ADR-034 の理由と採らなかった案を足し、ADR-008 の見出しを直し、guide の When sync stops に auto: true の警告の扱いを足す"
+    tier: light
+  t787:
+    scope: 自動で解いた時刻の報告の残りの経路と earlierTimes の境界のテスト
+    approach: renumber と write の push のやり直しの周回のテストに resolved の中身を足し、merge.test.ts に境界の分岐のテストを足す
+    tier: standard
+  t788:
+    scope: 速い経路のまわりの写し・使われていない分岐と export・入口のコメントの片付け
+    approach: ファイルの一覧は 1 か所に寄せるかテストで揃いを確かめ、入口の共通の流れは関数にまとめ、使われていない所を消す
+    tier: heavy
+  t789:
+    scope: README.md・README.ja.md に同期が競合で止まったときの短い節を足す
+    approach: Usage に、通知の Take remote / Take local、dg sync --resolve、時刻だけの競合の自動の解決を数行で書く
+    tier: light
+  t790:
+    scope: ADR-027 を判断と理由だけに縮める
+    approach: ADR は 1 つのまま、細部の正本の一覧を少数のディレクトリか入口の案内に縮め、check:docs を通す
+    tier: light
