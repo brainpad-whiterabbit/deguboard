@@ -1,0 +1,32 @@
+{
+  "id": "r20261112-084032-7400",
+  "ticket": "t743",
+  "step": "fix",
+  "agent": "claude-code",
+  "model": "claude-haiku-5-5",
+  "started_at": "2026-11-12T08:40:32Z",
+  "finished_at": "2026-11-12T08:41:34Z",
+  "result": "success",
+  "error": null,
+  "retries": 1,
+  "retry_reasons": [
+    "ADR-027 に、失敗した後のやり直しという端のケースの細部を書いていたので外す（規約違反）"
+  ],
+  "usage": {
+    "input": 22,
+    "output": 4823,
+    "cache_read": 446022,
+    "cache_write": 29063
+  },
+  "tools": {
+    "read": 3,
+    "search": 0,
+    "write": 2,
+    "bash": 7,
+    "other": 1,
+    "read_before_write": 0,
+    "search_before_write": 0
+  },
+  "session": "25cc4aed-12e4-41db-b3bf-a1298b56ef4f",
+  "review": null
+}
