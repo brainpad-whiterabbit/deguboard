@@ -4,6 +4,7 @@ import { z } from "zod";
 import { slugSchema } from "../model/common.js";
 import {
   METRIC_UNITS,
+  doneTicketsWithoutImplementRun,
   filterRuns,
   measureRuns,
   placeRun,
@@ -18,13 +19,15 @@ import { epicRef, idShapeOf, iterationRef, ticketRef } from "./helpers.js";
 export interface MetricsView extends MetricsReport {
   filter: MetricFilter;
   by: MetricUnit | null;
+  /** 絞り込みに合う done のチケットで、実装の Run が 1 件もない ID（MT-3） */
+  no_runs: string[];
 }
 
 export const metricsShow = defineCommand({
   name: "metrics.show",
   group: "metrics",
   summary:
-    "Aggregate Runs. Filter by Run, ticket, Epic, Iteration, Project, Agent, Model, or Step (Epic, Iteration, and Project follow each ticket's current value). Values that could not be read are not added and are counted in missing; Runs with estimated values are counted in estimated_runs. Tool counts (tools) are also added up per kind, and Runs without them are counted in missing.tools. Reviews recorded with no Run from a hook (capture: none) are counted as reviews only, and are left out of usage, time, and tools. Aggregates are not stored",
+    "Aggregate Runs. Filter by Run, ticket, Epic, Iteration, Project, Agent, Model, or Step (Epic, Iteration, and Project follow each ticket's current value). Values that could not be read are not added and are counted in missing; Runs with estimated values are counted in estimated_runs. Tool counts (tools) are also added up per kind, and Runs without them are counted in missing.tools. Reviews recorded with no Run from a hook (capture: none) are counted as reviews only, and are left out of usage, time, and tools. Done tickets that match the ticket-level filters (ticket, epic, iteration, project) and have no implement Run are listed in no_runs. Aggregates are not stored",
   input: z.object({
     run: runIdSchema.optional().describe("Only this Run"),
     ticket: ticketRef.optional().describe("Only Runs of this ticket"),
@@ -76,7 +79,15 @@ export const metricsShow = defineCommand({
             `Tickets ${lost.join(", ")} not found, so the Epic, Iteration and Project of those Runs are unknown`,
           ]
         : [];
-    const view: MetricsView = { filter, by: input.by ?? null, ...report };
+    // done なのに実装の Run がないチケットは、Run の集計には現れないので別に示す（MT-3）
+    const no_runs = doneTicketsWithoutImplementRun(
+      [...ctx.store.tickets.values()].map((d) => d.data),
+      [...ctx.store.runs.values()].map((d) => d.data),
+      filter,
+    );
+    if (no_runs.length > 0)
+      warnings.push(`Done tickets with no implement Run: ${no_runs.join(", ")}`);
+    const view: MetricsView = { filter, by: input.by ?? null, ...report, no_runs };
     return ok(view, undefined, warnings);
   },
 });

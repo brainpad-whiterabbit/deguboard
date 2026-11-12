@@ -171,6 +171,31 @@ export function filterRuns<P extends { at: RunPlacement }>(
   return placed.filter((p) => conditions.every(([unit, v]) => p.at[unit] === v));
 }
 
+/**
+ * 絞り込みに合う done のチケットのうち、実装の Run（step が implement）が 1 件もないもの（MT-3）。
+ * Run の条件（run・agent・model・step）があれば、Run のないチケットはどれにも合わないので示さない。
+ * 絞り込みは チケットの今の値（ticket・Epic・Iteration・Project）で見る。欠けたのは Run なので、Run の数は足さない
+ */
+export function doneTicketsWithoutImplementRun(
+  tickets: readonly Ticket[],
+  runs: readonly Run[],
+  filter: MetricFilter = {},
+): string[] {
+  if ((["run", "agent", "model", "step"] as const).some((u) => filter[u] !== undefined)) return [];
+  const withImplement = new Set(runs.filter((r) => r.step === "implement").map((r) => r.ticket));
+  return tickets
+    .filter((t) => t.status === "done" && !withImplement.has(t.id))
+    .filter(
+      (t) =>
+        (filter.ticket === undefined || filter.ticket === t.id) &&
+        (filter.epic === undefined || filter.epic === (t.epic ?? null)) &&
+        (filter.iteration === undefined || filter.iteration === (t.iteration ?? null)) &&
+        (filter.project === undefined || filter.project === t.project),
+    )
+    .map((t) => t.id)
+    .sort((a, b) => idNumber(a) - idNumber(b));
+}
+
 /** 絞り込んだ Run の集計と、単位ごとの集計 */
 export function measureRuns(
   placed: readonly { run: Run; at: RunPlacement }[],

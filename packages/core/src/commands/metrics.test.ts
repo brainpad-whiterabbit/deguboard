@@ -8,6 +8,7 @@ import { openContext } from "./context.js";
 import { runCommand, type CommandContext } from "./define.js";
 import { epicAdd, epicCreate } from "./epic.js";
 import { findCommand } from "./index.js";
+import { iterationAdd, iterationClose, iterationCreate, iterationStart } from "./iteration.js";
 import { metricsShow } from "./metrics.js";
 import { commit, init } from "./setup.js";
 import { ticketCreate } from "./ticket.js";
@@ -224,5 +225,37 @@ describe("metrics show", () => {
       [],
     );
     expect(findCommand("metrics.show")).toBe(metricsShow);
+  });
+
+  it("絞り込みに合う done のチケットのうち、実装の Run が 1 件もないものを示す（MT-3）", async () => {
+    const ctx = await scenario();
+    await runCommand(ticketCreate, ctx, { title: "C" });
+    await runCommand(iterationCreate, ctx, { name: "I" });
+    await runCommand(iterationAdd, ctx, { iteration: "s1", tickets: ["t3"] });
+    await runCommand(iterationStart, ctx, { iteration: "s1" });
+    // 完了は dg の外の変更（ストアへの直接の書き込み）として記録する（scenario と同じ）
+    await ctx.store.update("ticket", "t3", { status: "done" });
+    await recordBaseline(ctx.repo);
+    await runCommand(commit, ctx, {});
+
+    // t1 は実装の Run があり、t2 は done でないので示さない
+    expect((await runCommand(metricsShow, ctx, {})).data.no_runs).toEqual(["t3"]);
+    expect((await runCommand(metricsShow, ctx, {})).warnings).toEqual([
+      "Done tickets with no implement Run: t3",
+    ]);
+    expect((await runCommand(metricsShow, ctx, { ticket: "t1" })).data.no_runs).toEqual([]);
+    expect((await runCommand(metricsShow, ctx, { epic: "e1" })).data.no_runs).toEqual([]);
+    expect((await runCommand(metricsShow, ctx, { project: "default" })).data.no_runs).toEqual([
+      "t3",
+    ]);
+    // Run の条件で絞ったときは、Run のないチケットはどれにも合わないので示さない
+    expect((await runCommand(metricsShow, ctx, { step: "implement" })).data.no_runs).toEqual([]);
+    expect((await runCommand(metricsShow, ctx, { agent: "codex" })).data.no_runs).toEqual([]);
+
+    // 閉じた Iteration で絞っても示す。done のチケットは閉じても Iteration に残る
+    await runCommand(iterationClose, ctx, { iteration: "s1" });
+    const closed = await runCommand(metricsShow, ctx, { iteration: "s1" });
+    expect(closed.data).toMatchObject({ filter: { iteration: "s1" }, no_runs: ["t3"] });
+    expect(closed.warnings).toEqual(["Done tickets with no implement Run: t3"]);
   });
 });
