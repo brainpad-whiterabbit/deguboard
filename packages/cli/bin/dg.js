@@ -7,23 +7,25 @@
 // 受け持たない入力は、読んだ標準入力を添えて main に回す
 // 速い経路のファイルが読めないときは、速さを諦めて main に回す（t777）。
 // main も読めないときは dist が無いか古いので、直し方を英語で出して終える。ほかの読み込みの失敗は握りつぶさない
-// Node が 24 より古いときは、dist を読む前に直し方を英語で出して終える（t782）。dist は Node 24 向けに作るので、
-// 古い node では読み込みや実行が途中で壊れ、原因が分かりにくい。拡張の起動ファイルは current の node を検査せずに使うが、
-// それは拡張ホストの node で、engines により 24 以上に決まる。ここはどの node で呼ばれても見る
+// Node が 24 より古いときは、dist を読む前に直し方を英語で出して終える（t782）。dist と依存は Node 24 以上向け（engines）なので、
+// 古い node では読み込みや実行がどこで壊れるか分からない。拡張の起動ファイルは current の node を検査せずに使うが、
+// それは拡張ホストの node で、engines により 24 以上に決まる。ここはどの node で呼ばれても見る。
+// 終了コードは PreToolUse のフック（hook PreToolUse）だけ 2 にする。Claude Code は PreToolUse の終了コード 1 を
+// ツールを止めない誤りとして扱うので、1 だとフックの守りが黙って外れる。2 はツールの呼び出しを拒む。ほかのコマンドは 1
 import module from "node:module";
-import { nodeVersionProblemOf } from "./node-version.mjs";
+import { nodeVersionExitCodeOf, nodeVersionProblemOf } from "./node-version.mjs";
 
-const nodeProblem = nodeVersionProblemOf(process.versions.node);
+const argv = process.argv.slice(2);
+const nodeProblem = nodeVersionProblemOf(process.versions.node, argv);
 if (nodeProblem !== undefined) {
   process.stderr.write(nodeProblem);
-  process.exitCode = 1;
+  process.exitCode = nodeVersionExitCodeOf(argv);
 } else {
   try {
     module.enableCompileCache?.();
   } catch {
     // キャッシュは速さのための任意の機能なので、失敗しても起動は続ける
   }
-  const argv = process.argv.slice(2);
   // dist が今のものでないときの失敗。ファイルが無いとき（ERR_MODULE_NOT_FOUND）と、部分的な再ビルドで古い dist が
   // import 先の名前を持たないとき（SyntaxError の "does not provide an export named"）。どちらも同じく扱う
   const isStaleDist = (error) =>
