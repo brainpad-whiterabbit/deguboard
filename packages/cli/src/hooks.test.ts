@@ -287,6 +287,8 @@ describe("dg hooks check（AG-9・t542）", () => {
     const ok = await checkOf(cwd, [], env);
     expect(ok.data.events.every((e) => e.installed && e.handler === "ok")).toBe(true);
 
+    // 拡張が残っている（current もある）ままで起動ファイルだけが消えた場合
+    await writeFile(path.join(home, ".local", "share", "deguboard", "current"), "version=9.8.7\n");
     await rm(launcher);
     const gone = await checkOf(cwd, [], env);
     expect(gone.data.events.every((e) => e.handler === "gone")).toBe(true);
@@ -302,6 +304,32 @@ describe("dg hooks check（AG-9・t542）", () => {
     expect(gone.warnings.join("\n")).not.toContain("hooks install again");
   });
 
+  it("拡張を消したあと（起動ファイルも current もない）は、開き直す案内ではなく、フックを入れ直すか外す案内を出す（t742）", async () => {
+    const entry = path.join(os.tmpdir(), "ext", "dist", "cli", "dg.mjs");
+    setBundleLayout({ entry, guideDir: path.dirname(path.dirname(entry)), version: "9.8.7" });
+    const cwd = await repo();
+    const home = await tempHome();
+    const launcher = path.join(home, ".local", "share", "deguboard", "dg");
+    await mkdir(path.dirname(launcher), { recursive: true });
+    await writeFile(launcher, "#!/bin/sh\nexit 0\n");
+    await chmod(launcher, 0o755);
+    const env = { DEGUBOARD_LAUNCHER: launcher };
+    expect((await dg(cwd, ["hooks", "install"], env)).code).toBe(0);
+
+    // 拡張がなくなると、起動ファイルと current の両方が消える
+    await rm(launcher);
+    const gone = await checkOf(cwd, [], env);
+    expect(gone.data.events.every((e) => e.handler === "gone")).toBe(true);
+    expect(gone.warnings).toContainEqual(
+      expect.stringMatching(
+        new RegExp(`${launcher.replaceAll(/[.*+?^${}()|[\]\\]/g, "\\$&")}.*extension.*was removed`),
+      ),
+    );
+    expect(gone.warnings).toContainEqual(expect.stringContaining("dg hooks install again"));
+    expect(gone.warnings).toContainEqual(expect.stringContaining("dg hooks uninstall"));
+    expect(gone.warnings.join("\n")).not.toContain("Open VS Code");
+  });
+
   it("起動ファイル経由でも --shared は追跡する設定に PATH の dg を書く（マシンのパスは書かない。t735）", async () => {
     const entry = path.join(os.tmpdir(), "ext", "dist", "cli", "dg.mjs");
     setBundleLayout({ entry, guideDir: path.dirname(path.dirname(entry)), version: "9.8.7" });
@@ -315,7 +343,7 @@ describe("dg hooks check（AG-9・t542）", () => {
     ]);
   });
 
-  it("束ねていない dg（clone）は、起動ファイルの環境変数があっても node と dg.js を書く。起動ファイルがなければ、拡張を開き直す案内を出す（t735）", async () => {
+  it("束ねていない dg（clone）は、起動ファイルの環境変数があっても node と dg.js を書く。起動ファイルも current もなければ、入れ直すか外す案内を出す（t735, t742）", async () => {
     const cwd = await repo();
     const launcher = path.join(await tempHome(), "dg");
     const env = { DEGUBOARD_LAUNCHER: launcher };
@@ -325,12 +353,11 @@ describe("dg hooks check（AG-9・t542）", () => {
     expect(command).not.toContain(launcher);
     expect(command).toContain(process.execPath);
 
-    // 起動ファイルを指すフック（dg hooks install --command で書いた形）が、なくなっていれば拡張を開き直す案内を出す
+    // 起動ファイルを指すフック（dg hooks install --command で書いた形）が、なくなっていれば（current もないので拡張は消えている）入れ直すか外す案内を出す
     expect((await dg(cwd, ["hooks", "install", "--command", `"${launcher}"`], env)).code).toBe(0);
     const gone = await checkOf(cwd, [], env);
-    expect(gone.warnings).toContainEqual(
-      expect.stringContaining("Open VS Code with the deguboard extension"),
-    );
+    expect(gone.warnings).toContainEqual(expect.stringContaining("dg hooks install again"));
+    expect(gone.warnings.join("\n")).not.toContain("Open VS Code");
   });
 
   it("フックがなければ、設定に dg のフックがないと警告する（終了コードは 0）", async () => {
