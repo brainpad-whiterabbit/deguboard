@@ -9,6 +9,7 @@ import {
   outsideRemedy,
   type OutsideChanges,
 } from "../git/outside.js";
+import { REBASE_REMEDY } from "../git/rebase.js";
 import type { ActorKind, UserSource } from "../model/actor.js";
 import type { WriteContext, WriteOutcome } from "../git/write.js";
 import type { WorktreeOrigin } from "../git/worktree.js";
@@ -122,10 +123,20 @@ export async function runCommand<I extends z.ZodType, O>(
       ? undefined
       : await checkOutside(ctx.repo);
   if (check?.kind === "found" && def.write) throw outsideError(check.changes, def.name);
+  // rebase の途中は外の変更と報告しない。書くコマンドは書き込みのロックの中（settleRebase）が取り消すか止める（t753）
   const result = await def.run(ctx, parsed.data);
   if (check?.kind === "found")
     return { ...result, warnings: [...result.warnings, outsideWarning(check.changes)] };
+  if (check?.kind === "rebasing" && !def.write)
+    return { ...result, warnings: [...result.warnings, rebaseWarning(check.byDg)] };
   return result;
+}
+
+/** 読むだけのコマンドが rebase の途中を見つけたときの警告（読んだデータは途中の状態） */
+export function rebaseWarning(byDg: boolean): string {
+  return byDg
+    ? "A rebase that an earlier dg left halfway (it was stopped or timed out) remains in the deguboard worktree, so what was read may be halfway. The next dg command that writes aborts it"
+    : `A rebase started outside dg is in progress in the deguboard worktree, so what was read may be halfway, and dg commands that write stop. ${REBASE_REMEDY}`;
 }
 
 /** 読むだけで済んだときの、dg の外の変更の警告（runCommand と、検査を自分で扱う pr ready が使う） */

@@ -9,6 +9,8 @@ import { hook, type HookView } from "../commands/hook.js";
 import { adopt, commit, init, sync } from "../commands/setup.js";
 import { ticketCreate, ticketList, ticketShow, ticketUpdate } from "../commands/ticket.js";
 import { checkOutside, DG_COMMIT_TRAILER } from "./outside.js";
+import { markRebase, rebaseInProgress } from "./rebase.js";
+import { runGit } from "./run.js";
 import { withWriteLock } from "./write.js";
 
 const cleanups: Array<() => Promise<void>> = [];
@@ -224,5 +226,49 @@ describe("dg の外の変更（SY-7・SY-8）", () => {
       payload: { session_id: "s" },
     });
     expect(started.warnings.filter((w) => w.includes("dg の外"))).toEqual([]);
+  });
+
+  it("dg が残した rebase の途中は、読むコマンドは外の変更でなく途中と警告し、書くコマンドは取り消してから書く（t753）", async () => {
+    const { ctx } = await prepared();
+    await runCommand(commit, ctx, {});
+    const head = (await git(ctx.repo.dataDir, ["rev-parse", "HEAD"])).stdout.trim();
+    // 1 コミットを積み直した後の exec で止まった rebase を、落ちた dg の残りとして印を付けて置く
+    await runGit(ctx.repo.dataDir, ["rebase", "--no-keep-empty", "-x", "false", "HEAD~1"], {
+      allowFailure: true,
+      env: { GIT_SEQUENCE_EDITOR: "true" },
+    });
+    expect(await rebaseInProgress(ctx.repo)).toBe(true);
+    await markRebase(ctx.repo);
+
+    const shown = await runCommand(ticketShow, ctx, { ticket: "t1" });
+    expect(shown.warnings).toEqual([expect.stringContaining("A rebase that an earlier dg left")]);
+    const stop = (await runCommand(hook, ctx, { event: "Stop", payload: { session_id: "s" } }))
+      .data as HookView;
+    expect(stop.output).toBeUndefined();
+
+    await runCommand(ticketUpdate, ctx, { ticket: "t1", priority: "high" });
+    expect(await rebaseInProgress(ctx.repo)).toBe(false);
+    expect((await git(ctx.repo.dataDir, ["rev-parse", "HEAD"])).stdout.trim()).toBe(head);
+    expect((await runCommand(ticketList, ctx, {})).warnings).toEqual([]);
+  });
+
+  it("人が始めた rebase の途中は、書くコマンドが取り消さずに直し方を示して止まり、外の変更とは報告しない（t753）", async () => {
+    const { ctx } = await prepared();
+    await runCommand(commit, ctx, {});
+    await runGit(ctx.repo.dataDir, ["rebase", "--no-keep-empty", "-x", "false", "HEAD~1"], {
+      allowFailure: true,
+      env: { GIT_SEQUENCE_EDITOR: "true" },
+    });
+    expect(await rebaseInProgress(ctx.repo)).toBe(true);
+    const refused = await runCommand(ticketUpdate, ctx, { ticket: "t1", priority: "high" }).then(
+      () => null,
+      (e: unknown) => e,
+    );
+    expect(refused).toMatchObject({
+      code: "SYNC_CONFLICT",
+      message: expect.stringContaining("A rebase started outside dg is in progress"),
+    });
+    await expect(runCommand(adopt, ctx, {})).rejects.toMatchObject({ code: "SYNC_CONFLICT" });
+    expect(await rebaseInProgress(ctx.repo)).toBe(true);
   });
 });

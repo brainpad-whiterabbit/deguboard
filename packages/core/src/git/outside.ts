@@ -6,7 +6,7 @@
 //     作業ツリーの変更のあるファイルとその中身のハッシュを基準に記録する。今の作業ツリーが基準と違えば、違うファイルを dg の外の変更とする
 //   基準は deguboard-local/outside-baseline.json（マシンごと）。初めて確かめるとき（基準がない）は今の状態を基準にする。
 //   - 履歴：基準の HEAD が今の HEAD の祖先でなければ、dg の外の変更とする。dg 自身の rebase と CAS のやり直しはロックの中で行い、
-//     放す前に基準を記録するので取り違えない
+//     放す前に基準を記録するので取り違えない。rebase の途中（落ちた dg の残り・人が始めたもの）は比べず rebasing を返す（rebase.ts）
 //   書き込みのロックの中で見つけたら書かない（見つけた変更を dg のコミットに入れて隠さない）。dg adopt が今の状態を基準にして取り込む
 //   見つけないもの（受け入れる）：権限管理や偽装の防止はしないので、印を付けたコミットと基準のファイルの書き換えは見ない。
 //   基準はマシンごとなので、別のマシンでの書き換えはそのマシンの dg が見つけ、push 済みの外のコミットは取り込んだ側では見ない
@@ -18,6 +18,7 @@ import path from "node:path";
 import { OperationError } from "../errors.js";
 import { writeFileAtomic } from "../storage/atomic.js";
 import { lockHeld } from "./lock.js";
+import { rebaseInProgress, rebaseLeftByDg } from "./rebase.js";
 import type { GitRepo } from "./repo.js";
 import { runGit } from "./run.js";
 import { DATA_BRANCH } from "./worktree.js";
@@ -54,9 +55,14 @@ export interface OutsideChanges {
   rewritten: boolean;
 }
 
+/**
+ * rebasing：rebase の途中（rebase.ts）。途中の HEAD と作業ツリーは外の変更と比べない（基準と違って見えるが外の変更ではない）。
+ * byDg は dg の残したもの（印がある）か。書き込みの入口（settleRebase）が取り消すか止める
+ */
 export type OutsideCheck =
   | { kind: "clean"; initial: boolean }
-  | { kind: "found"; changes: OutsideChanges };
+  | { kind: "found"; changes: OutsideChanges }
+  | { kind: "rebasing"; byDg: boolean };
 
 const git = (repo: GitRepo, args: string[]) =>
   runGit(repo.dataDir, args, { localDir: repo.localDir, allowFailure: true });
@@ -105,6 +111,8 @@ async function dirtyFiles(repo: GitRepo): Promise<Record<string, string>> {
 
 /** 今の状態を基準に記録する */
 export async function recordBaseline(repo: GitRepo): Promise<void> {
+  // 途中の HEAD を基準にしない（中止できずに残った rebase を、次の書き込みの入口が片付けるまで基準を動かさない）
+  if (await rebaseInProgress(repo)) return;
   const head = await headOf(repo);
   if (head === undefined) return;
   const baseline: OutsideBaseline = { head, dirty: await dirtyFiles(repo) };
@@ -189,6 +197,9 @@ export async function checkOutside(
   repo: GitRepo,
   opts: { underLock?: boolean } = {},
 ): Promise<OutsideCheck> {
+  // 生きた dg が書き込みのロックを持つ間の rebase はその dg の取り込みなので、下の比べ方（書きかけを捨てる）に任せる
+  if ((await rebaseInProgress(repo)) && (opts.underLock || !(await writeLocked(repo))))
+    return { kind: "rebasing", byDg: await rebaseLeftByDg(repo) };
   for (let attempt = 0; ; attempt++) {
     const before = await baselineText(repo);
     const baseline = await readBaseline(repo);

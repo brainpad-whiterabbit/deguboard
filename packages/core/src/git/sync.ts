@@ -2,8 +2,9 @@
 
 import { attributesFile, MERGE_LOG_ENV, MERGE_PREFER_ENV } from "./merge.js";
 import { DG_COMMIT_TRAILER } from "./outside.js";
+import { abortRebase, markRebase, unmarkRebase } from "./rebase.js";
 import type { GitRepo } from "./repo.js";
-import { runGit } from "./run.js";
+import { type ExecResult, GitError, runGit } from "./run.js";
 import { DATA_BRANCH } from "./worktree.js";
 
 export interface SyncStatus {
@@ -35,10 +36,11 @@ export function remoteRef(repo: GitRepo): string {
 /** deguboard ブランチだけを取り込む。リモートにまだなければ remoteBranch: false */
 export async function fetchData(repo: GitRepo): Promise<FetchResult> {
   if (!repo.remote) return { ok: true, remoteBranch: false };
-  const result = await git(repo, ["fetch", repo.remote, `${DATA_BRANCH}:${remoteRef(repo)}`], {
-    allowFailure: true,
-    timeoutMs: 60_000,
-  });
+  const result = await remoteGit(
+    repo,
+    ["fetch", repo.remote, `${DATA_BRANCH}:${remoteRef(repo)}`],
+    60_000,
+  );
   if (result.code === 0) return { ok: true, remoteBranch: true };
   if (/couldn't find remote ref/i.test(result.stderr)) return { ok: true, remoteBranch: false };
   return { ok: false, detail: result.stderr.trim() };
@@ -47,10 +49,7 @@ export async function fetchData(repo: GitRepo): Promise<FetchResult> {
 /** 作業ブランチの照合に使うので、すべてのブランチを取り込む（消えたブランチは prune） */
 export async function fetchAll(repo: GitRepo): Promise<FetchResult> {
   if (!repo.remote) return { ok: true, remoteBranch: false };
-  const result = await git(repo, ["fetch", "--prune", repo.remote], {
-    allowFailure: true,
-    timeoutMs: 120_000,
-  });
+  const result = await remoteGit(repo, ["fetch", "--prune", repo.remote], 120_000);
   if (result.code !== 0) return { ok: false, detail: result.stderr.trim() };
   const has = await git(repo, ["show-ref", "--verify", "--quiet", remoteRef(repo)], {
     allowFailure: true,
@@ -98,27 +97,54 @@ export async function integrate(
         [MERGE_LOG_ENV]: opts.resolve.log,
       }
     : undefined;
-  const result = await git(repo, args, { allowFailure: true, ...(env ? { env } : {}) });
-  if (result.code === 0) return { ok: true, changed: (await headSha(repo)) !== before };
-  const conflicts = (
-    await git(repo, ["diff", "--name-only", "--diff-filter=U"], { allowFailure: true })
-  ).stdout
-    .split("\n")
-    .filter(Boolean);
-  await git(repo, ["rebase", "--abort"], { allowFailure: true });
-  return { ok: false, conflicts };
+  // 時間切れや例外でも中止してから失敗を返す（途中の HEAD を基準に記録したり、その上でコミットしたりしない）。
+  // dg ごと殺されたときに備えて印を置き、次の書き込みの入口（settleRebase）が取り消せるようにする（t753）
+  await markRebase(repo);
+  try {
+    const result = await git(repo, args, { allowFailure: true, ...(env ? { env } : {}) }).catch(
+      async (e: unknown) => {
+        await abortRebase(repo);
+        throw e;
+      },
+    );
+    if (result.code === 0) return { ok: true, changed: (await headSha(repo)) !== before };
+    try {
+      const conflicts = (
+        await git(repo, ["diff", "--name-only", "--diff-filter=U"], { allowFailure: true })
+      ).stdout
+        .split("\n")
+        .filter(Boolean);
+      return { ok: false, conflicts };
+    } finally {
+      await abortRebase(repo);
+    }
+  } finally {
+    await unmarkRebase(repo);
+  }
+}
+
+/** 時間切れは、リモートに届かないときと同じ失敗にする（投げると CAS が自分のコミットを捨てずに抜ける。t753） */
+async function remoteGit(repo: GitRepo, args: string[], timeoutMs: number): Promise<ExecResult> {
+  try {
+    return await git(repo, args, { allowFailure: true, timeoutMs });
+  } catch (e) {
+    if (e instanceof GitError && e.kind === "timeout")
+      return {
+        stdout: "",
+        stderr: `git ${args[0]} did not finish in ${timeoutMs / 1000} seconds`,
+        code: -1,
+      };
+    throw e;
+  }
 }
 
 /** push の結果を --porcelain の行で判定する（文言に依存しない） */
 export async function push(repo: GitRepo): Promise<PushResult> {
   if (!repo.remote) return { ok: false, reason: "unreachable", detail: "No remote" };
-  const result = await git(
+  const result = await remoteGit(
     repo,
     ["push", "--porcelain", "-u", repo.remote, `${DATA_BRANCH}:${DATA_BRANCH}`],
-    {
-      allowFailure: true,
-      timeoutMs: 60_000,
-    },
+    60_000,
   );
   if (result.code === 0) return { ok: true };
   const rejected = result.stdout.split("\n").some((line) => line.startsWith("!"));

@@ -7,6 +7,7 @@ import type { Config } from "../model/config.js";
 import type { Store } from "../storage/store.js";
 import { withLock } from "./lock.js";
 import { checkOutside, outsideError, recordBaseline } from "./outside.js";
+import { settleRebase } from "./rebase.js";
 import { requireIdentity, type GitRepo } from "./repo.js";
 import {
   amendAll,
@@ -98,6 +99,8 @@ export async function withWrite<T>(
  */
 export async function withWriteLock<T>(repo: GitRepo, fn: () => Promise<T>): Promise<T> {
   return withLock(repo.localDir, "write", async () => {
+    // 途中の rebase は外の変更と比べる前に片付ける（dg の残りは取り消し、人が始めたものは止める。t753）
+    await settleRebase(repo);
     const before = await checkOutside(repo, { underLock: true });
     if (before.kind === "found") throw outsideError(before.changes);
     try {
