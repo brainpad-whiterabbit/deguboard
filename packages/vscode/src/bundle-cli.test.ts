@@ -2,7 +2,7 @@ import { execFile, spawnSync } from "node:child_process";
 import { cp, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
@@ -145,5 +145,102 @@ describe("同梱の dg の束ね方（vite.cli.config.ts）", () => {
       encoding: "utf8",
     });
     expect(main.status).not.toBe(0);
+  }, 60_000);
+
+  it("入口の速い経路が受け持たない入力は、読んだ標準入力を添えて本体の chunk に回り、本体だけを動かした結果と同じになる（t781）", async () => {
+    const repo = path.join(tmp, "fallback-repo");
+    await mkdir(repo);
+    const env = {
+      ...process.env,
+      GIT_AUTHOR_NAME: "t",
+      GIT_AUTHOR_EMAIL: "t@example.com",
+      GIT_COMMITTER_NAME: "t",
+      GIT_COMMITTER_EMAIL: "t@example.com",
+    };
+    await run("git", ["init", "-q", "-b", "main"], { cwd: repo });
+    await run("git", ["commit", "-q", "--allow-empty", "-m", "init"], { cwd: repo, env });
+    await run(
+      process.execPath,
+      [path.join(outDir, "dg.mjs"), "init", "--template", "software-development"],
+      { cwd: repo, env },
+    );
+    // 本体だけを動かす参照。入口を通さず、本体の runBundled が標準入力を自分で読む（今の経路）
+    const bundleMain = (await readdir(outDir)).find((f) => /^dg-bundle-main-[\w-]+\.mjs$/.test(f))!;
+    const mainOnly = path.join(tmp, "main-only.mjs");
+    await writeFile(
+      mainOnly,
+      [
+        `import { runBundled } from ${JSON.stringify(pathToFileURL(path.join(outDir, bundleMain)).href)};`,
+        `process.exitCode = await runBundled(${JSON.stringify(path.join(outDir, "dg.mjs"))}, {});`,
+        "",
+      ].join("\n"),
+    );
+    // 初期化した repo で、標準入力の中身が本体の出力と記録を決める入力を使う（初期化していない repo は標準入力に依らない）
+    const cases: Array<[string, string]> = [
+      [
+        "JSON でない（YAML）で拒む Bash",
+        'tool_name: Bash\nsession_id: s-yaml-bundle\ntool_input:\n  command: "gh pr merge 5 --squash"\n',
+      ],
+      [
+        "別のツール（記録だけ残る）",
+        JSON.stringify({
+          session_id: "s-read-bundle",
+          tool_name: "Read",
+          tool_input: { file_path: "/etc/hosts" },
+          cwd: repo,
+        }),
+      ],
+    ];
+    const hookArgs = ["--actor", "agent", "hook", "PreToolUse", "--payload", "-"];
+    const localDir = path.join(repo, ".git", "deguboard-local");
+    const ISO = /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z/g;
+    // 記録（hook-inputs と hook-sessions）。時刻は伏せて比べる。入力を読めなければ、どちらにも何も残らない
+    const records = async () => {
+      const names = await readdir(path.join(localDir, "hook-sessions")).catch(() => [] as string[]);
+      const inputs = await readFile(
+        path.join(localDir, "hook-inputs", "PreToolUse.json"),
+        "utf8",
+      ).catch(() => "");
+      return `${names.join("\n")}\n${inputs}`.replace(ISO, "<time>");
+    };
+    const clearRecords = () =>
+      Promise.all(
+        ["hook-inputs", "hook-sessions"].map((sub) =>
+          rm(path.join(localDir, sub), { recursive: true, force: true }),
+        ),
+      );
+    for (const [name, input] of cases) {
+      const run1 = (script: string[]) => {
+        const r = spawnSync(process.execPath, [...script, ...hookArgs], {
+          cwd: repo,
+          input,
+          encoding: "utf8",
+          env,
+        });
+        return { status: r.status, stdout: r.stdout, stderr: r.stderr };
+      };
+      await clearRecords();
+      const expected = run1([mainOnly]);
+      const expectedRecords = await records();
+      await clearRecords();
+      const actual = run1([path.join(outDir, "dg.mjs")]);
+      const actualRecords = await records();
+      await clearRecords();
+      expect(actual, name).toEqual(expected);
+      expect(actualRecords, name).toEqual(expectedRecords);
+      expect(actual.status, name).toBe(0);
+      // 本体が標準入力の中身を読んだこと（読めなければ記録が残らない）
+      expect(actualRecords.trim(), name).not.toBe("");
+    }
+    // 最初の入力（YAML の拒む Bash）は、本体が読んだ入力で拒まれる（読めなければ拒まれない）
+    const denied = spawnSync(process.execPath, [path.join(outDir, "dg.mjs"), ...hookArgs], {
+      cwd: repo,
+      input: cases[0]![1],
+      encoding: "utf8",
+      env,
+    });
+    expect(JSON.parse(denied.stdout)).toMatchObject({
+      hookSpecificOutput: { permissionDecision: "deny" },
+    });
   }, 60_000);
 });
