@@ -1,4 +1,4 @@
-// bin/dg.js が main を読む前に試す、PreToolUse の速い経路（t768）。argv が dg hooks install の書く PreToolUse の呼び出しなら、
+// bin/dg.js と、束ねた dg.mjs の入口（bundle.ts）が main を読む前に試す、PreToolUse の速い経路（t768・t769）。argv が dg hooks install の書く PreToolUse の呼び出しなら、
 // 標準入力の JSON を core の fastPreToolUse に渡し、今の経路（program.ts の dg hook と output.ts の printHuman）と同じ形で書く。
 // 受け持たない入力は、読んだ標準入力を添えて今の経路に回す（標準入力は 1 度しか読めない）。
 // commander・yaml・core の入口を読まない（fast-hook.test.ts が静的な import を確かめる）

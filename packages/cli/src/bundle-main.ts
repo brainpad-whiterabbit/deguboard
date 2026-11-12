@@ -11,8 +11,11 @@ import { main } from "./main.js";
 /** 束ねるときに cli の package.json の版で埋める */
 declare const __DG_VERSION__: string;
 
-/** entry は入口（dg.mjs）の絶対パス */
-export async function runBundled(entry: string): Promise<number> {
+/** entry は入口（dg.mjs）の絶対パス。opts.stdinText は入口が先に読んだ標準入力（速い経路が受け持たなかったとき。t769） */
+export async function runBundled(
+  entry: string,
+  opts: { stdinText?: string } = {},
+): Promise<number> {
   setBundleLayout({ entry, guideDir: resolve(dirname(entry), ".."), version: __DG_VERSION__ });
-  return main(process.argv.slice(2));
+  return main(process.argv.slice(2), opts);
 }

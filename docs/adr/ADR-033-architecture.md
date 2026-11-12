@@ -36,7 +36,7 @@ CLI・MCP・HTTP・VS Code 拡張という複数の入口から同じ機能を�
 - CLI のサブコマンドとヘルプ、HTTP のエンドポイント、Webview のメッセージ、MCP のツール定義は、この定義から生成する。入口にロジックを書かない
 - MCP（`dg mcp`）は `cli` に置き、同じコマンド定義を主体 agent で写す（範囲は AG-4）
 - 例外は AG-4 の CLI だけの操作で、`core/commands` に置かず `cli` に置く
-- もう 1 つの例外は、ツールを使う前のフック（PreToolUse）の速い経路。`bin/dg.js` は `dg hooks install` が書くその呼び出しを、CLI の全体（core の入口・zod・yaml・commander）を読まずに、core の別の入口 `@deguboard/core/fast-hook` で処理する。記録と判定は `dg hook` と同じ関数を呼び、受け持たない入力は今の経路に回す。速い経路が読むファイルは node の組み込みと依存の軽いファイルに限る（一覧と確かめ方は `packages/cli/src/fast-hook.test.ts`）
+- もう 1 つの例外は、ツールを使う前のフック（PreToolUse）の速い経路。`bin/dg.js` と、VS Code 拡張に同梱した `dist/cli/dg.mjs` の入口（`bundle.ts`）は、`dg hooks install` が書くその呼び出しを、CLI の全体（core の入口・zod・yaml・commander）を読まずに、core の別の入口 `@deguboard/core/fast-hook` で処理する。記録と判定は `dg hook` と同じ関数を呼び、受け持たない入力は今の経路に回す。速い経路が読むファイルは node の組み込みと依存の軽いファイルに限る（一覧と確かめ方は `packages/cli/src/fast-hook.test.ts`。同梱の chunk は `packages/vscode/src/bundle-cli.test.ts`）
 - UI は `CommandClient`（コマンド名と入力を渡して結果を受け取る 1 つのインターフェース）を通じて呼ぶ
 - 文脈の管理はプロセス内の `CommandClient` として core に 1 つ置き、`server` は HTTP に、`vscode` は Webview の postMessage に写す
 

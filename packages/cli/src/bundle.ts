@@ -3,6 +3,8 @@
 // Node のコンパイルキャッシュ（既定は一時ディレクトリの下）を有効にして、2 回目以降の起動で本体のコンパイルを省く（t767）。
 // キャッシュは有効にした後に読むモジュールにだけ効くので、本体を同じファイルに束ねると効かない。bin/dg.js と同じく、
 // 使えない Node（22.1 より前）や置き場所に書けないときは黙って飛ばす。拡張のコードはこのファイルを読み込まない（ADR-033）
+// PreToolUse の速い経路（t769）も本体より前に処理する。bin/dg.js と同じ tryFastHook を呼び、受け持たない入力は
+// 読んだ標準入力を添えて本体に回す。速い経路は本体と分けた小さな chunk（dg-fast-*.mjs）で、本体の chunk は読まない
 
 import module from "node:module";
 import { fileURLToPath } from "node:url";
@@ -12,5 +14,14 @@ try {
 } catch {
   // キャッシュは速さのための任意の機能なので、失敗しても起動は続ける
 }
-const { runBundled } = await import("./bundle-main.js");
-process.exitCode = await runBundled(fileURLToPath(import.meta.url));
+const { tryFastHook } = await import("./fast-hook.js");
+const fast = await tryFastHook(process.argv.slice(2));
+if (fast.handled) {
+  process.exitCode = fast.exitCode;
+} else {
+  const { runBundled } = await import("./bundle-main.js");
+  process.exitCode = await runBundled(
+    fileURLToPath(import.meta.url),
+    fast.stdin === undefined ? {} : { stdinText: fast.stdin },
+  );
+}
