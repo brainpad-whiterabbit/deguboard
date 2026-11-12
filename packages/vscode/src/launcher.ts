@@ -70,11 +70,14 @@ export function parseCurrent(text: string): Partial<Current> {
   return parsed;
 }
 
+function parseVersion(v: string): number[] | undefined {
+  return /^v?(\d+)\.(\d+)\.(\d+)/.exec(v.trim())?.slice(1).map(Number);
+}
+
 /** major.minor.patch を比べる。読めない版は undefined */
 export function compareVersions(a: string, b: string): number | undefined {
-  const parse = (v: string) => /^v?(\d+)\.(\d+)\.(\d+)/.exec(v.trim())?.slice(1).map(Number);
-  const x = parse(a);
-  const y = parse(b);
+  const x = parseVersion(a);
+  const y = parseVersion(b);
   if (!x || !y) return undefined;
   for (let i = 0; i < 3; i++) if (x[i] !== y[i]) return x[i]! - y[i]!;
   return 0;
@@ -93,7 +96,10 @@ export function shouldWriteCurrent(
   if (!existing?.version || !existing.node || !existing.dg) return true;
   if (!exists(existing.node) || !exists(existing.dg)) return true;
   const order = compareVersions(existing.version, mine.version);
-  return order === undefined || order <= 0;
+  // 読めないのが既存の版なら書き直す。自分の版が読めない（packageJSON に version がない）ときは、
+  // 生きている current の方が新しいかもしれないので残す
+  if (order === undefined) return parseVersion(existing.version) === undefined;
+  return order <= 0;
 }
 
 /**

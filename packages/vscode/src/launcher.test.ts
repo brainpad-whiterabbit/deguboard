@@ -134,6 +134,17 @@ describe("shouldWriteCurrent", () => {
       expect(shouldWriteCurrent({ version, node: "/n", dg: "/d" }, me, all), version).toBe(true);
     }
   });
+
+  it("自分の版が読めないときは、生きている current を書き換えない", () => {
+    const unknown = { ...me, version: "" };
+    expect(shouldWriteCurrent({ version: "0.22.0", node: "/n", dg: "/d" }, unknown, all)).toBe(
+      false,
+    );
+    expect(
+      shouldWriteCurrent({ version: "0.22.0", node: "/n", dg: "/d" }, unknown, (f) => f !== "/n"),
+    ).toBe(true);
+    expect(shouldWriteCurrent({ version: "dev", node: "/n", dg: "/d" }, unknown, all)).toBe(true);
+  });
 });
 
 describe("installLauncher", () => {
