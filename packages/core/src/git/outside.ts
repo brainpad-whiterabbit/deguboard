@@ -88,7 +88,7 @@ async function headOf(repo: GitRepo): Promise<string | undefined> {
 }
 
 /** 作業ツリーの変更のあるファイルと、その中身のハッシュ（消えたものは "deleted"）。無視したファイルは見ない */
-async function dirtyFiles(repo: GitRepo): Promise<Record<string, string>> {
+export async function dirtyFiles(repo: GitRepo): Promise<Record<string, string>> {
   const r = await git(repo, ["status", "--porcelain=v1", "-z", "--untracked-files=all"]);
   const entries = r.stdout.split("\0");
   const paths: string[] = [];

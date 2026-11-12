@@ -2,9 +2,11 @@
 
 import { mkdir, realpath, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { setTimeout as sleep } from "node:timers/promises";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { pathExists } from "../storage/exists.js";
 import { git } from "../../test/helpers/git-fixture.js";
-import { UsageError } from "../errors.js";
+import { OperationError, UsageError } from "../errors.js";
 import type { RunId } from "../model/run.js";
 import { resetGhCache } from "../git/facts.js";
 import { recordBaseline } from "../git/outside.js";
@@ -281,6 +283,192 @@ describe("チケットの流れ（照合と claim）", () => {
       resetGhCache();
     }
   });
+
+  it("sync が gh を待っている間もほかの書き込みは待たずに通り、照合はその後の最新の状態で判定し直して書く（t758）", async () => {
+    const f = await fixture();
+    const ctx = await initialized(f.cloneA, {}, { template: "software-development" });
+    await runCommand(ticketCreate, ctx, { title: "Slow PR" });
+    await runCommand(ticketCreate, ctx, { title: "Unclaimed" });
+    await runCommand(ticketClaim, ctx, { no_worktree: true, ticket: "t1", branch: "feat/t1-slow" });
+    await runCommand(ticketClaim, ctx, { no_worktree: true, ticket: "t2", branch: "feat/t2-gone" });
+    for (const b of ["feat/t1-slow", "feat/t2-gone"]) await git(f.cloneA, ["branch", b]);
+    await runCommand(commit, ctx, {});
+
+    // 偽の gh：t1 のブランチは started を置いてから release が置かれるまで（上限 15 秒）答えない。t2 は開いた PR #43 を返す
+    const started = path.join(f.root, "gh-started");
+    const release = path.join(f.root, "gh-release");
+    const bin = path.join(f.root, "fake-bin");
+    await mkdir(bin, { recursive: true });
+    await writeFile(
+      path.join(bin, "gh"),
+      [
+        "#!/bin/sh",
+        'case "$1" in --version) echo "gh version 0 (fake)"; exit 0;; esac',
+        'case "$3" in',
+        `  feat/t1-slow) : > '${started}'; i=0; while [ ! -f '${release}' ] && [ $i -lt 300 ]; do sleep 0.05; i=$((i+1)); done; echo '{"number":42,"state":"OPEN","isDraft":false,"mergedAt":null}';;`,
+        '  feat/t2-gone) echo \'{"number":43,"state":"OPEN","isDraft":false,"mergedAt":null}\';;',
+        '  *) echo "no pull requests found for branch $3" >&2; exit 1;;',
+        "esac",
+        "",
+      ].join("\n"),
+      { mode: 0o755 },
+    );
+    const savedPath = process.env["PATH"];
+    process.env["PATH"] = bin + path.delimiter + (savedPath ?? "");
+    resetGhCache();
+    try {
+      const syncing = runCommand(sync, ctx, {});
+      // sync が t1 の PR を gh で調べ始めるまで待つ
+      for (let i = 0; i < 300 && !(await pathExists(started)); i++) await sleep(50);
+      expect(await pathExists(started)).toBe(true);
+
+      // gh が答えない間に、別の文脈の起票と unclaim が通る（ロックを持たれていれば待ち時間の上限で落ちる）
+      const other = await openContext({ cwd: f.cloneA, actor: { kind: "human", user: "eiki" } });
+      const created = await runCommand(ticketCreate, other, { title: "During sync" });
+      expect(created.data.id).toBe("t3");
+      await runCommand(ticketClaim, other, {
+        no_worktree: true,
+        ticket: "t3",
+        branch: "feat/t3-new",
+      });
+      await runCommand(ticketUnclaim, other, { ticket: "t2" });
+      expect(await pathExists(release)).toBe(false);
+      await writeFile(release, "");
+
+      const synced = await syncing;
+      // t1 は PR で review に進む。t2 は集めた後に unclaim されたので、その PR の事実で書き戻さない
+      expect(synced.data.reconciled).toEqual([
+        { id: "t1", from: "in_progress", to: "review", when: ["pr_open", "!pr_draft"] },
+      ]);
+      expect(synced.data.pr_recorded).toEqual([{ id: "t1", pr: 42 }]);
+      expect(ctx.store.tickets.get("t2")?.data).toMatchObject({ status: "todo" });
+      expect(ctx.store.tickets.get("t2")?.data.pr).toBeUndefined();
+      expect(ctx.store.tickets.get("t3")?.data.title).toBe("During sync");
+      const log = (await git(ctx.repo.dataDir, ["log", "--format=%s"])).stdout.trim().split("\n");
+      expect(log[0]).toBe(
+        "Reconcile t1: in_progress → review (pr_open, !pr_draft). Record PR numbers: t1: #42",
+      );
+      // 集めたときに対象でなかった t3（ロックの間に claim した）は照合せずに次の sync に回す。unclaim で作業ブランチのなくなった t2 は対象でない
+      expect(synced.warnings.filter((w) => /^t\d+:/.test(w))).toEqual([
+        "t3: the facts of its work branch were not read for its current state, so it is reconciled at the next sync",
+      ]);
+      expect(ctx.store.tickets.get("t3")?.data).toMatchObject({ status: "in_progress" });
+      // 照合のコミットは照合が書いたファイルだけを入れる。ロックを放していた間にまとめ待ち（batch）になった t2 の unclaim は、
+      // 照合のメッセージでコミットせずに残す
+      const files = (
+        await git(ctx.repo.dataDir, ["show", "--name-only", "--format=", "HEAD"])
+      ).stdout.trim();
+      expect(files.split("\n")).toEqual([expect.stringContaining("t1")]);
+      expect(synced.data.status).toMatchObject({ ahead: 0, dirty: true });
+    } finally {
+      await writeFile(release, "");
+      process.env["PATH"] = savedPath;
+      resetGhCache();
+    }
+  }, 30_000);
+
+  it("sync が gh を待つ間に dg の外の変更が入ると、照合を書かずに取り込みの結果と照合を飛ばした理由を返す（t758）", async () => {
+    const f = await fixture();
+    const ctx = await initialized(f.cloneA, {}, { template: "software-development" });
+    await runCommand(ticketCreate, ctx, { title: "Slow PR" });
+    await runCommand(ticketClaim, ctx, { no_worktree: true, ticket: "t1", branch: "feat/t1-slow" });
+    await git(f.cloneA, ["branch", "feat/t1-slow"]);
+    await runCommand(commit, ctx, {});
+
+    // 偽の gh：started を置いてから release が置かれるまで（上限 15 秒）答えず、開いた PR #42 を返す
+    const started = path.join(f.root, "gh-started");
+    const release = path.join(f.root, "gh-release");
+    const bin = path.join(f.root, "fake-bin");
+    await mkdir(bin, { recursive: true });
+    await writeFile(
+      path.join(bin, "gh"),
+      [
+        "#!/bin/sh",
+        'case "$1" in --version) echo "gh version 0 (fake)"; exit 0;; esac',
+        `: > '${started}'; i=0; while [ ! -f '${release}' ] && [ $i -lt 300 ]; do sleep 0.05; i=$((i+1)); done`,
+        'echo \'{"number":42,"state":"OPEN","isDraft":false,"mergedAt":null}\'',
+        "",
+      ].join("\n"),
+      { mode: 0o755 },
+    );
+    const savedPath = process.env["PATH"];
+    process.env["PATH"] = bin + path.delimiter + (savedPath ?? "");
+    resetGhCache();
+    try {
+      const syncing = runCommand(sync, ctx, {});
+      for (let i = 0; i < 300 && !(await pathExists(started)); i++) await sleep(50);
+      expect(await pathExists(started)).toBe(true);
+      // gh が答えない間に、dg を通さずにデータのリポジトリへファイルを置く
+      await writeFile(path.join(ctx.repo.dataDir, "stray.md"), "outside\n");
+      await writeFile(release, "");
+
+      const synced = await syncing;
+      expect(synced.data.fetched).toBe(true);
+      expect(synced.data.reconciled).toEqual([]);
+      expect(synced.data.pr_recorded).toEqual([]);
+      expect(synced.warnings).toContainEqual(
+        expect.stringContaining("The pull was done, but the reconcile was skipped"),
+      );
+      expect(ctx.store.tickets.get("t1")?.data).toMatchObject({ status: "in_progress" });
+    } finally {
+      await writeFile(release, "");
+      process.env["PATH"] = savedPath;
+      resetGhCache();
+    }
+  }, 30_000);
+
+  it("照合のロックを取った後に照合の書き込みが失敗すると、sync は照合を飛ばしたと言わずに失敗する（t758）", async () => {
+    const f = await fixture();
+    const ctx = await initialized(f.cloneA, {}, { template: "software-development" });
+    await runCommand(ticketCreate, ctx, { title: "Slow PR" });
+    await runCommand(ticketClaim, ctx, { no_worktree: true, ticket: "t1", branch: "feat/t1-slow" });
+    await git(f.cloneA, ["branch", "feat/t1-slow"]);
+    await runCommand(commit, ctx, {});
+
+    // 偽の gh：started を置いてから release が置かれるまで（上限 15 秒）答えず、開いた PR #42 を返す
+    const started = path.join(f.root, "gh-started");
+    const release = path.join(f.root, "gh-release");
+    const bin = path.join(f.root, "fake-bin");
+    await mkdir(bin, { recursive: true });
+    await writeFile(
+      path.join(bin, "gh"),
+      [
+        "#!/bin/sh",
+        'case "$1" in --version) echo "gh version 0 (fake)"; exit 0;; esac',
+        `: > '${started}'; i=0; while [ ! -f '${release}' ] && [ $i -lt 300 ]; do sleep 0.05; i=$((i+1)); done`,
+        'echo \'{"number":42,"state":"OPEN","isDraft":false,"mergedAt":null}\'',
+        "",
+      ].join("\n"),
+      { mode: 0o755 },
+    );
+    const savedPath = process.env["PATH"];
+    process.env["PATH"] = bin + path.delimiter + (savedPath ?? "");
+    resetGhCache();
+    const original = ctx.store.update.bind(ctx.store);
+    const update = vi.spyOn(ctx.store, "update");
+    try {
+      const syncing = runCommand(sync, ctx, {});
+      for (let i = 0; i < 300 && !(await pathExists(started)); i++) await sleep(50);
+      expect(await pathExists(started)).toBe(true);
+      // gh が答えない間に、照合の書き込みを「ファイルを書いてから OperationError で失敗する」ものに替える。
+      // ロックの前の検査（外の変更・rebase）は通り、照合が t1 を書いた後に失敗する
+      update.mockImplementation(async (...args) => {
+        await original(...args);
+        throw new OperationError("VALIDATION_FAILED", "injected failure after the write");
+      });
+      await writeFile(release, "");
+
+      await expect(syncing).rejects.toMatchObject({
+        code: "VALIDATION_FAILED",
+        message: "injected failure after the write",
+      });
+    } finally {
+      update.mockRestore();
+      await writeFile(release, "");
+      process.env["PATH"] = savedPath;
+      resetGhCache();
+    }
+  }, 30_000);
 
   it("照合は claim より前にマージされた同じブランチ名の PR を根拠にせず、claim の後にマージした PR では done にして pr を記録する（t206）", async () => {
     const f = await fixture();
